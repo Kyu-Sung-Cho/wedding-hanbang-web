@@ -50,6 +50,7 @@ import PendingAmoraActionCard, {
   getPendingAmoraAction,
   getPendingAmoraActionCarryCount,
   getPendingAmoraBudgetImpactPreview,
+  isPendingAmoraActionContinuedInMessage,
   isPendingAmoraActionExpired,
 } from "@/components/app/chat/PendingAmoraActionCard";
 import {
@@ -95,6 +96,8 @@ type CommunityDraftPrivacyMode = "shared" | "redacted_private";
 const MAX_ATTACHMENTS = CHAT_ATTACHMENT_MAX_COUNT;
 // 메시지 수가 이 이상이면 새 채팅 시작 안내
 const NEW_CHAT_THRESHOLD = 200;
+/** 말풍선 색 안내를 닫은 계정. 뒤에 사용자 id 를 붙인다. */
+const ROLE_COLOR_HINT_STORAGE_PREFIX = "hanbang:chat-role-color-hint-dismissed:";
 
 // 허용 파일 타입
 const ALLOWED_TYPES = CHAT_ATTACHMENT_TYPE_INFO;
@@ -698,6 +701,36 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
   const dismissNewChatBanner = useCallback(() => {
     setDismissedNewChatSegments(current => new Set(current).add(newChatSegmentKey));
   }, [newChatSegmentKey]);
+  /**
+   * 말풍선 색 안내 한 줄.
+   *
+   * 말풍선 색은 본인이 설정에서 고른 표시 역할(confirmed_role)로만 정한다. 가입 순서로
+   * 추측하지 않으므로, 고르기 전에는 두 사람의 말풍선이 같은 중립색이다. 그 이유와 바꾸는
+   * 곳을 **고르지 않은 사람에게만** 조용히 한 번 알려주고, 닫으면 그 계정에서는 다시
+   * 보이지 않는다(브라우저 저장이 막혀 있으면 이번 화면에서만 닫힌다).
+   */
+  const viewerId = profile?.id ?? null;
+  const viewerHasConfirmedRole = profile?.confirmed_role === "bride" || profile?.confirmed_role === "groom";
+  const [roleColorHint, setRoleColorHint] = useState<{ userId: string; dismissed: boolean } | null>(null);
+  useEffect(() => {
+    if (!viewerId) return;
+    let dismissed = false;
+    try {
+      dismissed = window.localStorage.getItem(`${ROLE_COLOR_HINT_STORAGE_PREFIX}${viewerId}`) === "1";
+    } catch {
+      dismissed = false;
+    }
+    setRoleColorHint({ userId: viewerId, dismissed });
+  }, [viewerId]);
+  const dismissRoleColorHint = useCallback(() => {
+    if (!viewerId) return;
+    setRoleColorHint({ userId: viewerId, dismissed: true });
+    try {
+      window.localStorage.setItem(`${ROLE_COLOR_HINT_STORAGE_PREFIX}${viewerId}`, "1");
+    } catch {
+      // 저장이 막힌 브라우저에서도 이번 화면에서는 닫는다.
+    }
+  }, [viewerId]);
   const hasLinkedPartnerRef = useRef(hasLinkedPartner);
   const linkedPartnerIdRef = useRef(linkedPartnerId);
   const partnerComposerEpochRef = useRef(0);
@@ -3080,6 +3113,34 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
           </div>
         )}
 
+        {/* 말풍선 색 안내 — 함께 대화 탭, 상대가 연결돼 있고 내가 역할을 고르지 않았을 때만 */}
+        {activeTab === "shared" && !isDemo && viewerId && partner?.id && !viewerHasConfirmedRole
+          && roleColorHint?.userId === viewerId && !roleColorHint.dismissed && (
+          <div
+            data-testid="chat-role-color-hint"
+            className="mb-2 flex items-center gap-2 px-3 py-1.5 text-[12.5px] leading-relaxed text-[var(--hb-text-muted)]"
+          >
+            <p className="min-w-0 flex-1">
+              설정에서 나의 역할을 신랑·신부로 고르면 내 말풍선이 색으로 구분돼요{" · "}
+              <Link
+                href={weddingPath("/settings#wedding-role")}
+                className="underline text-[var(--hb-accent-hover)]"
+              >
+                역할 고르기
+              </Link>
+            </p>
+            <Button
+              variant="icon"
+              size="sm"
+              label="말풍선 색 안내 닫기"
+              onClick={dismissRoleColorHint}
+              className="flex-shrink-0"
+            >
+              <X className="h-3.5 w-3.5" aria-hidden="true" />
+            </Button>
+          </div>
+        )}
+
         {/* Private 탭 안내 (탭 들어가면 항상 보임) */}
         {activeTab === "private" && (
           <div className="mb-2 px-3 py-2.5 rounded-[6px] bg-[#5a6147]/8 border border-[#5a6147]/20 flex items-start gap-2 text-[12.5px] text-[#5a6147] leading-relaxed">
@@ -3132,12 +3193,13 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
               .slice(-3)
               .map((m) => m.id)
           );
-          const latestSharedMessageId = [...messages]
+          const latestSharedMessage = [...messages]
             .reverse()
             .find((message) => (
               message.visibility === "shared"
               && message.metadata?.target !== "partner"
-            ))?.id ?? null;
+            )) ?? null;
+          const latestSharedMessageId = latestSharedMessage?.id ?? null;
           // 이미 적용된 카드를 가려낸다. 서버가 사용자 확인 행에
           // `confirmed_amora_action_id` 를 남기므로 새로고침해도 유지된다 —
           // 클라이언트 상태로 들고 있으면 새로고침 한 번에 "적용할 수 없어요" 로
@@ -3226,6 +3288,11 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
             const pendingActionCarryCount = pendingAction
               ? getPendingAmoraActionCarryCount(msg)
               : 0;
+            // 같은 제안이 최신 공유 답변으로 옮겨졌는가(2026-09-15). 옮겨졌으면 이 카드는
+            // "적용할 수 없어요" 대신 아래 카드를 가리키고 버튼을 거둔다 — 사이드 패널과 같은 판정.
+            const pendingActionContinuesInLatest = pendingAction
+              ? isPendingAmoraActionContinuedInMessage(latestSharedMessage, pendingAction)
+              : false;
 
             return (
               <div
@@ -3296,6 +3363,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
                     isApplying={applyingPendingActionId === pendingAction.actionId}
                     partnerLinked={Boolean(partner)}
                     carryCount={pendingActionCarryCount}
+                    continuesInLatestReply={pendingActionContinuesInLatest}
                     onApply={(actionId) => void applyPendingAmoraAction(actionId)}
                     onDismiss={() => dismissPendingAmoraAction(pendingAction.actionId)}
                   />
@@ -3366,7 +3434,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
           const label = typingIsPartner ? (partner?.name ?? "파트너") : "파트너";
           return (
             <div className="animate-fade-in flex items-center gap-2 px-3">
-              <ProfileAvatar name={label} avatarUrl={typingIsPartner ? partner?.avatar_url : null} size={36} />
+              <ProfileAvatar name={typingIsPartner ? partner?.name : null} label={label} avatarUrl={typingIsPartner ? partner?.avatar_url : null} size={36} />
               <div className="bg-white border border-black/[0.06] rounded-[6px] rounded-tl-md px-4 py-3 shadow-sm flex items-center gap-1.5">
                 <span className="text-[13px] text-[var(--hb-text-muted)]">{label} 입력 중</span>
                 <span className="flex items-center gap-0.5">

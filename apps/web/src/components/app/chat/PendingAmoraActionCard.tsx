@@ -173,6 +173,37 @@ export function getPendingAmoraActionCarryCount(message: ChatMessage): number {
   return value;
 }
 
+/**
+ * **최신 답변으로 옮겨진 뒤 원래 자리에 남은 카드의 안내** (2026-09-15).
+ *
+ * 확인하지 않은 카드는 다음 답변으로 같은 `actionId` 그대로 옮겨진다(`route.ts` 의
+ * 캐리포워드). 사용자가 버튼 대신 "응 적용해줘" 라고 치면 아모라는 "아래 카드에서
+ * 확인해 주세요" 라고 답하는데, 원래 자리의 카드에는 "새 대화가 이어져 이 제안은 적용할
+ * 수 없어요" 가 떠 있었다 — 같은 제안이 한쪽에서는 된다고, 다른 쪽에서는 안 된다고 했다.
+ *
+ * 옮겨진 것이 확인될 때만 이 문장을 쓰고 버튼을 거둔다. 누를 곳은 한 군데여야 한다.
+ */
+export const CONTINUED_PENDING_ACTION_COPY =
+  "같은 제안이 아래 최신 답변으로 옮겨졌어요. 그 카드에서 확인할 수 있어요.";
+
+/**
+ * 최신 공유 메시지가 **이 카드와 같은 제안**을 들고 있는가.
+ *
+ * 서버가 옮긴 카드는 `actionId`·`inputDigest` 가 원본과 같다. 둘 다 같을 때만 참이다 —
+ * 다르면 옮겨진 것이 아니라 다른 제안이므로, 원래의 "적용할 수 없어요" 가 맞다.
+ * 메시지 경계는 `getPendingAmoraAction` 이 그대로 검증한다(공유 AI 메시지만).
+ */
+export function isPendingAmoraActionContinuedInMessage(
+  latestSharedMessage: ChatMessage | null | undefined,
+  action: PendingAmoraAction,
+): boolean {
+  if (!latestSharedMessage) return false;
+  const latestAction = getPendingAmoraAction(latestSharedMessage);
+  return latestAction !== null
+    && latestAction.actionId === action.actionId
+    && latestAction.inputDigest === action.inputDigest;
+}
+
 export function getPendingAmoraBudgetImpactPreview(
   message: ChatMessage,
   action: PendingAmoraAction,
@@ -274,6 +305,13 @@ interface PendingAmoraActionCardProps {
    * 기본값 0 은 안전한 쪽이 아니라 **오늘까지의 모양**이다.
    */
   carryCount?: number;
+  /**
+   * 최신 공유 메시지가 이 카드와 같은 제안을 들고 있는가
+   * (`isPendingAmoraActionContinuedInMessage`). `not_latest` 일 때만 쓰인다 —
+   * 그때 "적용할 수 없어요" 대신 옮겨진 카드를 가리키고 버튼을 거둔다.
+   * 기본값 false 는 오늘까지의 모양이다.
+   */
+  continuesInLatestReply?: boolean;
   onApply: (actionId: string) => void;
   onDismiss: () => void;
 }
@@ -405,12 +443,22 @@ export default function PendingAmoraActionCard({
   // 없는 사람에게 알림이 간다고 말하는 것보다 낫다.
   partnerLinked = false,
   carryCount = 0,
+  continuesInLatestReply = false,
   onApply,
   onDismiss,
 }: PendingAmoraActionCardProps) {
   const [reviewedActionKey, setReviewedActionKey] = useState<string | null>(null);
   const actionKey = `${messageId}:${action.actionId}:${action.inputDigest}`;
-  const reviewOpen = reviewedActionKey === actionKey && disabledReason !== "applied";
+  // 같은 제안이 최신 답변으로 옮겨졌는가. 적용됨·만료는 옮겨졌어도 그 말이 먼저다.
+  const movedToLatestReply = continuesInLatestReply && disabledReason === "not_latest";
+  const statusCopy = movedToLatestReply
+    ? CONTINUED_PENDING_ACTION_COPY
+    : disabledReason
+      ? DISABLED_COPY[disabledReason]
+      : null;
+  const reviewOpen = reviewedActionKey === actionKey
+    && disabledReason !== "applied"
+    && !movedToLatestReply;
   const mutationInFlight = useRef(false);
   const approvalPolicy = getAmoraActionApprovalPolicy(action.tool, action.input);
   const requiresCoupleApproval = approvalPolicy === "couple";
@@ -712,10 +760,11 @@ export default function PendingAmoraActionCard({
     <>
     <section
       data-pending-action-carried={isCarriedForward ? "true" : "false"}
+      data-pending-action-continued={movedToLatestReply ? "true" : undefined}
       aria-labelledby={isCarriedForward ? `${carryLabelId} ${titleId}` : titleId}
       aria-describedby={`${detailId}${
         showsPastDateNotice ? ` ${pastDateId}` : ""
-      }${disabledReason ? ` ${statusId}` : ""}${
+      }${statusCopy ? ` ${statusId}` : ""}${
         approvalCopy ? ` ${approvalStatusId}` : ""
       }`}
       className={`amora-workspace ml-11 mt-2 max-w-[94%] rounded-[14px] p-4 shadow-[var(--shadow-raised)] sm:ml-14 sm:max-w-[53.75rem] ${
@@ -778,9 +827,9 @@ export default function PendingAmoraActionCard({
         </p>
       )}
 
-      {disabledReason && (
+      {statusCopy && (
         <p id={statusId} role="status" className="mt-3 text-xs leading-5 text-[var(--hb-accent-hover)]">
-          {DISABLED_COPY[disabledReason]}
+          {statusCopy}
         </p>
       )}
 
@@ -799,60 +848,67 @@ export default function PendingAmoraActionCard({
         </div>
       )}
 
-      <div className="mt-3 flex flex-col gap-2 sm:flex-row">
-        <button
-          type="button"
-          onClick={() => setReviewedActionKey(actionKey)}
-          disabled={disabled}
-          aria-label="변경 내용 확인하기"
-          aria-haspopup="dialog"
-          aria-expanded={reviewOpen}
-          className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-xl bg-[var(--amora-action)] px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[var(--amora-action-hover)] disabled:cursor-not-allowed disabled:opacity-45"
-        >
-          {approvalMutation === "confirm" || loadingApproval ? (
-            <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
-          ) : (
-            <Check className="h-4 w-4" aria-hidden="true" />
-          )}
-          {isApplying || isSavingApproval || loadingApproval || waitingForPartner ? applyLabel : "내용 확인하기"}
-        </button>
-        {canWithdrawApproval && (
+      {/*
+        옮겨진 카드에는 버튼을 두지 않는다. 누를 곳은 최신 답변의 카드 한 군데다 —
+        여기서 "지금은 적용하지 않기" 를 누르면 아래 카드까지 함께 치워져, 방금 아모라가
+        가리킨 버튼이 사라진다.
+      */}
+      {!movedToLatestReply && (
+        <div className="mt-3 flex flex-col gap-2 sm:flex-row">
           <button
             type="button"
-            onClick={() => void withdrawApproval()}
-            disabled={isSavingApproval}
-            aria-label="내 공동 변경 확인 취소"
-            className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-[6px] border border-[#D8C7BB] bg-white px-4 py-2.5 text-sm font-medium text-[var(--hb-accent-hover)] transition-colors hover:bg-[#F8F4F0] disabled:cursor-not-allowed disabled:opacity-50"
+            onClick={() => setReviewedActionKey(actionKey)}
+            disabled={disabled}
+            aria-label="변경 내용 확인하기"
+            aria-haspopup="dialog"
+            aria-expanded={reviewOpen}
+            className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-xl bg-[var(--amora-action)] px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[var(--amora-action-hover)] disabled:cursor-not-allowed disabled:opacity-45"
           >
-            {approvalMutation === "withdraw" ? (
+            {approvalMutation === "confirm" || loadingApproval ? (
               <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
             ) : (
-              <RotateCcw className="h-4 w-4" aria-hidden="true" />
+              <Check className="h-4 w-4" aria-hidden="true" />
             )}
-            {approvalMutation === "withdraw" ? "취소 중…" : "내 확인 취소"}
+            {isApplying || isSavingApproval || loadingApproval || waitingForPartner ? applyLabel : "내용 확인하기"}
           </button>
-        )}
-        {/*
-          보이는 글자와 접근성 이름을 같게 둔다. 예전에는 보이는 글자가 "이번 화면에서
-          숨기기" 인데 이름은 "…에서**만** 숨기기" 라 이름이 보이는 글자를 담지 못했다
-          (WCAG 2.5.3 Label in Name). 음성으로 보이는 대로 부르면 그 버튼이 안 잡힌다.
+          {canWithdrawApproval && (
+            <button
+              type="button"
+              onClick={() => void withdrawApproval()}
+              disabled={isSavingApproval}
+              aria-label="내 공동 변경 확인 취소"
+              className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-[6px] border border-[#D8C7BB] bg-white px-4 py-2.5 text-sm font-medium text-[var(--hb-accent-hover)] transition-colors hover:bg-[#F8F4F0] disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {approvalMutation === "withdraw" ? (
+                <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+              ) : (
+                <RotateCcw className="h-4 w-4" aria-hidden="true" />
+              )}
+              {approvalMutation === "withdraw" ? "취소 중…" : "내 확인 취소"}
+            </button>
+          )}
+          {/*
+            보이는 글자와 접근성 이름을 같게 둔다. 예전에는 보이는 글자가 "이번 화면에서
+            숨기기" 인데 이름은 "…에서**만** 숨기기" 라 이름이 보이는 글자를 담지 못했다
+            (WCAG 2.5.3 Label in Name). 음성으로 보이는 대로 부르면 그 버튼이 안 잡힌다.
 
-          문구는 모바일(`app/(tabs)/chat.tsx`)에 맞춘다. 같은 카드인데 웹은 "이번 화면에서
-          숨기기", 모바일은 "지금은 적용하지 않기" 로 갈려 있었다. 모바일 쪽이 하는 일을
-          더 정확히 말한다 — 이 버튼은 결정을 저장하지 않고 화면에서만 치우며, 다음
-          답변에 같은 카드가 다시 붙는다(route.ts 의 캐리포워드).
-        */}
-        <button
-          type="button"
-          onClick={onDismiss}
-          disabled={disabledReason === "applied" || isApplying || isSavingApproval}
-          aria-label="지금은 적용하지 않기"
-          className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-[6px] border border-[#D8C7BB] bg-white px-4 py-2.5 text-sm font-medium text-[var(--hb-text-body)] transition-colors hover:bg-[#F8F4F0] disabled:cursor-not-allowed disabled:opacity-50"
-        >
-          <X className="h-4 w-4" aria-hidden="true" />
-          지금은 적용하지 않기
-        </button>
-      </div>
+            문구는 모바일(`app/(tabs)/chat.tsx`)에 맞춘다. 같은 카드인데 웹은 "이번 화면에서
+            숨기기", 모바일은 "지금은 적용하지 않기" 로 갈려 있었다. 모바일 쪽이 하는 일을
+            더 정확히 말한다 — 이 버튼은 결정을 저장하지 않고 화면에서만 치우며, 다음
+            답변에 같은 카드가 다시 붙는다(route.ts 의 캐리포워드).
+          */}
+          <button
+            type="button"
+            onClick={onDismiss}
+            disabled={disabledReason === "applied" || isApplying || isSavingApproval}
+            aria-label="지금은 적용하지 않기"
+            className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-[6px] border border-[#D8C7BB] bg-white px-4 py-2.5 text-sm font-medium text-[var(--hb-text-body)] transition-colors hover:bg-[#F8F4F0] disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            <X className="h-4 w-4" aria-hidden="true" />
+            지금은 적용하지 않기
+          </button>
+        </div>
+      )}
     </section>
     {reviewOpen && (
       <AmoraSaveSheet
@@ -866,7 +922,7 @@ export default function PendingAmoraActionCard({
         applyLabel={applyLabel}
         applyAriaLabel={applyAriaLabel}
         error={approvalError}
-        notice={disabledReason ? DISABLED_COPY[disabledReason] : approvalCopy}
+        notice={statusCopy ?? approvalCopy}
         onConfirm={() => void confirmOrApply()}
         onClose={() => {
           if (!mutationInFlight.current && !isApplying) setReviewedActionKey(null);

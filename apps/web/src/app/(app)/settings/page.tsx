@@ -627,7 +627,7 @@ export default function SettingsPage() {
         className="bg-white rounded-[6px] shadow-[var(--shadow-raised)] p-5 sm:p-8 mb-6"
       >
         <div className="flex flex-wrap items-center gap-4 mb-3">
-          <ProfileAvatar name={userName} avatarUrl={profile?.avatar_url} size={80} />
+          <ProfileAvatar name={profile?.name} label={userName} avatarUrl={profile?.avatar_url} size={80} />
           <div className="min-w-0 flex-1 basis-40">
             {editingName ? (
               <div>
@@ -669,7 +669,10 @@ export default function SettingsPage() {
               </div>
             )}
             <p className="break-all text-base text-[var(--hb-text-body)] font-light mt-1">{userEmail}</p>
-            <ProfileWeddingRoleEditor />
+            {/* 채팅의 말풍선 색 안내가 이 자리로 바로 연결한다. */}
+            <div id="wedding-role" className="scroll-mt-24">
+              <ProfileWeddingRoleEditor />
+            </div>
           </div>
         </div>
 
@@ -955,7 +958,7 @@ export default function SettingsPage() {
 
           {phase === "linked" ? (
             <div className="flex items-center gap-3 p-4 rounded-[6px] bg-white shadow-sm">
-              <ProfileAvatar name={partnerName} avatarUrl={partner?.avatar_url} size={48} />
+              <ProfileAvatar name={partnerName} label={partnerName ?? "파트너"} avatarUrl={partner?.avatar_url} size={48} />
               <div className="flex-1">
                 <p className="text-base text-[var(--hb-text-strong)] font-medium">{partnerName ?? "파트너"}</p>
                 <p className="text-sm text-[#2E7D5A]">{partnerRole ? `${partnerRole} · ` : ""}연동 완료</p>

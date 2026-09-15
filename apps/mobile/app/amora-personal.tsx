@@ -34,7 +34,8 @@ export default function AmoraPersonalScreen() {
       </View>)}
       {data.actions.length > 0 && <Text style={styles.hint}>전체 {data.count}개 중 {data.actions.length}개 표시</Text>}
       {!!data.nextCursor && <Pressable accessibilityRole="button" disabled={data.loading} onPress={() => void data.session.load(data.nextCursor ?? undefined)} style={styles.button}><Text>개인 할 일 더 보기</Text></Pressable>}
-      <Pressable accessibilityRole="button" onPress={() => router.push("/(tabs)/chat")} style={styles.button}><Text>아모라 대화로 돌아가기</Text></Pressable>
+      {/* 루트 Stack 화면이라 push 는 (tabs)를 한 벌 더 쌓아 채팅 화면이 둘 뜬다. 기존 (tabs)로 돌아간다. */}
+      <Pressable accessibilityRole="button" onPress={() => router.dismissTo("/(tabs)/chat")} style={styles.button}><Text>아모라 대화로 돌아가기</Text></Pressable>
     </ScrollView>
   </SafeAreaView>;
 }

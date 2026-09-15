@@ -2,6 +2,7 @@ import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { CATEGORY_CHECKLISTS } from "@/constants/checklists";
+import { PREPARATION_PROGRESS_STATUS_LABELS } from "@hanbang/shared";
 import { PLANNING_CATEGORY_LABELS } from "@/constants/planningCategories";
 import BudgetTab from "./BudgetTab";
 
@@ -17,7 +18,7 @@ function row(label: string) {
   return labelNode!.parentElement!.parentElement!;
 }
 async function showCompleted() {
-  const trigger = Array.from(container.querySelectorAll("button")).find((node) => node.textContent?.includes("완료·해당 없음"));
+  const trigger = Array.from(container.querySelectorAll("button")).find((node) => node.textContent?.includes("완료·안 해요"));
   expect(trigger).toBeDefined();
   await act(async () => trigger!.click());
 }
@@ -73,7 +74,8 @@ describe("the chat budget panel reflects recorded journey allocations", () => {
     await act(async () => root.render(<BudgetTab />));
     await showCompleted();
     expect(row(categoryLabel("venue")).textContent).toContain("배정 1,200만원");
-    expect(row(categoryLabel("venue")).textContent).toContain("해당 없음");
+    expect(row(categoryLabel("venue")).textContent).toContain(PREPARATION_PROGRESS_STATUS_LABELS.not_applicable);
+    expect(row(categoryLabel("venue")).textContent).not.toContain("해당 없음");
     expect(row(categoryLabel("venue")).textContent).not.toContain("완료");
   });
 
@@ -95,6 +97,17 @@ describe("the chat budget panel reflects recorded journey allocations", () => {
     expect(row(categoryLabel("venue")).textContent).toContain("배정 5,000원");
     expect(row(categoryLabel("venue")).textContent).toContain("기록 14,999원");
     expect(container.textContent).toContain("기록 지출14,999원");
+  });
+
+  it("names every status with the same words as the budget page", async () => {
+    fixture.journey.progress = {
+      venue: { category: "venue", status: "in_progress", budget: 1_000_000 },
+      studio: { category: "studio", status: "not_started", budget: 1_000_000 },
+    };
+    await act(async () => root.render(<BudgetTab />));
+    expect(row(categoryLabel("venue")).textContent).toContain(PREPARATION_PROGRESS_STATUS_LABELS.in_progress);
+    expect(row(categoryLabel("studio")).textContent).toContain(PREPARATION_PROGRESS_STATUS_LABELS.not_started);
+    expect(container.textContent).not.toMatch(/진행중|시작전|해당 없음/);
   });
 
   it("uses a human label for custom allocations whose display name is missing", async () => {

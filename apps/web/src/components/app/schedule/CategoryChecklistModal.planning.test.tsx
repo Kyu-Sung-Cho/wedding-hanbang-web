@@ -35,7 +35,7 @@ vi.mock("next/link", () => ({
 
 import CategoryChecklistModal from "./CategoryChecklistModal";
 import { CHECKLIST_MAP } from "@/constants/checklists";
-import { checklistItemTag, groupChecklistItems } from "@hanbang/shared/constants";
+import { checklistItemTag, groupChecklistItems, PREPARATION_PROGRESS_STATUS_LABELS } from "@hanbang/shared/constants";
 
 const testEnvironment = globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean };
 
@@ -244,6 +244,20 @@ describe("planning checklist sheet", () => {
     expect(dialog().textContent).not.toContain("다음 할 일");
     expect(dialog().querySelector('[role="progressbar"]')?.getAttribute("aria-valuenow")).toBeNull();
     expect(checkboxes().every(button => button.getAttribute("aria-checked") === "false")).toBe(true);
+  });
+
+  it.each([
+    ["not_started", undefined, "아직"],
+    ["in_progress", { category: "greeting", status: "in_progress", checklist: CHECKLIST_MAP.greeting.items.map((item, index) => ({ ...item, done: index === 0 })) }, "준비 중"],
+    ["completed", { category: "greeting", status: "completed" }, "완료"],
+    ["not_applicable", { category: "greeting", status: "not_applicable" }, "안 해요"],
+  ] as const)("names the %s status with the shared preparation label", async (status, saved, label) => {
+    if (saved) mocks.progress.greeting = saved as ProgressItem;
+    await render();
+    const chip = dialog().querySelector("h2")?.nextElementSibling?.firstElementChild;
+    expect(chip?.textContent).toBe(PREPARATION_PROGRESS_STATUS_LABELS[status]);
+    expect(chip?.textContent).toBe(label);
+    expect(dialog().textContent).not.toMatch(/진행 중|시작 전|해당 없음/);
   });
 
   it("keeps the conditional tag when a conditional item becomes next", async () => {

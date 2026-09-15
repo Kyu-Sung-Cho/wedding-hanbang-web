@@ -1,3 +1,4 @@
+import { getChecklistCategoryDueDday } from "@hanbang/shared/utils";
 import { CATEGORY_CHECKLISTS, CHECKLIST_MAP } from "@/constants/checklists";
 import { mergeChecklist, getChecklistCounts, resolveStatus } from "@/utils/checklist";
 import {
@@ -21,8 +22,14 @@ export interface ImminentCategory {
 
 /**
  * D-day 기준 임박 카테고리 계산
- * 마감일 = weddingDate - ddayDeadline (결혼식 N일 전까지 완료 권장)
- * 필터: status !== "completed" && 마감일까지 60일 이내
+ * 기본 확인일 = weddingDate - (아직 안 끝낸 항목 중 가장 이른 기본 확인 시점)
+ * 필터: status !== "completed" && 기본 확인일까지 60일 이내
+ *
+ * 분야의 `ddayDeadline` 하나로 세던 때는 촬영 뒤 사진 고르기·결혼식 직전 최종으로 입어 보기·
+ * 빌린 옷 돌려주기 같은 늦은 항목 하나만 남아도 그 분야가 결혼식 날까지 "지남"으로 떴다.
+ * 이제는 **남은 항목 각자의 시점**으로 센다(`getChecklistCategoryDueDday`). 아무것도
+ * 체크하지 않은 분야는 그 값이 `ddayDeadline`과 같아서 예전과 똑같이 보인다. 남은 항목이
+ * 전부 계약·약속으로 정한 날에 하는 일이면 알림에서 뺀다 — 앱이 그 날짜를 모른다.
  */
 export function getImminentCategories(
   progress: Record<string, ProgressItem>,
@@ -46,11 +53,20 @@ export function getImminentCategories(
     // 완료했거나 "해당 없음"으로 끈 항목은 마감 알림에서 제외한다.
     if (status === "completed" || status === "not_applicable") continue;
 
+    const template = CHECKLIST_MAP[cat.key];
+    const merged = template
+      ? mergeChecklist(template.items, item?.checklist, status)
+      : [];
+
+    // 남은 항목 중 가장 이른 기본 확인 시점. 시점은 템플릿에서 읽는다(저장 행에는 없다).
+    const dueDday = getChecklistCategoryDueDday(cat, merged);
+    if (dueDday === null) continue;
+
     const scheduledEvent = findCategoryScheduleEvent(events, cat.key, cat.label);
 
-    // 마감일 = 결혼일 - ddayDeadline일
+    // 기본 확인일 = 결혼일 - dueDday일
     const deadlineDate = new Date(weddingDate);
-    deadlineDate.setDate(deadlineDate.getDate() - cat.ddayDeadline);
+    deadlineDate.setDate(deadlineDate.getDate() - dueDday);
     deadlineDate.setHours(0, 0, 0, 0);
 
     const daysLeft = Math.round(
@@ -60,10 +76,6 @@ export function getImminentCategories(
     // 60일 이내만 표시
     if (daysLeft > 60) continue;
 
-    const template = CHECKLIST_MAP[cat.key];
-    const merged = template
-      ? mergeChecklist(template.items, item?.checklist, status)
-      : [];
     const { done, total } = getChecklistCounts(merged);
 
     let urgency: ImminentCategory["urgency"];

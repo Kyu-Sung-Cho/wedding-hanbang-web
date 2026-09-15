@@ -184,11 +184,11 @@ test("qa:merged가 qa:local의 검사 목록을 그대로 쓴다", async () => {
   }
 });
 
-test("공유 QA 목록은 CI와 같은 후속 삭제 경계 계약을 실제 검사하고 배포 인가로 표시하지 않는다", async () => {
+test("공유 QA 목록은 CI와 같은 후속 not_applicable 상태 계약을 실제 검사하고 배포 인가로 표시하지 않는다", async () => {
   const { checks } = await import("../verify-local.mjs");
   const fences = checks.filter(check => check.name === "supabase release fence");
   assert.equal(fences.length, 1);
-  assert.deepEqual(fences[0].args, ["pnpm", "supabase:release:fence", "--account-deletion-customer-data"]);
+  assert.deepEqual(fences[0].args, ["pnpm", "supabase:release:fence", "--amora-not-applicable-status"]);
   const { readFileSync } = await import("node:fs");
   const pkg = JSON.parse(readFileSync(path.join(repoRoot, "package.json"), "utf8"));
   assert.equal(pkg.scripts["supabase:release:fence"], "node ./scripts/supabase-release-fence.mjs");
@@ -197,7 +197,7 @@ test("공유 QA 목록은 CI와 같은 후속 삭제 경계 계약을 실제 검
   });
   assert.equal(result.error, undefined);
   assert.equal(result.status, 0, `${result.stdout}${result.stderr}`);
-  assert.match(result.stdout, /Account deletion customer-data expand contract verified/);
+  assert.match(result.stdout, /Amora not-applicable status contract verified \(233 exact SQL files;/);
   assert.match(result.stdout, /runtime evidence not verified; deployment not authorized; no remote writes/);
 });
 

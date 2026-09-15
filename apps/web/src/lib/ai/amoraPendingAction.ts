@@ -3,7 +3,7 @@ import { getAmoraPendingActionTtlMs } from "@/lib/ai/amoraActionApprovalPolicy";
 import { SERVER_OWNED_MISSING_CARD_NOTICE, SERVER_OWNED_UNVERIFIED_NOTICE } from "@/lib/ai/amoraPersistenceClaims";
 import { getAmoraToolOperationIdentity } from "@/lib/ai/amoraToolIdentity";
 import type { AiToolDefinition } from "@/lib/ai/toolDefinition";
-import { CATEGORY_LABELS as AMORA_CATEGORY_LABELS } from "@/lib/ai/tools/planningConstants";
+import { SCREEN_CATEGORY_LABELS } from "@/lib/ai/tools/planningConstants";
 import { CHECKLIST_MAP } from "@/constants/checklists";
 import { ymdInKst } from "@/lib/utils/kstDate";
 import { hasUnsupportedScheduleFields, UNSUPPORTED_SCHEDULE_FIELDS_NOTICE } from "@/lib/ai/amoraUnsupportedScheduleFields";
@@ -117,16 +117,26 @@ const ENUM_VALUE_LABELS: Readonly<Record<string, Readonly<Record<string, string>
     external_commitment: "업체·가족과의 약속",
   },
 };
+// 확인 카드는 사용자가 읽는 문장이라 예산·일정 화면과 같은 이름을 쓴다. 모델 문맥용
+// 원명칭(예단·폐백)은 여기 오지 않는다 — 카드의 "예단" 과 화면의 "두 가족에게 드릴 선물"
+// 이 같은 항목인지 사용자가 알 길이 없었다(2026-09-15).
 const CATEGORY_LABELS: Readonly<Record<string, string>> = {
   general: "일반",
   custom: "맞춤 항목",
-  ...AMORA_CATEGORY_LABELS,
+  ...SCREEN_CATEGORY_LABELS,
 };
-// 기존 발급문의 이름만 호환한다. 현재 화면 문구가 바뀌어도 허용값이 늘지 않게 고정한다.
-const LEGACY_CATEGORY_LABELS: Readonly<Record<string, string>> = {
+// 이미 발급된 확인문의 이름만 호환한다. 현재 화면 문구가 바뀌어도 허용값이 늘지 않게 고정한다.
+// 2026-09-08 이전 발급문: 화면 이름.
+const LEGACY_SCREEN_CATEGORY_LABELS: Readonly<Record<string, string>> = {
   ...CATEGORY_LABELS,
   yedan: "두 가족에게 드릴 선물",
   pyebaek: "결혼식 뒤 전통 인사",
+};
+// 2026-09-08 ~ 2026-09-15 발급문: 모델 문맥용 원명칭이 카드에도 실렸다.
+const LEGACY_DECISION_TERM_CATEGORY_LABELS: Readonly<Record<string, string>> = {
+  ...CATEGORY_LABELS,
+  yedan: "예단",
+  pyebaek: "폐백",
 };
 const WON_FIELDS = new Set(["total_budget", "budget", "spent"]);
 const INTERNAL_CONFIRMATION_FIELDS = new Set([
@@ -186,7 +196,7 @@ export function describeAmoraQueuedAction(
   now: number,
 ): string | null {
   const marker = validateMarker(value, allowedTools, now);
-  return marker?.confirmation.replace(/^다음 변경을 적용할까요\?\s*/u, "") ?? null;
+  return marker?.confirmation.replace(/^다음 (?:변경|예산안)을 적용할까요\?\s*/u, "") ?? null;
 }
 
 interface ExtractPendingActionInput {
@@ -194,6 +204,12 @@ interface ExtractPendingActionInput {
   allowedTools: readonly AiToolDefinition[];
   now: number;
   createActionId: () => string;
+  /**
+   * 카드를 만드는 시점에 저장된 총예산(원). 예산안 확인문의 "지금 → 바꿀 값" 줄에만 쓴다.
+   * 0 이하·없음이면 총예산을 아직 정하지 않은 것으로 보고 바꿀 값만 적는다.
+   * 표시 전용이다 — 적용 때의 기대값은 실행기가 그때의 정본 문맥으로 따로 대조한다.
+   */
+  currentTotalBudget?: number | null;
   /**
    * 커플의 저장된 일정 id. 주어지면 일정을 **가리키는** 제안(변경·취소·복원)은 이 안의
    * id 만 카드가 된다.
@@ -528,6 +544,7 @@ function validateMarker(
   value: unknown,
   tools: readonly AiToolDefinition[],
   now: number,
+  currentTotalBudget?: number | null,
 ): PendingActionMarker | null {
   if (!isRecord(value)) return null;
   if (typeof value.tool !== "string" || !isRecord(value.input)) return null;
@@ -562,7 +579,7 @@ function validateMarker(
   const validator = getValidator(tool);
   if (!validator || validator(input) !== true) return null;
 
-  const confirmation = formatCanonicalConfirmation(tool, input);
+  const confirmation = formatCanonicalConfirmation(tool, input, currentTotalBudget);
   if (!confirmation) return null;
 
   return { tool: value.tool, input, confirmation };
@@ -720,11 +737,160 @@ function resolveChecklistItemLabel(input: Record<string, unknown>): string | nul
   return typeof found?.label === "string" && found.label.trim() ? found.label : null;
 }
 
+/**
+ * 지금 발급하는 확인문. 예산안(명시 배분)만 전용 문장을 쓰고 나머지는 필드 목록이다.
+ */
 function formatCanonicalConfirmation(
   tool: AiToolDefinition,
   input: Record<string, unknown>,
-  categoryLabels: Readonly<Record<string, string>> = CATEGORY_LABELS,
-  toolLabels: Readonly<Record<string, string>> = TOOL_LABELS,
+  currentTotalBudget?: number | null,
+): string | null {
+  if (isExplicitBudgetPlan(tool.name, input)) {
+    return formatBudgetPlanConfirmation(input, currentTotalBudget);
+  }
+  return formatFieldListConfirmation(tool, input, CATEGORY_LABELS, TOOL_LABELS);
+}
+
+function isExplicitBudgetPlan(toolName: string, input: Record<string, unknown>): boolean {
+  return toolName === "apply_budget_plan" && input.allocation_mode === "explicit";
+}
+
+/**
+ * 예산안 확인문. (2026-09-15)
+ *
+ * 필드 목록으로 찍으면 이렇게 나갔다 — 같은 글이 아모라 말풍선·카드·확인 시트에 세 번:
+ *
+ *     - 변경: 예산 배분안 적용
+ *     - 총 예산: 3,500만 원
+ *     - 카테고리별 배분: 1) 카테고리: 한복, 예산: 150만 원, 배분 이유: "사용자가 정한 예산" / 2) …
+ *     - 배분 근거: "총예산을 3,500만 원으로 변경하고 …"
+ *
+ * 키 이름을 그대로 읽어 준 것이라 무엇이 바뀌는지 한눈에 안 들어온다. 그래서 항목마다
+ * 한 줄로 "화면 이름: 금액" 을 적는다. 모델이 쓴 `rationale`·`intake_summary` 는
+ * 적지 않는다 — 저장되지도 않고(실행기가 버린다), 사용자가 확인하는 대상도 아니다.
+ *
+ * 마지막 줄은 명시 배분 계약(`allocation_mode: "explicit"`) 그대로다: 말하지 않은 기존
+ * 배정과 예비비는 실행기가 건드리지 않는다(`buildBudgetPlanOperation`). 옛 계약(남은 돈을
+ * 예비비로 채움)의 카드는 이 문장을 쓰지 않고 필드 목록으로 남는다 — 그 약속은 사실이 아니다.
+ *
+ * 줄 위조: 사용자 이름(맞춤 항목)은 공백을 한 칸으로 접어 한 줄에 가둔다. 실행기도 같은
+ * 정규화로 저장한다. 고정 분야 이름·"총예산" 과 같은 이름이면 직접 만든 항목임을 붙여
+ * 둘을 헷갈리지 않게 한다.
+ */
+const BUDGET_PLAN_CONFIRMATION_OPENING = "다음 예산안을 적용할까요?";
+const BUDGET_PLAN_KEEPS_UNSAID_ROWS = "- 말하지 않은 항목의 배정은 그대로 둬요";
+const BUDGET_PLAN_TOTAL_LABEL = "총예산";
+
+function budgetPlanRowName(allocation: Record<string, unknown>): string | null {
+  if (typeof allocation.category !== "string") return null;
+  if (allocation.category !== "custom") {
+    return Object.hasOwn(SCREEN_CATEGORY_LABELS, allocation.category)
+      ? SCREEN_CATEGORY_LABELS[allocation.category]
+      : null;
+  }
+  if (typeof allocation.label !== "string") return null;
+  const label = allocation.label.replace(/\s+/gu, " ").trim();
+  if (!label) return null;
+  const collides = label === BUDGET_PLAN_TOTAL_LABEL
+    || Object.values(CATEGORY_LABELS).includes(label);
+  return collides ? `${label}(직접 만든 항목)` : label;
+}
+
+function formatBudgetPlanTotalLine(total: number, currentTotalBudget?: number | null): string {
+  const known = typeof currentTotalBudget === "number"
+    && Number.isSafeInteger(currentTotalBudget)
+    && currentTotalBudget > 0;
+  if (!known) return `- ${BUDGET_PLAN_TOTAL_LABEL}: ${formatWon(total)}`;
+  return currentTotalBudget === total
+    ? `- ${BUDGET_PLAN_TOTAL_LABEL}: ${formatWon(total)} (지금과 같아요)`
+    : `- ${BUDGET_PLAN_TOTAL_LABEL}: ${formatWon(currentTotalBudget)} → ${formatWon(total)}`;
+}
+
+function formatBudgetPlanConfirmation(
+  input: Record<string, unknown>,
+  currentTotalBudget?: number | null,
+): string | null {
+  const total = input.total_budget;
+  if (typeof total !== "number" || !Number.isFinite(total)) return null;
+  if (!Array.isArray(input.allocations) || input.allocations.length === 0) return null;
+  const rows: string[] = [];
+  for (const allocation of input.allocations) {
+    if (!isRecord(allocation) || typeof allocation.budget !== "number") return null;
+    const name = budgetPlanRowName(allocation);
+    if (name === null) return null;
+    rows.push(`- ${name}: ${formatWon(allocation.budget)}`);
+  }
+  const confirmation = [
+    BUDGET_PLAN_CONFIRMATION_OPENING,
+    formatBudgetPlanTotalLine(total, currentTotalBudget),
+    ...rows,
+    BUDGET_PLAN_KEEPS_UNSAID_ROWS,
+  ].join("\n");
+  return confirmation.length <= MAX_CANONICAL_CONFIRMATION_CHARS
+    ? confirmation
+    : null;
+}
+
+/** `formatWon` 의 역. 그 함수가 만들 수 있는 모양만 받는다. */
+function parseFormattedWon(text: string): number | null {
+  if (text === "0원") return 0;
+  const manWon = /^(\d{1,3}(?:,\d{3})*)만 원$/u.exec(text);
+  const won = manWon ? null : /^(\d{1,3}(?:,\d{3})*)원$/u.exec(text);
+  const digits = (manWon ?? won)?.[1];
+  if (digits === undefined) return null;
+  const value = Number(digits.replaceAll(",", "")) * (manWon ? 10_000 : 1);
+  return Number.isSafeInteger(value) ? value : null;
+}
+
+/**
+ * 저장된 예산안 확인문이 발급 때 적은 "지금 총예산". 없으면 null.
+ *
+ * 확인문은 저장된 입력으로 **다시 만들어 글자 그대로** 대조한다. 그런데 "지금 → 바꿀 값"
+ * 의 앞쪽은 입력이 아니라 발급 시점의 저장값이라 입력만으로는 다시 만들 수 없다(카드
+ * metadata 에 필드를 더하면 DB 검증이 키 집합을 거절한다). 그래서 그 숫자 하나만 저장된
+ * 문장에서 읽어 와 **문장 전체를 다시 만든 뒤** 대조한다. 나머지 글자가 하나라도 다르면
+ * 여전히 거절이고, 이 숫자는 표시 전용이라 적용 대상·금액을 바꾸지 못한다.
+ */
+function recoverBudgetPlanCurrentTotal(confirmation: string): number | null {
+  const totalLine = confirmation.split("\n")[1] ?? "";
+  const match = new RegExp(`^- ${BUDGET_PLAN_TOTAL_LABEL}: (.+) → .+$`, "u").exec(totalLine);
+  return match ? parseFormattedWon(match[1]) : null;
+}
+
+/**
+ * 저장된 확인문이 이 입력으로 서버가 발급했을 수 있는 문장인가.
+ *
+ * 전부 **검증된 입력으로 문장 전체를 다시 만들어** 글자 그대로 비교한다. 일부 문자열
+ * 교체·부분 일치는 허용하지 않는다. 호환하는 이전 문장은 아직 만료되지 않은 카드를
+ * 위한 것이다(예산 카드 수명 24시간).
+ */
+function isIssuedConfirmation(
+  tool: AiToolDefinition,
+  input: Record<string, unknown>,
+  stored: string,
+): boolean {
+  if (stored === formatCanonicalConfirmation(tool, input)) return true;
+  if (isExplicitBudgetPlan(tool.name, input) && stored.startsWith(BUDGET_PLAN_CONFIRMATION_OPENING)) {
+    const total = typeof input.total_budget === "number" ? input.total_budget : null;
+    const recovered = recoverBudgetPlanCurrentTotal(stored);
+    return [total, recovered].some((currentTotal) =>
+      currentTotal !== null && stored === formatBudgetPlanConfirmation(input, currentTotal));
+  }
+  // 2026-09-15 이전 발급문: 모든 도구가 필드 목록이었다. 예단·폐백 이름과 맞춤 항목
+  // 문구가 두 번 바뀌었으므로 그 조합을 전부 다시 만들어 본다.
+  for (const categoryLabels of [LEGACY_DECISION_TERM_CATEGORY_LABELS, LEGACY_SCREEN_CATEGORY_LABELS]) {
+    for (const toolLabels of [TOOL_LABELS, LEGACY_TOOL_LABELS]) {
+      if (stored === formatFieldListConfirmation(tool, input, categoryLabels, toolLabels)) return true;
+    }
+  }
+  return false;
+}
+
+function formatFieldListConfirmation(
+  tool: AiToolDefinition,
+  input: Record<string, unknown>,
+  categoryLabels: Readonly<Record<string, string>>,
+  toolLabels: Readonly<Record<string, string>>,
 ): string | null {
   const toolLabel = toolLabels[tool.name];
   if (!toolLabel) return null;
@@ -765,6 +931,46 @@ function formatCanonicalConfirmation(
  * 정의하고, 표식 없이 나타나면 지운다.
  */
 const CANONICAL_CONFIRMATION_OPENING = "다음 변경을 적용할까요?";
+
+/** 서버 확인문의 첫 줄 전부. 예산안 전용 문장도 같은 규칙(표식 없이 나타나면 지운다)을 받는다. */
+const SERVER_CONFIRMATION_OPENINGS = [
+  CANONICAL_CONFIRMATION_OPENING,
+  BUDGET_PLAN_CONFIRMATION_OPENING,
+] as const;
+
+function indexOfServerConfirmationOpening(text: string): number {
+  const found = SERVER_CONFIRMATION_OPENINGS
+    .map((opening) => text.indexOf(opening))
+    .filter((index) => index !== -1);
+  return found.length > 0 ? Math.min(...found) : -1;
+}
+
+/**
+ * 예산안 카드가 붙은 답변의 말풍선 본문. **서버 소유 문장이다.** (2026-09-15)
+ *
+ * 카드가 난 답변은 본문이 확인문으로 통째로 바뀌는데, 웹·모바일 모두 말풍선에 본문을,
+ * 바로 아래 카드에 같은 확인문을 또 그린다. 항목이 여럿인 예산안은 같은 목록이 두 번
+ * 연달아 보였다. 목록은 카드에만 두고 말풍선은 무엇이 준비됐는지만 말한다.
+ *
+ * 이미 배포된 앱도 서버 본문을 그대로 그리므로 클라이언트 수정 없이 모두에게 적용된다.
+ * 모델이 표식 없이 이 문장을 흉내 내면 "확인 카드를 준비했" 가 카드 없는 주장으로
+ * 지워진다(`amoraPersistenceClaims` 의 `removeUnemittedCardClaims`).
+ */
+export const BUDGET_PLAN_CARD_BUBBLE_TEXT =
+  "예산안 확인 카드를 준비했어요. 아래 카드에서 항목별 금액을 확인해 주세요.";
+
+/**
+ * 카드가 붙은 답변의 말풍선 본문. 예산안 전용 확인문이면 짧은 안내, 그 밖에는 확인문 그대로다.
+ * 필드가 한두 줄인 카드는 지금 모양을 유지한다(대화 이력·연결 문맥이 본문을 읽는다).
+ */
+export function getAmoraPendingActionBubbleText(
+  action: Pick<StoredAmoraPendingAction, "tool" | "confirmation">,
+): string {
+  return action.tool === "apply_budget_plan"
+    && action.confirmation.startsWith(BUDGET_PLAN_CONFIRMATION_OPENING)
+    ? BUDGET_PLAN_CARD_BUBBLE_TEXT
+    : action.confirmation;
+}
 
 /**
  * 가짜 확인문을 지운 자리에 남길 말. 침묵은 답이 아니다 — 사용자는 방금 무언가를
@@ -929,7 +1135,7 @@ function protectedSpans(text: string): { start: number; end: number }[] {
  * 이해했어요." 로 끝나 사용자는 누를 것도 할 것도 없이 기다리게 된다.
  */
 function stripForgedConfirmation(text: string): string {
-  const canonicalIndex = text.indexOf(CANONICAL_CONFIRMATION_OPENING);
+  const canonicalIndex = indexOfServerConfirmationOpening(text);
   const base = canonicalIndex === -1 ? text : text.slice(0, canonicalIndex);
 
   const protectedRanges = protectedSpans(base);
@@ -1228,14 +1434,24 @@ export function extractAmoraPendingAction({
   now,
   createActionId,
   knownScheduleEventIds,
+  currentTotalBudget,
 }: ExtractPendingActionInput): {
   cleanText: string;
   pendingAction: StoredAmoraPendingAction | null;
   /** 아직 승인되지 않은 다음 요청. 별도 서버 metadata로만 보존한다. */
   remainingActions?: AmoraQueuedAction[];
   hadPendingActionTag: boolean;
-  /** 표식은 있었지만 버린 이유가 "다시 보내면 되는" 종류가 아닐 때만 채운다. */
-  dropReason?: "unknown_schedule_event" | "unsupported_schedule_fields";
+  /**
+   * 표식은 있었지만 버린 이유가 "다시 보내면 되는" 종류가 아닐 때만 채운다.
+   * `budget_operation_refused`·`proposal_operation_refused` 는 이 함수가 아니라 라우트가
+   * 채운다 — 승인 때 쓸 순수 연산을 미리 돌려 보니 거절이라 카드 대신 그 거절 문장을 보여준
+   * 턴이다. 거절된 요청이 모두 예산 도구면 앞의 것, 체크리스트·일정이 섞이면 뒤의 것이다.
+   */
+  dropReason?:
+    | "unknown_schedule_event"
+    | "unsupported_schedule_fields"
+    | "budget_operation_refused"
+    | "proposal_operation_refused";
   /**
    * 검증에서 버려진 표식의 원문 머리(진단용). 2026-09-04 실측: "2027년 3월 10일 드레스
    * 투어 일정 추가해줘" 가 2/2 로 카드 없이 끝났는데(본문은 카드 흉내), 서버에 원문이
@@ -1303,7 +1519,7 @@ export function extractAmoraPendingAction({
     const proposal = isRecord(parsed) && parsed.tool === "apply_budget_plan" && isRecord(parsed.input)
       ? { ...parsed, input: { ...parsed.input, allocation_mode: "explicit" } }
       : parsed;
-    const candidate = validateMarker(proposal, allowedTools, now);
+    const candidate = validateMarker(proposal, allowedTools, now, currentTotalBudget);
     if (candidate) {
       const key = getAmoraToolOperationIdentity(candidate.tool, candidate.input).operationKey;
       if (!operationKeys.has(key)) {
@@ -1353,13 +1569,15 @@ export function extractAmoraPendingAction({
     return { cleanText, pendingAction: null, hadPendingActionTag };
   }
   const identity = getAmoraToolOperationIdentity(marker.tool, marker.input);
+  // 말풍선 본문. 카드에 같은 확인문이 그대로 그려지므로 긴 예산안 목록은 두 번 싣지 않는다.
+  const bubbleText = getAmoraPendingActionBubbleText(marker);
   return {
     cleanText: remainingProposalCount > 0
       ? [
-          marker.confirmation,
+          bubbleText,
           buildRemainingProposalNotice(remainingProposalCount),
         ].join("\n\n")
-      : marker.confirmation,
+      : bubbleText,
     hadPendingActionTag,
     ...(validMarkers.length > 1 ? {
       remainingActions: validMarkers.slice(1).map((item) => ({ tool: item.tool, input: item.input })),
@@ -1464,6 +1682,42 @@ export function isAmoraFailedProposalNotice(content: unknown): boolean {
     || content.includes(SERVER_OWNED_MISSING_CARD_NOTICE);
 }
 
+/** 연결 문맥의 닻 카드 뒤에 확인 쌍(버튼 확인 → 실행 결과)이 이어질 때 붙이는 한 줄. */
+const BUDGET_PLAN_CONFIRMED_CONTINUITY_NOTE = "[카드에 보인 예산안 — 적용 여부는 뒤의 실행 결과를 따르세요]";
+
+/**
+ * 연결 문맥(도구 없음)에 싣는 **예산안 카드 답변 본문**에 카드에 보인 항목 줄을 되붙인다(리뷰 [4]).
+ *
+ * 말풍선은 `BUDGET_PLAN_CARD_BUBBLE_TEXT` 한 줄이라 목록이 없다(같은 목록이 카드에 또 그려져
+ * 두 번 보였다). 저장 본문을 바꾸지 않고 연결 문맥에만 붙이므로 화면에는 여전히 한 번만 보인다.
+ * W0 이력 경로(`buildAmoraHistoryContent`)는 표식을 되붙여 금액을 보이는데, 연결 문맥은 실행
+ * 계약을 싣지 않는 레인이라 표식 JSON 대신 사람이 읽는 줄만 싣는다. 여는 질문("다음 예산안을
+ * 적용할까요?")은 떼어 낸다 — 도구 없는 턴에서 모델이 따라 하면 누를 수 없는 확인문이 된다.
+ *
+ * 표시 전용이다. 만료·입력 검증은 하지 않고, 적용 여부는 말하지 않는다 — 확인 쌍이 뒤따르면
+ * 실행 결과를 따르라고, 아니면 저장된 값이 아니라고만 표시한다.
+ */
+export function withAmoraBudgetPlanCardLines(
+  content: string,
+  pendingAction: unknown,
+  { confirmationFollows }: { confirmationFollows: boolean },
+): string {
+  if (!content.includes(BUDGET_PLAN_CARD_BUBBLE_TEXT)) return content;
+  if (!isRecord(pendingAction) || pendingAction.version !== 2 || pendingAction.tool !== "apply_budget_plan") {
+    return content;
+  }
+  const confirmation = pendingAction.confirmation;
+  if (typeof confirmation !== "string" || !confirmation.startsWith(BUDGET_PLAN_CONFIRMATION_OPENING)) {
+    return content;
+  }
+  const lines = confirmation.slice(BUDGET_PLAN_CONFIRMATION_OPENING.length).trim();
+  if (!lines) return content;
+  const note = confirmationFollows
+    ? BUDGET_PLAN_CONFIRMED_CONTINUITY_NOTE
+    : UNCONFIRMED_PROPOSAL_HISTORY_NOTE;
+  return `${content}\n${note}\n${lines}`;
+}
+
 export function buildAmoraHistoryContent(
   content: string,
   pendingAction: unknown,
@@ -1508,7 +1762,7 @@ function sanitizeHistoryConfirmation(text: string): string {
     return FORGED_CONFIRMATION_REPLACEMENT;
   }
   // 고치기 전에 쌓인 지난 턴은 안내 문구가 없다. 그 경우만 문장을 살펴본다.
-  if (text.includes(CANONICAL_CONFIRMATION_OPENING)) {
+  if (indexOfServerConfirmationOpening(text) !== -1) {
     return FORGED_CONFIRMATION_REPLACEMENT;
   }
   const ranges = protectedSpans(text);
@@ -1548,12 +1802,9 @@ export function resolveAmoraPendingAction({
   if (!marker || typeof value.confirmation !== "string") return null;
   if (value.confirmation !== marker.confirmation) {
     const tool = allowedTools.find((candidate) => candidate.name === marker.tool);
-    // 예단·폐백 이름과 맞춤 항목 문구를 고치기 전의 문장도 검증된 입력으로 전부 재구성한다.
-    // 일부 문자열 교체·부분 일치는 허용하지 않고, 사용자가 본 이전 문장을 그대로 유지한다.
-    const legacyConfirmation = tool
-      ? formatCanonicalConfirmation(tool, marker.input, LEGACY_CATEGORY_LABELS, LEGACY_TOOL_LABELS)
-      : null;
-    if (value.confirmation !== legacyConfirmation) return null;
+    // 이전 발급문과 발급 시점 총예산이 적힌 예산안도 검증된 입력으로 문장 전체를 재구성한다.
+    // 사용자가 본 문장은 그대로 유지하고, 재구성과 한 글자라도 다르면 거절한다.
+    if (!tool || !isIssuedConfirmation(tool, marker.input, value.confirmation)) return null;
   }
   const identity = getAmoraToolOperationIdentity(marker.tool, marker.input);
   if (

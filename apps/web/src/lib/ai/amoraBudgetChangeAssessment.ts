@@ -1,6 +1,9 @@
 import type { BudgetImpactPreview } from "@hanbang/shared";
 import { PLANNING_CATEGORY_LABELS } from "@/constants/planningCategories";
-import { buildAmoraBudgetImpactPreview } from "@/lib/ai/amoraBudgetImpactPreview";
+import {
+  buildAmoraBudgetImpactPreview,
+  findAmoraBudgetProposalRefusal,
+} from "@/lib/ai/amoraBudgetImpactPreview";
 import { getAmoraToolOperationIdentity } from "@/lib/ai/amoraToolIdentity";
 import { CATEGORY_LABELS } from "@/lib/ai/tools/planningConstants";
 import type { ToolExecutionContext } from "@/lib/ai/tools/toolTypes";
@@ -136,6 +139,10 @@ export function assessAmoraBudgetChange({ userText, context, sourceRevision }: {
   const action: Extract<AmoraBudgetChangeAssessment, { kind: "ready" }>["action"] = targetKey.startsWith("custom_")
     ? { tool: "add_custom_category", input: { label: row.label, budget: newBudget } }
     : { tool: "update_category_budget", input: { category: targetKey, budget: newBudget } };
+  // 승인 때 쓰는 순수 연산이 거절할 변경이면 카드를 만들지 않고 그 거절 이유를 그대로 말한다.
+  // 모델 표식 경로(route)도 같은 함수로 거른다 — 두 경로가 같은 요청에 다른 답을 하지 않게.
+  const refusal = findAmoraBudgetProposalRefusal({ action, context });
+  if (refusal) return needsConfirmation("operation_refused", refusal.text);
   const preview = buildAmoraBudgetImpactPreview({
     action: { ...action, inputDigest: getAmoraToolOperationIdentity(action.tool, action.input).inputDigest },
     context,

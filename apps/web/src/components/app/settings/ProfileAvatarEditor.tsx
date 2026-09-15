@@ -12,16 +12,41 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-
 const optionClass = "!min-h-11 !rounded-lg !px-3 !py-2";
 const selectedClass = "aria-pressed:border-[var(--hb-selected-line)] aria-pressed:bg-[var(--hb-selected-bg)] aria-pressed:text-[var(--hb-selected-text)] aria-pressed:hover:bg-[var(--hb-selected-bg)]";
 
+const READ_TIMEOUT_MS = 15_000;
+const SAVE_TIMEOUT_MS = 30_000;
+/** 서버 값을 다시 읽어 편집기를 맞춘 뒤의 안내. 편집기가 이미 지금 저장된 값을 보여 준다. */
+const REFRESHED_MESSAGE = "프로필이 이미 바뀌었어요. 지금 저장된 모습을 확인해 주세요.";
+
 function saveErrorMessage(code: unknown): string {
   if (code === "AUTH_REQUIRED") return "로그인 상태를 다시 확인해 주세요.";
   if (code === "AVATAR_OWNER_CHANGED") return "계정 상태가 바뀌었어요. 현재 계정으로 프로필을 다시 열어 주세요.";
   if (code === "INVALID_IMAGE" || code === "INVALID_AVATAR") return "사진을 읽을 수 없어요. 다른 JPG, PNG, WebP 사진을 선택해 주세요.";
   if (code === "AVATAR_TOO_LARGE") return "4MB 이하의 사진을 선택해 주세요.";
-  if (code === "AVATAR_SAVE_CONFLICT") return "다른 곳에서 프로필이 바뀌었어요. 취소한 뒤 다시 열어 확인해 주세요.";
+  // 누가 바꿨는지는 모른다. 같은 브라우저의 직전 요청이 늦게 저장됐을 수도 있다.
+  if (code === "AVATAR_SAVE_CONFLICT") return "프로필이 이미 바뀌었어요. 취소한 뒤 다시 열어 확인해 주세요.";
+  if (code === "RATE_LIMITED") return "프로필을 너무 자주 바꿨어요. 잠시 뒤 다시 시도해 주세요.";
   return "프로필 저장 결과를 확인하지 못했어요. 잠시 뒤 다시 시도해 주세요.";
 }
 
-function parseAvatarResponse(value: unknown, ownerId: string, requireRevision = false): { avatar_url: string | null; revision: string | null } | null {
+type AvatarState = { avatar_url: string | null; revision: string | null };
+type SaveOutcome =
+  | { type: "saved"; avatarUrl: string | null }
+  | { type: "refreshed"; avatarUrl: string | null; revision: string | null; message: string }
+  | { type: "failed"; message: string };
+
+/** 끊김(AbortError)과 네트워크 오류(fetch TypeError)는 요청이 서버에 닿았는지 모른다. */
+function isTransportFailure(failure: unknown): boolean {
+  return failure instanceof TypeError
+    || (typeof failure === "object" && failure !== null && (failure as { name?: unknown }).name === "AbortError");
+}
+
+function isSavedSelection(kind: AvatarKind, emoji: string, saved: AvatarState): boolean {
+  if (kind === "initial") return saved.avatar_url === null;
+  if (kind === "emoji") return saved.avatar_url === emoji;
+  return typeof saved.avatar_url === "string" && saved.avatar_url.startsWith("/api/profile/avatar/image?");
+}
+
+function parseAvatarResponse(value: unknown, ownerId: string, requireRevision = false): AvatarState | null {
   if (!value || typeof value !== "object") return null;
   const record = value as Record<string, unknown>;
   const validRevision = typeof record.revision === "string" && UUID.test(record.revision);
@@ -100,48 +125,110 @@ function AvatarChoices({ ownerId, coupleId, name, savedAvatar, isDemo, onClose }
     return () => { URL.revokeObjectURL(url); };
   }, [photo]);
 
+  const applyAvatar = (avatarUrl: string | null) => {
+    useAuthStore.setState((current) => current.profile?.id === ownerId
+      && (current.profile.couple_id ?? null) === coupleId
+      ? { profile: { ...current.profile, avatar_url: avatarUrl } } : {});
+  };
+
+  /** 표시용 GET. 실패(오류 응답·네트워크·모양 불일치·타임아웃)는 null — 무엇도 단정하지 않는다. */
+  async function readSavedAvatar(): Promise<AvatarState | null> {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), READ_TIMEOUT_MS);
+    try {
+      const response = await fetch("/api/profile/avatar", { cache: "no-store", signal: controller.signal });
+      if (!response.ok) return null;
+      return parseAvatarResponse(await response.json().catch(() => null), ownerId);
+    } catch {
+      return null;
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
+  /**
+   * 저장 한 번. 결과를 모르는 실패(끊김, 네트워크 오류, 5xx, 모양이 틀린 2xx, 저장 충돌)는 서버 값을
+   * 다시 읽어 판단한다. 끊긴 요청이 늦게 커밋되면 다시 누른 저장이 409가 되는데, 그걸 「누가 바꿨다」로
+   * 안내하지 않는다. 앱 apps/mobile/src/lib/profileAvatarPresentation.mjs saveProfileAvatarSelection 과 같은 판정이다.
+   */
+  async function sendSelection(body: FormData | string, selectedKind: AvatarKind, selectedEmoji: string, sentRevision: string | null): Promise<SaveOutcome> {
+    let code: unknown = null;
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), SAVE_TIMEOUT_MS);
+    try {
+      const response = await fetch("/api/profile/avatar", {
+        method: "PUT", body, signal: controller.signal,
+        headers: typeof body === "string" ? { "Content-Type": "application/json" } : undefined,
+      });
+      const payload: unknown = await response.json().catch(() => null);
+      if (response.ok) {
+        const data = parseAvatarResponse(payload, ownerId, true);
+        if (data && isSavedSelection(selectedKind, selectedEmoji, data)) return { type: "saved", avatarUrl: data.avatar_url };
+        // 2xx 인데 모양이 틀렸다. 서버는 저장했을 수 있다.
+      } else {
+        code = response.status === 429 ? "RATE_LIMITED" : payload && typeof payload === "object" ? (payload as Record<string, unknown>).code ?? null : null;
+        const outcomeUnknown = response.status >= 500 || response.status === 408 || response.status < 400
+          || code === "AVATAR_SAVE_CONFLICT";
+        if (!outcomeUnknown) return { type: "failed", message: saveErrorMessage(code) };
+      }
+    } catch (failure) {
+      // 요청을 보내기 전에 멈춘 오류는 서버에 닿지 않았다.
+      if (!isTransportFailure(failure)) return { type: "failed", message: saveErrorMessage(null) };
+    } finally {
+      clearTimeout(timer);
+    }
+
+    // 계정이 바뀌었으면 다른 계정의 값을 읽지 않는다.
+    if (!stillOwnsProfile()) return { type: "failed", message: saveErrorMessage(null) };
+    const current = await readSavedAvatar();
+    if (!current) return { type: "failed", message: saveErrorMessage(code) };
+    // 서버 값이 그대로다. 아직 처리 중일 수 있어 저장됐다고도, 안 됐다고도 단정하지 않는다.
+    if (current.revision === sentRevision) return { type: "failed", message: saveErrorMessage(null) };
+    // 사진은 서버가 다시 인코딩하고 revision을 새로 만들어 같은 사진인지 증명할 수 없다.
+    if (selectedKind !== "photo" && isSavedSelection(selectedKind, selectedEmoji, current)) return { type: "saved", avatarUrl: current.avatar_url };
+    return { type: "refreshed", avatarUrl: current.avatar_url, revision: current.revision, message: REFRESHED_MESSAGE };
+  }
+
   async function save() {
     if (inFlight.current || !ready || !stillOwnsProfile()) return;
     if (kind === "photo" && (!photo || isDemo)) return;
     inFlight.current = true;
     setSaving(true);
     setError("");
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 30_000);
     try {
-      let avatarUrl: string | null = kind === "emoji" ? emoji : null;
-      if (!isDemo) {
-        let body: FormData | string;
-        if (kind === "photo" && photo) {
-          body = new FormData();
-          body.append("photo", photo);
-          body.append("expected_revision", expectedRevision ?? "null");
-          body.append("expected_user_id", ownerId);
-        } else body = JSON.stringify(kind === "emoji" ? { kind, emoji, expected_revision: expectedRevision, expected_user_id: ownerId } : { kind: "initial", expected_revision: expectedRevision, expected_user_id: ownerId });
-        const response = await fetch("/api/profile/avatar", {
-          method: "PUT", body, signal: controller.signal,
-          headers: typeof body === "string" ? { "Content-Type": "application/json" } : undefined,
-        });
-        const payload: unknown = await response.json().catch(() => null);
-        const data = parseAvatarResponse(payload, ownerId, true);
-        if (!response.ok) {
-          const code = payload && typeof payload === "object" ? (payload as Record<string, unknown>).code : null;
-          throw new Error(saveErrorMessage(code));
-        }
-        if (!data || (kind === "initial" && data.avatar_url !== null)
-          || (kind === "emoji" && data.avatar_url !== emoji)
-          || (kind === "photo" && !data.avatar_url?.startsWith("/api/profile/avatar/image?"))) throw new Error(saveErrorMessage(null));
-        avatarUrl = data.avatar_url;
+      if (isDemo) {
+        applyAvatar(kind === "emoji" ? emoji : null);
+        onClose(true);
+        return;
       }
+      let body: FormData | string;
+      if (kind === "photo" && photo) {
+        body = new FormData();
+        body.append("photo", photo);
+        body.append("expected_revision", expectedRevision ?? "null");
+        body.append("expected_user_id", ownerId);
+      } else body = JSON.stringify(kind === "emoji" ? { kind, emoji, expected_revision: expectedRevision, expected_user_id: ownerId } : { kind: "initial", expected_revision: expectedRevision, expected_user_id: ownerId });
+      const outcome = await sendSelection(body, kind, emoji, expectedRevision ?? null);
       if (!stillOwnsProfile()) return;
-      useAuthStore.setState((current) => current.profile?.id === ownerId
-        && (current.profile.couple_id ?? null) === coupleId
-        ? { profile: { ...current.profile, avatar_url: avatarUrl } } : {});
-      onClose(true);
-    } catch (failure) {
-      if (stillOwnsProfile()) setError(failure instanceof Error && failure.message.endsWith("주세요.") ? failure.message : saveErrorMessage(null));
+      if (outcome.type === "saved") {
+        applyAvatar(outcome.avatarUrl);
+        onClose(true);
+        return;
+      }
+      if (outcome.type === "refreshed") {
+        // 편집기를 서버에 저장된 값으로 맞춘다. 고른 사진은 내려놓아 미리보기가 저장된 모습을 보여 준다.
+        setBaseline(outcome.avatarUrl);
+        setExpectedRevision(outcome.revision);
+        setKind(isProfileAvatarEmoji(outcome.avatarUrl) ? "emoji" : outcome.avatarUrl ? "photo" : "initial");
+        if (isProfileAvatarEmoji(outcome.avatarUrl)) setEmoji(outcome.avatarUrl!);
+        setPhoto(null);
+        setPreview(null);
+        applyAvatar(outcome.avatarUrl);
+      }
+      setError(outcome.message);
+    } catch {
+      if (stillOwnsProfile()) setError(saveErrorMessage(null));
     } finally {
-      clearTimeout(timer);
       inFlight.current = false;
       if (active.current) setSaving(false);
     }

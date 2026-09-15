@@ -192,6 +192,124 @@ describe("Amora atomic mutating-tool execution", () => {
     expect(ctx.weddingContext.budget).toBe(50_000_000);
   });
 
+  // 리뷰 [7]: 웹이 DB 마이그레이션(20260915101500)보다 먼저 나가면 '안 해요' 분야가 든 예산 쓰기를
+  // 옛 DB 함수가 22023 AMORA_ATOMIC_BUDGET_PLAN_ENTRY_INVALID 로 거절한다. 그 거절은 트랜잭션이
+  // 롤백된 결정적 미적용이라 재시도해도 같고, "결과 불명" 으로 턴을 깨뜨릴 이유가 없다.
+  describe("deterministic atomic invalid-input rejection", () => {
+    const notApplicablePlan = {
+      total_budget: 35_000_000,
+      allocation_mode: "explicit",
+      allocations: [
+        { category: "hanbok", budget: 1_500_000 },
+        { category: "yedan", budget: 2_000_000 },
+      ],
+    };
+    function notApplicableContext() {
+      const ctx = context();
+      delete ctx.providerCallIndex;
+      ctx.pendingActionId = "11111111-1111-4111-8111-111111111111";
+      ctx.weddingContext.budget = 35_000_000;
+      ctx.weddingContext.progress = {
+        hanbok: { category: "hanbok", status: "not_applicable" },
+        yedan: { category: "yedan", status: "not_applicable" },
+      } as unknown as ToolExecutionContext["weddingContext"]["progress"];
+      return ctx;
+    }
+    function rejectDomainMutation(error: { code?: string; message: string }, noOpResponse?: { data: unknown; error: unknown }) {
+      mocks.rpc.mockImplementation((name: string, args: Record<string, unknown>) => {
+        if (name === "claim_amora_tool_execution") {
+          return Promise.resolve({ data: { action: "acquired" }, error: null });
+        }
+        if (name === "apply_amora_atomic_tool_execution") {
+          const mutation = args.p_domain_mutation as { kind?: string };
+          if (mutation.kind === "none") {
+            return Promise.resolve(noOpResponse ?? { data: args.p_result, error: null });
+          }
+          return Promise.resolve({ data: null, error });
+        }
+        return Promise.resolve({ data: null, error: { message: `unexpected rpc: ${name}` } });
+      });
+    }
+    const applyCalls = () => mocks.rpc.mock.calls.filter(([name]) => name === "apply_amora_atomic_tool_execution");
+
+    it("ends a pre-migration not_applicable budget rejection as a recorded no-op instead of a crash", async () => {
+      const ctx = notApplicableContext();
+      const before = structuredClone(ctx.weddingContext);
+      rejectDomainMutation({ code: "22023", message: "AMORA_ATOMIC_BUDGET_PLAN_ENTRY_INVALID" });
+
+      const result = await executeTool("apply_budget_plan", notApplicablePlan, ctx);
+
+      expect(result).toMatchObject({
+        success: false,
+        toolOutput: { error: "ATOMIC_MUTATION_REJECTED", retryable: false },
+      });
+      expect(result.displayMessage).toContain("적용하지 않았어요");
+      expect(result.displayMessage).toContain("아무것도 바뀌지 않았어요");
+      expect(result.displayMessage).not.toMatch(/AMORA_|22023|죄송|파트너|반영했|적용했/u);
+      // 거절된 변경은 한 번만 보내고, 같은 원장 항목을 '적용하지 않음' 결과로 닫는다.
+      expect(applyCalls()).toHaveLength(2);
+      expect(applyCalls()[0][1]).toMatchObject({ p_domain_mutation: expect.objectContaining({ kind: expect.not.stringMatching(/^none$/) }) });
+      expect(applyCalls()[1][1]).toMatchObject({
+        p_tool_input: notApplicablePlan,
+        p_domain_mutation: { kind: "none" },
+        p_result: { toolName: "apply_budget_plan", success: false, toolOutput: { error: "ATOMIC_MUTATION_REJECTED", retryable: false } },
+      });
+      expect(ctx.weddingContext).toEqual(before);
+    });
+
+    it.each([
+      ["AMORA_ATOMIC_CHECKLIST_STATUS_INVALID", "toggle_checklist_item"],
+      ["AMORA_ATOMIC_WEDDING_DATE_INVALID", "update_wedding_date"],
+    ])("treats any %s rejection the same way", async (message, tool) => {
+      const ctx = context();
+      const input = tool === "update_wedding_date"
+        ? { wedding_date: "2027-05-01" }
+        : { category: "hanbok", item_id: "hanbok_03", done: true };
+      rejectDomainMutation({ code: "22023", message });
+      const result = await executeTool(tool, input, ctx);
+      expect(result).toMatchObject({ success: false, toolOutput: { error: "ATOMIC_MUTATION_REJECTED" } });
+      expect(applyCalls()).toHaveLength(2);
+    });
+
+    it.each([
+      ["no SQLSTATE (response loss)", { message: "AMORA_ATOMIC_BUDGET_PLAN_ENTRY_INVALID" }],
+      ["claim stale (40001)", { code: "40001", message: "AMORA_ATOMIC_TOOL_CLAIM_STALE" }],
+      ["22023 envelope error", { code: "22023", message: "AMORA_ATOMIC_TOOL_INVALID_INPUT" }],
+      ["22023 from another boundary", { code: "22023", message: "AMORA_SHARED_ACTION_CONFIRMATION_INVALID" }],
+      ["22023 with an unrelated prefix", { code: "22023", message: "NOT_AMORA_ATOMIC_BUDGET_PLAN_ENTRY_INVALID" }],
+    ])("keeps retrying and fails the turn when the outcome is not a deterministic invalid rejection: %s", async (_label, error) => {
+      const ctx = notApplicableContext();
+      rejectDomainMutation(error);
+      await expect(executeTool("apply_budget_plan", notApplicablePlan, ctx))
+        .rejects.toThrow(/atomic commit outcome unavailable/);
+      expect(applyCalls()).toHaveLength(3);
+      expect(applyCalls().every(([, args]) => (args.p_domain_mutation as { kind: string }).kind !== "none")).toBe(true);
+    });
+
+    it("fails the turn as before when the no-op result itself cannot be recorded", async () => {
+      const ctx = notApplicableContext();
+      rejectDomainMutation(
+        { code: "22023", message: "AMORA_ATOMIC_BUDGET_PLAN_ENTRY_INVALID" },
+        { data: null, error: { code: "40001", message: "AMORA_ATOMIC_TOOL_CLAIM_STALE" } },
+      );
+      await expect(executeTool("apply_budget_plan", notApplicablePlan, ctx))
+        .rejects.toThrow(/atomic commit outcome unavailable/);
+      expect(applyCalls()).toHaveLength(2);
+    });
+
+    it("replays an already-committed result when the no-op commit finds the operation completed", async () => {
+      const ctx = notApplicableContext();
+      const committed = { toolName: "apply_budget_plan", toolOutput: { error: "ATOMIC_MUTATION_REJECTED", retryable: false }, success: false, displayMessage: "기록된 결과" };
+      rejectDomainMutation(
+        { code: "22023", message: "AMORA_ATOMIC_BUDGET_PLAN_ENTRY_INVALID" },
+        { data: committed, error: null },
+      );
+      await expect(executeTool("apply_budget_plan", notApplicablePlan, ctx)).resolves.toMatchObject({
+        success: false, displayMessage: "기록된 결과",
+      });
+    });
+  });
+
   it("commits a schedule event and its durable result through the same atomic dispatcher", async () => {
     const ctx = context();
 

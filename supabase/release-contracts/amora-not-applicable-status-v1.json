@@ -1,0 +1,51 @@
+{
+  "version": 1,
+  "kind": "amora-not-applicable-status-static-successor",
+  "release": "amora-not-applicable-status-20260915",
+  "status": "requires-scoped-runtime-evidence",
+  "productionApplyImplemented": true,
+  "runtimeEvidenceVerified": false,
+  "projectRef": "slrtobkksjmxgzatjyqb",
+  "systemIdentifier": "7581440907192989109",
+  "predecessor": {
+    "file": "supabase/release-contracts/account-deletion-customer-data-v1.json",
+    "sha256": "129032ad576124bf54b68cb09747dd37999be089daa5c3ea5fa48303d1945187"
+  },
+  "reviewedPredecessorMigrationCount": 232,
+  "migrations": [
+    {
+      "file": "20260915101500_amora_atomic_not_applicable_status.sql",
+      "sha256": "1e7fe89a73e1093caee6f5908dbde0ba6ed2d0be03c140a4a9173a58908a7f37"
+    }
+  ],
+  "scope": {
+    "replaceFunction": "public.apply_amora_atomic_tool_execution_pre_shared_revision(uuid,text,text,integer,text,jsonb,jsonb,jsonb)",
+    "acceptedStoredStatus": "not_applicable",
+    "acceptedTools": [
+      "update_category_budget",
+      "add_custom_category",
+      "apply_budget_plan"
+    ],
+    "budgetWritesKeepStatus": true,
+    "unchangedTools": [
+      "update_task_status",
+      "toggle_checklist_item"
+    ],
+    "declarationOwnerAndAcl": "unchanged",
+    "tables": "unchanged",
+    "dataRows": "unchanged",
+    "otherFunctions": "unchanged"
+  },
+  "runtime": {
+    "file": "scripts/lib/amora-not-applicable-status-release.mjs",
+    "sha256": "e1f8d8e3e4615548c28a6e85330f0952c32150206941a45ca72936d6aed6a7f6"
+  },
+  "previousFunction": {
+    "file": "supabase/migrations/20260911080244_amora_budget_plan_explicit_allocations.sql",
+    "sha256": "2d26acb1d7b4ef26e4ec7e1c04de3e4e0e4180e57521e49128059ab3c1ec9372"
+  },
+  "predecessorMigration": {
+    "file": "supabase/migrations/20260913103407_account_deletion_customer_data_boundary.sql",
+    "sha256": "f18bac2cb2361390364b85fb8e74e4f503b656dc0b65bc8970b5ae5a3e42f1c8"
+  }
+}

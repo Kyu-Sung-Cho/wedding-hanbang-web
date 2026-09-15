@@ -3,8 +3,12 @@ import { resolve } from "node:path";
 import ts from "typescript";
 import { describe, expect, it } from "vitest";
 import { appendAmoraToolResultHistory, appendAmoraBoundedToolResultHistory } from "../amoraToolResultHistory";
-import { buildAmoraBoundedContinuity, type AmoraBoundedContinuityResult } from "../amoraBoundedContinuity";
-import { buildAmoraHistoryContent, isAmoraFailedProposalNotice } from "../amoraPendingAction";
+import {
+  AMORA_BOUNDED_CONTINUITY_WINDOW_MAX_ROWS,
+  buildAmoraBoundedContinuity,
+  type AmoraBoundedContinuityResult,
+} from "../amoraBoundedContinuity";
+import { buildAmoraHistoryContent, isAmoraFailedProposalNotice, withAmoraBudgetPlanCardLines } from "../amoraPendingAction";
 import { classifyAmoraQuestionScope } from "../amoraQuestionScope";
 import { selectAmoraTrustedHistoryRows } from "../amoraTrustedHistory";
 import { stripAmoraInternalArtifacts } from "@hanbang/shared/amora-visible-text";
@@ -76,9 +80,9 @@ function cardData(content: string): Record<string, unknown>[] {
 
 function bound(input: Row[]): AmoraBoundedContinuityResult | null {
   const current = input[0].content;
-  const names = ["isDemo", "requestKind", "isDurableUserMessageBound", "weddingClarificationContinuityWithFallback", "questionScope", "bodyUserMessageId", "shouldLoadBoundedContinuity", "buildAmoraBoundedContinuity", "selectAmoraTrustedHistoryRows", "boundedContinuityRows", "visibility", "lastUserText", "actorId", "boundedContinuitySegmentId", "appendAmoraBoundedToolResultHistory", "stripAmoraInternalArtifacts"];
+  const names = ["isDemo", "requestKind", "isDurableUserMessageBound", "weddingClarificationContinuityWithFallback", "questionScope", "bodyUserMessageId", "shouldLoadBoundedContinuity", "buildAmoraBoundedContinuity", "selectAmoraTrustedHistoryRows", "boundedContinuityRows", "visibility", "lastUserText", "actorId", "boundedContinuitySegmentId", "appendAmoraBoundedToolResultHistory", "stripAmoraInternalArtifacts", "withAmoraBudgetPlanCardLines", "AMORA_BOUNDED_CONTINUITY_WINDOW_MAX_ROWS"];
   const source = ts.transpileModule(`const value = ${initializers.get("boundedContinuity")![0]};`, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS } }).outputText;
-  return new Function(...names, `${source}\nreturn value;`)(false, "chat", true, null, classifyAmoraQuestionScope({ userText: current }), "current", true, buildAmoraBoundedContinuity, selectAmoraTrustedHistoryRows, input, "shared", current, "user-a", "segment-a", appendAmoraBoundedToolResultHistory, stripAmoraInternalArtifacts);
+  return new Function(...names, `${source}\nreturn value;`)(false, "chat", true, null, classifyAmoraQuestionScope({ userText: current }), "current", true, buildAmoraBoundedContinuity, selectAmoraTrustedHistoryRows, input, "shared", current, "user-a", "segment-a", appendAmoraBoundedToolResultHistory, stripAmoraInternalArtifacts, withAmoraBudgetPlanCardLines, AMORA_BOUNDED_CONTINUITY_WINDOW_MAX_ROWS);
 }
 
 function boundedRows(): Row[] {
@@ -121,17 +125,21 @@ describe("실제 bounded 경로의 검증된 3행과 길이 제한", () => {
     }
   });
 
-  it("route의 실제 3행 query가 다른 커플 카드를 먼저 제외한다", () => {
+  it("route의 실제 연결 문맥 창 query가 다른 커플 카드를 먼저 제외한다", () => {
     const own = boundedRows();
+    // 다른 커플 3행이 앞(최신)에 있다. 커플 조건 없이 창 크기(5)로 자르면 비밀 행이 섞인다.
     let selected = [...own.map((row) => ({ ...row, couple_id: "couple-b", content: "OTHER_COUPLE_SECRET" })), ...own];
+    const limits: number[] = [];
     const query = {
       select: () => query,
       eq: (key: keyof Row, value: unknown) => { selected = selected.filter((row) => row[key] === value); return query; },
       order: () => query,
-      limit: (count: number) => { selected = selected.slice(0, count); return query; },
+      limit: (count: number) => { limits.push(count); selected = selected.slice(0, count); return query; },
     };
     const expression = initializers.get("boundedQuery")!.find((value) => value.includes("canonicalMessageWindowColumns"))!;
-    new Function("supabase", "canonicalMessageWindowColumns", "dataCoupleId", "visibility", "boundedContinuitySegmentId", `return ${expression};`)({ from: () => query }, "columns", "couple-a", "shared", "segment-a");
+    new Function("supabase", "canonicalMessageWindowColumns", "dataCoupleId", "visibility", "boundedContinuitySegmentId", "AMORA_BOUNDED_CONTINUITY_WINDOW_MAX_ROWS", `return ${expression};`)({ from: () => query }, "columns", "couple-a", "shared", "segment-a", AMORA_BOUNDED_CONTINUITY_WINDOW_MAX_ROWS);
+    expect(limits).toEqual([AMORA_BOUNDED_CONTINUITY_WINDOW_MAX_ROWS]);
+    expect(own.length + own.length).toBeGreaterThan(AMORA_BOUNDED_CONTINUITY_WINDOW_MAX_ROWS);
     expect(selected).toHaveLength(3);
     expect(JSON.stringify(bound(selected))).not.toContain("OTHER_COUPLE_SECRET");
     expect(bound(selected)).not.toBeNull();

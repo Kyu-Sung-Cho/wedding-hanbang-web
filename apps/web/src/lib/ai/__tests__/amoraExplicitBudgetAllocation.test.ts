@@ -36,11 +36,24 @@ describe("explicit budget allocation approval contract", () => {
     expect(resolveAmoraPendingAction({value:pending,confirmedActionId:ACTION_ID,allowedTools:tools,now:NOW+1})).toEqual(pending);
   });
 
+  // 옛 계약(잔액→예비비) 카드가 실제로 발급될 때의 문장. 그때는 모든 예산안이 필드 목록이었다.
+  // 새 예산안 문장("말하지 않은 항목의 배정은 그대로 둬요")은 옛 계약에서 사실이 아니라 붙이지 않는다.
+  const LEGACY_FIELD_LIST_CONFIRMATION = [
+    "다음 변경을 적용할까요?",
+    "- 변경: 예산 배분안 적용",
+    "- 총 예산: 3,500만 원",
+    "- 카테고리별 배분: 1) 카테고리: 웨딩 사진 촬영, 예산: 2,999,000원 / 2) 카테고리: 드레스·예식 정장, 예산: 3,001,000원",
+    '- 배분 근거: "명시한 배정만"',
+  ].join("\n");
+
   it("preserves the already issued legacy approval without silently changing its digest or effects", () => {
     const explicit = extract(input);
     expect(explicit).not.toBeNull();
     const identity = getAmoraToolOperationIdentity("apply_budget_plan",input);
-    const legacy = {...explicit!, input, inputDigest:identity.inputDigest,operationKey:identity.operationKey};
+    const legacy = {...explicit!, input, inputDigest:identity.inputDigest,operationKey:identity.operationKey,
+      confirmation: LEGACY_FIELD_LIST_CONFIRMATION};
+    // 새 명시 배분 문장을 옛 계약 입력에 붙인 카드는 서버가 발급한 적이 없다.
+    expect(resolveAmoraPendingAction({value:{...legacy,confirmation:explicit!.confirmation},confirmedActionId:ACTION_ID,allowedTools:tools,now:NOW+1})).toBeNull();
     const resolved = resolveAmoraPendingAction({value:legacy,confirmedActionId:ACTION_ID,allowedTools:tools,now:NOW+1});
     expect(resolved).toEqual(legacy);
     expect(resolved?.inputDigest).not.toBe(explicit?.inputDigest);
@@ -53,7 +66,7 @@ describe("explicit budget allocation approval contract", () => {
   it("does not offer a legacy allocation again as the current unconfirmed card", () => {
     const explicit = extract(input)!;
     const { inputDigest, operationKey } = getAmoraToolOperationIdentity("apply_budget_plan", input);
-    const legacy = { ...explicit, input, inputDigest, operationKey };
+    const legacy = { ...explicit, input, inputDigest, operationKey, confirmation: LEGACY_FIELD_LIST_CONFIRMATION };
     const original = structuredClone(legacy);
     expect(describeUnconfirmedAmoraPendingAction({ value: legacy, allowedTools: tools, now: NOW + 1 })).toBeNull();
     expect(describeUnconfirmedAmoraPendingAction({ value: explicit, allowedTools: tools, now: NOW + 1 })).toEqual(explicit);

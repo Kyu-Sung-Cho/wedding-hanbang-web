@@ -1,3 +1,5 @@
+import type { ChecklistItemDue } from "./checklistItemDue";
+
 export type PlanningChecklistStatus =
   | "not_started"
   | "in_progress"
@@ -10,6 +12,8 @@ export interface PlanningChecklistItem {
   done: boolean;
   /** 템플릿이 소유하는 한 줄 안내. 저장 전에 `stripPlanningChecklistNotes`로 떼어 낸다. */
   note?: string;
+  /** 템플릿이 소유하는 항목별 기본 확인 시점. 저장 전에 `stripPlanningChecklistNotes`로 떼어 낸다. */
+  due?: ChecklistItemDue;
 }
 
 export interface PlanningChecklistProgress {
@@ -65,13 +69,16 @@ export function mergePlanningChecklist<T extends PlanningChecklistItem>(
  * 복제되고, 나중에 문구를 고쳐도 저장된 값은 옛 문장인 채로 남는다. 읽을 때 템플릿이
  * 덮으므로 화면은 맞지만 DB에는 계속 어긋난 사본이 쌓인다. 저장에 필요한 건 `id`와
  * `done`뿐이라, 이 필드가 없던 때와 똑같은 모양으로 되돌려 보낸다.
+ *
+ * 항목별 기본 확인 시점(`due`)도 같은 이유로 뗀다. 게다가 DB는 항목을 `{id, label, done}`
+ * 세 키로만 받아서, 하나라도 더 실리면 쓰기가 거절된다. 이름은 호출부가 여럿이라 그대로 둔다.
  */
 export function stripPlanningChecklistNotes<T extends PlanningChecklistItem>(
   checklist: readonly T[],
 ): T[] {
   return checklist.map((item) => {
-    if (item.note === undefined) return { ...item };
-    const { note: _note, ...rest } = item;
+    if (item.note === undefined && item.due === undefined) return { ...item };
+    const { note: _note, due: _due, ...rest } = item;
     return rest as T;
   });
 }

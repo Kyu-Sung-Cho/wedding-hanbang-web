@@ -26,7 +26,8 @@ import {
   type DashboardUrgentTask,
 } from "@/lib/dashboardExperience.mjs";
 import { LOUNGE_CONTENT_BOTTOM_PADDING } from "@/lib/firstRunTutorial";
-import { AppText, SectionHeader, StatusPill, appShadow } from "@/components/ui/AppUI";
+import { AppText, SectionHeader, appShadow } from "@/components/ui/AppUI";
+import { SummaryPill, summaryColors } from "@/components/ui/FeatureSummary";
 import {
   FirstRunAnchor,
   useFirstRunAnchorScroller,
@@ -190,7 +191,7 @@ function WeddingRings() {
       <View style={[styles.ring, styles.ringLeft]} />
       <View style={[styles.ring, styles.ringRight]} />
       <View style={styles.ringSpark}>
-        <Heart size={10} color={colors.noir[800]} fill={colors.noir[800]} />
+        <Heart size={10} color={summaryColors.surface} fill={summaryColors.surface} />
       </View>
     </View>
   );
@@ -370,13 +371,13 @@ export default function WeddingHomeExperience({
               <AppText variant="eyebrow" style={styles.focusEyebrow}>
                 {focus.eyebrow}
               </AppText>
-              <StatusPill label={focusPill.label} tone={focusPill.tone} />
+              <SummaryPill label={focusPill.label} tone={focusPill.tone} />
             </View>
             <Text style={styles.focusTitle}>{focus.title}</Text>
             <Text style={styles.focusDescription}>{focus.description}</Text>
             <View style={styles.focusAction}>
               <Text style={styles.focusActionText}>{focus.ctaLabel}</Text>
-              <ArrowRight size={17} color={colors.noir[900]} />
+              <ArrowRight size={17} color={summaryColors.ink} />
             </View>
           </Pressable>
           </FirstRunAnchor>
@@ -594,16 +595,19 @@ const styles = StyleSheet.create({
     fontSize: 23,
     lineHeight: 30,
   },
+  // 라운지 첫 요약. 웹 라운지 「현재 준비 현황」과 같은 샴페인 요약 면이다
+  // (`@/lib/featureSummaryPalette`). 예전 어두운 카드는 아래 도구 카드와 무게는 달랐지만
+  // 금빛 보조 글자가 읽기 기준에 못 미쳤다. 글자색은 전부 요약 팔레트에서 온다.
   hero: {
     position: "relative",
     overflow: "hidden",
-    borderRadius: radius["3xl"],
+    borderRadius: radius.xl,
     padding: spacing[5],
-    backgroundColor: colors.noir[800],
+    backgroundColor: summaryColors.surface,
     borderWidth: 1,
-    borderColor: colors.noir.soft,
-    ...appShadow,
-    shadowOpacity: 0.16,
+    borderTopWidth: 3,
+    borderColor: summaryColors.line,
+    borderTopColor: summaryColors.accent,
   },
   heroPressed: {
     opacity: 0.96,
@@ -613,7 +617,7 @@ const styles = StyleSheet.create({
     paddingRight: 96,
   },
   heroEyebrow: {
-    color: colors.gold.light,
+    color: summaryColors.label,
     marginBottom: 2,
   },
   dday: {
@@ -621,18 +625,18 @@ const styles = StyleSheet.create({
     fontSize: 48,
     lineHeight: 58,
     fontFamily: "NotoSansKR_700Bold",
-    color: colors.surface,
+    color: summaryColors.ink,
   },
   ddayUnset: {
     fontSize: 28,
     lineHeight: 42,
   },
   weddingDate: {
-    color: colors.gold.light,
+    color: summaryColors.label,
   },
   momentCopy: {
     marginTop: spacing[4],
-    color: colors.surface,
+    color: summaryColors.ink,
     fontFamily: "NotoSansKR_500Medium",
   },
   ringCluster: {
@@ -650,15 +654,16 @@ const styles = StyleSheet.create({
     borderRadius: radius.full,
     borderWidth: 2,
   },
+  // 장식이다(스크린리더에서 숨김). 밝은 면 위에서도 모양이 보이도록 한 단계 진한 선을 쓴다.
   ringLeft: {
     left: 4,
     top: 12,
-    borderColor: colors.rose.light,
+    borderColor: colors.rose[500],
   },
   ringRight: {
     right: 4,
     top: 12,
-    borderColor: colors.gold.light,
+    borderColor: summaryColors.accent,
   },
   ringSpark: {
     position: "absolute",
@@ -669,7 +674,7 @@ const styles = StyleSheet.create({
     borderRadius: radius.full,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: colors.gold.light,
+    backgroundColor: summaryColors.accent,
   },
   progressHeader: {
     flexDirection: "row",
@@ -679,28 +684,29 @@ const styles = StyleSheet.create({
     marginBottom: spacing[2],
   },
   heroMuted: {
-    color: colors.gold.light,
+    color: summaryColors.label,
   },
   progressValue: {
     fontSize: 15,
     fontFamily: "NotoSansKR_700Bold",
-    color: colors.surface,
+    color: summaryColors.ink,
   },
   progressTrack: {
     height: 6,
     overflow: "hidden",
     borderRadius: radius.full,
-    backgroundColor: "rgba(255, 255, 255, 0.14)",
+    backgroundColor: summaryColors.track,
   },
   progressFill: {
     height: "100%",
     borderRadius: radius.full,
-    backgroundColor: colors.rose.light,
+    // 웹 라운지 요약의 체크리스트 진행 막대와 같은 세이지.
+    backgroundColor: colors.sage[500],
   },
   heroDivider: {
     height: 1,
     marginVertical: spacing[5],
-    backgroundColor: "rgba(255, 255, 255, 0.14)",
+    backgroundColor: summaryColors.line,
   },
   focusHeading: {
     flexDirection: "row",
@@ -710,21 +716,21 @@ const styles = StyleSheet.create({
     marginBottom: spacing[2],
   },
   focusEyebrow: {
-    color: colors.rose.light,
+    color: colors.rose[700],
   },
   focusTitle: {
     paddingRight: spacing[2],
     fontSize: 21,
     lineHeight: 29,
     fontFamily: "NotoSansKR_700Bold",
-    color: colors.surface,
+    color: summaryColors.ink,
   },
   focusDescription: {
     marginTop: spacing[2],
     fontSize: 13,
     lineHeight: 20,
     fontFamily: "NotoSansKR_400Regular",
-    color: colors.gold.light,
+    color: summaryColors.label,
   },
   focusAction: {
     alignSelf: "flex-start",
@@ -735,12 +741,14 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: spacing[2],
     borderRadius: radius.full,
+    borderWidth: 1,
+    borderColor: summaryColors.line,
     backgroundColor: colors.surface,
   },
   focusActionText: {
     fontSize: 13,
     fontFamily: "NotoSansKR_600SemiBold",
-    color: colors.noir[900],
+    color: summaryColors.ink,
   },
   section: {
     marginTop: spacing[8],
@@ -973,18 +981,22 @@ const styles = StyleSheet.create({
     minHeight: 360,
     padding: spacing[5],
     gap: spacing[4],
-    borderRadius: radius["3xl"],
-    backgroundColor: colors.noir[800],
+    borderRadius: radius.xl,
+    borderWidth: 1,
+    borderTopWidth: 3,
+    borderColor: summaryColors.line,
+    borderTopColor: summaryColors.accent,
+    backgroundColor: summaryColors.surface,
   },
   loadingLineDark: {
     height: 12,
     borderRadius: radius.full,
-    backgroundColor: colors.noir.soft,
+    backgroundColor: summaryColors.track,
   },
   loadingDivider: {
     height: 1,
     marginVertical: spacing[2],
-    backgroundColor: colors.noir.soft,
+    backgroundColor: summaryColors.line,
   },
   loadingGrid: {
     flexDirection: "row",

@@ -13,6 +13,9 @@ import { PROFILE_WEDDING_ROLES_CONTRACT_FILE, loadProfileWeddingRolesReleasePlan
 import { createChatFeedbackHistoricalRepository } from "../../../../../scripts/tests/fixtures/chat-feedback-historical-repository.mjs";
 import { createProfileRoleHistoricalRepository } from "../../../../../scripts/tests/fixtures/profile-role-historical-repository.mjs";
 import { PROFILE_AVATAR_CONTRACT_FILE, loadProfileAvatarReleasePlan } from "../../../../../scripts/lib/profile-avatar-release-contract.mjs";
+import { loadCustomerDataReleasePlan } from "../../../../../scripts/lib/account-deletion-customer-data-release-contract.mjs";
+import { NOT_APPLICABLE_STATUS_CONTRACT_FILE, loadNotApplicableStatusReleasePlan } from "../../../../../scripts/lib/amora-not-applicable-status-release-contract.mjs";
+import { createCustomerDataHistoricalRepository } from "../../../../../scripts/tests/fixtures/account-deletion-customer-data-historical-repository.mjs";
 import {
   assertVendorDisclosureProductionBuild,
   expectedProductionAuthorizationSha256,
@@ -42,6 +45,12 @@ const avatarPins = [PROFILE_AVATAR_CONTRACT_FILE, "scripts/lib/profile-avatar-re
   "supabase/release-contracts/profile-avatar-pg17-catalog-v1.json", "supabase/platform-operations/storage/profile-avatar-delivery-service-only.sql",
   "supabase/platform-operations/storage/profile-avatar-service-only.sql",
   "supabase/migrations/20260913082314_private_profile_avatars_delivery.sql"];
+let customerDataFixtureRoot: string;
+let cleanupCustomerDataFixture: (() => void) | undefined;
+let notApplicableFixtureRoot: string;
+let cleanupNotApplicableFixture: (() => void) | undefined;
+const notApplicablePins = [NOT_APPLICABLE_STATUS_CONTRACT_FILE, "scripts/lib/amora-not-applicable-status-release.mjs",
+  "supabase/migrations/20260915101500_amora_atomic_not_applicable_status.sql"];
 
 function production(root: string, authorization = expectedProductionAuthorizationSha256(root)) {
   return assertVendorDisclosureProductionBuild({
@@ -75,13 +84,52 @@ beforeAll(async () => {
   const { mkdir } = await import("node:fs/promises");
   await mkdir(join(avatarFixtureRoot, "supabase/platform-operations/storage"), {recursive: true});
   for (const file of avatarPins) await copyFile(join(repoRoot, file), join(avatarFixtureRoot, file));
-});
+  const customerDataHistory = createCustomerDataHistoricalRepository(repoRoot);
+  customerDataFixtureRoot = customerDataHistory.root;
+  cleanupCustomerDataFixture = customerDataHistory.cleanup;
+  const notApplicableHistory = createCustomerDataHistoricalRepository(repoRoot);
+  notApplicableFixtureRoot = notApplicableHistory.root;
+  cleanupNotApplicableFixture = notApplicableHistory.cleanup;
+  for (const file of notApplicablePins) await copyFile(join(repoRoot, file), join(notApplicableFixtureRoot, file));
+}, 120_000);
 
 afterAll(async () => {
   cleanupFixture?.();
   cleanupFeedbackFixture?.();
   cleanupRoleFixture?.();
   cleanupAvatarFixture?.();
+  cleanupCustomerDataFixture?.();
+  cleanupNotApplicableFixture?.();
+});
+
+describe("production build registers the exact not-applicable status successor after the 232 customer-data release", () => {
+  it("accepts 233 exact SQL files only through the new successor, without claiming hosted application", () => {
+    for (const root of [repoRoot, notApplicableFixtureRoot]) {
+      const plan = loadNotApplicableStatusReleasePlan(root);
+      expect(plan.migrationCount).toBe(233);
+      expect(plan.runtimeEvidenceVerified).toBe(false);
+      expect(plan.releaseAuthorized).toBe(false);
+      expect(() => production(root)).not.toThrow();
+      expect(() => validateSuccessorReleaseContract({repoRoot: root, followup: "account-deletion-customer-data"}))
+        .toThrowError(expect.objectContaining({code: "FOLLOWUP_RELEASE_INVALID"}));
+    }
+    expect(() => loadCustomerDataReleasePlan(repoRoot)).toThrowError(expect.objectContaining({code: "NEW_MIGRATION_NOT_REVIEWED"}));
+  }, 60_000);
+  it("keeps the historical 232 customer-data checkout buildable through its own successor", () => {
+    expect(loadCustomerDataReleasePlan(customerDataFixtureRoot).migrationCount).toBe(232);
+    expect(() => production(customerDataFixtureRoot)).not.toThrow();
+    expect(() => validateSuccessorReleaseContract({repoRoot: customerDataFixtureRoot, followup: "amora-not-applicable-status"}))
+      .toThrowError(expect.objectContaining({code: "FOLLOWUP_RELEASE_INVALID"}));
+  }, 60_000);
+  it.each(notApplicablePins)("refuses a changed or missing not-applicable artifact without fallback: %s", async file => {
+    const target = join(notApplicableFixtureRoot, file), bytes = await readFile(target);
+    try {
+      await writeFile(target, Buffer.concat([bytes, Buffer.from("\n")]));
+      expect(() => production(notApplicableFixtureRoot)).toThrow(VENDOR_DISCLOSURE_STATIC_CONTRACT_INVALID);
+      await rm(target);
+      expect(() => production(notApplicableFixtureRoot)).toThrow(VENDOR_DISCLOSURE_STATIC_CONTRACT_INVALID);
+    } finally {await writeFile(target, bytes);}
+  }, 60_000);
 });
 
 describe("production build registers the exact private-avatar successor and preserves prior authorization", () => {

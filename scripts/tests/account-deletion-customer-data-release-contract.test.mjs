@@ -1,4 +1,4 @@
-import test from 'node:test';
+import test, { after } from 'node:test';
 import assert from 'node:assert/strict';
 import { copyFileSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
@@ -6,10 +6,18 @@ import { spawnSync } from 'node:child_process';
 import { CUSTOMER_DATA_CONTRACT_FILE, loadCustomerDataReleasePlan } from '../lib/account-deletion-customer-data-release-contract.mjs';
 import { loadProfileAvatarReleasePlan } from '../lib/profile-avatar-release-contract.mjs';
 import { createProfileAvatarHistoricalRepository } from './fixtures/profile-avatar-historical-repository.mjs';
+import { createCustomerDataHistoricalRepository } from './fixtures/account-deletion-customer-data-historical-repository.mjs';
 import { validateSuccessorReleaseContract } from '../lib/supabase-successor-release-contract.mjs';
 import { runProductionRelease } from '../lib/supabase-production-release-controller.mjs';
 
-const root = resolve(import.meta.dirname, '../..');
+// 232 공개 모드는 역사 checkout에서만 통과한다. 실제 checkout에는 이후 검토된 SQL이 더 있다.
+const actualRoot = resolve(import.meta.dirname, '../..');
+const historical = createCustomerDataHistoricalRepository(actualRoot), root = historical.root;
+after(historical.cleanup);
+
+test('the historical 232 public mode rejects the actual checkout with a newer reviewed migration', () => {
+  assert.throws(() => loadCustomerDataReleasePlan(actualRoot), { code: 'NEW_MIGRATION_NOT_REVIEWED' });
+});
 const run = args => spawnSync(process.execPath, [join(root, 'scripts/supabase-release-fence.mjs'), ...args],
   { cwd: root, encoding: 'utf8', windowsHide: true, timeout: 30_000 });
 
@@ -37,7 +45,7 @@ test('mixed static modes and incomplete runtime commands fail before network exe
 });
 
 test('every new artifact, predecessor runtime, contract and unregistered migration is fail-closed', t => {
-  const fixture = createProfileAvatarHistoricalRepository(root); t.after(fixture.cleanup);
+  const fixture = createProfileAvatarHistoricalRepository(actualRoot); t.after(fixture.cleanup);
   const plan = loadCustomerDataReleasePlan(root);
   const paths = [CUSTOMER_DATA_CONTRACT_FILE, plan.contract.runtime.file, plan.contract.catalog.file, plan.contract.catalogFixture.file,
     `supabase/migrations/${plan.contract.migrations[0].file}`];

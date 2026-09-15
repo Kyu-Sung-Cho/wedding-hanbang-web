@@ -1,3 +1,4 @@
+import { getChecklistCategoryDueDday } from "@hanbang/shared/utils";
 import { CATEGORY_CHECKLISTS, CHECKLIST_MAP } from "@/constants/checklists";
 import { objectParticle } from "@/lib/ai/tools/toolTypes";
 import { kstMidnightFromYmd, ymdInKst } from "@/lib/utils/kstDate";
@@ -162,7 +163,13 @@ function getCategoryCompletion(progress: Record<string, ProgressItem | unknown>,
   const status = item?.status ?? "not_started";
   const checklist = template ? mergeChecklist(template.items, item?.checklist, status) : [];
   const counts = getChecklistCounts(checklist);
-  return { status, done: counts.done, total: counts.total };
+  // 분야의 **지금 기준** 기본 확인 시점 — 아직 안 끝낸 항목 중 가장 이른 것.
+  // 분야 `ddayDeadline` 하나로 세면 제때 준비하는 커플도 늦게 하는 항목(촬영 뒤 사진 고르기,
+  // 결혼식 직전 최종으로 입어 보기) 하나만 남아 있어도 "기본 일정의 확인 시점보다 N일
+  // 지났어요"를 봤다. 일정 화면의 임박 알림(`getImminentCategories`)과 같은 함수로 센다.
+  // 아무것도 체크하지 않은 분야는 이 값이 `ddayDeadline`과 같다.
+  const dueDday = template ? getChecklistCategoryDueDday(template, checklist) : null;
+  return { status, done: counts.done, total: counts.total, dueDday };
 }
 
 /**
@@ -321,14 +328,17 @@ export function buildAmoraLifecyclePlan(input: BuildAmoraLifecyclePlanInput): Am
 
   if (weddingDate && dday !== null && dday > 0) {
     const deadlineItems = CATEGORY_CHECKLISTS
-      .map((cat) => {
+      .flatMap((cat) => {
         const item = getCategoryCompletion(progress, cat.key);
-        return {
+        // 남은 항목이 없거나 전부 계약·약속으로 정한 날에 하는 일이면 앱이 날짜를 모른다.
+        // 지어낸 날짜로 "지났어요"를 말하지 않도록 마감 가드레일에서 뺀다.
+        if (item.dueDday === null) return [];
+        return [{
           key: cat.key,
           label: cat.label,
           status: item.status,
-          daysUntilDeadline: dday - cat.ddayDeadline,
-        };
+          daysUntilDeadline: dday - item.dueDday,
+        }];
       })
       // "해당 없음"은 마감 가드레일에서도 빼야 잔소리가 되지 않는다.
       .filter((item) => item.status !== "completed" && item.status !== "not_applicable")

@@ -138,19 +138,24 @@ export default function WebViewScreen() {
   }, [canGoBack]);
 
   // 설정된 동일 origin 링크는 WebView에서, 외부 링크는 브라우저에서 연다.
+  //
+  // 네이티브 화면으로 넘길 때는 `replace` 가 아니라 `dismissTo` 다. 웹뷰는 루트 Stack 화면이라
+  // `replace('/chat…')` 는 웹뷰 자리를 새 key 의 `(tabs)`로 바꿔 [(tabs), (tabs)]가 되고 채팅 화면이
+  // 둘 마운트된다. `dismissTo` 는 아래에 있는 기존 화면(`(tabs)`, 체크리스트 등)으로 돌아가고,
+  // 없으면 웹뷰 자리를 그 화면으로 바꾼다(예전 `replace` 와 같다). 체크리스트 시트의 아모라 버튼과 같은 방식이다.
   const handleNavigation = useCallback((event: { url: string }) => {
     const nextUrl = normalizeMobileSiteUrl(event.url, SITE_ORIGIN);
     if (nextUrl) {
       const preparation = preparationNavigation(nextUrl);
       if (preparation) {
         if ("invalid" in preparation) Alert.alert("안내를 확인하지 못했어요", "원래 안내에서 질문 버튼을 다시 눌러 주세요.");
-        else router.replace(preparation.route as Parameters<typeof router.replace>[0]);
+        else router.dismissTo(preparation.route as Parameters<typeof router.dismissTo>[0]);
         return false;
       }
       // 로그인 필요한 화면은 웹뷰에서 열지 않는다 — 웹뷰에 세션이 없어 로그인 폼이 뜬다.
       const native = nativeRouteForWebPath(new URL(nextUrl).pathname);
       if (native) {
-        router.replace(native as Parameters<typeof router.replace>[0]);
+        router.dismissTo(native as Parameters<typeof router.dismissTo>[0]);
         return false;
       }
       setCurrentTitle(titleFromUrl(nextUrl));

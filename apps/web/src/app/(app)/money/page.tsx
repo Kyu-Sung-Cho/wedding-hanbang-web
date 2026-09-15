@@ -5,6 +5,7 @@ import { useAuthStore } from "@/stores/authStore";
 import { useMoneyStore } from "@/stores/moneyStore";
 import type { Side, Relation, MoneyMethod, CongratulatoryMoney } from "@/types/money.types";
 import { todayYmdInKst } from "@hanbang/shared/utils";
+import { FEATURE_SUMMARY_CLASS, SUMMARY_LABEL_CLASS } from "@/components/ui/featureSummaryStyles";
 import {
   Plus, Search, Download, Wallet,
   Edit3, Trash2, X, Check,
@@ -212,34 +213,37 @@ export default function MoneyPage() {
         1024px 에서는 10만원조차 두 줄로 쪼개졌다 — 평균 카드는 거의 늘 깨진다.
         모바일은 원래 2단이고 글자도 22px 로 줄어 영향이 없다.
       */}
-      <div className="grid grid-cols-2 gap-3 mb-6">
-        <div className="bg-white rounded-[6px] shadow-[var(--shadow-raised)] p-6">
-          <p className="text-sm text-[var(--hb-text-muted)] font-medium mb-2">총 축의금</p>
-          <p className="font-serif-kr text-4xl font-light text-[var(--hb-text-strong)] leading-tight">
+      {/* 예산·체크리스트·일정·라운지와 같은 기능 요약 강조(샴페인 면)를 쓴다. 칸 배치와 금액 크기는 위 측정대로 둔다. */}
+      <section aria-label="축의금 요약" data-money-summary className={`${FEATURE_SUMMARY_CLASS} mb-6 p-4 sm:p-6`}>
+      <div className="grid grid-cols-2 gap-x-5 gap-y-4">
+        <div className="min-w-0 border-b border-[var(--hb-summary-line,#DEC9BA)] pb-4">
+          <p className={`${SUMMARY_LABEL_CLASS} mb-2`}>총 축의금</p>
+          <p className="font-serif-kr text-4xl font-light text-[var(--hb-summary-ink,#382F2B)] leading-tight">
             {stats.total.toLocaleString()}
-            <span className="text-base text-[var(--hb-text-muted)] ml-1">원</span>
+            <span className="text-base text-[var(--hb-summary-label,#624A3C)] ml-1">원</span>
           </p>
         </div>
-        <div className="bg-white rounded-[6px] shadow-[var(--shadow-raised)] p-6">
-          <p className="text-sm text-[var(--hb-text-muted)] font-medium mb-2">총 인원</p>
-          <p className="font-serif-kr text-4xl font-light text-[var(--hb-text-strong)] leading-tight">
+        <div className="min-w-0 border-b border-[var(--hb-summary-line,#DEC9BA)] pb-4">
+          <p className={`${SUMMARY_LABEL_CLASS} mb-2`}>총 인원</p>
+          <p className="font-serif-kr text-4xl font-light text-[var(--hb-summary-ink,#382F2B)] leading-tight">
             {stats.count}
-            <span className="text-base text-[var(--hb-text-muted)] ml-1">명</span>
+            <span className="text-base text-[var(--hb-summary-label,#624A3C)] ml-1">명</span>
           </p>
         </div>
-        <div className="bg-white rounded-[6px] shadow-[var(--shadow-raised)] p-6">
-          <p className="text-sm text-[var(--hb-text-muted)] font-medium mb-2">평균</p>
-          <p className="font-serif-kr text-4xl font-light text-[var(--hb-text-strong)] leading-tight">
+        <div className="min-w-0">
+          <p className={`${SUMMARY_LABEL_CLASS} mb-2`}>평균</p>
+          <p className="font-serif-kr text-4xl font-light text-[var(--hb-summary-ink,#382F2B)] leading-tight">
             {stats.avg.toLocaleString()}
-            <span className="text-base text-[var(--hb-text-muted)] ml-1">원</span>
+            <span className="text-base text-[var(--hb-summary-label,#624A3C)] ml-1">원</span>
           </p>
         </div>
-        <div className="bg-white rounded-[6px] shadow-[var(--shadow-raised)] p-6">
-          <p className="text-sm text-[var(--hb-text-muted)] font-medium mb-2">신랑 / 신부</p>
-          <p className="text-sm text-[var(--hb-text-body)] mt-1">신랑 <span className="font-medium text-[var(--hb-text-strong)]">{formatMoney(stats.groomTotal)}</span></p>
-          <p className="text-sm text-[var(--hb-accent-hover)] mt-0.5">신부 <span className="font-medium">{formatMoney(stats.brideTotal)}</span></p>
+        <div className="min-w-0">
+          <p className={`${SUMMARY_LABEL_CLASS} mb-2`}>신랑 / 신부</p>
+          <p className="text-sm text-[var(--hb-summary-label,#624A3C)] mt-1">신랑 <span className="font-medium text-[var(--hb-summary-ink,#382F2B)]">{formatMoney(stats.groomTotal)}</span></p>
+          <p className="text-sm text-[var(--hb-summary-label,#624A3C)] mt-0.5">신부 <span className="font-medium text-[var(--hb-summary-ink,#382F2B)]">{formatMoney(stats.brideTotal)}</span></p>
         </div>
       </div>
+      </section>
 
       {/* 입력 폼 */}
       {showForm && (

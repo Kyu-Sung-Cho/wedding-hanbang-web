@@ -21,14 +21,23 @@
  * 「우리는 이건 안 해요」는 시안 어디에도 없지만 지우지 않았다. 가족·지역마다 하는
  * 항목이 달라서, 끄면 진행률 분모와 마감 알림에서 빠진다. 지우면 안 하는 분야가
  * 영구 미완료로 남는다.
+ *
+ * ## 아모라 질문(2026-09-15)
+ *
+ * 웹 모달에는 분야 전체(「아모라 질문」)와 항목마다 아모라 버튼이 있었는데 이 시트에는
+ * 없었다. 같은 커플이 앱에서만 질문 입구를 못 찾는 상태였다. 두 버튼 모두 웹뷰 예절 편의
+ * 질문 링크와 **같은 `amoraSource` 경로**로 네이티브 채팅을 열고, 채팅은 입력창에 질문만
+ * 채운다. 질문을 보내도 체크·일정·예산은 바뀌지 않는다 — 아모라가 낸 카드를 사용자가 직접
+ * 확인해야만 바뀐다.
  */
 
 import { useMemo } from "react";
 import { Modal, View, ScrollView, Pressable, StyleSheet } from "react-native";
 import { Text } from "@/components/ui/AppText";
 import { Check, Ban, Sparkle, BookOpen } from "lucide-react-native";
-import { colors } from "@hanbang/design-tokens";
+import { amoraIdentity, colors } from "@hanbang/design-tokens";
 import {
+  CHECKLIST_MAP,
   checklistItemTag,
   checklistNoteSourceChip,
   groupChecklistItems,
@@ -36,9 +45,16 @@ import {
   mannersGuideForCategory,
   type ChecklistItem,
 } from "@hanbang/shared/constants";
+import AmoraMark from "@/components/ui/AmoraMark";
 
 import ChecklistProgressRing from "./ChecklistProgressRing";
 import ChecklistItemTag from "./ChecklistItemTag";
+
+/**
+ * 아모라 질문 버튼이 스크린리더에 덧붙이는 설명. 눈에 보이는 안내 줄은 따로 두지 않는다 —
+ * 누르면 채팅 입력창에 질문만 채워진다. 보낸 뒤에도 체크 상태는 그대로다(웹 모달과 같은 약속).
+ */
+const AMORA_QUESTION_HINT = "아모라 채팅 입력창에 질문만 채워요. 질문을 보내도 체크 상태는 바뀌지 않아요.";
 
 export type ChecklistSheetStats = {
   done: number;
@@ -59,6 +75,7 @@ export default function CategoryChecklistSheet({
   onToggleApplicability,
   onOpenGuide,
   onOpenSource,
+  onAskAmora,
 }: {
   visible: boolean;
   categoryKey: string;
@@ -73,7 +90,21 @@ export default function CategoryChecklistSheet({
   onOpenGuide: (slug: string) => void;
   /** 근거 칩이 여는 곳. `/manners/<slug>#section-N` 꼴의 경로를 받는다. */
   onOpenSource: (path: string) => void;
+  /**
+   * 아모라에게 묻기. 항목 id가 없으면 분야 전체 질문이다. 채팅으로 가는 경로는 화면이
+   * 만든다 — 웹뷰 링크와 같은 `amoraSource` 경로(`@/lib/amoraPreparationSource`)를 쓴다.
+   */
+  onAskAmora: (itemId?: string) => void;
 }) {
+  /**
+   * 항목 질문 버튼은 **공유 템플릿에 있는 항목에만** 단다. 예전 버전이 저장한 항목이나
+   * 직접 추가한 항목은 서버 정본에 없어 질문 초안을 받을 수 없다(웹 모달과 같은 규칙).
+   */
+  const templateItemIds = useMemo(
+    () => new Set((CHECKLIST_MAP[categoryKey]?.items ?? []).map((item) => item.id)),
+    [categoryKey],
+  );
+
   const groups = useMemo(
     () => groupChecklistItems(categoryKey, items),
     [categoryKey, items],
@@ -188,6 +219,7 @@ export default function CategoryChecklistSheet({
                       key={item.id}
                       style={index === group.items.length - 1 ? s.itemRowLast : s.itemBlock}
                     >
+                    <View style={s.itemLine}>
                     <Pressable
                       style={s.itemRow}
                       onPress={() => onToggleItem(item.id, item.done)}
@@ -240,6 +272,23 @@ export default function CategoryChecklistSheet({
 
                       </View>
                     </Pressable>
+                    {/*
+                      항목 질문 버튼도 체크 버튼 **밖 형제**다(근거 칩과 같은 이유).
+                      눌러도 체크는 바뀌지 않고, 채팅 입력창에 질문만 채워진다.
+                    */}
+                    {templateItemIds.has(item.id) ? (
+                      <Pressable
+                        style={({ pressed }) => [s.amoraIconButton, pressed && s.amoraPressed]}
+                        onPress={() => onAskAmora(item.id)}
+                        accessibilityRole="button"
+                        accessibilityLabel={`${item.label} 아모라에 질문하기`}
+                        accessibilityHint={AMORA_QUESTION_HINT}
+                        hitSlop={4}
+                      >
+                        <AmoraMark size={20} />
+                      </Pressable>
+                    ) : null}
+                    </View>
                     {chip ? (
                       <Pressable
                         style={s.sourceChip}
@@ -281,17 +330,30 @@ export default function CategoryChecklistSheet({
             <Sparkle size={15} color={colors.gold.DEFAULT} strokeWidth={1.7} />
             <Text style={s.tipText}>{tip}</Text>
           </View>
-          {guide ? (
+          <View style={s.footActions}>
+            {guide ? (
+              <Pressable
+                style={s.guide}
+                onPress={() => onOpenGuide(guide.slug)}
+                accessibilityRole="link"
+                accessibilityLabel={`${guide.title} 보기`}
+              >
+                <BookOpen size={15} color={colors.paper.ink} />
+                <Text style={s.guideText} numberOfLines={2}>{guide.title} 보기</Text>
+              </Pressable>
+            ) : null}
+            {/* 분야 전체 질문. 웹 모달의 「아모라 질문」과 같은 자리·같은 말이다. */}
             <Pressable
-              style={s.guide}
-              onPress={() => onOpenGuide(guide.slug)}
-              accessibilityRole="link"
-              accessibilityLabel={`${guide.title} 보기`}
+              style={({ pressed }) => [s.amoraButton, !guide && s.amoraButtonWide, pressed && s.amoraPressed]}
+              onPress={() => onAskAmora()}
+              accessibilityRole="button"
+              accessibilityLabel={`${label} 아모라에 질문하기`}
+              accessibilityHint={AMORA_QUESTION_HINT}
             >
-              <BookOpen size={15} color={colors.paper.ink} />
-              <Text style={s.guideText}>{guide.title} 보기</Text>
+              <AmoraMark size={18} />
+              <Text style={s.amoraButtonText}>아모라 질문</Text>
             </Pressable>
-          ) : null}
+          </View>
         </View>
       </View>
     </Modal>
@@ -378,7 +440,10 @@ const s = StyleSheet.create({
 
   itemBlock: { borderBottomWidth: 1, borderBottomColor: "#E5DDC9" },
   itemRowLast: { borderBottomWidth: 0 },
+  itemLine: { flexDirection: "row", alignItems: "flex-start", gap: 6 },
   itemRow: {
+    flex: 1,
+    minWidth: 0,
     flexDirection: "row",
     alignItems: "flex-start",
     gap: 11,
@@ -447,6 +512,35 @@ const s = StyleSheet.create({
     backgroundColor: colors.ivory.warm,
   },
   tipRow: { flexDirection: "row", alignItems: "flex-start", gap: 9, marginBottom: 12 },
+  footActions: { flexDirection: "row", alignItems: "stretch", gap: 8 },
+  // 아모라 질문 버튼 — 라운지 아모라 버튼과 같은 정체성 색(`amoraIdentity`)을 쓴다.
+  // 웹 `AMORA_ACTION_CLASS`(아이보리 바탕·장미 선·장미 글자)와 같은 조합이다.
+  amoraButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    minHeight: 46,
+    paddingHorizontal: 14,
+    borderRadius: amoraIdentity.radius,
+    borderWidth: 1,
+    borderColor: amoraIdentity.line,
+    backgroundColor: amoraIdentity.surface,
+  },
+  amoraButtonWide: { flex: 1 },
+  amoraButtonText: { fontSize: 13, fontFamily: "NotoSansKR_600SemiBold", color: amoraIdentity.ink },
+  amoraIconButton: {
+    width: 44,
+    height: 44,
+    marginTop: 4,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: amoraIdentity.radius,
+    borderWidth: 1,
+    borderColor: amoraIdentity.line,
+    backgroundColor: amoraIdentity.surface,
+  },
+  amoraPressed: { backgroundColor: amoraIdentity.hover },
   tipText: {
     flex: 1,
     fontSize: 12,
@@ -455,15 +549,18 @@ const s = StyleSheet.create({
     color: colors.paper.inkSoft,
   },
   guide: {
+    flex: 1,
+    minWidth: 0,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
     gap: 8,
-    height: 46,
+    minHeight: 46,
+    paddingHorizontal: 10,
     borderRadius: 11,
     borderWidth: 1,
     borderColor: colors.border,
     backgroundColor: colors.surface,
   },
-  guideText: { fontSize: 13, fontFamily: "NotoSansKR_600SemiBold", color: colors.paper.ink },
+  guideText: { flexShrink: 1, textAlign: "center", fontSize: 13, fontFamily: "NotoSansKR_600SemiBold", color: colors.paper.ink },
 });

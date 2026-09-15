@@ -80,7 +80,7 @@ function loadSessionHarness({ sharedCursor = null, privateCursor = null, history
   const bindings = {
     ...module.exports,
     supabase: { auth: { getUser: async () => ({ data: { user: { id: "viewer" } } }) }, from: query, channel: () => channel, removeChannel: () => {} },
-    chatSessionGenerationRef: { current: { begin: () => ++generation, invalidate: () => ++generation } },
+    chatSessionGenerationRef: { current: { begin: () => ++generation, invalidate: () => ++generation, instanceId: () => 1 } },
     chatViewCursorsRef: { current: { shared: null, private: null } },
     refreshChatSessionRef: { current: null }, activeControllerRef: { current: null },
     pendingChatDraftRestoreRef: { current: null }, inputByLaneRef: { current: {} },

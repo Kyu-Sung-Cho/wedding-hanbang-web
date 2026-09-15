@@ -237,7 +237,7 @@ test('actual native continuation asks for reviewed fields before staging private
   let current = action(); const calls = []; const navigation = [];
   const session = contract.createPersonalActionContinuation({ readScope: () => ({ ownerId: owner, coupleId: couple }), readAction: async () => { calls.push('GET'); return { actions: current ? [current] : [], count: current ? 1 : 0, next_cursor: null }; } });
   const h = nativeViewHarness('../components/chat/PersonalActionContinue.tsx', 'PersonalActionContinue', { action: action() }, {
-    'expo-router': { router: { push: path => navigation.push(path) } },
+    'expo-router': { router: { dismissTo: path => navigation.push(path) } },
     '@/lib/personalActionContinuation': { personalActionContinuation: session },
     '@/lib/supabase': { supabase: { auth: { onAuthStateChange: () => ({ data: { subscription: { unsubscribe() {} } } }) } } },
   });

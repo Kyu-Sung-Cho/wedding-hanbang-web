@@ -3,7 +3,7 @@ import type { AmoraActionItem, AmoraActionSource, AmoraActionStatus } from "./ac
 import { weddingPath } from "@/lib/weddingPaths";
 import { compareChatTimestamps } from "@hanbang/shared";
 import { z } from "zod";
-import { preparationLegacyBudgetTitle, preparationScheduleRecordLabel } from "./preparationDecisionDisplay";
+import { preparationDecisionFacts, preparationScheduleRecordLabel } from "./preparationDecisionDisplay";
 
 export const DECISION_COLUMNS = [
   { status: "confirmed", label: "확정", rule: "결정·예약·완료와 일정 변경 이력이에요. 현재 일정 상태는 일정에서 확인해 주세요.", dot: "bg-[var(--amora-sage)]" },
@@ -14,7 +14,20 @@ export type DecisionColumn = typeof DECISION_COLUMNS[number]["status"];
 export type PreparationDecision = {
   id: string; category: string; title: string; detail: string | null; createdAt: string;
   status: DecisionColumn; stateLabel: string; source: string; displayTitle?: string;
+  /** 같은 값을 바꾼 기록끼리 묶는 열쇠. 표시에서만 쓴다. */
+  valueSlots?: string[];
+  /** 저장 분류 밖에서도 이 기록을 보여줄 분야(예산 결정의 예산·해당 분야). */
+  relatedCategories?: string[];
+  /** 체크리스트·진행 상태만 저장한 기록의 바뀐 분야 수. */
+  routineChanges?: number;
 };
+/**
+ * 같은 값을 다시 바꾼 기록이 있을 때만 붙는다. previous는 나중 기록이 같은 값을 모두 다시 바꾼 기록이다.
+ * latest는 불러온 기록 중 그 값을 마지막으로 바꾼 기록일 뿐 현재 값을 뜻하지 않는다.
+ * 분야 삭제나 아모라 초기화·삭제는 값 슬롯이 있는 기록을 남기지 않으므로 지금 값은 예산 화면이 기준이다.
+ */
+export type ArrangedPreparationDecision = PreparationDecision & { valueState?: "latest" | "previous" };
+export type RoutineProgressDay = { key: string; label: string; records: number; changes: number };
 export type DecisionCursor = { id: string; createdAt: string };
 export const DECISION_PAGE_SIZE = 30;
 const dateSchema = z.string().datetime({ offset: true });
@@ -45,16 +58,58 @@ export function parsePreparationDecisions(value: unknown, coupleId: string, curs
   const visible = rows.slice(0, DECISION_PAGE_SIZE);
   return {
     records: visible.map((row): PreparationDecision => {
-      const displayTitle = preparationLegacyBudgetTitle(row);
+      const facts = preparationDecisionFacts(row);
       return {
         id: row.id, category: row.category ?? "", title: row.title, detail: row.reasoning || null,
         createdAt: row.created_at, source: row.source ?? "",
         status: row.decision_type === "exploring" ? "exploring" : row.decision_type === "considering" ? "considering" : "confirmed",
         stateLabel: row.decision_type === "scheduled" ? preparationScheduleRecordLabel(row) : DECISION_STATE_LABELS[row.decision_type],
-        ...(displayTitle ? { displayTitle } : {}),
+        ...(facts.displayTitle ? { displayTitle: facts.displayTitle } : {}),
+        ...(facts.valueSlots.length ? { valueSlots: facts.valueSlots } : {}),
+        ...(facts.relatedCategories.length ? { relatedCategories: facts.relatedCategories } : {}),
+        ...(facts.routineChanges !== null ? { routineChanges: facts.routineChanges } : {}),
       };
     }),
     nextCursor: rows.length > DECISION_PAGE_SIZE ? { id: visible.at(-1)!.id, createdAt: visible.at(-1)!.created_at } : null,
+  };
+}
+
+const seoulDay = new Intl.DateTimeFormat("en-CA", { year: "numeric", month: "2-digit", day: "2-digit", timeZone: "Asia/Seoul" });
+
+/**
+ * 불러온 기록을 화면용으로 정리한다. DB 행은 바꾸지 않는다.
+ * - 같은 값(예: 드레스·예식 정장 예산)을 나중 기록이 모두 다시 바꿨으면 앞 기록을 이전 값으로 표시한다.
+ *   기록은 최신순으로 불러오므로, 더 최근 기록은 항상 먼저 불러온 상태다.
+ * - 체크리스트·진행 상태만 저장한 기록은 결정 목록에서 빼고 날짜별 개수로 접는다.
+ */
+export function arrangePreparationDecisions(records: PreparationDecision[]) {
+  const newestFirst = [...records].sort((left, right) =>
+    (compareChatTimestamps(right.createdAt, left.createdAt) ?? 0) || (left.id < right.id ? 1 : left.id > right.id ? -1 : 0));
+  const newestBySlot = new Map<string, string>();
+  const previous = new Set<string>();
+  const latest = new Set<string>();
+  for (const row of newestFirst) {
+    const slots = row.routineChanges === undefined && row.status === "confirmed" ? row.valueSlots ?? [] : [];
+    if (!slots.length) continue;
+    if (slots.every(slot => newestBySlot.has(slot))) {
+      previous.add(row.id);
+      for (const slot of slots) latest.add(newestBySlot.get(slot)!);
+    } else for (const slot of slots) if (!newestBySlot.has(slot)) newestBySlot.set(slot, row.id);
+  }
+  const days = new Map<string, RoutineProgressDay>();
+  for (const row of records) {
+    if (row.routineChanges === undefined) continue;
+    const date = new Date(row.createdAt);
+    const key = Number.isNaN(date.getTime()) ? "" : seoulDay.format(date);
+    const day = days.get(key) ?? { key, label: preparationDate(row.createdAt) ?? "날짜 확인 필요", records: 0, changes: 0 };
+    day.records += 1; day.changes += row.routineChanges;
+    days.set(key, day);
+  }
+  return {
+    decisions: records.filter(row => row.routineChanges === undefined).map((row): ArrangedPreparationDecision =>
+      previous.has(row.id) ? { ...row, valueState: "previous" } : latest.has(row.id) ? { ...row, valueState: "latest" } : row),
+    routineDays: [...days.values()],
+    routineCount: records.length - records.filter(row => row.routineChanges === undefined).length,
   };
 }
 

@@ -41,7 +41,7 @@ test('the actual CI local-fence command selects a working non-deploy contract', 
   const args = commands[0][1].trim().split(/\s+/).filter(Boolean);
   const result = run(root, args);
   assert.equal(result.status, 0, output(result));
-  assert.deepEqual(args, ['--account-deletion-customer-data']);
+  assert.deepEqual(args, ['--amora-not-applicable-status']);
 });
 
 test('explicit static mode rejects remote, duplicate and unknown arguments before any legacy flow', async t => {

@@ -11,7 +11,7 @@ const tree=ts.createSourceFile('webview.tsx',source,ts.ScriptTarget.Latest,true,
 let callback;const visit=node=>{if(ts.isVariableDeclaration(node)&&node.name.getText(tree)==='handleNavigation')callback=node.initializer.arguments[0].getText(tree);ts.forEachChild(node,visit);};visit(tree);
 const declarations=tree.statements.filter(n=>(ts.isVariableStatement(n)&&n.declarationList.declarations.some(d=>d.name.getText(tree)==='WEB_TO_NATIVE'))||(ts.isFunctionDeclaration(n)&&n.name?.text==='nativeRouteForWebPath')).map(n=>n.getText(tree)).join('\n').replace('export function','function');
 const code=ts.transpileModule(declarations+'\nconst navigate='+callback,{compilerOptions:{target:ts.ScriptTarget.ES2022}}).outputText;
-function runNavigation(url){const routes=[],alerts=[];const bindings={...helper,SITE_ORIGIN:'https://hanbang.ai',normalizeMobileSiteUrl:(value,origin)=>new URL(value).origin===origin?value:null,router:{replace:value=>routes.push(value)},Alert:{alert:(...v)=>alerts.push(v)},setCurrentTitle:()=>{},titleFromUrl:()=>'',canOpenExternally:()=>false,Linking:{openURL:()=>Promise.resolve()}};const navigate=new Function('bindings',`with(bindings){${code};return navigate;}`)(bindings);return {allowed:navigate({url}),routes,alerts};}
+function runNavigation(url){const routes=[],alerts=[];const bindings={...helper,SITE_ORIGIN:'https://hanbang.ai',normalizeMobileSiteUrl:(value,origin)=>new URL(value).origin===origin?value:null,router:{dismissTo:value=>routes.push(value)},Alert:{alert:(...v)=>alerts.push(v)},setCurrentTitle:()=>{},titleFromUrl:()=>'',canOpenExternally:()=>false,Linking:{openURL:()=>Promise.resolve()}};const navigate=new Function('bindings',`with(bindings){${code};return navigate;}`)(bindings);return {allowed:navigate({url}),routes,alerts};}
 test('actual WebView callback preserves exact guide source into native chat',()=>{assert.deepEqual(runNavigation('https://hanbang.ai/wedding/chat?amoraSource=g.gift-money.section-2').routes,['/chat?amoraSource=g.gift-money.section-2']);});
 test('source parser rejects duplicate arrays, noncanonical IDs and unknown response properties',()=>{assert.equal(typeof helper.readPreparationSource,'function');for(const bad of [[],['g.gift-money'],['g.gift-money','g.other'],'g.gift-money.section-0','c.venue.bad-id','javascript:bad','g.gift-money.section-1.extra'])assert.equal(helper.readPreparationSource(bad),null);const raw={source:'g.gift-money.section-2',text:'안내를 읽고 질문해요.',sourceLabel:'축의금 · 먼저 확인할 것',sourceHref:'/manners/gift-money#section-2'};assert.deepEqual(helper.parsePreparationDraft(raw,raw.source),raw);for(const wrong of [{...raw,source:'g.gift-money'},{...raw,sourceHref:'https://evil.invalid'},{...raw,referenceText:'extra'},{...raw,text:'x'.repeat(4001)}])assert.equal(helper.parsePreparationDraft(wrong,raw.source),null);});
 test('invalid source navigation fails visibly without generic chat fallback',()=>{assert.deepEqual(runNavigation('https://hanbang.ai/wedding/chat?amoraSource=g.gift-money&amoraSource=g.other').routes,[]);assert.equal(runNavigation('https://hanbang.ai/wedding/chat?amoraSource=g.gift-money&amoraSource=g.other').alerts.length,1);});
@@ -72,19 +72,21 @@ function effectHarness(overrides = {}) {
   const pending = deferred(); const context = { ...initialContext(), ...overrides };
   let drafts = { shared_ai: context.input, private_ai: '개인 질문', shared_partner: '파트너 질문' };
   let card = null; let notice = null; let generation = 1; let reads = 0;
-  const routes = []; const inputRef = { current: drafts }; const contextRef = { current: context };
+  const routes = []; const laneMoves = []; const inputRef = { current: drafts }; const contextRef = { current: context };
   const bindings = { ...helper, preparationParam: SOURCE, entryParam: undefined, initialLoaded: true, userId: 'actor-a', coupleId: 'couple-a', chatLoadError: null,
     consumedPreparationRef: { current: null }, preparationContextRef: contextRef, chatSessionGenerationRef: { current: { current: () => generation, isCurrent: value => value === generation } },
     mountedRef: { current: true }, sessionUserIdRef: { current: 'actor-a' }, sendingRef: { current: false }, inputByLaneRef: inputRef,
     amoraSiteOrigin: 'https://hanbang.ai', buildMobileSiteUrl: (path, origin) => origin + path,
     fetch: async (url, options) => { reads++; assert.equal(new URL(url).pathname, '/api/amora/preparation-source'); assert.equal(new URL(url).searchParams.get('source'), SOURCE); assert.equal(options.credentials, 'omit'); assert.equal(options.redirect, 'error'); assert.equal(options.headers, undefined); return pending.promise; },
     router: { setParams: params => routes.push(params) },
+    preparationLaneSwitchRef: { current: null },
+    setActiveScope: scope => laneMoves.push(['scope', scope]), setTarget: target => laneMoves.push(['target', target]),
     setPreparationDraft: value => { card = value; }, setPreparationNotice: value => { notice = value; },
     setInputByLane: update => { drafts = update(drafts); }, updateAmoraChatLaneRecord: (values, lane, text) => ({ ...values, [lane]: text }),
   };
   const effect = new Function('bindings', `with(bindings){${effectCode};return effect;}`)(bindings);
   return { start: effect, resolve: value => pending.resolve({ ok: true, text: async () => JSON.stringify(value) }),
-    state: () => ({ drafts, card, notice, reads, routes }), setContext: next => { contextRef.current = { ...contextRef.current, ...next }; },
+    state: () => ({ drafts, card, notice, reads, routes, laneMoves }), setContext: next => { contextRef.current = { ...contextRef.current, ...next }; },
     type: text => { drafts = { ...drafts, shared_ai: text }; inputRef.current = drafts; },
     invalidate: () => { generation += 2; }, bindings };
 }
@@ -104,11 +106,47 @@ test('actual native effect blocks ignored-abort completion after owner ABA and d
     h.resolve(preview); await flush(); assert.equal(h.state().card, null); assert.equal(h.state().drafts.shared_ai, ''); assert.equal(h.state().notice, null); cleanup();
   }
 });
-test('actual native effect does not fetch or overwrite private/partner/existing drafts', async () => {
-  for (const overrides of [{ lane: 'private_ai' }, { lane: 'shared_partner' }, { input: 'existing' }]) {
-    const h = effectHarness(overrides); const cleanup = h.start(); await flush();
-    assert.equal(h.state().reads, 0); assert.equal(h.state().card, null); assert.equal(h.state().drafts.shared_ai, overrides.input ?? ''); assert.ok(h.state().notice); cleanup();
-  }
+test('actual native effect does not fetch or overwrite an existing shared draft, and says that is why', async () => {
+  const h = effectHarness({ input: 'existing' }); const cleanup = h.start(); await flush();
+  assert.equal(h.state().reads, 0); assert.equal(h.state().card, null); assert.equal(h.state().drafts.shared_ai, 'existing');
+  assert.match(h.state().notice, /함께 대화에서 아모라에게 쓰던 질문이 있어서 안내 질문을 넣지 않았어요/); cleanup();
+});
+// 2026-09-15: 체크리스트 시트의 아모라 버튼·예절 안내 링크를 눌렀는데 마지막에 나만 (상담)이나 상대와의
+// 대화에 있었으면 아무것도 채우지 않고 "함께 대화의 작성 중인 질문을…" 이라는 틀린 알림만 떴다.
+for (const lane of ['private_ai', 'shared_partner', null]) {
+  test(`actual native effect moves from ${lane} to the shared Amora lane and fills there without touching other drafts`, async () => {
+    const h = effectHarness({ lane }); h.start(); await flush();
+    // 첫 실행은 레인만 옮긴다 — 아직 읽지도 채우지도 않고, 주소의 안내 ID도 남겨 둔다.
+    assert.deepEqual(h.state().laneMoves, [['scope', 'shared'], ['target', 'ai']]);
+    assert.equal(h.state().reads, 0); assert.equal(h.state().notice, null); assert.deepEqual(h.state().routes, []);
+    // 레인이 바뀌면 React 가 이 효과를 다시 돌린다.
+    h.setContext({ lane: 'shared_ai' }); const cleanup = h.start(); h.resolve(preview); await flush();
+    assert.equal(h.state().reads, 1); assert.equal(h.state().drafts.shared_ai, preview.text); assert.equal(h.state().card.source, SOURCE);
+    assert.equal(h.state().drafts.private_ai, '개인 질문'); assert.equal(h.state().drafts.shared_partner, '파트너 질문');
+    assert.equal(h.state().notice, null); assert.deepEqual(h.state().routes, [{ amoraSource: undefined }]); cleanup();
+  });
+}
+test('actual native effect in another lane with a shared draft shows that draft instead of overwriting it', async () => {
+  const h = effectHarness({ lane: 'private_ai', input: '함께 대화에 쓰던 질문' }); h.start(); await flush();
+  assert.equal(h.state().reads, 0); assert.equal(h.state().card, null);
+  assert.equal(h.state().drafts.shared_ai, '함께 대화에 쓰던 질문'); assert.equal(h.state().drafts.private_ai, '개인 질문');
+  assert.deepEqual(h.state().laneMoves, [['scope', 'shared'], ['target', 'ai']]);
+  assert.match(h.state().notice, /함께 대화에서 아모라에게 쓰던 질문이 있어서 안내 질문을 넣지 않았어요/);
+  assert.deepEqual(h.state().routes, [{ amoraSource: undefined }]);
+  // 레인이 바뀌어 다시 돌아도 읽거나 채우지 않는다.
+  h.setContext({ lane: 'shared_ai' }); h.start(); await flush();
+  assert.equal(h.state().reads, 0); assert.equal(h.state().drafts.shared_ai, '함께 대화에 쓰던 질문');
+});
+test('actual native effect does not switch lanes while a message is on its way, and says so', async () => {
+  const h = effectHarness({ lane: 'private_ai', busy: true }); const cleanup = h.start(); await flush();
+  assert.deepEqual(h.state().laneMoves, []); assert.equal(h.state().reads, 0); assert.equal(h.state().card, null);
+  assert.equal(h.state().drafts.private_ai, '개인 질문'); assert.match(h.state().notice, /보내거나 답을 받는 중이라/); cleanup();
+});
+test('actual native effect tries the lane move once and fails visibly if the lane did not change', async () => {
+  const h = effectHarness({ lane: 'private_ai' }); h.start(); await flush();
+  const cleanup = h.start(); await flush();
+  assert.equal(h.state().laneMoves.length, 2); assert.equal(h.state().reads, 0); assert.equal(h.state().card, null);
+  assert.equal(h.state().drafts.private_ai, '개인 질문'); assert.match(h.state().notice, /넣지 않았어요/); cleanup();
 });
 test('actual native effect fails closed for a wrong-source public response', async () => {
   const h = effectHarness(); const cleanup = h.start(); h.resolve({ ...preview, source: 'g.gift-money' }); await flush();

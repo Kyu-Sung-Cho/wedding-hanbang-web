@@ -1,6 +1,7 @@
 import {
   hasAmoraExplanatoryContinuityCue,
   hasAmoraOtherDomainTopicSignal,
+  isAmoraCardConfirmationMessage,
 } from "@/lib/ai/amoraBoundedContinuity";
 import {
   classifyAmoraQuestionScope,
@@ -234,16 +235,14 @@ export type ResolveAmoraWeddingClarificationContinuityInput<
  * 두 번 연속되면 두 번째 답은 이어지지 않는다. 의도한 경계다 — 한 번의 W0
  * 발화가 이후 임의 길이의 무신호 대화에 권한을 빌려주지 않는다.
  */
-/** 카드 확인 버튼이 보내는 고정 문장(웹 ChatContent/ChatSidePanel·모바일 chat.tsx 동일). */
-const CARD_CONFIRMATION_MESSAGE_RE =
-  /^\s*좋아요[.!]?\s*제안한\s*변경을\s*적용해\s*주세요[.!]?\s*$/u;
-
 /**
- * [확인 메시지 ↔ 실행 영수증] 쌍인가. 사용자 문장이 카드 확인 고정 문장이고, 같은
- * 사람이 같은 공개 범위에서 보냈고, 아모라 쪽이 그 메시지에 답한 행이면 확인 쌍이다.
+ * [확인 메시지 ↔ 실행 영수증] **모양**인가. 사용자 문장이 카드 확인 고정 문장이고, 같은
+ * 사람이 같은 공개 범위에서 보냈고, 아모라 쪽이 그 메시지에 답한 행이면 이 모양이다.
  * 영수증 본문 모양(도구 성공 문구)은 서버가 만드는 것이라 여기서 따로 검사하지 않는다.
+ *
+ * 모양만으로는 건너뛰지 않는다. 아래 `isServerConfirmedCardPair` 가 버튼 확인임을 증명해야 한다.
  */
-function isConfirmationPair<T extends AmoraClarificationContinuityRow>(
+function isConfirmationShapedPair<T extends AmoraClarificationContinuityRow>(
   amora: T,
   confirmer: T,
   requesterUserId: string,
@@ -253,8 +252,7 @@ function isConfirmationPair<T extends AmoraClarificationContinuityRow>(
     confirmer.role !== "user"
     || confirmer.sender_type === "ai"
     || confirmer.sender_id !== requesterUserId
-    || typeof confirmer.content !== "string"
-    || !CARD_CONFIRMATION_MESSAGE_RE.test(confirmer.content.normalize("NFKC"))
+    || !isAmoraCardConfirmationMessage(confirmer.content)
     || confirmer.visibility !== visibility
   ) {
     return false;
@@ -265,7 +263,47 @@ function isConfirmationPair<T extends AmoraClarificationContinuityRow>(
     && amora.sender_id === null
     && amora.visibility === visibility
     && metadata !== null
+    && metadata.target !== "partner"
     && metadata.in_reply_to_user_message_id === confirmer.id;
+}
+
+/**
+ * 확인 모양의 쌍이 **실제 버튼 확인**인가(2026-09-15 재검사).
+ *
+ * 말풍선에 보이는 고정 문장을 손으로 그대로 치면 정규식은 통과한다. 그 쌍을 건너뛰면 홉을
+ * 세지 않으므로, 위조 쌍을 끼워 `MAX_CLARIFICATION_HOPS` 너머의 오래된 W0 요청을 닻으로
+ * 삼아 그 턴의 도구를 이어받을 수 있었다. 그래서 연결 문맥(`amoraBoundedContinuity` 의
+ * `isBoundedConfirmationPair`)과 같은 기준을 요구한다 — 공유 레인이고, 확인 행에 라우트와
+ * DB 트리거가 **실제 버튼 확인 행에만** 남기는 `confirmed_amora_action_id` 가 있고, 그 표식이
+ * 바로 앞 카드 행(서버가 쓴 행)의 `pending_amora_action.actionId` 와 같아야 한다. 확인 액션은
+ * 공유 레인에서만 발급되므로 다른 레인에서는 쌍이 될 수 없다.
+ *
+ * 증명에 실패한 쌍은 건너뛰지 않고 보통 되묻기 쌍 규칙을 탄다 — 홉을 한 번 센다.
+ */
+function isServerConfirmedCardPair<T extends AmoraClarificationContinuityRow>(
+  confirmer: T,
+  card: T | undefined,
+): boolean {
+  if (!card || confirmer.visibility !== "shared") return false;
+  const confirmerMetadata = isRecord(confirmer.metadata) ? confirmer.metadata : null;
+  const confirmedActionId = confirmerMetadata?.confirmed_amora_action_id;
+  if (
+    typeof confirmedActionId !== "string"
+    || confirmedActionId.length === 0
+    || confirmerMetadata?.target === "partner"
+  ) {
+    return false;
+  }
+  const cardMetadata = isRecord(card.metadata) ? card.metadata : null;
+  const pending = cardMetadata !== null && isRecord(cardMetadata.pending_amora_action)
+    ? cardMetadata.pending_amora_action
+    : null;
+  return card.role === "assistant"
+    && card.sender_type === "ai"
+    && card.sender_id === null
+    && card.visibility === confirmer.visibility
+    && pending !== null
+    && pending.actionId === confirmedActionId;
 }
 
 export function resolveAmoraWeddingClarificationContinuity<
@@ -405,14 +443,18 @@ export function resolveAmoraWeddingClarificationContinuity<
     if (typeof assistant.id !== "string" || typeof priorUser.id !== "string") return null;
     if (
       skippedConfirmationPairs < 2
-      && isConfirmationPair(assistant, priorUser, requesterUserId, answerer.visibility)
+      && isConfirmationShapedPair(assistant, priorUser, requesterUserId, answerer.visibility)
     ) {
       const index = rawOldestFirstRows.indexOf(priorUser);
+      // 앞 카드와 요청이 창 안에 없으면 증명도 닻 찾기도 할 수 없다. 오늘처럼 닫는다.
       if (index < 2) return null;
-      assistant = rawOldestFirstRows[index - 1];
-      priorUser = rawOldestFirstRows[index - 2];
-      skippedConfirmationPairs += 1;
-      continue;
+      if (isServerConfirmedCardPair(priorUser, rawOldestFirstRows[index - 1])) {
+        assistant = rawOldestFirstRows[index - 1];
+        priorUser = rawOldestFirstRows[index - 2];
+        skippedConfirmationPairs += 1;
+        continue;
+      }
+      // 증명되지 않은 확인 모양(손으로 친 고정 문장 등)은 아래 보통 규칙으로 판정한다.
     }
     if (!isValidClarificationPair(assistant, priorUser, answerer)) return null;
     // 서버의 과거 W0 표식만으로 중간 사용자 원문의 새 위험·다른 과업을 넘지 않는다.

@@ -161,7 +161,11 @@ async function createDatabase(withCurrentBudgetPlan = false, withExplicitAllocat
     if (next.trim()) await db.exec(next);
     const namedBudgetPlan = migration("20260907085111_amora_budget_plan_named_allocations.sql");
     await db.exec(namedBudgetPlan);
-    if (withExplicitAllocations) await db.exec(migration("20260911080244_amora_budget_plan_explicit_allocations.sql"));
+    if (withExplicitAllocations) {
+      await db.exec(migration("20260911080244_amora_budget_plan_explicit_allocations.sql"));
+      // 운영 최신 본문은 not_applicable 허용 목록만 다르다. 기존 검사를 그 본문 위에서 돌린다.
+      await db.exec(migration("20260915101500_amora_atomic_not_applicable_status.sql"));
+    }
     await db.exec("ALTER TABLE public.amora_tool_executions ADD COLUMN pending_action_journey_revision bigint");
     const wrapper = migration("20260730102000_amora_shared_action_approval_and_notifications.sql")
       .match(/CREATE FUNCTION public\.apply_amora_atomic_tool_execution\([\s\S]*?\$function\$;/u)?.[0];

@@ -5,12 +5,84 @@ const INTERNAL_KEYS = [
   "tool_calls", "tool_call_id", "function_call", "client_request_id", "couple_id",
   "sender_id", "state_revision", "pending_action", "sampleCount", "minKrw", "medianKrw", "maxKrw",
   "preview_head", "preview_tail", "allocated_is_set", "custom_categories_omitted",
+  // 도구 입력 스키마에만 쓰는 영문 키. 한국어 답변이나 사용자가 요청한 문구에는 나오지 않는다.
+  "arguments", "tool_use_id", "call_id", "function_name", "category_key", "item_id", "event_id",
+  "action_id", "vendor_id", "booking_id", "product_id", "staff_id", "schedule_scope",
+  "allocation_mode", "expected_title", "expected_date", "checklist_confirmed", "not_needed_items",
 ];
 const INTERNAL_KEY_SET = new Set(INTERNAL_KEYS);
 const HISTORY_TOOL_NAMES = new Set(["search_nearby_places", "get_market_price"]);
-const INTERNAL_LINE = new RegExp(`^[ \\t]*(?:>[ \\t]*)*["']?(?:${INTERNAL_KEYS.join("|")})["']?\\s*:.*$`, "gmu");
+/** 도구 이름 모양. 모든 아모라 도구는 밑줄 하나 이상인 영문 소문자 이름이다. */
+const TOOL_NAME = /^(?:functions\.)?[a-z]+(?:_[a-z0-9]+)+$/u;
+/**
+ * 줄머리: 들여쓰기·인용(`>`)·목록 기호(`-`, `*`, `+`, `1.`, `2)`)·강조(`**`, `__`)·백틱.
+ * 모델은 도구 호출과 내부 키를 목록 한 줄로 적기도 한다(2026-09-15 2차 검토).
+ */
+const LINE_HEAD = "[ \\t]*(?:>[ \\t]*)*(?:(?:[-*+]|\\d{1,3}[.)])[ \\t]+)?(?:\\*\\*|__)?`?";
+const INTERNAL_LINE = new RegExp(`^${LINE_HEAD}["']?(?:${INTERNAL_KEYS.join("|")})["']?(?:\\*\\*|__)?\`?\\s*:.*$`, "gmu");
 const HISTORY_MARKER = /\[\s*저장된\s*도구\s*결과[^\]\r\n]*(?:\]|(?=\r?\n)|$)/gu;
-const XML_INTERNAL = /<(tool_result|tool_output|function_call|analysis|reasoning)\b[^>]*>[\s\S]*?(?:<\/\1\s*>|$)/giu;
+const INTERNAL_TAG_NAMES = "tool_results?|tool_outputs?|tool_calls?|tool_use|function_calls?|function_results?|invoke|parameter|analysis|reasoning|thinking|think";
+/** 태그 속성 모양(`name="update_budget"`). `<think about it>`처럼 낱말이 이어지는 산문 꺾쇠와 가른다. */
+const TAG_ATTRS = "(?:[ \\t\\r\\n]+[a-z_:][a-z0-9_:.-]*[ \\t]*=[ \\t]*(?:\"[^\"]*\"|'[^']*'|[^\\s\"'>/]+))*[ \\t\\r\\n]*";
+/** 맨 태그나 속성 모양 태그는 닫는 태그까지, 닫는 태그가 없으면(스트림 중단) 끝까지 내부 블록이다. */
+const XML_INTERNAL = new RegExp(`<((?:[a-z]+:)?(?:${INTERNAL_TAG_NAMES}))${TAG_ATTRS}>[\\s\\S]*?(?:<\\/\\1\\s*>|$)`, "giu");
+/** 속성 모양이 아닌 여는 태그는 짝이 맞는 닫는 태그가 있을 때만 내부 블록이다. */
+const XML_INTERNAL_LOOSE = new RegExp(`<((?:[a-z]+:)?(?:${INTERNAL_TAG_NAMES}))(?=[\\s>/])[^>]*>[\\s\\S]*?<\\/\\1\\s*>`, "giu");
+/** 짝을 잃은 태그만 남은 경우: 닫는 태그, 자기 닫는 태그, 속성 모양 여는 태그. */
+const ORPHAN_INTERNAL_TAG = new RegExp(`<(?:\\/(?:[a-z]+:)?(?:${INTERNAL_TAG_NAMES})[ \\t]*|(?:[a-z]+:)?(?:${INTERNAL_TAG_NAMES})${TAG_ATTRS}\\/?)>`, "giu");
+/**
+ * 도구 호출 문법: `update_budget({...});`, `functions.get_budget_summary()`, `- **update_budget**(category="venue")`.
+ *
+ * 이름 모양만으로는 판정하지 않는다. `wedding_hall (예식장 기준`, `hana_kim (신부)`,
+ * `check_in(체크인)`처럼 이름 모양이 같은 산문이 있어서다. 괄호 뒤가 인자 모양
+ * (`)`·`{`·`[`·따옴표·`key=`)일 때 호출로 본다. black 스타일처럼 `(` 뒤에서 줄을 바꾸고 인자를 쓰는
+ * 호출이 있어 줄바꿈 한 번은 건너뛴다. 빈 줄을 넘기면 다음 문단이라 보지 않는다.
+ * `wedding_day (time: 11시)` 같은 산문이 있어 `key:`는 여기서 넣지 않는다. 그런 호출은 `BARE_CALL_LINE`이 줄 단위로 본다.
+ */
+const CALL_NAME = "(?<![A-Za-z0-9_.])(?:\\*\\*|__)?`?(?:functions\\.)?[a-z]+(?:_[a-z0-9]+)+(?:\\*\\*|__)?`?[ \\t]*\\(";
+const CALL_GAP = "[ \\t]*(?:\\r?\\n[ \\t]*)?";
+const CALL_ARGS = `${CALL_GAP}(?:[)\\[{"']|[a-z_][a-z0-9_]*[ \\t]*=(?!=))`;
+const CALL = new RegExp(`${CALL_NAME}(?=${CALL_ARGS})`, "gu");
+/** 스트리밍 판정: 괄호 뒤가 아직 오지 않았으면 인자 모양이 될 수 있어 보류한다. */
+const CALL_PREFIX = new RegExp(`${CALL_NAME}(?=${CALL_ARGS}|${CALL_GAP}(?:[a-z_][a-z0-9_]*[ \\t]*)?$)`, "u");
+/**
+ * 줄에 호출만 있는 위치 인자·숫자 인자·`key:` 인자: `toggle_checklist_item(12)`, `get_market_price(dress)`,
+ * `update_budget(category: "venue", amount: 33000000)`. 이전 판정은 줄에 호출만 있으면 인자와 관계없이 지웠다.
+ * 산문과 가르는 조건은 셋이다. 이름과 `(` 사이에 공백이 없다(`hana_kim (신부)`는 산문).
+ * 인자가 영문·숫자·밑줄로 시작한다(`wedding_hall(웨딩홀)`은 산문). 따옴표 밖 인자가 ASCII뿐이고
+ * 같은 줄에서 괄호가 닫힌 뒤 줄이 끝난다(`wedding_day(time: 11시)`, `plan_a(A안)`은 산문).
+ */
+const BARE_CALL_HEAD = `${LINE_HEAD}(?:functions\\.)?[a-z]+(?:_[a-z0-9]+)+(?:\\*\\*|__)?\`?\\(`;
+const BARE_CALL_QUOTED = "\"(?:[^\"\\\\\\r\\n]|\\\\.)*\"|'(?:[^'\\\\\\r\\n]|\\\\.)*'";
+const BARE_CALL_UNQUOTED = "[\\t !#-&(-~]";
+// 인자는 괄호 안쪽 공백이나 음수 부호로 시작할 수 있다(`toggle_checklist_item( 12 )`, `update_budget(-500000)`).
+// `)` 뒤 공백은 `;` 앞에서만 먹는다. 공백 수량자 두 개가 붙어 있으면 긴 공백 줄에서 되추적이 제곱으로 는다.
+const BARE_CALL_LINE_SOURCE = `^${BARE_CALL_HEAD}(?=[ \\t]*[-A-Za-z0-9_])(?:${BARE_CALL_QUOTED}|${BARE_CALL_UNQUOTED})*\\)(?:[ \\t]*;)?(?:\\*\\*|__)?\`?[ \\t]*\\r?$`;
+const BARE_CALL_LINE = new RegExp(BARE_CALL_LINE_SOURCE, "gmu");
+const BARE_CALL_LINE_ANY = new RegExp(BARE_CALL_LINE_SOURCE, "mu");
+/** 스트리밍 판정: 마지막 줄이 이름 바로 뒤 `(`로 이어지고 아직 ASCII 인자만 온 채 끝나면 보류한다. 한글이 오면 다시 보인다. */
+const BARE_CALL_PREFIX = new RegExp(`(?<![^\\n])${BARE_CALL_HEAD}(?=[ \\t]*(?:[-A-Za-z0-9_]|$))(?:"(?:[^"\\\\\\r\\n]|\\\\.)*(?:"|\\\\?$)|'(?:[^'\\\\\\r\\n]|\\\\.)*(?:'|\\\\?$)|${BARE_CALL_UNQUOTED})*$`, "u");
+/** 스트리밍 중 아직 괄호가 오지 않은 도구 이름 조각(`update_bu`). 줄머리나 `준비했어요: ` 뒤에 올 때만 본다. */
+const PARTIAL_CALL_NAME = new RegExp(`(?:^|\\n)${LINE_HEAD}[a-z][a-z0-9_]*(?:\\.[a-z0-9_]*)?\\*{0,2}\`?$|[:.][ \\t]+(?:\\*\\*|__)?\`?[a-z][a-z0-9_]*(?:\\.[a-z0-9_]*)?\\*{0,2}\`?$`, "u");
+/**
+ * 도구 입력 모양 JSON: 실제 도구 입력과 키가 같은 객체 하나(`{"category":"venue","budget":33000000}`).
+ * - 영문 분야 키 + 숫자 금액(`update_category_budget`의 budget·spent, 모델이 흔히 쓰는 amount)만 있는 객체.
+ * - 영문 분야 키 + 도구 상태 값(`update_task_status`의 not_started·in_progress·completed)만 있는 객체.
+ * 사용자가 JSON 정리를 요청하면 같은 키가 나올 수 있어 좁게 본다. 목록(`[{…},{…}]`)이나 다른 객체 안,
+ * 다른 키가 섞인 객체, 문자열 금액, 도구에 없는 상태 값(`"done"`)은 사용자가 요청한 정리로 보고 남긴다.
+ * 트레이드오프: 사용자가 요청한 정리가 바로 이 모양의 객체 하나뿐이면 가려진다.
+ */
+const TOOL_INPUT_AMOUNT_KEYS = new Set(["budget", "spent", "amount"]);
+const TOOL_INPUT_STATUS_VALUES = new Set(["not_started", "in_progress", "completed"]);
+
+function isToolInputObject(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  if (typeof value.category !== "string" || !/^[a-z][a-z0-9_]*$/u.test(value.category)) return false;
+  const keys = Object.keys(value).filter((key) => key !== "category");
+  if (keys.length === 0) return false;
+  if (keys.every((key) => TOOL_INPUT_AMOUNT_KEYS.has(key) && typeof value[key] === "number")) return true;
+  return keys.length === 1 && keys[0] === "status" && TOOL_INPUT_STATUS_VALUES.has(value.status);
+}
 const ROLE_INTERNAL = /\[assistant\/(?:analysis|commentary)[^\]]*\][\s\S]*?(?=\[assistant\/final\]|$)/giu;
 const FINAL_ROLE = /\[assistant\/final\]/giu;
 const SYSTEM_REMINDER = /\[SYSTEM:\s*이 결과는 프론트엔드에서[^\]]*(?:\]|$)/giu;
@@ -35,13 +107,19 @@ function containsInternalData(text, depth = 0) {
   try {
     const value = JSON.parse(text);
     if (typeof value === "string" && depth < 3) return containsInternalData(value, depth + 1);
+    // 도구 입력 그대로: {"category":"venue","budget":33000000}. 맨 바깥 객체 하나만 본다.
+    if (isToolInputObject(value)) return true;
     const pending = [value];
     while (pending.length > 0) {
       const entry = pending.pop();
       if (!entry || typeof entry !== "object") continue;
+      // 입력이 객체든 한 번 더 인코딩한 문자열이든 도구 envelope이다.
       if (typeof entry.tool === "string" && (HISTORY_TOOL_NAMES.has(entry.tool)
-        || (/^[a-z]+(?:_[a-z0-9]+)+$/u.test(entry.tool)
-          && entry.input && typeof entry.input === "object"))) return true;
+        || (TOOL_NAME.test(entry.tool)
+          && entry.input && (typeof entry.input === "object" || typeof entry.input === "string")))) return true;
+      // OpenAI·Anthropic 호출 모양: {"name":"update_budget","arguments":{...}} / {"name":..,"input":..}
+      if (typeof entry.name === "string" && TOOL_NAME.test(entry.name)
+        && ["arguments", "parameters", "input"].some((key) => Object.prototype.hasOwnProperty.call(entry, key))) return true;
       pending.push(...Object.values(entry));
     }
   } catch { /* 잘린 내부 데이터도 속성 이름으로 식별한다. */ }
@@ -90,6 +168,39 @@ function structuredEnd(text, start) {
   return text.length;
 }
 
+/**
+ * 여는 소괄호의 짝을 찾는다. 따옴표 안 괄호는 세지 않는다. 인자 모양(`CALL`)을 통과한 호출에만 쓴다.
+ * - 짝이 맞으면 닫는 괄호 다음 위치.
+ * - 짝이 어긋나면 어긋난 괄호 다음 위치. 인자 모양이 이미 코드라 거기까지만 가린다.
+ * - 끝내 안 닫히면(스트림 중단·잘린 출력) 괄호 밖 첫 빈 줄까지. 빈 줄이 없으면 끝까지다.
+ *   JSON 인자에는 빈 줄이 없으니, 빈 줄 뒤 문단은 안내 본문이다.
+ */
+function callEnd(text, open) {
+  const stack = [];
+  let quote = null;
+  let escaped = false;
+  let blankLine = -1;
+  for (let index = open; index < text.length; index += 1) {
+    const char = text[index];
+    if (quote) {
+      if (escaped) escaped = false;
+      else if (char === "\\") escaped = true;
+      else if (char === quote) { quote = null; continue; }
+      else if (char === "\n") quote = null; // 따옴표가 줄을 넘기면 인자가 아니다.
+      if (quote) continue;
+    }
+    if (char === "\n" && blankLine < 0 && /^\r?\n[ \t]*\r?\n/u.test(text.slice(index))) blankLine = index;
+    if (char === '"' || char === "'") { quote = char; continue; }
+    if (char === "(") stack.push(")");
+    else if (char === "{") stack.push("}");
+    else if (char === "[") stack.push("]");
+    else if (char === ")" || char === "}" || char === "]") {
+      if (stack.pop() !== char || stack.length === 0) return index + 1;
+    }
+  }
+  return blankLine >= 0 ? blankLine : text.length;
+}
+
 function fenceEnd(text, start) {
   const opening = /^(?<fence>`{3,}|~{3,})[^\r\n]*(?:\r?\n|$)/u.exec(text.slice(start));
   if (!opening) return null;
@@ -102,9 +213,32 @@ function fenceEnd(text, start) {
 
 export function stripAmoraInternalArtifacts(text) {
   if (typeof text !== "string" || !text) return text;
-  let cleaned = text.replace(XML_INTERNAL, "").replace(ROLE_INTERNAL, "").replace(FINAL_ROLE, "")
-    .replace(SYSTEM_REMINDER, "").replace(TRUNCATION_MARKER, "");
+  let cleaned = text.replace(XML_INTERNAL_LOOSE, "").replace(XML_INTERNAL, "").replace(ROLE_INTERNAL, "").replace(FINAL_ROLE, "")
+    .replace(SYSTEM_REMINDER, "").replace(TRUNCATION_MARKER, "").replace(ORPHAN_INTERNAL_TAG, "");
   const ranges = [];
+
+  // 도구 호출 부분만 지운다. 줄에 호출만 있으면(목록 기호 포함) 줄째 지우고, 앞뒤에 안내 말이 붙어 있으면 그 말은 남긴다.
+  // 문장 속 괄호(`SDM(스튜디오)`, `1)`, `check_in(체크인)`)는 이름이나 인자 모양이 달라 남는다.
+  for (const match of cleaned.matchAll(CALL)) {
+    const closed = callEnd(cleaned, match.index + match[0].length - 1);
+    const trailer = /^(?:[ \t]*;)?(?:\*\*|__)?`?/u.exec(cleaned.slice(closed))[0];
+    let end = closed + trailer.length;
+    let start = match.index;
+    const lineStart = cleaned.lastIndexOf("\n", start - 1) + 1;
+    const head = cleaned.slice(lineStart, start);
+    const onlyHead = new RegExp(`^${LINE_HEAD}$`, "u").test(head);
+    const restOfLine = /^[ \t]*(?=\r?\n|$)/u.exec(cleaned.slice(end));
+    if (onlyHead && restOfLine) {
+      start = lineStart;
+      end += restOfLine[0].length;
+    } else if (onlyHead || /[ \t]$/u.test(head)) {
+      // 지운 자리 뒤 공백을 함께 거둬 두 칸 띄어쓰기나 줄머리 공백을 남기지 않는다. 목록 기호는 남긴다.
+      end += /^[ \t]*/u.exec(cleaned.slice(end))[0].length;
+    }
+    ranges.push([start, end]);
+  }
+  // 줄에 호출만 있는 위치 인자·숫자 인자·`key:` 인자 호출은 줄째 지운다(목록 기호 포함).
+  for (const match of cleaned.matchAll(BARE_CALL_LINE)) ranges.push([match.index, match.index + match[0].length]);
 
   // 내부 프레임이 코드 블록 안에 있어도 빈 코드 상자를 남기지 않는다.
   const fences = /(?:^|\n)[ \t]{0,3}(`{3,}|~{3,})/gu;
@@ -161,6 +295,20 @@ function incompleteInternalLine(text) {
   return tail && INTERNAL_KEYS.some((key) => key.startsWith(tail)) ? start : -1;
 }
 
+/**
+ * 스트리밍 화면 전용: 줄머리나 `준비했어요: ` 뒤에 영문 소문자 낱말만 온 채 끝나면 도구 이름일 수 있어
+ * 다음 글자가 올 때까지 보류한다. 줄머리면 줄 처음부터, 문장 뒤면 그 낱말부터 보류한다.
+ */
+function incompleteCallLine(text) {
+  // `/[ \t]+$/`는 끝이 공백이 아닌 긴 공백 줄에서 시작점마다 끝까지 훑어 제곱 시간이 든다. 뒤에서부터 센다.
+  let end = text.length;
+  while (end > 0 && (text[end - 1] === " " || text[end - 1] === "\t")) end -= 1;
+  const body = text.slice(0, end);
+  const match = PARTIAL_CALL_NAME.exec(body);
+  if (!match) return -1;
+  return match.index + (match[0][0] === "\n" || match[0][0] === ":" || match[0][0] === "." ? 1 : 0);
+}
+
 function internalBracketStart(text, includeUnfinished = false) {
   for (const match of text.matchAll(/\[/gu)) {
     const start = match.index;
@@ -175,13 +323,14 @@ function internalBracketStart(text, includeUnfinished = false) {
 export function hasAmoraInternalArtifactPrefix(text) {
   // 미리보기는 완성 문장 단위다. '['만으로 영구 보류하면 뒤에 온 정상 안내도 사라진다.
   return STREAM_OPENING.test(text) || internalBracketStart(text) >= 0
-    || INTERNAL_LINE_PREFIX.test(text) || incompleteInternalLine(text) >= 0;
+    || INTERNAL_LINE_PREFIX.test(text) || incompleteInternalLine(text) >= 0
+    || CALL_PREFIX.test(text) || BARE_CALL_LINE_ANY.test(text) || BARE_CALL_PREFIX.test(text);
 }
 
 export function getAmoraVisibleText(text, { streaming = false } = {}) {
   if (typeof text !== "string" || !text) return text;
   // 화면은 미완성 대괄호만 임시 보류하고, 정상 안내로 완성되면 다시 표시한다.
-  const starts = streaming ? [text.search(STREAM_OPENING), internalBracketStart(text, true), text.search(INTERNAL_LINE_PREFIX), incompleteInternalLine(text)].filter((index) => index >= 0) : [];
+  const starts = streaming ? [text.search(STREAM_OPENING), internalBracketStart(text, true), text.search(INTERNAL_LINE_PREFIX), incompleteInternalLine(text), text.search(CALL_PREFIX), text.search(BARE_CALL_PREFIX), incompleteCallLine(text)].filter((index) => index >= 0) : [];
   const opening = starts.length > 0 ? Math.min(...starts) : -1;
   const candidate = opening >= 0 ? text.slice(0, opening) : text;
   const visible = stripAmoraInternalArtifacts(candidate);

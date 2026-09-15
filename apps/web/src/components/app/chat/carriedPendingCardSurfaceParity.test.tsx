@@ -4,7 +4,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import ChatContent from "./ChatContent";
 import ChatSidePanel from "./ChatSidePanel";
-import { CARRIED_PENDING_ACTION_LABEL } from "./PendingAmoraActionCard";
+import {
+  CARRIED_PENDING_ACTION_LABEL,
+  CONTINUED_PENDING_ACTION_COPY,
+} from "./PendingAmoraActionCard";
 import { getAmoraToolOperationIdentity } from "@/lib/ai/amoraToolIdentity";
 import type { ChatMessage } from "@/types/database.types";
 
@@ -168,6 +171,43 @@ function messagesWithCarryCount(carryCount: number): ChatMessage[] {
   ];
 }
 
+/**
+ * 사용자가 버튼 대신 "응 적용해줘" 라고 쳐서 같은 카드가 최신 답변으로 옮겨진 대화
+ * (2026-09-15). 원래 답변(`ai-msg-1`)과 옮겨진 답변(`ai-msg-2`)이 같은 제안을 든다.
+ */
+function messagesWithCardMovedToLatestReply(): ChatMessage[] {
+  const [userMessage, original] = messagesWithCarryCount(0);
+  const originalMetadata = original.metadata as Record<string, unknown>;
+  return [
+    userMessage,
+    original,
+    {
+      id: "user-msg-2",
+      couple_id: "couple-1",
+      sender_id: "user-1",
+      sender_role: "bride",
+      content: "응 적용해줘",
+      metadata: { target: "ai" },
+      visibility: "shared",
+      created_at: new Date(ISSUED_AT + 1_000).toISOString(),
+    } as ChatMessage,
+    {
+      id: "ai-msg-2",
+      couple_id: "couple-1",
+      sender_id: null,
+      sender_role: "ai",
+      content: "아래 카드에서 확인해 주세요.",
+      metadata: {
+        target: "ai",
+        pending_amora_action: originalMetadata.pending_amora_action,
+        pending_amora_action_carry_count: 1,
+      },
+      visibility: "shared",
+      created_at: new Date(ISSUED_AT + 2_000).toISOString(),
+    } as unknown as ChatMessage,
+  ];
+}
+
 function cardSection(container: HTMLElement): HTMLElement {
   const section = container.querySelector<HTMLElement>(
     "section[data-pending-action-carried]",
@@ -206,7 +246,15 @@ describe("이월 카드는 두 표면에서 같게 보인다", () => {
     surface: "content" | "panel",
     carryCount: number,
   ): Promise<HTMLElement> {
-    mocks.messages = messagesWithCarryCount(carryCount);
+    await renderMessages(surface, messagesWithCarryCount(carryCount));
+    return cardSection(container);
+  }
+
+  async function renderMessages(
+    surface: "content" | "panel",
+    messages: ChatMessage[],
+  ): Promise<void> {
+    mocks.messages = messages;
     await act(async () => {
       root.render(
         surface === "content"
@@ -219,7 +267,6 @@ describe("이월 카드는 두 표면에서 같게 보인다", () => {
       await Promise.resolve();
       await Promise.resolve();
     });
-    return cardSection(container);
   }
 
   async function resetRoot() {
@@ -248,6 +295,36 @@ describe("이월 카드는 두 표면에서 같게 보인다", () => {
         .toBe("총예산을 3,000만 원으로 변경할까요?");
       await resetRoot();
     }
+  });
+
+  it("최신 답변으로 옮겨진 카드는 두 표면 모두 원래 자리에서 그 카드를 가리키고 버튼을 거둔다", async () => {
+    const oldCards: string[] = [];
+    for (const surface of ["content", "panel"] as const) {
+      await renderMessages(surface, messagesWithCardMovedToLatestReply());
+      const sections = container.querySelectorAll<HTMLElement>(
+        "section[data-pending-action-carried]",
+      );
+      expect(sections, surface).toHaveLength(2);
+      const [oldCard, latestCard] = sections;
+
+      expect(oldCard.dataset.pendingActionContinued, surface).toBe("true");
+      expect(oldCard.textContent, surface).toContain(CONTINUED_PENDING_ACTION_COPY);
+      expect(oldCard.textContent, surface).not.toContain("적용할 수 없어요");
+      expect(oldCard.querySelectorAll("button"), surface).toHaveLength(0);
+
+      // 누를 곳은 최신 답변의 카드 한 군데다.
+      expect(latestCard.dataset.pendingActionContinued, surface).toBeUndefined();
+      expect(latestCard.dataset.pendingActionCarried, surface).toBe("true");
+      expect(latestCard.textContent, surface).not.toContain(CONTINUED_PENDING_ACTION_COPY);
+      expect(
+        latestCard.querySelector('button[aria-label="변경 내용 확인하기"]'),
+        surface,
+      ).not.toBeNull();
+
+      oldCards.push(oldCard.outerHTML);
+      await resetRoot();
+    }
+    expect(oldCards[1]).toBe(oldCards[0]);
   });
 
   it("이월 값이 없으면 두 표면 모두 라벨을 붙이지 않는다", async () => {

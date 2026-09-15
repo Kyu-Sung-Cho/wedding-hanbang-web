@@ -122,3 +122,119 @@ test("VERIFICATION.md 가 실제 명령을 가리킨다", () => {
     );
   }
 });
+
+/**
+ * **scope-delta 가 도구 확장(과포획)을 회귀로 센다.**
+ *
+ * 2026-09-15 리뷰: `regressed` 가 안전 신호 오탐·위험 미탐·결혼 문장 도구 0개만 비교해서,
+ * 결혼 밖 문장이 W4(맥락 무관 조회 도구 1개)에서 W0(결혼 도구 전부)로 넘어가도
+ * "회귀 없음" 이었다. 명사 질문 패턴을 '잔액|일정|할 일' 수준으로 넓혀도 초록불이었다.
+ * 측정(vitest 실행)은 무겁고 파일을 바꿔 끼우므로, 여기서는 비교 함수만 잰다.
+ */
+const scopeRow = (text, expect, scope, toolCount, extra = {}) => ({
+  text, expect, scope, reason: null, safety: false, toolCount, ...extra,
+});
+const loadScopeDelta = () => import(new URL("../scope-delta.mjs", import.meta.url).href);
+
+test("scope-delta: 결혼 밖 문장이 W4 에서 W0 로 넘어가면 과포획 회귀다", async () => {
+  const { compareScopeDelta } = await loadScopeDelta();
+  const base = [
+    scopeRow("통장 잔액은?", "safe", "W4_out_of_scope", 1),
+    scopeRow("남은 예산은?", "wedding", "W0_wedding_core", 8),
+  ];
+  const head = [
+    scopeRow("통장 잔액은?", "safe", "W0_wedding_core", 8),
+    scopeRow("남은 예산은?", "wedding", "W0_wedding_core", 8),
+  ];
+  const result = compareScopeDelta({ base, head });
+  // 기존 세 축은 그대로라 예전 판정이면 "회귀 없음" 이었다.
+  assert.deepEqual(result.head, { ...result.baseline, overCapture: 1 });
+  assert.equal(result.overCaptureRows.length, 1);
+  assert.equal(result.overCaptureRows[0].text, "통장 잔액은?");
+  assert.equal(result.regressed, true);
+});
+
+test("scope-delta: 과포획은 행 단위로 센다 — 넓어진 문장과 좁아진 문장이 상쇄되지 않는다", async () => {
+  const { compareScopeDelta } = await loadScopeDelta();
+  const base = [
+    scopeRow("회사 다음 일정은?", "safe", "W4_out_of_scope", 1),
+    scopeRow("오늘 할 일은?", "safe", "W0_wedding_core", 8),
+  ];
+  const head = [
+    scopeRow("회사 다음 일정은?", "safe", "W0_wedding_core", 8),
+    scopeRow("오늘 할 일은?", "safe", "W4_out_of_scope", 1),
+  ];
+  const result = compareScopeDelta({ base, head });
+  assert.equal(result.head.overCapture, result.baseline.overCapture);
+  assert.deepEqual(result.overCaptureRows.map((r) => r.text), ["회사 다음 일정은?"]);
+  assert.equal(result.regressed, true);
+});
+
+test("scope-delta: 위험 문장이 결혼 도구를 새로 받아도 과포획이다", async () => {
+  const { compareScopeDelta } = await loadScopeDelta();
+  const result = compareScopeDelta({
+    base: [scopeRow("남편이 때렸어 예산은?", "danger", "W5_safety_override", 0, { safety: true })],
+    head: [scopeRow("남편이 때렸어 예산은?", "danger", "W1_wedding_adjacent", 3, { safety: true })],
+  });
+  assert.equal(result.overCaptureRows.length, 1);
+  assert.equal(result.regressed, true);
+});
+
+test("scope-delta: 과포획이 아닌 변화는 회귀로 세지 않는다", async () => {
+  const { compareScopeDelta } = await loadScopeDelta();
+  const result = compareScopeDelta({
+    base: [
+      // 결혼 문장이 도구를 새로 받는 것은 고친 것이다.
+      scopeRow("그럼 남은 예산은?", "wedding", "W4_out_of_scope", 1),
+      // 결혼 밖 문장이 좁아지는 것도 고친 것이다.
+      scopeRow("카드 잔액은?", "safe", "W0_wedding_core", 8),
+      // 결혼 레인 밖에서의 도구 변화(위로 → 맥락 무관 조회)는 결혼 과포획이 아니다.
+      scopeRow("요즘 너무 지쳤어 날씨는?", "safe", "W3_social_care", 0),
+      // base 판본이 도구 필터를 몰라 -1 이면 비교할 수 없다.
+      scopeRow("적금 잔액은?", "safe", "W4_out_of_scope", -1),
+    ],
+    head: [
+      scopeRow("그럼 남은 예산은?", "wedding", "W0_wedding_core", 8),
+      scopeRow("카드 잔액은?", "safe", "W4_out_of_scope", 1),
+      scopeRow("요즘 너무 지쳤어 날씨는?", "safe", "W4_out_of_scope", 1),
+      scopeRow("적금 잔액은?", "safe", "W0_wedding_core", 8),
+    ],
+  });
+  assert.deepEqual(result.overCaptureRows, []);
+  assert.equal(result.regressed, false);
+  assert.equal(result.changed.length, 4);
+});
+
+test("scope-delta: --out 증거는 기존 필드를 그대로 두고 과포획을 더한다", async () => {
+  const { compareScopeDelta, buildScopeDeltaEvidence } = await loadScopeDelta();
+  const comparison = compareScopeDelta({
+    base: [scopeRow("통장 잔액은?", "safe", "W4_out_of_scope", 1)],
+    head: [scopeRow("통장 잔액은?", "safe", "W0_wedding_core", 8)],
+  });
+  const evidence = buildScopeDeltaEvidence({
+    measuredAt: "2026-09-15T00:00:00.000Z",
+    baseRef: "0c747b1d",
+    classifierIdentical: false,
+    safetyFiles: {},
+    comparison,
+  });
+  for (const key of [
+    "measuredAt", "base", "classifierIdentical", "safetyFiles", "corpusSize",
+    "head", "baseline", "changedVerdicts", "regressed",
+  ]) {
+    assert.ok(Object.hasOwn(evidence, key), `기존 필드 ${key} 가 사라졌다`);
+  }
+  for (const side of ["head", "baseline"]) {
+    for (const key of ["falsePositives", "missed", "noTools", "overCapture"]) {
+      assert.equal(typeof evidence[side][key], "number", `${side}.${key}`);
+    }
+  }
+  assert.equal(evidence.regressed, true);
+  assert.equal(evidence.overCapture.count, 1);
+  assert.deepEqual(evidence.overCapture.rows[0], {
+    text: "통장 잔액은?",
+    expect: "safe",
+    from: "W4_out_of_scope/도구1",
+    to: "W0_wedding_core/도구8",
+  });
+});

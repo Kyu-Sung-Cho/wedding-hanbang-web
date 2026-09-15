@@ -26,7 +26,9 @@ export function PersonalActionContinue({ action }: { action: PersonalAction }) {
     try {
       if (confirm && review) {
         await personalActionContinuation.stage(review);
-        if (epoch === generation.current) { setReview(null); router.push("/(tabs)/chat"); }
+        // 이 컴포넌트는 루트 Stack 화면(나만 보는 할 일)에 있다. push 는 (tabs)를 한 벌 더 쌓아
+        // 채팅 화면이 둘 뜨므로, 기존 (tabs)로 돌아가 채팅 탭을 연다.
+        if (epoch === generation.current) { setReview(null); router.dismissTo("/(tabs)/chat"); }
       } else {
         const next = await personalActionContinuation.review(action.id);
         if (epoch === generation.current && next.action.ownerUserId === action.ownerUserId) setReview(next);

@@ -232,6 +232,20 @@ export async function apiFetchForExpectedUser(
   return authenticatedApiFetch(path, options, true, expectedUserId);
 }
 
+/**
+ * 표시용 조회(말풍선 색, 프로필 사진처럼 실패해도 화면을 막지 않는 값)에 쓴다.
+ * `apiFetchForExpectedUser`와 같이 시작 시점 소유자가 다르면 요청을 보내지 않는다.
+ * 다른 점은 401이다: 전역 「세션 만료」 알림과 로그아웃을 띄우지 않고, 같은 계정으로 한 번만
+ * 갱신·재시도한 뒤 결과 응답을 그대로 돌려준다. 호출부는 실패를 조용히 넘기면 된다.
+ */
+export async function apiFetchForExpectedUserQuiet(
+  expectedUserId: string,
+  path: string,
+  options: RequestInit = {},
+) {
+  return authenticatedApiFetch(path, options, false, expectedUserId);
+}
+
 // WebView의 허용 목록 기반 업체 API 브리지는 401 응답을 웹 화면에 그대로
 // 돌려줘야 로그인 게이트를 정확히 표시할 수 있다. 토큰은 이 네이티브 계층을
 // 벗어나지 않는다.

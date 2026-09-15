@@ -32,6 +32,7 @@ import PendingAmoraActionCard, {
   getPendingAmoraAction,
   getPendingAmoraActionCarryCount,
   getPendingAmoraBudgetImpactPreview,
+  isPendingAmoraActionContinuedInMessage,
   isPendingAmoraActionExpired,
 } from "./PendingAmoraActionCard";
 import {
@@ -1454,12 +1455,13 @@ export default function ChatSidePanel({
                     .slice(-3)
                     .map((m) => m.id)
                 );
-                const latestSharedAmoraMessageId = [...messages]
+                const latestSharedAmoraMessage = [...messages]
                   .reverse()
                   .find((message) => (
                     message.visibility === "shared"
                     && message.metadata?.target !== "partner"
-                  ))?.id ?? null;
+                  )) ?? null;
+                const latestSharedAmoraMessageId = latestSharedAmoraMessage?.id ?? null;
                 // 2026-09-03: 이 표면은 적용 여부를 아예 판정하지 않아, 정상 반영된
                 // 직후에도 "새 대화가 이어져 이 제안은 적용할 수 없어요" 를 띄웠다
                 // (전체화면 채팅에서 8-31 에 고친 회귀가 여기엔 오지 않았다).
@@ -1497,6 +1499,10 @@ export default function ChatSidePanel({
                   const pendingActionCarryCount = pendingAction
                     ? getPendingAmoraActionCarryCount(msg)
                     : 0;
+                  // 같은 제안이 최신 공유 답변으로 옮겨졌는가(2026-09-15) — 전체화면 채팅과 같은 판정.
+                  const pendingActionContinuesInLatest = pendingAction
+                    ? isPendingAmoraActionContinuedInMessage(latestSharedAmoraMessage, pendingAction)
+                    : false;
 
                   return (
                     <div key={msg.id} className="animate-fade-in">
@@ -1522,6 +1528,7 @@ export default function ChatSidePanel({
                           isApplying={applyingPendingActionId === pendingAction.actionId}
                           partnerLinked={Boolean(partner)}
                           carryCount={pendingActionCarryCount}
+                          continuesInLatestReply={pendingActionContinuesInLatest}
                           onApply={(pendingActionId) => void applyPendingAmoraAction(pendingActionId)}
                           onDismiss={() => dismissPendingAmoraAction(pendingAction.actionId)}
                         />

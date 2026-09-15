@@ -5,6 +5,7 @@ import { fileURLToPath, URL } from "node:url";
 import ts from "typescript";
 import { getAmoraVisibleText } from "@hanbang/shared/amora-visible-text";
 import { parseAmoraCitations, describeAmoraCitations } from "../lib/amoraCitations.mjs";
+import * as chatParticipantPresentationModule from "../lib/chatParticipantPresentation.mjs";
 
 const helperPath = fileURLToPath(new URL("../lib/pendingAmoraAction.ts", import.meta.url));
 const sharedSchedulePath = fileURLToPath(new URL(
@@ -112,7 +113,13 @@ const action = {
   expiresAt: Date.parse("2026-07-18T00:00:00.000Z"),
 };
 
-function renderProposal(receipts, { nowMs = action.expiresAt - 1, streaming = false, itemOverrides = {} } = {}) {
+function renderProposal(receipts, {
+  nowMs = action.expiresAt - 1,
+  streaming = false,
+  itemOverrides = {},
+  participantPresentation = chatParticipantPresentationModule.EMPTY_CHAT_PARTICIPANT_PRESENTATION,
+  linkedPartnerId = null,
+} = {}) {
   const applicationModule = compileCommonJs(readFileSync(new URL(
     "../../../web/src/components/app/chat/amoraPendingActionApplication.ts", import.meta.url,
   ), "utf8"), (specifier) => {
@@ -138,8 +145,11 @@ function renderProposal(receipts, { nowMs = action.expiresAt - 1, streaming = fa
     React: { createElement: (type, props, ...children) => ({ type, props, children }), Fragment: "Fragment" },
     messages, userRole: "bride", userId: "user-1", dismissedPendingActionIds: new Set(),
     userName: "나", partnerName: "파트너",
+    ...chatParticipantPresentationModule, participantPresentation,
+    hasLinkedPartner: linkedPartnerId !== null, linkedPartnerIdRef: { current: linkedPartnerId },
     ...compileCommonJs(readFileSync(new URL("../../../../packages/design-tokens/src/chat.ts", import.meta.url), "utf8")),
     nowMs, streaming, latestSharedMessageId: messages.at(-1).id,
+    latestPendingAction: getPendingAmoraAction(messages.at(-1)),
     actionConfirmationOutcomes: applicationModule.buildAmoraActionConfirmationOutcomes(messages),
     pendingActionApproval: null, pendingActionNotice: null, applyingPendingActionId: null,
     parseAmoraCitations, describeAmoraCitations, getAmoraVisibleText,
@@ -203,6 +213,44 @@ test("mobile waits for a pending result without presenting it as success or expi
   assert.doesNotMatch(rendered.text, /이 제안은 적용됐어요|확인 시간이 지났어요|새 대화가 이어져/);
 });
 
+// 2026-09-15: 카드에 "응 적용해줘" 라고 치면 서버가 같은 제안을 최신 답변 아래에 다시 붙인다.
+// 옛 카드가 "새 대화가 이어져 이 제안은 적용할 수 없어요" 라고 하면 같은 제안이 한쪽에서는 되고
+// 다른 쪽에서는 안 된다고 말하게 된다.
+const typedAcceptance = { id: "typed", sender_type: "bride", visibility: "shared", content: "응 적용해줘", metadata: {} };
+const carriedReply = (pending = action) => ({
+  id: "carried", sender_id: null, sender_type: "ai", visibility: "shared", content: "아래 카드에서 확인해 주세요.",
+  metadata: { pending_amora_action: pending, pending_amora_action_carry_count: 1 },
+});
+
+test("mobile points an old card at the same proposal carried to the newest reply and removes its buttons", () => {
+  const rendered = renderProposal([typedAcceptance, carriedReply()]);
+  assert.match(rendered.text, /같은 제안이 아래 최신 답변으로 옮겨졌어요\. 그 카드에서 확인할 수 있어요\./);
+  assert.doesNotMatch(rendered.text, /새 대화가 이어져/);
+  // 누를 곳은 최신 카드 한 곳이다. 여기서 "지금은 적용하지 않기" 를 누르면 같은 actionId 인 아래 카드도 치워진다.
+  assert.equal(rendered.buttons.length, 0);
+});
+
+test("mobile keeps the old card locked when the newest reply carries a different proposal", () => {
+  for (const other of [
+    { ...action, inputDigest: "c".repeat(64) },
+    { ...action, actionId: "44444444-4444-4444-8444-444444444444" },
+  ]) {
+    const rendered = renderProposal([typedAcceptance, carriedReply(other)]);
+    assert.match(rendered.text, /새 대화가 이어져/);
+    assert.doesNotMatch(rendered.text, /옮겨졌어요/);
+    assert.equal(rendered.buttons[0].props.disabled, true);
+  }
+});
+
+test("mobile says applied or expired before pointing at a carried card", () => {
+  const applied = renderProposal([confirmationReceipt, successReceipt, carriedReply()]);
+  assert.match(applied.text, /이 제안은 적용됐어요/);
+  assert.doesNotMatch(applied.text, /옮겨졌어요/);
+  const expired = renderProposal([typedAcceptance, carriedReply()], { nowMs: action.expiresAt + 1 });
+  assert.match(expired.text, /확인 시간이 지났어요/);
+  assert.doesNotMatch(expired.text, /옮겨졌어요/);
+});
+
 test("mobile recognizes persisted success after history reload and receipt reordering", () => {
   const rendered = renderProposal([successReceipt, confirmationReceipt]);
   assert.match(rendered.text, /이 제안은 적용됐어요/);
@@ -239,6 +287,80 @@ test("human questions and partner messages retain their exact marker and JSON te
     assert.ok(humanBody, `${sender_type} 원문이 보존되어야 한다`);
     assert.equal(rendered.nodes.some(node => node.type === "AmoraMessageBody"), false);
   }
+});
+
+// 2026-09-12 요청: 웹처럼 각 사람이 **직접 확인한 표시 역할**로 말풍선을 칠한다.
+// 모바일은 내 말풍선을 noir 배경·흰 글자, 상대를 아이보리로 칠하고 있었다.
+test("mobile colors human bubbles by each sender's confirmed role, not the signup slot", () => {
+  const { chatPalette } = compileCommonJs(readFileSync(new URL("../../../../packages/design-tokens/src/chat.ts", import.meta.url), "utf8"));
+  const selfId = "user-1";
+  const partnerId = "partner-1";
+  const bubbleOf = (rendered) => rendered.nodes.find(node => node.type === "View"
+    && Array.isArray(node.props?.style)
+    && node.props.style.some(style => style && typeof style === "object" && "backgroundColor" in style && style.borderWidth === 1));
+  const bodyOf = (rendered, content) => rendered.nodes.find(node => node.type === "Text" && node.children.includes(content));
+  const render = (itemOverrides, presentation) => renderProposal([], {
+    itemOverrides: { metadata: {}, ...itemOverrides },
+    participantPresentation: presentation,
+    linkedPartnerId: partnerId,
+  });
+  const confirmed = (selfRole, partnerRole, extra = {}) => ({
+    selfId, partnerId, selfConfirmedRole: selfRole, partnerConfirmedRole: partnerRole,
+    selfAvatarUrl: null, partnerAvatarUrl: null, ...extra,
+  });
+  const cases = [
+    // 가입 슬롯은 bride 지만 본인이 신랑으로 확인했다 → 하늘색
+    { name: "self confirmed groom in a bride slot", item: { sender_type: "bride", sender_id: selfId, content: "내가 보냄" }, presentation: confirmed("groom", null), tone: "sky" },
+    { name: "self confirmed bride", item: { sender_type: "bride", sender_id: selfId, content: "내가 보냄" }, presentation: confirmed("bride", "groom"), tone: "rose" },
+    { name: "partner confirmed groom", item: { sender_type: "groom", sender_id: partnerId, content: "상대가 보냄" }, presentation: confirmed("bride", "groom"), tone: "sky" },
+    { name: "partner not confirmed", item: { sender_type: "groom", sender_id: partnerId, content: "상대가 보냄" }, presentation: confirmed("bride", null), tone: "neutral" },
+    { name: "roles not loaded", item: { sender_type: "bride", sender_id: selfId, content: "내가 보냄" }, presentation: chatParticipantPresentationModule.EMPTY_CHAT_PARTICIPANT_PRESENTATION, tone: "neutral" },
+    { name: "legacy message without sender_id", item: { sender_type: "groom", sender_id: null, content: "예전 메시지" }, presentation: confirmed("bride", "groom"), tone: "neutral" },
+    { name: "amora", item: { sender_type: "ai", sender_id: null, content: "아모라 답변" }, presentation: confirmed("bride", "groom"), tone: "amora" },
+  ];
+  for (const scenario of cases) {
+    const rendered = render(scenario.item, scenario.presentation);
+    const bubble = bubbleOf(rendered);
+    assert.ok(bubble, `${scenario.name}: 말풍선이 있어야 한다`);
+    const toneStyle = bubble.props.style.find(style => style && typeof style === "object" && "backgroundColor" in style);
+    assert.equal(toneStyle.backgroundColor, chatPalette[scenario.tone].surface, scenario.name);
+    assert.equal(toneStyle.borderColor, chatPalette[scenario.tone].line, scenario.name);
+    if (scenario.tone !== "amora") {
+      const body = bodyOf(rendered, scenario.item.content);
+      assert.equal(body.props.style.find(style => style && typeof style === "object" && "color" in style).color, chatPalette[scenario.tone].ink, scenario.name);
+    }
+    assert.doesNotMatch(JSON.stringify(bubble.props.style), /"#FFF"|"black"/u, `${scenario.name}: 예전 noir/흰 글자 말풍선이 남으면 안 된다`);
+  }
+});
+
+test("mobile shows the partner's initial or chosen emoji instead of a generic person icon", () => {
+  const selfId = "user-1";
+  const partnerId = "partner-1";
+  const presentation = {
+    selfId, partnerId, selfConfirmedRole: null, partnerConfirmedRole: null,
+    selfAvatarUrl: null, partnerAvatarUrl: "🐻",
+  };
+  const partnerMessage = renderProposal([], {
+    itemOverrides: { sender_type: "groom", sender_id: partnerId, content: "안녕", metadata: {} },
+    participantPresentation: presentation,
+    linkedPartnerId: partnerId,
+  });
+  const avatar = partnerMessage.nodes.find(node => node.type === "ProfileAvatar");
+  assert.ok(avatar, "상대 메시지 옆에 프로필 아바타가 있어야 한다");
+  assert.equal(avatar.props.name, "파트너");
+  assert.equal(avatar.props.avatarUrl, "🐻");
+  assert.equal(avatar.props.ownerId, partnerId);
+  assert.equal(partnerMessage.nodes.some(node => node.type === "User"), false);
+
+  // 누구인지 확인할 수 없는 과거 메시지에는 지금 상대의 이름·사진을 붙이지 않는다.
+  const legacy = renderProposal([], {
+    itemOverrides: { sender_type: "groom", sender_id: null, content: "예전", metadata: {} },
+    participantPresentation: presentation,
+    linkedPartnerId: partnerId,
+  });
+  const legacyAvatar = legacy.nodes.find(node => node.type === "ProfileAvatar");
+  assert.equal(legacyAvatar.props.name, null);
+  assert.equal(legacyAvatar.props.avatarUrl, null);
 });
 
 test("internal-only native streaming waits while completed internal-only answers remain readable", () => {

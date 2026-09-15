@@ -586,6 +586,18 @@ function verifyRemotePending() {
 
 // 새 후속 릴리스는 기존 기본 fence의 목록/핀을 바꾸지 않고 명시 모드로만 검증한다.
 // 이 분기는 로컬 계약 검사이며 hosted 증거 수집이나 원격 명령을 실행하지 않는다.
+if (args.has("--amora-not-applicable-status")) {
+  if (process.argv.slice(2).length !== 1) fail("NOT_APPLICABLE_STATIC_ARGUMENTS_INVALID: only the explicit non-deploy mode is allowed");
+  try {
+    const { loadNotApplicableStatusReleasePlan } = await import("./lib/amora-not-applicable-status-release-contract.mjs");
+    const plan = loadNotApplicableStatusReleasePlan(repoRoot);
+    console.log(`Amora not-applicable status contract verified (${plan.migrationCount} exact SQL files; runtime evidence not verified; deployment not authorized; no remote writes).`);
+    process.exit(0);
+  } catch (error) {
+    fail(/^[A-Z_]+$/.test(error?.code ?? "") ? error.code : "NOT_APPLICABLE_STATIC_UNCONFIRMED");
+  }
+}
+
 if (args.has("--account-deletion-customer-data")) {
   if (process.argv.slice(2).length !== 1) fail("CUSTOMER_DATA_STATIC_ARGUMENTS_INVALID: only the explicit non-deploy mode is allowed");
   try {

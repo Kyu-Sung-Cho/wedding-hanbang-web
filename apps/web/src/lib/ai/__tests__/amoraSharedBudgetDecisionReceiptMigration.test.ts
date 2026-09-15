@@ -70,6 +70,8 @@ describe("approved shared budget decision receipts", () => {
     const db=await setup();
     await db.exec("RESET ROLE");
     await db.exec(migration("20260911080244_amora_budget_plan_explicit_allocations.sql"));
+    // 운영 최신 본문(not_applicable 허용 목록)에서도 같은 영수증이 나와야 한다.
+    await db.exec(migration("20260915101500_amora_atomic_not_applicable_status.sql"));
     await db.exec("SET ROLE service_role");
     const before={...original,
       studio:{category:"studio",status:"completed",budget:3_000_000,spent:123_000,notes:"DO_NOT_COPY_STUDIO"},

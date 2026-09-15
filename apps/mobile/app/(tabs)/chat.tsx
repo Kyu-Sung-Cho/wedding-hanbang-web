@@ -1,5 +1,6 @@
 // AI 채팅 (아모라) + 파트너 메시지 — 웹과 동일 chat_messages 연동
-// 색은 성별이 아니라 나/상대/AI 축으로 가른다. 라벨은 이름을 쓴다.
+// 사람 말풍선 색은 각자 **직접 확인한 표시 역할**로 칠한다(웹과 같음, 2026-09-12 요청).
+// 가입 순서로 채워진 role 슬롯은 쓰지 않고, 확인 전이면 중립색이다. 라벨은 이름을 쓴다.
 import { useState, useRef, useEffect, useCallback, useMemo, type SetStateAction } from "react";
 import { View, Pressable, FlatList, StyleSheet, KeyboardAvoidingView, Platform, Animated, ActivityIndicator, Linking, AppState } from "react-native";
 import { Text, TextInput } from "@/components/ui/AppText";
@@ -7,10 +8,19 @@ import { buildMobileSiteUrl, resolveMobileSiteOrigin } from "@/lib/siteUrl.mjs";
 import { SafeAreaView } from "react-native-safe-area-context";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Crypto from "expo-crypto";
-import { Check, Send, ShieldCheck, Heart, X, Lock, RotateCcw, User, Users } from "lucide-react-native";
+import { Check, Send, ShieldCheck, Heart, X, Lock, RotateCcw, Users } from "lucide-react-native";
 import { amoraIdentity, chatPalette, colors } from "@hanbang/design-tokens";
 import AmoraMark from "@/components/ui/AmoraMark";
 import AmoraAvatar from "@/components/ui/AmoraAvatar";
+import ProfileAvatar from "@/components/ui/ProfileAvatar";
+import { apiFetchForExpectedUserQuiet } from "@/lib/api";
+import {
+  EMPTY_CHAT_PARTICIPANT_PRESENTATION,
+  chatSenderAvatarName,
+  readChatParticipantPresentation,
+  resolveChatSenderPresentation,
+  type ChatParticipantPresentation,
+} from "@/lib/chatParticipantPresentation.mjs";
 import type {
   BudgetImpactPreview,
   BudgetImpactWarning,
@@ -111,6 +121,8 @@ const AI_POLICY_URL = buildMobileSiteUrl("/ai-policy", amoraSiteOrigin);
 const API_BASE = process.env.EXPO_PUBLIC_SITE_URL || "https://hanbang.ai";
 const CHAT_REQUEST_TIMEOUT_MS = 180_000;
 const CHAT_INGEST_TIMEOUT_MS = 30_000;
+// 말풍선 색·상대 사진은 표시용이다. 화면에 돌아올 때마다 다시 읽되 이 간격 안에서는 한 번만 읽는다.
+const PARTICIPANT_PRESENTATION_REFRESH_MS = 30_000;
 const PARTNER_CONNECTION_CHANGED_NOTICE =
   "상대방 연결 상태가 바뀌어 메시지를 보내지 않았어요. 잘못 전달되지 않도록 작성 중인 초안은 삭제했어요.";
 const NEW_CHAT_MESSAGE_REQUIRED_NOTICE =
@@ -1943,6 +1955,9 @@ export default function ChatScreen() {
   const [userRole, setUserRole] = useState<ViewerRole>(null);
   const [userName, setUserName] = useState("사용자");
   const [partnerName, setPartnerName] = useState<string | null>(null);
+  const [participantPresentation, setParticipantPresentation] = useState<ChatParticipantPresentation>(
+    EMPTY_CHAT_PARTICIPANT_PRESENTATION,
+  );
   const [hasLinkedPartner, setHasLinkedPartner] = useState(false);
   const [initialLoaded, setInitialLoaded] = useState(false);
   const [chatLoadError, setChatLoadError] = useState<string | null>(null);
@@ -2063,12 +2078,34 @@ export default function ChatScreen() {
     ownerId: userId, coupleId, generation: chatSessionGenerationRef.current.current(), lane: activeLane,
     ready: initialLoaded && !chatLoadError, busy: streaming || sendingRef.current, input: inputByLane.shared_ai,
   };
+  const preparationLaneSwitchRef = useRef<string | null>(null);
   useEffect(() => {
-    if (preparationParam === undefined) { consumedPreparationRef.current = null; return; }
+    if (preparationParam === undefined) { consumedPreparationRef.current = null; preparationLaneSwitchRef.current = null; return; }
     if (!initialLoaded || !userId || !coupleId || chatLoadError) return;
     const paramKey = JSON.stringify(preparationParam);
     if (consumedPreparationRef.current === paramKey) {
       router.setParams({ amoraSource: undefined });
+      return;
+    }
+    const sharedDraftNotice = "함께 대화에서 아모라에게 쓰던 질문이 있어서 안내 질문을 넣지 않았어요. 그 질문을 보내거나 비운 뒤 원래 안내에서 다시 눌러 주세요.";
+    // 안내에서 누른 질문은 함께 대화의 아모라 입력창에만 들어간다. 사람이 마지막에 나만 (상담)이나
+    // 상대와의 대화에 있었으면 예전에는 아무것도 채우지 않고 엉뚱한 알림만 띄웠다. 보내는 중이 아니면
+    // 함께 대화로 옮겨 간다 — 레인이 바뀌면 이 효과가 다시 돌아 거기서 채운다. 다른 레인에 쓰던 글은
+    // 옮기지 않고 그 자리에 둔다. 함께 대화에 쓰던 질문이 있으면 덮지 않고 그 이유를 그대로 말한다.
+    if (readPreparationSource(preparationParam) && entryParam === undefined
+      && preparationContextRef.current.lane !== "shared_ai"
+      && !preparationContextRef.current.busy && !sendingRef.current
+      && preparationLaneSwitchRef.current !== paramKey) {
+      preparationLaneSwitchRef.current = paramKey;
+      if (inputByLaneRef.current.shared_ai.trim()) {
+        consumedPreparationRef.current = paramKey;
+        setPreparationNotice(sharedDraftNotice);
+        router.setParams({ amoraSource: undefined });
+      } else {
+        setPreparationNotice(null);
+      }
+      setActiveScope("shared");
+      setTarget("ai");
       return;
     }
     consumedPreparationRef.current = paramKey;
@@ -2097,7 +2134,12 @@ export default function ChatScreen() {
         if (!active || !mountedRef.current || !chatSessionGenerationRef.current.isCurrent(before.generation)
           || sessionUserIdRef.current !== before.ownerId) return;
         if (!resolved || !preparationContextMatches(before, current()) || inputByLaneRef.current.shared_ai.trim()) {
-          setPreparationNotice("안내 질문을 넣지 않았어요. 함께 대화의 작성 중인 질문을 보내거나 비운 뒤 원래 안내에서 다시 눌러 주세요.");
+          const latest = current();
+          setPreparationNotice(inputByLaneRef.current.shared_ai.trim()
+            ? sharedDraftNotice
+            : before.busy || latest.busy
+              ? "메시지를 보내거나 답을 받는 중이라 안내 질문을 넣지 않았어요. 끝난 뒤 원래 안내에서 다시 눌러 주세요."
+              : "안내 질문을 넣지 않았어요. 원래 안내에서 다시 눌러 주세요.");
           return;
         }
         setPreparationDraft({ ...resolved, context: before });
@@ -2168,6 +2210,51 @@ export default function ChatScreen() {
       active = false;
     };
   }, [chatLoadError, coupleId, initialLoaded, userId]);
+
+  // 말풍선 색(확인한 표시 역할)과 상대 프로필 사진·이모지는 웹과 같은 /api/auth/me 에서 읽는다.
+  // profile_wedding_roles·profile_avatars 는 앱이 직접 읽을 수 없는 서버 전용 표다.
+  // 표시용이므로 실패해도 대화는 막지 않고 중립색·이름 첫 글자로 둔다. 401 이어도 전역 「세션 만료」
+  // 알림·로그아웃을 띄우지 않는다 — 색을 칠하려는 부가 조회가 로그아웃까지 이어지면 안 된다.
+  const participantPresentationLoadRef = useRef<(() => void) | null>(null);
+  useEffect(() => {
+    if (!initialLoaded || !userId || !coupleId || chatLoadError) return;
+    const generation = chatSessionGenerationRef.current.current();
+    const partnerId = hasLinkedPartner ? linkedPartnerIdRef.current : null;
+    let active = true;
+    let inFlight = false;
+    let lastLoadedAt = 0;
+    setParticipantPresentation((current) => (
+      current.selfId === userId && current.partnerId === partnerId
+        ? current
+        : EMPTY_CHAT_PARTICIPANT_PRESENTATION
+    ));
+    const load = async () => {
+      const startedAt = Date.now();
+      if (inFlight || startedAt - lastLoadedAt < PARTICIPANT_PRESENTATION_REFRESH_MS) return;
+      inFlight = true;
+      lastLoadedAt = startedAt;
+      try {
+        const response = await apiFetchForExpectedUserQuiet(userId, "/api/auth/me");
+        const payload: unknown = await response.json().catch(() => null);
+        if (!active || !mountedRef.current || !chatSessionGenerationRef.current.isCurrent(generation) || !response.ok) return;
+        setParticipantPresentation(readChatParticipantPresentation(payload, { selfId: userId, partnerId, coupleId }));
+      } catch {
+        // 계정 전환·연결 오류. 지금 보이는 중립 표시를 유지한다.
+      } finally {
+        inFlight = false;
+      }
+    };
+    participantPresentationLoadRef.current = () => { void load(); };
+    void load();
+    return () => {
+      active = false;
+      participantPresentationLoadRef.current = null;
+    };
+  }, [chatLoadError, coupleId, hasLinkedPartner, initialLoaded, userId]);
+  // 웹 설정에서 역할이나 프로필 사진을 바꾸고 앱으로 돌아와도 반영되게 한다.
+  useFocusEffect(useCallback(() => {
+    participantPresentationLoadRef.current?.();
+  }, []));
   const activeW5PersistenceState = useMemo<{
     rawDisclosurePersisted: boolean | null;
     persistence: RawDisclosurePersistence;
@@ -2258,6 +2345,7 @@ export default function ChatScreen() {
     setUserRole(null);
     setUserName("사용자");
     setPartnerName(null);
+    setParticipantPresentation(EMPTY_CHAT_PARTICIPANT_PRESENTATION);
     setHasLinkedPartner(false);
     setInitialLoaded(false);
     setChatLoadError(null);
@@ -2387,6 +2475,8 @@ export default function ChatScreen() {
 
     async function loadChatSession() {
       const generation = chatSessionGenerationRef.current.begin();
+      // 채팅 화면이 둘 떠도 서로의 실시간 채널을 나눠 쓰거나 끊지 않도록 화면마다 다른 토픽을 쓴다.
+      const realtimeInstance = chatSessionGenerationRef.current.instanceId();
       refreshChatSessionRef.current = null;
       resetChatSessionState();
       const isCurrentGeneration = () => isCurrentChatSession(generation);
@@ -2431,7 +2521,7 @@ export default function ChatScreen() {
       };
       setUserId(user.id);
       if (!profile?.couple_id) {
-        const identityChannel = supabase.channel(`chat-identity:${user.id}:${generation}`)
+        const identityChannel = supabase.channel(`chat-identity:${user.id}:${realtimeInstance}:${generation}`)
           .on("postgres_changes", { event: "UPDATE", schema: "public", table: "profiles", filter: `id=eq.${user.id}` }, reloadWhenProfileIdentityChanges)
           .subscribe();
         if (!isCurrentGeneration()) {
@@ -2732,7 +2822,7 @@ export default function ChatScreen() {
         }));
       }
 
-      const ch = supabase.channel(`chat:${profile.couple_id}:${generation}`)
+      const ch = supabase.channel(`chat:${profile.couple_id}:${realtimeInstance}:${generation}`)
         .on("postgres_changes", { event: "INSERT", schema: "public", table: "chat_messages", filter: `couple_id=eq.${profile.couple_id}` }, (payload) => {
           if (!isCurrentChatSession(generation)) return;
           const incoming = chatMessageFromRealtimeRow(payload.new);
@@ -4066,6 +4156,17 @@ export default function ChatScreen() {
           getAmoraPendingActionApplicationState(pendingAction, actionConfirmationOutcomes),
         )
       : null;
+    // 카드에 말로 승낙하면 서버가 **같은 제안(같은 actionId·inputDigest)** 을 최신 답변 아래에
+    // 다시 붙인다(2026-09-15). 그때 옛 카드가 "새 대화가 이어져 이 제안은 적용할 수 없어요"라고
+    // 하면 사람은 제안이 사라진 줄 안다. 같은 카드가 아래에 살아 있으면 그쪽을 가리키고, 옛 카드의
+    // 버튼과 확인 상태 줄은 감춘다 — 누를 곳은 최신 카드 한 곳이다. 옛 카드에 "지금은 적용하지 않기"를
+    // 남겨 두면 그것을 눌렀을 때 같은 actionId 인 아래 카드까지 함께 치워진다. 판정과 문구는 웹 카드
+    // (`isPendingAmoraActionContinuedInMessage`·`CONTINUED_PENDING_ACTION_COPY`)와 같다.
+    const pendingActionMovedToLatest = pendingAction !== null
+      && pendingActionDisabledReason === "not_latest"
+      && latestPendingAction !== null
+      && latestPendingAction.actionId === pendingAction.actionId
+      && latestPendingAction.inputDigest === pendingAction.inputDigest;
     // 지난 날짜를 저장하려는 카드인가 (2026-09-03). 막지 않고 한 줄만 덧붙인다 —
     // 웹 카드와 같은 판정을 쓴다(`isPendingActionPastDated`).
     const pendingActionIsPastDated = pendingAction
@@ -4136,16 +4237,29 @@ export default function ChatScreen() {
         ? "이 공동 변경을 확인하고 바로 반영"
         : "이 공동 변경을 확인"
       : "확인한 내용을 이대로 적용";
-    const bubbleBg = isAi ? chatPalette.amora.surface : isMe ? colors.noir[800] : colors.ivory.warm;
-    const textColor = isAi ? chatPalette.amora.ink : isMe ? "#FFF" : colors.noir[800];
+    // 웹 ChatBubble 과 같은 규칙: 신랑으로 확인 → 하늘색, 신부로 확인 → 분홍, 아모라 → 아모라 색,
+    // 확인 전·누구인지 모름 → 중립 베이지. 색과 글자색은 design-tokens chatPalette 한 벌이다.
+    const senderPresentation = resolveChatSenderPresentation({
+      isAi,
+      senderId: item.sender_id,
+      presentation: participantPresentation,
+    });
+    const bubbleTone = chatPalette[senderPresentation.tone];
+    const bubbleBg = bubbleTone.surface;
+    const textColor = bubbleTone.ink;
+    const linkedPartnerId = hasLinkedPartner ? linkedPartnerIdRef.current : null;
 
     return (
       <View style={[st.msgRow, isMe && st.msgRowRight]}>
         {!isMe && (
           isAi ? <AmoraAvatar size={28} /> : (
-            <View style={[st.avatar, st.avatarPerson]}>
-              <User size={12} color={colors.noir[800]} />
-            </View>
+            <ProfileAvatar
+              size={28}
+              decorative
+              name={chatSenderAvatarName({ senderId: item.sender_id, selfId: userId, selfName: userName, partnerId: linkedPartnerId, partnerName })}
+              avatarUrl={senderPresentation.avatarUrl}
+              ownerId={senderPresentation.avatarOwnerId}
+            />
           )
         )}
         <View style={[
@@ -4171,7 +4285,7 @@ export default function ChatScreen() {
                 <Text style={st.safetyCardText}>{visibleContent}</Text>
               </View>
             ) : (
-              <View style={[st.bubble, { backgroundColor: bubbleBg }, !isMe && !isAi && { borderWidth: 1, borderColor: colors.border }, isAi && { borderWidth: 1, borderColor: chatPalette.amora.line }, isMe && st.bubbleRight, !isMe && st.bubbleLeft]}>
+              <View style={[st.bubble, { backgroundColor: bubbleBg, borderWidth: 1, borderColor: bubbleTone.line }, isMe && st.bubbleRight, !isMe && st.bubbleLeft]}>
                 {isThinking ? <ThinkingDots /> : (
                   <>
                     {isAi ? (
@@ -4266,12 +4380,14 @@ export default function ChatScreen() {
                     ? "이 제안은 적용됐어요."
                     : pendingActionDisabledReason === "expired"
                     ? "안전을 위해 확인 시간이 지났어요. 아모라에게 다시 제안해 달라고 해주세요."
+                    : pendingActionMovedToLatest
+                      ? "같은 제안이 아래 최신 답변으로 옮겨졌어요. 그 카드에서 확인할 수 있어요."
                     : pendingActionDisabledReason === "not_latest"
                       ? "새 대화가 이어져 이 제안은 적용할 수 없어요. 최신 내용으로 다시 확인해 주세요."
                       : "현재 답변이 끝나면 다시 확인할 수 있어요."}
                   </Text>
               )}
-              {approvalCopy && (
+              {approvalCopy && !pendingActionMovedToLatest && (
                 <View
                   style={[
                     st.pendingActionApprovalStatus,
@@ -4291,11 +4407,12 @@ export default function ChatScreen() {
                   </Text>
                 </View>
               )}
-              {pendingActionNotice?.actionId === pendingAction.actionId && (
+              {pendingActionNotice?.actionId === pendingAction.actionId && !pendingActionMovedToLatest && (
                 <Text style={st.pendingActionStatus} accessibilityLiveRegion="polite">
                   {pendingActionNotice.message}
                 </Text>
               )}
+              {!pendingActionMovedToLatest && (
               <View style={st.pendingActionControls}>
                 <Pressable
                   style={({ pressed }) => [
@@ -4348,6 +4465,7 @@ export default function ChatScreen() {
                   <Text style={st.pendingActionDismissText}>지금은 적용하지 않기</Text>
                 </Pressable>
               </View>
+              )}
             </View>
           )}
         </View>
@@ -4656,8 +4774,6 @@ const st = StyleSheet.create({
   safetyMessageBody: { flex: 1, maxWidth: "92%" },
   mediationMessageBody: { maxWidth: "92%", flex: 1 },
   placeMessageBody: { flex: 1, maxWidth: 460 },
-  avatar: { width: 28, height: 28, borderRadius: 14, alignItems: "center", justifyContent: "center" },
-  avatarPerson: { backgroundColor: colors.ivory.warm },
   senderLabel: { fontSize: 11, color: colors.textTertiary, marginBottom: 4, marginLeft: 4 },
   bubble: { paddingHorizontal: 14, paddingVertical: 10, borderRadius: 18 },
   bubbleRight: { borderBottomRightRadius: 4 },

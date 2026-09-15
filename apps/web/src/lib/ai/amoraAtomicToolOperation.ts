@@ -1,6 +1,9 @@
 import { createHash } from "node:crypto";
-import { objectParticle } from "@/lib/korean/particles";
-import { CATEGORY_CHECKLISTS } from "@hanbang/shared/constants";
+import { objectParticle, topicParticle } from "@/lib/korean/particles";
+import {
+  CATEGORY_CHECKLISTS,
+  PREPARATION_PROGRESS_STATUSES,
+} from "@hanbang/shared/constants";
 import {
   mergePlanningChecklist,
   resolvePlanningChecklistStatus,
@@ -16,12 +19,14 @@ import {
   ScheduleEventCapacityError,
   ScheduleEventValidationError,
   cancelEvent,
+  getScheduleEventStatus,
   restoreEvent,
   updateEvent,
   upsertMomentEvent,
 } from "@/utils/scheduleEvents";
 import {
   CATEGORY_LABELS,
+  SCREEN_CATEGORY_LABELS,
   STATUS_LABELS,
 } from "@/lib/ai/tools/planningConstants";
 import type { ScheduleEvent } from "@/types/database.types";
@@ -57,7 +62,15 @@ const ACTION_SOURCES = new Set([
   "guardrail",
   "manual",
 ]);
-const PROGRESS_STATUSES = new Set(["not_started", "in_progress", "completed"]);
+// 준비 현황이 저장하는 네 상태의 정본을 그대로 쓴다.
+//
+// 여기에 not_applicable("안 해요")이 빠져 있어서, 한복·예단을 "안 해요"로 표시한 커플이
+// "한복은 150만 원, 예단은 200만 원으로 잡아줘" 라고 한 뒤 카드를 누르면 "현재 예산
+// 데이터에 확인이 필요한 상태가 있어 예산안을 적용하지 않았어요" 만 나왔다(2026-09-15
+// 운영 재현). 예산과 준비 진행은 서로 다른 축이다 — 예산 화면도 상태를 건드리지 않고
+// 금액만 저장한다. 그래서 예산 쓰기는 이 상태를 받아 **그대로 둔다**.
+const PROGRESS_STATUSES: ReadonlySet<string> = new Set(PREPARATION_PROGRESS_STATUSES);
+const NOT_APPLICABLE_STATUS = "not_applicable";
 const PROFILE_UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 export const AMORA_ATOMIC_TOOL_NAMES = new Set([
@@ -95,6 +108,45 @@ function normalizeOptionalText(value: unknown, maxChars: number): string | null 
 
 function valuesEqual(left: unknown, right: unknown): boolean {
   return JSON.stringify(left) === JSON.stringify(right);
+}
+
+/** 거절·영수증 문구에 쓰는 항목 이름. 사용자가 붙인 맞춤 항목 이름도 그대로 부른다. */
+function progressEntryLabel(key: string, entry?: unknown): string {
+  // 영수증·거절 문장은 사용자가 읽는다. 예산 화면과 같은 이름을 쓴다(모델 문맥용 원명칭 아님).
+  if (Object.hasOwn(SCREEN_CATEGORY_LABELS, key)) return SCREEN_CATEGORY_LABELS[key];
+  if (isRecord(entry) && typeof entry.label === "string") {
+    const label = normalizeWhitespace(entry.label);
+    if (label && label.length <= 60 && !/[\p{Cc}\p{Cf}]/u.test(label)) return label;
+  }
+  return "이 항목";
+}
+
+function joinLabels(labels: readonly string[]): string {
+  return [...new Set(labels)].join("·");
+}
+
+/**
+ * 예산을 쓴 분야가 "안 해요"로 표시돼 있으면 영수증에 그대로 알린다.
+ *
+ * 금액이 들어가도 준비 진행률 계산에서는 계속 빠진다(`checklist.ts` 는 not_applicable 을
+ * 분모에서 뺀다). 말하지 않으면 "예산을 잡았으니 진행률에도 잡히겠지" 라고 기대하게 된다.
+ */
+function notApplicableBudgetNote(labels: readonly string[]): string | null {
+  if (labels.length === 0) return null;
+  const joined = joinLabels(labels);
+  return `${joined}${topicParticle(joined)} '안 해요'로 표시된 분야라 진행률에는 계속 빠져 있어요.`;
+}
+
+function withNote(message: string, note: string | null): string {
+  return note ? `${message} ${note}` : message;
+}
+
+function invalidStatusGuidance(keys: readonly string[]): string {
+  // 고정 분야는 체크리스트 화면에서 상태를 다시 고르면 저장값이 바로잡힌다.
+  // 맞춤 항목에는 그런 선택지가 없으니 없는 길을 가리키지 않는다.
+  return keys.some((key) => Object.hasOwn(CATEGORY_LABELS, key) && key !== "reserve")
+    ? " 체크리스트에서 그 분야의 상태를 다시 골라 주세요."
+    : "";
 }
 
 function journeyProgressEntryMutation(
@@ -386,7 +438,7 @@ function buildTaskStatusOperation(
         "update_task_status",
         toolInput,
         "status_follows_checklist",
-        `${CATEGORY_LABELS[category] ?? category}은(는) 체크리스트 ${merged.length}개 중 ${done}개가 완료라 화면에는 "${STATUS_LABELS[visible] ?? visible}"으로 보여요. 분야 상태는 항목을 체크하면 따라 바뀌어요 — 남은 항목을 완료로 표시해 드릴까요?`,
+        `${SCREEN_CATEGORY_LABELS[category] ?? category}은(는) 체크리스트 ${merged.length}개 중 ${done}개가 완료라 화면에는 "${STATUS_LABELS[visible] ?? visible}"으로 보여요. 분야 상태는 항목을 체크하면 따라 바뀌어요 — 남은 항목을 완료로 표시해 드릴까요?`,
       );
     }
   }
@@ -410,7 +462,7 @@ function buildTaskStatusOperation(
         category,
         status,
       },
-      `${CATEGORY_LABELS[category]} 상태를 "${STATUS_LABELS[status]}"로 변경했어요.`,
+      `${SCREEN_CATEGORY_LABELS[category]} 상태를 "${STATUS_LABELS[status]}"로 변경했어요.`,
     ),
   };
 }
@@ -452,17 +504,18 @@ function buildCategoryBudgetOperation(
       "update_category_budget",
       toolInput,
       "category_hidden_by_user",
-      `${CATEGORY_LABELS[category as keyof typeof CATEGORY_LABELS] ?? category}은(는) 예산 화면에서 빼두신 항목이라 지금은 반영하지 않았어요. 예산 화면에서 다시 추가한 뒤 말씀해 주세요.`,
+      `${progressEntryLabel(category)}${topicParticle(progressEntryLabel(category))} 예산 화면에서 빼두신 항목이라 지금은 반영하지 않았어요. 예산 화면에서 다시 추가한 뒤 말씀해 주세요.`,
     );
   }
   const progress = context.weddingContext.progress as Record<string, unknown>;
   const existing = progress[category];
+  const categoryLabel = progressEntryLabel(category, existing);
   if (existing !== undefined && !isRecord(existing)) {
     return noOpFailure(
       "update_category_budget",
       toolInput,
       "progress_state_invalid",
-      "현재 예산 데이터에 확인이 필요한 항목이 있어 변경하지 않았어요.",
+      `${categoryLabel} 항목의 저장 형식이 올바르지 않아 예산을 변경하지 않았어요.`,
     );
   }
   if (
@@ -474,7 +527,7 @@ function buildCategoryBudgetOperation(
       "update_category_budget",
       toolInput,
       "progress_state_invalid",
-      "현재 예산 데이터에 확인이 필요한 상태가 있어 변경하지 않았어요.",
+      `${categoryLabel}의 준비 상태 값을 알아볼 수 없어 예산을 변경하지 않았어요.${invalidStatusGuidance([category])}`,
     );
   }
   const value: Record<string, unknown> = {
@@ -503,7 +556,7 @@ function buildCategoryBudgetOperation(
       "현재 예산 데이터에 확인이 필요한 항목이 있어 변경하지 않았어요.",
     );
   }
-  const label = CATEGORY_LABELS[category] ?? "예비비";
+  const label = SCREEN_CATEGORY_LABELS[category] ?? "예비비";
   return {
     domainMutation,
     result: progressEntryResult(
@@ -512,7 +565,10 @@ function buildCategoryBudgetOperation(
       category,
       value,
       { category, ...(hasBudget ? { budget: toolInput.budget } : {}), ...(hasSpent ? { spent: toolInput.spent } : {}) },
-      `${label} 예산 정보를 변경했어요.`,
+      withNote(
+        `${label} 예산 정보를 변경했어요.`,
+        notApplicableBudgetNote(value.status === NOT_APPLICABLE_STATUS ? [label] : []),
+      ),
     ),
   };
 }
@@ -663,40 +719,64 @@ function buildBudgetPlanOperation(
   // 남는 돈이 자동으로 가는 예비비도 지워져 있을 수 있어 같이 본다.
   const hiddenTargets = finalAllocations
     .filter((item) => Object.hasOwn(CATEGORY_LABELS, item.category) && hiddenKeys.has(item.category))
-    .map((item) => CATEGORY_LABELS[item.category] ?? item.category);
+    .map((item) => SCREEN_CATEGORY_LABELS[item.category] ?? item.category);
   if (hiddenTargets.length > 0) {
     return noOpFailure(
       "apply_budget_plan",
       toolInput,
       "category_hidden_by_user",
-      `${hiddenTargets.join("·")}은(는) 예산 화면에서 빼두신 항목이라 배분하지 않았어요. 예산 화면에서 다시 추가한 뒤 말씀해 주세요.`,
+      `${joinLabels(hiddenTargets)}${topicParticle(joinLabels(hiddenTargets))} 예산 화면에서 빼두신 항목이라 배분하지 않았어요. 예산 화면에서 다시 추가한 뒤 말씀해 주세요.`,
+    );
+  }
+
+  // 손상된 행이 여럿이면 한 번에 모두 부른다. 하나씩 알려 주면 고칠 때마다 다시 막힌다.
+  const malformedKeys = finalAllocations
+    .map((allocation) => allocation.category)
+    .filter((key) => Object.prototype.hasOwnProperty.call(progress, key) && !isRecord(progress[key]));
+  if (malformedKeys.length > 0) {
+    const labels = joinLabels(malformedKeys.map((key) => progressEntryLabel(key, progress[key])));
+    return noOpFailure(
+      "apply_budget_plan",
+      toolInput,
+      "progress_state_invalid",
+      `${labels} 항목의 저장 형식이 올바르지 않아 예산안을 적용하지 않았어요.`,
+    );
+  }
+  const unknownStatusKeys = finalAllocations
+    .map((allocation) => allocation.category)
+    .filter((key) => {
+      const existing = progress[key];
+      return isRecord(existing)
+        && typeof existing.status === "string"
+        && !PROGRESS_STATUSES.has(existing.status);
+    });
+  if (unknownStatusKeys.length > 0) {
+    const labels = joinLabels(unknownStatusKeys.map((key) => progressEntryLabel(key, progress[key])));
+    return noOpFailure(
+      "apply_budget_plan",
+      toolInput,
+      "progress_state_invalid",
+      `${labels}의 준비 상태 값을 알아볼 수 없어 예산안을 적용하지 않았어요.${invalidStatusGuidance(unknownStatusKeys)}`,
     );
   }
 
   const entries: Record<string, unknown>[] = [];
+  const notApplicableLabels: string[] = [];
   let progressChanged = false;
   for (const allocation of finalAllocations) {
     const expectedPresent = Object.prototype.hasOwnProperty.call(progress, allocation.category);
     const existing = progress[allocation.category];
     if (expectedPresent && !isRecord(existing)) {
+      // 위에서 이미 거절했다. 타입을 좁히기 위한 방어선이다.
       return noOpFailure(
         "apply_budget_plan",
         toolInput,
         "progress_state_invalid",
-        "현재 예산 데이터에 확인이 필요한 항목이 있어 예산안을 적용하지 않았어요.",
+        `${progressEntryLabel(allocation.category, existing)} 항목의 저장 형식이 올바르지 않아 예산안을 적용하지 않았어요.`,
       );
     }
-    if (
-      isRecord(existing)
-      && typeof existing.status === "string"
-      && !PROGRESS_STATUSES.has(existing.status)
-    ) {
-      return noOpFailure(
-        "apply_budget_plan",
-        toolInput,
-        "progress_state_invalid",
-        "현재 예산 데이터에 확인이 필요한 상태가 있어 예산안을 적용하지 않았어요.",
-      );
+    if (isRecord(existing) && existing.status === NOT_APPLICABLE_STATUS) {
+      notApplicableLabels.push(progressEntryLabel(allocation.category, existing));
     }
     const value = {
       ...(existing ?? {}),
@@ -745,7 +825,10 @@ function buildBudgetPlanOperation(
         allocations: finalAllocations,
       },
       success: true,
-      displayMessage: `총예산 ${formatWon(totalBudget)} 기준으로 ${finalAllocations.length}개 항목의 배분을 적용했어요.`,
+      displayMessage: withNote(
+        `총예산 ${formatWon(totalBudget)} 기준으로 ${finalAllocations.length}개 항목의 배분을 적용했어요.`,
+        notApplicableBudgetNote(notApplicableLabels),
+      ),
     },
   };
 }
@@ -819,7 +902,7 @@ function buildCustomCategoryOperation(
       "add_custom_category",
       toolInput,
       "progress_state_invalid",
-      "현재 예산 데이터에 확인이 필요한 상태가 있어 추가하지 않았어요.",
+      `"${label}" 항목의 준비 상태 값을 알아볼 수 없어 예산을 변경하지 않았어요.`,
     );
   }
   if (toolInput.budget !== undefined) value.budget = toolInput.budget;
@@ -850,7 +933,10 @@ function buildCustomCategoryOperation(
       key,
       value,
       { key, label, created },
-      created ? `새 예산 항목 "${label}"을 추가했어요.` : `기존 예산 항목 "${label}"을 업데이트했어요.`,
+      withNote(
+        created ? `새 예산 항목 "${label}"을 추가했어요.` : `기존 예산 항목 "${label}"을 업데이트했어요.`,
+        notApplicableBudgetNote(value.status === NOT_APPLICABLE_STATUS ? [label] : []),
+      ),
     ),
   };
 }
@@ -897,12 +983,24 @@ function buildChecklistOperation(
   const existingStatus = isRecord(existing) && typeof existing.status === "string"
     ? existing.status
     : "not_started";
+  const checklistLabel = progressEntryLabel(category);
+  // "안 해요"로 끈 분야의 항목은 체크하지 않는다. 체크하면 상태가 항목에서 다시 계산돼
+  // 사용자가 끈 분야가 말없이 켜진다 — 사용자가 고른 것을 아모라가 뒤집는 셈이다.
+  // 이 분야를 다시 켜는 것은 사용자가 체크리스트에서 직접 고른다.
+  if (existingStatus === NOT_APPLICABLE_STATUS) {
+    return noOpFailure(
+      "toggle_checklist_item",
+      toolInput,
+      "progress_state_invalid",
+      `${checklistLabel}${topicParticle(checklistLabel)} '안 해요'로 표시한 분야라 항목을 체크하지 않았어요. 다시 준비하려면 체크리스트에서 상태를 바꿔 주세요.`,
+    );
+  }
   if (!PROGRESS_STATUSES.has(existingStatus)) {
     return noOpFailure(
       "toggle_checklist_item",
       toolInput,
       "progress_state_invalid",
-      "현재 체크리스트 상태를 확인해야 해서 변경하지 않았어요.",
+      `${checklistLabel}의 준비 상태 값을 알아볼 수 없어 항목을 체크하지 않았어요.${invalidStatusGuidance([category])}`,
     );
   }
   const merged = mergeChecklist(
@@ -961,7 +1059,7 @@ function buildChecklistOperation(
         new_status: newStatus,
         item_label: target.label,
       },
-      `${CATEGORY_LABELS[category]}의 "${target.label}" 항목을 ${done ? "완료" : "미완료"}로 변경했어요.`,
+      `${SCREEN_CATEGORY_LABELS[category]}의 "${target.label}" 항목을 ${done ? "완료" : "미완료"}로 변경했어요.`,
     ),
   };
 }
@@ -1395,6 +1493,35 @@ export function buildAmoraAtomicToolOperation(
           : "복원할 취소 일정을 찾지 못했어요. 현재 일정을 다시 확인해 주세요.",
       );
     }
+    // 상태가 맞지 않는 대상은 제목·날짜 대조보다 먼저, 사실대로 말한다(리뷰 [2]). 예전에는
+    // 취소 헬퍼의 검증 예외로 "현재 일정 상태나 취소 정보를 다시 확인해 주세요" 만 나왔고,
+    // 카드 발급 게이트(`findAmoraBudgetProposalRefusal`)도 이 문장으로 카드를 막는다.
+    const existingStatus = getScheduleEventStatus(existing);
+    if (toolName === "cancel_schedule_event" && existingStatus === "cancelled") {
+      return noOpFailure(
+        toolName,
+        toolInput,
+        "schedule_event_cancelled",
+        `“${existing.title}” (${existing.date}) 일정은 이미 취소된 상태라 다시 취소하지 않았어요.`,
+      );
+    }
+    if (toolName === "restore_schedule_event" && existingStatus !== "cancelled") {
+      return noOpFailure(
+        toolName,
+        toolInput,
+        "schedule_event_not_cancelled",
+        `“${existing.title}” (${existing.date}) 일정은 취소된 상태가 아니라 복원하지 않았어요.`,
+      );
+    }
+    // 취소·복원의 제목은 옮기기(`update_schedule_event`)와 달리 **정확히** 본다.
+    //
+    // 옮기기는 프롬프트가 300자로 자른 제목도 앞부분이면 통과시킨다. 여기서 같은 규칙을
+    // 쓰면 안 된다: 승인 카드로 실행하는 취소·복원은 DB 트리거
+    // (`capture_amora_shared_schedule_cancel_restore_delta`, 20260802140000)가
+    // `expected_title` 이 trim 된 값이고 저장된 제목과 **정확히 같은지** 다시 본다.
+    // 앱에서만 느슨하게 하면 "제목이 달라져 적용하지 않았어요" 라는 깨끗한 안내 대신
+    // DB 예외로 끝난다. 300자가 넘는 제목은 `get_schedule_events` 가 자르지 않고 돌려주므로
+    // (프롬프트도 "현재 조회 후" 취소하라고 한다) 그 값으로 정확히 맞출 수 있다.
     if (
       typeof toolInput.expected_title !== "string"
       || typeof toolInput.expected_date !== "string"
@@ -1521,6 +1648,16 @@ export function buildAmoraAtomicToolOperation(
         "수정할 일정을 찾지 못했어요. 현재 일정을 다시 확인해 주세요.",
       );
     }
+    // 취소된 일정은 옮기거나 바꿀 수 없다(`updateEvent` 가 거절한다). 그 거절은 "일정 날짜와
+    // 제목을 다시 확인해 주세요" 로 나와 사실과 달랐다 — 무엇을 하면 되는지 말한다(리뷰 [2]).
+    if (getScheduleEventStatus(existing) === "cancelled") {
+      return noOpFailure(
+        toolName,
+        toolInput,
+        "schedule_event_cancelled",
+        `“${existing.title}” (${existing.date}) 일정은 취소된 상태라 수정하지 않았어요. 옮기거나 바꾸려면 먼저 복원해 주세요.`,
+      );
+    }
     // 카드에 "대상 일정"·"현재 날짜" 로 보여 준 값이 실제와 맞는지 다시 본다.
     //
     // 형제 도구(cancel·restore)는 이 둘을 **필수**로 받고 제목까지 정확 일치를
@@ -1531,6 +1668,8 @@ export function buildAmoraAtomicToolOperation(
     // 2. **제목은 느슨하게 본다.** 프롬프트가 제목을 300자로 자르고 trim 해서
     //    싣기 때문에(`prompts.ts` 의 `promptData`), 정확 일치를 요구하면 긴 제목의
     //    일정은 **영구히 못 옮기게** 된다. 날짜는 잘리지 않으므로 정확히 본다.
+    //    옮기기의 DB 트리거는 `expected_title` 의 타입만 본다. 취소·복원은 트리거가
+    //    정확 일치를 요구해서 이 규칙을 쓰지 않는다(위 취소 분기 주석).
     //
     // 값이 어긋난다는 것은 그 사이 일정이 바뀌었거나 모델이 딴 일정을 집었다는
     // 뜻이다. 사용자가 카드에서 본 것과 다른 것을 바꾸면 안 된다.

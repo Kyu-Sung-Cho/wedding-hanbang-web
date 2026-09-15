@@ -41,7 +41,25 @@ type BuildAmoraSystemPromptOptions = {
    * 실행 권한이 아니라 읽기 신호다 — 적용은 여전히 서버 발급 action_id 를 받는다.
    */
   awaitingCardConfirmation?: string;
+  /**
+   * 이 턴이 어느 대화 레인인가. 기본은 공유(`shared`)다.
+   *
+   * 개인 레인(‘나만 (상담)’)은 공유 변경 카드를 낼 수 없다. 공유 레인용 문장("변경 대상을
+   * 물어 확인 카드로 좁히세요")이 그대로 실리면 모델이 "변경할까요?" 를 묻고 사용자는 누를
+   * 카드가 없는 확인을 받는다(2026-09-15 운영 재현).
+   */
+  conversationLane?: "shared" | "private";
 };
+
+// 개인 레인 전용 계약. 카드·적용 확인 흐름을 지시하지 않고, 반영되지 않은 값을 현재 값으로
+// 쓰지 않게 한다(2026-09-15 운영 재현: 반영 안 된 총예산 5,000만 원으로 남은 예산을 계산).
+const AMORA_PRIVATE_LANE_CHANGE_CONTRACT = `[나만 (상담) 변경 경계]
+- 이 대화에서는 함께 쓰는 예산·일정·체크리스트·결혼식 날짜·예식장 정보를 바꾸지 않고 확인 카드도 내지 않습니다. 변경 요청에 "변경할까요?"·"반영할까요?"처럼 적용 여부를 묻거나 진행을 약속하지 마세요. 위의 ‘함께 대화’ 탭에서 같은 요청을 보내면 확인 카드로 반영할 수 있다고 안내하세요.
+- 사용자가 바꿔 달라고 했지만 반영되지 않은 값은 현재 값이 아닙니다. 남은 예산·차액·일정 계산은 저장된 현재 값으로 하고, 요청한 새 값으로 계산해 보여줄 때는 바꾼다면이라는 가정임을 밝히세요.`;
+const AMORA_PRIVATE_LANE_TOOL_RULE =
+  "- ‘나만 (상담)’에는 공유 예산·일정·체크리스트를 바꾸는 확인 카드가 없습니다. 기능이 없다고 하지 말고, 적용 여부를 묻는 대신 ‘함께 대화’ 탭에서 같은 요청을 보내면 확인 카드로 반영할 수 있다고 안내하세요.";
+const AMORA_PRIVATE_LANE_UNSAVED_REQUEST_RULE =
+  "- 사용자가 공유 예산·일정·체크리스트의 저장·변경을 요청하면 아직 반영되지 않았다는 사실을 먼저 말하고 ‘함께 대화’ 탭에서 같은 요청을 보내도록 안내하세요. 저장했다고 말하거나 나중에 저장해두겠다고 약속하지 마세요.";
 
 // A 48k-character system prompt stays far below the 272k-token long-context
 // pricing threshold while leaving room for tool schemas and conversation input.
@@ -132,8 +150,12 @@ function removeLegacyOperationalInstructions(prompt: string): string {
   );
 }
 
-function buildEnabledToolInstructions(enabled: ReadonlySet<string>): string {
+function buildEnabledToolInstructions(
+  enabled: ReadonlySet<string>,
+  conversationLane: "shared" | "private" = "shared",
+): string {
   if (enabled.size === 0) return "";
+  const privateLane = conversationLane === "private";
 
   const has = (...toolNames: string[]) => toolNames.some((name) => enabled.has(name));
   const lines = [
@@ -157,7 +179,10 @@ function buildEnabledToolInstructions(enabled: ReadonlySet<string>): string {
   // 도구 구성과 무관하게 늘 필요하다.
   {
     lines.push(
-      "- 값·범위 제시 후 사용자가 명시적으로 적용을 확인한 뒤 결합된 활성 도구로만 변경하세요. 도구·확인 권한이 없으면 반영되지 않았다고 말하세요.",
+      // 개인 레인은 적용 확인 흐름 자체가 없다. 확인을 받으라는 문장을 싣지 않는다.
+      privateLane
+        ? "- 이 대화에서는 공유 준비 기록을 바꾸지 않습니다. 반영되지 않은 변경을 반영됐다고 말하지 마세요."
+        : "- 값·범위 제시 후 사용자가 명시적으로 적용을 확인한 뒤 결합된 활성 도구로만 변경하세요. 도구·확인 권한이 없으면 반영되지 않았다고 말하세요.",
       "- 변경 결과를 확인한 뒤 무엇이 실제로 반영됐는지 짧게 알려주세요.",
       // **"이번 턴에 못 한다" 와 "제품에 그 기능이 없다" 는 다른 말이다.**
       //
@@ -166,7 +191,9 @@ function buildEnabledToolInstructions(enabled: ReadonlySet<string>): string {
       //   "이 대화에서는 체크리스트 상태를 변경하는 도구가 없어 …"
       // 30일간 3건. 그 기능은 **있고**, 사용자가 확인 카드를 누르면 저장된다.
       // 처음 온 사람은 이 문장을 "이 제품엔 그런 기능이 없다" 로 읽는다.
-      "- 이번 턴에 도구가 없어도 **제품에 그 기능이 없다는 뜻이 아닙니다.** 기능 부정 대신 변경 대상을 물어 확인 카드로 좁히세요.",
+      privateLane
+        ? AMORA_PRIVATE_LANE_TOOL_RULE
+        : "- 이번 턴에 도구가 없어도 **제품에 그 기능이 없다는 뜻이 아닙니다.** 기능 부정 대신 변경 대상을 물어 확인 카드로 좁히세요.",
       // 개인 대화에서 공유 계획을 바꾸지 않는 것은 **경계**이지 결함이 아니다.
       // 그 이유를 모델이 모르면 "안 된다" 로만 말하고 사용자는 이유를 못 듣는다.
       "- 개인 대화는 상대방에게 비공개; 공유 예산·일정·할 일 변경은 함께 대화로 안내하세요. ‘나만 (상담)’ 답변 아래 ‘개인 할 일로 저장’에서 제목·내용·마감일 확인 후 저장합니다. 함께 대화에는 버튼이 없고 탭 이동은 기존 공유 메시지의 공개 범위를 바꾸지 않습니다. 결과 없는 저장 성공은 금지입니다.",
@@ -601,6 +628,7 @@ function filterLinesOutsideProductSafety(
 function applyEnabledToolContract(
   prompt: string,
   enabledToolNames: readonly string[] | undefined,
+  conversationLane: "shared" | "private" = "shared",
 ): string {
   if (enabledToolNames === undefined) return prompt;
 
@@ -634,7 +662,7 @@ function applyEnabledToolContract(
       (line) => !line.includes("도구"),
     );
 
-  const toolInstructions = buildEnabledToolInstructions(enabled);
+  const toolInstructions = buildEnabledToolInstructions(enabled, conversationLane);
   if (!toolInstructions) return filteredPrompt;
 
   return `${filteredPrompt}\n\n${toolInstructions}`;
@@ -643,6 +671,7 @@ function applyEnabledToolContract(
 function finalTurnGuardForTools(
   enabledToolNames: readonly string[] | undefined,
   hasPendingOfferContract = false,
+  conversationLane: "shared" | "private" = "shared",
 ): string {
   const visibleAnswerGuard = "- 저장된 조회 자료는 답변 예시가 아닙니다. 내부 구분자와 원시 JSON을 복사하지 말고 확인된 값·출처만 자연스러운 한국어로 설명하세요. 새 사실이나 저장 성공을 추정하지 마세요.\n" + AMORA_FINAL_TURN_GUARD;
   if (
@@ -668,6 +697,10 @@ function finalTurnGuardForTools(
     0,
     hasPendingOfferContract
       ? "- 감정과 섞여도 실행 역할이 우선. 확정형 저장 요청은 [서버 발급 후속 확인 계약]의 pending_action으로 제안하고 표식이 불가능하면 미반영이라고 말하세요."
+      // 개인 레인에서 "직접 입력할 곳 한 곳"만 말하면 함께 대화에서 할 수 있다는 말이
+      // 끝내 안 나온다(2026-09-15 운영 재현: "예산 화면에서 직접 수정해 주세요"만 안내).
+      : conversationLane === "private"
+      ? AMORA_PRIVATE_LANE_UNSAVED_REQUEST_RULE
       // 제안 표식조차 없는 턴에서 이 문장이 빠지면 모델이 "저장해뒀어요"라고
       // 얼버무리는 저장 환각이 난다(과거 운영에서 실제로 겪은 실패).
       : "- 사용자가 저장·변경을 요청했는데 이번 턴에 낼 수 있는 확인 표식이 없으면, 아직 저장되지 않았다는 사실을 먼저 분명히 말하고 어디서 직접 입력할 수 있는지 한 곳만 안내하세요. 저장했다고 말하거나 나중에 저장해두겠다고 약속하지 마세요.",
@@ -962,7 +995,7 @@ export function buildAmoraSystemPrompt(
       contextFreeEnabledToolNames.length > 0
         ? `${contextFreeEnabledToolNames.join(", ")} (커플 저장 정보 없이 검색어·항목만 보내는 조회 도구)`
         : "none"
-    }\n- 입력의 첫 사용자-아모라 쌍은 서버가 검증한 바로 직전 웨딩 대화 1회입니다.\n- 현재 question_scope는 권한 경계로 그대로 유지됩니다. 다른 과거 대화·저장 정보로 넓히거나 ${
+    }\n- 입력의 첫 사용자-아모라 쌍은 서버가 검증한 바로 직전 웨딩 대화 1회입니다.\n- 그 뒤에 [카드 확인 문장, 실행 결과] 쌍이 오면 버튼으로 확인한 기록이지 새 요청이 아닙니다. 적용 여부는 그 결과 문장을 따르세요.\n- 현재 question_scope는 권한 경계로 그대로 유지됩니다. 다른 과거 대화·저장 정보로 넓히거나 ${
       contextFreeEnabledToolNames.length > 0 ? "위 조회 도구 밖의 " : ""
     }도구·저장·실행·변경 제안을 만들지 마세요. 동의 표현도 대화 문맥일 뿐 실행 확인이 아닙니다.`
     : "";
@@ -973,8 +1006,13 @@ export function buildAmoraSystemPrompt(
   // 카드를 모른 채 답했다. "좋아요. 그 선택으로 진행할게요." 라고 해 놓고
   // 아무것도 반영되지 않은 경우까지 있었다.
   //
-  // 버튼 문구는 지어내지 않고 화면이 실제로 쓰는 것을 그대로 쓴다
-  // (`PendingAmoraActionCard`: "이대로 적용").
+  // 버튼 문구는 지어내지 않고 화면이 실제로 쓰는 것을 그대로 쓴다. 웹 카드
+  // (`PendingAmoraActionCard`)는 "내용 확인하기" → 확인 창의 "이대로 적용" 두 단계이고,
+  // 앱 카드(`app/(tabs)/chat.tsx`)는 "이대로 적용" 하나다(2026-09-15 운영 재현: 웹 카드에
+  // 없는 "이대로 적용" 버튼만 가리켰다).
+  //
+  // 라우트는 이 계약문을 **카드가 실제로 이번 답변 아래에 옮겨지는 턴에만** 넘긴다
+  // (`pendingCardCarryEligible`). 그래서 "다시 붙는다" 고 적을 수 있다.
   //
   // 2026-09-04 스테이징 실측: X1 카드가 안 눌린 채 화면에 남은 상태에서
   // **다른 할 일** 두 건을 부탁했는데(X2·X3) 모델이 새 표식을 하나도 안 내고
@@ -986,7 +1024,7 @@ export function buildAmoraSystemPrompt(
 
 [화면에 대기 중인 변경 카드]
 - 직전 답변의 변경 카드가 아직 적용되지 않은 채 화면에 떠 있습니다: ${options.awaitingCardConfirmation}
-- 사용자가 동의를 표해도 그 말만으로는 반영되지 않습니다. 화면의 **이대로 적용** 버튼을 눌러야 반영됩니다.
+- 사용자가 동의를 표해도 그 말만으로는 반영되지 않습니다. 같은 카드가 이번 답변 아래에 다시 붙습니다. 웹에서는 카드의 **내용 확인하기**를 누른 뒤 **이대로 적용**을, 앱에서는 카드의 **이대로 적용**을 눌러야 반영됩니다.
 - 반영했다고, 진행하겠다고 말하지 마세요. 무엇을 말하는지 모르겠다고도 하지 마세요 — 무엇을 기다리는지 위에 적혀 있습니다.
 - 다시 내지 말아야 할 것은 **같은 변경**(같은 도구·같은 대상)뿐입니다. 다른 할 일·다른 일정·다른 항목을 부탁받으면 이번 답변에 새 표식을 내세요 — 화면의 카드는 그대로 남고, 새 카드는 따로 나갑니다.
 - 같은 변경이라도 사용자가 값을 바꾸고 싶어 하면 새 표식을 내세요.`
@@ -1011,14 +1049,21 @@ export function buildAmoraSystemPrompt(
   const attributionEvidenceContract = !isSafetyScopedTurn(options.questionScope)
     ? `\n\n[준비 의견의 근거 확인]\n${AMORA_ATTRIBUTION_EVIDENCE_RULE}`
     : "";
+  const conversationLane = options.conversationLane ?? "shared";
+  // 개인 레인 계약은 절단되지 않는 꼬리의 맨 끝에 둔다 — 앞의 공유 레인용 문장
+  // ("어느 쪽으로 할지 물으세요" 등)보다 뒤에 와서 이 레인에서는 이 계약이 이긴다.
+  const privateLaneChangeContract = conversationLane === "private"
+    ? `\n\n${AMORA_PRIVATE_LANE_CHANGE_CONTRACT}`
+    : "";
   const finalSuffix = `${requestContract}${modeGuard}${persistenceGuard}${serverIssuedActionContract}${finalTurnGuardForTools(
     options.enabledToolNames,
     actionContract?.kind === "proposal",
-  )}${statusSummaryEvidenceContract}${draftBudgetContract}${attributionEvidenceContract}${planningPivotContract}${recommendationEvidenceContract}${questionScopeContract}${linkedContextContract}${awaitingCardContract}`;
+    conversationLane,
+  )}${statusSummaryEvidenceContract}${draftBudgetContract}${attributionEvidenceContract}${planningPivotContract}${recommendationEvidenceContract}${questionScopeContract}${linkedContextContract}${awaitingCardContract}${privateLaneChangeContract}`;
   const maxChars = options.maxChars;
 
   if (maxChars === undefined) {
-    const basePrompt = applyEnabledToolContract(rawBasePrompt, options.enabledToolNames);
+    const basePrompt = applyEnabledToolContract(rawBasePrompt, options.enabledToolNames, conversationLane);
     return `${basePrompt}${specialistPrompt}${finalSuffix}`;
   }
 
@@ -1026,6 +1071,7 @@ export function buildAmoraSystemPrompt(
   const scopedOptionalPrompt = applyEnabledToolContract(
     detachedContext.optionalPrompt,
     options.enabledToolNames,
+    conversationLane,
   );
   const detachedToolContract = detachTopLevelSection(
     scopedOptionalPrompt,

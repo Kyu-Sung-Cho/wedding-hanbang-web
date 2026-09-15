@@ -17,7 +17,8 @@ export default function AmoraPreparationScreen() {
         <ActionRow title="나만 보는 할 일" onPress={() => router.push("/amora-personal")} />
       </Surface></View>
       <AmoraActionsCard presentation="board" />
-      <ActionRow title="아모라와 이야기하기" onPress={() => router.push("/(tabs)/chat")} />
+      {/* 루트 Stack 화면이라 push 는 (tabs)를 한 벌 더 쌓아 채팅 화면이 둘 뜬다. 기존 (tabs)로 돌아간다. */}
+      <ActionRow title="아모라와 이야기하기" onPress={() => router.dismissTo("/(tabs)/chat")} />
     </ScrollView>
   </SafeAreaView>;
 }

@@ -46,10 +46,11 @@ import {
   AMORA_MAX_TOOL_FEEDBACK_CHARS_PER_TURN,
 } from "@/lib/ai/amoraRequestPolicy";
 import { CATEGORY_CHECKLISTS } from "@hanbang/shared/constants";
-import { mergePlanningChecklist } from "@hanbang/shared/utils";
+import { summarizePlanningChecklist } from "@hanbang/shared/utils";
 import { listCustomBudgetCategories } from "@/lib/ai/budgetCustomCategories";
 import {
   CATEGORY_LABELS,
+  SCREEN_CATEGORY_LABELS,
   STATUS_LABELS,
 } from "@/lib/ai/tools/planningConstants";
 import {
@@ -180,6 +181,97 @@ function hydrateDurableResult(
     success: stored.success,
     displayMessage: stored.displayMessage,
   };
+}
+
+/**
+ * 원자 쓰기 DB 함수가 **입력·상태 검증에서** 거절한 오류인가(리뷰 [7]).
+ *
+ * `apply_amora_atomic_tool_execution` 은 도메인 변경을 검증하다 맞지 않으면
+ * `RAISE EXCEPTION 'AMORA_ATOMIC_<무엇>_INVALID' USING ERRCODE = '22023'` 으로 끝난다. 예외라
+ * 그 호출의 트랜잭션은 통째로 롤백되므로 **아무것도 바뀌지 않았다는 것이 확실하다.** 같은
+ * 입력으로 다시 보내도 같은 검증에서 같은 거절이 난다(이미 커밋된 실행은 검증보다 먼저
+ * 저장된 결과를 돌려주므로 여기 오지 않는다).
+ *
+ * 그런데 그동안은 이 거절을 응답 유실과 똑같이 세 번 재시도한 뒤 "결과 불명" 으로 턴을
+ * 깨뜨렸다. 웹이 DB 마이그레이션(20260915101500)보다 먼저 나가면 '안 해요' 분야 예산 카드가
+ * 정확히 그 모양으로 끝난다 — 고치기 전의 깔끔한 "적용하지 않았어요" 보다 나쁘다.
+ *
+ * 봉투 검증(`AMORA_ATOMIC_TOOL_INVALID_INPUT`)은 `_INVALID` 로 끝나지 않아 제외된다. 같은
+ * 봉투로 '적용하지 않음' 결과를 기록해도 같은 이유로 거절될 것이기 때문이다. 코드 없는 오류·
+ * 다른 SQLSTATE·다른 경계의 22023 은 지금처럼 결과 불명으로 둔다.
+ */
+const ATOMIC_INVALID_REJECTION_RE = /^AMORA_ATOMIC_[A-Z0-9_]+_INVALID$/;
+
+function isDeterministicAtomicInvalidRejection(error: { code?: string | null; message?: string | null }): boolean {
+  return error.code === "22023"
+    && typeof error.message === "string"
+    && ATOMIC_INVALID_REJECTION_RE.test(error.message.trim());
+}
+
+/** 저장 단계가 받아들이지 않은 변경. 무엇이 안 됐는지와 아무것도 바뀌지 않았다는 사실만 말한다. */
+export const ATOMIC_MUTATION_REJECTED_MESSAGE =
+  "저장하는 단계에서 이 변경을 받아들이지 않아 적용하지 않았어요. 아무것도 바뀌지 않았어요. 지금 값을 확인한 뒤 다시 요청해 주세요.";
+
+/**
+ * 결정적으로 거절된 원자 쓰기를 같은 원장 항목의 '적용하지 않음' 결과로 닫는다.
+ *
+ * 순수 연산이 거절할 때(`noOpFailure`)와 같은 길이다 — `{kind: "none"}` 과 실패 결과를 같은
+ * RPC 로 커밋해 원장을 완료 상태로 남긴다. 그래야 같은 요청을 다시 보내도 새로 실행하지
+ * 않고 이 결과를 되돌려준다. 이 기록마저 실패하면 판단하지 않고 기존처럼 결과 불명으로 턴을
+ * 깨뜨린다(원장이 처리 중으로 남아 있으므로 새 결과를 지어내지 않는다).
+ */
+async function recordAtomicRejectionAsNoOp({
+  admin,
+  toolName,
+  toolInput,
+  context,
+  inputDigest,
+  operationKey,
+}: {
+  admin: ReturnType<typeof getAdminClient>;
+  toolName: string;
+  toolInput: Record<string, unknown>;
+  context: ExecutionContext;
+  inputDigest: string;
+  operationKey: string;
+}): Promise<ToolExecutionResult> {
+  const rejection = failureResult(
+    toolName,
+    toolInput,
+    "ATOMIC_MUTATION_REJECTED",
+    ATOMIC_MUTATION_REJECTED_MESSAGE,
+  );
+  try {
+    const { data, error } = await admin.rpc("apply_amora_atomic_tool_execution", {
+      p_couple_id: context.coupleId,
+      p_request_key: context.requestKey!,
+      p_operation_key: operationKey,
+      p_request_attempt_count: context.requestAttemptCount!,
+      p_input_digest: inputDigest,
+      p_tool_input: toolInput,
+      p_domain_mutation: { kind: "none" },
+      p_result: durableResultPayload(rejection),
+    });
+    const recorded = !error ? hydrateDurableResult(data, toolName, toolInput) : null;
+    if (recorded) {
+      // 원장이 이미 완료였다면 그 결과가 돌아온다. 성공 결과면 문맥에도 반영한다.
+      applyAmoraAtomicToolResultToContext(recorded, context);
+      return recorded;
+    }
+    if (error) {
+      console.error("[amora-tool] atomic rejection no-op was not recorded", {
+        tool: toolName,
+        code: error.code ?? "unknown",
+        message: error.message?.slice(0, 200) ?? "",
+      });
+    }
+  } catch (thrown) {
+    console.error("[amora-tool] atomic rejection no-op threw", {
+      tool: toolName,
+      name: thrown instanceof Error ? thrown.name : typeof thrown,
+    });
+  }
+  throw new Error("[amora-tool] atomic commit outcome unavailable");
 }
 
 export async function executeTool(
@@ -399,6 +491,8 @@ async function executeMutatingToolWithLedger({
       operationKey,
     );
     const durablePayload = durableResultPayload(operation.result);
+    // 입력·상태 검증 거절(22023 AMORA_ATOMIC_*_INVALID)은 롤백된 확실한 미적용이다. 재시도하지 않는다.
+    let deterministicRejection = false;
     for (let attempt = 1; attempt <= 3; attempt += 1) {
       try {
         const { data, error } = await admin.rpc(
@@ -432,6 +526,10 @@ async function executeMutatingToolWithLedger({
             code: error.code ?? "unknown",
             message: error.message?.slice(0, 200) ?? "",
           });
+          if (isDeterministicAtomicInvalidRejection(error)) {
+            deterministicRejection = true;
+            break;
+          }
         }
       } catch (thrown) {
         // Retry the same operation-key-scoped transaction. A committed first
@@ -444,6 +542,16 @@ async function executeMutatingToolWithLedger({
           message: thrown instanceof Error ? thrown.message.slice(0, 200) : "",
         });
       }
+    }
+    if (deterministicRejection) {
+      return recordAtomicRejectionAsNoOp({
+        admin,
+        toolName,
+        toolInput,
+        context,
+        inputDigest,
+        operationKey,
+      });
     }
     // Do not let the provider turn this uncertainty into a terminal assistant
     // message. The transaction may have committed while its response was
@@ -734,7 +842,8 @@ async function executeUpdateTaskStatus(
       displayMessage: "준비 항목과 진행 상태를 확인하지 못해 변경하지 않았습니다.",
     };
   }
-  const label = CATEGORY_LABELS[category];
+  // 영수증 이름은 예산·일정 화면과 같게 쓴다(CATEGORY_LABELS 의 예단·폐백은 모델 문맥 전용).
+  const label = SCREEN_CATEGORY_LABELS[category];
   const statusLabel = STATUS_LABELS[status];
 
   await patchJourneyProgressItem(ctx, category, { category, status });
@@ -770,7 +879,7 @@ async function executeUpdateCategoryBudget(
       displayMessage: "예산 항목과 금액을 확인하지 못해 변경하지 않았습니다.",
     };
   }
-  const label = CATEGORY_LABELS[category] || category;
+  const label = SCREEN_CATEGORY_LABELS[category] || category;
 
   const existing = ctx.weddingContext.progress[category] ?? { category, status: "not_started" };
   const updates: Record<string, unknown> = { ...existing, category };
@@ -919,7 +1028,7 @@ async function executeApplyBudgetPlan(
 
   const lines = finalAllocations
     .filter((a) => a.budget > 0)
-    .map((a) => `  • ${CATEGORY_LABELS[a.category] ?? a.category}: ${formatWon(a.budget)}`)
+    .map((a) => `  • ${SCREEN_CATEGORY_LABELS[a.category] ?? a.category}: ${formatWon(a.budget)}`)
     .join("\n");
 
   return {
@@ -1037,8 +1146,8 @@ async function executeDeleteCategory(
   const isKnown = key in CATEGORY_LABELS;
   const progress = ctx.weddingContext.progress as Record<string, unknown>;
   const label = isKnown
-    ? CATEGORY_LABELS[key]
-    : (progress[key] as Record<string, unknown>)?.label as string ?? key;
+    ? SCREEN_CATEGORY_LABELS[key]
+    :(progress[key] as Record<string, unknown>)?.label as string ?? key;
 
   if (isKnown) {
     // 고정 카테고리: __hidden 리스트에 추가 + progress에서 데이터 제거
@@ -1092,8 +1201,8 @@ async function executeResetCategory(
   const progress = ctx.weddingContext.progress as Record<string, unknown>;
   const isKnown = key in CATEGORY_LABELS;
   const label = isKnown
-    ? CATEGORY_LABELS[key]
-    : (progress[key] as Record<string, unknown>)?.label as string ?? key;
+    ? SCREEN_CATEGORY_LABELS[key]
+    :(progress[key] as Record<string, unknown>)?.label as string ?? key;
 
   await patchJourneyProgress(ctx, {}, [key]);
 
@@ -1330,6 +1439,13 @@ function executeGetWeddingInfo(ctx: ExecutionContext): ToolExecutionResult {
   const completedCount = allKeys.filter(
     (k) => resolveStatusByKey(k, progress[k]) === "completed"
   ).length;
+  // "안 해요"로 끈 분야는 진행률 분모에서 뺀다(2026-09-15). 체크리스트·일정 화면
+  // (`summarizePlanningChecklist`)과 `get_schedule_summary` 가 이미 그렇게 센다 — 여기만
+  // 전체 분야로 나누면 함·폐백을 끈 커플에게 아모라가 화면보다 낮은 진행률을 말한다.
+  const notApplicableCount = allKeys.filter(
+    (k) => resolveStatusByKey(k, progress[k]) === "not_applicable"
+  ).length;
+  const applicableCategoryCount = allKeys.length - notApplicableCount;
 
   // 체크리스트 **세부 항목** 수를 함께 센다.
   //
@@ -1339,19 +1455,20 @@ function executeGetWeddingInfo(ctx: ExecutionContext): ToolExecutionResult {
   // (2026-08-24 운영 실측 — 프롬프트에는 `할일: 1/9완료` 가 정확히 실려 있었다).
   //
   // 라벨과 마찬가지로 **템플릿이 정본**이고 저장값에서는 done 만 가져온다.
-  let checklistDone = 0;
-  let checklistTotal = 0;
-  for (const category of CATEGORY_CHECKLISTS) {
-    const saved = (progress[category.key] as { checklist?: unknown } | undefined)?.checklist;
-    const merged = mergePlanningChecklist(
-      category.items,
-      Array.isArray(saved) ? (saved as typeof category.items) : undefined,
-    );
-    checklistTotal += merged.length;
-    checklistDone += merged.filter((item: { done?: boolean }) => item.done === true).length;
-  }
+  // 화면과 같은 함수로 센다 — "안 해요"로 끈 분야의 항목은 분자·분모 모두에서 빠진다.
+  const checklist = summarizePlanningChecklist(
+    CATEGORY_CHECKLISTS,
+    progress as unknown as Parameters<typeof summarizePlanningChecklist>[1],
+  );
+  const checklistDone = checklist.done;
+  const checklistTotal = checklist.total;
 
-  const categoryPercent = Math.round((completedCount / allKeys.length) * 100);
+  const categoryPercent = applicableCategoryCount > 0
+    ? Math.round((completedCount / applicableCategoryCount) * 100)
+    : 0;
+  const skippedLabel = notApplicableCount > 0
+    ? `, 안 해요 ${notApplicableCount}개 분야 제외`
+    : "";
   return {
     toolName: "get_wedding_info",
     toolInput: {},
@@ -1362,17 +1479,21 @@ function executeGetWeddingInfo(ctx: ExecutionContext): ToolExecutionResult {
       total_budget: budget,
       progress_basis: "planning_category_templates",
       shared_actions_queried: false,
+      // 완료한 카테고리 비율. 분모는 `applicable_categories`다 — "안 해요"로 끈 분야는 뺀다.
       progress_percent: categoryPercent,
       completed_count: completedCount,
       total_categories: allKeys.length,
-      // 위 셋은 **카테고리** 단위다. 아래 둘이 체크리스트 세부 항목이다.
+      applicable_categories: applicableCategoryCount,
+      not_applicable_categories: notApplicableCount,
+      // 위는 **카테고리** 단위다. 아래가 체크리스트 세부 항목이다(끈 분야 제외, 화면과 같은 숫자).
       completed_categories: completedCount,
       checklist_items_done: checklistDone,
       checklist_items_total: checklistTotal,
+      checklist_percent: checklist.percent,
     },
     success: true,
     displayMessage: weddingDate
-      ? `결혼 예정일: ${weddingDate}${dDayLabel} / 예산: ${budgetLabel} / 카테고리 진행률: ${categoryPercent}% (${completedCount}/${allKeys.length}) / 체크리스트 항목 ${checklistDone}/${checklistTotal} 완료`
-      : `결혼 예정일 미설정 / 예산: ${budgetLabel} / 체크리스트 항목 ${checklistDone}/${checklistTotal} 완료`,
+      ? `결혼 예정일: ${weddingDate}${dDayLabel} / 예산: ${budgetLabel} / 카테고리 진행률: ${categoryPercent}% (${completedCount}/${applicableCategoryCount}${skippedLabel}) / 체크리스트 항목 ${checklistDone}/${checklistTotal} 완료`
+      : `결혼 예정일 미설정 / 예산: ${budgetLabel} / 체크리스트 항목 ${checklistDone}/${checklistTotal} 완료${notApplicableCount > 0 ? ` (안 해요 ${notApplicableCount}개 분야 제외)` : ""}`,
   };
 }
