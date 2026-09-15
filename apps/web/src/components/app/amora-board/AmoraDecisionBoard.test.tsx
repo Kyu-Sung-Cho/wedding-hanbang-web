@@ -84,6 +84,11 @@ describe("AmoraDecisionBoard", () => {
     expect(cards[1].textContent).toContain("준비 계획");
     expect(cards[1].textContent).toContain("결혼식장");
     expect(cards[1].querySelector("a")?.getAttribute("href")).toBe("/wedding/budget");
+    // 같은 값을 다시 바꾼 기록이 없으면 마지막 기록 배지와 안내를 붙이지 않는다.
+    for (const card of cards) {
+      expect(card.textContent).not.toContain("마지막 기록");
+      expect(card.textContent).not.toContain("지금 값은 예산 화면에서 확인해 주세요.");
+    }
     const original = cards[1].querySelector("details")!;
     expect(original.querySelector("summary")?.textContent).toBe("저장 원문 보기");
     await act(async () => original.querySelector("summary")!.click());
@@ -120,13 +125,21 @@ describe("AmoraDecisionBoard", () => {
     const confirmed = board.querySelector('[aria-label="확정 결정"]')!;
     const current = Array.from(confirmed.querySelectorAll("article")).filter(card => !card.closest("details[data-previous-values]"));
     expect(current.map(card => card.querySelector("h4")?.textContent)).toEqual(["드레스·예식 정장 예산 450만원 → 400만원"]);
-    expect(current[0].textContent).toContain("최근 값");
+    // 기록에서 본 마지막 값일 뿐이다. 아모라 초기화·삭제는 기록을 남기지 않으니 지금 값처럼 말하지 않는다.
+    expect(current[0].textContent).not.toContain("최근 값");
+    expect(current[0].textContent).toContain("마지막 기록");
+    expect(current[0].textContent).toContain("지금 값은 예산 화면에서 확인해 주세요.");
     const previous = confirmed.querySelector<HTMLDetailsElement>("details[data-previous-values]")!;
     expect(previous.open).toBe(false);
     expect(previous.querySelector("summary")?.textContent).toBe("이전 값 2개 보기");
     expect(Array.from(previous.querySelectorAll("article"), card => [card.querySelector("h4")?.textContent, card.textContent?.includes("이전 값")])).toEqual([
       ["드레스·예식 정장 예산 400만원 → 450만원", true], ["드레스·예식 정장 예산 미정 → 400만원", true],
     ]);
+    // 이전 값 카드에는 마지막 기록 배지와 카드별 안내를 붙이지 않는다(묶음 안내가 이미 있다).
+    for (const card of previous.querySelectorAll("article")) {
+      expect(card.textContent).not.toContain("마지막 기록");
+      expect(card.textContent).not.toContain("지금 값은 예산 화면에서 확인해 주세요.");
+    }
     const filters = () => Array.from(board.querySelectorAll<HTMLButtonElement>('[aria-label="결정 분야 필터"] button'));
     expect(filters().map(control => control.textContent)).toEqual(["전체3", "드레스·예식 정장3", "예산3"]);
     await act(async () => filters().find(control => control.textContent?.startsWith("드레스"))!.click());

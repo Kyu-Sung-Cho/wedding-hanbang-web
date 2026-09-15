@@ -102,6 +102,10 @@ export type AmoraBoundedContinuityRow = {
     in_reply_to_user_message_id?: unknown;
     /** 라우트가 저장하는 도구 결과(장소 검색은 이름 없이 검색어·건수만 남는다). */
     toolResults?: unknown;
+    /** 카드 확인 버튼이 보낸 사용자 행에만 붙는 서버 확인 표식(DB 트리거가 검증한다). */
+    confirmed_amora_action_id?: unknown;
+    /** 아모라가 낸 확인 카드. 확인 표식은 이 카드의 `actionId` 를 가리켜야 한다. */
+    pending_amora_action?: unknown;
   } | null;
   visibility: "shared" | "bride_private" | "groom_private";
   segment_id?: string | null;
@@ -295,21 +299,46 @@ export function isAmoraCardConfirmationMessage(text: unknown): boolean {
  */
 export const AMORA_BOUNDED_CONTINUITY_WINDOW_MAX_ROWS = 5;
 
+function pendingCardActionId(card: AmoraBoundedContinuityRow | undefined): string | null {
+  const pending = card?.metadata?.pending_amora_action;
+  if (!pending || typeof pending !== "object") return null;
+  const actionId = (pending as { actionId?: unknown }).actionId;
+  return typeof actionId === "string" && actionId.length > 0 ? actionId : null;
+}
+
 /**
  * [확인 문장 ↔ 실행 영수증] 쌍인가. **거르지 않은** 행에서 본다.
  *
  * 영수증 본문 모양은 서버가 만드는 것이라 검사하지 않는다. 대신 누가·어느 범위에서·
  * 무엇에 답했는지를 본다 — 같은 사람, 같은 공개 범위와 세그먼트, 상대 대상 아님,
  * 서버가 쓴 아모라 행이 그 확인 문장에 묶임.
+ *
+ * **문장 모양만으로는 버튼 확인이 아니다(2026-09-15 리뷰).** 말풍선에 보이는 고정 문장을
+ * 손으로 그대로 치면 정규식은 통과한다. 그런데 모델에게는 이 쌍을 '[카드 확인 문장,
+ * 실행 결과]'로 설명하므로, 손으로 친 문장이 버튼 확인 기록처럼 모델에게 전해진다.
+ * 그래서 라우트와 DB 트리거가 **실제 버튼 확인 행에만** 남기는 `confirmed_amora_action_id` 를 요구하고,
+ * 그 표식이 바로 앞 카드 행의 `pending_amora_action.actionId` 와 같은지까지 본다 — 서버
+ * `resolveAmoraPendingAction` 이 승인 때 대조하는 기준과 같다. 확인 액션은 공유 레인에서만
+ * 발급되므로(트리거가 `visibility = 'shared'` 를 요구) 다른 레인에서는 쌍이 될 수 없다.
  */
 function isBoundedConfirmationPair(
   receipt: AmoraBoundedContinuityRow | undefined,
   confirmation: AmoraBoundedContinuityRow | undefined,
+  card: AmoraBoundedContinuityRow | undefined,
   requesterUserId: string,
   visibility: AmoraBoundedContinuityRow["visibility"],
 ): boolean {
-  if (!receipt || !confirmation) return false;
-  return confirmation.role === "user"
+  if (!receipt || !confirmation || !card) return false;
+  const confirmedActionId = confirmation.metadata?.confirmed_amora_action_id;
+  return visibility === "shared"
+    && typeof confirmedActionId === "string"
+    && confirmedActionId.length > 0
+    && card.role === "assistant"
+    && card.sender_type === "ai"
+    && card.sender_id === null
+    && card.visibility === visibility
+    && pendingCardActionId(card) === confirmedActionId
+    && confirmation.role === "user"
     && confirmation.sender_type !== "ai"
     && confirmation.sender_id === requesterUserId
     && confirmation.visibility === visibility
@@ -353,6 +382,7 @@ export function selectAmoraBoundedContinuityWindow<T extends AmoraBoundedContinu
     && isBoundedConfirmationPair(
       newestFirstRows[1],
       newestFirstRows[2],
+      newestFirstRows[3],
       requesterUserId,
       visibility,
     )
@@ -395,6 +425,7 @@ export function buildAmoraBoundedContinuity(
     && !isBoundedConfirmationPair(
       receipt,
       confirmation,
+      assistant,
       input.requesterUserId,
       input.visibility,
     )

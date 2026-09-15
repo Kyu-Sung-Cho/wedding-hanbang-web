@@ -52,3 +52,29 @@ export declare function readProfileAvatarPhotoAsset(
 ): { ok: true; photo: ProfileAvatarPhotoUpload } | { ok: false; message: string };
 
 export declare function profileAvatarSaveErrorMessage(code: unknown): string;
+
+export declare const PROFILE_AVATAR_REFRESHED_MESSAGE: string;
+export declare const PROFILE_AVATAR_DISPLAY_READ_TIMEOUT_MS: number;
+
+export type ProfileAvatarDisplayRead =
+  | { ok: true; avatarUrl: string | null; revision: string | null }
+  | { ok: false };
+
+export declare function readProfileAvatarForDisplay(
+  ownerId: string,
+  request: (signal: AbortSignal) => Promise<Response>,
+  timeoutMs?: number,
+): Promise<ProfileAvatarDisplayRead>;
+
+export type ProfileAvatarSaveOutcome =
+  | { type: "saved"; avatarUrl: string | null; revision: string | null }
+  | { type: "refreshed"; avatarUrl: string | null; revision: string | null; message: string }
+  | { type: "failed"; message: string };
+
+export declare function saveProfileAvatarSelection(input: {
+  selection: { kind: ProfileAvatarKind; emoji?: string | null };
+  expectedRevision: string | null;
+  ownerId: string;
+  send: () => Promise<Response>;
+  reread: () => Promise<ProfileAvatarDisplayRead>;
+}): Promise<ProfileAvatarSaveOutcome>;

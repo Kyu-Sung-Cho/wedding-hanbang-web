@@ -118,11 +118,13 @@ function DecisionCard({ row }: { row: ArrangedPreparationDecision }) {
         {row.detail && <p className="whitespace-pre-wrap break-words leading-relaxed text-[var(--amora-soft)]">{row.detail}</p>}
       </div>
     </details>}
+    {/* 불러온 기록 중 이 값을 마지막으로 바꾼 기록일 뿐이다. 아모라 초기화·삭제는 결정 기록을 남기지 않아 지금 값과 다를 수 있다. */}
+    {row.valueState === "latest" && <p className="mb-2 text-[12px] leading-relaxed text-[var(--amora-muted)]">지금 값은 예산 화면에서 확인해 주세요.</p>}
     <p className="mb-3 flex items-center gap-1.5 text-[12px] text-[var(--amora-muted)]"><Link2 aria-hidden="true" className="size-3 shrink-0" />{Object.hasOwn(decisionSources, row.source) ? decisionSources[row.source] : "공동 결정 기록"}</p>
     <div className="flex flex-wrap items-center justify-between gap-2">
       <span className="flex flex-wrap gap-1">
         <span className={`rounded-full px-[9px] py-1 text-[12px] font-semibold text-[var(--amora-soft)] ${row.status === "confirmed" && !previous ? "bg-[var(--amora-sage-pale)]" : "bg-[var(--amora-low)]"}`}>{previous ? "이전 값" : row.stateLabel}</span>
-        {row.valueState === "latest" && <span className="rounded-full border border-[var(--amora-sage)] px-[9px] py-[3px] text-[12px] font-semibold text-[var(--amora-soft)]">최근 값</span>}
+        {row.valueState === "latest" && <span className="rounded-full border border-[var(--amora-sage)] px-[9px] py-[3px] text-[12px] font-semibold text-[var(--amora-soft)]">마지막 기록</span>}
       </span>
       {destination && <Link href={destination.href} className={`inline-flex min-h-11 items-center gap-1 text-[12px] text-[var(--amora-accent)] underline underline-offset-4 ${focus}`}>{destination.label}<ArrowUpRight aria-hidden="true" className="size-3" /></Link>}
     </div>

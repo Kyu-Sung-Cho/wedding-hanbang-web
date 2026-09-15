@@ -240,6 +240,8 @@ const mocks = vi.hoisted(() => {
     // 켜면 chat_messages 질의가 `.limit(n)` 대로 앞 n행만 돌려준다(최신 먼저로 심은 행 기준).
     // 기본은 꺼짐 — 기존 테스트는 심은 행을 그대로 받는다.
     chatHistoryHonorsLimit: false,
+    // 켜면 연결 문맥 창 크기(`.limit(5)`)로 읽는 chat_messages 질의만 실패한다.
+    chatHistoryBoundedWindowFails: false,
     chatHistoryGt: vi.fn(),
     summaryEq: vi.fn(),
     summarySelect: vi.fn(),
@@ -319,6 +321,8 @@ function queryResult(data: unknown, hooks: {
   onSelectError?: (value: string) => unknown;
   onLimit?: (value: number) => void;
   honorsLimit?: () => boolean;
+  /** 이 `.limit(n)` 질의를 실패시킬 오류. 운영 PostgREST 처럼 data 는 null 이 된다. */
+  limitError?: (value: number) => unknown;
   onGt?: (column: string, value: unknown) => void;
   filterEqColumns?: readonly string[];
 } = {}) {
@@ -329,6 +333,12 @@ function queryResult(data: unknown, hooks: {
   }
   query.limit = vi.fn((value: number) => {
     hooks.onLimit?.(value);
+    const limitError = hooks.limitError?.(value);
+    if (limitError !== undefined) {
+      result.data = null;
+      result.error = limitError;
+      return query;
+    }
     if (hooks.honorsLimit?.() && Array.isArray(result.data)) {
       result.data = result.data.slice(0, value);
     }
@@ -426,6 +436,9 @@ vi.mock("@/lib/supabase/server", () => ({
           onSelect: mocks.chatHistorySelect,
           onLimit: mocks.chatHistoryLimit,
           honorsLimit: () => mocks.chatHistoryHonorsLimit,
+          limitError: (value) => mocks.chatHistoryBoundedWindowFails && value === AMORA_BOUNDED_CONTINUITY_WINDOW_MAX_ROWS
+            ? { code: "57014", message: "canceling statement due to statement timeout" }
+            : undefined,
           onGt: mocks.chatHistoryGt,
           filterEqColumns: ["id"],
         });
@@ -1048,6 +1061,7 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
     };
     mocks.activeSegmentError = null;
     mocks.chatHistoryHonorsLimit = false;
+    mocks.chatHistoryBoundedWindowFails = false;
     mocks.chatViewClearedAt = { shared: null, private: null };
     mocks.chatViewClearedAtError = null;
     mocks.chatViewClearedAtThrows = false;
@@ -3655,6 +3669,46 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
     expect(context.weddingContext.progress.__events).toStrictEqual(expectedStored);
   });
 
+  // 리뷰 [2]: 취소 일정까지 저장된 id 로 대조하게 되면서, 이미 취소된 일정을 다시 취소하는 카드가
+  // "없는 일정" 으로 걸러지지 않고 발급됐다. 누르면 반드시 거절되므로 카드 대신 이유를 말한다.
+  it.each([
+    { status: "cancelled", card: false },
+    { status: "planned", card: true },
+  ] as const)("issues a schedule cancel card only when the confirmed operation would apply (stored status $status)", async ({ status, card }) => {
+    const storedEvent = {
+      id: "evt_fitting", date: "2027-05-03", time: "14:00", title: "드레스 최종 피팅", status,
+      createdAt: "2026-07-01T00:00:00.000Z", updatedAt: "2026-08-01T00:00:00.000Z",
+      ...(status === "cancelled"
+        ? { cancellation: { cancelledAt: "2026-08-01T00:00:00.000Z", cancelledByProfileId: "00000000-0000-4000-8000-000000000001" } }
+        : {}),
+    };
+    mocks.journeyRow = { progress: { __events: [storedEvent] }, total_budget: 0, wedding_date: null, venue: null };
+    const before = structuredClone(mocks.journeyRow);
+    const text = "2027년 5월 3일 드레스 최종 피팅 일정 취소해줘";
+    const input = { event_id: "evt_fitting", expected_title: "드레스 최종 피팅", expected_date: "2027-05-03" };
+    mocks.canonicalRows[0] = { ...mocks.canonicalRows[0], content: text };
+    mocks.provider.mockResolvedValueOnce(providerResult({
+      fullText: `[pending_action]${JSON.stringify({ tool: "cancel_schedule_event", input })}[/pending_action]`,
+      usage: { input_tokens: 10, output_tokens: 3 },
+    }));
+
+    const response = await POST(request({ messages: [{ role: "user", content: text }] }));
+    expect(response.status).toBe(200);
+    await response.text();
+
+    const saved = mocks.atomicResponses.at(-1)!;
+    if (card) {
+      expect(saved.metadata).toMatchObject({ pending_amora_action: { tool: "cancel_schedule_event", input } });
+      expect(saved.metadata.pending_action_drop_reason).toBeUndefined();
+    } else {
+      expect(saved.metadata.pending_amora_action).toBeUndefined();
+      expect(saved.metadata.pending_action_drop_reason).toBe("proposal_operation_refused");
+      expect(saved.content).toBe("“드레스 최종 피팅” (2027-05-03) 일정은 이미 취소된 상태라 다시 취소하지 않았어요.");
+    }
+    expect(mocks.executeTool).not.toHaveBeenCalled();
+    expect(mocks.journeyRow).toEqual(before);
+  });
+
   it("passes the durable normal-chat user message into the request claim", async () => {
     mocks.provider.mockResolvedValueOnce(providerResult({
       fullText: "확인했어요.",
@@ -4304,26 +4358,31 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
   const BUDGET_REQUEST_TEXT = "총예산 5000만원으로 바꿔줘";
   const BUDGET_CARD_TEXT = "다음 변경을 적용할까요?\n- 총예산: 5,000만 원";
   const BUDGET_RECEIPT_TEXT = "총예산을 5,000만 원으로 바꿨어요.";
+  const CONFIRMED_CARD_ACTION_ID = "11111111-1111-4111-8111-111111111112";
   function seedConfirmedBudgetCardFollowUp({
     currentText,
     confirmationText = CARD_CONFIRMATION_TEXT,
     cardToolResults,
+    cardContent = BUDGET_CARD_TEXT,
+    cardPendingAction = { tool: "update_budget", input: { total_budget: 50_000_000 } },
   }: {
     currentText: string;
     confirmationText?: string;
     cardToolResults?: unknown[];
+    cardContent?: string;
+    cardPendingAction?: Record<string, unknown>;
   }) {
     const requestId = "30000000-0000-4000-8000-000000000011";
     const cardId = "20000000-0000-4000-8000-000000000012";
     const confirmId = "30000000-0000-4000-8000-000000000013";
     const receiptId = "20000000-0000-4000-8000-000000000014";
-    const user = (id: string, content: string, createdAt: string) => ({
+    const user = (id: string, content: string, createdAt: string, metadata: Record<string, unknown> | null = null) => ({
       id,
       sender_id: CONFIRMED_CARD_ME,
       sender_type: "bride",
       role: "user",
       content,
-      metadata: null,
+      metadata,
       visibility: "shared",
       segment_id: CONFIRMED_CARD_SEGMENT_ID,
       created_at: createdAt,
@@ -4356,9 +4415,10 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
     mocks.canonicalRows.splice(0, mocks.canonicalRows.length,
       user("30000000-0000-4000-8000-000000000001", currentText, "2026-07-15T00:05:00.000Z"),
       amora(receiptId, BUDGET_RECEIPT_TEXT, confirmId, "2026-07-15T00:04:00.000Z"),
-      user(confirmId, confirmationText, "2026-07-15T00:03:00.000Z"),
-      amora(cardId, BUDGET_CARD_TEXT, requestId, "2026-07-15T00:02:00.000Z", {
-        pending_amora_action: { tool: "update_budget", input: { total_budget: 50_000_000 } },
+      // 버튼 확인 행에는 서버 확인 표식이 붙고, 그 표식은 바로 앞 카드의 actionId 를 가리킨다(운영 행 모양).
+      user(confirmId, confirmationText, "2026-07-15T00:03:00.000Z", { confirmed_amora_action_id: CONFIRMED_CARD_ACTION_ID }),
+      amora(cardId, cardContent, requestId, "2026-07-15T00:02:00.000Z", {
+        pending_amora_action: { actionId: CONFIRMED_CARD_ACTION_ID, ...cardPendingAction },
         ...(cardToolResults ? { toolResults: cardToolResults } : {}),
       }),
       user(requestId, BUDGET_REQUEST_TEXT, "2026-07-15T00:01:00.000Z"),
@@ -4448,6 +4508,54 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
     expect(input[1]?.content).toContain("2025년 11월");
     expect(input[3]?.content).toBe(BUDGET_RECEIPT_TEXT);
     expect(mocks.provider.mock.calls[0]?.[0]?.tools).toEqual([]);
+  });
+
+  // 리뷰 [4]: 예산안 카드의 말풍선은 목록 없이 짧은 안내만 싣는다. 연결 문맥의 닻 답변이 그 한 줄뿐이면
+  // 도구 없는 턴의 모델은 항목 금액을 볼 곳이 없다. 연결 문맥에만 카드에 보인 항목 줄을 되붙인다.
+  it("예산안 카드 확인 직후의 연결 문맥 닻 답변에는 카드에 보인 항목 금액이 실린다", async () => {
+    const { BUDGET_PLAN_CARD_BUBBLE_TEXT } = await import("@/lib/ai/amoraPendingAction");
+    const currentText = "그럼 이제 얼마 남았어?";
+    const confirmation = [
+      "다음 예산안을 적용할까요?",
+      "- 총예산: 3,500만 원 (지금과 같아요)",
+      "- 한복: 150만 원",
+      "- 말하지 않은 항목의 배정은 그대로 둬요",
+    ].join("\n");
+    seedConfirmedBudgetCardFollowUp({
+      currentText,
+      cardContent: BUDGET_PLAN_CARD_BUBBLE_TEXT,
+      cardPendingAction: {
+        version: 2,
+        tool: "apply_budget_plan",
+        input: { total_budget: 35_000_000, allocation_mode: "explicit", allocations: [{ category: "hanbok", budget: 1_500_000 }] },
+        confirmation,
+      },
+    });
+    const cardRow = mocks.canonicalRows[3];
+    const storedCard = structuredClone(cardRow);
+    mocks.provider.mockResolvedValueOnce(providerResult({
+      fullText: "한복은 150만 원으로 잡혀 있어요.",
+      usage: { input_tokens: 10, output_tokens: 8 },
+    }));
+
+    const response = await POST(request({ messages: [{ role: "user", content: currentText }] }));
+    await response.text();
+
+    expect(response.status).toBe(200);
+    const providerArgs = mocks.provider.mock.calls[0]?.[0];
+    expect(providerArgs?.systemPrompt).toContain("context_mode: linked_context_only");
+    const input = (providerArgs?.input ?? []) as ReadonlyArray<{ role: string; content: string }>;
+    expect(input.map((turn) => turn.role)).toEqual(["user", "assistant", "user", "assistant", "user"]);
+    expect(input[1]?.content.startsWith(BUDGET_PLAN_CARD_BUBBLE_TEXT)).toBe(true);
+    expect(input[1]?.content).toContain("[카드에 보인 예산안 — 적용 여부는 뒤의 실행 결과를 따르세요]");
+    expect(input[1]?.content).toContain("- 한복: 150만 원");
+    expect(input[1]?.content).not.toContain("적용할까요?");
+    expect(input[1]?.content).not.toContain("[pending_action]");
+    expect(input[3]?.content).toBe(BUDGET_RECEIPT_TEXT);
+    expect(providerArgs?.tools).toEqual([]);
+    // 저장 본문(화면 말풍선)은 그대로다 — 목록은 카드에만 한 번 보인다.
+    expect(mocks.canonicalRows[3]).toEqual(storedCard);
+    expect(mocks.executeTool).not.toHaveBeenCalled();
   });
 
   it("손으로 쓴 승낙은 확인 버튼 쌍이 아니라 창이 넓어지지 않고, 대화 이력도 오늘과 같은 앞 3행만 받는다", async () => {
@@ -4550,6 +4658,45 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
     expect(mocks.chatHistoryLimit).toHaveBeenCalledWith(AMORA_BOUNDED_CONTINUITY_WINDOW_MAX_ROWS);
     expect(providerArgs?.systemPrompt).not.toContain("context_mode: linked_context_only");
     expect(JSON.stringify(providerArgs)).not.toContain("GAP_WEDDING_");
+    expect(providerArgs?.tools ?? []).toEqual([]);
+    expect(mocks.executeTool).not.toHaveBeenCalled();
+  });
+
+  // 리뷰 [6]: 되묻기 답 모양인 턴은 연결 문맥 창을 8번 전용 질의로 읽는다. 그 질의가 실패하면
+  // 창 선택을 거치지 않은 넓은 창(partner 행을 DB 에서 뺀 행)이 빌더로 들어가면 안 된다 —
+  // 끊겨야 할 대화가 인접해 보인다. 전용 질의가 실패한 턴은 연결 문맥을 끈다.
+  it.each([
+    { fails: false, linked: true },
+    { fails: true, linked: false },
+  ])("clarification-shaped turn uses linked context only from its own window read (read fails: $fails)", async ({ fails, linked }) => {
+    // 서버가 W1 로 기록한 되묻기라 되묻기 연속성은 막히고(기록 확인), 직전 사용자 발화는 W0 이라
+    // 연결 문맥만 성립하는 모양이다.
+    const currentText = "응 넣어줘";
+    seedClarificationExchange({
+      priorText: "LINKED_ANCHOR 10월 17일 오후 2시에 드레스 투어 일정 넣어줘",
+      assistantText: "어느 쪽으로 잡아드릴까요?",
+      assistantScope: "W1_wedding_adjacent",
+      currentText,
+    });
+    mocks.chatHistoryBoundedWindowFails = fails;
+    mocks.provider.mockResolvedValueOnce(providerResult({
+      fullText: "무엇을 이어서 볼지 알려 주세요.",
+      usage: { input_tokens: 10, output_tokens: 3 },
+    }));
+
+    const response = await POST(request({ messages: [{ role: "user", content: currentText }] }));
+    expect(response.status).toBe(200);
+    await response.text();
+
+    const providerArgs = mocks.provider.mock.calls[0]?.[0];
+    expect(mocks.chatHistoryLimit).toHaveBeenCalledWith(AMORA_BOUNDED_CONTINUITY_WINDOW_MAX_ROWS);
+    if (linked) {
+      expect(providerArgs?.systemPrompt).toContain("context_mode: linked_context_only");
+      expect(JSON.stringify(providerArgs?.input)).toContain("LINKED_ANCHOR");
+    } else {
+      expect(providerArgs?.systemPrompt).not.toContain("context_mode: linked_context_only");
+      expect(mocks.atomicResponses.at(-1)?.metadata?.context_mode).toBeUndefined();
+    }
     expect(providerArgs?.tools ?? []).toEqual([]);
     expect(mocks.executeTool).not.toHaveBeenCalled();
   });
@@ -7702,6 +7849,154 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
     } finally { if (added) mocks.safeTools.pop(); }
   });
 
+  // 리뷰 [1]: 거절 게이트가 첫 표식만 봤다. 첫 표식이 거절되면 같은 답변의 나머지 요청이 카드도
+  // 안내도 없이 사라졌고, 대기열로 뒤에 발급되는 예산 카드는 게이트를 거치지 않았다.
+  describe("refusal gate over several markers in one answer", () => {
+    const text = "한복 예산 조금 올리고 드레스 투어 일정도 넣어줘";
+    const hiddenHanbokPlan = { tool: "apply_budget_plan", input: { total_budget: 35_000_000, intake_summary: "한복 예산 조정", allocations: [{ category: "hanbok", budget: 1_500_000 }] } };
+    const studioPlan = { tool: "apply_budget_plan", input: { total_budget: 35_000_000, intake_summary: "스튜디오 예산 조정", allocations: [{ category: "studio", budget: 2_000_000 }] } };
+    const dressTour = { tool: "add_schedule_event", input: { date: "2027-03-12", title: "드레스 투어" } };
+    const marker = (value: unknown) => `[pending_action]${JSON.stringify(value)}[/pending_action]`;
+    const HANBOK_REFUSAL = "한복은 예산 화면에서 빼두신 항목이라 배분하지 않았어요. 예산 화면에서 다시 추가한 뒤 말씀해 주세요.";
+    function seedHiddenHanbok() {
+      mocks.journeyRow = { total_budget: 35_000_000, wedding_date: null, venue: null, progress: {
+        hanbok: { category: "hanbok", status: "not_started", budget: 1_000_000 },
+        __hidden: ["hanbok"],
+      } };
+      mocks.journeyStateRevision = 6;
+      mocks.canonicalRows[0] = { ...mocks.canonicalRows[0], content: text };
+    }
+
+    it("skips a refused first marker and issues the next request's card with the reason", async () => {
+      seedHiddenHanbok();
+      const before = structuredClone(mocks.journeyRow);
+      mocks.provider.mockResolvedValueOnce(providerResult({ fullText: `두 가지를 준비할게요.\n${marker(hiddenHanbokPlan)}\n${marker(dressTour)}` }));
+      await (await POST(request({ messages: [{ role: "user", content: text }] }))).text();
+      const saved = mocks.atomicResponses.at(-1)!;
+      expect(saved.metadata.pending_amora_action).toMatchObject({ tool: "add_schedule_event", input: dressTour.input });
+      expect(saved.metadata.pending_amora_action_queue).toBeUndefined();
+      expect(saved.metadata.pending_action_drop_reason).toBeUndefined();
+      expect(saved.content.startsWith(HANBOK_REFUSAL)).toBe(true);
+      expect(saved.content).toContain("드레스 투어");
+      expect(mocks.executeTool).not.toHaveBeenCalled();
+      expect(mocks.journeyRow).toEqual(before);
+    });
+
+    it("keeps a queue for the requests after the first accepted marker without pre-judging them", async () => {
+      seedHiddenHanbok();
+      mocks.provider.mockResolvedValueOnce(providerResult({ fullText: `${marker(hiddenHanbokPlan)}\n${marker(dressTour)}\n${marker(studioPlan)}` }));
+      await (await POST(request({ messages: [{ role: "user", content: text }] }))).text();
+      const saved = mocks.atomicResponses.at(-1)!;
+      expect(saved.metadata.pending_amora_action).toMatchObject({ tool: "add_schedule_event" });
+      expect(saved.metadata.pending_amora_action_queue).toMatchObject({
+        totalCount: 2, completedCount: 0,
+        remainingActions: [{ tool: "apply_budget_plan", input: { ...studioPlan.input, allocation_mode: "explicit" } }],
+      });
+      expect(saved.content.startsWith(HANBOK_REFUSAL)).toBe(true);
+      expect(saved.content).toContain("나머지 1건은 이 확인이 끝나면 이어서 제안할게요.");
+    });
+
+    it("says every refusal when all markers would be refused", async () => {
+      seedHiddenHanbok();
+      mocks.journeyRow.progress = { ...(mocks.journeyRow.progress as Record<string, unknown>),
+        studio: { category: "studio", status: "not_started" }, __hidden: ["hanbok", "studio"] };
+      mocks.provider.mockResolvedValueOnce(providerResult({ fullText: `${marker(hiddenHanbokPlan)}\n${marker(studioPlan)}` }));
+      await (await POST(request({ messages: [{ role: "user", content: text }] }))).text();
+      const saved = mocks.atomicResponses.at(-1)!;
+      expect(saved.metadata.pending_amora_action).toBeUndefined();
+      expect(saved.metadata.pending_amora_action_queue).toBeUndefined();
+      expect(saved.metadata.pending_action_drop_reason).toBe("budget_operation_refused");
+      expect(saved.content.startsWith(HANBOK_REFUSAL)).toBe(true);
+      // 두 요청 각각의 거절 이유를 말한다.
+      expect(saved.content.match(/빼두신 항목이라 배분하지 않았어요/gu)).toHaveLength(2);
+      expect(saved.metadata.suggestions).toBeUndefined();
+    });
+
+    it.each([
+      { name: "refused", hidden: true },
+      { name: "applicable", hidden: false },
+    ])("checks a queued budget card against the state after the previous item was applied ($name)", async ({ hidden }) => {
+      mocks.journeyRow = { total_budget: 35_000_000, wedding_date: null, venue: null, progress: {
+        studio: { category: "studio", status: "not_started" },
+        ...(hidden ? { __hidden: ["studio"] } : {}),
+      } };
+      mocks.journeyStateRevision = 2;
+      mocks.canonicalRows[0] = { ...mocks.canonicalRows[0], content: text };
+      mocks.provider.mockResolvedValueOnce(providerResult({ fullText: `${marker(dressTour)}\n${marker(studioPlan)}` }));
+      await (await POST(request({ messages: [{ role: "user", content: text }] }))).text();
+      const proposal = mocks.atomicResponses.at(-1)!;
+      expect(proposal.metadata.pending_amora_action).toMatchObject({ tool: "add_schedule_event" });
+      expect(proposal.metadata.pending_amora_action_queue).toMatchObject({ totalCount: 2, completedCount: 0 });
+      const pending = proposal.metadata.pending_amora_action as { actionId: string };
+
+      mocks.canonicalRows.splice(0, mocks.canonicalRows.length,
+        { ...mocks.canonicalRows[0], content: "확인했어. 반영해줘", created_at: "2026-07-15T00:01:00.000Z" },
+        { id: "20000000-0000-4000-8000-000000000001", sender_id: null, sender_type: "ai", role: "assistant", content: proposal.content, metadata: proposal.metadata, visibility: "shared", created_at: "2026-07-15T00:00:30.000Z" },
+      );
+      mocks.executeTool.mockImplementationOnce(async () => {
+        mocks.journeyStateRevision = 3;
+        return { toolName: "add_schedule_event", toolInput: dressTour.input, toolOutput: { event: { id: "evt_new", ...dressTour.input } }, success: true, displayMessage: "2027-03-12에 “드레스 투어” 일정을 추가했어요." };
+      });
+      mocks.provider.mockResolvedValueOnce(providerResult({ fullText: "일정을 넣었어요." }));
+      await (await POST(request({ messages: [{ role: "user", content: "확인했어. 반영해줘" }], confirmedActionId: pending.actionId }))).text();
+
+      expect(mocks.executeTool).toHaveBeenCalledTimes(1);
+      const next = mocks.atomicResponses.at(-1)!;
+      if (hidden) {
+        expect(next.metadata.pending_amora_action).toBeUndefined();
+        expect(next.metadata.pending_amora_action_queue).toBeUndefined();
+        expect(next.metadata.completed_amora_action_queue).toMatchObject({ totalCount: 1, completedCount: 1 });
+        expect(next.metadata.deferred_amora_action_queue).toBeUndefined();
+        expect(next.content).toContain("남은 요청 중 1건은 지금 상태로는 적용되지 않아 확인 카드를 만들지 않았어요.");
+        expect(next.content).toContain("빼두신 항목이라 배분하지 않았어요");
+        expect(next.content).not.toContain("최신 정보를 읽지 못했어요");
+      } else {
+        expect(next.metadata.pending_amora_action).toMatchObject({ tool: "apply_budget_plan" });
+        expect(next.metadata.pending_amora_action_queue).toMatchObject({ totalCount: 2, completedCount: 1 });
+        expect(next.content).toContain("2건 중 1건 반영했어요. 다음 항목을 확인해 주세요.");
+        expect(next.content).not.toContain("확인 카드를 만들지 않았어요");
+      }
+    });
+
+    it("skips a refused queued request, counts only real requests, and the shortened queue still confirms to completion", async () => {
+      seedHiddenHanbok();
+      mocks.journeyRow.progress = { ...(mocks.journeyRow.progress as Record<string, unknown>), studio: { category: "studio", status: "not_started" } };
+      mocks.journeyStateRevision = 2;
+      mocks.provider.mockResolvedValueOnce(providerResult({ fullText: `${marker(dressTour)}\n${marker(hiddenHanbokPlan)}\n${marker(studioPlan)}` }));
+      await (await POST(request({ messages: [{ role: "user", content: text }] }))).text();
+      let proposal = mocks.atomicResponses.at(-1)!;
+      expect(proposal.metadata.pending_amora_action_queue).toMatchObject({ totalCount: 3, completedCount: 0 });
+
+      const confirm = async (toolName: string, toolInput: unknown) => {
+        const pending = proposal.metadata.pending_amora_action as { actionId: string };
+        mocks.canonicalRows.splice(0, mocks.canonicalRows.length,
+          { ...mocks.canonicalRows[0], content: "확인했어. 반영해줘", created_at: "2026-07-15T00:01:00.000Z" },
+          { id: "20000000-0000-4000-8000-000000000001", sender_id: null, sender_type: "ai", role: "assistant", content: proposal.content, metadata: proposal.metadata, visibility: "shared", created_at: "2026-07-15T00:00:30.000Z" },
+        );
+        mocks.executeTool.mockImplementationOnce(async () => {
+          mocks.journeyStateRevision = (mocks.journeyStateRevision ?? 0) + 1;
+          return { toolName, toolInput, toolOutput: {}, success: true, displayMessage: "반영했어요." };
+        });
+        mocks.provider.mockResolvedValueOnce(providerResult({ fullText: "반영했어요." }));
+        const response = await POST(request({ messages: [{ role: "user", content: "확인했어. 반영해줘" }], confirmedActionId: pending.actionId }));
+        expect(response.status).toBe(200);
+        await response.text();
+        proposal = mocks.atomicResponses.at(-1)!;
+      };
+
+      await confirm("add_schedule_event", dressTour.input);
+      expect(proposal.metadata.pending_amora_action).toMatchObject({ tool: "apply_budget_plan", input: { allocations: studioPlan.input.allocations } });
+      expect(proposal.metadata.pending_amora_action_queue).toMatchObject({ totalCount: 2, completedCount: 1, remainingActions: [] });
+      expect(proposal.content).toContain("남은 요청 중 1건은 지금 상태로는 적용되지 않아 확인 카드를 만들지 않았어요.");
+      expect(proposal.content).toContain("2건 중 1건 반영했어요. 다음 항목을 확인해 주세요.");
+
+      await confirm("apply_budget_plan", { ...studioPlan.input, allocation_mode: "explicit" });
+      expect(mocks.executeTool).toHaveBeenCalledTimes(2);
+      expect(proposal.metadata.pending_amora_action).toBeUndefined();
+      expect(proposal.metadata.completed_amora_action_queue).toMatchObject({ totalCount: 2, completedCount: 2 });
+    });
+  });
+
   it("creates the exact B04 budget card from a natural total declaration despite prose-only actual SDK output", async () => {
     const text = "총 결혼 예산은 3500만 원이야. 항목별 금액을 줄게. 결혼식장·식사 900, 신혼여행 1000, 사진 500, 드레스·정장 300, 헤어·메이크업 200, 반지·선물 250, 초대장·꽃·하객선물 150, 예비비 200만 원이야. 이대로 실제 예산에 반영해줘.";
     const providerText = "계산상 항목 합계는 **3,500만 원**으로 맞아요. 다만 현재 도구로 예산을 직접 반영할 수 있는 확인 절차가 필요해요.";
@@ -8826,6 +9121,46 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
     expect(saved.metadata.pending_amora_action_carry_count).toBeUndefined();
     expect(saved.content).not.toBe(AMORA_TYPED_CARD_ACCEPTANCE_REPLY);
     expect(body).not.toContain("‘내용 확인하기’를 누른 뒤");
+  });
+
+  // 리뷰 [3]: 이월된 카드 아래에서 아모라가 새로 던진 질문에 "응" 이라고 답한 턴. 승낙어만 있는
+  // 말은 그 질문에 대한 답일 수 있으므로, 직전 행이 카드를 낸 원본 행이거나 승낙 안내 행일 때만
+  // 카드 승낙으로 본다. 적용 동사·카드 지시어가 있으면 어느 행 아래에서든 카드 승낙이다.
+  it.each([
+    { name: "bare under a carried model question", text: "응", carryCount: 1, content: "드레스 투어 일정도 같이 잡아 드릴까요?", accepted: false },
+    { name: "bare 'ㅇㅋ' under a carried model question", text: "ㅇㅋ", carryCount: 1, content: "드레스 투어 일정도 같이 잡아 드릴까요?", accepted: false },
+    { name: "bare under the original card row", text: "응", carryCount: 0, content: "총예산을 3,000만 원으로 바꿀까요?", accepted: true },
+    { name: "bare 'ㅇㅋ' under the original card row", text: "ㅇㅋ", carryCount: 0, content: "총예산을 3,000만 원으로 바꿀까요?", accepted: true },
+    { name: "bare under the server acceptance reply", text: "응", carryCount: 1, content: "__ACCEPTANCE_REPLY__", accepted: true },
+    { name: "explicit under a carried model question", text: "응 적용해줘", carryCount: 1, content: "드레스 투어 일정도 같이 잡아 드릴까요?", accepted: true },
+  ] as const)("typed card acceptance respects what the previous row asked: $name", async ({ text, carryCount, content, accepted }) => {
+    const { AMORA_TYPED_CARD_ACCEPTANCE_REPLY } = await import("@/lib/ai/amoraTypedCardAcceptance");
+    const actionId = "11111111-1111-4111-8111-111111111111";
+    setCanonicalConfirmedBudgetAction(actionId, text);
+    mocks.canonicalRows[1] = {
+      ...mocks.canonicalRows[1],
+      content: content === "__ACCEPTANCE_REPLY__" ? AMORA_TYPED_CARD_ACCEPTANCE_REPLY : content,
+      metadata: {
+        ...(mocks.canonicalRows[1].metadata as Record<string, unknown>),
+        ...(carryCount > 0 ? { pending_amora_action_carry_count: carryCount } : {}),
+        pending_amora_action_journey_revision: 0,
+      },
+    };
+    const journey = structuredClone(mocks.journeyRow);
+    providerAfterPreGeneration(providerResult({ fullText: "좋아요. 드레스 투어 날짜를 알려 주시면 일정으로 제안할게요." }));
+    const response = await POST(request({ messages: [{ role: "user", content: text }] }));
+    expect(response.status).toBe(200);
+    await response.text();
+    expect(mocks.executeTool).not.toHaveBeenCalled();
+    expect(mocks.journeyRow).toEqual(journey);
+    const saved = mocks.atomicResponses.at(-1)!;
+    if (accepted) {
+      expect(saved.content).toBe(AMORA_TYPED_CARD_ACCEPTANCE_REPLY);
+      expect((saved.metadata.pending_amora_action as { actionId?: string } | undefined)?.actionId).toBe(actionId);
+    } else {
+      expect(saved.content).not.toBe(AMORA_TYPED_CARD_ACCEPTANCE_REPLY);
+      expect(saved.content).not.toContain("‘내용 확인하기’를 누른 뒤");
+    }
   });
 
   it("does not start a fresh task queue in a turn that approves a different exact action", async () => {
@@ -10989,6 +11324,46 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
       private_lane_shared_change: "mixed",
       private_lane_offer_removed_count: 1,
     });
+    expect(mocks.executeTool).not.toHaveBeenCalled();
+  });
+
+  // 리뷰 [0]: 개인 레인에는 카드가 없다. 가정 질문 → 아모라 되물음 → "응" 은 가정 계산을 이어
+  // 달라는 말이지 공유 변경 부탁이 아니다. 앞 문장이 스스로 변경 부탁일 때만 동의가 부탁을 잇는다.
+  it.each([
+    {
+      name: "agreeing to a hypothetical follow-up keeps the model answer",
+      // 공유 레인이라면 확인 카드 도구가 열리는 문장이지만 변경 부탁은 아니다.
+      priorText: "드레스 예산을 450만 원으로 늘리는 경우 남은 예산 계산해줘",
+      assistantText: "드레스를 450만 원으로 잡으면 미배정 예산이 150만 원 줄어요. 다른 항목에서 줄여 맞춰 볼까요?",
+      currentText: "응",
+      guidance: false,
+    },
+    {
+      name: "agreeing to a real shared change request still gets the guidance",
+      priorText: "총예산 5천만 원으로 바꿔줘",
+      assistantText: "지금 저장된 총예산은 3,250만 원이에요. 5,000만 원으로 바꾸는 게 맞나요?",
+      currentText: "응 그렇게 해줘",
+      guidance: true,
+    },
+  ] as const)("private-lane agreement: $name", async ({ priorText, assistantText, currentText, guidance }) => {
+    const { AMORA_PRIVATE_LANE_SHARED_CHANGE_GUIDANCE } = await import("@/lib/ai/amoraPrivateLaneSharedChange");
+    mocks.journeyRow = { ...mocks.journeyRow, total_budget: 32_500_000 };
+    seedClarificationExchange({ priorText, assistantText, currentText, visibility: "bride_private" });
+    const modelText = "식대를 1인 5천 원 낮추면 드레스 예산을 맞출 수 있어요.";
+    mocks.provider.mockResolvedValueOnce(providerResult({ fullText: modelText, usage: { input_tokens: 10, output_tokens: 3 } }));
+
+    const response = await POST(request({ visibility: "bride_private", messages: [{ role: "user", content: currentText }] }));
+    expect(response.status).toBe(200);
+    await response.text();
+
+    const saved = mocks.atomicResponses.at(-1)!;
+    if (guidance) {
+      expect(saved.content).toBe(AMORA_PRIVATE_LANE_SHARED_CHANGE_GUIDANCE);
+      expect(saved.metadata).toMatchObject({ private_lane_shared_change: "change_only" });
+    } else {
+      expect(saved.content).toBe(modelText);
+      expect(saved.metadata).not.toHaveProperty("private_lane_shared_change");
+    }
     expect(mocks.executeTool).not.toHaveBeenCalled();
   });
 

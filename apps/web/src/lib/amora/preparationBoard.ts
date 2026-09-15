@@ -21,7 +21,11 @@ export type PreparationDecision = {
   /** 체크리스트·진행 상태만 저장한 기록의 바뀐 분야 수. */
   routineChanges?: number;
 };
-/** 같은 값을 다시 바꾼 기록이 있을 때만 붙는다. previous는 나중 기록이 같은 값을 모두 다시 바꾼 기록이다. */
+/**
+ * 같은 값을 다시 바꾼 기록이 있을 때만 붙는다. previous는 나중 기록이 같은 값을 모두 다시 바꾼 기록이다.
+ * latest는 불러온 기록 중 그 값을 마지막으로 바꾼 기록일 뿐 현재 값을 뜻하지 않는다.
+ * 분야 삭제나 아모라 초기화·삭제는 값 슬롯이 있는 기록을 남기지 않으므로 지금 값은 예산 화면이 기준이다.
+ */
 export type ArrangedPreparationDecision = PreparationDecision & { valueState?: "latest" | "previous" };
 export type RoutineProgressDay = { key: string; label: string; records: number; changes: number };
 export type DecisionCursor = { id: string; createdAt: string };

@@ -247,14 +247,16 @@ describe("누르면 거절될 예산 카드는 미리 알아본다", () => {
     });
   });
 
-  it("같은 값이라 바뀔 게 없는 경우, 예산 도구가 아닌 경우, 적용 가능한 경우는 거르지 않는다", () => {
+  it("같은 값이라 바뀔 게 없는 경우, 게이트 밖 도구, 적용 가능한 경우는 거르지 않는다", () => {
     const ctx = context({ hanbok: { category: "hanbok", status: "not_applicable", budget: 1_500_000 } });
     expect(findAmoraBudgetProposalRefusal({
       action: { tool: "update_category_budget", input: { category: "hanbok", budget: 1_500_000 } },
       context: ctx,
     })).toBeNull();
+    // '안 해요' 분야의 체크리스트 체크는 이제 카드 발급 전에 거른다(리뷰 [2],
+    // amoraProposalRefusalGate.test.ts). 순수 연산이 판정 전권을 갖지 않는 도구는 그대로 둔다.
     expect(findAmoraBudgetProposalRefusal({
-      action: { tool: "toggle_checklist_item", input: { category: "hanbok", item_id: "hanbok_03", done: true } },
+      action: { tool: "update_task_status", input: { category: "hanbok", status: "completed" } },
       context: ctx,
     })).toBeNull();
     expect(findAmoraBudgetProposalRefusal({

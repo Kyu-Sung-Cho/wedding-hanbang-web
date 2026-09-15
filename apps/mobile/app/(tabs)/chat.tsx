@@ -13,7 +13,7 @@ import { amoraIdentity, chatPalette, colors } from "@hanbang/design-tokens";
 import AmoraMark from "@/components/ui/AmoraMark";
 import AmoraAvatar from "@/components/ui/AmoraAvatar";
 import ProfileAvatar from "@/components/ui/ProfileAvatar";
-import { apiFetchForExpectedUser } from "@/lib/api";
+import { apiFetchForExpectedUserQuiet } from "@/lib/api";
 import {
   EMPTY_CHAT_PARTICIPANT_PRESENTATION,
   chatSenderAvatarName,
@@ -2213,7 +2213,8 @@ export default function ChatScreen() {
 
   // 말풍선 색(확인한 표시 역할)과 상대 프로필 사진·이모지는 웹과 같은 /api/auth/me 에서 읽는다.
   // profile_wedding_roles·profile_avatars 는 앱이 직접 읽을 수 없는 서버 전용 표다.
-  // 표시용이므로 실패해도 대화는 막지 않고 중립색·이름 첫 글자로 둔다.
+  // 표시용이므로 실패해도 대화는 막지 않고 중립색·이름 첫 글자로 둔다. 401 이어도 전역 「세션 만료」
+  // 알림·로그아웃을 띄우지 않는다 — 색을 칠하려는 부가 조회가 로그아웃까지 이어지면 안 된다.
   const participantPresentationLoadRef = useRef<(() => void) | null>(null);
   useEffect(() => {
     if (!initialLoaded || !userId || !coupleId || chatLoadError) return;
@@ -2233,7 +2234,7 @@ export default function ChatScreen() {
       inFlight = true;
       lastLoadedAt = startedAt;
       try {
-        const response = await apiFetchForExpectedUser(userId, "/api/auth/me");
+        const response = await apiFetchForExpectedUserQuiet(userId, "/api/auth/me");
         const payload: unknown = await response.json().catch(() => null);
         if (!active || !mountedRef.current || !chatSessionGenerationRef.current.isCurrent(generation) || !response.ok) return;
         setParticipantPresentation(readChatParticipantPresentation(payload, { selfId: userId, partnerId, coupleId }));
@@ -2474,6 +2475,8 @@ export default function ChatScreen() {
 
     async function loadChatSession() {
       const generation = chatSessionGenerationRef.current.begin();
+      // 채팅 화면이 둘 떠도 서로의 실시간 채널을 나눠 쓰거나 끊지 않도록 화면마다 다른 토픽을 쓴다.
+      const realtimeInstance = chatSessionGenerationRef.current.instanceId();
       refreshChatSessionRef.current = null;
       resetChatSessionState();
       const isCurrentGeneration = () => isCurrentChatSession(generation);
@@ -2518,7 +2521,7 @@ export default function ChatScreen() {
       };
       setUserId(user.id);
       if (!profile?.couple_id) {
-        const identityChannel = supabase.channel(`chat-identity:${user.id}:${generation}`)
+        const identityChannel = supabase.channel(`chat-identity:${user.id}:${realtimeInstance}:${generation}`)
           .on("postgres_changes", { event: "UPDATE", schema: "public", table: "profiles", filter: `id=eq.${user.id}` }, reloadWhenProfileIdentityChanges)
           .subscribe();
         if (!isCurrentGeneration()) {
@@ -2819,7 +2822,7 @@ export default function ChatScreen() {
         }));
       }
 
-      const ch = supabase.channel(`chat:${profile.couple_id}:${generation}`)
+      const ch = supabase.channel(`chat:${profile.couple_id}:${realtimeInstance}:${generation}`)
         .on("postgres_changes", { event: "INSERT", schema: "public", table: "chat_messages", filter: `couple_id=eq.${profile.couple_id}` }, (payload) => {
           if (!isCurrentChatSession(generation)) return;
           const incoming = chatMessageFromRealtimeRow(payload.new);

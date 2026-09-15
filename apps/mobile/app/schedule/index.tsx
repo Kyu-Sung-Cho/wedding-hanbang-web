@@ -1029,6 +1029,11 @@ export default function ScheduleScreen() {
   /**
    * 시트의 아모라 버튼. 웹뷰 예절 편의 질문 링크와 같은 `amoraSource` 경로로 네이티브 채팅을
    * 연다. 시트(`Modal`)는 먼저 닫는다 — 열린 채로 탭을 옮기면 채팅 위에 시트가 남는다.
+   *
+   * `push` 가 아니라 `dismissTo` 다. 이 화면은 루트 Stack 화면이라 `push` 는 루트 스택에
+   * `(tabs)`를 한 벌 더 쌓고, 채팅 화면이 둘 마운트돼 같은 실시간 채널을 나눠 쓴다.
+   * `dismissTo` 는 아래에 있는 기존 `(tabs)`로 돌아가 채팅 탭을 열고, 없으면 이 자리를
+   * `(tabs)`로 바꾼다. 대신 뒤로 가기 기록에서 체크리스트가 빠진다(웹뷰 링크의 `replace`와 같다).
    */
   function askAmoraFromChecklist(categoryKey: string, itemId?: string) {
     const route = checklistPreparationRoute(categoryKey, itemId);
@@ -1037,7 +1042,7 @@ export default function ScheduleScreen() {
       return;
     }
     setExpandedKey(null);
-    router.push(route as Parameters<typeof router.push>[0]);
+    router.dismissTo(route as Parameters<typeof router.dismissTo>[0]);
   }
 
   /* ── 이벤트 모달 ── */

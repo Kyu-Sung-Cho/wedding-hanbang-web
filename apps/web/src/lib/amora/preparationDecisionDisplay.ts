@@ -156,8 +156,10 @@ function amoraBudgetFacts(row: DecisionDisplayInput): PreparationDecisionFacts |
     const match = /^총예산 ((?:0|[1-9][0-9]{0,2}(?:,[0-9]{3})*))원 기준 예산 배분 반영$/u.exec(row.title);
     const amount = match ? Number(match[1].replaceAll(",", "")) : NaN;
     if (!won(amount) || (total && total.after !== amount)) return null;
+    // 총예산이 그대로면 DB는 totalBudget을 null로 남긴다. 그때는 총예산 값을 바꾼 기록이 아니므로
+    // 앞선 총예산 변경을 이전 값으로 접지 않도록 budget:total을 넣지 않는다.
     return { displayTitle: `총예산 ${formatWon(amount)} 기준 예산 배분 반영`,
-      valueSlots: ["budget:total", ...items.map(item => `budget:${item.key}`)], relatedCategories: related(items.map(item => item.key)), routineChanges: null };
+      valueSlots: [...(total ? ["budget:total"] : []), ...items.map(item => `budget:${item.key}`)], relatedCategories: related(items.map(item => item.key)), routineChanges: null };
   }
   return null;
 }

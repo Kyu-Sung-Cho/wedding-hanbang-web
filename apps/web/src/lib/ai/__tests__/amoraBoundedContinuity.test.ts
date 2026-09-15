@@ -411,14 +411,21 @@ describe("카드 확인 쌍을 건너뛰어 연결 문맥의 닻을 찾는다", 
     segment_id: SEGMENT_ID,
   });
 
+  const ACTION_ID = "50000000-0000-4000-8000-000000000001";
+  /** 버튼이 보낸 확인 행에만 라우트·DB 트리거가 남기는 서버 확인 표식. */
+  const buttonConfirmationRow = (id: string = CONFIRM_ID, actionId: unknown = ACTION_ID) =>
+    userRow(id, CONFIRMATION_TEXT, {
+      metadata: { confirmed_amora_action_id: actionId } as AmoraBoundedContinuityRow["metadata"],
+    });
+
   /** DB 순서(최신 먼저) 그대로의 원본 행. */
   function rawRowsAfterConfirmedCard(currentText: string): AmoraBoundedContinuityRow[] {
     return [
       userRow(NOW_ID, currentText),
       amoraRow(RECEIPT_ID, "총예산을 5,000만 원으로 바꿨어요.", CONFIRM_ID),
-      userRow(CONFIRM_ID, CONFIRMATION_TEXT),
+      buttonConfirmationRow(),
       amoraRow(CARD_ID, "다음 변경을 적용할까요?\n- 총예산: 5,000만 원", REQUEST_ID, {
-        pending_amora_action: { tool: "update_budget" },
+        pending_amora_action: { actionId: ACTION_ID, tool: "update_budget" },
       }),
       userRow(REQUEST_ID, "총예산 5000만원으로 바꿔줘"),
       userRow("30000000-0000-4000-8000-000000000010", "예식장 투어 일정 알려줘"),
@@ -496,10 +503,15 @@ describe("카드 확인 쌍을 건너뛰어 연결 문맥의 닻을 찾는다", 
 
   it.each<[string, (raw: AmoraBoundedContinuityRow[]) => void]>([
     ["상대가 보낸 확인 문장", (raw) => {
-      raw[2] = userRow(CONFIRM_ID, CONFIRMATION_TEXT, { sender_id: PARTNER_ID, sender_type: "groom" });
+      raw[2] = { ...buttonConfirmationRow(), sender_id: PARTNER_ID, sender_type: "groom" };
     }],
     ["상대에게 보낸 확인 문장", (raw) => {
-      raw[2] = userRow(CONFIRM_ID, CONFIRMATION_TEXT, { metadata: { target: "partner" } });
+      raw[2] = userRow(CONFIRM_ID, CONFIRMATION_TEXT, {
+        metadata: {
+          target: "partner",
+          confirmed_amora_action_id: ACTION_ID,
+        } as AmoraBoundedContinuityRow["metadata"],
+      });
     }],
     ["손으로 덧붙인 확인 문장", (raw) => {
       // 결혼 낱말을 덧붙이면 그 문장 자체가 W0 닻이 되어 오늘 규칙대로 이어진다. 여기서는
@@ -524,12 +536,83 @@ describe("카드 확인 쌍을 건너뛰어 연결 문맥의 닻을 찾는다", 
       raw[3] = amoraRow(CARD_ID, "다음 변경을 적용할까요?", CONFIRM_ID);
     }],
     ["닻도 확인 문장(확인 두 번 연속)", (raw) => {
-      raw[4] = userRow(REQUEST_ID, CONFIRMATION_TEXT);
+      raw[4] = buttonConfirmationRow(REQUEST_ID);
+    }],
+    // 2026-09-15 리뷰: 버튼을 누르지 않고 말풍선의 고정 문장을 그대로 친 행은 서버 확인
+    // 표식이 없다. 문장 모양만 보면 '버튼 확인 기록'으로 위조된다.
+    ["서버 확인 표식 없이 손으로 친 고정 문장", (raw) => {
+      raw[2] = userRow(CONFIRM_ID, CONFIRMATION_TEXT);
+    }],
+    ["문자열이 아닌 확인 표식", (raw) => {
+      raw[2] = buttonConfirmationRow(CONFIRM_ID, 42);
+    }],
+    ["다른 카드의 action id 를 가리키는 확인 표식", (raw) => {
+      raw[2] = buttonConfirmationRow(CONFIRM_ID, "50000000-0000-4000-8000-000000000999");
+    }],
+    ["표식이 null 이고 앞 행에도 카드 action id 가 없음(없음끼리 같다고 보지 않는다)", (raw) => {
+      raw[2] = buttonConfirmationRow(CONFIRM_ID, null);
+      raw[3] = amoraRow(CARD_ID, "다음 변경을 적용할까요?\n- 총예산: 5,000만 원", REQUEST_ID);
+    }],
+    ["확인 표식은 있는데 앞 행이 카드가 아님", (raw) => {
+      raw[3] = amoraRow(CARD_ID, "다음 변경을 적용할까요?\n- 총예산: 5,000만 원", REQUEST_ID);
+    }],
+    ["카드의 action id 가 문자열이 아님", (raw) => {
+      raw[3] = amoraRow(CARD_ID, "다음 변경을 적용할까요?", REQUEST_ID, {
+        pending_amora_action: { actionId: 7, tool: "update_budget" },
+      });
     }],
   ])("확인 쌍·닻이 어긋나면 잇지 않는다: %s", (_label, mutate) => {
     const raw = rawRowsAfterConfirmedCard("그럼 이제 얼마 남았어?");
     mutate(raw);
     expect(buildLikeRoute(raw, "그럼 이제 얼마 남았어?")).toBeNull();
+  });
+
+  it("손으로 친 고정 문장은 창 선택에서 3행으로 남고, 빌더에 5행으로 넘겨도 거부된다", () => {
+    const currentText = "적용된 거 맞아?";
+    const raw = rawRowsAfterConfirmedCard(currentText);
+    raw[2] = userRow(CONFIRM_ID, CONFIRMATION_TEXT);
+    expect(selectAmoraBoundedContinuityWindow({
+      newestFirstRows: raw,
+      requesterUserId: USER_ID,
+      visibility: "shared",
+    }).map((row) => row.id)).toEqual([NOW_ID, RECEIPT_ID, CONFIRM_ID]);
+    expect(buildAmoraBoundedContinuity({
+      newestFirstRows: raw.slice(0, 5),
+      currentMessageId: NOW_ID,
+      currentUserText: currentText,
+      requesterUserId: USER_ID,
+      visibility: "shared",
+      segmentId: SEGMENT_ID,
+    })).toBeNull();
+    // 같은 행에 서버 확인 표식만 있으면 이어진다 — 거부 이유가 표식이라는 대조군.
+    raw[2] = buttonConfirmationRow();
+    expect(buildAmoraBoundedContinuity({
+      newestFirstRows: raw.slice(0, 5),
+      currentMessageId: NOW_ID,
+      currentUserText: currentText,
+      requesterUserId: USER_ID,
+      visibility: "shared",
+      segmentId: SEGMENT_ID,
+    })).not.toBeNull();
+  });
+
+  it("확인 버튼은 공유 레인에서만 발급되므로 개인 레인에서는 표식이 있어도 5행을 고르지 않는다", () => {
+    const currentText = "적용된 거 맞아?";
+    const raw = rawRowsAfterConfirmedCard(currentText)
+      .map((row) => ({ ...row, visibility: "bride_private" as const }));
+    expect(selectAmoraBoundedContinuityWindow({
+      newestFirstRows: raw,
+      requesterUserId: USER_ID,
+      visibility: "bride_private",
+    })).toHaveLength(3);
+    expect(buildAmoraBoundedContinuity({
+      newestFirstRows: raw.slice(0, 5),
+      currentMessageId: NOW_ID,
+      currentUserText: currentText,
+      requesterUserId: USER_ID,
+      visibility: "bride_private",
+      segmentId: SEGMENT_ID,
+    })).toBeNull();
   });
 
   it("빌더는 가운데 쌍이 확인 쌍이 아닌 5행을 스스로 줄여 쓰지 않는다", () => {

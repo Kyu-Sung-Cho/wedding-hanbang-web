@@ -10,6 +10,7 @@ import { composeAmoraPersistenceTerminal } from "@/lib/ai/amoraPersistenceClaims
 import { classifyAmoraQuestionScope } from "@/lib/ai/amoraQuestionScope";
 import {
   AMORA_TYPED_CARD_ACCEPTANCE_REPLY,
+  classifyAmoraTypedCardAcceptance,
   isAmoraTypedCardAcceptance,
 } from "@/lib/ai/amoraTypedCardAcceptance";
 
@@ -89,6 +90,42 @@ describe("카드에 말로 한 승낙", () => {
     "",
   ])("승낙으로 보지 않는다: %s", (text) => {
     expect(isAmoraTypedCardAcceptance(text)).toBe(false);
+  });
+
+  // 리뷰 [5]: NFKC 가 "ㅇㅋ" 를 "ᄋᄏ" 로 바꾸고, 웃음 꼬리 제거가 끝의 ᄏ 을 먼저 지워
+  // "ᄋ" 만 남았다. 흔한 승낙 표기 하나가 다시 옛 카드 잠김 경로를 탔다.
+  it.each(["ㅇㅋ", "ㅇㅋㅋ", "ㅇㅋ!", "ㅇㅋ 적용해줘", "ㅇㅋㅋ 적용해줘", "좋아ㅋㅋ", "응ㅎㅎ"])("자모 승낙 표기도 승낙으로 본다: %s", (text) => {
+    expect(isAmoraTypedCardAcceptance(text)).toBe(true);
+  });
+
+  it.each(["ㅇㅋ?", "ㅇㅋ 근데 식대는 빼고", "ㅋㅋ", "ㅎㅎ", "ㅋㅋㅋ 적용", "ㅇ", "ㅋ"])("자모 표기라도 승낙이 아닌 말은 거짓이다: %s", (text) => {
+    expect(isAmoraTypedCardAcceptance(text)).toBe(false);
+  });
+
+  // 리뷰 [3]: 승낙어만 있는 말은 직전 답변의 새 질문에 대한 답일 수 있다. 라우트가 직전 행을
+  // 보고 가를 수 있게 무엇으로 승낙이 됐는지 나눠 돌려준다.
+  it.each([
+    ["응", "bare"],
+    ["네!", "bare"],
+    ["좋아요", "bare"],
+    ["ㅇㅋ", "bare"],
+    ["응응 좋아", "bare"],
+    ["응 해줘", "bare"],
+    ["네 부탁해요~", "bare"],
+    ["응 적용해줘", "explicit"],
+    ["반영해 주세요.", "explicit"],
+    ["이대로 적용해줘", "explicit"],
+    ["그렇게 해줘", "explicit"],
+    ["좋아 그걸로 하자", "explicit"],
+    ["기존 제안대로 반영해 주세요.", "explicit"],
+    ["ㅇㅋ 적용해줘", "explicit"],
+    ["오케이 진행해줘", "explicit"],
+  ] as const)("승낙의 강도를 가른다: %s → %s", (text, strength) => {
+    expect(classifyAmoraTypedCardAcceptance(text)).toBe(strength);
+  });
+
+  it.each(["응?", "그대로", "아니", "응 근데 한복은 100으로", "", undefined])("승낙이 아니면 강도도 없다: %s", (text) => {
+    expect(classifyAmoraTypedCardAcceptance(text)).toBeNull();
   });
 
   it("문자열이 아니면 거짓이다", () => {

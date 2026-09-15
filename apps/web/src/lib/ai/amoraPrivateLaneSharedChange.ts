@@ -33,7 +33,8 @@ import { isAmoraTypedCardAcceptance } from "./amoraTypedCardAcceptance";
  *  - 도구 선택(`selectAmoraTools`)이 이 발화에서 공유 준비 기록의 쓰기 도구를 골랐고,
  *  - 같은 발화로 공유 레인이 확인 카드 도구(`selectAmoraPendingProposalTools` → 승인 정책 →
  *    범위 필터)를 열었으며,
- *  - 발화가 실제 부탁 모양(`hasNewAmoraChangeIntent`·말로 한 승낙)일 때만 참이다.
+ *  - 발화가 실제 부탁 모양(`hasNewAmoraChangeIntent`, 또는 연속성으로 붙은 앞 문장이 스스로
+ *    부탁일 때의 말로 한 동의)일 때만 참이다.
  *
  * 두 신호의 교집합이라 "함께 대화에서 같은 요청을 하면 확인 카드로 반영할 수 있어요" 가
  * 참인 턴에만 그 안내가 붙는다. 이 판정은 쓰기 권한을 만들지 않는다 — 개인 레인의 도구
@@ -86,6 +87,12 @@ export interface AssessAmoraPrivateLaneSharedChangeInput {
   questionScope: AmoraQuestionScopeClassification;
   /** 현재 사용자 발화(연속성으로 붙인 앞 문장은 제외). */
   userText: string;
+  /**
+   * 되묻기·도구 의도 연속성으로 도구 의도 문장 앞에 붙은 직전 사용자 발화
+   * (`carriedToolIntent.priorUserText`). 맨 동의("응"·"그래")는 이 문장이 스스로 변경
+   * 부탁일 때만 부탁으로 본다 — 개인 레인에는 동의할 카드가 없다.
+   */
+  carriedPriorUserText?: string;
   /** 개인 할 일 조회·초안 도구가 열린 턴. 그 요청은 개인 경로가 처리한다. */
   hasPersonalActionTools: boolean;
   /**
@@ -106,9 +113,19 @@ export function assessAmoraPrivateLaneSharedChangeTurn(
   if (input.isDemo || input.requestKind !== "chat" || !input.durable) return null;
   if (input.hasPersonalActionTools) return null;
   if (typeof input.userText !== "string") return null;
-  if (!hasNewAmoraChangeIntent(input.userText) && !isAmoraTypedCardAcceptance(input.userText)) {
-    return null;
-  }
+  // 개인 레인에는 카드가 없으므로 맨 동의 자체는 부탁의 근거가 아니다(리뷰 [0]).
+  //   "드레스 예산을 450만 원으로 늘리면 남은 예산이 어떻게 돼?" → (아모라 되물음) → "응"
+  // 은 가정 계산을 이어 달라는 말이다. 동의는 연속성으로 붙은 앞 문장이 스스로 변경 부탁일
+  // 때만 그 부탁을 잇는다.
+  const priorUserText = typeof input.carriedPriorUserText === "string"
+    ? input.carriedPriorUserText
+    : null;
+  const currentIsRequest = hasNewAmoraChangeIntent(input.userText);
+  const agreesToPriorRequest = !currentIsRequest
+    && priorUserText !== null
+    && isAmoraTypedCardAcceptance(input.userText)
+    && hasNewAmoraChangeIntent(priorUserText);
+  if (!currentIsRequest && !agreesToPriorRequest) return null;
   const selectedNames = new Set(input.selectedTools.map((tool) => tool.name));
   // 라우트의 공유 레인 `pendingProposalTools` 와 같은 순서·같은 필터다.
   const sharedLaneProposalTools = filterAmoraToolsByQuestionScope(
@@ -121,11 +138,22 @@ export function assessAmoraPrivateLaneSharedChangeTurn(
     .filter((name) => selectedNames.has(name)
       && AMORA_PRIVATE_LANE_SHARED_PLAN_WRITE_TOOL_NAMES.has(name));
   if (toolNames.length === 0) return null;
+  // 가정·초안·검토를 말한 부탁은 계산·설명을 원하는 턴일 수 있다. 모델 답을 버리지 않는다.
+  const mentionsHypothetical = HYPOTHETICAL_OR_DRAFT_RE.test(input.userText.normalize("NFKC"))
+    || (agreesToPriorRequest && HYPOTHETICAL_OR_DRAFT_RE.test(priorUserText!.normalize("NFKC")));
   return {
-    kind: input.hasOtherWork ? "mixed" : classifyPrivateLaneChangeTurnShape(input.userText),
+    kind: input.hasOtherWork || mentionsHypothetical
+      ? "mixed"
+      : classifyPrivateLaneChangeTurnShape(input.userText),
     toolNames,
   };
 }
+
+/**
+ * 실제로 바꿔 달라는 말이 아니라 **가정·초안·검토**로 보자는 표지. 이런 턴을 change_only 로
+ * 보내면 "이번 요청도 반영하지 않았어요" 한 줄이 계산·설명 답을 통째로 덮는다.
+ */
+const HYPOTHETICAL_OR_DRAFT_RE = /가정|만약|만일|시뮬레이션|초안|예시로|예를\s*들어|(?:라고|다고|했다고)\s*치(?:고|면)|검토(?:만|해|하|용)|미리\s*보기|계산만|계산해\s*(?:줘|보)|어떻게\s*되는지/u;
 
 const TRAILING_NOISE_RE = /[\s.!~。…ㅋㅎᄏᄒ^]+$/u;
 /**
@@ -146,6 +174,7 @@ const CONTEXT_SENTENCE_MIN_HANGUL = 8;
 export function classifyPrivateLaneChangeTurnShape(
   userText: string,
 ): AmoraPrivateLaneSharedChangeKind {
+  if (HYPOTHETICAL_OR_DRAFT_RE.test(userText.normalize("NFKC"))) return "mixed";
   for (const { claim } of splitAmoraClaimSegments(userText.normalize("NFKC"))) {
     const sentence = claim.replace(TRAILING_NOISE_RE, "").trim();
     if (!sentence) continue;

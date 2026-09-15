@@ -8,7 +8,7 @@ import {
   buildAmoraBoundedContinuity,
   type AmoraBoundedContinuityResult,
 } from "../amoraBoundedContinuity";
-import { buildAmoraHistoryContent, isAmoraFailedProposalNotice } from "../amoraPendingAction";
+import { buildAmoraHistoryContent, isAmoraFailedProposalNotice, withAmoraBudgetPlanCardLines } from "../amoraPendingAction";
 import { classifyAmoraQuestionScope } from "../amoraQuestionScope";
 import { selectAmoraTrustedHistoryRows } from "../amoraTrustedHistory";
 import { stripAmoraInternalArtifacts } from "@hanbang/shared/amora-visible-text";
@@ -80,9 +80,9 @@ function cardData(content: string): Record<string, unknown>[] {
 
 function bound(input: Row[]): AmoraBoundedContinuityResult | null {
   const current = input[0].content;
-  const names = ["isDemo", "requestKind", "isDurableUserMessageBound", "weddingClarificationContinuityWithFallback", "questionScope", "bodyUserMessageId", "shouldLoadBoundedContinuity", "buildAmoraBoundedContinuity", "selectAmoraTrustedHistoryRows", "boundedContinuityRows", "visibility", "lastUserText", "actorId", "boundedContinuitySegmentId", "appendAmoraBoundedToolResultHistory", "stripAmoraInternalArtifacts"];
+  const names = ["isDemo", "requestKind", "isDurableUserMessageBound", "weddingClarificationContinuityWithFallback", "questionScope", "bodyUserMessageId", "shouldLoadBoundedContinuity", "buildAmoraBoundedContinuity", "selectAmoraTrustedHistoryRows", "boundedContinuityRows", "visibility", "lastUserText", "actorId", "boundedContinuitySegmentId", "appendAmoraBoundedToolResultHistory", "stripAmoraInternalArtifacts", "withAmoraBudgetPlanCardLines", "AMORA_BOUNDED_CONTINUITY_WINDOW_MAX_ROWS"];
   const source = ts.transpileModule(`const value = ${initializers.get("boundedContinuity")![0]};`, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS } }).outputText;
-  return new Function(...names, `${source}\nreturn value;`)(false, "chat", true, null, classifyAmoraQuestionScope({ userText: current }), "current", true, buildAmoraBoundedContinuity, selectAmoraTrustedHistoryRows, input, "shared", current, "user-a", "segment-a", appendAmoraBoundedToolResultHistory, stripAmoraInternalArtifacts);
+  return new Function(...names, `${source}\nreturn value;`)(false, "chat", true, null, classifyAmoraQuestionScope({ userText: current }), "current", true, buildAmoraBoundedContinuity, selectAmoraTrustedHistoryRows, input, "shared", current, "user-a", "segment-a", appendAmoraBoundedToolResultHistory, stripAmoraInternalArtifacts, withAmoraBudgetPlanCardLines, AMORA_BOUNDED_CONTINUITY_WINDOW_MAX_ROWS);
 }
 
 function boundedRows(): Row[] {

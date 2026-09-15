@@ -183,6 +183,97 @@ function hydrateDurableResult(
   };
 }
 
+/**
+ * 원자 쓰기 DB 함수가 **입력·상태 검증에서** 거절한 오류인가(리뷰 [7]).
+ *
+ * `apply_amora_atomic_tool_execution` 은 도메인 변경을 검증하다 맞지 않으면
+ * `RAISE EXCEPTION 'AMORA_ATOMIC_<무엇>_INVALID' USING ERRCODE = '22023'` 으로 끝난다. 예외라
+ * 그 호출의 트랜잭션은 통째로 롤백되므로 **아무것도 바뀌지 않았다는 것이 확실하다.** 같은
+ * 입력으로 다시 보내도 같은 검증에서 같은 거절이 난다(이미 커밋된 실행은 검증보다 먼저
+ * 저장된 결과를 돌려주므로 여기 오지 않는다).
+ *
+ * 그런데 그동안은 이 거절을 응답 유실과 똑같이 세 번 재시도한 뒤 "결과 불명" 으로 턴을
+ * 깨뜨렸다. 웹이 DB 마이그레이션(20260915101500)보다 먼저 나가면 '안 해요' 분야 예산 카드가
+ * 정확히 그 모양으로 끝난다 — 고치기 전의 깔끔한 "적용하지 않았어요" 보다 나쁘다.
+ *
+ * 봉투 검증(`AMORA_ATOMIC_TOOL_INVALID_INPUT`)은 `_INVALID` 로 끝나지 않아 제외된다. 같은
+ * 봉투로 '적용하지 않음' 결과를 기록해도 같은 이유로 거절될 것이기 때문이다. 코드 없는 오류·
+ * 다른 SQLSTATE·다른 경계의 22023 은 지금처럼 결과 불명으로 둔다.
+ */
+const ATOMIC_INVALID_REJECTION_RE = /^AMORA_ATOMIC_[A-Z0-9_]+_INVALID$/;
+
+function isDeterministicAtomicInvalidRejection(error: { code?: string | null; message?: string | null }): boolean {
+  return error.code === "22023"
+    && typeof error.message === "string"
+    && ATOMIC_INVALID_REJECTION_RE.test(error.message.trim());
+}
+
+/** 저장 단계가 받아들이지 않은 변경. 무엇이 안 됐는지와 아무것도 바뀌지 않았다는 사실만 말한다. */
+export const ATOMIC_MUTATION_REJECTED_MESSAGE =
+  "저장하는 단계에서 이 변경을 받아들이지 않아 적용하지 않았어요. 아무것도 바뀌지 않았어요. 지금 값을 확인한 뒤 다시 요청해 주세요.";
+
+/**
+ * 결정적으로 거절된 원자 쓰기를 같은 원장 항목의 '적용하지 않음' 결과로 닫는다.
+ *
+ * 순수 연산이 거절할 때(`noOpFailure`)와 같은 길이다 — `{kind: "none"}` 과 실패 결과를 같은
+ * RPC 로 커밋해 원장을 완료 상태로 남긴다. 그래야 같은 요청을 다시 보내도 새로 실행하지
+ * 않고 이 결과를 되돌려준다. 이 기록마저 실패하면 판단하지 않고 기존처럼 결과 불명으로 턴을
+ * 깨뜨린다(원장이 처리 중으로 남아 있으므로 새 결과를 지어내지 않는다).
+ */
+async function recordAtomicRejectionAsNoOp({
+  admin,
+  toolName,
+  toolInput,
+  context,
+  inputDigest,
+  operationKey,
+}: {
+  admin: ReturnType<typeof getAdminClient>;
+  toolName: string;
+  toolInput: Record<string, unknown>;
+  context: ExecutionContext;
+  inputDigest: string;
+  operationKey: string;
+}): Promise<ToolExecutionResult> {
+  const rejection = failureResult(
+    toolName,
+    toolInput,
+    "ATOMIC_MUTATION_REJECTED",
+    ATOMIC_MUTATION_REJECTED_MESSAGE,
+  );
+  try {
+    const { data, error } = await admin.rpc("apply_amora_atomic_tool_execution", {
+      p_couple_id: context.coupleId,
+      p_request_key: context.requestKey!,
+      p_operation_key: operationKey,
+      p_request_attempt_count: context.requestAttemptCount!,
+      p_input_digest: inputDigest,
+      p_tool_input: toolInput,
+      p_domain_mutation: { kind: "none" },
+      p_result: durableResultPayload(rejection),
+    });
+    const recorded = !error ? hydrateDurableResult(data, toolName, toolInput) : null;
+    if (recorded) {
+      // 원장이 이미 완료였다면 그 결과가 돌아온다. 성공 결과면 문맥에도 반영한다.
+      applyAmoraAtomicToolResultToContext(recorded, context);
+      return recorded;
+    }
+    if (error) {
+      console.error("[amora-tool] atomic rejection no-op was not recorded", {
+        tool: toolName,
+        code: error.code ?? "unknown",
+        message: error.message?.slice(0, 200) ?? "",
+      });
+    }
+  } catch (thrown) {
+    console.error("[amora-tool] atomic rejection no-op threw", {
+      tool: toolName,
+      name: thrown instanceof Error ? thrown.name : typeof thrown,
+    });
+  }
+  throw new Error("[amora-tool] atomic commit outcome unavailable");
+}
+
 export async function executeTool(
   toolName: string,
   toolInput: Record<string, unknown>,
@@ -400,6 +491,8 @@ async function executeMutatingToolWithLedger({
       operationKey,
     );
     const durablePayload = durableResultPayload(operation.result);
+    // 입력·상태 검증 거절(22023 AMORA_ATOMIC_*_INVALID)은 롤백된 확실한 미적용이다. 재시도하지 않는다.
+    let deterministicRejection = false;
     for (let attempt = 1; attempt <= 3; attempt += 1) {
       try {
         const { data, error } = await admin.rpc(
@@ -433,6 +526,10 @@ async function executeMutatingToolWithLedger({
             code: error.code ?? "unknown",
             message: error.message?.slice(0, 200) ?? "",
           });
+          if (isDeterministicAtomicInvalidRejection(error)) {
+            deterministicRejection = true;
+            break;
+          }
         }
       } catch (thrown) {
         // Retry the same operation-key-scoped transaction. A committed first
@@ -445,6 +542,16 @@ async function executeMutatingToolWithLedger({
           message: thrown instanceof Error ? thrown.message.slice(0, 200) : "",
         });
       }
+    }
+    if (deterministicRejection) {
+      return recordAtomicRejectionAsNoOp({
+        admin,
+        toolName,
+        toolInput,
+        context,
+        inputDigest,
+        operationKey,
+      });
     }
     // Do not let the provider turn this uncertainty into a terminal assistant
     // message. The transaction may have committed while its response was

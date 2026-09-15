@@ -119,6 +119,18 @@ const CODE_LIKE_LEAKS = [
   "category_key: venue",
   "> event_id: 7f3a",
   '{"tool":"update_budget","input":"{\\"category\\":\\"venue\\",\\"amount\\":33000000}"}',
+  // 2026-09-15 2차 검토: 목록 기호·강조 표시가 붙은 줄과 실제 도구 입력 키 조합이 통과했다.
+  '- update_budget({"category":"venue","amount":33000000})',
+  '1. update_budget({"category":"venue","amount":33000000})',
+  '2) `functions.get_budget_summary()`',
+  '**update_budget**({"category":"venue","amount":33000000})',
+  '- **update_budget**({"category":"venue","amount":33000000});',
+  "- category_key: venue",
+  "* item_id: venue_1",
+  "1. **event_id**: 7f3a",
+  '```json\n{"category":"venue","budget":33000000}\n```',
+  '{"category":"venue","amount":33000000}',
+  '```json\n{\n  "category": "studio",\n  "spent": 1200000\n}\n```',
 ];
 
 /** 정상 답변 코퍼스. 물결·부등호·중괄호·괄호·표·목록·코드 예시가 한 글자도 바뀌면 안 된다. */
@@ -149,6 +161,20 @@ const ORDINARY_ANSWERS = [
   "혼인·출산 증여재산 공제(1억 원)도 함께 확인해 보세요.",
   "A안 > B안이라면 계약금(10%)부터 비교해 보세요.",
   "수식은 =SUM(B2:B10) 으로 넣으면 돼요.",
+  // 2026-09-15 2차 검토: 이름 모양만 도구와 같은 산문, 괄호 짝이 틀린 줄, 속성 모양이 아닌 꺾쇠.
+  // 이 줄들이 걸리면 뒤 문단까지 조용히 잘린 채 저장됐다.
+  "wedding_hall (예식장 기준\n\n두 번째 문단도 있어요.",
+  "plan_a(예식장 3,000만 원]\n\n두 번째 문단도 있어요.",
+  "hana_kim (신부)\n인스타 아이디는 이렇게 적어요.",
+  "wedding_hall(웨딩홀)과 check_in(체크인)은 영문 표기예요.",
+  "wedding_day (time: 11시) 예식이에요.",
+  "<thinking about budget> 같은 문구도 괜찮아요.",
+  "생각할 거리: <think about it> 이런 문구도 좋아요.\n두 번째 문단",
+  "청첩장 문구 <parameter name>은 이름으로 바꾸세요.",
+  "- **예식장**: 3,000만 원\n1. **계약금**: 300만 원\n* 준비물: 반지, 신분증",
+  "2) 계약금 3) 잔금 순서예요.",
+  '일정을 JSON으로 적으면 이래요.\n```json\n{"title":"상견례","date":"2026-10-01"}\n```',
+  '```json\n{"category":"예식장","amount":33000000}\n```',
 ];
 
 test("코드 모양 도구 호출·사고 태그·내부 키 JSON을 걷어내고 안내 문장만 남긴다", () => {
@@ -181,4 +207,37 @@ test("스트리밍 중 도구 호출 줄은 이름 조각부터 괄호까지 한
   assert.equal(visible("ok 사인을 받으면 진행할게요.", { streaming: true }), "ok 사인을 받으면 진행할게요.");
   assert.equal(hasAmoraInternalArtifactPrefix("ok 사인을 받으면 진행할게요."), false);
   assert.equal(hasAmoraInternalArtifactPrefix("SDM(스튜디오·드레스·메이크업)은 묶어서 계약해요."), false);
+});
+
+test("같은 줄에 붙은 도구 호출은 호출 부분만 지우고 앞뒤 안내 말은 남긴다", () => {
+  const call = 'update_budget({"category":"venue","amount":33000000})';
+  assert.equal(strip(`${call} 을 호출했어요.`), "을 호출했어요.");
+  assert.equal(strip(`${PROSE}\n\n준비했어요: ${call}`), `${PROSE}\n\n준비했어요:`);
+  assert.equal(strip(`${PROSE}\n\n예산 변경을 준비했어요. ${call} 확인 카드를 봐 주세요.`),
+    `${PROSE}\n\n예산 변경을 준비했어요. 확인 카드를 봐 주세요.`);
+  assert.equal(strip(`확인 카드를 띄울게요. \`functions.get_budget_summary()\` 결과를 볼게요.`), "확인 카드를 띄울게요. 결과를 볼게요.");
+  // 이름 모양만 같은 산문 괄호와 한 줄에 섞여 있어도 호출만 지운다.
+  assert.equal(strip('wedding_hall(웨딩홀)과 update_budget({"amount":1}) 둘 다요.'), "wedding_hall(웨딩홀)과 둘 다요.");
+  // 괄호 짝이 어긋난 호출도 인자 모양이면 그 괄호까지만 가리고 뒤 문단은 남긴다.
+  assert.equal(strip(`${PROSE}\n\nupdate_budget({"category":"venue")\n\n두 번째 문단도 있어요.`), `${PROSE}\n\n두 번째 문단도 있어요.`);
+});
+
+test("괄호가 끝내 안 닫힌 호출은 빈 줄까지만 지우고 뒤 문단은 남긴다", () => {
+  assert.equal(strip(`${PROSE}\n\nupdate_budget({"category":"venue",\n\n두 번째 문단도 있어요.`), `${PROSE}\n\n두 번째 문단도 있어요.`);
+  // 빈 줄이 없으면 어디서 끝나는지 알 수 없어 끝까지 가린다.
+  assert.equal(strip(`${PROSE}\n\nupdate_budget({"category":"venue",\n"amount": 3`), PROSE);
+});
+
+test("스트리밍 중 목록 기호나 문장 뒤에 붙은 도구 호출도 한 번도 보이지 않는다", () => {
+  for (const payload of ['- update_budget({"category":"venue","amount":33000000})', '준비했어요: update_budget({"amount":1})', '1. **update_budget**({"amount":1})']) {
+    const text = `${PROSE}\n\n${payload}`;
+    for (let end = 1; end <= text.length; end += 1) {
+      const rendered = visible(text.slice(0, end), { streaming: true });
+      assert.ok(!/[a-z]|[(){}]/u.test(rendered), `prefix ${end}: ${rendered}`);
+    }
+    assert.equal(hasAmoraInternalArtifactPrefix(text), true, payload);
+  }
+  // 이름 모양만 같은 산문은 완성되면 그대로 보인다.
+  assert.equal(visible("wedding_hall(웨딩홀)과 check_in(체크인)은 영문 표기예요.", { streaming: true }), "wedding_hall(웨딩홀)과 check_in(체크인)은 영문 표기예요.");
+  assert.equal(hasAmoraInternalArtifactPrefix("hana_kim (신부)라고 적어요."), false);
 });

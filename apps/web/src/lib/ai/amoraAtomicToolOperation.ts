@@ -19,6 +19,7 @@ import {
   ScheduleEventCapacityError,
   ScheduleEventValidationError,
   cancelEvent,
+  getScheduleEventStatus,
   restoreEvent,
   updateEvent,
   upsertMomentEvent,
@@ -1492,6 +1493,26 @@ export function buildAmoraAtomicToolOperation(
           : "복원할 취소 일정을 찾지 못했어요. 현재 일정을 다시 확인해 주세요.",
       );
     }
+    // 상태가 맞지 않는 대상은 제목·날짜 대조보다 먼저, 사실대로 말한다(리뷰 [2]). 예전에는
+    // 취소 헬퍼의 검증 예외로 "현재 일정 상태나 취소 정보를 다시 확인해 주세요" 만 나왔고,
+    // 카드 발급 게이트(`findAmoraBudgetProposalRefusal`)도 이 문장으로 카드를 막는다.
+    const existingStatus = getScheduleEventStatus(existing);
+    if (toolName === "cancel_schedule_event" && existingStatus === "cancelled") {
+      return noOpFailure(
+        toolName,
+        toolInput,
+        "schedule_event_cancelled",
+        `“${existing.title}” (${existing.date}) 일정은 이미 취소된 상태라 다시 취소하지 않았어요.`,
+      );
+    }
+    if (toolName === "restore_schedule_event" && existingStatus !== "cancelled") {
+      return noOpFailure(
+        toolName,
+        toolInput,
+        "schedule_event_not_cancelled",
+        `“${existing.title}” (${existing.date}) 일정은 취소된 상태가 아니라 복원하지 않았어요.`,
+      );
+    }
     // 취소·복원의 제목은 옮기기(`update_schedule_event`)와 달리 **정확히** 본다.
     //
     // 옮기기는 프롬프트가 300자로 자른 제목도 앞부분이면 통과시킨다. 여기서 같은 규칙을
@@ -1625,6 +1646,16 @@ export function buildAmoraAtomicToolOperation(
         toolInput,
         "schedule_event_not_found",
         "수정할 일정을 찾지 못했어요. 현재 일정을 다시 확인해 주세요.",
+      );
+    }
+    // 취소된 일정은 옮기거나 바꿀 수 없다(`updateEvent` 가 거절한다). 그 거절은 "일정 날짜와
+    // 제목을 다시 확인해 주세요" 로 나와 사실과 달랐다 — 무엇을 하면 되는지 말한다(리뷰 [2]).
+    if (getScheduleEventStatus(existing) === "cancelled") {
+      return noOpFailure(
+        toolName,
+        toolInput,
+        "schedule_event_cancelled",
+        `“${existing.title}” (${existing.date}) 일정은 취소된 상태라 수정하지 않았어요. 옮기거나 바꾸려면 먼저 복원해 주세요.`,
       );
     }
     // 카드에 "대상 일정"·"현재 날짜" 로 보여 준 값이 실제와 맞는지 다시 본다.

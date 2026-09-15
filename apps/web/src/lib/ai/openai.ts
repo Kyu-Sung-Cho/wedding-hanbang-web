@@ -515,10 +515,21 @@ export function hasInputAttachments(input: string | ResponseInput): boolean {
 /** 토크나이저의 사전 분할과 같은 단위: 글자 묶음 · 숫자 묶음 · 기호 묶음 · 공백 묶음. */
 const LOCAL_TOKEN_CHUNK_RE = /\p{L}[\p{L}\p{M}]*|\p{N}+|[^\s\p{L}\p{N}]+|\s+/gu;
 const LOCAL_TOKEN_WEIGHT = {
-  /** 한글 음절 1자. 실측 추정 0.46~0.69 보다 크게 잡는다. */
+  /** KS X 1001 완성형 한글 음절 1자. 실측 추정 0.46~0.69 보다 크게 잡는다. */
   hangulSyllable: 0.8,
+  /**
+   * 완성형 2,350자 밖의 한글 음절 1자(뷁·똠·햏 등). o200k 에서 1자 2~3토큰이다.
+   * 바이트 단위 BPE 는 한 글자를 UTF-8 바이트 수보다 잘게 나누지 않으므로 3이면 위로만 틀린다.
+   */
+  rareHangulSyllable: 3,
   /** 라틴 글자 1자. 흔한 영단어는 4~6자가 1토큰이다. */
   latinLetter: 0.25,
+  /**
+   * 한 묶음에 라틴 글자가 `longLatinRun` 자보다 많을 때의 1자. 실제 낱말이 아니라 무작위
+   * 문자열·base64 라서 o200k 에서 1.3~2자당 1토큰이다.
+   */
+  longLatinLetter: 0.75,
+  longLatinRun: 20,
   /** ASCII 기호 1자. JSON 의 `":"`·`","` 같은 묶음은 1토큰이다. */
   asciiSymbol: 1 / 3,
   /** 자모·한자·가나·기타 문자·비ASCII 기호(BMP) 1자. */
@@ -530,10 +541,34 @@ const LOCAL_TOKEN_WEIGHT = {
 } as const;
 
 /**
+ * KS X 1001 완성형 한글 2,350자. EUC-KR 로 표현되는 음절이 일상 한국어의 사실상 전부다
+ * (프롬프트·체크리스트·예절 안내 13만 음절에 표 밖 음절이 0자였다). 표 밖 음절은
+ * 토크나이저 어휘에도 드물어 1자가 여러 토큰이 된다.
+ *
+ * 전체 ICU 가 없는 런타임이라 표를 만들 수 없으면 null — 예전처럼 모든 음절을 흔한 음절로 센다.
+ */
+const COMMON_HANGUL_SYLLABLES: ReadonlySet<string> | null = (() => {
+  try {
+    const decoder = new TextDecoder("euc-kr");
+    const syllables = new Set<string>();
+    for (let lead = 0xb0; lead <= 0xc8; lead += 1) {
+      for (let trail = 0xa1; trail <= 0xfe; trail += 1) {
+        const char = decoder.decode(new Uint8Array([lead, trail]));
+        if (char.length === 1 && char >= "가" && char <= "힣") syllables.add(char);
+      }
+    }
+    return syllables.size === 2_350 ? syllables : null;
+  } catch {
+    return null;
+  }
+})();
+
+/**
  * 문자열 하나의 토큰 수를 문자 체계별로 어림한다. 사전 분할 묶음마다 최소 1토큰을
  * 매겨 `a a a a`·`가 가 가` 같은 한 글자 묶음 반복도 아래로 틀리지 않는다. 앞에 붙은
  * 공백 한 칸은 다음 묶음과 같은 토큰이 되므로 따로 세지 않고, 줄바꿈이나 두 칸 이상의
- * 공백 묶음은 1토큰으로 센다.
+ * 공백 묶음은 1토큰으로 센다. (o200k 는 숫자 앞 공백을 따로 떼지만, 그 몫은 흔한 한글
+ * 음절 가중치의 여유가 덮는다. 따로 세면 숫자가 섞인 긴 정상 대화가 다시 부푼다.)
  */
 export function estimateTextTokensLocally(text: string): number {
   let tokens = 0;
@@ -547,11 +582,22 @@ export function estimateTextTokensLocally(text: string): number {
       continue;
     }
     const letters = /\p{L}/u.test(chunk[0]);
+    // 글자 묶음 안에서 코드 포인트 0x024f 이하는 라틴 글자다(아래 가중치 분기와 같은 기준).
+    const latinLetters = letters
+      ? [...chunk].filter((char) => (char.codePointAt(0) ?? 0) <= 0x024f).length
+      : 0;
+    const latinWeight = latinLetters > LOCAL_TOKEN_WEIGHT.longLatinRun
+      ? LOCAL_TOKEN_WEIGHT.longLatinLetter
+      : LOCAL_TOKEN_WEIGHT.latinLetter;
     let chunkTokens = 0;
     for (const char of chunk) {
       const codePoint = char.codePointAt(0) ?? 0;
-      if (codePoint >= 0xac00 && codePoint <= 0xd7a3) chunkTokens += LOCAL_TOKEN_WEIGHT.hangulSyllable;
-      else if (letters && codePoint <= 0x024f) chunkTokens += LOCAL_TOKEN_WEIGHT.latinLetter;
+      if (codePoint >= 0xac00 && codePoint <= 0xd7a3) {
+        chunkTokens += COMMON_HANGUL_SYLLABLES && !COMMON_HANGUL_SYLLABLES.has(char)
+          ? LOCAL_TOKEN_WEIGHT.rareHangulSyllable
+          : LOCAL_TOKEN_WEIGHT.hangulSyllable;
+      }
+      else if (letters && codePoint <= 0x024f) chunkTokens += latinWeight;
       else if (!letters && codePoint < 0x80) chunkTokens += LOCAL_TOKEN_WEIGHT.asciiSymbol;
       else chunkTokens += codePoint > 0xffff ? LOCAL_TOKEN_WEIGHT.astral : LOCAL_TOKEN_WEIGHT.otherBmp;
     }
@@ -577,9 +623,13 @@ export function estimateTextTokensLocally(text: string): number {
  *   실측됐다. 실제 프롬프트 합성(한글 57%·공백 23%·ASCII 18%)을 같은 길이로
  *   늘려 재면 프롬프트만으로 ~28,700(1.25배)이다. 23,000 에 도구·대화가 포함된
  *   값이면 여유는 더 크다. 이 두 표본에서 한글 1자는 실제 0.46~0.69토큰이다.
- * - 드물게 쓰이는 한글 음절·한자는 1자가 2토큰 이상일 수 있다. 일부러 그런 글자만
- *   늘어놓은 입력은 여전히 아래로 틀릴 수 있다(예전 기준도 같았다). 일반 대화
- *   전체 평균에서는 위로 틀리게 잡았다.
+ * - 드물게 쓰이는 한글 음절은 1자가 2토큰 이상이다. KS X 1001 완성형 밖 음절은 UTF-8
+ *   바이트 수(3)로 세어 위로만 틀리게 했다. 한 묶음에 라틴 글자가 20자를 넘는 무작위
+ *   문자열은 글자당 0.75 로 센다(2026-09-15 2차 검토).
+ * - 남은 한계: 드문 한자만 늘어놓은 입력, 공백으로 20자 이하씩 끊은 무작위 영문은
+ *   아직 아래로 틀릴 수 있다. 토크나이저 없이 가중치를 올리면 흔한 입력이 부풀어
+ *   장애 중 정상 대화를 막게 되므로 여기서 멈췄다. 일반 대화 전체 평균에서는 위로
+ *   틀리게 잡았다.
  *
  * 첨부는 로컬로 잴 수 없다. PDF 는 추출 텍스트 + 쪽당 이미지 1장(최대 100쪽)으로
  * 청구돼 건당 고정 몫은 과소 추정이다(10MB PDF 다섯 장이 21,074 로 통과했다).

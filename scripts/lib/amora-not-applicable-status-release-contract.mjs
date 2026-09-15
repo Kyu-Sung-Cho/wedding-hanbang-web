@@ -4,7 +4,7 @@ import { digest, pinnedArtifact, requireRelease, same } from './current-baseline
 import { loadCustomerDataHistoricalReleasePlan } from './account-deletion-customer-data-release-contract.mjs';
 
 export const NOT_APPLICABLE_STATUS_CONTRACT_FILE = 'supabase/release-contracts/amora-not-applicable-status-v1.json';
-const CONTRACT_SHA = 'df507612b70bed17f444e3dba9d6d40d7e7c9626922440ecc4d5b6272158e211';
+const CONTRACT_SHA = '8d77b3bbe24586d0f3b171f828093cd55b0e5ecbd6173bba00ca0baa17fc13ed';
 const MIGRATION_FILE = '20260915101500_amora_atomic_not_applicable_status.sql';
 const PREVIOUS_FUNCTION_FILE = 'supabase/migrations/20260911080244_amora_budget_plan_explicit_allocations.sql';
 export const NOT_APPLICABLE_STATUS_SCOPE = Object.freeze({

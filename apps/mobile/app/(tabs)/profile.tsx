@@ -1,7 +1,7 @@
 import { daysUntilWedding } from "@hanbang/shared";
 import { CONTACT } from "@hanbang/shared/constants";
 // 프로필/설정 화면
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef } from "react";
 import { View, Pressable, StyleSheet, ScrollView, Alert, Linking, RefreshControl, Platform, ActivityIndicator } from "react-native";
 import { Text } from "@/components/ui/AppText";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -27,21 +27,19 @@ import {
 } from "lucide-react-native";
 import { colors } from "@hanbang/design-tokens";
 import { supabase } from "@/lib/supabase";
-import { apiFetchForExpectedUser, apiJson } from "@/lib/api";
+import { apiFetchForExpectedUserQuiet, apiJson } from "@/lib/api";
 import { signOut } from "@/lib/auth";
 import Constants from "expo-constants";
 import { ActionRow, IconBadge } from "@/components/ui/AppUI";
 import ProfileAvatar from "@/components/ui/ProfileAvatar";
 import ProfileAvatarEditorSheet from "@/components/profile/ProfileAvatarEditorSheet";
-import { parseProfileAvatarResponse } from "@/lib/profileAvatarPresentation.mjs";
+import { readProfileAvatarForDisplay } from "@/lib/profileAvatarPresentation.mjs";
 
 interface ProfileData {
   /** 중립 준비 공간이면 role은 저장 슬롯이지 사용자가 고른 값이 아니다. */
   usesNeutralMembers?: boolean;
   /** 개인 프로필 표시의 소유자. 사진 경로가 이 사람 것인지 확인할 때 쓴다. */
   userId: string;
-  /** 고른 이모지 또는 인증된 사진 경로. 못 읽었거나 고르지 않았으면 null(이름 첫 글자). */
-  avatarUrl: string | null;
   name: string | null;
   email: string | null;
   role: string | null;
@@ -49,6 +47,12 @@ interface ProfileData {
   dday: number | null;
   coupleId: string | null;
   partnerName: string | null;
+}
+
+/** 고른 이모지 또는 인증된 사진 경로. 고르지 않았으면 null(이름 첫 글자). 누구 것인지 함께 둔다. */
+interface ProfileAvatarState {
+  userId: string;
+  avatarUrl: string | null;
 }
 
 interface ActivityStats {
@@ -82,6 +86,10 @@ function formatDdayLabel(dday: number): string {
 
 export default function ProfileScreen() {
   const [profile, setProfile] = useState<ProfileData | null>(null);
+  // 아바타는 프로필과 따로 둔다. 표시용 조회를 기다리느라 화면을 막지 않고, 못 읽으면 보이던 값을 그대로 둔다.
+  const [avatar, setAvatar] = useState<ProfileAvatarState | null>(null);
+  // 아바타 조회 순번. 새 조회나 편집기 저장이 생기면 올려 늦게 온 옛 응답이 새 값을 덮지 않게 한다.
+  const avatarReadSeqRef = useRef(0);
   const [stats, setStats] = useState<ActivityStats>({
     postCount: 0,
     commentCount: 0,
@@ -101,12 +109,20 @@ export default function ProfileScreen() {
     if (!user) return;
 
     // 고른 이모지·사진은 서버 전용 표(profile_avatars)에 있어 웹 API로 읽는다.
-    // 표시용이므로 실패하면 이름 첫 글자로 두고 화면은 계속 연다.
-    const avatarRequest = apiFetchForExpectedUser(user.id, "/api/profile/avatar", { method: "GET" })
-      .then(async (response) => response.ok
-        ? parseProfileAvatarResponse(await response.json().catch(() => null), user.id)?.avatar_url ?? null
-        : null)
-      .catch(() => null);
+    // 표시용이라 나머지 프로필을 기다리게 하지 않고, 도착하면 따로 반영한다. 실패·타임아웃이면
+    // 지금 보이는 사진·이모지를 그대로 둔다(성공한 빈 값만 이름 첫 글자로 바꾼다). 401 이어도
+    // 전역 「세션 만료」 알림을 띄우지 않는다.
+    const avatarRead = ++avatarReadSeqRef.current;
+    void readProfileAvatarForDisplay(user.id, (signal) => apiFetchForExpectedUserQuiet(user.id, "/api/profile/avatar", { method: "GET", signal }))
+      .then(async (result) => {
+        if (!result.ok || avatarReadSeqRef.current !== avatarRead) return;
+        const { data: current } = await supabase.auth.getSession();
+        if (current.session?.user.id !== user.id || avatarReadSeqRef.current !== avatarRead) return;
+        setAvatar({ userId: user.id, avatarUrl: result.avatarUrl });
+      })
+      .catch(() => {
+        // 세션 확인 실패. 보이던 값을 그대로 둔다.
+      });
 
     const { data } = await supabase
       .from("profiles")
@@ -174,14 +190,12 @@ export default function ProfileScreen() {
       totalUpvotes: communityProfile?.total_upvotes_received ?? 0,
     });
 
-    const avatarUrl = await avatarRequest;
     // 기다리는 사이 계정이 바뀌었으면 이전 계정의 프로필을 그리지 않는다.
     const { data: current } = await supabase.auth.getSession();
     if (current.session?.user.id !== user.id) return;
 
     setProfile({
       userId: user.id,
-      avatarUrl,
       name: data?.name ?? null,
       email: user.email ?? null,
       role: data?.role ?? null,
@@ -270,7 +284,7 @@ export default function ProfileScreen() {
           <View style={styles.avatarRow}>
             <ProfileAvatar
               name={profile?.name}
-              avatarUrl={profile?.avatarUrl}
+              avatarUrl={profile && avatar?.userId === profile.userId ? avatar.avatarUrl : null}
               ownerId={profile?.userId}
               size={80}
               style={styles.avatar}
@@ -322,10 +336,14 @@ export default function ProfileScreen() {
               onClose={(saved) => {
                 setEditingAvatar(false);
                 if (!saved) return;
-                setProfile((current) => current && current.userId === profile.userId
-                  ? { ...current, avatarUrl: saved.avatarUrl }
-                  : current);
+                avatarReadSeqRef.current += 1;
+                setAvatar({ userId: profile.userId, avatarUrl: saved.avatarUrl });
                 setAvatarNotice("프로필을 저장했어요.");
+              }}
+              onAvatarChanged={(avatarUrl) => {
+                // 저장 결과를 다시 읽었더니 서버 값이 이미 바뀌어 있었다. 저장했다고 알리지는 않는다.
+                avatarReadSeqRef.current += 1;
+                setAvatar({ userId: profile.userId, avatarUrl });
               }}
             />
           )}

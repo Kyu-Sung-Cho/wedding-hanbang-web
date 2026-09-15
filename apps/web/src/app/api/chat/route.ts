@@ -145,6 +145,7 @@ import { getAmoraActionApprovalPolicy } from "@/lib/ai/amoraActionApprovalPolicy
 import { hasNewAmoraChangeIntent } from "@/lib/ai/amoraPendingActionContinuity";
 import {
   AMORA_TYPED_CARD_ACCEPTANCE_REPLY,
+  classifyAmoraTypedCardAcceptance,
   isAmoraTypedCardAcceptance,
 } from "@/lib/ai/amoraTypedCardAcceptance";
 import {
@@ -157,6 +158,8 @@ import {
   describeUnconfirmedAmoraPendingAction,
   describeAmoraQueuedAction,
   getAmoraPendingActionBubbleText,
+  withAmoraBudgetPlanCardLines,
+  AMORA_MAX_QUEUED_ACTIONS,
 } from "@/lib/ai/amoraPendingAction";
 import {
   advanceAmoraActionQueue,
@@ -167,6 +170,7 @@ import {
 import {
   buildAmoraBudgetImpactPreview,
   findAmoraBudgetProposalRefusal,
+  isAmoraBudgetImpactTool,
 } from "@/lib/ai/amoraBudgetImpactPreview";
 import { parseExplicitBudgetPlanRequest } from "@/lib/ai/amoraExplicitBudgetPlan";
 import { parseExplicitScheduleRequest } from "@/lib/ai/amoraExplicitScheduleRequest";
@@ -2817,21 +2821,29 @@ export async function POST(request: Request) {
    */
   //
   // 창 선택은 **연결 문맥 전용 질의(5번의 연결 갈래·8번)가 읽은 행에만** 한다. 그 밖의
-  // 폴백(`canonicalContextRows`)은 partner 행을 DB 에서 뺀 넓은 창일 수 있어, 거기서 앞
-  // 3·5행을 잘라 주면 끊겨야 할 대화가 인접해 보인다 — 그래서 오늘처럼 자르지 않고 넘긴다.
-  const boundedContinuityQueryRows = boundedContinuityRowsResult?.data
+  // 행은 빌더에 넘기지 않는다(리뷰 [6]). 8번이 실패했을 때 폴백하던 `canonicalContextRows`
+  // 는 partner 행을 DB 에서 뺀 넓은 창이고 창 선택도 거치지 않았다 — 빌더가 5행도 받게
+  // 되면서 [현재, 영수증, 확인문, (상대 DM), 카드, 요청] 이 DM 이 빠진 5행 확인 쌍 창처럼
+  // 통과할 수 있었다. 전용 질의가 실패한 턴은 빈 배열로 두어 연결 문맥을 끈다.
+  if (boundedContinuityRowsResult?.error) {
+    // warn 은 운영에서 아무 일도 하지 않는다(`utils/log`). 원문 없이 코드만 남긴다.
+    log.error("[chat] bounded continuity window read failed", {
+      code: (boundedContinuityRowsResult.error as { code?: unknown }).code ?? "unknown",
+    });
+  }
+  const boundedContinuityQueryRows = boundedContinuityRowsResult?.data && !boundedContinuityRowsResult.error
     ? (boundedContinuityRowsResult.data as unknown as CanonicalChatRow[])
     : boundedContinuityReadsCanonicalWindow
       ? rawCanonicalMessageRows
       : null;
-  const boundedContinuityRows = boundedContinuityQueryRows
+  const boundedContinuityRows: CanonicalChatRow[] = boundedContinuityQueryRows
     ? selectAmoraBoundedContinuityWindow({
         newestFirstRows: boundedContinuityQueryRows
           .filter((row) => isAfterChatViewClear(row.created_at, row.visibility, chatViewClearedAt)),
         requesterUserId: actorId,
         visibility,
       })
-    : canonicalContextRows;
+    : [];
   /**
    * W4 턴 이력 전용 행(9번). 오래된 것부터 정렬해 두고, `canonicalRows` 와 같은
    * 두 겹 — 상대 대상 제외 + 화면 정리 커서 — 을 그대로 태운다. 읽지 않았거나
@@ -3375,8 +3387,23 @@ export async function POST(request: Request) {
    * 같은 카드를 옮긴다. 허용 목록 문법만 통과하고(금액·분야·부정이 섞이면 거짓),
    * 안전·위로 범위로 판정된 턴은 여기서도 옮기지 않는다. 적용 권한은 생기지 않는다.
    */
+  //
+  // 승낙어만 있는 말("응"·"네"·"좋아")은 이월된 카드 아래에서 아모라가 새로 던진 질문
+  // ("드레스 투어 일정도 같이 잡아 드릴까요?")에 대한 답일 수 있다(리뷰 [3]). 그래서 그런 말은
+  // 직전 행이 카드 자체를 말하는 행일 때만 카드 승낙으로 본다 — 카드를 낸 원본 행(이월 횟수
+  // 없음·0)이거나 앞선 승낙 턴의 서버 안내 행. 적용 동사·카드 지시어가 있는 말은 그대로다.
+  const typedCardAcceptanceStrength = awaitingPendingCard !== null
+    ? classifyAmoraTypedCardAcceptance(lastUserText)
+    : null;
+  const previousRowCarryCount = isRecord(previousCanonicalRow?.metadata)
+    ? previousCanonicalRow.metadata.pending_amora_action_carry_count
+    : undefined;
+  const previousRowSpeaksForCard = previousRowCarryCount === undefined
+    || previousRowCarryCount === 0
+    || previousCanonicalRow?.content === AMORA_TYPED_CARD_ACCEPTANCE_REPLY;
   const pendingCardTypedAcceptance = awaitingPendingCard !== null
-    && isAmoraTypedCardAcceptance(lastUserText)
+    && (typedCardAcceptanceStrength === "explicit"
+      || (typedCardAcceptanceStrength === "bare" && previousRowSpeaksForCard))
     && (questionScope.scope === "W0_wedding_core"
       || questionScope.scope === "W1_wedding_adjacent"
       || questionScope.scope === "W4_out_of_scope");
@@ -3428,9 +3455,23 @@ export async function POST(request: Request) {
             currentUserMessageId: bodyUserMessageId,
             visibility,
           }).reverse();
+          // 닻 행(끝에서 두 번째)이 예산안 카드면 카드에 보인 항목 줄을 연결 문맥에만 되붙인다
+          // (리뷰 [4]). 말풍선은 목록 없는 한 줄이라, 없으면 도구 없는 모델이 금액을 볼 곳이 없다.
+          // 5행 창은 확인 쌍이 원본 행 1·2번에 있을 때만 골라지므로 그때는 실행 결과가 뒤따른다.
+          const anchorIndex = trustedRows.length - 2;
           const continuity = buildAmoraBoundedContinuity({
-            newestFirstRows: trustedRows.map((row) => row.sender_type === "ai" && row.role === "assistant"
-              ? { ...row, content: stripAmoraInternalArtifacts(row.content) } : row),
+            newestFirstRows: trustedRows.map((row, index) => row.sender_type === "ai" && row.role === "assistant"
+              ? {
+                  ...row,
+                  content: index === anchorIndex
+                    ? withAmoraBudgetPlanCardLines(
+                        stripAmoraInternalArtifacts(row.content),
+                        row.metadata?.pending_amora_action,
+                        { confirmationFollows: trustedRows.length === AMORA_BOUNDED_CONTINUITY_WINDOW_MAX_ROWS },
+                      )
+                    : stripAmoraInternalArtifacts(row.content),
+                }
+              : row),
             currentMessageId: bodyUserMessageId,
             currentUserText: lastUserText,
             requesterUserId: actorId,
@@ -3719,6 +3760,8 @@ export async function POST(request: Request) {
     durable: isDurableUserMessageBound,
     questionScope,
     userText: lastUserText,
+    // 맨 동의는 연속성으로 붙은 앞 문장이 스스로 변경 부탁일 때만 부탁이다(리뷰 [0]).
+    ...(carriedToolIntent ? { carriedPriorUserText: carriedToolIntent.priorUserText } : {}),
     hasPersonalActionTools: personalConversationTools.length > 0,
     hasOtherWork: attachmentKind !== "none" || offersPlaceSearch,
     selectedTools,
@@ -4080,6 +4123,8 @@ export async function POST(request: Request) {
         let nextActionContext = executionContext;
         let queueCompletion: { queueId: string; totalCount: number; completedCount: number } | null = null;
         let queueResumeNotice: string | null = null;
+        // 대기열의 다음 요청 중 지금 상태로는 적용되지 않아 카드를 내지 않은 것의 이유(리뷰 [1]).
+        let queueSkippedNotice: string | null = null;
         let queueStepSucceeded: boolean | null = null;
         const executeApprovedPendingAction = async (
           reserveBeforeSideEffect?: () => Promise<void>,
@@ -4133,25 +4178,58 @@ export async function POST(request: Request) {
                 .eq("couple_id", coupleId).maybeSingle();
               const revision = fresh.data?.state_revision;
               if (!fresh.error && fresh.data && typeof revision === "number" && Number.isSafeInteger(revision) && revision >= 0) {
-                const candidate = remaining[0];
-                queuedProposal = extractAmoraPendingAction({
-                  text: `[pending_action]${JSON.stringify(candidate)}[/pending_action]`,
-                  allowedTools: PENDING_ACTION_TOOLS,
-                  now: Date.now(), createActionId: randomUUID,
-                  // 방금 저장된 총예산. 예산안 확인문의 "지금 → 바꿀 값" 표시에만 쓴다.
-                  currentTotalBudget: fresh.data.total_budget ?? executionContext.weddingContext.budget,
-                });
-                if (queuedProposal.pendingAction) {
+                const freshContext: ToolExecutionContext = { ...executionContext, weddingContext: {
+                  ...executionContext.weddingContext,
+                  budget: fresh.data.total_budget ?? executionContext.weddingContext.budget,
+                  progress: (fresh.data.progress ?? {}) as ToolExecutionContext["weddingContext"]["progress"],
+                } };
+                // 다음 카드도 누르면 반드시 거절될 것이면 내지 않는다(리뷰 [1]). 방금 저장된 상태로
+                // 순수 연산을 미리 돌려, 거절된 항목은 이유만 말하고 그다음 항목을 본다. 거절된
+                // 항목은 적용되지 않으므로 뒤 항목도 같은 문맥에서 판단한다.
+                const skippedTexts: string[] = [];
+                for (const candidate of remaining) {
+                  const extraction = extractAmoraPendingAction({
+                    text: `[pending_action]${JSON.stringify(candidate)}[/pending_action]`,
+                    allowedTools: PENDING_ACTION_TOOLS,
+                    now: Date.now(), createActionId: randomUUID,
+                    // 방금 저장된 총예산. 예산안 확인문의 "지금 → 바꿀 값" 표시에만 쓴다.
+                    currentTotalBudget: freshContext.weddingContext.budget,
+                  });
+                  if (!extraction.pendingAction) {
+                    queuedProposal = extraction;
+                    break;
+                  }
+                  const refusal = findAmoraBudgetProposalRefusal({ action: extraction.pendingAction, context: freshContext });
+                  if (refusal) {
+                    skippedTexts.push(refusal.text);
+                    continue;
+                  }
+                  queuedProposal = extraction;
                   nextActionRevision = revision;
-                  nextActionContext = { ...executionContext, weddingContext: {
-                    ...executionContext.weddingContext,
-                    budget: fresh.data.total_budget ?? executionContext.weddingContext.budget,
-                    progress: (fresh.data.progress ?? {}) as ToolExecutionContext["weddingContext"]["progress"],
-                  } };
-                  nextActionQueue = advanceAmoraActionQueue(storedActionQueue, queuedProposal.pendingAction);
+                  nextActionContext = freshContext;
+                  const advanced = advanceAmoraActionQueue(storedActionQueue, extraction.pendingAction);
+                  // 건너뛴 요청은 반영도 확인도 하지 않은 것이라 전체 건수에서 뺀다. 그래야
+                  // "N건 중 M건 반영했어요" 가 참이다(`resolveAmoraActionQueue` 의 건수 불변식도 그대로다).
+                  nextActionQueue = skippedTexts.length === 0 ? advanced : {
+                    ...advanced,
+                    totalCount: advanced.totalCount - skippedTexts.length,
+                    remainingActions: remaining.slice(skippedTexts.length + 1),
+                  };
+                  break;
+                }
+                if (skippedTexts.length > 0) {
+                  queueSkippedNotice = `남은 요청 중 ${skippedTexts.length}건은 지금 상태로는 적용되지 않아 확인 카드를 만들지 않았어요.\n${[...new Set(skippedTexts)].join("\n")}`;
+                  if (skippedTexts.length === remaining.length) {
+                    // 남은 요청이 모두 거절됐다. 이번 항목까지로 대기열을 마친다.
+                    queueCompletion = {
+                      queueId: storedActionQueue.queueId,
+                      totalCount: storedActionQueue.totalCount - skippedTexts.length,
+                      completedCount: storedActionQueue.completedCount + 1,
+                    };
+                  }
                 }
               }
-              if (!queuedProposal?.pendingAction) {
+              if (!queuedProposal?.pendingAction && queueCompletion === null) {
                 // 이미 실행된 항목을 실패로 바꾸거나 다시 실행하지 않는다. 나머지 입력은 보존한다.
                 queueResumeNotice = "이번 항목은 반영됐어요. 다음 확인을 준비할 최신 정보를 읽지 못했어요. 아래 남은 요청을 확인한 뒤 이어서 요청해 주세요.";
               }
@@ -4306,23 +4384,57 @@ export async function POST(request: Request) {
           // 않았어요" 가 나왔다). 승인 때 쓰는 같은 순수 연산을 같은 정본 문맥으로 미리 돌려,
           // 거절이면 그 거절 문장(어느 항목이 왜)을 지금 보여준다. 같은 값이라 바뀔 게 없는
           // 경우와 연산이 판단하지 못한 경우는 기존대로 카드를 낸다(미리보기만 빠질 수 있다).
-          // 저장된 대기열의 다음 항목은 사용자가 이미 목록으로 확인한 흐름이라 여기서 거르지 않는다.
-          const budgetProposalRefusal = !queuedProposal?.pendingAction && modelPendingExtraction.pendingAction
-            ? findAmoraBudgetProposalRefusal({
-                action: modelPendingExtraction.pendingAction,
-                context: executionContext,
-              })
-            : null;
-          if (budgetProposalRefusal) {
+          //
+          // **표식이 여럿이면 앞에서부터 본다(리뷰 [1]).** 예전에는 첫 표식만 보고, 거절이면 같은
+          // 답변의 나머지 요청(대기열)을 말없이 버렸다. 거절된 앞 항목은 적용되지 않으므로 다음
+          // 항목이 같은 정본 문맥에서 사실상 첫 건이다 — 처음으로 거절되지 않은 항목부터 카드와
+          // 대기열을 만들고 거절 이유를 앞에 싣는다. 그 뒤 항목은 여기서 미리 거르지 않는다. 앞
+          // 항목이 적용돼야 성립하는 요청(새 분야 추가 → 그 분야 예산)이 있어, 대기열이 다음 카드를
+          // 낼 때 그때의 문맥으로 따로 본다(`executeApprovedPendingAction`).
+          // 저장된 대기열의 다음 항목(`queuedProposal`)은 그 경로에서 이미 걸렀다.
+          const proposalRefusals: Array<{ tool: string; text: string }> = [];
+          if (!queuedProposal?.pendingAction) {
+            for (
+              let checked = 0;
+              checked < AMORA_MAX_QUEUED_ACTIONS && modelPendingExtraction.pendingAction;
+              checked += 1
+            ) {
+              const refused = modelPendingExtraction.pendingAction;
+              const refusal = findAmoraBudgetProposalRefusal({ action: refused, context: executionContext });
+              if (!refusal) break;
+              proposalRefusals.push({ tool: refused.tool, text: refusal.text });
+              const rest = modelPendingExtraction.remainingActions ?? [];
+              const restExtraction = rest.length > 0
+                ? extractAmoraPendingAction({
+                    ...pendingExtractionOptions,
+                    text: rest.map(action => `[pending_action]${JSON.stringify(action)}[/pending_action]`).join("\n"),
+                  })
+                : null;
+              modelPendingExtraction = restExtraction?.pendingAction
+                ? restExtraction
+                : {
+                    cleanText: restExtraction?.cleanText.trim() ?? "",
+                    pendingAction: null,
+                    hadPendingActionTag: true,
+                    dropReason: restExtraction?.dropReason ?? (
+                      proposalRefusals.every(item => isAmoraBudgetImpactTool(item.tool))
+                        ? "budget_operation_refused"
+                        : "proposal_operation_refused"
+                    ),
+                  };
+            }
+          }
+          if (proposalRefusals.length > 0) {
+            const refusalText = [...new Set(proposalRefusals.map(item => item.text))].join("\n\n");
             modelPendingExtraction = {
-              cleanText: budgetProposalRefusal.text,
-              pendingAction: null,
-              hadPendingActionTag: modelPendingExtraction.hadPendingActionTag,
-              dropReason: "budget_operation_refused",
+              ...modelPendingExtraction,
+              cleanText: [refusalText, modelPendingExtraction.cleanText.trim()]
+                .filter(part => part.length > 0)
+                .join("\n\n"),
             };
           }
           const effectiveSuggestions = canonicalTerminalText !== null || blockedBudgetText !== null || blockedTaskText !== null
-            || budgetProposalRefusal !== null
+            || proposalRefusals.length > 0
             ? []
             // 개인 레인에서 공유 변경을 다시 부탁하는 추천 문장은 같은 안내만 되돌려받는다.
             : privateLaneSharedChangeTurn
@@ -4456,9 +4568,12 @@ export async function POST(request: Request) {
               shapes: pendingExtraction.droppedShapes ?? [],
             });
           }
-          const queueText = queuedProposal?.pendingAction && nextActionQueue
-            ? `${nextActionQueue.totalCount}건 중 ${nextActionQueue.completedCount}건 반영했어요. 다음 항목을 확인해 주세요.\n\n${getAmoraPendingActionBubbleText(queuedProposal.pendingAction)}`
-            : queueResumeNotice;
+          const queueText = [
+            queueSkippedNotice,
+            queuedProposal?.pendingAction && nextActionQueue
+              ? `${nextActionQueue.totalCount}건 중 ${nextActionQueue.completedCount}건 반영했어요. 다음 항목을 확인해 주세요.\n\n${getAmoraPendingActionBubbleText(queuedProposal.pendingAction)}`
+              : queueResumeNotice,
+          ].filter((part): part is string => typeof part === "string" && part.length > 0).join("\n\n") || null;
           // mixed 턴은 거짓 저장 주장 검사를 모델 답에만 돌린 뒤 서버 안내를 붙인다(서버 문구는
           // 검사하지 않는다). 모델 답이 모두 걷혔으면 안내만 낸다.
           const privateLaneGuardedText = privateLaneOfferScreen !== null

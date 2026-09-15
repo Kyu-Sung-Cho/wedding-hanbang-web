@@ -119,7 +119,13 @@ describe("preparation decision historical display", () => {
       budgetDelta: { schemaVersion: 1, totalBudget: null, categories: [
         { key: "dress", label: "드레스", beforeBudget: null, afterBudget: 3000000 },
         { key: "reserve", label: "예비비", beforeBudget: 1000000, afterBudget: 2000000 }] } } };
+    // 총예산이 그대로인 배분(totalBudget: null)은 총예산 값을 바꾼 기록이 아니다.
     expect(parse(allocation)).toMatchObject({ displayTitle: "총예산 3,500만원 기준 예산 배분 반영",
+      valueSlots: ["budget:dress", "budget:reserve"], relatedCategories: ["dress"] });
+    // 배분하면서 총예산도 바꿨다면 총예산 값의 기록이기도 하다.
+    const allocationWithTotal = { ...allocation, chosen_value: { ...allocation.chosen_value,
+      budgetDelta: { ...allocation.chosen_value.budgetDelta, totalBudget: { before: 30000000, after: 35000000 } } } };
+    expect(parse(allocationWithTotal)).toMatchObject({ displayTitle: "총예산 3,500만원 기준 예산 배분 반영",
       valueSlots: ["budget:total", "budget:dress", "budget:reserve"], relatedCategories: ["dress"] });
     for (const broken of [
       { ...row, metadata: { origin: "other" } },
@@ -206,6 +212,34 @@ describe("arranging loaded decision records", () => {
     ], coupleId).records;
     const { decisions } = arrangePreparationDecisions(records);
     expect(decisions.map(row => row.valueState)).toEqual(["latest", undefined, undefined, "previous"]);
+  });
+
+  // 총예산 3,000만→5,000만 반영 뒤, 총예산을 그대로 두고 드레스만 배분한 경우.
+  const totalChange = (id: string, created_at: string, before: number, after: number) => ({
+    ...amoraCategory(id, created_at, null, 1), title: `총예산 ${after.toLocaleString("en-US")}원 반영`,
+    chosen_value: { schemaVersion: 1, budgetScope: "total", amount: after,
+      budgetDelta: { schemaVersion: 1, totalBudget: { before, after }, categories: [] } } });
+  const allocationOf = (id: string, created_at: string, total: number, totalBudget: { before: number; after: number } | null) => ({
+    ...amoraCategory(id, created_at, null, 1), title: `총예산 ${total.toLocaleString("en-US")}원 기준 예산 배분 반영`,
+    chosen_value: { schemaVersion: 1, budgetScope: "allocation",
+      budgetDelta: { schemaVersion: 1, totalBudget, categories: [{ key: "dress", label: "드레스", beforeBudget: 3000000, afterBudget: 4000000 }] } } });
+
+  it("keeps a total budget change current when a later allocation leaves the total budget unchanged", () => {
+    const records = parsePreparationDecisions([
+      allocationOf(ids[0], "2026-09-12T02:00:00Z", 50000000, null),
+      totalChange(ids[1], "2026-09-12T01:00:00Z", 30000000, 50000000),
+    ], coupleId).records;
+    const { decisions } = arrangePreparationDecisions(records);
+    expect(decisions.map(row => [row.id, row.valueState])).toEqual([[ids[0], undefined], [ids[1], undefined]]);
+  });
+
+  it("still folds the earlier total budget change when a later allocation changed the total budget again", () => {
+    const records = parsePreparationDecisions([
+      allocationOf(ids[0], "2026-09-12T02:00:00Z", 60000000, { before: 50000000, after: 60000000 }),
+      totalChange(ids[1], "2026-09-12T01:00:00Z", 30000000, 50000000),
+    ], coupleId).records;
+    const { decisions } = arrangePreparationDecisions(records);
+    expect(decisions.map(row => [row.id, row.valueState])).toEqual([[ids[0], "latest"], [ids[1], "previous"]]);
   });
 
   it("collapses routine progress saves per Seoul day and removes them from decision counts", () => {

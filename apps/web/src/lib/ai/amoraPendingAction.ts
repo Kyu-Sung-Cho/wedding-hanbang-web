@@ -1443,10 +1443,15 @@ export function extractAmoraPendingAction({
   hadPendingActionTag: boolean;
   /**
    * 표식은 있었지만 버린 이유가 "다시 보내면 되는" 종류가 아닐 때만 채운다.
-   * `budget_operation_refused` 는 이 함수가 아니라 라우트가 채운다 — 승인 때 쓸 예산
-   * 연산을 미리 돌려 보니 거절이라 카드 대신 그 거절 문장을 보여준 턴이다.
+   * `budget_operation_refused`·`proposal_operation_refused` 는 이 함수가 아니라 라우트가
+   * 채운다 — 승인 때 쓸 순수 연산을 미리 돌려 보니 거절이라 카드 대신 그 거절 문장을 보여준
+   * 턴이다. 거절된 요청이 모두 예산 도구면 앞의 것, 체크리스트·일정이 섞이면 뒤의 것이다.
    */
-  dropReason?: "unknown_schedule_event" | "unsupported_schedule_fields" | "budget_operation_refused";
+  dropReason?:
+    | "unknown_schedule_event"
+    | "unsupported_schedule_fields"
+    | "budget_operation_refused"
+    | "proposal_operation_refused";
   /**
    * 검증에서 버려진 표식의 원문 머리(진단용). 2026-09-04 실측: "2027년 3월 10일 드레스
    * 투어 일정 추가해줘" 가 2/2 로 카드 없이 끝났는데(본문은 카드 흉내), 서버에 원문이
@@ -1675,6 +1680,42 @@ export function isAmoraFailedProposalNotice(content: unknown): boolean {
     // 위 실측이 말하는 3연속 0/10 이 정확히 그 모양이다.
     || content.includes(SERVER_OWNED_UNVERIFIED_NOTICE)
     || content.includes(SERVER_OWNED_MISSING_CARD_NOTICE);
+}
+
+/** 연결 문맥의 닻 카드 뒤에 확인 쌍(버튼 확인 → 실행 결과)이 이어질 때 붙이는 한 줄. */
+const BUDGET_PLAN_CONFIRMED_CONTINUITY_NOTE = "[카드에 보인 예산안 — 적용 여부는 뒤의 실행 결과를 따르세요]";
+
+/**
+ * 연결 문맥(도구 없음)에 싣는 **예산안 카드 답변 본문**에 카드에 보인 항목 줄을 되붙인다(리뷰 [4]).
+ *
+ * 말풍선은 `BUDGET_PLAN_CARD_BUBBLE_TEXT` 한 줄이라 목록이 없다(같은 목록이 카드에 또 그려져
+ * 두 번 보였다). 저장 본문을 바꾸지 않고 연결 문맥에만 붙이므로 화면에는 여전히 한 번만 보인다.
+ * W0 이력 경로(`buildAmoraHistoryContent`)는 표식을 되붙여 금액을 보이는데, 연결 문맥은 실행
+ * 계약을 싣지 않는 레인이라 표식 JSON 대신 사람이 읽는 줄만 싣는다. 여는 질문("다음 예산안을
+ * 적용할까요?")은 떼어 낸다 — 도구 없는 턴에서 모델이 따라 하면 누를 수 없는 확인문이 된다.
+ *
+ * 표시 전용이다. 만료·입력 검증은 하지 않고, 적용 여부는 말하지 않는다 — 확인 쌍이 뒤따르면
+ * 실행 결과를 따르라고, 아니면 저장된 값이 아니라고만 표시한다.
+ */
+export function withAmoraBudgetPlanCardLines(
+  content: string,
+  pendingAction: unknown,
+  { confirmationFollows }: { confirmationFollows: boolean },
+): string {
+  if (!content.includes(BUDGET_PLAN_CARD_BUBBLE_TEXT)) return content;
+  if (!isRecord(pendingAction) || pendingAction.version !== 2 || pendingAction.tool !== "apply_budget_plan") {
+    return content;
+  }
+  const confirmation = pendingAction.confirmation;
+  if (typeof confirmation !== "string" || !confirmation.startsWith(BUDGET_PLAN_CONFIRMATION_OPENING)) {
+    return content;
+  }
+  const lines = confirmation.slice(BUDGET_PLAN_CONFIRMATION_OPENING.length).trim();
+  if (!lines) return content;
+  const note = confirmationFollows
+    ? BUDGET_PLAN_CONFIRMED_CONTINUITY_NOTE
+    : UNCONFIRMED_PROPOSAL_HISTORY_NOTE;
+  return `${content}\n${note}\n${lines}`;
 }
 
 export function buildAmoraHistoryContent(

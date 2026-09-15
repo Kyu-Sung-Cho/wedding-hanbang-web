@@ -6,15 +6,16 @@ import { colors } from "@hanbang/design-tokens";
 import { PROFILE_AVATAR_EMOJIS, isProfileAvatarEmoji } from "@hanbang/shared/profile-avatar";
 import { Text } from "@/components/ui/AppText";
 import ProfileAvatar from "@/components/ui/ProfileAvatar";
-import { apiFetchForExpectedUser } from "@/lib/api";
+import { apiFetchForExpectedUser, apiFetchForExpectedUserQuiet } from "@/lib/api";
 import { supabase } from "@/lib/supabase";
 import {
   buildProfileAvatarJsonBody,
-  isSavedProfileAvatarSelection,
   parseProfileAvatarResponse,
   profileAvatarKind,
   profileAvatarSaveErrorMessage,
+  readProfileAvatarForDisplay,
   readProfileAvatarPhotoAsset,
+  saveProfileAvatarSelection,
   type ProfileAvatarKind,
   type ProfileAvatarPhotoUpload,
 } from "@/lib/profileAvatarPresentation.mjs";
@@ -22,6 +23,8 @@ import {
 // 웹 settings/ProfileAvatarEditor.tsx 와 같은 선택지·같은 서버 경로(PUT /api/profile/avatar)다.
 // 서버는 Bearer 요청을 신뢰 출처로 받고, 저장 직전에 expected_user_id 로 계정 전환을 한 번 더 막는다.
 const REQUEST_TIMEOUT_MS = 30_000;
+// 사진은 올리고 서버가 다시 인코딩·보관까지 한다. 느린 망에서 30초는 끊기기 쉽다(서버 maxDuration 60초).
+const PHOTO_SAVE_TIMEOUT_MS = 60_000;
 const KIND_OPTIONS: ReadonlyArray<{ kind: ProfileAvatarKind; label: string }> = [
   { kind: "initial", label: "기본 글자" },
   { kind: "emoji", label: "이모지" },
@@ -33,6 +36,8 @@ type ProfileAvatarEditorSheetProps = {
   ownerId: string;
   name: string | null;
   onClose: (saved: { avatarUrl: string | null } | null) => void;
+  /** 저장 결과를 다시 읽었더니 서버 값이 이미 바뀌어 있을 때. 시트는 열어 둔 채 화면만 맞춘다. */
+  onAvatarChanged: (avatarUrl: string | null) => void;
 };
 
 async function isStillOwner(ownerId: string) {
@@ -40,13 +45,13 @@ async function isStillOwner(ownerId: string) {
   return data.session?.user.id === ownerId;
 }
 
-function withTimeout(): { signal: AbortSignal; clear: () => void } {
+function withTimeout(timeoutMs = REQUEST_TIMEOUT_MS): { signal: AbortSignal; clear: () => void } {
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
   return { signal: controller.signal, clear: () => clearTimeout(timer) };
 }
 
-export default function ProfileAvatarEditorSheet({ visible, ownerId, name, onClose }: ProfileAvatarEditorSheetProps) {
+export default function ProfileAvatarEditorSheet({ visible, ownerId, name, onClose, onAvatarChanged }: ProfileAvatarEditorSheetProps) {
   const [baseline, setBaseline] = useState<string | null>(null);
   const [expectedRevision, setExpectedRevision] = useState<string | null>(null);
   const [kind, setKind] = useState<ProfileAvatarKind>("initial");
@@ -123,7 +128,7 @@ export default function ProfileAvatarEditorSheet({ visible, ownerId, name, onClo
     inFlight.current = true;
     setSaving(true);
     setError("");
-    const request = withTimeout();
+    const request = withTimeout(kind === "photo" ? PHOTO_SAVE_TIMEOUT_MS : REQUEST_TIMEOUT_MS);
     try {
       let body: FormData | string;
       let headers: Record<string, string> | undefined;
@@ -144,32 +149,41 @@ export default function ProfileAvatarEditorSheet({ visible, ownerId, name, onClo
           ownerId,
         }));
       }
-      const response = await apiFetchForExpectedUser(ownerId, "/api/profile/avatar", {
-        method: "PUT",
-        body,
-        headers,
-        signal: request.signal,
+      // 끊김·네트워크 오류·5xx·저장 충돌처럼 결과를 모르는 실패는 서버 값을 다시 읽어 판단한다.
+      // 타임아웃 뒤 서버가 늦게 저장했으면 다시 누른 저장이 409 가 되는데, 그걸 「누가 바꿨다」로
+      // 안내하지 않는다.
+      const outcome = await saveProfileAvatarSelection({
+        selection: { kind, emoji },
+        expectedRevision,
+        ownerId,
+        send: () => apiFetchForExpectedUser(ownerId, "/api/profile/avatar", {
+          method: "PUT",
+          body,
+          headers,
+          signal: request.signal,
+        }),
+        reread: () => readProfileAvatarForDisplay(ownerId, (signal) => apiFetchForExpectedUserQuiet(ownerId, "/api/profile/avatar", { method: "GET", signal })),
       });
-      const payload: unknown = await response.json().catch(() => null);
-      if (!response.ok) {
-        const code = response.status === 429
-          ? "RATE_LIMITED"
-          : payload && typeof payload === "object" ? (payload as Record<string, unknown>).code : null;
-        throw new Error(profileAvatarSaveErrorMessage(code));
-      }
-      const saved = parseProfileAvatarResponse(payload, ownerId, true);
-      if (!isSavedProfileAvatarSelection({ kind, emoji }, saved) || !saved) {
-        throw new Error(profileAvatarSaveErrorMessage(null));
-      }
-      if (!openRef.current || !(await isStillOwner(ownerId))) return;
-      onClose({ avatarUrl: saved.avatar_url });
-    } catch (failure) {
       if (!openRef.current) return;
-      if (failure instanceof Error && failure.message === "API_SESSION_OWNER_MISMATCH") {
-        setError(profileAvatarSaveErrorMessage("AVATAR_OWNER_CHANGED"));
-      } else {
-        setError(failure instanceof Error && failure.message.endsWith("주세요.") ? failure.message : profileAvatarSaveErrorMessage(null));
+      if (outcome.type === "saved") {
+        if (!(await isStillOwner(ownerId))) return;
+        onClose({ avatarUrl: outcome.avatarUrl });
+        return;
       }
+      if (outcome.type === "refreshed") {
+        if (!(await isStillOwner(ownerId)) || !openRef.current) return;
+        // 시트를 서버에 저장된 값으로 맞춘다. 고른 사진은 내려놓아 미리보기가 저장된 모습을 보여 준다.
+        setBaseline(outcome.avatarUrl);
+        setExpectedRevision(outcome.revision);
+        setKind(profileAvatarKind(outcome.avatarUrl));
+        if (isProfileAvatarEmoji(outcome.avatarUrl)) setEmoji(outcome.avatarUrl as string);
+        setPhoto(null);
+        onAvatarChanged(outcome.avatarUrl);
+      }
+      setError(outcome.message);
+    } catch {
+      // 요청을 만들기 전 오류(본문 구성 등)나 세션 확인 실패. 저장됐다고 말하지 않는다.
+      if (openRef.current) setError(profileAvatarSaveErrorMessage(null));
     } finally {
       request.clear();
       inFlight.current = false;

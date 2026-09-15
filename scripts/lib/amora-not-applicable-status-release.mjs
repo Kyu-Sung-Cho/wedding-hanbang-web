@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
 import { closeSync, fsyncSync, lstatSync, openSync, realpathSync, writeSync } from 'node:fs';
 import { dirname, isAbsolute, join, parse, resolve } from 'node:path';
-import { CurrentBaselineBlocked, digest, pinnedArtifact, same } from './current-baseline-release-contract.mjs';
+import { canonical, CurrentBaselineBlocked, digest, pinnedArtifact, same } from './current-baseline-release-contract.mjs';
 import { loadNotApplicableStatusReleasePlan } from './amora-not-applicable-status-release-contract.mjs';
 
 const MODE = '--amora-not-applicable-status';
@@ -24,8 +24,35 @@ const MAX_AGE_MS = 120_000;
 const MD5 = /^[a-f0-9]{32}$/;
 const md5 = value => createHash('md5').update(value).digest('hex');
 const literal = value => `'${String(value).replaceAll("'", "''")}'`;
-const fail = code => { throw new CurrentBaselineBlocked(code); };
+// operatorAction은 이 모듈이 정한 안내 문구만 담는다. 원격 응답·예외 원문은 message에 싣지 않는다.
+const fail = (code, operatorAction) => {
+  const error = new CurrentBaselineBlocked(code);
+  if (typeof operatorAction === 'string') Object.assign(error, { message: operatorAction, operatorAction });
+  throw error;
+};
 const requireValue = (condition, code) => { if (!condition) fail(code); };
+// 선행 232 릴리스(계정 삭제 고객 데이터 경계)는 migration SQL이 정확히 232개인 checkout에서만 실행된다.
+// 이 커밋은 origin/main에 병합된 232개 기준이며, 그 뒤 계정 삭제 런타임·카탈로그·계약은 바뀌지 않았다.
+const PREDECESSOR_RELEASE = Object.freeze({ mode: '--account-deletion-customer-data', release: 'account-deletion-customer-data-20260913',
+  commit: '0c747b1dba8d20e15b902f9ba2d1154888127776' });
+const predecessorMissingAction = () => [
+  `운영 schema_migrations에 선행 migration ${PREDECESSOR.version}(${PREDECESSOR.name})이 없어서 원격에 쓰지 않고 멈췄어요.`,
+  '계정 삭제 릴리스를 먼저 적용해야 해요. 이 checkout은 migration SQL이 233개라서 그 릴리스를 실행할 수 없어요.',
+  `1) migration SQL이 232개인 커밋 ${PREDECESSOR_RELEASE.commit}의 깨끗한 checkout에서 `
+    + `node scripts/supabase-production-release.mjs ${PREDECESSOR_RELEASE.mode} --inspect, --rehearse, --apply 순서로 실행하세요.`
+    + ` 각 단계 인자: --expected-commit=${PREDECESSOR_RELEASE.commit} --project-ref=${PROJECT} --receipt-out=<새 절대 경로>`
+    + ` --confirm-production=${PREDECESSOR_RELEASE.release}:${PROJECT}:<mode>:${PREDECESSOR_RELEASE.commit}`,
+  '2) apply 영수증의 마지막 status가 applied-and-postverified인지 확인하세요.',
+  `3) 그다음 이 커밋의 깨끗한 checkout에서 ${MODE} --inspect부터 다시 실행하세요.`,
+  'schema_migrations에 행을 손으로 넣지 마세요.',
+].join('\n');
+const predecessorMismatchAction = (observed, expected) => [
+  `운영 schema_migrations의 ${PREDECESSOR.version} 행이 검토한 원문과 달라서 원격에 쓰지 않고 멈췄어요.`,
+  `기대값 ${JSON.stringify(expected)}`,
+  `관측값 ${JSON.stringify(observed ?? null).slice(0, 400)}`,
+  '선행 migration을 다시 적용하거나 이 행을 고치지 마세요. 이 행을 누가 어떤 경로로 기록했는지 먼저 확인하세요.',
+  '이 릴리스를 계속하려면 실제 운영 행에 맞춘 별도 검토 계약이 필요해요.',
+].join('\n');
 
 export function parseNotApplicableReleaseArgs(argv) {
   const result = {};
@@ -97,7 +124,10 @@ export function validateNotApplicableObservation(observed, { sql, previousSql, p
     && Number.isSafeInteger(observed.ledgerCount) && observed.ledgerCount > 0, 'NOT_APPLICABLE_OBSERVATION_INVALID');
   const at = Date.parse(observed.observedAt);
   requireValue(Number.isFinite(at) && at <= now.getTime() + 10_000 && at > now.getTime() - MAX_AGE_MS, 'NOT_APPLICABLE_OBSERVATION_EXPIRED');
-  same(observed.predecessor, { ...PREDECESSOR, statementCount: 1, sqlMd5: md5(predecessorSql) }, 'NOT_APPLICABLE_PREDECESSOR_NOT_APPLIED');
+  const expectedPredecessor = { ...PREDECESSOR, statementCount: 1, sqlMd5: md5(predecessorSql) };
+  if (observed.predecessor === null) fail('NOT_APPLICABLE_PREDECESSOR_NOT_APPLIED', predecessorMissingAction());
+  if (canonical(observed.predecessor) !== canonical(expectedPredecessor))
+    fail('NOT_APPLICABLE_PREDECESSOR_LEDGER_MISMATCH', predecessorMismatchAction(observed.predecessor, expectedPredecessor));
   requireValue(Array.isArray(observed.function) && observed.function.length === 1, 'NOT_APPLICABLE_FUNCTION_DRIFT');
   const [fn] = observed.function;
   const { bodyMd5, acl, ...shape } = fn ?? {};
@@ -261,6 +291,8 @@ export async function runNotApplicableStatusRelease({ repoRoot, argv, now = () =
   } catch (error) {
     const code = /^[A-Z_]+$/.test(error?.code ?? '') ? error.code : 'NOT_APPLICABLE_UNEXPECTED';
     try { record(mutationStarted ? 'outcome-requires-readonly-inspection' : 'blocked-before-mutation', { code, retryProhibited: mutationStarted }); } catch { /* 앞서 fsync한 결과 미확정 기록을 유지한다. */ }
-    fail(mutationStarted ? 'NOT_APPLICABLE_OUTCOME_REQUIRES_INSPECTION' : code);
+    // 변경 전 차단일 때만 이 모듈의 안내 문구를 넘긴다. 변경을 시작했으면 결과 미확정이므로 안내를 붙이지 않는다.
+    const operatorAction = !mutationStarted && error instanceof CurrentBaselineBlocked ? error.operatorAction : undefined;
+    fail(mutationStarted ? 'NOT_APPLICABLE_OUTCOME_REQUIRES_INSPECTION' : code, operatorAction);
   } finally { receipt.close(); }
 }

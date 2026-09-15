@@ -141,7 +141,7 @@ test("mobile chat wires the tone resolver and the profile avatar, not the old no
   const chat = readFileSync(new URL("../../app/(tabs)/chat.tsx", import.meta.url), "utf8");
   assert.match(chat, /resolveChatSenderPresentation\(\{\s*isAi,\s*senderId: item\.sender_id,\s*presentation: participantPresentation,?\s*\}\)/u);
   assert.match(chat, /const bubbleTone = chatPalette\[senderPresentation\.tone\];/u);
-  assert.match(chat, /apiFetchForExpectedUser\(userId, "\/api\/auth\/me"\)/u);
+  assert.match(chat, /apiFetchForExpectedUserQuiet\(userId, "\/api\/auth\/me"\)/u);
   assert.match(chat, /<ProfileAvatar[\s\S]{0,400}avatarUrl=\{senderPresentation\.avatarUrl\}/u);
   assert.doesNotMatch(chat, /isMe \? colors\.noir\[800\]/u);
   assert.doesNotMatch(chat, /isMe \? "#FFF"/u);

@@ -36,12 +36,13 @@
 const MAX_ACCEPTANCE_CHARS = 32;
 
 // NFKC 는 호환 자모(ㅇ·ㅋ·ㅎ)를 조합형(ᄋ·ᄏ·ᄒ)으로 바꾼다. 둘 다 받는다.
-const HEAD = "(?:응+|웅|네+|넹|넵|예|그래(?:요)?|그럼(?:요)?|좋아(?:요)?|좋습니다|오케이|ok(?:ay)?|[ㅇᄋ]{2}|[ㅇᄋ][ㅋᄏ]|알겠어(?:요)?|알겠습니다)";
+// "ㅇㅋㅋ" 처럼 웃음 자모가 이어진 승낙도 한 단어로 본다(아래 꼬리 제거보다 먼저 대조한다).
+const HEAD = "(?:응+|웅|네+|넹|넵|예|그래(?:요)?|그럼(?:요)?|좋아(?:요)?|좋습니다|오케이|ok(?:ay)?|[ㅇᄋ]{2}|[ㅇᄋ][ㅋᄏ]+|알겠어(?:요)?|알겠습니다)";
 const TARGET = "(?:이대로|그대로|그렇게|그걸로|그거로|그것으로|제안대로|카드대로|(?:방금|기존|위|아까)\\s*(?:제안|내용)\\s*대로)";
-const ACTION = "(?:(?:적용|반영|진행|저장)\\s*)?(?:해\\s*(?:줘요?|주세요|주라|요)?|하자|할게요?|합시다)|부탁(?:해요?|드려요|드립니다)?";
+const ACTION = "(?:(?<verb>적용|반영|진행|저장)\\s*)?(?:해\\s*(?:줘요?|주세요|주라|요)?|하자|할게요?|합시다)|부탁(?:해요?|드려요|드립니다)?";
 
 const ACCEPTANCE_RE = new RegExp(
-  `^(?<head>(?:${HEAD}[\\s,]*){1,2})?(?:${TARGET}\\s*)?(?<action>${ACTION})?$`,
+  `^(?<head>(?:${HEAD}[\\s,]*){1,2})?(?<target>${TARGET}\\s*)?(?<action>${ACTION})?$`,
   "iu",
 );
 
@@ -51,18 +52,48 @@ const ACCEPTANCE_RE = new RegExp(
  */
 const NEGATION_OR_EDIT_RE = /\d|아니|아뇨|잠깐|잠시|말고|취소|대신|빼고|근데|그런데|하지만|다만|안\s*해|하지\s*마|보류|나중|다시|수정|바꿔|고쳐/u;
 
-/** 끝의 문장부호·웃음 표기만 걷어낸다. 물음표는 걷지 않는다 — "응?" 은 승낙이 아니다. */
-const TRAILING_NOISE_RE = /[\s.!~。…ㅋㅎᄏᄒ^]+$/u;
+/**
+ * 끝의 꼬리는 두 단계로 걷는다. 물음표는 어느 단계에서도 걷지 않는다 — "응?" 은 승낙이 아니다.
+ *
+ * 한 번에 문장부호와 웃음 자모를 함께 걷으면 "ㅇㅋ"(NFKC 로 "ᄋᄏ")의 ᄏ 까지 지워져 "ᄋ" 만
+ * 남고 승낙이 아니게 된다(리뷰 [5]). 그래서 문장부호만 걷은 원문을 먼저 대조하고, 맞지 않을
+ * 때만 웃음 자모("좋아ㅋㅋ")를 더 걷어 다시 대조한다.
+ */
+const PUNCTUATION_TAIL_RE = /[\s.!~。…^]+$/u;
+const LAUGHTER_TAIL_RE = /[\s.!~。…ㅋㅎᄏᄒ^]+$/u;
+
+/**
+ * 승낙이 무엇으로 성립했는가.
+ *
+ * - `explicit`: 카드를 가리키는 지시어("이대로"·"그렇게"·"제안대로")나 적용 동사("적용·반영·
+ *   진행·저장해줘")가 있다. 어떤 답변 아래에서든 그 카드에 대한 답이다.
+ * - `bare`: 승낙어만 있다("응"·"네"·"좋아"·"응 해줘"). 직전 아모라 답변이 새로 던진 질문
+ *   ("일정도 같이 잡아 드릴까요?")에 대한 답일 수도 있어, 라우트는 직전 행이 카드 자체를
+ *   말하는 행일 때만 카드 승낙으로 본다(리뷰 [3]).
+ */
+export type AmoraTypedCardAcceptanceStrength = "explicit" | "bare";
+
+function classifyCandidate(candidate: string): AmoraTypedCardAcceptanceStrength | null {
+  if (candidate.length === 0 || Array.from(candidate).length > MAX_ACCEPTANCE_CHARS) return null;
+  if (NEGATION_OR_EDIT_RE.test(candidate)) return null;
+  const match = ACCEPTANCE_RE.exec(candidate);
+  // 지시어만 있는 문장("그대로")은 승낙인지 되짚기인지 알 수 없다. 승낙어나 실행 동사가 있어야 한다.
+  if (match === null || !(match.groups?.head || match.groups?.action)) return null;
+  return match.groups?.target || match.groups?.verb ? "explicit" : "bare";
+}
+
+export function classifyAmoraTypedCardAcceptance(text: unknown): AmoraTypedCardAcceptanceStrength | null {
+  if (typeof text !== "string") return null;
+  const punctuationStripped = text.normalize("NFKC").replace(/\s+/gu, " ").trim()
+    .replace(PUNCTUATION_TAIL_RE, "");
+  const direct = classifyCandidate(punctuationStripped);
+  if (direct !== null) return direct;
+  const laughterStripped = punctuationStripped.replace(LAUGHTER_TAIL_RE, "");
+  return laughterStripped === punctuationStripped ? null : classifyCandidate(laughterStripped);
+}
 
 export function isAmoraTypedCardAcceptance(text: unknown): boolean {
-  if (typeof text !== "string") return false;
-  const normalized = text.normalize("NFKC").replace(/\s+/gu, " ").trim()
-    .replace(TRAILING_NOISE_RE, "");
-  if (normalized.length === 0 || Array.from(normalized).length > MAX_ACCEPTANCE_CHARS) return false;
-  if (NEGATION_OR_EDIT_RE.test(normalized)) return false;
-  const match = ACCEPTANCE_RE.exec(normalized);
-  // 지시어만 있는 문장("그대로")은 승낙인지 되짚기인지 알 수 없다. 승낙어나 실행 동사가 있어야 한다.
-  return match !== null && Boolean(match.groups?.head || match.groups?.action);
+  return classifyAmoraTypedCardAcceptance(text) !== null;
 }
 
 /**

@@ -99,8 +99,9 @@ test("the server routes accept the mobile Bearer credential this editor relies o
 
 test("profile tab shows the chosen avatar and opens the editor", () => {
   const profile = readSource("../../app/(tabs)/profile.tsx");
-  assert.match(profile, /apiFetchForExpectedUser\(user\.id, "\/api\/profile\/avatar", \{ method: "GET" \}\)/u);
-  assert.match(profile, /<ProfileAvatar\s+name=\{profile\?\.name\}\s+avatarUrl=\{profile\?\.avatarUrl\}\s+ownerId=\{profile\?\.userId\}/u);
+  // 표시용 조회는 조용한 헬퍼와 타임아웃으로 읽는다(profileTabAvatarLoad.test.mjs 가 동작을 확인한다).
+  assert.match(profile, /apiFetchForExpectedUserQuiet\(user\.id, "\/api\/profile\/avatar", \{ method: "GET", signal \}\)/u);
+  assert.match(profile, /<ProfileAvatar\s+name=\{profile\?\.name\}\s+avatarUrl=\{profile && avatar\?\.userId === profile\.userId \? avatar\.avatarUrl : null\}\s+ownerId=\{profile\?\.userId\}/u);
   assert.match(profile, /<ProfileAvatarEditorSheet/u);
   assert.match(profile, /프로필 꾸미기/u);
 

@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
+import { createRequire } from "node:module";
 import test from "node:test";
-import { fileURLToPath, URL } from "node:url";
+import { fileURLToPath, pathToFileURL, URL } from "node:url";
 import ts from "typescript";
 
 /**
@@ -135,6 +136,27 @@ test("시트에 분야 질문과 정본 항목 질문 버튼이 있고, 누르�
   assert.ok(!texts.some((text) => /질문 초안|체크 상태/.test(text)), texts.join(" / "));
 });
 
+test("아모라 버튼 힌트는 질문을 보낸 뒤에도 사실인 문장이다", () => {
+  // 2026-09-15 리뷰: 「직접 보내기 전에는 체크 상태가 바뀌지 않아요」는 보내면 바뀔 수 있다고 읽힌다.
+  // 아모라는 질문을 받아도 체크를 바꾸지 않는다 — 사용자가 카드를 직접 확인해야만 바뀐다.
+  const template = CHECKLIST_MAP.dress;
+  const items = template.items.slice(0, 1).map((item) => ({ ...item, done: false }));
+  const { pressables } = renderSheet({ categoryKey: "dress", items });
+  const amora = pressables.filter(({ node }) => /아모라에 질문하기$/.test(node.props.accessibilityLabel ?? ""));
+  assert.equal(amora.length, 2, "항목 하나와 분야 하나");
+  const webModal = readFileSync(new URL("../../../web/src/components/app/schedule/CategoryChecklistModal.tsx", import.meta.url), "utf8");
+  const webPromise = /질문 초안을 확인한 뒤 직접 보내요\. (체크 상태는 바뀌지 않아요\.)/u.exec(webModal)?.[1];
+  assert.ok(webPromise, "웹 체크리스트 모달의 안내 문장이 있어야 앱 문구와 맞춰 볼 수 있다");
+  for (const { node } of amora) {
+    const hint = node.props.accessibilityHint;
+    assert.equal(hint, "아모라 채팅 입력창에 질문만 채워요. 질문을 보내도 체크 상태는 바뀌지 않아요.");
+    assert.doesNotMatch(hint, /보내기 전에는/u, "보내면 바뀐다는 뜻으로 읽히는 조건을 달지 않는다");
+    assert.ok(hint.endsWith(webPromise), "웹과 같은 약속 문장으로 끝난다");
+  }
+  const sheetSource = readFileSync(new URL("../components/checklist/CategoryChecklistSheet.tsx", import.meta.url), "utf8");
+  assert.doesNotMatch(sheetSource, /보내기 전에는/u, "주석도 같은 뜻으로 고친다");
+});
+
 test("체크리스트 화면이 시트를 닫고 같은 경로로 채팅을 연다", () => {
   const screenSource = readFileSync(new URL("../../app/schedule/index.tsx", import.meta.url), "utf8");
   const tree = ts.createSourceFile("schedule.tsx", screenSource, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
@@ -152,16 +174,52 @@ test("체크리스트 화면이 시트를 닫고 같은 경로로 채팅을 연�
     const bindings = {
       checklistPreparationRoute: source.checklistPreparationRoute,
       setExpandedKey: (value) => events.push(["close", value]),
-      router: { push: (route) => events.push(["push", route]) },
+      router: {
+        push: (route) => events.push(["push", route]),
+        navigate: (route) => events.push(["navigate", route]),
+        replace: (route) => events.push(["replace", route]),
+        dismissTo: (route) => events.push(["dismissTo", route]),
+      },
       Alert: { alert: (title) => events.push(["alert", title]) },
     };
     new Function("bindings", `with (bindings) { ${code}; return askAmoraFromChecklist; }`)(bindings)(categoryKey, itemId);
     return events;
   };
 
-  assert.deepEqual(run("dress", "dress_08"), [["close", null], ["push", "/chat?amoraSource=c.dress.dress_08"]]);
-  assert.deepEqual(run("dress"), [["close", null], ["push", "/chat?amoraSource=c.dress"]]);
+  // 체크리스트(/schedule)는 루트 Stack 화면이다. push 는 루트 스택에 (tabs)를 한 벌 더 쌓아
+  // 채팅 화면이 둘 마운트된다. dismissTo 는 아래에 있는 기존 (tabs)로 돌아가 채팅 탭을 연다.
+  assert.deepEqual(run("dress", "dress_08"), [["close", null], ["dismissTo", "/chat?amoraSource=c.dress.dress_08"]]);
+  assert.deepEqual(run("dress"), [["close", null], ["dismissTo", "/chat?amoraSource=c.dress"]]);
   const invalid = run("Dress");
   assert.equal(invalid.length, 1);
   assert.equal(invalid[0][0], "alert", "경로를 못 만들면 조용히 일반 채팅으로 가지 않는다");
+});
+
+test("루트 스택에서 dismissTo 는 (tabs)를 새로 만들지 않고, push 는 한 벌 더 만든다", async () => {
+  // 실제 React Navigation StackRouter 로 확인한다. expo-router 는 `/chat?...` 을 루트 스택 대상
+  // `{ name: "(tabs)", params: { screen: "chat", params } }` 동작으로 바꿔 보낸다(routing.js getNavigateAction).
+  const appRequire = createRequire(new URL("../../package.json", import.meta.url));
+  const expoRequire = createRequire(appRequire.resolve("expo-router/package.json"));
+  const navigationRequire = createRequire(expoRequire.resolve("@react-navigation/native/package.json"));
+  const { StackRouter } = await import(pathToFileURL(navigationRequire.resolve("@react-navigation/routers")).href);
+  const router = StackRouter({});
+  const options = { routeNames: ["index", "(tabs)", "schedule", "webview"], routeParamList: {}, routeGetIdList: {} };
+  let state = router.getInitialState(options);
+  state = router.getStateForAction(state, { type: "PUSH", payload: { name: "(tabs)", params: { screen: "lounge" } } }, options);
+  state = router.getStateForAction(state, { type: "PUSH", payload: { name: "schedule" } }, options);
+  assert.deepEqual(state.routes.map((route) => route.name), ["index", "(tabs)", "schedule"]);
+  const chatPayload = { name: "(tabs)", params: { screen: "chat", params: { amoraSource: "c.dress.dress_08" } } };
+
+  const pushed = router.getStateForAction(state, { type: "PUSH", target: state.key, payload: chatPayload }, options);
+  assert.equal(pushed.routes.filter((route) => route.name === "(tabs)").length, 2, "push 가 중복을 만든다는 전제가 깨졌다");
+
+  const dismissed = router.getStateForAction(state, { type: "POP_TO", target: state.key, payload: chatPayload }, options);
+  assert.deepEqual(dismissed.routes.map((route) => route.name), ["index", "(tabs)"]);
+  const tabs = dismissed.routes[1];
+  assert.equal(tabs.key, state.routes[1].key, "기존 (tabs) route 를 그대로 다시 쓴다 — 채팅 화면이 새로 마운트되지 않는다");
+  assert.deepEqual(tabs.params, chatPayload.params, "채팅 탭과 질문 출처가 그대로 전달된다");
+
+  // (tabs)가 스택에 없을 때(알림으로 체크리스트를 바로 연 경우)는 체크리스트 자리를 (tabs)로 바꿔 한 벌만 둔다.
+  const deepLinked = router.getStateForAction(router.getInitialState({ ...options, routeNames: ["schedule", "index", "(tabs)", "webview"] }), { type: "POP_TO", payload: chatPayload }, { ...options, routeNames: ["schedule", "index", "(tabs)", "webview"] });
+  assert.deepEqual(deepLinked.routes.map((route) => route.name), ["(tabs)"]);
 });

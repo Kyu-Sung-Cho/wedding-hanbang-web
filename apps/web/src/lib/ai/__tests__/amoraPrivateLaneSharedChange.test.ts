@@ -73,10 +73,40 @@ describe("개인 레인의 공유 변경 부탁 판정", () => {
   });
 
   it("말로 한 동의도 연속성으로 붙은 앞 문장이 공유 변경이면 같은 안내를 받는다", () => {
-    expect(assess("응 그렇게 바꿔줘", {}, "총예산 5천만 원으로 바꿔줘\n응 그렇게 바꿔줘")?.kind).toBe("change_only");
-    expect(assess("응 그렇게 해줘", {}, "총예산 5천만 원으로 바꿔줘\n응 그렇게 해줘")?.kind).toBe("change_only");
+    const prior = "총예산 5천만 원으로 바꿔줘";
+    expect(assess("응 그렇게 바꿔줘", { carriedPriorUserText: prior }, `${prior}\n응 그렇게 바꿔줘`)?.kind).toBe("change_only");
+    expect(assess("응 그렇게 해줘", { carriedPriorUserText: prior }, `${prior}\n응 그렇게 해줘`)?.kind).toBe("change_only");
+    expect(assess("응", { carriedPriorUserText: prior }, `${prior}\n응`)?.kind).toBe("change_only");
     // 앞 문장이 없으면 무엇을 바꿀지 모르는 동의다 — 도구 신호가 없어 판정하지 않는다.
     expect(assess("응 그렇게 해줘")).toBeNull();
+  });
+
+  // 리뷰 [0]: 개인 레인에는 카드가 없다. 맨 동의는 앞 문장이 스스로 변경 부탁일 때만 부탁이다.
+  describe("맨 동의·가정 질문은 공유 변경 부탁으로 보지 않는다", () => {
+    const hypothetical = "드레스 예산을 450만 원으로 늘리면 남은 예산이 어떻게 돼?";
+
+    it.each(["응", "그래", "좋아", "응 해줘", "ㅇㅋ"])("가정 질문 뒤의 동의(%s)는 모델 답을 덮지 않는다", (reply) => {
+      expect(assess(reply, { carriedPriorUserText: hypothetical }, `${hypothetical}\n${reply}`)).toBeNull();
+    });
+
+    it("연속성으로 붙은 앞 문장이 없으면 동의만으로는 판정하지 않는다", () => {
+      // 도구 의도 문장에 공유 변경 어휘가 있어도, 라우트가 넘긴 앞 문장이 없으면 부탁의 근거가 없다.
+      expect(assess("응", {}, "총예산 5천만 원으로 바꿔줘\n응")).toBeNull();
+    });
+
+    it("가정·초안·검토를 말하는 부탁은 모델 답을 두는 mixed 로 다룬다", () => {
+      expect(assess("예산 5천만 원이라고 가정하고 총예산 5천만 원으로 바꿔줘")?.kind).toBe("mixed");
+      expect(classifyPrivateLaneChangeTurnShape("초안으로 총예산 5천만 원으로 바꿔줘")).toBe("mixed");
+      expect(classifyPrivateLaneChangeTurnShape("시뮬레이션으로 식대 예산을 줄여줘")).toBe("mixed");
+      expect(classifyPrivateLaneChangeTurnShape("만약에 총예산 5천만 원으로 바꿔줘")).toBe("mixed");
+      // 표지가 없는 부탁은 그대로 change_only 다.
+      expect(classifyPrivateLaneChangeTurnShape("총예산 5천만 원으로 바꿔줘")).toBe("change_only");
+    });
+
+    it("동의 뒤의 앞 문장이 가정·초안이면 mixed 다", () => {
+      const draft = "초안으로 총예산 5천만 원으로 바꿔줘";
+      expect(assess("응", { carriedPriorUserText: draft }, `${draft}\n응`)?.kind).toBe("mixed");
+    });
   });
 
   it("일정·체크리스트 변경 부탁도 같은 판정을 받는다", () => {

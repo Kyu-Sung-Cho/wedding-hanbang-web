@@ -10,6 +10,7 @@ import {
   notApplicableFunctionBody, notApplicableFunctionCatalogSql, notApplicablePreservedCatalogSql, parseNotApplicableReleaseArgs,
   runNotApplicableStatusRelease, validateNotApplicableObservation,
 } from '../lib/amora-not-applicable-status-release.mjs';
+import { CurrentBaselineBlocked } from '../lib/current-baseline-release-contract.mjs';
 
 const root = resolve(import.meta.dirname, '../..');
 const read = file => readFileSync(join(root, file), 'utf8');
@@ -94,6 +95,57 @@ test('wrong target, missing predecessor, function drift, widened grants and ledg
     const f = fixture({ observations: [observed] }); await assert.rejects(f.run());
     assert.equal(f.calls.length, 1); assert.equal(f.events.at(-1).status, 'blocked-before-mutation');
   }
+});
+
+// 232 계정 삭제 릴리스가 운영에 없을 때 운영자가 할 일을 오류 문구로 정확히 안내한다.
+// CLI는 `[code]: message`를 그대로 출력하므로 message에 순서와 명령 인자가 모두 있어야 한다.
+const BASE_232 = '0c747b1dba8d20e15b902f9ba2d1154888127776';
+test('a missing predecessor stops before mutation and tells the operator the exact 232-first order', async () => {
+  const missing = { ...before(), predecessor: null };
+  const expectGuidance = error => {
+    assert.ok(error instanceof CurrentBaselineBlocked); assert.equal(error.code, 'NOT_APPLICABLE_PREDECESSOR_NOT_APPLIED');
+    for (const part of ['20260913103407', 'account_deletion_customer_data_boundary', BASE_232, '--account-deletion-customer-data',
+      '--inspect', '--rehearse', '--apply', `--confirm-production=account-deletion-customer-data-20260913:${project}:<mode>:${BASE_232}`,
+      'applied-and-postverified', '--amora-not-applicable-status --inspect', 'schema_migrations'])
+      assert.ok(error.message.includes(part), part);
+    assert.equal(/[\r]/.test(error.message), false);
+    return true;
+  };
+  assert.throws(() => validateNotApplicableObservation(missing, { ...context, now: instant }), expectGuidance);
+  const f = fixture({ observations: [missing] });
+  await assert.rejects(f.run(), expectGuidance);
+  assert.equal(f.calls.length, 1); assert.equal(f.closed, true);
+  assert.deepEqual([f.events.at(-1).status, f.events.at(-1).code, f.events.at(-1).retryProhibited],
+    ['blocked-before-mutation', 'NOT_APPLICABLE_PREDECESSOR_NOT_APPLIED', false]);
+});
+
+test('a present but different predecessor row is not called missing and never suggests re-applying 232', async () => {
+  const expected = before().predecessor;
+  for (const predecessor of [{ ...expected, statementCount: 40 }, { ...expected, sqlMd5: 'd'.repeat(32) },
+    { ...expected, name: 'account_deletion_customer_data_boundary_manual' }, {}]) {
+    const observed = { ...before(), predecessor };
+    const expectMismatch = error => {
+      assert.ok(error instanceof CurrentBaselineBlocked); assert.equal(error.code, 'NOT_APPLICABLE_PREDECESSOR_LEDGER_MISMATCH');
+      assert.ok(error.message.includes(expected.sqlMd5)); assert.ok(error.message.includes('20260913103407'));
+      for (const forbidden of ['--account-deletion-customer-data', '--apply', BASE_232]) assert.equal(error.message.includes(forbidden), false, forbidden);
+      return true;
+    };
+    assert.throws(() => validateNotApplicableObservation(observed, { ...context, now: instant }), expectMismatch);
+    const f = fixture({ observations: [observed] });
+    await assert.rejects(f.run(), expectMismatch);
+    assert.equal(f.calls.length, 1); assert.equal(f.events.at(-1).status, 'blocked-before-mutation');
+  }
+});
+
+test('predecessor guidance does not leak onto other blocks or onto an outcome that already started a mutation', async () => {
+  // 선행 행이 정확하면 통과한다(과교정 방지).
+  assert.equal(validateNotApplicableObservation(before(), { ...context, now: instant }).predecessor.version, '20260913103407');
+  const other = fixture({ observations: [{ ...before(), systemIdentifier: '1' }] });
+  await assert.rejects(other.run(), error => error.code === 'NOT_APPLICABLE_OBSERVATION_INVALID' && error.message === error.code);
+  // 리허설 뒤 관측에서 선행 행이 사라지면 원격 결과가 미확정이므로 "먼저 232를 적용" 안내를 붙이지 않는다.
+  const late = fixture({ mode: 'rehearse', observations: [before(), { ...before(), predecessor: null }] });
+  await assert.rejects(late.run(), error => error.code === 'NOT_APPLICABLE_OUTCOME_REQUIRES_INSPECTION' && error.message === error.code);
+  assert.equal(late.events.at(-1).retryProhibited, true);
 });
 
 test('rehearsal failure, rollback drift, stale source, deadline or receipt failure cannot reach the commit call', async () => {
