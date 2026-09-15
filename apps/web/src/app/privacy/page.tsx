@@ -8,10 +8,17 @@ import { accountDeletionIntakeSentence } from "@/lib/account/deletionIntake";
 import { CONTACT } from "@/lib/constants/contact";
 
 import { businessInfoRows, readBusinessInfo } from "@/lib/legal/businessInfo";
+import {
+  WEDDING_CODE_RESEARCH_MIN_AGE,
+  WEDDING_CODE_RESEARCH_RETENTION_DAYS,
+} from "@/lib/weddingCode/contribution/contract";
+import { isWeddingCodeResearchContributionOpen } from "@/lib/weddingCode/contribution/server";
 import { ArrowLeft } from "lucide-react";
 
 export default function PrivacyPage() {
   const businessInfo = readBusinessInfo();
+  // 탈퇴 접수 문장과 같은 이유로 서버에서 읽는다. 받지 않는 동안에는 받는다고 쓰지 않는다.
+  const researchContributionOpen = isWeddingCodeResearchContributionOpen();
   const operatorName = businessInfo?.companyName ?? "웨딩한방 운영자";
 
   return (
@@ -112,6 +119,9 @@ export default function PrivacyPage() {
                   <li>견적 점검: 새 입력은 분석 응답 생성 후 별도 DB에 저장하지 않으며 공개 결과 링크도 만들지 않습니다. 과거 저장 기록은 가격 통계와 업체 후보 신호에서 제외하고 공개 링크를 닫았습니다. 과거 기록의 열람·삭제는 고객센터로 요청할 수 있습니다.</li>
                   <li>견적 점검 실행 횟수는 서비스 이용 통계로 기록될 수 있지만, 선택한 분야·항목 상태·견적 금액은 해당 통계 이벤트에 넣지 않습니다.</li>
                   <li>웨딩코드: 답은 기기 안에서 계산하고 서버에 저장하지 않으며 세션 녹화를 하지 않습니다. 2026년 9월 23일부터는 화면 개선을 위해 시작·완료·공유 여부, 몇 번째 장면까지 봤는지, 답한 장면과 건너뛴 장면의 개수를 서비스 이용 통계로 기록합니다. 고른 답·웨딩코드·공유 링크 주소는 이 통계에 넣지 않습니다. 새 공유 링크의 답 코드는 서버 요청에 포함되지 않는 주소의 # 뒤에 넣지만, 링크를 받은 사람은 답을 볼 수 있으므로 함께 비교할 사람에게만 보내야 합니다.</li>
+                  {researchContributionOpen ? (
+                    <li>웨딩코드 답 익명 보태기(선택): 결과 화면에서 만 {WEDDING_CODE_RESEARCH_MIN_AGE}세 이상임을 확인하고 동의한 경우에만 문항 판, 장면마다 고른 답 기호(건너뛴 장면 포함), 동의 문구 판, 보낸 시각, 삭제 코드의 해시를 보관합니다. 이름·연락처·계정·IP 주소·공유 링크·상대의 답은 함께 보관하지 않고, 다른 사업자에게 제공하지 않습니다. 문항과 선택지를 고치는 데만 쓰며, 보낸 날부터 {WEDDING_CODE_RESEARCH_RETENTION_DAYS}일이 지나면 자동으로 삭제합니다. 보낼 때 한 번 보여드리는 삭제 코드로 언제든 지울 수 있으며, 코드를 잃어버리면 누구의 답인지 알 수 없어 찾아 지울 수 없습니다. 지운 뒤에는 백업에서 복원되더라도 다시 지우기 위해 삭제 코드의 해시와 삭제 시각만 30일간 보관합니다.</li>
+                  ) : null}
                 </ul>
               </li>
             </ol>

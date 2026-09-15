@@ -27,8 +27,8 @@
 - **Candidate 6.3 측정 연구의 Production 수집·결과·커플 비교 차단 유지**
 - 위 차단은 Candidate 6.3 측정 연구의 점수·유형·궁합·커플 비교에 적용한다.
   아래 공개 장면·직접 취향의 실제 선택 나란히 보기를 측정 연구 결과로 소개하지 않는다.
-- `/wedding-code` 장면 대화 도구는 공개 가능. 단, 응답 DB 저장·성격 판정·궁합·성공 예측
-  없이 본인이 고른 답의 집계·인용과 다음 대화 절차만 제공한다.
+- `/wedding-code` 장면 대화 도구는 공개 가능. 단, 응답 DB 저장(아래 §3의 본인 동의 익명
+  보태기만 예외)·성격 판정·궁합·성공 예측 없이 본인이 고른 답의 집계·인용과 다음 대화 절차만 제공한다.
 - **네 글자 코드는 제공한다**(2026-07-31 파운더 결정, `CLAUDE.md`·`PRINCIPLES.md` 갱신됨).
   코드는 축마다 어느 쪽 답을 더 많이 골랐는지를 적은 것이지 성격 판정이 아니다.
   - 현재 `v0.8-code`는 **4개 축·축당 5개, 총 20장면**이다. 선택지와 기존 공유 코드 의미는 유지한다.
@@ -178,6 +178,19 @@
   `#`를 잘라 경로만, 속성은 버전·장면 순번·개수·자리 이름만 남긴다. 고른 답·코드·링크는
   싣지 않는다. 처리방침 제10조의 사전 고지 약속에 따라 2026-09-23부터 보낸다
   (`WEDDING_CODE_FUNNEL_ANALYTICS_EFFECTIVE_AT`). 이것은 응답 저장이나 연구 수집 재개가 아니다.
+- **2026-09-16 파운더 결정: 답 익명 보태기(선택)를 연다.** 과거 `wedding_code_responses`
+  (retired, 410)를 되살리지 않고 새 테이블 `wedding_code_research_contributions`와 새 경로
+  `/api/wedding-code/research-contribution`을 쓴다. 명세 `56` §8.1·§9.1의 조건을 코드로 지킨다:
+  기본값이 꺼진 동의·만 19세 확인, 받는 것(문항 판·답 기호·동의 판·시각)과 받지 않는 것(이름·
+  연락처·계정·IP·링크·상대 답) 고지, 60일 TTL(보태기 RPC와 `ai-log-retention` 크론), 원문을
+  저장하지 않는 HMAC 삭제 코드, 존재 여부를 드러내지 않는 삭제 응답, 삭제 tombstone 30일.
+  - 받는 쪽이 닫혀 있으면 UI도 열지 않는다(`AGENTS.md` WeddingCode 프로토콜). 카드·삭제 폼·
+    처리방침 문단·크론 단계가 모두 `isWeddingCodeResearchContributionOpen()` 하나로 켜진다 —
+    `WEDDING_CODE_RESEARCH_CONTRIBUTION_ENABLED=true`와 32자 이상
+    `WEDDING_CODE_RESEARCH_RECEIPT_SECRET`가 둘 다 있어야 한다.
+  - 운영 순서: DB 레인 inspect → rehearse → apply(사람 승인) → 비밀값 → 플래그 → 재배포.
+  - 이것은 문항 타당도 검증이 아니다. 아래 §4 인간 게이트(Candidate 6.3)는 그대로 미통과이며,
+    보탠 답으로 유형·점수·궁합을 만들지 않는다.
 - 과거 `?a=`·`?b=` 링크는 v0.6 호환을 위해 읽은 뒤 fragment 링크로 바꾼다. 최초 요청이
   이미 서버에 도달한 과거 링크의 노출을 되돌릴 수는 없으므로 신규 공유에는 쓰지 않는다.
 - `profile/amoraHandoff.ts`와 `tasteHandoff.ts`의 임시 저장은 본인이 따로 확인한 도움 설정·취향의

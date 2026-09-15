@@ -1,13 +1,14 @@
 import { randomUUID } from "node:crypto";
 import { log } from "@/utils/log";
 
-export type RetentionRunStep = "client" | "ai_interactions" | "admin_access";
+export type RetentionRunStep = "client" | "ai_interactions" | "admin_access" | "wedding_code_research";
 
 type RetentionRunEvent = {
   status: "started" | "disabled" | "completed" | "failed" | "partial";
   failedStep?: RetentionRunStep;
   redacted?: number;
   purgedAdminAccess?: number;
+  purgedWeddingCodeResearch?: number;
 };
 
 /** 운영 info 로거는 비활성이라, 고객 원문 없는 고정 필드만 별도로 기록한다. */
@@ -34,6 +35,7 @@ export function createRetentionRunLog(enabled: boolean): (event: RetentionRunEve
           failedStep: event.failedStep ?? null,
           redacted: event.redacted ?? null,
           purgedAdminAccess: event.purgedAdminAccess ?? null,
+          purgedWeddingCodeResearch: event.purgedWeddingCodeResearch ?? null,
         }));
       } catch {
         // 관측 실패 때문에 이미 처리한 파기를 재시도하거나 응답을 바꾸지 않는다.

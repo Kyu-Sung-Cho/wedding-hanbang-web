@@ -15,6 +15,10 @@ const runtimeVariables = [
   "ACCOUNT_DELETION_INTAKE_ENABLED",
   "ACCOUNT_DELETION_CRON_ENABLED",
   "PRODUCTION_WRITE_FENCE_ENABLED",
+  // 처리방침 문단과 보태기 카드가 이 둘로 켜진다. 빌드 입력에서 빠지면 캐시된
+  // 옛 판이 「받는다」 또는 「안 받는다」를 틀리게 말한다.
+  "WEDDING_CODE_RESEARCH_CONTRIBUTION_ENABLED",
+  "WEDDING_CODE_RESEARCH_RECEIPT_SECRET",
   "PRICE_CATALOG_EXPECTED_PUBLISHED_VENDOR_COUNT",
   "PRICE_CATALOG_EXPECTED_PUBLISHED_VENDOR_SLUGS_SHA256",
   "AMORA_PROFILE_MEMORY_MODE",
@@ -61,6 +65,7 @@ test("the example environment keeps external Amora side effects fail-closed", as
     "ACCOUNT_DELETION_INTAKE_ENABLED=false",
     "ACCOUNT_DELETION_CRON_ENABLED=false",
     "PRODUCTION_WRITE_FENCE_ENABLED=false",
+    "WEDDING_CODE_RESEARCH_CONTRIBUTION_ENABLED=false",
   ]) {
     assert.match(example, new RegExp(`^${line}$`, "m"));
   }
@@ -70,4 +75,5 @@ test("the example environment keeps external Amora side effects fail-closed", as
   assert.match(example, /^AMORA_GLOBAL_DAILY_COST_CAP_USD=20$/m);
   assert.match(example, /^RATE_LIMIT_KEY_SECRET=$/m);
   assert.match(example, /^SIGNUP_CONSENT_LEGACY_BEFORE=$/m);
+  assert.match(example, /^WEDDING_CODE_RESEARCH_RECEIPT_SECRET=$/m);
 });

@@ -5,6 +5,7 @@ import {
 } from "@/lib/compliance/retentionRunLog";
 
 import { createAdminClient } from "@/lib/supabase/admin";
+import { isWeddingCodeResearchContributionOpen } from "@/lib/weddingCode/contribution/server";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -81,7 +82,31 @@ export async function GET(request: Request) {
       );
     }
 
-    recordRun({ status: "completed", redacted, purgedAdminAccess });
+    // 웨딩코드 답 보태기는 보낸 날부터 60일이 상한이다(처리방침 제3조). 받는 동안에만
+    // 테이블이 있다고 확정할 수 있으므로 같은 스위치로 켠다. 보태기 RPC 도 넣을 때마다
+    // 만료분을 지우지만, 한동안 아무도 안 보내면 그 청소가 멈추므로 여기서 매일 지운다.
+    let purgedWeddingCodeResearch: number | undefined;
+    if (isWeddingCodeResearchContributionOpen()) {
+      step = "wedding_code_research";
+      const { data: purged, error: researchPurgeError } = await admin.rpc(
+        "purge_expired_wedding_code_research_contributions",
+      );
+      if (
+        researchPurgeError
+        || typeof purged !== "number"
+        || !Number.isSafeInteger(purged)
+        || purged < 0
+      ) {
+        recordRun({ status: "partial", failedStep: step, redacted, purgedAdminAccess });
+        return NextResponse.json(
+          { error: "WeddingCode research retention failed", redacted: data, purgedAdminAccess },
+          { status: 500, headers: NO_STORE_HEADERS },
+        );
+      }
+      purgedWeddingCodeResearch = purged;
+    }
+
+    recordRun({ status: "completed", redacted, purgedAdminAccess, purgedWeddingCodeResearch });
     return NextResponse.json(
       {
         ok: true,
@@ -89,6 +114,7 @@ export async function GET(request: Request) {
         status: "completed",
         redacted: data,
         purgedAdminAccess,
+        ...(purgedWeddingCodeResearch === undefined ? {} : { purgedWeddingCodeResearch }),
       },
       { headers: NO_STORE_HEADERS },
     );
@@ -101,7 +127,9 @@ export async function GET(request: Request) {
     return NextResponse.json(
       redacted === null
         ? { error: "AI log retention failed" }
-        : { error: "Admin access log retention failed", redacted },
+        : step === "wedding_code_research"
+          ? { error: "WeddingCode research retention failed", redacted }
+          : { error: "Admin access log retention failed", redacted },
       { status: 500, headers: NO_STORE_HEADERS },
     );
   }

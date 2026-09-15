@@ -109,6 +109,52 @@ describe("GET /api/cron/ai-log-retention", () => {
     });
   });
 
+  // 2026-09-16 — 웨딩코드 답 보태기(보낸 날부터 60일)도 같은 작업에서 지운다.
+  // 보태기를 받지 않는 동안에는 부르지 않는다: 테이블이 운영에 있다고 확정할 수 없다.
+  it("웨딩코드 보태기를 받는 동안에만 세 번째로 만료분을 지운다", async () => {
+    vi.stubEnv("AI_LOG_RETENTION_CRON_ENABLED", "true");
+    vi.stubEnv("WEDDING_CODE_RESEARCH_CONTRIBUTION_ENABLED", "true");
+    vi.stubEnv("WEDDING_CODE_RESEARCH_RECEIPT_SECRET", "test-secret-that-is-at-least-thirty-two-chars");
+    const rpc = vi.fn()
+      .mockResolvedValueOnce({ data: 7, error: null })
+      .mockResolvedValueOnce({ data: 2, error: null })
+      .mockResolvedValueOnce({ data: 4, error: null });
+    mocks.createAdminClient.mockReturnValue({ rpc });
+
+    const response = await GET(request());
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({
+      ok: true,
+      enabled: true,
+      status: "completed",
+      redacted: 7,
+      purgedAdminAccess: 2,
+      purgedWeddingCodeResearch: 4,
+    });
+    expect(rpc).toHaveBeenCalledTimes(3);
+    expect(rpc).toHaveBeenNthCalledWith(3, "purge_expired_wedding_code_research_contributions");
+
+    rpc.mockReset();
+    rpc
+      .mockResolvedValueOnce({ data: 7, error: null })
+      .mockResolvedValueOnce({ data: 2, error: null })
+      .mockResolvedValueOnce({ data: null, error: { message: "research table private detail" } });
+    const failed = await GET(request());
+    const body = await failed.json();
+    expect(failed.status).toBe(500);
+    expect(body).toEqual({ error: "WeddingCode research retention failed", redacted: 7, purgedAdminAccess: 2 });
+
+    vi.stubEnv("WEDDING_CODE_RESEARCH_CONTRIBUTION_ENABLED", "false");
+    rpc.mockReset();
+    rpc
+      .mockResolvedValueOnce({ data: 1, error: null })
+      .mockResolvedValueOnce({ data: 1, error: null });
+    const closed = await GET(request());
+    expect(await closed.json()).not.toHaveProperty("purgedWeddingCodeResearch");
+    expect(rpc).toHaveBeenCalledTimes(2);
+  });
+
   it("관리자 기록 파기가 실패하면 500 이지만 앞선 파기 결과는 잃지 않는다", async () => {
     vi.stubEnv("AI_LOG_RETENTION_CRON_ENABLED", "true");
     const rpc = vi.fn()

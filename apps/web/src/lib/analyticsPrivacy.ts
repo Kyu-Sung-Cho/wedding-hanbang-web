@@ -243,6 +243,8 @@ export const WEDDING_CODE_FUNNEL_EVENTS = [
   "wedding_code_share_copied",
   "wedding_code_taste_clicked",
   "wedding_code_restarted",
+  // 보태기에 동의해 보냈다는 사실만. 삭제 코드·답은 싣지 않는다.
+  "wedding_code_research_contributed",
 ] as const;
 export type WeddingCodeFunnelEvent = (typeof WEDDING_CODE_FUNNEL_EVENTS)[number];
 
