@@ -224,10 +224,10 @@ export function stripAnalyticsUrlFragments<
  * 흐름 이벤트를 실제로 보내기 시작하는 시각.
  *
  * 처리방침 제10조는 변경의 적용일과 이유를 **미리** 알린다고 약속한다. 「웨딩코드 화면에서는
- * 이용 통계를 실행하지 않는다」를 바꾸는 개정이라 2026-09-15 고지 후 7일 뒤부터 보낸다.
+ * 이용 통계를 실행하지 않는다」를 바꾸는 개정이라 2026-09-16 고지(배포) 후 7일 뒤부터 보낸다.
  * **처리방침 부칙·제3조·제8조와 웨딩코드 화면 안내에 적힌 날짜와 같아야 한다.**
  */
-export const WEDDING_CODE_FUNNEL_ANALYTICS_EFFECTIVE_AT = "2026-09-22T00:00:00+09:00";
+export const WEDDING_CODE_FUNNEL_ANALYTICS_EFFECTIVE_AT = "2026-09-23T00:00:00+09:00";
 const WEDDING_CODE_FUNNEL_ANALYTICS_EFFECTIVE_MS = Date.parse(WEDDING_CODE_FUNNEL_ANALYTICS_EFFECTIVE_AT);
 
 export function isWeddingCodeFunnelAnalyticsEffective(now: number = Date.now()): boolean {
