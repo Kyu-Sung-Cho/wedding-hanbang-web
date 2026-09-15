@@ -207,6 +207,109 @@ export function stripAnalyticsUrlFragments<
 }
 
 /**
+ * 웨딩코드 화면에서 내보내도 되는 흐름 이벤트.
+ *
+ * ## 왜 억제 경로에서 이것만 여나
+ *
+ * `/wedding-code`는 답이 주소(`#`, 과거 링크는 `?a=`)에 실려서 페이지뷰를 통째로 끈다.
+ * 그 결과 랜딩 CTA 클릭 뒤로는 몇 명이 시작했고 몇 번째 장면에서 멈췄는지 아무도 모른다.
+ * 흐름을 재려고 억제 목록에서 경로를 빼면 페이지뷰·pageleave가 답 달린 주소를 싣고 나간다.
+ *
+ * 그래서 경로는 그대로 막아 두고, **이름을 박아 둔 이벤트만** 아래 규칙으로 통과시킨다.
+ * - 주소처럼 생긴 값은 쿼리와 `#`를 통째로 잘라 경로만 남긴다(답이 실리는 두 자리).
+ * - `$`로 시작하지 않는 속성은 허용한 키의 숫자·불리언·짧은 값만 남긴다.
+ *   답 글자·코드·공유 링크를 실수로 넘겨도 보내기 전에 버려진다.
+ */
+/**
+ * 흐름 이벤트를 실제로 보내기 시작하는 시각.
+ *
+ * 처리방침 제10조는 변경의 적용일과 이유를 **미리** 알린다고 약속한다. 「웨딩코드 화면에서는
+ * 이용 통계를 실행하지 않는다」를 바꾸는 개정이라 2026-09-16 고지(배포) 후 7일 뒤부터 보낸다.
+ * **처리방침 부칙·제3조·제8조와 웨딩코드 화면 안내에 적힌 날짜와 같아야 한다.**
+ */
+export const WEDDING_CODE_FUNNEL_ANALYTICS_EFFECTIVE_AT = "2026-09-23T00:00:00+09:00";
+const WEDDING_CODE_FUNNEL_ANALYTICS_EFFECTIVE_MS = Date.parse(WEDDING_CODE_FUNNEL_ANALYTICS_EFFECTIVE_AT);
+
+export function isWeddingCodeFunnelAnalyticsEffective(now: number = Date.now()): boolean {
+  return now >= WEDDING_CODE_FUNNEL_ANALYTICS_EFFECTIVE_MS;
+}
+
+export const WEDDING_CODE_FUNNEL_EVENTS = [
+  "wedding_code_intro_viewed",
+  "wedding_code_started",
+  "wedding_code_scene_reached",
+  "wedding_code_completed",
+  "wedding_code_comparison_viewed",
+  "wedding_code_share_copied",
+  "wedding_code_taste_clicked",
+  "wedding_code_restarted",
+] as const;
+export type WeddingCodeFunnelEvent = (typeof WEDDING_CODE_FUNNEL_EVENTS)[number];
+
+const WEDDING_CODE_FUNNEL_EVENT_SET = new Set<string>(WEDDING_CODE_FUNNEL_EVENTS);
+const WEDDING_CODE_FUNNEL_PROPERTY_KEYS = new Set([
+  "version",
+  "scene_index",
+  "scene_total",
+  "answered_count",
+  "skipped_count",
+  "has_partner_link",
+  "result_kind",
+  "placement",
+]);
+/** 버전(`v0.8-code`)·자리 이름(`intro`) 같은 짧은 식별자만. 20글자 답 코드는 여기를 못 지난다. */
+const WEDDING_CODE_FUNNEL_SHORT_VALUE = /^[a-z0-9][a-z0-9._-]{0,15}$/;
+
+export function isWeddingCodeFunnelEvent(event: unknown): event is WeddingCodeFunnelEvent {
+  return typeof event === "string" && WEDDING_CODE_FUNNEL_EVENT_SET.has(event);
+}
+
+function stripLocationToPath(value: string): string {
+  const cut = value.search(/[?#]/);
+  return cut < 0 ? value : value.slice(0, cut);
+}
+
+function stripAllLocationQueries(value: unknown): unknown {
+  if (looksLikeLocationValue(value)) return stripLocationToPath(value);
+  if (Array.isArray(value)) return value.map(stripAllLocationQueries);
+  if (isPlainObject(value)) {
+    return Object.fromEntries(
+      Object.entries(value).map(([key, item]) => [key, stripAllLocationQueries(item)]),
+    );
+  }
+  return value;
+}
+
+function isSafeFunnelValue(value: unknown): boolean {
+  if (typeof value === "boolean") return true;
+  if (typeof value === "number") return Number.isSafeInteger(value) && value >= 0 && value <= 1000;
+  return typeof value === "string" && WEDDING_CODE_FUNNEL_SHORT_VALUE.test(value);
+}
+
+/**
+ * 허용한 웨딩코드 흐름 이벤트를 보낼 수 있는 모양으로 바꾼다. 흐름 이벤트가 아니면 null.
+ *
+ * PostHog가 스스로 넣는 `$` 속성(token·distinct_id·브라우저 정보)은 전송에 필요해서
+ * 남기되, 그 안의 주소는 경로만 남긴다. 첫 방문 주소가 한 겹 안쪽 `$set_once`에 실리므로
+ * 중첩까지 훑는다.
+ */
+export function sanitizeWeddingCodeFunnelCapture<
+  T extends { event?: string; properties?: Record<string, unknown> } | null,
+>(capture: T, now: number = Date.now()): T | null {
+  if (!capture || !isWeddingCodeFunnelEvent(capture.event)) return null;
+  if (!isWeddingCodeFunnelAnalyticsEffective(now)) return null;
+  const properties: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(capture.properties ?? {})) {
+    if (key.startsWith("$") || key === "token" || key === "distinct_id") {
+      properties[key] = stripAllLocationQueries(value);
+    } else if (WEDDING_CODE_FUNNEL_PROPERTY_KEYS.has(key) && isSafeFunnelValue(value)) {
+      properties[key] = value;
+    }
+  }
+  return { ...capture, properties } as T;
+}
+
+/**
  * PostHog may already be initialized before a client-side navigation reaches a suppressed route.
  * This final send boundary drops both events created on that route and delayed events whose URL
  * properties still point at it.

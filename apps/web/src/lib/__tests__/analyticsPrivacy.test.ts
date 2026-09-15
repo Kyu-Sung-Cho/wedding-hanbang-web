@@ -3,10 +3,13 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import {
+  WEDDING_CODE_FUNNEL_ANALYTICS_EFFECTIVE_AT,
   analyticsCaptureTouchesSuppressedPath,
   analyticsSafeSearchParams,
   isAnalyticsSuppressedLocation,
   isAnalyticsSuppressedPath,
+  isWeddingCodeFunnelAnalyticsEffective,
+  sanitizeWeddingCodeFunnelCapture,
   stripAnalyticsUrlFragments,
 } from "../analyticsPrivacy";
 
@@ -104,6 +107,106 @@ describe("zero-I/O research analytics boundary", () => {
     expect(chatStore).toContain('if (process.env.NODE_ENV === "production") return;');
     expect(chatStore).not.toMatch(/console\.error/);
     expect(chatStore).not.toContain("res.status, errText");
+  });
+});
+
+describe("웨딩코드 흐름 이벤트는 답과 주소를 싣지 않는다", () => {
+  const AFTER = Date.parse(WEDDING_CODE_FUNNEL_ANALYTICS_EFFECTIVE_AT) + 1;
+  const ANSWER_CODE = "ABCDABCDABCD-BCDABCD";
+
+  it("적용일 전에는 허용 이벤트도 보내지 않는다", () => {
+    const before = Date.parse(WEDDING_CODE_FUNNEL_ANALYTICS_EFFECTIVE_AT) - 1;
+    expect(isWeddingCodeFunnelAnalyticsEffective(before)).toBe(false);
+    expect(isWeddingCodeFunnelAnalyticsEffective(AFTER)).toBe(true);
+    expect(sanitizeWeddingCodeFunnelCapture(
+      { event: "wedding_code_started", properties: { version: "v0.8-code" } },
+      before,
+    )).toBeNull();
+  });
+
+  it("이름을 박아 둔 이벤트가 아니면 통과시키지 않는다", () => {
+    for (const event of ["$pageview", "$pageleave", "wedding_code_answer_picked", undefined]) {
+      expect(sanitizeWeddingCodeFunnelCapture({ event, properties: {} }, AFTER), String(event)).toBeNull();
+    }
+  });
+
+  it("주소 속성은 쿼리와 # 를 통째로 잘라 경로만 남긴다", () => {
+    const answerUrl = `https://hanbang.ai/wedding-code#v=v0.8-code&a=${ANSWER_CODE}`;
+    const legacyUrl = `https://hanbang.ai/wedding-code?a=${ANSWER_CODE}`;
+    const safe = sanitizeWeddingCodeFunnelCapture({
+      event: "wedding_code_completed",
+      properties: {
+        token: "phc_test",
+        distinct_id: "0191e1a2-anon",
+        $current_url: answerUrl,
+        $pathname: "/wedding-code",
+        $referrer: legacyUrl,
+        $set_once: { $initial_current_url: answerUrl, nested: [{ $initial_referrer: legacyUrl }] },
+        $browser: "Chrome",
+        version: "v0.8-code",
+        scene_total: 20,
+        answered_count: 18,
+        skipped_count: 2,
+      },
+    }, AFTER)!;
+
+    expect(JSON.stringify(safe)).not.toContain(ANSWER_CODE);
+    expect(safe.properties!.$current_url).toBe("https://hanbang.ai/wedding-code");
+    expect(safe.properties!.$referrer).toBe("https://hanbang.ai/wedding-code");
+    expect(safe.properties!.$set_once).toEqual({
+      $initial_current_url: "https://hanbang.ai/wedding-code",
+      nested: [{ $initial_referrer: "https://hanbang.ai/wedding-code" }],
+    });
+    // 전송에 필요한 값과 셈은 그대로 둔다.
+    expect(safe.properties).toMatchObject({
+      token: "phc_test",
+      distinct_id: "0191e1a2-anon",
+      $browser: "Chrome",
+      version: "v0.8-code",
+      scene_total: 20,
+      answered_count: 18,
+      skipped_count: 2,
+    });
+  });
+
+  it("실수로 넘긴 답 코드·링크·허용하지 않은 키는 보내기 전에 버린다", () => {
+    const safe = sanitizeWeddingCodeFunnelCapture({
+      event: "wedding_code_share_copied",
+      properties: {
+        result_kind: "solo",
+        version: ANSWER_CODE,
+        placement: "https://hanbang.ai/wedding-code#a=AAAA",
+        code: ANSWER_CODE,
+        share_url: `https://hanbang.ai/wedding-code#a=${ANSWER_CODE}`,
+        letters: "VTUH",
+        scene_index: 1_000_000,
+        answered_count: -1,
+        has_partner_link: true,
+      },
+    }, AFTER)!;
+
+    expect(safe.properties).toEqual({ result_kind: "solo", has_partner_link: true });
+  });
+
+  it("초기화 코드가 억제 판정보다 먼저 이 정리를 거친다", () => {
+    const analyticsClient = readFileSync(path.join(srcRoot, "lib/analytics.ts"), "utf8");
+    const beforeSend = analyticsClient.slice(analyticsClient.indexOf("before_send"));
+    expect(beforeSend.indexOf("sanitizeWeddingCodeFunnelCapture(capture)"))
+      .toBeGreaterThan(-1);
+    expect(beforeSend.indexOf("sanitizeWeddingCodeFunnelCapture(capture)"))
+      .toBeLessThan(beforeSend.indexOf("analyticsCaptureTouchesSuppressedPath(capture"));
+    // 페이지뷰 억제는 그대로다 — 경로를 목록에서 빼는 방식으로 열지 않는다.
+    expect(isAnalyticsSuppressedPath("/wedding-code")).toBe(true);
+  });
+
+  it("고지한 적용일이 처리방침과 화면 안내에 같은 날짜로 적혀 있다", () => {
+    const effective = new Date(WEDDING_CODE_FUNNEL_ANALYTICS_EFFECTIVE_AT);
+    const kst = new Date(effective.getTime() + 9 * 60 * 60 * 1000);
+    const label = `${kst.getUTCFullYear()}년 ${kst.getUTCMonth() + 1}월 ${kst.getUTCDate()}일부터`;
+    const privacy = readFileSync(path.join(srcRoot, "app/privacy/page.tsx"), "utf8");
+    const client = readFileSync(path.join(srcRoot, "app/wedding-code/WeddingCodeV06Client.tsx"), "utf8");
+    expect(privacy.split(label).length - 1).toBeGreaterThanOrEqual(3);
+    expect(client).toContain(label);
   });
 });
 

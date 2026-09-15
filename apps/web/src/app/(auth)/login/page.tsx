@@ -701,9 +701,13 @@ export default function LoginPage() {
         </div>
 
         {/* 하단 링크 */}
-        <div className="flex items-center justify-center gap-4 mt-6">
-          <Link href="/landing" className="text-[13px] text-[var(--hb-text-body)] hover:text-[var(--hb-text-strong)] transition-colors">
+        <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1 mt-6">
+          <Link href="/landing" className="inline-flex min-h-11 items-center text-[13px] text-[var(--hb-text-body)] hover:text-[var(--hb-text-strong)] transition-colors">
             ← 서비스 소개로
+          </Link>
+          {/* 계정을 만들기 전에 해볼 수 있는 것. 데모 체험과 달리 설정 플래그에 묶이지 않는다. */}
+          <Link href="/wedding-code" className="inline-flex min-h-11 items-center text-[13px] font-medium text-[var(--hb-text-strong)] underline underline-offset-4 hover:text-[var(--hb-text-body)] transition-colors">
+            로그인 없이 웨딩코드 먼저 해보기
           </Link>
         </div>
       </motion.div>

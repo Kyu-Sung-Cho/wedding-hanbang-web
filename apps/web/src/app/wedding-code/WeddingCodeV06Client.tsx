@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ArrowLeft, ArrowRight, Check, Copy, RotateCcw } from "lucide-react";
 
+import { captureWeddingCodeEvent } from "@/lib/analytics";
 import { encodeWeddingCodeV06 } from "@/lib/weddingCode/v06/code";
 import {
   answeredCount,
@@ -106,6 +107,46 @@ export default function WeddingCodeV06Client({
   const done = answeredCount(answers, questions);
   const sceneCount = weddingCodeSceneCountLabel(questions.length);
 
+  /**
+   * 흐름 기록. 답 글자·코드·링크는 싣지 않고 몇 번째 장면까지 왔는지와 개수만 보낸다.
+   * 「몇 번째에서 멈췄나」가 목적이라 뒤로 갔다 다시 온 장면은 두 번 세지 않는다.
+   */
+  const furthestSceneRef = useRef(-1);
+  const previousStepRef = useRef<Step | null>(null);
+  const hasPartnerLink = Boolean(theirs);
+  useEffect(() => {
+    const previous = previousStepRef.current;
+    previousStepRef.current = step;
+    if (previous === step) return;
+    const base = { version: activeVersion, has_partner_link: hasPartnerLink };
+    if (step === "intro") {
+      furthestSceneRef.current = -1;
+      captureWeddingCodeEvent("wedding_code_intro_viewed", base);
+    } else if (step === "result") {
+      if (previous === "quiz") {
+        const answered = answeredCount(answers, questions);
+        captureWeddingCodeEvent("wedding_code_completed", {
+          ...base,
+          scene_total: questions.length,
+          answered_count: answered,
+          skipped_count: questions.length - answered,
+        });
+      } else {
+        captureWeddingCodeEvent("wedding_code_comparison_viewed", base);
+      }
+    }
+  }, [activeVersion, answers, hasPartnerLink, questions, step]);
+  useEffect(() => {
+    if (step !== "quiz" || index <= furthestSceneRef.current) return;
+    furthestSceneRef.current = index;
+    captureWeddingCodeEvent("wedding_code_scene_reached", {
+      version: activeVersion,
+      has_partner_link: hasPartnerLink,
+      scene_index: index + 1,
+      scene_total: questions.length,
+    });
+  }, [activeVersion, hasPartnerLink, index, questions.length, step]);
+
   useEffect(() => {
     const clearLinkState = () => {
       setLinkContext({ partnerAnswers: null, partnerCode: null, bothCodes: null });
@@ -172,6 +213,7 @@ export default function WeddingCodeV06Client({
   function restart() {
     // 반송된 비교 링크만으로 어느 응답이 현재 방문자의 것인지는 알 수 없다.
     // 새 응답은 이전 두 사람의 문맥과 주소를 함께 비워 시작한다.
+    captureWeddingCodeEvent("wedding_code_restarted", { version: activeVersion });
     setLinkContext({ partnerAnswers: null, partnerCode: null, bothCodes: null });
     window.history.replaceState(null, "", window.location.pathname);
     setStep("intro");
@@ -242,12 +284,19 @@ export default function WeddingCodeV06Client({
             <summary className="cursor-pointer py-2 text-sm font-semibold text-[var(--hb-text-strong)]">응답과 공유 안내</summary>
             <p className="mt-2 text-sm leading-relaxed text-[var(--hb-text-body)]">금액과 상황은 예시예요. 겪지 않은 장면은 지금이라면 고를 답을 선택하거나 건너뛰세요. 부모님·하객·예식이 없는 경우도 해당 장면을 비워둘 수 있어요.</p>
             <p className="mt-2 text-sm leading-relaxed text-[var(--hb-text-body)]">로그인 없이 쓸 수 있고 장면의 답은 서버나 브라우저 저장소에 보관하지 않아요. 새로고침하면 작성 중인 답은 사라져요. 공유 링크에는 답이 들어가므로 함께 비교할 사람에게만 보내주세요.</p>
+            <p className="mt-2 text-sm leading-relaxed text-[var(--hb-text-body)]">2026년 9월 23일부터는 서비스를 고치려고 시작·완료·공유 여부와 몇 번째 장면까지 봤는지를 이용 통계로 남겨요. 어떤 답을 골랐는지와 공유 링크 주소는 통계에 넣지 않아요.</p>
           </details>
         </section>
 
         <button
           type="button"
-          onClick={() => setStep("quiz")}
+          onClick={() => {
+            captureWeddingCodeEvent("wedding_code_started", {
+              version: activeVersion,
+              has_partner_link: hasPartnerLink,
+            });
+            setStep("quiz");
+          }}
           className={`${primaryButton} mt-5 w-full`}
         >
           {theirs ? "나도 답해보기" : "시작하기"}
@@ -256,7 +305,7 @@ export default function WeddingCodeV06Client({
         <p className="mt-3 text-center text-[13px] font-medium text-[var(--color-rose-700)]">
           {sceneCount} 문항
         </p>
-        {!theirs ? <WeddingTasteEntry /> : null}
+        {!theirs ? <WeddingTasteEntry placement="intro" /> : null}
       </Shell>
     );
   }
@@ -451,6 +500,10 @@ ${shareUrl}`
             await navigator.clipboard.writeText(shareText);
             onCopied(true);
             setCopyError(false);
+            captureWeddingCodeEvent("wedding_code_share_copied", {
+              version: config.version,
+              result_kind: theirs ? "couple" : "solo",
+            });
           } catch {
             onCopied(false);
             setCopyError(true);
@@ -601,7 +654,7 @@ ${shareUrl}`
 
         <TellPartnerDraft profile={profile} />
 
-        <WeddingTasteEntry />
+        <WeddingTasteEntry placement="result" />
 
         <AmoraStyleConfirmation profile={profile} />
         {copyButton}
@@ -904,11 +957,19 @@ function WeddingCodePair({
   );
 }
 
-function WeddingTasteEntry() {
+function WeddingTasteEntry({ placement }: { placement: "intro" | "result" }) {
   return <section className={`${surface} mt-5 px-5 py-5 sm:px-8`}>
     <h2 className="text-lg font-semibold text-[var(--hb-text-strong)]">원하는 결혼식도 골라볼까요?</h2>
     <p className="mt-2 text-sm leading-relaxed text-[var(--hb-text-body)]">분위기와 중요한 취향, 피하고 싶은 것, 함께 맞춰볼 범위를 직접 정리해요.</p>
-    <Button href="/wedding-code/taste" variant="secondary" fullWidth className="mt-4">내가 원하는 결혼식 고르기</Button>
+    <Button
+      href="/wedding-code/taste"
+      variant="secondary"
+      fullWidth
+      className="mt-4"
+      onClick={() => captureWeddingCodeEvent("wedding_code_taste_clicked", { placement })}
+    >
+      내가 원하는 결혼식 고르기
+    </Button>
   </section>;
 }
 
