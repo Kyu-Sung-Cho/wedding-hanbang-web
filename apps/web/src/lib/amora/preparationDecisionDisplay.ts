@@ -4,6 +4,7 @@ import { formatWon } from "@/lib/formatWon";
 
 type DecisionDisplayInput = {
   title: string;
+  reasoning?: string | null;
   source: string | null;
   decision_type: string;
   metadata: Record<string, unknown> | null;
@@ -58,6 +59,8 @@ function categoryLabel(key: string, storedLabel: string) {
 export type PreparationDecisionFacts = {
   /** 저장 원문과 다를 때만 채운다. */
   displayTitle: string | null;
+  /** 저장된 설명(reasoning)을 화면 이름표·만원 표기로 다시 적은 것. 저장값과 맞을 때만 채운다. */
+  displayDetail: string | null;
   /** 같은 값을 바꾼 기록끼리 묶는 열쇠. 예: budget:total, budget:dress, spent:venue */
   valueSlots: string[];
   /** 저장 분류 말고도 이 기록을 보여줄 분야. 예산 결정이면 예산과 해당 체크리스트 분야. */
@@ -71,7 +74,8 @@ type ManualFacts = { title: string; valueSlots: string[]; relatedCategories: str
 function patchEntry(patch: Record<string, unknown>, name: string) {
   if (Object.hasOwn(PLANNING_CATEGORY_LABELS, name)) {
     const entry = object(patch[name]);
-    if (!entry || entry.category !== name || Object.hasOwn(entry, "label") || Object.hasOwn(entry, "name")) return null;
+    // 분야 표시 없이 상태만 보낸 저장({hanbok: {status}})도 DB는 키 이름으로 요약한다. 다른 분야 표시가 붙었으면 연결하지 않는다.
+    if (!entry || (entry.category !== undefined && entry.category !== name) || Object.hasOwn(entry, "label") || Object.hasOwn(entry, "name")) return null;
     return { key: name, entry, label: categoryLabel(name, name) };
   }
   // 이름이 붙은 항목은 DB가 저장된 이름으로 요약한다. 같은 이름이 하나뿐일 때만 연결한다.
@@ -114,7 +118,9 @@ function manualBudgetFacts(row: DecisionDisplayInput): ManualFacts | null {
       if (!expected || after !== expected || (before !== "미정" && !Object.values(PAYER_LABELS).includes(before))) return null;
       parts.push(`${label} ${field}: ${before} → ${after}`);
     } else {
-      if (after !== rawAmount(entry[field === "예산" ? "budget" : "spent"]) || !RAW_AMOUNT.test(before)) return null;
+      // 저장값에서 금액을 뺀 경우 DB 요약은 "미정"이다. 금액이 남아 있으면 그 금액과 맞아야 한다.
+      const stored = entry[field === "예산" ? "budget" : "spent"];
+      if (after !== (stored === undefined ? "미정" : rawAmount(stored)) || !RAW_AMOUNT.test(before)) return null;
       parts.push(`${label} ${field}: ${displayAmount(before)} → ${displayAmount(after)}`);
     }
     slots.add(`${FIELD_SLOTS[field]}:${key}`); related.add("budget");
@@ -144,21 +150,30 @@ function amoraBudgetFacts(row: DecisionDisplayInput): PreparationDecisionFacts |
   if (value.budgetScope === "total") {
     if (!total || items.length || value.amount !== total.after) return null;
     return { displayTitle: `총예산 ${formatWon(total.before as number)} → ${formatWon(total.after as number)}`,
-      valueSlots: ["budget:total"], relatedCategories: [], routineChanges: null };
+      displayDetail: null, valueSlots: ["budget:total"], relatedCategories: [], routineChanges: null };
   }
+  const change = (item: { key: string; label: string; beforeBudget: number | null; afterBudget: number }) =>
+    `${categoryLabel(item.key, item.label.trim())} ${item.beforeBudget === null ? "미정" : formatWon(item.beforeBudget)} → ${formatWon(item.afterBudget)}`;
   if (value.budgetScope === "category") {
     const [item] = items;
     if (items.length !== 1 || total || value.categoryKey !== item.key || value.amount !== item.afterBudget) return null;
     return { displayTitle: `${categoryLabel(item.key, item.label.trim())} 예산 ${item.beforeBudget === null ? "미정" : formatWon(item.beforeBudget)} → ${formatWon(item.afterBudget)}`,
-      valueSlots: [`budget:${item.key}`], relatedCategories: related([item.key]), routineChanges: null };
+      displayDetail: null, valueSlots: [`budget:${item.key}`], relatedCategories: related([item.key]), routineChanges: null };
   }
   if (value.budgetScope === "allocation") {
     const match = /^총예산 ((?:0|[1-9][0-9]{0,2}(?:,[0-9]{3})*))원 기준 예산 배분 반영$/u.exec(row.title);
     const amount = match ? Number(match[1].replaceAll(",", "")) : NaN;
     if (!won(amount) || (total && total.after !== amount)) return null;
+    // DB 영수증 설명은 "승인한 구성원의 예산 배정 변경. <저장 요약>"이고 요약은 AI 이름표·원 단위다(예단 2,000,000원).
+    // 설명이 저장 요약과 정확히 같을 때만 구조화된 전후 금액으로 다시 적는다. 사람이 쓴 설명은 건드리지 않는다.
+    const prefix = "승인한 구성원의 예산 배정 변경.";
+    const summary = typeof value.value === "string" && value.value.startsWith(`${row.title}: `) ? value.value : null;
+    const displayDetail = summary && row.reasoning === `${prefix} ${summary}` && items.length > 0
+      ? `${prefix} ${[...(total ? [`총예산 ${formatWon(total.before as number)} → ${formatWon(total.after as number)}`] : []), ...items.map(change)].join(" · ")}`
+      : null;
     // 총예산이 그대로면 DB는 totalBudget을 null로 남긴다. 그때는 총예산 값을 바꾼 기록이 아니므로
     // 앞선 총예산 변경을 이전 값으로 접지 않도록 budget:total을 넣지 않는다.
-    return { displayTitle: `총예산 ${formatWon(amount)} 기준 예산 배분 반영`,
+    return { displayTitle: `총예산 ${formatWon(amount)} 기준 예산 배분 반영`, displayDetail,
       valueSlots: [...(total ? ["budget:total"] : []), ...items.map(item => `budget:${item.key}`)], relatedCategories: related(items.map(item => item.key)), routineChanges: null };
   }
   return null;
@@ -172,7 +187,10 @@ function amoraBudgetFacts(row: DecisionDisplayInput): PreparationDecisionFacts |
 function routineProgressChanges(row: DecisionDisplayInput): number | null {
   const value = object(row.chosen_value);
   const match = /^진행 상황: ([1-9][0-9]*)개 수정$/u.exec(row.title);
-  if (!match || row.source !== "manual" || row.decision_type !== "decided" || row.metadata?.origin !== "couple_plan_change_request"
+  // DB는 저장한 화면에 따라 준비 계획(manual·decided) 또는 일정(schedule·scheduled)으로 분류한다.
+  // 일정이 실제로 바뀐 저장은 이 제목이 아니라 일정 요약 제목을 받고, __events 키는 아래에서 거른다.
+  const recordedAs = (row.source === "manual" && row.decision_type === "decided") || (row.source === "schedule" && row.decision_type === "scheduled");
+  if (!match || !recordedAs || row.metadata?.origin !== "couple_plan_change_request"
     || value?.schemaVersion !== 1) return null;
   const changes = object(value.changes);
   const patch = object(changes?.progress_patch);
@@ -205,12 +223,12 @@ export function preparationDecisionFacts(row: DecisionDisplayInput): Preparation
   const amora = amoraBudgetFacts(row);
   if (amora) return amora;
   const routine = routineProgressChanges(row);
-  if (routine !== null) return { displayTitle: null, valueSlots: [], relatedCategories: [], routineChanges: routine };
+  if (routine !== null) return { displayTitle: null, displayDetail: null, valueSlots: [], relatedCategories: [], routineChanges: routine };
   const manual = manualBudgetFacts(row);
   const title = manual?.title
     ?? (row.metadata?.origin === "couple_plan_change_request" ? withoutUnchangedScheduleSegments(row.title) : row.title);
   return {
-    displayTitle: title !== row.title ? title : null,
+    displayTitle: title !== row.title ? title : null, displayDetail: null,
     valueSlots: manual?.valueSlots ?? [], relatedCategories: manual?.relatedCategories ?? [], routineChanges: null,
   };
 }

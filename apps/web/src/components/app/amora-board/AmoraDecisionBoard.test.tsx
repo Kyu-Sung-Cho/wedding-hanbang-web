@@ -152,6 +152,39 @@ describe("AmoraDecisionBoard", () => {
     expect(mocks.data.update).not.toHaveBeenCalled();
   });
 
+  // 2026-09-16 운영 실측: 일정 화면에서 체크한 저장(schedule·scheduled) 여섯 줄이 결정 목록에 남았고,
+  // 아모라 배분 기록 설명이 "한복 1,500,000원, 예단 2,000,000원" 원문으로 보였다.
+  it("folds schedule-screen progress saves and reads the Amora allocation detail with screen names while the original stays behind 저장 원문 보기", async () => {
+    const coupleId = "11111111-1111-4111-8111-111111111111";
+    const value = "총예산 35,000,000원 기준 예산 배분 반영: 한복 1,500,000원, 예단 2,000,000원";
+    const allocation = { id: "33333333-3333-4333-8333-333333333339", couple_id: coupleId, visibility: "shared", category: "budget",
+      title: "총예산 35,000,000원 기준 예산 배분 반영", reasoning: `승인한 구성원의 예산 배정 변경. ${value}`, decision_type: "decided", source: "budget",
+      created_at: "2026-09-15T13:40:51Z", superseded_at: null, memory_key: null, metadata: { origin: "amora_shared_budget_action" },
+      chosen_value: { schemaVersion: 1, budgetScope: "allocation", value, budgetDelta: { schemaVersion: 1, totalBudget: { before: 32500000, after: 35000000 },
+        categories: [{ key: "hanbok", label: "한복", beforeBudget: null, afterBudget: 1500000 }, { key: "yedan", label: "예단", beforeBudget: null, afterBudget: 2000000 }] } } };
+    const scheduleSave = (id: string) => ({ id, couple_id: coupleId, visibility: "shared", category: "schedule", title: "진행 상황: 1개 수정",
+      reasoning: "현재 구성원이 확인한 수동 계획 변경", decision_type: "scheduled", source: "schedule", created_at: "2026-09-02T05:53:44Z",
+      superseded_at: null, memory_key: null, metadata: { origin: "couple_plan_change_request", surfaceHref: "/schedule" },
+      chosen_value: { schemaVersion: 1, changes: { progress_patch: { greeting: { category: "greeting", status: "in_progress",
+        checklist: [{ id: "greeting_01", done: true, label: "각자 찾아뵐 날짜와 시간, 만날 곳 확정" }] } }, progress_remove_keys: [] } } });
+    mocks.decisions.records = parsePreparationDecisions([
+      allocation, scheduleSave("33333333-3333-4333-8333-333333333338"), scheduleSave("33333333-3333-4333-8333-333333333337"),
+    ], coupleId).records;
+    await act(async () => root.render(<AmoraDecisionBoard />));
+    const board = container.querySelector('[aria-label="준비 결정 기록"]')!;
+    const cards = Array.from(board.querySelectorAll("article"));
+    expect(cards).toHaveLength(1);
+    expect(board.textContent).not.toContain("진행 상황: 1개 수정");
+    expect(board.querySelector("details[data-routine-progress] summary")?.textContent).toBe("진행 상황 저장 2건은 날짜별로 접어 두었어요");
+    const preview = cards[0].querySelector("h4 + p")!;
+    expect(preview.textContent).toBe("승인한 구성원의 예산 배정 변경. 총예산 3,250만원 → 3,500만원 · 한복 미정 → 150만원 · 두 가족에게 드릴 선물 미정 → 200만원");
+    expect(preview.textContent).not.toContain("예단");
+    const original = cards[0].querySelector("details")!;
+    expect(original.querySelector("summary")?.textContent).toBe("저장 원문 보기");
+    expect(original.textContent).toContain(`승인한 구성원의 예산 배정 변경. ${value}`);
+    expect(board.textContent).toContain("불러온 결정 1개");
+  });
+
   it("shows a compact summary strip at phone widths on both boards", async () => {
     await act(async () => root.render(<AmoraDecisionBoard />));
     const strips = Array.from(container.querySelectorAll<HTMLElement>("[data-board-summary]"));

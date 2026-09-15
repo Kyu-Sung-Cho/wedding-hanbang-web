@@ -101,8 +101,10 @@ function DecisionCard({ row }: { row: ArrangedPreparationDecision }) {
   const related = (row.relatedCategories ?? []).filter(key => key !== row.category && key !== "budget").flatMap(key => preparationDecisionCategory(key) ?? []);
   const destination = category?.destination ?? (row.relatedCategories?.includes("budget") ? budgetDecisionCategory?.destination : null);
   const title = row.displayTitle ?? row.title;
+  const detail = row.displayDetail ?? row.detail;
+  const rewritten = Boolean(row.displayTitle || row.displayDetail);
   const longTitle = title.length > 180;
-  const longDetail = (row.detail?.length ?? 0) > 400;
+  const longDetail = (detail?.length ?? 0) > 400;
   const previous = row.valueState === "previous";
   return <article aria-label={title} data-value-state={row.valueState} className={`min-w-0 rounded-[14px] border p-4 lg:px-[17px] ${previous ? "bg-[var(--amora-bg)]" : "bg-[var(--amora-surface)]"} ${category ? "border-[var(--amora-line)]" : "border-[var(--amora-rose)]"} ${row.status === "exploring" ? "border-dashed" : ""}`}>
     <div className="mb-2 flex items-start justify-between gap-2 text-[12px] text-[var(--amora-muted)]">
@@ -110,9 +112,9 @@ function DecisionCard({ row }: { row: ArrangedPreparationDecision }) {
       <time dateTime={row.createdAt} title="기록일" className="shrink-0 pt-[3px]">{preparationDate(row.createdAt)}</time>
     </div>
     <h4 className={`mb-[9px] break-words text-[14.5px] leading-[1.5] ${previous ? "font-medium text-[var(--amora-muted)]" : "font-semibold text-[var(--amora-ink)]"}`}>{decisionPreview(title, 180)}</h4>
-    {row.detail && <p className="mb-[10px] whitespace-pre-wrap break-words rounded-[9px] bg-[var(--amora-warm)] px-[11px] py-[9px] text-[12.5px] leading-[1.55] text-[var(--amora-muted)]">{decisionPreview(row.detail, 400)}</p>}
-    {(longTitle || longDetail || row.displayTitle) && <details className="mb-3 text-[12px]">
-      <summary className={`flex min-h-11 cursor-pointer items-center rounded-lg text-[var(--amora-accent)] ${focus}`}>{row.displayTitle ? "저장 원문 보기" : "전체 결정 내용 보기"}</summary>
+    {detail && <p className="mb-[10px] whitespace-pre-wrap break-words rounded-[9px] bg-[var(--amora-warm)] px-[11px] py-[9px] text-[12.5px] leading-[1.55] text-[var(--amora-muted)]">{decisionPreview(detail, 400)}</p>}
+    {(longTitle || longDetail || rewritten) && <details className="mb-3 text-[12px]">
+      <summary className={`flex min-h-11 cursor-pointer items-center rounded-lg text-[var(--amora-accent)] ${focus}`}>{rewritten ? "저장 원문 보기" : "전체 결정 내용 보기"}</summary>
       <div className="space-y-2 border-t border-[var(--amora-line)] py-3">
         <p className="whitespace-pre-wrap break-words font-semibold text-[var(--amora-ink)]">{row.title}</p>
         {row.detail && <p className="whitespace-pre-wrap break-words leading-relaxed text-[var(--amora-soft)]">{row.detail}</p>}
@@ -144,7 +146,7 @@ function DecisionRecords({ data, searchId, query, onQueryChange, mobileSearchOpe
       const field = preparationDecisionCategory(row.category);
       if (category === "unsorted" ? !!field : category !== "all" && !decisionBelongsTo(row, category)) return false;
       const labels = (row.relatedCategories ?? []).map(key => preparationDecisionCategory(key)?.label);
-      return !needle || [row.title, row.displayTitle, row.detail, field?.label, ...labels].some(value => value?.toLocaleLowerCase("ko").includes(needle));
+      return !needle || [row.title, row.displayTitle, row.detail, row.displayDetail, field?.label, ...labels].some(value => value?.toLocaleLowerCase("ko").includes(needle));
     });
   }, [decisions, category, query]);
   const categories = PREPARATION_DECISION_CATEGORIES.filter(item => decisions.some(row => decisionBelongsTo(row, item.key)));
