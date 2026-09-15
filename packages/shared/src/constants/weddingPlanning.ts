@@ -1,7 +1,30 @@
+import type { ChecklistItemDue } from "../utils/checklistItemDue";
+
 export interface ChecklistItem {
   id: string;
   label: string;
   done: boolean;
+  /**
+   * 이 항목만의 기본 확인 시점. **분야의 `ddayDeadline`보다 늦게 하는 일에만** 적는다.
+   * 없으면 분야의 `ddayDeadline`을 따른다.
+   *
+   * - 숫자: 결혼식 N일 전(0은 결혼식 날). 분야 값보다 작아야 한다 — 분야 값은 그 분야에서
+   *   가장 이른 항목 시점이다.
+   * - `"agreed_date"`: 반납·수령·입주처럼 계약이나 약속으로 정한 날에 하는 일. 앱이 그 날을
+   *   모르므로 지남·임박 계산에서 뺀다.
+   *
+   * 분야 값 하나로만 세면 촬영 뒤 사진 고르기, 결혼식 직전 최종으로 입어 보기, 빌린 옷
+   * 돌려주기 같은 늦은 항목 때문에 제때 준비하는 커플도 결혼식 날까지 "기본 확인 시점에서
+   * N일 지남"을 봤다. 판정 규칙은 `utils/checklistItemDue.ts`에 있다.
+   *
+   * 숫자는 예절 안내 「결혼 준비 타임라인」의 시기 구분을 따른다 — 사진 촬영은 5~3개월 전,
+   * 초대장 발송과 세부 확정은 2~1개월 전, 최종으로 입어 보기·헤어와 메이크업 미리 받기·꽃과
+   * 하객 선물 수량 확인은 2주~1주 전. 그 안내가 시기를 말하지 않는 항목은 가장 가까운 시기의
+   * 끝을 쓴다. 실제 마감이 아니라 화면 정렬과 알림용 기본값이다.
+   *
+   * 진행 상태와 무관하다. 저장 전에 `note`와 함께 떼어 낸다(`stripPlanningChecklistNotes`).
+   */
+  due?: ChecklistItemDue;
   /**
    * 이 항목을 할 때 놓치기 쉬운 한 가지. 없으면 안 그린다.
    *
@@ -65,7 +88,10 @@ export interface CategoryChecklistTemplate {
   tip: string;
   /** 화면 정렬용 기본 확인 시작점이며 실제 계약 시작일이 아니다. */
   ddayStart: number;
-  /** 화면 정렬용 기본 확인 시점이며 실제 마감일이 아니다. */
+  /**
+   * 화면 정렬용 기본 확인 시점이며 실제 마감일이 아니다.
+   * 이 분야에서 **가장 이른** 항목의 시점이다. 늦게 하는 항목은 항목의 `due`가 따로 말한다.
+   */
   ddayDeadline: number;
   items: ChecklistItem[];
 }
@@ -257,17 +283,19 @@ export const CATEGORY_CHECKLISTS: CategoryChecklistTemplate[] = [
         done: false,
         note: "계약 장소와 체결 방식에 맞는 취소·철회 조건을 확인하고 계약서와 결제 증빙을 보관하세요.",
       },
-      { id: "studio_07", label: "원하는 사진 분위기와 입을 옷 협의", done: false, note: "필요한 의상·소품의 준비 담당, 옷 갈아입는 장소와 촬영 중 휴식 시간을 맞춰 주세요.",},
+      { id: "studio_07", label: "원하는 사진 분위기와 입을 옷 협의", done: false, due: 90, note: "필요한 의상·소품의 준비 담당, 옷 갈아입는 장소와 촬영 중 휴식 시간을 맞춰 주세요.",},
       {
         id: "studio_08",
         label: "보정해 준 사진 확인하고 받을 사진 선택",
         done: false,
+        due: 30,
         note: "고른 뒤에 바꿀 수 있는지, 고르지 않은 사진은 언제까지 남아 있는지 함께 물어보세요.",
       },
       {
         id: "studio_11",
         label: "완성된 사진 파일과 앨범 받고 확인 (해당하는 경우)",
         done: false,
+        due: "agreed_date",
         note: "받은 자리에서 파일이 열리는지 확인하고 고른 사진이 다 들어왔는지 맞춰 보세요.",
       },
     ],
@@ -306,12 +334,14 @@ export const CATEGORY_CHECKLISTS: CategoryChecklistTemplate[] = [
         id: "dress_08",
         label: "결혼식 전 드레스를 입어보고 최종 확인",
         done: false,
+        due: 7,
         note: "당일에 뒷지퍼와 잠금 고리를 누가 잠가 줄지 이때 함께 정해 두세요.",
       },
       {
         id: "dress_09",
         label: "빌린 드레스와 예식 정장 돌려주기 (해당하는 경우)",
         done: false,
+        due: "agreed_date",
         note: "언제까지 어디로 가져가야 하는지, 맡긴 돈이 있다면 언제 돌아오는지 함께 물어보세요.",
       },
     ],
@@ -333,14 +363,15 @@ export const CATEGORY_CHECKLISTS: CategoryChecklistTemplate[] = [
         done: false,
         note: "미리 받아보는 비용과 당일 담당자가 같은지 확인하고 필요할 때만 예약하세요.",
       },
-      { id: "makeup_05", label: "미리 받아보고 사진으로 남겨 확인", done: false, note: "미리 받아본다면 자연광과 실내에서 편안함·지속력·피부 반응을 살펴 수정점을 적어 주세요.",},
+      { id: "makeup_05", label: "미리 받아보고 사진으로 남겨 확인", done: false, due: 7, note: "미리 받아본다면 자연광과 실내에서 편안함·지속력·피부 반응을 살펴 수정점을 적어 주세요.",},
       {
         id: "makeup_06",
         label: "수정 사항 전달",
         done: false,
+        due: 7,
         note: "불편했던 부분과 원하는 수정점을 구체적으로 전하고 새 제품 사용은 미리 상의하세요.",
       },
-      { id: "makeup_07", label: "결혼식 날 헤어·메이크업 최종 확인", done: false, note: "준비 시작·완료 시간과 이동 동선, 늦어질 때 연락할 사람을 함께 확인하세요.",},
+      { id: "makeup_07", label: "결혼식 날 헤어·메이크업 최종 확인", done: false, due: 7, note: "준비 시작·완료 시간과 이동 동선, 늦어질 때 연락할 사람을 함께 확인하세요.",},
       {
         id: "makeup_08",
         label: "부모님 헤어·메이크업이 필요한지 확인",
@@ -390,6 +421,7 @@ export const CATEGORY_CHECKLISTS: CategoryChecklistTemplate[] = [
         id: "ring_08",
         label: "최종 수령 및 확인",
         done: false,
+        due: 14,
         note: "매장을 나서기 전에 새긴 글자와 사이즈가 주문서와 같은지 맞춰 보세요.",
       },
     ],
@@ -424,17 +456,19 @@ export const CATEGORY_CHECKLISTS: CategoryChecklistTemplate[] = [
         done: false,
         note: "속치마와 버선처럼 함께 갖춰야 할 것도 주문에 들어가는지 확인해 두세요.",
       },
-      { id: "hanbok_06", label: "완성 전에 치수와 모양 중간 확인", done: false, note: "입고 앉거나 걸어 보고 불편한 부분과 수정 후 다시 확인할 날짜를 정해 주세요.",},
+      { id: "hanbok_06", label: "완성 전에 치수와 모양 중간 확인", done: false, due: 30, note: "입고 앉거나 걸어 보고 불편한 부분과 수정 후 다시 확인할 날짜를 정해 주세요.",},
       {
         id: "hanbok_07",
         label: "완성된 한복 입어보고 수령",
         done: false,
+        due: 14,
         note: "받는 자리에서 단추와 끈을 직접 매어 보면 결혼식 당일에 입는 시간이 줄어요.",
       },
       {
         id: "hanbok_08",
         label: "빌린 한복 돌려주기 (해당하는 경우)",
         done: false,
+        due: "agreed_date",
         note: "빌릴 때 함께 받은 것을 목록으로 적어 두고 가져가기 전에 맞춰 보세요.",
       },
     ],
@@ -516,7 +550,7 @@ export const CATEGORY_CHECKLISTS: CategoryChecklistTemplate[] = [
         note: "목적지와 경유지의 공식 안내에서 여권 잔여기간·비자·입국 요건을 예약 전과 출발 전에 확인하세요.",
       },
       { id: "honeymoon_07", label: "현지 여행 프로그램 예약 (필요한 경우)", done: false, note: "운영 업체와 만나는 장소, 취소·기상 악화 때 처리 방법과 안전 조건을 확인하세요.",},
-      { id: "honeymoon_08", label: "환전 및 카드 준비", done: false, note: "해외 결제 가능 여부와 수수료를 확인하고 분실 때 정지할 연락처를 따로 보관하세요.",},
+      { id: "honeymoon_08", label: "환전 및 카드 준비", done: false, due: 7, note: "해외 결제 가능 여부와 수수료를 확인하고 분실 때 정지할 연락처를 따로 보관하세요.",},
     ],
   },
   {
@@ -553,11 +587,12 @@ export const CATEGORY_CHECKLISTS: CategoryChecklistTemplate[] = [
         note: "신혼집에 들어가는 날과 배송일이 어긋나면 보관비가 따로 붙는지 주문 전에 물어보세요.",
       },
       { id: "houseware_06", label: "침구와 생활용품 구매", done: false, note: "함께 쓰는 생활 습관과 수납 공간을 확인하고 당장 필요한 물건과 나중에 정할 물건을 나눠 보세요.",},
-      { id: "houseware_07", label: "신혼집 입주 및 정리", done: false, note: "배송 동선·엘리베이터 예약과 설치에 필요한 전기·급수 조건을 관리사무소에 확인하세요.",},
+      { id: "houseware_07", label: "신혼집 입주 및 정리", done: false, due: "agreed_date", note: "배송 동선·엘리베이터 예약과 설치에 필요한 전기·급수 조건을 관리사무소에 확인하세요.",},
       {
         id: "houseware_08",
         label: "배송받은 자리에서 설치와 상태 확인",
         done: false,
+        due: "agreed_date",
         note: "흠집·누락·작동 상태를 확인해 사진을 남기고 교환·수리 접수 방법을 판매자에게 물어보세요.",
       },
     ],
@@ -578,10 +613,17 @@ export const CATEGORY_CHECKLISTS: CategoryChecklistTemplate[] = [
         note: "집을 구하는 값만 세지 말고 이사와 집을 손보는 데 드는 돈까지 예산에 넣을지 먼저 이야기해 보세요.",
       },
       {
+        // 혼인·출산 증여재산 공제는 상속세 및 증여세법 제53조의2(국가법령정보센터 원문,
+        // 2026-09-15 확인)와 국세청 국세상담센터 「혼인·출산 증여재산공제」 문답에 근거한다.
+        // 직계존속에게서 혼인관계증명서상 신고일 전후 2년, 또는 자녀 출생일·입양일부터 2년 안에
+        // 받은 재산에서 기본 증여재산 공제(5천만 원)와 별개로 1억 원을 빼 주며, 혼인과 출산을
+        // 합친 한도가 1억 원이다. 2024-01-01 이후 증여분부터 적용한다.
+        // 안내 문구에는 금액·기간 수치를 넣지 않는 규칙(`note` 주석)이 있어, 놓치기 쉬운 기준일
+        // (결혼식 날이 아니라 혼인신고일)과 확인할 곳만 적는다.
         id: "housing_12",
         label: "신혼집 자금을 누가 얼마나 낼지 합의",
         done: false,
-        note: "두 집안에서 보태 주시는 돈이 있다면 그냥 주시는 것인지 나중에 갚는 것인지까지 함께 확인해 두세요.",
+        note: "두 집안에서 보태 주시는 돈이 갚을 돈인지 정하고, 받는 돈이면 혼인신고일 기준인 혼인·출산 증여재산 공제를 국세청 안내에서 확인하세요.",
       },
       { id: "housing_03", label: "부동산 방문 및 매물 탐색", done: false, note: "낮과 저녁의 소음·채광·교통을 살펴보고 누수·곰팡이·설비 상태도 기록하세요.",},
       {
@@ -636,6 +678,7 @@ export const CATEGORY_CHECKLISTS: CategoryChecklistTemplate[] = [
         id: "housing_11",
         label: "남은 금액 납부하고 열쇠 받기",
         done: false,
+        due: "agreed_date",
         note: "송금 직전 권리 변동과 수취인을 다시 확인하고 열쇠·인도 상태·지급 증빙을 남겨 주세요.",
       },
     ],
@@ -683,18 +726,21 @@ export const CATEGORY_CHECKLISTS: CategoryChecklistTemplate[] = [
         id: "invitation_06",
         label: "수령 및 오류 확인",
         done: false,
+        due: 30,
         note: "받자마자 날짜와 요일은 달력으로 대조하고, 성함은 소리 내어 한 글자씩 읽어 보세요.",
       },
       {
         id: "invitation_07",
         label: "초대장 보낼 날짜 정하고 발송",
         done: false,
+        due: 30,
         note: "이름과 날짜·장소를 함께 안내하고 실제로 보낼 링크가 맞는지 직접 열어 확인하세요.",
       },
       {
         id: "invitation_08",
         label: "결혼식장에 최종 식사 인원 알리기",
         done: false,
+        due: 14,
         note: "보낸 명단이 아니라 오겠다고 답한 사람을 세고, 부모님 쪽 인원은 두 집안에 미리 여쭤 두세요.",
       },
     ],
@@ -734,7 +780,7 @@ export const CATEGORY_CHECKLISTS: CategoryChecklistTemplate[] = [
         done: false,
         note: "홍보 사용 여부와 공개 범위를 사전에 동의할지 정하고 거절·철회 방법까지 서면으로 확인하세요.",
       },
-      { id: "snap_06", label: "당일 촬영 동선 사전 협의", done: false, note: "찍고 싶은 사람과 장면, 촬영을 원치 않는 분의 의사와 이동 편의를 함께 전달하세요.",},
+      { id: "snap_06", label: "당일 촬영 동선 사전 협의", done: false, due: 14, note: "찍고 싶은 사람과 장면, 촬영을 원치 않는 분의 의사와 이동 편의를 함께 전달하세요.",},
       {
         id: "snap_07",
         label: "보정해 준 사진과 영상을 받는 날짜 확인",
@@ -745,6 +791,7 @@ export const CATEGORY_CHECKLISTS: CategoryChecklistTemplate[] = [
         id: "snap_10",
         label: "완성된 사진과 영상 내려받아 따로 보관",
         done: false,
+        due: "agreed_date",
         note: "빠진 장면이 없는지 확인하고 다른 곳에도 한 벌 옮겨 두세요.",
       },
     ],
@@ -823,6 +870,7 @@ export const CATEGORY_CHECKLISTS: CategoryChecklistTemplate[] = [
         id: "bouquet_07",
         label: "결혼식 당일 꽃이 도착할 시간과 장소 확인",
         done: false,
+        due: 7,
         note: "받을 장소와 담당자를 정하고 연락처를 업체에 전달해도 되는지 당사자에게 확인하세요.",
       },
     ],
@@ -854,9 +902,10 @@ export const CATEGORY_CHECKLISTS: CategoryChecklistTemplate[] = [
         id: "gift_06",
         label: "포장 상태 확인",
         done: false,
+        due: 7,
         note: "선물이 식품이라면 겉포장에 적힌 소비기한과 보관 온도까지 함께 살펴 두세요.",
       },
-      { id: "gift_07", label: "결혼식장에 도착할 날짜와 장소 확인", done: false, note: "행사장에서 받을 담당자와 보관 장소를 정하고 누락·파손이 생길 때 연락 방법을 확인하세요.",},
+      { id: "gift_07", label: "결혼식장에 도착할 날짜와 장소 확인", done: false, due: 7, note: "행사장에서 받을 담당자와 보관 장소를 정하고 누락·파손이 생길 때 연락 방법을 확인하세요.",},
     ],
   },
   {
@@ -992,7 +1041,7 @@ export const CATEGORY_CHECKLISTS: CategoryChecklistTemplate[] = [
         id: "registration_01",
         label: "혼인신고를 언제 할지 두 사람이 정하기",
         done: false,
-        note: "국내에서 새로 혼인하는 경우와 외국에서 성립한 혼인을 신고하는 경우의 기한을 구분해 확인하세요.",
+        note: "국내에서 하는 혼인신고에는 정해진 기한이 없어요. 외국에서 먼저 혼인했다면 증서 제출 기한이 있는지 확인하세요.",
       },
       {
         id: "registration_02",

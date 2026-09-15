@@ -4,5 +4,6 @@ export * from "./chatTimestamp";
 export * from "./mobileOAuth";
 export * from "./scheduleMemo";
 export * from "./planningChecklist";
+export * from "./checklistItemDue";
 export * from "./kstDay";
 export * from "./publicPostPrivacy";
