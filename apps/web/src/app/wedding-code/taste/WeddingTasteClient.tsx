@@ -16,6 +16,7 @@ import {
 import {
   consumeWeddingTasteLoginHandoff, createWeddingTasteLoginHandoff, getWeddingTasteChatIdentity, prepareWeddingTasteChat,
 } from "@/lib/weddingCode/tasteHandoff";
+import { useInsideMobileApp } from "@/hooks/useInsideMobileApp";
 
 const card = "rounded-[6px] border border-[var(--hb-hairline)] bg-white p-5 sm:p-7";
 type Received = { first: WeddingTasteDraftV1; second: WeddingTasteDraftV1 | null };
@@ -44,6 +45,7 @@ export default function WeddingTasteClient() {
 
 function TasteExperience({ session }: { session: ReturnType<typeof useWeddingCodeSession> }) {
   const router = useRouter();
+  const insideApp = useInsideMobileApp();
   const { user, profile, isInitialized, isLoading, isDemo } = useAuthStore();
   const [own, setOwn] = useState<WeddingTasteDraftV1 | null>(null);
   const [received, setReceived] = useState<Received | null>(null);
@@ -165,7 +167,16 @@ function TasteExperience({ session }: { session: ReturnType<typeof useWeddingCod
                 <input aria-label="공유 링크 주소" readOnly value={shareUrl} onFocus={event => event.currentTarget.select()} className="min-h-11 w-full min-w-0 rounded-[6px] border border-[var(--hb-hairline)] px-3 text-base" />
               </details> : null}
             </section> : null}
-            {canUseOwn && own ? <section className={card} data-taste-amora="">
+            {/*
+              앱 웹뷰에서는 이 단락을 내린다 — 웨딩코드 결과의 아모라 단락과 같은
+              이유다(`../AmoraStyleConfirmation.tsx`). 웹뷰에는 앱의 세션이 없어
+              `canChat` 이 늘 false 이고, 버튼은 `/login?redirect=…` 으로 가서 앱에
+              이미 로그인한 사람에게 웹 로그인 폼을 보여준다. `canChat` 이 참이 되는
+              길로 가더라도 `/chat` 은 앱이 네이티브 화면으로 되돌리는 경로라
+              (`webview.tsx` 의 `WEB_TO_NATIVE`) 이 탭에 담아둔 초안이 버려진다.
+              취향 고르기와 링크 공유는 그대로 되고, 이어가기만 빠진다.
+            */}
+            {canUseOwn && own && !insideApp ? <section className={card} data-taste-amora="">
               <h2 className="text-xl font-semibold">내 선택으로 아모라와 이야기하기</h2>
               <p className="mt-3 text-sm leading-relaxed">내가 직접 고른 내용만 나만 상담으로 옮겨요. 상대가 보낸 답은 포함하지 않아요.</p>
               {!reviewAmora ? <Button className="mt-5" fullWidth onClick={() => setReviewAmora(true)}>전달할 내용 확인하기</Button> : <>

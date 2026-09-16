@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Button from "@/components/ui/Button";
+import { useInsideMobileApp } from "@/hooks/useInsideMobileApp";
 import { useAuthStore } from "@/stores/authStore";
 import { useAmoraPersonalization } from "@/hooks/useAmoraPersonalization";
 import { useWeddingCodeSession } from "@/hooks/useWeddingCodeSession";
@@ -13,6 +14,28 @@ import type { WeddingCodeSelfProfile } from "@/lib/weddingCode/scene/selfProfile
 export default function AmoraStyleConfirmation({ profile }: { profile: WeddingCodeSelfProfile }) {
   const session = useWeddingCodeSession();
   const user = useAuthStore((state) => state.user);
+  const insideApp = useInsideMobileApp();
+
+  /*
+    앱 웹뷰에서는 이 단락을 내린다. 여기서 끝을 못 보기 때문이다.
+
+    앱 웹뷰에는 앱의 세션이 없다(쿠키를 넘기지 않는다). 그래서 **앱에 이미 로그인한
+    사람에게도** 이 단락은 `user === null` 로 보여 "로그인하고 선택한 방식 확인하기"
+    라고 말한다. 그리고 그 버튼은 `/settings/amora-style` 로 가는데, 앱 웹뷰는
+    로그인 필요 경로를 네이티브 화면으로 되돌린다(`webview.tsx` 의 `WEB_TO_NATIVE`).
+    되돌아간 네이티브 설정 화면은 고른 방식을 모른다 — 선택을 담은 봉투는 웹뷰
+    안에 남고 nonce 는 버려진다. 로그아웃 상태면 거기서 "로그인이 만료됐어요" 를
+    본다. 어느 쪽이든 **버튼이 약속한 일이 일어나지 않고, 보던 결과도 사라진다.**
+
+    앱에는 아직 아모라 도움 방식을 고르는 네이티브 화면이 없다. 그러니 "앱에서
+    하세요" 라고 안내할 곳도 없다. 할 수 없는 일을 권하지 않는 쪽을 택한다 —
+    코드·비교·링크 보내기는 그대로 되고, 이 단락만 빠진다.
+
+    브라우저에서는 아무것도 달라지지 않는다. `useInsideMobileApp` 은 서버 렌더와
+    첫 페인트에서 늘 false다.
+  */
+  if (insideApp) return null;
+
   return <>
     {session.status === "loading" ? <p role="status" className="mt-4 text-sm text-[var(--hb-text-body)]">아모라 설정을 연결할 로그인 상태를 확인하고 있어요.</p> : null}
     {session.status === "error" ? <div role="alert" className="mt-4 text-sm text-[var(--hb-text-body)]"><p>로그인 상태를 확인하지 못했어요. 설정을 연결하기 전에 다시 확인해 주세요.</p><Button className="mt-3" onClick={session.retry}>로그인 상태 다시 확인</Button></div> : null}

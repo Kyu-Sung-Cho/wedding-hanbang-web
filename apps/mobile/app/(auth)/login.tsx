@@ -350,6 +350,23 @@ export default function LoginScreen() {
           )}
 
           {/*
+            로그인하지 않아도 되는 것 하나. 웨딩코드는 계정도 저장도 없이 기기
+            안에서 끝나므로, 계정을 만들지 말지 정하기 전에 먼저 해볼 수 있다.
+            웹 로그인 화면에도 같은 자리에 같은 문이 있다.
+          */}
+          <Pressable
+            onPress={() => router.push({ pathname: "/wedding-code" })}
+            accessibilityRole="link"
+            accessibilityLabel="로그인 없이 웨딩코드 먼저 해보기"
+            hitSlop={8}
+            style={styles.tryWeddingCode}
+          >
+            <Text style={styles.tryWeddingCodeText}>
+              로그인 없이 웨딩코드 먼저 해보기
+            </Text>
+          </Pressable>
+
+          {/*
             여기 있던 문장은 "계속하면 약관과 처리방침에 동의한 것으로 본다"는
             뜻이었다. 두 가지가 잘못됐다.
 
@@ -579,6 +596,21 @@ const styles = StyleSheet.create({
     fontFamily: "NotoSansKR_400Regular",
     color: colors.textSecondary,
     textAlign: "center",
+  },
+
+  tryWeddingCode: {
+    marginTop: 24,
+    minHeight: 44,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  tryWeddingCodeText: {
+    fontSize: 13,
+    fontFamily: "NotoSansKR_500Medium",
+    color: colors.rose[600],
+    textDecorationLine: "underline",
+    textAlign: "center",
+    lineHeight: 20,
   },
 
   policyLinks: {
