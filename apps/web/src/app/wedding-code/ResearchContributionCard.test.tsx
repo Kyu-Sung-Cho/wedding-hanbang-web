@@ -8,6 +8,7 @@ import { CURRENT_WEDDING_CODE_SCENE_CONFIG } from "@/lib/weddingCode/scene/confi
 import {
   WEDDING_CODE_RESEARCH_CONSENT_VERSION,
   WEDDING_CODE_RESEARCH_RECEIPT_PATTERN,
+  weddingCodeResearchContributionStartLabel,
 } from "@/lib/weddingCode/contribution/contract";
 import WeddingCodeV06Client from "./WeddingCodeV06Client";
 
@@ -108,7 +109,7 @@ describe("WeddingCode research contribution card", () => {
     await act(async () => root.render(<WeddingCodeV06Client shareOrigin="https://hanbang.ai" version={config.version} partnerAnswers={null} partnerCode={null} bothCodes={null} researchContributionOpen={false} researchStorageActive />));
     expect(container.querySelector("[data-research-delete]")).not.toBeNull();
     // 아직 받지 않는 동안에는 없는 버튼을 설명하지 않는다 — 안내는 시작일을 앞세운다.
-    expect(container.textContent).toContain("2026년 9월 23일부터, 결과 화면에서 직접 동의한 경우에만");
+    expect(container.textContent).toContain(`${weddingCodeResearchContributionStartLabel()} 결과 화면에서 직접 동의한 경우에만`);
     expect(container.textContent).not.toContain("직접 보태기로 동의하지 않는 한");
     await answerAll();
     expect(container.querySelector("[data-research-contribution]")).toBeNull();
@@ -139,7 +140,7 @@ describe("WeddingCode research contribution card", () => {
     expect(container.querySelector("[data-research-delete]")).not.toBeNull();
     // 받는 동안에는 시작일을 다시 말하지 않고, 현재 있는 동의 카드를 가리킨다.
     expect(container.textContent).toContain("직접 보태기로 동의하지 않는 한 장면의 답은 서버나 브라우저 저장소에 보관하지 않아요");
-    expect(container.textContent).not.toContain("2026년 9월 23일부터, 결과 화면에서");
+    expect(container.textContent).not.toContain(`${weddingCodeResearchContributionStartLabel()} 결과 화면에서`);
     await answerAll();
 
     const card = container.querySelector('[data-research-contribution="form"]')!;
