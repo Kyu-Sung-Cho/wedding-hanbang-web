@@ -26,7 +26,7 @@ afterAll(() => fixture?.cleanup());
 
 describe("production accepts only the explicit 232 expand successor", () => {
   // 실제 checkout 에는 이후 검토된 233번째 SQL(20260915101500)이 있어 232 공개 모드가 거절하는 것이
-  // 맞다. checkout 의 production 허용은 productionBuildBudgetFollowup.test.ts 의 233 후속 계약이 잰다.
+  // 맞다. checkout 의 production 허용은 productionBuildBudgetFollowup.test.ts 의 최신(234) 후속 계약이 잰다.
   // 여기서는 232 역사 checkout 이 여전히 자기 후속 계약으로만 통과하는지를 본다.
   it("validates the historical 232 fixture without treating static success as runtime or full-restore proof", () => {
     expect(() => loadCustomerDataReleasePlan(repoRoot)).toThrowError(expect.objectContaining({ code: "NEW_MIGRATION_NOT_REVIEWED" }));

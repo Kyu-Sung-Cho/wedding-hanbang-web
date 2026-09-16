@@ -16,6 +16,8 @@ import { PROFILE_AVATAR_CONTRACT_FILE, loadProfileAvatarReleasePlan } from "../.
 import { loadCustomerDataReleasePlan } from "../../../../../scripts/lib/account-deletion-customer-data-release-contract.mjs";
 import { NOT_APPLICABLE_STATUS_CONTRACT_FILE, loadNotApplicableStatusReleasePlan } from "../../../../../scripts/lib/amora-not-applicable-status-release-contract.mjs";
 import { createCustomerDataHistoricalRepository } from "../../../../../scripts/tests/fixtures/account-deletion-customer-data-historical-repository.mjs";
+import { WEDDING_CODE_RESEARCH_CONTRACT_FILE, loadWeddingCodeResearchReleasePlan } from "../../../../../scripts/lib/wedding-code-research-contributions-release-contract.mjs";
+import { createNotApplicableStatusHistoricalRepository } from "../../../../../scripts/tests/fixtures/amora-not-applicable-status-historical-repository.mjs";
 import {
   assertVendorDisclosureProductionBuild,
   expectedProductionAuthorizationSha256,
@@ -51,6 +53,10 @@ let notApplicableFixtureRoot: string;
 let cleanupNotApplicableFixture: (() => void) | undefined;
 const notApplicablePins = [NOT_APPLICABLE_STATUS_CONTRACT_FILE, "scripts/lib/amora-not-applicable-status-release.mjs",
   "supabase/migrations/20260915101500_amora_atomic_not_applicable_status.sql"];
+let researchFixtureRoot: string;
+let cleanupResearchFixture: (() => void) | undefined;
+const researchPins = [WEDDING_CODE_RESEARCH_CONTRACT_FILE, "scripts/lib/wedding-code-research-contributions-release.mjs",
+  "supabase/migrations/20260915130000_wedding_code_research_contributions.sql"];
 
 function production(root: string, authorization = expectedProductionAuthorizationSha256(root)) {
   return assertVendorDisclosureProductionBuild({
@@ -91,7 +97,11 @@ beforeAll(async () => {
   notApplicableFixtureRoot = notApplicableHistory.root;
   cleanupNotApplicableFixture = notApplicableHistory.cleanup;
   for (const file of notApplicablePins) await copyFile(join(repoRoot, file), join(notApplicableFixtureRoot, file));
-}, 120_000);
+  const researchHistory = createNotApplicableStatusHistoricalRepository(repoRoot);
+  researchFixtureRoot = researchHistory.root;
+  cleanupResearchFixture = researchHistory.cleanup;
+  for (const file of researchPins) await copyFile(join(repoRoot, file), join(researchFixtureRoot, file));
+}, 180_000);
 
 afterAll(async () => {
   cleanupFixture?.();
@@ -100,20 +110,49 @@ afterAll(async () => {
   cleanupAvatarFixture?.();
   cleanupCustomerDataFixture?.();
   cleanupNotApplicableFixture?.();
+  cleanupResearchFixture?.();
 });
 
-describe("production build registers the exact not-applicable status successor after the 232 customer-data release", () => {
-  it("accepts 233 exact SQL files only through the new successor, without claiming hosted application", () => {
-    for (const root of [repoRoot, notApplicableFixtureRoot]) {
-      const plan = loadNotApplicableStatusReleasePlan(root);
-      expect(plan.migrationCount).toBe(233);
+describe("production build registers the exact WeddingCode research contributions successor after the 233 not-applicable release", () => {
+  it("accepts 234 exact SQL files only through the new successor, without claiming hosted application", () => {
+    for (const root of [repoRoot, researchFixtureRoot]) {
+      const plan = loadWeddingCodeResearchReleasePlan(root);
+      expect(plan.migrationCount).toBe(234);
       expect(plan.runtimeEvidenceVerified).toBe(false);
       expect(plan.releaseAuthorized).toBe(false);
       expect(() => production(root)).not.toThrow();
-      expect(() => validateSuccessorReleaseContract({repoRoot: root, followup: "account-deletion-customer-data"}))
+      expect(() => validateSuccessorReleaseContract({repoRoot: root, followup: "amora-not-applicable-status"}))
         .toThrowError(expect.objectContaining({code: "FOLLOWUP_RELEASE_INVALID"}));
     }
+    expect(() => loadNotApplicableStatusReleasePlan(repoRoot)).toThrowError(expect.objectContaining({code: "NEW_MIGRATION_NOT_REVIEWED"}));
+  }, 120_000);
+  it.each(researchPins)("refuses a changed or missing WeddingCode research artifact without fallback: %s", async file => {
+    const target = join(researchFixtureRoot, file), bytes = await readFile(target);
+    try {
+      await writeFile(target, Buffer.concat([bytes, Buffer.from("\n")]));
+      expect(() => production(researchFixtureRoot)).toThrow(VENDOR_DISCLOSURE_STATIC_CONTRACT_INVALID);
+      await rm(target);
+      expect(() => production(researchFixtureRoot)).toThrow(VENDOR_DISCLOSURE_STATIC_CONTRACT_INVALID);
+    } finally {await writeFile(target, bytes);}
+  }, 60_000);
+});
+
+describe("production build registers the exact not-applicable status successor after the 232 customer-data release", () => {
+  // 실제 checkout 에는 이후 검토된 234번째 SQL(20260915130000)이 있어 233 공개 모드가 거절하는 것이 맞다.
+  // checkout 의 production 허용은 위 234 후속 계약이 잰다. 여기서는 233 역사 checkout 이 자기 후속 계약으로만 통과하는지를 본다.
+  it("accepts 233 exact SQL files only through the new successor, without claiming hosted application", () => {
+    const root = notApplicableFixtureRoot;
+    const plan = loadNotApplicableStatusReleasePlan(root);
+    expect(plan.migrationCount).toBe(233);
+    expect(plan.runtimeEvidenceVerified).toBe(false);
+    expect(plan.releaseAuthorized).toBe(false);
+    expect(() => production(root)).not.toThrow();
+    expect(() => validateSuccessorReleaseContract({repoRoot: root, followup: "account-deletion-customer-data"}))
+      .toThrowError(expect.objectContaining({code: "FOLLOWUP_RELEASE_INVALID"}));
+    expect(() => validateSuccessorReleaseContract({repoRoot: root, followup: "wedding-code-research-contributions"}))
+      .toThrowError(expect.objectContaining({code: "FOLLOWUP_RELEASE_INVALID"}));
     expect(() => loadCustomerDataReleasePlan(repoRoot)).toThrowError(expect.objectContaining({code: "NEW_MIGRATION_NOT_REVIEWED"}));
+    expect(() => loadNotApplicableStatusReleasePlan(repoRoot)).toThrowError(expect.objectContaining({code: "NEW_MIGRATION_NOT_REVIEWED"}));
   }, 60_000);
   it("keeps the historical 232 customer-data checkout buildable through its own successor", () => {
     expect(loadCustomerDataReleasePlan(customerDataFixtureRoot).migrationCount).toBe(232);

@@ -8,10 +8,19 @@ import { accountDeletionIntakeSentence } from "@/lib/account/deletionIntake";
 import { CONTACT } from "@/lib/constants/contact";
 
 import { businessInfoRows, readBusinessInfo } from "@/lib/legal/businessInfo";
+import {
+  WEDDING_CODE_RESEARCH_MIN_AGE,
+  WEDDING_CODE_RESEARCH_RETENTION_DAYS,
+  WEDDING_CODE_RESEARCH_TOMBSTONE_DAYS,
+} from "@/lib/weddingCode/contribution/contract";
+import { isWeddingCodeResearchStorageActive } from "@/lib/weddingCode/contribution/server";
 import { ArrowLeft } from "lucide-react";
 
 export default function PrivacyPage() {
   const businessInfo = readBusinessInfo();
+  // 탈퇴 접수 문장과 같은 이유로 서버에서 읽는다. 저장소가 없는 동안에는 받는다고 쓰지 않고,
+  // 새 답 받기를 멈춘 뒤에도 남은 답이 있을 수 있는 동안에는 고지를 내리지 않는다.
+  const researchStorageActive = isWeddingCodeResearchStorageActive();
   const operatorName = businessInfo?.companyName ?? "웨딩한방 운영자";
 
   return (
@@ -55,6 +64,9 @@ export default function PrivacyPage() {
                   <li>프로필 사진과 커뮤니티에 올린 글·댓글·사진·파일</li>
                   <li>마케팅 수신 동의 여부</li>
                   <li>가입 시 받은 필수 동의(이용약관·개인정보 처리방침) 여부, 동의한 시각, 동의 당시 문서 판(예: 2026-08-22)</li>
+                  {researchStorageActive ? (
+                    <li>웨딩코드 답 보태기에 동의한 경우(2026년 9월 23일부터, 선택): 문항 판, 장면마다 고른 답 기호(건너뛴 장면 포함), 동의 문구 판, 보낸 날짜, 삭제 코드의 해시. 로그인하지 않아도 되며 계정과 연결하지 않습니다.</li>
+                  ) : null}
                 </ul>
               </div>
               <div>
@@ -111,7 +123,10 @@ export default function PrivacyPage() {
                   <li>회원의 로그인·접속에 관한 기록은 별도의 장기 저장소를 두지 않고, 인증·호스팅·오류 수집 서비스가 각자의 설정에 따라 보관합니다. 회사가 그와 별도로 회원 접속 이력을 장기간 모아 두지는 않습니다.</li>
                   <li>견적 점검: 새 입력은 분석 응답 생성 후 별도 DB에 저장하지 않으며 공개 결과 링크도 만들지 않습니다. 과거 저장 기록은 가격 통계와 업체 후보 신호에서 제외하고 공개 링크를 닫았습니다. 과거 기록의 열람·삭제는 고객센터로 요청할 수 있습니다.</li>
                   <li>견적 점검 실행 횟수는 서비스 이용 통계로 기록될 수 있지만, 선택한 분야·항목 상태·견적 금액은 해당 통계 이벤트에 넣지 않습니다.</li>
-                  <li>웨딩코드: 답은 기기 안에서 계산하고 서버에 저장하지 않으며 세션 녹화를 하지 않습니다. 2026년 9월 23일부터는 화면 개선을 위해 시작·완료·공유 여부, 몇 번째 장면까지 봤는지, 답한 장면과 건너뛴 장면의 개수를 서비스 이용 통계로 기록합니다. 고른 답·웨딩코드·공유 링크 주소는 이 통계에 넣지 않습니다. 새 공유 링크의 답 코드는 서버 요청에 포함되지 않는 주소의 # 뒤에 넣지만, 링크를 받은 사람은 답을 볼 수 있으므로 함께 비교할 사람에게만 보내야 합니다.</li>
+                  <li>웨딩코드: 답은 기기 안에서 계산하고 {researchStorageActive ? "아래 답 보태기에 동의한 경우가 아니면 " : ""}서버에 저장하지 않으며 세션 녹화를 하지 않습니다. 2026년 9월 23일부터는 화면 개선을 위해 시작·완료·공유 여부, 몇 번째 장면까지 봤는지, 답한 장면과 건너뛴 장면의 개수를 서비스 이용 통계로 기록합니다. 고른 답·웨딩코드·공유 링크 주소는 이 통계에 넣지 않습니다. 새 공유 링크의 답 코드는 서버 요청에 포함되지 않는 주소의 # 뒤에 넣지만, 링크를 받은 사람은 답을 볼 수 있으므로 함께 비교할 사람에게만 보내야 합니다.</li>
+                  {researchStorageActive ? (
+                    <li>웨딩코드 답 보태기(선택, 2026년 9월 23일부터): 결과 화면에서 만 {WEDDING_CODE_RESEARCH_MIN_AGE}세 이상임을 확인하고 동의한 경우에만 제1조의 항목을 보관합니다. 이름·연락처·계정·IP 주소·공유 링크·상대의 답은 함께 보관하지 않고, 저장 시각은 날짜 단위로만 남기며, 다른 사업자에게 제공하지 않습니다. 문항과 선택지를 고치는 데만 쓰고, 보낸 날부터 {WEDDING_CODE_RESEARCH_RETENTION_DAYS}일이 지나면 자동으로 삭제합니다. 보낼 때 보여드리는 삭제 코드로 언제든 지울 수 있고, 코드를 잃어버리면 누구의 답인지 알 수 없어 찾아 지울 수 없습니다. 지운 삭제 코드의 해시와 삭제 날짜는 같은 코드로 다시 저장되지 않게 하려고 {WEDDING_CODE_RESEARCH_TOMBSTONE_DAYS}일간 보관합니다. 새 답 받기를 멈춘 뒤에도 이미 받은 답의 자동 삭제와 삭제 요청은 계속 처리합니다.</li>
+                  ) : null}
                 </ul>
               </li>
             </ol>
@@ -354,7 +369,7 @@ export default function PrivacyPage() {
           ) : null}
 
           <section className="pt-4 border-t border-black/[0.06]">
-            <p className="text-[13px] text-[var(--hb-text-muted)]">부칙: 본 방침은 2026년 7월 30일부터 시행합니다. 2026년 8월 21일 개정분(제1조 동의 기록 항목, 제6조 탈퇴 처리 범위)은 같은 날부터 적용합니다. 2026년 9월 11일에는 제3조의 아모라 비용·오류 기록에서 원문 제거 후에도 연결 식별자와 운영 기록이 남는다는 설명을 정정했습니다. 이 정정으로 처리 항목·목적·보유 기간을 추가하거나 변경하지 않았습니다. 2026년 9월 16일 개정분(제3조·제8조의 웨딩코드 이용 통계)은 2026년 9월 23일부터 적용합니다.</p>
+            <p className="text-[13px] text-[var(--hb-text-muted)]">부칙: 본 방침은 2026년 7월 30일부터 시행합니다. 2026년 8월 21일 개정분(제1조 동의 기록 항목, 제6조 탈퇴 처리 범위)은 같은 날부터 적용합니다. 2026년 9월 11일에는 제3조의 아모라 비용·오류 기록에서 원문 제거 후에도 연결 식별자와 운영 기록이 남는다는 설명을 정정했습니다. 이 정정으로 처리 항목·목적·보유 기간을 추가하거나 변경하지 않았습니다. 2026년 9월 16일 개정분(제3조·제8조의 웨딩코드 이용 통계)은 2026년 9월 23일부터 적용합니다.{researchStorageActive ? " 2026년 9월 16일 개정분(제1조·제3조의 웨딩코드 답 보태기)도 2026년 9월 23일부터 적용합니다." : ""}</p>
           </section>
         </div>
       </div>

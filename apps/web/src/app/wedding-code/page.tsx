@@ -11,6 +11,10 @@ const SCENE_COUNT = weddingCodeSceneCountLabel(
   CURRENT_WEDDING_CODE_SCENE_CONFIG.questions.length,
 );
 import WeddingCodeV06Client from "./WeddingCodeV06Client";
+import {
+  isWeddingCodeResearchContributionOpen,
+  isWeddingCodeResearchStorageActive,
+} from "@/lib/weddingCode/contribution/server";
 
 /**
  * 웨딩코드 v0.6.
@@ -87,6 +91,8 @@ export default async function WeddingCodePage({
       partnerAnswers={both ? null : first}
       partnerCode={first ? (a ?? "").trim().toUpperCase() : null}
       bothCodes={both}
+      researchContributionOpen={isWeddingCodeResearchContributionOpen()}
+      researchStorageActive={isWeddingCodeResearchStorageActive()}
     />
   );
 }

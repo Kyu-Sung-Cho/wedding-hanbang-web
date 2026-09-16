@@ -29,6 +29,11 @@ import {
   buildWeddingCodeCoupleCombination,
 } from "@/lib/weddingCode/profile/amoraBridge";
 import AmoraStyleConfirmation from "./AmoraStyleConfirmation";
+import ResearchContributionCard, { ResearchContributionDeleteForm } from "./ResearchContributionCard";
+import {
+  WEDDING_CODE_RESEARCH_RETENTION_DAYS,
+  WEDDING_CODE_RESEARCH_SCENE_VERSION,
+} from "@/lib/weddingCode/contribution/contract";
 import Button from "@/components/ui/Button";
 import {
   WEDDING_CODE_FIRMNESS_LABEL,
@@ -78,9 +83,15 @@ export default function WeddingCodeV06Client({
   partnerAnswers,
   partnerCode,
   bothCodes,
+  researchContributionOpen = false,
+  researchStorageActive = false,
 }: {
   shareOrigin: string;
   version: WeddingCodeSceneVersion;
+  /** 답 익명 보태기를 받을 수 있는가(서버 플래그·비밀값). 닫혀 있으면 카드도 폼도 없다. */
+  researchContributionOpen?: boolean;
+  /** 받은 답을 지키는 중인가(삭제 폼·안내). 새 답을 받지 않게 된 뒤에도 켜져 있다. */
+  researchStorageActive?: boolean;
   /** 링크로 먼저 온 상대 답. 없으면 내가 먼저 푸는 것이다. */
   partnerAnswers: WeddingCodeV06Answers | null;
   partnerCode: string | null;
@@ -102,6 +113,11 @@ export default function WeddingCodeV06Client({
   const [skipped, setSkipped] = useState<readonly string[]>([]);
   const [copied, setCopied] = useState(false);
   const [linkError, setLinkError] = useState(false);
+  /**
+   * 이번 방문에서 문항을 직접 풀어 결과에 왔는가. 두 사람 링크로 바로 열린 비교 화면의
+   * 「나중에 답한 사람」 답은 이 방문자의 답이라는 보장이 없어 보태기 대상이 아니다.
+   */
+  const [answeredHere, setAnsweredHere] = useState(false);
 
   const theirs = linkContext.bothCodes?.first ?? linkContext.partnerAnswers;
   const done = answeredCount(answers, questions);
@@ -152,6 +168,7 @@ export default function WeddingCodeV06Client({
       setLinkContext({ partnerAnswers: null, partnerCode: null, bothCodes: null });
       setAnswers({});
       setSkipped([]);
+      setAnsweredHere(false);
       setStep("intro");
       setIndex(0);
       setCopied(false);
@@ -174,6 +191,7 @@ export default function WeddingCodeV06Client({
       });
       setAnswers(decodedHash.bothCodes?.second ?? {});
       setSkipped([]);
+      setAnsweredHere(false);
       setStep(decodedHash.bothCodes ? "result" : "intro");
       setIndex(0);
       setCopied(false);
@@ -220,6 +238,7 @@ export default function WeddingCodeV06Client({
     setIndex(0);
     setAnswers({});
     setSkipped([]);
+    setAnsweredHere(false);
     setCopied(false);
     setLinkError(false);
   }
@@ -245,6 +264,7 @@ export default function WeddingCodeV06Client({
           copied={copied}
           onCopied={setCopied}
           onRestart={restart}
+          researchContribution={researchContributionOpen && answeredHere}
         />
       </Shell>
     );
@@ -283,9 +303,13 @@ export default function WeddingCodeV06Client({
           <details className="border-t border-[var(--hb-hairline)] px-5 py-4 sm:px-8">
             <summary className="cursor-pointer py-2 text-sm font-semibold text-[var(--hb-text-strong)]">응답과 공유 안내</summary>
             <p className="mt-2 text-sm leading-relaxed text-[var(--hb-text-body)]">금액과 상황은 예시예요. 겪지 않은 장면은 지금이라면 고를 답을 선택하거나 건너뛰세요. 부모님·하객·예식이 없는 경우도 해당 장면을 비워둘 수 있어요.</p>
-            <p className="mt-2 text-sm leading-relaxed text-[var(--hb-text-body)]">로그인 없이 쓸 수 있고 장면의 답은 서버나 브라우저 저장소에 보관하지 않아요. 새로고침하면 작성 중인 답은 사라져요. 공유 링크에는 답이 들어가므로 함께 비교할 사람에게만 보내주세요.</p>
+            <p className="mt-2 text-sm leading-relaxed text-[var(--hb-text-body)]">로그인 없이 쓸 수 있고 {researchStorageActive ? "결과 화면에서 직접 보태기로 동의하지 않는 한 " : ""}장면의 답은 서버나 브라우저 저장소에 보관하지 않아요. 새로고침하면 작성 중인 답은 사라져요. 공유 링크에는 답이 들어가므로 함께 비교할 사람에게만 보내주세요.</p>
             <p className="mt-2 text-sm leading-relaxed text-[var(--hb-text-body)]">2026년 9월 23일부터는 서비스를 고치려고 시작·완료·공유 여부와 몇 번째 장면까지 봤는지를 이용 통계로 남겨요. 어떤 답을 골랐는지와 공유 링크 주소는 통계에 넣지 않아요.</p>
+            {researchStorageActive ? (
+              <p className="mt-2 text-sm leading-relaxed text-[var(--hb-text-body)]">결과 화면에서 직접 동의한 경우에만, 고른 답 기호를 이름·계정 없이 연구 자료로 {WEDDING_CODE_RESEARCH_RETENTION_DAYS}일간 보관해요. 동의하지 않으면 아무것도 보내지 않아요.</p>
+            ) : null}
           </details>
+          {researchStorageActive ? <ResearchContributionDeleteForm /> : null}
         </section>
 
         <button
@@ -316,8 +340,12 @@ export default function WeddingCodeV06Client({
   const skippedHere = skipped.includes(question.key);
 
   function goNext() {
-    if (last) setStep("result");
-    else setIndex((value) => Math.min(questions.length - 1, value + 1));
+    if (last) {
+      setAnsweredHere(true);
+      setStep("result");
+    } else {
+      setIndex((value) => Math.min(questions.length - 1, value + 1));
+    }
   }
 
   /**
@@ -453,7 +481,9 @@ function ResultView({
   copied,
   onCopied,
   onRestart,
+  researchContribution,
 }: {
+  researchContribution: boolean;
   answers: WeddingCodeV06Answers;
   theirs: WeddingCodeV06Answers | null;
   config: WeddingCodeSceneConfig;
@@ -467,6 +497,10 @@ function ResultView({
   const [copyError, setCopyError] = useState(false);
   const canShare = answeredCount(answers, config.questions) > 0;
   const mineCode = encodeWeddingCodeV06(answers, config.questions);
+  // 보태는 것은 이 방문자가 방금 고른 답(mineCode)뿐이다. 상대 코드는 넘기지 않는다.
+  const contributionCard = researchContribution && config.version === WEDDING_CODE_RESEARCH_SCENE_VERSION
+    ? <ResearchContributionCard answerCode={mineCode} />
+    : null;
   // 상대 답이 이미 있으면 둘 다 담아 돌려준다 — 그래야 상대도 같은 화면을 본다.
   const shareUrl = buildWeddingCodeShareUrl({
     origin: shareOrigin,
@@ -657,6 +691,7 @@ ${shareUrl}`
         <WeddingTasteEntry placement="result" />
 
         <AmoraStyleConfirmation profile={profile} />
+        {contributionCard}
         {copyButton}
         <button type="button" onClick={onRestart} className={`${secondaryButton} mt-4 w-full`}>
           <RotateCcw aria-hidden="true" className="h-4 w-4" />
@@ -814,6 +849,8 @@ ${shareUrl}`
       ) : null}
 
       <SelfProfilePair first={firstProfile} second={secondProfile} map={map} />
+
+      {contributionCard}
 
       {copyButton}
       <button type="button" onClick={onRestart} className={`${secondaryButton} mt-4 w-full`}>

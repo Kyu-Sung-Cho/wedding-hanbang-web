@@ -1,0 +1,53 @@
+{
+  "version": 1,
+  "kind": "wedding-code-research-contributions-static-successor",
+  "release": "wedding-code-research-contributions-20260915",
+  "status": "requires-scoped-runtime-evidence",
+  "productionApplyImplemented": true,
+  "runtimeEvidenceVerified": false,
+  "projectRef": "slrtobkksjmxgzatjyqb",
+  "systemIdentifier": "7581440907192989109",
+  "predecessor": {
+    "file": "supabase/release-contracts/amora-not-applicable-status-v1.json",
+    "sha256": "8d77b3bbe24586d0f3b171f828093cd55b0e5ecbd6173bba00ca0baa17fc13ed"
+  },
+  "reviewedPredecessorMigrationCount": 233,
+  "migrations": [
+    {
+      "file": "20260915130000_wedding_code_research_contributions.sql",
+      "sha256": "76f58f948a1a7c99352b32c556dba2de3886e7ef6b357af574ae0522a174253e"
+    }
+  ],
+  "scope": {
+    "newTables": [
+      "public.wedding_code_research_contributions",
+      "public.wedding_code_research_deletion_tombstones"
+    ],
+    "newFunctions": [
+      "public.insert_wedding_code_research_contribution(text,text,text,bytea)",
+      "public.delete_wedding_code_research_contribution(bytea)",
+      "public.purge_expired_wedding_code_research_contributions()"
+    ],
+    "tableAccess": "owner-only-rls-enabled-no-policies",
+    "functionExecute": "service_role-only",
+    "contributionRetentionDays": 60,
+    "tombstoneRetentionDays": 30,
+    "timestampPrecision": "utc-day",
+    "duplicateReceipt": "unique-violation-23505",
+    "purgeRemovesTombstonedContributions": true,
+    "personalData": "none",
+    "joinKeys": "none",
+    "retiredCollectionObjects": "untouched",
+    "existingTables": "unchanged",
+    "existingFunctions": "unchanged",
+    "dataRows": "unchanged"
+  },
+  "runtime": {
+    "file": "scripts/lib/wedding-code-research-contributions-release.mjs",
+    "sha256": "f8f765d2d79b6b6fa4ec1cbc049a5d4f08f9aa5f8ab3b6c4ecb5b09691306f92"
+  },
+  "predecessorMigration": {
+    "file": "supabase/migrations/20260915101500_amora_atomic_not_applicable_status.sql",
+    "sha256": "1e7fe89a73e1093caee6f5908dbde0ba6ed2d0be03c140a4a9173a58908a7f37"
+  }
+}

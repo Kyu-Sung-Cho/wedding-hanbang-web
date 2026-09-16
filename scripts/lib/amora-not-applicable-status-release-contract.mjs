@@ -45,7 +45,11 @@ export function expectedNotApplicableTransaction(previousSql) {
 
 // 232 선행 원문과 계약을 그대로 보존하고, 아모라 원자 함수의 상태 허용 목록 교체 한 건만 추가한다.
 // 로컬 검증만 수행한다. 운영 적용·런타임 증거·배포 승인을 뜻하지 않는다.
-export function loadNotApplicableStatusReleasePlan(repoRoot) {
+export function loadNotApplicableStatusReleasePlan(repoRoot) { return loadPlan(repoRoot, true); }
+// 후속 계약은 선행 233 원문만 검증한다. 기존 공개 모드는 전체 디렉터리 검사를 유지한다.
+export function loadNotApplicableStatusHistoricalReleasePlan(repoRoot) { return loadPlan(repoRoot, false); }
+
+function loadPlan(repoRoot, checkCurrentDirectory) {
   const bytes = pinnedArtifact(repoRoot, { file: NOT_APPLICABLE_STATUS_CONTRACT_FILE, sha256: CONTRACT_SHA });
   const contract = JSON.parse(bytes);
   requireRelease(contract.version === 1 && contract.kind === 'amora-not-applicable-status-static-successor'
@@ -68,8 +72,8 @@ export function loadNotApplicableStatusReleasePlan(repoRoot) {
     pinnedArtifact(repoRoot, contract[key]);
   }
   const reviewed = [...predecessor.reviewedMigrations, ...contract.migrations].sort((a, b) => a.file.localeCompare(b.file));
-  same(readdirSync(join(repoRoot, 'supabase/migrations')).filter(file => /\.sql$/i.test(file)).sort(), reviewed.map(pin => pin.file),
-    'NEW_MIGRATION_NOT_REVIEWED');
+  if (checkCurrentDirectory) same(readdirSync(join(repoRoot, 'supabase/migrations')).filter(file => /\.sql$/i.test(file)).sort(),
+    reviewed.map(pin => pin.file), 'NEW_MIGRATION_NOT_REVIEWED');
   for (const pin of reviewed) pinnedArtifact(repoRoot, { ...pin, file: `supabase/migrations/${pin.file}` });
   requireRelease(reviewed.some(pin => `supabase/migrations/${pin.file}` === PREVIOUS_FUNCTION_FILE
     && pin.sha256 === contract.previousFunction.sha256), 'NOT_APPLICABLE_IMPLEMENTATION_CHANGED');

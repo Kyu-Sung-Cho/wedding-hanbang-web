@@ -23,6 +23,7 @@ import { loadExplicitBudgetHotfixRelease } from "./amora-explicit-budget-release
 import { loadProfileAvatarReleasePlan } from "./profile-avatar-release-contract.mjs";
 import { loadCustomerDataReleasePlan } from "./account-deletion-customer-data-release-contract.mjs";
 import { loadNotApplicableStatusReleasePlan } from "./amora-not-applicable-status-release-contract.mjs";
+import { loadWeddingCodeResearchReleasePlan } from "./wedding-code-research-contributions-release-contract.mjs";
 import { loadProfileWeddingRolesReleasePlan } from "./profile-wedding-roles-release-contract.mjs";
 import { loadChatFeedbackNullabilityReleasePlan } from "./chat-feedback-nullability-release-contract.mjs";
 
@@ -1088,7 +1089,7 @@ export function validateSuccessorReleaseContract({
   manifestRelativePath = SUCCESSOR_RELEASE_MANIFEST_RELATIVE_PATH,
   followup = null,
 }) {
-  if (followup !== null && !["amora-budget-decision-hotfix", "amora-explicit-budget-hotfix", "chat-feedback-nullability", "profile-wedding-roles", "profile-avatar", "account-deletion-customer-data", "amora-not-applicable-status"].includes(followup)) {
+  if (followup !== null && !["amora-budget-decision-hotfix", "amora-explicit-budget-hotfix", "chat-feedback-nullability", "profile-wedding-roles", "profile-avatar", "account-deletion-customer-data", "amora-not-applicable-status", "wedding-code-research-contributions"].includes(followup)) {
     invalid("FOLLOWUP_RELEASE_INVALID", "only explicitly registered followups are supported");
   }
   if (followup !== null && manifestRelativePath !== SUCCESSOR_RELEASE_MANIFEST_RELATIVE_PATH) {
@@ -1224,6 +1225,22 @@ export function validateSuccessorReleaseContract({
       if (migration.version <= previousFollowupVersion || expectedDirectoryFiles.includes(migration.file)) {
         invalid("FOLLOWUP_RELEASE_INVALID", "feedback followups must follow the original successor in exact order");
       }
+      previousFollowupVersion = migration.version;
+      expectedDirectoryFiles.push(migration.file);
+    }
+  }
+  if (followup === "wedding-code-research-contributions") {
+    let research;
+    try { research = loadWeddingCodeResearchReleasePlan(root); }
+    catch { invalid("FOLLOWUP_RELEASE_INVALID", "the exact WeddingCode research contributions successor could not be verified"); }
+    const followups = research.followupMigrations;
+    if (research.contract.projectRef !== manifest.projectRef || research.migrationCount !== 234
+        || followups.length !== 8 || followups[7].file !== research.contract.migrations[0].file)
+      invalid("FOLLOWUP_RELEASE_INVALID", "WeddingCode research successor must preserve all seven predecessors and add one migration");
+    let previousFollowupVersion = previousVersion;
+    for (const migration of followups) {
+      if (migration.version <= previousFollowupVersion || expectedDirectoryFiles.includes(migration.file))
+        invalid("FOLLOWUP_RELEASE_INVALID", "WeddingCode research successor migration order changed");
       previousFollowupVersion = migration.version;
       expectedDirectoryFiles.push(migration.file);
     }
