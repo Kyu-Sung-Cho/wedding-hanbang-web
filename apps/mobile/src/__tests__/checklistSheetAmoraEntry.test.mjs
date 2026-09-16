@@ -62,7 +62,12 @@ test("정본 모양이 아닌 키는 경로를 만들지 않는다", () => {
   }
 });
 
-function renderSheet({ categoryKey, items, skipped = false }) {
+const { PREPARATION_PROGRESS_STATUS_LABELS } = compile(
+  "../../../../packages/shared/src/constants/preparationProgress.ts",
+  { "./weddingPlanning": { PLANNING_CATEGORY_LABELS: {} } },
+);
+
+function renderSheet({ categoryKey, items, skipped = false, status = "not_started" }) {
   const jsx = (type, props) => ({ type, props: props ?? {} });
   const token = new Proxy({}, { get: (_target, key) => (key === "radius" ? 12 : typeof key === "string" ? new Proxy({}, { get: () => "#000000" }) : undefined) });
   const calls = [];
@@ -80,6 +85,7 @@ function renderSheet({ categoryKey, items, skipped = false }) {
       groupChecklistItems: (_key, list) => [{ title: "", items: list }],
       labelWithoutConditionSuffix: (label) => label,
       mannersGuideForCategory: () => ({ slug: "dress-guide", title: "드레스 안내" }),
+      PREPARATION_PROGRESS_STATUS_LABELS,
     },
     "@/components/ui/AmoraMark": { default: "AmoraMark" },
     "./ChecklistProgressRing": { default: "ChecklistProgressRing" },
@@ -91,7 +97,7 @@ function renderSheet({ categoryKey, items, skipped = false }) {
     label: CHECKLIST_MAP[categoryKey].label,
     items,
     tip: "tip",
-    stats: { done: 0, total: items.length, percent: 0, skipped },
+    stats: { done: 0, total: items.length, percent: 0, skipped, status },
     onClose: () => {},
     onToggleItem: (id) => calls.push(["toggle", id]),
     onToggleApplicability: () => {},
@@ -134,6 +140,31 @@ test("시트에 분야 질문과 정본 항목 질문 버튼이 있고, 누르�
   assert.ok(texts.includes("아모라 질문"));
   // 눈에 보이는 안내 줄은 따로 두지 않는다 — 채팅 입력창에 질문만 채워진다.
   assert.ok(!texts.some((text) => /질문 초안|체크 상태/.test(text)), texts.join(" / "));
+});
+
+/**
+ * 시트의 상태 이름은 공용 사전에서만 읽는다.
+ *
+ * 온보딩·체크리스트에서 「안 해요」로 고른 분야를 이 시트만 「해당 없음」이라고 적었고,
+ * 「아직」은 「시작 전」, 「준비 중」은 「진행 중」이었다. 고른 말과 보이는 말이 다르면
+ * 사용자는 자기가 고르지 않은 것을 본다(`preparationProgress.ts` 주석이 적어 둔 이유).
+ */
+test("시트 상태 칩을 공용 사전에서만 읽는다", () => {
+  const template = CHECKLIST_MAP.dress;
+  const items = template.items.slice(0, 2).map((item) => ({ ...item, done: false }));
+  for (const status of ["not_started", "in_progress", "completed", "not_applicable"]) {
+    const { texts } = renderSheet({ categoryKey: "dress", items, status, skipped: status === "not_applicable" });
+    assert.ok(
+      texts.includes(PREPARATION_PROGRESS_STATUS_LABELS[status]),
+      `${status} 는 사전의 «${PREPARATION_PROGRESS_STATUS_LABELS[status]}» 로 보여야 한다`,
+    );
+    for (const stale of ["해당 없음", "시작 전", "진행 중"]) {
+      assert.ok(!texts.includes(stale), `${status} 에 옛 이름 «${stale}» 이 남아 있다`);
+    }
+  }
+  // 분야를 '안 해요'로 표시하면 세어 둔 숫자와 무관하게 그 말이 나온다.
+  const skipped = renderSheet({ categoryKey: "dress", items, status: "completed", skipped: true });
+  assert.ok(skipped.texts.includes(PREPARATION_PROGRESS_STATUS_LABELS.not_applicable));
 });
 
 test("아모라 버튼 힌트는 질문을 보낸 뒤에도 사실인 문장이다", () => {
