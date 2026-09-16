@@ -47,7 +47,7 @@ import {
   type ScheduleSessionToken,
 } from "@/lib/scheduleSessionFence.mjs";
 import { CATEGORY_CHECKLISTS, type ChecklistItem } from "@/constants/checklists";
-import { CHECKLIST_MAP } from "@hanbang/shared/constants";
+import { CHECKLIST_MAP, PREPARATION_PROGRESS_STATUS_LABELS } from "@hanbang/shared/constants";
 import CategoryChecklistSheet from "@/components/checklist/CategoryChecklistSheet";
 import { checklistPreparationRoute } from "@/lib/amoraPreparationSource";
 import {
@@ -1006,8 +1006,11 @@ export default function ScheduleScreen() {
     const items = progress[key] ?? {};
     const total = Object.keys(items).length;
     const done = Object.values(items).filter(Boolean).length;
-    const skipped = categories.find((category) => category.key === key)?.status === "not_applicable";
-    return { total, done, skipped, percent: skipped || total === 0 ? 0 : Math.round((done / total) * 100) };
+    // 저장된 상태 키를 그대로 넘긴다. 화면에서 다시 세어 말을 만들면 고른 말과 보이는 말이 갈라진다.
+    const status: PlanningChecklistStatus =
+      categories.find((category) => category.key === key)?.status ?? "not_started";
+    const skipped = status === "not_applicable";
+    return { total, done, skipped, status, percent: skipped || total === 0 ? 0 : Math.round((done / total) * 100) };
   }
 
   /**
@@ -1913,10 +1916,8 @@ export default function ScheduleScreen() {
                     <Text style={styles.catLabel}>{cat.label}</Text>
                     <Text style={styles.catStat}>
                       {stats.skipped
-                        ? "해당 없음 · 진행률에서 제외"
-                        : `${stats.done}/${stats.total} 완료 · ${
-                            stats.done === 0 ? "시작 전" : stats.done >= stats.total ? "완료" : "진행 중"
-                          }`}
+                        ? `${PREPARATION_PROGRESS_STATUS_LABELS.not_applicable} · 진행률에서 제외`
+                        : `${stats.done}/${stats.total} 완료 · ${PREPARATION_PROGRESS_STATUS_LABELS[stats.status]}`}
                     </Text>
                   </View>
 

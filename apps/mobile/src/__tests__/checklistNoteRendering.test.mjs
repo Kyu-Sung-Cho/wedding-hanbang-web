@@ -48,6 +48,30 @@ test("화면이 항목 시트를 실제로 띄운다", () => {
   assert.match(schedule, /<CategoryChecklistSheet/, "시트를 마운트하지 않는다");
 });
 
+/**
+ * 분야 카드와 시트가 상태 이름을 직접 적지 않는다.
+ *
+ * 2026-09-16까지 일정 화면 분야 카드는 「해당 없음 · 진행률에서 제외」, 시트 칩은 세어 본
+ * 숫자로 「시작 전 · 진행 중」을 만들어 적었다. 사용자가 「안 해요」로 고른 분야가 화면마다
+ * 다른 말로 보였다. 이름은 `PREPARATION_PROGRESS_STATUS_LABELS` 한 곳에서만 읽는다.
+ */
+test("상태 이름을 세어서 만들지 않고 공용 사전에서 읽는다", () => {
+  assert.match(schedule, /PREPARATION_PROGRESS_STATUS_LABELS\[stats\.status\]/);
+  assert.match(schedule, /PREPARATION_PROGRESS_STATUS_LABELS\.not_applicable/);
+  assert.doesNotMatch(schedule, /"해당 없음 · 진행률에서 제외"/);
+  assert.doesNotMatch(schedule, /stats\.done === 0 \? "시작 전"/);
+
+  assert.match(sheet, /PREPARATION_PROGRESS_STATUS_LABELS\[stats\.skipped \? "not_applicable" : stats\.status\]/);
+  assert.doesNotMatch(sheet, /stats\.skipped \? "해당 없음"/);
+  assert.doesNotMatch(sheet, /stats\.done === 0 \? "시작 전"/);
+
+  // 사전을 쓰려면 상태 키가 시트까지 와야 한다 — 저장된 값을 그대로 넘기는 경로.
+  assert.match(sheet, /status: PlanningChecklistStatus;/);
+  // 카드가 읽는 상태는 저장된 분야 상태여야 한다. `const status:` 선언만 보면 이 파일의 다른
+  // 선언(:650)에 걸려 초록불이 난다 — 실제로 prove-guard 가 그 구멍을 통과했다.
+  assert.match(schedule, /categories\.find\(\(category\) => category\.key === key\)\?\.status \?\? "not_started"/);
+});
+
 test("안내를 항목 아래에 그린다", () => {
   assert.match(sheet, /item\.note \?/, "안내가 있을 때만 그려야 한다");
   assert.match(sheet, /s\.itemNote/, "안내 전용 스타일이 있어야 한다");

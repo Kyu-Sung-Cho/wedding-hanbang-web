@@ -43,8 +43,10 @@ import {
   groupChecklistItems,
   labelWithoutConditionSuffix,
   mannersGuideForCategory,
+  PREPARATION_PROGRESS_STATUS_LABELS,
   type ChecklistItem,
 } from "@hanbang/shared/constants";
+import { type PlanningChecklistStatus } from "@hanbang/shared/utils";
 import AmoraMark from "@/components/ui/AmoraMark";
 
 import ChecklistProgressRing from "./ChecklistProgressRing";
@@ -61,6 +63,8 @@ export type ChecklistSheetStats = {
   total: number;
   percent: number;
   skipped: boolean;
+  /** 저장된 상태 키. 상태 이름은 공용 사전에서만 읽는다 — 화면마다 다른 말이 되지 않게. */
+  status: PlanningChecklistStatus;
 };
 
 export default function CategoryChecklistSheet({
@@ -172,7 +176,7 @@ export default function CategoryChecklistSheet({
             <Text style={s.title} numberOfLines={2}>{label}</Text>
             <View style={s.metaRow}>
               <Text style={s.statusChip}>
-                {stats.skipped ? "해당 없음" : stats.done === 0 ? "시작 전" : stats.done >= stats.total ? "완료" : "진행 중"}
+                {PREPARATION_PROGRESS_STATUS_LABELS[stats.skipped ? "not_applicable" : stats.status]}
               </Text>
               <Text style={s.meta}>
                 {stats.skipped
