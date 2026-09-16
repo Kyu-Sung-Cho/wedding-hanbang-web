@@ -126,7 +126,7 @@ export default function TopNav({ onMenuToggle, amoraWorkspace = false, planningW
             })}
           </nav>
 
-          <div className={compactWorkspace ? "flex shrink-0 items-center whitespace-nowrap rounded-full bg-[var(--amora-ink)] px-[11px] py-[7px] text-white md:px-[14px]" : htmlDesign ? "hidden items-center gap-2 rounded-full bg-[var(--amora-low)] px-[13px] py-[7px] xl:flex" : "hidden items-center gap-2 rounded-full border border-[var(--hb-hairline)] bg-white px-4 py-2 sm:flex"}>
+          <div className={compactWorkspace ? "flex shrink-0 items-center whitespace-nowrap rounded-full bg-[var(--amora-rose-deep)] px-[11px] py-[7px] text-white md:px-[14px]" : htmlDesign ? "hidden items-center gap-2 rounded-full bg-[var(--amora-low)] px-[13px] py-[7px] xl:flex" : "hidden items-center gap-2 rounded-full border border-[var(--hb-hairline)] bg-white px-4 py-2 sm:flex"}>
             {!compactWorkspace && <span className="h-2 w-2 rounded-full bg-[var(--hb-accent)]" />}
             <span className={compactWorkspace ? "text-[11px] font-semibold md:text-[12.5px]" : "text-[13px] font-semibold text-[var(--hb-text-strong)]"}>
               {dday === null ? compactWorkspace ? "날짜 미정" : "결혼식 날짜 미정" : dday > 0 ? `D-${dday}` : dday === 0 ? "D-day" : `D+${Math.abs(dday)}`}
