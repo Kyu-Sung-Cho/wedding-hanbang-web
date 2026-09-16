@@ -107,7 +107,9 @@ describe("WeddingCode research contribution card", () => {
   it("새 답 받기를 멈춰도 저장소를 지키는 동안에는 삭제 폼과 보관 안내가 남는다", async () => {
     await act(async () => root.render(<WeddingCodeV06Client shareOrigin="https://hanbang.ai" version={config.version} partnerAnswers={null} partnerCode={null} bothCodes={null} researchContributionOpen={false} researchStorageActive />));
     expect(container.querySelector("[data-research-delete]")).not.toBeNull();
-    expect(container.textContent).toContain("직접 보태기로 동의하지 않는 한 장면의 답은 서버나 브라우저 저장소에 보관하지 않아요");
+    // 아직 받지 않는 동안에는 없는 버튼을 설명하지 않는다 — 안내는 시작일을 앞세운다.
+    expect(container.textContent).toContain("2026년 9월 23일부터, 결과 화면에서 직접 동의한 경우에만");
+    expect(container.textContent).not.toContain("직접 보태기로 동의하지 않는 한");
     await answerAll();
     expect(container.querySelector("[data-research-contribution]")).toBeNull();
   });
@@ -135,6 +137,9 @@ describe("WeddingCode research contribution card", () => {
   it("체크 두 개를 직접 켜야 보내고, 브라우저가 만든 삭제 코드를 함께 보내 보여주며 저장소·분석에 남기지 않는다", async () => {
     await act(async () => root.render(<WeddingCodeV06Client shareOrigin="https://hanbang.ai" version={config.version} partnerAnswers={null} partnerCode={null} bothCodes={null} researchContributionOpen researchStorageActive />));
     expect(container.querySelector("[data-research-delete]")).not.toBeNull();
+    // 받는 동안에는 시작일을 다시 말하지 않고, 현재 있는 동의 카드를 가리킨다.
+    expect(container.textContent).toContain("직접 보태기로 동의하지 않는 한 장면의 답은 서버나 브라우저 저장소에 보관하지 않아요");
+    expect(container.textContent).not.toContain("2026년 9월 23일부터, 결과 화면에서");
     await answerAll();
 
     const card = container.querySelector('[data-research-contribution="form"]')!;

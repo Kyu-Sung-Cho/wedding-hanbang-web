@@ -32,6 +32,15 @@ export const WEDDING_CODE_RESEARCH_MIN_AGE = 19;
  */
 export const WEDDING_CODE_RESEARCH_CONTRIBUTION_EFFECTIVE_AT = "2026-09-23T00:00:00+09:00";
 
+/**
+ * 「2026년 9월 23일부터」. 아직 받지 않는 동안 화면이 **없는 버튼을 설명하지 않게** 한다
+ * (2026-09-16 라이브 확인에서 잡혔다). 처리방침에 적힌 날짜와 같은 값에서 만든다.
+ */
+export function weddingCodeResearchContributionStartLabel(): string {
+  const kst = new Date(Date.parse(WEDDING_CODE_RESEARCH_CONTRIBUTION_EFFECTIVE_AT) + 9 * 60 * 60 * 1000);
+  return `${kst.getUTCFullYear()}년 ${kst.getUTCMonth() + 1}월 ${kst.getUTCDate()}일부터,`;
+}
+
 const ANSWER_CODE = new RegExp(`^[A-D-]{${WEDDING_CODE_RESEARCH_SCENE_COUNT}}$`);
 /** `wc_del_` + base64url 32바이트(43글자). 접두사는 보안 강도가 아니라 알아보기용이다. */
 export const WEDDING_CODE_RESEARCH_RECEIPT_PATTERN = /^wc_del_[A-Za-z0-9_-]{43}$/;
