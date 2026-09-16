@@ -2377,7 +2377,7 @@ const styles = StyleSheet.create({
     borderRadius: 24,
     padding: 16,
     marginBottom: 16,
-    shadowColor: "#000",
+    shadowColor: colors.paper.ink,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.04,
     shadowRadius: 12,
@@ -2491,7 +2491,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderRadius: 14,
     marginBottom: 8,
-    shadowColor: "#000",
+    shadowColor: colors.paper.ink,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.04,
     shadowRadius: 12,
@@ -2569,7 +2569,7 @@ const styles = StyleSheet.create({
   // 모달
   modalOverlay: {
     flex: 1,
-    backgroundColor: "rgba(0,0,0,0.4)",
+    backgroundColor: "rgba(37,26,24,0.4)",
     justifyContent: "flex-end",
   },
   modalContent: {

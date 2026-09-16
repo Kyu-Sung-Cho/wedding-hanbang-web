@@ -231,7 +231,7 @@ export default function SlideBuilder({ slides, onChange, max = 10 }: SlideBuilde
               )}
 
               {/* 순서 라벨 (좌상단) */}
-              <span className="absolute top-2 left-2 inline-flex items-center justify-center w-6 h-6 rounded-full bg-black/60 text-white text-xs font-medium tabular-nums">
+              <span className="absolute top-2 left-2 inline-flex items-center justify-center w-6 h-6 rounded-full bg-black/70 text-white text-xs font-medium tabular-nums">
                 {idx + 1}
               </span>
 

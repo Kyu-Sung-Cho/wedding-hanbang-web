@@ -361,7 +361,7 @@ export default function CategoryChecklistSheet({
 }
 
 const s = StyleSheet.create({
-  scrim: { flex: 1, backgroundColor: "rgba(38,37,31,0.5)" },
+  scrim: { flex: 1, backgroundColor: "rgba(58,42,39,0.5)" },
   sheet: {
     position: "absolute",
     left: 0,
@@ -372,7 +372,7 @@ const s = StyleSheet.create({
     borderTopLeftRadius: 22,
     borderTopRightRadius: 22,
     // 시안의 위쪽 그림자 — 시트가 목록 위에 떠 있다는 신호다.
-    shadowColor: "rgba(38,37,31,0.22)",
+    shadowColor: "rgba(58,42,39,0.22)",
     shadowOffset: { width: 0, height: -14 },
     shadowOpacity: 1,
     shadowRadius: 20,

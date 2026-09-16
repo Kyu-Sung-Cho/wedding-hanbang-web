@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { ArrowUp } from "lucide-react";
 import AmoraMark from "@/components/ui/AmoraMark";
-import { AMORA_ACTION_CLASS, AMORA_ICON_ACTION_CLASS } from "@/components/ui/amoraActionStyles";
+import { AMORA_ACTION_CLASS, AMORA_QUIET_CHIP_CLASS, AMORA_QUIET_TARGET_CLASS } from "@/components/ui/amoraActionStyles";
 import { FEATURE_SUMMARY_CLASS } from "@/components/ui/featureSummaryStyles";
 import type { MannersBlock, MannersPart, MannersSource } from "@/lib/manners/types";
 import { categoryKeysForMannersPart } from "@/lib/manners/categoryMap";
@@ -579,7 +579,7 @@ export default function MannersPartView({ part }: { part: MannersPart }) {
                   <h2 className="min-w-0 flex-1 text-[15.5px] font-semibold leading-[1.4] text-[var(--amora-ink)] sm:text-[18px]">
                     {sectionLabel(section.heading)}
                   </h2>
-                  {sectionAmoraHref && <Link {...weddingLinkProps(sectionAmoraHref)} aria-label={`${sectionLabel(section.heading)} 아모라에 질문하기`} title={`${sectionLabel(section.heading)} 아모라에 질문하기`} className={`${AMORA_ICON_ACTION_CLASS} -mr-2`}><AmoraMark className="size-5" /></Link>}
+                  {sectionAmoraHref && <Link {...weddingLinkProps(sectionAmoraHref)} aria-label={`${sectionLabel(section.heading)} 아모라에 질문하기`} title={`${sectionLabel(section.heading)} 아모라에 질문하기`} className={`${AMORA_QUIET_TARGET_CLASS} -mr-1.5`}><span className={AMORA_QUIET_CHIP_CLASS}><AmoraMark className="size-4" /></span></Link>}
                 </div>
 
                 {lead ? (

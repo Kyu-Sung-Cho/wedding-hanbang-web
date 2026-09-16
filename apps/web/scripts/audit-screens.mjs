@@ -39,8 +39,10 @@ const ROUTES = [
   "/terms", "/privacy", "/login", "/beta", "/demo", "/today",
 ];
 
-const PAPER = ["#26251F","#4A483F","#605E54","#FDFCF7","#F8F4EA","#FFFFFF","#E2DED2","#EDEAE0","#35638A","#24465F","#637465","#12110D"];
-const OLD = ["#36534E","#243832","#263832","#8F6662","#795252","#A77B74","#FBF8F2","#F6EFE5","#E5D8CA","#EADFC9","#B5ADA3","#928980","#635B51","#504444","#1A1A1F","#6D806E","#2B423E","#5F5B52","#7D7166"];
+// 2026-09-16: 잉크가 따뜻해지고(#26251F→#3A2A27) 누를 수 있는 면이 모브로 갈렸다.
+// 이 목록이 낡으면 감사기가 **현재 색을 구색이라고 말한다** — 실제로 그 상태였다.
+const PAPER = ["#3A2A27","#5A4742","#6E5A54","#251A18","#8F6662","#7D5753","#A77B74","#FDFCF7","#F8F4EA","#FFFFFF","#E2DED2","#EDEAE0","#35638A","#24465F","#637465"];
+const OLD = ["#36534E","#243832","#263832","#26251F","#4A483F","#605E54","#12110D","#795252","#FBF8F2","#F6EFE5","#E5D8CA","#EADFC9","#B5ADA3","#928980","#635B51","#504444","#1A1A1F","#6D806E","#2B423E","#5F5B52","#7D7166"];
 
 /** 브라우저 안에서 도는 측정기. 문자열로 넘겨 평가한다. */
 const PROBE = ([paperList, oldList]) => {
@@ -181,8 +183,8 @@ const serving = await page.evaluate(() => {
 });
 console.log(`  대상: ${BASE}  (${WIDTH}x${HEIGHT})`);
 console.log(`  서버가 주는 값: --hb-primary=${serving.primary || "(없음)"} · --hb-surface-page=${serving.surfacePage || "(없음)"}`);
-if (serving.primary.toUpperCase() !== "#26251F") {
-  console.log("  ⚠️ 기대(#26251F)와 다르다 — 다른 워크트리의 서버를 재고 있을 수 있다.");
+if (serving.primary.toUpperCase() !== "#8F6662") {
+  console.log("  ⚠️ 기대(#8F6662)와 다르다 — 다른 워크트리의 서버를 재고 있을 수 있다.");
 }
 console.log("");
 console.log("  화면                       종이   대비   작은글씨  작은버튼  넘침  본문");

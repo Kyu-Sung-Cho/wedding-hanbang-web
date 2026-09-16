@@ -63,7 +63,7 @@ export function LoungePriorityFeed({ items }: { items: readonly LoungePriorityIt
             </p>}
             <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
               {category ? <div className="min-w-[80px] max-w-[240px] flex-1"><div className="mb-1.5 flex items-center justify-between gap-2 text-[10px] text-[var(--amora-muted)]"><span>직접 체크</span><span>{category.done}/{category.total}</span></div><progress aria-label={`${category.label} 체크 진행`} max={Math.max(1, category.total)} value={category.done} className={progressClass} /></div> : <span className="inline-flex items-center gap-1.5 text-[10.5px] text-[var(--amora-muted)]"><CalendarDays size={13} aria-hidden="true" />등록한 일정</span>}
-              <Link {...weddingLinkProps(href)} className={`inline-flex min-h-11 shrink-0 items-center gap-1.5 rounded-lg px-3 text-[11px] font-medium ${index === 0 ? "bg-[var(--amora-ink)] text-white hover:bg-[var(--amora-soft)]" : "bg-[var(--amora-warm)] text-[var(--amora-soft)] hover:bg-[var(--amora-low)]"} ${focus}`}>{event ? "일정 확인" : "체크리스트 열기"}<ArrowRight size={12} aria-hidden="true" /></Link>
+              <Link {...weddingLinkProps(href)} className={`inline-flex min-h-11 shrink-0 items-center gap-1.5 rounded-lg px-3 text-[11px] font-medium ${index === 0 ? "bg-[var(--amora-action)] text-white hover:bg-[var(--amora-action-hover)]" : "bg-[var(--amora-warm)] text-[var(--amora-soft)] hover:bg-[var(--amora-low)]"} ${focus}`}>{event ? "일정 확인" : "체크리스트 열기"}<ArrowRight size={12} aria-hidden="true" /></Link>
             </div>
           </div>
         </article>;

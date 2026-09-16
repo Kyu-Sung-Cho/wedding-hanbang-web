@@ -319,7 +319,7 @@ describe("landing design system", () => {
     }
 
     // 알아 두고 통과시키는 것: 노트 카드의 들림은 globals.css `.landing-note`의
-    // `box-shadow: 0 10px 24px rgba(38,37,31,.07)`이다. 두 토큰 어느 쪽도 아니지만
+    // `box-shadow: 0 10px 24px rgba(58,42,39,.07)`이다. 두 토큰 어느 쪽도 아니지만
     // 이 규칙이 막는 것은 "컴포넌트마다 다시 정하는 것"이고, 저건 공유 프리미티브
     // 한 곳에 한 번 적힌 값이라 여기서 잡지 않는다. 두 번째가 생기면 그때가 드리프트다.
     //
@@ -330,7 +330,7 @@ describe("landing design system", () => {
       m[1].replace(/\s+/gu, " ").trim(),
     );
     expect(shadows, "랜딩 CSS 블록의 elevation 은 노트 카드 한 줄뿐이다").toEqual([
-      "0 10px 24px rgba(38, 37, 31, 0.07)",
+      "0 10px 24px rgba(58, 42, 39, 0.07)",
     ]);
   });
 
