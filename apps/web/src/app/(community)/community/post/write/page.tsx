@@ -1123,13 +1123,13 @@ function PostWriteContent() {
                                 setContent((prev) => prev.replace(tokenRe, "\n\n"));
                                 setInlineImages((prev) => prev.filter((i) => i.id !== img.id));
                               }}
-                              className="absolute top-0.5 right-0.5 w-5 h-5 rounded-full bg-black/60 text-white text-[10px] flex items-center justify-center opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity"
+                              className="absolute top-0.5 right-0.5 w-5 h-5 rounded-full bg-black/70 text-white text-[10px] flex items-center justify-center opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity"
                               aria-label={`이미지 ${idx + 1} 제거`}
                               title="제거"
                             >
                               ✕
                             </button>
-                            <div className="absolute bottom-0.5 left-0.5 px-1 rounded-[6px] bg-black/55 text-white text-[10px] font-medium">
+                            <div className="absolute bottom-0.5 left-0.5 px-1 rounded-[6px] bg-black/70 text-white text-[10px] font-medium">
                               {idx + 1}
                             </div>
                           </div>

@@ -57,7 +57,7 @@ export default function AmoraNoteSaveSheet({ content, busy, error, onSave, onClo
       </div>
       <div className="mb-4">
         <p className="mb-[7px] text-[12px] text-[var(--amora-muted)]">보관 위치</p>
-        <span className="inline-flex min-h-11 items-center gap-[7px] rounded-full bg-[var(--amora-ink)] px-4 text-[13.5px] font-semibold text-white">
+        <span className="inline-flex min-h-11 items-center gap-[7px] rounded-full bg-[var(--amora-action)] px-4 text-[13.5px] font-semibold text-white">
           <Bookmark className="size-3.5 shrink-0" aria-hidden="true" />결정 보드 · 저장한 답변
         </span>
         <p className="mt-2 flex items-start gap-[7px] text-[12px] leading-[1.55] text-[var(--amora-muted)]">

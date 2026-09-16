@@ -78,9 +78,9 @@
   - 예절 가이드 목록 — 형제가 없으므로 손대상 44px 을 유지하고 테두리만 뺀다.
   - 예절 가이드 절 제목 — **누르는 영역은 44px 을 지키고 보이는 칩만** 옆 번호 배지와
     같은 30/34px 로 맞춘다. 크기를 맞추려고 손대상을 줄이지 않는다.
-  테두리 있는 `AMORA_ACTION_CLASS`·`AMORA_ICON_ACTION_CLASS` 는 형제가 없는 자리(대화
-  제안·플로팅 등)에 그대로 남는다 — 그곳에서는 테두리가 "누를 수 있는 것"의 유일한
-  경계다. 아래 2026-09-12 항목의 리본·44px 일괄 규칙은 이 항목이 대신한다.
+  글자가 함께 오는 `AMORA_ACTION_CLASS` 와 플로팅 `AMORA_FAB_CLASS` 는 테두리를 유지한다 — 형제가 없는 자리(대화
+  제안·플로팅 등)에서는 테두리가 "누를 수 있는 것"의 유일한 경계이기 때문이다.
+  테두리 있는 아이콘 전용 변형 `AMORA_ICON_ACTION_CLASS` 는 쓰는 곳이 없어져 지웠다. 아래 2026-09-12 항목의 리본·44px 일괄 규칙은 이 항목이 대신한다.
 
 - **Amora identity and question controls (2026-09-12, 표식과 크기는 위 항목이 대신함):** The user requested a
   distinctive, memorable mark and consistent visible borders across features.

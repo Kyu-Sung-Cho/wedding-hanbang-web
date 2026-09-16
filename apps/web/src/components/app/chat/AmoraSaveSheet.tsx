@@ -107,7 +107,7 @@ export default function AmoraSaveSheet({
         </div>
         <div className="mb-4">
           <p className="mb-[7px] text-[11.5px] text-[var(--amora-muted)]">분야</p>
-          <span className="inline-flex min-h-11 items-center gap-[7px] rounded-full bg-[var(--amora-ink)] px-4 text-[13.5px] font-semibold text-white">
+          <span className="inline-flex min-h-11 items-center gap-[7px] rounded-full bg-[var(--amora-action)] px-4 text-[13.5px] font-semibold text-white">
             <Check className="size-3.5" aria-hidden="true" />
             {details.category}
           </span>

@@ -717,7 +717,7 @@ p, span, div, li, h1, h2, h3, h4, h5, h6 {
   color: #263832;
   /* @generated:design-tokens service-theme start — colors.ts에서 생성됩니다. 직접 고치지 마세요. */
   --hb-navy: #8F6662;
-  --hb-navy-soft: #A77B74;
+  --hb-navy-soft: #7D5753;
   --hb-gold: #35638A;
   --hb-gold-deep: #24465F;
   --hb-gold-light: rgba(53, 99, 138, 0.16);
@@ -729,7 +729,12 @@ p, span, div, li, h1, h2, h3, h4, h5, h6 {
   --hb-body: #5A4742;
   --hb-success: #637465;
   /* @generated:design-tokens service-theme end */
-}.hanbang-service-theme [class~="from-[#795252]"],
+}/* `to-` 쪽만 브리지되고 `from-` 쪽이 빠지면 그라디언트 한쪽 끝만 갈려 흰 글자가
+   읽히지 않는다. 채팅의 상대-지정 토글(from-[#D99C9C] to-[#E8B4B4], 12px 흰 글자)이
+   정확히 그 상태였다 — 시작점이 2.29:1 로 원래도 미달이었고, 2026-09-16 에 navy-soft 가
+   따뜻해지면서 끝점의 9.17:1 마저 사라졌다. 시작점도 같이 브리지해 4.95 → 6.25 로 만든다. */
+.hanbang-service-theme [class~="from-[#795252]"],
+.hanbang-service-theme [class~="from-[#D99C9C]"],
 .hanbang-service-theme [class~="from-rose-500"] {
   --tw-gradient-from: var(--hb-navy) !important;
   --tw-gradient-to: rgba(54, 83, 78, 0) !important;
@@ -774,7 +779,7 @@ p, span, div, li, h1, h2, h3, h4, h5, h6 {
   color: #263832;
   /* @generated:design-tokens community-theme start — colors.ts에서 생성됩니다. 직접 고치지 마세요. */
   --hb-navy: #8F6662;
-  --hb-navy-soft: #A77B74;
+  --hb-navy-soft: #7D5753;
   --hb-gold: #35638A;
   --hb-gold-deep: #24465F;
   --hb-gold-light: rgba(53, 99, 138, 0.16);
