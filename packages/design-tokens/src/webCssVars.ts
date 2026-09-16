@@ -115,6 +115,18 @@ export const WEB_THEME_COLOR_VARS: readonly WebCssColorVar[] = [
   { name: "gold-light", value: colors.gold.light },
 
   { name: "platinum", value: colors.platinum, section: "" },
+
+  // 2026-09-16 파운더 결정: "검정 쓰이는 거 대신에 다른 색 웨딩에 어울리는 색으로."
+  //
+  // 제품 전체에 `border-black/[0.04]`·`bg-black/40` 같은 **반투명 검정**이 280곳쯤
+  // 있다. 값 하나하나가 옅어서 따로 보면 티가 안 나지만, 아이보리 바탕 위에 겹겹이
+  // 깔리면 화면 전체에 차가운 회색 막을 씌운다 — 파운더가 "검정이 웨딩에 안 어울린다"고
+  // 말한 실체가 이것이다.
+  //
+  // Tailwind v4 의 `black` 자체를 가장 짙은 종이 잉크로 돌린다. 호출부 280곳을
+  // 건드리지 않고 **불투명도와 두께는 그대로** 둔 채 색온도만 옮기는 방법이다.
+  // 순수 검정이 필요한 곳(사진 뒤 배경)도 이 값이면 사진 색을 해치지 않는다.
+  { name: "black", value: colors.paper.inkPressed },
 ];
 
 /**
@@ -146,12 +158,26 @@ export const WEB_SEMANTIC_ROLE_VARS: readonly WebCssColorVar[] = [
   { name: "summary-ink", value: summaryPalette.ink },
   { name: "summary-label", value: summaryPalette.label },
   { name: "summary-track", value: summaryPalette.track },
+  // 2026-09-16 파운더 결정: "검정처럼 어두운 색 말고." 잉크를 따뜻하게 옮긴 것만으로는
+  // 부족했다 — 새 잉크도 밝기 19% 라 큰 면에서는 여전히 검정으로 읽혔다.
+  //
+  // **누를 수 있는 것의 바탕과 읽는 글자를 갈라놓는다.** 이 토큰은 바탕으로 300곳,
+  // 글자로 7곳에 쓰인다. 즉 화면에서 "검정 덩어리"로 보이는 정체가 이것이다.
+  // 글자(`text-strong`·`amora-ink`)는 어두운 잉크로 남는다 — 밝히면 안 읽힌다.
+  //
+  // 색은 새로 정하지 않았다. DESIGN.md 2026-09-11 항목이 이미 "primary actions use
+  // rose[600], hover rose[700] — 이것이 예전 검정 채움을 대신한다" 고 적었고,
+  // 공용 Button 은 이미 `--hb-action`(=rose[600])을 쓴다. `--hb-primary` 만 그
+  // 결정을 안 따르고 먹색으로 남아 있었다. 그 결정을 끝까지 적용하는 것이다.
+  //
+  // 실측: 흰 글자 대비 rose[600] 4.95:1 · rose[700] 6.25:1 — 둘 다 AA(4.5) 위다.
+  // 글자로 쓰이는 7곳도 흰 지면 위 4.95:1 로 통과한다.
   {
     name: "primary",
-    value: colors.paper.ink,
-    section: "역할 — 누를 수 있는 것 (제품 표면 언어는 종이·잉크)",
+    value: colors.rose[600],
+    section: "역할 — 누를 수 있는 것 (채움은 더스티 모브, 읽는 글자는 잉크)",
   },
-  { name: "primary-hover", value: colors.paper.inkPressed },
+  { name: "primary-hover", value: colors.rose[700] },
   { name: "on-primary", value: colors.paper.card },
   { name: "action", value: colors.rose[600] },
   { name: "action-hover", value: colors.rose[700] },
@@ -244,8 +270,23 @@ export const WEB_THEME_ROLE_VARS: readonly WebCssColorVar[] = [
   //
   // 이름(`navy`·`gold`)은 이미 오래전부터 거짓이지만 브리지 규칙 65개가 그 이름을
   // 참조하므로 지금 바꾸지 않는다 — 브리지를 걷어낼 때 함께 사라질 이름이다.
-  { name: "navy", value: colors.paper.ink },
-  { name: "navy-soft", value: colors.paper.inkSoft },
+  // 2026-09-16: 이 둘은 **배경·그라디언트로만** 쓰인다(globals.css 에서 background-color
+  // 1곳, gradient-from/to 2곳, 글자로 쓰이는 곳 0곳). 브리지가 하던 일이 공교롭게도
+  // `from-rose-500`·`#795252` 같은 **로즈 리터럴을 먹색으로 덮는 것**이었다 —
+  // 검정을 지우는 이번 결정과 정확히 반대였다. 같은 모브 계열로 되돌린다.
+  // 그라디언트 끝(`navy-soft`)은 **밝은 쪽이 아니라 짙은 쪽**이다.
+  //
+  // 2026-09-16 최초 시도에서 rose[500] 로 뒀다가 머지 직전 검증에서 걸렸다. 이 브리지가
+  // 칠하는 것은 장식 띠가 아니라 **흰 글자를 얹은 주요 버튼**이다(money 제출 버튼 등 9곳).
+  // rose[500] 끝에서 흰 글자는 3.67:1, 중간에서 4.23:1 로 AA 미달이었다.
+  // 더 나쁜 것은, 브리지를 아예 안 걸었을 때의 원본 리터럴(#795252 → #946a6a)이
+  // 6.68 → 4.64 로 **통과**한다는 점이다 — 오버라이드가 멀쩡한 버튼을 망가뜨리고 있었다.
+  //
+  // rose[700] 로 두면 4.95 → 5.52 → 6.25 로 전 구간 통과하고, 그라디언트가 짙어지는
+  // 방향이라 눌림 색(rose[700])과도 같은 이야기를 한다.
+  // **이 값을 밝게 되돌리려면 그라디언트 위 흰 글자를 시작·중간·끝 세 점에서 다시 재라.**
+  { name: "navy", value: colors.rose[600] },
+  { name: "navy-soft", value: colors.rose[700] },
   // 강조는 파란 펜이 진다. 잉크로 두면 링크·강조가 본문과 구분되지 않는다.
   { name: "gold", value: colors.paper.pen },
   { name: "gold-deep", value: colors.paper.penDeep },
@@ -293,7 +334,9 @@ export const WEB_HTML_WORKSPACE_ROLE_VARS: readonly WebCssColorVar[] = [
   { name: "surface-card", value: "var(--amora-surface)" },
   { name: "surface-hover", value: "var(--amora-warm)" },
   { name: "hairline", value: "var(--amora-line)" },
-  { name: "primary", value: "var(--amora-ink)" },
+  // 채움은 워크스페이스 안에서도 모브다. 여기서 `--amora-ink` 를 가리키면
+  // 체크리스트·예산·예절 안에서만 버튼이 다시 먹색이 된다.
+  { name: "primary", value: "var(--amora-action)" },
   { name: "text-strong", value: "var(--amora-ink)" },
   { name: "text-body", value: "var(--amora-soft)" },
   { name: "text-muted", value: "var(--amora-muted)" },

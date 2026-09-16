@@ -42,9 +42,9 @@ const pretendardBold = readFile(join(
  */
 const PAPER = {
   sheet: "#FDFCF7",
-  ink: "#26251F",
-  inkSoft: "#4A483F",
-  inkFaint: "#605E54",
+  ink: "#3A2A27",
+  inkSoft: "#5A4742",
+  inkFaint: "#6E5A54",
   pen: "#35638A",
 } as const;
 

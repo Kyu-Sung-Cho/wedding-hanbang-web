@@ -8,7 +8,7 @@ import { BookOpen, Check, ChevronRight, Heart, Mail, Plane, Search, ShoppingBag,
 import CategoryChecklistModal from "@/components/app/schedule/CategoryChecklistModal";
 import Button from "@/components/ui/Button";
 import AmoraMark from "@/components/ui/AmoraMark";
-import { AMORA_ICON_ACTION_CLASS } from "@/components/ui/amoraActionStyles";
+import { AMORA_QUIET_ICON_ACTION_CLASS } from "@/components/ui/amoraActionStyles";
 import { FEATURE_SUMMARY_CLASS, SUMMARY_LABEL_CLASS, SUMMARY_VALUE_CLASS } from "@/components/ui/featureSummaryStyles";
 import { CATEGORY_CHECKLISTS } from "@/constants/checklists";
 import { mannersPartForCategory } from "@/lib/manners/categoryMap";
@@ -233,9 +233,9 @@ export default function ChecklistContent() {
                   {...weddingLinkProps(amoraHref)}
                   aria-label={`${template.label} 아모라에 질문하기`}
                   title={`${template.label} 아모라에 질문하기`}
-                  className={AMORA_ICON_ACTION_CLASS}
+                  className={AMORA_QUIET_ICON_ACTION_CLASS}
                 >
-                  <AmoraMark className="size-5" />
+                  <AmoraMark className="size-[14px]" />
                 </Link>
               )}
             </div>

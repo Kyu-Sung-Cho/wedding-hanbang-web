@@ -75,13 +75,19 @@ describe("웹 팔레트는 토큰에서 생성된다", () => {
     // 2026-08-28: 역할이 유칼립투스에서 **종이**로 옮겨졌다(파운더 결정 — 랜딩의
     // 표면 언어를 제품 전체로). 지키는 계약은 그대로다: 값이 아니라 **토큰 경로**를
     // 박으므로, 생성기가 상수를 뱉기 시작하면 여전히 여기서 걸린다.
-    expect(current).toContain(`--hb-primary: ${colors.paper.ink};`);
-    expect(current).toContain(`--hb-primary-hover: ${colors.paper.inkPressed};`);
+    //
+    // 2026-09-16: **채움과 글자가 갈렸다**(파운더 결정 — "검정처럼 어두운 색 말고").
+    // 누를 수 있는 면은 더스티 모브로 가고, 읽는 글자는 잉크로 남는다. 여기서도
+    // 지키는 계약은 그대로다 — 값이 아니라 토큰 경로를 박는다. 아래 두 줄이
+    // rose 를 가리키고 `--hb-text-muted` 가 여전히 paper 를 가리키는 것이 그 분리다.
+    expect(current).toContain(`--hb-primary: ${colors.rose[600]};`);
+    expect(current).toContain(`--hb-primary-hover: ${colors.rose[700]};`);
     expect(current).toContain(`--hb-hairline: ${colors.paper.edge};`);
     expect(current).toContain(`--hb-text-muted: ${colors.paper.inkFaint};`);
 
     // 브리지 규칙이 참조하는 테마 블록 값도 같은 토큰에서 나와야 한다.
-    expect(current).toContain(`--hb-navy: ${colors.paper.ink};`);
+    // `--hb-navy` 는 배경·그라디언트 전용이라(글자로 쓰이는 곳 0곳) 채움 쪽을 따른다.
+    expect(current).toContain(`--hb-navy: ${colors.rose[600]};`);
     expect(current).toContain(`--hb-line: ${colors.paper.edge};`);
   });
 

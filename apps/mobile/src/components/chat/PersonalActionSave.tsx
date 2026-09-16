@@ -71,7 +71,7 @@ export function PersonalActionSave({ ownerId, coupleId, messageId, content, pers
 const styles = StyleSheet.create({
   link: { minHeight: 44, justifyContent: "center", paddingHorizontal: 8 },
   linkText: { fontSize: 12, color: colors.rose[600], textDecorationLine: "underline" },
-  overlay: { flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(0,0,0,0.4)" },
+  overlay: { flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(37,26,24,0.4)" },
   sheet: { maxHeight: "92%", padding: spacing[4], paddingBottom: spacing[6], borderTopLeftRadius: radius.xl, borderTopRightRadius: radius.xl, backgroundColor: colors.bg },
   header: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: 8 },
   title: { flex: 1, fontSize: 18, fontWeight: "700", color: colors.noir[800] },

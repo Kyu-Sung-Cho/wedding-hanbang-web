@@ -50,7 +50,7 @@ export default function AmoraSheetFrame({
         aria-describedby={descriptionId}
         aria-busy={busy}
         tabIndex={-1}
-        className="relative flex max-h-[92dvh] w-full flex-col overflow-hidden rounded-t-[22px] bg-[var(--amora-surface)] px-5 pt-2.5 pb-[max(24px,env(safe-area-inset-bottom))] text-[var(--amora-ink)] shadow-[0_-14px_40px_rgba(38,37,31,0.22)] sm:w-[430px] sm:rounded-[22px] sm:pb-6"
+        className="relative flex max-h-[92dvh] w-full flex-col overflow-hidden rounded-t-[22px] bg-[var(--amora-surface)] px-5 pt-2.5 pb-[max(24px,env(safe-area-inset-bottom))] text-[var(--amora-ink)] shadow-[0_-14px_40px_rgba(58,42,39,0.22)] sm:w-[430px] sm:rounded-[22px] sm:pb-6"
       >
         <div aria-hidden="true" className="mx-auto mb-[18px] h-1 w-[38px] shrink-0 rounded-full bg-[var(--amora-line)]" />
         <button
@@ -92,7 +92,7 @@ export default function AmoraSheetFrame({
             type="button"
             onClick={onDefer}
             disabled={busy}
-            className="min-h-[52px] rounded-xl border border-[var(--hb-outline-strong,#8F8A7A)] bg-white px-4 py-3 text-[15px] font-semibold text-[var(--amora-soft)] transition-colors hover:bg-[var(--amora-bg)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--amora-accent)] disabled:opacity-45"
+            className="min-h-[52px] rounded-xl border border-[var(--hb-outline-strong,#8E8377)] bg-white px-4 py-3 text-[15px] font-semibold text-[var(--amora-soft)] transition-colors hover:bg-[var(--amora-bg)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--amora-accent)] disabled:opacity-45"
           >
             나중에 정하기
           </button>

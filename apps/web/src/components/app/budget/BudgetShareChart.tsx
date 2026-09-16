@@ -50,7 +50,7 @@ const NAMED_SLICE_LIMIT = 7;
 /**
  * `기타` 는 이름 있는 일곱 색 **어느 것과도** 달라야 한다.
  *
- * 처음엔 `--color-paper-outline`(#8F8A7A)을 썼다가 375px 실측에서 다섯째 조각
+ * 처음엔 `--color-paper-outline`(#8E8377)을 썼다가 375px 실측에서 다섯째 조각
  * `--color-paper-stem`(#A2937F)과 목록의 점이 구별되지 않았다 — 둘 다 흐린 토프다.
  * `--color-taupe-500`(#635B51)은 한 단계 어두워 여덟 색 안에서 혼자 선다.
  */

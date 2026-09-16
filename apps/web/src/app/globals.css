@@ -67,9 +67,9 @@
   --hb-summary-label: #624A3C;
   --hb-summary-track: #D5BDA9;
 
-  /* 역할 — 누를 수 있는 것 (제품 표면 언어는 종이·잉크) */
-  --hb-primary: #26251F;
-  --hb-primary-hover: #12110D;
+  /* 역할 — 누를 수 있는 것 (채움은 더스티 모브, 읽는 글자는 잉크) */
+  --hb-primary: #8F6662;
+  --hb-primary-hover: #7D5753;
   --hb-on-primary: #FFFFFF;
   --hb-action: #8F6662;
   --hb-action-hover: #7D5753;
@@ -106,9 +106,9 @@
   --hb-hairline: #E2DED2;
 
   /* 역할 — 글자 */
-  --hb-text-strong: #26251F;
-  --hb-text-body: #4A483F;
-  --hb-text-muted: #605E54;
+  --hb-text-strong: #3A2A27;
+  --hb-text-body: #5A4742;
+  --hb-text-muted: #6E5A54;
 
   /* 역할 — 어디서나 통하는 표면·강조 (테마 밖에서도 정의된다) */
   --hb-surface-page: #FDFCF7;
@@ -154,6 +154,7 @@
   --color-gold-light: #E2D3C8;
 
   --color-platinum: #E6DDD2;
+  --color-black: #251A18;
   /* @generated:design-tokens theme end */
 
   /* Paper — 랜딩의 "결혼 준비 노트" 표면.
@@ -174,18 +175,19 @@
   --color-paper-rule: #EDEAE0;
   --color-paper-edge: #E2DED2;
   --color-paper-divider: #DDD8C9;
-  --color-paper-ink: #26251F;
-  --color-paper-ink-soft: #4A483F;
-  --color-paper-ink-faint: #605E54;
+  --color-paper-ink: #3A2A27;
+  --color-paper-ink-soft: #5A4742;
+  --color-paper-ink-faint: #6E5A54;
   /* 잉크 위에 얹는 글자 — 랜딩 끝 다크 밴드(경계 + 마무리)가 쓴다.
      2026-09-03 시안 픽셀 실측: 제목 #FFFFFB · 항목 본문 #D7D4CD · 작은 글씨 #89897F.
-     작은 글씨는 실측값 그대로 쓰면 잉크 위에서 4.4:1 이라 3단계만 한 칸 올렸다
-     (#96938B = 5.2:1). 셋 다 --color-paper-ink 바탕에서 WCAG AA 를 넘는다. */
+     2026-09-16 잉크가 따뜻해지면서 셋을 다시 쟀다 — 옛 작은 글씨 #96938B 는 새 잉크
+     위에서 4.44:1 로 AA 미달이라 #A39A92(4.93:1) 로 올렸다. 본문 #DAD3CD 는 9.21:1.
+     셋 다 --color-paper-ink 바탕에서 WCAG AA 를 넘는다. */
   --color-paper-on-ink: #FDFCF7;
-  --color-paper-on-ink-soft: #D7D4CD;
-  --color-paper-on-ink-faint: #96938B;
+  --color-paper-on-ink-soft: #DAD3CD;
+  --color-paper-on-ink-faint: #A39A92;
   /* 어두운 바탕의 구분선. 대비 기준이 아니라 '보이되 튀지 않는' 값이다. */
-  --color-paper-on-ink-rule: #4A483F;
+  --color-paper-on-ink-rule: #5C4A45;
   --color-paper-pen: #35638A;
   --color-paper-pen-deep: #24465F;
   --color-paper-mark: #B8452F;
@@ -195,7 +197,7 @@
      2026-08-29 실측: 옛 #CFCABA 는 sheet 1.60 / card 1.64 / tint 1.49:1 로 셋 다
      미달이었다. 지금 값은 3.36 / 3.45 / 3.13:1.
      카드 테두리는 `--color-paper-edge` 다 — 이 값을 장식에 쓰지 마라. */
-  --color-paper-outline: #8F8A7A;
+  --color-paper-outline: #8E8377;
   --color-paper-stem: #A2937F;
   --color-paper-gyp: #8FA08D;
 
@@ -206,10 +208,10 @@
    * 보이지 않게 한다. */
   /* 정본 시안(docs/landing/NotebookBest.html:31)의 **유일한** 그림자다. 시안은
      `.note` 카드 한 곳에만 그림자를 쓰고 그 외에는 쓰지 않는다. */
-  --shadow-raised: 0 10px 24px rgba(38, 37, 31, 0.07);
+  --shadow-raised: 0 10px 24px rgba(58, 42, 39, 0.07);
   /* 시안에는 모달·오버레이가 없어 대응값이 없다. 색조만 시안의 잉크로 맞추고
      띄움 정도는 오버레이가 배경과 분리돼 보일 만큼만 남긴다. */
-  --shadow-overlay: 0 24px 64px rgba(38, 37, 31, 0.18);
+  --shadow-overlay: 0 24px 64px rgba(58, 42, 39, 0.18);
 
   /* 제목·본문·버튼·숫자를 동일한 로컬 글꼴로 렌더링한다. */
   --font-sans: var(--font-pretendard);
@@ -714,20 +716,25 @@ p, span, div, li, h1, h2, h3, h4, h5, h6 {
 .hanbang-service-theme {
   color: #263832;
   /* @generated:design-tokens service-theme start — colors.ts에서 생성됩니다. 직접 고치지 마세요. */
-  --hb-navy: #26251F;
-  --hb-navy-soft: #4A483F;
+  --hb-navy: #8F6662;
+  --hb-navy-soft: #7D5753;
   --hb-gold: #35638A;
   --hb-gold-deep: #24465F;
   --hb-gold-light: rgba(53, 99, 138, 0.16);
   --hb-ivory: #FDFCF7;
   --hb-ivory-warm: #F8F4EA;
   --hb-line: #E2DED2;
-  --hb-muted: #605E54;
-  --hb-text: #26251F;
-  --hb-body: #4A483F;
+  --hb-muted: #6E5A54;
+  --hb-text: #3A2A27;
+  --hb-body: #5A4742;
   --hb-success: #637465;
   /* @generated:design-tokens service-theme end */
-}.hanbang-service-theme [class~="from-[#795252]"],
+}/* `to-` 쪽만 브리지되고 `from-` 쪽이 빠지면 그라디언트 한쪽 끝만 갈려 흰 글자가
+   읽히지 않는다. 채팅의 상대-지정 토글(from-[#D99C9C] to-[#E8B4B4], 12px 흰 글자)이
+   정확히 그 상태였다 — 시작점이 2.29:1 로 원래도 미달이었고, 2026-09-16 에 navy-soft 가
+   따뜻해지면서 끝점의 9.17:1 마저 사라졌다. 시작점도 같이 브리지해 4.95 → 6.25 로 만든다. */
+.hanbang-service-theme [class~="from-[#795252]"],
+.hanbang-service-theme [class~="from-[#D99C9C]"],
 .hanbang-service-theme [class~="from-rose-500"] {
   --tw-gradient-from: var(--hb-navy) !important;
   --tw-gradient-to: rgba(54, 83, 78, 0) !important;
@@ -771,17 +778,17 @@ p, span, div, li, h1, h2, h3, h4, h5, h6 {
 .hanbang-community-theme {
   color: #263832;
   /* @generated:design-tokens community-theme start — colors.ts에서 생성됩니다. 직접 고치지 마세요. */
-  --hb-navy: #26251F;
-  --hb-navy-soft: #4A483F;
+  --hb-navy: #8F6662;
+  --hb-navy-soft: #7D5753;
   --hb-gold: #35638A;
   --hb-gold-deep: #24465F;
   --hb-gold-light: rgba(53, 99, 138, 0.16);
   --hb-ivory: #FDFCF7;
   --hb-ivory-warm: #F8F4EA;
   --hb-line: #E2DED2;
-  --hb-muted: #605E54;
-  --hb-text: #26251F;
-  --hb-body: #4A483F;
+  --hb-muted: #6E5A54;
+  --hb-text: #3A2A27;
+  --hb-body: #5A4742;
   --hb-success: #637465;
   /* @generated:design-tokens community-theme end */
 }
@@ -1035,7 +1042,7 @@ p, span, div, li, h1, h2, h3, h4, h5, h6 {
   );
   border: 1px solid var(--color-paper-edge);
   border-radius: 6px;
-  box-shadow: 0 10px 24px rgba(38, 37, 31, 0.07);
+  box-shadow: 0 10px 24px rgba(58, 42, 39, 0.07);
 }
 
 /* 테이프 이름표 */
@@ -1171,9 +1178,9 @@ p, span, div, li, h1, h2, h3, h4, h5, h6 {
   --amora-warm: #F6EFE5;
   --amora-surface: #FFFFFF;
   --amora-low: #F1E8DA;
-  --amora-ink: #26251F;
-  --amora-soft: #4A483F;
-  --amora-muted: #605E54;
+  --amora-ink: #3A2A27;
+  --amora-soft: #5A4742;
+  --amora-muted: #6E5A54;
   --amora-line: #E5DDC9;
   --amora-accent: #35638A;
   --amora-rose: #A77B74;
@@ -1193,7 +1200,7 @@ p, span, div, li, h1, h2, h3, h4, h5, h6 {
   --hb-surface-card: var(--amora-surface);
   --hb-surface-hover: var(--amora-warm);
   --hb-hairline: var(--amora-line);
-  --hb-primary: var(--amora-ink);
+  --hb-primary: var(--amora-action);
   --hb-text-strong: var(--amora-ink);
   --hb-text-body: var(--amora-soft);
   --hb-text-muted: var(--amora-muted);

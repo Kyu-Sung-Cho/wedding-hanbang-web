@@ -1461,7 +1461,7 @@ const styles = StyleSheet.create({
   // 비밀번호 모달
   modalOverlay: {
     flex: 1,
-    backgroundColor: "rgba(0, 0, 0, 0.4)",
+    backgroundColor: "rgba(37, 26, 24, 0.4)",
     justifyContent: "flex-end",
   },
   modalContent: {

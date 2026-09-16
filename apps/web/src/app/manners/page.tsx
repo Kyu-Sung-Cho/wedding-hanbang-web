@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import AmoraMark from "@/components/ui/AmoraMark";
-import { AMORA_ICON_ACTION_CLASS } from "@/components/ui/amoraActionStyles";
+import { AMORA_QUIET_TOUCH_ACTION_CLASS } from "@/components/ui/amoraActionStyles";
 import { FEATURE_SUMMARY_CLASS, SUMMARY_LABEL_CLASS } from "@/components/ui/featureSummaryStyles";
 
 import { readingMinutesOf } from "@/lib/manners/readingTime";
@@ -54,7 +54,7 @@ export default function MannersIndexPage() {
           <p className="mt-1 text-[13px] leading-[1.6] text-[var(--amora-soft)]">{part.subtitle}</p>
           <p className="mt-1.5 text-[12px] text-[var(--amora-muted)]">{AUDIENCE_LABEL[part.audience]} · {readingMinutesOf(part.sections)}분 · {part.sections.length}개 절</p>
         </Link>
-        {amoraHref && <Link {...weddingLinkProps(amoraHref)} aria-label={`${part.title} 아모라에 질문하기`} title={`${part.title} 아모라에 질문하기`} className={`${AMORA_ICON_ACTION_CLASS} mr-2`}><AmoraMark className="size-5" /></Link>}
+        {amoraHref && <Link {...weddingLinkProps(amoraHref)} aria-label={`${part.title} 아모라에 질문하기`} title={`${part.title} 아모라에 질문하기`} className={`${AMORA_QUIET_TOUCH_ACTION_CLASS} mr-2`}><AmoraMark className="size-[18px]" /></Link>}
       </> }];
     }),
   }));

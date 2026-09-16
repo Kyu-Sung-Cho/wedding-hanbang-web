@@ -532,7 +532,7 @@ export default function ChatBubble({
         <AmoraAvatar sizeClassName="size-7 sm:size-8" />
 
         <div className="flex flex-col gap-1.5 min-w-0 flex-1">
-          <span className="flex items-center gap-1.5 text-[12px] font-medium text-[var(--amora-muted,#605E54)]">
+          <span className="flex items-center gap-1.5 text-[12px] font-medium text-[var(--amora-muted,#6E5A54)]">
             아모라
             {aiIsPrivate && (
               <span className="inline-flex items-center gap-1 text-xs text-[#5a6147] font-normal">
