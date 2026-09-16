@@ -10,6 +10,7 @@ import {
   Heart,
   ReceiptText,
   ShieldCheck,
+  Split,
   UsersRound,
   WalletCards,
 } from "lucide-react-native";
@@ -505,6 +506,46 @@ export default function WeddingHomeExperience({
             </Pressable>
           ) : null}
 
+          {/*
+            웨딩코드는 로그인 뒤 내비게이션에 넣지 않는다(2026-08-27 결정). 웹 라운지와
+            같은 자리, 본문 참고 카드로만 둔다 — 탭에 올리면 준비 흐름의 한 단계처럼
+            읽히는데 이건 해도 되고 안 해도 되는 대화거리다.
+            누르면 `app/wedding-code/index.tsx` 가 웹과 같은 화면을 앱 안 웹뷰로 연다.
+          */}
+          <Pressable
+            style={({ pressed }) => [
+              styles.weddingCodeStrip,
+              pressed && styles.tilePressed,
+            ]}
+            onPress={() => router.push("/wedding-code")}
+            accessibilityRole="button"
+          >
+            {/*
+              accessibilityLabel 을 달지 않는다. Pressable 은 기본이 accessible 이라
+              라벨을 주면 그것이 **자식 글을 대신해** 읽히고, 카드가 무슨 말을 하는지는
+              화면 낭독기에 영영 안 들린다. 바로 위 partnerStrip 도 같은 이유로 없다.
+              그래서 화면에 보이는 글 자체가 이름이 되도록 "웨딩코드" 를 제목에 넣는다.
+            */}
+            <View style={styles.weddingCodeIcon}>
+              <Split size={17} color={colors.gold.DEFAULT} />
+            </View>
+            <View style={styles.partnerCopy}>
+              <Text style={styles.partnerTitle}>
+                웨딩코드 — 어디서 생각이 갈리는지 먼저 보기
+              </Text>
+              {/*
+                줄 수를 제한하지 않는다. "점수나 궁합은 매기지 않아요" 는 제품 계약이
+                요구하는 선 긋기인데, 글자 크기를 키워 쓰는 사람(시스템 글꼴 1.3배
+                이상)에게는 세 줄로 잘려 **"…매기지" 에서 끊기고 "않아요" 가 사라진다.**
+                부정문이 잘리면 정반대로 읽힌다. 카드는 minHeight 라 늘어나면 된다.
+              */}
+              <Text style={styles.partnerDescription}>
+                결혼 준비 장면에 각자 답하고, 고른 문장을 나란히 봐요. 점수나 궁합은
+                매기지 않아요.
+              </Text>
+            </View>
+            <ArrowRight size={16} color={colors.textTertiary} />
+          </Pressable>
 
           <View style={styles.trustPromise}>
             <View style={styles.trustIcon}>
@@ -888,6 +929,26 @@ const styles = StyleSheet.create({
     lineHeight: 18,
     fontFamily: "NotoSansKR_400Regular",
     color: colors.textSecondary,
+  },
+  weddingCodeStrip: {
+    minHeight: 78,
+    marginTop: spacing[5],
+    padding: spacing[4],
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing[3],
+    borderRadius: radius["2xl"],
+    borderWidth: 1,
+    borderColor: colors.gold.light,
+    backgroundColor: colors.surfaceLow,
+  },
+  weddingCodeIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: radius.full,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: colors.surface,
   },
   trustPromise: {
     marginTop: spacing[5],

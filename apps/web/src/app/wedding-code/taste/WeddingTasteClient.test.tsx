@@ -6,6 +6,7 @@ import WeddingTasteClient from "./WeddingTasteClient";
 import { useAuthStore } from "@/stores/authStore";
 import { CONTACT } from "@/lib/constants/contact";
 import { buildWeddingTasteShareUrl, createEmptyWeddingTasteDraft, decodeWeddingTasteShareHash, type WeddingTasteDraftV1 } from "@/lib/weddingCode/taste";
+import { MOBILE_WEB_API_NONCE_PROPERTY } from "@/lib/mobile/mobileAuthenticatedFetch";
 
 const { push } = vi.hoisted(() => ({ push: vi.fn() }));
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push }) }));
@@ -181,5 +182,76 @@ describe("직접 취향의 끝까지 흐름", () => {
     expect(destination.pathname).toBe("/login");
     expect(destination.searchParams.get("redirect")).toMatch(/^\/wedding-code\/taste\?wcTasteReview=/);
     expect(destination.href).not.toContain("demo");
+  });
+});
+
+/**
+ * **앱 웹뷰에서는 끝을 못 보는 단락을 보여주지 않는다.**
+ *
+ * 2026-09-16 에 앱에 웨딩코드 입구를 넣으면서, 결과 화면의 아모라 단락이 사람을
+ * 네이티브 설정으로 튕겨내고 결과까지 지우는 것이 잡혔다. 그것을 고치고 나서
+ * 적대 검토가 **바로 한 칸 아래 있는 쌍둥이**를 찾았다 — 이 화면의 "내 선택으로
+ * 아모라와 이야기하기" 다.
+ *
+ * 앱 웹뷰에는 앱의 세션이 없다. 그래서 `canChat` 이 늘 false 이고 버튼은
+ * `/login?redirect=…` 으로 간다 — 앱에 이미 로그인한 사람에게 웹 로그인 폼이다.
+ * `canChat` 이 참이 되는 길로 가더라도 `/chat` 은 앱이 네이티브로 되돌리는 경로라
+ * 이 탭에 담아둔 초안이 버려진다.
+ *
+ * 취향 고르기와 링크 공유는 앱에서도 끝까지 되므로 그대로 둔다.
+ */
+describe("앱 웹뷰에서 연 취향 화면", () => {
+  const NONCE = "8f1b2c3d-4e5f-4a6b-8c9d-0e1f2a3b4c5d";
+
+  function markAsInsideApp() {
+    // 앱이 문서보다 먼저 심는 두 가지. 웹뷰 다리와 그 다리의 nonce.
+    vi.stubGlobal("ReactNativeWebView", { postMessage: () => undefined });
+    vi.stubGlobal(MOBILE_WEB_API_NONCE_PROPERTY, NONCE);
+  }
+
+  it("이어가기 단락을 내리고, 취향 요약과 공유는 그대로 둔다", async () => {
+    markAsInsideApp();
+    await render(); await click("내 취향 고르기"); await completePhoto();
+
+    expect(host.querySelector("[data-taste-amora]")).toBeNull();
+    // 단락을 여는 문과 그 안의 버튼이 둘 다 없어야 한다.
+    expect(host.textContent).not.toContain("내 선택으로 아모라와 이야기하기");
+    expect(host.textContent).not.toContain("전달할 내용 확인하기");
+
+    // 입구를 넣은 이유 자체가 이것이다. 단락 하나를 내리느라 본래 기능을 깨면 안 된다.
+    expect(host.querySelector("[data-taste-own]")?.textContent).toContain("자연스러운 순간");
+  });
+
+  it("브라우저에서는 이어가기 버튼까지 그대로 나온다", async () => {
+    await render(); await click("내 취향 고르기"); await completePhoto();
+
+    expect(host.querySelector("[data-taste-amora]")).not.toBeNull();
+    // 앱에서 막다른 길이 되는 바로 그 버튼. 브라우저에서는 살아 있어야 한다.
+    await click("전달할 내용 확인하기");
+    expect(host.textContent).toContain("로그인하고 내 선택 이어가기");
+  });
+
+  it("남의 iframe 이 앱인 척해도 내리지 않는다", async () => {
+    // 표식은 최상위 문서에만 들어온다. 서브프레임의 값을 믿으면, 이 화면을 품은
+    // 아무 페이지나 이어가기 단락을 지울 수 있게 된다.
+    markAsInsideApp();
+    const original = Object.getOwnPropertyDescriptor(window, "top");
+    Object.defineProperty(window, "top", { value: {} as Window, configurable: true });
+    try {
+      await render(); await click("내 취향 고르기"); await completePhoto();
+      expect(host.querySelector("[data-taste-amora]")).not.toBeNull();
+    } finally {
+      if (original) Object.defineProperty(window, "top", original);
+      else delete (window as unknown as Record<string, unknown>).top;
+    }
+  });
+
+  it("웹뷰 다리만 있고 앱이 심은 표식이 없으면 앱으로 보지 않는다", async () => {
+    // `ReactNativeWebView` 는 우리 앱이 아닌 다른 앱의 웹뷰에도 있다. 우리 앱이라는
+    // 증거는 문서보다 먼저 심는 nonce 뿐이다. 없으면 브라우저와 똑같이 다룬다.
+    vi.stubGlobal("ReactNativeWebView", { postMessage: () => undefined });
+    await render(); await click("내 취향 고르기"); await completePhoto();
+
+    expect(host.querySelector("[data-taste-amora]")).not.toBeNull();
   });
 });

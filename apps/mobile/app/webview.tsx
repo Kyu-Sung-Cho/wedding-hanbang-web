@@ -25,6 +25,7 @@ import {
   normalizeMobileSiteUrl,
   resolveMobileSiteOrigin,
 } from "@/lib/siteUrl.mjs";
+import { holdsUnsavedWork } from "@/lib/webviewUnsavedWork.mjs";
 
 const SITE_ORIGIN = resolveMobileSiteOrigin(
   process.env.EXPO_PUBLIC_SITE_URL,
@@ -53,6 +54,9 @@ function titleFromUrl(url: string): string {
     // 예절 안내는 편마다 하위 경로가 있다(/wedding/manners/cost-saving). 아래 map은
     // **마지막 조각**으로 찾기 때문에 편 안으로 들어가면 못 잡는다 — prefix로 본다.
     if (/^\/(wedding\/)?manners(\/|$)/.test(pathname)) return "결혼 예절 안내";
+    // 웨딩코드도 하위 경로가 있다(`/wedding-code/taste`, `/wedding-code/c/<코드>`).
+    // 같은 이유로 prefix 로 본다 — 아래 map 은 마지막 조각만 보기 때문이다.
+    if (/^\/wedding-code(\/|$)/.test(pathname)) return "웨딩코드";
     const segment = pathname.split("/").filter(Boolean).pop();
     const map: Record<string, string> = {
       vendors: "업체 탐색",
@@ -338,7 +342,8 @@ export default function WebViewScreen() {
         onMessage={handleMessage}
         onNavigationStateChange={handleNavigationStateChange}
         onShouldStartLoadWithRequest={handleNavigation}
-        pullToRefreshEnabled
+        // 당겨서 새로고침은 답하던 것을 말없이 지울 수 있다. 그런 화면에서만 끈다.
+        pullToRefreshEnabled={!holdsUnsavedWork(currentUrl)}
         allowsBackForwardNavigationGestures
         javaScriptEnabled
         domStorageEnabled
