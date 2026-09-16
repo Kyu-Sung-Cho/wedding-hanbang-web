@@ -26,14 +26,16 @@ export const WEDDING_CODE_RESEARCH_MIN_AGE = 19;
 /**
  * 새 답을 받기 시작하는 시각.
  *
- * 처리방침 제10조는 변경의 적용일과 이유를 **미리** 알린다고 약속한다. 새 처리 항목을
- * 추가하는 개정이라, 문단이 처음 나간 2026-09-16 뒤 7일부터 받는다.
+ * **2026-09-16 파운더 결정**: 같은 날 받기 시작한다. 처음 계획한 7일 사전 고지(2026-09-23)
+ * 대신, 고지가 나간 날부터 받는다 — 팀이 실제 흐름을 그날 확인해야 했다. 고지는 **받기 전에**
+ * 화면과 처리방침에 함께 올라갔고(동의 없이는 아무것도 저장하지 않는다), 흐름 통계 쪽은
+ * 원래대로 2026-09-23까지 기다린다(`WEDDING_CODE_FUNNEL_ANALYTICS_EFFECTIVE_AT`).
  * **처리방침 제1조·제3조·부칙에 적힌 날짜와 같아야 한다.**
  */
-export const WEDDING_CODE_RESEARCH_CONTRIBUTION_EFFECTIVE_AT = "2026-09-23T00:00:00+09:00";
+export const WEDDING_CODE_RESEARCH_CONTRIBUTION_EFFECTIVE_AT = "2026-09-16T00:00:00+09:00";
 
 /**
- * 「2026년 9월 23일부터」. 아직 받지 않는 동안 화면이 **없는 버튼을 설명하지 않게** 한다
+ * 「2026년 9월 16일부터」. 아직 받지 않는 동안 화면이 **없는 버튼을 설명하지 않게** 한다
  * (2026-09-16 라이브 확인에서 잡혔다). 처리방침에 적힌 날짜와 같은 값에서 만든다.
  */
 export function weddingCodeResearchContributionStartLabel(): string {

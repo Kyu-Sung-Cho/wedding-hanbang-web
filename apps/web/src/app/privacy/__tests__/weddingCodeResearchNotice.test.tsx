@@ -52,7 +52,9 @@ describe("privacy notice for WeddingCode research contributions", () => {
     // 제1조 항목, 제3조 보관, 부칙 — 세 곳 모두 같은 적용일
     expect(text).toContain(`웨딩코드 답 보태기에 동의한 경우(${dateLabel.replace(/부터$/, "")}부터, 선택)`);
     expect(text).toContain(`웨딩코드 답 보태기(선택, ${dateLabel})`);
-    expect(text).toContain(`개정분(제1조·제3조의 웨딩코드 답 보태기)도 ${dateLabel} 적용합니다`);
+    expect(text).toContain("개정분(제1조·제3조의 웨딩코드 답 보태기)은 같은 날부터 적용합니다");
+    // 고지와 같은 날 열더라도, 화면·방침의 시작일은 한 상수에서 나온다.
+    expect(text).toContain(`웨딩코드 답 보태기(선택, ${dateLabel})`);
     expect(text).toContain(`보낸 날부터 ${WEDDING_CODE_RESEARCH_RETENTION_DAYS}일이 지나면 자동으로 삭제합니다`);
     expect(text).toContain(`${WEDDING_CODE_RESEARCH_TOMBSTONE_DAYS}일간 보관합니다`);
     expect(text).toContain("저장 시각은 날짜 단위로만 남기며");
