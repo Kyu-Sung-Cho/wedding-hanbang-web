@@ -67,9 +67,9 @@
   --hb-summary-label: #624A3C;
   --hb-summary-track: #D5BDA9;
 
-  /* 역할 — 누를 수 있는 것 (제품 표면 언어는 종이·잉크) */
-  --hb-primary: #3A2A27;
-  --hb-primary-hover: #251A18;
+  /* 역할 — 누를 수 있는 것 (채움은 더스티 모브, 읽는 글자는 잉크) */
+  --hb-primary: #8F6662;
+  --hb-primary-hover: #7D5753;
   --hb-on-primary: #FFFFFF;
   --hb-action: #8F6662;
   --hb-action-hover: #7D5753;
@@ -716,8 +716,8 @@ p, span, div, li, h1, h2, h3, h4, h5, h6 {
 .hanbang-service-theme {
   color: #263832;
   /* @generated:design-tokens service-theme start — colors.ts에서 생성됩니다. 직접 고치지 마세요. */
-  --hb-navy: #3A2A27;
-  --hb-navy-soft: #5A4742;
+  --hb-navy: #8F6662;
+  --hb-navy-soft: #A77B74;
   --hb-gold: #35638A;
   --hb-gold-deep: #24465F;
   --hb-gold-light: rgba(53, 99, 138, 0.16);
@@ -773,8 +773,8 @@ p, span, div, li, h1, h2, h3, h4, h5, h6 {
 .hanbang-community-theme {
   color: #263832;
   /* @generated:design-tokens community-theme start — colors.ts에서 생성됩니다. 직접 고치지 마세요. */
-  --hb-navy: #3A2A27;
-  --hb-navy-soft: #5A4742;
+  --hb-navy: #8F6662;
+  --hb-navy-soft: #A77B74;
   --hb-gold: #35638A;
   --hb-gold-deep: #24465F;
   --hb-gold-light: rgba(53, 99, 138, 0.16);
@@ -1195,7 +1195,7 @@ p, span, div, li, h1, h2, h3, h4, h5, h6 {
   --hb-surface-card: var(--amora-surface);
   --hb-surface-hover: var(--amora-warm);
   --hb-hairline: var(--amora-line);
-  --hb-primary: var(--amora-ink);
+  --hb-primary: var(--amora-action);
   --hb-text-strong: var(--amora-ink);
   --hb-text-body: var(--amora-soft);
   --hb-text-muted: var(--amora-muted);

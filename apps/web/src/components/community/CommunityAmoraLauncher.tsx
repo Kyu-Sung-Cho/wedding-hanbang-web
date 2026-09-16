@@ -156,7 +156,7 @@ export default function CommunityAmoraLauncher() {
               <div className="flex items-center gap-3">
                 <AmoraAvatar sizeClassName="size-11" />
                 <div>
-                  <p className="text-[12px] font-semibold text-[var(--hb-primary)]">아모라 상담</p>
+                  <p className="text-[12px] font-semibold text-[var(--hb-text-strong)]">아모라 상담</p>
                   <h2 id="community-amora-login-title" className="font-serif-kr text-[24px] font-medium leading-tight text-[var(--hb-text-strong)]">
                     로그인 후 이용할 수 있어요.
                   </h2>

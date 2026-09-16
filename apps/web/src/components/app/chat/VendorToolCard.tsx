@@ -167,7 +167,7 @@ function VendorRecommendCards({
                 <div className="mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-1">
                   {hasRating(v.rating, v.reviewCount) && (
                     <>
-                      <Star className="h-4 w-4 fill-[var(--hb-accent)] text-[var(--hb-primary)]" />
+                      <Star className="h-4 w-4 fill-[var(--hb-accent)] text-[var(--hb-text-strong)]" />
                       <span className="text-sm text-[var(--hb-text-muted)]">{v.rating} ({v.reviewCount})</span>
                     </>
                   )}
@@ -515,7 +515,7 @@ function VendorDetailCard({
                             {p.name}
                           </p>
                           {p.isPopular && (
-                            <span className="text-xs px-2 py-0.5 rounded-full bg-[rgba(54,83,78,0.12)] text-[var(--hb-primary)] font-medium">
+                            <span className="text-xs px-2 py-0.5 rounded-full bg-[rgba(54,83,78,0.12)] text-[var(--hb-text-strong)] font-medium">
                               인기
                             </span>
                           )}

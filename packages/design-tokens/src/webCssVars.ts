@@ -158,12 +158,26 @@ export const WEB_SEMANTIC_ROLE_VARS: readonly WebCssColorVar[] = [
   { name: "summary-ink", value: summaryPalette.ink },
   { name: "summary-label", value: summaryPalette.label },
   { name: "summary-track", value: summaryPalette.track },
+  // 2026-09-16 파운더 결정: "검정처럼 어두운 색 말고." 잉크를 따뜻하게 옮긴 것만으로는
+  // 부족했다 — 새 잉크도 밝기 19% 라 큰 면에서는 여전히 검정으로 읽혔다.
+  //
+  // **누를 수 있는 것의 바탕과 읽는 글자를 갈라놓는다.** 이 토큰은 바탕으로 300곳,
+  // 글자로 7곳에 쓰인다. 즉 화면에서 "검정 덩어리"로 보이는 정체가 이것이다.
+  // 글자(`text-strong`·`amora-ink`)는 어두운 잉크로 남는다 — 밝히면 안 읽힌다.
+  //
+  // 색은 새로 정하지 않았다. DESIGN.md 2026-09-11 항목이 이미 "primary actions use
+  // rose[600], hover rose[700] — 이것이 예전 검정 채움을 대신한다" 고 적었고,
+  // 공용 Button 은 이미 `--hb-action`(=rose[600])을 쓴다. `--hb-primary` 만 그
+  // 결정을 안 따르고 먹색으로 남아 있었다. 그 결정을 끝까지 적용하는 것이다.
+  //
+  // 실측: 흰 글자 대비 rose[600] 4.95:1 · rose[700] 6.25:1 — 둘 다 AA(4.5) 위다.
+  // 글자로 쓰이는 7곳도 흰 지면 위 4.95:1 로 통과한다.
   {
     name: "primary",
-    value: colors.paper.ink,
-    section: "역할 — 누를 수 있는 것 (제품 표면 언어는 종이·잉크)",
+    value: colors.rose[600],
+    section: "역할 — 누를 수 있는 것 (채움은 더스티 모브, 읽는 글자는 잉크)",
   },
-  { name: "primary-hover", value: colors.paper.inkPressed },
+  { name: "primary-hover", value: colors.rose[700] },
   { name: "on-primary", value: colors.paper.card },
   { name: "action", value: colors.rose[600] },
   { name: "action-hover", value: colors.rose[700] },
@@ -256,8 +270,14 @@ export const WEB_THEME_ROLE_VARS: readonly WebCssColorVar[] = [
   //
   // 이름(`navy`·`gold`)은 이미 오래전부터 거짓이지만 브리지 규칙 65개가 그 이름을
   // 참조하므로 지금 바꾸지 않는다 — 브리지를 걷어낼 때 함께 사라질 이름이다.
-  { name: "navy", value: colors.paper.ink },
-  { name: "navy-soft", value: colors.paper.inkSoft },
+  // 2026-09-16: 이 둘은 **배경·그라디언트로만** 쓰인다(globals.css 에서 background-color
+  // 1곳, gradient-from/to 2곳, 글자로 쓰이는 곳 0곳). 브리지가 하던 일이 공교롭게도
+  // `from-rose-500`·`#795252` 같은 **로즈 리터럴을 먹색으로 덮는 것**이었다 —
+  // 검정을 지우는 이번 결정과 정확히 반대였다. 같은 모브 계열로 되돌린다.
+  // 그라디언트 끝(`navy-soft`)은 한 단계 밝은 rose[500] 이라 원래 시안의
+  // "로즈 → 연한 로즈" 방향을 되찾는다.
+  { name: "navy", value: colors.rose[600] },
+  { name: "navy-soft", value: colors.rose[500] },
   // 강조는 파란 펜이 진다. 잉크로 두면 링크·강조가 본문과 구분되지 않는다.
   { name: "gold", value: colors.paper.pen },
   { name: "gold-deep", value: colors.paper.penDeep },
@@ -305,7 +325,9 @@ export const WEB_HTML_WORKSPACE_ROLE_VARS: readonly WebCssColorVar[] = [
   { name: "surface-card", value: "var(--amora-surface)" },
   { name: "surface-hover", value: "var(--amora-warm)" },
   { name: "hairline", value: "var(--amora-line)" },
-  { name: "primary", value: "var(--amora-ink)" },
+  // 채움은 워크스페이스 안에서도 모브다. 여기서 `--amora-ink` 를 가리키면
+  // 체크리스트·예산·예절 안에서만 버튼이 다시 먹색이 된다.
+  { name: "primary", value: "var(--amora-action)" },
   { name: "text-strong", value: "var(--amora-ink)" },
   { name: "text-body", value: "var(--amora-soft)" },
   { name: "text-muted", value: "var(--amora-muted)" },
