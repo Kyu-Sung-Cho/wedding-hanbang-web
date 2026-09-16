@@ -1253,9 +1253,9 @@ function ScopedBudgetContent({
 
         <section className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3 rounded-[15px] bg-[var(--amora-ink)] px-[19px] py-[18px] text-white sm:rounded-2xl sm:px-7 sm:py-[26px]">
           <div className="min-w-0 flex-1 basis-[280px]">
-            <p className="mb-1.5 text-[9.5px] uppercase tracking-[0.05em] text-[#b89785] sm:mb-2 sm:text-[10.5px]">AI 예산 분석</p>
+            <p className="mb-1.5 text-[9.5px] tracking-[0.02em] text-[var(--color-gold)] sm:mb-2 sm:text-[10.5px]">AI 예산 분석</p>
             <h3 className="planning-display mb-1.5 text-base text-white sm:mb-2 sm:text-[19px]">어디를 먼저 확인할까요?</h3>
-            <p className="max-w-[480px] text-[11.5px] leading-relaxed text-[#c9c6ba] sm:text-[12.5px]">직접 입력한 예산·기록 지출과 확인이 필요한 포함 항목을 함께 정리해드려요.</p>
+            <p className="max-w-[480px] text-[11.5px] leading-relaxed text-[var(--color-paper-on-ink-soft)] sm:text-[12.5px]">직접 입력한 예산·기록 지출과 확인이 필요한 포함 항목을 함께 정리해드려요.</p>
           </div>
           <Link {...weddingLinkProps("/chat")} className={`${AMORA_ACTION_CLASS} whitespace-nowrap`}><AmoraMark className="size-5 shrink-0" />아모라에게 물어보기</Link>
         </section>
