@@ -443,7 +443,7 @@ export default function LoungePage() {
           <div className="mt-5 flex flex-col gap-2 sm:flex-row sm:items-center">
             <Link
               {...joinedReviewLink}
-              className="inline-flex min-h-11 w-full items-center justify-center rounded-2xl bg-[var(--amora-ink)] px-5 text-[14px] font-semibold text-white transition-colors hover:bg-[var(--amora-soft)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8F6662] focus-visible:ring-offset-2 sm:w-auto"
+              className="inline-flex min-h-11 w-full items-center justify-center rounded-2xl bg-[var(--amora-action)] px-5 text-[14px] font-semibold text-white transition-colors hover:bg-[var(--amora-action-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8F6662] focus-visible:ring-offset-2 sm:w-auto"
             >
               함께 확인할 내용 찾기
               <ArrowRight className="ml-2 h-4 w-4" aria-hidden="true" />

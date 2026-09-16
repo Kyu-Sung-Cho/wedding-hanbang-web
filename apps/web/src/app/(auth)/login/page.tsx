@@ -444,7 +444,10 @@ export default function LoginPage() {
                     <button
                       onClick={() => handleOAuth("apple")}
                       disabled={loading !== null}
-                      className="flex min-h-11 flex-1 items-center justify-center gap-2 rounded-[6px] bg-black py-3 text-[13px] font-medium text-white transition-all hover:-translate-y-0.5 hover:shadow-[var(--shadow-raised)]"
+                      /* Apple 로그인 버튼은 검정·흰색·흰색+테두리 세 가지만 허용된다(Sign in with
+                         Apple 브랜드 규정). 2026-09-16에 팔레트의 `black` 을 따뜻한 잉크로 돌리면서
+                         이 버튼까지 갈색이 될 뻔했다 — 여기만 진짜 검정으로 못 박는다. */
+                      className="flex min-h-11 flex-1 items-center justify-center gap-2 rounded-[6px] bg-[#000000] py-3 text-[13px] font-medium text-white transition-all hover:-translate-y-0.5 hover:shadow-[var(--shadow-raised)]"
                     >
                       <svg width="16" height="16" viewBox="0 0 18 18" fill="none" aria-hidden="true">
                         <path d="M13.1 3.6c.7-.9 1.2-2.1 1.1-3.3-1 .1-2.3.7-3 1.6-.7.8-1.2 2-1.1 3.2 1.2.1 2.3-.6 3-1.5zM14.1 9.5c0-2.5 2-3.7 2.1-3.8-1.1-1.7-2.9-1.9-3.5-2-1.5-.2-2.9.9-3.6.9-.8 0-1.9-.8-3.2-.8C3.9 3.8 2 5.4 2 8.7c0 2 .8 4 1.7 5.4.8 1.1 1.7 2.4 2.9 2.3 1.1-.1 1.6-.7 2.9-.7s1.8.7 3 .7c1.2 0 2.1-1.1 2.8-2.3.9-1.3 1.2-2.5 1.3-2.6-.1 0-2.5-1-2.5-3.9z" fill="white"/>

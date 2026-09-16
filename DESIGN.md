@@ -29,7 +29,60 @@
   that role. Human bubble colors remain unchanged in this UI release until
   the separate role-storage release passes its database gates.
 
-- **Amora identity and question controls (2026-09-12):** The user requested a
+- **누를 수 있는 면은 더스티 모브, 읽는 글자는 잉크 (2026-09-16):** 파운더가 먹빛 교체를
+  물렸다. 원문: "검정처럼 어두운 색 말고 말하는거야". 잉크를 `#26251F` 에서 `#3A2A27` 로
+  따뜻하게 옮긴 것만으로는 부족했다 — 새 잉크도 밝기 19% 라 큰 면에서는 여전히 검정으로
+  읽혔다.
+
+  원인은 색이 아니라 **한 토큰이 두 일을 하고 있었던 것**이다. `--hb-primary` 는 바탕으로
+  300곳, 글자로 7곳에 쓰였다. 그래서 "검정을 밝게" 가 곧 "본문을 안 읽히게" 였다. 둘을 가른다.
+
+  - **채움**(`--hb-primary` · `--hb-primary-hover` · 브리지 `--hb-navy` · 워크스페이스
+    `--hb-primary`)은 `rose[600]` `#8F6662`, 눌림 `rose[700]` `#7D5753` 이다.
+    색을 새로 정한 것이 아니라 아래 2026-09-11 항목의 "primary actions use rose[600],
+    hover rose[700] — 이것이 예전 검정 채움을 대신한다" 를 **끝까지 적용한 것**이다.
+    공용 `Button` 은 이미 `--hb-action`(=rose[600])을 써 왔고 `--hb-primary` 만
+    먹색으로 남아 그 결정을 안 따르고 있었다.
+  - **글자**(`--hb-text-strong` · `--amora-ink` 등)는 어두운 잉크로 남는다. 밝히면 읽히지
+    않는다 — 실측 13.27:1 을 포기할 수 없다.
+  - 글자로 쓰이던 7곳(ai-policy 링크 4 · VendorToolCard 2 · CommunityAmoraLauncher 1)은
+    `--hb-text-strong` 으로 옮겼다. 원래 먹색 글자였으므로 **화면은 그대로**다.
+
+  **왜 rose[600] 을 글자에 쓰지 않는가.** 실측했다 — 모브를 글자로 쓰면 따뜻한 지면에서
+  무너진다: card 4.95 · sheet 4.82 · ivory 4.67 · tint 4.50 · **warm 4.33 (미달)** ·
+  **blush 4.13 (미달)**. 채움으로 쓸 때 흰 글자는 4.95:1 로 통과한다. 즉 이 색은
+  **채움에는 되고 글자에는 안 되는 색**이고, 그래서 역할을 갈라야 했다. `rose[700]` 은
+  모든 지면에서 5.21~6.25:1 이라 글자로도 되지만, 채움 기준색은 문서가 정한 `rose[600]` 을 지켰다.
+
+  **핑크 앱이 되지 않는가.** 바뀌는 104개 파일은 어드민 5개를 빼면 전부 버튼·칩·주요
+  행동면이다. 카드·지면은 그대로 아이보리다. "모브는 주의를 이끌되 모든 물건을 칠하지
+  않는다" 는 아래 규칙과 어긋나지 않는다 — 누를 수 있는 것만 칠한다.
+
+  스크림과 실선(`--color-black` `#251A18`)은 어두운 채로 둔다. 뒤를 가리는 것이 일이라
+  밝히면 기능을 잃는다. 랜딩 끝의 다크 밴드도 의도된 한 번의 어두운 마침표로 남긴다.
+
+- **Amora mark and quiet question controls (2026-09-16):** 파운더가 리본 매듭을 물렸다.
+  원문: "리본 모양인데 이상해 다른 걸로 해줘 ai 웨딩 파트너 같은 걸로". 표식은
+  **맞물린 두 반지와 오른쪽 위의 작은 반짝임**이다 — 반지는 결혼을, 반짝임은 곁에서
+  거드는 지능을 뜻한다. 경로는 계속 `packages/design-tokens/src/amora.ts` 한 곳에서
+  웹·네이티브가 함께 쓴다. 배치 기준은 **14px 에서 읽히는가**다: 반지(r 5.3)가 박스
+  대부분을 쓰고 반짝임(r 2.6)은 모서리로 물러나, 작은 크기에서 반지가 뭉치지 않는다.
+  반짝임을 키우거나 가운데 얹은 시안은 14px 에서 두 고리가 한 덩어리로 읽혔다.
+
+  같은 결정으로 **체크리스트와 예절 가이드의 아모라 버튼에서 테두리를 뺐다.**
+  원문: "테두리 라인은 빼고 … 옆에 아이콘이랑 크기 다 맞추고 아모라만 커 이상해".
+  그 두 화면의 형제 컨트롤(가이드 아이콘·번호 배지)은 선 없는 연한 칩이라, 테두리를
+  두른 44px 아모라만 한 단계 큰 물건으로 읽혔다. 새 규칙:
+  - 체크리스트 카드 — 형제 가이드 아이콘과 **같은 32px·7px 라운드·선 없는 칩**, 글리프 14px.
+    이 자리는 `md` 이상에서만 보이는 마우스 대상이라 WCAG 2.5.8 의 AA 최소(24px) 위다.
+  - 예절 가이드 목록 — 형제가 없으므로 손대상 44px 을 유지하고 테두리만 뺀다.
+  - 예절 가이드 절 제목 — **누르는 영역은 44px 을 지키고 보이는 칩만** 옆 번호 배지와
+    같은 30/34px 로 맞춘다. 크기를 맞추려고 손대상을 줄이지 않는다.
+  글자가 함께 오는 `AMORA_ACTION_CLASS` 와 플로팅 `AMORA_FAB_CLASS` 는 테두리를 유지한다 — 형제가 없는 자리(대화
+  제안·플로팅 등)에서는 테두리가 "누를 수 있는 것"의 유일한 경계이기 때문이다.
+  테두리 있는 아이콘 전용 변형 `AMORA_ICON_ACTION_CLASS` 는 쓰는 곳이 없어져 지웠다. 아래 2026-09-12 항목의 리본·44px 일괄 규칙은 이 항목이 대신한다.
+
+- **Amora identity and question controls (2026-09-12, 표식과 크기는 위 항목이 대신함):** The user requested a
   distinctive, memorable mark and consistent visible borders across features.
   Amora uses an original ribbon-knot outline, shared from
   `packages/design-tokens/src/amora.ts` by web and native. This replaces generic
@@ -302,17 +355,33 @@
   - Paper: sheet `#FDFCF7`, tint `#F8F4EA`, card `#FFFFFF`, rule `#EDEAE0`, edge `#E2DED2`,
     divider `#DDD8C9`. `tint` is one step deeper than `sheet` and alternates section grounds —
     without it the "tinted" sections repaint the page colour and the section boundary vanishes.
-  - Ink: `#26251F`, soft `#4A483F`, faint `#605E54`
-  - On ink (잉크 **위에** 얹는 것 — 랜딩 끝 다크 밴드): text `#FDFCF7`, soft `#D7D4CD`,
-    faint `#96938B`, rule `#4A483F`. 2026-09-03 시안 픽셀 실측값이고, faint 만 한 칸
-    올렸다 — 실측 `#89897F` 는 `ink` 바탕에서 4.4:1 로 AA 미달, `#96938B` 는 5.2:1.
+  - Ink: `#3A2A27`, soft `#5A4742`, faint `#6E5A54`, pressed `#251A18`
+    - **2026-09-16 파운더 결정으로 먹빛을 따뜻하게 옮겼다.** 원문: "우리 검정을 많이 쓰는데
+      웨딩에 안 어울리는 거 같아 … 주변 디자인 색들하고 맞추면서 이쁘게". 옛 잉크 `#26251F`
+      는 h51°(올리브) 쪽 무채색이라 아이보리 지면 위에서 차갑게 읽혔다. 새 잉크는 h9° 의
+      짙은 코코아-로즈로, 강조색 `#7D5753`(h6°)·샴페인 `#B89785`(h21°)와 같은 계열이다.
+      큰 면(버튼·다크 밴드)에서는 따뜻한 밤색으로, 12px 본문에서는 먹으로 읽힌다.
+      실측 대비 — ink sheet 13.27 / card 13.63 / tint 12.41, soft 8.47, faint 6.28:1.
+    - 같은 결정으로 **Tailwind 의 `black` 자체**를 `#251A18` 로 돌렸다(`--color-black`).
+      제품에 `border-black/[0.04]`·`bg-black/40` 같은 반투명 검정이 280곳쯤 있는데, 값마다
+      옅어 따로는 안 보여도 아이보리 위에 겹겹이 깔리면 화면에 차가운 회색 막을 씌운다.
+      불투명도와 두께는 그대로 두고 색온도만 옮기는 방법이다. **예외 하나** — 로그인의
+      Sign in with Apple 버튼은 Apple 브랜드 규정이 검정·흰색·흰색+테두리만 허용하므로
+      그 자리만 `#000000` 으로 못 박았다.
+  - On ink (잉크 **위에** 얹는 것 — 랜딩 끝 다크 밴드): text `#FDFCF7`, soft `#DAD3CD`,
+    faint `#A39A92`, rule `#5C4A45`. 2026-09-03 시안 픽셀 실측에서 출발했고, 2026-09-16
+    잉크가 따뜻해지면서 셋을 다시 쟀다 — 실측 `#89897F` 도, 그때 올려 둔 `#96938B`(새 잉크
+    위 4.44:1)도 AA 미달이라 `#A39A92`(4.93:1)로 한 칸 더 올렸다. soft 는 9.21:1.
+    **잉크를 또 바꾸면 이 셋을 반드시 다시 재라.**
     rule 은 어두운 바탕의 구분선이라 대비 기준이 아니라 **보이되 튀지 않는** 값이다.
   - Pens: blue `#35638A` (links, handwritten emphasis), hover `#24465F`, red circle `#B8452F`,
-    tape `#F6E7A8` on `#6C5410`, outline-button border `#8F8A7A`
+    tape `#F6E7A8` on `#6C5410`, outline-button border `#8E8377`
     - ⚠️ outline-button border 는 **장식이 아니라 컨트롤의 경계**다. 테두리 버튼은 이 선
       하나로 "누를 수 있는 것"이 되므로 WCAG 1.4.11 의 3:1 이 적용된다. 2026-08-29 실측:
-      옛 `#CFCABA` 는 sheet 1.60 / card 1.64 / tint 1.49:1 로 셋 다 미달이었고, 지금 값은
-      3.36 / 3.45 / 3.13:1 이다. 밝게 되돌리려면 세 지면 모두에서 3:1 을 다시 재라.
+      옛 `#CFCABA` 는 sheet 1.60 / card 1.64 / tint 1.49:1 로 셋 다 미달이었다.
+      2026-09-16 에 잉크를 따뜻하게 옮기면서 이 선도 같은 계열(h27°)로 데려왔고, 지금 값은
+      3.61 / 3.71 / 3.38:1 이다(직전 `#8F8A7A` 는 3.36 / 3.45 / 3.13:1). 밝게 되돌리려면
+      세 지면 모두에서 3:1 을 다시 재라.
       카드 테두리는 `edge` 다 — 둘을 바꿔 쓰지 마라.
   - Margin florals (line art): stem `#A2937F`, gypsophila `#8FA08D`
   - **Rule (2026-08-28에 바뀜):** ~~Landing surfaces only~~ → **제품 화면도 이 표면 언어를 쓴다.**

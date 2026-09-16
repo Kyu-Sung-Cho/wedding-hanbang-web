@@ -137,7 +137,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border,
     backgroundColor: colors.surface,
-    shadowColor: "#000",
+    shadowColor: colors.paper.ink,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.14,
     shadowRadius: 14,
@@ -175,7 +175,7 @@ const styles = StyleSheet.create({
     transform: [{ rotate: "45deg" }],
   },
   buttonWrap: {
-    shadowColor: "#000",
+    shadowColor: colors.paper.ink,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.18,
     shadowRadius: 12,

@@ -575,7 +575,7 @@ function MenuItem({
 }
 
 const CARD_SHADOW = {
-  shadowColor: "#000" as const,
+  shadowColor: colors.paper.ink,
   shadowOffset: { width: 0, height: 2 },
   shadowOpacity: 0.04,
   shadowRadius: 12,

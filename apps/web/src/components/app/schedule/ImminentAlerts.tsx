@@ -67,7 +67,7 @@ export default function ImminentAlerts({ items, onCategoryClick, onScheduleClick
         <span className="min-w-0 text-[11px] text-[var(--amora-muted)]">날짜를 정할 항목 · {items.length}건</span>
         <span className="flex shrink-0 items-center gap-2">
           {needsScheduleCount > 0 && (
-            <span className="rounded-full bg-[var(--amora-ink)] px-2 py-1 text-[10px] font-medium text-white">
+            <span className="rounded-full bg-[var(--amora-rose-deep)] px-2 py-1 text-[10px] font-medium text-white">
               {needsScheduleCount} 일정 필요
             </span>
           )}
