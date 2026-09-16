@@ -297,7 +297,7 @@ function AmoraMissionsView({ embedded, hub }: { embedded: boolean; hub: boolean 
             </div>
             <Link {...weddingLinkProps(partnerLinked ? "/chat/board" : "/settings")} className={`mt-2 inline-flex min-h-11 items-center gap-1 rounded-lg text-[12.5px] font-semibold text-[var(--amora-accent)] ${FOCUS}`}>{partnerLinked ? "준비 기록 함께 보기" : "파트너 연결 확인하기"}<ChevronRight size={14} aria-hidden="true" /></Link>
           </section>
-          <div className="hidden rounded-[14px] bg-[var(--amora-ink)] px-[18px] py-4 text-white lg:block">
+          <div className="hidden rounded-[14px] bg-[var(--amora-rose-deep)] px-[18px] py-4 text-white lg:block">
             <div className="flex items-start gap-3">
               <span aria-hidden="true" className="flex size-[34px] shrink-0 items-center justify-center rounded-[9px] bg-white/15"><ListChecks size={18} strokeWidth={1.6} /></span>
               <div className="min-w-0">
