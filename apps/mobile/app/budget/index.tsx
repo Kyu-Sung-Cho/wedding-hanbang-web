@@ -1308,7 +1308,7 @@ const s = StyleSheet.create({
   catBudget: { fontSize: 12, color: colors.textTertiary, flex: 1 },
   catPct: { fontSize: 13, fontFamily: "CormorantGaramond_600SemiBold", color: colors.rose[500] },
   hint: { fontSize: 12, color: colors.textTertiary, textAlign: "center", marginTop: 12 },
-  modalOv: { flex: 1, backgroundColor: "rgba(0,0,0,0.4)", justifyContent: "flex-end" },
+  modalOv: { flex: 1, backgroundColor: "rgba(37,26,24,0.4)", justifyContent: "flex-end" },
   modalCon: { backgroundColor: colors.bg, borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingHorizontal: 24, paddingTop: 12, paddingBottom: 36 },
   modalHandle: { width: 36, height: 4, borderRadius: 2, backgroundColor: colors.border, alignSelf: "center", marginBottom: 16 },
   modalHead: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 20 },

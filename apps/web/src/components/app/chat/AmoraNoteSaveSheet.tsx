@@ -83,7 +83,7 @@ export default function AmoraNoteSaveSheet({ content, busy, error, onSave, onClo
               disabled={busy}
               rows={2}
               placeholder="다시 볼 때 기억할 내용을 적어 주세요."
-              className="w-full resize-y rounded-[11px] border border-[var(--hb-outline-strong,#8F8A7A)] bg-[var(--amora-surface)] px-3.5 py-3 text-[16px] leading-[1.6] text-[var(--amora-ink)] placeholder:text-[var(--amora-muted)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--amora-accent)] disabled:opacity-50"
+              className="w-full resize-y rounded-[11px] border border-[var(--hb-outline-strong,#8E8377)] bg-[var(--amora-surface)] px-3.5 py-3 text-[16px] leading-[1.6] text-[var(--amora-ink)] placeholder:text-[var(--amora-muted)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--amora-accent)] disabled:opacity-50"
             />
             <p className="mt-1 text-right text-[12px] text-[var(--amora-muted)]">{memo.length}/500</p>
           </>}

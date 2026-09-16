@@ -509,7 +509,7 @@ export default function AppGuide({ onClose }: AppGuideProps) {
 // 스타일
 // ─────────────────────────────────────────────
 const MOCK_SHADOW = {
-  shadowColor: "#000",
+  shadowColor: colors.paper.ink,
   shadowOffset: { width: 0, height: 4 },
   shadowOpacity: 0.08,
   shadowRadius: 12,
@@ -517,7 +517,7 @@ const MOCK_SHADOW = {
 } as const;
 
 const MOCK_SHADOW_LIGHT = {
-  shadowColor: "#000",
+  shadowColor: colors.paper.ink,
   shadowOffset: { width: 0, height: 2 },
   shadowOpacity: 0.05,
   shadowRadius: 8,

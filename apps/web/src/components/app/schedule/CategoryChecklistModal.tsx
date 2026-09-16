@@ -22,7 +22,7 @@ import { guideLinkForCategory } from "@/lib/etiquette/guideLink";
 import ChecklistItemSource, { checklistSourceLabel } from "@/components/app/checklist/ChecklistItemSource";
 import ChecklistItemText from "@/components/app/checklist/ChecklistItemText";
 import AmoraMark from "@/components/ui/AmoraMark";
-import { AMORA_ACTION_CLASS, AMORA_ICON_ACTION_CLASS } from "@/components/ui/amoraActionStyles";
+import { AMORA_ACTION_CLASS, AMORA_QUIET_TOUCH_ACTION_CLASS } from "@/components/ui/amoraActionStyles";
 import type { ChecklistItem, ProgressItem } from "@/types/database.types";
 
 // ⚠️ 분야 아이콘 표를 2026-09-04에 지웠다. 시안 여덟 장의 모달 제목은 **글자뿐**이고,
@@ -344,7 +344,7 @@ function ScopedCategoryChecklistModal({ categoryKey, isOpen, onClose, presentati
       <div
         onClick={onClose}
         aria-hidden="true"
-        className="fixed inset-0 z-50 bg-[rgba(38,37,31,0.55)] animate-fade-in"
+        className="fixed inset-0 z-50 bg-[rgba(58,42,39,0.55)] animate-fade-in"
       />
 
       {/* 모달 */}
@@ -356,8 +356,8 @@ function ScopedCategoryChecklistModal({ categoryKey, isOpen, onClose, presentati
         aria-modal="true"
         aria-labelledby={titleId}
         className={isPlanning
-          ? `fixed inset-x-0 bottom-0 z-50 mx-auto flex max-h-[90dvh] flex-col overflow-hidden rounded-t-[22px] bg-white shadow-[0_40px_80px_-20px_rgba(0,0,0,0.35)] md:inset-x-7 md:bottom-auto md:top-1/2 ${desktopHeight} md:w-[min(860px,calc(100vw-56px))] md:-translate-y-1/2 md:rounded-[20px]`
-          : "fixed inset-x-4 top-1/2 z-50 mx-auto flex max-h-[84dvh] -translate-y-1/2 flex-col overflow-hidden rounded-[20px] bg-white shadow-[0_40px_80px_-20px_rgba(0,0,0,0.35)] animate-fade-in sm:max-w-[860px]"}
+          ? `fixed inset-x-0 bottom-0 z-50 mx-auto flex max-h-[90dvh] flex-col overflow-hidden rounded-t-[22px] bg-white shadow-[0_40px_80px_-20px_rgba(58,42,39,0.35)] md:inset-x-7 md:bottom-auto md:top-1/2 ${desktopHeight} md:w-[min(860px,calc(100vw-56px))] md:-translate-y-1/2 md:rounded-[20px]`
+          : "fixed inset-x-4 top-1/2 z-50 mx-auto flex max-h-[84dvh] -translate-y-1/2 flex-col overflow-hidden rounded-[20px] bg-white shadow-[0_40px_80px_-20px_rgba(58,42,39,0.35)] animate-fade-in sm:max-w-[860px]"}
       >
         {isPlanning && <div aria-hidden="true" className="mx-auto mt-[10px] mb-[14px] h-1 w-[38px] shrink-0 rounded-full bg-[var(--amora-line)] md:hidden" />}
         {/* 헤더 */}
@@ -529,8 +529,8 @@ function ScopedCategoryChecklistModal({ categoryKey, isOpen, onClose, presentati
                         />
                       </button>
                       {itemAmoraHref && (
-                        <Link {...weddingLinkProps(itemAmoraHref)} aria-label={`${item.label} 아모라에 질문하기`} title={`${item.label} 아모라에 질문하기`} className={`${AMORA_ICON_ACTION_CLASS} mt-1`}>
-                          <AmoraMark className="size-5" />
+                        <Link {...weddingLinkProps(itemAmoraHref)} aria-label={`${item.label} 아모라에 질문하기`} title={`${item.label} 아모라에 질문하기`} className={`${AMORA_QUIET_TOUCH_ACTION_CLASS} mt-1`}>
+                          <AmoraMark className="size-[18px]" />
                         </Link>
                       )}
                       </div>

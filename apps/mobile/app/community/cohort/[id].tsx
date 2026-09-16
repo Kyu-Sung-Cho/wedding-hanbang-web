@@ -1263,7 +1263,7 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     paddingVertical: 4,
     elevation: 4,
-    shadowColor: "#000",
+    shadowColor: colors.paper.ink,
     shadowOffset: { width: 0, height: -2 },
     shadowOpacity: 0.1,
     shadowRadius: 8,

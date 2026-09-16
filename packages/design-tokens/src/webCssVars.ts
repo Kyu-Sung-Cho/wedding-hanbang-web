@@ -115,6 +115,18 @@ export const WEB_THEME_COLOR_VARS: readonly WebCssColorVar[] = [
   { name: "gold-light", value: colors.gold.light },
 
   { name: "platinum", value: colors.platinum, section: "" },
+
+  // 2026-09-16 파운더 결정: "검정 쓰이는 거 대신에 다른 색 웨딩에 어울리는 색으로."
+  //
+  // 제품 전체에 `border-black/[0.04]`·`bg-black/40` 같은 **반투명 검정**이 280곳쯤
+  // 있다. 값 하나하나가 옅어서 따로 보면 티가 안 나지만, 아이보리 바탕 위에 겹겹이
+  // 깔리면 화면 전체에 차가운 회색 막을 씌운다 — 파운더가 "검정이 웨딩에 안 어울린다"고
+  // 말한 실체가 이것이다.
+  //
+  // Tailwind v4 의 `black` 자체를 가장 짙은 종이 잉크로 돌린다. 호출부 280곳을
+  // 건드리지 않고 **불투명도와 두께는 그대로** 둔 채 색온도만 옮기는 방법이다.
+  // 순수 검정이 필요한 곳(사진 뒤 배경)도 이 값이면 사진 색을 해치지 않는다.
+  { name: "black", value: colors.paper.inkPressed },
 ];
 
 /**

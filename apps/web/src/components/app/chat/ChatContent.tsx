@@ -2820,7 +2820,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
         <div className="ml-auto flex w-full shrink-0 items-center justify-end gap-1 md:w-auto">
           <a
             href="/ai-policy"
-            className="flex size-11 items-center justify-center rounded-full text-[12px] font-medium text-[var(--amora-muted,#605E54)] transition-colors hover:bg-[var(--amora-low,#F0EAD9)]"
+            className="flex size-11 items-center justify-center rounded-full text-[12px] font-medium text-[var(--amora-muted,#6E5A54)] transition-colors hover:bg-[var(--amora-low,#F0EAD9)]"
             aria-label="AI 정책"
             title="AI 정책"
           >
@@ -2836,7 +2836,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
             className={`flex size-11 shrink-0 items-center justify-center rounded-full transition-colors ${
               searchOpen
                 ? "text-[var(--hb-accent-hover)] bg-[rgba(54,83,78,0.10)]"
-                : "text-[var(--amora-muted,#605E54)] hover:bg-[var(--amora-low,#F0EAD9)]"
+                : "text-[var(--amora-muted,#6E5A54)] hover:bg-[var(--amora-low,#F0EAD9)]"
             }`}
             aria-label="대화 검색"
             title="대화 검색"
@@ -2848,7 +2848,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
             className={`flex size-11 shrink-0 items-center justify-center rounded-full transition-colors ${
               infoPanelOpen
                 ? "text-[var(--hb-accent-hover)] bg-[rgba(54,83,78,0.10)]"
-                : "text-[var(--amora-muted,#605E54)] hover:bg-[var(--amora-low,#F0EAD9)]"
+                : "text-[var(--amora-muted,#6E5A54)] hover:bg-[var(--amora-low,#F0EAD9)]"
             }`}
             aria-label="정보 패널 · 대화 정리와 준비 현황"
             title="대화 정리와 준비 현황"
@@ -2858,7 +2858,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
           {messages.length > 0 && (
             <button
               onClick={openNewChatModal}
-              className="flex size-11 shrink-0 items-center justify-center rounded-full text-[var(--amora-muted,#605E54)] transition-colors hover:bg-[var(--amora-low,#F0EAD9)]"
+              className="flex size-11 shrink-0 items-center justify-center rounded-full text-[var(--amora-muted,#6E5A54)] transition-colors hover:bg-[var(--amora-low,#F0EAD9)]"
               aria-label="대화 화면 정리"
               title="대화 화면 정리"
             >

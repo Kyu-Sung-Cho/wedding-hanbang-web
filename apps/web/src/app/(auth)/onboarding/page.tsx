@@ -729,7 +729,7 @@ export default function OnboardingPage() {
               className="w-full max-w-[400px] max-h-[calc(100dvh-3rem)] overflow-y-auto overscroll-contain bg-white rounded-[6px] p-6 sm:p-8 shadow-[var(--shadow-overlay)] text-center"
             >
               <div className="w-14 h-14 mx-auto mb-5 rounded-full bg-rose-500/10 flex items-center justify-center">
-                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#26251F" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="var(--hb-text-strong)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
                   <circle cx="9" cy="7" r="4" />
                   <path d="M22 21v-2a4 4 0 0 0-3-3.87" />

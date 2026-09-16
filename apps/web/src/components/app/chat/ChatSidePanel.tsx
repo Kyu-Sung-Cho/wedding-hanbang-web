@@ -1189,7 +1189,7 @@ export default function ChatSidePanel({
       {/* 패널 */}
       <div
         ref={panelRef}
-        className={`fixed z-50 flex flex-col overflow-hidden bg-[var(--hb-surface-page)] shadow-[-4px_0_24px_rgba(0,0,0,0.08)] transition-transform duration-300 ease-out
+        className={`fixed z-50 flex flex-col overflow-hidden bg-[var(--hb-surface-page)] shadow-[-4px_0_24px_rgba(58,42,39,0.10)] transition-transform duration-300 ease-out
           md:top-0 md:right-0 md:w-[400px] md:h-full md:border-l md:border-black/[0.06]
           max-md:bottom-0 max-md:left-0 max-md:right-0 max-md:h-[78dvh] max-md:min-h-[420px] max-md:max-h-[calc(100dvh-4.5rem)] max-md:rounded-t-[22px] max-md:border-t max-md:border-black/[0.06] max-md:shadow-[var(--shadow-raised)]
           ${isOpen

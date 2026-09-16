@@ -58,7 +58,7 @@ export function PersonalActionContinue({ action }: { action: PersonalAction }) {
 }
 const styles = StyleSheet.create({
   button: { minHeight: 44, paddingHorizontal: spacing[2], justifyContent: "center" }, link: { color: colors.rose[600], textDecorationLine: "underline" },
-  overlay: { flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(0,0,0,0.4)" },
+  overlay: { flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(37,26,24,0.4)" },
   sheet: { maxHeight: "90%", padding: spacing[4], paddingBottom: spacing[6], backgroundColor: colors.surface, borderTopLeftRadius: radius.xl, borderTopRightRadius: radius.xl },
   body: { gap: spacing[3], paddingVertical: spacing[4] }, title: { fontSize: 16, fontWeight: "700", color: colors.noir[800] },
   description: { fontSize: 14, lineHeight: 21, color: colors.noir[800] }, hint: { fontSize: 12, lineHeight: 19, color: colors.textSecondary },
