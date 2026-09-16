@@ -14,6 +14,8 @@ export type DecisionColumn = typeof DECISION_COLUMNS[number]["status"];
 export type PreparationDecision = {
   id: string; category: string; title: string; detail: string | null; createdAt: string;
   status: DecisionColumn; stateLabel: string; source: string; displayTitle?: string;
+  /** 저장 설명(detail)을 화면 이름표·만원 표기로 다시 적은 것. 원문은 detail에 그대로 있다. */
+  displayDetail?: string;
   /** 같은 값을 바꾼 기록끼리 묶는 열쇠. 표시에서만 쓴다. */
   valueSlots?: string[];
   /** 저장 분류 밖에서도 이 기록을 보여줄 분야(예산 결정의 예산·해당 분야). */
@@ -65,6 +67,7 @@ export function parsePreparationDecisions(value: unknown, coupleId: string, curs
         status: row.decision_type === "exploring" ? "exploring" : row.decision_type === "considering" ? "considering" : "confirmed",
         stateLabel: row.decision_type === "scheduled" ? preparationScheduleRecordLabel(row) : DECISION_STATE_LABELS[row.decision_type],
         ...(facts.displayTitle ? { displayTitle: facts.displayTitle } : {}),
+        ...(facts.displayDetail && facts.displayDetail !== row.reasoning ? { displayDetail: facts.displayDetail } : {}),
         ...(facts.valueSlots.length ? { valueSlots: facts.valueSlots } : {}),
         ...(facts.relatedCategories.length ? { relatedCategories: facts.relatedCategories } : {}),
         ...(facts.routineChanges !== null ? { routineChanges: facts.routineChanges } : {}),

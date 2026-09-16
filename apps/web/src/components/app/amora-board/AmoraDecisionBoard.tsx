@@ -101,8 +101,10 @@ function DecisionCard({ row }: { row: ArrangedPreparationDecision }) {
   const related = (row.relatedCategories ?? []).filter(key => key !== row.category && key !== "budget").flatMap(key => preparationDecisionCategory(key) ?? []);
   const destination = category?.destination ?? (row.relatedCategories?.includes("budget") ? budgetDecisionCategory?.destination : null);
   const title = row.displayTitle ?? row.title;
+  const detail = row.displayDetail ?? row.detail;
+  const rewritten = Boolean(row.displayTitle || row.displayDetail);
   const longTitle = title.length > 180;
-  const longDetail = (row.detail?.length ?? 0) > 400;
+  const longDetail = (detail?.length ?? 0) > 400;
   const previous = row.valueState === "previous";
   return <article aria-label={title} data-value-state={row.valueState} className={`min-w-0 rounded-[14px] border p-4 lg:px-[17px] ${previous ? "bg-[var(--amora-bg)]" : "bg-[var(--amora-surface)]"} ${category ? "border-[var(--amora-line)]" : "border-[var(--amora-rose)]"} ${row.status === "exploring" ? "border-dashed" : ""}`}>
     <div className="mb-2 flex items-start justify-between gap-2 text-[12px] text-[var(--amora-muted)]">
@@ -110,10 +112,12 @@ function DecisionCard({ row }: { row: ArrangedPreparationDecision }) {
       <time dateTime={row.createdAt} title="기록일" className="shrink-0 pt-[3px]">{preparationDate(row.createdAt)}</time>
     </div>
     <h4 className={`mb-[9px] break-words text-[14.5px] leading-[1.5] ${previous ? "font-medium text-[var(--amora-muted)]" : "font-semibold text-[var(--amora-ink)]"}`}>{decisionPreview(title, 180)}</h4>
-    {row.detail && <p className="mb-[10px] whitespace-pre-wrap break-words rounded-[9px] bg-[var(--amora-warm)] px-[11px] py-[9px] text-[12.5px] leading-[1.55] text-[var(--amora-muted)]">{decisionPreview(row.detail, 400)}</p>}
-    {(longTitle || longDetail || row.displayTitle) && <details className="mb-3 text-[12px]">
-      <summary className={`flex min-h-11 cursor-pointer items-center rounded-lg text-[var(--amora-accent)] ${focus}`}>{row.displayTitle ? "저장 원문 보기" : "전체 결정 내용 보기"}</summary>
+    {detail && <p className="mb-[10px] whitespace-pre-wrap break-words rounded-[9px] bg-[var(--amora-warm)] px-[11px] py-[9px] text-[12.5px] leading-[1.55] text-[var(--amora-muted)]">{decisionPreview(detail, 400)}</p>}
+    {(longTitle || longDetail || rewritten) && <details className="mb-3 text-[12px]">
+      <summary className={`flex min-h-11 cursor-pointer items-center rounded-lg text-[var(--amora-accent)] ${focus}`}>{rewritten ? "저장 원문 보기" : "전체 결정 내용 보기"}</summary>
       <div className="space-y-2 border-t border-[var(--amora-line)] py-3">
+        {/* 다시 적은 설명이 미리보기에서 잘렸으면 전체를 먼저 보여준다. 원문에는 이전 금액이 없다. */}
+        {row.displayDetail && longDetail && <p className="whitespace-pre-wrap break-words leading-relaxed text-[var(--amora-soft)]">{row.displayDetail}</p>}
         <p className="whitespace-pre-wrap break-words font-semibold text-[var(--amora-ink)]">{row.title}</p>
         {row.detail && <p className="whitespace-pre-wrap break-words leading-relaxed text-[var(--amora-soft)]">{row.detail}</p>}
       </div>
@@ -138,13 +142,19 @@ function DecisionRecords({ data, searchId, query, onQueryChange, mobileSearchOpe
   const [status, setStatus] = useState<DecisionColumn>("confirmed");
   const [category, setCategory] = useState("all");
   const { decisions, routineDays, routineCount } = useMemo(() => arrangePreparationDecisions(records), [records]);
+  // 체크 저장은 한 번에 한 행이라 한 페이지(30건)를 다 채울 수 있다. 그러면 접고 나서 결정이 0개인데
+  // 실제 결정은 다음 페이지에 있다. 결정이 하나라도 보이거나 더 불러올 기록이 없을 때까지 이어서 불러온다.
+  useEffect(() => {
+    if (!active || loading || loadingMore || error || !nextCursor || decisions.length > 0 || routineCount === 0) return;
+    void loadMore();
+  }, [active, loading, loadingMore, error, nextCursor, decisions.length, routineCount, loadMore]);
   const filtered = useMemo(() => {
     const needle = query.trim().toLocaleLowerCase("ko");
     return decisions.filter(row => {
       const field = preparationDecisionCategory(row.category);
       if (category === "unsorted" ? !!field : category !== "all" && !decisionBelongsTo(row, category)) return false;
       const labels = (row.relatedCategories ?? []).map(key => preparationDecisionCategory(key)?.label);
-      return !needle || [row.title, row.displayTitle, row.detail, field?.label, ...labels].some(value => value?.toLocaleLowerCase("ko").includes(needle));
+      return !needle || [row.title, row.displayTitle, row.detail, row.displayDetail, field?.label, ...labels].some(value => value?.toLocaleLowerCase("ko").includes(needle));
     });
   }, [decisions, category, query]);
   const categories = PREPARATION_DECISION_CATEGORIES.filter(item => decisions.some(row => decisionBelongsTo(row, item.key)));
@@ -207,7 +217,7 @@ function DecisionRecords({ data, searchId, query, onQueryChange, mobileSearchOpe
                       <p className="pb-2 leading-relaxed">같은 값을 나중 기록에서 다시 바꿨어요. 지금 값은 예산 화면에서 확인해 주세요.</p>
                       <div className="space-y-[10px] pb-3">{previousRows.map(row => <DecisionCard key={row.id} row={row} />)}</div>
                     </details>}
-                  </> : <p className="rounded-[14px] border border-dashed border-[var(--amora-line)] p-5 text-[12px] leading-6 text-[var(--amora-muted)]">{query || category !== "all" ? "이 조건에 맞는 결정이 없어요." : "이 상태로 저장된 결정이 없어요."}</p>}</div>
+                  </> : <p className="rounded-[14px] border border-dashed border-[var(--amora-line)] p-5 text-[12px] leading-6 text-[var(--amora-muted)]">{nextCursor ? `불러온 기록에는 ${query || category !== "all" ? "이 조건에 맞는" : "이 상태로 저장된"} 결정이 없어요. 아래에서 이전 결정을 더 불러올 수 있어요.` : query || category !== "all" ? "이 조건에 맞는 결정이 없어요." : "이 상태로 저장된 결정이 없어요."}</p>}</div>
                 </section>;
               })}
             </div>

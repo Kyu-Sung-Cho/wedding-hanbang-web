@@ -152,7 +152,7 @@ describe("preparation decision historical display", () => {
   it("marks only checklist or status saves as routine progress and leaves real changes as decisions", () => {
     const routine = { ...budget("진행 상황: 2개 수정"), chosen_value: { schemaVersion: 1, changes: { progress_patch: {
       dress: { category: "dress", status: "in_progress", budget: 4000000, checklist: [{ id: "a", label: "피팅", done: true }] },
-      venue: { category: "venue", status: "not_applicable" },
+      venue: { category: "venue", status: "completed" },
     }, progress_remove_keys: [] } } };
     expect(parse(routine)).toMatchObject({ routineChanges: 2 });
     for (const value of [
@@ -164,8 +164,93 @@ describe("preparation decision historical display", () => {
       { ...routine, title: "진행 상황: 1개 수정", chosen_value: { schemaVersion: 1, changes: { progress_patch: { __events: [] } } } },
       { ...routine, title: "진행 상황: 1개 수정", chosen_value: { schemaVersion: 1, changes: { progress_patch: { dress: { budget: 1 } } } } },
       { ...routine, source: "schedule" },
+      { ...routine, decision_type: "scheduled" },
       { ...routine, metadata: {} },
     ]) expect(parse(value)).not.toHaveProperty("routineChanges");
+  });
+
+  // 2026-09-16 운영 실측: 일정 화면에서 체크한 저장은 source=schedule · decision_type=scheduled 로 남아
+  // "진행 상황: 1개 수정" 여섯 줄이 결정 목록에 그대로 보였다. 일정이 바뀐 저장은 DB가 일정 요약 제목을 쓴다.
+  it("folds checklist saves recorded from the schedule screen, which the database stores as scheduled records", () => {
+    const fromSchedule = { ...base, category: "schedule", title: "진행 상황: 1개 수정", reasoning: "현재 구성원이 확인한 수동 계획 변경",
+      metadata: { origin: "couple_plan_change_request", surfaceHref: "/schedule" },
+      chosen_value: { schemaVersion: 1, changes: { progress_patch: {
+        greeting: { status: "in_progress", category: "greeting", checklist: [{ id: "greeting_01", done: true, label: "각자 찾아뵐 날짜와 시간, 만날 곳 확정" }] },
+      }, progress_remove_keys: [] } } };
+    expect(parse(fromSchedule)).toMatchObject({ routineChanges: 1, stateLabel: "일정 기록" });
+    for (const value of [
+      { ...fromSchedule, chosen_value: { schemaVersion: 1, changes: { progress_patch: { __events: [] }, progress_remove_keys: [] } } },
+      { ...fromSchedule, title: "일정 추가: 스드메 상담 예약 · 날짜: 없음 → 2026-10-10" },
+      { ...fromSchedule, metadata: { origin: "amora_shared_action" } },
+    ]) expect(parse(value)).not.toHaveProperty("routineChanges");
+  });
+
+  // "안 해요"는 준비 범위를 정한 선택이다. 체크 저장처럼 접지 않고, DB 제목에 없는 분야 이름을 patch에서 읽어 적는다.
+  it("keeps a 안 해요 selection as a decision and names the skipped category", () => {
+    const skip = (patch: Record<string, unknown>, count: number, source = "schedule", decision_type = "scheduled") => ({
+      ...base, source, decision_type, category: source === "schedule" ? "schedule" : "plan", title: `진행 상황: ${count}개 수정`,
+      metadata: { origin: "couple_plan_change_request" },
+      chosen_value: { schemaVersion: 1, changes: { progress_patch: patch, progress_remove_keys: [] } } });
+    expect(parse(skip({ pyebaek: { category: "pyebaek", status: "not_applicable", checklist: [] } }, 1))).toMatchObject({
+      displayTitle: "결혼식 뒤 전통 인사: '안 해요'로 표시" });
+    expect(parse(skip({ pyebaek: { category: "pyebaek", status: "not_applicable" }, hanbok: { status: "not_applicable" } }, 2, "manual", "decided"))).toMatchObject({
+      displayTitle: "결혼식 뒤 전통 인사·한복: '안 해요'로 표시" });
+    expect(parse(skip({ pyebaek: { category: "pyebaek", status: "not_applicable" }, dress: { category: "dress", status: "in_progress" } }, 2))).toMatchObject({
+      displayTitle: "결혼식 뒤 전통 인사: '안 해요'로 표시 · 진행 상황 1개 수정" });
+    expect(parse(skip({ custom_snap: { label: "본식 스냅", status: "not_applicable" } }, 1))).toMatchObject({ displayTitle: "본식 스냅: '안 해요'로 표시" });
+    for (const row of [
+      skip({ pyebaek: { category: "pyebaek", status: "not_applicable" } }, 1),
+      skip({ mystery: { status: "not_applicable" } }, 1),
+    ]) expect(parse(row)).not.toHaveProperty("routineChanges");
+    // 이름을 읽지 못하면 원문 그대로 둔다(접지도, 지어내지도 않는다).
+    expect(parse(skip({ mystery: { status: "not_applicable" } }, 1))).not.toHaveProperty("displayTitle");
+  });
+
+  // 2026-09-16 운영 실측: 분야 표시 없이 예산만 지운 저장은 DB가 키 이름으로 요약해 "hanbok 예산: 1500000원 → 미정"으로 보였다.
+  it("reads a budget cleared without a category marker with screen names and 만원 amounts", () => {
+    const cleared = { ...budget("총예산: 35000000원 → 32500000원 · hanbok 예산: 1500000원 → 미정 · yedan 예산: 2000000원 → 미정"),
+      chosen_value: { schemaVersion: 1, changes: { total_budget: 32500000, progress_patch: {
+        yedan: { status: "not_applicable" }, hanbok: { status: "not_applicable" } } } } };
+    expect(parse(cleared)).toMatchObject({
+      displayTitle: "총예산: 3,500만원 → 3,250만원 · 한복 예산: 150만원 → 미정 · 두 가족에게 드릴 선물 예산: 200만원 → 미정",
+      valueSlots: ["budget:total", "budget:hanbok", "budget:yedan"],
+    });
+    // 저장된 값이 남아 있는데 요약이 "미정"이면 원문 그대로 둔다. 다른 분야 표시가 붙은 항목도 연결하지 않는다.
+    for (const broken of [
+      { ...cleared, chosen_value: { schemaVersion: 1, changes: { total_budget: 32500000, progress_patch: {
+        yedan: { status: "not_applicable" }, hanbok: { status: "not_applicable", budget: 1500000 } } } } },
+      { ...cleared, chosen_value: { schemaVersion: 1, changes: { total_budget: 32500000, progress_patch: {
+        yedan: { status: "not_applicable" }, hanbok: { status: "not_applicable", category: "venue" } } } } },
+    ]) expect(parse(broken)).not.toHaveProperty("displayTitle");
+  });
+
+  // 2026-09-16 운영 실측: 아모라 배분 기록의 설명이 DB 원문 "한복 1,500,000원, 예단 2,000,000원"으로 보였다.
+  it("rewrites the Amora allocation detail with screen names and 만원 amounts while keeping the stored original", () => {
+    const value = "총예산 35,000,000원 기준 예산 배분 반영: 한복 1,500,000원, 예단 2,000,000원";
+    const allocation = { ...base, category: "budget", source: "budget", decision_type: "decided", title: "총예산 35,000,000원 기준 예산 배분 반영",
+      reasoning: `승인한 구성원의 예산 배정 변경. ${value}`, metadata: { origin: "amora_shared_budget_action" },
+      chosen_value: { schemaVersion: 1, budgetScope: "allocation", value, snapshotRevision: 18, budgetDelta: { schemaVersion: 1,
+        totalBudget: { before: 32500000, after: 35000000 },
+        categories: [{ key: "hanbok", label: "한복", beforeBudget: null, afterBudget: 1500000 }, { key: "yedan", label: "예단", beforeBudget: null, afterBudget: 2000000 }] } } };
+    expect(parse(allocation)).toMatchObject({
+      detail: allocation.reasoning,
+      displayDetail: "승인한 구성원의 예산 배정 변경. 총예산 3,250만원 → 3,500만원 · 한복 예산 미정 → 150만원 · 두 가족에게 드릴 선물 예산 미정 → 200만원",
+    });
+    const unchangedTotal = { ...allocation, chosen_value: { ...allocation.chosen_value, budgetDelta: { ...allocation.chosen_value.budgetDelta, totalBudget: null } } };
+    expect(parse(unchangedTotal).displayDetail).toBe("승인한 구성원의 예산 배정 변경. 한복 예산 미정 → 150만원 · 두 가족에게 드릴 선물 예산 미정 → 200만원");
+    // 예비비 이름에는 이미 "미정"이 들어 있다. "예산"으로 갈라 "미정 미정"으로 붙지 않게 한다.
+    const reserveValue = "총예산 35,000,000원 기준 예산 배분 반영: 한복 1,500,000원, 예비비·사용처 미정 500,000원";
+    const withReserve = { ...allocation, reasoning: `승인한 구성원의 예산 배정 변경. ${reserveValue}`, chosen_value: { ...allocation.chosen_value, value: reserveValue,
+      budgetDelta: { schemaVersion: 1, totalBudget: null, categories: [
+        { key: "hanbok", label: "한복", beforeBudget: null, afterBudget: 1500000 }, { key: "reserve", label: "예비비·사용처 미정", beforeBudget: null, afterBudget: 500000 }] } } };
+    expect(parse(withReserve).displayDetail).toBe("승인한 구성원의 예산 배정 변경. 한복 예산 미정 → 150만원 · 예비비·사용처 미정 예산 미정 → 50만원");
+    expect(parse(withReserve).displayDetail).not.toContain("미정 미정");
+    // 설명이 저장된 값과 맞지 않거나 사람이 쓴 설명이면 바꾸지 않는다.
+    for (const broken of [
+      { ...allocation, reasoning: "승인한 구성원의 예산 배정 변경. 다른 설명" },
+      { ...allocation, reasoning: "직접 적은 메모" },
+      { ...allocation, chosen_value: { ...allocation.chosen_value, value: "총예산 36,000,000원 기준 예산 배분 반영: 한복 1,500,000원, 예단 2,000,000원" } },
+    ]) expect(parse(broken)).not.toHaveProperty("displayDetail");
   });
 });
 
