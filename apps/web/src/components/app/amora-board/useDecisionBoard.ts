@@ -47,8 +47,10 @@ export async function readDecisionPage(client: SupabaseClient, scope: DecisionSc
   return page;
 }
 
-type State = { scope: string; records: PreparationDecision[]; nextCursor: DecisionCursor | null; loading: boolean; loadingMore: boolean; error: string | null };
-const empty = { records: [], nextCursor: null, loading: false, loadingMore: false, error: null };
+type State = { scope: string; records: PreparationDecision[]; nextCursor: DecisionCursor | null; loading: boolean; loadingMore: boolean; error: string | null; errorKind: "initial" | "more" | null };
+const empty = { records: [], nextCursor: null, loading: false, loadingMore: false, error: null, errorKind: null };
+const INITIAL_ERROR = "결정 기록을 확인하지 못했어요. 커플 연결을 확인한 뒤 다시 불러와 주세요.";
+const MORE_ERROR = "이전 결정을 더 불러오지 못했어요. 잠시 후 다시 시도해 주세요.";
 
 export function useDecisionBoard() {
   const scopeKey = useAuthStore(state => keyFor(decisionScope(state)));
@@ -69,13 +71,17 @@ export function useDecisionBoard() {
     const generation = epoch.current;
     inFlight.current = true;
     const current = () => mounted.current && request === sequence.current && generation === epoch.current && scopeKey === keyFor(decisionScope());
-    setState(previous => ({ ...(cursor && previous.scope === scopeKey ? previous : empty), scope: scopeKey, loading: !cursor, loadingMore: !!cursor, error: null }));
+    setState(previous => ({ ...(cursor && previous.scope === scopeKey ? previous : empty), scope: scopeKey, loading: !cursor, loadingMore: !!cursor, error: null, errorKind: null }));
     try {
       const page = await readDecisionPage(createClient(), scope, current, signal, cursor);
-      if (current()) setState(previous => ({ ...page, scope: scopeKey, loading: false, loadingMore: false, error: null,
+      if (current()) setState(previous => ({ ...page, scope: scopeKey, loading: false, loadingMore: false, error: null, errorKind: null,
         records: cursor && previous.scope === scopeKey ? [...new Map([...previous.records, ...page.records].map(row => [row.id, row])).values()] : page.records }));
     } catch {
-      if (current()) setState({ ...empty, scope: scopeKey, error: "결정 기록을 확인하지 못했어요. 커플 연결을 확인한 뒤 다시 불러와 주세요." });
+      // 이어서 불러오다 실패한 것은 이미 화면에 있는 기록을 지우지 않는다. 커플 연결은 멀쩡한데
+      // 연결을 확인하라고 말하면서 목록까지 비우면, 실패한 것은 다음 페이지 하나인데 전부 잃는다.
+      if (current()) setState(previous => cursor && previous.scope === scopeKey
+        ? { ...previous, loading: false, loadingMore: false, error: MORE_ERROR, errorKind: "more" }
+        : { ...empty, scope: scopeKey, error: INITIAL_ERROR, errorKind: "initial" });
     } finally { if (current()) inFlight.current = false; }
   }, [scopeKey]);
   const refresh = useCallback(() => load(), [load]);
