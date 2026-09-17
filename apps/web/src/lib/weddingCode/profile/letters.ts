@@ -14,23 +14,41 @@ export const WEDDING_CODE_MISSING_LETTER = "·";
 
 export type WeddingCodeLetterFirmness = "firm" | "clear" | "narrow" | "unset";
 
+export type WeddingCodeSide = "left" | "right";
+
+/**
+ * 한 자리의 한쪽 끝. 범례가 **양쪽 글자와 이름을 모두** 그리려면 이긴 쪽만으로는 부족하다 —
+ * MBTI 의 I 옆에 E 가 없으면 I 가 무엇의 반대인지 모른다(2026-09-17 팀원 피드백).
+ */
+export type WeddingCodePole = Readonly<{
+  letter: string;
+  /** 「조건 먼저」처럼 짧은 이름. 사람 설명이 아니라 답의 방향이다. */
+  short: string;
+  /** 이 쪽 답을 고른 장면 수. 답하지 않은 장면은 어느 쪽에도 세지 않는다. */
+  count: number;
+}>;
+
 export type WeddingCodeLetterSlot = Readonly<{
   axis: WeddingCodeV06AxisKey;
   axisLabel: string;
-  /** 응답 요약 글자. 미정이면 `·`. 양쪽 답이 있고 한 표 차이면 소문자로 나간다. */
+  /** 응답 요약 글자. 미정이면 `·`. 양쪽 답이 있고 하나 차이면 소문자로 나간다. */
   letter: string;
   /** 대문자 기준 글자. 미정이면 null. 비교·집계는 이걸 쓴다. */
   upper: string | null;
   firmness: WeddingCodeLetterFirmness;
-  /** 이 글자가 뜻하는 것 한 줄. 성격 설명이 아니라 고른 답의 요약이다. */
+  /** 이 글자가 뜻하는 것 한 줄. 미정이면 왜 비웠는지. 성격 설명이 아니라 고른 답의 요약이다. */
   meaning: string;
   majority: number;
   minority: number;
   answered: number;
-  /** 「다섯 장면 중 세 곳」처럼 그대로 읽어줄 사실 문장. */
-  tally: string;
-  /** 한 표 차이일 때 응답 변경에 따른 글자 변경 가능성을 알린다. */
-  caution: string | null;
+  left: WeddingCodePole;
+  right: WeddingCodePole;
+  /** 더 많이 고른 쪽. 답이 없거나 같은 수면 null. */
+  chosen: WeddingCodeSide | null;
+  /** 「답한 5장면 중 4장면은 V(조건 먼저), …」처럼 그대로 읽어줄 사실 문장. 왼쪽을 먼저 쓴다. */
+  countLine: string;
+  /** 하나 차이일 때 답 하나로 글자가 바뀐다는 사실. 아니면 null. */
+  narrowCaution: string | null;
 }>;
 
 export type WeddingCodeLetters = Readonly<{
@@ -45,6 +63,8 @@ export type WeddingCodeLetters = Readonly<{
 
 type LetterDefinition = Readonly<{
   letter: string;
+  /** 범례·집계 문장·제목에 같이 쓰는 짧은 이름. */
+  short: string;
   meaning: string;
 }>;
 
@@ -53,36 +73,146 @@ type LetterDefinition = Readonly<{
  *
  * 열여섯 조합(VTUH…MOFA)이 나온다. 뜻은 **고른 답의 요약**으로만 쓴다 —
  * 「V인 사람은 꼼꼼하다」처럼 사람을 설명하는 문장으로 바꾸면 안 된다.
+ *
+ * 2026-09-17: 팀원이 「VTFH 가 뭔지, 각 자리의 다른 글자가 뭔지 모르겠다」고 했다.
+ * 그래서 글자마다 짧은 이름을 붙이고, 범례가 양쪽 끝을 함께 그린다. 이름과 뜻은
+ * 모든 판(v0.6·v0.8·v0.9)이 같이 쓴다.
  */
 export const WEDDING_CODE_LETTERS: Readonly<
   Record<WeddingCodeV06AxisKey, { left: LetterDefinition; right: LetterDefinition }>
 > = {
   decisionCriteria: {
-    left: { letter: "V", meaning: "금액과 조건을 먼저 확인한 답을 더 많이 골랐어요" },
-    right: { letter: "M", meaning: "사진·분위기와 기대·인상에 관한 답을 더 많이 골랐어요" },
+    left: {
+      letter: "V",
+      short: "조건 먼저",
+      meaning: "얼마가 드는지, 적힌 내용이 사실인지가 먼저인 답을 더 많이 골랐어요",
+    },
+    right: {
+      letter: "M",
+      short: "분위기 먼저",
+      meaning: "사진·분위기, 결혼식 날에 거는 기대나 받은 인상이 먼저인 답을 더 많이 골랐어요",
+    },
   },
   preparationMode: {
-    left: { letter: "T", meaning: "함께 확인하는 과정과 연락 경험에 관한 답을 더 많이 골랐어요" },
-    right: { letter: "O", meaning: "한 사람이 맡아 정리하는 답을 더 많이 골랐어요" },
+    left: {
+      letter: "T",
+      short: "둘이 같이",
+      meaning: "어느 한 사람에게 맡기지 않은 답을 더 많이 골랐어요",
+    },
+    right: {
+      letter: "O",
+      short: "맡아서 하기",
+      meaning: "누군가 맡아서 혼자 정하거나 정리하는 답을 더 많이 골랐어요",
+    },
   },
   coordinationScope: {
-    left: { letter: "U", meaning: "우리 둘의 기준을 먼저 둔 답을 더 많이 골랐어요" },
-    right: { letter: "F", meaning: "가족과 하객 사정을 먼저 본 답을 더 많이 골랐어요" },
+    left: {
+      letter: "U",
+      short: "우리 둘 먼저",
+      meaning: "우리 둘의 기준이 먼저인 답을 더 많이 골랐어요",
+    },
+    right: {
+      letter: "F",
+      short: "가족·하객까지",
+      meaning: "가족과 하객 사정이 먼저인 답을 더 많이 골랐어요",
+    },
   },
   supportOrder: {
-    left: { letter: "H", meaning: "마음과 대화에 관한 답을 더 많이 골랐어요" },
-    right: { letter: "A", meaning: "할 일과 결정에 관한 답을 더 많이 골랐어요" },
+    left: {
+      letter: "H",
+      short: "마음 먼저",
+      meaning: "마음과 대화가 먼저인 답을 더 많이 골랐어요",
+    },
+    right: {
+      letter: "A",
+      short: "할 일 먼저",
+      meaning: "할 일과 결정이 먼저인 답을 더 많이 골랐어요",
+    },
   },
 };
 
 export const WEDDING_CODE_FIRMNESS_LABEL: Readonly<
   Record<WeddingCodeLetterFirmness, string>
 > = {
-  firm: "답한 장면 모두 같은 쪽",
-  clear: "한쪽 답이 더 많음",
-  narrow: "한 표 차이",
-  unset: "미정",
+  firm: "모두 같은 쪽",
+  clear: "한쪽이 더 많음",
+  narrow: "하나 차이",
+  unset: "글자 비움",
 };
+
+/** 배지 범례의 고지. 소문자 규칙을 여기서 한 번에 설명한다. */
+export const WEDDING_CODE_LEGEND = {
+  title: "네 글자 읽는 법",
+  note:
+    "성격을 맞힌 게 아니라, 이번에 고른 답이 어느 쪽에 더 많았는지 적은 글자예요."
+    + " 소문자는 양쪽 답이 하나 차이라서, 답 하나만 바꿔도 반대쪽 글자가 돼요.",
+} as const;
+
+/**
+ * 셈 문장.
+ *
+ * ## 왜 숫자와 글자 바로 뒤에 조사를 붙이지 않나
+ *
+ * 예전 문장은 `… ${majority} 대 ${minority}예요` 였다. 1 은 「일」로 읽으니 「1이에요」가
+ * 맞는데 화면에는 「4 대 1예요」가 나갔고, `${letter}로` 는 M 에서 「M으로」여야 했다.
+ * 숫자·영문 뒤 조사는 받침을 코드가 알 수 없다. 그래서 틀을 바꿔 **숫자 뒤에는 「장면」,
+ * 글자 뒤에는 괄호만** 오게 했다. 조사는 「장면은」 「쪽이었어요」처럼 고정 낱말에만 붙는다.
+ */
+const COUNT_LINE = {
+  none: "이 주제는 아직 답하지 않았어요.",
+  oneAnswered: (pole: WeddingCodePole) =>
+    `답한 1장면은 ${pole.letter}(${pole.short}) 쪽이었어요.`,
+  allOneSide: (answered: number, pole: WeddingCodePole) =>
+    `답한 ${answered}장면 모두 ${pole.letter}(${pole.short}) 쪽이었어요.`,
+  tie: (answered: number, left: WeddingCodePole, right: WeddingCodePole) =>
+    `답한 ${answered}장면이 ${left.letter}(${left.short}) 쪽과 ${right.letter}(${right.short}) 쪽 반반이었어요.`,
+  split: (answered: number, left: WeddingCodePole, right: WeddingCodePole) =>
+    `답한 ${answered}장면 중 ${left.count}장면은 ${left.letter}(${left.short}), ${right.count}장면은 ${right.letter}(${right.short}) 쪽이었어요.`,
+} as const;
+
+const UNSET_LINE = {
+  tie: "양쪽 답이 같은 수라서 이 자리는 글자를 비워 뒀어요",
+  skipped: "이 주제 장면을 모두 건너뛰어서 글자가 없어요",
+} as const;
+
+/** `{upper}` 는 대문자로 채운다. 소문자(slot.letter)를 넣으면 「v 대신」처럼 읽혀 헷갈린다. */
+function narrowCautionFor(upper: string, opposite: string): string {
+  return `양쪽 답이 하나 차이예요. 답 하나만 반대쪽으로 바꿔도 ${upper} 대신 ${opposite} 글자가 나와요.`;
+}
+
+/** 한 축의 양쪽 끝. 셈은 호출하는 쪽이 넘긴다 — 여기서 지어내지 않는다. */
+export function weddingCodePoles(
+  axis: WeddingCodeV06AxisKey,
+  leftCount: number,
+  rightCount: number,
+): Readonly<{ left: WeddingCodePole; right: WeddingCodePole }> {
+  const pair = WEDDING_CODE_LETTERS[axis];
+  return {
+    left: { letter: pair.left.letter, short: pair.left.short, count: leftCount },
+    right: { letter: pair.right.letter, short: pair.right.short, count: rightCount },
+  };
+}
+
+/**
+ * 「답한 N장면 중 …」 사실 문장. 배지 범례·축 카드·커플 요약이 모두 이 함수를 쓴다.
+ *
+ * 고르는 규칙: 답 0 → none, 1 → oneAnswered, 한쪽이 0 → allOneSide, 같은 수 → tie,
+ * 나머지 → split. 양쪽을 다 쓸 때는 항상 왼쪽 글자를 먼저 쓴다.
+ */
+export function describeWeddingCodeCount(
+  axis: WeddingCodeV06AxisKey,
+  leftCount: number,
+  rightCount: number,
+): string {
+  const { left, right } = weddingCodePoles(axis, leftCount, rightCount);
+  const answered = leftCount + rightCount;
+  if (answered === 0) return COUNT_LINE.none;
+  const only = rightCount === 0 ? left : leftCount === 0 ? right : null;
+  if (answered === 1 && only) return COUNT_LINE.oneAnswered(only);
+  if (only) return COUNT_LINE.allOneSide(answered, only);
+  if (leftCount === rightCount) return COUNT_LINE.tie(answered, left, right);
+  return COUNT_LINE.split(answered, left, right);
+}
 
 /**
  * 기존 표시용 enum을 유지하되, 실제 응답 분포만 구분한다.
@@ -96,51 +226,46 @@ function firmnessOf(majority: number, minority: number): WeddingCodeLetterFirmne
 
 function slotFor(reading: WeddingCodeSelfAxisReading): WeddingCodeLetterSlot {
   const pair = WEDDING_CODE_LETTERS[reading.axis];
+  const { left, right } = weddingCodePoles(reading.axis, reading.leftCount, reading.rightCount);
+  const answered = reading.leftCount + reading.rightCount;
   const majority = Math.max(reading.leftCount, reading.rightCount);
   const minority = Math.min(reading.leftCount, reading.rightCount);
-  const firmness = reading.answered === 0 ? "unset" : firmnessOf(majority, minority);
-  const side = reading.leftCount >= reading.rightCount ? pair.left : pair.right;
+  const firmness = answered === 0 ? "unset" : firmnessOf(majority, minority);
+  const countLine = describeWeddingCodeCount(reading.axis, reading.leftCount, reading.rightCount);
+  const base = {
+    axis: reading.axis,
+    axisLabel: reading.axisLabel,
+    firmness,
+    majority,
+    minority,
+    answered,
+    left,
+    right,
+    countLine,
+  } as const;
 
   if (firmness === "unset") {
     return {
-      axis: reading.axis,
-      axisLabel: reading.axisLabel,
+      ...base,
       letter: WEDDING_CODE_MISSING_LETTER,
       upper: null,
-      firmness,
-      meaning:
-        reading.answered === 0
-          ? "이 주제는 건너뛰어서 글자가 없어요"
-          : "고른 답이 정확히 반반이라 글자를 정하지 않았어요",
-      majority,
-      minority,
-      answered: reading.answered,
-      tally:
-        reading.answered === 0
-          ? "답한 장면이 없어요."
-          : `답한 ${reading.answered}장면이 ${majority} 대 ${minority}로 반반이었어요.`,
-      caution: null,
+      chosen: null,
+      meaning: answered === 0 ? UNSET_LINE.skipped : UNSET_LINE.tie,
+      narrowCaution: null,
     };
   }
 
+  const chosen: WeddingCodeSide = reading.leftCount > reading.rightCount ? "left" : "right";
+  const side = pair[chosen];
+  const other = pair[chosen === "left" ? "right" : "left"];
   return {
-    axis: reading.axis,
-    axisLabel: reading.axisLabel,
+    ...base,
     // 기존 공유 코드의 대소문자 의미를 유지한다.
     letter: firmness === "narrow" ? side.letter.toLowerCase() : side.letter,
     upper: side.letter,
-    firmness,
+    chosen,
     meaning: side.meaning,
-    majority,
-    minority,
-    answered: reading.answered,
-    tally: `답한 ${reading.answered}장면에서 이쪽과 반대쪽 답은 ${majority} 대 ${minority}예요.`,
-    caution:
-      firmness === "narrow"
-        ? `${majority} 대 ${minority}로 한 표 차이예요. 답을 바꾸면 ${
-          side.letter === pair.left.letter ? pair.right.letter : pair.left.letter
-        }로 바뀔 수 있어요.`
-        : null,
+    narrowCaution: firmness === "narrow" ? narrowCautionFor(side.letter, other.letter) : null,
   };
 }
 
@@ -161,12 +286,17 @@ export type WeddingCodeParsedLetter = Readonly<{
   axis: WeddingCodeV06AxisKey;
   axisLabel: string;
   letter: string;
-  /** 소문자로 적혀 온 글자. 「그때 아슬했다」는 표시일 뿐 다시 계산하지는 않는다. */
+  /** 소문자로 적혀 온 글자. 「그때 하나 차이였다」는 표시일 뿐 다시 계산하지는 않는다. */
   narrow: boolean;
+  /** 결과 화면 범례와 같은 짧은 이름. */
+  short: string;
   meaning: string;
   /** 반대편 글자. 「이 자리의 다른 쪽」을 설명할 때 쓴다. */
   opposite: string;
+  oppositeShort: string;
   oppositeMeaning: string;
+  /** 이 글자가 축의 왼쪽인가. 범례를 결과 화면과 같은 방향(왼쪽 먼저)으로 그릴 때 쓴다. */
+  side: WeddingCodeSide;
 }>;
 
 /**
@@ -202,9 +332,12 @@ export function parseWeddingCodeString(
       letter: upper,
       // 대문자로만 온 코드는 굳기를 알 수 없다. 모른다고 지어내지 않는다.
       narrow: character === character.toLowerCase() && character !== upper,
+      short: side.short,
       meaning: side.meaning,
       opposite: other.letter,
+      oppositeShort: other.short,
       oppositeMeaning: other.meaning,
+      side: side === pair.left ? "left" : "right",
     });
   }
   return parsed;

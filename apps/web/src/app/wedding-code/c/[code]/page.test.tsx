@@ -1,3 +1,5 @@
+// @vitest-environment jsdom
+
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 
@@ -13,6 +15,7 @@ vi.mock("next/link", () => ({
 }));
 
 import { WEDDING_CODE_V06_AXES } from "@/constants/weddingCodeV06";
+import { WEDDING_CODE_LETTERS } from "@/lib/weddingCode/profile/letters";
 import WeddingCodeMeaningPage, { generateMetadata, generateStaticParams } from "./page";
 
 async function render(code: string) {
@@ -35,6 +38,32 @@ describe("코드만 아는 사람을 위한 화면", () => {
     // 반대쪽 글자도 알려줘야 자리를 이해할 수 있다.
     expect(html).toContain("이 자리의 다른 쪽은");
     expect(html).toContain("내 웨딩코드 받아보기");
+  });
+
+  /**
+   * 결과 화면 범례와 같은 모양으로 읽혀야 한다 — 양쪽 글자와 짧은 이름, 왼쪽이 먼저,
+   * 코드에 있는 글자만 강조. 코드에는 답의 수가 없으므로 칸 막대는 그리지 않는다.
+   */
+  it("자리마다 양쪽 글자와 짧은 이름을 결과 화면과 같은 방향으로 보여준다", async () => {
+    for (const code of ["VTUH", "MOFA", "vOuA"]) {
+      const html = await render(code);
+      const root = document.createElement("div");
+      root.innerHTML = html;
+      for (const [index, axis] of WEDDING_CODE_V06_AXES.entries()) {
+        const pair = WEDDING_CODE_LETTERS[axis.key];
+        const row = root.querySelector(`[data-meaning-axis="${axis.key}"]`)!;
+        const left = row.querySelector('[data-pole="left"]');
+        const right = row.querySelector('[data-pole="right"]');
+        expect(left?.textContent, `${code} ${axis.key}`).toBe(`${pair.left.letter}${pair.left.short}`);
+        expect(right?.textContent, `${code} ${axis.key}`).toBe(`${pair.right.letter}${pair.right.short}`);
+        const chosen = code[index].toUpperCase() === pair.left.letter ? "left" : "right";
+        const other = chosen === "left" ? pair.right : pair.left;
+        expect(row.querySelector('[data-pole-chosen="true"]')?.getAttribute("data-pole"), `${code} ${axis.key}`).toBe(chosen);
+        expect(row.querySelectorAll('[data-pole-chosen="true"]'), `${code} ${axis.key}`).toHaveLength(1);
+        expect(row.textContent, `${code} ${axis.key}`).toContain(`이 자리의 다른 쪽은 ${other.letter}(${other.short}) — ${other.meaning}`);
+        expect(row.querySelector("[data-count-bar]"), `${code} ${axis.key}`).toBeNull();
+      }
+    }
   });
 
   it("소문자로 와도 같은 뜻으로 열린다", async () => {

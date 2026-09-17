@@ -37,11 +37,15 @@ import {
 } from "@/lib/weddingCode/contribution/contract";
 import Button from "@/components/ui/Button";
 import {
-  WEDDING_CODE_FIRMNESS_LABEL,
   buildWeddingCodeLetters,
   compareWeddingCodeLetters,
   type WeddingCodeLetters,
 } from "@/lib/weddingCode/profile/letters";
+import {
+  WEDDING_CODE_TIP_LABELS,
+  weddingCodeQualifierLine,
+} from "@/constants/weddingCodeSelfReading";
+import WeddingCodeBadge from "./WeddingCodeBadge";
 import {
   buildWeddingCodeShareUrl,
   decodeWeddingCodeShareHash,
@@ -652,6 +656,7 @@ ${shareUrl}`
           <div className="divide-y divide-[var(--hb-hairline)]">
             {profile.axes.map((reading) => {
               const absence = describeSelfAxisAbsence(reading);
+              const qualifierLine = weddingCodeQualifierLine(reading.qualifiers);
               // 건너뛴 주제에 카피를 붙이면 고르지도 않은 답을 읽어주는 것이 된다.
               if (reading.answered === 0) {
                 return (
@@ -690,18 +695,25 @@ ${shareUrl}`
                     ))}
                   </div>
 
+                  {/* 고른 답에만 붙는 해석 주의. 인용 바로 아래라야 어느 문장 얘기인지 읽힌다. */}
+                  {qualifierLine ? (
+                    <p data-qualifier-line="" className="mt-2 text-[13px] font-medium leading-[1.6] text-[var(--hb-text-body)]">
+                      {qualifierLine}
+                    </p>
+                  ) : null}
+
                   {absence ? (
                     <p className="mt-4 text-[13px] font-medium leading-[1.7] text-[var(--hb-text-strong)]">
                       {absence}
                     </p>
                   ) : null}
 
-                  <p className="mt-4 text-[13px] font-medium leading-[1.7] text-[var(--hb-text-strong)]">
-                    <b className="font-semibold text-[var(--hb-text-strong)]">상대에게 미리 말해두기: </b>
+                  <p data-tip="tellPartner" className="mt-4 text-[13px] font-medium leading-[1.7] text-[var(--hb-text-strong)]">
+                    <b className="font-semibold text-[var(--hb-text-strong)]">{WEDDING_CODE_TIP_LABELS.tellPartner}: </b>
                     “{reading.tellPartner}”
                   </p>
-                  <p className="mt-2 text-[13px] font-medium leading-[1.7] text-[var(--hb-text-strong)]">
-                    <b className="font-semibold text-[var(--hb-text-strong)]">한 가지 챙긴다면: </b>
+                  <p data-tip="watchOut" className="mt-2 text-[13px] font-medium leading-[1.7] text-[var(--hb-text-strong)]">
+                    <b className="font-semibold text-[var(--hb-text-strong)]">{WEDDING_CODE_TIP_LABELS.watchOut}: </b>
                     {reading.watchOut}
                   </p>
                 </article>
@@ -890,81 +902,6 @@ ${shareUrl}`
           새 응답 시작하기
       </button>
     </>
-  );
-}
-
-/**
- * 웨딩코드 네 글자.
- *
- * 이름이 코드인데 코드가 없으면 이 제품은 이름값을 못 한다. 다만 MBTI가 하는 두 가지 중
- * **하나만** 한다 — 답을 네 글자로 요약하는 계산은 하고, 「이 유형은 이런 사람」이라는
- * 주장은 하지 않는다. 대신 MBTI가 숨기는 것을 드러낸다: 글자마다 몇 대 몇이었는지,
- * 그리고 어떤 글자가 다시 풀면 바뀔 수 있는지.
- */
-function WeddingCodeBadge({ letters }: { letters: WeddingCodeLetters }) {
-  return (
-    <section className={`${surface} overflow-hidden`} data-wedding-code={letters.code}>
-      <div className="bg-[var(--hb-primary)] px-5 py-8 text-center text-white sm:px-8">
-        <p className="text-[12px] font-semibold text-[var(--hb-on-primary)]">내 웨딩코드</p>
-        <p className="mt-3 flex justify-center gap-1.5 text-[44px] font-semibold leading-none tracking-[0.04em] sm:text-[56px]">
-          {letters.slots.map((slot) => (
-            <span
-              key={slot.axis}
-              data-letter={slot.axis}
-              data-firmness={slot.firmness}
-              className={
-                slot.firmness === "narrow"
-                  ? "text-[var(--color-sage-pale)]"
-                  : slot.firmness === "unset"
-                    ? "text-[var(--color-sage-pale)]"
-                    : "text-white"
-              }
-            >
-              {slot.letter}
-            </span>
-          ))}
-        </p>
-        <p className="mt-4 text-[13px] font-medium leading-[1.7] text-[var(--hb-on-primary)]">
-          성격을 맞힌 게 아니라, 내가 고른 답을 주제별로 요약한 글자예요.
-          {!letters.complete ? " 아직 글자가 비어 있거나 답하지 않은 장면이 있는 요약이에요." : ""}
-          {letters.slots.some((slot) => slot.firmness === "narrow")
-            ? " 작은 글자는 양쪽 답이 한 표 차이인 자리예요."
-            : ""}
-        </p>
-      </div>
-
-      <details>
-        <summary className="cursor-pointer px-5 py-4 text-sm font-semibold text-[var(--hb-text-strong)] sm:px-8">네 글자와 답의 개수 자세히 보기</summary>
-      <div className="divide-y divide-[var(--hb-hairline)]">
-        {letters.slots.map((slot) => (
-          <div key={slot.axis} className="flex gap-4 px-5 py-4 sm:px-8">
-            <span
-              aria-hidden="true"
-              className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[var(--hb-surface-hover)] text-[18px] font-semibold text-[var(--hb-text-strong)]"
-            >
-              {slot.letter}
-            </span>
-            <div className="min-w-0">
-              <p className="text-[12px] font-semibold text-[var(--hb-success)]">
-                {slot.axisLabel} · {WEDDING_CODE_FIRMNESS_LABEL[slot.firmness]}
-              </p>
-              <p className="mt-1 text-[15px] font-semibold leading-[1.5] text-[var(--hb-text-strong)]">
-                {slot.meaning}
-              </p>
-              <p className="mt-1 text-[13px] font-medium leading-[1.6] text-[var(--color-rose-700)]">
-                {slot.tally}
-              </p>
-              {slot.caution ? (
-                <p className="mt-1 text-[13px] font-medium leading-[1.6] text-[var(--color-rose-700)]">
-                  {slot.caution}
-                </p>
-              ) : null}
-            </div>
-          </div>
-        ))}
-      </div>
-      </details>
-    </section>
   );
 }
 

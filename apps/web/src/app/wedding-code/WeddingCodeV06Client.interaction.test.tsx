@@ -49,14 +49,21 @@ describe("WeddingCodeV06Client interaction", () => {
     const result = container.querySelector('[data-result="solo"]')!;
     expect(result.querySelector("h1")?.textContent).toBe("내가 이번에 고른 것");
     expect(result.textContent).toContain("답한 1장면만 셌고");
-    expect(result.textContent).toContain("둘 다 못 받아서 답이 며칠씩 밀렸다");
-    expect(result.textContent).toContain("연락을 받지 못한 경험과 함께 검토한 경험은 달라요");
+    expect(result.textContent).toContain("둘이 얘기해 봐야 한다며 답을 내일로 미뤘다");
+    // 한정 안내는 인용 바로 아래 한 줄이고, 「정할 때 챙길 것」에는 섞이지 않는다.
+    const card = container.querySelector('[data-self-axis="preparationMode"]')!;
+    expect(card.querySelector("[data-qualifier-line]")?.textContent).toBe(
+      "고른 답을 읽을 때 참고할 점: 상대를 기다리려고 미룬 것과 정하기 어려워 미룬 것은 달라요.",
+    );
+    expect(card.querySelector('[data-tip="watchOut"]')?.textContent).not.toContain("미룬 것");
+    expect(card.textContent).toContain("답한 1장면은 T(둘이 같이) 쪽이었어요.");
+    expect(card.textContent).toContain("실제 고른 문장을 같이 확인해 주세요");
     expect(container.textContent).not.toContain("둘이 같이 보는 답을 더 많이 골랐어요");
     expect(result.textContent).not.toContain("반복해서 고른");
     expect(container.querySelector('[data-share-url]')?.getAttribute("data-share-url")).toMatch(/#v=[^&]+&a=-{9}A-{10}$/);
   });
 
-  it("계약할 뻔한 한 장면을 답하면 배지·본문에 실제 경험을 보존하고 공유 답도 그대로 남긴다", async () => {
+  it("서둘러 끝내자고 한 한 장면을 답하면 배지·본문에 실제 경험을 보존하고 공유 답도 그대로 남긴다", async () => {
     const config = CURRENT_WEDDING_CODE_SCENE_CONFIG;
     await act(async () => root.render(<WeddingCodeV06Client shareOrigin="https://hanbang.ai" version={config.version} partnerAnswers={null} partnerCode={null} bothCodes={null} />));
     const clickText = async (text: string) => {
@@ -64,6 +71,10 @@ describe("WeddingCodeV06Client interaction", () => {
       expect(button).toBeDefined();
       await act(async () => button!.click());
     };
+    const d4 = config.questions.find(question => question.key === "D4")!;
+    const candid = d4.options.find(option => option.value === "D")!;
+    // 이 테스트는 한정 안내가 붙는 솔직한 답을 겨냥한다. 판이 바뀌어 전제가 깨지면 여기서 멈춘다.
+    expect(candid).toMatchObject({ candid: true, label: "'고민 그만하고 오늘 끝내자'고 했다" });
     await clickText("시작하기");
     for (const question of config.questions) {
       if (question.key === "D4") {
@@ -75,12 +86,35 @@ describe("WeddingCodeV06Client interaction", () => {
     }
     const result = container.querySelector('[data-result="solo"]')!;
     expect(result.textContent).toContain("답한 1장면만 셌고");
-    expect(result.textContent).toContain("깎아준다는 말에 그 자리에서 계약할 뻔했다");
-    expect(result.textContent).toContain("계약할 뻔한 경험과 할 일을 정리한 경험은 달라요");
-    expect(container.textContent).toContain("할 일과 결정에 관한 답을 더 많이 골랐어요");
+    expect(result.textContent).toContain(candid.label);
+    const card = container.querySelector('[data-self-axis="supportOrder"]')!;
+    expect(card.querySelector("[data-qualifier-line]")?.textContent).toBe(
+      "고른 답을 읽을 때 참고할 점: 서둘러 끝내려 한 것과 할 일을 차분히 정리한 것은 달라요.",
+    );
+    expect(card.querySelector('[data-tip="watchOut"]')?.textContent).not.toContain("서둘러 끝내려");
+    expect(card.textContent).toContain("답한 1장면은 A(할 일 먼저) 쪽이었어요.");
+    expect(card.textContent).toContain("“마음 먼저” 쪽 답은 한 번도 고르지 않았어요.");
+    expect(container.textContent).toContain("할 일과 결정이 먼저인 답을 더 많이 골랐어요");
     expect(container.textContent).not.toContain("먼저 할 일을 정하는 답");
-    expect(container.querySelector('[data-wedding-code="···A"]')).not.toBeNull();
-    expect(container.querySelector('[data-share-url]')?.getAttribute("data-share-url")).toMatch(/#v=v0\.8-code&a=-{18}D-$/);
+
+    const badge = container.querySelector('[data-wedding-code="···A"]');
+    expect(badge).not.toBeNull();
+    // 범례: 이 자리의 양쪽 끝이 보이고, 고른 쪽(A)이 강조되고, 칸은 답한 1장면만큼이다.
+    const row = badge!.querySelector('[data-legend-axis="supportOrder"]')!;
+    expect(row.querySelector('[data-pole="left"]')?.textContent).toBe("H마음 먼저");
+    expect(row.querySelector('[data-pole="right"]')?.textContent).toBe("A할 일 먼저");
+    expect(row.querySelector('[data-pole="right"]')?.getAttribute("data-pole-chosen")).toBe("true");
+    expect(row.querySelector('[data-pole="left"]')?.getAttribute("data-pole-chosen")).toBe("false");
+    expect([...row.querySelectorAll("[data-segment]")].map(segment => segment.getAttribute("data-segment"))).toEqual(["right"]);
+    // 건너뛴 자리는 칸 없이 비우고, 양쪽 칩을 모두 강조하지 않는다.
+    const skipped = badge!.querySelector('[data-legend-axis="decisionCriteria"]')!;
+    expect(skipped.querySelectorAll("[data-segment]")).toHaveLength(0);
+    expect(skipped.querySelectorAll('[data-pole-chosen="true"]')).toHaveLength(0);
+    expect(skipped.textContent).toContain("이 주제 장면을 모두 건너뛰어서 글자가 없어요");
+
+    expect(container.querySelector('[data-share-url]')?.getAttribute("data-share-url")).toMatch(
+      new RegExp(`#v=${encodeURIComponent(config.version).replace(/\./g, "\\.")}&a=-{18}D-$`),
+    );
   });
 
   it("moves from the intro through an answered question", async () => {
@@ -177,15 +211,18 @@ describe("WeddingCodeV06Client interaction", () => {
       expect(text, axis.labelKo).toContain(axis.labelKo);
     }
     // 셈, 인용, 다음 행동이 모두 있다.
-    expect(text).toMatch(/답한 5장면 중 5곳에서/);
+    expect(text).toContain("답한 5장면 모두 V(조건 먼저) 쪽이었어요.");
     expect(text).toContain(config.questions[0].options[0].label);
-    expect(text).toContain("상대에게 미리 말해두기");
-    expect(text).toContain("한 가지 챙긴다면");
-    expect(text).toContain("한 번도 고르지 않았어요");
-    // 받침에 맞는 조사가 붙어야 한다 — 문구가 바뀔 때 제일 먼저 틀리는 자리다.
-    expect(text).toContain("“사진·영상과 분위기에 관한 생각”과 “기대하거나 마음에 남은 점” 쪽 문장은 한 번도 고르지 않았어요");
-    expect(text).toContain("“한 사람이 맡아 정리하는 방법” 쪽 문장은 한 번도 고르지 않았어요");
-    expect(text).toContain("“가족과 하객의 사정” 쪽 문장은 한 번도 고르지 않았어요");
+    expect(text).toContain("상대에게 바로 물어볼 말: ");
+    expect(text).toContain("정할 때 챙길 것: ");
+    expect(text).not.toMatch(/상대에게 미리 말해두기|한 가지 챙긴다면/);
+    // 덜 고른 쪽은 범례와 같은 짧은 이름으로 말한다. 조사는 고정 낱말에만 붙는다.
+    expect(text).toContain("“분위기 먼저” 쪽 답은 한 번도 고르지 않았어요");
+    expect(text).toContain("“맡아서 하기” 쪽 답은 한 번도 고르지 않았어요");
+    expect(text).toContain("“가족·하객까지” 쪽 답은 한 번도 고르지 않았어요");
+    expect(text).toContain("“할 일 먼저” 쪽 답은 한 번도 고르지 않았어요");
+    // 고른 답에 붙는 한정 안내는 인용 아래 한 줄로 나온다.
+    expect(result?.querySelectorAll("[data-qualifier-line]").length).toBeGreaterThan(0);
     // 판정은 여전히 하지 않는다. 「유형을 붙이지 않는다」는 고지는 남아야 하므로
     // 낱말이 아니라 판정으로 읽히는 형태를 막는다.
     for (const banned of ["유형이", "유형은", "궁합", "점수가", "점수는", "등급"]) {
@@ -201,11 +238,21 @@ describe("WeddingCodeV06Client interaction", () => {
     for (const axis of config.axes) {
       expect(container.querySelector(`[data-letter="${axis.key}"]`), axis.key).toBeTruthy();
     }
-    // 글자마다 몇 대 몇이었는지 같이 나온다 — MBTI가 숨기는 것을 드러낸다.
+    // 글자마다 몇 장면이 어느 쪽이었는지 같이 나온다 — MBTI가 숨기는 것을 드러낸다.
     const badgeText = badge?.textContent ?? "";
-    expect(badgeText).toMatch(/답한 \d장면에서 이쪽과 반대쪽 답은 \d 대 \d예요/);
+    expect(badgeText).toContain("답한 5장면 모두 V(조건 먼저) 쪽이었어요.");
     expect(badgeText).toContain("성격을 맞힌 게 아니라");
-    expect(badgeText).not.toMatch(/\d+\s*점|궁합|잘 맞는/);
+    expect(badgeText).toContain("네 글자 읽는 법");
+    expect(badgeText).not.toMatch(/\d+\s*점|궁합|잘 맞는|\d+\s*%/);
+    // 숫자·영문 바로 뒤에 조사를 붙이지 않는다(「1예요」 「M로」). 문장 단위로 본다 —
+    // 칩은 글자와 이름이 붙어 있어 전체 textContent 로 보면 오탐이 난다.
+    const legendLines = [...(badge?.querySelectorAll("[data-legend-axis] p") ?? [])].map(line => line.textContent ?? "");
+    expect(legendLines.length).toBeGreaterThanOrEqual(config.axes.length * 3);
+    for (const line of legendLines) {
+      expect(line).not.toMatch(/\d(?!장면)[가-힣]|[A-Za-z][가-힣]/);
+    }
+    // 범례는 접혀 있지 않다.
+    expect(badge?.querySelector("details")).toBeNull();
 
     // 아모라로 넘어갈 도움 방식 제안이 근거와 함께 남는다.
     const proposals = container.querySelector('[data-amora-proposals]');
@@ -450,7 +497,7 @@ describe("WeddingCodeV06Client interaction", () => {
     const text = result?.textContent ?? "";
 
     // 답한 주제는 읽어주고, 건너뛴 주제는 비운다.
-    expect(text).toContain("답한 5장면 중 5곳에서");
+    expect(text).toContain("답한 5장면 모두 V(조건 먼저) 쪽이었어요.");
     expect(text).toContain("답한 5장면만 셌고, 건너뛴 장면은 비워뒀어요");
     expect(container.querySelectorAll("[data-skipped]").length).toBe(config.axes.length - 1);
     expect(text).toContain("이 주제는 건너뛰었어요");

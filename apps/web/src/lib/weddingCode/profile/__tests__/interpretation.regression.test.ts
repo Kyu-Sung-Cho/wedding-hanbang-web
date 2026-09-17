@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { CURRENT_WEDDING_CODE_SCENE_CONFIG as config } from "@/lib/weddingCode/scene/config";
+import {
+  CURRENT_WEDDING_CODE_SCENE_CONFIG as config,
+  WEDDING_CODE_V08_SCENE_CONFIG as v08,
+} from "@/lib/weddingCode/scene/config";
 import { buildWeddingCodeSelfProfile, describeSelfAxisReading, describeSelfAxisAbsence } from "@/lib/weddingCode/scene/selfProfile";
 import { buildWeddingCodeLetters } from "../letters";
 import { buildWeddingCodeV06GapMap, type WeddingCodeV06Answers } from "@/lib/weddingCode/v06/gap";
@@ -8,57 +11,81 @@ import { buildWeddingCodeAmoraProposals, buildWeddingCodeCoupleCombination } fro
 const profile = (answers: WeddingCodeV06Answers) => buildWeddingCodeSelfProfile(answers, config);
 const pair = (first: WeddingCodeV06Answers, second: WeddingCodeV06Answers) =>
   buildWeddingCodeCoupleCombination(profile(first), profile(second), buildWeddingCodeV06GapMap(first, second, config));
+/**
+ * 아래 앞의 세 테스트는 v0.8 B5-A(「둘 다 못 받아서 답이 며칠씩 밀렸다」)의 해석 경계다.
+ * v0.9 에서 B5-A 문장이 바뀌었지만 v0.8 링크는 그 판 문항으로 계속 열리므로 판을 고정해 지킨다.
+ */
+const v08Profile = (answers: WeddingCodeV06Answers) => buildWeddingCodeSelfProfile(answers, v08);
+const v08Pair = (first: WeddingCodeV06Answers, second: WeddingCodeV06Answers) =>
+  buildWeddingCodeCoupleCombination(v08Profile(first), v08Profile(second), buildWeddingCodeV06GapMap(first, second, v08));
 
 describe("실제 선택과 해석의 경계", () => {
   it("B5의 응답 지연만으로 함께 검토한 행동을 인증하지 않고 기존 T 집계와 인용을 보존한다", () => {
-    const result = profile({ B5: "A" });
+    const result = v08Profile({ B5: "A" });
     const reading = result.axes.find(axis => axis.axis === "preparationMode")!;
     const letters = buildWeddingCodeLetters(result);
     expect(letters.code).toBe("·T··");
     expect(letters.complete).toBe(false);
     expect(reading).toMatchObject({ answered: 1, leftCount: 1, rightCount: 0 });
-    expect(reading.evidence).toEqual([{ scene: config.questions.find(question => question.key === "B5")!.scene, label: "둘 다 못 받아서 답이 며칠씩 밀렸다" }]);
-    expect(letters.slots[1].meaning).toBe("함께 확인하는 과정과 연락 경험에 관한 답을 더 많이 골랐어요");
-    expect(reading.title).toContain("함께 확인하는 과정과 연락 경험");
-    expect(describeSelfAxisReading(reading)).toContain("연락 경험 쪽이 1곳");
-    expect(reading.watchOut).toContain("연락을 받지 못한 경험과 함께 검토한 경험은 달라요");
-    expect([letters.slots[1].meaning, reading.title].join(" ")).not.toMatch(/둘이 같이 보는 답|함께 보는 쪽 답을 더/);
+    expect(reading.evidence).toEqual([{ scene: v08.questions.find(question => question.key === "B5")!.scene, label: "둘 다 못 받아서 답이 며칠씩 밀렸다" }]);
+    // T 뜻은 「같이 처리했다」가 아니라 「한 사람에게 맡기지 않은 답」이다 — 둘 다 못 받은 답에도 참이다.
+    expect(letters.slots[1].meaning).toBe("어느 한 사람에게 맡기지 않은 답을 더 많이 골랐어요");
+    expect(reading.title).toBe("이번엔 ‘둘이 같이’ 쪽 답이 더 많았어요");
+    // 셈 뒤에 「겪은 일·바란 일·한 일을 한데 셌다」는 확인 안내가 붙는다.
+    expect(describeSelfAxisReading(reading)).toBe(
+      "답한 1장면은 T(둘이 같이) 쪽이었어요. 이 주제는 겪은 일, 바란 일, 직접 한 일을 한데 셌어요. 실제 고른 문장을 같이 확인해 주세요.",
+    );
+    expect(reading.qualifiers).toEqual(["연락을 받지 못한 경험과 함께 검토한 경험은 달라요."]);
+    expect([letters.slots[1].meaning, reading.title].join(" ")).not.toMatch(/둘이 같이 보는 답|함께 보는 쪽 답을 더|같이 처리/);
   });
 
   it("B5 지연과 맡긴 답이 동점이어도 실제 함께 검토한 것으로 요약하지 않는다", () => {
-    const result = profile({ B5: "A", B1: "C" });
+    const result = v08Profile({ B5: "A", B1: "C" });
     const reading = result.axes[1];
     expect(reading.title).not.toContain("함께 보기와 맡기기");
     expect(reading.title).toContain("같은 수");
-    expect(result.repeated.find(item => item.construct === "coPreparation")?.phrase).toBe("함께 확인하는 과정과 연락 경험");
-    expect(reading.watchOut).toContain("연락을 받지 못한 경험과 함께 검토한 경험은 달라요");
+    expect(result.repeated.find(item => item.construct === "coPreparation")?.phrase).toBe("둘이 같이");
+    expect(reading.qualifiers).toContain("연락을 받지 못한 경험과 함께 검토한 경험은 달라요.");
     expect(reading.missingPhrases).toEqual([]);
-    const comparison = pair({ B5: "A", B1: "C" }, { B5: "B", B1: "A" });
+    const comparison = v08Pair({ B5: "A", B1: "C" }, { B5: "B", B1: "A" });
     expect(comparison[0].firstTitle).toBe(reading.title);
     expect(JSON.stringify(comparison)).not.toContain("함께 보기와 맡기기");
   });
 
+  it("v0.9 B5의 답을 미룬 경험도 함께 정한 것으로 인증하지 않는다", () => {
+    const result = profile({ B5: "A" });
+    const reading = result.axes[1];
+    expect(buildWeddingCodeLetters(result).code).toBe("·T··");
+    expect(reading.evidence[0].label).toBe("둘이 얘기해 봐야 한다며 답을 내일로 미뤘다");
+    expect(reading.qualifiers).toEqual(["상대를 기다리려고 미룬 것과 정하기 어려워 미룬 것은 달라요."]);
+    expect(describeSelfAxisReading(reading)).toContain("실제 고른 문장을 같이 확인해 주세요");
+  });
+
   it("연락 지연을 고르지 않은 T 답에는 지연 경험 경고를 붙이지 않는다", () => {
     for (const answers of [{ B1: "A" }, { B5: "C" }] satisfies WeddingCodeV06Answers[]) {
-      const result = profile(answers);
-      expect(buildWeddingCodeLetters(result).code).toBe("·T··");
-      expect(result.axes[1].watchOut).not.toContain("연락을 받지 못한 경험");
-      expect(buildWeddingCodeAmoraProposals(result)[0]).not.toHaveProperty("value");
+      for (const result of [profile(answers), v08Profile(answers)]) {
+        expect(buildWeddingCodeLetters(result).code).toBe("·T··");
+        expect(result.axes[1].qualifiers).toEqual([]);
+        expect(result.axes[1].watchOut).not.toContain("연락을 받지 못한 경험");
+        expect(buildWeddingCodeAmoraProposals(result)[0]).not.toHaveProperty("value");
+      }
     }
   });
 
   it("표시 인용 두 개 뒤에 있는 지연 답도 실제로 골랐다면 한정 안내를 남긴다", () => {
-    const result = profile({ B1: "A", B2: "B", B3: "C", B4: "A", B5: "A" });
+    const result = v08Profile({ B1: "A", B2: "B", B3: "C", B4: "A", B5: "A" });
     expect(result.axes[1].evidence.map(quote => quote.label)).not.toContain("둘 다 못 받아서 답이 며칠씩 밀렸다");
-    expect(result.axes[1].watchOut).toContain("연락을 받지 못한 경험과 함께 검토한 경험은 달라요");
+    expect(result.axes[1].qualifiers).toContain("연락을 받지 못한 경험과 함께 검토한 경험은 달라요.");
     expect(buildWeddingCodeLetters(result).code).toBe("·T··");
     expect(result.axes[1]).toMatchObject({ leftCount: 5, rightCount: 0 });
   });
 
   it("반대쪽만 고른 응답의 부재 설명도 공동 검토를 원하는지 단정하지 않는다", () => {
     const result = profile({ B5: "B" });
-    expect(result.axes[1].missingPhrases).toEqual(["함께 확인하는 과정과 연락 경험"]);
-    expect(describeSelfAxisAbsence(result.axes[1])).toContain("쪽 문장은 한 번도 고르지 않았어요");
+    expect(result.axes[1].missingPhrases).toEqual(["둘이 같이"]);
+    expect(describeSelfAxisAbsence(result.axes[1])).toBe(
+      "“둘이 같이” 쪽 답은 한 번도 고르지 않았어요. 실제 준비에서도 그랬다는 뜻은 아니에요.",
+    );
     expect(describeSelfAxisAbsence(result.axes[1])).not.toContain("먼저 보는");
     expect(buildWeddingCodeAmoraProposals(result)[0]).not.toHaveProperty("value");
   });
