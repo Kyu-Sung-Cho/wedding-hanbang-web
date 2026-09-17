@@ -1,6 +1,6 @@
 # WeddingCode 연구 기여 저장소: 235 장면 버전 v0.9 허용 DB 적용
 
-상태: 로컬 구현과 합성 PostgreSQL 검증까지. **운영 DB 미적용.** 운영 관측·예행·적용·사후 읽기는 아래 전용 실행 결과(영수증)가 있어야 완료다. 이 문서와 로컬 검사 통과는 운영 적용 인가가 아니다.
+상태: **2026-09-17 운영 적용 완료.** 커밋 `754a7a0d2b727419147d4cd1f69f61859757e3c0`의 깨끗한 checkout에서 아래 순서대로 실행했고 영수증 상태는 `inspected-unapplied` → `rehearsed-and-rolled-back` → `applied-and-postverified` → `already-applied-verified`(사후 읽기)였다. 영수증 파일은 저장소 밖 비공개 보관 폴더에 둔다. 아래 절차는 다시 확인하거나 다른 환경에 적용할 때 그대로 쓴다.
 
 ## 왜 하는가
 
