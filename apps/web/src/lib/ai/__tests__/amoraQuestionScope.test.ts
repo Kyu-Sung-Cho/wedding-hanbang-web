@@ -532,6 +532,9 @@ describe("Amora question-scope ceiling", () => {
     expect(instruction).toContain("도구 실행과 장기 기억 저장은 하지 마세요");
     expect(instruction).toContain("확인되지 않은 결혼 준비 사실을 단정하거나 실행을 시작하지 말고");
     expect(instruction).toContain("저장된 예산·일정·진행 상황을 아는 것처럼 말하지 마세요");
+    // 이 갈래는 저장 목록을 읽지 않는다. 그런데 "할 일 뭐 있어?" 에 "없어요" 라고 답하면
+    // 열린 할 일이 있어도 사용자는 없다고 믿는다(2026-09-17 운영 재현).
+    expect(instruction).toContain("'없다'고 단정하지 말고 지금은 확인하지 못했다고 말하세요");
   });
 
   it("keeps the high-confidence out-of-scope branch on its existing boundary wording", () => {
@@ -1085,6 +1088,24 @@ describe("저장된 계획을 명사로만 묻는 말은 W0 이다", () => {
     "그럼 남은 할 일은?",
     "남은 할 일 뭐야?",
     "남은 할일은?",
+    // 2026-09-17 운영 재현: 공유 할 일 1건이 열려 있는데 "공유 할 일 지금 뭐 있어?" 가
+    // W4 로 떨어져 조회 도구가 0개가 됐고, 아모라가 "확인되는 공유 할 일은 없어요" 라고 답했다.
+    // "공유 할 일" 은 결정 보드 목록의 이름이고, 부사 자리(지금·현재·아직)와 띄어 쓴 `뭐 있어` 가
+    // 없어서 문장 모양이 안 맞았다.
+    "공유 할 일 지금 뭐 있어?",
+    "공유 할 일 뭐 있어?",
+    "공유할일 뭐있어?",
+    "공유할 일 뭐 있어?",
+    "공유 할 일 뭐야?",
+    "공유 할 일 몇 개야?",
+    "우리 공유 할 일은?",
+    "그럼 공유 할 일은?",
+    "지금 공유 할 일 뭐 있어요?",
+    "공유 할 일 목록 뭐야?",
+    "남은 공유 할 일 뭐 있어?",
+    "공유 할 일 아직 뭐 남았어?",
+    "남은 할 일 뭐 있어?",
+    "공유 할 일 현재 몇 개 있어?",
   ])("%s → W0 · 장기 기억 끔 · 저장 예산·일정 조회 도구가 열린다", (userText) => {
     expect(classifyAmoraQuestionScope({ userText })).toEqual({
       scope: "W0_wedding_core",
@@ -1137,6 +1158,36 @@ describe("저장된 계획을 명사로만 묻는 말은 W0 이다", () => {
     ["잔액은 ETF로 굴려줘", "W4_out_of_scope"],
     ["배정 안 된 돈은 코인으로 불려줘", "W4_out_of_scope"],
     ["대출 잔액은?", "W2_high_risk_adjacent"],
+    // "공유 할 일" 과 부사 자리를 더한 뒤에도 그대로여야 하는 것(2026-09-17).
+    // 결혼 밖 소유자·화제 명사
+    ["회사 공유 할 일 뭐 있어?", "W4_out_of_scope"],
+    ["과제 공유 할 일 뭐 있어?", "W4_out_of_scope"],
+    ["팀 공유 할 일 뭐 있어?", "W4_out_of_scope"],
+    ["노션 공유 할 일 지금 뭐 있어?", "W4_out_of_scope"],
+    ["인스타 공유 할 일 뭐 있어?", "W4_out_of_scope"],
+    ["룸메이트랑 공유 할 일 뭐 있어?", "W4_out_of_scope"],
+    ["친구네 공유 할 일 뭐 있어?", "W4_out_of_scope"],
+    ["오늘 할 일 뭐 있어?", "W4_out_of_scope"],
+    ["통장 잔액 지금 얼마야?", "W4_out_of_scope"],
+    ["카드 잔액 지금 뭐 있어?", "W4_out_of_scope"],
+    ["회사 다음 일정 지금 뭐 있어?", "W4_out_of_scope"],
+    // 비유·전언·기능 질문·직접 서술
+    ["내 인생의 공유 할 일은?", "W4_out_of_scope"],
+    ["공유 할 일 기능 뭐야?", "W4_out_of_scope"],
+    ["공유 할 일 같은 거 뭐 있어?", "W4_out_of_scope"],
+    ["공유 할 일 아직 없어", "W4_out_of_scope"],
+    ["공유 할 일은 퇴근이야", "W4_out_of_scope"],
+    ["공유 할 일이라는 말이 어색해", "W4_out_of_scope"],
+    ["엄마가 공유 할 일 뭐 있냐고 물어봐", "W4_out_of_scope"],
+    // 복합문·다른 서술어·명사 없는 채움말
+    ["공유 할 일 뭐 있어? 코인 사도 돼?", "W4_out_of_scope"],
+    ["공유 할 일 지금 뭐 있어? 회사 거", "W4_out_of_scope"],
+    ["공유 할 일 지금 뭐 해?", "W4_out_of_scope"],
+    ["남은 할 일 지금 뭐 해?", "W4_out_of_scope"],
+    ["공유할 일 있어?", "W4_out_of_scope"],
+    ["지금 뭐 있어?", "W4_out_of_scope"],
+    ["아직 뭐 남았어?", "W4_out_of_scope"],
+    ["공유 할 일 지금 뭐 있어? 너무 힘들어", "W3_social_care"],
   ])("명사가 다른 낱말과 함께 오면 판정이 바뀌지 않는다: %s → %s", (userText, scope) => {
     expect(classifyAmoraQuestionScope({ userText }).scope).toBe(scope);
   });
@@ -1146,6 +1197,8 @@ describe("저장된 계획을 명사로만 묻는 말은 W0 이다", () => {
     "코인 남은 돈은?",
     "남은 예산으로 주식 사도 돼?",
     "배정 안 된 돈은 코인으로 불려줘",
+    "회사 공유 할 일 뭐 있어?",
+    "공유 할 일 뭐 있어? 코인 사도 돼?",
   ])("투자 위장은 높은 확신 W4 로 도구가 0개다: %s", (userText) => {
     const classification = classifyAmoraQuestionScope({ userText });
     expect(classification).toMatchObject({ scope: "W4_out_of_scope", confidence: "high" });
@@ -1159,10 +1212,28 @@ describe("저장된 계획을 명사로만 묻는 말은 W0 이다", () => {
     ["남편이 저를 때렸어요. 남은 예산은?", "W2_high_risk_adjacent"],
     ["잔액은? 남친이 카드 못 쓰게 통제해요", "W2_high_risk_adjacent"],
     ["배정 안 된 돈은? 남편이 통장 검사해요", "W2_high_risk_adjacent"],
+    ["죽고 싶어 공유 할 일 뭐 있어?", "W5_safety_override"],
+    ["공유 할 일 뭐 있어? 남편이 저를 때렸어요", "W2_high_risk_adjacent"],
   ])("계획 명사 질문이 섞여도 위기·안전 판정이 이긴다: %s", (userText, scope) => {
     const classification = classifyAmoraQuestionScope({ userText });
     expect(classification.scope).toBe(scope);
     expect(hasAmoraSafetySignal(userText)).toBe(true);
     expect(readToolNamesFor(userText)).toEqual([]);
+  });
+
+  // 부사 자리와 띄어 쓴 `뭐` 어미는 명사를 가리지 않는다. 그래서 아래도 함께 W0 이 된다.
+  // 숨기지 않고 고정해 둔다 — 넓어진 범위가 바뀌면 여기서 먼저 보인다. 기억은 계속 끈다.
+  it.each([
+    "잔액 지금 얼마야?",
+    "남은 예산 뭐 있어?",
+    "남은 할 일 지금 뭐 있어?",
+    "공유 할 일",
+  ])("함께 넓어진 문장도 W0 · 장기 기억 끔: %s", (userText) => {
+    expect(classifyAmoraQuestionScope({ userText })).toEqual({
+      scope: "W0_wedding_core",
+      allowsLongTermMemory: false,
+      confidence: "high",
+      needsClarification: false,
+    });
   });
 });

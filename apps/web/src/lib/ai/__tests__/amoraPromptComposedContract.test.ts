@@ -217,6 +217,15 @@ describe("합성된 프롬프트가 스스로 모순되지 않는다", () => {
       ).toBe(readToolNames.includes("analyze_quote"));
     }
   });
+
+  it("공유 할 일을 묻는 턴에는 조회 도구와 '이번 턴에 조회하라'는 규칙이 함께 실린다", () => {
+    // 2026-09-17 운영 재현: 열린 공유 할 일이 1건인데 이 문장이 W4 로 떨어져 도구 0개·
+    // 저장 문맥 없음이 됐고, 아모라가 "확인되는 공유 할 일은 없어요" 라고 답했다.
+    // 공유 할 일은 프롬프트에 실리는 곳이 없어 조회 도구 말고는 알 방법이 없다.
+    const { prompt, readToolNames } = composeLikeProduction("공유 할 일 지금 뭐 있어?", 0);
+    expect(readToolNames).toContain("get_amora_actions");
+    expect(prompt).toContain('get_amora_actions의 status="all"로 이번 턴에 조회하세요');
+  });
 });
 
 // 2026-09-14: 아래 규칙들은 원본에서 도구 이름(`update_budget` 등)을 달고 있었다.
