@@ -436,7 +436,7 @@ function CohortSidePanel({
           <ShieldCheck className="h-5 w-5" />
           <h2 className="font-serif-kr">동기방 약속</h2>
         </div>
-        <ul className="mt-4 space-y-2 text-[12px] font-medium leading-[1.6] text-white/78">
+        <ul className="mt-4 space-y-2 text-[12px] font-medium leading-[1.6] text-white">
           <li>실명, 연락처, 계좌번호는 공개하지 않기</li>
           <li>업체 후기는 직접 경험과 사실 중심으로 쓰기</li>
           <li>광고·홍보는 커뮤니티 정책에 맞게 표시하기</li>
@@ -1037,7 +1037,7 @@ function FilterPill({
       <span>{label}</span>
       {helper && label !== "전체" && (
         <span className={`ml-1 hidden text-[11px] font-medium sm:inline ${
-          active ? "text-white/78" : "text-[var(--hb-text-muted)] group-hover:text-[var(--hb-text-body)]"
+          active ? "text-white" : "text-[var(--hb-text-muted)] group-hover:text-[var(--hb-text-body)]"
         }`}>
           {helper}
         </span>

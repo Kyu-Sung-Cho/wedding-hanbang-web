@@ -265,7 +265,7 @@ const s = StyleSheet.create({
     color: colors.textSecondary,
   },
   adChipTextActive: {
-    color: colors.rose[500],
+    color: colors.rose[700],
   },
   radio: {
     width: 18,

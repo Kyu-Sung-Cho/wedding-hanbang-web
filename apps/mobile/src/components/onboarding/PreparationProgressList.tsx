@@ -197,6 +197,6 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
   },
   statusChipLabelActive: {
-    color: colors.rose[500],
+    color: colors.rose[700],
   },
 });

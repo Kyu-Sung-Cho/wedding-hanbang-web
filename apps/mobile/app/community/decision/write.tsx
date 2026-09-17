@@ -1056,7 +1056,7 @@ const styles = StyleSheet.create({
   },
   choiceSelected: { borderColor: colors.rose[500], backgroundColor: colors.rose.glow },
   choiceText: { color: colors.textSecondary },
-  choiceTextSelected: { color: colors.rose[600] },
+  choiceTextSelected: { color: colors.rose[700] },
   pressed: { opacity: 0.78 },
   input: {
     minHeight: 48,

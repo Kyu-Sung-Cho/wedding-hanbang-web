@@ -203,11 +203,11 @@ function ServiceAction({
         <Icon className="h-4 w-4" />
       </span>
       <span className="min-w-0 flex-1">
-        <span className={`mb-1 block text-[10px] font-bold ${primary ? "text-white/65" : "text-[#8b8175]"}`}>{label}</span>
+        <span className={`mb-1 block text-[10px] font-bold ${primary ? "text-white" : "text-[#8b8175]"}`}>{label}</span>
         <span className={`block text-[13px] font-bold leading-[1.45] ${primary ? "text-white" : "text-[var(--hb-text-strong)]"}`}>
           {title}
         </span>
-        <span className={`mt-1 block text-[11px] font-medium leading-[1.55] ${primary ? "text-white/72" : "text-[#6f786f]"}`}>
+        <span className={`mt-1 block text-[11px] font-medium leading-[1.55] ${primary ? "text-white" : "text-[#6f786f]"}`}>
           {subtext}
         </span>
       </span>

@@ -1334,7 +1334,7 @@ const s = StyleSheet.create({
   payerOptionActive: { backgroundColor: "rgba(196,150,126,0.12)", borderColor: colors.rose[500] },
   payerOptionEmoji: { fontSize: 16, marginBottom: 2 },
   payerOptionLabel: { fontSize: 11, fontFamily: "NotoSansKR_400Regular", color: colors.textTertiary },
-  payerOptionLabelActive: { color: colors.rose[500], fontFamily: "NotoSansKR_600SemiBold" },
+  payerOptionLabelActive: { color: colors.rose[700], fontFamily: "NotoSansKR_600SemiBold" },
   payerBadge: { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6, backgroundColor: "rgba(196,150,126,0.1)" },
   payerBadgeText: { fontSize: 10, fontFamily: "NotoSansKR_400Regular", color: colors.rose[500] },
 

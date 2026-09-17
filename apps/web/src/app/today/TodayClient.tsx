@@ -142,13 +142,13 @@ export default function TodayClient({
     <Shell>
       <section className={`${surface} overflow-hidden`}>
         <div className="bg-[var(--hb-primary)] px-5 py-7 text-white sm:px-8">
-          <p className="text-[12px] font-semibold text-[#C7D1C2]">
+          <p className="text-[12px] font-semibold text-[var(--hb-on-primary)]">
             오늘 한 마디
           </p>
           <h1 className="mt-3 text-[24px] font-semibold leading-[1.35] sm:text-[28px]">
             {giving ? "이번엔 상대가 나한테 물어줄 한 장" : "오늘 꺼낼 한 마디를 골라주세요"}
           </h1>
-          <p className="mt-3 text-[15px] font-medium leading-[1.65] text-[#F7F1E8]">
+          <p className="mt-3 text-[15px] font-medium leading-[1.65] text-[var(--hb-on-primary)]">
             {giving ? TODAY_GIVE_LINE : TODAY_OPENING_LINE}
           </p>
         </div>

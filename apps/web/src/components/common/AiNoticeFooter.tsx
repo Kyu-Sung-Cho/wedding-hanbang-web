@@ -13,11 +13,11 @@ export default function AiNoticeFooter({ variant = "light" }: AiNoticeFooterProp
   const isDark = variant === "dark";
 
   const borderCls = isDark ? "border-white/10" : "border-[#e5dcdc]";
-  const textCls = isDark ? "text-white/60" : "text-[var(--hb-text-body)]";
+  const textCls = isDark ? "text-[var(--hb-on-primary)]" : "text-[var(--hb-text-body)]";
   const iconBgCls = isDark
     ? "bg-white/10 text-white/80"
     : "bg-[rgba(54,83,78,0.10)] text-[var(--hb-accent-hover)]";
-  const labelCls = isDark ? "text-white/80" : "text-[var(--hb-text-strong)]";
+  const labelCls = isDark ? "text-[var(--hb-on-primary)]" : "text-[var(--hb-text-strong)]";
   const linkHoverCls = isDark ? "hover:text-white" : "hover:text-[var(--hb-accent-hover)]";
 
   return (
