@@ -516,6 +516,24 @@ export interface SelectAmoraToolsInput {
   specialistMatchedByKeyword?: boolean;
 }
 
+/**
+ * 짧은 답이 이어받는 **앞 요청**(연속성 닻). 라우트가 되묻기·도구 의도 연속성을
+ * 증명한 턴에서만 넘긴다.
+ */
+export interface AmoraProposalContinuityAnchor {
+  /** 연속성으로 붙은 직전 W0 사용자 발화(`carriedToolIntent.priorUserText`). */
+  priorUserText: string;
+  /** 그 발화만으로 고른 전문분야 — 그 발화가 자기 턴에서 받았던 라우팅이다. */
+  priorSpecialistType: SpecialistType;
+  priorSpecialistMatchedByKeyword: boolean;
+  /** 지금 사용자 발화(앞 요청을 붙이기 전). */
+  replyText: string;
+}
+
+export interface SelectAmoraPendingProposalToolsInput extends SelectAmoraToolsInput {
+  continuityAnchor?: AmoraProposalContinuityAnchor;
+}
+
 function addAll(target: Set<string>, names: readonly string[]): void {
   for (const name of names) target.add(name);
 }
@@ -524,14 +542,58 @@ function addAll(target: Set<string>, names: readonly string[]): void {
  * Narrows server-issued, confirmation-required proposals by conversation
  * domain. Unlike selectAmoraTools this never authorizes a write; it only
  * limits which validated proposal marker the assistant may offer.
+ *
+ * ## 짧은 답은 앞 요청이 받았던 것을 받는다 (2026-09-17)
+ *
+ * 라이브 재현(세 단계 모두 같았다):
+ *
+ *   사용자: "… 이 기준으로 항목별 예산 배분을 표로 짜주고, 왜 그렇게 나눴는지도 알려줘."
+ *   아모라: (배분표)                                   ← 이 턴은 예산 카드 도구 4개
+ *   사용자: "응, 이대로 실제 예산에 반영해줘."
+ *   아모라: "… 적용할까요?"                             ← 글로만 되물음
+ *   사용자: "응 적용해줘"                               ← 카드 도구 0개
+ *   아모라: (기능이 없다며 예산 화면에서 직접 입력하라고 안내)
+ *
+ * 라우트는 연속성이 증명된 턴에서 앞 요청과 답을 이어 붙여 넘기는데, 전문분야와
+ * 키워드 일치 여부는 **답만** 보고 정한다. 답에는 키워드가 없어 아래 관문 해제가
+ * 꺼지고, 이어 붙인 문장의 `NON_EXECUTABLE_RESTORE` 가 **앞 요청 자신의**
+ * "알려줘"(또는 "추천해"·"좋을까")에 걸렸다. 앞 요청은 자기 턴에서 키워드로 배분
+ * 경로에 들어가 같은 관문을 통과했었다 — 이어받는 답이 이어받은 요청보다 적게 받았다.
+ *
+ * 그래서 닻이 있으면 **앞 요청이 자기 턴에서 받았던 제안 도구**를 더한다. 답 자신이
+ * 무르는 말(농담·전언·"아직 안 정했어"·"고민 중"·"추천해줘")이면 더하지 않는다.
+ * 더해지는 것은 언제나 앞 요청이 이미 받았던 것이라 새 권한이 없고, 이어 붙인
+ * 문장의 결과는 그대로 포함하므로 어떤 턴도 전보다 줄지 않는다.
+ *
+ * 전문분야를 이어 붙인 문장에서 다시 고르지 않는다 — 그러면 "음 고민 중이야"·
+ * "응 근데 추천해줘" 같은 답도 열리고, "친구는 드레스에 300만원 썼대" 뒤의
+ * "네 반영해줘" 가 전언 자신보다 많이 받는다.
  */
-export function selectAmoraPendingProposalTools({
-  availableTools,
+export function selectAmoraPendingProposalTools(
+  input: SelectAmoraPendingProposalToolsInput,
+): AiToolDefinition[] {
+  // 이어 붙인 문장으로 고른 것 — 이 수리 전과 같다.
+  const names = pendingProposalToolNames(input);
+  const anchor = input.continuityAnchor;
+  if (anchor && !closesCarriedProposal(anchor.replyText)) {
+    for (const name of pendingProposalToolNames({ ...input, userText: anchor.priorUserText, specialistType: anchor.priorSpecialistType, specialistMatchedByKeyword: anchor.priorSpecialistMatchedByKeyword })) names.add(name);
+  }
+  return input.availableTools.filter((tool) => names.has(tool.name));
+}
+
+/** 답 자신이 앞 요청을 잇지 않는 말인가. 그러면 앞 요청의 제안 도구를 더하지 않는다. */
+function closesCarriedProposal(replyText: string): boolean {
+  return isNotOurDecision(replyText)
+    || NON_EXECUTABLE_RESTORE.test(replyText)
+    || isUnsettledValue(replyText);
+}
+
+function pendingProposalToolNames({
   userText,
   specialistType,
   checklistLabels,
   specialistMatchedByKeyword,
-}: SelectAmoraToolsInput): AiToolDefinition[] {
+}: SelectAmoraToolsInput): Set<string> {
   const selected = new Set<string>();
   // 남의 이야기와 가정에는 카드를 내지 않는다. `selectAmoraTools` 는 이 가드를
   // 쓰는데 제안 경로만 빠져 있어서, "친구는 드레스에 300만원 썼대" 에도 예산
@@ -542,7 +604,7 @@ export function selectAmoraPendingProposalTools({
   // (이 수리 중 실제로 7개였던 도구가 0개가 됐다.) 두 정규식의 차이가 정확히
   // 그 낱말 하나다.
   // 출처가 우리가 아닌 말은 어떤 경로에서도 카드가 되면 안 된다.
-  if (isNotOurDecision(userText)) return [];
+  if (isNotOurDecision(userText)) return selected;
   // 값이 덜 정해진 말은 보통 카드를 안 내지만, 서버가 배분·일정 전문 경로로 보낸
   // 턴에서는 그것이 **정상이고 방아쇠**다. `NON_EXECUTABLE_RESTORE` 도 같은 성격이라
   // (`좋을까|어떨|추천해`) 함께 예외를 받는다 — 남 이야기 쪽은 위 가드가 이미 잡는다.
@@ -552,8 +614,8 @@ export function selectAmoraPendingProposalTools({
     && (specialistType === "budget_optimizer"
       || specialistType === "ceremony_coordinator");
   if (!routedToPlanningSpecialist) {
-    if (NON_EXECUTABLE_RESTORE.test(userText)) return [];
-    if (isUnsettledValue(userText)) return [];
+    if (NON_EXECUTABLE_RESTORE.test(userText)) return selected;
+    if (isUnsettledValue(userText)) return selected;
   }
   // 제안 경로는 쓰기 권한이 아니라 "확인 카드를 낼 수 있는가"만 정한다(아래 주석 참고).
   // 좁게 잡으면 "내년 5월 20일에 결혼해"처럼 가장 자연스러운 확정 발화가
@@ -593,7 +655,7 @@ export function selectAmoraPendingProposalTools({
     selected.add("update_venue");
   }
   if (ACTION_INTENT.test(userText)) addAll(selected, ACTION_WRITE_TOOLS);
-  return availableTools.filter((tool) => selected.has(tool.name));
+  return selected;
 }
 
 /**

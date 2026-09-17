@@ -3673,6 +3673,19 @@ export async function POST(request: Request) {
   const toolIntentText = carriedToolIntent
     ? `${carriedToolIntent.priorUserText}\n${lastUserText}`
     : lastUserText;
+  // 2026-09-17: 위 전문분야는 짧은 답만 보고 고른다. 그러면 이어 붙인 문장의 관문이
+  // 앞 요청 자신의 "알려줘"에 걸려, 그 요청이 자기 턴에서 받았던 확인 카드 도구를
+  // 답이 못 받았다("응 적용해줘" → 카드 도구 0개). 앞 요청의 라우팅을 따로 넘겨
+  // 제안 선택기가 그 요청이 받았던 것을 그대로 더하게 한다. 전문분야 애드온과
+  // `selectAmoraTools` 는 그대로 답의 라우팅을 쓴다.
+  const proposalContinuityAnchor = carriedToolIntent && allowsStoredProviderContext && stageTag !== null
+    ? {
+        priorUserText: carriedToolIntent.priorUserText,
+        priorSpecialistType: routeSpecialist(carriedToolIntent.priorUserText, stageTag),
+        priorSpecialistMatchedByKeyword: matchedSpecialistByKeyword(carriedToolIntent.priorUserText),
+        replyText: lastUserText,
+      }
+    : undefined;
   const policySelectedTools = selectAmoraTools({
     availableTools: candidateTools,
     userText: toolIntentText,
@@ -3747,6 +3760,7 @@ export async function POST(request: Request) {
             specialistMatchedByKeyword,
             attachmentKind,
             checklistLabels: coupleChecklistLabels,
+            continuityAnchor: proposalContinuityAnchor,
           }).filter(
             (tool) =>
               getAmoraActionApprovalPolicy(tool.name) !== "blocked",
@@ -3778,6 +3792,7 @@ export async function POST(request: Request) {
       specialistMatchedByKeyword,
       attachmentKind,
       checklistLabels: coupleChecklistLabels,
+      continuityAnchor: proposalContinuityAnchor,
     },
   });
   const actionContract: AmoraActionContract | undefined = approvedPendingAction

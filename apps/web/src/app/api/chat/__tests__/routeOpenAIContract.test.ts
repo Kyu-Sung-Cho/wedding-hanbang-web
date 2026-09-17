@@ -4997,6 +4997,192 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
     expect(providerArgs?.systemPrompt).toContain("\"budget\":50000000");
   });
 
+  // 2026-09-17 라이브 재현: 배분표를 짜 달라는 요청은 자기 턴에서 예산 카드 도구를 받는데,
+  // 표 → "응, 이대로 실제 예산에 반영해줘." → (글로만 "적용할까요?") → "응 적용해줘" 에서는
+  // 카드 도구가 0개였고 아모라는 기능이 없다며 직접 입력하라고 답했다. 전문분야를 짧은 답만
+  // 보고 고르니 이어 붙인 문장의 관문이 요청 자신의 "알려줘"에 걸렸다. 기본 mock 은 라우팅이
+  // 늘 general 이라 이 배선이 안 보이므로, 여기서는 실제 라우터를 쓴다.
+  describe("배분표 뒤의 짧은 답이 표를 요청한 문장의 확인 카드 도구를 받는다", () => {
+    const BUDGET_TABLE_REQUEST =
+      "우리 조건 다시 정리할게. 총예산 3,500만원, 신혼집·가전·가구는 예산에서 제외하고, 하객은 90명 정도야. 이 기준으로 항목별 예산 배분을 표로 짜주고, 왜 그렇게 나눴는지도 알려줘.";
+    const BUDGET_TABLE_ANSWER = [
+      "| 항목 | 금액 |",
+      "|---|---|",
+      "| 예식장·식대 | 2,500만 원 |",
+      "| 신혼여행 | 700만 원 |",
+      "| 예비비 | 300만 원 |",
+      "",
+      "하객 90명 기준 식대가 가장 커서 예식장·식대에 가장 많이 두었어요.",
+    ].join("\n");
+    const BUDGET_TABLE_PLAN = {
+      total_budget: 35_000_000,
+      intake_summary: "직전 배분표 그대로",
+      allocations: [
+        { category: "venue", budget: 25_000_000 },
+        { category: "honeymoon", budget: 7_000_000 },
+        { category: "reserve", budget: 3_000_000 },
+      ],
+    };
+    const BUDGET_TABLE_MARKER =
+      `[pending_action]${JSON.stringify({ tool: "apply_budget_plan", input: BUDGET_TABLE_PLAN })}[/pending_action]`;
+
+    beforeEach(async () => {
+      const actualStage = await vi.importActual<typeof import("@/lib/ai/stage-router")>("@/lib/ai/stage-router");
+      vi.mocked(routeSpecialist).mockImplementation(actualStage.routeSpecialist);
+      vi.mocked(matchedSpecialistByKeyword).mockImplementation(actualStage.matchedSpecialistByKeyword);
+    });
+    afterEach(() => {
+      vi.mocked(routeSpecialist).mockImplementation(() => "general");
+      vi.mocked(matchedSpecialistByKeyword).mockImplementation(() => false);
+    });
+
+    /** 사용자·아모라가 번갈아 말한 대화(오래된 것부터). 마지막 문장이 이번 요청이다. */
+    function seedAlternatingTurns(oldestFirst: readonly string[], visibility = "shared") {
+      const me = "00000000-0000-4000-8000-000000000001";
+      const segmentId = "60000000-0000-4000-8000-000000000001";
+      mocks.activeSegment = { id: segmentId, status: "active" };
+      const ids = oldestFirst.map((_, index) => (index === oldestFirst.length - 1
+        ? "30000000-0000-4000-8000-000000000001"
+        : `${index % 2 === 0 ? "3" : "2"}0000000-0000-4000-8000-0000000002${String(index).padStart(2, "0")}`));
+      const rows = oldestFirst.map((content, index) => (index % 2 === 0
+        ? {
+            id: ids[index], sender_id: me, sender_type: "bride", role: "user",
+            content, metadata: null, visibility, segment_id: segmentId,
+            created_at: `2026-07-15T00:0${index}:00.000Z`,
+          }
+        : {
+            id: ids[index], sender_id: null, sender_type: "ai", role: "assistant",
+            content,
+            // 운영 행 모양 그대로다 — 글로만 되물은 턴이라 카드(pending_amora_action)가 없다.
+            metadata: {
+              in_reply_to_user_message_id: ids[index - 1],
+              question_scope: "W0_wedding_core",
+              memory_eligible: true,
+            },
+            visibility, segment_id: segmentId,
+            created_at: `2026-07-15T00:0${index}:00.000Z`,
+          }));
+      mocks.canonicalRows.splice(0, mocks.canonicalRows.length, ...rows.reverse());
+    }
+
+    it.each([
+      {
+        name: "두 홉: 글로만 되물은 뒤의 \"응 적용해줘\"",
+        turns: [
+          BUDGET_TABLE_REQUEST,
+          BUDGET_TABLE_ANSWER,
+          "응, 이대로 실제 예산에 반영해줘.",
+          "표의 금액 그대로 실제 예산에 적용할까요?",
+          "응 적용해줘",
+        ],
+      },
+      {
+        name: "한 홉: 표 바로 뒤의 \"좋아, 이대로 적용해줘\"",
+        turns: [BUDGET_TABLE_REQUEST, BUDGET_TABLE_ANSWER, "좋아, 이대로 적용해줘"],
+      },
+    ])("$name 가 확인 카드 계약을 받고 카드까지 나온다", async ({ turns }) => {
+      seedAlternatingTurns(turns);
+      const currentText = turns[turns.length - 1];
+      mocks.provider.mockResolvedValueOnce(providerResult({
+        fullText: `표의 금액 그대로 확인 카드를 준비했어요.\n${BUDGET_TABLE_MARKER}`,
+        usage: { input_tokens: 10, output_tokens: 8 },
+      }));
+
+      const response = await POST(request({ messages: [{ role: "user", content: currentText }] }));
+      expect(response.status).toBe(200);
+      const body = await response.text();
+
+      const systemPrompt = String(mocks.provider.mock.calls[0]?.[0]?.systemPrompt);
+      expect(systemPrompt).toContain("question_scope: W0_wedding_core");
+      expect(systemPrompt).toContain("[서버 발급 후속 확인 계약]");
+      expect(systemPrompt).toContain("apply_budget_plan");
+      // 카드 계약이 빠진 턴에만 붙는 "직접 입력하라" 지시가 없어야 한다.
+      expect(systemPrompt).not.toContain("확인 표식이 없으면");
+      const saved = mocks.atomicResponses.at(-1)!;
+      expect(saved.metadata.pending_amora_action).toMatchObject({
+        tool: "apply_budget_plan",
+        input: { ...BUDGET_TABLE_PLAN, allocation_mode: "explicit" },
+      });
+      const events = body.split("\n\n").filter((line) => line.startsWith("data: ")).map((line) => JSON.parse(line.slice(6)));
+      const done = events.find((event) => event.type === "done");
+      expect(done?.metadata?.pending_amora_action).toMatchObject({ tool: "apply_budget_plan" });
+      // 카드가 나왔을 뿐 아직 아무것도 저장되지 않았다.
+      expect(mocks.executeTool).not.toHaveBeenCalled();
+    });
+
+    it("무르는 답(\"음 고민 중이야\")은 같은 연속성에서도 카드 계약을 받지 않는다", async () => {
+      seedAlternatingTurns([BUDGET_TABLE_REQUEST, BUDGET_TABLE_ANSWER, "음 고민 중이야"]);
+      mocks.provider.mockResolvedValueOnce(providerResult({
+        fullText: "천천히 보셔도 돼요.",
+        usage: { input_tokens: 10, output_tokens: 3 },
+      }));
+
+      const response = await POST(request({ messages: [{ role: "user", content: "음 고민 중이야" }] }));
+      expect(response.status).toBe(200);
+      await response.text();
+
+      const systemPrompt = String(mocks.provider.mock.calls[0]?.[0]?.systemPrompt);
+      // 연속성은 그대로 붙는다(범위 W0) — 카드 계약을 막는 것은 답 자신의 "고민 중"이다.
+      expect(systemPrompt).toContain("question_scope: W0_wedding_core");
+      expect(systemPrompt).not.toContain("[서버 발급 후속 확인 계약]");
+      // 위 카드 계약 단언의 대조군: 계약이 없는 턴에는 이 지시가 실린다.
+      expect(systemPrompt).toContain("확인 표식이 없으면");
+      expect(mocks.atomicResponses.at(-1)?.metadata?.pending_amora_action).toBeUndefined();
+      expect(mocks.executeTool).not.toHaveBeenCalled();
+    });
+
+    // 나만 (상담)의 판정기는 공유 레인 관문과 **같은 입력**(연속성 닻 포함)으로 판정한다.
+    // 앞 문장은 스스로 변경 부탁이어야 한다("배분해서 반영해줘") — 판정기는 도구 선택
+    // (`selectAmoraTools`)이 쓰기 도구를 고른 턴만 보고, "배분해줘, …알려줘" 만으로는
+    // 그 선택이 쓰기 도구를 고르지 않는다.
+    it.each([
+      {
+        name: "배분 요청에 대한 동의는 공유 레인에선 카드 계약, 개인 레인에선 서버 안내",
+        priorText: "총예산 5천만원 기준으로 항목별 예산 배분해서 반영해줘, 왜 그런지도 알려줘",
+        currentText: "응 적용해줘",
+        guidance: true,
+      },
+      {
+        // 리뷰 [0]: 가정 질문 뒤의 맨 동의는 개인 레인에서 변경 부탁이 아니다.
+        name: "가정 질문에 대한 맨 동의는 개인 레인에서 모델 답을 둔다",
+        priorText: "드레스 예산을 450만 원으로 늘리면 남은 예산이 어떻게 돼?",
+        currentText: "응",
+        guidance: false,
+      },
+    ] as const)("$name", async ({ priorText, currentText, guidance }) => {
+      const { AMORA_PRIVATE_LANE_SHARED_CHANGE_GUIDANCE } = await import("@/lib/ai/amoraPrivateLaneSharedChange");
+      const modelText = "표 기준으로 남은 금액을 같이 볼게요.";
+
+      // 공유 레인 쪽은 실제 변경 부탁만 고정한다. 가정 질문 뒤의 "응" 에 카드 계약이 붙는 것은
+      // 받아들인 부작용일 뿐 지켜야 할 계약이 아니다.
+      if (guidance) {
+        seedAlternatingTurns([priorText, BUDGET_TABLE_ANSWER, currentText], "shared");
+        mocks.provider.mockResolvedValueOnce(providerResult({ fullText: modelText, usage: { input_tokens: 10, output_tokens: 3 } }));
+        await (await POST(request({ messages: [{ role: "user", content: currentText }] }))).text();
+        expect(String(mocks.provider.mock.calls.at(-1)?.[0]?.systemPrompt)).toContain("[서버 발급 후속 확인 계약]");
+      }
+
+      seedAlternatingTurns([priorText, BUDGET_TABLE_ANSWER, currentText], "bride_private");
+      mocks.provider.mockResolvedValueOnce(providerResult({ fullText: modelText, usage: { input_tokens: 10, output_tokens: 3 } }));
+      const response = await POST(request({ visibility: "bride_private", messages: [{ role: "user", content: currentText }] }));
+      expect(response.status).toBe(200);
+      await response.text();
+
+      const saved = mocks.atomicResponses.at(-1)!;
+      if (guidance) {
+        expect(saved.content).toBe(AMORA_PRIVATE_LANE_SHARED_CHANGE_GUIDANCE);
+        expect(saved.metadata).toMatchObject({
+          private_lane_shared_change: "change_only",
+          private_lane_shared_change_tools: expect.arrayContaining(["apply_budget_plan"]),
+        });
+      } else {
+        expect(saved.content).toBe(modelText);
+        expect(saved.metadata).not.toHaveProperty("private_lane_shared_change");
+      }
+      expect(mocks.executeTool).not.toHaveBeenCalled();
+    });
+  });
+
   it("물음표 없이 끝난 되묻기의 답도 예산 도구를 되찾는다", async () => {
     seedClarificationExchange({
       priorText: "스튜디오 예산 300만원으로 잡아줘",
