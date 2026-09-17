@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { Check } from "lucide-react";
 import Button from "@/components/ui/Button";
+import { MOOD_SCENES, VENUE_SCENES } from "./tasteScenes";
 import {
   createEmptyWeddingTasteDraft, parseWeddingTasteDraft, selectedTasteDomains,
   TASTE_AVOID_OPTIONS, TASTE_DOMAIN_OPTIONS, TASTE_DOMAIN_QUESTIONS,
@@ -16,9 +17,54 @@ export interface WeddingTasteFormProps {
 }
 type Step = { kind: "priorities" | "mood" | "avoids" | "negotiability" } | { kind: "detail"; domain: TasteDomain };
 
-function Choices<T extends string>({ value, options, max, onChange, statusLabels }: {
-  value: TasteSelection<T>; options: readonly { value: T; label: string }[]; max: number;
+type ChoiceOption<T extends string> = { value: T; label: string; description?: string };
+
+/**
+ * 그림 칸의 배치. 칸 수마다 **한 줄에 몇 개가 읽히는가**로 정했다.
+ *
+ * - 분위기 4개: 360px 폰부터 2×2. 그보다 좁으면 그림을 왼쪽에 둔 가로줄로 쌓는다
+ *   (320px 에서는 칸 폭이 약 119px 라 "간결한 분위기" 가 두 줄로 부서진다).
+ * - 공간 3개: 640px 부터 한 줄에 셋. 그 아래에서 셋을 나란히 두면 "실내와 야외를 함께
+ *   쓰는 곳" 이 세 줄이 되므로 가로줄로 쌓는다.
+ */
+const TILE_LAYOUT = {
+  grid: { 3: "grid-cols-1 sm:grid-cols-3", 4: "grid-cols-1 min-[360px]:grid-cols-2" },
+  tile: { 3: "flex-row sm:flex-col", 4: "flex-row min-[360px]:flex-col" },
+  scene: { 3: "w-28 border-r sm:w-full sm:border-r-0 sm:border-b", 4: "w-28 border-r min-[360px]:w-full min-[360px]:border-r-0 min-[360px]:border-b" },
+} as const;
+
+function SceneTile({ option, visual, selected, disabled, columns, onToggle }: {
+  option: ChoiceOption<string>; visual: ReactNode; selected: boolean; disabled: boolean; columns: 3 | 4; onToggle: () => void;
+}) {
+  const id = useId();
+  return (
+    <Button variant="secondary" fullWidth data-taste-tile={option.value}
+      aria-pressed={selected} aria-labelledby={id + "-label"} aria-describedby={option.description ? id + "-description" : undefined}
+      disabled={disabled} onClick={onToggle}
+      className={"relative h-full overflow-hidden px-0! " + (selected ? "border-[var(--hb-success)]! bg-[var(--hb-surface-hover)]!" : "")}>
+      <span className={"flex w-full self-stretch whitespace-normal " + TILE_LAYOUT.tile[columns]}>
+        <span className={"relative aspect-[8/5] shrink-0 border-[var(--hb-hairline)] sm:aspect-[2/1] " + TILE_LAYOUT.scene[columns]}>
+          {visual}
+          {selected ? <span className="absolute right-1.5 top-1.5 flex size-6 items-center justify-center rounded-full bg-[var(--hb-success)] text-[var(--hb-on-primary)]">
+            <Check aria-hidden="true" className="size-4" strokeWidth={2.5} />
+          </span> : null}
+        </span>
+        <span className="flex min-w-0 flex-1 flex-col justify-center gap-1 px-3 py-2.5 text-left">
+          <span id={id + "-label"} data-choice-label="" className="break-keep text-[15px] font-semibold leading-snug text-[var(--hb-text-strong)]">{option.label}</span>
+          {option.description ? <span id={id + "-description"} data-choice-description="" className="break-keep text-[13px] font-normal leading-snug text-[var(--hb-text-body)]">{option.description}</span> : null}
+        </span>
+      </span>
+      {/* 버튼 자기 테두리(1px) 안쪽에 1px 을 더 둘러 선택 테두리를 2px 로 읽히게 한다. 레이아웃은 밀지 않는다. */}
+      {selected ? <span aria-hidden="true" className="pointer-events-none absolute inset-0 rounded-[5px] border border-[var(--hb-success)]" /> : null}
+    </Button>
+  );
+}
+
+function Choices<T extends string>({ value, options, max, onChange, statusLabels, visuals }: {
+  value: TasteSelection<T>; options: readonly ChoiceOption<T>[]; max: number;
   onChange: (value: TasteSelection<T>) => void; statusLabels?: Partial<Record<TasteUnansweredStatus, string>>;
+  /** 값마다 그릴 분위기 그림. 주면 글자 버튼 대신 그림 칸으로 보인다. 칸은 3개나 4개만 배치가 정해져 있다. */
+  visuals?: Record<NoInfer<T>, () => ReactNode>;
 }) {
   const selected = value.status === "answered" ? value.values : [];
   function toggle(option: T) {
@@ -26,10 +72,19 @@ function Choices<T extends string>({ value, options, max, onChange, statusLabels
       : max === 1 ? [option] : selected.length < max ? [...selected, option] : selected;
     onChange(next.length ? { status: "answered", values: next } : { status: "skipped" });
   }
+  const columns = options.length === 4 ? 4 : options.length === 3 ? 3 : null;
   return (
     <div>
       <p className="mb-3 text-[13px] text-[var(--hb-text-muted)]">{max === 1 ? "한 가지를 고르거나 아래에서 현재 상태를 알려주세요." : "최대 " + max + "개 · 다시 누르면 선택을 지울 수 있어요."}</p>
-      <div className="space-y-2">
+      {visuals && columns ? <div className={"grid gap-2 sm:gap-3 " + TILE_LAYOUT.grid[columns]}>
+        {options.map(option => {
+          const drawScene = visuals[option.value];
+          return <SceneTile key={option.value} option={option} visual={drawScene()} columns={columns}
+            selected={selected.includes(option.value)}
+            disabled={max > 1 && selected.length >= max && !selected.includes(option.value)}
+            onToggle={() => toggle(option.value)} />;
+        })}
+      </div> : <div className="space-y-2">
         {options.map(option => (
           <Button key={option.value} variant="secondary" size="lg" fullWidth
             aria-pressed={selected.includes(option.value)}
@@ -40,7 +95,7 @@ function Choices<T extends string>({ value, options, max, onChange, statusLabels
             {selected.includes(option.value) ? <Check aria-hidden="true" className="size-5 shrink-0 text-[var(--hb-success)]" /> : null}
           </Button>
         ))}
-      </div>
+      </div>}
       <div className="mt-5 space-y-1 border-t border-[var(--hb-hairline)] pt-3">
         {(["undecided", "no_preference", "not_applicable", "skipped"] as const).map(status => (
           <Button key={status} variant="ghost" fullWidth aria-pressed={value.status === status && status !== "skipped"}
@@ -116,9 +171,11 @@ export default function WeddingTasteForm({ onComplete, initialDraft }: WeddingTa
       <div className="px-5 py-6 sm:px-7">
         {step.kind === "priorities" ? <Choices value={draft.priorityDomains} options={TASTE_DOMAIN_OPTIONS} max={2} onChange={changePriorities}
           statusLabels={{ no_preference: "지금 우선순위를 나누지 않을게요" }} /> : null}
-        {step.kind === "mood" ? <Choices value={draft.mood} options={TASTE_MOOD_OPTIONS} max={2} onChange={mood => setDraft(previous => ({ ...previous, mood }))} /> : null}
+        {step.kind === "mood" ? <Choices value={draft.mood} options={TASTE_MOOD_OPTIONS} max={2} onChange={mood => setDraft(previous => ({ ...previous, mood }))}
+          visuals={MOOD_SCENES} /> : null}
         {step.kind === "detail" ? <Choices value={draft.details[step.domain] ?? { status: "skipped" }} options={TASTE_DOMAIN_QUESTIONS[step.domain].options}
-          max={TASTE_DOMAIN_QUESTIONS[step.domain].max} onChange={value => changeDetail(step.domain, value)} /> : null}
+          max={TASTE_DOMAIN_QUESTIONS[step.domain].max} onChange={value => changeDetail(step.domain, value)}
+          visuals={step.domain === "venue" ? VENUE_SCENES : undefined} /> : null}
         {step.kind === "avoids" ? <Choices value={draft.avoids} options={TASTE_AVOID_OPTIONS} max={3} onChange={avoids => setDraft(previous => ({ ...previous, avoids }))}
           statusLabels={{ no_preference: "특별히 피하고 싶은 것은 없어요", not_applicable: "이번 계획에는 해당하지 않아요" }} /> : null}
         {step.kind === "negotiability" ? <div className="space-y-6">

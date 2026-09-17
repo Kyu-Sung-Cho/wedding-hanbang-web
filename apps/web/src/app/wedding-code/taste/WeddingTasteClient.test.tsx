@@ -18,8 +18,10 @@ function account(owner = "owner-a", connected = true, completed = true) {
     couple: connected ? { id: "couple-" + owner, bride_id: owner, groom_id: null } : null };
 }
 function response(value: unknown, status = 200) { return new Response(JSON.stringify(value), { status }); }
+// 분위기 그림 칸은 라벨 아래에 설명 줄을 함께 담는다. 그래서 칸은 버튼 전체 글자가 아니라 라벨 요소로 찾는다.
+const buttonLabel = (el: Element) => (el.querySelector("[data-choice-label]") ?? el).textContent?.trim();
 async function click(label: string) {
-  const button = [...host.querySelectorAll("button")].find(el => el.textContent?.trim() === label);
+  const button = [...host.querySelectorAll("button")].find(el => buttonLabel(el) === label);
   expect(button, label).toBeTruthy();
   await act(async () => button?.click());
 }
