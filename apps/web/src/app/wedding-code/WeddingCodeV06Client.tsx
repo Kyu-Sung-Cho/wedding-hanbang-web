@@ -39,6 +39,7 @@ import Button from "@/components/ui/Button";
 import {
   buildWeddingCodeLetters,
   compareWeddingCodeLetters,
+  type WeddingCodeLetterSlot,
   type WeddingCodeLetters,
 } from "@/lib/weddingCode/profile/letters";
 import {
@@ -911,6 +912,13 @@ ${shareUrl}`
  * **점수로 합치지 않는다.** 「네 자리 중 세 자리가 같으니 75점」은 근거 없이 관계를
  * 예측하는 것이다. 다른 자리를 짚어주고, 그 자리에서 할 이야기는 아래 차이 지도가 맡는다.
  */
+/** 「V(조건 먼저)」. 글자가 없는 자리는 이름을 지어내지 않는다. */
+function pairSlotName(slot: WeddingCodeLetterSlot): string {
+  if (!slot.chosen) return "글자 없음";
+  const pole = slot.chosen === "left" ? slot.left : slot.right;
+  return `${slot.letter}(${pole.short})`;
+}
+
 function WeddingCodePair({
   mine,
   theirs,
@@ -933,12 +941,12 @@ function WeddingCodePair({
           {different.length > 0
             ? `네 자리 중 ${different.length}자리가 달라요. 점수는 매기지 않아요 — 다른 자리부터 이야기하면 돼요.`
             : unknown.length === comparison.length
-              ? "미응답이나 동률 때문에 비교할 글자가 없어요. 실제로 고른 답은 아래 장면별로 확인해 주세요."
+              ? "답하지 않았거나 양쪽 답이 반반인 자리라 비교할 글자가 없어요. 실제로 고른 답은 아래 장면별로 확인해 주세요."
               : `비교할 수 있는 ${comparison.length - unknown.length}자리의 글자가 같아요. 같은 글자여도 장면마다 고른 답은 다를 수 있어요.`}
         </p>
       </div>
       <details>
-        <summary className="cursor-pointer px-5 py-4 text-sm font-semibold text-[var(--hb-text-strong)] sm:px-8">글자별 집계 자세히 보기</summary>
+        <summary className="cursor-pointer px-5 py-4 text-sm font-semibold text-[var(--hb-text-strong)] sm:px-8">자리마다 두 사람 글자 보기</summary>
       <div className="divide-y divide-[var(--hb-hairline)]">
         {comparison.map((item) => (
           <div key={item.axis} data-code-slot={item.axis} data-code-state={item.state} className="flex items-center gap-4 px-5 py-3.5 sm:px-8">
@@ -947,14 +955,20 @@ function WeddingCodePair({
               <span className="text-[13px] font-medium text-[var(--color-rose-700)]">·</span>
               {item.second.letter}
             </span>
-            <p className="min-w-0 text-[13px] font-medium leading-[1.6] text-[var(--hb-text-strong)]">
-              <b className="font-semibold text-[var(--hb-text-strong)]">{item.axisLabel}</b>
-              {item.state === "different"
-                ? " — 서로 다른 자리예요"
-                : item.state === "same"
-                  ? " — 같은 자리예요"
-                  : " — 미응답이나 동률로 글자를 비교하지 않았어요"}
-            </p>
+            <div className="min-w-0 text-[13px] font-medium leading-[1.6] text-[var(--hb-text-strong)]">
+              <p>
+                <b className="font-semibold text-[var(--hb-text-strong)]">{item.axisLabel}</b>
+                {item.state === "different"
+                  ? " — 서로 다른 자리예요"
+                  : item.state === "same"
+                    ? " — 같은 자리예요"
+                    : " — 답하지 않았거나 반반이라 글자를 비교하지 않았어요"}
+              </p>
+              {/* 혼자 결과의 범례와 같은 이름을 쓴다 — 글자만 보여주면 무엇의 차이인지 모른다. */}
+              <p className="text-[12px] text-[var(--hb-text-body)]">
+                먼저 답한 사람 {pairSlotName(item.first)} · 나중에 답한 사람 {pairSlotName(item.second)}
+              </p>
+            </div>
           </div>
         ))}
       </div>
