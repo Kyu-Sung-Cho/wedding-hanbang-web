@@ -10,6 +10,7 @@ import {
   CURRENT_WEDDING_CODE_SCENE_CONFIG,
   weddingCodeSceneCountLabel,
 } from "@/lib/weddingCode/scene/config";
+import { WeddingCodePoleChip } from "../../WeddingCodeBadge";
 
 /**
  * 코드 한 개만 아는 사람을 위한 화면.
@@ -90,26 +91,34 @@ export default async function WeddingCodeMeaningPage({
           </div>
 
           <div className="divide-y divide-[var(--hb-hairline)]">
-            {letters.map((letter) => (
-              <div key={letter.axis} data-meaning-axis={letter.axis} className="flex gap-4 px-5 py-5 sm:px-8">
-                <span
-                  aria-hidden="true"
-                  className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[var(--hb-surface-hover)] text-[18px] font-semibold text-[var(--hb-text-strong)]"
-                >
-                  {letter.letter}
-                </span>
-                <div className="min-w-0">
+            {letters.map((letter) => {
+              // 결과 화면 범례와 같은 방향(왼쪽 글자 먼저)으로 양쪽 끝을 그린다.
+              // 코드에는 답의 수가 없으므로 칸 막대 대신 선 하나로 두 끝을 잇는다.
+              const own = { letter: letter.letter, short: letter.short };
+              const other = { letter: letter.opposite, short: letter.oppositeShort };
+              const [left, right] = letter.side === "left" ? [own, other] : [other, own];
+              return (
+                <div key={letter.axis} data-meaning-axis={letter.axis} className="px-5 py-5 sm:px-8">
                   <p className="text-[12px] font-semibold text-[var(--hb-success)]">{letter.axisLabel}</p>
-                  <p className="mt-1 text-[15px] font-semibold leading-[1.5] text-[var(--hb-text-strong)]">
+                  <div className="mt-2.5 flex items-center gap-2">
+                    <WeddingCodePoleChip side="left" pole={left} chosen={letter.side === "left"} />
+                    <span aria-hidden="true" className="h-px min-w-4 flex-1 bg-[var(--hb-hairline)]" />
+                    <WeddingCodePoleChip side="right" pole={right} chosen={letter.side === "right"} />
+                  </div>
+                  <p className="mt-3 text-[15px] font-semibold leading-[1.5] text-[var(--hb-text-strong)]">
+                    <span className="sr-only">{letter.letter}({letter.short}): </span>
                     {letter.meaning}
                   </p>
                   <p className="mt-1.5 text-[13px] font-medium leading-[1.6] text-[var(--color-rose-700)]">
-                    이 자리의 다른 쪽은 <b className="font-semibold text-[var(--hb-text-strong)]">{letter.opposite}</b> —{" "}
-                    {letter.oppositeMeaning}
+                    이 자리의 다른 쪽은{" "}
+                    <b className="font-semibold text-[var(--hb-text-strong)]">
+                      {letter.opposite}({letter.oppositeShort})
+                    </b>{" "}
+                    — {letter.oppositeMeaning}
                   </p>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
 
           <div className="border-t border-[var(--hb-hairline)] bg-[var(--hb-surface-page)] px-5 py-5 sm:px-8">

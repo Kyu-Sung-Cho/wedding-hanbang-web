@@ -7,12 +7,16 @@ import {
   type WeddingCodeV06Question,
 } from "@/constants/weddingCodeV06";
 import {
+  WEDDING_CODE_ABSENCE,
   WEDDING_CODE_CHECK_PHRASE,
+  WEDDING_CODE_COUNT_CHECK_NOTE,
+  WEDDING_CODE_COUNT_CHECK_NOTE_AXES,
   WEDDING_CODE_RESPONSE_QUALIFIERS,
   WEDDING_CODE_SELF_READING,
   type WeddingCodeReadableConstructKey,
   type WeddingCodeSelfLean,
 } from "@/constants/weddingCodeSelfReading";
+import { WEDDING_CODE_LETTERS, describeWeddingCodeCount } from "@/lib/weddingCode/profile/letters";
 import type { WeddingCodeV06Answers } from "@/lib/weddingCode/v06/gap";
 
 /** 문항·공유 코드 버전과 독립적인 응답 요약 규칙 버전. */
@@ -49,6 +53,7 @@ export type WeddingCodeSelfAxisReading = Readonly<{
   axisLabel: string;
   lean: WeddingCodeSelfLean;
   title: string;
+  /** 왼쪽 글자의 짧은 이름(범례와 같다). */
   leftLabel: string;
   rightLabel: string;
   leftCount: number;
@@ -56,9 +61,16 @@ export type WeddingCodeSelfAxisReading = Readonly<{
   answered: number;
   /** 많이 고른 쪽을 먼저 두되, 양쪽 답이 있으면 각각 하나씩 인용한다. */
   evidence: readonly WeddingCodeSelfQuote[];
-  /** 한 번도 고르지 않은 쪽 문장. 비어 있으면 양쪽 다 고른 것이다. */
+  /** 덜 고른 쪽에서 한 번도 고르지 않은 주제. 비어 있으면 양쪽 다 고른 것이다. */
   missingPhrases: readonly string[];
+  /**
+   * 실제로 고른 답에만 붙는 한정 안내(중복 제거). 표시 인용 두 개 밖의 답도 포함한다.
+   * 예전에는 watchOut 앞에 이어 붙였는데, 그러면 「정할 때 챙길 것」 라벨 아래에 답의
+   * 해석 주의가 섞여 읽혔다. 이제 화면이 인용 바로 아래에 따로 그린다.
+   */
+  qualifiers: readonly string[];
   tellPartner: string;
+  /** 이 방향 카드 문구만. 한정 안내는 `qualifiers` 에 있다. */
   watchOut: string;
 }>;
 
@@ -202,21 +214,22 @@ export function buildWeddingCodeSelfProfile(
       const qualifier = WEDDING_CODE_RESPONSE_QUALIFIERS[quote.label];
       return qualifier ? [qualifier] : [];
     });
+    const letters = WEDDING_CODE_LETTERS[axis.key];
     axisReadings.push({
       axis: axis.key,
       axisLabel: axis.labelKo,
       lean,
       title: copy.title,
-      leftLabel: axis.key === "supportOrder" ? "마음·대화" : axis.left.labelKo,
-      rightLabel: axis.key === "supportOrder" ? "할 일·결정"
-        : axis.key === "decisionCriteria" ? "사진·분위기와 기대·인상" : axis.right.labelKo,
+      leftLabel: letters.left.short,
+      rightLabel: letters.right.short,
       leftCount,
       rightCount,
       answered,
       evidence,
       missingPhrases,
+      qualifiers: [...new Set(qualifiers)],
       tellPartner: copy.tellPartner,
-      watchOut: [...new Set(qualifiers), copy.watchOut].join(" "),
+      watchOut: copy.watchOut,
     });
   }
 
@@ -243,27 +256,21 @@ export function buildWeddingCodeSelfProfile(
 }
 
 /**
- * 「네 장면 중 세 곳에서」처럼 셈을 그대로 읽어주는 사실 문장.
+ * 「답한 5장면 중 4장면은 V(조건 먼저), …」처럼 셈을 그대로 읽어주는 사실 문장.
  *
- * 카피 상수가 아니라 여기서 만든다 — 숫자가 화면에 뜨는 문장은 반드시 실제 응답에서
- * 나와야 하고, 손으로 쓴 문장이 그 자리를 대신하면 안 되기 때문이다.
+ * 카피 상수가 아니라 실제 셈에서 만든다 — 숫자가 화면에 뜨는 문장은 반드시 실제 응답에서
+ * 나와야 하고, 손으로 쓴 문장이 그 자리를 대신하면 안 되기 때문이다. 틀은 배지 범례와
+ * 같은 `describeWeddingCodeCount` 를 쓴다(같은 셈을 두 문장으로 말하지 않는다).
+ *
+ * 준비 방식·힘들 때 두 축은 겪은 일(연락이 밀렸다)과 한 일이 한 편에 섞여 있어, 셈 뒤에
+ * 실제 문장을 확인하라는 안내를 붙인다. 답이 없으면 확인할 문장도 없으므로 붙이지 않는다.
  */
 export function describeSelfAxisReading(reading: WeddingCodeSelfAxisReading): string {
-  const { leftCount, rightCount, answered, leftLabel, rightLabel } = reading;
-  if (answered === 0) return "이 주제는 아직 답하지 않았어요.";
-  // 연락이 늦어진 답도 포함되므로 두 쪽의 셈을 실제 공동 검토 행동으로 바꾸지 않는다.
-  if (reading.axis === "preparationMode") {
-    return `답한 ${answered}장면 중 함께 확인하는 과정과 연락 경험 쪽이 ${leftCount}곳, 한 사람이 맡아 정리하는 방식 쪽이 ${rightCount}곳이었어요. 실제 고른 문장을 함께 확인해 주세요.`;
-  }
-  if (reading.axis === "supportOrder") {
-    return `답한 ${answered}장면 중 마음·대화에 관한 답이 ${leftCount}곳, 할 일·결정에 관한 답이 ${rightCount}곳이었어요. 실제 고른 문장을 함께 확인해 주세요.`;
-  }
-  if (reading.lean === "mixed") {
-    return `답한 ${answered}장면 중 ${leftLabel} 쪽이 ${leftCount}곳, ${rightLabel} 쪽이 ${rightCount}곳이었어요.`;
-  }
-  const count = Math.max(leftCount, rightCount);
-  const label = leftCount > rightCount ? leftLabel : rightLabel;
-  return `답한 ${answered}장면 중 ${count}곳에서 ${label} 쪽 문장을 골랐어요.`;
+  const line = describeWeddingCodeCount(reading.axis, reading.leftCount, reading.rightCount);
+  if (reading.leftCount + reading.rightCount === 0) return line;
+  return WEDDING_CODE_COUNT_CHECK_NOTE_AXES.includes(reading.axis)
+    ? `${line} ${WEDDING_CODE_COUNT_CHECK_NOTE}`
+    : line;
 }
 
 /**
@@ -279,16 +286,19 @@ export function withJosa(word: string, withBatchim: string, withoutBatchim: stri
   return `${word}${(last - 0xac00) % 28 === 0 ? withoutBatchim : withBatchim}`;
 }
 
-/** 한 번도 고르지 않은 확인이 있으면 그것을 말한다. 없으면 조용히 비운다. */
+/**
+ * 한 번도 고르지 않은 쪽이 있으면 그것을 말한다. 없으면 조용히 비운다.
+ *
+ * 덜 고른 쪽 답이 0개면 그쪽 전체(짧은 이름)를, 몇 개 골랐는데 그쪽 주제 중 하나가
+ * 빠졌으면(한 편에 주제가 둘인 decisionCriteria 에서만 생긴다) 그 주제를 말한다.
+ */
 export function describeSelfAxisAbsence(
   reading: WeddingCodeSelfAxisReading,
 ): string | null {
-  if (reading.missingPhrases.length === 0) return null;
-  const quoted = reading.missingPhrases.map((phrase) => `“${phrase}”`);
-  const joined = quoted
-    .slice(0, -1)
-    .map((phrase) => withJosa(phrase, "과", "와"))
-    .concat(quoted[quoted.length - 1])
-    .join(" ");
-  return `${joined} 쪽 문장은 한 번도 고르지 않았어요. 실제 준비에서도 그랬다는 뜻은 아니에요.`;
+  if (reading.missingPhrases.length === 0 || reading.lean === "mixed") return null;
+  const unchosen = reading.lean === "left" ? "right" : "left";
+  const short = unchosen === "left" ? reading.leftLabel : reading.rightLabel;
+  const unchosenCount = unchosen === "left" ? reading.leftCount : reading.rightCount;
+  if (unchosenCount === 0) return WEDDING_CODE_ABSENCE.wholeSide(short);
+  return WEDDING_CODE_ABSENCE.partSide(short, reading.missingPhrases.join("’, ‘"));
 }
