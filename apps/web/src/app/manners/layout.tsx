@@ -2,6 +2,7 @@ import Link from "next/link";
 
 import { BookOpen, CalendarCheck, ClipboardCheck, LayoutDashboard, Settings, Users, Wallet } from "lucide-react";
 import AmoraMark from "@/components/ui/AmoraMark";
+import { LogoMark } from "@/components/ui/Logo";
 import { weddingLinkProps } from "@/lib/weddingPaths";
 import AmoraBottomNav from "@/components/app/amora/AmoraBottomNav";
 
@@ -35,8 +36,9 @@ export default function MannersLayout({ children }: { children: React.ReactNode 
     <div className="planning-workspace min-h-screen bg-[var(--amora-bg)] text-[var(--amora-soft)] [&_a:focus-visible]:outline-2 [&_a:focus-visible]:outline-offset-2 [&_a:focus-visible]:outline-[var(--hb-focus-ring)]">
       <a href="#manners-main" className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-50 focus:rounded-[10px] focus:bg-white focus:p-3">본문으로 바로가기</a>
       <aside className="fixed inset-y-0 left-0 hidden w-[220px] flex-col border-r border-[var(--amora-line)] bg-white pt-[22px] md:flex">
-        <Link {...weddingLinkProps()} prefetch={false} aria-label="웨딩한방 홈으로 이동" className="planning-display mx-6 flex min-h-[54px] items-start gap-2 pt-[6px] text-[17px] text-[var(--amora-ink)]">
-          <span aria-hidden className="flex size-[26px] items-center justify-center rounded-[7px] bg-[var(--amora-ink)] font-sans text-[13px] font-bold text-white">H</span>웨딩한방
+        {/* 앱 사이드바(`components/app/Sidebar.tsx`)와 같은 머리 — 로고는 라운지로 간다. */}
+        <Link {...weddingLinkProps("/lounge")} prefetch={false} aria-label="웨딩한방 홈으로 이동" className="planning-display mx-6 flex min-h-[54px] items-start pt-[6px] text-[17px] text-[var(--amora-ink)]">
+          <span className="flex items-center gap-2"><LogoMark />웨딩한방</span>
         </Link>
         <nav aria-label="서비스 메뉴" className="flex-1 overflow-y-auto px-[14px]">
           <ul className="space-y-1">

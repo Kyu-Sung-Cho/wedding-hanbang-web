@@ -41,6 +41,24 @@ describe("Amora sidebar entry", () => {
     expect(menu.querySelector('a[href="/wedding/saved"]')).toBeNull();
   });
 
+  it.each([true, false])("sends the brand link to the lounge, not the community (html design: %s)", async amoraWorkspace => {
+    mocks.pathname = "/wedding/checklist";
+    await act(async () => root.render(<Sidebar isOpen onClose={close} amoraWorkspace={amoraWorkspace} />));
+    const brand = container.querySelector<HTMLAnchorElement>('a[aria-label="웨딩한방 홈으로 이동"]')!;
+    expect(brand.getAttribute("href")).toBe("/wedding/lounge");
+    brand.addEventListener("click", event => event.preventDefault());
+    await act(async () => brand.click());
+    expect(close).toHaveBeenCalledOnce();
+  });
+
+  it("shows the same logo as the browser tab instead of a letter badge", async () => {
+    mocks.pathname = "/wedding/lounge";
+    await act(async () => root.render(<Sidebar isOpen onClose={close} amoraWorkspace />));
+    const brand = container.querySelector('a[aria-label="웨딩한방 홈으로 이동"]')!;
+    expect(brand.querySelector("img")?.getAttribute("src")).toContain("apple-touch-icon.png");
+    expect(brand.textContent).toBe("웨딩한방");
+  });
+
   it.each(["/wedding/budget", "/wedding/chat-archive"])("does not mark unrelated %s as Amora", async pathname => {
     mocks.pathname = pathname;
     await act(async () => root.render(<Sidebar isOpen onClose={close} />));
