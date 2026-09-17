@@ -869,7 +869,7 @@ export default function OnboardingScreen() {
                 onPress={() => setCoupleAction("create")}
               >
                 <View style={[styles.roleIconCircle, coupleAction === "create" && styles.roleIconCircleActive]}>
-                  <Sparkles size={28} color={coupleAction === "create" ? colors.rose[500] : colors.textTertiary} />
+                  <Sparkles size={28} color={coupleAction === "create" ? colors.rose[700] : colors.textTertiary} />
                 </View>
                 <Text style={[styles.roleLabel, coupleAction === "create" && styles.roleLabelActive]}>
                   아모라와 지금 시작하기
@@ -884,7 +884,7 @@ export default function OnboardingScreen() {
                 onPress={() => setCoupleAction("join")}
               >
                 <View style={[styles.roleIconCircle, coupleAction === "join" && styles.roleIconCircleActive]}>
-                  <Heart size={28} color={coupleAction === "join" ? colors.rose[500] : colors.textTertiary} />
+                  <Heart size={28} color={coupleAction === "join" ? colors.rose[700] : colors.textTertiary} />
                 </View>
                 <Text style={[styles.roleLabel, coupleAction === "join" && styles.roleLabelActive]}>
                   초대 코드로 함께 시작하기
@@ -936,7 +936,7 @@ export default function OnboardingScreen() {
                     onPress={() => handleRolePress("bride")}
                   >
                     <View style={[styles.roleIconCircle, role === "bride" && styles.roleIconCircleActive]}>
-                      <Heart size={28} color={role === "bride" ? colors.rose[500] : colors.textTertiary} />
+                      <Heart size={28} color={role === "bride" ? colors.rose[700] : colors.textTertiary} />
                     </View>
                     <Text style={[styles.roleLabel, role === "bride" && styles.roleLabelActive]}>신부</Text>
                   </Pressable>
@@ -950,7 +950,7 @@ export default function OnboardingScreen() {
                     onPress={() => handleRolePress("groom")}
                   >
                     <View style={[styles.roleIconCircle, role === "groom" && styles.roleIconCircleActive]}>
-                      <User size={28} color={role === "groom" ? colors.rose[500] : colors.textTertiary} />
+                      <User size={28} color={role === "groom" ? colors.rose[700] : colors.textTertiary} />
                     </View>
                     <Text style={[styles.roleLabel, role === "groom" && styles.roleLabelActive]}>신랑</Text>
                   </Pressable>

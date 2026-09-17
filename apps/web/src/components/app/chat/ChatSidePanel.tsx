@@ -1751,7 +1751,7 @@ export default function ChatSidePanel({
                   aria-label="메시지 보내기"
                   className={`flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-[6px] text-white transition-colors disabled:cursor-not-allowed disabled:opacity-30 ${
                     messageTarget === "partner"
-                      ? "bg-[var(--hb-primary)] hover:bg-[var(--hb-primary-hover)]"
+                      ? "bg-pink-500 hover:bg-pink-600"
                       : "bg-[var(--amora-action,var(--hb-action))] hover:bg-[var(--amora-action-hover,var(--hb-action-hover))]"
                   }`}
                 >

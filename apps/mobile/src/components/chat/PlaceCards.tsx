@@ -345,6 +345,6 @@ const styles = StyleSheet.create({
   handoffCard: { overflow: "hidden", marginTop: 8, borderRadius: 16, borderWidth: 1, borderColor: "#DCE8DA", backgroundColor: colors.surface },
   handoffMain: { flexDirection: "row", alignItems: "flex-start", gap: 10, padding: 14 },
   handoffIcon: { width: 40, height: 40, alignItems: "center", justifyContent: "center", borderRadius: 20, backgroundColor: "rgba(45, 180, 0, 0.10)" },
-  handoffLink: { marginTop: 7, fontSize: 12, lineHeight: 18, color: colors.noir[800], fontWeight: "700" },
+  handoffLink: { marginTop: 7, fontSize: 12, lineHeight: 18, color: colors.sage.deep, fontWeight: "700", textDecorationLine: "underline" },
   trademarkNote: { borderTopWidth: 1, borderTopColor: colors.border, paddingHorizontal: 12, paddingVertical: 7, fontSize: 9, lineHeight: 13, color: colors.paper.inkFaint },
 });

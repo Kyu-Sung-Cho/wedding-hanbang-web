@@ -836,8 +836,8 @@ export default function PostDetailScreen() {
               >
                 <Bookmark
                   size={22}
-                  color={bookmarked ? colors.rose[500] : colors.textTertiary}
-                  fill={bookmarked ? colors.rose[500] : "none"}
+                  color={bookmarked ? colors.rose[700] : colors.textTertiary}
+                  fill={bookmarked ? colors.rose[700] : "none"}
                 />
               </Pressable>
             </Animated.View>

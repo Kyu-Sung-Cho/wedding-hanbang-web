@@ -415,7 +415,7 @@ function MessageSaveNoteButton({ messageId, content, coupleId, scope }: { messag
       <Link
         ref={savedLinkRef}
         {...weddingLinkProps("/chat/board?view=saved")}
-        className="flex items-center gap-1.5 text-sm text-rose-700 transition-colors hover:text-rose-700"
+        className="flex items-center gap-1.5 text-sm text-rose-700 transition-colors hover:underline"
       >
         <BookmarkCheck className="w-4 h-4" />
         <span>저장한 답변 · 보러가기</span>

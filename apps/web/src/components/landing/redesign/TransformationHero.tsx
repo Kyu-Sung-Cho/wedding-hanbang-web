@@ -45,7 +45,7 @@ export default function TransformationHero() {
             return (
               <span key={line} className="block">
                 {line.slice(0, at)}
-                <span className="text-rose-700">{hero.titleAccent}</span>
+                <span className="text-[var(--color-rose-600)]">{hero.titleAccent}</span>
                 {line.slice(at + (hero.titleAccent?.length ?? 0))}
               </span>
             );

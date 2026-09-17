@@ -245,14 +245,14 @@ export default function WritePostScreen() {
           style={[styles.tab, !isPreview && styles.tabActive]}
           onPress={() => setIsPreview(false)}
         >
-          <Edit3 size={14} color={!isPreview ? colors.rose[500] : colors.textTertiary} />
+          <Edit3 size={14} color={!isPreview ? colors.rose[700] : colors.textTertiary} />
           <Text style={[styles.tabText, !isPreview && styles.tabTextActive]}>작성</Text>
         </Pressable>
         <Pressable
           style={[styles.tab, isPreview && styles.tabActive]}
           onPress={() => setIsPreview(true)}
         >
-          <Eye size={14} color={isPreview ? colors.rose[500] : colors.textTertiary} />
+          <Eye size={14} color={isPreview ? colors.rose[700] : colors.textTertiary} />
           <Text style={[styles.tabText, isPreview && styles.tabTextActive]}>미리보기</Text>
         </Pressable>
       </View>

@@ -61,7 +61,8 @@ function productSources() {
       if (name === "__tests__" || name === "node_modules") continue;
       const path = join(dir, name);
       if (statSync(path).isDirectory()) { walk(path); continue; }
-      if (!/\.tsx$/.test(name) || /\.test\.tsx$/.test(name)) continue;
+      // `.ts` 도 본다 — 카테고리 배지처럼 클래스를 상수 파일에 두는 화면이 있다.
+      if (!/\.tsx?$/.test(name) || /\.test\.tsx?$/.test(name) || /\.d\.ts$/.test(name)) continue;
       const rel = relative(srcRoot, path).replace(/\\/g, "/");
       if (NOT_RENDERED_IN_PRODUCTION.has(rel)) continue;
       const code = ts.transpileModule(readFileSync(path, "utf8"), {
@@ -206,6 +207,36 @@ describe("색이 칠해진 머리·영역 위의 글자", () => {
     expect(quote).toContain('<div className="bg-gradient-to-r from-[var(--hb-primary)] to-[var(--hb-primary-hover)] px-6 py-5">');
     expect(quote).not.toContain("from-[#C4967E]");
     expect(quote).toContain('<p className="text-sm text-white font-medium">견적 항목 체크</p>');
+  });
+
+  it("다가오는 일정의 '지남' 은 '임박' 과 구분되고 더 강하다", () => {
+    const panel = readFileSync(join(srcRoot, "components/app/chat/panel/UpcomingTab.tsx"), "utf8");
+    const badge = (key: string) => new RegExp(`${key}: \\{ badge: "([^"]+)"`).exec(panel)?.[1];
+    expect(badge("overdue")).toBe("bg-danger-700 text-white");
+    expect(badge("urgent")).toBe("bg-[var(--hb-primary)] text-white");
+    expect(contrast("#FFFFFF", colors.dangerDeep)).toBeGreaterThan(contrast("#FFFFFF", colors.rose[600]));
+    expect(panel).toContain('overdue: { badge: "bg-danger-700 text-white", text: "text-danger-700" }');
+  });
+
+  it("커뮤니티 글 출처 배지는 자기 배지 바탕 위에서 읽힌다", () => {
+    const source = readFileSync(join(srcRoot, "lib/community/contentOrigin.ts"), "utf8");
+    const backgrounds: Record<string, string> = { "bg-[var(--hb-surface-hover)]": colors.paper.tint };
+    const texts: Record<string, string> = {
+      "text-rose-700": colors.rose[700],
+      "text-[var(--hb-text-strong)]": colors.paper.ink,
+      "text-[var(--hb-text-body)]": colors.paper.inkSoft,
+    };
+    const badges = [...source.matchAll(/className: "([^"]+)"/g)].map((match) => match[1]);
+    expect(badges.length).toBeGreaterThanOrEqual(3);
+    for (const badge of badges) {
+      const bg = /(?:^|\s)(bg-\S+)/.exec(badge)?.[1] ?? "";
+      const text = /(?:^|\s)(text-\S+)/.exec(badge)?.[1] ?? "";
+      const bgHex = /^bg-\[(#[0-9a-fA-F]{6})\]$/.exec(bg)?.[1] ?? backgrounds[bg];
+      const textHex = /^text-\[(#[0-9a-fA-F]{6})\]$/.exec(text)?.[1] ?? texts[text];
+      expect(bgHex, `${badge} 의 바탕을 모른다`).toBeTruthy();
+      expect(textHex, `${badge} 의 글자색을 모른다`).toBeTruthy();
+      expect(contrast(textHex!, bgHex!), badge).toBeGreaterThanOrEqual(4.5);
+    }
   });
 
   it("커뮤니티 첫 화면의 짙은 초록 가격 영역에서 대행사 수는 쉬는·호버 상태 모두 읽힌다", () => {

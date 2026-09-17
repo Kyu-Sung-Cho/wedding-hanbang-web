@@ -261,6 +261,17 @@ test("의미를 가진 아이콘은 3:1 을 넘는다 — taupe[400] 대신 text
   assert.deepEqual(findAll(/\bcolor=\{[^}]*colors\.taupe\[400\]/g), []);
   // 커뮤니티 글의 투표 아이콘(선택 안 됨)
   assert.match(source("app/community/post/[id].tsx"), /color=\{userVote === 1 \? colors\.rose\[700\] : colors\.textTertiary\}/);
+  // 선택 안 된 아이콘을 짙게 했으면 선택된 아이콘이 그보다 흐리면 안 된다(온보딩 역할 카드).
+  assert.ok(contrast(colors.rose[500], colors.rose.pale) < contrast(colors.textTertiary, colors.ivory[200]));
+  assert.deepEqual(findAll(/\? colors\.rose\[500\] : colors\.textTertiary\}/g), []);
+});
+
+test("장소 검색 안내의 링크는 제목과 다른 색이고 밑줄이 있다", () => {
+  const cards = source("src/components/chat/PlaceCards.tsx");
+  const link = styleBlock(cards, "handoffLink");
+  assert.notEqual(styleColor(link), styleColor(styleBlock(cards, "noticeTitle")), "링크가 제목과 같은 색이면 링크로 안 보인다");
+  assert.match(link, /textDecorationLine: "underline"/);
+  assert.ok(contrast(styleColor(link), colors.surface) >= 4.5);
 });
 
 test("설정의 회원 탈퇴는 짙은 위험색이고, 눌림을 투명도로 나타내지 않는다", () => {
