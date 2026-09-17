@@ -116,9 +116,9 @@ describe("WeddingCode 아모라 단락 · 앱 웹뷰", () => {
 
     // 입구를 넣은 이유 자체가 이것이다. 단락 하나를 내리느라 본래 기능을 깨면 안 된다.
     expect(container.querySelector('[data-wedding-code="···A"]')).not.toBeNull();
-    expect(
-      container.querySelector("[data-share-url]")?.getAttribute("data-share-url"),
-    ).toMatch(/#v=v0\.8-code&a=-{18}D-$/);
+    // 판 이름은 현재 판을 따라간다(판을 올릴 때마다 이 줄이 깨지지 않게).
+    const shareUrl = container.querySelector("[data-share-url]")?.getAttribute("data-share-url") ?? "";
+    expect(shareUrl.endsWith(`#v=${CURRENT_WEDDING_CODE_SCENE_CONFIG.version}&a=${"-".repeat(18)}D-`), shareUrl).toBe(true);
   });
 
   it("웹뷰 다리만 있고 앱이 심은 표식이 없으면 앱으로 보지 않는다", async () => {

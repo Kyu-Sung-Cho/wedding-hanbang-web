@@ -231,7 +231,7 @@ export const WEDDING_CODE_V08_QUESTIONS = [
       { value: "A", label: "보태주셔도 결정은 우리가 하기로 했다", weights: [{ construct: "coupleAutonomy", value: 2 }] },
       { value: "B", label: "받는 만큼 의견도 따라온다고 생각했다", candid: true, weights: [{ construct: "familyIntegration", value: 2 }] },
       { value: "C", label: "받을 금액과 쓸 곳을 우리가 먼저 정리했다", weights: [{ construct: "coupleAutonomy", value: 2 }] },
-      { value: "D", label: "어디에 쓰면 좋을지 부모님 뜻을 여쭀다", weights: [{ construct: "familyIntegration", value: 2 }] },
+      { value: "D", label: "어디에 쓰면 좋을지 부모님 뜻을 여쭸다", weights: [{ construct: "familyIntegration", value: 2 }] },
     ],
   },
 

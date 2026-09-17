@@ -184,11 +184,11 @@ test("qa:merged가 qa:local의 검사 목록을 그대로 쓴다", async () => {
   }
 });
 
-test("공유 QA 목록은 CI와 같은 후속 WeddingCode 연구 기여 저장소 계약을 실제 검사하고 배포 인가로 표시하지 않는다", async () => {
+test("공유 QA 목록은 CI와 같은 후속 WeddingCode 장면 v0.9 계약을 실제 검사하고 배포 인가로 표시하지 않는다", async () => {
   const { checks } = await import("../verify-local.mjs");
   const fences = checks.filter(check => check.name === "supabase release fence");
   assert.equal(fences.length, 1);
-  assert.deepEqual(fences[0].args, ["pnpm", "supabase:release:fence", "--wedding-code-research-contributions"]);
+  assert.deepEqual(fences[0].args, ["pnpm", "supabase:release:fence", "--wedding-code-research-scene-v09"]);
   const { readFileSync } = await import("node:fs");
   const pkg = JSON.parse(readFileSync(path.join(repoRoot, "package.json"), "utf8"));
   assert.equal(pkg.scripts["supabase:release:fence"], "node ./scripts/supabase-release-fence.mjs");
@@ -197,7 +197,7 @@ test("공유 QA 목록은 CI와 같은 후속 WeddingCode 연구 기여 저장�
   });
   assert.equal(result.error, undefined);
   assert.equal(result.status, 0, `${result.stdout}${result.stderr}`);
-  assert.match(result.stdout, /WeddingCode research contributions contract verified \(234 exact SQL files;/);
+  assert.match(result.stdout, /WeddingCode research scene v0\.9 contract verified \(235 exact SQL files;/);
   assert.match(result.stdout, /runtime evidence not verified; deployment not authorized; no remote writes/);
 });
 

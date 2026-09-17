@@ -1,6 +1,6 @@
 # WeddingCode 연구 기여 저장소: 234 별도 DB 적용
 
-상태: 로컬 구현과 합성 PostgreSQL 검증까지. **운영 DB 미적용.** 운영 관측·예행·적용·사후검증은 아래 전용 실행 결과(영수증)가 있어야 완료다. 이 문서와 로컬 검사 통과는 운영 적용 인가가 아니다.
+상태: **운영 DB 적용 완료(2026-09-16).** 이 lane으로 운영에 234를 적용했고, 영수증 상태가 `inspected-unapplied` → `rehearsed-and-rolled-back` → `applied-and-postverified` → `already-applied-verified` 순서로 기록됐다. 영수증은 저장소 밖에 보관한다(원문을 이 문서·Git에 옮기지 않는다). 이 lane은 migration SQL이 정확히 234개인 checkout(234를 main에 넣은 병합 커밋 `fab8d67e7994590c58dbf4d1c60ae34bfabc5595` 등)에서만 실행된다. 235번째 SQL(`20260917090000_wedding_code_research_scene_v09.sql`)이 있는 checkout에서는 아래 정적 검사와 실행기가 `NEW_MIGRATION_NOT_REVIEWED`로 거절하며, 그 다음 단계는 `WEDDING_CODE_RESEARCH_SCENE_V09_RELEASE_2026-09-17.md`를 따른다. 아래 본문은 적용 당시의 절차 기록이다.
 
 ## 범위
 

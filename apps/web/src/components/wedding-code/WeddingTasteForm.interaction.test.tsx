@@ -5,8 +5,10 @@ import WeddingTasteForm from "./WeddingTasteForm";
 import { createEmptyWeddingTasteDraft } from "@/lib/weddingCode/taste";
 
 let host: HTMLDivElement; let root: Root;
+// 그림 칸은 라벨 아래에 설명 줄을 함께 담는다. 그래서 칸은 버튼 전체 글자가 아니라 라벨 요소로 찾는다.
+const buttonLabel = (item: Element) => (item.querySelector("[data-choice-label]") ?? item).textContent?.trim();
 function click(text: string) {
-  const button = [...host.querySelectorAll("button")].find(item => item.textContent?.trim() === text);
+  const button = [...host.querySelectorAll("button")].find(item => buttonLabel(item) === text);
   expect(button, text).toBeDefined();
   act(() => button?.click());
 }

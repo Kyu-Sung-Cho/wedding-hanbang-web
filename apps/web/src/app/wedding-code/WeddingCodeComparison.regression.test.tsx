@@ -43,12 +43,17 @@ describe("실제로 공개되는 비교 화면", () => {
     await render({ C1: "A", C2: "B" }, { C1: "C", C2: "A" });
     expect(container.querySelector('[data-pair-axis="coordinationScope"] [data-pair-state]')?.getAttribute("data-pair-state")).toBe("different");
     expect(container.textContent).not.toContain("함께 답한 자리가 없어서");
-    expect(container.textContent).toContain("동률");
+    expect(container.textContent).toContain("반반이라 글자를 비교하지 않았어요");
+    // 글자만 보여주지 않고 짧은 이름을 함께 쓴다(혼자 결과의 범례와 같은 이름).
+    expect(container.querySelector('[data-code-slot="coordinationScope"]')?.textContent).toContain("글자 없음");
   });
   it("1자리만 같은 부분 결과를 네 글자 모두 같다고 하지 않는다", async () => {
     await render({ A1: "A" }, { A1: "A" });
     expect(container.querySelector("[data-code-pair]")?.textContent).toContain("비교할 수 있는 1자리");
     expect(container.textContent).not.toContain("글자가 모두 같아요");
+    // 같은 자리도 글자와 짧은 이름을 함께 보여준다.
+    expect(container.querySelector('[data-code-slot="decisionCriteria"]')?.textContent)
+      .toContain("먼저 답한 사람 V(조건 먼저) · 나중에 답한 사람 V(조건 먼저)");
   });
   it("같은 쪽으로 집계한 서로 다른 답도 펼친 목록에 모두 남는다", async () => {
     await render({ B1: "C" }, { B1: "D" });

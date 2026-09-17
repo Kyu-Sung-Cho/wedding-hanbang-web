@@ -6,7 +6,9 @@ import {
   type WeddingCodeV06OptionValue,
 } from "@/constants/weddingCodeV06";
 import { WEDDING_CODE_V08_QUESTIONS } from "@/constants/weddingCodeV08";
+import { WEDDING_CODE_V09_QUESTIONS } from "@/constants/weddingCodeV09";
 import { WEDDING_CODE_SELF_READING } from "@/constants/weddingCodeSelfReading";
+import { WEDDING_CODE_LETTERS } from "@/lib/weddingCode/profile/letters";
 import type { WeddingCodeV06Answers } from "@/lib/weddingCode/v06/gap";
 import {
   buildWeddingCodeSelfProfile,
@@ -121,7 +123,7 @@ describe("웨딩코드 개인 결과", () => {
     expect(lopsidedAxis.lean).toBe("left");
     expect(lopsidedAxis.leftCount).toBe(5);
     expect(lopsidedAxis.rightCount).toBe(0);
-    expect(describeSelfAxisReading(lopsidedAxis)).toContain("5곳");
+    expect(describeSelfAxisReading(lopsidedAxis)).toBe("답한 5장면 모두 V(조건 먼저) 쪽이었어요.");
 
     const balanced = buildWeddingCodeSelfProfile(
       answersForAxis("decisionCriteria", ["A", "A", "A", "A"]),
@@ -154,8 +156,9 @@ describe("웨딩코드 개인 결과", () => {
     const axis = reading(onlyLeft, "preparationMode");
     expect(axis.lean).toBe("left");
     expect(axis.rightCount).toBe(0);
-    expect(describeSelfAxisAbsence(axis)).toContain("한 번도 고르지 않았어요");
-    expect(describeSelfAxisAbsence(axis)).toContain("한 사람이 맡아 정리하는 방법");
+    expect(describeSelfAxisAbsence(axis)).toBe(
+      "“맡아서 하기” 쪽 답은 한 번도 고르지 않았어요. 실제 준비에서도 그랬다는 뜻은 아니에요.",
+    );
 
     // 균형이면 양쪽 다 골랐으므로 없는 것을 없다고 말하지 않는다.
     const balanced = reading(
@@ -165,6 +168,49 @@ describe("웨딩코드 개인 결과", () => {
     expect(balanced.lean).toBe("mixed");
     expect(balanced.missingPhrases).toEqual([]);
     expect(describeSelfAxisAbsence(balanced)).toBeNull();
+  });
+
+  /**
+   * 한 편에 주제가 둘인 축(decisionCriteria)은 덜 고른 쪽 답을 몇 개 골랐어도 그쪽 주제
+   * 하나가 통째로 빠질 수 있다. 그때 「분위기 먼저 쪽 답을 한 번도 안 골랐다」고 하면 거짓이다.
+   */
+  it("덜 고른 쪽 답이 있는데 그쪽 주제 하나만 빠졌으면 그 주제만 말한다", () => {
+    const axis = reading(
+      buildWeddingCodeSelfProfile(
+        { A1: "A", A2: "A", A3: "C", A4: "B", A5: "C" },
+        { questions: WEDDING_CODE_V09_QUESTIONS, axes: WEDDING_CODE_V06_AXES },
+      ),
+      "decisionCriteria",
+    );
+    expect(axis).toMatchObject({ lean: "left", leftCount: 4, rightCount: 1 });
+    expect(axis.missingPhrases).toEqual(["기대나 받은 인상"]);
+    expect(describeSelfAxisAbsence(axis)).toBe(
+      "“분위기 먼저” 쪽 답 가운데 ‘기대나 받은 인상’ 답은 한 번도 고르지 않았어요. 실제 준비에서도 그랬다는 뜻은 아니에요.",
+    );
+    expect(describeSelfAxisReading(axis)).toBe(
+      "답한 5장면 중 4장면은 V(조건 먼저), 1장면은 M(분위기 먼저) 쪽이었어요.",
+    );
+  });
+
+  it("겪은 일과 한 일이 섞인 두 축에만 확인 안내를 붙이고, 답이 없으면 붙이지 않는다", () => {
+    const profile = buildWeddingCodeSelfProfile(answerAll("A"), V07);
+    const note = "이 주제는 겪은 일, 바란 일, 직접 한 일을 한데 셌어요. 실제 고른 문장을 같이 확인해 주세요.";
+    const withNote = profile.axes.filter((axis) => describeSelfAxisReading(axis).endsWith(note));
+    expect(withNote.map((axis) => axis.axis)).toEqual(["preparationMode", "supportOrder"]);
+    for (const axis of buildWeddingCodeSelfProfile({}, V07).axes) {
+      expect(describeSelfAxisReading(axis)).toBe("이 주제는 아직 답하지 않았어요.");
+    }
+  });
+
+  it("짧은 이름은 글자 정의와 같고, 한정 안내는 카드 문구와 따로 나간다", () => {
+    const profile = buildWeddingCodeSelfProfile({ D1: "B", B5: "A" }, V07);
+    for (const axis of profile.axes) {
+      expect(axis.leftLabel).toBe(WEDDING_CODE_LETTERS[axis.axis].left.short);
+      expect(axis.rightLabel).toBe(WEDDING_CODE_LETTERS[axis.axis].right.short);
+    }
+    const support = reading(profile, "supportOrder");
+    expect(support.qualifiers).toEqual(["말을 멈춘 경험만으로 듣는 도움을 원했다고 단정하지 않아요."]);
+    expect(support.watchOut).toBe(WEDDING_CODE_SELF_READING.supportOrder.left.watchOut);
   });
 
   it("가장 자주 고른 확인이 동률이면 하나만 고르지 않는다", () => {
@@ -192,7 +238,7 @@ describe("웨딩코드 개인 결과", () => {
   it("판정 언어를 만들지 않는다", () => {
     const profile = buildWeddingCodeSelfProfile(answerAll("A"), V07);
     const text = [
-      ...profile.axes.map((axis) => `${axis.title} ${axis.tellPartner} ${axis.watchOut}`),
+      ...profile.axes.map((axis) => `${axis.title} ${axis.tellPartner} ${axis.watchOut} ${axis.qualifiers.join(" ")}`),
       ...profile.axes.map(describeSelfAxisReading),
       ...profile.axes.map((axis) => describeSelfAxisAbsence(axis) ?? ""),
       ...profile.repeated.map((item) => item.phrase),

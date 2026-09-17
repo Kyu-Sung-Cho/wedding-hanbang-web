@@ -32,6 +32,7 @@ function reading(
     answered: leftCount + rightCount,
     evidence: [],
     missingPhrases: [],
+    qualifiers: [],
     tellPartner: "문장",
     watchOut: "문장",
   };
@@ -53,10 +54,41 @@ describe("웨딩코드 네 글자", () => {
     expect(letters.code).toBe("VTUH");
     expect(letters.complete).toBe(false);
     for (const slot of letters.slots) {
-      expect(slot.tally).toContain("답한 1장면");
-      expect(slot.tally).toContain("1 대 0");
+      // 한 장면만 답했으면 「1 대 0」이 아니라 그 한 장면이 어느 쪽이었는지만 말한다.
+      expect(slot.countLine).toBe(
+        `답한 1장면은 ${slot.left.letter}(${slot.left.short}) 쪽이었어요.`,
+      );
+      expect(slot.countLine).not.toMatch(/0장면|대 0/);
       expect(WEDDING_CODE_FIRMNESS_LABEL[slot.firmness]).not.toMatch(/굳음|확신|신뢰|안정/);
     }
+  });
+
+  it("셈 문장은 다섯 경우를 나눠 쓰고 왼쪽 글자를 먼저 쓴다", () => {
+    const [split, allOne, tie, none] = buildWeddingCodeLetters(
+      profileOf([[1, 4], [0, 3], [2, 2], [0, 0]]),
+    ).slots;
+    expect(split.countLine).toBe("답한 5장면 중 1장면은 V(조건 먼저), 4장면은 M(분위기 먼저) 쪽이었어요.");
+    expect(allOne.countLine).toBe("답한 3장면 모두 O(맡아서 하기) 쪽이었어요.");
+    expect(tie.countLine).toBe("답한 4장면이 U(우리 둘 먼저) 쪽과 F(가족·하객까지) 쪽 반반이었어요.");
+    expect(none.countLine).toBe("이 주제는 아직 답하지 않았어요.");
+  });
+
+  /**
+   * 범례는 이긴 쪽만이 아니라 **양쪽 끝**을 그린다. 슬롯이 양쪽 글자·이름·수를 모두
+   * 들고 있어야 화면이 셈을 다시 하지 않는다.
+   */
+  it("자리마다 양쪽 글자·짧은 이름·답 수와 고른 쪽을 함께 넘긴다", () => {
+    const letters = buildWeddingCodeLetters(profileOf([[4, 1], [1, 3], [2, 2], [0, 0]]));
+    for (const slot of letters.slots) {
+      const pair = WEDDING_CODE_LETTERS[slot.axis];
+      expect(slot.left).toMatchObject({ letter: pair.left.letter, short: pair.left.short });
+      expect(slot.right).toMatchObject({ letter: pair.right.letter, short: pair.right.short });
+      expect(slot.left.count + slot.right.count).toBe(slot.answered);
+      expect(slot.left.short.length).toBeGreaterThan(0);
+      expect(slot.right.short).not.toBe(slot.left.short);
+    }
+    expect(letters.slots.map((slot) => slot.chosen)).toEqual(["left", "right", null, null]);
+    expect(letters.slots[0]).toMatchObject({ left: { count: 4 }, right: { count: 1 } });
   });
 
   it("응답 분포의 이름을 검증된 확신 정도로 표현하지 않는다", () => {
@@ -92,16 +124,22 @@ describe("웨딩코드 네 글자", () => {
     expect(letters.upperCode).toBe("VTUA");
   });
 
-  it("아슬한 글자는 바뀔 수 있다고 먼저 알린다", () => {
+  it("하나 차이인 글자는 답 하나로 바뀐다고 먼저 알린다", () => {
     const [slot] = buildWeddingCodeLetters(profileOf([[3, 2], [5, 0], [5, 0], [5, 0]])).slots;
     expect(slot.firmness).toBe("narrow");
-    expect(slot.caution).toContain("3 대 2");
-    expect(slot.caution).toContain("바뀔 수 있어요");
-    // 반대편 글자를 정확히 알려준다.
-    expect(slot.caution).toContain(WEDDING_CODE_LETTERS.decisionCriteria.right.letter);
+    expect(slot.letter).toBe("v");
+    // 소문자가 아니라 대문자로, 반대편 글자를 정확히 알려준다.
+    expect(slot.narrowCaution).toBe(
+      "양쪽 답이 하나 차이예요. 답 하나만 반대쪽으로 바꿔도 V 대신 M 글자가 나와요.",
+    );
+    expect(slot.countLine).toContain("3장면은 V(조건 먼저), 2장면은 M(분위기 먼저)");
+
+    const [right] = buildWeddingCodeLetters(profileOf([[1, 2], [5, 0], [5, 0], [5, 0]])).slots;
+    expect(right.letter).toBe("m");
+    expect(right.narrowCaution).toContain("M 대신 V 글자가");
 
     const firm = buildWeddingCodeLetters(profileOf([[5, 0], [5, 0], [5, 0], [5, 0]])).slots[0];
-    expect(firm.caution).toBeNull();
+    expect(firm.narrowCaution).toBeNull();
   });
 
   /**
@@ -113,18 +151,21 @@ describe("웨딩코드 네 글자", () => {
     expect(skipped.slots[0].upper).toBeNull();
     expect(skipped.slots[0].firmness).toBe("unset");
     expect(skipped.complete).toBe(false);
-    expect(skipped.slots[0].meaning).toContain("건너뛰어서");
+    expect(skipped.slots[0].meaning).toBe("이 주제 장면을 모두 건너뛰어서 글자가 없어요");
+    expect(skipped.slots[0].chosen).toBeNull();
 
     // 건너뛴 문항 때문에 짝수가 되어 정확히 반반이 될 수 있다.
     const tied = buildWeddingCodeLetters(profileOf([[2, 2], [5, 0], [5, 0], [5, 0]]));
     expect(tied.slots[0].upper).toBeNull();
-    expect(tied.slots[0].tally).toContain("반반");
+    expect(tied.slots[0].countLine).toContain("반반");
+    expect(tied.slots[0].meaning).toBe("양쪽 답이 같은 수라서 이 자리는 글자를 비워 뒀어요");
+    expect(tied.slots[0].narrowCaution).toBeNull();
     expect(tied.complete).toBe(false);
   });
 
   it("셈이 항상 글자와 함께 나간다", () => {
     for (const slot of buildWeddingCodeLetters(profileOf([[5, 0], [4, 1], [3, 2], [0, 0]])).slots) {
-      expect(slot.tally.length).toBeGreaterThan(0);
+      expect(slot.countLine.length).toBeGreaterThan(0);
       expect(slot.meaning.length).toBeGreaterThan(0);
     }
   });
@@ -132,7 +173,7 @@ describe("웨딩코드 네 글자", () => {
   it("성격을 설명하거나 점수를 매기지 않는다", () => {
     const letters = buildWeddingCodeLetters(profileOf([[5, 0], [4, 1], [3, 2], [2, 3]]));
     const text = letters.slots
-      .map((slot) => `${slot.meaning} ${slot.tally} ${slot.caution ?? ""}`)
+      .map((slot) => `${slot.meaning} ${slot.countLine} ${slot.narrowCaution ?? ""} ${slot.left.short} ${slot.right.short}`)
       .join(" ");
     for (const banned of ["당신은", "성격", "유형", "궁합", "점수", "등급", "예측", "잘 맞"]) {
       expect(text, banned).not.toContain(banned);

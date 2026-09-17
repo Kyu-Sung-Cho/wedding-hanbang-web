@@ -89,11 +89,11 @@ describe("웨딩코드 진입 화면", () => {
     for (const banned of ["점수가", "등급", "궁합이", "유형이에요", "당신은 "]) {
       expect(html, banned).not.toContain(banned);
     }
-    expect(html).toContain("성격이나 궁합을 판정하지 않아요");
+    expect(html).toContain("성격이나 궁합을 판정하는 검사는 아니에요");
     expect(html).toContain("아직 답하기 어려운 장면은 건너뛸 수 있어요");
     // 금액 규모와 가족 구성이 다른 사람도 배제되지 않는다고 먼저 말한다.
     expect(html).toContain("금액과 상황은 예시예요");
-    expect(html).toContain("부모님·하객·예식이 없는 경우도");
+    expect(html).toContain("부모님·하객·결혼식이 없는 경우에도");
   });
 
   it("먼저 답한 사람의 코드가 오면 응답 순서를 정확히 알린다", async () => {
@@ -104,8 +104,9 @@ describe("웨딩코드 진입 화면", () => {
 
   it("DB 비저장과 URL 노출을 구분해 알린다", async () => {
     const html = await render({});
-    expect(html).toContain("장면의 답은 서버나 브라우저 저장소에 보관하지 않아요");
-    expect(html).toContain("공유 링크에는 답이 들어가므로");
+    // 브라우저에는 동의와 상관없이 남기지 않고(새로고침하면 사라짐), 서버에도 저장하지 않는다.
+    expect(html).toContain("고른 답은 브라우저에 남기지 않아서 새로고침하면 사라지고, 서버에도 저장하지 않아요");
+    expect(html).toContain("공유 링크에는 내 답이 담기니");
     expect(html).not.toContain("답은 저장되지 않아요");
   });
 
@@ -212,6 +213,8 @@ describe("웨딩코드 진입 화면", () => {
     expect(html).toContain("둘 다 못 받아서 답이 며칠씩 밀렸다");
     expect(html).toContain("정리한 사람이 3곳으로 줄여달라고 했다");
     expect(html).toContain("두 쪽 답을 같은 수로 골랐어요");
+    // 각자 요약의 셈은 결과 화면 범례와 같은 문장이고, 겪은 일이 섞인 축이라 확인 안내가 붙는다.
+    expect(html).toContain("답한 2장면이 T(둘이 같이) 쪽과 O(맡아서 하기) 쪽 반반이었어요. 이 주제는 겪은 일, 바란 일, 직접 한 일을 한데 셌어요.");
     expect(html).not.toContain("함께 보기와 맡기기 답을 같은 수");
     expect(html).not.toContain("반복해서 고른");
   });
@@ -228,9 +231,15 @@ describe("웨딩코드 진입 화면", () => {
       expect(html, axis.key).toContain(`data-pair-axis="${axis.key}"`);
     }
     // 셈 문장은 카피 상수가 아니라 실제 응답에서 나와야 한다.
-    // 한쪽으로 몰린 응답은 4곳, 문항 설계상 2:2가 되는 응답은 균형 문장이 나온다.
-    expect(html).toContain("답한 5장면 중 5곳에서");
-    expect(html).toMatch(/답한 \d장면 중 \d곳에서/);
+    // 먼저 답한 사람은 모두 한쪽, 나중에 답한 사람(전부 D)은 축마다 양쪽이 섞인다.
+    expect(html).toContain("답한 5장면 모두 V(조건 먼저) 쪽이었어요.");
+    expect(html).toContain("답한 5장면 중 2장면은 V(조건 먼저), 3장면은 M(분위기 먼저) 쪽이었어요.");
+    // 셈 문장 안에서 숫자·영문 바로 뒤에 조사가 붙지 않는다(「1예요」 「M로」).
+    const countLines = html.match(/답한 \d장면[^<]*?쪽(?:이었어요|과)[^<]*/g) ?? [];
+    expect(countLines.length).toBeGreaterThanOrEqual(8);
+    for (const line of countLines) {
+      expect(line).not.toMatch(/\d(?!장면)[가-힣]|[A-Za-z][가-힣]/);
+    }
   });
 
   /**

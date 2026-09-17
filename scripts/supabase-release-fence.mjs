@@ -586,6 +586,18 @@ function verifyRemotePending() {
 
 // 새 후속 릴리스는 기존 기본 fence의 목록/핀을 바꾸지 않고 명시 모드로만 검증한다.
 // 이 분기는 로컬 계약 검사이며 hosted 증거 수집이나 원격 명령을 실행하지 않는다.
+if (args.has("--wedding-code-research-scene-v09")) {
+  if (process.argv.slice(2).length !== 1) fail("WEDDING_CODE_SCENE_VERSION_STATIC_ARGUMENTS_INVALID: only the explicit non-deploy mode is allowed");
+  try {
+    const { loadWeddingCodeSceneVersionReleasePlan } = await import("./lib/wedding-code-research-scene-v09-release-contract.mjs");
+    const plan = loadWeddingCodeSceneVersionReleasePlan(repoRoot);
+    console.log(`WeddingCode research scene v0.9 contract verified (${plan.migrationCount} exact SQL files; runtime evidence not verified; deployment not authorized; no remote writes).`);
+    process.exit(0);
+  } catch (error) {
+    fail(/^[A-Z_]+$/.test(error?.code ?? "") ? error.code : "WEDDING_CODE_SCENE_VERSION_STATIC_UNCONFIRMED");
+  }
+}
+
 if (args.has("--wedding-code-research-contributions")) {
   if (process.argv.slice(2).length !== 1) fail("WEDDING_CODE_RESEARCH_STATIC_ARGUMENTS_INVALID: only the explicit non-deploy mode is allowed");
   try {

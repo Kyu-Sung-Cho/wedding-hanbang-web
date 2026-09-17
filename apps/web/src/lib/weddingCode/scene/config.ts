@@ -13,6 +13,12 @@ import {
   WEDDING_CODE_V08_QUESTIONS,
   WEDDING_CODE_V08_VERSION,
 } from "@/constants/weddingCodeV08";
+import {
+  WEDDING_CODE_V09_AXES,
+  WEDDING_CODE_V09_NEXT_STEPS,
+  WEDDING_CODE_V09_QUESTIONS,
+  WEDDING_CODE_V09_VERSION,
+} from "@/constants/weddingCodeV09";
 
 const WEDDING_CODE_V06_NEXT_STEPS = {
   A1: "각자 먼저 확인할 항목을 하나씩 말하고, 총액·받는 사진 수·보정해 주는 사진 수·앨범에 들어가는 사진 수·취소 조건을 견적서에서 확인해 보세요.",
@@ -53,7 +59,8 @@ export function weddingCodeSceneCountLabel(count: number): string {
 
 export type WeddingCodeSceneVersion =
   | typeof WEDDING_CODE_V06_VERSION
-  | typeof WEDDING_CODE_V08_VERSION;
+  | typeof WEDDING_CODE_V08_VERSION
+  | typeof WEDDING_CODE_V09_VERSION;
 
 export type WeddingCodeSceneConfig = Readonly<{
   version: WeddingCodeSceneVersion;
@@ -76,27 +83,57 @@ export const WEDDING_CODE_V08_SCENE_CONFIG: WeddingCodeSceneConfig = {
   nextSteps: WEDDING_CODE_V08_NEXT_STEPS,
 };
 
-export const CURRENT_WEDDING_CODE_SCENE_CONFIG = WEDDING_CODE_V08_SCENE_CONFIG;
+export const WEDDING_CODE_V09_SCENE_CONFIG: WeddingCodeSceneConfig = {
+  version: WEDDING_CODE_V09_VERSION,
+  questions: WEDDING_CODE_V09_QUESTIONS,
+  axes: WEDDING_CODE_V09_AXES,
+  nextSteps: WEDDING_CODE_V09_NEXT_STEPS,
+};
 
+/**
+ * 새로 시작하는 사람이 푸는 판. 옛 판은 **그 판으로 만든 링크를 열 때만** 쓴다.
+ *
+ * v0.8 → v0.9 (2026-09-17): 팀원이 라이브에서 풀어보고 선택지가 겹치고(동시에 고를 수
+ * 있고), 정답이 뻔하고, 준비를 안 해본 사람은 상황을 모르고, 말투가 AI 같다고 했다.
+ * 고치려면 선택지의 **뜻**이 바뀐다. 같은 `v0.8-code` 로 문장만 바꾸면 이미 보낸 링크가
+ * 상대가 고르지도 않은 문장을 인용하고, 연구 기여 답도 두 문구가 한 판으로 섞인다.
+ * 그래서 판을 올렸다.
+ */
+export const CURRENT_WEDDING_CODE_SCENE_CONFIG = WEDDING_CODE_V09_SCENE_CONFIG;
+
+const SCENE_CONFIGS: Readonly<Record<WeddingCodeSceneVersion, WeddingCodeSceneConfig>> = {
+  [WEDDING_CODE_V06_VERSION]: WEDDING_CODE_V06_SCENE_CONFIG,
+  [WEDDING_CODE_V08_VERSION]: WEDDING_CODE_V08_SCENE_CONFIG,
+  [WEDDING_CODE_V09_VERSION]: WEDDING_CODE_V09_SCENE_CONFIG,
+};
+
+/**
+ * 판 이름 → 그 판의 문항.
+ *
+ * 예전에는 「v0.6 이 아니면 v0.8」 삼항식이었다. 판을 하나 더하면 **새 판 답이 옛 판
+ * 문장으로 보이는데** 타입 검사도 못 잡는다. 판마다 표에 한 줄씩 두면 판을 union 에
+ * 더하는 순간 이 표가 빠진 칸을 타입 오류로 알려준다.
+ */
 export function weddingCodeSceneConfigForExactVersion(
   version: WeddingCodeSceneVersion,
 ): WeddingCodeSceneConfig {
-  return version === WEDDING_CODE_V06_VERSION
-    ? WEDDING_CODE_V06_SCENE_CONFIG
-    : WEDDING_CODE_V08_SCENE_CONFIG;
+  return SCENE_CONFIGS[version];
+}
+
+function isWeddingCodeSceneVersion(value: string): value is WeddingCodeSceneVersion {
+  return Object.hasOwn(SCENE_CONFIGS, value);
 }
 
 /**
  * v0.6 초기에 만든 공유 링크에는 버전이 없었다. 답 코드가 있는 무버전 링크만 v0.6으로
- * 해석하고, 새 진입은 현재 버전(v0.8)으로 연다. 알 수 없는 버전은 다른 문항으로 조용히 해석하지 않는다.
+ * 해석하고, 새 진입은 현재 판으로 연다. 알 수 없는 버전은 다른 문항으로 조용히 해석하지 않는다.
  */
 export function resolveWeddingCodeSceneConfig(
   version: string | null | undefined,
   hasEncodedAnswers: boolean,
 ): WeddingCodeSceneConfig | null {
   const normalized = typeof version === "string" ? version.trim() : "";
-  if (normalized === WEDDING_CODE_V06_VERSION) return WEDDING_CODE_V06_SCENE_CONFIG;
-  if (normalized === WEDDING_CODE_V08_VERSION) return WEDDING_CODE_V08_SCENE_CONFIG;
+  if (normalized !== "" && isWeddingCodeSceneVersion(normalized)) return SCENE_CONFIGS[normalized];
   if (normalized === "") {
     return hasEncodedAnswers
       ? WEDDING_CODE_V06_SCENE_CONFIG

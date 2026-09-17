@@ -2618,6 +2618,11 @@ export async function runProductionRelease({
   now = () => new Date(),
 } = {}) {
   const repoRoot = resolve(requestedRepoRoot ?? process.cwd());
+  if ((argv ?? []).includes("--wedding-code-research-scene-v09")) {
+    assertSafeExecutionEnvironment(process.env);
+    const { runWeddingCodeSceneVersionRelease } = await import("./wedding-code-research-scene-v09-release.mjs");
+    return runWeddingCodeSceneVersionRelease({ repoRoot, argv, now });
+  }
   if ((argv ?? []).includes("--wedding-code-research-contributions")) {
     assertSafeExecutionEnvironment(process.env);
     const { runWeddingCodeResearchRelease } = await import("./wedding-code-research-contributions-release.mjs");
