@@ -35,7 +35,7 @@ export default function WeddingTasteClient() {
     {session.status !== "ready" ? <main className="min-h-dvh bg-[var(--hb-surface-page)] px-4 py-6 text-[var(--hb-text-strong)] sm:py-10">
       <section className={`${card} mx-auto w-full max-w-[640px]`} role={session.status === "error" ? "alert" : "status"}>
         <h1 className="text-xl font-semibold">{session.status === "error" ? "로그인 상태를 확인하지 못했어요" : "로그인 상태를 확인하고 있어요"}</h1>
-        <p className="mt-3 text-sm leading-relaxed">{hasVerifiedSession ? "이 화면의 선택은 잠시 그대로 두었어요. 같은 계정이 확인되면 이어서 볼 수 있어요." : "계정 확인이 끝나면 내 취향을 고를 수 있어요. 입력 중에 계정이 바뀌어 선택을 잃지 않도록 먼저 확인해요."}</p>
+        <p className="mt-3 text-sm leading-relaxed">{hasVerifiedSession ? "고르던 내용은 그대로 있어요. 같은 계정인 게 확인되면 이어서 할 수 있어요." : "확인이 끝나면 바로 고를 수 있어요."}</p>
         {session.status === "error" ? <><Button className="mt-4" onClick={session.retry}>다시 확인하기</Button><p className="mt-3 text-sm leading-relaxed">계속 확인되지 않으면 <a className="underline underline-offset-4" href={"mailto:" + CONTACT.email}>고객지원에 문의해 주세요</a>.</p></> : null}
       </section>
     </main> : null}
@@ -64,7 +64,7 @@ function TasteExperience({ session }: { session: ReturnType<typeof useWeddingCod
       const parsed = hash ? decodeWeddingTasteShareHash(hash) : null;
       setReceived(parsed); setOwn(null); setCopied(false); setReviewAmora(false);
       setShareApproved(false); setIncludePartner(false);
-      setLinkError(hash && !parsed ? "이 취향 링크를 확인하지 못했어요. 보낸 사람에게 다시 받아주세요." : null);
+      setLinkError(hash && !parsed ? "이 링크는 열 수 없어요. 보낸 사람에게 다시 보내 달라고 해 주세요." : null);
       setMode(parsed?.second ? "result" : "intro");
     };
     queueMicrotask(() => { if (active) apply(); });
@@ -83,9 +83,9 @@ function TasteExperience({ session }: { session: ReturnType<typeof useWeddingCod
       const draft = nonces.length === 1 && !url.hash ? consumeWeddingTasteLoginHandoff(nonces[0]) : null;
       url.searchParams.delete("wcTasteReview");
       window.history.replaceState(window.history.state, "", `${url.pathname}${url.search}${url.hash}`);
-      if (!draft) { setNotice("이어 온 선택이 만료됐거나 이 탭에 없어요. 다시 고르거나 보관한 내 요약을 확인해 주세요."); return; }
+      if (!draft) { setNotice("고르던 내용을 불러오지 못했어요. 15분이 지났거나 다른 탭에서 열었을 수 있어요. 다시 골라 주세요."); return; }
       setReceived(null); setOwn(draft); setMode("result"); setReviewAmora(true);
-      setNotice("로그인 전 선택을 가져왔어요. 아래의 현재 계정과 전달할 내용을 확인해 주세요. 아직 대화로 보내지 않았어요.");
+      setNotice("로그인 전에 고른 내용을 가져왔어요. 아래에서 계정과 보낼 내용을 확인해 주세요. 아모라에게는 아직 보내지 않았어요.");
     });
     return () => { active = false; };
   }, [isInitialized, isLoading, user, isDemo, session.status]);
@@ -114,17 +114,17 @@ function TasteExperience({ session }: { session: ReturnType<typeof useWeddingCod
     <main className="min-h-dvh bg-[var(--hb-surface-page)] px-4 py-6 text-[var(--hb-text-strong)] sm:py-10">
       <div className="mx-auto w-full max-w-[640px] space-y-4 [&_button]:whitespace-normal [&_button]:leading-relaxed">
         <Link href="/wedding-code" className="inline-flex min-h-11 items-center text-sm underline underline-offset-4">웨딩코드로 돌아가기</Link>
-        {isDemo ? <p role="status" className={`${card} text-sm leading-relaxed`}>체험 모드에서는 취향을 고르고 링크로 공유할 수 있어요. 개인 상담은 실제 계정으로 로그인한 뒤 이용해 주세요.</p> : null}
+        {isDemo ? <p role="status" className={`${card} text-sm leading-relaxed`}>체험 모드에서는 취향을 고르고 링크로 공유할 수 있어요. 아모라와 이야기하려면 내 계정으로 로그인해 주세요.</p> : null}
         {notice ? <p role="status" className={`${card} text-sm leading-relaxed`}>{notice}</p> : null}
-        {linkError ? <section className={card} role="alert"><h1 className="text-xl font-semibold">링크를 다시 확인해 주세요</h1><p className="mt-3 text-sm leading-relaxed">{linkError}</p><Button className="mt-5" onClick={startFresh}>내 선택 새로 시작하기</Button></section> : mode === "intro" ? (
+        {linkError ? <section className={card} role="alert"><h1 className="text-xl font-semibold">링크를 다시 확인해 주세요</h1><p className="mt-3 text-sm leading-relaxed">{linkError}</p><Button className="mt-5" onClick={startFresh}>내 취향 처음부터 고르기</Button></section> : mode === "intro" ? (
           <section className={card}>
-            <p className="text-xs font-semibold text-[var(--hb-text-muted)]">웨딩코드 · 직접 고르는 취향</p>
+            <p className="text-xs font-semibold text-[var(--hb-text-muted)]">웨딩코드 · 취향 고르기</p>
             <h1 className="mt-3 text-3xl font-semibold leading-snug">내가 원하는 결혼식</h1>
-            <p className="mt-4 text-base leading-relaxed">좋아하는 모습, 피하고 싶은 것, 함께 맞춰볼 범위를 정리해요. 중요하게 이야기할 두 주제부터 골라보세요.</p>
-            {received ? <p className="mt-4 rounded-[6px] bg-[var(--hb-surface-hover)] p-4 text-sm leading-relaxed">먼저 답한 사람이 취향 링크를 보냈어요. 내 선택을 직접 고른 뒤 두 사람의 답을 나란히 볼 수 있어요.</p> : null}
-            <p className="mt-4 text-sm leading-relaxed text-[var(--hb-text-muted)]">선택한 주제에 따라 최대 6개 질문이에요. 아직 모르거나 계획에 없는 것은 그대로 남겨도 괜찮아요. 이번에 고르지 않은 분야가 덜 중요하다는 뜻은 아니에요.</p>
-            <Button variant="primary" fullWidth className="mt-6" onClick={() => setMode("form")}>{received ? "내 취향도 직접 고르기" : "내 취향 고르기"}</Button>
-            <p className="mt-3 text-xs leading-relaxed text-[var(--hb-text-muted)]">선택은 이 화면에만 있어요. 새로고침하면 사라져요. 공유하거나 로그인·상담으로 이어갈 때 포함할 내용과 보관 범위를 확인해요.</p>
+            <p className="mt-4 text-base leading-relaxed">어떤 분위기가 좋은지, 뭘 피하고 싶은지 골라서 정리해 봐요. 먼저 이야기하고 싶은 주제 두 개부터 고르면 돼요.</p>
+            {received ? <p className="mt-4 rounded-[6px] bg-[var(--hb-surface-hover)] p-4 text-sm leading-relaxed">먼저 답한 사람이 취향 링크를 보냈어요. 나도 고르고 나면 둘의 답을 나란히 볼 수 있어요.</p> : null}
+            <p className="mt-4 text-sm leading-relaxed text-[var(--hb-text-muted)]">질문은 고른 주제에 따라 최대 6개예요. 모르거나 계획에 없는 건 건너뛰어도 돼요.</p>
+            <Button variant="primary" fullWidth className="mt-6" onClick={() => setMode("form")}>{received ? "내 취향도 고르기" : "내 취향 고르기"}</Button>
+            <p className="mt-3 text-xs leading-relaxed text-[var(--hb-text-muted)]">고른 내용은 이 화면에만 있어서 새로고침하면 사라져요. 링크로 보내거나 아모라에게 넘기기 전에, 무엇이 담기고 얼마나 보관되는지 먼저 보여 드릴게요.</p>
           </section>
         ) : mode === "form" ? (
           <WeddingTasteForm initialDraft={own ?? undefined} onComplete={draft => {
@@ -133,25 +133,25 @@ function TasteExperience({ session }: { session: ReturnType<typeof useWeddingCod
         ) : (
           <>
             {own ? <section className={card} data-taste-own="">
-              <p className="text-xs text-[var(--hb-text-muted)]">지금 내가 직접 고른 것</p>
+              <p className="text-xs text-[var(--hb-text-muted)]">내가 고른 것</p>
               <h1 className="mt-2 text-2xl font-semibold">내가 원하는 결혼식</h1>
-              {visibleRows.length ? <dl className="mt-5 divide-y divide-[var(--hb-hairline)]">{visibleRows.map(row => <div key={row.key} className="py-3"><dt className="text-xs text-[var(--hb-text-muted)]">{row.label}</dt><dd className="mt-1 text-base font-medium leading-relaxed">{row.value}</dd></div>)}</dl> : <p className="mt-4 text-sm leading-relaxed">이번에는 선택을 비워뒀어요. 원하는 방향이 생기면 다시 고를 수 있어요.</p>}
-              <p className="mt-4 text-sm leading-relaxed text-[var(--hb-text-muted)]">이번에 확인하지 않은 취향은 추측하지 않았어요. 한 사람의 희망이며 두 사람의 공동 합의는 아니에요.</p>
-              <Button variant="secondary" className="mt-5" onClick={() => { setMode("form"); setReviewAmora(false); }}>내 선택 다시 보기</Button>
+              {visibleRows.length ? <dl className="mt-5 divide-y divide-[var(--hb-hairline)]">{visibleRows.map(row => <div key={row.key} className="py-3"><dt className="text-xs text-[var(--hb-text-muted)]">{row.label}</dt><dd className="mt-1 text-base font-medium leading-relaxed">{row.value}</dd></div>)}</dl> : <p className="mt-4 text-sm leading-relaxed">이번에는 선택을 비워뒀어요. 마음이 정해지면 언제든 다시 고르면 돼요.</p>}
+              <p className="mt-4 text-sm leading-relaxed text-[var(--hb-text-muted)]">고른 것만 적었고, 둘이 같이 정한 내용은 아니에요.</p>
+              <Button variant="secondary" className="mt-5" onClick={() => { setMode("form"); setReviewAmora(false); }}>다시 고르기</Button>
             </section> : null}
             {comparison ? <section className={card} data-taste-comparison="">
-              <h2 className="text-xl font-semibold">두 사람이 고른 것, 나란히</h2>
-              <p className="mt-3 text-sm leading-relaxed text-[var(--hb-text-muted)]">링크를 만들 당시의 선택일 수 있어요. 먼저·나중은 응답 순서이며 계정이나 신원을 확인한 결과가 아니에요. 같은 선택이어도 이유는 직접 확인해 주세요.</p>
+              <h2 className="text-xl font-semibold">두 사람이 고른 것</h2>
+              <p className="mt-3 text-sm leading-relaxed text-[var(--hb-text-muted)]">링크를 만들 때 고른 거라 지금과 다를 수 있어요. ‘먼저 답한 사람’, ‘나중에 답한 사람’은 답한 순서일 뿐, 누구인지 확인한 건 아니에요. 같은 걸 골랐어도 왜 골랐는지는 서로 물어보세요.</p>
               <div className="mt-4 divide-y divide-[var(--hb-hairline)]">{comparison.filter(row => nonemptyComparisonKeys.has(row.key)).map(row => <article key={row.key} data-taste-pair={row.key} className="py-4">
-                <h3 className="text-sm font-semibold">{row.label}</h3><p className="mt-1 text-xs text-[var(--hb-text-muted)]">{row.status === "same_selection" ? "같은 선택" : row.status === "different_selection" ? "서로 다른 선택" : "직접 확인할 부분"}</p>
+                <h3 className="text-sm font-semibold">{row.label}</h3><p className="mt-1 text-xs text-[var(--hb-text-muted)]">{row.status === "same_selection" ? "같은 선택" : row.status === "different_selection" ? "서로 다른 선택" : "서로 물어볼 부분"}</p>
                 <p className="mt-3 text-sm leading-relaxed">먼저 답한 사람: {row.first}</p><p className="mt-2 text-sm leading-relaxed">나중에 답한 사람: {row.second}</p>
               </article>)}</div>
             </section> : null}
             {canUseOwn && own ? <section className={card}>
               <h2 className="text-xl font-semibold">함께 볼 사람에게 보내기</h2>
-              <p className="mt-3 text-sm leading-relaxed">위의 직접 선택한 내용이 링크에 포함돼요. 링크를 받은 사람은 누구나 읽을 수 있고 전달한 링크는 회수할 수 없어요.</p>
+              <p className="mt-3 text-sm leading-relaxed">위에서 고른 내용이 링크에 담겨요. 링크를 가진 사람은 누구나 볼 수 있고, 한 번 보낸 링크는 되돌릴 수 없어요.</p>
               {received ? <label className="mt-3 flex min-h-11 items-center gap-3 text-sm"><input type="checkbox" checked={includePartner} onChange={event => { setIncludePartner(event.target.checked); setShareApproved(false); setCopied(false); }} />먼저 답한 사람의 선택도 함께 담기</label> : null}
-              <label className="mt-3 flex min-h-11 items-center gap-3 text-sm leading-relaxed"><input type="checkbox" checked={shareApproved} onChange={event => { setShareApproved(event.target.checked); setCopied(false); }} />{includePartner ? "나란히 본 두 사람의 선택을" : "위의 내 선택을"} 링크로 보낼게요</label>
+              <label className="mt-3 flex min-h-11 items-center gap-3 text-sm leading-relaxed"><input type="checkbox" checked={shareApproved} onChange={event => { setShareApproved(event.target.checked); setCopied(false); }} />{includePartner ? "두 사람의 선택을 모두" : "위의 내 선택을"} 링크로 보낼게요</label>
               <Button fullWidth className="mt-4" disabled={!shareApproved} onClick={async () => {
                 try {
                   if (!shareUrl) return;
@@ -159,9 +159,9 @@ function TasteExperience({ session }: { session: ReturnType<typeof useWeddingCod
                   await navigator.clipboard.writeText(shareUrl);
                   setCopied(true);
                 } catch {
-                  setNotice("링크를 복사하지 못했어요. 브라우저의 클립보드 권한을 확인하고 다시 눌러주세요.");
+                  setNotice("링크를 복사하지 못했어요. 아래 ‘링크 주소 직접 복사하기’를 눌러 복사해 주세요.");
                 }
-              }}>{copied ? "링크를 복사했어요" : "선택 링크 복사하기"}</Button>
+              }}>{copied ? "링크를 복사했어요" : "링크 복사하기"}</Button>
               {shareUrl ? <details className="mt-3">
                 <summary className="cursor-pointer py-3 text-sm underline underline-offset-4">링크 주소 직접 복사하기</summary>
                 <input aria-label="공유 링크 주소" readOnly value={shareUrl} onFocus={event => event.currentTarget.select()} className="min-h-11 w-full min-w-0 rounded-[6px] border border-[var(--hb-hairline)] px-3 text-base" />
@@ -178,25 +178,25 @@ function TasteExperience({ session }: { session: ReturnType<typeof useWeddingCod
             */}
             {canUseOwn && own && !insideApp ? <section className={card} data-taste-amora="">
               <h2 className="text-xl font-semibold">내 선택으로 아모라와 이야기하기</h2>
-              <p className="mt-3 text-sm leading-relaxed">내가 직접 고른 내용만 나만 상담으로 옮겨요. 상대가 보낸 답은 포함하지 않아요.</p>
+              <p className="mt-3 text-sm leading-relaxed">내가 고른 내용만 ‘나만 상담’ 대화로 옮겨요. 상대가 보낸 답은 넣지 않아요.</p>
               {!reviewAmora ? <Button className="mt-5" fullWidth onClick={() => setReviewAmora(true)}>전달할 내용 확인하기</Button> : <>
                 <p className="mt-4 whitespace-pre-wrap rounded-[6px] bg-[var(--hb-surface-hover)] p-4 text-sm leading-relaxed" data-taste-amora-text="">{buildWeddingTasteAmoraText(own)}</p>
-                <p className="mt-4 break-all text-sm leading-relaxed">{user && !isDemo ? `현재 계정: ${user.email ?? profile?.name ?? "로그인한 내 계정"}` : "로그인 후 현재 계정과 이 내용을 한 번 더 확인해요."}</p>
-                <p className="mt-3 text-xs leading-relaxed text-[var(--hb-text-muted)]">계속하면 선택값을 이 탭에 최대 15분간 임시 보관해요. 상담에는 초안으로 열리고, 보내기를 눌러야 개인 대화에 저장돼요. 예산·일정·공동 결정을 지금 바꾸지 않아요.</p>
+                <p className="mt-4 break-all text-sm leading-relaxed">{user && !isDemo ? `현재 계정: ${user.email ?? profile?.name ?? "로그인한 내 계정"}` : "로그인하면 계정과 이 내용을 한 번 더 보여 드릴게요."}</p>
+                <p className="mt-3 text-xs leading-relaxed text-[var(--hb-text-muted)]">계속하면 고른 내용을 이 탭에 15분 동안만 담아 둬요. 대화창에는 초안으로 들어가고, 보내기를 눌러야 내 대화에 저장돼요. 예산이나 일정, 둘이 정한 내용은 바뀌지 않아요.</p>
                 {needsAccountReview ? <div className="mt-4 rounded-[6px] border border-[var(--hb-hairline)] p-4 text-sm leading-relaxed" role="alert">
-                  <p>계정 준비는 완료됐지만 개인 상담에 필요한 연결 정보를 확인하지 못했어요. 계정 정보를 다시 불러와 주세요. 같은 문제가 계속되면 고객지원에서 확인을 도와드릴게요.</p>
+                  <p>계정 준비는 완료됐지만 아모라 대화를 여는 데 필요한 정보를 불러오지 못했어요. 아래 버튼으로 다시 불러와 주세요. 계속 안 되면 고객지원에 알려 주세요.</p>
                   <Button className="mt-3" onClick={session.retry}>계정 정보 다시 확인</Button>
                   <a className="ml-3 inline-flex min-h-11 items-center underline underline-offset-4" href={"mailto:" + CONTACT.email}>고객지원 문의</a>
                 </div> : <Button variant="primary" className="mt-5" fullWidth disabled={session.status !== "ready" || !isInitialized || isLoading} onClick={() => {
                   if (session.status !== "ready" || needsAccountReview) return;
                   const handoff = canChat ? prepareWeddingTasteChat(own) : createWeddingTasteLoginHandoff(own);
-                  if (!handoff) { setNotice("선택을 이어갈 수 없어요. 로그인 상태와 이 탭의 저장소 허용을 확인하고 다시 눌러주세요."); return; }
+                  if (!handoff) { setNotice("고른 내용을 넘기지 못했어요. 로그인이 풀리지 않았는지, 브라우저가 사이트 데이터 저장을 막고 있지 않은지 확인하고 다시 눌러 주세요."); return; }
                   router.push(handoff.href);
-                }}>{canChat ? "이 계정의 나만 상담에 초안 열기" : user && !isDemo ? "계정 준비하고 내 선택 이어가기" : "로그인하고 내 선택 이어가기"}</Button>}
+                }}>{canChat ? "‘나만 상담’에 초안으로 열기" : user && !isDemo ? "계정 준비하고 내 선택 이어가기" : "로그인하고 내 선택 이어가기"}</Button>}
                 {user && !isDemo && !canChat && !needsAccountReview ? <p className="mt-3 text-sm leading-relaxed">계정 준비를 완료하면 이 선택을 다시 확인할 수 있어요.</p> : null}
               </>}
             </section> : null}
-            {!own ? <section className={card}><p className="text-sm leading-relaxed">전달받은 선택은 내 계정에 반영하지 않아요. 내 취향은 직접 새로 고를 수 있어요.</p><Button className="mt-4" fullWidth onClick={startFresh}>내 선택 새로 시작하기</Button></section> : null}
+            {!own ? <section className={card}><p className="text-sm leading-relaxed">받은 링크의 선택은 내 계정에 저장되지 않아요. 내 취향은 따로 골라 주세요.</p><Button className="mt-4" fullWidth onClick={startFresh}>내 취향 처음부터 고르기</Button></section> : null}
           </>
         )}
       </div>

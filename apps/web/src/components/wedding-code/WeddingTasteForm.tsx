@@ -83,7 +83,7 @@ function Choices<T extends string>({ value, options, max, onChange, statusLabels
   const columns: TileColumns | null = options.length === 3 || options.length === 4 || options.length === 6 ? options.length : null;
   return (
     <div>
-      <p className="mb-3 text-[13px] text-[var(--hb-text-muted)]">{max === 1 ? "한 가지를 고르거나 아래에서 현재 상태를 알려주세요." : "최대 " + max + "개 · 다시 누르면 선택을 지울 수 있어요."}</p>
+      <p className="mb-3 text-[13px] text-[var(--hb-text-muted)]">{max === 1 ? "하나만 골라 주세요. 딱 맞는 게 없으면 아래에서 골라도 돼요." : "최대 " + max + "개까지 고를 수 있어요. 다시 누르면 선택이 풀려요."}</p>
       {visuals && columns ? <div className={"grid gap-2 sm:gap-3 " + TILE_LAYOUT.grid[columns]}>
         {options.map(option => {
           const drawScene = visuals[option.value];
@@ -156,29 +156,29 @@ export default function WeddingTasteForm({ onComplete, initialDraft }: WeddingTa
     setError(null);
     if (!last) { setIndex(value => value + 1); return; }
     const parsed = parseWeddingTasteDraft(draft);
-    if (!parsed) { setError("선택한 내용을 확인하지 못했어요. 이전 질문에서 다시 확인해주세요."); return; }
+    if (!parsed) { setError("고른 내용을 정리하지 못했어요. 앞 질문으로 돌아가 다시 골라 주세요."); return; }
     onComplete(parsed);
   }
-  const title = step.kind === "priorities" ? "내 결혼식에서 특히 중요하게 생각하는 것은 무엇인가요?"
-    : step.kind === "mood" ? "원하는 결혼식 분위기는 어떤 쪽인가요?"
+  const title = step.kind === "priorities" ? "원하는 결혼식, 뭐부터 이야기해 볼까요?"
+    : step.kind === "mood" ? "어떤 분위기의 결혼식이 좋아요?"
     : step.kind === "detail" ? TASTE_DOMAIN_QUESTIONS[step.domain].question
-    : step.kind === "avoids" ? "이번 준비에서 피하고 싶은 것이 있나요?"
-    : "서로 생각이 다르면 어느 정도 맞춰보고 싶나요?";
+    : step.kind === "avoids" ? "꼭 피하고 싶은 게 있나요?"
+    : "둘의 생각이 다르면 어떻게 하고 싶나요?";
   return (
     <section aria-labelledby="wedding-taste-question" className="rounded-[6px] border border-[var(--hb-hairline)] bg-[var(--hb-surface-raised)]">
       <div className="border-b border-[var(--hb-hairline)] bg-[var(--hb-surface-hover)] px-5 py-6 sm:px-7">
-        <p className="text-[13px] font-semibold text-[var(--hb-success)]" aria-live="polite">질문 {index + 1} · 선택한 주제에 따라 최대 6개</p>
+        <p className="text-[13px] font-semibold text-[var(--hb-success)]" aria-live="polite">질문 {index + 1} · 최대 6개</p>
         <h2 ref={heading} id="wedding-taste-question" tabIndex={-1} className="mt-3 text-[22px] font-semibold leading-relaxed text-[var(--hb-text-strong)] focus:outline-none">{title}</h2>
         <p className="mt-3 text-[14px] leading-relaxed text-[var(--hb-text-body)]">
-          {step.kind === "priorities" ? "지금 먼저 이야기할 것 두 가지만 골라도 돼요. 다른 항목이 덜 중요하다는 뜻은 아니에요."
-            : step.kind === "negotiability" ? "방금 직접 고른 방향만 확인해요. 다른 안을 함께 보는 것은 양보 약속이 아니에요."
-            : step.kind === "avoids" ? "해당하는 것만 골라주세요. 피하고 싶은 것이 곧 두 사람의 합의나 계약 조건은 아니에요."
-            : "상대의 생각을 대신 고르지 않고, 지금 내가 원하는 만큼만 답해주세요."}
+          {step.kind === "priorities" ? "고른 주제는 뒤에서 조금 더 자세히 물어볼게요. 안 고른 건 나중에 이야기해도 돼요."
+            : step.kind === "negotiability" ? "앞에서 고른 주제만 물어볼게요. 다른 안도 볼 수 있다고 해서 양보하겠다는 뜻은 아니에요."
+            : step.kind === "avoids" ? "내가 피하고 싶은 것만 골라 주세요."
+            : "상대 생각 말고 내 취향대로 골라 주세요."}
         </p>
       </div>
       <div className="px-5 py-6 sm:px-7">
         {step.kind === "priorities" ? <Choices value={draft.priorityDomains} options={TASTE_DOMAIN_OPTIONS} max={2} onChange={changePriorities}
-          statusLabels={{ no_preference: "지금 우선순위를 나누지 않을게요" }} visuals={PRIORITY_SCENES} /> : null}
+          statusLabels={{ no_preference: "딱히 먼저 할 이야기는 없어요" }} visuals={PRIORITY_SCENES} /> : null}
         {step.kind === "mood" ? <Choices value={draft.mood} options={TASTE_MOOD_OPTIONS} max={2} onChange={mood => setDraft(previous => ({ ...previous, mood }))}
           visuals={MOOD_SCENES} /> : null}
         {step.kind === "detail" ? <Choices value={draft.details[step.domain] ?? { status: "skipped" }} options={TASTE_DOMAIN_QUESTIONS[step.domain].options}
@@ -212,7 +212,7 @@ export default function WeddingTasteForm({ onComplete, initialDraft }: WeddingTa
           <Button variant="secondary" disabled={index === 0} onClick={() => { setError(null); setIndex(value => Math.max(0, value - 1)); }}>이전</Button>
           <Button variant="primary" className="flex-1" onClick={next}>{last ? "내 선택 보기" : "다음"}</Button>
         </div>
-        <p className="mt-3 text-[12px] leading-relaxed text-[var(--hb-text-muted)]">답하지 않은 항목은 비워둬요. 선택만으로 계정이나 아모라에 저장되지 않아요.</p>
+        <p className="mt-3 text-[12px] leading-relaxed text-[var(--hb-text-muted)]">건너뛴 질문은 빈칸으로 남아요. 여기서 고른 건 아직 어디에도 저장되지 않아요.</p>
       </div>
     </section>
   );

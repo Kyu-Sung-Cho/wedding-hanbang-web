@@ -32,7 +32,7 @@ const MOODS = [
   { value: "minimal", label: "간결한 분위기", description: "장식을 줄이고 깔끔하게" },
   { value: "classic", label: "정돈된 격식", description: "차분하고 격식 있게" },
   { value: "fancy", label: "눈에 띄는 연출", description: "장식과 색을 풍성하게" },
-  { value: "natural", label: "편안한 분위기", description: "자연 소재처럼 편안하게" },
+  { value: "natural", label: "편안한 분위기", description: "자연을 살려 편안하게" },
 ] as const;
 const VENUES = [
   { value: "indoor", label: "실내" },
@@ -215,7 +215,7 @@ describe("분위기 질문의 그림 칸", () => {
     act(() => root.render(<WeddingTasteForm onComplete={done} />));
     expect(tiles().map(item => item.dataset.tasteTile), "첫 질문은 주제 그림 칸이다").toEqual(DOMAINS);
     clickText("다음");
-    expect(host.textContent).toContain("원하는 결혼식 분위기는 어떤 쪽인가요?");
+    expect(host.textContent).toContain("어떤 분위기의 결혼식이 좋아요?");
     return done;
   }
 
@@ -286,8 +286,8 @@ describe("공간 질문의 그림 칸", () => {
   it("실내·야외·함께를 그림으로 보여주고 한 가지만 고른다", () => {
     const done = vi.fn();
     act(() => root.render(<WeddingTasteForm onComplete={done} />));
-    clickText("공간·장소"); clickText("다음"); clickText("다음");
-    expect(host.textContent).toContain("어떤 공간에서 식을 올리거나");
+    clickText("장소"); clickText("다음"); clickText("다음");
+    expect(host.textContent).toContain("실내와 야외 중 어디가 좋아요?");
     expect(tiles().map(item => item.dataset.tasteTile)).toEqual(VENUES.map(venue => venue.value));
     expect(tiles().map(labelOf)).toEqual(VENUES.map(venue => venue.label));
     for (const item of tiles()) {
@@ -306,11 +306,11 @@ describe("공간 질문의 그림 칸", () => {
     expectNoPhotos();
 
     clickText("다음");
-    expect(host.textContent).toContain("피하고 싶은 것이");
+    expect(host.textContent).toContain("꼭 피하고 싶은 게 있나요?");
     expect(tiles(), "피하고 싶은 것은 글자 버튼 그대로다").toHaveLength(0);
     expect(host.querySelector("svg[data-taste-scene]")).toBeNull();
     clickText("다음");
-    expect(host.textContent).toContain("어느 정도 맞춰보고 싶나요?");
+    expect(host.textContent).toContain("둘의 생각이 다르면 어떻게 하고 싶나요?");
     expect(tiles(), "협의 질문은 글자 버튼 그대로다").toHaveLength(0);
     expect(host.querySelector("svg[data-taste-scene]")).toBeNull();
     clickText("내 선택 보기");
@@ -333,7 +333,7 @@ describe("나머지 세부 질문의 그림 칸", () => {
       expect(item.className, "키보드 초점이 보인다").toContain("focus-visible:ring-2");
     }
     for (const layout of layoutFor(options.length)) expect(tileGrid()?.className).toContain(layout);
-    expect(host.textContent).toContain(max === 1 ? "한 가지를 고르거나" : "최대 " + max + "개");
+    expect(host.textContent).toContain(max === 1 ? "하나만 골라 주세요" : "최대 " + max + "개");
     expectNoPhotos();
   });
 

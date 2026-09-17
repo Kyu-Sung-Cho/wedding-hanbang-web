@@ -52,11 +52,11 @@ export async function generateMetadata({
   }
   const upper = value.toUpperCase();
   return {
-    title: `웨딩코드 ${upper} — 이 네 글자가 뜻하는 것 | 웨딩한방`,
+    title: `웨딩코드 ${upper} 네 글자 뜻 | 웨딩한방`,
     description:
-      `웨딩코드 ${upper}의 각 글자가 무엇을 뜻하는지 봅니다.`
-      + ` 결혼 준비 ${SCENE_COUNT} 장면에서 어느 쪽 답을 더 많이 골랐는지를 적은 코드이고,`
-      + " 성격을 판정하거나 궁합을 매기지 않습니다.",
+      `웨딩코드 ${upper}, 네 글자가 각각 무슨 뜻인지 알려드려요.`
+      + ` 결혼 준비 ${SCENE_COUNT} 장면에서 어느 쪽 답을 더 많이 골랐는지 네 글자로 줄인 코드예요.`
+      + " 성격을 맞히거나 궁합을 보는 건 아니에요.",
     alternates: { canonical: `/wedding-code/c/${upper}` },
   };
 }
@@ -85,8 +85,8 @@ export default async function WeddingCodeMeaningPage({
               {upper}
             </h1>
             <p className="mt-4 text-[13px] font-medium leading-[1.7] text-[var(--hb-on-primary)]">
-              결혼 준비 {SCENE_COUNT} 장면에서 어느 쪽 답을 더 많이 골랐는지를 네 글자로 적은
-              거예요. 성격을 맞힌 게 아니라서 점수도 궁합도 매기지 않아요.
+              결혼 준비 {SCENE_COUNT} 장면에서 어느 쪽 답을 더 많이 골랐는지 네 글자로 줄인
+              거예요. 성격을 맞히거나 궁합을 보는 코드는 아니에요.
             </p>
           </div>
 
@@ -110,11 +110,11 @@ export default async function WeddingCodeMeaningPage({
                     {letter.meaning}
                   </p>
                   <p className="mt-1.5 text-[13px] font-medium leading-[1.6] text-[var(--color-rose-700)]">
-                    이 자리의 다른 쪽은{" "}
+                    반대쪽 글자{" "}
                     <b className="font-semibold text-[var(--hb-text-strong)]">
                       {letter.opposite}({letter.oppositeShort})
-                    </b>{" "}
-                    — {letter.oppositeMeaning}
+                    </b>
+                    : {letter.oppositeMeaning}
                   </p>
                 </div>
               );

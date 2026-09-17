@@ -17,7 +17,7 @@ const NONCE = "8f1b2c3d-4e5f-4a6b-8c9d-0e1f2a3b4c5d";
  * **앱 웹뷰에서는 끝을 못 보는 단락을 보여주지 않는다.**
  *
  * 2026-09-16 에 앱에 웨딩코드 입구를 넣으면서 잡혔다. 결과 화면 끝의 아모라 단락은
- * 로그인하지 않은 사람에게 "로그인하고 선택한 방식 확인하기" 버튼과
+ * 로그인하지 않은 사람에게 "로그인하고 고른 내용 확인하기" 버튼과
  * `/settings/amora-style` 링크를 준다. 앱 웹뷰에는 앱의 세션이 없어서
  *
  *   - **앱에 이미 로그인한 사람도** 로그아웃으로 보이고,
@@ -88,7 +88,7 @@ describe("WeddingCode 아모라 단락 · 앱 웹뷰", () => {
         );
         await clickText("다음 문항");
       } else {
-        await clickText("이 장면은 우리와 안 맞아요");
+        await clickText("이 장면은 건너뛸게요");
       }
     }
     expect(container.querySelector('[data-result="solo"]')).not.toBeNull();
@@ -97,7 +97,7 @@ describe("WeddingCode 아모라 단락 · 앱 웹뷰", () => {
   it("브라우저에서는 그대로 보여준다", async () => {
     await answerEveryScene();
     expect(container.querySelector("[data-amora-proposals]")).not.toBeNull();
-    expect(container.textContent).toContain("로그인하고 선택한 방식 확인하기");
+    expect(container.textContent).toContain("로그인하고 고른 내용 확인하기");
   });
 
   it("앱 웹뷰에서는 단락도 링크도 내린다", async () => {
@@ -105,7 +105,7 @@ describe("WeddingCode 아모라 단락 · 앱 웹뷰", () => {
     await answerEveryScene();
 
     expect(container.querySelector("[data-amora-proposals]")).toBeNull();
-    expect(container.textContent).not.toContain("로그인하고 선택한 방식 확인하기");
+    expect(container.textContent).not.toContain("로그인하고 고른 내용 확인하기");
     // 앱이 네이티브 설정으로 되돌려 버리는 링크가 남아 있으면 안 된다.
     expect(container.querySelector('a[href^="/settings"]')).toBeNull();
   });

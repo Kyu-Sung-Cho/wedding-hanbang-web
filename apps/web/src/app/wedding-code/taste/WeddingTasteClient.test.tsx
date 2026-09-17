@@ -53,19 +53,19 @@ describe("직접 취향의 끝까지 흐름", () => {
     expect(window.sessionStorage.length).toBe(0);
     expect(fetch).toHaveBeenCalledTimes(1);
     expect(fetch).toHaveBeenCalledWith("/api/auth/me");
-    expect([...host.querySelectorAll("button")].find(b => b.textContent === "선택 링크 복사하기")?.disabled).toBe(true);
+    expect([...host.querySelectorAll("button")].find(b => b.textContent === "링크 복사하기")?.disabled).toBe(true);
     await click("전달할 내용 확인하기");
-    expect(host.querySelector("[data-taste-amora-text]")?.textContent).toContain("공동 합의는 아니에요");
+    expect(host.querySelector("[data-taste-amora-text]")?.textContent).toContain("둘이 같이 정한 건 아니에요");
     expect(push).not.toHaveBeenCalled();
   });
   it("먼저 답한 사람과 나를 비교해도 기본 공유와 아모라 초안에는 내 선택만 담는다", async () => {
     const url = buildWeddingTasteShareUrl({ origin: window.location.origin, first: first() });
-    await render(new URL(url).hash); await click("내 취향도 직접 고르기"); await completePhoto();
+    await render(new URL(url).hash); await click("내 취향도 고르기"); await completePhoto();
     expect(host.querySelector('[data-taste-pair="detail:photo"]')?.textContent).toContain("준비한 포즈와 장면");
     const writeText = vi.fn().mockResolvedValue(undefined);
     Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText } });
     const ownConsent = [...host.querySelectorAll("label")].find(label => label.textContent?.includes("위의 내 선택을"))!.querySelector<HTMLInputElement>("input")!;
-    await act(async () => ownConsent.click()); await click("선택 링크 복사하기");
+    await act(async () => ownConsent.click()); await click("링크 복사하기");
     const decoded = decodeWeddingTasteShareHash(new URL(writeText.mock.calls[0][0]).hash);
     expect(decoded?.second).toBeNull();
     expect(decoded?.first.details.photo).toEqual({ status: "answered", values: ["candid"] });
@@ -90,13 +90,13 @@ describe("직접 취향의 끝까지 흐름", () => {
     await render(); await click("내 취향 고르기"); await click("다음"); await click("다음"); await click("내 선택 보기");
     expect(host.textContent).toContain("이번에는 선택을 비워뒀어요");
     expect(host.querySelector("[data-taste-amora]")).toBeNull();
-    expect(host.textContent).not.toContain("선택 링크 복사하기");
+    expect(host.textContent).not.toContain("링크 복사하기");
   });
   it("클립보드가 없어도 예외로 멈추지 않고 실패를 알린다", async () => {
     await render(); await click("내 취향 고르기"); await completePhoto();
     Object.defineProperty(navigator, "clipboard", { configurable: true, value: undefined });
     await act(async () => host.querySelector<HTMLInputElement>('input[type="checkbox"]')?.click());
-    await click("선택 링크 복사하기");
+    await click("링크 복사하기");
     expect(host.textContent).toContain("링크를 복사하지 못했어요");
   });
   it("실제 공개 auth 조회가 끝나기 전에 폼을 열지 않고 확인된 계정에서 처음 시작한다", async () => {
@@ -161,7 +161,7 @@ describe("직접 취향의 끝까지 흐름", () => {
     vi.mocked(fetch).mockResolvedValueOnce(response(account()));
     await click("계정 정보 다시 확인");
     expect(host.querySelector("[data-taste-own]")?.textContent).toContain("자연스러운 순간");
-    await click("이 계정의 나만 상담에 초안 열기");
+    await click("‘나만 상담’에 초안으로 열기");
     expect(push).toHaveBeenCalledWith(expect.stringMatching(/^\/chat\?scope=private&wcTasteChat=/));
     expect(vi.mocked(fetch).mock.calls.every(([, options]) => !options?.method || options.method === "GET")).toBe(true);
   });

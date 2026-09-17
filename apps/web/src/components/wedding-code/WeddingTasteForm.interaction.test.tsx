@@ -21,7 +21,7 @@ describe("직접 취향 질문", () => {
     click("사진"); click("다음"); click("간결한 분위기"); click("다음");
     expect(host.textContent).toContain("사진에는 어떤 모습을");
     click("자연스러운 순간"); click("다음");
-    expect(host.textContent).toContain("피하고 싶은 것이");
+    expect(host.textContent).toContain("꼭 피하고 싶은 게 있나요?");
     click("특별히 피하고 싶은 것은 없어요"); click("다음");
     click("다른 안도 함께 볼 수 있어요"); click("내 선택 보기");
     expect(done).toHaveBeenCalledTimes(1);
@@ -43,7 +43,7 @@ describe("직접 취향 질문", () => {
     initial.negotiability.photo = "prefer_keep"; initial.negotiability.venue = "open_to_options";
     act(() => root.render(<WeddingTasteForm initialDraft={initial} onComplete={done} />));
     expect([...host.querySelectorAll("button")].find(item => item.textContent === "식사")?.disabled).toBe(true);
-    expect(host.textContent).toContain("질문 1 · 선택한 주제에 따라 최대 6개");
+    expect(host.textContent).toContain("질문 1 · 최대 6개");
     click("다음"); click("다음");
     expect([...host.querySelectorAll("button")].find(item => item.textContent === "자연스러운 순간")?.getAttribute("aria-pressed")).toBe("true");
     click("이전"); click("다음"); click("준비한 포즈와 장면"); click("다음"); click("다음"); click("다음"); click("내 선택 보기");

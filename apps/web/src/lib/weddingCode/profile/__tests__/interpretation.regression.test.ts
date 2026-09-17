@@ -29,11 +29,11 @@ describe("실제 선택과 해석의 경계", () => {
     expect(reading).toMatchObject({ answered: 1, leftCount: 1, rightCount: 0 });
     expect(reading.evidence).toEqual([{ scene: v08.questions.find(question => question.key === "B5")!.scene, label: "둘 다 못 받아서 답이 며칠씩 밀렸다" }]);
     // T 뜻은 「같이 처리했다」가 아니라 「한 사람에게 맡기지 않은 답」이다 — 둘 다 못 받은 답에도 참이다.
-    expect(letters.slots[1].meaning).toBe("어느 한 사람에게 맡기지 않은 답을 더 많이 골랐어요");
+    expect(letters.slots[1].meaning).toBe("한 사람이 도맡지 않는 답을 더 많이 골랐어요");
     expect(reading.title).toBe("이번엔 ‘둘이 같이’ 쪽 답이 더 많았어요");
-    // 셈 뒤에 「겪은 일·바란 일·한 일을 한데 셌다」는 확인 안내가 붙는다.
+    // 셈 뒤에 「겪은 일·바랐던 일·내가 한 일이 섞여 있다」는 확인 안내가 붙는다.
     expect(describeSelfAxisReading(reading)).toBe(
-      "답한 1장면은 T(둘이 같이) 쪽이었어요. 이 주제는 겪은 일, 바란 일, 직접 한 일을 한데 셌어요. 실제 고른 문장을 같이 확인해 주세요.",
+      "답한 1장면은 T(둘이 같이) 쪽이었어요. 이 주제의 답에는 겪은 일, 바랐던 일, 내가 한 일이 섞여 있어요. 숫자만 보지 말고 고른 답도 같이 봐 주세요.",
     );
     expect(reading.qualifiers).toEqual(["연락을 받지 못한 경험과 함께 검토한 경험은 달라요."]);
     expect([letters.slots[1].meaning, reading.title].join(" ")).not.toMatch(/둘이 같이 보는 답|함께 보는 쪽 답을 더|같이 처리/);
@@ -57,8 +57,8 @@ describe("실제 선택과 해석의 경계", () => {
     const reading = result.axes[1];
     expect(buildWeddingCodeLetters(result).code).toBe("·T··");
     expect(reading.evidence[0].label).toBe("둘이 얘기해 봐야 한다며 답을 내일로 미뤘다");
-    expect(reading.qualifiers).toEqual(["상대를 기다리려고 미룬 것과 정하기 어려워 미룬 것은 달라요."]);
-    expect(describeSelfAxisReading(reading)).toContain("실제 고른 문장을 같이 확인해 주세요");
+    expect(reading.qualifiers).toEqual(["상대와 얘기하려고 미뤘을 수도, 바로 정하기 어려워서 미뤘을 수도 있어요."]);
+    expect(describeSelfAxisReading(reading)).toContain("숫자만 보지 말고 고른 답도 같이 봐 주세요");
   });
 
   it("연락 지연을 고르지 않은 T 답에는 지연 경험 경고를 붙이지 않는다", () => {
@@ -84,7 +84,7 @@ describe("실제 선택과 해석의 경계", () => {
     const result = profile({ B5: "B" });
     expect(result.axes[1].missingPhrases).toEqual(["둘이 같이"]);
     expect(describeSelfAxisAbsence(result.axes[1])).toBe(
-      "“둘이 같이” 쪽 답은 한 번도 고르지 않았어요. 실제 준비에서도 그랬다는 뜻은 아니에요.",
+      "“둘이 같이” 쪽 답은 한 번도 고르지 않았어요.",
     );
     expect(describeSelfAxisAbsence(result.axes[1])).not.toContain("먼저 보는");
     expect(buildWeddingCodeAmoraProposals(result)[0]).not.toHaveProperty("value");

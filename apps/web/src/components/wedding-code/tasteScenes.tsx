@@ -913,7 +913,7 @@ const From100Scene = () => <GuestScene rows={3} />;
 const From200Scene = () => <GuestScene rows={4} />;
 const Over300Scene = () => <GuestScene rows={5} />;
 
-/** 주제: 공간·장소 — 낮은 박공의 넓은 건물(아치형 문·창), 그 위의 장소 표시 핀, 양옆의 나무. */
+/** 주제: 장소 — 낮은 박공의 넓은 건물(아치형 문·창), 그 위의 장소 표시 핀, 양옆의 나무. */
 function VenueTopicScene() {
   return (
     <Scene ground="fill-paper-tint">
@@ -1016,7 +1016,7 @@ function Bust({ x, y, s, tone }: { x: number; y: number; s: number; tone: string
   );
 }
 
-/** 주제: 함께할 사람 수 — 삼각 깃발 줄 아래 두 줄로 모인 사람들. */
+/** 주제: 하객 규모 — 삼각 깃발 줄 아래 두 줄로 모인 사람들. */
 function GuestsTopicScene() {
   const flags = [18, 36, 54, 72, 90, 108, 126, 144];
   const tones = ["fill-rose-light", "fill-sage-pale", "fill-gold-light"];
@@ -1044,7 +1044,7 @@ function Chair({ x, flip = false }: { x: number; flip?: boolean }) {
   return <path d="M0 0V-12M0-5H7V0" transform={`translate(${x} 88) scale(${flip ? -1 : 1} 1)`} className="stroke-paper-stem" />;
 }
 
-/** 주제: 식순·연출 — 꽃을 얹은 아치, 앞으로 뻗은 통로, 양옆의 촛대와 의자. */
+/** 주제: 식순과 연출 — 꽃을 얹은 아치, 앞으로 뻗은 통로, 양옆의 촛대와 의자. */
 function CeremonyTopicScene() {
   return (
     <Scene ground="fill-ivory-100">

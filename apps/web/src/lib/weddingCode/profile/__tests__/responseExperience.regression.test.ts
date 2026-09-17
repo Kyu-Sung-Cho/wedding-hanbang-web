@@ -16,7 +16,7 @@ const profileOf = (answers: WeddingCodeV06Answers) => buildWeddingCodeSelfProfil
 /** v0.8 링크는 지금도 열린다(그 판 문항으로). 그 판의 솔직한 답에 붙인 한정 안내도 계속 지켜야 한다. */
 const v08ProfileOf = (answers: WeddingCodeV06Answers) => buildWeddingCodeSelfProfile(answers, v08);
 
-const CHECK_NOTE = "이 주제는 겪은 일, 바란 일, 직접 한 일을 한데 셌어요. 실제 고른 문장을 같이 확인해 주세요.";
+const CHECK_NOTE = "이 주제의 답에는 겪은 일, 바랐던 일, 내가 한 일이 섞여 있어요. 숫자만 보지 말고 고른 답도 같이 봐 주세요.";
 
 describe("장면의 경험을 다른 행동이나 현재 희망으로 바꾸지 않는다", () => {
   /**
@@ -61,14 +61,14 @@ describe("장면의 경험을 다른 행동이나 현재 희망으로 바꾸지 
     expect(letters.complete).toBe(false);
     expect(reading).toMatchObject({ leftCount: 0, rightCount: 1, answered: 1 });
     expect(reading.evidence[0].label).toBe("'고민 그만하고 오늘 끝내자'고 했다");
-    expect(letters.slots[3].meaning).toBe("할 일과 결정이 먼저인 답을 더 많이 골랐어요");
+    expect(letters.slots[3].meaning).toBe("할 일과 결정 쪽 답을 더 많이 골랐어요");
     expect(reading.title).toBe("이번엔 ‘할 일 먼저’ 쪽 답이 더 많았어요");
     expect(describeSelfAxisReading(reading)).toBe(`답한 1장면은 A(할 일 먼저) 쪽이었어요. ${CHECK_NOTE}`);
-    expect(reading.qualifiers).toEqual(["서둘러 끝내려 한 것과 할 일을 차분히 정리한 것은 달라요."]);
+    expect(reading.qualifiers).toEqual(["할 일을 차분히 나눴다기보다 빨리 끝내려던 답이에요."]);
     expect(reading.watchOut).not.toContain("서둘러 끝내려 한 것");
     expect(profile.repeated).toEqual([{ construct: "executionSupport", phrase: "할 일 먼저", count: 1 }]);
     expect(describeSelfAxisAbsence(reading)).toBe(
-      "“마음 먼저” 쪽 답은 한 번도 고르지 않았어요. 실제 준비에서도 그랬다는 뜻은 아니에요.",
+      "“마음 먼저” 쪽 답은 한 번도 고르지 않았어요.",
     );
   });
 
@@ -88,7 +88,7 @@ describe("장면의 경험을 다른 행동이나 현재 희망으로 바꾸지 
   ])("v0.8 대화 중단·곁에 있었던 경험을 마음을 들은 행동으로 바꾸지 않는다: $quote", ({ answers, quote, note }) => {
     const profile = v08ProfileOf(answers);
     expect(buildWeddingCodeLetters(profile).code).toBe("···H");
-    expect(buildWeddingCodeLetters(profile).slots[3].meaning).toBe("마음과 대화가 먼저인 답을 더 많이 골랐어요");
+    expect(buildWeddingCodeLetters(profile).slots[3].meaning).toBe("마음과 대화 쪽 답을 더 많이 골랐어요");
     expect(profile.axes[3].title).toBe("이번엔 ‘마음 먼저’ 쪽 답이 더 많았어요");
     expect(profile.axes[3].evidence[0].label).toBe(quote);
     expect(profile.axes[3].qualifiers.join(" ")).toContain(note);
@@ -97,9 +97,9 @@ describe("장면의 경험을 다른 행동이나 현재 희망으로 바꾸지 
   });
 
   it.each([
-    { answers: { D1: "A" } as const, quote: "고맙다고만 보내고 속으로는 조금 서운했다", note: "서운한 마음이 든 것만으로 들어주기를 바랐다고 단정하지 않아요" },
-    { answers: { D3: "D" } as const, quote: "뭘 짚어야 할지 몰라 옆에서 등만 토닥였다", note: "뭘 할지 몰라 곁에 있던 것과 마음을 먼저 챙긴 것은 달라요" },
-    { answers: { D2: "D" } as const, quote: "준비 얘기는 꺼내지 않고 산책만 하고 들어왔다", note: "얘기를 미룬 날만으로 마음을 먼저 챙긴다고 단정하지 않아요" },
+    { answers: { D1: "A" } as const, quote: "고맙다고만 보내고 속으로는 조금 서운했다", note: "서운했다고 해서 꼭 얘기를 들어주길 바랐던 건 아닐 수 있어요" },
+    { answers: { D3: "D" } as const, quote: "뭘 짚어야 할지 몰라 옆에서 등만 토닥였다", note: "뭘 해야 할지 몰라서 곁에 있었던 거라, 마음부터 챙긴 것과는 조금 달라요" },
+    { answers: { D2: "D" } as const, quote: "준비 얘기는 꺼내지 않고 산책만 하고 들어왔다", note: "준비 얘기를 하루 쉰 것만으로 마음부터 챙겼다고 하긴 어려워요" },
   ])("서운함·곁에 있었던 경험·미룬 날을 마음을 챙긴 행동으로 바꾸지 않는다: $quote", ({ answers, quote, note }) => {
     const profile = profileOf(answers);
     expect(buildWeddingCodeLetters(profile).code).toBe("···H");
@@ -109,13 +109,13 @@ describe("장면의 경험을 다른 행동이나 현재 희망으로 바꾸지 
   });
 
   it.each([
-    { answers: { A3: "B" } as const, note: "그 자리에서 빨리 정한 것과 분위기를 먼저 본 것은 달라요" },
-    { answers: { A4: "A" } as const, note: "내일 마감이라 서둘러 보낸 것과 사진을 먼저 본 것은 달라요" },
+    { answers: { A3: "B" } as const, note: "영상이 예뻐서 고른 답이지만, 그 자리에서 바로 정한 답이기도 해요" },
+    { answers: { A4: "A" } as const, note: "사진 때문이라기보다 마감이 내일이라 서둘러 보낸 걸 수도 있어요" },
   ])("서둘러 정한 경험을 분위기 취향으로 확정하지 않는다: $answers", ({ answers, note }) => {
     const profile = profileOf(answers);
     expect(buildWeddingCodeLetters(profile).code).toBe("M···");
     expect(buildWeddingCodeLetters(profile).slots[0].meaning).toBe(
-      "사진·분위기, 결혼식 날에 거는 기대나 받은 인상이 먼저인 답을 더 많이 골랐어요",
+      "사진과 분위기, 결혼식 날에 거는 기대나 받은 인상부터 보는 답을 더 많이 골랐어요",
     );
     expect(profile.axes[0].qualifiers.join(" ")).toContain(note);
     expect(profile.repeated[0].phrase).toBe("사진·분위기");
@@ -141,7 +141,7 @@ describe("장면의 경험을 다른 행동이나 현재 희망으로 바꾸지 
     const reading = profile.axes[3];
     expect(buildWeddingCodeLetters(profile).code).toBe(code);
     expect(reading).toMatchObject({ leftCount: left, rightCount: right, answered: left + right });
-    expect(reading.qualifiers).toContain("서둘러 끝내려 한 것과 할 일을 차분히 정리한 것은 달라요.");
+    expect(reading.qualifiers).toContain("할 일을 차분히 나눴다기보다 빨리 끝내려던 답이에요.");
     expect(reading.title).not.toMatch(/할 일을 정하는 쪽|마음을 듣는 쪽|듣기와 할 일 정리/);
     if (left === right) expect(describeSelfAxisAbsence(reading)).toBeNull();
   });
@@ -151,7 +151,7 @@ describe("장면의 경험을 다른 행동이나 현재 희망으로 바꾸지 
     const reading = profileOf({ D1: "C", D2: "A", D3: "B", D4: "D", D5: "C" }).axes[3];
     expect(reading.evidence).toHaveLength(2);
     expect(reading.evidence.some(quote => quote.label.includes("고민 그만하고"))).toBe(false);
-    expect(reading.qualifiers).toContain("서둘러 끝내려 한 것과 할 일을 차분히 정리한 것은 달라요.");
+    expect(reading.qualifiers).toContain("할 일을 차분히 나눴다기보다 빨리 끝내려던 답이에요.");
   });
 
   it("선택하지 않은 경험은 경고로 만들어내지 않는다", () => {
@@ -192,10 +192,10 @@ describe("장면의 경험을 다른 행동이나 현재 희망으로 바꾸지 
     expect(parsed![3]).toMatchObject({
       letter: "A",
       short: "할 일 먼저",
-      meaning: "할 일과 결정이 먼저인 답을 더 많이 골랐어요",
+      meaning: "할 일과 결정 쪽 답을 더 많이 골랐어요",
       opposite: "H",
       oppositeShort: "마음 먼저",
-      oppositeMeaning: "마음과 대화가 먼저인 답을 더 많이 골랐어요",
+      oppositeMeaning: "마음과 대화 쪽 답을 더 많이 골랐어요",
       side: "right",
     });
   });

@@ -261,9 +261,9 @@ export default function WeddingCodeV06Client({
 
   if (linkError) {
     return <Shell><section className={`${surface} px-5 py-7`} role="alert">
-      <h1 className="text-xl font-semibold text-[var(--hb-text-strong)]">이 결과 링크를 확인하지 못했어요</h1>
-      <p className="mt-3 text-sm leading-relaxed text-[var(--hb-text-body)]">지원하지 않는 버전이거나 답이 손상된 링크예요. 보낸 사람에게 링크를 다시 받거나 새로 시작해 주세요.</p>
-      <Button className="mt-5" onClick={restart}>새 응답 시작하기</Button>
+      <h1 className="text-xl font-semibold text-[var(--hb-text-strong)]">이 링크는 열 수 없어요</h1>
+      <p className="mt-3 text-sm leading-relaxed text-[var(--hb-text-body)]">링크 주소가 중간에 잘렸거나 바뀐 것 같아요. 보낸 사람에게 링크를 다시 받거나, 처음부터 새로 답해 주세요.</p>
+      <Button className="mt-5" onClick={restart}>처음부터 새로 답하기</Button>
     </section></Shell>;
   }
 
@@ -300,15 +300,15 @@ export default function WeddingCodeV06Client({
             <p className="mt-4 text-[15px] font-medium leading-[1.7] text-[var(--hb-on-primary)]">
               {theirs
                 ? `나도 같은 ${sceneCount} 장면에 답하면 둘이 어디서 갈리는지 바로 볼 수 있어요.`
-                : "돈을 쓸 때, 할 일을 나눌 때, 가족과 함께 정할 때, 둘 다 지친 날. 준비하다 한 번쯤 겪는 장면마다 나라면 어떻게 할지 골라 보세요."}
+                : "돈 쓸 때, 일 나눌 때, 가족과 정할 때, 둘 다 지쳤을 때처럼 준비하다 한 번쯤 겪는 장면이 나와요. 나라면 어떻게 할지 하나씩 고르면 돼요."}
             </p>
           </div>
 
           <div className="space-y-3 px-5 py-6 sm:px-8">
             {[
-              "끝까지 가면 내가 고른 문장과 그 답을 줄인 네 글자를 보여줘요. 성격이나 궁합을 판정하는 검사는 아니에요.",
-              "상대도 답하면 둘의 답이 갈린 장면을 나란히 놓아 줘요.",
-              "우리와 안 맞거나 아직 답하기 어려운 장면은 건너뛸 수 있어요. 건너뛴 장면은 짐작해서 채우지 않아요.",
+              "끝까지 가면 내가 고른 답과 그 답을 네 글자로 줄인 코드가 나와요. 성격이나 궁합을 보는 검사는 아니에요.",
+              "상대도 답하면 둘이 다르게 고른 장면을 나란히 보여줘요.",
+              "우리와 안 맞거나 아직 답하기 어려운 장면은 건너뛸 수 있어요. 건너뛴 장면은 결과에서 빠져요.",
             ].map((line) => (
               <p key={line} className="flex gap-2.5 text-[14px] font-medium leading-[1.6] text-[var(--hb-text-strong)]">
                 <Check aria-hidden="true" className="mt-0.5 h-4 w-4 shrink-0 text-[var(--hb-success)]" />
@@ -327,14 +327,14 @@ export default function WeddingCodeV06Client({
           */}
           <details className="border-t border-[var(--hb-hairline)] px-5 py-4 sm:px-8">
             <summary className="cursor-pointer py-2 text-sm font-semibold text-[var(--hb-text-strong)]">답하기 전에 알아둘 것</summary>
-            <p className="mt-2 text-sm leading-relaxed text-[var(--hb-text-body)]">금액과 상황은 예시예요. 아직 겪지 않은 장면은 지금 나라면 뭘 고를지 답하거나 건너뛰면 돼요. 부모님·하객·결혼식이 없는 경우에도 그런 장면은 건너뛰어도 괜찮아요.</p>
+            <p className="mt-2 text-sm leading-relaxed text-[var(--hb-text-body)]">금액과 상황은 예시예요. 아직 안 겪어 본 일이면 지금 나라면 어떻게 할지 고르면 돼요. 결혼식을 안 하거나 부모님, 하객 이야기가 우리 상황과 맞지 않으면 그 장면은 건너뛰어도 돼요.</p>
             <p className="mt-2 text-sm leading-relaxed text-[var(--hb-text-body)]">
               {contributionAvailable
-                ? "로그인 없이 쓸 수 있어요. 고른 답은 브라우저에 남기지 않아서 새로고침하면 사라져요. 서버에도 저장하지 않고, 결과 화면에서 '내 답 보태기'에 직접 동의한 경우에만 저장해요. 공유 링크에는 내 답이 담기니 같이 비교할 사람에게만 보내 주세요."
+                ? "로그인 없이 쓸 수 있어요. 고른 답은 브라우저에 남기지 않아서 새로고침하면 사라져요. 서버에는 결과 화면의 '내 답 보태기'에 직접 동의한 경우에만 저장해요. 공유 링크에는 내 답이 담기니 같이 비교할 사람에게만 보내 주세요."
                 : "로그인 없이 쓸 수 있어요. 고른 답은 브라우저에 남기지 않아서 새로고침하면 사라지고, 서버에도 저장하지 않아요. 공유 링크에는 내 답이 담기니 같이 비교할 사람에게만 보내 주세요."}
             </p>
             <p className="mt-2 text-sm leading-relaxed text-[var(--hb-text-body)]">
-              2026년 9월 24일부터는 화면을 고치려고 이용 통계를 남겨요. 시작했는지, 몇 번째 장면까지 봤는지, 끝까지 했는지, 공유했는지 같은 흐름만 남기고, 어떤 답을 골랐는지·네 글자 결과·공유 링크 주소는 넣지 않아요. 남기는 항목 전부는{" "}
+              2026년 9월 24일부터는 화면을 고치려고 이용 통계를 남겨요. 시작했는지, 몇 번째 장면까지 봤는지, 끝까지 했는지, 공유했는지 같은 흐름만 남기고, 어떤 답을 골랐는지, 네 글자 코드, 공유 링크 주소는 넣지 않아요. 남기는 항목은 모두{" "}
               <a href="/privacy" className="font-semibold text-[var(--hb-text-strong)] underline underline-offset-4">개인정보 처리방침</a>
               에 있어요.
             </p>
@@ -495,7 +495,7 @@ export default function WeddingCodeV06Client({
         onClick={skipQuestion}
         className="mt-3 flex min-h-[48px] w-full items-center justify-center rounded-[6px] px-4 text-[13px] font-medium text-[var(--color-rose-700)] underline underline-offset-4 transition-colors hover:text-[var(--hb-text-strong)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--hb-primary)]"
       >
-        이 장면은 우리와 안 맞아요 — 건너뛰기
+        이 장면은 건너뛸게요
       </button>
     </Shell>
   );
@@ -551,14 +551,14 @@ function ResultView({
     buildWeddingCodeSelfProfile(answers, { questions: config.questions, axes: config.axes }),
   );
   const shareText = theirs
-    ? `두 사람이 답한 장면을 나란히 보는 웨딩코드 결과예요.\n${shareUrl}`
+    ? `우리 둘 웨딩코드 결과 나왔어요. 어디서 같고 어디서 달랐는지 같이 봐요.\n${shareUrl}`
     : shareLetters.complete
     ? `내 웨딩코드는 ${shareLetters.code}예요. 같은 ${weddingCodeSceneCountLabel(config.questions.length)} 장면에 답해볼래요?
 ${shareUrl}`
     : shareUrl;
 
   const copyButton = !canShare ? (
-    <p className="mt-5 text-sm leading-relaxed text-[var(--hb-text-body)]">내 답이 없어 비교 결과를 공유할 수 없어요. 한 장면 이상 답한 뒤 다시 비교해 주세요.</p>
+    <p className="mt-5 text-sm leading-relaxed text-[var(--hb-text-body)]">내가 답한 장면이 없어서 결과 링크를 만들 수 없어요. 받은 링크를 다시 열고 한 장면 이상 답해 주세요.</p>
   ) : (
     <div className="mt-5">
       <button
@@ -583,12 +583,12 @@ ${shareUrl}`
         className={`${primaryButton} w-full`}
       >
         {copied ? <Check aria-hidden="true" className="h-4 w-4" /> : <Copy aria-hidden="true" className="h-4 w-4" />}
-        {copied ? "복사했어요" : theirs ? "결과 링크 복사하기" : "내 코드와 링크 보내기"}
+        {copied ? "복사했어요" : theirs ? "결과 링크 복사하기" : "내 코드와 링크 복사하기"}
       </button>
       <p className="mt-2 text-[12px] font-medium leading-[1.6] text-[var(--color-rose-700)]">
         {theirs
-          ? "링크에는 두 사람의 답이 포함돼요. 답을 함께 비교한 두 사람 사이에서만 보내 주세요."
-          : "링크에는 내 답이 포함돼요. 함께 비교할 사람에게만 보내 주세요."}
+          ? "링크에 두 사람 답이 모두 담겨요. 둘 사이에서만 주고받아 주세요."
+          : "링크에 내 답이 담겨요. 같이 비교할 사람에게만 보내 주세요."}
       </p>
       {copyError ? <p role="alert" className="mt-3 text-sm text-[var(--hb-text-body)]">자동 복사가 안 됐어요. 아래에서 링크 주소를 직접 복사해 주세요.</p> : null}
       <details className="mt-3 text-sm text-[var(--hb-text-body)]" open={copyError || undefined}>
@@ -616,16 +616,16 @@ ${shareUrl}`
         <>
           <section className={`${surface} px-6 py-7`} data-result="solo" data-empty="">
             <h1 className="text-[20px] font-semibold leading-[1.45] text-[var(--hb-text-strong)]">
-              {weddingCodeSceneCountLabel(config.questions.length)} 장면을 모두 건너뛰셨어요
+              {weddingCodeSceneCountLabel(config.questions.length)} 장면을 모두 건너뛰었어요
             </h1>
             <p className="mt-3 text-[14px] font-medium leading-[1.7] text-[var(--hb-text-strong)]">
-              우리 상황과 맞는 장면이 없었다면 그대로 두셔도 괜찮아요. 답을 지어내는 것보다
-              비워두는 편이 나아요. 한 장면만 답해도 그 주제는 읽어드릴 수 있어요.
+              우리와 맞는 장면이 없었다면 여기서 끝내도 돼요.
+              한 장면이라도 답하면 그 주제에서 뭘 골랐는지 보여드려요.
             </p>
           </section>
           <button type="button" onClick={onRestart} className={`${secondaryButton} mt-4 w-full`}>
             <RotateCcw aria-hidden="true" className="h-4 w-4" />
-            다시 보기
+            다시 답하기
           </button>
         </>
       );
@@ -643,13 +643,13 @@ ${shareUrl}`
               내가 이번에 고른 것
             </h1>
             <p className="mt-3 text-[15px] font-medium leading-[1.65] text-[var(--hb-on-primary)]">
-              답한 {profile.answered}장면을 주제별로 정리했어요. 많이 고른 답이 가장 중요한 취향이라는 뜻은 아니에요.
+              답한 {profile.answered}장면을 주제별로 정리했어요.
             </p>
             <p className="mt-3 text-[13px] font-medium leading-[1.6] text-[var(--hb-on-primary)]">
-              더 좋은 답도 부족한 답도 없어요. 고른 답을 세어서 그대로 보여줄 뿐이고, 유형을
+              고른 답을 세어서 보여줄 뿐이고, 유형을
               붙이거나 점수를 매기지 않아요.
               {profile.answered < profile.total
-                ? ` 답한 ${profile.answered}장면만 셌고, 건너뛴 장면은 비워뒀어요.`
+                ? ` 건너뛴 장면은 빼고 셌어요.`
                 : ""}
             </p>
           </div>
@@ -666,7 +666,7 @@ ${shareUrl}`
                       {reading.axisLabel}
                     </p>
                     <p className="mt-2 text-[14px] font-medium leading-[1.6] text-[var(--color-rose-700)]">
-                      이 주제는 건너뛰었어요. 안 맞는 장면을 비워둔 건 답을 지어내지 않은 거예요.
+                      이 주제는 건너뛰었어요.
                     </p>
                   </article>
                 );
@@ -736,12 +736,13 @@ ${shareUrl}`
         <WeddingTasteEntry placement="result" />
 
         <AmoraStyleConfirmation profile={profile} />
-        {contributionCard}
         {copyButton}
         <button type="button" onClick={onRestart} className={`${secondaryButton} mt-4 w-full`}>
           <RotateCcw aria-hidden="true" className="h-4 w-4" />
           다시 답하기
         </button>
+        {/* 답 보태기는 결과의 일부가 아니다. 공유 버튼 위에 두면 결과 카드처럼 읽혀서(2026-09-17 팀원 피드백) 맨 아래에 둔다. */}
+        {contributionCard}
       </>
     );
   }
@@ -789,8 +790,8 @@ ${shareUrl}`
           </h1>
           <p className="mt-3 text-[15px] font-medium leading-[1.65] text-[var(--hb-on-primary)]">
             {compared === 0
-              ? "두 사람이 건너뛴 장면이 서로 달라서 나란히 볼 자리가 없었어요. 각자 답한 것은 아래에 그대로 남아 있어요."
-              : "어느 쪽이 맞는지는 없어요. 갈린 자리마다 다음 대화를 하나씩 정리했어요."}
+              ? "한 사람이 답한 장면은 다른 사람이 모두 건너뛰었어요. 각자 어느 쪽 답을 골랐는지는 아래에서 볼 수 있어요."
+              : "누가 맞는지 가리지 않아요. 답이 갈린 장면마다 둘이 해 볼 것을 하나씩 적었어요."}
             {compared > 0 && map.missing > 0
               ? ` 한 사람이라도 건너뛴 ${map.missing}장면은 비교하지 않았어요.`
               : ""}
@@ -827,7 +828,7 @@ ${shareUrl}`
                     ))}
                   </div>
                   <p className="mt-4 text-[13px] font-medium leading-[1.7] text-[var(--hb-text-strong)]">
-                    <b className="font-semibold text-[var(--hb-text-strong)]">다음 대화: </b>
+                    <b className="font-semibold text-[var(--hb-text-strong)]">둘이 해 볼 것: </b>
                     {described.nextScene}
                   </p>
                 </article>
@@ -838,8 +839,8 @@ ${shareUrl}`
           <div className="px-5 py-6 sm:px-8">
             <p className="text-[15px] font-medium leading-[1.7] text-[var(--hb-text-strong)]">
               {compared === 0
-                ? "비교할 답이 아직 없어요. 같은 장면을 각자 고른 뒤 나란히 확인해 보세요."
-                : `함께 답한 ${compared}장면 중 ${map.identical.length}곳에서 같은 문장을 골랐어요. 다른 문장을 고른 장면도 아래에서 모두 확인할 수 있어요.`}
+                ? "둘이 함께 답한 장면이 없어서 나란히 볼 답이 없어요."
+                : `함께 답한 ${compared}장면 중 ${map.identical.length}곳에서 같은 답을 골랐어요. 장면마다 고른 답은 아래에서 모두 볼 수 있어요.`}
             </p>
           </div>
         )}
@@ -866,8 +867,8 @@ ${shareUrl}`
           className={`${secondaryButton} mt-4 w-full`}
         >
           {showAllGaps
-            ? "대표 대화 3개만 보기"
-            : `나머지 ${map.splits.length - featured.length}개 대화도 보기`}
+            ? "갈린 장면 3개만 보기"
+            : `갈린 장면 ${map.splits.length - featured.length}개 더 보기`}
         </button>
       ) : null}
 
@@ -883,7 +884,7 @@ ${shareUrl}`
               return [(
                 <article key={gap.key} data-compared-scene={gap.key} className="py-4">
                   <h2 className="text-[14px] font-semibold leading-relaxed text-[var(--hb-text-strong)]">{gap.scene}</h2>
-                  <p className="mt-1 text-[12px] text-[var(--hb-text-muted)]">{gap.same ? "같은 문장을 골랐어요" : "다른 문장을 골랐어요"}</p>
+                  <p className="mt-1 text-[12px] text-[var(--hb-text-muted)]">{gap.same ? "같은 답을 골랐어요" : "다른 답을 골랐어요"}</p>
                   <p className="mt-3 text-[14px] leading-relaxed text-[var(--hb-text-body)]">먼저 답한 사람: “{gap.firstLabel}”</p>
                   <p className="mt-2 text-[14px] leading-relaxed text-[var(--hb-text-body)]">나중에 답한 사람: “{gap.secondLabel}”</p>
                 </article>
@@ -895,13 +896,13 @@ ${shareUrl}`
 
       <SelfProfilePair first={firstProfile} second={secondProfile} map={map} />
 
-      {contributionCard}
-
       {copyButton}
       <button type="button" onClick={onRestart} className={`${secondaryButton} mt-4 w-full`}>
         <RotateCcw aria-hidden="true" className="h-4 w-4" />
-          새 응답 시작하기
+        처음부터 새로 답하기
       </button>
+
+      {contributionCard}
     </>
   );
 }
@@ -939,9 +940,9 @@ function WeddingCodePair({
         </p>
         <p className="mt-4 text-[13px] font-medium leading-[1.7] text-[var(--hb-on-primary)]">
           {different.length > 0
-            ? `네 자리 중 ${different.length}자리가 달라요. 점수는 매기지 않아요 — 다른 자리부터 이야기하면 돼요.`
+            ? `네 자리 중 ${different.length}자리가 달라요. 점수는 매기지 않아요. 글자가 다른 자리부터 같이 이야기해 보세요.`
             : unknown.length === comparison.length
-              ? "답하지 않았거나 양쪽 답이 반반인 자리라 비교할 글자가 없어요. 실제로 고른 답은 아래 장면별로 확인해 주세요."
+              ? "네 자리 모두 둘 중 누군가의 글자가 비어 있어서 비교할 수 없어요. 각자 고른 답은 아래에서 장면별로 볼 수 있어요."
               : `비교할 수 있는 ${comparison.length - unknown.length}자리의 글자가 같아요. 같은 글자여도 장면마다 고른 답은 다를 수 있어요.`}
         </p>
       </div>
@@ -959,10 +960,10 @@ function WeddingCodePair({
               <p>
                 <b className="font-semibold text-[var(--hb-text-strong)]">{item.axisLabel}</b>
                 {item.state === "different"
-                  ? " — 서로 다른 자리예요"
+                  ? ": 글자가 달라요"
                   : item.state === "same"
-                    ? " — 같은 자리예요"
-                    : " — 답하지 않았거나 반반이라 글자를 비교하지 않았어요"}
+                    ? ": 글자가 같아요"
+                    : ": 한쪽이 건너뛰었거나 반반이라 글자를 비교하지 않았어요"}
               </p>
               {/* 혼자 결과의 범례와 같은 이름을 쓴다 — 글자만 보여주면 무엇의 차이인지 모른다. */}
               <p className="text-[12px] text-[var(--hb-text-body)]">
@@ -980,7 +981,7 @@ function WeddingCodePair({
 function WeddingTasteEntry({ placement }: { placement: "intro" | "result" }) {
   return <section className={`${surface} mt-5 px-5 py-5 sm:px-8`}>
     <h2 className="text-lg font-semibold text-[var(--hb-text-strong)]">원하는 결혼식도 골라볼까요?</h2>
-    <p className="mt-2 text-sm leading-relaxed text-[var(--hb-text-body)]">분위기와 중요한 취향, 피하고 싶은 것, 함께 맞춰볼 범위를 직접 정리해요.</p>
+    <p className="mt-2 text-sm leading-relaxed text-[var(--hb-text-body)]">어떤 분위기가 좋은지, 뭘 피하고 싶은지 바로 고를 수 있어요.</p>
     <Button
       href="/wedding-code/taste"
       variant="secondary"
@@ -1026,8 +1027,8 @@ function TellPartnerDraft({ profile }: { profile: WeddingCodeSelfProfile }) {
           상대에게 보낼 말
         </h2>
         <p className="mt-1.5 text-[13px] font-medium leading-[1.6] text-[var(--color-rose-700)]">
-          내 답으로 만든 초안이에요. 내 말투로 고쳐 쓰세요. 이 글은 공유 링크에 들어가지
-          않고 저장되지도 않아요 — 복사해서 원하는 곳에 직접 붙여넣는 거예요.
+          내 답으로 만든 초안이에요. 내 말투로 고친 뒤 복사해서 보내면 돼요. 이 글은 공유 링크에 들어가지
+          않고, 따로 저장되지도 않아요.
         </p>
       </div>
       <div className="px-5 py-5 sm:px-8">
@@ -1069,7 +1070,7 @@ function TellPartnerDraft({ profile }: { profile: WeddingCodeSelfProfile }) {
             className={`${secondaryButton} disabled:opacity-40`}
           >
             <RotateCcw aria-hidden="true" className="h-4 w-4" />
-            초안으로
+            초안으로 되돌리기
           </button>
         </div>
       </div>
@@ -1131,7 +1132,7 @@ function SelfProfilePair({
                         : "bg-[#EEF2EC] text-[var(--hb-text-strong)]"
                     }`}
                   >
-                    {combined.state === "different" ? "다른 답 있음" : "함께 답한 장면만 같음"}
+                    {combined.state === "different" ? "다른 답 있음" : "함께 답한 장면은 같은 답"}
                   </span>
                 ) : null}
               </div>

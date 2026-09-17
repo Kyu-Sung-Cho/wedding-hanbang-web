@@ -37,7 +37,7 @@ describe("실제로 공개되는 비교 화면", () => {
       await act(async () => container.querySelector<HTMLButtonElement>(`[data-skip-question="${question.key}"]`)?.click());
     }
     expect(container.querySelector("[data-share-url]")).toBeNull();
-    expect(container.textContent).toContain("내 답이 없어 비교 결과를 공유할 수 없어요");
+    expect(container.textContent).toContain("내가 답한 장면이 없어서 결과 링크를 만들 수 없어요");
   });
   it("반대 응답이 상쇄된 동률을 같은 답으로 표시하지 않는다", async () => {
     await render({ C1: "A", C2: "B" }, { C1: "C", C2: "A" });
@@ -66,7 +66,8 @@ describe("실제로 공개되는 비교 화면", () => {
   it("다시 답하기를 누른 후 새로고침해도 예전 두 사람 결과로 돌아가지 않는다", async () => {
     await render({ A1: "A" }, { A1: "B" });
     expect(container.querySelector("[data-share-text]")?.getAttribute("data-share-text")).not.toContain("내 웨딩코드");
-    const restart = Array.from(container.querySelectorAll("button")).find(b => b.textContent?.includes("새 응답 시작"));
+    const restart = Array.from(container.querySelectorAll("button")).find(b => b.textContent?.includes("처음부터 새로 답하기"));
+    expect(restart).toBeTruthy();
     await act(async () => restart?.click());
     expect(new URLSearchParams(window.location.hash.slice(1)).has("b")).toBe(false);
   });
@@ -77,7 +78,7 @@ describe("실제로 공개되는 비교 화면", () => {
       window.dispatchEvent(new HashChangeEvent("hashchange"));
     });
     expect(container.querySelector('[data-result="couple"]')).toBeNull();
-    expect(container.textContent).toContain("이 결과 링크를 확인하지 못했어요");
+    expect(container.textContent).toContain("이 링크는 열 수 없어요");
     await act(async () => {
       window.history.replaceState(null, "", "/wedding-code");
       window.dispatchEvent(new HashChangeEvent("hashchange"));

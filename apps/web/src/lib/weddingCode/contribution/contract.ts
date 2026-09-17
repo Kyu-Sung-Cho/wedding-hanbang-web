@@ -45,8 +45,12 @@ if (WEDDING_CODE_V09_QUESTIONS.length !== WEDDING_CODE_RESEARCH_SCENE_COUNT) {
  * v2 (2026-09-17): 팀원이 카드를 읽고 무슨 뜻인지 모르겠다고 했다("문항 판", "답 기호").
  * 같은 내용을 쉬운 말로 다시 쓰고, 삭제 코드를 잃어버리면 지울 수 없다는 사실을 **동의
  * 전에** 보이게 옮겼다. 받는 항목·목적·기간은 그대로다. DB CHECK 는 `v[1-9][0-9]*` 를 받는다.
+ *
+ * v3 (2026-09-17, 같은 날 두 번째): 카드 제목·안내·목록이 아직 약관처럼 읽혀서 말로 풀었다
+ * (예: 「함께 저장하지 않는 것:」 → 「저장하지 않는 것:」, 「지우기:」 → 「지우고 싶을 때:」).
+ * 받는 항목·목적·기간·삭제 방법은 그대로이고, 동의 문장과 만 19세 문장은 손대지 않았다.
  */
-export const WEDDING_CODE_RESEARCH_CONSENT_VERSION = "wc-research-consent-v2";
+export const WEDDING_CODE_RESEARCH_CONSENT_VERSION = "wc-research-consent-v3";
 export const WEDDING_CODE_RESEARCH_RETENTION_DAYS = 60;
 /** 지운 삭제 코드의 해시를 남겨 같은 코드로 다시 저장되지 않게 하는 기간. */
 export const WEDDING_CODE_RESEARCH_TOMBSTONE_DAYS = 30;

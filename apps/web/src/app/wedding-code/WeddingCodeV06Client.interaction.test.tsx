@@ -43,21 +43,21 @@ describe("WeddingCodeV06Client interaction", () => {
         await act(async () => container.querySelector<HTMLButtonElement>('[data-option="A"]')!.click());
         await clickText("다음 문항");
       } else {
-        await clickText("이 장면은 우리와 안 맞아요");
+        await clickText("이 장면은 건너뛸게요");
       }
     }
     const result = container.querySelector('[data-result="solo"]')!;
     expect(result.querySelector("h1")?.textContent).toBe("내가 이번에 고른 것");
-    expect(result.textContent).toContain("답한 1장면만 셌고");
+    expect(result.textContent).toContain("건너뛴 장면은 빼고 셌어요");
     expect(result.textContent).toContain("둘이 얘기해 봐야 한다며 답을 내일로 미뤘다");
     // 한정 안내는 인용 바로 아래 한 줄이고, 「정할 때 챙길 것」에는 섞이지 않는다.
     const card = container.querySelector('[data-self-axis="preparationMode"]')!;
     expect(card.querySelector("[data-qualifier-line]")?.textContent).toBe(
-      "고른 답을 읽을 때 참고할 점: 상대를 기다리려고 미룬 것과 정하기 어려워 미룬 것은 달라요.",
+      "참고로, 상대와 얘기하려고 미뤘을 수도, 바로 정하기 어려워서 미뤘을 수도 있어요.",
     );
     expect(card.querySelector('[data-tip="watchOut"]')?.textContent).not.toContain("미룬 것");
     expect(card.textContent).toContain("답한 1장면은 T(둘이 같이) 쪽이었어요.");
-    expect(card.textContent).toContain("실제 고른 문장을 같이 확인해 주세요");
+    expect(card.textContent).toContain("숫자만 보지 말고 고른 답도 같이 봐 주세요");
     expect(container.textContent).not.toContain("둘이 같이 보는 답을 더 많이 골랐어요");
     expect(result.textContent).not.toContain("반복해서 고른");
     expect(container.querySelector('[data-share-url]')?.getAttribute("data-share-url")).toMatch(/#v=[^&]+&a=-{9}A-{10}$/);
@@ -81,20 +81,20 @@ describe("WeddingCodeV06Client interaction", () => {
         await act(async () => container.querySelector<HTMLButtonElement>('[data-option="D"]')!.click());
         await clickText("다음 문항");
       } else {
-        await clickText("이 장면은 우리와 안 맞아요");
+        await clickText("이 장면은 건너뛸게요");
       }
     }
     const result = container.querySelector('[data-result="solo"]')!;
-    expect(result.textContent).toContain("답한 1장면만 셌고");
+    expect(result.textContent).toContain("건너뛴 장면은 빼고 셌어요");
     expect(result.textContent).toContain(candid.label);
     const card = container.querySelector('[data-self-axis="supportOrder"]')!;
     expect(card.querySelector("[data-qualifier-line]")?.textContent).toBe(
-      "고른 답을 읽을 때 참고할 점: 서둘러 끝내려 한 것과 할 일을 차분히 정리한 것은 달라요.",
+      "참고로, 할 일을 차분히 나눴다기보다 빨리 끝내려던 답이에요.",
     );
     expect(card.querySelector('[data-tip="watchOut"]')?.textContent).not.toContain("서둘러 끝내려");
     expect(card.textContent).toContain("답한 1장면은 A(할 일 먼저) 쪽이었어요.");
     expect(card.textContent).toContain("“마음 먼저” 쪽 답은 한 번도 고르지 않았어요.");
-    expect(container.textContent).toContain("할 일과 결정이 먼저인 답을 더 많이 골랐어요");
+    expect(container.textContent).toContain("할 일과 결정 쪽 답을 더 많이 골랐어요");
     expect(container.textContent).not.toContain("먼저 할 일을 정하는 답");
 
     const badge = container.querySelector('[data-wedding-code="···A"]');
@@ -110,7 +110,7 @@ describe("WeddingCodeV06Client interaction", () => {
     const skipped = badge!.querySelector('[data-legend-axis="decisionCriteria"]')!;
     expect(skipped.querySelectorAll("[data-segment]")).toHaveLength(0);
     expect(skipped.querySelectorAll('[data-pole-chosen="true"]')).toHaveLength(0);
-    expect(skipped.textContent).toContain("이 주제 장면을 모두 건너뛰어서 글자가 없어요");
+    expect(skipped.textContent).toContain("이 주제는 모두 건너뛰어서 글자가 없어요");
 
     expect(container.querySelector('[data-share-url]')?.getAttribute("data-share-url")).toMatch(
       new RegExp(`#v=${encodeURIComponent(config.version).replace(/\./g, "\\.")}&a=-{18}D-$`),
@@ -261,7 +261,7 @@ describe("WeddingCodeV06Client interaction", () => {
     expect(container.querySelector('[data-proposal="workMode"]')).toBeTruthy();
     expect(container.querySelector('[data-proposal="familyOrder"]')).toBeTruthy();
     expect(container.querySelector('[data-proposal="supportOrder"]')).toBeTruthy();
-    expect(proposalText).toContain("지금 원하는 도움과 같지는 않아요");
+    expect(proposalText).toContain("지금 받고 싶은 도움은 다를 수 있어서 따로 물어볼게요");
     // 없는 자동 연동을 있는 것처럼 말하지 않는다.
     expect(proposalText).toContain("직접 고른 항목만");
     expect(proposalText).not.toMatch(/자동으로 반영(됐|되었|됩니다|돼요)/);
@@ -272,9 +272,9 @@ describe("WeddingCodeV06Client interaction", () => {
      * 저장되는지(설정값)와 무엇이 저장되지 않는지(답과 고른 문장)를 함께 말한다.
      */
     expect(container.querySelector("[data-apply-amora]")).toBeNull();
-    expect(proposalText).toContain("로그인하고 선택한 방식 확인하기");
+    expect(proposalText).toContain("로그인하고 고른 내용 확인하기");
     expect(container.querySelector<HTMLButtonElement>("[data-continue-amora]")?.disabled).toBe(true);
-    expect(proposalText).toContain("웨딩코드 답과 고른 문장을 보내지 않아요");
+    expect(proposalText).toContain("웨딩코드에서 고른 답이 들어가지 않아요");
     // 저장 결과를 확인하기 전에 반영됐다고 말하지 않는다.
     expect(proposalText).not.toContain("아모라에 반영했어요");
   });
@@ -379,7 +379,7 @@ describe("WeddingCodeV06Client interaction", () => {
       // 저장 결과를 확인한 뒤에만 반영됐다고 말한다.
       expect(container.querySelector("[data-apply-amora]")?.textContent)
         .toContain("아모라에 반영했어요");
-      expect(container.textContent).toContain("저장한 방식은 다음 아모라 답변에 참고돼요");
+      expect(container.textContent).toContain("다음 답변부터 아모라가 이 방식을 참고해요");
     } finally {
       globalThis.fetch = originalFetch;
       useAuthStore.setState({ user: null });
@@ -489,7 +489,7 @@ describe("WeddingCodeV06Client interaction", () => {
     }
     for (let remaining = config.questions.length - picks.length; remaining > 0; remaining -= 1) {
       // 답을 고르지 않아도 건너뛰기는 항상 눌린다.
-      await clickText("이 장면은 우리와 안 맞아요");
+      await clickText("이 장면은 건너뛸게요");
     }
 
     const result = container.querySelector('[data-result="solo"]');
@@ -498,7 +498,7 @@ describe("WeddingCodeV06Client interaction", () => {
 
     // 답한 주제는 읽어주고, 건너뛴 주제는 비운다.
     expect(text).toContain("답한 5장면 모두 V(조건 먼저) 쪽이었어요.");
-    expect(text).toContain("답한 5장면만 셌고, 건너뛴 장면은 비워뒀어요");
+    expect(text).toContain("건너뛴 장면은 빼고 셌어요");
     expect(container.querySelectorAll("[data-skipped]").length).toBe(config.axes.length - 1);
     expect(text).toContain("이 주제는 건너뛰었어요");
     // 건너뛴 주제로는 아모라 제안을 만들지 않는다.
@@ -533,11 +533,11 @@ describe("WeddingCodeV06Client interaction", () => {
 
     await clickText("시작하기");
     for (let remaining = config.questions.length; remaining > 0; remaining -= 1) {
-      await clickText("이 장면은 우리와 안 맞아요");
+      await clickText("이 장면은 건너뛸게요");
     }
 
     expect(container.querySelector("[data-empty]")).toBeTruthy();
-    expect(container.textContent).toContain("답을 지어내는 것보다");
+    expect(container.textContent).toContain("여기서 끝내도 돼요");
     expect(container.querySelector("[data-share-url]")).toBeNull();
     // 탓하지 않는다.
     expect(container.textContent).not.toMatch(/다시 해주세요|답해야|하셔야/);
@@ -569,7 +569,7 @@ describe("WeddingCodeV06Client interaction", () => {
     await act(async () => first?.click());
     await clickText("다음 문항");
     for (let remaining = config.questions.length - 1; remaining > 0; remaining -= 1) {
-      await clickText("이 장면은 우리와 안 맞아요");
+      await clickText("이 장면은 건너뛸게요");
     }
 
     const shareUrl = container
