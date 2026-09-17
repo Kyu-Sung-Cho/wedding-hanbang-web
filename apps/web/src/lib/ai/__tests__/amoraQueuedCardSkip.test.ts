@@ -2,11 +2,13 @@ import { describe, expect, it } from "vitest";
 
 import {
   advanceAmoraActionQueue,
+  resolveAbandonedAmoraActionQueue,
   resolveAmoraActionQueue,
   skipAmoraActionQueueHead,
   type AmoraActionQueue,
 } from "@/lib/ai/amoraActionQueue";
 import {
+  describeUnconfirmedAmoraPendingAction,
   extractAmoraPendingAction,
   type StoredAmoraPendingAction,
 } from "@/lib/ai/amoraPendingAction";
@@ -110,6 +112,51 @@ describe("대기열에서 지금 항목을 건너뛴다", () => {
       version: 1, queueId: QUEUE_ID, currentActionId: next.actionId,
       totalCount: 3, completedCount: 1, remainingActions: [item(32_000_000)],
     });
+  });
+});
+
+/**
+ * 2026-09-18 재검사: 말없이 사라질 대기열의 안내가 **머리 카드가 살아 있을 때만** 나갔다.
+ * 확인 창은 10분(체크리스트 등)~24시간(공유 계획)이라, 카드를 치우고 자리를 떴다가 돌아오면
+ * 만료돼 있는 것이 보통이다. 만료는 적용을 막는 규칙이지 "무엇이 남았는지 말하지 말라" 는
+ * 규칙이 아니므로, 만료 뒤에도 같은 서명 검증을 발급 시각 기준으로 한 번 더 받고 읽는다.
+ */
+describe("말없이 사라질 대기열은 확인 창이 지난 뒤에도 읽는다", () => {
+  const HEAD_ID = "66666666-6666-4666-8666-666666666666";
+  const head = card(30_000_000, HEAD_ID);
+  const stored: AmoraActionQueue = { ...queue(3, 1, [31_000_000]), currentActionId: HEAD_ID };
+  const ttl = head.expiresAt - head.issuedAt;
+  const after = head.expiresAt + 60_000;
+
+  it("살아 있는 카드는 지금을 기준으로 읽는다", () => {
+    expect(resolveAbandonedAmoraActionQueue({
+      pendingAction: head, queueValue: stored, allowedTools: TOOLS, now: NOW + 1_000,
+    })).toEqual({ head, queue: stored, describedAt: NOW + 1_000 });
+  });
+
+  it("확인 창이 지난 카드도 읽는다 — 기준 시각은 발급 시각이다", () => {
+    // 오늘까지의 읽기는 이때 아무것도 못 봤다. 그래서 남은 요청이 안내 없이 사라졌다.
+    expect(describeUnconfirmedAmoraPendingAction({ value: head, allowedTools: TOOLS, now: after })).toBeNull();
+    expect(resolveAbandonedAmoraActionQueue({
+      pendingAction: head, queueValue: stored, allowedTools: TOOLS, now: after,
+    })).toEqual({ head, queue: stored, describedAt: head.issuedAt });
+  });
+
+  it("만료돼도 서명·확인문·TTL·대기열 모양 검증은 그대로다", () => {
+    const base = { queueValue: stored, allowedTools: TOOLS, now: after } as const;
+    for (const [name, pendingAction] of [
+      ["입력이 서명과 다른 카드", { ...head, input: { total_budget: 99_000_000 } }],
+      ["확인문이 발급문과 다른 카드", { ...head, confirmation: "총예산을 9,900만 원으로 변경할까요?" }],
+      ["TTL 길이가 다른 카드", { ...head, expiresAt: head.expiresAt + 1 }],
+      ["발급 시각이 미래인 카드", { ...head, issuedAt: after + 1, expiresAt: after + 1 + ttl }],
+      ["버전이 다른 카드", { ...head, version: 1 }],
+      ["카드가 아닌 값", "이 항목은 적용하지 않고 다음 항목으로 넘어갈게요."],
+    ] as const) {
+      expect(resolveAbandonedAmoraActionQueue({ ...base, pendingAction }), name).toBeNull();
+    }
+    // 대기열이 이 카드를 가리키지 않거나 아예 없으면 안내할 남은 요청이 없다.
+    expect(resolveAbandonedAmoraActionQueue({ ...base, pendingAction: head, queueValue: queue(3, 1, [31_000_000]) })).toBeNull();
+    expect(resolveAbandonedAmoraActionQueue({ ...base, pendingAction: head, queueValue: undefined })).toBeNull();
   });
 });
 

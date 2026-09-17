@@ -215,6 +215,27 @@ export function isPendingAmoraActionContinuedInMessage(
  */
 export const QUEUED_CARD_SKIP_LABEL = "이 항목 건너뛰기";
 
+/** 화면에서만 치우는 버튼. 결정을 저장하지 않고 다음 답변에 같은 카드가 다시 붙는다. */
+export const PENDING_ACTION_HIDE_LABEL = "지금은 적용하지 않기";
+
+/**
+ * **두 보조 버튼의 차이를 글자로 말한다** (2026-09-18 재검사).
+ *
+ * 건너뛰기는 서버로 나가 대기열을 앞으로 보내고, 이 항목은 다시 오지 않는다. 숨기기는 화면에서만
+ * 치우고 같은 카드가 다시 붙는다. 그런데 두 버튼은 선 테두리·흰 바탕·같은 굵기로 **똑같이**
+ * 생겼고 글자만 비슷하게 달라서, 어느 쪽이 돌이킬 수 있는 쪽인지 화면에서 알 수 없었다.
+ * 색과 굵기(아래 버튼의 로즈 강조)만으로 말하지 않고 한 줄로 적는다 — 색을 못 보는 사용자도
+ * 읽어야 한다.
+ */
+export const QUEUED_CARD_SKIP_HINT =
+  `'${QUEUED_CARD_SKIP_LABEL}'는 이 항목을 반영하지 않고 바로 다음 요청을 확인해요.`
+  + ` '${PENDING_ACTION_HIDE_LABEL}'는 화면에서만 치우고 같은 카드가 다시 나와요.`;
+
+/** 이 카드가 몇 건을 걸고 있는지. 건수만 말하고 남은 요청의 내용은 화면에 쓰지 않는다. */
+export function getQueuedRemainingCopy(remainingCount: number): string {
+  return `이 카드까지 확인하면 남은 요청이 ${remainingCount}건 더 있어요.`;
+}
+
 /**
  * 이 카드 뒤에 남은 요청이 몇 건인가. 없으면 0(대기열이 아니거나 마지막 항목).
  *
@@ -520,6 +541,7 @@ export default function PendingAmoraActionCard({
   const statusId = `pending-amora-action-${action.actionId}-status`;
   const pastDateId = `pending-amora-action-${action.actionId}-past-date`;
   const approvalStatusId = `pending-amora-action-${action.actionId}-approval`;
+  const queuedId = `pending-amora-action-${action.actionId}-queued`;
   // 이월된 카드인가. 서버 metadata 값만 본다 — 화면은 추측하지 않는다.
   const isCarriedForward = Number.isSafeInteger(carryCount) && carryCount >= 1;
   // 이월이면 접근성 이름을 라벨부터 읽게 한다 — 화면을 못 보는 사용자도
@@ -724,11 +746,14 @@ export default function PendingAmoraActionCard({
     && approvalStatus?.requiredCount === 2
     && approvalStatus.accepted,
   );
+  // 이 카드 뒤에 남은 요청 수. metadata 에서 센 값만 믿는다 — 모양이 어긋나면 0 이다.
+  const queuedRemaining = Number.isSafeInteger(queuedRemainingCount) && queuedRemainingCount > 0
+    ? queuedRemainingCount
+    : 0;
   // 건너뛰기는 최신 답변의, 아직 적용·만료되지 않은 대기열 카드에만 둔다. 답변을 기다리는
   // 동안(busy)에는 보이되 누를 수 없다 — 서버는 최신 카드에 대한 건너뛰기만 받는다.
   const canSkipQueuedItem = Boolean(onSkip)
-    && Number.isSafeInteger(queuedRemainingCount)
-    && queuedRemainingCount > 0
+    && queuedRemaining > 0
     && (disabledReason === null || disabledReason === "busy");
 
   let approvalCopy: string | null = approvalError ?? applicationNotice;
@@ -807,7 +832,7 @@ export default function PendingAmoraActionCard({
         showsPastDateNotice ? ` ${pastDateId}` : ""
       }${statusCopy ? ` ${statusId}` : ""}${
         approvalCopy ? ` ${approvalStatusId}` : ""
-      }`}
+      }${canSkipQueuedItem ? ` ${queuedId}` : ""}`}
       className={`amora-workspace ml-11 mt-2 max-w-[94%] rounded-[14px] p-4 shadow-[var(--shadow-raised)] sm:ml-14 sm:max-w-[53.75rem] ${
         isCarriedForward
           ? "border border-dashed border-[#B99A7E] bg-[#FBF5EE]"
@@ -890,6 +915,23 @@ export default function PendingAmoraActionCard({
       )}
 
       {/*
+        대기열 카드가 **몇 건을 걸고 있는지**와 두 보조 버튼의 차이를 적는다(2026-09-18 재검사).
+        예전에는 둘 다 없어서, 남은 요청이 몇 건인지 화면에 아무 곳에도 없었고 돌이킬 수 있는
+        버튼과 그렇지 않은 버튼이 똑같이 생긴 채로 나란히 있었다.
+      */}
+      {canSkipQueuedItem && (
+        <p
+          id={queuedId}
+          className="mt-3 rounded-[6px] bg-[var(--amora-low)] px-3 py-2.5 text-xs leading-5 text-[var(--hb-text-body)]"
+        >
+          <span className="font-semibold text-[var(--amora-rose-deep)]">
+            {getQueuedRemainingCopy(queuedRemaining)}
+          </span>{" "}
+          {QUEUED_CARD_SKIP_HINT}
+        </p>
+      )}
+
+      {/*
         옮겨진 카드에는 버튼을 두지 않는다. 누를 곳은 최신 답변의 카드 한 군데다 —
         여기서 "지금은 적용하지 않기" 를 누르면 아래 카드까지 함께 치워져, 방금 아모라가
         가리킨 버튼이 사라진다.
@@ -942,16 +984,25 @@ export default function PendingAmoraActionCard({
             type="button"
             onClick={onDismiss}
             disabled={disabledReason === "applied" || isApplying || isSavingApproval}
-            aria-label="지금은 적용하지 않기"
+            aria-label={PENDING_ACTION_HIDE_LABEL}
             className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-[6px] border border-[#D8C7BB] bg-white px-4 py-2.5 text-sm font-medium text-[var(--hb-text-body)] transition-colors hover:bg-[#F8F4F0] disabled:cursor-not-allowed disabled:opacity-50"
           >
             <X className="h-4 w-4" aria-hidden="true" />
-            지금은 적용하지 않기
+            {PENDING_ACTION_HIDE_LABEL}
           </button>
           {/*
             대기열 카드에만 나오는 두 번째 보조 버튼. "지금은 적용하지 않기"(화면에서만 치움)와 달리
             서버에 알려 지금 항목을 반영하지 않고 다음 항목을 새 확인 카드로 받는다. 보이는 글자와
             접근성 이름은 위 버튼과 같은 규칙으로 같게 둔다(WCAG 2.5.3).
+
+            2026-09-18 재검사: 이 버튼이 위 숨기기 버튼과 **한 글자도 다르지 않게** 생겼다(같은
+            회색 테두리·흰 바탕·같은 굵기). 하나는 돌이킬 수 있고 하나는 대기열을 앞으로 보내는데
+            화면이 그 차이를 말하지 않았다. 그래서 무게를 한 단계 올린다 — DESIGN.md 의 로즈
+            역할 분담을 그대로 따른다: **테두리는 rose[600]**(`--amora-action`, 흰 바탕에서 4.95:1),
+            **글자는 rose[700]**(`--amora-rose-deep`, 6.25:1), 마우스 올림은 연한 로즈
+            (`--amora-rose-pale`, 그 위에서 4.71:1). rose[600] 을 글자에 쓰지 않는 규칙을 지킨다.
+            주 행동("내용 확인하기")은 채운 로즈라 이 선 버튼과 겹치지 않는다. 색만으로 말하지
+            않도록 위 한 줄(`QUEUED_CARD_SKIP_HINT`)이 차이를 글자로도 적는다.
           */}
           {canSkipQueuedItem && (
             <button
@@ -959,7 +1010,7 @@ export default function PendingAmoraActionCard({
               onClick={() => onSkip?.(action.actionId)}
               disabled={disabledReason !== null || isApplying || isSavingApproval}
               aria-label={QUEUED_CARD_SKIP_LABEL}
-              className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-[6px] border border-[#D8C7BB] bg-white px-4 py-2.5 text-sm font-medium text-[var(--hb-text-body)] transition-colors hover:bg-[#F8F4F0] disabled:cursor-not-allowed disabled:opacity-50"
+              className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-[6px] border border-[var(--amora-action)] bg-white px-4 py-2.5 text-sm font-semibold text-[var(--amora-rose-deep)] transition-colors hover:bg-[var(--amora-rose-pale)] disabled:cursor-not-allowed disabled:opacity-50"
             >
               <SkipForward className="h-4 w-4" aria-hidden="true" />
               {QUEUED_CARD_SKIP_LABEL}

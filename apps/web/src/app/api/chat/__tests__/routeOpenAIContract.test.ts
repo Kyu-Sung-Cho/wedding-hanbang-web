@@ -8245,6 +8245,21 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
       // 모델은 이 턴에 "반영할게요" 라고 하거나 없는 버튼을 가리킬 수 있다. 서버 안내가 대신 나가야 한다.
       const skip = async (previous: Saved) =>
         (await say(previous, AMORA_QUEUED_CARD_SKIP_TEXT, "좋아요, 이 항목을 반영할게요. 위의 적용 버튼을 눌러 주세요.")).saved;
+      /**
+       * 카드의 **확인 창이 지난** 행을 만든다. 발급·만료 시각만 TTL 길이를 지킨 채 과거로 옮긴다 —
+       * 서명·확인문·도구는 그대로라 "만료됐다" 한 줄만 다른 카드가 된다. 치우고 자리를 떴다가
+       * 10분~24시간 뒤에 돌아온 사람이 보는 행이다.
+       */
+      function expireCard(previous: Saved): Saved {
+        const card = previous.metadata.pending_amora_action as { issuedAt: number; expiresAt: number };
+        const ttl = card.expiresAt - card.issuedAt;
+        expect(ttl).toBeGreaterThan(0);
+        const issuedAt = Date.now() - ttl - 60_000;
+        return {
+          ...previous,
+          metadata: { ...previous.metadata, pending_amora_action: { ...card, issuedAt, expiresAt: issuedAt + ttl } },
+        };
+      }
 
       it("skips the declined middle card without executing anything and issues the next request as a new card", async () => {
         seedStudio();
@@ -8502,7 +8517,8 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
           remainingActions: [{ tool: studio.tool, input: studio.input }, expect.objectContaining({ tool: "add_schedule_event", input: expect.objectContaining(fitting.input) })],
         });
         expect(saved.content.startsWith("보통은 본식 6개월 전쯤 알아봐요.")).toBe(true);
-        expect(saved.content).toContain(`앞서 확인을 기다리던 요청은 아직 반영하지 않았어요. 필요하면 다시 말씀해 주세요.\n\n${ABANDONED}\n`);
+        // 몇 건이 남았는지도 문장에 적는다 — 목록만 있으면 사용자가 세야 한다.
+        expect(saved.content).toContain(`앞서 확인을 기다리던 요청 2건은 아직 반영하지 않았어요. 필요하면 다시 말씀해 주세요.\n\n${ABANDONED}\n`);
         expect(saved.content).toContain(describeItem({ tool: studio.tool, input: studio.input }));
         expect(saved.content).toContain(describeItem(fitting));
         // 목록은 답변 뒤에 붙는 서버 문장이다 — 이번 턴 모델 문맥에는 남은 요청이 없다.
@@ -8514,6 +8530,77 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
         saved = (await say(saved, "스튜디오 촬영은 보통 몇 시간 걸려?", "보통 반나절이에요.")).saved;
         expect(saved.content).toBe("보통 반나절이에요.");
         expect(saved.metadata.deferred_amora_action_queue).toBeUndefined();
+      });
+
+      /**
+       * 2026-09-18 재검사: 목록 안내가 **머리 카드가 살아 있을 때만** 나갔다. 확인 창은 체크리스트
+       * 10분, 공유 계획 24시간이라 치우고 자리를 떴다가 돌아오면 카드가 만료돼 있는 것이 보통이고,
+       * 그때는 대기열이 아예 보이지 않아 남은 요청이 다시 말없이 사라졌다. 이월 상한(2턴)에 닿기
+       * 전에도 그랬다 — 결혼 질문 한 번이면 끝이었다.
+       */
+      it("lists the remaining requests after the hidden card's confirmation window has passed", async () => {
+        seedStudio();
+        let saved = await propose([dressTour, studioPlan, fitting]);
+        saved = await confirm(saved, "add_schedule_event", dressTour.input);
+        const studio = cardOf(saved)!;
+        const queue = saved.metadata.pending_amora_action_queue as { queueId: string };
+        const journeyBefore = structuredClone(mocks.journeyRow);
+        // 카드를 "지금은 적용하지 않기" 로 치우고 자리를 떴다. 돌아왔을 때 확인 창은 이미 지났다.
+        saved = (await say(expireCard(saved), "스튜디오 예산은 보통 얼마 정도야?", "보통은 구성과 지역에 따라 달라요.")).saved;
+        expect(saved.metadata.question_scope).toBe("W0_wedding_core");
+        // 만료된 카드는 옮기지도 적용하지도 않는다 — 읽기는 안내에만 쓴다.
+        expect(cardOf(saved)).toBeUndefined();
+        expect(saved.metadata.pending_amora_action_queue).toBeUndefined();
+        expect(saved.metadata.pending_amora_action_carry_count).toBeUndefined();
+        expect(mocks.executeTool).toHaveBeenCalledTimes(1);
+        expect(authorizeCalls()).toBe(1);
+        expect(mocks.journeyRow).toEqual(journeyBefore);
+        // 그래도 무엇이 남았는지, 몇 건인지 말한다.
+        expect(saved.content.startsWith("보통은 구성과 지역에 따라 달라요.")).toBe(true);
+        expect(saved.content).toContain(`앞서 확인을 기다리던 요청 2건은 아직 반영하지 않았어요. 필요하면 다시 말씀해 주세요.\n\n${ABANDONED}\n`);
+        expect(saved.content).toContain(describeItem({ tool: studio.tool, input: studio.input }));
+        expect(saved.content).toContain(describeItem(fitting));
+        expect(saved.metadata.deferred_amora_action_queue).toEqual({
+          queueId: queue.queueId, totalCount: 3, completedCount: 1,
+          remainingActions: [{ tool: studio.tool, input: studio.input }, expect.objectContaining({ tool: "add_schedule_event", input: expect.objectContaining(fitting.input) })],
+        });
+        // 목록은 서버 문장이다 — 만료됐어도 모델 문맥에는 남은 요청이 들어가지 않는다.
+        const lastCall = mocks.provider.mock.calls.at(-1)?.[0];
+        expect(JSON.stringify([lastCall?.systemPrompt, lastCall?.input])).not.toContain("본식 드레스 가봉");
+
+        // 한 번만 알린다 — 다음 턴의 직전 행에는 대기열이 없다.
+        saved = (await say(saved, "스튜디오 촬영은 보통 몇 시간 걸려?", "보통 반나절이에요.")).saved;
+        expect(saved.content).toBe("보통 반나절이에요.");
+        expect(saved.metadata.deferred_amora_action_queue).toBeUndefined();
+      });
+
+      it("never turns the expired head into execution authority", async () => {
+        seedStudio();
+        let saved = await propose([dressTour, studioPlan, fitting]);
+        saved = await confirm(saved, "add_schedule_event", dressTour.input);
+        const studio = cardOf(saved)!;
+        const expired = expireCard(saved);
+        const journeyBefore = structuredClone(mocks.journeyRow);
+        reply(expired, "확인했어. 반영해줘");
+        const response = await POST(request({
+          messages: [{ role: "user", content: "확인했어. 반영해줘" }],
+          confirmedActionId: studio.actionId,
+        }));
+        expect(response.status).toBe(409);
+        expect(await response.json()).toMatchObject({ code: "AMORA_PENDING_ACTION_CONFIRMATION_REJECTED" });
+        expect(mocks.executeTool).toHaveBeenCalledTimes(1);
+        expect(authorizeCalls()).toBe(1);
+        expect(mocks.journeyRow).toEqual(journeyBefore);
+      });
+
+      it("keeps the expired head out of the notice on a comfort turn", async () => {
+        seedStudio();
+        let saved = await propose([dressTour, studioPlan, fitting]);
+        saved = await confirm(saved, "add_schedule_event", dressTour.input);
+        const comfort = (await say(expireCard(saved), "그냥 오늘 너무 힘들어", "많이 지치셨겠어요.")).saved;
+        expect(comfort.metadata.question_scope).toBe("W3_social_care");
+        expect(comfort.content).not.toContain(ABANDONED);
+        expect(comfort.metadata.deferred_amora_action_queue).toBeUndefined();
       });
 
       it("still confirms a hidden card carried with its queue on a wedding question", async () => {

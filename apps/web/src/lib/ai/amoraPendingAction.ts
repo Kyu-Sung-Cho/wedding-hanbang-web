@@ -2005,6 +2005,41 @@ export function describeUnconfirmedAmoraPendingAction({
   return pending;
 }
 
+/**
+ * **만료된 뒤에도 무엇이 남았는지 말하기 위한** 카드 읽기 (2026-09-18).
+ *
+ * 카드의 확인 창은 체크리스트처럼 바로 누르는 것은 10분, 금액·예식일 같은 공유 계획은
+ * 24시간이다(`getAmoraPendingActionTtlMs`). 2026-09-18 재검사 실측: 여러 변경 중 한 카드를
+ * "지금은 적용하지 않기" 로 치우고 자리를 뜬 뒤 그 창이 지나서 돌아오면, 위
+ * `describeUnconfirmedAmoraPendingAction` 이 만료를 이유로 null 을 내고 남은 요청이 안내
+ * 한 줄 없이 사라졌다. **만료는 적용을 막는 규칙이지 "무엇이 남았는지 말하지 말라" 는
+ * 규칙이 아니다.**
+ *
+ * 그래서 만료 한 줄만 빼고 같은 검증을 받는다 — 기준 시각으로 **발급 시각**을 넘겨
+ * `resolveAmoraPendingAction` 을 그대로 태운다. 서명(`inputDigest`·`operationKey`),
+ * 확인문 재구성, 도구 허용, TTL 길이는 전부 그때 기준으로 다시 대조한다.
+ *
+ * 발급 시각이 **미래**인 값을 여기서 따로 막지 않는 이유: 만료를 요구하는 첫 줄이 이미 막는다.
+ * `expiresAt <= now < issuedAt` 인 값은 아래 `resolveAmoraPendingAction` 이 기준 시각
+ * `issuedAt` 에서 "이미 만료" 로 거절하고, `expiresAt > now` 인 값은 첫 줄에서 걸린다.
+ * 아직 살아 있는 카드를 받지 않는 것도 첫 줄이 한다 — 그건 위 함수가 볼 자리다.
+ *
+ * 이것은 실행 권한도, 모델에게 주는 읽기 신호도 아니다. 서버가 답변 뒤에 붙이는 "아직
+ * 반영하지 않은 요청" 목록과 그 metadata 에만 쓴다. 만료된 카드로는 아무것도 적용할 수
+ * 없다 — 적용은 여전히 살아 있는 action_id 와 승인 RPC 를 받아야 한다.
+ */
+export function describeExpiredAmoraPendingAction({
+  value,
+  allowedTools,
+  now,
+}: Omit<ResolvePendingActionInput, "confirmedActionId">): StoredAmoraPendingAction | null {
+  if (!isRecord(value)) return null;
+  const { issuedAt, expiresAt } = value;
+  if (typeof expiresAt !== "number" || !Number.isInteger(expiresAt) || expiresAt > now) return null;
+  if (typeof issuedAt !== "number" || !Number.isInteger(issuedAt)) return null;
+  return describeUnconfirmedAmoraPendingAction({ value, allowedTools, now: issuedAt });
+}
+
 /** `_id`로 끝나는 입력 필드를 가진 도구인가. */
 function declaresIdField(tool: AiToolDefinition): boolean {
   const properties = isRecord(tool.input_schema.properties)

@@ -4,8 +4,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import PendingAmoraActionCard, {
   CONTINUED_PENDING_ACTION_COPY,
+  PENDING_ACTION_HIDE_LABEL,
+  QUEUED_CARD_SKIP_HINT,
   QUEUED_CARD_SKIP_LABEL,
   getPendingAmoraAction,
+  getQueuedRemainingCopy,
   getPendingAmoraBudgetImpactPreview,
   getPendingActionDisabledReason,
   getQueuedRemainingCount,
@@ -352,6 +355,11 @@ describe("PendingAmoraActionCard", () => {
    */
   const skipButton = () => [...container.querySelectorAll<HTMLButtonElement>("button")]
     .find(button => button.textContent?.trim() === QUEUED_CARD_SKIP_LABEL);
+  const hideButton = () => [...container.querySelectorAll<HTMLButtonElement>("button")]
+    .find(button => button.textContent?.trim() === PENDING_ACTION_HIDE_LABEL);
+  const queuedLine = () => container.querySelector<HTMLElement>(
+    `#pending-amora-action-${singleAction.actionId}-queued`,
+  );
 
   it("offers a separate skip control on the latest queued card and sends nothing from the hide control", async () => {
     const onApply = vi.fn();
@@ -394,6 +402,55 @@ describe("PendingAmoraActionCard", () => {
     expect(onSkip).toHaveBeenCalledOnce();
   });
 
+  /**
+   * 2026-09-18 재검사: 이 카드는 **몇 건을 걸고 있는지 한 번도 말하지 않았고**, 돌이킬 수 있는
+   * 숨기기와 대기열을 앞으로 보내는 건너뛰기가 회색 테두리·흰 바탕·같은 굵기로 똑같이 생겼다.
+   * 건수를 적고, 되돌릴 수 없는 쪽만 로즈로 무게를 올린다(DESIGN.md: 테두리 rose[600],
+   * 글자 rose[700]). 색을 못 보는 사용자를 위해 차이를 글자로도 적는다.
+   */
+  it("says how many requests are at stake and does not dress the skip control like the hide control", async () => {
+    await act(async () => {
+      root.render(
+        <PendingAmoraActionCard
+          action={singleAction}
+          messageId="aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+          disabledReason={null}
+          isApplying={false}
+          queuedRemainingCount={2}
+          onApply={vi.fn()}
+          onDismiss={vi.fn()}
+          onSkip={vi.fn()}
+        />,
+      );
+    });
+
+    const queued = queuedLine()!;
+    expect(queued.textContent).toContain(getQueuedRemainingCopy(2));
+    expect(queued.textContent).toContain("2건");
+    expect(queued.textContent).toContain(QUEUED_CARD_SKIP_HINT);
+    // 두 버튼 이름이 모두 문장에 있어야 어느 쪽이 무엇인지 읽을 수 있다.
+    expect(queued.textContent).toContain(QUEUED_CARD_SKIP_LABEL);
+    expect(queued.textContent).toContain(PENDING_ACTION_HIDE_LABEL);
+    // 남은 요청의 내용은 화면에 쓰지 않는다 — 건수만 센다.
+    const section = container.querySelector<HTMLElement>("section")!;
+    expect(section.getAttribute("aria-describedby")?.split(" ")).toContain(queued.id);
+
+    const skip = skipButton()!;
+    const hide = hideButton()!;
+    expect(skip.className).not.toBe(hide.className);
+    // 되돌릴 수 없는 쪽: rose[600] 테두리 · rose[700] 글자 · 연한 로즈 hover · 굵은 글자.
+    expect(skip.className).toContain("border-[var(--amora-action)]");
+    expect(skip.className).toContain("text-[var(--amora-rose-deep)]");
+    expect(skip.className).toContain("hover:bg-[var(--amora-rose-pale)]");
+    expect(skip.className).toContain("font-semibold");
+    // rose[600] 은 채움·테두리 색이고 글자 색이 아니다(DESIGN.md 2026-09-16).
+    expect(skip.className).not.toContain("text-[var(--amora-action)]");
+    // 되돌릴 수 있는 쪽은 조용한 회색 선으로 남는다.
+    expect(hide.className).toContain("border-[#D8C7BB]");
+    expect(hide.className).toContain("font-medium");
+    expect(hide.className).not.toContain("--amora-rose-deep");
+  });
+
   it.each([
     ["a single card", { queuedRemainingCount: 0, disabledReason: null }],
     ["a card without a skip handler", { queuedRemainingCount: 1, disabledReason: null, withoutHandler: true }],
@@ -418,6 +475,11 @@ describe("PendingAmoraActionCard", () => {
     });
     expect(skipButton()).toBeUndefined();
     expect(container.textContent).not.toContain(QUEUED_CARD_SKIP_LABEL);
+    // 건너뛸 수 없는 카드에서는 건수 줄도 말하지 않는다 — 가리킬 버튼이 없다.
+    expect(queuedLine()).toBeNull();
+    expect(container.textContent).not.toContain("남은 요청이");
+    expect(container.querySelector("section")!.getAttribute("aria-describedby"))
+      .not.toContain("-queued");
   });
 
   it.each([
@@ -443,6 +505,8 @@ describe("PendingAmoraActionCard", () => {
     expect(skip.disabled).toBe(true);
     await act(async () => skip.click());
     expect(onSkip).not.toHaveBeenCalled();
+    // 누를 수 없는 동안에도 몇 건이 걸려 있는지는 그대로 말한다.
+    expect(queuedLine()?.textContent).toContain(getQueuedRemainingCopy(2));
   });
 
   it("shows truthful before/after budget impact without calling recorded spend a payment", async () => {

@@ -165,6 +165,7 @@ import {
 import {
   advanceAmoraActionQueue,
   createAmoraActionQueue,
+  resolveAbandonedAmoraActionQueue,
   resolveAmoraActionQueue,
   skipAmoraActionQueueHead,
   type AmoraActionQueue,
@@ -3172,9 +3173,15 @@ export async function POST(request: Request) {
    * `awaitingPendingCard`). 그 규칙은 그대로 두고, 여기서는 같은 행을 **안내와 metadata 로만**
    * 읽는다. 이 값은 모델 문맥에 들어가지 않는다 — 답변 뒤에 "아직 반영하지 않은 요청" 목록을
    * 붙이는 데만 쓴다. 관문은 새 변경 요청 여부 하나를 뺀 `awaitingPendingCard` 와 같다.
+   *
+   * 2026-09-18 재검사: 여기에 **만료된 머리 카드**가 빠져 있었다. 확인 창은 10분(체크리스트
+   * 등)~24시간(공유 계획)이라, 카드를 치우고 자리를 뜬 뒤 그 창이 지나서 돌아오면 대기열이
+   * 아예 보이지 않아 남은 요청이 다시 말없이 사라졌다. 그래서 읽기를
+   * `resolveAbandonedAmoraActionQueue` 로 옮겼다 — 살아 있으면 지금 기준, 만료됐으면 **발급
+   * 시각** 기준으로 같은 서명 검증을 한 번 더 받는다. 읽기 범위는 그대로고, 실행 권한은 여기서
+   * 생기지 않는다(만료된 카드는 승인 RPC 를 통과하지 못한다).
    */
-  const unconfirmedQueueHead = awaitingPendingCard ?? (
-    bodyConfirmedActionId === undefined
+  const abandonedQueue = bodyConfirmedActionId === undefined
     && !previousFailedCarriedProposal
     && !isDemo
     && requestKind === "chat"
@@ -3182,17 +3189,12 @@ export async function POST(request: Request) {
     && previousCanonicalRow?.role === "assistant"
     && previousCanonicalRow.sender_type === "ai"
     && previousCanonicalRow.visibility === visibility
-      ? describeUnconfirmedAmoraPendingAction({
-          value: previousCanonicalRow.metadata?.pending_amora_action,
+      ? resolveAbandonedAmoraActionQueue({
+          pendingAction: previousCanonicalRow.metadata?.pending_amora_action,
+          queueValue: previousCanonicalRow.metadata?.pending_amora_action_queue,
           allowedTools: PENDING_ACTION_TOOLS,
           now: Date.now(),
         })
-      : null
-  );
-  const unconfirmedActionQueue = awaitingPendingCard !== null
-    ? storedActionQueue
-    : unconfirmedQueueHead
-      ? resolveAmoraActionQueue(previousCanonicalRow?.metadata?.pending_amora_action_queue, unconfirmedQueueHead, PENDING_ACTION_TOOLS, Date.now())
       : null;
   if (approvedPendingAction && previousCanonicalRow?.metadata?.pending_amora_action_queue !== undefined && !storedActionQueue) {
     await releaseClaimBeforeStream("AMORA_PENDING_ACTION_QUEUE_INVALID");
@@ -4704,26 +4706,35 @@ export async function POST(request: Request) {
            * 붙이지 않는다(카드 이월과 같은 이유다). 이 목록은 답변 뒤에 붙는 서버 문장이고 모델
            * 문맥이 아니다. 이번 턴이 새로 낸 카드와 같은 요청은 목록에서 뺀다.
            *
+           * 머리 카드가 **만료된 뒤에도** 붙는다(2026-09-18 재검사). 확인 창이 지나는 것은 실수가
+           * 아니라 평범한 경로다 — 치우고 자리를 떴다가 돌아오면 그렇게 된다. 만료 판정은
+           * `resolveAbandonedAmoraActionQueue` 안에 있고, 그때는 항목 설명도 **발급 시각** 기준으로
+           * 만든다(`describedAt`).
+           *
+           * 몇 건이 남았는지도 문장에 적는다. 목록만 있으면 화면이 좁을 때 몇 건인지 세야 한다.
+           * 세는 것은 **목록에 실제로 실린 건수**다 — 이번 턴에 새로 낸 카드와 같은 요청이나
+           * 설명을 만들지 못한 항목은 목록에 없으므로 건수에서도 빠진다.
+           *
            * 남은 구멍: 저장 문맥 읽기를 건너뛰고 연결 문맥 창도 읽지 않는 턴(짧은 답 모양이 아닌
            * W2·W3·W4 대부분)은 직전 행을 읽지 않아 대기열을 보지 못하고, 그 턴에서 끊기는 대기열에는
            * 이 안내가 붙지 않는다.
            */
           const newlyIssuedOperationKey = pendingExtraction.pendingAction?.operationKey ?? null;
-          const abandonedQueueActions = unconfirmedQueueHead && unconfirmedActionQueue
+          const abandonedQueueActions = abandonedQueue
             && emittedCarriedPendingCard === null
             && !approvedPendingAction
             && !queueSkipRequested
             && (questionScope.scope === "W0_wedding_core"
               || questionScope.scope === "W1_wedding_adjacent"
               || questionScope.scope === "W4_out_of_scope")
-            ? [{ tool: unconfirmedQueueHead.tool, input: unconfirmedQueueHead.input }, ...unconfirmedActionQueue.remainingActions]
+            ? [{ tool: abandonedQueue.head.tool, input: abandonedQueue.head.input }, ...abandonedQueue.queue.remainingActions]
             : null;
           const abandonedQueueDescriptions = (abandonedQueueActions ?? [])
             .filter(item => getAmoraToolOperationIdentity(item.tool, item.input).operationKey !== newlyIssuedOperationKey)
-            .map(item => describeAmoraQueuedAction(item, PENDING_ACTION_TOOLS, Date.now()))
+            .map(item => describeAmoraQueuedAction(item, PENDING_ACTION_TOOLS, abandonedQueue?.describedAt ?? Date.now()))
             .filter((description): description is string => typeof description === "string" && description.length > 0);
           const abandonedQueueNotice = abandonedQueueDescriptions.length > 0
-            ? `앞서 확인을 기다리던 요청은 아직 반영하지 않았어요. 필요하면 다시 말씀해 주세요.\n\n아직 반영하지 않은 요청\n${abandonedQueueDescriptions.join("\n\n")}`
+            ? `앞서 확인을 기다리던 요청 ${abandonedQueueDescriptions.length}건은 아직 반영하지 않았어요. 필요하면 다시 말씀해 주세요.\n\n아직 반영하지 않은 요청\n${abandonedQueueDescriptions.join("\n\n")}`
             : null;
           const queueText = [
             queueSkipRequested ? queueSkipDescription : null,
@@ -4828,9 +4839,9 @@ export async function POST(request: Request) {
             } } : {}),
             // 이번 턴이 이어받지 않아 안내로 알린 대기열. 같은 입력이 이미 직전 행의
             // `pending_amora_action_queue` 에 있던 것이라 새로 드러나는 것은 없다.
-            ...(abandonedQueueNotice && abandonedQueueActions && unconfirmedActionQueue ? { deferred_amora_action_queue: {
-              queueId: unconfirmedActionQueue.queueId, totalCount: unconfirmedActionQueue.totalCount,
-              completedCount: unconfirmedActionQueue.completedCount,
+            ...(abandonedQueueNotice && abandonedQueueActions && abandonedQueue ? { deferred_amora_action_queue: {
+              queueId: abandonedQueue.queue.queueId, totalCount: abandonedQueue.queue.totalCount,
+              completedCount: abandonedQueue.queue.completedCount,
               remainingActions: abandonedQueueActions,
             } } : {}),
             ...(pendingExtraction.pendingAction

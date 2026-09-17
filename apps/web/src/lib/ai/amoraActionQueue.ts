@@ -1,5 +1,7 @@
 import {
   AMORA_MAX_QUEUED_ACTIONS,
+  describeExpiredAmoraPendingAction,
+  describeUnconfirmedAmoraPendingAction,
   validateAmoraQueuedAction,
   type AmoraQueuedAction,
   type StoredAmoraPendingAction,
@@ -104,4 +106,50 @@ export function skipAmoraActionQueueHead(
     totalCount: queue.totalCount - 1,
     remainingActions: queue.remainingActions.slice(1),
   };
+}
+
+/** 안내로만 읽은 대기열. `describedAt` 은 항목 설명을 만들 기준 시각이다. */
+export interface AbandonedAmoraActionQueue {
+  head: StoredAmoraPendingAction;
+  queue: AmoraActionQueue;
+  describedAt: number;
+}
+
+/**
+ * **말없이 사라질 대기열을 안내하기 위해서만** 읽는다 (2026-09-18).
+ *
+ * 카드가 살아 있으면 지금을 기준으로 읽는다(오늘까지의 경로 그대로). 살아 있지 않으면
+ * `describeExpiredAmoraPendingAction` 으로 **발급 시각**을 기준으로 한 번 더 읽는다 —
+ * 2026-09-18 재검사에서 찾은 구멍이다. 카드를 치우고 자리를 뜬 뒤 확인 창(10분~24시간)이
+ * 지나 돌아오면 머리 카드가 만료돼 대기열이 아예 보이지 않았고, 남은 요청은 안내 한 줄 없이
+ * 사라졌다. 이 경로는 실수가 아니라 **평범한 경로**다.
+ *
+ * 남은 항목도 같은 기준 시각으로 검증한다. `resolveAmoraActionQueue` 는 항목 하나가
+ * 어긋나면 대기열 전체를 버리므로, 그 사이 날짜가 지난 일정 하나가 목록을 통째로 지우는
+ * 것을 막는다. 목록은 **그때 무엇을 부탁했는지** 적는 자리다.
+ *
+ * 돌려주는 값은 실행 권한도, 모델에게 주는 읽기 신호도 아니다. 서버가 답변 뒤에 붙이는
+ * 목록과 metadata 에만 쓴다 — 만료된 카드로는 아무것도 적용할 수 없다.
+ */
+export function resolveAbandonedAmoraActionQueue({
+  pendingAction,
+  queueValue,
+  allowedTools,
+  now,
+}: {
+  pendingAction: unknown;
+  queueValue: unknown;
+  allowedTools: readonly AiToolDefinition[];
+  now: number;
+}): AbandonedAmoraActionQueue | null {
+  const live = describeUnconfirmedAmoraPendingAction({ value: pendingAction, allowedTools, now });
+  if (live) {
+    const queue = resolveAmoraActionQueue(queueValue, live, allowedTools, now);
+    return queue ? { head: live, queue, describedAt: now } : null;
+  }
+  const expired = describeExpiredAmoraPendingAction({ value: pendingAction, allowedTools, now });
+  if (!expired) return null;
+  const describedAt = expired.issuedAt;
+  const queue = resolveAmoraActionQueue(queueValue, expired, allowedTools, describedAt);
+  return queue ? { head: expired, queue, describedAt } : null;
 }
