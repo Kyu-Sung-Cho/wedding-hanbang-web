@@ -3,7 +3,7 @@
 import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { Check } from "lucide-react";
 import Button from "@/components/ui/Button";
-import { MOOD_SCENES, VENUE_SCENES } from "./tasteScenes";
+import { DETAIL_SCENES, MOOD_SCENES, PRIORITY_SCENES } from "./tasteScenes";
 import {
   createEmptyWeddingTasteDraft, parseWeddingTasteDraft, selectedTasteDomains,
   TASTE_AVOID_OPTIONS, TASTE_DOMAIN_OPTIONS, TASTE_DOMAIN_QUESTIONS,
@@ -26,15 +26,23 @@ type ChoiceOption<T extends string> = { value: T; label: string; description?: s
  *   (320px 에서는 칸 폭이 약 119px 라 "간결한 분위기" 가 두 줄로 부서진다).
  * - 공간 3개: 640px 부터 한 줄에 셋. 그 아래에서 셋을 나란히 두면 "실내와 야외를 함께
  *   쓰는 곳" 이 세 줄이 되므로 가로줄로 쌓는다.
+ * - 주제·하객 규모 6개: 360px 폰부터 2열×3줄, 640px 부터 3열×2줄. 2열일 때 그림을 2:1 로
+ *   낮춘다 — 390px 에서 칸 높이가 약 120px 라 세 줄(약 376px)이 글자 버튼 여섯 줄
+ *   (6×64px + 간격 = 424px)보다 낮다. 360px 보다 좁으면 다른 칸처럼 가로줄로 쌓는다.
  */
 const TILE_LAYOUT = {
-  grid: { 3: "grid-cols-1 sm:grid-cols-3", 4: "grid-cols-1 min-[360px]:grid-cols-2" },
-  tile: { 3: "flex-row sm:flex-col", 4: "flex-row min-[360px]:flex-col" },
-  scene: { 3: "w-28 border-r sm:w-full sm:border-r-0 sm:border-b", 4: "w-28 border-r min-[360px]:w-full min-[360px]:border-r-0 min-[360px]:border-b" },
+  grid: { 3: "grid-cols-1 sm:grid-cols-3", 4: "grid-cols-1 min-[360px]:grid-cols-2", 6: "grid-cols-1 min-[360px]:grid-cols-2 sm:grid-cols-3" },
+  tile: { 3: "flex-row sm:flex-col", 4: "flex-row min-[360px]:flex-col", 6: "flex-row min-[360px]:flex-col" },
+  scene: {
+    3: "w-28 border-r sm:w-full sm:border-r-0 sm:border-b",
+    4: "w-28 border-r min-[360px]:w-full min-[360px]:border-r-0 min-[360px]:border-b",
+    6: "w-28 border-r min-[360px]:w-full min-[360px]:border-r-0 min-[360px]:border-b min-[360px]:aspect-[2/1]",
+  },
 } as const;
+type TileColumns = keyof typeof TILE_LAYOUT.grid;
 
 function SceneTile({ option, visual, selected, disabled, columns, onToggle }: {
-  option: ChoiceOption<string>; visual: ReactNode; selected: boolean; disabled: boolean; columns: 3 | 4; onToggle: () => void;
+  option: ChoiceOption<string>; visual: ReactNode; selected: boolean; disabled: boolean; columns: TileColumns; onToggle: () => void;
 }) {
   const id = useId();
   return (
@@ -63,7 +71,7 @@ function SceneTile({ option, visual, selected, disabled, columns, onToggle }: {
 function Choices<T extends string>({ value, options, max, onChange, statusLabels, visuals }: {
   value: TasteSelection<T>; options: readonly ChoiceOption<T>[]; max: number;
   onChange: (value: TasteSelection<T>) => void; statusLabels?: Partial<Record<TasteUnansweredStatus, string>>;
-  /** 값마다 그릴 분위기 그림. 주면 글자 버튼 대신 그림 칸으로 보인다. 칸은 3개나 4개만 배치가 정해져 있다. */
+  /** 값마다 그릴 분위기 그림. 주면 글자 버튼 대신 그림 칸으로 보인다. 칸은 3·4·6개만 배치가 정해져 있다. */
   visuals?: Record<NoInfer<T>, () => ReactNode>;
 }) {
   const selected = value.status === "answered" ? value.values : [];
@@ -72,7 +80,7 @@ function Choices<T extends string>({ value, options, max, onChange, statusLabels
       : max === 1 ? [option] : selected.length < max ? [...selected, option] : selected;
     onChange(next.length ? { status: "answered", values: next } : { status: "skipped" });
   }
-  const columns = options.length === 4 ? 4 : options.length === 3 ? 3 : null;
+  const columns: TileColumns | null = options.length === 3 || options.length === 4 || options.length === 6 ? options.length : null;
   return (
     <div>
       <p className="mb-3 text-[13px] text-[var(--hb-text-muted)]">{max === 1 ? "한 가지를 고르거나 아래에서 현재 상태를 알려주세요." : "최대 " + max + "개 · 다시 누르면 선택을 지울 수 있어요."}</p>
@@ -170,12 +178,12 @@ export default function WeddingTasteForm({ onComplete, initialDraft }: WeddingTa
       </div>
       <div className="px-5 py-6 sm:px-7">
         {step.kind === "priorities" ? <Choices value={draft.priorityDomains} options={TASTE_DOMAIN_OPTIONS} max={2} onChange={changePriorities}
-          statusLabels={{ no_preference: "지금 우선순위를 나누지 않을게요" }} /> : null}
+          statusLabels={{ no_preference: "지금 우선순위를 나누지 않을게요" }} visuals={PRIORITY_SCENES} /> : null}
         {step.kind === "mood" ? <Choices value={draft.mood} options={TASTE_MOOD_OPTIONS} max={2} onChange={mood => setDraft(previous => ({ ...previous, mood }))}
           visuals={MOOD_SCENES} /> : null}
         {step.kind === "detail" ? <Choices value={draft.details[step.domain] ?? { status: "skipped" }} options={TASTE_DOMAIN_QUESTIONS[step.domain].options}
           max={TASTE_DOMAIN_QUESTIONS[step.domain].max} onChange={value => changeDetail(step.domain, value)}
-          visuals={step.domain === "venue" ? VENUE_SCENES : undefined} /> : null}
+          visuals={DETAIL_SCENES[step.domain]} /> : null}
         {step.kind === "avoids" ? <Choices value={draft.avoids} options={TASTE_AVOID_OPTIONS} max={3} onChange={avoids => setDraft(previous => ({ ...previous, avoids }))}
           statusLabels={{ no_preference: "특별히 피하고 싶은 것은 없어요", not_applicable: "이번 계획에는 해당하지 않아요" }} /> : null}
         {step.kind === "negotiability" ? <div className="space-y-6">
