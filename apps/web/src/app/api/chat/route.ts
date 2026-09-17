@@ -160,13 +160,17 @@ import {
   getAmoraPendingActionBubbleText,
   withAmoraBudgetPlanCardLines,
   AMORA_MAX_QUEUED_ACTIONS,
+  type AmoraQueuedAction,
 } from "@/lib/ai/amoraPendingAction";
 import {
   advanceAmoraActionQueue,
   createAmoraActionQueue,
   resolveAmoraActionQueue,
+  skipAmoraActionQueueHead,
   type AmoraActionQueue,
 } from "@/lib/ai/amoraActionQueue";
+import { isAmoraQueuedCardSkip } from "@/lib/ai/amoraQueuedCardSkip";
+import { getAmoraToolOperationIdentity } from "@/lib/ai/amoraToolIdentity";
 import {
   buildAmoraBudgetImpactPreview,
   findAmoraBudgetProposalRefusal,
@@ -3146,6 +3150,50 @@ export async function POST(request: Request) {
   const storedActionQueue = queueHead
     ? resolveAmoraActionQueue(previousCanonicalRow?.metadata?.pending_amora_action_queue, queueHead, PENDING_ACTION_TOOLS, Date.now())
     : null;
+  /**
+   * 대기열 카드의 "이 항목 건너뛰기"(고정 문장)인가 (2026-09-18).
+   *
+   * 참이면 지금 카드는 반영하지 않고, 다음 항목을 새 확인 카드로 낸다. 아무것도 실행하지 않는다.
+   * 범위 판정에는 넘기지 않는다 — `hasApprovedWeddingAction` 처럼 W0·장기 기억을 켜는 값을
+   * 빌리면 "적용하지 않기" 턴이 기억 저장 대상이 된다. 이 턴은 W4 그대로다(말로 한 승낙과 같다).
+   * 이 문장은 짧은 답 모양(`isAmoraClarificationAnswerShaped`)이라 W4 여도 위의 저장 문맥
+   * 읽기를 건너뛰지 않는다 — 그래서 직전 행·대기열·저니 리비전이 여기 있다.
+   */
+  const queueSkipRequested = !approvedPendingAction
+    && awaitingPendingCard !== null
+    && storedActionQueue !== null
+    && isDurableUserMessageBound
+    && canonicalJourneyStateRevision !== null
+    && isAmoraQueuedCardSkip(lastUserText);
+  /**
+   * 이번 턴이 이어받지 않으면 **말없이 사라질** 직전 대기열 (2026-09-18).
+   *
+   * 새 변경 요청 턴에는 직전 카드와 대기열을 새 요청의 문맥으로 넘기지 않는다(위
+   * `awaitingPendingCard`). 그 규칙은 그대로 두고, 여기서는 같은 행을 **안내와 metadata 로만**
+   * 읽는다. 이 값은 모델 문맥에 들어가지 않는다 — 답변 뒤에 "아직 반영하지 않은 요청" 목록을
+   * 붙이는 데만 쓴다. 관문은 새 변경 요청 여부 하나를 뺀 `awaitingPendingCard` 와 같다.
+   */
+  const unconfirmedQueueHead = awaitingPendingCard ?? (
+    bodyConfirmedActionId === undefined
+    && !previousFailedCarriedProposal
+    && !isDemo
+    && requestKind === "chat"
+    && visibility === "shared"
+    && previousCanonicalRow?.role === "assistant"
+    && previousCanonicalRow.sender_type === "ai"
+    && previousCanonicalRow.visibility === visibility
+      ? describeUnconfirmedAmoraPendingAction({
+          value: previousCanonicalRow.metadata?.pending_amora_action,
+          allowedTools: PENDING_ACTION_TOOLS,
+          now: Date.now(),
+        })
+      : null
+  );
+  const unconfirmedActionQueue = awaitingPendingCard !== null
+    ? storedActionQueue
+    : unconfirmedQueueHead
+      ? resolveAmoraActionQueue(previousCanonicalRow?.metadata?.pending_amora_action_queue, unconfirmedQueueHead, PENDING_ACTION_TOOLS, Date.now())
+      : null;
   if (approvedPendingAction && previousCanonicalRow?.metadata?.pending_amora_action_queue !== undefined && !storedActionQueue) {
     await releaseClaimBeforeStream("AMORA_PENDING_ACTION_QUEUE_INVALID");
     return NextResponse.json({ error: "남은 요청을 안전하게 확인하지 못해 변경하지 않았어요. 내용을 다시 알려주세요.", code: "AMORA_PENDING_ACTION_QUEUE_INVALID" }, { status: 409, headers: { "Cache-Control": "no-store" } });
@@ -3426,10 +3474,13 @@ export async function POST(request: Request) {
    * 값 하나를 쓴다. 답변 뒤에만 알 수 있는 조건(새 표식, 서버가 본문을 바꾸는 경우)은
    * 그 본문이 모델 문장을 대신하므로 계약문과 어긋나지 않는다.
    */
+  // 건너뛴 카드는 옮기지 않는다 — 사용자가 방금 그 항목을 빼겠다고 했다. 모델에게도 그 카드가
+  // 아직 기다린다고 말하지 않는다(아래 `awaitingCardConfirmation`).
   const pendingCardCarryEligible = awaitingPendingCard !== null
     && shouldCarryPendingCard
     && carriedPendingActionRevision !== null
-    && carriedPendingActionRevision === canonicalJourneyStateRevision;
+    && carriedPendingActionRevision === canonicalJourneyStateRevision
+    && !queueSkipRequested;
   // 한 문장이 두 연속성에 모두 걸릴 수 있다("네", "그렇게 해줘"). 그때는 되묻기
   // 연속성이 이긴다 — 범위가 W0이면 provider 입력은 이미 신뢰 이력 전체를 쓰므로
   // 여기서 만든 3턴 묶음은 쓰이지도 않고, 남겨두면 `linked_context_only`(도구 금지)
@@ -4147,6 +4198,90 @@ export async function POST(request: Request) {
         // 대기열의 다음 요청 중 지금 상태로는 적용되지 않아 카드를 내지 않은 것의 이유(리뷰 [1]).
         let queueSkippedNotice: string | null = null;
         let queueStepSucceeded: boolean | null = null;
+        // "이 항목 건너뛰기" 턴의 서버 본문. 모델 문장 대신 나간다(말로 한 승낙의 고정 안내와 같다).
+        // 첫 문장만 본문 자리에 두고, 건너뛴 항목의 확인문·다음 확인은 뒤에 붙인다 — 확인문 줄은
+        // 본문 자리의 가짜 확인문 걷기에 걸릴 수 있어, 남은 요청 목록과 같은 자리(`queueText`)로 보낸다.
+        let queueSkipLeadText: string | null = null;
+        let queueSkipDescription: string | null = null;
+        let queueSkipNextText: string | null = null;
+        // 건너뛴 뒤 다음 카드를 만들지 못했을 때 남은 요청(안내와 함께 metadata 로 남긴다).
+        let skippedQueueDeferral: AmoraQueuedAction[] | null = null;
+        /**
+         * 대기열의 **다음 항목**을 새 확인 카드로 준비한다 — 적용 뒤와 건너뛰기 뒤가 같은 길을 쓴다.
+         *
+         * 누르면 반드시 거절될 항목은 카드로 내지 않고 이유만 말한 뒤 그다음 항목을 본다(리뷰 [1]).
+         * 거절된 항목은 적용되지 않으므로 뒤 항목도 같은 문맥에서 판단한다. 거절·건너뛴 요청은
+         * 반영도 확인도 하지 않은 것이라 전체 건수에서 뺀다.
+         *
+         * - `applied`: 방금 항목이 반영됐다. 완료 건수가 하나 는다(`advanceAmoraActionQueue`).
+         * - `skipped`: 방금 항목을 반영하지 않았다. 전체 건수가 하나 준다(`skipAmoraActionQueueHead`).
+         *
+         * 어느 쪽이든 여기서는 아무것도 실행하지 않는다.
+         */
+        const proposeNextQueuedAction = ({ queue, context, mode }: {
+          queue: AmoraActionQueue;
+          context: ToolExecutionContext;
+          mode: "applied" | "skipped";
+        }) => {
+          const remaining = queue.remainingActions;
+          let proposal: ReturnType<typeof extractAmoraPendingAction> | null = null;
+          let nextQueue: AmoraActionQueue | null = null;
+          let completion: { queueId: string; totalCount: number; completedCount: number } | null = null;
+          const skippedTexts: string[] = [];
+          for (const candidate of remaining) {
+            const extraction = extractAmoraPendingAction({
+              text: `[pending_action]${JSON.stringify(candidate)}[/pending_action]`,
+              allowedTools: PENDING_ACTION_TOOLS,
+              now: Date.now(), createActionId: randomUUID,
+              // 이 문맥의 총예산. 예산안 확인문의 "지금 → 바꿀 값" 표시에만 쓴다.
+              currentTotalBudget: context.weddingContext.budget,
+            });
+            if (!extraction.pendingAction) {
+              proposal = extraction;
+              break;
+            }
+            const refusal = findAmoraBudgetProposalRefusal({ action: extraction.pendingAction, context });
+            if (refusal) {
+              skippedTexts.push(refusal.text);
+              continue;
+            }
+            proposal = extraction;
+            const stepped = mode === "applied"
+              ? advanceAmoraActionQueue(queue, extraction.pendingAction)
+              : skipAmoraActionQueueHead(queue, extraction.pendingAction);
+            // 건너뛴 요청은 반영도 확인도 하지 않은 것이라 전체 건수에서 뺀다. 그래야
+            // "N건 중 M건 반영했어요" 가 참이다(`resolveAmoraActionQueue` 의 건수 불변식도 그대로다).
+            nextQueue = stepped === null || skippedTexts.length === 0 ? stepped : {
+              ...stepped,
+              totalCount: stepped.totalCount - skippedTexts.length,
+              remainingActions: remaining.slice(skippedTexts.length + 1),
+            };
+            // 적용 뒤에는 다음 항목이 있는 한 2건 아래로 내려가지 않는다. 건너뛴 뒤에는 내려갈 수
+            // 있고, 그러면 대기열이 아니라 단일 카드다.
+            if (nextQueue !== null && nextQueue.totalCount < 2) nextQueue = null;
+            break;
+          }
+          // 남은 요청이 없거나 모두 거절됐다. 방금 항목까지로 대기열을 마친다.
+          const exhausted = skippedTexts.length === remaining.length;
+          const completedCount = queue.completedCount + (mode === "applied" ? 1 : 0);
+          // 반영한 항목이 하나도 없으면(첫 카드를 건너뛰고 나머지가 모두 거절됨) 마친 대기열로 적지 않는다.
+          if (exhausted && completedCount > 0) {
+            completion = {
+              queueId: queue.queueId,
+              totalCount: queue.totalCount - (mode === "applied" ? 0 : 1) - skippedTexts.length,
+              completedCount,
+            };
+          }
+          return {
+            proposal,
+            nextQueue,
+            exhausted,
+            completion,
+            skippedNotice: skippedTexts.length > 0
+              ? `남은 요청 중 ${skippedTexts.length}건은 지금 상태로는 적용되지 않아 확인 카드를 만들지 않았어요.\n${[...new Set(skippedTexts)].join("\n")}`
+              : null,
+          };
+        };
         const executeApprovedPendingAction = async (
           reserveBeforeSideEffect?: () => Promise<void>,
         ) => {
@@ -4205,50 +4340,16 @@ export async function POST(request: Request) {
                   progress: (fresh.data.progress ?? {}) as ToolExecutionContext["weddingContext"]["progress"],
                 } };
                 // 다음 카드도 누르면 반드시 거절될 것이면 내지 않는다(리뷰 [1]). 방금 저장된 상태로
-                // 순수 연산을 미리 돌려, 거절된 항목은 이유만 말하고 그다음 항목을 본다. 거절된
-                // 항목은 적용되지 않으므로 뒤 항목도 같은 문맥에서 판단한다.
-                const skippedTexts: string[] = [];
-                for (const candidate of remaining) {
-                  const extraction = extractAmoraPendingAction({
-                    text: `[pending_action]${JSON.stringify(candidate)}[/pending_action]`,
-                    allowedTools: PENDING_ACTION_TOOLS,
-                    now: Date.now(), createActionId: randomUUID,
-                    // 방금 저장된 총예산. 예산안 확인문의 "지금 → 바꿀 값" 표시에만 쓴다.
-                    currentTotalBudget: freshContext.weddingContext.budget,
-                  });
-                  if (!extraction.pendingAction) {
-                    queuedProposal = extraction;
-                    break;
-                  }
-                  const refusal = findAmoraBudgetProposalRefusal({ action: extraction.pendingAction, context: freshContext });
-                  if (refusal) {
-                    skippedTexts.push(refusal.text);
-                    continue;
-                  }
-                  queuedProposal = extraction;
+                // 순수 연산을 미리 돌려, 거절된 항목은 이유만 말하고 그다음 항목을 본다.
+                const next = proposeNextQueuedAction({ queue: storedActionQueue, context: freshContext, mode: "applied" });
+                queuedProposal = next.proposal;
+                if (next.proposal?.pendingAction) {
                   nextActionRevision = revision;
                   nextActionContext = freshContext;
-                  const advanced = advanceAmoraActionQueue(storedActionQueue, extraction.pendingAction);
-                  // 건너뛴 요청은 반영도 확인도 하지 않은 것이라 전체 건수에서 뺀다. 그래야
-                  // "N건 중 M건 반영했어요" 가 참이다(`resolveAmoraActionQueue` 의 건수 불변식도 그대로다).
-                  nextActionQueue = skippedTexts.length === 0 ? advanced : {
-                    ...advanced,
-                    totalCount: advanced.totalCount - skippedTexts.length,
-                    remainingActions: remaining.slice(skippedTexts.length + 1),
-                  };
-                  break;
                 }
-                if (skippedTexts.length > 0) {
-                  queueSkippedNotice = `남은 요청 중 ${skippedTexts.length}건은 지금 상태로는 적용되지 않아 확인 카드를 만들지 않았어요.\n${[...new Set(skippedTexts)].join("\n")}`;
-                  if (skippedTexts.length === remaining.length) {
-                    // 남은 요청이 모두 거절됐다. 이번 항목까지로 대기열을 마친다.
-                    queueCompletion = {
-                      queueId: storedActionQueue.queueId,
-                      totalCount: storedActionQueue.totalCount - skippedTexts.length,
-                      completedCount: storedActionQueue.completedCount + 1,
-                    };
-                  }
-                }
+                nextActionQueue = next.nextQueue;
+                queueSkippedNotice = next.skippedNotice;
+                if (next.completion) queueCompletion = next.completion;
               }
               if (!queuedProposal?.pendingAction && queueCompletion === null) {
                 // 이미 실행된 항목을 실패로 바꾸거나 다시 실행하지 않는다. 나머지 입력은 보존한다.
@@ -4328,10 +4429,12 @@ export async function POST(request: Request) {
             && toolResults.every(result => !isMutatingTool(result.toolName))
             ? AMORA_PRIVATE_LANE_SHARED_CHANGE_GUIDANCE : null;
           // 카드 없이 나가는 서버 본문(정본 조회·화면 이동·미지원 일정 필드·개인 레인 변경 안내).
-          const serverTextWithoutCard = typedCardAcceptanceText === null
+          const serverTextWithoutCard = typedCardAcceptanceText === null && queueSkipLeadText === null
             ? currentStoredStateText ?? personalNavigationText ?? unsupportedScheduleFieldsText ?? privateLaneChangeOnlyText
             : null;
-          const canonicalTerminalText = typedCardAcceptanceText ?? serverTextWithoutCard;
+          // 대기열 항목을 건너뛴 턴도 모델 문장 대신 서버 안내로 답한다. 모델은 이 턴에 "반영할게요"
+          // 라고 하거나 이미 없는 버튼을 가리킬 수 있다.
+          const canonicalTerminalText = typedCardAcceptanceText ?? queueSkipLeadText ?? serverTextWithoutCard;
           // 현재 사용자가 완결된 금액 목록을 직접 확정했으면 모델의 누락·임의 분할보다
           // 원문을 우선한다. 여전히 같은 범위/도구 스키마/카드 확인 경계를 통과한다.
           const budgetAssessment = canonicalTerminalText === null && !isDemo && requestKind === "chat" && isDurableUserMessageBound
@@ -4589,11 +4692,49 @@ export async function POST(request: Request) {
               shapes: pendingExtraction.droppedShapes ?? [],
             });
           }
+          /**
+           * **말없이 사라질 뻔한 대기열의 안내** (2026-09-18).
+           *
+           * 대기열은 카드를 적용해야만 앞으로 간다. 카드를 "지금은 적용하지 않기" 로 치운 뒤
+           * 이월 상한(2턴)에 닿거나 새 변경을 부탁하면 카드와 남은 요청이 함께 사라졌고,
+           * "나머지 N건은 이 확인이 끝나면 이어서 제안할게요" 라는 약속만 남았다.
+           *
+           * 이번 턴이 그 대기열을 적용하지도, 건너뛰지도, 옮기지도 않으면 남은 요청을 목록으로
+           * 알린다. 한 번만 나간다 — 다음 턴의 직전 행에는 대기열이 없다. 안전·위로 턴(W2·W3·W5)에는
+           * 붙이지 않는다(카드 이월과 같은 이유다). 이 목록은 답변 뒤에 붙는 서버 문장이고 모델
+           * 문맥이 아니다. 이번 턴이 새로 낸 카드와 같은 요청은 목록에서 뺀다.
+           *
+           * 남은 구멍: 저장 문맥 읽기를 건너뛰고 연결 문맥 창도 읽지 않는 턴(짧은 답 모양이 아닌
+           * W2·W3·W4 대부분)은 직전 행을 읽지 않아 대기열을 보지 못하고, 그 턴에서 끊기는 대기열에는
+           * 이 안내가 붙지 않는다.
+           */
+          const newlyIssuedOperationKey = pendingExtraction.pendingAction?.operationKey ?? null;
+          const abandonedQueueActions = unconfirmedQueueHead && unconfirmedActionQueue
+            && emittedCarriedPendingCard === null
+            && !approvedPendingAction
+            && !queueSkipRequested
+            && (questionScope.scope === "W0_wedding_core"
+              || questionScope.scope === "W1_wedding_adjacent"
+              || questionScope.scope === "W4_out_of_scope")
+            ? [{ tool: unconfirmedQueueHead.tool, input: unconfirmedQueueHead.input }, ...unconfirmedActionQueue.remainingActions]
+            : null;
+          const abandonedQueueDescriptions = (abandonedQueueActions ?? [])
+            .filter(item => getAmoraToolOperationIdentity(item.tool, item.input).operationKey !== newlyIssuedOperationKey)
+            .map(item => describeAmoraQueuedAction(item, PENDING_ACTION_TOOLS, Date.now()))
+            .filter((description): description is string => typeof description === "string" && description.length > 0);
+          const abandonedQueueNotice = abandonedQueueDescriptions.length > 0
+            ? `앞서 확인을 기다리던 요청은 아직 반영하지 않았어요. 필요하면 다시 말씀해 주세요.\n\n아직 반영하지 않은 요청\n${abandonedQueueDescriptions.join("\n\n")}`
+            : null;
           const queueText = [
+            queueSkipRequested ? queueSkipDescription : null,
             queueSkippedNotice,
-            queuedProposal?.pendingAction && nextActionQueue
-              ? `${nextActionQueue.totalCount}건 중 ${nextActionQueue.completedCount}건 반영했어요. 다음 항목을 확인해 주세요.\n\n${getAmoraPendingActionBubbleText(queuedProposal.pendingAction)}`
-              : queueResumeNotice,
+            queueSkipRequested
+              ? queueSkipNextText
+              // 건너뛴 턴은 "N건 중 M건 반영했어요" 라고 하지 않는다 — 이번 턴에 반영한 것이 없다.
+              : approvedPendingAction && queuedProposal?.pendingAction && nextActionQueue
+                ? `${nextActionQueue.totalCount}건 중 ${nextActionQueue.completedCount}건 반영했어요. 다음 항목을 확인해 주세요.\n\n${getAmoraPendingActionBubbleText(queuedProposal.pendingAction)}`
+                : queueResumeNotice,
+            abandonedQueueNotice,
           ].filter((part): part is string => typeof part === "string" && part.length > 0).join("\n\n") || null;
           // mixed 턴은 거짓 저장 주장 검사를 모델 답에만 돌린 뒤 서버 안내를 붙인다(서버 문구는
           // 검사하지 않는다). 모델 답이 모두 걷혔으면 안내만 낸다.
@@ -4672,12 +4813,25 @@ export async function POST(request: Request) {
             ...(mediation ? { mediation } : {}),
             ...(proposalQueue ? { pending_amora_action_queue: proposalQueue } : {}),
             ...(queueCompletion ? { completed_amora_action_queue: queueCompletion } : {}),
-            ...(queueResumeNotice && storedActionQueue ? { deferred_amora_action_queue: {
+            ...(queueResumeNotice && storedActionQueue && approvedPendingAction ? { deferred_amora_action_queue: {
               queueId: storedActionQueue.queueId, totalCount: storedActionQueue.totalCount,
               completedCount: storedActionQueue.completedCount + (queueStepSucceeded ? 1 : 0),
               remainingActions: queueStepSucceeded
                 ? storedActionQueue.remainingActions
-                : [{ tool: approvedPendingAction!.tool, input: approvedPendingAction!.input }, ...storedActionQueue.remainingActions],
+                : [{ tool: approvedPendingAction.tool, input: approvedPendingAction.input }, ...storedActionQueue.remainingActions],
+            } } : {}),
+            // 건너뛴 뒤 다음 카드를 만들지 못한 대기열. 건너뛴 항목은 전체 건수에서 빠진다.
+            ...(queueSkipRequested && skippedQueueDeferral && storedActionQueue ? { deferred_amora_action_queue: {
+              queueId: storedActionQueue.queueId, totalCount: storedActionQueue.totalCount - 1,
+              completedCount: storedActionQueue.completedCount,
+              remainingActions: skippedQueueDeferral,
+            } } : {}),
+            // 이번 턴이 이어받지 않아 안내로 알린 대기열. 같은 입력이 이미 직전 행의
+            // `pending_amora_action_queue` 에 있던 것이라 새로 드러나는 것은 없다.
+            ...(abandonedQueueNotice && abandonedQueueActions && unconfirmedActionQueue ? { deferred_amora_action_queue: {
+              queueId: unconfirmedActionQueue.queueId, totalCount: unconfirmedActionQueue.totalCount,
+              completedCount: unconfirmedActionQueue.completedCount,
+              remainingActions: abandonedQueueActions,
             } } : {}),
             ...(pendingExtraction.pendingAction
               ? {
@@ -4757,6 +4911,43 @@ export async function POST(request: Request) {
             metadata,
           };
         };
+
+        // "이 항목 건너뛰기" 턴 (2026-09-18). 지금 카드는 반영하지 않고 다음 항목을 새 확인 카드로
+        // 낸다. **아무것도 실행하지 않는다** — `executeTool`·승인 RPC 를 부르지 않고, 건너뛴 카드의
+        // action_id 도 다시 내지 않는다. 저장된 것이 없으니 새로 읽지 않고, 이번 요청이 읽은 정본
+        // 문맥·리비전으로 다음 카드를 판단한다.
+        if (queueSkipRequested && storedActionQueue && awaitingPendingCard && canonicalJourneyStateRevision !== null) {
+          const next = proposeNextQueuedAction({ queue: storedActionQueue, context: executionContext, mode: "skipped" });
+          queueSkipLeadText = "방금 항목은 반영하지 않았어요.";
+          queueSkipDescription = describeAmoraQueuedAction(
+            { tool: awaitingPendingCard.tool, input: awaitingPendingCard.input },
+            PENDING_ACTION_TOOLS,
+            Date.now(),
+          );
+          // 다음 카드의 본문 자리는 그 카드의 말풍선이 아니라 위 안내다(말풍선은 뒤에 붙는다).
+          queuedProposal = next.proposal?.pendingAction
+            ? { ...next.proposal, cleanText: queueSkipLeadText }
+            : next.proposal;
+          if (next.proposal?.pendingAction) {
+            nextActionRevision = canonicalJourneyStateRevision;
+            nextActionContext = executionContext;
+          }
+          nextActionQueue = next.nextQueue;
+          queueSkippedNotice = next.skippedNotice;
+          queueCompletion = next.completion;
+          if (next.proposal?.pendingAction) {
+            queueSkipNextText = `다음 항목을 확인해 주세요.\n\n${getAmoraPendingActionBubbleText(next.proposal.pendingAction)}`;
+          } else if (next.exhausted) {
+            queueSkipNextText = "남은 요청은 없어요.";
+          } else {
+            // 다음 항목을 카드로 만들지 못했다. 남은 입력은 버리지 않고 목록으로 보여 준다.
+            skippedQueueDeferral = storedActionQueue.remainingActions;
+            const descriptions = skippedQueueDeferral
+              .map(item => describeAmoraQueuedAction(item, PENDING_ACTION_TOOLS, Date.now()))
+              .filter(Boolean);
+            queueSkipNextText = `다음 확인 카드를 준비하지 못했어요. 아래 남은 요청을 확인한 뒤 이어서 요청해 주세요.\n\n아직 반영하지 않은 요청\n${descriptions.join("\n\n")}`;
+          }
+        }
 
         // 현재 저장값 요청에 필요한 읽기는 모델의 호출 여부·상태 필터에 맡기지 않는다.
         // 실제 기존 조회를 각 한 번 실행하며 민감 결과는 최종 원자적 커밋 전까지 버퍼에 둔다.

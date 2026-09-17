@@ -82,3 +82,26 @@ export function advanceAmoraActionQueue(
     remainingActions: queue.remainingActions.slice(1),
   };
 }
+
+/**
+ * 지금 카드를 **적용하지 않고** 다음 항목으로 넘긴 대기열 (2026-09-18).
+ *
+ * 건너뛴 항목은 반영도 확인도 하지 않은 것이라 완료 건수가 아니라 전체 건수에서 뺀다.
+ * 대기열 안에서 거절된 요청을 세는 방식과 같다 — 그래야 뒤의 "N건 중 M건 반영했어요" 가
+ * 참이고 `resolveAmoraActionQueue` 의 건수 불변식(남은 건수 = 전체 − 완료 − 1)도 그대로다.
+ * 남는 전체가 2건보다 적으면 대기열이 아니다(null) — 다음 카드는 단일 카드로 나간다.
+ *
+ * 건너뛰기는 변경이 아니다. 이 함수는 아무것도 실행하지 않고 다음 확인 카드의 자리만 정한다.
+ */
+export function skipAmoraActionQueueHead(
+  queue: AmoraActionQueue,
+  next: StoredAmoraPendingAction,
+): AmoraActionQueue | null {
+  if (queue.totalCount - 1 < 2) return null;
+  return {
+    ...queue,
+    currentActionId: next.actionId,
+    totalCount: queue.totalCount - 1,
+    remainingActions: queue.remainingActions.slice(1),
+  };
+}

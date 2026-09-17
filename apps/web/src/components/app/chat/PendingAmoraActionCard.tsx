@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Check, Loader2, RotateCcw, ShieldCheck, Users, X } from "lucide-react";
+import { Check, Loader2, RotateCcw, ShieldCheck, SkipForward, Users, X } from "lucide-react";
 import { SHARED_PLAN_TOOLS } from "@hanbang/shared";
 import {
   getAmoraActionApprovalPolicy,
@@ -204,6 +204,32 @@ export function isPendingAmoraActionContinuedInMessage(
     && latestAction.inputDigest === action.inputDigest;
 }
 
+/**
+ * **대기열 카드에서 지금 항목만 건너뛰는 버튼** (2026-09-18).
+ *
+ * 여러 변경을 한 번에 부탁하면 서버가 첫 건만 카드로 내고 나머지는 대기열로 들고 있다가
+ * 적용할 때마다 다음 카드를 낸다. "지금은 적용하지 않기" 는 화면에서만 치우는 버튼이라, 중간
+ * 항목을 원치 않는 사람은 그 항목을 적용하는 것 말고는 다음으로 갈 길이 없었고 남은 요청은
+ * 이월 상한에서 말없이 사라졌다. 이 버튼은 서버에 고정 문장을 보내 지금 항목을 반영하지 않고
+ * 다음 항목을 새 확인 카드로 받는다. "지금은 적용하지 않기" 는 그대로 둔다.
+ */
+export const QUEUED_CARD_SKIP_LABEL = "이 항목 건너뛰기";
+
+/**
+ * 이 카드 뒤에 남은 요청이 몇 건인가. 없으면 0(대기열이 아니거나 마지막 항목).
+ *
+ * metadata 는 신뢰 경계다. 서버가 찍은 대기열이 **바로 이 카드**를 가리킬 때만 센다 —
+ * 다른 카드의 대기열이 붙은 행(`currentActionId` 불일치)이나 모양이 다른 값은 0 이다.
+ * 건수만 읽고 남은 요청의 입력은 화면에 쓰지 않는다.
+ */
+export function getQueuedRemainingCount(message: ChatMessage, actionId: string): number {
+  if (message.sender_role !== "ai" || message.visibility !== "shared") return 0;
+  const queue = message.metadata?.pending_amora_action_queue;
+  if (!isPlainRecord(queue) || queue.currentActionId !== actionId) return 0;
+  const remaining = queue.remainingActions;
+  return Array.isArray(remaining) ? remaining.length : 0;
+}
+
 export function getPendingAmoraBudgetImpactPreview(
   message: ChatMessage,
   action: PendingAmoraAction,
@@ -312,8 +338,15 @@ interface PendingAmoraActionCardProps {
    * 기본값 false 는 오늘까지의 모양이다.
    */
   continuesInLatestReply?: boolean;
+  /**
+   * 이 카드 뒤에 남은 요청 수(`getQueuedRemainingCount`). 1 이상이고 `onSkip` 이 있을 때만
+   * "이 항목 건너뛰기" 가 나온다. 기본값 0 은 오늘까지의 모양이다.
+   */
+  queuedRemainingCount?: number;
   onApply: (actionId: string) => void;
   onDismiss: () => void;
+  /** 지금 항목을 반영하지 않고 다음 항목을 받는다. 없으면 버튼을 그리지 않는다. */
+  onSkip?: (actionId: string) => void;
 }
 
 function formatSignedWon(value: number): string {
@@ -444,8 +477,10 @@ export default function PendingAmoraActionCard({
   partnerLinked = false,
   carryCount = 0,
   continuesInLatestReply = false,
+  queuedRemainingCount = 0,
   onApply,
   onDismiss,
+  onSkip,
 }: PendingAmoraActionCardProps) {
   const [reviewedActionKey, setReviewedActionKey] = useState<string | null>(null);
   const actionKey = `${messageId}:${action.actionId}:${action.inputDigest}`;
@@ -689,6 +724,12 @@ export default function PendingAmoraActionCard({
     && approvalStatus?.requiredCount === 2
     && approvalStatus.accepted,
   );
+  // 건너뛰기는 최신 답변의, 아직 적용·만료되지 않은 대기열 카드에만 둔다. 답변을 기다리는
+  // 동안(busy)에는 보이되 누를 수 없다 — 서버는 최신 카드에 대한 건너뛰기만 받는다.
+  const canSkipQueuedItem = Boolean(onSkip)
+    && Number.isSafeInteger(queuedRemainingCount)
+    && queuedRemainingCount > 0
+    && (disabledReason === null || disabledReason === "busy");
 
   let approvalCopy: string | null = approvalError ?? applicationNotice;
   // 승인이 없어진 자리에 **알림**이 들어왔다(2026-08-23 파운더 결정). 그런데
@@ -907,6 +948,23 @@ export default function PendingAmoraActionCard({
             <X className="h-4 w-4" aria-hidden="true" />
             지금은 적용하지 않기
           </button>
+          {/*
+            대기열 카드에만 나오는 두 번째 보조 버튼. "지금은 적용하지 않기"(화면에서만 치움)와 달리
+            서버에 알려 지금 항목을 반영하지 않고 다음 항목을 새 확인 카드로 받는다. 보이는 글자와
+            접근성 이름은 위 버튼과 같은 규칙으로 같게 둔다(WCAG 2.5.3).
+          */}
+          {canSkipQueuedItem && (
+            <button
+              type="button"
+              onClick={() => onSkip?.(action.actionId)}
+              disabled={disabledReason !== null || isApplying || isSavingApproval}
+              aria-label={QUEUED_CARD_SKIP_LABEL}
+              className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-[6px] border border-[#D8C7BB] bg-white px-4 py-2.5 text-sm font-medium text-[var(--hb-text-body)] transition-colors hover:bg-[#F8F4F0] disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              <SkipForward className="h-4 w-4" aria-hidden="true" />
+              {QUEUED_CARD_SKIP_LABEL}
+            </button>
+          )}
         </div>
       )}
     </section>

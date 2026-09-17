@@ -4,9 +4,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import PendingAmoraActionCard, {
   CONTINUED_PENDING_ACTION_COPY,
+  QUEUED_CARD_SKIP_LABEL,
   getPendingAmoraAction,
   getPendingAmoraBudgetImpactPreview,
   getPendingActionDisabledReason,
+  getQueuedRemainingCount,
   isPendingAmoraActionContinuedInMessage,
   isPendingAmoraActionExpired,
 } from "./PendingAmoraActionCard";
@@ -344,6 +346,105 @@ describe("PendingAmoraActionCard", () => {
     expect(section.textContent).not.toContain(CONTINUED_PENDING_ACTION_COPY);
   });
 
+  /**
+   * 2026-09-18: 여러 변경 중 한 카드를 원치 않으면 적용하는 것 말고는 다음으로 갈 길이 없었다.
+   * 대기열 카드에는 "이 항목 건너뛰기" 가 따로 나온다. "지금은 적용하지 않기" 는 그대로다.
+   */
+  const skipButton = () => [...container.querySelectorAll<HTMLButtonElement>("button")]
+    .find(button => button.textContent?.trim() === QUEUED_CARD_SKIP_LABEL);
+
+  it("offers a separate skip control on the latest queued card and sends nothing from the hide control", async () => {
+    const onApply = vi.fn();
+    const onDismiss = vi.fn();
+    const onSkip = vi.fn();
+    await act(async () => {
+      root.render(
+        <PendingAmoraActionCard
+          action={singleAction}
+          messageId="aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+          disabledReason={null}
+          isApplying={false}
+          queuedRemainingCount={1}
+          onApply={onApply}
+          onDismiss={onDismiss}
+          onSkip={onSkip}
+        />,
+      );
+    });
+
+    const buttons = [...container.querySelectorAll<HTMLButtonElement>("button")];
+    expect(buttons.map(button => button.getAttribute("aria-label"))).toEqual([
+      "변경 내용 확인하기", "지금은 적용하지 않기", "이 항목 건너뛰기",
+    ]);
+    const skip = skipButton()!;
+    // 보이는 글자와 접근성 이름이 같다(WCAG 2.5.3).
+    expect(skip.getAttribute("aria-label")).toBe(skip.textContent?.trim());
+    expect(skip.disabled).toBe(false);
+
+    await act(async () => skip.click());
+    expect(onSkip).toHaveBeenCalledOnce();
+    expect(onSkip).toHaveBeenCalledWith(singleAction.actionId);
+    expect(onDismiss).not.toHaveBeenCalled();
+    expect(onApply).not.toHaveBeenCalled();
+    expect(fetch).not.toHaveBeenCalled();
+
+    // 숨기기는 여전히 화면에서만 치운다.
+    await act(async () => buttons[1]?.click());
+    expect(onDismiss).toHaveBeenCalledOnce();
+    expect(onSkip).toHaveBeenCalledOnce();
+  });
+
+  it.each([
+    ["a single card", { queuedRemainingCount: 0, disabledReason: null }],
+    ["a card without a skip handler", { queuedRemainingCount: 1, disabledReason: null, withoutHandler: true }],
+    ["an applied card", { queuedRemainingCount: 1, disabledReason: "applied" }],
+    ["an older card", { queuedRemainingCount: 1, disabledReason: "not_latest" }],
+    ["an expired card", { queuedRemainingCount: 1, disabledReason: "expired" }],
+  ] as const)("does not offer skipping on %s", async (_name, options) => {
+    const onSkip = vi.fn();
+    await act(async () => {
+      root.render(
+        <PendingAmoraActionCard
+          action={singleAction}
+          messageId="aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+          disabledReason={options.disabledReason}
+          isApplying={false}
+          queuedRemainingCount={options.queuedRemainingCount}
+          onApply={vi.fn()}
+          onDismiss={vi.fn()}
+          onSkip={"withoutHandler" in options ? undefined : onSkip}
+        />,
+      );
+    });
+    expect(skipButton()).toBeUndefined();
+    expect(container.textContent).not.toContain(QUEUED_CARD_SKIP_LABEL);
+  });
+
+  it.each([
+    ["while an answer is streaming", { disabledReason: "busy", isApplying: false }],
+    ["while this card is being applied", { disabledReason: null, isApplying: true }],
+  ] as const)("keeps the skip control visible but unusable %s", async (_name, options) => {
+    const onSkip = vi.fn();
+    await act(async () => {
+      root.render(
+        <PendingAmoraActionCard
+          action={singleAction}
+          messageId="aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+          disabledReason={options.disabledReason}
+          isApplying={options.isApplying}
+          queuedRemainingCount={2}
+          onApply={vi.fn()}
+          onDismiss={vi.fn()}
+          onSkip={onSkip}
+        />,
+      );
+    });
+    const skip = skipButton()!;
+    expect(skip.disabled).toBe(true);
+    await act(async () => skip.click());
+    expect(onSkip).not.toHaveBeenCalled();
+  });
+
   it("shows truthful before/after budget impact without calling recorded spend a payment", async () => {
     vi.mocked(fetch).mockResolvedValueOnce(new Response(JSON.stringify({
       approvalMode: "couple",
@@ -627,6 +728,27 @@ describe("pending action message boundary", () => {
     // 사용자 메시지·개인 레인 메시지는 카드를 들 수 없다.
     expect(isPendingAmoraActionContinuedInMessage(message({ sender_role: "bride" }), action)).toBe(false);
     expect(isPendingAmoraActionContinuedInMessage(message({ visibility: "bride_private" }), action)).toBe(false);
+  });
+
+  it("counts queued requests only for the queue that points at this card", () => {
+    const queued = (remainingActions: unknown, currentActionId: unknown = action.actionId) => message({
+      metadata: {
+        pending_amora_action: action,
+        pending_amora_action_queue: { version: 1, queueId: action.actionId, currentActionId, totalCount: 3, completedCount: 1, remainingActions },
+      },
+    });
+    const item = { tool: "update_budget", input: { total_budget: 31_000_000 } };
+    expect(getQueuedRemainingCount(queued([item]), action.actionId)).toBe(1);
+    expect(getQueuedRemainingCount(queued([item, item]), action.actionId)).toBe(2);
+    expect(getQueuedRemainingCount(queued([]), action.actionId)).toBe(0);
+    // 다른 카드의 대기열·모양이 다른 값·대기열 없는 카드는 0 이다.
+    expect(getQueuedRemainingCount(queued([item], singleAction.actionId), action.actionId)).toBe(0);
+    expect(getQueuedRemainingCount(queued("1"), action.actionId)).toBe(0);
+    expect(getQueuedRemainingCount(message(), action.actionId)).toBe(0);
+    expect(getQueuedRemainingCount(message({ metadata: { pending_amora_action_queue: [item] } }), action.actionId)).toBe(0);
+    // 사용자 메시지·개인 레인 메시지는 대기열을 들 수 없다.
+    expect(getQueuedRemainingCount({ ...queued([item]), sender_role: "bride" }, action.actionId)).toBe(0);
+    expect(getQueuedRemainingCount({ ...queued([item]), visibility: "bride_private" }, action.actionId)).toBe(0);
   });
 
   it("uses the server expiry instant without a locale conversion", () => {

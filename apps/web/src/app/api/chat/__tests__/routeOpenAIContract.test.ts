@@ -658,7 +658,12 @@ vi.mock("@/lib/ai/amoraMemoryRepair", () => ({
 
 import { POST } from "@/app/api/chat/route";
 import { createClientFromRequest } from "@/lib/supabase/server";
-import { extractAmoraPendingAction } from "@/lib/ai/amoraPendingAction";
+import {
+  BUDGET_PLAN_CARD_BUBBLE_TEXT,
+  describeAmoraQueuedAction,
+  extractAmoraPendingAction,
+} from "@/lib/ai/amoraPendingAction";
+import { AMORA_QUEUED_CARD_SKIP_TEXT } from "@/lib/ai/amoraQueuedCardSkip";
 import { getAmoraToolOperationIdentity } from "@/lib/ai/amoraToolIdentity";
 import {
   docxRequiredEntries,
@@ -8180,6 +8185,417 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
       expect(mocks.executeTool).toHaveBeenCalledTimes(2);
       expect(proposal.metadata.pending_amora_action).toBeUndefined();
       expect(proposal.metadata.completed_amora_action_queue).toMatchObject({ totalCount: 2, completedCount: 2 });
+    });
+
+    // 2026-09-18 재검사(I4): 여러 변경 중 한 카드를 원치 않으면 그 카드를 적용하는 것 말고는 다음으로
+    // 갈 길이 없었다. "지금은 적용하지 않기" 는 서버에 아무것도 보내지 않아, 남은 요청은 이월 상한
+    // (2턴)이나 새 변경 요청에서 카드와 함께 **아무 말 없이** 사라졌다. 건너뛰기는 아무것도 실행하지
+    // 않고 다음 항목을 새 확인 카드로 내며, 이어받지 않는 대기열은 남은 요청을 목록으로 알린다.
+    describe("skipping a queued card and the queue that vanished without a word", () => {
+      const fitting = { tool: "add_schedule_event", input: { date: "2027-04-02", title: "본식 드레스 가봉" } };
+      type Saved = (typeof mocks.atomicResponses)[number];
+      const SKIP_LEAD = "방금 항목은 반영하지 않았어요.";
+      const ABANDONED = "아직 반영하지 않은 요청";
+      const authorizeCalls = () => mocks.adminRpc.mock.calls
+        .filter(([name]) => name === "authorize_amora_shared_action_execution").length;
+      const describeItem = (item: unknown) => {
+        const description = describeAmoraQueuedAction(item, mocks.safeTools as AiToolDefinition[], Date.now());
+        expect(description).toBeTruthy();
+        return description!;
+      };
+      const cardOf = (saved: Saved) => saved.metadata.pending_amora_action as
+        { actionId: string; tool: string; input: Record<string, unknown> } | undefined;
+      function seedStudio(hidden = false) {
+        mocks.journeyRow = { total_budget: 35_000_000, wedding_date: null, venue: null, progress: {
+          studio: { category: "studio", status: "not_started" },
+          ...(hidden ? { __hidden: ["studio"] } : {}),
+        } };
+        mocks.journeyStateRevision = 2;
+      }
+      async function propose(markers: unknown[]): Promise<Saved> {
+        mocks.canonicalRows.splice(0, mocks.canonicalRows.length,
+          { ...mocks.canonicalRows[0], content: text, visibility: "shared" });
+        mocks.provider.mockResolvedValueOnce(providerResult({ fullText: markers.map(marker).join("\n") }));
+        const response = await POST(request({ messages: [{ role: "user", content: text }] }));
+        expect(response.status).toBe(200);
+        await response.text();
+        return mocks.atomicResponses.at(-1)!;
+      }
+      function reply(previous: Saved, userText: string, visibility = "shared") {
+        mocks.canonicalRows.splice(0, mocks.canonicalRows.length,
+          { ...mocks.canonicalRows[0], content: userText, visibility, created_at: "2026-07-15T00:01:00.000Z" },
+          { id: "20000000-0000-4000-8000-000000000001", sender_id: null, sender_type: "ai", role: "assistant", content: previous.content, metadata: previous.metadata, visibility: "shared", created_at: "2026-07-15T00:00:30.000Z" },
+        );
+      }
+      async function say(previous: Saved, userText: string, providerText: string, extra: Record<string, unknown> = {}) {
+        reply(previous, userText);
+        mocks.provider.mockResolvedValueOnce(providerResult({ fullText: providerText }));
+        const response = await POST(request({ messages: [{ role: "user", content: userText }], ...extra }));
+        expect(response.status).toBe(200);
+        const body = await response.text();
+        return { saved: mocks.atomicResponses.at(-1)!, body };
+      }
+      async function confirm(previous: Saved, toolName: string, toolInput: unknown): Promise<Saved> {
+        mocks.executeTool.mockImplementationOnce(async () => {
+          mocks.journeyStateRevision = (mocks.journeyStateRevision ?? 0) + 1;
+          return { toolName, toolInput, toolOutput: {}, success: true, displayMessage: "반영했어요." };
+        });
+        return (await say(previous, "확인했어. 반영해줘", "반영했어요.", { confirmedActionId: cardOf(previous)!.actionId })).saved;
+      }
+      // 모델은 이 턴에 "반영할게요" 라고 하거나 없는 버튼을 가리킬 수 있다. 서버 안내가 대신 나가야 한다.
+      const skip = async (previous: Saved) =>
+        (await say(previous, AMORA_QUEUED_CARD_SKIP_TEXT, "좋아요, 이 항목을 반영할게요. 위의 적용 버튼을 눌러 주세요.")).saved;
+
+      it("skips the declined middle card without executing anything and issues the next request as a new card", async () => {
+        seedStudio();
+        let saved = await propose([dressTour, studioPlan, fitting]);
+        expect(saved.metadata.pending_amora_action_queue).toMatchObject({ totalCount: 3, completedCount: 0 });
+        saved = await confirm(saved, "add_schedule_event", dressTour.input);
+        const declined = cardOf(saved)!;
+        expect(declined).toMatchObject({ tool: "apply_budget_plan" });
+        expect(saved.metadata.pending_amora_action_queue).toMatchObject({ totalCount: 3, completedCount: 1, remainingActions: [fitting] });
+        expect(saved.content).toContain("3건 중 1건 반영했어요.");
+        const journeyBefore = structuredClone(mocks.journeyRow);
+        const revisionBefore = mocks.journeyStateRevision;
+        const authorizeBefore = authorizeCalls();
+
+        saved = await skip(saved);
+        // 건너뛰기는 변경이 아니다 — 실행·승인 RPC·저장 어느 것도 일어나지 않는다.
+        expect(mocks.executeTool).toHaveBeenCalledTimes(1);
+        expect(authorizeCalls()).toBe(authorizeBefore);
+        expect(mocks.journeyRow).toEqual(journeyBefore);
+        expect(mocks.journeyStateRevision).toBe(revisionBefore);
+        const next = cardOf(saved)!;
+        expect(next).toMatchObject({ tool: "add_schedule_event", input: fitting.input });
+        expect(next.actionId).not.toBe(declined.actionId);
+        // 건너뛴 카드는 다시 붙지 않는다(같은 action_id 가 어디에도 없다).
+        expect(JSON.stringify(saved.metadata)).not.toContain(declined.actionId);
+        expect(saved.metadata.pending_amora_action_carry_count).toBeUndefined();
+        expect(saved.metadata.pending_amora_action_journey_revision).toBe(revisionBefore);
+        expect(saved.metadata.pending_amora_action_queue).toMatchObject({
+          currentActionId: next.actionId, totalCount: 2, completedCount: 1, remainingActions: [],
+        });
+        expect(saved.metadata.deferred_amora_action_queue).toBeUndefined();
+        expect(saved.metadata.completed_amora_action_queue).toBeUndefined();
+        // 서버 안내가 모델 문장을 대신한다. 이번 턴에 반영한 것이 없으니 "N건 중 M건" 이라고 하지 않는다.
+        expect(saved.content.startsWith(SKIP_LEAD)).toBe(true);
+        expect(saved.content).toContain(describeItem({ tool: declined.tool, input: declined.input }));
+        expect(saved.content).toContain("다음 항목을 확인해 주세요.");
+        expect(saved.content).not.toContain("건 중");
+        expect(saved.content).not.toContain("반영할게요");
+        expect(saved.content).not.toContain(ABANDONED);
+        expect(saved.metadata.suggestions).toBeUndefined();
+        // 범위는 W4 그대로다 — "적용하지 않기" 턴은 장기 기억 대상이 아니다.
+        expect(saved.metadata.question_scope).toBe("W4_out_of_scope");
+        expect(saved.metadata.memory_eligible).toBe(false);
+        // 모델에게 건너뛴 카드가 아직 기다린다고 말하지 않는다.
+        expect(mocks.provider.mock.calls.at(-1)?.[0]?.systemPrompt).not.toContain("직전 답변의 변경 카드가 아직 적용되지 않은 채");
+
+        // 다음 카드를 적용하면 그 항목이 실행되고 대기열이 끝난다.
+        saved = await confirm(saved, "add_schedule_event", fitting.input);
+        expect(mocks.executeTool).toHaveBeenCalledTimes(2);
+        expect(mocks.executeTool.mock.calls[1]?.[0]).toBe("add_schedule_event");
+        expect(mocks.executeTool.mock.calls[1]?.[1]).toMatchObject(fitting.input);
+        expect(mocks.executeTool.mock.calls[1]?.[2]).toMatchObject({ pendingActionId: next.actionId });
+        expect(cardOf(saved)).toBeUndefined();
+        expect(saved.metadata.completed_amora_action_queue).toMatchObject({ totalCount: 2, completedCount: 2 });
+      });
+
+      it("skips the first card before anything is applied, then a two-item queue continues as a single card", async () => {
+        seedStudio();
+        let saved = await propose([dressTour, studioPlan, fitting]);
+        saved = await skip(saved);
+        expect(mocks.executeTool).not.toHaveBeenCalled();
+        expect(cardOf(saved)).toMatchObject({ tool: "apply_budget_plan", input: { allocations: studioPlan.input.allocations } });
+        expect(saved.metadata.pending_amora_action_queue).toMatchObject({ totalCount: 2, completedCount: 0, remainingActions: [fitting] });
+        expect(saved.metadata.pending_amora_action_impact_preview).toMatchObject({ sourceRevision: 2 });
+        expect(saved.content.startsWith(SKIP_LEAD)).toBe(true);
+        expect(saved.content).toContain(describeItem(dressTour));
+        expect(saved.content).toContain(`다음 항목을 확인해 주세요.\n\n${BUDGET_PLAN_CARD_BUBBLE_TEXT}`);
+        const studioCard = cardOf(saved)!;
+
+        // 남는 전체가 1건이면 대기열이 아니라 단일 카드다.
+        saved = await skip(saved);
+        expect(mocks.executeTool).not.toHaveBeenCalled();
+        expect(cardOf(saved)).toMatchObject({ tool: "add_schedule_event", input: fitting.input });
+        expect(saved.metadata.pending_amora_action_queue).toBeUndefined();
+        expect(saved.content.startsWith(SKIP_LEAD)).toBe(true);
+        expect(saved.content).toContain(describeItem({ tool: studioCard.tool, input: studioCard.input }));
+        expect(saved.content).not.toContain("건 중");
+
+        // 단일 카드에는 건너뛸 대기열이 없다 — 고정 문장도 평범한 대화이고 아무 안내도 붙지 않는다.
+        mocks.provider.mockClear();
+        const single = await say(saved, AMORA_QUEUED_CARD_SKIP_TEXT, "알겠어요.");
+        expect(mocks.executeTool).not.toHaveBeenCalled();
+        expect(cardOf(single.saved)).toBeUndefined();
+        expect(single.saved.content).toBe("알겠어요.");
+        expect(single.saved.metadata.deferred_amora_action_queue).toBeUndefined();
+      });
+
+      it("says nothing is left when the last queued card is skipped", async () => {
+        seedStudio();
+        let saved = await propose([dressTour, studioPlan, fitting]);
+        saved = await confirm(saved, "add_schedule_event", dressTour.input);
+        saved = await confirm(saved, "apply_budget_plan", { ...studioPlan.input, allocation_mode: "explicit" });
+        expect(saved.metadata.pending_amora_action_queue).toMatchObject({ totalCount: 3, completedCount: 2, remainingActions: [] });
+        saved = await skip(saved);
+        expect(mocks.executeTool).toHaveBeenCalledTimes(2);
+        expect(cardOf(saved)).toBeUndefined();
+        expect(saved.metadata.pending_amora_action_queue).toBeUndefined();
+        expect(saved.metadata.completed_amora_action_queue).toMatchObject({ totalCount: 2, completedCount: 2 });
+        expect(saved.metadata.deferred_amora_action_queue).toBeUndefined();
+        expect(saved.content).toBe(`${SKIP_LEAD}\n\n${describeItem(fitting)}\n\n남은 요청은 없어요.`);
+      });
+
+      it("never carries the skipped card, even if the skip turn were judged wedding talk", async () => {
+        seedStudio();
+        let saved = await propose([dressTour, studioPlan, fitting]);
+        saved = await confirm(saved, "add_schedule_event", dressTour.input);
+        saved = await confirm(saved, "apply_budget_plan", { ...studioPlan.input, allocation_mode: "explicit" });
+        const declined = cardOf(saved)!;
+        // 오늘 고정 문장은 W4 라 이월 관문을 넘지 못한다. 구제 경로가 늘어 W0 이 되더라도
+        // 건너뛴 카드는 옮겨지지 않고, 모델에게 기다린다고 말하지도 않는다.
+        const scopeModule = await import("@/lib/ai/amoraQuestionScope");
+        const classify = scopeModule.classifyAmoraQuestionScope;
+        const scopeSpy = vi.spyOn(scopeModule, "classifyAmoraQuestionScope").mockImplementation(input => (
+          input.userText === AMORA_QUEUED_CARD_SKIP_TEXT
+            ? { scope: "W0_wedding_core", allowsLongTermMemory: false, confidence: "high", needsClarification: false }
+            : classify(input)
+        ));
+        try {
+          saved = await skip(saved);
+        } finally {
+          scopeSpy.mockRestore();
+        }
+        expect(saved.metadata.question_scope).toBe("W0_wedding_core");
+        expect(mocks.executeTool).toHaveBeenCalledTimes(2);
+        expect(cardOf(saved)).toBeUndefined();
+        expect(JSON.stringify(saved.metadata)).not.toContain(declined.actionId);
+        expect(saved.metadata.pending_amora_action_carry_count).toBeUndefined();
+        expect(mocks.provider.mock.calls.at(-1)?.[0]?.systemPrompt).not.toContain("직전 답변의 변경 카드가 아직 적용되지 않은 채");
+        expect(saved.content.endsWith("남은 요청은 없어요.")).toBe(true);
+      });
+
+      it("gives the refusal reason when the next queued budget request would be refused", async () => {
+        seedStudio(true);
+        let saved = await propose([dressTour, studioPlan, fitting]);
+        expect(saved.metadata.pending_amora_action_queue).toMatchObject({ totalCount: 3, completedCount: 0 });
+        saved = await skip(saved);
+        expect(mocks.executeTool).not.toHaveBeenCalled();
+        // 스튜디오는 거절되어 카드를 내지 않고, 그다음 요청이 단일 카드로 나간다(3 − 건너뜀 − 거절 = 1).
+        expect(cardOf(saved)).toMatchObject({ tool: "add_schedule_event", input: fitting.input });
+        expect(saved.metadata.pending_amora_action_queue).toBeUndefined();
+        expect(saved.metadata.completed_amora_action_queue).toBeUndefined();
+        const refusalAt = saved.content.indexOf("남은 요청 중 1건은 지금 상태로는 적용되지 않아 확인 카드를 만들지 않았어요.");
+        expect(saved.content.indexOf(SKIP_LEAD)).toBe(0);
+        expect(refusalAt).toBeGreaterThan(0);
+        expect(saved.content).toContain("빼두신 항목이라 배분하지 않았어요");
+        expect(saved.content.indexOf("다음 항목을 확인해 주세요.")).toBeGreaterThan(refusalAt);
+
+        // 남은 요청이 모두 거절되면 남은 것이 없다고 말한다. 반영한 항목이 없으니 마친 대기열로 적지 않는다.
+        saved = await propose([dressTour, studioPlan]);
+        expect(saved.metadata.pending_amora_action_queue).toMatchObject({ totalCount: 2, completedCount: 0 });
+        saved = await skip(saved);
+        expect(mocks.executeTool).not.toHaveBeenCalled();
+        expect(cardOf(saved)).toBeUndefined();
+        expect(saved.metadata.pending_amora_action_queue).toBeUndefined();
+        expect(saved.metadata.completed_amora_action_queue).toBeUndefined();
+        expect(saved.content).toContain("빼두신 항목이라 배분하지 않았어요");
+        expect(saved.content.endsWith("남은 요청은 없어요.")).toBe(true);
+      });
+
+      it.each(["no queue", "invalid queue", "not the latest row", "private lane"] as const)(
+        "treats the skip sentence as ordinary text without a usable queue: %s",
+        async (mode) => {
+          seedStudio();
+          let saved = await propose(mode === "no queue" ? [dressTour] : [dressTour, studioPlan, fitting]);
+          if (mode === "invalid queue") {
+            saved = { ...saved, metadata: { ...saved.metadata, pending_amora_action_queue: {
+              ...(saved.metadata.pending_amora_action_queue as Record<string, unknown>),
+              currentActionId: "99999999-9999-4999-8999-999999999999",
+            } } };
+          }
+          const journeyBefore = structuredClone(mocks.journeyRow);
+          reply(saved, AMORA_QUEUED_CARD_SKIP_TEXT, mode === "private lane" ? "bride_private" : "shared");
+          if (mode === "not the latest row") {
+            mocks.canonicalRows.splice(1, 0, { id: "20000000-0000-4000-8000-000000000002", sender_id: null, sender_type: "ai", role: "assistant", content: "새 답변이에요.", metadata: {}, visibility: "shared", created_at: "2026-07-15T00:00:45.000Z" });
+          }
+          mocks.provider.mockResolvedValueOnce(providerResult({ fullText: "알겠어요." }));
+          const count = mocks.atomicResponses.length;
+          const response = await POST(request({
+            visibility: mode === "private lane" ? "bride_private" : "shared",
+            messages: [{ role: "user", content: AMORA_QUEUED_CARD_SKIP_TEXT }],
+          }));
+          expect(response.status).toBe(200);
+          const body = await response.text();
+          expect(mocks.executeTool).not.toHaveBeenCalled();
+          expect(mocks.journeyRow).toEqual(journeyBefore);
+          expect(mocks.atomicResponses).toHaveLength(count + 1);
+          const turn = mocks.atomicResponses.at(-1)!;
+          expect(cardOf(turn)).toBeUndefined();
+          expect(turn.metadata.pending_amora_action_queue).toBeUndefined();
+          expect(turn.metadata.deferred_amora_action_queue).toBeUndefined();
+          expect(turn.content).not.toContain(SKIP_LEAD);
+          expect(turn.content).not.toContain(ABANDONED);
+          expect(body).not.toContain('"pending_amora_action"');
+        },
+      );
+
+      it("lets a real confirmation win over the skip sentence", async () => {
+        seedStudio();
+        let saved = await propose([dressTour, studioPlan, fitting]);
+        const first = cardOf(saved)!;
+        mocks.executeTool.mockImplementationOnce(async () => {
+          mocks.journeyStateRevision = (mocks.journeyStateRevision ?? 0) + 1;
+          return { toolName: "add_schedule_event", toolInput: dressTour.input, toolOutput: {}, success: true, displayMessage: "반영했어요." };
+        });
+        saved = (await say(saved, AMORA_QUEUED_CARD_SKIP_TEXT, "반영했어요.", { confirmedActionId: first.actionId })).saved;
+        expect(mocks.executeTool).toHaveBeenCalledTimes(1);
+        expect(mocks.executeTool.mock.calls[0]?.[1]).toMatchObject(dressTour.input);
+        expect(cardOf(saved)).toMatchObject({ tool: "apply_budget_plan" });
+        expect(saved.content).toContain("3건 중 1건 반영했어요. 다음 항목을 확인해 주세요.");
+        expect(saved.content).not.toContain(SKIP_LEAD);
+      });
+
+      it("keeps the crisis boundary when the skip sentence is appended to a crisis disclosure", async () => {
+        seedStudio();
+        const saved = await propose([dressTour, studioPlan, fitting]);
+        const disclosure = `지금 죽고 싶어요. ${AMORA_QUEUED_CARD_SKIP_TEXT}`;
+        reply(saved, disclosure);
+        const count = mocks.atomicResponses.length;
+        mocks.provider.mockClear();
+        const response = await POST(request({ messages: [{ role: "user", content: disclosure }] }));
+        expect(response.status).toBe(200);
+        const body = await response.text();
+        expect(body).toContain("자살예방상담전화 109");
+        expect(mocks.provider).not.toHaveBeenCalled();
+        expect(mocks.executeTool).not.toHaveBeenCalled();
+        expect(mocks.atomicResponses).toHaveLength(count);
+        expect(body).not.toContain('"pending_amora_action"');
+        expect(body).not.toContain(ABANDONED);
+        expect(body).not.toContain(SKIP_LEAD);
+      });
+
+      it("lists the remaining requests once when the carry limit ends the queue", async () => {
+        seedStudio();
+        let saved = await propose([dressTour, studioPlan, fitting]);
+        saved = await confirm(saved, "add_schedule_event", dressTour.input);
+        const studio = cardOf(saved)!;
+        const queue = saved.metadata.pending_amora_action_queue as { queueId: string };
+        // 카드를 "지금은 적용하지 않기" 로 치웠다 — 서버에는 아무것도 가지 않는다. 다음은 결혼 질문들이다.
+        const questions = ["스튜디오 예산은 보통 얼마 정도야?", "스튜디오 계약금은 보통 언제 내?", "스튜디오는 언제쯤 알아보면 돼?"];
+        for (const [index, question] of questions.slice(0, 2).entries()) {
+          saved = (await say(saved, question, "보통은 구성과 지역에 따라 달라요.")).saved;
+          expect(saved.metadata.question_scope).toBe("W0_wedding_core");
+          expect(cardOf(saved)?.actionId).toBe(studio.actionId);
+          expect(saved.metadata.pending_amora_action_carry_count).toBe(index + 1);
+          expect(saved.metadata.pending_amora_action_queue).toMatchObject({ totalCount: 3, completedCount: 1, remainingActions: [fitting] });
+          expect(saved.metadata.deferred_amora_action_queue).toBeUndefined();
+          expect(saved.content).not.toContain(ABANDONED);
+        }
+        saved = (await say(saved, questions[2], "보통은 본식 6개월 전쯤 알아봐요.")).saved;
+        expect(saved.metadata.question_scope).toBe("W0_wedding_core");
+        expect(cardOf(saved)).toBeUndefined();
+        expect(saved.metadata.pending_amora_action_queue).toBeUndefined();
+        expect(saved.metadata.deferred_amora_action_queue).toEqual({
+          queueId: queue.queueId, totalCount: 3, completedCount: 1,
+          remainingActions: [{ tool: studio.tool, input: studio.input }, expect.objectContaining({ tool: "add_schedule_event", input: expect.objectContaining(fitting.input) })],
+        });
+        expect(saved.content.startsWith("보통은 본식 6개월 전쯤 알아봐요.")).toBe(true);
+        expect(saved.content).toContain(`앞서 확인을 기다리던 요청은 아직 반영하지 않았어요. 필요하면 다시 말씀해 주세요.\n\n${ABANDONED}\n`);
+        expect(saved.content).toContain(describeItem({ tool: studio.tool, input: studio.input }));
+        expect(saved.content).toContain(describeItem(fitting));
+        // 목록은 답변 뒤에 붙는 서버 문장이다 — 이번 턴 모델 문맥에는 남은 요청이 없다.
+        const lastCall = mocks.provider.mock.calls.at(-1)?.[0];
+        expect(JSON.stringify([lastCall?.systemPrompt, lastCall?.input])).not.toContain("본식 드레스 가봉");
+        expect(mocks.executeTool).toHaveBeenCalledTimes(1);
+
+        // 한 번만 알린다.
+        saved = (await say(saved, "스튜디오 촬영은 보통 몇 시간 걸려?", "보통 반나절이에요.")).saved;
+        expect(saved.content).toBe("보통 반나절이에요.");
+        expect(saved.metadata.deferred_amora_action_queue).toBeUndefined();
+      });
+
+      it("still confirms a hidden card carried with its queue on a wedding question", async () => {
+        seedStudio();
+        let saved = await propose([dressTour, studioPlan, fitting]);
+        saved = await confirm(saved, "add_schedule_event", dressTour.input);
+        const studio = cardOf(saved)!;
+        saved = (await say(saved, "스튜디오 예산은 보통 얼마 정도야?", "보통은 구성과 지역에 따라 달라요.")).saved;
+        expect(cardOf(saved)?.actionId).toBe(studio.actionId);
+        expect(saved.metadata.pending_amora_action_queue).toMatchObject({ remainingActions: [fitting] });
+        saved = await confirm(saved, "apply_budget_plan", studio.input);
+        expect(mocks.executeTool).toHaveBeenCalledTimes(2);
+        expect(saved.content).toContain("3건 중 2건 반영했어요. 다음 항목을 확인해 주세요.");
+        expect(cardOf(saved)).toMatchObject({ tool: "add_schedule_event", input: fitting.input });
+        expect(saved.metadata.deferred_amora_action_queue).toBeUndefined();
+      });
+
+      it("lists the remaining requests when a new change request replaces the queue, and still issues the new card", async () => {
+        seedStudio();
+        let saved = await propose([dressTour, studioPlan, fitting]);
+        saved = await confirm(saved, "add_schedule_event", dressTour.input);
+        const studio = cardOf(saved)!;
+        const ceremony = { tool: "add_schedule_event", input: { date: "2027-05-08", title: "본식" } };
+        saved = (await say(saved, "본식 날짜를 2027년 5월 8일로 일정에 넣어줘", marker(ceremony))).saved;
+        expect(mocks.executeTool).toHaveBeenCalledTimes(1);
+        expect(cardOf(saved)).toMatchObject({ tool: "add_schedule_event", input: { date: "2027-05-08" } });
+        expect(cardOf(saved)?.actionId).not.toBe(studio.actionId);
+        expect(saved.metadata.pending_amora_action_queue).toBeUndefined();
+        expect(saved.metadata.deferred_amora_action_queue).toMatchObject({
+          totalCount: 3, completedCount: 1,
+          remainingActions: [{ tool: studio.tool, input: studio.input }, { tool: "add_schedule_event" }],
+        });
+        expect(saved.content).toContain(ABANDONED);
+        expect(saved.content).toContain(describeItem({ tool: studio.tool, input: studio.input }));
+        expect(saved.content).toContain(describeItem(fitting));
+        // 새 변경 요청의 모델 문맥에는 옛 카드·대기열이 들어가지 않는다(원래 규칙 그대로).
+        const lastCall = mocks.provider.mock.calls.at(-1)?.[0];
+        expect(lastCall?.systemPrompt).not.toContain("직전 답변의 변경 카드가 아직 적용되지 않은 채");
+        expect(JSON.stringify([lastCall?.systemPrompt, lastCall?.input])).not.toContain("본식 드레스 가봉");
+      });
+
+      it("does not append the list to a comfort or safety turn", async () => {
+        seedStudio();
+        let saved = await propose([dressTour, studioPlan, fitting]);
+        saved = await confirm(saved, "add_schedule_event", dressTour.input);
+        const carried = saved;
+        // 오늘의 위로 턴은 저장 문맥 읽기를 건너뛰어 직전 대기열을 아예 보지 않는다.
+        const comfort = (await say(carried, "그냥 오늘 너무 힘들어", "많이 지치셨겠어요.")).saved;
+        expect(comfort.metadata.question_scope).toBe("W3_social_care");
+        expect(cardOf(comfort)).toBeUndefined();
+        expect(comfort.content).not.toContain(ABANDONED);
+        expect(comfort.metadata.deferred_amora_action_queue).toBeUndefined();
+
+        // 방어선: 직전 행을 읽은 턴(짧은 답 모양 "응 우울해" 는 오늘 W4 라 읽는다)의 **최종 판정**이
+        // 위로 턴이더라도 목록은 붙지 않는다. 오늘은 위로 턴이 직전 행을 읽을 길이 없어, 최종 판정
+        // 호출(`hasApprovedWeddingAction` 을 넘기는 호출)만 바꿔 그 경계를 따로 잰다.
+        const scopeModule = await import("@/lib/ai/amoraQuestionScope");
+        const classify = scopeModule.classifyAmoraQuestionScope;
+        const scopeSpy = vi.spyOn(scopeModule, "classifyAmoraQuestionScope").mockImplementation(input => (
+          input.userText === "응 우울해" && input.hasApprovedWeddingAction !== undefined
+            ? { scope: "W3_social_care", allowsLongTermMemory: false, confidence: "high", needsClarification: false }
+            : classify(input)
+        ));
+        try {
+          const shaped = (await say(carried, "응 우울해", "많이 힘드셨겠어요.")).saved;
+          expect(shaped.metadata.question_scope).toBe("W3_social_care");
+          expect(cardOf(shaped)).toBeUndefined();
+          expect(shaped.content).toBe("많이 힘드셨겠어요.");
+          expect(shaped.metadata.deferred_amora_action_queue).toBeUndefined();
+        } finally {
+          scopeSpy.mockRestore();
+        }
+
+        const count = mocks.atomicResponses.length;
+        reply(carried, "지금 죽고 싶어요");
+        const response = await POST(request({ messages: [{ role: "user", content: "지금 죽고 싶어요" }] }));
+        expect(response.status).toBe(200);
+        const body = await response.text();
+        expect(mocks.atomicResponses).toHaveLength(count);
+        expect(body).not.toContain(ABANDONED);
+        expect(body).not.toContain('"pending_amora_action"');
+      });
     });
   });
 

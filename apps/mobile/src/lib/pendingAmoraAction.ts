@@ -249,6 +249,39 @@ export function getPendingAmoraActionCarryCount(
   return value;
 }
 
+/**
+ * **대기열 카드의 "이 항목 건너뛰기"가 보내는 고정 문장** (2026-09-18).
+ *
+ * 여러 변경을 한 번에 부탁하면 서버가 첫 건만 카드로 내고 나머지는 대기열로 들고 있다가
+ * 적용할 때마다 다음 카드를 낸다. 서버(웹 `route.ts`)는 **이 문장과 완전히 같을 때만** 지금
+ * 카드를 반영하지 않고 다음 항목을 새 확인 카드로 낸다. 적용이 아니므로 `confirmedActionId` 를
+ * 함께 보내지 않는다.
+ *
+ * 앱은 웹 모듈을 가져올 수 없어 값을 옮겨 적는다. 웹 값(`apps/web/src/lib/ai/amoraQueuedCardSkip.ts`)과
+ * 같은지 검사가 따로 있다 — 한 글자라도 다르면 앱의 버튼은 평범한 대화 한 줄이 된다.
+ */
+export const AMORA_QUEUED_CARD_SKIP_TEXT = "이 항목은 적용하지 않고 다음 항목으로 넘어갈게요.";
+
+/** 버튼 글자와 접근성 이름. 웹(`QUEUED_CARD_SKIP_LABEL`)과 같다. */
+export const QUEUED_CARD_SKIP_LABEL = "이 항목 건너뛰기";
+
+/**
+ * 이 카드 뒤에 남은 요청이 몇 건인가. 없으면 0(대기열이 아니거나 마지막 항목).
+ *
+ * 서버가 찍은 대기열이 **바로 이 카드**를 가리킬 때만 센다. 건수만 읽고 남은 요청의 입력은
+ * 화면에 쓰지 않는다. 웹과 같은 입력에 같은 값을 낸다.
+ */
+export function getQueuedRemainingCount(
+  message: PendingActionMessageBoundary,
+  actionId: string,
+): number {
+  if (message.sender_type !== "ai" || message.visibility !== "shared") return 0;
+  if (!isPlainRecord(message.metadata)) return 0;
+  const queue = message.metadata.pending_amora_action_queue;
+  if (!isPlainRecord(queue) || queue.currentActionId !== actionId) return 0;
+  return Array.isArray(queue.remainingActions) ? queue.remainingActions.length : 0;
+}
+
 export function getPendingAmoraBudgetImpactPreview(
   message: PendingActionMessageBoundary,
   action: PendingAmoraAction,

@@ -119,6 +119,7 @@ function renderProposal(receipts, {
   itemOverrides = {},
   participantPresentation = chatParticipantPresentationModule.EMPTY_CHAT_PARTICIPANT_PRESENTATION,
   linkedPartnerId = null,
+  dismissedPendingMessageIds = new Set(),
 } = {}) {
   const applicationModule = compileCommonJs(readFileSync(new URL(
     "../../../web/src/components/app/chat/amoraPendingActionApplication.ts", import.meta.url,
@@ -143,7 +144,7 @@ function renderProposal(receipts, {
   const bindings = {
     ...components, ...sharedModule, ...helperModule.exports, ...applicationModule,
     React: { createElement: (type, props, ...children) => ({ type, props, children }), Fragment: "Fragment" },
-    messages, userRole: "bride", userId: "user-1", dismissedPendingActionIds: new Set(),
+    messages, userRole: "bride", userId: "user-1", dismissedPendingMessageIds,
     userName: "나", partnerName: "파트너",
     ...chatParticipantPresentationModule, participantPresentation,
     hasLinkedPartner: linkedPartnerId !== null, linkedPartnerIdRef: { current: linkedPartnerId },
@@ -249,6 +250,115 @@ test("mobile says applied or expired before pointing at a carried card", () => {
   const expired = renderProposal([typedAcceptance, carriedReply()], { nowMs: action.expiresAt + 1 });
   assert.match(expired.text, /확인 시간이 지났어요/);
   assert.doesNotMatch(expired.text, /옮겨졌어요/);
+});
+
+// 2026-09-18: 여러 변경 중 한 카드를 "지금은 적용하지 않기" 로 치우면 대기열이 그 카드 뒤에서
+// 기다리다 말없이 사라졌다. 앱은 치운 카드를 actionId 로 기억해서, 서버가 같은 카드를 새 답변에
+// 다시 붙여도 계속 숨겼다 — 대기열 전체가 화면에서 보이지 않았다.
+const queuedMetadata = (remainingActions, currentActionId = action.actionId) => ({
+  pending_amora_action: action,
+  pending_amora_action_queue: {
+    version: 1, queueId: action.actionId, currentActionId,
+    totalCount: remainingActions.length + 2, completedCount: 1, remainingActions,
+  },
+});
+const queuedMakeup = { tool: "apply_budget_plan", input: { total_budget: 35_000_000, allocations: [{ category: "makeup", budget: 700_000 }] } };
+const skipButtons = (rendered) => rendered.buttons.filter(node => node.props.accessibilityLabel === "이 항목 건너뛰기");
+
+test("mobile hides a dismissed card by message id, so the same card carried to a newer reply stays visible", () => {
+  // 누른 순간의 메시지(proposal)는 숨는다.
+  const hidden = renderProposal([], { dismissedPendingMessageIds: new Set(["proposal"]) });
+  assert.equal(hidden.buttons.length, 0);
+  assert.doesNotMatch(hidden.text, /이대로 적용/);
+  // 같은 actionId 를 가진 옛 메시지를 치웠어도, 새 답변에 다시 붙은 카드(다른 메시지 id)는 보인다.
+  const carried = renderProposal([], {
+    dismissedPendingMessageIds: new Set(["older-reply-with-the-same-card"]),
+  });
+  assert.ok(carried.buttons.length >= 2);
+  assert.match(carried.text, /이대로 적용/);
+  // actionId 는 숨김의 열쇠가 아니다.
+  const sameActionId = renderProposal([], { dismissedPendingMessageIds: new Set([action.actionId]) });
+  assert.match(sameActionId.text, /이대로 적용/);
+  // 치우기 처리기가 누른 순간의 메시지 id 들을 기억한다(actionId 가 아니다).
+  assert.match(chatSource, /setDismissedPendingMessageIds\(\(current\) => \{[\s\S]*?for \(const message of messages\)[\s\S]*?getPendingAmoraAction\(message\)\?\.actionId === pendingAction\.actionId\) next\.add\(message\.id\)/);
+  assert.match(chatSource, /!dismissedPendingMessageIds\.has\(item\.id\)/);
+  assert.doesNotMatch(chatSource, /dismissedPendingActionIds/);
+});
+
+test("mobile shows a separate skip control only on the latest queued card that is not applied", () => {
+  const queued = renderProposal([], { itemOverrides: { metadata: queuedMetadata([queuedMakeup]) } });
+  const [skip] = skipButtons(queued);
+  assert.ok(skip, "대기열 카드에는 건너뛰기가 있어야 한다");
+  assert.equal(skip.props.disabled, false);
+  assert.equal(skip.props.accessibilityRole, "button");
+  // 보이는 글자와 접근성 이름이 같다.
+  assert.ok(skip.children.flat().some(child => child?.type === "Text" && child.children.includes("이 항목 건너뛰기")));
+  // "지금은 적용하지 않기" 는 그대로 있다.
+  assert.ok(queued.buttons.some(node => node.props.accessibilityLabel === "지금은 적용하지 않기"));
+
+  for (const [name, options, receipts = []] of [
+    ["단일 카드", {}],
+    ["마지막 항목", { itemOverrides: { metadata: queuedMetadata([]) } }],
+    ["다른 카드의 대기열", { itemOverrides: { metadata: queuedMetadata([queuedMakeup], "44444444-4444-4444-8444-444444444444") } }],
+    ["대기열 모양이 아님", { itemOverrides: { metadata: { pending_amora_action: action, pending_amora_action_queue: { currentActionId: action.actionId, remainingActions: "x" } } } }],
+    ["새 대화가 이어진 옛 카드", { itemOverrides: { metadata: queuedMetadata([queuedMakeup]) } }, [typedAcceptance]],
+    ["적용된 카드", { itemOverrides: { metadata: queuedMetadata([queuedMakeup]) } }, [confirmationReceipt, successReceipt]],
+    ["만료된 카드", { itemOverrides: { metadata: queuedMetadata([queuedMakeup]) }, nowMs: action.expiresAt + 1 }],
+  ]) {
+    assert.equal(skipButtons(renderProposal(receipts, options)).length, 0, name);
+  }
+
+  // 답변을 기다리는 동안에는 보이되 누를 수 없다.
+  const busy = renderProposal([], { streaming: true, itemOverrides: { metadata: queuedMetadata([queuedMakeup]) } });
+  assert.equal(skipButtons(busy)[0].props.disabled, true);
+});
+
+test("mobile skip sends only the fixed sentence through the ordinary send path, never as a confirmation", () => {
+  const tree = ts.createSourceFile("chat.tsx", chatSource, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+  let handler;
+  const visit = (node) => {
+    if (ts.isFunctionDeclaration(node) && node.name?.text === "handleSkipQueuedPendingAction") handler = node.getText(tree);
+    ts.forEachChild(node, visit);
+  };
+  visit(tree);
+  assert.ok(handler, "건너뛰기 처리기가 있어야 한다");
+  assert.match(handler, /await sendAiDraft\(\{\s*text: AMORA_QUEUED_CARD_SKIP_TEXT,/);
+  assert.match(handler, /visibility: "shared"/);
+  assert.match(handler, /target: "ai"/);
+  // 적용이 아니다 — 확인 id·적용 순서 확인을 보내지 않는다.
+  assert.doesNotMatch(handler, /confirmedActionId|amoraSourceMessageId|requestAmoraApplicationClaim|requestAmoraSharedActionApproval/);
+  // 누르는 순간의 최신 카드가 이 카드이고 뒤에 남은 요청이 있을 때만 보낸다.
+  assert.match(handler, /action\.actionId !== actionId/);
+  assert.match(handler, /getQueuedRemainingCount\(latestSharedMessage, actionId\) === 0/);
+  assert.match(chatSource, /onPress=\{\(\) => handleSkipQueuedPendingAction\(pendingAction\.actionId\)\}/);
+});
+
+test("mobile skip sentence and label are the same values the web server and card use", () => {
+  const web = compileCommonJs(readFileSync(new URL(
+    "../../../web/src/lib/ai/amoraQueuedCardSkip.ts", import.meta.url,
+  ), "utf8"));
+  assert.equal(typeof web.AMORA_QUEUED_CARD_SKIP_TEXT, "string");
+  assert.equal(helperModule.exports.AMORA_QUEUED_CARD_SKIP_TEXT, web.AMORA_QUEUED_CARD_SKIP_TEXT);
+  // 서버 판정이 앱 문장을 받아들인다.
+  assert.equal(web.isAmoraQueuedCardSkip(helperModule.exports.AMORA_QUEUED_CARD_SKIP_TEXT), true);
+  const webCardSource = readFileSync(new URL(
+    "../../../web/src/components/app/chat/PendingAmoraActionCard.tsx", import.meta.url,
+  ), "utf8");
+  const webLabel = /export const QUEUED_CARD_SKIP_LABEL = "([^"]+)";/.exec(webCardSource)?.[1];
+  assert.equal(helperModule.exports.QUEUED_CARD_SKIP_LABEL, webLabel);
+});
+
+test("mobile counts queued requests only for the queue that points at this card", () => {
+  const { getQueuedRemainingCount } = helperModule.exports;
+  assert.equal(getQueuedRemainingCount(message({ metadata: queuedMetadata([queuedMakeup]) }), action.actionId), 1);
+  assert.equal(getQueuedRemainingCount(message({ metadata: queuedMetadata([queuedMakeup, queuedMakeup]) }), action.actionId), 2);
+  assert.equal(getQueuedRemainingCount(message({ metadata: queuedMetadata([]) }), action.actionId), 0);
+  assert.equal(getQueuedRemainingCount(message({ metadata: queuedMetadata([queuedMakeup], "other") }), action.actionId), 0);
+  assert.equal(getQueuedRemainingCount(message(), action.actionId), 0);
+  assert.equal(getQueuedRemainingCount(message({ metadata: { pending_amora_action_queue: [] } }), action.actionId), 0);
+  assert.equal(getQueuedRemainingCount(message({ sender_type: "bride", metadata: queuedMetadata([queuedMakeup]) }), action.actionId), 0);
+  assert.equal(getQueuedRemainingCount(message({ visibility: "bride_private", metadata: queuedMetadata([queuedMakeup]) }), action.actionId), 0);
+  assert.equal(getQueuedRemainingCount(message({ metadata: null }), action.actionId), 0);
 });
 
 test("mobile recognizes persisted success after history reload and receipt reordering", () => {

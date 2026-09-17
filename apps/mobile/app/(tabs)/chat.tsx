@@ -8,7 +8,7 @@ import { buildMobileSiteUrl, resolveMobileSiteOrigin } from "@/lib/siteUrl.mjs";
 import { SafeAreaView } from "react-native-safe-area-context";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Crypto from "expo-crypto";
-import { Check, Send, ShieldCheck, Heart, X, Lock, RotateCcw, Users } from "lucide-react-native";
+import { Check, Send, ShieldCheck, Heart, X, Lock, RotateCcw, SkipForward, Users } from "lucide-react-native";
 import { amoraIdentity, chatPalette, colors } from "@hanbang/design-tokens";
 import AmoraMark from "@/components/ui/AmoraMark";
 import AmoraAvatar from "@/components/ui/AmoraAvatar";
@@ -69,12 +69,15 @@ import {
 } from "@/lib/amoraChatEntry";
 import { createChatSessionGenerationGuard } from "@/lib/chatSessionGeneration";
 import {
+  AMORA_QUEUED_CARD_SKIP_TEXT,
   CARRIED_PENDING_ACTION_LABEL,
   getAmoraActionApprovalPolicy,
   getPendingAmoraAction,
   getPendingAmoraActionCarryCount,
   getPendingAmoraBudgetImpactPreview,
   getPendingActionDisabledReason,
+  getQueuedRemainingCount,
+  QUEUED_CARD_SKIP_LABEL,
   getSharedActionApprovalPresentation,
   isPendingActionPastDated,
   parseSharedActionApplicationClaim,
@@ -1987,7 +1990,10 @@ export default function ChatScreen() {
   >(() => createEmptyAmoraChatLaneRecord(() => null));
   const [quotaRemaining, setQuotaRemaining] = useState<number | null>(null);
   const [nowMs, setNowMs] = useState(() => Date.now());
-  const [dismissedPendingActionIds, setDismissedPendingActionIds] = useState<Set<string>>(
+  // "지금은 적용하지 않기" 로 치운 카드는 **메시지 id** 로 기억한다(웹 ChatContent 와 같다).
+  // actionId 로 기억하면 서버가 같은 카드를 새 답변에 다시 붙여도 계속 숨어 있어, 그 뒤의
+  // 대기열까지 화면에서 사라진다(2026-09-18).
+  const [dismissedPendingMessageIds, setDismissedPendingMessageIds] = useState<Set<string>>(
     () => new Set(),
   );
   const [applyingPendingActionId, setApplyingPendingActionId] = useState<string | null>(null);
@@ -2356,7 +2362,7 @@ export default function ChatScreen() {
     setSendFailuresByLane(createEmptyAmoraChatLaneRecord(() => null));
     setColdStartAiRecoveryByLane(createEmptyAmoraChatLaneRecord(() => null));
     setQuotaRemaining(null);
-    setDismissedPendingActionIds(new Set());
+    setDismissedPendingMessageIds(new Set());
     setApplyingPendingActionId(null);
     setPendingActionNotice(null);
     setPendingActionApproval(null);
@@ -4001,6 +4007,58 @@ export default function ChatScreen() {
     }
   }
 
+  /**
+   * 대기열 카드의 "이 항목 건너뛰기" (2026-09-18).
+   *
+   * 고정 문장(`AMORA_QUEUED_CARD_SKIP_TEXT`)을 평소 대화와 같은 경로로 보낸다. 적용이 아니므로
+   * `confirmedActionId` 도, 적용 순서 확인(claim)도 보내지 않는다. 서버는 이 문장일 때만 지금
+   * 카드를 반영하지 않고 다음 항목을 새 확인 카드로 낸다. 누르는 순간의 최신 카드를 다시 본다.
+   */
+  async function handleSkipQueuedPendingAction(actionId: string) {
+    if (
+      streaming
+      || sendingRef.current
+      || applyingPendingActionRef.current
+      || !coupleId
+      || !userId
+      || !userRole
+      || !latestSharedMessage
+    ) return;
+    const sessionGeneration = chatSessionGenerationRef.current.current();
+    if (!isCurrentChatSession(sessionGeneration)) return;
+    const action = getPendingAmoraAction(latestSharedMessage);
+    if (
+      !action
+      || action.actionId !== actionId
+      || getPendingActionDisabledReason(action, Date.now(), true, false) !== null
+      || getQueuedRemainingCount(latestSharedMessage, actionId) === 0
+    ) return;
+
+    sendingRef.current = true;
+    setActiveScope("shared");
+    setTarget("ai");
+    setPendingActionNotice(null);
+    try {
+      await sendAiDraft({
+        text: AMORA_QUEUED_CARD_SKIP_TEXT,
+        sourceLane: "shared_ai",
+        target: "ai",
+        clientRequestId: Crypto.randomUUID(),
+        coupleId,
+        userId,
+        senderType: userRole,
+        senderName: userName,
+        requestedVisibility: "shared",
+        visibility: "shared",
+        providerAttachmentCount: 0,
+        sessionGeneration,
+      }, false);
+    } finally {
+      // 보내기 실패는 `sendAiDraft` 가 평소 대화와 같은 자리(재시도 안내)에 남긴다.
+      if (isCurrentChatSession(sessionGeneration)) sendingRef.current = false;
+    }
+  }
+
   async function handleWithdrawPendingAction(actionId: string) {
     if (
       streaming
@@ -4144,9 +4202,13 @@ export default function ChatScreen() {
       : null;
     const pendingActionCandidate = getPendingAmoraAction(item);
     const pendingAction = pendingActionCandidate
-      && !dismissedPendingActionIds.has(pendingActionCandidate.actionId)
+      && !dismissedPendingMessageIds.has(item.id)
       ? pendingActionCandidate
       : null;
+    // 이 카드 뒤에 남은 요청 수. 1 이상일 때만 "이 항목 건너뛰기" 를 둔다(웹과 같은 판정).
+    const queuedRemainingCount = pendingAction
+      ? getQueuedRemainingCount(item, pendingAction.actionId)
+      : 0;
     const pendingActionDisabledReason: PendingActionDisabledReason = pendingAction
       ? getPendingActionDisabledReason(
           pendingAction,
@@ -4160,7 +4222,8 @@ export default function ChatScreen() {
     // 다시 붙인다(2026-09-15). 그때 옛 카드가 "새 대화가 이어져 이 제안은 적용할 수 없어요"라고
     // 하면 사람은 제안이 사라진 줄 안다. 같은 카드가 아래에 살아 있으면 그쪽을 가리키고, 옛 카드의
     // 버튼과 확인 상태 줄은 감춘다 — 누를 곳은 최신 카드 한 곳이다. 옛 카드에 "지금은 적용하지 않기"를
-    // 남겨 두면 그것을 눌렀을 때 같은 actionId 인 아래 카드까지 함께 치워진다. 판정과 문구는 웹 카드
+    // 남겨 두면 그것을 눌렀을 때 지금 화면에 있는 같은 actionId 카드(아래 카드)까지 함께 치워진다
+    // (치우기는 누른 순간의 메시지 id 들로 기억한다 — 그 뒤 새 답변에 다시 붙은 카드는 보인다). 판정과 문구는 웹 카드
     // (`isPendingAmoraActionContinuedInMessage`·`CONTINUED_PENDING_ACTION_COPY`)와 같다.
     const pendingActionMovedToLatest = pendingAction !== null
       && pendingActionDisabledReason === "not_latest"
@@ -4451,9 +4514,13 @@ export default function ChatScreen() {
                 )}
                 <Pressable
                   style={({ pressed }) => [st.pendingActionDismiss, pressed && { opacity: 0.72 }]}
-                  onPress={() => setDismissedPendingActionIds((current) => {
+                  onPress={() => setDismissedPendingMessageIds((current) => {
                     const next = new Set(current);
-                    next.add(pendingAction.actionId);
+                    // 지금 보이는 같은 제안만 미룬다. 새 답변으로 다시 받은 카드는 원래 actionId 를
+                    // 유지해도 확인할 수 있어야 한다(웹 ChatContent 와 같다).
+                    for (const message of messages) {
+                      if (getPendingAmoraAction(message)?.actionId === pendingAction.actionId) next.add(message.id);
+                    }
                     return next;
                   })}
                   disabled={applyingPendingActionId === pendingAction.actionId}
@@ -4464,6 +4531,27 @@ export default function ChatScreen() {
                   <X size={16} color={colors.noir.soft} />
                   <Text style={st.pendingActionDismissText}>지금은 적용하지 않기</Text>
                 </Pressable>
+                {/*
+                  대기열 카드에만 나오는 건너뛰기. "지금은 적용하지 않기"(화면에서만 치움)와 달리 서버에
+                  고정 문장을 보내 지금 항목을 반영하지 않고 다음 항목을 새 확인 카드로 받는다.
+                  보이는 글자와 접근성 이름을 같게 둔다.
+                */}
+                {queuedRemainingCount > 0
+                  && (pendingActionDisabledReason === null || pendingActionDisabledReason === "busy") && (
+                  <Pressable
+                    style={({ pressed }) => [st.pendingActionDismiss, pressed && { opacity: 0.72 }]}
+                    onPress={() => handleSkipQueuedPendingAction(pendingAction.actionId)}
+                    disabled={pendingActionDisabledReason !== null || applyingPendingActionId !== null}
+                    accessibilityRole="button"
+                    accessibilityLabel={QUEUED_CARD_SKIP_LABEL}
+                    accessibilityState={{
+                      disabled: pendingActionDisabledReason !== null || applyingPendingActionId !== null,
+                    }}
+                  >
+                    <SkipForward size={16} color={colors.noir.soft} />
+                    <Text style={st.pendingActionDismissText}>{QUEUED_CARD_SKIP_LABEL}</Text>
+                  </Pressable>
+                )}
               </View>
               )}
             </View>
