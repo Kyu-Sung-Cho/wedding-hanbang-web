@@ -220,7 +220,7 @@ describe("AppClientLayout global Amora panel", () => {
     expect(nav?.querySelectorAll("a")).toHaveLength(5);
     expect(nav?.querySelectorAll('[aria-current="location"]')).toHaveLength(1);
     expect([...nav!.querySelectorAll("a")].map(link => link.textContent)).toEqual(["라운지", "아모라", "체크리스트", "일정", "예산"]);
-    expect(nav?.querySelector('a[href="/wedding/chat"] [data-amora-mark="rings"]')).not.toBeNull();
+    expect(nav?.querySelector('a[href="/wedding/chat"] [data-amora-mark="compass"]')).not.toBeNull();
     expect(nav?.querySelector('[aria-current="location"]')?.getAttribute("href")).toBe(activeHref);
     expect(nav?.querySelector('a[href="/wedding/chat"]')).not.toBeNull();
     expect(container.querySelector('button[aria-label="아모라 AI 상담"]')).toBeNull();
