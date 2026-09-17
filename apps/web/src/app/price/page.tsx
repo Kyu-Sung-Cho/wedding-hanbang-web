@@ -127,7 +127,7 @@ export default async function PriceIndexPage() {
               <ClipboardCheck aria-hidden="true" className="size-4" />
               이미 견적서를 받았다면
             </span>
-            <span className="mt-1 block text-sm leading-6 text-white/75">
+            <span className="mt-1 block text-sm leading-6 text-[var(--hb-on-primary)]">
               빠진 항목이 없는지 3분 만에 확인하고, 업체에 보낼 질문까지 받아보세요. 로그인 없이 무료예요.
             </span>
           </span>

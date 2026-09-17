@@ -296,7 +296,7 @@ export default function MyPostsPage() {
               tab === t.key ? "bg-[var(--hb-primary)] text-white" : "bg-white border border-black/[0.06] text-[var(--hb-text-muted)] hover:bg-[var(--hb-surface-hover)]"
             }`}
           >
-            {t.label} {t.count > 0 && <span className="ml-1 opacity-60">{t.count}</span>}
+            {t.label} {t.count > 0 && <span className="ml-1 font-normal">{t.count}</span>}
           </button>
         ))}
       </div>

@@ -2220,7 +2220,7 @@ const styles = StyleSheet.create({
   choice: { minHeight: 44, flexDirection: "row", alignItems: "center", gap: spacing[1], paddingHorizontal: spacing[3], paddingVertical: spacing[2], borderRadius: radius.full, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface },
   choiceSelected: { borderColor: colors.rose[500], backgroundColor: colors.rose.glow },
   choiceText: { color: colors.textSecondary },
-  choiceTextSelected: { color: colors.rose[600] },
+  choiceTextSelected: { color: colors.rose[700] },
   includeRow: { minHeight: 44, flexDirection: "row", alignItems: "center", gap: spacing[2], paddingVertical: spacing[1] },
   composerIntro: { gap: spacing[4] },
   composerIntroText: { gap: spacing[1] },

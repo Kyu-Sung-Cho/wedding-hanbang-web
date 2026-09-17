@@ -260,12 +260,12 @@ export default function CommunityAboutPage() {
               return (
                 <div key={item.title} className="text-center">
                   <div className="w-12 h-12 rounded-[6px] bg-white/5 border border-white/10 flex items-center justify-center mx-auto mb-4">
-                    <Icon className="w-6 h-6 text-[#B89785]" />
+                    <Icon className="w-6 h-6 text-[var(--hb-on-primary)]" />
                   </div>
                   <h3 className="font-serif-kr text-white mb-2">
                     {item.title}
                   </h3>
-                  <p className="text-sm text-white/60 font-light leading-relaxed">
+                  <p className="text-sm text-[var(--hb-on-primary)] font-light leading-relaxed">
                     {item.desc}
                   </p>
                 </div>

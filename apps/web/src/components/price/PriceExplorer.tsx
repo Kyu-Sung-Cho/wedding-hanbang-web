@@ -665,7 +665,7 @@ export function PriceExplorer({
             <div className="mt-4 flex flex-col gap-3 rounded-[6px] bg-[var(--hb-primary)] px-4 py-4 text-white sm:flex-row sm:items-center sm:justify-between">
               <div>
                 <p className="text-sm font-bold">조건이 아직 막막하다면 아모라와 먼저 정리해요</p>
-                <p className="mt-1 text-xs leading-5 text-white/70">예산·지역·취향을 함께 좁힌 뒤 공시 근거가 있는 후보만 살펴볼 수 있어요.</p>
+                <p className="mt-1 text-xs leading-5 text-[var(--hb-on-primary)]">예산·지역·취향을 함께 좁힌 뒤 공시 근거가 있는 후보만 살펴볼 수 있어요.</p>
               </div>
               <Link href="/wedding/chat" className="inline-flex min-h-11 shrink-0 items-center justify-center rounded-[6px] bg-white px-4 text-sm font-bold text-[var(--hb-text-strong)]">
                 아모라와 찾기
@@ -732,7 +732,7 @@ export function PriceExplorer({
                 className={`inline-flex min-h-11 items-center gap-2 rounded-[6px] border px-4 text-sm font-bold transition-colors ${value === category ? "border-[var(--hb-selected-line)] bg-[var(--hb-selected-bg)] text-[var(--hb-selected-text)]" : "border-[var(--hb-primary)]/12 bg-white text-[var(--hb-text-strong)] hover:bg-[#F5ECE4]"}`}
               >
                 {PRICE_CATEGORY_LABELS[value]}
-                <span className={value === category ? "text-white/65" : "text-[var(--hb-text-strong)]/45"}>{catalog.counts[value]}</span>
+                <span className={value === category ? "text-[var(--hb-selected-text)]" : "text-[var(--hb-text-strong)]/45"}>{catalog.counts[value]}</span>
               </Link>
             ))}
           </nav>

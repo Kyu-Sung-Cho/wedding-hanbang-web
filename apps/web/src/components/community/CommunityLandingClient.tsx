@@ -1194,7 +1194,7 @@ function SearchHub({
               >
                 <item.icon className={`h-5 w-5 stroke-[1.65] ${active ? "text-white" : "text-[var(--hb-text-strong)] group-hover:text-[var(--hb-accent-hover)]"}`} />
                 <span className="text-[12px] font-semibold leading-tight">{item.label}</span>
-                <span className={`hidden text-[10px] font-medium leading-tight sm:block ${active ? "text-white/72" : "text-[var(--hb-text-body)]"}`}>
+                <span className={`hidden text-[10px] font-medium leading-tight sm:block ${active ? "text-white" : "text-[var(--hb-text-body)]"}`}>
                   {item.helper}
                 </span>
               </Link>
@@ -1253,7 +1253,7 @@ function SearchHub({
               </span>
               <span className="min-w-0">
                 <span className="block text-[12px] font-semibold leading-tight">{item.label}</span>
-                <span className={`mt-0.5 block truncate text-[10px] font-medium leading-tight ${active ? "text-white/72" : "text-[var(--hb-text-body)]"}`}>
+                <span className={`mt-0.5 block truncate text-[10px] font-medium leading-tight ${active ? "text-white" : "text-[var(--hb-text-body)]"}`}>
                   {item.helper}
                 </span>
               </span>
@@ -1954,7 +1954,7 @@ function CommunityPostRow({ post, priority }: { post: PostWithAuthor; priority?:
             }
             className={`inline-flex min-h-11 min-w-0 items-center gap-1.5 rounded-[6px] px-3.5 text-[11.5px] font-semibold transition-colors ${
               isWaitingForAnswer
-                ? "bg-[#A77B74] text-white hover:bg-[#8F6662]"
+                ? "bg-[var(--hb-primary)] text-white hover:bg-[var(--hb-primary-hover)]"
                 : isQuestionPost && post.is_resolved
                   ? "border border-[var(--hb-primary)]/25 bg-[#eef4f1] text-[var(--hb-text-strong)]"
                   : "border border-[var(--hb-hairline)] bg-white text-[var(--hb-text-strong)] hover:border-[var(--hb-primary)]/40"

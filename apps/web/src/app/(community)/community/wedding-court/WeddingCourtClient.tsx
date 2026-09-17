@@ -200,7 +200,7 @@ function ChoiceGroup({
             >
               <span
                 className={`text-[11px] font-bold ${
-                  selected ? "text-white/70" : "text-[var(--color-rose-700)]"
+                  selected ? "text-white" : "text-[var(--color-rose-700)]"
                 }`}
               >
                 선택 {index + 1}
@@ -245,7 +245,7 @@ function ReasonGroup({
               onClick={() => onChange(chip.id)}
               className={`min-h-11 rounded-[6px] border px-4 text-[13px] font-semibold transition ${
                 selected
-                  ? "border-[#a77b74] bg-[#a77b74] text-white"
+                  ? "border-[var(--hb-primary)] bg-[var(--hb-primary)] text-white"
                   : "border-[#e2d3c8] bg-[var(--hb-surface-page)] text-[#52635e] hover:border-[#a77b74]"
               }`}
             >
@@ -347,18 +347,18 @@ function WeddingCase({
     <article className="overflow-hidden rounded-[6px] border border-[#e2d3c8] bg-white shadow-[var(--shadow-overlay)]">
       <header className="bg-[var(--hb-primary)] px-5 py-6 text-white sm:px-8">
         <div className="flex flex-wrap items-center gap-2">
-          <span className="inline-flex items-center gap-1.5 rounded-full bg-white/12 px-3 py-1.5 text-[11px] font-bold text-white/85">
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-[var(--color-rose-700)] px-3 py-1.5 text-[11px] font-bold text-white">
             <Sparkles className="h-3.5 w-3.5" aria-hidden />
             {weddingCase.docketLabel}
           </span>
-          <span className="rounded-full border border-white/20 px-3 py-1.5 text-[11px] font-semibold text-white/75">
+          <span className="rounded-full border border-white/20 px-3 py-1.5 text-[11px] font-semibold text-white">
             {stageLabel(weddingCase.stage)}
           </span>
         </div>
         <h2 className="mt-4">
           {weddingCase.title}
         </h2>
-        <p className="mt-2 text-[16px] font-semibold leading-7 text-white/92">
+        <p className="mt-2 text-[16px] font-semibold leading-7 text-white">
           {weddingCase.question}
         </p>
       </header>
@@ -447,13 +447,13 @@ function WeddingCase({
             />
             <Perspectives perspectives={weddingCase.appealRound.perspectives} />
             <section className="rounded-[6px] bg-[var(--hb-primary)] px-5 py-5 text-white">
-              <div className="flex items-center gap-2 text-[#d9e2d6]">
+              <div className="flex items-center gap-2 text-white">
                 <Scale className="h-4 w-4" aria-hidden />
                 <p className="text-[12px] font-bold">
                   선택 뒤 정리
                 </p>
               </div>
-              <p className="mt-3 text-[14px] leading-7 text-white/85">
+              <p className="mt-3 text-[14px] leading-7 text-white">
                 {weddingCase.ending}
               </p>
               {weddingCase.ownVotes.first && weddingCase.ownVotes.appeal ? (

@@ -242,7 +242,7 @@ export default function LoungeFirstArrival({ view }: { view: LoungeFirstRunView 
         <h2 className="mt-1.5 font-serif-kr">
           {view.nextStep.title}
         </h2>
-        <p className="mt-2.5 max-w-[560px] text-[14px] font-medium leading-[1.7] text-white/80">
+        <p className="mt-2.5 max-w-[560px] text-[14px] font-medium leading-[1.7] text-[var(--hb-on-primary)]">
           {view.nextStep.body}
         </p>
         <Link

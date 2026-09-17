@@ -223,6 +223,7 @@ export function PrimaryButton({
         buttonStyles.base,
         buttonStyles[tone],
         pressed && buttonStyles.pressed,
+        pressed && tone === "rose" && buttonStyles.rosePressed,
         props.disabled && buttonStyles.disabled,
         style,
       ]}
@@ -490,8 +491,16 @@ const buttonStyles = StyleSheet.create({
   noir: {
     backgroundColor: colors.noir[800],
   },
+  // DESIGN.md "누를 수 있는 면은 더스티 모브": 채움은 rose[600], 눌림은 rose[700].
+  // rose[500] 위 흰 글자는 3.67:1 이라 읽히지 않았다(웹 공용 버튼은 이미 rose[600]).
   rose: {
-    backgroundColor: colors.rose[500],
+    backgroundColor: colors.rose[600],
+  },
+  // 눌림을 투명도로 나타내지 않는다. 안드로이드는 투명도를 바탕과 글자에 따로 적용해
+  // 흰 글자가 3.8:1 까지 떨어진다. 불투명 rose[700] 위 흰 글자는 6.25:1 이다.
+  rosePressed: {
+    backgroundColor: colors.rose[700],
+    opacity: 1,
   },
   ghost: {
     backgroundColor: colors.ivory[100],

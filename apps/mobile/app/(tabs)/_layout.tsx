@@ -171,8 +171,12 @@ export default function TabsLayout() {
       key={communityViewerKey}
       screenOptions={{
         headerShown: false,
-        tabBarActiveTintColor: colors.rose[500],
-        tabBarInactiveTintColor: colors.taupe[400],
+        // DESIGN.md Warm interactions: 선택된 탭은 rose.pale 면 위 rose[700](4.71:1), 선택 안 된
+        // 탭은 잉크 단계 inkFaint(6.46:1). 예전 taupe[400] 은 2.28:1 로 읽히지 않았다. 흐린 글자를
+        // 진하게 하면 선택 탭과 색 차이가 줄어서, 색만으로 구분하지 않도록 선택 면을 깐다.
+        tabBarActiveTintColor: colors.rose[700],
+        tabBarActiveBackgroundColor: colors.rose.pale,
+        tabBarInactiveTintColor: colors.paper.inkFaint,
         tabBarStyle: {
           backgroundColor: colors.surface,
           borderTopWidth: 0,

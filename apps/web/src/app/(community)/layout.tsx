@@ -89,7 +89,7 @@ function CommunityFooter() {
       <div className="mx-auto grid w-full max-w-[1320px] gap-9 px-4 py-8 sm:px-6 md:grid-cols-[1.2fr_0.78fr_0.78fr_0.86fr_0.9fr_1.35fr] lg:px-8">
         <div>
           <FooterBrand />
-          <p className="mt-3 text-[13px] font-medium text-white/70">
+          <p className="mt-3 text-[13px] font-medium text-white">
             결혼 준비, 아모라와 처음부터 끝까지.
           </p>
           {/* Instagram·YouTube·Kakao 아이콘은 제거했다. 계정이 없는데 아이콘만 있었고
@@ -131,31 +131,31 @@ function CommunityFooter() {
 
         <div>
           <h3 className="mb-3 text-[14px] font-semibold text-white">연락</h3>
-          <div className="space-y-1 text-[13px] font-medium text-white/70">
+          <div className="space-y-1 text-[13px] font-medium text-white">
             <p>{CONTACT.email}</p>
             <p>{CONTACT.hours}</p>
             <p>({CONTACT.lunch})</p>
           </div>
         </div>
 
-        <div className="rounded-[6px] border border-white/16 bg-white/[0.055] p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]">
+        <div className="rounded-[6px] border border-white/16 p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]">
           <div className="mb-3 flex items-center gap-2">
-            <ShieldCheck className="h-5 w-5 text-[#d8c79a]" />
+            <ShieldCheck className="h-5 w-5 text-white" />
             <h3 className="text-[14px] font-semibold text-white">안전한 AI 안내</h3>
           </div>
-          <p className="text-[12px] font-medium leading-[1.7] text-white/65">
+          <p className="text-[12px] font-medium leading-[1.7] text-white">
             개인정보와 AI 생성 안내를 투명하게 고지하고 안전한 결혼 준비를 돕습니다.
           </p>
           <Link
             {...weddingLinkProps("/lounge")}
-            className="mt-4 inline-flex min-h-11 items-center rounded-[6px] border border-[#d8c79a]/70 px-4 text-[12px] font-semibold text-[#f2e8c8] transition-colors hover:bg-white/10"
+            className="mt-4 inline-flex min-h-11 items-center rounded-[6px] border border-white/70 px-4 text-[12px] font-semibold text-white transition-colors hover:bg-[var(--hb-primary-hover)]"
           >
             웨딩 라운지로 이동
             <Mail className="ml-2 h-3.5 w-3.5" />
           </Link>
         </div>
       </div>
-      <div className="mx-auto w-full max-w-[1320px] border-t border-white/10 px-4 py-4 text-center text-[12px] text-white/55 sm:px-6 lg:px-8">
+      <div className="mx-auto w-full max-w-[1320px] border-t border-white/10 px-4 py-4 text-center text-[12px] text-white sm:px-6 lg:px-8">
         © 2026 Wedding Hanbang. All rights reserved.
       </div>
     </footer>
@@ -176,7 +176,7 @@ function FooterColumn({ title, items }: { title: string; items: Array<{ label: s
             <Link
               key={item.label}
               {...linkProps}
-              className="inline-flex min-h-11 items-center text-[13px] font-medium text-white/65 hover:text-[#f2e8c8]"
+              className="inline-flex min-h-11 items-center text-[13px] font-medium text-white underline-offset-4 hover:underline"
             >
               {item.label}
             </Link>
