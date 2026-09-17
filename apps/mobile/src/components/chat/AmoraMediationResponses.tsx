@@ -57,7 +57,7 @@ const styles=StyleSheet.create({
   title:{fontFamily:'NotoSansKR_600SemiBold',fontSize:14,color:colors.textPrimary},
   copy:{fontFamily:'NotoSansKR_400Regular',fontSize:12,lineHeight:19,color:colors.textSecondary},
   body:{fontFamily:'NotoSansKR_400Regular',fontSize:14,lineHeight:22,color:colors.textPrimary},
-  error:{fontSize:13,lineHeight:20,color:colors.danger},success:{fontSize:14,lineHeight:21,color:colors.success},
+  error:{fontSize:13,lineHeight:20,color:colors.dangerDeep},success:{fontSize:14,lineHeight:21,color:colors.sage.deep},
   loading:{flexDirection:'row',gap:8,alignItems:'center'},response:{padding:12,gap:6,borderRadius:10,backgroundColor:colors.ivory[100]},
   choices:{flexDirection:'row',flexWrap:'wrap',gap:8},choice:{minHeight:48,minWidth:82,flexGrow:1,paddingHorizontal:8,alignItems:'center',justifyContent:'center',borderWidth:1,borderColor:colors.border,borderRadius:10,backgroundColor:colors.surface},
   button:{minHeight:48,paddingHorizontal:12,alignItems:'center',justifyContent:'center',borderWidth:1,borderColor:colors.border,borderRadius:10,backgroundColor:colors.surface},

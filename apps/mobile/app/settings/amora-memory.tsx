@@ -526,7 +526,7 @@ export default function AmoraMemoryScreen() {
               onChangeText={setEditTitle}
               maxLength={60}
               placeholder="기억 제목"
-              placeholderTextColor={colors.textTertiary}
+              placeholderTextColor={colors.paper.inkFaint}
               style={styles.input}
             />
             <TextInput
@@ -535,7 +535,7 @@ export default function AmoraMemoryScreen() {
               maxLength={160}
               multiline
               placeholder="기억 내용"
-              placeholderTextColor={colors.textTertiary}
+              placeholderTextColor={colors.paper.inkFaint}
               style={[styles.input, styles.textarea]}
             />
             <PrimaryButton
@@ -568,7 +568,7 @@ const styles = StyleSheet.create({
   introCopy: { marginTop: spacing[1], color: colors.textSecondary },
   noticeCard: { gap: spacing[3] },
   noticeText: { color: colors.noir[800] },
-  errorText: { color: colors.danger },
+  errorText: { color: colors.dangerDeep },
   retryButton: { alignSelf: "flex-start" },
   tabs: {
     minHeight: 48,
@@ -595,12 +595,12 @@ const styles = StyleSheet.create({
   settingDescription: { marginTop: spacing[1], color: colors.textSecondary },
   listHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: spacing[3] },
   clearButton: { minHeight: 44, justifyContent: "center", paddingHorizontal: spacing[2] },
-  clearText: { color: colors.danger, fontFamily: "NotoSansKR_600SemiBold" },
+  clearText: { color: colors.dangerDeep, fontFamily: "NotoSansKR_600SemiBold" },
   memoryList: { gap: spacing[3] },
   memoryCard: { padding: spacing[4] },
   memoryMeta: { flexDirection: "row", alignItems: "center", gap: spacing[2] },
   confirmedLabel: { flexDirection: "row", alignItems: "center", gap: 3 },
-  confirmedText: { color: colors.success },
+  confirmedText: { color: colors.sage.deep },
   memoryTitle: { marginTop: spacing[3] },
   memoryValue: { marginTop: spacing[1], color: colors.textSecondary },
   memoryActions: { marginTop: spacing[3], flexDirection: "row", justifyContent: "flex-end", gap: spacing[2] },

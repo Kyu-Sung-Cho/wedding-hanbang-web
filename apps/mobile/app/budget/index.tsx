@@ -1050,7 +1050,7 @@ export default function BudgetScreen() {
             </View>
             <AlertTriangle
               size={18}
-              color={budgetStatus.tone === "danger" ? colors.danger : colors.gold.DEFAULT}
+              color={budgetStatus.tone === "danger" ? colors.dangerDeep : colors.paper.tapeInk}
             />
           </View>
 
@@ -1159,7 +1159,7 @@ export default function BudgetScreen() {
                       hitSlop={8}
                       style={s.hiddenCostBtn}
                     >
-                      <AlertTriangle size={12} color="#D97706" />
+                      <AlertTriangle size={12} color={colors.paper.tapeInk} />
                     </Pressable>
                   )}
                 </View>
@@ -1197,9 +1197,9 @@ export default function BudgetScreen() {
             <View style={s.modalHandle} />
             <View style={s.modalHead}><Text style={s.modalTitle}>{budgetCategories.find((category) => category.key === editingKey)?.label ?? ""} 수정</Text><Pressable onPress={closeCategoryEditor} disabled={saving} accessibilityRole="button" accessibilityLabel="카테고리 예산 편집 닫기"><X size={24} color={colors.textTertiary} /></Pressable></View>
             <Text style={s.fLabel}>예산 (만원)</Text>
-            <TextInput style={s.fInput} value={budgetInput} onChangeText={setBudgetInput} keyboardType="decimal-pad" editable={!saving} maxLength={11} accessibilityLabel="카테고리 예산 만원 단위 입력" placeholder="0" placeholderTextColor={colors.taupe[400]} />
+            <TextInput style={s.fInput} value={budgetInput} onChangeText={setBudgetInput} keyboardType="decimal-pad" editable={!saving} maxLength={11} accessibilityLabel="카테고리 예산 만원 단위 입력" placeholder="0" placeholderTextColor={colors.paper.inkFaint} />
             <Text style={s.fLabel}>기록 지출 (만원 · 결제 확인과 별도)</Text>
-            <TextInput style={s.fInput} value={spentInput} onChangeText={setSpentInput} keyboardType="decimal-pad" editable={!saving} maxLength={11} accessibilityLabel="카테고리 기록 지출 만원 단위 입력" placeholder="0" placeholderTextColor={colors.taupe[400]} />
+            <TextInput style={s.fInput} value={spentInput} onChangeText={setSpentInput} keyboardType="decimal-pad" editable={!saving} maxLength={11} accessibilityLabel="카테고리 기록 지출 만원 단위 입력" placeholder="0" placeholderTextColor={colors.paper.inkFaint} />
             <Text style={s.fLabel}>분담</Text>
             <View style={s.payerRow}>
               {PAYER_OPTIONS.map((opt) => (
@@ -1217,7 +1217,7 @@ export default function BudgetScreen() {
             </View>
             {editingKey && HIDDEN_COSTS[editingKey] && (
               <View style={s.hiddenCostBanner}>
-                <AlertTriangle size={14} color="#D97706" />
+                <AlertTriangle size={14} color={colors.paper.tapeInk} />
                 <View style={s.hiddenCostBannerText}>
                   <Text style={s.hiddenCostTitle}>포함·별도 항목 확인</Text>
                   <Text style={s.hiddenCostDesc}>{HIDDEN_COSTS[editingKey].warning}</Text>
@@ -1241,7 +1241,7 @@ const s = StyleSheet.create({
   pendingApprovalTitle: { flex: 1, fontSize: 15, fontFamily: "NotoSansKR_600SemiBold", color: colors.noir[800] },
   pendingApprovalSummary: { marginTop: 10, fontSize: 13, fontFamily: "NotoSansKR_500Medium", color: colors.noir[800] },
   pendingApprovalDescription: { marginTop: 6, fontSize: 12, lineHeight: 18, color: colors.textSecondary },
-  pendingApprovalReference: { marginTop: 8, fontSize: 11, color: colors.textTertiary },
+  pendingApprovalReference: { marginTop: 8, fontSize: 11, color: colors.paper.inkFaint },
   pendingApprovalRefresh: { alignSelf: "flex-start", marginTop: 12, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10, backgroundColor: colors.noir[800] },
   pendingApprovalRefreshText: { fontSize: 12, fontFamily: "NotoSansKR_600SemiBold", color: "#FFF" },
   totalCard: { padding: 20, marginBottom: 16 },
@@ -1264,7 +1264,7 @@ const s = StyleSheet.create({
   legacyReviewItem: { marginTop: 6, fontSize: 12, fontFamily: "NotoSansKR_500Medium", color: colors.noir[800] },
   riskPanel: { paddingVertical: 18, marginBottom: 16 },
   riskHeader: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: 12, marginBottom: 10 },
-  riskEyebrow: { fontSize: 11, fontFamily: "NotoSansKR_600SemiBold", color: colors.textTertiary, marginBottom: 2 },
+  riskEyebrow: { fontSize: 11, fontFamily: "NotoSansKR_600SemiBold", color: colors.paper.inkFaint, marginBottom: 2 },
   riskTitle: { fontSize: 17, fontFamily: "NotoSansKR_600SemiBold", color: colors.noir[800] },
   riskRow: { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 12, borderTopWidth: 1, borderTopColor: colors.border },
   riskDot: { width: 4, height: 36, borderRadius: 2 },
@@ -1279,7 +1279,7 @@ const s = StyleSheet.create({
   safeBudgetTitle: { fontSize: 14, fontFamily: "NotoSansKR_600SemiBold", color: colors.noir[800] },
   safeBudgetText: { fontSize: 12, fontFamily: "NotoSansKR_400Regular", color: colors.textSecondary, textAlign: "center", lineHeight: 18 },
   marketLink: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, marginTop: 8, paddingTop: 12, borderTopWidth: 1, borderTopColor: colors.border },
-  marketLinkText: { fontSize: 13, fontFamily: "NotoSansKR_600SemiBold", color: colors.rose[500] },
+  marketLinkText: { fontSize: 13, fontFamily: "NotoSansKR_600SemiBold", color: colors.rose[700] },
   // 요약 면 안의 두 번째 줄. 칸을 따로 칠하지 않고 선으로만 나눈다 — 면 안에 또 카드를 두면
   // 요약과 내용 카드의 구분이 다시 흐려진다.
   sumRow: { flexDirection: "row", marginTop: 16, paddingTop: 14, borderTopWidth: 1, borderTopColor: summaryColors.line },
@@ -1302,12 +1302,12 @@ const s = StyleSheet.create({
   badgeTextProg: { color: colors.rose[700] },
   catBar: { height: 4, backgroundColor: colors.ivory[200], borderRadius: 2, overflow: "hidden", marginBottom: 8 },
   catFill: { height: "100%", borderRadius: 2 },
-  categoryBudgetPending: { marginBottom: 8, fontSize: 12, color: colors.textTertiary },
+  categoryBudgetPending: { marginBottom: 8, fontSize: 12, color: colors.paper.inkFaint },
   catFoot: { flexDirection: "row", alignItems: "center", gap: 4 },
   catSpent: { fontSize: 13, fontFamily: "NotoSansKR_500Medium", color: colors.noir[800] },
-  catBudget: { fontSize: 12, color: colors.textTertiary, flex: 1 },
-  catPct: { fontSize: 13, fontFamily: "CormorantGaramond_600SemiBold", color: colors.rose[500] },
-  hint: { fontSize: 12, color: colors.textTertiary, textAlign: "center", marginTop: 12 },
+  catBudget: { fontSize: 12, color: colors.paper.inkFaint, flex: 1 },
+  catPct: { fontSize: 13, fontFamily: "CormorantGaramond_600SemiBold", color: colors.rose[700] },
+  hint: { fontSize: 12, color: colors.paper.inkFaint, textAlign: "center", marginTop: 12 },
   modalOv: { flex: 1, backgroundColor: "rgba(37,26,24,0.4)", justifyContent: "flex-end" },
   modalCon: { backgroundColor: colors.bg, borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingHorizontal: 24, paddingTop: 12, paddingBottom: 36 },
   modalHandle: { width: 36, height: 4, borderRadius: 2, backgroundColor: colors.border, alignSelf: "center", marginBottom: 16 },
@@ -1324,19 +1324,19 @@ const s = StyleSheet.create({
   hiddenCostBtn: { width: 20, height: 20, borderRadius: 10, backgroundColor: "rgba(217,119,6,0.1)", alignItems: "center", justifyContent: "center" },
   hiddenCostBanner: { flexDirection: "row", alignItems: "flex-start", gap: 10, backgroundColor: "rgba(217,119,6,0.08)", borderRadius: 12, padding: 12, marginTop: 16 },
   hiddenCostBannerText: { flex: 1 },
-  hiddenCostTitle: { fontSize: 12, fontFamily: "NotoSansKR_600SemiBold", color: "#D97706", marginBottom: 2 },
+  hiddenCostTitle: { fontSize: 12, fontFamily: "NotoSansKR_600SemiBold", color: colors.paper.tapeInk, marginBottom: 2 },
   hiddenCostDesc: { fontSize: 12, fontFamily: "NotoSansKR_400Regular", color: colors.textSecondary, lineHeight: 18 },
-  hiddenCostExtra: { fontSize: 13, fontFamily: "NotoSansKR_600SemiBold", color: "#D97706", marginTop: 4 },
+  hiddenCostExtra: { fontSize: 13, fontFamily: "NotoSansKR_600SemiBold", color: colors.paper.tapeInk, marginTop: 4 },
 
   // 분담(Payer) 선택
   payerRow: { flexDirection: "row", gap: 8 },
   payerOption: { flex: 1, alignItems: "center", paddingVertical: 10, borderRadius: 12, backgroundColor: colors.ivory[200], borderWidth: 1, borderColor: "transparent" },
   payerOptionActive: { backgroundColor: "rgba(196,150,126,0.12)", borderColor: colors.rose[500] },
   payerOptionEmoji: { fontSize: 16, marginBottom: 2 },
-  payerOptionLabel: { fontSize: 11, fontFamily: "NotoSansKR_400Regular", color: colors.textTertiary },
+  payerOptionLabel: { fontSize: 11, fontFamily: "NotoSansKR_400Regular", color: colors.paper.inkFaint },
   payerOptionLabelActive: { color: colors.rose[700], fontFamily: "NotoSansKR_600SemiBold" },
   payerBadge: { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6, backgroundColor: "rgba(196,150,126,0.1)" },
-  payerBadgeText: { fontSize: 10, fontFamily: "NotoSansKR_400Regular", color: colors.rose[500] },
+  payerBadgeText: { fontSize: 10, fontFamily: "NotoSansKR_400Regular", color: colors.rose[700] },
 
   // 분담 현황 섹션
   payerSection: { marginBottom: 20 },
@@ -1344,7 +1344,7 @@ const s = StyleSheet.create({
   payerGrid: { flexDirection: "row", gap: 8 },
   payerCard: { flex: 1, backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1, borderRadius: 12, padding: 10, alignItems: "center", gap: 2 },
   payerEmoji: { fontSize: 16 },
-  payerLabel: { fontSize: 10, fontFamily: "NotoSansKR_400Regular", color: colors.textTertiary },
+  payerLabel: { fontSize: 10, fontFamily: "NotoSansKR_400Regular", color: colors.paper.inkFaint },
   payerAmount: { fontSize: 13, fontFamily: "CormorantGaramond_600SemiBold", color: colors.noir[800] },
-  payerPct: { fontSize: 10, fontFamily: "NotoSansKR_400Regular", color: colors.rose[500] },
+  payerPct: { fontSize: 10, fontFamily: "NotoSansKR_400Regular", color: colors.rose[700] },
 });

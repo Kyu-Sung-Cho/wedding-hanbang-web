@@ -70,7 +70,7 @@ export function PersonalActionSave({ ownerId, coupleId, messageId, content, pers
 
 const styles = StyleSheet.create({
   link: { minHeight: 44, justifyContent: "center", paddingHorizontal: 8 },
-  linkText: { fontSize: 12, color: colors.rose[600], textDecorationLine: "underline" },
+  linkText: { fontSize: 12, color: colors.rose[700], textDecorationLine: "underline" },
   overlay: { flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(37,26,24,0.4)" },
   sheet: { maxHeight: "92%", padding: spacing[4], paddingBottom: spacing[6], borderTopLeftRadius: radius.xl, borderTopRightRadius: radius.xl, backgroundColor: colors.bg },
   header: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: 8 },
@@ -81,7 +81,7 @@ const styles = StyleSheet.create({
   label: { fontSize: 13, marginTop: spacing[2], color: colors.noir[800] },
   input: { minHeight: 44, borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, paddingHorizontal: spacing[3], paddingVertical: spacing[2], color: colors.noir[800], backgroundColor: colors.surface },
   multiline: { minHeight: 88, textAlignVertical: "top" },
-  error: { fontSize: 12, lineHeight: 18, color: colors.danger, marginBottom: spacing[3] },
+  error: { fontSize: 12, lineHeight: 18, color: colors.dangerDeep, marginBottom: spacing[3] },
   confirm: { minHeight: 48, padding: spacing[3], alignItems: "center", justifyContent: "center", borderRadius: radius.md, backgroundColor: colors.noir[800] },
   confirmText: { color: colors.surface, fontSize: 15, fontWeight: "700" },
   disabled: { opacity: 0.45 },

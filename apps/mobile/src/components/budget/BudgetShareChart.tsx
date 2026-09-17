@@ -172,7 +172,7 @@ const s = StyleSheet.create({
   caption: {
     fontSize: 11,
     fontFamily: "NotoSansKR_400Regular",
-    color: colors.textTertiary,
+    color: colors.paper.inkFaint,
     marginBottom: 12,
   },
   donutWrap: { alignItems: "center", justifyContent: "center", marginBottom: 14 },
@@ -185,7 +185,7 @@ const s = StyleSheet.create({
   donutBasis: {
     fontSize: 10,
     fontFamily: "NotoSansKR_400Regular",
-    color: colors.textTertiary,
+    color: colors.paper.inkFaint,
     marginTop: 2,
   },
   legend: { gap: 8 },
@@ -208,6 +208,6 @@ const s = StyleSheet.create({
     textAlign: "right",
     fontSize: 12,
     fontFamily: "NotoSansKR_400Regular",
-    color: colors.textTertiary,
+    color: colors.paper.inkFaint,
   },
 });

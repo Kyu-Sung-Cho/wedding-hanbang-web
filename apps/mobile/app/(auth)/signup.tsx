@@ -45,9 +45,9 @@ function getPasswordStrength(pw: string): PasswordStrength {
 }
 
 const strengthConfig: Record<Exclude<PasswordStrength, "none">, { label: string; color: string; width: DimensionValue }> = {
-  weak: { label: "약함", color: colors.danger, width: "33%" },
-  medium: { label: "보통", color: colors.warning, width: "66%" },
-  strong: { label: "강함", color: colors.success, width: "100%" },
+  weak: { label: "약함", color: colors.dangerDeep, width: "33%" },
+  medium: { label: "보통", color: colors.paper.tapeInk, width: "66%" },
+  strong: { label: "강함", color: colors.sage.deep, width: "100%" },
 };
 
 // 서버(/api/auth/signup)와 동일한 강한 비밀번호 정책 —
@@ -223,7 +223,7 @@ export default function SignupScreen() {
             value={name}
             onChangeText={setName}
             placeholder="홍길동"
-            placeholderTextColor={colors.taupe[400]}
+            placeholderTextColor={colors.paper.inkFaint}
             autoCapitalize="words"
           />
 
@@ -235,7 +235,7 @@ export default function SignupScreen() {
             onChangeText={setEmail}
             onBlur={() => setEmailTouched(true)}
             placeholder="이메일 주소"
-            placeholderTextColor={colors.taupe[400]}
+            placeholderTextColor={colors.paper.inkFaint}
             keyboardType="email-address"
             autoCapitalize="none"
             autoCorrect={false}
@@ -252,7 +252,7 @@ export default function SignupScreen() {
               value={password}
               onChangeText={setPassword}
               placeholder="8자 이상, 대/소문자·숫자·특수문자"
-              placeholderTextColor={colors.taupe[400]}
+              placeholderTextColor={colors.paper.inkFaint}
               secureTextEntry={!showPassword}
               autoCapitalize="none"
             />
@@ -261,8 +261,8 @@ export default function SignupScreen() {
               onPress={() => setShowPassword(!showPassword)}
             >
               {showPassword
-                ? <EyeOff size={20} color={colors.taupe[400]} />
-                : <Eye size={20} color={colors.taupe[400]} />
+                ? <EyeOff size={20} color={colors.textTertiary} />
+                : <Eye size={20} color={colors.textTertiary} />
               }
             </Pressable>
           </View>
@@ -307,7 +307,7 @@ export default function SignupScreen() {
             value={confirmPassword}
             onChangeText={setConfirmPassword}
             placeholder="비밀번호를 다시 입력"
-            placeholderTextColor={colors.taupe[400]}
+            placeholderTextColor={colors.paper.inkFaint}
             secureTextEntry={!showPassword}
             autoCapitalize="none"
           />
@@ -320,7 +320,7 @@ export default function SignupScreen() {
             <Pressable style={styles.agreeRow} onPress={toggleAll}>
               {agreeAll
                 ? <CheckCircle2 size={24} color={colors.rose[500]} />
-                : <Circle size={24} color={colors.taupe[400]} />
+                : <Circle size={24} color={colors.textTertiary} />
               }
               <Text style={styles.agreeAllText}>전체 동의</Text>
               <Pressable
@@ -332,8 +332,8 @@ export default function SignupScreen() {
                 accessibilityState={{ expanded: showAgreements }}
               >
                 {showAgreements
-                  ? <ChevronUp size={20} color={colors.taupe[400]} />
-                  : <ChevronDown size={20} color={colors.taupe[400]} />
+                  ? <ChevronUp size={20} color={colors.textTertiary} />
+                  : <ChevronDown size={20} color={colors.textTertiary} />
                 }
               </Pressable>
             </Pressable>
@@ -347,7 +347,7 @@ export default function SignupScreen() {
                   <Pressable onPress={() => updateAgreements(!agreeTerms, agreePrivacy, agreeAge14, agreeMarketing)}>
                     {agreeTerms
                       ? <CheckCircle2 size={20} color={colors.rose[500]} />
-                      : <Circle size={20} color={colors.taupe[400]} />
+                      : <Circle size={20} color={colors.textTertiary} />
                     }
                   </Pressable>
                   <Text style={styles.agreeText}>
@@ -363,7 +363,7 @@ export default function SignupScreen() {
                   <Pressable onPress={() => updateAgreements(agreeTerms, !agreePrivacy, agreeAge14, agreeMarketing)}>
                     {agreePrivacy
                       ? <CheckCircle2 size={20} color={colors.rose[500]} />
-                      : <Circle size={20} color={colors.taupe[400]} />
+                      : <Circle size={20} color={colors.textTertiary} />
                     }
                   </Pressable>
                   <Text style={styles.agreeText}>
@@ -386,7 +386,7 @@ export default function SignupScreen() {
                   >
                     {agreeAge14
                       ? <CheckCircle2 size={20} color={colors.rose[500]} />
-                      : <Circle size={20} color={colors.taupe[400]} />
+                      : <Circle size={20} color={colors.textTertiary} />
                     }
                   </Pressable>
                   <Text style={styles.agreeText}>
@@ -399,7 +399,7 @@ export default function SignupScreen() {
                   <Pressable onPress={() => updateAgreements(agreeTerms, agreePrivacy, agreeAge14, !agreeMarketing)}>
                     {agreeMarketing
                       ? <CheckCircle2 size={20} color={colors.rose[500]} />
-                      : <Circle size={20} color={colors.taupe[400]} />
+                      : <Circle size={20} color={colors.textTertiary} />
                     }
                   </Pressable>
                   <Text style={styles.agreeText}>
@@ -427,7 +427,7 @@ export default function SignupScreen() {
           {/* 로그인으로 */}
           <Pressable onPress={() => router.back()} style={styles.loginLink}>
             <Text style={styles.loginLinkText}>
-              이미 계정이 있으신가요? <Text style={{ color: colors.rose[500] }}>로그인</Text>
+              이미 계정이 있으신가요? <Text style={{ color: colors.rose[700] }}>로그인</Text>
             </Text>
           </Pressable>
         </ScrollView>
@@ -492,7 +492,7 @@ const styles = StyleSheet.create({
   errorText: {
     fontSize: 12,
     fontFamily: "NotoSansKR_400Regular",
-    color: colors.danger,
+    color: colors.dangerDeep,
     marginTop: 4,
     marginLeft: 4,
   },
@@ -555,12 +555,12 @@ const styles = StyleSheet.create({
     color: colors.noir[800],
     flex: 1,
   },
-  agreeRequired: { color: colors.rose[500], fontFamily: "NotoSansKR_600SemiBold" },
-  agreeOptional: { color: colors.textTertiary, fontFamily: "NotoSansKR_600SemiBold" },
+  agreeRequired: { color: colors.rose[700], fontFamily: "NotoSansKR_600SemiBold" },
+  agreeOptional: { color: colors.paper.inkFaint, fontFamily: "NotoSansKR_600SemiBold" },
   agreeLink: {
     fontSize: 13,
     fontFamily: "NotoSansKR_400Regular",
-    color: colors.textTertiary,
+    color: colors.paper.inkFaint,
     textDecorationLine: "underline",
   },
   divider: { height: 1, backgroundColor: colors.border },

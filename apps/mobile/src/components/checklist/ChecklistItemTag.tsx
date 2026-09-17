@@ -34,7 +34,7 @@ const s = StyleSheet.create({
     overflow: "hidden",
   },
   required: { backgroundColor: colors.rose.pale },
-  requiredText: { color: colors.rose[600] },
+  requiredText: { color: colors.rose[700] },
   conditional: { backgroundColor: colors.surfaceLow },
-  conditionalText: { color: colors.textTertiary },
+  conditionalText: { color: colors.paper.inkFaint },
 });

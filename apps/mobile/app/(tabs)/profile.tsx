@@ -305,7 +305,7 @@ export default function ProfileScreen() {
               )}
               {profile?.partnerName && (
                 <View style={styles.partnerRow}>
-                  <Heart size={12} color={colors.rose[500]} />
+                  <Heart size={12} color={colors.rose.light} />
                   <Text style={styles.partnerText}>
                     커플 연결됨: {profile.partnerName}
                   </Text>
@@ -657,12 +657,12 @@ const styles = StyleSheet.create({
   roleBadgeText: {
     fontSize: 11,
     fontFamily: "NotoSansKR_500Medium",
-    color: colors.rose[500],
+    color: colors.rose.pale,
   },
   email: {
     fontSize: 13,
     fontFamily: "NotoSansKR_400Regular",
-    color: "rgba(255, 255, 255, 0.5)",
+    color: colors.paper.onInkSoft,
     marginTop: 4,
   },
   partnerRow: {
@@ -674,7 +674,7 @@ const styles = StyleSheet.create({
   partnerText: {
     fontSize: 12,
     fontFamily: "NotoSansKR_400Regular",
-    color: colors.rose.light,
+    color: colors.rose.pale,
   },
 
   /* D-day */
@@ -691,12 +691,12 @@ const styles = StyleSheet.create({
   ddayNumber: {
     fontSize: 28,
     fontFamily: "CormorantGaramond_600SemiBold",
-    color: colors.rose[500],
+    color: colors.rose.light,
   },
   ddaySubtext: {
     fontSize: 13,
     fontFamily: "NotoSansKR_400Regular",
-    color: "rgba(255, 255, 255, 0.6)",
+    color: colors.paper.onInkSoft,
   },
 
   /* 활동 통계 */
@@ -738,7 +738,7 @@ const styles = StyleSheet.create({
   menuSectionTitle: {
     fontSize: 12,
     fontFamily: "NotoSansKR_600SemiBold",
-    color: colors.textTertiary,
+    color: colors.paper.inkFaint,
     textTransform: "uppercase",
     letterSpacing: 0,
     marginBottom: 8,
@@ -796,7 +796,7 @@ const styles = StyleSheet.create({
   logoutText: {
     fontSize: 15,
     fontFamily: "NotoSansKR_500Medium",
-    color: colors.danger,
+    color: colors.dangerDeep,
   },
   logoutError: {
     marginHorizontal: 24,
@@ -804,7 +804,7 @@ const styles = StyleSheet.create({
     fontSize: 13,
     lineHeight: 20,
     fontFamily: "NotoSansKR_500Medium",
-    color: colors.danger,
+    color: colors.dangerDeep,
     textAlign: "center",
   },
 
@@ -820,10 +820,10 @@ const styles = StyleSheet.create({
   footerLinkText: {
     fontSize: 12,
     fontFamily: "NotoSansKR_400Regular",
-    color: colors.textTertiary,
+    color: colors.paper.inkFaint,
   },
   footerDivider: {
     fontSize: 12,
-    color: colors.textTertiary,
+    color: colors.paper.inkFaint,
   },
 });

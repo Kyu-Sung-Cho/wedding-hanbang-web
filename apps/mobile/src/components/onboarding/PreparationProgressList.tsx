@@ -151,7 +151,7 @@ const styles = StyleSheet.create({
   summaryText: {
     fontSize: 12,
     fontFamily: "NotoSansKR_400Regular",
-    color: colors.textTertiary,
+    color: colors.paper.inkFaint,
     marginBottom: 2,
   },
 

@@ -1616,7 +1616,7 @@ export default function ScheduleScreen() {
         {scheduleDataError ? (
           <Surface style={styles.approvalSection}>
             <View style={styles.approvalErrorCopy} accessibilityRole="alert">
-              <AlertTriangle size={18} color={colors.warning} />
+              <AlertTriangle size={18} color={colors.paper.tapeInk} />
               <AppText variant="caption" style={styles.approvalErrorText}>
                 {scheduleDataError === "integrity"
                   ? "저장된 일정 중 확인이 필요한 기록이 있어 일정을 임의로 숨겼어요. 원본은 바꾸지 않았습니다. 다시 불러와도 계속되면 고객지원에 알려 주세요."
@@ -1700,7 +1700,7 @@ export default function ScheduleScreen() {
             {approvalError ? (
               <View style={styles.approvalErrorRow}>
                 <View style={styles.approvalErrorCopy}>
-                  <AlertTriangle size={17} color={colors.warning} />
+                  <AlertTriangle size={17} color={colors.paper.tapeInk} />
                   <AppText variant="caption" style={styles.approvalErrorText}>
                     {approvalRequests.length > 0
                       ? "공동 확인 상태를 모두 최신으로 확인하지 못했어요. 확인된 요청은 유지했고 기존 일정은 바꾸지 않았어요."
@@ -2061,7 +2061,7 @@ export default function ScheduleScreen() {
                 value={formTitle}
                 onChangeText={setFormTitle}
                 placeholder="예: 드레스 입어보기"
-                placeholderTextColor={colors.textTertiary}
+                placeholderTextColor={colors.paper.inkFaint}
                 maxLength={500}
               />
 
@@ -2071,7 +2071,7 @@ export default function ScheduleScreen() {
                 value={formDate}
                 onChangeText={setFormDate}
                 placeholder="2026-06-15"
-                placeholderTextColor={colors.textTertiary}
+                placeholderTextColor={colors.paper.inkFaint}
                 keyboardType="numbers-and-punctuation"
                 maxLength={10}
               />
@@ -2082,7 +2082,7 @@ export default function ScheduleScreen() {
                 value={formTime}
                 onChangeText={setFormTime}
                 placeholder="14:00"
-                placeholderTextColor={colors.textTertiary}
+                placeholderTextColor={colors.paper.inkFaint}
                 keyboardType="numbers-and-punctuation"
                 maxLength={5}
               />
@@ -2114,7 +2114,7 @@ export default function ScheduleScreen() {
                 value={formMemo}
                 onChangeText={setFormMemo}
                 placeholder="메모"
-                placeholderTextColor={colors.textTertiary}
+                placeholderTextColor={colors.paper.inkFaint}
                 multiline
                 maxLength={2000}
               />
@@ -2411,14 +2411,14 @@ const styles = StyleSheet.create({
   eventDateNum: {
     fontSize: 14,
     fontWeight: "700",
-    color: colors.rose[500],
+    color: colors.rose[700],
     fontFamily: "CormorantGaramond_600SemiBold",
   },
-  eventDateDay: { fontSize: 10, color: colors.rose[600] },
+  eventDateDay: { fontSize: 10, color: colors.rose[700] },
   eventTitle: { fontSize: 14, fontWeight: "600", color: colors.noir[800] },
   eventMeta: { flexDirection: "row", alignItems: "center", gap: 8, marginTop: 4 },
   eventMetaRow: { flexDirection: "row", alignItems: "center", gap: 4 },
-  eventMetaText: { fontSize: 11, color: colors.textTertiary },
+  eventMetaText: { fontSize: 11, color: colors.paper.inkFaint },
   eventCatBadge: {
     paddingHorizontal: 8,
     paddingVertical: 2,
@@ -2439,7 +2439,7 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   emptyText: { fontSize: 16, fontWeight: "600", color: colors.noir[800], marginBottom: 8 },
-  emptyHint: { fontSize: 13, color: colors.textTertiary },
+  emptyHint: { fontSize: 13, color: colors.paper.inkFaint },
 
   /**
    * 분야 카드 — 시안(`ChecklistMobile.dc.html` 의 `.b-card`)은 **이름과 한 줄**뿐이다.
@@ -2465,7 +2465,7 @@ const styles = StyleSheet.create({
   },
   catStat: {
     fontSize: 11.5,
-    color: colors.textTertiary,
+    color: colors.paper.inkFaint,
     marginTop: 5,
     fontFamily: "NotoSansKR_400Regular",
   },
@@ -2502,12 +2502,12 @@ const styles = StyleSheet.create({
   allEventDate: {
     fontSize: 14,
     fontWeight: "700",
-    color: colors.rose[500],
+    color: colors.rose[700],
     width: 44,
     fontFamily: "CormorantGaramond_600SemiBold",
   },
   allEventTitle: { fontSize: 14, color: colors.noir[800], flex: 1 },
-  allEventTime: { fontSize: 12, color: colors.textTertiary },
+  allEventTime: { fontSize: 12, color: colors.paper.inkFaint },
 
   cancelledSection: {
     marginTop: 8,
@@ -2548,7 +2548,7 @@ const styles = StyleSheet.create({
     marginTop: 2,
     fontSize: 11,
     lineHeight: 17,
-    color: colors.textTertiary,
+    color: colors.paper.inkFaint,
   },
   restoreBtn: {
     minHeight: 44,

@@ -285,7 +285,7 @@ export default function WebViewScreen() {
           <View style={{ width: 24 }} />
         </View>
         <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
-          <Text style={{ color: colors.textTertiary }}>URL이 제공되지 않았습니다.</Text>
+          <Text style={{ color: colors.paper.inkFaint }}>URL이 제공되지 않았습니다.</Text>
         </View>
       </SafeAreaView>
     );
@@ -363,7 +363,7 @@ const styles = StyleSheet.create({
   hidden: { width: 0, height: 0, opacity: 0 },
   failure: { flex: 1, alignItems: "center", justifyContent: "center", paddingHorizontal: 32, gap: 10 },
   failureTitle: { fontSize: 17, fontWeight: "700", color: colors.noir[800] },
-  failureBody: { fontSize: 14, lineHeight: 21, color: colors.textTertiary, textAlign: "center" },
+  failureBody: { fontSize: 14, lineHeight: 21, color: colors.paper.inkFaint, textAlign: "center" },
   retryButton: {
     marginTop: 8,
     minHeight: 48,

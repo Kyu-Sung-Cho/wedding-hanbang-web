@@ -394,8 +394,8 @@ const styles = StyleSheet.create({
     gap: spacing[1],
     flexShrink: 1,
   },
-  eyebrow: { fontSize: 12, fontWeight: "600", color: colors.rose[600], flexShrink: 1 },
-  markAll: { fontSize: 12, color: colors.textTertiary },
+  eyebrow: { fontSize: 12, fontWeight: "600", color: colors.rose[700], flexShrink: 1 },
+  markAll: { fontSize: 12, color: colors.paper.inkFaint },
   row: {
     flexDirection: "row",
     alignItems: "center",
@@ -417,7 +417,7 @@ const styles = StyleSheet.create({
   waitingPill: {
     fontSize: 11,
     fontWeight: "600",
-    color: colors.rose[600],
+    color: colors.rose[700],
     backgroundColor: colors.ivory[100],
     borderRadius: radius.lg,
     paddingHorizontal: spacing[2],
@@ -457,13 +457,13 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     backgroundColor: colors.surface,
   },
-  rejectLabel: { fontSize: 13, fontWeight: "600", color: colors.rose[600] },
+  rejectLabel: { fontSize: 13, fontWeight: "600", color: colors.rose[700] },
   buttonDim: { opacity: 0.6 },
   more: {
     paddingHorizontal: spacing[4],
     paddingBottom: spacing[4],
     paddingTop: spacing[2],
     fontSize: 12,
-    color: colors.textTertiary,
+    color: colors.paper.inkFaint,
   },
 });

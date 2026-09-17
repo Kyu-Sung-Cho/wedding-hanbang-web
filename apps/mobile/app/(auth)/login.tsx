@@ -191,7 +191,7 @@ export default function LoginScreen() {
                 }}
                 onBlur={() => setEmailTouched(true)}
                 placeholder="이메일 주소를 입력해주세요"
-                placeholderTextColor={colors.taupe[400]}
+                placeholderTextColor={colors.paper.inkFaint}
                 keyboardType="email-address"
                 autoCapitalize="none"
                 autoCorrect={false}
@@ -213,7 +213,7 @@ export default function LoginScreen() {
                     setLoginError(null);
                   }}
                   placeholder="비밀번호"
-                  placeholderTextColor={colors.taupe[400]}
+                  placeholderTextColor={colors.paper.inkFaint}
                   secureTextEntry={!showPassword}
                   autoCapitalize="none"
                   onSubmitEditing={handleEmailLogin}
@@ -223,8 +223,8 @@ export default function LoginScreen() {
                 />
                 <Pressable style={styles.eyeBtn} onPress={() => setShowPassword(!showPassword)}>
                   {showPassword
-                    ? <EyeOff size={20} color={colors.taupe[400]} />
-                    : <Eye size={20} color={colors.taupe[400]} />
+                    ? <EyeOff size={20} color={colors.textTertiary} />
+                    : <Eye size={20} color={colors.textTertiary} />
                   }
                 </Pressable>
               </View>
@@ -257,7 +257,7 @@ export default function LoginScreen() {
               </Pressable>
               <Text style={styles.linkDot}>|</Text>
               <Pressable onPress={() => router.push({ pathname: "/(auth)/signup" })}>
-                <Text style={[styles.link, { color: colors.rose[500] }]}>회원가입</Text>
+                <Text style={[styles.link, { color: colors.rose[700] }]}>회원가입</Text>
               </Pressable>
             </View>
           </View>
@@ -455,7 +455,7 @@ const styles = StyleSheet.create({
   errorHint: {
     fontSize: 12,
     fontFamily: "NotoSansKR_400Regular",
-    color: colors.danger,
+    color: colors.dangerDeep,
     marginTop: 6,
     marginLeft: 4,
   },
@@ -466,13 +466,13 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     fontSize: 13,
     fontFamily: "NotoSansKR_500Medium",
-    color: colors.danger,
+    color: colors.dangerDeep,
     lineHeight: 20,
   },
   fieldHint: {
     fontSize: 12,
     fontFamily: "NotoSansKR_400Regular",
-    color: colors.textTertiary,
+    color: colors.paper.inkFaint,
     marginTop: 6,
     marginLeft: 4,
   },
@@ -522,7 +522,7 @@ const styles = StyleSheet.create({
   dividerText: {
     fontSize: 13,
     fontFamily: "NotoSansKR_400Regular",
-    color: colors.textTertiary,
+    color: colors.paper.inkFaint,
   },
 
   // 소셜
@@ -607,7 +607,7 @@ const styles = StyleSheet.create({
   tryWeddingCodeText: {
     fontSize: 13,
     fontFamily: "NotoSansKR_500Medium",
-    color: colors.rose[600],
+    color: colors.rose[700],
     textDecorationLine: "underline",
     textAlign: "center",
     lineHeight: 20,
@@ -623,13 +623,13 @@ const styles = StyleSheet.create({
   policySeparator: {
     fontSize: 12,
     fontFamily: "NotoSansKR_400Regular",
-    color: colors.textTertiary,
+    color: colors.paper.inkFaint,
     lineHeight: 18,
   },
   policyLink: {
     fontSize: 12,
     fontFamily: "NotoSansKR_400Regular",
-    color: colors.textTertiary,
+    color: colors.paper.inkFaint,
     textDecorationLine: "underline",
     textAlign: "center",
     lineHeight: 18,

@@ -70,7 +70,7 @@ export default function AmoraMediationCard({
       key: "resolution",
       title: "같이 검토할 선택안",
       Icon: Scale,
-      color: colors.rose[600],
+      color: colors.rose[700],
       backgroundColor: colors.surface,
       borderColor: colors.rose.light,
       text: block.resolution,

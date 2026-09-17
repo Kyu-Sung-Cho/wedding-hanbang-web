@@ -93,9 +93,9 @@ const SERVICE_COLORS: Record<
   checklist: { icon: colors.noir[800], background: colors.sage.pale },
   schedule: { icon: colors.rose[600], background: colors.rose.glow },
   budget: { icon: colors.noir[800], background: colors.ivory[200] },
-  prices: { icon: colors.sage[500], background: colors.sage.pale },
+  prices: { icon: colors.sage.deep, background: colors.sage.pale },
   quote: { icon: colors.rose[600], background: colors.rose.pale },
-  bookings: { icon: colors.gold.DEFAULT, background: colors.gold.light },
+  bookings: { icon: colors.paper.tapeInk, background: colors.gold.light },
   community: { icon: colors.noir.soft, background: colors.ivory[100] },
 };
 
@@ -527,7 +527,7 @@ export default function WeddingHomeExperience({
               그래서 화면에 보이는 글 자체가 이름이 되도록 "웨딩코드" 를 제목에 넣는다.
             */}
             <View style={styles.weddingCodeIcon}>
-              <Split size={17} color={colors.gold.DEFAULT} />
+              <Split size={17} color={colors.paper.tapeInk} />
             </View>
             <View style={styles.partnerCopy}>
               <Text style={styles.partnerTitle}>
@@ -549,7 +549,7 @@ export default function WeddingHomeExperience({
 
           <View style={styles.trustPromise}>
             <View style={styles.trustIcon}>
-              <ShieldCheck size={20} color={colors.sage[500]} />
+              <ShieldCheck size={20} color={colors.sage.deep} />
             </View>
             <View style={styles.trustCopy}>
               <Text style={styles.trustTitle}>추천은 광고비로 움직이지 않아요</Text>
@@ -630,7 +630,7 @@ const styles = StyleSheet.create({
     gap: 2,
   },
   brandEyebrow: {
-    color: colors.rose[600],
+    color: colors.rose[700],
   },
   greeting: {
     fontSize: 23,

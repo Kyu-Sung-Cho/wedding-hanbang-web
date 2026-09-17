@@ -97,7 +97,7 @@ const styles = StyleSheet.create({
     borderColor: "rgba(202,138,4,0.35)",
   },
   adText: {
-    color: "#A16207",
+    color: colors.paper.tapeInk,
     fontSize: 11,
     fontWeight: "700",
   },
