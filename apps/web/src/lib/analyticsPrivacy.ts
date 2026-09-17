@@ -224,10 +224,21 @@ export function stripAnalyticsUrlFragments<
  * 흐름 이벤트를 실제로 보내기 시작하는 시각.
  *
  * 처리방침 제10조는 변경의 적용일과 이유를 **미리** 알린다고 약속한다. 「웨딩코드 화면에서는
- * 이용 통계를 실행하지 않는다」를 바꾸는 개정이라 2026-09-16 고지(배포) 후 7일 뒤부터 보낸다.
+ * 이용 통계를 실행하지 않는다」를 바꾸는 개정이라 고지(배포) 후 7일 뒤부터 보낸다.
  * **처리방침 부칙·제3조·제8조와 웨딩코드 화면 안내에 적힌 날짜와 같아야 한다.**
+ *
+ * ## 2026-09-23 → 2026-09-24 (2026-09-17 정정)
+ *
+ * 9-16 에 고지한 제3조는 「시작·완료·공유 여부, 몇 번째 장면까지, 답한/건너뛴 장면 수」만
+ * 적었는데, 이 파일은 그보다 많이 보내게 돼 있었다 — 첫 화면을 열었는지, 둘의 비교 화면을
+ * 열었는지, 원하는 결혼식 고르기를 눌렀는지, 다시 시작했는지, 그리고 질문 판·상대 링크로
+ * 왔는지·결과 종류·누른 자리. 제8조는 웨딩코드에서 「제3조의 흐름 이벤트만」 모은다고 했으니
+ * 9-23 에 그대로 보냈다면 고지보다 많이 모았을 것이다. 받기 전에 잡혔다(아직 한 건도 안 나감).
+ * 제3조를 실제로 보내는 목록으로 고치고, 늘어난 항목도 7일 전에 알리도록 하루 미뤘다.
+ * 늦게 시작하는 것은 고지와 어긋나지 않는다. `WEDDING_CODE_FUNNEL_DISCLOSURE` 가 목록과
+ * 방침 문장을 한 곳에 묶고, 테스트가 방침 본문에 전부 있는지 본다.
  */
-export const WEDDING_CODE_FUNNEL_ANALYTICS_EFFECTIVE_AT = "2026-09-23T00:00:00+09:00";
+export const WEDDING_CODE_FUNNEL_ANALYTICS_EFFECTIVE_AT = "2026-09-24T00:00:00+09:00";
 const WEDDING_CODE_FUNNEL_ANALYTICS_EFFECTIVE_MS = Date.parse(WEDDING_CODE_FUNNEL_ANALYTICS_EFFECTIVE_AT);
 
 export function isWeddingCodeFunnelAnalyticsEffective(now: number = Date.now()): boolean {
@@ -247,7 +258,7 @@ export const WEDDING_CODE_FUNNEL_EVENTS = [
 export type WeddingCodeFunnelEvent = (typeof WEDDING_CODE_FUNNEL_EVENTS)[number];
 
 const WEDDING_CODE_FUNNEL_EVENT_SET = new Set<string>(WEDDING_CODE_FUNNEL_EVENTS);
-const WEDDING_CODE_FUNNEL_PROPERTY_KEYS = new Set([
+export const WEDDING_CODE_FUNNEL_PROPERTIES = [
   "version",
   "scene_index",
   "scene_total",
@@ -256,7 +267,35 @@ const WEDDING_CODE_FUNNEL_PROPERTY_KEYS = new Set([
   "has_partner_link",
   "result_kind",
   "placement",
-]);
+] as const;
+const WEDDING_CODE_FUNNEL_PROPERTY_KEYS = new Set<string>(WEDDING_CODE_FUNNEL_PROPERTIES);
+
+/**
+ * 보내는 이벤트·속성마다 **처리방침 제3조에 적힌 말**.
+ *
+ * 목록에 항목을 더하면 여기에도 한 줄이 필요하고(타입이 빠진 칸을 알려준다), 테스트가
+ * 그 말이 방침 본문에 그대로 있는지 본다. 방침을 고치지 않고 수집 항목만 늘리는 길을 막는다.
+ */
+export const WEDDING_CODE_FUNNEL_DISCLOSURE: Readonly<
+  Record<WeddingCodeFunnelEvent | (typeof WEDDING_CODE_FUNNEL_PROPERTIES)[number], string>
+> = {
+  wedding_code_intro_viewed: "첫 화면을 열었는지",
+  wedding_code_started: "시작했는지",
+  wedding_code_scene_reached: "몇 번째 장면까지 봤는지",
+  wedding_code_completed: "끝까지 했는지",
+  wedding_code_comparison_viewed: "두 사람의 답을 비교하는 화면을 열었는지",
+  wedding_code_share_copied: "결과 링크를 복사했는지",
+  wedding_code_taste_clicked: "원하는 결혼식 고르기를 눌렀는지",
+  wedding_code_restarted: "다시 시작했는지",
+  version: "어느 판의 질문에 답했는지",
+  scene_index: "몇 번째 장면까지 봤는지",
+  scene_total: "전체 장면 수",
+  answered_count: "답한 장면과 건너뛴 장면의 수",
+  skipped_count: "답한 장면과 건너뛴 장면의 수",
+  has_partner_link: "상대가 보낸 링크로 들어왔는지",
+  result_kind: "혼자 결과인지 두 사람 비교인지",
+  placement: "어느 화면에서 눌렀는지",
+};
 /** 버전(`v0.8-code`)·자리 이름(`intro`) 같은 짧은 식별자만. 20글자 답 코드는 여기를 못 지난다. */
 const WEDDING_CODE_FUNNEL_SHORT_VALUE = /^[a-z0-9][a-z0-9._-]{0,15}$/;
 

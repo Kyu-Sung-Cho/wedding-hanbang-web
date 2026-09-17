@@ -4,6 +4,9 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import {
   WEDDING_CODE_FUNNEL_ANALYTICS_EFFECTIVE_AT,
+  WEDDING_CODE_FUNNEL_DISCLOSURE,
+  WEDDING_CODE_FUNNEL_EVENTS,
+  WEDDING_CODE_FUNNEL_PROPERTIES,
   analyticsCaptureTouchesSuppressedPath,
   analyticsSafeSearchParams,
   isAnalyticsSuppressedLocation,
@@ -207,6 +210,36 @@ describe("웨딩코드 흐름 이벤트는 답과 주소를 싣지 않는다", (
     const client = readFileSync(path.join(srcRoot, "app/wedding-code/WeddingCodeV06Client.tsx"), "utf8");
     expect(privacy.split(label).length - 1).toBeGreaterThanOrEqual(3);
     expect(client).toContain(label);
+  });
+
+  /**
+   * 2026-09-17 에 잡힌 결함: 9-16 에 고지한 제3조는 「시작·완료·공유 여부, 몇 번째 장면,
+   * 답한/건너뛴 수」만 적었는데 코드는 첫 화면·비교 화면·다시 시작 이벤트와 판·상대 링크·
+   * 결과 종류·누른 자리 속성까지 보내게 돼 있었다. 제8조는 「제3조의 항목만」 모은다고 했다.
+   * **보내는 것은 전부 방침 제3조 웨딩코드 문장 안에 적혀 있어야 한다.**
+   */
+  it("보내는 흐름 이벤트와 속성이 전부 처리방침 제3조 웨딩코드 문장에 적혀 있다", () => {
+    const privacy = readFileSync(path.join(srcRoot, "app/privacy/page.tsx"), "utf8");
+    const start = privacy.indexOf("<li>웨딩코드: ");
+    const end = privacy.indexOf("</li>", start);
+    expect(start, "제3조 웨딩코드 문장을 못 찾았다 — 이 검사가 헛돈다").toBeGreaterThan(-1);
+    expect(end).toBeGreaterThan(start);
+    const clause = privacy.slice(start, end);
+
+    for (const key of [...WEDDING_CODE_FUNNEL_EVENTS, ...WEDDING_CODE_FUNNEL_PROPERTIES]) {
+      const phrase = WEDDING_CODE_FUNNEL_DISCLOSURE[key];
+      expect(phrase, key).toBeTruthy();
+      expect(clause, `${key} → "${phrase}" 가 방침에 없다`).toContain(phrase);
+    }
+  });
+
+  it("허용 목록 밖의 속성은 보내기 전에 버린다 — 방침에 없는 값이 새지 않는다", () => {
+    const now = Date.parse(WEDDING_CODE_FUNNEL_ANALYTICS_EFFECTIVE_AT) + 1;
+    const sent = sanitizeWeddingCodeFunnelCapture({
+      event: "wedding_code_completed",
+      properties: { version: "v0.9-code", answered_count: 18, answer_code: "ABCD", letters: "vtfh" },
+    }, now);
+    expect(sent?.properties).toEqual({ version: "v0.9-code", answered_count: 18 });
   });
 });
 

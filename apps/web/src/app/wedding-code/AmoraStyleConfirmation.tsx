@@ -87,7 +87,8 @@ function Confirmation({ profile, sessionReady }: { profile: WeddingCodeSelfProfi
                 }}
                 className="mt-3 min-h-12 w-full rounded-[6px] border border-[var(--hb-hairline)] bg-white px-3 text-[16px] text-[var(--hb-text-strong)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--hb-focus-ring)]"
               >
-                <option value="">지금 바꾸지 않기</option>
+                {/* 빈 값 = 이 항목은 건드리지 않음. 옆의 「그때 물어보기」는 실제로 저장되는 설정값이라, 예전 이름(「지금 바꾸지 않기」)은 둘이 같은 뜻으로 읽혔다. 로그인하지 않은 사람에게도 보이므로 「지금 설정」을 전제하지 않는다. */}
+                <option value="">고르지 않음 (이 항목은 그대로 둬요)</option>
                 {proposal.options.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
               </select>
               {selected ? <p className="mt-2 text-[13px] leading-relaxed text-[var(--hb-text-body)]">{selected.effect}</p> : null}

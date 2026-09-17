@@ -57,7 +57,7 @@ export const WEDDING_CODE_RESEARCH_MIN_AGE = 19;
  * **2026-09-16 파운더 결정**: 같은 날 받기 시작한다. 처음 계획한 7일 사전 고지(2026-09-23)
  * 대신, 고지가 나간 날부터 받는다 — 팀이 실제 흐름을 그날 확인해야 했다. 고지는 **받기 전에**
  * 화면과 처리방침에 함께 올라갔고(동의 없이는 아무것도 저장하지 않는다), 흐름 통계 쪽은
- * 원래대로 2026-09-23까지 기다린다(`WEDDING_CODE_FUNNEL_ANALYTICS_EFFECTIVE_AT`).
+ * 7일을 기다린다(`WEDDING_CODE_FUNNEL_ANALYTICS_EFFECTIVE_AT`, 2026-09-17 정정으로 09-24).
  * **처리방침 제1조·제3조·부칙에 적힌 날짜와 같아야 한다.**
  */
 export const WEDDING_CODE_RESEARCH_CONTRIBUTION_EFFECTIVE_AT = "2026-09-16T00:00:00+09:00";

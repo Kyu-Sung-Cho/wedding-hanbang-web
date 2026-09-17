@@ -250,7 +250,7 @@ describe("웨딩코드 v0.9 문항", () => {
    */
   it("v0.8·v0.9 어디에도 모양만 비슷한 잘못된 글자(쭀)가 없다", async () => {
     const { WEDDING_CODE_V08_QUESTIONS, WEDDING_CODE_V08_NEXT_STEPS } = await import("../weddingCodeV08");
-    const texts = [...WEDDING_CODE_V08_QUESTIONS, ...WEDDING_CODE_V09_QUESTIONS].flatMap((question) => [
+    const texts: string[] = [...WEDDING_CODE_V08_QUESTIONS, ...WEDDING_CODE_V09_QUESTIONS].flatMap((question) => [
       question.scene,
       question.question,
       ...question.options.map((option) => option.label),

@@ -34,7 +34,6 @@ import ResearchContributionCard, { ResearchContributionDeleteForm } from "./Rese
 import {
   WEDDING_CODE_RESEARCH_RETENTION_DAYS,
   isWeddingCodeResearchSceneVersion,
-  weddingCodeResearchContributionStartLabel,
 } from "@/lib/weddingCode/contribution/contract";
 import Button from "@/components/ui/Button";
 import {
@@ -291,20 +290,20 @@ export default function WeddingCodeV06Client({
             <h1 className="mt-3 text-[26px] font-semibold leading-[1.35] sm:text-[30px]">
               {theirs
                 ? "먼저 답한 사람이 링크를 보냈어요"
-                : `결혼 준비 ${sceneCount} 장면`}
+                : `결혼 준비 ${sceneCount} 장면, 나라면?`}
             </h1>
             <p className="mt-4 text-[15px] font-medium leading-[1.7] text-[var(--hb-on-primary)]">
               {theirs
-                ? `같은 ${sceneCount} 장면에 답하면, 두 사람이 어디서 갈렸는지 바로 볼 수 있어요.`
-                : "각자 답하고 나서, 두 사람이 어디서 갈렸는지 나란히 봅니다."}
+                ? `나도 같은 ${sceneCount} 장면에 답하면 둘이 어디서 갈리는지 바로 볼 수 있어요.`
+                : "돈을 쓸 때, 할 일을 나눌 때, 가족과 함께 정할 때, 둘 다 지친 날. 준비하다 한 번쯤 겪는 장면마다 나라면 어떻게 할지 골라 보세요."}
             </p>
           </div>
 
           <div className="space-y-3 px-5 py-6 sm:px-8">
             {[
-              "내가 고른 답을 네 글자와 실제 문장으로 정리해요. 성격이나 궁합을 판정하지 않아요.",
-              "상대도 같은 장면에 답하면, 두 사람이 고른 말을 나란히 볼 수 있어요.",
-              "안 맞거나 아직 답하기 어려운 장면은 건너뛸 수 있어요. 미응답은 추측하지 않아요.",
+              "끝까지 가면 내가 고른 문장과 그 답을 줄인 네 글자를 보여줘요. 성격이나 궁합을 판정하는 검사는 아니에요.",
+              "상대도 답하면 둘의 답이 갈린 장면을 나란히 놓아 줘요.",
+              "우리와 안 맞거나 아직 답하기 어려운 장면은 건너뛸 수 있어요. 건너뛴 장면은 짐작해서 채우지 않아요.",
             ].map((line) => (
               <p key={line} className="flex gap-2.5 text-[14px] font-medium leading-[1.6] text-[var(--hb-text-strong)]">
                 <Check aria-hidden="true" className="mt-0.5 h-4 w-4 shrink-0 text-[var(--hb-success)]" />
@@ -312,13 +311,34 @@ export default function WeddingCodeV06Client({
               </p>
             ))}
           </div>
+          {/*
+            안내 문단은 법적 뜻을 지는 문장이다. 말투만 풀고 뜻은 바꾸지 않는다.
+            - 브라우저에는 동의와 상관없이 답을 남기지 않는다(그래서 새로고침하면 사라진다).
+            - 서버에는 결과 화면에서 직접 동의한 경우에만 저장한다 — **이 판으로 푼 답을 실제로
+              보탤 수 있을 때만** 그렇게 말한다(`contributionAvailable`). 옛 v0.6 링크나 수집을
+              멈춘 뒤에는 카드가 뜨지 않으니 「보태기」를 약속하지 않는다.
+            - 이용 통계 적용일은 `WEDDING_CODE_FUNNEL_ANALYTICS_EFFECTIVE_AT` 과 같은 글자여야 한다
+              (analyticsPrivacy.test 가 본다). 항목 전부는 처리방침 제3조에 있다.
+          */}
           <details className="border-t border-[var(--hb-hairline)] px-5 py-4 sm:px-8">
-            <summary className="cursor-pointer py-2 text-sm font-semibold text-[var(--hb-text-strong)]">응답과 공유 안내</summary>
-            <p className="mt-2 text-sm leading-relaxed text-[var(--hb-text-body)]">금액과 상황은 예시예요. 겪지 않은 장면은 지금이라면 고를 답을 선택하거나 건너뛰세요. 부모님·하객·예식이 없는 경우도 해당 장면을 비워둘 수 있어요.</p>
-            <p className="mt-2 text-sm leading-relaxed text-[var(--hb-text-body)]">로그인 없이 쓸 수 있고 {researchContributionOpen ? "결과 화면에서 직접 보태기로 동의하지 않는 한 " : ""}장면의 답은 서버나 브라우저 저장소에 보관하지 않아요. 새로고침하면 작성 중인 답은 사라져요. 공유 링크에는 답이 들어가므로 함께 비교할 사람에게만 보내주세요.</p>
-            <p className="mt-2 text-sm leading-relaxed text-[var(--hb-text-body)]">2026년 9월 23일부터는 서비스를 고치려고 시작·완료·공유 여부와 몇 번째 장면까지 봤는지를 이용 통계로 남겨요. 어떤 답을 골랐는지와 공유 링크 주소는 통계에 넣지 않아요.</p>
+            <summary className="cursor-pointer py-2 text-sm font-semibold text-[var(--hb-text-strong)]">답하기 전에 알아둘 것</summary>
+            <p className="mt-2 text-sm leading-relaxed text-[var(--hb-text-body)]">금액과 상황은 예시예요. 아직 겪지 않은 장면은 지금 나라면 뭘 고를지 답하거나 건너뛰면 돼요. 부모님·하객·결혼식이 없는 경우에도 그런 장면은 건너뛰어도 괜찮아요.</p>
+            <p className="mt-2 text-sm leading-relaxed text-[var(--hb-text-body)]">
+              {contributionAvailable
+                ? "로그인 없이 쓸 수 있어요. 고른 답은 브라우저에 남기지 않아서 새로고침하면 사라져요. 서버에도 저장하지 않고, 결과 화면에서 '내 답 보태기'에 직접 동의한 경우에만 저장해요. 공유 링크에는 내 답이 담기니 같이 비교할 사람에게만 보내 주세요."
+                : "로그인 없이 쓸 수 있어요. 고른 답은 브라우저에 남기지 않아서 새로고침하면 사라지고, 서버에도 저장하지 않아요. 공유 링크에는 내 답이 담기니 같이 비교할 사람에게만 보내 주세요."}
+            </p>
+            <p className="mt-2 text-sm leading-relaxed text-[var(--hb-text-body)]">
+              2026년 9월 24일부터는 화면을 고치려고 이용 통계를 남겨요. 시작했는지, 몇 번째 장면까지 봤는지, 끝까지 했는지, 공유했는지 같은 흐름만 남기고, 어떤 답을 골랐는지·네 글자 결과·공유 링크 주소는 넣지 않아요. 남기는 항목 전부는{" "}
+              <a href="/privacy" className="font-semibold text-[var(--hb-text-strong)] underline underline-offset-4">개인정보 처리방침</a>
+              에 있어요.
+            </p>
             {researchStorageActive ? (
-              <p className="mt-2 text-sm leading-relaxed text-[var(--hb-text-body)]">{researchContributionOpen ? "" : `${weddingCodeResearchContributionStartLabel()} `}결과 화면에서 직접 동의한 경우에만, 고른 답 기호를 이름·계정 없이 연구 자료로 {WEDDING_CODE_RESEARCH_RETENTION_DAYS}일간 보관해요. 동의하지 않으면 아무것도 보내지 않아요.</p>
+              <p className="mt-2 text-sm leading-relaxed text-[var(--hb-text-body)]">
+                {contributionAvailable
+                  ? `동의하고 보낸 답은 이름·계정 없이 ${WEDDING_CODE_RESEARCH_RETENTION_DAYS}일 동안 보관하고, 질문을 고치는 데만 써요. 동의하지 않으면 아무것도 보내지 않아요.`
+                  : `지금 이 질문으로는 답 보태기를 받지 않아요. 전에 보낸 답은 보낸 날부터 ${WEDDING_CODE_RESEARCH_RETENTION_DAYS}일이 지나면 자동으로 지워지고, 그 전에 지우고 싶으면 아래에 삭제 코드를 넣으면 돼요.`}
+              </p>
             ) : null}
           </details>
           {researchStorageActive ? <ResearchContributionDeleteForm /> : null}
@@ -339,7 +359,7 @@ export default function WeddingCodeV06Client({
           <ArrowRight aria-hidden="true" className="h-4 w-4" />
         </button>
         <p className="mt-3 text-center text-[13px] font-medium text-[var(--color-rose-700)]">
-          {sceneCount} 문항
+          {sceneCount} 문항 · 로그인 없이 바로
         </p>
         {!theirs ? <WeddingTasteEntry placement="intro" /> : null}
       </Shell>

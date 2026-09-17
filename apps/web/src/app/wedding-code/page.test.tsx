@@ -89,11 +89,11 @@ describe("웨딩코드 진입 화면", () => {
     for (const banned of ["점수가", "등급", "궁합이", "유형이에요", "당신은 "]) {
       expect(html, banned).not.toContain(banned);
     }
-    expect(html).toContain("성격이나 궁합을 판정하지 않아요");
+    expect(html).toContain("성격이나 궁합을 판정하는 검사는 아니에요");
     expect(html).toContain("아직 답하기 어려운 장면은 건너뛸 수 있어요");
     // 금액 규모와 가족 구성이 다른 사람도 배제되지 않는다고 먼저 말한다.
     expect(html).toContain("금액과 상황은 예시예요");
-    expect(html).toContain("부모님·하객·예식이 없는 경우도");
+    expect(html).toContain("부모님·하객·결혼식이 없는 경우에도");
   });
 
   it("먼저 답한 사람의 코드가 오면 응답 순서를 정확히 알린다", async () => {
@@ -104,8 +104,9 @@ describe("웨딩코드 진입 화면", () => {
 
   it("DB 비저장과 URL 노출을 구분해 알린다", async () => {
     const html = await render({});
-    expect(html).toContain("장면의 답은 서버나 브라우저 저장소에 보관하지 않아요");
-    expect(html).toContain("공유 링크에는 답이 들어가므로");
+    // 브라우저에는 동의와 상관없이 남기지 않고(새로고침하면 사라짐), 서버에도 저장하지 않는다.
+    expect(html).toContain("고른 답은 브라우저에 남기지 않아서 새로고침하면 사라지고, 서버에도 저장하지 않아요");
+    expect(html).toContain("공유 링크에는 내 답이 담기니");
     expect(html).not.toContain("답은 저장되지 않아요");
   });
 
