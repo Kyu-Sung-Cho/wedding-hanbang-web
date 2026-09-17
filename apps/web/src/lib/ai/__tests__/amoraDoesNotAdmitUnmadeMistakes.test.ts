@@ -13,10 +13,14 @@
  * 1. 원본이 아니라 **합성된 프롬프트**에 묻는다. 라이브에서 돈 두 갈래(W4 신뢰 이력·W4
  *    연결 문맥, 도구 0개)와 같은 뜻의 W0 문장(운영 도구, 체험 포함)을 운영과 같은 순서로
  *    만든다(`amoraPromptComposedContract.test.ts` 의 경로를 옮겼다).
- * 2. **길이.** 이 상수는 프롬프트 앞쪽이라 늘린 만큼 꼬리가 잘린다. 긴 예산 대화는 이미
- *    48,000자에 붙어 있고, 32자 늘린 초안이 113개 조합 중 20개에서 "확인 전에는 저장 도구를
- *    실행하지 않습니다" 같은 줄을 밀어냈다. 그래서 고친 줄의 길이 합이 d643b5f4 보다 길어지면
- *    실패한다.
+ * 2. **갈래 셋.** 확인된 잘못은 인정, 대화·저장값과 다르면 인정하지 않기, 그리고 **아무것도
+ *    없어서 확인할 수 없으면 모른다고 말하기.** 셋째가 없으면 모델은 앞의 둘 중 하나를
+ *    고르고, 라이브에서 고른 쪽이 "인정" 이었다.
+ * 3. **길이는 합이 아니라 자리.** 처음 판본은 규칙 줄 +27자를 19줄 뒤 예시 줄 -27자로 갚아
+ *    "합이 0" 이었지만, 그 사이 19줄은 그대로 27자 뒤로 밀렸다(`### 도구 실행 뒤 말하는 법`
+ *    4,417 → 4,444). 절단은 꼬리부터 통째로 자르니 밀린 줄이 절단선을 넘으면 사라진다.
+ *    그래서 **합이 아니라 자리**를 잡는다 — 규칙 줄 자체의 길이, 규칙 줄 뒤 섹션의 자리,
+ *    상수 전체 길이 셋 다 d643b5f4 보다 커지면 실패한다.
  */
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
@@ -119,9 +123,13 @@ const LIVE_COMPLAINT = "왜 바뀌었는지 먼저 물어보지도 않고 바로
 // 같은 뜻을 W0 로 만든 문장. 체험 평가(`amora:eval`)는 이 갈래만 잴 수 있다.
 const W0_COMPLAINT = "결혼식을 왜 바꿨는지 먼저 물어보지도 않고 바로 전제로 삼으면 안 되는 거 아니야?";
 
-const NEW_RULE = "대화·저장값으로 확인된 잘못만";
-const NEW_RULE_NO_UNMADE = "없던 잘못을 인정하지 말고";
+// 규칙의 세 갈래. 하나씩 따로 묻는다 — 셋이 한 문자열이면 어느 갈래가 빠졌는지 못 본다.
+const RULE_CONFIRMED = "대화·저장값에 있으면 변명 없이 인정";
+const RULE_CONTRADICTED = "다르면 인정 말고";
+const RULE_CANNOT_VERIFY = "없으면 모른다 하세요";
 const OLD_RULE = "실수/오류 지적: 짧게 인정하고 변명하지 마세요";
+// 94b58409 의 두 갈래 판본. 확인 불가 갈래가 없어서 모델이 인정·부인 중 하나를 골라야 했다.
+const BINARY_RULE = "없던 잘못을 인정하지 말고 원하는 방향을 물으세요";
 const OLD_EXAMPLE = "제가 저장 여부부터 확인했어야";
 const EXAMPLE_FACT = "일정엔 아직 없어요";
 const EXAMPLE_ADMISSION = "저장 결과를 봤어야";
@@ -161,11 +169,13 @@ describe("사용자가 따져도 하지 않은 잘못을 인정하라고 시키�
     expect(classifyAmoraQuestionScope({ userText: W0_COMPLAINT }).scope).toBe("W0_wedding_core");
   });
 
-  it.each(CASES)("$label: 확인된 잘못만 인정하라는 규칙이 실리고 옛 문장은 없다", ({ prompt }) => {
+  it.each(CASES)("$label: 확인·반증·확인 불가 세 갈래가 다 실리고 옛 문장은 없다", ({ prompt }) => {
     const composed = prompt();
-    expect(composed).toContain(NEW_RULE);
-    expect(composed).toContain(NEW_RULE_NO_UNMADE);
+    expect(composed).toContain(RULE_CONFIRMED);
+    expect(composed).toContain(RULE_CONTRADICTED);
+    expect(composed).toContain(RULE_CANNOT_VERIFY);
     expect(composed).not.toContain(OLD_RULE);
+    expect(composed).not.toContain(BINARY_RULE);
     expect(composed).not.toContain(OLD_EXAMPLE);
     expect(composed).toContain(NEW_REFLECTION);
     expect(composed).not.toContain(OLD_REFLECTION);
@@ -181,18 +191,46 @@ describe("사용자가 따져도 하지 않은 잘못을 인정하라고 시키�
   });
 });
 
-describe("고친 문장은 프롬프트를 늘리지 않는다", () => {
-  // d643b5f4 의 길이. 규칙 줄 57 + 예시 줄 85, `자기 성찰` 의 불만족 줄 133.
-  const VOICE_LINES_MAX = 142;
+describe("고친 문장은 어떤 줄도 뒤로 밀지 않는다", () => {
+  // d643b5f4 의 `AMORA_CARE_VOICE` 실측값(`${AMORA_STATUS_SUMMARY_EVIDENCE_RULE}` 가 펼쳐진
+  // 런타임 문자열이다 — 원문 길이를 쓰면 182자 어긋난다). 합이 아니라 **자리**라서 따로 잡는다.
+  //   규칙 줄 57자 · 예시 줄 85자 · 상수 전체 5,220자
+  //   규칙 줄 뒤 자리: `### 도구 실행 뒤 말하는 법` 4,417 / `### 대화의 결 예시` 4,764
+  // 94b58409 은 그 둘을 4,444 / 4,791 로 밀면서도 상수 전체가 5,220 이라 "합이 0" 으로는
+  // 초록불이었다.
+  const D643_RULE_LINE_MAX = 57;
+  const D643_EXAMPLE_LINE_MAX = 85;
+  const D643_CARE_VOICE_MAX = 5_220;
+  const D643_SECTION_OFFSETS: ReadonlyArray<readonly [string, number]> = [
+    ["### 도구 실행 뒤 말하는 법", 4_417],
+    ["### 대화의 결 예시", 4_764],
+    ['- 사용자: "일정에 왜 반영 안 됐어?"', 5_110],
+  ];
   const REFLECTION_LINE_MAX = 133;
 
-  it("규칙 줄과 예시 줄의 길이 합이 고치기 전보다 길지 않다", () => {
+  it("고친 두 줄 자체가 각각 고치기 전보다 길지 않다", () => {
     const lines = AMORA_CARE_VOICE.split("\n");
     const rule = lines.filter((line) => line.startsWith("- 실수/오류 지적:"));
     const example = lines.filter((line) => line.includes(EXAMPLE_ADMISSION));
     expect(rule).toHaveLength(1);
     expect(example).toHaveLength(1);
-    expect(rule[0].length + example[0].length).toBeLessThanOrEqual(VOICE_LINES_MAX);
+    // 줄마다 따로 잡는다. 뒤의 줄을 줄여 앞의 줄을 늘리는 맞바꾸기는 그 사이 줄을 밀어낸다.
+    expect(rule[0].length).toBeLessThanOrEqual(D643_RULE_LINE_MAX);
+    expect(example[0].length).toBeLessThanOrEqual(D643_EXAMPLE_LINE_MAX);
+  });
+
+  it("규칙 줄 뒤의 섹션과 예시가 d643b5f4 보다 뒤로 가지 않는다", () => {
+    // 자리는 앞 모든 줄의 길이 합이다 — 규칙 줄이든 그 사이 아무 줄이든 한 글자만 늘어도
+    // 이 단언이 깨진다. 합만 재던 옛 가드가 못 본 것이 바로 이 밀림이다.
+    for (const [anchor, maxOffset] of D643_SECTION_OFFSETS) {
+      const offset = AMORA_CARE_VOICE.indexOf(anchor);
+      expect(offset, `${anchor} 를 못 찾았다`).toBeGreaterThan(-1);
+      expect(offset, `${anchor} 가 ${offset} 로 밀렸다`).toBeLessThanOrEqual(maxOffset);
+    }
+  });
+
+  it("상수 전체 길이도 d643b5f4 보다 길지 않다", () => {
+    expect(AMORA_CARE_VOICE.length).toBeLessThanOrEqual(D643_CARE_VOICE_MAX);
   });
 
   it("prompts.ts 의 자기 성찰 문장은 조건부로 바뀌었고 줄 길이가 그대로다", () => {
