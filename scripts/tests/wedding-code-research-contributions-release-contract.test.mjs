@@ -1,4 +1,4 @@
-import test from 'node:test';
+import test, { after } from 'node:test';
 import assert from 'node:assert/strict';
 import { copyFileSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
@@ -7,15 +7,26 @@ import { assertWeddingCodeResearchSqlScope, loadWeddingCodeResearchReleasePlan, 
   WEDDING_CODE_RESEARCH_SCOPE } from '../lib/wedding-code-research-contributions-release-contract.mjs';
 import { loadNotApplicableStatusReleasePlan } from '../lib/amora-not-applicable-status-release-contract.mjs';
 import { createNotApplicableStatusHistoricalRepository } from './fixtures/amora-not-applicable-status-historical-repository.mjs';
+import { createWeddingCodeResearchHistoricalRepository } from './fixtures/wedding-code-research-contributions-historical-repository.mjs';
 import { validateSuccessorReleaseContract } from '../lib/supabase-successor-release-contract.mjs';
 import { runProductionRelease } from '../lib/supabase-production-release-controller.mjs';
 
-const root = resolve(import.meta.dirname, '../..');
+// 234 공개 모드는 역사 checkout에서만 통과한다. 실제 checkout에는 이후 검토된 SQL이 더 있다.
+const actualRoot = resolve(import.meta.dirname, '../..');
+const historical = createWeddingCodeResearchHistoricalRepository(actualRoot), root = historical.root;
+after(historical.cleanup);
 const MIGRATION = 'supabase/migrations/20260915130000_wedding_code_research_contributions.sql';
 const sql = readFileSync(join(root, MIGRATION), 'utf8');
 const run = args => spawnSync(process.execPath, [join(root, 'scripts/supabase-release-fence.mjs'), ...args],
   { cwd: root, encoding: 'utf8', windowsHide: true, timeout: 30_000 });
 const code = value => error => error?.code === value;
+
+test('the historical 234 public mode rejects the actual checkout with a newer reviewed migration', () => {
+  assert.throws(() => loadWeddingCodeResearchReleasePlan(actualRoot), code('NEW_MIGRATION_NOT_REVIEWED'));
+  const result = spawnSync(process.execPath, [join(actualRoot, 'scripts/supabase-release-fence.mjs'), '--wedding-code-research-contributions'],
+    { cwd: actualRoot, encoding: 'utf8', windowsHide: true, timeout: 30_000 });
+  assert.equal(result.status, 1); assert.match(result.stderr, /NEW_MIGRATION_NOT_REVIEWED/);
+});
 
 test('234 exact successor keeps all 233 pins and claims no runtime evidence, deployment or remote write', () => {
   const plan = loadWeddingCodeResearchReleasePlan(root);
@@ -96,7 +107,7 @@ test('the reviewed SQL keeps the privacy and privilege shape; planted violations
 });
 
 test('every new artifact, predecessor and unregistered migration is fail-closed', t => {
-  const fixture = createNotApplicableStatusHistoricalRepository(root); t.after(fixture.cleanup);
+  const fixture = createNotApplicableStatusHistoricalRepository(actualRoot); t.after(fixture.cleanup);
   const plan = loadWeddingCodeResearchReleasePlan(root);
   const paths = [WEDDING_CODE_RESEARCH_CONTRACT_FILE, plan.contract.runtime.file, MIGRATION];
   assert.throws(() => loadWeddingCodeResearchReleasePlan(fixture.root));

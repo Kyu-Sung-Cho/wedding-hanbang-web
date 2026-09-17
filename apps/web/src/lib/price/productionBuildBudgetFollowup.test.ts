@@ -18,6 +18,8 @@ import { NOT_APPLICABLE_STATUS_CONTRACT_FILE, loadNotApplicableStatusReleasePlan
 import { createCustomerDataHistoricalRepository } from "../../../../../scripts/tests/fixtures/account-deletion-customer-data-historical-repository.mjs";
 import { WEDDING_CODE_RESEARCH_CONTRACT_FILE, loadWeddingCodeResearchReleasePlan } from "../../../../../scripts/lib/wedding-code-research-contributions-release-contract.mjs";
 import { createNotApplicableStatusHistoricalRepository } from "../../../../../scripts/tests/fixtures/amora-not-applicable-status-historical-repository.mjs";
+import { WEDDING_CODE_SCENE_VERSION_CONTRACT_FILE, loadWeddingCodeSceneVersionReleasePlan } from "../../../../../scripts/lib/wedding-code-research-scene-v09-release-contract.mjs";
+import { createWeddingCodeResearchHistoricalRepository } from "../../../../../scripts/tests/fixtures/wedding-code-research-contributions-historical-repository.mjs";
 import {
   assertVendorDisclosureProductionBuild,
   expectedProductionAuthorizationSha256,
@@ -57,6 +59,10 @@ let researchFixtureRoot: string;
 let cleanupResearchFixture: (() => void) | undefined;
 const researchPins = [WEDDING_CODE_RESEARCH_CONTRACT_FILE, "scripts/lib/wedding-code-research-contributions-release.mjs",
   "supabase/migrations/20260915130000_wedding_code_research_contributions.sql"];
+let sceneFixtureRoot: string;
+let cleanupSceneFixture: (() => void) | undefined;
+const scenePins = [WEDDING_CODE_SCENE_VERSION_CONTRACT_FILE, "scripts/lib/wedding-code-research-scene-v09-release.mjs",
+  "supabase/migrations/20260917090000_wedding_code_research_scene_v09.sql"];
 
 function production(root: string, authorization = expectedProductionAuthorizationSha256(root)) {
   return assertVendorDisclosureProductionBuild({
@@ -101,7 +107,11 @@ beforeAll(async () => {
   researchFixtureRoot = researchHistory.root;
   cleanupResearchFixture = researchHistory.cleanup;
   for (const file of researchPins) await copyFile(join(repoRoot, file), join(researchFixtureRoot, file));
-}, 180_000);
+  const sceneHistory = createWeddingCodeResearchHistoricalRepository(repoRoot);
+  sceneFixtureRoot = sceneHistory.root;
+  cleanupSceneFixture = sceneHistory.cleanup;
+  for (const file of scenePins) await copyFile(join(repoRoot, file), join(sceneFixtureRoot, file));
+}, 240_000);
 
 afterAll(async () => {
   cleanupFixture?.();
@@ -111,20 +121,50 @@ afterAll(async () => {
   cleanupCustomerDataFixture?.();
   cleanupNotApplicableFixture?.();
   cleanupResearchFixture?.();
+  cleanupSceneFixture?.();
 });
 
-describe("production build registers the exact WeddingCode research contributions successor after the 233 not-applicable release", () => {
-  it("accepts 234 exact SQL files only through the new successor, without claiming hosted application", () => {
-    for (const root of [repoRoot, researchFixtureRoot]) {
-      const plan = loadWeddingCodeResearchReleasePlan(root);
-      expect(plan.migrationCount).toBe(234);
+describe("production build registers the exact WeddingCode scene v0.9 successor after the 234 research contributions release", () => {
+  it("accepts 235 exact SQL files only through the new successor, without claiming hosted application", () => {
+    for (const root of [repoRoot, sceneFixtureRoot]) {
+      const plan = loadWeddingCodeSceneVersionReleasePlan(root);
+      expect(plan.migrationCount).toBe(235);
       expect(plan.runtimeEvidenceVerified).toBe(false);
       expect(plan.releaseAuthorized).toBe(false);
       expect(() => production(root)).not.toThrow();
-      expect(() => validateSuccessorReleaseContract({repoRoot: root, followup: "amora-not-applicable-status"}))
+      expect(() => validateSuccessorReleaseContract({repoRoot: root, followup: "wedding-code-research-contributions"}))
         .toThrowError(expect.objectContaining({code: "FOLLOWUP_RELEASE_INVALID"}));
     }
+    expect(() => loadWeddingCodeResearchReleasePlan(repoRoot)).toThrowError(expect.objectContaining({code: "NEW_MIGRATION_NOT_REVIEWED"}));
     expect(() => loadNotApplicableStatusReleasePlan(repoRoot)).toThrowError(expect.objectContaining({code: "NEW_MIGRATION_NOT_REVIEWED"}));
+  }, 120_000);
+  it.each(scenePins)("refuses a changed or missing WeddingCode scene v0.9 artifact without fallback: %s", async file => {
+    const target = join(sceneFixtureRoot, file), bytes = await readFile(target);
+    try {
+      await writeFile(target, Buffer.concat([bytes, Buffer.from("\n")]));
+      expect(() => production(sceneFixtureRoot)).toThrow(VENDOR_DISCLOSURE_STATIC_CONTRACT_INVALID);
+      await rm(target);
+      expect(() => production(sceneFixtureRoot)).toThrow(VENDOR_DISCLOSURE_STATIC_CONTRACT_INVALID);
+    } finally {await writeFile(target, bytes);}
+  }, 60_000);
+});
+
+describe("production build registers the exact WeddingCode research contributions successor after the 233 not-applicable release", () => {
+  // 실제 checkout 에는 이후 검토된 235번째 SQL(20260917090000)이 있어 234 공개 모드가 거절하는 것이 맞다.
+  // checkout 의 production 허용은 위 235 후속 계약이 잰다. 여기서는 234 역사 checkout 이 자기 후속 계약으로만 통과하는지를 본다.
+  it("accepts 234 exact SQL files only through the new successor, without claiming hosted application", () => {
+    const root = researchFixtureRoot;
+    const plan = loadWeddingCodeResearchReleasePlan(root);
+    expect(plan.migrationCount).toBe(234);
+    expect(plan.runtimeEvidenceVerified).toBe(false);
+    expect(plan.releaseAuthorized).toBe(false);
+    expect(() => production(root)).not.toThrow();
+    expect(() => validateSuccessorReleaseContract({repoRoot: root, followup: "amora-not-applicable-status"}))
+      .toThrowError(expect.objectContaining({code: "FOLLOWUP_RELEASE_INVALID"}));
+    expect(() => validateSuccessorReleaseContract({repoRoot: root, followup: "wedding-code-research-scene-v09"}))
+      .toThrowError(expect.objectContaining({code: "FOLLOWUP_RELEASE_INVALID"}));
+    expect(() => loadNotApplicableStatusReleasePlan(repoRoot)).toThrowError(expect.objectContaining({code: "NEW_MIGRATION_NOT_REVIEWED"}));
+    expect(() => loadWeddingCodeResearchReleasePlan(repoRoot)).toThrowError(expect.objectContaining({code: "NEW_MIGRATION_NOT_REVIEWED"}));
   }, 120_000);
   it.each(researchPins)("refuses a changed or missing WeddingCode research artifact without fallback: %s", async file => {
     const target = join(researchFixtureRoot, file), bytes = await readFile(target);
@@ -139,7 +179,7 @@ describe("production build registers the exact WeddingCode research contribution
 
 describe("production build registers the exact not-applicable status successor after the 232 customer-data release", () => {
   // 실제 checkout 에는 이후 검토된 234번째 SQL(20260915130000)이 있어 233 공개 모드가 거절하는 것이 맞다.
-  // checkout 의 production 허용은 위 234 후속 계약이 잰다. 여기서는 233 역사 checkout 이 자기 후속 계약으로만 통과하는지를 본다.
+  // checkout 의 production 허용은 위 최신(235) 후속 계약이 잰다. 여기서는 233 역사 checkout 이 자기 후속 계약으로만 통과하는지를 본다.
   it("accepts 233 exact SQL files only through the new successor, without claiming hosted application", () => {
     const root = notApplicableFixtureRoot;
     const plan = loadNotApplicableStatusReleasePlan(root);
