@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
 import {
@@ -1235,5 +1237,127 @@ describe("저장된 계획을 명사로만 묻는 말은 W0 이다", () => {
       confidence: "high",
       needsClarification: false,
     });
+  });
+});
+
+/**
+ * 긴 공백이 들어와도 되돌아가기가 터지지 않는다 (2026-09-18).
+ *
+ * 적대 검토 실측: `STORED_PLAN_NOUN_QUESTION_PATTERN` 의 꼬리가 공백 별(`\s*`)을 세 자리
+ * (조사 뒤 · `요` 앞 · `요` 뒤) 연달아 두고 있어서, 긴 공백 뒤에 안 맞는 글자가 오면
+ * 되돌아갈 자리가 **세제곱**으로 늘었다. 패턴만 떼어 재면 `"공유 할 일" + 공백 N + "x"` 가
+ * N=1,000 에 0.16초, 2,000 에 1.24초, 5,000 에 18.9초였다(길이 두 배에 8배). `뭐` 와
+ * `몇 개` 뒤도 같은 세제곱이었고, 선행 이음말 자리와 `요` 자리는 제곱이라 N=50,000 에서
+ * 0.99초 · 1.11초였다.
+ *
+ * **오늘 운영에서 이 정지는 일어나지 않는다.** 유일한 호출자가 `normalizeAmoraSafetyText`
+ * 로 가로 공백을 한 칸으로 접은 문자열을 넘기기 때문이다(실측: 같은 문자열도 판정기
+ * 경로로는 0.2ms 안쪽). 그래서 **판정기로 재는 검사는 세제곱이 돌아와도 초록불이다** —
+ * 그것이 이 검사가 패턴을 직접 재는 이유다. 공백 접기는 이 패턴의 계약이 아니라 호출자의
+ * 습관이고, 호출자가 하나 늘거나 정규화 순서가 바뀌면 18.9초짜리 정지가 그대로 켜진다.
+ *
+ * 패턴은 모듈 내부 상수다. 검사를 위해 내보내지 않는 이 파일의 관례를 지키고, 대신 원문의
+ * 문자열 조각을 이어 붙여 같은 정규식을 짓는다. **떼어 온 것이 진짜 그 패턴인지**는 아래
+ * 첫 검사가 판정기와 대조한다 — 엉뚱한 것을 재고 초록불을 받는 것이 이 저장소가 가장 많이
+ * 당한 사고다(VERIFICATION.md).
+ */
+describe("저장 계획 명사 패턴은 긴 공백에 선형이다", () => {
+  const DECLARATION = "const STORED_PLAN_NOUN_QUESTION_PATTERN = new RegExp(";
+
+  /** 원문의 `"…"` 조각을 이어 붙여 같은 정규식을 짓는다(`eval` 은 쓰지 않는다). */
+  const buildPatternFromSource = (): RegExp => {
+    const source = readFileSync(resolve(process.cwd(), "src/lib/ai/amoraQuestionScope.ts"), "utf8");
+    const start = source.indexOf(DECLARATION);
+    if (start < 0) throw new Error("패턴 선언을 못 찾았다 — 이 검사는 아무것도 재지 못한다");
+    const body = source.slice(start + DECLARATION.length, source.indexOf("\n);", start));
+    const literals = [...body.matchAll(/"(?:[^"\\]|\\.)*"/gu)]
+      .map((match) => JSON.parse(match[0]) as string);
+    // 마지막 조각은 플래그다. 조각이 갑자기 줄거나 모양이 바뀌면 여기서 멈춘다.
+    const flags = literals.pop();
+    if (flags !== "u" || literals.length < 10) throw new Error(`패턴 조각을 잘못 떼어 왔다: ${literals.length}개, 플래그 ${String(flags)}`);
+    const joined = literals.join("");
+    if (!joined.startsWith("^") || !joined.endsWith("$")) throw new Error("패턴이 처음과 끝을 닫고 있지 않다");
+    return new RegExp(joined, flags);
+  };
+
+  const pattern = buildPatternFromSource();
+
+  it("떼어 온 정규식이 판정기가 쓰는 그 패턴이다", () => {
+    for (const userText of ["공유 할 일 지금 뭐 있어?", "그럼 남은 예산은?", "잔액 지금 얼마야?"]) {
+      expect(pattern.test(userText)).toBe(true);
+      expect(classifyAmoraQuestionScope({ userText }).scope).toBe("W0_wedding_core");
+    }
+    for (const userText of ["회사 공유 할 일 뭐 있어?", "할 일 뭐 있어?", "공유 할 일 지금 뭐 해?"]) {
+      expect(pattern.test(userText)).toBe(false);
+      expect(classifyAmoraQuestionScope({ userText }).scope).toBe("W4_out_of_scope");
+    }
+  });
+
+  // 공백을 뒤 토큰에 붙여 놓으면서 **받는 문장이 달라지지 않았는지**를 여기서 잡는다.
+  // 판정기로는 확인할 수 없다 — 정규화가 여러 칸 공백을 한 칸으로 접어 버린다.
+  it.each([
+    "남은 예산은  얼마야?",
+    "공유 할 일  뭐  있어?",
+    "공유 할 일 뭐 요?",
+    "남은 예산은 얼마야 ?",
+    "남은 예산은   ?",
+    "그럼 , 남은 예산은?",
+    "공유 할 일 지금  뭐 있어?",
+    "공유 할 일 몇 개  있어?",
+    "남은 예산 얼마나  남았어?",
+    "다음 일정 현재\t언제야?",
+    "공유 할 일 목록  뭐  있어요?",
+    "잔액은\t\t",
+    "남은 예산  요  ?",
+  ])("토큰 사이와 문장 끝의 여러 칸 공백을 그대로 받는다: %j", (userText) => {
+    expect(pattern.test(userText)).toBe(true);
+  });
+
+  it.each([
+    "공유 할 일  x",
+    "공유 할 일 뭐  x",
+    "남은 예산은 얼마야 ? x",
+    "공유 할 일 지금 지금 뭐 있어?",
+    "회사 공유 할 일  뭐  있어?",
+  ])("공백이 많아도 문장 모양이 아니면 받지 않는다: %j", (userText) => {
+    expect(pattern.test(userText)).toBe(false);
+  });
+
+  const ADVERSARIAL: readonly (readonly [string, (n: number) => string])[] = [
+    ["명사 뒤", (n) => `공유 할 일${" ".repeat(n)}x`],
+    ["조사 뒤", (n) => `잔액은${" ".repeat(n)}x`],
+    ["부사 뒤", (n) => `남은 예산 지금${" ".repeat(n)}x`],
+    ["`뭐` 뒤", (n) => `공유 할 일 뭐${" ".repeat(n)}x`],
+    ["`몇 개` 뒤", (n) => `공유 할 일 몇 개${" ".repeat(n)}x`],
+    ["어미 뒤(`요` 자리)", (n) => `공유 할 일 뭐 있어${" ".repeat(n)}x`],
+    ["선행 이음말 뒤", (n) => `지금${" ".repeat(n)}x`],
+    ["공백이 탭일 때", (n) => `공유 할 일${"\t".repeat(n)}x`],
+  ];
+
+  /** 한 번 돌리는 데 걸린 시간(ms). */
+  const elapsedMs = (input: string): number => {
+    const startedAt = process.hrtime.bigint();
+    pattern.test(input);
+    return Number(process.hrtime.bigint() - startedAt) / 1e6;
+  };
+
+  // 한 번 돌리는 데 이만큼도 안 걸려야 한다. 고친 뒤 실측은 N=50,000 에서도 전부 0.9ms
+  // 아래였다(약 300배 여유). 옛 세제곱 자리는 N=2,000 에서 1,231~1,246ms, 옛 제곱 자리는
+  // N=50,000 에서 994~1,112ms 였으므로 어느 쪽이 돌아와도 이 선을 넘는다.
+  const BUDGET_MS = 250;
+
+  it("긴 공백 뒤에 안 맞는 글자가 와도 한 번 돌리는 값이 예산 안이다", () => {
+    // 정규식 컴파일·JIT 예열을 측정에서 뺀다(첫 호출이 30ms 가까이 걸린 적이 있다).
+    for (let i = 0; i < 200; i += 1) pattern.test("남은 예산은 얼마야?");
+    // 세제곱 자리는 N=2,000 에서 이미 1.2초다. 먼저 재서 빨리 떨어지게 한다.
+    for (const [where, make] of ADVERSARIAL) {
+      const elapsed = elapsedMs(make(2_000));
+      expect(elapsed, `${where} · N=2,000 에서 ${elapsed.toFixed(1)}ms`).toBeLessThan(BUDGET_MS);
+    }
+    // 제곱 자리는 N=2,000 에서 2ms 라 안 보인다. 길이를 키우면 드러난다.
+    for (const [where, make] of ADVERSARIAL) {
+      const elapsed = elapsedMs(make(50_000));
+      expect(elapsed, `${where} · N=50,000 에서 ${elapsed.toFixed(1)}ms`).toBeLessThan(BUDGET_MS);
+    }
   });
 });
