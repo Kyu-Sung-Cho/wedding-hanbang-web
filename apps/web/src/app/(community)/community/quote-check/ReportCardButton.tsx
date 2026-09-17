@@ -82,7 +82,7 @@ export default function ReportCardButton({ result }: { result: AmoraQuoteCheckRe
         type="button"
         onClick={saveReport}
         disabled={saving}
-        className="inline-flex w-full items-center justify-center gap-2 rounded-[6px] bg-[#9d6f36] px-4 py-3 text-sm font-semibold text-white transition-colors hover:bg-[#86602f] disabled:opacity-60"
+        className="inline-flex w-full items-center justify-center gap-2 rounded-[6px] bg-[var(--hb-action)] px-4 py-3 text-sm font-semibold text-white transition-colors hover:bg-[var(--hb-action-hover)] disabled:opacity-60"
       >
         {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <ImageDown className="h-4 w-4" />}
         리포트 이미지로 저장·공유

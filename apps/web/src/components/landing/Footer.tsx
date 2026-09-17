@@ -35,17 +35,17 @@ export default function Footer() {
             <Link href={weddingPath()} className="inline-block">
               <Logo size="sm" variant="white" />
             </Link>
-            <p className="text-[var(--hb-on-primary)]/60 text-sm leading-relaxed mt-5 font-light max-w-[320px]">
+            <p className="text-[var(--hb-on-primary)] text-sm leading-relaxed mt-5 font-light max-w-[320px]">
               당신만의 AI 동반자 &apos;아모라&apos;가 있는 곳.
             </p>
-            <p className="text-[var(--hb-on-primary)]/40 text-xs mt-4">
+            <p className="text-[var(--hb-on-primary)] text-xs mt-4">
               웨딩한방 · 한방그룹
             </p>
           </div>
 
           {/* 서비스 */}
           <div>
-            <h5 className="text-rose-light text-xs mb-5 font-medium">
+            <h5 className="text-[var(--hb-on-primary)] text-xs mb-5 font-medium">
               서비스
             </h5>
             <ul className="space-y-3">
@@ -53,7 +53,7 @@ export default function Footer() {
                 <li key={link.href}>
                   <Link
                     href={link.href}
-                    className="text-[var(--hb-on-primary)]/80 hover:text-white text-sm font-light transition-colors"
+                    className="text-[var(--hb-on-primary)] hover:underline underline-offset-4 text-sm font-light transition-colors"
                   >
                     {link.label}
                   </Link>
@@ -72,7 +72,7 @@ export default function Footer() {
                 <li key={link.href}>
                   <Link
                     href={link.href}
-                    className="text-[var(--hb-on-primary)]/80 hover:text-white text-sm font-light transition-colors"
+                    className="text-[var(--hb-on-primary)] hover:underline underline-offset-4 text-sm font-light transition-colors"
                   >
                     {link.label}
                   </Link>
@@ -93,7 +93,7 @@ export default function Footer() {
                     href={link.href}
                     target={link.href.startsWith("http") ? "_blank" : undefined}
                     rel={link.href.startsWith("http") ? "noopener noreferrer" : undefined}
-                    className="text-[var(--hb-on-primary)]/80 hover:text-white text-sm font-light transition-colors break-all"
+                    className="text-[var(--hb-on-primary)] hover:underline underline-offset-4 text-sm font-light transition-colors break-all"
                   >
                     {link.label}
                   </a>
@@ -108,21 +108,21 @@ export default function Footer() {
 
         {/* 거래 기능을 열기 전 법률·사업 검토를 거쳐 확정할 정보 */}
         <div className="pt-8 mt-8 border-t border-white/10 space-y-3">
-          <p className="text-[var(--hb-on-primary)]/70 text-xs leading-relaxed">
-            <span className="text-rose-light font-medium">운영 문의</span> ·
+          <p className="text-[var(--hb-on-primary)] text-xs leading-relaxed">
+            <span className="text-[var(--hb-on-primary)] font-medium">운영 문의</span> ·
             대표 이메일 <a href={`mailto:${CONTACT.email}`} className="underline hover:text-white">{CONTACT.email}</a>
           </p>
-          <p className="text-[var(--hb-on-primary)]/50 text-xs leading-relaxed">
+          <p className="text-[var(--hb-on-primary)] text-xs leading-relaxed">
             현재 공개 화면은 정보 정리 기능을 제공합니다. 결제·중개 등 거래 기능을 제공하기 전 운영 주체, 사업자 정보, 책임 범위와 환불 기준을 법률 검토 후 별도로 고지합니다.
           </p>
         </div>
 
         {/* 카피라이트 + 법령 준수 */}
         <div className="pt-6 mt-6 border-t border-white/5 flex flex-col gap-3 md:flex-row md:justify-between md:items-center">
-          <p className="text-[var(--hb-on-primary)]/60 text-xs">
+          <p className="text-[var(--hb-on-primary)] text-xs">
             &copy; 2026 Hanbang Group. All rights reserved.
           </p>
-          <p className="text-[var(--hb-on-primary)]/50 text-xs leading-relaxed">AI 답변은 참고 자료이며 계약·가격·법률 판단은 원문과 전문가를 통해 최종 확인해 주세요.</p>
+          <p className="text-[var(--hb-on-primary)] text-xs leading-relaxed">AI 답변은 참고 자료이며 계약·가격·법률 판단은 원문과 전문가를 통해 최종 확인해 주세요.</p>
         </div>
       </div>
     </footer>

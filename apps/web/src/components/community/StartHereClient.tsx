@@ -184,7 +184,7 @@ export default function StartHereClient() {
         <div className="mx-auto w-full max-w-[1240px] px-5 pb-10 pt-8 sm:px-8 sm:pb-12 sm:pt-11 lg:px-10 lg:pb-14">
           <div className="grid gap-8 lg:grid-cols-[minmax(0,0.95fr)_minmax(520px,1.05fr)] lg:items-end lg:gap-16">
             <div className="max-w-[650px]">
-              <p className="text-[12px] font-semibold text-[#E2D3C8]">
+              <p className="text-[12px] font-semibold text-[var(--hb-on-primary)]">
                 날짜 입력은 로그인 없이 · 날짜는 서버로 보내지 않아요
               </p>
               <h1
@@ -194,7 +194,7 @@ export default function StartHereClient() {
                 첫 준비는
                 <span className="mt-1 block text-[#E2D3C8]">날짜가 없어도 돼요.</span>
               </h1>
-              <p className="mt-5 max-w-[36rem] text-[16px] leading-7 text-white/84 sm:text-[17px] sm:leading-8">
+              <p className="mt-5 max-w-[36rem] text-[16px] leading-7 text-[var(--hb-on-primary)] sm:text-[17px] sm:leading-8">
                 날짜가 있으면 지금 볼 세 가지를, 아직 없다면 둘이 먼저 맞출 기준 한 가지를 정리해 드려요.
                 대략 잡은 날짜도 괜찮아요.
               </p>
@@ -213,14 +213,14 @@ export default function StartHereClient() {
                     aria-current={Number(step) === currentStep ? "step" : undefined}
                     className="min-h-[82px] border-r border-white/12 px-2 py-4 last:border-r-0 sm:min-h-[92px] sm:px-5"
                   >
-                    <span className={`text-[12px] font-semibold ${reached ? "text-[#E2D3C8]" : "text-white/70"}`}>
+                    <span className={`text-[12px] text-white ${reached ? "font-bold" : "font-medium"}`}>
                       0{step}
                     </span>
                     <div className="mt-2">
-                      <p className={`text-[12px] font-semibold leading-5 sm:text-[14px] ${reached ? "text-white" : "text-white/72"}`}>
+                      <p className={`text-[12px] leading-5 text-white sm:text-[14px] ${reached ? "font-semibold" : "font-normal"}`}>
                         {title}
                       </p>
-                      <p className="mt-1 hidden text-[12px] leading-5 text-white/72 sm:block">{description}</p>
+                      <p className="mt-1 hidden text-[12px] leading-5 text-white sm:block">{description}</p>
                     </div>
                   </li>
                 );
@@ -402,10 +402,10 @@ export default function StartHereClient() {
                 </ol>
 
                 <div className="mt-7 bg-[var(--hb-primary)] px-5 py-6 text-white sm:px-6">
-                  <p className="text-[12px] font-semibold text-[#E2D3C8]">03 · 첫 질문으로 이어가기</p>
+                  <p className="text-[12px] font-semibold text-[var(--hb-on-primary)]">03 · 첫 질문으로 이어가기</p>
                   <h3 className="mt-2 text-[20px] font-semibold">이제 아모라에게 한 가지만 물어보세요.</h3>
                   {/* 체험이 닫히면 "로그인 없이 여는 체험" 이라는 설명이 사실이 아니게 된다. */}
-                  <p className="mt-2 text-[14px] leading-6 text-white/82">
+                  <p className="mt-2 text-[14px] leading-6 text-[var(--hb-on-primary)]">
                     {isPublicDemoTrialEnabled()
                       ? "날짜와 지금 볼 항목을 입력창에 임시로 넘겨드려요. 로그인 없이 여는 체험은 계정 기록에 남지 않고, 로그인해 있으면 계정 채팅에서 이어져요."
                       : "날짜와 지금 볼 항목을 가입 화면으로 임시로 넘겨드려요. 계정을 만들면 그 내용으로 아모라와 바로 이어갈 수 있어요."}

@@ -53,7 +53,7 @@ export default function PriceLayout({ children }: { children: React.ReactNode })
             <Link {...weddingLinkProps()} prefetch={false} className="inline-flex items-center" aria-label="웨딩한방 홈으로 이동">
               <Logo size="sm" variant="white" />
             </Link>
-            <p className="mt-3 text-[13px] font-medium leading-6 text-white/70">
+            <p className="mt-3 text-[13px] font-medium leading-6 text-[var(--hb-on-primary)]">
               결혼 준비, 아모라와 처음부터 끝까지.
             </p>
           </div>
@@ -62,7 +62,7 @@ export default function PriceLayout({ children }: { children: React.ReactNode })
             <h2 className="mb-3 text-[14px] font-semibold text-white">둘러보기</h2>
             <div className="flex flex-col gap-2">
               {HEADER_LINKS.map((link) => (
-                <Link key={link.href} href={link.href} prefetch={false} className="text-[13px] font-medium text-white/65 hover:text-[#f2e8c8]">
+                <Link key={link.href} href={link.href} prefetch={false} className="text-[13px] font-medium text-[var(--hb-on-primary)] underline-offset-4 hover:underline">
                   {link.label}
                 </Link>
               ))}
@@ -73,7 +73,7 @@ export default function PriceLayout({ children }: { children: React.ReactNode })
             <h2 className="mb-3 text-[14px] font-semibold text-white">정책</h2>
             <div className="flex flex-col gap-2">
               {POLICY_LINKS.map((link) => (
-                <Link key={link.href} href={link.href} prefetch={false} className="text-[13px] font-medium text-white/65 hover:text-[#f2e8c8]">
+                <Link key={link.href} href={link.href} prefetch={false} className="text-[13px] font-medium text-[var(--hb-on-primary)] underline-offset-4 hover:underline">
                   {link.label}
                 </Link>
               ))}
@@ -82,14 +82,14 @@ export default function PriceLayout({ children }: { children: React.ReactNode })
 
           <div>
             <h2 className="mb-3 text-[14px] font-semibold text-white">연락</h2>
-            <div className="space-y-1 text-[13px] font-medium text-white/70">
+            <div className="space-y-1 text-[13px] font-medium text-[var(--hb-on-primary)]">
               <p>{CONTACT.email}</p>
               <p>{CONTACT.hours}</p>
               <p>({CONTACT.lunch})</p>
             </div>
           </div>
         </div>
-        <div className="mx-auto w-full max-w-[1320px] border-t border-white/10 px-4 py-4 text-[12px] leading-6 text-white/55 sm:px-6 lg:px-8">
+        <div className="mx-auto w-full max-w-[1320px] border-t border-white/10 px-4 py-4 text-[12px] leading-6 text-[var(--hb-on-primary)] sm:px-6 lg:px-8">
           <p>
             가격 출처: 한국소비자원 참가격 공시 자료. 공시 기준이라 계약 시점·조건에 따라 실제 금액이 달라질 수 있으니 계약 전 업체에 직접 확인하세요.
           </p>

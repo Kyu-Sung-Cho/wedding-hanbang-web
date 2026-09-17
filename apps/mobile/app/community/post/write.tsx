@@ -310,7 +310,7 @@ export default function WritePostScreen() {
                   style={[styles.pickerOption, category === cat.key && styles.pickerOptionActive]}
                   onPress={() => { setCategory(cat.key); setShowCategoryPicker(false); }}
                 >
-                  <Text style={[styles.pickerOptionText, category === cat.key && { color: colors.rose[500], fontWeight: "600" }]}>
+                  <Text style={[styles.pickerOptionText, category === cat.key && { color: colors.rose[700], fontWeight: "600" }]}>
                     {cat.label}
                   </Text>
                   {category === cat.key && <Check size={16} color={colors.rose[500]} />}
@@ -484,7 +484,7 @@ const styles = StyleSheet.create({
     borderBottomColor: colors.rose[500],
   },
   tabText: { fontSize: 14, color: colors.textTertiary },
-  tabTextActive: { color: colors.rose[500], fontWeight: "600" },
+  tabTextActive: { color: colors.rose[700], fontWeight: "600" },
 
   content: { padding: 20, gap: 4, paddingBottom: 40 },
 

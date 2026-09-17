@@ -161,6 +161,7 @@ export default function InviteCodeCard({
           styles.shareButton,
           dark && styles.shareButtonDark,
           pressed && styles.pressed,
+          pressed && styles.shareButtonPressed,
           sharing && styles.disabled,
         ]}
         onPress={handleShare}
@@ -266,10 +267,16 @@ const styles = StyleSheet.create({
     gap: 8,
     paddingVertical: 13,
     borderRadius: 14,
-    backgroundColor: colors.rose[500],
+    backgroundColor: colors.rose[600],
   },
   shareButtonDark: {
     backgroundColor: colors.rose[600],
+  },
+  // 눌림은 불투명 rose[700](흰 글자 6.25:1). 공용 pressed 의 투명도는 안드로이드에서
+  // 바탕과 글자에 따로 적용돼 글자가 흐려지므로 여기서 되돌린다.
+  shareButtonPressed: {
+    backgroundColor: colors.rose[700],
+    opacity: 1,
   },
   shareText: {
     fontSize: 15,

@@ -2135,6 +2135,7 @@ export default function ScheduleScreen() {
               <Pressable
                 style={({ pressed }) => [
                   styles.saveBtn,
+                  pressed && styles.saveBtnPressed,
                   pressed && { transform: [{ scale: 0.98 }] },
                   { flex: 1 },
                 ]}
@@ -2651,10 +2652,11 @@ const styles = StyleSheet.create({
   },
   cancelBtnText: { fontSize: 14, fontWeight: "600", color: colors.noir[800] },
   saveBtn: {
-    backgroundColor: colors.rose[500],
+    backgroundColor: colors.rose[600],
     borderRadius: 16,
     paddingVertical: 16,
     alignItems: "center",
   },
+  saveBtnPressed: { backgroundColor: colors.rose[700] },
   saveBtnText: { fontSize: 16, fontWeight: "600", color: "#fff" },
 });

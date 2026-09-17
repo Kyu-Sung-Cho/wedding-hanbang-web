@@ -933,13 +933,13 @@ export default function PostDetailScreen() {
                 >
                   <ChevronUp
                     size={20}
-                    color={userVote === 1 ? colors.rose[500] : colors.taupe[400]}
+                    color={userVote === 1 ? colors.rose[700] : colors.taupe[400]}
                   />
                 </Pressable>
               </Animated.View>
               <Text style={[
                 styles.voteCount,
-                userVote === 1 && { color: colors.rose[500] },
+                userVote === 1 && { color: colors.rose[700] },
               ]}>{votes}</Text>
             </View>
             <View style={styles.actionGroup}>

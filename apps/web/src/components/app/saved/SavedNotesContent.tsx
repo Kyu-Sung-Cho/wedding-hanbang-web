@@ -260,7 +260,7 @@ function ScopedSavedNotesContent({ scope, embedded }: { scope: string; embedded:
           </p>
           <Link
             {...weddingLinkProps("/chat")}
-            className="mt-5 inline-flex min-h-11 items-center rounded-[6px] bg-[#C4967E] px-5 text-base font-bold text-white hover:bg-[#B5876F]"
+            className="mt-5 inline-flex min-h-11 items-center rounded-[6px] bg-[var(--amora-action)] px-5 text-base font-bold text-white hover:bg-[var(--amora-action-hover)]"
           >
             아모라와 이야기하기
           </Link>

@@ -1454,7 +1454,7 @@ const styles = StyleSheet.create({
     fontFamily: "NotoSansKR_600SemiBold",
     color: colors.textSecondary,
   },
-  roleLabelActive: { color: colors.rose[500] },
+  roleLabelActive: { color: colors.rose[700] },
 
   // Step 2: 커플
   optionCard: {
@@ -1477,7 +1477,7 @@ const styles = StyleSheet.create({
     color: colors.noir[800],
     marginBottom: 4,
   },
-  optionTitleActive: { color: colors.rose[500] },
+  optionTitleActive: { color: colors.rose[700] },
   optionDesc: {
     fontSize: 13,
     fontFamily: "NotoSansKR_400Regular",
@@ -1635,7 +1635,7 @@ const styles = StyleSheet.create({
     color: colors.noir[800],
   },
   prefLabelActive: {
-    color: colors.rose[500],
+    color: colors.rose[700],
   },
   prefDesc: {
     fontSize: 11,
@@ -1772,7 +1772,7 @@ const styles = StyleSheet.create({
     fontFamily: "NotoSansKR_600SemiBold",
     color: colors.noir[800],
   },
-  stageLabelActive: { color: colors.rose[500] },
+  stageLabelActive: { color: colors.rose[700] },
   stageHint: {
     fontSize: 12,
     fontFamily: "NotoSansKR_400Regular",
