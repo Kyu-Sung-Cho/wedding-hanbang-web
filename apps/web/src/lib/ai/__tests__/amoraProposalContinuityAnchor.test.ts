@@ -73,6 +73,93 @@ const CLOSING_REPLIES = [
   "응 ㅋㅋ",
 ] as const;
 
+/**
+ * 앞 요청을 **거절하는** 답 (2026-09-18 검토).
+ *
+ * 위 `CLOSING_REPLIES` 는 값이 덜 정해졌거나 우리 말이 아닌 경우였다. 그냥 "하지
+ * 마" 라고 거절한 답은 그 셋 중 어디에도 없어서, 앞 요청의 카드 도구를 그대로
+ * 이어받았다 — 누르지 않으면 아무것도 저장되지 않지만, 거절한 답에 카드를 내미는
+ * 것 자체가 틀렸다. `없던 일로 해줘` 만 `RETRACTION` 에 걸려 이미 닫혀 있었다.
+ */
+const REFUSING_REPLIES = [
+  // 검토가 적어 온 다섯 문장.
+  "아니 됐어",
+  "아니 하지 마",
+  "나중에 할래",
+  "취소해줘",
+  "안 할래",
+  // 같은 말의 다른 모양.
+  "됐어",
+  "하지 마",
+  "아냐 됐어",
+  "아니요 괜찮아요",
+  "아니 지금은 안 할래",
+  "안 해도 돼",
+  "필요 없어",
+  "관둬",
+  "관둘래",
+  "그만",
+  "그만하자",
+  "아니 취소",
+  "취소할래",
+  "아니 그냥 놔둬",
+  "반영하지 마",
+  "저장하지 마",
+  "적용하지 말아줘",
+  "지금은 하지 말아줘",
+  "일단 하지 마",
+  "다시 생각해볼게",
+  "좀 더 생각해볼게",
+  "나중에 하자",
+  // 항목을 말하지만 거절이다. "새 값을 말하면 정정" 예외를 넣었다가 이 줄 때문에 뺐다 —
+  // 무엇을 미루는지 적은 거절이 정정으로 읽혔다.
+  "드레스는 나중에 할래",
+  // 이 갈래는 `RETRACTION` 이 이미 닫고 있었다. 회귀 여부를 같이 본다.
+  "없던 일로 해줘",
+] as const;
+
+/**
+ * 거절인데 **자기 문장이 금액을 품어** 이어 붙인 문장만으로 예산 경로가 열리는 답.
+ *
+ * "300만원" 이 키워드로 배분 경로를 열어 `pendingProposalToolNames` 의 관문 해제가
+ * 켜지므로, 이 턴은 닻이 없어도 예산 카드 도구가 나온다 — 803831b6 이전과 같은 경로다.
+ * 여기서 고정하는 것은 **닻이 아무것도 더하지 않는다**는 것이다.
+ */
+const REFUSING_REPLIES_WITH_OWN_VALUE = ["300만원은 필요 없어"] as const;
+
+/**
+ * 거절처럼 생겼지만 **새 값을 주는** 답 — 정정이라 계속 이어받는다.
+ *
+ * "아니" 와 "하지 마" 만 보면 아래 문장들도 거절로 읽힌다. 금액·날짜·항목 이름이
+ * 있으면 무엇으로 바꾸라는 말이므로 거절로 보지 않는다.
+ */
+const CORRECTING_REPLIES = [
+  "아니 3천으로 바꿔줘",
+  "아니 10월 18일로 해줘",
+  "아니 다음 주 화요일로 옮겨줘",
+  "아니 그건 하지 말고 식대는 1200만원으로 올려줘",
+  "아니 드레스는 하지 말고 스튜디오로 해줘",
+  // 무엇을 취소하라는 말은 정당한 변경 요청이다(`pendingProposalToolNames` 주석).
+  "드레스 투어 일정 취소해줘",
+  "예약 취소해줘",
+] as const;
+
+/** 거절 낱말을 품었지만 거절이 아닌 말 — 오탐이면 위 D1 결함이 되살아난다. */
+const NOT_REFUSING_REPLIES = [
+  "잘 됐어",
+  "거의 다 됐어",
+  "안 됐어",
+  "그만큼이면 충분해",
+  // 사양이 아니라 되묻는 말 — "그건 괜찮아?" 는 그 항목이 괜찮은지 묻는 것이다.
+  "그건 괜찮아?",
+] as const;
+
+/** 금액·날짜를 스스로 품은 직접 변경 요청. 이어 붙인 문장만으로도 도구가 나온다. */
+const DIRECT_CHANGE_ANCHORS = [
+  "결혼식장 예산 1800만원으로 다시 바꿔줘",
+  "10월 17일 오후 2시에 드레스 투어 일정 넣어줘",
+] as const;
+
 /** 자기 턴에서도 카드 도구가 없던 앞 요청 — 이어받을 것이 없다. */
 const NO_OFFER_ANCHORS = [
   // 남에게 들은 말.
@@ -185,7 +272,7 @@ describe("짧은 답은 앞 요청이 받았던 확인 카드 도구를 이어�
   it.each(["응 농담이야", "음 고민 중이야", "응 근데 추천해줘"])(
     "직접 변경 요청 뒤에서도 무르는 답 \"%s\" 는 오늘처럼 닫혀 있다",
     (reply) => {
-      const prior = "결혼식장 예산 1800만원으로 다시 바꿔줘";
+      const prior = DIRECT_CHANGE_ANCHORS[0];
       for (const stage of STAGES) {
         expect(offeredOnOwnTurn(prior, stage).length, stage).toBeGreaterThan(0);
         expect(offeredOnFollowUp(prior, reply, stage), stage).toEqual([]);
@@ -194,17 +281,62 @@ describe("짧은 답은 앞 요청이 받았던 확인 카드 도구를 이어�
     },
   );
 
+  describe("거절한 답은 앞 요청의 카드 도구를 이어받지 않는다", () => {
+    it.each(REFUSING_REPLIES)("거절 \"%s\" 는 U1 뒤에서 카드 도구를 받지 않는다", (reply) => {
+      for (const stage of STAGES) {
+        expect(offeredOnFollowUp(U1, reply, stage), stage).toEqual([]);
+      }
+    });
+
+    // 계획 요청 뒤가 아니라 **직접 변경 요청** 뒤의 거절이다. 이어 붙인 문장 자신이
+    // 금액·날짜를 품고 있어 그 경로로는 오늘도 도구가 나온다(이 수리 전과 같다).
+    // 여기서 고정하는 것은 **닻이 아무것도 더하지 않는다**는 것뿐이다.
+    it.each([...REFUSING_REPLIES, ...REFUSING_REPLIES_WITH_OWN_VALUE])(
+      "거절 \"%s\" 뒤에서 닻은 아무것도 더하지 않는다",
+      (reply) => {
+        for (const prior of [...PLANNING_ANCHORS, ...DIRECT_CHANGE_ANCHORS]) {
+          for (const stage of STAGES) {
+            const label = `${prior} / ${stage}`;
+            expect(offeredOnFollowUp(prior, reply, stage), label)
+              .toEqual(offeredOnFollowUp(prior, reply, stage, false));
+          }
+        }
+      },
+    );
+
+    it.each(CORRECTING_REPLIES)("값을 주는 정정 \"%s\" 는 계속 이어받는다", (reply) => {
+      for (const prior of PLANNING_ANCHORS) {
+        for (const stage of STAGES) {
+          expect(offeredOnFollowUp(prior, reply, stage), `${prior} / ${stage}`)
+            .toEqual(expect.arrayContaining([...BUDGET_CARD_TOOLS]));
+        }
+      }
+    });
+
+    it.each(NOT_REFUSING_REPLIES)("거절이 아닌 \"%s\" 는 계속 이어받는다", (reply) => {
+      for (const prior of PLANNING_ANCHORS) {
+        for (const stage of STAGES) {
+          expect(offeredOnFollowUp(prior, reply, stage), `${prior} / ${stage}`)
+            .toEqual(expect.arrayContaining([...BUDGET_CARD_TOOLS]));
+        }
+      }
+    });
+  });
+
   it("더해지는 것은 앞 요청이 이미 받았던 것뿐이고, 오늘 받던 것은 줄지 않는다", () => {
     const anchors = [
       ...PLANNING_ANCHORS,
       ...NO_OFFER_ANCHORS,
-      "결혼식장 예산 1800만원으로 다시 바꿔줘",
+      ...DIRECT_CHANGE_ANCHORS,
       "드레스 예산을 450만 원으로 늘리면 남은 예산이 어떻게 돼?",
-      "10월 17일 오후 2시에 드레스 투어 일정 넣어줘",
     ];
     const replies = [
       ...CONTINUING_REPLIES,
       ...CLOSING_REPLIES,
+      ...REFUSING_REPLIES,
+      ...REFUSING_REPLIES_WITH_OWN_VALUE,
+      ...CORRECTING_REPLIES,
+      ...NOT_REFUSING_REPLIES,
       "응 알겠어",
       "응 고마워",
       "사진 촬영만",
