@@ -28,18 +28,18 @@ const QUESTIONS: readonly ConfirmationQuestion[] = [
     question: "아모라와 같이 고를 때 뭐부터 보고 싶어요?",
     options: [
       { value: "recommend_first", label: "추천안 먼저", effect: "추천안 하나를 먼저 보고, 거기서 고쳐 나가요." },
-      { value: "compare_first", label: "비교 먼저", effect: "고를 만한 안 두세 개를 놓고 뭐가 다른지부터 봐요." },
+      { value: "compare_first", label: "비교 먼저", effect: "고를 만한 안이 있으면 뭐가 다른지부터 나란히 봐요." },
       { value: "ask_each_time", label: "그때 물어보기", effect: "추천과 비교 중 뭐가 필요한지 애매할 때만 먼저 물어봐요." },
     ],
   },
   {
     field: "workMode", axis: "preparationMode",
-    question: "아모라가 할 일을 제안할 때, 둘이 어떻게 준비하는 게 좋아요?",
+    question: "할 일을 아모라가 제안할 때, 둘이 어떻게 준비하는 게 좋아요?",
     options: [
       { value: "together", label: "처음부터 함께", effect: "후보를 찾을 때부터 둘이 같이 보게 도와줘요." },
       { value: "owner_led", label: "담당자가 먼저", effect: "한 사람이 후보를 줄여 오면, 마지막엔 둘이 같이 정하게 도와줘요." },
-      { value: "hybrid", label: "상황에 따라 섞기", effect: "같이 정할 일과 한 사람이 맡을 일을 나눠서 알려 줘요." },
-      { value: "ask_each_time", label: "그때 물어보기", effect: "나눠서 할 일이 생기면 같이 할지 나눌지 먼저 물어봐요." },
+      { value: "hybrid", label: "상황에 따라 섞기", effect: "되돌리기 어려운 일은 같이 정하고, 나머지는 나눠서 하자고 제안해요." },
+      { value: "ask_each_time", label: "그때 물어보기", effect: "누가 맡을지 정해야 할 때만, 같이 할지 나눠서 할지 먼저 물어봐요." },
     ],
   },
   {
@@ -49,7 +49,7 @@ const QUESTIONS: readonly ConfirmationQuestion[] = [
       { value: "couple_first", label: "우리 둘 기준 먼저", effect: "둘이 원하는 걸 먼저 정하고, 필요하면 그다음에 가족 의견을 들어요." },
       { value: "family_input_first", label: "의견부터 모으기", effect: "이 일에 걸린 가족이나 하객 사정부터 들어요." },
       { value: "case_by_case", label: "상황마다", effect: "누가 돈을 내는지, 누구 사정이 걸렸는지 보고 순서를 정해요." },
-      { value: "ask_each_time", label: "그때 물어보기", effect: "이번엔 누구 의견부터 들을지 먼저 물어봐요." },
+      { value: "ask_each_time", label: "그때 물어보기", effect: "누구 의견이 필요한지 애매할 때만 먼저 물어봐요." },
     ],
   },
   {

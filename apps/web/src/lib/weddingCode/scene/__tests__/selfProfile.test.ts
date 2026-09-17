@@ -185,7 +185,7 @@ describe("웨딩코드 개인 결과", () => {
     expect(axis).toMatchObject({ lean: "left", leftCount: 4, rightCount: 1 });
     expect(axis.missingPhrases).toEqual(["결혼식 날에 거는 기대나 받은 인상"]);
     expect(describeSelfAxisAbsence(axis)).toBe(
-      "“분위기 먼저” 쪽 답을 고르긴 했지만, 그중 ‘결혼식 날에 거는 기대나 받은 인상’ 답은 없었어요.",
+      "“분위기 먼저” 쪽 답을 고르긴 했지만, 그중 ‘결혼식 날에 거는 기대나 받은 인상’부터 보는 답은 없었어요.",
     );
     expect(describeSelfAxisReading(axis)).toBe(
       "답한 5장면 중 4장면은 V(조건 먼저), 1장면은 M(분위기 먼저) 쪽이었어요.",
@@ -209,7 +209,7 @@ describe("웨딩코드 개인 결과", () => {
       expect(axis.rightLabel).toBe(WEDDING_CODE_LETTERS[axis.axis].right.short);
     }
     const support = reading(profile, "supportOrder");
-    expect(support.qualifiers).toEqual(["말을 멈춘 경험만으로 듣는 도움을 원했다고 단정하지 않아요."]);
+    expect(support.qualifiers).toEqual(["말을 그만뒀다고 해서 들어주길 바랐다고 보긴 어려워요."]);
     expect(support.watchOut).toBe(WEDDING_CODE_SELF_READING.supportOrder.left.watchOut);
   });
 

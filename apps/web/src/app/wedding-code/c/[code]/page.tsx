@@ -137,7 +137,7 @@ export default async function WeddingCodeMeaningPage({
           내 웨딩코드 받아보기
         </Link>
         <p className="mt-3 text-center text-[13px] font-medium text-[var(--color-rose-700)]">
-          {SCENE_COUNT} 문항 · 로그인 없이
+          {SCENE_COUNT} 장면 · 로그인 없이
         </p>
       </div>
     </main>

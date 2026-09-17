@@ -43,7 +43,7 @@ describe("실제로 공개되는 비교 화면", () => {
     await render({ C1: "A", C2: "B" }, { C1: "C", C2: "A" });
     expect(container.querySelector('[data-pair-axis="coordinationScope"] [data-pair-state]')?.getAttribute("data-pair-state")).toBe("different");
     expect(container.textContent).not.toContain("함께 답한 자리가 없어서");
-    expect(container.textContent).toContain("반반이라 글자를 비교하지 않았어요");
+    expect(container.textContent).toContain("글자가 비어 있어 비교하지 않았어요");
     // 글자만 보여주지 않고 짧은 이름을 함께 쓴다(혼자 결과의 범례와 같은 이름).
     expect(container.querySelector('[data-code-slot="coordinationScope"]')?.textContent).toContain("글자 없음");
   });

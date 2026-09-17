@@ -85,7 +85,7 @@ function TasteExperience({ session }: { session: ReturnType<typeof useWeddingCod
       window.history.replaceState(window.history.state, "", `${url.pathname}${url.search}${url.hash}`);
       if (!draft) { setNotice("고르던 내용을 불러오지 못했어요. 15분이 지났거나 다른 탭에서 열었을 수 있어요. 다시 골라 주세요."); return; }
       setReceived(null); setOwn(draft); setMode("result"); setReviewAmora(true);
-      setNotice("로그인 전에 고른 내용을 가져왔어요. 아래에서 계정과 보낼 내용을 확인해 주세요. 아모라에게는 아직 보내지 않았어요.");
+      setNotice("아까 고른 내용을 가져왔어요. 아래에서 계정과 보낼 내용을 확인해 주세요. 아모라에게는 아직 보내지 않았어요.");
     });
     return () => { active = false; };
   }, [isInitialized, isLoading, user, isDemo, session.status]);
@@ -114,7 +114,7 @@ function TasteExperience({ session }: { session: ReturnType<typeof useWeddingCod
     <main className="min-h-dvh bg-[var(--hb-surface-page)] px-4 py-6 text-[var(--hb-text-strong)] sm:py-10">
       <div className="mx-auto w-full max-w-[640px] space-y-4 [&_button]:whitespace-normal [&_button]:leading-relaxed">
         <Link href="/wedding-code" className="inline-flex min-h-11 items-center text-sm underline underline-offset-4">웨딩코드로 돌아가기</Link>
-        {isDemo ? <p role="status" className={`${card} text-sm leading-relaxed`}>체험 모드에서는 취향을 고르고 링크로 공유할 수 있어요. 아모라와 이야기하려면 내 계정으로 로그인해 주세요.</p> : null}
+        {isDemo ? <p role="status" className={`${card} text-sm leading-relaxed`}>체험 모드에서는 취향을 고르고 링크로 공유할 수 있어요. 고른 내용을 ‘나만 상담’으로 옮기려면 내 계정으로 로그인해 주세요.</p> : null}
         {notice ? <p role="status" className={`${card} text-sm leading-relaxed`}>{notice}</p> : null}
         {linkError ? <section className={card} role="alert"><h1 className="text-xl font-semibold">링크를 다시 확인해 주세요</h1><p className="mt-3 text-sm leading-relaxed">{linkError}</p><Button className="mt-5" onClick={startFresh}>내 취향 처음부터 고르기</Button></section> : mode === "intro" ? (
           <section className={card}>
@@ -182,9 +182,9 @@ function TasteExperience({ session }: { session: ReturnType<typeof useWeddingCod
               {!reviewAmora ? <Button className="mt-5" fullWidth onClick={() => setReviewAmora(true)}>전달할 내용 확인하기</Button> : <>
                 <p className="mt-4 whitespace-pre-wrap rounded-[6px] bg-[var(--hb-surface-hover)] p-4 text-sm leading-relaxed" data-taste-amora-text="">{buildWeddingTasteAmoraText(own)}</p>
                 <p className="mt-4 break-all text-sm leading-relaxed">{user && !isDemo ? `현재 계정: ${user.email ?? profile?.name ?? "로그인한 내 계정"}` : "로그인하면 계정과 이 내용을 한 번 더 보여 드릴게요."}</p>
-                <p className="mt-3 text-xs leading-relaxed text-[var(--hb-text-muted)]">계속하면 고른 내용을 이 탭에 15분 동안만 담아 둬요. 대화창에는 초안으로 들어가고, 보내기를 눌러야 내 대화에 저장돼요. 예산이나 일정, 둘이 정한 내용은 바뀌지 않아요.</p>
+                <p className="mt-3 text-xs leading-relaxed text-[var(--hb-text-muted)]">계속하면 고른 내용을 이 탭에만 담아 둬요. 15분이 지나면 이어서 쓸 수 없어요. 대화창에는 초안으로 들어가고, 보내기를 눌러야 내 대화에 저장돼요. 이것만으로 예산이나 일정, 둘이 정한 내용이 바뀌지는 않아요.</p>
                 {needsAccountReview ? <div className="mt-4 rounded-[6px] border border-[var(--hb-hairline)] p-4 text-sm leading-relaxed" role="alert">
-                  <p>계정 준비는 완료됐지만 아모라 대화를 여는 데 필요한 정보를 불러오지 못했어요. 아래 버튼으로 다시 불러와 주세요. 계속 안 되면 고객지원에 알려 주세요.</p>
+                  <p>아모라 대화를 여는 데 필요한 계정 정보를 불러오지 못했어요. 아래 버튼을 눌러 다시 확인해 주세요. 계속 안 되면 고객지원에 알려 주세요.</p>
                   <Button className="mt-3" onClick={session.retry}>계정 정보 다시 확인</Button>
                   <a className="ml-3 inline-flex min-h-11 items-center underline underline-offset-4" href={"mailto:" + CONTACT.email}>고객지원 문의</a>
                 </div> : <Button variant="primary" className="mt-5" fullWidth disabled={session.status !== "ready" || !isInitialized || isLoading} onClick={() => {

@@ -53,7 +53,7 @@ describe("WeddingCodeV06Client interaction", () => {
     // 한정 안내는 인용 바로 아래 한 줄이고, 「정할 때 챙길 것」에는 섞이지 않는다.
     const card = container.querySelector('[data-self-axis="preparationMode"]')!;
     expect(card.querySelector("[data-qualifier-line]")?.textContent).toBe(
-      "참고로, 상대와 얘기하려고 미뤘을 수도, 바로 정하기 어려워서 미뤘을 수도 있어요.",
+      "참고로, 답을 내일로 미룬 건 상대와 얘기하고 싶어서였을 수도, 바로 정하기 어려워서였을 수도 있어요.",
     );
     expect(card.querySelector('[data-tip="watchOut"]')?.textContent).not.toContain("미룬 것");
     expect(card.textContent).toContain("답한 1장면은 T(둘이 같이) 쪽이었어요.");
@@ -89,7 +89,7 @@ describe("WeddingCodeV06Client interaction", () => {
     expect(result.textContent).toContain(candid.label);
     const card = container.querySelector('[data-self-axis="supportOrder"]')!;
     expect(card.querySelector("[data-qualifier-line]")?.textContent).toBe(
-      "참고로, 할 일을 차분히 나눴다기보다 빨리 끝내려던 답이에요.",
+      "참고로, ‘오늘 끝내자’고 한 건 할 일을 차분히 나눴다기보다 빨리 매듭짓자는 말에 가까워요.",
     );
     expect(card.querySelector('[data-tip="watchOut"]')?.textContent).not.toContain("서둘러 끝내려");
     expect(card.textContent).toContain("답한 1장면은 A(할 일 먼저) 쪽이었어요.");

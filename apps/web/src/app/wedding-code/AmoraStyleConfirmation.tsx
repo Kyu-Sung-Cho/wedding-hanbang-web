@@ -11,6 +11,16 @@ import { buildWeddingCodeAmoraProposals } from "@/lib/weddingCode/profile/amoraB
 import { createWeddingCodeAmoraHandoff } from "@/lib/weddingCode/profile/amoraHandoff";
 import type { WeddingCodeSelfProfile } from "@/lib/weddingCode/scene/selfProfile";
 
+/**
+ * 설정 API 의 오류 원문(「인증이 필요합니다.」 「서버 오류」)이나 브라우저의 영문 네트워크 오류는
+ * 이 카드 말투와 달라 그대로 보이면 튄다. 해요체로 쓴 안내(409 충돌 등)는 그대로 둔다.
+ */
+export function cardErrorText(message: string): string {
+  return /니다\.?$|서버 오류|안전하게|[A-Za-z]/.test(message)
+    ? "아모라 설정을 불러오거나 저장하지 못했어요. 잠시 뒤 다시 해 주세요."
+    : message;
+}
+
 export default function AmoraStyleConfirmation({ profile }: { profile: WeddingCodeSelfProfile }) {
   const session = useWeddingCodeSession();
   const user = useAuthStore((state) => state.user);
@@ -118,9 +128,9 @@ function Confirmation({ profile, sessionReady }: { profile: WeddingCodeSelfProfi
           {applied ? "아모라에 반영했어요" : user ? "고른 대로 아모라에 반영하기" : "로그인하고 고른 내용 확인하기"}
         </Button>
         <p className="mt-3 text-[13px] leading-relaxed text-[var(--hb-text-body)]" role={applied ? "status" : undefined}>
-          {applied ? "다음 답변부터 아모라가 이 방식을 참고해요. 대화 중에 다르게 말하거나 설정에서 언제든 바꿀 수 있어요." : "이 설정에는 웨딩코드에서 고른 답이 들어가지 않아요. 여기서 고른 도움 방식만 내가 확인한 뒤에 계정에 저장돼요."}
+          {applied ? "다음 답변부터 아모라가 이 방식을 참고해요. 대화 중에 다르게 부탁하면 그때는 그 부탁을 따라요. 설정은 언제든 바꿀 수 있어요." : "이 설정에는 웨딩코드에서 고른 답이 들어가지 않아요. 여기서 고른 도움 방식만 내가 확인한 뒤에 계정에 저장돼요."}
         </p>
-        {personalization.error || handoffError ? <p role="alert" className="mt-2 text-[13px] leading-relaxed text-[var(--color-rose-700)]">{personalization.error ?? handoffError}</p> : null}
+        {personalization.error || handoffError ? <p role="alert" className="mt-2 text-[13px] leading-relaxed text-[var(--color-rose-700)]">{personalization.error ? cardErrorText(personalization.error) : handoffError}</p> : null}
         {user && personalization.status === "error" ? <Button variant="secondary" className="mt-3" onClick={() => { void personalization.load(); }}>내 설정 다시 불러오기</Button> : null}
         <a href="/settings/amora-style" className="mt-3 inline-block py-2 text-[14px] font-semibold text-[var(--hb-text-strong)] underline underline-offset-4">설정 화면에서 직접 보기</a>
       </div>

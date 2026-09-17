@@ -23,7 +23,7 @@ export function summarizeWeddingTaste(input: WeddingTasteDraftV1): WeddingTasteS
   for (const domain of TASTE_DOMAIN_OPTIONS) {
     const value = draft.negotiability[domain.value];
     const label = TASTE_NEGOTIABILITY_OPTIONS.find(option => option.value === value)?.label;
-    rows.push({ key: "negotiability:" + domain.value, label: domain.label + "에서 생각이 다르면", value: label ?? "답하지 않았어요", state: value === undefined ? "skipped" : value === "undecided" ? "undecided" : "answered" });
+    rows.push({ key: "negotiability:" + domain.value, label: domain.label + " 의견이 다르면", value: label ?? "답하지 않았어요", state: value === undefined ? "skipped" : value === "undecided" ? "undecided" : "answered" });
   }
   return rows;
 }

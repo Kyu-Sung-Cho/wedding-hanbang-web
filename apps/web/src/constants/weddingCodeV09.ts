@@ -196,7 +196,7 @@ export const WEDDING_CODE_V09_QUESTIONS = [
     options: [
       { value: "A", label: "우리 결혼식이니 안 하겠다고 분명히 말씀드렸다", weights: [{ construct: "coupleAutonomy", value: 2 }] },
       { value: "B", label: "서운해하실까 봐 대답 대신 웃고 넘어갔다", candid: true, weights: [{ construct: "familyIntegration", value: 2 }] },
-      { value: "C", label: "절 대신 우리가 원하는 다른 순서를 넣자고 말씀드렸다", weights: [{ construct: "coupleAutonomy", value: 2 }] },
+      { value: "C", label: "절하는 대신 우리가 원하는 다른 순서를 넣자고 말씀드렸다", weights: [{ construct: "coupleAutonomy", value: 2 }] },
       { value: "D", label: "그렇게 원하시면 짧게라도 하겠다고 했다", candid: true, weights: [{ construct: "familyIntegration", value: 2 }] },
     ],
   },

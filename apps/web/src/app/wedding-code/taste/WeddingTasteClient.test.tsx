@@ -154,7 +154,7 @@ describe("직접 취향의 끝까지 흐름", () => {
   it("온보딩 완료 후 연결이 없으면 재온보딩 루프 대신 재조회와 고객지원을 제공한다", async () => {
     vi.mocked(fetch).mockResolvedValueOnce(response(account("owner-a", false, true)));
     await render(); await click("내 취향 고르기"); await completePhoto(); await click("전달할 내용 확인하기");
-    expect(host.textContent).toContain("계정 준비는 완료됐지만");
+    expect(host.textContent).toContain("아모라 대화를 여는 데 필요한 계정 정보를 불러오지 못했어요");
     expect([...host.querySelectorAll("button")].find(button => button.textContent === "계정 준비하고 내 선택 이어가기")).toBeUndefined();
     expect(host.querySelector(`a[href="mailto:${CONTACT.email}"]`)).not.toBeNull();
     expect(push).not.toHaveBeenCalled(); expect(sessionStorage.length).toBe(0);

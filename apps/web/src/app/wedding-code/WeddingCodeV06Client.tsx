@@ -307,7 +307,9 @@ export default function WeddingCodeV06Client({
           <div className="space-y-3 px-5 py-6 sm:px-8">
             {[
               "끝까지 가면 내가 고른 답과 그 답을 네 글자로 줄인 코드가 나와요. 성격이나 궁합을 보는 검사는 아니에요.",
-              "상대도 답하면 둘이 다르게 고른 장면을 나란히 보여줘요.",
+              theirs
+                ? "내 답이 끝나면 먼저 답한 사람과 다르게 고른 장면을 나란히 보여줘요."
+                : "상대도 답하면 둘이 다르게 고른 장면을 나란히 보여줘요.",
               "우리와 안 맞거나 아직 답하기 어려운 장면은 건너뛸 수 있어요. 건너뛴 장면은 결과에서 빠져요.",
             ].map((line) => (
               <p key={line} className="flex gap-2.5 text-[14px] font-medium leading-[1.6] text-[var(--hb-text-strong)]">
@@ -334,7 +336,7 @@ export default function WeddingCodeV06Client({
                 : "로그인 없이 쓸 수 있어요. 고른 답은 브라우저에 남기지 않아서 새로고침하면 사라지고, 서버에도 저장하지 않아요. 공유 링크에는 내 답이 담기니 같이 비교할 사람에게만 보내 주세요."}
             </p>
             <p className="mt-2 text-sm leading-relaxed text-[var(--hb-text-body)]">
-              2026년 9월 24일부터는 화면을 고치려고 이용 통계를 남겨요. 시작했는지, 몇 번째 장면까지 봤는지, 끝까지 했는지, 공유했는지 같은 흐름만 남기고, 어떤 답을 골랐는지, 네 글자 코드, 공유 링크 주소는 넣지 않아요. 남기는 항목은 모두{" "}
+              2026년 9월 24일부터는 화면을 고치려고 이용 통계를 남겨요. 남기는 건 시작했는지, 몇 번째 장면까지 봤는지, 끝까지 했는지, 공유했는지 같은 흐름뿐이에요. 어떤 답을 골랐는지와 네 글자 코드, 공유 링크 주소는 넣지 않아요. 전체 항목은{" "}
               <a href="/privacy" className="font-semibold text-[var(--hb-text-strong)] underline underline-offset-4">개인정보 처리방침</a>
               에 있어요.
             </p>
@@ -364,7 +366,7 @@ export default function WeddingCodeV06Client({
           <ArrowRight aria-hidden="true" className="h-4 w-4" />
         </button>
         <p className="mt-3 text-center text-[13px] font-medium text-[var(--color-rose-700)]">
-          {sceneCount} 문항 · 로그인 없이 바로
+          {sceneCount} 장면 · 로그인 없이 바로
         </p>
         {!theirs ? <WeddingTasteEntry placement="intro" /> : null}
       </Shell>
@@ -583,7 +585,7 @@ ${shareUrl}`
         className={`${primaryButton} w-full`}
       >
         {copied ? <Check aria-hidden="true" className="h-4 w-4" /> : <Copy aria-hidden="true" className="h-4 w-4" />}
-        {copied ? "복사했어요" : theirs ? "결과 링크 복사하기" : "내 코드와 링크 복사하기"}
+        {copied ? "복사했어요" : theirs ? "결과 링크 복사하기" : shareLetters.complete ? "내 코드와 링크 복사하기" : "링크 복사하기"}
       </button>
       <p className="mt-2 text-[12px] font-medium leading-[1.6] text-[var(--color-rose-700)]">
         {theirs
@@ -791,7 +793,9 @@ ${shareUrl}`
           <p className="mt-3 text-[15px] font-medium leading-[1.65] text-[var(--hb-on-primary)]">
             {compared === 0
               ? "한 사람이 답한 장면은 다른 사람이 모두 건너뛰었어요. 각자 어느 쪽 답을 골랐는지는 아래에서 볼 수 있어요."
-              : "누가 맞는지 가리지 않아요. 답이 갈린 장면마다 둘이 해 볼 것을 하나씩 적었어요."}
+              : top.length > 0
+                ? "누가 맞는지 가리지 않아요. 답이 갈린 장면마다 둘이 해 볼 것을 하나씩 적었어요."
+                : "누가 맞는지 가리지 않아요. 서로 반대쪽 답을 고른 장면이 없어서 둘이 해 볼 것은 따로 적지 않았어요."}
             {compared > 0 && map.missing > 0
               ? ` 한 사람이라도 건너뛴 ${map.missing}장면은 비교하지 않았어요.`
               : ""}
@@ -847,7 +851,7 @@ ${shareUrl}`
 
         {map.identical.length > 0 ? (
           <div className="border-t border-[var(--hb-hairline)] bg-[var(--hb-surface-page)] px-5 py-5 sm:px-8">
-            <p className="text-[12px] font-semibold text-[var(--color-rose-700)]">토씨까지 같았던 곳</p>
+            <p className="text-[12px] font-semibold text-[var(--color-rose-700)]">같은 답을 고른 장면</p>
             <p className="mt-1.5 text-[15px] font-semibold leading-[1.5] text-[var(--hb-text-strong)]">
               “{map.identical[0].firstLabel}”
             </p>
@@ -963,7 +967,7 @@ function WeddingCodePair({
                   ? ": 글자가 달라요"
                   : item.state === "same"
                     ? ": 글자가 같아요"
-                    : ": 한쪽이 건너뛰었거나 반반이라 글자를 비교하지 않았어요"}
+                    : ": 둘 중 누군가의 글자가 비어 있어 비교하지 않았어요"}
               </p>
               {/* 혼자 결과의 범례와 같은 이름을 쓴다 — 글자만 보여주면 무엇의 차이인지 모른다. */}
               <p className="text-[12px] text-[var(--hb-text-body)]">
@@ -981,7 +985,7 @@ function WeddingCodePair({
 function WeddingTasteEntry({ placement }: { placement: "intro" | "result" }) {
   return <section className={`${surface} mt-5 px-5 py-5 sm:px-8`}>
     <h2 className="text-lg font-semibold text-[var(--hb-text-strong)]">원하는 결혼식도 골라볼까요?</h2>
-    <p className="mt-2 text-sm leading-relaxed text-[var(--hb-text-body)]">어떤 분위기가 좋은지, 뭘 피하고 싶은지 바로 고를 수 있어요.</p>
+    <p className="mt-2 text-sm leading-relaxed text-[var(--hb-text-body)]">장소, 사진, 분위기처럼 바라는 결혼식 모습을 골라 보세요. 링크로 보내면 둘이 고른 걸 나란히 볼 수 있어요.</p>
     <Button
       href="/wedding-code/taste"
       variant="secondary"
@@ -1132,7 +1136,7 @@ function SelfProfilePair({
                         : "bg-[#EEF2EC] text-[var(--hb-text-strong)]"
                     }`}
                   >
-                    {combined.state === "different" ? "다른 답 있음" : "함께 답한 장면은 같은 답"}
+                    {combined.state === "different" ? "다른 답 있음" : "함께 답한 장면은 모두 같음"}
                   </span>
                 ) : null}
               </div>

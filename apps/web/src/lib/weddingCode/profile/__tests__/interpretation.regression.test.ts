@@ -35,7 +35,7 @@ describe("실제 선택과 해석의 경계", () => {
     expect(describeSelfAxisReading(reading)).toBe(
       "답한 1장면은 T(둘이 같이) 쪽이었어요. 이 주제의 답에는 겪은 일, 바랐던 일, 내가 한 일이 섞여 있어요. 숫자만 보지 말고 고른 답도 같이 봐 주세요.",
     );
-    expect(reading.qualifiers).toEqual(["연락을 받지 못한 경험과 함께 검토한 경험은 달라요."]);
+    expect(reading.qualifiers).toEqual(["둘 다 연락을 못 받아 밀린 거라, 같이 알아본 것과는 달라요."]);
     expect([letters.slots[1].meaning, reading.title].join(" ")).not.toMatch(/둘이 같이 보는 답|함께 보는 쪽 답을 더|같이 처리/);
   });
 
@@ -45,7 +45,7 @@ describe("실제 선택과 해석의 경계", () => {
     expect(reading.title).not.toContain("함께 보기와 맡기기");
     expect(reading.title).toContain("같은 수");
     expect(result.repeated.find(item => item.construct === "coPreparation")?.phrase).toBe("둘이 같이");
-    expect(reading.qualifiers).toContain("연락을 받지 못한 경험과 함께 검토한 경험은 달라요.");
+    expect(reading.qualifiers).toContain("둘 다 연락을 못 받아 밀린 거라, 같이 알아본 것과는 달라요.");
     expect(reading.missingPhrases).toEqual([]);
     const comparison = v08Pair({ B5: "A", B1: "C" }, { B5: "B", B1: "A" });
     expect(comparison[0].firstTitle).toBe(reading.title);
@@ -57,7 +57,7 @@ describe("실제 선택과 해석의 경계", () => {
     const reading = result.axes[1];
     expect(buildWeddingCodeLetters(result).code).toBe("·T··");
     expect(reading.evidence[0].label).toBe("둘이 얘기해 봐야 한다며 답을 내일로 미뤘다");
-    expect(reading.qualifiers).toEqual(["상대와 얘기하려고 미뤘을 수도, 바로 정하기 어려워서 미뤘을 수도 있어요."]);
+    expect(reading.qualifiers).toEqual(["답을 내일로 미룬 건 상대와 얘기하고 싶어서였을 수도, 바로 정하기 어려워서였을 수도 있어요."]);
     expect(describeSelfAxisReading(reading)).toContain("숫자만 보지 말고 고른 답도 같이 봐 주세요");
   });
 
@@ -75,7 +75,7 @@ describe("실제 선택과 해석의 경계", () => {
   it("표시 인용 두 개 뒤에 있는 지연 답도 실제로 골랐다면 한정 안내를 남긴다", () => {
     const result = v08Profile({ B1: "A", B2: "B", B3: "C", B4: "A", B5: "A" });
     expect(result.axes[1].evidence.map(quote => quote.label)).not.toContain("둘 다 못 받아서 답이 며칠씩 밀렸다");
-    expect(result.axes[1].qualifiers).toContain("연락을 받지 못한 경험과 함께 검토한 경험은 달라요.");
+    expect(result.axes[1].qualifiers).toContain("둘 다 연락을 못 받아 밀린 거라, 같이 알아본 것과는 달라요.");
     expect(buildWeddingCodeLetters(result).code).toBe("·T··");
     expect(result.axes[1]).toMatchObject({ leftCount: 5, rightCount: 0 });
   });

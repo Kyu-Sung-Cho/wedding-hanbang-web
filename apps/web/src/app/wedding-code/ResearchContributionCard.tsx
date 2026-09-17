@@ -228,8 +228,8 @@ export default function ResearchContributionCard({
         */}
         <ul className="space-y-2 text-[13px] leading-[1.65] text-[var(--hb-text-body)]">
           <li><b className={term}>저장하는 것:</b> 장면마다 몇 번째 답을 골랐는지(건너뛴 장면은 건너뛰었다는 것만), 어느 버전의 질문이었는지, 어떤 안내문을 보고 동의했는지, 보낸 날짜</li>
-          <li>나중에 맞는 삭제 코드인지 확인하려고, 코드를 원래대로 알아낼 수 없는 값(해시)으로 바꿔서 함께 저장해요. 코드 그대로는 저장하지 않아요.</li>
-          <li><b className={term}>저장하지 않는 것:</b> 이름, 연락처, 계정, IP 주소, 공유 링크, 상대의 답</li>
+          <li>나중에 맞는 삭제 코드인지 확인하려고, 원래 코드를 알아낼 수 없는 값(해시)으로 바꿔서 함께 저장해요. 코드 그대로는 저장하지 않아요.</li>
+          <li><b className={term}>답과 함께 저장하지 않는 것:</b> 이름, 연락처, 계정, IP 주소, 공유 링크, 상대의 답</li>
           <li><b className={term}>보관 기간:</b> 보낸 날부터 {WEDDING_CODE_RESEARCH_RETENTION_DAYS}일이 지나면 자동으로 지워요.</li>
           <li><b className={term}>제공:</b> 다른 회사에는 넘기지 않아요.</li>
           <li><b className={term}>지우고 싶을 때:</b> 보내면 이 자리에 삭제 코드가 한 번만 나와요. 그 코드가 있으면 언제든 지울 수 있어요. 이 화면을 떠난 뒤라면 웨딩코드 첫 화면의 &lsquo;전에 보낸 답 지우기&rsquo;에 코드를 넣으면 돼요.</li>

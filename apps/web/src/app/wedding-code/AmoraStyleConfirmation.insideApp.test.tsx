@@ -7,6 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { CURRENT_WEDDING_CODE_SCENE_CONFIG } from "@/lib/weddingCode/scene/config";
 import { MOBILE_WEB_API_NONCE_PROPERTY } from "@/lib/mobile/mobileAuthenticatedFetch";
 import WeddingCodeV06Client from "./WeddingCodeV06Client";
+import { cardErrorText } from "./AmoraStyleConfirmation";
 
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean })
   .IS_REACT_ACT_ENVIRONMENT = true;
@@ -146,5 +147,19 @@ describe("WeddingCode 아모라 단락 · 앱 웹뷰", () => {
       if (original) Object.defineProperty(window, "top", original);
       else delete (window as unknown as Record<string, unknown>).top;
     }
+  });
+});
+
+describe("아모라 설정 카드의 오류 문장", () => {
+  it("서버의 합니다체·영문 오류와 속을 드러내는 말은 카드 말투로 바꾼다", () => {
+    const friendly = "아모라 설정을 불러오거나 저장하지 못했어요. 잠시 뒤 다시 해 주세요.";
+    for (const raw of ["인증이 필요합니다.", "서버 오류", "요청 본문이 너무 큽니다", "Failed to fetch", "저장된 도움 방식을 안전하게 읽지 못했어요."]) {
+      expect(cardErrorText(raw), raw).toBe(friendly);
+    }
+  });
+
+  it("해요체로 쓴 안내는 그대로 보여준다", () => {
+    const message = "다른 기기에서 설정이 바뀌었어요. 다시 불러온 뒤 골라 주세요.";
+    expect(cardErrorText(message)).toBe(message);
   });
 });

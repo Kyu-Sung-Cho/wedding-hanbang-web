@@ -43,7 +43,7 @@ describe("직접 취향 질문", () => {
     initial.negotiability.photo = "prefer_keep"; initial.negotiability.venue = "open_to_options";
     act(() => root.render(<WeddingTasteForm initialDraft={initial} onComplete={done} />));
     expect([...host.querySelectorAll("button")].find(item => item.textContent === "식사")?.disabled).toBe(true);
-    expect(host.textContent).toContain("질문 1 · 최대 6개");
+    expect(host.textContent).toContain("질문 1 · 전체 질문은 최대 6개");
     click("다음"); click("다음");
     expect([...host.querySelectorAll("button")].find(item => item.textContent === "자연스러운 순간")?.getAttribute("aria-pressed")).toBe("true");
     click("이전"); click("다음"); click("준비한 포즈와 장면"); click("다음"); click("다음"); click("다음"); click("내 선택 보기");

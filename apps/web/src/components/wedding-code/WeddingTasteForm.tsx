@@ -167,7 +167,7 @@ export default function WeddingTasteForm({ onComplete, initialDraft }: WeddingTa
   return (
     <section aria-labelledby="wedding-taste-question" className="rounded-[6px] border border-[var(--hb-hairline)] bg-[var(--hb-surface-raised)]">
       <div className="border-b border-[var(--hb-hairline)] bg-[var(--hb-surface-hover)] px-5 py-6 sm:px-7">
-        <p className="text-[13px] font-semibold text-[var(--hb-success)]" aria-live="polite">질문 {index + 1} · 최대 6개</p>
+        <p className="text-[13px] font-semibold text-[var(--hb-success)]" aria-live="polite">질문 {index + 1} · 전체 질문은 최대 6개</p>
         <h2 ref={heading} id="wedding-taste-question" tabIndex={-1} className="mt-3 text-[22px] font-semibold leading-relaxed text-[var(--hb-text-strong)] focus:outline-none">{title}</h2>
         <p className="mt-3 text-[14px] leading-relaxed text-[var(--hb-text-body)]">
           {step.kind === "priorities" ? "고른 주제는 뒤에서 조금 더 자세히 물어볼게요. 안 고른 건 나중에 이야기해도 돼요."
