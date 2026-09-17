@@ -111,9 +111,10 @@ export default function ResearchContributionCard({
       setStage("rejected");
       // 서버 문장 중 카드 말투(해요체)인 것만 그대로 보여준다. 「잘못된 요청 출처입니다.」
       // 같은 합니다체·내부 코드는 사람에게 도움이 안 되니 같은 뜻의 안내로 덮는다.
+      // (「~습니다」만 보면 「~입니다」가 빠진다 — 첫 구현이 그랬고 테스트가 잡았다.)
       setMessage(typeof data.error === "string"
         && !data.error.startsWith("wedding_code_")
-        && !data.error.includes("습니다")
+        && !/[습입]니다/.test(data.error)
         ? data.error
         : "지금은 답을 보태지 못했어요. 잠시 뒤 다시 시도해 주세요.");
     } catch {

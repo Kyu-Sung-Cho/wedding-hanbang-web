@@ -34,7 +34,7 @@ describe("WeddingCode research contribution card", () => {
   let container: HTMLDivElement;
   let root: Root;
   let fetchMock: ReturnType<typeof vi.fn>;
-  let contributeOutcome: "ok" | "network" = "ok";
+  let contributeOutcome: "ok" | "network" | "forbidden" | "consent" = "ok";
   let deleteOutcome: "ok" | "fail" | "hang" = "ok";
   let releaseDelete: (() => void) | null = null;
 
@@ -47,6 +47,12 @@ describe("WeddingCode research contribution card", () => {
       const url = String(input);
       if (url.endsWith(CONTRIBUTE)) {
         if (contributeOutcome === "network") throw new TypeError("Failed to fetch");
+        if (contributeOutcome === "forbidden") {
+          return new Response(JSON.stringify({ error: "잘못된 요청 출처입니다." }), { status: 403 });
+        }
+        if (contributeOutcome === "consent") {
+          return new Response(JSON.stringify({ error: "동의와 답을 확인한 뒤 다시 보내 주세요." }), { status: 400 });
+        }
         return new Response(JSON.stringify({ ok: true }), { status: 201 });
       }
       if (url.endsWith(DELETE)) {
@@ -279,6 +285,23 @@ describe("WeddingCode research contribution card", () => {
     }
     // 삭제 코드 확인용 해시도 저장한다는 사실을 숨기지 않는다(처리방침 제1조).
     expect(card.textContent).toContain("해시");
+  });
+
+  it("서버가 거절하면 카드 말투의 안내만 보여주고, 합니다체 내부 문장은 덮는다", async () => {
+    await act(async () => root.render(<WeddingCodeV06Client shareOrigin="https://hanbang.ai" version={config.version} partnerAnswers={null} partnerCode={null} bothCodes={null} researchContributionOpen researchStorageActive />));
+    await answerAll();
+    await checkBoth();
+
+    contributeOutcome = "forbidden";
+    await clickText("내 답 보태기");
+    const alert = () => container.querySelector('[data-research-contribution="form"] [role="alert"]')?.textContent ?? "";
+    expect(alert()).toBe("지금은 답을 보태지 못했어요. 잠시 뒤 다시 시도해 주세요.");
+    expect(container.textContent).not.toContain("잘못된 요청 출처입니다");
+
+    // 사람이 고칠 수 있는 해요체 안내는 그대로 보여준다.
+    contributeOutcome = "consent";
+    await clickText("내 답 보태기");
+    expect(alert()).toBe("동의와 답을 확인한 뒤 다시 보내 주세요.");
   });
 
   it("보낸 뒤 안내에 자동 삭제 문장이 한 번만 나온다", async () => {
