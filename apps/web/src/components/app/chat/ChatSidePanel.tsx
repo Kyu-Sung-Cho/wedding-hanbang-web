@@ -32,9 +32,11 @@ import PendingAmoraActionCard, {
   getPendingAmoraAction,
   getPendingAmoraActionCarryCount,
   getPendingAmoraBudgetImpactPreview,
+  getQueuedRemainingCount,
   isPendingAmoraActionContinuedInMessage,
   isPendingAmoraActionExpired,
 } from "./PendingAmoraActionCard";
+import { AMORA_QUEUED_CARD_SKIP_TEXT } from "@/lib/ai/amoraQueuedCardSkip";
 import {
   buildAmoraActionConfirmationOutcomes,
   getAmoraPendingActionApplicationState,
@@ -198,11 +200,17 @@ export default function ChatSidePanel({
   }, []);
   const [showClearConfirm, setShowClearConfirm] = useState(false);
   const [nowMs, setNowMs] = useState(0);
-  const [dismissedPendingActionIds, setDismissedPendingActionIds] = useState<Set<string>>(
+  // 치운 카드는 **누른 순간의 메시지 id** 로 기억한다(전체 화면·앱과 같다). `actionId` 로
+  // 기억하면 서버가 같은 제안을 새 답변에 다시 붙여도(route.ts 의 캐리포워드) 계속 숨어,
+  // 한 번 치운 대기열은 이 화면에서 영영 확인할 수 없다.
+  const [dismissedPendingMessageIds, setDismissedPendingMessageIds] = useState<Set<string>>(
     () => new Set(),
   );
   const [applyingPendingActionId, setApplyingPendingActionId] = useState<string | null>(null);
   const applyingPendingActionRef = useRef<string | null>(null);
+  // 건너뛰기를 두 번 눌러도 요청은 한 번만 간다. 적용 중 표시(`applyingPendingActionId`)는 쓰지
+  // 않는다 — 적용 버튼에 "적용 요청 중…" 이 뜨면 건너뛴 항목이 적용되는 것처럼 읽힌다.
+  const skippingPendingActionRef = useRef<string | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [isSubmitLocked, setIsSubmitLocked] = useState(false);
   const submitInFlightRef = useRef(false);
@@ -1142,14 +1150,79 @@ export default function ChatSidePanel({
     }
   }, [coupleId, journey, profile, sendMessage]);
 
+  /**
+   * 대기열 카드의 "이 항목 건너뛰기" (2026-09-18).
+   *
+   * 전체 화면(`ChatContent`)과 같은 일을 한다 — 고정 문장(`AMORA_QUEUED_CARD_SKIP_TEXT`)을
+   * 공유 대화로 보내고 `confirmedActionId` 는 보내지 않는다(이것은 적용이 아니다).
+   * 이 버튼이 여기 없던 동안, 옆 패널에서 대기열 카드를 만난 사람에게는 그 항목을 적용하는 것
+   * 말고 다음으로 갈 길이 없었다.
+   */
+  const skipQueuedAmoraAction = useCallback(async (actionId: string) => {
+    if (
+      applyingPendingActionRef.current
+      || skippingPendingActionRef.current
+      || !coupleId
+      || !profile
+      || (profile.role !== "bride" && profile.role !== "groom")
+    ) return;
+
+    // 적용과 같은 이유로 누르는 순간의 최신 카드를 다시 읽는다.
+    const current = useChatStore.getState();
+    if (current.isStreaming || current.isSending) return;
+    const latestSharedAmoraMessage = [...current.messages]
+      .reverse()
+      .find((message) => (
+        message.visibility === "shared"
+        && message.metadata?.target !== "partner"
+      ));
+    if (!latestSharedAmoraMessage) return;
+    const action = getPendingAmoraAction(latestSharedAmoraMessage);
+    if (
+      !action
+      || action.actionId !== actionId
+      || isPendingAmoraActionExpired(action, Date.now())
+      || getQueuedRemainingCount(latestSharedAmoraMessage, actionId) === 0
+    ) return;
+
+    skippingPendingActionRef.current = actionId;
+    try {
+      await sendMessage({
+        content: AMORA_QUEUED_CARD_SKIP_TEXT,
+        senderId: profile.id,
+        senderRole: profile.role,
+        coupleId,
+        senderName: profile.name ?? "사용자",
+        weddingContext: {
+          weddingDate: journey?.wedding_date ?? null,
+          budget: journey?.total_budget ?? 0,
+          venue: journey?.venue ?? null,
+          progress: journey?.progress ?? {},
+        },
+        target: "ai",
+        visibility: "shared",
+      });
+    } finally {
+      skippingPendingActionRef.current = null;
+    }
+  }, [coupleId, journey, profile, sendMessage]);
+
+  /**
+   * 지금 보이는 같은 제안만 미룬다 — 전체 화면과 같은 판정이다. 새 답변으로 다시 받은 카드는
+   * 원래 actionId·서명을 유지해도 확인할 수 있어야 한다.
+   *
+   * 전체 화면은 시트가 닫힐 때 입력창으로 초점을 되돌리는데(`ChatContent`), 그건 레인·epoch
+   * 참조가 있는 쪽의 일이라 여기로 옮기지 않는다. 숨김 기준만 같게 둔다.
+   */
   const dismissPendingAmoraAction = useCallback((actionId: string) => {
-    setDismissedPendingActionIds((current) => {
-      if (current.has(actionId)) return current;
+    setDismissedPendingMessageIds((current) => {
       const next = new Set(current);
-      next.add(actionId);
-      return next;
+      for (const message of messages) {
+        if (getPendingAmoraAction(message)?.actionId === actionId) next.add(message.id);
+      }
+      return next.size === current.size ? current : next;
     });
-  }, []);
+  }, [messages]);
 
   const handleExpand = () => {
     onClose();
@@ -1477,7 +1550,7 @@ export default function ChatSidePanel({
                     msg.metadata.toolResults.length > 0;
                   const pendingActionCandidate = getPendingAmoraAction(msg);
                   const pendingAction = pendingActionCandidate
-                    && !dismissedPendingActionIds.has(pendingActionCandidate.actionId)
+                    && !dismissedPendingMessageIds.has(msg.id)
                     ? pendingActionCandidate
                     : null;
                   const pendingActionDisabledReason = pendingAction
@@ -1529,8 +1602,10 @@ export default function ChatSidePanel({
                           partnerLinked={Boolean(partner)}
                           carryCount={pendingActionCarryCount}
                           continuesInLatestReply={pendingActionContinuesInLatest}
+                          queuedRemainingCount={getQueuedRemainingCount(msg, pendingAction.actionId)}
                           onApply={(pendingActionId) => void applyPendingAmoraAction(pendingActionId)}
                           onDismiss={() => dismissPendingAmoraAction(pendingAction.actionId)}
+                          onSkip={(pendingActionId) => void skipQueuedAmoraAction(pendingActionId)}
                         />
                       )}
                       {hasToolResults &&
