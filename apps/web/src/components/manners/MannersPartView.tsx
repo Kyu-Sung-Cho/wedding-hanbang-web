@@ -187,7 +187,7 @@ function Block({ block, sources }: { block: MannersBlock; sources: MannersSource
               <p className="relative pl-4 text-[13px] font-medium leading-[1.6] text-[var(--amora-ink)]">
                 <span
                   aria-hidden
-                  className="planning-display absolute left-0 top-0 text-[18px] leading-none text-[var(--amora-rose)]"
+                  className="planning-display absolute left-0 top-0 text-[18px] leading-none text-[var(--amora-rose-deep)]"
                 >
                   “
                 </span>

@@ -802,7 +802,7 @@ export default function SettingsPage() {
         className="bg-white rounded-[6px] shadow-[var(--shadow-raised)] p-8 mb-6"
       >
         <div className="flex items-center gap-3 mb-5">
-          <div className="w-11 h-11 shrink-0 rounded-[6px] bg-gradient-to-br from-[#C4967E] to-[#9A6B62] flex items-center justify-center shadow-[var(--shadow-raised)]">
+          <div className="w-11 h-11 shrink-0 rounded-[6px] bg-gradient-to-br from-[var(--hb-primary)] to-[var(--hb-primary-hover)] flex items-center justify-center shadow-[var(--shadow-raised)]">
             <Sparkles className="w-5 h-5 text-white" />
           </div>
           <div>
@@ -846,7 +846,7 @@ export default function SettingsPage() {
 
           {/* 우선순위 (다중 선택) */}
           <div>
-            <p className="text-sm text-[var(--hb-text-muted)] mb-2">우선순위 <span className="text-[var(--hb-text-muted)]/70">(여러 개 선택)</span></p>
+            <p className="text-sm text-[var(--hb-text-muted)] mb-2">우선순위 <span className="text-[var(--hb-text-muted)]">(여러 개 선택)</span></p>
             <div className="flex flex-wrap gap-2">
               {PRIORITY_OPTIONS.map((opt) => {
                 const selected = (draftPrefs.priorities ?? []).includes(opt.value);
@@ -999,7 +999,7 @@ export default function SettingsPage() {
             </div>
           ) : regenerateError ? (
             <div className="rounded-[6px] border border-[#E8DDD3] bg-white p-4 shadow-sm">
-              <p role="alert" className="text-sm leading-relaxed text-[#D95F5F]">
+              <p role="alert" className="text-sm leading-relaxed text-danger-700">
                 {regenerateError}
               </p>
             </div>
@@ -1085,7 +1085,7 @@ export default function SettingsPage() {
         className="bg-white rounded-[6px] shadow-[var(--shadow-raised)] p-8 mb-6"
       >
         <div className="flex items-center gap-3 mb-5">
-          <div className="w-11 h-11 shrink-0 rounded-[6px] bg-gradient-to-br from-[#2E7D5A] to-[#4CAF80] flex items-center justify-center shadow-[var(--shadow-raised)]">
+          <div className="w-11 h-11 shrink-0 rounded-[6px] bg-gradient-to-br from-noir-800 to-[var(--hb-success)] flex items-center justify-center shadow-[var(--shadow-raised)]">
             <Bell className="w-5 h-5 text-white" />
           </div>
           <h3 className="font-serif-kr text-[var(--hb-text-strong)]">알림 설정</h3>
@@ -1172,7 +1172,7 @@ export default function SettingsPage() {
             <ShieldCheck className="h-4 w-4" />
             나만 적용
           </span>
-          <ChevronRight className="h-5 w-5 flex-shrink-0 text-[#B89785]" />
+          <ChevronRight className="h-5 w-5 flex-shrink-0 text-[var(--hb-text-muted)]" />
         </Link>
       </motion.div>
 
@@ -1199,7 +1199,7 @@ export default function SettingsPage() {
             <ShieldCheck className="h-4 w-4" />
             내 통제
           </span>
-          <ChevronRight className="h-5 w-5 flex-shrink-0 text-[#B89785]" />
+          <ChevronRight className="h-5 w-5 flex-shrink-0 text-[var(--hb-text-muted)]" />
         </Link>
       </motion.div>
 
@@ -1242,7 +1242,7 @@ export default function SettingsPage() {
       >
         <button
           onClick={signOut}
-          className="w-full flex items-center justify-center gap-2 py-4 rounded-[6px] bg-white text-red-400 text-base font-medium shadow-[var(--shadow-raised)] hover:shadow-[var(--shadow-raised)] transition-shadow"
+          className="w-full flex items-center justify-center gap-2 py-4 rounded-[6px] bg-white text-danger-700 text-base font-medium shadow-[var(--shadow-raised)] hover:shadow-[var(--shadow-raised)] transition-shadow"
         >
           <LogOut className="w-5 h-5" />
           로그아웃
@@ -1250,7 +1250,7 @@ export default function SettingsPage() {
 
         <button
           onClick={() => setShowDeleteModal(true)}
-          className="w-full flex items-center justify-center gap-2 py-3.5 text-[var(--hb-text-muted)] text-base font-light hover:text-red-400 transition-colors"
+          className="w-full flex items-center justify-center gap-2 py-3.5 text-[var(--hb-text-muted)] text-base font-light hover:text-danger-700 transition-colors"
         >
           <Trash2 className="w-4 h-4" />
           계정 탈퇴
@@ -1307,7 +1307,7 @@ export default function SettingsPage() {
                 className="w-full px-4 py-3 rounded-[6px] border border-[#E8DDD3] text-base outline-none focus:border-[#C4967E]"
               />
               {resetWeddingError && (
-                <p className="mt-3 text-sm text-red-500">{resetWeddingError}</p>
+                <p className="mt-3 text-sm text-danger-700">{resetWeddingError}</p>
               )}
 
               <div className="mt-6 flex gap-2">
@@ -1349,7 +1349,7 @@ export default function SettingsPage() {
               className="w-full max-w-[400px] max-h-[calc(100dvh-3rem)] overflow-y-auto overscroll-contain bg-white rounded-[6px] p-6 sm:p-8 shadow-[var(--shadow-overlay)]"
             >
               <div className="w-14 h-14 mx-auto mb-5 rounded-full bg-red-50 flex items-center justify-center">
-                <Trash2 className="w-6 h-6 text-red-400" />
+                <Trash2 className="w-6 h-6 text-danger-700" />
               </div>
 
               <h3 className="font-serif-kr text-[var(--hb-text-strong)] text-center mb-2">
@@ -1429,7 +1429,7 @@ export default function SettingsPage() {
 
               <div className="mb-5">
                 <p className="text-sm text-[var(--hb-text-body)] mb-2">
-                  확인을 위해 <span className="font-semibold text-red-400">탈퇴합니다</span>를 입력해주세요
+                  확인을 위해 <span className="font-semibold text-danger-700">탈퇴합니다</span>를 입력해주세요
                 </p>
                 <input
                   type="text"
@@ -1443,7 +1443,7 @@ export default function SettingsPage() {
               )}
 
               {deleteError && (
-                <p className="text-sm text-red-500 text-center mb-4">{deleteError}</p>
+                <p className="text-sm text-danger-700 text-center mb-4">{deleteError}</p>
               )}
 
               {deletionIntakeOpen !== true && user && !isDemo && (
@@ -1456,7 +1456,7 @@ export default function SettingsPage() {
                   deleting
                   || deleteConfirmText !== "탈퇴합니다" || !deleteReason
                 }
-                className="w-full py-3 rounded-[6px] text-base font-medium transition-all mb-3 bg-red-500 text-white hover:bg-red-600 disabled:opacity-30 disabled:cursor-not-allowed"
+                className="w-full py-3 rounded-[6px] text-base font-medium transition-all mb-3 bg-danger-700 text-white hover:bg-danger-700/90 disabled:opacity-30 disabled:cursor-not-allowed"
               >
                 {deleting ? "요청 중..." : "계정 삭제 요청"}
               </button> : (

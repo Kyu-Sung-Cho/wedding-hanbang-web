@@ -11,8 +11,8 @@ import { ymdInKst } from "@/lib/utils/kstDate";
 import CollapsibleSection from "./CollapsibleSection";
 
 const URGENCY_COLORS: Record<string, { badge: string; text: string }> = {
-  overdue: { badge: "bg-[#9A6B62] text-white", text: "text-[#9A6B62]" },
-  urgent: { badge: "bg-[#C4967E] text-white", text: "text-[#C4967E]" },
+  overdue: { badge: "bg-[#9A6B62] text-white", text: "text-rose-700" },
+  urgent: { badge: "bg-[var(--hb-primary)] text-white", text: "text-rose-700" },
   soon: { badge: "bg-[var(--hb-accent)] text-white", text: "text-[var(--hb-accent-hover)]" },
 };
 

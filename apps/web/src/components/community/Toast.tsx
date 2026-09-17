@@ -87,7 +87,7 @@ const typeConfig: Record<
   },
   warning: {
     border: "border-l-[#B89785]",
-    iconBg: "text-[#B89785]",
+    iconBg: "text-[var(--color-paper-tape-ink)]",
     Icon: AlertTriangle,
   },
 };
@@ -105,7 +105,7 @@ function ToastItemComponent({ toast }: { toast: ToastItem }) {
       <p className="flex-1 text-sm text-[var(--hb-text-strong)]">{toast.message}</p>
       <button
         onClick={() => removeToast(toast.id)}
-        className="shrink-0 rounded-[6px] p-0.5 text-[var(--hb-text-muted)] transition-colors hover:text-[#878680]"
+        className="shrink-0 rounded-[6px] p-0.5 text-[var(--hb-text-muted)] transition-colors hover:text-[var(--hb-text-muted)]"
       >
         <X className="h-4 w-4" />
       </button>

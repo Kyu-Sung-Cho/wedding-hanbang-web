@@ -176,18 +176,18 @@ const REPORT_REASON_LABEL: Record<string, string> = {
 };
 
 const REPORT_STATUS_LABEL: Record<ReportStatus, { text: string; cls: string }> = {
-  pending: { text: "대기", cls: "bg-gold/10 text-gold" },
+  pending: { text: "대기", cls: "bg-gold/10 text-[var(--color-paper-tape-ink)]" },
   reviewed: { text: "검토 중", cls: "bg-rose-500/10 text-[var(--hb-accent-hover)]" },
-  resolved: { text: "처리됨", cls: "bg-[#2E7D5A]/10 text-[#2E7D5A]" },
+  resolved: { text: "처리됨", cls: "bg-[#2E7D5A]/10 text-noir-800" },
   dismissed: { text: "기각", cls: "bg-[var(--hb-primary)]/10 text-[var(--hb-text-strong)]" },
 };
 type AuthState = "loading" | "not_authenticated" | "admin";
 
 const BOOKING_STATUS_LABEL: Record<string, { text: string; cls: string }> = {
-  pending: { text: "대기", cls: "bg-gold/10 text-gold" },
-  confirmed: { text: "확정", cls: "bg-[#2E7D5A]/10 text-[#2E7D5A]" },
+  pending: { text: "대기", cls: "bg-gold/10 text-[var(--color-paper-tape-ink)]" },
+  confirmed: { text: "확정", cls: "bg-[#2E7D5A]/10 text-noir-800" },
   completed: { text: "완료", cls: "bg-[var(--hb-primary)]/10 text-[var(--hb-text-strong)]" },
-  cancelled: { text: "취소", cls: "bg-red-500/10 text-red-500" },
+  cancelled: { text: "취소", cls: "bg-red-500/10 text-danger-700" },
 };
 
 export default function AdminPage() {
@@ -660,7 +660,7 @@ export default function AdminPage() {
               {tab.label}
               {tab.badge !== undefined && tab.badge > 0 && (
                 <span className={`px-1.5 py-0.5 rounded-full text-[11px] ${
-                  activeTab === tab.key ? "bg-white/20" : "bg-[var(--hb-primary)]/10"
+                  activeTab === tab.key ? "bg-[var(--hb-primary-hover)]" : "bg-[var(--hb-primary)]/10"
                 }`}>{tab.badge}</span>
               )}
             </button>
@@ -744,15 +744,15 @@ export default function AdminPage() {
             <div className="grid grid-cols-3 gap-6 mb-8 max-md:grid-cols-1">
               <div className="bg-white rounded-[6px] p-8 border border-black/[0.04]">
                 <div className="flex items-center gap-2 mb-2"><Shield className="w-4 h-4 text-[var(--hb-text-muted)]" /><p className="text-sm text-[var(--hb-text-body)]">검토 대기</p></div>
-                <p className="font-display text-4xl font-light text-gold">{pendingVendors + draftVendors}</p>
+                <p className="font-display text-4xl font-light text-[var(--color-paper-tape-ink)]">{pendingVendors + draftVendors}</p>
               </div>
               <div className="bg-white rounded-[6px] p-8 border border-black/[0.04]">
-                <div className="flex items-center gap-2 mb-2"><ShieldCheck className="w-4 h-4 text-[#2E7D5A]" /><p className="text-sm text-[var(--hb-text-body)]">승인됨</p></div>
-                <p className="font-display text-4xl font-light text-[#2E7D5A]">{approvedVendors}</p>
+                <div className="flex items-center gap-2 mb-2"><ShieldCheck className="w-4 h-4 text-noir-800" /><p className="text-sm text-[var(--hb-text-body)]">승인됨</p></div>
+                <p className="font-display text-4xl font-light text-noir-800">{approvedVendors}</p>
               </div>
               <div className="bg-white rounded-[6px] p-8 border border-black/[0.04]">
-                <div className="flex items-center gap-2 mb-2"><ShieldX className="w-4 h-4 text-red-500" /><p className="text-sm text-[var(--hb-text-body)]">반려됨</p></div>
-                <p className="font-display text-4xl font-light text-red-500">{rejectedVendors}</p>
+                <div className="flex items-center gap-2 mb-2"><ShieldX className="w-4 h-4 text-danger-700" /><p className="text-sm text-[var(--hb-text-body)]">반려됨</p></div>
+                <p className="font-display text-4xl font-light text-danger-700">{rejectedVendors}</p>
               </div>
             </div>
 
@@ -809,9 +809,9 @@ export default function AdminPage() {
                           <td className="px-6 py-4 text-sm text-[var(--hb-text-body)]">{formatDate(v.createdAt)}</td>
                           <td className="px-6 py-4">
                             <span className={`text-[11px] px-2.5 py-1 rounded-full font-medium ${
-                              v.status === "approved" ? "bg-[#2E7D5A]/10 text-[#2E7D5A]" :
+                              v.status === "approved" ? "bg-[#2E7D5A]/10 text-noir-800" :
                               v.status === "draft" ? "bg-sky-500/10 text-sky-700" :
-                              v.status === "pending" ? "bg-gold/10 text-gold" : "bg-red-500/10 text-red-500"
+                              v.status === "pending" ? "bg-gold/10 text-[var(--color-paper-tape-ink)]" : "bg-red-500/10 text-danger-700"
                             }`}>{v.status === "approved" ? "승인" : v.status === "draft" ? "공시 초안" : v.status === "pending" ? "대기" : "반려"}</span>
                           </td>
                           <td className="px-6 py-4">
@@ -822,10 +822,10 @@ export default function AdminPage() {
                               {(v.status === "draft" || v.status === "pending") && (
                                 <>
                                   <button onClick={() => handleApprove(v.id)} disabled={actionLoading} className="p-1.5 rounded-[6px] hover:bg-[#2E7D5A]/10 transition-colors disabled:opacity-50" title="승인">
-                                    <Check className="w-4 h-4 text-[#2E7D5A]" />
+                                    <Check className="w-4 h-4 text-noir-800" />
                                   </button>
                                   <button onClick={() => setSelectedVendor(v)} className="p-1.5 rounded-[6px] hover:bg-red-50 transition-colors" title="반려">
-                                    <X className="w-4 h-4 text-red-500" />
+                                    <X className="w-4 h-4 text-danger-700" />
                                   </button>
                                 </>
                               )}
@@ -904,7 +904,7 @@ export default function AdminPage() {
                           {actionLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />} 승인
                         </button>
                         <button onClick={() => handleReject(selectedVendor.id)} disabled={actionLoading}
-                          className="flex-1 flex items-center justify-center gap-2 py-3 rounded-[6px] bg-red-500 text-white text-[14px] font-medium hover:bg-red-600 transition-colors disabled:opacity-50">
+                          className="flex-1 flex items-center justify-center gap-2 py-3 rounded-[6px] bg-danger-700 text-white text-[14px] font-medium hover:bg-danger-700/90 transition-colors disabled:opacity-50">
                           {actionLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <X className="w-4 h-4" />} 반려
                         </button>
                       </div>
@@ -913,7 +913,7 @@ export default function AdminPage() {
                   {selectedVendor.status === "approved" && (
                     <div className="mt-6 pt-6 border-t border-black/[0.04]">
                       <button onClick={() => handleRevoke(selectedVendor.id)} disabled={actionLoading}
-                        className="w-full flex items-center justify-center gap-2 py-3 rounded-[6px] bg-amber-500 text-white text-[14px] font-medium hover:bg-amber-600 transition-colors disabled:opacity-50">
+                        className="w-full flex items-center justify-center gap-2 py-3 rounded-[6px] bg-[var(--color-paper-tape-ink)] text-white text-[14px] font-medium hover:bg-[var(--color-paper-tape-ink)]/90 transition-colors disabled:opacity-50">
                         {actionLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <RotateCcw className="w-4 h-4" />} 승인 취소
                       </button>
                       <p className="mt-2 text-[12px] text-[var(--hb-text-muted)] text-center">승인 취소 시 고객에게 더 이상 노출되지 않으며, 대기 상태로 변경됩니다.</p>
@@ -935,7 +935,7 @@ export default function AdminPage() {
               </div>
               <div className="bg-white rounded-[6px] p-8 border border-black/[0.04]">
                 <p className="text-sm text-[var(--hb-text-body)] mb-2">온보딩 완료</p>
-                <p className="font-display text-4xl font-light text-[#2E7D5A]">{customerStats.onboarded}</p>
+                <p className="font-display text-4xl font-light text-noir-800">{customerStats.onboarded}</p>
               </div>
               <div className="bg-white rounded-[6px] p-8 border border-black/[0.04]">
                 <p className="text-sm text-[var(--hb-text-body)] mb-2">커플 연동</p>
@@ -943,7 +943,7 @@ export default function AdminPage() {
               </div>
               <div className="bg-white rounded-[6px] p-8 border border-black/[0.04]">
                 <p className="text-sm text-[var(--hb-text-body)] mb-2">오늘 가입</p>
-                <p className="font-display text-4xl font-light text-gold">{customerStats.todayCount}</p>
+                <p className="font-display text-4xl font-light text-[var(--color-paper-tape-ink)]">{customerStats.todayCount}</p>
               </div>
             </div>
 
@@ -977,18 +977,18 @@ export default function AdminPage() {
                           <td className="px-6 py-4">
                             {c.role && (
                               <span className={`text-[11px] px-2 py-0.5 rounded-full font-medium ${
-                                c.role === "bride" ? "bg-rose-500/10 text-[var(--color-rose-700)]" : "bg-blue-500/10 text-blue-500"
+                                c.role === "bride" ? "bg-rose-500/10 text-[var(--color-rose-700)]" : "bg-blue-500/10 text-[var(--hb-accent)]"
                               }`}>{c.role === "bride" ? "신부" : "신랑"}</span>
                             )}
                           </td>
                           <td className="px-6 py-4">
                             <span className={`text-[11px] px-2 py-0.5 rounded-full font-medium ${
-                              c.onboardingCompleted ? "bg-[#2E7D5A]/10 text-[#2E7D5A]" : "bg-gold/10 text-gold"
+                              c.onboardingCompleted ? "bg-[#2E7D5A]/10 text-noir-800" : "bg-gold/10 text-[var(--color-paper-tape-ink)]"
                             }`}>{c.onboardingCompleted ? "완료" : `${c.onboardingStep}/4`}</span>
                           </td>
                           <td className="px-6 py-4">
                             <span className={`text-[11px] px-2 py-0.5 rounded-full font-medium ${
-                              c.hasPartner ? "bg-rose-500/10 text-[var(--color-rose-700)]" : c.coupleId ? "bg-gold/10 text-gold" : "bg-black/[0.04] text-[var(--hb-text-muted)]"
+                              c.hasPartner ? "bg-rose-500/10 text-[var(--color-rose-700)]" : c.coupleId ? "bg-gold/10 text-[var(--color-paper-tape-ink)]" : "bg-black/[0.04] text-[var(--hb-text-muted)]"
                             }`}>{c.hasPartner ? "연동됨" : c.coupleId ? "대기중" : "미연동"}</span>
                           </td>
                           <td className="px-6 py-4 text-sm text-[var(--hb-text-body)]">{formatDate(c.weddingDate)}</td>
@@ -1013,10 +1013,10 @@ export default function AdminPage() {
             <div className="grid grid-cols-5 gap-4 mb-8 max-md:grid-cols-2">
               {[
                 { label: "전체", value: bookingStats.total, cls: "text-[var(--hb-text-strong)]" },
-                { label: "대기", value: bookingStats.pending, cls: "text-gold" },
-                { label: "확정", value: bookingStats.confirmed, cls: "text-[#2E7D5A]" },
+                { label: "대기", value: bookingStats.pending, cls: "text-[var(--color-paper-tape-ink)]" },
+                { label: "확정", value: bookingStats.confirmed, cls: "text-noir-800" },
                 { label: "완료", value: bookingStats.completed, cls: "text-[var(--hb-text-strong)]" },
-                { label: "취소", value: bookingStats.cancelled, cls: "text-red-500" },
+                { label: "취소", value: bookingStats.cancelled, cls: "text-danger-700" },
               ].map((s) => (
                 <div key={s.label} className="bg-white rounded-[6px] p-6 border border-black/[0.04]">
                   <p className="text-sm text-[var(--hb-text-body)] mb-2">{s.label}</p>
@@ -1174,9 +1174,9 @@ export default function AdminPage() {
                 <div className="grid grid-cols-4 gap-4 mb-8 max-md:grid-cols-2">
                   {[
                     { label: "총 조회수", value: insights.overview.totalViews.toLocaleString(), icon: Eye, color: "text-[var(--hb-accent-hover)]" },
-                    { label: "활성 사용자", value: insights.overview.activeUsers.toLocaleString(), icon: Users, color: "text-[#2E7D5A]" },
+                    { label: "활성 사용자", value: insights.overview.activeUsers.toLocaleString(), icon: Users, color: "text-noir-800" },
                     { label: "총 즐겨찾기", value: insights.overview.totalFavorites.toLocaleString(), icon: Heart, color: "text-[var(--hb-accent-hover)]" },
-                    { label: "기간 예약", value: insights.overview.totalBookings.toLocaleString(), icon: CalendarCheck, color: "text-gold" },
+                    { label: "기간 예약", value: insights.overview.totalBookings.toLocaleString(), icon: CalendarCheck, color: "text-[var(--color-paper-tape-ink)]" },
                   ].map((kpi) => (
                     <div key={kpi.label} className="bg-white rounded-[6px] p-6 border border-black/[0.04]">
                       <div className="flex items-center gap-2 mb-2">
@@ -1228,7 +1228,7 @@ export default function AdminPage() {
                           </div>
                           <span className="text-[13px] text-charcoal text-center">{v.views}</span>
                           <span className="text-[13px] text-[var(--color-rose-700)] text-center">{v.favorites}</span>
-                          <span className="text-[13px] text-[#2E7D5A] text-center font-medium">{v.bookings}</span>
+                          <span className="text-[13px] text-noir-800 text-center font-medium">{v.bookings}</span>
                         </div>
                       ))}
                       {insights.topVendors.length === 0 && (
@@ -1240,7 +1240,7 @@ export default function AdminPage() {
                   {/* 카테고리별 통계 */}
                   <div className="bg-white rounded-[6px] border border-black/[0.04] p-6">
                     <div className="flex items-center gap-2 mb-4">
-                      <Store className="w-4 h-4 text-gold" />
+                      <Store className="w-4 h-4 text-[var(--color-paper-tape-ink)]" />
                       <h2 className="font-serif-kr text-[16px] font-normal">카테고리별 현황</h2>
                     </div>
                     <div className="space-y-2">
@@ -1255,7 +1255,7 @@ export default function AdminPage() {
                           <span className="text-[13px] text-[var(--hb-text-strong)] font-medium">{c.category}</span>
                           <span className="text-[13px] text-charcoal text-center">{c.vendorCount}</span>
                           <span className="text-[13px] text-charcoal text-center">{c.bookingCount}</span>
-                          <span className="text-[13px] text-gold text-center">{c.avgRating > 0 ? `${c.avgRating}점` : "-"}</span>
+                          <span className="text-[13px] text-[var(--color-paper-tape-ink)] text-center">{c.avgRating > 0 ? `${c.avgRating}점` : "-"}</span>
                         </div>
                       ))}
                     </div>
@@ -1303,7 +1303,7 @@ export default function AdminPage() {
                   {/* 일별 활성 사용자 */}
                   <div className="bg-white rounded-[6px] border border-black/[0.04] p-6">
                     <div className="flex items-center gap-2 mb-1">
-                      <Users className="w-4 h-4 text-[#2E7D5A]" />
+                      <Users className="w-4 h-4 text-noir-800" />
                       <h2 className="text-[15px] font-medium text-[var(--hb-text-strong)]">일별 활성 사용자</h2>
                     </div>
                     <p className="text-[12px] text-[var(--hb-text-muted)] font-light mb-4">DAU 추이</p>
@@ -1367,7 +1367,7 @@ export default function AdminPage() {
                   {/* 인기 페이지 */}
                   <div className="bg-white rounded-[6px] border border-black/[0.04] p-6">
                     <div className="flex items-center gap-2 mb-4">
-                      <Eye className="w-4 h-4 text-gold" />
+                      <Eye className="w-4 h-4 text-[var(--color-paper-tape-ink)]" />
                       <h2 className="text-[15px] font-medium text-[var(--hb-text-strong)]">인기 페이지</h2>
                     </div>
                     <div className="space-y-2">
@@ -1439,9 +1439,9 @@ export default function AdminPage() {
             {/* 상단 카운트 */}
             <div className="grid grid-cols-4 gap-4 mb-6 max-md:grid-cols-2">
               {([
-                { key: "pending" as const, label: "대기", cls: "text-gold" },
+                { key: "pending" as const, label: "대기", cls: "text-[var(--color-paper-tape-ink)]" },
                 { key: "reviewed" as const, label: "검토 중", cls: "text-[var(--hb-accent-hover)]" },
-                { key: "resolved" as const, label: "처리됨", cls: "text-[#2E7D5A]" },
+                { key: "resolved" as const, label: "처리됨", cls: "text-noir-800" },
                 { key: "dismissed" as const, label: "기각", cls: "text-[var(--hb-text-strong)]" },
               ]).map((s) => (
                 <div key={s.key} className="bg-white rounded-[6px] p-6 border border-black/[0.04]">
@@ -1542,12 +1542,12 @@ export default function AdminPage() {
                             {isMemberReport ? "멤버 신고" : isPost ? "게시글" : isComment ? "댓글" : "—"}
                           </span>
                           {isMemberReport && (r.report_count ?? 1) >= 5 && (
-                            <span className="text-xs px-2 py-0.5 rounded-full bg-red-500/10 text-red-600 font-medium">
+                            <span className="text-xs px-2 py-0.5 rounded-full bg-red-500/10 text-danger-700 font-medium">
                               5명 기준 도달
                             </span>
                           )}
                           {r.post?.under_review && (
-                            <span className="text-xs px-2 py-0.5 rounded-full bg-gold/15 text-gold font-medium">
+                            <span className="text-xs px-2 py-0.5 rounded-full bg-gold/15 text-[var(--color-paper-tape-ink)] font-medium">
                               자동 검토
                             </span>
                           )}
@@ -1637,7 +1637,7 @@ export default function AdminPage() {
                               }
                             }}
                             disabled={reportActionId === r.id}
-                            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium border border-red-500 text-red-600 rounded-[6px] hover:bg-red-500 hover:text-white transition-colors disabled:opacity-50"
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium border border-danger-700 text-danger-700 rounded-[6px] hover:bg-danger-700 hover:text-white transition-colors disabled:opacity-50"
                           >
                             <ShieldX className="w-3.5 h-3.5" />
                             동기방 비활성화
@@ -1667,7 +1667,7 @@ export default function AdminPage() {
                               type="button"
                               onClick={() => moderatePost(r.id, r.post!.id, "hide")}
                               disabled={reportActionId === r.id}
-                              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium border border-gold/40 text-gold rounded-[6px] hover:bg-gold hover:text-white hover:border-gold transition-colors disabled:opacity-50"
+                              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium border border-[var(--color-paper-outline)] text-[var(--color-paper-tape-ink)] rounded-[6px] hover:bg-[var(--color-paper-tape-ink)] hover:text-white hover:border-[var(--color-paper-tape-ink)] transition-colors disabled:opacity-50"
                               title="visibility를 draft로 변경 — 작성자 외 모두에게 숨김"
                             >
                               숨김 처리
@@ -1678,7 +1678,7 @@ export default function AdminPage() {
                               type="button"
                               onClick={() => moderatePost(r.id, r.post!.id, "restore")}
                               disabled={reportActionId === r.id}
-                              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium border border-[#2E7D5A] text-[#2E7D5A] rounded-[6px] hover:bg-[#2E7D5A] hover:text-white transition-colors disabled:opacity-50"
+                              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium border border-[#2E7D5A] text-noir-800 rounded-[6px] hover:bg-[#2E7D5A] hover:text-white transition-colors disabled:opacity-50"
                             >
                               공개 복원
                             </button>
@@ -1687,7 +1687,7 @@ export default function AdminPage() {
                             type="button"
                             onClick={() => moderatePost(r.id, r.post!.id, "soft_delete")}
                             disabled={reportActionId === r.id}
-                            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium border border-red-500 text-red-500 rounded-[6px] hover:bg-red-500 hover:text-white transition-colors disabled:opacity-50"
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium border border-danger-700 text-danger-700 rounded-[6px] hover:bg-danger-700 hover:text-white transition-colors disabled:opacity-50"
                           >
                             이용 제한
                           </button>
@@ -1752,7 +1752,7 @@ export default function AdminPage() {
                     />
                   </div>
                   <div>
-                    <label className="flex items-center gap-1.5 text-[12px] text-gold font-medium mb-1.5">
+                    <label className="flex items-center gap-1.5 text-[12px] text-[var(--color-paper-tape-ink)] font-medium mb-1.5">
                       <Shield className="w-3.5 h-3.5" /> 관리자 인증 비밀번호 <span className="text-[var(--hb-accent-hover)]">*</span>
                     </label>
                     <input
@@ -1766,10 +1766,10 @@ export default function AdminPage() {
                   </div>
 
                   {createAdminError && (
-                    <p className="text-[12px] text-red-500 px-1">{createAdminError}</p>
+                    <p className="text-[12px] text-danger-700 px-1">{createAdminError}</p>
                   )}
                   {createAdminSuccess && (
-                    <p className="text-[12px] text-[#2E7D5A] px-1">{createAdminSuccess}</p>
+                    <p className="text-[12px] text-noir-800 px-1">{createAdminSuccess}</p>
                   )}
 
                   <button
@@ -1798,7 +1798,7 @@ export default function AdminPage() {
                   <div className="space-y-3">
                     {adminUsers.map((admin) => (
                       <div key={admin.id} className="flex items-center gap-4 p-4 rounded-[6px] bg-[var(--hb-surface-page)] border border-black/[0.02]">
-                        <div className="w-10 h-10 rounded-full bg-gradient-to-br from-gold to-rose-500 flex items-center justify-center flex-shrink-0">
+                        <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[var(--hb-primary)] to-[var(--hb-primary-hover)] flex items-center justify-center flex-shrink-0">
                           <Shield className="w-5 h-5 text-white" />
                         </div>
                         <div className="flex-1 min-w-0">
@@ -1808,7 +1808,7 @@ export default function AdminPage() {
                         <div className="text-right flex-shrink-0">
                           <p className="text-[11px] text-[var(--hb-text-muted)]">{formatDate(admin.createdAt)}</p>
                           {admin.email === adminEmail && (
-                            <span className="text-[10px] px-2 py-0.5 rounded-full bg-gold/10 text-gold font-medium">나</span>
+                            <span className="text-[10px] px-2 py-0.5 rounded-full bg-gold/10 text-[var(--color-paper-tape-ink)] font-medium">나</span>
                           )}
                         </div>
                       </div>

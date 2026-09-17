@@ -268,7 +268,7 @@ export default function LoungeFirstArrival({ view }: { view: LoungeFirstRunView 
               </p>
               {/* 코드 자체는 설정에만 있다. 라운지에 그대로 띄우면 화면을 켜 둔 자리에서
                   누구나 읽을 수 있고, 여기서 다시 발급 API를 부를 이유도 없다. */}
-              <p className="mt-1.5 text-[12px] font-medium leading-[1.6] text-[#7A8290]">
+              <p className="mt-1.5 text-[12px] font-medium leading-[1.6] text-[var(--hb-text-muted)]">
                 설정 &gt; 커플 연결에서 코드를 확인할 수 있어요.
               </p>
               <Link

@@ -233,7 +233,7 @@ function BudgetMiniCard({ result }: { result: ToolExecutionResult }) {
       )}
       <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 mb-2.5">
         <span className="min-w-0 max-w-full break-keep [overflow-wrap:anywhere] text-sm tabular-nums text-[var(--hb-text-muted)]">기록 지출 총 {formatWon(totalSpent)} / {totalBudget > 0 ? formatWon(totalBudget) : "총예산 미설정"}</span>
-        {totalBudget > 0 && <span className={`min-w-0 max-w-full break-keep [overflow-wrap:anywhere] text-sm tabular-nums font-medium ${totalPct >= 100 ? "text-red-400" : "text-[#C4967E]"}`}>{formatLoungeBudgetRatio(totalSpent, totalBudget)}</span>}
+        {totalBudget > 0 && <span className={`min-w-0 max-w-full break-keep [overflow-wrap:anywhere] text-sm tabular-nums font-medium ${totalPct >= 100 ? "text-danger-700" : "text-rose-700"}`}>{formatLoungeBudgetRatio(totalSpent, totalBudget)}</span>}
       </div>
       <p className="mt-2 text-[11px] leading-4 text-[var(--hb-text-muted)]">
         기록 지출은 결제 완료 여부와 별도예요.
@@ -245,7 +245,7 @@ function BudgetMiniCard({ result }: { result: ToolExecutionResult }) {
               <span className="min-w-0 max-w-full break-words text-[var(--hb-text-muted)]">{cat.label}</span>
               <div className="flex min-w-0 max-w-full flex-wrap items-baseline justify-end gap-x-2 gap-y-0.5">
                 <span className="min-w-0 max-w-full break-keep [overflow-wrap:anywhere] tabular-nums text-[var(--hb-text-strong)]">{formatWon(cat.spent)}</span>
-                <span className={`min-w-0 max-w-full break-keep [overflow-wrap:anywhere] tabular-nums font-medium ${cat.pct !== null && cat.pct >= 100 ? "text-red-400" : "text-[var(--hb-text-muted)]"}`}>
+                <span className={`min-w-0 max-w-full break-keep [overflow-wrap:anywhere] tabular-nums font-medium ${cat.pct !== null && cat.pct >= 100 ? "text-danger-700" : "text-[var(--hb-text-muted)]"}`}>
                   {cat.budget !== null && cat.budget > 0 ? formatLoungeBudgetRatio(cat.spent, cat.budget) : cat.budget === 0 ? "0원" : "미입력"}
                 </span>
               </div>
@@ -486,7 +486,7 @@ function ScheduleChangeMiniCard({ result }: { result: ToolExecutionResult }) {
         <span className="text-sm font-medium text-[var(--hb-text-body)]">{categoryLabel}</span>
         <div className="flex items-center gap-2 text-right">
           <span className="text-xs text-[var(--hb-text-muted)]">변경된 상태</span>
-          <strong className="rounded-full bg-[#2E7D5A]/10 px-2 py-0.5 text-sm font-semibold text-[#2E7D5A]">
+          <strong className="rounded-full bg-[#2E7D5A]/10 px-2 py-0.5 text-sm font-semibold text-noir-800">
             {statusLabel}
           </strong>
         </div>
@@ -514,7 +514,7 @@ function ScheduleChangeMiniCard({ result }: { result: ToolExecutionResult }) {
         </div>
         <strong className={`shrink-0 rounded-full px-2 py-0.5 text-sm font-semibold ${
           done
-            ? "bg-[#2E7D5A]/10 text-[#2E7D5A]"
+            ? "bg-[#2E7D5A]/10 text-noir-800"
             : "bg-black/[0.04] text-[var(--hb-text-muted)]"
         }`}>
           {done ? "완료" : "미완료"}
@@ -546,7 +546,7 @@ function ActionItemsMiniCard({ result }: { result: ToolExecutionResult }) {
             </div>
             <span className={`shrink-0 rounded-full px-1.5 py-0.5 text-[0.625rem] font-semibold ${
               action.priority === "high"
-                ? "bg-red-50 text-red-600"
+                ? "bg-red-50 text-danger-700"
                 : action.priority === "low"
                   ? "bg-[#eef2df] text-[#5a6147]"
                   : "bg-[var(--hb-surface-hover)] text-[var(--hb-accent-hover)]"
@@ -638,8 +638,8 @@ function ScheduleMiniCard() {
           <div className="flex items-center gap-2 text-sm mb-1">
             <span className="text-[var(--hb-text-muted)] flex-shrink-0">{cat.label}</span>
             <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
-              cat.status === "completed" ? "bg-[#2E7D5A]/10 text-[#2E7D5A]" :
-              cat.status === "in_progress" ? "bg-[#C4967E]/10 text-[#C4967E]" :
+              cat.status === "completed" ? "bg-[#2E7D5A]/10 text-noir-800" :
+              cat.status === "in_progress" ? "bg-[#C4967E]/10 text-rose-700" :
               "bg-black/[0.04] text-[var(--hb-text-muted)]"
             }`}>
               {cat.done}/{cat.total}
@@ -719,16 +719,16 @@ export default function ActionCard({ result }: ActionCardProps) {
         className={`rounded-[6px] border ${accentColor} px-4 py-3 max-w-[24rem] w-full shadow-sm`}
       >
         <div className="flex items-center gap-1.5 mb-1.5">
-          <span className={isLegacyScheduleDelete ? "text-[#B89785]" : "text-[#C4967E]"}>
+          <span className={isLegacyScheduleDelete ? "text-[var(--color-paper-tape-ink)]" : "text-rose-700"}>
             {icon}
           </span>
           <span className="text-sm font-semibold text-[var(--hb-text-strong)]">{title}</span>
           {isLegacyScheduleDelete ? (
-            <Info className="w-4 h-4 text-[#B89785] ml-auto" />
+            <Info className="w-4 h-4 text-[var(--color-paper-tape-ink)] ml-auto" />
           ) : result.success ? (
-            <CheckCircle2 className="w-4 h-4 text-emerald-500 ml-auto" />
+            <CheckCircle2 className="w-4 h-4 text-[var(--hb-success)] ml-auto" />
           ) : (
-            <XCircle className="w-4 h-4 text-red-400 ml-auto" />
+            <XCircle className="w-4 h-4 text-danger-700 ml-auto" />
           )}
         </div>
         <p className="whitespace-pre-line break-words text-xs leading-relaxed text-[var(--hb-text-muted)]">

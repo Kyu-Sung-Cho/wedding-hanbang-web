@@ -105,7 +105,7 @@ export default function QuickReviewPage() {
       >
         15초 후기
       </h1>
-      <p className="text-[#878680] mb-8 text-sm">
+      <p className="text-[var(--hb-text-muted)] mb-8 text-sm">
         투어 끝나고 차 안에서 끝낼 수 있어요.
       </p>
 
@@ -176,9 +176,9 @@ export default function QuickReviewPage() {
                 >
                   <Star
                     className={`w-8 h-8 transition ${
-                      active ? "text-[#B89785]" : "text-[#F0EFED]"
+                      active ? "text-[var(--color-paper-tape-ink)]" : "text-[var(--color-paper-outline)]"
                     }`}
-                    fill={active ? "#B89785" : "none"}
+                    fill={active ? "currentColor" : "none"}
                   />
                 </button>
               );

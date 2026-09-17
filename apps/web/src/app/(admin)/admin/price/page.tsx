@@ -289,7 +289,7 @@ function VendorDemandPanel() {
             소비자 행동(노출·상세·찜·조합·견적) 일별 롤업 — 유효점수는 예식일 등록 커플 한정
             {loadedAt ? ` · ${loadedAt} 기준` : ""}
           </p>
-          {error && <p className="mt-1 text-xs text-red-600">{error}</p>}
+          {error && <p className="mt-1 text-xs text-danger-700">{error}</p>}
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <select
@@ -359,7 +359,7 @@ function VendorDemandPanel() {
                 <tr key={row.vendor_id} className="border-t border-indigo-50">
                   <td className="px-2 py-1.5">
                     {row.name}
-                    <span className="ml-1 text-[10px] text-indigo-400">{row.category}·{row.region_code ?? "-"}</span>
+                    <span className="ml-1 text-[10px] text-[var(--hb-accent)]">{row.category}·{row.region_code ?? "-"}</span>
                   </td>
                   <td className="px-2 py-1.5 text-right tabular-nums">{row.impressions}</td>
                   <td className="px-2 py-1.5 text-right tabular-nums">{row.detail_views}</td>
@@ -465,7 +465,7 @@ function AutoValidatedApprovalPanel() {
             type="button"
             onClick={execute}
             disabled={busy || !eligibleCount}
-            className="rounded-[6px] bg-emerald-600 px-3 py-2 text-xs font-semibold text-white disabled:opacity-40"
+            className="rounded-[6px] bg-[var(--hb-success)] px-3 py-2 text-xs font-semibold text-white disabled:opacity-40"
           >
             일괄 승인 실행
           </button>
@@ -951,7 +951,7 @@ function PriceReviewWorkspace() {
                       {item.validation_issue_codes.length > 1 ? ` 외 ${item.validation_issue_codes.length - 1}개` : ""}
                     </p>
                   )}
-                  <p className="mt-2 line-clamp-2 text-xs leading-5 text-[var(--hb-success)]">{item.source_quote || "근거 원문 없음"}</p>
+                  <p className="mt-2 line-clamp-2 text-xs leading-5 text-noir-800">{item.source_quote || "근거 원문 없음"}</p>
                 </button>
               ))}
               {hasMore && nextCursor && (
@@ -1348,7 +1348,7 @@ function AgencyPackageReviewWorkspace() {
                   <p className="mt-1 text-sm text-[var(--hb-text-strong)]">{item.package_name}</p>
                   <p className="mt-2 text-[11px] font-semibold text-[var(--color-rose-700)]">{item.category_scope.map((scope) => PACKAGE_SCOPE_LABELS[scope]).join(" · ") || "범위 미지정"}</p>
                   {item.validation_issue_codes.length > 0 && <p className={`mt-2 line-clamp-2 text-xs font-semibold leading-5 ${item.needs_review ? "text-[#92532C]" : "text-[#58705E]"}`}>{item.needs_review ? "검증 이슈" : "검증 이력"} · {validationIssueLabel(item.validation_issue_codes[0])}{item.validation_issue_codes.length > 1 ? ` 외 ${item.validation_issue_codes.length - 1}개` : ""}</p>}
-                  <p className="mt-2 line-clamp-2 text-xs leading-5 text-[var(--hb-success)]">{item.source_quote || "근거 원문 없음"}</p>
+                  <p className="mt-2 line-clamp-2 text-xs leading-5 text-noir-800">{item.source_quote || "근거 원문 없음"}</p>
                 </button>
               ))}
               {hasMore && nextCursor && (

@@ -45,7 +45,7 @@ export function ComboBar({
             {expanded ? <ChevronDown aria-hidden="true" className="size-4 shrink-0" /> : <ChevronUp aria-hidden="true" className="size-4 shrink-0" />}
           </button>
           <div className="flex shrink-0 gap-2">
-            <button type="button" onClick={onShare} className="grid size-11 place-items-center rounded-full border border-[var(--hb-primary)]/15 bg-white text-[var(--hb-text-strong)]" aria-label="조합 공유하기">
+            <button type="button" onClick={onShare} className="grid size-11 place-items-center rounded-full border border-[var(--color-paper-outline)] bg-white text-[var(--hb-text-strong)]" aria-label="조합 공유하기">
               <Share2 aria-hidden="true" className="size-4" />
             </button>
             <button

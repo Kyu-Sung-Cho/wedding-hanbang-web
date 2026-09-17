@@ -48,7 +48,7 @@ export default function StartHerePage() {
             </Link>
             <Link
               href="/login"
-              className={`inline-flex min-h-11 items-center rounded-[6px] border border-[var(--hb-primary)]/16 px-4 text-[13px] font-semibold text-[var(--hb-text-strong)] transition-colors hover:border-[#8F6662] hover:text-[var(--color-rose-700)] ${focusRing}`}
+              className={`inline-flex min-h-11 items-center rounded-[6px] border border-[var(--color-paper-outline)] px-4 text-[13px] font-semibold text-[var(--hb-text-strong)] transition-colors hover:border-[#8F6662] hover:text-[var(--color-rose-700)] ${focusRing}`}
             >
               로그인
             </Link>

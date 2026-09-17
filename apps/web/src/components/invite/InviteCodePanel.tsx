@@ -212,7 +212,7 @@ export default function InviteCodePanel({
   const copyButtonClass = (target: CopyTarget) =>
     `inline-flex min-h-10 items-center gap-1.5 rounded-[6px] px-3.5 py-2 text-[13px] font-medium transition-colors ${
       copiedTarget === target
-        ? "bg-[#2E7D5A]/10 text-[#2E7D5A]"
+        ? "bg-[#2E7D5A]/10 text-noir-800"
         : "bg-[var(--hb-surface-hover)] text-[var(--hb-text-body)] hover:text-[var(--hb-accent-hover)]"
     }`;
 

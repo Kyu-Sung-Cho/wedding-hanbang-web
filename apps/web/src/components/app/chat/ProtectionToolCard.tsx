@@ -133,7 +133,7 @@ function GuestGuaranteeCard({ result }: { result: ToolExecutionResult }) {
         <div className="bg-[#2F5F51] px-5 py-4">
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
-              <p className="text-xs font-semibold tracking-[0.16em] text-white/60">GUEST GUARANTEE</p>
+              <p className="text-xs font-semibold tracking-[0.16em] text-white/80">GUEST GUARANTEE</p>
               <p className="mt-1 text-lg font-semibold leading-snug text-white">
                 {data.venueName || "하객·식대·보증 인원"}
               </p>

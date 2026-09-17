@@ -574,14 +574,14 @@ function ScopedCategoryChecklistModal({ categoryKey, isOpen, onClose, presentati
             {isNotApplicable ? (
               <>
                 <span className="font-semibold text-[var(--hb-text-strong)]">다시 준비 목록에 넣기</span>
-                <span className={`mt-0.5 block leading-[1.6] ${isPlanning ? "text-[var(--amora-muted)]" : "text-[#8A876F]"}`}>
+                <span className={`mt-0.5 block leading-[1.6] ${isPlanning ? "text-[var(--amora-muted)]" : "text-[var(--hb-text-muted)]"}`}>
                   지금은 진행률과 마감 알림에서 빠져 있어요.
                 </span>
               </>
             ) : (
               <>
                 <span className="font-semibold text-[var(--hb-text-strong)]">우리는 이건 안 해요</span>
-                <span className={`mt-0.5 block leading-[1.6] ${isPlanning ? "text-[var(--amora-muted)]" : "text-[#8A876F]"}`}>
+                <span className={`mt-0.5 block leading-[1.6] ${isPlanning ? "text-[var(--amora-muted)]" : "text-[var(--hb-text-muted)]"}`}>
                   진행률과 마감 알림에서 빼드릴게요. 언제든 되돌릴 수 있어요.
                 </span>
               </>
@@ -607,7 +607,7 @@ function ScopedCategoryChecklistModal({ categoryKey, isOpen, onClose, presentati
           {/* 긴 팁은 본문에서 읽고, 시트 하단에는 이어서 할 수 있는 행동만 둔다. */}
           <div className={isPlanning ? "flex flex-col gap-2 md:flex-row md:items-center md:justify-between md:gap-4" : "flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between"}>
             {!isPlanning && <p className="flex items-start gap-2.5 text-[12.5px] leading-[1.6] text-[var(--hb-text-body)]">
-              <Sparkle className="mt-px h-4 w-4 flex-shrink-0 text-[var(--color-gold)]" aria-hidden="true" strokeWidth={1.7} />
+              <Sparkle className="mt-px h-4 w-4 flex-shrink-0 text-[var(--color-paper-tape-ink)]" aria-hidden="true" strokeWidth={1.7} />
               <span>{template.tip}</span>
             </p>}
 

@@ -113,7 +113,7 @@ function DecisionRecordOverview({
   const hasAnswers = post.comment_count > 0;
   const status = post.under_review
     ? {
-        tone: "border-[#ead6d2] bg-[#fbf1ef] text-[#8F6662]",
+        tone: "border-[#ead6d2] bg-[#fbf1ef] text-rose-700",
         title: "운영 검토 중인 글",
         body: "검토가 끝나기 전에는 내용과 답변을 판단 근거로 사용하지 마세요.",
       }
@@ -165,7 +165,7 @@ function DecisionRecordOverview({
         </div>
 
         <div className="px-4 py-4">
-          <p className="text-[10px] font-bold text-[#8b8175]">기록 확인</p>
+          <p className="text-[10px] font-bold text-[var(--hb-text-muted)]">기록 확인</p>
           <div className="mt-2 flex flex-wrap items-center gap-2">
             <ContentOriginBadge origin={post.content_origin} size="md" />
             <AdDisclosureBadge
@@ -173,11 +173,11 @@ function DecisionRecordOverview({
               sponsorshipDetail={post.sponsorship_detail}
               size="md"
             />
-            <span className="text-[11px] font-medium text-[#7d756c]">
+            <span className="text-[11px] font-medium text-[var(--hb-text-muted)]">
               마지막 수정 {formatRecordDate(post.updated_at)}
             </span>
           </div>
-          <p className="mt-2 text-[10.5px] font-medium leading-[1.55] text-[#8b8175]">
+          <p className="mt-2 text-[10.5px] font-medium leading-[1.55] text-[var(--hb-text-muted)]">
             이 표시는 작성 출처와 광고·혜택 공개 여부를 말하며, 내용의 정확성을 보증하지 않습니다.
           </p>
         </div>
@@ -555,7 +555,7 @@ export default function PostDetailClient({
                 {author.wedding_year && author.wedding_month && (
                   <>
                     <span className="text-[var(--hb-text-muted)] text-[13px] hidden sm:inline">&middot;</span>
-                    <span className="text-[13px] text-[#878680] whitespace-nowrap">
+                    <span className="text-[13px] text-[var(--hb-text-muted)] whitespace-nowrap">
                       {String(author.wedding_year).slice(2)}.{String(author.wedding_month).padStart(2, "0")} 동기
                     </span>
                   </>
@@ -571,7 +571,7 @@ export default function PostDetailClient({
                     <span className="text-[var(--hb-text-muted)] text-[13px] hidden sm:inline">&middot;</span>
                     <Link
                       href={communityCategoryFeedPath(post.category)}
-                      className="text-[13px] font-medium text-[var(--hb-text-strong)] hover:text-[#9A6B62] transition-colors duration-200 whitespace-nowrap"
+                      className="text-[13px] font-medium text-[var(--hb-text-strong)] hover:text-rose-700 transition-colors duration-200 whitespace-nowrap"
                     >
                       {categoryInfo.label}
                     </Link>
@@ -605,7 +605,7 @@ export default function PostDetailClient({
                   </span>
                 )}
                 {post.is_weekly_best && (
-                  <span className="text-[#B89785] text-sm font-medium mr-2 align-middle">
+                  <span className="text-[var(--color-paper-tape-ink)] text-sm font-medium mr-2 align-middle">
                     BEST
                   </span>
                 )}
@@ -650,11 +650,11 @@ export default function PostDetailClient({
                     />
                     {/* 로그인 유도 오버레이 */}
                     <div className="absolute inset-0 flex flex-col items-center justify-center bg-gradient-to-t from-white via-white/90 to-transparent">
-                      <Lock className="w-8 h-8 text-[#878680] mb-2" />
+                      <Lock className="w-8 h-8 text-[var(--hb-text-muted)] mb-2" />
                       <p className="text-base font-medium text-[var(--hb-text-strong)] mb-1">
                         회원 전용 게시글입니다
                       </p>
-                      <p className="text-sm text-[#878680] mb-3">
+                      <p className="text-sm text-[var(--hb-text-muted)] mb-3">
                         로그인하면 전체 내용을 볼 수 있어요
                       </p>
                       <Link
@@ -718,7 +718,7 @@ export default function PostDetailClient({
                         )}
                         {/* 4장 이상이고 마지막 보이는 셀일 때 오버레이 */}
                         {post.images!.length > 6 && idx === 5 && (
-                          <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
+                          <div className="absolute inset-0 bg-black/65 flex items-center justify-center">
                             <span className="text-white text-lg font-bold">
                               +{post.images!.length - 6}
                             </span>
@@ -829,7 +829,7 @@ export default function PostDetailClient({
                 <div className="mt-4 space-y-3">
                   {/* 인라인 가격 요약 바 (PostCard 패턴) */}
                   <div className="bg-[#FDFCFA] rounded-[6px] px-4 py-3 border border-[#F5F2ED] flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-[6px] bg-emerald-100 flex items-center justify-center text-emerald-600 shrink-0">
+                    <div className="w-8 h-8 rounded-[6px] bg-emerald-100 flex items-center justify-center text-noir-800 shrink-0">
                       <Wallet className="w-4 h-4" />
                     </div>
                     <div>
@@ -861,7 +861,7 @@ export default function PostDetailClient({
                     <Link
                       key={tag}
                       href={communityCategoryFeedPath(post.category, tag)}
-                      className="px-3 py-1.5 text-sm text-[#878680] bg-[#FAFAF8] rounded-[6px] hover:bg-[#F0EFED] transition-all duration-200"
+                      className="px-3 py-1.5 text-sm text-[var(--hb-text-muted)] bg-[#FAFAF8] rounded-[6px] hover:bg-[#F0EFED] transition-all duration-200"
                     >
                       #{tag}
                     </Link>
@@ -891,7 +891,7 @@ export default function PostDetailClient({
                         )}
                         {vendor.business_name}
                         {vendor.rating != null && (
-                          <span className="text-[#878680]">
+                          <span className="text-[var(--hb-text-muted)]">
                             {vendor.rating.toFixed(1)}
                           </span>
                         )}
@@ -951,7 +951,7 @@ export default function PostDetailClient({
                     </button>
                   </div>
                   <p
-                    className="mt-2 text-xs font-medium text-[#D95F5F]"
+                    className="mt-2 text-xs font-medium text-danger-700"
                     role="status"
                     aria-live="polite"
                   >
@@ -1053,7 +1053,7 @@ export default function PostDetailClient({
                     <button
                       type="button"
                       onClick={() => setShowDeleteModal(true)}
-                      className="inline-flex items-center gap-1 px-2 sm:px-3 py-1.5 rounded-[6px] hover:bg-red-50 text-red-500 transition-all duration-200 whitespace-nowrap"
+                      className="inline-flex items-center gap-1 px-2 sm:px-3 py-1.5 rounded-[6px] hover:bg-red-50 text-danger-700 transition-all duration-200 whitespace-nowrap"
                     >
                       삭제
                     </button>
@@ -1119,7 +1119,7 @@ export default function PostDetailClient({
                   <p className="text-base font-medium text-[var(--hb-text-strong)]">
                     신고가 접수되었습니다
                   </p>
-                  <p className="mt-1 text-sm text-[#878680]">
+                  <p className="mt-1 text-sm text-[var(--hb-text-muted)]">
                     검토 후 조치하겠습니다. 감사합니다.
                   </p>
                 </div>
@@ -1133,7 +1133,7 @@ export default function PostDetailClient({
                     <button
                       type="button"
                       onClick={() => setShowReportModal(false)}
-                      className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-[#FAFAF8] text-[#878680] transition-colors"
+                      className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-[#FAFAF8] text-[var(--hb-text-muted)] transition-colors"
                     >
                       <X className="w-4 h-4" />
                     </button>
@@ -1141,7 +1141,7 @@ export default function PostDetailClient({
 
                   {/* 본문 */}
                   <div className="px-5 py-4">
-                    <p className="text-sm text-[#878680] mb-4">
+                    <p className="text-sm text-[var(--hb-text-muted)] mb-4">
                       신고 사유를 선택해 주세요.
                     </p>
 
@@ -1195,7 +1195,7 @@ export default function PostDetailClient({
 
                   {/* 에러 메시지 */}
                   {reportError && (
-                    <div className="mx-5 mb-2 px-3 py-2 text-sm text-red-600 bg-red-50 rounded-[6px]">
+                    <div className="mx-5 mb-2 px-3 py-2 text-sm text-danger-700 bg-red-50 rounded-[6px]">
                       {reportError}
                     </div>
                   )}
@@ -1205,7 +1205,7 @@ export default function PostDetailClient({
                     <button
                       type="button"
                       onClick={() => setShowReportModal(false)}
-                      className="px-4 py-2 text-sm font-medium text-[#878680] hover:text-[var(--hb-text-strong)] rounded-[6px] hover:bg-[#F0EFED] transition-all duration-200"
+                      className="px-4 py-2 text-sm font-medium text-[var(--hb-text-muted)] hover:text-[var(--hb-text-strong)] rounded-[6px] hover:bg-[#F0EFED] transition-all duration-200"
                     >
                       취소
                     </button>
@@ -1213,7 +1213,7 @@ export default function PostDetailClient({
                       type="button"
                       onClick={handleReportSubmit}
                       disabled={!reportReason || reportSubmitting}
-                      className="px-4 py-2 text-sm font-semibold text-white bg-red-500 hover:bg-red-600 rounded-[6px] transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed"
+                      className="px-4 py-2 text-sm font-semibold text-white bg-danger-700 hover:bg-danger-700/90 rounded-[6px] transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed"
                     >
                       {reportSubmitting ? "처리 중..." : "신고하기"}
                     </button>
@@ -1236,12 +1236,12 @@ export default function PostDetailClient({
             >
               <div className="p-6 text-center">
                 <div className="w-12 h-12 mx-auto mb-3 rounded-full bg-red-50 flex items-center justify-center">
-                  <Flag className="w-5 h-5 text-red-500" />
+                  <Flag className="w-5 h-5 text-danger-700" />
                 </div>
                 <h3 className="text-[var(--hb-text-strong)]">
                   게시글을 삭제하시겠습니까?
                 </h3>
-                <p className="mt-1 text-sm text-[#878680]">
+                <p className="mt-1 text-sm text-[var(--hb-text-muted)]">
                   삭제된 글은 복구할 수 없습니다.
                 </p>
               </div>
@@ -1249,7 +1249,7 @@ export default function PostDetailClient({
                 <button
                   type="button"
                   onClick={() => setShowDeleteModal(false)}
-                  className="flex-1 px-4 py-3 text-sm font-medium text-[#878680] hover:bg-[#FAFAF8] transition-all duration-200"
+                  className="flex-1 px-4 py-3 text-sm font-medium text-[var(--hb-text-muted)] hover:bg-[#FAFAF8] transition-all duration-200"
                 >
                   취소
                 </button>
@@ -1258,7 +1258,7 @@ export default function PostDetailClient({
                   type="button"
                   onClick={handleDelete}
                   disabled={deleting}
-                  className="flex-1 px-4 py-3 text-sm font-semibold text-red-500 hover:bg-red-50 transition-all duration-200 disabled:opacity-40"
+                  className="flex-1 px-4 py-3 text-sm font-semibold text-danger-700 hover:bg-red-50 transition-all duration-200 disabled:opacity-40"
                 >
                   {deleting ? "삭제 중..." : "삭제"}
                 </button>

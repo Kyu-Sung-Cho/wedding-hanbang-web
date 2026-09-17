@@ -211,7 +211,7 @@ function CaseLink({ item, className }: { item: DecisionCase; className?: string 
             <Check className="h-3.5 w-3.5" /> 해결된 고민
           </span>
         )}
-        {item.example && <span className="text-[#9b775f]">예시 데이터</span>}
+        {item.example && <span className="text-rose-700">예시 데이터</span>}
       </span>
       <strong className="mt-3 block break-keep font-serif text-[20px] font-medium leading-[1.42] text-[var(--hb-text-strong)] sm:text-[23px]">
         {item.title}
@@ -219,7 +219,7 @@ function CaseLink({ item, className }: { item: DecisionCase; className?: string 
       <span className="mt-2 block line-clamp-2 font-sans text-[13px] leading-6 text-[#69746f]">
         {item.excerpt}
       </span>
-      <span className="mt-4 flex items-center justify-between gap-3 font-sans text-[11px] font-medium text-[#8b8881]">
+      <span className="mt-4 flex items-center justify-between gap-3 font-sans text-[11px] font-medium text-[var(--hb-text-muted)]">
         <span>{item.author}</span>
         <span className="inline-flex items-center gap-1">
           답변 {item.comments} <ArrowUpRight className="h-3.5 w-3.5" />
@@ -281,7 +281,7 @@ function DecisionSearchVariant({ cases, total }: { cases: DecisionCase[]; total:
                 item={cases[0]}
                 className="relative block rounded-[6px] border border-[#d9cfc1] bg-[#fffdf8] p-6 shadow-[var(--shadow-overlay)] transition-transform hover:-translate-y-1 sm:p-8"
               />
-              <p className="mt-3 text-center font-sans text-[11px] text-[#89857e]">
+              <p className="mt-3 text-center font-sans text-[11px] text-[var(--hb-text-muted)]">
                 {total > 0 ? `현재 확인할 수 있는 글 ${total.toLocaleString("ko-KR")}개` : "구조 확인용 예시 콘텐츠"}
               </p>
             </aside>
@@ -358,7 +358,7 @@ function StoriesVariant({ cases }: { cases: DecisionCase[] }) {
                 <br />다음 커플에게 남긴
                 <br />결정의 기록
               </p>
-              <div className="mt-8 hidden space-y-3 border-t border-[#cfc4b6] pt-5 font-sans text-[12px] font-semibold text-[#65716c] lg:block">
+              <div className="mt-8 hidden space-y-3 border-t border-[#cfc4b6] pt-5 font-sans text-[12px] font-semibold text-[var(--hb-text-muted)] lg:block">
                 <p>01 견적·계약</p>
                 <p>02 업체 경험</p>
                 <p>03 일정·관계</p>
@@ -405,7 +405,7 @@ function StoriesVariant({ cases }: { cases: DecisionCase[] }) {
                     "우리 커플의 우선순위로 다시 판단하기",
                   ].map((item, index) => (
                     <li key={item} className="grid grid-cols-[34px_1fr] gap-3 border-b border-[#d7ccbe] pb-5">
-                      <span className="font-serif text-[18px] text-[#8F6662]">0{index + 1}</span>
+                      <span className="font-serif text-[18px] text-rose-700">0{index + 1}</span>
                       <span className="break-keep font-sans text-[14px] font-semibold leading-6 text-[#53615c]">{item}</span>
                     </li>
                   ))}
@@ -438,7 +438,7 @@ function StoriesVariant({ cases }: { cases: DecisionCase[] }) {
                     : weddingLinkProps("/community?feed=all#community-feed"))}
                   className="group grid gap-3 py-6 sm:grid-cols-[70px_140px_minmax(0,1fr)_auto] sm:items-center sm:gap-5"
                 >
-                  <span className="font-serif text-[18px] text-[#9b775f]">0{index + 1}</span>
+                  <span className="font-serif text-[18px] text-rose-700">0{index + 1}</span>
                   <span className="font-sans text-[11px] font-bold text-[#65716c]">{item.category}</span>
                   <span className="break-keep font-serif text-[20px] font-medium leading-7 sm:text-[24px]">{item.title}</span>
                   <ArrowRight className="hidden h-5 w-5 transition-transform group-hover:translate-x-1 sm:block" />
@@ -530,14 +530,14 @@ function ClinicVariant({ cases }: { cases: DecisionCase[] }) {
                       : weddingLinkProps("/community?feed=all&sort=unanswered#community-feed"))}
                     className="group grid gap-4 rounded-[6px] border border-[#ded5c8] bg-white p-5 transition-colors hover:border-[#a9bab4] sm:grid-cols-[auto_minmax(0,1fr)_auto] sm:items-center sm:p-6"
                   >
-                    <span className="flex h-11 w-11 items-center justify-center rounded-full bg-[#f3e7e3] text-[#8F6662]">
+                    <span className="flex h-11 w-11 items-center justify-center rounded-full bg-[#f3e7e3] text-rose-700">
                       <MessageCircle className="h-5 w-5" />
                     </span>
                     <span>
-                      <span className="flex flex-wrap items-center gap-2 font-sans text-[11px] font-semibold text-[#73807b]">
+                      <span className="flex flex-wrap items-center gap-2 font-sans text-[11px] font-semibold text-[var(--hb-text-muted)]">
                         <span>{item.category}</span>
                         <span className="inline-flex items-center gap-1"><Clock3 className="h-3 w-3" /> 답변 기다리는 중</span>
-                        {item.example && <span className="text-[#9b775f]">예시 데이터</span>}
+                        {item.example && <span className="text-rose-700">예시 데이터</span>}
                       </span>
                       <strong className="mt-2 block break-keep font-serif text-[20px] font-medium leading-7 sm:text-[23px]">{item.title}</strong>
                     </span>
@@ -552,7 +552,7 @@ function ClinicVariant({ cases }: { cases: DecisionCase[] }) {
             <aside className="rounded-[6px] bg-[#edf1ec] p-6 sm:p-8 lg:self-start">
               <HeartHandshake className="h-7 w-7 text-[#8F6662]" />
               <h3 className="mt-5 break-keep font-serif">당신의 경험이 가장 필요한 질문만 보여드릴게요.</h3>
-              <p className="mt-4 font-sans text-[13px] leading-6 text-[#65716c]">
+              <p className="mt-4 font-sans text-[13px] leading-6 text-[var(--hb-text-muted)]">
                 예식 지역과 준비 단계를 선택하면, 답할 수 있는 질문을 우선 연결하는 구조예요.
               </p>
               <div className="mt-6 flex flex-wrap gap-2">

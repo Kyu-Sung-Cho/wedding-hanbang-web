@@ -15,8 +15,8 @@ import type { ComputedNotification } from "@/hooks/useNotifications";
 import { useAuthStore } from "@/stores/authStore";
 
 const PRIORITY_STYLES: Record<string, { icon: React.ElementType; accent: string; bg: string }> = {
-  high: { icon: AlertTriangle, accent: "text-red-500", bg: "bg-red-50" },
-  medium: { icon: Bell, accent: "text-[#C4967E]", bg: "bg-[#C4967E]/5" },
+  high: { icon: AlertTriangle, accent: "text-danger-700", bg: "bg-red-50" },
+  medium: { icon: Bell, accent: "text-rose-700", bg: "bg-[#C4967E]/5" },
   low: { icon: Info, accent: "text-[var(--hb-text-muted)]", bg: "bg-[#FAF8F5]" },
 };
 const PARTNER_STYLE = {
@@ -153,7 +153,7 @@ export default function NotificationPanel({
               <button
                 type="button"
                 onClick={onDismissAll}
-                className="text-[11px] text-[var(--hb-text-muted)] hover:text-[#C4967E] transition-colors"
+                className="text-[11px] text-[var(--hb-text-muted)] hover:text-rose-700 transition-colors"
               >
                 모두 읽음
               </button>
@@ -281,7 +281,7 @@ export default function NotificationPanel({
                               <button
                                 type="button"
                                 onClick={() => onCategoryClick(n.categoryKey!)}
-                                className="text-[11px] text-[#C4967E] hover:underline"
+                                className="text-[11px] text-rose-700 hover:underline"
                               >
                                 체크리스트 보기
                               </button>

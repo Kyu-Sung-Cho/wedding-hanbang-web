@@ -267,7 +267,7 @@ export default function CommentSection({ postId }: CommentSectionProps) {
         <div className="mb-4 relative">
           <div className="px-4 py-4 text-center bg-[#FAFAF8] border border-[#F0EFED] rounded-[6px]">
             <MessageCircle className="w-6 h-6 mx-auto mb-2 text-[var(--hb-text-muted)]" />
-            <p className="text-base text-[#878680]">
+            <p className="text-base text-[var(--hb-text-muted)]">
               <Link
                 href={loginHref}
                 className="text-[var(--hb-text-strong)] font-semibold hover:underline"
@@ -297,7 +297,7 @@ export default function CommentSection({ postId }: CommentSectionProps) {
         // 못 불러온 것을 "아직 없다"고 말하면 사용자가 같은 질문을 다시 올린다.
         <div className="text-center py-8">
           <MessageCircle className="w-8 h-8 mx-auto mb-2 text-[var(--hb-text-muted)]" />
-          <p className="text-base text-[#878680]">답변을 불러오지 못했어요.</p>
+          <p className="text-base text-[var(--hb-text-muted)]">답변을 불러오지 못했어요.</p>
           <button
             type="button"
             onClick={() => fetchComments(postId)}
@@ -309,7 +309,7 @@ export default function CommentSection({ postId }: CommentSectionProps) {
       ) : treeComments.length === 0 ? (
         <div className="text-center py-8">
           <MessageCircle className="w-8 h-8 mx-auto mb-2 text-[var(--hb-text-muted)]" />
-          <p className="text-base text-[#878680]">
+          <p className="text-base text-[var(--hb-text-muted)]">
             아직 답변이 없습니다. 첫 경험을 나눠주세요.
           </p>
         </div>

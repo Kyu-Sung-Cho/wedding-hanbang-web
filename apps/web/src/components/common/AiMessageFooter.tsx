@@ -22,7 +22,7 @@ export default function AiMessageFooter({
   return (
     <div
       className={`inline-flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] leading-tight ${
-        isHigh ? "text-[#9A6B62]" : "text-[var(--hb-text-body)]/60"
+        isHigh ? "text-rose-700" : "text-[var(--hb-text-muted)]"
       } ${className}`}
     >
       <span className="inline-flex items-center gap-1">

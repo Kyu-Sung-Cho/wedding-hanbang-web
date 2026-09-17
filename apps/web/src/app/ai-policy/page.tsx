@@ -130,7 +130,7 @@ export default function AIPolicyPage() {
         </section>
 
         {/* 하단 */}
-        <div className="pt-8 mt-8 border-t border-[#e5dcdc] text-xs text-[var(--hb-text-body)]/70">
+        <div className="pt-8 mt-8 border-t border-[#e5dcdc] text-xs text-[var(--hb-text-muted)]">
           <p>
             AI 제공 방식이나 정책이 변경되면 본 페이지를 업데이트합니다.
           </p>

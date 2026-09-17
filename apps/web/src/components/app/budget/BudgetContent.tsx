@@ -353,7 +353,7 @@ function InlineMoneyEdit({
           onClick={() => {
             void Promise.resolve(onReset()).catch(() => undefined);
           }}
-          className="tap-area shrink-0 w-6 h-6 rounded-lg flex items-center justify-center text-[var(--amora-muted)] hover:text-red-400 hover:bg-red-50 transition-colors"
+          className="tap-area shrink-0 w-6 h-6 rounded-lg flex items-center justify-center text-[var(--amora-muted)] hover:text-danger-700 hover:bg-red-50 transition-colors"
           title={`${label} 초기화`}
         >
           <X className="w-4 h-4" />
@@ -393,13 +393,13 @@ function BudgetCategoryEntry({
     <div data-budget-category={catKey} className={`group min-w-0 border-t border-[var(--amora-line)] bg-white py-3 ${compact ? "lg:grid lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center lg:gap-x-6 lg:py-3.5" : "sm:rounded-[14px] sm:border sm:px-[18px] sm:py-4"}`}>
       <div className="min-w-0">
         <div className="mb-1.5 flex min-w-0 items-center gap-2.5">
-          <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg sm:h-8 sm:w-8 ${isOver ? "bg-red-50 text-[#d95f5f]" : "bg-[var(--amora-warm)] text-[var(--amora-rose-deep)]"}`}>
+          <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg sm:h-8 sm:w-8 ${isOver ? "bg-red-50 text-danger-700" : "bg-[var(--amora-warm)] text-[var(--amora-rose-deep)]"}`}>
             <Icon className="h-3.5 w-3.5 sm:h-4 sm:w-4" aria-hidden="true" />
           </span>
           <span className="min-w-0 flex-1 text-[12.5px] font-semibold leading-snug text-[var(--amora-ink)] sm:text-[13.5px]">{label}</span>
           <span data-budget-status={status} className={`shrink-0 whitespace-nowrap rounded-full px-2 py-0.5 text-[10px] font-semibold ${status === "completed" ? "bg-[var(--amora-sage-pale)] text-[#33473a]" : status === "in_progress" ? "bg-[var(--amora-rose-pale)] text-[var(--amora-rose-deep)]" : status === "not_applicable" ? "border border-dashed border-[var(--amora-line)] bg-white text-[var(--amora-muted)]" : "bg-[var(--amora-low)] text-[var(--amora-soft)]"}`}>{PREPARATION_PROGRESS_STATUS_LABELS[status]}</span>
           {onDelete && (
-            <button type="button" onClick={() => { void Promise.resolve(onDelete(catKey)).catch(() => undefined); }} className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-[var(--amora-muted)] transition-colors hover:bg-red-50 hover:text-[#d95f5f]" title={`${label} 삭제`}>
+            <button type="button" onClick={() => { void Promise.resolve(onDelete(catKey)).catch(() => undefined); }} className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-[var(--amora-muted)] transition-colors hover:bg-red-50 hover:text-danger-700" title={`${label} 삭제`}>
               <X className="h-3.5 w-3.5" />
             </button>
           )}
@@ -1077,7 +1077,7 @@ function ScopedBudgetContent({
                     </div>
                     {/* 실제 카드 폭에 맞춰 열 수를 줄여 원 단위 금액을 한 줄로 보존한다. */}
                     <p className={`planning-display whitespace-nowrap text-[16px] font-medium leading-none ${
-                      amount > 0 ? "text-[var(--hb-text-strong)]" : "text-[#9a9188]"
+                      amount > 0 ? "text-[var(--hb-text-strong)]" : "text-[var(--hb-text-muted)]"
                     }`}>
                       {formatWon(amount)}
                     </p>
@@ -1325,7 +1325,7 @@ function ScopedBudgetContent({
                 </div>
               </div>
 
-              {journeyError && <p role="alert" className="mt-4 text-[12px] leading-relaxed text-[#d95f5f]">{journeyError}</p>}
+              {journeyError && <p role="alert" className="mt-4 text-[12px] leading-relaxed text-danger-700">{journeyError}</p>}
               <div className="flex gap-3 mt-6">
                 <button
                   onClick={() => setShowAddModal(false)}
@@ -1358,7 +1358,7 @@ function ScopedBudgetContent({
               <div role="dialog" aria-modal="true" aria-label="예산 항목 관리" className="relative max-h-[90dvh] overflow-y-auto bg-white rounded-2xl w-[90%] max-w-[380px] p-6 shadow-[var(--shadow-raised)]">
                 <div className="flex items-center gap-3 mb-4">
                   <div className="w-11 h-11 rounded-full bg-red-50 flex items-center justify-center flex-shrink-0">
-                    <AlertTriangle className="w-5 h-5 text-red-400" />
+                    <AlertTriangle className="w-5 h-5 text-danger-700" />
                   </div>
                   <div>
                     <h3 className="text-[18px] font-semibold text-[var(--amora-ink)]">
@@ -1373,7 +1373,7 @@ function ScopedBudgetContent({
                   </div>
                 </div>
 
-                {journeyError && <p role="alert" className="mt-4 text-[12px] leading-relaxed text-[#d95f5f]">{journeyError}</p>}
+                {journeyError && <p role="alert" className="mt-4 text-[12px] leading-relaxed text-danger-700">{journeyError}</p>}
                 <div className={`flex gap-3 mt-5 ${isFixed ? "flex-col" : ""}`}>
                   {isFixed ? (
                     <>
@@ -1390,7 +1390,7 @@ function ScopedBudgetContent({
                           onClick={() => {
                             void handleDeleteCategory(deletingKey).catch(() => undefined);
                           }}
-                          className="flex-1 py-2.5 rounded-lg bg-red-400 text-white text-[13px] font-medium hover:bg-red-500 transition-colors"
+                          className="flex-1 py-2.5 rounded-lg bg-danger-700 text-white text-[13px] font-medium hover:bg-danger-700/90 transition-colors"
                         >
                           항목 삭제
                         </button>
@@ -1414,7 +1414,7 @@ function ScopedBudgetContent({
                         onClick={() => {
                           void handleDeleteCategory(deletingKey).catch(() => undefined);
                         }}
-                        className="flex-1 py-2.5 rounded-lg bg-red-400 text-white text-[13px] font-medium hover:bg-red-500 transition-colors"
+                        className="flex-1 py-2.5 rounded-lg bg-danger-700 text-white text-[13px] font-medium hover:bg-danger-700/90 transition-colors"
                       >
                         삭제
                       </button>

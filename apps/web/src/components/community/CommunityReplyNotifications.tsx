@@ -427,7 +427,7 @@ export default function CommunityReplyNotifications({
                         </span>
                         <time
                           dateTime={notification.created_at}
-                          className="mt-1 block text-[11px] text-[#A39A91]"
+                          className="mt-1 block text-[11px] text-[var(--hb-text-muted)]"
                         >
                           {formatTime(notification.created_at)}
                         </time>

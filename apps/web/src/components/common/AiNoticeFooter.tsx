@@ -14,11 +14,14 @@ export default function AiNoticeFooter({ variant = "light" }: AiNoticeFooterProp
 
   const borderCls = isDark ? "border-white/10" : "border-[#e5dcdc]";
   const textCls = isDark ? "text-[var(--hb-on-primary)]" : "text-[var(--hb-text-body)]";
+  // 어두운 변형은 모브 푸터(`--hb-primary`) 위에 놓인다. 흰 글리프를 반투명 흰 칩에 두면
+  // 칩이 밝아져 4.07:1 에 그친다 — 눌림 단계(rose[700]) 칩 위 흰 글리프는 6.25:1 이다.
   const iconBgCls = isDark
-    ? "bg-white/10 text-white/80"
+    ? "bg-[var(--hb-primary-hover)] text-[var(--hb-on-primary)]"
     : "bg-[rgba(54,83,78,0.10)] text-[var(--hb-accent-hover)]";
   const labelCls = isDark ? "text-[var(--hb-on-primary)]" : "text-[var(--hb-text-strong)]";
-  const linkHoverCls = isDark ? "hover:text-white" : "hover:text-[var(--hb-accent-hover)]";
+  // 어두운 변형의 글자는 이미 불투명 흰색이라 색을 바꾸는 호버는 보이지 않는다. 밑줄을 굵힌다.
+  const linkHoverCls = isDark ? "hover:decoration-2" : "hover:text-[var(--hb-accent-hover)]";
 
   return (
     <div className={`border-t ${borderCls} pt-6 mt-6 text-xs ${textCls}`}>

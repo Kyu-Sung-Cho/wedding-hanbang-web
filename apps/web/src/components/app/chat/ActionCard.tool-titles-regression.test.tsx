@@ -86,7 +86,7 @@ describe("ActionCard known tool titles", () => {
     expect(container.textContent).toContain("과거 일정 삭제 영수증");
     expect(container.textContent).toContain("현재 일정 상태를 다시 확인");
     expect(container.textContent).not.toContain("일정을 삭제했습니다");
-    expect(container.querySelector(".text-emerald-500")).toBeNull();
-    expect(container.querySelector(".text-red-400")).toBeNull();
+    expect(container.querySelector('[class~="text-[var(--hb-success)]"]')).toBeNull();
+    expect(container.querySelector(".text-danger-700")).toBeNull();
   });
 });

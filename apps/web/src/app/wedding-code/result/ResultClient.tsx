@@ -315,7 +315,7 @@ export default function WeddingCodeResultClient() {
               <p className="mt-2 text-[14px] font-medium leading-[1.75] text-[var(--hb-text-body)]">{axis.summaryKo}</p>
               <div className="mt-4 flex items-center justify-between gap-3 rounded-[6px] bg-[var(--hb-surface-hover)] px-4 py-3 text-[12px] font-semibold text-[var(--hb-text-strong)]">
                 <span>{labels.left}</span>
-                <span aria-hidden="true" className="text-[#A77B74]">↔</span>
+                <span aria-hidden="true" className="text-rose-700">↔</span>
                 <span>{labels.right}</span>
               </div>
                   </>
@@ -355,7 +355,7 @@ export default function WeddingCodeResultClient() {
                 {inviteState === "creating" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Heart className="h-4 w-4" />}
                 상대에게 보내고 비교 준비하기
               </button>
-              <p className="mt-2 text-center text-[12px] font-medium text-[#9a9188]">
+              <p className="mt-2 text-center text-[12px] font-medium text-[var(--hb-text-muted)]">
                 상대가 같은 테스트를 완료하면 두 사람의 준비 방식 겹침도를 만들 수 있어요.
               </p>
               {visibleInviteLink && (
@@ -381,7 +381,7 @@ export default function WeddingCodeResultClient() {
                 <p className="mt-1.5 text-center text-[12px] font-semibold text-[var(--hb-text-strong)]">링크를 복사했어요. 카톡으로 보내보세요.</p>
               )}
               {inviteState === "error" && (
-                <p className="mt-1.5 text-center text-[12px] font-semibold text-red-500">링크 생성에 실패했어요. 잠시 후 다시 시도해주세요.</p>
+                <p className="mt-1.5 text-center text-[12px] font-semibold text-danger-700">링크 생성에 실패했어요. 잠시 후 다시 시도해주세요.</p>
               )}
             </div>
           )}
@@ -401,7 +401,7 @@ export default function WeddingCodeResultClient() {
             className="flex w-full items-center justify-between px-6 py-4 text-left"
           >
             <span className="text-[14px] font-semibold text-[var(--hb-text-strong)]">내 선택 전부 보기</span>
-            {allOpen ? <ChevronUp className="h-4 w-4 text-[#9a9188]" /> : <ChevronDown className="h-4 w-4 text-[#9a9188]" />}
+            {allOpen ? <ChevronUp className="h-4 w-4 text-[var(--hb-text-muted)]" /> : <ChevronDown className="h-4 w-4 text-[var(--hb-text-muted)]" />}
           </button>
           {allOpen && (
             <div className="divide-y divide-[#f0e9db] border-t border-[var(--hb-hairline)]">
@@ -412,7 +412,7 @@ export default function WeddingCodeResultClient() {
                   <div key={question.key} className="px-6 py-3.5">
                     <p className="text-[11px] font-semibold text-[var(--hb-accent-hover)]">{question.title}</p>
                     <p className="mt-1 text-[13px] font-medium leading-relaxed text-[var(--hb-text-body)]">
-                      {option ? option.label : <span className="text-[#9a9188]">응답 없음</span>}
+                      {option ? option.label : <span className="text-[var(--hb-text-muted)]">응답 없음</span>}
                     </p>
                   </div>
                 );
@@ -421,7 +421,7 @@ export default function WeddingCodeResultClient() {
           )}
         </div>
 
-        <p className="mt-5 text-center text-[11px] font-medium leading-relaxed text-[#9a9188]">
+        <p className="mt-5 text-center text-[11px] font-medium leading-relaxed text-[var(--hb-text-muted)]">
           {report.disclaimerKo}
         </p>
       </div>
@@ -555,7 +555,7 @@ function CoupleReportSection({
         </div>
       )}
 
-      <p className="mt-3 text-[11px] font-medium leading-relaxed text-[#9a9188]">
+      <p className="mt-3 text-[11px] font-medium leading-relaxed text-[var(--hb-text-muted)]">
         {report.disclaimerKo}
       </p>
     </section>

@@ -819,15 +819,15 @@ function PostWriteContent() {
 
   // 글자수 경고 색상
   const titleCountColor = title.length >= TITLE_MAX_LENGTH
-    ? "text-red-500"
+    ? "text-danger-700"
     : title.length >= TITLE_MAX_LENGTH * 0.9
-      ? "text-amber-500"
+      ? "text-[var(--color-paper-tape-ink)]"
       : "text-[var(--hb-text-body)]";
 
   const contentCountColor = content.length >= CONTENT_MAX_LENGTH
-    ? "text-red-500"
+    ? "text-danger-700"
     : content.length >= CONTENT_MAX_LENGTH * 0.9
-      ? "text-amber-500"
+      ? "text-[var(--color-paper-tape-ink)]"
       : "text-[var(--hb-text-body)]";
 
   return (
@@ -854,7 +854,7 @@ function PostWriteContent() {
             )}
             {/* 자동 저장 표시 */}
             {autoSaveFlash && (
-              <span className="flex items-center gap-1 text-sm text-emerald-500 animate-pulse">
+              <span className="flex items-center gap-1 text-sm text-[var(--hb-success)] animate-pulse">
                 <Check className="w-3 h-3" />
                 자동 저장됨
               </span>
@@ -864,7 +864,7 @@ function PostWriteContent() {
 
         {/* 에러 메시지 */}
         {error && (
-          <div className="mb-6 px-4 py-3 text-sm text-red-600 bg-red-50 border border-red-200 rounded-[6px]">
+          <div className="mb-6 px-4 py-3 text-sm text-danger-700 bg-red-50 border border-red-200 rounded-[6px]">
             {error}
           </div>
         )}
@@ -1083,7 +1083,7 @@ function PostWriteContent() {
                             본문에 이미지/GIF 삽입
                           </button>
                           {insertImageError && (
-                            <span className="text-xs text-red-500">{insertImageError}</span>
+                            <span className="text-xs text-danger-700">{insertImageError}</span>
                           )}
                         </>
                       )}

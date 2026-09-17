@@ -120,13 +120,13 @@ function ChecklistMode({ data, onSend, disabled }: { data: Record<string, unknow
   return (
     <div className="w-full max-w-[440px] rounded-[6px] border border-black/[0.06] bg-white shadow-[var(--shadow-raised)] overflow-hidden">
       {/* 헤더 */}
-      <div className="bg-gradient-to-r from-[#C4967E] to-[#C9A96E] px-6 py-5">
+      <div className="bg-gradient-to-r from-[var(--hb-primary)] to-[var(--hb-primary-hover)] px-6 py-5">
         <div className="flex items-center gap-3">
           <div className="w-12 h-12 rounded-[6px] bg-white/20 flex items-center justify-center">
             <Search className="w-6 h-6 text-white" />
           </div>
           <div>
-            <p className="text-sm text-white/70 font-medium">견적 항목 체크</p>
+            <p className="text-sm text-white font-medium">견적 항목 체크</p>
             <p className="text-[1.0625rem] text-white font-semibold">
               {vendorName || CATEGORY_LABELS[category]} — {quotePrice}만원
             </p>
@@ -351,7 +351,7 @@ function AnalysisMode({ data }: { data: Record<string, unknown> }) {
           className="w-full px-5 py-3.5 flex items-center justify-between hover:bg-slate-50/50 transition-colors"
         >
           <div className="flex items-center gap-2">
-            <AlertTriangle className="w-5 h-5 text-amber-500" />
+            <AlertTriangle className="w-5 h-5 text-[var(--color-paper-tape-ink)]" />
             <span className="text-base font-semibold text-[var(--hb-text-strong)]">아직 확인하지 않은 항목 {missingItems.length}개</span>
             {missingCritical.length > 0 && (
               <span className="text-xs px-2 py-0.5 rounded-full bg-[#E8EFE5] text-[var(--hb-text-strong)]">먼저 {missingCritical.length}</span>
@@ -388,7 +388,7 @@ function AnalysisMode({ data }: { data: Record<string, unknown> }) {
             className="w-full px-5 py-3.5 flex items-center justify-between hover:bg-slate-50/50 transition-colors"
           >
             <div className="flex items-center gap-2">
-              <CheckCircle2 className="w-5 h-5 text-emerald-500" />
+              <CheckCircle2 className="w-5 h-5 text-[var(--hb-success)]" />
               <span className="text-base font-semibold text-[var(--hb-text-strong)]">포함 확인된 항목 {includedItems.length}개</span>
             </div>
             {expandedSection === "included" ? <ChevronUp className="w-5 h-5 text-[var(--hb-text-muted)]" /> : <ChevronDown className="w-5 h-5 text-[var(--hb-text-muted)]" />}
@@ -445,8 +445,8 @@ function AnalysisMode({ data }: { data: Record<string, unknown> }) {
       <div className="px-5 py-3.5 bg-slate-50/50">
         <p className="text-xs text-[var(--hb-text-muted)] leading-relaxed">{statsNote}</p>
         <div className="flex items-center gap-1.5 mt-2">
-          <Shield className="w-4 h-4 text-[#C4967E]" />
-          <p className="text-xs text-[#C4967E] font-medium">원하는 항목만 포함 여부와 별도 금액을 서면으로 확인하세요</p>
+          <Shield className="w-4 h-4 text-rose-700" />
+          <p className="text-xs text-rose-700 font-medium">원하는 항목만 포함 여부와 별도 금액을 서면으로 확인하세요</p>
         </div>
       </div>
     </div>
@@ -477,15 +477,15 @@ function MissingItemRow({ item, style }: { item: MissingItem; style: typeof SEVE
       {expanded && (
         <div className="px-3.5 pb-3 space-y-2 border-t border-black/[0.04]">
           <div className="flex items-start gap-2 mt-2.5">
-            <AlertTriangle className="w-4 h-4 text-amber-500 mt-0.5 flex-shrink-0" />
+            <AlertTriangle className="w-4 h-4 text-[var(--color-paper-tape-ink)] mt-0.5 flex-shrink-0" />
             <p className="text-xs text-[var(--hb-text-muted)] leading-relaxed">{item.disguise}</p>
           </div>
           <div className="flex items-start gap-2">
-            <HelpCircle className="w-4 h-4 text-blue-400 mt-0.5 flex-shrink-0" />
+            <HelpCircle className="w-4 h-4 text-[var(--hb-accent)] mt-0.5 flex-shrink-0" />
             <p className="text-xs text-[var(--hb-text-strong)] leading-relaxed">{item.reason}</p>
           </div>
           <div className="bg-white rounded-[6px] px-3 py-2.5 border border-black/[0.04]">
-            <p className="text-xs text-[#C4967E] font-medium mb-1">계약 전 확인 질문</p>
+            <p className="text-xs text-rose-700 font-medium mb-1">계약 전 확인 질문</p>
             <p className="text-sm text-[var(--hb-text-strong)] leading-relaxed">&ldquo;{item.checkQuestion}&rdquo;</p>
           </div>
         </div>

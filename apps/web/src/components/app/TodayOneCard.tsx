@@ -279,7 +279,7 @@ export default function TodayOneCard() {
         aria-labelledby="today-one-error-title"
       >
         <div className="flex items-start gap-3">
-          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[var(--hb-surface-hover)] text-[#8F6662]">
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[var(--hb-surface-hover)] text-rose-700">
             <RotateCcw className="h-5 w-5" aria-hidden="true" />
           </span>
           <div className="min-w-0 flex-1">
@@ -334,11 +334,11 @@ export default function TodayOneCard() {
     >
       <div className="bg-[var(--hb-primary)] px-5 py-5 text-white md:px-6">
         <div className="flex items-center justify-between gap-4">
-          <p className="inline-flex items-center gap-2 text-xs font-semibold text-[#F7F1E8]">
+          <p className="inline-flex items-center gap-2 text-xs font-semibold text-[var(--hb-on-primary)]">
             <AmoraMark className="h-4 w-4" aria-hidden="true" />
             아모라 오늘의 한 가지 · 인앱
           </p>
-          <span className="inline-flex items-center gap-1 text-[11px] font-medium text-[#C7D1C2]">
+          <span className="inline-flex items-center gap-1 text-[11px] font-medium text-[var(--hb-on-primary)]">
             <ShieldCheck className="h-3.5 w-3.5" aria-hidden="true" />
             외부 알림 아님
           </span>

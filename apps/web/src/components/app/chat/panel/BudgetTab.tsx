@@ -22,10 +22,10 @@ const ICON_MAP: Record<string, React.ElementType> = {
 };
 
 const STATUS_COLORS: Record<string, string> = {
-  completed: "bg-[#2E7D5A]",
-  in_progress: "bg-[var(--hb-primary)]",
-  not_started: "bg-taupe-400",
-  not_applicable: "bg-[#8b857c]",
+  completed: "bg-[#2E7D5A] text-white",
+  in_progress: "bg-[var(--hb-primary)] text-white",
+  not_started: "bg-ivory-200 text-[var(--hb-text-body)]",
+  not_applicable: "bg-[var(--hb-text-muted)] text-white",
 };
 
 // 상태 이름은 예산 화면·대시보드·온보딩과 같은 정본을 쓴다(아직·준비 중·완료·안 해요).
@@ -125,7 +125,7 @@ export default function BudgetTab() {
                   <span className="text-base text-[var(--hb-text-strong)] truncate block">{cat.label}</span>
                 </div>
                 <BudgetAmounts category={cat} />
-                <span className={`text-xs px-2 py-0.5 rounded-full text-white font-medium flex-shrink-0 ${STATUS_COLORS[cat.status]}`}>
+                <span className={`text-xs px-2 py-0.5 rounded-full font-medium flex-shrink-0 ${STATUS_COLORS[cat.status]}`}>
                   {STATUS_LABELS[cat.status]}
                 </span>
               </div>
@@ -145,13 +145,13 @@ export default function BudgetTab() {
             return (
               <div key={cat.key} className="flex items-center gap-3 py-2 opacity-60">
                 <div className="w-8 h-8 rounded-[6px] bg-[var(--hb-surface-hover)] flex items-center justify-center flex-shrink-0">
-                  <IconComp className="w-4 h-4 text-[#2E7D5A]" />
+                  <IconComp className="w-4 h-4 text-noir-800" />
                 </div>
                 <div className="flex-1 min-w-0">
                   <span className="text-base text-[var(--hb-text-strong)] truncate block">{cat.label}</span>
                 </div>
                 <BudgetAmounts category={cat} />
-                <span className={`text-xs px-2 py-0.5 rounded-full text-white font-medium flex-shrink-0 ${STATUS_COLORS[cat.status]}`}>
+                <span className={`text-xs px-2 py-0.5 rounded-full font-medium flex-shrink-0 ${STATUS_COLORS[cat.status]}`}>
                   {STATUS_LABELS[cat.status]}
                 </span>
               </div>

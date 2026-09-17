@@ -320,7 +320,7 @@ export default function PostCard({ post }: PostCardProps) {
                 onClick={handleLike}
                 disabled={voting}
                 className={`flex items-center gap-1 group transition-colors disabled:opacity-60 ${
-                  isLiked ? "text-[#D85A5A]" : "hover:text-[#D85A5A]"
+                  isLiked ? "text-danger-700" : "hover:text-danger-700"
                 }`}
                 aria-label="좋아요"
                 title="좋아요"

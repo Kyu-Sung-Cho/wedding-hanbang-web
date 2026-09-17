@@ -113,7 +113,7 @@ export function BudgetFinderModal({
             <select
               value={agencyId}
               onChange={(event) => setAgencyId(event.target.value)}
-              className="mt-2 min-h-12 w-full rounded-[6px] border border-[var(--hb-primary)]/15 bg-white px-3 text-sm outline-none focus:ring-2 focus:ring-[#B89785]"
+              className="mt-2 min-h-12 w-full rounded-[6px] border border-[var(--color-paper-outline)] bg-white px-3 text-sm outline-none focus:ring-2 focus:ring-[#B89785]"
             >
               <option value="">전체 대행사</option>
               {agencies.map((agency) => <option key={agency.id} value={agency.id}>{agency.name}</option>)}
@@ -149,7 +149,7 @@ export function BudgetFinderModal({
                     </div>
                   ))}
                 </dl>
-                <button type="button" onClick={() => onChoose(result)} className="mt-3 min-h-11 w-full rounded-[6px] border border-[var(--hb-primary)]/18 text-sm font-bold text-[var(--hb-text-strong)] hover:bg-[#F5ECE4]">
+                <button type="button" onClick={() => onChoose(result)} className="mt-3 min-h-11 w-full rounded-[6px] border border-[var(--color-paper-outline)] text-sm font-bold text-[var(--hb-text-strong)] hover:bg-[#F5ECE4]">
                   이 조합 담기
                 </button>
               </article>
