@@ -25,9 +25,10 @@ import {
   WEDDING_CODE_RESEARCH_CONSENT_VERSION,
   WEDDING_CODE_RESEARCH_CONTRIBUTION_EFFECTIVE_AT,
   WEDDING_CODE_RESEARCH_RECEIPT_PATTERN,
-  WEDDING_CODE_RESEARCH_SCENE_VERSION,
   createWeddingCodeResearchReceipt,
 } from "@/lib/weddingCode/contribution/contract";
+import { WEDDING_CODE_V08_VERSION } from "@/constants/weddingCodeV08";
+import { WEDDING_CODE_V09_VERSION } from "@/constants/weddingCodeV09";
 import { POST as deleteContribution } from "./delete/route";
 import { POST as contribute } from "./route";
 
@@ -51,7 +52,7 @@ function post(path: string, body: unknown, headers: Record<string, string> = {})
 }
 
 const VALID = {
-  sceneVersion: WEDDING_CODE_RESEARCH_SCENE_VERSION,
+  sceneVersion: WEDDING_CODE_V09_VERSION as string,
   answerCode: ANSWER_CODE,
   consentVersion: WEDDING_CODE_RESEARCH_CONSENT_VERSION,
   adultConfirmed: true,
@@ -146,7 +147,7 @@ describe("POST /api/wedding-code/research-contribution", () => {
     expect(await response.json()).toEqual({ ok: true });
 
     expect(mocks.rpc).toHaveBeenCalledExactlyOnceWith("insert_wedding_code_research_contribution", {
-      p_scene_version: WEDDING_CODE_RESEARCH_SCENE_VERSION,
+      p_scene_version: WEDDING_CODE_V09_VERSION,
       p_answer_code: ANSWER_CODE,
       p_consent_version: WEDDING_CODE_RESEARCH_CONSENT_VERSION,
       p_deletion_receipt_hash: expectedHash(RECEIPT),
@@ -158,6 +159,22 @@ describe("POST /api/wedding-code/research-contribution", () => {
     expect(mocks.rpc).toHaveBeenLastCalledWith("delete_wedding_code_research_contribution", {
       p_deletion_receipt_hash: expectedHash(RECEIPT),
     });
+  });
+
+  /**
+   * 받는 판이 둘이 된 뒤(v0.8·v0.9) 가장 조용히 틀릴 수 있는 곳: 요청이 어느 판이었든
+   * 서버가 상수 하나로 바꿔 저장하면, DB 는 둘 다 받으니 아무 오류 없이 이름표가 섞인다.
+   */
+  it("옛 판(v0.8) 링크로 푼 답은 v0.8 이름표 그대로 저장한다", async () => {
+    const response = await contribute(post("/api/wedding-code/research-contribution", {
+      ...VALID,
+      sceneVersion: WEDDING_CODE_V08_VERSION,
+    }));
+    expect(response.status).toBe(201);
+    expect(mocks.rpc).toHaveBeenCalledExactlyOnceWith(
+      "insert_wedding_code_research_contribution",
+      expect.objectContaining({ p_scene_version: WEDDING_CODE_V08_VERSION }),
+    );
   });
 
   it("응답이 끊겨 같은 삭제 코드로 다시 보내면(고유 제약 23505) 한 번 저장된 것으로 성공 처리한다", async () => {

@@ -1,4 +1,5 @@
 import { WEDDING_CODE_V08_QUESTIONS, WEDDING_CODE_V08_VERSION } from "@/constants/weddingCodeV08";
+import { WEDDING_CODE_V09_QUESTIONS, WEDDING_CODE_V09_VERSION } from "@/constants/weddingCodeV09";
 
 /**
  * 웨딩코드 답 익명 보태기 — 화면·API·DB가 함께 지키는 계약.
@@ -9,16 +10,43 @@ import { WEDDING_CODE_V08_QUESTIONS, WEDDING_CODE_V08_VERSION } from "@/constant
  * 이름·연락처·계정·IP·공유 링크·상대의 답은 받지 않는다. 계정과 잇는 열쇠가 없으니
  * 삭제는 **본인이 보관하는 삭제 코드**로만 할 수 있다(`docs/wedding-code/56` §9.1).
  *
- * ## 왜 v0.8만 받나
+ * ## 어느 판을 받나
  *
- * 과거 v0.6 링크로 연 응답은 문항이 달라 한 표로 합치면 안 된다. DB CHECK도 같은 값만 받는다.
+ * v0.8 과 v0.9 를 받는다. 두 판은 **문장이 달라 한 표로 합치면 안 된다** — 행마다
+ * `scene_version` 이 있으니 분석은 판별로 따로 한다. v0.6 은 받지 않는다(문항 수부터 다르다).
  *
- * 이 파일의 값은 마이그레이션 `wedding_code_research_contributions` 의 CHECK 와 같아야 한다.
+ * 이 목록은 DB CHECK 와 같아야 한다: v0.8 만은 마이그레이션 234
+ * (`20260915130000_wedding_code_research_contributions`), v0.9 는 235
+ * (`20260917090000_wedding_code_research_scene_v09`)가 더한다. **235 가 운영에 적용되기 전에
+ * 이 목록을 배포하면** v0.9 로 보탠 답이 CHECK 에 걸려 503 이 난다 — DB 먼저, 앱 나중.
  */
-export const WEDDING_CODE_RESEARCH_SCENE_VERSION = WEDDING_CODE_V08_VERSION;
+export const WEDDING_CODE_RESEARCH_SCENE_VERSIONS = [
+  WEDDING_CODE_V08_VERSION,
+  WEDDING_CODE_V09_VERSION,
+] as const;
+export type WeddingCodeResearchSceneVersion = (typeof WEDDING_CODE_RESEARCH_SCENE_VERSIONS)[number];
+
+export function isWeddingCodeResearchSceneVersion(value: unknown): value is WeddingCodeResearchSceneVersion {
+  return typeof value === "string"
+    && (WEDDING_CODE_RESEARCH_SCENE_VERSIONS as readonly string[]).includes(value);
+}
+
+/**
+ * 받는 판은 전부 스무 장면이다. 답 코드 모양(`^[A-D-]{20}$`)이 DB 에 박혀 있어서, 장면 수가
+ * 다른 판을 목록에 더하면 여기서 바로 멈춘다.
+ */
 export const WEDDING_CODE_RESEARCH_SCENE_COUNT = WEDDING_CODE_V08_QUESTIONS.length;
-/** 동의 문구를 고치면 판을 올린다. 이전 동의와 섞지 않는다. */
-export const WEDDING_CODE_RESEARCH_CONSENT_VERSION = "wc-research-consent-v1";
+if (WEDDING_CODE_V09_QUESTIONS.length !== WEDDING_CODE_RESEARCH_SCENE_COUNT) {
+  throw new Error("WEDDING_CODE_RESEARCH_SCENE_COUNT_MISMATCH");
+}
+/**
+ * 동의 문구를 고치면 판을 올린다. 이전 동의와 섞지 않는다.
+ *
+ * v2 (2026-09-17): 팀원이 카드를 읽고 무슨 뜻인지 모르겠다고 했다("문항 판", "답 기호").
+ * 같은 내용을 쉬운 말로 다시 쓰고, 삭제 코드를 잃어버리면 지울 수 없다는 사실을 **동의
+ * 전에** 보이게 옮겼다. 받는 항목·목적·기간은 그대로다. DB CHECK 는 `v[1-9][0-9]*` 를 받는다.
+ */
+export const WEDDING_CODE_RESEARCH_CONSENT_VERSION = "wc-research-consent-v2";
 export const WEDDING_CODE_RESEARCH_RETENTION_DAYS = 60;
 /** 지운 삭제 코드의 해시를 남겨 같은 코드로 다시 저장되지 않게 하는 기간. */
 export const WEDDING_CODE_RESEARCH_TOMBSTONE_DAYS = 30;
@@ -48,7 +76,7 @@ const ANSWER_CODE = new RegExp(`^[A-D-]{${WEDDING_CODE_RESEARCH_SCENE_COUNT}}$`)
 export const WEDDING_CODE_RESEARCH_RECEIPT_PATTERN = /^wc_del_[A-Za-z0-9_-]{43}$/;
 
 export type WeddingCodeResearchContribution = Readonly<{
-  sceneVersion: typeof WEDDING_CODE_RESEARCH_SCENE_VERSION;
+  sceneVersion: WeddingCodeResearchSceneVersion;
   answerCode: string;
   consentVersion: typeof WEDDING_CODE_RESEARCH_CONSENT_VERSION;
   receipt: string;
@@ -91,13 +119,13 @@ export function parseWeddingCodeResearchContribution(
   const keys = Object.keys(body);
   if (keys.length !== CONTRIBUTION_KEYS.length) return null;
   if (!CONTRIBUTION_KEYS.every((key) => Object.hasOwn(body, key))) return null;
-  if (body.sceneVersion !== WEDDING_CODE_RESEARCH_SCENE_VERSION) return null;
+  if (!isWeddingCodeResearchSceneVersion(body.sceneVersion)) return null;
   if (body.consentVersion !== WEDDING_CODE_RESEARCH_CONSENT_VERSION) return null;
   if (body.adultConfirmed !== true || body.consented !== true) return null;
   if (!isWeddingCodeResearchAnswerCode(body.answerCode)) return null;
   if (typeof body.receipt !== "string" || !WEDDING_CODE_RESEARCH_RECEIPT_PATTERN.test(body.receipt)) return null;
   return {
-    sceneVersion: WEDDING_CODE_RESEARCH_SCENE_VERSION,
+    sceneVersion: body.sceneVersion,
     answerCode: body.answerCode,
     consentVersion: WEDDING_CODE_RESEARCH_CONSENT_VERSION,
     receipt: body.receipt,

@@ -9,9 +9,10 @@ import {
   WEDDING_CODE_RESEARCH_CONSENT_VERSION,
   WEDDING_CODE_RESEARCH_MIN_AGE,
   WEDDING_CODE_RESEARCH_RETENTION_DAYS,
-  WEDDING_CODE_RESEARCH_SCENE_VERSION,
   createWeddingCodeResearchReceipt,
   isWeddingCodeResearchAnswerCode,
+  isWeddingCodeResearchSceneVersion,
+  type WeddingCodeResearchSceneVersion,
 } from "@/lib/weddingCode/contribution/contract";
 
 const surface = "rounded-[6px] border border-[var(--hb-hairline)] bg-white";
@@ -59,7 +60,18 @@ async function postJson(path: string, body: unknown): Promise<{ ok: boolean; dat
  * 보냈다는 이벤트는 분석으로 보내지 않는다. 보낸 시각이 분석 기록과 맞춰지면 이름 없는
  * 답이 한 기기에 이어질 수 있어서다. 몇 명이 보탰는지는 테이블에서 센다.
  */
-export default function ResearchContributionCard({ answerCode }: { answerCode: string }) {
+export default function ResearchContributionCard({
+  answerCode,
+  sceneVersion,
+}: {
+  answerCode: string;
+  /**
+   * 이 답을 만든 문항 판. **화면이 실제로 푼 판을 그대로** 받는다. 예전에는 카드가 상수
+   * 하나(v0.8)를 보냈는데, 받는 판이 둘이 되면 v0.9 답이 v0.8 이름표를 달고 저장된다 —
+   * DB 는 둘 다 받으니 아무도 모른다.
+   */
+  sceneVersion: string;
+}) {
   const [adult, setAdult] = useState(false);
   const [consented, setConsented] = useState(false);
   const [stage, setStage] = useState<Stage>("idle");
@@ -70,13 +82,15 @@ export default function ResearchContributionCard({ answerCode }: { answerCode: s
   const consentId = useId();
 
   if (!isWeddingCodeResearchAnswerCode(answerCode)) return null;
+  if (!isWeddingCodeResearchSceneVersion(sceneVersion)) return null;
+  const acceptedSceneVersion: WeddingCodeResearchSceneVersion = sceneVersion;
 
   async function contribute() {
     setStage("sending");
     setMessage("");
     try {
       const { ok, data } = await postJson("/api/wedding-code/research-contribution", {
-        sceneVersion: WEDDING_CODE_RESEARCH_SCENE_VERSION,
+        sceneVersion: acceptedSceneVersion,
         answerCode,
         consentVersion: WEDDING_CODE_RESEARCH_CONSENT_VERSION,
         adultConfirmed: adult,

@@ -14,6 +14,7 @@ import {
   type WeddingCodeV06GapMap,
 } from "@/lib/weddingCode/v06/gap";
 import {
+  CURRENT_WEDDING_CODE_SCENE_CONFIG,
   weddingCodeSceneConfigForExactVersion,
   weddingCodeSceneCountLabel,
   type WeddingCodeSceneConfig,
@@ -32,7 +33,7 @@ import AmoraStyleConfirmation from "./AmoraStyleConfirmation";
 import ResearchContributionCard, { ResearchContributionDeleteForm } from "./ResearchContributionCard";
 import {
   WEDDING_CODE_RESEARCH_RETENTION_DAYS,
-  WEDDING_CODE_RESEARCH_SCENE_VERSION,
+  isWeddingCodeResearchSceneVersion,
   weddingCodeResearchContributionStartLabel,
 } from "@/lib/weddingCode/contribution/contract";
 import Button from "@/components/ui/Button";
@@ -123,6 +124,12 @@ export default function WeddingCodeV06Client({
   const theirs = linkContext.bothCodes?.first ?? linkContext.partnerAnswers;
   const done = answeredCount(answers, questions);
   const sceneCount = weddingCodeSceneCountLabel(questions.length);
+  /**
+   * 이 판으로 푼 답을 결과 화면에서 보탤 수 있는가. 서버 스위치만 보면 안 된다 — 옛 v0.6
+   * 링크로 들어온 사람에게는 카드가 뜨지 않는데, 첫 화면은 「결과 화면에서 보탤 수 있다」고
+   * 말하고 있었다. 없는 버튼을 설명하지 않는다.
+   */
+  const contributionAvailable = researchContributionOpen && isWeddingCodeResearchSceneVersion(activeVersion);
 
   /**
    * 흐름 기록. 답 글자·코드·링크는 싣지 않고 몇 번째 장면까지 왔는지와 개수만 보낸다.
@@ -167,6 +174,7 @@ export default function WeddingCodeV06Client({
   useEffect(() => {
     const clearLinkState = () => {
       setLinkContext({ partnerAnswers: null, partnerCode: null, bothCodes: null });
+      setActiveVersion(CURRENT_WEDDING_CODE_SCENE_CONFIG.version);
       setAnswers({});
       setSkipped([]);
       setAnsweredHere(false);
@@ -234,6 +242,9 @@ export default function WeddingCodeV06Client({
     // 새 응답은 이전 두 사람의 문맥과 주소를 함께 비워 시작한다.
     captureWeddingCodeEvent("wedding_code_restarted", { version: activeVersion });
     setLinkContext({ partnerAnswers: null, partnerCode: null, bothCodes: null });
+    // 상대 링크를 비웠으니 옛 판에 머물 이유가 없다. 예전에는 옛 링크로 들어왔다가
+    // 「새 응답 시작하기」를 눌러도 옛 판 문항을 다시 풀었다.
+    setActiveVersion(CURRENT_WEDDING_CODE_SCENE_CONFIG.version);
     window.history.replaceState(null, "", window.location.pathname);
     setStep("intro");
     setIndex(0);
@@ -265,7 +276,7 @@ export default function WeddingCodeV06Client({
           copied={copied}
           onCopied={setCopied}
           onRestart={restart}
-          researchContribution={researchContributionOpen && answeredHere}
+          researchContribution={contributionAvailable && answeredHere}
         />
       </Shell>
     );
@@ -276,13 +287,13 @@ export default function WeddingCodeV06Client({
       <Shell>
         <section className={`${surface} overflow-hidden`}>
           <div className="bg-[var(--hb-primary)] px-5 py-8 text-white sm:px-8">
-            <p className="text-[12px] font-semibold text-[#C7D1C2]">웨딩코드</p>
+            <p className="text-[12px] font-semibold text-[var(--hb-on-primary)]">웨딩코드</p>
             <h1 className="mt-3 text-[26px] font-semibold leading-[1.35] sm:text-[30px]">
               {theirs
                 ? "먼저 답한 사람이 링크를 보냈어요"
                 : `결혼 준비 ${sceneCount} 장면`}
             </h1>
-            <p className="mt-4 text-[15px] font-medium leading-[1.7] text-[#F7F1E8]">
+            <p className="mt-4 text-[15px] font-medium leading-[1.7] text-[var(--hb-on-primary)]">
               {theirs
                 ? `같은 ${sceneCount} 장면에 답하면, 두 사람이 어디서 갈렸는지 바로 볼 수 있어요.`
                 : "각자 답하고 나서, 두 사람이 어디서 갈렸는지 나란히 봅니다."}
@@ -499,8 +510,8 @@ function ResultView({
   const canShare = answeredCount(answers, config.questions) > 0;
   const mineCode = encodeWeddingCodeV06(answers, config.questions);
   // 보태는 것은 이 방문자가 방금 고른 답(mineCode)뿐이다. 상대 코드는 넘기지 않는다.
-  const contributionCard = researchContribution && config.version === WEDDING_CODE_RESEARCH_SCENE_VERSION
-    ? <ResearchContributionCard answerCode={mineCode} />
+  const contributionCard = researchContribution && isWeddingCodeResearchSceneVersion(config.version)
+    ? <ResearchContributionCard answerCode={mineCode} sceneVersion={config.version} />
     : null;
   // 상대 답이 이미 있으면 둘 다 담아 돌려준다 — 그래야 상대도 같은 화면을 본다.
   const shareUrl = buildWeddingCodeShareUrl({
@@ -602,14 +613,14 @@ ${shareUrl}`
 
         <section className={`${surface} mt-4 overflow-hidden`} data-result="solo">
           <div className="bg-[var(--hb-primary)] px-5 py-7 text-white sm:px-8">
-            <p className="text-[12px] font-semibold text-[#C7D1C2]">웨딩코드</p>
+            <p className="text-[12px] font-semibold text-[var(--hb-on-primary)]">웨딩코드</p>
             <h1 className="mt-3 text-[24px] font-semibold leading-[1.35] sm:text-[28px]">
               내가 이번에 고른 것
             </h1>
-            <p className="mt-3 text-[15px] font-medium leading-[1.65] text-[#F7F1E8]">
+            <p className="mt-3 text-[15px] font-medium leading-[1.65] text-[var(--hb-on-primary)]">
               답한 {profile.answered}장면을 주제별로 정리했어요. 많이 고른 답이 가장 중요한 취향이라는 뜻은 아니에요.
             </p>
-            <p className="mt-3 text-[13px] font-medium leading-[1.6] text-[#C7D1C2]">
+            <p className="mt-3 text-[13px] font-medium leading-[1.6] text-[var(--hb-on-primary)]">
               더 좋은 답도 부족한 답도 없어요. 고른 답을 세어서 그대로 보여줄 뿐이고, 유형을
               붙이거나 점수를 매기지 않아요.
               {profile.answered < profile.total
@@ -726,7 +737,7 @@ ${shareUrl}`
 
       <section className={`${surface} mt-4 overflow-hidden`} data-result="couple">
         <div className="bg-[var(--hb-primary)] px-5 py-7 text-white sm:px-8">
-          <p className="text-[12px] font-semibold text-[#C7D1C2]">웨딩코드</p>
+          <p className="text-[12px] font-semibold text-[var(--hb-on-primary)]">웨딩코드</p>
           {/*
             비교한 장면 수는 열여섯이 아니라 **둘 다 답한 장면 수**다. 한 사람이 열두
             장면을 건너뛰었는데 「열여섯 장면 중 2곳에서 갈렸어요」라고 하면, 비교하지도
@@ -743,7 +754,7 @@ ${shareUrl}`
                 ? `함께 답한 ${compared}장면 중 ${compared - map.identical.length}곳에서 다른 답을 골랐어요`
                 : `함께 답한 ${compared}장면에서 같은 답을 골랐어요`}
           </h1>
-          <p className="mt-3 text-[15px] font-medium leading-[1.65] text-[#F7F1E8]">
+          <p className="mt-3 text-[15px] font-medium leading-[1.65] text-[var(--hb-on-primary)]">
             {compared === 0
               ? "두 사람이 건너뛴 장면이 서로 달라서 나란히 볼 자리가 없었어요. 각자 답한 것은 아래에 그대로 남아 있어요."
               : "어느 쪽이 맞는지는 없어요. 갈린 자리마다 다음 대화를 하나씩 정리했어요."}
@@ -874,7 +885,7 @@ function WeddingCodeBadge({ letters }: { letters: WeddingCodeLetters }) {
   return (
     <section className={`${surface} overflow-hidden`} data-wedding-code={letters.code}>
       <div className="bg-[var(--hb-primary)] px-5 py-8 text-center text-white sm:px-8">
-        <p className="text-[12px] font-semibold text-[#C7D1C2]">내 웨딩코드</p>
+        <p className="text-[12px] font-semibold text-[var(--hb-on-primary)]">내 웨딩코드</p>
         <p className="mt-3 flex justify-center gap-1.5 text-[44px] font-semibold leading-none tracking-[0.04em] sm:text-[56px]">
           {letters.slots.map((slot) => (
             <span
@@ -883,9 +894,9 @@ function WeddingCodeBadge({ letters }: { letters: WeddingCodeLetters }) {
               data-firmness={slot.firmness}
               className={
                 slot.firmness === "narrow"
-                  ? "text-[#C7D1C2]"
+                  ? "text-[var(--color-sage-pale)]"
                   : slot.firmness === "unset"
-                    ? "text-[var(--hb-success)]"
+                    ? "text-[var(--color-sage-pale)]"
                     : "text-white"
               }
             >
@@ -893,7 +904,7 @@ function WeddingCodeBadge({ letters }: { letters: WeddingCodeLetters }) {
             </span>
           ))}
         </p>
-        <p className="mt-4 text-[13px] font-medium leading-[1.7] text-[#C7D1C2]">
+        <p className="mt-4 text-[13px] font-medium leading-[1.7] text-[var(--hb-on-primary)]">
           성격을 맞힌 게 아니라, 내가 고른 답을 주제별로 요약한 글자예요.
           {!letters.complete ? " 아직 글자가 비어 있거나 답하지 않은 장면이 있는 요약이에요." : ""}
           {letters.slots.some((slot) => slot.firmness === "narrow")
@@ -957,11 +968,11 @@ function WeddingCodePair({
   return (
     <section className={`${surface} overflow-hidden`} data-code-pair="">
       <div className="bg-[var(--hb-primary)] px-5 py-7 text-center text-white sm:px-8">
-        <p className="text-[12px] font-semibold text-[#C7D1C2]">두 사람의 웨딩코드</p>
+        <p className="text-[12px] font-semibold text-[var(--hb-on-primary)]">두 사람의 웨딩코드</p>
         <p className="mt-3 text-[30px] font-semibold leading-none tracking-[0.04em] sm:text-[38px]">
-          {theirs.code} <span className="text-[var(--hb-success)]">×</span> {mine.code}
+          {theirs.code} <span className="text-[var(--color-sage-pale)]">×</span> {mine.code}
         </p>
-        <p className="mt-4 text-[13px] font-medium leading-[1.7] text-[#C7D1C2]">
+        <p className="mt-4 text-[13px] font-medium leading-[1.7] text-[var(--hb-on-primary)]">
           {different.length > 0
             ? `네 자리 중 ${different.length}자리가 달라요. 점수는 매기지 않아요 — 다른 자리부터 이야기하면 돼요.`
             : unknown.length === comparison.length

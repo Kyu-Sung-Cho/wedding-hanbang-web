@@ -79,11 +79,11 @@ export default async function WeddingCodeMeaningPage({
       <div className="mx-auto w-full max-w-[560px]">
         <section className={`${surface} overflow-hidden`} data-code-meaning={upper}>
           <div className="bg-[var(--hb-primary)] px-5 py-8 text-center text-white sm:px-8">
-            <p className="text-[12px] font-semibold text-[#C7D1C2]">웨딩코드</p>
+            <p className="text-[12px] font-semibold text-[var(--hb-on-primary)]">웨딩코드</p>
             <h1 className="mt-3 text-[44px] font-semibold leading-none tracking-[0.04em] sm:text-[56px]">
               {upper}
             </h1>
-            <p className="mt-4 text-[13px] font-medium leading-[1.7] text-[#C7D1C2]">
+            <p className="mt-4 text-[13px] font-medium leading-[1.7] text-[var(--hb-on-primary)]">
               결혼 준비 {SCENE_COUNT} 장면에서 어느 쪽 답을 더 많이 골랐는지를 네 글자로 적은
               거예요. 성격을 맞힌 게 아니라서 점수도 궁합도 매기지 않아요.
             </p>
