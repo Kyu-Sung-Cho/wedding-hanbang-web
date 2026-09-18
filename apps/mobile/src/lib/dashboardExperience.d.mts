@@ -74,6 +74,14 @@ export function buildHomeServices(input?: {
 
 export function formatLocalDateKey(date?: Date): string;
 
+export function calculateChecklistCounts(
+  progress: Record<string, unknown>,
+  categories: readonly {
+    key: string;
+    items: readonly { id: string }[];
+  }[],
+): { done: number; total: number };
+
 export function calculateChecklistProgress(
   progress: Record<string, unknown>,
   categories: readonly {

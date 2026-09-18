@@ -71,8 +71,12 @@ export function formatLocalDateKey(date = new Date()) {
   return `${year}-${month}-${day}`;
 }
 
-export function calculateChecklistProgress(progress, categories) {
-  if (!Array.isArray(categories) || categories.length === 0) return 0;
+/**
+ * 체크리스트 항목 수. 라운지 히어로의 %와 합류 안내의 "n/m개 체크"가 같은 수에서 나오도록
+ * 한 곳에서 센다 — 둘을 따로 세면 같은 화면에서 두 숫자가 어긋난다.
+ */
+export function calculateChecklistCounts(progress, categories) {
+  if (!Array.isArray(categories) || categories.length === 0) return { done: 0, total: 0 };
 
   let done = 0;
   let total = 0;
@@ -112,6 +116,11 @@ export function calculateChecklistProgress(progress, categories) {
     total += doneById.size;
   }
 
+  return { done, total };
+}
+
+export function calculateChecklistProgress(progress, categories) {
+  const { done, total } = calculateChecklistCounts(progress, categories);
   return total > 0 ? Math.round((done / total) * 100) : 0;
 }
 

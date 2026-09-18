@@ -2,7 +2,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { StyleSheet } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { router } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { colors } from "@hanbang/design-tokens";
 import {
@@ -25,6 +25,7 @@ import {
 import { supabase } from "@/lib/supabase";
 import { CATEGORY_CHECKLISTS } from "@/constants/checklists";
 import {
+  calculateChecklistCounts,
   calculateChecklistProgress,
   formatLocalDateKey,
 } from "@/lib/dashboardExperience.mjs";
@@ -43,6 +44,12 @@ import {
   type FirstRunTutorialProfileGateway,
 } from "@/lib/firstRunTutorial";
 import {
+  buildJoinedPlanHandoffView,
+  hasJoinedPlanMarker,
+  JOINED_PLAN_PARAM,
+  shouldShowJoinedPlanHandoff,
+} from "@/lib/joinedPlanHandoff";
+import {
   dismissAmoraFirstHelloBubble,
   peekPendingAmoraFirstHello,
   rememberPendingAmoraFirstHello,
@@ -55,6 +62,7 @@ import WeddingHomeExperience, {
   type WeddingHomeData,
 } from "@/components/dashboard/WeddingHomeExperience";
 import AmoraFab from "@/components/lounge/AmoraFab";
+import JoinedPlanHandoff from "@/components/lounge/JoinedPlanHandoff";
 import { FirstRunAnchorProvider } from "@/components/lounge/FirstRunAnchors";
 import FirstRunCoachMarks, {
   type FirstRunCoachMarksOutcome,
@@ -86,6 +94,11 @@ interface BookingOutcomeTask {
 
 interface DashboardData extends WeddingHomeData {
   totalBudget: number;
+  /** 저장된 식장. 합류 직후 안내의 "장소" 칸이 되읽는다. 없으면 null. */
+  venue: string | null;
+  /** 체크리스트 항목 수. 히어로의 %와 같은 셈이고, 합류 안내가 "n/m개 체크"로 보여준다. */
+  checklistDone: number;
+  checklistTotal: number;
   progress: Record<string, unknown>;
   urgentTasks: UrgentTask[];
   bookingOutcomeTasks: BookingOutcomeTask[];
@@ -481,6 +494,10 @@ async function loadPartnerLinked(
 }
 
 export default function DashboardScreen() {
+  // 파트너 합류 직후에만 온보딩이 `?joined=1`을 붙여 보낸다. 표시는 이 파라미터뿐이고
+  // 어디에도 저장하지 않는다 — 앱을 다시 켜면 "방금 합류했다"도 사라진다.
+  const routeParams = useLocalSearchParams();
+  const joinedPlanMarker = hasJoinedPlanMarker(routeParams[JOINED_PLAN_PARAM]);
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -571,6 +588,9 @@ export default function DashboardScreen() {
           name: profile.name ?? null,
           weddingDate: null,
           totalBudget: 0,
+          venue: null,
+          checklistDone: 0,
+          checklistTotal: 0,
           progress: {},
           progressPercent: 0,
           todayTasks: [],
@@ -590,7 +610,7 @@ export default function DashboardScreen() {
 
       const { data: journey, error: journeyError } = await supabase
         .from("wedding_journeys")
-        .select("wedding_date, total_budget, progress")
+        .select("wedding_date, venue, total_budget, progress")
         .eq("couple_id", profile.couple_id)
         .single();
       if (journeyError) throw journeyError;
@@ -598,6 +618,10 @@ export default function DashboardScreen() {
       const progress =
         (journey.progress as Record<string, unknown> | null) ?? {};
       const progressPercent = calculateChecklistProgress(
+        progress,
+        CATEGORY_CHECKLISTS,
+      );
+      const checklistCounts = calculateChecklistCounts(
         progress,
         CATEGORY_CHECKLISTS,
       );
@@ -618,6 +642,9 @@ export default function DashboardScreen() {
         name: profile.name,
         weddingDate,
         totalBudget: journey.total_budget ?? 0,
+        venue: typeof journey.venue === "string" ? journey.venue : null,
+        checklistDone: checklistCounts.done,
+        checklistTotal: checklistCounts.total,
         progress,
         progressPercent,
         todayTasks,
@@ -643,12 +670,16 @@ export default function DashboardScreen() {
 
       // 라운지의 핵심 맥락과 오늘의 행동을 먼저 그린 뒤, 보조 데이터를 이어 붙인다.
       //
-      // 같은 커플을 다시 읽는 중(리얼타임 갱신·당겨서 새로고침)이면 기록 유무는 방금 확인한
-      // 값을 새 값이 올 때까지 들고 있는다. 매번 비웠다 채우면 「상담 요청 기록」 칸이 상대가
-      // 무언가 고칠 때마다 깜빡이고 격자가 다시 흐른다.
+      // 같은 커플을 다시 읽는 중(리얼타임 갱신·당겨서 새로고침)이면 상대 유무와 기록 유무는
+      // 방금 확인한 값을 새 값이 올 때까지 들고 있는다. 매번 비웠다 채우면 합류 안내와
+      // 「상담 요청 기록」 칸이 상대가 무언가 고칠 때마다 깜빡이고 격자가 다시 흐른다.
       setData((current) =>
         current && current.coupleId === coreData.coupleId
-          ? { ...coreData, hasBookingRecords: current.hasBookingRecords }
+          ? {
+              ...coreData,
+              partnerLinked: current.partnerLinked,
+              hasBookingRecords: current.hasBookingRecords,
+            }
           : coreData,
       );
       setLoading(false);
@@ -854,6 +885,40 @@ export default function DashboardScreen() {
     });
   }, [data]);
 
+  /**
+   * 파트너 합류 직후 안내. 웹과 같은 조건이다 — 합류 표시가 있고, 상대가 실제로 들어와 있을 때.
+   * 상대 유무를 아직 모르는 동안(undefined)은 띄우지 않는다.
+   */
+  const joinedPlanHandoffView = useMemo(() => {
+    if (!data || !data.coupleId) return null;
+    if (
+      !shouldShowJoinedPlanHandoff({
+        marker: joinedPlanMarker,
+        partnerLinked: data.partnerLinked,
+      })
+    ) {
+      return null;
+    }
+    return buildJoinedPlanHandoffView({
+      weddingDate: data.weddingDate,
+      venue: data.venue,
+      totalBudget: data.totalBudget,
+      checklistDone: data.checklistDone,
+      checklistTotal: data.checklistTotal,
+    });
+  }, [data, joinedPlanMarker]);
+
+  // 웹 카드의 "함께 확인할 내용 찾기"와 같은 문이다. 입력창에 웹과 같은 질문 초안만 놓고,
+  // 보내는 것은 사람이 한다. 카드는 그대로 두어 돌아와도 같은 요약을 다시 볼 수 있다.
+  const handleReviewJoinedPlan = useCallback(() => {
+    router.push("/(tabs)/chat?entry=joined_plan_review");
+  }, []);
+
+  // "이 내용 확인했어요"는 표시를 지우는 것이 전부다. 아무것도 저장하지 않는다.
+  const handleDismissJoinedPlan = useCallback(() => {
+    router.setParams({ [JOINED_PLAN_PARAM]: undefined });
+  }, []);
+
   const handleAmoraFabPress = useCallback(() => {
     // 말풍선은 눌리면 사라지고 다시 뜨지 않는다. 첫마디 자체는 대화 화면이 가져간다.
     setAmoraBubble(null);
@@ -893,10 +958,21 @@ export default function DashboardScreen() {
           refreshing={refreshing}
           onRefresh={onRefresh}
           partnerChanges={<PartnerChangeNotice refreshVersion={careRefreshVersion} />}
+          joinedPlanHandoff={
+            joinedPlanHandoffView ? (
+              <JoinedPlanHandoff
+                view={joinedPlanHandoffView}
+                onReview={handleReviewJoinedPlan}
+                onDismiss={handleDismissJoinedPlan}
+              />
+            ) : null
+          }
           todayOneCare={<TodayOneCareCard refreshVersion={careRefreshVersion} />}
           amoraActions={<AmoraActionsCard refreshVersion={careRefreshVersion} />}
+          // 합류 안내가 떠 있을 때는 첫 도착 카드를 접는다 — 환영 카드 두 장이 겹치면 어느
+          // 쪽이 지금 할 일인지 흐려진다(웹과 같다). 안내를 닫으면 다시 나온다.
           firstArrival={
-            firstArrivalView ? (
+            joinedPlanHandoffView ? null : firstArrivalView ? (
               <LoungeFirstArrival view={firstArrivalView} />
             ) : null
           }

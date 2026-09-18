@@ -32,6 +32,7 @@ export const AMORA_CHAT_ENTRY_VALUES = [
   "lounge_fab",
   "lounge_first_arrival",
   "lounge_focus_calm",
+  "joined_plan_review",
 ] as const;
 
 export type AmoraChatEntry = (typeof AMORA_CHAT_ENTRY_VALUES)[number];
@@ -51,6 +52,11 @@ const ENTRY_PREFILL: Record<AmoraChatEntry, string> = {
   // 그대로 이어받는다 — 없는 진척을 지어내지 않는다.
   lounge_focus_calm:
     "저장된 일정 기준으로는 오늘 확인할 게 없대. 다음에 뭘 준비하면 좋을지 같이 정리해줘.",
+  // 파트너 합류 직후 라운지 카드("이제 이 계획을 함께 봐요")의 CTA. 웹 카드가 채우는 문장
+  // (`JOINED_PLAN_REVIEW_PROMPT`, apps/web/src/lib/amora/dashboardCompanion.ts)과 글자까지 같다 —
+  // 같은 사람이 웹과 앱에서 다른 질문을 받지 않게. 계획을 바꾸거나 담당자를 정하라고 하지 않는다.
+  joined_plan_review:
+    "방금 파트너와 연결됐어. 지금 함께 보게 된 결혼식 날짜, 장소, 예산, 준비 진행 중 둘이 먼저 확인할 부분을 짚어줘. 계획을 변경하거나 담당자를 정하지 말고, 같이 확인할 내용만 알려줘.",
 };
 
 /**

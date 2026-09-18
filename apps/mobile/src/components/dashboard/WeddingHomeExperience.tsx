@@ -65,6 +65,11 @@ interface WeddingHomeExperienceProps {
    * 첫 도착 카드보다 위, 화면 맨 앞에 온다.
    */
   partnerChanges?: ReactNode;
+  /**
+   * 파트너 합류 직후 안내("이제 이 계획을 함께 봐요"). 라운지가 합류 표시와 상대 유무를
+   * 보고 넣어준다. 떠 있는 동안 라운지는 첫 도착 카드를 넣지 않는다.
+   */
+  joinedPlanHandoff?: ReactNode;
   todayOneCare?: ReactNode;
   /**
    * 아모라가 챙기기로 한 것. 사용자가 승인해서 저장된 것이므로 선제 케어(todayOneCare)
@@ -235,6 +240,7 @@ export default function WeddingHomeExperience({
   refreshing,
   onRefresh,
   partnerChanges,
+  joinedPlanHandoff,
   todayOneCare,
   amoraActions,
   firstArrival,
@@ -331,6 +337,9 @@ export default function WeddingHomeExperience({
           {/* 알림이 없으면 이 자식은 null 을 렌더한다. 감싸는 View 에 여백을 두면
               빈 틈이 늘 남으므로, 여백은 카드가 스스로 갖는다. */}
           {partnerChanges}
+
+          {/* 합류 직후 안내. 없으면 null 이라 자리를 차지하지 않는다. */}
+          {joinedPlanHandoff}
 
           {/* 첫 도착 카드들. 스크롤 콘텐츠의 직속 자식이어야 안내가 자리를 제대로 잰다. */}
           {firstArrival}
