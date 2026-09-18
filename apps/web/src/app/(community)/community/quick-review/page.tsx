@@ -10,6 +10,13 @@ import { useToast } from "@/components/community/Toast";
 import { COHORT_CONTRACT_CATEGORIES } from "@/constants/communityCategories";
 import { communityPostPath } from "@/lib/community/routes";
 import { isCommunityMediaPublishingUiEnabled } from "@/lib/community/mediaPublishingUiGate";
+import {
+  createQuickReviewSubmission,
+  readCreatedQuickReviewPostId,
+  readQuickReviewServerError,
+  validateQuickReviewContent,
+  validateQuickReviewDisclosure,
+} from "@/lib/community/quickReview";
 import { useAuthStore } from "@/stores/authStore";
 import type { AdDisclosure } from "@/types/community.types";
 
@@ -19,9 +26,15 @@ const QUICK_REVIEW_LOGIN_HREF = "/login?redirect=%2Fwedding%2Fcommunity%2Fquick-
 const MEDIA_PUBLISHING_UI_ENABLED = isCommunityMediaPublishingUiEnabled(
   process.env.NEXT_PUBLIC_COMMUNITY_MEDIA_PUBLISHING_ENABLED,
 );
+const SUBMIT_FAILED_MESSAGE = "후기를 올리지 못했어요. 잠시 뒤 다시 시도해 주세요.";
+const SAVE_UNCONFIRMED_MESSAGE =
+  "후기가 저장됐는지 확인하지 못했어요. 내용을 그대로 두었으니 다시 올려 주세요.";
 
 type Category = (typeof COHORT_CONTRACT_CATEGORIES)[number]["key"];
 
+// 요청 모양은 `@/lib/community/quickReview` 가 정한다. 예전 화면은 요청 키(Idempotency-Key)
+// 없이 보내 서버가 모든 후기를 400 으로 거절했고, 업체 이름을 vendor_tags(업체 UUID 자리)에
+// 넣어 키가 있었어도 저장 RPC 가 거절했다.
 export default function QuickReviewPage() {
   const router = useRouter();
   const { toast } = useToast();
@@ -35,20 +48,18 @@ export default function QuickReviewPage() {
   const [oneLiner, setOneLiner] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [showAdModal, setShowAdModal] = useState(false);
+  // 응답만 잃은 경우 같은 내용은 같은 요청 키로 다시 보낸다 — 서버가 저장된 글을 돌려주고
+  // 두 번 만들지 않는다.
+  const [submission] = useState(() =>
+    createQuickReviewSubmission(() => globalThis.crypto.randomUUID()),
+  );
 
   const inputCls =
     "w-full px-4 py-3 border border-[#F0EFED] rounded-[6px] focus:border-[var(--hb-primary)] focus:outline-none text-base";
 
-  function validate(): string | null {
-    if (!vendorName.trim()) return "업체명을 입력해주세요.";
-    if (rating < 1) return "별점을 선택해주세요.";
-    if (!oneLiner.trim()) return "한 줄 후기를 입력해주세요.";
-    return null;
-  }
-
   function handleSubmitClick(e: React.FormEvent) {
     e.preventDefault();
-    const err = validate();
+    const err = validateQuickReviewContent({ vendorName, rating, review: oneLiner });
     if (err) {
       toast.error(err);
       return;
@@ -62,36 +73,53 @@ export default function QuickReviewPage() {
   }) {
     setShowAdModal(false);
     if (submitting) return;
+    const draft = {
+      vendorName,
+      category,
+      rating,
+      review: oneLiner,
+      images: MEDIA_PUBLISHING_UI_ENABLED ? images : [],
+      adDisclosure: result.adDisclosure,
+      sponsorshipDetail: result.sponsorshipDetail,
+    };
+    const invalid = validateQuickReviewContent(draft) ?? validateQuickReviewDisclosure(draft);
+    if (invalid) {
+      toast.error(invalid);
+      return;
+    }
     setSubmitting(true);
     try {
+      const command = submission.commandFor(draft);
       const res = await fetch("/api/community/posts", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          category: "tour_review",
-          title: `${vendorName.trim()} 후기`,
-          content: oneLiner.trim(),
-          images: MEDIA_PUBLISHING_UI_ENABLED ? images : [],
-          visibility: "public",
-          vendor_tags: [vendorName.trim()],
-          tags: [category],
-          is_quick_review: true,
-          rating,
-          ad_disclosure: result.adDisclosure,
-          sponsorship_detail: result.sponsorshipDetail,
-        }),
+        headers: {
+          "Content-Type": "application/json",
+          "Idempotency-Key": command.idempotencyKey,
+        },
+        body: JSON.stringify(command.body),
       });
-      const data = await res.json();
+      const payload: unknown = await res.json().catch(() => null);
       if (res.status === 401) {
         toast.error("로그인하면 방금 쓰신 후기를 이어서 올릴 수 있어요.");
         router.push(QUICK_REVIEW_LOGIN_HREF);
         return;
       }
-      if (!res.ok) throw new Error(data?.error || "작성에 실패했습니다.");
+      if (!res.ok) {
+        toast.error(readQuickReviewServerError(payload) ?? SUBMIT_FAILED_MESSAGE);
+        return;
+      }
+      // 서버 영수증에서 새 글 id 를 확인한 뒤에만 등록된 것으로 본다.
+      const postId = readCreatedQuickReviewPostId(payload);
+      if (!postId) {
+        toast.error(SAVE_UNCONFIRMED_MESSAGE);
+        return;
+      }
+      submission.clearIf(command.idempotencyKey);
       toast.success("15초 후기가 등록되었어요.");
-      router.push(communityPostPath(data.post.id));
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "오류가 발생했습니다.");
+      router.push(communityPostPath(postId));
+    } catch {
+      // 네트워크 실패의 원문("Failed to fetch")은 화면에 쓰지 않는다.
+      toast.error(SUBMIT_FAILED_MESSAGE);
     } finally {
       setSubmitting(false);
     }

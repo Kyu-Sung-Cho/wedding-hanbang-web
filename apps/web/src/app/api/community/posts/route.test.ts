@@ -504,6 +504,77 @@ describe("POST /api/community/posts public personal-information boundary", () =>
     expect(mocks.checkCommunityWriteAccess).not.toHaveBeenCalled();
   });
 
+  it.each([
+    ["a vendor name", ["라벨르 스튜디오"]],
+    ["a non-string entry", [42]],
+    ["a UUID next to a name", ["44444444-4444-4444-8444-444444444444", "라벨르"]],
+    ["a non-array value", "44444444-4444-4444-8444-444444444444"],
+  ])("rejects vendor_tags holding %s with a 400 before the save RPC", async (_label, vendorTags) => {
+    // 저장 RPC 는 UUID 가 아닌 vendor_tags 를 COMMUNITY_POST_PAYLOAD_INVALID 로 거절한다.
+    // 그 거절이 503 「다시 시도해 주세요」로 바뀌어 나가면 몇 번을 다시 보내도 저장되지 않는다.
+    const rpc = vi.fn(async (name: string) => {
+      if (name === "community_replay_post_command_service") return { data: null, error: null };
+      return {
+        data: null,
+        error: { code: "22023", message: "COMMUNITY_POST_PAYLOAD_INVALID" },
+      };
+    });
+    const from = vi.fn(() => ({
+      select: vi.fn(() => ({
+        eq: vi.fn(() => ({
+          maybeSingle: vi.fn(async () => ({ data: { name: "예비부부" }, error: null })),
+        })),
+      })),
+    }));
+    mocks.createAdminClient.mockReturnValue({ rpc, from });
+
+    const response = await POST(postRequest({ vendor_tags: vendorTags }));
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toMatchObject({
+      code: "COMMUNITY_POST_VENDOR_TAGS_INVALID",
+      error: expect.stringContaining("업체"),
+    });
+    expect(rpc).not.toHaveBeenCalled();
+  });
+
+  it("passes registered vendor UUIDs through to the save RPC", async () => {
+    const actorId = "11111111-1111-4111-8111-111111111111";
+    const vendorIds = [
+      "44444444-4444-4444-8444-444444444444",
+      "55555555-5555-4555-9555-555555555555",
+    ];
+    const rpc = vi.fn(async (name: string) => {
+      if (name === "community_replay_post_command_service") return { data: null, error: null };
+      return {
+        data: {
+          post: { id: "22222222-2222-4222-8222-222222222222", author_id: actorId },
+          poll_id: null,
+          post_count: 1,
+        },
+        error: null,
+      };
+    });
+    const from = vi.fn(() => ({
+      select: vi.fn(() => ({
+        eq: vi.fn(() => ({
+          maybeSingle: vi.fn(async () => ({ data: { name: "예비부부" }, error: null })),
+        })),
+      })),
+    }));
+    mocks.createAdminClient.mockReturnValue({ rpc, from });
+
+    const response = await POST(postRequest({ vendor_tags: vendorIds }));
+
+    expect(response.status).toBe(201);
+    expect(rpc).toHaveBeenLastCalledWith(
+      "community_create_post_service",
+      expect.objectContaining({
+        p_payload: expect.objectContaining({ vendor_tags: vendorIds }),
+      }),
+    );
+  });
+
   it("rejects new media publishing while leaving text validation active", async () => {
     const previous = process.env.COMMUNITY_MEDIA_PUBLISHING_ENABLED;
     process.env.COMMUNITY_MEDIA_PUBLISHING_ENABLED = "false";

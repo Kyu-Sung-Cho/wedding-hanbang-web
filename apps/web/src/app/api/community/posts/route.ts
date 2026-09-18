@@ -598,10 +598,23 @@ export async function POST(req: NextRequest) {
       .map((t: string) => sanitizeText(typeof t === "string" ? t : "").slice(0, 30))
       .filter((t: string) => t.length > 0);
 
-    // vendor_tags 검증: 최대 5개
-    const vendor_tags = (Array.isArray(rawVendorTags) ? rawVendorTags : [])
-      .filter((tag): tag is string => typeof tag === "string")
-      .slice(0, 5);
+    // vendor_tags 검증: 등록된 업체의 UUID 만, 최대 5개.
+    // 저장 RPC 가 UUID 가 아닌 값을 COMMUNITY_POST_PAYLOAD_INVALID 로 거절하는데, 그 거절은
+    // 아래에서 503 「다시 시도해 주세요」로 나가 몇 번을 다시 보내도 저장되지 않는다.
+    if (
+      rawVendorTags !== undefined
+      && rawVendorTags !== null
+      && (!Array.isArray(rawVendorTags) || !rawVendorTags.every(isUuid))
+    ) {
+      return NextResponse.json(
+        {
+          code: "COMMUNITY_POST_VENDOR_TAGS_INVALID",
+          error: "업체 태그는 목록에서 고른 업체만 붙일 수 있어요.",
+        },
+        { status: 400 }
+      );
+    }
+    const vendor_tags = (rawVendorTags ?? []).slice(0, 5);
 
     // 이미지 검증: 최대 10개, 각 URL은 https://로 시작
     const images: string[] = [];
