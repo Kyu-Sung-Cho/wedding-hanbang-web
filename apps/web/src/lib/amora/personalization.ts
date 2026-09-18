@@ -1,83 +1,38 @@
-export const AMORA_DECISION_START_VALUES = [
-  "recommend_first",
-  "compare_first",
-  "ask_each_time",
-] as const;
-export const AMORA_ANSWER_DETAIL_VALUES = [
-  "brief",
-  "detailed",
-  "adaptive",
-] as const;
-export const AMORA_SUPPORT_ORDER_VALUES = [
-  "listen_first",
-  "action_first",
-  "ask_each_time",
-] as const;
-export const AMORA_WORK_MODE_VALUES = [
-  "together",
-  "owner_led",
-  "hybrid",
-  "ask_each_time",
-] as const;
-export const AMORA_FAMILY_ORDER_VALUES = [
-  "couple_first",
-  "family_input_first",
-  "case_by_case",
-  "ask_each_time",
-] as const;
-export const AMORA_TONE_STYLE_VALUES = [
-  "adaptive",
-  "warm",
-  "calm_clear",
-  "friendly_honest",
-] as const;
-export type AmoraDecisionStart =
-  (typeof AMORA_DECISION_START_VALUES)[number];
-export type AmoraAnswerDetail =
-  (typeof AMORA_ANSWER_DETAIL_VALUES)[number];
-export type AmoraSupportOrder =
-  (typeof AMORA_SUPPORT_ORDER_VALUES)[number];
-export type AmoraWorkMode =
-  (typeof AMORA_WORK_MODE_VALUES)[number];
-export type AmoraFamilyOrder =
-  (typeof AMORA_FAMILY_ORDER_VALUES)[number];
-export type AmoraToneStyle = (typeof AMORA_TONE_STYLE_VALUES)[number];
-export type AmoraPersonalizationPreferences = {
-  decisionStart: AmoraDecisionStart;
-  answerDetail: AmoraAnswerDetail;
-  supportOrder: AmoraSupportOrder;
-  workMode: AmoraWorkMode;
-  familyOrder: AmoraFamilyOrder;
-  toneStyle: AmoraToneStyle;
-};
+// 도움 방식의 값·문구·파서는 앱과 함께 쓰려고 `@hanbang/shared/amora-personalization` 으로 옮겼다
+// (2026-09-18). 이 파일은 웹 import 경로를 지키려고 그대로 다시 내보내고, 웹 채팅에만 있는
+// 빠른 시작 선택지만 여기에 남긴다.
+import type { AmoraPersonalizationChanges } from "@hanbang/shared/amora-personalization";
 
-export type AmoraPersonalizationChanges =
-  Partial<AmoraPersonalizationPreferences>;
-
-export type AmoraPersonalizationProfile = {
-  preferences: AmoraPersonalizationPreferences;
-  revision: number;
-  confirmedAt: string;
-  updatedAt: string;
-};
-
-export const DEFAULT_AMORA_PERSONALIZATION: AmoraPersonalizationPreferences = {
-  decisionStart: "ask_each_time",
-  answerDetail: "adaptive",
-  supportOrder: "ask_each_time",
-  workMode: "ask_each_time",
-  familyOrder: "ask_each_time",
-  toneStyle: "adaptive",
-};
-
-export const AMORA_PERSONALIZATION_FIELD_NAMES = [
-  "decisionStart",
-  "answerDetail",
-  "supportOrder",
-  "workMode",
-  "familyOrder",
-  "toneStyle",
-] as const satisfies readonly (keyof AmoraPersonalizationPreferences)[];
+export {
+  AMORA_ANSWER_DETAIL_VALUES,
+  AMORA_DECISION_START_VALUES,
+  AMORA_FAMILY_ORDER_VALUES,
+  AMORA_PERSONALIZATION_FIELD_NAMES,
+  AMORA_PERSONALIZATION_SECTIONS,
+  AMORA_SUPPORT_ORDER_VALUES,
+  AMORA_TONE_STYLE_VALUES,
+  AMORA_WORK_MODE_VALUES,
+  DEFAULT_AMORA_PERSONALIZATION,
+  isAmoraPersonalizationChanges,
+  mergeAmoraPersonalization,
+  parseAmoraPersonalizationPreferences,
+  parseAmoraPersonalizationProfile,
+  parseAmoraPersonalizationRow,
+} from "@hanbang/shared/amora-personalization";
+export type {
+  AmoraAnswerDetail,
+  AmoraDecisionStart,
+  AmoraFamilyOrder,
+  AmoraPersonalizationChanges,
+  AmoraPersonalizationChoice,
+  AmoraPersonalizationFieldName,
+  AmoraPersonalizationPreferences,
+  AmoraPersonalizationProfile,
+  AmoraPersonalizationSection,
+  AmoraSupportOrder,
+  AmoraToneStyle,
+  AmoraWorkMode,
+} from "@hanbang/shared/amora-personalization";
 
 export type AmoraQuickStartMode =
   | "recommendation"
@@ -132,128 +87,3 @@ export const AMORA_QUICK_START_OPTIONS: readonly AmoraQuickStartOption[] = [
     changes: { supportOrder: "action_first" },
   },
 ] as const;
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-function includesValue<const T extends readonly string[]>(
-  values: T,
-  value: unknown,
-): value is T[number] {
-  return typeof value === "string" && values.includes(value);
-}
-
-export function isAmoraPersonalizationChanges(
-  value: unknown,
-): value is AmoraPersonalizationChanges {
-  if (!isRecord(value)) return false;
-  const keys = Object.keys(value);
-  if (
-    keys.length === 0 ||
-    !keys.every((key) =>
-      (AMORA_PERSONALIZATION_FIELD_NAMES as readonly string[]).includes(key),
-    )
-  ) {
-    return false;
-  }
-
-  return (
-    (value.decisionStart === undefined ||
-      includesValue(AMORA_DECISION_START_VALUES, value.decisionStart)) &&
-    (value.answerDetail === undefined ||
-      includesValue(AMORA_ANSWER_DETAIL_VALUES, value.answerDetail)) &&
-    (value.supportOrder === undefined ||
-      includesValue(AMORA_SUPPORT_ORDER_VALUES, value.supportOrder)) &&
-    (value.workMode === undefined ||
-      includesValue(AMORA_WORK_MODE_VALUES, value.workMode)) &&
-    (value.familyOrder === undefined ||
-      includesValue(AMORA_FAMILY_ORDER_VALUES, value.familyOrder)) &&
-    (value.toneStyle === undefined ||
-      includesValue(AMORA_TONE_STYLE_VALUES, value.toneStyle))
-  );
-}
-
-export function mergeAmoraPersonalization(
-  current: AmoraPersonalizationPreferences | null,
-  changes: AmoraPersonalizationChanges,
-): AmoraPersonalizationPreferences {
-  return {
-    ...(current ?? DEFAULT_AMORA_PERSONALIZATION),
-    ...changes,
-  };
-}
-
-export function parseAmoraPersonalizationPreferences(
-  value: unknown,
-): AmoraPersonalizationPreferences | null {
-  if (
-    !isRecord(value) ||
-    !includesValue(AMORA_DECISION_START_VALUES, value.decisionStart) ||
-    !includesValue(AMORA_ANSWER_DETAIL_VALUES, value.answerDetail) ||
-    !includesValue(AMORA_SUPPORT_ORDER_VALUES, value.supportOrder) ||
-    !includesValue(AMORA_WORK_MODE_VALUES, value.workMode) ||
-    !includesValue(AMORA_FAMILY_ORDER_VALUES, value.familyOrder) ||
-    !includesValue(AMORA_TONE_STYLE_VALUES, value.toneStyle)
-  ) {
-    return null;
-  }
-
-  return {
-    decisionStart: value.decisionStart,
-    answerDetail: value.answerDetail,
-    supportOrder: value.supportOrder,
-    workMode: value.workMode,
-    familyOrder: value.familyOrder,
-    toneStyle: value.toneStyle,
-  };
-}
-
-export function parseAmoraPersonalizationProfile(
-  value: unknown,
-): AmoraPersonalizationProfile | null {
-  if (!isRecord(value) || !isRecord(value.preferences)) return null;
-  const preferences = parseAmoraPersonalizationPreferences(value.preferences);
-  if (
-    !preferences ||
-    !Number.isSafeInteger(value.revision) ||
-    (value.revision as number) < 1 ||
-    typeof value.confirmedAt !== "string" ||
-    typeof value.updatedAt !== "string"
-  ) {
-    return null;
-  }
-
-  return {
-    preferences: {
-      decisionStart: preferences.decisionStart,
-      answerDetail: preferences.answerDetail,
-      supportOrder: preferences.supportOrder,
-      workMode: preferences.workMode,
-      familyOrder: preferences.familyOrder,
-      toneStyle: preferences.toneStyle,
-    },
-    revision: value.revision as number,
-    confirmedAt: value.confirmedAt,
-    updatedAt: value.updatedAt,
-  };
-}
-
-export function parseAmoraPersonalizationRow(
-  value: unknown,
-): AmoraPersonalizationProfile | null {
-  if (!isRecord(value)) return null;
-  return parseAmoraPersonalizationProfile({
-    preferences: {
-      decisionStart: value.decision_start,
-      answerDetail: value.answer_detail,
-      supportOrder: value.support_order,
-      workMode: value.work_mode,
-      familyOrder: value.family_order,
-      toneStyle: value.tone_style,
-    },
-    revision: value.revision,
-    confirmedAt: value.confirmed_at,
-    updatedAt: value.updated_at,
-  });
-}
