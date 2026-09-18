@@ -8,16 +8,21 @@ import { colors, radius, spacing } from "@hanbang/design-tokens";
 import { apiFetchForExpectedUser } from "@/lib/api";
 import { supabase } from "@/lib/supabase";
 import {
-  AMORA_ACTION_VISIBLE_LIMIT,
   buildCompleteActionBody,
   formatAmoraActionDueDate,
-  parseAmoraActions,
-  selectOpenAmoraActions,
 } from "@/lib/amoraActions.mjs";
+import {
+  actionSnapshot,
+  currentVerifiedScope,
+  sameScope,
+  type ActionRow,
+  type ActionScope,
+  type ViewState,
+} from "@/lib/amoraActionScope";
 import { appShadow } from "@/components/ui/AppUI";
 
 /**
- * 아모라가 챙기기로 한 것을 라운지에 보여준다.
+ * 공유 할 일 중 아직 진행 중인 것을 라운지에 미리 보여준다.
  *
  * 서버는 이미 다 있었다 — `add_amora_action` 이 승인 카드로 나가고,
  * `/api/amora/actions` 가 목록을 주고, 웹 라운지는 그것을 보여준다.
@@ -28,68 +33,21 @@ import { appShadow } from "@/components/ui/AppUI";
  * 늦게 도착한 응답이 다른 사람의 할 일을 이 화면에 그리면 안 된다.
  *
  * 문구는 서버가 소유한다(`title`). 여기서 지어내지 않는다.
+ *
+ * 머리글은 "공유 할 일"이다. 사용자가 직접 추가한 할 일도 여기 오므로 아모라가 챙긴 것처럼
+ * 적지 않는다. 상태 전환·추가·수정은 공유 할 일 화면(`SharedTaskBoard`)이 맡고, 여기는
+ * 진행 중인 것 몇 개와 완료 버튼만 둔다. 계정·커플 경계와 응답 검사는 보드와 같은
+ * `@/lib/amoraActionScope` 를 쓴다.
  */
 
-type ActionRow = ReturnType<typeof parseAmoraActions>[number];
-type ActionStatus = "open" | "done" | "dismissed";
-const STATUS_LABELS: Record<ActionStatus, string> = { open: "진행 중", done: "완료", dismissed: "보류" };
-
-type ViewState =
-  | { kind: "quiet" }
-  | { kind: "ready"; visible: ActionRow[]; hiddenCount: number; openCount: number; totalCount: number; truncated: boolean; nextCursor: string | null; status: ActionStatus };
-
-type ActionScope = { userId: string; coupleId: string | null; role: string | null };
-const sameScope = (left: ActionScope | null, right: ActionScope | null) =>
-  left?.userId === right?.userId && left?.coupleId === right?.coupleId && left?.role === right?.role;
-
-function actionSnapshot(payload: unknown, status: ActionStatus, board: boolean): ViewState {
-  if (!payload || typeof payload !== "object" || !("actions" in payload) || !Array.isArray(payload.actions)
-    || !("open_count" in payload) || !Number.isSafeInteger(payload.open_count)
-    || typeof payload.open_count !== "number" || payload.open_count < 0
-    || !("count" in payload) || typeof payload.count !== "number" || !Number.isSafeInteger(payload.count) || payload.count < 0
-    || (status === "open" && payload.count !== payload.open_count)
-    || ("truncated" in payload && typeof payload.truncated !== "boolean")) throw new Error("INVALID_ACTION_SNAPSHOT");
-  const parsed = parseAmoraActions(payload);
-  if (parsed.length !== payload.actions.length || payload.actions.some(action => !action || typeof action !== "object" || action.status !== status)
-    || payload.count < parsed.length || new Set(parsed.map(action => action.id)).size !== parsed.length
-    || ("next_cursor" in payload && payload.next_cursor !== null && (typeof payload.next_cursor !== "string" || !payload.next_cursor))) {
-    throw new Error("INVALID_ACTION_SNAPSHOT");
-  }
-  const visible = board ? parsed : selectOpenAmoraActions(parsed, AMORA_ACTION_VISIBLE_LIMIT).visible;
-  return {
-    kind: "ready", visible, openCount: payload.open_count, totalCount: payload.count, status,
-    hiddenCount: payload.count - visible.length, truncated: board ? payload.count > visible.length : "truncated" in payload && payload.truncated === true,
-    nextCursor: "next_cursor" in payload && typeof payload.next_cursor === "string" ? payload.next_cursor : null,
-  };
-}
-
-async function currentVerifiedUserId(): Promise<string | null> {
-  const { data, error } = await supabase.auth.getUser();
-  if (error) throw new Error("ACTION_SCOPE_UNAVAILABLE");
-  return data.user?.id ?? null;
-}
-
-async function currentVerifiedScope(): Promise<ActionScope | null> {
-  const userId = await currentVerifiedUserId();
-  if (!userId) return null;
-  const { data, error } = await supabase.from("profiles").select("couple_id, role").eq("id", userId).single();
-  if (error || !data || (data.couple_id !== null && typeof data.couple_id !== "string")
-    || (data.role !== null && typeof data.role !== "string")) throw new Error("ACTION_SCOPE_UNAVAILABLE");
-  if (await currentVerifiedUserId() !== userId) return null;
-  return { userId, coupleId: data.couple_id, role: data.role };
-}
+const status = "open";
 
 export default function AmoraActionsCard({
   refreshVersion = 0,
-  presentation = "preview",
 }: {
   /** 라운지의 당겨서 새로고침과 함께 다시 읽는다. */
   refreshVersion?: number;
-  presentation?: "preview" | "board";
 }) {
-  const board = presentation === "board";
-  const [selectedStatus, setSelectedStatus] = useState<ActionStatus>("open");
-  const status = board ? selectedStatus : "open";
   const [state, setState] = useState<ViewState>({ kind: "quiet" });
   const [authGeneration, setAuthGeneration] = useState(0);
   const [completing, setCompleting] = useState<string | null>(null);
@@ -97,7 +55,6 @@ export default function AmoraActionsCard({
   const [completionError, setCompletionError] = useState<ActionRow | null>(null);
   const [scopeUserId, setScopeUserId] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const loadingRef = useRef(false);
   const loadGeneration = useRef(0);
   const sessionUserId = useRef<string | null>(null);
   const loadController = useRef<AbortController | null>(null);
@@ -118,9 +75,8 @@ export default function AmoraActionsCard({
     setAuthGeneration((generation) => generation + 1);
   }, []);
 
-  const load = useCallback(async (signal?: AbortSignal, cursor?: string) => {
+  const load = useCallback(async (signal?: AbortSignal) => {
     const operation = ++loadGeneration.current;
-    loadingRef.current = true;
     setLoading(true);
     let verifiedScope: ActionScope | null = null;
     try {
@@ -143,7 +99,7 @@ export default function AmoraActionsCard({
       }
       const response = await apiFetchForExpectedUser(
         verifiedScope.userId,
-        `/api/amora/actions?status=${status}&limit=${board ? 80 : 20}${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ""}`,
+        `/api/amora/actions?status=${status}&limit=20`,
         { method: "GET", headers: { Accept: "application/json" }, signal },
       );
       const scopeAfterResponse = await currentVerifiedScope();
@@ -153,19 +109,11 @@ export default function AmoraActionsCard({
         if (response.status === 401 || response.status === 403) setState({ kind: "quiet" });
         throw new Error("ACTION_READ_FAILED");
       }
-      const snapshot = actionSnapshot(await response.json(), status, board);
+      const snapshot = actionSnapshot(await response.json(), status, false);
       const finalScope = await currentVerifiedScope();
       if (operation !== loadGeneration.current || signal?.aborted) return;
       if (!sameScope(verifiedScope, finalScope)) { invalidateScope(); return; }
-      if (cursor && snapshot.kind === "ready" && snapshot.nextCursor === cursor) throw new Error("INVALID_ACTION_CURSOR");
-      setState(current => {
-        if (!cursor || current.kind !== "ready" || snapshot.kind !== "ready" || current.status !== status) return snapshot;
-        const incoming = new Map(snapshot.visible.map(action => [action.id, action]));
-        const visible = current.visible.map(action => incoming.get(action.id) ?? action);
-        const seen = new Set(visible.map(action => action.id));
-        visible.push(...snapshot.visible.filter(action => !seen.has(action.id)));
-        return { ...snapshot, visible, hiddenCount: Math.max(0, snapshot.totalCount - visible.length), truncated: snapshot.totalCount > visible.length };
-      });
+      setState(snapshot);
       setLoadError(null);
       setCompletionError(null);
     } catch (error) {
@@ -175,12 +123,12 @@ export default function AmoraActionsCard({
       ) {
         if (!verifiedScope || !sameScope(verifiedScope, scopeRef.current)
           || (error instanceof Error && error.message === "ACTION_SCOPE_UNAVAILABLE")) setState({ kind: "quiet" });
-        setLoadError("챙길 것을 불러오지 못했어요. 다시 불러와 주세요.");
+        setLoadError("공유 할 일을 불러오지 못했어요. 다시 불러와 주세요.");
       }
     } finally {
-      if (operation === loadGeneration.current) { loadingRef.current = false; setLoading(false); }
+      if (operation === loadGeneration.current) setLoading(false);
     }
-  }, [board, invalidateScope, status]);
+  }, [invalidateScope]);
 
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
@@ -266,7 +214,7 @@ export default function AmoraActionsCard({
         if (isCurrent()) {
           if (error instanceof Error && error.message === "ACTION_SCOPE_UNAVAILABLE") {
             setState({ kind: "quiet" });
-            setLoadError("챙길 것을 불러오지 못했어요. 다시 불러와 주세요.");
+            setLoadError("공유 할 일을 불러오지 못했어요. 다시 불러와 주세요.");
             scopeRef.current = null;
           } else setCompletionError(action);
         }
@@ -280,31 +228,22 @@ export default function AmoraActionsCard({
     [invalidateScope, load],
   );
 
-  function changeStatus(next: ActionStatus) {
-    if (completionRef.current || next === selectedStatus) return;
-    loadGeneration.current += 1;
-    loadController.current?.abort();
-    setState({ kind: "quiet" });
-    setLoadError(null);
-    setCompletionError(null);
-    setSelectedStatus(next);
-  }
+  // 배지는 서버가 준 열린 수를 확인한 뒤에만 보인다. 첫 로딩·오류·로그아웃 때 숫자를 짐작해 두지 않는다
+  // (웹 라운지 `AmoraMissions` 의 `{openCount}개` 와 같은 조건).
+  const showBadge = state.kind === "ready" && !loadError;
 
   return (
     <View style={styles.card}>
-      <View style={styles.header}>
-        <ListChecks size={14} color={colors.rose[600]} />
-        <Text style={styles.headerText}>아모라가 챙기기로 한 것</Text>
-      </View>
-      {board ? <View style={styles.filters}>{(Object.keys(STATUS_LABELS) as ActionStatus[]).map(value => (
-        <Pressable key={value} accessibilityRole="button" accessibilityLabel={`${STATUS_LABELS[value]} 기록 보기`}
-          accessibilityState={{ selected: selectedStatus === value }} disabled={completing !== null}
-          onPress={() => changeStatus(value)} style={[styles.filter, selectedStatus === value && styles.filterSelected]}>
-          <Text style={styles.doneText}>{STATUS_LABELS[value]}</Text>
+      <View style={styles.headerRow}>
+        <View style={styles.header}>
+          <ListChecks size={14} color={colors.rose[600]} />
+          <Text style={styles.headerText}>공유 할 일</Text>
+          {showBadge ? <Text style={styles.badge}>{`${state.openCount}개`}</Text> : null}
+        </View>
+        <Pressable accessibilityRole="button" accessibilityLabel="공유 할 일 전체 보기" onPress={() => router.push("/amora-preparation")} style={styles.linkButton}>
+          <Text style={styles.linkText}>전체 보기</Text>
         </Pressable>
-      ))}</View> : <Pressable accessibilityRole="button" accessibilityLabel="준비 기록 보기" onPress={() => router.push("/amora-preparation")} style={styles.retryButton}>
-        <Text style={styles.doneText}>준비 기록 보기</Text>
-      </Pressable>}
+      </View>
 
       {loadError ? <View>
         <Text style={styles.error} accessibilityRole="alert">{loadError}</Text>
@@ -322,19 +261,20 @@ export default function AmoraActionsCard({
         </Pressable>
       </View> : null}
       {loading ? <Text accessibilityLiveRegion="polite" style={styles.more}>불러오는 중이에요.</Text> : null}
-      {state.kind === "ready" ? <Text style={styles.more}>{board ? STATUS_LABELS[state.status] : "미완료"} {state.totalCount}개 중 {state.visible.length}개 표시 중{state.truncated ? " · 일부 목록을 불러왔어요." : ""}</Text> : null}
-      {board && !loading && !loadError && state.kind === "ready" && state.totalCount === 0 ? <Text style={styles.more}>{STATUS_LABELS[state.status]} 기록이 아직 없어요.</Text> : null}
+      {state.kind === "ready" && !loadError && state.openCount === 0 && state.visible.length === 0 ? (
+        <Text style={styles.more}>지금 이어갈 공유 할 일이 없어요. 아모라와 정리한 할 일을 함께 남길 수 있어요.</Text>
+      ) : null}
       {(state.kind === "ready" ? state.visible : []).map((action) => {
         const due = formatAmoraActionDueDate(action.dueDate);
         return (
           <View key={action.id} style={styles.row}>
             <View style={styles.rowText}>
-              <Text style={styles.title} numberOfLines={board ? undefined : 2}>
+              <Text style={styles.title} numberOfLines={2}>
                 {action.title}
               </Text>
               {due ? <Text style={styles.due}>{due}</Text> : null}
             </View>
-            {action.status === "open" ? <Pressable
+            <Pressable
               onPress={() => void complete(action)}
               disabled={completing !== null || loading}
               accessibilityRole="button"
@@ -347,7 +287,7 @@ export default function AmoraActionsCard({
             >
               <Check size={14} color={colors.rose[600]} />
               <Text style={styles.doneText}>완료</Text>
-            </Pressable> : <Text style={styles.more}>{STATUS_LABELS[action.status as ActionStatus]}</Text>}
+            </Pressable>
           </View>
         );
       })}
@@ -355,12 +295,9 @@ export default function AmoraActionsCard({
       {state.kind === "ready" && state.hiddenCount > 0 ? (
         <Text style={styles.more}>외 {state.hiddenCount}개가 더 있어요.</Text>
       ) : null}
-      {board && state.kind === "ready" && state.nextCursor ? <Pressable accessibilityRole="button" accessibilityLabel="기록 더 보기"
-        disabled={loading || completing !== null} style={styles.retryButton}
-        onPress={() => { if (!loadingRef.current) void load(undefined, state.nextCursor ?? undefined); }}>
-        <Text style={styles.doneText}>기록 더 보기</Text>
-      </Pressable> : null}
-      {board && state.kind === "ready" && state.truncated && !state.nextCursor ? <Text style={styles.more}>추가 기록을 이어서 읽을 수 없어요. 다시 불러와 주세요.</Text> : null}
+      {showBadge && state.truncated ? (
+        <Text style={styles.more}>불러온 공유 할 일 중 우선순위가 높은 항목을 보여드려요. 전체 열린 수와 보이는 수는 다를 수 있어요.</Text>
+      ) : null}
     </View>
   );
 }
@@ -377,8 +314,21 @@ const styles = StyleSheet.create({
     gap: spacing[3],
     ...appShadow,
   },
+  headerRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: spacing[2] },
   header: { flexDirection: "row", alignItems: "center", gap: spacing[1] },
   headerText: { fontSize: 12, fontWeight: "600", color: colors.rose[600] },
+  badge: {
+    fontSize: 10,
+    fontWeight: "500",
+    color: colors.rose[700],
+    backgroundColor: colors.rose.pale,
+    borderRadius: radius.full,
+    overflow: "hidden",
+    paddingHorizontal: spacing[2],
+    paddingVertical: 2,
+  },
+  linkButton: { minHeight: 44, justifyContent: "center" },
+  linkText: { fontSize: 12, color: colors.textTertiary },
   row: { flexDirection: "row", alignItems: "center", gap: spacing[2] },
   rowText: { flex: 1, gap: 2 },
   title: { fontSize: 14, fontWeight: "600", color: colors.noir[800], lineHeight: 20 },
@@ -397,7 +347,4 @@ const styles = StyleSheet.create({
   more: { fontSize: 12, color: colors.textTertiary },
   error: { fontSize: 12, color: colors.rose[600], lineHeight: 18 },
   retryButton: { minHeight: 44, justifyContent: "center", alignSelf: "flex-start" },
-  filters: { flexDirection: "row", flexWrap: "wrap", gap: spacing[2] },
-  filter: { minHeight: 44, paddingHorizontal: spacing[3], justifyContent: "center", borderRadius: radius.lg, borderWidth: 1, borderColor: colors.ivory[100], backgroundColor: colors.ivory[100] },
-  filterSelected: { backgroundColor: colors.rose.pale, borderColor: colors.rose[600] },
 });

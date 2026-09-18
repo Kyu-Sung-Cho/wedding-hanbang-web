@@ -151,7 +151,7 @@ function renderPreparationScreen() {
     "expo-router": { router: recordingRouter(events) },
     "react-native-safe-area-context": { SafeAreaView: "SafeAreaView" },
     "@hanbang/design-tokens": { colors: token, spacing: token },
-    "@/components/lounge/AmoraActionsCard": { default: "AmoraActionsCard" },
+    "@/components/preparation/SharedTaskBoard": { default: "SharedTaskBoard" },
     "@/components/ui/AppUI": { ActionRow: "ActionRow", AppHeader: "AppHeader", AppText: "AppText", Surface: "Surface" },
   });
   const tree = screen.default();

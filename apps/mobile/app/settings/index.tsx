@@ -25,6 +25,7 @@ import {
   Users,
   BrainCircuit,
   BookOpen,
+  SlidersHorizontal,
 } from "lucide-react-native";
 import * as Clipboard from "expo-clipboard";
 import { colors } from "@hanbang/design-tokens";
@@ -923,6 +924,13 @@ export default function SettingsScreen() {
           <Text style={styles.sectionTitle}>아모라</Text>
         </View>
         <Surface style={styles.card}>
+          <ActionRow
+            icon={<SlidersHorizontal size={18} color={colors.noir[800]} />}
+            title="아모라 도움 방식"
+            description="추천·비교·공감·실행 중 내가 편한 순서를 직접 정해요"
+            onPress={() => router.push("/settings/amora-style" as const)}
+          />
+          <View style={styles.divider} />
           <ActionRow
             icon={<BrainCircuit size={18} color={colors.noir[800]} />}
             title="아모라가 기억하는 것"
