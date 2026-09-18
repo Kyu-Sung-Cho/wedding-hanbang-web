@@ -46,6 +46,9 @@ import {
 } from "@/lib/amoraPreparationSource";
 import { supabase } from "@/lib/supabase";
 import {
+  AMORA_CHANGE_REVIEW_COPY,
+  AMORA_SHARED_PLAN_PARTNER_NOTICE,
+  SHARED_PLAN_TOOLS,
   buildAmoraActionConfirmationOutcomes,
   getAmoraPendingActionApplicationState,
   buildAmoraConversationRecap,
@@ -125,6 +128,7 @@ import { AmoraMessageBody } from "@/components/chat/AmoraMessageBody";
 import { ToolResultCard } from "@/components/chat/ToolResultCard";
 import { PersonalActionSave } from "@/components/chat/PersonalActionSave";
 import { AmoraConversationRecap } from "@/components/chat/AmoraConversationRecap";
+import { AmoraChangeReviewSheet } from "@/components/chat/AmoraChangeReviewSheet";
 import { personalActionContinuation } from "@/lib/personalActionContinuation";
 import {
   dedupeToolResultCards,
@@ -2034,6 +2038,8 @@ export default function ChatScreen() {
     () => new Set(),
   );
   const [applyingPendingActionId, setApplyingPendingActionId] = useState<string | null>(null);
+  // 열려 있는 「내용 확인하기」 창. `메시지 id:actionId:inputDigest` 로 한 제안에 묶인다.
+  const [reviewingPendingActionKey, setReviewingPendingActionKey] = useState<string | null>(null);
   const [pendingActionNotice, setPendingActionNotice] = useState<{
     actionId: string;
     message: string;
@@ -2440,6 +2446,7 @@ export default function ChatScreen() {
     setFollowUpSuggestions(null);
     setDismissedPendingActionIds(new Set());
     setApplyingPendingActionId(null);
+    setReviewingPendingActionKey(null);
     setPendingActionNotice(null);
     setPendingActionApproval(null);
     setPartnerSafetyNotice(null);
@@ -3990,6 +3997,9 @@ export default function ChatScreen() {
       || approvalPolicy === "blocked"
       || getPendingActionDisabledReason(action, Date.now(), true, false) !== null
     ) return;
+    // 반영은 그 제안의 「내용 확인하기」 창에서 확인 버튼을 눌렀을 때만 시작한다(2026-09-18).
+    // 아모라는 사용자가 무엇이 바뀌는지 읽고 확인하기 전에는 아무것도 바꾸지 않는다.
+    if (reviewingPendingActionKey !== `${latestSharedMessage.id}:${action.actionId}:${action.inputDigest}`) return;
 
     sendingRef.current = true;
     applyingPendingActionRef.current = actionId;
@@ -4045,6 +4055,9 @@ export default function ChatScreen() {
         });
         return;
       }
+      // 반영 순서를 얻었다. 창을 닫고, 결과는 기존 채팅 흐름이 알린다 — 순서를 얻은 것을
+      // 반영 성공으로 말하지 않는다(웹 카드와 같다).
+      setReviewingPendingActionKey(null);
       const content = "좋아요. 제안한 변경을 적용해 주세요.";
       await sendAiDraft({
         text: content,
@@ -4294,11 +4307,19 @@ export default function ChatScreen() {
         !matchingApproval
         || (matchingApproval.status === null && matchingApproval.error === null)
       );
+    // 공유 계획을 바꾸는 제안이고 상대가 연결돼 있으면, 확인하는 순간 상대에게 알림이 간다는 것을
+    // 먼저 말한다(웹 카드와 같다). 혼자일 때는 없는 사람에 대한 약속이라 붙이지 않는다.
+    const pendingActionNotifiesPartner = pendingAction !== null
+      && approvalPolicy === "single"
+      && SHARED_PLAN_TOOLS.has(pendingAction.tool)
+      && hasLinkedPartner;
     const approvalCopy = requiresCoupleApproval
       ? matchingApproval?.error ?? approvalPresentation.copy
       : approvalPolicy === "blocked"
         ? "이 변경은 안전 정책상 모바일에서 바로 반영할 수 없어요. 아모라에게 최신 제안을 다시 요청해 주세요."
-        : null;
+        : pendingActionNotifiesPartner
+          ? AMORA_SHARED_PLAN_PARTNER_NOTICE
+          : null;
     const approvalMutation = matchingApproval?.mutation ?? null;
     const pendingActionControlDisabled = pendingActionDisabledReason !== null
       || approvalPolicy === "blocked"
@@ -4337,6 +4358,32 @@ export default function ChatScreen() {
         ? "이 공동 변경을 확인하고 바로 반영"
         : "이 공동 변경을 확인"
       : "확인한 내용을 이대로 적용";
+    const pendingActionStatusCopy = pendingActionDisabledReason === null
+      ? null
+      : pendingActionDisabledReason === "applied"
+        ? "이 제안은 적용됐어요."
+        : pendingActionDisabledReason === "expired"
+          ? "안전을 위해 확인 시간이 지났어요. 아모라에게 다시 제안해 달라고 해주세요."
+          : pendingActionMovedToLatest
+            ? "같은 제안이 아래 최신 답변으로 옮겨졌어요. 그 카드에서 확인할 수 있어요."
+            : pendingActionDisabledReason === "not_latest"
+              ? "새 대화가 이어져 이 제안은 적용할 수 없어요. 최신 내용으로 다시 확인해 주세요."
+              : "현재 답변이 끝나면 다시 확인할 수 있어요.";
+    // 「내용 확인하기」 창 (2026-09-18). 카드는 이 창을 열기만 하고, 반영은 창의 확인 버튼에서만
+    // 시작된다. 창은 이 메시지·이 제안·이 입력(inputDigest)에 묶인다 — 같은 actionId 라도 입력이 다르면
+    // 다른 제안이다. 적용됐거나 아래 최신 답변으로 옮겨진 카드에서는 열어 두지 않는다(웹과 같다).
+    const pendingActionReviewKey = pendingAction
+      ? `${item.id}:${pendingAction.actionId}:${pendingAction.inputDigest}`
+      : null;
+    const pendingActionReviewOpen = pendingActionReviewKey !== null
+      && reviewingPendingActionKey === pendingActionReviewKey
+      && pendingActionDisabledReason !== "applied"
+      && !pendingActionMovedToLatest;
+    const pendingActionBusy = pendingAction !== null
+      && (applyingPendingActionId === pendingAction.actionId || approvalMutation !== null);
+    const pendingActionCardNotice = pendingAction && pendingActionNotice?.actionId === pendingAction.actionId
+      ? pendingActionNotice.message
+      : null;
     // 웹 ChatBubble 과 같은 규칙: 신랑으로 확인 → 하늘색, 신부로 확인 → 분홍, 아모라 → 아모라 색,
     // 확인 전·누구인지 모름 → 중립 베이지. 색과 글자색은 design-tokens chatPalette 한 벌이다.
     const senderPresentation = resolveChatSenderPresentation({
@@ -4474,18 +4521,10 @@ export default function ChatScreen() {
                   </Text>
                 </View>
               )}
-              {pendingActionDisabledReason && (
+              {pendingActionStatusCopy && (
                 <Text style={st.pendingActionStatus} accessibilityLiveRegion="polite">
-                  {pendingActionDisabledReason === "applied"
-                    ? "이 제안은 적용됐어요."
-                    : pendingActionDisabledReason === "expired"
-                    ? "안전을 위해 확인 시간이 지났어요. 아모라에게 다시 제안해 달라고 해주세요."
-                    : pendingActionMovedToLatest
-                      ? "같은 제안이 아래 최신 답변으로 옮겨졌어요. 그 카드에서 확인할 수 있어요."
-                    : pendingActionDisabledReason === "not_latest"
-                      ? "새 대화가 이어져 이 제안은 적용할 수 없어요. 최신 내용으로 다시 확인해 주세요."
-                      : "현재 답변이 끝나면 다시 확인할 수 있어요."}
-                  </Text>
+                  {pendingActionStatusCopy}
+                </Text>
               )}
               {approvalCopy && !pendingActionMovedToLatest && (
                 <View
@@ -4507,33 +4546,39 @@ export default function ChatScreen() {
                   </Text>
                 </View>
               )}
-              {pendingActionNotice?.actionId === pendingAction.actionId && !pendingActionMovedToLatest && (
+              {pendingActionCardNotice && !pendingActionMovedToLatest && (
                 <Text style={st.pendingActionStatus} accessibilityLiveRegion="polite">
-                  {pendingActionNotice.message}
+                  {pendingActionCardNotice}
                 </Text>
               )}
               {!pendingActionMovedToLatest && (
               <View style={st.pendingActionControls}>
+                {/* 카드의 첫 버튼은 반영하지 않는다 — 「내용 확인하기」 창을 열 뿐이다(2026-09-18).
+                    예전에는 「이대로 적용」 한 번으로 바로 반영됐다. 반영은 창의 확인 버튼에서만 시작된다. */}
                 <Pressable
                   style={({ pressed }) => [
                     st.pendingActionButton,
-                    pressed && !pendingActionControlDisabled && { opacity: 0.82 },
+                    pressed && !pendingActionControlDisabled && st.pendingActionButtonPressed,
                     pendingActionControlDisabled && st.pendingActionButtonDisabled,
                   ]}
-                  onPress={() => handleApplyPendingAction(pendingAction.actionId)}
+                  onPress={() => setReviewingPendingActionKey(pendingActionReviewKey)}
                   disabled={pendingActionControlDisabled}
                   accessibilityRole="button"
-                  accessibilityLabel={applyAccessibilityLabel}
-                  accessibilityState={{ disabled: pendingActionControlDisabled }}
+                  accessibilityLabel={AMORA_CHANGE_REVIEW_COPY.openAccessibilityLabel}
+                  accessibilityState={{ disabled: pendingActionControlDisabled, expanded: pendingActionReviewOpen }}
                 >
                   {applyingPendingActionId === pendingAction.actionId
                   || approvalMutation === "confirm"
                   || approvalLoading ? (
-                    <ActivityIndicator size="small" color="#FFF" />
+                    <ActivityIndicator size="small" color={colors.surface} />
                   ) : (
-                    <Check size={16} color="#FFF" />
+                    <Check size={16} color={colors.surface} />
                   )}
-                  <Text style={st.pendingActionButtonText}>{applyLabel}</Text>
+                  <Text style={st.pendingActionButtonText}>
+                    {pendingActionBusy || approvalLoading || approvalPresentation.waitingForPartner
+                      ? applyLabel
+                      : AMORA_CHANGE_REVIEW_COPY.openLabel}
+                  </Text>
                 </Pressable>
                 {canWithdrawApproval && (
                   <Pressable
@@ -4565,6 +4610,40 @@ export default function ChatScreen() {
                   <Text style={st.pendingActionDismissText}>지금은 적용하지 않기</Text>
                 </Pressable>
               </View>
+              )}
+              {pendingActionReviewOpen && (
+                <AmoraChangeReviewSheet
+                  visible
+                  confirmation={pendingAction.confirmation}
+                  tool={pendingAction.tool}
+                  impactPreview={impactPreview}
+                  carriedLabel={pendingActionIsCarriedForward ? CARRIED_PENDING_ACTION_LABEL : null}
+                  disabled={pendingActionControlDisabled}
+                  busy={pendingActionBusy}
+                  applyLabel={applyLabel}
+                  applyAccessibilityLabel={applyAccessibilityLabel}
+                  notice={pendingActionStatusCopy ?? pendingActionCardNotice ?? approvalCopy}
+                  error={matchingApproval?.error ?? null}
+                  onConfirm={() => handleApplyPendingAction(pendingAction.actionId)}
+                  onClose={() => setReviewingPendingActionKey(null)}
+                  onDefer={() => {
+                    setReviewingPendingActionKey(null);
+                    setDismissedPendingActionIds((current) => {
+                      const next = new Set(current);
+                      next.add(pendingAction.actionId);
+                      return next;
+                    });
+                  }}
+                >
+                  {impactPreview && <BudgetImpactDetails preview={impactPreview} />}
+                  {pendingActionIsPastDated && (
+                    <View style={[st.pendingActionApprovalStatus, st.pendingActionApprovalError, st.pendingActionSheetNotice]}>
+                      <Text style={[st.pendingActionApprovalText, st.pendingActionApprovalErrorText]}>
+                        {PAST_SCHEDULE_DATE_NOTICE}
+                      </Text>
+                    </View>
+                  )}
+                </AmoraChangeReviewSheet>
               )}
             </View>
           )}
@@ -5000,7 +5079,10 @@ const st = StyleSheet.create({
   pendingActionApprovalText: { flex: 1, fontSize: 12, lineHeight: 18, color: "#2F5F51" },
   pendingActionApprovalErrorText: { color: "#8A3D31" },
   pendingActionControls: { marginTop: 12, gap: 8 },
-  pendingActionButton: { minHeight: 44, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingHorizontal: 14, paddingVertical: 10, borderRadius: 12, backgroundColor: "#2F5F51" },
+  // 누를 수 있는 주 채움은 디자인 토큰 rose[600], 눌림은 rose[700] (DESIGN.md 2026-09-16).
+  pendingActionButton: { minHeight: 44, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingHorizontal: 14, paddingVertical: 10, borderRadius: 12, backgroundColor: colors.rose[600] },
+  pendingActionButtonPressed: { backgroundColor: colors.rose[700] },
+  pendingActionSheetNotice: { marginTop: 0, marginBottom: 16 },
   pendingActionButtonDisabled: { backgroundColor: colors.taupe[400] },
   pendingActionButtonText: { fontSize: 14, fontWeight: "700", color: "#FFF" },
   pendingActionDismiss: { minHeight: 44, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingHorizontal: 14, paddingVertical: 10, borderRadius: 12, borderWidth: 1, borderColor: "#D8C7BB", backgroundColor: colors.surface },

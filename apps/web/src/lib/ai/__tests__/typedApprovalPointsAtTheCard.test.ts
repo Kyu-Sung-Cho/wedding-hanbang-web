@@ -98,9 +98,9 @@ describe("말로 한 승인", () => {
     expect(prompt).toContain("이대로 적용");
     expect(prompt).toContain("그 말만으로는 반영되지 않습니다");
     // 2026-09-15: 웹 카드의 첫 버튼은 "내용 확인하기" 다. 웹 카드에 없는 "이대로 적용"
-    // 만 가리키면 웹 사용자는 버튼을 못 찾는다. 앱 카드는 "이대로 적용" 하나다.
-    expect(prompt).toContain("웹에서는 카드의 **내용 확인하기**를 누른 뒤 **이대로 적용**을");
-    expect(prompt).toContain("앱에서는 카드의 **이대로 적용**을");
+    // 만 가리키면 웹 사용자는 버튼을 못 찾는다. 2026-09-18부터 앱 카드도 같은 두 단계다.
+    expect(prompt).toContain("웹과 앱 모두 카드의 **내용 확인하기**를 누른 뒤 확인 창의 **이대로 적용**을");
+    expect(prompt).not.toContain("앱에서는 카드의 **이대로 적용**을");
     expect(prompt).not.toContain("화면의 **이대로 적용** 버튼을 눌러야");
   });
 

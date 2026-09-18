@@ -100,10 +100,25 @@ export function isAmoraTypedCardAcceptance(text: unknown): boolean {
  * 말로 승낙한 턴에 서버가 쓰는 답. 모델 문장을 쓰지 않는다 — 모델은 누를 버튼이
  * 없는 안내나 "반영할게요" 같은 거짓 약속을 할 수 있다.
  *
- * 버튼 이름은 화면이 실제로 쓰는 것이다. 웹 카드(`PendingAmoraActionCard`)는
- * ‘내용 확인하기’ → 확인 창의 ‘이대로 적용’ 두 단계이고, 앱(`app/(tabs)/chat.tsx`)
- * 카드는 ‘이대로 적용’ 하나다. 같은 공유 대화를 두 사람이 서로 다른 기기에서 보므로
+ * 버튼 이름은 화면이 실제로 쓰는 것이다. 웹 카드(`PendingAmoraActionCard`)와 앱 카드
+ * (`app/(tabs)/chat.tsx`)는 2026-09-18부터 같은 두 단계다 — 카드의 ‘내용 확인하기’가 확인 창을 열고,
+ * 그 창의 ‘이대로 적용’에서만 반영된다. 같은 공유 대화를 두 사람이 서로 다른 기기에서 보므로
  * 한 문장이 두 화면 모두에서 참이어야 한다.
  */
 export const AMORA_TYPED_CARD_ACCEPTANCE_REPLY =
-  "아직 반영하지 않았어요. 웹에서는 아래 카드의 ‘내용 확인하기’를 누른 뒤 ‘이대로 적용’을, 앱에서는 카드의 ‘이대로 적용’을 누르면 반영돼요.";
+  "아직 반영하지 않았어요. 아래 카드의 ‘내용 확인하기’를 누른 뒤 ‘이대로 적용’을 누르면 반영돼요.";
+
+/**
+ * 이미 저장된 같은 안내의 옛 문장들. 2026-09-18 전에는 앱 카드가 ‘이대로 적용’ 한 단계라 문장이
+ * 웹·앱을 나눠 말했다. 대화에 저장된 행은 그대로 남으므로, 직전 행이 서버 고정 안내였는지 볼 때
+ * (`route.ts` 의 `previousRowSpeaksForCard`) 옛 문장도 같은 안내로 알아본다. 문장만 바뀌었지 뜻은 같다.
+ */
+const LEGACY_TYPED_CARD_ACCEPTANCE_REPLIES: readonly string[] = [
+  "아직 반영하지 않았어요. 웹에서는 아래 카드의 ‘내용 확인하기’를 누른 뒤 ‘이대로 적용’을, 앱에서는 카드의 ‘이대로 적용’을 누르면 반영돼요.",
+];
+
+/** 저장된 행 본문이 말로 한 승낙에 서버가 붙인 고정 안내(지금 문장이든 옛 문장이든)인가. */
+export function isAmoraTypedCardAcceptanceReply(content: unknown): boolean {
+  return typeof content === "string"
+    && (content === AMORA_TYPED_CARD_ACCEPTANCE_REPLY || LEGACY_TYPED_CARD_ACCEPTANCE_REPLIES.includes(content));
+}

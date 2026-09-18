@@ -49,6 +49,10 @@ const sharedScheduleModule = compileCommonJs(
 );
 const sharedModule = {
   ...sharedScheduleModule,
+  // 2026-09-18: 카드의 「내용 확인하기」 문구와 확인 창 표는 shared 에서 온다.
+  ...compileCommonJs(readFileSync(new URL(
+    "../../../../packages/shared/src/contracts/amoraChangeReview.ts", import.meta.url,
+  ), "utf8")),
   ...compileCommonJs(readFileSync(new URL(
     "../../../../packages/shared/src/contracts/amoraPendingActionApplication.ts", import.meta.url,
   ), "utf8")),
@@ -119,6 +123,8 @@ function renderProposal(receipts, {
   itemOverrides = {},
   participantPresentation = chatParticipantPresentationModule.EMPTY_CHAT_PARTICIPANT_PRESENTATION,
   linkedPartnerId = null,
+  reviewingPendingActionKey = null,
+  calls = [],
 } = {}) {
   const applicationModule = compileCommonJs(readFileSync(new URL(
     "../../../web/src/components/app/chat/amoraPendingActionApplication.ts", import.meta.url,
@@ -152,6 +158,12 @@ function renderProposal(receipts, {
     latestPendingAction: getPendingAmoraAction(messages.at(-1)),
     actionConfirmationOutcomes: applicationModule.buildAmoraActionConfirmationOutcomes(messages),
     pendingActionApproval: null, pendingActionNotice: null, applyingPendingActionId: null,
+    // 누르면 무엇이 불리는지 기록한다 — 반영(handleApplyPendingAction)과 확인 창 열기를 가른다.
+    reviewingPendingActionKey,
+    setReviewingPendingActionKey: (value) => calls.push(["review", value]),
+    handleApplyPendingAction: (actionId) => calls.push(["apply", actionId]),
+    handleWithdrawPendingAction: (actionId) => calls.push(["withdraw", actionId]),
+    setDismissedPendingActionIds: (update) => calls.push(["dismiss", [...update(new Set())]]),
     parseAmoraCitations, describeAmoraCitations, getAmoraVisibleText,
     normalizeMediationBlock: () => null, ...toolResultCardModule,
     colors: { noir: { 800: "black", soft: "gray" }, gold: { DEFAULT: "gold" }, ivory: { warm: "ivory" } }, st: {},
@@ -184,6 +196,11 @@ const successReceipt = {
   id: "result", sender_type: "ai", visibility: "shared",
   metadata: { in_reply_to_user_message_id: "confirm", toolResults: [{ toolName: action.tool, success: true }] },
 };
+const typedAcceptanceForReview = { id: "typed", sender_type: "bride", visibility: "shared", content: "응 적용해줘", metadata: {} };
+const carriedReplyForReview = {
+  id: "carried", sender_id: null, sender_type: "ai", visibility: "shared", content: "아래 카드에서 확인해 주세요.",
+  metadata: { pending_amora_action: action, pending_amora_action_carry_count: 1 },
+};
 
 test("mobile renders a successful proposal as applied even after a newer reply and expiry", () => {
   const rendered = renderProposal([confirmationReceipt, successReceipt], { nowMs: action.expiresAt + 1 });
@@ -213,10 +230,92 @@ test("mobile waits for a pending result without presenting it as success or expi
   assert.doesNotMatch(rendered.text, /이 제안은 적용됐어요|확인 시간이 지났어요|새 대화가 이어져/);
 });
 
+/**
+ * 카드 한 번 누르기로는 아무것도 바뀌지 않는다 (2026-09-18).
+ *
+ * 예전 앱 카드의 첫 버튼은 「이대로 적용」이었고, 누르면 확인 요청과 반영이 바로 시작됐다. 아모라는
+ * 사용자가 무엇이 바뀌는지 읽고 확인하기 전에는 아무것도 바꾸지 않는다 — 웹처럼 카드의 「내용 확인하기」는
+ * 확인 창만 열고, 반영은 그 창의 「이대로 적용」에서만 일어난다. 실제 renderMessage 를 그려 누른다.
+ */
+const reviewKey = `proposal:${action.actionId}:${action.inputDigest}`;
+const reviewSheet = (rendered) => rendered.nodes.find((node) => node.type === "AmoraChangeReviewSheet");
+
+test("카드를 한 번 눌러도 반영하지 않고 내용 확인 창만 연다", () => {
+  const calls = [];
+  const rendered = renderProposal([], { calls });
+  const open = rendered.buttons.find((node) => node.props.accessibilityLabel === "변경 내용 확인하기");
+  assert.ok(open, "카드의 첫 버튼은 「내용 확인하기」여야 한다");
+  assert.equal(open.props.disabled, false);
+  assert.match(rendered.text, /"내용 확인하기"/);
+  // 카드 안의 어떤 버튼을 눌러도 반영은 불리지 않는다.
+  for (const button of rendered.buttons) button.props.onPress?.();
+  assert.deepEqual(calls.filter(([kind]) => kind === "apply"), [], "한 번 누르기로 반영되면 안 된다");
+  assert.deepEqual(calls.find(([kind]) => kind === "review"), ["review", reviewKey]);
+  assert.equal(reviewSheet(rendered), undefined, "확인 창은 누른 뒤에 열린다");
+});
+
+test("반영은 내용 확인 창의 확인 버튼에서만 일어난다", () => {
+  const calls = [];
+  const rendered = renderProposal([], { calls, reviewingPendingActionKey: reviewKey });
+  const sheet = reviewSheet(rendered);
+  assert.ok(sheet, "열린 확인 창이 없다");
+  assert.equal(sheet.props.confirmation, action.confirmation);
+  assert.equal(sheet.props.tool, action.tool);
+  assert.equal(sheet.props.applyLabel, "이대로 적용");
+  assert.equal(sheet.props.applyAccessibilityLabel, "확인한 내용을 이대로 적용");
+  assert.equal(sheet.props.disabled, false);
+  sheet.props.onClose();
+  assert.deepEqual(calls.filter(([kind]) => kind === "apply"), []);
+  assert.deepEqual(calls.at(-1), ["review", null], "닫기는 창만 닫는다");
+  sheet.props.onConfirm();
+  assert.deepEqual(calls.filter(([kind]) => kind === "apply"), [["apply", action.actionId]]);
+});
+
+test("나중에 정하기는 반영하지 않고 이 화면에서만 카드를 치운다", () => {
+  const calls = [];
+  reviewSheet(renderProposal([], { calls, reviewingPendingActionKey: reviewKey })).props.onDefer();
+  assert.deepEqual(calls.filter(([kind]) => kind === "apply"), []);
+  assert.ok(calls.some(([kind, ids]) => kind === "dismiss" && ids.includes(action.actionId)));
+  assert.ok(calls.some(([kind, value]) => kind === "review" && value === null));
+});
+
+test("다른 제안·적용된 제안·옮겨진 제안에는 확인 창을 열어 두지 않는다", () => {
+  assert.equal(reviewSheet(renderProposal([], { reviewingPendingActionKey: `proposal:${action.actionId}:${"c".repeat(64)}` })), undefined);
+  assert.equal(reviewSheet(renderProposal([confirmationReceipt, successReceipt], { reviewingPendingActionKey: reviewKey })), undefined);
+  assert.equal(reviewSheet(renderProposal([typedAcceptanceForReview, carriedReplyForReview], { reviewingPendingActionKey: reviewKey })), undefined);
+  // 열어 둔 사이 만료되면 창은 남아도 반영할 수 없다(웹과 같다).
+  const expired = reviewSheet(renderProposal([], { reviewingPendingActionKey: reviewKey, nowMs: action.expiresAt + 1 }));
+  assert.equal(expired.props.disabled, true);
+  assert.match(expired.props.notice, /확인 시간이 지났어요/);
+});
+
+test("상대가 연결돼 있을 때만 공유 계획 변경이 상대에게 알림으로 간다고 말한다", () => {
+  const notice = sharedModule.AMORA_SHARED_PLAN_PARTNER_NOTICE;
+  const withPartner = renderProposal([], { reviewingPendingActionKey: reviewKey, linkedPartnerId: "partner-1" });
+  assert.equal(reviewSheet(withPartner).props.notice, notice);
+  assert.ok(withPartner.text.includes(notice), "카드에도 같은 말이 붙는다(웹과 같다)");
+  const alone = renderProposal([], { reviewingPendingActionKey: reviewKey });
+  assert.notEqual(reviewSheet(alone).props.notice, notice, "혼자일 때는 없는 사람에 대한 약속이다");
+  assert.ok(!alone.text.includes(notice));
+});
+
+test("반영 핸들러도 그 제안의 확인 창이 열려 있을 때만 움직인다", () => {
+  const handler = chatSource.slice(
+    chatSource.indexOf("async function handleApplyPendingAction(actionId: string)"),
+    chatSource.indexOf("async function handleWithdrawPendingAction"),
+  );
+  const guard = handler.indexOf("reviewingPendingActionKey !== `${latestSharedMessage.id}:${action.actionId}:${action.inputDigest}`");
+  assert.ok(guard > 0, "확인 창 없이 반영을 시작할 수 있다");
+  assert.ok(guard < handler.indexOf("requestAmoraApplicationClaim("), "확인 창 검사가 반영 요청보다 먼저다");
+  // 반영 순서를 얻으면 창을 닫고 기존 채팅 흐름이 결과를 알린다.
+  assert.ok(handler.indexOf("setReviewingPendingActionKey(null)") > handler.indexOf("if (!claim.applicationGranted)"));
+  assert.ok(handler.indexOf("setReviewingPendingActionKey(null)") < handler.indexOf("await sendAiDraft("));
+});
+
 // 2026-09-15: 카드에 "응 적용해줘" 라고 치면 서버가 같은 제안을 최신 답변 아래에 다시 붙인다.
 // 옛 카드가 "새 대화가 이어져 이 제안은 적용할 수 없어요" 라고 하면 같은 제안이 한쪽에서는 되고
 // 다른 쪽에서는 안 된다고 말하게 된다.
-const typedAcceptance = { id: "typed", sender_type: "bride", visibility: "shared", content: "응 적용해줘", metadata: {} };
+const typedAcceptance = typedAcceptanceForReview;
 const carriedReply = (pending = action) => ({
   id: "carried", sender_id: null, sender_type: "ai", visibility: "shared", content: "아래 카드에서 확인해 주세요.",
   metadata: { pending_amora_action: pending, pending_amora_action_carry_count: 1 },
@@ -818,7 +917,12 @@ test("mobile restores an owned durable confirmation and ignores direct partner c
 
 test("mobile exposes explicit 44-point apply and dismiss controls", () => {
   assert.match(chatSource, /: "확인한 내용을 이대로 적용"/);
-  assert.match(chatSource, /accessibilityLabel=\{applyAccessibilityLabel\}/);
+  // 2026-09-18: 적용 버튼은 카드가 아니라 내용 확인 창에 있다. 같은 접근성 이름을 창으로 넘긴다.
+  assert.match(chatSource, /applyAccessibilityLabel=\{applyAccessibilityLabel\}/);
+  assert.match(
+    readFileSync(new URL("../components/chat/AmoraChangeReviewSheet.tsx", import.meta.url), "utf8"),
+    /accessibilityLabel=\{applyAccessibilityLabel\}/,
+  );
   assert.match(chatSource, /accessibilityLabel="지금은 적용하지 않기"/);
   assert.match(chatSource, /pendingActionButton: \{[^}]*minHeight: 44/);
   assert.match(chatSource, /pendingActionDismiss: \{[^}]*minHeight: 44/);
