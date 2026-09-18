@@ -439,12 +439,18 @@ describe("PendingAmoraActionCard", () => {
     const hide = hideButton()!;
     expect(skip.className).not.toBe(hide.className);
     // 되돌릴 수 없는 쪽: rose[600] 테두리 · rose[700] 글자 · 연한 로즈 hover · 굵은 글자.
-    expect(skip.className).toContain("border-[var(--amora-action)]");
-    expect(skip.className).toContain("text-[var(--amora-rose-deep)]");
-    expect(skip.className).toContain("hover:bg-[var(--amora-rose-pale)]");
+    // 공통 Button(secondary)의 역할 변수를 이 버튼에서만 다시 가리킨다. 변수를 읽는 쪽도
+    // 함께 본다 — 변형이 바뀌어 테두리·글자·hover 가 변수를 안 읽으면 재정의는 헛돈다.
+    expect(skip.className).toContain("[--hb-hairline:var(--amora-action)]");
+    expect(skip.className).toContain("border-[var(--hb-hairline)]");
+    expect(skip.className).toContain("[--hb-text-strong:var(--amora-rose-deep)]");
+    expect(skip.className).toContain("text-[var(--hb-text-strong)]");
+    expect(skip.className).toContain("[--hb-surface-hover:var(--amora-rose-pale)]");
+    expect(skip.className).toContain("hover:bg-[var(--hb-surface-hover)]");
     expect(skip.className).toContain("font-semibold");
     // rose[600] 은 채움·테두리 색이고 글자 색이 아니다(DESIGN.md 2026-09-16).
     expect(skip.className).not.toContain("text-[var(--amora-action)]");
+    expect(skip.className).not.toContain("[--hb-text-strong:var(--amora-action)]");
     // 되돌릴 수 있는 쪽은 조용한 회색 선으로 남는다.
     expect(hide.className).toContain("border-[#D8C7BB]");
     expect(hide.className).toContain("font-medium");

@@ -14,6 +14,7 @@ import {
 } from "@hanbang/shared";
 import { todayYmdInKst } from "@hanbang/shared/utils";
 import { formatWon } from "@/lib/formatWon";
+import Button from "@/components/ui/Button";
 import AmoraSaveSheet from "./AmoraSaveSheet";
 import type {
   ChatMessage,
@@ -1003,18 +1004,23 @@ export default function PendingAmoraActionCard({
             (`--amora-rose-pale`, 그 위에서 4.71:1). rose[600] 을 글자에 쓰지 않는 규칙을 지킨다.
             주 행동("내용 확인하기")은 채운 로즈라 이 선 버튼과 겹치지 않는다. 색만으로 말하지
             않도록 위 한 줄(`QUEUED_CARD_SKIP_HINT`)이 차이를 글자로도 적는다.
+
+            공통 `Button` 의 secondary 를 쓰고, 색은 덮어쓰지 않고 **역할 변수를 이 버튼에서만
+            다시 가리킨다** — `border-*`·`text-*` 를 className 으로 겹쳐 넣으면 어느 쪽이 이기는지는
+            CSS 생성 순서가 정한다. 이 버튼을 손으로 만들었다가 손버튼 래칫(705,
+            `rawButtonRatchet.test.ts`)을 넘겼다.
           */}
           {canSkipQueuedItem && (
-            <button
-              type="button"
+            <Button
+              variant="secondary"
               onClick={() => onSkip?.(action.actionId)}
               disabled={disabledReason !== null || isApplying || isSavingApproval}
               aria-label={QUEUED_CARD_SKIP_LABEL}
-              className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-[6px] border border-[var(--amora-action)] bg-white px-4 py-2.5 text-sm font-semibold text-[var(--amora-rose-deep)] transition-colors hover:bg-[var(--amora-rose-pale)] disabled:cursor-not-allowed disabled:opacity-50"
+              className="[--hb-hairline:var(--amora-action)] [--hb-text-strong:var(--amora-rose-deep)] [--hb-surface-hover:var(--amora-rose-pale)]"
             >
               <SkipForward className="h-4 w-4" aria-hidden="true" />
               {QUEUED_CARD_SKIP_LABEL}
-            </button>
+            </Button>
           )}
         </div>
       )}

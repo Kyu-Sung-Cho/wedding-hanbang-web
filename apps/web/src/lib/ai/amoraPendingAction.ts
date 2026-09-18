@@ -2008,7 +2008,7 @@ export function describeUnconfirmedAmoraPendingAction({
 /**
  * **만료된 뒤에도 무엇이 남았는지 말하기 위한** 카드 읽기 (2026-09-18).
  *
- * 카드의 확인 창은 체크리스트처럼 바로 누르는 것은 10분, 금액·예식일 같은 공유 계획은
+ * 카드의 확인 창은 체크리스트처럼 바로 누르는 것은 10분, 금액·결혼식 날짜 같은 공유 계획은
  * 24시간이다(`getAmoraPendingActionTtlMs`). 2026-09-18 재검사 실측: 여러 변경 중 한 카드를
  * "지금은 적용하지 않기" 로 치우고 자리를 뜬 뒤 그 창이 지나서 돌아오면, 위
  * `describeUnconfirmedAmoraPendingAction` 이 만료를 이유로 null 을 내고 남은 요청이 안내
