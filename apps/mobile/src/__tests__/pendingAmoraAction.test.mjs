@@ -6,6 +6,7 @@ import ts from "typescript";
 import { getAmoraVisibleText } from "@hanbang/shared/amora-visible-text";
 import { parseAmoraCitations, describeAmoraCitations } from "../lib/amoraCitations.mjs";
 import * as chatParticipantPresentationModule from "../lib/chatParticipantPresentation.mjs";
+import { getChatImageAttachmentTarget } from "../lib/chatImageAttachments.mjs";
 
 const helperPath = fileURLToPath(new URL("../lib/pendingAmoraAction.ts", import.meta.url));
 const sharedSchedulePath = fileURLToPath(new URL(
@@ -167,6 +168,9 @@ function renderProposal(receipts, {
     parseAmoraCitations, describeAmoraCitations, getAmoraVisibleText,
     normalizeMediationBlock: () => null, ...toolResultCardModule,
     colors: { noir: { 800: "black", soft: "gray" }, gold: { DEFAULT: "gold" }, ivory: { warm: "ivory" } }, st: {},
+    // 말풍선 위 첨부 사진(2026-09-18). 실제 판정을 쓴다 — 아모라 메시지에는 붙지 않는다.
+    getChatImageAttachmentTarget, chatImageAttachmentStore: null,
+    chatSessionGenerationRef: { current: { current: () => 1 } },
   };
   const compiledRender = ts.transpileModule(declaration.getText(tree), {
     compilerOptions: { module: ts.ModuleKind.None, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.React },

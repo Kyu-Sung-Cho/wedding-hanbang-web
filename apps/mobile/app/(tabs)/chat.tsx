@@ -117,6 +117,11 @@ import {
   type ChatViewClearStep,
 } from "@/lib/chatViewClear";
 import { ChatViewClearSheet } from "@/components/chat/ChatViewClearSheet";
+import { ChatImageAttachments } from "@/components/chat/ChatImageAttachments";
+import {
+  createChatImageAttachmentStore,
+  getChatImageAttachmentTarget,
+} from "@/lib/chatImageAttachments.mjs";
 import { AMORA_BOARD_ENTRY, AMORA_CHAT_HEADER_LAYOUT, shouldShowAmoraBoardLabel } from "@/lib/amoraChatHeader";
 import {
   CARRIED_PENDING_ACTION_LABEL,
@@ -2084,6 +2089,13 @@ export default function ChatScreen() {
   const hasLinkedPartnerRef = useRef(false);
   const linkedPartnerIdRef = useRef<string | null>(null);
   const chatSessionGenerationRef = useRef(createChatSessionGenerationGuard());
+  // 말풍선 위 첨부 사진의 서명 URL 캐시(2026-09-18, 보기 전용). 이 화면의 세션 세대에 묶여, 세대가 바뀌는
+  // 모든 자리(로그아웃·계정 전환·다시 불러오기·화면 닫힘)에서 비운다. 요청은 조용한 인증 호출로 한다 —
+  // 사진 하나 못 불러왔다고 전역 「세션 만료」 창을 띄우지 않는다.
+  const [chatImageAttachmentStore] = useState(() => createChatImageAttachmentStore({
+    request: (ownerId, path, init) => apiFetchForExpectedUserQuiet(ownerId, path, init),
+    supabaseUrl: process.env.EXPO_PUBLIC_SUPABASE_URL,
+  }));
   const chatViewCursorsRef = useRef<ChatViewCursors>({ shared: null, private: null });
   const inputByLaneRef = useRef(inputByLane);
   inputByLaneRef.current = inputByLane;
@@ -2483,6 +2495,8 @@ export default function ChatScreen() {
     applyingPendingActionRef.current = null;
     persistedAiRequestKeysRef.current.clear();
     previousMessageCountRef.current = 0;
+    // 세대는 이 리셋 전에 이미 올라가 있다(begin·invalidate). 첨부 사진 캐시를 그 세대로 비운다.
+    chatImageAttachmentStore.reset(chatSessionGenerationRef.current.current());
     setMessages([]);
     setStreaming(false);
     setCoupleId(null);
@@ -2514,7 +2528,7 @@ export default function ChatScreen() {
     // 정리 창은 닫는다. 이어받기(chatViewClearCarryRef)·동의 요청 잠금·결과 모름 안내는 비우지 않는다 —
     // 정리가 경계를 옮겨 일어난 리셋 뒤에 쓰이고, 사람·커플에 묶여 있다.
     setViewClearStep("closed");
-  }, [setViewClearStep]);
+  }, [chatImageAttachmentStore, setViewClearStep]);
 
   useEffect(() => {
     const timer = setInterval(() => setNowMs(Date.now()), 1_000);
@@ -3083,6 +3097,7 @@ export default function ChatScreen() {
           if (isCurrentGeneration()) {
             pendingChatDraftRestoreRef.current = { userId: user.id, coupleId: profile.couple_id, drafts: inputByLaneRef.current };
             chatSessionGenerationRef.current.invalidate();
+            chatImageAttachmentStore.reset(chatSessionGenerationRef.current.current());
             activeControllerRef.current?.abort();
             setStreaming(false);
             setMessages([]);
@@ -3139,6 +3154,7 @@ export default function ChatScreen() {
     return () => {
       mountedRef.current = false;
       chatSessionGenerationRef.current.invalidate();
+      chatImageAttachmentStore.reset(chatSessionGenerationRef.current.current());
       if (authReloadTimer) clearTimeout(authReloadTimer);
       subscription.unsubscribe();
       appStateSubscription.remove();
@@ -3150,7 +3166,7 @@ export default function ChatScreen() {
         channelRef.current = null;
       }
     };
-  }, [isCurrentChatSession, resetChatSessionState, setLaneFailure]);
+  }, [chatImageAttachmentStore, isCurrentChatSession, resetChatSessionState, setLaneFailure]);
 
   useEffect(() => {
     if (!initialLoaded || scopedMessages.length === 0) return;
@@ -4450,6 +4466,9 @@ export default function ChatScreen() {
     // userRole이 아직 null이면 isMe가 false로 떨어져 내 메시지도 왼쪽으로 온다.
     // 그 상태에서 상대 이름을 붙이면 오귀속이므로 sender_id로 한 겹 더 막는다.
     const isSelfMessage = Boolean(userId) && item.sender_id === userId;
+    // 웹에서 보낸 사진(metadata.imagePaths·옛 imageUrls). 사람이 보낸 메시지이고 서버가 받는 UUID id 이고
+    // 첨부가 있을 때만 붙인다 — 아모라 메시지·안전 카드·temp_ 임시 id 에는 요청하지 않는다(2026-09-18).
+    const imageAttachmentTarget = getChatImageAttachmentTarget(item);
     const allPlaceResults = (item.metadata?.toolResults ?? []).filter(
       (result) => result.toolName === "search_nearby_places",
     );
@@ -4663,6 +4682,16 @@ export default function ChatScreen() {
           hasPlaceResults && st.placeMessageBody,
         ]}>
           {!isMe && <Text style={st.senderLabel}>{isAi ? "아모라" : isSelfMessage ? userName : partnerName ?? "파트너"}{isPartnerMsg ? " ♥" : ""}</Text>}
+          {/* 첨부 사진은 말풍선 위에, 보낸 쪽으로 붙인다(웹 ChatBubble 과 같다). 보기 전용이다. */}
+          {imageAttachmentTarget && userId && (
+            <ChatImageAttachments
+              store={chatImageAttachmentStore}
+              generation={chatSessionGenerationRef.current.current()}
+              ownerId={userId}
+              target={imageAttachmentTarget}
+              align={isMe ? "end" : "start"}
+            />
+          )}
           {shouldRenderBubble && (
             isPinnedSafetyCard ? (
               <View
@@ -4679,7 +4708,7 @@ export default function ChatScreen() {
                 <Text style={st.safetyCardText}>{visibleContent}</Text>
               </View>
             ) : (
-              <View style={[st.bubble, { backgroundColor: bubbleBg, borderWidth: 1, borderColor: bubbleTone.line }, isMe && st.bubbleRight, !isMe && st.bubbleLeft]}>
+              <View style={[st.bubble, { backgroundColor: bubbleBg, borderWidth: 1, borderColor: bubbleTone.line }, isMe && st.bubbleRight, !isMe && st.bubbleLeft, imageAttachmentTarget && (isMe ? st.bubbleHugEnd : st.bubbleHugStart)]}>
                 {isThinking ? <ThinkingDots /> : (
                   <>
                     {isAi ? (
@@ -5363,6 +5392,9 @@ const st = StyleSheet.create({
   bubble: { paddingHorizontal: 14, paddingVertical: 10, borderRadius: 18 },
   bubbleRight: { borderBottomRightRadius: 4 },
   bubbleLeft: { borderBottomLeftRadius: 4 },
+  // 첨부 사진 줄이 말풍선보다 넓어도 말풍선은 글 폭을 지키고 보낸 쪽에 붙는다(웹의 items-end/start).
+  bubbleHugEnd: { alignSelf: "flex-end" },
+  bubbleHugStart: { alignSelf: "flex-start" },
   bubbleText: { fontSize: 15, lineHeight: 22 },
   // 근거 문구는 답변보다 작고 조용하게. 본문을 밀어내지 않되, 무엇에 기대어 답했는지는
   // 보이게 한다.
