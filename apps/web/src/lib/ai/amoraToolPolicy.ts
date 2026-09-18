@@ -569,6 +569,12 @@ function addAll(target: Set<string>, names: readonly string[]): void {
  * 전문분야를 이어 붙인 문장에서 다시 고르지 않는다 — 그러면 "음 고민 중이야"·
  * "응 근데 추천해줘" 같은 답도 열리고, "친구는 드레스에 300만원 썼대" 뒤의
  * "네 반영해줘" 가 전언 자신보다 많이 받는다.
+ *
+ * 2026-09-18 재검사(2): 이어받기는 **그 제안의 축 안**에서만 일어난다. 답이 앞 제안에
+ * 없던 축(금액·날짜·할 일)을 스스로 가리키면 그것은 새 요청이므로 이어받지 않고, 답
+ * 어딘가에 무름·보류·한 줄 빼기가 있으면 부탁 어형이어도 이어받지 않는다. 그래서 앞
+ * 제안이 받은 도구 묶음(`carried`)을 관문보다 먼저 세서 관문에 함께 넘긴다 —
+ * 축을 정하는 것은 문장이 아니라 **그 제안이 실제로 받았던 것**이다.
  */
 export function selectAmoraPendingProposalTools(
   input: SelectAmoraPendingProposalToolsInput,
@@ -576,8 +582,18 @@ export function selectAmoraPendingProposalTools(
   // 이어 붙인 문장으로 고른 것 — 이 수리 전과 같다.
   const names = pendingProposalToolNames(input);
   const anchor = input.continuityAnchor;
-  if (anchor && asksToCarryOutCarriedProposal(anchor.replyText)) {
-    for (const name of pendingProposalToolNames({ ...input, userText: anchor.priorUserText, specialistType: anchor.priorSpecialistType, specialistMatchedByKeyword: anchor.priorSpecialistMatchedByKeyword })) names.add(name);
+  if (anchor) {
+    // 앞 요청이 자기 턴에서 받았던 것. 관문보다 **먼저** 센다 — 이어받기의 범위가
+    // 곧 "그 제안이 무슨 축이었나"이고, 관문이 그 축을 알아야 한다(아래 주석).
+    const carried = pendingProposalToolNames({
+      ...input,
+      userText: anchor.priorUserText,
+      specialistType: anchor.priorSpecialistType,
+      specialistMatchedByKeyword: anchor.priorSpecialistMatchedByKeyword,
+    });
+    if (asksToCarryOutCarriedProposal(anchor.replyText, carried)) {
+      for (const name of carried) names.add(name);
+    }
   }
   return input.availableTools.filter((tool) => names.has(tool.name));
 }
@@ -641,8 +657,42 @@ export function selectAmoraPendingProposalTools(
  * `CHANGE_REQUEST_TO_AMORA` 만 보면 맨 "취소해줘"·"취소 부탁해"·"그건 빼줘" 도
  * 변경 요청이다 — 제안 뒤에서는 그게 거절이다. 정정은 **무엇을 무엇으로** 바꾸라는
  * 말이므로, 값(금액·날짜)·항목 이름·제안을 가리키는 지시어 중 하나가 문장 안에 있어야
- * 한다. 그래서 "예약 취소해줘"·"드레스 투어 일정 취소해줘" 같은 **정당한 취소 요청**은
- * 그대로 열리고(`pendingProposalToolNames` 주석이 적은 사고), 맨 취소는 닫힌다.
+ * 한다.
+ *
+ * ## 2026-09-18 재검사 (2): 답이 **무엇에 대해** 말하는가
+ *
+ * 위까지가 첫 판이다. 그 판은 답의 **모양**만 봤고 답이 무엇을 가리키는지는 안 봤다.
+ * 그래서 배분표 뒤에서 주제를 바꾸는 부탁이 예산 카드 도구를 그대로 물려받았다.
+ * 같은 행렬을 다시 재서(어형 175가지 × 앞 요청 2개 × 단계 3개) 남긴 숫자 — 닻이
+ * **더한** 칸/도구/어형:
+ *
+ *   버킷              어형   칸    전(첫 판)        후(이 판)
+ *   거절·보류          65    390   0/0/0            0/0/0
+ *   인정·감사          27    162   0/0/0            0/0/0
+ *   물음              10     60   0/0/0            0/0/0
+ *   딴 이야기           7     42   0/0/0            0/0/0
+ *   실행 부탁          22    132   66/264/22        66/264/22   ← 줄지 않았다(132/132 덮음)
+ *   정정              10     60   12/48/4           6/24/2
+ *   주제 전환 부탁       8     48   21/84/7           0/0/0
+ *   보류·빼기 부탁      16     96   15/60/5           0/0/0
+ *
+ * 주제 전환에서 새던 것은 "상견례 날짜 4월 5일로 잡아줘"(그 답만으로 고르면 일정 도구
+ * 7개인데 예산 도구 4개만 받았다)·"신혼여행 일정 잡아줘"·"체크리스트에 예단 준비
+ * 넣어줘" 처럼 **자기 축이 따로 있는** 부탁이었고, 보류에서 새던 것은 "다음 주에
+ * 적용해줘"(적용 자체를 미루는 말)·"예단은 취소해줘"(한 줄을 빼 달라는 말에 배분 전체를
+ * 반영하는 `apply_budget_plan`)였다.
+ *
+ * 그래서 관문에 셋을 더했다. 무름 절(`refusesCarriedProposalOutright`), 보류
+ * (`CARRIED_PROPOSAL_DEFERRAL`), 한 줄 빼기(`dropsProposedLineItem`)는 **답 어디에 있어도**
+ * 닫고, 정정은 `namesTargetOutsideCarriedDomains` 로 **앞 제안의 축 안**으로 묶는다.
+ * 정정에서 닫힌 둘("스튜디오는 3월 22일로 옮겨줘"·"드레스 투어는 다음 주 토요일로
+ * 잡아줘")은 배분표 뒤의 일정 정정이고, **일정 제안 뒤에서는 그대로 열린다** — 테스트가
+ * 같은 문장을 양쪽에서 잰다.
+ *
+ * 치른 값도 적어 둔다: 값 없는 제거("드레스 투어 일정 취소해줘")는 같은 축의 제안
+ * 뒤에서도 닫힌다. 그 답은 자기 어휘로 일정 도구를 받지만, 이어 붙인 문장이 앞 요청의
+ * "알려줘" 에 걸려 닫히는 턴에서는 카드가 0개가 된다(`main` 과 같은 상태다). 한 줄을
+ * 빼 달라는 말에 전체를 반영하는 도구가 붙는 쪽이 더 큰 해라고 보고 닫는 쪽을 골랐다.
  *
  * ## 기울기
  *
@@ -653,22 +703,215 @@ export function selectAmoraPendingProposalTools(
  * 열려서 생기는 일은 누르지 않으면 아무것도 저장되지 않는 카드 하나가 더 보이는 것이지만,
  * 그 카드는 사용자가 원하지 않은 제안이다.
  *
- * 남은 경계(테스트가 함께 재고 있다): 스스로 대상을 말하며 무언가를 시키는 보류
- * ("일정은 나중에 잡아줘"·"드레스는 다음에 정해줘")는 열린다. 그 문장들은 형태가
- * **부탁**이고, 닫으려면 다시 "나중에"·"다음에" 를 열거하는 거절 목록이 필요하다 —
- * 두 번 실패한 그 구조다. 여기서는 열어 두고 적어 둔다.
+ * 남은 경계(테스트가 함께 재고 있다): 물음표가 붙은 실행 부탁("이대로 적용해줘?
+ * 아니면 다시 짜줘?")은 정정 갈래로 이어받는다. 라우트가 물음표 있는 답에는 닻을 붙이지
+ * 않으므로(`hasClarificationAnswerShape`) 실제 경로에서는 두 겹 중 앞이 이미 막지만,
+ * 이 관문 혼자서는 닫지 못한다. 절 구분에 물음표를 넣으면 반대로 실행 부탁 쪽이 넓어져서
+ * 넣지 않았다.
  */
-function asksToCarryOutCarriedProposal(replyText: string): boolean {
+function asksToCarryOutCarriedProposal(
+  replyText: string,
+  carriedToolNames: ReadonlySet<string>,
+): boolean {
   const normalized = replyText.normalize("NFKC").replace(/\s+/gu, " ").trim();
   if (normalized.length === 0) return false;
   // 부탁 어형이어도 **우리 결정이 아닌 말**은 이어받지 않는다. 농담("장난이야 4천으로
   // 해줘")·남에게 보낼 문자·이미 무른 말("없던 일로 해줘")이 여기서 걸린다. 이 파일이
   // 모든 턴에 쓰는 가드를 답에도 그대로 쓴다.
   if (isNotOurDecision(normalized)) return false;
-  if (CARRIED_PROPOSAL_APPLY_REPLY.test(normalized)) return true;
-  return CHANGE_REQUEST_TO_AMORA.test(normalized)
-    && CARRIED_PROPOSAL_CORRECTION_TARGET.test(normalized);
+  // 앞 제안을 아니라고 한 절이 있으면, 뒤에 다른 부탁이 붙어 있어도 이어받지 않는다.
+  if (refusesCarriedProposalOutright(normalized)) return false;
+  // 지금 하지 말라는 말은 실행 부탁이 아니다 — 부탁 어형이어도. 문장 어디에 있어도 본다.
+  if (CARRIED_PROPOSAL_DEFERRAL.test(normalized)) return false;
+  // 제안의 한 줄을 빼 달라는 말도 아니다. 새 값을 주는 정정은 여기서 빠진다.
+  if (dropsProposedLineItem(normalized)) return false;
+  if (asksToApplyCarriedProposal(normalized)) return true;
+  if (!CHANGE_REQUEST_TO_AMORA.test(normalized)) return false;
+  if (!CARRIED_PROPOSAL_CORRECTION_TARGET.test(normalized)) return false;
+  // 정정은 **그 제안의** 값을 고치는 말이다. 앞 제안에 없던 축을 스스로 가리키면
+  // 그것은 새 요청이므로, 앞 제안의 카드가 아니라 자기 문장이 받는 것만 받는다.
+  return !namesTargetOutsideCarriedDomains(normalized, carriedToolNames);
 }
+
+/**
+ * 문장 전체가, 또는 **한 절**이 실행 부탁인가.
+ *
+ * 절을 따로 보는 이유는 한 줄뿐이다: "응 적용해줘 그리고 일정도 잡아줘". 문장 전체로
+ * 보면 승낙어 문법 밖의 뒤 절 때문에 맞지 않고, 정정으로 내려가면 뒤 절의 `일정` 이
+ * 앞 제안에 없는 축이라 닫힌다 — **앞 절이 명백한 실행 부탁인데** 카드가 사라진다.
+ * 그것이 이 줄이 고치는 D1 결함 그대로다.
+ *
+ * 절 구분은 `그리고`·쉼표·마침표·느낌표뿐이고 **물음표는 넣지 않는다** — "이대로
+ * 적용해줘? 아니면 다시 짜줘?" 를 앞 절만으로 실행 부탁으로 올리지 않기 위해서다.
+ * (그 문장은 오늘도 정정 갈래로 이어받고 있고, 라우트는 물음표가 있는 답에 닻을
+ * 붙이지 않는다. 여기서 새로 열지는 않는다.)
+ */
+function asksToApplyCarriedProposal(normalized: string): boolean {
+  if (CARRIED_PROPOSAL_APPLY_REPLY.test(normalized)) return true;
+  return normalized
+    .split(CARRIED_REPLY_CLAUSE_SPLIT)
+    .some((clause) => clause.length > 0 && CARRIED_PROPOSAL_APPLY_REPLY.test(clause));
+}
+
+/** 절 구분 — `그리고`·쉼표·마침표·느낌표. 물음표는 일부러 빠져 있다(위 주석). */
+const CARRIED_REPLY_CLAUSE_SPLIT = /\s*(?:그리고(?:\s*나서)?|[,.!·])\s*/u;
+
+/**
+ * 답 안에 **앞 제안을 아니라고 한 절**이 있는가.
+ *
+ * 2026-09-18 재검사: "이건 아니야. 그래도 일정은 잡아줘" 가 배분표 뒤에서 앞 제안의
+ * 카드를 그대로 받았다. 아니라고 말한 제안의 확인 카드를 내미는 것이라 방향이 반대다.
+ * 뒤 절이 다른 축이면 아래 축 비교가 닫지만, 앞 요청이 그 축까지 받았던 턴에서는
+ * 축 비교가 닫지 못한다(직접 변경 요청 "결혼식장 예산 …" 은 `결혼식` 때문에 일정
+ * 도구까지 받는다 — 실측 12개). 그래서 거절 자체를 본다.
+ *
+ * **절 하나가 통째로** 거절일 때만 본다. 거절 낱말을 문장 어디서나 찾으면 정정
+ * "아니 4천으로 해줘" 가 같이 닫히는데, 그것이 이 파일이 지키는 D1 답이다. 같은 이유로
+ * 새 값(금액·날짜)이 있으면 거절이 아니라 정정으로 본다 — "그건 아니야, 4천으로 해줘".
+ */
+function refusesCarriedProposalOutright(normalized: string): boolean {
+  if (CARRIED_PROPOSAL_NEW_VALUE.test(normalized)) return false;
+  return normalized
+    .split(CARRIED_REPLY_CLAUSE_SPLIT)
+    .some((clause) => CARRIED_PROPOSAL_REFUSAL_CLAUSE.test(clause));
+}
+
+const CARRIED_PROPOSAL_REFUSAL_CLAUSE =
+  /^(?:이건|그건|이거|그거|이게|그게|그렇게는?|이대로는?)?\s*(?:아니야|아냐|아니에요|아녜요|아닙니다|아니지|아닌\s*(?:것\s*)?같아요?|아닌\s*듯)$/u;
+
+/**
+ * **지금은 하지 말라**는 말. 실행 부탁 어형을 그대로 품고 있어서 관문이 따로 봐야 한다.
+ *
+ * 2026-09-18 재검사가 잰 것: "일정은 나중에 잡아줘"·"드레스는 다음에 정해줘"·
+ * "다음 주에 적용해줘" 가 배분표 뒤에서 예산 카드 도구 4개를 그대로 받고 있었다.
+ * 앞의 두 문장은 이 파일이 "남은 경계" 라고 적어 두고 열어 둔 것이었고, 세 번째는
+ * **적용 자체를 미루는 말**인데 지금 적용하는 카드를 받았다.
+ *
+ * 시각 낱말을 열거하지만 이것은 거절 **목록**이 아니라 보류의 **문형**이다: 시각
+ * 표현이 실행 동사에 바로 붙을 때만 본다. 그래서 새 값으로 말한 날짜는 걸리지 않는다 —
+ * "다음 주 화요일로 옮겨줘" 는 `다음 주` 뒤가 동사가 아니라 `화요일로`(새 값)다.
+ * `DEFERRED_INTENT`(같은 파일)는 "확정되면 그때" 처럼 **부탁이 없는** 보류를 보므로
+ * 여기 쓸 수 없다 — 이 자리의 보류는 전부 부탁 어형이다.
+ */
+const CARRIED_PROPOSAL_DEFERRAL = new RegExp(
+  [
+    // "나중에 적용해줘"·"다음에 정해줘"·"다음 주에 적용해줘"·"내일 반영해줘"
+    /(?:나중|다음|담|이따|내일|모레|추후)\s*(?:번)?\s*(?:주|달|번)?\s*에?\s*(?:다시\s*)?/.source
+      + /(?:적용|반영|저장|진행|등록|추가|기록|배분|설정|확정|잡아|정해|바꿔|넣어|올려|내려|맞춰|해)/.source,
+    // "확정되면 반영해줘"·"정해지면 그때 적용해줘"
+    /(?:확정|정해지|나오|끝나)(?:되)?면\s*(?:그때\s*)?(?:다시\s*)?/.source
+      + /(?:적용|반영|저장|진행|등록|기록|배분|설정|확정|잡아|정해|바꿔|해)/.source,
+    // "상의하고 나서 저장해줘"·"물어보고 결정할게"
+    /(?:상의|의논|얘기|물어보|여쭤보|생각해보)(?:해)?\s*(?:보)?고\s*(?:나서\s*|난\s*(?:뒤|다음)에?\s*)?/.source
+      + /(?:적용|반영|저장|진행|등록|기록|배분|설정|확정|결정|정할|잡아|정해|해)/.source,
+  ].join("|"),
+  "iu",
+);
+
+/**
+ * 제안의 **한 줄을 빼 달라**는 말인가 — 부분 거절이다.
+ *
+ * 2026-09-18 재검사: "예단은 취소해줘"·"메이크업은 빼줘" 가 배분표 뒤에서
+ * `apply_budget_plan` 을 받았다. 그 도구는 **배분 전체를 반영**하는 도구다. 한 항목을
+ * 빼 달라는 말에 전체를 그대로 적용하는 카드를 내미는 것이라 방향이 반대다.
+ *
+ * 새 값(금액·날짜)이 함께 있으면 그것은 정정이다 — "아니 그건 취소하고 4천으로 해줘"·
+ * "예단은 좀 줄여줘 500만원으로". 값이 없는 제거 요청만 여기서 걸린다.
+ *
+ * 값이 없는 제거가 **앞 제안과 무관한 정당한 취소**일 수도 있다("드레스 투어 일정
+ * 취소해줘"). 그 문장은 자기 어휘로 이미 일정 도구를 받으므로(`pendingProposalToolNames`)
+ * 여기서 닫는 것은 "앞 제안의 카드를 얹지 않는다" 일 뿐, 취소 자체를 막는 게 아니다.
+ */
+function dropsProposedLineItem(normalized: string): boolean {
+  return CARRIED_PROPOSAL_DROP_REQUEST.test(normalized)
+    && !CARRIED_PROPOSAL_NEW_VALUE.test(normalized);
+}
+
+/**
+ * 금액 값 — 단위를 **요구한다**("4천으로"·"1200만원"). 아래 두 곳이 쓴다.
+ *
+ * `CARRIED_PROPOSAL_CORRECTION_TARGET` 의 숫자 갈래는 단위를 생략한 구어("300으로")도
+ * 값으로 받는데, 그 느슨함을 여기 쓰면 **날짜가 금액이 된다** — "10월 18일로" 의
+ * `18일로` 가 걸린다. 값이 있으면 제거가 정정이 되고 축도 예산으로 읽히므로, 이 두
+ * 자리에서는 단위가 있는 금액만 값으로 센다.
+ */
+const CARRIED_PROPOSAL_MONEY_VALUE =
+  /\d[\d,.]*\s*(?:억|천만|백만|십만|천|백|십|만)\s*(?:원)?\s*(?:으로|로)?/;
+
+const CARRIED_PROPOSAL_DROP_REQUEST = new RegExp(
+  [
+    /(?:빼|지워|없애|(?:취소|삭제|제외)\s*해?)\s*(?:줘요?|주세요|주라|줄래요?|주실래요?|버려|버릴래|할래|할게요?|하자)/.source,
+    /(?:취소|삭제|제외)\s*(?:좀\s*)?부탁(?:해요?|드려요|드립니다|합니다)?/.source,
+  ].join("|"),
+  "iu",
+);
+/** 정정을 제거와 가르는 **새 값**. 금액·날짜만 본다 — 항목 이름은 빼는 말에도 있다. */
+const CARRIED_PROPOSAL_NEW_VALUE = new RegExp(
+  [CARRIED_PROPOSAL_MONEY_VALUE.source, KRW_AMOUNT.source, DATE_LIKE.source].join("|"),
+  "iu",
+);
+
+/**
+ * 답이 **앞 제안에 없던 축**의 대상을 스스로 가리키는가.
+ *
+ * 2026-09-18 재검사가 잰 것: 배분표 뒤에서 주제를 바꾸는 부탁 8가지 중 7가지가 예산
+ * 카드 도구 4개를 받았다 — "상견례 날짜 4월 5일로 잡아줘" 는 **일정 도구 0개에 예산
+ * 도구 4개**였다(그 답만 놓고 고르면 일정 도구 7개다). "이건 아니야. 그래도 일정은
+ * 잡아줘" 도 같았다. 관문이 "변경 요청 + 대상" 만 봤고, 그 대상이 **어느 축인지**는
+ * 안 봤기 때문이다.
+ *
+ * 축은 **앞 제안이 실제로 받은 도구 묶음**으로 정한다(닻의 `carried`). 문장으로 다시
+ * 고르지 않는 이유는 이 파일의 원래 결정과 같다 — 닻은 앞 요청이 자기 턴에 받았던
+ * 것만 넘겨주는 자리다.
+ *
+ * ## 왜 전문분야 라우터를 비교하지 않았나
+ *
+ * 검토가 제안한 다른 갈래는 "답이 키워드로 **다른 전문분야**에 걸리면 이어받지 않는다"
+ * 였다. 재 보니 그 비교는 **같은 축의 정정을 닫는다**: `SPECIALIST_KEYWORDS` 는
+ * 예단·예물·폐백·부케·답례품·축가를 상견례/본식 전문분야에 두는데, 그 낱말들은 동시에
+ * **예산 배분표의 항목 이름**이다. 그래서 "폐백은 100만원으로 해줘"·"예단은 300으로
+ * 해줘" 가 배분표 뒤에서 닫혔다(측정: 항목 이름 정정 6가지 중 4가지). 주제 전환 8가지는
+ * 아래 축 비교만으로 전부 닫히므로, 오탐을 만드는 쪽은 쓰지 않는다.
+ *
+ * ## 축을 셋으로만 가른 이유
+ *
+ * `update_venue` 를 여는 낱말(웨딩홀·예식장·식장)은 전부 **예산 항목 이름**이기도 하다.
+ * 장소를 따로 축으로 세우면 "예식장은 2000만원으로 해줘" 가 배분표 뒤에서 닫힌다.
+ * 글로는 가를 수 없는 축이라 세지 않는다.
+ */
+function namesTargetOutsideCarriedDomains(
+  normalized: string,
+  carriedToolNames: ReadonlySet<string>,
+): boolean {
+  for (const [marker, tools] of CARRIED_PROPOSAL_DOMAINS) {
+    if (!marker.test(normalized)) continue;
+    if (!tools.some((name) => carriedToolNames.has(name))) return true;
+  }
+  return false;
+}
+
+/**
+ * 축마다 (대상 어휘, 그 축의 카드 도구). 어휘는 `pendingProposalToolNames` 가 그 묶음을
+ * 열 때 쓰는 것과 같은 것만 쓴다 — 대상을 가리키는 것(금액·날짜·할 일)만이고 동사는 없다.
+ * 동사를 넣으면 "이대로 기록해줘"(실행 부탁)가 할 일 축을 가리키는 말로 읽힌다.
+ *
+ * **항목 이름(`BUDGET_CATEGORY_WORDS`)은 어느 축도 아니다.** 결혼 준비의 항목 이름은
+ * 축을 가로질러 쓰인다 — 스튜디오·드레스·메이크업은 배분표의 줄이면서 동시에 잡아야
+ * 하는 약속이다. 항목 이름을 예산 축으로 세면 "스튜디오는 3월 22일로 옮겨줘" 가
+ * **일정 제안 뒤에서도** 닫힌다(실제로 그렇게 만들었다가 이 테스트가 잡았다). 그래서
+ * 축은 **무엇을 바꾸라는 말인가**로만 가른다: 금액이냐, 날짜·일정이냐, 할 일이냐.
+ */
+const CARRIED_PROPOSAL_DOMAINS: readonly (readonly [RegExp, readonly string[]])[] = [
+  [
+    new RegExp(
+      [BUDGET_INTENT.source, KRW_AMOUNT.source, CARRIED_PROPOSAL_MONEY_VALUE.source].join("|"),
+      "iu",
+    ),
+    BUDGET_WRITE_TOOLS,
+  ],
+  [new RegExp([SCHEDULE_INTENT.source, DATE_LIKE.source].join("|"), "iu"), SCHEDULE_WRITE_TOOLS],
+  [new RegExp(ACTION_INTENT.source, "iu"), ACTION_WRITE_TOOLS],
+];
 
 // ── 실행 부탁 한 마디의 문법 ───────────────────────────────────────
 //
