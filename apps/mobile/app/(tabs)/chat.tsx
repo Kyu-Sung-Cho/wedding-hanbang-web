@@ -4564,7 +4564,7 @@ export default function ChatScreen() {
 
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : undefined}>
         {initialLoaded && !chatLoadError && !!userRole && !isP && <AmoraConversationRecap
-          key={`${userId}:${coupleId}:${activeScope}`} recap={conversationRecap} scopeLabel={activeScope === "private" ? "나만 상담" : "함께 대화"} disabled={streaming}
+          key={`${userId}:${coupleId}:${activeScope}`} recap={conversationRecap} scope={activeScope} scopeLabel={activeScope === "private" ? "나만 상담" : "함께 대화"} disabled={streaming}
           onPrefill={text => {
             if (streaming || sendingRef.current || !activeLane || inputByLaneRef.current[activeLane].trim()) return false;
             setInputByLane(current => current[activeLane].trim() ? current : updateAmoraChatLaneRecord(current, activeLane, text));
