@@ -47,7 +47,7 @@ import {
   buildJoinedPlanHandoffView,
   hasJoinedPlanMarker,
   JOINED_PLAN_PARAM,
-  shouldShowJoinedPlanHandoff,
+  resolveJoinedPlanSlot,
 } from "@/lib/joinedPlanHandoff";
 import {
   dismissAmoraFirstHelloBubble,
@@ -114,6 +114,11 @@ interface DashboardData extends WeddingHomeData {
    * 이미 연결된 사람에게 "초대 코드를 보내세요"는 틀린 안내다.
    */
   partnerLinked: boolean | undefined;
+  /**
+   * 위 확인이 끝났는가(결과가 undefined여도 끝난 것이다). 합류 직후에는 이 값이 true가 되기
+   * 전까지 환영 자리를 비워 두고 첫 실행 안내도 판정하지 않는다 — `resolveJoinedPlanSlot` 참고.
+   */
+  partnerLinkedChecked: boolean;
 }
 
 const CATEGORY_LABEL_BY_KEY = Object.fromEntries(
@@ -498,6 +503,10 @@ export default function DashboardScreen() {
   // 어디에도 저장하지 않는다 — 앱을 다시 켜면 "방금 합류했다"도 사라진다.
   const routeParams = useLocalSearchParams();
   const joinedPlanMarker = hasJoinedPlanMarker(routeParams[JOINED_PLAN_PARAM]);
+  // loadData는 화면이 살아 있는 동안 한 번 만들어지므로(리얼타임 구독이 붙잡는다) 표시는
+  // 렌더마다 ref로 넘긴다. 첫 실행 안내를 상대 확인 뒤로 미룰지 여기서 읽는다.
+  const joinedPlanMarkerRef = useRef(joinedPlanMarker);
+  joinedPlanMarkerRef.current = joinedPlanMarker;
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -603,6 +612,8 @@ export default function DashboardScreen() {
           preparationStage: null,
           weddingStyleLabel: null,
           partnerLinked: undefined,
+          // 커플이 없으면 물어볼 상대도 없다. 기다릴 것이 없다.
+          partnerLinkedChecked: true,
         });
         void evaluateFirstRunTutorial(user.id, onboardingCompleted);
         return;
@@ -659,6 +670,7 @@ export default function DashboardScreen() {
         // 상대가 있는지는 질의가 한 번 더 필요해서 아래에서 이어 붙인다. 그동안은 undefined라
         // 초대 카드가 뜨지 않는다 — 없는 카드가 늦게 뜨는 편이, 틀린 카드가 먼저 뜨는 것보다 낫다.
         partnerLinked: undefined,
+        partnerLinkedChecked: false,
       };
 
       firstRunProfileRef.current = {
@@ -678,6 +690,7 @@ export default function DashboardScreen() {
           ? {
               ...coreData,
               partnerLinked: current.partnerLinked,
+              partnerLinkedChecked: current.partnerLinkedChecked,
               hasBookingRecords: current.hasBookingRecords,
             }
           : coreData,
@@ -687,31 +700,52 @@ export default function DashboardScreen() {
 
       // 화면이 그려진 뒤에 안내를 판정한다. 앵커가 아직 없는 화면 위에 안내를 띄우면
       // 모든 단계가 "못 잡았다"로 건너뛰어진다.
-      void evaluateFirstRunTutorial(user.id, onboardingCompleted);
+      //
+      // 방금 합류한 사람(`?joined=1`)은 상대 확인이 끝난 뒤로 미룬다. 확인이 끝나야 합류 안내가
+      // 자리를 잡는데, 안내는 각 단계의 자리를 한 번만 잰다 — 먼저 재면 합류 안내가 끼어든 뒤
+      // "여기부터 보시면 돼요"가 엉뚱한 곳을 짚는다. 합류하지 않은 사람은 예전처럼 바로 판정한다.
+      const waitForPartnerCheck = joinedPlanMarkerRef.current;
+      if (!waitForPartnerCheck) {
+        void evaluateFirstRunTutorial(user.id, onboardingCompleted);
+      }
 
-      const [bookingOutcomeTasks, partnerActivity, partnerLinked, hasBookingRecords] =
-        await Promise.all([
-          loadBookingOutcomeTasks(profile.couple_id),
-          loadPartnerActivity({
-            coupleId: profile.couple_id,
-            userId: user.id,
-            progress,
-          }),
-          loadPartnerLinked(profile.couple_id, user.id),
-          loadHasBookingRecords(profile.couple_id),
-        ]);
+      try {
+        const [bookingOutcomeTasks, partnerActivity, partnerLinked, hasBookingRecords] =
+          await Promise.all([
+            loadBookingOutcomeTasks(profile.couple_id),
+            loadPartnerActivity({
+              coupleId: profile.couple_id,
+              userId: user.id,
+              progress,
+            }),
+            loadPartnerLinked(profile.couple_id, user.id),
+            loadHasBookingRecords(profile.couple_id),
+          ]);
 
-      setData((current) =>
-        current
-          ? {
-              ...current,
-              bookingOutcomeTasks,
-              partnerActivity,
-              partnerLinked,
-              hasBookingRecords,
-            }
-          : current,
-      );
+        setData((current) =>
+          current
+            ? {
+                ...current,
+                bookingOutcomeTasks,
+                partnerActivity,
+                partnerLinked,
+                partnerLinkedChecked: true,
+                hasBookingRecords,
+              }
+            : current,
+        );
+      } catch (auxiliaryError) {
+        // 보조 데이터가 실패해도 "상대 확인은 끝났다(모름)"는 남긴다. 그러지 않으면 합류 자리가
+        // 기다리는 중에 멈춰 첫 도착 카드가 다시 나오지 않는다.
+        setData((current) =>
+          current ? { ...current, partnerLinkedChecked: true } : current,
+        );
+        throw auxiliaryError;
+      } finally {
+        if (waitForPartnerCheck) {
+          void evaluateFirstRunTutorial(user.id, onboardingCompleted);
+        }
+      }
     } catch {
       setError(true);
     } finally {
@@ -886,19 +920,20 @@ export default function DashboardScreen() {
   }, [data]);
 
   /**
-   * 파트너 합류 직후 안내. 웹과 같은 조건이다 — 합류 표시가 있고, 상대가 실제로 들어와 있을 때.
-   * 상대 유무를 아직 모르는 동안(undefined)은 띄우지 않는다.
+   * 라운지 맨 앞 환영 자리. 합류 직후 안내는 웹과 같은 조건이다 — 합류 표시가 있고, 상대가
+   * 실제로 들어와 있을 때. 합류 표시가 있는데 상대 확인이 아직 끝나지 않았으면("waiting")
+   * 합류 안내도 첫 도착 카드도 두지 않는다 — 한 장을 먼저 그렸다가 바꿔 끼우지 않는다.
    */
-  const joinedPlanHandoffView = useMemo(() => {
-    if (!data || !data.coupleId) return null;
-    if (
-      !shouldShowJoinedPlanHandoff({
+  const joinedPlanSlot = data?.coupleId
+    ? resolveJoinedPlanSlot({
         marker: joinedPlanMarker,
         partnerLinked: data.partnerLinked,
+        partnerLinkedChecked: data.partnerLinkedChecked,
       })
-    ) {
-      return null;
-    }
+    : "none";
+
+  const joinedPlanHandoffView = useMemo(() => {
+    if (!data || joinedPlanSlot !== "handoff") return null;
     return buildJoinedPlanHandoffView({
       weddingDate: data.weddingDate,
       venue: data.venue,
@@ -906,7 +941,7 @@ export default function DashboardScreen() {
       checklistDone: data.checklistDone,
       checklistTotal: data.checklistTotal,
     });
-  }, [data, joinedPlanMarker]);
+  }, [data, joinedPlanSlot]);
 
   // 웹 카드의 "함께 확인할 내용 찾기"와 같은 문이다. 입력창에 웹과 같은 질문 초안만 놓고,
   // 보내는 것은 사람이 한다. 카드는 그대로 두어 돌아와도 같은 요약을 다시 볼 수 있다.
@@ -970,9 +1005,10 @@ export default function DashboardScreen() {
           todayOneCare={<TodayOneCareCard refreshVersion={careRefreshVersion} />}
           amoraActions={<AmoraActionsCard refreshVersion={careRefreshVersion} />}
           // 합류 안내가 떠 있을 때는 첫 도착 카드를 접는다 — 환영 카드 두 장이 겹치면 어느
-          // 쪽이 지금 할 일인지 흐려진다(웹과 같다). 안내를 닫으면 다시 나온다.
+          // 쪽이 지금 할 일인지 흐려진다(웹과 같다). 안내를 닫으면 다시 나온다. 상대 확인을
+          // 기다리는 동안에도 접어 둔다 — 먼저 보였다가 합류 안내로 뒤바뀌지 않게.
           firstArrival={
-            joinedPlanHandoffView ? null : firstArrivalView ? (
+            joinedPlanSlot === "none" && firstArrivalView ? (
               <LoungeFirstArrival view={firstArrivalView} />
             ) : null
           }

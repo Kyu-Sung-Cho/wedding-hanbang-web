@@ -12,9 +12,11 @@
 //   3) 문구·숫자 모양이 웹 카드와 같다. 저장·변경을 주장하지 않는다.
 //   4) "함께 확인할 내용 찾기"는 아모라 입력창에 웹과 같은 초안만 놓는다.
 //   5) "이 내용 확인했어요"는 표시를 지우는 것 말고는 아무것도 하지 않는다.
+//   6) 상대 확인이 끝나기 전에는 환영 자리를 비워 두고, 합류자의 첫 실행 안내는 그 뒤에 판정한다.
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
+import { setImmediate } from "node:timers";
 import { fileURLToPath, URL } from "node:url";
 import ts from "typescript";
 
@@ -280,14 +282,188 @@ function runCallback(name) {
 test("the lounge wires the card to the marker, the partner check and the web's review door", () => {
   assert.match(loungeSource, /useLocalSearchParams/);
   assert.match(loungeSource, /hasJoinedPlanMarker\(routeParams\[JOINED_PLAN_PARAM\]\)/);
-  assert.match(loungeSource, /shouldShowJoinedPlanHandoff\(\{/);
+  assert.match(loungeSource, /resolveJoinedPlanSlot\(\{/);
   assert.match(loungeSource, /partnerLinked: data\.partnerLinked/);
+  assert.match(loungeSource, /partnerLinkedChecked: data\.partnerLinkedChecked/);
   // 장소 칸을 채우려면 장소를 읽어야 한다.
   assert.match(loungeSource, /\.select\("wedding_date, venue, total_budget, progress"\)/);
-  // 합류 안내가 떠 있으면 첫 도착 카드는 접는다 — 환영 카드 두 장이 겹치지 않게(웹과 같다).
-  assert.match(loungeSource, /firstArrival=\{\s*joinedPlanHandoffView \? null/);
+  // 합류 자리가 비어 있을 때("none")만 첫 도착 카드를 넣는다. 합류 안내가 떠 있거나(환영 카드
+  // 두 장이 겹치지 않게, 웹과 같다) 상대 확인을 기다리는 동안("waiting")에는 접어 둔다.
+  assert.match(loungeSource, /firstArrival=\{\s*joinedPlanSlot === "none" && firstArrivalView \?/);
+  assert.match(loungeSource, /joinedPlanSlot !== "handoff"\) return null;/);
 
   assert.deepEqual(runCallback("handleReviewJoinedPlan"), [["push", "/(tabs)/chat?entry=joined_plan_review"]]);
   // 확인은 표시만 지운다. 아무것도 저장하지 않고 어디로도 보내지 않는다.
   assert.deepEqual(runCallback("handleDismissJoinedPlan"), [["setParams", { [handoff.JOINED_PLAN_PARAM]: undefined }]]);
+});
+
+/* ─────────────────────────────────────────────
+   (6) 상대 확인이 끝나기 전에는 자리를 바꾸지 않는다
+   ───────────────────────────────────────────── */
+//
+// 상대 유무(partnerLinked)는 라운지 핵심 데이터보다 한 박자 늦게 온다. 예전에는 그 사이에
+// 첫 도착 카드를 먼저 그렸다가 확인이 끝나면 합류 안내로 바꿔 끼웠고, 첫 실행 안내도 그
+// 사이에 판정했다. 방금 합류한 사람은 환영 카드가 뒤바뀌는 것을 봤고, 안내는 각 단계의
+// 자리를 한 번만 재므로(anchor.measure) 합류 안내가 끼어든 뒤에는 엉뚱한 곳을 짚었다.
+// 두 질의가 경주하므로 어느 순서든 일어난다.
+
+test("while the partner check is pending, a joiner sees neither card; afterwards exactly one", () => {
+  const slot = (input) => handoff.resolveJoinedPlanSlot(input);
+  // 합류 표시 + 아직 확인 전 → 기다린다(두 카드 모두 접는다).
+  assert.equal(slot({ marker: true, partnerLinked: undefined, partnerLinkedChecked: false }), "waiting");
+  // 확인이 끝났고 상대가 있다 → 합류 안내.
+  assert.equal(slot({ marker: true, partnerLinked: true, partnerLinkedChecked: true }), "handoff");
+  // 같은 커플 재조회 중(직전 값 유지)에도 안내는 그대로 — 깜빡이지 않는다.
+  assert.equal(slot({ marker: true, partnerLinked: true, partnerLinkedChecked: false }), "handoff");
+  // 확인이 끝났는데 상대가 없거나 모르면 → 기다림을 끝내고 첫 도착 카드가 돌아온다.
+  assert.equal(slot({ marker: true, partnerLinked: false, partnerLinkedChecked: true }), "none");
+  assert.equal(slot({ marker: true, partnerLinked: undefined, partnerLinkedChecked: true }), "none");
+  // 합류하지 않은 사람은 확인 여부와 무관하게 기다리지 않는다.
+  for (const partnerLinked of [undefined, true, false]) {
+    for (const partnerLinkedChecked of [false, true]) {
+      assert.equal(slot({ marker: false, partnerLinked, partnerLinkedChecked }), "none");
+    }
+  }
+});
+
+function deferred() {
+  let resolve;
+  let reject;
+  const promise = new Promise((res, rej) => {
+    resolve = res;
+    reject = rej;
+  });
+  return { promise, resolve, reject };
+}
+
+const flush = () => new Promise((resolve) => setImmediate(resolve));
+
+/**
+ * 라운지의 loadData 를 그대로 꺼내 돌린다. 상대 확인만 손으로 풀 수 있게 붙잡아 두고,
+ * 첫 실행 안내 판정이 **언제**, 화면 데이터가 어떤 상태일 때 불렸는지 적는다.
+ */
+function startLoungeLoad({ marker, auxiliaryFails = false, initialState = null }) {
+  const partnerCheck = deferred();
+  const events = [];
+  let state = initialState;
+  const snapshot = () => (state
+    ? {
+        partnerLinked: state.partnerLinked,
+        partnerLinkedChecked: state.partnerLinkedChecked,
+        slot: handoff.resolveJoinedPlanSlot({
+          marker,
+          partnerLinked: state.partnerLinked,
+          partnerLinkedChecked: state.partnerLinkedChecked,
+        }),
+      }
+    : null);
+  const single = (result) => {
+    const builder = { select: () => builder, eq: () => builder, single: async () => result };
+    return builder;
+  };
+  const bindings = {
+    supabase: {
+      auth: { getUser: async () => ({ data: { user: { id: "user-joined" } } }) },
+      from(table) {
+        if (table === "profiles") {
+          return single({ data: { name: "합류한 사람", couple_id: "couple-1", onboarding_completed: true }, error: null });
+        }
+        if (table === "wedding_journeys") {
+          return single({ data: { wedding_date: "2027-05-15", venue: null, total_budget: 0, progress: {} }, error: null });
+        }
+        throw new Error(`unexpected table ${table}`);
+      },
+    },
+    router: { replace: () => events.push(["redirect"]) },
+    setError: (value) => events.push(["error", value]),
+    setData: (update) => {
+      state = typeof update === "function" ? update(state) : update;
+      events.push(["data", snapshot()]);
+    },
+    setLoading: () => {},
+    setRefreshing: () => {},
+    coupleIdRef: { current: null },
+    firstRunProfileRef: { current: null },
+    joinedPlanMarkerRef: { current: marker },
+    evaluateFirstRunTutorial: async () => {
+      events.push(["evaluate", snapshot()]);
+    },
+    calculateChecklistProgress: () => 0,
+    calculateChecklistCounts: () => ({ done: 0, total: 40 }),
+    CATEGORY_CHECKLISTS: [],
+    formatLocalDateKey: () => "2026-09-18",
+    isActiveScheduleEvent: () => false,
+    calcDday: () => null,
+    calcUrgentTasks: () => [],
+    readPreparationStage: () => null,
+    readWeddingStyleLabel: () => null,
+    loadBookingOutcomeTasks: async () => [],
+    loadPartnerActivity: async () => null,
+    loadPartnerLinked: () => partnerCheck.promise,
+    loadHasBookingRecords: async () => false,
+  };
+  const run = new Function("bindings", `with (bindings) { ${extractCallback(loungeSource, "loadData")} return run; }`)(bindings);
+  const done = run();
+  return {
+    events,
+    done,
+    state: () => state,
+    evaluations: () => events.filter(([kind]) => kind === "evaluate"),
+    settlePartner: (value) => (auxiliaryFails ? partnerCheck.reject(new Error("offline")) : partnerCheck.resolve(value)),
+  };
+}
+
+test("a joiner's coach marks wait until the partner check has settled and the joined card is in place", async () => {
+  const load = startLoungeLoad({ marker: true });
+  await flush();
+  // 핵심 데이터는 이미 그려졌지만 상대 확인 전이다 — 두 카드 모두 접혀 있고, 안내는 아직이다.
+  assert.equal(load.state()?.partnerLinkedChecked, false);
+  assert.equal(load.state() && handoff.resolveJoinedPlanSlot({ marker: true, partnerLinked: load.state().partnerLinked, partnerLinkedChecked: load.state().partnerLinkedChecked }), "waiting");
+  assert.deepEqual(load.evaluations(), [], "상대 확인 전에 안내가 판정됐다 — 자리가 바뀌기 전에 잰다");
+
+  load.settlePartner(true);
+  await load.done;
+  // 안내는 한 번, 합류 안내가 자리를 잡은 뒤에 판정된다.
+  assert.deepEqual(load.evaluations(), [["evaluate", { partnerLinked: true, partnerLinkedChecked: true, slot: "handoff" }]]);
+});
+
+test("a joiner whose partner check fails still gets the first-arrival card and the coach marks", async () => {
+  const load = startLoungeLoad({ marker: true, auxiliaryFails: true });
+  await flush();
+  assert.deepEqual(load.evaluations(), []);
+  load.settlePartner();
+  await load.done;
+  // 확인이 실패해도 기다림은 끝난다 — '기다리는 중'에 멈추면 첫 도착 카드가 영영 돌아오지 않는다.
+  assert.equal(load.state().partnerLinkedChecked, true);
+  assert.equal(load.state().partnerLinked, undefined);
+  assert.deepEqual(load.evaluations(), [["evaluate", { partnerLinked: undefined, partnerLinkedChecked: true, slot: "none" }]]);
+});
+
+test("people who did not just join are not held back by the partner check", async () => {
+  const load = startLoungeLoad({ marker: false });
+  await flush();
+  // 합류하지 않은 사람의 안내는 예전처럼 핵심 데이터를 그린 바로 뒤에 판정된다 —
+  // 느린 보조 질의 하나가 모든 사람의 첫 실행 안내를 붙잡지 않는다.
+  assert.equal(load.evaluations().length, 1);
+  load.settlePartner(false);
+  await load.done;
+  assert.equal(load.evaluations().length, 1);
+  assert.equal(load.state().partnerLinkedChecked, true);
+});
+
+test("a same-couple reload keeps the settled check, so the welcome slot does not blink", async () => {
+  // 리얼타임 갱신·당겨서 새로고침은 같은 커플을 다시 읽는다. 확인이 끝났다는 사실까지 비우면
+  // 상대 확인이 실패했던 합류자의 첫 도착 카드가 갱신 때마다 접혔다 펴진다.
+  const load = startLoungeLoad({
+    marker: true,
+    initialState: { coupleId: "couple-1", partnerLinked: undefined, partnerLinkedChecked: true, hasBookingRecords: false },
+  });
+  await flush();
+  assert.equal(load.state().partnerLinkedChecked, true);
+  assert.equal(
+    handoff.resolveJoinedPlanSlot({ marker: true, partnerLinked: load.state().partnerLinked, partnerLinkedChecked: load.state().partnerLinkedChecked }),
+    "none",
+  );
+  load.settlePartner(undefined);
+  await load.done;
 });

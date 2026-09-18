@@ -58,6 +58,34 @@ export function shouldShowJoinedPlanHandoff(input: {
   return input.marker === true && input.partnerLinked === true;
 }
 
+/**
+ * 라운지 맨 앞 환영 자리에 지금 무엇을 둘 것인가.
+ *
+ * - `"handoff"`: 합류 안내를 둔다. 첫 도착 카드는 접는다(두 장이 겹치지 않게, 웹과 같다).
+ * - `"waiting"`: 합류 표시는 있는데 상대 확인이 **아직 끝나지 않았다.** 아무것도 두지 않고
+ *   첫 도착 카드도 접어 둔다.
+ * - `"none"`: 합류 안내가 없다. 첫 도착 카드는 평소대로 판단한다.
+ *
+ * 왜 "waiting"이 따로 있는가: 상대 유무는 라운지 핵심 데이터보다 한 박자 늦게 온다. 그 사이에
+ * 첫 도착 카드를 먼저 그렸다가 합류 안내로 바꿔 끼우면, 방금 합류한 사람은 환영 카드가 뒤바뀌는
+ * 것을 보고 히어로가 밀려 내려간다. 첫 실행 안내는 각 단계의 자리를 한 번만 재므로 그 사이에 잰
+ * 자리는 엉뚱한 곳을 짚는다.
+ *
+ * 확인이 끝났으면(`partnerLinkedChecked`) 결과가 "모름"이어도 기다림을 끝낸다 — 질의가 실패했다고
+ * 첫 도착 카드가 영영 돌아오지 않으면 안 된다.
+ */
+export type JoinedPlanSlot = "handoff" | "waiting" | "none";
+
+export function resolveJoinedPlanSlot(input: {
+  marker: boolean;
+  partnerLinked: boolean | undefined;
+  partnerLinkedChecked: boolean;
+}): JoinedPlanSlot {
+  if (shouldShowJoinedPlanHandoff(input)) return "handoff";
+  if (input.marker === true && input.partnerLinkedChecked !== true) return "waiting";
+  return "none";
+}
+
 export interface JoinedPlanHandoffInput {
   weddingDate: string | null;
   venue: string | null;
