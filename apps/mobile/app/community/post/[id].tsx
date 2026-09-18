@@ -34,17 +34,23 @@ import {
   CommunityAvatar,
   type CommunityAvatarRole,
 } from "@/components/community/CommunityAvatar";
+import { CommunityCommentItem } from "@/components/community/CommunityCommentItem";
 import { CommunityTrustBadges } from "@/components/community/CommunityTrustBadges";
 import ErrorRetry from "@/components/ErrorRetry";
 import {
   communityPostLoadFailure,
-  parseCommunityCommentOrigin,
   parseCommunityPostTrust,
   type CommunityAdDisclosure,
   type CommunityContentOrigin,
   type CommunityPostLoadFailure,
 } from "@/lib/communityTrust.mjs";
 import { readDecisionThreadIdFromPost } from "@/lib/communityDecisionThread.mjs";
+import {
+  countVisibleCommunityComments,
+  hideCommunityCommentsByAuthor,
+  parseCommunityCommentThread,
+  type CommunityThreadComment,
+} from "@/lib/communityCommentThread.mjs";
 import { ActionRow, AppHeader, EmptyState, LoadingState } from "@/components/ui/AppUI";
 import {
   CommunitySafetySheet,
@@ -72,14 +78,7 @@ interface PostDetail {
   author: { nickname: string; rank: string; role?: CommunityAvatarRole | null } | null;
 }
 
-interface Comment {
-  id: string;
-  author_id: string;
-  content: string;
-  created_at: string;
-  content_origin: CommunityContentOrigin;
-  author: { nickname: string; rank: string; role?: CommunityAvatarRole | null } | null;
-}
+type Comment = CommunityThreadComment;
 
 const CATEGORY_LABELS: Record<string, string> = {
   is_normal: "이거 정상이야?",
@@ -170,17 +169,8 @@ async function fetchCommentsFromApi(
     : await publicApiFetch(path);
   if (!response.ok) throw new Error("comments not readable");
   const commentsData = await response.json() as { comments?: unknown };
-  if (!Array.isArray(commentsData.comments)) throw new Error("comments contract invalid");
-  return commentsData.comments.map((rawComment) => {
-    const contentOrigin = parseCommunityCommentOrigin(rawComment);
-    if (!contentOrigin || !rawComment || typeof rawComment !== "object" || Array.isArray(rawComment)) {
-      throw new Error("comment trust metadata invalid");
-    }
-    return {
-      ...(rawComment as Comment),
-      content_origin: contentOrigin,
-    };
-  });
+  // 답글(`replies`)까지 읽는다. 작성 출처가 깨진 답변·답글이 하나라도 있으면 목록 전체를 실패로 둔다.
+  return parseCommunityCommentThread(commentsData.comments);
 }
 
 export default function PostDetailScreen() {
@@ -750,12 +740,9 @@ export default function PostDetailScreen() {
         return;
       }
 
-      const removedCount = comments.filter(
-        (comment) => comment.author_id.toLowerCase() === target.userId.toLowerCase(),
-      ).length;
-      setComments((current) => current.filter(
-        (comment) => comment.author_id.toLowerCase() !== target.userId.toLowerCase(),
-      ));
+      // 답글까지 숨긴다. 그 사람의 답변 아래 달린 답글도 함께 빠진다(웹과 같다).
+      const { removedCount } = hideCommunityCommentsByAuthor(comments, target.userId);
+      setComments((current) => hideCommunityCommentsByAuthor(current, target.userId).comments);
       setPost((current) => current ? {
         ...current,
         comment_count: Math.max(0, current.comment_count - removedCount),
@@ -956,50 +943,22 @@ export default function PostDetailScreen() {
           ) : null}
 
           <View style={styles.commentsSection}>
-            <Text style={styles.commentsTitle}>댓글 {comments.length}개</Text>
+            <Text style={styles.commentsTitle}>댓글 {countVisibleCommunityComments(comments)}개</Text>
             {commentsLoading && comments.length === 0 && (
               <View style={styles.commentsLoadingWrap}>
                 <ActivityIndicator size="small" color={colors.rose[500]} />
                 <Text style={styles.commentsLoadingText}>댓글을 불러오는 중이에요</Text>
               </View>
             )}
-            {comments.map((c) => {
-              const cName = c.author?.nickname ?? "익명";
-              const canManageCommentAuthor = Boolean(
-                viewerIdentity
-                && c.author_id
-                && viewerIdentity.ownerId !== c.author_id.toLowerCase(),
-              );
-              return (
-                <View key={c.id} style={styles.commentCard}>
-                  <View style={styles.commentHeader}>
-                    <CommunityAvatar nickname={cName} role={c.author?.role} size={30} />
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.commentAuthor}>{cName}</Text>
-                      <Text style={styles.commentTime}>{timeAgo(c.created_at)}</Text>
-                    </View>
-                    {canManageCommentAuthor ? (
-                      <Pressable
-                        hitSlop={10}
-                        accessibilityRole="button"
-                        accessibilityLabel={`${cName}님 답변 안전 메뉴`}
-                        style={styles.commentSafetyButton}
-                        onPress={() => openSafetyMenu({
-                          kind: "comment",
-                          contentId: c.id,
-                          userId: c.author_id,
-                          nickname: cName,
-                        })}
-                      >
-                        <MoreHorizontal size={20} color={colors.taupe[400]} />
-                      </Pressable>
-                    ) : null}
-                  </View>
-                  <CommunityTrustBadges contentOrigin={c.content_origin} />
-                  <Text style={styles.commentBody}>{c.content}</Text>
-                </View>
-              );
-            })}
+            {comments.map((c) => (
+              <CommunityCommentItem
+                key={c.id}
+                comment={c}
+                viewerOwnerId={viewerIdentity?.ownerId ?? null}
+                timeLabel={timeAgo}
+                onOpenSafetyMenu={openSafetyMenu}
+              />
+            ))}
             {!commentsLoading && commentsLoadFailed && (
               <View style={styles.commentsErrorWrap}>
                 <Text style={styles.commentsErrorText}>
@@ -1193,27 +1152,6 @@ const styles = StyleSheet.create({
     color: colors.noir[800],
     marginBottom: 16,
   },
-  commentCard: {
-    paddingVertical: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-  },
-  commentHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-    marginBottom: 8,
-  },
-  commentAuthor: { fontSize: 14, fontWeight: "700", color: colors.noir[800] },
-  commentTime: { fontSize: 11, color: colors.taupe[400], marginTop: 1 },
-  commentSafetyButton: {
-    width: 36,
-    height: 36,
-    alignItems: "center",
-    justifyContent: "center",
-    borderRadius: 18,
-  },
-  commentBody: { fontSize: 14, color: colors.noir[800], lineHeight: 22, marginLeft: 40 },
   noCommentsWrap: {
     alignItems: "center",
     paddingVertical: 32,
