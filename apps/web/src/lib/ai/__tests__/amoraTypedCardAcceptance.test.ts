@@ -161,9 +161,16 @@ describe("말로 승낙한 턴의 서버 안내", () => {
     expect(mobileChat).toMatch(/:\s*"이대로 적용";/);
     expect(mobileChat).toContain("applyLabel={applyLabel}");
 
-    expect(AMORA_TYPED_CARD_ACCEPTANCE_REPLY).toContain("아래 카드의 ‘내용 확인하기’를 누른 뒤 ‘이대로 적용’");
+    // 서버 문장은 앱이 새 판을 받기 전(expo-updates·스토어 판)에도 참이어야 한다. 옛 앱 카드는
+    // 「이대로 적용」 하나, 새 앱·웹 카드는 「내용 확인하기」 → 확인 창의 「이대로 적용」이다.
+    // 두 세대 모두에 있는 마지막 버튼 「이대로 적용」만 이름으로 부른다(2026-09-18 리뷰).
+    expect(AMORA_TYPED_CARD_ACCEPTANCE_REPLY).toBe(
+      "아직 반영하지 않았어요. 아래 카드에서 바뀌는 내용을 확인하고 ‘이대로 적용’을 누르면 반영돼요.",
+    );
+    expect(AMORA_TYPED_CARD_ACCEPTANCE_REPLY).not.toContain("‘내용 확인하기’");
     // 한쪽 화면에만 있는 버튼을 가리키지 않는다.
     expect(AMORA_TYPED_CARD_ACCEPTANCE_REPLY).not.toContain("앱에서는");
+    expect(AMORA_TYPED_CARD_ACCEPTANCE_REPLY).not.toContain("웹에서는");
     expect(AMORA_TYPED_CARD_ACCEPTANCE_REPLY).toContain("아직 반영하지 않았어요");
   });
 
