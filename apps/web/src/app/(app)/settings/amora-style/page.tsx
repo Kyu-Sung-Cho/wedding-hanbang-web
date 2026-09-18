@@ -11,6 +11,8 @@ import {
   SlidersHorizontal,
 } from "lucide-react";
 
+import { AMORA_PERSONALIZATION_SECTIONS } from "@hanbang/shared/amora-personalization";
+
 import { useAmoraPersonalization } from "@/hooks/useAmoraPersonalization";
 import {
   DEFAULT_AMORA_PERSONALIZATION,
@@ -26,171 +28,6 @@ import {
   WEDDING_CODE_AMORA_HANDOFF_PARAM,
 } from "@/lib/weddingCode/profile/amoraHandoff";
 import type { AmoraPersonalizationChanges } from "@/lib/amora/personalization";
-
-type PreferenceKey = keyof AmoraPersonalizationPreferences;
-
-type Choice = {
-  value: string;
-  label: string;
-  description: string;
-};
-
-type PreferenceSection = {
-  key: PreferenceKey;
-  title: string;
-  description: string;
-  choices: readonly Choice[];
-};
-
-const SECTIONS: readonly PreferenceSection[] = [
-  {
-    key: "toneStyle",
-    title: "아모라 말투",
-    description: "어떤 느낌으로 답하면 편한지 골라주세요. 모두 존댓말로 답해요.",
-    choices: [
-      {
-        value: "adaptive",
-        label: "상황에 맞게",
-        description: "편한 대화는 부드럽게, 중요한 내용은 또렷하게 말해요.",
-      },
-      {
-        value: "warm",
-        label: "다정하고 편안하게",
-        description: "서두르지 않고 마음을 살피며 이야기해요.",
-      },
-      {
-        value: "calm_clear",
-        label: "차분하고 또렷하게",
-        description: "감정에 휩쓸리지 않고 핵심을 분명히 말해요.",
-      },
-      {
-        value: "friendly_honest",
-        label: "친근하고 솔직하게",
-        description: "가깝게 말하되 필요한 이야기는 돌리지 않아요.",
-      },
-    ],
-  },
-  {
-    key: "decisionStart",
-    title: "결정을 시작할 때",
-    description: "여러 선택지 중 무엇부터 보여드릴지 정해요.",
-    choices: [
-      {
-        value: "recommend_first",
-        label: "추천안 먼저",
-        description: "현실적인 안 하나를 먼저 보고 조정해요.",
-      },
-      {
-        value: "compare_first",
-        label: "비교 먼저",
-        description: "2~3개 선택지와 차이를 먼저 확인해요.",
-      },
-      {
-        value: "ask_each_time",
-        label: "그때 물어보기",
-        description: "상황마다 원하는 방식을 짧게 확인해요.",
-      },
-    ],
-  },
-  {
-    key: "answerDetail",
-    title: "설명 분량",
-    description: "아모라 답변의 기본 길이를 정해요.",
-    choices: [
-      {
-        value: "brief",
-        label: "핵심만",
-        description: "결론과 다음 행동을 짧게 봐요.",
-      },
-      {
-        value: "detailed",
-        label: "자세히",
-        description: "근거와 주의점까지 충분히 봐요.",
-      },
-      {
-        value: "adaptive",
-        label: "상황에 맞게",
-        description: "간단한 질문은 짧게, 중요한 결정은 자세히 봐요.",
-      },
-    ],
-  },
-  {
-    key: "supportOrder",
-    title: "힘들다고 말했을 때",
-    description: "공감과 실행 중 무엇을 먼저 할지 정해요.",
-    choices: [
-      {
-        value: "listen_first",
-        label: "마음 먼저",
-        description: "해결책보다 지금 상황을 먼저 들어요.",
-      },
-      {
-        value: "action_first",
-        label: "할 일 먼저",
-        description: "바로 할 수 있는 한 가지부터 정리해요.",
-      },
-      {
-        value: "ask_each_time",
-        label: "그때 물어보기",
-        description: "들어줄지 해결할지 먼저 확인해요.",
-      },
-    ],
-  },
-  {
-    key: "workMode",
-    title: "둘이 준비하는 방식",
-    description: "할 일을 제안할 때의 기본 구조만 바꿔요.",
-    choices: [
-      {
-        value: "together",
-        label: "처음부터 함께",
-        description: "후보를 찾는 과정도 둘이 같이 확인해요.",
-      },
-      {
-        value: "owner_led",
-        label: "담당자가 먼저",
-        description: "한 사람이 좁혀오고 둘이 최종 확정해요.",
-      },
-      {
-        value: "hybrid",
-        label: "상황에 따라 섞기",
-        description: "중요한 결정만 함께 보고 나머지는 나눠요.",
-      },
-      {
-        value: "ask_each_time",
-        label: "그때 물어보기",
-        description: "업무마다 함께할지 나눌지 확인해요.",
-      },
-    ],
-  },
-  {
-    key: "familyOrder",
-    title: "가족·하객 의견이 있을 때",
-    description: "누구의 생각을 먼저 확인할지 정할 뿐, 의무를 만들지 않아요.",
-    choices: [
-      {
-        value: "couple_first",
-        label: "우리 둘 기준 먼저",
-        description: "두 사람의 기준을 맞춘 뒤 필요한 의견을 들어요.",
-      },
-      {
-        value: "family_input_first",
-        label: "의견부터 모으기",
-        description: "관련된 가족·하객 조건을 먼저 확인해요.",
-      },
-      {
-        value: "case_by_case",
-        label: "상황마다",
-        description: "영향받는 사람과 비용에 따라 순서를 정해요.",
-      },
-      {
-        value: "ask_each_time",
-        label: "그때 물어보기",
-        description: "가족 조율이 필요한지 먼저 확인해요.",
-      },
-    ],
-  },
-] as const;
 
 function formatUpdatedAt(value: string | null): string | null {
   if (!value) return null;
@@ -350,7 +187,7 @@ function AmoraStyleSettingsContent({ ownerId, accountLabel }: { ownerId: string 
               <p className="mt-2 break-all text-sm text-[var(--hb-text-strong)]">저장할 내 계정: {accountLabel}</p>
               <p className="mt-1 text-sm text-[var(--hb-text-strong)]">아직 저장하지 않았어요. 기존 설정과 비교한 뒤 아래 선택지에 채울 수 있어요. 상대의 설정은 바뀌지 않아요.</p>
               <dl className="mt-3 space-y-2 text-sm text-[var(--hb-text-strong)]">
-                {SECTIONS.filter(section => handoff[section.key] !== undefined).map(section => (
+                {AMORA_PERSONALIZATION_SECTIONS.filter(section => handoff[section.key] !== undefined).map(section => (
                   <div key={section.key}>
                     <dt className="font-semibold">{section.title}</dt>
                     <dd>현재: {section.choices.find(choice => choice.value === baseline[section.key])?.label} → 직접 고른 값: {section.choices.find(choice => choice.value === handoff[section.key])?.label}</dd>
@@ -368,7 +205,7 @@ function AmoraStyleSettingsContent({ ownerId, accountLabel }: { ownerId: string 
             </section>
           )}
           <div className="space-y-4">
-            {SECTIONS.map((section) => (
+            {AMORA_PERSONALIZATION_SECTIONS.map((section) => (
               <section
                 key={section.key}
                 className="rounded-[6px] bg-white p-5 shadow-[var(--shadow-raised)] sm:p-6"
