@@ -102,6 +102,7 @@ test("카드 문구는 웹 카드와 같다 — 무엇이 남고 무엇이 정�
   assert.doesNotMatch(chat, /화면 정리 → 비공개 대화/, "앱 채팅에는 그 메뉴가 없다 — 각주가 웹을 가리키는 이유");
 });
 
+/* global Response */
 test("동의·거절은 정해진 주소로 action·messageId 만 보내고, 서버가 확인해 줘야 성공이다", async () => {
   const calls = [];
   const reply = (status, body) => async (path, init) => { calls.push({ path, init }); return new Response(JSON.stringify(body), { status }); };

@@ -84,33 +84,42 @@ test("이미 한국어 이름으로 저장된 분야는 읽을 때 키로 바뀐
     assert.equal(scheduleEventCategoryKeyFromStored(template.label), template.key, template.label);
   }
   // 앱이 저장했던 옛 이름들(2026-04 이전 선택지와 체크리스트 분야의 옛 이름).
-  for (const [stored, key] of [
-    ["기타", "general"],
-    ["예식장", "venue"],
-    ["상견례", "meeting"],
-    ["드레스/턱시도", "dress"],
-    ["예복", "dress"],
-    ["예물(반지)", "ring"],
-    ["예물", "ring"],
-    ["혼수(가전/가구)", "houseware"],
-    ["허니문", "honeymoon"],
-    ["본식 스냅/영상", "snap"],
-    ["영상", "snap"],
-    ["사회/축가", "mc"],
-    ["축가", "mc"],
-    ["웨딩 구두", "shoes"],
-    ["부케/꽃장식", "bouquet"],
-    ["답례품", "gift"],
-    ["예단", "yedan"],
-    ["함", "ham"],
-    ["폐백", "pyebaek"],
-  ]) {
-    assert.equal(scheduleEventCategoryKeyFromStored(stored), key, stored);
-  }
-  // 키는 그대로다.
-  for (const key of ["venue", "general", "etiquette"]) {
+  // 분야마다 적는다 — 옛 이름이 없는 분야는 빈 목록. 분야가 늘면 아래 대조가 이 표를 가리킨다.
+  const legacyByKey = {
+    "general": ["기타"],
+    "greeting": [],
+    "meeting": ["상견례"],
+    "venue": ["예식장"],
+    "studio": ["스튜디오"],
+    "dress": ["드레스/턱시도", "예복", "드레스"],
+    "makeup": ["메이크업"],
+    "ring": ["예물(반지)", "예물"],
+    "hanbok": [],
+    "yedan": ["예단"],
+    "honeymoon": ["허니문"],
+    "houseware": ["혼수(가전/가구)", "혼수"],
+    "housing": [],
+    "invitation": ["청첩장"],
+    "snap": ["본식 스냅/영상", "영상", "스냅"],
+    "shoes": ["웨딩 구두"],
+    "bouquet": ["부케/꽃장식", "부케"],
+    "gift": ["답례품"],
+    "mc": ["사회/축가", "축가", "사회자"],
+    "ham": ["함"],
+    "pyebaek": ["폐백"],
+    "registration": [],
+  };
+  assert.deepEqual(
+    Object.keys(legacyByKey).sort(),
+    SCHEDULE_EVENT_CATEGORY_OPTIONS.map((option) => option.key).sort(),
+    "옛 이름 표가 일정 분야 전부를 다루지 않는다",
+  );
+  for (const [key, labels] of Object.entries(legacyByKey)) {
+    for (const stored of labels) assert.equal(scheduleEventCategoryKeyFromStored(stored), key, stored);
+    // 키는 그대로다.
     assert.equal(scheduleEventCategoryKeyFromStored(key), key);
   }
+  assert.equal(scheduleEventCategoryKeyFromStored("etiquette"), "etiquette");
 });
 
 test("어느 분야인지 하나로 정할 수 없는 값은 지어내지 않고 그대로 둔다", () => {

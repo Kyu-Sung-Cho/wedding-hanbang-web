@@ -38,53 +38,59 @@ export const SCHEDULE_EVENT_CATEGORY_OPTIONS: readonly ScheduleEventCategoryOpti
     .map((key) => ({ key, label: PLANNING_CATEGORY_LABELS[key] })),
 ];
 
+/** 일정 분야 키 — 예산 전용 예비비를 뺀 준비 분야와 `general`. */
+export type ScheduleEventCategoryKey = Exclude<PlanningCategoryKey, "reserve"> | "general";
+
 /**
- * 앱이 예전에 저장한 한국어 이름 → 키.
+ * 앱이 예전에 저장한 한국어 이름. **분야마다** 적는다 — 옛 이름이 없는 분야는 빈 목록이다.
  *
  * 두 갈래가 있다. git 기록에서 모았다.
  *   - 2026-04-10 이전 앱 일정 입력의 고정 선택지(`예식장`, `예복`, `기타` …).
  *   - 그 뒤 앱이 선택지로 쓴 체크리스트 분야 이름의 옛 판(`상견례`, `드레스/턱시도` …).
  *     지금 이름은 아래 `LABEL_TO_KEY` 가 이름표에서 바로 만든다.
  *
+ * 이름 → 키 표로 적으면 옛 이름이 있는 분야만 담기는 부분 목록이 되어, 분야가 늘었을 때
+ * 이 자리를 다시 볼 이유가 사라진다. 그래서 키마다 적고 `Record<ScheduleEventCategoryKey, …>`
+ * 로 묶었다 — 분야가 늘면 타입 검사가 여기를 가리키고, `categoryKeyMirrors.test.ts` 도 이
+ * 파일을 빠짐없이 담는 목록으로 본다(키에 따옴표를 붙인 이유다).
+ *
  * **`스드메`는 넣지 않는다.** 사진·드레스·메이크업 세 분야라 하나로 바꾸면 사용자가 고르지
  * 않은 분야가 된다. 모르는 값은 지어내지 않고 그대로 둔다.
  */
-const LEGACY_LABEL_TO_KEY: Readonly<Record<string, string>> = {
-  기타: "general",
-  예식장: "venue",
-  스튜디오: "studio",
-  드레스: "dress",
-  예복: "dress",
-  "드레스/턱시도": "dress",
-  메이크업: "makeup",
-  예물: "ring",
-  "예물(반지)": "ring",
-  예단: "yedan",
-  혼수: "houseware",
-  "혼수(가전/가구)": "houseware",
-  허니문: "honeymoon",
-  청첩장: "invitation",
-  상견례: "meeting",
-  스냅: "snap",
-  영상: "snap",
-  "본식 스냅/영상": "snap",
-  "웨딩 구두": "shoes",
-  부케: "bouquet",
-  "부케/꽃장식": "bouquet",
-  답례품: "gift",
-  축가: "mc",
-  사회자: "mc",
-  "사회/축가": "mc",
-  함: "ham",
-  폐백: "pyebaek",
+const LEGACY_LABELS_BY_KEY: Readonly<Record<ScheduleEventCategoryKey, readonly string[]>> = {
+  "general": ["기타"],
+  "greeting": [],
+  "meeting": ["상견례"],
+  "venue": ["예식장"],
+  "studio": ["스튜디오"],
+  "dress": ["드레스", "예복", "드레스/턱시도"],
+  "makeup": ["메이크업"],
+  "ring": ["예물", "예물(반지)"],
+  "hanbok": [],
+  "yedan": ["예단"],
+  "honeymoon": ["허니문"],
+  "houseware": ["혼수", "혼수(가전/가구)"],
+  "housing": [],
+  "invitation": ["청첩장"],
+  "snap": ["스냅", "영상", "본식 스냅/영상"],
+  "shoes": ["웨딩 구두"],
+  "bouquet": ["부케", "부케/꽃장식"],
+  "gift": ["답례품"],
+  "mc": ["축가", "사회자", "사회/축가"],
+  "ham": ["함"],
+  "pyebaek": ["폐백"],
+  "registration": [],
 };
+
+const LEGACY_LABEL_TO_KEY: ReadonlyArray<[string, string]> = Object.entries(LEGACY_LABELS_BY_KEY)
+  .flatMap(([key, labels]) => labels.map((label) => [label, key] as [string, string]));
 
 function hasOwn(record: Readonly<Record<string, unknown>>, key: string): boolean {
   return Object.prototype.hasOwnProperty.call(record, key);
 }
 
 const LABEL_TO_KEY: ReadonlyMap<string, string> = new Map<string, string>([
-  ...Object.entries(LEGACY_LABEL_TO_KEY),
+  ...LEGACY_LABEL_TO_KEY,
   ...SCHEDULE_EVENT_CATEGORY_OPTIONS.map((option) => [option.label, option.key] as [string, string]),
   ...Object.entries(SCHEDULE_EVENT_CATEGORY_LABELS).map(([key, label]) => [label, key] as [string, string]),
 ]);
