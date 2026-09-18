@@ -6,8 +6,8 @@ import { FEATURE_SUMMARY_CLASS, SUMMARY_LABEL_CLASS } from "@/components/ui/feat
 
 import { readingMinutesOf } from "@/lib/manners/readingTime";
 import { MANNERS_CATEGORIES, MANNERS_PARTS } from "@/lib/manners/data";
-import { weddingLinkProps } from "@/lib/weddingPaths";
 import { buildAmoraPreparationHref } from "@/lib/amora/preparationHandoff";
+import FullPageLinkInsideMobileApp from "@/components/common/FullPageLinkInsideMobileApp";
 import MannersMobileHeader from "@/components/manners/MannersMobileHeader";
 import MannersGuideDirectory from "@/components/manners/MannersGuideDirectory";
 import type { MannersPart } from "@/lib/manners/types";
@@ -54,7 +54,7 @@ export default function MannersIndexPage() {
           <p className="mt-1 text-[13px] leading-[1.6] text-[var(--amora-soft)]">{part.subtitle}</p>
           <p className="mt-1.5 text-[12px] text-[var(--amora-muted)]">{AUDIENCE_LABEL[part.audience]} · {readingMinutesOf(part.sections)}분 · {part.sections.length}개 절</p>
         </Link>
-        {amoraHref && <Link {...weddingLinkProps(amoraHref)} aria-label={`${part.title} 아모라에 질문하기`} title={`${part.title} 아모라에 질문하기`} className={`${AMORA_QUIET_TOUCH_ACTION_CLASS} mr-2`}><AmoraMark className="size-[18px]" /></Link>}
+        {amoraHref && <FullPageLinkInsideMobileApp path={amoraHref} aria-label={`${part.title} 아모라에 질문하기`} title={`${part.title} 아모라에 질문하기`} className={`${AMORA_QUIET_TOUCH_ACTION_CLASS} mr-2`}><AmoraMark className="size-[18px]" /></FullPageLinkInsideMobileApp>}
       </> }];
     }),
   }));
@@ -74,12 +74,13 @@ export default function MannersIndexPage() {
             정리했어요. 여기서는 읽고 이해하고, 실제 준비는 웨딩 체크리스트에서 따로 관리합니다.
           </p>
         </div>
-        <Link
-          {...weddingLinkProps("/checklist")}
+        {/* 로그인 필요 화면이라 앱 웹뷰에서는 문서째 옮겨 앱이 네이티브 체크리스트로 넘긴다. */}
+        <FullPageLinkInsideMobileApp
+          path="/checklist"
           className="mt-4 inline-flex min-h-11 items-center rounded-[11px] bg-[var(--hb-action)] px-4 py-2.5 text-[13px] font-semibold text-white hover:bg-[var(--hb-action-hover)]"
         >
           웨딩 체크리스트 열기
-        </Link>
+        </FullPageLinkInsideMobileApp>
         {/*
           이 고지는 10편 시절 "수치에는 출처와 확인 날짜를 적어 뒀다"고 단정했다. 2026-08-19에
           레거시 15편을 같은 목록으로 옮기면서 그 문장이 거짓이 됐다 — 지금 25편 중 15편은
@@ -98,9 +99,9 @@ export default function MannersIndexPage() {
 
       <p className="mt-9 text-[13px] leading-[1.75] text-[var(--amora-muted)]">
         각 편에서 우리 상황에 맞는 질문을 아모라로 이어갈 수 있어요. 질문 초안을 확인한 뒤 직접 보내요.{" "}
-        <Link {...weddingLinkProps("/chat")} className="font-medium text-[var(--amora-accent)] underline underline-offset-2">
+        <FullPageLinkInsideMobileApp path="/chat" className="font-medium text-[var(--amora-accent)] underline underline-offset-2">
           아모라에게 물어보기
-        </Link>
+        </FullPageLinkInsideMobileApp>
       </p>
     </div>
     </>

@@ -90,6 +90,14 @@ function titleFromUrl(url: string): string {
  * 라운지(`/wedding/lounge`)도 로그인 필요 경로다. 2026-09-17 에 예절 안내의 로고와 모바일
  * 목록 「홈」 버튼이 라운지로 가게 바뀌면서(85e45aead) 앱 웹뷰에서 그 버튼이 웹 로그인 화면을
  * 열었다. 라운지는 앱의 첫 탭이라 그리로 보낸다.
+ *
+ * **이 표는 문서를 새로 여는 이동에서만 쓰인다**(`handleNavigation` =
+ * `onShouldStartLoadWithRequest`). `next/link` 의 클라이언트 이동은 `pushState` 라서
+ * react-native-webview 가 그 콜백에 보내지 않는다 — iOS 는 history 심이 `onLoadingFinish` 로,
+ * 안드로이드는 `doUpdateVisitedHistory` 가 `onLoadingStart` 로 보낸다. 그리고 그때 보이는
+ * 주소는 목적지가 아니라 웹 프록시가 돌린 `/login?redirect=…` 다. 그래서 웹은 이런 링크를
+ * 앱 웹뷰에서 평범한 `<a href>` 로 그린다(`apps/web/src/components/common/
+ * FullPageLinkInsideMobileApp.tsx`). 웹에 새 로그인 필요 링크를 달 때도 그것을 쓴다.
  */
 const WEB_TO_NATIVE: Readonly<Record<string, string>> = {
   lounge: "/lounge",
