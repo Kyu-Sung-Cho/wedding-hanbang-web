@@ -234,6 +234,68 @@ describe("POST /api/chat/image-urls", () => {
     expect(createServiceClientSpy).not.toHaveBeenCalled();
   });
 
+  // 앱(2026-09-18, wave 2 · 2.5a)은 Origin·Sec-Fetch-Site 없이 Bearer 만 싣고 부른다.
+  it("accepts a Bearer-only native request and still reads the message through request-scoped RLS", async () => {
+    const path = `${COUPLE_ID}/${PARTNER_ID}/99999999-9999-4999-8999-999999999999.jpg`;
+    const { query, requestClient } = mockVisibleMessage({
+      data: {
+        id: SHARED_MESSAGE_ID,
+        couple_id: COUPLE_ID,
+        sender_id: PARTNER_ID,
+        visibility: "shared",
+        metadata: { imagePaths: [path] },
+      },
+      error: null,
+    });
+    const createSignedUrls = mockSigner();
+    const request = new Request("http://localhost/api/chat/image-urls", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: "Bearer header.payload.signature",
+      },
+      body: JSON.stringify({ messageId: SHARED_MESSAGE_ID }),
+    });
+
+    const response = await POST(request);
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(createClientFromRequestSpy).toHaveBeenCalledTimes(1);
+    expect(createClientFromRequestSpy.mock.calls[0][0].headers.get("authorization")).toBe("Bearer header.payload.signature");
+    expect(requestClient.from).toHaveBeenCalledWith("chat_messages");
+    expect(query.filters).toEqual([["id", SHARED_MESSAGE_ID]]);
+    expect(createSignedUrls).toHaveBeenCalledWith([path], 60 * 60);
+    expect(body.urls).toEqual([{ path, signedUrl: `https://signed.invalid/${path}` }]);
+  });
+
+  it.each([
+    ["Bearer", {}],
+    ["Bearer two tokens", {}],
+    ["Basic dXNlcjpwYXNz", {}],
+    // 같은 출처 표시가 있어도 형식이 틀린 자격증명은 쿠키로 넘어가지 않고 막힌다.
+    ["Bearer  header.payload.signature", { Origin: "http://localhost", "Sec-Fetch-Site": "same-origin" }],
+    ["Token header.payload.signature", { Origin: "http://localhost", "Sec-Fetch-Site": "same-origin" }],
+  ])("rejects a malformed Authorization header %j with 403 before authentication or signing", async (authorization, extraHeaders) => {
+    const { requestClient } = mockVisibleMessage({ data: null, error: null });
+    const createSignedUrls = mockSigner();
+    const response = await POST(new Request("http://localhost/api/chat/image-urls", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: authorization,
+        ...extraHeaders,
+      },
+      body: JSON.stringify({ messageId: SHARED_MESSAGE_ID }),
+    }));
+
+    expect(response.status).toBe(403);
+    expect(createClientFromRequestSpy).not.toHaveBeenCalled();
+    expect(requestClient.from).not.toHaveBeenCalled();
+    expect(createSignedUrls).not.toHaveBeenCalled();
+    expect(createServiceClientSpy).not.toHaveBeenCalled();
+  });
+
   it("does not sign a new-layout path owned by someone other than the message sender", async () => {
     const partnerPath = `${COUPLE_ID}/${PARTNER_ID}/88888888-8888-4888-8888-888888888888.png`;
     mockVisibleMessage({
