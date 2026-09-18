@@ -16,8 +16,8 @@ import {
 } from "lucide-react-native";
 import { colors, radius, spacing } from "@hanbang/design-tokens";
 import {
-  HOME_SERVICES,
   buildDashboardFocus,
+  buildHomeServices,
   getWeddingMomentMessage,
   type DashboardBookingOutcomeTask,
   type DashboardFocus,
@@ -48,6 +48,11 @@ export interface WeddingHomeData {
   urgentTasks: DashboardUrgentTask[];
   bookingOutcomeTasks: DashboardBookingOutcomeTask[];
   partnerActivity: PartnerActivity | null;
+  /**
+   * 이 커플이 남긴 상담 요청 기록이 하나라도 있는가. 새 요청은 받지 않으므로, 기록이 있는
+   * 사람에게만 지난 기록으로 가는 칸을 둔다. 모르면 없는 것으로 본다.
+   */
+  hasBookingRecords?: boolean;
 }
 
 interface WeddingHomeExperienceProps {
@@ -282,6 +287,13 @@ export default function WeddingHomeExperience({
   }, [data, focus?.kind]);
 
   const focusPill = focus ? getFocusPill(focus) : null;
+  const services = useMemo(
+    () =>
+      buildHomeServices({
+        hasBookingRecords: data?.hasBookingRecords === true,
+      }),
+    [data?.hasBookingRecords],
+  );
 
   return (
     <ScrollView
@@ -399,7 +411,7 @@ export default function WeddingHomeExperience({
             />
             {emptyNote}
             <View style={styles.serviceGrid}>
-              {HOME_SERVICES.map((service) => {
+              {services.map((service) => {
                 const Icon = SERVICE_ICONS[service.key];
                 const visual = SERVICE_COLORS[service.key];
                 return (

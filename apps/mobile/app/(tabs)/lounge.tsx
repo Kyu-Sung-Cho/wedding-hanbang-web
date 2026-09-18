@@ -321,6 +321,28 @@ async function loadBookingOutcomeTasks(
     .slice(0, 3);
 }
 
+/**
+ * 이 커플이 남긴 상담 요청 기록이 하나라도 있는가.
+ *
+ * 업체 상담·예약 요청은 2026-07-15부터 받지 않는다. 그래서 라운지의 「상담 요청 기록」 칸은
+ * 이미 기록이 있는 사람에게만 **지난 기록을 보는 입구**로 남긴다(2026-09-18 파운더 결정).
+ * 상태로 거르지 않는다 — 취소 표시만 남은 사람도 그 기록을 볼 수 있어야 한다.
+ * 못 물어봤으면 false다. 틀린 입구가 뜨는 것보다 잠깐 없는 편이 낫고, 새로고침이 다시 묻는다.
+ */
+async function loadHasBookingRecords(coupleId: string): Promise<boolean> {
+  try {
+    const { data, error } = await supabase
+      .from("vendor_bookings")
+      .select("id")
+      .eq("couple_id", coupleId)
+      .limit(1);
+    if (error) return false;
+    return (data?.length ?? 0) > 0;
+  } catch {
+    return false;
+  }
+}
+
 async function loadPartnerActivity({
   coupleId,
   userId,
@@ -556,6 +578,7 @@ export default function DashboardScreen() {
           urgentTasks: [],
           bookingOutcomeTasks: [],
           partnerActivity: null,
+          hasBookingRecords: false,
           coupleId: null,
           preparationStage: null,
           weddingStyleLabel: null,
@@ -602,6 +625,7 @@ export default function DashboardScreen() {
         urgentTasks: calcUrgentTasks(dday, progress),
         bookingOutcomeTasks: [],
         partnerActivity: null,
+        hasBookingRecords: false,
         coupleId: profile.couple_id,
         preparationStage: readPreparationStage(progress),
         weddingStyleLabel: readWeddingStyleLabel(progress),
@@ -618,7 +642,15 @@ export default function DashboardScreen() {
       };
 
       // 라운지의 핵심 맥락과 오늘의 행동을 먼저 그린 뒤, 보조 데이터를 이어 붙인다.
-      setData(coreData);
+      //
+      // 같은 커플을 다시 읽는 중(리얼타임 갱신·당겨서 새로고침)이면 기록 유무는 방금 확인한
+      // 값을 새 값이 올 때까지 들고 있는다. 매번 비웠다 채우면 「상담 요청 기록」 칸이 상대가
+      // 무언가 고칠 때마다 깜빡이고 격자가 다시 흐른다.
+      setData((current) =>
+        current && current.coupleId === coreData.coupleId
+          ? { ...coreData, hasBookingRecords: current.hasBookingRecords }
+          : coreData,
+      );
       setLoading(false);
       setRefreshing(false);
 
@@ -626,7 +658,7 @@ export default function DashboardScreen() {
       // 모든 단계가 "못 잡았다"로 건너뛰어진다.
       void evaluateFirstRunTutorial(user.id, onboardingCompleted);
 
-      const [bookingOutcomeTasks, partnerActivity, partnerLinked] =
+      const [bookingOutcomeTasks, partnerActivity, partnerLinked, hasBookingRecords] =
         await Promise.all([
           loadBookingOutcomeTasks(profile.couple_id),
           loadPartnerActivity({
@@ -635,11 +667,18 @@ export default function DashboardScreen() {
             progress,
           }),
           loadPartnerLinked(profile.couple_id, user.id),
+          loadHasBookingRecords(profile.couple_id),
         ]);
 
       setData((current) =>
         current
-          ? { ...current, bookingOutcomeTasks, partnerActivity, partnerLinked }
+          ? {
+              ...current,
+              bookingOutcomeTasks,
+              partnerActivity,
+              partnerLinked,
+              hasBookingRecords,
+            }
           : current,
       );
     } catch {

@@ -21,6 +21,7 @@ import { PLANNING_CATEGORY_LABELS } from "@hanbang/shared/constants";
 import { supabase } from "@/lib/supabase";
 import { apiFetchForExpectedUser } from "@/lib/api";
 import { toKoreanErrorMessage } from "@/lib/errorCopy";
+import { BOOKING_RECORDS_EMPTY_STATE } from "@/lib/bookingRecordsEntry";
 import {
   createOwnerCoupleSessionFence,
   type OwnerCoupleSessionToken,
@@ -732,20 +733,22 @@ export default function BookingsScreen() {
                 <CalendarCheck size={26} color={colors.taupe[500]} />
               </IconBadge>
             }
-            title={bookings.length === 0 ? "예약 요청 기록이 없어요" : "이 조건의 요청 기록이 없어요"}
+            title={bookings.length === 0 ? BOOKING_RECORDS_EMPTY_STATE.title : "이 조건의 요청 기록이 없어요"}
+            // 새 요청은 2026-07-15부터 받지 않는다. 예전 안내("업체 상세에서 상담 날짜와 상품 후보를
+            // 고르면…")는 앱에 없는 길을 가리켰다 — 이유는 `bookingRecordsEntry.ts`에 있다.
             description={
               bookings.length === 0
-                ? "업체 상세에서 상담 날짜와 상품 후보를 고르면 아모라 내부 기록이 여기에 모여요. 업체 전달·확정은 별도예요."
+                ? BOOKING_RECORDS_EMPTY_STATE.description
                 : "다른 상태 탭을 눌러 아모라 요청 기록을 확인해 보세요."
             }
             action={
               bookings.length === 0 ? (
                 <PrimaryButton
                   tone="ghost"
-                  icon={<Store size={18} color={colors.noir[800]} />}
+                  icon={<FileCheck2 size={18} color={colors.noir[800]} />}
                   onPress={() => router.push("/market-prices")}
                 >
-                  업체 탐색하기
+                  {BOOKING_RECORDS_EMPTY_STATE.actionLabel}
                 </PrimaryButton>
               ) : null
             }
