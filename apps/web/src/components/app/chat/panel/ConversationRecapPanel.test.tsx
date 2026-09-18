@@ -2,7 +2,8 @@ import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ChatMessage } from "@/types/database.types";
-import ConversationRecapPanel, { AMORA_RECAP_REQUEST } from "./ConversationRecapPanel";
+import { AMORA_RECAP_REQUEST } from "@hanbang/shared";
+import ConversationRecapPanel from "./ConversationRecapPanel";
 import ChatInfoPanel from "../ChatInfoPanel";
 
 const userId = "11111111-1111-4111-8111-111111111111";

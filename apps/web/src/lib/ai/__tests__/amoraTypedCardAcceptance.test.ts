@@ -12,7 +12,9 @@ import {
   AMORA_TYPED_CARD_ACCEPTANCE_REPLY,
   classifyAmoraTypedCardAcceptance,
   isAmoraTypedCardAcceptance,
+  isAmoraTypedCardAcceptanceReply,
 } from "@/lib/ai/amoraTypedCardAcceptance";
+import { AMORA_CHANGE_REVIEW_COPY } from "@hanbang/shared";
 
 /**
  * 2026-09-15 운영 재현: 카드가 뜬 뒤 "응 적용해줘" 라고 치면 옛 카드는 잠기고
@@ -152,13 +154,36 @@ describe("말로 승낙한 턴의 서버 안내", () => {
     // 웹: 카드의 첫 버튼 → 확인 창의 적용 버튼
     expect(webCard).toContain(': "내용 확인하기"}');
     expect(webCard).toMatch(/:\s*"이대로 적용";/);
-    // 앱: 카드의 적용 버튼 하나
+    // 앱(2026-09-18부터 웹과 같은 두 단계): 카드의 첫 버튼은 shared 의 「내용 확인하기」이고,
+    // 「이대로 적용」은 확인 창으로 넘기는 적용 버튼 이름이다.
+    expect(mobileChat).toContain("AMORA_CHANGE_REVIEW_COPY.openLabel");
+    expect(AMORA_CHANGE_REVIEW_COPY.openLabel).toBe("내용 확인하기");
     expect(mobileChat).toMatch(/:\s*"이대로 적용";/);
-    expect(mobileChat).not.toContain('"내용 확인하기"');
+    expect(mobileChat).toContain("applyLabel={applyLabel}");
 
-    expect(AMORA_TYPED_CARD_ACCEPTANCE_REPLY).toContain("웹에서는 아래 카드의 ‘내용 확인하기’를 누른 뒤 ‘이대로 적용’");
-    expect(AMORA_TYPED_CARD_ACCEPTANCE_REPLY).toContain("앱에서는 카드의 ‘이대로 적용’");
+    // 서버 문장은 앱이 새 판을 받기 전(expo-updates·스토어 판)에도 참이어야 한다. 옛 앱 카드는
+    // 「이대로 적용」 하나, 새 앱·웹 카드는 「내용 확인하기」 → 확인 창의 「이대로 적용」이다.
+    // 두 세대 모두에 있는 마지막 버튼 「이대로 적용」만 이름으로 부른다(2026-09-18 리뷰).
+    expect(AMORA_TYPED_CARD_ACCEPTANCE_REPLY).toBe(
+      "아직 반영하지 않았어요. 아래 카드에서 바뀌는 내용을 확인하고 ‘이대로 적용’을 누르면 반영돼요.",
+    );
+    expect(AMORA_TYPED_CARD_ACCEPTANCE_REPLY).not.toContain("‘내용 확인하기’");
+    // 한쪽 화면에만 있는 버튼을 가리키지 않는다.
+    expect(AMORA_TYPED_CARD_ACCEPTANCE_REPLY).not.toContain("앱에서는");
+    expect(AMORA_TYPED_CARD_ACCEPTANCE_REPLY).not.toContain("웹에서는");
     expect(AMORA_TYPED_CARD_ACCEPTANCE_REPLY).toContain("아직 반영하지 않았어요");
+  });
+
+  it("문장이 바뀌기 전에 저장된 같은 안내도 서버 고정 안내로 알아본다", () => {
+    expect(isAmoraTypedCardAcceptanceReply(AMORA_TYPED_CARD_ACCEPTANCE_REPLY)).toBe(true);
+    expect(isAmoraTypedCardAcceptanceReply(
+      "아직 반영하지 않았어요. 웹에서는 아래 카드의 ‘내용 확인하기’를 누른 뒤 ‘이대로 적용’을, 앱에서는 카드의 ‘이대로 적용’을 누르면 반영돼요.",
+    )).toBe(true);
+    for (const other of ["아직 반영하지 않았어요.", "응 적용해줘", null, undefined, 3]) {
+      expect(isAmoraTypedCardAcceptanceReply(other)).toBe(false);
+    }
+    const route = readFileSync(join(process.cwd(), "src", "app", "api", "chat", "route.ts"), "utf8");
+    expect(route).toContain("|| isAmoraTypedCardAcceptanceReply(previousCanonicalRow?.content);");
   });
 
   it("제품 금지 표현을 쓰지 않는다", () => {

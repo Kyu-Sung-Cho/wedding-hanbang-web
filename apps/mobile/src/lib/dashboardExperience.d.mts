@@ -68,7 +68,19 @@ export interface DashboardHomeService {
 
 export const HOME_SERVICES: readonly DashboardHomeService[];
 
+export function buildHomeServices(input?: {
+  hasBookingRecords?: boolean;
+}): DashboardHomeService[];
+
 export function formatLocalDateKey(date?: Date): string;
+
+export function calculateChecklistCounts(
+  progress: Record<string, unknown>,
+  categories: readonly {
+    key: string;
+    items: readonly { id: string }[];
+  }[],
+): { done: number; total: number };
 
 export function calculateChecklistProgress(
   progress: Record<string, unknown>,

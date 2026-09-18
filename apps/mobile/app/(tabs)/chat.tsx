@@ -2,7 +2,7 @@
 // 사람 말풍선 색은 각자 **직접 확인한 표시 역할**로 칠한다(웹과 같음, 2026-09-12 요청).
 // 가입 순서로 채워진 role 슬롯은 쓰지 않고, 확인 전이면 중립색이다. 라벨은 이름을 쓴다.
 import { useState, useRef, useEffect, useCallback, useMemo, type SetStateAction } from "react";
-import { View, Pressable, FlatList, StyleSheet, KeyboardAvoidingView, Platform, Animated, ActivityIndicator, Linking, AppState } from "react-native";
+import { View, Pressable, FlatList, ScrollView, StyleSheet, KeyboardAvoidingView, Platform, Animated, ActivityIndicator, Linking, AppState } from "react-native";
 import { Text, TextInput } from "@/components/ui/AppText";
 import { buildMobileSiteUrl, resolveMobileSiteOrigin } from "@/lib/siteUrl.mjs";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -13,7 +13,7 @@ import { amoraIdentity, chatPalette, colors } from "@hanbang/design-tokens";
 import AmoraMark from "@/components/ui/AmoraMark";
 import AmoraAvatar from "@/components/ui/AmoraAvatar";
 import ProfileAvatar from "@/components/ui/ProfileAvatar";
-import { apiFetchForExpectedUserQuiet } from "@/lib/api";
+import { apiFetchForExpectedUser, apiFetchForExpectedUserQuiet } from "@/lib/api";
 import {
   EMPTY_CHAT_PARTICIPANT_PRESENTATION,
   chatSenderAvatarName,
@@ -46,6 +46,9 @@ import {
 } from "@/lib/amoraPreparationSource";
 import { supabase } from "@/lib/supabase";
 import {
+  AMORA_CHANGE_REVIEW_COPY,
+  AMORA_SHARED_PLAN_PARTNER_NOTICE,
+  SHARED_PLAN_TOOLS,
   buildAmoraActionConfirmationOutcomes,
   getAmoraPendingActionApplicationState,
   buildAmoraConversationRecap,
@@ -68,6 +71,33 @@ import {
   getAmoraChatEntryPrefill,
 } from "@/lib/amoraChatEntry";
 import { createChatSessionGenerationGuard } from "@/lib/chatSessionGeneration";
+import {
+  AMORA_MEMORY_OFF_COPY,
+  AMORA_MEMORY_ON_COPY,
+  AMORA_MEMORY_SETTINGS_LINK,
+  formatAmoraQuotaNotice,
+  readAmoraMemoryStatus,
+  resolveAmoraMemoryLine,
+  type AmoraMemoryStatus,
+} from "@/lib/amoraChatNotices";
+import {
+  AMORA_FOLLOW_UP_LABEL,
+  followUpsAfterIncomingMessage,
+  laneInputAfterFailedSend,
+  laneInputForRetry,
+  normalizeAmoraFollowUpSuggestions,
+  visibleAmoraFollowUps,
+  type AmoraDraftOrigin,
+  type AmoraFollowUpSuggestions,
+} from "@/lib/amoraFollowUpSuggestions";
+import {
+  getChatClearRequestRole,
+  readChatClearRequest,
+  respondToChatClearRequest,
+  type ChatClearRequestAction,
+  type ChatClearRequestResult,
+} from "@/lib/chatClearRequest";
+import { ChatClearRequestCard } from "@/components/chat/ChatClearRequestCard";
 import {
   AMORA_QUEUED_CARD_SKIP_TEXT,
   CARRIED_PENDING_ACTION_LABEL,
@@ -105,6 +135,7 @@ import { AmoraMessageBody } from "@/components/chat/AmoraMessageBody";
 import { ToolResultCard } from "@/components/chat/ToolResultCard";
 import { PersonalActionSave } from "@/components/chat/PersonalActionSave";
 import { AmoraConversationRecap } from "@/components/chat/AmoraConversationRecap";
+import { AmoraChangeReviewSheet } from "@/components/chat/AmoraChangeReviewSheet";
 import { personalActionContinuation } from "@/lib/personalActionContinuation";
 import {
   dedupeToolResultCards,
@@ -221,6 +252,8 @@ interface AiDraft {
   confirmedActionId?: string;
   amoraSourceMessageId?: string;
   preparationSource?: string;
+  /** 추천 대화 칩에서 보낸 문장이면 `follow_up`. 실패·다시 보내기가 입력창의 초안을 덮지 않게 한다. */
+  origin?: AmoraDraftOrigin;
 }
 
 interface AiMessageIngestExpected {
@@ -536,6 +569,7 @@ type ChatStreamEvent = {
   metadata?: unknown;
   delta?: { text?: unknown };
   result?: unknown;
+  suggestions?: unknown;
 };
 
 type ChatStreamState = {
@@ -544,6 +578,8 @@ type ChatStreamState = {
   error: boolean;
   toolResults: ToolExecutionResult[];
   metadata: ChatMessageMetadata | null;
+  /** 서버가 답 끝에 보낸 후속 질문 원본. 모양 검사는 `normalizeAmoraFollowUpSuggestions` 가 한다. */
+  suggestions: unknown;
   failure: {
     serverCode: string | null;
     retryable: boolean;
@@ -555,6 +591,8 @@ interface ChatStreamCompletion {
   text: string;
   toolResults: ToolExecutionResult[];
   metadata: ChatMessageMetadata | null;
+  /** 답 끝의 후속 질문(`suggestions` 사건) 원본. 끝까지 성공한 답에서만 채워진다. */
+  suggestions?: unknown;
 }
 
 type AmoraSharedActionMethod = "GET" | "POST" | "DELETE" | "PUT";
@@ -1126,6 +1164,7 @@ function createChatStreamParser(
     error: false,
     toolResults: [],
     metadata: null,
+    suggestions: null,
     failure: null,
   };
   let buffer = "";
@@ -1164,6 +1203,12 @@ function createChatStreamParser(
           ) {
             onQuota(event.remaining);
           }
+          return;
+        }
+        // 답 끝의 후속 질문. 예전에는 모르는 사건으로 버려져 앱에 칩이 한 번도 뜨지 않았다(2026-09-18).
+        // 본문이 아니므로 화면 글자에 섞지 않고 따로 들고 있다가 답이 끝나면 넘긴다.
+        if (event.type === "suggestions") {
+          if (!state.error) state.suggestions = event.suggestions ?? null;
           return;
         }
         if (
@@ -1243,7 +1288,12 @@ function createChatStreamParser(
     };
   }
 
-  return { push, finish, getToolResults, getMetadata };
+  // 실패한 답의 후속 질문은 넘기지 않는다.
+  function getSuggestions(): unknown {
+    return state.error ? null : state.suggestions;
+  }
+
+  return { push, finish, getToolResults, getMetadata, getSuggestions };
 }
 
 function applyChatStreamUpdate(
@@ -1472,6 +1522,7 @@ function streamChatWithXhr(
           text: finalText,
           toolResults,
           metadata: parser.getMetadata(),
+          suggestions: parser.getSuggestions(),
         });
       } catch (error) {
         rejectOnce(error instanceof ChatTransportError ? error : new ChatTransportError("STREAM"));
@@ -1989,6 +2040,8 @@ export default function ChatScreen() {
     AmoraChatLaneRecord<ColdStartAiRecovery | null>
   >(() => createEmptyAmoraChatLaneRecord(() => null));
   const [quotaRemaining, setQuotaRemaining] = useState<number | null>(null);
+  const [memoryStatus, setMemoryStatus] = useState<AmoraMemoryStatus | null>(null);
+  const [followUpSuggestions, setFollowUpSuggestions] = useState<AmoraFollowUpSuggestions | null>(null);
   const [nowMs, setNowMs] = useState(() => Date.now());
   // "지금은 적용하지 않기" 로 치운 카드는 **메시지 id** 로 기억한다(웹 ChatContent 와 같다).
   // actionId 로 기억하면 서버가 같은 카드를 새 답변에 다시 붙여도 계속 숨어 있어, 그 뒤의
@@ -1997,6 +2050,8 @@ export default function ChatScreen() {
     () => new Set(),
   );
   const [applyingPendingActionId, setApplyingPendingActionId] = useState<string | null>(null);
+  // 열려 있는 「내용 확인하기」 창. `메시지 id:actionId:inputDigest` 로 한 제안에 묶인다.
+  const [reviewingPendingActionKey, setReviewingPendingActionKey] = useState<string | null>(null);
   const [pendingActionNotice, setPendingActionNotice] = useState<{
     actionId: string;
     message: string;
@@ -2261,6 +2316,43 @@ export default function ChatScreen() {
   useFocusEffect(useCallback(() => {
     participantPresentationLoadRef.current?.();
   }, []));
+
+  // 이 탭의 대화가 장기 기억으로 정리되는지 한 줄로 알린다 — 웹 채팅과 같은 줄이다(2026-09-18).
+  // 설정 화면이 쓰는 GET /api/amora/memory 를 읽기만 한다. 켜고 끄는 판정·저장은 건드리지 않는다.
+  // 표시용이라 401 이어도 전역 「세션 만료」를 띄우지 않고, 못 읽으면 줄을 그리지 않는다.
+  // 설정에서 켜고 돌아오면(화면 포커스) 다시 읽는다.
+  const memoryStatusLoadRef = useRef<(() => void) | null>(null);
+  useEffect(() => {
+    if (!initialLoaded || !userId || !coupleId || chatLoadError) return;
+    const generation = chatSessionGenerationRef.current.current();
+    let active = true;
+    let inFlight = false;
+    const isCurrent = () => active && mountedRef.current && chatSessionGenerationRef.current.isCurrent(generation);
+    const load = async () => {
+      if (inFlight) return;
+      inFlight = true;
+      try {
+        const response = await apiFetchForExpectedUserQuiet(userId, "/api/amora/memory");
+        const payload: unknown = await response.json().catch(() => null);
+        if (!isCurrent()) return;
+        setMemoryStatus(response.ok ? readAmoraMemoryStatus(payload) : null);
+      } catch {
+        // 계정 전환·연결 오류. 틀린 상태를 말하느니 줄을 그리지 않는다.
+        if (isCurrent()) setMemoryStatus(null);
+      } finally {
+        inFlight = false;
+      }
+    };
+    memoryStatusLoadRef.current = () => { void load(); };
+    void load();
+    return () => {
+      active = false;
+      memoryStatusLoadRef.current = null;
+    };
+  }, [chatLoadError, coupleId, initialLoaded, userId]);
+  useFocusEffect(useCallback(() => {
+    memoryStatusLoadRef.current?.();
+  }, []));
   const activeW5PersistenceState = useMemo<{
     rawDisclosurePersisted: boolean | null;
     persistence: RawDisclosurePersistence;
@@ -2362,8 +2454,11 @@ export default function ChatScreen() {
     setSendFailuresByLane(createEmptyAmoraChatLaneRecord(() => null));
     setColdStartAiRecoveryByLane(createEmptyAmoraChatLaneRecord(() => null));
     setQuotaRemaining(null);
+    setMemoryStatus(null);
+    setFollowUpSuggestions(null);
     setDismissedPendingMessageIds(new Set());
     setApplyingPendingActionId(null);
+    setReviewingPendingActionKey(null);
     setPendingActionNotice(null);
     setPendingActionApproval(null);
     setPartnerSafetyNotice(null);
@@ -2849,6 +2944,14 @@ export default function ChatScreen() {
             });
           }
           const lane = aiLaneForVisibility(incoming.visibility);
+          // 같은 칸에 새 질문이 오면(예: 상대가 웹에서 함께 대화로 물었다) 내 칩은 지금 대화의 다음
+          // 질문이 아니다 — 거둔다. 아모라 답·두 사람끼리의 말·칩을 만든 그 질문은 예외다(웹과 같다).
+          setFollowUpSuggestions((current) => followUpsAfterIncomingMessage(current, {
+            id: incoming.id,
+            senderType: incoming.sender_type,
+            target: incomingMetadata?.target,
+            lane: aiLaneForVisibility(incoming.visibility),
+          }));
           setColdStartAiRecoveryByLane((current) => {
             const recovery = current[lane];
             if (!recovery) return current;
@@ -3241,6 +3344,8 @@ export default function ChatScreen() {
     }
     setLaneFailure(request.lane, null);
     setQuotaRemaining(null);
+    // 이전 답의 후속 질문은 새 답이 시작되면 거둔다(웹도 보낼 때 비운다).
+    setFollowUpSuggestions(null);
     setStreaming(true);
     setMessages((previous) => {
       const hasPersistedAnswer = previous.some((message) =>
@@ -3349,6 +3454,13 @@ export default function ChatScreen() {
           request.body.coupleId,
           userRole,
         ));
+        // 답이 끝까지 성공한 뒤에만 후속 질문 칩을 그 칸에 둔다. 위기 안내 답에는 두지 않는다.
+        const followUps = crisisBoundCompletion.metadata?.response_origin === "deterministic_crisis_safety"
+          ? []
+          : normalizeAmoraFollowUpSuggestions(completion.suggestions);
+        setFollowUpSuggestions(followUps.length > 0
+          ? { lane: request.lane, items: followUps, answersMessageId: request.body.userMessageId }
+          : null);
         scrollToLatest(true);
       }
     } catch (error) {
@@ -3599,6 +3711,12 @@ export default function ChatScreen() {
           canRetry,
           unavailableReason: canRetry ? null : NEW_CHAT_MESSAGE_REQUIRED_NOTICE,
         });
+        // 칩에서 보낸 문장은 입력창에 없다. 입력창이 비어 있을 때만 거기 둬 무엇이 실패했는지 보이게 한다.
+        setInputByLane((current) => updateAmoraChatLaneRecord(
+          current,
+          draft.sourceLane,
+          laneInputAfterFailedSend(current[draft.sourceLane], draft),
+        ));
         setStreaming(false);
       }
     }
@@ -3674,11 +3792,13 @@ export default function ChatScreen() {
         return;
       }
       if (failure.kind === "ai_insert") {
+        // 입력창에 다른 글(칩을 누르기 전에 쓰던 초안)이 있으면 덮지 않는다 — 덮으면 다시 보내기가
+        // 성공한 뒤 그 초안까지 지워진다.
         setInputByLane((current) => (
           updateAmoraChatLaneRecord(
             current,
             failure.draft.sourceLane,
-            failure.draft.text,
+            laneInputForRetry(current[failure.draft.sourceLane], failure.draft.text),
           )
         ));
         await sendAiDraft(failure.draft, true);
@@ -3690,8 +3810,9 @@ export default function ChatScreen() {
     }
   }
 
-  async function handleSend() {
-    const text = input.trim();
+  async function handleSend(textOverride?: string) {
+    // 추천 대화 칩은 그 문장만 보낸다. 입력창에 쓰던 초안은 그대로 둔다(웹 `sendToAmora` 와 같다).
+    const text = (textOverride ?? input).trim();
     const activeVisibility = chatVisibilityForScope(activeScope, userRole);
     if (
       !text
@@ -3705,6 +3826,8 @@ export default function ChatScreen() {
       || !activeVisibility
       || !activeLane
     ) return;
+    // 보내기를 시작하면 이전 답의 칩을 거둔다 — 상대에게 보낼 때·안전 안내로 멈출 때도(웹 `chatStore` 와 같다).
+    setFollowUpSuggestions(null);
     const crisisPreflight = planAmoraCrisisDelivery({
       userText: text,
       requestedVisibility: activeVisibility,
@@ -3820,12 +3943,14 @@ export default function ChatScreen() {
         senderType: userRole,
         senderName: userName,
         requestedVisibility: activeVisibility,
-        ...(effectiveVisibility === "shared" && preparationDraft
+        // 준비 안내 출처는 입력창의 그 초안에만 묶여 있다 — 칩 문장에는 붙이지 않는다.
+        ...(textOverride === undefined && effectiveVisibility === "shared" && preparationDraft
           && preparationContextMatches(preparationDraft.context, { ...preparationContextRef.current, busy: false, generation: sessionGeneration })
           ? { preparationSource: preparationDraft.source } : {}),
         visibility: effectiveVisibility,
         providerAttachmentCount: 0,
         sessionGeneration,
+        origin: textOverride === undefined ? "composer" : "follow_up",
       }, false);
     } finally {
       if (isCurrentChatSession(sessionGeneration)) sendingRef.current = false;
@@ -3873,6 +3998,15 @@ export default function ChatScreen() {
     });
   }
 
+  /**
+   * 답 뒤 후속 질문 칩을 누르면 그 문장을 아모라에게 바로 보낸다 — 웹 「추천 대화」와 같다.
+   * 칩은 아모라에게 말하는 칸에만 그려지지만, 상대 칸으로 바뀐 뒤 늦게 눌린 경우도 여기서 막는다.
+   */
+  async function handleFollowUpSuggestion(text: string) {
+    if (streaming || sendingRef.current || target !== "ai") return;
+    await handleSend(text);
+  }
+
   async function handleApplyPendingAction(actionId: string) {
     if (
       streaming
@@ -3896,6 +4030,9 @@ export default function ChatScreen() {
       || approvalPolicy === "blocked"
       || getPendingActionDisabledReason(action, Date.now(), true, false) !== null
     ) return;
+    // 반영은 그 제안의 「내용 확인하기」 창에서 확인 버튼을 눌렀을 때만 시작한다(2026-09-18).
+    // 아모라는 사용자가 무엇이 바뀌는지 읽고 확인하기 전에는 아무것도 바꾸지 않는다.
+    if (reviewingPendingActionKey !== `${latestSharedMessage.id}:${action.actionId}:${action.inputDigest}`) return;
 
     sendingRef.current = true;
     applyingPendingActionRef.current = actionId;
@@ -3951,6 +4088,9 @@ export default function ChatScreen() {
         });
         return;
       }
+      // 반영 순서를 얻었다. 창을 닫고, 결과는 기존 채팅 흐름이 알린다 — 순서를 얻은 것을
+      // 반영 성공으로 말하지 않는다(웹 카드와 같다).
+      setReviewingPendingActionKey(null);
       const content = "좋아요. 제안한 변경을 적용해 주세요.";
       await sendAiDraft({
         text: content,
@@ -4257,11 +4397,19 @@ export default function ChatScreen() {
         !matchingApproval
         || (matchingApproval.status === null && matchingApproval.error === null)
       );
+    // 공유 계획을 바꾸는 제안이고 상대가 연결돼 있으면, 확인하는 순간 상대에게 알림이 간다는 것을
+    // 먼저 말한다(웹 카드와 같다). 혼자일 때는 없는 사람에 대한 약속이라 붙이지 않는다.
+    const pendingActionNotifiesPartner = pendingAction !== null
+      && approvalPolicy === "single"
+      && SHARED_PLAN_TOOLS.has(pendingAction.tool)
+      && hasLinkedPartner;
     const approvalCopy = requiresCoupleApproval
       ? matchingApproval?.error ?? approvalPresentation.copy
       : approvalPolicy === "blocked"
         ? "이 변경은 안전 정책상 모바일에서 바로 반영할 수 없어요. 아모라에게 최신 제안을 다시 요청해 주세요."
-        : null;
+        : pendingActionNotifiesPartner
+          ? AMORA_SHARED_PLAN_PARTNER_NOTICE
+          : null;
     const approvalMutation = matchingApproval?.mutation ?? null;
     const pendingActionControlDisabled = pendingActionDisabledReason !== null
       || approvalPolicy === "blocked"
@@ -4300,6 +4448,42 @@ export default function ChatScreen() {
         ? "이 공동 변경을 확인하고 바로 반영"
         : "이 공동 변경을 확인"
       : "확인한 내용을 이대로 적용";
+    const pendingActionStatusCopy = pendingActionDisabledReason === null
+      ? null
+      : pendingActionDisabledReason === "applied"
+        ? "이 제안은 적용됐어요."
+        : pendingActionDisabledReason === "expired"
+          ? "안전을 위해 확인 시간이 지났어요. 아모라에게 다시 제안해 달라고 해주세요."
+          : pendingActionMovedToLatest
+            ? "같은 제안이 아래 최신 답변으로 옮겨졌어요. 그 카드에서 확인할 수 있어요."
+            : pendingActionDisabledReason === "not_latest"
+              ? "새 대화가 이어져 이 제안은 적용할 수 없어요. 최신 내용으로 다시 확인해 주세요."
+              : "현재 답변이 끝나면 다시 확인할 수 있어요.";
+    // 「내용 확인하기」 창 (2026-09-18). 카드는 이 창을 열기만 하고, 반영은 창의 확인 버튼에서만
+    // 시작된다. 창은 이 메시지·이 제안·이 입력(inputDigest)에 묶인다 — 같은 actionId 라도 입력이 다르면
+    // 다른 제안이다. 적용됐거나 아래 최신 답변으로 옮겨진 카드에서는 열어 두지 않는다(웹과 같다).
+    const pendingActionReviewKey = pendingAction
+      ? `${item.id}:${pendingAction.actionId}:${pendingAction.inputDigest}`
+      : null;
+    // "지금은 적용하지 않기" — 카드의 버튼과 확인 시트의 미루기가 같은 일을 한다. 지금 보이는 같은
+    // 제안만 미룬다. 새 답변으로 다시 받은 카드는 원래 actionId 를 유지해도 확인할 수 있어야
+    // 한다(웹 ChatContent 와 같다). 그래서 actionId 가 아니라 그 제안을 실은 메시지 id 를 적는다.
+    const deferVisiblePendingAction = (actionId: string) => setDismissedPendingMessageIds((current) => {
+      const next = new Set(current);
+      for (const message of messages) {
+        if (getPendingAmoraAction(message)?.actionId === actionId) next.add(message.id);
+      }
+      return next;
+    });
+    const pendingActionReviewOpen = pendingActionReviewKey !== null
+      && reviewingPendingActionKey === pendingActionReviewKey
+      && pendingActionDisabledReason !== "applied"
+      && !pendingActionMovedToLatest;
+    const pendingActionBusy = pendingAction !== null
+      && (applyingPendingActionId === pendingAction.actionId || approvalMutation !== null);
+    const pendingActionCardNotice = pendingAction && pendingActionNotice?.actionId === pendingAction.actionId
+      ? pendingActionNotice.message
+      : null;
     // 웹 ChatBubble 과 같은 규칙: 신랑으로 확인 → 하늘색, 신부로 확인 → 분홍, 아모라 → 아모라 색,
     // 확인 전·누구인지 모름 → 중립 베이지. 색과 글자색은 design-tokens chatPalette 한 벌이다.
     const senderPresentation = resolveChatSenderPresentation({
@@ -4437,18 +4621,10 @@ export default function ChatScreen() {
                   </Text>
                 </View>
               )}
-              {pendingActionDisabledReason && (
+              {pendingActionStatusCopy && (
                 <Text style={st.pendingActionStatus} accessibilityLiveRegion="polite">
-                  {pendingActionDisabledReason === "applied"
-                    ? "이 제안은 적용됐어요."
-                    : pendingActionDisabledReason === "expired"
-                    ? "안전을 위해 확인 시간이 지났어요. 아모라에게 다시 제안해 달라고 해주세요."
-                    : pendingActionMovedToLatest
-                      ? "같은 제안이 아래 최신 답변으로 옮겨졌어요. 그 카드에서 확인할 수 있어요."
-                    : pendingActionDisabledReason === "not_latest"
-                      ? "새 대화가 이어져 이 제안은 적용할 수 없어요. 최신 내용으로 다시 확인해 주세요."
-                      : "현재 답변이 끝나면 다시 확인할 수 있어요."}
-                  </Text>
+                  {pendingActionStatusCopy}
+                </Text>
               )}
               {approvalCopy && !pendingActionMovedToLatest && (
                 <View
@@ -4470,33 +4646,39 @@ export default function ChatScreen() {
                   </Text>
                 </View>
               )}
-              {pendingActionNotice?.actionId === pendingAction.actionId && !pendingActionMovedToLatest && (
+              {pendingActionCardNotice && !pendingActionMovedToLatest && (
                 <Text style={st.pendingActionStatus} accessibilityLiveRegion="polite">
-                  {pendingActionNotice.message}
+                  {pendingActionCardNotice}
                 </Text>
               )}
               {!pendingActionMovedToLatest && (
               <View style={st.pendingActionControls}>
+                {/* 카드의 첫 버튼은 반영하지 않는다 — 「내용 확인하기」 창을 열 뿐이다(2026-09-18).
+                    예전에는 「이대로 적용」 한 번으로 바로 반영됐다. 반영은 창의 확인 버튼에서만 시작된다. */}
                 <Pressable
                   style={({ pressed }) => [
                     st.pendingActionButton,
-                    pressed && !pendingActionControlDisabled && { opacity: 0.82 },
+                    pressed && !pendingActionControlDisabled && st.pendingActionButtonPressed,
                     pendingActionControlDisabled && st.pendingActionButtonDisabled,
                   ]}
-                  onPress={() => handleApplyPendingAction(pendingAction.actionId)}
+                  onPress={() => setReviewingPendingActionKey(pendingActionReviewKey)}
                   disabled={pendingActionControlDisabled}
                   accessibilityRole="button"
-                  accessibilityLabel={applyAccessibilityLabel}
-                  accessibilityState={{ disabled: pendingActionControlDisabled }}
+                  accessibilityLabel={AMORA_CHANGE_REVIEW_COPY.openAccessibilityLabel}
+                  accessibilityState={{ disabled: pendingActionControlDisabled, expanded: pendingActionReviewOpen }}
                 >
                   {applyingPendingActionId === pendingAction.actionId
                   || approvalMutation === "confirm"
                   || approvalLoading ? (
-                    <ActivityIndicator size="small" color="#FFF" />
+                    <ActivityIndicator size="small" color={colors.surface} />
                   ) : (
-                    <Check size={16} color="#FFF" />
+                    <Check size={16} color={colors.surface} />
                   )}
-                  <Text style={st.pendingActionButtonText}>{applyLabel}</Text>
+                  <Text style={st.pendingActionButtonText}>
+                    {pendingActionBusy || approvalLoading || approvalPresentation.waitingForPartner
+                      ? applyLabel
+                      : AMORA_CHANGE_REVIEW_COPY.openLabel}
+                  </Text>
                 </Pressable>
                 {canWithdrawApproval && (
                   <Pressable
@@ -4514,15 +4696,7 @@ export default function ChatScreen() {
                 )}
                 <Pressable
                   style={({ pressed }) => [st.pendingActionDismiss, pressed && { opacity: 0.72 }]}
-                  onPress={() => setDismissedPendingMessageIds((current) => {
-                    const next = new Set(current);
-                    // 지금 보이는 같은 제안만 미룬다. 새 답변으로 다시 받은 카드는 원래 actionId 를
-                    // 유지해도 확인할 수 있어야 한다(웹 ChatContent 와 같다).
-                    for (const message of messages) {
-                      if (getPendingAmoraAction(message)?.actionId === pendingAction.actionId) next.add(message.id);
-                    }
-                    return next;
-                  })}
+                  onPress={() => deferVisiblePendingAction(pendingAction.actionId)}
                   disabled={applyingPendingActionId === pendingAction.actionId}
                   accessibilityRole="button"
                   accessibilityLabel="지금은 적용하지 않기"
@@ -4554,6 +4728,36 @@ export default function ChatScreen() {
                 )}
               </View>
               )}
+              {pendingActionReviewOpen && (
+                <AmoraChangeReviewSheet
+                  visible
+                  confirmation={pendingAction.confirmation}
+                  tool={pendingAction.tool}
+                  impactPreview={impactPreview}
+                  carriedLabel={pendingActionIsCarriedForward ? CARRIED_PENDING_ACTION_LABEL : null}
+                  disabled={pendingActionControlDisabled}
+                  busy={pendingActionBusy}
+                  applyLabel={applyLabel}
+                  applyAccessibilityLabel={applyAccessibilityLabel}
+                  notice={pendingActionStatusCopy ?? pendingActionCardNotice ?? approvalCopy}
+                  error={matchingApproval?.error ?? null}
+                  onConfirm={() => handleApplyPendingAction(pendingAction.actionId)}
+                  onClose={() => setReviewingPendingActionKey(null)}
+                  onDefer={() => {
+                    setReviewingPendingActionKey(null);
+                    deferVisiblePendingAction(pendingAction.actionId);
+                  }}
+                >
+                  {impactPreview && <BudgetImpactDetails preview={impactPreview} />}
+                  {pendingActionIsPastDated && (
+                    <View style={[st.pendingActionApprovalStatus, st.pendingActionApprovalError, st.pendingActionSheetNotice]}>
+                      <Text style={[st.pendingActionApprovalText, st.pendingActionApprovalErrorText]}>
+                        {PAST_SCHEDULE_DATE_NOTICE}
+                      </Text>
+                    </View>
+                  )}
+                </AmoraChangeReviewSheet>
+              )}
             </View>
           )}
         </View>
@@ -4561,7 +4765,50 @@ export default function ChatScreen() {
     );
   }
 
+  /**
+   * 받은 「함께 새로 시작」 요청에 답한다. 누른 사람에 결박된 인증 요청으로 보내고(계정이 바뀌는
+   * 중이면 보내지 않는다), 서버가 확인한 결과만 돌려준다. 동의는 메시지를 지우지 않고 두 사람의 공유
+   * 화면 경계를 옮긴다 — 기존 범위 재확인 경로가 경계가 움직인 것을 보고 대화를 다시 불러온다.
+   */
+  async function handleClearRequestResponse(
+    messageId: string,
+    action: ChatClearRequestAction,
+  ): Promise<ChatClearRequestResult> {
+    const actorId = userId;
+    const generation = chatSessionGenerationRef.current.current();
+    if (!actorId || !isCurrentChatSession(generation)) {
+      return { ok: false, error: "대화 상태를 확인하고 있어요. 잠시 후 다시 눌러 주세요." };
+    }
+    const result = await respondToChatClearRequest(
+      (path, init) => apiFetchForExpectedUser(actorId, path, init),
+      messageId,
+      action,
+    );
+    if (result.ok && action === "accept" && isCurrentChatSession(generation)) {
+      void refreshChatSessionRef.current?.();
+    }
+    return result;
+  }
+
+  // 목록의 한 줄. 「함께 새로 시작」 요청은 글 한 줄이 아니라 동의 카드로 그린다(웹과 같다).
+  function renderChatRow({ item }: { item: ChatMessage }) {
+    const clearRequest = readChatClearRequest(item);
+    const clearRequestRole = clearRequest ? getChatClearRequestRole(clearRequest, userId) : null;
+    if (clearRequest && clearRequestRole) {
+      return (
+        <ChatClearRequestCard
+          request={clearRequest}
+          role={clearRequestRole}
+          onRespond={(action) => handleClearRequestResponse(item.id, action)}
+        />
+      );
+    }
+    return renderMessage({ item });
+  }
+
   const isP = activeScope === "shared" && target === "partner";
+  const memoryLine = resolveAmoraMemoryLine(memoryStatus, activeScope, userRole);
+  const visibleFollowUps = visibleAmoraFollowUps(followUpSuggestions, { activeLane, streaming });
 
   return (
     <SafeAreaView style={st.container} edges={["top"]}>
@@ -4639,6 +4886,27 @@ export default function ChatScreen() {
               ? "현재 범위 · 함께 대화 — 파트너에게 보여요"
               : "현재 범위 · 함께 대화 — 파트너 연결 후 함께 볼 수 있어요"}
         </Text>
+        {/* 이 탭의 기억 상태 한 줄. 못 읽었으면 그리지 않는다. 안전 안내가 떠 있는 동안에는
+            "정리돼요"가 그 내용까지 기억된다는 뜻으로 읽히지 않도록 감춘다. */}
+        {!hasActiveW5SafetyCard && memoryLine && (
+          <View style={st.memoryStatus}>
+            <Text style={st.memoryStatusText}>
+              {memoryLine.kind === "on"
+                ? AMORA_MEMORY_ON_COPY
+                : `${AMORA_MEMORY_OFF_COPY}${memoryLine.canEnable ? " · " : ""}`}
+            </Text>
+            {memoryLine.kind === "off" && memoryLine.canEnable && (
+              <Pressable
+                onPress={() => router.push("/settings/amora-memory")}
+                accessibilityRole="link"
+                accessibilityLabel="아모라 기억 설정에서 켜기"
+                hitSlop={{ top: 14, bottom: 14, left: 8, right: 8 }}
+              >
+                <Text style={st.memoryStatusLink}>{AMORA_MEMORY_SETTINGS_LINK}</Text>
+              </Pressable>
+            )}
+          </View>
+        )}
       </View>
 
       {activeScope === "shared" && (
@@ -4652,7 +4920,7 @@ export default function ChatScreen() {
 
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : undefined}>
         {initialLoaded && !chatLoadError && !!userRole && !isP && <AmoraConversationRecap
-          key={`${userId}:${coupleId}:${activeScope}`} recap={conversationRecap} scopeLabel={activeScope === "private" ? "나만 상담" : "함께 대화"} disabled={streaming}
+          key={`${userId}:${coupleId}:${activeScope}`} recap={conversationRecap} scope={activeScope} scopeLabel={activeScope === "private" ? "나만 상담" : "함께 대화"} disabled={streaming}
           onPrefill={text => {
             if (streaming || sendingRef.current || !activeLane || inputByLaneRef.current[activeLane].trim()) return false;
             setInputByLane(current => current[activeLane].trim() ? current : updateAmoraChatLaneRecord(current, activeLane, text));
@@ -4686,7 +4954,7 @@ export default function ChatScreen() {
             )}
           </View>
         ) : (
-          <FlatList ref={flatListRef} data={visibleMessages} inverted keyExtractor={(m) => m.id} renderItem={renderMessage} contentContainerStyle={st.messageList} keyboardDismissMode="on-drag" keyboardShouldPersistTaps="handled" removeClippedSubviews={Platform.OS === "android"} maxToRenderPerBatch={10} windowSize={5} initialNumToRender={12} />
+          <FlatList ref={flatListRef} data={visibleMessages} inverted keyExtractor={(m) => m.id} renderItem={renderChatRow} contentContainerStyle={st.messageList} keyboardDismissMode="on-drag" keyboardShouldPersistTaps="handled" removeClippedSubviews={Platform.OS === "android"} maxToRenderPerBatch={10} windowSize={5} initialNumToRender={12} />
         )}
 
         {/* 아모라의 첫마디만 놓여 있고 아직 오간 말이 없을 때. 화면은 비어 있지 않지만
@@ -4698,9 +4966,7 @@ export default function ChatScreen() {
         {!hasActiveW5SafetyCard && quotaRemaining !== null && !streaming && (
           <View style={st.quotaBar} accessibilityLiveRegion="polite">
             <Text style={st.quotaText}>
-              {quotaRemaining > 0
-                ? `무료 상담이 ${quotaRemaining}회 남았어요.`
-                : "무료 상담을 모두 사용했어요."}
+              {formatAmoraQuotaNotice(quotaRemaining)}
             </Text>
             <Pressable
               style={({ pressed }) => [st.quotaDismiss, pressed && { opacity: 0.62 }]}
@@ -4741,9 +5007,11 @@ export default function ChatScreen() {
           <View style={st.failureBar} accessibilityLiveRegion="polite">
             <Text style={st.failureText}>
               {activeColdStartAiRecovery.disposition === "reattach_required"
+                // 앱에는 첨부를 고르는 곳이 없다. 할 수 없는 일("첨부파일을 다시 선택해")을 시키지 않고
+                // 앱에서 할 수 있는 길만 말한다(2026-09-18).
                 ? activeColdStartAiRecovery.providerAttachmentState === "present"
-                  ? "첨부파일이 포함된 질문이에요. 첨부파일을 다시 선택해 새 메시지로 보내 주세요."
-                  : "이 질문의 첨부 상태를 확인할 수 없어요. 첨부파일을 다시 선택해 새 메시지로 보내 주세요."
+                  ? "첨부파일이 포함된 질문이라 앱에서는 답변을 이어받을 수 없어요. 필요한 내용을 글로 적어 새 메시지로 보내 주세요."
+                  : "이 질문의 첨부 상태를 확인할 수 없어요. 필요한 내용을 글로 적어 새 메시지로 보내 주세요."
                 : "저장된 질문의 아모라 답변을 이어받을 수 있어요."}
             </Text>
             {activeColdStartAiRecovery.disposition === "resumable" && (
@@ -4795,10 +5063,35 @@ export default function ChatScreen() {
           </View>
         )}
 
+        {/* 답 뒤 후속 질문 — 웹 「추천 대화」. 아모라에게 말하는 칸에서만, 실패·안전 안내가 떠 있지 않을 때만. */}
+        {visibleFollowUps.length > 0 && !isP && !hasActiveW5SafetyCard && !activeSendFailure && (
+          <View style={st.followUps} accessibilityLabel={AMORA_FOLLOW_UP_LABEL}>
+            <View style={st.followUpsHeading} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
+              <AmoraMark size={12} color={amoraIdentity.ink} />
+              <Text style={st.followUpsLabel}>{AMORA_FOLLOW_UP_LABEL}</Text>
+            </View>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentContainerStyle={st.followUpsRow}>
+              {visibleFollowUps.map((suggestion) => (
+                <Pressable
+                  key={suggestion}
+                  style={({ pressed }) => [st.followUpChip, pressed && st.followUpChipPressed]}
+                  onPress={() => { void handleFollowUpSuggestion(suggestion); }}
+                  disabled={streaming}
+                  accessibilityRole="button"
+                  accessibilityLabel={`${suggestion}, 아모라에게 보내기`}
+                  accessibilityState={{ disabled: streaming }}
+                >
+                  <Text style={st.followUpChipText} numberOfLines={2}>{suggestion}</Text>
+                </Pressable>
+              ))}
+            </ScrollView>
+          </View>
+        )}
+
         <View style={[st.inputBar, isP && { borderTopColor: colors.rose.light }]}>
           <TextInput style={st.input} value={input} onChangeText={handleInputChange} placeholder={isP ? `${partnerName ?? "파트너"}에게 메시지...` : activeScope === "private" ? "나만의 상담을 입력하세요..." : "메시지를 입력하세요..."} placeholderTextColor={colors.taupe[400]} multiline maxLength={4000} editable={!streaming && initialLoaded && !chatLoadError} returnKeyType="send" accessibilityLabel="메시지 입력" />
           <Animated.View style={{ transform: [{ scale: sendBtnScale }] }}>
-            <Pressable style={[st.sendBtn, isP && { backgroundColor: colors.rose[500] }, (!input.trim() || streaming || !initialLoaded || Boolean(chatLoadError)) && st.sendBtnOff]} onPress={handleSend} onPressIn={pressIn} onPressOut={pressOut} disabled={!input.trim() || streaming || !initialLoaded || Boolean(chatLoadError)} accessibilityLabel="메시지 보내기" accessibilityRole="button">
+            <Pressable style={[st.sendBtn, isP && { backgroundColor: colors.rose[500] }, (!input.trim() || streaming || !initialLoaded || Boolean(chatLoadError)) && st.sendBtnOff]} onPress={() => { void handleSend(); }} onPressIn={pressIn} onPressOut={pressOut} disabled={!input.trim() || streaming || !initialLoaded || Boolean(chatLoadError)} accessibilityLabel="메시지 보내기" accessibilityRole="button">
               {isP ? <Heart size={18} color="#FFF" /> : <Send size={18} color="#FFF" />}
             </Pressable>
           </Animated.View>
@@ -4842,6 +5135,9 @@ const st = StyleSheet.create({
   privateScopeTextActive: { color: "#5a6147", fontWeight: "600" },
   scopeStatus: { paddingHorizontal: 4, paddingTop: 6, fontSize: 11, lineHeight: 16, color: colors.rose[700] },
   privateScopeStatus: { color: "#5a6147" },
+  memoryStatus: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", paddingHorizontal: 4, paddingTop: 2 },
+  memoryStatusText: { fontSize: 11, lineHeight: 16, color: colors.textTertiary },
+  memoryStatusLink: { fontSize: 11, lineHeight: 16, fontWeight: "600", color: colors.rose[700], textDecorationLine: "underline" },
   targetRow: { flexDirection: "row", borderBottomWidth: 1, borderBottomColor: colors.border, backgroundColor: colors.surface },
   targetBtn: { flex: 1, minHeight: 44, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 10 },
   targetActive: { borderBottomWidth: 2, borderBottomColor: colors.noir[800] },
@@ -4896,7 +5192,10 @@ const st = StyleSheet.create({
   pendingActionApprovalText: { flex: 1, fontSize: 12, lineHeight: 18, color: "#2F5F51" },
   pendingActionApprovalErrorText: { color: "#8A3D31" },
   pendingActionControls: { marginTop: 12, gap: 8 },
-  pendingActionButton: { minHeight: 44, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingHorizontal: 14, paddingVertical: 10, borderRadius: 12, backgroundColor: "#2F5F51" },
+  // 누를 수 있는 주 채움은 디자인 토큰 rose[600], 눌림은 rose[700] (DESIGN.md 2026-09-16).
+  pendingActionButton: { minHeight: 44, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingHorizontal: 14, paddingVertical: 10, borderRadius: 12, backgroundColor: colors.rose[600] },
+  pendingActionButtonPressed: { backgroundColor: colors.rose[700] },
+  pendingActionSheetNotice: { marginTop: 0, marginBottom: 16 },
   pendingActionButtonDisabled: { backgroundColor: colors.taupe[400] },
   pendingActionButtonText: { fontSize: 14, fontWeight: "700", color: "#FFF" },
   pendingActionDismiss: { minHeight: 44, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingHorizontal: 14, paddingVertical: 10, borderRadius: 12, borderWidth: 1, borderColor: "#D8C7BB", backgroundColor: colors.surface },
@@ -4918,6 +5217,13 @@ const st = StyleSheet.create({
   failureText: { flex: 1, fontSize: 14, lineHeight: 20, color: colors.noir.soft },
   retryBtn: { minHeight: 44, justifyContent: "center", paddingHorizontal: 14, paddingVertical: 10, borderRadius: 12, backgroundColor: colors.noir[800] },
   retryText: { fontSize: 14, fontWeight: "600", color: colors.surface },
+  followUps: { paddingTop: 8, paddingBottom: 4, borderTopWidth: 1, borderTopColor: colors.border, backgroundColor: colors.surface },
+  followUpsHeading: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 16, marginBottom: 6 },
+  followUpsLabel: { fontSize: 12, fontWeight: "600", color: colors.textTertiary },
+  followUpsRow: { gap: 8, paddingHorizontal: 16, paddingBottom: 4 },
+  followUpChip: { minHeight: 44, maxWidth: 260, justifyContent: "center", paddingHorizontal: 14, paddingVertical: 8, borderRadius: 14, borderWidth: 1, borderColor: amoraIdentity.line, backgroundColor: amoraIdentity.surface },
+  followUpChipPressed: { backgroundColor: amoraIdentity.hover },
+  followUpChipText: { fontSize: 14, lineHeight: 20, color: amoraIdentity.ink },
   inputBar: { flexDirection: "row", alignItems: "flex-end", gap: 8, paddingHorizontal: 16, paddingVertical: 12, borderTopWidth: 1, borderTopColor: colors.border, backgroundColor: colors.surface },
   input: { flex: 1, minHeight: 44, maxHeight: 120, paddingHorizontal: 16, paddingVertical: 10, fontSize: 15, color: colors.noir[800], backgroundColor: colors.bg, borderRadius: 14, borderWidth: 1, borderColor: colors.border },
   sendBtn: { width: 44, height: 44, borderRadius: 16, backgroundColor: colors.rose[500], alignItems: "center", justifyContent: "center" },

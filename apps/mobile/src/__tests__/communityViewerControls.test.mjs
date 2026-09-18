@@ -8,6 +8,11 @@ const detail = readFileSync(
   resolve(appRoot, "app/community/post/[id].tsx"),
   "utf8",
 );
+// 답변·답글 한 줄은 이 컴포넌트가 그린다(신고 메뉴의 kind: "comment" 도 여기 있다).
+const commentItem = readFileSync(
+  resolve(appRoot, "src/components/community/CommunityCommentItem.tsx"),
+  "utf8",
+);
 const sheet = readFileSync(
   resolve(appRoot, "src/components/community/CommunitySafetySheet.tsx"),
   "utf8",
@@ -23,7 +28,8 @@ const profile = readFileSync(
 
 test("post and answer safety menus keep block and report as separate actions", () => {
   assert.match(detail, /kind: "post"/);
-  assert.match(detail, /kind: "comment"/);
+  assert.match(commentItem, /kind: "comment"/);
+  assert.match(detail, /onOpenSafetyMenu=\{openSafetyMenu\}/);
   assert.match(detail, /\/api\/community\/posts\/\$\{target\.contentId\}\/report/);
   assert.match(detail, /\/api\/community\/comments\/\$\{target\.contentId\}\/report/);
   assert.match(detail, /"\/api\/community\/blocks"/);
@@ -31,7 +37,8 @@ test("post and answer safety menus keep block and report as separate actions", (
   assert.match(detail, /body\.blocked !== true/);
   assert.match(detail, /typeof body\.changed !== "boolean"/);
   assert.match(detail, /clearCommunityCaches\(\)/);
-  assert.match(detail, /setComments\(\(current\) => current\.filter/);
+  // 답글이 화면에 나오면서 차단도 답글까지 숨긴다(communityCommentReplies.test.mjs).
+  assert.match(detail, /setComments\(\(current\) => hideCommunityCommentsByAuthor\(current, target\.userId\)\.comments\)/);
 
   assert.match(sheet, /차단은 내 보기·연락 설정이고, 신고는 운영 검토 요청이에요/);
   assert.match(sheet, /로그아웃한 공개 주소에서 계속 보일 수 있어요/);

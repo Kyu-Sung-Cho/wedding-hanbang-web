@@ -22,6 +22,12 @@ import { supabase } from "@/lib/supabase";
 import { apiFetchForExpectedUser } from "@/lib/api";
 import { toKoreanErrorMessage } from "@/lib/errorCopy";
 import {
+  BOOKING_RECORDS_EMPTY_STATE,
+  BOOKING_RECORDS_LOAD_ERROR_MESSAGE,
+  resolveBookingRecordsBody,
+} from "@/lib/bookingRecordsEntry";
+import ErrorRetry from "@/components/ErrorRetry";
+import {
   createOwnerCoupleSessionFence,
   type OwnerCoupleSessionToken,
 } from "@/lib/ownerCoupleSessionFence.mjs";
@@ -340,6 +346,8 @@ export default function BookingsScreen() {
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  // 마지막 불러오기가 실패했는가. 실패를 "기록이 없어요"로 보이지 않게 빈 상태와 가른다.
+  const [loadError, setLoadError] = useState(false);
   const [tab, setTab] = useState<TabKey>("all");
   const [sessionOwnerId, setSessionOwnerId] = useState<string | null>(null);
   const [coupleId, setCoupleId] = useState<string | null>(null);
@@ -355,6 +363,8 @@ export default function BookingsScreen() {
     setBookings([]);
     setSelectedBooking(null);
     setTab("all");
+    // 실패도 그 사람·그 커플의 것이다. 신원이 바뀌면 같이 비운다.
+    setLoadError(false);
     openedBookingIdRef.current = null;
   }, []);
 
@@ -396,11 +406,13 @@ export default function BookingsScreen() {
         return;
       }
 
-      const { data: profile } = await supabase
+      const { data: profile, error: profileError } = await supabase
         .from("profiles")
         .select("couple_id")
         .eq("id", ownerId)
         .single();
+      // 프로필을 못 읽은 것을 "커플 없음"으로 읽으면 기록이 있는 사람에게 빈 상태가 뜬다.
+      if (profileError) throw profileError;
       if (!(await isOwnerCurrent(sequence, ownerId))) return;
 
       if (!profile?.couple_id) {
@@ -441,12 +453,15 @@ export default function BookingsScreen() {
       }));
 
       setBookings(nextBookings);
+      setLoadError(false);
       setSelectedBooking((current) => (
         current ? nextBookings.find((booking) => booking.id === current.id) ?? null : current
       ));
     } catch (err) {
       if (loadSequenceRef.current === sequence) {
         console.error("Bookings load:", err);
+        // 이미 받은 기록은 치우지 않는다. 받은 것이 없으면 본문이 빈 상태 대신 다시 시도를 보인다.
+        setLoadError(true);
       }
     } finally {
       if (loadSequenceRef.current === sequence) {
@@ -565,6 +580,12 @@ export default function BookingsScreen() {
   }, [bookings]);
 
   const nextAction = summary.nextBooking ? getBookingAction(summary.nextBooking) : null;
+  // 빈 상태는 불러오기에 **성공했는데** 기록이 없을 때만이다. 이유는 `bookingRecordsEntry.ts`.
+  const recordsBody = resolveBookingRecordsBody({
+    loadError,
+    totalCount: bookings.length,
+    visibleCount: filtered.length,
+  });
 
   function handleOutcomeSaved(
     updated: BookingOutcomeResponse["booking"],
@@ -725,27 +746,37 @@ export default function BookingsScreen() {
           </FeatureSummarySurface>
         ) : null}
 
-        {filtered.length === 0 ? (
+        {recordsBody === "load-error" ? (
+          <ErrorRetry
+            message={BOOKING_RECORDS_LOAD_ERROR_MESSAGE}
+            onRetry={() => {
+              setLoading(true);
+              void loadData();
+            }}
+          />
+        ) : recordsBody === "empty" || recordsBody === "filtered-empty" ? (
           <EmptyState
             icon={
               <IconBadge tone="ivory" size={52}>
                 <CalendarCheck size={26} color={colors.taupe[500]} />
               </IconBadge>
             }
-            title={bookings.length === 0 ? "예약 요청 기록이 없어요" : "이 조건의 요청 기록이 없어요"}
+            title={recordsBody === "empty" ? BOOKING_RECORDS_EMPTY_STATE.title : "이 조건의 요청 기록이 없어요"}
+            // 새 요청은 2026-07-15부터 받지 않는다. 예전 안내("업체 상세에서 상담 날짜와 상품 후보를
+            // 고르면…")는 앱에 없는 길을 가리켰다 — 이유는 `bookingRecordsEntry.ts`에 있다.
             description={
-              bookings.length === 0
-                ? "업체 상세에서 상담 날짜와 상품 후보를 고르면 아모라 내부 기록이 여기에 모여요. 업체 전달·확정은 별도예요."
+              recordsBody === "empty"
+                ? BOOKING_RECORDS_EMPTY_STATE.description
                 : "다른 상태 탭을 눌러 아모라 요청 기록을 확인해 보세요."
             }
             action={
-              bookings.length === 0 ? (
+              recordsBody === "empty" ? (
                 <PrimaryButton
                   tone="ghost"
-                  icon={<Store size={18} color={colors.noir[800]} />}
+                  icon={<FileCheck2 size={18} color={colors.noir[800]} />}
                   onPress={() => router.push("/market-prices")}
                 >
-                  업체 탐색하기
+                  {BOOKING_RECORDS_EMPTY_STATE.actionLabel}
                 </PrimaryButton>
               ) : null
             }

@@ -9809,7 +9809,8 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
     expect((saved.metadata.pending_amora_action as { actionId?: string } | undefined)?.actionId).not.toBe(actionId);
     expect(saved.metadata.pending_amora_action_carry_count).toBeUndefined();
     expect(saved.content).not.toBe(AMORA_TYPED_CARD_ACCEPTANCE_REPLY);
-    expect(body).not.toContain("‘내용 확인하기’를 누른 뒤");
+    // 서버 고정 안내가 조금이라도 새어 나오지 않는다(문장이 바뀌어도 이 검사가 헛돌지 않게 상수로 본다).
+    expect(body).not.toContain(AMORA_TYPED_CARD_ACCEPTANCE_REPLY);
   });
 
   // 리뷰 [3]: 이월된 카드 아래에서 아모라가 새로 던진 질문에 "응" 이라고 답한 턴. 승낙어만 있는
@@ -9848,7 +9849,7 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
       expect((saved.metadata.pending_amora_action as { actionId?: string } | undefined)?.actionId).toBe(actionId);
     } else {
       expect(saved.content).not.toBe(AMORA_TYPED_CARD_ACCEPTANCE_REPLY);
-      expect(saved.content).not.toContain("‘내용 확인하기’를 누른 뒤");
+      expect(saved.content).not.toContain(AMORA_TYPED_CARD_ACCEPTANCE_REPLY);
       // 승낙으로 보지 않아도 이월 한도(2) 안이면 같은 카드는 따라온다 — 앞 버튼이 잠기지 않는다.
       expect((saved.metadata.pending_amora_action as { actionId?: string } | undefined)?.actionId).toBe(actionId);
       expect(saved.metadata.pending_amora_action_carry_count).toBe(carryCount + 1);

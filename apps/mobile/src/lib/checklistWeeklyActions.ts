@@ -43,6 +43,12 @@ export interface WeeklyActionCategoryState {
   items: readonly { id: string; label: string; done: boolean }[];
   skipped: boolean;
   percent: number;
+  /**
+   * 공유 규칙(`resolvePlanningChecklistStatus`)으로 읽은 상태가 완료인가. 온보딩·라운지·아모라가
+   * 분야 단위로 "완료"라고 남기면 항목은 0개 체크라 퍼센트만으로는 모른다. 웹 임박 알림
+   * (`imminentChecklist.ts`)도 이 판정으로 건너뛴다.
+   */
+  completed?: boolean;
 }
 
 const URGENCY_RANK: Record<ActionUrgency, number> = {
@@ -74,7 +80,7 @@ export function buildWeeklyChecklistActions(
   const candidates = templates.flatMap((template): WeeklyAction[] => {
     const state = stateFor(template.key);
     const percent = state?.percent ?? 0;
-    if (state?.skipped || percent >= 100) return [];
+    if (state?.skipped || state?.completed || percent >= 100) return [];
     if (dday !== null && dday > template.ddayStart) return [];
 
     const items = state?.items ?? [];
