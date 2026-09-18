@@ -5,6 +5,7 @@ import AmoraMark from "@/components/ui/AmoraMark";
 import { LogoMark } from "@/components/ui/Logo";
 import { weddingLinkProps } from "@/lib/weddingPaths";
 import AmoraBottomNav from "@/components/app/amora/AmoraBottomNav";
+import HiddenInsideMobileApp from "@/components/common/HiddenInsideMobileApp";
 
 // 공개 읽기 화면은 인증 상태를 요청하거나 사용자·일정·알림을 가정하지 않는다.
 const SERVICE_LINKS = [
@@ -59,6 +60,12 @@ export default function MannersLayout({ children }: { children: React.ReactNode 
       <div className="flex min-h-screen min-w-0 flex-col md:ml-[220px]">
       <main id="manners-main" className="min-w-0 flex-1">{children}</main>
 
+      {/*
+        앱 웹뷰에서는 바닥글과 아래 메뉴를 내린다. 아래 메뉴 다섯은 전부 로그인 필요 경로라
+        앱 웹뷰(세션 없음)에서는 웹 로그인 화면이 되고, 앱의 아래 탭과 두 겹으로 쌓였다.
+        브라우저에서는 그대로다.
+      */}
+      <HiddenInsideMobileApp>
       <footer className="border-t border-[var(--amora-line)] pb-[calc(6rem+env(safe-area-inset-bottom))] md:pb-0">
         <div className="mx-auto w-full max-w-[1220px] px-[18px] py-6 md:px-9 xl:px-16">
           <p className="text-[13px] font-medium text-[var(--amora-muted)]">
@@ -76,8 +83,11 @@ export default function MannersLayout({ children }: { children: React.ReactNode 
           </nav>
         </div>
       </footer>
+      </HiddenInsideMobileApp>
       </div>
-      <AmoraBottomNav active={null} />
+      <HiddenInsideMobileApp>
+        <AmoraBottomNav active={null} />
+      </HiddenInsideMobileApp>
     </div>
   );
 }

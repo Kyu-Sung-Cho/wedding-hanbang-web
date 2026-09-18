@@ -5,6 +5,7 @@ import { AMORA_ACTION_CLASS } from "@/components/ui/amoraActionStyles";
 
 import { StartDemoButton } from "@/components/demo/StartDemoButton";
 import { isPublicDemoTrialEnabled } from "@/lib/demoTrial";
+import HiddenInsideMobileApp from "@/components/common/HiddenInsideMobileApp";
 
 // 가격을 확인한 직후가 "그래서 뭐부터 하지?"가 가장 커지는 순간이다.
 // 그 순간을 로그인 상태에 맞는 아모라 화면으로 잇는 절제된 브릿지 — 과장·재촉 문구 금지.
@@ -19,7 +20,10 @@ export function PriceAmoraBridge() {
   // 갈 수 있는 곳(가입)을 준다 — 이 자리의 존재 이유가 "다음 한 걸음"이기 때문이다.
   const demoOpen = isPublicDemoTrialEnabled();
 
+  // 앱 웹뷰에서는 이 안내를 통째로 내린다. 앱 사용자는 이미 가입했고, 「아모라와 시작하기」는
+  // 회원가입(`/login?mode=signup`)으로 간다. 아모라는 앱의 아래 탭에 있다.
   return (
+    <HiddenInsideMobileApp>
     <section
       aria-label="아모라 안내"
       className="mt-10 rounded-[6px] border border-[var(--hb-primary)]/15 bg-[var(--hb-primary)]/[0.06] px-5 py-8 text-center sm:px-8"
@@ -62,5 +66,6 @@ export function PriceAmoraBridge() {
         </Link>
       </p>
     </section>
+    </HiddenInsideMobileApp>
   );
 }
