@@ -2,7 +2,9 @@
 
 import { useState, useEffect } from "react";
 import {
+  ACCOUNT_DELETION_EMAIL_REQUEST_LABEL,
   ACCOUNT_DELETION_INTAKE_CLOSED_NOTICE,
+  ACCOUNT_DELETION_INTAKE_UNKNOWN_NOTICE,
   parseAccountDeletionIntakeCapability,
 } from "@/lib/account/deletionIntake";
 import Link from "next/link";
@@ -1365,7 +1367,7 @@ export default function SettingsPage() {
                   className="mb-5 rounded-[6px] border border-[#E2D3C8] bg-[var(--hb-surface-page)] px-4 py-3 text-sm leading-relaxed text-[var(--hb-text-strong)]"
                 >
                   {deletionIntakeOpen === null
-                    ? "자동 탈퇴 접수 상태를 확인하지 못했어요. 고객센터로 요청하실 수 있어요."
+                    ? ACCOUNT_DELETION_INTAKE_UNKNOWN_NOTICE
                     : ACCOUNT_DELETION_INTAKE_CLOSED_NOTICE}
                 </p>
               )}
@@ -1464,7 +1466,7 @@ export default function SettingsPage() {
                   href={`mailto:${CONTACT.email}`}
                   className="block w-full py-3 rounded-[6px] text-center text-base font-medium transition-all mb-3 bg-[var(--hb-primary)] text-white"
                 >
-                  이메일로 탈퇴 요청하기
+                  {ACCOUNT_DELETION_EMAIL_REQUEST_LABEL}
                 </a>
               )}
 
