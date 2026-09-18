@@ -11,6 +11,16 @@ import { buildWeddingCodeAmoraProposals } from "@/lib/weddingCode/profile/amoraB
 import { createWeddingCodeAmoraHandoff } from "@/lib/weddingCode/profile/amoraHandoff";
 import type { WeddingCodeSelfProfile } from "@/lib/weddingCode/scene/selfProfile";
 
+/**
+ * 설정 API 의 오류 원문(「인증이 필요합니다.」 「서버 오류」)이나 브라우저의 영문 네트워크 오류는
+ * 이 카드 말투와 달라 그대로 보이면 튄다. 해요체로 쓴 안내(409 충돌 등)는 그대로 둔다.
+ */
+export function cardErrorText(message: string): string {
+  return /니다\.?$|서버 오류|안전하게|[A-Za-z]/.test(message)
+    ? "아모라 설정을 불러오거나 저장하지 못했어요. 잠시 뒤 다시 해 주세요."
+    : message;
+}
+
 export default function AmoraStyleConfirmation({ profile }: { profile: WeddingCodeSelfProfile }) {
   const session = useWeddingCodeSession();
   const user = useAuthStore((state) => state.user);
@@ -37,8 +47,8 @@ export default function AmoraStyleConfirmation({ profile }: { profile: WeddingCo
   if (insideApp) return null;
 
   return <>
-    {session.status === "loading" ? <p role="status" className="mt-4 text-sm text-[var(--hb-text-body)]">아모라 설정을 연결할 로그인 상태를 확인하고 있어요.</p> : null}
-    {session.status === "error" ? <div role="alert" className="mt-4 text-sm text-[var(--hb-text-body)]"><p>로그인 상태를 확인하지 못했어요. 설정을 연결하기 전에 다시 확인해 주세요.</p><Button className="mt-3" onClick={session.retry}>로그인 상태 다시 확인</Button></div> : null}
+    {session.status === "loading" ? <p role="status" className="mt-4 text-sm text-[var(--hb-text-body)]">로그인했는지 확인하고 있어요.</p> : null}
+    {session.status === "error" ? <div role="alert" className="mt-4 text-sm text-[var(--hb-text-body)]"><p>로그인 상태를 확인하지 못했어요. 아모라 도움 방식을 고르려면 다시 확인해 주세요.</p><Button className="mt-3" onClick={session.retry}>로그인 상태 다시 확인</Button></div> : null}
     <div hidden={session.status !== "ready"}>
       <Confirmation key={user?.id ?? "guest"} profile={profile} sessionReady={session.status === "ready"} />
     </div>
@@ -61,7 +71,7 @@ function Confirmation({ profile, sessionReady }: { profile: WeddingCodeSelfProfi
       <div className="border-b border-[var(--hb-hairline)] bg-[var(--hb-surface-hover)] px-5 py-5 sm:px-8">
         <h2 className="text-[18px] font-semibold text-[var(--hb-text-strong)]">아모라가 어떻게 도와주면 좋을까요?</h2>
         <p className="mt-2 text-[14px] leading-relaxed text-[var(--hb-text-body)]">
-          장면 속 행동이 지금 원하는 도움과 같지는 않아요. 아래에서 직접 고른 항목만 내 아모라에 반영해요. 상대의 설정이나 두 사람의 합의는 바뀌지 않아요.
+          장면에서 고른 답과 지금 받고 싶은 도움은 다를 수 있어서 따로 물어볼게요. 아래에서 직접 고른 항목만 내 아모라 설정에 반영돼요. 상대 설정이나 둘이 함께 정한 내용은 그대로예요.
         </p>
       </div>
       <div className="divide-y divide-[var(--hb-hairline)]">
@@ -111,17 +121,17 @@ function Confirmation({ profile, sessionReady }: { profile: WeddingCodeSelfProfi
             } else {
               const handoff = createWeddingCodeAmoraHandoff(changes);
               if (handoff) window.location.assign(isDemo ? `/login?redirect=${encodeURIComponent(handoff.href)}` : handoff.href);
-              else setHandoffError("선택을 이어갈 수 없어요. 이 창에서 다시 시도하거나 설정 화면에서 직접 골라주세요.");
+              else setHandoffError("고른 내용을 넘기지 못했어요. 한 번 더 눌러 보거나, 설정 화면에서 직접 골라 주세요.");
             }
           }}
         >
-          {applied ? "아모라에 반영했어요" : user ? "내가 고른 방식만 반영하기" : "로그인하고 선택한 방식 확인하기"}
+          {applied ? "아모라에 반영했어요" : user ? "고른 대로 아모라에 반영하기" : "로그인하고 고른 내용 확인하기"}
         </Button>
         <p className="mt-3 text-[13px] leading-relaxed text-[var(--hb-text-body)]" role={applied ? "status" : undefined}>
-          {applied ? "저장한 방식은 다음 아모라 답변에 참고돼요. 대화 중 원하는 방식을 다시 말하거나 설정에서 바꿀 수 있어요." : "이 설정에는 웨딩코드 답과 고른 문장을 보내지 않아요. 직접 선택한 도움 설정만 확인 후 내 계정에 저장해요."}
+          {applied ? "다음 답변부터 아모라가 이 방식을 참고해요. 대화 중에 다르게 부탁하면 그때는 그 부탁을 따라요. 설정은 언제든 바꿀 수 있어요." : "이 설정에는 웨딩코드에서 고른 답이 들어가지 않아요. 여기서 고른 도움 방식만 내가 확인한 뒤에 계정에 저장돼요."}
         </p>
-        {personalization.error || handoffError ? <p role="alert" className="mt-2 text-[13px] leading-relaxed text-[var(--color-rose-700)]">{personalization.error ?? handoffError}</p> : null}
-        {user && personalization.status === "error" ? <Button variant="secondary" className="mt-3" onClick={() => { void personalization.load(); }}>기존 설정 다시 불러오기</Button> : null}
+        {personalization.error || handoffError ? <p role="alert" className="mt-2 text-[13px] leading-relaxed text-[var(--color-rose-700)]">{personalization.error ? cardErrorText(personalization.error) : handoffError}</p> : null}
+        {user && personalization.status === "error" ? <Button variant="secondary" className="mt-3" onClick={() => { void personalization.load(); }}>내 설정 다시 불러오기</Button> : null}
         <a href="/settings/amora-style" className="mt-3 inline-block py-2 text-[14px] font-semibold text-[var(--hb-text-strong)] underline underline-offset-4">설정 화면에서 직접 보기</a>
       </div>
     </section>

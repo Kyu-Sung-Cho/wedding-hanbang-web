@@ -73,7 +73,7 @@ export default function WeddingCodeBadge({ letters }: { letters: WeddingCodeLett
         </p>
         <p className="mx-auto mt-4 max-w-[30rem] text-[13px] font-medium leading-[1.7] text-[var(--hb-on-primary)]">
           {WEDDING_CODE_LEGEND.note}
-          {!letters.complete ? " 아직 글자가 비어 있거나 답하지 않은 장면이 있는 요약이에요." : ""}
+          {!letters.complete ? " 건너뛴 장면이나 빈 글자(·)가 있어서, 답한 만큼만 줄인 코드예요." : ""}
         </p>
       </div>
 

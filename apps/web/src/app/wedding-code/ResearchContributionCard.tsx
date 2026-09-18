@@ -168,7 +168,7 @@ export default function ResearchContributionCard({
       <section className={`${surface} mt-5 px-5 py-5 sm:px-8`} data-research-contribution="deleted" role="status">
         <h2 className="text-lg font-semibold text-[var(--hb-text-strong)]">지우기를 마쳤어요</h2>
         <p className="mt-2 text-sm leading-relaxed text-[var(--hb-text-body)]">
-          이 코드로 저장된 답이 있었다면 이제 연구 자료에 남아 있지 않아요. 같은 코드로 다시 저장되지 않게, 코드를 되돌릴 수 없게 바꾼 값과 지운 날짜만 {WEDDING_CODE_RESEARCH_TOMBSTONE_DAYS}일 동안 남겨요.
+          이 코드로 저장된 답이 있었다면 이제 연구 자료에 남아 있지 않아요. 같은 코드로 다시 저장되지 않도록, 원래 코드를 알아낼 수 없게 바꾼 값과 지운 날짜만 {WEDDING_CODE_RESEARCH_TOMBSTONE_DAYS}일 동안 남겨 둬요.
         </p>
       </section>
     );
@@ -183,7 +183,7 @@ export default function ResearchContributionCard({
         </h2>
         <p className="mt-2 text-sm leading-relaxed text-[var(--hb-text-body)]">
           {uncertain
-            ? `연결이 끊겨서 저장됐는지 알 수 없어요. 다시 보내도 아래 삭제 코드가 그대로라 두 번 저장되지 않아요. 저장됐을 수도 있으니 이 코드를 꼭 복사해 두세요. 코드가 없어도 ${WEDDING_CODE_RESEARCH_RETENTION_DAYS}일이 지나면 자동으로 지워져요.`
+            ? `연결이 끊겨서 답이 저장됐는지 알 수 없어요. 다시 보내기를 눌러도 두 번 저장되지는 않아요. 저장됐을 수도 있으니 아래 삭제 코드는 꼭 복사해 두세요. 코드가 없어도 ${WEDDING_CODE_RESEARCH_RETENTION_DAYS}일이 지나면 자동으로 지워져요.`
             : `아래 삭제 코드는 이 화면을 떠나거나 새로고침하면 다시 볼 수 없어요. 잃어버리면 저희도 이 답을 찾아 지울 수 없으니 꼭 복사해 두세요. 코드가 없어도 ${WEDDING_CODE_RESEARCH_RETENTION_DAYS}일이 지나면 자동으로 지워져요.`}
         </p>
         {receiptField}
@@ -214,9 +214,9 @@ export default function ResearchContributionCard({
   return (
     <section className={`${surface} mt-5 overflow-hidden`} data-research-contribution="form">
       <div className="border-b border-[var(--hb-hairline)] bg-[var(--hb-surface-hover)] px-5 py-5 sm:px-8">
-        <h2 className="text-[17px] font-semibold leading-[1.45] text-[var(--hb-text-strong)]">이 질문들을 고치는 데 내 답 보태기 (선택)</h2>
+        <h2 className="text-[17px] font-semibold leading-[1.45] text-[var(--hb-text-strong)]">질문을 고치는 데 내 답을 보태 주실래요? (선택)</h2>
         <p className="mt-1.5 text-[13px] font-medium leading-[1.6] text-[var(--color-rose-700)]">
-          아래 &lsquo;내 답 보태기&rsquo;를 누르면 내 답을 저희에게 보내요. 읽기 어려운 장면이나 다들 한 답으로 몰리는 장면을 찾아 질문을 고치는 데만 써요. 사람을 판정하거나 두 사람이 어울리는지 가리는 연구가 아니에요.
+          아래 &lsquo;내 답 보태기&rsquo;를 누르면 고른 답을 저희가 받아요. 헷갈리는 장면이나 거의 모두 같은 답을 고르는 장면을 찾아서 질문을 고치는 데만 써요. 사람을 평가하거나 두 사람이 잘 어울리는지 따지는 데는 쓰지 않아요.
         </p>
       </div>
       <div className="px-5 py-5 sm:px-8">
@@ -227,13 +227,13 @@ export default function ResearchContributionCard({
           코드를 잃어버리면 지울 수 없다는 한계는 **동의 체크보다 위에** 둔다(연구 명세 §9.1.7).
         */}
         <ul className="space-y-2 text-[13px] leading-[1.65] text-[var(--hb-text-body)]">
-          <li><b className={term}>저장하는 것:</b> 장면마다 네 선택지 중 몇 번째를 골랐는지(건너뛴 장면은 건너뛰었다는 표시), 어느 버전 질문에 답했는지, 어느 안내문에 동의했는지, 보낸 날짜</li>
-          <li>나중에 삭제 코드가 맞는지 확인하려고, 코드를 되돌릴 수 없는 값(해시)으로 바꿔 함께 저장해요. 코드 원문은 저장하지 않아요.</li>
-          <li><b className={term}>함께 저장하지 않는 것:</b> 이름·연락처·계정·IP 주소·공유 링크·상대의 답</li>
+          <li><b className={term}>저장하는 것:</b> 장면마다 몇 번째 답을 골랐는지(건너뛴 장면은 건너뛰었다는 것만), 어느 버전의 질문이었는지, 어떤 안내문을 보고 동의했는지, 보낸 날짜</li>
+          <li>나중에 맞는 삭제 코드인지 확인하려고, 원래 코드를 알아낼 수 없는 값(해시)으로 바꿔서 함께 저장해요. 코드 그대로는 저장하지 않아요.</li>
+          <li><b className={term}>답과 함께 저장하지 않는 것:</b> 이름, 연락처, 계정, IP 주소, 공유 링크, 상대의 답</li>
           <li><b className={term}>보관 기간:</b> 보낸 날부터 {WEDDING_CODE_RESEARCH_RETENTION_DAYS}일이 지나면 자동으로 지워요.</li>
           <li><b className={term}>제공:</b> 다른 회사에는 넘기지 않아요.</li>
-          <li><b className={term}>지우기:</b> 보내고 나면 여기에 삭제 코드가 한 번 나와요. 그 코드로 언제든 지울 수 있고, 나중에는 웨딩코드 첫 화면의 &lsquo;전에 보낸 답 지우기&rsquo;에서 지우면 돼요.</li>
-          <li><b className={term}>코드를 잃어버리면:</b> 이름도 계정도 받지 않아서, 코드가 없으면 어느 답이 내 것인지 저희도 찾을 수 없고 지워 드릴 수도 없어요. 그 답은 {WEDDING_CODE_RESEARCH_RETENTION_DAYS}일이 지나 자동으로 지워질 때까지 남아요.</li>
+          <li><b className={term}>지우고 싶을 때:</b> 보내면 이 자리에 삭제 코드가 한 번만 나와요. 그 코드가 있으면 언제든 지울 수 있어요. 이 화면을 떠난 뒤라면 웨딩코드 첫 화면의 &lsquo;전에 보낸 답 지우기&rsquo;에 코드를 넣으면 돼요.</li>
+          <li><b className={term}>코드를 잃어버리면:</b> 이름도 계정도 받지 않아서, 어느 답이 내 것인지 저희도 찾을 수 없고 지워 드릴 수도 없어요. 그 답은 {WEDDING_CODE_RESEARCH_RETENTION_DAYS}일이 지나 자동으로 지워질 때까지 남아요.</li>
           <li><b className={term}>문의:</b> <a className="underline underline-offset-4" href={`mailto:${CONTACT.email}`}>{CONTACT.email}</a></li>
           <li>보태지 않아도 웨딩코드를 쓰는 데 아무 차이가 없어요.</li>
         </ul>
@@ -294,7 +294,7 @@ export function ResearchContributionDeleteForm() {
   return (
     <details className="border-t border-[var(--hb-hairline)] px-5 py-4 sm:px-8" data-research-delete="">
       <summary className="cursor-pointer py-2 text-sm font-semibold text-[var(--hb-text-strong)]">전에 보낸 답 지우기</summary>
-      <label htmlFor={inputId} className="mt-2 block text-sm leading-relaxed text-[var(--hb-text-body)]">답을 보낼 때 받은 삭제 코드를 붙여 넣어 주세요. wc_del_ 로 시작하는 코드예요.</label>
+      <label htmlFor={inputId} className="mt-2 block text-sm leading-relaxed text-[var(--hb-text-body)]">&lsquo;내 답 보태기&rsquo;로 답을 보냈을 때 받은 삭제 코드를 붙여 넣어 주세요. wc_del_ 로 시작해요.</label>
       <input
         id={inputId}
         value={receipt}
@@ -316,7 +316,7 @@ export function ResearchContributionDeleteForm() {
       </Button>
       <p role="status" className="mt-2 text-sm text-[var(--hb-text-body)]">
         {state === "deleted"
-          ? `지우기를 마쳤어요. 이 코드로 저장된 답이 있었다면 이제 연구 자료에 남아 있지 않아요. 같은 코드로 다시 저장되지 않게, 코드를 되돌릴 수 없게 바꾼 값과 지운 날짜만 ${WEDDING_CODE_RESEARCH_TOMBSTONE_DAYS}일 동안 남겨요.`
+          ? `지우기를 마쳤어요. 이 코드로 저장된 답이 있었다면 이제 연구 자료에 남아 있지 않아요. 같은 코드로 다시 저장되지 않도록, 원래 코드를 알아낼 수 없게 바꾼 값과 지운 날짜만 ${WEDDING_CODE_RESEARCH_TOMBSTONE_DAYS}일 동안 남겨 둬요.`
           : state === "invalid"
             ? "삭제 코드가 아닌 것 같아요. wc_del_ 로 시작하는 코드를 한 글자도 빼지 말고 그대로 붙여 넣어 주세요."
             : state === "failed"

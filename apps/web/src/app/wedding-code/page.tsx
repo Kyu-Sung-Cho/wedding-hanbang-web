@@ -48,11 +48,11 @@ export async function generateMetadata({
   const { a, b } = await searchParams;
   const carriesAnswers = Boolean(a || b);
   return {
-    title: `웨딩코드 — 결혼 준비 ${SCENE_COUNT} 장면 | 웨딩한방`,
+    title: `결혼 준비 ${SCENE_COUNT} 장면, 나라면? | 웨딩코드 · 웨딩한방`,
     description:
-      `결혼 준비 ${SCENE_COUNT} 장면에 답하면 내 웨딩코드 네 글자가 나옵니다.`
-      + " 점수와 궁합은 매기지 않고, 두 사람이 어디서 갈렸는지 나란히 봅니다."
-      + " 로그인도 필요 없습니다.",
+      `결혼 준비 ${SCENE_COUNT} 장면에 답하면 내 웨딩코드 네 글자가 나와요.`
+      + " 점수를 매기거나 궁합을 보지 않고, 둘이 어디서 다르게 골랐는지 나란히 보여줘요."
+      + " 로그인 없이 바로 할 수 있어요.",
     robots: carriesAnswers
       ? { index: false, follow: false }
       : { index: true, follow: true },
