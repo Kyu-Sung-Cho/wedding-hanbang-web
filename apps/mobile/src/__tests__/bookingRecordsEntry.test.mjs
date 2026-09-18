@@ -14,6 +14,7 @@
 //   2) 기록이 있으면 타일이 있고, 그 말은 새 요청을 권하지 않는다.
 //   3) 라운지는 취소 표시까지 포함한 **아무 기록 하나**로 판정하고, 실패하면 숨긴다.
 //   4) 기록 화면의 빈 상태가 새 요청을 권하지 않는다.
+//   5) 불러오지 못했으면 빈 상태 대신 다시 시도를 보인다 — 실패를 "기록이 없어요"로 말하지 않는다.
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
@@ -158,4 +159,169 @@ test("the record screen uses that copy and drops the dead-end sentence", () => {
   // 화면과 데이터는 지우지 않는다 — 지난 기록 목록·결과 기록은 그대로다.
   assert.match(bookingsSource, /\.from\("vendor_bookings"\)/);
   assert.match(bookingsSource, /\/api\/bookings\/\$\{booking\.id\}\/outcome/);
+});
+
+/* ─────────────────────────────────────────────
+   (5) 불러오지 못한 것을 "기록이 없어요"라고 말하지 않는다
+   ───────────────────────────────────────────── */
+//
+// 기록 화면은 불러오기가 실패해도 console.error 만 남기고 목록을 빈 채로 두었다. 그러면
+// 위 빈 상태 — "예약 요청 기록이 없어요" — 가 떴다. 라운지 타일은 기록이 **있다고 확인된**
+// 사람에게만 보이므로, 타일로 들어온 사람에게 그 빈 상태는 거의 언제나 실패였고, 기록이 있는
+// 사람에게 기록이 없다고 말했다.
+
+const { resolveBookingRecordsBody, BOOKING_RECORDS_LOAD_ERROR_MESSAGE } = compileCommonJs("../lib/bookingRecordsEntry.ts");
+
+test("the empty state appears only after a load that succeeded with zero records", () => {
+  assert.equal(resolveBookingRecordsBody({ loadError: false, totalCount: 0, visibleCount: 0 }), "empty");
+  // 불러오지 못했으면 빈 상태가 아니라 오류와 다시 시도다.
+  assert.equal(resolveBookingRecordsBody({ loadError: true, totalCount: 0, visibleCount: 0 }), "load-error");
+  // 새로고침만 실패했으면 이미 받은 기록은 그대로 보여준다 — 참인 기록을 치우지 않는다.
+  assert.equal(resolveBookingRecordsBody({ loadError: true, totalCount: 2, visibleCount: 2 }), "list");
+  assert.equal(resolveBookingRecordsBody({ loadError: true, totalCount: 2, visibleCount: 0 }), "filtered-empty");
+  assert.equal(resolveBookingRecordsBody({ loadError: false, totalCount: 3, visibleCount: 0 }), "filtered-empty");
+  assert.equal(resolveBookingRecordsBody({ loadError: false, totalCount: 3, visibleCount: 1 }), "list");
+
+  // 오류 문구는 "없다"고 말하지 않고, 불러오지 못했다고만 말한다.
+  assert.match(BOOKING_RECORDS_LOAD_ERROR_MESSAGE, /불러오지 못했어요/);
+  assert.doesNotMatch(BOOKING_RECORDS_LOAD_ERROR_MESSAGE, /없어요|없습니다/);
+});
+
+function extractUseCallback(source, name) {
+  const tree = ts.createSourceFile("bookings.tsx", source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+  let found;
+  (function visit(node) {
+    if (ts.isVariableDeclaration(node) && node.name.getText(tree) === name && node.initializer
+      && ts.isCallExpression(node.initializer) && node.initializer.expression.getText(tree) === "useCallback") {
+      found = node.initializer.arguments[0].getText(tree);
+    }
+    ts.forEachChild(node, visit);
+  })(tree);
+  assert.ok(found, `${name} 가 없다`);
+  return ts.transpileModule(`const ${name} = ${found};`, { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText;
+}
+
+const OWNER = "11111111-1111-4111-8111-111111111111";
+const COUPLE = "22222222-2222-4222-8222-222222222222";
+
+/**
+ * 기록 화면의 loadData 를 그대로 꺼내 돌린다(신원 울타리·정리 함수도 화면의 것 그대로).
+ * `results` 는 부를 때마다 하나씩 꺼내 쓰는 { profile, bookings } 목록이다.
+ */
+async function runBookingsLoads(results) {
+  const { createOwnerCoupleSessionFence } = await import("../lib/ownerCoupleSessionFence.mjs");
+  const state = { bookings: [], loadError: undefined, loading: true };
+  let current;
+  const settle = (value) => (value instanceof Error ? Promise.reject(value) : Promise.resolve(value));
+  const bindings = {
+    supabase: {
+      auth: { getSession: async () => ({ data: { session: { user: { id: OWNER } } } }) },
+      from(table) {
+        const builder = {
+          select: () => builder,
+          eq: () => builder,
+          single: () => {
+            assert.equal(table, "profiles");
+            return settle(current.profile);
+          },
+          order: () => {
+            assert.equal(table, "vendor_bookings");
+            return settle(current.bookings);
+          },
+        };
+        return builder;
+      },
+    },
+    sessionFenceRef: createOwnerCoupleSessionFence(),
+    loadSequenceRef: { current: 0 },
+    openedBookingIdRef: { current: null },
+    setSessionOwnerId: () => {},
+    setCoupleId: () => {},
+    setTab: () => {},
+    setSelectedBooking: () => {},
+    setBookings: (next) => {
+      state.bookings = typeof next === "function" ? next(state.bookings) : next;
+    },
+    setLoadError: (next) => {
+      state.loadError = typeof next === "function" ? next(state.loadError) : next;
+    },
+    setLoading: (next) => {
+      state.loading = next;
+    },
+    setRefreshing: () => {},
+    normalizeStatus: (value) => value,
+    readAmount: (value) => (typeof value === "number" ? value : null),
+    console: { error: () => {}, warn: () => {}, log: () => {} },
+  };
+  const body = ["clearIdentityBoundState", "isOwnerCurrent", "isLoadCommitCurrent", "loadData"]
+    .map((name) => extractUseCallback(bookingsSource, name))
+    .join("\n");
+  const loadData = new Function("bindings", `with (bindings) { ${body} return loadData; }`)(bindings);
+
+  const seen = [];
+  for (const result of results) {
+    current = result;
+    await loadData();
+    seen.push({
+      loading: state.loading,
+      body: resolveBookingRecordsBody({
+        loadError: state.loadError === true,
+        totalCount: state.bookings.length,
+        visibleCount: state.bookings.length,
+      }),
+    });
+  }
+  return seen;
+}
+
+const PROFILE_OK = { data: { couple_id: COUPLE }, error: null };
+const ONE_RECORD = { data: [{ id: "b1", booking_date: "2026-05-01", status: "completed" }], error: null };
+
+test("a failed record load shows the error, not 'no records'", async () => {
+  // 목록 질의가 오류를 돌려줘도, 던져도, 프로필 읽기가 실패해도 — 모두 "불러오지 못했어요"다.
+  for (const [label, result] of [
+    ["returned error", { profile: PROFILE_OK, bookings: { data: null, error: { message: "timeout" } } }],
+    ["thrown", { profile: PROFILE_OK, bookings: new Error("offline") }],
+    ["profile read failed", { profile: { data: null, error: { message: "timeout" } }, bookings: ONE_RECORD }],
+  ]) {
+    const [seen] = await runBookingsLoads([result]);
+    assert.deepEqual(seen, { loading: false, body: "load-error" }, label);
+  }
+});
+
+test("a successful load with zero rows is the empty state, and a retry clears the error", async () => {
+  const [empty] = await runBookingsLoads([{ profile: PROFILE_OK, bookings: { data: [], error: null } }]);
+  assert.deepEqual(empty, { loading: false, body: "empty" });
+
+  const seen = await runBookingsLoads([
+    { profile: PROFILE_OK, bookings: new Error("offline") },
+    // 다시 시도가 성공했고 정말 비어 있다 → 이제야 빈 상태다.
+    { profile: PROFILE_OK, bookings: { data: [], error: null } },
+    { profile: PROFILE_OK, bookings: new Error("offline again") },
+    { profile: PROFILE_OK, bookings: ONE_RECORD },
+    { profile: PROFILE_OK, bookings: new Error("offline once more") },
+    // 커플이 풀려 신원이 바뀌면 지난 실패도 같이 비운다 — 기록이 없는 것은 사실이다.
+    { profile: { data: { couple_id: null }, error: null }, bookings: ONE_RECORD },
+  ]);
+  assert.deepEqual(seen.map((entry) => entry.body), [
+    "load-error",
+    "empty",
+    "load-error",
+    "list",
+    // 새로고침만 실패했으면 이미 받은 기록은 그대로다.
+    "list",
+    "empty",
+  ]);
+});
+
+test("the record screen renders the error with a retry, and the empty copy only for 'empty'", () => {
+  assert.match(bookingsSource, /import ErrorRetry from "@\/components\/ErrorRetry";/);
+  assert.match(bookingsSource, /resolveBookingRecordsBody\(\{/);
+  assert.match(
+    bookingsSource,
+    /recordsBody === "load-error" \? \(\s*<ErrorRetry\s+message=\{BOOKING_RECORDS_LOAD_ERROR_MESSAGE\}\s+onRetry=\{/,
+  );
+  // 빈 상태 문구는 "empty"일 때만 — 목록 길이만 보고 고르지 않는다.
+  assert.match(bookingsSource, /recordsBody === "empty"\s*\?\s*BOOKING_RECORDS_EMPTY_STATE\.title/);
+  assert.doesNotMatch(bookingsSource, /bookings\.length === 0 \? BOOKING_RECORDS_EMPTY_STATE/);
 });

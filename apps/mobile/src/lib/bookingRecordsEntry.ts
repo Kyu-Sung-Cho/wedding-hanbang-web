@@ -1,5 +1,5 @@
 /**
- * 상담 요청 기록 화면의 빈 상태 문구.
+ * 상담 요청 기록 화면의 빈 상태 문구와, 불러오지 못한 것을 빈 상태와 가르는 판정.
  *
  * ## 왜 따로 두는가
  *
@@ -21,3 +21,30 @@ export const BOOKING_RECORDS_EMPTY_STATE = {
     "새 상담 요청은 지금 남길 수 없어요. 예전에 남긴 요청 기록이 있으면 여기에서 볼 수 있어요.",
   actionLabel: "공시가·위약금 보기",
 } as const;
+
+/**
+ * 기록을 불러오지 못했을 때 한 줄. "없다"고 말하지 않는다 — 모르는 것이지 없는 것이 아니다.
+ */
+export const BOOKING_RECORDS_LOAD_ERROR_MESSAGE = "예약 요청 기록을 불러오지 못했어요";
+
+export type BookingRecordsBody = "load-error" | "empty" | "filtered-empty" | "list";
+
+/**
+ * 기록 화면 본문에 무엇을 둘 것인가.
+ *
+ * 예전에는 목록 길이만 보고 빈 상태를 골랐다. 불러오기가 실패해도 목록은 빈 채로 남으므로
+ * 실패가 "예약 요청 기록이 없어요"로 보였다. 라운지 타일은 기록이 **있다고 확인된** 사람에게만
+ * 보이니, 타일로 들어온 사람에게 그 빈 상태는 거의 언제나 실패였다.
+ *
+ * - 받은 기록이 없고 마지막 불러오기가 실패했다 → `"load-error"`(다시 시도).
+ * - 받은 기록이 없고 불러오기는 성공했다 → `"empty"`(위 빈 상태 문구).
+ * - 받은 기록은 있다 → 새로고침이 실패했어도 그 기록은 참이므로 그대로 보여준다.
+ */
+export function resolveBookingRecordsBody(input: {
+  loadError: boolean;
+  totalCount: number;
+  visibleCount: number;
+}): BookingRecordsBody {
+  if (input.totalCount === 0) return input.loadError === true ? "load-error" : "empty";
+  return input.visibleCount === 0 ? "filtered-empty" : "list";
+}
