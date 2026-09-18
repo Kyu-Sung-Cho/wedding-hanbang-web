@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import Logo from "@/components/ui/Logo";
+import HiddenInsideMobileApp from "@/components/common/HiddenInsideMobileApp";
 import { CONTACT } from "@/lib/constants/contact";
 import { weddingLinkProps } from "@/lib/weddingPaths";
 
@@ -25,6 +26,11 @@ const POLICY_LINKS = [
 export default function PriceLayout({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex min-h-screen flex-col bg-[var(--hb-surface-page)]">
+      {/*
+        앱 웹뷰에서는 공개 머리·바닥글을 내린다. 앱 머리가 이미 있고, 여기 링크는 앱 사용자에게
+        필요 없는 공개 안내다. 브라우저에서는 그대로다.
+      */}
+      <HiddenInsideMobileApp>
       <header className="border-b border-[var(--hb-primary)]/10 bg-[var(--hb-surface-page)]">
         <div className="mx-auto flex w-full max-w-[1320px] flex-wrap items-center justify-between gap-x-6 gap-y-2 px-4 py-3 sm:px-6 lg:px-8">
           <Link
@@ -44,9 +50,11 @@ export default function PriceLayout({ children }: { children: React.ReactNode })
           </nav>
         </div>
       </header>
+      </HiddenInsideMobileApp>
 
       <main className="flex-1">{children}</main>
 
+      <HiddenInsideMobileApp>
       <footer className="mt-12 bg-[var(--hb-primary)] text-white">
         <div className="mx-auto grid w-full max-w-[1320px] gap-8 px-4 py-9 sm:grid-cols-2 sm:px-6 lg:grid-cols-4 lg:px-8">
           <div className="sm:col-span-2 lg:col-span-1">
@@ -96,6 +104,7 @@ export default function PriceLayout({ children }: { children: React.ReactNode })
           <p className="mt-2">© 2026 Wedding Hanbang. All rights reserved.</p>
         </div>
       </footer>
+      </HiddenInsideMobileApp>
     </div>
   );
 }

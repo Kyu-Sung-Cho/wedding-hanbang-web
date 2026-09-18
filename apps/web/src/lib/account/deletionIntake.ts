@@ -18,35 +18,22 @@
  * 플래그 판정은 서버가 한다. 브라우저 번들에 `ACCOUNT_DELETION_INTAKE_ENABLED`를
  * 노출하면 값이 공개되고, 무엇보다 **판정 주체가 둘이 되어 어긋난다.**
  * `neutralPreparationSpace`가 쓰는 통로(`/api/auth/me`의 `capabilities`)를 그대로 쓴다.
- */
-
-/** `/api/auth/me` 의 `capabilities` 에서 이 값을 읽는 이름. */
-export const ACCOUNT_DELETION_INTAKE_CAPABILITY = "accountDeletionIntake" as const;
-
-/**
- * capabilities 를 읽어 "자동 접수가 열려 있는가"를 돌려준다.
  *
- * **모르면 닫힌 것으로 본다.** 응답이 없거나 모양이 다르면 false다 — 열려 있다고
- * 잘못 말하면 사용자가 다시 헛수고를 하게 되고, 닫혔다고 잘못 말하면 안내가 한 번 더
- * 뜰 뿐이다. 이 방향의 실패가 싸다.
- */
-export function parseAccountDeletionIntakeCapability(value: unknown): boolean {
-  return (
-    value !== null
-    && typeof value === "object"
-    && !Array.isArray(value)
-    && (value as Record<string, unknown>)[ACCOUNT_DELETION_INTAKE_CAPABILITY] === true
-  );
-}
-
-/**
- * 자동 접수가 닫혔을 때 화면이 **먼저** 하는 말.
+ * ## 판정과 안내 문장은 `@hanbang/shared` 에 있다
  *
- * 고객센터 주소를 이 문장에 중복하지 않는다. 설정은 공통 CONTACT의 메일 링크를
- * 직접 제공하며, 안내를 받기 위해 삭제 API를 호출하지 않는다.
+ * 2026-09-18 앱 설정도 같은 값을 읽게 하면서 capabilities 해석과 닫힘·모름 안내,
+ * 「이메일로 탈퇴 요청하기」 라벨을 공유 패키지로 옮겼다. 두 앱이 각자 문장을 가지면
+ * 한쪽만 고쳐진다. 웹의 기존 import 경로는 여기서 그대로 다시 내보낸다.
+ * 서버 전용 판정(`isAccountDeletionIntakeOpenOnServer`)은 env 를 읽으므로 웹에 남긴다.
  */
-export const ACCOUNT_DELETION_INTAKE_CLOSED_NOTICE =
-  "지금은 설정에서 바로 탈퇴 접수가 되지 않아요. 아래에서 요청 방법을 안내해 드릴게요." as const;
+
+export {
+  ACCOUNT_DELETION_EMAIL_REQUEST_LABEL,
+  ACCOUNT_DELETION_INTAKE_CAPABILITY,
+  ACCOUNT_DELETION_INTAKE_CLOSED_NOTICE,
+  ACCOUNT_DELETION_INTAKE_UNKNOWN_NOTICE,
+  parseAccountDeletionIntakeCapability,
+} from "@hanbang/shared/constants";
 
 /**
  * **서버 렌더링 화면(처리방침·약관)이 쓰는 같은 판정.**

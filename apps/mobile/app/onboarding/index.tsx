@@ -41,6 +41,7 @@ import {
   shouldAskPreparationProgress,
 } from "@/lib/onboardingFlow.mjs";
 import { consumePendingCoupleInviteCode } from "@/lib/pendingCoupleInvite.mjs";
+import { loungeHrefAfterOnboarding } from "@/lib/joinedPlanHandoff";
 import {
   clearOnboardingDraft,
   loadOnboardingDraft,
@@ -644,7 +645,11 @@ export default function OnboardingScreen() {
           // main 쪽은 여기서 `/(tabs)/dashboard` 로 보내는데 이 브랜치에는 그 라우트가
           // 없다(웨딩 라운지로 이름과 파일이 바뀌었다). 그대로 뒀으면 중립 경로를 켠
           // 순간 신규 사용자가 존재하지 않는 화면으로 갔다.
-          router.replace("/(tabs)/lounge");
+          //
+          // 코드로 합류한 사람은 `?joined=1`을 들고 간다. 라운지가 그 표시를 보고 "이제 이
+          // 계획을 함께 봐요"로 방금 함께 보게 된 계획을 보여준다(웹과 같다). 표시는 이
+          // 내비게이션 파라미터뿐이고 어디에도 저장하지 않는다.
+          router.replace(loungeHrefAfterOnboarding(coupleAction));
         }
       };
 

@@ -66,6 +66,50 @@ export const ACCOUNT_DELETION_FACTS: readonly AccountDeletionFact[] = [
 //   접수 닫힘  -> 503 이 `CONTACT.email` 접수 경로를 돌려준다
 // 두 응답 모두 apps/web/src/app/(app)/settings/page.tsx 가 그대로 보여준다.
 
+// ── 자동 탈퇴 접수가 열려 있는가 ─────────────────────────────────────────────
+//
+// 판정은 서버가 한다(`/api/auth/me` 의 `capabilities.accountDeletionIntake`, 서버는
+// `ACCOUNT_DELETION_INTAKE_ENABLED` 를 읽는다). 화면은 받은 값만 본다.
+//
+// 2026-09-18 웹(`apps/web/src/lib/account/deletionIntake.ts`)에서 여기로 옮겼다. 앱 설정은
+// 이 값을 읽지 않고 두 번 확인을 다 누르게 한 **뒤에야** 503 을 보여주고 있었다. 앱이 같은
+// 판정과 같은 문장을 쓰려면 한 곳에 있어야 한다 — 웹은 옛 경로에서 그대로 다시 내보낸다.
+
+/** `/api/auth/me` 의 `capabilities` 에서 이 값을 읽는 이름. */
+export const ACCOUNT_DELETION_INTAKE_CAPABILITY = "accountDeletionIntake" as const;
+
+/**
+ * capabilities 를 읽어 "자동 접수가 열려 있는가"를 돌려준다.
+ *
+ * **모르면 닫힌 것으로 본다.** 응답이 없거나 모양이 다르면 false다 — 열려 있다고
+ * 잘못 말하면 사용자가 다시 헛수고를 하게 되고, 닫혔다고 잘못 말하면 안내가 한 번 더
+ * 뜰 뿐이다. 이 방향의 실패가 싸다.
+ */
+export function parseAccountDeletionIntakeCapability(value: unknown): boolean {
+  return (
+    value !== null
+    && typeof value === "object"
+    && !Array.isArray(value)
+    && (value as Record<string, unknown>)[ACCOUNT_DELETION_INTAKE_CAPABILITY] === true
+  );
+}
+
+/**
+ * 자동 접수가 닫혔을 때 화면이 **먼저** 하는 말.
+ *
+ * 고객센터 주소를 이 문장에 중복하지 않는다. 화면은 공통 CONTACT의 메일 링크를
+ * 직접 제공하며, 안내를 받기 위해 삭제 API를 호출하지 않는다.
+ */
+export const ACCOUNT_DELETION_INTAKE_CLOSED_NOTICE =
+  "지금은 설정에서 바로 탈퇴 접수가 되지 않아요. 아래에서 요청 방법을 안내해 드릴게요." as const;
+
+/** 열렸는지 확인하지 못했을 때(요청 실패·다른 모양의 응답). 삭제 확인은 띄우지 않는다. */
+export const ACCOUNT_DELETION_INTAKE_UNKNOWN_NOTICE =
+  "자동 탈퇴 접수 상태를 확인하지 못했어요. 고객센터로 요청하실 수 있어요." as const;
+
+/** 닫힘·모름일 때의 유일한 행동 — `mailto:${CONTACT.email}` 을 연다. */
+export const ACCOUNT_DELETION_EMAIL_REQUEST_LABEL = "이메일로 탈퇴 요청하기" as const;
+
 /** 약관·처리방침에 같은 사실이 적혀 있는지 검사할 때 쓰는 핵심 어구. */
 export const ACCOUNT_DELETION_POLICY_ANCHORS: readonly string[] = [
   "되돌릴 수 없",
