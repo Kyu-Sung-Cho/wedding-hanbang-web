@@ -2,7 +2,7 @@
 // 사람 말풍선 색은 각자 **직접 확인한 표시 역할**로 칠한다(웹과 같음, 2026-09-12 요청).
 // 가입 순서로 채워진 role 슬롯은 쓰지 않고, 확인 전이면 중립색이다. 라벨은 이름을 쓴다.
 import { useState, useRef, useEffect, useCallback, useMemo, type SetStateAction } from "react";
-import { View, Pressable, FlatList, StyleSheet, KeyboardAvoidingView, Platform, Animated, ActivityIndicator, Linking, AppState } from "react-native";
+import { View, Pressable, FlatList, ScrollView, StyleSheet, KeyboardAvoidingView, Platform, Animated, ActivityIndicator, Linking, AppState } from "react-native";
 import { Text, TextInput } from "@/components/ui/AppText";
 import { buildMobileSiteUrl, resolveMobileSiteOrigin } from "@/lib/siteUrl.mjs";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -77,6 +77,12 @@ import {
   resolveAmoraMemoryLine,
   type AmoraMemoryStatus,
 } from "@/lib/amoraChatNotices";
+import {
+  AMORA_FOLLOW_UP_LABEL,
+  normalizeAmoraFollowUpSuggestions,
+  visibleAmoraFollowUps,
+  type AmoraFollowUpSuggestions,
+} from "@/lib/amoraFollowUpSuggestions";
 import {
   CARRIED_PENDING_ACTION_LABEL,
   getAmoraActionApprovalPolicy,
@@ -542,6 +548,7 @@ type ChatStreamEvent = {
   metadata?: unknown;
   delta?: { text?: unknown };
   result?: unknown;
+  suggestions?: unknown;
 };
 
 type ChatStreamState = {
@@ -550,6 +557,8 @@ type ChatStreamState = {
   error: boolean;
   toolResults: ToolExecutionResult[];
   metadata: ChatMessageMetadata | null;
+  /** 서버가 답 끝에 보낸 후속 질문 원본. 모양 검사는 `normalizeAmoraFollowUpSuggestions` 가 한다. */
+  suggestions: unknown;
   failure: {
     serverCode: string | null;
     retryable: boolean;
@@ -561,6 +570,8 @@ interface ChatStreamCompletion {
   text: string;
   toolResults: ToolExecutionResult[];
   metadata: ChatMessageMetadata | null;
+  /** 답 끝의 후속 질문(`suggestions` 사건) 원본. 끝까지 성공한 답에서만 채워진다. */
+  suggestions?: unknown;
 }
 
 type AmoraSharedActionMethod = "GET" | "POST" | "DELETE" | "PUT";
@@ -1132,6 +1143,7 @@ function createChatStreamParser(
     error: false,
     toolResults: [],
     metadata: null,
+    suggestions: null,
     failure: null,
   };
   let buffer = "";
@@ -1170,6 +1182,12 @@ function createChatStreamParser(
           ) {
             onQuota(event.remaining);
           }
+          return;
+        }
+        // 답 끝의 후속 질문. 예전에는 모르는 사건으로 버려져 앱에 칩이 한 번도 뜨지 않았다(2026-09-18).
+        // 본문이 아니므로 화면 글자에 섞지 않고 따로 들고 있다가 답이 끝나면 넘긴다.
+        if (event.type === "suggestions") {
+          if (!state.error) state.suggestions = event.suggestions ?? null;
           return;
         }
         if (
@@ -1249,7 +1267,12 @@ function createChatStreamParser(
     };
   }
 
-  return { push, finish, getToolResults, getMetadata };
+  // 실패한 답의 후속 질문은 넘기지 않는다.
+  function getSuggestions(): unknown {
+    return state.error ? null : state.suggestions;
+  }
+
+  return { push, finish, getToolResults, getMetadata, getSuggestions };
 }
 
 function applyChatStreamUpdate(
@@ -1478,6 +1501,7 @@ function streamChatWithXhr(
           text: finalText,
           toolResults,
           metadata: parser.getMetadata(),
+          suggestions: parser.getSuggestions(),
         });
       } catch (error) {
         rejectOnce(error instanceof ChatTransportError ? error : new ChatTransportError("STREAM"));
@@ -1996,6 +2020,7 @@ export default function ChatScreen() {
   >(() => createEmptyAmoraChatLaneRecord(() => null));
   const [quotaRemaining, setQuotaRemaining] = useState<number | null>(null);
   const [memoryStatus, setMemoryStatus] = useState<AmoraMemoryStatus | null>(null);
+  const [followUpSuggestions, setFollowUpSuggestions] = useState<AmoraFollowUpSuggestions | null>(null);
   const [nowMs, setNowMs] = useState(() => Date.now());
   const [dismissedPendingActionIds, setDismissedPendingActionIds] = useState<Set<string>>(
     () => new Set(),
@@ -2404,6 +2429,7 @@ export default function ChatScreen() {
     setColdStartAiRecoveryByLane(createEmptyAmoraChatLaneRecord(() => null));
     setQuotaRemaining(null);
     setMemoryStatus(null);
+    setFollowUpSuggestions(null);
     setDismissedPendingActionIds(new Set());
     setApplyingPendingActionId(null);
     setPendingActionNotice(null);
@@ -3283,6 +3309,8 @@ export default function ChatScreen() {
     }
     setLaneFailure(request.lane, null);
     setQuotaRemaining(null);
+    // 이전 답의 후속 질문은 새 답이 시작되면 거둔다(웹도 보낼 때 비운다).
+    setFollowUpSuggestions(null);
     setStreaming(true);
     setMessages((previous) => {
       const hasPersistedAnswer = previous.some((message) =>
@@ -3391,6 +3419,11 @@ export default function ChatScreen() {
           request.body.coupleId,
           userRole,
         ));
+        // 답이 끝까지 성공한 뒤에만 후속 질문 칩을 그 칸에 둔다. 위기 안내 답에는 두지 않는다.
+        const followUps = crisisBoundCompletion.metadata?.response_origin === "deterministic_crisis_safety"
+          ? []
+          : normalizeAmoraFollowUpSuggestions(completion.suggestions);
+        setFollowUpSuggestions(followUps.length > 0 ? { lane: request.lane, items: followUps } : null);
         scrollToLatest(true);
       }
     } catch (error) {
@@ -3732,8 +3765,9 @@ export default function ChatScreen() {
     }
   }
 
-  async function handleSend() {
-    const text = input.trim();
+  async function handleSend(textOverride?: string) {
+    // 추천 대화 칩은 그 문장만 보낸다. 입력창에 쓰던 초안은 그대로 둔다(웹 `sendToAmora` 와 같다).
+    const text = (textOverride ?? input).trim();
     const activeVisibility = chatVisibilityForScope(activeScope, userRole);
     if (
       !text
@@ -3862,7 +3896,8 @@ export default function ChatScreen() {
         senderType: userRole,
         senderName: userName,
         requestedVisibility: activeVisibility,
-        ...(effectiveVisibility === "shared" && preparationDraft
+        // 준비 안내 출처는 입력창의 그 초안에만 묶여 있다 — 칩 문장에는 붙이지 않는다.
+        ...(textOverride === undefined && effectiveVisibility === "shared" && preparationDraft
           && preparationContextMatches(preparationDraft.context, { ...preparationContextRef.current, busy: false, generation: sessionGeneration })
           ? { preparationSource: preparationDraft.source } : {}),
         visibility: effectiveVisibility,
@@ -3913,6 +3948,15 @@ export default function ChatScreen() {
         ? updateAmoraChatLaneRecord(current, lane, null)
         : current;
     });
+  }
+
+  /**
+   * 답 뒤 후속 질문 칩을 누르면 그 문장을 아모라에게 바로 보낸다 — 웹 「추천 대화」와 같다.
+   * 칩은 아모라에게 말하는 칸에만 그려지지만, 상대 칸으로 바뀐 뒤 늦게 눌린 경우도 여기서 막는다.
+   */
+  async function handleFollowUpSuggestion(text: string) {
+    if (streaming || sendingRef.current || target !== "ai") return;
+    await handleSend(text);
   }
 
   async function handleApplyPendingAction(actionId: string) {
@@ -4523,6 +4567,7 @@ export default function ChatScreen() {
 
   const isP = activeScope === "shared" && target === "partner";
   const memoryLine = resolveAmoraMemoryLine(memoryStatus, activeScope, userRole);
+  const visibleFollowUps = visibleAmoraFollowUps(followUpSuggestions, { activeLane, streaming });
 
   return (
     <SafeAreaView style={st.container} edges={["top"]}>
@@ -4777,10 +4822,35 @@ export default function ChatScreen() {
           </View>
         )}
 
+        {/* 답 뒤 후속 질문 — 웹 「추천 대화」. 아모라에게 말하는 칸에서만, 실패·안전 안내가 떠 있지 않을 때만. */}
+        {visibleFollowUps.length > 0 && !isP && !hasActiveW5SafetyCard && !activeSendFailure && (
+          <View style={st.followUps} accessibilityLabel={AMORA_FOLLOW_UP_LABEL}>
+            <View style={st.followUpsHeading} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
+              <AmoraMark size={12} color={amoraIdentity.ink} />
+              <Text style={st.followUpsLabel}>{AMORA_FOLLOW_UP_LABEL}</Text>
+            </View>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentContainerStyle={st.followUpsRow}>
+              {visibleFollowUps.map((suggestion) => (
+                <Pressable
+                  key={suggestion}
+                  style={({ pressed }) => [st.followUpChip, pressed && st.followUpChipPressed]}
+                  onPress={() => { void handleFollowUpSuggestion(suggestion); }}
+                  disabled={streaming}
+                  accessibilityRole="button"
+                  accessibilityLabel={`${suggestion}, 아모라에게 보내기`}
+                  accessibilityState={{ disabled: streaming }}
+                >
+                  <Text style={st.followUpChipText} numberOfLines={2}>{suggestion}</Text>
+                </Pressable>
+              ))}
+            </ScrollView>
+          </View>
+        )}
+
         <View style={[st.inputBar, isP && { borderTopColor: colors.rose.light }]}>
           <TextInput style={st.input} value={input} onChangeText={handleInputChange} placeholder={isP ? `${partnerName ?? "파트너"}에게 메시지...` : activeScope === "private" ? "나만의 상담을 입력하세요..." : "메시지를 입력하세요..."} placeholderTextColor={colors.taupe[400]} multiline maxLength={4000} editable={!streaming && initialLoaded && !chatLoadError} returnKeyType="send" accessibilityLabel="메시지 입력" />
           <Animated.View style={{ transform: [{ scale: sendBtnScale }] }}>
-            <Pressable style={[st.sendBtn, isP && { backgroundColor: colors.rose[500] }, (!input.trim() || streaming || !initialLoaded || Boolean(chatLoadError)) && st.sendBtnOff]} onPress={handleSend} onPressIn={pressIn} onPressOut={pressOut} disabled={!input.trim() || streaming || !initialLoaded || Boolean(chatLoadError)} accessibilityLabel="메시지 보내기" accessibilityRole="button">
+            <Pressable style={[st.sendBtn, isP && { backgroundColor: colors.rose[500] }, (!input.trim() || streaming || !initialLoaded || Boolean(chatLoadError)) && st.sendBtnOff]} onPress={() => { void handleSend(); }} onPressIn={pressIn} onPressOut={pressOut} disabled={!input.trim() || streaming || !initialLoaded || Boolean(chatLoadError)} accessibilityLabel="메시지 보내기" accessibilityRole="button">
               {isP ? <Heart size={18} color="#FFF" /> : <Send size={18} color="#FFF" />}
             </Pressable>
           </Animated.View>
@@ -4903,6 +4973,13 @@ const st = StyleSheet.create({
   failureText: { flex: 1, fontSize: 14, lineHeight: 20, color: colors.noir.soft },
   retryBtn: { minHeight: 44, justifyContent: "center", paddingHorizontal: 14, paddingVertical: 10, borderRadius: 12, backgroundColor: colors.noir[800] },
   retryText: { fontSize: 14, fontWeight: "600", color: colors.surface },
+  followUps: { paddingTop: 8, paddingBottom: 4, borderTopWidth: 1, borderTopColor: colors.border, backgroundColor: colors.surface },
+  followUpsHeading: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 16, marginBottom: 6 },
+  followUpsLabel: { fontSize: 12, fontWeight: "600", color: colors.textTertiary },
+  followUpsRow: { gap: 8, paddingHorizontal: 16, paddingBottom: 4 },
+  followUpChip: { minHeight: 44, maxWidth: 260, justifyContent: "center", paddingHorizontal: 14, paddingVertical: 8, borderRadius: 14, borderWidth: 1, borderColor: amoraIdentity.line, backgroundColor: amoraIdentity.surface },
+  followUpChipPressed: { backgroundColor: amoraIdentity.hover },
+  followUpChipText: { fontSize: 14, lineHeight: 20, color: amoraIdentity.ink },
   inputBar: { flexDirection: "row", alignItems: "flex-end", gap: 8, paddingHorizontal: 16, paddingVertical: 12, borderTopWidth: 1, borderTopColor: colors.border, backgroundColor: colors.surface },
   input: { flex: 1, minHeight: 44, maxHeight: 120, paddingHorizontal: 16, paddingVertical: 10, fontSize: 15, color: colors.noir[800], backgroundColor: colors.bg, borderRadius: 14, borderWidth: 1, borderColor: colors.border },
   sendBtn: { width: 44, height: 44, borderRadius: 16, backgroundColor: colors.rose[500], alignItems: "center", justifyContent: "center" },
