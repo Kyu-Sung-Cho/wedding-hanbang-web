@@ -1,0 +1,56 @@
+{
+  "version": 1,
+  "kind": "wedding-code-research-scene-v10-static-successor",
+  "release": "wedding-code-research-scene-v10-20260918",
+  "status": "requires-scoped-runtime-evidence",
+  "productionApplyImplemented": true,
+  "runtimeEvidenceVerified": false,
+  "projectRef": "slrtobkksjmxgzatjyqb",
+  "systemIdentifier": "7581440907192989109",
+  "predecessor": {
+    "file": "supabase/release-contracts/wedding-code-research-scene-v09-v1.json",
+    "sha256": "46017ac2e9a4e404a6c171c79793dd57547a5649124ed5163dd99b8abe3a04c6"
+  },
+  "reviewedPredecessorMigrationCount": 235,
+  "migrations": [
+    {
+      "file": "20260918090000_wedding_code_research_scene_v10.sql",
+      "sha256": "f6a794afcd3b40735c28518065e26704795725799fbb7a78ee346510c729f633"
+    }
+  ],
+  "scope": {
+    "alterTable": "public.wedding_code_research_contributions",
+    "replaceConstraint": "wcr_contributions_scene_version",
+    "previousSceneVersions": [
+      "v0.8-code",
+      "v0.9-code"
+    ],
+    "acceptedSceneVersions": [
+      "v0.8-code",
+      "v0.9-code",
+      "v1.0-code"
+    ],
+    "change": "widen-only",
+    "answerCode": "unchanged",
+    "otherConstraints": "unchanged",
+    "tableAccess": "unchanged",
+    "functionExecute": "unchanged",
+    "existingFunctions": "unchanged",
+    "newObjects": "none",
+    "dataRows": "unchanged",
+    "analysis": "separate-per-scene-version",
+    "rollback": "disable-contribution-flag-never-renarrow"
+  },
+  "runtime": {
+    "file": "scripts/lib/wedding-code-research-scene-v10-release.mjs",
+    "sha256": "af839f20bb202c5e6aa07d8241042c4235170ed99435c500151f340638ef488e"
+  },
+  "predecessorMigration": {
+    "file": "supabase/migrations/20260917090000_wedding_code_research_scene_v09.sql",
+    "sha256": "a6dcf68a47c549deb8b3473f61da2e86eee58986dea4381bcd6f6bd96e91016d"
+  },
+  "catalogBaseMigration": {
+    "file": "supabase/migrations/20260915130000_wedding_code_research_contributions.sql",
+    "sha256": "76f58f948a1a7c99352b32c556dba2de3886e7ef6b357af574ae0522a174253e"
+  }
+}

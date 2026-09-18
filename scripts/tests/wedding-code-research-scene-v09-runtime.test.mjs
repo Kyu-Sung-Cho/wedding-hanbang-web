@@ -1,4 +1,4 @@
-import test from 'node:test';
+import test, { after as afterTests } from 'node:test';
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
@@ -12,8 +12,12 @@ import {
 } from '../lib/wedding-code-research-scene-v09-release.mjs';
 import { weddingCodeResearchTargetCatalogSql } from '../lib/wedding-code-research-contributions-release.mjs';
 import { CurrentBaselineBlocked } from '../lib/current-baseline-release-contract.mjs';
+import { createWeddingCodeSceneVersionHistoricalRepository } from './fixtures/wedding-code-research-scene-v09-historical-repository.mjs';
 
-const root = resolve(import.meta.dirname, '../..');
+// 235 실행기는 자기 역사 checkout에서만 계획을 연다. 실제 checkout의 이후 SQL로 검사를 넓히지 않는다.
+const actualRoot = resolve(import.meta.dirname, '../..');
+const historical = createWeddingCodeSceneVersionHistoricalRepository(actualRoot), root = historical.root;
+afterTests(historical.cleanup);
 const read = file => readFileSync(join(root, file), 'utf8');
 const sql = read('supabase/migrations/20260917090000_wedding_code_research_scene_v09.sql');
 const predecessorSql = read('supabase/migrations/20260915130000_wedding_code_research_contributions.sql');
@@ -233,7 +237,7 @@ test('receipt writes short chunks completely before fsync and refuses zero progr
 // 합성 PGlite(PostgreSQL 18)에서 234 적용 상태를 만든 뒤 실제 관측식과 적용 묶음을 돌린다.
 // 운영 식별값·버전 범위 검사만 로컬 값으로 바꾼다.
 test('the real catalog query and bundle rehearse, roll back and commit exactly the widened CHECK on a local PostgreSQL', { timeout: 120_000 }, async () => {
-  const { PGlite } = createRequire(join(root, 'apps/web/package.json'))('@electric-sql/pglite');
+  const { PGlite } = createRequire(join(actualRoot, 'apps/web/package.json'))('@electric-sql/pglite');
   const db = await PGlite.create();
   try {
     await db.exec(`CREATE ROLE anon NOLOGIN; CREATE ROLE authenticated NOLOGIN; CREATE ROLE service_role NOLOGIN;
