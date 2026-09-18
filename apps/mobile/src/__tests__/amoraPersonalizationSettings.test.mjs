@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
-import { setImmediate } from "node:timers";
+import { setImmediate, setTimeout } from "node:timers";
 import { fileURLToPath, URL } from "node:url";
 import ts from "typescript";
 import {
@@ -441,7 +441,11 @@ test("화면은 라디오 역할·44pt 이상 누르는 영역·두 단계 삭�
   assert.match(screen, /AMORA_STYLE_COPY\.retry/u);
 });
 
-/** 화면 파일을 그대로 컴파일해 한 번 그린다. 훅은 세션을 붙잡아 두는 최소한의 가짜다. */
+/**
+ * 화면 파일을 그대로 컴파일해 한 번 그린다. 훅은 세션을 붙잡아 두는 최소한의 가짜다.
+ * 효과(useEffect)는 모아만 두고 `mount()` 를 부를 때만 한 번 돌린다 — 인증 구독·첫 불러오기를
+ * 보는 테스트만 그 경로를 탄다. `emitAuth()` 는 supabase 가 보내는 계정 알림을 흉내 낸다.
+ */
 async function renderScreen(replies) {
   const path = fileURLToPath(new URL("../../app/settings/amora-style.tsx", import.meta.url));
   const compiled = ts.transpileModule(readFileSync(path, "utf8"), {
@@ -449,11 +453,23 @@ async function renderScreen(replies) {
     compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, esModuleInterop: true, jsx: ts.JsxEmit.ReactJSX },
   });
   const sessionModule = await import("../lib/amoraPersonalizationSession.mjs");
-  const holder = { session: null, calls: [], alerts: [] };
+  const holder = {
+    session: null,
+    calls: [],
+    alerts: [],
+    effects: [],
+    cleanups: [],
+    authListeners: [],
+    unsubscribed: 0,
+    // 지금 로그인된 계정. getSession 은 이 값을 읽는다(ownerReads 에 쌓인 늦은 읽기가 먼저다).
+    liveOwner: owner,
+    ownerReads: [],
+  };
   const tokens = new Proxy(() => tokens, { get: () => tokens });
   const request = async (expectedOwner, requestPath, init) => {
     holder.calls.push({ expectedOwner, path: requestPath, init });
-    return replies.shift();
+    const next = replies.shift();
+    return typeof next === "function" ? next() : next;
   };
   const deps = {
     react: {
@@ -462,7 +478,7 @@ async function renderScreen(replies) {
         return [holder.session, () => {}];
       },
       useSyncExternalStore: (_subscribe, getState) => getState(),
-      useEffect: () => {},
+      useEffect: (effect) => { holder.effects.push(effect); },
     },
     "react/jsx-runtime": { jsx: (type, props) => ({ type, props: props ?? {} }), jsxs: (type, props) => ({ type, props: props ?? {} }), Fragment: "Fragment" },
     "react-native": { Alert: { alert: (...args) => holder.alerts.push(args) }, Pressable: "Pressable", ScrollView: "ScrollView", StyleSheet: { create: (value) => value }, View: "View" },
@@ -472,8 +488,15 @@ async function renderScreen(replies) {
     "@hanbang/design-tokens": { colors: tokens, radius: tokens, spacing: tokens },
     "@/lib/api": { apiFetchForExpectedUser: request },
     "@/lib/supabase": { supabase: { auth: {
-      getSession: async () => ({ data: { session: { user: { id: owner } } } }),
-      onAuthStateChange: () => ({ data: { subscription: { unsubscribe() {} } } }),
+      getSession: async () => {
+        const pending = holder.ownerReads.shift();
+        const id = pending ? await pending : holder.liveOwner;
+        return { data: { session: id ? { user: { id } } : null } };
+      },
+      onAuthStateChange: (listener) => {
+        holder.authListeners.push(listener);
+        return { data: { subscription: { unsubscribe() { holder.unsubscribed += 1; } } } };
+      },
     } } },
     "@/components/ui/AppUI": { AppHeader: "AppHeader", AppText: "AppText", LoadingState: "LoadingState", PrimaryButton: "PrimaryButton", Surface: "Surface" },
     "@/lib/amoraPersonalizationSession.mjs": sessionModule,
@@ -505,7 +528,18 @@ async function renderScreen(replies) {
     walk(tree);
     return out;
   };
-  return { holder, render: () => Screen(), nodes, texts };
+  // 처음 그릴 때 등록된 효과만 한 번 돌린다(의존성이 [session] 이라 React 도 한 번이다).
+  const mount = () => {
+    const tree = Screen();
+    holder.cleanups = holder.effects.splice(0).map((effect) => effect());
+    return tree;
+  };
+  const unmount = () => holder.cleanups.splice(0).forEach((cleanup) => cleanup?.());
+  const emitAuth = (event, id) => {
+    holder.liveOwner = id;
+    holder.authListeners.forEach((listener) => listener(event, id ? { user: { id } } : null));
+  };
+  return { holder, render: () => Screen(), mount, unmount, emitAuth, nodes, texts };
 }
 
 test("그려진 화면: 6칸·4/3/3/3/4/4 라디오, 글자는 전부 공유 상수·웹 문장에서 온다", async () => {
@@ -576,6 +610,163 @@ test("그려진 화면: 불러오기 실패면 오류와 다시 불러오기만,
   assert.equal(saved.holder.calls.length, 2);
   assert.equal(saved.holder.calls[1].init.method, "DELETE");
   assert.ok(saved.texts(saved.render()).includes("저장한 도움 방식을 모두 지웠어요."));
+});
+
+// ── 계정 전환: 화면의 useEffect 를 실제로 돌려 인증 알림 → 비우기 → 미뤄 둔 불러오기를 본다 ──
+// 화면은 알림을 받은 즉시 이전 계정 값을 비우고, 불러오기는 인증 콜백이 끝난 다음 차례(setTimeout 0)에
+// 보낸다 — 콜백 안에서 세션을 다시 읽으면 인증 잠금을 기다리며 멈출 수 있다.
+/** 인증 콜백이 미뤄 둔 불러오기(setTimeout 0)가 돌 차례를 한 번 준다. */
+const tick = () => new Promise((resolve) => setTimeout(resolve, 0));
+/** 응답 본문 읽기·세션 소유자 재확인까지 끝날 만큼 차례를 넘긴다. */
+const flush = async () => {
+  for (let i = 0; i < 10; i += 1) await settle();
+};
+const sectionOf = (key) => AMORA_PERSONALIZATION_SECTIONS.find((section) => section.key === key);
+const choiceLabel = (key, value) => sectionOf(key).choices.find((choice) => choice.value === value).label;
+const radiosIn = (r, tree) => r.nodes(tree).filter((node) => node.props.accessibilityRole === "radio");
+const radiosOf = (r, tree, key) => {
+  const group = r.nodes(tree).find((node) => node.props.accessibilityRole === "radiogroup" && node.props.accessibilityLabel === sectionOf(key).title);
+  return group ? radiosIn(r, group.props.children) : [];
+};
+const checkedLabels = (r, tree, key) => radiosOf(r, tree, key)
+  .filter((node) => node.props.accessibilityState.checked)
+  .map((node) => r.texts(node)[0]);
+const pressChoice = (r, key, value) => {
+  const radio = radiosOf(r, r.render(), key).find((node) => r.texts(node)[0] === choiceLabel(key, value));
+  assert.ok(radio, `${key}=${value} 선택지를 찾지 못했다`);
+  radio.props.onPress();
+};
+
+test("그려진 화면: 계정이 바뀌면 이전 계정 값을 바로 비우고, 인증 콜백 밖에서 새 계정으로 다시 불러온다", async () => {
+  const r = await renderScreen([
+    response(200, { profile: profile({ toneStyle: "warm" }, 2, "2026-09-18T03:00:00.000Z") }),
+    response(200, { profile: profile({ toneStyle: "calm_clear" }, 7, "2026-09-10T03:00:00.000Z") }),
+  ]);
+  assert.equal(radiosIn(r, r.mount()).length, 0, "불러오기 전에는 고를 수 있는 값이 없다");
+  assert.equal(r.holder.authListeners.length, 1, "계정 알림을 구독한다");
+  await flush();
+  assert.equal(r.holder.calls.length, 1);
+  assert.equal(r.holder.calls[0].expectedOwner, owner);
+  assert.deepEqual(checkedLabels(r, r.render(), "toneStyle"), [choiceLabel("toneStyle", "warm")]);
+
+  // 같은 계정으로 다시 알려도(토큰 갱신) 다시 불러오지 않고, 고르던 초안도 지우지 않는다.
+  pressChoice(r, "familyOrder", "couple_first");
+  r.emitAuth("TOKEN_REFRESHED", owner);
+  await tick();
+  await flush();
+  assert.equal(r.holder.calls.length, 1, "같은 계정 알림은 다시 불러오지 않는다");
+  assert.equal(r.holder.session.getState().draft?.familyOrder, "couple_first", "고르던 초안을 지우지 않는다");
+  assert.deepEqual(checkedLabels(r, r.render(), "familyOrder"), [choiceLabel("familyOrder", "couple_first")]);
+
+  // 다른 계정 알림: 그 자리에서 이전 계정의 값·초안을 비운다.
+  r.emitAuth("SIGNED_IN", other);
+  const cleared = r.holder.session.getState();
+  assert.equal(cleared.ownerId, other);
+  assert.equal(cleared.profile, null, "이전 계정의 저장값이 남지 않는다");
+  assert.equal(cleared.draft, null, "이전 계정에서 고르던 초안이 남지 않는다");
+  const clearedTree = r.render();
+  assert.equal(radiosIn(r, clearedTree).length, 0, "이전 계정의 선택지가 한 칸도 남지 않는다");
+  assert.ok(!r.texts(clearedTree).some((text) => text.startsWith(AMORA_STYLE_COPY.savedProfilePrefix)), "이전 계정의 저장 날짜가 남지 않는다");
+  assert.ok(r.nodes(clearedTree).some((node) => node.type === "LoadingState"));
+
+  // 불러오기는 인증 콜백 안에서 바로 보내지 않고, 다음 차례에 새 계정으로 보낸다.
+  assert.equal(r.holder.calls.length, 1, "인증 콜백 안에서는 요청을 보내지 않는다");
+  await tick();
+  assert.equal(r.holder.calls.length, 2, "콜백이 끝난 다음 차례에 새 계정으로 불러온다");
+  assert.equal(r.holder.calls[1].expectedOwner, other);
+  assert.equal(r.holder.calls[1].init.method, "GET");
+  assert.equal(r.holder.calls[1].init.headers["X-Amora-Expected-Owner"], other);
+  await flush();
+  const next = r.render();
+  assert.deepEqual(checkedLabels(r, next, "toneStyle"), [choiceLabel("toneStyle", "calm_clear")]);
+  assert.deepEqual(checkedLabels(r, next, "familyOrder"), [choiceLabel("familyOrder", DEFAULT_AMORA_PERSONALIZATION.familyOrder)]);
+  assert.ok(r.texts(next).includes(`${AMORA_STYLE_COPY.savedProfilePrefix}${koreanDate("2026-09-10T03:00:00.000Z")}`));
+  r.unmount();
+});
+
+test("그려진 화면: 계정을 바꾸기 전에 보낸 이전 계정의 늦은 응답은 새 계정 화면에 뜨지 않는다", async () => {
+  const lateA = deferred();
+  const getB = deferred();
+  const r = await renderScreen([() => lateA.promise, () => getB.promise]);
+  r.mount();
+  await flush();
+  assert.equal(r.holder.calls.length, 1);
+  assert.equal(r.holder.calls[0].expectedOwner, owner);
+
+  r.emitAuth("SIGNED_IN", other);
+  await tick();
+  assert.equal(r.holder.calls.length, 2);
+  assert.equal(r.holder.calls[1].expectedOwner, other);
+
+  lateA.resolve(response(200, { profile: profile({ toneStyle: "warm" }, 2) }));
+  await flush();
+  const waiting = r.holder.session.getState();
+  assert.equal(waiting.ownerId, other);
+  assert.equal(waiting.status, "loading", "새 계정 응답을 기다리는 상태 그대로다");
+  assert.equal(waiting.profile, null, "이전 계정 응답을 새 계정 상태에 올리지 않는다");
+  assert.equal(waiting.error, null);
+  assert.equal(radiosIn(r, r.render()).length, 0);
+
+  getB.resolve(response(200, { profile: null }));
+  await flush();
+  const tree = r.render();
+  assert.equal(radiosIn(r, tree).length, 21);
+  assert.deepEqual(checkedLabels(r, tree, "toneStyle"), [choiceLabel("toneStyle", DEFAULT_AMORA_PERSONALIZATION.toneStyle)], "이전 계정의 '다정하고 편안하게'가 아니다");
+  assert.ok(r.texts(tree).includes(AMORA_STYLE_COPY.noSavedProfile));
+  assert.equal(r.holder.calls.length, 2);
+  r.unmount();
+});
+
+test("그려진 화면: 첫 소유자 읽기가 계정 알림보다 늦게 끝나도 그 옛 계정으로 되돌리지 않는다", async () => {
+  const firstRead = deferred();
+  const r = await renderScreen([response(200, { profile: profile({ toneStyle: "calm_clear" }, 7) })]);
+  r.holder.ownerReads.push(firstRead.promise);
+  r.mount();
+  r.emitAuth("SIGNED_IN", other);
+  await tick();
+  await flush();
+  assert.equal(r.holder.calls.length, 1);
+  assert.equal(r.holder.calls[0].expectedOwner, other);
+  assert.equal(r.holder.session.getState().status, "ready");
+
+  firstRead.resolve(owner);
+  await tick();
+  await flush();
+  assert.equal(r.holder.session.getState().ownerId, other, "알림 전에 읽기 시작한 옛 소유자는 버린다");
+  assert.equal(r.holder.calls.length, 1, "옛 계정으로 다시 불러오지 않는다");
+  assert.deepEqual(checkedLabels(r, r.render(), "toneStyle"), [choiceLabel("toneStyle", "calm_clear")]);
+  r.unmount();
+});
+
+test("그려진 화면: 로그아웃하면 값을 비우고 요청하지 않으며, 떠난 뒤에는 구독을 풀고 아무것도 바꾸지 않는다", async () => {
+  const r = await renderScreen([response(200, { profile: profile({ toneStyle: "warm" }, 2) })]);
+  r.mount();
+  await flush();
+  assert.equal(r.holder.session.getState().status, "ready");
+  r.emitAuth("SIGNED_OUT", null);
+  assert.equal(r.holder.session.getState().profile, null);
+  assert.equal(radiosIn(r, r.render()).length, 0, "로그아웃하면 선택지를 바로 내린다");
+  await tick();
+  await flush();
+  assert.equal(r.holder.calls.length, 1, "소유자가 없으면 요청을 보내지 않는다");
+  assert.equal(radiosIn(r, r.render()).length, 0);
+  r.unmount();
+
+  const pending = deferred();
+  const s = await renderScreen([() => pending.promise]);
+  s.mount();
+  await flush();
+  assert.equal(s.holder.calls.length, 1);
+  s.emitAuth("SIGNED_IN", other);
+  s.unmount();
+  assert.equal(s.holder.unsubscribed, 1, "떠나면 계정 알림 구독을 푼다");
+  assert.equal(s.holder.session.getState().ownerId, null, "떠나면 세션 상태를 비운다");
+  pending.resolve(response(200, { profile: profile({ toneStyle: "warm" }) }));
+  await tick();
+  await flush();
+  assert.equal(s.holder.calls.length, 1, "떠난 뒤에는 미뤄 둔 불러오기도 보내지 않는다");
+  assert.equal(s.holder.session.getState().status, "idle", "떠난 뒤 온 응답·예약은 상태를 바꾸지 않는다");
+  assert.equal(s.holder.session.getState().profile, null);
 });
 
 test("설정 > 아모라 칸에서 '아모라가 기억하는 것' 위에 '아모라 도움 방식' 줄이 있다", () => {
