@@ -82,8 +82,12 @@ import {
 } from "@/lib/amoraChatNotices";
 import {
   AMORA_FOLLOW_UP_LABEL,
+  followUpsAfterIncomingMessage,
+  laneInputAfterFailedSend,
+  laneInputForRetry,
   normalizeAmoraFollowUpSuggestions,
   visibleAmoraFollowUps,
+  type AmoraDraftOrigin,
   type AmoraFollowUpSuggestions,
 } from "@/lib/amoraFollowUpSuggestions";
 import {
@@ -245,6 +249,8 @@ interface AiDraft {
   confirmedActionId?: string;
   amoraSourceMessageId?: string;
   preparationSource?: string;
+  /** 추천 대화 칩에서 보낸 문장이면 `follow_up`. 실패·다시 보내기가 입력창의 초안을 덮지 않게 한다. */
+  origin?: AmoraDraftOrigin;
 }
 
 interface AiMessageIngestExpected {
@@ -2932,6 +2938,14 @@ export default function ChatScreen() {
             });
           }
           const lane = aiLaneForVisibility(incoming.visibility);
+          // 같은 칸에 새 질문이 오면(예: 상대가 웹에서 함께 대화로 물었다) 내 칩은 지금 대화의 다음
+          // 질문이 아니다 — 거둔다. 아모라 답·두 사람끼리의 말·칩을 만든 그 질문은 예외다(웹과 같다).
+          setFollowUpSuggestions((current) => followUpsAfterIncomingMessage(current, {
+            id: incoming.id,
+            senderType: incoming.sender_type,
+            target: incomingMetadata?.target,
+            lane: aiLaneForVisibility(incoming.visibility),
+          }));
           setColdStartAiRecoveryByLane((current) => {
             const recovery = current[lane];
             if (!recovery) return current;
@@ -3438,7 +3452,9 @@ export default function ChatScreen() {
         const followUps = crisisBoundCompletion.metadata?.response_origin === "deterministic_crisis_safety"
           ? []
           : normalizeAmoraFollowUpSuggestions(completion.suggestions);
-        setFollowUpSuggestions(followUps.length > 0 ? { lane: request.lane, items: followUps } : null);
+        setFollowUpSuggestions(followUps.length > 0
+          ? { lane: request.lane, items: followUps, answersMessageId: request.body.userMessageId }
+          : null);
         scrollToLatest(true);
       }
     } catch (error) {
@@ -3689,6 +3705,12 @@ export default function ChatScreen() {
           canRetry,
           unavailableReason: canRetry ? null : NEW_CHAT_MESSAGE_REQUIRED_NOTICE,
         });
+        // 칩에서 보낸 문장은 입력창에 없다. 입력창이 비어 있을 때만 거기 둬 무엇이 실패했는지 보이게 한다.
+        setInputByLane((current) => updateAmoraChatLaneRecord(
+          current,
+          draft.sourceLane,
+          laneInputAfterFailedSend(current[draft.sourceLane], draft),
+        ));
         setStreaming(false);
       }
     }
@@ -3764,11 +3786,13 @@ export default function ChatScreen() {
         return;
       }
       if (failure.kind === "ai_insert") {
+        // 입력창에 다른 글(칩을 누르기 전에 쓰던 초안)이 있으면 덮지 않는다 — 덮으면 다시 보내기가
+        // 성공한 뒤 그 초안까지 지워진다.
         setInputByLane((current) => (
           updateAmoraChatLaneRecord(
             current,
             failure.draft.sourceLane,
-            failure.draft.text,
+            laneInputForRetry(current[failure.draft.sourceLane], failure.draft.text),
           )
         ));
         await sendAiDraft(failure.draft, true);
@@ -3796,6 +3820,8 @@ export default function ChatScreen() {
       || !activeVisibility
       || !activeLane
     ) return;
+    // 보내기를 시작하면 이전 답의 칩을 거둔다 — 상대에게 보낼 때·안전 안내로 멈출 때도(웹 `chatStore` 와 같다).
+    setFollowUpSuggestions(null);
     const crisisPreflight = planAmoraCrisisDelivery({
       userText: text,
       requestedVisibility: activeVisibility,
@@ -3918,6 +3944,7 @@ export default function ChatScreen() {
         visibility: effectiveVisibility,
         providerAttachmentCount: 0,
         sessionGeneration,
+        origin: textOverride === undefined ? "composer" : "follow_up",
       }, false);
     } finally {
       if (isCurrentChatSession(sessionGeneration)) sendingRef.current = false;

@@ -251,7 +251,7 @@ test('actual explicit send attaches source only to the same owner/couple/generat
       planAmoraCrisisDelivery: () => ({ effectiveVisibility: visibility, disposition: 'allow' }),
       linkedPartnerIdRef: { current: 'partner' }, hasLinkedPartnerRef: { current: true },
       chatSessionGenerationRef: { current: { current: () => 1 } }, isCurrentChatSession: () => true,
-      setLaneFailure: () => {}, setColdStartAiRecoveryByLane: () => {}, Crypto: { randomUUID: () => 'synthetic-request' },
+      setLaneFailure: () => {}, setColdStartAiRecoveryByLane: () => {}, setFollowUpSuggestions: () => {}, Crypto: { randomUUID: () => 'synthetic-request' },
       preparationDraft: { ...preview, context }, preparationContextRef: { current },
       sendAiDraft: async draft => calls.push(draft), sendPartnerDraft: async draft => calls.push(draft),
     };
