@@ -271,6 +271,62 @@ test("상담할 때 참고하는 맥락은 서버가 준 그 범위의 맥락만
   assert.ok(!legacy.includes("상담할 때 참고하는 맥락"));
 });
 
+// ── 서버에서 받지 못한 상태를 말하지 않는다 ─────────────────────────────────
+// 첫 GET /api/amora/memory 가 실패하거나(네트워크·5xx) 커플 확인이 실패하면 `data` 는
+// null 이다. 그때 `setting` 도 없어서 상태 문장이 「꺼짐」으로 떨어졌다 — 실제로는 켜져
+// 있는 사람에게 "아모라가 기억하지 않는다"고 말하는 셈이다. 웹은 `error && !data` 일 때
+// 오류 칸만 보여준다. 앱도 받지 못한 켜짐·꺼짐·기억 개수·운영 점검 안내를 그리지 않는다.
+const RUNTIME_NOTICE = "새 기억 연결은 최종 운영 점검 중이에요. 기존 기억의 확인·수정·삭제는 지금도 가능해요.";
+const STATE_CLAIMS = ["상태 · 꺼짐", "상태 · 켜짐", "동의 대기", "정리된 기억", "아직 정리된 기억이 없어요", RUNTIME_NOTICE];
+
+function assertNoUnreceivedState(texts, nodes, label) {
+  for (const claim of STATE_CLAIMS) {
+    assert.ok(!texts.some((text) => text.includes(claim)), `${label}: 받지 못한 상태를 말했다 — 「${claim}」 | ${texts.join(" | ")}`);
+  }
+  assert.ok(!nodes.some((node) => node.type === "Switch"), `${label}: 받지 못한 동의 상태로 스위치를 그렸다`);
+  assert.ok(!texts.includes("기억 초기화"), `${label}: 받지 못한 범위에 초기화 버튼을 그렸다`);
+}
+
+test("기억을 불러오지 못하면 켜짐·꺼짐·기억 개수를 말하지 않고 오류와 다시 불러오기만 보여준다", () => {
+  for (const error of ["기억을 불러오지 못했어요.", "커플 연결을 확인한 뒤 기억을 볼 수 있어요."]) {
+    for (const activeVisibility of ["shared", "bride_private"]) {
+      const { texts, nodes } = renderScreen({ data: null, activeVisibility, loading: false, error });
+      const label = `${activeVisibility} · ${error}`;
+      assert.ok(texts.includes(error), `${label}: 오류 문장이 없다 | ${texts.join(" | ")}`);
+      assert.ok(texts.includes("다시 불러오기"), `${label}: 다시 불러오기가 없다`);
+      assertNoUnreceivedState(texts, nodes, label);
+    }
+  }
+});
+
+test("받은 것도 오류도 없이 멈춰 있으면 빈 화면이 아니라 다시 불러오기를 준다", () => {
+  // 로그아웃 직후처럼 load 가 데이터 없이 끝나는 경우. 상태를 지어내지 않고 되돌릴 길을 준다.
+  const { texts, nodes } = renderScreen({ data: null, activeVisibility: "shared", loading: false, error: null });
+  assert.ok(texts.includes("기억을 불러오지 못했어요."), texts.join(" | "));
+  assert.ok(texts.includes("다시 불러오기"));
+  assertNoUnreceivedState(texts, nodes, "데이터·오류 없음");
+});
+
+test("운영 점검 안내는 서버가 runtimeEnabled=false 라고 했을 때만 보여준다", () => {
+  const off = renderScreen({ data: sharedData({ runtimeEnabled: false }), activeVisibility: "shared", loading: false }).texts;
+  assert.ok(off.includes(RUNTIME_NOTICE), off.join(" | "));
+  const on = renderScreen({ data: sharedData(), activeVisibility: "shared", loading: false }).texts;
+  assert.ok(!on.includes(RUNTIME_NOTICE), "켜진 서버에서 운영 점검 안내를 보여줬다");
+});
+
+test("데이터가 있는데 다시 불러오기가 실패하면, 받은 상태는 두고 오류를 함께 보여준다", () => {
+  // 웹과 같다 — 마지막으로 받은 상태는 서버가 준 것이므로 지우지 않는다.
+  const { texts, nodes } = renderScreen({
+    data: sharedData(),
+    activeVisibility: "shared",
+    loading: false,
+    error: "기억을 불러오지 못했어요.",
+  });
+  assert.ok(texts.includes("기억을 불러오지 못했어요."));
+  assert.ok(texts.includes("공유 기억 상태 · 동의 대기 (1/2). 파트너 구성 변경 시 두 분의 동의를 새로 받아요."));
+  assert.ok(nodes.some((node) => node.type === "Switch"));
+});
+
 // ── 웹과 글자까지 같은가 ───────────────────────────────────────────────────
 
 test("측정기가 살아 있다", () => {
