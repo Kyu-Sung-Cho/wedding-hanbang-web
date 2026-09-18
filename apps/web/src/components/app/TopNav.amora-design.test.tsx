@@ -53,6 +53,8 @@ describe("Amora header search meaning", () => {
     const menu = vi.fn();
     await act(async () => root.render(<TopNav planningWorkspace onMenuToggle={menu} />));
     expect(container.querySelector("h1")?.textContent).toBe(title);
+    // 모바일에서는 이 제목이 왼쪽 위 브랜드 자리다 — 커뮤니티가 아니라 라운지로 간다.
+    expect(container.querySelector('a[aria-label="웨딩한방 홈으로 이동"]')?.getAttribute("href")).toBe("/lounge");
     expect(container.textContent).toContain("날짜 미정");
     expect(container.textContent).not.toMatch(/D-\d+/);
     expect(control("메뉴 열기")?.classList.contains("hidden")).toBe(false);

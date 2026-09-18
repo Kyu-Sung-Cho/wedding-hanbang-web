@@ -16,7 +16,7 @@ import {
 } from "lucide-react";
 import AmoraMark from "@/components/ui/AmoraMark";
 import ProfileAvatar from "@/components/ui/ProfileAvatar";
-import Logo from "@/components/ui/Logo";
+import Logo, { LogoMark } from "@/components/ui/Logo";
 import { stripWeddingBasePath, weddingLinkProps } from "@/lib/weddingPaths";
 import { useAuthStore } from "@/stores/authStore";
 
@@ -73,8 +73,9 @@ export default function Sidebar({ isOpen, onClose, amoraWorkspace = false, plann
         }`}
       >
         <div className={htmlDesign ? "flex min-h-[54px] items-start justify-between px-6 pt-[6px]" : "flex h-[72px] items-center justify-between px-5"}>
-          <Link {...weddingLinkProps()} className="inline-flex items-center whitespace-nowrap" aria-label="웨딩한방 홈으로 이동">
-            {htmlDesign ? <span className="amora-display flex items-center gap-2 text-[17px] text-[var(--amora-ink)]"><span aria-hidden className="flex size-[26px] items-center justify-center rounded-[7px] bg-[var(--amora-ink)] font-sans text-[13px] font-bold text-white">H</span>웨딩한방</span> : <Logo size="md" />}
+          {/* 로그인한 사람의 홈은 웨딩 라운지다. 빈 경로는 커뮤니티(/wedding)로 간다. */}
+          <Link {...weddingLinkProps("/lounge")} onClick={onClose} className="inline-flex items-center whitespace-nowrap" aria-label="웨딩한방 홈으로 이동">
+            {htmlDesign ? <span className="amora-display flex items-center gap-2 text-[17px] text-[var(--amora-ink)]"><LogoMark />웨딩한방</span> : <Logo size="md" />}
           </Link>
           <button
             type="button"
