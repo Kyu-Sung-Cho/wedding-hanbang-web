@@ -11,19 +11,17 @@
  * 되는데 앱 어디에도 나타나지 않았다. 사용자 입장에서는 방금 누른 승인이 사라진다.
  *
  * 문구는 서버가 소유한다(`title`). 여기서 지어내지 않는다.
+ *
+ * 항목 해석은 공용 계약(`@hanbang/shared/amora-shared-actions`)에 맡긴다. 예전에는 id 를
+ * 100자에서 잘랐는데, 잘린 id 로 완료를 보내면 없는 항목이나 다른 항목을 고친다. 이제
+ * 서버 수정 경로가 받는 모양 밖의 id 는 자르지 않고 버린다. 라운지 미리보기는 그 결과에서
+ * 필요한 칸만 쓰고, 예정일은 정렬·"…까지" 표기를 위해 `YYYY-MM-DD` 만 남긴다
+ * (원문 예정일은 준비 기록 보드가 그대로 보여준다).
  */
+import { parseSharedActionList } from "@hanbang/shared/amora-shared-actions";
 
 /** 사용자에게 한 번에 보여줄 줄 수. 라운지는 카드가 여러 장 쌓이는 화면이다. */
 export const AMORA_ACTION_VISIBLE_LIMIT = 3;
-
-const PRIORITIES = new Set(["high", "medium", "low"]);
-const STATUSES = new Set(["open", "done", "dismissed"]);
-
-function cleanText(value, max) {
-  if (typeof value !== "string") return "";
-  const trimmed = value.trim();
-  return trimmed.length > max ? trimmed.slice(0, max) : trimmed;
-}
 
 /** `YYYY-MM-DD` 만 날짜로 받는다. 그 밖의 값은 화면에 날짜인 척 올리지 않는다. */
 function cleanYmd(value) {
@@ -34,23 +32,13 @@ function cleanYmd(value) {
 /**
  * `/api/amora/actions` 응답에서 화면에 그릴 수 있는 항목만 남긴다.
  *
- * 제목이 없으면 버린다 — 제목 없는 줄은 사용자가 무엇을 완료하는지 알 수 없고,
- * 그 상태로 완료 버튼을 주면 확인하지 않은 변경이 된다.
+ * 제목이 없거나 id·상태를 읽을 수 없으면 버린다 — 제목 없는 줄은 사용자가 무엇을
+ * 완료하는지 알 수 없고, 그 상태로 완료 버튼을 주면 확인하지 않은 변경이 된다.
  */
 export function parseAmoraActions(payload) {
-  const raw = payload && typeof payload === "object" ? payload.actions : null;
-  if (!Array.isArray(raw)) return [];
-  const parsed = [];
-  for (const entry of raw) {
-    if (!entry || typeof entry !== "object") continue;
-    const id = cleanText(entry.id, 100);
-    const title = cleanText(entry.title, 120);
-    if (!id || !title) continue;
-    const status = STATUSES.has(entry.status) ? entry.status : "open";
-    const priority = PRIORITIES.has(entry.priority) ? entry.priority : "medium";
-    parsed.push({ id, title, status, priority, dueDate: cleanYmd(entry.dueDate) });
-  }
-  return parsed;
+  return parseSharedActionList(payload).map(({ id, title, status, priority, dueDate }) => ({
+    id, title, status, priority, dueDate: cleanYmd(dueDate),
+  }));
 }
 
 /**

@@ -28,14 +28,14 @@ const experience = readFileSync(
 );
 
 const action = (over = {}) => ({
-  id: "a1", title: "청첩장 문구 확정하기", status: "open", priority: "medium", dueDate: "", ...over,
+  id: "act1", title: "청첩장 문구 확정하기", status: "open", priority: "medium", dueDate: "", ...over,
 });
 
 test("서버 응답에서 그릴 수 있는 줄만 남긴다", () => {
   const parsed = parseAmoraActions({
     actions: [
-      { id: "a1", title: "청첩장 문구 확정", status: "open", priority: "high", dueDate: "2026-10-01" },
-      { id: "a2", title: "   ", status: "open" },
+      { id: "act1", title: "청첩장 문구 확정", status: "open", priority: "high", dueDate: "2026-10-01" },
+      { id: "act2", title: "   ", status: "open" },
       { id: "", title: "제목은 있는데 id 가 없음", status: "open" },
       { title: "id 자체가 없음", status: "open" },
       null,
@@ -46,7 +46,7 @@ test("서버 응답에서 그릴 수 있는 줄만 남긴다", () => {
   // 확인하지 않은 변경이 된다.
   assert.equal(parsed.length, 1);
   assert.deepEqual(parsed[0], {
-    id: "a1", title: "청첩장 문구 확정", status: "open", priority: "high", dueDate: "2026-10-01",
+    id: "act1", title: "청첩장 문구 확정", status: "open", priority: "high", dueDate: "2026-10-01",
   });
 });
 
@@ -58,7 +58,7 @@ test("응답이 이상해도 던지지 않는다", () => {
 
 test("날짜 모양이 아닌 값은 날짜인 척하지 않는다", () => {
   const [row] = parseAmoraActions({
-    actions: [{ id: "a1", title: "제목", status: "open", dueDate: "다음 주쯤" }],
+    actions: [{ id: "act1", title: "제목", status: "open", dueDate: "다음 주쯤" }],
   });
   assert.equal(row.dueDate, "");
   assert.equal(formatAmoraActionDueDate("다음 주쯤"), "");
@@ -254,7 +254,7 @@ test("실제 완료 실패는 원래 줄과 오류를 남기고 재시도 성공
 });
 
 test("실제 카드의 더 있는 개수는 제한된 배열이 아니라 서버 전체 미완료 수를 쓴다", async () => {
-  const h = cardHarness(); h.responses.push(listResponse(Array.from({ length: 20 }, (_, i) => action({ id: `a${i}` })), { count: 37, open_count: 37, truncated: true }));
+  const h = cardHarness(); h.responses.push(listResponse(Array.from({ length: 20 }, (_, i) => action({ id: `act${i}` })), { count: 37, open_count: 37, truncated: true }));
   await h.flush(); assert.match(h.text(), /37개 중 3개/u); assert.match(h.text(), /34개가 더/u);
 });
 
@@ -301,12 +301,12 @@ test("HTTP 200이어도 다른 항목이나 미완료 영수증이면 기존 줄
 });
 
 test("완료는 성공하고 재조회만 실패하면 완료를 되돌리거나 다시 보내지 않는다", async () => {
-  const h = cardHarness(); h.responses.push(listResponse([action(), action({ id: "a2", title: "다음 할 일" })])); await h.flush();
+  const h = cardHarness(); h.responses.push(listResponse([action(), action({ id: "act2", title: "다음 할 일" })])); await h.flush();
   h.responses.push({ ok: true, json: async () => ({ action: action({ status: "done" }) }) }, { ...failureResponse, status: 503 });
   h.press("청첩장 문구 확정하기 완료로 표시"); h.press("청첩장 문구 확정하기 완료로 표시"); await h.flush();
   assert.doesNotMatch(h.text(), /청첩장 문구 확정하기|완료 여부를 확인하지 못/u);
   assert.match(h.text(), /다음 할 일/u); assert.match(h.text(), /불러오지 못/u);
-  h.responses.push(listResponse([action({ id: "a2", title: "다음 할 일" })])); h.press("다시 불러오기"); await h.flush();
+  h.responses.push(listResponse([action({ id: "act2", title: "다음 할 일" })])); h.press("다시 불러오기"); await h.flush();
   assert.equal(h.calls.filter(([, , options]) => options.method === "PATCH").length, 1);
 });
 
@@ -331,10 +331,10 @@ test("진행 중 항목이 없어도 준비 기록으로 들어가 완료 기록
 
 test("준비 기록은 다음 페이지를 읽고 같은 ID를 중복 표시하지 않는다", async () => {
   const h = cardHarness({ presentation: "board" });
-  const rows = Array.from({ length: 80 }, (_, index) => action({ id: `a${index}`, title: `할 일 ${index}` }));
+  const rows = Array.from({ length: 80 }, (_, index) => action({ id: `act${index}`, title: `할 일 ${index}` }));
   h.responses.push(listResponse(rows, { count: 81, open_count: 81, truncated: true, next_cursor: "cursor /+" })); await h.flush();
   assert.match(h.text(), /81개 중 80개/u); assert.match(h.text(), /할 일 79/u);
-  h.responses.push(listResponse([rows[79], action({ id: "a80", title: "마지막 할 일" })], { count: 81, open_count: 81, truncated: true, next_cursor: null }));
+  h.responses.push(listResponse([rows[79], action({ id: "act80", title: "마지막 할 일" })], { count: 81, open_count: 81, truncated: true, next_cursor: null }));
   h.press("기록 더 보기"); h.press("기록 더 보기"); await h.flush();
   assert.equal(h.calls.length, 2); assert.match(h.calls[1][1], /cursor=cursor%20%2F%2B/u);
   assert.match(h.text(), /81개 중 81개/u); assert.match(h.text(), /마지막 할 일/u);
@@ -348,7 +348,7 @@ test("더 읽기 실패는 현재 기록을 보존하고 재조회 후 다시 �
   h.responses.push(first()); await h.flush(); h.responses.push({ ...failureResponse, status: 503 });
   h.press("기록 더 보기"); await h.flush(); assert.match(h.text(), /청첩장 문구 확정하기/u); assert.match(h.text(), /불러오지 못/u);
   h.responses.push(first()); h.press("다시 불러오기"); await h.flush();
-  h.responses.push(listResponse([action({ id: "a2", title: "이어 읽은 기록" })], { count: 2, open_count: 2, next_cursor: null }));
+  h.responses.push(listResponse([action({ id: "act2", title: "이어 읽은 기록" })], { count: 2, open_count: 2, next_cursor: null }));
   h.press("기록 더 보기"); await h.flush(); assert.match(h.text(), /2개 중 2개/u); assert.match(h.text(), /이어 읽은 기록/u);
 });
 
@@ -357,7 +357,7 @@ test("더 읽는 동안 상태를 바꾸면 예전 진행 중 응답이 완료 �
   h.responses.push(listResponse([action()], { count: 2, open_count: 2, truncated: true, next_cursor: "page2" })); await h.flush();
   let resolve; h.responses.push(() => new Promise(done => { resolve = done; })); h.press("기록 더 보기"); await h.flush();
   h.responses.push(listResponse([action({ status: "done", title: "완료한 기록" })], { open_count: 2 })); h.press("완료 기록 보기"); await h.flush();
-  resolve(listResponse([action({ id: "a2", title: "예전 페이지" })], { count: 2, open_count: 2, next_cursor: null })); await h.flush();
+  resolve(listResponse([action({ id: "act2", title: "예전 페이지" })], { count: 2, open_count: 2, next_cursor: null })); await h.flush();
   assert.match(h.text(), /완료한 기록/u); assert.doesNotMatch(h.text(), /예전 페이지|청첩장 문구 확정하기/u);
 });
 
