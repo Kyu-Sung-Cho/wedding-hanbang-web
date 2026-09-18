@@ -69,6 +69,15 @@ import {
 } from "@/lib/amoraChatEntry";
 import { createChatSessionGenerationGuard } from "@/lib/chatSessionGeneration";
 import {
+  AMORA_MEMORY_OFF_COPY,
+  AMORA_MEMORY_ON_COPY,
+  AMORA_MEMORY_SETTINGS_LINK,
+  formatAmoraQuotaNotice,
+  readAmoraMemoryStatus,
+  resolveAmoraMemoryLine,
+  type AmoraMemoryStatus,
+} from "@/lib/amoraChatNotices";
+import {
   CARRIED_PENDING_ACTION_LABEL,
   getAmoraActionApprovalPolicy,
   getPendingAmoraAction,
@@ -1986,6 +1995,7 @@ export default function ChatScreen() {
     AmoraChatLaneRecord<ColdStartAiRecovery | null>
   >(() => createEmptyAmoraChatLaneRecord(() => null));
   const [quotaRemaining, setQuotaRemaining] = useState<number | null>(null);
+  const [memoryStatus, setMemoryStatus] = useState<AmoraMemoryStatus | null>(null);
   const [nowMs, setNowMs] = useState(() => Date.now());
   const [dismissedPendingActionIds, setDismissedPendingActionIds] = useState<Set<string>>(
     () => new Set(),
@@ -2255,6 +2265,43 @@ export default function ChatScreen() {
   useFocusEffect(useCallback(() => {
     participantPresentationLoadRef.current?.();
   }, []));
+
+  // 이 탭의 대화가 장기 기억으로 정리되는지 한 줄로 알린다 — 웹 채팅과 같은 줄이다(2026-09-18).
+  // 설정 화면이 쓰는 GET /api/amora/memory 를 읽기만 한다. 켜고 끄는 판정·저장은 건드리지 않는다.
+  // 표시용이라 401 이어도 전역 「세션 만료」를 띄우지 않고, 못 읽으면 줄을 그리지 않는다.
+  // 설정에서 켜고 돌아오면(화면 포커스) 다시 읽는다.
+  const memoryStatusLoadRef = useRef<(() => void) | null>(null);
+  useEffect(() => {
+    if (!initialLoaded || !userId || !coupleId || chatLoadError) return;
+    const generation = chatSessionGenerationRef.current.current();
+    let active = true;
+    let inFlight = false;
+    const isCurrent = () => active && mountedRef.current && chatSessionGenerationRef.current.isCurrent(generation);
+    const load = async () => {
+      if (inFlight) return;
+      inFlight = true;
+      try {
+        const response = await apiFetchForExpectedUserQuiet(userId, "/api/amora/memory");
+        const payload: unknown = await response.json().catch(() => null);
+        if (!isCurrent()) return;
+        setMemoryStatus(response.ok ? readAmoraMemoryStatus(payload) : null);
+      } catch {
+        // 계정 전환·연결 오류. 틀린 상태를 말하느니 줄을 그리지 않는다.
+        if (isCurrent()) setMemoryStatus(null);
+      } finally {
+        inFlight = false;
+      }
+    };
+    memoryStatusLoadRef.current = () => { void load(); };
+    void load();
+    return () => {
+      active = false;
+      memoryStatusLoadRef.current = null;
+    };
+  }, [chatLoadError, coupleId, initialLoaded, userId]);
+  useFocusEffect(useCallback(() => {
+    memoryStatusLoadRef.current?.();
+  }, []));
   const activeW5PersistenceState = useMemo<{
     rawDisclosurePersisted: boolean | null;
     persistence: RawDisclosurePersistence;
@@ -2356,6 +2403,7 @@ export default function ChatScreen() {
     setSendFailuresByLane(createEmptyAmoraChatLaneRecord(() => null));
     setColdStartAiRecoveryByLane(createEmptyAmoraChatLaneRecord(() => null));
     setQuotaRemaining(null);
+    setMemoryStatus(null);
     setDismissedPendingActionIds(new Set());
     setApplyingPendingActionId(null);
     setPendingActionNotice(null);
@@ -4474,6 +4522,7 @@ export default function ChatScreen() {
   }
 
   const isP = activeScope === "shared" && target === "partner";
+  const memoryLine = resolveAmoraMemoryLine(memoryStatus, activeScope, userRole);
 
   return (
     <SafeAreaView style={st.container} edges={["top"]}>
@@ -4551,6 +4600,27 @@ export default function ChatScreen() {
               ? "현재 범위 · 함께 대화 — 파트너에게 보여요"
               : "현재 범위 · 함께 대화 — 파트너 연결 후 함께 볼 수 있어요"}
         </Text>
+        {/* 이 탭의 기억 상태 한 줄. 못 읽었으면 그리지 않는다. 안전 안내가 떠 있는 동안에는
+            "정리돼요"가 그 내용까지 기억된다는 뜻으로 읽히지 않도록 감춘다. */}
+        {!hasActiveW5SafetyCard && memoryLine && (
+          <View style={st.memoryStatus}>
+            <Text style={st.memoryStatusText}>
+              {memoryLine.kind === "on"
+                ? AMORA_MEMORY_ON_COPY
+                : `${AMORA_MEMORY_OFF_COPY}${memoryLine.canEnable ? " · " : ""}`}
+            </Text>
+            {memoryLine.kind === "off" && memoryLine.canEnable && (
+              <Pressable
+                onPress={() => router.push("/settings/amora-memory")}
+                accessibilityRole="link"
+                accessibilityLabel="아모라 기억 설정에서 켜기"
+                hitSlop={{ top: 14, bottom: 14, left: 8, right: 8 }}
+              >
+                <Text style={st.memoryStatusLink}>{AMORA_MEMORY_SETTINGS_LINK}</Text>
+              </Pressable>
+            )}
+          </View>
+        )}
       </View>
 
       {activeScope === "shared" && (
@@ -4610,9 +4680,7 @@ export default function ChatScreen() {
         {!hasActiveW5SafetyCard && quotaRemaining !== null && !streaming && (
           <View style={st.quotaBar} accessibilityLiveRegion="polite">
             <Text style={st.quotaText}>
-              {quotaRemaining > 0
-                ? `무료 상담이 ${quotaRemaining}회 남았어요.`
-                : "무료 상담을 모두 사용했어요."}
+              {formatAmoraQuotaNotice(quotaRemaining)}
             </Text>
             <Pressable
               style={({ pressed }) => [st.quotaDismiss, pressed && { opacity: 0.62 }]}
@@ -4653,9 +4721,11 @@ export default function ChatScreen() {
           <View style={st.failureBar} accessibilityLiveRegion="polite">
             <Text style={st.failureText}>
               {activeColdStartAiRecovery.disposition === "reattach_required"
+                // 앱에는 첨부를 고르는 곳이 없다. 할 수 없는 일("첨부파일을 다시 선택해")을 시키지 않고
+                // 앱에서 할 수 있는 길만 말한다(2026-09-18).
                 ? activeColdStartAiRecovery.providerAttachmentState === "present"
-                  ? "첨부파일이 포함된 질문이에요. 첨부파일을 다시 선택해 새 메시지로 보내 주세요."
-                  : "이 질문의 첨부 상태를 확인할 수 없어요. 첨부파일을 다시 선택해 새 메시지로 보내 주세요."
+                  ? "첨부파일이 포함된 질문이라 앱에서는 답변을 이어받을 수 없어요. 필요한 내용을 글로 적어 새 메시지로 보내 주세요."
+                  : "이 질문의 첨부 상태를 확인할 수 없어요. 필요한 내용을 글로 적어 새 메시지로 보내 주세요."
                 : "저장된 질문의 아모라 답변을 이어받을 수 있어요."}
             </Text>
             {activeColdStartAiRecovery.disposition === "resumable" && (
@@ -4754,6 +4824,9 @@ const st = StyleSheet.create({
   privateScopeTextActive: { color: "#5a6147", fontWeight: "600" },
   scopeStatus: { paddingHorizontal: 4, paddingTop: 6, fontSize: 11, lineHeight: 16, color: colors.rose[700] },
   privateScopeStatus: { color: "#5a6147" },
+  memoryStatus: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", paddingHorizontal: 4, paddingTop: 2 },
+  memoryStatusText: { fontSize: 11, lineHeight: 16, color: colors.textTertiary },
+  memoryStatusLink: { fontSize: 11, lineHeight: 16, fontWeight: "600", color: colors.rose[700], textDecorationLine: "underline" },
   targetRow: { flexDirection: "row", borderBottomWidth: 1, borderBottomColor: colors.border, backgroundColor: colors.surface },
   targetBtn: { flex: 1, minHeight: 44, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 10 },
   targetActive: { borderBottomWidth: 2, borderBottomColor: colors.noir[800] },
