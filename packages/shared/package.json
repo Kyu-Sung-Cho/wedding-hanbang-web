@@ -26,7 +26,8 @@
     "./amora-visible-text": "./src/contracts/amoraVisibleText.mjs",
     "./profile-avatar": "./src/contracts/profileAvatar.mjs",
     "./amora-personalization": "./src/contracts/amoraPersonalization.mjs",
-    "./chat-image-attachments": "./src/contracts/chatImageAttachments.mjs"
+    "./chat-image-attachments": "./src/contracts/chatImageAttachments.mjs",
+    "./manners-part-links": "./src/contracts/mannersPartLinks.mjs"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",

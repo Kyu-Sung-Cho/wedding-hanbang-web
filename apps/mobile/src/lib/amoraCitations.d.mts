@@ -3,4 +3,13 @@ export declare function parseAmoraCitations(content: unknown): {
   parts: number[];
 };
 
-export declare function describeAmoraCitations(parts: number[]): string | null;
+
+
+export interface AmoraMannersLink {
+  number: number;
+  slug: string;
+  title: string;
+  subtitle: string;
+}
+
+export declare function resolveAmoraMannersLinks(parts: unknown): AmoraMannersLink[];

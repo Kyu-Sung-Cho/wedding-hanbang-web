@@ -141,3 +141,22 @@ test("체크리스트 분야가 모두 지도에 있다", () => {
   const missing = categoryKeys.filter((key) => !(key in shared));
   assert.deepEqual(missing, [], `지도에 없는 분야: ${missing.join(", ")}`);
 });
+
+// ── 아모라 인용 번호 → 편 (2026-09-18, wave 2 · 2.7) ─────────────────────────────
+// 앱은 아모라 답의 `[etiquette:N]` 을 `@hanbang/shared/manners-part-links` 로 편 카드로 바꾼다.
+// 그 표는 정본(`scripts/manners/parts.json`)의 사본이다. 편 제목·부제를 고치거나 번호를 바꾸면
+// 앱 카드만 옛 이름을 말하거나 다른 편을 연다 — 25편 전부를 여기서 맞춘다.
+test("앱이 쓰는 인용 번호 표가 25편 정본과 번호·slug·제목·부제까지 같다", async () => {
+  const { MANNERS_PART_LINKS } = await import(new URL("../../packages/shared/src/contracts/mannersPartLinks.mjs", import.meta.url).href);
+  const parts = JSON.parse(read("scripts/manners/parts.json"));
+  assert.equal(parts.length, 25, `정본이 ${parts.length}편이다`);
+  const numbers = Object.keys(MANNERS_PART_LINKS).map(Number).sort((a, b) => a - b);
+  assert.deepEqual(numbers, Array.from({ length: 25 }, (_, i) => i + 1), "표의 번호가 1..25 가 아니다");
+  const wrong = parts
+    .filter((part) => {
+      const row = MANNERS_PART_LINKS[part.number];
+      return !row || row.slug !== part.slug || row.title !== part.title || row.subtitle !== part.subtitle;
+    })
+    .map((part) => `${part.number}: 표=${JSON.stringify(MANNERS_PART_LINKS[part.number])} 정본=${JSON.stringify({ slug: part.slug, title: part.title, subtitle: part.subtitle })}`);
+  assert.deepEqual(wrong, [], `인용 번호 표가 어긋났다 — ${wrong.join(" / ")}`);
+});

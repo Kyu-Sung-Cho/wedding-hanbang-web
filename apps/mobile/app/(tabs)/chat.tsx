@@ -59,8 +59,8 @@ import {
 } from "@/lib/amoraSharedActionActorFence.mjs";
 import { normalizeMediationBlock } from "@/lib/amoraMediation";
 import {
-  describeAmoraCitations,
   parseAmoraCitations,
+  resolveAmoraMannersLinks,
 } from "@/lib/amoraCitations.mjs";
 import {
   consumePendingAmoraFirstHello,
@@ -117,6 +117,7 @@ import {
   type ChatViewClearStep,
 } from "@/lib/chatViewClear";
 import { ChatViewClearSheet } from "@/components/chat/ChatViewClearSheet";
+import AmoraMannersLinks from "@/components/chat/AmoraMannersLinks";
 import { ChatImageAttachments } from "@/components/chat/ChatImageAttachments";
 import {
   createChatImageAttachmentStore,
@@ -4510,13 +4511,13 @@ export default function ChatScreen() {
       ? getAmoraVisibleText(item.content, { streaming: streaming && item.id.startsWith("temp_") })
       : item.content;
     const isThinking = isAi && item.id.startsWith("temp_") && !visibleContent.trim() && !hasPlaceResults && streaming;
-    // 근거 표식은 아모라만 붙인다. 사용자가 대괄호를 직접 쓴 것을 지우면 안 되므로
-    // 사람이 쓴 메시지는 손대지 않는다.
+    // 예절 안내 표식(`[etiquette:N]`, 더 읽을 곳)은 아모라만 붙인다. 사용자가 대괄호를 직접 쓴 것을
+    // 지우거나 카드로 바꾸면 안 되므로 사람이 쓴 메시지는 손대지 않는다.
     const citation = isAi
       ? parseAmoraCitations(visibleContent)
       : { text: item.content, parts: [] as number[] };
     const citationText = citation.text;
-    const citationNotice = isAi ? describeAmoraCitations(citation.parts) : null;
+    const mannersLinks = isAi ? resolveAmoraMannersLinks(citation.parts) : [];
     const shouldRenderBubble = isThinking || Boolean(citationText.trim());
     const mediationBlock = isAi
       ? normalizeMediationBlock(item.metadata?.mediation)
@@ -4716,15 +4717,10 @@ export default function ChatScreen() {
                     ) : (
                       <Text style={[st.bubbleText, { color: textColor }]}>{citationText}</Text>
                     )}
-                    {/* 아모라가 예절 안내를 근거로 답하면 본문 끝에 `[etiquette:N]`을 붙인다.
-                        웹은 그 표식을 안내 카드로 바꾸는데 모바일은 그대로 그려서
-                        사용자가 `[etiquette:9]`를 읽고 있었다. 근거를 대라고 만든 표식이
-                        깨진 텍스트로 보이던 것이다. 번호를 주제별 링크로 바꾸려면
-                        번호→슬러그 자료가 필요한데 지금은 웹 안에만 있어, 우선 표식을
-                        걷어내고 무엇을 근거로 했는지만 말한다. */}
-                    {citationNotice !== null && (
-                      <Text style={st.citationNotice}>{citationNotice}</Text>
-                    )}
+                    {/* 아모라가 예절 안내 편을 더 읽을 곳으로 가리키면(`[etiquette:N]`) 웹 채팅처럼 편 카드를
+                        붙인다. 누르면 앱 안 웹 화면으로 그 편이 열린다(2026-09-18). 표식은 근거 인용이
+                        아니다 — 편을 근거로 답했다고 말하지 않는다. */}
+                    <AmoraMannersLinks links={mannersLinks} siteOrigin={amoraSiteOrigin} />
                   </>
                 )}
               </View>
@@ -5396,14 +5392,6 @@ const st = StyleSheet.create({
   bubbleHugEnd: { alignSelf: "flex-end" },
   bubbleHugStart: { alignSelf: "flex-start" },
   bubbleText: { fontSize: 15, lineHeight: 22 },
-  // 근거 문구는 답변보다 작고 조용하게. 본문을 밀어내지 않되, 무엇에 기대어 답했는지는
-  // 보이게 한다.
-  citationNotice: {
-    marginTop: 8,
-    fontSize: 12,
-    lineHeight: 16,
-    color: colors.textTertiary,
-  },
   safetyCard: { width: "100%", padding: 16, borderRadius: 16, borderWidth: 1, borderColor: colors.danger, backgroundColor: colors.ivory[50] },
   safetyCardHeading: { flexDirection: "row", alignItems: "center", gap: 8 },
   safetyCardTitle: { fontSize: 14, fontWeight: "700", color: colors.noir[800] },
