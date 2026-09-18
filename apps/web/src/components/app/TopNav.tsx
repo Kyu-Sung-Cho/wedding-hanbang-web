@@ -94,7 +94,7 @@ export default function TopNav({ onMenuToggle, amoraWorkspace = false, planningW
             <Menu className="h-5 w-5" />
           </button>
           <Link
-            {...weddingLinkProps()}
+            {...weddingLinkProps("/lounge")}
             className={`flex flex-col justify-center rounded-[6px] outline-none transition-colors hover:text-[var(--hb-accent-hover)] focus-visible:ring-2 focus-visible:ring-[#c9a96e]/50 ${amoraWorkspace ? "min-h-11" : ""}`}
             aria-label="웨딩한방 홈으로 이동"
           >

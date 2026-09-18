@@ -89,11 +89,11 @@ describe("웨딩코드 진입 화면", () => {
     for (const banned of ["점수가", "등급", "궁합이", "유형이에요", "당신은 "]) {
       expect(html, banned).not.toContain(banned);
     }
-    expect(html).toContain("성격이나 궁합을 판정하는 검사는 아니에요");
+    expect(html).toContain("성격이나 궁합을 보는 검사는 아니에요");
     expect(html).toContain("아직 답하기 어려운 장면은 건너뛸 수 있어요");
     // 금액 규모와 가족 구성이 다른 사람도 배제되지 않는다고 먼저 말한다.
     expect(html).toContain("금액과 상황은 예시예요");
-    expect(html).toContain("부모님·하객·결혼식이 없는 경우에도");
+    expect(html).toContain("결혼식을 안 하거나 부모님, 하객 이야기가 우리 상황과 맞지 않으면");
   });
 
   it("먼저 답한 사람의 코드가 오면 응답 순서를 정확히 알린다", async () => {
@@ -129,10 +129,10 @@ describe("웨딩코드 진입 화면", () => {
     });
     expect(html).toContain('data-result="couple"');
     expect(html).toContain("갈렸어요");
-    expect(html).toContain("어느 쪽이 맞는지는 없어요");
+    expect(html).toContain("누가 맞는지 가리지 않아요");
     expect(html).toContain("먼저 답한 사람");
     expect(html).toContain("나중에 답한 사람");
-    expect(html).toContain("다음 대화:");
+    expect(html).toContain("둘이 해 볼 것:");
     expect(html).not.toMatch(/최소 세 번|매번 갈려|잡을 때마다/);
     expect(html).not.toContain("상대: “");
     expect(html).not.toContain("나: “");
@@ -212,9 +212,9 @@ describe("웨딩코드 진입 화면", () => {
     expect(html).toContain("각자 이번에 고른 것");
     expect(html).toContain("둘 다 못 받아서 답이 며칠씩 밀렸다");
     expect(html).toContain("정리한 사람이 3곳으로 줄여달라고 했다");
-    expect(html).toContain("두 쪽 답을 같은 수로 골랐어요");
+    expect(html).toContain("답을 같은 수만큼 골랐어요");
     // 각자 요약의 셈은 결과 화면 범례와 같은 문장이고, 겪은 일이 섞인 축이라 확인 안내가 붙는다.
-    expect(html).toContain("답한 2장면이 T(둘이 같이) 쪽과 O(맡아서 하기) 쪽 반반이었어요. 이 주제는 겪은 일, 바란 일, 직접 한 일을 한데 셌어요.");
+    expect(html).toContain("답한 2장면이 T(둘이 같이) 쪽과 O(맡아서 하기) 쪽으로 반반 나뉘었어요. 이 주제의 답에는 겪은 일, 바랐던 일, 내가 한 일이 섞여 있어요.");
     expect(html).not.toContain("함께 보기와 맡기기 답을 같은 수");
     expect(html).not.toContain("반복해서 고른");
   });

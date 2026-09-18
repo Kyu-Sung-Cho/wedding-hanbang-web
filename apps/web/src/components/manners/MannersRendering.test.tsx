@@ -57,6 +57,12 @@ describe("예절에서 필요한 글과 절을 찾는다", () => {
       "/wedding/lounge", "/wedding/chat", "/wedding/checklist", "/wedding/schedule", "/wedding/budget",
     ]);
     expect(nav!.querySelector("[aria-current]")).toBeNull();
+    // 사이드바 머리는 앱과 같다 — 탭 아이콘과 같은 로고, 라운지로 가는 링크.
+    const brand = doc.querySelector('aside a[aria-label="웨딩한방 홈으로 이동"]');
+    expect(brand?.getAttribute("href")).toBe("/wedding/lounge");
+    expect(brand?.querySelector("img")?.getAttribute("src")).toContain("apple-touch-icon.png");
+    // 모바일 목록의 "홈" 버튼도 같은 곳으로 간다 — 화면 폭에 따라 홈이 갈리지 않게.
+    expect(doc.querySelector('header a[aria-label="웨딩한방 홈으로 이동"]')?.getAttribute("href")).toBe("/wedding/lounge");
   });
 
   it("제목에 없는 본문 키워드도 검색하고, 빈 결과에서 전체 목록으로 돌아온다", () => {

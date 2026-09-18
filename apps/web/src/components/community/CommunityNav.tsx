@@ -34,8 +34,10 @@ export default function CommunityNav({
     <header className="sticky top-0 z-50 border-b border-[var(--hb-hairline)] bg-[#fffdf7]/94 backdrop-blur-xl">
       <div className="mx-auto flex h-[76px] w-full max-w-[1320px] items-center justify-between px-4 sm:px-6 lg:px-8">
         <div className="flex min-w-0 items-center gap-4">
+          {/* 로그인한 사람의 홈은 웨딩 라운지다(앱 사이드바와 같다). 로그인 전 방문자에게는
+              라운지가 로그인 벽이라 공개 커뮤니티를 홈으로 둔다. */}
           <Link
-            {...weddingLinkProps()}
+            {...weddingLinkProps(profile ? "/lounge" : "")}
             className="inline-flex min-h-11 shrink-0 items-center whitespace-nowrap"
             aria-label="웨딩한방 홈으로 이동"
           >

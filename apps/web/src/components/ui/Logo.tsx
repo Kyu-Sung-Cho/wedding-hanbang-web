@@ -7,6 +7,22 @@ interface LogoProps {
   bordered?: boolean;
 }
 
+// 브라우저 탭 아이콘(`/images/favicon.png`)과 같은 그림이다. 48px 파비콘을 그대로 키우면
+// 레티나에서 흐려져서, 같은 그림의 180px 판(apple-touch-icon)을 줄여 쓴다.
+export function LogoMark({ size = 30 }: { size?: number }) {
+  return (
+    <Image
+      src="/images/apple-touch-icon.png"
+      alt=""
+      aria-hidden
+      width={size}
+      height={size}
+      className="shrink-0 rounded-[7px]"
+      priority
+    />
+  );
+}
+
 export default function Logo({ size = "md", variant = "default", showText = true, bordered = false }: LogoProps) {
   const sizes = {
     sm: { icon: 32, text: 16, gap: 8 },

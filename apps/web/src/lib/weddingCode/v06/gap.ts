@@ -221,7 +221,7 @@ export function describeGap(
   const axes = options.axes ?? WEDDING_CODE_V06_AXES;
   const axis = axes.find((item) => item.key === gap.axis)!;
   return {
-    headline: `${axis.labelKo} — 여기서 갈렸어요`,
+    headline: `${axis.labelKo}: 여기서 갈렸어요`,
     quotes: [`${names.first}: “${gap.firstLabel}”`, `${names.second}: “${gap.secondLabel}”`],
     nextScene: options.nextSteps?.[gap.key] ?? AXIS_NEXT_STEP[gap.axis],
   };

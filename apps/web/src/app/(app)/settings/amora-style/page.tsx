@@ -126,7 +126,7 @@ const SECTIONS: readonly PreferenceSection[] = [
       },
       {
         value: "action_first",
-        label: "실행 먼저",
+        label: "할 일 먼저",
         description: "바로 할 수 있는 한 가지부터 정리해요.",
       },
       {

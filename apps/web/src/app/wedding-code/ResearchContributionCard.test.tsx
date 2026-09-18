@@ -92,7 +92,7 @@ describe("WeddingCode research contribution card", () => {
     await clickText(start);
     for (const [position] of config.questions.entries()) {
       if (position === 2) {
-        await clickText("이 장면은 우리와 안 맞아요");
+        await clickText("이 장면은 건너뛸게요");
         continue;
       }
       await act(async () => container.querySelector<HTMLButtonElement>(`[data-option="${option}"]`)!.click());
@@ -159,7 +159,7 @@ describe("WeddingCode research contribution card", () => {
 
     const card = container.querySelector('[data-research-contribution="form"]')!;
     expect(card).not.toBeNull();
-    expect(card.textContent).toContain("이름·연락처·계정·IP 주소·공유 링크·상대의 답");
+    expect(card.textContent).toContain("이름, 연락처, 계정, IP 주소, 공유 링크, 상대의 답");
     expect(card.textContent).toContain("보낸 날짜");
     expect(card.textContent).toContain("60일이 지나면 자동으로 지워요");
     expect(card.textContent).toContain("보태지 않아도 웨딩코드를 쓰는 데 아무 차이가 없어요");

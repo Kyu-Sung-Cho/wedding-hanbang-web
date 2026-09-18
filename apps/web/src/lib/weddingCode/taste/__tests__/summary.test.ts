@@ -9,9 +9,9 @@ describe("취향 요약과 비교", () => {
   it("내 선택을 모두 전달하되 미응답과 상대의 선택을 지어내지 않는다", () => {
     const text = buildWeddingTasteAmoraText(first());
     expect(text).toContain("자연스러운 순간");
-    expect(text).toContain("정해진 자세를 반복하는 촬영");
+    expect(text).toContain("정해진 포즈만 반복하는 촬영");
     expect(text).toContain("다른 안도 함께 볼 수 있어요");
-    expect(text).toContain("공동 합의는 아니에요");
+    expect(text).toContain("둘이 같이 정한 건 아니에요");
     expect(text).not.toContain("뷔페");
     expect(summarizeWeddingTaste(first()).find(row => row.key === "detail:meal")?.state).toBe("skipped");
   });
