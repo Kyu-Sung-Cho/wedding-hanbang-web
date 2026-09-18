@@ -256,7 +256,11 @@ test('actual native recap displays exact receipt states and only prefills after 
   const recap = { day: '2026-09-07', messageCount: 4, lastQuestion: { messageId: source, text: '내가 물은 질문', createdAt: '2026-09-07T00:00:00Z' }, actions: [
     { actionId: id, messageId: source, text: '예산 반영', state: 'applied' }, { actionId: other, messageId: source, text: '일정 제안', state: 'expired' },
   ] };
-  const h = nativeViewHarness('../components/chat/AmoraConversationRecap.tsx', 'AmoraConversationRecap', { recap, scopeLabel: '나만 상담', disabled: false, onPrefill: text => { if (canFill) sent.push(text); return canFill; } });
+  // 2026-09-18: 정리 요청 문장은 shared 에서, 정리 아래 행선지는 expo-router 로 간다(amoraRecapRequestParity.test.mjs).
+  const h = nativeViewHarness('../components/chat/AmoraConversationRecap.tsx', 'AmoraConversationRecap', { recap, scope: 'private', scopeLabel: '나만 상담', disabled: false, onPrefill: text => { if (canFill) sent.push(text); return canFill; } }, {
+    'expo-router': { router: { push: () => assert.fail('정리 확인 중에 화면을 옮기면 안 된다') } },
+    '@hanbang/shared': { AMORA_RECAP_REQUEST: '정리 요청' },
+  });
   assert.deepEqual(sent, []); h.button('최근 대화 정리 · 2026-09-07').props.onPress(); h.render();
   assert.match(h.text(), /반영 결과 확인됨/); assert.match(h.text(), /기한 만료 · 새 제안 필요/);
   h.button('이 질문 이어서 상담').props.onPress(); h.render(); assert.match(h.text(), /작성 중인 메시지는 그대로/); assert.deepEqual(sent, []);

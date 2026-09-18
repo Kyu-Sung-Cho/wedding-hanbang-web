@@ -100,10 +100,32 @@ export function isAmoraTypedCardAcceptance(text: unknown): boolean {
  * 말로 승낙한 턴에 서버가 쓰는 답. 모델 문장을 쓰지 않는다 — 모델은 누를 버튼이
  * 없는 안내나 "반영할게요" 같은 거짓 약속을 할 수 있다.
  *
- * 버튼 이름은 화면이 실제로 쓰는 것이다. 웹 카드(`PendingAmoraActionCard`)는
- * ‘내용 확인하기’ → 확인 창의 ‘이대로 적용’ 두 단계이고, 앱(`app/(tabs)/chat.tsx`)
- * 카드는 ‘이대로 적용’ 하나다. 같은 공유 대화를 두 사람이 서로 다른 기기에서 보므로
- * 한 문장이 두 화면 모두에서 참이어야 한다.
+ * 버튼 이름은 화면이 실제로 쓰는 것이다. 같은 공유 대화를 두 사람이 서로 다른 기기에서 보므로
+ * 한 문장이 모든 화면에서 참이어야 한다. 화면은 세 가지다:
+ *
+ *   - 웹 카드(`PendingAmoraActionCard`): ‘내용 확인하기’ → 확인 창의 ‘이대로 적용’
+ *   - 2026-09-18 이후 앱 카드(`app/(tabs)/chat.tsx`): 웹과 같은 두 단계
+ *   - 그 전 앱 카드: ‘이대로 적용’ 하나 — 이 서버 문장이 배포돼도 새 판을 아직 받지 않은
+ *     앱(expo-updates 전, 스토어 판)은 한동안 이 카드를 그린다.
+ *
+ * 그래서 세 화면 모두에 있는 마지막 버튼 ‘이대로 적용’만 이름으로 부르고, 첫 단계는 "바뀌는 내용을
+ * 확인하고" 로 말한다. ‘내용 확인하기’를 이름으로 부르면 옛 앱 사용자는 없는 버튼을 찾는다 —
+ * 2026-09-15 운영 사고(웹 카드에 없는 버튼만 가리켰다)와 같은 결함이다.
  */
 export const AMORA_TYPED_CARD_ACCEPTANCE_REPLY =
-  "아직 반영하지 않았어요. 웹에서는 아래 카드의 ‘내용 확인하기’를 누른 뒤 ‘이대로 적용’을, 앱에서는 카드의 ‘이대로 적용’을 누르면 반영돼요.";
+  "아직 반영하지 않았어요. 아래 카드에서 바뀌는 내용을 확인하고 ‘이대로 적용’을 누르면 반영돼요.";
+
+/**
+ * 이미 저장된 같은 안내의 옛 문장들. 2026-09-18 전에는 앱 카드가 ‘이대로 적용’ 한 단계라 문장이
+ * 웹·앱을 나눠 말했다(운영에 나간 문장은 이것 하나다). 대화에 저장된 행은 그대로 남으므로, 직전 행이 서버 고정 안내였는지 볼 때
+ * (`route.ts` 의 `previousRowSpeaksForCard`) 옛 문장도 같은 안내로 알아본다. 문장만 바뀌었지 뜻은 같다.
+ */
+const LEGACY_TYPED_CARD_ACCEPTANCE_REPLIES: readonly string[] = [
+  "아직 반영하지 않았어요. 웹에서는 아래 카드의 ‘내용 확인하기’를 누른 뒤 ‘이대로 적용’을, 앱에서는 카드의 ‘이대로 적용’을 누르면 반영돼요.",
+];
+
+/** 저장된 행 본문이 말로 한 승낙에 서버가 붙인 고정 안내(지금 문장이든 옛 문장이든)인가. */
+export function isAmoraTypedCardAcceptanceReply(content: unknown): boolean {
+  return typeof content === "string"
+    && (content === AMORA_TYPED_CARD_ACCEPTANCE_REPLY || LEGACY_TYPED_CARD_ACCEPTANCE_REPLIES.includes(content));
+}

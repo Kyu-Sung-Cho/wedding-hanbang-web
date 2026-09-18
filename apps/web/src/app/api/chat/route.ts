@@ -147,6 +147,7 @@ import {
   AMORA_TYPED_CARD_ACCEPTANCE_REPLY,
   classifyAmoraTypedCardAcceptance,
   isAmoraTypedCardAcceptance,
+  isAmoraTypedCardAcceptanceReply,
 } from "@/lib/ai/amoraTypedCardAcceptance";
 import {
   buildAmoraApprovedActionPrompt,
@@ -3400,7 +3401,8 @@ export async function POST(request: Request) {
     : undefined;
   const previousRowSpeaksForCard = previousRowCarryCount === undefined
     || previousRowCarryCount === 0
-    || previousCanonicalRow?.content === AMORA_TYPED_CARD_ACCEPTANCE_REPLY;
+    // 안내 문장이 바뀌기 전(2026-09-18)에 저장된 행도 같은 안내로 알아본다.
+    || isAmoraTypedCardAcceptanceReply(previousCanonicalRow?.content);
   const pendingCardTypedAcceptance = awaitingPendingCard !== null
     && (typedCardAcceptanceStrength === "explicit"
       || (typedCardAcceptanceStrength === "bare" && previousRowSpeaksForCard))
