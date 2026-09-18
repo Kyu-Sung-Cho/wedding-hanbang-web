@@ -31,6 +31,12 @@ const schedule = source("app/schedule/index.tsx");
  */
 const sheet = source("src/components/checklist/CategoryChecklistSheet.tsx");
 
+/**
+ * 2026-09-18: 분야 카드도 **옮겨갔다.** 웹 카드와 같은 상태 줄·진행 막대를 넣으면서 카드가
+ * `app/schedule/index.tsx` 에서 이 컴포넌트로 나왔다. 상태 이름을 어디서 읽는지는 그리는 곳을 본다.
+ */
+const card = source("src/components/checklist/ChecklistCategoryCard.tsx");
+
 test("항목 타입을 복사하지 않고 공유 템플릿의 것을 쓴다", () => {
   for (const [name, code] of [["schedule", schedule], ["sheet", sheet]]) {
     assert.doesNotMatch(
@@ -56,10 +62,13 @@ test("화면이 항목 시트를 실제로 띄운다", () => {
  * 다른 말로 보였다. 이름은 `PREPARATION_PROGRESS_STATUS_LABELS` 한 곳에서만 읽는다.
  */
 test("상태 이름을 세어서 만들지 않고 공용 사전에서 읽는다", () => {
-  assert.match(schedule, /PREPARATION_PROGRESS_STATUS_LABELS\[stats\.status\]/);
-  assert.match(schedule, /PREPARATION_PROGRESS_STATUS_LABELS\.not_applicable/);
-  assert.doesNotMatch(schedule, /"해당 없음 · 진행률에서 제외"/);
-  assert.doesNotMatch(schedule, /stats\.done === 0 \? "시작 전"/);
+  assert.match(schedule, /<ChecklistCategoryCard/, "화면이 분야 카드를 그리지 않는다");
+  assert.match(card, /PREPARATION_PROGRESS_STATUS_LABELS\[stats\.status\]/);
+  assert.match(card, /PREPARATION_PROGRESS_STATUS_LABELS\.not_applicable/);
+  for (const code of [schedule, card]) {
+    assert.doesNotMatch(code, /"해당 없음 · 진행률에서 제외"/);
+    assert.doesNotMatch(code, /stats\.done === 0 \? "시작 전"/);
+  }
 
   assert.match(sheet, /PREPARATION_PROGRESS_STATUS_LABELS\[stats\.skipped \? "not_applicable" : stats\.status\]/);
   assert.doesNotMatch(sheet, /stats\.skipped \? "해당 없음"/);

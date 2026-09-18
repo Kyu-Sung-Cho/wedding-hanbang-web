@@ -63,6 +63,11 @@ export type ChecklistSheetStats = {
   total: number;
   percent: number;
   skipped: boolean;
+  /**
+   * 항목을 세지 않고 분야 단위로 "준비 중·완료"라고 표시한 것인가(온보딩·라운지·아모라).
+   * 그렇다면 개수와 퍼센트를 나란히 쓰지 않는다 — `0/9 완료 · 0%` 옆에 「완료」가 선다.
+   */
+  declared: boolean;
   /** 저장된 상태 키. 상태 이름은 공용 사전에서만 읽는다 — 화면마다 다른 말이 되지 않게. */
   status: PlanningChecklistStatus;
 };
@@ -122,9 +127,13 @@ export default function CategoryChecklistSheet({
    * 껐으면 아무것도 가리키지 않는다 — 진행률에서 뺀 분야에 다음 할 일이 있다고
    * 말하는 것은 앞뒤가 안 맞는다.
    */
-  const nextItemId = stats.skipped
+  // 완료로 표시한 분야도 가리키지 않는다(웹 모달과 같은 규칙) — 끝났다고 한 분야에 다음 할 일은 없다.
+  const nextItemId = stats.skipped || (stats.declared && stats.status === "completed")
     ? undefined
     : groups.flatMap((group) => group.items).find((item) => !item.done)?.id;
+
+  /** 고리·줄이 퍼센트를 말하지 않는 경우. 웹 모달처럼 줄표와 「분야 상태로 표시함」을 쓴다. */
+  const hidesPercent = stats.skipped || stats.declared;
 
   const guide = mannersGuideForCategory(categoryKey);
 
@@ -168,9 +177,9 @@ export default function CategoryChecklistSheet({
 
         <View style={s.head}>
           <ChecklistProgressRing
-            percent={stats.skipped ? 0 : stats.percent}
+            percent={hidesPercent ? 0 : stats.percent}
             label={`${label} 완료율`}
-            centerText={stats.skipped ? "—" : `${stats.percent}%`}
+            centerText={hidesPercent ? "—" : `${stats.percent}%`}
           />
           <View style={s.headText}>
             <Text style={s.title} numberOfLines={2}>{label}</Text>
@@ -181,7 +190,9 @@ export default function CategoryChecklistSheet({
               <Text style={s.meta}>
                 {stats.skipped
                   ? "진행률에서 제외됨"
-                  : `${stats.done}/${stats.total} 완료 · ${stats.percent}%`}
+                  : stats.declared
+                    ? "분야 상태로 표시함 · 항목은 확인 전"
+                    : `${stats.done}/${stats.total} 완료 · ${stats.percent}%`}
               </Text>
             </View>
           </View>

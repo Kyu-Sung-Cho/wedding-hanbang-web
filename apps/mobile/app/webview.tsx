@@ -26,6 +26,7 @@ import {
   resolveMobileSiteOrigin,
 } from "@/lib/siteUrl.mjs";
 import { holdsUnsavedWork } from "@/lib/webviewUnsavedWork.mjs";
+import { checklistCategoryFromSearch, checklistRoute } from "@/lib/checklistCategoryParam";
 
 const SITE_ORIGIN = resolveMobileSiteOrigin(
   process.env.EXPO_PUBLIC_SITE_URL,
@@ -85,8 +86,13 @@ function titleFromUrl(url: string): string {
  *
  * 공개 페이지(`/price`, `/start-here`, `/demo`, `/manners`)는 로그인이 필요 없으니
  * 그대로 웹뷰에서 연다 — 막으면 오히려 읽을 것을 못 읽게 된다.
+ *
+ * 라운지(`/wedding/lounge`)도 로그인 필요 경로다. 2026-09-17 에 예절 안내의 로고와 모바일
+ * 목록 「홈」 버튼이 라운지로 가게 바뀌면서(85e45aead) 앱 웹뷰에서 그 버튼이 웹 로그인 화면을
+ * 열었다. 라운지는 앱의 첫 탭이라 그리로 보낸다.
  */
 const WEB_TO_NATIVE: Readonly<Record<string, string>> = {
+  lounge: "/lounge",
   checklist: "/checklist",
   budget: "/budget",
   schedule: "/schedule",
@@ -96,11 +102,21 @@ const WEB_TO_NATIVE: Readonly<Record<string, string>> = {
   chat: "/chat",
 };
 
-export function nativeRouteForWebPath(pathname: string): string | null {
+/**
+ * 웹 경로(+쿼리)를 앱 화면 주소로 바꾼다. 넘길 화면이 없으면 `null` — 웹뷰에서 그대로 연다.
+ *
+ * 체크리스트는 `?category=` 를 들고 간다. 예절 안내 편 끝의 「체크리스트에서 확인하기」가
+ * `/wedding/checklist?category=venue` 인데, 예전에는 경로만 보고 분야를 버려 사용자가 분야를
+ * 다시 찾아야 했다. 분야 값은 공유 체크리스트 분야 키만 받는다(`checklistCategoryParam`).
+ */
+export function nativeRouteForWebPath(pathname: string, search = ""): string | null {
   const parts = pathname.split("/").filter(Boolean);
   const head = parts[0] === "wedding" ? parts[1] : parts[0];
-  if (!head) return null;
-  return WEB_TO_NATIVE[head] ?? null;
+  // `constructor` 같은 객체 원형의 이름이 경로로 새지 않게 자기 칸만 본다.
+  if (!head || !Object.prototype.hasOwnProperty.call(WEB_TO_NATIVE, head)) return null;
+  const route = WEB_TO_NATIVE[head];
+  if (route === "/checklist") return checklistRoute(checklistCategoryFromSearch(search));
+  return route;
 }
 
 export default function WebViewScreen() {
@@ -157,7 +173,9 @@ export default function WebViewScreen() {
         return false;
       }
       // 로그인 필요한 화면은 웹뷰에서 열지 않는다 — 웹뷰에 세션이 없어 로그인 폼이 뜬다.
-      const native = nativeRouteForWebPath(new URL(nextUrl).pathname);
+      // 쿼리도 함께 넘긴다 — 체크리스트는 `?category=` 로 그 분야를 바로 연다.
+      const parsedNext = new URL(nextUrl);
+      const native = nativeRouteForWebPath(parsedNext.pathname, parsedNext.search);
       if (native) {
         router.dismissTo(native as Parameters<typeof router.dismissTo>[0]);
         return false;
