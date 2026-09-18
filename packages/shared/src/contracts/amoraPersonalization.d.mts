@@ -1,5 +1,7 @@
-// 값 목록은 readonly 리터럴 튜플이고 필드 타입은 리터럴 유니온이다. 넓은 string 으로 풀리면
-// 웹 `prompts.ts` 의 `{ ... }[helpPreference.decisionStart]` 인덱싱이 타입 검사에서 깨진다.
+// 값 목록은 readonly 리터럴 튜플이고 필드 타입은 리터럴 유니온이다. 넓은 string 으로 풀려도
+// 웹 타입 검사는 잡지 못한다 — `prompts.ts` 의 `{ ... }[helpPreference.decisionStart]` 는 객체
+// 리터럴을 바로 인덱싱해서 string 키도 받아 준다(2026-09-18 에 넓혀서 웹 tsc 를 돌려 0 오류).
+// 그래서 이 모양은 `__tests__/amoraPersonalization.types.ts` 가 shared tsc 에서 직접 붙잡는다.
 export declare const AMORA_DECISION_START_VALUES: readonly [
   "recommend_first",
   "compare_first",
