@@ -12,8 +12,13 @@ import { useAmoraPreparationActions, type AmoraPreparationActionUpdate } from "@
 import CreatePreparationAction from "./CreatePreparationAction";
 import AmoraActionPlanFields from "./AmoraActionPlanFields";
 import type { AmoraActionItem, AmoraActionStatus } from "@/lib/amora/actions";
-import { arrangePreparationDecisions, DECISION_COLUMNS, filterPreparationActions, preparationActionHref, preparationCategory, preparationDate, PREPARATION_COLUMNS, PREPARATION_SOURCES, type ArrangedPreparationDecision, type DecisionColumn } from "@/lib/amora/preparationBoard";
-import { PREPARATION_DECISION_CATEGORIES, preparationDecisionCategory } from "@/lib/amora/preparationDecisionCategory";
+import { filterPreparationActions, preparationActionHref, preparationCategory, preparationDate, PREPARATION_COLUMNS, PREPARATION_SOURCES } from "@/lib/amora/preparationBoard";
+import { preparationDecisionCategory } from "@/lib/amora/preparationDecisionCategory";
+import {
+  arrangePreparationDecisions, DECISION_CURRENT_VALUE_NOTE, DECISION_LATEST_VALUE_LABEL, DECISION_PREVIOUS_VALUE_LABEL, DECISION_STATUSES,
+  DECISION_SUMMARY_LINES, decisionBelongsTo, decisionEmptyText, decisionPreview, decisionSourceLabel, filterPreparationDecisions,
+  PREPARATION_DECISION_CATEGORIES, type ArrangedPreparationDecision, type DecisionStatus,
+} from "@hanbang/shared/preparation-decisions";
 import { weddingPath } from "@/lib/weddingPaths";
 import { useDecisionBoard } from "./useDecisionBoard";
 import SavedNotesContent from "@/components/app/saved/SavedNotesContent";
@@ -23,8 +28,9 @@ const button = `inline-flex min-h-11 items-center justify-center gap-1.5 rounded
 const outlineButton = `${button} border border-[var(--color-paper-outline)] bg-[var(--amora-surface)] text-[var(--amora-soft)] hover:bg-[var(--amora-warm)]`;
 const sharedButtonShape = "rounded-full! px-3.5! text-[12px]! font-medium!";
 const sharedOutlineButton = `${outlineButton} ${sharedButtonShape} border-[var(--color-paper-outline)]! bg-[var(--amora-surface)]! text-[var(--amora-soft)]! hover:bg-[var(--amora-warm)]!`;
-const decisionSources: Readonly<Record<string, string>> = {
-  chat: "대화에서 남긴 기록", budget: "예산에서 남긴 기록", schedule: "일정에서 남긴 기록", manual: "직접 남긴 기록",
+/** 상태 점 색은 웹 화면이 칠한다. 상태 이름·규칙은 공용 계약의 DECISION_STATUSES 가 정본이다. */
+const DECISION_DOTS: Readonly<Record<DecisionStatus, string>> = {
+  confirmed: "bg-[var(--amora-sage)]", considering: "bg-[var(--amora-rose)]", exploring: "bg-[var(--amora-danger)]",
 };
 
 type BoardView = "decisions" | "tasks" | "saved";
@@ -38,9 +44,6 @@ function subscribeBoardLocation(changed: () => void) {
   return () => { window.removeEventListener("popstate", changed); window.removeEventListener(boardViewEvent, changed); };
 }
 const serverBoardLocation = () => "";
-function decisionPreview(text: string, limit: number) {
-  return text.length > limit ? `${text.slice(0, limit).replace(/[\uD800-\uDBFF]$/u, "")}…` : text;
-}
 function focusTaskStatus(panel: HTMLElement | null, status: AmoraActionStatus) {
   const selector = window.matchMedia?.("(min-width: 1024px)").matches
     ? `[data-task-column="${status}"]` : '[aria-label="할 일 상태"] button[aria-pressed="true"]';
@@ -91,10 +94,6 @@ function BoardSearch({ id, label, placeholder, query, onChange, mobileOpen, acti
 }
 
 const budgetDecisionCategory = preparationDecisionCategory("budget");
-/** 저장 분류와, 예산 결정이면 예산·해당 분야에도 속한다. 한 기록은 전체 개수에 한 번만 센다. */
-function decisionBelongsTo(row: ArrangedPreparationDecision, key: string) {
-  return row.category === key || !!row.relatedCategories?.includes(key);
-}
 
 function DecisionCard({ row }: { row: ArrangedPreparationDecision }) {
   const category = preparationDecisionCategory(row.category);
@@ -123,12 +122,12 @@ function DecisionCard({ row }: { row: ArrangedPreparationDecision }) {
       </div>
     </details>}
     {/* 불러온 기록 중 이 값을 마지막으로 바꾼 기록일 뿐이다. 아모라 초기화·삭제는 결정 기록을 남기지 않아 지금 값과 다를 수 있다. */}
-    {row.valueState === "latest" && <p className="mb-2 text-[12px] leading-relaxed text-[var(--amora-muted)]">지금 값은 예산 화면에서 확인해 주세요.</p>}
-    <p className="mb-3 flex items-center gap-1.5 text-[12px] text-[var(--amora-muted)]"><Link2 aria-hidden="true" className="size-3 shrink-0" />{Object.hasOwn(decisionSources, row.source) ? decisionSources[row.source] : "공동 결정 기록"}</p>
+    {row.valueState === "latest" && <p className="mb-2 text-[12px] leading-relaxed text-[var(--amora-muted)]">{DECISION_CURRENT_VALUE_NOTE}</p>}
+    <p className="mb-3 flex items-center gap-1.5 text-[12px] text-[var(--amora-muted)]"><Link2 aria-hidden="true" className="size-3 shrink-0" />{decisionSourceLabel(row.source)}</p>
     <div className="flex flex-wrap items-center justify-between gap-2">
       <span className="flex flex-wrap gap-1">
-        <span className={`rounded-full px-[9px] py-1 text-[12px] font-semibold text-[var(--amora-soft)] ${row.status === "confirmed" && !previous ? "bg-[var(--amora-sage-pale)]" : "bg-[var(--amora-low)]"}`}>{previous ? "이전 값" : row.stateLabel}</span>
-        {row.valueState === "latest" && <span className="rounded-full border border-[var(--amora-sage)] px-[9px] py-[3px] text-[12px] font-semibold text-[var(--amora-soft)]">마지막 기록</span>}
+        <span className={`rounded-full px-[9px] py-1 text-[12px] font-semibold text-[var(--amora-soft)] ${row.status === "confirmed" && !previous ? "bg-[var(--amora-sage-pale)]" : "bg-[var(--amora-low)]"}`}>{previous ? DECISION_PREVIOUS_VALUE_LABEL : row.stateLabel}</span>
+        {row.valueState === "latest" && <span className="rounded-full border border-[var(--amora-sage)] px-[9px] py-[3px] text-[12px] font-semibold text-[var(--amora-soft)]">{DECISION_LATEST_VALUE_LABEL}</span>}
       </span>
       {destination && <Link href={destination.href} className={`inline-flex min-h-11 items-center gap-1 text-[12px] text-[var(--amora-accent)] underline underline-offset-4 ${focus}`}>{destination.label}<ArrowUpRight aria-hidden="true" className="size-3" /></Link>}
     </div>
@@ -145,7 +144,7 @@ function DecisionRecords({ data, searchId, query, onQueryChange, mobileSearchOpe
   const { records, loading, loadingMore, error, errorKind, nextCursor, available, isDemo, refresh, loadMore } = data;
   const listError = decisionListError(data);
   const moreError = errorKind === "more" ? error : null;
-  const [status, setStatus] = useState<DecisionColumn>("confirmed");
+  const [status, setStatus] = useState<DecisionStatus>("confirmed");
   const [category, setCategory] = useState("all");
   const { decisions, routineDays, routineCount } = useMemo(() => arrangePreparationDecisions(records), [records]);
   // 체크 저장은 한 번에 한 행이라 한 페이지(30건)를 다 채울 수 있다. 그러면 접고 나서 결정이 0개인데
@@ -154,18 +153,10 @@ function DecisionRecords({ data, searchId, query, onQueryChange, mobileSearchOpe
     if (!active || loading || loadingMore || error || !nextCursor || decisions.length > 0 || routineCount === 0) return;
     void loadMore();
   }, [active, loading, loadingMore, error, nextCursor, decisions.length, routineCount, loadMore]);
-  const filtered = useMemo(() => {
-    const needle = query.trim().toLocaleLowerCase("ko");
-    return decisions.filter(row => {
-      const field = preparationDecisionCategory(row.category);
-      if (category === "unsorted" ? !!field : category !== "all" && !decisionBelongsTo(row, category)) return false;
-      const labels = (row.relatedCategories ?? []).map(key => preparationDecisionCategory(key)?.label);
-      return !needle || [row.title, row.displayTitle, row.detail, row.displayDetail, field?.label, ...labels].some(value => value?.toLocaleLowerCase("ko").includes(needle));
-    });
-  }, [decisions, category, query]);
+  const filtered = useMemo(() => filterPreparationDecisions(decisions, category, query), [decisions, category, query]);
   const categories = PREPARATION_DECISION_CATEGORIES.filter(item => decisions.some(row => decisionBelongsTo(row, item.key)));
   const unsortedCount = decisions.filter(row => !preparationDecisionCategory(row.category)).length;
-  const activeColumn = DECISION_COLUMNS.find(column => column.status === status)!;
+  const activeColumn = DECISION_STATUSES.find(column => column.status === status)!;
   const categoryButton = (value: string, label: string, amount: number) => (
     <button key={value} type="button" aria-pressed={category === value} onClick={() => setCategory(value)} className={`${button} shrink-0 border ${category === value ? "border-[var(--amora-selected-line)] bg-[var(--amora-selected-bg)] text-[var(--amora-selected-text)]" : "border-[var(--color-paper-outline)] bg-[var(--amora-surface)] text-[var(--amora-soft)]"} ${value === "unsorted" ? "border-dashed" : ""}`}>
       {label}<span className="text-[12px] tabular-nums">{amount}</span>
@@ -176,8 +167,8 @@ function DecisionRecords({ data, searchId, query, onQueryChange, mobileSearchOpe
     <div data-board-summary className={`${FEATURE_SUMMARY_CLASS} mb-3 flex items-start gap-2.5 px-4 py-3 lg:mb-5 lg:gap-[14px] lg:px-[18px] lg:py-4`}>
       <CircleHelp aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-[var(--amora-rose-deep)] lg:size-5" />
       <div className="min-w-0 flex-1">
-        <p className="text-[13px] leading-[1.6] font-medium text-[var(--amora-ink)] lg:text-[13.5px] lg:leading-[1.65]">함께 준비하며 남긴 기록을, 저장 당시의 구분으로 모았어요.</p>
-        <p className="mt-0.5 text-[12px] leading-relaxed text-[var(--amora-muted)] lg:mt-1">일정 취소·복원 이력도 포함되며, 두 사람이 모두 확인했다는 뜻은 아니에요.</p>
+        <p className="text-[13px] leading-[1.6] font-medium text-[var(--amora-ink)] lg:text-[13.5px] lg:leading-[1.65]">{DECISION_SUMMARY_LINES[0]}</p>
+        <p className="mt-0.5 text-[12px] leading-relaxed text-[var(--amora-muted)] lg:mt-1">{DECISION_SUMMARY_LINES[1]}</p>
       </div>
       <details className="hidden max-w-[230px] text-[12px] text-[var(--amora-muted)] lg:block"><summary className={`flex min-h-11 cursor-pointer items-center rounded-full border border-[var(--color-paper-outline)] bg-[var(--amora-surface)] px-3 ${focus}`}>기록 기준 자세히</summary><p className="pt-2 leading-relaxed">개인 상담과 자동 추출 기억은 포함하지 않아요. 할 일의 완료 여부는 공유 할 일에서 따로 관리해요.</p></details>
     </div>
@@ -188,7 +179,7 @@ function DecisionRecords({ data, searchId, query, onQueryChange, mobileSearchOpe
           {loading && <p role="status" className="py-4 text-[13px]">결정 기록을 불러오는 중…</p>}
           {!loading && !listError && <>
             <div className="mb-3 flex rounded-[11px] bg-[var(--amora-low)] p-[3px] lg:hidden" role="group" aria-label="결정 상태">
-              {DECISION_COLUMNS.map(column => <button key={column.status} type="button" aria-pressed={status === column.status} onClick={() => setStatus(column.status)} className={`flex min-h-[46px] min-w-0 flex-1 flex-col items-center justify-center gap-[2px] rounded-[9px] py-1 text-[12.5px] ${focus} ${status === column.status ? "bg-[var(--amora-surface)] font-semibold text-[var(--amora-ink)] shadow-sm" : "text-[var(--amora-muted)]"}`}><span aria-hidden="true" className={`size-1.5 rounded-full ${column.dot}`} />{column.label}<span className="text-[12px] tabular-nums">{filtered.filter(row => row.status === column.status).length}</span></button>)}
+              {DECISION_STATUSES.map(column => <button key={column.status} type="button" aria-pressed={status === column.status} onClick={() => setStatus(column.status)} className={`flex min-h-[46px] min-w-0 flex-1 flex-col items-center justify-center gap-[2px] rounded-[9px] py-1 text-[12.5px] ${focus} ${status === column.status ? "bg-[var(--amora-surface)] font-semibold text-[var(--amora-ink)] shadow-sm" : "text-[var(--amora-muted)]"}`}><span aria-hidden="true" className={`size-1.5 rounded-full ${DECISION_DOTS[column.status]}`} />{column.label}<span className="text-[12px] tabular-nums">{filtered.filter(row => row.status === column.status).length}</span></button>)}
             </div>
             <p className="border-b border-[var(--amora-line)] pb-3 text-[12px] leading-[1.5] text-[var(--amora-muted)] lg:hidden">{activeColumn.rule}</p>
             <div className="flex min-w-0 flex-col gap-2 py-2 lg:flex-row lg:items-start lg:gap-3 lg:py-3 lg:pt-0">
@@ -210,20 +201,20 @@ function DecisionRecords({ data, searchId, query, onQueryChange, mobileSearchOpe
               <Link href={weddingPath("/checklist")} className={`mb-2 inline-flex min-h-11 items-center gap-1 text-[var(--amora-accent)] underline underline-offset-4 ${focus}`}>체크리스트 보기<ArrowUpRight aria-hidden="true" className="size-3" /></Link>
             </details>}
             <div className="grid min-w-0 gap-5 lg:grid-cols-3">
-              {DECISION_COLUMNS.map(column => {
+              {DECISION_STATUSES.map(column => {
                 const rows = filtered.filter(row => row.status === column.status);
                 const previousRows = rows.filter(row => row.valueState === "previous");
                 return <section key={column.status} aria-label={`${column.label} 결정`} className={`min-w-0 ${status === column.status ? "block" : "hidden lg:block"}`}>
-                  <h3 className="sr-only items-center gap-2 text-[14.5px] font-semibold text-[var(--amora-ink)] lg:not-sr-only lg:mb-1 lg:flex"><span aria-hidden="true" className={`size-[9px] rounded-full ${column.dot}`} />{column.label}<span className="text-[12px] font-normal text-[var(--amora-muted)]">{rows.length}</span></h3>
+                  <h3 className="sr-only items-center gap-2 text-[14.5px] font-semibold text-[var(--amora-ink)] lg:not-sr-only lg:mb-1 lg:flex"><span aria-hidden="true" className={`size-[9px] rounded-full ${DECISION_DOTS[column.status]}`} />{column.label}<span className="text-[12px] font-normal text-[var(--amora-muted)]">{rows.length}</span></h3>
                   <p className="mb-[14px] hidden pl-[17px] text-[12px] leading-[1.5] text-[var(--amora-muted)] lg:block">{column.rule}</p>
                   <div className="space-y-[10px] lg:space-y-3">{rows.length ? <>
                     {rows.filter(row => row.valueState !== "previous").map(row => <DecisionCard key={row.id} row={row} />)}
                     {previousRows.length > 0 && <details data-previous-values className="rounded-[14px] border border-dashed border-[var(--amora-line)] px-4 text-[12px] text-[var(--amora-muted)]">
                       <summary className={`flex min-h-11 cursor-pointer items-center ${focus}`}>이전 값 {previousRows.length}개 보기</summary>
-                      <p className="pb-2 leading-relaxed">같은 값을 나중 기록에서 다시 바꿨어요. 지금 값은 예산 화면에서 확인해 주세요.</p>
+                      <p className="pb-2 leading-relaxed">같은 값을 나중 기록에서 다시 바꿨어요. {DECISION_CURRENT_VALUE_NOTE}</p>
                       <div className="space-y-[10px] pb-3">{previousRows.map(row => <DecisionCard key={row.id} row={row} />)}</div>
                     </details>}
-                  </> : <p className="rounded-[14px] border border-dashed border-[var(--amora-line)] p-5 text-[12px] leading-6 text-[var(--amora-muted)]">{nextCursor ? `불러온 기록에는 ${query || category !== "all" ? "이 조건에 맞는" : "이 상태로 저장된"} 결정이 없어요. 아래에서 이전 결정을 더 불러올 수 있어요.` : query || category !== "all" ? "이 조건에 맞는 결정이 없어요." : "이 상태로 저장된 결정이 없어요."}</p>}</div>
+                  </> : <p className="rounded-[14px] border border-dashed border-[var(--amora-line)] p-5 text-[12px] leading-6 text-[var(--amora-muted)]">{decisionEmptyText({ filtered: !!query || category !== "all", hasMore: !!nextCursor })}</p>}</div>
                 </section>;
               })}
             </div>
