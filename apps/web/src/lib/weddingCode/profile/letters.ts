@@ -85,19 +85,19 @@ export const WEDDING_CODE_LETTERS: Readonly<
     left: {
       letter: "V",
       short: "조건 먼저",
-      meaning: "얼마가 드는지, 적힌 내용이 사실인지가 먼저인 답을 더 많이 골랐어요",
+      meaning: "얼마가 드는지, 적힌 내용이 사실인지부터 따지는 답을 더 많이 골랐어요",
     },
     right: {
       letter: "M",
       short: "분위기 먼저",
-      meaning: "사진·분위기, 결혼식 날에 거는 기대나 받은 인상이 먼저인 답을 더 많이 골랐어요",
+      meaning: "사진과 분위기, 결혼식 날에 거는 기대나 받은 인상부터 보는 답을 더 많이 골랐어요",
     },
   },
   preparationMode: {
     left: {
       letter: "T",
       short: "둘이 같이",
-      meaning: "어느 한 사람에게 맡기지 않은 답을 더 많이 골랐어요",
+      meaning: "한 사람이 도맡지 않는 답을 더 많이 골랐어요",
     },
     right: {
       letter: "O",
@@ -109,24 +109,24 @@ export const WEDDING_CODE_LETTERS: Readonly<
     left: {
       letter: "U",
       short: "우리 둘 먼저",
-      meaning: "우리 둘의 기준이 먼저인 답을 더 많이 골랐어요",
+      meaning: "우리 둘 기준을 앞에 둔 답을 더 많이 골랐어요",
     },
     right: {
       letter: "F",
       short: "가족·하객까지",
-      meaning: "가족과 하객 사정이 먼저인 답을 더 많이 골랐어요",
+      meaning: "가족과 하객 사정을 앞에 둔 답을 더 많이 골랐어요",
     },
   },
   supportOrder: {
     left: {
       letter: "H",
       short: "마음 먼저",
-      meaning: "마음과 대화가 먼저인 답을 더 많이 골랐어요",
+      meaning: "마음과 대화 쪽 답을 더 많이 골랐어요",
     },
     right: {
       letter: "A",
       short: "할 일 먼저",
-      meaning: "할 일과 결정이 먼저인 답을 더 많이 골랐어요",
+      meaning: "할 일과 결정 쪽 답을 더 많이 골랐어요",
     },
   },
 };
@@ -137,7 +137,7 @@ export const WEDDING_CODE_FIRMNESS_LABEL: Readonly<
   firm: "모두 같은 쪽",
   clear: "한쪽이 더 많음",
   narrow: "하나 차이",
-  unset: "글자 비움",
+  unset: "글자 없음",
 };
 
 /** 배지 범례의 고지. 소문자 규칙을 여기서 한 번에 설명한다. */
@@ -145,7 +145,7 @@ export const WEDDING_CODE_LEGEND = {
   title: "네 글자 읽는 법",
   note:
     "성격을 맞힌 게 아니라, 이번에 고른 답이 어느 쪽에 더 많았는지 적은 글자예요."
-    + " 소문자는 양쪽 답이 하나 차이라서, 답 하나만 바꿔도 반대쪽 글자가 돼요.",
+    + " 소문자는 양쪽 모두 답이 있고 한 장면 차이일 때 나와요. 답 하나만 바꿔도 반대쪽 글자가 돼요.",
 } as const;
 
 /**
@@ -159,25 +159,25 @@ export const WEDDING_CODE_LEGEND = {
  * 글자 뒤에는 괄호만** 오게 했다. 조사는 「장면은」 「쪽이었어요」처럼 고정 낱말에만 붙는다.
  */
 const COUNT_LINE = {
-  none: "이 주제는 아직 답하지 않았어요.",
+  none: "답한 장면이 없어요.",
   oneAnswered: (pole: WeddingCodePole) =>
     `답한 1장면은 ${pole.letter}(${pole.short}) 쪽이었어요.`,
   allOneSide: (answered: number, pole: WeddingCodePole) =>
     `답한 ${answered}장면 모두 ${pole.letter}(${pole.short}) 쪽이었어요.`,
   tie: (answered: number, left: WeddingCodePole, right: WeddingCodePole) =>
-    `답한 ${answered}장면이 ${left.letter}(${left.short}) 쪽과 ${right.letter}(${right.short}) 쪽 반반이었어요.`,
+    `답한 ${answered}장면이 ${left.letter}(${left.short}) 쪽과 ${right.letter}(${right.short}) 쪽으로 반반 나뉘었어요.`,
   split: (answered: number, left: WeddingCodePole, right: WeddingCodePole) =>
     `답한 ${answered}장면 중 ${left.count}장면은 ${left.letter}(${left.short}), ${right.count}장면은 ${right.letter}(${right.short}) 쪽이었어요.`,
 } as const;
 
 const UNSET_LINE = {
-  tie: "양쪽 답이 같은 수라서 이 자리는 글자를 비워 뒀어요",
-  skipped: "이 주제 장면을 모두 건너뛰어서 글자가 없어요",
+  tie: "양쪽 답 수가 같아서 이 자리는 글자를 비워 뒀어요",
+  skipped: "이 주제는 모두 건너뛰어서 글자가 없어요",
 } as const;
 
 /** `{upper}` 는 대문자로 채운다. 소문자(slot.letter)를 넣으면 「v 대신」처럼 읽혀 헷갈린다. */
 function narrowCautionFor(upper: string, opposite: string): string {
-  return `양쪽 답이 하나 차이예요. 답 하나만 반대쪽으로 바꿔도 ${upper} 대신 ${opposite} 글자가 나와요.`;
+  return `답 하나만 반대로 골라도 ${upper} 대신 ${opposite} 글자가 나와요.`;
 }
 
 /** 한 축의 양쪽 끝. 셈은 호출하는 쪽이 넘긴다 — 여기서 지어내지 않는다. */
@@ -347,7 +347,7 @@ export function parseWeddingCodeString(
 const AXIS_LABELS: Readonly<Record<WeddingCodeV06AxisKey, string>> = {
   decisionCriteria: "정할 때 뭘 먼저 보나",
   preparationMode: "준비를 어떻게 나누나",
-  coordinationScope: "누구까지 넣고 정하나",
+  coordinationScope: "누구 의견까지 듣고 정하나",
   supportOrder: "힘들 때 뭐부터 하나",
 };
 

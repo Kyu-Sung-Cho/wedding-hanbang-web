@@ -128,7 +128,7 @@ export const WEDDING_CODE_V06_AXES = [
   },
   {
     key: "coordinationScope",
-    labelKo: "누구까지 넣고 정하나",
+    labelKo: "누구 의견까지 듣고 정하나",
     left: { labelKo: "우리 둘", constructs: ["coupleAutonomy"] },
     right: { labelKo: "가족·하객까지", constructs: ["familyIntegration"] },
   },

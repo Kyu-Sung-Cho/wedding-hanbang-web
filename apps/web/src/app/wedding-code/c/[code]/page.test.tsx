@@ -36,7 +36,7 @@ describe("코드만 아는 사람을 위한 화면", () => {
       expect(html, axis.labelKo).toContain(axis.labelKo);
     }
     // 반대쪽 글자도 알려줘야 자리를 이해할 수 있다.
-    expect(html).toContain("이 자리의 다른 쪽은");
+    expect(html).toContain("반대쪽 글자");
     expect(html).toContain("내 웨딩코드 받아보기");
   });
 
@@ -60,7 +60,7 @@ describe("코드만 아는 사람을 위한 화면", () => {
         const other = chosen === "left" ? pair.right : pair.left;
         expect(row.querySelector('[data-pole-chosen="true"]')?.getAttribute("data-pole"), `${code} ${axis.key}`).toBe(chosen);
         expect(row.querySelectorAll('[data-pole-chosen="true"]'), `${code} ${axis.key}`).toHaveLength(1);
-        expect(row.textContent, `${code} ${axis.key}`).toContain(`이 자리의 다른 쪽은 ${other.letter}(${other.short}) — ${other.meaning}`);
+        expect(row.textContent, `${code} ${axis.key}`).toContain(`반대쪽 글자 ${other.letter}(${other.short}): ${other.meaning}`);
         expect(row.querySelector("[data-count-bar]"), `${code} ${axis.key}`).toBeNull();
       }
     }
@@ -93,12 +93,12 @@ describe("코드만 아는 사람을 위한 화면", () => {
 
   it("성격을 설명하거나 궁합을 매기지 않는다", async () => {
     const html = await render("MOFA");
-    // 「성격을 맞힌 게 아니라서」 같은 고지는 남아야 하므로 낱말이 아니라 주장 형태를 막는다.
+    // 「성격을 맞히거나 궁합을 보는 코드는 아니에요」 같은 고지는 남아야 하므로 낱말이 아니라 주장 형태를 막는다.
     for (const banned of ["당신은 ", "성격이", "성격은", "궁합이", "잘 맞는", "예측", "등급"]) {
       expect(html, banned).not.toContain(banned);
     }
     expect(html).not.toMatch(/\d+\s*점|\d+\s*%/);
-    expect(html).toContain("성격을 맞힌 게 아니라서");
+    expect(html).toContain("성격을 맞히거나 궁합을 보는 코드는 아니에요");
     // 같은 코드라도 고른 장면은 다르다는 사실을 숨기지 않는다.
     expect(html).toContain("사람마다 달라요");
   });

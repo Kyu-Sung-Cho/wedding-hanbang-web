@@ -17,7 +17,7 @@ export const WEDDING_STYLE_OPTIONS = [
   {
     value: "natural",
     label: "편안한 분위기",
-    description: "자연 소재처럼 편안하게",
+    description: "자연을 살려 편안하게",
   },
 ] as const;
 
