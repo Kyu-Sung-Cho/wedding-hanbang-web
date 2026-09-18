@@ -52,10 +52,10 @@ export const WEDDING_CODE_TALK_FIRST_SUMMARY = {
 
 /**
  * 골라 적을 수 있는 주제가 자리보다 많았을 때 한 줄(예: 네 축 모두 5 대 0). 빠진 주제가
- * 덜 몰렸다는 뜻으로 읽히지 않게, 나머지가 **어디에 있는지**만 말한다 — 이 칸은 배지
- * 바로 아래, 주제별 카드 위에 있다.
+ * 덜 몰렸다는 뜻으로 읽히지 않게, 나머지가 **어디에 있는지**만 말한다 — 이 칸은 주제별
+ * 카드(「내가 이번에 고른 것」) **다음**에 온다(코드 옆에는 인용과 글자 뜻만 둔다).
  */
-export const WEDDING_CODE_TALK_FIRST_MORE = "나머지 주제는 아래 주제별 카드에 이어서 나와요.";
+export const WEDDING_CODE_TALK_FIRST_MORE = "나머지 주제는 위 주제별 카드에 적어 뒀어요.";
 
 export type WeddingCodeTalkFirstLeftOutReason = "skipped" | "tie" | "single";
 

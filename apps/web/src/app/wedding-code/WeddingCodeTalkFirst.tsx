@@ -3,13 +3,10 @@ import {
   WEDDING_CODE_TALK_FIRST_SHARE_JUMP,
 } from "@/constants/weddingCodeTalkFirst";
 import type { WeddingCodeTalkFirst, WeddingCodeTalkFirstItem } from "@/lib/weddingCode/profile/talkFirst";
+import Button from "@/components/ui/Button";
 import { WeddingCodePoleChip } from "./WeddingCodeBadge";
 
 const surface = "rounded-[6px] border border-[var(--hb-hairline)] bg-white";
-const shareJumpClass =
-  "mt-2 inline-flex min-h-[44px] items-center text-[14px] font-semibold text-[var(--hb-text-strong)]"
-  + " underline underline-offset-4 transition-colors hover:text-[var(--hb-action)] focus-visible:outline-none"
-  + " focus-visible:ring-2 focus-visible:ring-[var(--hb-primary)] focus-visible:ring-offset-2";
 
 /**
  * 혼자 결과의 「이번 주엔 뭐부터 같이 얘기해 볼까요?」.
@@ -78,7 +75,7 @@ export default function WeddingCodeTalkFirstSection({
           {talkFirst.partnerLine}
         </p>
         {onShareJump ? (
-          <button type="button" data-talk-share-jump="" onClick={onShareJump} className={shareJumpClass}>{WEDDING_CODE_TALK_FIRST_SHARE_JUMP}</button>
+          <Button variant="ghost" data-talk-share-jump="" onClick={onShareJump} className="mt-2 -ml-2 px-2 text-[14px] text-[var(--hb-text-strong)] underline underline-offset-4">{WEDDING_CODE_TALK_FIRST_SHARE_JUMP}</Button>
         ) : null}
       </div>
     </section>
