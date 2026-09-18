@@ -29,8 +29,19 @@ import {
   StatusPill,
   Surface,
 } from "@/components/ui/AppUI";
+import {
+  AMORA_MEMORY_PROFILE_HEADING,
+  AMORA_MEMORY_SENSITIVE_NOTICE,
+  memoryConsentHeading,
+  memoryConsentStatus,
+  memoryCorrectionLabel,
+  memoryKindLabel,
+  memoryProfileLines,
+  type AmoraMemoryProfile,
+  type AmoraMemoryVisibility,
+} from "@/lib/amoraMemoryDisplay";
 
-type Visibility = "shared" | "bride_private" | "groom_private";
+type Visibility = AmoraMemoryVisibility;
 
 type MemorySetting = {
   visibility: Visibility;
@@ -62,6 +73,8 @@ type MemoryItem = {
   title: string | null;
   value: unknown;
   userConfirmedAt: string | null;
+  /** 사람이 고친 기억인가. 공유 기억을 한 사람이 고치면 `userConfirmedAt` 은 비워진다. */
+  userCorrected?: boolean;
   updatedAt: string;
 };
 
@@ -69,15 +82,8 @@ type MemoryResponse = {
   runtimeEnabled: boolean;
   settings: MemorySetting[];
   memories: MemoryItem[];
-};
-
-const KIND_LABELS: Record<string, string> = {
-  decision: "확정한 선택",
-  preference: "선호",
-  constraint: "꼭 지킬 조건",
-  relationship: "가족·커플 맥락",
-  fact: "준비 정보",
-  legacy: "이전 대화 기억",
+  /** 켜진 범위의 상담 참고 맥락. 옛 서버는 보내지 않는다. */
+  profiles?: AmoraMemoryProfile[];
 };
 
 function valueToText(value: unknown): string {
@@ -215,6 +221,7 @@ export default function AmoraMemoryScreen() {
     () => (data?.memories ?? []).filter((item) => item.visibility === activeVisibility),
     [activeVisibility, data?.memories],
   );
+  const profileLines = memoryProfileLines(data?.profiles, activeVisibility);
 
   async function patch(body: Record<string, unknown>) {
     // 쓰기도 같은 identity에 결박한다. 계정 전환 중이면 요청 자체를 보내지 않는다.
@@ -367,6 +374,9 @@ export default function AmoraMemoryScreen() {
             <AppText variant="caption" style={styles.introCopy}>
               대화에서 직접 확정한 내용만 정리해요. 틀리면 고치고, 원치 않으면 언제든 지울 수 있어요.
             </AppText>
+            <AppText variant="caption" style={styles.sensitiveNotice}>
+              {AMORA_MEMORY_SENSITIVE_NOTICE}
+            </AppText>
           </View>
         </Surface>
 
@@ -413,21 +423,11 @@ export default function AmoraMemoryScreen() {
         <Surface style={styles.settingCard}>
           <View style={styles.settingRow}>
             <View style={styles.flex}>
-              <View style={styles.settingTitleRow}>
-                <AppText variant="bodyStrong">대화 기억</AppText>
-                <StatusPill
-                  label={data?.runtimeEnabled ? setting?.enabled ? "켜짐" : "꺼짐" : "준비 중"}
-                  tone={setting?.enabled ? "success" : "neutral"}
-                />
-              </View>
+              {/* 스위치는 **내 동의**이고, 상태 문장은 실제로 켜졌는지(공유는 두 사람 모두
+                  동의)다. 웹 설정 화면과 같은 문장이다. */}
+              <AppText variant="bodyStrong">{memoryConsentHeading(activeVisibility)}</AppText>
               <AppText variant="caption" style={styles.settingDescription}>
-                {activeVisibility === "shared"
-                  ? setting?.enabled
-                    ? "두 분 모두 동의했어요."
-                    : setting?.consentedByMe
-                      ? `내 동의 저장됨 · 상대방 대기 (${setting.consentedCount}/${setting.requiredCount})`
-                      : "공유 기억은 두 분 모두 동의해야 해요."
-                  : "개인 상담 기억은 파트너에게 보이지 않아요."}
+                {memoryConsentStatus(activeVisibility, setting)}
               </AppText>
             </View>
             <Switch
@@ -436,10 +436,24 @@ export default function AmoraMemoryScreen() {
               disabled={busy || !setting || (!data?.runtimeEnabled && !setting.consentedByMe)}
               trackColor={{ false: colors.ivory[200], true: colors.sage.pale }}
               thumbColor={setting?.consentedByMe ? colors.success : colors.taupe[400]}
-              accessibilityLabel="아모라 대화 기억"
+              accessibilityLabel={memoryConsentHeading(activeVisibility)}
             />
           </View>
         </Surface>
+
+        {profileLines.length > 0 ? (
+          <Surface tone="ivory" style={styles.profileCard}>
+            <View style={styles.profileTitleRow}>
+              <ShieldCheck size={18} color={colors.success} />
+              <AppText variant="bodyStrong">{AMORA_MEMORY_PROFILE_HEADING}</AppText>
+            </View>
+            {profileLines.map((line, index) => (
+              <AppText key={`${line}-${index}`} variant="body" style={styles.profileLine}>
+                {`• ${line}`}
+              </AppText>
+            ))}
+          </Surface>
+        ) : null}
 
         <View style={styles.listHeader}>
           <View>
@@ -466,40 +480,45 @@ export default function AmoraMemoryScreen() {
           </Surface>
         ) : (
           <View style={styles.memoryList}>
-            {memories.map((memory) => (
-              <Surface key={memory.id} style={styles.memoryCard}>
-                <View style={styles.memoryMeta}>
-                  <StatusPill label={KIND_LABELS[memory.kind] ?? "대화 기억"} tone="rose" />
-                  {memory.userConfirmedAt ? (
-                    <View style={styles.confirmedLabel}>
-                      <Check size={13} color={colors.success} />
-                      <AppText variant="caption" style={styles.confirmedText}>직접 확인</AppText>
-                    </View>
-                  ) : null}
-                </View>
-                <AppText variant="bodyStrong" style={styles.memoryTitle}>{memory.title ?? "기억"}</AppText>
-                <AppText variant="body" style={styles.memoryValue}>{valueToText(memory.value)}</AppText>
-                <View style={styles.memoryActions}>
-                  <Pressable
-                    onPress={() => openEditor(memory)}
-                    style={styles.iconButton}
-                    accessibilityRole="button"
-                    accessibilityLabel="기억 고치기"
-                  >
-                    <Pencil size={17} color={colors.rose[600]} />
-                  </Pressable>
-                  <Pressable
-                    onPress={() => confirmDelete(memory)}
-                    disabled={busy}
-                    style={styles.iconButton}
-                    accessibilityRole="button"
-                    accessibilityLabel="기억 삭제"
-                  >
-                    <Trash2 size={17} color={colors.danger} />
-                  </Pressable>
-                </View>
-              </Surface>
-            ))}
+            {memories.map((memory) => {
+              const correction = memoryCorrectionLabel(memory, activeVisibility);
+              return (
+                <Surface key={memory.id} style={styles.memoryCard}>
+                  <View style={styles.memoryMeta}>
+                    <StatusPill label={memoryKindLabel(memory.kind)} tone="rose" />
+                    {/* `userConfirmedAt` 이 아니라 사람이 고쳤는지를 본다. 공유 기억을 한 사람이
+                        고친 것은 공동 확인이 아니므로 그렇게 적는다. */}
+                    {correction ? (
+                      <View style={styles.confirmedLabel}>
+                        <Check size={13} color={colors.success} />
+                        <AppText variant="caption" style={styles.confirmedText}>{correction}</AppText>
+                      </View>
+                    ) : null}
+                  </View>
+                  <AppText variant="bodyStrong" style={styles.memoryTitle}>{memory.title ?? "기억"}</AppText>
+                  <AppText variant="body" style={styles.memoryValue}>{valueToText(memory.value)}</AppText>
+                  <View style={styles.memoryActions}>
+                    <Pressable
+                      onPress={() => openEditor(memory)}
+                      style={styles.iconButton}
+                      accessibilityRole="button"
+                      accessibilityLabel="기억 고치기"
+                    >
+                      <Pencil size={17} color={colors.rose[600]} />
+                    </Pressable>
+                    <Pressable
+                      onPress={() => confirmDelete(memory)}
+                      disabled={busy}
+                      style={styles.iconButton}
+                      accessibilityRole="button"
+                      accessibilityLabel="기억 삭제"
+                    >
+                      <Trash2 size={17} color={colors.danger} />
+                    </Pressable>
+                  </View>
+                </Surface>
+              );
+            })}
           </View>
         )}
 
@@ -566,6 +585,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.rose[600],
   },
   introCopy: { marginTop: spacing[1], color: colors.textSecondary },
+  sensitiveNotice: { marginTop: spacing[2], color: colors.textSecondary },
   noticeCard: { gap: spacing[3] },
   noticeText: { color: colors.noir[800] },
   errorText: { color: colors.danger },
@@ -591,16 +611,19 @@ const styles = StyleSheet.create({
   tabTextActive: { color: colors.noir[800], fontFamily: "NotoSansKR_600SemiBold" },
   settingCard: { paddingVertical: spacing[4] },
   settingRow: { flexDirection: "row", alignItems: "center", gap: spacing[4] },
-  settingTitleRow: { flexDirection: "row", alignItems: "center", gap: spacing[2] },
   settingDescription: { marginTop: spacing[1], color: colors.textSecondary },
+  profileCard: { gap: spacing[2] },
+  profileTitleRow: { flexDirection: "row", alignItems: "center", gap: spacing[2] },
+  profileLine: { color: colors.textSecondary },
   listHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: spacing[3] },
   clearButton: { minHeight: 44, justifyContent: "center", paddingHorizontal: spacing[2] },
   clearText: { color: colors.danger, fontFamily: "NotoSansKR_600SemiBold" },
   memoryList: { gap: spacing[3] },
   memoryCard: { padding: spacing[4] },
-  memoryMeta: { flexDirection: "row", alignItems: "center", gap: spacing[2] },
-  confirmedLabel: { flexDirection: "row", alignItems: "center", gap: 3 },
-  confirmedText: { color: colors.success },
+  // "한 사람이 직접 고침 · 공동 확인 아님" 은 320px 에서 라벨 옆에 다 안 들어간다 — 줄을 넘긴다.
+  memoryMeta: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: spacing[2] },
+  confirmedLabel: { flexDirection: "row", alignItems: "center", gap: 3, flexShrink: 1 },
+  confirmedText: { color: colors.success, flexShrink: 1 },
   memoryTitle: { marginTop: spacing[3] },
   memoryValue: { marginTop: spacing[1], color: colors.textSecondary },
   memoryActions: { marginTop: spacing[3], flexDirection: "row", justifyContent: "flex-end", gap: spacing[2] },
