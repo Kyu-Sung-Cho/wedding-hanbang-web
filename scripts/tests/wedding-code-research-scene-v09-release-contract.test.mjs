@@ -1,4 +1,4 @@
-import test from 'node:test';
+import test, { after } from 'node:test';
 import assert from 'node:assert/strict';
 import { copyFileSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
@@ -8,15 +8,28 @@ import { assertWeddingCodeSceneVersionSqlScope, loadWeddingCodeSceneVersionRelea
 import { loadWeddingCodeResearchHistoricalReleasePlan, loadWeddingCodeResearchReleasePlan }
   from '../lib/wedding-code-research-contributions-release-contract.mjs';
 import { createWeddingCodeResearchHistoricalRepository } from './fixtures/wedding-code-research-contributions-historical-repository.mjs';
+import { createWeddingCodeSceneVersionHistoricalRepository } from './fixtures/wedding-code-research-scene-v09-historical-repository.mjs';
 import { validateSuccessorReleaseContract } from '../lib/supabase-successor-release-contract.mjs';
 import { runProductionRelease } from '../lib/supabase-production-release-controller.mjs';
 
-const root = resolve(import.meta.dirname, '../..');
+// 235 공개 모드는 역사 checkout에서만 통과한다. 실제 checkout에는 이후 검토된 SQL이 더 있다.
+const actualRoot = resolve(import.meta.dirname, '../..');
+const historical = createWeddingCodeSceneVersionHistoricalRepository(actualRoot), root = historical.root;
+after(historical.cleanup);
 const MIGRATION = 'supabase/migrations/20260917090000_wedding_code_research_scene_v09.sql';
 const sql = readFileSync(join(root, MIGRATION), 'utf8');
 const run = args => spawnSync(process.execPath, [join(root, 'scripts/supabase-release-fence.mjs'), ...args],
   { cwd: root, encoding: 'utf8', windowsHide: true, timeout: 30_000 });
 const code = value => error => error?.code === value;
+
+test('the historical 235 public mode rejects the actual checkout with a newer reviewed migration', () => {
+  assert.throws(() => loadWeddingCodeSceneVersionReleasePlan(actualRoot), code('NEW_MIGRATION_NOT_REVIEWED'));
+  assert.throws(() => validateSuccessorReleaseContract({ repoRoot: actualRoot, followup: 'wedding-code-research-scene-v09' }),
+    code('FOLLOWUP_RELEASE_INVALID'));
+  const result = spawnSync(process.execPath, [join(actualRoot, 'scripts/supabase-release-fence.mjs'), '--wedding-code-research-scene-v09'],
+    { cwd: actualRoot, encoding: 'utf8', windowsHide: true, timeout: 30_000 });
+  assert.equal(result.status, 1); assert.match(result.stderr, /NEW_MIGRATION_NOT_REVIEWED/);
+});
 
 test('235 exact successor keeps all 234 pins, widens only the scene version and claims no runtime evidence, deployment or remote write', () => {
   const plan = loadWeddingCodeSceneVersionReleasePlan(root);
@@ -40,6 +53,8 @@ test('235 exact successor keeps all 234 pins, widens only the scene version and 
   const successor = validateSuccessorReleaseContract({ repoRoot: root, followup: 'wedding-code-research-scene-v09' });
   assert.equal(successor.deploymentBlocked, true); assert.equal(successor.controllerReady, false);
   assert.throws(() => validateSuccessorReleaseContract({ repoRoot: root, followup: 'wedding-code-research-contributions' }), code('FOLLOWUP_RELEASE_INVALID'));
+  // 236 계약이 없는 235 역사 checkout은 v1.0 후속 계약으로 통과하지 않는다.
+  assert.throws(() => validateSuccessorReleaseContract({ repoRoot: root, followup: 'wedding-code-research-scene-v10' }), code('FOLLOWUP_RELEASE_INVALID'));
   assert.throws(() => validateSuccessorReleaseContract({ repoRoot: root }), code('MIGRATION_SET_DRIFT'));
   const result = run(['--wedding-code-research-scene-v09']); assert.equal(result.status, 0, result.stderr);
   assert.match(result.stdout, /WeddingCode research scene v0\.9 contract verified \(235 exact SQL files; runtime evidence not verified; deployment not authorized; no remote writes\)/);
@@ -110,7 +125,7 @@ test('the reviewed SQL is exactly one scene-version CHECK swap plus its verifica
 });
 
 test('every new artifact, predecessor and unregistered migration is fail-closed', t => {
-  const fixture = createWeddingCodeResearchHistoricalRepository(root); t.after(fixture.cleanup);
+  const fixture = createWeddingCodeResearchHistoricalRepository(actualRoot); t.after(fixture.cleanup);
   const plan = loadWeddingCodeSceneVersionReleasePlan(root);
   const paths = [WEDDING_CODE_SCENE_VERSION_CONTRACT_FILE, plan.contract.runtime.file, MIGRATION];
   assert.throws(() => loadWeddingCodeSceneVersionReleasePlan(fixture.root));

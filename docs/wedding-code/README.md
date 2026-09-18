@@ -1,6 +1,6 @@
 # WeddingCode 문서 권위·상태 인덱스
 
-최종 갱신: 2026-09-09 — 공개 20장면 v0.8, 응답 요약 정정, 직접 도움 설정·취향 확인 연결
+최종 갱신: 2026-09-18 — 공개 20장면 판을 v1.0으로(v0.9에서 A2의 B·D 두 선택지만 바뀜). 그 전 갱신 2026-09-09 — 응답 요약 정정, 직접 도움 설정·취향 확인 연결
 
 이 문서는 WeddingCode 제품·연구 경계의 영역 정본이며 전체 배포 승인이 아니다.
 `docs/operations/FULL_WORKSPACE_RELEASE_HANDOFF_2026-07-31.md`의 배포 식별자는 당시 기록이다.
@@ -31,7 +31,9 @@
   보태기만 예외)·성격 판정·궁합·성공 예측 없이 본인이 고른 답의 집계·인용과 다음 대화 절차만 제공한다.
 - **네 글자 코드는 제공한다**(2026-07-31 파운더 결정, `CLAUDE.md`·`PRINCIPLES.md` 갱신됨).
   코드는 축마다 어느 쪽 답을 더 많이 골랐는지를 적은 것이지 성격 판정이 아니다.
-  - 현재 `v0.8-code`는 **4개 축·축당 5개, 총 20장면**이다. 선택지와 기존 공유 코드 의미는 유지한다.
+  - 현재 `v1.0-code`는 **4개 축·축당 5개, 총 20장면**이다. 선택지 뜻이 바뀌면 판을 올리고, 옛 판
+    (`v0.9-code`·`v0.8-code`)은 그 판으로 만든 링크를 열 때만 쓴다(판 → 문항 표는 `lib/weddingCode/scene/config.ts`).
+    v1.0은 v0.9의 A2에서 둘 다 「이 홀로 하자」로 읽히던 B·D 두 문장만 다시 썼다(`constants/weddingCodeV10.ts`).
   - 글자마다 **응답한 장면 수와 양쪽 답의 수**를 함께 보여준다. 양쪽 답이 있고 한 표 차이면
     소문자로 적는다. 부분 응답에서 글자가 나올 수 있지만 전체 완료로 표시하지 않는다.
   - 축의 답이 없거나 정확히 반반이면 `·`로 두고 글자를 지어내지 않는다.
@@ -143,7 +145,7 @@
 | `61` | `PRODUCT-DIRECTION / UNVALIDATED` | 안전한 소비자 여정·공유·제품화 순서 | 운영 출시 승인 |
 | `63` | `PRODUCT-DESIGN-PLAN / LOCAL-PROTOTYPE-ONLY` | `61`의 §2·§3을 화면·카피·파일로 내린 실행 기획과 2026-07-28 로컬 실측 | 운영 출시 승인, 차단 해제, 점수·유형 승인 |
 | `64` | `ADVERSARIAL-AUDIT / OPEN-FINDINGS` | `63` 구현(PR #75)의 독립 적대 감사. 반증 통과 21건과 머지 전 닫을 M1~M4 | 구현이 검증됐다는 근거(오히려 가드 결손을 지적한 문서다) |
-| `/wedding-code` v0.8 / v0.6 호환 | `PUBLIC CONVERSATION TOOL / UNVALIDATED UTILITY` | 실제 선택 문장 비교, 본인 응답의 셈·인용·부재 요약, 장면별 다음 대화 제안, URL 공유 | 심리검사·성향 유형·궁합·갈등 또는 결혼 결과 예측 |
+| `/wedding-code` v1.0 / v0.9·v0.8·v0.6 호환 | `PUBLIC CONVERSATION TOOL / UNVALIDATED UTILITY` | 실제 선택 문장 비교, 본인 응답의 셈·인용·부재 요약, 장면별 다음 대화 제안, URL 공유 | 심리검사·성향 유형·궁합·갈등 또는 결혼 결과 예측 |
 | `2026-09-09_direct_preferences_design.md` | `IMPLEMENTED IN WORKTREE / FINAL VERIFICATION AND DEPLOYMENT IN PROGRESS` | 응답 요약 v2, 직접 도움 설정, 선택형 취향·공유·개인 상담 인계의 구현 계약 | 최종 검사·운영 배포 완료 주장, 측정 연구 재개 승인 |
 | `56`, `57` | `SUPERSEDED-RESEARCH-LINEAGE / M0` | Candidate 5 계보·회귀 비교 | 새 제품·연구 구현 기준 |
 | `00`, `02a`, `02b`, `22` | `REFERENCE-ONLY` | 출처 품질·시장 장면·안전 원칙 참고 | 선택지·축·점수의 타당도 주장 |
@@ -172,8 +174,8 @@
   균형을 잇는 완성 연구 원장은 아직 미구현이다. 이 운영 규칙도 사람 타당도 근거나 수집 승인이 아니다.
 - 위 로컬 경로는 React memory state만 사용하고 전역 analytics/UTM·외부 CSP를 차단한다. Candidate 5/6 모두 Production·Preview route,
   API, DB, analytics, browser storage, 점수·유형·overlap에 연결하면 안 된다.
-- 공개 `/wedding-code`는 Candidate 6.3 측정 코드와 별개다. `v0.6-scene`은 과거 공유 링크
-  호환용이고, 새 진입은 `v0.8-code`를 사용한다. 버전 없는 답 링크는 v0.6으로만 해석하며,
+- 공개 `/wedding-code`는 Candidate 6.3 측정 코드와 별개다. `v0.6-scene`·`v0.8-code`·`v0.9-code`는 과거 공유 링크
+  호환용이고, 새 진입은 `v1.0-code`를 사용한다. 버전 없는 답 링크는 v0.6으로만 해석하며,
   알 수 없는 버전을 현재 문항으로 바꾸어 읽지 않는다.
 - 공개 장면 도구의 응답은 DB나 브라우저 저장소에 저장하지 않는다. 새 링크는 답 코드를
   URL fragment(`#`)에 넣어 서버 요청과 referrer에서 제외하고, 이 경로의 페이지뷰·세션
