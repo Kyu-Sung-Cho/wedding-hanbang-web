@@ -11,12 +11,12 @@ const labels: Record<ConversationRecap["actions"][number]["state"], string> = {
 
 /**
  * 정리 아래에 두는 다음 행선지 — 웹 정리 패널과 같은 갈래다(2026-09-18).
- * 함께 대화는 준비 보드와 현재 예산, 나만 상담은 개인 할 일. 이름은 앱에서 도착하는 화면의 제목을 쓴다
- * (웹의 「준비 보드」는 앱에서 「준비 기록」 화면이고, 「개인 할 일」은 「나만 보는 할 일」 화면이다).
+ * 함께 대화는 공유 할 일과 현재 예산, 나만 상담은 개인 할 일. 이름은 앱에서 도착하는 화면의 제목을 쓴다
+ * (웹 결정 보드의 「공유 할 일」은 앱에서 같은 이름의 화면이고, 「개인 할 일」은 「나만 보는 할 일」 화면이다).
  */
 const RECAP_DESTINATIONS = {
   shared: [
-    { label: "준비 기록", pathname: "/amora-preparation" },
+    { label: "공유 할 일", pathname: "/amora-preparation" },
     { label: "현재 예산", pathname: "/budget" },
   ],
   private: [

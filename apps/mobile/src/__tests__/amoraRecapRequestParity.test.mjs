@@ -12,7 +12,7 @@ import ts from "typescript";
  * 사람이 서로 다른 기기에서 정리하면 아모라가 받는 부탁이 달라져 정리 모양도 달라진다. 이제 문장은
  * `packages/shared` 한 곳에 있고 두 화면이 그것을 읽는다.
  *
- * 정리 아래에는 웹처럼 다음에 볼 곳을 둔다 — 함께 대화는 준비 기록과 현재 예산, 나만 상담은 나만 보는 할 일.
+ * 정리 아래에는 웹처럼 다음에 볼 곳을 둔다 — 함께 대화는 공유 할 일과 현재 예산, 나만 상담은 나만 보는 할 일.
  */
 function compile(relative, deps = {}, { jsx = false } = {}) {
   const path = fileURLToPath(new URL(relative, import.meta.url));
@@ -112,9 +112,9 @@ test("앱 정리 시트의 정리 요청은 웹과 같은 문장을 입력창에
   assert.deepEqual(calls, [shared.AMORA_RECAP_REQUEST]);
 });
 
-test("함께 대화 정리 아래에는 준비 기록과 현재 예산으로 가는 길이 있다", () => {
+test("함께 대화 정리 아래에는 공유 할 일과 현재 예산으로 가는 길이 있다", () => {
   const { button, pushes, setters, labels } = render({ scope: "shared" });
-  const board = button("준비 기록");
+  const board = button("공유 할 일");
   const budget = button("현재 예산");
   assert.ok(board && budget, labels.join(" / "));
   assert.equal(button("나만 보는 할 일"), undefined, "함께 대화에는 개인 할 일로 가는 길을 두지 않는다");
@@ -129,7 +129,7 @@ test("함께 대화 정리 아래에는 준비 기록과 현재 예산으로 가
 
 test("나만 상담 정리 아래에는 나만 보는 할 일로 가는 길만 있다", () => {
   const { button, pushes } = render({ scope: "private" });
-  assert.equal(button("준비 기록"), undefined);
+  assert.equal(button("공유 할 일"), undefined);
   assert.equal(button("현재 예산"), undefined);
   const personal = button("나만 보는 할 일");
   assert.ok(personal);

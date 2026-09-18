@@ -2,13 +2,13 @@
 // 사람 말풍선 색은 각자 **직접 확인한 표시 역할**로 칠한다(웹과 같음, 2026-09-12 요청).
 // 가입 순서로 채워진 role 슬롯은 쓰지 않고, 확인 전이면 중립색이다. 라벨은 이름을 쓴다.
 import { useState, useRef, useEffect, useCallback, useMemo, type SetStateAction } from "react";
-import { View, Pressable, FlatList, ScrollView, StyleSheet, KeyboardAvoidingView, Platform, Animated, ActivityIndicator, Linking, AppState } from "react-native";
+import { View, Pressable, FlatList, ScrollView, StyleSheet, KeyboardAvoidingView, Platform, Animated, ActivityIndicator, Linking, AppState, useWindowDimensions } from "react-native";
 import { Text, TextInput } from "@/components/ui/AppText";
 import { buildMobileSiteUrl, resolveMobileSiteOrigin } from "@/lib/siteUrl.mjs";
 import { SafeAreaView } from "react-native-safe-area-context";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Crypto from "expo-crypto";
-import { Check, Send, ShieldCheck, Heart, X, Lock, RotateCcw, Users } from "lucide-react-native";
+import { Check, Send, ShieldCheck, Heart, X, Lock, RotateCcw, Users, RefreshCw, ListChecks } from "lucide-react-native";
 import { amoraIdentity, chatPalette, colors } from "@hanbang/design-tokens";
 import AmoraMark from "@/components/ui/AmoraMark";
 import AmoraAvatar from "@/components/ui/AmoraAvatar";
@@ -98,6 +98,26 @@ import {
   type ChatClearRequestResult,
 } from "@/lib/chatClearRequest";
 import { ChatClearRequestCard } from "@/components/chat/ChatClearRequestCard";
+import {
+  CHAT_VIEW_CLEAR_COPY,
+  CHAT_VIEW_CLEAR_FAILURE,
+  armChatViewClearCarry,
+  chatViewClearScope,
+  hasPendingSharedChatClearRequest,
+  openingChatViewClearStep,
+  removeMessagesClearedFromView,
+  requestChatViewClear,
+  requestSharedChatClear,
+  settleChatViewClearCarry,
+  takeChatViewClearCarry,
+  type ChatViewClearCarry,
+  type ChatViewClearMode,
+  type ChatViewClearResult,
+  type ChatViewClearScope,
+  type ChatViewClearStep,
+} from "@/lib/chatViewClear";
+import { ChatViewClearSheet } from "@/components/chat/ChatViewClearSheet";
+import { AMORA_BOARD_ENTRY, AMORA_CHAT_HEADER_LAYOUT, shouldShowAmoraBoardLabel } from "@/lib/amoraChatHeader";
 import {
   CARRIED_PENDING_ACTION_LABEL,
   getAmoraActionApprovalPolicy,
@@ -2080,6 +2100,39 @@ export default function ChatScreen() {
   const applyingPendingActionRef = useRef<string | null>(null);
   const persistedAiRequestKeysRef = useRef(new Set<string>());
   const previousMessageCountRef = useRef(0);
+  // 「대화 화면 정리」 창(웹 ChatContent 의 clearStep, 2026-09-18). 단계를 ref 로도 쥐어, 네이티브 확인 창에서
+  // 늦게 누른 「삭제」가 이미 닫힌 창의 요청을 보내지 못하게 한다.
+  const [viewClearStep, setViewClearStepState] = useState<ChatViewClearStep>("closed");
+  const viewClearStepRef = useRef<ChatViewClearStep>("closed");
+  const viewClearDialogVersionRef = useRef(0);
+  const [viewClearError, setViewClearError] = useState<string | null>(null);
+  const setViewClearStep = useCallback((nextStep: ChatViewClearStep) => {
+    viewClearDialogVersionRef.current += 1;
+    viewClearStepRef.current = nextStep;
+    setViewClearError(null);
+    setViewClearStepState(nextStep);
+  }, []);
+  // 서버로 가고 있는 정리 하나. 그 범위의 입력창을 잠근다. (사용자, 커플)에 묶어 다른 계정에는 번지지 않는다.
+  const viewClearInFlightRef = useRef<{ owner: string; scope: ChatViewClearScope } | null>(null);
+  const [viewClearPending, setViewClearPending] = useState<{
+    owner: string; scope: ChatViewClearScope; mode: ChatViewClearMode;
+  } | null>(null);
+  const viewClearRequestSeqRef = useRef(0);
+  // 스스로 한 정리 뒤 범위·대상·초안 이어받기. 세션 리셋(scheduleChatSessionReload)이 비우지 않는 따로 둔 자리다.
+  const chatViewClearCarryRef = useRef<ChatViewClearCarry | null>(null);
+  // 결과를 모르는 비공개 삭제 안내. 다시 불러와도 남도록 리셋이 비우지 않고, 같은 (사용자, 커플)에게만 보인다.
+  const [viewClearNotice, setViewClearNotice] = useState<{ owner: string; text: string } | null>(null);
+  // 「둘의 화면 함께 정리」 동의 요청의 진행 중 잠금 — (사용자, 커플)마다. 창을 닫았다 열어도 유지한다(웹과 같다).
+  const clearRequestInFlightRef = useRef(new Set<string>());
+  const [pendingClearRequestOwners, setPendingClearRequestOwners] = useState<Set<string>>(() => new Set());
+  // 머리의 「결정 보드」 입구. 좁은 화면(320pt)이나 큰 글자에서는 글자를 빼고 아이콘만 둔다(amoraChatHeader.ts).
+  const { width: windowWidth, fontScale } = useWindowDimensions();
+  const showBoardLabel = shouldShowAmoraBoardLabel(windowWidth, fontScale);
+  // 두 번 눌러 같은 화면이 두 겹 쌓이지 않게, 이 탭으로 돌아올 때까지 한 번만 옮겨 간다.
+  const boardNavigationRef = useRef(false);
+  useFocusEffect(useCallback(() => {
+    boardNavigationRef.current = false;
+  }, []));
   const scopedMessages = useMemo(
     () => messages.filter((message) => (
       isMessageInChatScope(message.visibility, activeScope, userRole)
@@ -2458,7 +2511,10 @@ export default function ChatScreen() {
     setPartnerSafetyNotice(null);
     setPreparationDraft(null);
     setPreparationNotice(null);
-  }, []);
+    // 정리 창은 닫는다. 이어받기(chatViewClearCarryRef)·동의 요청 잠금·결과 모름 안내는 비우지 않는다 —
+    // 정리가 경계를 옮겨 일어난 리셋 뒤에 쓰이고, 사람·커플에 묶여 있다.
+    setViewClearStep("closed");
+  }, [setViewClearStep]);
 
   useEffect(() => {
     const timer = setInterval(() => setNowMs(Date.now()), 1_000);
@@ -2624,6 +2680,8 @@ export default function ChatScreen() {
           return;
         }
         channelRef.current = identityChannel;
+        // 커플이 없으면 되돌릴 대화 범위도 없다.
+        chatViewClearCarryRef.current = null;
         setInitialLoaded(true);
         return;
       }
@@ -3040,7 +3098,22 @@ export default function ChatScreen() {
       if (!await verifyLoadedChatBoundary()) return;
       const restoreDraft = pendingChatDraftRestoreRef.current;
       pendingChatDraftRestoreRef.current = null;
+      // 스스로 한 화면 정리가 경계를 옮겨 일어난 다시 불러오기면, 있던 범위·대상·초안으로 돌아간다.
+      // 실시간 프로필 UPDATE 와 범위 재확인 중 어느 쪽이 리셋했든, 응답보다 먼저 왔든 같다(chatViewClear.ts).
+      const viewClearCarry = takeChatViewClearCarry(chatViewClearCarryRef.current, {
+        userId: user.id,
+        coupleId: profile.couple_id,
+        cursors: viewCursors,
+        canUsePrivate: viewerRole !== null,
+        hasLinkedPartner: partnerIsVerified,
+      });
+      chatViewClearCarryRef.current = viewClearCarry.keep;
+      if (viewClearCarry.restore) {
+        setActiveScope(viewClearCarry.restore.scope);
+        setTarget(viewClearCarry.restore.target);
+      }
       if (restoreDraft?.userId === user.id && restoreDraft.coupleId === profile.couple_id) setInputByLane(restoreDraft.drafts);
+      else if (viewClearCarry.restore) setInputByLane(viewClearCarry.restore.drafts);
       setInitialLoaded(true);
       } catch {
         if (!isCurrentGeneration()) return;
@@ -3820,6 +3893,9 @@ export default function ChatScreen() {
       || !activeVisibility
       || !activeLane
     ) return;
+    // 이 범위의 화면을 정리하는 동안에는 보내지 않는다 — 새 말이 정리 경계 앞에 들어가 함께 지워질 수 있다.
+    const clearing = viewClearInFlightRef.current;
+    if (clearing && clearing.owner === `${userId}:${coupleId}` && clearing.scope === activeScope) return;
     // 보내기를 시작하면 이전 답의 칩을 거둔다 — 상대에게 보낼 때·안전 안내로 멈출 때도(웹 `chatStore` 와 같다).
     setFollowUpSuggestions(null);
     const crisisPreflight = planAmoraCrisisDelivery({
@@ -4220,6 +4296,150 @@ export default function ChatScreen() {
     );
     setActiveScope(nextSelection.scope);
     setTarget(nextSelection.target);
+  }
+
+  // 결정 보드로 옮겨 간다. 답을 받는 중에는 떠나지 않는다 — 돌아올 때 이 탭이 대화를 다시 확인한다.
+  function openDecisionBoard() {
+    if (streaming || boardNavigationRef.current) return;
+    boardNavigationRef.current = true;
+    router.push(AMORA_BOARD_ENTRY.pathname);
+  }
+
+  // ── 「대화 화면 정리」 (웹 ChatContent 의 같은 창, 2026-09-18) ─────────────────────────
+  // 머리 버튼이 여는 첫 단계는 웹과 같다 — 함께 대화는 고르기부터, 나만 상담은 확인 단계부터.
+  function openViewClearSheet() {
+    if (
+      !initialLoaded || chatLoadError || !userId || !coupleId || scopedMessages.length === 0
+      || streaming || sendingRef.current || applyingPendingActionRef.current || viewClearInFlightRef.current
+    ) return;
+    setViewClearNotice(null);
+    setViewClearStep(openingChatViewClearStep(activeScope));
+  }
+
+  // 정리 요청이 가는 동안에는 닫지 않는다 — 닫으면 실패를 볼 곳이 사라진다.
+  function closeViewClearSheet() {
+    if (viewClearInFlightRef.current) return;
+    setViewClearStep("closed");
+  }
+
+  /**
+   * 화면을 정리하거나 비공개 대화를 삭제한다. 누른 사람에 결박된 인증 요청으로 보내고(계정이 바뀌는 중이면
+   * 보내지 않는다), 서버가 같은 모드와 정리 시점을 확인해 준 뒤에만 화면을 바꾼다.
+   */
+  async function performViewClear(mode: ChatViewClearMode) {
+    const scope = chatViewClearScope(mode);
+    const actorId = userId;
+    const actorCoupleId = coupleId;
+    const generation = chatSessionGenerationRef.current.current();
+    if (
+      !actorId || !actorCoupleId || !isCurrentChatSession(generation)
+      || viewClearStepRef.current !== openingChatViewClearStep(scope) || scope !== activeScope
+      || (scope === "private" && !userRole)
+      || viewClearInFlightRef.current || streaming || sendingRef.current || applyingPendingActionRef.current
+    ) return;
+    const owner = `${actorId}:${actorCoupleId}`;
+    const requestId = viewClearRequestSeqRef.current + 1;
+    viewClearRequestSeqRef.current = requestId;
+    viewClearInFlightRef.current = { owner, scope };
+    setViewClearPending({ owner, scope, mode });
+    setViewClearError(null);
+    // 보내기 **전에** 담는다. 서버가 경계를 옮기면 실시간 프로필 UPDATE 가 응답보다 먼저 와서 세션을
+    // 리셋할 수 있다 — 그 다시 불러오기도 이 자리를 보고 범위·초안을 되돌린다.
+    chatViewClearCarryRef.current = armChatViewClearCarry({
+      requestId, userId: actorId, coupleId: actorCoupleId, scope, target, drafts: inputByLaneRef.current,
+    });
+    let result: ChatViewClearResult;
+    try {
+      result = await requestChatViewClear(
+        (path, init) => apiFetchForExpectedUser(actorId, path, init),
+        actorCoupleId,
+        mode,
+      );
+    } finally {
+      viewClearInFlightRef.current = null;
+      setViewClearPending(null);
+    }
+    // 계정·커플이 바뀌었거나 세션이 이미 다시 불러와졌으면 화면을 바꾸지 않는다. carry 만 결과에 맞춘다.
+    const stillHere = isCurrentChatSession(generation) && sessionUserIdRef.current === actorId;
+    if (result.ok) {
+      chatViewClearCarryRef.current = settleChatViewClearCarry(
+        chatViewClearCarryRef.current, requestId, { clearedAt: result.clearedAt },
+      );
+      if (!stillHere) return;
+      // 다시 불러오기 전 잠깐 동안에도 지운 대화가 보이지 않게 곧바로 뺀다.
+      const visibility = chatVisibilityForScope(scope, userRole);
+      setMessages((previous) => removeMessagesClearedFromView(previous, visibility, result.clearedAt));
+      setViewClearStep("closed");
+      memoryStatusLoadRef.current?.();
+      // 경계가 움직였으니 범위 재확인이 세션을 다시 불러온다 — carry 가 범위·초안을 되돌린다.
+      void refreshChatSessionRef.current?.();
+      return;
+    }
+    chatViewClearCarryRef.current = settleChatViewClearCarry(
+      chatViewClearCarryRef.current, requestId, result.outcome === "unknown" ? "unknown" : "rejected",
+    );
+    if (!stillHere) return;
+    if (mode === "delete_private" && result.outcome === "unknown") {
+      // 서버에서는 지워졌을 수 있다. "삭제되지 않았어요"라고 단정하지 않고, 다시 불러와 실제 상태를 보여 준다.
+      setViewClearNotice({ owner, text: CHAT_VIEW_CLEAR_FAILURE.deleteUnknown });
+      reloadChatSessionRef.current();
+      return;
+    }
+    setViewClearError(result.error);
+  }
+
+  /**
+   * 「둘의 화면 함께 정리」 동의 요청. (사용자, 커플)마다 한 번에 하나만 보낸다 — 두 번 눌러도, 창을 닫았다
+   * 열어도 같다. 서버가 돌려준 대기 카드를 곧바로 대화에 붙여, 새로고침하지 않아도 기다리는 상태가 보인다.
+   */
+  async function submitSharedClearRequest() {
+    const actorId = userId;
+    const actorCoupleId = coupleId;
+    const generation = chatSessionGenerationRef.current.current();
+    if (
+      !actorId || !actorCoupleId || !isCurrentChatSession(generation) || activeScope !== "shared"
+      || !hasLinkedPartner || viewClearStepRef.current !== "shared_confirm_both"
+    ) return;
+    const owner = `${actorId}:${actorCoupleId}`;
+    if (clearRequestInFlightRef.current.has(owner)) return;
+    // 서버는 커플당 대기 요청을 하나로 막지 않는다. 불러온 대화에 답이 없는 요청이 있으면 보내지 않는다.
+    if (hasPendingSharedChatClearRequest(messages)) {
+      setViewClearError(CHAT_VIEW_CLEAR_COPY.shared.bothPendingReason);
+      return;
+    }
+    const version = viewClearDialogVersionRef.current;
+    clearRequestInFlightRef.current.add(owner);
+    setPendingClearRequestOwners((current) => new Set(current).add(owner));
+    setViewClearError(null);
+    try {
+      const result = await requestSharedChatClear(
+        (path, init) => apiFetchForExpectedUser(actorId, path, init),
+        actorCoupleId,
+        actorId,
+      );
+      if (!isCurrentChatSession(generation) || sessionUserIdRef.current !== actorId) return;
+      if (result.ok) {
+        const card = chatMessageFromRealtimeRow(result.message);
+        if (card && canViewerSeeChatMessage(card, userRole) && isMessageAfterChatViewCursor(card, chatViewCursorsRef.current)) {
+          setMessages((previous) => reconcileMobileAmoraCrisisRecovery(
+            mergeRealtimeMessage(previous, card, null),
+            actorId,
+            actorCoupleId,
+            userRole,
+          ));
+        }
+        if (viewClearDialogVersionRef.current === version) setViewClearStep("closed");
+        return;
+      }
+      if (viewClearDialogVersionRef.current === version) setViewClearError(result.error);
+    } finally {
+      clearRequestInFlightRef.current.delete(owner);
+      setPendingClearRequestOwners((current) => {
+        const next = new Set(current);
+        next.delete(owner);
+        return next;
+      });
+    }
   }
 
   function renderMessage({ item }: { item: ChatMessage }) {
@@ -4723,13 +4943,62 @@ export default function ChatScreen() {
   const isP = activeScope === "shared" && target === "partner";
   const memoryLine = resolveAmoraMemoryLine(memoryStatus, activeScope, userRole);
   const visibleFollowUps = visibleAmoraFollowUps(followUpSuggestions, { activeLane, streaming });
+  // 「대화 화면 정리」 머리 버튼. 대화를 다 불러왔고 이 범위에 보이는 메시지가 있을 때만 보인다.
+  const viewClearOwner = userId && coupleId ? `${userId}:${coupleId}` : null;
+  const viewClearLockedScope = viewClearPending && viewClearPending.owner === viewClearOwner ? viewClearPending.scope : null;
+  const composerLockedByViewClear = viewClearLockedScope !== null && viewClearLockedScope === activeScope;
+  const canOfferViewClear = initialLoaded && !chatLoadError && Boolean(userId) && Boolean(coupleId) && scopedMessages.length > 0;
+  const viewClearEntryDisabled = streaming || applyingPendingActionId !== null || viewClearLockedScope !== null;
+  const clearRequestSending = viewClearOwner !== null && pendingClearRequestOwners.has(viewClearOwner);
+  const pendingSharedClearRequest = hasPendingSharedChatClearRequest(messages);
+  const visibleViewClearNotice = viewClearNotice && viewClearNotice.owner === viewClearOwner ? viewClearNotice.text : null;
 
   return (
     <SafeAreaView style={st.container} edges={["top"]}>
       <View style={st.header}>
-        <View style={st.headerLeft}><AmoraAvatar size={36} /><View><Text style={st.headerTitle}>아모라</Text><Text style={st.headerSub}>결혼 준비 동반자</Text></View></View>
-        {scopedMessages.length > 0 && <StatusPill label={`${scopedMessages.length}`} tone="neutral" />}
+        <View style={st.headerLeft}><AmoraAvatar size={AMORA_CHAT_HEADER_LAYOUT.avatar} /><View style={st.headerTitles}><Text style={st.headerTitle} numberOfLines={1}>아모라</Text><Text style={st.headerSub} numberOfLines={1}>결혼 준비 동반자</Text></View></View>
+        <View style={st.headerActions}>
+          {scopedMessages.length > 0 && <StatusPill label={`${scopedMessages.length}`} tone="neutral" />}
+          {/* 범위 줄의 세 번째 탭이 아니다 — 화면을 옮기는 버튼이다. 두 범위와 상대에게 쓰는 중에도 보인다. */}
+          <Pressable
+            style={({ pressed }) => [st.headerBoardBtn, !showBoardLabel && st.headerBoardBtnCompact, pressed && !streaming && st.headerBtnPressed, streaming && st.headerBtnDisabled]}
+            onPress={openDecisionBoard}
+            disabled={streaming}
+            accessibilityRole="button"
+            accessibilityLabel={AMORA_BOARD_ENTRY.accessibilityLabel}
+            accessibilityState={{ disabled: streaming }}
+          >
+            <ListChecks size={AMORA_CHAT_HEADER_LAYOUT.boardIcon} color={colors.textSecondary} />
+            {showBoardLabel && <Text style={st.headerBoardText} numberOfLines={1}>{AMORA_BOARD_ENTRY.label}</Text>}
+          </Pressable>
+          {canOfferViewClear && (
+            <Pressable
+              style={({ pressed }) => [st.headerIconBtn, pressed && !viewClearEntryDisabled && st.headerBtnPressed, viewClearEntryDisabled && st.headerBtnDisabled]}
+              onPress={openViewClearSheet}
+              disabled={viewClearEntryDisabled}
+              accessibilityRole="button"
+              accessibilityLabel={CHAT_VIEW_CLEAR_COPY.entryLabel}
+              accessibilityState={{ disabled: viewClearEntryDisabled }}
+            >
+              <RefreshCw size={18} color={colors.textSecondary} />
+            </Pressable>
+          )}
+        </View>
       </View>
+      <ChatViewClearSheet
+        step={viewClearStep}
+        hasLinkedPartner={hasLinkedPartner}
+        pendingRequestExists={pendingSharedClearRequest}
+        clearingMode={viewClearPending && viewClearPending.owner === viewClearOwner ? viewClearPending.mode : null}
+        requestSending={clearRequestSending}
+        error={viewClearError}
+        onChoose={(mode) => { void performViewClear(mode); }}
+        onChooseBoth={() => setViewClearStep("shared_confirm_both")}
+        onBack={() => setViewClearStep("shared_choose")}
+        onSubmitRequest={() => { void submitSharedClearRequest(); }}
+        onConfirmDeletePrivate={() => { void performViewClear("delete_private"); }}
+        onClose={closeViewClearSheet}
+      />
 
       {/*
         아모라 답변이 AI 생성물임을 화면에서 항상 확인할 수 있게 한다.
@@ -4893,6 +5162,14 @@ export default function ChatScreen() {
           </View>
         )}
 
+        {visibleViewClearNotice && (
+          <View style={st.failureBar} accessibilityLiveRegion="polite">
+            <Text style={st.failureText} accessibilityRole="alert">{visibleViewClearNotice}</Text>
+            <Pressable style={st.retryBtn} onPress={() => setViewClearNotice(null)} accessibilityRole="button" accessibilityLabel="삭제 결과 안내 닫기">
+              <Text style={st.retryText}>확인</Text>
+            </Pressable>
+          </View>
+        )}
         {preparationNotice && (
           <View style={st.failureBar} accessibilityLiveRegion="polite">
             <Text style={st.failureText}>{preparationNotice}</Text>
@@ -5003,9 +5280,9 @@ export default function ChatScreen() {
         )}
 
         <View style={[st.inputBar, isP && { borderTopColor: colors.rose.light }]}>
-          <TextInput style={st.input} value={input} onChangeText={handleInputChange} placeholder={isP ? `${partnerName ?? "파트너"}에게 메시지...` : activeScope === "private" ? "나만의 상담을 입력하세요..." : "메시지를 입력하세요..."} placeholderTextColor={colors.paper.inkFaint} multiline maxLength={4000} editable={!streaming && initialLoaded && !chatLoadError} returnKeyType="send" accessibilityLabel="메시지 입력" />
+          <TextInput style={st.input} value={input} onChangeText={handleInputChange} placeholder={isP ? `${partnerName ?? "파트너"}에게 메시지...` : activeScope === "private" ? "나만의 상담을 입력하세요..." : "메시지를 입력하세요..."} placeholderTextColor={colors.paper.inkFaint} multiline maxLength={4000} editable={!streaming && initialLoaded && !chatLoadError && !composerLockedByViewClear} returnKeyType="send" accessibilityLabel="메시지 입력" />
           <Animated.View style={{ transform: [{ scale: sendBtnScale }] }}>
-            <Pressable style={[st.sendBtn, isP && { backgroundColor: colors.rose[600] }, (!input.trim() || streaming || !initialLoaded || Boolean(chatLoadError)) && st.sendBtnOff]} onPress={() => { void handleSend(); }} onPressIn={pressIn} onPressOut={pressOut} disabled={!input.trim() || streaming || !initialLoaded || Boolean(chatLoadError)} accessibilityLabel="메시지 보내기" accessibilityRole="button">
+            <Pressable style={[st.sendBtn, isP && { backgroundColor: colors.rose[600] }, (!input.trim() || streaming || !initialLoaded || Boolean(chatLoadError) || composerLockedByViewClear) && st.sendBtnOff]} onPress={() => { void handleSend(); }} onPressIn={pressIn} onPressOut={pressOut} disabled={!input.trim() || streaming || !initialLoaded || Boolean(chatLoadError) || composerLockedByViewClear} accessibilityLabel="메시지 보내기" accessibilityRole="button">
               {isP ? <Heart size={18} color="#FFF" /> : <Send size={18} color="#FFF" />}
             </Pressable>
           </Animated.View>
@@ -5017,10 +5294,20 @@ export default function ChatScreen() {
 
 const st = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg },
-  header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 20, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: colors.border, backgroundColor: colors.surface },
-  headerLeft: { flexDirection: "row", alignItems: "center", gap: 10 },
-  headerTitle: { fontSize: 17, fontFamily: "NotoSansKR_600SemiBold", color: colors.noir[800] },
-  headerSub: { fontSize: 11, color: colors.paper.inkFaint },
+  // 머리 숫자의 정본은 amoraChatHeader.ts 다 — 같은 숫자로 320pt 폭을 어림한다.
+  header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: AMORA_CHAT_HEADER_LAYOUT.paddingX, paddingVertical: AMORA_CHAT_HEADER_LAYOUT.paddingY, borderBottomWidth: 1, borderBottomColor: colors.border, backgroundColor: colors.surface },
+  headerLeft: { flexDirection: "row", alignItems: "center", gap: AMORA_CHAT_HEADER_LAYOUT.avatarGap, flexShrink: 1, minWidth: 0 },
+  headerTitles: { flexShrink: 1, minWidth: 0 },
+  headerTitle: { fontSize: AMORA_CHAT_HEADER_LAYOUT.titleFontSize, fontFamily: "NotoSansKR_600SemiBold", color: colors.noir[800] },
+  headerSub: { fontSize: AMORA_CHAT_HEADER_LAYOUT.subFontSize, color: colors.paper.inkFaint },
+  // 오른쪽 버튼 묶음은 줄지 않는다 — 좁은 화면에서는 왼쪽 제목이 먼저 줄어든다. 버튼은 모두 44pt 이상이다.
+  headerActions: { flexDirection: "row", alignItems: "center", gap: AMORA_CHAT_HEADER_LAYOUT.actionGap, flexShrink: 0, marginLeft: AMORA_CHAT_HEADER_LAYOUT.sideGap },
+  headerIconBtn: { width: 44, height: 44, alignItems: "center", justifyContent: "center", borderRadius: 22 },
+  headerBoardBtn: { minWidth: 44, height: 44, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: AMORA_CHAT_HEADER_LAYOUT.boardIconGap, paddingHorizontal: AMORA_CHAT_HEADER_LAYOUT.boardPaddingX, borderRadius: 22 },
+  headerBoardBtnCompact: { width: 44, paddingHorizontal: 0 },
+  headerBoardText: { fontSize: AMORA_CHAT_HEADER_LAYOUT.boardFontSize, fontWeight: "600", color: colors.textSecondary },
+  headerBtnPressed: { backgroundColor: colors.ivory[100] },
+  headerBtnDisabled: { opacity: 0.45 },
   aiNotice: {
     flexDirection: "row",
     flexWrap: "wrap",

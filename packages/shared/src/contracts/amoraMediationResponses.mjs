@@ -99,7 +99,7 @@ export function createMediationResponseSession({ revision, readScope, request })
       const item=record(payload)?payload.action:null;
       if(!response.ok||!record(item)||typeof item.id!=='string'||!item.id||item.title!==cleanTitle||(item.description??'')!==cleanDescription||item.status!=='open'||item.source!=='manual'||item.href!=='/chat')throw new Error('INVALID_RECEIPT');
       set({taskSaved:item.id});return true;
-    } catch {if(epoch===generation)set({taskUnknown:dispatched&&!rejected,error:rejected?'할 일을 저장하지 못했어요. 입력과 연결 상태를 확인한 뒤 다시 시도해 주세요.':'할 일 저장 결과를 확인하지 못했어요. 준비 보드를 먼저 확인해 주세요.'});return false;}
+    } catch {if(epoch===generation)set({taskUnknown:dispatched&&!rejected,error:rejected?'할 일을 저장하지 못했어요. 입력과 연결 상태를 확인한 뒤 다시 시도해 주세요.':'할 일 저장 결과를 확인하지 못했어요. 공유 할 일을 먼저 확인해 주세요.'});return false;}
     finally{if(epoch===generation)set({busy:false});}
   }
   return {getState:()=>state,subscribe(listener){listeners.add(listener);return()=>{listeners.delete(listener);};},invalidate,load,respond:(choice,condition)=>mutate('POST',choice,condition),revoke:()=>mutate('DELETE'),createTask};
