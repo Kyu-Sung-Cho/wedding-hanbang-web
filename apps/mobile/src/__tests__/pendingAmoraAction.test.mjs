@@ -4,8 +4,9 @@ import test from "node:test";
 import { fileURLToPath, URL } from "node:url";
 import ts from "typescript";
 import { getAmoraVisibleText } from "@hanbang/shared/amora-visible-text";
-import { parseAmoraCitations, describeAmoraCitations } from "../lib/amoraCitations.mjs";
+import { parseAmoraCitations, resolveAmoraMannersLinks } from "../lib/amoraCitations.mjs";
 import * as chatParticipantPresentationModule from "../lib/chatParticipantPresentation.mjs";
+import { getChatImageAttachmentTarget } from "../lib/chatImageAttachments.mjs";
 
 const helperPath = fileURLToPath(new URL("../lib/pendingAmoraAction.ts", import.meta.url));
 const sharedSchedulePath = fileURLToPath(new URL(
@@ -164,9 +165,14 @@ function renderProposal(receipts, {
     handleApplyPendingAction: (actionId) => calls.push(["apply", actionId]),
     handleWithdrawPendingAction: (actionId) => calls.push(["withdraw", actionId]),
     setDismissedPendingActionIds: (update) => calls.push(["dismiss", [...update(new Set())]]),
-    parseAmoraCitations, describeAmoraCitations, getAmoraVisibleText,
+    parseAmoraCitations, resolveAmoraMannersLinks, getAmoraVisibleText,
+    // 아모라 답의 예절 편 카드(2026-09-18). 이 테스트는 카드 속을 보지 않는다 — 이름만 넘긴다.
+    AmoraMannersLinks: "AmoraMannersLinks", amoraSiteOrigin: "https://hanbang.test",
     normalizeMediationBlock: () => null, ...toolResultCardModule,
     colors: { noir: { 800: "black", soft: "gray" }, gold: { DEFAULT: "gold" }, ivory: { warm: "ivory" } }, st: {},
+    // 말풍선 위 첨부 사진(2026-09-18). 실제 판정을 쓴다 — 아모라 메시지에는 붙지 않는다.
+    getChatImageAttachmentTarget, chatImageAttachmentStore: null,
+    chatSessionGenerationRef: { current: { current: () => 1 } },
   };
   const compiledRender = ts.transpileModule(declaration.getText(tree), {
     compilerOptions: { module: ts.ModuleKind.None, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.React },
@@ -368,7 +374,10 @@ test("stored AI bodies hide internal artifacts in shared and private bubbles and
     assert.doesNotMatch(rendered.text, /저장된 도구|toolName|toolOutput|total_budget/);
     const body = rendered.nodes.find(node => node.type === "AmoraMessageBody");
     assert.equal(body.props.content, "총예산은 5,000만 원이에요.");
-    assert.match(rendered.text, /결혼 예절 안내를 근거로 했어요/);
+    // 예절 안내 표식은 본문에서 걷히고, 근거 문구 대신 그 편 카드(축의금)가 붙는다(2026-09-18).
+    const manners = rendered.nodes.find(node => node.type === "AmoraMannersLinks");
+    assert.deepEqual(manners.props.links.map(link => link.slug), ["gift-money"]);
+    assert.doesNotMatch(rendered.text, /근거로 했어요/);
     const preview = rendered.nodes.find(node => node.type === "PersonalActionSave");
     if (visibility === "shared") assert.equal(preview, undefined);
     else assert.equal(preview.props.content, prose);

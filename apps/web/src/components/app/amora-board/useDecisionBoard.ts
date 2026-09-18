@@ -4,7 +4,10 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/client";
 import { useAuthStore } from "@/stores/authStore";
-import { DECISION_PAGE_SIZE, decisionCursorFilter, parsePreparationDecisions, type DecisionCursor, type PreparationDecision } from "@/lib/amora/preparationBoard";
+import {
+  DECISION_INITIAL_ERROR, DECISION_MORE_ERROR, DECISION_PAGE_SIZE, DECISION_SELECT_COLUMNS, decisionCursorFilter, parsePreparationDecisions,
+  type DecisionCursor, type PreparationDecision,
+} from "@hanbang/shared/preparation-decisions";
 
 export type DecisionScope = { ownerId: string; coupleId: string; role: string; brideId: string | null; groomId: string | null };
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -34,7 +37,7 @@ export async function readDecisionPage(client: SupabaseClient, scope: DecisionSc
   };
   await verify();
   let query = client.from("decision_nodes")
-    .select("id, couple_id, visibility, category, title, reasoning, decision_type, source, created_at, superseded_at, memory_key, metadata, chosen_value")
+    .select(DECISION_SELECT_COLUMNS)
     .eq("couple_id", scope.coupleId).eq("visibility", "shared")
     .is("superseded_at", null).is("memory_key", null).is("metadata->>extracted_by", null)
     .order("created_at", { ascending: false }).order("id", { ascending: false }).limit(DECISION_PAGE_SIZE + 1);
@@ -49,8 +52,6 @@ export async function readDecisionPage(client: SupabaseClient, scope: DecisionSc
 
 type State = { scope: string; records: PreparationDecision[]; nextCursor: DecisionCursor | null; loading: boolean; loadingMore: boolean; error: string | null; errorKind: "initial" | "more" | null };
 const empty = { records: [], nextCursor: null, loading: false, loadingMore: false, error: null, errorKind: null };
-const INITIAL_ERROR = "결정 기록을 확인하지 못했어요. 커플 연결을 확인한 뒤 다시 불러와 주세요.";
-const MORE_ERROR = "이전 결정을 더 불러오지 못했어요. 잠시 후 다시 시도해 주세요.";
 
 export function useDecisionBoard() {
   const scopeKey = useAuthStore(state => keyFor(decisionScope(state)));
@@ -80,8 +81,8 @@ export function useDecisionBoard() {
       // 이어서 불러오다 실패한 것은 이미 화면에 있는 기록을 지우지 않는다. 커플 연결은 멀쩡한데
       // 연결을 확인하라고 말하면서 목록까지 비우면, 실패한 것은 다음 페이지 하나인데 전부 잃는다.
       if (current()) setState(previous => cursor && previous.scope === scopeKey
-        ? { ...previous, loading: false, loadingMore: false, error: MORE_ERROR, errorKind: "more" }
-        : { ...empty, scope: scopeKey, error: INITIAL_ERROR, errorKind: "initial" });
+        ? { ...previous, loading: false, loadingMore: false, error: DECISION_MORE_ERROR, errorKind: "more" }
+        : { ...empty, scope: scopeKey, error: DECISION_INITIAL_ERROR, errorKind: "initial" });
     } finally { if (current()) inFlight.current = false; }
   }, [scopeKey]);
   const refresh = useCallback(() => load(), [load]);

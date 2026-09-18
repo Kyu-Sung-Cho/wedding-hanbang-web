@@ -21,11 +21,14 @@
     "./budget-share": "./src/contracts/budgetShare.mjs",
     "./amora-personal-actions": "./src/contracts/amoraPersonalActions.mjs",
     "./amora-shared-actions": "./src/contracts/amoraSharedActions.mjs",
+    "./preparation-decisions": "./src/contracts/preparationDecisions.ts",
     "./mediation-responses": "./src/contracts/amoraMediationResponses.mjs",
     "./place-search-presentation": "./src/contracts/placeSearchPresentation.mjs",
     "./amora-visible-text": "./src/contracts/amoraVisibleText.mjs",
     "./profile-avatar": "./src/contracts/profileAvatar.mjs",
-    "./amora-personalization": "./src/contracts/amoraPersonalization.mjs"
+    "./amora-personalization": "./src/contracts/amoraPersonalization.mjs",
+    "./chat-image-attachments": "./src/contracts/chatImageAttachments.mjs",
+    "./manners-part-links": "./src/contracts/mannersPartLinks.mjs"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",

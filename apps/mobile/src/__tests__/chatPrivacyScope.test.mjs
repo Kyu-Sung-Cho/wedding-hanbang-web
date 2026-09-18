@@ -49,7 +49,7 @@ function loadSessionHarness({ sharedCursor = null, privateCursor = null, history
   };
   visit(tree);
   assert.ok(load, "execute the screen's actual session loader");
-  const state = { messages: [], failures: {}, recoveries: {}, reloads: 0, initialLoaded: false, error: null };
+  const state = { messages: [], failures: {}, recoveries: {}, reloads: 0, initialLoaded: false, error: null, imageCacheResets: [] };
   const subscriptions = [];
   const queries = [];
   const profile = { id: "viewer", name: "합성 사용자", role: "bride", couple_id: "couple", shared_chat_cleared_at: sharedCursor, private_chat_cleared_at: privateCursor };
@@ -93,7 +93,9 @@ function loadSessionHarness({ sharedCursor = null, privateCursor = null, history
   const bindings = {
     ...module.exports,
     supabase: { auth: { getUser: async () => ({ data: { user: { id: "viewer" } } }) }, from: query, channel: () => channel, removeChannel: () => {} },
-    chatSessionGenerationRef: { current: { begin: () => ++generation, invalidate: () => ++generation, instanceId: () => 1 } },
+    chatSessionGenerationRef: { current: { begin: () => ++generation, invalidate: () => ++generation, current: () => generation, instanceId: () => 1 } },
+    // 말풍선 위 첨부 사진 캐시(2026-09-18). 세대가 바뀌는 자리에서 그 세대로 비우는지 기록한다.
+    chatImageAttachmentStore: { reset: value => state.imageCacheResets.push(value) },
     chatViewCursorsRef: { current: { shared: null, private: null } },
     refreshChatSessionRef: { current: null }, activeControllerRef: { current: null },
     pendingChatDraftRestoreRef: { current: null }, inputByLaneRef: { current: {} },
@@ -248,6 +250,8 @@ test("a foreground read failure invalidates the active response and keeps a same
   assert.ok(harness.state.error);
   assert.equal(harness.bindings.pendingChatDraftRestoreRef.current.userId, "viewer");
   assert.equal(harness.bindings.pendingChatDraftRestoreRef.current.drafts.private_ai, "개인 초안");
+  // 새 세대로 첨부 사진 캐시를 비운다 — 이전 세대의 서명 URL 이 남지 않는다.
+  assert.deepEqual(harness.state.imageCacheResets, [harness.generation()]);
 });
 
 test("malformed or missing clear cursors fail closed instead of assuming no reset", async () => {

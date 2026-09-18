@@ -1,16 +1,16 @@
 /**
- * 아모라가 예절 안내를 근거로 답할 때 본문에 `[etiquette:N]` 을 붙인다.
+ * 아모라가 결혼 예절 안내를 **더 읽을 곳**으로 가리킬 때 본문에 `[etiquette:N]` 을 붙인다.
+ * 표식은 근거 인용이 아니다 — 아모라는 편 제목만 받고 본문은 받지 않는다(프롬프트와 웹 테스트
+ * 「아모라가 안내를 링크하되 근거로 인용하지는 않는다」가 못 박았다).
  *
- * 웹은 이 태그를 파싱해 안내 카드 링크로 바꾼다(`ChatBubble.tsx`). **모바일은 안 했다.**
- * 그래서 사용자가 보는 화면에 `[etiquette:9]` 가 글자 그대로 남았다 — 근거를 대라고
- * 만든 표식이 오히려 깨진 텍스트로 보인다. 모바일이 소비자의 주 제품이므로 이쪽이
- * 더 나쁘다(2026-08-22 스테이징 실측: "축의금 보통 얼마 내?" 답 끝에 `[etiquette:9]`).
+ * 웹은 이 태그를 파싱해 편 카드 링크로 바꾼다(`ChatBubble.tsx`). 모바일은 처음에 태그를 글자 그대로
+ * 그렸고(2026-08-22 스테이징: "축의금 보통 얼마 내?" 답 끝에 `[etiquette:9]`), 그 뒤에는 태그를 걷고
+ * 예절 안내를 근거로 삼았다는 한 줄만 그렸다 — 누를 수도 없고 사실도 아닌 말이었다.
  *
- * 여기서는 **본문에서 태그를 걷어내고 몇 편을 근거로 했는지만** 돌려준다. 번호를
- * 주제 링크로 바꾸려면 `MANNERS_PARTS`(번호→슬러그) 가 필요한데 그 자료는 지금
- * `apps/web` 안에만 있고 1,800줄짜리 본문과 한 파일이다. 옮기는 건 따로 판단할 일이고,
- * 그 사이에 사용자가 깨진 태그를 보는 상태로 두지 않는다.
+ * 2026-09-18(wave 2 · 2.7): 번호 → 편 표를 `@hanbang/shared/manners-part-links` 로 옮겨(정본
+ * `parts.json` 과 대조되는 사본), 앱도 웹처럼 편 카드를 붙인다(`AmoraMannersLinks`).
  */
+import { mannersPartForCitation } from "@hanbang/shared/manners-part-links";
 
 /** 안내는 25편이다. 범위를 벗어난 번호는 링크가 아니라 오탈자로 본다. */
 const MIN_PART = 1;
@@ -64,14 +64,19 @@ export function parseAmoraCitations(content) {
 }
 
 /**
- * 근거 칩에 쓸 문구. 편 수를 세어 말한다 — 무엇을 근거로 했는지 사용자가 알아야
- * 한다는 것이 이 표식의 목적이다.
- * @param {number[]} parts
- * @returns {string | null}
+ * 편 번호를 편 카드에 쓸 행으로. 처음 나온 순서를 지키고, 표에 없는 번호는 뺀다.
+ * @param {unknown} parts
+ * @returns {{ number: number, slug: string, title: string, subtitle: string }[]}
  */
-export function describeAmoraCitations(parts) {
-  if (!Array.isArray(parts) || parts.length === 0) return null;
-  return parts.length === 1
-    ? "결혼 예절 안내를 근거로 했어요"
-    : `결혼 예절 안내 ${parts.length}편을 근거로 했어요`;
+export function resolveAmoraMannersLinks(parts) {
+  if (!Array.isArray(parts)) return [];
+  const seen = new Set();
+  const links = [];
+  for (const value of parts) {
+    const part = mannersPartForCitation(value);
+    if (!part || seen.has(part.slug)) continue;
+    seen.add(part.slug);
+    links.push({ number: /** @type {number} */ (value), slug: part.slug, title: part.title, subtitle: part.subtitle });
+  }
+  return links;
 }

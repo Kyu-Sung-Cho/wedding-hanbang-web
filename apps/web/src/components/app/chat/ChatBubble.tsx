@@ -19,6 +19,7 @@ import { normalizeMediationBlock } from "@/components/app/chat/mediationBlock";
 import { weddingLinkProps } from "@/lib/weddingPaths";
 import { stripAmoraRequestMarkers } from "@/lib/ai/amoraRequestMarkers";
 import { getAmoraVisibleText } from "@hanbang/shared/amora-visible-text";
+import { getChatImageAttachmentRefs } from "@hanbang/shared/chat-image-attachments";
 import { isUuid } from "@/utils/requestValidation";
 import { MANNERS_PARTS } from "@/lib/manners/data";
 import {
@@ -104,10 +105,11 @@ function ChatImageAttachments({
   messageId: string;
   metadata: ChatMessage["metadata"];
 }) {
-  const storedImageUrls = metadata?.imageUrls ?? [];
-  const storedImagePaths = metadata?.imagePaths ?? [];
-  const attachmentKey = `${messageId}|${[...storedImagePaths, ...storedImageUrls].join("|")}`;
-  const hasAttachments = storedImagePaths.length > 0 || storedImageUrls.length > 0;
+  // 첨부 판정은 앱과 같은 공유 규칙을 쓴다(imagePaths 다음 imageUrls, 문자열만, 중복 없이, 최대 10개).
+  // 정상 자료에서는 예전 인라인 키와 같다. 서명 URL 출처 필터는 앱에만 있고 웹에는 넣지 않는다.
+  const storedAttachments = getChatImageAttachmentRefs(metadata);
+  const attachmentKey = `${messageId}|${storedAttachments.attachmentKey}`;
+  const hasAttachments = storedAttachments.refs.length > 0;
   const [signedImageState, setSignedImageState] = useState<{ key: string; urls: string[] }>({
     key: "",
     urls: [],
