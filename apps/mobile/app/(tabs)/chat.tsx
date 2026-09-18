@@ -13,7 +13,7 @@ import { amoraIdentity, chatPalette, colors } from "@hanbang/design-tokens";
 import AmoraMark from "@/components/ui/AmoraMark";
 import AmoraAvatar from "@/components/ui/AmoraAvatar";
 import ProfileAvatar from "@/components/ui/ProfileAvatar";
-import { apiFetchForExpectedUserQuiet } from "@/lib/api";
+import { apiFetchForExpectedUser, apiFetchForExpectedUserQuiet } from "@/lib/api";
 import {
   EMPTY_CHAT_PARTICIPANT_PRESENTATION,
   chatSenderAvatarName,
@@ -83,6 +83,14 @@ import {
   visibleAmoraFollowUps,
   type AmoraFollowUpSuggestions,
 } from "@/lib/amoraFollowUpSuggestions";
+import {
+  getChatClearRequestRole,
+  readChatClearRequest,
+  respondToChatClearRequest,
+  type ChatClearRequestAction,
+  type ChatClearRequestResult,
+} from "@/lib/chatClearRequest";
+import { ChatClearRequestCard } from "@/components/chat/ChatClearRequestCard";
 import {
   CARRIED_PENDING_ACTION_LABEL,
   getAmoraActionApprovalPolicy,
@@ -4565,6 +4573,47 @@ export default function ChatScreen() {
     );
   }
 
+  /**
+   * 받은 「함께 새로 시작」 요청에 답한다. 누른 사람에 결박된 인증 요청으로 보내고(계정이 바뀌는
+   * 중이면 보내지 않는다), 서버가 확인한 결과만 돌려준다. 동의는 메시지를 지우지 않고 두 사람의 공유
+   * 화면 경계를 옮긴다 — 기존 범위 재확인 경로가 경계가 움직인 것을 보고 대화를 다시 불러온다.
+   */
+  async function handleClearRequestResponse(
+    messageId: string,
+    action: ChatClearRequestAction,
+  ): Promise<ChatClearRequestResult> {
+    const actorId = userId;
+    const generation = chatSessionGenerationRef.current.current();
+    if (!actorId || !isCurrentChatSession(generation)) {
+      return { ok: false, error: "대화 상태를 확인하고 있어요. 잠시 후 다시 눌러 주세요." };
+    }
+    const result = await respondToChatClearRequest(
+      (path, init) => apiFetchForExpectedUser(actorId, path, init),
+      messageId,
+      action,
+    );
+    if (result.ok && action === "accept" && isCurrentChatSession(generation)) {
+      void refreshChatSessionRef.current?.();
+    }
+    return result;
+  }
+
+  // 목록의 한 줄. 「함께 새로 시작」 요청은 글 한 줄이 아니라 동의 카드로 그린다(웹과 같다).
+  function renderChatRow({ item }: { item: ChatMessage }) {
+    const clearRequest = readChatClearRequest(item);
+    const clearRequestRole = clearRequest ? getChatClearRequestRole(clearRequest, userId) : null;
+    if (clearRequest && clearRequestRole) {
+      return (
+        <ChatClearRequestCard
+          request={clearRequest}
+          role={clearRequestRole}
+          onRespond={(action) => handleClearRequestResponse(item.id, action)}
+        />
+      );
+    }
+    return renderMessage({ item });
+  }
+
   const isP = activeScope === "shared" && target === "partner";
   const memoryLine = resolveAmoraMemoryLine(memoryStatus, activeScope, userRole);
   const visibleFollowUps = visibleAmoraFollowUps(followUpSuggestions, { activeLane, streaming });
@@ -4713,7 +4762,7 @@ export default function ChatScreen() {
             )}
           </View>
         ) : (
-          <FlatList ref={flatListRef} data={visibleMessages} inverted keyExtractor={(m) => m.id} renderItem={renderMessage} contentContainerStyle={st.messageList} keyboardDismissMode="on-drag" keyboardShouldPersistTaps="handled" removeClippedSubviews={Platform.OS === "android"} maxToRenderPerBatch={10} windowSize={5} initialNumToRender={12} />
+          <FlatList ref={flatListRef} data={visibleMessages} inverted keyExtractor={(m) => m.id} renderItem={renderChatRow} contentContainerStyle={st.messageList} keyboardDismissMode="on-drag" keyboardShouldPersistTaps="handled" removeClippedSubviews={Platform.OS === "android"} maxToRenderPerBatch={10} windowSize={5} initialNumToRender={12} />
         )}
 
         {/* 아모라의 첫마디만 놓여 있고 아직 오간 말이 없을 때. 화면은 비어 있지 않지만
