@@ -4,7 +4,7 @@ import { Text, TextInput } from "@/components/ui/AppText";
 import { router, useFocusEffect } from "expo-router";
 import * as Crypto from "expo-crypto";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { Check, ListChecks, Pencil, Plus, RefreshCw } from "lucide-react-native";
+import { ArrowUpRight, Check, ListChecks, Pencil, Plus, RefreshCw } from "lucide-react-native";
 import { colors, radius, spacing } from "@hanbang/design-tokens";
 import { CATEGORY_CHECKLISTS } from "@hanbang/shared/constants";
 import {
@@ -35,6 +35,7 @@ import {
   type SharedTaskSnapshot,
 } from "@/lib/amoraActionScope";
 import { checklistRoute } from "@/lib/checklistCategoryParam";
+import { sharedTaskLinkTarget, type SharedTaskLink } from "@/lib/sharedTaskLinks";
 import { appShadow } from "@/components/ui/AppUI";
 
 /**
@@ -52,6 +53,7 @@ import { appShadow } from "@/components/ui/AppUI";
  * - 추가는 요청번호(expo-crypto v4)를 결과가 확인될 때까지 유지한다. 결과를 모르면 초안을
  *   잠그고 같은 몸통 그대로 다시 확인한다 — 서버가 같은 요청번호를 한 번만 저장한다.
  * - 예정일은 사용자가 쓴 글 그대로 "예정일 …" 로 보여준다. 날짜로 바꾸지 않는다.
+ * - "연결된 화면 보기"는 아는 앱 화면만 연다(`@/lib/sharedTaskLinks`). 나만 상담·외부 주소는 없다.
  * - 저장은 상대에게 보이는 기록일 뿐이다. 상대에게 알렸다고 쓰지 않는다 — 직접 추가·수정
  *   경로는 지금 알림을 보내지 않는다.
  */
@@ -655,8 +657,15 @@ function EditSheet({ board, editing, bottomInset }: { board: Board; editing: Edi
   );
 }
 
+function openLinkedScreen(link: SharedTaskLink) {
+  // 준비 기록은 루트 스택 화면이다. 채팅 탭은 push 가 아니라 아래의 기존 (tabs)로 돌아간다.
+  if (link.kind === "chat") router.dismissTo("/(tabs)/chat");
+  else router.push(link.route);
+}
+
 function TaskCard({ board, action, disabled }: { board: Board; action: SharedAction; disabled: boolean }) {
   const categoryLabel = CATEGORY_LABELS.get(action.categoryKey);
+  const link = sharedTaskLinkTarget(action.href);
   const sourceLabel = sharedActionSourceLabel(action.source);
   const saving = board.pending !== null && "id" in board.pending && board.pending.id === action.id;
   const pick = board.categoryPick?.id === action.id ? board.categoryPick : null;
@@ -714,6 +723,10 @@ function TaskCard({ board, action, disabled }: { board: Board; action: SharedAct
         </>}
         {saving ? <Text accessibilityLiveRegion="polite" style={styles.meta}>저장 중…</Text> : null}
       </View>
+      {link ? <Pressable accessibilityRole="link" accessibilityLabel={`${action.title} 연결된 화면 보기`} onPress={() => openLinkedScreen(link)} style={styles.linkButton}>
+        <Text style={styles.linkText}>연결된 화면 보기</Text>
+        <ArrowUpRight size={14} color={colors.paper.pen} />
+      </Pressable> : null}
     </View>
   );
 }
@@ -834,6 +847,8 @@ const styles = StyleSheet.create({
   outlineButton: { minHeight: 44, flexDirection: "row", alignItems: "center", justifyContent: "center", paddingHorizontal: spacing[3], borderRadius: radius.full, borderWidth: 1, borderColor: colors.paper.outline, backgroundColor: colors.surface },
   outlineText: { fontSize: 13, fontWeight: "600", color: colors.rose[700] },
   textButton: { minHeight: 44, justifyContent: "center", alignSelf: "flex-start" },
+  linkButton: { minHeight: 44, flexDirection: "row", alignItems: "center", gap: spacing[1], alignSelf: "flex-start" },
+  linkText: { fontSize: 13, color: colors.paper.pen, textDecorationLine: "underline" },
   doneBadge: { fontSize: 12, fontWeight: "600", color: colors.noir.soft, backgroundColor: colors.htmlWorkspace.sagePale, paddingHorizontal: spacing[2], paddingVertical: 4, borderRadius: radius.full, overflow: "hidden" },
   hiddenBadge: { fontSize: 12, fontWeight: "600", color: colors.noir.soft, backgroundColor: colors.ivory[200], paddingHorizontal: spacing[2], paddingVertical: 4, borderRadius: radius.full, overflow: "hidden" },
   choices: { flexDirection: "row", flexWrap: "wrap", gap: spacing[2] },

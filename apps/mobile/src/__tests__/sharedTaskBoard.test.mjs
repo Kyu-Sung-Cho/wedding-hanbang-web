@@ -31,6 +31,7 @@ function compile(source, requireFor, fileName = "module.tsx") {
 const strict = (modules) => (name) => { assert.ok(Object.hasOwn(modules, name), `unmocked dependency ${name}`); return modules[name]; };
 const planning = compile(read("../../../../packages/shared/src/constants/weddingPlanning.ts"), strict({}), "module.ts");
 const checklistParam = compile(read("../lib/checklistCategoryParam.ts"), strict({ "@hanbang/shared/constants": planning }), "module.ts");
+const taskLinks = compile(read("../lib/sharedTaskLinks.ts"), strict({ "@/lib/checklistCategoryParam": checklistParam }), "module.ts");
 
 const action = (over = {}) => ({
   id: "act1", title: "청첩장 문구 확정하기", status: "open", priority: "medium", dueDate: "", ...over,
@@ -112,6 +113,7 @@ function boardHarness() {
     "@/lib/supabase": { supabase },
     "@/lib/amoraActionScope": scopeModule,
     "@/lib/checklistCategoryParam": checklistParam,
+    "@/lib/sharedTaskLinks": taskLinks,
     "@/lib/api": { apiFetchForExpectedUser: async (...args) => {
       calls.push(args);
       const response = responses.shift();
@@ -814,4 +816,24 @@ test("추가 결과를 받은 뒤 계정 확인이 실패하면 초안을 잠근
   h.press("같은 요청 다시 확인"); await h.flush();
   assert.deepEqual(h.posts().map(([, , options]) => JSON.parse(options.body).requestId), [FIRST_REQUEST, FIRST_REQUEST]);
   assert.match(h.text(), /공유 할 일을 추가했어요\./u);
+});
+
+// ── 연결된 화면 ─────────────────────────────────────────────────────────
+
+test("연결된 화면은 허용한 앱 화면만 열고, 채팅은 기존 채팅 탭으로 돌아가며, 나머지 주소에는 링크가 없다", async () => {
+  const h = await coupleBoard([
+    action({ id: "act_budget", title: "예산 확인", href: "/wedding/budget" }),
+    action({ id: "act_check", title: "체크리스트 확인", href: "/wedding/checklist?category=venue" }),
+    action({ id: "act_chat", title: "아모라와 정리", href: "/wedding/chat" }),
+    action({ id: "act_quote", title: "견적 확인", href: "/wedding/community/quote-check" }),
+    action({ id: "act_personal", title: "나만 상담", href: "/wedding/chat/personal" }),
+    action({ id: "act_self", title: "보드 자신", href: "/wedding/actions" }),
+    action({ id: "act_lounge", title: "라운지", href: "/wedding/lounge" }),
+    action({ id: "act_external", title: "외부 주소", href: "https://example.invalid/budget" }),
+  ]);
+  for (const title of ["나만 상담", "보드 자신", "라운지", "외부 주소"]) assert.equal(h.button(`${title} 연결된 화면 보기`), undefined, title);
+  for (const title of ["예산 확인", "체크리스트 확인", "아모라와 정리", "견적 확인"]) h.press(`${title} 연결된 화면 보기`);
+  assert.deepEqual(h.navigation, [
+    ["push", "/budget"], ["push", "/checklist?category=venue"], ["dismissTo", "/(tabs)/chat"], ["push", "/quote-check"],
+  ]);
 });
