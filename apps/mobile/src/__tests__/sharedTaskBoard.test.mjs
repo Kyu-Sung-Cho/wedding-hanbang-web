@@ -41,6 +41,7 @@ function boardHarness() {
   let index = 0, dirty = true, tree, authListener;
   const identity = { userId: "viewer", couple_id: "couple-a", role: "bride" };
   const responses = [], navigation = [];
+  const requestIds = ["0f8fad5b-d9cb-469f-a165-70867728950e", "7c9e6679-7425-40de-944b-e07fc1f90ae7", "9b2d6f4c-5c1e-4b7a-8d3f-2a6e1c0b9d44"];
   const equal = (a, b) => a?.length === b?.length && a.every((value, i) => Object.is(value, b[i]));
   const hooks = {
     useState(initial) {
@@ -92,8 +93,13 @@ function boardHarness() {
   const modules = {
     react: hooks,
     "react/jsx-runtime": { jsx, jsxs: jsx, Fragment: "Fragment" },
-    "react-native": { Pressable: "Pressable", Text: "Text", View: "View", StyleSheet: { create: value => value } },
-    "@/components/ui/AppText": { Text: "Text" },
+    "react-native": {
+      KeyboardAvoidingView: "KeyboardAvoidingView", Modal: "Modal", Platform: { OS: "ios" }, Pressable: "Pressable",
+      ScrollView: "ScrollView", Text: "Text", TextInput: "TextInput", View: "View", StyleSheet: { create: value => value },
+    },
+    "@/components/ui/AppText": { Text: "Text", TextInput: "TextInput" },
+    "expo-crypto": { randomUUID: () => requestIds.shift() ?? assert.fail("no request id left") },
+    "react-native-safe-area-context": { useSafeAreaInsets: () => ({ top: 0, right: 0, bottom: 34, left: 0 }) },
     "expo-router": {
       useFocusEffect: callback => hooks.useEffect(callback, [callback]),
       router: { push: route => navigation.push(["push", route]), dismissTo: route => navigation.push(["dismissTo", route]) },
@@ -124,7 +130,7 @@ function boardHarness() {
     : typeof value === "object" ? text(value.props?.children) : String(value);
   const find = label => nodes(tree).find(node => node.type === "Pressable" && (node.props.accessibilityLabel === label || text(node) === label));
   return {
-    identity, responses, calls, navigation,
+    identity, responses, calls, navigation, requestIds,
     async flush() {
       for (let turn = 0; turn < 14; turn++) {
         if (dirty) { dirty = false; index = 0; tree = expand(component.default({})); while (effects.length) effects.shift()(); }
@@ -137,6 +143,26 @@ function boardHarness() {
     render() { dirty = false; index = 0; tree = expand(component.default({})); },
     text: () => text(tree),
     button: find,
+    field(label) {
+      const field = nodes(tree).find(node => node.type === "TextInput" && node.props.accessibilityLabel === label);
+      assert.ok(field, `missing field ${label}; rendered: ${text(tree)}`);
+      return field;
+    },
+    input(label, value) {
+      const field = this.field(label);
+      assert.notEqual(field.props.editable, false, `field is locked: ${label}`);
+      field.props.onChangeText(value);
+    },
+    pressables: () => nodes(tree).filter(node => node.type === "Pressable"),
+    radios: () => nodes(tree).filter(node => node.type === "Pressable" && node.props.accessibilityRole === "radio"),
+    choose(label) {
+      const option = nodes(tree).find(node => node.type === "Pressable" && node.props.accessibilityRole === "radio" && node.props.accessibilityLabel === label);
+      assert.ok(option, `missing option ${label}`);
+      assert.ok(!option.props.disabled, `option is disabled: ${label}`);
+      option.props.onPress();
+    },
+    posts: () => calls.filter(([, , options]) => options.method === "POST"),
+    gets: () => calls.filter(([, , options]) => options.method === "GET"),
     press(label) {
       const button = find(label);
       assert.ok(button, `missing button ${label}; rendered: ${text(tree)}`);
@@ -401,4 +427,391 @@ test("요청은 시작 시점 사용자에게 묶인 인증 요청으로만 보�
   // apiFetchForExpectedUser 는 Authorization: Bearer 를 붙이고, 시작 시점 계정과 다르면 보내지 않는다.
   assert.match(boardSource, /import \{ apiFetchForExpectedUser \} from "@\/lib\/api";/u);
   assert.doesNotMatch(boardSource, /\bfetch\(/u);
+});
+
+// ── 추가 ────────────────────────────────────────────────────────────────
+
+const COUPLE = "11111111-1111-4111-8111-111111111111";
+const FIRST_REQUEST = "0f8fad5b-d9cb-469f-a165-70867728950e";
+const SECOND_REQUEST = "7c9e6679-7425-40de-944b-e07fc1f90ae7";
+const CREATE_UNKNOWN = "저장 결과를 확인하지 못했어요. 같은 요청을 다시 확인하거나 목록을 확인해 주세요. 이미 저장됐을 수 있어요.";
+const CANCEL_CONFIRM = "이미 저장된 할 일은 취소해도 삭제되지 않아요. 목록에서 기존 항목을 확인했으며, 다음 작성은 별도의 새 할 일로 시작할까요?";
+const UPDATE_ERROR = "변경을 저장하지 못했거나 결과를 확인할 수 없어요. 새로고침으로 확인한 뒤 다시 시도해 주세요.";
+
+async function coupleBoard(rows = []) {
+  const h = boardHarness(); h.identity.couple_id = COUPLE;
+  h.responses.push(listResponse(rows)); await h.flush();
+  return h;
+}
+
+const savedManual = (over = {}) => action({ id: "amora_manual_0001", title: "식전 영상 확인", source: "manual", ...over });
+const createReceipt = (value, requestId = FIRST_REQUEST, replayed = false) => ({ ok: true, status: 201, json: async () => ({ action: value, requestId, replayed }) });
+
+async function fillCreate(h, { title = "식전 영상 확인", category, description, dueDate } = {}) {
+  h.press("공유 할 일 추가"); await h.flush();
+  h.input("할 일 제목", title);
+  if (category) h.choose(category);
+  if (description !== undefined) h.input("설명", description);
+  if (dueDate !== undefined) h.input("예정일", dueDate);
+  await h.flush();
+}
+
+test("추가 창은 제목·분야(나중에 정하기와 21개 분야)·설명·예정일과 웹의 공개 범위 안내를 보여준다", async () => {
+  const h = await coupleBoard();
+  h.press("공유 할 일 추가"); await h.flush();
+  const radios = h.radios();
+  assert.deepEqual(radios.map(node => node.props.accessibilityLabel), ["나중에 정하기", ...planning.CATEGORY_CHECKLISTS.map(category => category.label)]);
+  assert.equal(planning.CATEGORY_CHECKLISTS.length, 21);
+  assert.equal(radios[0].props.accessibilityState.checked, true);
+  assert.equal(h.field("할 일 제목").props.maxLength, 120);
+  assert.equal(h.field("설명").props.maxLength, 500);
+  assert.equal(h.field("예정일").props.maxLength, 40);
+  const text = h.text();
+  assert.match(text, /날짜나 예정 시기를 40자 이내로 적을 수 있어요\./u);
+  assert.match(text, /함께 준비하는 사람에게도 보이는 할 일이에요\. 저장은 두 사람의 합의나 실제 수행 완료를 뜻하지 않아요\./u);
+  assert.doesNotMatch(text, /알렸어요|알림을 보냈|알려 드렸|알림이 가요/u);
+  // 제목이 비었거나 공백뿐이면 저장할 수 없다.
+  assert.equal(h.button("할 일 저장").props.disabled, true);
+  h.input("할 일 제목", "   "); await h.flush();
+  assert.equal(h.button("할 일 저장").props.disabled, true);
+});
+
+test("저장을 빠르게 두 번 눌러도 인증 POST 는 하나이고 몸통은 웹과 같다", async () => {
+  const h = await coupleBoard();
+  await fillCreate(h, { title: "  식전 영상 확인  ", category: "결혼식장", description: "길이\n확인", dueDate: "다음 주 중" });
+  const reply = pendingResponse(); h.responses.push(reply.respond);
+  h.press("할 일 저장"); h.press("할 일 저장"); await h.flush();
+  assert.equal(h.posts().length, 1);
+  const [userId, path, options] = h.posts()[0];
+  assert.equal(userId, "viewer"); assert.equal(path, "/api/amora/actions");
+  assert.deepEqual(JSON.parse(options.body), {
+    title: "식전 영상 확인", category_key: "venue", description: "길이\n확인", due_date: "다음 주 중",
+    status: "open", priority: "medium", source: "manual", requestId: FIRST_REQUEST, expectedOwnerId: "viewer", expectedCoupleId: COUPLE,
+  });
+  assert.deepEqual(Object.keys(JSON.parse(options.body)), ["title", "category_key", "description", "due_date", "status", "priority", "source", "requestId", "expectedOwnerId", "expectedCoupleId"]);
+  // 결과를 기다리는 동안 칸을 고칠 수 없다.
+  for (const label of ["할 일 제목", "설명", "예정일"]) assert.equal(h.field(label).props.editable, false, label);
+  assert.match(h.text(), /추가하는 중…/u);
+});
+
+test("결과를 모르면 초안을 잠그고, 다시 확인은 같은 몸통·같은 요청번호를 보내며 replayed:true 도 성공이다", async () => {
+  for (const [name, first] of [
+    ["network", () => { throw new Error("network down"); }],
+    ["5xx", { ok: false, status: 503, json: async () => ({ error: "잠시 후 다시 시도해 주세요." }) }],
+    ["receipt mismatch", createReceipt(savedManual({ title: "다른 제목" }))],
+  ]) {
+    const h = await coupleBoard();
+    await fillCreate(h, { description: "첫 줄\n둘째 줄" });
+    h.responses.push(first); h.press("할 일 저장"); await h.flush();
+    assert.match(h.text(), new RegExp(CREATE_UNKNOWN.replace(/[.]/gu, "\\."), "u"), name);
+    assert.equal(h.field("할 일 제목").props.value, "식전 영상 확인", name);
+    assert.equal(h.field("할 일 제목").props.editable, false, name);
+    assert.equal(h.field("설명").props.editable, false, name);
+    assert.equal(h.radios().every(node => node.props.disabled), true, name);
+    h.responses.push(createReceipt(savedManual({ description: "첫 줄 둘째 줄" }), FIRST_REQUEST, true), listResponse([savedManual({ description: "첫 줄 둘째 줄" })]));
+    h.press("같은 요청 다시 확인"); await h.flush();
+    const bodies = h.posts().map(([, , options]) => options.body);
+    assert.equal(bodies.length, 2, name);
+    assert.equal(bodies[1], bodies[0], `${name}: the retry must resend the identical body`);
+    assert.equal(JSON.parse(bodies[1]).requestId, FIRST_REQUEST);
+    assert.equal(h.requestIds.length, 2, `${name}: no new request id is minted for the retry`);
+    assert.match(h.text(), /공유 할 일을 추가했어요\./u, name);
+    assert.throws(() => h.field("할 일 제목"), /missing field/u, `${name}: the sheet closes after the confirmed save`);
+    assert.match(h.text(), /첫 줄 둘째 줄/u, name);
+  }
+});
+
+test("409 AMORA_ACTION_CREATE_CONFLICT 는 서버 문구를 보여주고 초안을 남긴다", async () => {
+  const h = await coupleBoard();
+  await fillCreate(h);
+  h.responses.push({ ok: false, status: 409, json: async () => ({ error: "기존 저장 내용이 달라졌어요. 목록을 확인해 주세요.", code: "AMORA_ACTION_CREATE_CONFLICT" }) });
+  h.press("할 일 저장"); await h.flush();
+  assert.match(h.text(), /기존 저장 내용이 달라졌어요\. 목록을 확인해 주세요\./u);
+  assert.doesNotMatch(h.text(), /저장 결과를 확인하지 못했어요/u);
+  assert.equal(h.field("할 일 제목").props.value, "식전 영상 확인");
+  assert.doesNotMatch(h.text(), /공유 할 일을 추가했어요/u);
+});
+
+test("결과를 모르는 동안 작성 취소는 웹의 확인 문구를 먼저 보여주고, 확인해야만 초안과 요청번호를 버린다", async () => {
+  const h = await coupleBoard();
+  await fillCreate(h);
+  h.responses.push({ ok: false, status: 503, json: async () => ({}) }); h.press("할 일 저장"); await h.flush();
+  h.press("작성 취소"); await h.flush();
+  assert.match(h.text(), new RegExp(CANCEL_CONFIRM.replace(/[.?]/gu, (c) => `\\${c}`), "u"));
+  assert.equal(h.field("할 일 제목").props.value, "식전 영상 확인");
+  h.press("같은 요청 유지"); await h.flush();
+  assert.doesNotMatch(h.text(), /다음 작성은 별도의 새 할 일로 시작할까요/u);
+  assert.equal(h.field("할 일 제목").props.editable, false);
+  h.press("작성 취소"); await h.flush();
+  h.press("확인했어요 · 새 작성으로 전환"); await h.flush();
+  assert.throws(() => h.field("할 일 제목"), /missing field/u);
+  h.press("공유 할 일 추가"); await h.flush();
+  assert.equal(h.field("할 일 제목").props.value, "");
+  h.input("할 일 제목", "새 할 일"); await h.flush();
+  h.responses.push(pendingResponse().respond); h.press("할 일 저장"); await h.flush();
+  assert.equal(JSON.parse(h.posts()[1][2].body).requestId, SECOND_REQUEST, "a new draft gets a new request id");
+});
+
+test("추가 창을 닫아도 결과를 모르는 요청은 남고, 새로고침으로 목록을 확인한 뒤 같은 요청을 다시 확인할 수 있다", async () => {
+  const h = await coupleBoard();
+  await fillCreate(h);
+  h.responses.push({ ok: false, status: 500, json: async () => ({}) }); h.press("할 일 저장"); await h.flush();
+  h.press("추가 창 닫기"); await h.flush();
+  assert.match(h.text(), /저장 여부는 목록을 새로고쳐 확인해 주세요\./u);
+  h.responses.push(listResponse([])); h.press("공유 할 일 새로고침"); await h.flush();
+  h.press("공유 할 일 추가"); await h.flush();
+  assert.equal(h.field("할 일 제목").props.value, "식전 영상 확인");
+  h.responses.push(createReceipt(savedManual()), listResponse([savedManual()]));
+  h.press("같은 요청 다시 확인"); await h.flush();
+  assert.deepEqual(h.posts().map(([, , options]) => JSON.parse(options.body).requestId), [FIRST_REQUEST, FIRST_REQUEST]);
+  assert.match(h.text(), /공유 할 일을 추가했어요\./u);
+});
+
+test("확인된 추가 뒤 목록 조회는 한 번이고, 실패하면 다시 불러오기를 주며 POST 는 한 번뿐이다", async () => {
+  const h = await coupleBoard();
+  await fillCreate(h);
+  h.responses.push(createReceipt(savedManual()), { ...failureResponse, status: 503 });
+  h.press("할 일 저장"); await h.flush();
+  assert.equal(h.gets().length, 2, "initial list + exactly one refresh after the confirmed create");
+  assert.match(h.text(), /불러오지 못/u);
+  assert.match(h.text(), /공유 할 일을 추가했어요\./u);
+  h.responses.push(listResponse([savedManual()])); h.press("다시 불러오기"); await h.flush();
+  assert.equal(h.posts().length, 1);
+  assert.match(h.text(), /식전 영상 확인/u);
+});
+
+test("완료 목록을 보다가 추가하면 진행 중으로 옮겨 그 목록을 한 번 읽는다", async () => {
+  const h = await coupleBoard();
+  h.responses.push(listResponse([], { open_count: 0 })); h.press("완료 기록 보기"); await h.flush();
+  await fillCreate(h);
+  h.responses.push(createReceipt(savedManual()), listResponse([savedManual()]));
+  h.press("할 일 저장"); await h.flush();
+  const gets = h.gets().map(([, path]) => path);
+  assert.equal(gets.length, 3);
+  assert.match(gets[2], /status=open&limit=80/u);
+  assert.equal(h.button("진행 중 기록 보기").props.accessibilityState.selected, true);
+  assert.match(h.text(), /식전 영상 확인/u);
+});
+
+// ── 수정 ────────────────────────────────────────────────────────────────
+
+const editable = (over = {}) => action({ categoryKey: "venue", description: "위약금 조항 확인", dueDate: "다음 주 중", source: "manual", ...over });
+
+test("수정 창은 카드 값(예정일 원문 포함)으로 채워지고, 바뀐 칸만 보내며 비운 칸은 빈 문자열이다", async () => {
+  const h = await coupleBoard([editable()]);
+  h.press("청첩장 문구 확정하기 수정"); await h.flush();
+  assert.equal(h.field("할 일 제목").props.value, "청첩장 문구 확정하기");
+  assert.equal(h.field("설명").props.value, "위약금 조항 확인");
+  assert.equal(h.field("예정일").props.value, "다음 주 중");
+  assert.equal(h.radios().find(node => node.props.accessibilityLabel === "결혼식장").props.accessibilityState.checked, true);
+  assert.match(h.text(), /함께 준비하는 사람에게도 보이는 기록이에요\./u);
+  h.input("설명", ""); h.input("예정일", ""); await h.flush();
+  h.responses.push(receipt(editable({ description: undefined, dueDate: undefined })));
+  h.press("수정 저장"); await h.flush();
+  assert.deepEqual(h.patches(), [["/api/amora/actions/act1", { description: "", due_date: "" }]]);
+  assert.throws(() => h.field("할 일 제목"), /missing field/u);
+  assert.doesNotMatch(h.text(), /위약금 조항 확인|예정일 다음 주 중/u);
+  assert.match(h.text(), /수정한 내용을 저장했어요/u);
+  h.press("청첩장 문구 확정하기 수정"); await h.flush();
+  h.input("할 일 제목", "  청첩장 문구 최종 확정  "); await h.flush();
+  h.responses.push(receipt(editable({ title: "청첩장 문구 최종 확정", description: undefined, dueDate: undefined })));
+  h.press("수정 저장"); await h.flush();
+  assert.deepEqual(h.patches()[1], ["/api/amora/actions/act1", { title: "청첩장 문구 최종 확정" }]);
+  assert.match(h.text(), /청첩장 문구 최종 확정/u);
+});
+
+test("수정 창에서 제목을 비우면 저장할 수 없다", async () => {
+  const h = await coupleBoard([editable()]);
+  h.press("청첩장 문구 확정하기 수정"); await h.flush();
+  h.input("할 일 제목", "   "); await h.flush();
+  assert.equal(h.button("수정 저장").props.disabled, true);
+  assert.equal(h.patches().length, 0);
+});
+
+test("21개 밖의 분야 키는 '기존 분야 유지'를 고른 채로 열리고, 그대로 두면 분야를 보내지 않는다", async () => {
+  const h = await coupleBoard([editable({ categoryKey: "general" })]);
+  h.press("청첩장 문구 확정하기 수정"); await h.flush();
+  const labels = h.radios().map(node => node.props.accessibilityLabel);
+  assert.deepEqual(labels.slice(0, 2), ["분야 미지정", "기존 분야 유지"]);
+  assert.equal(h.radios().find(node => node.props.accessibilityLabel === "기존 분야 유지").props.accessibilityState.checked, true);
+  h.input("할 일 제목", "사회자 부탁하기"); await h.flush();
+  h.responses.push(receipt(editable({ categoryKey: "general", title: "사회자 부탁하기" })));
+  h.press("수정 저장"); await h.flush();
+  assert.deepEqual(h.patches()[0][1], { title: "사회자 부탁하기" });
+  h.press("사회자 부탁하기 수정"); await h.flush();
+  h.choose("분야 미지정"); await h.flush();
+  h.responses.push(receipt(editable({ categoryKey: undefined, title: "사회자 부탁하기" })));
+  h.press("수정 저장"); await h.flush();
+  assert.deepEqual(h.patches()[1][1], { category_key: "" });
+  // 분야가 정해진 카드에는 "기존 분야 유지"가 없다.
+  const known = await coupleBoard([editable()]);
+  known.press("청첩장 문구 확정하기 수정"); await known.flush();
+  assert.ok(!known.radios().some(node => node.props.accessibilityLabel === "기존 분야 유지"));
+});
+
+test("수정 영수증이 바꾼 칸과 다르면 오류를 보이고 초안을 남긴다", async () => {
+  for (const saved of [editable({ title: "다른 제목" }), editable({ id: "act_other", title: "새 제목" }), null]) {
+    const h = await coupleBoard([editable()]);
+    h.press("청첩장 문구 확정하기 수정"); await h.flush();
+    h.input("할 일 제목", "새 제목"); await h.flush();
+    h.responses.push(saved ? receipt(saved) : { ok: false, status: 500, json: async () => ({}) });
+    h.press("수정 저장"); await h.flush();
+    assert.match(h.text(), new RegExp(UPDATE_ERROR.replace(/[.]/gu, "\\."), "u"));
+    assert.equal(h.field("할 일 제목").props.value, "새 제목");
+    assert.equal(h.field("할 일 제목").props.editable, true, "the draft stays editable for another attempt");
+    assert.doesNotMatch(h.text(), /수정한 내용을 저장했어요/u);
+  }
+});
+
+// ── 분야 지정 ────────────────────────────────────────────────────────────
+
+test("'어느 분야에 넣을까요?'는 21개 분야 중 하나를 PATCH {category_key} 로 보내고, 맞는 영수증이면 칩을 보여준다", async () => {
+  const h = await coupleBoard([action({ categoryKey: "general" })]);
+  assert.match(h.text(), /어느 분야에 넣을까요\?/u);
+  h.press("청첩장 문구 확정하기 분야 선택"); await h.flush();
+  assert.deepEqual(h.radios().map(node => node.props.accessibilityLabel), planning.CATEGORY_CHECKLISTS.map(category => category.label));
+  assert.equal(h.button("청첩장 문구 확정하기 분야 저장").props.disabled, true);
+  h.choose("종이·모바일 초대장"); await h.flush();
+  h.responses.push(receipt(action({ categoryKey: "invitation" })));
+  h.press("청첩장 문구 확정하기 분야 저장"); await h.flush();
+  assert.deepEqual(h.patches(), [["/api/amora/actions/act1", { category_key: "invitation" }]]);
+  assert.ok(h.button("종이·모바일 초대장 체크리스트 보기"));
+  assert.doesNotMatch(h.text(), /분야 확인 필요|어느 분야에 넣을까요/u);
+});
+
+test("분야 영수증이 다르면 분야 확인 필요로 남기고 오류를 보인다", async () => {
+  const h = await coupleBoard([action()]);
+  h.press("청첩장 문구 확정하기 분야 선택"); await h.flush();
+  h.choose("결혼식장"); await h.flush();
+  h.responses.push(receipt(action({ categoryKey: "dress" })));
+  h.press("청첩장 문구 확정하기 분야 저장"); await h.flush();
+  assert.match(h.text(), /분야 확인 필요/u);
+  assert.match(h.text(), new RegExp(UPDATE_ERROR.replace(/[.]/gu, "\\."), "u"));
+});
+
+// ── 한 번에 하나 ────────────────────────────────────────────────────────
+
+test("추가·수정·분야·상태 중 하나가 진행 중이면 다른 변경 버튼과 상태 전환·새로고침을 막는다", async () => {
+  const controls = (h) => [
+    h.button("다음 할 일 완료로 표시"), h.button("다음 할 일 보류·숨김"), h.button("다음 할 일 수정"),
+    h.button("다음 할 일 분야 선택"), h.button("공유 할 일 추가"), h.button("공유 할 일 새로고침"),
+    ...["진행 중", "완료", "보류·숨김"].map(name => h.button(`${name} 기록 보기`)),
+  ];
+  const rows = () => [editable(), action({ id: "act2", title: "다음 할 일" })];
+  const starts = {
+    create: async (h) => { await fillCreate(h); h.press("할 일 저장"); },
+    edit: async (h) => { h.press("청첩장 문구 확정하기 수정"); await h.flush(); h.input("할 일 제목", "바꾼 제목"); await h.flush(); h.press("수정 저장"); },
+    category: async (h) => { h.press("다음 할 일 분야 선택"); await h.flush(); h.choose("결혼식장"); await h.flush(); h.press("다음 할 일 분야 저장"); },
+    status: async (h) => { h.press("청첩장 문구 확정하기 보류·숨김"); },
+  };
+  for (const [name, start] of Object.entries(starts)) {
+    const h = await coupleBoard(rows());
+    h.responses.push(pendingResponse().respond);
+    await start(h); await h.flush();
+    for (const control of controls(h)) {
+      if (!control) continue;
+      assert.equal(control.props.disabled, true, `${name}: ${control.props.accessibilityLabel}`);
+    }
+    assert.equal(h.calls.filter(([, , options]) => options.method !== "GET").length, 1, name);
+  }
+});
+
+// ── 계정·커플 경계(추가·수정) ────────────────────────────────────────────
+
+test("추가 직전 계정이 바뀌면 예전 계정으로 POST 하지 않고 창·초안을 비운다", async () => {
+  const h = await coupleBoard();
+  await fillCreate(h);
+  h.identity.userId = "other-viewer"; h.responses.push(listResponse([action({ title: "새 계정의 할 일" })]));
+  h.press("할 일 저장"); await h.flush();
+  assert.equal(h.posts().length, 0);
+  assert.throws(() => h.field("할 일 제목"), /missing field/u);
+  assert.match(h.text(), /새 계정의 할 일/u);
+  h.press("공유 할 일 추가"); await h.flush();
+  assert.equal(h.field("할 일 제목").props.value, "", "the previous account's draft must not survive");
+});
+
+test("추가 중 커플이 바뀌면 늦은 영수증을 새 보드에 반영하지 않고 새 커플 목록을 다시 읽지 않는다", async () => {
+  const h = await coupleBoard();
+  await fillCreate(h);
+  const reply = pendingResponse(); h.responses.push(reply.respond);
+  h.press("할 일 저장"); await h.flush();
+  h.identity.couple_id = "22222222-2222-4222-8222-222222222222";
+  h.responses.push(listResponse([action({ id: "act_b", title: "새 커플의 할 일" })])); h.profileChanged(); await h.flush();
+  reply.resolve(createReceipt(savedManual())); await h.flush();
+  assert.match(h.text(), /새 커플의 할 일/u);
+  assert.doesNotMatch(h.text(), /공유 할 일을 추가했어요|저장 결과를 확인하지 못했어요|식전 영상 확인/u);
+  assert.equal(h.gets().length, 2, "no refresh is sent on behalf of the old couple");
+  h.press("공유 할 일 추가"); await h.flush();
+  assert.equal(h.field("할 일 제목").props.value, "");
+});
+
+test("수정 중 계정이 바뀌면 늦은 영수증이나 오류를 새 보드에 덧씌우지 않는다", async () => {
+  for (const late of [receipt(editable({ title: "바꾼 제목" })), failureResponse]) {
+    const h = await coupleBoard([editable()]);
+    h.press("청첩장 문구 확정하기 수정"); await h.flush();
+    h.input("할 일 제목", "바꾼 제목"); await h.flush();
+    const reply = pendingResponse(); h.responses.push(reply.respond);
+    h.press("수정 저장"); await h.flush();
+    h.identity.userId = "other-viewer";
+    h.responses.push(listResponse([action({ id: "act_new", title: "새 계정의 할 일" })])); h.authChanged(); await h.flush();
+    reply.resolve(late); await h.flush();
+    assert.match(h.text(), /새 계정의 할 일/u);
+    assert.doesNotMatch(h.text(), /바꾼 제목|청첩장|변경을 저장하지 못했거나/u);
+    assert.throws(() => h.field("할 일 제목"), /missing field/u);
+  }
+});
+
+// ── 누르는 자리 ─────────────────────────────────────────────────────────
+
+test("보드·카드·추가 창·수정 창의 누르는 자리는 모두 44pt 이상이다", async () => {
+  const flatten = (style) => {
+    const resolved = typeof style === "function" ? style({ pressed: false }) : style;
+    return Array.isArray(resolved) ? Object.assign({}, ...resolved.map(flatten)) : resolved && typeof resolved === "object" ? resolved : {};
+  };
+  const check = (h, where) => {
+    const pressables = h.pressables();
+    assert.ok(pressables.length > 0, where);
+    for (const node of pressables) {
+      const style = flatten(node.props.style);
+      assert.ok(style.minHeight >= 44, `${where}: ${node.props.accessibilityLabel} minHeight ${style.minHeight}`);
+    }
+  };
+  const h = await coupleBoard([editable(), action({ id: "act2", title: "분야 없는 할 일" })]);
+  h.press("분야 없는 할 일 분야 선택"); await h.flush();
+  check(h, "board");
+  h.press("공유 할 일 추가"); await h.flush();
+  check(h, "create sheet");
+  h.press("추가 창 닫기"); await h.flush();
+  h.press("청첩장 문구 확정하기 수정"); await h.flush();
+  check(h, "edit sheet");
+  for (const status of ["done", "dismissed"]) check(await boardAt(status, [action({ status })]), status);
+});
+
+test("같은 순간 두 카드의 상태 버튼을 눌러도 먼저 누른 변경 하나만 보낸다", async () => {
+  const h = await coupleBoard([action(), action({ id: "act2", title: "다음 할 일" })]);
+  h.responses.push(pendingResponse().respond);
+  h.press("청첩장 문구 확정하기 완료로 표시"); h.press("다음 할 일 보류·숨김"); await h.flush();
+  assert.deepEqual(h.patches(), [["/api/amora/actions/act1", { status: "done" }]]);
+});
+
+test("추가 결과를 받은 뒤 계정 확인이 실패하면 초안을 잠근 채 남기고, 같은 계정으로 다시 읽으면 같은 요청으로 이어서 확인한다", async () => {
+  const h = await coupleBoard();
+  await fillCreate(h);
+  const reply = pendingResponse(); h.responses.push(reply.respond);
+  h.press("할 일 저장"); await h.flush();
+  h.identity.authError = new Error("temporary offline");
+  reply.resolve(createReceipt(savedManual())); await h.flush();
+  assert.match(h.text(), /불러오지 못/u);
+  assert.match(h.text(), /저장 결과를 확인하지 못했어요/u);
+  assert.equal(h.field("할 일 제목").props.value, "식전 영상 확인");
+  assert.equal(h.field("할 일 제목").props.editable, false);
+  h.identity.authError = null;
+  h.press("추가 창 닫기"); await h.flush();
+  h.responses.push(listResponse([])); h.press("다시 불러오기"); await h.flush();
+  h.press("공유 할 일 추가"); await h.flush();
+  assert.equal(h.field("할 일 제목").props.value, "식전 영상 확인", "the same account keeps the unknown-outcome draft");
+  h.responses.push(createReceipt(savedManual(), FIRST_REQUEST, true), listResponse([savedManual()]));
+  h.press("같은 요청 다시 확인"); await h.flush();
+  assert.deepEqual(h.posts().map(([, , options]) => JSON.parse(options.body).requestId), [FIRST_REQUEST, FIRST_REQUEST]);
+  assert.match(h.text(), /공유 할 일을 추가했어요\./u);
 });
