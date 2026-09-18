@@ -5,8 +5,9 @@
  * `metadata.clearRequest` 가 붙은 공유 메시지를 남긴다. 받은 사람이 동의하면 서버 RPC 가 **두 사람의 공유
  * 화면 경계만** 옮긴다 — 메시지를 지우지 않는다. 거절하면 상태만 바뀐다.
  *
- * 문구는 웹 카드(`ChatBubble.tsx` 의 `ClearRequestCard`)와 같다. 각주 한 곳만 다르다 — 앱에는 비공개
- * 대화 「화면 정리」가 없어서 그 길은 웹에 있다고 밝힌다. `chatClearRequest.test.mjs` 가 웹 소스와 대조한다.
+ * 문구는 웹 카드(`ChatBubble.tsx` 의 `ClearRequestCard`)와 각주까지 글자 그대로 같다. 각주는 한때 "웹의 비공개
+ * 상담"이라고 웹을 가리켰는데, 앱 아모라 탭에도 「대화 화면 정리 → 비공개 대화·아모라 기억 삭제」가 생겨
+ * (2026-09-18, `chatViewClear.ts`) 웹 문장으로 되돌렸다. `chatClearRequest.test.mjs` 가 웹 소스와 대조한다.
  */
 
 export type ChatClearRequestStatus = "pending" | "accepted" | "declined";
@@ -33,7 +34,7 @@ export interface ChatClearRequestCopy {
 const STATUSES: readonly ChatClearRequestStatus[] = ["pending", "accepted", "declined"];
 
 const KEEPS_WHAT = "해당 범위의 원문은 보관하지만 정리 전 대화는 이후 상담에 쓰지 않아요. 저장한 예산·일정·결정은 남아요.";
-const FOOTNOTE = "실제로 지우려면 — 비공개 대화는 웹의 비공개 상담 ‘화면 정리 → 비공개 대화·아모라 기억 삭제’에서, 아모라의 기억은 설정의 ‘아모라가 기억하는 것’에서 초기화할 수 있어요.";
+const FOOTNOTE = "실제로 지우려면 — 비공개 대화는 비공개 상담의 ‘화면 정리 → 비공개 대화·아모라 기억 삭제’에서, 아모라의 기억은 설정의 ‘아모라가 기억하는 것’에서 초기화할 수 있어요.";
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === "object" && !Array.isArray(value);

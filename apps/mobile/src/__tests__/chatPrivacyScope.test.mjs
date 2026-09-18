@@ -25,6 +25,19 @@ const {
   selectChatScope,
   updateChatScopeDraft,
 } = module.exports;
+// 불러오기 끝의 「대화 화면 정리」 이어받기(chatViewClear.ts). 실제 함수를 쓴다 — 정리 전이면 carry 가 없어 아무것도 하지 않는다.
+const viewClearLib = (() => {
+  const compileTs = (relative, deps) => {
+    const out = { exports: {} };
+    const code = ts.transpileModule(readFileSync(new URL(relative, import.meta.url), "utf8"), {
+      compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
+    }).outputText;
+    new Function("exports", "module", "require", code)(out.exports, out, (specifier) => deps[specifier]);
+    return out.exports;
+  };
+  const clearRequest = compileTs("../lib/chatClearRequest.ts", {});
+  return compileTs("../lib/chatViewClear.ts", { "@hanbang/shared": timestamp.exports, "@/lib/chatClearRequest": clearRequest });
+})();
 
 function loadSessionHarness({ sharedCursor = null, privateCursor = null, history = [], profileError = null, historyError = null, onQuery } = {}) {
   const screen = readFileSync(new URL("../../app/(tabs)/chat.tsx", import.meta.url), "utf8");
@@ -104,6 +117,8 @@ function loadSessionHarness({ sharedCursor = null, privateCursor = null, history
     aiLaneForVisibility: value => value === "shared" ? "shared_ai" : "private_ai",
     mergeRealtimeMessage: (rows, incoming) => [...rows, incoming],
     updateAmoraChatLaneRecord: (record, lane, value) => ({ ...record, [lane]: value }),
+    chatViewClearCarryRef: { current: null }, takeChatViewClearCarry: viewClearLib.takeChatViewClearCarry,
+    setActiveScope: value => apply("scope", value), setTarget: value => apply("target", value),
   };
   for (const name of ["setUserId", "setCoupleId", "setUserName", "setUserRole", "setHasLinkedPartner", "setPartnerName", "setStreaming"]) bindings[name] = () => {};
   const compiledLoad = ts.transpileModule(load, { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText;
