@@ -147,8 +147,8 @@ describe("웨딩코드 배지 범례", () => {
     expect(section.querySelector("details")).toBeNull();
     expect(section.querySelector("[data-code-legend] h2")?.textContent).toBe("네 글자 읽는 법");
     expect(section.textContent).toContain("성격을 맞힌 게 아니라, 이번에 고른 답이 어느 쪽에 더 많았는지 적은 글자예요.");
-    expect(section.textContent).toContain("소문자는 양쪽 답이 하나 차이라서");
-    expect(section.textContent).toContain("아직 글자가 비어 있거나 답하지 않은 장면이 있는 요약이에요.");
+    expect(section.textContent).toContain("소문자는 양쪽 모두 답이 있고 한 장면 차이일 때 나와요");
+    expect(section.textContent).toContain("건너뛴 장면이나 빈 글자(·)가 있어서, 답한 만큼만 줄인 코드예요.");
     for (const slot of ["decisionCriteria", "preparationMode", "coordinationScope", "supportOrder"]) {
       expect(section.querySelector(`[data-letter="${slot}"]`)).not.toBeNull();
     }

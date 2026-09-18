@@ -7,3 +7,4 @@ export * from "./checklistNoteSources";
 export * from "./weddingPreferences";
 export * from "./preparationProgress";
 export * from "./preparationStage";
+export * from "./scheduleEventCategory";

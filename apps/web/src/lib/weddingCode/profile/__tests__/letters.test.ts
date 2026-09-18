@@ -69,8 +69,8 @@ describe("웨딩코드 네 글자", () => {
     ).slots;
     expect(split.countLine).toBe("답한 5장면 중 1장면은 V(조건 먼저), 4장면은 M(분위기 먼저) 쪽이었어요.");
     expect(allOne.countLine).toBe("답한 3장면 모두 O(맡아서 하기) 쪽이었어요.");
-    expect(tie.countLine).toBe("답한 4장면이 U(우리 둘 먼저) 쪽과 F(가족·하객까지) 쪽 반반이었어요.");
-    expect(none.countLine).toBe("이 주제는 아직 답하지 않았어요.");
+    expect(tie.countLine).toBe("답한 4장면이 U(우리 둘 먼저) 쪽과 F(가족·하객까지) 쪽으로 반반 나뉘었어요.");
+    expect(none.countLine).toBe("답한 장면이 없어요.");
   });
 
   /**
@@ -130,7 +130,7 @@ describe("웨딩코드 네 글자", () => {
     expect(slot.letter).toBe("v");
     // 소문자가 아니라 대문자로, 반대편 글자를 정확히 알려준다.
     expect(slot.narrowCaution).toBe(
-      "양쪽 답이 하나 차이예요. 답 하나만 반대쪽으로 바꿔도 V 대신 M 글자가 나와요.",
+      "답 하나만 반대로 골라도 V 대신 M 글자가 나와요.",
     );
     expect(slot.countLine).toContain("3장면은 V(조건 먼저), 2장면은 M(분위기 먼저)");
 
@@ -151,14 +151,14 @@ describe("웨딩코드 네 글자", () => {
     expect(skipped.slots[0].upper).toBeNull();
     expect(skipped.slots[0].firmness).toBe("unset");
     expect(skipped.complete).toBe(false);
-    expect(skipped.slots[0].meaning).toBe("이 주제 장면을 모두 건너뛰어서 글자가 없어요");
+    expect(skipped.slots[0].meaning).toBe("이 주제는 모두 건너뛰어서 글자가 없어요");
     expect(skipped.slots[0].chosen).toBeNull();
 
     // 건너뛴 문항 때문에 짝수가 되어 정확히 반반이 될 수 있다.
     const tied = buildWeddingCodeLetters(profileOf([[2, 2], [5, 0], [5, 0], [5, 0]]));
     expect(tied.slots[0].upper).toBeNull();
     expect(tied.slots[0].countLine).toContain("반반");
-    expect(tied.slots[0].meaning).toBe("양쪽 답이 같은 수라서 이 자리는 글자를 비워 뒀어요");
+    expect(tied.slots[0].meaning).toBe("양쪽 답 수가 같아서 이 자리는 글자를 비워 뒀어요");
     expect(tied.slots[0].narrowCaution).toBeNull();
     expect(tied.complete).toBe(false);
   });

@@ -33,10 +33,13 @@ export const HOME_SERVICES = Object.freeze([
     description: "계약 전 질문",
     route: "/quote-check",
   },
+  // 업체 상담·예약 요청은 2026-07-15부터 꺼져 있다. 이 칸은 새 요청을 받는 곳이 아니라
+  // 이미 남긴 기록을 되돌아보는 곳이고, 라운지는 기록이 있는 사람에게만 보여준다
+  // (`buildHomeServices`). 예전 설명 "아모라 내부 후보"는 지금도 후보를 고를 수 있는 것처럼 읽혔다.
   {
     key: "bookings",
     title: "상담 요청 기록",
-    description: "아모라 내부 후보",
+    description: "지난 기록 보기",
     route: "/bookings",
   },
   {
@@ -47,6 +50,20 @@ export const HOME_SERVICES = Object.freeze([
   },
 ]);
 
+/**
+ * 라운지 준비 도구 격자에 실제로 놓을 칸.
+ *
+ * 「상담 요청 기록」은 이미 남긴 기록이 있을 때만 둔다(2026-09-18 파운더 결정: 숨긴다).
+ * 새 요청을 만들 수 없는데 모든 사람에게 그 칸을 보여주면, 누른 사람은 빈 화면과
+ * 따라갈 수 없는 안내만 만난다. 기록이 있는 사람은 지난 기록으로 가는 길을 잃지 않는다.
+ * 확인하지 못한 경우(undefined)는 없는 것으로 본다 — 틀린 입구가 먼저 뜨는 것보다 낫다.
+ */
+export function buildHomeServices({ hasBookingRecords } = {}) {
+  return HOME_SERVICES.filter(
+    (service) => service.key !== "bookings" || hasBookingRecords === true,
+  );
+}
+
 export function formatLocalDateKey(date = new Date()) {
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, "0");
@@ -54,8 +71,12 @@ export function formatLocalDateKey(date = new Date()) {
   return `${year}-${month}-${day}`;
 }
 
-export function calculateChecklistProgress(progress, categories) {
-  if (!Array.isArray(categories) || categories.length === 0) return 0;
+/**
+ * 체크리스트 항목 수. 라운지 히어로의 %와 합류 안내의 "n/m개 체크"가 같은 수에서 나오도록
+ * 한 곳에서 센다 — 둘을 따로 세면 같은 화면에서 두 숫자가 어긋난다.
+ */
+export function calculateChecklistCounts(progress, categories) {
+  if (!Array.isArray(categories) || categories.length === 0) return { done: 0, total: 0 };
 
   let done = 0;
   let total = 0;
@@ -95,6 +116,11 @@ export function calculateChecklistProgress(progress, categories) {
     total += doneById.size;
   }
 
+  return { done, total };
+}
+
+export function calculateChecklistProgress(progress, categories) {
+  const { done, total } = calculateChecklistCounts(progress, categories);
   return total > 0 ? Math.round((done / total) * 100) : 0;
 }
 

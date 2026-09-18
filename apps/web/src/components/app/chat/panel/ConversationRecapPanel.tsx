@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
-import { buildAmoraConversationRecap, type ConversationRecap } from "@hanbang/shared";
+import { AMORA_RECAP_REQUEST, buildAmoraConversationRecap, type ConversationRecap } from "@hanbang/shared";
 import Button from "@/components/ui/Button";
 import { useAuthStore } from "@/stores/authStore";
 import { useChatStore } from "@/stores/chatStore";
@@ -14,7 +14,7 @@ const labels: Record<ConversationRecap["actions"][number]["state"], string> = {
   failed: "반영 실패 · 다시 확인 필요", expired: "기한 만료 · 새 제안 필요", superseded: "이전 제안 · 다시 확인 필요",
 };
 
-export const AMORA_RECAP_REQUEST = "현재 대화 범위에서 지금까지 이야기한 내용을 정리해줘. 확정된 결정, 아직 검토 중인 생각, 보류한 내용, 실제 반영된 예산·할 일·일정과 아직 반영하지 않은 제안을 구분해줘. 내가 말하지 않은 상태나 상대방의 생각은 추측하지 말고, 다음에 이어서 확인할 질문을 하나만 적어줘.";
+// 정리 부탁 문장은 앱 정리 시트와 같은 것을 쓴다 — `@hanbang/shared` 한 곳에 있다(2026-09-18).
 
 export interface ConversationRecapPanelProps {
   visibility: ChatMessageVisibility;

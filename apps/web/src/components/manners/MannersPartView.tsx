@@ -10,6 +10,7 @@ import { MANNERS_CATEGORIES, MANNERS_PARTS } from "@/lib/manners/data";
 import { readingMinutesOf } from "@/lib/manners/readingTime";
 import { weddingLinkProps } from "@/lib/weddingPaths";
 import { buildAmoraPreparationHref } from "@/lib/amora/preparationHandoff";
+import FullPageLinkInsideMobileApp from "@/components/common/FullPageLinkInsideMobileApp";
 import MannersMobileHeader from "./MannersMobileHeader";
 import MannersAnchor from "./MannersAnchor";
 import MannersReadingNavigation from "./MannersReadingNavigation";
@@ -579,7 +580,7 @@ export default function MannersPartView({ part }: { part: MannersPart }) {
                   <h2 className="min-w-0 flex-1 text-[15.5px] font-semibold leading-[1.4] text-[var(--amora-ink)] sm:text-[18px]">
                     {sectionLabel(section.heading)}
                   </h2>
-                  {sectionAmoraHref && <Link {...weddingLinkProps(sectionAmoraHref)} aria-label={`${sectionLabel(section.heading)} 아모라에 질문하기`} title={`${sectionLabel(section.heading)} 아모라에 질문하기`} className={`${AMORA_QUIET_TARGET_CLASS} -mr-1.5`}><span className={AMORA_QUIET_CHIP_CLASS}><AmoraMark className="size-4" /></span></Link>}
+                  {sectionAmoraHref && <FullPageLinkInsideMobileApp path={sectionAmoraHref} aria-label={`${sectionLabel(section.heading)} 아모라에 질문하기`} title={`${sectionLabel(section.heading)} 아모라에 질문하기`} className={`${AMORA_QUIET_TARGET_CLASS} -mr-1.5`}><span className={AMORA_QUIET_CHIP_CLASS}><AmoraMark className="size-4" /></span></FullPageLinkInsideMobileApp>}
                 </div>
 
                 {lead ? (
@@ -704,15 +705,19 @@ export default function MannersPartView({ part }: { part: MannersPart }) {
               : "우리 상황에 맞게 적용할 부분만 아모라와 정리해 보세요."}
           </p>
           <div className="mt-3.5 flex flex-wrap gap-2">
-            {primaryCategory && <Link
-              {...weddingLinkProps(`/checklist?category=${encodeURIComponent(primaryCategory)}`)}
+            {/*
+              둘 다 로그인 필요 화면이다. 앱 웹뷰에서는 문서째 옮겨야 앱이 받아 네이티브
+              체크리스트(이 분야)·아모라 채팅으로 넘긴다(`FullPageLinkInsideMobileApp`).
+            */}
+            {primaryCategory && <FullPageLinkInsideMobileApp
+              path={`/checklist?category=${encodeURIComponent(primaryCategory)}`}
               className="inline-flex min-h-11 items-center rounded-[11px] border border-[var(--amora-line)] bg-white px-4 py-2.5 text-[13px] font-semibold text-[var(--amora-ink)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--amora-accent)]"
             >
               {checklistLabel} 체크리스트 열기
-            </Link>}
-            {amoraHref && <Link {...weddingLinkProps(amoraHref)} aria-label={`${part.title} 아모라에 질문하기`} className={AMORA_ACTION_CLASS}>
+            </FullPageLinkInsideMobileApp>}
+            {amoraHref && <FullPageLinkInsideMobileApp path={amoraHref} aria-label={`${part.title} 아모라에 질문하기`} className={AMORA_ACTION_CLASS}>
               <AmoraMark className="size-5 shrink-0" />아모라에 질문하기
-            </Link>}
+            </FullPageLinkInsideMobileApp>}
           </div>
           <p className="mt-2 text-[12px] leading-[1.6] text-[var(--amora-muted)]">질문 초안을 확인한 뒤 직접 보내요. 준비 상태는 바뀌지 않아요.</p>
         </div>

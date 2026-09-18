@@ -1,15 +1,26 @@
 // 15초 후기 작성
-import { useState } from "react";
+//
+// 요청 모양은 `@/lib/communityQuickReview.mjs` 가 정한다. 예전 화면은 요청 키(Idempotency-Key)
+// 없이 보내 서버가 모든 후기를 400 으로 거절했고, 「협찬」을 골라도 협찬 내용을 적을 곳이 없었다.
+import { useRef, useState } from "react";
 import { View, ScrollView, StyleSheet, Pressable, Alert, ActivityIndicator } from "react-native";
 import { Text, TextInput } from "@/components/ui/AppText";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
+import * as Crypto from "expo-crypto";
 import { Star } from "lucide-react-native";
 import { colors } from "@hanbang/design-tokens";
 import { PLANNING_CATEGORY_LABELS } from "@hanbang/shared/constants";
 import { apiFetch } from "@/lib/api";
 import { AppHeader, PrimaryButton } from "@/components/ui/AppUI";
 import { toKoreanErrorMessage } from "@/lib/errorCopy";
+import {
+  QUICK_REVIEW_SPONSORSHIP_DETAIL_MAX,
+  createQuickReviewSubmission,
+  readCreatedQuickReviewPostId,
+  validateQuickReviewDraft,
+  type QuickReviewAdDisclosure,
+} from "@/lib/communityQuickReview.mjs";
 
 const CATEGORIES = [
   { key: "venue", label: PLANNING_CATEGORY_LABELS.venue },
@@ -24,51 +35,55 @@ const CATEGORIES = [
   { key: "other", label: "기타" },
 ];
 
-const AD_OPTIONS = [
+const AD_OPTIONS: ReadonlyArray<{ key: QuickReviewAdDisclosure; label: string }> = [
   { key: "general", label: "일반" },
   { key: "sponsored", label: "협찬" },
   { key: "ad", label: "광고" },
 ];
 
 const REVIEW_MAX = 100;
+const VENDOR_NAME_MAX = 60;
 
 export default function QuickReviewScreen() {
   const [vendorName, setVendorName] = useState("");
   const [category, setCategory] = useState("");
   const [rating, setRating] = useState(0);
   const [review, setReview] = useState("");
-  const [adDisclosure, setAdDisclosure] = useState("general");
+  const [adDisclosure, setAdDisclosure] = useState<QuickReviewAdDisclosure>("general");
+  const [sponsorshipDetail, setSponsorshipDetail] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  // 응답만 잃은 경우 같은 내용은 같은 요청 키로 다시 보낸다 — 서버가 저장된 글을 돌려주고
+  // 두 번 만들지 않는다.
+  const submissionRef = useRef(createQuickReviewSubmission(() => Crypto.randomUUID())).current;
 
   async function handleSubmit() {
-    if (!vendorName.trim()) { Alert.alert("알림", "업체명을 입력해주세요."); return; }
-    if (!category) { Alert.alert("알림", "카테고리를 선택해주세요."); return; }
-    if (rating === 0) { Alert.alert("알림", "별점을 선택해주세요."); return; }
-    if (!review.trim()) { Alert.alert("알림", "한줄 후기를 입력해주세요."); return; }
+    if (submitting) return;
+    const draft = { vendorName, category, rating, review, adDisclosure, sponsorshipDetail };
+    const invalid = validateQuickReviewDraft(draft);
+    if (invalid) { Alert.alert("알림", invalid); return; }
 
     setSubmitting(true);
     try {
+      const command = submissionRef.commandFor(draft);
       const res = await apiFetch("/api/community/posts", {
         method: "POST",
-        body: JSON.stringify({
-          category: "tour_review",
-          title: `${vendorName.trim()} 후기`,
-          content: review.trim(),
-          visibility: "public",
-          is_quick_review: true,
-          rating,
-          ad_disclosure: adDisclosure,
-        }),
+        headers: { "Idempotency-Key": command.idempotencyKey },
+        body: JSON.stringify(command.body),
       });
+      const payload = await res.json().catch(() => null) as { error?: unknown } | null;
 
       if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err.error || "후기 작성에 실패했어요");
+        throw new Error(
+          typeof payload?.error === "string" ? payload.error : "후기 작성에 실패했어요",
+        );
       }
-
-      Alert.alert("완료", "15초 후기가 등록되었어요!", [
-        { text: "확인", onPress: () => router.back() },
-      ]);
+      // 서버 영수증에서 새 글 id 를 확인한 뒤에만 등록된 것으로 본다.
+      const postId = readCreatedQuickReviewPostId(payload);
+      if (!postId) {
+        throw new Error("후기가 저장됐는지 확인하지 못했어요. 내용을 그대로 두었으니 다시 올려 주세요.");
+      }
+      submissionRef.clearIf(command.idempotencyKey);
+      router.replace({ pathname: "/community/post/[id]", params: { id: postId } });
     } catch (err) {
       Alert.alert("오류", toKoreanErrorMessage(err, "후기를 올리지 못했어요. 잠시 뒤 다시 시도해 주세요."));
     } finally {
@@ -93,6 +108,7 @@ export default function QuickReviewScreen() {
           onChangeText={setVendorName}
           placeholder="업체 이름을 입력하세요"
           placeholderTextColor={colors.paper.inkFaint}
+          maxLength={VENDOR_NAME_MAX}
         />
 
         {/* 카테고리 */}
@@ -104,6 +120,8 @@ export default function QuickReviewScreen() {
                 key={cat.key}
                 style={[s.chip, category === cat.key && s.chipActive]}
                 onPress={() => setCategory(cat.key)}
+                accessibilityRole="button"
+                accessibilityState={{ selected: category === cat.key }}
               >
                 <Text style={[s.chipText, category === cat.key && s.chipTextActive]}>
                   {cat.label}
@@ -152,6 +170,8 @@ export default function QuickReviewScreen() {
                 key={ad.key}
                 style={[s.adChip, active && s.adChipActive]}
                 onPress={() => setAdDisclosure(ad.key)}
+                accessibilityRole="radio"
+                accessibilityState={{ checked: active }}
               >
                 <View style={[s.radio, active && s.radioActive]}>
                   {active && <View style={s.radioFill} />}
@@ -161,6 +181,25 @@ export default function QuickReviewScreen() {
             );
           })}
         </View>
+
+        {/* 협찬 내용 — 서버와 웹이 5자 이상을 요구한다. 없으면 후기가 거절된다. */}
+        {adDisclosure === "sponsored" && (
+          <View>
+            <Text style={s.label}>어떤 혜택을 받았나요?</Text>
+            <TextInput
+              style={[s.input, s.sponsorInput]}
+              value={sponsorshipDetail}
+              onChangeText={setSponsorshipDetail}
+              placeholder="예: 드레스 입어보기 비용 1회 제공받음"
+              placeholderTextColor={colors.paper.inkFaint}
+              accessibilityLabel="받은 협찬 내용"
+              maxLength={QUICK_REVIEW_SPONSORSHIP_DETAIL_MAX}
+              multiline
+              textAlignVertical="top"
+            />
+            <Text style={s.helper}>5자 이상 적어 주세요. 적은 내용은 글에 협찬 표시와 함께 보여요.</Text>
+          </View>
+        )}
 
         <PrimaryButton
           style={s.submitButton}
@@ -204,11 +243,23 @@ const s = StyleSheet.create({
     textAlign: "right",
     marginTop: 4,
   },
+  sponsorInput: {
+    minHeight: 72,
+  },
+  helper: {
+    fontSize: 12,
+    lineHeight: 18,
+    fontFamily: "NotoSansKR_400Regular",
+    color: colors.textSecondary,
+    marginTop: 6,
+  },
 
   // 카테고리 칩
   chipScroll: { marginBottom: 4 },
   chipRow: { flexDirection: "row", gap: 8 },
   chip: {
+    minHeight: 44,
+    justifyContent: "center",
     paddingHorizontal: 14,
     paddingVertical: 8,
     borderRadius: 20,
@@ -245,6 +296,7 @@ const s = StyleSheet.create({
   // 광고 유형
   adRow: { flexDirection: "row", gap: 10 },
   adChip: {
+    minHeight: 44,
     flexDirection: "row",
     alignItems: "center",
     gap: 8,

@@ -57,7 +57,7 @@ describe("WeddingCodeV06Client funnel events", () => {
     const picked: string[] = [];
     for (const [position, question] of config.questions.entries()) {
       if (position === 3) {
-        await clickText("이 장면은 우리와 안 맞아요");
+        await clickText("이 장면은 건너뛸게요");
         continue;
       }
       if (position === 5) {

@@ -55,6 +55,10 @@ const textOf = (value) => (value == null || typeof value === "boolean" ? "" : Ar
 // ── 웹뷰 ────────────────────────────────────────────────────────────────
 
 const preparationSource = compileModule("../lib/amoraPreparationSource.ts", {});
+// 체크리스트 주소의 `?category=` 를 읽는 함수. `nativeRouteForWebPath` 가 부른다.
+const checklistCategoryParam = compileModule("../lib/checklistCategoryParam.ts", {
+  "@hanbang/shared/constants": compileModule("../../../../packages/shared/src/constants/weddingPlanning.ts", {}),
+});
 const webviewSource = read("../../app/webview.tsx");
 const webviewTree = ts.createSourceFile("webview.tsx", webviewSource, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
 
@@ -74,6 +78,7 @@ function webviewNavigation() {
     const events = [];
     const bindings = {
       ...preparationSource,
+      ...checklistCategoryParam,
       SITE_ORIGIN: "https://hanbang.ai",
       normalizeMobileSiteUrl: (value, origin) => { try { return new URL(value).origin === origin ? value : null; } catch { return null; } },
       router: recordingRouter(events),
@@ -104,6 +109,9 @@ test("웹뷰가 네이티브 화면으로 넘기는 경로도 dismissTo 로 간�
   for (const [url, route] of [
     ["https://hanbang.ai/wedding/chat", "/chat"],
     ["https://hanbang.ai/wedding/checklist", "/checklist"],
+    // 분야를 들고 가고, 라운지는 웹 로그인 벽 대신 앱의 라운지 탭으로 간다(2026-09-18).
+    ["https://hanbang.ai/wedding/checklist?category=venue", "/checklist?category=venue"],
+    ["https://hanbang.ai/wedding/lounge", "/lounge"],
     ["https://hanbang.ai/budget", "/budget"],
     ["https://hanbang.ai/wedding/settings/profile", "/settings"],
   ]) {

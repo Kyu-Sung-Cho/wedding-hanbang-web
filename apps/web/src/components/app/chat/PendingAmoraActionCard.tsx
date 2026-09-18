@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Check, Loader2, RotateCcw, ShieldCheck, Users, X } from "lucide-react";
-import { SHARED_PLAN_TOOLS } from "@hanbang/shared";
+import { AMORA_SHARED_PLAN_PARTNER_NOTICE, SHARED_PLAN_TOOLS } from "@hanbang/shared";
 import {
   getAmoraActionApprovalPolicy,
   getAmoraPendingActionTtlMs,
@@ -697,8 +697,9 @@ export default function PendingAmoraActionCard({
   //
   // 상대에게 알려야 하는 변경(공유 계획)일 때만 붙인다. 체크리스트 하나 체크할
   // 때마다 이 문장이 뜨면 아무도 안 읽는다.
+  // 문장은 앱 확인 시트와 같은 것을 쓴다(`@hanbang/shared`, 2026-09-18).
   if (!approvalCopy && !requiresCoupleApproval && notifiesPartner) {
-    approvalCopy = "확인하면 바로 반영되고, 상대에게 바뀐 내용이 알림으로 가요.";
+    approvalCopy = AMORA_SHARED_PLAN_PARTNER_NOTICE;
   }
   if (!approvalCopy && requiresCoupleApproval) {
     if (approvalError) {

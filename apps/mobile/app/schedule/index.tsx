@@ -3,7 +3,7 @@ import { useEffect, useState, useCallback, useRef } from "react";
 import { View, ScrollView, StyleSheet, Pressable, ActivityIndicator, RefreshControl, Modal, Alert, KeyboardAvoidingView, Platform, Animated, LayoutAnimation, AppState } from "react-native";
 import { Text, TextInput } from "@/components/ui/AppText";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { router, useFocusEffect, usePathname } from "expo-router";
+import { router, useFocusEffect, useLocalSearchParams, usePathname } from "expo-router";
 import {
   CheckCircle2, Circle,
   Plus, X, CalendarDays, Clock, Ban, RotateCcw, AlertTriangle,
@@ -47,8 +47,19 @@ import {
   type ScheduleSessionToken,
 } from "@/lib/scheduleSessionFence.mjs";
 import { CATEGORY_CHECKLISTS, type ChecklistItem } from "@/constants/checklists";
-import { CHECKLIST_MAP, PREPARATION_PROGRESS_STATUS_LABELS } from "@hanbang/shared/constants";
+import {
+  CHECKLIST_MAP,
+  SCHEDULE_EVENT_CATEGORY_OPTIONS,
+  scheduleEventCategoryLabel,
+} from "@hanbang/shared/constants";
+import { kstDateOfInstant, withScheduleCategoryKey } from "@/lib/scheduleEventDisplay";
+import { readChecklistCategoryParam } from "@/lib/checklistCategoryParam";
 import CategoryChecklistSheet from "@/components/checklist/CategoryChecklistSheet";
+import ChecklistCategoryCard from "@/components/checklist/ChecklistCategoryCard";
+import {
+  planningChecklistSummaryLines,
+  readPlanningCategoryView,
+} from "@/lib/planningCategoryView";
 import { checklistPreparationRoute } from "@/lib/amoraPreparationSource";
 import {
   buildWeeklyChecklistActions,
@@ -86,6 +97,8 @@ interface Category {
   label: string;
   items: ChecklistItem[];
   status: PlanningChecklistStatus;
+  /** 항목을 세지 않고 분야 단위로 표시한 상태인가(`isPlanningChecklistStatusDeclared`). */
+  declared: boolean;
 }
 
 interface ScheduleEvent {
@@ -124,11 +137,6 @@ class ScheduleMutationError extends Error {
     this.name = "ScheduleMutationError";
   }
 }
-
-const CATEGORY_OPTIONS = [
-  ...CATEGORY_CHECKLISTS.map((category) => category.label),
-  "기타",
-];
 
 function applyChecklistState(
   categories: Category[],
@@ -270,7 +278,11 @@ function readScheduleEventsForDisplay(progress: Record<string, unknown>): Schedu
   if (new Set(validEvents.map((event) => event.id)).size !== validEvents.length) {
     throw new ScheduleMutationError("invalid_snapshot");
   }
-  return validEvents;
+  // 앱은 2026-09-18까지 분야를 한국어 이름으로 저장했다. **화면 상태에서만** 키로 바꾼다 —
+  // 목록은 이름표로, 수정 화면은 선택지로 같은 값을 찾는다. 쓰기 경로
+  // (`readScheduleEventsForMutation`)는 저장된 값을 그대로 쓴다. 거기서 바꾸면 사용자가
+  // 고치지 않은 다른 일정까지 DB에 고쳐 쓰게 된다.
+  return validEvents.map(withScheduleCategoryKey);
 }
 
 function readScheduleEventsForMutation(progress: Record<string, unknown>): ScheduleEvent[] {
@@ -389,6 +401,11 @@ function showActiveScheduleRequestAlert() {
 export default function ScheduleScreen() {
   const pathname = usePathname();
   const checklistOnly = pathname.startsWith("/checklist");
+  // `/checklist?category=venue` — 앱 안 웹 화면의 링크가 분야를 들고 온다(`webview.tsx`).
+  // 공유 체크리스트 분야 키만 받는다. 모르는 값은 무시하고 목록만 연다.
+  const searchParams = useLocalSearchParams<{ category?: string | string[] }>();
+  const requestedCategory = readChecklistCategoryParam(searchParams.category);
+  const openedCategoryRequestRef = useRef<string | null>(null);
   const [categories, setCategories] = useState<Category[]>([]);
   const [progress, setProgress] = useState<Record<string, Record<string, boolean>>>({});
   const [events, setEvents] = useState<ScheduleEvent[]>([]);
@@ -612,47 +629,20 @@ export default function ScheduleScreen() {
       const progMap: Record<string, Record<string, boolean>> = {};
 
       for (const cat of CATEGORY_CHECKLISTS) {
-        const dbCatData = prog[cat.key] as {
-          status?: string;
-          checklist?: Array<{ id: string; label?: string; done: boolean }>;
-          [key: string]: unknown;
-        } | undefined;
-
-        // DB의 checklist 배열에서 done 상태 매핑
-        const dbDoneMap: Record<string, boolean> = {};
-        if (dbCatData?.checklist && Array.isArray(dbCatData.checklist)) {
-          for (const item of dbCatData.checklist) {
-            dbDoneMap[item.id] = !!item.done;
-          }
-        }
-        // 레거시: 플랫 구조 { meeting_01: true } 호환
-        if (!dbCatData?.checklist && dbCatData && typeof dbCatData === "object") {
-          for (const [k, v] of Object.entries(dbCatData)) {
-            if (typeof v === "boolean") dbDoneMap[k] = v;
-          }
-        }
-
-        const savedChecklist = Array.isArray(dbCatData?.checklist)
-          ? dbCatData.checklist.map((item) => ({
-              id: item.id,
-              label: item.label ?? cat.items.find((templateItem) => templateItem.id === item.id)?.label ?? "이전 준비 항목",
-              done: item.done === true,
-            }))
-          : Object.entries(dbDoneMap).map(([id, done]) => ({
-              id,
-              label: cat.items.find((item) => item.id === id)?.label ?? "이전 준비 항목",
-              done,
-            }));
-        const checkItems = mergePlanningChecklist(cat.items, savedChecklist);
-        const itemStates: Record<string, boolean> = Object.fromEntries(
-          checkItems.map((item) => [item.id, item.done]),
+        // 상태는 웹 체크리스트·앱 라운지와 같은 공유 규칙으로 읽는다. 예전에는 여기서 항목만
+        // 다시 셌다. 그래서 온보딩·라운지·아모라가 분야 단위로 "완료"라고 남긴 분야가
+        // 이 화면에서만 「0/9 완료 · 아직」으로 뒤집혀 보였다.
+        const categoryView = readPlanningCategoryView(cat.items, prog[cat.key]);
+        cats.push({
+          key: cat.key,
+          label: cat.label,
+          items: categoryView.items,
+          status: categoryView.status,
+          declared: categoryView.declared,
+        });
+        progMap[cat.key] = Object.fromEntries(
+          categoryView.items.map((item) => [item.id, item.done]),
         );
-        const status: PlanningChecklistStatus = dbCatData?.status === "not_applicable"
-          ? "not_applicable"
-          : calculatePlanningChecklistStatus(checkItems);
-
-        cats.push({ key: cat.key, label: cat.label, items: checkItems, status });
-        progMap[cat.key] = itemStates;
       }
 
       setCategories(cats);
@@ -785,6 +775,20 @@ export default function ScheduleScreen() {
     });
     return () => subscription.remove();
   }, [refreshScheduleAndApprovals]);
+
+  // 분야를 들고 온 요청이면 그 분야 시트를 바로 연다 — 웹 체크리스트의 `?category=` 와 같다.
+  // 불러온 분야에 있는 키만 열고, 같은 요청으로는 한 번만 연다. 닫은 시트가 새로고침이나
+  // 실시간 갱신(`categories` 가 바뀔 때)마다 다시 뜨면 안 된다.
+  useEffect(() => {
+    if (!requestedCategory) {
+      openedCategoryRequestRef.current = null;
+      return;
+    }
+    if (openedCategoryRequestRef.current === requestedCategory) return;
+    if (!categories.some((category) => category.key === requestedCategory)) return;
+    openedCategoryRequestRef.current = requestedCategory;
+    setExpandedKey(requestedCategory);
+  }, [categories, requestedCategory]);
 
   const handleRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -1010,7 +1014,15 @@ export default function ScheduleScreen() {
     const status: PlanningChecklistStatus =
       categories.find((category) => category.key === key)?.status ?? "not_started";
     const skipped = status === "not_applicable";
-    return { total, done, skipped, status, percent: skipped || total === 0 ? 0 : Math.round((done / total) * 100) };
+    return {
+      total,
+      done,
+      skipped,
+      // 카드와 시트가 같은 판정을 받는다. 카드만 고치면 시트가 「0/9 완료 · 0%」를 말한다.
+      declared: categories.find((category) => category.key === key)?.declared === true,
+      status,
+      percent: skipped || total === 0 ? 0 : Math.round((done / total) * 100),
+    };
   }
 
   /**
@@ -1023,7 +1035,14 @@ export default function ScheduleScreen() {
       (key) => {
         const stats = getCategoryStats(key);
         const category = categories.find((c) => c.key === key);
-        return { items: category?.items ?? [], skipped: stats.skipped, percent: stats.percent };
+        return {
+          items: category?.items ?? [],
+          skipped: stats.skipped,
+          percent: stats.percent,
+          // 분야 단위로 "완료"라고 표시한 분야는 제안하지 않는다 — 카드가 「완료로 표시함」인데
+          // 바로 위 제안이 같은 분야를 「기본 확인 시점 지남」이라고 하면 안 된다(웹 임박 알림과 같다).
+          completed: stats.status === "completed",
+        };
       },
       dday,
     );
@@ -1556,13 +1575,16 @@ export default function ScheduleScreen() {
     .sort((a, b) => a.date.localeCompare(b.date));
 
   // 전체 진행률 계산
-  const overallPercent = summarizePlanningChecklist(
+  const checklistSummary = summarizePlanningChecklist(
     categories.map((category) => ({ key: category.key, items: category.items })),
     Object.fromEntries(categories.map((category) => [category.key, {
       status: category.status,
       checklist: category.items,
     }])),
-  ).percent;
+  );
+  const overallPercent = checklistSummary.percent;
+  // 웹 체크리스트 머리와 같은 두 줄 — 「N개 완료 · M개 남음」, 「N개 분야는 진행률에서 제외했어요」.
+  const summaryLines = planningChecklistSummaryLines(checklistSummary);
   const dday = calcDday(weddingDate);
   const weeklyActions = getWeeklyActions(dday);
   const overdueCount = weeklyActions.filter((action) => action.urgency === "overdue").length;
@@ -1680,6 +1702,10 @@ export default function ScheduleScreen() {
           >
             <Animated.View style={[styles.summaryBarFill, { width: progressWidth }]} />
           </View>
+          <Text style={styles.summaryCounts}>{summaryLines.counts}</Text>
+          {summaryLines.skipped ? (
+            <Text style={styles.summaryCounts}>{summaryLines.skipped}</Text>
+          ) : null}
         </FeatureSummarySurface>
 
         {(approvalLoading || approvalError || approvalRequests.length > 0) && (
@@ -1865,69 +1891,53 @@ export default function ScheduleScreen() {
               <CalendarDays size={18} color={colors.rose[500]} />
               <Text style={styles.upcomingTitle}>임박 일정</Text>
             </View>
-            {upcomingEvents.map((evt) => (
-              <Pressable
-                key={`upcoming-${evt.id}`}
-                style={({ pressed }) => [
-                  styles.eventCard,
-                  pressed && { transform: [{ scale: 0.98 }] },
-                ]}
-                onPress={() => openEditEventModal(evt.id)}
-              >
-                <View style={styles.eventDateBadge}>
-                  <Text style={styles.eventDateNum}>{formatDate(evt.date)}</Text>
-                  <Text style={styles.eventDateDay}>{getDayLabel(evt.date)}</Text>
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.eventTitle}>{evt.title}</Text>
-                  <View style={styles.eventMeta}>
-                    {evt.time ? (
-                      <View style={styles.eventMetaRow}>
-                        <Clock size={12} color={colors.textTertiary} />
-                        <Text style={styles.eventMetaText}>{evt.time}</Text>
-                      </View>
-                    ) : null}
-                    {evt.categoryKey ? (
-                      <View style={styles.eventCatBadge}>
-                        <Text style={styles.eventCatText}>{evt.categoryKey}</Text>
-                      </View>
-                    ) : null}
+            {upcomingEvents.map((evt) => {
+              // 저장된 값이 키든 옛 한국어 이름이든 화면에는 이름을 그린다. 모르는 키는 그리지 않는다.
+              const categoryLabel = scheduleEventCategoryLabel(evt.categoryKey);
+              return (
+                <Pressable
+                  key={`upcoming-${evt.id}`}
+                  style={({ pressed }) => [
+                    styles.eventCard,
+                    pressed && { transform: [{ scale: 0.98 }] },
+                  ]}
+                  onPress={() => openEditEventModal(evt.id)}
+                >
+                  <View style={styles.eventDateBadge}>
+                    <Text style={styles.eventDateNum}>{formatDate(evt.date)}</Text>
+                    <Text style={styles.eventDateDay}>{getDayLabel(evt.date)}</Text>
                   </View>
-                </View>
-              </Pressable>
-            ))}
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.eventTitle}>{evt.title}</Text>
+                    <View style={styles.eventMeta}>
+                      {evt.time ? (
+                        <View style={styles.eventMetaRow}>
+                          <Clock size={12} color={colors.textTertiary} />
+                          <Text style={styles.eventMetaText}>{evt.time}</Text>
+                        </View>
+                      ) : null}
+                      {categoryLabel ? (
+                        <View style={styles.eventCatBadge}>
+                          <Text style={styles.eventCatText}>{categoryLabel}</Text>
+                        </View>
+                      ) : null}
+                    </View>
+                  </View>
+                </Pressable>
+              );
+            })}
           </View>
         )}
 
-        {/* 카테고리 체크리스트 — 웹 상수 기반, 항상 20개 카테고리 표시 */}
-        {(
-          categories.map((cat) => {
-            const stats = getCategoryStats(cat.key);
-
-            return (
-              <View key={cat.key} style={styles.catCard}>
-                <Pressable
-                  style={styles.catHeader}
-                  onPress={() => handleExpandToggle(cat.key)}
-                  accessibilityRole="button"
-                  accessibilityLabel={`${cat.label} 체크리스트 열기`}
-                >
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.catLabel}>{cat.label}</Text>
-                    <Text style={styles.catStat}>
-                      {stats.skipped
-                        ? `${PREPARATION_PROGRESS_STATUS_LABELS.not_applicable} · 진행률에서 제외`
-                        : `${stats.done}/${stats.total} 완료 · ${PREPARATION_PROGRESS_STATUS_LABELS[stats.status]}`}
-                    </Text>
-                  </View>
-
-                </Pressable>
-
-
-              </View>
-            );
-          })
-        )}
+        {/* 카테고리 체크리스트 — 웹 상수 기반, 모든 분야를 그린다. 카드 모양은 웹 카드와 같다. */}
+        {categories.map((cat) => (
+          <ChecklistCategoryCard
+            key={cat.key}
+            label={cat.label}
+            stats={getCategoryStats(cat.key)}
+            onPress={() => handleExpandToggle(cat.key)}
+          />
+        ))}
 
         {/* 전체 일정 목록 */}
         {!checklistOnly && activeEvents.length > 0 && (
@@ -1964,7 +1974,8 @@ export default function ScheduleScreen() {
                     기존 날짜 {evt.date}{evt.time ? ` ${evt.time}` : ""}
                   </Text>
                   <Text style={styles.cancelledMeta}>
-                    취소 시각 {evt.cancellation?.cancelledAt.slice(0, 10) ?? "기록 확인 필요"}
+                    {/* 문자열을 자르면 UTC 날짜라 한국 새벽에 취소한 일정이 전날로 보인다. */}
+                    취소 시각 {kstDateOfInstant(evt.cancellation?.cancelledAt) ?? "기록 확인 필요"}
                   </Text>
                   {evt.cancellation?.reason ? (
                     <Text style={styles.cancelledMeta}>
@@ -2095,14 +2106,18 @@ export default function ScheduleScreen() {
                 >
                   <Text style={[styles.chipText, !formCategoryKey && styles.chipTextActive]}>없음</Text>
                 </Pressable>
-                {CATEGORY_OPTIONS.map((cat) => (
+                {/* 저장하는 값은 웹과 같은 키(`venue`, `general` …)이고 보이는 것은 이름이다.
+                    선택지는 웹 일정 입력과 같은 공유 목록에서 읽는다. */}
+                {SCHEDULE_EVENT_CATEGORY_OPTIONS.map((option) => (
                   <Pressable
-                    key={cat}
-                    style={[styles.chip, formCategoryKey === cat && styles.chipActive]}
-                    onPress={() => setFormCategoryKey(cat)}
+                    key={option.key}
+                    style={[styles.chip, formCategoryKey === option.key && styles.chipActive]}
+                    onPress={() => setFormCategoryKey(option.key)}
+                    accessibilityRole="button"
+                    accessibilityState={{ selected: formCategoryKey === option.key }}
                   >
-                    <Text style={[styles.chipText, formCategoryKey === cat && styles.chipTextActive]}>
-                      {cat}
+                    <Text style={[styles.chipText, formCategoryKey === option.key && styles.chipTextActive]}>
+                      {option.label}
                     </Text>
                   </Pressable>
                 ))}
@@ -2368,6 +2383,12 @@ const styles = StyleSheet.create({
     backgroundColor: colors.rose[500],
     borderRadius: 3,
   },
+  summaryCounts: {
+    fontSize: 12,
+    lineHeight: 19,
+    fontFamily: "NotoSansKR_400Regular",
+    color: summaryColors.label,
+  },
 
   list: { padding: 20, gap: 14, paddingBottom: 128 },
 
@@ -2441,34 +2462,8 @@ const styles = StyleSheet.create({
   emptyText: { fontSize: 16, fontWeight: "600", color: colors.noir[800], marginBottom: 8 },
   emptyHint: { fontSize: 13, color: colors.paper.inkFaint },
 
-  /**
-   * 분야 카드 — 시안(`ChecklistMobile.dc.html` 의 `.b-card`)은 **이름과 한 줄**뿐이다.
-   *
-   * 2026-09-04에 퍼센트 숫자·오른쪽 화살표·진행 막대 셋을 뺐다. 셋 다 이미 부제가
-   * 말하는 것(「3/9 완료 · 진행 중」)을 다른 모양으로 한 번 더 말하고 있었고,
-   * 카드가 두 배 높아 한 화면에 들어오는 분야 수가 줄었다.
-   *
-   * 그림자도 뺐다 — 시안 카드는 테두리 한 줄로 선다.
-   */
-  catCard: {
-    backgroundColor: colors.surface,
-    borderColor: colors.border,
-    borderWidth: 1,
-    borderRadius: 13,
-    padding: 15,
-  },
-  catHeader: { flexDirection: "row", alignItems: "center", minHeight: 44 },
-  catLabel: {
-    fontSize: 14,
-    color: colors.paper.ink,
-    fontFamily: "NotoSansKR_600SemiBold",
-  },
-  catStat: {
-    fontSize: 11.5,
-    color: colors.paper.inkFaint,
-    marginTop: 5,
-    fontFamily: "NotoSansKR_400Regular",
-  },
+  // 분야 카드의 스타일은 `src/components/checklist/ChecklistCategoryCard.tsx` 에 있다.
+  // 2026-09-18 에 웹 카드와 같은 상태 줄·진행 막대를 넣으면서 카드가 그쪽으로 나갔다.
 
   // 항목 줄의 스타일은 `src/components/checklist/CategoryChecklistSheet.tsx` 로 옮겼다.
   // 2026-09-04 에 분야를 펼치는 방식이 시트로 바뀌면서 그리는 자리가 그쪽이 됐다.

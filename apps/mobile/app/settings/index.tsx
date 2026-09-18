@@ -32,11 +32,13 @@ import {
   describeCoupleInviteWindow,
   resolveCoupleConnectionState,
   type CoupleConnectionState,
+  ACCOUNT_DELETION_EMAIL_REQUEST_LABEL,
   ACCOUNT_DELETION_FACTS,
 } from "@hanbang/shared";
 import { supabase } from "@/lib/supabase";
 import { signOut } from "@/lib/auth";
-import { apiFetch, apiFetchForExpectedUser } from "@/lib/api";
+import { apiFetch, apiFetchForExpectedUser, apiFetchForExpectedUserQuiet } from "@/lib/api";
+import { beginAccountDeletion } from "@/lib/accountDeletionIntake";
 import {
   buildWeddingSettingsPatch,
   buildWeddingPlanChangeBody,
@@ -111,6 +113,10 @@ export default function SettingsScreen() {
   );
   const [codeCopied, setCodeCopied] = useState(false);
   const [resettingCouple, setResettingCouple] = useState(false);
+
+  // 회원 탈퇴 — 접수가 열려 있는지 묻는 동안 같은 버튼이 두 번 확인창을 띄우지 않게 한다.
+  const deletionIntakeCheckRef = useRef(false);
+  const [checkingDeletionIntake, setCheckingDeletionIntake] = useState(false);
 
   // 현재 데이터 로드
   useEffect(() => {
@@ -563,8 +569,55 @@ export default function SettingsScreen() {
     ]);
   }
 
-  // 회원 탈퇴
-  function handleDeleteAccount() {
+  // 회원 탈퇴 — 접수가 열려 있는지부터 확인한다.
+  //
+  // `/api/auth/delete` 는 자동 접수가 닫혀 있으면 503 을 돌려준다. 예전에는 그것을 두 번
+  // 확인을 다 누른 **뒤에야** 알았다. 웹 설정과 같이 `/api/auth/me` 의
+  // `capabilities.accountDeletionIntake` 를 먼저 읽고, 열림이 확인될 때만 두 번 확인을 띄운다.
+  // 닫힘·모름(요청 실패 포함)은 이메일 요청 안내만 준다.
+  async function handleDeleteAccount() {
+    if (deletionIntakeCheckRef.current) return;
+    deletionIntakeCheckRef.current = true;
+    setCheckingDeletionIntake(true);
+    try {
+      await beginAccountDeletion({
+        readOwnerId: async () => {
+          const { data: { session } } = await supabase.auth.getSession();
+          return session?.user.id ?? null;
+        },
+        // 세션이 끝났으면 전역 로그아웃 알림 대신 "모름" 안내로 끝낸다.
+        fetchMe: (ownerId) => apiFetchForExpectedUserQuiet(ownerId, "/api/auth/me"),
+        showConfirm: showDeletionConfirmation,
+        showSupport: showDeletionSupportGuidance,
+      });
+    } finally {
+      deletionIntakeCheckRef.current = false;
+      setCheckingDeletionIntake(false);
+    }
+  }
+
+  // 자동 접수가 닫혔거나 확인하지 못했을 때. 웹과 같은 안내·사실·라벨·주소를 쓰고,
+  // 메일 작성 창만 연다 — 여기서 삭제 요청은 절대 보내지 않는다.
+  function showDeletionSupportGuidance(notice: string) {
+    Alert.alert(
+      "회원 탈퇴",
+      [notice, ...ACCOUNT_DELETION_FACTS.map((fact) => `· ${fact.text}`)].join("\n\n"),
+      [
+        { text: "취소", style: "cancel" },
+        {
+          text: ACCOUNT_DELETION_EMAIL_REQUEST_LABEL,
+          onPress: () => {
+            void Linking.openURL(`mailto:${CONTACT.email}`).catch(() => {
+              Alert.alert("메일 앱을 열지 못했어요", `${CONTACT.email}로 탈퇴를 요청해 주세요.`);
+            });
+          },
+        },
+      ],
+    );
+  }
+
+  // 자동 접수가 열려 있음을 확인한 뒤에만 부른다.
+  function showDeletionConfirmation() {
     // 되돌릴 수 없는 행동 앞에서 무엇이 지워지고 무엇이 남는지 먼저 말한다.
     //
     // 예전에는 "계정과 직접 소유한 데이터 삭제를 요청해요" 한 줄뿐이라,
@@ -1143,9 +1196,14 @@ export default function SettingsScreen() {
         <View style={styles.dangerZone}>
           <Pressable
             style={({ pressed }) => [styles.dangerBtn, pressed && styles.dangerBtnPressed]}
-            onPress={handleDeleteAccount}
+            onPress={() => { void handleDeleteAccount(); }}
+            disabled={checkingDeletionIntake}
+            accessibilityRole="button"
+            accessibilityState={{ disabled: checkingDeletionIntake, busy: checkingDeletionIntake }}
           >
-            <Trash2 size={16} color={colors.dangerDeep} />
+            {checkingDeletionIntake
+              ? <ActivityIndicator size="small" color={colors.dangerDeep} />
+              : <Trash2 size={16} color={colors.dangerDeep} />}
             <Text style={styles.dangerBtnText}>회원 탈퇴</Text>
           </Pressable>
         </View>

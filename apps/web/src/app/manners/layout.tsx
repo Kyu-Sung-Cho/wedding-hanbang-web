@@ -2,8 +2,10 @@ import Link from "next/link";
 
 import { BookOpen, CalendarCheck, ClipboardCheck, LayoutDashboard, Settings, Users, Wallet } from "lucide-react";
 import AmoraMark from "@/components/ui/AmoraMark";
-import { weddingLinkProps } from "@/lib/weddingPaths";
+import { LogoMark } from "@/components/ui/Logo";
 import AmoraBottomNav from "@/components/app/amora/AmoraBottomNav";
+import HiddenInsideMobileApp from "@/components/common/HiddenInsideMobileApp";
+import FullPageLinkInsideMobileApp from "@/components/common/FullPageLinkInsideMobileApp";
 
 // 공개 읽기 화면은 인증 상태를 요청하거나 사용자·일정·알림을 가정하지 않는다.
 const SERVICE_LINKS = [
@@ -35,16 +37,23 @@ export default function MannersLayout({ children }: { children: React.ReactNode 
     <div className="planning-workspace min-h-screen bg-[var(--amora-bg)] text-[var(--amora-soft)] [&_a:focus-visible]:outline-2 [&_a:focus-visible]:outline-offset-2 [&_a:focus-visible]:outline-[var(--hb-focus-ring)]">
       <a href="#manners-main" className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-50 focus:rounded-[10px] focus:bg-white focus:p-3">본문으로 바로가기</a>
       <aside className="fixed inset-y-0 left-0 hidden w-[220px] flex-col border-r border-[var(--amora-line)] bg-white pt-[22px] md:flex">
-        <Link {...weddingLinkProps()} prefetch={false} aria-label="웨딩한방 홈으로 이동" className="planning-display mx-6 flex min-h-[54px] items-start gap-2 pt-[6px] text-[17px] text-[var(--amora-ink)]">
-          <span aria-hidden className="flex size-[26px] items-center justify-center rounded-[7px] bg-[var(--amora-ink)] font-sans text-[13px] font-bold text-white">H</span>웨딩한방
-        </Link>
+        {/*
+          앱 사이드바(`components/app/Sidebar.tsx`)와 같은 머리 — 로고는 라운지로 간다.
+          넓은 안드로이드 기기의 앱 웹뷰에서도 보이는 자리라, 로고와 메뉴는 앱 웹뷰에서 문서째
+          옮긴다. 그래야 앱이 받아 라운지 탭·체크리스트 같은 네이티브 화면으로 넘긴다
+          (`FullPageLinkInsideMobileApp`). 커뮤니티·예절 가이드 두 공개 항목도 같이 쓴다 —
+          앱 웹뷰에서 그 화면을 한 번 새로 읽을 뿐이다.
+        */}
+        <FullPageLinkInsideMobileApp path="/lounge" aria-label="웨딩한방 홈으로 이동" className="planning-display mx-6 flex min-h-[54px] items-start pt-[6px] text-[17px] text-[var(--amora-ink)]">
+          <span className="flex items-center gap-2"><LogoMark />웨딩한방</span>
+        </FullPageLinkInsideMobileApp>
         <nav aria-label="서비스 메뉴" className="flex-1 overflow-y-auto px-[14px]">
           <ul className="space-y-1">
             {SERVICE_LINKS.map(({ href, label, icon: Icon }) => (
               <li key={href}>
-                <Link {...weddingLinkProps(href)} prefetch={false} aria-current={href === "/manners" ? "location" : undefined} className={`flex min-h-11 items-center gap-[11px] rounded-[9px] px-3 py-2.5 text-[14.5px] ${href === "/manners" ? "bg-[var(--amora-selected-bg)] font-semibold text-[var(--amora-selected-text)]" : "hover:bg-[var(--amora-warm)]"}`}>
+                <FullPageLinkInsideMobileApp path={href} aria-current={href === "/manners" ? "location" : undefined} className={`flex min-h-11 items-center gap-[11px] rounded-[9px] px-3 py-2.5 text-[14.5px] ${href === "/manners" ? "bg-[var(--amora-selected-bg)] font-semibold text-[var(--amora-selected-text)]" : "hover:bg-[var(--amora-warm)]"}`}>
                   <Icon aria-hidden className="size-4 shrink-0" />{label}
-                </Link>
+                </FullPageLinkInsideMobileApp>
               </li>
             ))}
           </ul>
@@ -57,6 +66,12 @@ export default function MannersLayout({ children }: { children: React.ReactNode 
       <div className="flex min-h-screen min-w-0 flex-col md:ml-[220px]">
       <main id="manners-main" className="min-w-0 flex-1">{children}</main>
 
+      {/*
+        앱 웹뷰에서는 바닥글과 아래 메뉴를 내린다. 아래 메뉴 다섯은 전부 로그인 필요 경로라
+        앱 웹뷰(세션 없음)에서는 웹 로그인 화면이 되고, 앱의 아래 탭과 두 겹으로 쌓였다.
+        브라우저에서는 그대로다.
+      */}
+      <HiddenInsideMobileApp>
       <footer className="border-t border-[var(--amora-line)] pb-[calc(6rem+env(safe-area-inset-bottom))] md:pb-0">
         <div className="mx-auto w-full max-w-[1220px] px-[18px] py-6 md:px-9 xl:px-16">
           <p className="text-[13px] font-medium text-[var(--amora-muted)]">
@@ -74,8 +89,11 @@ export default function MannersLayout({ children }: { children: React.ReactNode 
           </nav>
         </div>
       </footer>
+      </HiddenInsideMobileApp>
       </div>
-      <AmoraBottomNav active={null} />
+      <HiddenInsideMobileApp>
+        <AmoraBottomNav active={null} />
+      </HiddenInsideMobileApp>
     </div>
   );
 }
