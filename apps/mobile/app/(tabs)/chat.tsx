@@ -2,13 +2,13 @@
 // 사람 말풍선 색은 각자 **직접 확인한 표시 역할**로 칠한다(웹과 같음, 2026-09-12 요청).
 // 가입 순서로 채워진 role 슬롯은 쓰지 않고, 확인 전이면 중립색이다. 라벨은 이름을 쓴다.
 import { useState, useRef, useEffect, useCallback, useMemo, type SetStateAction } from "react";
-import { View, Pressable, FlatList, ScrollView, StyleSheet, KeyboardAvoidingView, Platform, Animated, ActivityIndicator, Linking, AppState } from "react-native";
+import { View, Pressable, FlatList, ScrollView, StyleSheet, KeyboardAvoidingView, Platform, Animated, ActivityIndicator, Linking, AppState, useWindowDimensions } from "react-native";
 import { Text, TextInput } from "@/components/ui/AppText";
 import { buildMobileSiteUrl, resolveMobileSiteOrigin } from "@/lib/siteUrl.mjs";
 import { SafeAreaView } from "react-native-safe-area-context";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Crypto from "expo-crypto";
-import { Check, Send, ShieldCheck, Heart, X, Lock, RotateCcw, Users, RefreshCw } from "lucide-react-native";
+import { Check, Send, ShieldCheck, Heart, X, Lock, RotateCcw, Users, RefreshCw, ListChecks } from "lucide-react-native";
 import { amoraIdentity, chatPalette, colors } from "@hanbang/design-tokens";
 import AmoraMark from "@/components/ui/AmoraMark";
 import AmoraAvatar from "@/components/ui/AmoraAvatar";
@@ -117,6 +117,7 @@ import {
   type ChatViewClearStep,
 } from "@/lib/chatViewClear";
 import { ChatViewClearSheet } from "@/components/chat/ChatViewClearSheet";
+import { AMORA_BOARD_ENTRY, AMORA_CHAT_HEADER_LAYOUT, shouldShowAmoraBoardLabel } from "@/lib/amoraChatHeader";
 import {
   CARRIED_PENDING_ACTION_LABEL,
   getAmoraActionApprovalPolicy,
@@ -2124,6 +2125,14 @@ export default function ChatScreen() {
   // 「둘의 화면 함께 정리」 동의 요청의 진행 중 잠금 — (사용자, 커플)마다. 창을 닫았다 열어도 유지한다(웹과 같다).
   const clearRequestInFlightRef = useRef(new Set<string>());
   const [pendingClearRequestOwners, setPendingClearRequestOwners] = useState<Set<string>>(() => new Set());
+  // 머리의 「결정 보드」 입구. 좁은 화면(320pt)이나 큰 글자에서는 글자를 빼고 아이콘만 둔다(amoraChatHeader.ts).
+  const { width: windowWidth, fontScale } = useWindowDimensions();
+  const showBoardLabel = shouldShowAmoraBoardLabel(windowWidth, fontScale);
+  // 두 번 눌러 같은 화면이 두 겹 쌓이지 않게, 이 탭으로 돌아올 때까지 한 번만 옮겨 간다.
+  const boardNavigationRef = useRef(false);
+  useFocusEffect(useCallback(() => {
+    boardNavigationRef.current = false;
+  }, []));
   const scopedMessages = useMemo(
     () => messages.filter((message) => (
       isMessageInChatScope(message.visibility, activeScope, userRole)
@@ -4289,6 +4298,13 @@ export default function ChatScreen() {
     setTarget(nextSelection.target);
   }
 
+  // 결정 보드로 옮겨 간다. 답을 받는 중에는 떠나지 않는다 — 돌아올 때 이 탭이 대화를 다시 확인한다.
+  function openDecisionBoard() {
+    if (streaming || boardNavigationRef.current) return;
+    boardNavigationRef.current = true;
+    router.push(AMORA_BOARD_ENTRY.pathname);
+  }
+
   // ── 「대화 화면 정리」 (웹 ChatContent 의 같은 창, 2026-09-18) ─────────────────────────
   // 머리 버튼이 여는 첫 단계는 웹과 같다 — 함께 대화는 고르기부터, 나만 상담은 확인 단계부터.
   function openViewClearSheet() {
@@ -4940,9 +4956,21 @@ export default function ChatScreen() {
   return (
     <SafeAreaView style={st.container} edges={["top"]}>
       <View style={st.header}>
-        <View style={st.headerLeft}><AmoraAvatar size={36} /><View><Text style={st.headerTitle}>아모라</Text><Text style={st.headerSub}>결혼 준비 동반자</Text></View></View>
+        <View style={st.headerLeft}><AmoraAvatar size={AMORA_CHAT_HEADER_LAYOUT.avatar} /><View style={st.headerTitles}><Text style={st.headerTitle} numberOfLines={1}>아모라</Text><Text style={st.headerSub} numberOfLines={1}>결혼 준비 동반자</Text></View></View>
         <View style={st.headerActions}>
           {scopedMessages.length > 0 && <StatusPill label={`${scopedMessages.length}`} tone="neutral" />}
+          {/* 범위 줄의 세 번째 탭이 아니다 — 화면을 옮기는 버튼이다. 두 범위와 상대에게 쓰는 중에도 보인다. */}
+          <Pressable
+            style={({ pressed }) => [st.headerBoardBtn, !showBoardLabel && st.headerBoardBtnCompact, pressed && !streaming && st.headerBtnPressed, streaming && st.headerBtnDisabled]}
+            onPress={openDecisionBoard}
+            disabled={streaming}
+            accessibilityRole="button"
+            accessibilityLabel={AMORA_BOARD_ENTRY.accessibilityLabel}
+            accessibilityState={{ disabled: streaming }}
+          >
+            <ListChecks size={AMORA_CHAT_HEADER_LAYOUT.boardIcon} color={colors.textSecondary} />
+            {showBoardLabel && <Text style={st.headerBoardText} numberOfLines={1}>{AMORA_BOARD_ENTRY.label}</Text>}
+          </Pressable>
           {canOfferViewClear && (
             <Pressable
               style={({ pressed }) => [st.headerIconBtn, pressed && !viewClearEntryDisabled && st.headerBtnPressed, viewClearEntryDisabled && st.headerBtnDisabled]}
@@ -5266,13 +5294,18 @@ export default function ChatScreen() {
 
 const st = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg },
-  header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 20, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: colors.border, backgroundColor: colors.surface },
-  headerLeft: { flexDirection: "row", alignItems: "center", gap: 10, flexShrink: 1, minWidth: 0 },
-  headerTitle: { fontSize: 17, fontFamily: "NotoSansKR_600SemiBold", color: colors.noir[800] },
-  headerSub: { fontSize: 11, color: colors.textTertiary },
+  // 머리 숫자의 정본은 amoraChatHeader.ts 다 — 같은 숫자로 320pt 폭을 어림한다.
+  header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: AMORA_CHAT_HEADER_LAYOUT.paddingX, paddingVertical: AMORA_CHAT_HEADER_LAYOUT.paddingY, borderBottomWidth: 1, borderBottomColor: colors.border, backgroundColor: colors.surface },
+  headerLeft: { flexDirection: "row", alignItems: "center", gap: AMORA_CHAT_HEADER_LAYOUT.avatarGap, flexShrink: 1, minWidth: 0 },
+  headerTitles: { flexShrink: 1, minWidth: 0 },
+  headerTitle: { fontSize: AMORA_CHAT_HEADER_LAYOUT.titleFontSize, fontFamily: "NotoSansKR_600SemiBold", color: colors.noir[800] },
+  headerSub: { fontSize: AMORA_CHAT_HEADER_LAYOUT.subFontSize, color: colors.textTertiary },
   // 오른쪽 버튼 묶음은 줄지 않는다 — 좁은 화면에서는 왼쪽 제목이 먼저 줄어든다. 버튼은 모두 44pt 이상이다.
-  headerActions: { flexDirection: "row", alignItems: "center", gap: 4, flexShrink: 0, marginLeft: 8 },
+  headerActions: { flexDirection: "row", alignItems: "center", gap: AMORA_CHAT_HEADER_LAYOUT.actionGap, flexShrink: 0, marginLeft: AMORA_CHAT_HEADER_LAYOUT.sideGap },
   headerIconBtn: { width: 44, height: 44, alignItems: "center", justifyContent: "center", borderRadius: 22 },
+  headerBoardBtn: { minWidth: 44, height: 44, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: AMORA_CHAT_HEADER_LAYOUT.boardIconGap, paddingHorizontal: AMORA_CHAT_HEADER_LAYOUT.boardPaddingX, borderRadius: 22 },
+  headerBoardBtnCompact: { width: 44, paddingHorizontal: 0 },
+  headerBoardText: { fontSize: AMORA_CHAT_HEADER_LAYOUT.boardFontSize, fontWeight: "600", color: colors.textSecondary },
   headerBtnPressed: { backgroundColor: colors.ivory[100] },
   headerBtnDisabled: { opacity: 0.45 },
   aiNotice: {
