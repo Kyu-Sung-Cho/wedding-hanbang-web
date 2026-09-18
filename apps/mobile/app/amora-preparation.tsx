@@ -7,7 +7,7 @@ import { ActionRow, AppHeader, AppText, Surface } from "@/components/ui/AppUI";
 
 export default function AmoraPreparationScreen() {
   return <SafeAreaView style={styles.screen} edges={["top", "bottom"]}>
-    <AppHeader title="준비 기록" onBack={() => router.canGoBack() ? router.back() : router.replace("/(tabs)/lounge")} />
+    <AppHeader title="공유 할 일" onBack={() => router.canGoBack() ? router.back() : router.replace("/(tabs)/lounge")} />
     <ScrollView contentContainerStyle={styles.content}>
       <AppText variant="body">함께 보는 공유 할 일을 모았어요. 예산·일정·체크리스트에는 각각 반영된 내용을 확인해 주세요.</AppText>
       <View style={styles.links}><Surface>

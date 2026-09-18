@@ -5,17 +5,17 @@ import { fileURLToPath, URL } from "node:url";
 import ts from "typescript";
 
 /**
- * 아모라 탭 머리의 「결정 보드」 입구와 좁은 화면 배치 (2026-09-18).
+ * 아모라 탭 머리의 「공유 할 일」 입구와 좁은 화면 배치 (2026-09-18).
  *
- * 웹은 아모라 화면 머리에 결정 보드 입구를 두는데, 앱 아모라 탭 머리에는 그 목록으로 가는 길이 없었다.
+ * 웹은 아모라 화면 머리에 결정 보드 입구를 두는데(앱에는 아직 결정 기록이 없어 이름은 「공유 할 일」이다), 앱 아모라 탭 머리에는 그 목록으로 가는 길이 없었다.
  * 머리 오른쪽, 메시지 수 옆에 조용한 버튼 하나를 둔다.
  *
  * 지키는 것:
- * - 버튼은 ListChecks 아이콘과 「결정 보드」, 읽어 주는 이름 「결정 보드 보기」, 44pt 이상이다.
+ * - 버튼은 ListChecks 아이콘과 「공유 할 일」, 읽어 주는 이름 「공유 할 일 보기」, 44pt 이상이다.
  * - 범위 줄의 세 번째 role=tab 이 아니다 — 범위 줄 밖, 머리 안에 있다. 함께 대화·나만 상담·상대에게 쓰는
  *   중 모두 보인다(범위·대상 조건 없이 그린다).
  * - 누르면 `/amora-preparation` 으로 한 번만 옮겨 간다. 답을 받는 중에는 누를 수 없다. 목록을 부르지 않는다.
- * - 320pt 화면에서 얼굴·제목·메시지 수·결정 보드·대화 화면 정리가 한 줄에 겹치지 않는다. 넘칠 폭이면 글자를
+ * - 320pt 화면에서 얼굴·제목·메시지 수·공유 할 일·대화 화면 정리가 한 줄에 겹치지 않는다. 넘칠 폭이면 글자를
  *   빼고 아이콘만 둔다. 노드 테스트는 폭을 어림할 뿐 실제 글꼴 렌더를 재지 않는다 — 어림이 쓰는 숫자가 실제
  *   머리 스타일과 같은 숫자인지, 줄어드는 쪽이 왼쪽 제목인지(flex 규칙)를 함께 잰다.
  */
@@ -53,8 +53,8 @@ const jsxElements = [];
 const boardButton = jsxElements.find((element) => tagName(element) === "Pressable" && attribute(element, "accessibilityLabel") === "{AMORA_BOARD_ENTRY.accessibilityLabel}");
 
 test("입구의 이름·읽어 주는 이름·목적지", () => {
-  assert.deepEqual({ ...header.AMORA_BOARD_ENTRY }, { label: "결정 보드", accessibilityLabel: "결정 보드 보기", pathname: "/amora-preparation" });
-  assert.ok(boardButton, "머리에 결정 보드 버튼이 없다");
+  assert.deepEqual({ ...header.AMORA_BOARD_ENTRY }, { label: "공유 할 일", accessibilityLabel: "공유 할 일 보기", pathname: "/amora-preparation" });
+  assert.ok(boardButton, "머리에 공유 할 일 버튼이 없다");
   assert.equal(attribute(boardButton, "accessibilityRole"), '"button"');
   assert.equal(attribute(boardButton, "onPress"), "{openDecisionBoard}");
   assert.equal(attribute(boardButton, "disabled"), "{streaming}", "답을 받는 중에는 누를 수 없다");
@@ -77,7 +77,7 @@ test("범위 줄의 세 번째 탭이 아니다 — 머리 안, 범위 줄 밖�
   assert.equal(attribute(boardButton, "accessibilityRole"), '"button"', "탭이 아니라 버튼이다");
 });
 
-test("누르면 결정 보드로 한 번만 옮겨 가고, 답을 받는 중에는 옮겨 가지 않으며, 목록을 부르지 않는다", () => {
+test("누르면 공유 할 일로 한 번만 옮겨 가고, 답을 받는 중에는 옮겨 가지 않으며, 목록을 부르지 않는다", () => {
   let declaration;
   (function visit(node) {
     if (ts.isFunctionDeclaration(node) && node.name?.text === "openDecisionBoard") declaration = node.getText(tree);
@@ -105,7 +105,7 @@ test("누르면 결정 보드로 한 번만 옮겨 가고, 답을 받는 중에�
   assert.equal(pushes.length, 2, "답을 받는 중에는 옮겨 가지 않는다");
 });
 
-test("320pt 에서는 결정 보드 글자를 빼고, 375pt 에서는 글자까지 넣어도 머리가 넘치지 않는다", () => {
+test("320pt 에서는 공유 할 일 글자를 빼고, 375pt 에서는 글자까지 넣어도 머리가 넘치지 않는다", () => {
   assert.equal(header.shouldShowAmoraBoardLabel(320), false);
   assert.equal(header.shouldShowAmoraBoardLabel(375), true);
   // 가장 넓은 경우: 세 자리 메시지 수 + 정리 버튼.

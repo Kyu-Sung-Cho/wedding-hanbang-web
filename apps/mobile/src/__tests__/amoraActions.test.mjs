@@ -234,6 +234,8 @@ function cardHarness(props = {}) {
       }
     },
     text: () => text(tree),
+    /** 글자 칸(Text) 하나하나의 글. 배지처럼 한 칸만 보고 싶을 때 쓴다. */
+    textNodes: () => nodes(tree).filter(node => node.type === "Text").map(node => text(node)),
     press(label) {
       const button = nodes(tree).find(node => node.type === "Pressable" && (node.props.accessibilityLabel === label || text(node) === label));
       assert.ok(button, `missing button ${label}; rendered: ${text(tree)}`);
@@ -241,6 +243,8 @@ function cardHarness(props = {}) {
       return button.props.onPress();
     },
     profileChanged() { for (const listener of [...listeners]) listener({ new: { ...identity } }); },
+    /** 라운지가 넘기는 값이 바뀐 것처럼 다시 그린다(당겨서 새로고침은 `refreshVersion` 을 올린다). */
+    rerender(next) { Object.assign(props, next); dirty = true; },
     authChanged() { authListener("SIGNED_IN", { user: { id: identity.userId } }); },
   };
   return harness;
@@ -268,7 +272,48 @@ test("실제 완료 실패는 원래 줄과 오류를 남기고 재시도 성공
 
 test("실제 카드의 더 있는 개수는 제한된 배열이 아니라 서버 전체 미완료 수를 쓴다", async () => {
   const h = cardHarness(); h.responses.push(listResponse(Array.from({ length: 20 }, (_, i) => action({ id: `act${i}` })), { count: 37, open_count: 37, truncated: true }));
-  await h.flush(); assert.match(h.text(), /37개 중 3개/u); assert.match(h.text(), /34개가 더/u);
+  await h.flush();
+  // 웹 라운지처럼 머리글 옆 배지 하나로 센다. "미완료 N개 중 M개 표시 중" 같은 두 번째 개수 줄은 없다.
+  assert.ok(h.textNodes().includes("37개"), `badge missing: ${h.textNodes().join(" | ")}`);
+  assert.match(h.text(), /34개가 더/u);
+  assert.doesNotMatch(h.text(), /미완료|개 중 \d+개 표시/u);
+  // 잘린 응답이면 웹과 같은 안내를 따로 한 줄로 둔다.
+  assert.ok(h.textNodes().includes(
+    "불러온 공유 할 일 중 우선순위가 높은 항목을 보여드려요. 전체 열린 수와 보이는 수는 다를 수 있어요.",
+  ));
+});
+
+test("라운지 배지는 목록을 확인한 뒤에만 보이고, 실패하면 숫자를 남기지 않는다", async () => {
+  const badge = h => h.textNodes().find(value => /^\d+개$/u.test(value));
+  const failed = cardHarness(); failed.responses.push(failureResponse); await failed.flush();
+  assert.equal(badge(failed), undefined, "403 뒤에 배지가 보인다");
+  const invalid = cardHarness(); invalid.responses.push({ ok: true, json: async () => ({ error: "invalid payload" }) }); await invalid.flush();
+  assert.equal(badge(invalid), undefined, "잘못된 응답 뒤에 배지가 보인다");
+  const signedOut = cardHarness(); signedOut.identity.userId = null; await signedOut.flush();
+  assert.equal(badge(signedOut), undefined, "로그아웃 상태에서 배지가 보인다");
+  // 이미 보이던 배지도 새로고침이 실패하면 사라진다.
+  const h = cardHarness({ refreshVersion: 0 }); h.responses.push(listResponse([action()])); await h.flush();
+  assert.equal(badge(h), "1개");
+  h.responses.push({ ...failureResponse, status: 503 }); h.rerender({ refreshVersion: 1 }); await h.flush();
+  assert.match(h.text(), /공유 할 일을 불러오지 못했어요\. 다시 불러와 주세요\./u);
+  assert.equal(badge(h), undefined, "새로고침 실패 뒤에도 예전 배지가 남는다");
+});
+
+test("열린 공유 할 일이 없으면 0개와 웹의 빈 상태 문구를 보여준다", async () => {
+  const h = cardHarness(); h.responses.push(listResponse([])); await h.flush();
+  assert.ok(h.textNodes().includes("0개"));
+  assert.ok(h.textNodes().includes("지금 이어갈 공유 할 일이 없어요. 아모라와 정리한 할 일을 함께 남길 수 있어요."));
+});
+
+test("완료가 확인되면 배지 숫자가 하나 줄어든다", async () => {
+  const h = cardHarness(); h.responses.push(listResponse([action(), action({ id: "act2", title: "다음 할 일" })])); await h.flush();
+  assert.ok(h.textNodes().includes("2개"));
+  let resolveRefresh;
+  h.responses.push({ ok: true, json: async () => ({ action: action({ status: "done" }) }) }, () => new Promise(done => { resolveRefresh = done; }));
+  h.press("청첩장 문구 확정하기 완료로 표시"); await h.flush();
+  assert.ok(h.textNodes().includes("1개"), `after completion: ${h.textNodes().join(" | ")}`);
+  resolveRefresh(listResponse([action({ id: "act2", title: "다음 할 일" })])); await h.flush();
+  assert.ok(h.textNodes().includes("1개"));
 });
 
 test("실제 카드의 잘못된 응답은 저장된 할 일이 없는 것처럼 숨겨지지 않는다", async () => {
@@ -332,9 +377,10 @@ test("조회나 완료 전 인증 확인 실패를 빈 목록으로 숨기거나
   assert.equal(h.calls.length, 1);
 });
 
-test("진행 중 항목이 없어도 준비 기록으로 들어가 완료 기록을 다시 볼 수 있다", async () => {
+test("진행 중 항목이 없어도 전체 보기로 들어가 완료 기록을 다시 볼 수 있다", async () => {
   const h = cardHarness(); h.responses.push(listResponse([])); await h.flush();
-  h.press("준비 기록 보기"); assert.deepEqual(h.navigation, ["/amora-preparation"]);
+  h.press("공유 할 일 전체 보기"); assert.deepEqual(h.navigation, ["/amora-preparation"]);
+  assert.ok(h.textNodes().includes("전체 보기"));
   // 보드 쪽 절반(완료 기록 보기)은 sharedTaskBoard.test.mjs 가 같은 단언으로 잰다.
 });
 

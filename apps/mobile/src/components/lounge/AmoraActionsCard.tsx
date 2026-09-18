@@ -35,7 +35,7 @@ import { appShadow } from "@/components/ui/AppUI";
  * 문구는 서버가 소유한다(`title`). 여기서 지어내지 않는다.
  *
  * 머리글은 "공유 할 일"이다. 사용자가 직접 추가한 할 일도 여기 오므로 아모라가 챙긴 것처럼
- * 적지 않는다. 상태 전환·추가·수정은 준비 기록 화면(`SharedTaskBoard`)이 맡고, 여기는
+ * 적지 않는다. 상태 전환·추가·수정은 공유 할 일 화면(`SharedTaskBoard`)이 맡고, 여기는
  * 진행 중인 것 몇 개와 완료 버튼만 둔다. 계정·커플 경계와 응답 검사는 보드와 같은
  * `@/lib/amoraActionScope` 를 쓴다.
  */
@@ -123,7 +123,7 @@ export default function AmoraActionsCard({
       ) {
         if (!verifiedScope || !sameScope(verifiedScope, scopeRef.current)
           || (error instanceof Error && error.message === "ACTION_SCOPE_UNAVAILABLE")) setState({ kind: "quiet" });
-        setLoadError("챙길 것을 불러오지 못했어요. 다시 불러와 주세요.");
+        setLoadError("공유 할 일을 불러오지 못했어요. 다시 불러와 주세요.");
       }
     } finally {
       if (operation === loadGeneration.current) setLoading(false);
@@ -214,7 +214,7 @@ export default function AmoraActionsCard({
         if (isCurrent()) {
           if (error instanceof Error && error.message === "ACTION_SCOPE_UNAVAILABLE") {
             setState({ kind: "quiet" });
-            setLoadError("챙길 것을 불러오지 못했어요. 다시 불러와 주세요.");
+            setLoadError("공유 할 일을 불러오지 못했어요. 다시 불러와 주세요.");
             scopeRef.current = null;
           } else setCompletionError(action);
         }
@@ -228,15 +228,22 @@ export default function AmoraActionsCard({
     [invalidateScope, load],
   );
 
+  // 배지는 서버가 준 열린 수를 확인한 뒤에만 보인다. 첫 로딩·오류·로그아웃 때 숫자를 짐작해 두지 않는다
+  // (웹 라운지 `AmoraMissions` 의 `{openCount}개` 와 같은 조건).
+  const showBadge = state.kind === "ready" && !loadError;
+
   return (
     <View style={styles.card}>
-      <View style={styles.header}>
-        <ListChecks size={14} color={colors.rose[600]} />
-        <Text style={styles.headerText}>공유 할 일</Text>
+      <View style={styles.headerRow}>
+        <View style={styles.header}>
+          <ListChecks size={14} color={colors.rose[600]} />
+          <Text style={styles.headerText}>공유 할 일</Text>
+          {showBadge ? <Text style={styles.badge}>{`${state.openCount}개`}</Text> : null}
+        </View>
+        <Pressable accessibilityRole="button" accessibilityLabel="공유 할 일 전체 보기" onPress={() => router.push("/amora-preparation")} style={styles.linkButton}>
+          <Text style={styles.linkText}>전체 보기</Text>
+        </Pressable>
       </View>
-      <Pressable accessibilityRole="button" accessibilityLabel="준비 기록 보기" onPress={() => router.push("/amora-preparation")} style={styles.retryButton}>
-        <Text style={styles.doneText}>준비 기록 보기</Text>
-      </Pressable>
 
       {loadError ? <View>
         <Text style={styles.error} accessibilityRole="alert">{loadError}</Text>
@@ -254,7 +261,9 @@ export default function AmoraActionsCard({
         </Pressable>
       </View> : null}
       {loading ? <Text accessibilityLiveRegion="polite" style={styles.more}>불러오는 중이에요.</Text> : null}
-      {state.kind === "ready" ? <Text style={styles.more}>미완료 {state.totalCount}개 중 {state.visible.length}개 표시 중{state.truncated ? " · 일부 목록을 불러왔어요." : ""}</Text> : null}
+      {state.kind === "ready" && !loadError && state.openCount === 0 && state.visible.length === 0 ? (
+        <Text style={styles.more}>지금 이어갈 공유 할 일이 없어요. 아모라와 정리한 할 일을 함께 남길 수 있어요.</Text>
+      ) : null}
       {(state.kind === "ready" ? state.visible : []).map((action) => {
         const due = formatAmoraActionDueDate(action.dueDate);
         return (
@@ -286,6 +295,9 @@ export default function AmoraActionsCard({
       {state.kind === "ready" && state.hiddenCount > 0 ? (
         <Text style={styles.more}>외 {state.hiddenCount}개가 더 있어요.</Text>
       ) : null}
+      {showBadge && state.truncated ? (
+        <Text style={styles.more}>불러온 공유 할 일 중 우선순위가 높은 항목을 보여드려요. 전체 열린 수와 보이는 수는 다를 수 있어요.</Text>
+      ) : null}
     </View>
   );
 }
@@ -302,8 +314,21 @@ const styles = StyleSheet.create({
     gap: spacing[3],
     ...appShadow,
   },
+  headerRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: spacing[2] },
   header: { flexDirection: "row", alignItems: "center", gap: spacing[1] },
   headerText: { fontSize: 12, fontWeight: "600", color: colors.rose[600] },
+  badge: {
+    fontSize: 10,
+    fontWeight: "500",
+    color: colors.rose[700],
+    backgroundColor: colors.rose.pale,
+    borderRadius: radius.full,
+    overflow: "hidden",
+    paddingHorizontal: spacing[2],
+    paddingVertical: 2,
+  },
+  linkButton: { minHeight: 44, justifyContent: "center" },
+  linkText: { fontSize: 12, color: colors.textTertiary },
   row: { flexDirection: "row", alignItems: "center", gap: spacing[2] },
   rowText: { flex: 1, gap: 2 },
   title: { fontSize: 14, fontWeight: "600", color: colors.noir[800], lineHeight: 20 },
