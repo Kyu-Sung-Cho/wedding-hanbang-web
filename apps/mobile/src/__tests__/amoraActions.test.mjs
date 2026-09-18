@@ -5,6 +5,7 @@ import { setImmediate } from "node:timers";
 import { fileURLToPath, URL } from "node:url";
 import ts from "typescript";
 import * as actionModel from "../lib/amoraActions.mjs";
+import * as sharedActions from "@hanbang/shared/amora-shared-actions";
 
 import {
   AMORA_ACTION_VISIBLE_LIMIT,
@@ -183,6 +184,17 @@ function cardHarness(props = {}) {
     },
     removeChannel(channel) { listeners.delete(channel.callback); },
   };
+  const compileScopeModule = () => {
+    const scopeCode = ts.transpileModule(readFileSync(fileURLToPath(new URL("../lib/amoraActionScope.ts", import.meta.url)), "utf8"), { compilerOptions: {
+      module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022,
+    } }).outputText;
+    const scopeModules = { "@/lib/supabase": { supabase }, "@/lib/amoraActions.mjs": actionModel, "@hanbang/shared/amora-shared-actions": sharedActions };
+    const scopeModule = { exports: {} };
+    new Function("exports", "module", "require", scopeCode)(scopeModule.exports, scopeModule, name => {
+      assert.ok(scopeModules[name], `unmocked dependency ${name}`); return scopeModules[name];
+    });
+    return scopeModule.exports;
+  };
   const modules = {
     "@/components/ui/AppText": { Text: "Text" },
     react: hooks,
@@ -193,6 +205,7 @@ function cardHarness(props = {}) {
     "@hanbang/design-tokens": { colors: token, spacing: token, radius: token },
     "@/components/ui/AppUI": { appShadow: {} },
     "@/lib/amoraActions.mjs": actionModel,
+    "@/lib/amoraActionScope": compileScopeModule(),
     "@/lib/supabase": { supabase },
     "@/lib/api": { apiFetchForExpectedUser: async (...args) => {
       calls.push(args);
@@ -322,66 +335,12 @@ test("조회나 완료 전 인증 확인 실패를 빈 목록으로 숨기거나
 test("진행 중 항목이 없어도 준비 기록으로 들어가 완료 기록을 다시 볼 수 있다", async () => {
   const h = cardHarness(); h.responses.push(listResponse([])); await h.flush();
   h.press("준비 기록 보기"); assert.deepEqual(h.navigation, ["/amora-preparation"]);
-  const board = cardHarness({ presentation: "board" }); board.responses.push(listResponse([])); await board.flush();
-  board.responses.push(listResponse([action({ status: "done", title: "완료한 기록" })], { open_count: 0 }));
-  board.press("완료 기록 보기"); await board.flush();
-  assert.match(board.text(), /완료한 기록/u); assert.match(board.calls.at(-1)[1], /status=done&limit=80/u);
-  assert.doesNotMatch(board.text(), /진행 중 기록이 아직 없어요/u);
+  // 보드 쪽 절반(완료 기록 보기)은 sharedTaskBoard.test.mjs 가 같은 단언으로 잰다.
 });
 
-test("준비 기록은 다음 페이지를 읽고 같은 ID를 중복 표시하지 않는다", async () => {
-  const h = cardHarness({ presentation: "board" });
-  const rows = Array.from({ length: 80 }, (_, index) => action({ id: `act${index}`, title: `할 일 ${index}` }));
-  h.responses.push(listResponse(rows, { count: 81, open_count: 81, truncated: true, next_cursor: "cursor /+" })); await h.flush();
-  assert.match(h.text(), /81개 중 80개/u); assert.match(h.text(), /할 일 79/u);
-  h.responses.push(listResponse([rows[79], action({ id: "act80", title: "마지막 할 일" })], { count: 81, open_count: 81, truncated: true, next_cursor: null }));
-  h.press("기록 더 보기"); h.press("기록 더 보기"); await h.flush();
-  assert.equal(h.calls.length, 2); assert.match(h.calls[1][1], /cursor=cursor%20%2F%2B/u);
-  assert.match(h.text(), /81개 중 81개/u); assert.match(h.text(), /마지막 할 일/u);
-  assert.equal(h.text().split("할 일 79").length - 1, 1);
-  assert.doesNotMatch(h.text(), /추가 기록을 이어서 읽을 수 없어요|일부 목록/u);
-});
-
-test("더 읽기 실패는 현재 기록을 보존하고 재조회 후 다시 이어갈 수 있다", async () => {
-  const h = cardHarness({ presentation: "board" });
-  const first = () => listResponse([action()], { count: 2, open_count: 2, truncated: true, next_cursor: "page2" });
-  h.responses.push(first()); await h.flush(); h.responses.push({ ...failureResponse, status: 503 });
-  h.press("기록 더 보기"); await h.flush(); assert.match(h.text(), /청첩장 문구 확정하기/u); assert.match(h.text(), /불러오지 못/u);
-  h.responses.push(first()); h.press("다시 불러오기"); await h.flush();
-  h.responses.push(listResponse([action({ id: "act2", title: "이어 읽은 기록" })], { count: 2, open_count: 2, next_cursor: null }));
-  h.press("기록 더 보기"); await h.flush(); assert.match(h.text(), /2개 중 2개/u); assert.match(h.text(), /이어 읽은 기록/u);
-});
-
-test("더 읽는 동안 상태를 바꾸면 예전 진행 중 응답이 완료 목록에 합쳐지지 않는다", async () => {
-  const h = cardHarness({ presentation: "board" });
-  h.responses.push(listResponse([action()], { count: 2, open_count: 2, truncated: true, next_cursor: "page2" })); await h.flush();
-  let resolve; h.responses.push(() => new Promise(done => { resolve = done; })); h.press("기록 더 보기"); await h.flush();
-  h.responses.push(listResponse([action({ status: "done", title: "완료한 기록" })], { open_count: 2 })); h.press("완료 기록 보기"); await h.flush();
-  resolve(listResponse([action({ id: "act2", title: "예전 페이지" })], { count: 2, open_count: 2, next_cursor: null })); await h.flush();
-  assert.match(h.text(), /완료한 기록/u); assert.doesNotMatch(h.text(), /예전 페이지|청첩장 문구 확정하기/u);
-});
-
-test("커플 변경 뒤 예전 페이지를 새 준비 기록에 추가하지 않는다", async () => {
-  const h = cardHarness({ presentation: "board" });
-  h.responses.push(listResponse([action()], { count: 2, open_count: 2, truncated: true, next_cursor: "page2" })); await h.flush();
-  let resolve; h.responses.push(() => new Promise(done => { resolve = done; })); h.press("기록 더 보기"); await h.flush();
-  h.identity.couple_id = "new-couple"; h.responses.push(listResponse([action({ title: "새 기록" })])); h.profileChanged(); await h.flush();
-  resolve(listResponse([action({ id: "old-page", title: "예전 페이지" })], { count: 2, open_count: 2, next_cursor: null })); await h.flush();
-  assert.match(h.text(), /새 기록/u); assert.doesNotMatch(h.text(), /예전 페이지|청첩장/u);
-});
-
-test("이전 서버가 다음 커서를 주지 않으면 전체 기록을 다 읽은 척하지 않는다", async () => {
-  const h = cardHarness({ presentation: "board" }); h.responses.push(listResponse([action()], { count: 90, open_count: 90, truncated: true }));
-  await h.flush(); assert.match(h.text(), /90개 중 1개/u); assert.match(h.text(), /추가 기록을 이어서 읽을 수 없어요/u);
-});
-
-test("준비 기록 보조 화면은 기존 4개 탭을 바꾸지 않고 실행 화면으로 연결한다", () => {
-  const route = readFileSync(new URL("../../app/amora-preparation.tsx", import.meta.url), "utf8");
-  assert.match(route, /<AmoraActionsCard presentation="board"/u);
-  for (const path of ["/budget", "/schedule", "/checklist"]) assert.ok(route.includes(`router.push("${path}")`), path);
-  // 루트 Stack 화면에서 채팅 탭으로는 push 가 아니라 dismissTo — push 는 (tabs)를 한 벌 더 쌓는다(rootStackChatNavigation.test.mjs).
-  assert.ok(route.includes('router.dismissTo("/(tabs)/chat")'));
-  assert.match(route, /router\.canGoBack\(\) \? router\.back\(\) : router\.replace\("\/\(tabs\)\/lounge"\)/u);
-  const tabs = readFileSync(new URL("../../app/(tabs)/_layout.tsx", import.meta.url), "utf8");
-  assert.doesNotMatch(tabs, /amora-preparation/u);
+test("라운지 미리보기 머리글은 공유 할 일이고 아모라가 챙긴 것처럼 적지 않는다", () => {
+  // 직접 추가한 할 일도 이 목록에 온다. 보드 검사(페이지·상태 전환·커서)는 sharedTaskBoard.test.mjs 로 옮겼다.
+  assert.match(card, />공유 할 일</u);
+  assert.doesNotMatch(card, /아모라가 챙기기로 한 것|아모라와 확인해 남긴/u);
+  assert.doesNotMatch(card, /presentation/u);
 });
