@@ -52,6 +52,14 @@ const POST_ID = "22222222-2222-4222-8222-222222222222";
 const AUTHOR_ID = "11111111-1111-4111-8111-111111111111";
 const ADMIN_ID = "33333333-3333-4333-8333-333333333333";
 const MEDIA_FILE_ID = "55555555-5555-4555-8555-555555555555";
+const VENDOR_IDS = [
+  "70000000-0000-4000-8000-000000000001",
+  "70000000-0000-4000-8000-000000000002",
+  "70000000-0000-4000-8000-000000000003",
+  "70000000-0000-4000-8000-000000000004",
+  "70000000-0000-4000-8000-000000000005",
+  "70000000-0000-4000-8000-000000000006",
+] as const;
 const SUPABASE_URL = "https://example.supabase.co";
 const IMAGE_URL = `${SUPABASE_URL}/storage/v1/object/public/community-images/${AUTHOR_ID}/${MEDIA_FILE_ID}.jpg`;
 const REPLACEMENT_IMAGE_URL = `${SUPABASE_URL}/storage/v1/object/public/community-images/${AUTHOR_ID}/66666666-6666-4666-8666-666666666666.jpg`;
@@ -615,7 +623,7 @@ describe("community post resolution state", () => {
     });
 
     const response = await PATCH(request({
-      vendor_tags: ["venue"],
+      vendor_tags: [VENDOR_IDS[0]],
       tags: ["budget"],
       ad_disclosure: "sponsored",
       sponsorship_detail: "sample benefit received",
@@ -633,7 +641,7 @@ describe("community post resolution state", () => {
 
     expect(response.status).toBe(200);
     expect(posts.update).toHaveBeenCalledWith(expect.objectContaining({
-      vendor_tags: ["venue"],
+      vendor_tags: [VENDOR_IDS[0]],
       tags: ["budget"],
       ad_disclosure: "sponsored",
       sponsorship_detail: "sample benefit received",
@@ -641,6 +649,70 @@ describe("community post resolution state", () => {
         vendor_category: "venue",
         base_price: 2_500,
       }),
+    }));
+  });
+
+  it.each([
+    ["a vendor name", ["라벨르 스튜디오"]],
+    ["a non-string entry", [42]],
+    ["a UUID next to a name", [VENDOR_IDS[0], "라벨르"]],
+    ["a non-array value", VENDOR_IDS[0]],
+    ["null", null],
+  ])("rejects vendor_tags holding %s with a 400 before the post update", async (_label, vendorTags) => {
+    // vendor_tags 는 uuid[] 열이다. 업체 이름이 update 까지 가면 Postgres 가 invalid uuid 로
+    // 거절하고, 사용자에게는 500 「게시글 수정에 실패했습니다.」만 남는다.
+    const posts = communityPostsQuery();
+    posts.single.mockResolvedValueOnce({
+      data: null,
+      error: { code: "22P02", message: "invalid input syntax for type uuid" },
+    } as never);
+    mocks.createClientFromRequest.mockResolvedValue(
+      requestClient(AUTHOR_ID, posts),
+    );
+    mocks.createAdminClient.mockReturnValue({
+      from: vi.fn((table: string) => {
+        if (table === "profiles") return profileQuery(false);
+        if (table === "community_posts") return posts.query;
+        throw new Error(`Unexpected admin table: ${table}`);
+      }),
+    });
+
+    const response = await PATCH(request({ vendor_tags: vendorTags }) as never, {
+      params: Promise.resolve({ id: POST_ID }),
+    });
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toEqual({
+      code: "COMMUNITY_POST_VENDOR_TAGS_INVALID",
+      error: "업체 태그는 목록에서 고른 업체만 붙일 수 있어요.",
+    });
+    expect(posts.update).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["no vendors", [], []],
+    ["two chosen vendors", [VENDOR_IDS[0], VENDOR_IDS[1]], [VENDOR_IDS[0], VENDOR_IDS[1]]],
+    ["six vendors, keeping the first five", [...VENDOR_IDS], VENDOR_IDS.slice(0, 5)],
+  ])("passes %s through to the post update", async (_label, vendorTags, expected) => {
+    const posts = communityPostsQuery();
+    mocks.createClientFromRequest.mockResolvedValue(
+      requestClient(AUTHOR_ID, posts),
+    );
+    mocks.createAdminClient.mockReturnValue({
+      from: vi.fn((table: string) => {
+        if (table === "profiles") return profileQuery(false);
+        if (table === "community_posts") return posts.query;
+        throw new Error(`Unexpected admin table: ${table}`);
+      }),
+    });
+
+    const response = await PATCH(request({ vendor_tags: vendorTags }) as never, {
+      params: Promise.resolve({ id: POST_ID }),
+    });
+
+    expect(response.status).toBe(200);
+    expect(posts.update).toHaveBeenCalledWith(expect.objectContaining({
+      vendor_tags: expected,
     }));
   });
 

@@ -88,7 +88,8 @@ function isValidPostPatchBody(body: Record<string, unknown>): boolean {
     && typeof body.is_resolved !== "boolean"
   ) return false;
 
-  for (const field of ["images", "vendor_tags", "tags"] as const) {
+  // vendor_tags 는 여기서 거르지 않는다 — 핸들러가 모양까지 보고 글 등록과 같은 코드로 돌려보낸다.
+  for (const field of ["images", "tags"] as const) {
     const value = body[field];
     if (
       value !== undefined
@@ -638,9 +639,18 @@ export async function PATCH(
       updateData.visibility = body.visibility;
     }
     if (body.vendor_tags !== undefined) {
-      updateData.vendor_tags = (Array.isArray(body.vendor_tags) ? body.vendor_tags : [])
-        .filter((tag): tag is string => typeof tag === "string")
-        .slice(0, 5);
+      // vendor_tags 는 uuid[] 열이다. 업체 이름 같은 값이 update 까지 가면 Postgres 가 거절하고,
+      // 그 거절은 아래에서 500 「게시글 수정에 실패했습니다.」로 나간다. 글 등록과 같은 400 으로 먼저 돌려보낸다.
+      if (!Array.isArray(body.vendor_tags) || !body.vendor_tags.every(isUuid)) {
+        return NextResponse.json(
+          {
+            code: "COMMUNITY_POST_VENDOR_TAGS_INVALID",
+            error: "업체 태그는 목록에서 고른 업체만 붙일 수 있어요.",
+          },
+          { status: 400 }
+        );
+      }
+      updateData.vendor_tags = body.vendor_tags.slice(0, 5);
     }
     if (body.tags !== undefined) {
       updateData.tags = (Array.isArray(body.tags) ? body.tags : [])
