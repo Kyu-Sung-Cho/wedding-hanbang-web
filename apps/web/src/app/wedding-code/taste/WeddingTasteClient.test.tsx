@@ -5,13 +5,13 @@ import { beforeEach, afterEach, describe, expect, it, vi } from "vitest";
 import WeddingTasteClient from "./WeddingTasteClient";
 import { useAuthStore } from "@/stores/authStore";
 import { CONTACT } from "@/lib/constants/contact";
-import { buildWeddingTasteShareUrl, createEmptyWeddingTasteDraft, decodeWeddingTasteShareHash, type WeddingTasteDraftV1 } from "@/lib/weddingCode/taste";
+import { buildWeddingTasteShareUrl, createEmptyWeddingTasteDraft, decodeWeddingTasteShareHash, type WeddingTasteDraft } from "@/lib/weddingCode/taste";
 import { MOBILE_WEB_API_NONCE_PROPERTY } from "@/lib/mobile/mobileAuthenticatedFetch";
 
 const { push } = vi.hoisted(() => ({ push: vi.fn() }));
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push }) }));
 let root: Root, host: HTMLDivElement;
-const first = (): WeddingTasteDraftV1 => ({ ...createEmptyWeddingTasteDraft(), priorityDomains: { status: "answered", values: ["photo"] }, details: { photo: { status: "answered", values: ["directed"] } } });
+const first = (): WeddingTasteDraft => ({ ...createEmptyWeddingTasteDraft(), priorityDomains: { status: "answered", values: ["photo"] }, details: { photo: { status: "answered", values: ["directed"] } } });
 function account(owner = "owner-a", connected = true, completed = true) {
   return { user: { id: owner, email: owner + "@example.com" },
     profile: { id: owner, name: "내 계정", email: owner + "@example.com", couple_id: connected ? "couple-" + owner : null, role: "bride", onboarding_completed: completed },
@@ -29,10 +29,10 @@ async function render(hash = "") {
   window.history.replaceState(null, "", "/wedding-code/taste" + hash);
   await act(async () => root.render(<WeddingTasteClient />));
 }
-async function completePhoto() {
+async function completePhoto(negotiabilityLabel = "다른 취향의 후보도 함께 비교하고 싶어요") {
   await click("사진"); await click("다음"); await click("간결한 분위기"); await click("다음");
   await click("자연스러운 순간"); await click("다음"); await click("특별히 피하고 싶은 것은 없어요"); await click("다음");
-  await click("다른 안도 함께 볼 수 있어요"); await click("내 선택 보기");
+  await click(negotiabilityLabel); await click("내 선택 보기");
 }
 beforeEach(() => {
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
@@ -44,6 +44,25 @@ beforeEach(() => {
 afterEach(async () => { await act(async () => root.unmount()); host.remove(); document.cookie = "demo_mode=; path=/; max-age=0"; vi.unstubAllGlobals(); vi.restoreAllMocks(); });
 
 describe("직접 취향의 끝까지 흐름", () => {
+  it("구판 링크에 답하는 사람도 구판 문항으로 답하고 같은 판끼리 공유한다", async () => {
+    const previous: WeddingTasteDraft = { ...first(), version: "wedding-taste-v1", negotiability: { photo: "prefer_keep" } };
+    await render(new URL(buildWeddingTasteShareUrl({ origin: window.location.origin, first: previous })).hash);
+    await click("내 취향도 고르기"); await completePhoto("다른 안도 함께 볼 수 있어요");
+    expect(host.querySelector('[data-taste-pair="negotiability:photo"]')?.textContent).toContain("가능하면 지키고 싶어요");
+    expect(host.querySelector('[data-taste-pair="negotiability:photo"]')?.textContent).toContain("다른 안도 함께 볼 수 있어요");
+    expect(host.textContent).not.toContain("다른 취향의 후보도 함께 비교하고 싶어요");
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText } });
+    const partner = [...host.querySelectorAll("label")].find(label => label.textContent?.includes("먼저 답한 사람의 선택도"))!.querySelector<HTMLInputElement>("input")!;
+    await act(async () => partner.click());
+    const consent = [...host.querySelectorAll("label")].find(label => label.textContent?.includes("두 사람의 선택을 모두"))!.querySelector<HTMLInputElement>("input")!;
+    await act(async () => consent.click()); await click("링크 복사하기");
+    const decoded = decodeWeddingTasteShareHash(new URL(writeText.mock.calls[0][0]).hash);
+    expect(decoded?.first.version).toBe("wedding-taste-v1");
+    expect(decoded?.second?.version).toBe("wedding-taste-v1");
+    expect(window.sessionStorage.length).toBe(0);
+  });
+
   it("고른 취향만 요약하고 공유·개인 상담을 선택하기 전 저장하지 않는다", async () => {
     const fetch = vi.spyOn(globalThis, "fetch");
     await render(); await click("내 취향 고르기"); await completePhoto();

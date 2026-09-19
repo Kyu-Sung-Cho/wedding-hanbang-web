@@ -11,7 +11,7 @@ import { useWeddingCodeSession } from "@/hooks/useWeddingCodeSession";
 import {
   buildWeddingTasteAmoraText, buildWeddingTasteShareUrl, compareWeddingTastes,
   decodeWeddingTasteShareHash, hasWeddingTasteAnswers, summarizeWeddingTaste,
-  type WeddingTasteDraftV1,
+  type WeddingTasteDraft,
 } from "@/lib/weddingCode/taste";
 import {
   consumeWeddingTasteLoginHandoff, createWeddingTasteLoginHandoff, getWeddingTasteChatIdentity, prepareWeddingTasteChat,
@@ -19,7 +19,7 @@ import {
 import { useInsideMobileApp } from "@/hooks/useInsideMobileApp";
 
 const card = "rounded-[6px] border border-[var(--hb-hairline)] bg-white p-5 sm:p-7";
-type Received = { first: WeddingTasteDraftV1; second: WeddingTasteDraftV1 | null };
+type Received = { first: WeddingTasteDraft; second: WeddingTasteDraft | null };
 
 export default function WeddingTasteClient() {
   const session = useWeddingCodeSession();
@@ -47,7 +47,7 @@ function TasteExperience({ session }: { session: ReturnType<typeof useWeddingCod
   const router = useRouter();
   const insideApp = useInsideMobileApp();
   const { user, profile, isInitialized, isLoading, isDemo } = useAuthStore();
-  const [own, setOwn] = useState<WeddingTasteDraftV1 | null>(null);
+  const [own, setOwn] = useState<WeddingTasteDraft | null>(null);
   const [received, setReceived] = useState<Received | null>(null);
   const [mode, setMode] = useState<"intro" | "form" | "result">("intro");
   const [linkError, setLinkError] = useState<string | null>(null);
@@ -127,7 +127,7 @@ function TasteExperience({ session }: { session: ReturnType<typeof useWeddingCod
             <p className="mt-3 text-xs leading-relaxed text-[var(--hb-text-muted)]">고른 내용은 이 화면에만 있어서 새로고침하면 사라져요. 링크로 보내거나 아모라에게 넘기기 전에, 무엇이 담기고 얼마나 보관되는지 먼저 보여 드릴게요.</p>
           </section>
         ) : mode === "form" ? (
-          <WeddingTasteForm initialDraft={own ?? undefined} onComplete={draft => {
+          <WeddingTasteForm initialDraft={own ?? undefined} version={received?.first.version ?? own?.version} onComplete={draft => {
             setOwn(draft); setMode("result"); setCopied(false); setShareApproved(false); setReviewAmora(false);
           }} />
         ) : (

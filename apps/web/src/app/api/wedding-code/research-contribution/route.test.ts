@@ -113,8 +113,10 @@ describe("POST /api/wedding-code/research-contribution", () => {
     ["성인 확인을 안 했으면", { ...VALID, adultConfirmed: false }],
     ["동의가 문자열 'true' 면", { ...VALID, consented: "true" }],
     ["예전 문항 판이면", { ...VALID, sceneVersion: "v0.6-scene" }],
-    ["아직 없는 문항 판이면", { ...VALID, sceneVersion: "v1.1-code" }],
+    ["문항은 공개됐지만 수집 허용되지 않은 v1.1 판이면", { ...VALID, sceneVersion: "v1.1-code" }],
+    ["가변 보기 v1.2 판도 수집 허용되지 않았으면", { ...VALID, sceneVersion: "v1.2-code" }],
     ["동의 문구 판이 다르면", { ...VALID, consentVersion: "wc-research-consent-v0" }],
+    ["설명 수정 전 동의 판이면", { ...VALID, consentVersion: "wc-research-consent-v3" }],
     ["답 코드 길이가 다르면", { ...VALID, answerCode: "ABCD" }],
     ["모두 건너뛴 코드면", { ...VALID, answerCode: "-".repeat(20) }],
     ["소문자 답이면", { ...VALID, answerCode: ANSWER_CODE.toLowerCase() }],
@@ -199,6 +201,18 @@ describe("POST /api/wedding-code/research-contribution", () => {
     const logged = JSON.stringify(mocks.logError.mock.calls);
     expect(logged).not.toContain(ANSWER_CODE);
     expect(logged).not.toContain(RECEIPT);
+  });
+
+  it("RPC 저장 후 응답만 끊겨도 503이므로 그 상태를 미저장 증거로 사용할 수 없다", async () => {
+    let stored = false;
+    mocks.rpc.mockImplementationOnce(async () => {
+      stored = true;
+      throw new TypeError("Failed to fetch");
+    });
+    const response = await contribute(post("/api/wedding-code/research-contribution", VALID));
+    expect(stored).toBe(true);
+    expect(response.status).toBe(503);
+    expect(mocks.logError).toHaveBeenCalledWith(expect.any(String), { name: "TypeError" });
   });
 
   it("브라우저 삭제 코드 생성기는 계약 모양(32바이트)을 만들고 매번 다르다", () => {

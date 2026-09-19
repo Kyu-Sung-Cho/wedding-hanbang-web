@@ -15,6 +15,18 @@ import {
   WEDDING_CODE_V08_QUESTIONS,
   WEDDING_CODE_V08_VERSION,
 } from "@/constants/weddingCodeV08";
+import {
+  WEDDING_CODE_V10_QUESTIONS,
+  WEDDING_CODE_V10_VERSION,
+} from "@/constants/weddingCodeV10";
+import {
+  WEDDING_CODE_V11_QUESTIONS,
+  WEDDING_CODE_V11_VERSION,
+} from "@/constants/weddingCodeV11";
+import {
+  WEDDING_CODE_V12_QUESTIONS,
+  WEDDING_CODE_V12_VERSION,
+} from "@/constants/weddingCodeV12";
 import { encodeWeddingCodeV06 } from "@/lib/weddingCode/v06/code";
 import type { WeddingCodeV06Answers } from "@/lib/weddingCode/v06/gap";
 import WeddingCodePage, { generateMetadata } from "./page";
@@ -76,6 +88,8 @@ describe("웨딩코드 진입 화면", () => {
   });
 
   it("코드가 없으면 처음부터 답하는 화면이다", async () => {
+    const page = await WeddingCodePage({ searchParams: Promise.resolve({}) });
+    expect(page.props.version).toBe(WEDDING_CODE_V12_VERSION);
     const html = await render({});
     expect(html).toContain("결혼 준비 스무 장면");
     expect(html).toContain("시작하기");
@@ -90,7 +104,8 @@ describe("웨딩코드 진입 화면", () => {
       expect(html, banned).not.toContain(banned);
     }
     expect(html).toContain("성격이나 궁합을 보는 검사는 아니에요");
-    expect(html).toContain("아직 답하기 어려운 장면은 건너뛸 수 있어요");
+    expect(html).toContain("아직 겪어 보지 않은 일도 지금 나라면 어떻게 할지");
+    expect(html).toContain("우리 상황과 맞지 않으면 건너뛰세요");
     // 금액 규모와 가족 구성이 다른 사람도 배제되지 않는다고 먼저 말한다.
     expect(html).toContain("금액과 상황은 예시예요");
     expect(html).toContain("결혼식을 안 하거나 부모님, 하객 이야기가 우리 상황과 맞지 않으면");
@@ -295,6 +310,46 @@ describe("웨딩코드 진입 화면", () => {
       expect(html, banned).not.toContain(banned);
     }
     expect(html).not.toMatch(/\d+\s*점|\d+\s*%/);
+  });
+
+  it.each([
+    { version: WEDDING_CODE_V08_VERSION, questions: WEDDING_CODE_V08_QUESTIONS },
+    { version: WEDDING_CODE_V10_VERSION, questions: WEDDING_CODE_V10_QUESTIONS },
+    { version: WEDDING_CODE_V11_VERSION, questions: WEDDING_CODE_V11_QUESTIONS },
+    { version: WEDDING_CODE_V12_VERSION, questions: WEDDING_CODE_V12_QUESTIONS },
+  ])("$version 커플 결과의 네 자리 뜻은 처음부터 펼쳐 보인다", async ({ version, questions }) => {
+    const html = await render({
+      v: version,
+      a: encodeWeddingCodeV06(Object.fromEntries(questions.map(question => [question.key, question.options[0].value])), questions),
+      b: encodeWeddingCodeV06(Object.fromEntries(questions.map(question => [question.key, question.options.at(-1)!.value])), questions),
+    });
+    const container = document.createElement("div");
+    container.innerHTML = html;
+    const legend = container.querySelector<HTMLDetailsElement>("[data-code-pair] > details");
+
+    expect(legend?.open).toBe(true);
+    expect(legend?.querySelector("summary")?.textContent).toBe("자리마다 두 사람 글자 보기");
+    const slots = legend?.querySelectorAll("[data-code-slot]");
+    expect(slots?.length).toBe(4);
+    for (const slot of slots ?? []) {
+      expect(slot.textContent).toMatch(/먼저 답한 사람 [A-Za-z]\([^)]+\) · 나중에 답한 사람 [A-Za-z]\([^)]+\)/);
+    }
+  });
+
+  it.each([
+    { version: WEDDING_CODE_V10_VERSION, questions: WEDDING_CODE_V10_QUESTIONS },
+    { version: WEDDING_CODE_V11_VERSION, questions: WEDDING_CODE_V11_QUESTIONS },
+    { version: WEDDING_CODE_V12_VERSION, questions: WEDDING_CODE_V12_QUESTIONS },
+  ])("$version의 같은 답 문자열은 그 판에서 고른 문장을 인용한다", async ({ version, questions }) => {
+    const html = await render({ v: version, a: `A${"-".repeat(19)}`, b: `D${"-".repeat(19)}` });
+    const container = document.createElement("div");
+    container.innerHTML = html;
+    const quoted = container.querySelector('[data-compared-scene="A1"]');
+    expect(quoted).not.toBeNull();
+    for (const value of ["A", "D"]) {
+      expect(quoted?.textContent).toContain(questions[0].options.find(option => option.value === value)!.label);
+    }
+    expect(html).toContain(`#v=${encodeURIComponent(version)}`);
   });
 
   /**

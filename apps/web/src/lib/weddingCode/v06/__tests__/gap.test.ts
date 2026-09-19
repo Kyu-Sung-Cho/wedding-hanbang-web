@@ -6,6 +6,7 @@ import {
   type WeddingCodeV06OptionValue,
   type WeddingCodeV06QuestionKey,
 } from "@/constants/weddingCodeV06";
+import { WEDDING_CODE_V12_AXES, WEDDING_CODE_V12_QUESTIONS } from "@/constants/weddingCodeV12";
 import {
   answeredCount,
   buildWeddingCodeV06GapMap,
@@ -46,6 +47,22 @@ const ALL_LEFT = answersFrom((key) => sideValues(key).left[0]);
 const ALL_RIGHT = answersFrom((key) => sideValues(key).right[0]);
 
 describe("차이 지도", () => {
+  it.each(["first", "second"] as const)("%s에 없는 보기가 하나라도 있으면 일부 비교·인용도 만들지 않는다", side => {
+    const valid = { A1: "A", D1: "B" } as const;
+    const invalid = { A1: "A", D1: "D" } as const;
+    const config = { questions: WEDDING_CODE_V12_QUESTIONS, axes: WEDDING_CODE_V12_AXES };
+    expect(() => buildWeddingCodeV06GapMap(side === "first" ? invalid : valid, side === "second" ? invalid : valid, config))
+      .toThrow("INVALID_WEDDING_CODE_SCENE_ANSWER");
+    expect(() => ownAnswerQuotes(invalid, 3, config.questions)).toThrow("INVALID_WEDDING_CODE_SCENE_ANSWER");
+    expect(answeredCount(invalid, config.questions)).toBe(1);
+  });
+
+  it("다른 사람이 건너뛴 질문의 없는 보기도 미응답으로 바꿔 비교하지 않는다", () => {
+    expect(() => buildWeddingCodeV06GapMap({ A1: "A", B1: "D" }, { A1: "B" }, {
+      questions: WEDDING_CODE_V12_QUESTIONS, axes: WEDDING_CODE_V12_AXES,
+    })).toThrow("INVALID_WEDDING_CODE_SCENE_ANSWER");
+  });
+
   it("완전히 반대로 답하면 16문항 전부 갈린 지점이 된다", () => {
     const map = buildWeddingCodeV06GapMap(ALL_LEFT, ALL_RIGHT);
     expect(map.splits).toHaveLength(16);

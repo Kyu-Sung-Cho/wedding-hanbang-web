@@ -23,7 +23,7 @@ describe("직접 취향 질문", () => {
     click("자연스러운 순간"); click("다음");
     expect(host.textContent).toContain("꼭 피하고 싶은 게 있나요?");
     click("특별히 피하고 싶은 것은 없어요"); click("다음");
-    click("다른 안도 함께 볼 수 있어요"); click("내 선택 보기");
+    click("다른 취향의 후보도 함께 비교하고 싶어요"); click("내 선택 보기");
     expect(done).toHaveBeenCalledTimes(1);
     expect(done.mock.calls[0][0]).toMatchObject({ details: { photo: { status: "answered", values: ["candid"] } }, negotiability: { photo: "open_to_options" } });
     expect(done.mock.calls[0][0].details).not.toHaveProperty("meal");

@@ -1,6 +1,15 @@
 import { describe, expect, it } from "vitest";
 
 import { WEDDING_CODE_V06_AXES } from "@/constants/weddingCodeV06";
+import {
+  WEDDING_CODE_V06_SCENE_CONFIG,
+  WEDDING_CODE_V08_SCENE_CONFIG,
+  WEDDING_CODE_V09_SCENE_CONFIG,
+  WEDDING_CODE_V10_SCENE_CONFIG,
+  WEDDING_CODE_V11_SCENE_CONFIG,
+  WEDDING_CODE_V12_SCENE_CONFIG,
+} from "@/lib/weddingCode/scene/config";
+import { buildWeddingCodeResultProfile } from "@/lib/weddingCode/scene/resultProfile";
 import type {
   WeddingCodeSelfAxisReading,
   WeddingCodeSelfProfile,
@@ -49,6 +58,65 @@ function profileOf(
 }
 
 describe("웨딩코드 네 글자", () => {
+  it.each([
+    { answer: "A", meaning: "마지막 선택을 둘이 하는 답을 더 많이 골랐어요", letter: "U" },
+    { answer: "B", meaning: "부모님과 함께 정하거나 선택을 맡기는 답을 더 많이 골랐어요", letter: "F" },
+  ] as const)("v1.2 C1-$answer의 글자 설명은 그 판의 최종 결정 범위를 따른다", ({ answer, meaning, letter }) => {
+    const profile = buildWeddingCodeResultProfile({ C1: answer }, WEDDING_CODE_V12_SCENE_CONFIG);
+    const code = buildWeddingCodeLetters(profile);
+    const slot = code.slots.find(item => item.axis === "coordinationScope")!;
+    expect(slot.meaning).toBe(meaning);
+    expect(slot.left.short).toBe("둘이 정하기");
+    expect(slot.right.short).toBe("부모님도 참여");
+    expect(slot.countLine).toBe(`답한 1장면은 ${letter}(${answer === "A" ? "둘이 정하기" : "부모님도 참여"}) 쪽이었어요.`);
+    expect(slot.letter).toBe(letter);
+    expect(slot.answered).toBe(1);
+    expect(code.code).toBe(`··${letter}·`);
+    expect(code.complete).toBe(false);
+  });
+
+  it("v1.2의 C축이 동점이나 미응답이어도 양쪽 이름과 셈이 같은 뜻을 쓴다", () => {
+    const tied = buildWeddingCodeLetters(buildWeddingCodeResultProfile({ C1: "A", C2: "B" }, WEDDING_CODE_V12_SCENE_CONFIG)).slots[2];
+    expect(tied.letter).toBe("·");
+    expect(tied.countLine).toBe("답한 2장면이 U(둘이 정하기) 쪽과 F(부모님도 참여) 쪽으로 반반 나뉘었어요.");
+    const empty = buildWeddingCodeLetters(buildWeddingCodeResultProfile({}, WEDDING_CODE_V12_SCENE_CONFIG)).slots[2];
+    expect(empty.left.short).toBe("둘이 정하기");
+    expect(empty.right.short).toBe("부모님도 참여");
+    expect(empty.countLine).toBe("답한 장면이 없어요.");
+  });
+
+  it("v1.2 B는 도맡지 않는다는 추측 대신 선택한 함께하기와 분담을 설명한다", () => {
+    const together = buildWeddingCodeLetters(buildWeddingCodeResultProfile({ B1: "A", B2: "A" }, WEDDING_CODE_V12_SCENE_CONFIG)).slots[1];
+    expect(together.meaning).toBe("함께 고르거나 상담을 같이 듣는 답을 더 많이 골랐어요");
+    const split = buildWeddingCodeLetters(buildWeddingCodeResultProfile({ B2: "B" }, WEDDING_CODE_V12_SCENE_CONFIG)).slots[1];
+    expect(split.meaning).toBe("각자 일을 나누거나, 한 사람이 고르고 알아보는 답을 더 많이 골랐어요");
+    expect(split.letter).toBe("O");
+  });
+
+  it.each([
+    WEDDING_CODE_V06_SCENE_CONFIG, WEDDING_CODE_V08_SCENE_CONFIG,
+    WEDDING_CODE_V09_SCENE_CONFIG, WEDDING_CODE_V10_SCENE_CONFIG,
+    WEDDING_CODE_V11_SCENE_CONFIG,
+  ])("$version은 양쪽 모두 기존 글자 설명을 유지한다", config => {
+    const question = config.questions.find(item => item.key === "C1")!;
+    const axis = config.axes.find(item => item.key === question.axis)!;
+    for (const side of ["left", "right"] as const) {
+      const constructs = new Set<string>(axis[side].constructs);
+      const option = question.options.find(item => item.weights.some(weight => constructs.has(weight.construct)))!;
+      const profile = buildWeddingCodeResultProfile({ C1: option.value }, config);
+      expect(profile.axes.find(item => item.axis === axis.key)?.letterMeaning).toBeUndefined();
+      expect(buildWeddingCodeLetters(profile).slots.find(item => item.axis === axis.key)?.meaning)
+        .toBe(WEDDING_CODE_LETTERS.coordinationScope[side].meaning);
+    }
+  });
+
+  it.each([[0, 0], [1, 1]] as const)("고른 글자가 없으면 별도 설명이 있어도 빈 글자 안내를 유지한다 (%i:%i)", (left, right) => {
+    const base = profileOf([[1, 0], [1, 0], [left, right], [1, 0]]);
+    const withMeaning = { ...base, axes: base.axes.map(item => item.axis === "coordinationScope"
+      ? { ...item, letterMeaning: "마지막 선택을 둘이 하는 답을 더 많이 골랐어요" } : item) };
+    expect(buildWeddingCodeLetters(withMeaning).slots[2]).toEqual(buildWeddingCodeLetters(base).slots[2]);
+  });
+
   it("네 축에 한 답씩만 남겨도 전체 응답이 완료된 것으로 표시하지 않는다", () => {
     const letters = buildWeddingCodeLetters(profileOf([[1, 0], [1, 0], [1, 0], [1, 0]]));
     expect(letters.code).toBe("VTUH");

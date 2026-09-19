@@ -8,6 +8,7 @@ import {
   type WeddingCodeV06Question,
   type WeddingCodeQuestionKey,
 } from "@/constants/weddingCodeV06";
+import { assertWeddingCodeQuestionAnswers, isWeddingCodeQuestionOption } from "./code";
 
 /**
  * 웨딩코드 v0.6 — **차이 지도**.
@@ -121,6 +122,9 @@ export function buildWeddingCodeV06GapMap(
 ): WeddingCodeV06GapMap {
   const questions = options.questions ?? WEDDING_CODE_V06_QUESTIONS;
   const axes = options.axes ?? WEDDING_CODE_V06_AXES;
+  // 없는 보기를 미응답으로 바꿔 부분 결과를 내지 않는다. 양쪽 응답 전체를 먼저 확인한다.
+  assertWeddingCodeQuestionAnswers(first, questions);
+  assertWeddingCodeQuestionAnswers(second, questions);
   const answered = questions.filter(
     (question) => first[question.key] && second[question.key],
   );
@@ -253,6 +257,7 @@ export function ownAnswerQuotes(
   limit = 3,
   questions: readonly WeddingCodeV06Question[] = WEDDING_CODE_V06_QUESTIONS,
 ): readonly { scene: string; label: string }[] {
+  assertWeddingCodeQuestionAnswers(answers, questions);
   const quotes: { scene: string; label: string }[] = [];
   const usedAxes = new Set<WeddingCodeV06AxisKey>();
 
@@ -276,7 +281,7 @@ export function answeredCount(
   answers: WeddingCodeV06Answers,
   questions: readonly WeddingCodeV06Question[] = WEDDING_CODE_V06_QUESTIONS,
 ): number {
-  return questions.filter((question) => answers[question.key]).length;
+  return questions.filter((question) => isWeddingCodeQuestionOption(question, answers[question.key])).length;
 }
 
 export { weddingCodeV06Question };

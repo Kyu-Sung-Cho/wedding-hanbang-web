@@ -54,8 +54,12 @@ if (WEDDING_CODE_V09_QUESTIONS.length !== WEDDING_CODE_RESEARCH_SCENE_COUNT
  * v3 (2026-09-17, 같은 날 두 번째): 카드 제목·안내·목록이 아직 약관처럼 읽혀서 말로 풀었다
  * (예: 「지우기:」 → 「지우고 싶을 때:」, 「이름·연락처·계정」 → 「이름, 연락처, 계정」).
  * 받는 항목·목적·기간·삭제 방법은 그대로이고, 동의 문장과 만 19세 문장은 손대지 않았다.
+ *
+ * v4 (2026-09-19): 피드백의 「무슨 의미인지 모르겠음」을 반영해 제목을 「문항 개선에 내 답
+ * 보내기」로 바꾸고, 웨딩한방이 질문을 고치는 용도와 결과·공유 이용에 영향이 없음을 앞에
+ * 알린다. 받는 항목·목적·기간·삭제 방법, 동의 문장과 만 19세 확인은 그대로다.
  */
-export const WEDDING_CODE_RESEARCH_CONSENT_VERSION = "wc-research-consent-v3";
+export const WEDDING_CODE_RESEARCH_CONSENT_VERSION = "wc-research-consent-v4";
 export const WEDDING_CODE_RESEARCH_RETENTION_DAYS = 60;
 /** 지운 삭제 코드의 해시를 남겨 같은 코드로 다시 저장되지 않게 하는 기간. */
 export const WEDDING_CODE_RESEARCH_TOMBSTONE_DAYS = 30;

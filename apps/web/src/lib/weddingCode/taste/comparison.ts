@@ -1,5 +1,5 @@
 import { summarizeWeddingTaste } from "./summary";
-import type { WeddingTasteDraftV1 } from "./types";
+import type { WeddingTasteDraft } from "./types";
 
 export interface WeddingTasteComparisonRow {
   key: string;
@@ -8,7 +8,8 @@ export interface WeddingTasteComparisonRow {
   second: string;
   status: "same_selection" | "different_selection" | "needs_confirmation";
 }
-export function compareWeddingTastes(first: WeddingTasteDraftV1, second: WeddingTasteDraftV1): WeddingTasteComparisonRow[] {
+export function compareWeddingTastes(first: WeddingTasteDraft, second: WeddingTasteDraft): WeddingTasteComparisonRow[] {
+  if (first.version !== second.version) throw new Error("같은 질문에 답한 취향만 비교할 수 있어요.");
   const a = summarizeWeddingTaste(first);
   const b = summarizeWeddingTaste(second);
   return a.map(row => {

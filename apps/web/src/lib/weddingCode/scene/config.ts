@@ -25,6 +25,18 @@ import {
   WEDDING_CODE_V10_QUESTIONS,
   WEDDING_CODE_V10_VERSION,
 } from "@/constants/weddingCodeV10";
+import {
+  WEDDING_CODE_V11_AXES,
+  WEDDING_CODE_V11_NEXT_STEPS,
+  WEDDING_CODE_V11_QUESTIONS,
+  WEDDING_CODE_V11_VERSION,
+} from "@/constants/weddingCodeV11";
+import {
+  WEDDING_CODE_V12_AXES,
+  WEDDING_CODE_V12_NEXT_STEPS,
+  WEDDING_CODE_V12_QUESTIONS,
+  WEDDING_CODE_V12_VERSION,
+} from "@/constants/weddingCodeV12";
 
 const WEDDING_CODE_V06_NEXT_STEPS = {
   A1: "각자 먼저 확인할 항목을 하나씩 말하고, 총액·받는 사진 수·보정해 주는 사진 수·앨범에 들어가는 사진 수·취소 조건을 견적서에서 확인해 보세요.",
@@ -67,7 +79,9 @@ export type WeddingCodeSceneVersion =
   | typeof WEDDING_CODE_V06_VERSION
   | typeof WEDDING_CODE_V08_VERSION
   | typeof WEDDING_CODE_V09_VERSION
-  | typeof WEDDING_CODE_V10_VERSION;
+  | typeof WEDDING_CODE_V10_VERSION
+  | typeof WEDDING_CODE_V11_VERSION
+  | typeof WEDDING_CODE_V12_VERSION;
 
 export type WeddingCodeSceneConfig = Readonly<{
   version: WeddingCodeSceneVersion;
@@ -104,6 +118,20 @@ export const WEDDING_CODE_V10_SCENE_CONFIG: WeddingCodeSceneConfig = {
   nextSteps: WEDDING_CODE_V10_NEXT_STEPS,
 };
 
+export const WEDDING_CODE_V11_SCENE_CONFIG: WeddingCodeSceneConfig = {
+  version: WEDDING_CODE_V11_VERSION,
+  questions: WEDDING_CODE_V11_QUESTIONS,
+  axes: WEDDING_CODE_V11_AXES,
+  nextSteps: WEDDING_CODE_V11_NEXT_STEPS,
+};
+
+export const WEDDING_CODE_V12_SCENE_CONFIG: WeddingCodeSceneConfig = {
+  version: WEDDING_CODE_V12_VERSION,
+  questions: WEDDING_CODE_V12_QUESTIONS,
+  axes: WEDDING_CODE_V12_AXES,
+  nextSteps: WEDDING_CODE_V12_NEXT_STEPS,
+};
+
 /**
  * 새로 시작하는 사람이 푸는 판. 옛 판은 **그 판으로 만든 링크를 열 때만** 쓴다.
  *
@@ -116,14 +144,23 @@ export const WEDDING_CODE_V10_SCENE_CONFIG: WeddingCodeSceneConfig = {
  * v0.9 → v1.0 (2026-09-18): A2 의 B(「한 번뿐인 날인데 여기서 하자」)와 D(「여기 봐」 하고 홀
  * 사진)가 둘 다 「이 홀로 하자」로 읽혀 신호가 갈리지 않았다. 두 문장만 각자 자기 주제로
  * 다시 썼지만 뜻이 바뀌었으므로 같은 이유로 판을 올렸다. v0.9 는 그 판 링크 전용이다.
+ *
+ * v1.0 → v1.1 (2026-09-19): 스무 장면의 선택을 다시 써서 준비 방식의 차이를 묻는다.
+ * 이전 답의 뜻을 바꾸지 않도록 v1.0은 그대로 보존한다. 문항 공개와 연구 기여 허용은
+ * 별도 계약이므로, 새 판 등록만으로 수집 허용 목록을 늘리지 않는다.
+ *
+ * v1.1 → v1.2: 장면에서 실제로 다른 보기만 2~4개 남긴다. 같은 기호도 뜻과 유효한
+ * 문항이 달라졌으므로 v1.1 문항·공유 해석은 그대로 보존한다.
  */
-export const CURRENT_WEDDING_CODE_SCENE_CONFIG = WEDDING_CODE_V10_SCENE_CONFIG;
+export const CURRENT_WEDDING_CODE_SCENE_CONFIG = WEDDING_CODE_V12_SCENE_CONFIG;
 
 const SCENE_CONFIGS: Readonly<Record<WeddingCodeSceneVersion, WeddingCodeSceneConfig>> = {
   [WEDDING_CODE_V06_VERSION]: WEDDING_CODE_V06_SCENE_CONFIG,
   [WEDDING_CODE_V08_VERSION]: WEDDING_CODE_V08_SCENE_CONFIG,
   [WEDDING_CODE_V09_VERSION]: WEDDING_CODE_V09_SCENE_CONFIG,
   [WEDDING_CODE_V10_VERSION]: WEDDING_CODE_V10_SCENE_CONFIG,
+  [WEDDING_CODE_V11_VERSION]: WEDDING_CODE_V11_SCENE_CONFIG,
+  [WEDDING_CODE_V12_VERSION]: WEDDING_CODE_V12_SCENE_CONFIG,
 };
 
 /**

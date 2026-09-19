@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { createEmptyWeddingTasteDraft, type WeddingTasteDraftV1 } from "./taste";
+import { createEmptyWeddingTasteDraft, type WeddingTasteDraft } from "./taste";
 import { buildOAuthCallbackUrl, getAuthRedirectPath, getPostLoginRedirectPath } from "@/lib/auth/safeRedirect";
 import { resolveNeutralPreparationSpaceRedirect } from "@/lib/onboarding/neutralPreparationSpace";
 import {
@@ -9,7 +9,7 @@ import {
 } from "./tasteHandoff";
 const auth = vi.hoisted(() => ({ user: { id: "owner" } as { id: string } | null, profile: { id: "owner", couple_id: "couple", role: "bride" }, couple: { id: "couple", bride_id: "owner", groom_id: "partner" }, isDemo: false, isInitialized: true, isLoading: false }));
 vi.mock("@/stores/authStore", () => ({ useAuthStore: { getState: () => auth } }));
-const draft = (): WeddingTasteDraftV1 => ({ ...createEmptyWeddingTasteDraft(), mood: { status: "answered", values: ["natural"] } });
+const draft = (): WeddingTasteDraft => ({ ...createEmptyWeddingTasteDraft(), mood: { status: "answered", values: ["natural"] } });
 const nonceFrom = (href: string, param: string) => new URL(href, "https://hanbang.ai").searchParams.get(param)!;
 function changeEnvelope(key: string, change: Record<string, unknown>) {
   sessionStorage.setItem(key, JSON.stringify({ ...JSON.parse(sessionStorage.getItem(key)!), ...change }));
@@ -76,7 +76,8 @@ describe("wedding taste tab-only handoffs", () => {
   });
   it("rejects raw or unknown values and denied storage without network fallback", () => {
     expect(prepareWeddingTasteChat(createEmptyWeddingTasteDraft())).toBeNull();
-    expect(createWeddingTasteLoginHandoff({ ...draft(), note: "개인 원문" } as WeddingTasteDraftV1)).toBeNull();
+    const withPrivateNote = { ...draft(), note: "개인 원문" };
+    expect(createWeddingTasteLoginHandoff(withPrivateNote)).toBeNull();
     vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => { throw new Error("denied"); });
     expect(prepareWeddingTasteChat(draft())).toBeNull();
     expect(createWeddingTasteLoginHandoff(draft())).toBeNull();

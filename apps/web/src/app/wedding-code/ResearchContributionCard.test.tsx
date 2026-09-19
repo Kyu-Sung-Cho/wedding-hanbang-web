@@ -4,7 +4,12 @@ import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { CURRENT_WEDDING_CODE_SCENE_CONFIG } from "@/lib/weddingCode/scene/config";
+import {
+  CURRENT_WEDDING_CODE_SCENE_CONFIG,
+  WEDDING_CODE_V10_SCENE_CONFIG,
+  WEDDING_CODE_V11_SCENE_CONFIG,
+  WEDDING_CODE_V12_SCENE_CONFIG,
+} from "@/lib/weddingCode/scene/config";
 import {
   WEDDING_CODE_RESEARCH_CONSENT_VERSION,
   WEDDING_CODE_RESEARCH_RECEIPT_PATTERN,
@@ -12,6 +17,7 @@ import {
 } from "@/lib/weddingCode/contribution/contract";
 import { WEDDING_CODE_V06_VERSION } from "@/constants/weddingCodeV06";
 import WeddingCodeV06Client from "./WeddingCodeV06Client";
+import ResearchContributionCard, { ResearchContributionDeleteForm } from "./ResearchContributionCard";
 
 const analytics = vi.hoisted(() => ({ capture: vi.fn() }));
 vi.mock("@/lib/analytics", () => ({ captureWeddingCodeEvent: analytics.capture }));
@@ -34,14 +40,16 @@ describe("WeddingCode research contribution card", () => {
   let container: HTMLDivElement;
   let root: Root;
   let fetchMock: ReturnType<typeof vi.fn>;
-  let contributeOutcome: "ok" | "network" | "forbidden" | "consent" = "ok";
+  let contributeOutcome: "ok" | "network" | "forbidden" | "consent" | "rate" | "unavailable" | "hang" = "ok";
   let deleteOutcome: "ok" | "fail" | "hang" = "ok";
   let releaseDelete: (() => void) | null = null;
+  let releaseContribution: (() => void) | null = null;
 
   beforeEach(() => {
     contributeOutcome = "ok";
     deleteOutcome = "ok";
     releaseDelete = null;
+    releaseContribution = null;
     analytics.capture.mockClear();
     fetchMock = vi.fn(async (input: RequestInfo | URL) => {
       const url = String(input);
@@ -52,6 +60,15 @@ describe("WeddingCode research contribution card", () => {
         }
         if (contributeOutcome === "consent") {
           return new Response(JSON.stringify({ error: "동의와 답을 확인한 뒤 다시 보내 주세요." }), { status: 400 });
+        }
+        if (contributeOutcome === "rate" || contributeOutcome === "unavailable") {
+          return new Response(JSON.stringify({ error: "잠시 뒤 다시 보내 주세요." }), {
+            status: contributeOutcome === "rate" ? 429 : 503,
+          });
+        }
+        if (contributeOutcome === "hang") {
+          await new Promise<void>((resolve) => { releaseContribution = resolve; });
+          return new Response(JSON.stringify({ error: "잠시 뒤 다시 보내 주세요." }), { status: 503 });
         }
         return new Response(JSON.stringify({ ok: true }), { status: 201 });
       }
@@ -82,7 +99,8 @@ describe("WeddingCode research contribution card", () => {
     vi.restoreAllMocks();
   });
 
-  const config = CURRENT_WEDDING_CODE_SCENE_CONFIG;
+  // 수집·동의·삭제 회귀는 실제로 수집을 허용한 판에서 계속 검증한다.
+  const config = WEDDING_CODE_V10_SCENE_CONFIG;
   const clickText = async (text: string) => {
     const button = [...container.querySelectorAll("button")].find(candidate => candidate.textContent?.includes(text));
     expect(button, text).toBeDefined();
@@ -109,6 +127,145 @@ describe("WeddingCode research contribution card", () => {
     .filter(([url]) => String(url).endsWith(path))
     .map(([, init]) => JSON.parse(String((init as RequestInit).body)));
 
+  const typeReceipt = async (input: HTMLInputElement, value: string) => {
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(input, value);
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+  };
+
+  it("삭제 요청 중에는 입력과 중복 요청을 잠그고 다음 코드는 따로 삭제한다", async () => {
+    await act(async () => root.render(<ResearchContributionDeleteForm />));
+    const input = container.querySelector("input")!;
+    const submit = container.querySelector("button")!;
+    const first = `wc_del_${"A".repeat(43)}`;
+    const second = `wc_del_${"B".repeat(43)}`;
+    await typeReceipt(input, first);
+    deleteOutcome = "hang";
+    await act(async () => { submit.click(); submit.click(); });
+
+    expect(bodiesTo(DELETE)).toEqual([{ receipt: first }]);
+    expect(input.disabled).toBe(true);
+    expect(submit.disabled).toBe(true);
+    // 실제 사용자는 비활성 입력을 바꿀 수 없다. 이전 구현에서는 B를 입력할 수 있었다.
+    if (!input.disabled) await typeReceipt(input, second);
+    expect(input.value).toBe(first);
+    await act(async () => { (releaseDelete as (() => void) | null)?.(); });
+    expect(input.disabled).toBe(false);
+    expect(input.value).toBe("");
+
+    await typeReceipt(input, second);
+    expect(container.textContent).not.toContain("지우기를 마쳤어요");
+    expect(bodiesTo(DELETE)).toHaveLength(1);
+    deleteOutcome = "ok";
+    await act(async () => submit.click());
+    expect(bodiesTo(DELETE)).toEqual([{ receipt: first }, { receipt: second }]);
+    expect(container.textContent).toContain("지우기를 마쳤어요");
+  });
+
+  it("별도 삭제폼의 실패는 입력을 보존하고 잠금을 풀어 같은 코드로 재시도한다", async () => {
+    await act(async () => root.render(<ResearchContributionDeleteForm />));
+    const input = container.querySelector("input")!;
+    const receipt = `wc_del_${"C".repeat(43)}`;
+    await typeReceipt(input, receipt);
+    deleteOutcome = "fail";
+    await clickText("이 코드로 지우기");
+    expect(input.value).toBe(receipt);
+    expect(input.disabled).toBe(false);
+    expect(container.textContent).toContain("지금은 지우지 못했어요");
+    deleteOutcome = "ok";
+    await clickText("이 코드로 지우기");
+    expect(bodiesTo(DELETE)).toEqual([{ receipt }, { receipt }]);
+    expect(container.textContent).toContain("지우기를 마쳤어요");
+  });
+
+  it.each([500, 502, 503, 504])("첫 요청이 %s여도 저장 여부를 단정하지 않고 같은 코드로 삭제·재시도할 수 있다", async (status) => {
+    await act(async () => root.render(<ResearchContributionCard answerCode={"B".repeat(20)} sceneVersion={config.version} />));
+    await checkBoth();
+    fetchMock.mockResolvedValueOnce(new Response(JSON.stringify({ error: "지금은 답을 보태지 못했어요. 잠시 뒤 다시 시도해 주세요." }), { status }));
+    await clickText("동의하고 내 답 보내기");
+    const [first] = bodiesTo(CONTRIBUTE);
+    const uncertain = container.querySelector('[data-research-contribution="uncertain"]');
+    expect(uncertain).not.toBeNull();
+    expect(uncertain?.querySelector<HTMLInputElement>('input[aria-label="삭제 코드"]')?.value).toBe(first.receipt);
+    expect(uncertain?.textContent).not.toMatch(/보태지 못했|보내지 못했|저장됐어요/);
+    expect(uncertain?.textContent).toContain("지금 바로 지우기");
+    await clickText("다시 보내기");
+    expect(bodiesTo(CONTRIBUTE)[1].receipt).toBe(first.receipt);
+    expect(container.querySelector('[data-research-contribution="sent"]')).not.toBeNull();
+  });
+
+  it.each([400, 403, 429])("첫 요청의 명확한 %s 거절은 저장 불확실 상태로 바꾸지 않는다", async (status) => {
+    await act(async () => root.render(<ResearchContributionCard answerCode={"B".repeat(20)} sceneVersion={config.version} />));
+    await checkBoth();
+    fetchMock.mockResolvedValueOnce(new Response(JSON.stringify({ error: "동의와 답을 확인한 뒤 다시 보내 주세요." }), { status }));
+    await clickText("동의하고 내 답 보내기");
+    expect(container.querySelector('[data-research-contribution="form"] [role="alert"]')).not.toBeNull();
+    expect(container.querySelector('[data-research-contribution="uncertain"]')).toBeNull();
+  });
+
+  it.each(["{}", "null", "[]", "false", '{"ok":false}', '{"ok":'])("성공 상태코드여도 성공 본문이 %s면 저장 완료로 단정하지 않는다", async (body) => {
+    await act(async () => root.render(<ResearchContributionCard answerCode={"B".repeat(20)} sceneVersion={config.version} />));
+    await checkBoth();
+    fetchMock.mockResolvedValueOnce(new Response(body, { status: 201 }));
+    await clickText("동의하고 내 답 보내기");
+    expect(container.querySelector('[data-research-contribution="sent"]')).toBeNull();
+    const uncertain = container.querySelector('[data-research-contribution="uncertain"]');
+    expect(uncertain).not.toBeNull();
+    const [first] = bodiesTo(CONTRIBUTE);
+    expect(uncertain?.querySelector<HTMLInputElement>('input[aria-label="삭제 코드"]')?.value).toBe(first.receipt);
+    await clickText("다시 보내기");
+    expect(bodiesTo(CONTRIBUTE)[1].receipt).toBe(first.receipt);
+    expect(container.querySelector('[data-research-contribution="sent"]')).not.toBeNull();
+  });
+
+  it("삭제 응답 본문이 잘려도 삭제 완료라고 하지 않고 코드와 재시도를 보존한다", async () => {
+    await act(async () => root.render(<ResearchContributionDeleteForm />));
+    const input = container.querySelector("input")!;
+    const receipt = `wc_del_${"D".repeat(43)}`;
+    await typeReceipt(input, receipt);
+    fetchMock.mockResolvedValueOnce(new Response('{"ok":', { status: 200 }));
+    await clickText("이 코드로 지우기");
+    expect(input.value).toBe(receipt);
+    expect(container.textContent).not.toContain("지우기를 마쳤어요");
+    expect(input.disabled).toBe(false);
+    await clickText("이 코드로 지우기");
+    expect(bodiesTo(DELETE)).toEqual([{ receipt }, { receipt }]);
+    expect(container.textContent).toContain("지우기를 마쳤어요");
+  });
+
+  it("카드의 삭제도 성공 본문이 없으면 코드와 삭제 재시도를 유지한다", async () => {
+    await act(async () => root.render(<ResearchContributionCard answerCode={"B".repeat(20)} sceneVersion={config.version} />));
+    await checkBoth();
+    await clickText("동의하고 내 답 보내기");
+    const [first] = bodiesTo(CONTRIBUTE);
+    fetchMock.mockResolvedValueOnce(new Response('{"ok":false}', { status: 200 }));
+    await clickText("지금 바로 지우기");
+    expect(container.querySelector('[data-research-contribution="deleted"]')).toBeNull();
+    expect(container.querySelector<HTMLInputElement>('input[aria-label="삭제 코드"]')?.value).toBe(first.receipt);
+    await clickText("지금 바로 지우기");
+    expect(bodiesTo(DELETE)).toEqual([{ receipt: first.receipt }, { receipt: first.receipt }]);
+    expect(container.querySelector('[data-research-contribution="deleted"]')).not.toBeNull();
+  });
+
+  it("카드 전송과 삭제는 재렌더링 전 연속 클릭에도 한 요청만 보낸다", async () => {
+    await act(async () => root.render(<ResearchContributionCard answerCode={"B".repeat(20)} sceneVersion={config.version} />));
+    await checkBoth();
+    contributeOutcome = "hang";
+    const submit = container.querySelector("button")!;
+    await act(async () => { submit.click(); submit.click(); });
+    expect(bodiesTo(CONTRIBUTE)).toHaveLength(1);
+    await act(async () => { (releaseContribution as (() => void) | null)?.(); });
+    expect(container.querySelector('[data-research-contribution="uncertain"]')).not.toBeNull();
+
+    deleteOutcome = "hang";
+    const remove = [...container.querySelectorAll("button")].find(button => button.textContent?.includes("지금 바로 지우기"))!;
+    await act(async () => { remove.click(); remove.click(); });
+    expect(bodiesTo(DELETE)).toHaveLength(1);
+    await act(async () => { (releaseDelete as (() => void) | null)?.(); });
+    expect(container.querySelector('[data-research-contribution="deleted"]')).not.toBeNull();
+  });
+
   it("닫혀 있으면 카드도, 삭제 폼도, 안내 문구도 없다", async () => {
     await act(async () => root.render(<WeddingCodeV06Client shareOrigin="https://hanbang.ai" version={config.version} partnerAnswers={null} partnerCode={null} bothCodes={null} />));
     expect(container.querySelector("[data-research-delete]")).toBeNull();
@@ -129,6 +286,31 @@ describe("WeddingCode research contribution card", () => {
     expect(container.querySelector("[data-research-contribution]")).toBeNull();
   });
 
+  it.each([WEDDING_CODE_V11_SCENE_CONFIG, WEDDING_CODE_V12_SCENE_CONFIG])("$version은 수집 스위치가 켜져 있어도 보태기를 숨기고 이전 답의 삭제는 유지한다", async current => {
+    await act(async () => root.render(<WeddingCodeV06Client shareOrigin="https://hanbang.ai" version={current.version} partnerAnswers={null} partnerCode={null} bothCodes={null} researchContributionOpen researchStorageActive />));
+    expect(container.textContent).toContain("지금 이 질문으로는 답 보태기를 받지 않아요");
+    expect(container.textContent).not.toContain("에 직접 동의한 경우에만 저장해요");
+    const deletion = container.querySelector("[data-research-delete]")!;
+    expect(deletion).not.toBeNull();
+    const receipt = `wc_del_${"A".repeat(43)}`;
+    await typeReceipt(deletion.querySelector<HTMLInputElement>("input")!, receipt);
+    await act(async () => deletion.querySelector<HTMLButtonElement>("button")!.click());
+    expect(bodiesTo(DELETE)).toEqual([{ receipt }]);
+
+    await answerAll();
+    expect(container.querySelector('[data-result="solo"]')).not.toBeNull();
+    expect(container.querySelector("[data-research-contribution]")).toBeNull();
+    expect(bodiesTo(CONTRIBUTE)).toEqual([]);
+    expect(container.querySelector("[data-share-url]")?.getAttribute("data-share-url"))
+      .toContain(`#v=${current.version}&a=`);
+  });
+
+  it.each([WEDDING_CODE_V11_SCENE_CONFIG, CURRENT_WEDDING_CODE_SCENE_CONFIG])("기여 카드를 직접 호출해도 $version 답은 전송 UI를 만들지 않는다", async current => {
+    await act(async () => root.render(<ResearchContributionCard answerCode={"A".repeat(20)} sceneVersion={current.version} />));
+    expect(container.querySelector("[data-research-contribution]")).toBeNull();
+    expect(bodiesTo(CONTRIBUTE)).toEqual([]);
+  });
+
   it("두 사람 링크로 바로 열린 비교 화면에는 보태기 카드를 띄우지 않는다", async () => {
     const answers = Object.fromEntries(config.questions.map(question => [question.key, "A" as const]));
     await act(async () => root.render(<WeddingCodeV06Client shareOrigin="https://hanbang.ai" version={config.version} partnerAnswers={null} partnerCode={"A".repeat(config.questions.length)} bothCodes={{ first: answers, second: answers }} researchContributionOpen researchStorageActive />));
@@ -142,7 +324,7 @@ describe("WeddingCode research contribution card", () => {
     await act(async () => root.render(<WeddingCodeV06Client shareOrigin="https://hanbang.ai" version={config.version} partnerAnswers={partnerAnswers} partnerCode={partnerCode} bothCodes={null} researchContributionOpen researchStorageActive />));
     await answerAll("나도 답해보기", "C");
     await checkBoth();
-    await clickText("내 답 보태기");
+    await clickText("동의하고 내 답 보내기");
 
     const [sent] = bodiesTo(CONTRIBUTE);
     expect(sent.answerCode).toBe(config.questions.map((_, position) => (position === 2 ? "-" : "C")).join(""));
@@ -159,16 +341,21 @@ describe("WeddingCode research contribution card", () => {
 
     const card = container.querySelector('[data-research-contribution="form"]')!;
     expect(card).not.toBeNull();
+    expect(card.querySelector("h2")?.textContent).toBe("문항 개선에 내 답 보내기");
+    expect(card.textContent).toContain("선택 참여");
+    expect(card.textContent).toContain("웨딩한방이 질문과 선택지를 더 이해하기 쉽게 고칠 수 있도록");
+    expect(card.textContent).toContain("보내지 않아도 결과를 보고 공유할 수 있어요");
+    expect(card.textContent).toContain("보내더라도 내 결과는 바뀌지 않아요");
     expect(card.textContent).toContain("이름, 연락처, 계정, IP 주소, 공유 링크, 상대의 답");
     expect(card.textContent).toContain("보낸 날짜");
     expect(card.textContent).toContain("60일이 지나면 자동으로 지워요");
-    expect(card.textContent).toContain("보태지 않아도 웨딩코드를 쓰는 데 아무 차이가 없어요");
+    expect(card.textContent).toContain("보내지 않아도 웨딩코드를 쓰는 데 아무 차이가 없어요");
     expect(card.textContent).not.toContain("익명");
 
     const boxes = [...card.querySelectorAll<HTMLInputElement>('input[type="checkbox"]')];
     expect(boxes).toHaveLength(2);
     expect(boxes.every(box => !box.checked)).toBe(true);
-    const submit = [...card.querySelectorAll("button")].find(button => button.textContent?.includes("내 답 보태기"))!;
+    const submit = [...card.querySelectorAll("button")].find(button => button.textContent?.includes("동의하고 내 답 보내기"))!;
     expect(submit.disabled).toBe(true);
     await act(async () => boxes[0].click());
     expect(submit.disabled).toBe(true);
@@ -206,7 +393,7 @@ describe("WeddingCode research contribution card", () => {
     await answerAll();
     await checkBoth();
     contributeOutcome = "network";
-    await clickText("내 답 보태기");
+    await clickText("동의하고 내 답 보내기");
 
     const uncertain = container.querySelector('[data-research-contribution="uncertain"]')!;
     expect(uncertain).not.toBeNull();
@@ -223,11 +410,61 @@ describe("WeddingCode research contribution card", () => {
     expect(container.querySelector('[data-research-contribution="sent"]')).not.toBeNull();
   });
 
+  it.each(["rate", "unavailable"] as const)("응답이 끊긴 뒤 재전송이 %s로 거절돼도 이전 삭제 코드로 지울 수 있다", async (outcome) => {
+    await act(async () => root.render(<WeddingCodeV06Client shareOrigin="https://hanbang.ai" version={config.version} partnerAnswers={null} partnerCode={null} bothCodes={null} researchContributionOpen researchStorageActive />));
+    await answerAll();
+    await checkBoth();
+    contributeOutcome = "network";
+    await clickText("동의하고 내 답 보내기");
+    const [first] = bodiesTo(CONTRIBUTE);
+
+    contributeOutcome = outcome;
+    await clickText("다시 보내기");
+
+    const uncertain = container.querySelector('[data-research-contribution="uncertain"]');
+    expect(uncertain).not.toBeNull();
+    expect(uncertain?.querySelector<HTMLInputElement>('input[aria-label="삭제 코드"]')?.value).toBe(first.receipt);
+    expect(uncertain?.textContent).toContain("저장됐는지 알 수 없어요");
+    expect(uncertain?.querySelector('[role="alert"]')?.textContent).toContain("이번 요청으로는 저장 여부를 확인하지 못했어요");
+    expect(uncertain?.textContent).not.toMatch(/보태지 못했|보내지 못했|저장됐어요/);
+    expect(bodiesTo(CONTRIBUTE)[1].receipt).toBe(first.receipt);
+    await clickText("지금 바로 지우기");
+    expect(bodiesTo(DELETE)).toEqual([{ receipt: first.receipt }]);
+    expect(container.querySelector('[data-research-contribution="deleted"]')).not.toBeNull();
+  });
+
+  it("확인 못 한 답을 다시 보내는 동안에도 삭제 코드를 복사할 수 있고 중복 요청은 막는다", async () => {
+    await act(async () => root.render(<WeddingCodeV06Client shareOrigin="https://hanbang.ai" version={config.version} partnerAnswers={null} partnerCode={null} bothCodes={null} researchContributionOpen researchStorageActive />));
+    await answerAll();
+    await checkBoth();
+    contributeOutcome = "network";
+    await clickText("동의하고 내 답 보내기");
+    const [first] = bodiesTo(CONTRIBUTE);
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    vi.stubGlobal("navigator", { clipboard: { writeText } });
+
+    contributeOutcome = "hang";
+    await clickText("다시 보내기");
+    const uncertain = container.querySelector('[data-research-contribution="uncertain"]');
+    expect(uncertain).not.toBeNull();
+    expect(uncertain?.querySelector<HTMLInputElement>('input[aria-label="삭제 코드"]')?.value).toBe(first.receipt);
+    expect(uncertain?.textContent).not.toContain("저장됐어요");
+    await clickText("삭제 코드 복사하기");
+    expect(writeText).toHaveBeenCalledWith(first.receipt);
+    const deleting = [...container.querySelectorAll("button")].find(button => button.textContent?.includes("지금 바로 지우기"));
+    expect(deleting?.disabled).toBe(true);
+    expect(bodiesTo(CONTRIBUTE)).toHaveLength(2);
+
+    await act(async () => { (releaseContribution as (() => void) | null)?.(); });
+    expect(container.querySelector('[data-research-contribution="uncertain"]')).not.toBeNull();
+    expect(deleting?.disabled).toBe(false);
+  });
+
   it("지우기가 실패하면 조용히 넘어가지 않고 알린 뒤 코드를 계속 보여준다", async () => {
     await act(async () => root.render(<WeddingCodeV06Client shareOrigin="https://hanbang.ai" version={config.version} partnerAnswers={null} partnerCode={null} bothCodes={null} researchContributionOpen researchStorageActive />));
     await answerAll();
     await checkBoth();
-    await clickText("내 답 보태기");
+    await clickText("동의하고 내 답 보내기");
     deleteOutcome = "fail";
     await clickText("지금 바로 지우기");
 
@@ -247,7 +484,7 @@ describe("WeddingCode research contribution card", () => {
     await answerAll();
     await checkBoth();
     contributeOutcome = "network";
-    await clickText("내 답 보태기");
+    await clickText("동의하고 내 답 보내기");
     expect(container.querySelector('[data-research-contribution="uncertain"]')).not.toBeNull();
 
     deleteOutcome = "hang";
@@ -293,14 +530,14 @@ describe("WeddingCode research contribution card", () => {
     await checkBoth();
 
     contributeOutcome = "forbidden";
-    await clickText("내 답 보태기");
+    await clickText("동의하고 내 답 보내기");
     const alert = () => container.querySelector('[data-research-contribution="form"] [role="alert"]')?.textContent ?? "";
-    expect(alert()).toBe("지금은 답을 보태지 못했어요. 잠시 뒤 다시 시도해 주세요.");
+    expect(alert()).toBe("지금은 답을 보내지 못했어요. 잠시 뒤 다시 시도해 주세요.");
     expect(container.textContent).not.toContain("잘못된 요청 출처입니다");
 
     // 사람이 고칠 수 있는 해요체 안내는 그대로 보여준다.
     contributeOutcome = "consent";
-    await clickText("내 답 보태기");
+    await clickText("동의하고 내 답 보내기");
     expect(alert()).toBe("동의와 답을 확인한 뒤 다시 보내 주세요.");
   });
 
@@ -308,7 +545,7 @@ describe("WeddingCode research contribution card", () => {
     await act(async () => root.render(<WeddingCodeV06Client shareOrigin="https://hanbang.ai" version={config.version} partnerAnswers={null} partnerCode={null} bothCodes={null} researchContributionOpen researchStorageActive />));
     await answerAll();
     await checkBoth();
-    await clickText("내 답 보태기");
+    await clickText("동의하고 내 답 보내기");
     const sent = container.querySelector('[data-research-contribution="sent"]')!;
     const sentence = `${WEDDING_CODE_RESEARCH_RETENTION_DAYS}일이 지나면 자동으로 지워져요`;
     expect(sent.textContent!.split(sentence).length - 1).toBe(1);

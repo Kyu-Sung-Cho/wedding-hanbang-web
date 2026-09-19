@@ -1,5 +1,5 @@
 import { useAuthStore } from "@/stores/authStore";
-import { buildWeddingTasteAmoraText, hasWeddingTasteAnswers, parseWeddingTasteDraft, type WeddingTasteDraftV1 } from "./taste";
+import { buildWeddingTasteAmoraText, hasWeddingTasteAnswers, parseWeddingTasteDraft, type WeddingTasteDraft } from "./taste";
 
 export const WEDDING_TASTE_REVIEW_PARAM = "wcTasteReview";
 export const WEDDING_TASTE_CHAT_PARAM = "wcTasteChat";
@@ -26,7 +26,7 @@ export function getWeddingTasteChatIdentity(): string | null {
   return `${user.id}:${couple.id}:${profile.role}`;
 }
 
-function create(draft: WeddingTasteDraftV1, purpose: typeof REVIEW | typeof CHAT, scope?: string) {
+function create(draft: WeddingTasteDraft, purpose: typeof REVIEW | typeof CHAT, scope?: string) {
   const validated = parseWeddingTasteDraft(draft);
   if (!validated || !hasWeddingTasteAnswers(validated) || typeof window === "undefined") return null;
   try {
@@ -44,19 +44,19 @@ function create(draft: WeddingTasteDraftV1, purpose: typeof REVIEW | typeof CHAT
 }
 
 /** 로그인·기존 온보딩을 마친 뒤 현재 계정에서 다시 확인할 선택만 잠시 보관한다. */
-export function createWeddingTasteLoginHandoff(draft: WeddingTasteDraftV1): { href: string } | null {
+export function createWeddingTasteLoginHandoff(draft: WeddingTasteDraft): { href: string } | null {
   const auth = useAuthStore.getState();
   if (!auth.isInitialized || auth.isLoading) return null;
   return create(draft, REVIEW, !auth.isDemo && auth.user?.id ? auth.user.id : undefined);
 }
 
 /** 사용자가 전체 전송문을 확인하고 직접 요청한 경우에만 호출한다. 네트워크 쓰기는 없다. */
-export function prepareWeddingTasteChat(draft: WeddingTasteDraftV1): { href: string } | null {
+export function prepareWeddingTasteChat(draft: WeddingTasteDraft): { href: string } | null {
   const identity = getWeddingTasteChatIdentity();
   return identity ? create(draft, CHAT, identity) : null;
 }
 
-function read(nonce: string, purpose: typeof REVIEW | typeof CHAT, consume: boolean): WeddingTasteDraftV1 | null {
+function read(nonce: string, purpose: typeof REVIEW | typeof CHAT, consume: boolean): WeddingTasteDraft | null {
   if (!NONCE.test(nonce) || typeof window === "undefined") return null;
   const key = purpose === REVIEW ? WEDDING_TASTE_REVIEW_KEY : WEDDING_TASTE_CHAT_KEY;
   try {
@@ -82,17 +82,17 @@ function read(nonce: string, purpose: typeof REVIEW | typeof CHAT, consume: bool
   } catch { return null; }
 }
 
-export function consumeWeddingTasteLoginHandoff(nonce: string): WeddingTasteDraftV1 | null {
+export function consumeWeddingTasteLoginHandoff(nonce: string): WeddingTasteDraft | null {
   const auth = useAuthStore.getState();
   if (!auth.isInitialized || auth.isLoading || auth.isDemo || !auth.user?.id) return null;
   return read(nonce, REVIEW, true);
 }
 
 /** 기존 초안과 충돌하면 소비하지 않고, 같은 탭에서 만료 전 다시 시도할 수 있다. */
-export function peekWeddingTasteChat(nonce: string): WeddingTasteDraftV1 | null {
+export function peekWeddingTasteChat(nonce: string): WeddingTasteDraft | null {
   return read(nonce, CHAT, false);
 }
-export function consumeWeddingTasteChat(nonce: string): WeddingTasteDraftV1 | null {
+export function consumeWeddingTasteChat(nonce: string): WeddingTasteDraft | null {
   return read(nonce, CHAT, true);
 }
 export function forgetWeddingTasteChat(nonce: string): void {

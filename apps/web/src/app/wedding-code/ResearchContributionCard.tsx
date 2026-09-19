@@ -1,6 +1,6 @@
 "use client";
 
-import { useId, useState } from "react";
+import { useId, useRef, useState } from "react";
 import { Check, Copy } from "lucide-react";
 
 import Button from "@/components/ui/Button";
@@ -21,6 +21,8 @@ const surface = "rounded-[6px] border border-[var(--hb-hairline)] bg-white";
 type Stage =
   | "idle"
   | "sending"
+  /** 이전 요청의 저장 여부는 모른 채 같은 코드로 다시 확인 중이다. */
+  | "retrying"
   /** 서버가 저장했다고 답했다. */
   | "sent"
   /** 응답을 못 받았다 — 저장됐을 수도, 아닐 수도 있다. */
@@ -30,7 +32,7 @@ type Stage =
   | "deleting"
   | "deleted";
 
-async function postJson(path: string, body: unknown): Promise<{ ok: boolean; data: Record<string, unknown> }> {
+async function postJson(path: string, body: unknown): Promise<{ ok: boolean; status: number; data: Record<string, unknown> }> {
   const response = await fetch(path, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -38,8 +40,13 @@ async function postJson(path: string, body: unknown): Promise<{ ok: boolean; dat
     credentials: "same-origin",
     cache: "no-store",
   });
-  const data = await response.json().catch(() => ({}));
-  return { ok: response.ok, data: typeof data === "object" && data ? data as Record<string, unknown> : {} };
+  const parsed: unknown = await response.json().catch(() => null);
+  const data = typeof parsed === "object" && parsed !== null && !Array.isArray(parsed)
+    ? parsed as Record<string, unknown>
+    : {};
+  // 상태 코드만 성공이고 본문이 잘렸다면 저장·삭제 완료를 확인한 것이 아니다.
+  if (response.ok && data.ok !== true) throw new Error("Unconfirmed research contribution response");
+  return { ok: response.ok, status: response.status, data };
 }
 
 /**
@@ -79,6 +86,7 @@ export default function ResearchContributionCard({
   const [message, setMessage] = useState("");
   const [receipt] = useState(createWeddingCodeResearchReceipt);
   const [copied, setCopied] = useState(false);
+  const requestPending = useRef(false);
   /**
    * 어느 화면에서 「지금 바로 지우기」를 눌렀나. 지우는 동안에도 그 화면의 제목을 유지한다 —
    * 예전에는 「보냈는지 확인하지 못했어요」에서 눌러도 지우는 동안 「답을 보탰어요」로 바뀌어,
@@ -93,10 +101,13 @@ export default function ResearchContributionCard({
   const acceptedSceneVersion: WeddingCodeResearchSceneVersion = sceneVersion;
 
   async function contribute() {
-    setStage("sending");
+    if (requestPending.current || !adult || !consented) return;
+    requestPending.current = true;
+    const wasUncertain = stage === "uncertain";
+    setStage(wasUncertain ? "retrying" : "sending");
     setMessage("");
     try {
-      const { ok, data } = await postJson("/api/wedding-code/research-contribution", {
+      const { ok, status, data } = await postJson("/api/wedding-code/research-contribution", {
         sceneVersion: acceptedSceneVersion,
         answerCode,
         consentVersion: WEDDING_CODE_RESEARCH_CONSENT_VERSION,
@@ -108,6 +119,13 @@ export default function ResearchContributionCard({
         setStage("sent");
         return;
       }
+      // 첫 요청의 서버 오류도 DB 저장 후 응답 유실일 수 있다. 재전송의 거절 역시 이전
+      // 요청이 저장되지 않았다는 증거가 아니므로 삭제 코드를 계속 보여준다.
+      if (wasUncertain || status >= 500) {
+        setStage("uncertain");
+        setMessage("이번 요청으로는 저장 여부를 확인하지 못했어요. 잠시 뒤 다시 보내거나 아래 코드로 지울 수 있어요.");
+        return;
+      }
       setStage("rejected");
       // 서버 문장 중 카드 말투(해요체)인 것만 그대로 보여준다. 「잘못된 요청 출처입니다.」
       // 같은 합니다체·내부 코드는 사람에게 도움이 안 되니 같은 뜻의 안내로 덮는다.
@@ -116,13 +134,17 @@ export default function ResearchContributionCard({
         && !data.error.startsWith("wedding_code_")
         && !/[습입]니다/.test(data.error)
         ? data.error
-        : "지금은 답을 보태지 못했어요. 잠시 뒤 다시 시도해 주세요.");
+        : "지금은 답을 보내지 못했어요. 잠시 뒤 다시 시도해 주세요.");
     } catch {
       setStage("uncertain");
+    } finally {
+      requestPending.current = false;
     }
   }
 
   async function deleteNow(from: "sent" | "uncertain") {
+    if (requestPending.current) return;
+    requestPending.current = true;
     setDeleteFrom(from);
     setStage("deleting");
     setMessage("");
@@ -134,6 +156,8 @@ export default function ResearchContributionCard({
       }
     } catch {
       // 아래에서 같은 화면으로 돌아가 실패를 알린다.
+    } finally {
+      requestPending.current = false;
     }
     setStage(from);
     setMessage("지금은 지우지 못했어요. 삭제 코드를 복사해 두고 잠시 뒤 다시 시도해 주세요.");
@@ -174,8 +198,9 @@ export default function ResearchContributionCard({
     );
   }
 
-  if (stage === "sent" || stage === "uncertain" || stage === "deleting") {
-    const uncertain = stage === "uncertain" || (stage === "deleting" && deleteFrom === "uncertain");
+  if (stage === "sent" || stage === "uncertain" || stage === "retrying" || stage === "deleting") {
+    const retrying = stage === "retrying";
+    const uncertain = stage === "uncertain" || retrying || (stage === "deleting" && deleteFrom === "uncertain");
     return (
       <section className={`${surface} mt-5 px-5 py-5 sm:px-8`} data-research-contribution={uncertain ? "uncertain" : "sent"} role="status">
         <h2 className="text-lg font-semibold text-[var(--hb-text-strong)]">
@@ -183,22 +208,23 @@ export default function ResearchContributionCard({
         </h2>
         <p className="mt-2 text-sm leading-relaxed text-[var(--hb-text-body)]">
           {uncertain
-            ? `연결이 끊겨서 답이 저장됐는지 알 수 없어요. 다시 보내기를 눌러도 두 번 저장되지는 않아요. 저장됐을 수도 있으니 아래 삭제 코드는 꼭 복사해 두세요. 코드가 없어도 ${WEDDING_CODE_RESEARCH_RETENTION_DAYS}일이 지나면 자동으로 지워져요.`
+            ? `받은 응답만으로는 답이 저장됐는지 알 수 없어요. 다시 보내기를 눌러도 두 번 저장되지는 않아요. 저장됐을 수도 있으니 아래 삭제 코드는 꼭 복사해 두세요. 코드가 없어도 ${WEDDING_CODE_RESEARCH_RETENTION_DAYS}일이 지나면 자동으로 지워져요.`
             : `아래 삭제 코드는 이 화면을 떠나거나 새로고침하면 다시 볼 수 없어요. 잃어버리면 저희도 이 답을 찾아 지울 수 없으니 꼭 복사해 두세요. 코드가 없어도 ${WEDDING_CODE_RESEARCH_RETENTION_DAYS}일이 지나면 자동으로 지워져요.`}
         </p>
         {receiptField}
         {message ? <p role="alert" className="mt-3 text-sm text-[var(--hb-text-body)]">{message}</p> : null}
         <div className="mt-3 flex flex-wrap gap-2">
           {copyButton}
-          {stage === "uncertain" ? (
-            <Button variant="secondary" size="lg" className="flex-1" onClick={() => void contribute()}>
-              다시 보내기
+          {stage === "uncertain" || retrying ? (
+            <Button variant="secondary" size="lg" className="flex-1" loading={retrying} onClick={() => void contribute()}>
+              {retrying ? "다시 보내는 중..." : "다시 보내기"}
             </Button>
           ) : null}
           <Button
             variant="secondary"
             size="lg"
             className="flex-1"
+            disabled={retrying}
             loading={stage === "deleting"}
             onClick={() => void deleteNow(uncertain ? "uncertain" : "sent")}
           >
@@ -214,9 +240,13 @@ export default function ResearchContributionCard({
   return (
     <section className={`${surface} mt-5 overflow-hidden`} data-research-contribution="form">
       <div className="border-b border-[var(--hb-hairline)] bg-[var(--hb-surface-hover)] px-5 py-5 sm:px-8">
-        <h2 className="text-[17px] font-semibold leading-[1.45] text-[var(--hb-text-strong)]">질문을 고치는 데 내 답을 보태 주실래요? (선택)</h2>
-        <p className="mt-1.5 text-[13px] font-medium leading-[1.6] text-[var(--color-rose-700)]">
-          아래 &lsquo;내 답 보태기&rsquo;를 누르면 고른 답을 저희가 받아요. 헷갈리는 장면이나 거의 모두 같은 답을 고르는 장면을 찾아서 질문을 고치는 데만 써요. 사람을 평가하거나 두 사람이 잘 어울리는지 따지는 데는 쓰지 않아요.
+        <p className="text-[13px] font-semibold text-[var(--hb-text-muted)]">선택 참여</p>
+        <h2 className="mt-1 text-[17px] font-semibold leading-[1.45] text-[var(--hb-text-strong)]">문항 개선에 내 답 보내기</h2>
+        <p className="mt-2 text-sm leading-relaxed text-[var(--hb-text-body)]">
+          웨딩한방이 질문과 선택지를 더 이해하기 쉽게 고칠 수 있도록, 이번에 고른 답을 보내는 기능이에요.
+        </p>
+        <p className="mt-2 text-sm font-semibold leading-relaxed text-[var(--hb-text-strong)]">
+          보내지 않아도 결과를 보고 공유할 수 있어요. 보내더라도 내 결과는 바뀌지 않아요.
         </p>
       </div>
       <div className="px-5 py-5 sm:px-8">
@@ -226,7 +256,8 @@ export default function ResearchContributionCard({
           고정이라 같은 뜻이다 — 순서를 섞게 되면 이 줄도 고친다), 「어느 안내문」= 동의 문구 판.
           코드를 잃어버리면 지울 수 없다는 한계는 **동의 체크보다 위에** 둔다(연구 명세 §9.1.7).
         */}
-        <ul className="space-y-2 text-[13px] leading-[1.65] text-[var(--hb-text-body)]">
+        <ul className="space-y-3 text-sm leading-relaxed text-[var(--hb-text-body)]">
+          <li><b className={term}>쓰는 목적:</b> 헷갈리는 장면이나 거의 모두 같은 답을 고르는 장면을 찾아 질문과 선택지를 고치는 데만 써요. 사람을 평가하거나 두 사람이 잘 어울리는지 따지는 데는 쓰지 않아요.</li>
           <li><b className={term}>저장하는 것:</b> 장면마다 몇 번째 답을 골랐는지(건너뛴 장면은 건너뛰었다는 것만), 어느 버전의 질문이었는지, 어떤 안내문을 보고 동의했는지, 보낸 날짜</li>
           <li>나중에 맞는 삭제 코드인지 확인하려고, 원래 코드를 알아낼 수 없는 값(해시)으로 바꿔서 함께 저장해요. 코드 그대로는 저장하지 않아요.</li>
           <li><b className={term}>답과 함께 저장하지 않는 것:</b> 이름, 연락처, 계정, IP 주소, 공유 링크, 상대의 답</li>
@@ -235,7 +266,7 @@ export default function ResearchContributionCard({
           <li><b className={term}>지우고 싶을 때:</b> 보내면 이 자리에 삭제 코드가 한 번만 나와요. 그 코드가 있으면 언제든 지울 수 있어요. 이 화면을 떠난 뒤라면 웨딩코드 첫 화면의 &lsquo;전에 보낸 답 지우기&rsquo;에 코드를 넣으면 돼요.</li>
           <li><b className={term}>코드를 잃어버리면:</b> 이름도 계정도 받지 않아서, 어느 답이 내 것인지 저희도 찾을 수 없고 지워 드릴 수도 없어요. 그 답은 {WEDDING_CODE_RESEARCH_RETENTION_DAYS}일이 지나 자동으로 지워질 때까지 남아요.</li>
           <li><b className={term}>문의:</b> <a className="underline underline-offset-4" href={`mailto:${CONTACT.email}`}>{CONTACT.email}</a></li>
-          <li>보태지 않아도 웨딩코드를 쓰는 데 아무 차이가 없어요.</li>
+          <li>보내지 않아도 웨딩코드를 쓰는 데 아무 차이가 없어요.</li>
         </ul>
         <a href="/privacy" className="mt-3 inline-flex min-h-11 items-center text-[13px] font-semibold text-[var(--hb-text-strong)] underline underline-offset-4">
           개인정보 처리방침에서 자세히 보기
@@ -263,7 +294,7 @@ export default function ResearchContributionCard({
           loading={sending}
           onClick={() => void contribute()}
         >
-          {sending ? "보내는 중..." : "내 답 보태기"}
+          {sending ? "보내는 중..." : "동의하고 내 답 보내기"}
         </Button>
       </div>
     </section>
@@ -275,11 +306,15 @@ export function ResearchContributionDeleteForm() {
   const [receipt, setReceipt] = useState("");
   const [state, setState] = useState<"idle" | "sending" | "deleted" | "invalid" | "failed">("idle");
   const inputId = useId();
+  const pendingReceipt = useRef<string | null>(null);
 
   async function submit() {
+    const submittedReceipt = receipt.trim();
+    if (pendingReceipt.current !== null || !submittedReceipt) return;
+    pendingReceipt.current = submittedReceipt;
     setState("sending");
     try {
-      const { ok, data } = await postJson("/api/wedding-code/research-contribution/delete", { receipt: receipt.trim() });
+      const { ok, data } = await postJson("/api/wedding-code/research-contribution/delete", { receipt: submittedReceipt });
       if (ok) {
         setReceipt("");
         setState("deleted");
@@ -288,19 +323,26 @@ export function ResearchContributionDeleteForm() {
       }
     } catch {
       setState("failed");
+    } finally {
+      pendingReceipt.current = null;
     }
   }
 
   return (
     <details className="border-t border-[var(--hb-hairline)] px-5 py-4 sm:px-8" data-research-delete="">
       <summary className="cursor-pointer py-2 text-sm font-semibold text-[var(--hb-text-strong)]">전에 보낸 답 지우기</summary>
-      <label htmlFor={inputId} className="mt-2 block text-sm leading-relaxed text-[var(--hb-text-body)]">&lsquo;내 답 보태기&rsquo;로 답을 보냈을 때 받은 삭제 코드를 붙여 넣어 주세요. wc_del_ 로 시작해요.</label>
+      <label htmlFor={inputId} className="mt-2 block text-sm leading-relaxed text-[var(--hb-text-body)]">문항 개선을 위해 답을 보냈을 때 받은 삭제 코드를 붙여 넣어 주세요. wc_del_ 로 시작해요.</label>
       <input
         id={inputId}
         value={receipt}
+        disabled={state === "sending"}
         autoComplete="off"
         spellCheck={false}
-        onChange={(event) => { setReceipt(event.target.value); setState("idle"); }}
+        onChange={(event) => {
+          if (pendingReceipt.current !== null) return;
+          setReceipt(event.target.value);
+          setState("idle");
+        }}
         className="mt-2 min-h-12 w-full rounded-[6px] border border-[var(--hb-hairline)] bg-white px-3 font-mono text-[13px]"
       />
       <Button

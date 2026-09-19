@@ -22,7 +22,7 @@ describe("직접 고른 결혼식 취향 계약", () => {
     { mood: { status: "answered", values: ["minimal"], source: "partner" } },
     { priorityDomains: { status: "answered", values: ["photo", "meal", "venue"] } },
     { details: { photo: { status: "answered", values: ["candid"] } } },
-    { version: "wedding-taste-v2" },
+    { version: "wedding-taste-v3" },
   ])("상태 충돌·미선택 주제·잘못된 버전을 거부한다: %j", (changed) => {
     expect(parseWeddingTasteDraft({ ...createEmptyWeddingTasteDraft(), ...changed })).toBeNull();
   });
