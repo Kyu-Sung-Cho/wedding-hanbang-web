@@ -238,7 +238,7 @@ export default function ForgotPasswordScreen() {
               onChangeText={setEmail}
               onBlur={() => setEmailTouched(true)}
               placeholder="가입한 이메일 주소"
-              placeholderTextColor={colors.taupe[400]}
+              placeholderTextColor={colors.paper.inkFaint}
               keyboardType="email-address"
               autoCapitalize="none"
               autoCorrect={false}
@@ -348,7 +348,7 @@ const styles = StyleSheet.create({
   errorText: {
     fontSize: 12,
     fontFamily: "NotoSansKR_400Regular",
-    color: colors.danger,
+    color: colors.dangerDeep,
     marginTop: 6,
     marginLeft: 4,
   },

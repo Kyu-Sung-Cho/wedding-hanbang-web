@@ -121,7 +121,7 @@ export default function VendorDetailPage() {
             >
               {decodedName}
             </h1>
-            <div className="flex flex-wrap items-center gap-2 text-sm text-[#878680]">
+            <div className="flex flex-wrap items-center gap-2 text-sm text-[var(--hb-text-muted)]">
               <span>{categoryLabel(vendor?.category ?? tag?.category)}</span>
               {(vendor?.region || tag?.region) && (
                 <>
@@ -135,8 +135,8 @@ export default function VendorDetailPage() {
               {vendor?.rating != null && (
                 <>
                   <span>·</span>
-                  <span className="inline-flex items-center gap-1 text-[#B89785]">
-                    <Star className="w-3.5 h-3.5 fill-[#B89785]" />
+                  <span className="inline-flex items-center gap-1 text-[var(--color-paper-tape-ink)]">
+                    <Star className="w-3.5 h-3.5 fill-current" />
                     {vendor.rating.toFixed(1)}
                     {vendor.review_count != null && (
                       <span className="text-[var(--hb-text-muted)]">({vendor.review_count})</span>
@@ -165,7 +165,7 @@ export default function VendorDetailPage() {
           icon={<Star className="w-3.5 h-3.5" />}
           label="평균 별점"
           value={tag?.avg_rating != null ? tag.avg_rating.toFixed(1) : "-"}
-          accent={tag?.avg_rating != null ? "#B89785" : undefined}
+          accent={tag?.avg_rating != null ? "var(--color-paper-tape-ink)" : undefined}
         />
         <Stat
           label="평균 기본금"
@@ -193,7 +193,7 @@ export default function VendorDetailPage() {
         <div className="mt-4 flex flex-wrap gap-2">
           <Link
             href="/price"
-            className="inline-flex min-h-10 items-center gap-2 rounded-[6px] border border-[var(--hb-primary)]/20 bg-white px-4 text-sm font-semibold text-[var(--hb-text-strong)]"
+            className="inline-flex min-h-10 items-center gap-2 rounded-[6px] border border-[var(--color-paper-outline)] bg-white px-4 text-sm font-semibold text-[var(--hb-text-strong)]"
           >
             공개 가격 보기
             <ArrowRight className="h-4 w-4" />
@@ -242,8 +242,8 @@ export default function VendorDetailPage() {
                     {post.rating != null && (
                       <>
                         <span>·</span>
-                        <span className="inline-flex items-center gap-1 text-[#B89785]">
-                          <Star className="w-3.5 h-3.5 fill-[#B89785]" />
+                        <span className="inline-flex items-center gap-1 text-[var(--color-paper-tape-ink)]">
+                          <Star className="w-3.5 h-3.5 fill-current" />
                           {post.rating}
                         </span>
                       </>
@@ -251,7 +251,7 @@ export default function VendorDetailPage() {
                   </div>
                   <h3 className="text-[var(--hb-text-strong)] mb-1">{post.title}</h3>
                   {preview && (
-                    <p className="text-sm text-[#878680] line-clamp-2">{preview}</p>
+                    <p className="text-sm text-[var(--hb-text-muted)] line-clamp-2">{preview}</p>
                   )}
                 </Link>
               );
@@ -288,7 +288,7 @@ function Stat({
       >
         {value}
         {accent && value !== "-" && (
-          <Star className="w-4 h-4 inline-block ml-1 -mt-1" fill={accent} stroke={accent} />
+          <Star className="w-4 h-4 inline-block ml-1 -mt-1" fill="currentColor" stroke="currentColor" />
         )}
       </p>
       {sub && <p className="text-xs text-[var(--hb-text-muted)] mt-1">{sub}</p>}

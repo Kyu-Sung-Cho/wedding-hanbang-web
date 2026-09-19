@@ -186,7 +186,7 @@ export default function InviteLandingClient() {
           ) : null}
         </div>
 
-        <p className="mt-5 text-[12px] leading-5 text-[#8b857c]">
+        <p className="mt-5 text-[12px] leading-5 text-[var(--hb-text-muted)]">
           {appLink && MOBILE_APP_AVAILABLE
             ? "웹에서 바로 시작할 수 있어요. 앱을 이미 쓰고 계시면 ‘앱에서 열기’로 같은 계정에서 이어집니다."
             : "웹에서 바로 시작할 수 있어요."}

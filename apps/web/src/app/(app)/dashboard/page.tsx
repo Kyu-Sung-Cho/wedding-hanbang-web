@@ -143,7 +143,7 @@ const statusMeta: Record<Status, { label: string; tone: string; dot: string }> =
   },
   not_applicable: {
     label: PREPARATION_PROGRESS_STATUS_LABELS.not_applicable,
-    tone: "border-[#e3e0da] bg-[#f6f4f0] text-[#8b857c]",
+    tone: "border-[#e3e0da] bg-[#f6f4f0] text-[var(--hb-text-muted)]",
     dot: "bg-[#a7a198]",
   },
 };
@@ -817,12 +817,12 @@ function HandoffMetric({
 }) {
   return (
     <div className="min-w-0 rounded-[6px] border border-[#DCE5D8] bg-white/88 p-3">
-      <dt className="text-[10px] font-semibold text-[#71806D]">{label}</dt>
+      <dt className="text-[10px] font-semibold text-[var(--hb-text-muted)]">{label}</dt>
       <dd className="mt-1 truncate text-[13px] font-semibold text-[var(--hb-text-strong)]">
         {value}
       </dd>
       {note && (
-        <dd className="mt-0.5 truncate text-[10px] font-medium text-[#7A8290]">
+        <dd className="mt-0.5 truncate text-[10px] font-medium text-[var(--hb-text-muted)]">
           {note}
         </dd>
       )}

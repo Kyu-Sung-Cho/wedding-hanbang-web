@@ -188,7 +188,7 @@ export default function ImageUploader({
 
       {/* 에러 메시지 */}
       {error && (
-        <p className="text-xs text-red-500">{error}</p>
+        <p className="text-xs text-danger-700">{error}</p>
       )}
 
       {/* 미리보기 */}
@@ -214,7 +214,7 @@ export default function ImageUploader({
               <button
                 type="button"
                 onClick={() => removeImage(i)}
-                className="absolute -top-2 -right-2 w-6 h-6 flex items-center justify-center bg-[var(--hb-primary)]/80 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                className="absolute -top-2 -right-2 w-6 h-6 flex items-center justify-center bg-[var(--hb-primary)] text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
                 aria-label={`파일 ${i + 1} 삭제`}
               >
                 <X className="w-3.5 h-3.5" />

@@ -144,7 +144,7 @@ const styles = StyleSheet.create({
     fontSize: 11,
     lineHeight: 16,
     fontFamily: "NotoSansKR_600SemiBold",
-    color: colors.textTertiary,
+    color: colors.paper.inkFaint,
   },
   cellValue: {
     marginTop: 2,
@@ -158,7 +158,7 @@ const styles = StyleSheet.create({
     fontSize: 11,
     lineHeight: 16,
     fontFamily: "NotoSansKR_400Regular",
-    color: colors.textTertiary,
+    color: colors.paper.inkFaint,
   },
   review: {
     marginTop: spacing[4],

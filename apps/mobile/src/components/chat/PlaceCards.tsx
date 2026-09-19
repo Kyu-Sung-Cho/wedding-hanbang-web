@@ -256,7 +256,7 @@ export function PlaceCards({ result }: { result: PlaceSearchToolResult }) {
         accessibilityRole="alert"
         accessibilityLiveRegion="polite"
       >
-        <MapPin size={20} color={colors.danger} />
+        <MapPin size={20} color={colors.dangerDeep} />
         <View style={styles.noticeCopy}>
           <Text style={[styles.noticeTitle, styles.errorTitle]}>장소 검색을 완료하지 못했어요</Text>
           <Text style={styles.noticeText}>{model.message}</Text>
@@ -313,26 +313,26 @@ const styles = StyleSheet.create({
   searchSummary: { paddingHorizontal: 4, gap: 4 },
   queryRow: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 4 },
   queryText: { flex: 1, fontSize: 12, lineHeight: 18, color: colors.textSecondary, fontWeight: "600" },
-  providerNote: { paddingHorizontal: 4, fontSize: 10, lineHeight: 15, color: colors.textTertiary },
+  providerNote: { paddingHorizontal: 4, fontSize: 10, lineHeight: 15, color: colors.paper.inkFaint },
   card: { overflow: "hidden", borderRadius: 16, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface },
   placeMain: { minHeight: 120, flexDirection: "row", alignItems: "flex-start", gap: 12, padding: 12 },
   pressed: { opacity: 0.72 },
   imageFrame: { width: 94, height: 94, overflow: "hidden", borderRadius: 12, backgroundColor: colors.ivory[100] },
   image: { width: "100%", height: "100%" },
   imageFallback: { flex: 1, alignItems: "center", justifyContent: "center", gap: 5, padding: 8 },
-  imageFallbackText: { fontSize: 10, color: colors.textTertiary },
+  imageFallbackText: { fontSize: 10, color: colors.paper.inkFaint },
   rankBadge: { position: "absolute", left: 6, top: 6, zIndex: 1, minWidth: 24, height: 24, paddingHorizontal: 6, alignItems: "center", justifyContent: "center", borderRadius: 8, backgroundColor: colors.surface },
-  rankText: { fontSize: 12, color: colors.rose[500], fontWeight: "700" },
+  rankText: { fontSize: 12, color: colors.rose[700], fontWeight: "700" },
   placeDetails: { flex: 1, minWidth: 0 },
   placeName: { fontSize: 16, lineHeight: 22, color: colors.noir[800], fontWeight: "700" },
   categoryPill: { alignSelf: "flex-start", maxWidth: "100%", marginTop: 6, paddingHorizontal: 9, paddingVertical: 4, borderRadius: 999, backgroundColor: colors.rose.glow },
-  categoryText: { fontSize: 11, color: colors.rose[600], fontWeight: "600" },
+  categoryText: { fontSize: 11, color: colors.rose[700], fontWeight: "600" },
   addressRow: { flexDirection: "row", alignItems: "flex-start", gap: 5, marginTop: 8 },
   addressText: { flex: 1, fontSize: 12, lineHeight: 18, color: colors.textSecondary },
   descriptionText: { marginTop: 7, fontSize: 11, lineHeight: 17, color: colors.textSecondary },
   detailRow: { flexDirection: "row", alignItems: "center", gap: 5, marginTop: 6 },
   detailText: { flex: 1, fontSize: 11, lineHeight: 16, color: colors.textSecondary },
-  tapHint: { marginTop: 6, fontSize: 10, color: colors.textTertiary },
+  tapHint: { marginTop: 6, fontSize: 10, color: colors.paper.inkFaint },
   actions: { flexDirection: "row", borderTopWidth: 1, borderTopColor: colors.border },
   action: { flex: 1, minHeight: 44, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 5, paddingHorizontal: 4, paddingVertical: 10 },
   actionText: { fontSize: 11, color: colors.noir[800], fontWeight: "600" },
@@ -340,11 +340,11 @@ const styles = StyleSheet.create({
   errorNotice: { borderColor: colors.rose.light, backgroundColor: colors.rose.glow },
   noticeCopy: { flex: 1 },
   noticeTitle: { fontSize: 14, lineHeight: 20, color: colors.noir[800], fontWeight: "700" },
-  errorTitle: { color: colors.danger },
+  errorTitle: { color: colors.dangerDeep },
   noticeText: { marginTop: 3, fontSize: 12, lineHeight: 18, color: colors.textSecondary },
   handoffCard: { overflow: "hidden", marginTop: 8, borderRadius: 16, borderWidth: 1, borderColor: "#DCE8DA", backgroundColor: colors.surface },
   handoffMain: { flexDirection: "row", alignItems: "flex-start", gap: 10, padding: 14 },
   handoffIcon: { width: 40, height: 40, alignItems: "center", justifyContent: "center", borderRadius: 20, backgroundColor: "rgba(45, 180, 0, 0.10)" },
-  handoffLink: { marginTop: 7, fontSize: 12, lineHeight: 18, color: "#218A00", fontWeight: "700" },
-  trademarkNote: { borderTopWidth: 1, borderTopColor: colors.border, paddingHorizontal: 12, paddingVertical: 7, fontSize: 9, lineHeight: 13, color: colors.textTertiary },
+  handoffLink: { marginTop: 7, fontSize: 12, lineHeight: 18, color: colors.sage.deep, fontWeight: "700", textDecorationLine: "underline" },
+  trademarkNote: { borderTopWidth: 1, borderTopColor: colors.border, paddingHorizontal: 12, paddingVertical: 7, fontSize: 9, lineHeight: 13, color: colors.paper.inkFaint },
 });

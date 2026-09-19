@@ -304,7 +304,7 @@ export default function PollDisplay({
 
       {/* 에러 / 안내 */}
       {error && (
-        <p className="mt-3 text-sm text-red-500">{error}</p>
+        <p className="mt-3 text-sm text-danger-700">{error}</p>
       )}
       {!isAuthenticated && (
         <p className="mt-3 text-xs text-[var(--hb-text-muted)] text-center">

@@ -36,7 +36,7 @@ export default function AdDisclosureModal({ onSelect }: AdDisclosureModalProps) 
         <h2 className="font-serif text-[var(--hb-text-strong)] mb-2" style={{ fontFamily: "'Pretendard Variable', 'Pretendard', -apple-system, BlinkMacSystemFont, system-ui, 'Segoe UI', Roboto, 'Apple SD Gothic Neo', 'Noto Sans KR', 'Malgun Gothic', 'Apple Color Emoji', 'Segoe UI Emoji', sans-serif" }}>
           이 글은 어떤 유형인가요?
         </h2>
-        <p className="text-sm text-[#878680] mb-6">
+        <p className="text-sm text-[var(--hb-text-muted)] mb-6">
           정직한 표시는 신뢰의 시작이에요. 건너뛸 수 없어요.
         </p>
 
@@ -65,7 +65,7 @@ export default function AdDisclosureModal({ onSelect }: AdDisclosureModalProps) 
                     <span className="font-medium text-[var(--hb-text-strong)]">{opt.label}</span>
                     {isSelected && <CheckCircle2 size={18} style={{ color: opt.color }} />}
                   </div>
-                  <p className="text-sm text-[#878680]">{opt.description}</p>
+                  <p className="text-sm text-[var(--hb-text-muted)]">{opt.description}</p>
                 </div>
               </button>
             );
@@ -96,7 +96,7 @@ export default function AdDisclosureModal({ onSelect }: AdDisclosureModalProps) 
           </div>
         )}
 
-        {error && <p className="mt-4 text-sm text-[#EF4444]">{error}</p>}
+        {error && <p className="mt-4 text-sm text-danger-700">{error}</p>}
 
         <button
           type="button"

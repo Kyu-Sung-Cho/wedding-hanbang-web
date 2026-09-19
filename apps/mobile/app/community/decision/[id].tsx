@@ -264,7 +264,7 @@ function AnswerCard({
           {isPeer ? (
             <Users size={18} color={colors.success} />
           ) : (
-            <ShieldCheck size={18} color={colors.gold.DEFAULT} />
+            <ShieldCheck size={18} color={colors.paper.tapeInk} />
           )}
           <View style={styles.flexOne}>
             <AppText variant="bodyStrong">{answer.author.nickname}</AppText>
@@ -501,17 +501,17 @@ function AnswerComposer({
         multiline
         maxLength={5000}
         placeholder="핵심 경험을 먼저 적어주세요."
-        placeholderTextColor={colors.textTertiary}
+        placeholderTextColor={colors.paper.inkFaint}
         style={[styles.input, styles.multilineInput]}
       />
-      <TextInput value={region} onChangeText={setRegion} editable={!busy} maxLength={40} placeholder="넓은 지역 · 선택" placeholderTextColor={colors.textTertiary} style={styles.input} />
-      <TextInput value={actionTaken} onChangeText={setActionTaken} editable={!busy} maxLength={2000} placeholder="실제로 한 일 · 하나 이상 필수" placeholderTextColor={colors.textTertiary} style={styles.input} />
-      <TextInput value={resultSummary} onChangeText={setResultSummary} editable={!busy} maxLength={3000} placeholder="결과 · 아직 없으면 비워도 돼요" placeholderTextColor={colors.textTertiary} style={styles.input} />
-      <TextInput value={nextCheck} onChangeText={setNextCheck} editable={!busy} maxLength={2000} placeholder="다음 커플이 확인할 한 가지" placeholderTextColor={colors.textTertiary} style={styles.input} />
-      <TextInput value={boundary} onChangeText={setBoundary} editable={!busy} maxLength={500} placeholder="예: 계약서 문구는 확인한 사실, 대응 평가는 제 의견이에요." placeholderTextColor={colors.textTertiary} style={styles.input} />
+      <TextInput value={region} onChangeText={setRegion} editable={!busy} maxLength={40} placeholder="넓은 지역 · 선택" placeholderTextColor={colors.paper.inkFaint} style={styles.input} />
+      <TextInput value={actionTaken} onChangeText={setActionTaken} editable={!busy} maxLength={2000} placeholder="실제로 한 일 · 하나 이상 필수" placeholderTextColor={colors.paper.inkFaint} style={styles.input} />
+      <TextInput value={resultSummary} onChangeText={setResultSummary} editable={!busy} maxLength={3000} placeholder="결과 · 아직 없으면 비워도 돼요" placeholderTextColor={colors.paper.inkFaint} style={styles.input} />
+      <TextInput value={nextCheck} onChangeText={setNextCheck} editable={!busy} maxLength={2000} placeholder="다음 커플이 확인할 한 가지" placeholderTextColor={colors.paper.inkFaint} style={styles.input} />
+      <TextInput value={boundary} onChangeText={setBoundary} editable={!busy} maxLength={500} placeholder="예: 계약서 문구는 확인한 사실, 대응 평가는 제 의견이에요." placeholderTextColor={colors.paper.inkFaint} style={styles.input} />
       <ChoiceGroup label="업체·혜택 관계" value={relationship} options={RELATIONSHIP_OPTIONS} onChange={setRelationship} disabled={busy} />
       {relationship !== "none" ? (
-        <TextInput value={sponsorship} onChangeText={setSponsorship} editable={!busy} maxLength={500} placeholder="업체 관계나 받은 혜택" placeholderTextColor={colors.textTertiary} style={styles.input} />
+        <TextInput value={sponsorship} onChangeText={setSponsorship} editable={!busy} maxLength={500} placeholder="업체 관계나 받은 혜택" placeholderTextColor={colors.paper.inkFaint} style={styles.input} />
       ) : null}
       <AppText variant="caption">응답 수락 때 밝힌 업체 관계와 현재 입력이 같아야 저장돼요.</AppText>
       {error ? <AppText variant="caption" style={styles.errorText}>{error}</AppText> : null}
@@ -650,12 +650,12 @@ function OutcomeComposer({
         </PrimaryButton>
       ) : (
         <>
-          <TextInput value={actionTaken} onChangeText={setActionTaken} editable={!busy} maxLength={2000} placeholder="실제로 한 행동" placeholderTextColor={colors.textTertiary} style={styles.input} />
-          <TextInput value={resultSummary} onChangeText={setResultSummary} editable={!busy} maxLength={3000} placeholder="실제 결과" placeholderTextColor={colors.textTertiary} style={styles.input} />
-          <TextInput value={conditions} onChangeText={setConditions} editable={!busy} maxLength={2000} placeholder="다음 커플에게 적용될 조건" placeholderTextColor={colors.textTertiary} style={styles.input} />
+          <TextInput value={actionTaken} onChangeText={setActionTaken} editable={!busy} maxLength={2000} placeholder="실제로 한 행동" placeholderTextColor={colors.paper.inkFaint} style={styles.input} />
+          <TextInput value={resultSummary} onChangeText={setResultSummary} editable={!busy} maxLength={3000} placeholder="실제 결과" placeholderTextColor={colors.paper.inkFaint} style={styles.input} />
+          <TextInput value={conditions} onChangeText={setConditions} editable={!busy} maxLength={2000} placeholder="다음 커플에게 적용될 조건" placeholderTextColor={colors.paper.inkFaint} style={styles.input} />
           <ChoiceGroup label="결과 시점의 업체·혜택 관계" value={relationship} options={RELATIONSHIP_OPTIONS} onChange={setRelationship} disabled={busy} />
           {relationship !== "none" ? (
-            <TextInput value={sponsorship} onChangeText={setSponsorship} editable={!busy} maxLength={500} placeholder="업체 관계나 받은 혜택" placeholderTextColor={colors.textTertiary} style={styles.input} />
+            <TextInput value={sponsorship} onChangeText={setSponsorship} editable={!busy} maxLength={500} placeholder="업체 관계나 받은 혜택" placeholderTextColor={colors.paper.inkFaint} style={styles.input} />
           ) : null}
           <Pressable
             onPress={() => setPublicConsent((current) => !current)}
@@ -1937,7 +1937,7 @@ export default function DecisionThreadDetailScreen() {
             </Pressable>
             {showWithdraw ? (
               <>
-                <TextInput value={withdrawReason} onChangeText={setWithdrawReason} editable={mutationBusy === null} maxLength={500} placeholder="철회 이유" placeholderTextColor={colors.textTertiary} style={styles.input} />
+                <TextInput value={withdrawReason} onChangeText={setWithdrawReason} editable={mutationBusy === null} maxLength={500} placeholder="철회 이유" placeholderTextColor={colors.paper.inkFaint} style={styles.input} />
                 <Pressable
                   onPress={() => void handleWithdraw()}
                   disabled={mutationBusy !== null}
@@ -2106,8 +2106,8 @@ export default function DecisionThreadDetailScreen() {
             {visibleSelections.length === 0 ? (
               <AppText variant="body">먼저 답변 하나의 적용성을 표시해 주세요.</AppText>
             ) : null}
-            <TextInput value={nextAction} onChangeText={setNextAction} editable={mutationBusy === null} maxLength={1000} placeholder="실제로 확인하거나 선택할 다음 행동" placeholderTextColor={colors.textTertiary} style={styles.input} />
-            <TextInput value={resolutionReason} onChangeText={setResolutionReason} editable={mutationBusy === null} maxLength={500} placeholder="이 행동을 정한 이유" placeholderTextColor={colors.textTertiary} style={styles.input} />
+            <TextInput value={nextAction} onChangeText={setNextAction} editable={mutationBusy === null} maxLength={1000} placeholder="실제로 확인하거나 선택할 다음 행동" placeholderTextColor={colors.paper.inkFaint} style={styles.input} />
+            <TextInput value={resolutionReason} onChangeText={setResolutionReason} editable={mutationBusy === null} maxLength={500} placeholder="이 행동을 정한 이유" placeholderTextColor={colors.paper.inkFaint} style={styles.input} />
             <PrimaryButton onPress={handleResolve} disabled={mutationBusy !== null || resolutionAnswerIds.length === 0} icon={mutationBusy === "resolve" ? <ActivityIndicator size="small" color="#FFFFFF" /> : undefined}>
               {mutationBusy === "resolve" ? "다음 행동 확인 중" : "다음 행동 확정"}
             </PrimaryButton>
@@ -2165,7 +2165,7 @@ export default function DecisionThreadDetailScreen() {
             {showWithdraw ? (
               <>
                 <AppText variant="caption">철회 뒤 원문은 공개되지 않고 새 적용이 차단돼요. 다른 커플의 과거 결정에는 원문 이용 불가 상태만 남을 수 있어요.</AppText>
-                <TextInput value={withdrawReason} onChangeText={setWithdrawReason} editable={mutationBusy === null} maxLength={500} placeholder="철회 이유" placeholderTextColor={colors.textTertiary} style={styles.input} />
+                <TextInput value={withdrawReason} onChangeText={setWithdrawReason} editable={mutationBusy === null} maxLength={500} placeholder="철회 이유" placeholderTextColor={colors.paper.inkFaint} style={styles.input} />
                 <Pressable
                   onPress={() => void handleWithdraw()}
                   disabled={mutationBusy !== null}
@@ -2210,10 +2210,10 @@ const styles = StyleSheet.create({
   resolutionEvidenceLine: { flexDirection: "row", alignItems: "center", gap: spacing[2], paddingVertical: spacing[2], paddingHorizontal: spacing[3], borderRadius: radius.md, backgroundColor: "rgba(109, 128, 110, 0.12)" },
   structuredBlock: { borderTopWidth: 1, borderTopColor: colors.border },
   structuredLine: { gap: spacing[1], paddingVertical: spacing[3], borderBottomWidth: 1, borderBottomColor: colors.border },
-  structuredLabel: { color: colors.textTertiary },
+  structuredLabel: { color: colors.paper.inkFaint },
   structuredValue: { color: colors.noir[800] },
   disclosureLine: { gap: spacing[1] },
-  disclosureLabel: { color: colors.textTertiary },
+  disclosureLabel: { color: colors.paper.inkFaint },
   applicabilityBlock: { gap: spacing[3], borderTopWidth: 1, borderTopColor: colors.border, paddingTop: spacing[4] },
   choiceBlock: { gap: spacing[2] },
   choiceWrap: { flexDirection: "row", flexWrap: "wrap", gap: spacing[2] },
@@ -2233,13 +2233,13 @@ const styles = StyleSheet.create({
   nextActionSurface: { flexDirection: "row", alignItems: "flex-start", gap: spacing[3] },
   noticeBanner: { flexDirection: "row", alignItems: "flex-start", gap: spacing[2], padding: spacing[3], borderRadius: radius.lg, backgroundColor: "rgba(109, 128, 110, 0.12)" },
   errorBanner: { flexDirection: "row", alignItems: "flex-start", gap: spacing[2], padding: spacing[3], borderRadius: radius.lg, backgroundColor: "rgba(217, 95, 95, 0.08)", borderWidth: 1, borderColor: "rgba(217, 95, 95, 0.24)" },
-  errorText: { flex: 1, color: colors.danger },
+  errorText: { flex: 1, color: colors.dangerDeep },
   terminalError: { marginHorizontal: spacing[5], padding: spacing[3] },
   waitlistSurface: { alignItems: "flex-start", gap: spacing[3] },
   recoveryDelete: { minHeight: 44, flexDirection: "row", alignItems: "center", justifyContent: "center", alignSelf: "stretch", gap: spacing[2], paddingHorizontal: spacing[3] },
   withdrawArea: { alignItems: "stretch", gap: spacing[3], paddingTop: spacing[4], borderTopWidth: 1, borderTopColor: colors.border },
   withdrawToggle: { minHeight: 44, alignItems: "center", justifyContent: "center" },
-  withdrawLink: { textAlign: "center", color: colors.danger, textDecorationLine: "underline" },
+  withdrawLink: { textAlign: "center", color: colors.dangerDeep, textDecorationLine: "underline" },
   withdrawButton: { minHeight: 46, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: spacing[2], borderWidth: 1, borderColor: colors.danger, borderRadius: radius.xl },
-  withdrawButtonText: { color: colors.danger },
+  withdrawButtonText: { color: colors.dangerDeep },
 });

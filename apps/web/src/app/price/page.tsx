@@ -100,7 +100,7 @@ export default async function PriceIndexPage() {
                 href={`/price/${category}`}
                 // 카테고리 페이지 RSC가 600~900KB — 4개를 미리 받으면 허브가 수 MB를 쓴다.
                 prefetch={false}
-                className="flex min-h-[104px] items-center justify-between gap-4 rounded-[6px] border border-[var(--hb-primary)]/12 bg-white px-5 py-5 transition-colors hover:border-[var(--hb-primary)]/45 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#B89785]"
+                className="flex min-h-[104px] items-center justify-between gap-4 rounded-[6px] border border-[var(--color-paper-outline)] bg-white px-5 py-5 transition-colors hover:border-[var(--hb-primary)]/45 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#B89785]"
               >
                 <span className="min-w-0">
                   <span className="flex flex-wrap items-baseline gap-2">

@@ -45,5 +45,5 @@ const styles = StyleSheet.create({
   title: { fontSize: 16, fontWeight: "700", color: colors.noir[800] }, completed: { textDecorationLine: "line-through", opacity: 0.6 },
   hint: { fontSize: 12, lineHeight: 19, color: colors.textSecondary }, description: { fontSize: 14, lineHeight: 21, color: colors.noir[800] },
   buttons: { flexDirection: "row", flexWrap: "wrap", gap: spacing[3] }, button: { minHeight: 44, paddingHorizontal: spacing[2], justifyContent: "center" },
-  error: { color: colors.danger, fontSize: 12, lineHeight: 19 },
+  error: { color: colors.dangerDeep, fontSize: 12, lineHeight: 19 },
 });

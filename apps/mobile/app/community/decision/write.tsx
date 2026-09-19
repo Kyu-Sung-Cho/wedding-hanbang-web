@@ -824,7 +824,7 @@ export default function DecisionThreadWriteScreen() {
                     editable={!withdrawSubmitting && !pending.withdrawOperationKey}
                     maxLength={500}
                     placeholder="예: 상황이 바뀌어 더 이상 답변이 필요하지 않아요."
-                    placeholderTextColor={colors.textTertiary}
+                    placeholderTextColor={colors.paper.inkFaint}
                     style={styles.input}
                   />
                   <Pressable
@@ -895,7 +895,7 @@ export default function DecisionThreadWriteScreen() {
             maxLength={5_000}
             textAlignVertical="top"
             placeholder="예: 계약서에는 원본 비용이 없는데 상담 뒤 별도 추가금이라고 들었어요. 계약 전 어떤 문구를 확인해야 할까요?"
-            placeholderTextColor={colors.textTertiary}
+            placeholderTextColor={colors.paper.inkFaint}
             style={[styles.input, styles.contentInput]}
           />
           <AppText variant="caption" style={styles.counter}>{content.length}/5,000</AppText>
@@ -908,7 +908,7 @@ export default function DecisionThreadWriteScreen() {
             onChangeText={setTitle}
             maxLength={160}
             placeholder="예: 계약 후 원본 추가금, 미리 확인할 문구가 있나요?"
-            placeholderTextColor={colors.textTertiary}
+            placeholderTextColor={colors.paper.inkFaint}
             style={styles.input}
           />
           <AppText variant="caption" style={styles.counter}>{title.length}/160</AppText>
@@ -944,7 +944,7 @@ export default function DecisionThreadWriteScreen() {
               onChangeText={setCoarseRegion}
               maxLength={40}
               placeholder="예: 서울 동부, 경기 남부"
-              placeholderTextColor={colors.textTertiary}
+              placeholderTextColor={colors.paper.inkFaint}
               style={styles.input}
             />
           </View>
@@ -955,7 +955,7 @@ export default function DecisionThreadWriteScreen() {
               onChangeText={setDesiredAnswer}
               maxLength={300}
               placeholder="예: 실제로 확인한 계약 문구와 추가금 결과"
-              placeholderTextColor={colors.textTertiary}
+              placeholderTextColor={colors.paper.inkFaint}
               style={styles.input}
             />
           </View>
@@ -980,7 +980,7 @@ export default function DecisionThreadWriteScreen() {
                 onChangeText={setSponsorshipDetail}
                 maxLength={500}
                 placeholder="받은 혜택이나 업체와의 관계를 구체적으로 적어주세요."
-                placeholderTextColor={colors.textTertiary}
+                placeholderTextColor={colors.paper.inkFaint}
                 style={styles.input}
               />
             </View>
@@ -1037,7 +1037,7 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     gap: spacing[3],
   },
-  deleteDraftText: { color: colors.danger },
+  deleteDraftText: { color: colors.dangerDeep },
   section: { gap: spacing[3] },
   fieldBlock: { gap: spacing[2] },
   choiceBlock: { gap: spacing[2] },
@@ -1085,7 +1085,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "rgba(217, 95, 95, 0.24)",
   },
-  errorText: { flex: 1, color: colors.danger },
+  errorText: { flex: 1, color: colors.dangerDeep },
   submitNotice: { textAlign: "center" },
   statusContent: { padding: spacing[5], paddingBottom: spacing[10], gap: spacing[5] },
   statusSurface: { alignItems: "flex-start", gap: spacing[3] },
@@ -1115,7 +1115,7 @@ const styles = StyleSheet.create({
     gap: spacing[3],
     paddingTop: spacing[2],
   },
-  withdrawLink: { color: colors.danger, textDecorationLine: "underline" },
+  withdrawLink: { color: colors.dangerDeep, textDecorationLine: "underline" },
   withdrawForm: {
     alignSelf: "stretch",
     gap: spacing[2],
@@ -1135,6 +1135,6 @@ const styles = StyleSheet.create({
     borderColor: colors.danger,
     borderRadius: radius.xl,
   },
-  withdrawButtonText: { color: colors.danger },
+  withdrawButtonText: { color: colors.dangerDeep },
   buttonDisabled: { opacity: 0.45 },
 });

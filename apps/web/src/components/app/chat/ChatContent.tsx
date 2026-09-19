@@ -2539,7 +2539,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
   // 첨부 파일 아이콘 결정
   const getFileIcon = (mediaType: string) => {
     if (mediaType.includes("word") || mediaType === "application/msword") return <FileText className="w-7 h-7 text-[#4285F4]" />;
-    if (mediaType.includes("spreadsheet") || mediaType.includes("ms-excel")) return <FileSpreadsheet className="w-7 h-7 text-[#34A853]" />;
+    if (mediaType.includes("spreadsheet") || mediaType.includes("ms-excel")) return <FileSpreadsheet className="w-7 h-7 text-[var(--hb-success)]" />;
     if (mediaType === "application/pdf") return <FileText className="w-7 h-7 text-[var(--hb-accent-hover)]" />;
     return <FileText className="w-7 h-7 text-[var(--hb-text-body)]" />;
   };
@@ -3177,7 +3177,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
           if (q && filteredMessages.length === 0) {
             return (
               <div className="text-center py-12 text-[var(--hb-text-muted)] text-sm">
-                <Search className="w-8 h-8 text-[var(--hb-text-muted)]/40 mx-auto mb-2" />
+                <Search className="w-8 h-8 text-[var(--hb-text-muted)] mx-auto mb-2" />
                 &ldquo;{searchQuery}&rdquo;에 해당하는 메시지가 없어요
               </div>
             );
@@ -3548,7 +3548,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
           </p>
           {failedRequest?.unavailableReason && (
             <p className={`mt-1 text-xs leading-relaxed ${
-              isRecoveryNotice ? "text-[#356B66]" : "text-red-600"
+              isRecoveryNotice ? "text-[#356B66]" : "text-danger-700"
             }`}>
               {failedRequest.unavailableReason}
             </p>
@@ -3803,7 +3803,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
               className={`flex min-h-11 items-center justify-center gap-1.5 rounded-[6px] px-3 py-1.5 text-xs font-medium transition-colors whitespace-nowrap disabled:cursor-not-allowed disabled:opacity-50 sm:text-[0.8125rem] ${
                 messageTarget === "partner"
                   ? "bg-gradient-to-br from-[#D99C9C] to-[#E8B4B4] text-white shadow-[var(--shadow-raised)]"
-                  : "bg-white text-[var(--hb-text-body)] shadow-[var(--shadow-raised)] hover:text-[#D99C9C]"
+                  : "bg-white text-[var(--hb-text-body)] shadow-[var(--shadow-raised)] hover:text-rose-700"
               }`}
             >
               <Heart className="w-3 h-3 sm:w-3.5 sm:h-3.5 shrink-0" />

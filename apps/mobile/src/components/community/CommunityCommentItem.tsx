@@ -88,7 +88,7 @@ export function CommunityCommentItem({
               nickname: name,
             })}
           >
-            <MoreHorizontal size={20} color={colors.taupe[400]} />
+            <MoreHorizontal size={20} color={colors.textTertiary} />
           </Pressable>
         ) : null}
       </View>
@@ -115,7 +115,7 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   author: { fontSize: 14, fontWeight: "700", color: colors.noir[800] },
-  time: { fontSize: 11, color: colors.taupe[400], marginTop: 1 },
+  time: { fontSize: 11, color: colors.paper.inkFaint, marginTop: 1 },
   safetyButton: {
     width: 36,
     height: 36,
@@ -135,6 +135,6 @@ const styles = StyleSheet.create({
   deleted: {
     fontSize: 13,
     lineHeight: 20,
-    color: colors.textTertiary,
+    color: colors.paper.inkFaint,
   },
 });

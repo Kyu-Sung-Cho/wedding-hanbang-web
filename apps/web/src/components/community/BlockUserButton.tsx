@@ -105,7 +105,7 @@ export default function BlockUserButton({
                 >
                   {completed ? "차단했어요" : `${nickname}님을 차단할까요?`}
                 </h2>
-                <p className="mt-1 text-xs leading-relaxed text-[#878680]">
+                <p className="mt-1 text-xs leading-relaxed text-[var(--hb-text-muted)]">
                   차단은 나만의 보기·연락 설정이며 신고와는 다릅니다.
                 </p>
               </div>
@@ -113,7 +113,7 @@ export default function BlockUserButton({
                 type="button"
                 onClick={() => setOpen(false)}
                 disabled={submitting}
-                className="rounded-[6px] p-1.5 text-[#878680] hover:bg-[#FAFAF8] disabled:opacity-40"
+                className="rounded-[6px] p-1.5 text-[var(--hb-text-muted)] hover:bg-[#FAFAF8] disabled:opacity-40"
                 aria-label="차단 안내 닫기"
               >
                 <X className="h-4 w-4" />
@@ -160,7 +160,7 @@ export default function BlockUserButton({
                 {error ? (
                   <p
                     role="alert"
-                    className="mt-3 rounded-[6px] bg-[#fbf2f0] px-3 py-2 text-sm leading-relaxed text-[#8F6662]"
+                    className="mt-3 rounded-[6px] bg-[#fbf2f0] px-3 py-2 text-sm leading-relaxed text-rose-700"
                   >
                     {error}
                   </p>

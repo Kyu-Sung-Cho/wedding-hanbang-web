@@ -286,9 +286,9 @@ const styles = StyleSheet.create({
     padding: 13,
     fontSize: 12,
     lineHeight: 19,
-    color: colors.textTertiary,
+    color: colors.paper.inkFaint,
   },
-  error: { marginTop: 12, borderRadius: 10, backgroundColor: "#fbf2f0", padding: 10, fontSize: 12, color: colors.rose[600] },
+  error: { marginTop: 12, borderRadius: 10, backgroundColor: "#fbf2f0", padding: 10, fontSize: 12, color: colors.rose[700] },
   footerActions: { flexDirection: "row", gap: 10, marginTop: 18 },
   secondaryButton: {
     minHeight: 46,
@@ -300,7 +300,7 @@ const styles = StyleSheet.create({
     borderRadius: 13,
     backgroundColor: "#fff",
   },
-  secondaryButtonText: { fontSize: 14, fontWeight: "700", color: colors.textTertiary },
+  secondaryButtonText: { fontSize: 14, fontWeight: "700", color: colors.paper.inkFaint },
   primaryButton: {
     minHeight: 46,
     flex: 1,

@@ -57,7 +57,7 @@ export function AmoraQuickStart({
           </button>
         ))}
       </div>
-      <p className="mt-3 text-xs leading-relaxed text-[#8A817A]">
+      <p className="mt-3 text-xs leading-relaxed text-[var(--hb-text-muted)]">
         함께 대화에서 고르면 선택 문장과 아모라 답변은 상대방에게도 보여요.
         이 선택만으로 성격을 판단하거나 예산·일정을 바꾸지 않아요.
       </p>

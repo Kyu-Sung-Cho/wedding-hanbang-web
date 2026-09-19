@@ -87,7 +87,7 @@ export default function MyPostsScreen() {
       >
         {posts.length === 0 ? (
           <EmptyState
-            icon={<FileText size={48} color={colors.taupe[400]} />}
+            icon={<FileText size={48} color={colors.textTertiary} />}
             title="아직 작성한 글이 없어요"
             description="커뮤니티에 첫 후기를 남기면 여기에서 다시 볼 수 있어요."
           />
@@ -154,7 +154,7 @@ const s = StyleSheet.create({
   catBadgeText: {
     fontSize: 12,
     fontFamily: "NotoSansKR_600SemiBold",
-    color: colors.rose[500],
+    color: colors.rose[700],
   },
   title: {
     fontSize: 15,
@@ -171,7 +171,7 @@ const s = StyleSheet.create({
   dateText: {
     fontSize: 12,
     fontFamily: "NotoSansKR_400Regular",
-    color: colors.textTertiary,
+    color: colors.paper.inkFaint,
   },
   metaRight: {
     flexDirection: "row",
@@ -181,7 +181,7 @@ const s = StyleSheet.create({
   metaNum: {
     fontSize: 13,
     fontFamily: "CormorantGaramond_600SemiBold",
-    color: colors.textTertiary,
+    color: colors.paper.inkFaint,
     marginRight: 8,
   },
 

@@ -480,7 +480,7 @@ export default function LoginPage() {
                       }`}
                     />
                     {touched.name && !name.trim() && (
-                      <p className="text-[11px] text-[#9A6B62] mt-1 px-2">이름을 입력해주세요</p>
+                      <p className="text-[11px] text-rose-700 mt-1 px-2">이름을 입력해주세요</p>
                     )}
                   </div>
                 )}
@@ -571,7 +571,7 @@ export default function LoginPage() {
                     </div>
                     <div className="min-h-6 flow-root">
                       {touched.passwordConfirm && passwordConfirm && password !== passwordConfirm && (
-                        <p className="text-[11px] text-[#9A6B62] mt-1 px-2">비밀번호가 일치하지 않습니다</p>
+                        <p className="text-[11px] text-rose-700 mt-1 px-2">비밀번호가 일치하지 않습니다</p>
                       )}
                       {touched.passwordConfirm && passwordConfirm && password === passwordConfirm && passwordConfirm.length > 0 && (
                         <p className="text-[11px] text-[var(--hb-text-strong)] mt-1 px-2 flex items-center gap-1">
@@ -602,7 +602,7 @@ export default function LoginPage() {
                 )}
 
                 {error && (
-                  <p className="text-[12px] text-[#9A6B62] px-1">{error}</p>
+                  <p className="text-[12px] text-rose-700 px-1">{error}</p>
                 )}
                 {success && (
                   <div className="bg-[var(--hb-primary)]/5 border border-[var(--hb-primary)]/20 rounded-[6px] px-4 py-3">

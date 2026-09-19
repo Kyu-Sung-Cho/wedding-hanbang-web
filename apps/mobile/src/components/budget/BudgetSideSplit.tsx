@@ -119,13 +119,13 @@ const s = StyleSheet.create({
     marginTop: 2,
     fontSize: 11,
     fontFamily: "NotoSansKR_400Regular",
-    color: colors.textTertiary,
+    color: colors.paper.inkFaint,
   },
   note: {
     marginTop: 10,
     fontSize: 11,
     lineHeight: 17,
     fontFamily: "NotoSansKR_400Regular",
-    color: colors.textTertiary,
+    color: colors.paper.inkFaint,
   },
 });

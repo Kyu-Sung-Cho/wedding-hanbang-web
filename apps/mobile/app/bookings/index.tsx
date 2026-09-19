@@ -1038,7 +1038,7 @@ function BookingDetailSheet({
                       onChangeText={setContractedAmountText}
                       keyboardType="number-pad"
                       placeholder="예: 2500000"
-                      placeholderTextColor={colors.textTertiary}
+                      placeholderTextColor={colors.paper.inkFaint}
                       style={s.textInput}
                     />
                   </View>
@@ -1050,7 +1050,7 @@ function BookingDetailSheet({
                       onChangeText={setActualAmountText}
                       keyboardType="number-pad"
                       placeholder="사용자가 확인한 지출 총액"
-                      placeholderTextColor={colors.textTertiary}
+                      placeholderTextColor={colors.paper.inkFaint}
                       style={s.textInput}
                     />
                   </View>
@@ -1091,7 +1091,7 @@ function BookingDetailSheet({
                       value={reviewText}
                       onChangeText={(value) => setReviewText(value.slice(0, 1000))}
                       placeholder="추가금, 상담 품질, 아쉬운 점을 남겨주세요"
-                      placeholderTextColor={colors.textTertiary}
+                      placeholderTextColor={colors.paper.inkFaint}
                       multiline
                       textAlignVertical="top"
                       style={[s.textInput, s.reviewInput]}
@@ -1482,9 +1482,9 @@ const s = StyleSheet.create({
     paddingVertical: 5,
   },
   errorText: {
-    color: colors.danger,
+    color: colors.dangerDeep,
   },
   successText: {
-    color: colors.success,
+    color: colors.noir.soft,
   },
 });

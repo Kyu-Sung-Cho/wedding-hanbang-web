@@ -271,7 +271,7 @@ const textStyles = StyleSheet.create({
   eyebrow: {
     fontSize: 11,
     fontFamily: "NotoSansKR_600SemiBold",
-    color: colors.textTertiary,
+    color: colors.paper.inkFaint,
   },
   title: {
     fontSize: 30,
@@ -301,7 +301,7 @@ const textStyles = StyleSheet.create({
     fontSize: 12,
     lineHeight: 18,
     fontFamily: "NotoSansKR_400Regular",
-    color: colors.textTertiary,
+    color: colors.paper.inkFaint,
   },
   number: {
     fontSize: 44,
@@ -437,16 +437,16 @@ const pillTextStyles = StyleSheet.create({
     color: colors.textSecondary,
   },
   rose: {
-    color: colors.rose[600],
+    color: colors.rose[700],
   },
   success: {
-    color: colors.success,
+    color: colors.noir.soft,
   },
   warning: {
-    color: "#8A6A28",
+    color: colors.paper.tapeInk,
   },
   danger: {
-    color: colors.danger,
+    color: colors.dangerDeep,
   },
 });
 

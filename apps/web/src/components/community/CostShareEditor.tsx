@@ -191,7 +191,7 @@ export default function CostShareEditor({
           </h4>
           <div className="text-xs text-[var(--hb-text-muted)]">
             소계:{" "}
-            <span className="font-medium text-emerald-600">
+            <span className="font-medium text-[var(--hb-success)]">
               {categoryTotal.toLocaleString()}만원
             </span>
           </div>
@@ -241,7 +241,7 @@ export default function CostShareEditor({
                 <button
                   type="button"
                   onClick={() => removeCategory(i)}
-                  className="p-1.5 text-[var(--hb-text-muted)] hover:text-red-500 transition-colors"
+                  className="p-1.5 text-[var(--hb-text-muted)] hover:text-danger-700 transition-colors"
                   aria-label={`${cat.label} 삭제`}
                 >
                   <Trash2 className="w-4 h-4" />

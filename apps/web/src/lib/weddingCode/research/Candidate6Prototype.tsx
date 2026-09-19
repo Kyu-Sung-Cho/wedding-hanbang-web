@@ -630,7 +630,7 @@ export function Candidate6Prototype({
 
           {giving && chosenSoFar ? (
             <div className="mt-4 rounded-[6px] bg-[#F7F1E8] px-4 py-3">
-              <p className="text-[12px] font-semibold text-[#8F6662]">내가 물어볼 한 마디</p>
+              <p className="text-[12px] font-semibold text-rose-700">내가 물어볼 한 마디</p>
               <p className="mt-1 truncate text-[14px] font-semibold text-[#243832]">
                 {chosenSoFar.card?.prompt}
               </p>
@@ -653,7 +653,7 @@ export function Candidate6Prototype({
                   }`}
                 >
                   <span>
-                    <span className="block text-[12px] font-semibold text-[#8F6662]">
+                    <span className="block text-[12px] font-semibold text-rose-700">
                       {entry.sceneTitle}
                     </span>
                     <span className="mt-1 block text-[16px] font-semibold leading-[1.5] text-[#243832]">
@@ -992,7 +992,7 @@ function PrototypeShell({
       >
         {children}
         {showFooter && (
-          <p className="mt-4 text-center text-[12px] font-medium leading-relaxed text-[#8F6662]">
+          <p className="mt-4 text-center text-[12px] font-medium leading-relaxed text-rose-700">
             {CANDIDATE6_RESEARCH_EXACT_VERSION} · 로컬 연구 미리보기 · 정식 검사 아님
           </p>
         )}

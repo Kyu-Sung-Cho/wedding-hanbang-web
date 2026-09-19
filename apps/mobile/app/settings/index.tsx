@@ -791,7 +791,7 @@ export default function SettingsScreen() {
               value={data?.nickname ?? ""}
               onChangeText={(v) => updateField("nickname", v)}
               placeholder="실명을 입력하세요"
-              placeholderTextColor={colors.taupe[400]}
+              placeholderTextColor={colors.paper.inkFaint}
               maxLength={20}
               onFocus={() => setFocusedField("nickname")}
               onBlur={() => setFocusedField(null)}
@@ -811,7 +811,7 @@ export default function SettingsScreen() {
               value={data?.communityNickname ?? ""}
               onChangeText={(v) => updateField("communityNickname", v)}
               placeholder="커뮤니티에서 사용할 별명"
-              placeholderTextColor={colors.taupe[400]}
+              placeholderTextColor={colors.paper.inkFaint}
               maxLength={15}
               onFocus={() => setFocusedField("communityNickname")}
               onBlur={() => setFocusedField(null)}
@@ -849,7 +849,7 @@ export default function SettingsScreen() {
               value={data?.weddingDate ?? ""}
               onChangeText={(v) => updateField("weddingDate", v)}
               placeholder="YYYY-MM-DD"
-              placeholderTextColor={colors.taupe[400]}
+              placeholderTextColor={colors.paper.inkFaint}
               maxLength={10}
               keyboardType="numbers-and-punctuation"
               onFocus={() => setFocusedField("weddingDate")}
@@ -869,7 +869,7 @@ export default function SettingsScreen() {
               value={data?.venue ?? ""}
               onChangeText={(v) => updateField("venue", v)}
               placeholder="결혼식장 이름"
-              placeholderTextColor={colors.taupe[400]}
+              placeholderTextColor={colors.paper.inkFaint}
               maxLength={120}
               onFocus={() => setFocusedField("venue")}
               onBlur={() => setFocusedField(null)}
@@ -888,7 +888,7 @@ export default function SettingsScreen() {
               value={data?.totalBudget ?? ""}
               onChangeText={(v) => updateField("totalBudget", v)}
               placeholder="예: 3000"
-              placeholderTextColor={colors.taupe[400]}
+              placeholderTextColor={colors.paper.inkFaint}
               keyboardType="numeric"
               maxLength={12}
               onFocus={() => setFocusedField("totalBudget")}
@@ -950,7 +950,7 @@ export default function SettingsScreen() {
             title="기기 알림 설정"
             description="알림 허용 여부는 휴대폰 설정에서 바꿀 수 있어요"
             onPress={() => void Linking.openSettings()}
-            right={<ExternalLink size={16} color={colors.taupe[400]} />}
+            right={<ExternalLink size={16} color={colors.textTertiary} />}
           />
           <CommunityReplyPushPreferenceControl />
           <TodayOnePreferenceControl />
@@ -1167,7 +1167,7 @@ export default function SettingsScreen() {
           <ActionRow
             title="이용약관"
             onPress={() => Linking.openURL("https://hanbang.ai/terms")}
-            right={<ExternalLink size={16} color={colors.taupe[400]} />}
+            right={<ExternalLink size={16} color={colors.textTertiary} />}
           />
 
           <View style={styles.divider} />
@@ -1175,7 +1175,7 @@ export default function SettingsScreen() {
           <ActionRow
             title="개인정보처리방침"
             onPress={() => Linking.openURL("https://hanbang.ai/privacy")}
-            right={<ExternalLink size={16} color={colors.taupe[400]} />}
+            right={<ExternalLink size={16} color={colors.textTertiary} />}
           />
 
           <View style={styles.divider} />
@@ -1192,7 +1192,7 @@ export default function SettingsScreen() {
             title="AI 정책"
             description="아모라가 무엇을 하고 무엇을 하지 않는지"
             onPress={() => { void Linking.openURL(AI_POLICY_URL); }}
-            right={<ExternalLink size={16} color={colors.taupe[400]} />}
+            right={<ExternalLink size={16} color={colors.textTertiary} />}
           />
 
           {/* 오픈소스 라이선스 행은 제거했다 — 대상 페이지(hanbang.ai)가 없어
@@ -1203,15 +1203,15 @@ export default function SettingsScreen() {
         {/* 회원 탈퇴 (위험 영역) */}
         <View style={styles.dangerZone}>
           <Pressable
-            style={({ pressed }) => [styles.dangerBtn, pressed && { opacity: 0.7 }]}
+            style={({ pressed }) => [styles.dangerBtn, pressed && styles.dangerBtnPressed]}
             onPress={() => { void handleDeleteAccount(); }}
             disabled={checkingDeletionIntake}
             accessibilityRole="button"
             accessibilityState={{ disabled: checkingDeletionIntake, busy: checkingDeletionIntake }}
           >
             {checkingDeletionIntake
-              ? <ActivityIndicator size="small" color={colors.danger} />
-              : <Trash2 size={16} color={colors.danger} />}
+              ? <ActivityIndicator size="small" color={colors.dangerDeep} />
+              : <Trash2 size={16} color={colors.dangerDeep} />}
             <Text style={styles.dangerBtnText}>회원 탈퇴</Text>
           </Pressable>
         </View>
@@ -1266,7 +1266,7 @@ export default function SettingsScreen() {
                   value={newPassword}
                   onChangeText={setNewPassword}
                   placeholder="6자 이상 입력"
-                  placeholderTextColor={colors.taupe[400]}
+                  placeholderTextColor={colors.paper.inkFaint}
                   secureTextEntry={!showNewPassword}
                   autoCapitalize="none"
                   maxLength={64}
@@ -1277,9 +1277,9 @@ export default function SettingsScreen() {
                   style={styles.eyeBtn}
                 >
                   {showNewPassword ? (
-                    <EyeOff size={18} color={colors.taupe[400]} />
+                    <EyeOff size={18} color={colors.textTertiary} />
                   ) : (
-                    <Eye size={18} color={colors.taupe[400]} />
+                    <Eye size={18} color={colors.textTertiary} />
                   )}
                 </Pressable>
               </View>
@@ -1294,7 +1294,7 @@ export default function SettingsScreen() {
                   value={confirmPassword}
                   onChangeText={setConfirmPassword}
                   placeholder="다시 한번 입력"
-                  placeholderTextColor={colors.taupe[400]}
+                  placeholderTextColor={colors.paper.inkFaint}
                   secureTextEntry={!showConfirmPassword}
                   autoCapitalize="none"
                   maxLength={64}
@@ -1305,9 +1305,9 @@ export default function SettingsScreen() {
                   style={styles.eyeBtn}
                 >
                   {showConfirmPassword ? (
-                    <EyeOff size={18} color={colors.taupe[400]} />
+                    <EyeOff size={18} color={colors.textTertiary} />
                   ) : (
-                    <Eye size={18} color={colors.taupe[400]} />
+                    <Eye size={18} color={colors.textTertiary} />
                   )}
                 </Pressable>
               </View>
@@ -1376,7 +1376,7 @@ const styles = StyleSheet.create({
     marginTop: 12,
     fontSize: 13,
     lineHeight: 20,
-    color: colors.danger,
+    color: colors.dangerDeep,
   },
 
   // 섹션
@@ -1407,7 +1407,7 @@ const styles = StyleSheet.create({
   // 필드
   field: { gap: 6 },
   label: { fontSize: 13, fontWeight: "600", color: colors.textSecondary },
-  fieldHint: { fontSize: 11, color: colors.taupe[400], marginTop: 4, marginLeft: 2 },
+  fieldHint: { fontSize: 11, color: colors.paper.inkFaint, marginTop: 4, marginLeft: 2 },
   textInput: {
     fontSize: 15,
     color: colors.noir[800],
@@ -1467,7 +1467,7 @@ const styles = StyleSheet.create({
   supportLinkText: {
     fontSize: 13,
     fontWeight: "600",
-    color: colors.rose[500],
+    color: colors.rose[700],
     textDecorationLine: "underline",
   },
   // 초대 대기 중의 복구 경로. 코드를 보내는 일이 먼저이므로 기본 버튼으로 올리지 않고
@@ -1483,7 +1483,7 @@ const styles = StyleSheet.create({
   restartLinkText: {
     fontSize: 13,
     fontWeight: "600",
-    color: colors.rose[500],
+    color: colors.rose[700],
     textDecorationLine: "underline",
   },
 
@@ -1518,10 +1518,15 @@ const styles = StyleSheet.create({
     borderColor: colors.danger,
     backgroundColor: "rgba(239, 68, 68, 0.05)",
   },
+  // 눌림을 투명도로 나타내지 않는다 — 안드로이드는 투명도를 글자에도 따로 적용해
+  // 탈퇴 글자가 기준 아래로 흐려진다. 바탕만 한 단계 짙게 한다.
+  dangerBtnPressed: {
+    backgroundColor: "rgba(239, 68, 68, 0.12)",
+  },
   dangerBtnText: {
     fontSize: 14,
     fontWeight: "600",
-    color: colors.danger,
+    color: colors.dangerDeep,
   },
 
   // 비밀번호 모달
@@ -1574,7 +1579,7 @@ const styles = StyleSheet.create({
   },
   errorHint: {
     fontSize: 12,
-    color: colors.danger,
+    color: colors.dangerDeep,
     marginTop: 4,
     marginLeft: 2,
   },

@@ -823,8 +823,8 @@ export default function PostDetailScreen() {
               >
                 <Bookmark
                   size={22}
-                  color={bookmarked ? colors.rose[500] : colors.taupe[400]}
-                  fill={bookmarked ? colors.rose[500] : "none"}
+                  color={bookmarked ? colors.rose[700] : colors.textTertiary}
+                  fill={bookmarked ? colors.rose[700] : "none"}
                 />
               </Pressable>
             </Animated.View>
@@ -840,7 +840,7 @@ export default function PostDetailScreen() {
                   nickname: authorName,
                 })}
               >
-                <MoreHorizontal size={22} color={colors.taupe[400]} />
+                <MoreHorizontal size={22} color={colors.textTertiary} />
               </Pressable>
             ) : null}
           </View>
@@ -920,7 +920,7 @@ export default function PostDetailScreen() {
                 >
                   <ChevronUp
                     size={20}
-                    color={userVote === 1 ? colors.rose[700] : colors.taupe[400]}
+                    color={userVote === 1 ? colors.rose[700] : colors.textTertiary}
                   />
                 </Pressable>
               </Animated.View>
@@ -930,7 +930,7 @@ export default function PostDetailScreen() {
               ]}>{votes}</Text>
             </View>
             <View style={styles.actionGroup}>
-              <MessageCircle size={18} color={colors.taupe[400]} />
+              <MessageCircle size={18} color={colors.textTertiary} />
               <Text style={styles.actionLabel}>댓글 {post.comment_count}</Text>
             </View>
           </View>
@@ -996,7 +996,7 @@ export default function PostDetailScreen() {
             value={commentText}
             onChangeText={setCommentText}
             placeholder="댓글을 입력하세요..."
-            placeholderTextColor={colors.taupe[400]}
+            placeholderTextColor={colors.paper.inkFaint}
             maxLength={1000}
             onFocus={() => setCommentFocused(true)}
             onBlur={() => setCommentFocused(false)}
@@ -1065,7 +1065,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     marginBottom: 12,
   },
-  catBadgeText: { fontSize: 13, fontWeight: "600", color: colors.rose[500] },
+  catBadgeText: { fontSize: 13, fontWeight: "600", color: colors.rose[700] },
 
   title: {
     fontSize: 24,
@@ -1087,8 +1087,8 @@ const styles = StyleSheet.create({
   },
   authorName: { fontSize: 15, fontWeight: "600", color: colors.noir[800] },
   meta: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 2 },
-  dot: { fontSize: 12, color: colors.taupe[400] },
-  time: { fontSize: 13, color: colors.taupe[400] },
+  dot: { fontSize: 12, color: colors.paper.inkFaint },
+  time: { fontSize: 13, color: colors.paper.inkFaint },
 
   body: { fontSize: 15, color: colors.noir[800], lineHeight: 28, marginBottom: 24 },
 
@@ -1128,7 +1128,7 @@ const styles = StyleSheet.create({
     textAlign: "center",
     fontFamily: "CormorantGaramond_600SemiBold",
   },
-  actionLabel: { fontSize: 13, color: colors.taupe[400] },
+  actionLabel: { fontSize: 13, color: colors.paper.inkFaint },
   actionDisabled: { opacity: 0.55 },
   actionNotice: {
     marginTop: 12,
@@ -1157,13 +1157,13 @@ const styles = StyleSheet.create({
     paddingVertical: 32,
     gap: 8,
   },
-  noComments: { fontSize: 13, color: colors.textTertiary, textAlign: "center" },
+  noComments: { fontSize: 13, color: colors.paper.inkFaint, textAlign: "center" },
   commentsLoadingWrap: {
     alignItems: "center",
     paddingVertical: 28,
     gap: 8,
   },
-  commentsLoadingText: { fontSize: 13, color: colors.textTertiary },
+  commentsLoadingText: { fontSize: 13, color: colors.paper.inkFaint },
   commentsErrorWrap: {
     alignItems: "center",
     paddingVertical: 28,

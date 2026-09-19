@@ -386,7 +386,7 @@ function BudgetImpactDetails({ preview }: { preview: BudgetImpactPreview }) {
             <dt className="text-[#746866]">{row.label}</dt>
             <dd className="min-w-0 text-right font-medium text-[#3D3434]">
               {formatPossiblyNegativeWon(row.current)} → {formatPossiblyNegativeWon(row.proposed)}
-              <span className="ml-1.5 whitespace-nowrap font-normal text-[#867976]">
+              <span className="ml-1.5 whitespace-nowrap font-normal text-[var(--hb-text-muted)]">
                 ({formatSignedWon(row.delta)})
               </span>
             </dd>

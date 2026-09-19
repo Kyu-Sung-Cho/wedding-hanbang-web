@@ -174,7 +174,7 @@ export default function PaymentLedger() {
           <div className="mt-5 grid grid-cols-1 gap-2 sm:grid-cols-3">
             {summaryItems.map((item) => (
               <div key={item.label} className="rounded-[6px] bg-[var(--hb-surface-page)] px-3.5 py-3">
-                <p className="text-xs text-[#80766E]">{item.label}</p>
+                <p className="text-xs text-[var(--hb-text-muted)]">{item.label}</p>
                 <p className="mt-1 text-base font-semibold tabular-nums text-[var(--hb-text-strong)]">
                   {formatWon(item.value)}
                 </p>
@@ -226,17 +226,17 @@ export default function PaymentLedger() {
         {loading ? (
           <div
             role="status"
-            className="rounded-[6px] bg-[var(--hb-surface-page)] px-4 py-8 text-center text-sm text-[#80766E]"
+            className="rounded-[6px] bg-[var(--hb-surface-page)] px-4 py-8 text-center text-sm text-[var(--hb-text-muted)]"
           >
             계약·지급 기록을 불러오는 중…
           </div>
         ) : payments.length === 0 && !showCreate && !error ? (
           <div className="rounded-[6px] border border-dashed border-[#D9CEC1] px-4 py-8 text-center">
-            <FileText className="mx-auto h-6 w-6 text-[#A77B74]" aria-hidden="true" />
+            <FileText className="mx-auto h-6 w-6 text-rose-700" aria-hidden="true" />
             <p className="mt-3 text-sm font-semibold text-[var(--hb-text-strong)]">
               아직 계약·지급 기록이 없어요
             </p>
-            <p className="mx-auto mt-1 max-w-md text-xs leading-5 text-[#80766E]">
+            <p className="mx-auto mt-1 max-w-md text-xs leading-5 text-[var(--hb-text-muted)]">
               계약서나 업체의 서면 안내를 보며 총액, 지급액과 잔금일을 직접
               옮겨 적어 두세요.
             </p>
@@ -283,7 +283,7 @@ export default function PaymentLedger() {
                           {payment.vendorDisplayName}
                         </p>
                       )}
-                      <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-[#80766E]">
+                      <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-[var(--hb-text-muted)]">
                         <span>계약 {formatWon(payment.contractAmountWon)}</span>
                         <span>지급 {formatWon(payment.paidAmountWon)}</span>
                         <span className="font-semibold text-[var(--hb-text-strong)]">
@@ -296,7 +296,7 @@ export default function PaymentLedger() {
                           </span>
                         )}
                       </div>
-                      <p className="mt-2 text-[11px] leading-5 text-[#8E857C]">
+                      <p className="mt-2 text-[11px] leading-5 text-[var(--hb-text-muted)]">
                         {payment.evidenceStatus === "provider_written"
                           ? "업체 문서에서 직접 옮긴 값 · 웨딩한방이 검증한 금액은 아닙니다."
                           : "사용자가 직접 입력한 값"}
@@ -323,7 +323,7 @@ export default function PaymentLedger() {
           </div>
         )}
 
-        <p className="text-[11px] leading-5 text-[#8E857C]">
+        <p className="text-[11px] leading-5 text-[var(--hb-text-muted)]">
           삭제 기능 대신 상태를 ‘취소됨’으로 바꿔 기록 자체를 남깁니다. 환불
           가능 참고액은 확정 환불액이나 법률상 권리를 뜻하지 않습니다.
         </p>

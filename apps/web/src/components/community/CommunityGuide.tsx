@@ -112,7 +112,7 @@ function SlideRealReview() {
               <div>
                 <div className="text-sm text-[var(--hb-text-muted)] mb-1">샘플 A</div>
                 <div className="text-base font-semibold text-[var(--hb-text-strong)]">총액 확인</div>
-                <div className="text-sm text-red-500">별도 확인</div>
+                <div className="text-sm text-danger-700">별도 확인</div>
               </div>
               <div>
                 <div className="text-sm text-[var(--hb-text-muted)] mb-1">샘플 B</div>
@@ -130,7 +130,7 @@ function SlideRealReview() {
         {/* 이미지 */}
         <div className="px-4 pb-3 flex gap-2">
           <div className="flex-1 h-[48px] rounded-[6px] bg-gradient-to-br from-[var(--hb-primary)]/15 to-[var(--hb-primary)]/5 border border-[var(--hb-primary)]/10 flex items-center justify-center">
-            <Camera className="w-4 h-4 text-[var(--hb-text-strong)]/40" />
+            <Camera className="w-4 h-4 text-[var(--hb-text-muted)]" />
           </div>
           <div className="flex-1 h-[48px] rounded-[6px] bg-gradient-to-br from-[#B89785]/15 to-[var(--hb-primary-hover)]/5 border border-[#B89785]/10 flex items-center justify-center">
             <Camera className="w-4 h-4 text-[#B89785]/40" />
@@ -377,7 +377,7 @@ function SlideHowToUse() {
         {/* 3. 북마크 */}
         <div className="flex items-start gap-3 p-4 rounded-[6px] bg-[var(--hb-surface-page)] border border-[#f6efe5]">
           <div className="w-11 h-11 rounded-[6px] bg-gradient-to-br from-[#B89785]/20 to-[var(--hb-primary-hover)]/5 flex items-center justify-center shrink-0">
-            <Star className="w-5 h-5 text-[#B89785]" />
+            <Star className="w-5 h-5 text-[var(--color-paper-tape-ink)]" />
           </div>
           <div className="text-left">
             <div className="text-base text-[var(--hb-text-strong)] font-semibold mb-1">나중에 볼 글은 저장</div>

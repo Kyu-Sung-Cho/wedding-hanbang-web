@@ -117,7 +117,7 @@ export default function AdminEnrichPage() {
             <p className="mt-2 max-w-2xl text-sm leading-6 text-[var(--hb-success)]">공시 가격을 바탕으로 URL·속성·태그만 보강합니다. 외부 사이트 내용을 자동으로 가져오지 않습니다.</p>
           </div>
           <div className="rounded-[6px] bg-[var(--hb-primary)] px-5 py-3 text-white">
-            <p className="text-xs text-white/70">전체 진행률</p>
+            <p className="text-xs text-white">전체 진행률</p>
             <p className="mt-0.5 text-lg font-bold tabular-nums">{progress.all?.done ?? 0} / {progress.all?.total ?? 0}</p>
           </div>
         </div>
@@ -157,7 +157,7 @@ export default function AdminEnrichPage() {
           </div>
         ) : (
           <div className="mt-5 overflow-hidden rounded-[6px] border border-[#E2D3C8] bg-white">
-            <div className="hidden grid-cols-[minmax(220px,1fr)_130px_150px_120px_210px] gap-4 border-b border-[#E2D3C8] bg-[var(--hb-surface-hover)] px-5 py-3 text-xs font-bold text-[var(--hb-success)] md:grid">
+            <div className="hidden grid-cols-[minmax(220px,1fr)_130px_150px_120px_210px] gap-4 border-b border-[#E2D3C8] bg-[var(--hb-surface-hover)] px-5 py-3 text-xs font-bold text-noir-800 md:grid">
               <span>업체</span><span>유형</span><span>지역</span><span>상태</span><span className="text-right">작업</span>
             </div>
             <ul className="divide-y divide-[var(--hb-hairline)]">
@@ -175,7 +175,7 @@ export default function AdminEnrichPage() {
                       <Link href={`/admin/enrich/${vendor.id}`} className="inline-flex min-h-10 items-center gap-1.5 rounded-[6px] bg-[var(--hb-primary)] px-3.5 text-sm font-semibold text-white">{vendor.enrichment_status === "done" || vendor.enrichment_status === "skip" ? "검토" : "편집"}<ArrowRight size={15} /></Link>
                     )}
                     {vendor.is_assigned && !vendor.assigned_to_me && vendor.enrichment_status === "in_progress" && (
-                      <span className="inline-flex min-h-10 items-center rounded-[6px] bg-[#EFE4D7] px-3 text-xs font-semibold text-[var(--hb-success)]" aria-disabled="true">편집 잠금</span>
+                      <span className="inline-flex min-h-10 items-center rounded-[6px] bg-[#EFE4D7] px-3 text-xs font-semibold text-noir-800" aria-disabled="true">편집 잠금</span>
                     )}
                   </div>
                 </li>

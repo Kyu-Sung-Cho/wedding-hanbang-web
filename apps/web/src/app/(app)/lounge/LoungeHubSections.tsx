@@ -19,7 +19,7 @@ export function PreparationStageRail({ groups }: { groups: readonly MissionGroup
     <h2 className="mb-3 hidden text-[14px] font-semibold lg:block">준비 여정 한눈에</h2>
     <div className="flex gap-1 overflow-x-auto pb-2 lg:block lg:space-y-1 lg:overflow-visible lg:pb-0">
       {groups.map((group, index) => <Link key={group.id} {...weddingLinkProps(group.href)} aria-current={group.state === "current" ? "step" : undefined} className={`group flex min-w-[70px] flex-1 flex-col items-center gap-2 rounded-xl px-1 py-2 text-center lg:flex-row lg:gap-3 lg:px-2 lg:text-left ${group.state === "current" ? "lg:bg-[var(--amora-warm)]" : "hover:bg-[var(--amora-warm)]"} ${focus}`}>
-        <span className={`flex size-9 shrink-0 items-center justify-center rounded-full text-[12px] font-semibold ${group.state === "done" ? "bg-[var(--amora-sage-pale)] text-[var(--amora-sage)]" : group.state === "current" ? "bg-[var(--amora-ink)] text-white" : "border border-[var(--amora-line)] bg-white text-[var(--amora-muted)]"}`}>
+        <span className={`flex size-9 shrink-0 items-center justify-center rounded-full text-[12px] font-semibold ${group.state === "done" ? "bg-[var(--amora-sage-pale)] text-noir-800" : group.state === "current" ? "bg-[var(--amora-ink)] text-white" : "border border-[var(--amora-line)] bg-white text-[var(--amora-muted)]"}`}>
           {group.state === "done" ? <Check size={15} aria-hidden="true" /> : index + 1}
         </span>
         <span className="min-w-0">
@@ -51,7 +51,7 @@ export function LoungePriorityFeed({ items }: { items: readonly LoungePriorityIt
         const days = event ? daysUntilLoungeEvent(event.date) : null;
         return <article key={category?.key ?? event?.id} className={`${index >= 3 && !showAll ? "hidden lg:grid" : "lg:grid"} rounded-[14px] border border-[var(--amora-line)] bg-white p-[15px] lg:grid-cols-[76px_minmax(0,1fr)] lg:gap-5 lg:rounded-none lg:border-x-0 lg:border-t-0 lg:p-0 lg:py-5 lg:last:border-b-0`}>
           <div className="mb-2 flex items-center gap-2 lg:mb-0 lg:block">
-            <span className={`inline-flex rounded-md px-2 py-1 text-[10px] font-medium ${event ? "bg-[var(--amora-sage-pale)] text-[var(--amora-sage)]" : imminent ? "bg-[var(--amora-rose-pale)] text-[var(--amora-rose-deep)]" : "bg-[var(--amora-warm)] text-[var(--amora-muted)]"}`}>{tag}</span>
+            <span className={`inline-flex rounded-md px-2 py-1 text-[10px] font-medium ${event ? "bg-[var(--amora-sage-pale)] text-noir-800" : imminent ? "bg-[var(--amora-rose-pale)] text-[var(--amora-rose-deep)]" : "bg-[var(--amora-warm)] text-[var(--amora-muted)]"}`}>{tag}</span>
             {event && <span className="text-[10px] text-[var(--amora-muted)] lg:mt-2 lg:block">{days === null ? "날짜 미정" : days === 0 ? "오늘" : `${days}일 후`}</span>}
             {category && <span className="text-[10px] text-[var(--amora-muted)] lg:mt-2 lg:block">체크리스트</span>}
           </div>

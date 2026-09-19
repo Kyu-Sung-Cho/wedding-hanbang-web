@@ -302,7 +302,7 @@ export function PriceVendorCard({
             disabled={wishlistBusy}
             aria-busy={wishlistBusy}
             aria-label={isWishlisted ? `${vendor.name} 찜 해제` : `${vendor.name} 찜하기`}
-            className="flex size-11 shrink-0 items-center justify-center rounded-full border border-[var(--hb-primary)]/12 bg-[var(--hb-surface-page)] text-[#8F6662] hover:bg-[#F5ECE4] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#B89785] disabled:cursor-wait disabled:opacity-55"
+            className="flex size-11 shrink-0 items-center justify-center rounded-full border border-[var(--color-paper-outline)] bg-[var(--hb-surface-page)] text-[#8F6662] hover:bg-[#F5ECE4] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#B89785] disabled:cursor-wait disabled:opacity-55"
           >
             <Heart aria-hidden="true" className="size-5" fill={isWishlisted ? "currentColor" : "none"} />
           </button>
@@ -553,7 +553,7 @@ export function PriceVendorCard({
             surface: "price_list",
             context: { category: vendor.category },
           })}
-          className="inline-flex min-h-11 flex-1 items-center justify-center rounded-[6px] border border-[var(--hb-primary)]/18 px-4 text-sm font-semibold text-[var(--hb-text-strong)] hover:bg-[#F5ECE4]/55 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#B89785]"
+          className="inline-flex min-h-11 flex-1 items-center justify-center rounded-[6px] border border-[var(--color-paper-outline)] px-4 text-sm font-semibold text-[var(--hb-text-strong)] hover:bg-[#F5ECE4]/55 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#B89785]"
         >
           상세 보기
         </Link>

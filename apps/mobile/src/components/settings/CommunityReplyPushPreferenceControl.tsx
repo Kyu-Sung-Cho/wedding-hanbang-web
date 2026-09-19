@@ -183,6 +183,6 @@ const styles = StyleSheet.create({
     borderRadius: radius.lg,
     backgroundColor: colors.ivory[100],
   },
-  promiseText: { flex: 1, fontSize: 11, lineHeight: 17, color: colors.sage[500] },
-  error: { fontSize: 11, lineHeight: 17, color: colors.rose[600] },
+  promiseText: { flex: 1, fontSize: 11, lineHeight: 17, color: colors.noir.soft },
+  error: { fontSize: 11, lineHeight: 17, color: colors.rose[700] },
 });

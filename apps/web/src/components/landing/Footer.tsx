@@ -64,7 +64,7 @@ export default function Footer() {
 
           {/* 정책 */}
           <div>
-            <h5 className="text-rose-light text-xs mb-5 font-medium">
+            <h5 className="text-[var(--hb-on-primary)] text-xs mb-5 font-medium">
               정책
             </h5>
             <ul className="space-y-3">
@@ -83,7 +83,7 @@ export default function Footer() {
 
           {/* 연락 */}
           <div>
-            <h5 className="text-rose-light text-xs mb-5 font-medium">
+            <h5 className="text-[var(--hb-on-primary)] text-xs mb-5 font-medium">
               연락
             </h5>
             <ul className="space-y-3">
@@ -110,7 +110,7 @@ export default function Footer() {
         <div className="pt-8 mt-8 border-t border-white/10 space-y-3">
           <p className="text-[var(--hb-on-primary)] text-xs leading-relaxed">
             <span className="text-[var(--hb-on-primary)] font-medium">운영 문의</span> ·
-            대표 이메일 <a href={`mailto:${CONTACT.email}`} className="underline hover:text-white">{CONTACT.email}</a>
+            대표 이메일 <a href={`mailto:${CONTACT.email}`} className="underline hover:decoration-2">{CONTACT.email}</a>
           </p>
           <p className="text-[var(--hb-on-primary)] text-xs leading-relaxed">
             현재 공개 화면은 정보 정리 기능을 제공합니다. 결제·중개 등 거래 기능을 제공하기 전 운영 주체, 사업자 정보, 책임 범위와 환불 기준을 법률 검토 후 별도로 고지합니다.

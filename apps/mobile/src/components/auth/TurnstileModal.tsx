@@ -233,7 +233,7 @@ const styles = StyleSheet.create({
     fontFamily: "NotoSansKR_400Regular",
     color: colors.textSecondary,
   },
-  errorStatus: { color: colors.danger },
+  errorStatus: { color: colors.dangerDeep },
   webViewFrame: {
     height: 150,
     marginTop: 8,

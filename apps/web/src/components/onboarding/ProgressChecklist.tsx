@@ -112,7 +112,7 @@ export default function ProgressChecklist({ items, onStatusChange, onCostChange,
                           ? "bg-[#2E7D5A] text-white"
                           : opt.value === "in_progress"
                             ? "bg-[var(--hb-primary)] text-white"
-                            : "bg-taupe-400 text-white"
+                            : "bg-taupe-500 text-white"
                         : "bg-black/[0.04] text-[var(--hb-text-muted)] hover:bg-black/[0.08]"
                     }`}
                   >

@@ -5096,7 +5096,7 @@ export default function ChatScreen() {
         <View style={st.targetRow}>
           <Pressable disabled={streaming} accessibilityState={{ disabled: streaming }} style={[st.targetBtn, !isP && st.targetActive]} onPress={() => handleTargetChange("ai")}><AmoraMark size={14} color={!isP ? amoraIdentity.ink : colors.textTertiary} /><Text style={[st.targetText, !isP && st.targetTextActive]}>아모라</Text></Pressable>
           {hasLinkedPartner && (
-            <Pressable disabled={streaming} accessibilityState={{ disabled: streaming }} style={[st.targetBtn, isP && st.targetPartner]} onPress={() => handleTargetChange("partner")}><Heart size={14} color={isP ? colors.rose[500] : colors.textTertiary} /><Text style={[st.targetText, isP && st.targetTextPartner]}>{partnerName ?? "파트너"}</Text></Pressable>
+            <Pressable disabled={streaming} accessibilityState={{ disabled: streaming }} style={[st.targetBtn, isP && st.targetPartner]} onPress={() => handleTargetChange("partner")}><Heart size={14} color={isP ? colors.rose[700] : colors.textTertiary} /><Text style={[st.targetText, isP && st.targetTextPartner]}>{partnerName ?? "파트너"}</Text></Pressable>
           )}
         </View>
       )}
@@ -5280,9 +5280,9 @@ export default function ChatScreen() {
         )}
 
         <View style={[st.inputBar, isP && { borderTopColor: colors.rose.light }]}>
-          <TextInput style={st.input} value={input} onChangeText={handleInputChange} placeholder={isP ? `${partnerName ?? "파트너"}에게 메시지...` : activeScope === "private" ? "나만의 상담을 입력하세요..." : "메시지를 입력하세요..."} placeholderTextColor={colors.taupe[400]} multiline maxLength={4000} editable={!streaming && initialLoaded && !chatLoadError && !composerLockedByViewClear} returnKeyType="send" accessibilityLabel="메시지 입력" />
+          <TextInput style={st.input} value={input} onChangeText={handleInputChange} placeholder={isP ? `${partnerName ?? "파트너"}에게 메시지...` : activeScope === "private" ? "나만의 상담을 입력하세요..." : "메시지를 입력하세요..."} placeholderTextColor={colors.paper.inkFaint} multiline maxLength={4000} editable={!streaming && initialLoaded && !chatLoadError && !composerLockedByViewClear} returnKeyType="send" accessibilityLabel="메시지 입력" />
           <Animated.View style={{ transform: [{ scale: sendBtnScale }] }}>
-            <Pressable style={[st.sendBtn, isP && { backgroundColor: colors.rose[500] }, (!input.trim() || streaming || !initialLoaded || Boolean(chatLoadError) || composerLockedByViewClear) && st.sendBtnOff]} onPress={() => { void handleSend(); }} onPressIn={pressIn} onPressOut={pressOut} disabled={!input.trim() || streaming || !initialLoaded || Boolean(chatLoadError) || composerLockedByViewClear} accessibilityLabel="메시지 보내기" accessibilityRole="button">
+            <Pressable style={[st.sendBtn, isP && { backgroundColor: colors.rose[600] }, (!input.trim() || streaming || !initialLoaded || Boolean(chatLoadError) || composerLockedByViewClear) && st.sendBtnOff]} onPress={() => { void handleSend(); }} onPressIn={pressIn} onPressOut={pressOut} disabled={!input.trim() || streaming || !initialLoaded || Boolean(chatLoadError) || composerLockedByViewClear} accessibilityLabel="메시지 보내기" accessibilityRole="button">
               {isP ? <Heart size={18} color="#FFF" /> : <Send size={18} color="#FFF" />}
             </Pressable>
           </Animated.View>
@@ -5299,7 +5299,7 @@ const st = StyleSheet.create({
   headerLeft: { flexDirection: "row", alignItems: "center", gap: AMORA_CHAT_HEADER_LAYOUT.avatarGap, flexShrink: 1, minWidth: 0 },
   headerTitles: { flexShrink: 1, minWidth: 0 },
   headerTitle: { fontSize: AMORA_CHAT_HEADER_LAYOUT.titleFontSize, fontFamily: "NotoSansKR_600SemiBold", color: colors.noir[800] },
-  headerSub: { fontSize: AMORA_CHAT_HEADER_LAYOUT.subFontSize, color: colors.textTertiary },
+  headerSub: { fontSize: AMORA_CHAT_HEADER_LAYOUT.subFontSize, color: colors.paper.inkFaint },
   // 오른쪽 버튼 묶음은 줄지 않는다 — 좁은 화면에서는 왼쪽 제목이 먼저 줄어든다. 버튼은 모두 44pt 이상이다.
   headerActions: { flexDirection: "row", alignItems: "center", gap: AMORA_CHAT_HEADER_LAYOUT.actionGap, flexShrink: 0, marginLeft: AMORA_CHAT_HEADER_LAYOUT.sideGap },
   headerIconBtn: { width: 44, height: 44, alignItems: "center", justifyContent: "center", borderRadius: 22 },
@@ -5318,12 +5318,12 @@ const st = StyleSheet.create({
     backgroundColor: colors.surface,
   },
   aiDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: colors.rose[500] },
-  aiNoticeStrong: { fontSize: 11, fontWeight: "600", color: colors.rose[500] },
-  aiNoticeText: { fontSize: 11, color: colors.textTertiary },
+  aiNoticeStrong: { fontSize: 11, fontWeight: "600", color: colors.rose[700] },
+  aiNoticeText: { fontSize: 11, color: colors.paper.inkFaint },
   aiNoticeLink: {
     fontSize: 11,
     fontWeight: "600",
-    color: colors.textTertiary,
+    color: colors.paper.inkFaint,
     textDecorationLine: "underline",
   },
   scopeSection: { paddingHorizontal: 12, paddingTop: 8, paddingBottom: 6, backgroundColor: colors.surface, borderBottomWidth: 1, borderBottomColor: colors.border },
@@ -5337,18 +5337,18 @@ const st = StyleSheet.create({
   scopeStatus: { paddingHorizontal: 4, paddingTop: 6, fontSize: 11, lineHeight: 16, color: colors.rose[700] },
   privateScopeStatus: { color: "#5a6147" },
   memoryStatus: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", paddingHorizontal: 4, paddingTop: 2 },
-  memoryStatusText: { fontSize: 11, lineHeight: 16, color: colors.textTertiary },
+  memoryStatusText: { fontSize: 11, lineHeight: 16, color: colors.paper.inkFaint },
   memoryStatusLink: { fontSize: 11, lineHeight: 16, fontWeight: "600", color: colors.rose[700], textDecorationLine: "underline" },
   targetRow: { flexDirection: "row", borderBottomWidth: 1, borderBottomColor: colors.border, backgroundColor: colors.surface },
   targetBtn: { flex: 1, minHeight: 44, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 10 },
   targetActive: { borderBottomWidth: 2, borderBottomColor: colors.noir[800] },
   targetPartner: { borderBottomWidth: 2, borderBottomColor: colors.rose[500] },
-  targetText: { fontSize: 14, color: colors.textTertiary },
+  targetText: { fontSize: 14, color: colors.paper.inkFaint },
   targetTextActive: { color: colors.noir[800], fontWeight: "600" },
   targetTextPartner: { color: colors.rose[700], fontWeight: "600" },
   empty: { flex: 1, alignItems: "center", justifyContent: "center", paddingHorizontal: 32 },
   loading: { flex: 1, alignItems: "center", justifyContent: "center", gap: 10 },
-  loadingText: { fontSize: 13, color: colors.textTertiary },
+  loadingText: { fontSize: 13, color: colors.paper.inkFaint },
   suggestions: { width: "100%", gap: 8 },
   sugBtn: { minHeight: 44, justifyContent: "center", paddingHorizontal: 16, paddingVertical: 13, borderRadius: 16, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border },
   sugText: { fontSize: 14, color: colors.noir[800] },
@@ -5359,7 +5359,7 @@ const st = StyleSheet.create({
   safetyMessageBody: { flex: 1, maxWidth: "92%" },
   mediationMessageBody: { maxWidth: "92%", flex: 1 },
   placeMessageBody: { flex: 1, maxWidth: 460 },
-  senderLabel: { fontSize: 11, color: colors.textTertiary, marginBottom: 4, marginLeft: 4 },
+  senderLabel: { fontSize: 11, color: colors.paper.inkFaint, marginBottom: 4, marginLeft: 4 },
   bubble: { paddingHorizontal: 14, paddingVertical: 10, borderRadius: 18 },
   bubbleRight: { borderBottomRightRadius: 4 },
   bubbleLeft: { borderBottomLeftRadius: 4 },
@@ -5370,7 +5370,7 @@ const st = StyleSheet.create({
     marginTop: 8,
     fontSize: 12,
     lineHeight: 16,
-    color: colors.textTertiary,
+    color: colors.paper.inkFaint,
   },
   safetyCard: { width: "100%", padding: 16, borderRadius: 16, borderWidth: 1, borderColor: colors.danger, backgroundColor: colors.ivory[50] },
   safetyCardHeading: { flexDirection: "row", alignItems: "center", gap: 8 },
@@ -5407,7 +5407,7 @@ const st = StyleSheet.create({
   budgetImpactRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", gap: 10, paddingVertical: 3 },
   budgetImpactLabel: { width: 86, fontSize: 11, lineHeight: 17, color: "#746866" },
   budgetImpactValue: { flex: 1, textAlign: "right", fontSize: 11, lineHeight: 17, fontWeight: "600", color: "#3D3434" },
-  budgetImpactDelta: { fontWeight: "400", color: "#867976" },
+  budgetImpactDelta: { fontWeight: "400", color: colors.paper.inkFaint },
   budgetImpactWarnings: { marginTop: 8, gap: 3, paddingHorizontal: 9, paddingVertical: 8, borderRadius: 9, backgroundColor: "#FFF2EF" },
   budgetImpactWarningText: { fontSize: 11, lineHeight: 17, color: "#8A3D31" },
   budgetImpactDisclaimer: { marginTop: 8, fontSize: 10, lineHeight: 15, color: "#746866" },
@@ -5420,13 +5420,13 @@ const st = StyleSheet.create({
   retryText: { fontSize: 14, fontWeight: "600", color: colors.surface },
   followUps: { paddingTop: 8, paddingBottom: 4, borderTopWidth: 1, borderTopColor: colors.border, backgroundColor: colors.surface },
   followUpsHeading: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 16, marginBottom: 6 },
-  followUpsLabel: { fontSize: 12, fontWeight: "600", color: colors.textTertiary },
+  followUpsLabel: { fontSize: 12, fontWeight: "600", color: colors.paper.inkFaint },
   followUpsRow: { gap: 8, paddingHorizontal: 16, paddingBottom: 4 },
   followUpChip: { minHeight: 44, maxWidth: 260, justifyContent: "center", paddingHorizontal: 14, paddingVertical: 8, borderRadius: 14, borderWidth: 1, borderColor: amoraIdentity.line, backgroundColor: amoraIdentity.surface },
   followUpChipPressed: { backgroundColor: amoraIdentity.hover },
   followUpChipText: { fontSize: 14, lineHeight: 20, color: amoraIdentity.ink },
   inputBar: { flexDirection: "row", alignItems: "flex-end", gap: 8, paddingHorizontal: 16, paddingVertical: 12, borderTopWidth: 1, borderTopColor: colors.border, backgroundColor: colors.surface },
   input: { flex: 1, minHeight: 44, maxHeight: 120, paddingHorizontal: 16, paddingVertical: 10, fontSize: 15, color: colors.noir[800], backgroundColor: colors.bg, borderRadius: 14, borderWidth: 1, borderColor: colors.border },
-  sendBtn: { width: 44, height: 44, borderRadius: 16, backgroundColor: colors.rose[500], alignItems: "center", justifyContent: "center" },
+  sendBtn: { width: 44, height: 44, borderRadius: 16, backgroundColor: colors.rose[600], alignItems: "center", justifyContent: "center" },
   sendBtnOff: { backgroundColor: colors.taupe[400] },
 });

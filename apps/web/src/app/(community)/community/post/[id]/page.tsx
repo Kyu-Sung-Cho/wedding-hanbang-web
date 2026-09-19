@@ -33,7 +33,7 @@ function PostDetailNotice({ title, body }: { title: string; body: string }) {
       <Link
         href={weddingPath()}
         prefetch={false}
-        className="mt-6 inline-flex rounded-[6px] border border-[var(--hb-primary)]/15 bg-white px-5 py-2.5 text-[13.5px] font-semibold text-[var(--hb-text-strong)] transition-colors hover:border-[#8F5150]/45"
+        className="mt-6 inline-flex rounded-[6px] border border-[var(--color-paper-outline)] bg-white px-5 py-2.5 text-[13.5px] font-semibold text-[var(--hb-text-strong)] transition-colors hover:border-[#8F5150]/45"
       >
         커뮤니티로 돌아가기
       </Link>

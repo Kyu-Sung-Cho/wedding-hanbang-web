@@ -91,7 +91,7 @@ export default function PreparationTimeline({
               const completed = getScheduleEventStatus(event) === "completed";
               return (
                 <article key={`event:${event.id}`} className="relative flex items-start gap-3.5">
-                  <span className={`relative z-[1] mt-3 flex h-[29px] w-[29px] shrink-0 items-center justify-center rounded-full ${completed ? "bg-[var(--amora-sage-pale)] text-[var(--amora-sage)]" : "bg-[var(--amora-rose-pale)] text-[var(--amora-rose-deep)]"}`}>{completed ? <Check className="h-3.5 w-3.5" /> : <CalendarDays className="h-3.5 w-3.5" />}</span>
+                  <span className={`relative z-[1] mt-3 flex h-[29px] w-[29px] shrink-0 items-center justify-center rounded-full ${completed ? "bg-[var(--amora-sage-pale)] text-noir-800" : "bg-[var(--amora-rose-pale)] text-[var(--amora-rose-deep)]"}`}>{completed ? <Check className="h-3.5 w-3.5" /> : <CalendarDays className="h-3.5 w-3.5" />}</span>
                   <div className="min-w-0 flex-1 rounded-[13px] border border-[var(--amora-line)] bg-white px-4 py-3.5">
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">

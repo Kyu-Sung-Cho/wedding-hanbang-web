@@ -45,7 +45,7 @@ export function RegionFirstPicker({ counts, totalCount, onSelect }: RegionFirstP
               <button
                 type="button"
                 onClick={() => onSelect(code)}
-                className="inline-flex min-h-11 items-center gap-2 rounded-[6px] border border-[var(--hb-primary)]/12 bg-[var(--hb-surface-page)] px-4 text-sm font-bold text-[var(--hb-text-strong)] transition-colors hover:border-[#8F6662]/45 hover:bg-[var(--hb-surface-hover)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--hb-primary)]"
+                className="inline-flex min-h-11 items-center gap-2 rounded-[6px] border border-[var(--color-paper-outline)] bg-[var(--hb-surface-page)] px-4 text-sm font-bold text-[var(--hb-text-strong)] transition-colors hover:border-[#8F6662]/45 hover:bg-[var(--hb-surface-hover)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--hb-primary)]"
               >
                 {label}
                 <span className="text-xs font-semibold tabular-nums text-[var(--hb-text-muted)]">
@@ -95,7 +95,7 @@ export function ThinCoverageNotice({
         <button
           type="button"
           onClick={onShowAll}
-          className="font-bold text-[#8F5150] underline underline-offset-4 hover:text-[#C4967E]"
+          className="font-bold text-[#8F5150] underline underline-offset-4 hover:text-rose-700"
         >
           전체 지역에서 찾아보기
         </button>
@@ -127,7 +127,7 @@ export function RegionChip({ regionCode, count, onChange }: RegionChipProps) {
       <button
         type="button"
         onClick={onChange}
-        className="inline-flex min-h-9 items-center rounded-[6px] border border-[var(--hb-primary)]/12 px-3.5 text-sm font-semibold text-[var(--hb-text-strong)] hover:border-[#8F6662]/45 hover:text-[#8F6662] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--hb-primary)]"
+        className="inline-flex min-h-9 items-center rounded-[6px] border border-[var(--color-paper-outline)] px-3.5 text-sm font-semibold text-[var(--hb-text-strong)] hover:border-[#8F6662]/45 hover:text-[#8F6662] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--hb-primary)]"
       >
         지역 바꾸기
       </button>

@@ -206,9 +206,9 @@ export default function VendorDetailActions({ vendorId, redirectPath }: Props) {
           disabled={favoriteStatus === "loading" || favoriteStatus === "error" || busy !== null}
           aria-busy={favoriteStatus === "loading" || busy === "favorite"}
           aria-pressed={favorite}
-          className="inline-flex min-h-11 items-center justify-center gap-2 rounded-[6px] border border-[var(--hb-primary)]/20 bg-white px-4 text-sm font-bold text-[var(--hb-text-strong)] disabled:opacity-50"
+          className="inline-flex min-h-11 items-center justify-center gap-2 rounded-[6px] border border-[var(--color-paper-outline)] bg-white px-4 text-sm font-bold text-[var(--hb-text-strong)] disabled:opacity-50"
         >
-          <Heart className={`size-4 ${favorite ? "fill-[#B89785] text-[#B89785]" : ""}`} aria-hidden="true" />
+          <Heart className={`size-4 ${favorite ? "fill-rose-700 text-rose-700" : ""}`} aria-hidden="true" />
           {favorite ? "찜했어요" : "찜하기"}
         </button>
         {PRICE_ALERT_TOGGLE_ENABLED ? (
@@ -236,7 +236,7 @@ export default function VendorDetailActions({ vendorId, redirectPath }: Props) {
           <button
             type="button"
             onClick={() => void loadSavedState()}
-            className="inline-flex min-h-11 items-center rounded-[6px] border border-[#8F6662]/30 bg-white px-4 text-xs font-bold hover:bg-[var(--hb-surface-page)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#8F6662]"
+            className="inline-flex min-h-11 items-center rounded-[6px] border border-[var(--color-paper-outline)] bg-white px-4 text-xs font-bold hover:bg-[var(--hb-surface-page)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#8F6662]"
           >
             다시 불러오기
           </button>

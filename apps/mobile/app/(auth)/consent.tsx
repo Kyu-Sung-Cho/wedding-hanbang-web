@@ -116,7 +116,7 @@ export default function ConsentScreen() {
             {all ? (
               <CheckCircle2 size={24} color={colors.rose[500]} />
             ) : (
-              <Circle size={24} color={colors.taupe[400]} />
+              <Circle size={24} color={colors.textTertiary} />
             )}
             <Text style={styles.agreeAllText}>전체 동의</Text>
           </Pressable>
@@ -135,7 +135,7 @@ export default function ConsentScreen() {
                 {consent[item.key] ? (
                   <CheckCircle2 size={20} color={colors.rose[500]} />
                 ) : (
-                  <Circle size={20} color={colors.taupe[400]} />
+                  <Circle size={20} color={colors.textTertiary} />
                 )}
               </Pressable>
               <Text style={styles.agreeText}>
@@ -225,12 +225,12 @@ const styles = StyleSheet.create({
     color: colors.noir[800],
     flex: 1,
   },
-  agreeRequired: { color: colors.rose[500], fontFamily: "NotoSansKR_600SemiBold" },
-  agreeOptional: { color: colors.textTertiary, fontFamily: "NotoSansKR_600SemiBold" },
+  agreeRequired: { color: colors.rose[700], fontFamily: "NotoSansKR_600SemiBold" },
+  agreeOptional: { color: colors.paper.inkFaint, fontFamily: "NotoSansKR_600SemiBold" },
   agreeLink: {
     fontSize: 13,
     fontFamily: "NotoSansKR_400Regular",
-    color: colors.textTertiary,
+    color: colors.paper.inkFaint,
     textDecorationLine: "underline",
   },
   divider: { height: 1, backgroundColor: colors.border },
@@ -252,7 +252,7 @@ const styles = StyleSheet.create({
   declineText: {
     fontSize: 13,
     fontFamily: "NotoSansKR_400Regular",
-    color: colors.textTertiary,
+    color: colors.paper.inkFaint,
     textDecorationLine: "underline",
   },
   footnote: {
@@ -260,6 +260,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     lineHeight: 20,
     fontFamily: "NotoSansKR_400Regular",
-    color: colors.textTertiary,
+    color: colors.paper.inkFaint,
   },
 });
