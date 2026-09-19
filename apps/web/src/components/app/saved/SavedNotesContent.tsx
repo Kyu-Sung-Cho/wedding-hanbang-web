@@ -205,7 +205,7 @@ function ScopedSavedNotesContent({ scope, embedded }: { scope: string; embedded:
     <div className={embedded ? "w-full min-w-0 max-w-3xl py-3" : "mx-auto w-full max-w-3xl px-5 py-8 sm:px-8 sm:py-10"}>
       <header className="border-b border-[var(--amora-line)] pb-4">
         {embedded ? <h2 className="text-[16px] font-semibold text-[var(--amora-ink)]">저장한 답변</h2> : <>
-        <p className="inline-flex items-center gap-1.5 text-sm font-bold text-[#9A6B62]">
+        <p className="inline-flex items-center gap-1.5 text-sm font-bold text-rose-700">
           <Bookmark aria-hidden="true" className="h-4 w-4" />
           저장한 답변
         </p>
@@ -233,7 +233,7 @@ function ScopedSavedNotesContent({ scope, embedded }: { scope: string; embedded:
       ) : null}
 
       {actionError ? (
-        <p role="alert" className="mt-4 text-sm text-[#D95F5F]">
+        <p role="alert" className="mt-4 text-sm text-danger-700">
           {actionError}
         </p>
       ) : null}
@@ -245,7 +245,7 @@ function ScopedSavedNotesContent({ scope, embedded }: { scope: string; embedded:
             type="button"
             onClick={() => void load(notes.length && nextCursor ? nextCursor : null)}
             disabled={loadingMore || busyId !== null || editingId !== null}
-            className="mt-3 min-h-11 rounded-[6px] bg-[#C4967E]/10 px-4 text-base font-bold text-[#9A6B62] hover:bg-[#C4967E]/20"
+            className="mt-3 min-h-11 rounded-[6px] bg-[#C4967E]/10 px-4 text-base font-bold text-rose-700 hover:bg-[#C4967E]/20"
           >
             다시 시도
           </button>
@@ -283,7 +283,7 @@ function ScopedSavedNotesContent({ scope, embedded }: { scope: string; embedded:
                   type="button"
                   onClick={() => void removeNote(note.id)}
                   disabled={busyId !== null || loadingMore}
-                  className="inline-flex min-h-11 shrink-0 items-center gap-1 rounded-[6px] px-2 text-sm whitespace-nowrap text-[var(--hb-text-muted)] hover:text-[#9A6B62] disabled:opacity-40"
+                  className="inline-flex min-h-11 shrink-0 items-center gap-1 rounded-[6px] px-2 text-sm whitespace-nowrap text-[var(--hb-text-muted)] hover:text-rose-700 disabled:opacity-40"
                   aria-label="저장 지우기"
                 >
                   <Trash2 aria-hidden="true" className="h-4 w-4" />
@@ -362,7 +362,7 @@ function ScopedSavedNotesContent({ scope, embedded }: { scope: string; embedded:
       ) : null}
       {nextCursor && <div className="mt-5 text-center text-sm text-[var(--hb-text-muted)]">
         <p>{notes.length}개를 불러왔어요. 이전 답변도 이어서 볼 수 있어요.</p>
-        <button type="button" disabled={status === "loading" || loadingMore || busyId !== null || editingId !== null} onClick={() => void load(nextCursor)} className="mt-2 min-h-11 rounded-[6px] border border-[#E8E0D8] px-4 font-semibold text-[#9A6B62] disabled:opacity-40">{loadingMore ? "불러오는 중…" : "이전 답변 더 보기"}</button>
+        <button type="button" disabled={status === "loading" || loadingMore || busyId !== null || editingId !== null} onClick={() => void load(nextCursor)} className="mt-2 min-h-11 rounded-[6px] border border-[#E8E0D8] px-4 font-semibold text-rose-700 disabled:opacity-40">{loadingMore ? "불러오는 중…" : "이전 답변 더 보기"}</button>
       </div>}
     </div>
   );

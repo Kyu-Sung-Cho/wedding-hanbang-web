@@ -545,11 +545,11 @@ function PlanFields({ draft, disabled, onChange }: { draft: SharedActionDraft; d
     <Text style={styles.label}>설명 (선택)</Text>
     <TextInput accessibilityLabel="설명" value={draft.description} onChangeText={(description) => onChange({ description })}
       maxLength={SHARED_ACTION_DESCRIPTION_MAX} editable={!disabled} multiline placeholder="무엇을 준비하거나 확인할지 적어 주세요"
-      placeholderTextColor={colors.textTertiary} style={[styles.input, styles.multiline, disabled && styles.disabled]} />
+      placeholderTextColor={colors.paper.inkFaint} style={[styles.input, styles.multiline, disabled && styles.disabled]} />
     <Text style={styles.label}>예정일 (선택)</Text>
     <TextInput accessibilityLabel="예정일" accessibilityHint="날짜나 예정 시기를 40자 이내로 적을 수 있어요." value={draft.dueDate}
       onChangeText={(dueDate) => onChange({ dueDate })} maxLength={SHARED_ACTION_DUE_MAX} editable={!disabled}
-      placeholder="예: 2026-10-15 또는 다음 주 중" placeholderTextColor={colors.textTertiary} style={[styles.input, disabled && styles.disabled]} />
+      placeholder="예: 2026-10-15 또는 다음 주 중" placeholderTextColor={colors.paper.inkFaint} style={[styles.input, disabled && styles.disabled]} />
     <Text style={styles.hint}>날짜나 예정 시기를 40자 이내로 적을 수 있어요.</Text>
   </>;
 }
@@ -840,7 +840,7 @@ const styles = StyleSheet.create({
   description: { fontSize: 13, lineHeight: 20, color: colors.textSecondary, backgroundColor: colors.ivory[50], padding: spacing[2], borderRadius: radius.md },
   pickBox: { gap: spacing[2] },
   pickLabel: { fontSize: 12, fontWeight: "600", color: colors.rose[700] },
-  meta: { fontSize: 12, lineHeight: 18, color: colors.textTertiary },
+  meta: { fontSize: 12, lineHeight: 18, color: colors.paper.inkFaint },
   actions: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: spacing[2] },
   primaryButton: { minHeight: 44, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: spacing[1], paddingHorizontal: spacing[3], borderRadius: radius.full, backgroundColor: colors.noir[800] },
   primaryText: { fontSize: 13, fontWeight: "700", color: colors.surface },

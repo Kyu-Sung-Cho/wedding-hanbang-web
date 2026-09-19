@@ -245,14 +245,14 @@ export default function WritePostScreen() {
           style={[styles.tab, !isPreview && styles.tabActive]}
           onPress={() => setIsPreview(false)}
         >
-          <Edit3 size={14} color={!isPreview ? colors.rose[500] : colors.textTertiary} />
+          <Edit3 size={14} color={!isPreview ? colors.rose[700] : colors.textTertiary} />
           <Text style={[styles.tabText, !isPreview && styles.tabTextActive]}>작성</Text>
         </Pressable>
         <Pressable
           style={[styles.tab, isPreview && styles.tabActive]}
           onPress={() => setIsPreview(true)}
         >
-          <Eye size={14} color={isPreview ? colors.rose[500] : colors.textTertiary} />
+          <Eye size={14} color={isPreview ? colors.rose[700] : colors.textTertiary} />
           <Text style={[styles.tabText, isPreview && styles.tabTextActive]}>미리보기</Text>
         </Pressable>
       </View>
@@ -357,7 +357,7 @@ export default function WritePostScreen() {
                 value={sponsorDetail}
                 onChangeText={setSponsorDetail}
                 placeholder="어떤 혜택을 받았나요? (5자 이상)"
-                placeholderTextColor={colors.taupe[400]}
+                placeholderTextColor={colors.paper.inkFaint}
               />
             </View>
           )}
@@ -369,7 +369,7 @@ export default function WritePostScreen() {
             value={title}
             onChangeText={setTitle}
             placeholder="제목을 입력하세요"
-            placeholderTextColor={colors.taupe[400]}
+            placeholderTextColor={colors.paper.inkFaint}
             maxLength={TITLE_MAX}
           />
           <Text style={styles.charCount}>
@@ -383,7 +383,7 @@ export default function WritePostScreen() {
             value={content}
             onChangeText={setContent}
             placeholder="내용을 입력하세요..."
-            placeholderTextColor={colors.taupe[400]}
+            placeholderTextColor={colors.paper.inkFaint}
             multiline
             textAlignVertical="top"
             maxLength={CONTENT_MAX}
@@ -483,7 +483,7 @@ const styles = StyleSheet.create({
     borderBottomWidth: 2,
     borderBottomColor: colors.rose[500],
   },
-  tabText: { fontSize: 14, color: colors.textTertiary },
+  tabText: { fontSize: 14, color: colors.paper.inkFaint },
   tabTextActive: { color: colors.rose[700], fontWeight: "600" },
 
   content: { padding: 20, gap: 4, paddingBottom: 40 },
@@ -507,7 +507,7 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
   },
   pickerValue: { fontSize: 15, color: colors.noir[800] },
-  pickerPlaceholder: { fontSize: 15, color: colors.taupe[400] },
+  pickerPlaceholder: { fontSize: 15, color: colors.paper.inkFaint },
   pickerDropdown: {
     backgroundColor: colors.surface,
     borderRadius: 14,
@@ -560,7 +560,7 @@ const styles = StyleSheet.create({
   },
   adDot: { width: 8, height: 8, borderRadius: 4 },
   adCardLabel: { fontSize: 14, fontWeight: "600", color: colors.noir[800] },
-  adCardDesc: { fontSize: 12, color: colors.textTertiary, marginTop: 2 },
+  adCardDesc: { fontSize: 12, color: colors.paper.inkFaint, marginTop: 2 },
 
   input: {
     padding: 14,
@@ -594,7 +594,7 @@ const styles = StyleSheet.create({
   },
   charCount: {
     fontSize: 12,
-    color: colors.textTertiary,
+    color: colors.paper.inkFaint,
     textAlign: "right",
     marginTop: 4,
     fontFamily: "CormorantGaramond_400Regular",
@@ -616,7 +616,7 @@ const styles = StyleSheet.create({
   imagePickerText: {
     fontSize: 14,
     fontWeight: "500",
-    color: colors.rose[500],
+    color: colors.rose[700],
   },
   thumbRow: {
     marginTop: 12,
@@ -653,7 +653,7 @@ const styles = StyleSheet.create({
   },
   uploadProgressText: {
     fontSize: 13,
-    color: colors.rose[500],
+    color: colors.rose[700],
     fontWeight: "500",
   },
 
@@ -678,7 +678,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     marginBottom: 12,
   },
-  previewCatText: { fontSize: 13, fontWeight: "600", color: colors.rose[500] },
+  previewCatText: { fontSize: 13, fontWeight: "600", color: colors.rose[700] },
   previewTitle: {
     fontSize: 24,
     fontWeight: "700",

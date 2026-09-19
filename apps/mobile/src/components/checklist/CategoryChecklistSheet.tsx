@@ -342,7 +342,7 @@ export default function CategoryChecklistSheet({
 
         <View style={s.foot}>
           <View style={s.tipRow}>
-            <Sparkle size={15} color={colors.gold.DEFAULT} strokeWidth={1.7} />
+            <Sparkle size={15} color={colors.paper.tapeInk} strokeWidth={1.7} />
             <Text style={s.tipText}>{tip}</Text>
           </View>
           <View style={s.footActions}>
@@ -425,7 +425,7 @@ const s = StyleSheet.create({
     borderRadius: 100,
     overflow: "hidden",
   },
-  meta: { fontSize: 11.5, fontFamily: "NotoSansKR_400Regular", color: colors.textTertiary },
+  meta: { fontSize: 11.5, fontFamily: "NotoSansKR_400Regular", color: colors.paper.inkFaint },
 
   body: { flex: 1 },
   bodyContent: { paddingHorizontal: 20, paddingTop: 4, paddingBottom: 20 },
@@ -450,8 +450,8 @@ const s = StyleSheet.create({
     justifyContent: "space-between",
     paddingVertical: 5,
   },
-  groupTitle: { fontSize: 11.5, fontFamily: "NotoSansKR_700Bold", color: colors.rose[600] },
-  groupCount: { fontSize: 11, fontFamily: "NotoSansKR_400Regular", color: colors.textTertiary },
+  groupTitle: { fontSize: 11.5, fontFamily: "NotoSansKR_700Bold", color: colors.rose[700] },
+  groupCount: { fontSize: 11, fontFamily: "NotoSansKR_400Regular", color: colors.paper.inkFaint },
 
   itemBlock: { borderBottomWidth: 1, borderBottomColor: "#E5DDC9" },
   itemRowLast: { borderBottomWidth: 0 },
@@ -487,7 +487,7 @@ const s = StyleSheet.create({
   },
   itemNext: { fontFamily: "NotoSansKR_600SemiBold" },
   itemDone: {
-    color: colors.textTertiary,
+    color: colors.paper.inkFaint,
     textDecorationLine: "line-through",
     // iOS 만 이 색을 쓴다. 안드로이드는 글자색으로 긋는다 — RN 의 한계다.
     textDecorationColor: "#E5DDC9",
@@ -515,7 +515,7 @@ const s = StyleSheet.create({
     fontSize: 12.5,
     lineHeight: 20,
     fontFamily: "NotoSansKR_400Regular",
-    color: colors.textTertiary,
+    color: colors.paper.inkFaint,
   },
 
   foot: {

@@ -254,7 +254,7 @@ function ReasonGroup({
           );
         })}
       </div>
-      <p className="mt-2 text-[11px] text-[#71807b]">
+      <p className="mt-2 text-[11px] text-[var(--hb-text-muted)]">
         자유 댓글은 받지 않고, 검수된 이유만 집계해요.
       </p>
     </div>
@@ -474,7 +474,7 @@ function WeddingCase({
           </p>
         ) : null}
 
-        <p className="border-t border-[#e8ded2] pt-5 text-[11px] leading-5 text-[#71807b]">
+        <p className="border-t border-[#e8ded2] pt-5 text-[11px] leading-5 text-[var(--hb-text-muted)]">
           {weddingCase.safetyNotice}
         </p>
       </div>

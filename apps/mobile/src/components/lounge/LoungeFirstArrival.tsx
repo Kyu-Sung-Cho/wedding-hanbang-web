@@ -86,7 +86,7 @@ export default function LoungeFirstArrival({ view }: LoungeFirstArrivalProps) {
             {view.echo.map((line) => (
               <View key={line.label} style={styles.echoRow}>
                 <View style={styles.echoCheck}>
-                  <Check size={12} color={colors.sage[500]} />
+                  <Check size={12} color={colors.sage.deep} />
                 </View>
                 <Text style={styles.echoLabel}>{line.label}</Text>
                 <Text style={styles.echoValue} numberOfLines={2}>
@@ -171,7 +171,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.ivory[100],
   },
   echoEyebrow: {
-    color: colors.sage[500],
+    color: colors.noir.soft,
   },
   echoList: {
     marginTop: spacing[3],
@@ -220,7 +220,7 @@ const styles = StyleSheet.create({
     transform: [{ scale: 0.99 }],
   },
   nextEyebrow: {
-    color: colors.rose[600],
+    color: colors.rose[700],
   },
   nextTitle: {
     marginTop: spacing[2],
@@ -299,7 +299,7 @@ const styles = StyleSheet.create({
   inviteActionText: {
     fontSize: 13,
     fontFamily: "NotoSansKR_600SemiBold",
-    color: colors.rose[600],
+    color: colors.rose[700],
   },
   emptyNote: {
     marginBottom: spacing[3],

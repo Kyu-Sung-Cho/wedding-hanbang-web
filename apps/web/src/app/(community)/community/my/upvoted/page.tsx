@@ -82,7 +82,7 @@ export default function MyUpvotedPage() {
           <ThumbsUp className="w-5 h-5 text-[#2E7D5A]" />
           <h1 className="font-serif-kr text-[var(--hb-text-strong)]">좋아요한 글</h1>
           {!loading && total > 0 && (
-            <span className="ml-1 px-2 py-0.5 rounded-full bg-[#2E7D5A]/10 text-[#2E7D5A] text-[12px] font-medium">
+            <span className="ml-1 px-2 py-0.5 rounded-full bg-[#2E7D5A]/10 text-noir-800 text-[12px] font-medium">
               {total}
             </span>
           )}
@@ -97,7 +97,7 @@ export default function MyUpvotedPage() {
       ) : posts.length === 0 ? (
         /* 빈 상태 */
         <div className="py-16 text-center">
-          <ThumbsUp className="w-10 h-10 text-[var(--hb-text-muted)]/40 mx-auto mb-3" />
+          <ThumbsUp className="w-10 h-10 text-[var(--hb-text-muted)] mx-auto mb-3" />
           <p className="text-[14px] text-[var(--hb-text-muted)] mb-1">아직 좋아요한 글이 없어요</p>
           <p className="text-[12px] text-[var(--hb-text-muted)] mb-4">마음에 드는 글에 좋아요를 눌러보세요</p>
           <Link

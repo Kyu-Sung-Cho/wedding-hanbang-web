@@ -106,14 +106,14 @@ export default function CommunityAboutPage() {
                 title: "원하는 정보 빠르게 검색",
                 desc: "“강남 사진 촬영”, “드레스 추가 금액”처럼 구체적인 말로 관련 후기를 찾아요.",
                 color: "from-[#7EB8D8]/15 to-[#7EB8D8]/5",
-                iconColor: "text-[#5A9CC0]",
+                iconColor: "text-[var(--hb-accent)]",
               },
               {
                 icon: PenSquare,
                 title: "내 경험 나누기",
                 desc: "사진과 함께 후기를 올리면 비슷한 상황의 다른 커플에게 큰 도움이 돼요.",
                 color: "from-[#B89785]/20 to-[var(--hb-primary-hover)]/5",
-                iconColor: "text-[#B89785]",
+                iconColor: "text-[var(--color-paper-tape-ink)]",
               },
               {
                 icon: TrendingUp,
@@ -278,7 +278,7 @@ export default function CommunityAboutPage() {
       {/* ─── CTA ─── */}
       <section className="px-4 sm:px-6 md:px-10 py-16 sm:py-20">
         <div className="max-w-2xl mx-auto text-center">
-          <Star className="w-8 h-8 text-[#B89785] mx-auto mb-5" />
+          <Star className="w-8 h-8 text-[var(--color-paper-tape-ink)] mx-auto mb-5" />
           <h2 className="font-serif-kr text-[var(--hb-text-strong)] mb-4">
             지금 시작해보세요
           </h2>

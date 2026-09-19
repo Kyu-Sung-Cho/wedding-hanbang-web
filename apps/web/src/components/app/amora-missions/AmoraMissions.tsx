@@ -140,7 +140,7 @@ function MissionCardAction({ card, highlighted, completed, onOpen }: { card: Amo
   const opensAmora = !completed && /^\/(?:wedding\/)?chat(?:[?#]|$)/u.test(card.href);
   return (
     <>
-      {counts && <progress aria-label={`${card.title} 체크 진행률`} value={counts.done} max={counts.total || 1} className="mb-3.5 block h-[5px] w-full overflow-hidden rounded-full border-0 bg-[var(--amora-low)] text-[var(--amora-rose)] [&::-moz-progress-bar]:bg-[var(--amora-rose)] [&::-webkit-progress-bar]:bg-[var(--amora-low)] [&::-webkit-progress-value]:bg-[var(--amora-rose)]" />}
+      {counts && <progress aria-label={`${card.title} 체크 진행률`} value={counts.done} max={counts.total || 1} className="mb-3.5 block h-[5px] w-full overflow-hidden rounded-full border-0 bg-[var(--amora-low)] text-[var(--amora-rose-deep)] [&::-moz-progress-bar]:bg-[var(--amora-rose)] [&::-webkit-progress-bar]:bg-[var(--amora-low)] [&::-webkit-progress-value]:bg-[var(--amora-rose)]" />}
       <div className={`flex flex-wrap items-center gap-3 ${completed || counts ? "justify-between" : "justify-end"}`}>
         {(completed || counts) && <span className="hidden text-xs text-[var(--amora-muted)] md:inline">
           {completed ? "공유 할 일에서 완료로 표시했어요" : counts ? `${counts.done} / ${counts.total}개 체크 완료` : null}

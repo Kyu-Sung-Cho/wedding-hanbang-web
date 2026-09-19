@@ -149,9 +149,9 @@ export default function InviteCodeCard({
           accessibilityState={{ disabled: copyDisabled }}
         >
           {copied ? (
-            <Check size={18} color={dark ? colors.ivory[50] : colors.rose[500]} />
+            <Check size={18} color={dark ? colors.ivory[50] : colors.rose[700]} />
           ) : (
-            <Copy size={18} color={dark ? colors.ivory[50] : colors.rose[500]} />
+            <Copy size={18} color={dark ? colors.ivory[50] : colors.rose[700]} />
           )}
         </Pressable>
       </View>

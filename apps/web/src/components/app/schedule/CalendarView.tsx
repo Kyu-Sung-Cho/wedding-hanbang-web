@@ -141,7 +141,7 @@ export default function CalendarView({
                   : isToday
                   ? "rounded-lg bg-[var(--amora-warm)] text-[var(--amora-rose-deep)] ring-1 ring-inset ring-[var(--amora-rose)]"
                   : !inMonth
-                  ? "text-[var(--amora-muted)]/45"
+                  ? "bg-[var(--amora-low)]/60 text-[var(--amora-muted)]"
                   : dayNum === 0
                   ? "text-[var(--amora-rose-deep)] hover:bg-[var(--amora-warm)]"
                   : dayNum === 6
@@ -227,7 +227,7 @@ export default function CalendarView({
                           <p
                             className={`text-[12px] font-semibold ${
                               isCompleted
-                                ? "text-[var(--amora-sage)] line-through"
+                                ? "text-[var(--hb-success)] line-through"
                                 : "text-[var(--hb-text-strong)]"
                             }`}
                           >

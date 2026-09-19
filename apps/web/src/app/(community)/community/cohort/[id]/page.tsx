@@ -156,7 +156,7 @@ export default function CohortPage({
   return (
     <Suspense
       fallback={
-        <div className="flex min-h-screen items-center justify-center bg-[#FAFAF8] text-sm text-[#878680]">
+        <div className="flex min-h-screen items-center justify-center bg-[#FAFAF8] text-sm text-[var(--hb-text-muted)]">
           불러오는 중...
         </div>
       }
@@ -1409,7 +1409,7 @@ function InfoTab({
               ) : (
                 <div>
                   <div className="mb-2 flex items-start gap-2">
-                    <Sparkles className="h-4 w-4 text-[#B89785] shrink-0 mt-0.5" />
+                    <Sparkles className="h-4 w-4 text-[var(--color-paper-tape-ink)] shrink-0 mt-0.5" />
                     <p className="text-xs sm:text-sm text-[var(--hb-text-body)] leading-relaxed">
                       아직 5명 이상 등록되지 않았어요. 데이터가 더 쌓이기 전에는 비교값을 만들지 않아요.
                     </p>
@@ -1505,7 +1505,7 @@ function ContractModal({
 
         <div className="space-y-3">
           <div>
-            <label className="mb-1 block text-xs text-[#878680]">업체명 (공개 안 됨)</label>
+            <label className="mb-1 block text-xs text-[var(--hb-text-muted)]">업체명 (공개 안 됨)</label>
             <input
               value={vendorName}
               onChange={(e) => setVendorName(e.target.value)}
@@ -1515,7 +1515,7 @@ function ContractModal({
           </div>
 
           <div>
-            <label className="mb-1 block text-xs text-[#878680]">카테고리</label>
+            <label className="mb-1 block text-xs text-[var(--hb-text-muted)]">카테고리</label>
             <select
               value={category}
               onChange={(e) =>
@@ -1533,7 +1533,7 @@ function ContractModal({
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="mb-1 block text-xs text-[#878680]">
+              <label className="mb-1 block text-xs text-[var(--hb-text-muted)]">
                 기본금 (만원)
               </label>
               <input
@@ -1544,7 +1544,7 @@ function ContractModal({
               />
             </div>
             <div>
-              <label className="mb-1 block text-xs text-[#878680]">
+              <label className="mb-1 block text-xs text-[var(--hb-text-muted)]">
                 추가금 (만원)
               </label>
               <input
@@ -1557,7 +1557,7 @@ function ContractModal({
           </div>
 
           <div>
-            <label className="mb-1 block text-xs text-[#878680]">포함/미포함 메모 (선택)</label>
+            <label className="mb-1 block text-xs text-[var(--hb-text-muted)]">포함/미포함 메모 (선택)</label>
             <textarea
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
@@ -1572,7 +1572,7 @@ function ContractModal({
           <button
             type="button"
             onClick={onClose}
-            className="flex-1 rounded-[6px] border border-[#F0EFED] bg-white px-4 py-2.5 text-sm text-[#878680]"
+            className="flex-1 rounded-[6px] border border-[#F0EFED] bg-white px-4 py-2.5 text-sm text-[var(--hb-text-muted)]"
           >
             취소
           </button>
@@ -1789,7 +1789,7 @@ function TimelineEventModal({
         </div>
 
         <div className="mt-4">
-          <label className="mb-1 block text-xs text-[#878680]">메모 (선택)</label>
+          <label className="mb-1 block text-xs text-[var(--hb-text-muted)]">메모 (선택)</label>
           <textarea
             value={description}
             onChange={(e) => setDescription(e.target.value)}
@@ -1803,7 +1803,7 @@ function TimelineEventModal({
           <button
             type="button"
             onClick={onClose}
-            className="flex-1 rounded-[6px] border border-[#F0EFED] bg-white px-4 py-2.5 text-sm text-[#878680]"
+            className="flex-1 rounded-[6px] border border-[#F0EFED] bg-white px-4 py-2.5 text-sm text-[var(--hb-text-muted)]"
           >
             취소
           </button>

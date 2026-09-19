@@ -1241,9 +1241,9 @@ export default function ChatSidePanel({
   };
 
   const getFileIcon = (mediaType: string) => {
-    if (mediaType.includes("pdf")) return <FileText className="w-4 h-4 text-red-500" />;
+    if (mediaType.includes("pdf")) return <FileText className="w-4 h-4 text-danger-700" />;
     if (mediaType.includes("word")) return <FileText className="w-4 h-4 text-blue-500" />;
-    if (mediaType.includes("excel") || mediaType.includes("spreadsheet")) return <FileSpreadsheet className="w-4 h-4 text-green-500" />;
+    if (mediaType.includes("excel") || mediaType.includes("spreadsheet")) return <FileSpreadsheet className="w-4 h-4 text-[var(--hb-success)]" />;
     return null;
   };
 
@@ -1283,7 +1283,7 @@ export default function ChatSidePanel({
         {isDragging && (
           <div className="absolute inset-0 z-50 bg-rose-50/90 border-2 border-dashed border-rose-300 rounded-[6px] flex items-center justify-center">
             <div className="text-center">
-              <Paperclip className="w-8 h-8 text-rose-400 mx-auto mb-2" />
+              <Paperclip className="w-8 h-8 text-rose-700 mx-auto mb-2" />
               <p className="text-[0.8125rem] text-[var(--hb-accent-hover)] font-medium">파일을 놓아주세요</p>
             </div>
           </div>
@@ -1464,7 +1464,7 @@ export default function ChatSidePanel({
                 </p>
                 {failedRequest?.unavailableReason && (
                   <p className={`mt-1 text-[0.6875rem] leading-relaxed ${
-                    isRecoveryNotice ? "text-[#356B66]" : "text-red-600"
+                    isRecoveryNotice ? "text-[#356B66]" : "text-danger-700"
                   }`}>
                     {failedRequest.unavailableReason}
                   </p>
@@ -1718,7 +1718,7 @@ export default function ChatSidePanel({
                       type="button"
                       onClick={() => removeAttachment(i)}
                       disabled={isComposerBusy}
-                      className="absolute -right-3 -top-3 flex h-11 w-11 items-center justify-center rounded-full text-red-600 opacity-70 transition-opacity hover:bg-red-50 hover:opacity-100 focus:opacity-100"
+                      className="absolute -right-3 -top-3 flex h-11 w-11 items-center justify-center rounded-full text-danger-700 opacity-70 transition-opacity hover:bg-red-50 hover:opacity-100 focus:opacity-100"
                       aria-label={`${att.fileName} 첨부 제거`}
                     >
                       <X className="w-2.5 h-2.5" />
@@ -1766,7 +1766,7 @@ export default function ChatSidePanel({
                     aria-pressed={messageTarget === "partner"}
                     className={`flex min-h-11 items-center gap-1 rounded-[6px] px-3 text-[0.625rem] font-medium transition-colors ${
                       messageTarget === "partner"
-                        ? "bg-gradient-to-r from-pink-500/10 to-purple-500/10 text-pink-600 border border-pink-200"
+                        ? "bg-gradient-to-r from-pink-500/10 to-purple-500/10 text-rose-700 border border-pink-200"
                         : "text-[var(--hb-text-muted)] hover:text-[var(--hb-text-body)] border border-transparent"
                     }`}
                   >

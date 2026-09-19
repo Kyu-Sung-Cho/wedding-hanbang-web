@@ -405,8 +405,8 @@ export default function AdminEnrichEditorPage() {
                       {attributes.fitting_fee_krw === fittingFeeSuggestion.value_krw ? "제안 적용됨" : "제안 적용"}
                     </button>
                   </div>
-                  <p className="mt-3 line-clamp-3 text-xs leading-5 text-[var(--hb-success)]">근거: {fittingFeeSuggestion.source_quote}</p>
-                  <p className="mt-1 text-xs text-[var(--hb-success)]">자동 저장되지 않습니다. 원본과 금액을 확인한 뒤 적용하고 저장하세요.</p>
+                  <p className="mt-3 line-clamp-3 text-xs leading-5 text-noir-800">근거: {fittingFeeSuggestion.source_quote}</p>
+                  <p className="mt-1 text-xs text-noir-800">자동 저장되지 않습니다. 원본과 금액을 확인한 뒤 적용하고 저장하세요.</p>
                 </aside>
               ) : null}
               <div className="mt-5 grid gap-5 sm:grid-cols-2">{definitions.map((definition) => <AttributeField key={definition.key} definition={definition} value={attributes[definition.key]} disabled={!canEdit} onChange={(value) => setAttributes((current) => ({ ...current, [definition.key]: value }))} />)}</div>

@@ -260,7 +260,7 @@ const styles = StyleSheet.create({
   bodyContent: { paddingBottom: 4 },
   title: { fontSize: 18, lineHeight: 26, fontWeight: "700", color: colors.noir[800] },
   intro: { marginTop: 8, fontSize: 14, lineHeight: 21, color: colors.textSecondary },
-  note: { marginTop: 4, fontSize: 12, lineHeight: 18, color: colors.textTertiary },
+  note: { marginTop: 4, fontSize: 12, lineHeight: 18, color: colors.paper.inkFaint },
   options: { marginTop: 16, gap: 8 },
   option: { minHeight: 44, paddingHorizontal: 16, paddingVertical: 12, borderRadius: 12, borderWidth: 1, borderColor: colors.paper.outline, backgroundColor: colors.surface },
   optionRecommended: { borderColor: colors.sage.deep, backgroundColor: colors.ivory[50] },

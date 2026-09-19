@@ -74,7 +74,7 @@ export default function CohortCard({
             대략 언제쯤 결혼하시나요?
           </h3>
         </div>
-        <p className="mb-2 text-xs leading-relaxed text-[#878680]">
+        <p className="mb-2 text-xs leading-relaxed text-[var(--hb-text-muted)]">
           같은 분기에 결혼하는 동기들과 실시간으로 정보·가격·고민을 나눠보세요.
         </p>
         <p className="mb-4 text-[11px] leading-relaxed text-[var(--hb-text-strong)]">
@@ -139,12 +139,12 @@ export default function CohortCard({
       <div className="mb-3 flex items-start justify-between">
         <div className="flex-1">
           <h3 className="font-serif text-base text-white">{room.name}</h3>
-          <div className="mt-1.5 flex items-center gap-1.5 text-xs text-[var(--hb-text-muted)]">
+          <div className="mt-1.5 flex items-center gap-1.5 text-xs text-[var(--hb-on-primary)]">
             <Users className="h-3.5 w-3.5" />
             <span>{room.member_count}명 참여</span>
           </div>
         </div>
-        <ChevronRight className="h-4 w-4 text-[#878680] transition-transform group-hover:translate-x-0.5" />
+        <ChevronRight className="h-4 w-4 text-[var(--hb-on-primary)] transition-transform group-hover:translate-x-0.5" />
       </div>
 
       {/* 멤버 아바타 row */}
@@ -155,7 +155,7 @@ export default function CohortCard({
           ))}
         </div>
         {extraCount > 0 && (
-          <span className="ml-2 text-xs text-[#878680]">
+          <span className="ml-2 text-xs text-[var(--hb-on-primary)]">
             +{extraCount}명
           </span>
         )}
@@ -164,10 +164,10 @@ export default function CohortCard({
       {/* 활동 표시 */}
       <div className="mb-2 flex items-center gap-2">
         <span className="relative flex h-2.5 w-2.5">
-          <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[#B89785] opacity-70"></span>
-          <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-[#B89785]"></span>
+          <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[var(--hb-on-primary)] opacity-70"></span>
+          <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-[var(--hb-on-primary)]"></span>
         </span>
-        <span className="text-xs text-[#B89785]">
+        <span className="text-xs text-[var(--hb-on-primary)]">
           지금 {Math.max(1, Math.min(room.member_count, previewCount || 1))}명
           활동 중
         </span>
@@ -175,7 +175,7 @@ export default function CohortCard({
 
       {/* 최근 메시지 */}
       {lastMessagePreview && (
-        <p className="truncate text-sm text-[var(--hb-text-muted)]">
+        <p className="truncate text-sm text-[var(--hb-on-primary)]">
           최근: {lastMessagePreview}
         </p>
       )}

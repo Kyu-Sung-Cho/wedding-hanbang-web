@@ -186,7 +186,7 @@ export default function WeddingCodeClient() {
               />
             </div>
             {/* 번호는 현재 위치 기준 — 뒤로가기로 재방문해도 보고 있는 문항과 일치 */}
-            <p className="mt-1.5 text-right text-[12px] font-medium text-[#9a9188]">
+            <p className="mt-1.5 text-right text-[12px] font-medium text-[var(--hb-text-muted)]">
               {qIndex + 1} / {flow.length}
             </p>
           </div>
@@ -261,7 +261,7 @@ export default function WeddingCodeClient() {
             <ContextSelect label="부모님 또는 가족이 결혼 준비 결정에 어느 정도 관여하고 있나요?" options={WC_PARENT_INVOLVEMENTS} value={parentInvolvement} onChange={setParentInvolvement} />
 
             <p className="mb-2 mt-6 text-[14px] font-semibold text-[var(--hb-text-strong)]">
-              지금 가장 큰 결혼 준비 고민은 무엇인가요? <span className="font-medium text-[#9a9188]">(복수 선택)</span>
+              지금 가장 큰 결혼 준비 고민은 무엇인가요? <span className="font-medium text-[var(--hb-text-muted)]">(복수 선택)</span>
             </p>
             <div className="flex flex-wrap gap-2">
               {WC_CONCERNS.map((c) => (
@@ -295,7 +295,7 @@ export default function WeddingCodeClient() {
             >
               {contextComplete ? "질문 시작" : `${contextMissingCount}개 더 선택하면 시작`} <ArrowRight className="h-4 w-4" />
             </button>
-            <p className="mt-3 text-center text-[12px] font-medium text-[#9a9188]">{WC_NO_RIGHT_ANSWER}</p>
+            <p className="mt-3 text-center text-[12px] font-medium text-[var(--hb-text-muted)]">{WC_NO_RIGHT_ANSWER}</p>
           </div>
         )}
 
@@ -373,7 +373,7 @@ export default function WeddingCodeClient() {
             {WC_FREE_TEXT_ITEMS.map((item) => (
               <div key={item.key} className="mb-4">
                 <p className="mb-1.5 text-[13px] font-semibold text-[var(--hb-text-body)]">
-                  {item.label} <span className="font-medium text-[#9a9188]">(선택)</span>
+                  {item.label} <span className="font-medium text-[var(--hb-text-muted)]">(선택)</span>
                 </p>
                 <textarea
                   value={freeText[item.key] ?? ""}
@@ -384,7 +384,7 @@ export default function WeddingCodeClient() {
                 />
               </div>
             ))}
-            {error && <p className="mb-3 text-[13px] font-semibold text-red-500">{error}</p>}
+            {error && <p className="mb-3 text-[13px] font-semibold text-danger-700">{error}</p>}
             <div className="flex items-center justify-between gap-3">
               <button onClick={() => setStep("cta")} className={ghostBtn}>
                 <ArrowLeft className="h-3.5 w-3.5" /> 이전
@@ -448,7 +448,7 @@ function ScaleScreen({
   return (
     <div className={`${card} p-6 sm:p-8`}>
       <h2 className="mb-1 text-[20px] font-semibold text-[var(--hb-text-strong)]">{title}</h2>
-      <p className="mb-5 text-[12px] font-medium text-[#9a9188]">
+      <p className="mb-5 text-[12px] font-medium text-[var(--hb-text-muted)]">
         1 = {WC_SCALE_LABELS[0]} · 5 = {WC_SCALE_LABELS[4]} (선택 사항)
       </p>
       {items.map((item) => (

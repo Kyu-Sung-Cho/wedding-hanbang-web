@@ -119,7 +119,7 @@ export function renderAiMarkdown(text: string): React.ReactNode {
             className={`mt-0.5 flex h-[1.125rem] w-[1.125rem] shrink-0 items-center justify-center rounded-[6px] border ${
               checked
                 ? "border-[#2E7D5A] bg-[#2E7D5A]"
-                : "border-[#B5ADA3] bg-white"
+                : "border-[var(--color-paper-outline)] bg-white"
             }`}
           >
             {checked && <Check className="h-3 w-3 text-white" />}

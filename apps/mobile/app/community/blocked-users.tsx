@@ -187,7 +187,7 @@ export default function BlockedUsersScreen() {
 
         {!error && blocks.length === 0 ? (
           <EmptyState
-            icon={<Ban size={46} color={colors.taupe[400]} />}
+            icon={<Ban size={46} color={colors.textTertiary} />}
             title="차단한 회원이 없어요"
             description="글과 답변의 안전 메뉴에서 필요할 때 설정할 수 있어요."
           />
@@ -236,7 +236,7 @@ const styles = StyleSheet.create({
     padding: 15,
   },
   noticeTitle: { fontSize: 14, fontWeight: "700", color: colors.noir[800] },
-  noticeText: { marginTop: 5, fontSize: 12, lineHeight: 19, color: colors.textTertiary },
+  noticeText: { marginTop: 5, fontSize: 12, lineHeight: 19, color: colors.paper.inkFaint },
   errorCard: {
     alignItems: "center",
     marginBottom: 16,
@@ -244,7 +244,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#fbf2f0",
     padding: 16,
   },
-  errorText: { fontSize: 13, lineHeight: 20, textAlign: "center", color: colors.rose[600] },
+  errorText: { fontSize: 13, lineHeight: 20, textAlign: "center", color: colors.rose[700] },
   retryButton: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 12, minHeight: 40, paddingHorizontal: 14 },
   retryText: { fontSize: 13, fontWeight: "700", color: colors.noir[800] },
   card: {
@@ -260,7 +260,7 @@ const styles = StyleSheet.create({
   },
   cardCopy: { flex: 1 },
   nickname: { fontSize: 14, fontWeight: "700", color: colors.noir[800] },
-  cardDescription: { marginTop: 3, fontSize: 11, color: colors.textTertiary },
+  cardDescription: { marginTop: 3, fontSize: 11, color: colors.paper.inkFaint },
   unblockButton: {
     minWidth: 78,
     minHeight: 40,

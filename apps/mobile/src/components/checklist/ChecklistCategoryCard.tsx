@@ -133,7 +133,7 @@ const s = StyleSheet.create({
   stat: {
     flexShrink: 1,
     fontSize: 11.5,
-    color: colors.textTertiary,
+    color: colors.paper.inkFaint,
     fontFamily: "NotoSansKR_400Regular",
   },
   state: {
@@ -145,7 +145,7 @@ const s = StyleSheet.create({
   // 흰 카드 위 작은 글자라 4.5:1 을 넘는 어두운 단계를 쓴다(세이지 deep 4.98, 장미 700 6.25).
   toneDone: { color: colors.sage.deep },
   toneActive: { color: colors.rose[700] },
-  toneMuted: { color: colors.textTertiary },
+  toneMuted: { color: colors.paper.inkFaint },
   track: {
     height: 4,
     marginTop: 7,

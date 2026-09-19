@@ -255,13 +255,13 @@ export function AiFeedbackRow({
             aria-label="의견 보내기"
             onClick={handleBadSubmit}
             disabled={isSubmitting || !correction.trim()}
-            className="p-2 rounded-[6px] bg-[#C4967E]/10 text-[#9A6B62] hover:bg-[#C4967E]/20 disabled:opacity-40 transition-colors"
+            className="p-2 rounded-[6px] bg-[#C4967E]/10 text-rose-700 hover:bg-[#C4967E]/20 disabled:opacity-40 transition-colors"
           >
             <Send className="w-4 h-4" />
           </button>
         </div>
         {feedbackError ? (
-          <p role="alert" className="text-sm text-[#D95F5F]">
+          <p role="alert" className="text-sm text-danger-700">
             {feedbackError}
           </p>
         ) : null}
@@ -276,7 +276,7 @@ export function AiFeedbackRow({
   return (
     <div className="mt-2 flex flex-col gap-1">
       {feedbackError ? (
-        <p role="alert" className="text-sm text-[#D95F5F]">
+        <p role="alert" className="text-sm text-danger-700">
           {feedbackError}
         </p>
       ) : null}
@@ -288,7 +288,7 @@ export function AiFeedbackRow({
         type="button"
         onClick={handleGood}
         disabled={isSubmitting}
-        className="flex items-center gap-1.5 text-sm text-[var(--hb-text-muted)] hover:text-[#C4967E] transition-colors disabled:opacity-40"
+        className="flex items-center gap-1.5 text-sm text-[var(--hb-text-muted)] hover:text-rose-700 transition-colors disabled:opacity-40"
         title="도움됐어요"
       >
         <ThumbsUp className="w-4 h-4" />
@@ -415,12 +415,12 @@ function MessageSaveNoteButton({ messageId, content, coupleId, scope }: { messag
       <Link
         ref={savedLinkRef}
         {...weddingLinkProps("/chat/board?view=saved")}
-        className="flex items-center gap-1.5 text-sm text-[#9A6B62] transition-colors hover:text-[#C4967E]"
+        className="flex items-center gap-1.5 text-sm text-rose-700 transition-colors hover:underline"
       >
         <BookmarkCheck className="w-4 h-4" />
         <span>저장한 답변 · 보러가기</span>
       </Link>
-      {savedNote.savedByMe && <Button variant="ghost" type="button" aria-label="내 저장 취소" disabled={status === "deleting"} onClick={() => void handleUnsave()} className="mt-1 min-h-11 px-0! py-0! font-normal! text-sm! text-[var(--hb-text-muted)]! hover:bg-transparent! hover:text-[#9A6B62]! disabled:opacity-40!">{status === "deleting" ? "취소 중…" : "내 저장 취소"}</Button>}
+      {savedNote.savedByMe && <Button variant="ghost" type="button" aria-label="내 저장 취소" disabled={status === "deleting"} onClick={() => void handleUnsave()} className="mt-1 min-h-11 px-0! py-0! font-normal! text-sm! text-[var(--hb-text-muted)]! hover:bg-transparent! hover:text-rose-700! disabled:opacity-40!">{status === "deleting" ? "취소 중…" : "내 저장 취소"}</Button>}
       {entry?.status === "error" && <Button variant="ghost" type="button" onClick={() => refreshSavedNote(messageId)} className="min-h-11 px-0! py-0! font-normal! text-sm! text-[var(--hb-text-muted)]! hover:bg-transparent!">저장 상태 다시 확인</Button>}
       </div>
     );
@@ -436,7 +436,7 @@ function MessageSaveNoteButton({ messageId, content, coupleId, scope }: { messag
       disabled={status === "saving" || entry?.status === "loading"}
       aria-haspopup="dialog"
       aria-expanded={reviewOpen}
-      className="flex items-center gap-1.5 text-sm text-[var(--hb-text-muted)] transition-colors hover:text-[#C4967E] disabled:opacity-40"
+      className="flex items-center gap-1.5 text-sm text-[var(--hb-text-muted)] transition-colors hover:text-rose-700 disabled:opacity-40"
       title="나중에 다시 보기"
     >
       <Bookmark className="w-4 h-4" />
@@ -569,7 +569,7 @@ export default function ChatBubble({
                         <p className="truncate text-base font-medium text-[var(--hb-text-strong)]">{part.title}</p>
                         <p className="truncate text-sm text-[var(--hb-text-muted)]">{part.subtitle}</p>
                       </div>
-                      <ChevronRight className="h-5 w-5 flex-shrink-0 text-[var(--hb-text-muted)] transition-colors group-hover:text-[#C4967E]" />
+                      <ChevronRight className="h-5 w-5 flex-shrink-0 text-[var(--hb-text-muted)] transition-colors group-hover:text-rose-700" />
                     </Link>
                   );
                 })}
@@ -637,8 +637,8 @@ export default function ChatBubble({
           {/* 상대방에게 보낸 메시지 표시 */}
           {isPartnerMsg && (
             <div className="flex items-center gap-1.5 mr-1">
-              <Heart className="w-4 h-4 text-pink-400" />
-              <span className="text-sm text-pink-400 font-medium">상대방에게</span>
+              <Heart className="w-4 h-4 text-rose-700" />
+              <span className="text-sm text-rose-700 font-medium">상대방에게</span>
             </div>
           )}
           {/* 비공개 메시지 표시 */}
@@ -674,7 +674,7 @@ export default function ChatBubble({
       <div className="flex flex-col gap-1.5">
         <div className="flex items-center gap-2">
           <span
-            className={`text-sm px-2 py-0.5 rounded-full font-medium ${isPartnerMsg ? "bg-pink-100 text-pink-500" : badgeBg}`}
+            className={`text-sm px-2 py-0.5 rounded-full font-medium ${isPartnerMsg ? "bg-pink-100 text-rose-700" : badgeBg}`}
           >
             {isPartnerMsg ? `${senderLabel} → 나에게` : senderLabel}
           </span>
@@ -785,7 +785,7 @@ function ClearRequestCard({
               </div>
             )}
             {error && (
-              <p className="mt-2 text-xs text-red-500">{error}</p>
+              <p className="mt-2 text-xs text-danger-700">{error}</p>
             )}
           </div>
         </div>

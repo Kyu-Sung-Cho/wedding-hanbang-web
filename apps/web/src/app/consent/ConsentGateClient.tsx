@@ -109,7 +109,7 @@ export default function ConsentGateClient({
         </div>
 
         {error ? (
-          <p role="alert" className="mt-4 text-[13px] text-[#9A6B62]">
+          <p role="alert" className="mt-4 text-[13px] text-rose-700">
             {error}
           </p>
         ) : null}

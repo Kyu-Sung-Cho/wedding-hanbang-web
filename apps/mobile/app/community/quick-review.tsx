@@ -107,7 +107,7 @@ export default function QuickReviewScreen() {
           value={vendorName}
           onChangeText={setVendorName}
           placeholder="업체 이름을 입력하세요"
-          placeholderTextColor={colors.taupe[400]}
+          placeholderTextColor={colors.paper.inkFaint}
           maxLength={VENDOR_NAME_MAX}
         />
 
@@ -138,8 +138,8 @@ export default function QuickReviewScreen() {
             <Pressable key={n} onPress={() => setRating(n)} hitSlop={4}>
               <Star
                 size={36}
-                color={n <= rating ? colors.gold.DEFAULT : colors.taupe[400]}
-                fill={n <= rating ? colors.gold.DEFAULT : "none"}
+                color={n <= rating ? colors.paper.tapeInk : colors.textTertiary}
+                fill={n <= rating ? colors.paper.tapeInk : "none"}
               />
             </Pressable>
           ))}
@@ -155,7 +155,7 @@ export default function QuickReviewScreen() {
           value={review}
           onChangeText={(t) => setReview(t.slice(0, REVIEW_MAX))}
           placeholder="한 줄로 후기를 남겨주세요"
-          placeholderTextColor={colors.taupe[400]}
+          placeholderTextColor={colors.paper.inkFaint}
           maxLength={REVIEW_MAX}
         />
         <Text style={s.charCount}>{review.length}/{REVIEW_MAX}</Text>
@@ -191,7 +191,7 @@ export default function QuickReviewScreen() {
               value={sponsorshipDetail}
               onChangeText={setSponsorshipDetail}
               placeholder="예: 드레스 입어보기 비용 1회 제공받음"
-              placeholderTextColor={colors.taupe[400]}
+              placeholderTextColor={colors.paper.inkFaint}
               accessibilityLabel="받은 협찬 내용"
               maxLength={QUICK_REVIEW_SPONSORSHIP_DETAIL_MAX}
               multiline
@@ -239,7 +239,7 @@ const s = StyleSheet.create({
   charCount: {
     fontSize: 12,
     fontFamily: "CormorantGaramond_400Regular",
-    color: colors.textTertiary,
+    color: colors.paper.inkFaint,
     textAlign: "right",
     marginTop: 4,
   },
@@ -289,7 +289,7 @@ const s = StyleSheet.create({
   ratingNum: {
     fontSize: 20,
     fontFamily: "CormorantGaramond_600SemiBold",
-    color: colors.gold.DEFAULT,
+    color: colors.paper.tapeInk,
     marginLeft: 8,
   },
 

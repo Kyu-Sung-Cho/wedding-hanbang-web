@@ -325,7 +325,7 @@ const styles = StyleSheet.create({
     borderRadius: radius.lg,
     backgroundColor: colors.ivory[100],
   },
-  promiseText: { flex: 1, fontSize: 11, lineHeight: 17, color: colors.sage[500] },
+  promiseText: { flex: 1, fontSize: 11, lineHeight: 17, color: colors.noir.soft },
   pauseButton: {
     minHeight: 40,
     flexDirection: "row",
@@ -337,10 +337,10 @@ const styles = StyleSheet.create({
     borderRadius: radius.full,
     backgroundColor: colors.surface,
   },
-  pauseLabel: { fontSize: 12, fontWeight: "600", color: colors.rose[600] },
+  pauseLabel: { fontSize: 12, fontWeight: "600", color: colors.rose[700] },
   textButton: { alignSelf: "flex-start", paddingVertical: spacing[1] },
-  textButtonLabel: { fontSize: 12, fontWeight: "600", color: colors.rose[600] },
-  errorText: { fontSize: 12, lineHeight: 18, color: colors.danger },
+  textButtonLabel: { fontSize: 12, fontWeight: "600", color: colors.rose[700] },
+  errorText: { fontSize: 12, lineHeight: 18, color: colors.dangerDeep },
   pressed: { opacity: 0.72 },
   disabled: { opacity: 0.5 },
 });

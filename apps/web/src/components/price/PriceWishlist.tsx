@@ -133,7 +133,7 @@ export function PriceWishlist({ catalog }: { catalog: PriceCatalog }) {
               </p>
             </div>
             {status === "ready" ? (
-              <span className="rounded-full bg-[#F5ECE4] px-3 py-1.5 text-sm font-bold text-[#8F6662]">
+              <span className="rounded-full bg-[#F5ECE4] px-3 py-1.5 text-sm font-bold text-rose-700">
                 {total}개 저장됨
               </span>
             ) : null}
@@ -242,7 +242,7 @@ export function PriceWishlist({ catalog }: { catalog: PriceCatalog }) {
                     ))}
                   </div>
                 ) : (
-                  <div className="rounded-[6px] border border-dashed border-[var(--hb-primary)]/15 bg-white/55 px-5 py-5 text-sm text-[var(--hb-text-strong)]/60">
+                  <div className="rounded-[6px] border border-dashed border-[var(--hb-primary)]/15 bg-white/55 px-5 py-5 text-sm text-[var(--hb-text-muted)]">
                     이 카테고리에 찜한 공식 가격 업체가 없어요.
                   </div>
                 )}
@@ -278,7 +278,7 @@ function StateCard({
 }) {
   return (
     <section className="rounded-[6px] border border-[var(--hb-primary)]/10 bg-white px-5 py-10 text-center shadow-[var(--shadow-raised)] sm:px-8">
-      <span className="mx-auto flex size-14 items-center justify-center rounded-full bg-[#F5ECE4] text-[#8F6662]">
+      <span className="mx-auto flex size-14 items-center justify-center rounded-full bg-[#F5ECE4] text-rose-700">
         {icon}
       </span>
       <h2 className="mt-5 text-xl font-bold tracking-normal">{title}</h2>

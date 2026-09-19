@@ -122,7 +122,7 @@ export default function BlockedUsersPage() {
           <h1 className="font-serif-kr text-[var(--hb-text-strong)]">
             차단 관리
           </h1>
-          <p className="mt-1 text-xs leading-relaxed text-[#878680]">
+          <p className="mt-1 text-xs leading-relaxed text-[var(--hb-text-muted)]">
             이 목록은 본인에게만 보이며 연결된 파트너와도 공유하지 않아요.
           </p>
         </div>
@@ -142,7 +142,7 @@ export default function BlockedUsersPage() {
       {mutationError ? (
         <p
           role="alert"
-          className="mb-4 rounded-[6px] bg-[#fbf2f0] px-3 py-2 text-sm text-[#8F6662]"
+          className="mb-4 rounded-[6px] bg-[#fbf2f0] px-3 py-2 text-sm text-rose-700"
         >
           {mutationError}
         </p>
@@ -166,8 +166,8 @@ export default function BlockedUsersPage() {
         </div>
       ) : blocks.length === 0 ? (
         <div className="rounded-[6px] border border-black/[0.05] bg-white px-5 py-14 text-center">
-          <Ban className="mx-auto h-9 w-9 text-[var(--hb-text-muted)]/50" />
-          <p className="mt-3 text-sm text-[#878680]">차단한 회원이 없어요.</p>
+          <Ban className="mx-auto h-9 w-9 text-[var(--hb-text-muted)]" />
+          <p className="mt-3 text-sm text-[var(--hb-text-muted)]">차단한 회원이 없어요.</p>
           <Link
             href={weddingPath()}
             className="mt-4 inline-flex min-h-10 items-center rounded-[6px] bg-[var(--hb-primary)] px-4 text-sm font-semibold text-white"

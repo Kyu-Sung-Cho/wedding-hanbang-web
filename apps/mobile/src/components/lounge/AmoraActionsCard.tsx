@@ -316,7 +316,7 @@ const styles = StyleSheet.create({
   },
   headerRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: spacing[2] },
   header: { flexDirection: "row", alignItems: "center", gap: spacing[1] },
-  headerText: { fontSize: 12, fontWeight: "600", color: colors.rose[600] },
+  headerText: { fontSize: 12, fontWeight: "600", color: colors.rose[700] },
   badge: {
     fontSize: 10,
     fontWeight: "500",
@@ -328,11 +328,11 @@ const styles = StyleSheet.create({
     paddingVertical: 2,
   },
   linkButton: { minHeight: 44, justifyContent: "center" },
-  linkText: { fontSize: 12, color: colors.textTertiary },
+  linkText: { fontSize: 12, color: colors.paper.inkFaint },
   row: { flexDirection: "row", alignItems: "center", gap: spacing[2] },
   rowText: { flex: 1, gap: 2 },
   title: { fontSize: 14, fontWeight: "600", color: colors.noir[800], lineHeight: 20 },
-  due: { fontSize: 12, color: colors.textTertiary },
+  due: { fontSize: 12, color: colors.paper.inkFaint },
   doneButton: {
     minHeight: 44,
     flexDirection: "row",
@@ -344,7 +344,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.ivory[100],
   },
   doneText: { fontSize: 12, fontWeight: "600", color: colors.rose[700] },
-  more: { fontSize: 12, color: colors.textTertiary },
-  error: { fontSize: 12, color: colors.rose[600], lineHeight: 18 },
+  more: { fontSize: 12, color: colors.paper.inkFaint },
+  error: { fontSize: 12, color: colors.rose[700], lineHeight: 18 },
   retryButton: { minHeight: 44, justifyContent: "center", alignSelf: "flex-start" },
 });

@@ -102,7 +102,7 @@ const styles = StyleSheet.create({
   copy: { flex: 1 },
   title: { fontSize: 14, fontWeight: "700", color: colors.noir[800] },
   body: { marginTop: 4, fontSize: 13, lineHeight: 19, color: colors.textSecondary },
-  footnote: { marginTop: 6, fontSize: 12, lineHeight: 17, color: colors.textTertiary },
+  footnote: { marginTop: 6, fontSize: 12, lineHeight: 17, color: colors.paper.inkFaint },
   actions: { flexDirection: "row", gap: 8, marginTop: 12 },
   accept: { flex: 1, minHeight: 44, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, borderRadius: 12, backgroundColor: colors.rose[600] },
   acceptPressed: { backgroundColor: colors.rose[700] },

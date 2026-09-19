@@ -225,7 +225,7 @@ export default function PollEditor({
         <button
           type="button"
           onClick={disable}
-          className="flex items-center gap-1 px-2 py-1 text-sm text-[var(--hb-text-muted)] hover:text-red-500 hover:bg-red-50 rounded-[6px] transition-colors"
+          className="flex items-center gap-1 px-2 py-1 text-sm text-[var(--hb-text-muted)] hover:text-danger-700 hover:bg-red-50 rounded-[6px] transition-colors"
         >
           <Trash2 className="w-4 h-4" />
           제거
@@ -252,7 +252,7 @@ export default function PollEditor({
 
       {/* 에러 */}
       {error && (
-        <div className="px-3 py-2 text-sm text-red-600 bg-red-50 border border-red-200 rounded-[6px]">
+        <div className="px-3 py-2 text-sm text-danger-700 bg-red-50 border border-red-200 rounded-[6px]">
           {error}
         </div>
       )}
@@ -346,7 +346,7 @@ export default function PollEditor({
               type="button"
               onClick={() => removeOption(idx)}
               disabled={draftOptions.length <= MIN_OPTIONS}
-              className="shrink-0 w-9 self-stretch flex items-center justify-center rounded-[6px] text-[var(--hb-text-muted)] hover:text-red-500 hover:bg-red-50 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+              className="shrink-0 w-9 self-stretch flex items-center justify-center rounded-[6px] text-[var(--hb-text-muted)] hover:text-danger-700 hover:bg-red-50 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
               aria-label="선택지 삭제"
             >
               <X className="w-4 h-4" />

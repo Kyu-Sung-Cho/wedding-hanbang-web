@@ -42,7 +42,7 @@ export default function CostShareDisplay({ data }: CostShareDisplayProps) {
       <div className="p-4 sm:p-5 bg-gradient-to-r from-emerald-50 to-white border-b border-[#F5F2ED]">
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-[6px] bg-emerald-100 flex items-center justify-center text-emerald-600 shrink-0">
+            <div className="w-8 h-8 rounded-[6px] bg-emerald-100 flex items-center justify-center text-noir-800 shrink-0">
               <Wallet className="w-4 h-4" />
             </div>
             <div>
@@ -56,7 +56,7 @@ export default function CostShareDisplay({ data }: CostShareDisplayProps) {
           </div>
 
           <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-[6px] bg-sky-100 flex items-center justify-center text-sky-600 shrink-0">
+            <div className="w-8 h-8 rounded-[6px] bg-sky-100 flex items-center justify-center text-[var(--hb-accent)] shrink-0">
               <MapPin className="w-4 h-4" />
             </div>
             <div>
@@ -70,7 +70,7 @@ export default function CostShareDisplay({ data }: CostShareDisplayProps) {
           </div>
 
           <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-[6px] bg-amber-100 flex items-center justify-center text-amber-600 shrink-0">
+            <div className="w-8 h-8 rounded-[6px] bg-amber-100 flex items-center justify-center text-[var(--color-paper-tape-ink)] shrink-0">
               <Users className="w-4 h-4" />
             </div>
             <div>
@@ -155,8 +155,8 @@ export default function CostShareDisplay({ data }: CostShareDisplayProps) {
           {data.regretPoints && (
             <div>
               <div className="flex items-center gap-1.5 mb-1.5">
-                <ThumbsDown className="w-3.5 h-3.5 text-red-400" />
-                <span className="text-xs font-medium text-red-500">
+                <ThumbsDown className="w-3.5 h-3.5 text-danger-700" />
+                <span className="text-xs font-medium text-danger-700">
                   후회한 점
                 </span>
               </div>
@@ -169,8 +169,8 @@ export default function CostShareDisplay({ data }: CostShareDisplayProps) {
           {data.goodPoints && (
             <div>
               <div className="flex items-center gap-1.5 mb-1.5">
-                <ThumbsUp className="w-3.5 h-3.5 text-emerald-500" />
-                <span className="text-xs font-medium text-emerald-600">
+                <ThumbsUp className="w-3.5 h-3.5 text-[var(--hb-success)]" />
+                <span className="text-xs font-medium text-[var(--hb-success)]">
                   잘한 점
                 </span>
               </div>
@@ -183,8 +183,8 @@ export default function CostShareDisplay({ data }: CostShareDisplayProps) {
           {data.advice && (
             <div>
               <div className="flex items-center gap-1.5 mb-1.5">
-                <MessageSquareText className="w-3.5 h-3.5 text-[#B89785]" />
-                <span className="text-xs font-medium text-[#B89785]">
+                <MessageSquareText className="w-3.5 h-3.5 text-[var(--color-paper-tape-ink)]" />
+                <span className="text-xs font-medium text-[var(--color-paper-tape-ink)]">
                   조언
                 </span>
               </div>

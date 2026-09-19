@@ -357,7 +357,7 @@ export default function CommentItem({
                         setEditContent(comment.content);
                         setIsEditing(false);
                       }}
-                      className="inline-flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-[#878680] hover:text-[var(--hb-text-strong)] rounded-[6px] hover:bg-[#FAFAF8] transition-all duration-200"
+                      className="inline-flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-[var(--hb-text-muted)] hover:text-[var(--hb-text-strong)] rounded-[6px] hover:bg-[#FAFAF8] transition-all duration-200"
                     >
                       <X className="w-3.5 h-3.5" />
                       취소
@@ -373,7 +373,7 @@ export default function CommentItem({
                     </button>
                   </div>
                   {actionError ? (
-                    <p role="alert" className="mt-2 text-sm text-[#D95F5F]">
+                    <p role="alert" className="mt-2 text-sm text-danger-700">
                       {actionError}
                     </p>
                   ) : null}
@@ -474,7 +474,7 @@ export default function CommentItem({
                 <button
                   type="button"
                   onClick={() => setShowDeleteConfirm(true)}
-                  className="flex items-center gap-1 px-2 py-1 rounded-[6px] hover:bg-[#FAFAF8] hover:text-[#D85A5A] transition-all duration-200"
+                  className="flex items-center gap-1 px-2 py-1 rounded-[6px] hover:bg-[#FAFAF8] hover:text-danger-700 transition-all duration-200"
                 >
                   <Trash2 className="w-3.5 h-3.5" />
                   삭제
@@ -528,7 +528,7 @@ export default function CommentItem({
                   className="ugc-text w-full px-3 py-2 text-sm text-[var(--hb-text-strong)] bg-[#FAFAF8] border border-[#F0EFED] rounded-[6px] resize-none focus:outline-none focus:border-[var(--hb-primary)] focus:shadow-[0_0_0_2px_rgba(54,83,78,0.1)] transition-all duration-200 placeholder:text-[var(--hb-text-muted)]"
                 />
                 {replyError ? (
-                  <p role="alert" className="mt-2 text-sm text-[#D95F5F]">
+                  <p role="alert" className="mt-2 text-sm text-danger-700">
                     {replyError}
                   </p>
                 ) : null}
@@ -544,7 +544,7 @@ export default function CommentItem({
                         setReplyContent("");
                         setReplyError(null);
                       }}
-                      className="px-3 py-1.5 text-sm font-medium text-[#878680] hover:text-[var(--hb-text-strong)] rounded-[6px] hover:bg-[#FAFAF8] transition-all duration-200"
+                      className="px-3 py-1.5 text-sm font-medium text-[var(--hb-text-muted)] hover:text-[var(--hb-text-strong)] rounded-[6px] hover:bg-[#FAFAF8] transition-all duration-200"
                     >
                       취소
                     </button>
@@ -576,16 +576,16 @@ export default function CommentItem({
           >
             <div className="p-4 text-center">
               <div className="w-10 h-10 mx-auto mb-3 rounded-full bg-red-50 flex items-center justify-center">
-                <Trash2 className="w-4 h-4 text-red-500" />
+                <Trash2 className="w-4 h-4 text-danger-700" />
               </div>
               <p className="text-base font-medium text-[var(--hb-text-strong)]">
                 {isReply ? "답글" : "답변"}을 삭제하시겠습니까?
               </p>
-              <p className="mt-1 text-sm text-[#878680]">
+              <p className="mt-1 text-sm text-[var(--hb-text-muted)]">
                 삭제된 {isReply ? "답글" : "답변"}은 복구할 수 없습니다.
               </p>
               {actionError ? (
-                <p role="alert" className="mt-3 text-sm text-[#D95F5F]">
+                <p role="alert" className="mt-3 text-sm text-danger-700">
                   {actionError}
                 </p>
               ) : null}
@@ -597,7 +597,7 @@ export default function CommentItem({
                   setActionError(null);
                   setShowDeleteConfirm(false);
                 }}
-                className="flex-1 px-4 py-3 text-sm font-medium text-[#878680] hover:bg-[#FAFAF8] transition-all duration-200"
+                className="flex-1 px-4 py-3 text-sm font-medium text-[var(--hb-text-muted)] hover:bg-[#FAFAF8] transition-all duration-200"
               >
                 취소
               </button>
@@ -605,7 +605,7 @@ export default function CommentItem({
               <button
                 type="button"
                 onClick={handleDelete}
-                className="flex-1 px-4 py-3 text-sm font-semibold text-red-500 hover:bg-red-50 transition-all duration-200"
+                className="flex-1 px-4 py-3 text-sm font-semibold text-danger-700 hover:bg-red-50 transition-all duration-200"
               >
                 삭제
               </button>
@@ -659,7 +659,7 @@ export default function CommentItem({
                     >
                       {isReply ? "답글" : "답변"} 신고
                     </h2>
-                    <p className="mt-1 text-xs leading-relaxed text-[#878680]">
+                    <p className="mt-1 text-xs leading-relaxed text-[var(--hb-text-muted)]">
                       가장 가까운 이유를 골라 주세요. 신고 내용은 작성자에게
                       공개되지 않아요.
                     </p>
@@ -667,7 +667,7 @@ export default function CommentItem({
                   <button
                     type="button"
                     onClick={() => setShowReportModal(false)}
-                    className="rounded-[6px] p-1.5 text-[#878680] hover:bg-[#FAFAF8]"
+                    className="rounded-[6px] p-1.5 text-[var(--hb-text-muted)] hover:bg-[#FAFAF8]"
                     aria-label="신고 창 닫기"
                   >
                     <X className="h-4 w-4" />
@@ -723,7 +723,7 @@ export default function CommentItem({
                       className="mt-2 w-full resize-none rounded-[6px] border border-[#F0EFED] bg-[#FAFAF8] px-3 py-2 text-sm text-[var(--hb-text-strong)] outline-none transition-colors placeholder:text-[var(--hb-text-muted)] focus:border-[var(--hb-primary)]"
                     />
                   </label>
-                  <p className="mt-1 text-xs leading-relaxed text-[#878680]">
+                  <p className="mt-1 text-xs leading-relaxed text-[var(--hb-text-muted)]">
                     전화번호·주소·계좌번호처럼 노출된 개인정보를 설명란에 다시
                     적지 마세요.
                   </p>
@@ -731,7 +731,7 @@ export default function CommentItem({
                   {reportError && (
                     <p
                       role="alert"
-                      className="mt-3 rounded-[6px] bg-[#fbf2f0] px-3 py-2 text-sm leading-relaxed text-[#8F6662]"
+                      className="mt-3 rounded-[6px] bg-[#fbf2f0] px-3 py-2 text-sm leading-relaxed text-rose-700"
                     >
                       {reportError}
                     </p>

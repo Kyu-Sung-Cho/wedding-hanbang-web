@@ -460,7 +460,7 @@ export default function CommunityOperationsPage() {
                     </p>
                   </div>
                 </div>
-                <p className="shrink-0 text-xs text-[#7A746B]">
+                <p className="shrink-0 text-xs text-[var(--hb-text-muted)]">
                   측정 {formatDate(health.measured_at)}
                 </p>
               </div>
@@ -630,7 +630,7 @@ export default function CommunityOperationsPage() {
                       >
                         <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
                           <div className="min-w-0 flex-1">
-                            <div className="flex flex-wrap items-center gap-2 text-xs text-[#7A746B]">
+                            <div className="flex flex-wrap items-center gap-2 text-xs text-[var(--hb-text-muted)]">
                               <span className="rounded-full bg-[#F2EEE7] px-2 py-1 font-semibold">
                                 {item.target_type === "post"
                                   ? "게시글"

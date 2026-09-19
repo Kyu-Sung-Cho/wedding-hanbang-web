@@ -103,7 +103,7 @@ describe("NotificationPanel partner history", () => {
       );
     });
 
-    expect(container.querySelector(".text-red-500")).toBeNull();
+    expect(container.querySelector(".text-danger-700")).toBeNull();
     expect(
       container.querySelector(
         'time[datetime="2026-07-30T01:00:00.000Z"]',

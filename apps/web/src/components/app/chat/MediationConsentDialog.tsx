@@ -99,7 +99,7 @@ export default function MediationConsentDialog({
           type="button"
           onClick={onCancel}
           aria-label="조율 초안 요청 취소"
-          className="absolute right-2 top-2 flex h-11 w-11 items-center justify-center rounded-full text-[#8B817A] hover:bg-[#F6F3F1]"
+          className="absolute right-2 top-2 flex h-11 w-11 items-center justify-center rounded-full text-[var(--hb-text-muted)] hover:bg-[#F6F3F1]"
         >
           <X className="h-4 w-4" aria-hidden="true" />
         </button>
@@ -138,7 +138,7 @@ export default function MediationConsentDialog({
             <p className="text-xs leading-relaxed text-[#746A63]">
               초안은 판결이 아니며, 두 사람이 각각 확인해야 공동 결정으로 남아요.
             </p>
-            <span className="shrink-0 text-xs text-[#938A84]">
+            <span className="shrink-0 text-xs text-[var(--hb-text-muted)]">
               {summary.length}/{MAX_MEDIATION_SUMMARY_CHARS}
             </span>
           </div>

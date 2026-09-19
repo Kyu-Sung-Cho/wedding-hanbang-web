@@ -148,7 +148,7 @@ export function AddToComboModal({ vendor, onClose, onAdd }: AddToComboModalProps
               aria-describedby={customInputError ? "combo-custom-quote-error" : undefined}
               className="min-w-0 flex-1 bg-transparent text-sm outline-none"
             />
-            <span className="text-sm text-[var(--hb-text-strong)]/60">만원</span>
+            <span className="text-sm text-[var(--hb-text-muted)]">만원</span>
           </span>
           {customInputError ? (
             <span id="combo-custom-quote-error" role="alert" className="mt-2 block text-xs font-medium text-[#A13D3D]">

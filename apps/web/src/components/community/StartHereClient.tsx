@@ -296,7 +296,7 @@ export default function StartHereClient() {
                     className={`inline-flex min-h-11 items-center rounded-[6px] border px-4 text-[14px] font-semibold transition-colors ${
                       preset === value
                         ? "border-[var(--hb-primary)] bg-[var(--hb-primary)] text-white"
-                        : "border-[var(--hb-primary)]/15 bg-white text-[var(--hb-text-strong)] hover:bg-[#F5ECE4]"
+                        : "border-[var(--color-paper-outline)] bg-white text-[var(--hb-text-strong)] hover:bg-[#F5ECE4]"
                     }`}
                   >
                     {preset === value ? <Check className="mr-1.5 h-4 w-4" aria-hidden="true" /> : null}
@@ -420,7 +420,7 @@ export default function StartHereClient() {
                     <Link
                       href={buildStartHereSignupHref()}
                       onClick={rememberSignupHandoff}
-                      className="inline-flex min-h-12 items-center justify-center gap-2 rounded-[6px] border border-white/30 px-5 text-[14px] font-semibold text-white transition-colors hover:bg-white/10"
+                      className="inline-flex min-h-12 items-center justify-center gap-2 rounded-[6px] border border-[var(--hb-on-primary)] px-5 text-[14px] font-semibold text-white transition-colors hover:bg-[var(--hb-primary-hover)]"
                     >
                       계정 만들고 계속 관리하기
                       <ArrowRight className="h-4 w-4" aria-hidden="true" />
@@ -481,7 +481,7 @@ export default function StartHereClient() {
                   <Link
                     href={buildStartHereSignupHref()}
                     onClick={rememberSignupHandoff}
-                    className="inline-flex min-h-12 items-center justify-center gap-2 rounded-[6px] border border-[var(--hb-primary)]/20 px-5 text-[14px] font-semibold text-[var(--hb-text-strong)] transition-colors hover:bg-[#EDF2EA]"
+                    className="inline-flex min-h-12 items-center justify-center gap-2 rounded-[6px] border border-[var(--color-paper-outline)] px-5 text-[14px] font-semibold text-[var(--hb-text-strong)] transition-colors hover:bg-[#EDF2EA]"
                   >
                     계정 만들고 천천히 관리하기
                     <ArrowRight className="h-4 w-4" aria-hidden="true" />
@@ -513,8 +513,8 @@ export default function StartHereClient() {
                       aria-pressed={off}
                       className={`inline-flex min-h-11 items-center rounded-[6px] border px-4 text-[14px] font-semibold transition-colors ${
                         off
-                          ? "border-[var(--hb-primary)]/12 bg-[#f0ece6] text-[#716c65] line-through"
-                          : "border-[var(--hb-primary)]/15 bg-white text-[var(--hb-text-strong)] hover:bg-[#F5ECE4]"
+                          ? "border-[var(--color-paper-outline)] bg-[#f0ece6] text-[var(--hb-text-muted)] line-through"
+                          : "border-[var(--color-paper-outline)] bg-white text-[var(--hb-text-strong)] hover:bg-[#F5ECE4]"
                       }`}
                     >
                       {category.label}

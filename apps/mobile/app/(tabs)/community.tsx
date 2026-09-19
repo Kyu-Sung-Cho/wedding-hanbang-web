@@ -225,7 +225,7 @@ function MyCohortCard({ cohort }: { cohort: MyCohort }) {
       >
         {/* 좌측 아이콘 */}
         <View style={styles.myCohortIcon}>
-          <Users size={20} color={colors.gold.DEFAULT} />
+          <Users size={20} color={colors.paper.tapeInk} />
         </View>
 
         <View style={styles.myCohortInfo}>
@@ -240,7 +240,7 @@ function MyCohortCard({ cohort }: { cohort: MyCohort }) {
           </View>
         </View>
 
-        <ChevronRight size={20} color={colors.taupe[400]} />
+        <ChevronRight size={20} color={colors.textTertiary} />
       </Pressable>
     </Animated.View>
   );
@@ -264,7 +264,7 @@ function CohortJoinCTA() {
         <Text style={styles.cohortCtaTitle}>동기방 찾기</Text>
         <Text style={styles.cohortCtaSub}>같은 달에 결혼하는 동기들과 소통하세요</Text>
       </View>
-      <ChevronRight size={18} color={colors.taupe[400]} />
+      <ChevronRight size={18} color={colors.textTertiary} />
     </Pressable>
   );
 }
@@ -310,11 +310,11 @@ function CohortExploreSection({ rooms }: { rooms: CohortRoom[] }) {
             </Text>
             <View style={styles.exploreStats}>
               <View style={styles.exploreStat}>
-                <Users size={12} color={colors.taupe[400]} />
+                <Users size={12} color={colors.textTertiary} />
                 <Text style={styles.exploreStatText}>{room.member_count}명</Text>
               </View>
               <View style={styles.exploreStat}>
-                <MessageCircle size={12} color={colors.taupe[400]} />
+                <MessageCircle size={12} color={colors.textTertiary} />
                 <Text style={styles.exploreStatText}>{room.message_count}</Text>
               </View>
             </View>
@@ -348,7 +348,7 @@ function QuickActionsBar() {
       onPress: () => router.push("/community/my-posts"),
     },
     {
-      icon: <Bookmark size={14} color={colors.gold.DEFAULT} />,
+      icon: <Bookmark size={14} color={colors.paper.tapeInk} />,
       label: "북마크",
       onPress: () => router.push("/community/my-bookmarks"),
     },
@@ -515,7 +515,7 @@ function DecisionThreadCard({ item }: { item: DecisionFeedItem }) {
             ? `자격·조건 확인 답변 ${totalAnswers}개`
             : "자격·조건 확인 답변을 기다리는 중"}
         </Text>
-        <ChevronRight size={17} color={colors.taupe[400]} />
+        <ChevronRight size={17} color={colors.textTertiary} />
       </View>
     </Pressable>
   );
@@ -547,7 +547,7 @@ function DecisionInboxLink({
         <Text style={styles.decisionInboxLabel}>{label}</Text>
         <Text style={styles.decisionInboxCount}>{count}</Text>
       </View>
-      <ChevronRight size={16} color={colors.taupe[400]} />
+      <ChevronRight size={16} color={colors.textTertiary} />
     </Pressable>
   );
 }
@@ -838,15 +838,15 @@ export default function CommunityScreen() {
         {/* 액션 바 */}
         <View style={styles.postActions}>
           <View style={styles.actionGroup}>
-            <ChevronUp size={16} color={colors.taupe[400]} />
+            <ChevronUp size={16} color={colors.textTertiary} />
             <Text style={styles.actionText}>{votes}</Text>
           </View>
           <View style={styles.actionGroup}>
-            <MessageCircle size={16} color={colors.taupe[400]} />
+            <MessageCircle size={16} color={colors.textTertiary} />
             <Text style={styles.actionText}>{item.comment_count}</Text>
           </View>
           <View style={styles.actionGroup}>
-            <Eye size={16} color={colors.taupe[400]} />
+            <Eye size={16} color={colors.textTertiary} />
             <Text style={styles.actionText}>{item.view_count}</Text>
           </View>
         </View>
@@ -1198,7 +1198,7 @@ const styles = StyleSheet.create({
     fontSize: 12,
     lineHeight: 22,
     fontFamily: "NotoSansKR_600SemiBold",
-    color: colors.rose[500],
+    color: colors.rose[700],
     backgroundColor: colors.rose[500] + "14",
   },
   decisionTabs: {
@@ -1265,7 +1265,7 @@ const styles = StyleSheet.create({
   decisionStateText: {
     fontSize: 11,
     fontFamily: "NotoSansKR_600SemiBold",
-    color: colors.rose[500],
+    color: colors.rose[700],
   },
   decisionOrigin: {
     flexShrink: 1,
@@ -1315,7 +1315,7 @@ const styles = StyleSheet.create({
   decisionOutcomeLabel: {
     fontSize: 11,
     fontFamily: "NotoSansKR_600SemiBold",
-    color: colors.gold.DEFAULT,
+    color: colors.paper.tapeInk,
   },
   decisionOutcomeText: {
     marginTop: 5,
@@ -1336,7 +1336,7 @@ const styles = StyleSheet.create({
     fontSize: 11,
     lineHeight: 17,
     fontFamily: "NotoSansKR_500Medium",
-    color: colors.rose[500],
+    color: colors.rose[700],
   },
   decisionOutcomeDisclosure: {
     marginTop: 8,
@@ -1504,7 +1504,7 @@ const styles = StyleSheet.create({
   },
   exploreMore: {
     fontSize: 13,
-    color: colors.rose[500],
+    color: colors.rose[700],
     fontWeight: "500",
   },
   exploreScroll: { paddingHorizontal: 20, gap: 12 },
@@ -1524,7 +1524,7 @@ const styles = StyleSheet.create({
   exploreMonth: {
     fontSize: 12,
     fontWeight: "500",
-    color: colors.rose[500],
+    color: colors.rose[700],
     marginBottom: 4,
   },
   exploreRoomName: {
@@ -1632,8 +1632,8 @@ const styles = StyleSheet.create({
     paddingVertical: 2,
     borderRadius: 6,
   },
-  postCat: { fontSize: 12, fontWeight: "700", color: colors.rose[500] },
-  postDot: { fontSize: 12, color: colors.taupe[400] },
+  postCat: { fontSize: 12, fontWeight: "700", color: colors.rose[700] },
+  postDot: { fontSize: 12, color: colors.paper.inkFaint },
   postAuthor: {
     fontSize: 12,
     fontWeight: "500",
@@ -1641,7 +1641,7 @@ const styles = StyleSheet.create({
     flexShrink: 1,
     maxWidth: 110,
   },
-  postTime: { fontSize: 12, color: colors.taupe[400], flexShrink: 0 },
+  postTime: { fontSize: 12, color: colors.paper.inkFaint, flexShrink: 0 },
   postTrustRow: { marginBottom: 9 },
 
   postTitle: {

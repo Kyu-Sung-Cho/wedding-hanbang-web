@@ -26,7 +26,7 @@ const STATUS_LABELS: Record<string, { label: string; color: string }> = {
   in_service: { label: "진행 기록", color: "text-[var(--hb-accent-hover)] bg-[rgba(54,83,78,0.10)]" },
   service_completed: { label: "진행 완료 기록", color: "text-white bg-[var(--hb-primary)]" },
   completed: { label: "기록 완료", color: "text-[var(--hb-text-body)] bg-[var(--hb-surface-hover)]" },
-  cancelled: { label: "내부 취소 표시", color: "text-red-500 bg-red-500/10" },
+  cancelled: { label: "내부 취소 표시", color: "text-danger-700 bg-red-500/10" },
 };
 
 function formatPrice(price: number): string {
@@ -67,7 +67,7 @@ export default function BookingsPage() {
   if (error) {
     return (
       <div className="max-w-[700px] mx-auto text-center py-20">
-        <AlertCircle className="w-10 h-10 text-red-400 mx-auto mb-3" />
+        <AlertCircle className="w-10 h-10 text-danger-700 mx-auto mb-3" />
         <p className="text-base text-[var(--hb-text-body)]">{error}</p>
       </div>
     );
@@ -108,7 +108,7 @@ export default function BookingsPage() {
 
       {bookings.length === 0 ? (
         <div className="rounded-[6px] border border-[var(--hb-hairline)] bg-white/90 p-8 text-center shadow-[var(--shadow-raised)] animate-fade-in">
-          <Calendar className="mx-auto mb-4 h-12 w-12 text-[var(--hb-text-strong)]/45" />
+          <Calendar className="mx-auto mb-4 h-12 w-12 text-[var(--hb-text-muted)]" />
           <p className="mb-2 font-serif-kr text-[22px] font-medium text-[var(--hb-text-strong)]">아직 예약 요청 기록이 없어요</p>
           <p className="mb-6 text-[13px] font-medium leading-[1.65] text-[var(--hb-text-body)]">
             업체를 둘러보고 방문·상담 후보를 아모라에 기록해 보세요

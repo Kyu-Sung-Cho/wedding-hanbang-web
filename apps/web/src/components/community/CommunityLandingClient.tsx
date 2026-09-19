@@ -704,7 +704,7 @@ function AmoraBlock() {
               onClick={() => captureEvent("community_decision_click", { intent: "vendor_contract" })}
               className="group grid min-h-[68px] grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 py-3"
             >
-              <span className="flex h-9 w-9 items-center justify-center rounded-full bg-[#f4e8e5] text-[#8F6662]">
+              <span className="flex h-9 w-9 items-center justify-center rounded-full bg-[#f4e8e5] text-rose-700">
                 <Building2 className="h-[18px] w-[18px]" />
               </span>
               <span className="min-w-0">
@@ -899,7 +899,7 @@ function DisclosureHero({ spread }: { spread?: AgencySpreadSummary }) {
                           {PRICE_CATEGORY_LABELS[row.category]}
                           {row.itemLabel ? ` · ${row.itemLabel}` : ""}
                         </span>
-                        <span className="shrink-0 text-white/45">대행사 {row.agencyCount}곳</span>
+                        <span className="shrink-0 text-white/75">대행사 {row.agencyCount}곳</span>
                       </div>
                       <div className="mt-1.5 flex items-center gap-2.5">
                         <b className="shrink-0 font-serif-kr text-[19px] font-medium text-white">
@@ -1596,7 +1596,7 @@ function LatestPosts({
             <h3 className="mt-4 font-serif-kr text-[var(--hb-text-strong)]">
               아직 같은 상황의 공개 경험을 찾지 못했어요
             </h3>
-            <p className="mx-auto mt-2 max-w-lg text-[13px] font-medium leading-[1.7] text-[#6f7886]">
+            <p className="mx-auto mt-2 max-w-lg text-[13px] font-medium leading-[1.7] text-[var(--hb-text-muted)]">
               방금 입력한 내용으로 질문 초안을 만들 수 있어요. 게시 전에 공개될 내용을
               확인하고 고칠 수 있습니다.
             </p>
@@ -1711,7 +1711,7 @@ function StatusFeedEmptyState({
       <h3 className="mt-3 font-serif-kr text-[var(--hb-text-strong)]">
         {content.title}
       </h3>
-      <p className="mt-2 max-w-xl text-[13px] font-medium leading-[1.7] text-[#6f7886]">
+      <p className="mt-2 max-w-xl text-[13px] font-medium leading-[1.7] text-[var(--hb-text-muted)]">
         {content.description}
       </p>
       <div className="mt-5 flex flex-col gap-2.5 sm:flex-row">
@@ -1956,7 +1956,7 @@ function CommunityPostRow({ post, priority }: { post: PostWithAuthor; priority?:
               isWaitingForAnswer
                 ? "bg-[var(--hb-primary)] text-white hover:bg-[var(--hb-primary-hover)]"
                 : isQuestionPost && post.is_resolved
-                  ? "border border-[var(--hb-primary)]/25 bg-[#eef4f1] text-[var(--hb-text-strong)]"
+                  ? "border border-[var(--color-paper-outline)] bg-[#eef4f1] text-[var(--hb-text-strong)]"
                   : "border border-[var(--hb-hairline)] bg-white text-[var(--hb-text-strong)] hover:border-[var(--hb-primary)]/40"
             }`}
             aria-label={
@@ -2309,7 +2309,7 @@ function CohortPreviewPanel() {
         <div className="space-y-3">
           <Link
             {...weddingLinkProps(`/community/cohort/${panelState.roomId}`)}
-            className="group flex min-h-[82px] items-center gap-3 rounded-[6px] border border-[var(--hb-primary)]/25 bg-[#EEF4F1] px-4 py-3 transition-colors hover:border-[var(--hb-primary)]/55 hover:bg-[#e7f0eb]"
+            className="group flex min-h-[82px] items-center gap-3 rounded-[6px] border border-[var(--color-paper-outline)] bg-[#EEF4F1] px-4 py-3 transition-colors hover:border-[var(--hb-primary)]/55 hover:bg-[#e7f0eb]"
           >
             <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-white text-[var(--hb-text-strong)] shadow-sm">
               <Users className="h-5 w-5" />
@@ -2346,7 +2346,7 @@ function CohortPreviewPanel() {
           {panelState.status === "unauth" && (
             <Link
               href={`/login?redirect=${encodeURIComponent(weddingPath("/community/cohort"))}`}
-              className="mb-3 flex min-h-11 items-center justify-between rounded-[6px] border border-[var(--hb-primary)]/20 bg-[#EEF4F1] px-4 text-[12px] font-semibold text-[var(--hb-text-strong)] transition-colors hover:border-[var(--hb-primary)]/45"
+              className="mb-3 flex min-h-11 items-center justify-between rounded-[6px] border border-[var(--color-paper-outline)] bg-[#EEF4F1] px-4 text-[12px] font-semibold text-[var(--hb-text-strong)] transition-colors hover:border-[var(--hb-primary)]/45"
             >
               로그인하면 예정일 기준으로 바로 입장해요
               <ChevronRight className="h-3.5 w-3.5" />

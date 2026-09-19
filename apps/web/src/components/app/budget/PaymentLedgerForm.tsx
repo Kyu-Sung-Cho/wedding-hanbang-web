@@ -221,7 +221,7 @@ export default function PaymentLedgerForm({
           type="button"
           onClick={onCancel}
           disabled={saving}
-          className="rounded-[6px] p-2 text-[#8E857C] hover:bg-white disabled:opacity-50"
+          className="rounded-[6px] p-2 text-[var(--hb-text-muted)] hover:bg-white disabled:opacity-50"
           aria-label="입력 닫기"
         >
           <X className="h-4 w-4" />
@@ -259,7 +259,7 @@ export default function PaymentLedgerForm({
 
         <label>
           <span className="mb-1.5 block text-sm font-medium text-[var(--hb-text-strong)]">
-            업체 표시명 <span className="font-normal text-[#8E857C]">(선택)</span>
+            업체 표시명 <span className="font-normal text-[var(--hb-text-muted)]">(선택)</span>
           </span>
           <input
             value={vendorDisplayName}
@@ -282,7 +282,7 @@ export default function PaymentLedgerForm({
             className="w-full rounded-[6px] border border-[#D9CEC1] bg-white px-3.5 py-3 text-sm tabular-nums text-[var(--hb-text-strong)] outline-none focus:border-[#A77B74]"
           />
           {contractPreview && (
-            <span className="mt-1 block text-xs text-[#8E857C]">{contractPreview}</span>
+            <span className="mt-1 block text-xs text-[var(--hb-text-muted)]">{contractPreview}</span>
           )}
         </label>
 
@@ -298,13 +298,13 @@ export default function PaymentLedgerForm({
             className="w-full rounded-[6px] border border-[#D9CEC1] bg-white px-3.5 py-3 text-sm tabular-nums text-[var(--hb-text-strong)] outline-none focus:border-[#A77B74]"
           />
           {paidPreview && (
-            <span className="mt-1 block text-xs text-[#8E857C]">{paidPreview}</span>
+            <span className="mt-1 block text-xs text-[var(--hb-text-muted)]">{paidPreview}</span>
           )}
         </label>
 
         <label>
           <span className="mb-1.5 block text-sm font-medium text-[var(--hb-text-strong)]">
-            잔금일 <span className="font-normal text-[#8E857C]">(선택)</span>
+            잔금일 <span className="font-normal text-[var(--hb-text-muted)]">(선택)</span>
           </span>
           <input
             type="date"
@@ -316,7 +316,7 @@ export default function PaymentLedgerForm({
 
         <label>
           <span className="mb-1.5 block text-sm font-medium text-[var(--hb-text-strong)]">
-            환불 가능 참고액 · 원 <span className="font-normal text-[#8E857C]">(선택)</span>
+            환불 가능 참고액 · 원 <span className="font-normal text-[var(--hb-text-muted)]">(선택)</span>
           </span>
           <input
             value={refundableAmount}

@@ -35,7 +35,7 @@ export default function RootError({ error, reset }: { error: Error & { digest?: 
           </button>
           <Link
             href="/wedding"
-            className="inline-flex min-h-12 items-center justify-center rounded-[6px] border border-[var(--hb-primary)]/18 bg-white px-6 text-sm font-bold text-[var(--hb-text-strong)] transition-colors hover:bg-[#F5ECE4]/55"
+            className="inline-flex min-h-12 items-center justify-center rounded-[6px] border border-[var(--color-paper-outline)] bg-white px-6 text-sm font-bold text-[var(--hb-text-strong)] transition-colors hover:bg-[#F5ECE4]/55"
           >
             홈으로 가기
           </Link>

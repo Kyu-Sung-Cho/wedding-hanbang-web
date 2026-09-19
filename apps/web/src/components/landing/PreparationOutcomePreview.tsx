@@ -65,7 +65,7 @@ export default function PreparationOutcomePreview() {
             <div className="bg-[var(--hb-primary)] px-5 py-7 text-white sm:px-8 sm:py-9 lg:px-10 lg:py-12">
               <div className="flex items-center gap-3">
                 <MessageCircle className="h-5 w-5 text-[#E2D3C8]" aria-hidden="true" />
-                <p className="text-[13px] font-semibold text-white/82">
+                <p className="text-[13px] font-semibold text-[var(--hb-on-primary)]">
                   민지 · 현우의 대화방
                 </p>
               </div>
@@ -74,10 +74,10 @@ export default function PreparationOutcomePreview() {
                 곳에 문의할 일도 넣어줘.”
               </blockquote>
               <div className="mt-8 border-t border-white/16 pt-5">
-                <p className="text-[13px] font-semibold text-[#E2D3C8]">
+                <p className="text-[13px] font-semibold text-[var(--hb-on-primary)]">
                   아모라의 제안
                 </p>
-                <p className="mt-2 text-[15px] leading-7 text-white/82">
+                <p className="mt-2 text-[15px] leading-7 text-[var(--hb-on-primary)]">
                   세 가지로 정리했어요. 하나씩 확인한 뒤 저장할 수 있어요.
                 </p>
               </div>

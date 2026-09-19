@@ -171,7 +171,7 @@ export default function ServiceCTA({ category, postTitle, postId, postContent, p
         ) : null}
       </div>
 
-      <p className="border-t border-[#d8dfd4] px-4 py-3 text-[10.5px] font-medium leading-[1.55] text-[#6f786f] sm:px-5">
+      <p className="border-t border-[#d8dfd4] px-4 py-3 text-[10.5px] font-medium leading-[1.55] text-[var(--hb-text-muted)] sm:px-5">
         아모라는 사람의 경험을 정답으로 확정하지 않습니다. 제안 내용을 확인한 뒤 반영 여부를 직접 선택하세요.
       </p>
     </section>
@@ -203,7 +203,7 @@ function ServiceAction({
         <Icon className="h-4 w-4" />
       </span>
       <span className="min-w-0 flex-1">
-        <span className={`mb-1 block text-[10px] font-bold ${primary ? "text-white" : "text-[#8b8175]"}`}>{label}</span>
+        <span className={`mb-1 block text-[10px] font-bold ${primary ? "text-white" : "text-[var(--hb-text-muted)]"}`}>{label}</span>
         <span className={`block text-[13px] font-bold leading-[1.45] ${primary ? "text-white" : "text-[var(--hb-text-strong)]"}`}>
           {title}
         </span>
@@ -211,7 +211,7 @@ function ServiceAction({
           {subtext}
         </span>
       </span>
-      <ArrowRight className={`mt-1 h-4 w-4 shrink-0 transition-all group-hover:translate-x-0.5 ${primary ? "text-white/70" : "text-[#8b8175] group-hover:text-[var(--hb-text-strong)]"}`} />
+      <ArrowRight className={`mt-1 h-4 w-4 shrink-0 transition-all group-hover:translate-x-0.5 ${primary ? "text-white/70" : "text-[var(--hb-text-muted)] group-hover:text-[var(--hb-text-strong)]"}`} />
     </Link>
   );
 }

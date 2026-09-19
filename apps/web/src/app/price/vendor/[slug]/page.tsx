@@ -364,7 +364,7 @@ export default async function VendorPricePage({
           {/* 업체명 괄호에서 뗀 법인명. 공시 의무 주체라 정보 가치가 있어 버리지
               않고 여기로 옮긴다 — 이름에 그대로 두면 검색으로 못 찾는다. */}
           {profile.vendor.disclosureEntity ? (
-            <p className="mt-2 text-sm text-[var(--hb-text-strong)]/65">
+            <p className="mt-2 text-sm text-[var(--hb-text-muted)]">
               공시주체 {profile.vendor.disclosureEntity}
             </p>
           ) : null}
@@ -549,7 +549,7 @@ export default async function VendorPricePage({
                   <p className="text-xs font-bold text-[#8F5150]">
                     {policySectionLabel(policy.semanticType)}
                     {policy.sourceAgency ? (
-                      <span className="ml-2 font-semibold text-[var(--hb-text-strong)]/60">{policy.sourceAgency} 공시</span>
+                      <span className="ml-2 font-semibold text-[var(--hb-text-muted)]">{policy.sourceAgency} 공시</span>
                     ) : null}
                   </p>
                   {policy.title ? (
@@ -587,7 +587,7 @@ export default async function VendorPricePage({
                 href={href}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex min-h-11 items-center gap-2 rounded-[6px] border border-[var(--hb-primary)]/25 px-4 py-2 text-sm font-semibold hover:bg-[var(--hb-surface-hover)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--hb-primary)]"
+                className="inline-flex min-h-11 items-center gap-2 rounded-[6px] border border-[var(--color-paper-outline)] px-4 py-2 text-sm font-semibold hover:bg-[var(--hb-surface-hover)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--hb-primary)]"
               >
                 {label}<ExternalLink aria-hidden="true" className="size-4" />
               </a>
@@ -596,7 +596,7 @@ export default async function VendorPricePage({
               href={naverSearchHref}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex min-h-11 items-center gap-2 rounded-[6px] border border-dashed border-[var(--hb-primary)]/35 px-4 py-2 text-sm font-semibold text-[var(--hb-text-strong)]/85 hover:bg-[var(--hb-surface-hover)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--hb-primary)]"
+              className="inline-flex min-h-11 items-center gap-2 rounded-[6px] border border-dashed border-[var(--color-paper-outline)] px-4 py-2 text-sm font-semibold text-[var(--hb-text-strong)]/85 hover:bg-[var(--hb-surface-hover)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--hb-primary)]"
             >
               네이버 지도에서 검색<ExternalLink aria-hidden="true" className="size-4" />
             </a>

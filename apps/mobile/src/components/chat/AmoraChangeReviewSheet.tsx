@@ -170,7 +170,7 @@ const styles = StyleSheet.create({
   body: { flexGrow: 0 },
   bodyContent: { paddingTop: 4, paddingBottom: 12 },
   description: { marginBottom: 16, fontSize: 13, lineHeight: 20, color: colors.textSecondary },
-  label: { marginBottom: 6, fontSize: 12, color: colors.textTertiary },
+  label: { marginBottom: 6, fontSize: 12, color: colors.paper.inkFaint },
   confirmationBox: { marginBottom: 16, paddingHorizontal: 14, paddingVertical: 12, borderRadius: 11, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.ivory[50] },
   confirmation: { fontSize: 15, lineHeight: 22, fontWeight: "600", color: colors.noir[800] },
   reasonBox: { marginBottom: 16, paddingHorizontal: 14, paddingVertical: 12, borderRadius: 11, backgroundColor: colors.ivory.warm },

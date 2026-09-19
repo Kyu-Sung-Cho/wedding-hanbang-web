@@ -90,7 +90,7 @@ export default function MyBookmarksScreen() {
       >
         {bookmarks.length === 0 ? (
           <EmptyState
-            icon={<Bookmark size={48} color={colors.taupe[400]} />}
+            icon={<Bookmark size={48} color={colors.textTertiary} />}
             title="북마크한 글이 없어요"
             description="다시 보고 싶은 후기와 견적 글을 저장하면 여기에서 모아볼 수 있어요."
           />
@@ -161,7 +161,7 @@ const s = StyleSheet.create({
   catBadgeText: {
     fontSize: 12,
     fontFamily: "NotoSansKR_600SemiBold",
-    color: colors.rose[500],
+    color: colors.rose[700],
   },
   title: {
     fontSize: 15,
@@ -178,7 +178,7 @@ const s = StyleSheet.create({
   dateText: {
     fontSize: 12,
     fontFamily: "NotoSansKR_400Regular",
-    color: colors.textTertiary,
+    color: colors.paper.inkFaint,
   },
   metaRight: {
     flexDirection: "row",
@@ -188,7 +188,7 @@ const s = StyleSheet.create({
   metaNum: {
     fontSize: 13,
     fontFamily: "CormorantGaramond_600SemiBold",
-    color: colors.textTertiary,
+    color: colors.paper.inkFaint,
     marginRight: 8,
   },
 

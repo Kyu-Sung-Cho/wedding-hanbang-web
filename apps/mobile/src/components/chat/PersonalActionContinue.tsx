@@ -57,7 +57,7 @@ export function PersonalActionContinue({ action }: { action: PersonalAction }) {
   </View>;
 }
 const styles = StyleSheet.create({
-  button: { minHeight: 44, paddingHorizontal: spacing[2], justifyContent: "center" }, link: { color: colors.rose[600], textDecorationLine: "underline" },
+  button: { minHeight: 44, paddingHorizontal: spacing[2], justifyContent: "center" }, link: { color: colors.rose[700], textDecorationLine: "underline" },
   overlay: { flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(37,26,24,0.4)" },
   sheet: { maxHeight: "90%", padding: spacing[4], paddingBottom: spacing[6], backgroundColor: colors.surface, borderTopLeftRadius: radius.xl, borderTopRightRadius: radius.xl },
   body: { gap: spacing[3], paddingVertical: spacing[4] }, title: { fontSize: 16, fontWeight: "700", color: colors.noir[800] },

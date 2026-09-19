@@ -307,7 +307,7 @@ export default function MyPostsPage() {
         </div>
       ) : displayed.length === 0 ? (
         <div className="py-16 text-center">
-          <FileText className="w-10 h-10 text-[var(--hb-text-muted)]/40 mx-auto mb-3" />
+          <FileText className="w-10 h-10 text-[var(--hb-text-muted)] mx-auto mb-3" />
           <p className="text-[14px] text-[var(--hb-text-muted)]">
             {tab === "published" ? "아직 작성한 글이 없습니다" : "임시저장된 글이 없습니다"}
           </p>
@@ -332,7 +332,7 @@ export default function MyPostsPage() {
                         </span>
                       )}
                       {post.visibility === "members" && (
-                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-50 text-amber-600 font-medium flex items-center gap-0.5">
+                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-50 text-[var(--color-paper-tape-ink)] font-medium flex items-center gap-0.5">
                           <EyeOff className="w-2.5 h-2.5" /> 회원
                         </span>
                       )}
@@ -376,7 +376,7 @@ export default function MyPostsPage() {
                     </Link>
                     <button
                       onClick={() => handleDelete(post.id)}
-                      className="w-8 h-8 rounded-[6px] flex items-center justify-center text-[var(--hb-text-muted)] hover:bg-red-50 hover:text-red-400 transition-colors"
+                      className="w-8 h-8 rounded-[6px] flex items-center justify-center text-[var(--hb-text-muted)] hover:bg-red-50 hover:text-danger-700 transition-colors"
                     >
                       <Trash2 className="w-3.5 h-3.5" />
                     </button>

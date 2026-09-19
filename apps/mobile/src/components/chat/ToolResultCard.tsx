@@ -61,5 +61,5 @@ const styles = StyleSheet.create({
   statusFailed: { color: "#B04A3B" },
   message: { marginTop: 6, fontSize: 13, lineHeight: 19, color: colors.noir.soft },
   destination: { minHeight: 44, justifyContent: "center", alignSelf: "flex-start", marginTop: 4 },
-  destinationText: { fontSize: 13, fontWeight: "600", color: colors.rose[600] },
+  destinationText: { fontSize: 13, fontWeight: "600", color: colors.rose[700] },
 });

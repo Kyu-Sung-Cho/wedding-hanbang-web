@@ -729,10 +729,10 @@ export function PriceExplorer({
                 // 안 볼 탭까지 수 MB를 미리 받게 만든다 — 클릭 시에만 가져온다.
                 prefetch={false}
                 aria-current={value === category ? "page" : undefined}
-                className={`inline-flex min-h-11 items-center gap-2 rounded-[6px] border px-4 text-sm font-bold transition-colors ${value === category ? "border-[var(--hb-selected-line)] bg-[var(--hb-selected-bg)] text-[var(--hb-selected-text)]" : "border-[var(--hb-primary)]/12 bg-white text-[var(--hb-text-strong)] hover:bg-[#F5ECE4]"}`}
+                className={`inline-flex min-h-11 items-center gap-2 rounded-[6px] border px-4 text-sm font-bold transition-colors ${value === category ? "border-[var(--hb-selected-line)] bg-[var(--hb-selected-bg)] text-[var(--hb-selected-text)]" : "border-[var(--color-paper-outline)] bg-white text-[var(--hb-text-strong)] hover:bg-[#F5ECE4]"}`}
               >
                 {PRICE_CATEGORY_LABELS[value]}
-                <span className={value === category ? "text-[var(--hb-selected-text)]" : "text-[var(--hb-text-strong)]/45"}>{catalog.counts[value]}</span>
+                <span className={value === category ? "text-[var(--hb-selected-text)]" : "text-[var(--hb-text-muted)]"}>{catalog.counts[value]}</span>
               </Link>
             ))}
           </nav>
@@ -769,11 +769,11 @@ export function PriceExplorer({
                 되돌리지 말 것. 그리고 "다른 표기로도 검색된다"는 힌트는 placeholder에
                 보이게 둔다(업체 개명이 잦아 sr-only로 숨기면 사용자가 모른다). */}
             <label className="flex min-h-12 min-w-0 flex-1 items-center gap-2 rounded-[6px] bg-[var(--hb-surface-page)] px-3 focus-within:ring-2 focus-within:ring-[#B89785] sm:gap-3 sm:px-4">
-              <Search aria-hidden="true" className="size-4 shrink-0 text-[var(--hb-text-strong)]/45" />
+              <Search aria-hidden="true" className="size-4 shrink-0 text-[var(--hb-text-muted)]" />
               <span className="sr-only">업체명 검색</span>
-              <input value={searchInput} onChange={(event) => setSearchInput(event.target.value)} placeholder="업체명 또는 다른 표기 검색" className="min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-[var(--hb-text-strong)]/40" />
+              <input value={searchInput} onChange={(event) => setSearchInput(event.target.value)} placeholder="업체명 또는 다른 표기 검색" className="min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-[var(--hb-text-muted)]" />
             </label>
-            <button type="button" onClick={() => setFiltersOpen((value) => !value)} aria-expanded={filtersOpen} className="inline-flex min-h-12 shrink-0 items-center gap-2 rounded-[6px] border border-[var(--hb-primary)]/12 bg-white px-4 text-sm font-bold text-[var(--hb-text-strong)] md:hidden">
+            <button type="button" onClick={() => setFiltersOpen((value) => !value)} aria-expanded={filtersOpen} className="inline-flex min-h-12 shrink-0 items-center gap-2 rounded-[6px] border border-[var(--color-paper-outline)] bg-white px-4 text-sm font-bold text-[var(--hb-text-strong)] md:hidden">
               <Filter aria-hidden="true" className="size-4" />
               필터{activeFilterCount > 0 ? ` ${activeFilterCount}` : ""}
               <ChevronDown aria-hidden="true" className={`size-4 transition-transform ${filtersOpen ? "rotate-180" : ""}`} />
@@ -786,7 +786,7 @@ export function PriceExplorer({
                 지역
                 <select value={regionCode} onChange={(event) => {
                   chooseRegion(event.target.value);
-                }} className="mt-2 min-h-11 w-full rounded-[6px] border border-[var(--hb-primary)]/12 bg-[var(--hb-surface-page)] px-3 text-sm font-medium text-[var(--hb-text-strong)] outline-none focus:ring-2 focus:ring-[#B89785]">
+                }} className="mt-2 min-h-11 w-full rounded-[6px] border border-[var(--color-paper-outline)] bg-[var(--hb-surface-page)] px-3 text-sm font-medium text-[var(--hb-text-strong)] outline-none focus:ring-2 focus:ring-[#B89785]">
                   <option value="">전체 지역</option>
                   {PRICE_REGION_OPTIONS.map(([code, label]) => <option key={code} value={code}>{label}</option>)}
                 </select>
@@ -809,7 +809,7 @@ export function PriceExplorer({
                 정렬
                 <select value={sort} onChange={(event) => {
                   setSort(event.target.value as "name" | "lowest_price");
-                }} className="mt-2 min-h-11 w-full rounded-[6px] border border-[var(--hb-primary)]/12 bg-[var(--hb-surface-page)] px-3 text-sm font-medium text-[var(--hb-text-strong)] outline-none focus:ring-2 focus:ring-[#B89785]">
+                }} className="mt-2 min-h-11 w-full rounded-[6px] border border-[var(--color-paper-outline)] bg-[var(--hb-surface-page)] px-3 text-sm font-medium text-[var(--hb-text-strong)] outline-none focus:ring-2 focus:ring-[#B89785]">
                   <option value="name">업체명순</option>
                   <option value="lowest_price">최저가순</option>
                 </select>
@@ -844,7 +844,7 @@ export function PriceExplorer({
                       type="button"
                       onClick={() => setAgencyListOpen((value) => !value)}
                       aria-expanded={agencyListOpen}
-                      className="inline-flex min-h-11 items-center gap-1 rounded-[6px] border border-dashed border-[var(--hb-primary)]/25 bg-[var(--hb-surface-page)] px-3 text-xs font-semibold text-[var(--hb-text-strong)]/70 hover:bg-[#F5ECE4]"
+                      className="inline-flex min-h-11 items-center gap-1 rounded-[6px] border border-dashed border-[var(--color-paper-outline)] bg-[var(--hb-surface-page)] px-3 text-xs font-semibold text-[var(--hb-text-strong)]/70 hover:bg-[#F5ECE4]"
                     >
                       {agencyListOpen
                         ? "접기"
@@ -884,7 +884,7 @@ export function PriceExplorer({
             <button
               type="button"
               onClick={() => setOwnerStateReload((value) => value + 1)}
-              className="inline-flex min-h-11 items-center rounded-[6px] border border-[#8F6662]/30 bg-white px-4 text-xs font-bold hover:bg-[var(--hb-surface-page)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#8F6662]"
+              className="inline-flex min-h-11 items-center rounded-[6px] border border-[var(--color-paper-outline)] bg-white px-4 text-xs font-bold hover:bg-[var(--hb-surface-page)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#8F6662]"
             >
               다시 불러오기
             </button>
@@ -897,7 +897,7 @@ export function PriceExplorer({
             <button
               type="button"
               onClick={() => setOwnerStateReload((value) => value + 1)}
-              className="inline-flex min-h-11 items-center rounded-[6px] border border-[var(--hb-primary)]/20 bg-[var(--hb-surface-page)] px-4 text-xs font-bold focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#8F6662]"
+              className="inline-flex min-h-11 items-center rounded-[6px] border border-[var(--color-paper-outline)] bg-[var(--hb-surface-page)] px-4 text-xs font-bold focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#8F6662]"
             >
               다시 불러오기
             </button>
@@ -927,7 +927,7 @@ export function PriceExplorer({
                     <button
                       type="button"
                       onClick={() => setRestoreConfirming(false)}
-                      className="inline-flex min-h-11 items-center rounded-[6px] border border-[var(--hb-primary)]/20 bg-white px-4 text-xs font-bold focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#8F6662]"
+                      className="inline-flex min-h-11 items-center rounded-[6px] border border-[var(--color-paper-outline)] bg-white px-4 text-xs font-bold focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#8F6662]"
                     >
                       취소
                     </button>
@@ -992,7 +992,7 @@ export function PriceExplorer({
 
         <div ref={loadMoreRef} className="flex min-h-16 items-center justify-center" aria-hidden={visibleCount >= filtered.length}>
           {visibleCount < filtered.length ? (
-            <button type="button" onClick={() => setVisibleCount((count) => Math.min(count + PAGE_SIZE, filtered.length))} className="min-h-11 rounded-[6px] border border-[var(--hb-primary)]/15 bg-white px-5 text-sm font-bold text-[var(--hb-text-strong)]">
+            <button type="button" onClick={() => setVisibleCount((count) => Math.min(count + PAGE_SIZE, filtered.length))} className="min-h-11 rounded-[6px] border border-[var(--color-paper-outline)] bg-white px-5 text-sm font-bold text-[var(--hb-text-strong)]">
               더 보기
             </button>
           ) : null}

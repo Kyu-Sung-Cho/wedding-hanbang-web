@@ -430,7 +430,7 @@ export default function MoneyPage() {
                       <button
                         onClick={() => handleDelete(money.id)}
                         aria-label={`${money.guest_name} 축의금 삭제 확정`}
-                        className="w-9 h-9 flex items-center justify-center rounded-[6px] bg-red-500 text-white"
+                        className="w-9 h-9 flex items-center justify-center rounded-[6px] bg-danger-700 text-white"
                       >
                         <Trash2 className="w-4 h-4" />
                       </button>
@@ -445,7 +445,7 @@ export default function MoneyPage() {
                   <button
                     onClick={() => { setDeleteConfirm(money.id); setDeleteError(null); }}
                     aria-label={`${money.guest_name} 축의금 삭제`}
-                    className="w-9 h-9 flex items-center justify-center rounded-[6px] hover:bg-red-50 text-[var(--hb-text-muted)] hover:text-red-500 transition-colors"
+                    className="w-9 h-9 flex items-center justify-center rounded-[6px] hover:bg-red-50 text-[var(--hb-text-muted)] hover:text-danger-700 transition-colors"
                   >
                     <Trash2 className="w-5 h-5" />
                   </button>

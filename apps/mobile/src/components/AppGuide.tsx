@@ -89,8 +89,8 @@ function HomeSlide({ mockWidth }: MockSlideProps) {
         {/* 퀵 액션 */}
         <View style={styles.homeQuickRow}>
           {[
-            { icon: AmoraMark, label: "아모라", color: colors.rose[500] },
-            { icon: Wallet, label: "예산", color: colors.gold.DEFAULT },
+            { icon: AmoraMark, label: "아모라", color: colors.rose[700] },
+            { icon: Wallet, label: "예산", color: colors.paper.tapeInk },
             { icon: CalendarDays, label: "일정", color: colors.noir.soft },
           ].map((item) => {
             const Icon = item.icon;
@@ -192,7 +192,7 @@ function CommunitySlide({ mockWidth }: MockSlideProps) {
               <View style={styles.communityNameRow}>
                 <Text style={styles.communityNickname}>샘플 커플</Text>
                 <View style={styles.communityRankBadge}>
-                  <Crown size={8} color={colors.gold.DEFAULT} />
+                  <Crown size={8} color={colors.paper.tapeInk} />
                   <Text style={styles.communityRankText}>예시</Text>
                 </View>
               </View>
@@ -305,7 +305,7 @@ function BudgetScheduleSlide({ mockWidth }: MockSlideProps) {
           {/* 미완료 항목 */}
           <View style={styles.checklistItem}>
             <View style={styles.checkUndone}>
-              <Circle size={10} color={colors.taupe[400]} />
+              <Circle size={10} color={colors.textTertiary} />
             </View>
             <Text style={styles.checklistTextUndone}>
               사진·의상·메이크업 계약금 확인
@@ -643,7 +643,7 @@ const styles = StyleSheet.create({
   homeDdayLabel: {
     fontSize: fontSize.xs,
     fontFamily: "NotoSansKR_400Regular",
-    color: colors.rose.light,
+    color: colors.rose.pale,
     marginBottom: spacing[1],
     letterSpacing: 0,
   },
@@ -657,7 +657,7 @@ const styles = StyleSheet.create({
   homeDdayDate: {
     fontSize: fontSize.sm,
     fontFamily: "CormorantGaramond_400Regular",
-    color: colors.taupe[400],
+    color: colors.paper.onInkSoft,
     marginTop: spacing[1],
     letterSpacing: 0,
   },
@@ -682,7 +682,7 @@ const styles = StyleSheet.create({
   homeProgressText: {
     fontSize: fontSize.xs,
     fontFamily: "NotoSansKR_400Regular",
-    color: colors.taupe[400],
+    color: colors.paper.onInkSoft,
     marginTop: spacing[1],
   },
   homeQuickRow: {
@@ -795,7 +795,7 @@ const styles = StyleSheet.create({
   chatPillText: {
     fontSize: fontSize.xs,
     fontFamily: "NotoSansKR_400Regular",
-    color: colors.rose[500],
+    color: colors.rose[700],
   },
 
   // ══════════════════════════════════════
@@ -824,7 +824,7 @@ const styles = StyleSheet.create({
   communityAvatarText: {
     fontSize: fontSize.sm,
     fontFamily: "NotoSansKR_600SemiBold",
-    color: colors.rose[600],
+    color: colors.rose[700],
   },
   communityAuthorInfo: {
     flex: 1,
@@ -851,12 +851,12 @@ const styles = StyleSheet.create({
   communityRankText: {
     fontSize: 10,
     fontFamily: "NotoSansKR_500Medium",
-    color: colors.gold.DEFAULT,
+    color: colors.paper.tapeInk,
   },
   communityTime: {
     fontSize: fontSize.xs,
     fontFamily: "NotoSansKR_400Regular",
-    color: colors.textTertiary,
+    color: colors.paper.inkFaint,
     marginTop: 1,
   },
   communityPostTitle: {
@@ -888,7 +888,7 @@ const styles = StyleSheet.create({
   communityVoteText: {
     fontSize: fontSize.sm,
     fontFamily: "NotoSansKR_500Medium",
-    color: colors.rose[500],
+    color: colors.rose[700],
   },
   communityComment: {
     flexDirection: "row",
@@ -927,7 +927,7 @@ const styles = StyleSheet.create({
   communityCohortSub: {
     fontSize: fontSize.xs,
     fontFamily: "NotoSansKR_400Regular",
-    color: colors.textTertiary,
+    color: colors.paper.inkFaint,
   },
   communityCohortJoin: {
     backgroundColor: colors.rose.glow,
@@ -938,7 +938,7 @@ const styles = StyleSheet.create({
   communityCohortJoinText: {
     fontSize: fontSize.xs,
     fontFamily: "NotoSansKR_500Medium",
-    color: colors.rose[500],
+    color: colors.rose[700],
   },
 
   // ══════════════════════════════════════
@@ -953,7 +953,7 @@ const styles = StyleSheet.create({
   budgetLabel: {
     fontSize: fontSize.xs,
     fontFamily: "NotoSansKR_400Regular",
-    color: colors.textTertiary,
+    color: colors.paper.inkFaint,
     marginBottom: 2,
   },
   budgetTotal: {
@@ -1059,7 +1059,7 @@ const styles = StyleSheet.create({
   checklistTextDone: {
     fontSize: fontSize.sm,
     fontFamily: "NotoSansKR_400Regular",
-    color: colors.textTertiary,
+    color: colors.paper.inkFaint,
     textDecorationLine: "line-through",
   },
   checklistTextUndone: {
@@ -1114,7 +1114,7 @@ const styles = StyleSheet.create({
   neverAgainText: {
     fontSize: fontSize.xs,
     fontFamily: "NotoSansKR_400Regular",
-    color: colors.textTertiary,
+    color: colors.paper.inkFaint,
     textDecorationLine: "underline",
   },
 

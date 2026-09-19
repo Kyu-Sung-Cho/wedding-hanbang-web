@@ -65,11 +65,11 @@ function RoomCard({
 
       <View style={styles.roomCardStats}>
         <View style={styles.roomStat}>
-          <Users size={14} color={colors.taupe[400]} />
+          <Users size={14} color={colors.textTertiary} />
           <Text style={styles.roomStatText}>{room.member_count}</Text>
         </View>
         <View style={styles.roomStat}>
-          <MessageCircle size={14} color={colors.taupe[400]} />
+          <MessageCircle size={14} color={colors.textTertiary} />
           <Text style={styles.roomStatText}>{room.message_count}</Text>
         </View>
       </View>
@@ -120,7 +120,7 @@ function MonthlySection({
   if (sections.length === 0) {
     return (
       <EmptyState
-        icon={<Calendar size={40} color={colors.taupe[400]} />}
+        icon={<Calendar size={40} color={colors.textTertiary} />}
         title="활성화된 동기방이 없어요"
         description="현재 들어갈 수 있는 방이 없어요. 나중에 다시 확인해주세요."
       />
@@ -254,7 +254,7 @@ export default function CohortDiscoveryScreen() {
           {loadError ? (
             <View style={styles.errorState}>
               <EmptyState
-                icon={<Users size={40} color={colors.taupe[400]} />}
+                icon={<Users size={40} color={colors.textTertiary} />}
                 title="동기방을 열지 못했어요"
                 description={loadError}
               />
@@ -369,7 +369,7 @@ const styles = StyleSheet.create({
   roomStat: { flexDirection: "row", alignItems: "center", gap: 6 },
   roomStatText: {
     fontSize: 13,
-    color: colors.taupe[400],
+    color: colors.paper.inkFaint,
     fontFamily: "CormorantGaramond_400Regular",
   },
 

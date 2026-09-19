@@ -45,7 +45,7 @@ const CONTENT_ORIGIN_PRESENTATION: Record<
     label: "출처 확인 전",
     description:
       "이전 콘텐츠로 작성 주체의 유형을 아직 확인하지 못했어요. 내용을 참고할 때 이 점을 함께 고려해 주세요.",
-    className: "border-[#e2c9c5] bg-[#fbf2f0] text-[#8F6662]",
+    className: "border-[#e2c9c5] bg-[#fbf2f0] text-rose-700",
   },
 };
 

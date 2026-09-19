@@ -503,7 +503,7 @@ function MemorySettingsContent({ ownerKey }: { ownerKey: string | null }) {
 
             {memories.length === 0 ? (
               <div className="px-6 py-12 text-center">
-                <BrainCircuit className="mx-auto h-8 w-8 text-[#C8BDB6]" />
+                <BrainCircuit className="mx-auto h-8 w-8 text-[var(--hb-text-muted)]" />
                 <p className="mt-3 text-sm font-medium text-[var(--hb-text-body)]">아직 정리된 기억이 없어요</p>
                 <p className="mt-1 text-xs leading-relaxed text-[var(--hb-text-muted)]">기억을 켜고 대화하면, 직접 확정한 내용만 천천히 쌓여요.</p>
               </div>
@@ -534,7 +534,7 @@ function MemorySettingsContent({ ownerKey }: { ownerKey: string | null }) {
                                   {activeVisibility === "shared" ? "한 사람이 직접 고침 · 공동 확인 아님" : "내가 직접 고침"}
                                 </span>
                               )}
-                              <span className="text-xs text-[#B89785]">{formatDate(memory.updatedAt)}</span>
+                              <span className="text-xs text-[var(--hb-text-muted)]">{formatDate(memory.updatedAt)}</span>
                             </div>
                             <h3 className="hb-h-sm mt-2 text-[var(--hb-text-strong)]">{memory.title ?? "기억"}</h3>
                             <p className="mt-1 break-words text-sm leading-relaxed text-[var(--hb-text-body)]">{valueToText(memory.value)}</p>
@@ -542,7 +542,7 @@ function MemorySettingsContent({ ownerKey }: { ownerKey: string | null }) {
                           </div>
                           <div className="flex flex-shrink-0 gap-1">
                             <button type="button" onClick={() => startEditing(memory)} aria-label="기억 고치기" className="flex h-11 w-11 items-center justify-center rounded-full text-[var(--hb-accent-hover)] hover:bg-[var(--hb-surface-hover)]"><Pencil className="h-4 w-4" /></button>
-                            <button type="button" disabled={busy} onClick={() => setDeletingId(memory.id)} aria-label="기억 삭제" className="flex h-11 w-11 items-center justify-center rounded-full text-red-500 hover:bg-red-50 disabled:opacity-40"><Trash2 className="h-4 w-4" /></button>
+                            <button type="button" disabled={busy} onClick={() => setDeletingId(memory.id)} aria-label="기억 삭제" className="flex h-11 w-11 items-center justify-center rounded-full text-danger-700 hover:bg-red-50 disabled:opacity-40"><Trash2 className="h-4 w-4" /></button>
                           </div>
                           </div>
                           {deletingId === memory.id && (

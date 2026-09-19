@@ -102,9 +102,11 @@ const STARTER_PROMPTS: { label: string; topic: Exclude<TopicKey, "all">; text: s
 ];
 
 // 닉네임 기반 아바타 색상
+// 이 색은 아바타 바탕(흰 이니셜)이면서 대화의 닉네임 글자색이기도 하다. 그래서 흰 글자와
+// 화면 바탕(colors.bg) 양쪽에서 4.5:1 을 넘는 값만 둔다 — 밝은 로즈·골드는 둘 다 못 넘었다.
 const AVATAR_COLORS = [
-  colors.rose[500], colors.gold.DEFAULT, colors.rose[600], colors.taupe[500], colors.taupe[400],
-  colors.rose.light, colors.gold.light, colors.noir.soft, colors.noir[800], colors.rose.pale,
+  colors.rose[700], colors.paper.tapeInk, colors.rose[600], colors.taupe[500], colors.paper.pen,
+  colors.sage.deep, colors.paper.mark, colors.noir.soft, colors.noir[800], colors.paper.inkSoft,
 ];
 
 function getAvatarColor(name: string): string {
@@ -143,9 +145,9 @@ function MemberListSection({ members }: { members: CohortMember[] }) {
           멤버 {members.length}명
         </Text>
         {expanded ? (
-          <ChevronUp size={16} color={colors.taupe[400]} />
+          <ChevronUp size={16} color={colors.textTertiary} />
         ) : (
-          <ChevronDown size={16} color={colors.taupe[400]} />
+          <ChevronDown size={16} color={colors.textTertiary} />
         )}
       </Pressable>
 
@@ -584,7 +586,7 @@ export default function CohortChatScreen() {
     return (
       <View style={styles.chatEmpty}>
         <View style={styles.chatEmptyIcon}>
-          <MessageSquare size={30} color={colors.rose[500]} />
+          <MessageSquare size={30} color={colors.rose[700]} />
         </View>
         <Text style={styles.chatEmptyTitle}>아직 메시지가 없어요</Text>
         <Text style={styles.chatEmptyText}>
@@ -649,7 +651,7 @@ export default function CohortChatScreen() {
             <Text
               style={[
                 styles.msgNickname,
-                { color: isAi ? colors.gold.DEFAULT : avatarBg },
+                { color: isAi ? colors.paper.tapeInk : avatarBg },
               ]}
             >
               {nickname}
@@ -787,7 +789,7 @@ export default function CohortChatScreen() {
             >
               <Icon
                 size={16}
-                color={active ? colors.noir[800] : colors.taupe[400]}
+                color={active ? colors.noir[800] : colors.textTertiary}
               />
               <Text
                 style={[
@@ -923,7 +925,7 @@ export default function CohortChatScreen() {
                 value={input}
                 onChangeText={setInput}
                 placeholder="메시지를 입력하세요..."
-                placeholderTextColor={colors.textTertiary}
+                placeholderTextColor={colors.paper.inkFaint}
                 multiline
                 maxLength={2000}
                 editable={!sending}
@@ -1040,7 +1042,7 @@ const styles = StyleSheet.create({
     position: "relative",
   },
   screenTabActive: {},
-  screenTabText: { fontSize: 14, color: colors.taupe[400] },
+  screenTabText: { fontSize: 14, color: colors.paper.inkFaint },
   screenTabTextActive: { color: colors.noir[800], fontWeight: "600" },
   screenTabIndicator: {
     position: "absolute",
@@ -1135,7 +1137,7 @@ const styles = StyleSheet.create({
   msgRowMe: { alignSelf: "flex-end", maxWidth: "80%" },
   msgContent: { flex: 1 },
   msgContentMe: { flexDirection: "row", alignItems: "flex-end", gap: 6 },
-  msgTimeMe: { fontSize: 11, color: colors.taupe[400], marginBottom: 2 },
+  msgTimeMe: { fontSize: 11, color: colors.paper.inkFaint, marginBottom: 2 },
   bubbleMe: {
     backgroundColor: colors.noir[800],
     paddingHorizontal: 14,
@@ -1151,7 +1153,7 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   msgNickname: { fontSize: 13, fontWeight: "600" },
-  msgTime: { fontSize: 11, color: colors.taupe[400] },
+  msgTime: { fontSize: 11, color: colors.paper.inkFaint },
 
   // 토픽 배지
   topicBadge: {
@@ -1160,7 +1162,7 @@ const styles = StyleSheet.create({
     borderRadius: 6,
     backgroundColor: colors.rose[500] + "20",
   },
-  topicBadgeText: { fontSize: 10, fontWeight: "600", color: colors.rose[500] },
+  topicBadgeText: { fontSize: 10, fontWeight: "600", color: colors.rose[700] },
 
   // 아바타
   avatar: {
@@ -1171,7 +1173,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   avatarText: { fontSize: 14, fontWeight: "600", color: "#FFFFFF" },
-  avatarTextAi: { color: colors.gold.DEFAULT },
+  avatarTextAi: { color: colors.gold.light },
 
   // 말풍선
   bubble: {
@@ -1224,11 +1226,11 @@ const styles = StyleSheet.create({
   selectedTopicLabel: {
     fontSize: 12,
     fontWeight: "600",
-    color: colors.rose[500],
+    color: colors.rose[700],
   },
   selectedTopicRemove: {
     fontSize: 12,
-    color: colors.taupe[400],
+    color: colors.paper.inkFaint,
     fontWeight: "600",
   },
   inputRow: {
@@ -1291,7 +1293,7 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: colors.rose[500],
+    backgroundColor: colors.rose[600],
     alignItems: "center",
     justifyContent: "center",
   },

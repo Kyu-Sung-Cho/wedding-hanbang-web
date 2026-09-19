@@ -828,7 +828,7 @@ export default function OnboardingScreen() {
                 value={weddingDate}
                 onChangeText={setWeddingDate}
                 placeholder="YYYY-MM-DD"
-                placeholderTextColor={colors.taupe[400]}
+                placeholderTextColor={colors.paper.inkFaint}
                 keyboardType={Platform.OS === "ios" ? "numbers-and-punctuation" : "default"}
                 maxLength={10}
                 accessibilityLabel="결혼식 날짜"
@@ -874,7 +874,7 @@ export default function OnboardingScreen() {
                 onPress={() => setCoupleAction("create")}
               >
                 <View style={[styles.roleIconCircle, coupleAction === "create" && styles.roleIconCircleActive]}>
-                  <Sparkles size={28} color={coupleAction === "create" ? colors.rose[500] : colors.taupe[400]} />
+                  <Sparkles size={28} color={coupleAction === "create" ? colors.rose[700] : colors.textTertiary} />
                 </View>
                 <Text style={[styles.roleLabel, coupleAction === "create" && styles.roleLabelActive]}>
                   아모라와 지금 시작하기
@@ -889,7 +889,7 @@ export default function OnboardingScreen() {
                 onPress={() => setCoupleAction("join")}
               >
                 <View style={[styles.roleIconCircle, coupleAction === "join" && styles.roleIconCircleActive]}>
-                  <Heart size={28} color={coupleAction === "join" ? colors.rose[500] : colors.taupe[400]} />
+                  <Heart size={28} color={coupleAction === "join" ? colors.rose[700] : colors.textTertiary} />
                 </View>
                 <Text style={[styles.roleLabel, coupleAction === "join" && styles.roleLabelActive]}>
                   초대 코드로 함께 시작하기
@@ -903,7 +903,7 @@ export default function OnboardingScreen() {
                     value={inviteCode}
                     onChangeText={(text) => setInviteCode(normalizeCoupleInviteCode(text))}
                     placeholder={COUPLE_INVITE_CODE_PLACEHOLDER}
-                    placeholderTextColor={colors.taupe[400]}
+                    placeholderTextColor={colors.paper.inkFaint}
                     maxLength={COUPLE_INVITE_CODE_MAX_LENGTH}
                     autoCapitalize="characters"
                     accessibilityLabel="파트너 초대 코드"
@@ -941,7 +941,7 @@ export default function OnboardingScreen() {
                     onPress={() => handleRolePress("bride")}
                   >
                     <View style={[styles.roleIconCircle, role === "bride" && styles.roleIconCircleActive]}>
-                      <Heart size={28} color={role === "bride" ? colors.rose[500] : colors.taupe[400]} />
+                      <Heart size={28} color={role === "bride" ? colors.rose[700] : colors.textTertiary} />
                     </View>
                     <Text style={[styles.roleLabel, role === "bride" && styles.roleLabelActive]}>신부</Text>
                   </Pressable>
@@ -955,7 +955,7 @@ export default function OnboardingScreen() {
                     onPress={() => handleRolePress("groom")}
                   >
                     <View style={[styles.roleIconCircle, role === "groom" && styles.roleIconCircleActive]}>
-                      <User size={28} color={role === "groom" ? colors.rose[500] : colors.taupe[400]} />
+                      <User size={28} color={role === "groom" ? colors.rose[700] : colors.textTertiary} />
                     </View>
                     <Text style={[styles.roleLabel, role === "groom" && styles.roleLabelActive]}>신랑</Text>
                   </Pressable>
@@ -1006,7 +1006,7 @@ export default function OnboardingScreen() {
                       setInviteCode(normalizeCoupleInviteCode(value));
                     }}
                     placeholder={`초대코드 입력 (예: ${COUPLE_INVITE_CODE_PLACEHOLDER})`}
-                    placeholderTextColor={colors.taupe[400]}
+                    placeholderTextColor={colors.paper.inkFaint}
                     autoCapitalize="characters"
                     autoCorrect={false}
                     maxLength={COUPLE_INVITE_CODE_MAX_LENGTH}
@@ -1035,7 +1035,7 @@ export default function OnboardingScreen() {
                     // 들어와도 제출 전까지 아무도 몰랐고, 서버 400은 이 화면을 떠난 뒤에 왔다.
                     onChangeText={(value) => setWeddingDate(formatWeddingDateInput(value))}
                     placeholder="YYYY-MM-DD"
-                    placeholderTextColor={colors.taupe[400]}
+                    placeholderTextColor={colors.paper.inkFaint}
                     keyboardType="number-pad"
                     maxLength={10}
                     accessibilityLabel="결혼 예정일, 숫자 여덟 자리"
@@ -1066,7 +1066,7 @@ export default function OnboardingScreen() {
                 value={venue}
                 onChangeText={setVenue}
                 placeholder="결혼식장 이름 (선택)"
-                placeholderTextColor={colors.taupe[400]}
+                placeholderTextColor={colors.paper.inkFaint}
               />
 
               <Text style={[styles.fieldLabel, { marginTop: 20 }]}>총 예산 (선택)</Text>
@@ -1080,7 +1080,7 @@ export default function OnboardingScreen() {
                   value={budget}
                   onChangeText={setBudget}
                   placeholder="예: 3000"
-                  placeholderTextColor={colors.taupe[400]}
+                  placeholderTextColor={colors.paper.inkFaint}
                   keyboardType="number-pad"
                   accessibilityLabel="총 예산, 만원 단위, 선택 입력"
                   accessibilityHint="삼천만원이면 숫자 삼천을 입력합니다. 아직 정하지 않았다면 비워두세요."
@@ -1359,7 +1359,7 @@ const styles = StyleSheet.create({
   stepText: {
     fontSize: 14,
     fontFamily: "NotoSansKR_500Medium",
-    color: colors.textTertiary,
+    color: colors.paper.inkFaint,
   },
 
   progressBar: {
@@ -1415,7 +1415,7 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
   },
   neutralFocusChipActive: { borderColor: colors.rose[500], backgroundColor: colors.ivory.warm },
-  neutralFocusChipText: { fontSize: 13, lineHeight: 18, color: colors.taupe[400] },
+  neutralFocusChipText: { fontSize: 13, lineHeight: 18, color: colors.paper.inkFaint },
   neutralFocusChipTextActive: { color: colors.noir[800], fontWeight: "600" },
   roleSupportText: {
     fontSize: 12,
@@ -1520,7 +1520,7 @@ const styles = StyleSheet.create({
   fieldHint: {
     fontSize: 12,
     fontFamily: "NotoSansKR_400Regular",
-    color: colors.textTertiary,
+    color: colors.paper.inkFaint,
     marginTop: 4,
     marginLeft: 4,
   },
@@ -1572,7 +1572,7 @@ const styles = StyleSheet.create({
     marginTop: 8,
     fontSize: 12,
     fontFamily: "NotoSansKR_400Regular",
-    color: colors.textTertiary,
+    color: colors.paper.inkFaint,
     lineHeight: 18,
   },
   budgetFeedbackInvalid: {
@@ -1610,7 +1610,7 @@ const styles = StyleSheet.create({
   prefHint: {
     fontSize: 11,
     fontFamily: "NotoSansKR_400Regular",
-    color: colors.textTertiary,
+    color: colors.paper.inkFaint,
   },
   prefGrid: {
     flexDirection: "row",
@@ -1645,7 +1645,7 @@ const styles = StyleSheet.create({
   prefDesc: {
     fontSize: 11,
     fontFamily: "NotoSansKR_400Regular",
-    color: colors.textTertiary,
+    color: colors.paper.inkFaint,
     marginTop: 2,
   },
   prefGrid3: {
@@ -1692,7 +1692,7 @@ const styles = StyleSheet.create({
   prefChipDesc: {
     fontSize: 10,
     fontFamily: "NotoSansKR_400Regular",
-    color: colors.textTertiary,
+    color: colors.paper.inkFaint,
     marginTop: 1,
   },
   prefGuestList: {
@@ -1813,11 +1813,11 @@ const styles = StyleSheet.create({
   codeHint: {
     fontSize: 12,
     fontFamily: "NotoSansKR_400Regular",
-    color: colors.taupe[400],
+    color: colors.paper.inkFaint,
   },
   skipText: {
     fontSize: 14,
     fontFamily: "NotoSansKR_400Regular",
-    color: colors.textTertiary,
+    color: colors.paper.inkFaint,
   },
 });
