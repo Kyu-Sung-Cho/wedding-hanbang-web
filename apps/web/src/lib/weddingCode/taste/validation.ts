@@ -1,6 +1,6 @@
 import { WEDDING_STYLE_OPTIONS, type WeddingStyleValue } from "@hanbang/shared";
-import { TASTE_AVOID_OPTIONS, TASTE_DOMAIN_OPTIONS, TASTE_DOMAIN_QUESTIONS, TASTE_NEGOTIABILITY_OPTIONS, WEDDING_TASTE_VERSION } from "./constants";
-import type { TasteAvoid, TasteDomain, TasteNegotiability, TasteSelection, WeddingTasteDraftV1 } from "./types";
+import { isWeddingTasteVersion, TASTE_AVOID_OPTIONS, TASTE_DOMAIN_OPTIONS, TASTE_DOMAIN_QUESTIONS, TASTE_NEGOTIABILITY_OPTIONS, WEDDING_TASTE_VERSION, type WeddingTasteVersion } from "./constants";
+import type { TasteAvoid, TasteDomain, TasteNegotiability, TasteSelection, WeddingTasteDraft } from "./types";
 
 function record(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value)
@@ -28,18 +28,18 @@ function selection<T extends string>(value: unknown, isValue: (value: unknown) =
   }
   return null;
 }
-export function createEmptyWeddingTasteDraft(): WeddingTasteDraftV1 {
-  return { version: WEDDING_TASTE_VERSION, priorityDomains: { status: "skipped" }, mood: { status: "skipped" }, details: {}, avoids: { status: "skipped" }, negotiability: {} };
+export function createEmptyWeddingTasteDraft(version: WeddingTasteVersion = WEDDING_TASTE_VERSION): WeddingTasteDraft {
+  return { version, priorityDomains: { status: "skipped" }, mood: { status: "skipped" }, details: {}, avoids: { status: "skipped" }, negotiability: {} };
 }
-export function parseWeddingTasteDraft(value: unknown): WeddingTasteDraftV1 | null {
+export function parseWeddingTasteDraft(value: unknown): WeddingTasteDraft | null {
   if (!record(value) || !exactKeys(value, ["version", "priorityDomains", "mood", "details", "avoids", "negotiability"])
-    || value.version !== WEDDING_TASTE_VERSION || !record(value.details) || !record(value.negotiability)) return null;
+    || !isWeddingTasteVersion(value.version) || !record(value.details) || !record(value.negotiability)) return null;
   const priorityDomains = selection(value.priorityDomains, isDomain, 2);
   const mood = selection(value.mood, isMood, 2);
   const avoids = selection(value.avoids, isAvoid, 3);
   if (!priorityDomains || !mood || !avoids) return null;
   const selected = priorityDomains.status === "answered" ? priorityDomains.values : [];
-  const details: WeddingTasteDraftV1["details"] = {};
+  const details: WeddingTasteDraft["details"] = {};
   for (const [domain, raw] of Object.entries(value.details)) {
     if (!isDomain(domain) || !selected.includes(domain)) return null;
     const config = TASTE_DOMAIN_QUESTIONS[domain];
@@ -47,17 +47,17 @@ export function parseWeddingTasteDraft(value: unknown): WeddingTasteDraftV1 | nu
     if (!parsed) return null;
     details[domain] = parsed;
   }
-  const negotiability: WeddingTasteDraftV1["negotiability"] = {};
+  const negotiability: WeddingTasteDraft["negotiability"] = {};
   for (const [domain, raw] of Object.entries(value.negotiability)) {
     if (!isDomain(domain) || !selected.includes(domain) || details[domain]?.status !== "answered" || !isNegotiability(raw)) return null;
     negotiability[domain] = raw;
   }
-  return { version: WEDDING_TASTE_VERSION, priorityDomains, mood, details, avoids, negotiability };
+  return { version: value.version, priorityDomains, mood, details, avoids, negotiability };
 }
-export function selectedTasteDomains(draft: WeddingTasteDraftV1): TasteDomain[] {
+export function selectedTasteDomains(draft: WeddingTasteDraft): TasteDomain[] {
   return draft.priorityDomains.status === "answered" ? draft.priorityDomains.values : [];
 }
-export function hasWeddingTasteAnswers(draft: WeddingTasteDraftV1): boolean {
+export function hasWeddingTasteAnswers(draft: WeddingTasteDraft): boolean {
   return draft.priorityDomains.status !== "skipped" || draft.mood.status !== "skipped" || draft.avoids.status !== "skipped"
     || Object.values(draft.details).some(value => value.status !== "skipped");
 }

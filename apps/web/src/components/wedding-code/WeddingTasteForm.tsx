@@ -5,15 +5,16 @@ import { Check } from "lucide-react";
 import Button from "@/components/ui/Button";
 import { DETAIL_SCENES, MOOD_SCENES, PRIORITY_SCENES } from "./tasteScenes";
 import {
-  createEmptyWeddingTasteDraft, parseWeddingTasteDraft, selectedTasteDomains,
-  TASTE_AVOID_OPTIONS, TASTE_DOMAIN_OPTIONS, TASTE_DOMAIN_QUESTIONS,
-  TASTE_MOOD_OPTIONS, TASTE_NEGOTIABILITY_OPTIONS, TASTE_STATUS_LABELS,
-  type TasteDomain, type TasteSelection, type TasteUnansweredStatus, type WeddingTasteDraftV1,
+  createEmptyWeddingTasteDraft, getWeddingTasteDomainQuestion, getWeddingTasteNegotiability, parseWeddingTasteDraft, selectedTasteDomains,
+  TASTE_AVOID_OPTIONS, TASTE_DOMAIN_OPTIONS,
+  TASTE_MOOD_OPTIONS, TASTE_STATUS_LABELS, WEDDING_TASTE_VERSION,
+  type TasteDomain, type TasteSelection, type TasteUnansweredStatus, type WeddingTasteDraft, type WeddingTasteVersion,
 } from "@/lib/weddingCode/taste";
 
 export interface WeddingTasteFormProps {
-  onComplete: (draft: WeddingTasteDraftV1) => void;
-  initialDraft?: WeddingTasteDraftV1;
+  onComplete: (draft: WeddingTasteDraft) => void;
+  initialDraft?: WeddingTasteDraft;
+  version?: WeddingTasteVersion;
 }
 type Step = { kind: "priorities" | "mood" | "avoids" | "negotiability" } | { kind: "detail"; domain: TasteDomain };
 
@@ -117,8 +118,11 @@ function Choices<T extends string>({ value, options, max, onChange, statusLabels
   );
 }
 
-export default function WeddingTasteForm({ onComplete, initialDraft }: WeddingTasteFormProps) {
-  const [draft, setDraft] = useState(() => parseWeddingTasteDraft(initialDraft) ?? createEmptyWeddingTasteDraft());
+export default function WeddingTasteForm({ onComplete, initialDraft, version = initialDraft?.version ?? WEDDING_TASTE_VERSION }: WeddingTasteFormProps) {
+  const [draft, setDraft] = useState(() => {
+    const parsed = parseWeddingTasteDraft(initialDraft);
+    return parsed?.version === version ? parsed : createEmptyWeddingTasteDraft(version);
+  });
   const [index, setIndex] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const heading = useRef<HTMLHeadingElement>(null);
@@ -129,14 +133,16 @@ export default function WeddingTasteForm({ onComplete, initialDraft }: WeddingTa
     { kind: "avoids" }, ...(answeredDomains.length ? [{ kind: "negotiability" as const }] : []),
   ];
   const step = steps[Math.min(index, steps.length - 1)];
+  const negotiabilityQuestion = getWeddingTasteNegotiability(draft.version);
+  const detailQuestion = step.kind === "detail" ? getWeddingTasteDomainQuestion(draft.version, step.domain) : null;
   const last = index >= steps.length - 1;
   useEffect(() => { heading.current?.focus(); }, [index]);
 
-  function changePriorities(priorityDomains: WeddingTasteDraftV1["priorityDomains"]) {
+  function changePriorities(priorityDomains: WeddingTasteDraft["priorityDomains"]) {
     setDraft(previous => {
       const keep = priorityDomains.status === "answered" ? priorityDomains.values : [];
-      const details: WeddingTasteDraftV1["details"] = {};
-      const negotiability: WeddingTasteDraftV1["negotiability"] = {};
+      const details: WeddingTasteDraft["details"] = {};
+      const negotiability: WeddingTasteDraft["negotiability"] = {};
       for (const domain of keep) {
         if (previous.details[domain]) details[domain] = previous.details[domain];
         if (previous.negotiability[domain]) negotiability[domain] = previous.negotiability[domain];
@@ -161,9 +167,9 @@ export default function WeddingTasteForm({ onComplete, initialDraft }: WeddingTa
   }
   const title = step.kind === "priorities" ? "원하는 결혼식, 뭐부터 이야기해 볼까요?"
     : step.kind === "mood" ? "어떤 분위기의 결혼식이 좋아요?"
-    : step.kind === "detail" ? TASTE_DOMAIN_QUESTIONS[step.domain].question
+    : step.kind === "detail" ? detailQuestion!.question
     : step.kind === "avoids" ? "꼭 피하고 싶은 게 있나요?"
-    : "둘의 생각이 다르면 어떻게 하고 싶나요?";
+    : negotiabilityQuestion.question;
   return (
     <section aria-labelledby="wedding-taste-question" className="rounded-[6px] border border-[var(--hb-hairline)] bg-[var(--hb-surface-raised)]">
       <div className="border-b border-[var(--hb-hairline)] bg-[var(--hb-surface-hover)] px-5 py-6 sm:px-7">
@@ -171,7 +177,7 @@ export default function WeddingTasteForm({ onComplete, initialDraft }: WeddingTa
         <h2 ref={heading} id="wedding-taste-question" tabIndex={-1} className="mt-3 text-[22px] font-semibold leading-relaxed text-[var(--hb-text-strong)] focus:outline-none">{title}</h2>
         <p className="mt-3 text-[14px] leading-relaxed text-[var(--hb-text-body)]">
           {step.kind === "priorities" ? "고른 주제는 뒤에서 조금 더 자세히 물어볼게요. 안 고른 건 나중에 이야기해도 돼요."
-            : step.kind === "negotiability" ? "앞에서 고른 주제만 물어볼게요. 다른 안도 볼 수 있다고 해서 양보하겠다는 뜻은 아니에요."
+            : step.kind === "negotiability" ? negotiabilityQuestion.hint
             : step.kind === "avoids" ? "내가 피하고 싶은 것만 골라 주세요."
             : "상대 생각 말고 내 취향대로 골라 주세요."}
         </p>
@@ -181,8 +187,8 @@ export default function WeddingTasteForm({ onComplete, initialDraft }: WeddingTa
           statusLabels={{ no_preference: "딱히 먼저 할 이야기는 없어요" }} visuals={PRIORITY_SCENES} /> : null}
         {step.kind === "mood" ? <Choices value={draft.mood} options={TASTE_MOOD_OPTIONS} max={2} onChange={mood => setDraft(previous => ({ ...previous, mood }))}
           visuals={MOOD_SCENES} /> : null}
-        {step.kind === "detail" ? <Choices value={draft.details[step.domain] ?? { status: "skipped" }} options={TASTE_DOMAIN_QUESTIONS[step.domain].options}
-          max={TASTE_DOMAIN_QUESTIONS[step.domain].max} onChange={value => changeDetail(step.domain, value)}
+        {step.kind === "detail" ? <Choices value={draft.details[step.domain] ?? { status: "skipped" }} options={detailQuestion!.options}
+          max={detailQuestion!.max} onChange={value => changeDetail(step.domain, value)}
           visuals={DETAIL_SCENES[step.domain]} /> : null}
         {step.kind === "avoids" ? <Choices value={draft.avoids} options={TASTE_AVOID_OPTIONS} max={3} onChange={avoids => setDraft(previous => ({ ...previous, avoids }))}
           statusLabels={{ no_preference: "특별히 피하고 싶은 것은 없어요", not_applicable: "이번 계획에는 해당하지 않아요" }} /> : null}
@@ -191,7 +197,7 @@ export default function WeddingTasteForm({ onComplete, initialDraft }: WeddingTa
             <fieldset key={domain}>
               <legend className="mb-3 text-[15px] font-semibold text-[var(--hb-text-strong)]">{TASTE_DOMAIN_OPTIONS.find(option => option.value === domain)?.label}</legend>
               <div className="space-y-2">
-                {TASTE_NEGOTIABILITY_OPTIONS.map(option => (
+                {negotiabilityQuestion.options.map(option => (
                   <Button key={option.value} variant="secondary" fullWidth aria-pressed={draft.negotiability[domain] === option.value}
                     onClick={() => setDraft(previous => {
                       const negotiability = { ...previous.negotiability };

@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { PGlite } from "@electric-sql/pglite";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { WEDDING_CODE_RESEARCH_CONSENT_VERSION } from "@/lib/weddingCode/contribution/contract";
 
 // 동의한 연구 응답만 익명으로 받는 저장소다. 과거 수집 테이블·RPC와 섞지 않고,
 // 앱 역할은 테이블을 직접 읽거나 쓰지 못하며 service_role만 함수 세 개를 실행한다.
@@ -51,6 +52,18 @@ beforeEach(async () => {
 afterAll(async () => { await db.close(); });
 
 describe("WeddingCode research contribution store", () => {
+  it("기존 SQL이 새 동의 판을 그대로 저장하고 이전 동의 기록도 보존한다", async () => {
+    await asRole("service_role", () => insert(hash(1), { consent: "wc-research-consent-v3" }));
+    await asRole("service_role", () => insert(hash(2), { consent: WEDDING_CODE_RESEARCH_CONSENT_VERSION }));
+    const result = await db.query<{ consent_version: string }>(
+      "SELECT consent_version FROM public.wedding_code_research_contributions ORDER BY consent_version",
+    );
+    expect(result.rows).toEqual([
+      { consent_version: "wc-research-consent-v3" },
+      { consent_version: WEDDING_CODE_RESEARCH_CONSENT_VERSION },
+    ]);
+  });
+
   it("stores only the anonymous research fields and never touches the retired collection objects", async () => {
     expect(sql).not.toMatch(/wedding_code_response|pair_wedding_code|user_id|user_agent|ip_address|\binet\b|auth\./i);
     const columns = await db.query<{ table_name: string; column_name: string }>(`SELECT table_name, column_name FROM information_schema.columns

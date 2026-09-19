@@ -4,6 +4,8 @@ import { WEDDING_CODE_V06_QUESTIONS, WEDDING_CODE_V06_VERSION } from "@/constant
 import { WEDDING_CODE_V08_QUESTIONS, WEDDING_CODE_V08_VERSION } from "@/constants/weddingCodeV08";
 import { WEDDING_CODE_V09_QUESTIONS, WEDDING_CODE_V09_VERSION } from "@/constants/weddingCodeV09";
 import { WEDDING_CODE_V10_QUESTIONS, WEDDING_CODE_V10_VERSION } from "@/constants/weddingCodeV10";
+import { WEDDING_CODE_V11_QUESTIONS, WEDDING_CODE_V11_VERSION } from "@/constants/weddingCodeV11";
+import { WEDDING_CODE_V12_QUESTIONS, WEDDING_CODE_V12_VERSION } from "@/constants/weddingCodeV12";
 import {
   CURRENT_WEDDING_CODE_SCENE_CONFIG,
   resolveWeddingCodeSceneConfig,
@@ -11,11 +13,11 @@ import {
 } from "../config";
 
 describe("웨딩코드 장면 버전 선택", () => {
-  it("새 진입은 v1.0을 사용한다", () => {
-    expect(resolveWeddingCodeSceneConfig(undefined, false)?.version).toBe(WEDDING_CODE_V10_VERSION);
-    expect(resolveWeddingCodeSceneConfig("", false)?.version).toBe(WEDDING_CODE_V10_VERSION);
-    expect(CURRENT_WEDDING_CODE_SCENE_CONFIG.version).toBe(WEDDING_CODE_V10_VERSION);
-    expect(CURRENT_WEDDING_CODE_SCENE_CONFIG.questions).toBe(WEDDING_CODE_V10_QUESTIONS);
+  it("새 진입은 v1.2를 사용한다", () => {
+    expect(resolveWeddingCodeSceneConfig(undefined, false)?.version).toBe(WEDDING_CODE_V12_VERSION);
+    expect(resolveWeddingCodeSceneConfig("", false)?.version).toBe(WEDDING_CODE_V12_VERSION);
+    expect(CURRENT_WEDDING_CODE_SCENE_CONFIG.version).toBe(WEDDING_CODE_V12_VERSION);
+    expect(CURRENT_WEDDING_CODE_SCENE_CONFIG.questions).toBe(WEDDING_CODE_V12_QUESTIONS);
   });
 
   it("답 코드가 든 과거 무버전 링크는 v0.6으로 보존한다", () => {
@@ -32,9 +34,13 @@ describe("웨딩코드 장면 버전 선택", () => {
       .toBe(WEDDING_CODE_V09_VERSION);
     expect(resolveWeddingCodeSceneConfig(WEDDING_CODE_V10_VERSION, true)?.version)
       .toBe(WEDDING_CODE_V10_VERSION);
+    expect(resolveWeddingCodeSceneConfig(WEDDING_CODE_V11_VERSION, true)?.version)
+      .toBe(WEDDING_CODE_V11_VERSION);
+    expect(resolveWeddingCodeSceneConfig(WEDDING_CODE_V12_VERSION, true)?.version)
+      .toBe(WEDDING_CODE_V12_VERSION);
     expect(resolveWeddingCodeSceneConfig("v9-unknown", true)).toBeNull();
     // 표에 없는 다음 판 이름을 현재 판으로 바꿔 읽지 않는다.
-    expect(resolveWeddingCodeSceneConfig("v1.1-code", true)).toBeNull();
+    expect(resolveWeddingCodeSceneConfig("v1.3-code", true)).toBeNull();
     // 표에 있는 이름과 겹치는 객체 속성으로 새 판을 흉내내지 못한다.
     expect(resolveWeddingCodeSceneConfig("constructor", true)).toBeNull();
     expect(resolveWeddingCodeSceneConfig("toString", false)).toBeNull();
@@ -53,6 +59,10 @@ describe("웨딩코드 장면 버전 선택", () => {
       .toBe(WEDDING_CODE_V09_QUESTIONS);
     expect(weddingCodeSceneConfigForExactVersion(WEDDING_CODE_V10_VERSION).questions)
       .toBe(WEDDING_CODE_V10_QUESTIONS);
+    expect(weddingCodeSceneConfigForExactVersion(WEDDING_CODE_V11_VERSION).questions)
+      .toBe(WEDDING_CODE_V11_QUESTIONS);
+    expect(weddingCodeSceneConfigForExactVersion(WEDDING_CODE_V12_VERSION).questions)
+      .toBe(WEDDING_CODE_V12_QUESTIONS);
     expect(resolveWeddingCodeSceneConfig(WEDDING_CODE_V08_VERSION, true)?.questions)
       .toBe(WEDDING_CODE_V08_QUESTIONS);
     expect(resolveWeddingCodeSceneConfig(WEDDING_CODE_V09_VERSION, true)?.questions)
@@ -63,7 +73,7 @@ describe("웨딩코드 장면 버전 선택", () => {
    * v0.9 → v1.0 에서 바뀐 A2 의 B·D 는 판마다 자기 문장으로 읽혀야 한다. v0.9 링크로 B 를 고른
    * 사람에게 v1.0 문장(「실감 났어」)을 보여주면 고르지도 않은 말을 인용하게 된다.
    */
-  it("v0.9 링크의 A2 는 v0.9 문장으로, 새 진입의 A2 는 v1.0 문장으로 읽힌다", () => {
+  it("v0.9와 v1.0 링크의 A2는 각각 당시 문장으로 읽힌다", () => {
     const a2Label = (version: string, value: "B" | "D") => resolveWeddingCodeSceneConfig(version, true)
       ?.questions.find((question) => question.key === "A2")
       ?.options.find((option) => option.value === value)?.label;

@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { createEmptyWeddingTasteDraft } from "../validation";
 import { buildWeddingTasteShareUrl, decodeWeddingTasteDraft, decodeWeddingTasteShareHash, encodeWeddingTasteDraft } from "../share";
-import type { WeddingTasteDraftV1 } from "../types";
+import type { WeddingTasteDraft } from "../types";
 
-const draft = (): WeddingTasteDraftV1 => ({ ...createEmptyWeddingTasteDraft(), mood: { status: "answered", values: ["natural"] } });
+const draft = (): WeddingTasteDraft => ({ ...createEmptyWeddingTasteDraft(), mood: { status: "answered", values: ["natural"] } });
 describe("고정 선택만 공유하는 취향 링크", () => {
   it("먼저·나중에 답한 사람의 순서를 지키며 원문을 쿼리에 넣지 않는다", () => {
     const second = draft(); second.mood = { status: "answered", values: ["classic"] };
@@ -15,7 +15,7 @@ describe("고정 선택만 공유하는 취향 링크", () => {
     const token = encodeWeddingTasteDraft(draft());
     for (const hash of [
       "#v=wedding-taste-v1&b=" + token,
-      "#v=wedding-taste-v2&a=" + token,
+      "#v=wedding-taste-v3&a=" + token,
       "#v=wedding-taste-v1&a=" + token + "&a=" + token,
       "#v=wedding-taste-v1&v=wedding-taste-v1&a=" + token,
       "#v=wedding-taste-v1&a=" + token + "&privateNote=secret",

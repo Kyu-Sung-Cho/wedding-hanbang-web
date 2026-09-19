@@ -74,7 +74,14 @@ function Confirmation({ profile, sessionReady }: { profile: WeddingCodeSelfProfi
       <div className="border-b border-[var(--hb-hairline)] bg-[var(--hb-surface-hover)] px-5 py-5 sm:px-8">
         <h2 className="text-[18px] font-semibold text-[var(--hb-text-strong)]">아모라가 어떻게 도와주면 좋을까요?</h2>
         <p className="mt-2 text-[14px] leading-relaxed text-[var(--hb-text-body)]">
-          장면에서 고른 답과 지금 받고 싶은 도움은 다를 수 있어서 따로 물어볼게요. 아래에서 직접 고른 항목만 내 아모라 설정에 반영돼요. 상대 설정이나 둘이 함께 정한 내용은 그대로예요.
+          장면에서 고른 답과 지금 받고 싶은 도움은 다를 수 있어서 따로 물어볼게요. 원할 때만 설정해도 돼요.
+        </p>
+        <p className="mt-2 text-[14px] font-semibold leading-relaxed text-[var(--hb-text-strong)]">
+          선택만으로는 저장되지 않아요.{" "}
+          {user ? "아래 반영 버튼을 눌러야 저장돼요." : "로그인한 뒤 고른 내용을 다시 확인하고 저장해요."}
+        </p>
+        <p className="mt-2 text-[13px] leading-relaxed text-[var(--hb-text-body)]">
+          직접 고른 항목만 내 아모라 설정에 반영돼요. 상대 설정이나 둘이 함께 정한 내용은 그대로예요. 문항 개선을 위해 답을 보내는 기능과는 별개예요.
         </p>
       </div>
       <div className="divide-y divide-[var(--hb-hairline)]">

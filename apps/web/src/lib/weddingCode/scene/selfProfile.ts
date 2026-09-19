@@ -56,6 +56,12 @@ export type WeddingCodeSelfAxisReading = Readonly<{
   /** 왼쪽 글자의 짧은 이름(범례와 같다). */
   leftLabel: string;
   rightLabel: string;
+  /** 문항 판의 실제 선택 범위가 다를 때만 고른 글자의 설명을 좁힌다. */
+  letterMeaning?: string;
+  /** 새 판에서 짧은 이름이 달라질 때 배지와 셈에도 같은 이름을 전달한다. */
+  letterLabels?: Readonly<{ left: string; right: string }>;
+  /** 판에 맞는 후속 대화를 제공할 때만 전달하는 실제 문항 판. */
+  questionVersion?: string;
   leftCount: number;
   rightCount: number;
   answered: number;

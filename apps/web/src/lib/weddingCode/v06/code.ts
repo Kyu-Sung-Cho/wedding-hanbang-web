@@ -26,8 +26,26 @@ import type { WeddingCodeV06Answers } from "./gap";
  * 같은 내용이 보이므로, 결과 페이지는 색인하지 않는다.
  */
 
-const VALUES = ["A", "B", "C", "D"] as const;
-const VALUE_SET = new Set<string>(VALUES);
+/** 판마다 보기 수가 달라도 그 질문에 실제로 있는 값만 답으로 읽는다. */
+export function isWeddingCodeQuestionOption(
+  question: WeddingCodeV06Question,
+  value: unknown,
+): value is WeddingCodeV06OptionValue {
+  return typeof value === "string" && question.options.some((option) => option.value === value);
+}
+
+/** 내부 호출도 없는 답으로 인용·공유를 만들지 않는다. 수신 링크는 디코더에서 null로 거부한다. */
+export function assertWeddingCodeQuestionAnswers(
+  answers: WeddingCodeV06Answers,
+  questions: readonly WeddingCodeV06Question[],
+): void {
+  for (const question of questions) {
+    const value = answers[question.key];
+    if (value !== undefined && !isWeddingCodeQuestionOption(question, value)) {
+      throw new RangeError("INVALID_WEDDING_CODE_SCENE_ANSWER");
+    }
+  }
+}
 
 /** 코드 문자열 한 글자 = 문항 하나의 답. 미응답은 `-`. */
 export const WEDDING_CODE_V06_SKIP = "-";
@@ -49,6 +67,7 @@ export function encodeWeddingCodeV06(
   answers: WeddingCodeV06Answers,
   questions: readonly WeddingCodeV06Question[] = WEDDING_CODE_V06_QUESTIONS,
 ): string {
+  assertWeddingCodeQuestionAnswers(answers, questions);
   return questions.map(
     (question) => answers[question.key] ?? WEDDING_CODE_V06_SKIP,
   ).join("");
@@ -73,9 +92,9 @@ export function decodeWeddingCodeV06(
   for (let index = 0; index < trimmed.length; index += 1) {
     const character = trimmed[index];
     if (character === WEDDING_CODE_V06_SKIP) continue;
-    if (!VALUE_SET.has(character)) return null;
+    if (!isWeddingCodeQuestionOption(questions[index], character)) return null;
     const key: WeddingCodeQuestionKey = questions[index].key;
-    answers[key] = character as WeddingCodeV06OptionValue;
+    answers[key] = character;
     answered += 1;
   }
   // 전부 미응답인 코드는 유효한 코드가 아니라 빈 링크다.
@@ -87,5 +106,5 @@ export function isCompleteWeddingCodeV06(
   answers: WeddingCodeV06Answers,
   questions: readonly WeddingCodeV06Question[] = WEDDING_CODE_V06_QUESTIONS,
 ): boolean {
-  return questions.every((question) => Boolean(answers[question.key]));
+  return questions.every((question) => isWeddingCodeQuestionOption(question, answers[question.key]));
 }

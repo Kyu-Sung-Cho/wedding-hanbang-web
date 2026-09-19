@@ -1,4 +1,5 @@
 import type { WeddingCodeV06AxisKey } from "@/constants/weddingCodeV06";
+import { WEDDING_CODE_V12_VERSION } from "@/constants/weddingCodeV12";
 import {
   WEDDING_CODE_TALK_FIRST_ITEMS,
   WEDDING_CODE_TALK_FIRST_LEFT_OUT,
@@ -78,6 +79,24 @@ function leftOutReasonOf(slot: WeddingCodeLetterSlot): WeddingCodeTalkFirstLeftO
 
 const LEFT_OUT_ORDER: readonly WeddingCodeTalkFirstLeftOutReason[] = ["skipped", "tie", "single"];
 
+// v1.2 C는 의견을 듣는 순서가 아니라 마지막 선택에 누가 참여할지 묻는다.
+const V12_FAMILY_TALK = {
+  left: WEDDING_CODE_TALK_FIRST_ITEMS.coordinationScope.left,
+  right: {
+    lead: "부모님과 정할 일은 누가 무엇을 고를지 맞춰 두세요.",
+    detail: "함께 고를지, 부모님께 선택을 맡길지 먼저 얘기해 보세요. 일정이 정해져 있다면 언제까지 고르면 되는지도 알려드리고요.",
+  },
+  split: {
+    lead: "부모님과 함께 정할 일과 둘이 정할 일을 나눠 두세요.",
+    detail: "식장이나 하객 명단처럼 정할 일 하나를 놓고, 마지막 선택에 누가 참여하면 좋을지 얘기해 보세요. 모든 일을 같은 방식으로 정할 필요는 없어요.",
+  },
+};
+
+const V12_ACTION_TALK = {
+  lead: "지친 날에 꼭 해야 할 일과 미뤄도 되는 일을 같이 골라 보세요.",
+  detail: "마감이 정해진 일이 있다면 먼저 확인해요. 오늘 끝내야 할 일만 남기고, 나머지는 언제 다시 볼지 둘이 정해요.",
+};
+
 /** 이유마다 주제를 묶고, 마지막 묶음만 「~서 여기선 뺐어요.」로 끝내 한 문장으로 잇는다. */
 function leftOutSentence(slots: readonly WeddingCodeLetterSlot[]): string | null {
   const groups = LEFT_OUT_ORDER.flatMap((reason) => {
@@ -96,9 +115,12 @@ function leftOutSentence(slots: readonly WeddingCodeLetterSlot[]): string | null
 }
 
 function itemOf(slot: WeddingCodeLetterSlot, kind: WeddingCodeTalkKind): WeddingCodeTalkFirstItem {
-  const entries = WEDDING_CODE_TALK_FIRST_ITEMS[slot.axis];
+  const isV12 = slot.questionVersion === WEDDING_CODE_V12_VERSION;
+  const entries = isV12 && slot.axis === "coordinationScope"
+    ? V12_FAMILY_TALK : WEDDING_CODE_TALK_FIRST_ITEMS[slot.axis];
   // lean 은 글자가 있는 주제에서만 나온다(chosen 이 null 이면 usable 에 들지 못했다).
-  const copy = kind === "split" ? entries.split : entries[slot.chosen ?? "left"];
+  const copy = isV12 && slot.axis === "supportOrder" && slot.chosen === "right" && kind === "lean"
+    ? V12_ACTION_TALK : kind === "split" ? entries.split : entries[slot.chosen ?? "left"];
   return {
     axis: slot.axis,
     kind,

@@ -1,6 +1,11 @@
 import { WEDDING_GUEST_COUNT_OPTIONS, WEDDING_STYLE_OPTIONS } from "@hanbang/shared";
 
-export const WEDDING_TASTE_VERSION = "wedding-taste-v1" as const;
+export const WEDDING_TASTE_V1_VERSION = "wedding-taste-v1" as const;
+export const WEDDING_TASTE_VERSION = "wedding-taste-v2" as const;
+export type WeddingTasteVersion = typeof WEDDING_TASTE_V1_VERSION | typeof WEDDING_TASTE_VERSION;
+export function isWeddingTasteVersion(value: unknown): value is WeddingTasteVersion {
+  return value === WEDDING_TASTE_V1_VERSION || value === WEDDING_TASTE_VERSION;
+}
 export const TASTE_DOMAIN_OPTIONS = [
   { value: "venue", label: "장소" },
   { value: "photo", label: "사진" },
@@ -25,6 +30,28 @@ export const TASTE_NEGOTIABILITY_OPTIONS = [
   { value: "open_to_options", label: "다른 안도 함께 볼 수 있어요" },
   { value: "undecided", label: "아직 정하지 못했어요" },
 ] as const;
+const TASTE_NEGOTIABILITY_V2_OPTIONS = [
+  { value: "prefer_keep", label: "지금 고른 취향 안에서 찾아보고 싶어요" },
+  { value: "open_to_options", label: "다른 취향의 후보도 함께 비교하고 싶어요" },
+  { value: "undecided", label: "아직 정하지 못했어요" },
+] as const;
+
+/** 예전 유지 선호를 새 판의 첫 후보 범위로 바꾸어 읽지 않는다. */
+export function getWeddingTasteNegotiability(version: WeddingTasteVersion) {
+  return version === WEDDING_TASTE_V1_VERSION ? {
+    question: "둘의 생각이 다르면 어떻게 하고 싶나요?",
+    hint: "앞에서 고른 주제만 물어볼게요. 다른 안도 볼 수 있다고 해서 양보하겠다는 뜻은 아니에요.",
+    rowSuffix: " 의견이 다르면",
+    options: TASTE_NEGOTIABILITY_OPTIONS,
+    amoraLimit: "먼저 이야기하고 싶다고 고른 게 돈을 더 쓰겠다는 뜻은 아니에요. 다른 안도 볼 수 있다고 한 것도 양보하겠다는 말은 아니고요.",
+  } : {
+    question: "의견이 다르면, 먼저 어떤 후보부터 볼까요?",
+    hint: "앞에서 고른 주제마다, 처음 살펴볼 후보를 골라 주세요. 다른 후보를 비교해도 그걸로 바꾸겠다는 뜻은 아니에요.",
+    rowSuffix: " 의견이 다르면 먼저 볼 후보",
+    options: TASTE_NEGOTIABILITY_V2_OPTIONS,
+    amoraLimit: "먼저 이야기할 주제를 골라도 돈을 더 쓰겠다는 뜻은 아니에요. 다른 후보도 비교하고 싶다고 답했더라도, 그걸로 바꾸겠다는 약속은 아니에요.",
+  };
+}
 export const TASTE_DOMAIN_QUESTIONS = {
   venue: { question: "식을 올리거나 식사할 곳은 실내와 야외 중 어디가 좋아요?", max: 1, options: [
     { value: "indoor", label: "실내" }, { value: "outdoor", label: "야외" }, { value: "both_spaces", label: "실내와 야외를 함께 쓰는 곳" },
@@ -45,6 +72,14 @@ export const TASTE_DOMAIN_QUESTIONS = {
     { value: "short", label: "꼭 필요한 순서만 짧게" }, { value: "our_story", label: "둘의 이야기와 감사 인사" }, { value: "participatory", label: "하객 참여와 축하 공연" }, { value: "traditional", label: "전통 순서도 넣은 식" },
   ] },
 } as const;
+
+export function getWeddingTasteDomainQuestion(version: WeddingTasteVersion, domain: keyof typeof TASTE_DOMAIN_QUESTIONS) {
+  const config = TASTE_DOMAIN_QUESTIONS[domain];
+  if (version === WEDDING_TASTE_V1_VERSION || domain !== "guests") return config;
+  return { ...config, options: config.options.map(option =>
+    option.value === "under50" ? { ...option, label: "1~49명" } : option,
+  ) };
+}
 export const TASTE_STATUS_LABELS = {
   undecided: "아직 모르겠어요",
   no_preference: "어느 쪽도 괜찮아요",

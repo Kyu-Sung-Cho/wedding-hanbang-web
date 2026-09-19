@@ -4,7 +4,12 @@ import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { CURRENT_WEDDING_CODE_SCENE_CONFIG } from "@/lib/weddingCode/scene/config";
+import {
+  CURRENT_WEDDING_CODE_SCENE_CONFIG,
+  WEDDING_CODE_V10_SCENE_CONFIG,
+  WEDDING_CODE_V11_SCENE_CONFIG,
+  WEDDING_CODE_V12_SCENE_CONFIG,
+} from "@/lib/weddingCode/scene/config";
 import { useAuthStore } from "@/stores/authStore";
 import WeddingCodeV06Client from "./WeddingCodeV06Client";
 
@@ -29,8 +34,90 @@ describe("WeddingCodeV06Client interaction", () => {
     vi.restoreAllMocks();
   });
 
+  it("문항·결과·다시 시작 전환은 맨 위로 이동하고 답 선택만으로는 읽던 위치를 바꾸지 않는다", async () => {
+    const scrollIntoView = vi.fn();
+    const original = Object.getOwnPropertyDescriptor(Element.prototype, "scrollIntoView");
+    Object.defineProperty(Element.prototype, "scrollIntoView", { configurable: true, writable: true, value: scrollIntoView });
+    try {
+      const config = CURRENT_WEDDING_CODE_SCENE_CONFIG;
+      await act(async () => root.render(<WeddingCodeV06Client shareOrigin="https://hanbang.ai" version={config.version} partnerAnswers={null} partnerCode={null} bothCodes={null} />));
+      const clickText = async (text: string) => {
+        const button = [...container.querySelectorAll("button")].find(candidate => candidate.textContent?.includes(text))!;
+        await act(async () => button.click());
+      };
+      const expectScreenStart = () => {
+        expect(document.activeElement).toBe(container.querySelector("main"));
+        expect(scrollIntoView).toHaveBeenLastCalledWith({ block: "start", behavior: "instant" });
+        expect(scrollIntoView.mock.contexts.at(-1)).toBe(container.querySelector("main"));
+      };
+      expect(scrollIntoView).not.toHaveBeenCalled();
+      expect(container.querySelector('a[href="/wedding-code/taste"]')?.getAttribute("target")).toBeNull();
+      await clickText("시작하기");
+      expectScreenStart();
+      expect(document.activeElement?.getAttribute("aria-label")).toContain("1번째 장면");
+      scrollIntoView.mockClear();
+      await act(async () => container.querySelector<HTMLButtonElement>('[data-option="A"]')!.click());
+      expect(scrollIntoView).not.toHaveBeenCalled();
+      await clickText("다음 문항");
+      expectScreenStart();
+      expect(document.activeElement?.getAttribute("aria-label")).toContain("2번째 장면");
+      await act(async () => container.querySelector<HTMLButtonElement>('[aria-label="이전 문항"]')!.click());
+      expectScreenStart();
+      expect(container.querySelector('[data-option="A"]')?.getAttribute("aria-pressed")).toBe("true");
+      for (const question of config.questions) {
+        expect(container.querySelector("[data-question]")?.getAttribute("data-question")).toBe(question.key);
+        await clickText("이 장면은 건너뛸게요");
+        expectScreenStart();
+      }
+      expect(document.activeElement?.getAttribute("aria-label")).toBe("웨딩코드 결과");
+      expect(window.location.hash).toBe("");
+      await clickText("다시 답하기");
+      expectScreenStart();
+      expect(document.activeElement?.getAttribute("aria-label")).toBe("웨딩코드 소개");
+    } finally {
+      if (original) Object.defineProperty(Element.prototype, "scrollIntoView", original);
+      else delete (Element.prototype as { scrollIntoView?: unknown }).scrollIntoView;
+    }
+  });
+
+  it.each([WEDDING_CODE_V10_SCENE_CONFIG, WEDDING_CODE_V11_SCENE_CONFIG, WEDDING_CODE_V12_SCENE_CONFIG])(
+    "$version 상대 링크로 답하면 인용·공유는 그 판을 유지하고 새로 시작할 때만 최신 판으로 간다",
+    async (config) => {
+      const firstCode = config.questions.map(question => question.options.at(-1)!.value).join("");
+      const secondCode = config.questions.map(question => question.options[0].value).join("");
+      window.history.replaceState(null, "", `/wedding-code#v=${config.version}&a=${firstCode}`);
+      await act(async () => root.render(<WeddingCodeV06Client shareOrigin="https://hanbang.ai" version={CURRENT_WEDDING_CODE_SCENE_CONFIG.version} partnerAnswers={null} partnerCode={null} bothCodes={null} />));
+      const clickText = async (text: string) => {
+        const button = [...container.querySelectorAll("button")].find(candidate => candidate.textContent?.includes(text));
+        expect(button, text).toBeDefined();
+        await act(async () => button!.click());
+      };
+      await clickText("나도 답해보기");
+      for (const [index, question] of config.questions.entries()) {
+        expect(container.querySelector("[data-question]")?.getAttribute("data-question")).toBe(question.key);
+        expect(container.textContent).toContain(question.scene);
+        expect(container.querySelectorAll("[data-option]")).toHaveLength(question.options.length);
+        await act(async () => container.querySelector<HTMLButtonElement>(`[data-option="${question.options[0].value}"]`)!.click());
+        await clickText(index === config.questions.length - 1 ? "결과 보기" : "다음 문항");
+      }
+      expect(container.querySelector('[data-result="couple"]')).not.toBeNull();
+      for (const question of config.questions) {
+        const scene = container.querySelector(`[data-compared-scene="${question.key}"]`);
+        for (const value of [question.options[0].value, question.options.at(-1)!.value]) {
+          expect(scene?.textContent).toContain(question.options.find(option => option.value === value)!.label);
+        }
+      }
+      expect(container.querySelector("[data-share-url]")?.getAttribute("data-share-url"))
+        .toBe(`https://hanbang.ai/wedding-code#v=${config.version}&a=${firstCode}&b=${secondCode}`);
+      await clickText("처음부터 새로 답하기");
+      expect(window.location.hash).toBe("");
+      await clickText("시작하기");
+      expect(container.textContent).toContain(CURRENT_WEDDING_CODE_SCENE_CONFIG.questions[0].scene);
+    },
+  );
+
   it("한 장면의 응답 지연 결과는 반복·함께 검토로 과장하지 않고 원문과 부분 코드를 보여준다", async () => {
-    const config = CURRENT_WEDDING_CODE_SCENE_CONFIG;
+    const config = WEDDING_CODE_V10_SCENE_CONFIG;
     await act(async () => root.render(<WeddingCodeV06Client shareOrigin="https://hanbang.ai" version={config.version} partnerAnswers={null} partnerCode={null} bothCodes={null} />));
     const clickText = async (text: string) => {
       const button = [...container.querySelectorAll("button")].find(candidate => candidate.textContent?.includes(text));
@@ -64,7 +151,7 @@ describe("WeddingCodeV06Client interaction", () => {
   });
 
   it("서둘러 끝내자고 한 한 장면을 답하면 배지·본문에 실제 경험을 보존하고 공유 답도 그대로 남긴다", async () => {
-    const config = CURRENT_WEDDING_CODE_SCENE_CONFIG;
+    const config = WEDDING_CODE_V10_SCENE_CONFIG;
     await act(async () => root.render(<WeddingCodeV06Client shareOrigin="https://hanbang.ai" version={config.version} partnerAnswers={null} partnerCode={null} bothCodes={null} />));
     const clickText = async (text: string) => {
       const button = [...container.querySelectorAll("button")].find(candidate => candidate.textContent?.includes(text));
@@ -141,6 +228,11 @@ describe("WeddingCodeV06Client interaction", () => {
     const firstQuestion = config.questions[0];
     expect(container.textContent).toContain(firstQuestion.scene);
     expect(container.textContent).toContain(firstQuestion.question);
+    const help = container.querySelector("#wedding-code-answer-help")!;
+    expect(help.textContent).toContain("아직 겪지 않았다면 지금 나라면 어떻게 할지");
+    expect(help.textContent).toContain("내 생각에 가장 가까운 답 하나");
+    expect(help.textContent).toContain("맞는 답이 없으면 건너뛰어도 괜찮아요");
+    expect(container.querySelector('[aria-describedby="wedding-code-answer-help"]')).not.toBeNull();
 
     const nextButton = Array.from(container.querySelectorAll("button"))
       .find((button) => button.textContent?.includes("다음 문항")) as HTMLButtonElement | undefined;
@@ -163,7 +255,8 @@ describe("WeddingCodeV06Client interaction", () => {
    * 되돌려주는 것이 전부여서, 여기서 아무것도 알게 되지 않았다.
    */
   it("혼자 스무 장면을 끝내면 내 답을 읽어주는 결과가 나온다", async () => {
-    const config = CURRENT_WEDDING_CODE_SCENE_CONFIG;
+    // v1.0의 한정 안내와 선택지 의미를 새 판 카피로 바꾸지 않는다.
+    const config = WEDDING_CODE_V10_SCENE_CONFIG;
 
     await act(async () => {
       root.render(
@@ -264,6 +357,9 @@ describe("WeddingCodeV06Client interaction", () => {
     expect(proposalText).toContain("지금 받고 싶은 도움은 다를 수 있어서 따로 물어볼게요");
     // 없는 자동 연동을 있는 것처럼 말하지 않는다.
     expect(proposalText).toContain("직접 고른 항목만");
+    expect(proposalText).toContain("원할 때만 설정해도 돼요");
+    expect(proposalText).toContain("로그인한 뒤 고른 내용을 다시 확인하고 저장해요");
+    expect(proposalText).toContain("문항 개선을 위해 답을 보내는 기능과는 별개예요");
     expect(proposalText).not.toMatch(/자동으로 반영(됐|되었|됩니다|돼요)/);
     expect(proposals?.querySelector('a[href="/settings/amora-style"]')).toBeTruthy();
 
@@ -335,12 +431,7 @@ describe("WeddingCodeV06Client interaction", () => {
       };
 
       await clickText("시작하기");
-      const picks = [
-        "A", "A", "C", "B", "A",
-        "A", "B", "C", "A", "A",
-        "A", "A", "C", "B", "A",
-        "A", "B", "C", "A", "A",
-      ];
+      const picks = config.questions.map(question => question.options[0].value);
       for (const [index, pick] of picks.entries()) {
         const option = container.querySelector<HTMLButtonElement>(`[data-option="${pick}"]`);
         await act(async () => option?.click());
@@ -351,18 +442,32 @@ describe("WeddingCodeV06Client interaction", () => {
       expect(apply).toBeTruthy();
       expect(apply?.disabled).toBe(true);
       expect(calls.filter(c => c.method === "PUT")).toHaveLength(0);
+      const proposals = container.querySelector('[data-amora-proposals]');
+      expect(proposals?.textContent).toContain("선택만으로는 저장되지 않아요");
+      expect(proposals?.textContent).toContain("아래 반영 버튼을 눌러야 저장돼요");
+      expect(proposals?.textContent).not.toContain("로그인한 뒤 고른 내용을 다시 확인하고 저장해요");
+      const decisionStart = container.querySelector<HTMLSelectElement>("#wc-help-decisionStart")!;
+      expect(decisionStart.value).toBe("");
+      await act(async () => { decisionStart.value = "compare_first"; decisionStart.dispatchEvent(new Event("change", { bubbles: true })); });
+      expect(apply?.disabled).toBe(false);
+      expect(calls.filter(c => c.method === "PUT")).toHaveLength(0);
+      await act(async () => { decisionStart.value = ""; decisionStart.dispatchEvent(new Event("change", { bubbles: true })); });
+      expect(apply?.disabled).toBe(true);
+      await act(async () => apply?.click());
+      expect(calls.filter(c => c.method === "PUT")).toHaveLength(0);
       for (const [field, value] of Object.entries({ workMode: "together", familyOrder: "couple_first", supportOrder: "listen_first", decisionStart: "compare_first" })) {
         const select = container.querySelector<HTMLSelectElement>(`#wc-help-${field}`)!;
         await act(async () => { select.value = value; select.dispatchEvent(new Event("change", { bubbles: true })); });
       }
       expect(apply?.disabled).toBe(false);
+      expect(calls.filter(c => c.method === "PUT")).toHaveLength(0);
       await act(async () => apply?.click());
       // save()의 then은 클릭 act 밖의 마이크로태스크에서 끝난다. 한 번 더 흘려보낸다.
       await act(async () => { await Promise.resolve(); });
 
       const put = calls.find((call) => call.method === "PUT");
       expect(put?.url).toBe("/api/amora/personalization");
-      // 웨딩코드가 만든 값이 그대로 실려야 한다 — 왼쪽으로 몰린 응답이므로.
+      // 사용자가 직접 확인한 도움 방식만 저장한다.
       expect(put?.body).toMatchObject({
         preferences: {
           workMode: "together",
@@ -413,12 +518,7 @@ describe("WeddingCodeV06Client interaction", () => {
     };
 
     await clickText("시작하기");
-    const picks = [
-      "A", "A", "C", "B", "A",
-      "A", "B", "C", "A", "A",
-      "A", "A", "C", "B", "A",
-      "A", "B", "C", "A", "A",
-    ];
+    const picks = config.questions.map(question => question.options[0].value);
     for (const [index, pick] of picks.entries()) {
       const option = container.querySelector<HTMLButtonElement>(`[data-option="${pick}"]`);
       await act(async () => option?.click());
@@ -480,8 +580,11 @@ describe("WeddingCodeV06Client interaction", () => {
 
     await clickText("시작하기");
 
-    // 앞의 네 장면(정할 때 뭘 먼저 보나)만 답하고 나머지 열두 장면은 건너뛴다.
-    const picks = ["A", "A", "C", "B", "A"];
+    // 첫 주제의 왼쪽 답만 고르고 다른 주제는 건너뛴다. 선택지 위치는 판에 따라 다르다.
+    const firstAxis = config.axes[0];
+    const leftConstructs = new Set<string>(firstAxis.left.constructs);
+    const picks = config.questions.filter(question => question.axis === firstAxis.key).map(question =>
+      question.options.find(option => option.weights.some(weight => leftConstructs.has(weight.construct)))!.value);
     for (const pick of picks) {
       const option = container.querySelector<HTMLButtonElement>(`[data-option="${pick}"]`);
       await act(async () => option?.click());
@@ -651,6 +754,12 @@ describe("WeddingCodeV06Client 먼저 얘기해 볼 주제", () => {
   it("인용 카드 다음, 상대에게 보낼 말 앞에 한 번 나오고 상대 안내는 하나만 남는다", async () => {
     await answerWithCounts(FULL);
 
+    const tasteLink = container.querySelector('a[href="/wedding-code/taste"]')!;
+    expect(tasteLink.getAttribute("target")).toBe("_blank");
+    expect(tasteLink.getAttribute("rel")).toBe("noopener noreferrer");
+    expect(tasteLink.getAttribute("aria-describedby")).toBe("wedding-code-taste-new-tab");
+    expect(container.querySelector("#wedding-code-taste-new-tab")?.textContent).toContain("결과를 남겨 두고 새 탭");
+
     const sections = container.querySelectorAll("[data-talk-first]");
     expect(sections).toHaveLength(1);
     const talk = sections[0];
@@ -669,7 +778,7 @@ describe("WeddingCodeV06Client 먼저 얘기해 볼 주제", () => {
     expect([...talk.querySelectorAll("[data-talk-item]")].map(item => `${item.getAttribute("data-talk-item")}:${item.getAttribute("data-talk-kind")}`))
       .toEqual(["coordinationScope:lean", "decisionCriteria:lean", "preparationMode:split"]);
     // 칩은 범례와 같은 것 — 한쪽이면 고른 쪽 하나, 하나 차이면 양쪽.
-    expect([...talk.querySelectorAll('[data-talk-item="coordinationScope"] [data-pole]')].map(chip => chip.textContent)).toEqual(["F가족·하객까지"]);
+    expect([...talk.querySelectorAll('[data-talk-item="coordinationScope"] [data-pole]')].map(chip => chip.textContent)).toEqual(["F부모님도 참여"]);
     expect(talk.querySelectorAll('[data-talk-item="preparationMode"] [data-pole]')).toHaveLength(2);
     expect(talk.textContent).toContain("모두 같은 쪽 · 답한 5장면");
     expect(talk.textContent).not.toMatch(/유형|궁합|점수|등급|성격|당신은|예측|잘 맞|%/);
@@ -681,9 +790,34 @@ describe("WeddingCodeV06Client 먼저 얘기해 볼 주제", () => {
     await answerWithCounts({ decisionCriteria: [1, 0], preparationMode: [0, 1], coordinationScope: [1, 0] });
 
     expect(container.querySelector("[data-talk-first]")).toBeNull();
+    expect(container.textContent).not.toContain("이번 주에 함께 정할 것 보기");
     const notes = container.querySelectorAll("[data-solo-partner-note]");
     expect(notes).toHaveLength(1);
     expect(container.querySelector('[data-result="solo"]')!.contains(notes[0])).toBe(true);
+  });
+
+  it("함께 정할 것 바로가기는 결과와 공유 주소를 보존하며 대화 제안으로 포커스를 옮긴다", async () => {
+    const scrollIntoView = vi.fn();
+    const original = Object.getOwnPropertyDescriptor(Element.prototype, "scrollIntoView");
+    Object.defineProperty(Element.prototype, "scrollIntoView", { configurable: true, writable: true, value: scrollIntoView });
+    try {
+      await answerWithCounts(FULL);
+      scrollIntoView.mockClear();
+      const href = window.location.href;
+      const shareUrl = container.querySelector("[data-share-url]")?.getAttribute("data-share-url");
+      const target = container.querySelector('[aria-label="이번 주에 함께 정할 것"]')!;
+      const jump = [...container.querySelectorAll("button")].find(button => button.textContent?.includes("이번 주에 함께 정할 것 보기"))!;
+      await act(async () => jump.click());
+      expect(document.activeElement).toBe(target);
+      expect(scrollIntoView).toHaveBeenCalledWith({ block: "start", behavior: "smooth" });
+      expect(scrollIntoView.mock.contexts[0]).toBe(target);
+      expect(window.location.href).toBe(href);
+      expect(container.querySelector("[data-share-url]")?.getAttribute("data-share-url")).toBe(shareUrl);
+      expect(container.querySelector('[data-result="solo"]')).not.toBeNull();
+    } finally {
+      if (original) Object.defineProperty(Element.prototype, "scrollIntoView", original);
+      else delete (Element.prototype as { scrollIntoView?: unknown }).scrollIntoView;
+    }
   });
 
   it("「링크 보내러 가기」는 주소를 바꾸지 않고 결과를 지우지 않은 채 복사 버튼으로 옮긴다", async () => {
@@ -692,6 +826,7 @@ describe("WeddingCodeV06Client 먼저 얘기해 볼 주제", () => {
     Object.defineProperty(Element.prototype, "scrollIntoView", { configurable: true, writable: true, value: scrollIntoView });
     try {
       await answerWithCounts(FULL);
+      scrollIntoView.mockClear();
       const hashBefore = window.location.hash;
       const jump = container.querySelector<HTMLElement>("[data-talk-share-jump]");
       expect(jump).not.toBeNull();
@@ -724,6 +859,7 @@ describe("WeddingCodeV06Client 먼저 얘기해 볼 주제", () => {
     Object.defineProperty(window, "matchMedia", { configurable: true, writable: true, value: matchMedia });
     try {
       await answerWithCounts(FULL);
+      scrollIntoView.mockClear();
       await act(async () => container.querySelector<HTMLButtonElement>("[data-talk-share-jump]")!.click());
       expect(matchMedia).toHaveBeenCalledWith("(prefers-reduced-motion: reduce)");
       expect(scrollIntoView).toHaveBeenCalledWith({ block: "center", behavior: "auto" });

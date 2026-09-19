@@ -18,6 +18,13 @@ import { WEDDING_CODE_V06_AXES } from "@/constants/weddingCodeV06";
 import { WEDDING_CODE_LETTERS } from "@/lib/weddingCode/profile/letters";
 import WeddingCodeMeaningPage, { generateMetadata, generateStaticParams } from "./page";
 
+const LOOKUP_LABELS = [
+  ["비용·조건", "분위기·경험"],
+  ["함께 살피기", "맡아서 하기"],
+  ["둘의 선택", "가족 참여"],
+  ["마음", "할 일"],
+] as const;
+
 async function render(code: string) {
   const element = await WeddingCodeMeaningPage({ params: Promise.resolve({ code }) });
   return renderToStaticMarkup(element);
@@ -33,7 +40,6 @@ describe("코드만 아는 사람을 위한 화면", () => {
     expect(html).toContain('data-code-meaning="VTUH"');
     for (const axis of WEDDING_CODE_V06_AXES) {
       expect(html, axis.key).toContain(`data-meaning-axis="${axis.key}"`);
-      expect(html, axis.labelKo).toContain(axis.labelKo);
     }
     // 반대쪽 글자도 알려줘야 자리를 이해할 수 있다.
     expect(html).toContain("반대쪽 글자");
@@ -41,10 +47,10 @@ describe("코드만 아는 사람을 위한 화면", () => {
   });
 
   /**
-   * 결과 화면 범례와 같은 모양으로 읽혀야 한다 — 양쪽 글자와 짧은 이름, 왼쪽이 먼저,
-   * 코드에 있는 글자만 강조. 코드에는 답의 수가 없으므로 칸 막대는 그리지 않는다.
+   * 양쪽 글자는 기존 방향 그대로 두고, 문항 판이 필요 없는 공통 범주만 읽어준다.
+   * 코드에 있는 글자만 강조하고, 실제 답 수를 알 수 없으므로 칸 막대는 그리지 않는다.
    */
-  it("자리마다 양쪽 글자와 짧은 이름을 결과 화면과 같은 방향으로 보여준다", async () => {
+  it("자리마다 공통 주제를 기존 글자 방향으로 보여준다", async () => {
     for (const code of ["VTUH", "MOFA", "vOuA"]) {
       const html = await render(code);
       const root = document.createElement("div");
@@ -54,13 +60,14 @@ describe("코드만 아는 사람을 위한 화면", () => {
         const row = root.querySelector(`[data-meaning-axis="${axis.key}"]`)!;
         const left = row.querySelector('[data-pole="left"]');
         const right = row.querySelector('[data-pole="right"]');
-        expect(left?.textContent, `${code} ${axis.key}`).toBe(`${pair.left.letter}${pair.left.short}`);
-        expect(right?.textContent, `${code} ${axis.key}`).toBe(`${pair.right.letter}${pair.right.short}`);
+        expect(left?.textContent, `${code} ${axis.key}`).toBe(`${pair.left.letter}${LOOKUP_LABELS[index][0]}`);
+        expect(right?.textContent, `${code} ${axis.key}`).toBe(`${pair.right.letter}${LOOKUP_LABELS[index][1]}`);
         const chosen = code[index].toUpperCase() === pair.left.letter ? "left" : "right";
         const other = chosen === "left" ? pair.right : pair.left;
         expect(row.querySelector('[data-pole-chosen="true"]')?.getAttribute("data-pole"), `${code} ${axis.key}`).toBe(chosen);
         expect(row.querySelectorAll('[data-pole-chosen="true"]'), `${code} ${axis.key}`).toHaveLength(1);
-        expect(row.textContent, `${code} ${axis.key}`).toContain(`반대쪽 글자 ${other.letter}(${other.short}): ${other.meaning}`);
+        const otherLabel = LOOKUP_LABELS[index][chosen === "left" ? 1 : 0];
+        expect(row.textContent, `${code} ${axis.key}`).toContain(`반대쪽 글자 ${other.letter}(${otherLabel}):`);
         expect(row.querySelector("[data-count-bar]"), `${code} ${axis.key}`).toBeNull();
       }
     }
@@ -69,6 +76,25 @@ describe("코드만 아는 사람을 위한 화면", () => {
   it("소문자로 와도 같은 뜻으로 열린다", async () => {
     const html = await render("vtuh");
     expect(html).toContain('data-code-meaning="VTUH"');
+  });
+
+  it("모든 코드에서 문항 판과 실제 답을 추정하지 않고 결과 링크로 안내한다", async () => {
+    for (const { code } of generateStaticParams()) {
+      const root = document.createElement("div");
+      root.innerHTML = await render(code);
+      const meaning = root.querySelector("[data-code-meaning]")!;
+      expect(meaning.textContent, code).toContain("코드만으로는 어떤 문항에 답했는지 알 수 없어요.");
+      expect(meaning.textContent, code).toContain("정확한 풀이와 고른 답은 함께 받은 결과 링크에서 확인해 주세요.");
+      expect(meaning.textContent, code).toContain("문항에 따라 가족 의견을 언제 들을지, 마지막 선택을 누구와 할지를 물어요.");
+      expect(meaning.textContent, code).not.toMatch(/더 많이 골랐어요|적힌 내용이 사실인지|가족과 하객 사정을 앞에 둔|스무 장면|20장면/);
+      for (const row of meaning.querySelectorAll("[data-meaning-axis]")) {
+        expect(row.textContent, code).toContain("쪽을 뜻해요");
+      }
+      const metadata = await generateMetadata({ params: Promise.resolve({ code }) });
+      expect(metadata.description, code).toContain("코드만으로는 어떤 문항에 답했는지 알 수 없어요");
+      expect(metadata.description, code).toContain("함께 받은 결과 링크");
+      expect(metadata.description, code).not.toMatch(/더 많이 골랐|스무 장면|20장면/);
+    }
   });
 
   it("없는 코드를 그럴듯하게 풀어주지 않는다", async () => {

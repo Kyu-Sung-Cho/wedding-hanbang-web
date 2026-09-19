@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { WEDDING_CODE_V06_QUESTIONS } from "@/constants/weddingCodeV06";
+import { WEDDING_CODE_V12_QUESTIONS } from "@/constants/weddingCodeV12";
 import {
   decodeWeddingCodeV06,
   encodeWeddingCodeV06,
@@ -76,6 +77,17 @@ describe("응답 코드", () => {
     const partial = { ...FULL };
     delete partial.C3;
     expect(isCompleteWeddingCodeV06(partial)).toBe(false);
+  });
+
+  it("값이 채워져 있어도 그 문항에 없는 보기면 완료나 공유 코드로 만들지 않는다", () => {
+    const valid: WeddingCodeV06Answers = Object.fromEntries(
+      WEDDING_CODE_V12_QUESTIONS.map(question => [question.key, question.options[0].value]),
+    );
+    expect(isCompleteWeddingCodeV06(valid, WEDDING_CODE_V12_QUESTIONS)).toBe(true);
+    const invalid = { ...valid, D1: "D" } as const;
+    expect(isCompleteWeddingCodeV06(invalid, WEDDING_CODE_V12_QUESTIONS)).toBe(false);
+    expect(() => encodeWeddingCodeV06(invalid, WEDDING_CODE_V12_QUESTIONS))
+      .toThrow("INVALID_WEDDING_CODE_SCENE_ANSWER");
   });
 
   it("새 링크는 현재 버전만 받고 버전 없는 초기 링크는 호환한다", () => {

@@ -6,7 +6,7 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import WeddingTasteForm from "./WeddingTasteForm";
 import { DETAIL_SCENES, MOOD_SCENES, PRIORITY_SCENES } from "./tasteScenes";
-import { TASTE_DOMAIN_OPTIONS, TASTE_DOMAIN_QUESTIONS, TASTE_MOOD_OPTIONS, type TasteDomain } from "@/lib/weddingCode/taste";
+import { getWeddingTasteDomainQuestion, TASTE_DOMAIN_OPTIONS, TASTE_DOMAIN_QUESTIONS, TASTE_MOOD_OPTIONS, WEDDING_TASTE_VERSION, type TasteDomain } from "@/lib/weddingCode/taste";
 
 /**
  * **취향 질문은 그림으로 고른다 — 사진 없이.**
@@ -310,7 +310,7 @@ describe("공간 질문의 그림 칸", () => {
     expect(tiles(), "피하고 싶은 것은 글자 버튼 그대로다").toHaveLength(0);
     expect(host.querySelector("svg[data-taste-scene]")).toBeNull();
     clickText("다음");
-    expect(host.textContent).toContain("둘의 생각이 다르면 어떻게 하고 싶나요?");
+    expect(host.textContent).toContain("의견이 다르면, 먼저 어떤 후보부터 볼까요?");
     expect(tiles(), "협의 질문은 글자 버튼 그대로다").toHaveLength(0);
     expect(host.querySelector("svg[data-taste-scene]")).toBeNull();
     clickText("내 선택 보기");
@@ -323,7 +323,7 @@ describe("나머지 세부 질문의 그림 칸", () => {
 
   it.each(DOMAINS.filter(domain => domain !== "venue"))("%s 질문의 값을 공유 순서·라벨 그대로 그림 칸으로 보여준다", domain => {
     openDetail(domain);
-    const { options, max } = TASTE_DOMAIN_QUESTIONS[domain];
+    const { options, max } = getWeddingTasteDomainQuestion(WEDDING_TASTE_VERSION, domain);
     expect(tiles().map(item => item.dataset.tasteTile)).toEqual(options.map(option => option.value));
     expect(tiles().map(labelOf)).toEqual(options.map(option => option.label));
     for (const item of tiles()) {

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  CURRENT_WEDDING_CODE_SCENE_CONFIG as config,
+  WEDDING_CODE_V10_SCENE_CONFIG as config,
   WEDDING_CODE_V08_SCENE_CONFIG as v08,
 } from "@/lib/weddingCode/scene/config";
 import { buildWeddingCodeSelfProfile, describeSelfAxisReading, describeSelfAxisAbsence } from "@/lib/weddingCode/scene/selfProfile";
@@ -52,7 +52,7 @@ describe("실제 선택과 해석의 경계", () => {
     expect(JSON.stringify(comparison)).not.toContain("함께 보기와 맡기기");
   });
 
-  it("현재 판(v0.9 이후) B5의 답을 미룬 경험도 함께 정한 것으로 인증하지 않는다", () => {
+  it("v1.0 B5의 답을 미룬 경험도 함께 정한 것으로 인증하지 않는다", () => {
     const result = profile({ B5: "A" });
     const reading = result.axes[1];
     expect(buildWeddingCodeLetters(result).code).toBe("·T··");

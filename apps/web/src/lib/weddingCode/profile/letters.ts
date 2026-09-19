@@ -49,6 +49,8 @@ export type WeddingCodeLetterSlot = Readonly<{
   countLine: string;
   /** 하나 차이일 때 답 하나로 글자가 바뀐다는 사실. 아니면 null. */
   narrowCaution: string | null;
+  /** 응답이 있는 결과에서 후속 제안을 그 문항 판에 맞춘다. */
+  questionVersion?: string;
 }>;
 
 export type WeddingCodeLetters = Readonly<{
@@ -185,11 +187,12 @@ export function weddingCodePoles(
   axis: WeddingCodeV06AxisKey,
   leftCount: number,
   rightCount: number,
+  labels?: WeddingCodeSelfAxisReading["letterLabels"],
 ): Readonly<{ left: WeddingCodePole; right: WeddingCodePole }> {
   const pair = WEDDING_CODE_LETTERS[axis];
   return {
-    left: { letter: pair.left.letter, short: pair.left.short, count: leftCount },
-    right: { letter: pair.right.letter, short: pair.right.short, count: rightCount },
+    left: { letter: pair.left.letter, short: labels?.left ?? pair.left.short, count: leftCount },
+    right: { letter: pair.right.letter, short: labels?.right ?? pair.right.short, count: rightCount },
   };
 }
 
@@ -203,8 +206,9 @@ export function describeWeddingCodeCount(
   axis: WeddingCodeV06AxisKey,
   leftCount: number,
   rightCount: number,
+  labels?: WeddingCodeSelfAxisReading["letterLabels"],
 ): string {
-  const { left, right } = weddingCodePoles(axis, leftCount, rightCount);
+  const { left, right } = weddingCodePoles(axis, leftCount, rightCount, labels);
   const answered = leftCount + rightCount;
   if (answered === 0) return COUNT_LINE.none;
   const only = rightCount === 0 ? left : leftCount === 0 ? right : null;
@@ -226,12 +230,12 @@ function firmnessOf(majority: number, minority: number): WeddingCodeLetterFirmne
 
 function slotFor(reading: WeddingCodeSelfAxisReading): WeddingCodeLetterSlot {
   const pair = WEDDING_CODE_LETTERS[reading.axis];
-  const { left, right } = weddingCodePoles(reading.axis, reading.leftCount, reading.rightCount);
+  const { left, right } = weddingCodePoles(reading.axis, reading.leftCount, reading.rightCount, reading.letterLabels);
   const answered = reading.leftCount + reading.rightCount;
   const majority = Math.max(reading.leftCount, reading.rightCount);
   const minority = Math.min(reading.leftCount, reading.rightCount);
   const firmness = answered === 0 ? "unset" : firmnessOf(majority, minority);
-  const countLine = describeWeddingCodeCount(reading.axis, reading.leftCount, reading.rightCount);
+  const countLine = describeWeddingCodeCount(reading.axis, reading.leftCount, reading.rightCount, reading.letterLabels);
   const base = {
     axis: reading.axis,
     axisLabel: reading.axisLabel,
@@ -242,6 +246,7 @@ function slotFor(reading: WeddingCodeSelfAxisReading): WeddingCodeLetterSlot {
     left,
     right,
     countLine,
+    ...(reading.questionVersion ? { questionVersion: reading.questionVersion } : {}),
   } as const;
 
   if (firmness === "unset") {
@@ -264,7 +269,7 @@ function slotFor(reading: WeddingCodeSelfAxisReading): WeddingCodeLetterSlot {
     letter: firmness === "narrow" ? side.letter.toLowerCase() : side.letter,
     upper: side.letter,
     chosen,
-    meaning: side.meaning,
+    meaning: reading.letterMeaning ?? side.meaning,
     narrowCaution: firmness === "narrow" ? narrowCautionFor(side.letter, other.letter) : null,
   };
 }

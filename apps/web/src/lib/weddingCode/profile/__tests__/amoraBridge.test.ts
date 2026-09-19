@@ -12,7 +12,7 @@ const allB = Object.fromEntries(config.questions.map((q) => [q.key, "B"])) as We
 describe("아모라 도움 방식 직접 확인", () => {
   it("비워둔 축에서는 답을 만들어 제안하지 않는다", () => {
     expect(buildWeddingCodeAmoraProposals(profileOf({}))).toEqual([]);
-    expect(buildWeddingCodeAmoraProposals(profileOf({ D4: "D" })).map(p => p.field)).toEqual(["supportOrder"]);
+    expect(buildWeddingCodeAmoraProposals(profileOf({ D4: "B" })).map(p => p.field)).toEqual(["supportOrder"]);
   });
   it("응답 방향이 반대여도 선택지는 동일하고 미리 고른 값은 없다", () => {
     expect(buildWeddingCodeAmoraProposals(profileOf(allA))).toEqual(buildWeddingCodeAmoraProposals(profileOf(allB)));
@@ -34,7 +34,7 @@ describe("아모라 도움 방식 직접 확인", () => {
     }
   });
   it("지원 질문은 내가 받고 싶은 도움을 직접 묻는다", () => {
-    const support = buildWeddingCodeAmoraProposals(profileOf({ D4: "D" }))[0];
+    const support = buildWeddingCodeAmoraProposals(profileOf({ D4: "B" }))[0];
     expect(support.question).toContain("내가 힘들다고 말하면");
     expect(support.options.map(o => o.value)).toEqual(["listen_first", "action_first", "ask_each_time"]);
   });

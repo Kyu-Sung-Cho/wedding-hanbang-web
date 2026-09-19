@@ -68,6 +68,21 @@ function render(letters: WeddingCodeLetters): { html: string; root: HTMLElement 
 }
 
 describe("웨딩코드 배지 범례", () => {
+  it("코드 바로 아래 뜻은 선택한 쪽과 일치하고 동률과 미응답을 구분한다", () => {
+    for (const counts of allSplits()) {
+      const letters = lettersOf(counts);
+      const { root } = render(letters);
+      for (const slot of letters.slots) {
+        const summary = root.querySelector(`[data-code-summary="${slot.axis}"]`)!;
+        expect(summary.querySelector("[data-letter]")?.textContent).toBe(slot.letter);
+        const expected = slot.left.count === slot.right.count
+          ? slot.answered === 0 ? "답한 질문 없음" : "양쪽 답이 같음"
+          : WEDDING_CODE_LETTERS[slot.axis][slot.left.count > slot.right.count ? "left" : "right"].short;
+        expect(summary.querySelector("[data-code-summary-label]")?.textContent).toBe(expected);
+      }
+    }
+  });
+
   it("측정기가 살아 있다 — 36가지 셈이 모든 축에 한 번씩은 들어간다", () => {
     const seen = new Map<string, Set<string>>();
     for (const counts of allSplits()) {

@@ -55,22 +55,26 @@ export default function WeddingCodeBadge({ letters }: { letters: WeddingCodeLett
     <section className={`${surface} overflow-hidden`} data-wedding-code={letters.code}>
       <div className="bg-[var(--hb-primary)] px-5 py-8 text-center text-[var(--hb-on-primary)] sm:px-8">
         <p className="text-[12px] font-semibold text-[var(--hb-on-primary)]">내 웨딩코드</p>
-        <p className="mt-3 flex justify-center gap-1.5 text-[44px] font-semibold leading-none tracking-[0.04em] sm:text-[56px]">
+        <div aria-label="내 코드와 글자별 뜻" className="mx-auto mt-5 grid max-w-[28rem] grid-cols-4 gap-2">
           {letters.slots.map((slot) => (
+            <div key={slot.axis} data-code-summary={slot.axis} className="min-w-0">
             <span
-              key={slot.axis}
               data-letter={slot.axis}
               data-firmness={slot.firmness}
-              className={
+              className={`block text-[40px] font-semibold leading-none sm:text-[56px] ${
                 slot.firmness === "narrow" || slot.firmness === "unset"
                   ? "text-[var(--color-sage-pale)]"
                   : "text-[var(--hb-on-primary)]"
-              }
+              }`}
             >
               {slot.letter}
             </span>
+            <span data-code-summary-label="" className="mt-3 block break-keep text-[12px] font-semibold leading-[1.6] sm:text-[14px]">
+              {slot.chosen ? slot[slot.chosen].short : slot.answered === 0 ? "답한 질문 없음" : "양쪽 답이 같음"}
+            </span>
+            </div>
           ))}
-        </p>
+        </div>
         <p className="mx-auto mt-4 max-w-[30rem] text-[13px] font-medium leading-[1.7] text-[var(--hb-on-primary)]">
           {WEDDING_CODE_LEGEND.note}
           {!letters.complete ? " 건너뛴 장면이나 빈 글자(·)가 있어서, 답한 만큼만 줄인 코드예요." : ""}

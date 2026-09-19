@@ -85,7 +85,7 @@ describe("WeddingCode 아모라 단락 · 앱 웹뷰", () => {
     for (const question of config.questions) {
       if (question.key === "D4") {
         await act(async () =>
-          container.querySelector<HTMLButtonElement>('[data-option="D"]')!.click(),
+          container.querySelector<HTMLButtonElement>('[data-option="B"]')!.click(),
         );
         await clickText("다음 문항");
       } else {
@@ -119,7 +119,7 @@ describe("WeddingCode 아모라 단락 · 앱 웹뷰", () => {
     expect(container.querySelector('[data-wedding-code="···A"]')).not.toBeNull();
     // 판 이름은 현재 판을 따라간다(판을 올릴 때마다 이 줄이 깨지지 않게).
     const shareUrl = container.querySelector("[data-share-url]")?.getAttribute("data-share-url") ?? "";
-    expect(shareUrl.endsWith(`#v=${CURRENT_WEDDING_CODE_SCENE_CONFIG.version}&a=${"-".repeat(18)}D-`), shareUrl).toBe(true);
+    expect(shareUrl.endsWith(`#v=${CURRENT_WEDDING_CODE_SCENE_CONFIG.version}&a=${"-".repeat(18)}B-`), shareUrl).toBe(true);
   });
 
   it("웹뷰 다리만 있고 앱이 심은 표식이 없으면 앱으로 보지 않는다", async () => {

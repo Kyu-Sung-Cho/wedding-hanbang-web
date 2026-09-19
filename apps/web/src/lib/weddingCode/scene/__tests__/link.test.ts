@@ -8,6 +8,19 @@ import {
   WEDDING_CODE_V08_QUESTIONS,
   WEDDING_CODE_V08_VERSION,
 } from "@/constants/weddingCodeV08";
+import {
+  WEDDING_CODE_V10_QUESTIONS,
+  WEDDING_CODE_V10_VERSION,
+} from "@/constants/weddingCodeV10";
+import {
+  WEDDING_CODE_V11_QUESTIONS,
+  WEDDING_CODE_V11_VERSION,
+} from "@/constants/weddingCodeV11";
+import {
+  WEDDING_CODE_V12_QUESTIONS,
+  WEDDING_CODE_V12_VERSION,
+} from "@/constants/weddingCodeV12";
+import { weddingCodeSceneConfigForExactVersion } from "@/lib/weddingCode/scene/config";
 import { encodeWeddingCodeV06 } from "@/lib/weddingCode/v06/code";
 import type { WeddingCodeV06Answers } from "@/lib/weddingCode/v06/gap";
 import {
@@ -113,5 +126,55 @@ describe("WeddingCode private share fragment", () => {
     expect(decodeWeddingCodeShareHash(`#a=${legacyCode}`)?.version)
       .toBe(WEDDING_CODE_V06_VERSION);
     expect(decodeWeddingCodeShareHash(`#v=v9-unknown&a=${legacyCode}`)).toBeNull();
+  });
+
+  it.each([
+    { version: WEDDING_CODE_V10_VERSION, questions: WEDDING_CODE_V10_QUESTIONS },
+    { version: WEDDING_CODE_V11_VERSION, questions: WEDDING_CODE_V11_QUESTIONS },
+  ] as const)("round trips $version without relabeling answers as the current version", ({ version, questions }) => {
+    const first = { A1: "A", B5: "B", D4: "D" } as const;
+    const second = { A1: "D", C5: "C", D5: "A" } as const;
+    const url = new URL(buildWeddingCodeShareUrl({
+      origin: "https://hanbang.ai",
+      version,
+      firstCode: encodeWeddingCodeV06(first, questions),
+      secondCode: encodeWeddingCodeV06(second, questions),
+    }));
+    expect(url.search).toBe("");
+    const decoded = decodeWeddingCodeShareHash(url.hash);
+    expect(decoded?.version).toBe(version);
+    expect(decoded?.bothCodes).toEqual({ first, second });
+    expect(weddingCodeSceneConfigForExactVersion(decoded!.version).questions).toBe(questions);
+
+    const single = decodeWeddingCodeShareHash(`#v=${version}&a=A${"-".repeat(19)}`);
+    expect(single?.version).toBe(version);
+    expect(single?.partnerAnswers).toEqual({ A1: "A" });
+    expect(single?.bothCodes).toBeNull();
+  });
+
+  it("rejects a future version or shortened v1.1 answer instead of reusing an older scene set", () => {
+    expect(decodeWeddingCodeShareHash(`#v=v1.3-code&a=${"A".repeat(20)}`)).toBeNull();
+    expect(decodeWeddingCodeShareHash(`#v=${WEDDING_CODE_V11_VERSION}&a=${"A".repeat(19)}`)).toBeNull();
+  });
+
+  it("v1.2의 가변 보기와 건너뜀을 복원하고 같은 기호의 옛 문항을 섞지 않는다", () => {
+    const first = { A1: "D", B1: "C", C3: "C", D5: "B" } as const;
+    const second = { A1: "A", B1: "A", C3: "A", D5: "A" } as const;
+    const url = new URL(buildWeddingCodeShareUrl({
+      origin: "https://hanbang.ai", version: WEDDING_CODE_V12_VERSION,
+      firstCode: encodeWeddingCodeV06(first, WEDDING_CODE_V12_QUESTIONS),
+      secondCode: encodeWeddingCodeV06(second, WEDDING_CODE_V12_QUESTIONS),
+    }));
+    expect(url.search).toBe("");
+    expect(decodeWeddingCodeShareHash(url.hash)).toMatchObject({
+      version: WEDDING_CODE_V12_VERSION, bothCodes: { first, second },
+    });
+  });
+
+  it.each([5, 10, 15, 18])("v1.2의 %i번째 위치에 없는 D가 있으면 단일·커플 링크 전체를 거부한다", index => {
+    const invalid = `${"A".repeat(index)}D${"A".repeat(19 - index)}`;
+    expect(decodeWeddingCodeShareHash(`#v=${WEDDING_CODE_V12_VERSION}&a=${invalid}`)).toBeNull();
+    expect(decodeWeddingCodeShareHash(`#v=${WEDDING_CODE_V12_VERSION}&a=${"A".repeat(20)}&b=${invalid}`)).toBeNull();
+    expect(decodeWeddingCodeShareHash(`#v=${WEDDING_CODE_V11_VERSION}&a=${invalid}`)?.partnerCode).toBe(invalid);
   });
 });

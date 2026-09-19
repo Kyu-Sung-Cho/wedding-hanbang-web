@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { ArrowLeft, ArrowRight, Check, Copy, RotateCcw } from "lucide-react";
 
 import { captureWeddingCodeEvent } from "@/lib/analytics";
+import { WEDDING_CODE_V12_VERSION } from "@/constants/weddingCodeV12";
 import { encodeWeddingCodeV06 } from "@/lib/weddingCode/v06/code";
 import {
   answeredCount,
@@ -21,11 +22,13 @@ import {
   type WeddingCodeSceneVersion,
 } from "@/lib/weddingCode/scene/config";
 import {
-  buildWeddingCodeSelfProfile,
   describeSelfAxisAbsence,
-  describeSelfAxisReading,
   type WeddingCodeSelfProfile,
 } from "@/lib/weddingCode/scene/selfProfile";
+import {
+  buildWeddingCodeResultProfile,
+  describeWeddingCodeResultReading,
+} from "@/lib/weddingCode/scene/resultProfile";
 import {
   buildWeddingCodeCoupleCombination,
 } from "@/lib/weddingCode/profile/amoraBridge";
@@ -36,6 +39,7 @@ import {
   isWeddingCodeResearchSceneVersion,
 } from "@/lib/weddingCode/contribution/contract";
 import Button from "@/components/ui/Button";
+import { PRIORITY_SCENES } from "@/components/wedding-code/tasteScenes";
 import {
   buildWeddingCodeLetters,
   compareWeddingCodeLetters,
@@ -126,6 +130,22 @@ export default function WeddingCodeV06Client({
    * 「나중에 답한 사람」 답은 이 방문자의 답이라는 보장이 없어 보태기 대상이 아니다.
    */
   const [answeredHere, setAnsweredHere] = useState(false);
+  const screenRef = useRef<HTMLElement>(null);
+  const screenKey = `${activeVersion}:${step}:${index}:${linkError}`;
+  const previousScreenRef = useRef({ key: screenKey, context: linkContext });
+  const screenLabel = linkError ? "웨딩코드 링크 오류"
+    : step === "quiz" ? `웨딩코드 ${index + 1}번째 장면`
+      : step === "result" ? "웨딩코드 결과" : "웨딩코드 소개";
+
+  useEffect(() => {
+    const previous = previousScreenRef.current;
+    if (previous.key === screenKey && previous.context === linkContext) return;
+    previousScreenRef.current = { key: screenKey, context: linkContext };
+    // 장면을 바꿀 때만 이동한다. 답을 고르는 중에는 읽던 위치와 포커스를 유지한다.
+    const screen = screenRef.current;
+    screen?.focus({ preventScroll: true });
+    screen?.scrollIntoView?.({ block: "start", behavior: "instant" });
+  }, [linkContext, screenKey]);
 
   const theirs = linkContext.bothCodes?.first ?? linkContext.partnerAnswers;
   const done = answeredCount(answers, questions);
@@ -262,7 +282,7 @@ export default function WeddingCodeV06Client({
   }
 
   if (linkError) {
-    return <Shell><section className={`${surface} px-5 py-7`} role="alert">
+    return <Shell screenRef={screenRef} screenLabel={screenLabel}><section className={`${surface} px-5 py-7`} role="alert">
       <h1 className="text-xl font-semibold text-[var(--hb-text-strong)]">이 링크는 열 수 없어요</h1>
       <p className="mt-3 text-sm leading-relaxed text-[var(--hb-text-body)]">링크 주소가 중간에 잘렸거나 바뀐 것 같아요. 보낸 사람에게 링크를 다시 받거나, 처음부터 새로 답해 주세요.</p>
       <Button className="mt-5" onClick={restart}>처음부터 새로 답하기</Button>
@@ -271,7 +291,7 @@ export default function WeddingCodeV06Client({
 
   if (step === "result") {
     return (
-      <Shell>
+      <Shell screenRef={screenRef} screenLabel={screenLabel}>
         <ResultView
           key={`${activeVersion}:${encodeWeddingCodeV06(theirs ?? {}, questions)}:${encodeWeddingCodeV06(answers, questions)}`}
           answers={answers}
@@ -290,7 +310,7 @@ export default function WeddingCodeV06Client({
 
   if (step === "intro") {
     return (
-      <Shell>
+      <Shell screenRef={screenRef} screenLabel={screenLabel}>
         <section className={`${surface} overflow-hidden`}>
           <div className="bg-[var(--hb-primary)] px-5 py-8 text-white sm:px-8">
             <p className="text-[12px] font-semibold text-[var(--hb-on-primary)]">웨딩코드</p>
@@ -312,7 +332,7 @@ export default function WeddingCodeV06Client({
               theirs
                 ? "내 답이 끝나면 먼저 답한 사람과 다르게 고른 장면을 나란히 보여줘요."
                 : "상대도 답하면 둘이 다르게 고른 장면을 나란히 보여줘요.",
-              "우리와 안 맞거나 아직 답하기 어려운 장면은 건너뛸 수 있어요. 건너뛴 장면은 결과에서 빠져요.",
+              "아직 겪어 보지 않은 일도 지금 나라면 어떻게 할지 생각해서 답하면 돼요. 우리 상황과 맞지 않으면 건너뛰세요.",
             ].map((line) => (
               <p key={line} className="flex gap-2.5 text-[14px] font-medium leading-[1.6] text-[var(--hb-text-strong)]">
                 <Check aria-hidden="true" className="mt-0.5 h-4 w-4 shrink-0 text-[var(--hb-success)]" />
@@ -334,7 +354,7 @@ export default function WeddingCodeV06Client({
             <p className="mt-2 text-sm leading-relaxed text-[var(--hb-text-body)]">금액과 상황은 예시예요. 아직 안 겪어 본 일이면 지금 나라면 어떻게 할지 고르면 돼요. 결혼식을 안 하거나 부모님, 하객 이야기가 우리 상황과 맞지 않으면 그 장면은 건너뛰어도 돼요.</p>
             <p className="mt-2 text-sm leading-relaxed text-[var(--hb-text-body)]">
               {contributionAvailable
-                ? "로그인 없이 쓸 수 있어요. 고른 답은 브라우저에 남기지 않아서 새로고침하면 사라져요. 서버에는 결과 화면의 '내 답 보태기'에 직접 동의한 경우에만 저장해요. 공유 링크에는 내 답이 담기니 같이 비교할 사람에게만 보내 주세요."
+                ? "로그인 없이 쓸 수 있어요. 고른 답은 브라우저에 남기지 않아서 새로고침하면 사라져요. 서버에는 결과 화면의 '문항 개선에 내 답 보내기'에 직접 동의한 경우에만 저장해요. 공유 링크에는 내 답이 담기니 같이 비교할 사람에게만 보내 주세요."
                 : "로그인 없이 쓸 수 있어요. 고른 답은 브라우저에 남기지 않아서 새로고침하면 사라지고, 서버에도 저장하지 않아요. 공유 링크에는 내 답이 담기니 같이 비교할 사람에게만 보내 주세요."}
             </p>
             <p className="mt-2 text-sm leading-relaxed text-[var(--hb-text-body)]">
@@ -410,7 +430,7 @@ export default function WeddingCodeV06Client({
   }
 
   return (
-    <Shell>
+    <Shell screenRef={screenRef} screenLabel={screenLabel}>
       <div className="mb-4 flex items-center gap-3">
         <button
           type="button"
@@ -440,7 +460,10 @@ export default function WeddingCodeV06Client({
         </p>
       </div>
 
-      <section className={`${surface} overflow-hidden`} data-question={question.key}>
+      <p id="wedding-code-answer-help" className="mb-4 text-[13px] leading-[1.7] text-[var(--hb-text-body)]">
+        아직 겪지 않았다면 지금 나라면 어떻게 할지 생각해 보세요. 내 생각에 가장 가까운 답 하나를 골라 주세요. 맞는 답이 없으면 건너뛰어도 괜찮아요.
+      </p>
+      <section className={`${surface} overflow-hidden`} data-question={question.key} aria-describedby="wedding-code-answer-help">
         <div className="border-b border-[var(--hb-hairline)] bg-[var(--hb-surface-hover)] px-5 py-5 sm:px-8">
           <p className="text-[16px] font-semibold leading-[1.55] text-[var(--hb-text-strong)]">
             {question.scene}
@@ -505,9 +528,13 @@ export default function WeddingCodeV06Client({
   );
 }
 
-function Shell({ children }: { children: React.ReactNode }) {
+function Shell({ children, screenRef, screenLabel }: {
+  children: React.ReactNode;
+  screenRef: React.RefObject<HTMLElement | null>;
+  screenLabel: string;
+}) {
   return (
-    <main className="min-h-dvh bg-[var(--hb-surface-page)] px-4 py-6 sm:px-6 sm:py-10">
+    <main ref={screenRef} tabIndex={-1} aria-label={screenLabel} className="min-h-dvh bg-[var(--hb-surface-page)] px-4 py-6 sm:px-6 sm:py-10">
       <div className="mx-auto w-full max-w-[560px]">{children}</div>
     </main>
   );
@@ -538,6 +565,7 @@ function ResultView({
   const [copyError, setCopyError] = useState(false);
   const shareTargetRef = useRef<HTMLDivElement>(null);
   const copyButtonRef = useRef<HTMLButtonElement>(null);
+  const talkFirstRef = useRef<HTMLDivElement>(null);
   const canShare = answeredCount(answers, config.questions) > 0;
 
   /**
@@ -552,6 +580,13 @@ function ResultView({
     const reduceMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches ?? false;
     target.scrollIntoView?.({ block: "center", behavior: reduceMotion ? "auto" : "smooth" });
     copyButtonRef.current?.focus({ preventScroll: true });
+  }
+  function jumpToTalkFirst() {
+    const target = talkFirstRef.current;
+    if (!target) return;
+    const reduceMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches ?? false;
+    target.scrollIntoView?.({ block: "start", behavior: reduceMotion ? "auto" : "smooth" });
+    target.focus({ preventScroll: true });
   }
   const mineCode = encodeWeddingCodeV06(answers, config.questions);
   // 보태는 것은 이 방문자가 방금 고른 답(mineCode)뿐이다. 상대 코드는 넘기지 않는다.
@@ -568,7 +603,7 @@ function ResultView({
 
   // 코드가 나온 사람은 링크만 보내는 것보다 「나 VTuH야」가 먼저 나가는 게 자연스럽다.
   const shareLetters = buildWeddingCodeLetters(
-    buildWeddingCodeSelfProfile(answers, { questions: config.questions, axes: config.axes }),
+    buildWeddingCodeResultProfile(answers, config),
   );
   const shareText = theirs
     ? `우리 둘 웨딩코드 결과 나왔어요. 어디서 같고 어디서 달랐는지 같이 봐요.\n${shareUrl}`
@@ -620,10 +655,7 @@ ${shareUrl}`
   );
 
   if (!theirs) {
-    const profile = buildWeddingCodeSelfProfile(answers, {
-      questions: config.questions,
-      axes: config.axes,
-    });
+    const profile = buildWeddingCodeResultProfile(answers, config);
 
     /**
      * 열여섯 장면을 모두 건너뛴 경우.
@@ -661,6 +693,13 @@ ${shareUrl}`
     return (
       <>
         <WeddingCodeBadge letters={letters} />
+
+        {talkFirst ? (
+          <Button variant="secondary" size="lg" fullWidth onClick={jumpToTalkFirst} className="mt-4">
+            이번 주에 함께 정할 것 보기
+            <ArrowRight aria-hidden="true" className="h-4 w-4" />
+          </Button>
+        ) : null}
 
         <section className={`${surface} mt-4 overflow-hidden`} data-result="solo">
           <div className="bg-[var(--hb-primary)] px-5 py-7 text-white sm:px-8">
@@ -706,8 +745,14 @@ ${shareUrl}`
                     {reading.title}
                   </h2>
                   <p className="mt-1.5 text-[13px] font-medium leading-[1.6] text-[var(--color-rose-700)]">
-                    {describeSelfAxisReading(reading)}
+                    {describeWeddingCodeResultReading(reading)}
                   </p>
+
+                  {reading.reflection ? (
+                    <p data-choice-reflection="" className="mt-4 text-[15px] font-medium leading-[1.7] text-[var(--hb-text-strong)]">
+                      {reading.reflection}
+                    </p>
+                  ) : null}
 
                   <div className="mt-4 space-y-2">
                     {reading.evidence.map((quote) => (
@@ -722,6 +767,20 @@ ${shareUrl}`
                     ))}
                   </div>
 
+                  {reading.allEvidence && reading.allEvidence.length > reading.evidence.length ? (
+                    <details className="mt-3 text-[13px] leading-[1.6] text-[var(--hb-text-body)]">
+                      <summary className="cursor-pointer py-2 font-semibold underline underline-offset-4">고른 답 모두 보기</summary>
+                      <ul className="mt-2 space-y-3">
+                        {reading.allEvidence.map((quote) => (
+                          <li key={quote.scene}>
+                            <p>{quote.scene}</p>
+                            <p className="mt-1 font-semibold text-[var(--hb-text-strong)]">“{quote.label}”</p>
+                          </li>
+                        ))}
+                      </ul>
+                    </details>
+                  ) : null}
+
                   {/* 고른 답에만 붙는 해석 주의. 인용 바로 아래라야 어느 문장 얘기인지 읽힌다. */}
                   {qualifierLine ? (
                     <p data-qualifier-line="" className="mt-2 text-[13px] font-medium leading-[1.6] text-[var(--hb-text-body)]">
@@ -735,11 +794,11 @@ ${shareUrl}`
                     </p>
                   ) : null}
 
-                  <p data-tip="tellPartner" className="mt-4 text-[13px] font-medium leading-[1.7] text-[var(--hb-text-strong)]">
+                  <p data-tip="tellPartner" className="mt-4 text-[14px] font-medium leading-[1.7] text-[var(--hb-text-strong)]">
                     <b className="font-semibold text-[var(--hb-text-strong)]">{WEDDING_CODE_TIP_LABELS.tellPartner}: </b>
                     “{reading.tellPartner}”
                   </p>
-                  <p data-tip="watchOut" className="mt-2 text-[13px] font-medium leading-[1.7] text-[var(--hb-text-strong)]">
+                  <p data-tip="watchOut" className="mt-2 text-[14px] font-medium leading-[1.7] text-[var(--hb-text-strong)]">
                     <b className="font-semibold text-[var(--hb-text-strong)]">{WEDDING_CODE_TIP_LABELS.watchOut}: </b>
                     {reading.watchOut}
                   </p>
@@ -761,7 +820,11 @@ ${shareUrl}`
         </section>
 
         {/* 인용 카드 다음에 둔다. 코드 바로 옆에는 인용과 글자 뜻만 온다(CLAUDE.md 웨딩코드 계약). */}
-        {talkFirstSection}
+        {talkFirstSection ? (
+          <div ref={talkFirstRef} tabIndex={-1} aria-label="이번 주에 함께 정할 것" className="scroll-mt-4 rounded-[6px] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[var(--hb-focus-ring)]">
+            {talkFirstSection}
+          </div>
+        ) : null}
 
         <TellPartnerDraft profile={profile} />
 
@@ -783,13 +846,24 @@ ${shareUrl}`
     questions: config.questions,
     axes: config.axes,
   });
-  const profileOptions = { questions: config.questions, axes: config.axes };
-  const firstProfile = buildWeddingCodeSelfProfile(theirs, profileOptions);
-  const secondProfile = buildWeddingCodeSelfProfile(answers, profileOptions);
+  const firstProfile = buildWeddingCodeResultProfile(theirs, config);
+  const secondProfile = buildWeddingCodeResultProfile(answers, config);
   // 상위 3개를 그냥 자르면 전부 같은 축이 나와 같은 문장이 세 번 반복된다.
-  const featured = topGapsForDisplay(map, 3);
+  const differentAnswers = config.version === WEDDING_CODE_V12_VERSION
+    ? [...map.splits, ...map.shared]
+    : map.splits;
+  const featured = [...topGapsForDisplay(map, 3)];
+  // 기존 반대쪽 답의 순서를 지키고, 빈자리에는 같은 편의 다른 답도 축을 나눠 채운다.
+  for (const gap of differentAnswers) {
+    if (featured.length >= 3) break;
+    if (!featured.some(item => item.axis === gap.axis)) featured.push(gap);
+  }
+  for (const gap of differentAnswers) {
+    if (featured.length >= 3) break;
+    if (!featured.includes(gap)) featured.push(gap);
+  }
   const top = showAllGaps
-    ? [...featured, ...map.splits.filter((gap) => !featured.includes(gap))]
+    ? [...featured, ...differentAnswers.filter((gap) => !featured.includes(gap))]
     : featured;
   // 둘 다 답한 장면만 비교 대상이다.
   const compared = config.questions.length - map.missing;
@@ -893,7 +967,7 @@ ${shareUrl}`
         ) : null}
       </section>
 
-      {map.splits.length > 3 ? (
+      {differentAnswers.length > 3 ? (
         <button
           type="button"
           aria-expanded={showAllGaps}
@@ -902,7 +976,7 @@ ${shareUrl}`
         >
           {showAllGaps
             ? "갈린 장면 3개만 보기"
-            : `갈린 장면 ${map.splits.length - featured.length}개 더 보기`}
+            : `갈린 장면 ${differentAnswers.length - featured.length}개 더 보기`}
         </button>
       ) : null}
 
@@ -980,7 +1054,7 @@ function WeddingCodePair({
               : `비교할 수 있는 ${comparison.length - unknown.length}자리의 글자가 같아요. 같은 글자여도 장면마다 고른 답은 다를 수 있어요.`}
         </p>
       </div>
-      <details>
+      <details open>
         <summary className="cursor-pointer px-5 py-4 text-sm font-semibold text-[var(--hb-text-strong)] sm:px-8">자리마다 두 사람 글자 보기</summary>
       <div className="divide-y divide-[var(--hb-hairline)]">
         {comparison.map((item) => (
@@ -1015,9 +1089,25 @@ function WeddingCodePair({
 function WeddingTasteEntry({ placement }: { placement: "intro" | "result" }) {
   return <section className={`${surface} mt-5 px-5 py-5 sm:px-8`}>
     <h2 className="text-lg font-semibold text-[var(--hb-text-strong)]">원하는 결혼식도 골라볼까요?</h2>
-    <p className="mt-2 text-sm leading-relaxed text-[var(--hb-text-body)]">장소, 사진, 분위기처럼 바라는 결혼식 모습을 골라 보세요. 링크로 보내면 둘이 고른 걸 나란히 볼 수 있어요.</p>
+    <p className="mt-2 text-sm leading-relaxed text-[var(--hb-text-body)]">그림을 보며 장소, 사진, 분위기처럼 바라는 결혼식 모습을 골라 보세요. 링크로 보내면 둘이 고른 걸 나란히 볼 수 있어요.</p>
+    <div aria-hidden="true" className="mt-4 grid grid-cols-3 gap-2" data-taste-preview="">
+      {([
+        ["venue", "장소"],
+        ["photo", "사진"],
+        ["ceremony", "예식"],
+      ] as const).map(([domain, label]) => {
+        const Scene = PRIORITY_SCENES[domain];
+        return <div key={domain} className="overflow-hidden rounded-[6px] border border-[var(--hb-hairline)]">
+          <div className="relative aspect-[8/5]"><Scene /></div>
+          <p className="bg-[var(--hb-surface-hover)] py-2 text-center text-[12px] font-semibold text-[var(--hb-text-body)]">{label}</p>
+        </div>;
+      })}
+    </div>
     <Button
       href="/wedding-code/taste"
+      target={placement === "result" ? "_blank" : undefined}
+      rel={placement === "result" ? "noopener noreferrer" : undefined}
+      aria-describedby={placement === "result" ? "wedding-code-taste-new-tab" : undefined}
       variant="secondary"
       fullWidth
       className="mt-4"
@@ -1025,6 +1115,7 @@ function WeddingTasteEntry({ placement }: { placement: "intro" | "result" }) {
     >
       내가 원하는 결혼식 고르기
     </Button>
+    {placement === "result" ? <p id="wedding-code-taste-new-tab" className="mt-2 text-sm leading-relaxed text-[var(--hb-text-muted)]">결과를 남겨 두고 새 탭에서 열어요.</p> : null}
   </section>;
 }
 
@@ -1192,7 +1283,7 @@ function SelfProfilePair({
                           {reading.title}
                         </p>
                         <p className="mt-0.5 text-[13px] font-medium leading-[1.6] text-[var(--color-rose-700)]">
-                          {describeSelfAxisReading(reading)}
+                          {describeWeddingCodeResultReading(reading)}
                         </p>
                       </>
                     )}

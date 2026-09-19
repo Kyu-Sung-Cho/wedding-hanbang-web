@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { WEDDING_CODE_V06_QUESTIONS, WEDDING_CODE_V06_VERSION } from "@/constants/weddingCodeV06";
 import { WEDDING_CODE_SELF_READING } from "@/constants/weddingCodeSelfReading";
 import {
-  CURRENT_WEDDING_CODE_SCENE_CONFIG as config,
+  WEDDING_CODE_V10_SCENE_CONFIG as config,
   WEDDING_CODE_V08_SCENE_CONFIG as v08,
 } from "@/lib/weddingCode/scene/config";
 import { buildWeddingCodeSelfProfile, describeSelfAxisAbsence, describeSelfAxisReading } from "@/lib/weddingCode/scene/selfProfile";
