@@ -52,7 +52,7 @@ describe("실제 선택과 해석의 경계", () => {
     expect(JSON.stringify(comparison)).not.toContain("함께 보기와 맡기기");
   });
 
-  it("v0.9 B5의 답을 미룬 경험도 함께 정한 것으로 인증하지 않는다", () => {
+  it("현재 판(v0.9 이후) B5의 답을 미룬 경험도 함께 정한 것으로 인증하지 않는다", () => {
     const result = profile({ B5: "A" });
     const reading = result.axes[1];
     expect(buildWeddingCodeLetters(result).code).toBe("·T··");

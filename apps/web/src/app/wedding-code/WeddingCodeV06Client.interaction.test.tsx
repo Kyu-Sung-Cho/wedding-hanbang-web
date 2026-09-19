@@ -579,3 +579,165 @@ describe("WeddingCodeV06Client interaction", () => {
     expect(shareUrl).toContain(`a=A${"-".repeat(config.questions.length - 1)}`);
   });
 });
+
+/**
+ * 「이번 주엔 뭐부터 같이 얘기해 볼까요?」 칸 (2026-09-18).
+ *
+ * - 자리: 「내가 이번에 고른 것」 카드 **다음**, 「상대에게 보낼 말」 앞. 코드 바로 옆에는
+ *   인용과 글자 뜻만 온다(CLAUDE.md 웨딩코드 계약). 글자로 고른 제안은 근거 인용 뒤에 온다.
+ * - 상대 안내는 한 화면에 하나. 이 칸이 나오면 카드 아래 안내는 숨는다.
+ * - 「링크 보내러 가기」는 주소 조각을 바꾸지 않는다. 바꾸면 `hashchange` 가 결과를 지우고
+ *   「이 링크는 열 수 없어요」를 띄운다.
+ */
+describe("WeddingCodeV06Client 먼저 얘기해 볼 주제", () => {
+  let container: HTMLDivElement;
+  let root: Root;
+
+  beforeEach(() => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(JSON.stringify({ user: null }), { status: 200 }));
+    window.history.replaceState(null, "", "/wedding-code");
+    container = document.createElement("div");
+    document.body.appendChild(container);
+    root = createRoot(container);
+  });
+
+  afterEach(async () => {
+    await act(async () => root.unmount());
+    document.body.replaceChildren();
+    vi.restoreAllMocks();
+  });
+
+  /** 축마다 [왼쪽, 오른쪽] 몇 장면을 고를지. 나머지 장면은 건너뛴다. 지금 판의 축 정의로 편을 가린다. */
+  async function answerWithCounts(counts: Readonly<Record<string, readonly [number, number]>>) {
+    const config = CURRENT_WEDDING_CODE_SCENE_CONFIG;
+    await act(async () => root.render(<WeddingCodeV06Client shareOrigin="https://hanbang.ai" version={config.version} partnerAnswers={null} partnerCode={null} bothCodes={null} />));
+    const clickText = async (text: string) => {
+      const button = [...container.querySelectorAll("button")].find(candidate => candidate.textContent?.includes(text));
+      expect(button, text).toBeDefined();
+      await act(async () => button!.click());
+    };
+    await clickText("시작하기");
+    const seen = new Map<string, number>();
+    for (const [index, question] of config.questions.entries()) {
+      const axis = config.axes.find(item => item.key === question.axis)!;
+      const [left, right] = counts[question.axis] ?? [0, 0];
+      const nth = seen.get(question.axis) ?? 0;
+      seen.set(question.axis, nth + 1);
+      const side = nth < left ? "left" : nth < left + right ? "right" : null;
+      if (!side) {
+        await clickText("이 장면은 건너뛸게요");
+        continue;
+      }
+      const leftConstructs = new Set<string>(axis.left.constructs);
+      const option = question.options.find(candidate =>
+        candidate.weights.some(weight => leftConstructs.has(weight.construct)) === (side === "left"))!;
+      await act(async () => container.querySelector<HTMLButtonElement>(`[data-option="${option.value}"]`)!.click());
+      await clickText(index === config.questions.length - 1 ? "결과 보기" : "다음 문항");
+    }
+    expect(container.querySelector('[data-result="solo"]')).not.toBeNull();
+  }
+
+  const FULL = {
+    decisionCriteria: [4, 1],
+    preparationMode: [3, 2],
+    coordinationScope: [0, 5],
+    supportOrder: [4, 1],
+  } as const;
+
+  const follows = (earlier: Element, later: Element) =>
+    Boolean(earlier.compareDocumentPosition(later) & Node.DOCUMENT_POSITION_FOLLOWING)
+    && !earlier.contains(later);
+
+  it("인용 카드 다음, 상대에게 보낼 말 앞에 한 번 나오고 상대 안내는 하나만 남는다", async () => {
+    await answerWithCounts(FULL);
+
+    const sections = container.querySelectorAll("[data-talk-first]");
+    expect(sections).toHaveLength(1);
+    const talk = sections[0];
+    const badge = container.querySelector("[data-wedding-code]")!;
+    const solo = container.querySelector('[data-result="solo"]')!;
+    const tell = container.querySelector("[data-tell-partner]")!;
+    expect(follows(badge, solo), "배지 → 인용 카드").toBe(true);
+    expect(follows(solo, talk), "인용 카드 → 이 칸").toBe(true);
+    expect(follows(talk, tell), "이 칸 → 상대에게 보낼 말").toBe(true);
+
+    // 상대 안내는 이 칸의 끝 문장 하나뿐이다.
+    expect(container.querySelectorAll("[data-solo-partner-note]")).toHaveLength(0);
+    expect(container.querySelectorAll("[data-talk-partner]")).toHaveLength(1);
+
+    expect(talk.querySelector("h2")?.textContent).toBe("이번 주엔 뭐부터 같이 얘기해 볼까요?");
+    expect([...talk.querySelectorAll("[data-talk-item]")].map(item => `${item.getAttribute("data-talk-item")}:${item.getAttribute("data-talk-kind")}`))
+      .toEqual(["coordinationScope:lean", "decisionCriteria:lean", "preparationMode:split"]);
+    // 칩은 범례와 같은 것 — 한쪽이면 고른 쪽 하나, 하나 차이면 양쪽.
+    expect([...talk.querySelectorAll('[data-talk-item="coordinationScope"] [data-pole]')].map(chip => chip.textContent)).toEqual(["F가족·하객까지"]);
+    expect(talk.querySelectorAll('[data-talk-item="preparationMode"] [data-pole]')).toHaveLength(2);
+    expect(talk.textContent).toContain("모두 같은 쪽 · 답한 5장면");
+    expect(talk.textContent).not.toMatch(/유형|궁합|점수|등급|성격|당신은|예측|잘 맞|%/);
+    // 이 칸의 주소 조각 링크는 없다.
+    expect(talk.querySelector('a[href^="#"]')).toBeNull();
+  });
+
+  it("주제마다 한 장면씩만 답하면 이 칸 없이 카드 아래 안내만 남는다", async () => {
+    await answerWithCounts({ decisionCriteria: [1, 0], preparationMode: [0, 1], coordinationScope: [1, 0] });
+
+    expect(container.querySelector("[data-talk-first]")).toBeNull();
+    const notes = container.querySelectorAll("[data-solo-partner-note]");
+    expect(notes).toHaveLength(1);
+    expect(container.querySelector('[data-result="solo"]')!.contains(notes[0])).toBe(true);
+  });
+
+  it("「링크 보내러 가기」는 주소를 바꾸지 않고 결과를 지우지 않은 채 복사 버튼으로 옮긴다", async () => {
+    const scrollIntoView = vi.fn();
+    const original = Object.getOwnPropertyDescriptor(Element.prototype, "scrollIntoView");
+    Object.defineProperty(Element.prototype, "scrollIntoView", { configurable: true, writable: true, value: scrollIntoView });
+    try {
+      await answerWithCounts(FULL);
+      const hashBefore = window.location.hash;
+      const jump = container.querySelector<HTMLElement>("[data-talk-share-jump]");
+      expect(jump).not.toBeNull();
+      await act(async () => jump!.click());
+      // hashchange 는 다음 작업에서 온다. 한 번 흘려보낸 뒤에 본다.
+      await act(async () => { await new Promise(resolve => setTimeout(resolve, 0)); });
+
+      expect(window.location.hash).toBe(hashBefore);
+      expect(container.textContent).not.toContain("이 링크는 열 수 없어요");
+      expect(container.querySelector('[data-result="solo"]')).not.toBeNull();
+      expect(jump!.tagName).toBe("BUTTON");
+      const target = container.querySelector("#wedding-code-share")!;
+      expect(document.activeElement).toBe(target.querySelector("button[data-share-url]"));
+      expect(scrollIntoView).toHaveBeenCalledTimes(1);
+      expect(scrollIntoView.mock.contexts[0]).toBe(target);
+      // matchMedia 가 없으면 움직임 줄이기를 모르는 것 — 기본값(부드럽게)으로 간다.
+      expect(scrollIntoView).toHaveBeenCalledWith({ block: "center", behavior: "smooth" });
+    } finally {
+      if (original) Object.defineProperty(Element.prototype, "scrollIntoView", original);
+      else delete (Element.prototype as { scrollIntoView?: unknown }).scrollIntoView;
+    }
+  });
+
+  it("움직임 줄이기를 켠 사람에게는 바로 옮기고, scrollIntoView 가 없는 환경에서도 멈추지 않는다", async () => {
+    const scrollIntoView = vi.fn();
+    const original = Object.getOwnPropertyDescriptor(Element.prototype, "scrollIntoView");
+    Object.defineProperty(Element.prototype, "scrollIntoView", { configurable: true, writable: true, value: scrollIntoView });
+    const matchMedia = vi.fn().mockReturnValue({ matches: true });
+    const originalMatchMedia = Object.getOwnPropertyDescriptor(window, "matchMedia");
+    Object.defineProperty(window, "matchMedia", { configurable: true, writable: true, value: matchMedia });
+    try {
+      await answerWithCounts(FULL);
+      await act(async () => container.querySelector<HTMLButtonElement>("[data-talk-share-jump]")!.click());
+      expect(matchMedia).toHaveBeenCalledWith("(prefers-reduced-motion: reduce)");
+      expect(scrollIntoView).toHaveBeenCalledWith({ block: "center", behavior: "auto" });
+
+      // scrollIntoView 가 없어도(jsdom·옛 브라우저) 포커스는 옮긴다.
+      delete (Element.prototype as { scrollIntoView?: unknown }).scrollIntoView;
+      (document.activeElement as HTMLElement | null)?.blur();
+      await act(async () => container.querySelector<HTMLButtonElement>("[data-talk-share-jump]")!.click());
+      expect(document.activeElement).toBe(container.querySelector("#wedding-code-share button[data-share-url]"));
+    } finally {
+      if (original) Object.defineProperty(Element.prototype, "scrollIntoView", original);
+      else delete (Element.prototype as { scrollIntoView?: unknown }).scrollIntoView;
+      if (originalMatchMedia) Object.defineProperty(window, "matchMedia", originalMatchMedia);
+      else delete (window as { matchMedia?: unknown }).matchMedia;
+    }
+  });
+});

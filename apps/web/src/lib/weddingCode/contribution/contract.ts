@@ -1,5 +1,6 @@
 import { WEDDING_CODE_V08_QUESTIONS, WEDDING_CODE_V08_VERSION } from "@/constants/weddingCodeV08";
 import { WEDDING_CODE_V09_QUESTIONS, WEDDING_CODE_V09_VERSION } from "@/constants/weddingCodeV09";
+import { WEDDING_CODE_V10_QUESTIONS, WEDDING_CODE_V10_VERSION } from "@/constants/weddingCodeV10";
 
 /**
  * 웨딩코드 답 익명 보태기 — 화면·API·DB가 함께 지키는 계약.
@@ -12,17 +13,20 @@ import { WEDDING_CODE_V09_QUESTIONS, WEDDING_CODE_V09_VERSION } from "@/constant
  *
  * ## 어느 판을 받나
  *
- * v0.8 과 v0.9 를 받는다. 두 판은 **문장이 달라 한 표로 합치면 안 된다** — 행마다
+ * v0.8·v0.9·v1.0 을 받는다. 판마다 **문장이 달라 한 표로 합치면 안 된다** — 행마다
  * `scene_version` 이 있으니 분석은 판별로 따로 한다. v0.6 은 받지 않는다(문항 수부터 다르다).
+ * v1.0 은 v0.9 에서 A2 의 B·D 두 문장만 바뀌었지만, 그 두 답은 뜻이 달라졌으므로 역시 섞지 않는다.
  *
  * 이 목록은 DB CHECK 와 같아야 한다: v0.8 만은 마이그레이션 234
  * (`20260915130000_wedding_code_research_contributions`), v0.9 는 235
- * (`20260917090000_wedding_code_research_scene_v09`)가 더한다. **235 가 운영에 적용되기 전에
- * 이 목록을 배포하면** v0.9 로 보탠 답이 CHECK 에 걸려 503 이 난다 — DB 먼저, 앱 나중.
+ * (`20260917090000_wedding_code_research_scene_v09`), v1.0 은 236
+ * (`20260918090000_wedding_code_research_scene_v10`)이 더한다. **236 이 운영에 적용되기 전에
+ * 이 목록을 배포하면** v1.0 으로 보탠 답이 CHECK 에 걸려 503 이 난다 — DB 먼저, 앱 나중.
  */
 export const WEDDING_CODE_RESEARCH_SCENE_VERSIONS = [
   WEDDING_CODE_V08_VERSION,
   WEDDING_CODE_V09_VERSION,
+  WEDDING_CODE_V10_VERSION,
 ] as const;
 export type WeddingCodeResearchSceneVersion = (typeof WEDDING_CODE_RESEARCH_SCENE_VERSIONS)[number];
 
@@ -36,7 +40,8 @@ export function isWeddingCodeResearchSceneVersion(value: unknown): value is Wedd
  * 다른 판을 목록에 더하면 여기서 바로 멈춘다.
  */
 export const WEDDING_CODE_RESEARCH_SCENE_COUNT = WEDDING_CODE_V08_QUESTIONS.length;
-if (WEDDING_CODE_V09_QUESTIONS.length !== WEDDING_CODE_RESEARCH_SCENE_COUNT) {
+if (WEDDING_CODE_V09_QUESTIONS.length !== WEDDING_CODE_RESEARCH_SCENE_COUNT
+  || WEDDING_CODE_V10_QUESTIONS.length !== WEDDING_CODE_RESEARCH_SCENE_COUNT) {
   throw new Error("WEDDING_CODE_RESEARCH_SCENE_COUNT_MISMATCH");
 }
 /**

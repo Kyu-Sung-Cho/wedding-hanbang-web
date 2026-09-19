@@ -42,11 +42,13 @@ import {
   type WeddingCodeLetterSlot,
   type WeddingCodeLetters,
 } from "@/lib/weddingCode/profile/letters";
+import { buildWeddingCodeTalkFirst } from "@/lib/weddingCode/profile/talkFirst";
 import {
   WEDDING_CODE_TIP_LABELS,
   weddingCodeQualifierLine,
 } from "@/constants/weddingCodeSelfReading";
 import WeddingCodeBadge from "./WeddingCodeBadge";
+import WeddingCodeTalkFirstSection from "./WeddingCodeTalkFirst";
 import {
   buildWeddingCodeShareUrl,
   decodeWeddingCodeShareHash,
@@ -534,7 +536,23 @@ function ResultView({
 }) {
   const [showAllGaps, setShowAllGaps] = useState(false);
   const [copyError, setCopyError] = useState(false);
+  const shareTargetRef = useRef<HTMLDivElement>(null);
+  const copyButtonRef = useRef<HTMLButtonElement>(null);
   const canShare = answeredCount(answers, config.questions) > 0;
+
+  /**
+   * 「링크 보내러 가기」. 주소 조각(`#wedding-code-share`)으로 옮기면 안 된다 — 이 화면은
+   * `hashchange` 를 들어서 공유 링크가 아닌 조각이 오면 결과를 지우고 「이 링크는 열 수
+   * 없어요」를 띄운다. 그래서 스크롤과 포커스를 직접 옮기고, 흐름 기록도 새로 만들지 않는다.
+   * jsdom 에는 `scrollIntoView`·`matchMedia` 가 없어서 둘 다 있을 때만 부른다.
+   */
+  function jumpToShare() {
+    const target = shareTargetRef.current;
+    if (!target) return;
+    const reduceMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches ?? false;
+    target.scrollIntoView?.({ block: "center", behavior: reduceMotion ? "auto" : "smooth" });
+    copyButtonRef.current?.focus({ preventScroll: true });
+  }
   const mineCode = encodeWeddingCodeV06(answers, config.questions);
   // 보태는 것은 이 방문자가 방금 고른 답(mineCode)뿐이다. 상대 코드는 넘기지 않는다.
   const contributionCard = researchContribution && isWeddingCodeResearchSceneVersion(config.version)
@@ -562,8 +580,9 @@ ${shareUrl}`
   const copyButton = !canShare ? (
     <p className="mt-5 text-sm leading-relaxed text-[var(--hb-text-body)]">내가 답한 장면이 없어서 결과 링크를 만들 수 없어요. 받은 링크를 다시 열고 한 장면 이상 답해 주세요.</p>
   ) : (
-    <div className="mt-5">
+    <div className="mt-5" id="wedding-code-share" ref={shareTargetRef}>
       <button
+        ref={copyButtonRef}
         type="button"
         data-share-url={shareUrl}
         data-share-text={shareText}
@@ -634,6 +653,11 @@ ${shareUrl}`
     }
 
     const letters = buildWeddingCodeLetters(profile);
+    // 쓸 주제가 없으면(모든 주제가 한 장면·같은 수·건너뜀) null 이고, 카드 아래 원래 안내가 남는다.
+    const talkFirst = buildWeddingCodeTalkFirst(letters, { answered: profile.answered, total: profile.total });
+    const talkFirstSection = talkFirst
+      ? <WeddingCodeTalkFirstSection talkFirst={talkFirst} onShareJump={canShare ? jumpToShare : undefined} />
+      : null;
     return (
       <>
         <WeddingCodeBadge letters={letters} />
@@ -724,14 +748,20 @@ ${shareUrl}`
             })}
           </div>
 
-          <div className="border-t border-[var(--hb-hairline)] bg-[var(--hb-surface-page)] px-5 py-5 sm:px-8">
-            <p className="text-[13px] font-medium leading-[1.7] text-[var(--hb-text-strong)]">
-              여기까지는 내 답만 본 거예요.{" "}
-              <b className="font-semibold text-[var(--hb-text-strong)]">둘이 어디서 갈렸는지</b>는 상대도 같은
-              장면에 답해야 나와요.
-            </p>
-          </div>
+          {/* 상대 안내는 한 화면에 하나. 아래 칸이 나오면 그 칸의 끝 문장이 이 일을 맡는다. */}
+          {talkFirst === null ? (
+            <div data-solo-partner-note="" className="border-t border-[var(--hb-hairline)] bg-[var(--hb-surface-page)] px-5 py-5 sm:px-8">
+              <p className="text-[13px] font-medium leading-[1.7] text-[var(--hb-text-strong)]">
+                여기까지는 내 답만 본 거예요.{" "}
+                <b className="font-semibold text-[var(--hb-text-strong)]">둘이 어디서 갈렸는지</b>는 상대도 같은
+                장면에 답해야 나와요.
+              </p>
+            </div>
+          ) : null}
         </section>
+
+        {/* 인용 카드 다음에 둔다. 코드 바로 옆에는 인용과 글자 뜻만 온다(CLAUDE.md 웨딩코드 계약). */}
+        {talkFirstSection}
 
         <TellPartnerDraft profile={profile} />
 

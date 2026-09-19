@@ -13,10 +13,21 @@ import {
   type WeddingCodeSelfProfile,
 } from "@/lib/weddingCode/scene/selfProfile";
 import {
+  WEDDING_CODE_TALK_FIRST_HEADING,
+  WEDDING_CODE_TALK_FIRST_ITEMS,
+  WEDDING_CODE_TALK_FIRST_SHARE_JUMP,
+  WEDDING_CODE_TALK_FIRST_SUMMARY,
+  WEDDING_CODE_TALK_FIRST_THIN_NOTE,
+} from "@/constants/weddingCodeTalkFirst";
+import {
+  CURRENT_WEDDING_CODE_SCENE_CONFIG,
+} from "@/lib/weddingCode/scene/config";
+import {
   WEDDING_CODE_LETTERS,
   buildWeddingCodeLetters,
   parseWeddingCodeString,
 } from "../letters";
+import { buildWeddingCodeTalkFirst } from "../talkFirst";
 
 /**
  * 결과 화면 문장의 기계 가드 (2026-09-17).
@@ -32,6 +43,9 @@ import {
  * 숫자·영문 뒤 조사는 받침을 코드가 알 수 없으므로, 틀 자체가 그런 자리를 만들지 않는다.
  */
 const GLUED_PARTICLE = /\d(?!장면)[가-힣]|[A-Za-z][가-힣]/;
+
+/** 판정 언어. 축 카드 팁과 「먼저 얘기해 볼 주제」 칸이 같이 쓴다. */
+const JUDGMENT_WORDS = /유형|궁합|점수|등급|성격|당신은|예측|잘 맞|%/;
 
 type Side = "left" | "right";
 const COUNTS = [0, 1, 2, 3, 4, 5] as const;
@@ -184,7 +198,7 @@ describe("결과 화면 사실 문장 — 숫자·영문 뒤 조사", () => {
 });
 
 describe("축 카드 팁 — 판정 언어 없이 바로 물어볼 수 있는 말", () => {
-  const BANNED = /유형|궁합|점수|등급|성격|당신은|예측|잘 맞|%/;
+  const BANNED = JUDGMENT_WORDS;
   const entries = WEDDING_CODE_V06_AXES.flatMap(({ key }) =>
     (["left", "right", "mixed"] as const).map((lean) => ({ key, lean, copy: WEDDING_CODE_SELF_READING[key][lean] })),
   );
@@ -205,5 +219,165 @@ describe("축 카드 팁 — 판정 언어 없이 바로 물어볼 수 있는 �
     expect(copy.tellPartner).toContain("?");
     // 제목은 사람이 아니라 고른 답을 설명한다.
     expect(copy.title).toContain("답");
+  });
+});
+
+/**
+ * 「이번 주엔 뭐부터 같이 얘기해 볼까요?」 칸 (2026-09-18).
+ *
+ * 이 칸 문장은 셈에 따라 골라 붙인다(요약 다섯 갈래, 뺀 이유 세 갈래 × 앞 묶음·마지막 묶음을
+ * 이은 한 문장, 얇다는 안내, 항목 열두 개, 굳기 라벨 + 답한 수). 손으로 고른 예시로는 조합을 다 못 보니, 축마다
+ * 0..5 × 0..5 와 네 축 섞은 셈으로 **나올 수 있는 문장을 전부 만들어** 본다.
+ *
+ * 먼저 모든 갈래가 실제로 나왔는지 본다. 한 갈래라도 안 나오면 아래 「위반 0」은 공짜다.
+ */
+const TALK_AXES = CURRENT_WEDDING_CODE_SCENE_CONFIG.axes;
+const TALK_TOTAL = CURRENT_WEDDING_CODE_SCENE_CONFIG.questions.length;
+
+/** 판정 말고도 막는 것: 줄표로 절 잇기, 겹친 「~뜻은 아니에요」, 명사로 끝낸 「~인 답」, 누가 맞는지 가리기. */
+const TALK_BANNED: readonly { name: string; pattern: RegExp }[] = [
+  { name: "숫자·영문 뒤 조사", pattern: GLUED_PARTICLE },
+  { name: "판정 언어", pattern: JUDGMENT_WORDS },
+  { name: "줄표", pattern: /[—–]/ },
+  { name: "뜻은 아니", pattern: /뜻은 아니/ },
+  { name: "명사형 「~인 답」", pattern: /[가-힣]인 답/ },
+  { name: "누가 맞는지", pattern: /누가 맞|맞는 쪽|틀렸|옳/ },
+  // v0.9 문항과 같은 초보자 기준(weddingCodeV09.test.ts). 업계 말과 가리키는 말을 쓰지 않는다.
+  {
+    name: "업계 말·가리키는 말",
+    pattern:
+      /스드메|예식장|본식|폐백|상견례|전통 인사|원판|헬퍼비|피팅|컨펌|워크인|혼주|부토니에|얼리스타트|양가|업체나 장소|모르는 조항|이거|그거|저거|넘겼다|느낌이 오면|마음에 남을|믿음이 가면|걱정돼 보인다/,
+  },
+];
+
+function talkFirstFor(counts: readonly (readonly [number, number])[], total: number) {
+  const axes = TALK_AXES.map((definition, index) => {
+    const [leftCount, rightCount] = counts[index] ?? [0, 0];
+    const lean = leanOf(leftCount, rightCount);
+    return {
+      axis: definition.key,
+      axisLabel: definition.labelKo,
+      lean,
+      title: WEDDING_CODE_SELF_READING[definition.key][lean].title,
+      leftLabel: WEDDING_CODE_LETTERS[definition.key].left.short,
+      rightLabel: WEDDING_CODE_LETTERS[definition.key].right.short,
+      leftCount,
+      rightCount,
+      answered: leftCount + rightCount,
+      evidence: [],
+      missingPhrases: [],
+      qualifiers: [],
+      tellPartner: "",
+      watchOut: "",
+    } as const;
+  });
+  const answered = axes.reduce((sum, axis) => sum + axis.answered, 0);
+  const profile: WeddingCodeSelfProfile = { answered, total, complete: answered === total, repeated: [], axes };
+  return buildWeddingCodeTalkFirst(buildWeddingCodeLetters(profile), { answered, total });
+}
+
+type TalkSentence = { label: string; text: string };
+
+function generatedTalkFirst(): { sentences: TalkSentence[]; reached: Set<string> } {
+  const sentences = new Map<string, TalkSentence>();
+  const reached = new Set<string>();
+  const add = (label: string, text: string) => {
+    if (!sentences.has(text)) sentences.set(text, { label, text });
+  };
+  add("heading", WEDDING_CODE_TALK_FIRST_HEADING);
+  add("shareJump", WEDDING_CODE_TALK_FIRST_SHARE_JUMP);
+
+  const collect = (counts: readonly (readonly [number, number])[], total: number) => {
+    const result = talkFirstFor(counts, total);
+    if (!result) return;
+    const label = `${counts.map((pair) => pair.join(":")).join(" ")} /${total}`;
+    add(`${label} summary`, result.summary);
+    if (result.more) add(`${label} more`, result.more);
+    if (result.leftOut) add(`${label} leftOut`, result.leftOut);
+    if (result.thinNote) add(`${label} thin`, result.thinNote);
+    add(`${label} partner`, result.partnerLine);
+    for (const item of result.items) {
+      reached.add(`${item.axis}:${item.kind === "split" ? "split" : item.slot.chosen}`);
+      add(`${label} ${item.axis} tag`, item.tagLabel);
+      add(`${label} ${item.axis} lead`, item.lead);
+      add(`${label} ${item.axis} detail`, item.detail);
+    }
+  };
+
+  // 한 축씩 0..5 × 0..5. 나머지 축은 건너뛴 채로 둔다.
+  TALK_AXES.forEach((_, index) => {
+    for (const left of COUNTS) {
+      for (const right of COUNTS) {
+        const counts = TALK_AXES.map((__, other) => (other === index ? [left, right] as const : [0, 0] as const));
+        collect(counts, TALK_TOTAL);
+      }
+    }
+  });
+  // 네 축을 섞은 셈. 건너뜀·한 장면·같은 수·한쪽·하나 차이가 한 화면에 같이 나온다.
+  const MIXED = [[0, 0], [1, 0], [1, 1], [2, 2], [2, 0], [0, 3], [3, 2], [2, 3], [4, 1]] as const;
+  for (const a of MIXED) for (const b of MIXED) for (const c of MIXED) for (const d of MIXED) collect([a, b, c, d], TALK_TOTAL);
+  // 문항 수가 달라도(판이 바뀌거나 이름 없는 수) 「N 장면」 틀이 조사를 붙이지 않는다.
+  for (const total of [12, 16, 18, 24]) collect([[2, 0], [1, 0], [0, 0], [0, 0]], total);
+
+  return { sentences: [...sentences.values()], reached };
+}
+
+describe("「먼저 얘기해 볼 주제」 칸 — 만들 수 있는 모든 문장", () => {
+  const { sentences, reached } = generatedTalkFirst();
+  const texts = sentences.map((item) => item.text);
+
+  it("측정기가 살아 있다 — 모든 갈래가 실제로 나오고, 금지 틀을 잡는다", () => {
+    // 항목 열두 개(축 넷 × 왼쪽·오른쪽·하나 차이)가 모두 나왔다.
+    const every = TALK_AXES.flatMap(({ key }) => ["left", "right", "split"].map((kind) => `${key}:${kind}`));
+    expect([...reached].sort()).toEqual([...every].sort());
+    for (const { key } of TALK_AXES) {
+      for (const kind of ["left", "right", "split"] as const) {
+        expect(texts, `${key} ${kind} lead`).toContain(WEDDING_CODE_TALK_FIRST_ITEMS[key][kind].lead);
+        expect(texts, `${key} ${kind} detail`).toContain(WEDDING_CODE_TALK_FIRST_ITEMS[key][kind].detail);
+      }
+    }
+    // 요약 다섯 갈래, 얇다는 안내.
+    for (const summary of Object.values(WEDDING_CODE_TALK_FIRST_SUMMARY)) expect(texts, summary).toContain(summary);
+    expect(texts).toContain(WEDDING_CODE_TALK_FIRST_THIN_NOTE);
+    // 뺀 이유는 한 문장이다. 이유마다 앞 묶음(「~고,」)과 마지막 묶음(「~서 여기선 뺐어요.」)이 모두
+    // 나왔는지 본다. 한 장면은 늘 마지막 묶음이라(건너뜀 → 같은 수 → 한 장면 순) 앞 묶음 꼴은 나오지 않는다.
+    const leftOuts = sentences.filter((item) => item.label.endsWith(" leftOut")).map((item) => item.text);
+    expect(leftOuts.length).toBeGreaterThan(20);
+    const forms = [
+      ["건너뜀", "건너뛰었고, ", "건너뛰어서 여기선 뺐어요."],
+      ["같은 수", "양쪽 답 수가 같았고, ", "양쪽 답 수가 같아서 여기선 뺐어요."],
+    ] as const;
+    for (const [reason, mid, last] of forms) {
+      expect(leftOuts.some((text) => text.includes(mid)), `${reason} 앞 묶음`).toBe(true);
+      expect(leftOuts.some((text) => text.endsWith(last)), `${reason} 마지막 묶음`).toBe(true);
+    }
+    expect(leftOuts.some((text) => text.endsWith("한 장면만 답해서 여기선 뺐어요.")), "한 장면 마지막 묶음").toBe(true);
+    expect(leftOuts.some((text) => text.includes("한 장면만 답했고,"))).toBe(false);
+    // 세 이유가 한 문장에 다 나오는 꼴도 실제로 나온다.
+    expect(leftOuts.some((text) => text.includes("건너뛰었고, ") && text.includes("같았고, ") && text.endsWith("한 장면만 답해서 여기선 뺐어요."))).toBe(true);
+    // 「여기선」·「뺐어요」는 한 문장에 한 번씩, 맨 끝에만.
+    for (const text of leftOuts) {
+      expect(text.split("뺐어요").length - 1, text).toBe(1);
+      expect(text.split("여기선").length - 1, text).toBe(1);
+      expect(text.endsWith("여기선 뺐어요."), text).toBe(true);
+    }
+
+    // 금지 틀마다 실제로 잡는 예.
+    const caught: Record<string, string> = {
+      "숫자·영문 뒤 조사": "V로 기운 주제예요",
+      "판정 언어": "당신은 조건을 먼저 보는 사람이에요",
+      줄표: "업체를 같이 볼 때 — 순서를 맞춰 두세요",
+      "뜻은 아니": "조건만 본다는 뜻은 아니에요",
+      "명사형 「~인 답」": "조건 먼저인 답",
+      "누가 맞는지": "누가 맞는지 정해 보세요",
+      "업계 말·가리키는 말": "스드메 견적부터 보세요",
+    };
+    for (const { name, pattern } of TALK_BANNED) expect(caught[name], name).toMatch(pattern);
+    expect(sentences.length).toBeGreaterThan(40);
+  });
+
+  it.each(TALK_BANNED)("$name — 어느 문장에도 없다", ({ pattern }) => {
+    const hits = sentences.filter((item) => pattern.test(item.text));
+    expect(hits.map((item) => `${item.label}: ${item.text}`)).toEqual([]);
   });
 });
