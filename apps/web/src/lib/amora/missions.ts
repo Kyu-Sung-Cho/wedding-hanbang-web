@@ -1,5 +1,5 @@
 import { CHECKLIST_MAP } from "@/constants/checklists";
-import { groupChecklistItems } from "@hanbang/shared/constants";
+import { PREPARATION_PROGRESS_STATUS_LABELS, groupChecklistItems } from "@hanbang/shared/constants";
 import { sortAmoraActions, type AmoraActionItem } from "@/lib/amora/actions";
 import { stripWeddingBasePath } from "@/lib/weddingPaths";
 import type { ProgressItem } from "@/types/database.types";
@@ -181,8 +181,9 @@ export function buildAmoraMissionModel(
     groups, currentGroupId, cards,
     recommendation: progress && nextCategory ? {
       groupId: nextCategory.groupId, categoryKey: nextCategory.key,
+      // 같은 패널이 이 분야에 붙이는 상태 이름(공용 사전)과 같은 말로 부른다.
       reason: nextCategory.status === "in_progress"
-        ? "이미 진행 중인 분야부터 이어갈 수 있게 골랐어요."
+        ? `이미 ${PREPARATION_PROGRESS_STATUS_LABELS.in_progress}인 분야부터 이어갈 수 있게 골랐어요.`
         : "아직 시작하지 않은 분야 중 준비 순서상 앞선 곳이에요.",
     } : null,
     completedCard: doneActions[0] ? actionCard(doneActions[0]) : null,

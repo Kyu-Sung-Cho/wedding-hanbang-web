@@ -2,6 +2,7 @@ import Link from "next/link";
 import { useState } from "react";
 import Button from "@/components/ui/Button";
 import { ArrowRight, BookOpen, CalendarDays, Check, ChevronRight, ClipboardCheck, FileCheck2, Split } from "lucide-react";
+import { PREPARATION_PROGRESS_STATUS_LABELS } from "@hanbang/shared/constants";
 import AmoraMark from "@/components/ui/AmoraMark";
 import { AMORA_ACTION_CLASS } from "@/components/ui/amoraActionStyles";
 import type { MissionGroup } from "@/lib/amora/missions";
@@ -47,7 +48,8 @@ export function LoungePriorityFeed({ items }: { items: readonly LoungePriorityIt
         const imminent = checklist?.imminent;
         const title = category ? `${category.label} 준비` : event?.title;
         const href = category ? `/checklist?category=${encodeURIComponent(category.key)}` : "/schedule";
-        const tag = event ? "다음 일정" : imminent ? "확인 추천" : category?.status === "in_progress" ? "진행 중" : "시작 전";
+        // 분야 상태 이름은 체크리스트, 온보딩과 같은 공용 사전에서 온다.
+        const tag = event ? "다음 일정" : imminent ? "확인 추천" : category?.status === "in_progress" ? PREPARATION_PROGRESS_STATUS_LABELS.in_progress : PREPARATION_PROGRESS_STATUS_LABELS.not_started;
         const days = event ? daysUntilLoungeEvent(event.date) : null;
         return <article key={category?.key ?? event?.id} className={`${index >= 3 && !showAll ? "hidden lg:grid" : "lg:grid"} rounded-[14px] border border-[var(--amora-line)] bg-white p-[15px] lg:grid-cols-[76px_minmax(0,1fr)] lg:gap-5 lg:rounded-none lg:border-x-0 lg:border-t-0 lg:p-0 lg:py-5 lg:last:border-b-0`}>
           <div className="mb-2 flex items-center gap-2 lg:mb-0 lg:block">

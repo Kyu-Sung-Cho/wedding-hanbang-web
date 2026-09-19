@@ -3,7 +3,9 @@
 import { useEffect, useRef, useState, type ReactNode, type RefObject } from "react";
 import Link from "next/link";
 import { ArrowRight, Building2, Check, ChevronRight, HeartHandshake, ListChecks, MessageCircle, Plane, RefreshCw, Sparkles, Ticket, Users } from "lucide-react";
+import { PREPARATION_PROGRESS_STATUS_LABELS } from "@hanbang/shared/constants";
 import { useAmoraPreparationActions } from "@/hooks/useAmoraPreparationActions";
+import { directionParticle } from "@/lib/korean/particles";
 import { buildAmoraMissionModel, type AmoraMissionCard, type MissionGroup } from "@/lib/amora/missions";
 import { weddingLinkProps } from "@/lib/weddingPaths";
 import { useAuthStore } from "@/stores/authStore";
@@ -15,6 +17,13 @@ import { AMORA_ACTION_CLASS } from "@/components/ui/amoraActionStyles";
 const FOCUS = "focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[var(--amora-accent)]";
 const BUTTON_FOCUS = `${FOCUS} focus-visible:!outline-solid focus-visible:!ring-0 focus-visible:!ring-offset-0`;
 const GROUP_ICONS = [HeartHandshake, Building2, Ticket, Sparkles, Plane];
+
+// 상태 이름은 온보딩, 체크리스트, 예산과 같은 공용 사전에서 온다. 문장이 상태를 부를 때도
+// 같은 말을 써야 화면의 칩과 문장이 어긋나지 않는다.
+const CATEGORY_STATUS = PREPARATION_PROGRESS_STATUS_LABELS;
+// "안 해요"는 사용자가 고른 말 그대로 따옴표로 두고 조사를 붙인다("안 해요로"는 읽히지 않는다).
+const MARKED_NOT_APPLICABLE = `"${CATEGORY_STATUS.not_applicable}"${directionParticle(CATEGORY_STATUS.not_applicable)} 표시`;
+const BACK_TO_IN_PROGRESS = `다시 ${CATEGORY_STATUS.in_progress}${directionParticle(CATEGORY_STATUS.in_progress)} 바뀌어요.`;
 
 function PreparationPath({ groups, available, selectedGroupId, expanded, onSelect, pathRef, children }: {
   groups: MissionGroup[]; available: boolean; selectedGroupId: string; onSelect(groupId: string): void;
@@ -49,7 +58,7 @@ function PreparationPath({ groups, available, selectedGroupId, expanded, onSelec
                 <span className={`text-[10.5px] leading-4 md:hidden ${isCurrent ? "font-bold text-[var(--amora-rose-deep)]" : "text-[var(--amora-muted)]"}`}>{group.shortLabel}</span>
                 <span className="hidden text-[13px] font-semibold leading-5 md:block">{group.label}</span>
                 <span className="mt-0.5 hidden text-[11.5px] leading-5 text-[var(--amora-muted)] md:block">
-                  {!available ? "기록 확인 전" : group.state === "skipped" ? "해당 없음으로 표시" : `${group.completedCategories} / ${group.applicableCategories}개 분야 완료`}
+                  {!available ? "기록 확인 전" : group.state === "skipped" ? MARKED_NOT_APPLICABLE : `${group.completedCategories} / ${group.applicableCategories}개 분야 완료`}
                 </span>
               </button>
             </li>
@@ -60,8 +69,6 @@ function PreparationPath({ groups, available, selectedGroupId, expanded, onSelec
     </section>
   );
 }
-
-const CATEGORY_STATUS = { completed: "완료", in_progress: "진행 중", not_started: "시작 전", not_applicable: "해당 없음" };
 
 function MissionStage({ group, recommendation, onOpen, onRecommended, onClose }: {
   group: MissionGroup;
@@ -78,7 +85,7 @@ function MissionStage({ group, recommendation, onOpen, onRecommended, onClose }:
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <h3 id="selected-mission-stage-title" className="amora-display text-[19px] leading-[1.5] md:text-[21px]">{group.label}</h3>
-          <p className="mt-1 text-[12px] leading-5 text-[var(--amora-muted)]">{group.completedCategories} / {group.applicableCategories}개 분야 완료{group.excludedCategories > 0 ? ` · 해당 없음 ${group.excludedCategories}개` : ""}</p>
+          <p className="mt-1 text-[12px] leading-5 text-[var(--amora-muted)]">{group.completedCategories} / {group.applicableCategories}개 분야 완료{group.excludedCategories > 0 ? ` · ${CATEGORY_STATUS.not_applicable} ${group.excludedCategories}개` : ""}</p>
         </div>
         <Button variant="ghost" type="button" onClick={onClose} aria-label="단계 상세 접기" className={`shrink-0 !rounded-lg !px-3 !text-xs !text-[var(--amora-muted)] ${BUTTON_FOCUS}`}>접기</Button>
       </div>
@@ -89,7 +96,7 @@ function MissionStage({ group, recommendation, onOpen, onRecommended, onClose }:
         <Button variant="primary" size="lg" type="button" onClick={() => onOpen(target.key)} aria-label={`${target.label} 미션 ${target.status === "in_progress" ? "이어하기" : "시작"}`} className={`mt-3 w-full !whitespace-normal !rounded-[11px] !bg-[var(--amora-action)] !px-[18px] !text-[14px] !text-white hover:!bg-[var(--amora-action-hover)] md:w-auto ${BUTTON_FOCUS}`}>
           {target.status === "in_progress" ? "미션 이어하기" : "미션 시작"}<ArrowRight size={15} aria-hidden="true" />
         </Button>
-      </> : <p role="status" className="mt-3 text-[13px] leading-6 text-[var(--amora-soft)]">{group.state === "skipped" ? "이 단계는 모두 해당 없음으로 표시했어요. 아래에서 언제든 다시 준비 목록에 넣을 수 있어요." : "이 단계의 적용 분야를 모두 완료했어요. 확인·수정에서 체크를 해제하면 다시 진행 중으로 바뀌어요."}</p>}
+      </> : <p role="status" className="mt-3 text-[13px] leading-6 text-[var(--amora-soft)]">{group.state === "skipped" ? `이 단계는 모두 ${MARKED_NOT_APPLICABLE}했어요. 아래에서 언제든 다시 준비 목록에 넣을 수 있어요.` : "이 단계의 적용 분야를 모두 완료했어요. 확인·수정에서 체크를 해제하면 " + BACK_TO_IN_PROGRESS}</p>}
       {!isRecommended && recommendation && <Button variant="ghost" type="button" onClick={onRecommended} className={`mt-2 !flex !justify-start !gap-1 !whitespace-normal !rounded-lg !bg-transparent !px-0 !text-[12.5px] !text-[var(--amora-accent)] hover:!bg-transparent ${BUTTON_FOCUS}`}>추천 단계로 돌아가기<ChevronRight size={15} aria-hidden="true" /></Button>}
       <details className="mt-3 border-t border-[var(--amora-line)] pt-1">
         <summary className={`flex min-h-11 cursor-pointer items-center rounded-lg text-[12.5px] font-semibold text-[var(--amora-soft)] ${FOCUS}`}>이 단계의 분야 모두 보기 · {group.categories.length}개</summary>
@@ -97,7 +104,7 @@ function MissionStage({ group, recommendation, onOpen, onRecommended, onClose }:
           {group.categories.map(category => <li key={category.key} className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 py-2">
             <div className="min-w-0 flex-1">
               <p className="text-[13px] font-semibold leading-5">{category.label}</p>
-              <p className="mt-0.5 text-[11.5px] leading-5 text-[var(--amora-muted)]">{category.declared ? `분야를 ${CATEGORY_STATUS[category.status]}로 표시` : CATEGORY_STATUS[category.status]}{category.status !== "not_applicable" && !category.declared ? ` · ${category.done} / ${category.total}개 체크` : ""}</p>
+              <p className="mt-0.5 text-[11.5px] leading-5 text-[var(--amora-muted)]">{category.declared ? `분야를 ${CATEGORY_STATUS[category.status]}${directionParticle(CATEGORY_STATUS[category.status])} 표시` : CATEGORY_STATUS[category.status]}{category.status !== "not_applicable" && !category.declared ? ` · ${category.done} / ${category.total}개 체크` : ""}</p>
             </div>
             <Button variant="secondary" type="button" aria-label={`${category.label} 체크리스트 열기`} onClick={() => onOpen(category.key)} className={`shrink-0 !whitespace-normal !rounded-lg !border-[var(--amora-line)] !bg-transparent !px-3 !text-[12px] !text-[var(--amora-accent)] hover:!bg-transparent ${BUTTON_FOCUS}`}>{category.status === "not_applicable" ? "다시 살펴보기" : category.status === "completed" ? "확인·수정" : "열기"}</Button>
           </li>)}

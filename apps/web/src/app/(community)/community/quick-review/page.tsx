@@ -5,13 +5,21 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Star } from "lucide-react";
 import ImageUploader from "@/components/community/ImageUploader";
-import AdDisclosureModal from "@/components/community/AdDisclosureModal";
+import AdDisclosureModal, { type AdDisclosureChoice } from "@/components/community/AdDisclosureModal";
 import { useToast } from "@/components/community/Toast";
 import { COHORT_CONTRACT_CATEGORIES } from "@/constants/communityCategories";
 import { communityPostPath } from "@/lib/community/routes";
 import { isCommunityMediaPublishingUiEnabled } from "@/lib/community/mediaPublishingUiGate";
 import { useAuthStore } from "@/stores/authStore";
-import type { AdDisclosure } from "@/types/community.types";
+import {
+  QUICK_REVIEW_CONNECTION_LOST_MESSAGE,
+  QUICK_REVIEW_LOGIN_REQUIRED_MESSAGE,
+  QUICK_REVIEW_RECEIPT_MISSING_MESSAGE,
+  createQuickReviewSubmission,
+  quickReviewFailureMessage,
+  readCreatedQuickReviewPostId,
+  validateQuickReviewDraft,
+} from "./quickReviewSubmission";
 
 // 로그인이 필요한 화면인데 제출 직후에야 401을 맞으면 다 쓴 후기가 헛수고가 된다.
 // 미리 알려주고, 로그인 뒤 이 자리로 돌아오게 한다.
@@ -35,20 +43,29 @@ export default function QuickReviewPage() {
   const [oneLiner, setOneLiner] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [showAdModal, setShowAdModal] = useState(false);
+  // 실패 뒤 같은 내용으로 다시 보내면 같은 요청 키를 쓴다. 응답만 잃고 저장된 경우
+  // 서버가 저장된 글을 돌려주므로 같은 후기가 두 번 생기지 않는다. 키는 이 화면이 떠 있는
+  // 동안만 있다. 새로고침하거나 로그인하러 다녀오면 없으므로, 쓴 내용도 남기지 않는다.
+  const [submission] = useState(() =>
+    createQuickReviewSubmission(() => globalThis.crypto.randomUUID()),
+  );
+  // 실패한 요청에서 고른 광고 표시와 협찬 내용. 다시 열 때 모달에 채워 둔다. 모달이 비어
+  // 열리면 협찬 내용을 다시 적어야 하고, 한 글자만 달라도 새 요청 키가 붙어 응답만 잃은
+  // 첫 요청과 함께 협찬 후기가 두 개 생긴다. 저장에 성공하면 요청 키와 함께 버린다.
+  const [lastAdChoice, setLastAdChoice] = useState<AdDisclosureChoice | null>(null);
 
   const inputCls =
     "w-full px-4 py-3 border border-[#F0EFED] rounded-[6px] focus:border-[var(--hb-primary)] focus:outline-none text-base";
 
-  function validate(): string | null {
-    if (!vendorName.trim()) return "업체명을 입력해주세요.";
-    if (rating < 1) return "별점을 선택해주세요.";
-    if (!oneLiner.trim()) return "한 줄 후기를 입력해주세요.";
-    return null;
-  }
-
   function handleSubmitClick(e: React.FormEvent) {
     e.preventDefault();
-    const err = validate();
+    const err = validateQuickReviewDraft({
+      vendorName,
+      category,
+      rating,
+      review: oneLiner,
+      images: [],
+    });
     if (err) {
       toast.error(err);
       return;
@@ -56,42 +73,59 @@ export default function QuickReviewPage() {
     setShowAdModal(true);
   }
 
-  async function handleAdSelect(result: {
-    adDisclosure: AdDisclosure;
-    sponsorshipDetail?: string;
-  }) {
+  async function handleAdSelect(result: AdDisclosureChoice) {
     setShowAdModal(false);
     if (submitting) return;
+    const draft = {
+      vendorName,
+      category,
+      rating,
+      review: oneLiner,
+      images: MEDIA_PUBLISHING_UI_ENABLED ? images : [],
+      adDisclosure: result.adDisclosure,
+      sponsorshipDetail: result.sponsorshipDetail,
+    };
+    const err = validateQuickReviewDraft(draft);
+    if (err) {
+      toast.error(err);
+      return;
+    }
     setSubmitting(true);
     try {
+      const { idempotencyKey, body } = submission.commandFor(draft);
+      // 아래 어느 갈래로 실패하든 다시 열 때 같은 선택이 채워져 있어야 한다.
+      setLastAdChoice(result);
       const res = await fetch("/api/community/posts", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          category: "tour_review",
-          title: `${vendorName.trim()} 후기`,
-          content: oneLiner.trim(),
-          images: MEDIA_PUBLISHING_UI_ENABLED ? images : [],
-          visibility: "public",
-          vendor_tags: [vendorName.trim()],
-          tags: [category],
-          is_quick_review: true,
-          rating,
-          ad_disclosure: result.adDisclosure,
-          sponsorship_detail: result.sponsorshipDetail,
-        }),
+        headers: { "Content-Type": "application/json", "Idempotency-Key": idempotencyKey },
+        body: JSON.stringify(body),
       });
-      const data = await res.json();
+      // 게이트웨이 오류 페이지처럼 JSON 이 아닌 응답도 있다.
+      const data: unknown = await res.json().catch(() => null);
       if (res.status === 401) {
-        toast.error("로그인하면 방금 쓰신 후기를 이어서 올릴 수 있어요.");
+        // 로그인하러 다녀오면 이 화면은 새로 뜨고 쓴 내용은 남지 않는다. 이어서 올릴 수 있다고 말하지 않는다.
+        toast.error(QUICK_REVIEW_LOGIN_REQUIRED_MESSAGE);
         router.push(QUICK_REVIEW_LOGIN_HREF);
         return;
       }
-      if (!res.ok) throw new Error(data?.error || "작성에 실패했습니다.");
+      if (!res.ok) {
+        toast.error(quickReviewFailureMessage(data));
+        return;
+      }
+      // 새 글 id 를 확인한 뒤에만 등록된 것으로 본다. 저장됐을 수 있으니 요청 키는 남긴다.
+      const postId = readCreatedQuickReviewPostId(data);
+      if (!postId) {
+        toast.error(QUICK_REVIEW_RECEIPT_MISSING_MESSAGE);
+        return;
+      }
+      submission.clear();
+      setLastAdChoice(null);
       toast.success("15초 후기가 등록되었어요.");
-      router.push(communityPostPath(data.post.id));
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "오류가 발생했습니다.");
+      router.push(communityPostPath(postId));
+    } catch {
+      // fetch 가 거절됐다(연결이 끊김). 브라우저의 영어 오류 대신, 이 화면에서 그대로 다시
+      // 보내도 두 번 올라가지 않는다고만 말한다.
+      toast.error(QUICK_REVIEW_CONNECTION_LOST_MESSAGE);
     } finally {
       setSubmitting(false);
     }
@@ -119,7 +153,7 @@ export default function QuickReviewPage() {
             href={QUICK_REVIEW_LOGIN_HREF}
             className="mt-3 inline-flex min-h-11 items-center justify-center rounded-[6px] bg-[var(--hb-primary)] px-5 text-sm font-semibold text-white"
           >
-            로그인하고 이어서 쓰기
+            로그인하고 쓰기
           </Link>
         </div>
       ) : null}
@@ -218,7 +252,7 @@ export default function QuickReviewPage() {
         </button>
       </form>
 
-      {showAdModal && <AdDisclosureModal onSelect={handleAdSelect} />}
+      {showAdModal && <AdDisclosureModal onSelect={handleAdSelect} initialChoice={lastAdChoice} />}
     </div>
   );
 }

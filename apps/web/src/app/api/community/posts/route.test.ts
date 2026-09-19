@@ -40,6 +40,12 @@ vi.mock("@/utils/rateLimit", () => ({
 }));
 
 import { GET, POST } from "./route";
+import { readFileSync } from "node:fs";
+import path from "node:path";
+import {
+  buildQuickReviewPostBody,
+  type QuickReviewDraft,
+} from "@/app/(community)/community/quick-review/quickReviewSubmission";
 
 function createPostsQuery(rows: Array<Record<string, unknown>> = []) {
   const result = { data: rows, count: rows.length, error: null };
@@ -574,6 +580,174 @@ describe("POST /api/community/posts public personal-information boundary", () =>
       detected: expect.arrayContaining([kind]),
       error: expect.stringContaining("민감한"),
     });
+    expect(mocks.createAdminClient).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * 웹 15초 후기 화면이 만드는 본문이 라우트 검증을 지나 저장 RPC 까지 가는가.
+ *
+ * 저장 RPC(`community_create_post_service`)는 SQL 안에서 본문을 한 번 더 검사한다. 여기서는
+ * 그 검사를 그대로 옮긴 대역을 둔다. 2026-09-19 까지 화면은 `vendor_tags: [업체 이름]` 을
+ * 보냈고, 라우트는 그것을 거르지 않아 RPC 가 `COMMUNITY_POST_PAYLOAD_INVALID` 로 거절했다.
+ * 사용자에게는 503 "같은 내용으로 다시 시도해 주세요"만 보였다.
+ */
+describe("POST /api/community/posts 15초 후기 본문", () => {
+  const actorId = "11111111-1111-4111-8111-111111111111";
+  const postId = "22222222-2222-4222-8222-222222222222";
+  const idempotencyKey = "dddddddd-dddd-4ddd-8ddd-dddddddddddd";
+  const SQL_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu;
+
+  /**
+   * `supabase/migrations/20260804200000_community_post_service_write_boundary.sql` 의 본문 검사.
+   * 문제가 있으면 SQL 이 올리는 예외 이름을, 없으면 null.
+   */
+  function sqlPayloadProblem(payload: Record<string, unknown>): string | null {
+    const strings = (value: unknown, max: number) =>
+      Array.isArray(value) && value.length <= max && value.every((item) => typeof item === "string");
+    const invalid =
+      typeof payload.category !== "string" || payload.category.length < 1
+      || typeof payload.title !== "string" || payload.title.length < 1 || payload.title.length > 200
+      || typeof payload.content !== "string" || payload.content.length > 50000
+      || !strings(payload.images, 10)
+      || (payload.slides !== null && !(Array.isArray(payload.slides) && payload.slides.length <= 10))
+      || !strings(payload.vendor_tags, 5)
+      || !(payload.vendor_tags as string[]).every((tag) => SQL_UUID.test(tag))
+      || !strings(payload.tags, 10)
+      || !["public", "members", "draft"].includes(String(payload.visibility))
+      || !["general", "sponsored", "ad"].includes(String(payload.ad_disclosure))
+      || typeof payload.is_quick_review !== "boolean"
+      || (payload.rating !== null
+        && !(typeof payload.rating === "number" && /^[1-5]$/u.test(String(payload.rating))));
+    if (invalid) return "COMMUNITY_POST_PAYLOAD_INVALID";
+    if (
+      payload.ad_disclosure === "sponsored"
+      && String(payload.sponsorship_detail ?? "").trim().length < 5
+    ) {
+      return "COMMUNITY_POST_SPONSORSHIP_DETAIL_INVALID";
+    }
+    return null;
+  }
+
+  const draft: QuickReviewDraft = {
+    vendorName: "라벨르 스튜디오",
+    category: "studio",
+    rating: 4,
+    review: "실장님이 친절해요",
+    images: [],
+    adDisclosure: "general",
+  };
+
+  function quickReviewRequest(body: unknown, headers: Record<string, string> = { "idempotency-key": idempotencyKey }) {
+    return new NextRequest("http://localhost/api/community/posts", {
+      method: "POST",
+      headers: { "content-type": "application/json", ...headers },
+      body: JSON.stringify(body),
+    });
+  }
+
+  function serviceClient() {
+    const rpc = vi.fn(async (name: string, args: { p_payload: Record<string, unknown> }) => {
+      if (name === "community_replay_post_command_service") return { data: null, error: null };
+      if (name === "community_create_post_service") {
+        const problem = sqlPayloadProblem(args.p_payload);
+        if (problem) return { data: null, error: { code: "22023", message: problem } };
+        return {
+          data: { post: { id: postId, author_id: actorId }, poll_id: null, post_count: 1 },
+          error: null,
+        };
+      }
+      throw new Error(`Unexpected RPC: ${name}`);
+    });
+    const from = vi.fn((table: string) => {
+      if (table !== "profiles") throw new Error(`Unexpected table: ${table}`);
+      return {
+        select: vi.fn(() => ({
+          eq: vi.fn(() => ({
+            maybeSingle: vi.fn(async () => ({ data: { name: "예비부부" }, error: null })),
+          })),
+        })),
+      };
+    });
+    return { rpc, from };
+  }
+
+  function createCall(rpc: ReturnType<typeof serviceClient>["rpc"]) {
+    const call = rpc.mock.calls.find(([name]) => name === "community_create_post_service");
+    expect(call, "저장 RPC 까지 가지 못했다").toBeTruthy();
+    return call![1] as { p_idempotency_key: string; p_payload: Record<string, unknown> };
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.checkCommunityWriteAccess.mockResolvedValue({ allowed: true });
+    mocks.checkRateLimitPersistent.mockResolvedValue(null);
+    mocks.createClientFromRequest.mockResolvedValue({
+      auth: { getUser: vi.fn(async () => ({ data: { user: { id: actorId } } })) },
+    });
+  });
+
+  it("SQL 이 아직 같은 검사를 한다. 대역이 낡으면 여기서 먼저 빨개진다", () => {
+    const sql = readFileSync(
+      path.resolve(
+        process.cwd(),
+        "../../supabase/migrations/20260804200000_community_post_service_write_boundary.sql",
+      ),
+      "utf8",
+    );
+    expect(sql).toMatch(/p_payload -> 'vendor_tags'[\s\S]{0,400}\[0-9a-f\]\{8\}-/u);
+    expect(sql).toMatch(/jsonb_typeof\(p_payload -> 'is_quick_review'\) IS DISTINCT FROM 'boolean'/u);
+    expect(sql).toMatch(/length\(btrim\(COALESCE\(p_payload ->> 'sponsorship_detail', ''\)\)\) < 5/u);
+  });
+
+  it.each([
+    ["일반", { adDisclosure: "general" as const }],
+    ["광고", { adDisclosure: "ad" as const }],
+    ["협찬", { adDisclosure: "sponsored" as const, sponsorshipDetail: "드레스 대여비 1회 제공" }],
+  ])("%s 후기 본문이 라우트를 지나 저장 RPC 검사까지 통과한다", async (_label, disclosure) => {
+    const client = serviceClient();
+    mocks.createAdminClient.mockReturnValue(client);
+    const body = buildQuickReviewPostBody({ ...draft, ...disclosure });
+
+    const response = await POST(quickReviewRequest(body));
+
+    expect(response.status).toBe(201);
+    await expect(response.json()).resolves.toMatchObject({ post: { id: postId } });
+    const { p_idempotency_key, p_payload } = createCall(client.rpc);
+    expect(p_idempotency_key).toBe(idempotencyKey);
+    expect(p_payload).toMatchObject({
+      category: "tour_review",
+      title: "라벨르 스튜디오 후기",
+      content: "실장님이 친절해요",
+      vendor_tags: [],
+      tags: ["studio"],
+      is_quick_review: true,
+      rating: 4,
+      ad_disclosure: disclosure.adDisclosure,
+      sponsorship_detail: disclosure.adDisclosure === "sponsored" ? "드레스 대여비 1회 제공" : null,
+    });
+    expect(sqlPayloadProblem(p_payload)).toBeNull();
+  });
+
+  it("예전 화면 본문(업체 이름을 vendor_tags 에)은 저장 RPC 에서 거절된다. 대역이 실제로 무는지 본다", async () => {
+    const client = serviceClient();
+    mocks.createAdminClient.mockReturnValue(client);
+
+    const response = await POST(quickReviewRequest({
+      ...buildQuickReviewPostBody(draft),
+      vendor_tags: ["라벨르 스튜디오"],
+    }));
+
+    expect(response.status).toBe(503);
+    await expect(response.json()).resolves.toMatchObject({ code: "COMMUNITY_POST_SAVE_FAILED" });
+    expect(createCall(client.rpc).p_payload.vendor_tags).toStrictEqual(["라벨르 스튜디오"]);
+  });
+
+  it("요청 키 헤더가 없으면 본문을 읽기 전에 400 이다. 예전 화면이 늘 맞던 응답이다", async () => {
+    const response = await POST(quickReviewRequest(buildQuickReviewPostBody(draft), {}));
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toMatchObject({ code: "COMMUNITY_POST_IDEMPOTENCY_REQUIRED" });
     expect(mocks.createAdminClient).not.toHaveBeenCalled();
   });
 });

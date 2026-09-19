@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { BookOpen, Check, ChevronRight, Heart, Mail, Plane, Search, ShoppingBag, Video } from "lucide-react";
+import { PREPARATION_PROGRESS_STATUS_LABELS } from "@hanbang/shared/constants";
 
 import CategoryChecklistModal from "@/components/app/schedule/CategoryChecklistModal";
 import Button from "@/components/ui/Button";
@@ -21,11 +22,13 @@ import { getChecklistCounts, mergeChecklist, summarizePlanningChecklist, resolve
 
 type Filter = "all" | "active" | "completed" | "skipped";
 
+// 상태 하나와 딱 맞는 칩(완료, 안 해요)은 공용 사전의 이름을 쓴다. "전체"와 "준비 중"은
+// 상태 하나가 아니다. "준비 중" 칩은 아직과 준비 중을 함께 보여 준다(matchesFilter).
 const FILTERS: Array<{ value: Filter; label: string }> = [
   { value: "all", label: "전체" },
   { value: "active", label: "준비 중" },
-  { value: "completed", label: "완료" },
-  { value: "skipped", label: "해당 없음" },
+  { value: "completed", label: PREPARATION_PROGRESS_STATUS_LABELS.completed },
+  { value: "skipped", label: PREPARATION_PROGRESS_STATUS_LABELS.not_applicable },
 ];
 
 const TEMPLATE_ITEM_COUNT = CATEGORY_CHECKLISTS.reduce(
@@ -45,12 +48,9 @@ const PREPARATION_STAGES = [
 const PROGRESS_CLASS = "block w-full appearance-none overflow-hidden rounded-full border-0 bg-[var(--amora-low)] [&::-webkit-progress-bar]:rounded-full [&::-webkit-progress-bar]:bg-[var(--amora-low)] [&::-webkit-progress-value]:rounded-full [&::-webkit-progress-value]:bg-[var(--amora-rose)] [&::-moz-progress-bar]:rounded-full [&::-moz-progress-bar]:bg-[var(--amora-rose)]";
 const COMPLETED_PROGRESS_CLASS = "block w-full appearance-none overflow-hidden rounded-full border-0 bg-[var(--amora-low)] [&::-webkit-progress-bar]:rounded-full [&::-webkit-progress-bar]:bg-[var(--amora-low)] [&::-webkit-progress-value]:rounded-full [&::-webkit-progress-value]:bg-[var(--amora-sage)] [&::-moz-progress-bar]:rounded-full [&::-moz-progress-bar]:bg-[var(--amora-sage)]";
 
-const STATUS_LABEL: Record<ProgressItem["status"], string> = {
-  not_started: "시작 전",
-  in_progress: "준비 중",
-  completed: "완료",
-  not_applicable: "해당 없음",
-};
+// 온보딩에서 고른 이름과 같은 말이어야 한다. "안 해요"로 고른 분야가 여기서 "해당 없음"으로
+// 보이면 사용자는 자기가 고른 것과 다른 것을 본다(packages/shared preparationProgress.ts).
+const STATUS_LABEL: Record<ProgressItem["status"], string> = PREPARATION_PROGRESS_STATUS_LABELS;
 
 // 화면에서는 처음 준비하는 사람도 이해할 수 있는 말을 먼저 쓰되, 검색에서는
 // 업체·가족과 실제로 주고받는 익숙한 용어도 놓치지 않는다.
@@ -204,7 +204,7 @@ export default function ChecklistContent() {
               </span>
               <span id={`checklist-status-${template.key}`} className="mt-[7px] flex items-center justify-between gap-2 text-[11px] leading-[1.5] text-[var(--amora-muted)] md:mt-[10px] md:text-[11.5px]">
                 {status === "not_applicable" ? (
-                  <><span>진행률과 알림에서 제외됨</span><span className="shrink-0">해당 없음</span></>
+                  <><span>진행률과 알림에서 제외됨</span><span className="shrink-0">{STATUS_LABEL.not_applicable}</span></>
                 ) : declared ? (
                   <><span className={`font-semibold ${statusClass}`}>{STATUS_LABEL[status]}{directionParticle(STATUS_LABEL[status])} 표시함</span><span className="shrink-0">항목은 확인 전</span></>
                 ) : (

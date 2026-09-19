@@ -5,13 +5,23 @@ import { CheckCircle2, AlertTriangle } from "lucide-react";
 import { AD_DISCLOSURE_OPTIONS } from "@/constants/communityCategories";
 import type { AdDisclosure } from "@/types/community.types";
 
-interface AdDisclosureModalProps {
-  onSelect: (result: { adDisclosure: AdDisclosure; sponsorshipDetail?: string }) => void;
+export interface AdDisclosureChoice {
+  adDisclosure: AdDisclosure;
+  sponsorshipDetail?: string;
 }
 
-export default function AdDisclosureModal({ onSelect }: AdDisclosureModalProps) {
-  const [selected, setSelected] = useState<AdDisclosure | null>(null);
-  const [detail, setDetail] = useState("");
+interface AdDisclosureModalProps {
+  onSelect: (result: AdDisclosureChoice) => void;
+  /**
+   * 실패 뒤 다시 열 때 채워 둘 지난 선택. 처음 열 때는 넘기지 않는다(고르지 않고는 넘어갈 수 없다).
+   * 같은 선택을 그대로 돌려줘야 다시 보낸 본문이 같아지고, 같은 요청 키로 가서 글이 두 번 생기지 않는다.
+   */
+  initialChoice?: AdDisclosureChoice | null;
+}
+
+export default function AdDisclosureModal({ onSelect, initialChoice = null }: AdDisclosureModalProps) {
+  const [selected, setSelected] = useState<AdDisclosure | null>(initialChoice?.adDisclosure ?? null);
+  const [detail, setDetail] = useState(initialChoice?.sponsorshipDetail ?? "");
   const [error, setError] = useState<string | null>(null);
 
   const handleSubmit = () => {

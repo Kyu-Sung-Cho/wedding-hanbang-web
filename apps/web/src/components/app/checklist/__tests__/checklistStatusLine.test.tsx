@@ -2,7 +2,7 @@ import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { CATEGORY_CHECKLISTS } from "@hanbang/shared/constants";
+import { CATEGORY_CHECKLISTS, PREPARATION_PROGRESS_STATUS_LABELS } from "@hanbang/shared/constants";
 
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean })
   .IS_REACT_ACT_ENVIRONMENT = true;
@@ -93,17 +93,18 @@ describe("분야 한 줄이 상황마다 하는 말", () => {
 
   it("아무것도 안 한 분야 — 개수와 상태를 함께 쓴다", () => {
     drawWith({});
-    expect(lineForCategory()).toContain(`0/${total}개 완료 · 시작 전`);
+    // 상태 이름은 온보딩과 같은 공용 사전의 말이다. 옛 말("시작 전")을 여기 베껴 두지 않는다.
+    expect(lineForCategory()).toContain(`0/${total}개 완료 · ${PREPARATION_PROGRESS_STATUS_LABELS.not_started}`);
   });
 
   it("항목을 일부 체크 — 개수가 실제와 같다", () => {
     drawWith({ [category.key]: { status: "in_progress", checklist: items(2) } });
-    expect(lineForCategory()).toContain(`2/${total}개 완료 · 준비 중`);
+    expect(lineForCategory()).toContain(`2/${total}개 완료 · ${PREPARATION_PROGRESS_STATUS_LABELS.in_progress}`);
   });
 
   it("항목을 다 체크 — 완료라고 말해도 개수가 뒷받침한다", () => {
     drawWith({ [category.key]: { status: "completed", checklist: items(total) } });
-    expect(lineForCategory()).toContain(`${total}/${total}개 완료 · 완료`);
+    expect(lineForCategory()).toContain(`${total}/${total}개 완료 · ${PREPARATION_PROGRESS_STATUS_LABELS.completed}`);
   });
 
   it("온보딩이 분야만 완료로 표시 — 개수를 쓰지 않고 이유를 말한다", () => {
@@ -137,7 +138,7 @@ describe("분야 한 줄이 상황마다 하는 말", () => {
     }));
     drawWith({ [category.key]: { status: "completed", checklist: saved } });
     const line = lineForCategory();
-    expect(line).toContain(`${total - 1}/${total}개 완료 · 준비 중`);
+    expect(line).toContain(`${total - 1}/${total}개 완료 · ${PREPARATION_PROGRESS_STATUS_LABELS.in_progress}`);
     expect(line).not.toContain("· 완료");
   });
 });
