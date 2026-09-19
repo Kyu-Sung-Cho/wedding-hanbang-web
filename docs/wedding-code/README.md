@@ -12,7 +12,7 @@
 
 **이번 변경의 상태:** 아래의 응답 요약 v2, 직접 도움 설정, 선택형 취향·개인 상담 연결은
 현재 작업 트리에 구현됐다. 2026-09-19 수정과 2026-09-20 추가 수정 모두 로컬 전체 관문과 웹 빌드를 통과했다.
-**최종 관문 PASS: 2026-09-20 02:14:11 KST. 다음 대화 8곳의 추가 보완까지 전체 관문과 빌드를 통과했다. 운영 배포 안 됨.**
+**로컬 최종 관문 PASS: 2026-09-20 02:14:11 KST. 다음 대화 8곳의 추가 보완까지 전체 관문과 빌드를 통과했다. 이 확인 시점에는 운영 배포 전이었다.** 이후 병합·배포 상태와 운영 확인 결과는 [릴리스 PR #431](https://github.com/Kyu-Sung-Cho/wedding-hanbang-web/pull/431)의 commit·검사·Vercel 배포 기록을 따른다.
 추가 수정의 범위와 최신 검증 상태는 [다음 대화 추가 검수](./2026-09-20_followup_conversation_review.md)를 따른다.
 기본 교정은 [`v1.2 교정 기록`](./2026-09-19_v12_question_revision.md), 최신 실행 결과와 미검증 범위는
 [`소비자 역할 테스트 기록`](./2026-09-20_consumer_walkthrough.md)을 따른다.
@@ -158,7 +158,7 @@
 | `63` | `PRODUCT-DESIGN-PLAN / LOCAL-PROTOTYPE-ONLY` | `61`의 §2·§3을 화면·카피·파일로 내린 실행 기획과 2026-07-28 로컬 실측 | 운영 출시 승인, 차단 해제, 점수·유형 승인 |
 | `64` | `ADVERSARIAL-AUDIT / OPEN-FINDINGS` | `63` 구현(PR #75)의 독립 적대 감사. 반증 통과 21건과 머지 전 닫을 M1~M4 | 구현이 검증됐다는 근거(오히려 가드 결손을 지적한 문서다) |
 | `/wedding-code` v1.2 / v1.1·v1.0·v0.9·v0.8·v0.6 호환 | `PUBLIC CONVERSATION TOOL / UNVALIDATED UTILITY` | 실제 선택 문장 비교, 본인 응답의 셈·인용·부재 요약, 장면별 다음 대화 제안, URL 공유 | 심리검사·성향 유형·궁합·갈등 또는 결혼 결과 예측 |
-| `2026-09-09_direct_preferences_design.md` | `IMPLEMENTED / LOCAL VERIFICATION PASSED / DEPLOYMENT PENDING` | 응답 요약 v2, 직접 도움 설정, 선택형 취향·공유·개인 상담 인계의 구현 계약 | 운영 배포·운영 DB·실제 계정 저장 검증 완료 주장, 측정 연구 재개 승인 |
+| `2026-09-09_direct_preferences_design.md` | `IMPLEMENTED / LOCAL VERIFICATION PASSED` | 응답 요약 v2, 직접 도움 설정, 선택형 취향·공유·개인 상담 인계의 구현 계약. 배포 상태는 릴리스 PR #431에서 확인 | 이 설계 문서만으로 운영 배포·운영 DB·실제 계정 저장 검증 완료 주장, 측정 연구 재개 승인 |
 | `56`, `57` | `SUPERSEDED-RESEARCH-LINEAGE / M0` | Candidate 5 계보·회귀 비교 | 새 제품·연구 구현 기준 |
 | `00`, `02a`, `02b`, `22` | `REFERENCE-ONLY` | 출처 품질·시장 장면·안전 원칙 참고 | 선택지·축·점수의 타당도 주장 |
 | `21` | `RETIRED` | 과거 성장 아이디어 감사 | 답 공개, 분포, 유형, 게임화 구현 |
