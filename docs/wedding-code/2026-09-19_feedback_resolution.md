@@ -199,7 +199,7 @@ PDF에 등장한 문항만이 아니라 A1–A5, B1–B5, C1–C5, D1–D5 전�
 - 작업 브랜치: `codex/wedding-code-feedback-20260919`
 - 작업 트리: `C:/Users/kcho1/.codex/worktrees/wedding-code-feedback-20260919/wedding`
 - 로컬 미리보기: `http://localhost:3219/wedding-code` — 합성 설정으로 실행한 로컬 빌드다.
-- 이 작업은 커밋·푸시·운영 배포를 실행하지 않았다.
+- 이 문서의 최종 로컬 검증 시점(2026-09-19 17:57:58 KST)에는 커밋·푸시·운영 배포를 실행하지 않았다. 이후 작업 상태는 [현재 상태 인덱스](./README.md)를 따른다.
 
 ## 아직 확인하지 않은 것
 
