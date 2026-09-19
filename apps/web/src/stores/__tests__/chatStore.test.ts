@@ -2865,6 +2865,51 @@ describe("Amora crisis reload recovery", () => {
     expect(JSON.stringify(privacyCard?.metadata)).not.toContain(disclosure);
   });
 
+  // 2026-09-17 운영 재검사: 이 문장이 상대 호칭 뒤 `맞았` 하나로 안전 신호가 되어
+  // 나만 레인으로 옮겨지고 "긴급 안전 안내" 카드가 붙었으며 확인 표식도 버려졌다.
+  it("keeps an ordinary \"신랑 말이 맞았어\" decision in the shared lane", async () => {
+    const decision = "어제 결혼식장 고르는 문제로 신랑이랑 얘기했는데 결국 신랑 말이 맞았어. 그 식장으로 하자.";
+    mockFetch.mockResolvedValueOnce(completedChatResponse("그 식장으로 정리해볼게요"));
+
+    const outcome = await useChatStore.getState().sendMessage({
+      content: decision,
+      senderId: TEST_USER_UUID,
+      senderRole: "bride",
+      coupleId: TEST_COUPLE_UUID,
+      senderName: "테스터",
+      weddingContext: {} as WeddingContext,
+      target: "ai",
+      visibility: "shared",
+      clientRequestId: TEST_CLIENT_REQUEST_UUID,
+      confirmedActionId: TEST_CONFIRMED_ACTION_UUID,
+    });
+
+    // 비공개로 옮겨졌을 때만 effectiveVisibility·safetyPrivacyRedirected 가 붙는다.
+    expect(outcome).toEqual({
+      userMessage: "persisted",
+      userMessageId: "user-message-1",
+    });
+    const ingestPayload = JSON.parse(String(
+      (mockIngestFetch.mock.calls[0]?.[1] as RequestInit).body,
+    ));
+    expect(ingestPayload).toEqual(expect.objectContaining({
+      content: decision,
+      requestedVisibility: "shared",
+      target: "ai",
+      confirmedActionId: TEST_CONFIRMED_ACTION_UUID,
+    }));
+    const providerPayload = JSON.parse(String(
+      (mockFetch.mock.calls[0]?.[1] as RequestInit).body,
+    ));
+    expect(providerPayload.visibility).toBe("shared");
+
+    const messages = useChatStore.getState().messages;
+    expect(messages.some((message) => message.metadata?.response_origin
+      === "client_deterministic_safety_privacy_preflight")).toBe(false);
+    expect(messages.some((message) => message.metadata?.pinned_safety_card === true)).toBe(false);
+    expect(useChatStore.getState().artifactVisibility).toBe("shared");
+  });
+
   it("honors a server safety fallback without calling the provider or copying raw text", async () => {
     const rawText = "웨딩 체크리스트를 알려줘";
     mockIngestFetch.mockResolvedValueOnce(new Response(JSON.stringify({

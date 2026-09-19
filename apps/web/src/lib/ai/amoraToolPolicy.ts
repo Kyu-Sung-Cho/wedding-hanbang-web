@@ -516,6 +516,24 @@ export interface SelectAmoraToolsInput {
   specialistMatchedByKeyword?: boolean;
 }
 
+/**
+ * 짧은 답이 이어받는 **앞 요청**(연속성 닻). 라우트가 되묻기·도구 의도 연속성을
+ * 증명한 턴에서만 넘긴다.
+ */
+export interface AmoraProposalContinuityAnchor {
+  /** 연속성으로 붙은 직전 W0 사용자 발화(`carriedToolIntent.priorUserText`). */
+  priorUserText: string;
+  /** 그 발화만으로 고른 전문분야 — 그 발화가 자기 턴에서 받았던 라우팅이다. */
+  priorSpecialistType: SpecialistType;
+  priorSpecialistMatchedByKeyword: boolean;
+  /** 지금 사용자 발화(앞 요청을 붙이기 전). */
+  replyText: string;
+}
+
+export interface SelectAmoraPendingProposalToolsInput extends SelectAmoraToolsInput {
+  continuityAnchor?: AmoraProposalContinuityAnchor;
+}
+
 function addAll(target: Set<string>, names: readonly string[]): void {
   for (const name of names) target.add(name);
 }
@@ -524,14 +542,226 @@ function addAll(target: Set<string>, names: readonly string[]): void {
  * Narrows server-issued, confirmation-required proposals by conversation
  * domain. Unlike selectAmoraTools this never authorizes a write; it only
  * limits which validated proposal marker the assistant may offer.
+ *
+ * ## 짧은 답은 앞 요청이 받았던 것을 받는다 (2026-09-17)
+ *
+ * 라이브 재현(세 단계 모두 같았다):
+ *
+ *   사용자: "… 이 기준으로 항목별 예산 배분을 표로 짜주고, 왜 그렇게 나눴는지도 알려줘."
+ *   아모라: (배분표)                                   ← 이 턴은 예산 카드 도구 4개
+ *   사용자: "응, 이대로 실제 예산에 반영해줘."
+ *   아모라: "… 적용할까요?"                             ← 글로만 되물음
+ *   사용자: "응 적용해줘"                               ← 카드 도구 0개
+ *   아모라: (기능이 없다며 예산 화면에서 직접 입력하라고 안내)
+ *
+ * 라우트는 연속성이 증명된 턴에서 앞 요청과 답을 이어 붙여 넘기는데, 전문분야와
+ * 키워드 일치 여부는 **답만** 보고 정한다. 답에는 키워드가 없어 아래 관문 해제가
+ * 꺼지고, 이어 붙인 문장의 `NON_EXECUTABLE_RESTORE` 가 **앞 요청 자신의**
+ * "알려줘"(또는 "추천해"·"좋을까")에 걸렸다. 앞 요청은 자기 턴에서 키워드로 배분
+ * 경로에 들어가 같은 관문을 통과했었다 — 이어받는 답이 이어받은 요청보다 적게 받았다.
+ *
+ * 그래서 닻이 있으면 **앞 요청이 자기 턴에서 받았던 제안 도구**를 더한다. 단
+ * 아무 답에나 더하지는 않는다 — 답이 **그 제안을 그대로 실행해 달라는 말뿐일 때**
+ * 전부를, **금액 하나만 고쳐 달라는 말뿐일 때** 그 중 예산 카드 도구만 더한다
+ * (`carriedProposalToolsForReply`). 더해지는 것은 언제나 앞 요청이 이미 받았던 것이라
+ * 새 권한이 없고, 이어 붙인 문장의 결과는 그대로 포함하므로 어떤 턴도 전보다 줄지 않는다.
+ *
+ * 전문분야를 이어 붙인 문장에서 다시 고르지 않는다 — 그러면 "음 고민 중이야"·
+ * "응 근데 추천해줘" 같은 답도 열리고, "친구는 드레스에 300만원 썼대" 뒤의
+ * "네 반영해줘" 가 전언 자신보다 많이 받는다.
  */
-export function selectAmoraPendingProposalTools({
-  availableTools,
+export function selectAmoraPendingProposalTools(
+  input: SelectAmoraPendingProposalToolsInput,
+): AiToolDefinition[] {
+  // 이어 붙인 문장으로 고른 것 — 이 수리 전과 같다.
+  const names = pendingProposalToolNames(input);
+  const anchor = input.continuityAnchor;
+  if (anchor) {
+    // 앞 요청이 자기 턴에서 받았던 것. 답은 이 묶음 **안에서만** 이어받는다.
+    const carried = pendingProposalToolNames({
+      ...input,
+      userText: anchor.priorUserText,
+      specialistType: anchor.priorSpecialistType,
+      specialistMatchedByKeyword: anchor.priorSpecialistMatchedByKeyword,
+    });
+    for (const name of carriedProposalToolsForReply(anchor.replyText, carried)) {
+      names.add(name);
+    }
+  }
+  return input.availableTools.filter((tool) => names.has(tool.name));
+}
+
+/**
+ * 답이 앞 제안에서 **무엇을** 이어받는가. 기본은 아무것도 아니다.
+ *
+ * 이어받는 모양은 둘뿐이고, 둘 다 **답 전체**를 대조한다 — 목록 밖 낱말이 하나라도
+ * 섞이면 그 답은 이어받지 않는다.
+ *
+ *  1. 순수 실행 부탁(`CARRIED_PROPOSAL_PURE_APPLY`): 승낙어 · 지시어(이대로·그대로…) ·
+ *     전부/다 · 실행 동사뿐인 답. 앞 제안의 도구 **전부**를 받는다.
+ *  2. 금액 정정(`CARRIED_PROPOSAL_AMOUNT_CORRECTION`): "(아니) (항목은) 금액으로 해줘"
+ *     뿐인 답. 앞 제안의 도구 중 **예산 카드 도구만** 받는다 — 앞 제안에 예산 도구가
+ *     없으면 아무것도 받지 않는다.
+ *
+ * 그 밖의 답은 이어 붙인 문장이 스스로 받는 것만 받는다(닻이 없던 때와 같다).
+ *
+ * ## 왜 무름·보류·빼기·축 목록을 버렸나 (2026-09-18 재검사 (3))
+ *
+ * 앞 판은 "실행·정정 어형이면 열되, 무름·보류·한 줄 빼기·다른 축이 보이면 닫는다" 였다.
+ * 닫는 쪽이 전부 **낱말 목록**이었고, 재검사마다 목록 밖 어형이 새로 샜다:
+ *
+ *  - 동사가 떨어진 제거 — "예단 빼고 저장해줘"·"스냅 없이 반영해줘" 는 뒤 절이 실행
+ *    부탁이라 열렸다. `apply_budget_plan`(배분 **전체**를 반영하는 도구)까지 받았다.
+ *  - 보류 시각 낱말 — "상견례 끝나고 적용해줘"·"이번 주말에 반영해줘" 는 보류 목록에
+ *    없는 시각이라 열렸다.
+ *  - 축 비교가 **거르개가 아니라 거부권**이었다 — 답이 앞 제안에 있던 축 하나를 가리키면
+ *    그 축만이 아니라 앞 제안의 도구 **전부**를 받았다(일정·할 일을 함께 받은 앞 요청
+ *    뒤의 상견례 날짜 답이 할 일 도구까지 받았다).
+ *  - 물음표가 붙은 부탁 — "이대로 적용해줘?"·"4천으로 해줘?" 는 정정 갈래로 열렸다.
+ *
+ * 닫아야 하는 말은 끝이 없고 이어받아야 하는 말은 모양이 좁다. 그래서 목록을 늘리지
+ * 않고 **여는 모양만** 적는다. 무름·시각·빼기·물음표·다른 동사·새 대상은 그 모양
+ * 밖이라 따로 셀 필요가 없다 — 목록에 없는 말이 새로 와도 닫힌 채로 남는다. 같은 판에서
+ * `isNotOurDecision` 도 이 자리에서 걷었다: "농담이야 이대로 적용해줘" 의 앞말이 곧 모양 밖이다.
+ *
+ * 재측정(앞 라운드 어형 479가지 × 앞 요청 2개 × 단계 3개, 개인 레인 포함)에서 닻이 더한
+ * 칸은 순수 실행 부탁 210칸과 금액 정정 24칸(전부 예산 카드 도구)뿐이었다. 버킷별 전/후
+ * 표는 `amoraProposalContinuityAnchor.test.ts` 의 `MATRIX` 주석에 있다.
+ *
+ * ## 정정을 왜 남겼나 — 재 보니 닻 없이는 받지 못한다
+ *
+ * 이 판을 짜기 전에 같은 축 정정 셋을 **닻 없이** 실제 선택기에 넣어 쟀다(앞 요청 = 배분표
+ * 계획, 단계 3개):
+ *
+ *   답                        닻 없음(이어 붙인 문장)    앞 요청 자기 몫
+ *   "아니 4천으로 해줘"          0 / 0 / 0                 4 / 4 / 4
+ *   "드레스는 300으로 해줘"       0 / 0 / 0                 4 / 4 / 4
+ *   "총예산 3500으로 해줘"        4 / 4 / 4                 4 / 4 / 4
+ *
+ * 셋째는 `총예산` 이 키워드로 배분 경로를 열어 스스로 받지만, 앞의 둘은 이어 붙인 문장이
+ * 앞 요청의 "알려줘" 에 걸려 0개다. 이어받지 않으면 "아니 4천으로 해줘" 에서 D1("응
+ * 적용해줘" → 카드 0개)이 그대로 되살아난다. 그래서 정정 갈래를 남기되 좁혔다 — 금액이
+ * 있어야 하고, 금액을 고치는 말 **뿐**이어야 하며, 받는 것은 예산 카드 도구뿐이다.
+ *
+ * **날짜 정정은 이 갈래에 없다.** 날짜는 그 자체가 시각 표현이라 "다음 주 화요일로
+ * 옮겨줘"(새 값)와 "다음 주에 적용해줘"(보류)를 글자로 가르려면 다시 목록이 필요하다.
+ * 일정 제안 뒤의 "아니 10월 18일로 해줘" 는 이제 이어받지 않는다 — 닻이 없던 `main` 과
+ * 같은 상태이고, "본식 일정 10월 18일로 옮겨줘" 처럼 대상을 말하면 스스로 받는다.
+ * 치른 값이라 테스트가 그 칸을 함께 적는다.
+ *
+ * ## 이미 있는 판정기를 왜 그대로 쓰지 않았나
+ *
+ * - `classifyAmoraTypedCardAcceptance`(amoraTypedCardAcceptance.ts)가 순수 실행 부탁의
+ *   원형이고 **문법을 그대로 빌렸다**. 맨 승낙("응"·"네")을 인정하지 않는 것도 그 파일의
+ *   판단이다 — 닻은 아모라가 **무엇을** 되물었는지 모른다("적용할까요?" 인지 "일정도 잡아
+ *   드릴까요?" 인지). 다만 낱말이 다르다(그 파일은 `알겠어` 를 승낙으로 보고 `맞아` 는
+ *   모르며, 실행 동사가 넷뿐이다). 그 파일을 넓히면 카드를 옮기는 다른 계약이 같이 바뀐다.
+ * - `CHANGE_REQUEST_TO_AMORA`·`hasNewAmoraChangeIntent` 는 "부탁 어미로 끝나는가" 를
+ *   **문장 끝에서** 본다. 앞에 무엇이 붙어 있는지는 안 본다 — 이 판이 버린 구조 그대로다.
+ */
+function carriedProposalToolsForReply(
+  replyText: string,
+  carriedToolNames: ReadonlySet<string>,
+): string[] {
+  const normalized = replyText.normalize("NFKC").replace(/\s+/gu, " ").trim();
+  if (CARRIED_PROPOSAL_PURE_APPLY.test(normalized)) return [...carriedToolNames];
+  if (CARRIED_PROPOSAL_AMOUNT_CORRECTION.test(normalized)) {
+    // 거르개다 — 앞 제안이 예산 말고 다른 축도 받았어도 금액 정정은 예산 도구만 받는다.
+    return BUDGET_WRITE_TOOLS.filter((name) => carriedToolNames.has(name));
+  }
+  return [];
+}
+
+// ── 순수 실행 부탁 한 마디의 문법 ──────────────────────────────────
+//
+// 아래 조각을 이어 `CARRIED_PROPOSAL_PURE_APPLY` 를 만든다. 조각은 **정규식 리터럴**로
+// 두고 `.source` 로 잇는다 — 문자열로 쓰면 `\s` 가 그냥 s 로 죽어 조용히 오작동한다(이
+// 파일의 `KRW_AMOUNT` 주석이 적은 사고이고, 이 관문을 처음 짤 때도 한 번 밟았다).
+
+/**
+ * 승낙어 머리. `알겠어` 는 없다 — 카드가 없는 자리에서 "알겠어" 는 인정이지 실행 부탁이 아니다.
+ *
+ * `좋아` 뒤에만 띄어쓰기나 쉼표를 요구한다. 붙여 쓰면 "좋아해"·"좋아해요"·"좋아하자" 처럼
+ * **좋아하다**가 되고, 그것은 실행 부탁이 아니라 마음에 든다는 말이다(2026-09-18 재검사:
+ * 붙여 쓴 좋아하다 일곱 어형이 이어받았다). 다른 승낙어는 붙여 써도 다른 낱말이 되지
+ * 않으므로("응해줘"·"ㅇㅇ해줘") 그대로 둔다.
+ */
+const CARRIED_APPLY_AFFIRMATION_LEAD =
+  /(?:(?:(?:응+|웅|네+|넹|넵|예|그래요?|그럼요?|좋습니다|맞아요?|오케이|ok(?:ay)?|[ㅇᄋ]{2}|[ㅇᄋ][ㅋᄏ]+)[\s,]*|좋아요?[\s,]+)){0,2}/;
+/**
+ * 앞 제안을 가리키는 말 — 지시어, 전부/다, 내용 없는 부사(그냥·좀). 전부 선택이고 어느
+ * 것도 **새 대상이나 값**이 아니다. 시각(지금·나중에)은 일부러 없다.
+ */
+const CARRIED_APPLY_POINTER =
+  /(?:(?:그냥|좀)\s*)?(?:(?:이대로|그대로|그렇게|그걸로|그거로|그것으로|제안대로|카드대로|(?:방금|기존|위|아까)\s*(?:제안|내용)\s*대로)\s*)?(?:(?:전부|모두|다)\s*){0,2}(?:(?:그냥|좀)\s*)?/;
+/**
+ * 실행해 달라는 어형. 되돌리는 동사(취소·삭제·빼)도, 방향을 정하는 동사(올려·내려·줄여·
+ * 늘려·옮겨·고쳐)도 없다 — 앞의 것은 제안 뒤에서 거절이고, 뒤의 것은 제안을 **바꾸라는**
+ * 말이라 그대로 실행하는 것이 아니다. 맨 "해줘"·"하자" 는 실행 부탁이다("응 해줘").
+ *
+ * 맨 "할게" 는 없다 — "그렇게 할게" 는 아모라에게 맡기는 말이 아니라 **사용자가 하겠다**는
+ * 인정이다. 실행 동사에 붙은 "적용할게요" 만 제안대로 하겠다는 답으로 본다.
+ */
+const CARRIED_APPLY_ACTION =
+  /(?:(?:적용|반영|저장|진행|등록|추가|기록|배분|설정|확정)\s*(?:해\s*(?:줘요?|주세요|주라|줄래요?|주실래요?|요)?|하자|할게요?|합시다|부탁(?:해요?|드려요|드립니다)?)|(?:넣어|잡아|바꿔|맞춰|나눠)\s*(?:줘요?|주세요|주라|줄래요?|주실래요?)|해\s*(?:줘요?|주세요|주라|줄래요?|주실래요?|요)?|하자|합시다|부탁(?:해요?|드려요|드립니다)?)/;
+/**
+ * 끝의 문장부호·웃음. **물음표는 없다** — "이대로 적용해줘?" 는 부탁이 아니라 되묻는 말이다.
+ * 승낙어 `[ㅇᄋ][ㅋᄏ]+` 는 실행 부탁 **앞**에서만 읽히므로 꼬리에 ㅋ 를 허용해도 "ㅇㅋ" 가
+ * 부서지지 않는다(amoraTypedCardAcceptance.ts 리뷰 [5]).
+ */
+const CARRIED_APPLY_TAIL = /[\s.!~。…ㅋㅎᄏᄒ^]*$/;
+/** **답 전체**가 승낙어 + 앞 제안을 가리키는 말 + 실행 부탁이어야 한다. 앞뒤를 묶는 것이 관문의 전부다. */
+const CARRIED_PROPOSAL_PURE_APPLY = new RegExp(
+  "^" + CARRIED_APPLY_AFFIRMATION_LEAD.source
+    + CARRIED_APPLY_POINTER.source
+    + CARRIED_APPLY_ACTION.source
+    + CARRIED_APPLY_TAIL.source,
+  "iu",
+);
+
+// ── 금액 정정 한 마디의 문법 ───────────────────────────────────────
+
+/** 정정의 머리 — "아니"·"그건 아니야" 처럼 앞 값을 아니라고 하는 말 하나. 그 뒤에 새 금액이 와야 한다. */
+const CARRIED_CORRECTION_LEAD =
+  /(?:(?:(?:이건|그건|이게|그게)\s*)?(?:아니(?:야|요|에요)?|아냐|아뇨)[\s,.!]*)?/;
+/**
+ * 무엇의 금액인가 — 선택. 이 파일이 이미 쓰는 항목 이름·예산 어휘만 받는다. 목록 밖
+ * 낱말("나중에"·"내일은")은 대상이 될 수 없어서 그 답은 이어받지 않는다.
+ */
+const CARRIED_CORRECTION_TARGET_WORD = new RegExp(
+  [/(?:총|전체)?\s*예산|식대/.source, BUDGET_CATEGORY_WORDS.source].join("|"),
+);
+/** 대상 낱말 뒤 — "메이크업 예산" 의 `예산` 과 조사 하나. */
+const CARRIED_CORRECTION_TARGET_TAIL = /(?:\s*예산)?\s*(?:은|는|이|가|을|를|만|도)?\s*/;
+/**
+ * 새 금액. 단위를 생략한 구어("300으로"·"4천으로")도 금액이다. 날짜·시각·사람 수의
+ * 단위(월·일·시·명)는 받지 않는다 — 금액 정정만 이 갈래다.
+ *
+ * 소수점은 **단위가 붙을 때만** 받는다("1.5억으로"·"2.5천으로"). 단위 없는 점은 금액이
+ * 아니라 날짜·시각이다 — "3.15로 해줘"·"7.30으로 바꿔줘" 가 금액 정정으로 읽혀 예산
+ * 도구를 이어받았다(2026-09-18 재검사). 단위 없는 숫자는 맨 마지막 덩어리에만 온다.
+ */
+const CARRIED_CORRECTION_AMOUNT =
+  /(?:\d[\d,]*(?:\.\d+)?\s*(?:억|천만|백만|십만|천|백|십|만)\s*){0,2}\d[\d,]*(?:(?:\.\d+)?\s*(?:억|천만|백만|십만|천|백|십|만))?\s*원?\s*(?:으로|로)\s*(?:좀\s*)?/;
+/** 금액을 그 값으로 두라는 어형. 되돌리는 동사는 없다. */
+const CARRIED_CORRECTION_VERB =
+  /(?:(?:해|바꿔|맞춰|올려|내려|낮춰|줄여|늘려|고쳐|잡아|(?:변경|수정|조정|설정)\s*해)\s*(?:줘요?|주세요|주라|줄래요?|주실래요?|요)?|하자|할게요?|합시다|(?:변경|수정|조정)\s*(?:하자|부탁(?:해요?|드려요|드립니다)?)|부탁(?:해요?|드려요|드립니다)?)/;
+/** **답 전체**가 (아니) + (대상) + 금액 + 정정 동사여야 한다. 물음표·시각·무름·빼기가 섞이면 맞지 않는다. */
+const CARRIED_PROPOSAL_AMOUNT_CORRECTION = new RegExp(
+  "^" + CARRIED_CORRECTION_LEAD.source
+    + "(?:(?:" + CARRIED_CORRECTION_TARGET_WORD.source + ")" + CARRIED_CORRECTION_TARGET_TAIL.source + ")?"
+    + CARRIED_CORRECTION_AMOUNT.source
+    + CARRIED_CORRECTION_VERB.source
+    + CARRIED_APPLY_TAIL.source,
+  "iu",
+);
+
+function pendingProposalToolNames({
   userText,
   specialistType,
   checklistLabels,
   specialistMatchedByKeyword,
-}: SelectAmoraToolsInput): AiToolDefinition[] {
+}: SelectAmoraToolsInput): Set<string> {
   const selected = new Set<string>();
   // 남의 이야기와 가정에는 카드를 내지 않는다. `selectAmoraTools` 는 이 가드를
   // 쓰는데 제안 경로만 빠져 있어서, "친구는 드레스에 300만원 썼대" 에도 예산
@@ -542,7 +772,7 @@ export function selectAmoraPendingProposalTools({
   // (이 수리 중 실제로 7개였던 도구가 0개가 됐다.) 두 정규식의 차이가 정확히
   // 그 낱말 하나다.
   // 출처가 우리가 아닌 말은 어떤 경로에서도 카드가 되면 안 된다.
-  if (isNotOurDecision(userText)) return [];
+  if (isNotOurDecision(userText)) return selected;
   // 값이 덜 정해진 말은 보통 카드를 안 내지만, 서버가 배분·일정 전문 경로로 보낸
   // 턴에서는 그것이 **정상이고 방아쇠**다. `NON_EXECUTABLE_RESTORE` 도 같은 성격이라
   // (`좋을까|어떨|추천해`) 함께 예외를 받는다 — 남 이야기 쪽은 위 가드가 이미 잡는다.
@@ -552,8 +782,8 @@ export function selectAmoraPendingProposalTools({
     && (specialistType === "budget_optimizer"
       || specialistType === "ceremony_coordinator");
   if (!routedToPlanningSpecialist) {
-    if (NON_EXECUTABLE_RESTORE.test(userText)) return [];
-    if (isUnsettledValue(userText)) return [];
+    if (NON_EXECUTABLE_RESTORE.test(userText)) return selected;
+    if (isUnsettledValue(userText)) return selected;
   }
   // 제안 경로는 쓰기 권한이 아니라 "확인 카드를 낼 수 있는가"만 정한다(아래 주석 참고).
   // 좁게 잡으면 "내년 5월 20일에 결혼해"처럼 가장 자연스러운 확정 발화가
@@ -593,7 +823,7 @@ export function selectAmoraPendingProposalTools({
     selected.add("update_venue");
   }
   if (ACTION_INTENT.test(userText)) addAll(selected, ACTION_WRITE_TOOLS);
-  return availableTools.filter((tool) => selected.has(tool.name));
+  return selected;
 }
 
 /**

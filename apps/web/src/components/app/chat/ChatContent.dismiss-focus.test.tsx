@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ChatMessage } from "@/types/database.types";
 import { getAmoraToolOperationIdentity } from "@/lib/ai/amoraToolIdentity";
 import { getAmoraPendingActionTtlMs } from "@/lib/ai/amoraActionApprovalPolicy";
+import { AMORA_QUEUED_CARD_SKIP_TEXT } from "@/lib/ai/amoraQueuedCardSkip";
 
 // 기존 ChatContent fixture의 스토어 경계만 사용하고 제안 카드·확인 시트는 실제로 연다.
 const mocks = vi.hoisted(() => ({
@@ -179,6 +180,50 @@ describe("제안을 나중에 정할 때 대화 초점", () => {
     await act(async () => triggers[0].click());
     expect(document.querySelector('[data-amora-sheet][role="dialog"]')).not.toBeNull();
     expect(mocks.messages.at(-1)?.metadata?.pending_amora_action).toEqual(action);
+    expect(mocks.sendMessage).not.toHaveBeenCalled();
+  });
+
+  // 2026-09-18: 대기열 카드의 "이 항목 건너뛰기" 는 숨기기와 달리 서버에 알린다. 적용이 아니므로
+  // 확인 id 없이 고정 문장만 공유 대화로 보낸다.
+  function withQueue(remainingActions: unknown[], currentActionId?: string) {
+    const original = mocks.messages[0];
+    const pending = original.metadata!.pending_amora_action!;
+    mocks.messages = [{ ...original, metadata: { ...original.metadata, pending_amora_action_queue: {
+      version: 1, queueId: pending.actionId, currentActionId: currentActionId ?? pending.actionId,
+      totalCount: remainingActions.length + 2, completedCount: 1, remainingActions,
+    } } }];
+    return pending;
+  }
+
+  it("대기열 카드에서 건너뛰면 확인 id 없이 고정 문장만 보낸다", async () => {
+    const pending = withQueue([{ tool: "add_schedule_event", input: { date: "2027-03-01", title: "본식 드레스 가봉" } }]);
+    await render();
+    await flushFrames();
+    // 숨기기는 그대로 아무것도 보내지 않는다.
+    expect(button("지금은 적용하지 않기")).toBeDefined();
+    const skip = button("이 항목 건너뛰기");
+    await act(async () => skip.click());
+    expect(mocks.sendMessage).toHaveBeenCalledOnce();
+    const sent = mocks.sendMessage.mock.calls[0]?.[0] as Record<string, unknown>;
+    expect(sent).toMatchObject({
+      content: AMORA_QUEUED_CARD_SKIP_TEXT,
+      target: "ai",
+      visibility: "shared",
+      senderId: mocks.profileId,
+      coupleId: mocks.coupleId,
+    });
+    expect(sent).not.toHaveProperty("confirmedActionId");
+    expect(JSON.stringify(sent)).not.toContain(pending.actionId);
+  });
+
+  it.each([
+    ["마지막 항목", [], undefined],
+    ["다른 카드의 대기열", [{ tool: "add_schedule_event", input: { date: "2027-03-01", title: "본식 드레스 가봉" } }], "99999999-9999-4999-8999-999999999999"],
+  ] as const)("%s 에는 건너뛰기를 두지 않는다", async (_name, remaining, currentActionId) => {
+    withQueue([...remaining], currentActionId);
+    await render();
+    await flushFrames();
+    expect([...container.querySelectorAll("button")].some(item => item.textContent?.trim() === "이 항목 건너뛰기")).toBe(false);
     expect(mocks.sendMessage).not.toHaveBeenCalled();
   });
 

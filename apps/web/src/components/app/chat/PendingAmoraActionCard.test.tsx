@@ -4,9 +4,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import PendingAmoraActionCard, {
   CONTINUED_PENDING_ACTION_COPY,
+  PENDING_ACTION_HIDE_LABEL,
+  QUEUED_CARD_SKIP_HINT,
+  QUEUED_CARD_SKIP_LABEL,
   getPendingAmoraAction,
+  getQueuedRemainingCopy,
   getPendingAmoraBudgetImpactPreview,
   getPendingActionDisabledReason,
+  getQueuedRemainingCount,
   isPendingAmoraActionContinuedInMessage,
   isPendingAmoraActionExpired,
 } from "./PendingAmoraActionCard";
@@ -344,6 +349,172 @@ describe("PendingAmoraActionCard", () => {
     expect(section.textContent).not.toContain(CONTINUED_PENDING_ACTION_COPY);
   });
 
+  /**
+   * 2026-09-18: 여러 변경 중 한 카드를 원치 않으면 적용하는 것 말고는 다음으로 갈 길이 없었다.
+   * 대기열 카드에는 "이 항목 건너뛰기" 가 따로 나온다. "지금은 적용하지 않기" 는 그대로다.
+   */
+  const skipButton = () => [...container.querySelectorAll<HTMLButtonElement>("button")]
+    .find(button => button.textContent?.trim() === QUEUED_CARD_SKIP_LABEL);
+  const hideButton = () => [...container.querySelectorAll<HTMLButtonElement>("button")]
+    .find(button => button.textContent?.trim() === PENDING_ACTION_HIDE_LABEL);
+  const queuedLine = () => container.querySelector<HTMLElement>(
+    `#pending-amora-action-${singleAction.actionId}-queued`,
+  );
+
+  it("offers a separate skip control on the latest queued card and sends nothing from the hide control", async () => {
+    const onApply = vi.fn();
+    const onDismiss = vi.fn();
+    const onSkip = vi.fn();
+    await act(async () => {
+      root.render(
+        <PendingAmoraActionCard
+          action={singleAction}
+          messageId="aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+          disabledReason={null}
+          isApplying={false}
+          queuedRemainingCount={1}
+          onApply={onApply}
+          onDismiss={onDismiss}
+          onSkip={onSkip}
+        />,
+      );
+    });
+
+    const buttons = [...container.querySelectorAll<HTMLButtonElement>("button")];
+    expect(buttons.map(button => button.getAttribute("aria-label"))).toEqual([
+      "변경 내용 확인하기", "지금은 적용하지 않기", "이 항목 건너뛰기",
+    ]);
+    const skip = skipButton()!;
+    // 보이는 글자와 접근성 이름이 같다(WCAG 2.5.3).
+    expect(skip.getAttribute("aria-label")).toBe(skip.textContent?.trim());
+    expect(skip.disabled).toBe(false);
+
+    await act(async () => skip.click());
+    expect(onSkip).toHaveBeenCalledOnce();
+    expect(onSkip).toHaveBeenCalledWith(singleAction.actionId);
+    expect(onDismiss).not.toHaveBeenCalled();
+    expect(onApply).not.toHaveBeenCalled();
+    expect(fetch).not.toHaveBeenCalled();
+
+    // 숨기기는 여전히 화면에서만 치운다.
+    await act(async () => buttons[1]?.click());
+    expect(onDismiss).toHaveBeenCalledOnce();
+    expect(onSkip).toHaveBeenCalledOnce();
+  });
+
+  /**
+   * 2026-09-18 재검사: 이 카드는 **몇 건을 걸고 있는지 한 번도 말하지 않았고**, 돌이킬 수 있는
+   * 숨기기와 대기열을 앞으로 보내는 건너뛰기가 회색 테두리·흰 바탕·같은 굵기로 똑같이 생겼다.
+   * 건수를 적고, 되돌릴 수 없는 쪽만 로즈로 무게를 올린다(DESIGN.md: 테두리 rose[600],
+   * 글자 rose[700]). 색을 못 보는 사용자를 위해 차이를 글자로도 적는다.
+   */
+  it("says how many requests are at stake and does not dress the skip control like the hide control", async () => {
+    await act(async () => {
+      root.render(
+        <PendingAmoraActionCard
+          action={singleAction}
+          messageId="aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+          disabledReason={null}
+          isApplying={false}
+          queuedRemainingCount={2}
+          onApply={vi.fn()}
+          onDismiss={vi.fn()}
+          onSkip={vi.fn()}
+        />,
+      );
+    });
+
+    const queued = queuedLine()!;
+    expect(queued.textContent).toContain(getQueuedRemainingCopy(2));
+    expect(queued.textContent).toContain("2건");
+    expect(queued.textContent).toContain(QUEUED_CARD_SKIP_HINT);
+    // 두 버튼 이름이 모두 문장에 있어야 어느 쪽이 무엇인지 읽을 수 있다.
+    expect(queued.textContent).toContain(QUEUED_CARD_SKIP_LABEL);
+    expect(queued.textContent).toContain(PENDING_ACTION_HIDE_LABEL);
+    // 남은 요청의 내용은 화면에 쓰지 않는다 — 건수만 센다.
+    const section = container.querySelector<HTMLElement>("section")!;
+    expect(section.getAttribute("aria-describedby")?.split(" ")).toContain(queued.id);
+
+    const skip = skipButton()!;
+    const hide = hideButton()!;
+    expect(skip.className).not.toBe(hide.className);
+    // 되돌릴 수 없는 쪽: rose[600] 테두리 · rose[700] 글자 · 연한 로즈 hover · 굵은 글자.
+    // 공통 Button(secondary)의 역할 변수를 이 버튼에서만 다시 가리킨다. 변수를 읽는 쪽도
+    // 함께 본다 — 변형이 바뀌어 테두리·글자·hover 가 변수를 안 읽으면 재정의는 헛돈다.
+    expect(skip.className).toContain("[--hb-hairline:var(--amora-action)]");
+    expect(skip.className).toContain("border-[var(--hb-hairline)]");
+    expect(skip.className).toContain("[--hb-text-strong:var(--amora-rose-deep)]");
+    expect(skip.className).toContain("text-[var(--hb-text-strong)]");
+    expect(skip.className).toContain("[--hb-surface-hover:var(--amora-rose-pale)]");
+    expect(skip.className).toContain("hover:bg-[var(--hb-surface-hover)]");
+    expect(skip.className).toContain("font-semibold");
+    // rose[600] 은 채움·테두리 색이고 글자 색이 아니다(DESIGN.md 2026-09-16).
+    expect(skip.className).not.toContain("text-[var(--amora-action)]");
+    expect(skip.className).not.toContain("[--hb-text-strong:var(--amora-action)]");
+    // 되돌릴 수 있는 쪽은 조용한 회색 선으로 남는다.
+    expect(hide.className).toContain("border-[#D8C7BB]");
+    expect(hide.className).toContain("font-medium");
+    expect(hide.className).not.toContain("--amora-rose-deep");
+  });
+
+  it.each([
+    ["a single card", { queuedRemainingCount: 0, disabledReason: null }],
+    ["a card without a skip handler", { queuedRemainingCount: 1, disabledReason: null, withoutHandler: true }],
+    ["an applied card", { queuedRemainingCount: 1, disabledReason: "applied" }],
+    ["an older card", { queuedRemainingCount: 1, disabledReason: "not_latest" }],
+    ["an expired card", { queuedRemainingCount: 1, disabledReason: "expired" }],
+  ] as const)("does not offer skipping on %s", async (_name, options) => {
+    const onSkip = vi.fn();
+    await act(async () => {
+      root.render(
+        <PendingAmoraActionCard
+          action={singleAction}
+          messageId="aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+          disabledReason={options.disabledReason}
+          isApplying={false}
+          queuedRemainingCount={options.queuedRemainingCount}
+          onApply={vi.fn()}
+          onDismiss={vi.fn()}
+          onSkip={"withoutHandler" in options ? undefined : onSkip}
+        />,
+      );
+    });
+    expect(skipButton()).toBeUndefined();
+    expect(container.textContent).not.toContain(QUEUED_CARD_SKIP_LABEL);
+    // 건너뛸 수 없는 카드에서는 건수 줄도 말하지 않는다 — 가리킬 버튼이 없다.
+    expect(queuedLine()).toBeNull();
+    expect(container.textContent).not.toContain("남은 요청이");
+    expect(container.querySelector("section")!.getAttribute("aria-describedby"))
+      .not.toContain("-queued");
+  });
+
+  it.each([
+    ["while an answer is streaming", { disabledReason: "busy", isApplying: false }],
+    ["while this card is being applied", { disabledReason: null, isApplying: true }],
+  ] as const)("keeps the skip control visible but unusable %s", async (_name, options) => {
+    const onSkip = vi.fn();
+    await act(async () => {
+      root.render(
+        <PendingAmoraActionCard
+          action={singleAction}
+          messageId="aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+          disabledReason={options.disabledReason}
+          isApplying={options.isApplying}
+          queuedRemainingCount={2}
+          onApply={vi.fn()}
+          onDismiss={vi.fn()}
+          onSkip={onSkip}
+        />,
+      );
+    });
+    const skip = skipButton()!;
+    expect(skip.disabled).toBe(true);
+    await act(async () => skip.click());
+    expect(onSkip).not.toHaveBeenCalled();
+    // 누를 수 없는 동안에도 몇 건이 걸려 있는지는 그대로 말한다.
+    expect(queuedLine()?.textContent).toContain(getQueuedRemainingCopy(2));
+  });
+
   it("shows truthful before/after budget impact without calling recorded spend a payment", async () => {
     vi.mocked(fetch).mockResolvedValueOnce(new Response(JSON.stringify({
       approvalMode: "couple",
@@ -627,6 +798,27 @@ describe("pending action message boundary", () => {
     // 사용자 메시지·개인 레인 메시지는 카드를 들 수 없다.
     expect(isPendingAmoraActionContinuedInMessage(message({ sender_role: "bride" }), action)).toBe(false);
     expect(isPendingAmoraActionContinuedInMessage(message({ visibility: "bride_private" }), action)).toBe(false);
+  });
+
+  it("counts queued requests only for the queue that points at this card", () => {
+    const queued = (remainingActions: unknown, currentActionId: unknown = action.actionId) => message({
+      metadata: {
+        pending_amora_action: action,
+        pending_amora_action_queue: { version: 1, queueId: action.actionId, currentActionId, totalCount: 3, completedCount: 1, remainingActions },
+      },
+    });
+    const item = { tool: "update_budget", input: { total_budget: 31_000_000 } };
+    expect(getQueuedRemainingCount(queued([item]), action.actionId)).toBe(1);
+    expect(getQueuedRemainingCount(queued([item, item]), action.actionId)).toBe(2);
+    expect(getQueuedRemainingCount(queued([]), action.actionId)).toBe(0);
+    // 다른 카드의 대기열·모양이 다른 값·대기열 없는 카드는 0 이다.
+    expect(getQueuedRemainingCount(queued([item], singleAction.actionId), action.actionId)).toBe(0);
+    expect(getQueuedRemainingCount(queued("1"), action.actionId)).toBe(0);
+    expect(getQueuedRemainingCount(message(), action.actionId)).toBe(0);
+    expect(getQueuedRemainingCount(message({ metadata: { pending_amora_action_queue: [item] } }), action.actionId)).toBe(0);
+    // 사용자 메시지·개인 레인 메시지는 대기열을 들 수 없다.
+    expect(getQueuedRemainingCount({ ...queued([item]), sender_role: "bride" }, action.actionId)).toBe(0);
+    expect(getQueuedRemainingCount({ ...queued([item]), visibility: "bride_private" }, action.actionId)).toBe(0);
   });
 
   it("uses the server expiry instant without a locale conversion", () => {

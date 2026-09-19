@@ -250,6 +250,8 @@ export interface ChatMessageMetadata {
   pending_amora_action_journey_revision?: number;
   /** Server-computed current→proposed budget effect, bound to action + revision. */
   pending_amora_action_impact_preview?: import("@hanbang/shared").BudgetImpactPreview;
+  /** Server-owned queue of later requests behind this card; read defensively, never executed. */
+  pending_amora_action_queue?: unknown;
   lifecycle?: {
     stage?: string;
     severity?: string;

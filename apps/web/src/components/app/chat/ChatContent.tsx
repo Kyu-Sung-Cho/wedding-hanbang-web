@@ -50,9 +50,11 @@ import PendingAmoraActionCard, {
   getPendingAmoraAction,
   getPendingAmoraActionCarryCount,
   getPendingAmoraBudgetImpactPreview,
+  getQueuedRemainingCount,
   isPendingAmoraActionContinuedInMessage,
   isPendingAmoraActionExpired,
 } from "@/components/app/chat/PendingAmoraActionCard";
+import { AMORA_QUEUED_CARD_SKIP_TEXT } from "@/lib/ai/amoraQueuedCardSkip";
 import {
   buildAmoraActionConfirmationOutcomes,
   getAmoraPendingActionApplicationState,
@@ -623,6 +625,9 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
   );
   const [applyingPendingActionId, setApplyingPendingActionId] = useState<string | null>(null);
   const applyingPendingActionRef = useRef<string | null>(null);
+  // 건너뛰기를 두 번 눌러도 요청은 한 번만 간다. 적용 중 표시(`applyingPendingActionId`)는 쓰지
+  // 않는다 — 적용 버튼에 "적용 요청 중…" 이 뜨면 건너뛴 항목이 적용되는 것처럼 읽힌다.
+  const skippingPendingActionRef = useRef<string | null>(null);
   const [dismissedNewChatSegments, setDismissedNewChatSegments] = useState<Set<string>>(() => new Set());
   const [infoPanelOpen, setInfoPanelOpen] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
@@ -2168,6 +2173,61 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
     }
   }, [coupleId, journey, profile, sendMessage]);
 
+  /**
+   * 대기열 카드의 "이 항목 건너뛰기" (2026-09-18).
+   *
+   * 고정 문장(`AMORA_QUEUED_CARD_SKIP_TEXT`)을 공유 대화로 보낸다. `confirmedActionId` 는
+   * 보내지 않는다 — 이것은 적용이 아니다. 서버는 이 문장일 때만 지금 카드를 반영하지 않고
+   * 다음 항목을 새 확인 카드로 낸다. 적용과 같은 이유로 누르는 순간의 최신 카드를 다시 읽는다.
+   */
+  const skipQueuedAmoraAction = useCallback(async (actionId: string) => {
+    if (
+      applyingPendingActionRef.current
+      || skippingPendingActionRef.current
+      || !coupleId
+      || !profile
+      || (profile.role !== "bride" && profile.role !== "groom")
+    ) return;
+
+    const current = useChatStore.getState();
+    if (current.isStreaming || current.isSending) return;
+    const latestSharedMessage = [...current.messages]
+      .reverse()
+      .find((message) => (
+        message.visibility === "shared"
+        && message.metadata?.target !== "partner"
+      ));
+    if (!latestSharedMessage) return;
+    const action = getPendingAmoraAction(latestSharedMessage);
+    if (
+      !action
+      || action.actionId !== actionId
+      || isPendingAmoraActionExpired(action, Date.now())
+      || getQueuedRemainingCount(latestSharedMessage, actionId) === 0
+    ) return;
+
+    skippingPendingActionRef.current = actionId;
+    try {
+      await sendMessage({
+        content: AMORA_QUEUED_CARD_SKIP_TEXT,
+        senderId: profile.id,
+        senderRole: profile.role,
+        coupleId,
+        senderName: profile.name ?? "사용자",
+        weddingContext: {
+          weddingDate: journey?.wedding_date ?? null,
+          budget: journey?.total_budget ?? 0,
+          venue: journey?.venue ?? null,
+          progress: journey?.progress ?? {},
+        },
+        target: "ai",
+        visibility: "shared",
+      });
+    } finally {
+      skippingPendingActionRef.current = null;
+    }
+  }, [coupleId, journey, profile, sendMessage]);
+
   const dismissPendingAmoraAction = useCallback((actionId: string) => {
     const previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     const epoch = composerEpochRef.current;
@@ -3364,8 +3424,10 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
                     partnerLinked={Boolean(partner)}
                     carryCount={pendingActionCarryCount}
                     continuesInLatestReply={pendingActionContinuesInLatest}
+                    queuedRemainingCount={getQueuedRemainingCount(msg, pendingAction.actionId)}
                     onApply={(actionId) => void applyPendingAmoraAction(actionId)}
                     onDismiss={() => dismissPendingAmoraAction(pendingAction.actionId)}
+                    onSkip={(actionId) => void skipQueuedAmoraAction(actionId)}
                   />
                 )}
                 {displayCommunityAskCue && previousHumanMessage && (

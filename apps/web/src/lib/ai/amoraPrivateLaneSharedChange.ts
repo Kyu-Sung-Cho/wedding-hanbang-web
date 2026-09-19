@@ -9,7 +9,7 @@ import {
 } from "./amoraQuestionScope";
 import {
   selectAmoraPendingProposalTools,
-  type SelectAmoraToolsInput,
+  type SelectAmoraPendingProposalToolsInput,
 } from "./amoraToolPolicy";
 import { isAmoraTypedCardAcceptance } from "./amoraTypedCardAcceptance";
 
@@ -102,8 +102,11 @@ export interface AssessAmoraPrivateLaneSharedChangeInput {
   hasOtherWork?: boolean;
   /** 라우트가 도구 의도 문장으로 이미 계산한 `selectAmoraTools` 결과. */
   selectedTools: readonly AiToolDefinition[];
-  /** 공유 레인이 확인 카드 도구를 고를 때 넘기는 입력 그대로(`availableTools` = 변경 도구). */
-  proposalSelection: SelectAmoraToolsInput;
+  /**
+   * 공유 레인이 확인 카드 도구를 고를 때 넘기는 입력 그대로(`availableTools` = 변경 도구).
+   * 연속성 닻(`continuityAnchor`)도 같이 받아 공유 레인 관문과 같은 입력으로 판정한다.
+   */
+  proposalSelection: SelectAmoraPendingProposalToolsInput;
 }
 
 export function assessAmoraPrivateLaneSharedChangeTurn(

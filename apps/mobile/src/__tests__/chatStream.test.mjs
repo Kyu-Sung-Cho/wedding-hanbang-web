@@ -2543,7 +2543,8 @@ test("identity changes reset private session state and gate late async/realtime 
   assert.match(sourceText, /setInputByLane\(createEmptyAmoraChatLaneRecord/);
   assert.match(sourceText, /setSendFailuresByLane\(createEmptyAmoraChatLaneRecord/);
   assert.match(sourceText, /setQuotaRemaining\(null\)/);
-  assert.match(sourceText, /setDismissedPendingActionIds\(new Set\(\)\)/);
+  // 치운 카드는 2026-09-18부터 메시지 id 로 기억한다(이름이 바뀌었을 뿐, 계정이 바뀌면 비우는 것은 같다).
+  assert.match(sourceText, /setDismissedPendingMessageIds\(new Set\(\)\)/);
   assert.match(sourceText, /isCurrentChatSession\(generation\)/);
   assert.match(sourceText, /onAuthStateChange/);
   assert.match(sourceText, /if \(nextAuthUserId === observedAuthUserId\) return/);
