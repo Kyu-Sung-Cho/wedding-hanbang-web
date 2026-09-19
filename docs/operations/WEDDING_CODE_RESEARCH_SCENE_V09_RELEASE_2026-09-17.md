@@ -1,6 +1,6 @@
 # WeddingCode 연구 기여 저장소: 235 장면 버전 v0.9 허용 DB 적용
 
-상태: **2026-09-17 운영 적용 완료.** 커밋 `754a7a0d2b727419147d4cd1f69f61859757e3c0`의 깨끗한 checkout에서 아래 순서대로 실행했고 영수증 상태는 `inspected-unapplied` → `rehearsed-and-rolled-back` → `applied-and-postverified` → `already-applied-verified`(사후 읽기)였다. 영수증 파일은 저장소 밖 비공개 보관 폴더에 둔다. 아래 절차는 다시 확인하거나 다른 환경에 적용할 때 그대로 쓴다.
+상태: **2026-09-17 운영 적용 완료.** 커밋 `754a7a0d2b727419147d4cd1f69f61859757e3c0`의 깨끗한 checkout에서 아래 순서대로 실행했고 영수증 상태는 `inspected-unapplied` → `rehearsed-and-rolled-back` → `applied-and-postverified` → `already-applied-verified`(사후 읽기)였다. 영수증 파일은 저장소 밖 비공개 보관 폴더에 둔다. 아래 절차는 다시 확인하거나 다른 환경에 적용할 때 그대로 쓴다. 이 lane은 migration SQL이 정확히 235개인 checkout(235를 main에 넣은 병합 커밋 `d643b5f49043ac2a97752cd5df516a9ba8d402e0` 등)에서만 실행된다. 236번째 SQL(`20260918090000_wedding_code_research_scene_v10.sql`)이 있는 checkout에서는 아래 정적 검사와 실행기가 `NEW_MIGRATION_NOT_REVIEWED`로 거절하며, 그 다음 단계는 `WEDDING_CODE_RESEARCH_SCENE_V10_RELEASE_2026-09-18.md`를 따른다.
 
 ## 왜 하는가
 

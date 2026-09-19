@@ -63,7 +63,7 @@ export function getToolResultDestination(toolName: string): ToolResultDestinatio
     case "update_wedding_date":
       return { pathname: "/settings", label: "결혼 정보 확인하기" };
     case "add_amora_action":
-      return { pathname: "/amora-preparation", label: "준비 기록 보기" };
+      return { pathname: "/amora-preparation", label: "공유 할 일 보기" };
     default: return null;
   }
 }

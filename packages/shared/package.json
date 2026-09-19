@@ -20,10 +20,12 @@
     "./community-decision-feed": "./src/contracts/communityDecisionFeed.mjs",
     "./budget-share": "./src/contracts/budgetShare.mjs",
     "./amora-personal-actions": "./src/contracts/amoraPersonalActions.mjs",
+    "./amora-shared-actions": "./src/contracts/amoraSharedActions.mjs",
     "./mediation-responses": "./src/contracts/amoraMediationResponses.mjs",
     "./place-search-presentation": "./src/contracts/placeSearchPresentation.mjs",
     "./amora-visible-text": "./src/contracts/amoraVisibleText.mjs",
-    "./profile-avatar": "./src/contracts/profileAvatar.mjs"
+    "./profile-avatar": "./src/contracts/profileAvatar.mjs",
+    "./amora-personalization": "./src/contracts/amoraPersonalization.mjs"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",

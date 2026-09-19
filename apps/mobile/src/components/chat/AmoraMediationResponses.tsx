@@ -28,7 +28,7 @@ function ResponseForm({state,session}:{state:MediationSessionState;session:Media
     <Text style={styles.copy}>조건과 어려운 점도 서로 볼 수 있어요. 두 분 모두 ‘괜찮음’으로 확인해야 공동 결정으로 저장돼요.</Text>
     {state.loading&&<View style={styles.loading}><ActivityIndicator color={colors.noir[800]} /><Text style={styles.copy}>확인 상태를 불러오는 중이에요</Text></View>}
     {state.error&&<Text accessibilityRole="alert" style={styles.error}>{state.error}</Text>}
-    {state.taskUnknown&&<><Text style={styles.copy}>저장 결과를 확인하기 전에는 다시 저장하지 않아요.</Text><Action label="준비 보드에서 먼저 확인" onPress={()=>router.push('/amora-preparation')}/></>}
+    {state.taskUnknown&&<><Text style={styles.copy}>저장 결과를 확인하기 전에는 다시 저장하지 않아요.</Text><Action label="공유 할 일에서 먼저 확인" onPress={()=>router.push('/amora-preparation')}/></>}
     {snapshot&&<>
       {snapshot.responses.map(item=><View key={item.userId} style={styles.response}><Text style={styles.title}>{item.userId===snapshot.actorId?'내 응답':'상대방 응답'} · {mediationChoiceLabels[item.choice]}</Text>{item.condition&&<Text style={styles.body}>{item.condition}</Text>}</View>)}
       {snapshot.completed?<Text style={styles.success}>두 분이 각각 확인해 공동 결정으로 저장했어요</Text>:!snapshot.partnerLinked?<Text style={styles.body}>파트너가 연결된 뒤 두 분이 각각 확인할 수 있어요</Text>:<>
@@ -39,8 +39,8 @@ function ResponseForm({state,session}:{state:MediationSessionState;session:Media
         {snapshot.myResponse&&<Action label="내 응답 취소" disabled={disabled} onPress={()=>void session.revoke().then(saved=>{if(saved){setEditing(false);setChoice(null);setCondition('');}})}/>}
         <Text style={styles.copy}>{snapshot.acceptedCount}/2명 괜찮음 · 조건부 가능과 어려움은 공동 확정이 아니에요.</Text>
       </>}
-      {state.taskUnknown?null:state.taskSaved?<><Text style={styles.success}>공유 할 일에 저장했어요.</Text><Action label="준비 보드 보기" onPress={()=>router.push('/amora-preparation')}/></>:!taskOpen?<Action label="내가 확인할 내용 정리" disabled={disabled} onPress={()=>{setTaskOpen(true);setDescription(snapshot.myResponse?.condition??'');}}/>:<View style={styles.review}>
-        <Text style={styles.title}>공유 할 일로 저장할 내용 확인</Text><Text style={styles.copy}>파트너도 보는 준비 보드에 저장해요. 상대방에게 담당자를 지정하거나 선택안을 확정하지 않아요.</Text>
+      {state.taskUnknown?null:state.taskSaved?<><Text style={styles.success}>공유 할 일에 저장했어요.</Text><Action label="공유 할 일 보기" onPress={()=>router.push('/amora-preparation')}/></>:!taskOpen?<Action label="내가 확인할 내용 정리" disabled={disabled} onPress={()=>{setTaskOpen(true);setDescription(snapshot.myResponse?.condition??'');}}/>:<View style={styles.review}>
+        <Text style={styles.title}>공유 할 일로 저장할 내용 확인</Text><Text style={styles.copy}>파트너도 보는 공유 할 일에 저장해요. 상대방에게 담당자를 지정하거나 선택안을 확정하지 않아요.</Text>
         <Text style={styles.copy}>제목</Text><TextInput accessibilityLabel="확인할 할 일 제목" value={title} maxLength={120} editable={!disabled} onChangeText={setTitle} style={[styles.input,styles.titleInput]}/>
         <Text style={styles.copy}>내용</Text><TextInput accessibilityLabel="확인할 할 일 내용" value={description} maxLength={500} multiline editable={!disabled} textAlignVertical="top" onChangeText={setDescription} style={styles.input}/>
         <Action label="확인하고 공유 할 일 저장" disabled={disabled||!title.trim()} onPress={()=>void session.createTask(title,description)} primary/><Action label="취소" disabled={disabled} onPress={()=>setTaskOpen(false)}/>

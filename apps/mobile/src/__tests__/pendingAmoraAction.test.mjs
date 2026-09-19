@@ -437,6 +437,11 @@ test("mobile skip sends only the fixed sentence through the ordinary send path, 
   assert.match(handler, /action\.actionId !== actionId/);
   assert.match(handler, /getQueuedRemainingCount\(latestSharedMessage, actionId\) === 0/);
   assert.match(chatSource, /onPress=\{\(\) => handleSkipQueuedPendingAction\(pendingAction\.actionId\)\}/);
+  // 화면 정리(#425)가 서버로 가는 동안에는 보내지 않는다 — 정리 쪽이 보내는 중이면 시작하지 않는 것과 짝이다.
+  // 보내기 전의 멈춤 조건 안에 있어야 한다(보낸 뒤에 보면 이미 늦다).
+  const guard = handler.slice(0, handler.indexOf("sendingRef.current = true"));
+  assert.match(guard, /\|\| viewClearInFlightRef\.current/);
+  assert.match(chatSource, /viewClearInFlightRef\.current \|\| streaming \|\| sendingRef\.current \|\| applyingPendingActionRef\.current/);
 });
 
 test("mobile skip sentence and label are the same values the web server and card use", () => {

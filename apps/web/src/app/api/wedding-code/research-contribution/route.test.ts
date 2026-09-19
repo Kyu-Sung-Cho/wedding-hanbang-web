@@ -29,6 +29,7 @@ import {
 } from "@/lib/weddingCode/contribution/contract";
 import { WEDDING_CODE_V08_VERSION } from "@/constants/weddingCodeV08";
 import { WEDDING_CODE_V09_VERSION } from "@/constants/weddingCodeV09";
+import { WEDDING_CODE_V10_VERSION } from "@/constants/weddingCodeV10";
 import { POST as deleteContribution } from "./delete/route";
 import { POST as contribute } from "./route";
 
@@ -52,7 +53,7 @@ function post(path: string, body: unknown, headers: Record<string, string> = {})
 }
 
 const VALID = {
-  sceneVersion: WEDDING_CODE_V09_VERSION as string,
+  sceneVersion: WEDDING_CODE_V10_VERSION as string,
   answerCode: ANSWER_CODE,
   consentVersion: WEDDING_CODE_RESEARCH_CONSENT_VERSION,
   adultConfirmed: true,
@@ -112,6 +113,7 @@ describe("POST /api/wedding-code/research-contribution", () => {
     ["성인 확인을 안 했으면", { ...VALID, adultConfirmed: false }],
     ["동의가 문자열 'true' 면", { ...VALID, consented: "true" }],
     ["예전 문항 판이면", { ...VALID, sceneVersion: "v0.6-scene" }],
+    ["아직 없는 문항 판이면", { ...VALID, sceneVersion: "v1.1-code" }],
     ["동의 문구 판이 다르면", { ...VALID, consentVersion: "wc-research-consent-v0" }],
     ["답 코드 길이가 다르면", { ...VALID, answerCode: "ABCD" }],
     ["모두 건너뛴 코드면", { ...VALID, answerCode: "-".repeat(20) }],
@@ -147,7 +149,7 @@ describe("POST /api/wedding-code/research-contribution", () => {
     expect(await response.json()).toEqual({ ok: true });
 
     expect(mocks.rpc).toHaveBeenCalledExactlyOnceWith("insert_wedding_code_research_contribution", {
-      p_scene_version: WEDDING_CODE_V09_VERSION,
+      p_scene_version: WEDDING_CODE_V10_VERSION,
       p_answer_code: ANSWER_CODE,
       p_consent_version: WEDDING_CODE_RESEARCH_CONSENT_VERSION,
       p_deletion_receipt_hash: expectedHash(RECEIPT),
@@ -162,18 +164,22 @@ describe("POST /api/wedding-code/research-contribution", () => {
   });
 
   /**
-   * 받는 판이 둘이 된 뒤(v0.8·v0.9) 가장 조용히 틀릴 수 있는 곳: 요청이 어느 판이었든
-   * 서버가 상수 하나로 바꿔 저장하면, DB 는 둘 다 받으니 아무 오류 없이 이름표가 섞인다.
+   * 받는 판이 여럿이 된 뒤(v0.8·v0.9·v1.0) 가장 조용히 틀릴 수 있는 곳: 요청이 어느 판이었든
+   * 서버가 상수 하나로 바꿔 저장하면, DB 는 모두 받으니 아무 오류 없이 이름표가 섞인다.
+   * v0.9 와 v1.0 은 A2 의 B·D 만 다르므로, 둘이 섞이면 그 두 답의 뜻이 가장 먼저 틀어진다.
    */
-  it("옛 판(v0.8) 링크로 푼 답은 v0.8 이름표 그대로 저장한다", async () => {
+  it.each([
+    ["v0.8", WEDDING_CODE_V08_VERSION],
+    ["v0.9", WEDDING_CODE_V09_VERSION],
+  ])("옛 판(%s) 링크로 푼 답은 그 판 이름표 그대로 저장한다", async (_label, sceneVersion) => {
     const response = await contribute(post("/api/wedding-code/research-contribution", {
       ...VALID,
-      sceneVersion: WEDDING_CODE_V08_VERSION,
+      sceneVersion,
     }));
     expect(response.status).toBe(201);
     expect(mocks.rpc).toHaveBeenCalledExactlyOnceWith(
       "insert_wedding_code_research_contribution",
-      expect.objectContaining({ p_scene_version: WEDDING_CODE_V08_VERSION }),
+      expect.objectContaining({ p_scene_version: sceneVersion }),
     );
   });
 

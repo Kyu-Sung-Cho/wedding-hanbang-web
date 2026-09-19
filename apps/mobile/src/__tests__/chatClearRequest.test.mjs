@@ -91,15 +91,18 @@ test("카드 문구는 웹 카드와 같다 — 무엇이 남고 무엇이 정�
   }
   assert.match(lib.describeChatClearRequest("pending", "requester").body, /^상대방 동의를 기다리는 중이에요/);
   assert.match(lib.describeChatClearRequest("pending", "recipient").body, /^상대방이 함께 새로 시작하자고 제안했어요/);
-  // 각주는 웹 문장에서 딱 한 곳만 다르다 — 앱에는 비공개 대화 「화면 정리」가 없어서, 그 길은
-  // 웹에 있다고 밝힌다. 앱에 없는 길을 앱에 있는 것처럼 말하지 않는다.
+  // 각주도 웹 문장과 글자 그대로 같다(2026-09-18). 앱 아모라 탭에도 「대화 화면 정리 → 비공개 대화·아모라
+  // 기억 삭제」가 생겨서, 더는 "웹의" 비공개 상담을 가리키지 않는다. 앱에 있는 길을 웹에 있다고 말하지 않는다.
   const webFootnote = webBubble.match(/실제로 지우려면[^<]*/u)?.[0]?.replace(/&lsquo;/gu, "‘").replace(/&rsquo;/gu, "’").trim();
   assert.ok(webFootnote, "웹 각주를 찾지 못했다");
-  assert.equal(
-    lib.describeChatClearRequest("pending", "recipient").footnote,
-    webFootnote.replace("비공개 대화는 비공개 상담의", "비공개 대화는 웹의 비공개 상담"),
-  );
-  assert.doesNotMatch(chat, /화면 정리 → 비공개 대화/, "앱 채팅에는 그 메뉴가 없다 — 각주가 웹을 가리키는 이유");
+  assert.equal(lib.describeChatClearRequest("pending", "recipient").footnote, webFootnote);
+  assert.doesNotMatch(lib.describeChatClearRequest("accepted", "requester").footnote, /웹의/);
+  // 각주가 가리키는 길이 앱에 실제로 있다 — 머리의 「대화 화면 정리」 버튼이 창을 열고, 나만 상담 창에 삭제가 있다.
+  const viewClear = read("../lib/chatViewClear.ts");
+  assert.match(viewClear, /entryLabel: "대화 화면 정리"/);
+  assert.match(viewClear, /deleteTitle: "비공개 대화·아모라 기억 삭제"/);
+  assert.match(chat, /accessibilityLabel=\{CHAT_VIEW_CLEAR_COPY\.entryLabel\}[\s\S]*onPress=\{openViewClearSheet\}|onPress=\{openViewClearSheet\}[\s\S]*accessibilityLabel=\{CHAT_VIEW_CLEAR_COPY\.entryLabel\}/);
+  assert.match(chat, /<ChatViewClearSheet[\s\S]*onConfirmDeletePrivate=\{\(\) => \{ void performViewClear\("delete_private"\); \}\}/);
 });
 
 /* global Response */
