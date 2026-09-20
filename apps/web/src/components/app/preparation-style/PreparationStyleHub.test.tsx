@@ -199,6 +199,86 @@ describe("준비 스타일의 개인 저장과 두 사람 공유", () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
+  it("상대가 더 이상 공유 가능하지 않아도 내 결과를 보고 다른 답을 저장할 수 있다", async () => {
+    const previous = { ...response, answerCode: "B".repeat(20) };
+    fetchMock.mockResolvedValueOnce(result(snapshot({ partnerUserId: null, own: previous })));
+    await render();
+    expect(useAuthStore.getState().partner?.id).toBe(partnerId);
+    expect(container.querySelector('[role="alert"]')).toBeNull();
+    expect(container.querySelector("[data-personal-style]")).not.toBeNull();
+    await click("둘이 함께 보기");
+    expect(container.querySelector("[data-couple-style]")).toBeNull();
+    expect(button("내 답 공유하기")).toBeUndefined();
+    expect(button("공유 중단하기")).toBeUndefined();
+    await answerAll("새로 답하기");
+    fetchMock.mockResolvedValueOnce(result(snapshot({ partnerUserId: null, own: { ...response, revision: 2 } })));
+    await click("동의하고 내 계정에 저장");
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock.mock.calls[1][1]?.method).toBe("PUT");
+    expect(JSON.parse(String(fetchMock.mock.calls[1][1]?.body))).toMatchObject({
+      expectedOwnerUserId: owner, expectedRevision: previous.revision, answerCode: response.answerCode,
+    });
+    expect(container.querySelector('[role="alert"]')).toBeNull();
+    expect(container.querySelector("[data-personal-style]")).not.toBeNull();
+    expect(button("동의하고 내 계정에 저장")).toBeUndefined();
+    expect(button("내 답 공유하기")).toBeUndefined();
+    expect(fetchMock.mock.calls.some(([url]) => String(url).endsWith("/share"))).toBe(false);
+  });
+
+  it.each([false, true])("상대가 조회 대상에서 빠지면 비교와 열린 공유 확인을 닫고 내 답을 보존한다: 기존 공유 %s", async sharedBefore => {
+    const original = snapshot({
+      own: response,
+      sharing: sharedBefore ? { responseRevision: response.revision, sharedAt: now } : null,
+      partner: sharedBefore ? { ...response, answerCode: "B".repeat(20) } : null,
+    });
+    fetchMock.mockResolvedValueOnce(result(original));
+    await render();
+    await click("둘이 함께 보기");
+    expect(container.querySelector("[data-couple-style]") !== null).toBe(sharedBefore);
+    await click(sharedBefore ? "공유 중단하기" : "내 답 공유하기");
+    expect(container.querySelector('[aria-label="저장과 공유 확인"]')).not.toBeNull();
+    fetchMock.mockResolvedValueOnce(result(snapshot({ partnerUserId: null, own: response })));
+    await act(async () => window.dispatchEvent(new Event("focus")));
+    expect(useAuthStore.getState().partner?.id).toBe(partnerId);
+    expect(container.querySelector('[role="alert"]')).toBeNull();
+    expect(container.querySelector("[data-couple-style]")).toBeNull();
+    expect(container.querySelector('[aria-label="저장과 공유 확인"]')).toBeNull();
+    expect(button("내 답 공유하기")).toBeUndefined();
+    expect(button("공유 중단하기")).toBeUndefined();
+    await click("내 준비 스타일");
+    expect(container.querySelector("[data-personal-style]")).not.toBeNull();
+    expect(button("저장한 답 지우기")).toBeDefined();
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+
+    // 동일한 상대와 확인번호가 돌아와도 이전 공유·철회 확인은 다시 열리지 않는다.
+    fetchMock.mockResolvedValueOnce(result(original));
+    await act(async () => window.dispatchEvent(new Event("focus")));
+    expect(container.querySelector('[role="alert"]')).toBeNull();
+    expect(container.querySelector("[data-personal-style]")).not.toBeNull();
+    expect(container.querySelector('[aria-label="저장과 공유 확인"]')).toBeNull();
+    await click(sharedBefore ? "공유 중단하기" : "내 답 공유하기");
+    expect(container.querySelector('[aria-label="저장과 공유 확인"]')).not.toBeNull();
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+    expect(fetchMock.mock.calls.some(([url]) => String(url).endsWith("/share"))).toBe(false);
+  });
+
+  it.each([
+    { partnerUserId: "44444444-4444-4444-8444-444444444444" },
+    { coupleId: "44444444-4444-4444-8444-444444444444", partnerUserId: null },
+  ])("상대 없음 허용이 낯선 상대나 다른 커플 응답을 허용하지 않는다: %j", async changedBinding => {
+    fetchMock.mockResolvedValueOnce(result(snapshot({ own: response, sharing: { responseRevision: response.revision, sharedAt: now }, partner: response })));
+    await render(); await click("둘이 함께 보기");
+    expect(container.querySelector("[data-couple-style]")).not.toBeNull();
+    fetchMock.mockResolvedValueOnce(result(snapshot({ ...changedBinding, own: response })));
+    await act(async () => window.dispatchEvent(new Event("focus")));
+    expect(container.querySelector('[role="alert"]')).not.toBeNull();
+    expect(container.querySelector("[data-personal-style]")).toBeNull();
+    expect(container.querySelector("[data-couple-style]")).toBeNull();
+    expect(button("내 답 고르기").disabled).toBe(true);
+    expect(button("내 답 공유하기")).toBeUndefined();
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
   it("다른 계정의 응답을 정상 결과로 렌더하지 않는다", async () => {
     fetchMock.mockResolvedValueOnce(result(snapshot({ ownerUserId: "44444444-4444-4444-8444-444444444444", own: response })));
     await render();

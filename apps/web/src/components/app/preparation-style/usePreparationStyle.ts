@@ -55,7 +55,9 @@ export default function usePreparationStyle(binding: PreparationStyleBinding, de
     const next = parsePreparationStyleSnapshot(
       typeof body === "object" && body !== null && "snapshot" in body ? body.snapshot : null,
     );
-    if (!next || next.ownerUserId !== binding.ownerUserId || next.coupleId !== binding.coupleId || next.partnerUserId !== binding.partnerUserId) {
+    // 상대가 이용 불가하면 서버는 같은 커플의 본인 답만 돌려준다. 새 상대의 답은 받지 않는다.
+    if (!next || next.ownerUserId !== binding.ownerUserId || next.coupleId !== binding.coupleId
+      || (next.partnerUserId !== null && next.partnerUserId !== binding.partnerUserId)) {
       throw new Error("연결 정보가 바뀌었어요. 화면을 다시 열어 확인해 주세요.");
     }
     return next;

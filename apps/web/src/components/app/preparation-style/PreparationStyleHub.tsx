@@ -68,6 +68,14 @@ function BoundStyleHub({ binding, demo, partnerName }: { binding: PreparationSty
   const review = draft?.stage === "review" ? buildPreparationStyleGuide({ version: config.version, answers: draft.answers }) : null;
   const personal = review && review.status !== "invalid" ? review.personal : null;
   const draftConflict = Boolean(draft && snapshot && snapshot.stateRevision !== draft.expectedRevision);
+  const availablePartnerId = demo ? binding.partnerUserId : snapshot?.partnerUserId ?? null;
+  const partnerUnavailable = !demo && binding.partnerUserId !== null && snapshot !== null && availablePartnerId === null;
+
+  // 상대가 사라진 뒤에는 같은 확인번호라도 이전 공유 확인을 다시 사용하지 않는다.
+  if (confirmation && confirmation !== "delete" && availablePartnerId === null) {
+    setConfirmation(null);
+    setConfirmationRevision(null);
+  }
 
   useEffect(() => {
     screenRef.current?.focus({ preventScroll: true });
@@ -104,6 +112,7 @@ function BoundStyleHub({ binding, demo, partnerName }: { binding: PreparationSty
   }
 
   function openConfirmation(action: "share" | "unshare" | "delete") {
+    if (action !== "delete" && !availablePartnerId) return;
     setNotice(null);
     setConfirmationRevision(snapshot?.stateRevision ?? null);
     setConfirmation(action);
@@ -111,6 +120,7 @@ function BoundStyleHub({ binding, demo, partnerName }: { binding: PreparationSty
 
   async function confirm() {
     if (!snapshot?.own || !confirmation) return;
+    if (confirmation !== "delete" && !availablePartnerId) return;
     setNotice(null);
     if (snapshot.stateRevision !== confirmationRevision) {
       setConfirmation(null);
@@ -122,7 +132,7 @@ function BoundStyleHub({ binding, demo, partnerName }: { binding: PreparationSty
       ? await mutate("PUT", {
         expectedRevision: snapshot.own.revision,
         expectedCoupleId: binding.coupleId,
-        expectedPartnerUserId: binding.partnerUserId,
+        expectedPartnerUserId: availablePartnerId,
         shareConsentVersion: PREPARATION_STYLE_SHARE_CONSENT_VERSION,
       }, true)
       : await mutate("DELETE", { expectedRevision: snapshot.own.revision }, action === "unshare");
@@ -187,10 +197,10 @@ function BoundStyleHub({ binding, demo, partnerName }: { binding: PreparationSty
           : guide.status === "couple" ? <CoupleStyleResults guide={guide} partnerName={demo ? "상대 예시" : partnerName} />
           : guide.status === "version_mismatch" ? <p role="status" className={`${panel} p-5`}>{guide.message}</p>
           : <section className={`${panel} p-6`}>
-            <h2 className="text-[var(--hb-text-strong)]">{demo ? "두 사람 화면도 살펴볼까요?" : !binding.partnerUserId ? "함께 준비할 사람을 연결해 주세요" : !snapshot?.sharing ? "서로 공유하면 함께 볼 수 있어요" : "상대가 공유한 결과가 아직 없어요"}</h2>
-            <p className="mt-3 text-sm leading-7 text-[var(--hb-text-body)]">{demo ? "가상의 상대 답을 더해 비교 화면을 볼 수 있어요. 실제 상대의 결과가 아니에요." : !binding.partnerUserId ? "연결한 뒤에도 내 답은 바로 공개되지 않아요. 각자 답하고 공유를 눌러 주세요." : `나와 ${partnerName}님이 각자 이 화면에서 답을 저장하고 공유하면, 예산·역할·가족·도움 방식에서 같은 답과 다른 답을 볼 수 있어요.`}</p>
+            <h2 className="text-[var(--hb-text-strong)]">{demo ? "두 사람 화면도 살펴볼까요?" : partnerUnavailable ? "지금은 둘이 함께 볼 수 없어요" : !availablePartnerId ? "함께 준비할 사람을 연결해 주세요" : !snapshot?.sharing ? "서로 공유하면 함께 볼 수 있어요" : "상대가 공유한 결과가 아직 없어요"}</h2>
+            <p className="mt-3 text-sm leading-7 text-[var(--hb-text-body)]">{demo ? "가상의 상대 답을 더해 비교 화면을 볼 수 있어요. 실제 상대의 결과가 아니에요." : partnerUnavailable ? "내 결과는 계속 볼 수 있어요. 연결 설정에서 현재 상태를 확인해 주세요." : !availablePartnerId ? "연결한 뒤에도 내 답은 바로 공개되지 않아요. 각자 답하고 공유를 눌러 주세요." : `나와 ${partnerName}님이 각자 이 화면에서 답을 저장하고 공유하면, 예산·역할·가족·도움 방식에서 같은 답과 다른 답을 볼 수 있어요.`}</p>
             {demo ? <Button className="mt-4" onClick={() => setDemoPair(true)}>가상의 상대 답으로 비교해 보기</Button>
-              : !binding.partnerUserId ? <Link {...weddingLinkProps("/settings")} className="mt-4 inline-flex min-h-11 items-center gap-2 text-sm font-semibold text-[var(--hb-primary)]">연결 설정으로 가기<ArrowRight className="size-4" aria-hidden="true" /></Link>
+              : !availablePartnerId ? <Link {...weddingLinkProps("/settings")} className="mt-4 inline-flex min-h-11 items-center gap-2 text-sm font-semibold text-[var(--hb-primary)]">연결 설정으로 가기<ArrowRight className="size-4" aria-hidden="true" /></Link>
               : !snapshot?.sharing ? <Button className="mt-4" onClick={() => openConfirmation("share")} disabled={busy}>내 답 공유하기</Button> : <Button className="mt-4" onClick={() => void refresh()} disabled={busy}>상대가 공유했는지 다시 확인</Button>}
           </section>}
 
@@ -198,7 +208,7 @@ function BoundStyleHub({ binding, demo, partnerName }: { binding: PreparationSty
           <h2 className="flex items-center gap-2 text-[var(--hb-text-strong)]"><ShieldCheck className="size-4" aria-hidden="true" />내 답 보관과 공유</h2>
           <p className="mt-2 text-sm leading-7 text-[var(--hb-text-body)]">{snapshot.sharing ? `${partnerName}님과 공유하도록 승인했어요.` : "내 계정에만 저장했어요. 상대에게는 아직 공유하지 않았어요."}</p>
           <div className="mt-3 flex flex-wrap gap-2">
-            {binding.partnerUserId && <Button disabled={busy} onClick={() => openConfirmation(snapshot.sharing ? "unshare" : "share")}>{snapshot.sharing ? "공유 중단하기" : "내 답 공유하기"}</Button>}
+            {availablePartnerId && <Button disabled={busy} onClick={() => openConfirmation(snapshot.sharing ? "unshare" : "share")}>{snapshot.sharing ? "공유 중단하기" : "내 답 공유하기"}</Button>}
             <Button variant="ghost" disabled={busy} onClick={() => openConfirmation("delete")}>저장한 답 지우기</Button>
           </div>
         </section>}
