@@ -39,6 +39,7 @@ import { buildAmoraMissionModel } from "@/lib/amora/missions";
 import { formatLoungeBudgetRatio, formatLoungeWon, getLoungeSetupGuidance } from "@/lib/amora/loungeSummary";
 import { requestProactiveCare } from "@/lib/care/requestProactiveCare";
 import { weddingLinkProps } from "@/lib/weddingPaths";
+import { SHOW_SIGNED_IN_COMMUNITY } from "@/lib/features/signedInCommunity";
 import { useAuthStore } from "@/stores/authStore";
 import { getProgressSummary } from "@/app/(app)/lounge/progressSummary";
 import { getEvents, getScheduleEventStatus, isValidScheduleTime } from "@/utils/scheduleEvents";
@@ -293,6 +294,7 @@ export default function LoungePage() {
   }, [isDemo, userId]);
 
   useEffect(() => {
+    if (!SHOW_SIGNED_IN_COMMUNITY) return;
     let cancelled = false;
     setSavedError(false);
     if (isDemo) {
@@ -324,6 +326,7 @@ export default function LoungePage() {
   }, [isDemo, userId, savedRetry]);
 
   useEffect(() => {
+    if (!SHOW_SIGNED_IN_COMMUNITY) return;
     let cancelled = false;
     if (isDemo) {
       setCohortState({
@@ -512,13 +515,13 @@ export default function LoungePage() {
           <LoungeReferencePanels categoryKey={priorityItems.find((item) => item.kind === "checklist")?.category.key ?? "greeting"} allocated={budgetTotals.photoAttireMakeup} />
         </aside>
       </div>
-      <details className="rounded-[16px] border border-[var(--amora-line)] bg-white px-[18px] lg:px-6">
+      {SHOW_SIGNED_IN_COMMUNITY && <details className="rounded-[16px] border border-[var(--amora-line)] bg-white px-[18px] lg:px-6">
         <summary className="flex min-h-14 cursor-pointer items-center justify-between gap-2 rounded-lg text-[12px] font-medium text-[var(--amora-soft)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--amora-accent)]"><span>참고한 자료와 같은 시기 준비 이야기</span><Users size={16} className="shrink-0 text-[var(--amora-rose)]" aria-hidden="true" /></summary>
         <div className="grid gap-4 pb-5 pt-1 lg:grid-cols-2">
           <SavedPostsPanel posts={savedPosts} loading={savedLoading} error={savedError} onRetry={() => setSavedRetry(value => value + 1)} />
           <CohortPulsePanel cohort={cohortState} onRetry={() => setCohortRetry(value => value + 1)} />
         </div>
-      </details>
+      </details>}
     </div>
   );
 }

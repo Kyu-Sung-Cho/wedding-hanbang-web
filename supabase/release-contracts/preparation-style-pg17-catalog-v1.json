@@ -1,0 +1,678 @@
+{
+  "functions": [
+    {
+      "acl": [
+        [
+          "authenticated",
+          "postgres",
+          "EXECUTE",
+          false
+        ],
+        [
+          "postgres",
+          "postgres",
+          "EXECUTE",
+          false
+        ]
+      ],
+      "args": "",
+      "body": "\nDECLARE\n  v_owner uuid := public.wedding_preparation_style_actor();\n  v_couple uuid; v_partner uuid; v_own jsonb; v_other jsonb; v_share jsonb; v_revision bigint;\nBEGIN\n  SELECT profile.couple_id,\n    CASE WHEN couple.bride_id=v_owner THEN couple.groom_id ELSE couple.bride_id END\n    INTO v_couple,v_partner\n    FROM public.profiles profile JOIN public.couples couple ON couple.id=profile.couple_id\n    WHERE profile.id=v_owner AND public.is_current_couple_member(v_owner,profile.couple_id);\n  IF v_partner IS NOT NULL AND (NOT public.is_current_couple_member(v_partner,v_couple)\n    OR EXISTS (SELECT 1 FROM public.account_deletion_jobs WHERE user_id=v_partner AND status<>'completed')) THEN\n    v_partner := NULL;\n  END IF;\n  SELECT revision INTO v_revision FROM public.wedding_preparation_style_responses WHERE owner_user_id=v_owner;\n  SELECT pg_catalog.jsonb_build_object('sceneVersion',scene_version,'answerCode',answer_code,'revision',revision,'savedAt',saved_at)\n    INTO v_own FROM public.wedding_preparation_style_responses WHERE owner_user_id=v_owner AND answer_code IS NOT NULL;\n  SELECT pg_catalog.jsonb_build_object('responseRevision',grant_row.response_revision,'sharedAt',grant_row.shared_at)\n    INTO v_share FROM public.wedding_preparation_style_shares grant_row\n    JOIN public.wedding_preparation_style_responses answer ON answer.owner_user_id=grant_row.owner_user_id AND answer.revision=grant_row.response_revision AND answer.answer_code IS NOT NULL\n    WHERE grant_row.owner_user_id=v_owner AND grant_row.partner_user_id=v_partner AND grant_row.couple_id=v_couple;\n  -- 두 사람 모두 각자 최신 답의 공유를 승인한 경우에만 상대 답을 내려준다.\n  IF v_share IS NOT NULL THEN\n    SELECT pg_catalog.jsonb_build_object('sceneVersion',answer.scene_version,'answerCode',answer.answer_code,'revision',answer.revision,'savedAt',answer.saved_at)\n      INTO v_other FROM public.wedding_preparation_style_responses answer\n      JOIN public.wedding_preparation_style_shares grant_row ON grant_row.owner_user_id=answer.owner_user_id AND grant_row.response_revision=answer.revision\n      WHERE answer.owner_user_id=v_partner AND answer.answer_code IS NOT NULL AND grant_row.partner_user_id=v_owner AND grant_row.couple_id=v_couple\n        AND answer.scene_version=v_own->>'sceneVersion';\n  END IF;\n  RETURN pg_catalog.jsonb_build_object('ownerUserId',v_owner,'stateRevision',v_revision,'coupleId',v_couple,'partnerUserId',v_partner,'own',v_own,'sharing',v_share,'partner',v_other);\nEND;\n",
+      "kind": "f",
+      "name": "get_own_wedding_preparation_style",
+      "owner": "postgres",
+      "config": [
+        "search_path=\"\"",
+        "lock_timeout=5s",
+        "statement_timeout=5s"
+      ],
+      "result": "jsonb",
+      "strict": false,
+      "language": "plpgsql",
+      "parallel": "u",
+      "definition": "CREATE OR REPLACE FUNCTION public.get_own_wedding_preparation_style()\n RETURNS jsonb\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO ''\n SET lock_timeout TO '5s'\n SET statement_timeout TO '5s'\nAS $function$\nDECLARE\n  v_owner uuid := public.wedding_preparation_style_actor();\n  v_couple uuid; v_partner uuid; v_own jsonb; v_other jsonb; v_share jsonb; v_revision bigint;\nBEGIN\n  SELECT profile.couple_id,\n    CASE WHEN couple.bride_id=v_owner THEN couple.groom_id ELSE couple.bride_id END\n    INTO v_couple,v_partner\n    FROM public.profiles profile JOIN public.couples couple ON couple.id=profile.couple_id\n    WHERE profile.id=v_owner AND public.is_current_couple_member(v_owner,profile.couple_id);\n  IF v_partner IS NOT NULL AND (NOT public.is_current_couple_member(v_partner,v_couple)\n    OR EXISTS (SELECT 1 FROM public.account_deletion_jobs WHERE user_id=v_partner AND status<>'completed')) THEN\n    v_partner := NULL;\n  END IF;\n  SELECT revision INTO v_revision FROM public.wedding_preparation_style_responses WHERE owner_user_id=v_owner;\n  SELECT pg_catalog.jsonb_build_object('sceneVersion',scene_version,'answerCode',answer_code,'revision',revision,'savedAt',saved_at)\n    INTO v_own FROM public.wedding_preparation_style_responses WHERE owner_user_id=v_owner AND answer_code IS NOT NULL;\n  SELECT pg_catalog.jsonb_build_object('responseRevision',grant_row.response_revision,'sharedAt',grant_row.shared_at)\n    INTO v_share FROM public.wedding_preparation_style_shares grant_row\n    JOIN public.wedding_preparation_style_responses answer ON answer.owner_user_id=grant_row.owner_user_id AND answer.revision=grant_row.response_revision AND answer.answer_code IS NOT NULL\n    WHERE grant_row.owner_user_id=v_owner AND grant_row.partner_user_id=v_partner AND grant_row.couple_id=v_couple;\n  -- 두 사람 모두 각자 최신 답의 공유를 승인한 경우에만 상대 답을 내려준다.\n  IF v_share IS NOT NULL THEN\n    SELECT pg_catalog.jsonb_build_object('sceneVersion',answer.scene_version,'answerCode',answer.answer_code,'revision',answer.revision,'savedAt',answer.saved_at)\n      INTO v_other FROM public.wedding_preparation_style_responses answer\n      JOIN public.wedding_preparation_style_shares grant_row ON grant_row.owner_user_id=answer.owner_user_id AND grant_row.response_revision=answer.revision\n      WHERE answer.owner_user_id=v_partner AND answer.answer_code IS NOT NULL AND grant_row.partner_user_id=v_owner AND grant_row.couple_id=v_couple\n        AND answer.scene_version=v_own->>'sceneVersion';\n  END IF;\n  RETURN pg_catalog.jsonb_build_object('ownerUserId',v_owner,'stateRevision',v_revision,'coupleId',v_couple,'partnerUserId',v_partner,'own',v_own,'sharing',v_share,'partner',v_other);\nEND;\n$function$\n",
+      "volatility": "v",
+      "securityDefiner": true
+    },
+    {
+      "acl": [
+        [
+          "authenticated",
+          "postgres",
+          "EXECUTE",
+          false
+        ],
+        [
+          "postgres",
+          "postgres",
+          "EXECUTE",
+          false
+        ]
+      ],
+      "args": "bigint",
+      "body": "\nDECLARE v_owner uuid := public.wedding_preparation_style_actor(); v_revision bigint;\nBEGIN\n  IF p_expected_revision IS NULL OR p_expected_revision NOT BETWEEN 1 AND 9007199254740991 THEN\n    RAISE EXCEPTION 'PREPARATION_STYLE_INVALID_INPUT' USING ERRCODE='22023';\n  END IF;\n  SELECT revision INTO v_revision FROM public.wedding_preparation_style_responses WHERE owner_user_id=v_owner FOR UPDATE;\n  IF v_revision IS DISTINCT FROM p_expected_revision THEN\n    IF v_revision>p_expected_revision AND EXISTS (SELECT 1 FROM public.wedding_preparation_style_responses WHERE owner_user_id=v_owner AND answer_code IS NULL) THEN\n      RETURN public.get_own_wedding_preparation_style();\n    END IF;\n    RAISE EXCEPTION 'PREPARATION_STYLE_REVISION_CONFLICT' USING ERRCODE='40001';\n  END IF;\n  DELETE FROM public.wedding_preparation_style_shares WHERE owner_user_id=v_owner;\n  UPDATE public.wedding_preparation_style_responses SET scene_version=NULL,answer_code=NULL,\n    save_consent_version=NULL,saved_at=NULL,revision=nextval('public.wedding_preparation_style_revision_seq')\n    WHERE owner_user_id=v_owner;\n  RETURN public.get_own_wedding_preparation_style();\nEND;\n",
+      "kind": "f",
+      "name": "clear_own_wedding_preparation_style",
+      "owner": "postgres",
+      "config": [
+        "search_path=\"\"",
+        "lock_timeout=5s",
+        "statement_timeout=5s"
+      ],
+      "result": "jsonb",
+      "strict": false,
+      "language": "plpgsql",
+      "parallel": "u",
+      "definition": "CREATE OR REPLACE FUNCTION public.clear_own_wedding_preparation_style(p_expected_revision bigint)\n RETURNS jsonb\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO ''\n SET lock_timeout TO '5s'\n SET statement_timeout TO '5s'\nAS $function$\nDECLARE v_owner uuid := public.wedding_preparation_style_actor(); v_revision bigint;\nBEGIN\n  IF p_expected_revision IS NULL OR p_expected_revision NOT BETWEEN 1 AND 9007199254740991 THEN\n    RAISE EXCEPTION 'PREPARATION_STYLE_INVALID_INPUT' USING ERRCODE='22023';\n  END IF;\n  SELECT revision INTO v_revision FROM public.wedding_preparation_style_responses WHERE owner_user_id=v_owner FOR UPDATE;\n  IF v_revision IS DISTINCT FROM p_expected_revision THEN\n    IF v_revision>p_expected_revision AND EXISTS (SELECT 1 FROM public.wedding_preparation_style_responses WHERE owner_user_id=v_owner AND answer_code IS NULL) THEN\n      RETURN public.get_own_wedding_preparation_style();\n    END IF;\n    RAISE EXCEPTION 'PREPARATION_STYLE_REVISION_CONFLICT' USING ERRCODE='40001';\n  END IF;\n  DELETE FROM public.wedding_preparation_style_shares WHERE owner_user_id=v_owner;\n  UPDATE public.wedding_preparation_style_responses SET scene_version=NULL,answer_code=NULL,\n    save_consent_version=NULL,saved_at=NULL,revision=nextval('public.wedding_preparation_style_revision_seq')\n    WHERE owner_user_id=v_owner;\n  RETURN public.get_own_wedding_preparation_style();\nEND;\n$function$\n",
+      "volatility": "v",
+      "securityDefiner": true
+    },
+    {
+      "acl": [
+        [
+          "authenticated",
+          "postgres",
+          "EXECUTE",
+          false
+        ],
+        [
+          "postgres",
+          "postgres",
+          "EXECUTE",
+          false
+        ]
+      ],
+      "args": "bigint",
+      "body": "\nDECLARE v_owner uuid := public.wedding_preparation_style_actor(); v_revision bigint;\nBEGIN\n  IF p_expected_revision IS NULL OR p_expected_revision NOT BETWEEN 1 AND 9007199254740991 THEN\n    RAISE EXCEPTION 'PREPARATION_STYLE_INVALID_INPUT' USING ERRCODE='22023';\n  END IF;\n  SELECT revision INTO v_revision FROM public.wedding_preparation_style_responses WHERE owner_user_id=v_owner FOR UPDATE;\n  IF v_revision IS DISTINCT FROM p_expected_revision THEN\n    IF v_revision>p_expected_revision AND EXISTS (SELECT 1 FROM public.wedding_preparation_style_responses WHERE owner_user_id=v_owner AND answer_code IS NULL) THEN\n      RETURN public.get_own_wedding_preparation_style();\n    END IF;\n    RAISE EXCEPTION 'PREPARATION_STYLE_REVISION_CONFLICT' USING ERRCODE='40001';\n  END IF;\n  DELETE FROM public.wedding_preparation_style_shares WHERE owner_user_id=v_owner;\n  UPDATE public.wedding_preparation_style_responses\n    SET revision=nextval('public.wedding_preparation_style_revision_seq') WHERE owner_user_id=v_owner;\n  RETURN public.get_own_wedding_preparation_style();\nEND;\n",
+      "kind": "f",
+      "name": "unshare_own_wedding_preparation_style",
+      "owner": "postgres",
+      "config": [
+        "search_path=\"\"",
+        "lock_timeout=5s",
+        "statement_timeout=5s"
+      ],
+      "result": "jsonb",
+      "strict": false,
+      "language": "plpgsql",
+      "parallel": "u",
+      "definition": "CREATE OR REPLACE FUNCTION public.unshare_own_wedding_preparation_style(p_expected_revision bigint)\n RETURNS jsonb\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO ''\n SET lock_timeout TO '5s'\n SET statement_timeout TO '5s'\nAS $function$\nDECLARE v_owner uuid := public.wedding_preparation_style_actor(); v_revision bigint;\nBEGIN\n  IF p_expected_revision IS NULL OR p_expected_revision NOT BETWEEN 1 AND 9007199254740991 THEN\n    RAISE EXCEPTION 'PREPARATION_STYLE_INVALID_INPUT' USING ERRCODE='22023';\n  END IF;\n  SELECT revision INTO v_revision FROM public.wedding_preparation_style_responses WHERE owner_user_id=v_owner FOR UPDATE;\n  IF v_revision IS DISTINCT FROM p_expected_revision THEN\n    IF v_revision>p_expected_revision AND EXISTS (SELECT 1 FROM public.wedding_preparation_style_responses WHERE owner_user_id=v_owner AND answer_code IS NULL) THEN\n      RETURN public.get_own_wedding_preparation_style();\n    END IF;\n    RAISE EXCEPTION 'PREPARATION_STYLE_REVISION_CONFLICT' USING ERRCODE='40001';\n  END IF;\n  DELETE FROM public.wedding_preparation_style_shares WHERE owner_user_id=v_owner;\n  UPDATE public.wedding_preparation_style_responses\n    SET revision=nextval('public.wedding_preparation_style_revision_seq') WHERE owner_user_id=v_owner;\n  RETURN public.get_own_wedding_preparation_style();\nEND;\n$function$\n",
+      "volatility": "v",
+      "securityDefiner": true
+    },
+    {
+      "acl": [
+        [
+          "authenticated",
+          "postgres",
+          "EXECUTE",
+          false
+        ],
+        [
+          "postgres",
+          "postgres",
+          "EXECUTE",
+          false
+        ]
+      ],
+      "args": "bigint, text, text, text",
+      "body": "\nDECLARE v_owner uuid := public.wedding_preparation_style_actor(); v_current public.wedding_preparation_style_responses%ROWTYPE;\nBEGIN\n  IF p_scene_version IS DISTINCT FROM 'v1.2-code' OR p_save_consent_version IS DISTINCT FROM '2026-09-20'\n    OR p_answer_code IS NULL OR p_answer_code !~ '^[ABCD-]{5}[ABC-][ABCD-][ABC-]{3}[AB-]{2}[ABC-][AB-]{7}$'\n    OR p_answer_code='--------------------' OR (p_expected_revision IS NOT NULL AND p_expected_revision NOT BETWEEN 1 AND 9007199254740991) THEN\n    RAISE EXCEPTION 'PREPARATION_STYLE_INVALID_INPUT' USING ERRCODE='22023';\n  END IF;\n  SELECT * INTO v_current FROM public.wedding_preparation_style_responses WHERE owner_user_id=v_owner FOR UPDATE;\n  -- 응답을 못 받은 같은 저장의 재시도는 공유 상태를 바꾸지 않는다.\n  IF v_current.owner_user_id IS NOT NULL AND v_current.scene_version=p_scene_version AND v_current.answer_code=p_answer_code\n    AND v_current.save_consent_version=p_save_consent_version THEN RETURN public.get_own_wedding_preparation_style(); END IF;\n  IF v_current.revision IS DISTINCT FROM p_expected_revision THEN\n    RAISE EXCEPTION 'PREPARATION_STYLE_REVISION_CONFLICT' USING ERRCODE='40001';\n  END IF;\n  DELETE FROM public.wedding_preparation_style_shares WHERE owner_user_id=v_owner;\n  INSERT INTO public.wedding_preparation_style_responses(owner_user_id,scene_version,answer_code,save_consent_version)\n    VALUES(v_owner,p_scene_version,p_answer_code,p_save_consent_version)\n    ON CONFLICT(owner_user_id) DO UPDATE SET scene_version=excluded.scene_version,answer_code=excluded.answer_code,\n      save_consent_version=excluded.save_consent_version,revision=excluded.revision,saved_at=excluded.saved_at;\n  RETURN public.get_own_wedding_preparation_style();\nEND;\n",
+      "kind": "f",
+      "name": "set_own_wedding_preparation_style",
+      "owner": "postgres",
+      "config": [
+        "search_path=\"\"",
+        "lock_timeout=5s",
+        "statement_timeout=5s"
+      ],
+      "result": "jsonb",
+      "strict": false,
+      "language": "plpgsql",
+      "parallel": "u",
+      "definition": "CREATE OR REPLACE FUNCTION public.set_own_wedding_preparation_style(p_expected_revision bigint, p_scene_version text, p_answer_code text, p_save_consent_version text)\n RETURNS jsonb\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO ''\n SET lock_timeout TO '5s'\n SET statement_timeout TO '5s'\nAS $function$\nDECLARE v_owner uuid := public.wedding_preparation_style_actor(); v_current public.wedding_preparation_style_responses%ROWTYPE;\nBEGIN\n  IF p_scene_version IS DISTINCT FROM 'v1.2-code' OR p_save_consent_version IS DISTINCT FROM '2026-09-20'\n    OR p_answer_code IS NULL OR p_answer_code !~ '^[ABCD-]{5}[ABC-][ABCD-][ABC-]{3}[AB-]{2}[ABC-][AB-]{7}$'\n    OR p_answer_code='--------------------' OR (p_expected_revision IS NOT NULL AND p_expected_revision NOT BETWEEN 1 AND 9007199254740991) THEN\n    RAISE EXCEPTION 'PREPARATION_STYLE_INVALID_INPUT' USING ERRCODE='22023';\n  END IF;\n  SELECT * INTO v_current FROM public.wedding_preparation_style_responses WHERE owner_user_id=v_owner FOR UPDATE;\n  -- 응답을 못 받은 같은 저장의 재시도는 공유 상태를 바꾸지 않는다.\n  IF v_current.owner_user_id IS NOT NULL AND v_current.scene_version=p_scene_version AND v_current.answer_code=p_answer_code\n    AND v_current.save_consent_version=p_save_consent_version THEN RETURN public.get_own_wedding_preparation_style(); END IF;\n  IF v_current.revision IS DISTINCT FROM p_expected_revision THEN\n    RAISE EXCEPTION 'PREPARATION_STYLE_REVISION_CONFLICT' USING ERRCODE='40001';\n  END IF;\n  DELETE FROM public.wedding_preparation_style_shares WHERE owner_user_id=v_owner;\n  INSERT INTO public.wedding_preparation_style_responses(owner_user_id,scene_version,answer_code,save_consent_version)\n    VALUES(v_owner,p_scene_version,p_answer_code,p_save_consent_version)\n    ON CONFLICT(owner_user_id) DO UPDATE SET scene_version=excluded.scene_version,answer_code=excluded.answer_code,\n      save_consent_version=excluded.save_consent_version,revision=excluded.revision,saved_at=excluded.saved_at;\n  RETURN public.get_own_wedding_preparation_style();\nEND;\n$function$\n",
+      "volatility": "v",
+      "securityDefiner": true
+    },
+    {
+      "acl": [
+        [
+          "authenticated",
+          "postgres",
+          "EXECUTE",
+          false
+        ],
+        [
+          "postgres",
+          "postgres",
+          "EXECUTE",
+          false
+        ]
+      ],
+      "args": "bigint, uuid, uuid, text",
+      "body": "\nDECLARE v_owner uuid := public.wedding_preparation_style_actor(); v_revision bigint; v_snapshot jsonb;\nBEGIN\n  IF p_expected_revision IS NULL OR p_expected_revision NOT BETWEEN 1 AND 9007199254740991\n    OR p_expected_couple_id IS NULL OR p_expected_partner_user_id IS NULL OR p_expected_partner_user_id=v_owner\n    OR p_share_consent_version IS DISTINCT FROM '2026-09-20' THEN\n    RAISE EXCEPTION 'PREPARATION_STYLE_INVALID_INPUT' USING ERRCODE='22023';\n  END IF;\n  IF NOT pg_catalog.pg_try_advisory_xact_lock_shared(pg_catalog.hashtextextended('hanbang:account-data:' || p_expected_partner_user_id::text,0)) THEN\n    RAISE EXCEPTION 'PREPARATION_STYLE_ACCOUNT_UNAVAILABLE' USING ERRCODE='55000';\n  END IF;\n  -- 공유 승인과 연결 해제가 겹치면 새 파트너로 승인을 옮기지 않는다.\n  PERFORM id FROM public.profiles WHERE id IN(v_owner,p_expected_partner_user_id) ORDER BY id FOR SHARE;\n  PERFORM id FROM public.couples WHERE id=p_expected_couple_id FOR SHARE;\n  v_snapshot := public.get_own_wedding_preparation_style();\n  IF (v_snapshot->>'coupleId')::uuid IS DISTINCT FROM p_expected_couple_id\n    OR (v_snapshot->>'partnerUserId')::uuid IS DISTINCT FROM p_expected_partner_user_id THEN\n    RAISE EXCEPTION 'PREPARATION_STYLE_MEMBERSHIP_CONFLICT' USING ERRCODE='40001';\n  END IF;\n  SELECT revision INTO v_revision FROM public.wedding_preparation_style_responses WHERE owner_user_id=v_owner AND answer_code IS NOT NULL FOR UPDATE;\n  IF v_revision IS DISTINCT FROM p_expected_revision THEN\n    RAISE EXCEPTION 'PREPARATION_STYLE_REVISION_CONFLICT' USING ERRCODE='40001';\n  END IF;\n  -- 공유/철회도 확인 번호를 전진시켜 지연 도착한 옛 승인이 철회를 되돌리지 못하게 한다.\n  UPDATE public.wedding_preparation_style_responses\n    SET revision=nextval('public.wedding_preparation_style_revision_seq') WHERE owner_user_id=v_owner\n    RETURNING revision INTO v_revision;\n  INSERT INTO public.wedding_preparation_style_shares(owner_user_id,partner_user_id,couple_id,response_revision,share_consent_version)\n    VALUES(v_owner,p_expected_partner_user_id,p_expected_couple_id,v_revision,p_share_consent_version)\n    ON CONFLICT(owner_user_id) DO UPDATE SET partner_user_id=excluded.partner_user_id,couple_id=excluded.couple_id,\n      response_revision=excluded.response_revision,share_consent_version=excluded.share_consent_version,shared_at=excluded.shared_at\n    WHERE (wedding_preparation_style_shares.partner_user_id,wedding_preparation_style_shares.couple_id,wedding_preparation_style_shares.response_revision)\n      IS DISTINCT FROM (excluded.partner_user_id,excluded.couple_id,excluded.response_revision);\n  RETURN public.get_own_wedding_preparation_style();\nEND;\n",
+      "kind": "f",
+      "name": "share_own_wedding_preparation_style",
+      "owner": "postgres",
+      "config": [
+        "search_path=\"\"",
+        "lock_timeout=5s",
+        "statement_timeout=5s"
+      ],
+      "result": "jsonb",
+      "strict": false,
+      "language": "plpgsql",
+      "parallel": "u",
+      "definition": "CREATE OR REPLACE FUNCTION public.share_own_wedding_preparation_style(p_expected_revision bigint, p_expected_couple_id uuid, p_expected_partner_user_id uuid, p_share_consent_version text)\n RETURNS jsonb\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO ''\n SET lock_timeout TO '5s'\n SET statement_timeout TO '5s'\nAS $function$\nDECLARE v_owner uuid := public.wedding_preparation_style_actor(); v_revision bigint; v_snapshot jsonb;\nBEGIN\n  IF p_expected_revision IS NULL OR p_expected_revision NOT BETWEEN 1 AND 9007199254740991\n    OR p_expected_couple_id IS NULL OR p_expected_partner_user_id IS NULL OR p_expected_partner_user_id=v_owner\n    OR p_share_consent_version IS DISTINCT FROM '2026-09-20' THEN\n    RAISE EXCEPTION 'PREPARATION_STYLE_INVALID_INPUT' USING ERRCODE='22023';\n  END IF;\n  IF NOT pg_catalog.pg_try_advisory_xact_lock_shared(pg_catalog.hashtextextended('hanbang:account-data:' || p_expected_partner_user_id::text,0)) THEN\n    RAISE EXCEPTION 'PREPARATION_STYLE_ACCOUNT_UNAVAILABLE' USING ERRCODE='55000';\n  END IF;\n  -- 공유 승인과 연결 해제가 겹치면 새 파트너로 승인을 옮기지 않는다.\n  PERFORM id FROM public.profiles WHERE id IN(v_owner,p_expected_partner_user_id) ORDER BY id FOR SHARE;\n  PERFORM id FROM public.couples WHERE id=p_expected_couple_id FOR SHARE;\n  v_snapshot := public.get_own_wedding_preparation_style();\n  IF (v_snapshot->>'coupleId')::uuid IS DISTINCT FROM p_expected_couple_id\n    OR (v_snapshot->>'partnerUserId')::uuid IS DISTINCT FROM p_expected_partner_user_id THEN\n    RAISE EXCEPTION 'PREPARATION_STYLE_MEMBERSHIP_CONFLICT' USING ERRCODE='40001';\n  END IF;\n  SELECT revision INTO v_revision FROM public.wedding_preparation_style_responses WHERE owner_user_id=v_owner AND answer_code IS NOT NULL FOR UPDATE;\n  IF v_revision IS DISTINCT FROM p_expected_revision THEN\n    RAISE EXCEPTION 'PREPARATION_STYLE_REVISION_CONFLICT' USING ERRCODE='40001';\n  END IF;\n  -- 공유/철회도 확인 번호를 전진시켜 지연 도착한 옛 승인이 철회를 되돌리지 못하게 한다.\n  UPDATE public.wedding_preparation_style_responses\n    SET revision=nextval('public.wedding_preparation_style_revision_seq') WHERE owner_user_id=v_owner\n    RETURNING revision INTO v_revision;\n  INSERT INTO public.wedding_preparation_style_shares(owner_user_id,partner_user_id,couple_id,response_revision,share_consent_version)\n    VALUES(v_owner,p_expected_partner_user_id,p_expected_couple_id,v_revision,p_share_consent_version)\n    ON CONFLICT(owner_user_id) DO UPDATE SET partner_user_id=excluded.partner_user_id,couple_id=excluded.couple_id,\n      response_revision=excluded.response_revision,share_consent_version=excluded.share_consent_version,shared_at=excluded.shared_at\n    WHERE (wedding_preparation_style_shares.partner_user_id,wedding_preparation_style_shares.couple_id,wedding_preparation_style_shares.response_revision)\n      IS DISTINCT FROM (excluded.partner_user_id,excluded.couple_id,excluded.response_revision);\n  RETURN public.get_own_wedding_preparation_style();\nEND;\n$function$\n",
+      "volatility": "v",
+      "securityDefiner": true
+    },
+    {
+      "acl": [
+        [
+          "postgres",
+          "postgres",
+          "EXECUTE",
+          false
+        ]
+      ],
+      "args": "",
+      "body": "\nBEGIN\n  IF NEW.user_id IS NOT NULL AND NEW.status<>'completed' THEN\n    PERFORM pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended('hanbang:account-data:' || NEW.user_id::text,0));\n    DELETE FROM public.wedding_preparation_style_shares WHERE partner_user_id=NEW.user_id;\n    DELETE FROM public.wedding_preparation_style_responses WHERE owner_user_id=NEW.user_id;\n  END IF;\n  RETURN NEW;\nEND;\n",
+      "kind": "f",
+      "name": "purge_wedding_preparation_style_for_account_deletion",
+      "owner": "postgres",
+      "config": [
+        "search_path=\"\""
+      ],
+      "result": "trigger",
+      "strict": false,
+      "language": "plpgsql",
+      "parallel": "u",
+      "definition": "CREATE OR REPLACE FUNCTION public.purge_wedding_preparation_style_for_account_deletion()\n RETURNS trigger\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO ''\nAS $function$\nBEGIN\n  IF NEW.user_id IS NOT NULL AND NEW.status<>'completed' THEN\n    PERFORM pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended('hanbang:account-data:' || NEW.user_id::text,0));\n    DELETE FROM public.wedding_preparation_style_shares WHERE partner_user_id=NEW.user_id;\n    DELETE FROM public.wedding_preparation_style_responses WHERE owner_user_id=NEW.user_id;\n  END IF;\n  RETURN NEW;\nEND;\n$function$\n",
+      "volatility": "v",
+      "securityDefiner": true
+    },
+    {
+      "acl": [
+        [
+          "postgres",
+          "postgres",
+          "EXECUTE",
+          false
+        ]
+      ],
+      "args": "",
+      "body": "\nBEGIN\n  IF TG_TABLE_NAME='profiles' THEN\n    IF (NEW.couple_id,NEW.role) IS DISTINCT FROM (OLD.couple_id,OLD.role) THEN\n      DELETE FROM public.wedding_preparation_style_shares\n        WHERE owner_user_id=OLD.id OR partner_user_id=OLD.id OR couple_id IN(OLD.couple_id,NEW.couple_id);\n      -- 아직 공유하지 않은 사람의 지연 승인도 옛 연결로 재생되면 안 된다.\n      UPDATE public.wedding_preparation_style_responses SET revision=nextval('public.wedding_preparation_style_revision_seq')\n        WHERE owner_user_id=OLD.id OR owner_user_id IN (\n          SELECT bride_id FROM public.couples WHERE id IN(OLD.couple_id,NEW.couple_id)\n          UNION SELECT groom_id FROM public.couples WHERE id IN(OLD.couple_id,NEW.couple_id)\n        );\n    END IF;\n  ELSIF (NEW.bride_id,NEW.groom_id) IS DISTINCT FROM (OLD.bride_id,OLD.groom_id) THEN\n    DELETE FROM public.wedding_preparation_style_shares WHERE couple_id=OLD.id;\n    UPDATE public.wedding_preparation_style_responses SET revision=nextval('public.wedding_preparation_style_revision_seq')\n      WHERE owner_user_id IN(OLD.bride_id,OLD.groom_id,NEW.bride_id,NEW.groom_id);\n  END IF;\n  RETURN NEW;\nEND;\n",
+      "kind": "f",
+      "name": "revoke_wedding_preparation_style_for_membership",
+      "owner": "postgres",
+      "config": [
+        "search_path=\"\""
+      ],
+      "result": "trigger",
+      "strict": false,
+      "language": "plpgsql",
+      "parallel": "u",
+      "definition": "CREATE OR REPLACE FUNCTION public.revoke_wedding_preparation_style_for_membership()\n RETURNS trigger\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO ''\nAS $function$\nBEGIN\n  IF TG_TABLE_NAME='profiles' THEN\n    IF (NEW.couple_id,NEW.role) IS DISTINCT FROM (OLD.couple_id,OLD.role) THEN\n      DELETE FROM public.wedding_preparation_style_shares\n        WHERE owner_user_id=OLD.id OR partner_user_id=OLD.id OR couple_id IN(OLD.couple_id,NEW.couple_id);\n      -- 아직 공유하지 않은 사람의 지연 승인도 옛 연결로 재생되면 안 된다.\n      UPDATE public.wedding_preparation_style_responses SET revision=nextval('public.wedding_preparation_style_revision_seq')\n        WHERE owner_user_id=OLD.id OR owner_user_id IN (\n          SELECT bride_id FROM public.couples WHERE id IN(OLD.couple_id,NEW.couple_id)\n          UNION SELECT groom_id FROM public.couples WHERE id IN(OLD.couple_id,NEW.couple_id)\n        );\n    END IF;\n  ELSIF (NEW.bride_id,NEW.groom_id) IS DISTINCT FROM (OLD.bride_id,OLD.groom_id) THEN\n    DELETE FROM public.wedding_preparation_style_shares WHERE couple_id=OLD.id;\n    UPDATE public.wedding_preparation_style_responses SET revision=nextval('public.wedding_preparation_style_revision_seq')\n      WHERE owner_user_id IN(OLD.bride_id,OLD.groom_id,NEW.bride_id,NEW.groom_id);\n  END IF;\n  RETURN NEW;\nEND;\n$function$\n",
+      "volatility": "v",
+      "securityDefiner": true
+    },
+    {
+      "acl": [
+        [
+          "postgres",
+          "postgres",
+          "EXECUTE",
+          false
+        ]
+      ],
+      "args": "",
+      "body": "\nDECLARE v_owner uuid := auth.uid();\nBEGIN\n  IF v_owner IS NULL THEN RAISE EXCEPTION 'PREPARATION_STYLE_AUTH_REQUIRED' USING ERRCODE='28000'; END IF;\n  -- 기존 계정 삭제 작업과 같은 잠금. 삭제 중 writer/reader는 대기 후 되살리지 않는다.\n  IF NOT pg_catalog.pg_try_advisory_xact_lock_shared(pg_catalog.hashtextextended('hanbang:account-data:' || v_owner::text,0)) THEN\n    RAISE EXCEPTION 'PREPARATION_STYLE_ACCOUNT_UNAVAILABLE' USING ERRCODE='55000';\n  END IF;\n  IF NOT EXISTS (SELECT 1 FROM auth.users WHERE id=v_owner)\n     OR NOT EXISTS (SELECT 1 FROM public.profiles WHERE id=v_owner)\n     OR EXISTS (SELECT 1 FROM public.account_deletion_jobs WHERE user_id=v_owner AND status<>'completed') THEN\n    RAISE EXCEPTION 'PREPARATION_STYLE_ACCOUNT_UNAVAILABLE' USING ERRCODE='55000';\n  END IF;\n  PERFORM pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended('hanbang:wedding-preparation-style:' || v_owner::text,0));\n  RETURN v_owner;\nEND;\n",
+      "kind": "f",
+      "name": "wedding_preparation_style_actor",
+      "owner": "postgres",
+      "config": [
+        "search_path=\"\"",
+        "lock_timeout=5s",
+        "statement_timeout=5s"
+      ],
+      "result": "uuid",
+      "strict": false,
+      "language": "plpgsql",
+      "parallel": "u",
+      "definition": "CREATE OR REPLACE FUNCTION public.wedding_preparation_style_actor()\n RETURNS uuid\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO ''\n SET lock_timeout TO '5s'\n SET statement_timeout TO '5s'\nAS $function$\nDECLARE v_owner uuid := auth.uid();\nBEGIN\n  IF v_owner IS NULL THEN RAISE EXCEPTION 'PREPARATION_STYLE_AUTH_REQUIRED' USING ERRCODE='28000'; END IF;\n  -- 기존 계정 삭제 작업과 같은 잠금. 삭제 중 writer/reader는 대기 후 되살리지 않는다.\n  IF NOT pg_catalog.pg_try_advisory_xact_lock_shared(pg_catalog.hashtextextended('hanbang:account-data:' || v_owner::text,0)) THEN\n    RAISE EXCEPTION 'PREPARATION_STYLE_ACCOUNT_UNAVAILABLE' USING ERRCODE='55000';\n  END IF;\n  IF NOT EXISTS (SELECT 1 FROM auth.users WHERE id=v_owner)\n     OR NOT EXISTS (SELECT 1 FROM public.profiles WHERE id=v_owner)\n     OR EXISTS (SELECT 1 FROM public.account_deletion_jobs WHERE user_id=v_owner AND status<>'completed') THEN\n    RAISE EXCEPTION 'PREPARATION_STYLE_ACCOUNT_UNAVAILABLE' USING ERRCODE='55000';\n  END IF;\n  PERFORM pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended('hanbang:wedding-preparation-style:' || v_owner::text,0));\n  RETURN v_owner;\nEND;\n$function$\n",
+      "volatility": "v",
+      "securityDefiner": true
+    }
+  ],
+  "relations": [
+    {
+      "acl": [
+        [
+          "postgres",
+          "postgres",
+          "DELETE",
+          false
+        ],
+        [
+          "postgres",
+          "postgres",
+          "INSERT",
+          false
+        ],
+        [
+          "postgres",
+          "postgres",
+          "MAINTAIN",
+          false
+        ],
+        [
+          "postgres",
+          "postgres",
+          "REFERENCES",
+          false
+        ],
+        [
+          "postgres",
+          "postgres",
+          "SELECT",
+          false
+        ],
+        [
+          "postgres",
+          "postgres",
+          "TRIGGER",
+          false
+        ],
+        [
+          "postgres",
+          "postgres",
+          "TRUNCATE",
+          false
+        ],
+        [
+          "postgres",
+          "postgres",
+          "UPDATE",
+          false
+        ]
+      ],
+      "rls": true,
+      "kind": "r",
+      "name": "public.wedding_preparation_style_responses",
+      "owner": "postgres",
+      "columns": [
+        [
+          "answer_code",
+          "text",
+          false,
+          "",
+          "",
+          null,
+          []
+        ],
+        [
+          "owner_user_id",
+          "uuid",
+          true,
+          "",
+          "",
+          null,
+          []
+        ],
+        [
+          "revision",
+          "bigint",
+          true,
+          "",
+          "",
+          "nextval('wedding_preparation_style_revision_seq'::regclass)",
+          []
+        ],
+        [
+          "save_consent_version",
+          "text",
+          false,
+          "",
+          "",
+          null,
+          []
+        ],
+        [
+          "saved_at",
+          "timestamp with time zone",
+          false,
+          "",
+          "",
+          "clock_timestamp()",
+          []
+        ],
+        [
+          "scene_version",
+          "text",
+          false,
+          "",
+          "",
+          null,
+          []
+        ]
+      ],
+      "indexes": [
+        [
+          "CREATE UNIQUE INDEX wedding_preparation_style_responses_pkey ON public.wedding_preparation_style_responses USING btree (owner_user_id)",
+          true,
+          true
+        ]
+      ],
+      "forceRls": true,
+      "policies": [],
+      "triggers": [],
+      "constraints": [
+        [
+          "wedding_preparation_style_responses_answer_code_check",
+          "c",
+          true,
+          "CHECK (answer_code ~ '^[ABCD-]{5}[ABC-][ABCD-][ABC-]{3}[AB-]{2}[ABC-][AB-]{7}$'::text AND answer_code <> '--------------------'::text)"
+        ],
+        [
+          "wedding_preparation_style_responses_check",
+          "c",
+          true,
+          "CHECK ((answer_code IS NULL) = (scene_version IS NULL) AND (answer_code IS NULL) = (save_consent_version IS NULL) AND (answer_code IS NULL) = (saved_at IS NULL))"
+        ],
+        [
+          "wedding_preparation_style_responses_owner_user_id_fkey",
+          "f",
+          true,
+          "FOREIGN KEY (owner_user_id) REFERENCES profiles(id) ON DELETE CASCADE"
+        ],
+        [
+          "wedding_preparation_style_responses_pkey",
+          "p",
+          true,
+          "PRIMARY KEY (owner_user_id)"
+        ],
+        [
+          "wedding_preparation_style_responses_revision_check",
+          "c",
+          true,
+          "CHECK (revision >= 1 AND revision <= '9007199254740991'::bigint)"
+        ],
+        [
+          "wedding_preparation_style_responses_save_consent_version_check",
+          "c",
+          true,
+          "CHECK (save_consent_version = '2026-09-20'::text)"
+        ],
+        [
+          "wedding_preparation_style_responses_scene_version_check",
+          "c",
+          true,
+          "CHECK (scene_version = 'v1.2-code'::text)"
+        ]
+      ]
+    },
+    {
+      "acl": [
+        [
+          "postgres",
+          "postgres",
+          "DELETE",
+          false
+        ],
+        [
+          "postgres",
+          "postgres",
+          "INSERT",
+          false
+        ],
+        [
+          "postgres",
+          "postgres",
+          "MAINTAIN",
+          false
+        ],
+        [
+          "postgres",
+          "postgres",
+          "REFERENCES",
+          false
+        ],
+        [
+          "postgres",
+          "postgres",
+          "SELECT",
+          false
+        ],
+        [
+          "postgres",
+          "postgres",
+          "TRIGGER",
+          false
+        ],
+        [
+          "postgres",
+          "postgres",
+          "TRUNCATE",
+          false
+        ],
+        [
+          "postgres",
+          "postgres",
+          "UPDATE",
+          false
+        ]
+      ],
+      "rls": true,
+      "kind": "r",
+      "name": "public.wedding_preparation_style_shares",
+      "owner": "postgres",
+      "columns": [
+        [
+          "couple_id",
+          "uuid",
+          true,
+          "",
+          "",
+          null,
+          []
+        ],
+        [
+          "owner_user_id",
+          "uuid",
+          true,
+          "",
+          "",
+          null,
+          []
+        ],
+        [
+          "partner_user_id",
+          "uuid",
+          true,
+          "",
+          "",
+          null,
+          []
+        ],
+        [
+          "response_revision",
+          "bigint",
+          true,
+          "",
+          "",
+          null,
+          []
+        ],
+        [
+          "share_consent_version",
+          "text",
+          true,
+          "",
+          "",
+          null,
+          []
+        ],
+        [
+          "shared_at",
+          "timestamp with time zone",
+          true,
+          "",
+          "",
+          "clock_timestamp()",
+          []
+        ]
+      ],
+      "indexes": [
+        [
+          "CREATE INDEX wedding_preparation_style_shares_couple ON public.wedding_preparation_style_shares USING btree (couple_id)",
+          true,
+          true
+        ],
+        [
+          "CREATE INDEX wedding_preparation_style_shares_partner ON public.wedding_preparation_style_shares USING btree (partner_user_id)",
+          true,
+          true
+        ],
+        [
+          "CREATE UNIQUE INDEX wedding_preparation_style_shares_pkey ON public.wedding_preparation_style_shares USING btree (owner_user_id)",
+          true,
+          true
+        ]
+      ],
+      "forceRls": true,
+      "policies": [],
+      "triggers": [],
+      "constraints": [
+        [
+          "wedding_preparation_style_shares_check",
+          "c",
+          true,
+          "CHECK (owner_user_id <> partner_user_id)"
+        ],
+        [
+          "wedding_preparation_style_shares_couple_id_fkey",
+          "f",
+          true,
+          "FOREIGN KEY (couple_id) REFERENCES couples(id) ON DELETE CASCADE"
+        ],
+        [
+          "wedding_preparation_style_shares_owner_user_id_fkey",
+          "f",
+          true,
+          "FOREIGN KEY (owner_user_id) REFERENCES wedding_preparation_style_responses(owner_user_id) ON DELETE CASCADE"
+        ],
+        [
+          "wedding_preparation_style_shares_partner_user_id_fkey",
+          "f",
+          true,
+          "FOREIGN KEY (partner_user_id) REFERENCES profiles(id) ON DELETE CASCADE"
+        ],
+        [
+          "wedding_preparation_style_shares_pkey",
+          "p",
+          true,
+          "PRIMARY KEY (owner_user_id)"
+        ],
+        [
+          "wedding_preparation_style_shares_response_revision_check",
+          "c",
+          true,
+          "CHECK (response_revision >= 1 AND response_revision <= '9007199254740991'::bigint)"
+        ],
+        [
+          "wedding_preparation_style_shares_share_consent_version_check",
+          "c",
+          true,
+          "CHECK (share_consent_version = '2026-09-20'::text)"
+        ]
+      ]
+    }
+  ],
+  "sequences": [
+    {
+      "acl": [
+        [
+          "postgres",
+          "postgres",
+          "SELECT",
+          false
+        ],
+        [
+          "postgres",
+          "postgres",
+          "UPDATE",
+          false
+        ],
+        [
+          "postgres",
+          "postgres",
+          "USAGE",
+          false
+        ]
+      ],
+      "max": 9007199254740991,
+      "min": 1,
+      "kind": "S",
+      "name": "public.wedding_preparation_style_revision_seq",
+      "type": "bigint",
+      "cache": 1,
+      "cycle": false,
+      "owner": "postgres",
+      "start": 1,
+      "increment": 1
+    }
+  ],
+  "parentTriggers": [
+    [
+      "public.account_deletion_jobs",
+      "trg_wedding_preparation_style_account_deletion",
+      "O",
+      "CREATE TRIGGER trg_wedding_preparation_style_account_deletion AFTER INSERT OR UPDATE OF user_id, status ON account_deletion_jobs FOR EACH ROW EXECUTE FUNCTION purge_wedding_preparation_style_for_account_deletion()"
+    ],
+    [
+      "public.couples",
+      "trg_wedding_preparation_style_couple_membership",
+      "O",
+      "CREATE TRIGGER trg_wedding_preparation_style_couple_membership AFTER UPDATE OF bride_id, groom_id ON couples FOR EACH ROW EXECUTE FUNCTION revoke_wedding_preparation_style_for_membership()"
+    ],
+    [
+      "public.profiles",
+      "trg_wedding_preparation_style_profile_membership",
+      "O",
+      "CREATE TRIGGER trg_wedding_preparation_style_profile_membership AFTER UPDATE OF couple_id, role ON profiles FOR EACH ROW EXECUTE FUNCTION revoke_wedding_preparation_style_for_membership()"
+    ]
+  ],
+  "dependencies": [
+    {
+      "acl": [
+        [
+          "postgres",
+          "postgres",
+          "EXECUTE",
+          false
+        ],
+        [
+          "service_role",
+          "postgres",
+          "EXECUTE",
+          false
+        ]
+      ],
+      "args": "uuid, uuid",
+      "body": "\n  SELECT p_user_id IS NOT NULL\n    AND p_couple_id IS NOT NULL\n    AND EXISTS (\n      SELECT 1\n      FROM public.profiles AS profile\n      JOIN public.couples AS couple ON couple.id = profile.couple_id\n      WHERE profile.id = p_user_id\n        AND profile.couple_id = p_couple_id\n        AND (\n          (profile.role = 'bride' AND couple.bride_id = p_user_id)\n          OR (profile.role = 'groom' AND couple.groom_id = p_user_id)\n        )\n    );\n",
+      "kind": "f",
+      "name": "is_current_couple_member",
+      "owner": "postgres",
+      "config": [
+        "search_path=pg_catalog, public",
+        "statement_timeout=5s"
+      ],
+      "result": "boolean",
+      "strict": false,
+      "language": "sql",
+      "parallel": "u",
+      "definition": "CREATE OR REPLACE FUNCTION public.is_current_couple_member(p_user_id uuid, p_couple_id uuid)\n RETURNS boolean\n LANGUAGE sql\n STABLE SECURITY DEFINER\n SET search_path TO 'pg_catalog', 'public'\n SET statement_timeout TO '5s'\nAS $function$\n  SELECT p_user_id IS NOT NULL\n    AND p_couple_id IS NOT NULL\n    AND EXISTS (\n      SELECT 1\n      FROM public.profiles AS profile\n      JOIN public.couples AS couple ON couple.id = profile.couple_id\n      WHERE profile.id = p_user_id\n        AND profile.couple_id = p_couple_id\n        AND (\n          (profile.role = 'bride' AND couple.bride_id = p_user_id)\n          OR (profile.role = 'groom' AND couple.groom_id = p_user_id)\n        )\n    );\n$function$\n",
+      "volatility": "s",
+      "securityDefiner": true
+    }
+  ]
+}

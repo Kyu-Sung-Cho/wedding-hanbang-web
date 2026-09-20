@@ -11,6 +11,8 @@
 const ANALYTICS_SUPPRESSED_PATH_PREFIXES = [
   "/internal/wedding-code-research",
   "/wedding-code",
+  "/preparation-style",
+  "/wedding/preparation-style",
   "/invite",
 ] as const;
 const ADMIN_VENDOR_PREVIEW_PATH = "/wedding/vendors";

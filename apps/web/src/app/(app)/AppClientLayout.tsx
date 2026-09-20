@@ -229,7 +229,9 @@ export default function AppClientLayout({
   const isSchedulePage = appPathname === "/schedule";
   const isPlanningPage = isChecklistPage || isBudgetPage || isSchedulePage;
   const isLoungePage = appPathname === "/lounge";
-  const hasHtmlDesign = isAmoraPage || isPlanningPage || isLoungePage;
+  const isPreparationStylePage = appPathname === "/preparation-style";
+  const isLoungeWorkspace = isLoungePage || isPreparationStylePage;
+  const hasHtmlDesign = isAmoraPage || isPlanningPage || isLoungeWorkspace;
   const { initialize, isInitialized, isLoading, isDemo } = useAuthStore();
 
   const analyticsSuppressed = isAnalyticsSuppressedLocation(pathname, searchParams);
@@ -260,23 +262,23 @@ export default function AppClientLayout({
   return (
     <AmoraNavigationTargetContext.Provider value={amoraNavigationTarget}>
     <div
-      className={`${analyticsSuppressed ? "ph-no-capture " : ""}${isAmoraPage || isLoungePage ? "amora-workspace " : isPlanningPage ? "planning-workspace " : ""}${
+      className={`${analyticsSuppressed ? "ph-no-capture " : ""}${isAmoraPage || isLoungeWorkspace ? "amora-workspace " : isPlanningPage ? "planning-workspace " : ""}${
         isChatPage
           // iOS 사파리는 100vh가 주소창 높이를 포함해 입력창이 화면 밖으로 밀린다 → dvh
           ? "hanbang-service-theme h-[100dvh] overflow-hidden bg-[var(--hb-surface-page)]"
           : "hanbang-service-theme min-h-screen bg-[var(--hb-surface-page)]"
       }`}
     >
-      <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} amoraWorkspace={isAmoraPage || isLoungePage} planningWorkspace={isPlanningPage} />
-      <div className={isChatPage ? "flex h-[100dvh] flex-col md:ml-[220px]" : isPlanningPage || isLoungePage ? "pb-[calc(74px+env(safe-area-inset-bottom))] md:ml-[216px] md:pb-0" : hasHtmlDesign ? "pb-[calc(74px+env(safe-area-inset-bottom))] md:ml-[220px] md:pb-0" : "md:ml-[16rem]"}>
-        <TopNav onMenuToggle={() => setSidebarOpen(true)} amoraWorkspace={isAmoraPage} planningWorkspace={isPlanningPage} loungeWorkspace={isLoungePage} amoraNavigationRef={setAmoraNavigationTarget} />
+      <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} amoraWorkspace={isAmoraPage || isLoungeWorkspace} planningWorkspace={isPlanningPage} />
+      <div className={isChatPage ? "flex h-[100dvh] flex-col md:ml-[220px]" : isPlanningPage || isLoungeWorkspace ? "pb-[calc(74px+env(safe-area-inset-bottom))] md:ml-[216px] md:pb-0" : hasHtmlDesign ? "pb-[calc(74px+env(safe-area-inset-bottom))] md:ml-[220px] md:pb-0" : "md:ml-[16rem]"}>
+        <TopNav onMenuToggle={() => setSidebarOpen(true)} amoraWorkspace={isAmoraPage} planningWorkspace={isPlanningPage} loungeWorkspace={isLoungeWorkspace} amoraNavigationRef={setAmoraNavigationTarget} />
         {banner}
         {isChatPage ? (
           <main className="flex min-h-0 flex-1 flex-col overflow-hidden">{children}</main>
         ) : hasHtmlDesign ? (
           <>
             <main>{children}</main>
-            {(isPlanningPage || isLoungePage) && <div className="px-[18px] pb-10 lg:px-9"><AiNoticeFooter variant="light" /></div>}
+            {(isPlanningPage || isLoungeWorkspace) && <div className="px-[18px] pb-10 lg:px-9"><AiNoticeFooter variant="light" /></div>}
           </>
         ) : (
           <>
@@ -295,6 +297,7 @@ export default function AppClientLayout({
       {isAmoraPage && !isChatPage && <AmoraBottomNav />}
       {isPlanningPage && <AmoraBottomNav active={isSchedulePage ? "schedule" : isBudgetPage ? "budget" : "checklist"} />}
       {isLoungePage && <AmoraBottomNav active="lounge" />}
+      {isPreparationStylePage && <AmoraBottomNav active={null} />}
 
       {/* 준비 화면은 본문 질문과 하단 탐색을 사용해 고정 버튼이 목록을 덮지 않게 한다. */}
       {!hasHtmlDesign && !vendorAdminPreview && (

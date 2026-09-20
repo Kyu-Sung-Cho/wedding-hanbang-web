@@ -1,0 +1,73 @@
+{
+  "version": 1,
+  "kind": "preparation-style-static-successor",
+  "release": "preparation-style-20260920",
+  "status": "requires-scoped-runtime-evidence",
+  "productionApplyImplemented": true,
+  "runtimeEvidenceVerified": false,
+  "projectRef": "slrtobkksjmxgzatjyqb",
+  "systemIdentifier": "7581440907192989109",
+  "predecessor": {
+    "file": "supabase/release-contracts/wedding-code-research-scene-v10-v1.json",
+    "sha256": "5641d5030d760210d075af9e1c4e80ed462318e9debd2b1bcc47d1195f025cdf"
+  },
+  "reviewedPredecessorMigrationCount": 236,
+  "migrations": [
+    {
+      "file": "20260920120000_wedding_preparation_style.sql",
+      "sha256": "a7beb94156758753676aac366e04477365713eaf7f28dfc0e44f41646c7b5520"
+    }
+  ],
+  "scope": {
+    "newTables": [
+      "public.wedding_preparation_style_responses",
+      "public.wedding_preparation_style_shares"
+    ],
+    "newSequence": "public.wedding_preparation_style_revision_seq",
+    "authenticatedFunctions": [
+      "public.get_own_wedding_preparation_style()",
+      "public.set_own_wedding_preparation_style(bigint,text,text,text)",
+      "public.clear_own_wedding_preparation_style(bigint)",
+      "public.share_own_wedding_preparation_style(bigint,uuid,uuid,text)",
+      "public.unshare_own_wedding_preparation_style(bigint)"
+    ],
+    "internalFunctions": [
+      "public.wedding_preparation_style_actor()",
+      "public.purge_wedding_preparation_style_for_account_deletion()",
+      "public.revoke_wedding_preparation_style_for_membership()"
+    ],
+    "newTriggers": [
+      "public.account_deletion_jobs.trg_wedding_preparation_style_account_deletion",
+      "public.profiles.trg_wedding_preparation_style_profile_membership",
+      "public.couples.trg_wedding_preparation_style_couple_membership"
+    ],
+    "tableAccess": "owner-only-force-rls-no-client-policies",
+    "sequenceAccess": "owner-only",
+    "existingFunctions": "unchanged",
+    "existingData": "unchanged",
+    "newRows": "none",
+    "backfill": "none",
+    "requiredDependency": "public.is_current_couple_member(uuid,uuid):reviewed-definition-and-acl",
+    "rollback": "disable-hub-writes-preserve-saved-rows-and-revocation-triggers"
+  },
+  "runtime": {
+    "file": "scripts/lib/preparation-style-release.mjs",
+    "sha256": "e81ccccbb8f3b5a6181973a0d8586ca190e4cb74975b0fd02a81d2e4b7c1655c"
+  },
+  "catalog": {
+    "file": "scripts/lib/preparation-style-catalog.mjs",
+    "sha256": "633e29a1cd6e0211ed10e1fdc4e15bc015ad1500583ca3f5c802596e2acca012"
+  },
+  "catalogFixture": {
+    "file": "supabase/release-contracts/preparation-style-pg17-catalog-v1.json",
+    "sha256": "2b37c0b9701e515d6bf274c61a1a0988b1f10dd0eacd16b86c5efbbfe64cdccc"
+  },
+  "predecessorMigration": {
+    "file": "supabase/migrations/20260918090000_wedding_code_research_scene_v10.sql",
+    "sha256": "f6a794afcd3b40735c28518065e26704795725799fbb7a78ee346510c729f633"
+  },
+  "dependencyMigration": {
+    "file": "supabase/migrations/20260716114000_current_couple_membership_privacy_fence.sql",
+    "sha256": "cabf4988ac7969f3084280c1cc69fce62bc22f05c371f64d98c68207b870dc2b"
+  }
+}

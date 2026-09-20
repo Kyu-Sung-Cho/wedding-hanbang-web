@@ -27,6 +27,9 @@ describe("zero-I/O research analytics boundary", () => {
     expect(isAnalyticsSuppressedPath("/wedding-code")).toBe(true);
     expect(isAnalyticsSuppressedPath("/wedding-code/result")).toBe(true);
     expect(isAnalyticsSuppressedPath("/wedding-code-copy")).toBe(false);
+    expect(isAnalyticsSuppressedPath("/preparation-style")).toBe(true);
+    expect(isAnalyticsSuppressedPath("/wedding/preparation-style")).toBe(true);
+    expect(isAnalyticsSuppressedPath("/preparation-style-copy")).toBe(false);
     // 초대 코드는 커플 공간 열쇠라 '#' 뒤에 싣는다. 페이지뷰 이벤트는 URL 전체를
     // 제3자에게 보내므로, 이 경로가 목록에서 빠지면 그 설계가 한 줄에 무너진다.
     expect(isAnalyticsSuppressedPath("/invite")).toBe(true);
@@ -220,7 +223,7 @@ describe("웨딩코드 흐름 이벤트는 답과 주소를 싣지 않는다", (
    */
   it("보내는 흐름 이벤트와 속성이 전부 처리방침 제3조 웨딩코드 문장에 적혀 있다", () => {
     const privacy = readFileSync(path.join(srcRoot, "app/privacy/page.tsx"), "utf8");
-    const start = privacy.indexOf("<li>웨딩코드: ");
+    const start = privacy.indexOf("<li>로그인 없이 이용하는 공개 웨딩코드: ");
     const end = privacy.indexOf("</li>", start);
     expect(start, "제3조 웨딩코드 문장을 못 찾았다 — 이 검사가 헛돈다").toBeGreaterThan(-1);
     expect(end).toBeGreaterThan(start);

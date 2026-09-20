@@ -158,7 +158,7 @@ describe("AppClientLayout global Amora panel", () => {
     expect(document.activeElement).toBe(restored);
   });
 
-  it.each(["/wedding/chat", "/wedding/checklist", "/checklist", "/wedding/budget", "/budget", "/wedding/schedule", "/schedule", "/wedding/lounge", "/lounge"])("unmounts and resets the global panel when navigation enters %s", async (pathname) => {
+  it.each(["/wedding/chat", "/wedding/checklist", "/checklist", "/wedding/budget", "/budget", "/wedding/schedule", "/schedule", "/wedding/lounge", "/lounge", "/wedding/preparation-style", "/preparation-style"])("unmounts and resets the global panel when navigation enters %s", async (pathname) => {
     await renderLayout();
 
     const launcher = container.querySelector<HTMLButtonElement>(
@@ -245,6 +245,18 @@ describe("AppClientLayout global Amora panel", () => {
     expect(container.querySelector(".hanbang-service-theme:not(.amora-workspace):not(.planning-workspace) main")).not.toBeNull();
     expect(container.querySelectorAll('button[aria-label="아모라 AI 상담"]')).toHaveLength(1);
     expect(container.querySelector('nav[aria-label="모바일 주요 기능"]')).toBeNull();
+  });
+
+  it.each(["/preparation-style", "/wedding/preparation-style"])("keeps %s in the lounge shell without marking a different bottom tab active", async pathname => {
+    mocks.pathname = pathname;
+    await renderLayout();
+    expect(container.querySelector(".amora-workspace main")).not.toBeNull();
+    const nav = container.querySelector('nav[aria-label="모바일 주요 기능"]');
+    expect(nav?.querySelectorAll("a")).toHaveLength(5);
+    expect(nav?.querySelectorAll('[aria-current="location"]')).toHaveLength(0);
+    expect(nav?.querySelector('a[href="/wedding/lounge"]')).not.toBeNull();
+    expect(container.querySelector('button[aria-label="아모라 AI 상담"]')).toBeNull();
+    expect(container.querySelector('[data-testid="global-amora-panel"]')).toBeNull();
   });
 
   it("suppresses analytics capture and the Amora launcher only in admin vendor preview mode", async () => {

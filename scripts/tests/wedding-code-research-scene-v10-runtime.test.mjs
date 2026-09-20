@@ -15,7 +15,11 @@ import { expectedWeddingCodeSceneVersionCatalog } from '../lib/wedding-code-rese
 import { weddingCodeResearchTargetCatalogSql } from '../lib/wedding-code-research-contributions-release.mjs';
 import { CurrentBaselineBlocked } from '../lib/current-baseline-release-contract.mjs';
 
-const root = resolve(import.meta.dirname, '../..');
+import { createWeddingCodeSceneV10HistoricalRepository } from './fixtures/wedding-code-research-scene-v10-historical-repository.mjs';
+const actualRoot = resolve(import.meta.dirname, '../..');
+const historical = createWeddingCodeSceneV10HistoricalRepository(actualRoot);
+test.after(historical.cleanup);
+const root = historical.root;
 const read = file => readFileSync(join(root, file), 'utf8');
 const sql = read('supabase/migrations/20260918090000_wedding_code_research_scene_v10.sql');
 const predecessorSql = read('supabase/migrations/20260917090000_wedding_code_research_scene_v09.sql');
@@ -196,7 +200,7 @@ test('a missing predecessor stops before mutation and tells the operator the exa
 
 // 안내하는 커밋이 정말 235 lane을 돌릴 수 있는 checkout인지 Git 원문으로 확인한다(CI는 전체 이력을 받는다).
 test('the guidance commit is a 235-file checkout whose 235 contract, runtime and SQL are the pinned bytes', () => {
-  const git = gitArgs => execFileSync('git', ['--no-replace-objects', '-C', root, ...gitArgs], { windowsHide: true, timeout: 30_000,
+  const git = gitArgs => execFileSync('git', ['--no-replace-objects', '-C', actualRoot, ...gitArgs], { windowsHide: true, timeout: 30_000,
     maxBuffer: 16 * 1024 * 1024, env: { ...process.env, GIT_NO_LAZY_FETCH: '1', GIT_TERMINAL_PROMPT: '0' } });
   const files = git(['ls-tree', '--name-only', `${BASE_235}:supabase/migrations`]).toString('utf8').split('\n').filter(name => /\.sql$/i.test(name));
   assert.equal(files.length, 235); assert.equal(files.at(-1), '20260917090000_wedding_code_research_scene_v09.sql');
@@ -257,7 +261,7 @@ test('receipt writes short chunks completely before fsync and refuses zero progr
 // 합성 PGlite(PostgreSQL 18)에서 234·235 적용 상태를 만든 뒤 실제 관측식과 적용 묶음을 돌린다.
 // 운영 식별값·버전 범위 검사만 로컬 값으로 바꾼다.
 test('the real catalog query and bundle rehearse, roll back and commit exactly the v1.0 CHECK on a local PostgreSQL', { timeout: 120_000 }, async () => {
-  const { PGlite } = createRequire(join(root, 'apps/web/package.json'))('@electric-sql/pglite');
+  const { PGlite } = createRequire(join(actualRoot, 'apps/web/package.json'))('@electric-sql/pglite');
   const db = await PGlite.create();
   const insert = (scene, byte) => db.query('SELECT public.insert_wedding_code_research_contribution($1,$2,$3,$4)',
     [scene, 'ABCD-ABCD-ABCD-ABCD-', 'wc-research-consent-v3', new Uint8Array(32).fill(byte)]);
