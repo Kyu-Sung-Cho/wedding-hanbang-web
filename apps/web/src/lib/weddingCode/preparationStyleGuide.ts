@@ -15,6 +15,7 @@ import {
 } from "./scene/resultProfile";
 import { isWeddingCodeQuestionOption } from "./v06/code";
 import type { WeddingCodeV06Answers } from "./v06/gap";
+import { buildCoupleRoleGuide } from "./coupleRoleGuide";
 
 export type PreparationStyleResponse = Readonly<{
   version: string;
@@ -202,7 +203,7 @@ function skippedMessage(skipped: number): string | null {
     : `한 사람이라도 답하지 않은 ${skipped}장면은 비교하지 않았어요.`;
 }
 
-function compareScene(mine: PreparationStylePersonalScene, partner: PreparationStylePersonalScene): PreparationStyleComparisonScene {
+function compareScene(mine: PreparationStylePersonalScene, partner: PreparationStylePersonalScene, version: string): PreparationStyleComparisonScene {
   const base = { key: mine.key, scene: mine.scene, question: mine.question, mine: mine.answer, partner: partner.answer };
   if (!mine.answer || !partner.answer) {
     return {
@@ -214,13 +215,14 @@ function compareScene(mine: PreparationStylePersonalScene, partner: PreparationS
   }
   // 같은 집계 방향이어도 보기 자체가 다르면 서로 다른 선택이다.
   const same = mine.answer.value === partner.answer.value;
+  const roleGuide = buildCoupleRoleGuide(version, mine.key, mine.answer.value, partner.answer.value);
   return {
     ...base,
     status: same ? "same" : "different",
-    explanation: same
+    explanation: roleGuide?.explanation ?? (same
       ? "같은 답을 골랐어요. 고른 이유도 같은지는 서로 물어보세요."
-      : "고른 답이 달라요. 왜 그 답을 골랐는지부터 이야기해 보세요.",
-    nextStep: mine.nextStep,
+      : "고른 답이 달라요. 왜 그 답을 골랐는지부터 이야기해 보세요."),
+    nextStep: roleGuide?.nextStep ?? mine.nextStep,
   };
 }
 
@@ -246,7 +248,7 @@ export function buildPreparationStyleGuide(
 
   const groups = personal.groups.map(group => {
     const partnerGroup = other.groups.find(item => item.id === group.id)!;
-    const scenes = group.scenes.map((scene, index) => compareScene(scene, partnerGroup.scenes[index]));
+    const scenes = group.scenes.map((scene, index) => compareScene(scene, partnerGroup.scenes[index], mine.version));
     const same = scenes.filter(scene => scene.status === "same").length;
     const different = scenes.filter(scene => scene.status === "different").length;
     const compared = same + different;

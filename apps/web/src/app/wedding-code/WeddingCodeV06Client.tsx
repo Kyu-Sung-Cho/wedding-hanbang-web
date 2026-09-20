@@ -1,5 +1,7 @@
 "use client";
 
+import { buildCoupleRoleGuide } from "@/lib/weddingCode/coupleRoleGuide";
+
 import { useEffect, useRef, useState } from "react";
 import { ArrowLeft, ArrowRight, Check, Copy, RotateCcw } from "lucide-react";
 
@@ -899,7 +901,9 @@ ${shareUrl}`
               ? "한 사람이 답한 장면은 다른 사람이 모두 건너뛰었어요. 각자 어느 쪽 답을 골랐는지는 아래에서 볼 수 있어요."
               : top.length > 0
                 ? "누가 맞는지 가리지 않아요. 답이 갈린 장면마다 둘이 해 볼 것을 하나씩 적었어요."
-                : "누가 맞는지 가리지 않아요. 서로 반대쪽 답을 고른 장면이 없어서 둘이 해 볼 것은 따로 적지 않았어요."}
+                : config.version === WEDDING_CODE_V12_VERSION
+                  ? "장면마다 고른 답은 아래에서 나란히 볼 수 있어요. 같은 답을 고른 이유도 서로 물어보세요."
+                  : "누가 맞는지 가리지 않아요. 서로 반대쪽 답을 고른 장면이 없어서 둘이 해 볼 것은 따로 적지 않았어요."}
             {compared > 0 && map.missing > 0
               ? ` 한 사람이라도 건너뛴 ${map.missing}장면은 비교하지 않았어요.`
               : ""}
@@ -909,6 +913,7 @@ ${shareUrl}`
         {top.length > 0 ? (
           <div className="divide-y divide-[var(--hb-hairline)]">
             {top.map((gap) => {
+              const roleGuide = buildCoupleRoleGuide(config.version, gap.key, theirs[gap.key], answers[gap.key]);
               const described = describeGap(gap, {
                 first: "먼저 답한 사람",
                 second: "나중에 답한 사람",
@@ -920,7 +925,7 @@ ${shareUrl}`
                 <article key={gap.key} data-gap={gap.key} className="px-5 py-6 sm:px-8">
                   {/* 주제 이름이지 유형 이름이 아니다 — 「…형이에요」로 읽히면 안 된다. */}
                   <p className="text-[12px] font-semibold text-[var(--hb-success)]">
-                    {described.headline}
+                    {roleGuide ? "역할 나누기: 누가 맡을지 얘기해 보세요" : described.headline}
                   </p>
                   <p className="mt-2 text-[13px] font-medium leading-[1.5] text-[var(--color-rose-700)]">
                     {gap.scene}
@@ -935,9 +940,10 @@ ${shareUrl}`
                       </p>
                     ))}
                   </div>
+                  {roleGuide ? <p className="mt-3 text-[14px] leading-relaxed text-[var(--hb-text-body)]">{roleGuide.explanation}</p> : null}
                   <p className="mt-4 text-[13px] font-medium leading-[1.7] text-[var(--hb-text-strong)]">
                     <b className="font-semibold text-[var(--hb-text-strong)]">둘이 해 볼 것: </b>
-                    {described.nextScene}
+                    {roleGuide?.nextStep ?? described.nextScene}
                   </p>
                 </article>
               );
@@ -989,12 +995,17 @@ ${shareUrl}`
             {config.questions.flatMap((question) => {
               const gap = [...map.identical, ...map.shared, ...map.splits].find((item) => item.key === question.key);
               if (!gap) return [];
+              const roleGuide = buildCoupleRoleGuide(config.version, gap.key, theirs[gap.key], answers[gap.key]);
               return [(
                 <article key={gap.key} data-compared-scene={gap.key} className="py-4">
                   <h2 className="text-[14px] font-semibold leading-relaxed text-[var(--hb-text-strong)]">{gap.scene}</h2>
                   <p className="mt-1 text-[12px] text-[var(--hb-text-muted)]">{gap.same ? "같은 답을 골랐어요" : "다른 답을 골랐어요"}</p>
                   <p className="mt-3 text-[14px] leading-relaxed text-[var(--hb-text-body)]">먼저 답한 사람: “{gap.firstLabel}”</p>
                   <p className="mt-2 text-[14px] leading-relaxed text-[var(--hb-text-body)]">나중에 답한 사람: “{gap.secondLabel}”</p>
+                  {roleGuide ? <>
+                    <p className="mt-3 text-[14px] leading-relaxed text-[var(--hb-text-body)]">{roleGuide.explanation}</p>
+                    <p className="mt-3 text-[13px] leading-relaxed text-[var(--hb-text-strong)]"><b className="font-semibold">둘이 해 볼 것: </b>{roleGuide.nextStep}</p>
+                  </> : null}
                 </article>
               )];
             })}

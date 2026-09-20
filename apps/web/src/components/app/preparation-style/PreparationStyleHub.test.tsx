@@ -162,6 +162,43 @@ describe("준비 스타일의 개인 저장과 두 사람 공유", () => {
     expect(container.textContent).toContain("같은 답 5 · 다른 답 0");
   });
 
+  it("저장한 역할 답의 나와 상대를 구분하고 같은 보기와 실제 담당 주체를 따로 설명한다", async () => {
+    const own = { ...response, answerCode: encodeWeddingCodeV06({ B1: "B", B2: "C" }, config.questions) };
+    const partner = { ...response, answerCode: encodeWeddingCodeV06({ B1: "B", B2: "D" }, config.questions) };
+    fetchMock.mockResolvedValueOnce(result(snapshot({ own, sharing: { responseRevision: own.revision, sharedAt: now }, partner })));
+    await render();
+    await click("둘이 함께 보기");
+    const roles = [...container.querySelectorAll<HTMLButtonElement>('[aria-label="비교할 주제"] button')]
+      .find(item => item.textContent?.includes("역할 나누기"));
+    expect(roles).toBeDefined();
+    await act(async () => roles!.click());
+    const comparison = container.querySelector('section[aria-label="역할 나누기"]');
+    expect(comparison?.textContent).toContain("함께 답한 2장면 중 1곳은 같은 답, 1곳은 다른 답을 골랐어요.");
+    const sameSummary = [...comparison!.querySelectorAll<HTMLElement>("summary")]
+      .find(item => item.textContent === "같은 답을 고른 1장면도 보기");
+    expect(sameSummary).toBeDefined();
+    await act(async () => sameSummary!.click());
+    expect(sameSummary!.closest("details")?.open).toBe(true);
+
+    const expectedScenes = [
+      { key: "B1", own: "표를 보고 세 곳은 내가 혼자 고른다", partner: "표를 보고 세 곳은 내가 혼자 고른다", explanation: "둘 다 직접 고르겠다고 답했어요." },
+      { key: "B2", own: "두 상담 모두 내가 혼자 다녀온다", partner: "두 상담 모두 상대가 혼자 다녀온다", explanation: "한 사람은 두 상담을 혼자 다녀오겠다고, 다른 한 사람은 그 사람에게 맡기겠다고 답했어요." },
+    ];
+    for (const expected of expectedScenes) {
+      const scene = comparison!.querySelector(`[data-compared-scene="${expected.key}"]`);
+      expect(scene).not.toBeNull();
+      const lines = [...scene!.querySelectorAll("p")].map(item => item.textContent);
+      const ownIndex = lines.indexOf("나");
+      const partnerIndex = lines.indexOf("지은");
+      expect(ownIndex).toBeGreaterThanOrEqual(0);
+      expect(partnerIndex).toBeGreaterThan(ownIndex);
+      expect(lines[ownIndex + 1]).toBe(`“${expected.own}”`);
+      expect(lines[partnerIndex + 1]).toBe(`“${expected.partner}”`);
+      expect(lines.indexOf(expected.explanation)).toBeGreaterThan(partnerIndex + 1);
+    }
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
   it("다른 계정의 응답을 정상 결과로 렌더하지 않는다", async () => {
     fetchMock.mockResolvedValueOnce(result(snapshot({ ownerUserId: "44444444-4444-4444-8444-444444444444", own: response })));
     await render();

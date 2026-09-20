@@ -121,6 +121,29 @@ describe("실제로 공개되는 비교 화면", () => {
     expect(container.querySelector('[data-result="couple"]')?.textContent).toContain("답이 갈린 장면마다 둘이 해 볼 것");
     expect(container.querySelector('[data-result="couple"]')?.textContent).not.toContain("따로 적지 않았어요");
   });
+  it("같은 답의 역할 주체와 후속 대화를 전체 비교에서 설명한다", async () => {
+    await render({ B1: "B", B2: "C", B3: "C" }, { B1: "B", B2: "C", B3: "C" });
+    expect(container.querySelectorAll("[data-gap]")).toHaveLength(0);
+    expect(container.querySelector("h1")?.textContent).toContain("3장면에서 같은 답");
+    expect(container.querySelector('[data-compared-scene="B1"]')?.textContent).toContain("둘 다 직접 고르겠다고 답했어요.");
+    expect(container.querySelector('[data-compared-scene="B1"]')?.textContent).toContain("그다음 함께 고를지, 한 사람이 맡을지 정해 보세요.");
+    expect(container.querySelector('[data-compared-scene="B2"]')?.textContent).toContain("둘 다 두 상담을 혼자 다녀오겠다고 답했어요.");
+    expect(container.querySelector('[data-compared-scene="B3"]')?.textContent).toContain("여행지는 누가 고르면 좋을까요?");
+    expect(container.querySelector('[data-result="couple"]')?.textContent).not.toContain("따로 적지 않았어요");
+  });
+  it.each([["B", "C"], ["C", "B"]] as const)("역할 답 %s/%s는 원문 순서와 다른 답 집계를 지키면서 같은 사람 지목을 설명한다", async (first, second) => {
+    await render({ B1: first }, { B1: second });
+    const expected = "한 사람은 직접 고르겠다고, 다른 한 사람은 그 사람에게 맡기겠다고 답했어요.";
+    expect(container.querySelector("h1")?.textContent).toContain("1곳에서 다른 답");
+    const card = container.querySelector('[data-gap="B1"]');
+    expect(card?.textContent).toContain(expected);
+    expect(card?.textContent).toContain("누가 맡을지 얘기해 보세요");
+    const scene = container.querySelector('[data-compared-scene="B1"]');
+    expect(scene?.textContent).toContain(expected);
+    const question = config.questions.find(question => question.key === "B1")!;
+    expect(scene?.textContent).toContain(`먼저 답한 사람: “${question.options.find(option => option.value === first)!.label}”`);
+    expect(scene?.textContent).toContain(`나중에 답한 사람: “${question.options.find(option => option.value === second)!.label}”`);
+  });
   it("v1.2의 서로 다른 11개 답을 모두 펼치고 기존 첫 카드 순서를 유지한다", async () => {
     await render(answersFrom("ACABDCBAAAABCABABABA"), answersFrom("CDACDCDCCCBBCBBABBAA"));
     const keys = () => [...container.querySelectorAll("[data-gap]")].map(card => card.getAttribute("data-gap"));
