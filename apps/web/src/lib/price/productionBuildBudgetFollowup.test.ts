@@ -22,6 +22,8 @@ import { WEDDING_CODE_SCENE_VERSION_CONTRACT_FILE, loadWeddingCodeSceneVersionRe
 import { createWeddingCodeResearchHistoricalRepository } from "../../../../../scripts/tests/fixtures/wedding-code-research-contributions-historical-repository.mjs";
 import { WEDDING_CODE_SCENE_V10_CONTRACT_FILE, loadWeddingCodeSceneV10ReleasePlan } from "../../../../../scripts/lib/wedding-code-research-scene-v10-release-contract.mjs";
 import { createWeddingCodeSceneVersionHistoricalRepository } from "../../../../../scripts/tests/fixtures/wedding-code-research-scene-v09-historical-repository.mjs";
+import { PREPARATION_STYLE_CONTRACT_FILE, loadPreparationStyleReleasePlan } from "../../../../../scripts/lib/preparation-style-release-contract.mjs";
+import { createWeddingCodeSceneV10HistoricalRepository } from "../../../../../scripts/tests/fixtures/wedding-code-research-scene-v10-historical-repository.mjs";
 import {
   assertVendorDisclosureProductionBuild,
   expectedProductionAuthorizationSha256,
@@ -69,6 +71,12 @@ let sceneV10FixtureRoot: string;
 let cleanupSceneV10Fixture: (() => void) | undefined;
 const sceneV10Pins = [WEDDING_CODE_SCENE_V10_CONTRACT_FILE, "scripts/lib/wedding-code-research-scene-v10-release.mjs",
   "supabase/migrations/20260918090000_wedding_code_research_scene_v10.sql"];
+
+let preparationFixtureRoot: string;
+let cleanupPreparationFixture: (() => void) | undefined;
+const preparationPins = [PREPARATION_STYLE_CONTRACT_FILE, "scripts/lib/preparation-style-release.mjs",
+  "scripts/lib/preparation-style-catalog.mjs", "supabase/release-contracts/preparation-style-pg17-catalog-v1.json",
+  "supabase/migrations/20260920120000_wedding_preparation_style.sql"];
 
 function production(root: string, authorization = expectedProductionAuthorizationSha256(root)) {
   return assertVendorDisclosureProductionBuild({
@@ -121,6 +129,10 @@ beforeAll(async () => {
   sceneV10FixtureRoot = sceneV10History.root;
   cleanupSceneV10Fixture = sceneV10History.cleanup;
   for (const file of sceneV10Pins) await copyFile(join(repoRoot, file), join(sceneV10FixtureRoot, file));
+  const preparationHistory = createWeddingCodeSceneV10HistoricalRepository(repoRoot);
+  preparationFixtureRoot = preparationHistory.root;
+  cleanupPreparationFixture = preparationHistory.cleanup;
+  for (const file of preparationPins) await copyFile(join(repoRoot, file), join(preparationFixtureRoot, file));
 }, 300_000);
 
 afterAll(async () => {
@@ -133,11 +145,35 @@ afterAll(async () => {
   cleanupResearchFixture?.();
   cleanupSceneFixture?.();
   cleanupSceneV10Fixture?.();
+  cleanupPreparationFixture?.();
+});
+
+describe("production build registers only the exact preparation-style successor after the 236 scene release", () => {
+  it("accepts 237 reviewed SQL files while keeping hosted evidence and authorization independent", () => {
+    for (const root of [repoRoot, preparationFixtureRoot]) {
+      const plan = loadPreparationStyleReleasePlan(root);
+      expect(plan.migrationCount).toBe(237);
+      expect(plan.runtimeEvidenceVerified).toBe(false);
+      expect(plan.releaseAuthorized).toBe(false);
+      expect(() => production(root)).not.toThrow();
+      expect(() => loadWeddingCodeSceneV10ReleasePlan(root)).toThrowError(expect.objectContaining({code: "NEW_MIGRATION_NOT_REVIEWED"}));
+      expect(() => production(root, "wrong")).toThrow(VENDOR_DISCLOSURE_EXTERNAL_AUTHORIZATION_INVALID);
+    }
+  }, 120_000);
+  it.each(preparationPins)("refuses changed or missing preparation-style artifacts without fallback: %s", async file => {
+    const target = join(preparationFixtureRoot, file), bytes = await readFile(target);
+    try {
+      await writeFile(target, Buffer.concat([bytes, Buffer.from("\n")]));
+      expect(() => production(preparationFixtureRoot)).toThrow(VENDOR_DISCLOSURE_STATIC_CONTRACT_INVALID);
+      await rm(target);
+      expect(() => production(preparationFixtureRoot)).toThrow(VENDOR_DISCLOSURE_STATIC_CONTRACT_INVALID);
+    } finally {await writeFile(target, bytes);}
+  }, 60_000);
 });
 
 describe("production build registers the exact WeddingCode scene v1.0 successor after the 235 scene v0.9 release", () => {
   it("accepts 236 exact SQL files only through the new successor, without claiming hosted application", () => {
-    for (const root of [repoRoot, sceneV10FixtureRoot]) {
+    for (const root of [sceneV10FixtureRoot]) {
       const plan = loadWeddingCodeSceneV10ReleasePlan(root);
       expect(plan.migrationCount).toBe(236);
       expect(plan.runtimeEvidenceVerified).toBe(false);
@@ -190,7 +226,7 @@ describe("production build registers the exact WeddingCode scene v0.9 successor 
 
 describe("production build registers the exact WeddingCode research contributions successor after the 233 not-applicable release", () => {
   // 실제 checkout 에는 이후 검토된 235번째 SQL(20260917090000)이 있어 234 공개 모드가 거절하는 것이 맞다.
-  // checkout 의 production 허용은 위 최신(236) 후속 계약이 잰다. 여기서는 234 역사 checkout 이 자기 후속 계약으로만 통과하는지를 본다.
+  // checkout 의 production 허용은 위 최신(237) 후속 계약이 잰다. 여기서는 234 역사 checkout 이 자기 후속 계약으로만 통과하는지를 본다.
   it("accepts 234 exact SQL files only through the new successor, without claiming hosted application", () => {
     const root = researchFixtureRoot;
     const plan = loadWeddingCodeResearchReleasePlan(root);
@@ -218,7 +254,7 @@ describe("production build registers the exact WeddingCode research contribution
 
 describe("production build registers the exact not-applicable status successor after the 232 customer-data release", () => {
   // 실제 checkout 에는 이후 검토된 234번째 SQL(20260915130000)이 있어 233 공개 모드가 거절하는 것이 맞다.
-  // checkout 의 production 허용은 위 최신(236) 후속 계약이 잰다. 여기서는 233 역사 checkout 이 자기 후속 계약으로만 통과하는지를 본다.
+  // checkout 의 production 허용은 위 최신(237) 후속 계약이 잰다. 여기서는 233 역사 checkout 이 자기 후속 계약으로만 통과하는지를 본다.
   it("accepts 233 exact SQL files only through the new successor, without claiming hosted application", () => {
     const root = notApplicableFixtureRoot;
     const plan = loadNotApplicableStatusReleasePlan(root);

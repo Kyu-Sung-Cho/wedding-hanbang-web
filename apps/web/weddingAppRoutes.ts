@@ -16,6 +16,7 @@
  */
 export const WEDDING_APP_ROUTES = [
   "lounge",
+  "preparation-style",
   "chat",
   "saved",
   "budget",

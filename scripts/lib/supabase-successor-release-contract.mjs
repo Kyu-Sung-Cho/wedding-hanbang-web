@@ -26,6 +26,7 @@ import { loadNotApplicableStatusReleasePlan } from "./amora-not-applicable-statu
 import { loadWeddingCodeResearchReleasePlan } from "./wedding-code-research-contributions-release-contract.mjs";
 import { loadWeddingCodeSceneVersionReleasePlan } from "./wedding-code-research-scene-v09-release-contract.mjs";
 import { loadWeddingCodeSceneV10ReleasePlan } from "./wedding-code-research-scene-v10-release-contract.mjs";
+import { loadPreparationStyleReleasePlan } from "./preparation-style-release-contract.mjs";
 import { loadProfileWeddingRolesReleasePlan } from "./profile-wedding-roles-release-contract.mjs";
 import { loadChatFeedbackNullabilityReleasePlan } from "./chat-feedback-nullability-release-contract.mjs";
 
@@ -1091,7 +1092,7 @@ export function validateSuccessorReleaseContract({
   manifestRelativePath = SUCCESSOR_RELEASE_MANIFEST_RELATIVE_PATH,
   followup = null,
 }) {
-  if (followup !== null && !["amora-budget-decision-hotfix", "amora-explicit-budget-hotfix", "chat-feedback-nullability", "profile-wedding-roles", "profile-avatar", "account-deletion-customer-data", "amora-not-applicable-status", "wedding-code-research-contributions", "wedding-code-research-scene-v09", "wedding-code-research-scene-v10"].includes(followup)) {
+  if (followup !== null && !["amora-budget-decision-hotfix", "amora-explicit-budget-hotfix", "chat-feedback-nullability", "profile-wedding-roles", "profile-avatar", "account-deletion-customer-data", "amora-not-applicable-status", "wedding-code-research-contributions", "wedding-code-research-scene-v09", "wedding-code-research-scene-v10", "preparation-style"].includes(followup)) {
     invalid("FOLLOWUP_RELEASE_INVALID", "only explicitly registered followups are supported");
   }
   if (followup !== null && manifestRelativePath !== SUCCESSOR_RELEASE_MANIFEST_RELATIVE_PATH) {
@@ -1227,6 +1228,22 @@ export function validateSuccessorReleaseContract({
       if (migration.version <= previousFollowupVersion || expectedDirectoryFiles.includes(migration.file)) {
         invalid("FOLLOWUP_RELEASE_INVALID", "feedback followups must follow the original successor in exact order");
       }
+      previousFollowupVersion = migration.version;
+      expectedDirectoryFiles.push(migration.file);
+    }
+  }
+  if (followup === "preparation-style") {
+    let preparation;
+    try { preparation = loadPreparationStyleReleasePlan(root); }
+    catch { invalid("FOLLOWUP_RELEASE_INVALID", "the exact preparation style successor could not be verified"); }
+    const followups = preparation.followupMigrations;
+    if (preparation.contract.projectRef !== manifest.projectRef || preparation.migrationCount !== 237
+        || followups.length !== 11 || followups[10].file !== preparation.contract.migrations[0].file)
+      invalid("FOLLOWUP_RELEASE_INVALID", "preparation style successor must preserve all ten predecessors and add one migration");
+    let previousFollowupVersion = previousVersion;
+    for (const migration of followups) {
+      if (migration.version <= previousFollowupVersion || expectedDirectoryFiles.includes(migration.file))
+        invalid("FOLLOWUP_RELEASE_INVALID", "preparation style successor migration order changed");
       previousFollowupVersion = migration.version;
       expectedDirectoryFiles.push(migration.file);
     }

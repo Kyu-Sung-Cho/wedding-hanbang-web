@@ -12,7 +12,11 @@ import { createWeddingCodeSceneVersionHistoricalRepository } from './fixtures/we
 import { validateSuccessorReleaseContract } from '../lib/supabase-successor-release-contract.mjs';
 import { runProductionRelease } from '../lib/supabase-production-release-controller.mjs';
 
-const root = resolve(import.meta.dirname, '../..');
+import { createWeddingCodeSceneV10HistoricalRepository } from './fixtures/wedding-code-research-scene-v10-historical-repository.mjs';
+const actualRoot = resolve(import.meta.dirname, '../..');
+const historical = createWeddingCodeSceneV10HistoricalRepository(actualRoot);
+test.after(historical.cleanup);
+const root = historical.root;
 const MIGRATION = 'supabase/migrations/20260918090000_wedding_code_research_scene_v10.sql';
 const sql = readFileSync(join(root, MIGRATION), 'utf8');
 const run = args => spawnSync(process.execPath, [join(root, 'scripts/supabase-release-fence.mjs'), ...args],
@@ -118,7 +122,7 @@ test('the reviewed SQL is exactly one scene-version CHECK swap plus its verifica
 });
 
 test('every new artifact, predecessor and unregistered migration is fail-closed', t => {
-  const fixture = createWeddingCodeSceneVersionHistoricalRepository(root); t.after(fixture.cleanup);
+  const fixture = createWeddingCodeSceneVersionHistoricalRepository(actualRoot); t.after(fixture.cleanup);
   const plan = loadWeddingCodeSceneV10ReleasePlan(root);
   const paths = [WEDDING_CODE_SCENE_V10_CONTRACT_FILE, plan.contract.runtime.file, MIGRATION];
   assert.throws(() => loadWeddingCodeSceneV10ReleasePlan(fixture.root));

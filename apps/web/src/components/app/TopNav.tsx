@@ -10,11 +10,13 @@ import NotificationPanel from "@/components/app/NotificationPanel";
 import AmoraWorkspaceNav from "@/components/app/amora/AmoraWorkspaceNav";
 import { useNotifications, useNotificationPrefs } from "@/hooks/useNotifications";
 import { isWeddingPathActive, stripWeddingBasePath, weddingLinkProps, weddingPath } from "@/lib/weddingPaths";
+import { SHOW_SIGNED_IN_COMMUNITY } from "@/lib/features/signedInCommunity";
 import { useAuthStore } from "@/stores/authStore";
 import { daysUntilWedding } from "@/lib/utils/weddingDate";
 
 const pageTitles: Record<string, string> = {
   "/lounge": "웨딩 라운지",
+  "/preparation-style": "우리의 준비 스타일",
   "/chat": "아모라",
   "/budget": "예산",
   "/market-prices": "공시 가격",
@@ -37,6 +39,7 @@ const quickLinks = [
   { linkProps: weddingLinkProps("/checklist"), legacyPath: "/checklist", label: "체크리스트" },
   { linkProps: weddingLinkProps("/schedule"), legacyPath: "/schedule", label: "일정" },
   { linkProps: weddingLinkProps("/budget"), legacyPath: "/budget", label: "예산" },
+  { linkProps: weddingLinkProps("/preparation-style"), legacyPath: "/preparation-style", label: "우리의 준비 스타일" },
   { linkProps: weddingLinkProps(), legacyPath: "/community", label: "커뮤니티" },
 ];
 
@@ -106,12 +109,12 @@ export default function TopNav({ onMenuToggle, amoraWorkspace = false, planningW
         <div className="flex items-center gap-2">
           <nav
             aria-label="주요 기능 바로가기"
-            className={htmlDesign ? "hidden" : "mr-4 hidden items-center gap-6 text-[15px] font-semibold text-[var(--hb-text-strong)] lg:flex"}
+            className={htmlDesign ? "hidden" : "mr-4 hidden shrink-0 items-center gap-4 whitespace-nowrap text-[15px] font-semibold text-[var(--hb-text-strong)] xl:flex"}
           >
-            {quickLinks.map((item, index) => {
+            {quickLinks.filter((item) => SHOW_SIGNED_IN_COMMUNITY || item.legacyPath !== "/community").map((item, index) => {
               const isActive = isWeddingPathActive(pathname, item.legacyPath);
               return (
-                <div key={item.legacyPath} className="flex items-center gap-6">
+                <div key={item.legacyPath} className="flex items-center gap-4">
                   {index > 0 && <span className="h-4 w-px bg-[#eadfc9]" aria-hidden />}
                   <Link
                     {...item.linkProps}
@@ -133,7 +136,7 @@ export default function TopNav({ onMenuToggle, amoraWorkspace = false, planningW
             </span>
           </div>
 
-          {!amoraWorkspace && <button
+          {SHOW_SIGNED_IN_COMMUNITY && !amoraWorkspace && <button
             type="button"
             onClick={() => router.push(weddingPath("/community?feed=all#community-feed"))}
             className={`${compactWorkspace ? "hidden md:flex" : "flex"} h-11 w-11 items-center justify-center rounded-full text-[var(--hb-text-body)] transition-colors hover:bg-white hover:text-[var(--hb-accent-hover)]`}

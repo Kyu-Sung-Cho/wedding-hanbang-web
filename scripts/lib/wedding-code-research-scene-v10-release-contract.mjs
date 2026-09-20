@@ -122,7 +122,10 @@ export function assertWeddingCodeSceneV10SqlScope(text) {
 
 // 235 선행 원문과 계약을 그대로 보존하고, 장면 버전 CHECK에 v1.0을 더하는 migration 한 건만 추가한다.
 // 로컬 검증만 수행한다. 운영 적용·런타임 증거·배포 승인을 뜻하지 않는다.
-export function loadWeddingCodeSceneV10ReleasePlan(repoRoot) {
+export function loadWeddingCodeSceneV10ReleasePlan(repoRoot) { return loadPlan(repoRoot, true); }
+// 후속 계약 전용이다. 공개 v1.0 lane은 검토한 236개 디렉터리만 계속 허용한다.
+export function loadWeddingCodeSceneV10HistoricalReleasePlan(repoRoot) { return loadPlan(repoRoot, false); }
+function loadPlan(repoRoot, checkCurrentDirectory) {
   const bytes = pinnedArtifact(repoRoot, { file: WEDDING_CODE_SCENE_V10_CONTRACT_FILE, sha256: CONTRACT_SHA });
   const contract = JSON.parse(bytes);
   requireRelease(contract.version === 1 && contract.kind === 'wedding-code-research-scene-v10-static-successor'
@@ -146,7 +149,7 @@ export function loadWeddingCodeSceneV10ReleasePlan(repoRoot) {
   requireRelease(contract.runtime?.file === RUNTIME_FILE, 'WEDDING_CODE_SCENE_V10_IMPLEMENTATION_CHANGED');
   pinnedArtifact(repoRoot, contract.runtime);
   const reviewed = [...predecessor.reviewedMigrations, ...contract.migrations].sort((a, b) => a.file.localeCompare(b.file));
-  same(readdirSync(join(repoRoot, 'supabase/migrations')).filter(file => /\.sql$/i.test(file)).sort(), reviewed.map(pin => pin.file),
+  if (checkCurrentDirectory) same(readdirSync(join(repoRoot, 'supabase/migrations')).filter(file => /\.sql$/i.test(file)).sort(), reviewed.map(pin => pin.file),
     'NEW_MIGRATION_NOT_REVIEWED');
   for (const pin of reviewed) pinnedArtifact(repoRoot, { ...pin, file: `supabase/migrations/${pin.file}` });
   requireRelease(reviewed.at(-1)?.file === MIGRATION_FILE && /^\d{14}_[a-z0-9][a-z0-9_.-]*\.sql$/.test(MIGRATION_FILE),

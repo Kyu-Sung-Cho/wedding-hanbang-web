@@ -10,6 +10,7 @@ import {
   LayoutDashboard,
   LogOut,
   Settings,
+  Split,
   Users,
   Wallet,
   X,
@@ -18,6 +19,7 @@ import AmoraMark from "@/components/ui/AmoraMark";
 import ProfileAvatar from "@/components/ui/ProfileAvatar";
 import Logo, { LogoMark } from "@/components/ui/Logo";
 import { stripWeddingBasePath, weddingLinkProps } from "@/lib/weddingPaths";
+import { SHOW_SIGNED_IN_COMMUNITY } from "@/lib/features/signedInCommunity";
 import { useAuthStore } from "@/stores/authStore";
 
 type SidebarMenuItem = {
@@ -34,6 +36,7 @@ const menuItems: SidebarMenuItem[] = [
   { legacyPath: "/checklist", icon: ClipboardCheck, label: "웨딩 체크리스트", tutorialTarget: "service-nav-schedule" },
   { legacyPath: "/schedule", icon: CalendarCheck, label: "일정" },
   { legacyPath: "/budget", icon: Wallet, label: "예산", tutorialTarget: "service-nav-budget" },
+  { legacyPath: "/preparation-style", icon: Split, label: "우리의 준비 스타일" },
   { legacyPath: "/community", icon: Users, label: "커뮤니티", tutorialTarget: "service-nav-community" },
   // 로그인 없이도 열리는 읽기 화면이지만 사이드바에 둔다 — 준비 중에 가장 자주
   // 막히는 것이 "이럴 땐 어떻게 하지"라서, 찾으러 나가지 않고 여기서 열리는 게 맞다.
@@ -52,7 +55,7 @@ export default function Sidebar({ isOpen, onClose, amoraWorkspace = false, plann
   const htmlDesign = amoraWorkspace || planningWorkspace;
   const pathname = usePathname();
   const currentPath = stripWeddingBasePath(pathname);
-  const plannerOverview = htmlDesign && ["/checklist", "/budget", "/schedule", "/lounge"].includes(currentPath);
+  const plannerOverview = htmlDesign && ["/checklist", "/budget", "/schedule", "/lounge", "/preparation-style"].includes(currentPath);
   const { profile, journey, signOut } = useAuthStore();
   const userName = profile?.name ?? "예비부부";
   const weddingDateStr = journey?.wedding_date
@@ -89,7 +92,7 @@ export default function Sidebar({ isOpen, onClose, amoraWorkspace = false, plann
 
         <nav aria-label="서비스 메뉴" className={htmlDesign ? "flex-1 overflow-y-auto px-[14px]" : "flex-1 overflow-y-auto px-3 py-3"}>
           <div className={plannerOverview ? "flex flex-col gap-0.5" : "flex flex-col gap-1"}>
-            {menuItems.map((item) => {
+            {menuItems.filter((item) => SHOW_SIGNED_IN_COMMUNITY || item.legacyPath !== "/community").map((item) => {
               const activePath = item.activePath ?? item.legacyPath;
               const isActive = currentPath === activePath
                 || (activePath !== "/lounge" && currentPath.startsWith(`${activePath}/`));

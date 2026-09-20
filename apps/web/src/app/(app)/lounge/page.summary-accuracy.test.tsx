@@ -6,6 +6,12 @@ import LoungePage from "./page";
 import { useAuthStore } from "@/stores/authStore";
 import type { Profile, ScheduleEvent, WeddingJourney } from "@/types/database.types";
 
+const communityExposure = vi.hoisted(() => ({ enabled: undefined as boolean | undefined }));
+vi.mock("@/lib/features/signedInCommunity", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/features/signedInCommunity")>();
+  return { get SHOW_SIGNED_IN_COMMUNITY() { return communityExposure.enabled ?? actual.SHOW_SIGNED_IN_COMMUNITY; } };
+});
+
 vi.mock("@/components/app/amora-missions/AmoraMissions", () => ({ default: () => <h2 id="today-missions-title">오늘의 미션</h2> }));
 vi.mock("@/components/app/FirstRunLoungeTutorial", () => ({ default: () => null }));
 vi.mock("@/components/app/DailyAmoraFocusBridge", () => ({ default: () => null }));
@@ -28,6 +34,7 @@ describe("라운지의 저장값 요약과 조회 실패 구분", () => {
   let original: ReturnType<typeof useAuthStore.getState>;
   const fetchMock = vi.fn();
   beforeEach(() => {
+    communityExposure.enabled = undefined;
     (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
     vi.useFakeTimers({ toFake: ["Date"] });
     vi.setSystemTime(new Date("2026-09-10T03:00:00Z"));
@@ -47,6 +54,15 @@ describe("라운지의 저장값 요약과 조회 실패 구분", () => {
   async function render(journey = makeJourney()) {
     await act(async () => { useAuthStore.setState({ journey }); root.render(<LoungePage />); });
   }
+
+  it("초기 라운지는 커뮤니티를 표시하거나 조회하지 않고 준비 스타일과 견적 도구를 연다", async () => {
+    await render();
+    expect(container.textContent).not.toContain("참고한 자료와 같은 시기 준비 이야기");
+    expect(container.querySelector('a[href="/wedding/community/cohort"]')).toBeNull();
+    expect(fetchMock.mock.calls.filter(([url]) => String(url).startsWith("/api/community/"))).toHaveLength(0);
+    expect(container.querySelector('a[href="/wedding/preparation-style"]')).not.toBeNull();
+    expect(container.querySelector('a[href="/wedding/community/quote-check"]')).not.toBeNull();
+  });
 
   it("계정·커플 전환 중 이전 계획의 이름과 체크 내용을 새 허브에 노출하지 않는다", async () => {
     await render(makeJourney({ couple_id: "previous-couple", venue: "이전 커플의 장소", progress: { venue: { status: "in_progress", checklist: [{ id: "private", label: "이전 커플의 확인 내용", done: false }], budget: 990_001 } } }));
@@ -100,6 +116,7 @@ describe("라운지의 저장값 요약과 조회 실패 구분", () => {
   });
 
   it("자료 조회 실패는 접힌 자료 안에서 알리고 재시도 성공 후에만 빈 상태를 표시한다", async () => {
+    communityExposure.enabled = true;
     let fail = true;
     fetchMock.mockImplementation(async (url: string) => fail ? new Response(null, { status: 503 }) : Response.json(url.startsWith("/api/community/posts") ? { posts: [] } : { room: null }));
     await render();
@@ -119,6 +136,7 @@ describe("라운지의 저장값 요약과 조회 실패 구분", () => {
   });
 
   it("동기방 연결 조회가 성공하고 요약만 실패하면 연결을 지우지 않고 요약 재시도를 제공한다", async () => {
+    communityExposure.enabled = true;
     let failDigest = true;
     fetchMock.mockImplementation(async (url: string) => {
       if (url.startsWith("/api/community/posts")) return Response.json({ posts: [] });

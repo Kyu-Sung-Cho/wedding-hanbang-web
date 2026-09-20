@@ -303,11 +303,16 @@ describe("web MVP product direction", () => {
     expect(landingOpenLinks).toContain('label: "커뮤니티", href: "/wedding"');
     expect(landingProductLinks).not.toContain('href: "#community-bridge"');
 
-    for (const label of ["아모라", "예산", "커뮤니티"]) {
+    for (const label of ["아모라", "예산"]) {
       expect(publicNav).toContain(`label: "${label}"`);
       expect(signedInNav).toContain(`label: "${label}"`);
       expect(signedInQuickLinks).toContain(`label: "${label}"`);
     }
+    // 2026-09-20: 공개 커뮤니티는 유지하고 로그인 준비 화면의 탐색은 초기에 숨긴다.
+    // 실제 미노출은 Sidebar/TopNav 렌더 검사와 라운지의 무요청 검사로 확인한다.
+    expect(publicNav).toContain('label: "커뮤니티"');
+    expect(signedInNav).toContain('legacyPath: "/preparation-style"');
+    expect(signedInQuickLinks).toContain('legacyPath: "/preparation-style"');
 
     // 공개 내비게이션은 처음 보는 사람에게 준비 흐름을 한 덩어리로 설명하지만,
     // 로그인 후 실행 화면에서는 체크리스트와 일정을 서로 다른 목적지로 제공한다.
@@ -320,7 +325,8 @@ describe("web MVP product direction", () => {
     // `/wedding-code`가 이 목록에 있었다. 2026-08-27 파운더 결정으로 랜딩의 후크가
     // 스무 장면(웨딩코드)이 되면서 **랜딩에서는 더 이상 물러난 경로가 아니다** —
     // 헤더 CTA·푸터 "로그인 없이" 묶음·마무리 CTA가 모두 여기로 보낸다.
-    // 로그인 후 제품 내비게이션에서는 그대로 빠져 있어야 하므로, 목록을 둘로 나눈다.
+    // 로그인 후에는 `/preparation-style` 허브에서 결과와 대화 가이드를 다시 연다.
+    // 공개 테스트의 시작 주소를 로그인 메뉴에 직접 넣는 것은 계속 막는다.
     const retiredEverywhere = [
       "/vendors",
       "/market-prices",

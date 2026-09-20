@@ -37,10 +37,9 @@ describe("Amora header search meaning", () => {
     navigation.pathname = pathname;
     await act(async () => root.render(<TopNav planningWorkspace={pathname.endsWith("schedule")} loungeWorkspace={pathname.endsWith("lounge")} onMenuToggle={vi.fn()} />));
     expect(container.textContent).toContain("날짜 미정");
-    expect(control("커뮤니티 검색")?.classList.contains("hidden")).toBe(true);
+    expect(control("커뮤니티 검색")).toBeNull();
     expect(control("알림")?.parentElement?.classList.contains("hidden")).toBe(false);
-    await act(async () => control("커뮤니티 검색")!.click());
-    expect(navigation.push).toHaveBeenCalledWith("/wedding?feed=all#community-feed");
+    expect(navigation.push).not.toHaveBeenCalled();
     await act(async () => control("알림")!.click());
     expect(container.querySelector('[role="status"]')?.textContent).toBe("알림 목록");
   });
@@ -60,12 +59,10 @@ describe("Amora header search meaning", () => {
     expect(control("메뉴 열기")?.classList.contains("hidden")).toBe(false);
     await act(async () => control("메뉴 열기")!.click());
     expect(menu).toHaveBeenCalledOnce();
-    expect(control("커뮤니티 검색")?.classList.contains("hidden")).toBe(true);
-    expect(control("커뮤니티 검색")?.classList.contains("md:flex")).toBe(true);
+    expect(control("커뮤니티 검색")).toBeNull();
     expect(control("알림")?.parentElement?.classList.contains("hidden")).toBe(true);
     expect(control("알림")?.parentElement?.classList.contains("md:block")).toBe(true);
-    await act(async () => control("커뮤니티 검색")!.click());
-    expect(navigation.push).toHaveBeenCalledWith("/wedding?feed=all#community-feed");
+    expect(navigation.push).not.toHaveBeenCalled();
     await act(async () => control("알림")!.click());
     expect(container.querySelector('[role="status"]')?.textContent).toBe("알림 목록");
   });
@@ -82,6 +79,24 @@ describe("Amora header search meaning", () => {
     await act(async () => root.render(<TopNav planningWorkspace onMenuToggle={vi.fn()} />));
     expect(container.textContent).toContain(expected);
     expect(container.textContent).not.toContain("날짜 미정");
+  });
+
+  it.each(["/preparation-style", "/wedding/preparation-style"])("uses the preparation style title without community discovery at %s", async pathname => {
+    navigation.pathname = pathname;
+    await act(async () => root.render(<TopNav loungeWorkspace onMenuToggle={vi.fn()} />));
+    expect(container.querySelector("h1")?.textContent).toBe("우리의 준비 스타일");
+    expect(control("커뮤니티 검색")).toBeNull();
+    expect(control("메뉴 열기")).not.toBeNull();
+    expect(control("알림")).not.toBeNull();
+  });
+
+  it("keeps the preparation style shortcut and hides community on generic signed-in pages", async () => {
+    navigation.pathname = "/wedding/settings";
+    await act(async () => root.render(<TopNav onMenuToggle={vi.fn()} />));
+    const nav = container.querySelector('nav[aria-label="주요 기능 바로가기"]')!;
+    expect(nav.querySelector('a[href="/preparation-style"]')?.textContent).toBe("우리의 준비 스타일");
+    expect(nav.textContent).not.toContain("커뮤니티");
+    expect(control("커뮤니티 검색")).toBeNull();
   });
 
   it("keeps one shared header slot on chat and board, leaving chat controls to the conversation", async () => {

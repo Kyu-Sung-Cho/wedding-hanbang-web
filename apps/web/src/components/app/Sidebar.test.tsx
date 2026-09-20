@@ -41,6 +41,21 @@ describe("Amora sidebar entry", () => {
     expect(menu.querySelector('a[href="/wedding/saved"]')).toBeNull();
   });
 
+  it.each(["/preparation-style", "/wedding/preparation-style"])("opens preparation style from the shared web menu at %s", async pathname => {
+    mocks.pathname = pathname;
+    await act(async () => root.render(<Sidebar isOpen onClose={close} amoraWorkspace />));
+    const menu = container.querySelector('nav[aria-label="서비스 메뉴"]')!;
+    const link = menu.querySelector<HTMLAnchorElement>('a[href="/wedding/preparation-style"]');
+    expect(link?.textContent).toBe("우리의 준비 스타일");
+    expect(link?.getAttribute("aria-current")).toBe("page");
+    expect(menu.querySelectorAll('[aria-current="page"]')).toHaveLength(1);
+    expect(menu.textContent).not.toContain("커뮤니티");
+    expect(menu.querySelector('a[href="/wedding"]')).toBeNull();
+    link?.addEventListener("click", event => event.preventDefault());
+    await act(async () => link?.click());
+    expect(close).toHaveBeenCalledOnce();
+  });
+
   it.each([true, false])("sends the brand link to the lounge, not the community (html design: %s)", async amoraWorkspace => {
     mocks.pathname = "/wedding/checklist";
     await act(async () => root.render(<Sidebar isOpen onClose={close} amoraWorkspace={amoraWorkspace} />));
