@@ -137,7 +137,7 @@ function BoundStyleHub({ binding, demo, partnerName }: { binding: PreparationSty
     <header className="mb-7 flex flex-wrap items-start justify-between gap-4">
       <div>
         <p className="mb-2 flex items-center gap-2 text-xs font-semibold text-[var(--hb-primary)]"><HeartHandshake className="size-4" aria-hidden="true" />우리의 준비 스타일</p>
-        <h1 className="text-2xl font-semibold leading-snug text-[var(--hb-text-strong)]">결혼 준비, 우리는 어떻게 할까요?</h1>
+        <h1 className="text-[var(--hb-text-strong)]">결혼 준비, 우리는 어떻게 할까요?</h1>
         <p className="mt-3 max-w-2xl text-sm leading-7 text-[var(--hb-text-body)]">돈 쓸 때, 일 나눌 때, 가족과 정할 때. 각자 고른 답을 보면서 미리 이야기해 봐요.</p>
       </div>
       {!demo && !draft && <Button variant="ghost" onClick={() => void refresh()} disabled={busy || loading}><RefreshCw className="size-4" aria-hidden="true" />새로 불러오기</Button>}
@@ -150,7 +150,7 @@ function BoundStyleHub({ binding, demo, partnerName }: { binding: PreparationSty
     {draft?.stage === "questions" ? <PreparationStyleQuestions initialAnswers={draft.answers} onReview={answers => setDraft({ ...draft, answers, stage: "review" })} onCancel={() => setDraft(null)} />
       : draft && personal ? <>
         <section className={`${panel} mb-6 p-5 sm:p-6`}>
-          <h2 className="text-lg font-semibold text-[var(--hb-text-strong)]">{demo ? "이 답으로 결과를 볼까요?" : "이 답을 저장할까요?"}</h2>
+          <h2 className="text-[var(--hb-text-strong)]">{demo ? "이 답으로 결과를 볼까요?" : "이 답을 저장할까요?"}</h2>
           <p className="mt-2 text-sm leading-7 text-[var(--hb-text-body)]">{demo ? "아래에서 고른 답과 결과를 확인해 주세요. 체험 중인 답은 이 화면에만 남고, 계정에 저장하지 않아요." : "아래에서 내 답과 결과를 확인해 주세요. 저장하면 내 계정에서 다시 볼 수 있어요. 상대와 비교하려면 저장 후 따로 공유를 눌러 주세요."}</p>
           {snapshot?.own && <p className="mt-2 text-sm leading-7 text-[var(--hb-text-body)]">이전과 다른 답을 저장하면 이전 공유를 중단해요. 같은 답을 다시 저장하면 지금 공유 설정을 유지해요.</p>}
           {!demo && <p className="mt-2 text-xs leading-6 text-[var(--hb-text-muted)]">문항 판, 고른 답, 저장 시각과 동의 기록을 결과 다시 보기에 사용해요. 이 화면에서 지우거나 회원 탈퇴 요청 접수 시 삭제할 수 있어요. <Link href="/privacy" className="underline underline-offset-4">개인정보 처리방침</Link></p>}
@@ -161,7 +161,7 @@ function BoundStyleHub({ binding, demo, partnerName }: { binding: PreparationSty
           </div>
           {!personal.answered && <p className="mt-3 text-sm text-[var(--hb-text-body)]">모든 장면을 건너뛰었어요. 한 장면 이상 답하면 결과를 저장할 수 있어요.</p>}
           {draftConflict && snapshot && <div className="mt-5 border-t border-[var(--hb-hairline)] pt-5" role="status">
-            <h3 className="font-semibold text-[var(--hb-text-strong)]">확인하는 동안 저장된 답이 바뀌었어요</h3>
+            <h3 className="text-[var(--hb-text-strong)]">확인하는 동안 저장된 답이 바뀌었어요</h3>
             <p className="mt-2 text-sm leading-7 text-[var(--hb-text-body)]">다른 화면에서 바꿨거나, 앞선 저장이 완료됐을 수 있어요. 지금 계정에 있는 답을 확인하고 어느 답을 남길지 골라 주세요. 작성 중인 답은 아래에 그대로 있어요.</p>
             {guide && guide.status !== "invalid" ? <details className="mt-3"><summary className="cursor-pointer py-3 text-sm font-semibold">지금 계정에 저장된 답 보기</summary><PersonalStyleResults personal={guide.personal} showTools={false} /></details> : <p className="mt-2 text-sm leading-7">지금 계정에는 저장된 답이 없어요.</p>}
             <div className="mt-3 flex flex-wrap gap-2"><Button disabled={!personal.answered || busy || loading} onClick={() => void save(snapshot.stateRevision)}>확인하고 이 초안으로 바꾸기</Button><Button variant="ghost" disabled={busy} onClick={() => setDraft(null)}>현재 저장 상태 유지</Button></div>
@@ -169,7 +169,7 @@ function BoundStyleHub({ binding, demo, partnerName }: { binding: PreparationSty
         </section>
         <PersonalStyleResults personal={personal} showTools={false} />
       </> : loading ? <Loading /> : !mine ? <section className={`${panel} p-6 sm:p-8`}>
-        <h2 className="text-xl font-semibold text-[var(--hb-text-strong)]">먼저 내 생각부터 골라 보세요</h2>
+        <h2 className="text-[var(--hb-text-strong)]">먼저 내 생각부터 골라 보세요</h2>
         <p className="mt-3 max-w-2xl text-sm leading-7 text-[var(--hb-text-body)]">결혼을 준비하면서 겪을 법한 {config.questions.length}장면이에요. 혼자 답해도 내가 고른 답과 챙겨볼 내용을 볼 수 있어요. 둘이 연결하고 각자 공유하면 같은 답과 다른 답을 나란히 볼 수 있어요.</p>
         <p className="mt-3 text-sm leading-7 text-[var(--hb-text-body)]">성격이나 궁합을 판단하는 검사는 아니에요. 아직 겪어 보지 않은 일은 지금 내 생각으로 답하면 돼요.</p>
         <Button variant="primary" className="mt-6" onClick={start} disabled={!demo && !snapshot}>내 답 고르기<ArrowRight className="size-4" aria-hidden="true" /></Button>
@@ -187,7 +187,7 @@ function BoundStyleHub({ binding, demo, partnerName }: { binding: PreparationSty
           : guide.status === "couple" ? <CoupleStyleResults guide={guide} partnerName={demo ? "상대 예시" : partnerName} />
           : guide.status === "version_mismatch" ? <p role="status" className={`${panel} p-5`}>{guide.message}</p>
           : <section className={`${panel} p-6`}>
-            <h2 className="text-lg font-semibold text-[var(--hb-text-strong)]">{demo ? "두 사람 화면도 살펴볼까요?" : !binding.partnerUserId ? "함께 준비할 사람을 연결해 주세요" : !snapshot?.sharing ? "서로 공유하면 함께 볼 수 있어요" : "상대가 공유한 결과가 아직 없어요"}</h2>
+            <h2 className="text-[var(--hb-text-strong)]">{demo ? "두 사람 화면도 살펴볼까요?" : !binding.partnerUserId ? "함께 준비할 사람을 연결해 주세요" : !snapshot?.sharing ? "서로 공유하면 함께 볼 수 있어요" : "상대가 공유한 결과가 아직 없어요"}</h2>
             <p className="mt-3 text-sm leading-7 text-[var(--hb-text-body)]">{demo ? "가상의 상대 답을 더해 비교 화면을 볼 수 있어요. 실제 상대의 결과가 아니에요." : !binding.partnerUserId ? "연결한 뒤에도 내 답은 바로 공개되지 않아요. 각자 답하고 공유를 눌러 주세요." : `나와 ${partnerName}님이 각자 이 화면에서 답을 저장하고 공유하면, 예산·역할·가족·도움 방식에서 같은 답과 다른 답을 볼 수 있어요.`}</p>
             {demo ? <Button className="mt-4" onClick={() => setDemoPair(true)}>가상의 상대 답으로 비교해 보기</Button>
               : !binding.partnerUserId ? <Link {...weddingLinkProps("/settings")} className="mt-4 inline-flex min-h-11 items-center gap-2 text-sm font-semibold text-[var(--hb-primary)]">연결 설정으로 가기<ArrowRight className="size-4" aria-hidden="true" /></Link>
@@ -195,7 +195,7 @@ function BoundStyleHub({ binding, demo, partnerName }: { binding: PreparationSty
           </section>}
 
         {!demo && snapshot?.own && <section className="mt-8 border-t border-[var(--hb-hairline)] pt-5">
-          <h2 className="flex items-center gap-2 text-sm font-semibold text-[var(--hb-text-strong)]"><ShieldCheck className="size-4" aria-hidden="true" />내 답 보관과 공유</h2>
+          <h2 className="flex items-center gap-2 text-[var(--hb-text-strong)]"><ShieldCheck className="size-4" aria-hidden="true" />내 답 보관과 공유</h2>
           <p className="mt-2 text-sm leading-7 text-[var(--hb-text-body)]">{snapshot.sharing ? `${partnerName}님과 공유하도록 승인했어요.` : "내 계정에만 저장했어요. 상대에게는 아직 공유하지 않았어요."}</p>
           <div className="mt-3 flex flex-wrap gap-2">
             {binding.partnerUserId && <Button disabled={busy} onClick={() => openConfirmation(snapshot.sharing ? "unshare" : "share")}>{snapshot.sharing ? "공유 중단하기" : "내 답 공유하기"}</Button>}
@@ -205,7 +205,7 @@ function BoundStyleHub({ binding, demo, partnerName }: { binding: PreparationSty
       </> : null}
 
     {confirmation && snapshot?.own && <section role="region" aria-label="저장과 공유 확인" className={`${panel} mt-5 p-5`}>
-      <h2 className="text-lg font-semibold text-[var(--hb-text-strong)]">{confirmation === "share" ? `${partnerName}님과 내 답을 공유할까요?` : confirmation === "unshare" ? "내 답 공유를 중단할까요?" : "저장한 답을 지울까요?"}</h2>
+      <h2 className="text-[var(--hb-text-strong)]">{confirmation === "share" ? `${partnerName}님과 내 답을 공유할까요?` : confirmation === "unshare" ? "내 답 공유를 중단할까요?" : "저장한 답을 지울까요?"}</h2>
       <p className="mt-3 text-sm leading-7 text-[var(--hb-text-body)]">{confirmation === "share" ? "고른 답, 건너뛴 장면과 그 답으로 만든 결과가 보여요. 상대도 공유해야 두 사람의 비교가 열려요. 공유는 여기서 중단할 수 있어요." : confirmation === "unshare" ? "내 결과는 남고, 상대는 내 답을 더 이상 조회할 수 없어요. 두 사람 비교도 닫혀요." : "내 결과와 공유 허가를 삭제하고 두 사람 비교를 닫아요. 지운 답은 되돌릴 수 없지만 언제든 새로 답할 수 있어요."}</p>
       <p className="mt-2 text-xs leading-6 text-[var(--hb-text-muted)]">이미 상대가 읽거나 따로 보관한 내용까지 회수할 수는 없어요.</p>
       <div className="mt-4 flex flex-wrap gap-2"><Button variant="primary" loading={busy} onClick={() => void confirm()}>{confirmation === "share" ? "동의하고 이 상대와 공유" : confirmation === "unshare" ? "공유 중단" : "답과 공유 허가 삭제"}</Button><Button disabled={busy} onClick={() => setConfirmation(null)}>취소</Button></div>

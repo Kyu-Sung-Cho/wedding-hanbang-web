@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { ArrowRight, HandHeart, ListChecks, Users, Wallet } from "lucide-react";
+import Button from "@/components/ui/Button";
 import { weddingLinkProps } from "@/lib/weddingPaths";
 import type {
   PreparationStyleGuide, PreparationStyleGroupId, PreparationStyleIndividual,
@@ -25,7 +26,7 @@ function ToolLink({ group }: { group: PreparationStyleGroupId }) {
 export function PersonalStyleResults({ personal, showTools = true }: { personal: PreparationStyleIndividual; showTools?: boolean }) {
   return <div className="space-y-5" data-personal-style="">
     <div>
-      <h2 className="text-xl font-semibold text-[var(--hb-text-strong)]">이번에 고른 답을 정리했어요</h2>
+      <h2 className="text-[var(--hb-text-strong)]">이번에 고른 답을 정리했어요</h2>
       <p className="mt-2 text-sm leading-7 text-[var(--hb-text-body)]">{personal.summary} {personal.skipped > 0 && `${personal.skipped}장면은 건너뛰었어요.`}</p>
       <p className="text-sm leading-7 text-[var(--hb-text-body)]">지금의 선택을 돌아보는 자료예요. 상황이나 생각이 달라지면 다시 답해도 괜찮아요.</p>
     </div>
@@ -34,7 +35,7 @@ export function PersonalStyleResults({ personal, showTools = true }: { personal:
         const Icon = tools[group.id].icon;
         return <section key={group.id} className={`${panel} p-5 sm:p-6`}>
           <p className="flex items-center gap-2 text-sm font-semibold text-[var(--hb-primary)]"><Icon className="size-4" aria-hidden="true" />{group.label}</p>
-          <h3 className="mt-3 text-lg font-semibold leading-8 text-[var(--hb-text-strong)]">{group.summary}</h3>
+          <h3 className="mt-3 text-[var(--hb-text-strong)]">{group.summary}</h3>
           <p className="mt-2 text-sm leading-7 text-[var(--hb-text-body)]">{group.countLine}</p>
           {group.reading.reflection && <p className="mt-2 text-sm leading-7 text-[var(--hb-text-body)]">{group.reading.reflection}</p>}
           {group.answered > 0 && <>
@@ -65,7 +66,7 @@ export function PersonalStyleResults({ personal, showTools = true }: { personal:
 function ComparedScene({ scene, partnerName }: { scene: PreparationStyleComparisonScene; partnerName: string }) {
   return <article className={`${panel} p-5 sm:p-6`} data-compared-scene={scene.key}>
     <p className="text-xs font-semibold text-[var(--hb-primary)]">{scene.status === "same" ? "같은 답을 고른 장면" : scene.status === "different" ? "다른 답을 고른 장면" : "비교하지 않은 장면"}</p>
-    <h4 className="mt-2 text-base font-semibold leading-8 text-[var(--hb-text-strong)]">{scene.scene}</h4>
+    <h4 className="mt-2 text-[var(--hb-text-strong)]">{scene.scene}</h4>
     <p className="mt-1 text-sm leading-7 text-[var(--hb-text-body)]">{scene.question}</p>
     <div className="mt-4 grid gap-3 sm:grid-cols-2">
       {[{ name: "나", answer: scene.mine }, { name: partnerName, answer: scene.partner }].map((person, index) => <div key={index} className="border-l-2 border-[var(--hb-hairline)] pl-4">
@@ -89,7 +90,7 @@ export function CoupleStyleResults({ guide, partnerName }: { guide: Extract<Prep
   const skipped = group.scenes.filter(scene => scene.status === "not_compared");
   return <div className="space-y-5" data-couple-style="">
     <div>
-      <h2 className="text-xl font-semibold text-[var(--hb-text-strong)]">둘이 고른 답, 나란히 볼까요?</h2>
+      <h2 className="text-[var(--hb-text-strong)]">둘이 고른 답, 나란히 볼까요?</h2>
       <p className="mt-2 text-sm leading-7 text-[var(--hb-text-body)]">{guide.summary}</p>
       <p className="text-sm leading-7 text-[var(--hb-text-body)]">다르게 골랐다고 문제가 있는 건 아니에요. 같은 답을 골랐을 때도 그 이유를 물어보세요.</p>
       {guide.skippedMessage && <p className="mt-2 text-xs leading-6 text-[var(--hb-text-muted)]">{guide.skippedMessage}</p>}
@@ -97,15 +98,15 @@ export function CoupleStyleResults({ guide, partnerName }: { guide: Extract<Prep
     <div className="grid grid-cols-2 gap-2 sm:grid-cols-4" aria-label="비교할 주제">
       {guide.groups.map(item => {
         const Icon = tools[item.id].icon;
-        return <button key={item.id} type="button" aria-pressed={groupId === item.id} onClick={() => setGroupId(item.id)} className={`rounded-[6px] border p-4 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--hb-focus-ring)] ${groupId === item.id ? "border-[var(--hb-selected-line)] bg-[var(--hb-selected-bg)]" : "border-[var(--hb-hairline)] bg-[var(--hb-surface-raised)]"}`}>
+        return <Button key={item.id} variant="ghost" type="button" aria-pressed={groupId === item.id} onClick={() => setGroupId(item.id)} className={`!block !whitespace-normal border !p-4 text-left !font-normal focus-visible:!ring-offset-0 ${groupId === item.id ? "border-[var(--hb-selected-line)] bg-[var(--hb-selected-bg)] hover:!bg-[var(--hb-selected-bg)]" : "border-[var(--hb-hairline)] bg-[var(--hb-surface-raised)] hover:!bg-[var(--hb-surface-raised)]"}`}>
           <Icon className="mb-2 size-5 text-[var(--hb-primary)]" aria-hidden="true" /><span className="block text-sm font-semibold leading-6 text-[var(--hb-text-strong)]">{item.label}</span>
           <span className="mt-1 block text-xs leading-6 text-[var(--hb-text-body)]">같은 답 {item.same} · 다른 답 {item.different}</span>
-        </button>;
+        </Button>;
       })}
     </div>
     <section aria-label={group.label}>
       <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
-        <h3 className="text-lg font-semibold text-[var(--hb-text-strong)]">{group.label}</h3><ToolLink group={group.id} />
+        <h3 className="text-[var(--hb-text-strong)]">{group.label}</h3><ToolLink group={group.id} />
       </div>
       <p className="mb-4 text-sm leading-7 text-[var(--hb-text-body)]">{group.summary}</p>
       <div className="space-y-4">{different.map(scene => <ComparedScene key={scene.key} scene={scene} partnerName={partnerName} />)}</div>

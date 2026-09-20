@@ -39,16 +39,16 @@ export default function PreparationStyleQuestions({ initialAnswers, onReview, on
     <p id="preparation-answer-help" className="mb-5 text-sm leading-7 text-[var(--hb-text-body)]">지금 나라면 어떻게 할지 생각해 보세요. 가장 가까운 답 하나를 고르면 돼요. 우리 상황과 맞지 않으면 건너뛰어도 괜찮아요.</p>
     <section data-question={question.key} aria-describedby="preparation-answer-help" className="overflow-hidden rounded-[6px] border border-[var(--hb-hairline)] bg-[var(--hb-surface-raised)]">
       <div className="border-b border-[var(--hb-hairline)] bg-[var(--hb-surface-hover)] p-5 sm:p-7">
-        <h2 className="text-lg font-semibold leading-8 text-[var(--hb-text-strong)]">{question.scene}</h2>
+        <h2 className="text-[var(--hb-text-strong)]">{question.scene}</h2>
         <p className="mt-3 text-sm font-semibold leading-7 text-[var(--hb-text-body)]">{question.question}</p>
       </div>
       <div className="divide-y divide-[var(--hb-hairline)]">
-        {question.options.map(option => <button key={option.value} type="button" data-option={option.value} aria-pressed={picked === option.value}
+        {question.options.map(option => <Button key={option.value} variant="ghost" fullWidth type="button" data-option={option.value} aria-pressed={picked === option.value}
           onClick={() => setAnswers(previous => ({ ...previous, [question.key]: option.value }))}
-          className={`flex min-h-16 w-full items-center gap-4 px-5 py-5 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--hb-focus-ring)] sm:px-7 ${picked === option.value ? "bg-[var(--hb-selected-bg)]" : "hover:bg-[var(--hb-surface-hover)]"}`}>
+          className={`!flex min-h-16 !justify-start !gap-4 !whitespace-normal !rounded-none py-5 text-left focus-visible:ring-inset focus-visible:!ring-offset-0 sm:px-7 ${picked === option.value ? "bg-[var(--hb-selected-bg)] hover:!bg-[var(--hb-selected-bg)]" : "hover:bg-[var(--hb-surface-hover)]"}`}>
           <span className="flex-1 text-base font-medium leading-7 text-[var(--hb-text-strong)]">{option.label}</span>
           <span aria-hidden="true" className={`flex size-6 shrink-0 items-center justify-center rounded-full border ${picked === option.value ? "border-[var(--hb-selected-line)] text-[var(--hb-selected-text)]" : "border-[var(--hb-hairline)]"}`}>{picked === option.value && <Check className="size-4" />}</span>
-        </button>)}
+        </Button>)}
       </div>
     </section>
     <Button variant="primary" fullWidth className="mt-5" disabled={!picked && !skipped.includes(question.key)} onClick={() => next()}>{last ? "내 답 확인하기" : "다음 문항"}<ArrowRight className="size-4" aria-hidden="true" /></Button>
