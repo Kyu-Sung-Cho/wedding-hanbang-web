@@ -1,6 +1,8 @@
 # 우리의 준비 스타일: 237 계정 저장·상호 공유 DB 릴리스
 
-상태: 구현·로컬 검증 단계. 운영 적용 및 사후 읽기는 아직 수행하지 않았다. 로컬 정적 계약, 합성 DB 검증, 운영 적용 증거를 구분한다.
+운영 DB 적용 확인: 2026-09-20 07:04 UTC에 `applied-and-postverified`, 별도 읽기에서 `already-applied-verified`를 확인했다. 검토·실행 commit은 `873a64a12c4f574938ffcf3c666745c403064819`이며, 비공개 영수증은 `03-apply.jsonl`과 `04-readback.jsonl`이다. SQL sha256은 `a7beb94156758753676aac366e04477365713eaf7f28dfc0e44f41646c7b5520`이다. 웹 병합·배포의 최종 상태와 운영 확인은 [PR #433](https://github.com/Kyu-Sung-Cho/wedding-hanbang-web/pull/433)에 기록한다.
+
+같은 구현 commit에서 `verify-change` 전체 관문(웹 16,505개·저장소 944개, 타입·lint), 배포용 빌드, 새 검사 9파일의 변이 증명이 통과했다. 모바일·공용 코드 6개 작업과 원격 필수 Code Quality 검사도 통과했다. Vercel Preview 빌드는 Ready지만 해당 Preview의 Supabase URL·키가 설정되지 않아 로그인 영역의 런타임 검증에는 사용할 수 없었다. 운영 기존 배포에서는 로그인 진입과 DB 상태가 정상임을 별도로 확인했다. 실제 소비자 조사와 운영 계정 두 개를 이용한 종단 간 테스트는 미검증이다.
 
 ## 변경 범위와 선택
 
