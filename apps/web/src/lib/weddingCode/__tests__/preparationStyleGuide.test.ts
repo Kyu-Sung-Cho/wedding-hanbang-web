@@ -11,6 +11,7 @@ import {
 import { buildWeddingCodeResultProfile } from "../scene/resultProfile";
 import type { WeddingCodeV06Answers } from "../v06/gap";
 import { buildPreparationStyleGuide, type PreparationStyleResponse } from "../preparationStyleGuide";
+import { buildCoupleRoleGuide } from "../coupleRoleGuide";
 
 const configs = [
   WEDDING_CODE_V06_SCENE_CONFIG, WEDDING_CODE_V08_SCENE_CONFIG,
@@ -141,9 +142,89 @@ describe("라운지 준비 스타일의 실제 선택 안내", () => {
           expect(scene.mine?.label).toBe(question.options[0].label);
           expect(scene.partner?.label).toBe(question.options[0].label);
           expect(scene.nextStep).toBe(first.nextSteps[scene.key]);
-          expect(scene.explanation).toContain("고른 이유도 같은지는 서로 물어보세요");
+          if (first.version === "v1.2-code" && question.axis === "preparationMode") {
+            expect(scene.explanation).toBe(question.key === "B2"
+              ? "둘 다 두 상담에 함께 가겠다고 답했어요."
+              : "둘 다 함께 고르겠다고 답했어요.");
+          } else {
+            expect(scene.explanation).toContain("고른 이유도 같은지는 서로 물어보세요");
+          }
         }
       }
+    }
+  });
+
+  it("같은 역할 보기의 각자 본인·상대 지목을 구분하고 다음 대화를 연결한다", () => {
+    const guide = buildPreparationStyleGuide(
+      response({ B1: "B", B2: "C", B3: "C", B4: "C", B5: "C" }),
+      response({ B1: "B", B2: "D", B3: "C", B4: "C", B5: "C" }),
+    );
+    if (guide.status !== "couple") throw new Error("expected role comparison");
+    expect(guide).toMatchObject({ compared: 5, same: 4, different: 1, skipped: 15 });
+    const scenes = guide.groups.find(group => group.id === "roles")!.scenes;
+    expect(scenes[0]).toMatchObject({
+      status: "same", explanation: "둘 다 직접 고르겠다고 답했어요.",
+      nextStep: "서로 꼭 반영하고 싶은 조건을 하나씩 말해 보세요. 그다음 함께 고를지, 한 사람이 맡을지 정해 보세요.",
+    });
+    expect(scenes[1]).toMatchObject({
+      status: "different", nextStep: current.nextSteps.B2,
+      explanation: "한 사람은 두 상담을 혼자 다녀오겠다고, 다른 한 사람은 그 사람에게 맡기겠다고 답했어요.",
+    });
+    expect(scenes[2].nextStep).toContain("여행지는 누가 고르면 좋을까요?");
+    expect(scenes[3].nextStep).toContain("항공권은 누가 고르면 좋을까요?");
+    expect(scenes[4].nextStep).toContain("오후 6시 전에 식장에 알릴 사람");
+    for (const scene of scenes.slice(2)) {
+      expect(scene.explanation).toBe("둘 다 상대에게 선택을 맡기겠다고 답했어요.");
+    }
+  });
+
+  it("역할 문항의 유효한 52개 순서 조합에서 실제 인용·집계와 주체 설명을 함께 보존한다", () => {
+    const choosing = [
+      ["둘 다 함께 고르겠다고", "함께 고르자는 답과 한 명이 정하자는 답", "함께 고르자는 답과 한 명이 정하자는 답"],
+      ["함께 고르자는 답과 한 명이 정하자는 답", "둘 다 직접 고르겠다고", "다른 한 사람은 그 사람에게 맡기겠다고"],
+      ["함께 고르자는 답과 한 명이 정하자는 답", "다른 한 사람은 그 사람에게 맡기겠다고", "둘 다 상대에게 선택을 맡기겠다고"],
+    ];
+    const attending = [
+      ["둘 다 두 상담에 함께", "모두 같이 가자는 답과 하나씩 나눠", "모두 같이 가자는 답과 한 명이 두 상담에 다", "모두 같이 가자는 답과 한 명이 두 상담에 다"],
+      ["모두 같이 가자는 답과 하나씩 나눠", "둘 다 상담을 하나씩 나눠", "하나씩 나눠 가자는 답과 한 명이 두 상담에 다", "하나씩 나눠 가자는 답과 한 명이 두 상담에 다"],
+      ["모두 같이 가자는 답과 한 명이 두 상담에 다", "하나씩 나눠 가자는 답과 한 명이 두 상담에 다", "둘 다 두 상담을 혼자", "다른 한 사람은 그 사람에게 맡기겠다고"],
+      ["모두 같이 가자는 답과 한 명이 두 상담에 다", "하나씩 나눠 가자는 답과 한 명이 두 상담에 다", "다른 한 사람은 그 사람에게 맡기겠다고", "둘 다 두 상담을 상대에게"],
+    ];
+    let compared = 0;
+    for (const question of current.questions.filter(question => question.axis === "preparationMode")) {
+      for (const [firstIndex, first] of question.options.entries()) {
+        for (const [secondIndex, second] of question.options.entries()) {
+          const guide = buildPreparationStyleGuide(response({ [question.key]: first.value }), response({ [question.key]: second.value }));
+          if (guide.status !== "couple") throw new Error("expected role comparison");
+          const same = first.value === second.value;
+          expect(guide).toMatchObject({ compared: 1, same: same ? 1 : 0, different: same ? 0 : 1, skipped: 19 });
+          const scene = guide.groups.flatMap(group => group.scenes).find(scene => scene.key === question.key)!;
+          expect(scene.mine).toEqual({ value: first.value, label: first.label });
+          expect(scene.partner).toEqual({ value: second.value, label: second.label });
+          expect(scene.explanation).toContain((question.key === "B2" ? attending : choosing)[firstIndex][secondIndex]);
+          expect(scene.nextStep).toBeTruthy();
+          compared++;
+        }
+      }
+    }
+    expect(compared).toBe(52);
+  });
+
+  it("새 역할 해석은 정확한 판·문항·두 유효 답이 있어야 반환한다", () => {
+    for (const version of ["v1.1-code", "v0.6", "", "v1.2-code ", "v999-code"]) {
+      expect(buildCoupleRoleGuide(version, "B1", "B", "B")).toBeNull();
+    }
+    for (const [first, second] of [[undefined, "A"], ["B", undefined], ["D", "A"], ["C", "D"], ["a", "B"], ["constructor", "A"]]) {
+      expect(buildCoupleRoleGuide(current.version, "B1", first, second)).toBeNull();
+    }
+    expect(buildCoupleRoleGuide(current.version, "A1", "B", "B")).toBeNull();
+    expect(buildCoupleRoleGuide(current.version, "B2", "A", "E")).toBeNull();
+    for (const config of configs.filter(config => config.version !== current.version)) {
+      const guide = buildPreparationStyleGuide(response({ B1: "B" }, config), response({ B1: "B" }, config));
+      if (guide.status !== "couple") throw new Error("expected legacy comparison");
+      const scene = guide.groups.flatMap(group => group.scenes).find(scene => scene.key === "B1")!;
+      expect(scene.explanation).toBe("같은 답을 골랐어요. 고른 이유도 같은지는 서로 물어보세요.");
+      expect(scene.nextStep).toBe(config.nextSteps.B1);
     }
   });
 
