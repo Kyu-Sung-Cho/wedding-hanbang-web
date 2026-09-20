@@ -206,7 +206,7 @@ function BoundStyleHub({ binding, demo, partnerName }: { binding: PreparationSty
 
         {!demo && snapshot?.own && <section className="mt-8 border-t border-[var(--hb-hairline)] pt-5">
           <h2 className="flex items-center gap-2 text-[var(--hb-text-strong)]"><ShieldCheck className="size-4" aria-hidden="true" />내 답 보관과 공유</h2>
-          <p className="mt-2 text-sm leading-7 text-[var(--hb-text-body)]">{snapshot.sharing ? `${partnerName}님과 공유하도록 승인했어요.` : "내 계정에만 저장했어요. 상대에게는 아직 공유하지 않았어요."}</p>
+          <p className="mt-2 text-sm leading-7 text-[var(--hb-text-body)]">{snapshot.sharing ? `${partnerName}님과 공유하도록 승인했어요.` : "내 답을 계정에 보관하고 있어요. 지금은 상대에게 공유하지 않아요."}</p>
           <div className="mt-3 flex flex-wrap gap-2">
             {availablePartnerId && <Button disabled={busy} onClick={() => openConfirmation(snapshot.sharing ? "unshare" : "share")}>{snapshot.sharing ? "공유 중단하기" : "내 답 공유하기"}</Button>}
             <Button variant="ghost" disabled={busy} onClick={() => openConfirmation("delete")}>저장한 답 지우기</Button>

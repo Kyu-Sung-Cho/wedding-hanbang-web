@@ -324,6 +324,18 @@ describe("준비 스타일의 개인 저장과 두 사람 공유", () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
+  it("공유를 중단한 뒤 한 번도 공유하지 않은 것처럼 설명하지 않는다", async () => {
+    fetchMock.mockResolvedValueOnce(result(snapshot({ own: response, sharing: { responseRevision: 1, sharedAt: now }, partner: response })));
+    await render();
+    await click("공유 중단하기");
+    fetchMock.mockResolvedValueOnce(result(snapshot({ own: { ...response, revision: 2 } })));
+    await click("공유 중단");
+    expect(container.textContent).toContain("내 답 공유를 중단했어요.");
+    expect(container.textContent).not.toContain("아직 공유하지 않았어요");
+    expect(container.textContent).toContain("지금은 상대에게 공유하지 않아요.");
+    expect(container.querySelector("[data-personal-style]")).not.toBeNull();
+  });
+
   it("삭제는 확인 후 호출하고 서버가 비웠을 때만 결과를 닫는다", async () => {
     fetchMock.mockResolvedValueOnce(result(snapshot({ own: response })));
     await render(); await click("저장한 답 지우기");
