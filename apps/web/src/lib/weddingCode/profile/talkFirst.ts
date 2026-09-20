@@ -97,6 +97,30 @@ const V12_ACTION_TALK = {
   detail: "마감이 정해진 일이 있다면 먼저 확인해요. 오늘 끝내야 할 일만 남기고, 나머지는 언제 다시 볼지 둘이 정해요.",
 };
 
+const V12_CRITERIA_TALK = {
+  ...WEDDING_CODE_TALK_FIRST_ITEMS.decisionCriteria,
+  right: {
+    ...WEDDING_CODE_TALK_FIRST_ITEMS.decisionCriteria.right,
+    detail: "결혼식 영상일 수도 있고 드레스일 수도 있어요. 각자 하나씩 적어 와서 왜 그게 좋은지 얘기해 보세요.",
+  },
+  split: {
+    lead: "항목마다 어떤 점을 살펴볼지 둘이 정해 두세요.",
+    detail: "남은 일 하나를 놓고 비용·조건에서 확인할 것과 분위기·경험에서 원하는 것을 하나씩 적어 보세요. 둘의 생각이 다르면 그 항목부터 얘기해 보세요.",
+  },
+};
+
+const V12_SUPPORT_TALK = {
+  ...WEDDING_CODE_TALK_FIRST_ITEMS.supportOrder,
+  left: {
+    ...WEDDING_CODE_TALK_FIRST_ITEMS.supportOrder.left,
+    detail: "얘기를 들어 주기, 같이 산책하기처럼 구체적으로 말해 보세요. 실제로 힘든 날에는 그날도 같은 도움이 필요한지 다시 물어보세요.",
+  },
+  split: {
+    ...WEDDING_CODE_TALK_FIRST_ITEMS.supportOrder.split,
+    detail: "부모님 얘기는 들어 주기, 업체 연락은 같이 정리하기처럼 적어 보세요. 적은 걸 서로 보여 주고, 그날 필요한 도움이 무엇인지 물어보세요.",
+  },
+};
+
 /** 이유마다 주제를 묶고, 마지막 묶음만 「~서 여기선 뺐어요.」로 끝내 한 문장으로 잇는다. */
 function leftOutSentence(slots: readonly WeddingCodeLetterSlot[]): string | null {
   const groups = LEFT_OUT_ORDER.flatMap((reason) => {
@@ -117,7 +141,9 @@ function leftOutSentence(slots: readonly WeddingCodeLetterSlot[]): string | null
 function itemOf(slot: WeddingCodeLetterSlot, kind: WeddingCodeTalkKind): WeddingCodeTalkFirstItem {
   const isV12 = slot.questionVersion === WEDDING_CODE_V12_VERSION;
   const entries = isV12 && slot.axis === "coordinationScope"
-    ? V12_FAMILY_TALK : WEDDING_CODE_TALK_FIRST_ITEMS[slot.axis];
+    ? V12_FAMILY_TALK : isV12 && slot.axis === "decisionCriteria"
+      ? V12_CRITERIA_TALK : isV12 && slot.axis === "supportOrder"
+        ? V12_SUPPORT_TALK : WEDDING_CODE_TALK_FIRST_ITEMS[slot.axis];
   // lean 은 글자가 있는 주제에서만 나온다(chosen 이 null 이면 usable 에 들지 못했다).
   const copy = isV12 && slot.axis === "supportOrder" && slot.chosen === "right" && kind === "lean"
     ? V12_ACTION_TALK : kind === "split" ? entries.split : entries[slot.chosen ?? "left"];

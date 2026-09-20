@@ -179,6 +179,8 @@ export default function WeddingTasteForm({ onComplete, initialDraft, version = i
           {step.kind === "priorities" ? "고른 주제는 뒤에서 조금 더 자세히 물어볼게요. 안 고른 건 나중에 이야기해도 돼요."
             : step.kind === "negotiability" ? negotiabilityQuestion.hint
             : step.kind === "avoids" ? "내가 피하고 싶은 것만 골라 주세요."
+            : draft.version === WEDDING_TASTE_VERSION && step.kind === "detail" && step.domain === "attire"
+              ? "여러 개가 맞으면, 특히 원하는 것 두 개까지 골라 주세요."
             : "상대 생각 말고 내 취향대로 골라 주세요."}
         </p>
       </div>

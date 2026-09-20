@@ -6,7 +6,12 @@ import { WEDDING_CODE_V06_AXES, type WeddingCodeV06Question, type WeddingCodeQue
  */
 export const WEDDING_CODE_V12_VERSION = "v1.2-code";
 export const WEDDING_CODE_V12_AXES = WEDDING_CODE_V06_AXES.map((axis) =>
-  axis.key === "coordinationScope" ? { ...axis, labelKo: "누구와 함께 정하나" } : axis,
+  axis.key === "decisionCriteria" ? {
+    ...axis,
+    labelKo: "정할 때 살펴볼 것",
+    left: { ...axis.left, labelKo: "비용·조건" },
+    right: { ...axis.right, labelKo: "분위기·경험" },
+  } : axis.key === "coordinationScope" ? { ...axis, labelKo: "누구와 함께 정하나" } : axis,
 );
 
 export const WEDDING_CODE_V12_QUESTIONS = [

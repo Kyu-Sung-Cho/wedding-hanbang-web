@@ -10,7 +10,7 @@ import {
   WEDDING_CODE_V12_SCENE_CONFIG as v12,
 } from "../config";
 import { buildWeddingCodeSelfProfile, describeSelfAxisAbsence } from "../selfProfile";
-import { buildWeddingCodeLetters } from "@/lib/weddingCode/profile/letters";
+import { buildWeddingCodeLetters, parseWeddingCodeString } from "@/lib/weddingCode/profile/letters";
 import { buildWeddingCodeTalkFirst } from "@/lib/weddingCode/profile/talkFirst";
 import { WEDDING_CODE_TALK_FIRST_ITEMS } from "@/constants/weddingCodeTalkFirst";
 import { buildWeddingCodeResultProfile, describeWeddingCodeResultReading } from "../resultProfile";
@@ -117,6 +117,97 @@ describe("v1.1 실제 선택에 연결하는 결과", () => {
 describe("v1.2 가변 보기의 실제 의미를 따라가는 결과", () => {
   const current = (answers: WeddingCodeV06Answers) => buildWeddingCodeResultProfile(answers, v12);
 
+  it.each([
+    { answers: { A1: "A", A4: "D" }, counts: [2, 0], quote: "예약을 취소하면 예약금을 얼마나 돌려받는지 본다", reflection: "총액이나 예산, 돌려받을 돈을 확인하는 답을 여러 번 골랐어요." },
+    { answers: { A1: "B", A4: "B" }, counts: [2, 0], quote: "약속한 날 사진을 잘 받았다는 후기가 있는지 본다", reflection: "견적이나 서비스 내용을 더 확인하는 답을 여러 번 골랐어요." },
+    { answers: { A1: "C", A4: "A" }, counts: [0, 2], quote: "여러 커플의 사진을 보며 표정과 색감이 내 취향인지 본다", reflection: "사진이나 영상, 공간의 모습을 살펴보는 답을 여러 번 골랐어요." },
+    { answers: { A1: "D", A4: "C" }, counts: [0, 2], quote: "촬영 후기를 보며 둘이 편하게 즐기고 올 수 있을지 본다", reflection: "그날의 경험이나 나중에 간직할 기억에 관한 답을 여러 번 골랐어요." },
+  ] as const)("A4에서 자세히 보는 $quote 선택을 먼저 본 것으로 바꾸지 않는다", ({ answers, counts, quote, reflection }) => {
+    const reading = current(answers).axes[0];
+    expect(v12.questions.find(question => question.key === "A4")?.question).toBe("나라면 무엇을 가장 자세히 볼까요?");
+    expect([reading.leftCount, reading.rightCount]).toEqual(counts);
+    expect(reading.reflection).toBe(reflection);
+    expect(reading.evidence.map(item => item.label)).toContain(quote);
+    expect(reading.reflection).not.toContain("먼저");
+  });
+
+  it.each([
+    { answers: {}, counts: [0, 0], letter: "·" },
+    { answers: { A4: "D" }, counts: [1, 0], letter: "V" },
+    { answers: { A4: "A" }, counts: [0, 1], letter: "M" },
+    { answers: { A1: "A", A4: "A" }, counts: [1, 1], letter: "·" },
+    { answers: { A1: "A", A2: "C", A3: "A", A4: "D", A5: "C" }, counts: [3, 2], letter: "v" },
+    { answers: { A1: "A", A2: "B", A3: "A", A4: "D", A5: "C" }, counts: [2, 3], letter: "m" },
+    { answers: { A1: "A", A2: "A", A3: "D", A4: "D", A5: "A" }, counts: [5, 0], letter: "V" },
+    { answers: { A1: "D", A2: "B", A3: "A", A4: "C", A5: "D" }, counts: [0, 5], letter: "M" },
+  ] as const)("관심 대상 이름으로 보정해도 $counts 집계와 $letter 글자는 유지한다", ({ answers, counts, letter }) => {
+    const result = current(answers);
+    const reading = result.axes[0];
+    const slot = buildWeddingCodeLetters(result).slots[0];
+    expect([reading.leftCount, reading.rightCount]).toEqual(counts);
+    expect(slot.letter).toBe(letter);
+    expect(reading.axisLabel).toBe("정할 때 살펴볼 것");
+    expect([reading.leftLabel, reading.rightLabel, slot.left.short, slot.right.short])
+      .toEqual(["비용·조건", "분위기·경험", "비용·조건", "분위기·경험"]);
+    expect(describeWeddingCodeResultReading(reading)).toBe(slot.countLine);
+    expect([
+      reading.axisLabel, reading.title, reading.letterMeaning, reading.reflection,
+      slot.meaning, slot.countLine, describeSelfAxisAbsence(reading),
+    ].join(" ")).not.toMatch(/먼저|부터 보는/);
+    if (counts[0] + counts[1] < 2) expect(reading.reflection).toBeUndefined();
+    if (counts[0] === counts[1]) {
+      expect(describeSelfAxisAbsence(reading)).toBeNull();
+      expect(slot.chosen).toBeNull();
+    }
+    if (slot.chosen === "right") {
+      expect(slot.meaning).toBe("사진과 공간의 모습, 그날의 경험과 남길 기억에 관한 답을 더 많이 골랐어요");
+    }
+  });
+
+  it("A의 부분 부재는 확인 순서가 아니라 한 번도 고르지 않은 관심 대상만 말한다", () => {
+    const noService = current({ A1: "C", A2: "D", A3: "A", A4: "D", A5: "D" }).axes[0];
+    expect(describeSelfAxisAbsence(noService)).toBe("“비용·조건” 쪽 답을 고르긴 했지만, 그중 ‘무엇을 어떻게 해주는지’에 관한 답은 없었어요.");
+    const noExperience = current({ A1: "A", A2: "C", A3: "C", A4: "A", A5: "A" }).axes[0];
+    expect(describeSelfAxisAbsence(noExperience)).toBe("“분위기·경험” 쪽 답을 고르긴 했지만, 그중 ‘그날의 경험과 남길 기억’에 관한 답은 없었어요.");
+    expect(describeSelfAxisAbsence(current({ A4: "D" }).axes[0])).toBe("“분위기·경험” 쪽 답은 한 번도 고르지 않았어요.");
+    expect(describeSelfAxisAbsence(current({ A4: "A" }).axes[0])).toBe("“비용·조건” 쪽 답은 한 번도 고르지 않았어요.");
+  });
+
+  it("A 후속 대화의 양쪽 우세와 하나 차이에도 현재 이름을 쓰고 v1.1은 보존한다", () => {
+    for (const answers of [{ A1: "A", A4: "D" }, { A1: "C", A4: "A" }, { A1: "A", A4: "A", A5: "D" }] as const) {
+      const result = current(answers);
+      const item = buildWeddingCodeTalkFirst(buildWeddingCodeLetters(result), result)!.items[0];
+      expect(item.slot.axisLabel).toBe("정할 때 살펴볼 것");
+      expect([item.slot.left.short, item.slot.right.short]).toEqual(["비용·조건", "분위기·경험"]);
+      expect(`${item.lead} ${item.detail}`).not.toMatch(/조건 먼저|분위기 먼저/);
+      if (item.kind === "split") {
+        expect(item.detail).toContain("비용·조건에서 확인할 것과 분위기·경험에서 원하는 것");
+        expect(item.lead).toContain("어떤 점을 살펴볼지");
+      }
+    }
+    const old = profile({ A1: "A", A4: "A", A5: "D" });
+    const oldItem = buildWeddingCodeTalkFirst(buildWeddingCodeLetters(old), old)!.items[0];
+    expect(oldItem.detail).toBe(WEDDING_CODE_TALK_FIRST_ITEMS.decisionCriteria.split.detail);
+    expect(profile({ A1: "A", A4: "D" }).axes[0].reflection).toContain("돈을 먼저 확인하는 답");
+    expect(buildWeddingCodeLetters(profile({ A4: "A" })).slots[0].right.short).toBe("분위기 먼저");
+    expect(parseWeddingCodeString("VTFH")?.[0].short).toBe("조건 먼저");
+    expect(parseWeddingCodeString("VTFH")?.[0].oppositeShort).toBe("분위기 먼저");
+  });
+
+  it.each([
+    { answers: { A1: "D", A4: "C" }, axis: "decisionCriteria", kind: "lean", action: "왜 그게 좋은지 얘기해 보세요" },
+    { answers: { A1: "A", A4: "A", A5: "D" }, axis: "decisionCriteria", kind: "split", action: "둘의 생각이 다르면 그 항목부터 얘기해 보세요" },
+    { answers: { D1: "A", D3: "B" }, axis: "supportOrder", kind: "lean", action: "그날도 같은 도움이 필요한지 다시 물어보세요" },
+    { answers: { D1: "A", D3: "A", D5: "A" }, axis: "supportOrder", kind: "split", action: "그날 필요한 도움이 무엇인지 물어보세요" },
+  ] as const)("v1.2 $axis $kind 후속 대화는 효과를 보장하지 않고 해 볼 대화만 제안한다", ({ answers, axis, kind, action }) => {
+    const result = current(answers);
+    const item = buildWeddingCodeTalkFirst(buildWeddingCodeLetters(result), result)!.items[0];
+    expect(item.axis).toBe(axis);
+    expect(item.kind).toBe(kind);
+    expect(item.detail).toContain(action);
+    expect(item.detail).not.toMatch(/쉬워져요|다시 따질 일이 줄어요|헤매지 않아요|헷갈리지 않아요/);
+  });
+
   it("후속 대화도 최종 결정 참여자를 확인하고, 부모님 압박이나 주말까지의 여유를 만들지 않는다", () => {
     const talk = (answers: WeddingCodeV06Answers) => {
       const result = current(answers);
@@ -150,11 +241,11 @@ describe("v1.2 가변 보기의 실제 의미를 따라가는 결과", () => {
     const result = current({ A1: "B", A2: "C", A3: "C", A4: "B", A5: "B" });
     const reading = result.axes[0];
     expect(result.repeated).toContainEqual({ construct: "evidenceDecision", phrase: "무엇을 어떻게 해주는지", count: 5 });
-    expect(buildWeddingCodeLetters(result).slots[0].meaning).toBe("비용이나 서비스 내용을 먼저 확인하는 답을 더 많이 골랐어요");
+    expect(buildWeddingCodeLetters(result).slots[0].meaning).toBe("비용이나 서비스 내용을 확인하는 답을 더 많이 골랐어요");
     expect(reading.reflection).toContain("서비스 내용");
     expect(JSON.stringify(result)).not.toContain("적힌 내용이 사실인지");
     const partial = current({ A1: "C", A2: "D", A3: "A", A4: "D", A5: "D" }).axes[0];
-    expect(describeSelfAxisAbsence(partial)).toBe("“조건 먼저” 쪽 답을 고르긴 했지만, 그중 ‘무엇을 어떻게 해주는지’부터 보는 답은 없었어요.");
+    expect(describeSelfAxisAbsence(partial)).toBe("“비용·조건” 쪽 답을 고르긴 했지만, 그중 ‘무엇을 어떻게 해주는지’에 관한 답은 없었어요.");
   });
 
   it("이미 부모님 조건을 확인하고 둘이 정한 답을 가족 배려 부재로 설명하지 않는다", () => {

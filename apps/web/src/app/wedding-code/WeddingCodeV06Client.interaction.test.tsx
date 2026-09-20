@@ -600,7 +600,7 @@ describe("WeddingCodeV06Client interaction", () => {
     const text = result?.textContent ?? "";
 
     // 답한 주제는 읽어주고, 건너뛴 주제는 비운다.
-    expect(text).toContain("답한 5장면 모두 V(조건 먼저) 쪽이었어요.");
+    expect(text).toContain("답한 5장면 모두 V(비용·조건) 쪽이었어요.");
     expect(text).toContain("건너뛴 장면은 빼고 셌어요");
     expect(container.querySelectorAll("[data-skipped]").length).toBe(config.axes.length - 1);
     expect(text).toContain("이 주제는 건너뛰었어요");

@@ -17,6 +17,7 @@ import {
   type WeddingCodeSelfLean,
 } from "@/constants/weddingCodeSelfReading";
 import { WEDDING_CODE_LETTERS, describeWeddingCodeCount } from "@/lib/weddingCode/profile/letters";
+import { WEDDING_CODE_V12_VERSION } from "@/constants/weddingCodeV12";
 import type { WeddingCodeV06Answers } from "@/lib/weddingCode/v06/gap";
 
 /** 문항·공유 코드 버전과 독립적인 응답 요약 규칙 버전. */
@@ -306,5 +307,8 @@ export function describeSelfAxisAbsence(
   const short = unchosen === "left" ? reading.leftLabel : reading.rightLabel;
   const unchosenCount = unchosen === "left" ? reading.leftCount : reading.rightCount;
   if (unchosenCount === 0) return WEDDING_CODE_ABSENCE.wholeSide(short);
+  if (reading.questionVersion === WEDDING_CODE_V12_VERSION && reading.axis === "decisionCriteria") {
+    return `“${short}” 쪽 답을 고르긴 했지만, 그중 ‘${reading.missingPhrases.join("’, ‘")}’에 관한 답은 없었어요.`;
+  }
   return WEDDING_CODE_ABSENCE.partSide(short, reading.missingPhrases.join("’, ‘"));
 }
