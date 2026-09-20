@@ -1,7 +1,7 @@
 import type { WeddingCodeV06AxisKey, WeddingCodeQuestionKey } from "@/constants/weddingCodeV06";
 import type { WeddingCodeSelfLean } from "@/constants/weddingCodeSelfReading";
 import { WEDDING_CODE_V11_VERSION } from "@/constants/weddingCodeV11";
-import { WEDDING_CODE_V12_VERSION } from "@/constants/weddingCodeV12";
+import { WEDDING_CODE_V12_AXES, WEDDING_CODE_V12_VERSION } from "@/constants/weddingCodeV12";
 import { describeWeddingCodeCount } from "@/lib/weddingCode/profile/letters";
 import type { WeddingCodeV06Answers } from "@/lib/weddingCode/v06/gap";
 import type { WeddingCodeSceneConfig } from "./config";
@@ -203,6 +203,19 @@ const V12_READING: typeof V11_READING = {
 };
 
 const V12_FAMILY_LABELS = { left: "둘이 정하기", right: "부모님도 참여" } as const;
+const V12_CRITERIA_AXIS = WEDDING_CODE_V12_AXES.find(axis => axis.key === "decisionCriteria")!;
+const V12_CRITERIA_LABELS = {
+  left: V12_CRITERIA_AXIS.left.labelKo,
+  right: V12_CRITERIA_AXIS.right.labelKo,
+};
+
+// A4는 먼저 볼 것이 아니라 자세히 볼 것을 묻는다. 관심 대상을 확인 순서로 바꾸지 않는다.
+const V12_CRITERIA_REFLECTIONS: Readonly<Record<string, string>> = {
+  costRisk: "총액이나 예산, 돌려받을 돈을 확인하는 답을 여러 번 골랐어요.",
+  evidenceDecision: "견적이나 서비스 내용을 더 확인하는 답을 여러 번 골랐어요.",
+  aestheticMood: "사진이나 영상, 공간의 모습을 살펴보는 답을 여러 번 골랐어요.",
+  experienceMeaning: "그날의 경험이나 나중에 간직할 기억에 관한 답을 여러 번 골랐어요.",
+};
 
 const V12_CHECK_PHRASES: Readonly<Record<string, string>> = {
   "적힌 내용이 사실인지": "무엇을 어떻게 해주는지",
@@ -228,8 +241,18 @@ function v12DisplayCopy(reading: WeddingCodeSelfAxisReading): Partial<WeddingCod
         : "부모님과 함께 정하거나 선택을 맡기는 답을 더 많이 골랐어요" } : {}),
     };
   }
-  if (reading.axis === "decisionCriteria" && reading.lean === "left") {
-    return { ...base, letterMeaning: "비용이나 서비스 내용을 먼저 확인하는 답을 더 많이 골랐어요" };
+  if (reading.axis === "decisionCriteria") {
+    const title = reading.lean === "mixed"
+      ? `‘${V12_CRITERIA_LABELS.left}’과 ‘${V12_CRITERIA_LABELS.right}’ 답을 같은 수만큼 골랐어요`
+      : `이번엔 ‘${V12_CRITERIA_LABELS[reading.lean]}’ 쪽 답이 더 많았어요`;
+    return {
+      ...base, title, axisLabel: V12_CRITERIA_AXIS.labelKo,
+      leftLabel: V12_CRITERIA_LABELS.left, rightLabel: V12_CRITERIA_LABELS.right,
+      letterLabels: V12_CRITERIA_LABELS,
+      ...(reading.lean !== "mixed" ? { letterMeaning: reading.lean === "left"
+        ? "비용이나 서비스 내용을 확인하는 답을 더 많이 골랐어요"
+        : "사진과 공간의 모습, 그날의 경험과 남길 기억에 관한 답을 더 많이 골랐어요" } : {}),
+    };
   }
   if (reading.axis === "preparationMode" && reading.lean !== "mixed") {
     return { ...base, letterMeaning: reading.lean === "left"
@@ -241,7 +264,14 @@ function v12DisplayCopy(reading: WeddingCodeSelfAxisReading): Partial<WeddingCod
 
 function connectV12Answers(axis: WeddingCodeV06AxisKey, selected: readonly SelectedScene[]): AnswerConnection | null {
   if (selected.length < 2) return null;
-  if (axis === "decisionCriteria") return connectSelectedAnswers(axis, selected);
+  if (axis === "decisionCriteria") {
+    const connection = connectSelectedAnswers(axis, selected);
+    if (!connection) return null;
+    return {
+      ...connection,
+      reflection: V12_CRITERIA_REFLECTIONS[connection.supporting[0].construct] ?? connection.reflection,
+    };
+  }
   if (axis === "preparationMode") {
     const preparation = selected.find((item) => item.key === "B1" || item.key === "B2");
     const decision = selected.find((item) => ["B3", "B4", "B5"].includes(item.key) && item.side !== preparation?.side);

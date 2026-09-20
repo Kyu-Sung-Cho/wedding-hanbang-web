@@ -73,7 +73,32 @@ describe("실제로 공개되는 비교 화면", () => {
     expect(container.textContent).not.toContain("글자가 모두 같아요");
     // 같은 자리도 글자와 짧은 이름을 함께 보여준다.
     expect(container.querySelector('[data-code-slot="decisionCriteria"]')?.textContent)
-      .toContain("먼저 답한 사람 V(조건 먼저) · 나중에 답한 사람 V(조건 먼저)");
+      .toContain("먼저 답한 사람 V(비용·조건) · 나중에 답한 사람 V(비용·조건)");
+  });
+  it("A4의 자세히 볼 대상은 갈린 장면·두 글자·각자 집계에서도 확인 순서로 바뀌지 않는다", async () => {
+    await render({ A4: "A" }, { A4: "D" });
+    const gap = container.querySelector('[data-gap="A4"]');
+    expect(gap?.textContent).toContain("정할 때 살펴볼 것: 여기서 갈렸어요");
+    expect(gap?.textContent).toContain("표정과 색감이 내 취향인지 본다");
+    expect(gap?.textContent).toContain("예약금을 얼마나 돌려받는지 본다");
+    const codes = container.querySelector('[data-code-slot="decisionCriteria"]');
+    expect(codes?.textContent).toContain("먼저 답한 사람 M(분위기·경험) · 나중에 답한 사람 V(비용·조건)");
+    const pair = container.querySelector('[data-pair-axis="decisionCriteria"]');
+    expect(pair?.textContent).toContain("답한 1장면은 M(분위기·경험) 쪽이었어요.");
+    expect(pair?.textContent).toContain("답한 1장면은 V(비용·조건) 쪽이었어요.");
+    expect(`${gap?.textContent} ${codes?.textContent} ${pair?.textContent}`)
+      .not.toMatch(/정할 때 뭘 먼저 보나|조건 먼저|분위기 먼저/);
+  });
+  it("같은 분위기·경험 안의 A4 다른 답도 그대로 비교하고 v1.1 제목은 보존한다", async () => {
+    await render({ A4: "A" }, { A4: "C" });
+    const gap = container.querySelector('[data-gap="A4"]');
+    expect(gap?.textContent).toContain("정할 때 살펴볼 것: 여기서 갈렸어요");
+    expect(gap?.textContent).toContain("표정과 색감이 내 취향인지 본다");
+    expect(gap?.textContent).toContain("둘이 편하게 즐기고 올 수 있을지 본다");
+    expect(container.querySelector('[data-code-slot="decisionCriteria"]')?.textContent).toContain("글자가 같아요");
+    await render({ A4: "A" }, { A4: "D" }, WEDDING_CODE_V11_SCENE_CONFIG);
+    expect(container.querySelector('[data-gap="A4"]')?.textContent).toContain("정할 때 뭘 먼저 보나: 여기서 갈렸어요");
+    expect(container.querySelector('[data-code-slot="decisionCriteria"]')?.textContent).toContain("M(분위기 먼저)");
   });
   it("같은 쪽으로 집계한 서로 다른 답도 펼친 목록에 모두 남는다", async () => {
     const first = optionOn("B1", "right");
