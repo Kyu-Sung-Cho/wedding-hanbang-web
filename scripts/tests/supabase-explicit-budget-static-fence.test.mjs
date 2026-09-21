@@ -35,16 +35,42 @@ test('explicit-budget mode validates only its exact historical checkout without 
   assert.match(output(currentResult), /NEW_MIGRATION_NOT_REVIEWED/);
 });
 
-test('the actual CI fence validates its exact reviewed fixture and rejects the unreviewed current checkout', t => {
+test('the actual CI fence validates its exact reviewed fixture and rejects unreviewed migration drift', t => {
   const workflow = readFileSync(join(root, '.github/workflows/ci.yml'), 'utf8');
   const commands = [...workflow.matchAll(/^\s+run: pnpm supabase:release:fence([^\r\n]*)$/gm)];
   assert.equal(commands.length, 1);
   const args = commands[0][1].trim().split(/\s+/).filter(Boolean);
+
+  if (args[0] === '--amora-decision-privacy') {
+    assert.deepEqual(args, ['--amora-decision-privacy']);
+    const candidate = createPreparationStyleHistoricalRepository(root);
+    t.after(candidate.cleanup);
+    const candidateContractPath = join(root, 'supabase/release-contracts/amora-decision-privacy-candidate-v1.json');
+    const candidateContract = JSON.parse(readFileSync(candidateContractPath, 'utf8'));
+    for (const file of [
+      'supabase/release-contracts/amora-decision-privacy-candidate-v1.json',
+      ...candidateContract.migrations.map(pin => `supabase/migrations/${pin.file}`),
+    ]) {
+      const target = join(candidate.root, file);
+      mkdirSync(dirname(target), { recursive: true });
+      copyFileSync(join(root, file), target);
+    }
+    const result = run(candidate.root, args);
+    assert.equal(result.status, 0, output(result));
+    assert.match(result.stdout, /239 exact SQL files/);
+    assert.match(result.stdout, /production apply not implemented; deployment not authorized/);
+    writeFileSync(join(candidate.root, 'supabase/migrations/20260921102000_unreviewed.sql'), 'BEGIN; SELECT 1; COMMIT;\n');
+    const drifted = run(candidate.root, args);
+    assert.equal(drifted.status, 1, output(drifted));
+    assert.match(output(drifted), /NEW_MIGRATION_NOT_REVIEWED/);
+    return;
+  }
+
+  assert.deepEqual(args, ['--preparation-style']);
   const reviewed = createPreparationStyleHistoricalRepository(root);
   t.after(reviewed.cleanup);
   const result = run(reviewed.root, args);
   assert.equal(result.status, 0, output(result));
-  assert.deepEqual(args, ['--preparation-style']);
   assert.match(result.stdout, /runtime evidence not verified; deployment not authorized; no remote writes/);
   const currentResult = run(root, args);
   assert.equal(currentResult.status, 1, output(currentResult));
