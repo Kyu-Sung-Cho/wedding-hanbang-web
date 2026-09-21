@@ -285,7 +285,12 @@ jobs:
   code_quality_signal:
     name: "Code Quality (breakage signal only — not a release authorization)"
     if: ${{ always() }}
-    needs: [web_quality, web_tests, mobile_quality, vendor_disclosure_quality, static_release_contracts]
+    # `static_release_contracts` deliberately carries fail-closed release
+    # blockers (for example an unreviewed migration).  Those are release
+    # authorization signals, not evidence that this commit broke code. Keep
+    # them in `ci`/`production_readiness`, but do not poison the breakage
+    # signal that is required by branch protection.
+    needs: [web_quality, web_tests, mobile_quality, vendor_disclosure_quality]
     runs-on: ubuntu-latest
     timeout-minutes: 5
 
@@ -296,16 +301,14 @@ jobs:
           WEB_TESTS_RESULT: ${{ needs.web_tests.result }}
           MOBILE_RESULT: ${{ needs.mobile_quality.result }}
           VENDOR_DISCLOSURE_RESULT: ${{ needs.vendor_disclosure_quality.result }}
-          STATIC_RELEASE_RESULT: ${{ needs.static_release_contracts.result }}
         run: |
           echo "Web Quality: $WEB_RESULT"
           echo "Web Tests: $WEB_TESTS_RESULT"
           echo "Mobile Quality: $MOBILE_RESULT"
           echo "Vendor Disclosure Quality: $VENDOR_DISCLOSURE_RESULT"
-          echo "Static Release Contracts (Non-Deploy): $STATIC_RELEASE_RESULT"
           echo ""
           echo "This job is a breakage signal only. Production release stays BLOCKED regardless of its colour."
-          if [ "$WEB_RESULT" != "success" ] || [ "$WEB_TESTS_RESULT" != "success" ] || [ "$MOBILE_RESULT" != "success" ] || [ "$VENDOR_DISCLOSURE_RESULT" != "success" ] || [ "$STATIC_RELEASE_RESULT" != "success" ]; then
+          if [ "$WEB_RESULT" != "success" ] || [ "$WEB_TESTS_RESULT" != "success" ] || [ "$MOBILE_RESULT" != "success" ] || [ "$VENDOR_DISCLOSURE_RESULT" != "success" ]; then
             echo "A code check broke on this commit."
             exit 1
           fi

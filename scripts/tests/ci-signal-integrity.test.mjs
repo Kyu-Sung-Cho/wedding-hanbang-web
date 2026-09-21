@@ -38,7 +38,6 @@ const REQUIRED_QUALITY_JOBS = [
   "web_tests",
   "mobile_quality",
   "vendor_disclosure_quality",
-  "static_release_contracts",
 ];
 
 /** 의도적으로 항상 실패하는 릴리스 차단 잡. 신호 잡이 여기 묶이면 안 된다. */
