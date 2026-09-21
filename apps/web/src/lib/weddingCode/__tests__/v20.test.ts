@@ -54,35 +54,37 @@ describe("웨딩코드 v2.0 문장 응답", () => {
     expect(criteria.responses[0]).toMatchObject({
       id: "C1",
       prompt: "견적을 받으면",
-      statement: "전체 비용이 얼마인지 먼저 확인하는 편이다.",
-      fullText: "견적을 받으면 전체 비용이 얼마인지 먼저 확인하는 편이다.",
+      statement: "추가 비용까지 포함한 전체 금액을 먼저 확인하는 편이다.",
+      fullText: "견적을 받으면 추가 비용까지 포함한 전체 금액을 먼저 확인하는 편이다.",
       ratingLabel: "전혀 그렇지 않아요",
-      interpretation: "이 문장에는 가까운 편이 아니라고 답했어요.",
+      interpretation: "추가 비용까지 포함한 전체 금액을 먼저 확인하는 편은 아니라고 답했어요.",
     });
-    expect(criteria.responses.find((response) => response.id === "C4")?.statement).toBe("정해둔 예산을 넘겨도 괜찮다고 생각하는 편이다.");
+    expect(criteria.responses.find((response) => response.id === "C4")?.statement).toBe("다른 항목의 비용을 줄여서라도 선택하고 싶은 편이다.");
     expect(criteria.responses.every((response) => response.followUp.length > 10)).toBe(true);
     expect(criteria.nextQuestion).toBe(criteria.responses[0].followUp);
-    expect(criteria.summary).toContain("이 문장에는 가까운 편이 아니라고 답했어요.");
-    expect(criteria.summary).toContain("예식 분위기가 마음에 드는지 먼저 본다고 답했어요.");
-    expect(criteria.state).toBe("clear");
+    expect(criteria.summary).toContain("문장에 따라 답이 달랐어요.");
+    expect(criteria.responses.find((response) => response.id === "C3")?.interpretation).toContain("예식장");
+    expect(criteria.state).toBe("hasNonMiddle");
   });
 
   it("3점·모두 1점·모두 5점·혼합·일부 건너뛰기를 점수 합산 없이 구분한다", () => {
     const allMiddle = buildWeddingCodeV20Profile({ C1: 3, C2: 3, C3: 3, C4: 3 }).readings.find((reading) => reading.axis === "criteria")!;
-    expect(allMiddle.state).toBe("mixed");
-    expect(allMiddle.summary).toContain("중간으로 답했어요");
+    expect(allMiddle.state).toBe("middleOnly");
+    expect(allMiddle.summary).toBe("이 주제의 문장에는 중간으로 답한 문장이 있어요.");
 
     const allLow = buildWeddingCodeV20Profile({ C1: 1, C2: 1, C3: 1, C4: 1 }).readings.find((reading) => reading.axis === "criteria")!;
-    expect(allLow.state).toBe("clear");
+    expect(allLow.state).toBe("hasNonMiddle");
     expect(allLow.summary).not.toContain("반대");
-    expect(allLow.summary).toContain("이 문장에는 가까운 편이 아니라고 답했어요.");
+    expect(allLow.summary).toContain("응답한 문장 모두에 가까운 편이 아니라고 답했어요.");
 
     const allHigh = buildWeddingCodeV20Profile({ C1: 5, C2: 5, C3: 5, C4: 5 }).readings.find((reading) => reading.axis === "criteria")!;
-    expect(allHigh.summary).toContain("전체 비용부터 확인하는 편이라고 답했어요.");
+    expect(allHigh.summary).toContain("응답한 문장 모두에 가까운 편이라고 답했어요.");
+    expect(allHigh.summary).not.toContain("견적을 받을 때");
 
     const partial = buildWeddingCodeV20Profile({ C1: 5, C2: 2 }).readings.find((reading) => reading.axis === "criteria")!;
     expect(partial.answered).toBe(2);
     expect(partial.summary).toContain("건너뛴 2문장은 정리에 넣지 않았어요.");
+    expect(partial.summary).not.toContain("가까운 편이 아니라고 답했어요. 가까운 편이 아니라고 답했어요.");
     expect(buildWeddingCodeV20Profile({}).readings.find((reading) => reading.axis === "criteria")?.state).toBe("unanswered");
   });
 
@@ -98,12 +100,12 @@ describe("웨딩코드 v2.0 문장 응답", () => {
 
   it("커플 비교는 비슷함·다름·한 사람만 답함·둘 다 건너뜀을 구분하고 전체 문장을 보존한다", () => {
     const result = compareWeddingCodeV20Answers({ C1: 4, C2: 2, C3: 5 }, { C1: 5, C2: 5 });
-    expect(result.find((item) => item.question.id === "C1")).toMatchObject({ state: "same", stateLabel: "비슷하게 답했어요.", fullText: "견적을 받으면 전체 비용이 얼마인지 먼저 확인하는 편이다." });
+    expect(result.find((item) => item.question.id === "C1")).toMatchObject({ state: "same", stateLabel: "비슷하게 답했어요.", fullText: "견적을 받으면 추가 비용까지 포함한 전체 금액을 먼저 확인하는 편이다." });
     expect(result.find((item) => item.question.id === "C2")?.state).toBe("different");
     expect(result.find((item) => item.question.id === "C3")?.state).toBe("missing");
     expect(result.find((item) => item.question.id === "C4")?.state).toBe("bothSkipped");
     expect(result.find((item) => item.question.id === "C4")?.stateLabel).toContain("둘 다");
-    expect(result.find((item) => item.question.id === "C2")?.followUp).toContain("취소");
+    expect(result.find((item) => item.question.id === "C2")?.followUp).toContain("조건");
     expect(WEDDING_CODE_V20_COMPARISON_NOTE).toContain("관계나 갈등");
   });
 });

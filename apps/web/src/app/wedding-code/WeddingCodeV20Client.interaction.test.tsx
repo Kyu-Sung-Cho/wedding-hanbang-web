@@ -38,7 +38,7 @@ describe("WeddingCodeV20Client", () => {
       await act(async () => next?.click());
     }
     expect(container.querySelector('[data-result="solo-v20"]')).not.toBeNull();
-    expect(container.textContent).toContain("전체 비용이 얼마인지 먼저 확인하는 편이다.");
+    expect(container.textContent).toContain("추가 비용까지 포함한 전체 금액을 먼저 확인하는 편이다.");
     expect(container.textContent).toContain("1 · 전혀 그렇지 않아요");
     expect(container.textContent).toContain("3 · 어느 쪽도 아니에요");
   });
@@ -51,7 +51,19 @@ describe("WeddingCodeV20Client", () => {
       />,
     ));
     expect(container.textContent).toContain("한 단계 차이면 ‘비슷하게 답함’으로 묶었어요");
-    expect(container.textContent).toContain("다음 견적에서 각자 가장 먼저 확인하고 싶은 것은 무엇인가요?");
-    expect(container.textContent).toContain("둘 다 건너뛴 문장은 비교에서 제외했어요.");
+    expect(container.textContent).toContain("견적에서 각자 어떤 금액부터 확인하고 싶은가요?");
+    expect(container.textContent).toContain("둘 다 건너뛴 문장 15개");
+  });
+
+  it("한 사람만 건너뛴 문장을 다른 답과 섞지 않는다", async () => {
+    await act(async () => root.render(
+      <WeddingCodeV20Client
+        shareOrigin="https://hanbang.ai"
+        bothAnswers={{ first: { C1: 5 }, second: {} }}
+      />,
+    ));
+    expect(container.querySelector("[data-couple-differences]")?.textContent).toContain("두 사람이 함께 답한 문장이 없어요.");
+    expect(container.querySelector("[data-couple-missing]")?.textContent).toContain("한 사람만 답한 문장");
+    expect(container.querySelector("[data-couple-differences]")?.textContent).not.toContain("한 사람만 답했어요.");
   });
 });
