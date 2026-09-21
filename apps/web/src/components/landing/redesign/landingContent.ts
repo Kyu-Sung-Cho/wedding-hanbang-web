@@ -18,9 +18,9 @@ export const landingContent = {
 
     titleAccent: "우리 둘이",
     primary: { label: "아모라와 준비 시작하기", href: "/login?mode=signup" },
-    secondary: { label: "어떻게 도와주는지 보기", href: "#amora" },
+    secondary: { label: "웨딩코드 해보기", href: "/wedding-code" },
 
-    note: "계정을 만들고 웹에서 시작해요. 지금은 결제를 요청하지 않아요.",
+    note: "아모라는 계정을 만들고 웹에서 시작해요. 웨딩코드는 가입 없이 해볼 수 있어요. 지금은 결제를 요청하지 않아요.",
 
     preview: {
       appName: "웨딩 라운지",
@@ -98,7 +98,7 @@ export const landingContent = {
     body:
       "누가 맞는지 판정하지 않고, 각자가 중요하게 생각하는 것을 함께 살펴봐요. "
       + "가입 전에는 스무 장면에 답하며 서로 고른 문장을 나란히 볼 수 있어요.",
-    cta: { label: "둘의 준비 방식 살펴보기", href: "/wedding-code" },
+    cta: { label: "웨딩코드로 준비 방식 살펴보기", href: "/wedding-code" },
 
     photo: {
       visible: false,
@@ -180,8 +180,8 @@ export const landingContent = {
       },
       {
         no: "02",
-        title: "둘이 갈리는 장면 보기",
-        body: "스무 장면에 각자 답하면 두 사람이 고른 문장을 그대로 나란히 놓아드려요.",
+        title: "웨딩코드 해보기",
+        body: "혼자 답해도 내 결과를 볼 수 있어요. 스무 장면에 각자 답하면 두 사람이 고른 문장을 그대로 나란히 놓아드려요.",
         note:
           "점수도 궁합도 매기지 않아요 · 답은 기기 안에서 계산해요 · "
           + "공유 링크에는 고른 답이 담기니 함께 볼 사람에게만 보내세요",
@@ -311,6 +311,7 @@ export const landingContent = {
 
 export const headerNav = [
   { label: "아모라", href: "#amora" },
+  { label: "웨딩코드", href: "/wedding-code" },
   { label: "둘의 준비", href: "#confirm" },
   { label: "무료 도구", href: "#now" },
   { label: "커뮤니티", href: "#community" },

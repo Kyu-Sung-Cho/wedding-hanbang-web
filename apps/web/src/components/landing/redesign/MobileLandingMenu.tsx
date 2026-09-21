@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { Menu, X } from "lucide-react";
 import { useEffect, useRef, useState, type KeyboardEvent } from "react";
+import TrackedLandingLink from "./TrackedLandingLink";
 
 type MobileLandingMenuProps = {
   items: ReadonlyArray<{
@@ -13,6 +14,7 @@ type MobileLandingMenuProps = {
 
 const focusRing =
   "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-paper-pen)] focus-visible:ring-offset-2";
+const navigationLinkClassName = `flex min-h-11 items-center px-4 py-3 text-[14px] font-semibold text-[var(--color-paper-ink-soft)] transition-colors duration-200 hover:bg-[var(--color-paper-sheet)] hover:text-[var(--color-paper-ink)] motion-reduce:transition-none ${focusRing}`;
 
 export default function MobileLandingMenu({ items }: MobileLandingMenuProps) {
   const detailsRef = useRef<HTMLDetailsElement>(null);
@@ -76,15 +78,19 @@ export default function MobileLandingMenu({ items }: MobileLandingMenuProps) {
         // 뷰포트에 붙여 항상 화면 안에 들어오게 한다.
         className="fixed inset-x-3 top-16 flex flex-col rounded-[6px] border border-[var(--color-paper-edge)] bg-[var(--color-paper-card)] p-2 shadow-overlay min-[360px]:absolute min-[360px]:inset-x-auto min-[360px]:right-0 min-[360px]:top-12 min-[360px]:w-56"
       >
-        {items.map((item) => (
+        {items.map((item) => item.href.startsWith("#") ? (
           <Link
             key={item.href}
             href={item.href}
             onClick={closeMenu}
-            className={`flex min-h-11 items-center px-4 py-3 text-[14px] font-semibold text-[var(--color-paper-ink-soft)] transition-colors duration-200 hover:bg-[var(--color-paper-sheet)] hover:text-[var(--color-paper-ink)] motion-reduce:transition-none ${focusRing}`}
+            className={navigationLinkClassName}
           >
             {item.label}
           </Link>
+        ) : (
+          <TrackedLandingLink key={item.href} href={item.href} source="landing_header" onClickCapture={closeMenu} className={navigationLinkClassName}>
+            {item.label}
+          </TrackedLandingLink>
         ))}
         <Link
           href="/login?mode=signup"
