@@ -10,6 +10,21 @@ import { runProductionRelease } from '../lib/supabase-production-release-control
 
 const root = resolve(import.meta.dirname, '../..');
 
+test('CI static release gate selects the integrated Amora candidate fence', () => {
+  const workflow = readFileSync(resolve(root, '.github/workflows/ci.yml'), 'utf8')
+    .replace(/\r\n?/g, '\n');
+  assert.match(
+    workflow,
+    /run:\s*pnpm supabase:release:fence --amora-decision-privacy\s*$/m,
+    'CI must validate the 239-file successor candidate, not the historical 237-file mode',
+  );
+  assert.doesNotMatch(
+    workflow,
+    /run:\s*pnpm supabase:release:fence --preparation-style\s*$/m,
+    'the historical preparation-style fence rejects the intentionally pinned successor migrations',
+  );
+});
+
 test('integrating preparation style and Amora leaves one migration per version', () => {
   const files = readdirSync(resolve(root, 'supabase/migrations')).filter(file => file.endsWith('.sql'));
   const byVersion = new Map();

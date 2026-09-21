@@ -248,7 +248,10 @@ jobs:
           ./scripts/tests/wedding-code-research-safety.test.mjs
 
       - name: Verify local manifest and migration pins (no deploy)
-        run: pnpm supabase:release:fence --preparation-style
+        # The checkout contains the 239-file Amora successor candidate. The
+        # historical preparation-style mode intentionally rejects successor
+        # migrations; use the candidate's static, non-deploy fence here.
+        run: pnpm supabase:release:fence --amora-decision-privacy
 
       - name: Test fail-closed release controllers (no hosted evidence)
         run: pnpm supabase:release:test
