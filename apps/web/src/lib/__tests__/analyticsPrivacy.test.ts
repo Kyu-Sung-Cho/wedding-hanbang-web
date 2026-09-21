@@ -175,6 +175,22 @@ describe("웨딩코드 흐름 이벤트는 답과 주소를 싣지 않는다", (
     });
   });
 
+  it("SDK가 최상위에 붙인 개인 속성과 최초 응답 주소도 제거한다", () => {
+    const safe = sanitizeWeddingCodeFunnelCapture({
+      event: "wedding_code_started",
+      uuid: "synthetic-event",
+      timestamp: new Date(AFTER),
+      $set_once: { $initial_current_url: `https://hanbang.ai/wedding-code#a=${ANSWER_CODE}` },
+      $set: { note: ANSWER_CODE },
+      unexpected: ANSWER_CODE,
+      properties: { version: "v1.2-code", distinct_id: "synthetic-browser" },
+    }, AFTER)!;
+
+    expect(Object.keys(safe).sort()).toEqual(["event", "properties", "timestamp", "uuid"]);
+    expect(JSON.stringify(safe)).not.toContain(ANSWER_CODE);
+    expect(safe.properties).toEqual({ version: "v1.2-code", distinct_id: "synthetic-browser" });
+  });
+
   it("실수로 넘긴 답 코드·링크·허용하지 않은 키는 보내기 전에 버린다", () => {
     const safe = sanitizeWeddingCodeFunnelCapture({
       event: "wedding_code_share_copied",

@@ -347,7 +347,15 @@ export function sanitizeWeddingCodeFunnelCapture<
       properties[key] = value;
     }
   }
-  return { ...capture, properties } as T;
+  // SDK는 최초 방문 정보를 properties 밖의 $set_once에도 붙인다.
+  // 속성 안의 주소만 정리하면 답이 든 원래 주소가 그 자리로 빠져나간다.
+  const safeCapture = { ...capture, properties };
+  for (const key of Object.keys(safeCapture)) {
+    if (!["event", "uuid", "timestamp", "properties"].includes(key)) {
+      Reflect.deleteProperty(safeCapture, key);
+    }
+  }
+  return safeCapture as T;
 }
 
 /**

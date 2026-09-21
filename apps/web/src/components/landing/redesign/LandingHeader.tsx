@@ -39,7 +39,7 @@ export default function LandingHeader() {
               {item.label}
             </Link>
           ) : (
-            <TrackedLandingLink key={item.href} href={item.href} source="landing_header" className={navigationLinkClassName}>
+            <TrackedLandingLink key={item.href} href={item.href} source={item.href === "/wedding-code" ? "landing_header_wedding_code" : "landing_header"} className={navigationLinkClassName}>
               {item.label}
             </TrackedLandingLink>
           ))}
