@@ -31,7 +31,7 @@ describe("처음 방문한 사람이 보는 준비 흐름", () => {
     expect(quoteTool).not.toMatch(/견적서[^.]*짚어주|자동[^.]*분석/u);
   });
 
-  it("첫 화면에서 AI와 확인 후 기록할 목적지를 이해하고 가입 없이 설명으로 이동한다", () => {
+  it("첫 화면에서 아모라를 이해하고 가입 없이 웨딩코드를 시작할 수 있다", () => {
     const doc = heroDocument();
     const copy = doc.body.textContent ?? "";
     expect(copy).toMatch(/AI[\s\S]*아모라/u);
@@ -40,10 +40,10 @@ describe("처음 방문한 사람이 보는 준비 흐름", () => {
     expect(titleLines).toEqual(["결혼 준비, 뭐부터 할지보다", "우리 둘이 뭘 원하는지부터."]);
     expect(doc.querySelector(".landing-tape")?.textContent).toBe("둘이 하는 결혼 준비, 아모라와");
     expect(doc.querySelector('a[href="/login?mode=signup"]')?.textContent).toContain("아모라");
-    const explanation = doc.querySelector('a[href="#amora"]');
-    expect(explanation?.textContent).toContain("어떻게");
+    const weddingCode = doc.querySelector('a[href="/wedding-code"]');
+    expect(weddingCode?.textContent).toContain("웨딩코드");
     const page = new DOMParser().parseFromString(renderToStaticMarkup(createElement(LandingPage)), "text/html");
-    expect(page.querySelector(explanation?.getAttribute("href") ?? "#missing")?.textContent).toContain("아모라");
+    expect(page.querySelector('header a[href="#amora"]')?.textContent).toContain("아모라");
   });
 
   it("원본 순서로 준비 고민·대화·의견 차이를 보여준 뒤 확인과 기록을 설명한다", () => {
@@ -458,7 +458,7 @@ describe("landing hero product experience contract", () => {
     // 사람이 첫 화면에서 아무 데도 못 간다")은 문이 하나라도 열려 있으면 일어나지 않고,
     // 둘 다 닫히면 운다 — 그 판정은 `landingFirstVisitClarity.test.ts` 가 진다
     // (거기서 두 버튼을 "로그인 없이 되는 것" 목록과 맞대본다).
-    expect(heroCopy).toContain('href: "#amora"');
+    expect(heroCopy).toContain('href: "/wedding-code"');
     expect(hero).toContain("hero.primary.href");
 
     // 첫 화면의 조건을 CTA 옆에서 말한다. 시안 문장("결제 없이 계정 생성")이 첫 버튼의
@@ -820,7 +820,7 @@ describe("landing hero product experience contract", () => {
     expect(heading?.textContent?.replace(/\s/gu, ""))
       .toBe(landingContent.hero.title.replace(/\s/gu, ""));
     const primary = doc.querySelector<HTMLAnchorElement>('a[href="/login?mode=signup"]');
-    const secondary = doc.querySelector<HTMLAnchorElement>('a[href="#amora"]');
+    const secondary = doc.querySelector<HTMLAnchorElement>('a[href="/wedding-code"]');
     const preview = doc.querySelector("figure");
     expect(preview).toBeTruthy();
     for (const link of [primary, secondary]) {
