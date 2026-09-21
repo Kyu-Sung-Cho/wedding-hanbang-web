@@ -12,6 +12,8 @@ const mocks = vi.hoisted(() => ({ captureEvent: vi.fn() }));
 vi.mock("@/lib/analytics", () => ({ captureEvent: mocks.captureEvent }));
 
 import TrackedLandingLink from "./TrackedLandingLink";
+import LandingHeader from "./LandingHeader";
+import AvailableNowSection from "./AvailableNowSection";
 
 describe("TrackedLandingLink", () => {
   let container: HTMLDivElement;
@@ -52,5 +54,31 @@ describe("TrackedLandingLink", () => {
       "landing_cta_click",
       { source: "landing_header" },
     );
+  });
+
+  it("distinguishes WeddingCode desktop, mobile, and tool-card clicks from signup", async () => {
+    await act(async () => {
+      root.render(<><LandingHeader /><AvailableNowSection /></>);
+    });
+    const links = [...container.querySelectorAll('a[href="/wedding-code"]')];
+    expect(links).toHaveLength(3);
+    for (const link of links) {
+      link.addEventListener("click", (event) => event.preventDefault());
+      await act(async () => {
+        link.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
+      });
+    }
+    expect(mocks.captureEvent.mock.calls).toEqual([
+      ["landing_cta_click", { source: "landing_header_wedding_code" }],
+      ["landing_cta_click", { source: "landing_mobile_wedding_code" }],
+      ["landing_cta_click", { source: "landing_now_wedding_code" }],
+    ]);
+    const signup = container.querySelector('a[href="/login?mode=signup"]');
+    expect(signup).not.toBeNull();
+    signup?.addEventListener("click", (event) => event.preventDefault());
+    await act(async () => {
+      signup?.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
+    });
+    expect(mocks.captureEvent).toHaveBeenLastCalledWith("landing_cta_click", { source: "landing_header" });
   });
 });

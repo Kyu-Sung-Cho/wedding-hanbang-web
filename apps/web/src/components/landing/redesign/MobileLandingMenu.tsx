@@ -88,7 +88,7 @@ export default function MobileLandingMenu({ items }: MobileLandingMenuProps) {
             {item.label}
           </Link>
         ) : (
-          <TrackedLandingLink key={item.href} href={item.href} source="landing_header" onClickCapture={closeMenu} className={navigationLinkClassName}>
+          <TrackedLandingLink key={item.href} href={item.href} source={item.href === "/wedding-code" ? "landing_mobile_wedding_code" : "landing_header"} onClickCapture={closeMenu} className={navigationLinkClassName}>
             {item.label}
           </TrackedLandingLink>
         ))}

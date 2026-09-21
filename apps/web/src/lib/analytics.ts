@@ -1,5 +1,5 @@
 // 퍼널 이벤트 캡처 래퍼 — PostHog 미설정 시 no-op.
-// 핵심 퍼널: $pageview(UTM 자동) → signup_started → chat_message_sent / quote_check_submitted
+// 핵심 퍼널: $pageview → signup_started → chat_message_sent / quote_check_submitted
 //
 // 2026-07-25: 정적 import는 posthog-js 64KB(gzip)를 초기 번들에 묶어
 // 하이드레이션과 경쟁한다. 유휴 시점에 한 번만 동적 로드·초기화하고,
@@ -13,6 +13,12 @@ import {
   stripAnalyticsUrlFragments,
   type WeddingCodeFunnelEvent,
 } from "@/lib/analyticsPrivacy";
+import {
+  dispatchLandingAnalytics,
+  isLandingAnalyticsCapture,
+  observeLandingAnalytics,
+  sanitizeLandingAnalyticsCapture,
+} from "@/lib/landingAnalytics";
 
 type PostHogModule = typeof import("posthog-js").default;
 
@@ -48,14 +54,15 @@ export function loadPostHog(): Promise<PostHogModule | null> {
             // 프래그먼트를 잘라낸다. `capture_pageleave`가 켜져 있어 posthog-js가
             // `$current_url`에 `location.href`를 스스로 넣는데, 커플 초대 코드가
             // 바로 그 `#` 뒤에 실려 다닌다.
-            // 웨딩코드 흐름 이벤트만 예외다 — 억제 판정보다 먼저, 주소를 경로만 남기고
-            // 허용 속성만 추려 보낸다(`sanitizeWeddingCodeFunnelCapture`).
+            // 이동 전 랜딩 관측과 고지일 이후 웨딩코드 흐름만 별도 허용 목록으로 정리한다.
             before_send: (capture) => (
-              isWeddingCodeFunnelEvent(capture?.event)
-                ? sanitizeWeddingCodeFunnelCapture(capture)
-                : analyticsCaptureTouchesSuppressedPath(capture, window.location.pathname)
-                  ? null
-                  : stripAnalyticsUrlFragments(capture)
+              isLandingAnalyticsCapture(capture)
+                ? sanitizeLandingAnalyticsCapture(capture)
+                : isWeddingCodeFunnelEvent(capture?.event)
+                  ? sanitizeWeddingCodeFunnelCapture(capture)
+                  : analyticsCaptureTouchesSuppressedPath(capture, window.location.pathname)
+                    ? null
+                    : stripAnalyticsUrlFragments(capture)
             ),
           });
           resolve(posthog);
@@ -80,6 +87,12 @@ export function captureWeddingCodeEvent(
 }
 
 export function captureEvent(event: string, properties?: Record<string, unknown>) {
+  if (event === "landing_cta_click") {
+    if (typeof window === "undefined") return;
+    const observation = observeLandingAnalytics(event, window.location, properties?.source);
+    if (observation) captureLandingObservation(observation);
+    return;
+  }
   void loadPostHog()
     .then((posthog) => {
       posthog?.capture(event, properties);
@@ -87,4 +100,34 @@ export function captureEvent(event: string, properties?: Record<string, unknown>
     .catch(() => {
       // 분석 실패가 기능을 깨면 안 됨
     });
+}
+
+function captureLandingObservation(observation: NonNullable<ReturnType<typeof observeLandingAnalytics>>) {
+  void loadPostHog()
+    .then((posthog) => {
+      if (!posthog) return;
+      dispatchLandingAnalytics(observation, (properties, timestamp) => {
+        posthog.capture(observation.event, properties, { timestamp });
+      });
+    })
+    .catch(() => {
+      // 분석 실패가 화면 이동을 막으면 안 된다.
+    });
+}
+
+export function capturePageview(properties: { $current_url: string }) {
+  if (typeof window === "undefined") return;
+  try {
+    const url = new URL(properties.$current_url, window.location.origin);
+    if (url.pathname === "/landing") {
+      if (url.origin !== window.location.origin) return;
+      const observation = observeLandingAnalytics("$pageview", window.location);
+      if (observation) captureLandingObservation(observation);
+      return;
+    }
+  } catch {
+    return;
+  }
+  // 나머지 화면은 기존 페이지뷰와 억제 규칙을 유지한다.
+  captureEvent("$pageview", properties);
 }

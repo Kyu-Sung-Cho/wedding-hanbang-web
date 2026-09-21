@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { LANDING_CTA_SOURCES } from "@/lib/landingAnalytics";
 
 import { everyLandingComponent, rendered } from "./landingSource";
 
@@ -69,10 +70,7 @@ describe("랜딩 행동 버튼은 계측된다", () => {
 
   it("계측하는 자리 이름이 실제로 쓰인다", () => {
     // 목록에만 있고 아무도 안 쓰는 이름이 남으면, 그 자리가 계측되는 줄 착각한다.
-    const tracked = rendered(
-      "src/components/landing/redesign/TrackedLandingLink.tsx",
-    );
-    const declared = [...tracked.matchAll(/\|\s*"(landing_[a-z_]+)"/gu)].map((m) => m[1]);
+    const declared = [...LANDING_CTA_SOURCES];
     expect(declared.length, "자리 이름을 못 찾았다").toBeGreaterThanOrEqual(5);
 
     // **선언한 파일 자신은 뺀다.** 안 빼면 선언이 곧 사용으로 세어져,
