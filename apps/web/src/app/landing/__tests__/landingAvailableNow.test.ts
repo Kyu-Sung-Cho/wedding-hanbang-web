@@ -1,10 +1,7 @@
 // @vitest-environment node
 
 import { describe, expect, it } from "vitest";
-import {
-  CURRENT_WEDDING_CODE_SCENE_CONFIG,
-  weddingCodeSceneCountLabel,
-} from "@/lib/weddingCode/scene/config";
+import { WEDDING_CODE_V20_TOTAL } from "@/constants/weddingCodeV20";
 import { landingContent } from "@/components/landing/redesign/landingContent";
 import {
   CONTENT_PATH,
@@ -269,34 +266,13 @@ describe("landing available-now section", () => {
     }
   });
 
-  it("names the scene count the destination screen actually asks", () => {
-    // 이 카드를 누르면 곧바로 웨딩코드 화면이 열린다. 여기 적힌 장면 수가 그 화면의
-    // 문항 수와 다르면 한 클릭 만에 숫자가 달라진다 — 실제로 "열여섯"으로 적힌 채
-    // 도착 화면은 "스무"였다.
-    //
-    // landingContent.ts는 클라이언트 컴포넌트가 import하므로 거기서 설정을 끌어오면
-    // 문항 은행이 랜딩 번들에 실린다. 그래서 숫자는 손으로 적고, 대조는 여기서 한다.
-    //
-    // 2026-08-29 개편이 이 숫자를 **세 곳으로 흩었다**: 카드 본문("스무 장면에 각자
-    // 답하면"), 마무리 문단, 푸터 링크 이름("웨딩코드 스무 장면"). 옛 검사는 카드
-    // 안의 두 문장을 통째로 이름으로 집었고 그중 하나(CTA 라벨 "스무 장면 답해보기")는
-    // 아예 없어졌다. 그래서 문장을 고정하는 대신 **랜딩 카피 전체에서 "N 장면" 을
-    // 전부 찾아** 대조한다 — 표기가 아니라 뜻을 잰다.
-    const live = weddingCodeSceneCountLabel(
-      CURRENT_WEDDING_CODE_SCENE_CONFIG.questions.length,
-    );
-
-    expect(content, `라이브 설정은 ${live} 장면인데 랜딩이 그 수를 말하지 않는다`)
-      .toContain(`${live} 장면`);
-
-    // 다른 표기가 함께 남아 있으면 위 단언은 통과하면서 화면에는 두 숫자가 보인다.
-    for (const other of ["열두", "열여섯", "스무", "스물네"].filter((n) => n !== live)) {
-      expect(content, `옛 표기 "${other} 장면"이 남아 있다`)
-        .not.toMatch(new RegExp(`${other}\\s*장면`, "u"));
-    }
-    // 아라비아 숫자로 적어도 같은 사고가 난다("20 장면").
-    expect(content, "장면 수를 숫자로 적었다 — 라이브 설정과 어긋나도 아무도 안 잡는다")
-      .not.toMatch(/\d+\s*장면/u);
+  it("names the statement count the destination screen actually asks", () => {
+    // 새 공개판은 장면 선택지가 아니라 16개 문장에 같은 척도로 답한다.
+    // 랜딩의 숫자가 입구 화면과 어긋나면 한 클릭 만에 약속이 깨진다.
+    expect(content, `새 질문판은 ${WEDDING_CODE_V20_TOTAL}개 문장인데 랜딩이 그 수를 말하지 않는다`)
+      .toContain(`${WEDDING_CODE_V20_TOTAL}개 문장`);
+    expect(content, "옛 장면 수 표현이 랜딩에 남아 있다")
+      .not.toMatch(/(?:열두|열여섯|스무|스물네|\d+)\s*장면/u);
   });
 
   it("keeps unverified claims out of every landing surface, not just this section", () => {

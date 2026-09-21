@@ -99,6 +99,7 @@ export default function WeddingCodeV06Client({
   bothCodes,
   researchContributionOpen = false,
   researchStorageActive = false,
+  onRestart,
 }: {
   shareOrigin: string;
   version: WeddingCodeSceneVersion;
@@ -111,6 +112,8 @@ export default function WeddingCodeV06Client({
   partnerCode: string | null;
   /** 두 사람 코드가 모두 URL에 있으면 응답 순서가 고정된 차이 지도를 연다. */
   bothCodes: { first: WeddingCodeV06Answers; second: WeddingCodeV06Answers } | null;
+  /** 새 질문판 wrapper가 소유한 전체 재시작 동작. */
+  onRestart?: () => void;
 }) {
   const [activeVersion, setActiveVersion] = useState(version);
   const [linkContext, setLinkContext] = useState({
@@ -266,6 +269,10 @@ export default function WeddingCodeV06Client({
   }, [bothCodes, partnerCode, version]);
 
   function restart() {
+    if (onRestart) {
+      onRestart();
+      return;
+    }
     // 반송된 비교 링크만으로 어느 응답이 현재 방문자의 것인지는 알 수 없다.
     // 새 응답은 이전 두 사람의 문맥과 주소를 함께 비워 시작한다.
     captureWeddingCodeEvent("wedding_code_restarted", { version: activeVersion });

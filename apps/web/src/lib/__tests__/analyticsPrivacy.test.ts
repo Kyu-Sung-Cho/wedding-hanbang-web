@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
+import { WEDDING_CODE_V20_VERSION } from "@/constants/weddingCodeV20";
 import {
   WEDDING_CODE_FUNNEL_ANALYTICS_EFFECTIVE_AT,
   WEDDING_CODE_FUNNEL_DISCLOSURE,
@@ -259,6 +260,15 @@ describe("웨딩코드 흐름 이벤트는 답과 주소를 싣지 않는다", (
       properties: { version: "v0.9-code", answered_count: 18, answer_code: "ABCD", letters: "vtfh" },
     }, now);
     expect(sent?.properties).toEqual({ version: "v0.9-code", answered_count: 18 });
+  });
+
+  it("새 16문장 판의 버전 식별자는 답 없이 안전한 흐름 값으로 통과한다", () => {
+    const sent = sanitizeWeddingCodeFunnelCapture({
+      event: "wedding_code_started",
+      properties: { version: WEDDING_CODE_V20_VERSION, scene_total: 16 },
+    }, AFTER);
+
+    expect(sent?.properties).toEqual({ version: WEDDING_CODE_V20_VERSION, scene_total: 16 });
   });
 });
 
