@@ -4,15 +4,15 @@ import { URL } from "node:url";
 import test from "node:test";
 import ts from "typescript";
 
-function load(path, dependencies = {}) {
+function load(path, dependencies = {}, { env = {}, isDevelopment = true } = {}) {
   const code = ts.transpileModule(readFileSync(new URL(path, import.meta.url), "utf8"), {
     compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX },
   }).outputText;
   const module = { exports: {} };
-  new Function("module", "exports", "require", "__DEV__", code)(module, module.exports, key => {
+  new Function("module", "exports", "require", "__DEV__", "process", code)(module, module.exports, key => {
     assert.ok(dependencies[key], `Unexpected dependency: ${key}`);
     return dependencies[key];
-  }, true);
+  }, isDevelopment, { env });
   return module.exports;
 }
 const shared = load("../../../../packages/shared/src/contracts/amoraDecisionReceipt.ts");
@@ -26,24 +26,24 @@ const receipt = () => ({
   } }, displayMessage: "저장했어요.",
 });
 
-const opened = [];
-const alerts = [];
-let openingFailure = false;
 const jsx = (type, props) => ({ type, props });
 const site = load("../lib/siteUrl.mjs");
-const card = load("../components/chat/ToolResultCard.tsx", {
-  "react/jsx-runtime": { jsx, jsxs: jsx },
-  "react-native": { View: "View", Pressable: "Pressable", StyleSheet: { create: value => value },
-    Linking: { openURL: async url => { opened.push(url); if (openingFailure) throw new Error("offline"); } },
-    Alert: { alert: (...values) => alerts.push(values) } },
-  "@/components/ui/AppText": { Text: "Text" },
-  "expo-router": { router: { push: path => { throw new Error(`Not a native decision screen: ${path}`); } } },
-  "lucide-react-native": { CheckCircle2: "CheckCircle2", XCircle: "XCircle", Info: "Info" },
-  "@hanbang/design-tokens": { colors: { noir: { 800: "black", soft: "gray" }, rose: { 700: "rose" } } },
-  "@hanbang/shared": shared,
-  "@/lib/siteUrl.mjs": site,
-  "./toolResultCardModel": models,
-});
+function createCard({ env = {}, isDevelopment = true, opened = [], alerts = [], openingFailure = false } = {}) {
+  return load("../components/chat/ToolResultCard.tsx", {
+    "react/jsx-runtime": { jsx, jsxs: jsx },
+    "react-native": { View: "View", Pressable: "Pressable", StyleSheet: { create: value => value },
+      Linking: { openURL: async url => { opened.push(url); if (openingFailure) throw new Error("offline"); } },
+      Alert: { alert: (...values) => alerts.push(values) } },
+    "@/components/ui/AppText": { Text: "Text" },
+    "expo-router": { router: { push: path => { throw new Error(`Not a native decision screen: ${path}`); } } },
+    "lucide-react-native": { CheckCircle2: "CheckCircle2", XCircle: "XCircle", Info: "Info" },
+    "@hanbang/design-tokens": { colors: { noir: { 800: "black", soft: "gray" }, rose: { 700: "rose" } } },
+    "@hanbang/shared": shared,
+    "@/lib/siteUrl.mjs": site,
+    "./toolResultCardModel": models,
+  }, { env, isDevelopment });
+}
+const card = createCard();
 const nodes = value => !value ? [] : Array.isArray(value) ? value.flatMap(nodes) : typeof value === "object" ? [value, ...nodes(value.props?.children)] : [];
 const text = value => value == null ? "" : Array.isArray(value) ? value.map(text).join("") : typeof value === "object" ? text(value.props?.children) : String(value);
 
@@ -59,18 +59,26 @@ test("native receipt uses the saved title/status, not proposed input or a generi
   assert.doesNotMatch(model.message, /미리보기 제목|확정/);
 });
 
-test("native receipt opens only the fixed web decision view on explicit press and explains separate web login", async () => {
-  const result = receipt();
-  result.toolOutput.href = "https://untrusted.example/steal";
-  const tree = card.ToolResultCard({ model: models.getToolResultCardModel(result) });
-  assert.equal(opened.length, 0);
-  assert.match(text(tree), /웹 로그인이 필요할 수 있어요/);
-  const link = nodes(tree).find(node => node.props?.accessibilityLabel === "웹에서 결정 기록 보기");
-  assert.ok(link, "결정 기록으로 이동하는 접근 가능한 링크가 없다");
-  assert.equal(link.props.accessibilityRole, "link");
-  await link.props.onPress();
-  assert.deepEqual(opened, ["http://localhost:3000/wedding/chat/board?view=decisions"]);
-});
+for (const { name, env, isDevelopment, expectedUrl } of [
+  { name: "unset development origin", env: {}, isDevelopment: true, expectedUrl: "http://localhost:3000/wedding/chat/board?view=decisions" },
+  { name: "explicit local origin", env: { EXPO_PUBLIC_SITE_URL: "http://localhost:3000" }, isDevelopment: true, expectedUrl: "http://localhost:3000/wedding/chat/board?view=decisions" },
+  { name: "production origin", env: { EXPO_PUBLIC_SITE_URL: "https://hanbang.ai" }, isDevelopment: false, expectedUrl: "https://hanbang.ai/wedding/chat/board?view=decisions" },
+]) {
+  test(`native receipt opens only the fixed web decision view on explicit press and explains separate web login: ${name}`, async () => {
+    const opened = [];
+    const card = createCard({ env, isDevelopment, opened });
+    const result = receipt();
+    result.toolOutput.href = "https://untrusted.example/steal";
+    const tree = card.ToolResultCard({ model: models.getToolResultCardModel(result) });
+    assert.equal(opened.length, 0);
+    assert.match(text(tree), /웹 로그인이 필요할 수 있어요/);
+    const link = nodes(tree).find(node => node.props?.accessibilityLabel === "웹에서 결정 기록 보기");
+    assert.ok(link, "결정 기록으로 이동하는 접근 가능한 링크가 없다");
+    assert.equal(link.props.accessibilityRole, "link");
+    await link.props.onPress();
+    assert.deepEqual(opened, [expectedUrl]);
+  });
+}
 
 test("missing verification never announces a completed save, even with a success-shaped AI result", () => {
   const result = receipt();
@@ -93,14 +101,15 @@ test("distinct saved decisions with the same words remain separate while a repla
 });
 
 test("opening the web list can fail visibly without making another save request", async () => {
-  openingFailure = true;
+  const opened = [];
+  const alerts = [];
+  const card = createCard({ opened, alerts, openingFailure: true });
   const tree = card.ToolResultCard({ model: models.getToolResultCardModel(receipt()) });
   const link = nodes(tree).find(node => node.props?.accessibilityRole === "link");
   const before = opened.length;
   await link.props.onPress();
   assert.equal(opened.length, before + 1);
   assert.deepEqual(alerts.at(-1), ["결정 기록을 열지 못했어요", "연결 상태를 확인한 뒤 다시 눌러 주세요."]);
-  openingFailure = false;
 });
 
 test("failed and malformed operations never become a successful native receipt", () => {
