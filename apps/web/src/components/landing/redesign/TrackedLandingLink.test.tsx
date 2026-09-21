@@ -81,4 +81,26 @@ describe("TrackedLandingLink", () => {
     });
     expect(mocks.captureEvent).toHaveBeenLastCalledWith("landing_cta_click", { source: "landing_header" });
   });
+
+  it("counts every available-now card under its own destination without an Amora or hero start", async () => {
+    await act(async () => root.render(<AvailableNowSection />));
+
+    const cards = [...container.querySelectorAll<HTMLAnchorElement>("#now .grid > a")];
+    expect(cards.map((card) => card.getAttribute("href"))).toEqual([
+      "/wedding/community/quote-check", "/wedding-code", "/price", "/wedding/manners",
+    ]);
+    for (const card of cards) {
+      card.addEventListener("click", (event) => event.preventDefault());
+      await act(async () => {
+        card.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
+      });
+    }
+
+    expect(mocks.captureEvent.mock.calls).toEqual([
+      ["landing_cta_click", { source: "landing_now_card" }],
+      ["landing_cta_click", { source: "landing_now_wedding_code" }],
+      ["landing_cta_click", { source: "landing_now_card" }],
+      ["landing_cta_click", { source: "landing_now_card" }],
+    ]);
+  });
 });

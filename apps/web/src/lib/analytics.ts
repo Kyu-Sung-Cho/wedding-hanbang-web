@@ -47,6 +47,13 @@ export function loadPostHog(): Promise<PostHogModule | null> {
             capture_pageview: false, // App Router 라우트 전환은 Provider에서 수동 캡처
             capture_pageleave: true,
             persistence: "localStorage+cookie",
+            // SDK는 before_send 전에 현재 주소를 저장한다. 답이 담긴 공유 주소가
+            // 쿠키·브라우저 저장소에 남지 않도록 저장을 끄고 기존 SDK 저장도 지운다.
+            disable_persistence: true,
+            save_campaign_params: false,
+            save_referrer: false,
+            // 기능 플래그 요청은 before_send를 거치지 않아 별도로 차단한다.
+            advanced_disable_flags: true,
             // 필요한 퍼널 이벤트만 명시적으로 보낸다. DOM 문구와 입력값 자동 수집은 하지 않는다.
             autocapture: false,
             disable_session_recording: true,
