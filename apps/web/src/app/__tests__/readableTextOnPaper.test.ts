@@ -3,7 +3,7 @@
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join, relative, resolve } from "node:path";
 import ts from "typescript";
-import { describe, expect, it } from "vitest";
+import { beforeAll, describe, expect, it } from "vitest";
 
 import { colors } from "@hanbang/design-tokens";
 
@@ -124,6 +124,14 @@ const ON_DARK_SURFACE = [
 ];
 
 describe("종이 지면 위의 읽는 글자", () => {
+  let sources: ReturnType<typeof productSources>;
+
+  // 웹 전체를 변환하는 준비 작업은 한 번만 하고 두 검사가 같은 소스를 확인한다.
+  // CI에서 첫 변환이 개별 검사 제한(15초)을 두 번 넘겨 준비 단계에 별도 시간을 둔다.
+  beforeAll(() => {
+    sources = productSources();
+  }, 60_000);
+
   it("금지 목록의 색은 정말 종이에서 무너지고, 옮겨 간 색은 세 지면 모두에서 통과한다", () => {
     for (const [cls, hex] of Object.entries(UNREADABLE_TEXT)) {
       expect(contrast(hex, colors.paper.sheet), cls).toBeLessThan(4.5);
@@ -150,7 +158,7 @@ describe("종이 지면 위의 읽는 글자", () => {
       "g",
     );
     const hits: string[] = [];
-    for (const [file, code] of productSources()) {
+    for (const [file, code] of sources) {
       for (const match of code.matchAll(pattern)) {
         const allowed = ON_DARK_SURFACE.some((entry) => entry.file === file && entry.cls === match[0]);
         if (!allowed) hits.push(`${file}: ${match[0]}`);
@@ -179,7 +187,7 @@ describe("종이 지면 위의 읽는 글자", () => {
     const pattern = /(?<![\w[-])(?:[\w-]+:)*text-\[var\(--hb-text-(strong|body|muted)\)\]\/(\d+)/g;
     const hits: string[] = [];
     let seen = 0;
-    for (const [file, code] of productSources()) {
+    for (const [file, code] of sources) {
       for (const match of code.matchAll(pattern)) {
         seen += 1;
         const alpha = Number(match[2]) / 100;
