@@ -43,7 +43,7 @@ describe("actual analytics SDK storage boundary", () => {
       });
     }));
     const open = XMLHttpRequest.prototype.open;
-    vi.spyOn(XMLHttpRequest.prototype, "open").mockImplementation(function (method, url) {
+    vi.spyOn(XMLHttpRequest.prototype, "open").mockImplementation(function (this: XMLHttpRequest, method, url) {
       requests.push(String(url));
       open.call(this, method, url, true);
     });
