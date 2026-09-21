@@ -1,9 +1,20 @@
-import { Pressable, StyleSheet, View } from "react-native";
+import { Alert, Linking, Pressable, StyleSheet, View } from "react-native";
 import { Text } from "@/components/ui/AppText";
 import { router } from "expo-router";
-import { CheckCircle2, XCircle } from "lucide-react-native";
+import { CheckCircle2, Info, XCircle } from "lucide-react-native";
 import { colors } from "@hanbang/design-tokens";
 import { getToolResultDestination, type ToolResultCardModel } from "./toolResultCardModel";
+import { AMORA_DECISION_BOARD_PATH } from "@hanbang/shared";
+import { buildMobileSiteUrl, resolveMobileSiteOrigin } from "@/lib/siteUrl.mjs";
+
+async function openDecisionRecords() {
+  try {
+    const origin = resolveMobileSiteOrigin(process.env.EXPO_PUBLIC_SITE_URL, { isDevelopment: __DEV__ });
+    await Linking.openURL(buildMobileSiteUrl(AMORA_DECISION_BOARD_PATH, origin));
+  } catch {
+    Alert.alert("결정 기록을 열지 못했어요", "연결 상태를 확인한 뒤 다시 눌러 주세요.");
+  }
+}
 
 /**
  * 아모라가 반영한 변경의 영수증. 한 줄 제목 + 결과 문장.
@@ -13,25 +24,33 @@ import { getToolResultDestination, type ToolResultCardModel } from "./toolResult
  */
 export function ToolResultCard({ model }: { model: ToolResultCardModel }) {
   const failed = model.tone === "failure";
+  const unknown = model.tone === "unknown";
+  const unknownLabel = model.toolName === "add_decision_record" ? "저장 확인 필요" : "반영 확인 필요";
   const destination = getToolResultDestination(model.toolName);
   return (
     <View
       style={[styles.card, failed && styles.cardFailed]}
       accessibilityRole="summary"
-      accessibilityLabel={`${model.title}: ${failed ? "반영되지 않음" : "반영됨"}. ${model.message}`}
+      accessibilityLabel={`${model.title}: ${unknown ? unknownLabel : failed ? "반영되지 않음" : "반영됨"}. ${model.message}`}
     >
       <View style={styles.heading}>
-        {failed ? (
+        {unknown ? <Info size={16} color={colors.noir.soft} /> : failed ? (
           <XCircle size={16} color="#B04A3B" />
         ) : (
           <CheckCircle2 size={16} color="#2F766F" />
         )}
         <Text style={styles.title}>{model.title}</Text>
-        <Text style={[styles.status, failed && styles.statusFailed]}>
-          {failed ? "반영되지 않았어요" : "반영됐어요"}
+        <Text style={[styles.status, failed && styles.statusFailed, unknown && styles.statusUnknown]}>
+          {unknown ? unknownLabel : failed ? "반영되지 않았어요" : "반영됐어요"}
         </Text>
       </View>
       <Text style={styles.message}>{model.message}</Text>
+      {model.toolName === "add_decision_record" && <>
+        <Text style={styles.message}>웹 로그인이 필요할 수 있어요. 앱과 같은 계정으로 확인해 주세요.</Text>
+        <Pressable accessibilityRole="link" accessibilityLabel="웹에서 결정 기록 보기" onPress={openDecisionRecords} style={styles.destination}>
+          <Text style={styles.destinationText}>웹에서 결정 기록 보기</Text>
+        </Pressable>
+      </>}
       {destination ? <Pressable accessibilityRole="button" accessibilityLabel={destination.label}
         onPress={() => router.push(destination.pathname)} style={styles.destination}>
         <Text style={styles.destinationText}>{destination.label}</Text>
@@ -59,6 +78,7 @@ const styles = StyleSheet.create({
   title: { fontSize: 14, fontWeight: "700", color: colors.noir[800] },
   status: { marginLeft: "auto", fontSize: 12, fontWeight: "600", color: "#2F766F" },
   statusFailed: { color: "#B04A3B" },
+  statusUnknown: { color: colors.noir.soft },
   message: { marginTop: 6, fontSize: 13, lineHeight: 19, color: colors.noir.soft },
   destination: { minHeight: 44, justifyContent: "center", alignSelf: "flex-start", marginTop: 4 },
   destinationText: { fontSize: 13, fontWeight: "600", color: colors.rose[700] },

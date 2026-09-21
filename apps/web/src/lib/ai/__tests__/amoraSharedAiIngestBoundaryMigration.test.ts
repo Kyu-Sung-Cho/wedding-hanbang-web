@@ -157,6 +157,22 @@ async function insertMessage(
 }
 
 describe("Amora server-only user-message ingest RLS boundary", () => {
+  it.each([false, true])("server ingestion preserves the queued skip binding with fleet gate %s", async (applyBoundary) => {
+    const db = await createDatabase(applyBoundary);
+    const skippedActionId = "50000000-0000-4000-8000-000000000001";
+    try {
+      await asRole(db, "service_role");
+      await insertMessage(db, { requestId: REQUEST_ID, metadata: { skipped_amora_action_id: skippedActionId } });
+      await resetRole(db);
+      await asRole(db, "authenticated", BRIDE_ID);
+      const rows = await db.query<{metadata: Record<string, unknown>}>("SELECT metadata FROM public.chat_messages");
+      expect(rows.rows).toEqual([{ metadata: { client_request_id: REQUEST_ID, skipped_amora_action_id: skippedActionId } }]);
+    } finally {
+      await resetRole(db).catch(() => undefined);
+      await db.close();
+    }
+  });
+
   it("stages fleet-gated Wave B outside the active Supabase migration directory", () => {
     expect(existsSync(boundaryCandidatePath)).toBe(true);
     expect(existsSync(activeBoundaryMigrationPath)).toBe(false);

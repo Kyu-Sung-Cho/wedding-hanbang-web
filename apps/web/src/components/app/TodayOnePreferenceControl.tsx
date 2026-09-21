@@ -1,10 +1,11 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { BellOff, Clock3, RotateCcw, ShieldCheck } from "lucide-react";
 import AmoraAvatar from "@/components/ui/AmoraAvatar";
 
 import { useAuthStore } from "@/stores/authStore";
+import { boundedRequest } from "@/lib/journey/boundedRequest";
 
 type Preference = {
   enabled: boolean;
@@ -35,12 +36,13 @@ function isIsoTimestamp(value: unknown): value is string {
     && Number.isFinite(Date.parse(value));
 }
 
-function parsePayload(value: unknown): Payload | null {
+function parsePayload(value: unknown, ownerId: string): Payload | null {
   if (!value || typeof value !== "object" || Array.isArray(value)) return null;
   const record = value as Record<string, unknown>;
   if (record.available === false) return { available: false };
   if (
     record.available !== true
+    || record.ownerId !== ownerId
     || !record.preference
     || typeof record.preference !== "object"
     || Array.isArray(record.preference)
@@ -69,25 +71,28 @@ function parsePayload(value: unknown): Payload | null {
   };
 }
 
-async function fetchPreference(): Promise<FetchResult> {
-  const response = await fetch("/api/amora/today-one/preferences", {
-    method: "GET",
-    credentials: "same-origin",
-    cache: "no-store",
-    headers: { Accept: "application/json" },
-  });
-  return {
-    ok: response.ok,
-    payload: await response.json().catch(() => null),
-  };
+async function fetchPreference(ownerId: string, mode?: PreferenceMode, onSettled?: () => void): Promise<FetchResult> {
+  return boundedRequest(async signal => {
+    try {
+      const response = await fetch("/api/amora/today-one/preferences", {
+        method: mode ? "PUT" : "GET",
+        credentials: "same-origin",
+        cache: "no-store",
+        headers: { Accept: "application/json", "X-Amora-Expected-Owner": ownerId, ...(mode ? { "Content-Type": "application/json" } : {}) },
+        ...(mode ? { body: JSON.stringify({ mode, expectedOwnerId: ownerId }) } : {}),
+        signal,
+      });
+      return { ok: response.ok, payload: await response.json().catch(() => null) };
+    } finally { onSettled?.(); }
+  }, 15_000);
 }
 
 function loadPreference(userId: string, force = false) {
   if (force) preferenceCache.delete(userId);
   const cached = preferenceCache.get(userId);
   if (cached && cached.expiresAt > Date.now()) return cached.promise;
-  const promise = fetchPreference().catch((error) => {
-    preferenceCache.delete(userId);
+  const promise = fetchPreference(userId).catch((error) => {
+    if (preferenceCache.get(userId)?.promise === promise) preferenceCache.delete(userId);
     throw error;
   });
   preferenceCache.set(userId, {
@@ -101,16 +106,19 @@ export function __resetTodayOnePreferenceCacheForTests() {
   preferenceCache.clear();
 }
 
-function viewFromResult(result: FetchResult): View {
-  const payload = parsePayload(result.payload);
+function viewFromResult(result: FetchResult, ownerId: string): View {
+  if (!result.ok) return { kind: "error", message: "설정을 불러오지 못했어요." };
+  const payload = parsePayload(result.payload, ownerId);
   if (!payload) {
     return { kind: "error", message: "설정 응답을 확인하지 못했어요." };
   }
   if (!payload.available) return { kind: "unavailable" };
-  if (!result.ok) {
-    return { kind: "error", message: "설정을 불러오지 못했어요." };
-  }
   return { kind: "ready", preference: payload.preference };
+}
+
+function pendingWriteView(current?: View): View {
+  const snapshot = current?.kind === "ready" ? ` 조회 시점 설정: ${current.preference.enabled ? "켜짐" : "꺼짐"}.` : "";
+  return { kind: "error", message: `변경 결과를 확인하지 못했어요.${snapshot} 앞선 저장 처리가 끝나기 전에는 다시 변경하지 않아요. 다시 불러와 확인해 주세요.` };
 }
 
 function formatPause(value: string) {
@@ -124,12 +132,43 @@ function formatPause(value: string) {
 }
 
 export default function TodayOnePreferenceControl() {
+  const [owner] = useState(() => {
+    let snapshot = { id: useAuthStore.getState().user?.id ?? null, epoch: 0 };
+    const getSnapshot = () => {
+      const id = useAuthStore.getState().user?.id ?? null;
+      if (id !== snapshot.id) {
+        preferenceCache.clear();
+        snapshot = { id, epoch: snapshot.epoch + 1 };
+      }
+      return snapshot;
+    };
+    return { getSnapshot, subscribe: (notify: () => void) => useAuthStore.subscribe(() => {
+      const previous = snapshot;
+      if (getSnapshot() !== previous) notify();
+    }) };
+  });
+  const binding = useSyncExternalStore(owner.subscribe, owner.getSnapshot, owner.getSnapshot);
+  return <ScopedTodayOnePreferenceControl key={`${binding.id}:${binding.epoch}`}
+    isCurrentOwner={() => owner.getSnapshot() === binding} />;
+}
+
+function ScopedTodayOnePreferenceControl({ isCurrentOwner }: { isCurrentOwner: () => boolean }) {
   const userId = useAuthStore((state) => state.user?.id ?? null);
   const [view, setView] = useState<View>({ kind: "loading" });
   const [saving, setSaving] = useState<PreferenceMode | null>(null);
   const [error, setError] = useState("");
+  const active = useRef(true);
+  const inFlight = useRef(false);
+  const loadGeneration = useRef(0);
+  const writeAttempt = useRef<{ settled: boolean; reconcileOnSettle: boolean } | null>(null);
+  const ownerCheck = useRef(isCurrentOwner);
+  ownerCheck.current = isCurrentOwner;
+  const isCurrent = () => active.current && ownerCheck.current();
 
   const load = useCallback(async (force = false) => {
+    const operation = ++loadGeneration.current;
+    const current = () => active.current && ownerCheck.current() && operation === loadGeneration.current;
+    if (!current()) return;
     if (!userId) {
       setView({ kind: "unavailable" });
       return;
@@ -137,54 +176,78 @@ export default function TodayOnePreferenceControl() {
     setView({ kind: "loading" });
     setError("");
     try {
-      setView(viewFromResult(await loadPreference(userId, force)));
+      const result = await loadPreference(userId, force);
+      if (current()) {
+        const next = viewFromResult(result, userId);
+        if (writeAttempt.current && !writeAttempt.current.settled) {
+          writeAttempt.current.reconcileOnSettle = true;
+          setView(pendingWriteView(next));
+        } else setView(next);
+      }
     } catch {
-      setView({ kind: "error", message: "설정을 불러오지 못했어요." });
+      if (writeAttempt.current && !writeAttempt.current.settled) writeAttempt.current.reconcileOnSettle = true;
+      if (current()) setView({ kind: "error", message: "설정을 불러오지 못했어요." });
     }
   }, [userId]);
 
   useEffect(() => {
-    let active = true;
-    if (!userId) {
-      setView({ kind: "unavailable" });
-      return () => { active = false; };
-    }
-    void loadPreference(userId)
-      .then((result) => {
-        if (active) setView(viewFromResult(result));
-      })
-      .catch(() => {
-        if (active) setView({ kind: "error", message: "설정을 불러오지 못했어요." });
-      });
-    return () => { active = false; };
-  }, [userId]);
+    active.current = true;
+    void load();
+    return () => {
+      active.current = false;
+      loadGeneration.current += 1;
+      if (userId) preferenceCache.delete(userId);
+    };
+  }, [userId, load]);
 
   async function update(mode: PreferenceMode) {
-    if (!userId || view.kind !== "ready" || saving) return;
+    if (!userId || view.kind !== "ready" || saving || inFlight.current || !isCurrent()) return;
+    inFlight.current = true;
+    const attempt = { settled: false, reconcileOnSettle: false };
+    writeAttempt.current = attempt;
     setSaving(mode);
     setError("");
     try {
-      const response = await fetch("/api/amora/today-one/preferences", {
-        method: "PUT",
-        credentials: "same-origin",
-        cache: "no-store",
-        headers: {
-          Accept: "application/json",
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ mode }),
+      const result = await fetchPreference(userId, mode, () => {
+        attempt.settled = true;
+        if (attempt.reconcileOnSettle && writeAttempt.current === attempt && isCurrent()) {
+          writeAttempt.current = null;
+          void load(true);
+        }
       });
-      const payload = parsePayload(await response.json().catch(() => null));
-      if (!response.ok || !payload?.available) {
-        setError("설정을 저장하지 못했어요. 기존 설정은 그대로예요.");
-        return;
+      if (!isCurrent()) return;
+      const payload = parsePayload(result.payload, userId);
+      if (!result.ok || !payload?.available) {
+        throw new Error("PREFERENCE_RESULT_UNKNOWN");
       }
       preferenceCache.delete(userId);
       setView({ kind: "ready", preference: payload.preference });
     } catch {
-      setError("설정을 저장하지 못했어요. 기존 설정은 그대로예요.");
+      if (!isCurrent()) return;
+      const recovery = ++loadGeneration.current;
+      attempt.reconcileOnSettle = !attempt.settled;
+      try {
+        const current = viewFromResult(await loadPreference(userId, true), userId);
+        if (!isCurrent() || recovery !== loadGeneration.current) return;
+        if (current.kind !== "ready") throw new Error("PREFERENCE_READ_FAILED");
+        if (!attempt.settled) {
+          attempt.reconcileOnSettle = true;
+          setView(pendingWriteView(current));
+        } else {
+          setView(current);
+          setError("저장 응답을 확인하지 못해 현재 서버 설정을 다시 불러왔어요. 변경이 늦게 반영될 수 있어요.");
+        }
+      } catch {
+        if (isCurrent() && recovery === loadGeneration.current) {
+          attempt.reconcileOnSettle = !attempt.settled;
+          setView(pendingWriteView());
+        }
+      }
     } finally {
-      setSaving(null);
+      if (isCurrent()) {
+        inFlight.current = false;
+        setSaving(null);
+      }
     }
   }
 

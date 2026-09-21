@@ -19,10 +19,31 @@ Object.defineProperty(window, "location", {
 
 import { useAuthStore } from "../authStore";
 import { useCommunityStore } from "../communityStore";
+import type { Profile } from "@/types/database.types";
 
 const mockFetch = vi.fn();
 global.fetch = mockFetch;
 const PLAN_CHANGE_REQUEST_ID = "11111111-1111-4111-8111-111111111111";
+
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  let reject!: (reason: unknown) => void;
+  const promise = new Promise<T>((res, rej) => { resolve = res; reject = rej; });
+  return { promise, resolve, reject };
+}
+
+function setCurrentAuthOwner(id: string, coupleId = "current-couple") {
+  const profile: Profile = {
+    id, name: id, role: "bride", couple_id: coupleId, avatar_url: null,
+    onboarding_completed: true, onboarding_step: 5, is_admin: false,
+    created_at: "2026-09-21T00:00:00.000Z", updated_at: "2026-09-21T00:00:00.000Z",
+  };
+  useCommunityStore.getState().bindViewer(id);
+  useAuthStore.setState({
+    user: { id, email: `${id}@example.invalid` }, profile,
+    isDemo: false, isLoading: true, isInitialized: true,
+  });
+}
 
 // Helper to set demo cookie
 function setDemoCookie(value: boolean) {
@@ -152,7 +173,7 @@ describe("useAuthStore", () => {
       expect(useAuthStore.getState().profile?.avatar_url).toBe("🌸");
     });
 
-    it.each(["different user", "new binding with the same user"])("does not carry a saved avatar into %s during initialization", async (scenario) => {
+    it.each(["different user", "new binding with the same user"])("does not apply an old initialization snapshot to %s", async (scenario) => {
       const profile = { id: "u1", name: "이전 계정", couple_id: "c1", role: "bride", avatar_url: "🌷" };
       useAuthStore.setState({ user: { id: "u1", email: "test@example.com" }, profile: profile as never, isInitialized: true });
       let finish!: (value: unknown) => void;
@@ -163,12 +184,12 @@ describe("useAuthStore", () => {
       if (scenario === "new binding with the same user") {
         useAuthStore.setState({ user: { id: "u1", email: "test@example.com" }, profile: { ...profile, avatar_url: "🌸" } as never });
       }
+      const current = useAuthStore.getState();
       const serverProfile = { ...profile, id: nextId, avatar_url: "🤍", care_notifications_enabled: false };
       finish({ ok: true, json: async () => ({ user: { id: nextId, email: "verified@example.com" },
         profile: serverProfile, couple: null, partner: null, journey: null }) });
       await pending;
-      expect(useAuthStore.getState().profile).toEqual(serverProfile);
-      expect(useAuthStore.getState().user?.id).toBe(nextId);
+      expect(useAuthStore.getState()).toEqual(current);
     });
 
     it("does not let a late initialize response replace a newer journey refresh", async () => {
@@ -222,24 +243,180 @@ describe("useAuthStore", () => {
       expect(useAuthStore.getState().journey?.id).toBe("newer");
     });
 
-    it("enters demo mode when /api/auth/me returns no user and demo cookie is set", async () => {
+    it.each([200, 401, 503])("does not accept an unsigned demo marker after auth HTTP %s", async (status) => {
       setDemoCookie(true);
-      mockFetch.mockResolvedValue({ ok: true, json: async () => ({ user: null }) });
+      mockFetch.mockResolvedValue({ ok: status === 200, status, json: async () => ({ user: null }) });
 
       await useAuthStore.getState().initialize();
       const state = useAuthStore.getState();
-      expect(state.isDemo).toBe(true);
-      expect(state.user?.id).toBe("demo");
+      expect(state.isDemo).toBe(false);
+      expect(state.user).toBeNull();
+      expect(state.profile).toBeNull();
+      expect(useCommunityStore.getState().viewerId).toBeNull();
     });
 
-    it("enters demo mode when fetch fails and demo cookie is set", async () => {
+    it("does not accept an unsigned demo marker when auth fetch fails", async () => {
       setDemoCookie(true);
-      mockFetch.mockRejectedValue(new Error("Network error"));
+      mockFetch.mockRejectedValue(new TypeError("Failed to fetch"));
 
       await useAuthStore.getState().initialize();
       const state = useAuthStore.getState();
-      expect(state.isDemo).toBe(true);
+      expect(state.isDemo).toBe(false);
+      expect(state.user).toBeNull();
+      expect(state.profile).toBeNull();
       expect(state.isInitialized).toBe(true);
+      expect(useCommunityStore.getState().viewerId).toBeNull();
+    });
+
+    it.each([
+      { marker: false, requireVerifiedSession: false },
+      { marker: true, requireVerifiedSession: false },
+      { marker: false, requireVerifiedSession: true },
+      { marker: true, requireVerifiedSession: true },
+    ])("accepts only a successful server-verified demo response, marker=$marker verified=$requireVerifiedSession", async ({ marker, requireVerifiedSession }) => {
+      setDemoCookie(marker);
+      mockFetch.mockResolvedValue({ ok: true, json: async () => ({ user: null, demo: true }) });
+
+      await useAuthStore.getState().initialize({ requireVerifiedSession });
+
+      expect(useAuthStore.getState()).toMatchObject({
+        user: { id: "demo" }, profile: { id: "demo" }, couple: { id: "demo-couple" },
+        journey: { id: "demo-journey" }, partner: null,
+        isDemo: true, isInitialized: true, isLoading: false,
+      });
+      expect(useCommunityStore.getState().viewerId).toBe("demo");
+    });
+
+    it.each([
+      { user: null, demo: false },
+      { user: null, demo: "true" },
+      { user: null, demo: 1 },
+      { demo: true },
+      { user: false, demo: true },
+    ])("does not treat an ambiguous demo response as verified: %j", async (data) => {
+      setDemoCookie(true);
+      mockFetch.mockResolvedValue({ ok: true, json: async () => data });
+
+      await useAuthStore.getState().initialize();
+
+      expect(useAuthStore.getState()).toMatchObject({ user: null, profile: null, isDemo: false });
+      expect(useCommunityStore.getState().viewerId).toBeNull();
+    });
+
+    it("does not accept demo data inside a rejected auth response", async () => {
+      setDemoCookie(true);
+      mockFetch.mockResolvedValue({ ok: false, status: 401, json: async () => ({ user: null, demo: true }) });
+
+      await useAuthStore.getState().initialize({ requireVerifiedSession: true });
+
+      expect(useAuthStore.getState()).toMatchObject({ user: null, profile: null, isDemo: false });
+    });
+
+    it.each([
+      { kind: "demo fetch", transition: "new owner" },
+      { kind: "demo body", transition: "new owner" },
+      { kind: "demo body", transition: "A-B-A" },
+      { kind: "demo body", transition: "new couple" },
+      { kind: "401", transition: "new owner" },
+      { kind: "network failure", transition: "new owner" },
+      { kind: "body failure", transition: "new owner" },
+    ])("ignores stale no-user auth $kind after $transition", async ({ kind, transition }) => {
+      setDemoCookie(true);
+      setCurrentAuthOwner("owner-a");
+      const delayed = deferred<unknown>();
+      const readsBody = kind === "demo body" || kind === "body failure";
+      mockFetch.mockReturnValueOnce(readsBody
+        ? Promise.resolve({ ok: true, json: () => delayed.promise })
+        : delayed.promise);
+      const pending = useAuthStore.getState().initialize({ force: true });
+      await Promise.resolve();
+
+      if (transition === "new couple") setCurrentAuthOwner("owner-a", "new-couple");
+      else {
+        setCurrentAuthOwner("owner-b");
+        if (transition === "A-B-A") setCurrentAuthOwner("owner-a");
+      }
+      const current = useAuthStore.getState();
+      const viewer = useCommunityStore.getState().viewerId;
+      if (kind.includes("failure")) delayed.reject(new TypeError("Failed to fetch"));
+      else if (readsBody) delayed.resolve({ user: null, demo: true });
+      else delayed.resolve({ ok: kind !== "401", status: kind === "401" ? 401 : 200,
+        json: async () => ({ user: null, demo: true }) });
+      await pending;
+
+      expect(useAuthStore.getState()).toEqual(current);
+      expect(useCommunityStore.getState().viewerId).toBe(viewer);
+    });
+
+    it.each(["demo", "network failure"])("rejects a stale verified-session %s check without changing the newer owner", async (kind) => {
+      setCurrentAuthOwner("owner-a");
+      const delayed = deferred<unknown>();
+      mockFetch.mockReturnValueOnce(delayed.promise);
+      const pending = useAuthStore.getState().initialize({ force: true, requireVerifiedSession: true });
+      const rejected = expect(pending).rejects.toThrow();
+      setCurrentAuthOwner("owner-b");
+      const current = useAuthStore.getState();
+      if (kind === "network failure") delayed.reject(new TypeError("Failed to fetch"));
+      else delayed.resolve({ ok: true, json: async () => ({ user: null, demo: true }) });
+      await rejected;
+
+      expect(useAuthStore.getState()).toEqual(current);
+      expect(useCommunityStore.getState().viewerId).toBe("owner-b");
+    });
+
+    it.each([
+      { stage: "fetch", transition: "new owner", requireVerifiedSession: false },
+      { stage: "body", transition: "new owner", requireVerifiedSession: false },
+      { stage: "body", transition: "A-B-A", requireVerifiedSession: false },
+      { stage: "body", transition: "new couple", requireVerifiedSession: false },
+      { stage: "body", transition: "new owner", requireVerifiedSession: true },
+    ])("ignores stale real-user auth $stage after $transition, verified=$requireVerifiedSession", async ({ stage, transition, requireVerifiedSession }) => {
+      setDemoCookie(true);
+      setCurrentAuthOwner("owner-a");
+      const oldResponse = {
+        user: useAuthStore.getState().user, profile: useAuthStore.getState().profile,
+        couple: null, partner: null, journey: null,
+      };
+      const delayed = deferred<unknown>();
+      mockFetch.mockReturnValueOnce(stage === "body"
+        ? Promise.resolve({ ok: true, json: () => delayed.promise })
+        : delayed.promise);
+      const pending = useAuthStore.getState().initialize({ force: true, requireVerifiedSession });
+      const completion = requireVerifiedSession ? expect(pending).rejects.toThrow() : pending;
+      await Promise.resolve();
+      if (transition === "new couple") setCurrentAuthOwner("owner-a", "new-couple");
+      else {
+        setCurrentAuthOwner("owner-b");
+        if (transition === "A-B-A") setCurrentAuthOwner("owner-a");
+      }
+      const current = useAuthStore.getState();
+      const viewer = useCommunityStore.getState().viewerId;
+      if (stage === "body") delayed.resolve(oldResponse);
+      else delayed.resolve({ ok: true, json: async () => oldResponse });
+      await completion;
+
+      expect(useAuthStore.getState()).toEqual(current);
+      expect(useCommunityStore.getState().viewerId).toBe(viewer);
+      expect(document.cookie).toBe("demo_mode=true");
+    });
+
+    it.each(["new initialization", "reset"])("does not restore demo after a %s supersedes the request", async (transition) => {
+      const delayed = deferred<unknown>();
+      mockFetch.mockResolvedValueOnce({ ok: true, json: () => delayed.promise });
+      const pending = useAuthStore.getState().initialize();
+      await Promise.resolve();
+      if (transition === "reset") useAuthStore.getState().reset();
+      else {
+        mockFetch.mockResolvedValueOnce({ ok: true, json: async () => ({ user: { id: "new-owner", email: "new@example.invalid" } }) });
+        await useAuthStore.getState().initialize({ force: true });
+      }
+      const current = useAuthStore.getState();
+      const viewer = useCommunityStore.getState().viewerId;
+      delayed.resolve({ user: null, demo: true });
+      await pending;
+
+      expect(useAuthStore.getState()).toEqual(current);
+      expect(useCommunityStore.getState().viewerId).toBe(viewer);
     });
 
     it("remains unauthenticated when fetch fails and no demo cookie", async () => {
@@ -252,10 +429,25 @@ describe("useAuthStore", () => {
       expect(state.isInitialized).toBe(true);
     });
 
+    it("keeps the current real user when auth fails despite an unsigned demo marker", async () => {
+      setCurrentAuthOwner("real-user");
+      setDemoCookie(true);
+      mockFetch.mockRejectedValue(new TypeError("Failed to fetch"));
+
+      await useAuthStore.getState().initialize({ force: true });
+
+      expect(useAuthStore.getState()).toMatchObject({
+        user: { id: "real-user" }, profile: { id: "real-user" },
+        isDemo: false, isLoading: false, isInitialized: true,
+      });
+      expect(useCommunityStore.getState().viewerId).toBe("real-user");
+    });
+
     it("prefers real user over demo mode when real user exists", async () => {
       setDemoCookie(true);
       const fakeData = {
         user: { id: "real-user", email: "real@example.com" },
+        demo: true,
         profile: null,
         couple: null,
         partner: null,
@@ -267,6 +459,7 @@ describe("useAuthStore", () => {
       const state = useAuthStore.getState();
       expect(state.isDemo).toBe(false);
       expect(state.user?.id).toBe("real-user");
+      expect(document.cookie).toBe("demo_mode=; path=/; max-age=0");
     });
   });
 
@@ -483,7 +676,7 @@ describe("useAuthStore", () => {
         useAuthStore.getState().updateJourney({
           total_budget: 30_000_000,
         }),
-      ).rejects.toThrow("저장 결과를 안전하게 확인하지 못했습니다.");
+      ).rejects.toMatchObject({ code: "PLAN_CHANGE_OUTCOME_UNKNOWN" });
       expect(useAuthStore.getState().journey).toEqual(originalJourney);
     });
 
@@ -563,7 +756,7 @@ describe("useAuthStore", () => {
 
       await expect(
         useAuthStore.getState().updateJourney({ wedding_date: "2026-12-01" }),
-      ).rejects.toThrow("Network error");
+      ).rejects.toMatchObject({ code: "PLAN_CHANGE_OUTCOME_UNKNOWN" });
     });
 
     it("fails explicitly when journey is null in demo mode", async () => {
@@ -890,7 +1083,7 @@ describe("useAuthStore", () => {
 
     it("does not revert a photo selected while the name PATCH was pending", async () => {
       let finish!: (value: unknown) => void;
-      useAuthStore.setState({ profile: { id: "u1", name: "old", avatar_url: "🌷" } as never });
+      useAuthStore.setState({ user: { id: "u1", email: "test@example.invalid" }, profile: { id: "u1", name: "old", avatar_url: "🌷" } as never });
       mockFetch.mockReturnValue(new Promise((resolve) => { finish = resolve; }));
       const pending = useAuthStore.getState().updateProfile({ name: "new" });
       useAuthStore.setState({ profile: { id: "u1", name: "old", avatar_url: "🌸" } as never });
@@ -901,11 +1094,12 @@ describe("useAuthStore", () => {
 
     it("rejects a stale profile PATCH after switching accounts", async () => {
       let finish!: (value: unknown) => void;
-      useAuthStore.setState({ user: { id: "u1", email: "a@example.invalid" }, profile: { id: "u1", name: "old", avatar_url: "🌷" } as never });
+      // 이 요청은 owner 전환 뒤 결과 불명으로 남으므로 다른 독립 사례의 u1과 분리한다.
+      useAuthStore.setState({ user: { id: "stale-profile-owner", email: "a@example.invalid" }, profile: { id: "stale-profile-owner", name: "old", avatar_url: "🌷" } as never });
       mockFetch.mockReturnValue(new Promise((resolve) => { finish = resolve; }));
       const pending = useAuthStore.getState().updateProfile({ name: "new", sync_community_nickname: true });
       useAuthStore.setState({ user: { id: "u2", email: "b@example.invalid" }, profile: { id: "u2", name: "other", avatar_url: null } as never });
-      finish({ ok: true, json: async () => ({ profile: { id: "u1", name: "new" } }) });
+      finish({ ok: true, json: async () => ({ profile: { id: "stale-profile-owner", name: "new" } }) });
       await expect(pending).rejects.toThrow("계정 상태가 바뀌었어요");
       expect(useAuthStore.getState().profile).toMatchObject({ id: "u2", name: "other", avatar_url: null });
     });
@@ -925,7 +1119,7 @@ describe("useAuthStore", () => {
       const updatedProfile = { id: "u1", name: "이지은", email: "test@example.com" };
       mockFetch.mockResolvedValue({ ok: true, json: async () => ({ profile: updatedProfile }) });
 
-      useAuthStore.setState({ isDemo: false, profile: { id: "u1", name: "김지은" } as never });
+      useAuthStore.setState({ isDemo: false, user: { id: "u1", email: "test@example.invalid" }, profile: { id: "u1", name: "김지은" } as never });
       await useAuthStore.getState().updateProfile({ name: "이지은" });
 
       expect(mockFetch).toHaveBeenCalledWith("/api/profile", expect.objectContaining({ method: "PATCH" }));
@@ -935,7 +1129,7 @@ describe("useAuthStore", () => {
     it("updates cached community nickname when profile sync is requested", async () => {
       const updatedProfile = { id: "u1", name: "new-name", email: "test@example.com" };
       mockFetch.mockResolvedValue({ ok: true, json: async () => ({ profile: updatedProfile }) });
-      useAuthStore.setState({ isDemo: false, profile: { id: "u1", name: "old-name" } as never });
+      useAuthStore.setState({ isDemo: false, user: { id: "u1", email: "test@example.invalid" }, profile: { id: "u1", name: "old-name" } as never });
       useCommunityStore.setState({
         communityProfile: {
           user_id: "u1",

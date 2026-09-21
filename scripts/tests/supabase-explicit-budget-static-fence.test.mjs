@@ -6,6 +6,7 @@ import { dirname, join, resolve, sep } from 'node:path';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { createExplicitBudgetHistoricalRepository } from './fixtures/explicit-budget-historical-repository.mjs';
+import { createPreparationStyleHistoricalRepository } from './fixtures/preparation-style-historical-repository.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 const historical = createExplicitBudgetHistoricalRepository(root);
@@ -34,14 +35,20 @@ test('explicit-budget mode validates only its exact historical checkout without 
   assert.match(output(currentResult), /NEW_MIGRATION_NOT_REVIEWED/);
 });
 
-test('the actual CI local-fence command selects a working non-deploy contract', () => {
+test('the actual CI fence validates its exact reviewed fixture and rejects the unreviewed current checkout', t => {
   const workflow = readFileSync(join(root, '.github/workflows/ci.yml'), 'utf8');
   const commands = [...workflow.matchAll(/^\s+run: pnpm supabase:release:fence([^\r\n]*)$/gm)];
   assert.equal(commands.length, 1);
   const args = commands[0][1].trim().split(/\s+/).filter(Boolean);
-  const result = run(root, args);
+  const reviewed = createPreparationStyleHistoricalRepository(root);
+  t.after(reviewed.cleanup);
+  const result = run(reviewed.root, args);
   assert.equal(result.status, 0, output(result));
   assert.deepEqual(args, ['--preparation-style']);
+  assert.match(result.stdout, /runtime evidence not verified; deployment not authorized; no remote writes/);
+  const currentResult = run(root, args);
+  assert.equal(currentResult.status, 1, output(currentResult));
+  assert.match(output(currentResult), /NEW_MIGRATION_NOT_REVIEWED/);
 });
 
 test('explicit static mode rejects remote, duplicate and unknown arguments before any legacy flow', async t => {

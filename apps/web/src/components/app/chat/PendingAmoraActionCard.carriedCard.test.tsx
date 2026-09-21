@@ -12,6 +12,8 @@ import {
 } from "../../../../../mobile/src/lib/pendingAmoraAction";
 import { getAmoraToolOperationIdentity } from "@/lib/ai/amoraToolIdentity";
 import type { ChatMessage, PendingAmoraAction } from "@/types/database.types";
+import { useAuthStore } from "@/stores/authStore";
+import { setPendingActionActor } from "./__tests__/fixtures/pendingActionActor";
 
 /**
  * 이월된 카드는 이월됐다고 말한다 (2026-09-04).
@@ -61,6 +63,8 @@ describe("이월된 카드의 머리 라벨", () => {
 
   beforeEach(() => {
     vi.stubGlobal("fetch", vi.fn());
+    useAuthStore.getState().reset();
+    setPendingActionActor();
     container = document.createElement("div");
     document.body.appendChild(container);
     root = createRoot(container);
@@ -68,6 +72,7 @@ describe("이월된 카드의 머리 라벨", () => {
 
   afterEach(async () => {
     await act(async () => root.unmount());
+    useAuthStore.getState().reset();
     vi.unstubAllGlobals();
     document.body.replaceChildren();
   });

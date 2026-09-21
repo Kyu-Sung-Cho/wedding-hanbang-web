@@ -12,6 +12,7 @@ import { describe, expect, it } from "vitest";
 const MIGRATIONS = resolve(process.cwd(), "../../supabase/migrations");
 const PREVIOUS = "20260911080244_amora_budget_plan_explicit_allocations.sql";
 const NEXT = "20260915101500_amora_atomic_not_applicable_status.sql";
+const DECISION_WRAPPER = "20260921100000_amora_approved_decision_records.sql";
 const FUNCTION = "apply_amora_atomic_tool_execution_pre_shared_revision";
 
 function migration(name: string): string {
@@ -54,13 +55,16 @@ describe("not_applicable migration keeps the previous function except the intend
   const previous = migration(PREVIOUS);
   const next = migration(NEXT);
 
-  it("is the latest definition of the atomic dispatcher and has no CR bytes", () => {
+  it("preserves the dispatcher behind the approved-decision wrapper and has no CR bytes", () => {
     const definers = readdirSync(MIGRATIONS)
       .filter((name) => name.endsWith(".sql"))
       .filter((name) => migration(name).includes(`FUNCTION public.${FUNCTION}(`))
       .sort();
-    expect(definers.at(-1)).toBe(NEXT);
-    expect(definers.at(-2)).toBe(PREVIOUS);
+    expect(definers.slice(-3)).toEqual([PREVIOUS, NEXT, DECISION_WRAPPER]);
+    const wrapper = migration(DECISION_WRAPPER);
+    expect(wrapper).toContain(`ALTER FUNCTION public.${FUNCTION}(\n  uuid,text,text,integer,text,jsonb,jsonb,jsonb\n) RENAME TO apply_amora_atomic_tool_execution_pre_decision_record;`);
+    expect(wrapper).toContain("IF p_domain_mutation ->> 'kind' IS DISTINCT FROM 'decision_record_insert' THEN\n    RETURN public.apply_amora_atomic_tool_execution_pre_decision_record(");
+    expect(wrapper).not.toContain("CREATE OR REPLACE FUNCTION public.apply_amora_atomic_tool_execution_pre_decision_record(");
     expect(next.includes("\r")).toBe(false);
   });
 

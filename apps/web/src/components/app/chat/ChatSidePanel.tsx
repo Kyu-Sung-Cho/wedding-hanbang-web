@@ -2,7 +2,9 @@
 
 import AmoraMark from "@/components/ui/AmoraMark";
 import AmoraAvatar from "@/components/ui/AmoraAvatar";
+import Button from "@/components/ui/Button";
 import { AMORA_ACTION_CLASS } from "@/components/ui/amoraActionStyles";
+import { formatAmoraQuotaNotice } from "@hanbang/shared";
 
 import { useState, useEffect, useRef, useCallback, useMemo, type SetStateAction } from "react";
 import { Send, X, Maximize2, EyeOff, Paperclip, FileText, FileSpreadsheet, Heart, Lock } from "lucide-react";
@@ -57,10 +59,13 @@ import { shouldOfferMediation } from "@/lib/chat/mediationOffer";
 import { deduplicateToolResults } from "./toolResultDeduplication";
 import { planAmoraCrisisDelivery } from "@hanbang/shared/amora-crisis-delivery";
 import { hasAmoraSafetySignal } from "@/lib/ai/amoraQuestionScope";
+import { useChatComposerDrafts } from "./useChatComposerDrafts";
+import { chatComposerEpoch, getRememberedComposerLane, rememberComposerLane, invalidateSharedComposerDrafts, claimComposerSubmission, releaseComposerSubmission, type ChatComposerLane, type PrivateSafetyRecovery } from "@/stores/chatComposerStore";
 
 const MAX_ATTACHMENTS = CHAT_ATTACHMENT_MAX_COUNT;
 
 const ALLOWED_TYPES = CHAT_ATTACHMENT_TYPE_INFO;
+const composerSessionGenerationRef = chatComposerEpoch;
 
 interface AttachmentItem {
   base64: string;
@@ -90,13 +95,7 @@ interface ChatSidePanelProps {
 }
 
 type ChatScope = "shared" | "private";
-type ChatComposerLane = "shared_ai" | "shared_partner" | "private_ai";
-
-interface ChatComposerDraft {
-  input: string;
-  attachments: AttachmentItem[];
-  retryClientRequestId: string | null;
-}
+type ClearConfirmation = { owner: string; coupleId: string; scope: ChatScope; generation: number };
 
 export default function ChatSidePanel({
   isOpen,
@@ -104,7 +103,7 @@ export default function ChatSidePanel({
   firstHello = null,
 }: ChatSidePanelProps) {
   const router = useRouter();
-  const { profile, couple, journey, partner, isDemo } = useAuthStore();
+  const { user, profile, couple, journey, partner, isDemo } = useAuthStore();
   const amoraPersonalization = useAmoraPersonalization(
     isOpen && !isDemo && Boolean(profile?.id),
   );
@@ -119,6 +118,7 @@ export default function ChatSidePanel({
     artifactVisibility,
     error,
     quotaRemaining,
+    quotaPeriod,
     failedRequest,
     isRetrying,
     initialLoadDone,
@@ -132,18 +132,30 @@ export default function ChatSidePanel({
     dismissFailedMessageRetry,
   } = useChatStore();
 
-  const [activeScope, setActiveScope] = useState<ChatScope>("shared");
-  const [messageTarget, setMessageTarget] = useState<ChatMessageTarget>("ai");
+  const composerSessionKey = JSON.stringify([user?.id ?? null, profile?.id ?? null, couple?.id ?? null, profile?.role ?? null, isDemo]);
+  const [activeScope, setActiveScope] = useState<ChatScope>(() => getRememberedComposerLane(composerSessionKey) === "private_ai" ? "private" : "shared");
+  const [messageTarget, setMessageTarget] = useState<ChatMessageTarget>(() => getRememberedComposerLane(composerSessionKey) === "shared_partner" ? "partner" : "ai");
   const activeComposerLane: ChatComposerLane = activeScope === "private"
     ? "private_ai"
     : messageTarget === "partner"
       ? "shared_partner"
       : "shared_ai";
-  const [composerDrafts, setComposerDrafts] = useState<Record<ChatComposerLane, ChatComposerDraft>>({
-    shared_ai: { input: "", attachments: [], retryClientRequestId: null },
-    shared_partner: { input: "", attachments: [], retryClientRequestId: null },
-    private_ai: { input: "", attachments: [], retryClientRequestId: null },
-  });
+  const [composerDrafts, setComposerDrafts] = useChatComposerDrafts(composerSessionKey);
+  const composerDraftsRef = useRef(composerDrafts);
+  composerDraftsRef.current = composerDrafts;
+  const wasOpenRef = useRef(isOpen);
+  useEffect(() => {
+    const reopening = isOpen && !wasOpenRef.current;
+    wasOpenRef.current = isOpen;
+    if (!isOpen) return;
+    if (reopening) {
+      const lane = getRememberedComposerLane(composerSessionKey);
+      setActiveScope(lane === "private_ai" ? "private" : "shared");
+      setMessageTarget(lane === "shared_partner" ? "partner" : "ai");
+    } else {
+      rememberComposerLane(composerSessionKey, activeComposerLane);
+    }
+  }, [isOpen, composerSessionKey, activeComposerLane]);
   const input = composerDrafts[activeComposerLane].input;
   const attachments = composerDrafts[activeComposerLane].attachments;
   const retryClientRequestId = composerDrafts[activeComposerLane].retryClientRequestId;
@@ -158,12 +170,13 @@ export default function ChatSidePanel({
         [activeComposerLane]: {
           ...currentDraft,
           input: resolvedInput,
+          preparation: resolvedInput.trim() ? currentDraft.preparation : null,
           retryClientRequestId:
             resolvedInput === currentDraft.input ? currentDraft.retryClientRequestId : null,
         },
       };
     });
-  }, [activeComposerLane]);
+  }, [activeComposerLane, setComposerDrafts]);
   const setDraftAttachments = useCallback((
     lane: ChatComposerLane,
     nextAttachments: SetStateAction<AttachmentItem[]>,
@@ -185,7 +198,7 @@ export default function ChatSidePanel({
         },
       };
     });
-  }, []);
+  }, [setComposerDrafts]);
   const setAttachments = useCallback((nextAttachments: SetStateAction<AttachmentItem[]>) => {
     setDraftAttachments(activeComposerLane, nextAttachments);
   }, [activeComposerLane, setDraftAttachments]);
@@ -197,8 +210,14 @@ export default function ChatSidePanel({
       ...currentDrafts,
       [lane]: { ...currentDrafts[lane], retryClientRequestId: clientRequestId },
     }));
+  }, [setComposerDrafts]);
+  const [clearConfirmation, setClearConfirmation] = useState<ClearConfirmation | null>(null);
+  const clearConfirmationRef = useRef<ClearConfirmation | null>(null);
+  const showClearConfirm = clearConfirmation !== null;
+  const closeClearConfirmation = useCallback(() => {
+    clearConfirmationRef.current = null;
+    setClearConfirmation(null);
   }, []);
-  const [showClearConfirm, setShowClearConfirm] = useState(false);
   const [nowMs, setNowMs] = useState(0);
   // 치운 카드는 **누른 순간의 메시지 id** 로 기억한다(전체 화면·앱과 같다). `actionId` 로
   // 기억하면 서버가 같은 제안을 새 답변에 다시 붙여도(route.ts 의 캐리포워드) 계속 숨어,
@@ -214,17 +233,14 @@ export default function ChatSidePanel({
   const [isDragging, setIsDragging] = useState(false);
   const [isSubmitLocked, setIsSubmitLocked] = useState(false);
   const submitInFlightRef = useRef(false);
-  const composerSessionGenerationRef = useRef(0);
-  const [pendingFileReads, setPendingFileReads] = useState<Record<ChatComposerLane, number>>({
-    shared_ai: 0,
-    shared_partner: 0,
-    private_ai: 0,
-  });
-  const pendingFileReadsRef = useRef<Record<ChatComposerLane, number>>({
-    shared_ai: 0,
-    shared_partner: 0,
-    private_ai: 0,
-  });
+  const composerGeneration = chatComposerEpoch.current;
+  useEffect(() => {
+    closeClearConfirmation();
+  }, [activeScope, isOpen, composerGeneration, closeClearConfirmation]);
+  useEffect(() => {
+    submitInFlightRef.current = false;
+    setIsSubmitLocked(false);
+  }, [composerGeneration]);
   const [pendingPersonalization, setPendingPersonalization] =
     useState<PendingAmoraPersonalizationChoice | null>(null);
   const [mediationDismissed, setMediationDismissed] = useState(false);
@@ -258,16 +274,11 @@ export default function ChatSidePanel({
         : null;
   const hasCouplePartner = linkedPartnerId !== null;
   const myPrivateVisibility = senderRole ? `${senderRole}_private` as const : null;
-  const composerSessionKey = [
-    profile?.id ?? "anonymous",
-    coupleId ?? "no-couple",
-    senderRole ?? "no-role",
-  ].join(":");
   const composerSessionKeyRef = useRef(composerSessionKey);
   const linkedPartnerIdRef = useRef(linkedPartnerId);
   const partnerComposerEpochRef = useRef(0);
   const activeVisibility = activeScope === "shared" ? "shared" : myPrivateVisibility;
-  const isActiveFileReadPending = pendingFileReads[activeComposerLane] > 0;
+  const isActiveFileReadPending = composerDrafts[activeComposerLane].pendingAttachmentReads > 0;
   const isComposerBusy =
     isStreaming || isSending || isSubmitLocked || isActiveFileReadPending;
   const hasProviderOnlyAttachment = attachments.some(
@@ -317,26 +328,15 @@ export default function ChatSidePanel({
   useEffect(() => {
     if (composerSessionKeyRef.current === composerSessionKey) return;
     composerSessionKeyRef.current = composerSessionKey;
-    composerSessionGenerationRef.current += 1;
+    closeClearConfirmation();
     greetingRequested.current = false;
     submitInFlightRef.current = false;
-    pendingFileReadsRef.current = {
-      shared_ai: 0,
-      shared_partner: 0,
-      private_ai: 0,
-    };
-    setPendingFileReads({ shared_ai: 0, shared_partner: 0, private_ai: 0 });
-    setComposerDrafts({
-      shared_ai: { input: "", attachments: [], retryClientRequestId: null },
-      shared_partner: { input: "", attachments: [], retryClientRequestId: null },
-      private_ai: { input: "", attachments: [], retryClientRequestId: null },
-    });
     setActiveScope("shared");
     setMessageTarget("ai");
     setIsSubmitLocked(false);
     setIsDragging(false);
     if (fileInputRef.current) fileInputRef.current.value = "";
-  }, [composerSessionKey]);
+  }, [composerSessionKey, closeClearConfirmation]);
 
   useEffect(() => {
     const previousLinkedPartnerId = linkedPartnerIdRef.current;
@@ -344,15 +344,7 @@ export default function ChatSidePanel({
     if (previousLinkedPartnerId === linkedPartnerId || previousLinkedPartnerId === null) return;
 
     partnerComposerEpochRef.current += 1;
-    pendingFileReadsRef.current = {
-      ...pendingFileReadsRef.current,
-      shared_partner: 0,
-    };
-    setPendingFileReads((current) => ({ ...current, shared_partner: 0 }));
-    setComposerDrafts((currentDrafts) => ({
-      ...currentDrafts,
-      shared_partner: { input: "", attachments: [], retryClientRequestId: null },
-    }));
+    invalidateSharedComposerDrafts();
     setMessageTarget("ai");
     useChatStore.setState({
       error: "상대방 연결 정보가 바뀌었어요. 이전 상대용 미전송 초안과 첨부는 안전을 위해 삭제했어요. 전송 중이던 메시지는 대화에서 상태를 확인해주세요.",
@@ -443,22 +435,23 @@ export default function ChatSidePanel({
       isStreaming
       || isSending
       || submitInFlightRef.current
-      || pendingFileReadsRef.current[activeComposerLane] > 0
+      || composerDraftsRef.current[activeComposerLane].pendingAttachmentReads > 0
       || (nextScope === "private" && !myPrivateVisibility)
     ) return;
+    closeClearConfirmation();
     setActiveScope(nextScope);
     setMessageTarget("ai");
     // Suggestions are derived from the previous answer and have no scope field.
     // Discard them on a scope change rather than showing private-derived copy in shared chat.
     useChatStore.setState({ suggestions: [] });
-  }, [activeComposerLane, isStreaming, isSending, myPrivateVisibility]);
+  }, [activeComposerLane, isStreaming, isSending, myPrivateVisibility, closeClearConfirmation]);
 
   const handleMessageTargetChange = useCallback((nextTarget: ChatMessageTarget) => {
     if (
       isStreaming
       || isSending
       || submitInFlightRef.current
-      || pendingFileReadsRef.current[activeComposerLane] > 0
+      || composerDraftsRef.current[activeComposerLane].pendingAttachmentReads > 0
       || activeScope !== "shared"
       || (nextTarget === "partner" && !hasCouplePartner)
     ) return;
@@ -570,13 +563,10 @@ export default function ChatSidePanel({
 
   // 첨부파일 처리
   const adjustPendingFileReads = useCallback((lane: ChatComposerLane, delta: 1 | -1) => {
-    const nextCount = Math.max(0, pendingFileReadsRef.current[lane] + delta);
-    pendingFileReadsRef.current = {
-      ...pendingFileReadsRef.current,
-      [lane]: nextCount,
-    };
-    setPendingFileReads((current) => ({ ...current, [lane]: nextCount }));
-  }, []);
+    setComposerDrafts(current => ({ ...current, [lane]: {
+      ...current[lane], pendingAttachmentReads: Math.max(0, current[lane].pendingAttachmentReads + delta),
+    } }));
+  }, [setComposerDrafts]);
 
   const processFile = useCallback((file: File) => {
     const submittedLane = activeComposerLane;
@@ -723,20 +713,28 @@ export default function ChatSidePanel({
   }, [processFile]);
 
   const handleSend = useCallback(
-    async (text?: string, targetOverride?: ChatMessageTarget) => {
+    async (text?: string, targetOverride?: ChatMessageTarget, recovery?: PrivateSafetyRecovery) => {
+      const usesComposer = text === undefined && !recovery;
       if (
         isStreaming
         || isSending
         || submitInFlightRef.current
-        || pendingFileReadsRef.current[activeComposerLane] > 0
+        || (usesComposer && composerDraftsRef.current[activeComposerLane].pendingAttachmentReads > 0)
       ) return;
-      const usesComposer = text === undefined;
-      const content = usesComposer ? input.trim() : text;
-      const submittedInput = usesComposer ? input : "";
+      if (recovery && (activeScope !== "private" || recovery !== composerDraftsRef.current.private_ai.safetyRecovery)) return;
+      if (!recovery && composerDraftsRef.current.private_ai.safetyRecovery
+        && !(activeScope === "private" && composerDraftsRef.current.private_ai.safetyRecovery.localOnly)) {
+        setActiveScope("private");
+        setMessageTarget("ai");
+        return;
+      }
+      const content = recovery ? recovery.input.trim() : usesComposer ? input.trim() : text;
+      const submittedInput = recovery?.input ?? (usesComposer ? input : "");
       const currentAttachments = usesComposer ? [...attachments] : [];
       const sourceLane = activeComposerLane;
+      const submittedPreparation = usesComposer ? composerDraftsRef.current[sourceLane].preparation : null;
       const submittedSessionGeneration = composerSessionGenerationRef.current;
-      const submittedClientRequestId = usesComposer ? retryClientRequestId : null;
+      const submittedClientRequestId = recovery?.clientRequestId ?? (usesComposer ? retryClientRequestId : null) ?? crypto.randomUUID();
       if (
         (!content && currentAttachments.length === 0)
         || !coupleId
@@ -762,6 +760,8 @@ export default function ChatSidePanel({
       const isPrivateSafetyRoute = crisisPreflight.disposition === "private_safety_route";
       const canTransmitAttachments = crisisPreflight.disposition === "continue";
       const submittedLane = isPrivateSafetyRoute ? "private_ai" : sourceLane;
+      if (!recovery && composerDraftsRef.current.private_ai.safetyRecovery
+        && crisisPreflight.disposition !== "continue") return;
       if (canTransmitAttachments) {
         const attachmentCheck = prepareChatAttachmentPayload(currentAttachments);
         if (!attachmentCheck.ok) {
@@ -793,12 +793,31 @@ export default function ChatSidePanel({
         return;
       }
 
+      const privateSafetySnapshot = isLocalSafetyHold || isPrivateSafetyRoute || Boolean(recovery);
+      const submissionClaim = claimComposerSubmission(submittedSessionGeneration, submittedClientRequestId, usesComposer || recovery ? {
+        lane: privateSafetySnapshot ? "private_ai" : sourceLane,
+        draft: {
+          ...composerDraftsRef.current[sourceLane], input: submittedInput,
+          preparation: privateSafetySnapshot ? null : submittedPreparation,
+          attachments: privateSafetySnapshot ? [] : currentAttachments,
+          retryClientRequestId: isLocalSafetyHold ? null : submittedClientRequestId,
+          pendingAttachmentReads: 0,
+          safetyRecovery: privateSafetySnapshot ? undefined : composerDraftsRef.current[sourceLane].safetyRecovery,
+        },
+        ...(privateSafetySnapshot ? { safetyRecovery: {
+          input: submittedInput, clientRequestId: isLocalSafetyHold ? null : submittedClientRequestId,
+          ...(isLocalSafetyHold ? { localOnly: true } : {}),
+        } } : {}),
+      } : undefined);
+      if (!submissionClaim) return;
       submitInFlightRef.current = true;
       setIsSubmitLocked(true);
 
       if (usesComposer) {
-        setInput("");
-        setAttachments([]);
+        setComposerDrafts(current => ({ ...current, [sourceLane]: {
+          ...current[sourceLane], input: "", preparation: null, attachments: [],
+          retryClientRequestId: isPrivateSafetyRoute ? null : submittedClientRequestId,
+        } }));
       }
       if (isPrivateSafetyRoute) {
         setActiveScope("private");
@@ -819,34 +838,41 @@ export default function ChatSidePanel({
         if (composerSessionGenerationRef.current !== submittedSessionGeneration) return;
         setComposerDrafts((currentDrafts) => {
           const currentDraft = currentDrafts.private_ai;
-          if (currentDraft.input) return currentDrafts;
+          if (currentDraft.input || currentDraft.attachments.length || currentDraft.pendingAttachmentReads || currentDraft.preparation) {
+            return { ...currentDrafts, private_ai: { ...currentDraft,
+              safetyRecovery: { input: submittedInput, clientRequestId: null, localOnly: true },
+            } };
+          }
           return {
             ...currentDrafts,
-            private_ai: { ...currentDraft, input: submittedInput },
+            private_ai: { ...currentDraft, input: submittedInput, retryClientRequestId: null },
           };
         });
       };
 
-      const restoreComposer = () => {
+      const restoreComposer = (clientRequestId: string | null) => {
         if (
-          isPrivateSafetyRoute
-          ||
-          !usesComposer
+          (!usesComposer && !recovery)
           || composerSessionGenerationRef.current !== submittedSessionGeneration
           || !partnerRecipientIsStillCurrent()
         ) return;
-        setInput((current) => current || submittedInput);
-        setAttachments((current) => {
-          const existingKeys = new Set(current.map(chatAttachmentKey));
-          return [
-            ...current,
-            ...currentAttachments.filter((attachment) => !existingKeys.has(chatAttachmentKey(attachment))),
-          ];
+        setComposerDrafts(current => {
+          const draft = current[submittedLane];
+          if (recovery || (isPrivateSafetyRoute && (draft.input || draft.attachments.length || draft.pendingAttachmentReads || draft.preparation))) {
+            return { ...current, private_ai: { ...current.private_ai, safetyRecovery: { input: submittedInput, clientRequestId } } };
+          }
+          const existingKeys = new Set(draft.attachments.map(chatAttachmentKey));
+          return { ...current, [submittedLane]: {
+            ...draft, input: draft.input || submittedInput,
+            preparation: draft.input ? draft.preparation : isPrivateSafetyRoute ? null : submittedPreparation,
+            attachments: [...draft.attachments, ...(isPrivateSafetyRoute ? [] : currentAttachments).filter(attachment => !existingKeys.has(chatAttachmentKey(attachment)))],
+            retryClientRequestId: clientRequestId,
+          } };
         });
       };
 
       // 첨부만 있고 텍스트 없으면 기본 메시지 생성
-      let finalContent = content;
+      let finalContent = content ?? "";
       if (!content && currentAttachments.length > 0) {
         const hasDoc = currentAttachments.some((a) =>
           a.mediaType.includes("word") || a.mediaType.includes("spreadsheet") || a.mediaType.includes("ms-excel")
@@ -882,6 +908,8 @@ export default function ChatSidePanel({
             ? { partnerRecipientId: linkedPartnerId }
             : {}),
           visibility: effectiveVisibility,
+          ...(submittedPreparation && sourceLane === "shared_ai" && submittedTarget === "ai" && !isPrivateSafetyRoute
+            ? { preparationSource: submittedPreparation.source } : {}),
           ...(submittedClientRequestId
             ? { clientRequestId: submittedClientRequestId }
             : {}),
@@ -897,29 +925,32 @@ export default function ChatSidePanel({
         }
         if (!partnerRecipientIsStillCurrent()) return;
         if (outcome?.userMessage === "persistence_unknown") {
-          restoreComposer();
-          setDraftRetryClientRequestId(submittedLane, outcome.clientRequestId);
+          restoreComposer(outcome.clientRequestId);
         } else if (outcome?.userMessage === "not_persisted") {
-          restoreComposer();
-          setDraftRetryClientRequestId(
-            submittedLane,
-            outcome.clientRequestId ?? submittedClientRequestId,
-          );
+          restoreComposer(outcome.clientRequestId ?? submittedClientRequestId);
         } else {
-          setDraftRetryClientRequestId(sourceLane, null);
+          if (recovery) setComposerDrafts(current => current.private_ai.safetyRecovery !== recovery ? current : {
+            ...current, private_ai: { ...current.private_ai, safetyRecovery: undefined },
+          });
+          if (usesComposer) setDraftRetryClientRequestId(sourceLane, null);
+          currentAttachments.forEach(attachment => revokeObjectPreview(attachment.previewUrl));
         }
       } catch {
         if (
           composerSessionGenerationRef.current !== submittedSessionGeneration
           || !partnerRecipientIsStillCurrent()
         ) return;
-        restoreComposer();
-        setDraftRetryClientRequestId(submittedLane, submittedClientRequestId);
+        restoreComposer(submittedClientRequestId);
         useChatStore.setState((state) => ({
-          error: state.error ?? "메시지를 저장하지 못했습니다. 입력 내용을 복구했어요.",
-          artifactVisibility: state.artifactVisibility ?? effectiveVisibility,
+          error: state.artifactVisibility === effectiveVisibility && state.error
+            ? state.error : "메시지 저장 결과를 확인하지 못했어요. 작성창 또는 비공개 보류 메시지에서 다시 확인해 주세요.",
+          artifactVisibility: effectiveVisibility,
         }));
       } finally {
+        releaseComposerSubmission(submittedSessionGeneration, submittedClientRequestId);
+        if (composerSessionGenerationRef.current !== submittedSessionGeneration && !submissionClaim.attachmentsTransferred) {
+          currentAttachments.forEach(attachment => revokeObjectPreview(attachment.previewUrl));
+        }
         if (composerSessionGenerationRef.current === submittedSessionGeneration) {
           submitInFlightRef.current = false;
           setIsSubmitLocked(false);
@@ -941,8 +972,7 @@ export default function ChatSidePanel({
       activeVisibility,
       activeComposerLane,
       retryClientRequestId,
-      setInput,
-      setAttachments,
+      setComposerDrafts,
       setDraftRetryClientRequestId,
       isStreaming,
       isSending,
@@ -1189,6 +1219,7 @@ export default function ChatSidePanel({
     try {
       await sendMessage({
         content: AMORA_QUEUED_CARD_SKIP_TEXT,
+        skippedActionId: actionId,
         senderId: profile.id,
         senderRole: profile.role,
         coupleId,
@@ -1229,15 +1260,26 @@ export default function ChatSidePanel({
     router.push(weddingPath("/chat"));
   };
 
+  const openClearConfirmation = () => {
+    if (!isOpen || !coupleId || !profile || !senderRole || isComposerBusy) return;
+    const confirmation = { owner: composerSessionKey, coupleId, scope: activeScope, generation: composerSessionGenerationRef.current };
+    clearConfirmationRef.current = confirmation;
+    setClearConfirmation(confirmation);
+  };
+
   const handleClearChat = async () => {
-    if (!coupleId) return;
+    const confirmation = clearConfirmation;
+    if (!confirmation || clearConfirmationRef.current !== confirmation || !isOpen
+      || confirmation.owner !== composerSessionKey || confirmation.coupleId !== coupleId
+      || confirmation.scope !== activeScope || confirmation.generation !== composerSessionGenerationRef.current) return;
+    // 확인은 한 번만 소비한다. 늦은 클릭·계정/범위 전환 뒤의 옛 창은 다시 사용할 수 없다.
+    closeClearConfirmation();
     greetingRequested.current = false;
     // SidePanel에서는 실제 DB 삭제 없이, 현재 보고 있는 범위만 내 화면에서 정리한다.
     await clearMessages(
-      coupleId,
-      activeScope === "private" ? "view_reset_private" : "view_reset_shared",
+      confirmation.coupleId,
+      confirmation.scope === "private" ? "view_reset_private" : "view_reset_shared",
     );
-    setShowClearConfirm(false);
   };
 
   const getFileIcon = (mediaType: string) => {
@@ -1307,7 +1349,7 @@ export default function ChatSidePanel({
             {scopedMessages.length > 0 && (
               <button
                 type="button"
-                onClick={() => setShowClearConfirm(true)}
+                onClick={openClearConfirmation}
                 className="flex h-11 w-11 items-center justify-center rounded-[6px] transition-colors hover:bg-[var(--hb-surface-hover)]"
                 title="대화 화면 정리"
                 aria-label="현재 대화 범위를 내 화면에서 정리"
@@ -1418,7 +1460,7 @@ export default function ChatSidePanel({
                   </span>
                 </p>
                 <div className="flex shrink-0 gap-1.5">
-                  <button type="button" onClick={() => setShowClearConfirm(false)} className="min-h-11 px-3 text-[0.6875rem] rounded-[6px] bg-white border border-black/[0.06] text-[var(--hb-text-body)] hover:bg-gray-50">취소</button>
+                  <button type="button" onClick={closeClearConfirmation} className="min-h-11 px-3 text-[0.6875rem] rounded-[6px] bg-white border border-black/[0.06] text-[var(--hb-text-body)] hover:bg-gray-50">취소</button>
                   <button type="button" onClick={handleClearChat} className="min-h-11 rounded-[6px] bg-[var(--amora-action,var(--hb-action))] px-3 text-[0.6875rem] text-white transition-colors hover:bg-[var(--amora-action-hover,var(--hb-action-hover))]">내 화면에서만 숨기기</button>
                 </div>
               </div>
@@ -1430,13 +1472,11 @@ export default function ChatSidePanel({
               && artifactsMatchActiveVisibility && (
               <div className="mx-3 mt-2 flex items-center justify-between rounded-[6px] bg-[var(--hb-surface-hover)] p-2.5">
                 <p className="text-xs font-medium leading-relaxed text-[#6d625a]">
-                  {quotaRemaining > 0
-                    ? `무료 상담이 ${quotaRemaining}회 남았어요. 소진돼도 예산·일정 기록은 그대로 보관돼요.`
-                    : "무료 상담을 모두 사용했어요. 예산·일정 기록은 그대로 보관돼요."}
+                  {formatAmoraQuotaNotice(quotaRemaining, quotaPeriod)}
                 </p>
                 <button
                   type="button"
-                  onClick={() => useChatStore.setState({ quotaRemaining: null })}
+                  onClick={() => useChatStore.setState({ quotaRemaining: null, quotaPeriod: "total" })}
                   className="ml-2 flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full text-[var(--hb-text-muted)] hover:text-[#6d625a]"
                   aria-label="상담 횟수 안내 닫기"
                 >
@@ -1700,6 +1740,32 @@ export default function ChatSidePanel({
               </div>
             )}
 
+            {activeScope === "private" && composerDrafts.private_ai.safetyRecovery && (
+              <div role="alert" className="mx-3 my-2 rounded-lg border border-[var(--hb-hairline)] p-3 text-sm leading-relaxed">
+                <p>{composerDrafts.private_ai.safetyRecovery.localOnly
+                  ? "안전 안내로 멈춘 글은 나만 보는 초안으로 보관했어요. 작성 중이던 글을 마치거나 비운 뒤 불러올 수 있어요."
+                  : "비공개로 보낸 메시지의 저장을 확인하지 못했어요. 작성 중이던 글은 그대로 두고, 보류 메시지만 같은 요청으로 다시 확인할 수 있어요."}</p>
+                {composerDrafts.private_ai.safetyRecovery.localOnly ? (
+                  <Button variant="ghost" className="underline"
+                    disabled={isComposerBusy || Boolean(input) || attachments.length > 0}
+                    onClick={() => setComposerDrafts(current => {
+                      const draft = current.private_ai;
+                      if (!draft.safetyRecovery?.localOnly || draft.input || draft.attachments.length || draft.pendingAttachmentReads) return current;
+                      return { ...current, private_ai: { ...draft, input: draft.safetyRecovery.input, preparation: null, retryClientRequestId: null, safetyRecovery: undefined } };
+                    })}>보류 초안 불러오기</Button>
+                ) : (
+                  <Button variant="ghost" className="underline" disabled={isStreaming || isSending || isSubmitLocked}
+                    onClick={() => void handleSend(undefined, undefined, composerDrafts.private_ai.safetyRecovery)}>
+                    보류 메시지 다시 확인
+                  </Button>
+                )}
+                <p className="text-xs text-[var(--hb-text-muted)]">초안을 지워도 서버에 이미 저장된 메시지는 취소되지 않아요.</p>
+                <Button variant="ghost" className="underline" disabled={isComposerBusy}
+                  onClick={() => setComposerDrafts(current => ({ ...current, private_ai: { ...current.private_ai, safetyRecovery: undefined } }))}>
+                  이 기기의 보류 초안만 지우기
+                </Button>
+              </div>
+            )}
             {/* 첨부파일 프리뷰 */}
             {attachments.length > 0 && (
               <div className="px-4 pb-1 flex gap-2 flex-wrap">
@@ -1822,6 +1888,7 @@ export default function ChatSidePanel({
                   disabled={
                     (!input.trim() && attachments.length === 0)
                     || isComposerBusy
+                    || Boolean(composerDrafts.private_ai.safetyRecovery && !composerDrafts.private_ai.safetyRecovery.localOnly)
                   }
                   aria-label="메시지 보내기"
                   className={`flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-[6px] text-white transition-colors disabled:cursor-not-allowed disabled:opacity-30 ${

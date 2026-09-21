@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useMemo, useEffect, useRef } from "react";
+import { useState, useCallback, useMemo, useEffect, useRef, useSyncExternalStore } from "react";
 import { stripPlanningChecklistNotes } from "@hanbang/shared/utils";
 import { useSearchParams, useRouter } from "next/navigation";
 import { List, Calendar, Plus, Pencil, Ban, RotateCcw, CalendarDays, X } from "lucide-react";
@@ -23,7 +23,7 @@ import {
   type ScheduleEventDraft,
 } from "@/utils/scheduleEvents";
 import { getImminentCategories } from "@/utils/imminentChecklist";
-import { planChangeMessage } from "@/lib/journey/planChangeError";
+import { PlanChangeError, planChangeMessage } from "@/lib/journey/planChangeError";
 import TimelineView from "@/components/app/schedule/TimelineView";
 import CalendarView from "@/components/app/schedule/CalendarView";
 import PreparationTimeline, { ScheduleStageSummary } from "./PreparationTimeline";
@@ -118,7 +118,34 @@ interface ScheduleContentProps {
   embedded?: boolean;
 }
 
-export default function ScheduleContent({ embedded = false }: ScheduleContentProps = {}) {
+function scheduleOwnerKey() {
+  const state = useAuthStore.getState();
+  return JSON.stringify([state.isDemo, state.user?.id, state.profile?.id,
+    state.profile?.couple_id, state.profile?.role, state.couple?.id,
+    state.journey?.couple_id, state.journey?.id]);
+}
+
+export default function ScheduleContent(props: ScheduleContentProps = {}) {
+  const [owner] = useState(() => {
+    let snapshot = { key: scheduleOwnerKey(), epoch: 0 };
+    const getSnapshot = () => {
+      const key = scheduleOwnerKey();
+      if (key !== snapshot.key) snapshot = { key, epoch: snapshot.epoch + 1 };
+      return snapshot;
+    };
+    return { getSnapshot, subscribe: (notify: () => void) => useAuthStore.subscribe(() => {
+      const previous = snapshot;
+      if (getSnapshot() !== previous) notify();
+    }) };
+  });
+  const binding = useSyncExternalStore(owner.subscribe, owner.getSnapshot, owner.getSnapshot);
+  const isCurrentOwner = useCallback(() => owner.getSnapshot() === binding, [binding, owner]);
+  return <ScopedScheduleContent {...props} key={`${binding.key}:${binding.epoch}`} isCurrentOwner={isCurrentOwner} />;
+}
+
+function ScopedScheduleContent({ embedded = false, isCurrentOwner }: ScheduleContentProps & { isCurrentOwner: () => boolean }) {
+  const mounted = useRef(false);
+  useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
   const { journey, updateJourney, profile, partner, isDemo } = useAuthStore();
   // 기본은 달력이다.
   //
@@ -145,6 +172,7 @@ export default function ScheduleContent({ embedded = false }: ScheduleContentPro
     useState<PendingChecklistSchedule | null>(null);
   const [journeyNotice, setJourneyNotice] = useState("");
   const [journeyError, setJourneyError] = useState("");
+  const eventSaveAttempt = useRef<{ progress: Record<string, ProgressItem> } | null>(null);
 
   const saveJourney = useCallback(
     async (
@@ -162,9 +190,12 @@ export default function ScheduleContent({ embedded = false }: ScheduleContentPro
       setJourneyError("");
       setJourneyNotice("");
       try {
+        if (!mounted.current || !isCurrentOwner()) throw new PlanChangeError("PLAN_CHANGE_IDENTITY_CHANGED", "준비 공간이 바뀌었어요. 현재 화면에서 다시 입력해 주세요.");
         const result = await updateJourney(updates);
+        if (!mounted.current || !isCurrentOwner()) throw new PlanChangeError("PLAN_CHANGE_IDENTITY_CHANGED", "준비 공간이 바뀌었어요. 현재 화면에서 결과를 확인해 주세요.");
         setJourneyNotice(
-          result.status === "pending_partner"
+          isDemo ? "체험 화면에 반영했어요. 실제로 저장되지는 않아요."
+          : result.status === "pending_partner"
             ? `${result.summary} ${
                 notices?.pending
                   ?? "상대방에게 확인 요청을 보냈어요. 두 분 확인 전에는 반영되지 않습니다."
@@ -178,14 +209,14 @@ export default function ScheduleContent({ embedded = false }: ScheduleContentPro
       } catch (error) {
         // 서버가 아는 사유를 말했다면 그것을 보여준다. "잠시 후 다시 시도" 는
         // 상대가 거절했거나 화면이 낡은 경우에는 **틀린 안내**다 — 다시 눌러도 같다.
-        setJourneyError(
+        if (mounted.current && isCurrentOwner()) setJourneyError(
           planChangeMessage(error)
             ?? "일정 변경을 저장하지 못했어요. 최신 화면을 다시 불러온 뒤 다시 시도해 주세요.",
         );
         throw error;
       }
     },
-    [partner, updateJourney],
+    [partner, updateJourney, isCurrentOwner, isDemo],
   );
 
   const progress = useMemo(
@@ -454,28 +485,35 @@ export default function ScheduleContent({ embedded = false }: ScheduleContentPro
 
       const progressObj = progress as Record<string, unknown>;
 
-      if (eventFormMode === "edit" && editingEvent) {
-        await saveJourney({
+      if (!eventSaveAttempt.current && eventFormMode === "edit" && editingEvent) {
+        eventSaveAttempt.current = {
           progress: updateEvent(
             progressObj,
             editingEvent.id,
             data,
           ) as unknown as Record<string, ProgressItem>,
-        });
-      } else if (data.categoryKey && data.categoryKey !== "general") {
+        };
+      } else if (!eventSaveAttempt.current && data.categoryKey && data.categoryKey !== "general") {
         const { newProgress } = upsertCategoryEvent(
           progressObj,
           data,
           CATEGORY_LABELS[data.categoryKey]
         );
-        await saveJourney({
+        eventSaveAttempt.current = {
           progress: newProgress as unknown as Record<string, ProgressItem>,
-        });
-      } else {
+        };
+      } else if (!eventSaveAttempt.current) {
         const { newProgress } = addEvent(progressObj, data);
-        await saveJourney({
+        eventSaveAttempt.current = {
           progress: newProgress as unknown as Record<string, ProgressItem>,
-        });
+        };
+      }
+      try {
+        await saveJourney(eventSaveAttempt.current);
+        eventSaveAttempt.current = null;
+      } catch (error) {
+        if (!(error instanceof PlanChangeError) || error.code !== "PLAN_CHANGE_OUTCOME_UNKNOWN") eventSaveAttempt.current = null;
+        throw error;
       }
 
       setEventFormMode(null);
@@ -910,6 +948,7 @@ export default function ScheduleContent({ embedded = false }: ScheduleContentPro
           onSave={handleSaveEvent}
           onCancel={editingEvent ? () => handleCancelEvent(editingEvent.id) : undefined}
           onClose={() => {
+            eventSaveAttempt.current = null;
             setEventFormMode(null);
             setEditingEvent(null);
             setSelectedDateForAdd(null);

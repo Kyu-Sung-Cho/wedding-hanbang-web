@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useSyncExternalStore, useCallback } from "react";
 import {
   ACCOUNT_DELETION_EMAIL_REQUEST_LABEL,
   ACCOUNT_DELETION_INTAKE_CLOSED_NOTICE,
@@ -30,14 +30,13 @@ import {
   ShieldCheck,
 } from "lucide-react";
 import AmoraAvatar from "@/components/ui/AmoraAvatar";
+import Button from "@/components/ui/Button";
 import ProfileAvatar from "@/components/ui/ProfileAvatar";
 import DeletionSupportProofControl from "@/components/app/settings/DeletionSupportProofControl";
 import ProfileWeddingRoleEditor from "@/components/app/settings/ProfileWeddingRoleEditor";
 import ProfileAvatarEditor from "@/components/app/settings/ProfileAvatarEditor";
 import { useAuthStore } from "@/stores/authStore";
-import { useCommunityStore } from "@/stores/communityStore";
 import { useNotificationPrefs } from "@/hooks/useNotifications";
-import type { Profile } from "@/types/database.types";
 import type {
   WeddingStyle,
   PriorityItem,
@@ -46,9 +45,13 @@ import type {
 } from "@/types/onboarding.types";
 import { weddingLinkProps } from "@/lib/weddingPaths";
 import { CONTACT } from "@/lib/constants/contact";
+import { boundedRequest } from "@/lib/journey/boundedRequest";
+import { beginInviteCodeAttempt, clearInviteCodeAttempt, getInviteCodeAttempt, markInviteCodeUnknown, settleInviteCodeAttempt, subscribeInviteCodeSettlement, type InviteCodeAttempt } from "@/lib/inviteCodeRecovery";
+import { ProfileUpdateError, profileUpdateErrorMessage } from "@/lib/profileUpdateError";
 import TodayOnePreferenceControl from "@/components/app/TodayOnePreferenceControl";
 import InviteCodePanel from "@/components/invite/InviteCodePanel";
 import { ACCOUNT_DELETION_FACTS } from "@hanbang/shared/constants";
+import { PRIVACY_CONFIRMATION_CHANGED, readPrivacyConfirmationTarget, type PrivacyConfirmationTarget } from "@hanbang/shared";
 import {
   describeCoupleInviteWindow,
   resolveCoupleConnectionState,
@@ -78,21 +81,51 @@ type WeddingPreferenceState = Partial<{
   guestCount: GuestCount | null;
 }>;
 
-type ProfileUpdateResponse = {
-  profile?: Profile;
-  error?: string;
-};
-
 const fadeIn = {
   initial: { opacity: 0, y: 20 },
   animate: { opacity: 1, y: 0 },
 };
 
-/** 재발급이 실패했을 때. 코드가 사라진 이유를 말하고 다음 행동을 준다. */
+/** 응답 유실은 서버 실패를 뜻하지 않는다. */
 const REGENERATE_FAILED =
-  "초대 코드를 다시 만들지 못했어요. 연결 상태를 다시 불러오는 중이에요 — 잠시 뒤 화면을 확인해 주세요.";
+  "재발급 결과를 아직 확인하지 못했어요. 현재 연결 상태를 다시 확인해 주세요.";
+
+function resetIdentityKey(state: ReturnType<typeof useAuthStore.getState>) {
+  return JSON.stringify([state.user?.id, state.profile?.id, state.profile?.couple_id,
+    state.profile?.role, state.couple?.id, state.couple?.bride_id, state.couple?.groom_id, state.isDemo]);
+}
+
+function inviteIdentityKey(state: ReturnType<typeof useAuthStore.getState>) {
+  return JSON.stringify([resetIdentityKey(state), state.couple?.membership_sealed_at, state.partner?.id]);
+}
+
+function settingsOwnerKey() {
+  const state = useAuthStore.getState();
+  return JSON.stringify([state.user?.id, state.profile?.id, state.profile?.couple_id,
+    state.profile?.role, state.couple?.id, state.journey?.id, state.journey?.couple_id, state.isDemo]);
+}
 
 export default function SettingsPage() {
+  const mounted = useRef(false);
+  useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
+  const [owner] = useState(() => {
+    let snapshot = { key: settingsOwnerKey(), epoch: 0 };
+    const getSnapshot = () => {
+      const key = settingsOwnerKey();
+      if (key !== snapshot.key) snapshot = { key, epoch: snapshot.epoch + 1 };
+      return snapshot;
+    };
+    return { getSnapshot, subscribe: (notify: () => void) => useAuthStore.subscribe(() => {
+      const previous = snapshot;
+      if (getSnapshot() !== previous) notify();
+    }) };
+  });
+  const binding = useSyncExternalStore(owner.subscribe, owner.getSnapshot, owner.getSnapshot);
+  const isCurrentOwner = useCallback(() => mounted.current && owner.getSnapshot() === binding, [binding, owner]);
+  return <ScopedSettingsPage key={`${binding.key}:${binding.epoch}`} isCurrentOwner={isCurrentOwner} />;
+}
+
+function ScopedSettingsPage({ isCurrentOwner }: { isCurrentOwner: () => boolean }) {
   const {
     user,
     profile,
@@ -125,6 +158,28 @@ export default function SettingsPage() {
   const [regenerating, setRegenerating] = useState(false);
   /** 재발급이 거절된 이유. 코드가 화면에서 사라진 이유를 말해 준다. */
   const [regenerateError, setRegenerateError] = useState("");
+  const inviteScope = JSON.stringify([user?.id, couple?.id]);
+  const inviteIdentity = inviteIdentityKey(useAuthStore.getState());
+  const inviteGeneration = useRef(0);
+  useEffect(() => {
+    const unsubscribe = useAuthStore.subscribe((state, previous) => {
+      if (inviteIdentityKey(state) === inviteIdentityKey(previous)) return;
+      inviteGeneration.current += 1;
+      setCoupleConnection(resolveCoupleConnectionState(null));
+      setRegenerating(false);
+      setRegenerateError("");
+      setConnectionRetryNonce(value => value + 1);
+    });
+    return () => { inviteGeneration.current += 1; unsubscribe(); };
+  }, []);
+  useEffect(() => subscribeInviteCodeSettlement(scope => {
+    const state = useAuthStore.getState();
+    if (scope !== JSON.stringify([state.user?.id, state.couple?.id])) return;
+    // 먼저 시작한 GET은 재발급 완료 전 스냅샷일 수 있으므로 다시 조회한다.
+    inviteGeneration.current += 1;
+    setRegenerating(false);
+    setConnectionRetryNonce(value => value + 1);
+  }), []);
 
   // 수정 모드
   const [editingName, setEditingName] = useState(false);
@@ -190,6 +245,21 @@ export default function SettingsPage() {
 
   const [showResetWeddingModal, setShowResetWeddingModal] = useState(false);
   const [resetWeddingConfirmText, setResetWeddingConfirmText] = useState("");
+  const resetGeneration = useRef(0);
+  const resetReviewedGeneration = useRef<number | null>(null);
+  const [resetTarget, setResetTarget] = useState<PrivacyConfirmationTarget | null>(null);
+  useEffect(() => {
+    const unsubscribe = useAuthStore.subscribe((state, previous) => {
+      if (resetIdentityKey(state) === resetIdentityKey(previous)) return;
+      resetGeneration.current += 1;
+      resetReviewedGeneration.current = null;
+      setResetTarget(null);
+      setShowResetWeddingModal(false);
+      setResetWeddingConfirmText("");
+      setResettingWedding(false);
+    });
+    return () => { resetGeneration.current += 1; unsubscribe(); };
+  }, []);
   const [resettingWedding, setResettingWedding] = useState(false);
   const [resetWeddingError, setResetWeddingError] = useState("");
   const [draftPrefs, setDraftPrefs] = useState<WeddingPreferenceState>({});
@@ -232,12 +302,22 @@ export default function SettingsPage() {
     // still identify linked or sealed states while the privileged API loads.
     setCoupleConnection(resolveCoupleConnectionState(null, context));
     setConnectionLookup("loading");
+    const reviewedAttempt = getInviteCodeAttempt(inviteScope);
+    const wasPending = reviewedAttempt?.rawPending === true;
+    const generation = inviteGeneration.current;
+    if (reviewedAttempt) setRegenerateError(REGENERATE_FAILED);
 
-    fetch("/api/couple/code", { signal: controller.signal })
-      .then(async (response) => {
-        const payload: unknown = await response.json().catch(() => null);
-        if (!response.ok) throw new Error("COUPLE_CONNECTION_LOOKUP_FAILED");
-        if (!cancelled) {
+    boundedRequest(async signal => {
+      const response = await fetch("/api/couple/code", { signal });
+      const payload: unknown = await response.json();
+      if (!response.ok || resolveCoupleConnectionState(payload).phase === "unavailable") throw new Error("COUPLE_CONNECTION_LOOKUP_FAILED");
+      return payload;
+    }, 10_000, controller)
+      .then((payload) => {
+        if (!cancelled && generation === inviteGeneration.current && inviteIdentity === inviteIdentityKey(useAuthStore.getState())) {
+          if (reviewedAttempt && !wasPending && clearInviteCodeAttempt(inviteScope, reviewedAttempt)) {
+            setRegenerateError("현재 연결 상태를 다시 불러왔어요. 조회 이후에도 앞선 요청이 늦게 반영될 수 있어요.");
+          }
           setCoupleConnection(resolveCoupleConnectionState(payload, context));
           setConnectionLookup("ready");
         }
@@ -246,14 +326,14 @@ export default function SettingsPage() {
         // Fail closed: never restore a previously displayed invite code.
         // 다만 **실패했다는 사실은 말한다.** 조용히 "모름" 화면으로 두면 사용자는
         // 자기 커플이 잘못됐다고 읽는다.
-        if (!cancelled) setConnectionLookup("failed");
+        if (!cancelled && generation === inviteGeneration.current) setConnectionLookup("failed");
       });
 
     return () => {
       cancelled = true;
       controller.abort();
     };
-  }, [couple, isDemo, partner, connectionRetryNonce]);
+  }, [couple, isDemo, partner, connectionRetryNonce, inviteScope, inviteIdentity]);
 
   const phase = coupleConnection.phase;
   const coupleCode = coupleConnection.inviteCode;
@@ -264,19 +344,26 @@ export default function SettingsPage() {
     profile.care_notifications_consented_at.trim().length > 0;
 
   const revokeLegacyCareConsent = async () => {
+    if (!isCurrentOwner() || revokingLegacyCareConsent) return;
     setRevokingLegacyCareConsent(true);
     setLegacyCareConsentError("");
     try {
       await updateProfile({ care_notifications_enabled: false });
-    } catch {
-      setLegacyCareConsentError("수신 동의를 해제하지 못했습니다. 잠시 후 다시 시도해 주세요.");
+    } catch (error) {
+      if (!isCurrentOwner()) return;
+      setLegacyCareConsentError(error instanceof ProfileUpdateError && error.code === "PROFILE_UPDATE_REVIEW_REQUIRED"
+        ? "현재 수신 동의를 다시 확인했어요. 화면을 확인한 뒤 해제를 다시 선택해 주세요."
+        : profileUpdateErrorMessage(error) ?? "수신 동의 변경 결과를 확인하지 못했어요. 현재 설정을 다시 확인해 주세요.");
     } finally {
-      setRevokingLegacyCareConsent(false);
+      if (isCurrentOwner()) setRevokingLegacyCareConsent(false);
     }
   };
 
   const handleRegenerateCode = async () => {
-    if (!coupleConnection.canInvite) return;
+    if (!coupleConnection.canInvite || inviteIdentity !== inviteIdentityKey(useAuthStore.getState())) return;
+    const generation = inviteGeneration.current;
+    const current = () => generation === inviteGeneration.current && inviteIdentity === inviteIdentityKey(useAuthStore.getState());
+    let attempt: InviteCodeAttempt | null = null;
 
     setRegenerating(true);
     try {
@@ -289,30 +376,28 @@ export default function SettingsPage() {
         return;
       }
 
-      const res = await fetch("/api/couple/code", { method: "POST" });
-      const payload: unknown = await res.json().catch(() => null);
-      if (res.ok) {
-        setCoupleConnection(resolveCoupleConnectionState(payload));
-        setRegenerateError("");
-      } else {
-        // A join can win the race after this screen loaded. Remove the old
-        // code immediately and let the next canonical GET reveal the phase.
-        //
-        // **그 GET 을 실제로 부른다.** 예전에는 이 주석이 적힌 대로 되지 않았다 —
-        // 코드만 지우고 조회를 다시 걸지 않아, 멀쩡한 코드가 화면에서 사라진 채
-        // 「연결 상태를 확인하지 못했어요 · 고객지원에 문의」만 남았다.
-        setCoupleConnection(resolveCoupleConnectionState(null, {
-          partnerPresent: Boolean(partner),
-          membershipSealedAt: couple?.membership_sealed_at,
-        }));
-        setRegenerateError(
-          typeof (payload as { error?: unknown } | null)?.error === "string"
-            ? String((payload as { error: string }).error)
-            : REGENERATE_FAILED,
-        );
-        setConnectionRetryNonce((value) => value + 1);
-      }
+      attempt = beginInviteCodeAttempt(inviteScope);
+      if (!attempt) { setRegenerateError(REGENERATE_FAILED); return; }
+      const requestAttempt = attempt;
+      const { res, payload } = await boundedRequest(async signal => {
+        try {
+          const res = await fetch("/api/couple/code", { method: "POST", signal });
+          const payload: unknown = await res.json();
+          return { res, payload };
+        } finally { settleInviteCodeAttempt(inviteScope, requestAttempt); }
+      }, 30_000);
+      if (!current()) { markInviteCodeUnknown(inviteScope, attempt); return; }
+      if (!res.ok || resolveCoupleConnectionState(payload).phase === "unavailable") throw new Error("INVITE_REGENERATION_UNCONFIRMED");
+      // 정상 영수증도 먼저 시작한 조회보다 최신이다.
+      inviteGeneration.current += 1;
+      clearInviteCodeAttempt(inviteScope, attempt);
+      setCoupleConnection(resolveCoupleConnectionState(payload));
+      setConnectionLookup("ready");
+      setRegenerating(false);
+      setRegenerateError("");
     } catch {
+      if (attempt) markInviteCodeUnknown(inviteScope, attempt);
+      if (!current()) return;
       setCoupleConnection(resolveCoupleConnectionState(null, {
         partnerPresent: Boolean(partner),
         membershipSealedAt: couple?.membership_sealed_at,
@@ -320,48 +405,40 @@ export default function SettingsPage() {
       setRegenerateError(REGENERATE_FAILED);
       setConnectionRetryNonce((value) => value + 1);
     } finally {
-      setRegenerating(false);
+      if (current()) setRegenerating(false);
     }
   };
 
   // 이름 저장
   const saveName = async () => {
+    if (!isCurrentOwner()) return;
     if (!nameInput.trim()) return;
     setSaving(true);
     setNameError("");
     try {
-      const res = await fetch("/api/profile", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: nameInput.trim(),
-          sync_community_nickname: true,
-        }),
+      await updateProfile({
+        name: nameInput.trim(),
+        sync_community_nickname: true,
       });
-      const data = (await res.json().catch(() => ({}))) as ProfileUpdateResponse;
-      if (!res.ok) {
-        setNameError(data.error ?? "이름 저장에 실패했습니다.");
-        return;
-      }
-      if (data.profile) {
-        useAuthStore.setState({ profile: data.profile });
-        useCommunityStore.getState().applyOwnNickname(data.profile.id, data.profile.name);
-      }
+      if (!isCurrentOwner()) return;
       setEditingName(false);
-    } catch {
-      setNameError("이름 저장 중 오류가 발생했습니다.");
+    } catch (error) {
+      if (!isCurrentOwner()) return;
+      setNameError(profileUpdateErrorMessage(error) ?? "이름 저장 결과를 확인하지 못했어요. 현재 프로필을 다시 확인해 주세요.");
     } finally {
-      setSaving(false);
+      if (isCurrentOwner()) setSaving(false);
     }
   };
 
   // 날짜 저장
   const saveDate = async () => {
+    if (!isCurrentOwner()) return;
     setSaving(true);
     setJourneyError("");
     setJourneyNotice("");
     try {
       const result = await updateJourney({ wedding_date: dateInput || null });
+      if (!isCurrentOwner()) return;
       setJourneyNotice(
         result.status === "pending_partner"
           ? `${result.summary} 상대방에게 확인 요청을 보냈어요. 두 분 확인 전에는 반영되지 않습니다.`
@@ -369,18 +446,20 @@ export default function SettingsPage() {
       );
       setEditingDate(false);
     } catch (error) {
+      if (!isCurrentOwner()) return;
       setJourneyError(
         error instanceof Error
           ? error.message
           : "결혼일을 저장하지 못했습니다.",
       );
     } finally {
-      setSaving(false);
+      if (isCurrentOwner()) setSaving(false);
     }
   };
 
   // 예산 저장
   const saveBudget = async () => {
+    if (!isCurrentOwner()) return;
     const value = parseInt(budgetInput) * 10000;
     if (isNaN(value) || value <= 0) return;
     setSaving(true);
@@ -388,6 +467,7 @@ export default function SettingsPage() {
     setJourneyNotice("");
     try {
       const result = await updateJourney({ total_budget: value });
+      if (!isCurrentOwner()) return;
       setJourneyNotice(
         result.status === "pending_partner"
           ? `${result.summary} 상대방에게 확인 요청을 보냈어요. 두 분 확인 전에는 반영되지 않습니다.`
@@ -395,23 +475,26 @@ export default function SettingsPage() {
       );
       setEditingBudget(false);
     } catch (error) {
+      if (!isCurrentOwner()) return;
       setJourneyError(
         error instanceof Error
           ? error.message
           : "총예산을 저장하지 못했습니다.",
       );
     } finally {
-      setSaving(false);
+      if (isCurrentOwner()) setSaving(false);
     }
   };
 
   // 결혼식장 저장 — 빈 문자열은 null로 (미정 상태)
   const saveVenue = async () => {
+    if (!isCurrentOwner()) return;
     setSaving(true);
     setJourneyError("");
     setJourneyNotice("");
     try {
       const result = await updateJourney({ venue: venueInput.trim() || null });
+      if (!isCurrentOwner()) return;
       setJourneyNotice(
         result.status === "pending_partner"
           ? `${result.summary} 상대방에게 확인 요청을 보냈어요. 두 분 확인 전에는 반영되지 않습니다.`
@@ -419,13 +502,14 @@ export default function SettingsPage() {
       );
       setEditingVenue(false);
     } catch (error) {
+      if (!isCurrentOwner()) return;
       setJourneyError(
         error instanceof Error
           ? error.message
           : "대표 식장을 저장하지 못했습니다.",
       );
     } finally {
-      setSaving(false);
+      if (isCurrentOwner()) setSaving(false);
     }
   };
 
@@ -453,6 +537,7 @@ export default function SettingsPage() {
       guestCount: GuestCount | null;
     }>
   ) => {
+    if (!isCurrentOwner()) return;
     const currentProgress = (journey?.progress ?? {}) as Record<string, unknown>;
     const nextPrefs = { ...draftPrefs, ...partial };
     setDraftPrefs(nextPrefs);
@@ -463,6 +548,7 @@ export default function SettingsPage() {
       const result = await updateJourney({
         progress: { ...currentProgress, __preferences: nextPrefs } as never,
       });
+      if (!isCurrentOwner()) return;
       if (result.status === "pending_partner") {
         setDraftPrefs(prefs ?? {});
         setJourneyNotice(
@@ -470,6 +556,7 @@ export default function SettingsPage() {
         );
       }
     } catch (error) {
+      if (!isCurrentOwner()) return;
       setDraftPrefs(prefs ?? {});
       setJourneyError(
         error instanceof Error
@@ -477,7 +564,7 @@ export default function SettingsPage() {
           : "웨딩 선호도를 저장하지 못했습니다.",
       );
     } finally {
-      setPreferenceSaving(false);
+      if (isCurrentOwner()) setPreferenceSaving(false);
     }
   };
 
@@ -555,8 +642,34 @@ export default function SettingsPage() {
     }
   };
 
+  const openResetWedding = async () => {
+    const generation = ++resetGeneration.current;
+    const identity = resetIdentityKey(useAuthStore.getState());
+    resetReviewedGeneration.current = null;
+    setResetTarget(null);
+    setResetWeddingConfirmText("");
+    setResetWeddingError("");
+    setShowResetWeddingModal(true);
+    try {
+      const response = await fetch("/api/couple/reset", { cache: "no-store" });
+      const payload = await response.json();
+      if (generation !== resetGeneration.current || identity !== resetIdentityKey(useAuthStore.getState())) return;
+      const target = readPrivacyConfirmationTarget(payload.confirmationTarget);
+      const state = useAuthStore.getState();
+      if (!response.ok || !target || target.ownerId !== state.user?.id || target.coupleId !== state.profile?.couple_id) {
+        throw new Error(payload.error ?? PRIVACY_CONFIRMATION_CHANGED);
+      }
+      resetReviewedGeneration.current = generation;
+      setResetTarget(target);
+    } catch (error) {
+      if (generation === resetGeneration.current) setResetWeddingError(error instanceof Error ? error.message : PRIVACY_CONFIRMATION_CHANGED);
+    }
+  };
+
   const handleResetWedding = async () => {
-    if (resetWeddingConfirmText !== "초기화합니다") return;
+    if (resetReviewedGeneration.current !== resetGeneration.current) return;
+    if (!resetTarget || resettingWedding || resetWeddingConfirmText !== "초기화합니다") return;
+    const generation = resetGeneration.current;
     setResettingWedding(true);
     setResetWeddingError("");
 
@@ -564,21 +677,22 @@ export default function SettingsPage() {
       const res = await fetch("/api/couple/reset", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ confirmText: resetWeddingConfirmText }),
+        body: JSON.stringify({ confirmText: resetWeddingConfirmText, confirmationTarget: resetTarget }),
       });
       const data = await res.json().catch(() => ({}));
+      if (generation !== resetGeneration.current) return;
 
-      if (!res.ok) {
-        setResetWeddingError(data.error ?? "초기화에 실패했습니다.");
+      if (!res.ok || data.success !== true) {
+        setResetWeddingError(data.error ?? "초기화 결과를 확인하지 못했어요. 현재 연결 상태를 다시 확인해 주세요.");
         return;
       }
 
       document.cookie = "onboarding_complete=; path=/; max-age=0";
       window.location.href = "/onboarding";
     } catch {
-      setResetWeddingError("오류가 발생했습니다. 다시 시도해주세요.");
+      if (generation === resetGeneration.current) setResetWeddingError("초기화 결과를 확인하지 못했어요. 현재 연결 상태를 다시 확인해 주세요.");
     } finally {
-      setResettingWedding(false);
+      if (generation === resetGeneration.current) setResettingWedding(false);
     }
   };
 
@@ -636,6 +750,8 @@ export default function SettingsPage() {
                 <div className="flex items-center gap-2">
                   <input
                     type="text"
+                    aria-label="이름"
+                    aria-describedby="settings-saved-name"
                     value={nameInput}
                     onChange={(e) => {
                       setNameInput(e.target.value);
@@ -645,13 +761,16 @@ export default function SettingsPage() {
                     className="px-3 py-2 rounded-[6px] bg-[var(--hb-surface-hover)] text-lg text-[var(--hb-text-strong)] outline-none focus:ring-2 ring-[rgba(54,83,78,0.30)] w-[170px]"
                     autoFocus
                   />
-                  <button onClick={saveName} disabled={saving} className="tap-area shrink-0 w-9 h-9 rounded-[6px] bg-[#2E7D5A] flex items-center justify-center text-white">
+                  <button aria-label="이름 저장" onClick={saveName} disabled={saving} className="tap-area shrink-0 w-9 h-9 rounded-[6px] bg-[#2E7D5A] flex items-center justify-center text-white">
                     <Save className="w-5 h-5" />
                   </button>
-                  <button onClick={() => { setEditingName(false); setNameError(""); }} className="tap-area shrink-0 w-9 h-9 rounded-[6px] bg-[var(--hb-surface-hover)] flex items-center justify-center text-[var(--hb-text-body)]">
+                  <button aria-label="이름 수정 취소" onClick={() => { setEditingName(false); setNameError(""); }} className="tap-area shrink-0 w-9 h-9 rounded-[6px] bg-[var(--hb-surface-hover)] flex items-center justify-center text-[var(--hb-text-body)]">
                     <X className="w-5 h-5" />
                   </button>
                 </div>
+                <p id="settings-saved-name" role="status" className="mt-2 text-sm text-[var(--hb-text-muted)]">
+                  현재 저장된 이름: {profile?.name?.trim() || "미등록"}
+                </p>
                 {nameError && <p className="mt-2 text-sm text-[#9A3F3F]">{nameError}</p>}
               </div>
             ) : (
@@ -663,6 +782,7 @@ export default function SettingsPage() {
                   </span>
                 )}
                 <button
+                  aria-label="이름 수정"
                   onClick={() => { setNameInput(userName); setNameError(""); setEditingName(true); }}
                   className="tap-area shrink-0 w-7 h-7 rounded-[6px] flex items-center justify-center text-[var(--hb-text-muted)] hover:text-[var(--hb-accent-hover)] bg-[#f3e9df] transition-colors"
                 >
@@ -691,15 +811,16 @@ export default function SettingsPage() {
                   <input
                     type="date"
                     value={dateInput}
+                    aria-label="결혼 예정일"
                     min={new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Seoul" }).format(new Date())}
                     onChange={(e) => setDateInput(e.target.value)}
                     className="px-2.5 py-1.5 rounded-[6px] bg-white text-base text-[var(--hb-text-strong)] outline-none focus:ring-2 ring-[rgba(54,83,78,0.30)]"
                     autoFocus
                   />
-                  <button onClick={saveDate} disabled={saving} className="tap-area shrink-0 w-7 h-7 rounded-[6px] bg-[#2E7D5A] flex items-center justify-center text-white">
+                  <button aria-label="결혼 예정일 저장" onClick={saveDate} disabled={saving} className="tap-area shrink-0 w-7 h-7 rounded-[6px] bg-[#2E7D5A] flex items-center justify-center text-white">
                     <Save className="w-4 h-4" />
                   </button>
-                  <button onClick={() => setEditingDate(false)} className="tap-area shrink-0 w-7 h-7 rounded-[6px] bg-white flex items-center justify-center text-[var(--hb-text-body)]">
+                  <button aria-label="결혼 예정일 수정 취소" onClick={() => setEditingDate(false)} className="tap-area shrink-0 w-7 h-7 rounded-[6px] bg-white flex items-center justify-center text-[var(--hb-text-body)]">
                     <X className="w-4 h-4" />
                   </button>
                 </div>
@@ -708,6 +829,7 @@ export default function SettingsPage() {
                   <p className="text-[17px] font-medium text-[var(--hb-text-strong)]">{dateStr}</p>
                   <button
                     onClick={() => { setDateInput(journey?.wedding_date ?? ""); setEditingDate(true); }}
+                    aria-label="결혼 예정일 수정"
                     className="tap-area shrink-0 w-6 h-6 rounded-[6px] flex items-center justify-center text-[var(--hb-text-muted)] hover:text-[var(--hb-accent-hover)] transition-colors"
                   >
                     <Pencil className="w-3.5 h-3.5" />
@@ -727,16 +849,17 @@ export default function SettingsPage() {
                   <input
                     type="text"
                     value={venueInput}
+                    aria-label="결혼식장"
                     onChange={(e) => setVenueInput(e.target.value)}
                     onKeyDown={(e) => e.key === "Enter" && saveVenue()}
                     placeholder="예: 결혼식장 이름"
                     className="min-w-0 flex-1 px-2.5 py-1.5 rounded-[6px] bg-white text-base text-[var(--hb-text-strong)] outline-none focus:ring-2 ring-[rgba(54,83,78,0.30)] placeholder:text-[var(--hb-text-muted)]"
                     autoFocus
                   />
-                  <button onClick={saveVenue} disabled={saving} className="tap-area w-7 h-7 shrink-0 rounded-[6px] bg-[#2E7D5A] flex items-center justify-center text-white">
+                  <button aria-label="결혼식장 저장" onClick={saveVenue} disabled={saving} className="tap-area w-7 h-7 shrink-0 rounded-[6px] bg-[#2E7D5A] flex items-center justify-center text-white">
                     <Save className="w-4 h-4" />
                   </button>
-                  <button onClick={() => setEditingVenue(false)} className="tap-area w-7 h-7 shrink-0 rounded-[6px] bg-white flex items-center justify-center text-[var(--hb-text-body)]">
+                  <button aria-label="결혼식장 수정 취소" onClick={() => setEditingVenue(false)} className="tap-area w-7 h-7 shrink-0 rounded-[6px] bg-white flex items-center justify-center text-[var(--hb-text-body)]">
                     <X className="w-4 h-4" />
                   </button>
                 </div>
@@ -745,6 +868,7 @@ export default function SettingsPage() {
                   <p className="text-[17px] font-medium text-[var(--hb-text-strong)] truncate">{venueStr}</p>
                   <button
                     onClick={() => { setVenueInput(venue ?? ""); setEditingVenue(true); }}
+                    aria-label="결혼식장 수정"
                     className="tap-area w-6 h-6 shrink-0 rounded-[6px] flex items-center justify-center text-[var(--hb-text-muted)] hover:text-[var(--hb-accent-hover)] transition-colors"
                   >
                     <Pencil className="w-3.5 h-3.5" />
@@ -765,6 +889,7 @@ export default function SettingsPage() {
                     <input
                       type="number"
                       value={budgetInput}
+                      aria-label="설정 예산 (만원)"
                       onChange={(e) => setBudgetInput(e.target.value)}
                       onKeyDown={(e) => e.key === "Enter" && saveBudget()}
                       className="w-[90px] px-2.5 py-1.5 rounded-[6px] bg-white text-base text-[var(--hb-text-strong)] outline-none focus:ring-2 ring-[rgba(54,83,78,0.30)] text-right"
@@ -772,10 +897,10 @@ export default function SettingsPage() {
                     />
                     <span className="text-sm text-[var(--hb-text-muted)] ml-1">만원</span>
                   </div>
-                  <button onClick={saveBudget} disabled={saving} className="tap-area shrink-0 w-7 h-7 rounded-[6px] bg-[#2E7D5A] flex items-center justify-center text-white">
+                  <button aria-label="설정 예산 저장" onClick={saveBudget} disabled={saving} className="tap-area shrink-0 w-7 h-7 rounded-[6px] bg-[#2E7D5A] flex items-center justify-center text-white">
                     <Save className="w-4 h-4" />
                   </button>
-                  <button onClick={() => setEditingBudget(false)} className="tap-area shrink-0 w-7 h-7 rounded-[6px] bg-white flex items-center justify-center text-[var(--hb-text-body)]">
+                  <button aria-label="설정 예산 수정 취소" onClick={() => setEditingBudget(false)} className="tap-area shrink-0 w-7 h-7 rounded-[6px] bg-white flex items-center justify-center text-[var(--hb-text-body)]">
                     <X className="w-4 h-4" />
                   </button>
                 </div>
@@ -784,6 +909,7 @@ export default function SettingsPage() {
                   <p className="text-[17px] font-medium text-[var(--hb-text-strong)]">{budgetStr}</p>
                   <button
                     onClick={() => { setBudgetInput(String(totalBudget / 10000)); setEditingBudget(true); }}
+                    aria-label="설정 예산 수정"
                     className="tap-area shrink-0 w-6 h-6 rounded-[6px] flex items-center justify-center text-[var(--hb-text-muted)] hover:text-[var(--hb-accent-hover)] transition-colors"
                   >
                     <Pencil className="w-3.5 h-3.5" />
@@ -937,6 +1063,10 @@ export default function SettingsPage() {
           {/* 코드가 보이는 유일한 조건은 `awaiting_partner`다. 연결이 끝나면
               /api/couple/code가 inviteCode: null을 주고 패널도 함께 사라진다 —
               패널 자체도 코드가 없으면 아무것도 그리지 않는다(이중 잠금). */}
+          {regenerateError && <div className="mb-3">
+            <p role="alert" className="text-sm leading-relaxed text-danger-700">{regenerateError}</p>
+            <Button variant="ghost" size="sm" type="button" onClick={() => setConnectionRetryNonce(value => value + 1)} disabled={connectionLookup === "loading"} className="mt-2 px-0! text-sm! font-normal! whitespace-normal! underline underline-offset-4">현재 연결 상태 다시 확인</Button>
+          </div>}
           {phase === "awaiting_partner" && coupleCode && (
             <div className="mb-3">
               {/* 코드를 보내는 그 화면이 기한을 말해야 한다. main의 #136이 넣은
@@ -950,7 +1080,7 @@ export default function SettingsPage() {
               />
               <button
                 onClick={handleRegenerateCode}
-                disabled={regenerating || !coupleConnection.canInvite}
+                disabled={regenerating || !coupleConnection.canInvite || Boolean(getInviteCodeAttempt(inviteScope))}
                 className="mt-2 text-sm text-[var(--hb-text-muted)] hover:text-[var(--hb-accent-hover)] transition-colors disabled:opacity-50"
               >
                 {regenerating ? "재발급 중..." : "코드 재발급"}
@@ -998,12 +1128,6 @@ export default function SettingsPage() {
                 <p className="text-sm text-[var(--hb-text-muted)]">위의 코드·링크·QR 중 편한 것으로 보내주세요</p>
               </div>
               <ChevronRight className="w-5 h-5 text-[var(--hb-text-muted)]" />
-            </div>
-          ) : regenerateError ? (
-            <div className="rounded-[6px] border border-[#E8DDD3] bg-white p-4 shadow-sm">
-              <p role="alert" className="text-sm leading-relaxed text-danger-700">
-                {regenerateError}
-              </p>
             </div>
           ) : !couple ? (
             /* 준비 공간이 없는 계정. 초대 코드는 공간이 있어야 생기므로 여기서
@@ -1058,11 +1182,7 @@ export default function SettingsPage() {
           {!isDemo && (
             <button
               type="button"
-              onClick={() => {
-                setResetWeddingConfirmText("");
-                setResetWeddingError("");
-                setShowResetWeddingModal(true);
-              }}
+              onClick={() => void openResetWedding()}
               className="mt-3 w-full flex items-center justify-between gap-3 rounded-[6px] border border-[#E8DDD3] bg-white px-4 py-3 text-left shadow-sm hover:border-[#C4967E]/50 transition-colors"
             >
               <span className="flex min-w-0 items-center gap-3">
@@ -1315,7 +1435,12 @@ export default function SettingsPage() {
               <div className="mt-6 flex gap-2">
                 <button
                   type="button"
-                  onClick={() => setShowResetWeddingModal(false)}
+                  onClick={() => {
+                    resetGeneration.current += 1;
+                    resetReviewedGeneration.current = null;
+                    setResetTarget(null);
+                    setShowResetWeddingModal(false);
+                  }}
                   className="flex-1 py-3 rounded-[6px] bg-[var(--hb-surface-hover)] text-[var(--hb-text-body)] font-medium bg-[#f3e9df] transition-colors"
                 >
                   취소
@@ -1323,7 +1448,7 @@ export default function SettingsPage() {
                 <button
                   type="button"
                   onClick={handleResetWedding}
-                  disabled={resetWeddingConfirmText !== "초기화합니다" || resettingWedding}
+                  disabled={!resetTarget || resetWeddingConfirmText !== "초기화합니다" || resettingWedding}
                   className="flex-1 py-3 rounded-[6px] bg-[var(--hb-primary)] text-white font-medium bg-[var(--hb-text-body)] transition-colors disabled:opacity-40"
                 >
                   {resettingWedding ? "초기화 중..." : "다시 시작"}

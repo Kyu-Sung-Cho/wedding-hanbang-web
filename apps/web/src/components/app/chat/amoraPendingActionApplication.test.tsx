@@ -5,6 +5,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import ChatContent from "./ChatContent";
 import ChatSidePanel from "./ChatSidePanel";
 import { getAmoraToolOperationIdentity } from "@/lib/ai/amoraToolIdentity";
+import { useAuthStore } from "@/stores/authStore";
+import { PENDING_ACTOR_ID, PENDING_COUPLE_ID, setPendingActionActor } from "./__tests__/fixtures/pendingActionActor";
 
 /**
  * 제안 카드의 안내 문구가 두 표면에서 같은가, 그리고 그 근거가 반영 성공인가.
@@ -51,22 +53,6 @@ const mocks = vi.hoisted(() => ({
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: mocks.push, replace: mocks.replace }),
   useSearchParams: () => new URLSearchParams(),
-}));
-
-vi.mock("@/stores/authStore", () => ({
-  useAuthStore: () => ({
-    profile: {
-      id: "user-1",
-      role: "bride",
-      name: "테스트",
-      couple_id: "couple-1",
-    },
-    couple: { id: "couple-1", bride_id: "user-1", groom_id: "user-2" },
-    journey: null,
-    isDemo: false,
-    isInitialized: true,
-    isLoading: false,
-  }),
 }));
 
 vi.mock("@/hooks/useAmoraPersonalization", () => ({
@@ -158,7 +144,7 @@ function proposalMessage(): TestMessage {
   const identity = getAmoraToolOperationIdentity(TOOL, TOOL_INPUT);
   return {
     id: "proposal-1",
-    couple_id: "couple-1",
+    couple_id: PENDING_COUPLE_ID,
     sender_id: null,
     sender_role: "ai",
     content: "일정을 추가할 수 있어요.",
@@ -184,8 +170,8 @@ function proposalMessage(): TestMessage {
 function confirmationMessage(): TestMessage {
   return {
     id: "confirmation-1",
-    couple_id: "couple-1",
-    sender_id: "user-1",
+    couple_id: PENDING_COUPLE_ID,
+    sender_id: PENDING_ACTOR_ID,
     sender_role: "bride",
     content: "좋아요. 제안한 변경을 적용해 주세요.",
     visibility: "shared",
@@ -197,7 +183,7 @@ function confirmationMessage(): TestMessage {
 function answerMessage(success: boolean): TestMessage {
   return {
     id: "answer-1",
-    couple_id: "couple-1",
+    couple_id: PENDING_COUPLE_ID,
     sender_id: null,
     sender_role: "ai",
     content: success ? "일정에 추가했어요." : "그 사이 내용이 바뀌어 아무것도 변경하지 않았어요.",
@@ -231,6 +217,8 @@ describe("both web chat surfaces describe an applied proposal the same way", () 
 
   beforeEach(() => {
     vi.clearAllMocks();
+    useAuthStore.getState().reset();
+    setPendingActionActor();
     mocks.messages = [];
     mocks.isStreaming = false;
     HTMLElement.prototype.scrollIntoView = vi.fn();
@@ -241,6 +229,7 @@ describe("both web chat surfaces describe an applied proposal the same way", () 
 
   afterEach(async () => {
     await act(async () => root.unmount());
+    useAuthStore.getState().reset();
     document.body.replaceChildren();
     vi.restoreAllMocks();
   });

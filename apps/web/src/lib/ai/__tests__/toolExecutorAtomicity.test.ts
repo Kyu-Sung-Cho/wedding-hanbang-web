@@ -35,6 +35,88 @@ function context(): ToolExecutionContext {
 }
 
 describe("Amora atomic mutating-tool execution", () => {
+  describe("confirmed decision record receipts", () => {
+    const pendingActionId = "11111111-1111-4111-8111-111111111111";
+    const input = { title: "2028년 가을 식사 중심 예식 검토", status: "considering", memo: "서울/부산/대구 미정" };
+    const canonicalOutput = { verified: true, decision: {
+      id: pendingActionId, title: input.title, status: input.status, memo: input.memo,
+      category_key: "general", created_at: "2026-09-20T00:00:00Z",
+    } };
+    function decisionContext() {
+      const ctx = context();
+      delete ctx.providerCallIndex;
+      ctx.pendingActionId = pendingActionId;
+      ctx.currentUserText = "이대로 적용";
+      return ctx;
+    }
+    function storedResult(toolOutput: unknown) {
+      return { toolName: "add_decision_record", toolOutput, success: true, displayMessage: "결정 보드에 논의 중으로 기록했어요." };
+    }
+    function useReceipt(boundary: "commit" | "replay", toolOutput: unknown) {
+      mocks.rpc.mockImplementation((name: string) => {
+        if (name === "claim_amora_tool_execution") return Promise.resolve({ data: boundary === "replay"
+          ? { action: "completed", result: storedResult(toolOutput) } : { action: "acquired" }, error: null });
+        if (name === "apply_amora_atomic_tool_execution") return Promise.resolve({ data: storedResult(toolOutput), error: null });
+        return Promise.resolve({ data: null, error: { message: `unexpected rpc: ${name}` } });
+      });
+    }
+
+    it.each(["commit", "replay"] as const)("returns only the canonical DB decision receipt at %s without mutating wedding facts", async (boundary) => {
+      const ctx = decisionContext();
+      const originalFacts = structuredClone(ctx.weddingContext);
+      useReceipt(boundary, canonicalOutput);
+      const result = await executeTool("add_decision_record", input, ctx);
+      expect(result).toMatchObject({ success: true, toolInput: input, toolOutput: canonicalOutput });
+      expect(ctx.weddingContext).toEqual(originalFacts);
+      expect(mocks.rpc).toHaveBeenCalledWith("claim_amora_tool_execution", expect.objectContaining({
+        p_pending_action_id: pendingActionId, p_provider_call_index: null,
+      }));
+      const commits = mocks.rpc.mock.calls.filter(([name]) => name === "apply_amora_atomic_tool_execution");
+      expect(commits).toHaveLength(boundary === "commit" ? 1 : 0);
+      if (boundary === "commit") expect(commits[0][1]).toMatchObject({
+        p_tool_input: input,
+        p_domain_mutation: { kind: "decision_record_insert", record: {
+          title: input.title, decision_type: "considering", reasoning: input.memo, category: "general",
+        } },
+        p_result: { toolOutput: {} },
+      });
+      expect(mocks.from).not.toHaveBeenCalled();
+    });
+
+    const malformedOutputs = [
+      ["optimistic empty output", {}],
+      ["missing DB verification", { decision: canonicalOutput.decision }],
+      ["false DB verification", { ...canonicalOutput, verified: false }],
+      ["missing decision id", { ...canonicalOutput, decision: { ...canonicalOutput.decision, id: undefined } }],
+      ["unsupported state", { ...canonicalOutput, decision: { ...canonicalOutput.decision, status: "completed" } }],
+      ["missing creation time", { ...canonicalOutput, decision: { ...canonicalOutput.decision, created_at: undefined } }],
+    ] as const;
+
+    it.each(malformedOutputs)("does not turn a malformed replay (%s) into success or another insert", async (_name, output) => {
+      const ctx = decisionContext();
+      const originalFacts = structuredClone(ctx.weddingContext);
+      useReceipt("replay", output);
+      const result = await executeTool("add_decision_record", input, ctx);
+      expect(result).toMatchObject({ success: false, toolOutput: { error: "TOOL_LEDGER_RESULT_INVALID" } });
+      expect(mocks.rpc.mock.calls.map(([name]) => name)).toEqual(["claim_amora_tool_execution"]);
+      expect(ctx.weddingContext).toEqual(originalFacts);
+    });
+
+    it.each(malformedOutputs)("keeps the same operation when a malformed commit receipt (%s) leaves outcome unknown", async (_name, output) => {
+      const ctx = decisionContext();
+      const originalFacts = structuredClone(ctx.weddingContext);
+      useReceipt("commit", output);
+      await expect(executeTool("add_decision_record", input, ctx)).rejects.toThrow(/atomic commit outcome unavailable/);
+      const commits = mocks.rpc.mock.calls.filter(([name]) => name === "apply_amora_atomic_tool_execution");
+      expect(commits).toHaveLength(3);
+      expect(commits[1][1]).toEqual(commits[0][1]);
+      expect(commits[2][1]).toEqual(commits[0][1]);
+      expect(mocks.rpc.mock.calls.filter(([name]) => name === "claim_amora_tool_execution")).toHaveLength(1);
+      expect(mocks.from).not.toHaveBeenCalled();
+      expect(ctx.weddingContext).toEqual(originalFacts);
+    });
+  });
+
   it("never sends explicit allocations through the legacy auto-reserve RPC", async () => {
     const ctx = context();
     delete ctx.providerCallIndex;

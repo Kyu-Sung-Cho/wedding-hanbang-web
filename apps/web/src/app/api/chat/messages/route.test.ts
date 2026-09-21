@@ -392,6 +392,33 @@ describe("/api/chat/messages server-authoritative AI ingest", () => {
     }));
   });
 
+  it("persists the selected skip target and refuses reusing its request for a different card", async () => {
+    const content = "이 항목은 적용하지 않고 다음 항목으로 넘어갈게요.";
+    const row = canonicalUserRow({ content, metadata: { client_request_id: REQUEST_ID, skipped_amora_action_id: ACTION_ID } });
+    const admin = mockPostAdmin({ insertData: row });
+    const body = { coupleId: COUPLE_ID, content, clientRequestId: REQUEST_ID, requestedVisibility: "shared", skippedActionId: ACTION_ID };
+    expect((await POST(postRequest(body))).status).toBe(201);
+    expect(admin.insert).toHaveBeenCalledWith(expect.objectContaining({ metadata: row.metadata }));
+    mockPostAdmin({ insertData: null, insertError: { code: "23505" }, reconcileData: row });
+    const conflict = await POST(postRequest({ ...body, skippedActionId: MESSAGE_ID }));
+    expect(conflict.status).toBe(409);
+  });
+
+  it.each([
+    { skippedActionId: "invalid" },
+    { confirmedActionId: ACTION_ID },
+    { content: "다른 요청으로 바꾸어 주세요" },
+    { target: "partner" },
+  ])("rejects a malformed or mixed skip before insertion: %j", async (changes) => {
+    const admin = mockPostAdmin();
+    const response = await POST(postRequest({
+      coupleId: COUPLE_ID, content: "이 항목은 적용하지 않고 다음 항목으로 넘어갈게요.",
+      clientRequestId: REQUEST_ID, requestedVisibility: "shared", skippedActionId: ACTION_ID, ...changes,
+    }));
+    expect(response.status).toBe(400);
+    expect(admin.insert).not.toHaveBeenCalled();
+  });
+
   it.each(["c.unknown", "g.cost-saving.section-999", "https://evil.invalid/guide", 12])("rejects an unknown public preparation reference before insertion: %s", async (preparationSource) => {
     const admin = mockPostAdmin();
     const response = await POST(postRequest({

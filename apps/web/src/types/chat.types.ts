@@ -97,7 +97,7 @@ export type SSEEvent =
   | { type: "tool_start"; toolName: string; toolInput: Record<string, unknown> }
   | { type: "tool_result"; result: ToolExecutionResult }
   | { type: "suggestions"; suggestions: string[] }
-  | { type: "quota"; remaining: number }
+  | { type: "quota"; remaining: number; period?: "daily" | "total" }
   | { type: "done"; fullContent: string; metadata: ChatMessageMetadata }
   | {
       type: "error";

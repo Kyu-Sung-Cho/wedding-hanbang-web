@@ -45,6 +45,7 @@ const read = (relative) => readFileSync(fileURLToPath(new URL(relative, import.m
 const timestamp = compile("../../../../packages/shared/src/utils/chatTimestamp.ts");
 const clearRequest = compile("../lib/chatClearRequest.ts");
 const privacy = compile("../lib/chatPrivacyScope.ts", { "@hanbang/shared": timestamp });
+const paging = compile("../lib/chatHistoryPager.ts", { "@hanbang/shared": timestamp });
 const lib = compile("../lib/chatViewClear.ts", { "@hanbang/shared": timestamp, "@/lib/chatClearRequest": clearRequest });
 const { colors } = compile("../../../../packages/design-tokens/src/colors.ts");
 const COPY = lib.CHAT_VIEW_CLEAR_COPY;
@@ -578,6 +579,7 @@ function loaderHarness({ history }) {
     isCurrentChatSession: (value) => value === generation,
   };
   const bindings = {
+    ...paging, historyPagerRef: { current: null }, setHistoryPages() {},
     ...privacy,
     ...shared,
     supabase: { auth: { getUser: async () => ({ data: { user: { id: viewer } } }) }, from: query, channel: () => channel, removeChannel: () => {} },
@@ -667,6 +669,33 @@ test("성공 응답이 먼저 와도 범위 재확인이 다시 불러오고, �
   assert.deepEqual(loader.state.drafts, drafts());
   assert.deepEqual(loader.state.messages.map((item) => item.id), ["shared-1"]);
   assert.equal(loader.shared.chatViewClearCarryRef.current, null);
+});
+
+test("나만 화면 정리 뒤에도 새 메시지 없이 숨겨진 원문 삭제를 열 수 있다", async () => {
+  const loader = loaderHarness({ history: [row("private-retained", "bride_private", "2026-09-18T00:00:00.000Z")] });
+  await loader.run();
+  loader.state.scope = "private";
+  const screen = wireScreen(loader, async () => {
+    loader.profile.private_chat_cleared_at = clearedAt;
+    return ok({ success: true, mode: "view_reset_private", clearedAt });
+  });
+  await screen.performViewClear("view_reset_private");
+  await loader.settle();
+  assert.equal(loader.rows.length, 1, "화면 정리는 원문을 보존한다");
+  assert.equal(loader.state.messages.length, 0);
+  const inputs = { userId: viewer, coupleId: couple, initialLoaded: true, chatLoadError: null,
+    activeScope: "private", scopedMessages: loader.state.messages };
+  assert.equal(loadChat([], inputs, { variables: ["canOfferViewClear"] }).canOfferViewClear, true);
+  Object.assign(screen.bindings, inputs);
+  screen.openViewClearSheet();
+  assert.equal(screen.state.step, "private_confirm");
+  for (const hidden of [{ initialLoaded: false }, { chatLoadError: "실패" }, { userId: null }, { coupleId: null }]) {
+    assert.equal(loadChat([], { ...inputs, ...hidden }, { variables: ["canOfferViewClear"] }).canOfferViewClear, false);
+    screen.bindings.setViewClearStep("closed");
+    Object.assign(screen.bindings, inputs, hidden);
+    screen.openViewClearSheet();
+    assert.equal(screen.state.step, "closed");
+  }
 });
 
 test("함께 대화에서 상대에게 쓰던 중 화면을 정리해도 그 대상과 초안으로 돌아온다", async () => {

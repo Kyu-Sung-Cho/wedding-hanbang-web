@@ -20,6 +20,7 @@ vi.mock("@/stores/authStore", () => ({
 }));
 
 import { useAmoraPreparationActions } from "./useAmoraPreparationActions";
+import { clearPreparationCreate } from "@/lib/amora/pendingPreparationCreate";
 
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -42,6 +43,10 @@ describe("useAmoraPreparationActions", () => {
   let container: HTMLDivElement;
   const fetchMock = vi.fn();
   beforeEach(() => {
+    // 이 옛 fixture의 인증 subscribe는 no-op이다. 독립 사례의 복구 장부만 초기화한다.
+    // 실제 인증 전환 삭제는 recovery.test.tsx의 real authStore로 별도 검증한다.
+    clearPreparationCreate(JSON.stringify(["user-a", "couple-a", false]));
+    clearPreparationCreate(JSON.stringify(["user-a", "couple-b", false]));
     mocks.auth.user = { id: "user-a" };
     mocks.auth.profile = { id: "user-a", couple_id: "couple-a" };
     mocks.auth.isDemo = false;

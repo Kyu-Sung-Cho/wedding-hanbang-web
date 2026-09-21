@@ -25,6 +25,14 @@
 
 /** 사용자에게 그대로 보여도 되는 계획 변경 거절 사유. */
 export const PLAN_CHANGE_MESSAGES: Readonly<Record<string, string>> = {
+  PLAN_CHANGE_IN_FLIGHT:
+    "앞선 저장 결과를 확인하고 있어요. 잠시 기다린 뒤 다시 확인해 주세요.",
+  PLAN_CHANGE_PREVIOUS_RESOLVED:
+    "앞선 저장 요청의 결과를 확인했어요. 이번에 입력한 변경은 아직 보내지 않았어요. 최신 내용을 확인한 뒤 다시 저장해 주세요.",
+  PLAN_CHANGE_IDENTITY_CHANGED:
+    "커플 연결 상태가 바뀌었어요. 현재 화면에서 다시 확인해 주세요.",
+  PLAN_CHANGE_OUTCOME_UNKNOWN:
+    "저장 결과를 아직 확인하지 못했어요. 이미 저장됐을 수 있어요. 같은 요청을 다시 확인해 주세요.",
   PLAN_CHANGE_STALE:
     "그 사이 준비 정보가 바뀌었어요. 최신 화면을 다시 불러와 주세요.",
   PLAN_CHANGE_REJECTED:

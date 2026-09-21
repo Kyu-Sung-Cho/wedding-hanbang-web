@@ -1,9 +1,10 @@
-import { daysUntilWedding } from "@hanbang/shared";
+import { daysUntilWedding, readAmoraDecisionReceipt } from "@hanbang/shared";
 import { createHash } from "node:crypto";
 import { isMutatingTool } from "@/lib/ai/mutationTools";
 import { resolveStatusByKey } from "@/utils/checklist";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { executePersonalActionConversationTool } from "./tools/personalActionTools";
+import { executeGetDecisionRecords } from "./tools/decisionRecordTools";
 import type { ToolExecutionResult } from "@/types/database.types";
 import {
   executeSimulateGuestGuarantee,
@@ -174,6 +175,8 @@ function hydrateDurableResult(
   ) {
     return null;
   }
+  if (toolName === "add_decision_record" && stored.success === true
+    && !readAmoraDecisionReceipt(stored.toolOutput)) return null;
   return {
     toolName,
     toolInput,
@@ -279,6 +282,10 @@ export async function executeTool(
   toolInput: Record<string, unknown>,
   context: ExecutionContext
 ): Promise<ToolExecutionResult> {
+  if (toolName === "add_decision_record" && !context.pendingActionId) {
+    return failureResult(toolName, toolInput, "DECISION_APPROVAL_REQUIRED",
+      "결정 기록은 확인 카드에서 공유할 내용과 상태를 확인한 뒤 저장할 수 있어요. 아직 저장하지 않았어요.");
+  }
   if (toolName === "delete_schedule_event") {
     return failureResult(
       toolName,
@@ -628,6 +635,8 @@ async function executeToolOnce(
   context: ExecutionContext
 ): Promise<ToolExecutionResult> {
   switch (toolName) {
+      case "get_decision_records":
+        return executeGetDecisionRecords(toolInput, context);
       case "get_personal_actions":
       case "prepare_personal_action":
         return executePersonalActionConversationTool(toolName, toolInput, context);

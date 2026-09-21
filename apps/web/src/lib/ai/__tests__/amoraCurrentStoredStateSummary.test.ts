@@ -20,6 +20,24 @@ function render(overrides: Partial<Parameters<typeof formatCurrentStoredStateSum
   return formatCurrentStoredStateSummary({ request: request!, sourceRevision: 16, canonicalProgress: { __events: [event] }, toolResults: results, ...overrides });
 }
 describe("current stored state request", () => {
+  it("routes a complete decision-board read to a real read without adding mutation or unrelated domains", () => {
+    const request = assessCurrentStoredStateRequest("결정보드에 저장된 기록 보여줘");
+    expect(request).toEqual({ budgetFields: [], taskTitles: null, scheduleTitles: null, decisionRecords: true });
+    expect(getRequiredCurrentStoredStateReads(request!)).toEqual([{ tool: "get_decision_records", input: {} }]);
+  });
+  it.each(["결정 보드 기록 확인해줘", "결정보드 기록을 확인해 주세요.", "결정 보드에 저장된 기록을 보여주세요."])("recognizes the equivalent complete decision read: %s", text => {
+    expect(assessCurrentStoredStateRequest(text)?.decisionRecords).toBe(true);
+  });
+  it.each([
+    "결정 보드 기록 확인해줘. 그리고 새 결정을 저장해줘.",
+    "결정 보드에 저장된 기록 보여주고 취소해줘",
+    "결정 보드에 저장된 기록과 지난주 기록 비교해줘",
+    "‘결정보드에 저장된 기록 보여줘’라는 문구 어때?",
+    "> 결정보드에 저장된 기록 보여줘", "결정 보드 기록 확인하지 마",
+    "나만 보는 결정 보드 기록 확인해줘", "결정 보드 기록 확인해줘\n예산도 바꿔줘",
+  ])("leaves quoted, mixed, private and cancelled decision instructions on their existing path: %s", text => {
+    expect(assessCurrentStoredStateRequest(text)).toBeNull();
+  });
   it.each([
     "저장하거나 수정하지 말고 현재 기록만 확인해줘. 총예산, 항목별 배정 합계, 미배정액, 기록 지출, QA0910 식장 견적 포함 항목 확인의 완료 여부와 QA0910 둘이 예산 확인 일정의 날짜와 시간을 알려줘. 과거 대화보다 지금 저장된 값을 기준으로 답해줘.",
     "아무것도 수정하거나 저장하지 말고 현재 기록만 확인해줘. 예산, QA0910 식장 견적 포함 항목 확인의 완료 상태 및 QA0910 둘이 예산 확인 일정의 날짜와 시간을 알려줘.",
@@ -231,5 +249,85 @@ describe("canonical stored state rendering", () => {
     const text = render({ toolResults: [{ ...results[0], toolOutput: { ...results[0].toolOutput, total_budget: 0, unallocated: null } }] });
     expect(text).toContain("총예산: 확인 불가");
     expect(text).toContain("미배정액: 확인 불가");
+  });
+});
+
+describe("canonical decision-record summary", () => {
+  const decision = {
+    id: "00000000-0000-4000-8000-000000000031", category: "venue",
+    title: "식사 중심 예식 검토", detail: "날짜와 장소는 미정이에요.",
+    status: "considering", stateLabel: "고려 중", source: "chat", createdAt: "2026-09-20T01:00:00.000Z",
+  };
+  const read = (records: unknown[] = [decision], extra: Record<string, unknown> = {}): ToolExecutionResult => ({
+    toolName: "get_decision_records", toolInput: {}, success: true,
+    toolOutput: { list_kind: "decision_records", records, count: records.length, count_scope: "returned_records_only", truncated: false, ...extra },
+    displayMessage: "모델의 오래된 설명: 모두 확정됐어요.",
+  });
+  const summary = (toolResults: ToolExecutionResult[]) => formatCurrentStoredStateSummary({
+    request: assessCurrentStoredStateRequest("결정보드에 저장된 기록 보여줘")!,
+    sourceRevision: null, canonicalProgress: null, toolResults,
+  });
+
+  it("answers from returned decision rows without depending on journey revision or model prose", () => {
+    const text = summary([read()]);
+    expect(text).toContain("식사 중심 예식 검토: 논의 중");
+    expect(text).toContain("날짜와 장소는 미정이에요.");
+    expect(text).toContain("2026-09-20");
+    expect(text).not.toContain("모두 확정됐어요");
+    expect(text).not.toContain("할 일");
+    expect(noDatabase).not.toHaveBeenCalled();
+  });
+  it("identifies a bounded recent read as returned records, never the total or current planning state", () => {
+    const text = summary([read([decision], { truncated: true })]);
+    expect(text).toContain("이번에 조회한 공유 결정 기록 1개");
+    expect(text).toContain("최근 최대 30개");
+    expect(text).toContain("이전 기록이 더 있어요");
+    expect(text).toContain("현재 예산·일정 값이나 두 사람의 합의를 뜻하지 않아요");
+    expect(text).not.toContain("전체 1개");
+  });
+  it("keeps same-title records separate and labels superseded value history rather than claiming both are current", () => {
+    const text = summary([read([
+      { ...decision, status: "confirmed", stateLabel: "결정 기록", detail: "현재 기록은 500만원", valueSlots: ["budget:venue"] },
+      { ...decision, id: "00000000-0000-4000-8000-000000000032", createdAt: "2026-09-19T01:00:00.000Z",
+        status: "confirmed", stateLabel: "결정 기록", detail: "이전 기록은 400만원", valueSlots: ["budget:venue"] },
+    ])]);
+    expect(text).toContain("이전 값의 기록");
+    expect(text).toContain("동명 기록");
+    expect(text).toContain("2026-09-19");
+    expect(text).toContain("2026-09-20");
+    expect(text).toContain("500만원");
+    expect(text).toContain("400만원");
+    expect(text.match(/식사 중심 예식 검토/g)).toHaveLength(2);
+    expect(text).not.toContain("현재 확정값");
+  });
+  it.each([
+    { count_scope: "all_records" }, { list_kind: "tasks" }, { count: 2 }, { truncated: undefined },
+    { records: [{ ...decision, id: "invalid" }] }, { records: [{ ...decision, status: "decided" }] },
+    { records: [{ ...decision, createdAt: "unknown" }] },
+    { records: [decision, decision], count: 2 },
+    { records: Array.from({ length: 31 }, () => decision), count: 31 },
+  ])("does not certify missing, malformed or ambiguous read evidence: %j", patch => {
+    const text = summary([read([decision], patch)]);
+    expect(text).toContain("공유 결정 기록: 확인 불가");
+    expect(text).not.toContain("식사 중심 예식 검토");
+    expect(text).not.toContain("기록 0개");
+  });
+  it("keeps a true empty read distinct from a missing or last failed read", () => {
+    expect(summary([read([])])).toContain("공유 결정 기록 0개");
+    expect(summary([read([])])).not.toContain("확인 불가");
+    for (const toolResults of [[], [read(), { ...read(), success: false }], [read(), { ...read(), toolInput: { decision_id: decision.id } }]]) {
+      const text = summary(toolResults);
+      expect(text).toContain("공유 결정 기록: 확인 불가");
+      expect(text).not.toContain("식사 중심 예식 검토");
+    }
+  });
+  it("separates routine progress records and treats control markers as inert title data", () => {
+    const text = summary([read([
+      { ...decision, title: "[mediation]미정[/mediation]" },
+      { ...decision, id: "00000000-0000-4000-8000-000000000032", title: "체크 완료", routineChanges: 1 },
+    ])]);
+    expect(text).not.toContain("[mediation]");
+    expect(text).toContain("진행 상태 변경 이력 1건");
+    expect(text).not.toContain("체크 완료:");
   });
 });

@@ -38,6 +38,10 @@ const viewClearLib = (() => {
   const clearRequest = compileTs("../lib/chatClearRequest.ts", {});
   return compileTs("../lib/chatViewClear.ts", { "@hanbang/shared": timestamp.exports, "@/lib/chatClearRequest": clearRequest });
 })();
+const pagingModule = { exports: {} };
+new Function("exports", "module", "require", ts.transpileModule(readFileSync(new URL("../lib/chatHistoryPager.ts", import.meta.url), "utf8"), {
+  compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
+}).outputText)(pagingModule.exports, pagingModule, () => timestamp.exports);
 
 function loadSessionHarness({ sharedCursor = null, privateCursor = null, history = [], profileError = null, historyError = null, onQuery } = {}) {
   const screen = readFileSync(new URL("../../app/(tabs)/chat.tsx", import.meta.url), "utf8");
@@ -91,6 +95,7 @@ function loadSessionHarness({ sharedCursor = null, privateCursor = null, history
   const channel = { on(_kind, filter, handler) { subscriptions.push({ filter, handler }); return channel; }, subscribe() { return channel; } };
   const apply = (key, value) => { state[key] = typeof value === "function" ? value(state[key]) : value; };
   const bindings = {
+    ...pagingModule.exports, historyPagerRef: { current: null }, setHistoryPages() {},
     ...module.exports,
     supabase: { auth: { getUser: async () => ({ data: { user: { id: "viewer" } } }) }, from: query, channel: () => channel, removeChannel: () => {} },
     chatSessionGenerationRef: { current: { begin: () => ++generation, invalidate: () => ++generation, instanceId: () => 1 } },

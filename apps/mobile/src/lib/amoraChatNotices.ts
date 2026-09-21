@@ -17,7 +17,7 @@ export type AmoraMemoryLine =
   | { kind: "on" }
   | { kind: "off"; canEnable: boolean };
 
-export const AMORA_MEMORY_ON_COPY = "이 탭의 대화는 장기 기억으로 정리돼요";
+export const AMORA_MEMORY_ON_COPY = "이 탭의 장기 기억 사용이 켜져 있어요";
 export const AMORA_MEMORY_OFF_COPY = "지금은 장기 기억을 저장하지 않아요";
 export const AMORA_MEMORY_SETTINGS_LINK = "설정에서 켜기";
 
@@ -48,7 +48,7 @@ export function readAmoraMemoryStatus(payload: unknown): AmoraMemoryStatus | nul
  * 지금 탭에서 할 말. 함께 대화는 공유 기억, 나만 상담은 내 비공개 기억을 본다.
  *
  * 웹보다 한 가지를 더 조심한다 — 서버의 기억 연결이 꺼져 있으면(`runtimeEnabled: false`) 동의해 둔
- * 범위라도 "정리돼요"라고 하지 않고, 설정 화면의 스위치도 잠겨 있으므로 "설정에서 켜기"로 보내지 않는다.
+ * 범위라도 "사용이 켜져 있어요"라고 하지 않고, 설정 화면의 스위치도 잠겨 있으므로 "설정에서 켜기"로 보내지 않는다.
  * 틀린 상태를 말하느니 침묵이 낫고, 누를 수 없는 스위치로 보내느니 링크를 빼는 편이 낫다.
  */
 export function resolveAmoraMemoryLine(
@@ -67,9 +67,5 @@ export function resolveAmoraMemoryLine(
   return enabled ? { kind: "on" } : { kind: "off", canEnable: true };
 }
 
-/** 무료 상담 안내. 다 써도 기록은 남는다는 것을 웹과 같은 말로 함께 알린다. */
-export function formatAmoraQuotaNotice(remaining: number): string {
-  return remaining > 0
-    ? `무료 상담이 ${remaining}회 남았어요. 소진돼도 예산·일정 기록은 그대로 보관돼요.`
-    : "무료 상담을 모두 사용했어요. 예산·일정 기록은 그대로 보관돼요.";
-}
+/** 웹·앱이 같은 공용 계약으로 일일 한도와 전체 무료 한도를 구분한다. */
+export { formatAmoraQuotaNotice } from "@hanbang/shared";

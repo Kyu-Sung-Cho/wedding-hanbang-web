@@ -1,5 +1,5 @@
 // 내 북마크 목록
-import { useEffect, useState, useCallback } from "react";
+import { useCallback } from "react";
 import { View, ScrollView, StyleSheet, Pressable, RefreshControl } from "react-native";
 import { Text } from "@/components/ui/AppText";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -8,6 +8,7 @@ import { Bookmark, ThumbsUp, MessageCircle } from "lucide-react-native";
 import { colors } from "@hanbang/design-tokens";
 import { supabase } from "@/lib/supabase";
 import { AppHeader, EmptyState, LoadingState } from "@/components/ui/AppUI";
+import { useOwnedCommunityList } from "@/lib/useOwnedCommunityList";
 
 const CATEGORY_LABELS: Record<string, string> = {
   is_normal: "이거 정상이야?",
@@ -38,32 +39,17 @@ function formatDate(dateStr: string): string {
 }
 
 export default function MyBookmarksScreen() {
-  const [bookmarks, setBookmarks] = useState<BookmarkedPost[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-
-  const loadData = useCallback(async () => {
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-
+  const read = useCallback(async (owner: string, signal: AbortSignal) => {
       const { data, error } = await supabase
         .from("community_bookmarks")
         .select("id, post:community_posts(id, category, title, created_at, upvote_count, comment_count)")
-        .eq("user_id", user.id)
-        .order("created_at", { ascending: false });
+        .eq("user_id", owner)
+        .order("created_at", { ascending: false }).abortSignal(signal);
 
       if (error) throw error;
-      setBookmarks((data ?? []) as unknown as BookmarkedPost[]);
-    } catch (err) {
-      console.error("Bookmarks load:", err);
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
+      return (data ?? []) as unknown as BookmarkedPost[];
   }, []);
-
-  useEffect(() => { loadData(); }, [loadData]);
+  const { items: bookmarks, loading, refreshing, loadError, loadData } = useOwnedCommunityList(read);
 
   if (loading) {
     return (
@@ -83,12 +69,13 @@ export default function MyBookmarksScreen() {
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
-            onRefresh={() => { setRefreshing(true); loadData(); }}
+            onRefresh={() => void loadData()}
             tintColor={colors.rose[500]}
           />
         }
       >
-        {bookmarks.length === 0 ? (
+        {loadError ? <View><Text accessibilityRole="alert">{loadError}</Text><Pressable accessibilityRole="button" accessibilityLabel="다시 불러오기" onPress={() => void loadData()} style={{ minHeight: 44, justifyContent: "center" }}><Text>다시 불러오기</Text></Pressable></View> : null}
+        {bookmarks.length === 0 && !loadError ? (
           <EmptyState
             icon={<Bookmark size={48} color={colors.textTertiary} />}
             title="북마크한 글이 없어요"

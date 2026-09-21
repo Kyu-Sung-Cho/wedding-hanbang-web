@@ -800,15 +800,15 @@ export async function chatWithToolsStream(options: {
       "[ai-config] beforeProviderEgress is required before any content-bearing provider request",
     );
   }
-  signal?.throwIfAborted();
-  await beforeProviderEgress();
-  signal?.throwIfAborted();
-
   // 측정 *호출*이 전송·제공자 장애(네트워크·5xx·429·타임아웃)로 죽으면 한 번만
   // 다시 잰다. 측정이 성공하고 그 판정이 막은 것(한도 초과·잘못된 응답)과
   // 호출부의 취소는 다시 재지 않는다.
   let inputCountFailure: OpenAIProviderError | null = null;
   for (let attempt = 1; attempt <= 2; attempt += 1) {
+    // 재시도도 원문 전송이다. 동의 철회는 측정 장애로 삼아 재시도하지 않는다.
+    signal?.throwIfAborted();
+    await beforeProviderEgress();
+    signal?.throwIfAborted();
     try {
       const countPromise = client.responses.inputTokens.count(
         {

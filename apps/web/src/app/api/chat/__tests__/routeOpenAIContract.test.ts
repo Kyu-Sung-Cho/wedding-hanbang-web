@@ -596,7 +596,7 @@ vi.mock("@/lib/ai/tools", async (importOriginal) => {
   // route는 모듈 초기화 때 제안 도구 목록을 고정하므로 테스트 중 뒤늦게
   // 추가하지 않는다. 실제 배열 스키마/제목만 있는 할 일 계약을 그대로 쓴다.
   (mocks.safeTools as AiToolDefinition[]).push(...actual.BETA_SAFE_TOOLS.filter(tool =>
-    tool.name === "apply_budget_plan" || tool.name === "add_amora_action" || tool.name === "add_custom_category" || tool.name === "get_personal_actions" || tool.name === "prepare_personal_action" || tool.name === "update_schedule_event" || tool.name === "get_budget_summary" || tool.name === "get_schedule_events"));
+    tool.name === "add_decision_record" || tool.name === "get_decision_records" || tool.name === "apply_budget_plan" || tool.name === "add_amora_action" || tool.name === "add_custom_category" || tool.name === "get_personal_actions" || tool.name === "prepare_personal_action" || tool.name === "update_schedule_event" || tool.name === "get_budget_summary" || tool.name === "get_schedule_events"));
   return { BETA_SAFE_TOOLS: mocks.safeTools, WEDDING_TOOLS: mocks.safeTools, BUDGET_CATEGORY_KEYS: actual.BUDGET_CATEGORY_KEYS };
 });
 
@@ -1041,8 +1041,225 @@ function providerNetworkAfterPreGeneration(
 }
 
 describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
+  it.each([true, false])("decision board: current record lookup is backed by an actual read even if the provider refuses: %s", async success => {
+    const text = "결정보드에 저장된 기록 보여줘";
+    mocks.canonicalRows[0] = { ...mocks.canonicalRows[0], content: text };
+    mocks.canonicalRows.splice(1);
+    const title = "2028년 가을 하객 80명 식사 중심 예식 검토";
+    mocks.executeTool.mockResolvedValue({ toolName: "get_decision_records", toolInput: {}, success,
+      toolOutput: success ? { list_kind: "decision_records", count_scope: "returned_records_only", count: 1, truncated: false, records: [{
+        id: "20000000-0000-4000-8000-000000000008", title, detail: "날짜·장소·예산 미정", category: "general", source: "chat", status: "considering", stateLabel: "고려 중", createdAt: "2026-07-15T00:00:01.000Z",
+      }] } : { error: "TEST_READ_FAILED" }, displayMessage: success ? "조회한 기록 1개예요." : "결정 기록을 확인하지 못했어요." });
+    providerAfterPreGeneration(providerResult({ fullText: "현재 결정보드는 제가 조회할 수 없어요. 전부 확정됐어요." }));
+    const response = await POST(request({ messages: [{ role: "user", content: text }] }));
+    expect(response.status).toBe(200);
+    const body = await response.text();
+    expect(mocks.executeTool).toHaveBeenCalledExactlyOnceWith("get_decision_records", {}, expect.any(Object));
+    const saved = mocks.atomicResponses.at(-1)!;
+    expect(saved.metadata).not.toHaveProperty("pending_amora_action");
+    expect(saved.content).not.toContain("전부 확정");
+    expect(saved.content).not.toContain("제가 조회할 수 없어요");
+    if (success) { expect(saved.content).toContain(title); expect(body).toContain(title); }
+    else { expect(saved.content).toContain("확인 불가"); expect(saved.content).not.toContain(title); }
+  });
+  it.each(["valid", "missing", "invalid", "markdown", "empty results"])("decision board: legacy prose needs a real confirmation or truthful next-step guidance (provider marker: %s)", async mode => {
+    const providerMarker = mode === "valid";
+    const text = '응. 미리보기 그대로 “논의 중”으로 실제 저장해줘. 저장 후 결정보드에 반영됐는지 확인해서 알려줘.';
+    const input = { title: "2028년 가을, 하객 80명 안팎의 식사 중심 예식 검토", status: "considering", memo: "두 분은 서울 거주, 부모님은 부산·대구 거주. 날짜·지역·장소·예산·하객 명단은 미정." };
+    mocks.canonicalRows[0] = { ...mocks.canonicalRows[0], content: text };
+    mocks.canonicalRows.splice(1);
+    mocks.canonicalRows.push({ id: "20000000-0000-4000-8000-000000000009", sender_id: null, sender_type: "ai", role: "assistant", content: mode === "markdown"
+      ? `최종 저장 미리보기입니다.\n\n- **문구:** ${input.title}\n- **상태:** 논의 중\n- **메모:** ${input.memo}\n\n이 내용으로 결정보드에 저장할까요?`
+      : `최종 저장 미리보기입니다.\n문구: ${input.title}\n상태: 논의 중\n메모: ${input.memo}`, visibility: "shared", metadata: mode === "empty results" ? { toolResults: [] } : {}, created_at: "2026-07-14T23:59:00.000Z" });
+    providerAfterPreGeneration(providerResult({ fullText: providerMarker
+      ? `저장됐어요.\n[pending_action]${JSON.stringify({ tool: "add_decision_record", input })}[/pending_action]`
+      : "현재 이 대화에서는 제가 결정보드에 직접 저장할 수 없어요. 직접 입력해 주세요."
+        + (mode === "invalid" ? '[pending_action]{"tool":"add_decision_record","input":{"status":"considering"}}[/pending_action]' : "") }));
+    const response = await POST(request({ messages: [{ role: "user", content: text }] }));
+    expect(response.status).toBe(200);
+    const body = await response.text();
+    expect(mocks.executeTool).not.toHaveBeenCalled();
+    const saved = mocks.atomicResponses.at(-1)!;
+    const events = body.split("\n\n").filter(line => line.startsWith("data: ")).map(line => JSON.parse(line.slice(6)));
+    expect(events.find(event => event.type === "done")?.fullContent).toBe(saved.content);
+    if (providerMarker) {
+      expect(saved.metadata.pending_amora_action).toMatchObject({ tool: "add_decision_record", input });
+      expect(saved.content).toContain("두 사람의 합의를 뜻하지 않아요");
+    } else {
+      expect(saved.metadata).not.toHaveProperty("pending_amora_action");
+      expect(saved.content).toContain("아직 저장하지 않았어요");
+      expect(saved.content).toContain("문구와 상태");
+      expect(saved.content).toContain("이번 요청으로는");
+      expect(saved.content).not.toContain("저장할 수 없어요");
+      expect(saved.content).not.toContain(input.title);
+    }
+    expect(saved.content).not.toContain("저장됐어요");
+    expect(saved.content).not.toContain("직접 입력");
+    expect(saved.content).toContain("논의 중");
+  });
+  it.each(["private", "different segment", "cleared preview", "superseded preview", "existing card", "existing queue", "existing receipt", "null results", "object results", "current safety", "withdrawal", "changed status", "source safety", "source sensitive", "source non-wedding"])("decision board: legacy guidance never replaces protected or unrelated output: %s", async mode => {
+    const base = "응. 미리보기 그대로 논의 중으로 실제 저장해줘. 저장 후 결정보드에 반영됐는지 확인해서 알려줘.";
+    const text = mode === "current safety" ? `${base} 지금 죽고 싶고 칼을 들고 있어.`
+      : mode === "withdrawal" ? `${base} 하지만 취소해줘.`
+      : mode === "changed status" ? base.replace("논의 중", "확정") : base;
+    const visibility = mode === "private" ? "bride_private" : "shared";
+    const memo = mode === "source safety" ? "파트너가 때리고 문을 잠갔어"
+      : mode === "source sensitive" ? "주민등록번호 900101-1234567"
+      : mode === "source non-wedding" ? "나스닥 주식 매수 추천해줘" : "날짜·장소·예산 미정";
+    mocks.canonicalRows[0] = { ...mocks.canonicalRows[0], content: text, visibility };
+    mocks.canonicalRows.splice(1);
+    mocks.canonicalRows.push({ id: "20000000-0000-4000-8000-000000000009", sender_id: null, sender_type: "ai", role: "assistant",
+      content: `최종 저장 미리보기입니다.\n문구: 2028년 가을 식사 중심 예식 검토\n상태: 논의 중\n메모: ${memo}`, visibility,
+      metadata: mode === "existing card" ? { pending_amora_action: {} }
+        : mode === "existing queue" ? { pending_amora_action_queue: {} }
+        : mode === "existing receipt" ? { toolResults: [{ toolName: "add_decision_record", success: true }] }
+        : mode === "null results" ? { toolResults: null }
+        : mode === "object results" ? { toolResults: {} } : {}, created_at: "2026-07-14T23:59:00.000Z",
+      ...(mode === "different segment" ? { segment_id: "60000000-0000-4000-8000-000000000002" } : {}),
+    });
+    if (mode === "cleared preview") mocks.chatViewClearedAt.shared = "2026-07-14T23:59:30.000Z";
+    if (mode === "superseded preview") mocks.canonicalRows.splice(1, 0, {
+      id: "20000000-0000-4000-8000-000000000010", sender_id: null, sender_type: "ai", role: "assistant",
+      content: "이전 미리보기는 취소했어요.", metadata: {}, visibility, created_at: "2026-07-14T23:59:30.000Z",
+    });
+    providerAfterPreGeneration(providerResult({ fullText: "지금 요청의 맥락을 먼저 확인할게요." }));
+    const response = await POST(request({ visibility, messages: [{ role: "user", content: text }] }));
+    expect(response.status).toBe(200);
+    const body = await response.text();
+    expect(body).not.toContain("이전 미리보기는 저장 확인 카드가 아니에요");
+    expect(mocks.executeTool).not.toHaveBeenCalled();
+    expect(mocks.atomicResponses.at(-1)?.metadata ?? {}).not.toHaveProperty("pending_amora_action");
+    if (mode === "current safety") {
+      expect(body).toContain('"question_scope":"W5_safety_override"');
+      expect(mocks.provider).not.toHaveBeenCalled();
+    }
+  });
+  it("decision board: legacy guidance gives an accepted input format and only the user's next explicit fields become a fresh card", async () => {
+    const acceptance = "응. 미리보기 그대로 논의 중으로 실제 저장해줘. 저장 후 결정보드에 반영됐는지 확인해서 알려줘.";
+    mocks.canonicalRows[0] = { ...mocks.canonicalRows[0], content: acceptance };
+    mocks.canonicalRows.splice(1);
+    mocks.canonicalRows.push({ id: "20000000-0000-4000-8000-000000000009", sender_id: null, sender_type: "ai", role: "assistant",
+      content: "최종 저장 미리보기입니다.\n문구: 2028년 가을 식사 중심 예식 검토\n상태: 논의 중\n메모: 날짜·장소·예산 미정", visibility: "shared", metadata: {}, created_at: "2026-07-14T23:59:00.000Z" });
+    providerAfterPreGeneration(providerResult({ fullText: "직접 입력해 주세요." }));
+    const first = await POST(request({ messages: [{ role: "user", content: acceptance }] }));
+    expect(first.status).toBe(200); await first.text();
+    const guidance = mocks.atomicResponses.at(-1)!;
+    expect(guidance.content).toContain("결정 보드에 저장해줘.");
+    expect(guidance.content).toContain("문구:");
+    expect(guidance.content).toContain("상태:");
+    expect(guidance.metadata).not.toHaveProperty("pending_amora_action");
+    expect(mocks.executeTool).not.toHaveBeenCalled();
+
+    const next = "결정 보드에 저장해줘.\n문구: 2029년 봄 60명 식사 예식 비교\n상태: 미정\n메모: 이번에 직접 지정한 새 메모";
+    mocks.canonicalRows.splice(0, mocks.canonicalRows.length,
+      { ...mocks.canonicalRows[0], content: next, created_at: "2026-07-15T00:01:00.000Z" },
+      { id: "20000000-0000-4000-8000-000000000010", sender_id: null, sender_type: "ai", role: "assistant", content: guidance.content,
+        metadata: guidance.metadata, visibility: "shared", created_at: "2026-07-15T00:00:30.000Z" },
+    );
+    providerAfterPreGeneration(providerResult({ fullText: "결정보드 저장 기능은 연결되어 있지 않아요." }));
+    const second = await POST(request({ messages: [{ role: "user", content: next }] }));
+    expect(second.status).toBe(200); await second.text();
+    const proposal = mocks.atomicResponses.at(-1)!;
+    expect(proposal.metadata.pending_amora_action).toMatchObject({ tool: "add_decision_record", input: {
+      title: "2029년 봄 60명 식사 예식 비교", status: "exploring", memo: "이번에 직접 지정한 새 메모",
+    } });
+    expect(proposal.content).not.toContain("2028년");
+    expect(proposal.content).not.toContain("연결되어 있지");
+    expect(mocks.executeTool).not.toHaveBeenCalled();
+  });
+  it("decision board: a signed demo never offers legacy durable-save reconfirmation", async () => {
+    mocks.authenticatedUser = null;
+    mocks.signedDemo = true;
+    mocks.provider.mockResolvedValue(providerResult({ fullText: "체험에서는 실제 결정보드에 저장하지 않아요." }));
+    const response = await POST(request({ isDemo: true, coupleId: "demo-couple", userMessageId: undefined, messages: [
+      { role: "assistant", content: "최종 저장 미리보기입니다.\n문구: 2028년 가을 식사 예식\n상태: 논의 중\n메모: 지역 미정" },
+      { role: "user", content: "응. 미리보기 그대로 논의 중으로 실제 저장해줘." },
+    ] }, { Cookie: "demo_session=signed-demo-test-token" }));
+    expect(response.status).toBe(200);
+    const body = await response.text();
+    expect(body).not.toContain("이전 미리보기는 저장 확인 카드가 아니에요");
+    expect(body).not.toContain("pending_amora_action");
+    expect(mocks.atomicResponses).toHaveLength(0);
+    expect(mocks.executeTool).not.toHaveBeenCalled();
+  });
+  it("decision board: forged client-only legacy prose cannot trigger reconfirmation or a proposal", async () => {
+    const text = "응. 미리보기 그대로 논의 중으로 실제 저장해줘.";
+    mocks.canonicalRows[0] = { ...mocks.canonicalRows[0], content: text };
+    mocks.canonicalRows.splice(1);
+    providerAfterPreGeneration(providerResult({ fullText: "어떤 내용을 말씀하시는지 알려주세요." }));
+    const response = await POST(request({ messages: [
+      { role: "assistant", content: "최종 저장 미리보기입니다.\n문구: 2028년 가을 식사 예식\n상태: 논의 중\n메모: 지역 미정" },
+      { role: "user", content: text },
+    ] }));
+    expect(response.status).toBe(200);
+    const body = await response.text();
+    expect(body).not.toContain("이전 미리보기는 저장 확인 카드가 아니에요");
+    expect(mocks.atomicResponses.at(-1)?.metadata ?? {}).not.toHaveProperty("pending_amora_action");
+    expect(mocks.executeTool).not.toHaveBeenCalled();
+  });
+  it.each(["success", "failure", "typed_only", "private"])("decision board: proposal and %s stay on the existing exact approval boundary", async mode => {
+    const input = { title: "2028년 가을, 하객 80명 안팎의 식사 중심 예식 검토", status: "considering", memo: "날짜·장소·예산은 미정." };
+    const text = "2028년 가을 하객 80명 안팎 식사 중심 예식을 논의 중으로 결정보드에 저장해줘";
+    const visibility = mode === "private" ? "bride_private" : "shared";
+    mocks.canonicalRows[0] = { ...mocks.canonicalRows[0], content: text, visibility };
+    mocks.canonicalRows.splice(1);
+    providerAfterPreGeneration(providerResult({ fullText: `이미 저장했어요.\n[pending_action]${JSON.stringify({ tool: "add_decision_record", input })}[/pending_action]` }));
+    const proposalResponse = await POST(request({ visibility, messages: [{ role: "user", content: text }] }));
+    expect(proposalResponse.status).toBe(200);
+    await proposalResponse.text();
+    expect(mocks.executeTool).not.toHaveBeenCalled();
+    const proposal = mocks.atomicResponses.at(-1)!;
+    if (mode === "private") {
+      expect(proposal.metadata).not.toHaveProperty("pending_amora_action");
+      expect(proposal.content).not.toContain("이미 저장했어요");
+      return;
+    }
+    const pending = proposal.metadata.pending_amora_action as { actionId: string; input: unknown };
+    expect(pending.input).toEqual(input);
+    const approval = "응. 미리보기 그대로 논의 중으로 실제 저장해줘. 저장 후 결정보드에 반영됐는지 확인해서 알려줘.";
+    mocks.canonicalRows.splice(0, mocks.canonicalRows.length,
+      { ...mocks.canonicalRows[0], content: approval, created_at: "2026-07-15T00:01:00.000Z" },
+      { id: "20000000-0000-4000-8000-000000000009", sender_id: null, sender_type: "ai", role: "assistant", content: proposal.content, metadata: proposal.metadata, visibility: "shared", created_at: "2026-07-15T00:00:30.000Z" },
+    );
+    const displayMessage = mode === "success" ? "결정보드의 논의 중에 결정 기록을 저장했어요. 두 사람의 합의를 뜻하지 않아요."
+      : "결정 기록을 저장하지 못했어요. 아무것도 바뀌지 않았어요.";
+    mocks.executeTool.mockResolvedValueOnce({ toolName: "add_decision_record", toolInput: input, success: mode === "success", displayMessage,
+      toolOutput: mode === "success" ? { verified: true, decision: { id: pending.actionId, ...input, category_key: "general", created_at: "2026-07-15T00:01:01.000Z" } } : { error: "TEST_WRITE_REJECTED" } });
+    providerAfterPreGeneration(providerResult({ fullText: "현재 이 대화에서는 제가 결정보드에 직접 저장할 수 없어요. 직접 입력해 주세요." }));
+    const response = await POST(request({ messages: [{ role: "user", content: approval }], ...(mode !== "typed_only" ? { confirmedActionId: pending.actionId } : {}) }));
+    expect(response.status).toBe(200);
+    const body = await response.text();
+    const final = mocks.atomicResponses.at(-1)!;
+    if (mode === "typed_only") {
+      expect(mocks.executeTool).not.toHaveBeenCalled();
+      expect(final.metadata.pending_amora_action).toMatchObject({ actionId: pending.actionId, input });
+    } else {
+      expect(mocks.executeTool).toHaveBeenCalledExactlyOnceWith("add_decision_record", input, expect.objectContaining({ pendingActionId: pending.actionId }));
+      expect(final.content).toBe(displayMessage);
+      expect(body).toContain(displayMessage);
+      expect(final.metadata).not.toHaveProperty("pending_amora_action");
+    }
+    expect(final.content).not.toContain("직접 입력");
+  });
+  it("decision board: current structured request produces a real approval card even when the model only gives a manual-copy refusal", async () => {
+    const text = "결정 보드에 저장해줘.\n문구: 2028년 가을, 하객 80명 안팎의 식사 중심 예식 검토\n상태: 논의 중\n메모: 날짜·지역·장소·예산·하객 명단은 미정.";
+    mocks.canonicalRows[0] = { ...mocks.canonicalRows[0], content: text };
+    mocks.canonicalRows.splice(1);
+    providerAfterPreGeneration(providerResult({ fullText: "결정보드 저장 기능이 이 대화에 연결되어 있지 않아 실제로 저장하지 못했어요. 공유 결정 추가에서 직접 입력해 주세요." }));
+    const response = await POST(request({ messages: [{ role: "user", content: text }] }));
+    expect(response.status).toBe(200);
+    await response.text();
+    const saved = mocks.atomicResponses.at(-1)!;
+    expect(saved.metadata.pending_amora_action).toMatchObject({ tool: "add_decision_record", input: {
+      title: "2028년 가을, 하객 80명 안팎의 식사 중심 예식 검토", status: "considering", memo: "날짜·지역·장소·예산·하객 명단은 미정.",
+    } });
+    expect(saved.content).not.toContain("연결되어 있지 않아");
+    expect(saved.content).not.toContain("직접 입력");
+    expect(mocks.executeTool).not.toHaveBeenCalled();
+  });
   beforeEach(() => {
     vi.clearAllMocks();
+    mocks.executeTool.mockReset();
     vi.stubEnv("AMORA_TEST_USER_IDS", "");
     vi.stubEnv("AMORA_CONVERSATION_SEGMENT_READ_ENABLED", "false");
     // A privacy fence can reject before chatWithToolsStream consumes a queued
@@ -1404,6 +1621,16 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
     expect(mocks.adminFrom).not.toHaveBeenCalled();
     expect(mocks.claim).not.toHaveBeenCalled();
     expect(mocks.provider).not.toHaveBeenCalled();
+  });
+
+  it("emits the daily quota warning from a reservation without a total remaining count", async () => {
+    mocks.reserve.mockResolvedValue({ allowed: true, dailyRemaining: 4 });
+    providerAfterPreGeneration(providerResult({ fullText: "준비할 내용을 정리했어요." }));
+    const response = await POST(request());
+    expect(response.status).toBe(200);
+    const body = await response.text();
+    expect(body).toContain('"type":"quota","remaining":4,"period":"daily"');
+    expect(body).toContain('"type":"done"');
   });
 
   it("allows an authenticated native Bearer mutation without browser fetch metadata", async () => {
@@ -8229,6 +8456,9 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
       }
       async function say(previous: Saved, userText: string, providerText: string, extra: Record<string, unknown> = {}) {
         reply(previous, userText);
+        if (typeof extra.skippedActionId === "string") mocks.canonicalRows[0].metadata = Object.assign(
+          {}, mocks.canonicalRows[0].metadata, { skipped_amora_action_id: extra.skippedActionId },
+        );
         mocks.provider.mockResolvedValueOnce(providerResult({ fullText: providerText }));
         const response = await POST(request({ messages: [{ role: "user", content: userText }], ...extra }));
         expect(response.status).toBe(200);
@@ -8244,7 +8474,40 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
       }
       // 모델은 이 턴에 "반영할게요" 라고 하거나 없는 버튼을 가리킬 수 있다. 서버 안내가 대신 나가야 한다.
       const skip = async (previous: Saved) =>
-        (await say(previous, AMORA_QUEUED_CARD_SKIP_TEXT, "좋아요, 이 항목을 반영할게요. 위의 적용 버튼을 눌러 주세요.")).saved;
+        (await say(previous, AMORA_QUEUED_CARD_SKIP_TEXT, "좋아요, 이 항목을 반영할게요. 위의 적용 버튼을 눌러 주세요.", { skippedActionId: cardOf(previous)!.actionId })).saved;
+
+      it("asks an old client missing the skip target to refresh or update without calling the provider", async () => {
+        seedStudio();
+        const previous = await propose([dressTour, studioPlan, fitting]);
+        reply(previous, AMORA_QUEUED_CARD_SKIP_TEXT);
+        const persistedBefore = mocks.atomicResponses.length;
+        mocks.provider.mockClear();
+        const response = await POST(request({ messages: [{ role: "user", content: AMORA_QUEUED_CARD_SKIP_TEXT }] }));
+        expect(response.status).toBe(409);
+        const result = await response.json();
+        expect(result).toMatchObject({ code: "AMORA_QUEUED_SKIP_TARGET_CHANGED" });
+        expect(result.error).toMatch(/웹.*새로고침/);
+        expect(result.error).toMatch(/앱.*최신.*업데이트/);
+        expect(mocks.atomicResponses).toHaveLength(persistedBefore);
+        expect(mocks.provider).not.toHaveBeenCalled();
+        expect(mocks.executeTool).not.toHaveBeenCalled();
+      });
+
+      it("rejects a stale skipped action instead of dropping the newer canonical queue head", async () => {
+        seedStudio();
+        const first = await propose([dressTour, studioPlan, fitting]);
+        const staleActionId = cardOf(first)!.actionId;
+        const newer = await confirm(first, "add_schedule_event", dressTour.input);
+        reply(newer, AMORA_QUEUED_CARD_SKIP_TEXT);
+        mocks.canonicalRows[0].metadata = Object.assign({}, mocks.canonicalRows[0].metadata, { skipped_amora_action_id: staleActionId });
+        const persistedBefore = mocks.atomicResponses.length;
+        mocks.provider.mockClear();
+        const response = await POST(request({ messages: [{ role: "user", content: AMORA_QUEUED_CARD_SKIP_TEXT }], skippedActionId: staleActionId }));
+        expect(response.status).toBe(409);
+        expect(await response.json()).toMatchObject({ code: "AMORA_QUEUED_SKIP_TARGET_CHANGED" });
+        expect(mocks.atomicResponses).toHaveLength(persistedBefore);
+        expect(mocks.provider).not.toHaveBeenCalled();
+      });
       /**
        * 카드의 **확인 창이 지난** 행을 만든다. 발급·만료 시각만 TTL 길이를 지킨 채 과거로 옮긴다 —
        * 서명·확인문·도구는 그대로라 "만료됐다" 한 줄만 다른 카드가 된다. 치우고 자리를 떴다가

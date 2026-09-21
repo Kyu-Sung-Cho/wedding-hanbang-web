@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
-import { planChangeMessage } from "@/lib/journey/planChangeError";
+import { useState, useEffect, useMemo, useRef } from "react";
+import { PlanChangeError, planChangeMessage } from "@/lib/journey/planChangeError";
 import { X, Ban, CalendarDays } from "lucide-react";
 import type {
   ScheduleEvent,
@@ -106,10 +106,13 @@ export default function EventFormModal({
   const [cancelling, setCancelling] = useState(false);
   const [confirmingCancel, setConfirmingCancel] = useState(false);
   const [error, setError] = useState("");
+  const [outcomeUnknown, setOutcomeUnknown] = useState(false);
+  const busy = useRef(false);
 
   useEffect(() => {
     if (!isOpen) return;
     setError("");
+    setOutcomeUnknown(false);
     setConfirmingCancel(false);
     if (mode === "edit" && event) {
       setTitle(event.title);
@@ -214,7 +217,7 @@ export default function EventFormModal({
   };
 
   const handleSubmit = async () => {
-    if (!title.trim() || !date) return;
+    if (busy.current || !title.trim() || !date) return;
     setError("");
     let assignee: ScheduleEventAssignee | undefined;
     try {
@@ -228,6 +231,7 @@ export default function EventFormModal({
       return;
     }
     setSaving(true);
+    busy.current = true;
     try {
       await onSave({
         date,
@@ -240,14 +244,17 @@ export default function EventFormModal({
         assignee,
       });
     } catch (saveError) {
+      setOutcomeUnknown(saveError instanceof PlanChangeError && saveError.code === "PLAN_CHANGE_OUTCOME_UNKNOWN");
       setError(getSaveErrorMessage(saveError, "save"));
     } finally {
+      busy.current = false;
       setSaving(false);
     }
   };
 
   const handleCancel = async () => {
-    if (!onCancel) return;
+    if (!onCancel || busy.current || outcomeUnknown) return;
+    busy.current = true;
     setCancelling(true);
     setError("");
     try {
@@ -255,6 +262,7 @@ export default function EventFormModal({
     } catch (cancelError) {
       setError(getSaveErrorMessage(cancelError, "cancel"));
     } finally {
+      busy.current = false;
       setCancelling(false);
     }
   };
@@ -334,7 +342,7 @@ export default function EventFormModal({
         </div>
 
         {/* 폼 */}
-        <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto overscroll-contain px-[18px] py-5 sm:px-6">
+        <fieldset disabled={saving || cancelling || outcomeUnknown} className="flex min-h-0 min-w-0 flex-1 flex-col gap-4 overflow-y-auto overscroll-contain px-[18px] py-5 sm:px-6">
           {/* 제목 */}
           <div>
             <label
@@ -543,7 +551,7 @@ export default function EventFormModal({
               {error}
             </p>
           )}
-        </div>
+        </fieldset>
 
         {/* 하단 버튼 */}
         <div className="flex shrink-0 flex-wrap items-center justify-between gap-x-3 gap-y-2 border-t border-[var(--amora-line)] bg-[var(--amora-bg)] px-[18px] py-3 sm:px-6 sm:py-4">
@@ -574,7 +582,7 @@ export default function EventFormModal({
               <button
                 onClick={() => setConfirmingCancel(true)}
                 type="button"
-                disabled={cancelling || saving}
+                disabled={cancelling || saving || outcomeUnknown}
                 className="flex min-h-11 items-center gap-1.5 rounded-[10px] px-2 text-[13px] font-semibold text-[var(--amora-rose-deep)] transition-colors hover:bg-[var(--amora-warm)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--amora-accent)] disabled:opacity-50"
               >
                 <Ban className="h-4 w-4" />
@@ -601,6 +609,7 @@ export default function EventFormModal({
             >
               {saving
                 ? "저장 중..."
+                : outcomeUnknown ? "저장 결과 다시 확인"
                 : mode === "edit"
                 ? "수정"
                 : "추가"}

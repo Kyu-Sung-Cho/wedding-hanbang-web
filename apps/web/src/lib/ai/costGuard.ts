@@ -246,6 +246,8 @@ export interface CostGuardResult {
   message?: string;
   /** 커플 무료 상담 잔여 횟수 — 예약 성공 시에만 채워짐(소진 예고 UX용). 실패해도 undefined일 뿐 차단과 무관. */
   remaining?: number;
+  /** 오늘 상담 잔여 추정치. 동시 요청을 포함한 정확한 예약 카운터가 아닌 안내용이다. */
+  dailyRemaining?: number;
 }
 
 export class AmoraCostGuardError extends Error {
@@ -369,8 +371,8 @@ export async function reserveAmoraTurn(
   // 세는 데 실패하면 **통과시킨다.** 이 한도는 공정성이지 지갑이 아니고,
   // 지갑은 아래 RPC 의 전역 비용 상한이 원자적으로 지킨다. 장부 조회 실패로
   // 정상 사용자를 막는 쪽이 더 나쁘다.
-  const dailyDenial = await denyIfCoupleUsedTodayUp(admin, params);
-  if (dailyDenial) return dailyDenial;
+  const dailyBudget = await checkCoupleDailyBudget(admin, params);
+  if (dailyBudget && !dailyBudget.allowed) return dailyBudget;
 
   try {
     // 체험은 실사용자보다 낮은 천장을 본다 — 같은 카운터를 쓰되 먼저 멈춘다.
@@ -398,6 +400,7 @@ export async function reserveAmoraTurn(
         remaining: appliesCoupleQuota
           ? await readCoupleRemaining(admin, params.coupleId)
           : undefined,
+        dailyRemaining: dailyBudget?.dailyRemaining,
       };
     }
     if (row?.reason === "global_daily") return DENY_GLOBAL;
@@ -449,7 +452,7 @@ async function countCoupleTurnsToday(
 }
 
 /**
- * 오늘 몫을 다 썼으면 거부 결과를, 아니면 null 을 준다.
+ * 오늘 몫을 다 썼으면 거부하고, 남아 있으면 이번 턴 이후의 안내용 추정치를 준다.
  *
  * **두 예약 경로가 같은 규칙을 쓰게 하려고 뽑았다.** 처음에는
  * `reserveAmoraTurn` 에만 넣었는데 **채팅은 그 함수를 부르지 않는다** —
@@ -461,7 +464,7 @@ async function countCoupleTurnsToday(
  * 턴당 여러 번 돈다. 세는 대상이 `chat_turn` 이라 결과는 같으므로 무해하다.
  * 경계에서 진행 중인 턴이 잘릴 수 있으나, 그때 사용자는 이유가 적힌 문구를 본다.
  */
-async function denyIfCoupleUsedTodayUp(
+async function checkCoupleDailyBudget(
   admin: SupabaseClient,
   params: CostGuardParams,
 ): Promise<CostGuardResult | null> {
@@ -474,7 +477,9 @@ async function denyIfCoupleUsedTodayUp(
   if (!applies) return null;
   const usedToday = await countCoupleTurnsToday(admin, params.coupleId);
   if (usedToday === null) return null;
-  return usedToday >= COUPLE_DAILY_CAP ? DENY_COUPLE_DAILY : null;
+  return usedToday >= COUPLE_DAILY_CAP
+    ? DENY_COUPLE_DAILY
+    : { allowed: true, dailyRemaining: Math.max(0, COUPLE_DAILY_CAP - usedToday - 1) };
 }
 
 // 예약 성공 직후 커플 잔여 무료 턴 수 조회 (PK 단건 — 카운터에 이번 예약이 이미 반영됨)
@@ -502,8 +507,8 @@ export async function reserveAmoraProviderCall(
   }
 
   // **채팅이 실제로 타는 경로다.** 같은 하루 상한을 여기에도 건다.
-  const dailyDenial = await denyIfCoupleUsedTodayUp(admin, params);
-  if (dailyDenial) return dailyDenial;
+  const dailyBudget = await checkCoupleDailyBudget(admin, params);
+  if (dailyBudget && !dailyBudget.allowed) return dailyBudget;
 
   const enforceCaps = GUARD_ENABLED && params.isQuotaExempt !== true;
   const appliesCoupleQuota =
@@ -546,6 +551,7 @@ export async function reserveAmoraProviderCall(
         remaining: appliesCoupleQuota && typeof row.remaining === "number"
           ? Math.max(0, row.remaining)
           : undefined,
+        dailyRemaining: dailyBudget?.dailyRemaining,
       };
     }
     if (row?.reason === "global_daily") return DENY_GLOBAL;

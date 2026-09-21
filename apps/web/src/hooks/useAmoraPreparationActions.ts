@@ -1,11 +1,17 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { z } from "zod";
 import { getAmoraActions, type AmoraActionItem, type AmoraActionStatus } from "@/lib/amora/actions";
 import { useAuthStore } from "@/stores/authStore";
 import { DEMO_PREPARATION_ACTIONS } from "@/lib/amora/preparationBoard";
 import { cleanOptionalText } from "@/utils/requestValidation";
+import { boundedRequest, RequestDeadlineError } from "@/lib/journey/boundedRequest";
+import { claimPreparationCreate, clearPreparationCreate, finishPreparationCreate, getPreparationCreate,
+  preparationCreateRevision, preparationCreateScope, preparationOwnerEpoch, subscribePreparationCreates } from "@/lib/amora/pendingPreparationCreate";
+import { beginPreparationUpdate, clearPreparationUpdate, getPreparationUpdate, listPreparationUpdates,
+  markPreparationUpdateUnknown, preparationUpdateRevision, preparationWriteSequence, settlePreparationUpdate,
+  subscribePreparationUpdates } from "@/lib/amora/pendingPreparationUpdate";
 
 const actionSchema = z.object({
   id: z.string().min(1), title: z.string().min(1), description: z.string().nullish().transform(value => value ?? undefined),
@@ -27,8 +33,10 @@ type LoadState = Snapshot & { scope: string; loading: boolean; loadingMore: bool
 const EMPTY: Snapshot = { actions: [], count: 0, open_count: 0, truncated: false, nextCursor: null };
 const NO_UPDATES: ReadonlySet<string> = new Set<string>();
 const READ_ERROR = "준비 상황을 불러오지 못했어요. 다시 시도해 주세요.";
+const UPDATE_UNKNOWN = "변경을 저장하지 못했거나 결과를 확인할 수 없어요. 앞선 처리가 끝난 뒤 새로고침으로 확인하고 다시 선택해 주세요. 확인 전에는 추가 변경하지 않아요.";
 const SYNC_INTERVAL_MS = 30_000;
 const SYNC_TIMEOUT_MS = 10_000;
+const MUTATION_TIMEOUT_MS = 30_000;
 
 const CREATE_ID = "[new]";
 
@@ -38,12 +46,15 @@ function matchesPlanFields(action: AmoraActionItem, fields: { description?: stri
 }
 
 function scopeFor(state: Pick<ReturnType<typeof useAuthStore.getState>, "user" | "profile" | "isDemo" | "isInitialized">) {
-  if (!state.isInitialized || !state.profile || !state.user || state.profile.id !== state.user.id) return "";
-  return JSON.stringify([state.user.id, state.profile.couple_id, state.isDemo]);
+  return preparationCreateScope(state);
 }
 
 export function useAmoraPreparationActions() {
   const scope = useAuthStore(scopeFor);
+  useSyncExternalStore(subscribePreparationCreates, preparationCreateRevision, preparationCreateRevision);
+  useSyncExternalStore(subscribePreparationUpdates, preparationUpdateRevision, preparationUpdateRevision);
+  const commandEpoch = preparationOwnerEpoch();
+  const retainedCreate = getPreparationCreate(scope);
   const isDemo = useAuthStore((state) => state.isDemo);
   const initialized = useAuthStore((state) => state.isInitialized);
   const awaitingProfile = useAuthStore((state) => !!state.user && (!state.profile || state.profile.id !== state.user.id));
@@ -64,13 +75,13 @@ export function useAmoraPreparationActions() {
   const pageInFlight = useRef(false);
   const loadedPages = useRef(1);
   const pendingUpdates = useRef(new Set<string>());
-  const createAttempt = useRef<{ scope: string; generation: number; fieldsKey: string; body: string; requestId: string } | null>(null);
-  const [createLockedScope, setCreateLockedScope] = useState("");
   const [mutation, setMutation] = useState<{ scope: string; ids: ReadonlySet<string>; error: string | null }>({ scope: "", ids: NO_UPDATES, error: null });
 
   const readPage = useCallback(async (cursor: string | null, completedCreateKey?: string, background = false) => {
     const ownCreateRefresh = completedCreateKey !== undefined && pendingUpdates.current.size === 1 && pendingUpdates.current.has(completedCreateKey);
     if (!scope || isDemo || (pendingUpdates.current.size > 0 && !ownCreateRefresh) || ((cursor || background) && pageInFlight.current)) return;
+    const readWriteSequence = preparationWriteSequence();
+    const reviewable = listPreparationUpdates(scope).filter(attempt => !attempt.rawPending && attempt.needsReview);
     const requestId = ++sequence.current;
     pageInFlight.current = true;
     controller.current?.abort();
@@ -79,10 +90,9 @@ export function useAmoraPreparationActions() {
     if (background) backgroundController.current = nextController;
     const owns = () => requestId === sequence.current && scopeFor(useAuthStore.getState()) === scope;
     const current = () => owns() && !nextController.signal.aborted;
-    let timedOut = false;
-    const timeout = background ? setTimeout(() => { timedOut = true; nextController.abort(); }, SYNC_TIMEOUT_MS) : undefined;
     if (!background) setState((previous) => ({ ...(previous.scope === scope ? previous : EMPTY), scope, loading: !cursor, loadingMore: !!cursor, error: null }));
     try {
+      await boundedRequest(async () => {
       // 자동 조회도 펼쳐 본 페이지 수까지만 읽고, 전부 성공한 뒤 한 번에 교체한다.
       const pageLimit = background ? loadedPages.current : 1;
       const seenCursors = new Set(cursor ? [cursor] : []);
@@ -96,6 +106,7 @@ export function useAmoraPreparationActions() {
         if (!response.ok) throw new Error(READ_ERROR);
         const payload = snapshotSchema.parse(await response.json());
         if (!current()) return;
+        if (readWriteSequence !== preparationWriteSequence()) throw new Error("read_before_write");
         if (payload.next_cursor && seenCursors.has(payload.next_cursor)) throw new Error("cursor_did_not_advance");
         if (payload.next_cursor && payload.actions.length === 0) throw new Error("empty_cursor_page");
         if (payload.next_cursor) seenCursors.add(payload.next_cursor);
@@ -111,12 +122,19 @@ export function useAmoraPreparationActions() {
             nextCursor, truncated: !!nextCursor || payload.count > actions.length,
             scope, loading: false, loadingMore: false, error: null };
         });
+        for (const attempt of reviewable) {
+          const completeList = cursor === null && !nextCursor && payload.count === refreshedActions.length;
+          if (completeList || refreshedActions.some(action => action.id === attempt.id)) clearPreparationUpdate(attempt);
+        }
+        if (reviewable.length > 0 && listPreparationUpdates(scope).length === 0) {
+          setMutation(previous => previous.scope === scope ? { ...previous, error: null } : previous);
+        }
         break;
       }
-    } catch {
-      if (owns() && (timedOut || !nextController.signal.aborted)) setState((previous) => ({ ...previous, loading: false, loadingMore: false, error: READ_ERROR }));
+      }, SYNC_TIMEOUT_MS, nextController);
+    } catch (error) {
+      if (owns() && (error instanceof RequestDeadlineError || !nextController.signal.aborted)) setState((previous) => ({ ...previous, loading: false, loadingMore: false, error: READ_ERROR }));
     } finally {
-      clearTimeout(timeout);
       if (backgroundController.current === nextController) backgroundController.current = null;
       if (owns()) pageInFlight.current = false;
     }
@@ -136,9 +154,7 @@ export function useAmoraPreparationActions() {
       pageInFlight.current = false;
       loadedPages.current = 1;
       pending.clear();
-      createAttempt.current = null;
       setState({ ...EMPTY, scope: "", loading: false, loadingMore: false, error: null });
-      setCreateLockedScope("");
       setMutation({ scope: "", ids: NO_UPDATES, error: null });
       setDemoChanges({ scope: "", changes: {} });
     };
@@ -199,9 +215,9 @@ export function useAmoraPreparationActions() {
 
   const update = useCallback(async (id: string, updates: AmoraPreparationActionUpdate): Promise<boolean> => {
     const generation = lifecycle.current;
-    const current = () => generation === lifecycle.current && scope !== "" && scopeFor(useAuthStore.getState()) === scope;
+    const current = () => commandEpoch === preparationOwnerEpoch() && generation === lifecycle.current && scope !== "" && scopeFor(useAuthStore.getState()) === scope;
     const pendingKey = JSON.stringify([scope, generation, id]);
-    if (!current() || pendingUpdates.current.has(JSON.stringify([scope, generation, CREATE_ID]))) return false;
+    if (!current() || getPreparationCreate(scope)?.inFlight || pendingUpdates.current.has(JSON.stringify([scope, generation, CREATE_ID]))) return false;
     if (isDemo) {
       if (!demoActions.some((action) => action.id === id)) return false;
       setDemoChanges((previous) => {
@@ -217,6 +233,14 @@ export function useAmoraPreparationActions() {
       return true;
     }
     if (pendingUpdates.current.has(pendingKey) || state.scope !== scope || !state.actions.some((action) => action.id === id)) return false;
+    const retained = getPreparationUpdate(scope, id);
+    if (retained) {
+      setMutation(previous => ({ ...previous, scope, error: UPDATE_UNKNOWN }));
+      if (!retained.rawPending) await readPage(null);
+      return false;
+    }
+    const attempt = beginPreparationUpdate(scope, id);
+    if (!attempt) return false;
     pendingUpdates.current.add(pendingKey);
     setMutation((previous) => ({ scope, ids: new Set([...(previous.scope === scope ? previous.ids : []), id]), error: null }));
     // 변경 전에 시작한 조회가 저장된 카드를 이전 상태로 되돌리지 않게 한다.
@@ -224,16 +248,21 @@ export function useAmoraPreparationActions() {
     controller.current?.abort();
     pageInFlight.current = false;
     try {
-      const response = await fetch(`/api/amora/actions/${encodeURIComponent(id)}`, {
-        method: "PATCH", credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: JSON.stringify(updates),
-      });
-      if (!response.ok) throw new Error("update_failed");
-      const payload = z.object({ action: actionSchema }).parse(await response.json());
+      const payload = await boundedRequest(async signal => {
+        try {
+        const response = await fetch(`/api/amora/actions/${encodeURIComponent(id)}`, {
+          method: "PATCH", credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: JSON.stringify(updates), signal,
+        });
+        if (!response.ok) throw new Error("update_failed");
+        return z.object({ action: actionSchema }).parse(await response.json());
+        } finally { settlePreparationUpdate(attempt); }
+      }, MUTATION_TIMEOUT_MS);
       if (payload.action.id !== id) throw new Error("unexpected_action");
       if ((updates.status !== undefined && payload.action.status !== updates.status)
         || (updates.category_key !== undefined && (payload.action.categoryKey ?? "") !== updates.category_key)
         || (updates.title !== undefined && payload.action.title !== cleanOptionalText(updates.title, 120))
         || !matchesPlanFields(payload.action, updates)) throw new Error("unexpected_update");
+      clearPreparationUpdate(attempt);
       if (!current()) return false;
       setState((previous) => previous.scope === scope ? {
         ...previous, loading: false, loadingMore: false,
@@ -243,8 +272,9 @@ export function useAmoraPreparationActions() {
       } : previous);
       return current();
     } catch {
+      markPreparationUpdateUnknown(attempt);
       if (current()) {
-        setMutation((previous) => ({ ...previous, scope, error: "변경을 저장하지 못했거나 결과를 확인할 수 없어요. 새로고침으로 확인한 뒤 다시 시도해 주세요." }));
+        setMutation((previous) => ({ ...previous, scope, error: UPDATE_UNKNOWN }));
         setState((previous) => previous.scope === scope ? { ...previous, loading: false, loadingMore: false } : previous);
       }
       return false;
@@ -252,45 +282,45 @@ export function useAmoraPreparationActions() {
       pendingUpdates.current.delete(pendingKey);
       if (current()) setMutation((previous) => ({ ...previous, ids: new Set([...previous.ids].filter((value) => value !== id)) }));
     }
-  }, [scope, isDemo, demoActions, state.scope, state.actions]);
+  }, [scope, commandEpoch, isDemo, demoActions, state.scope, state.actions, readPage]);
 
   const cancelCreate = useCallback(() => {
-    if (!scope || scopeFor(useAuthStore.getState()) !== scope || pendingUpdates.current.size > 0) return false;
-    createAttempt.current = null;
-    setCreateLockedScope("");
+    if (commandEpoch !== preparationOwnerEpoch() || !scope || scopeFor(useAuthStore.getState()) !== scope || pendingUpdates.current.size > 0 || getPreparationCreate(scope)?.inFlight) return false;
+    clearPreparationCreate(scope);
     setMutation(previous => ({ ...previous, error: null }));
     return true;
-  }, [scope]);
+  }, [scope, commandEpoch]);
 
   const create = useCallback(async (fields: AmoraPreparationActionCreate): Promise<boolean> => {
     const generation = lifecycle.current;
     const owner = useAuthStore.getState();
-    const current = () => generation === lifecycle.current && scope !== "" && scopeFor(useAuthStore.getState()) === scope;
+    const current = () => commandEpoch === preparationOwnerEpoch() && generation === lifecycle.current && scope !== "" && scopeFor(useAuthStore.getState()) === scope;
     const pendingKey = JSON.stringify([scope, generation, CREATE_ID]);
     if (isDemo || !current() || !owner.profile?.couple_id || pendingUpdates.current.size > 0
       || !cleanOptionalText(fields.title, 120) || fields.title.trim().length > 120
       || (fields.description?.length ?? 0) > 500 || (fields.due_date?.length ?? 0) > 40) return false;
     const fieldsKey = JSON.stringify({ title: fields.title, category_key: fields.category_key, description: fields.description, due_date: fields.due_date });
-    const prior = createAttempt.current;
-    if (prior && (prior.scope !== scope || prior.generation !== generation || prior.fieldsKey !== fieldsKey)) return false;
+    const prior = getPreparationCreate(scope);
+    if (prior && (prior.inFlight || prior.fieldsKey !== fieldsKey)) return false;
     const requestId = prior?.requestId ?? crypto.randomUUID();
-    const attempt = prior ?? { scope, generation, fieldsKey, requestId,
+    const attempt = prior ?? { scope, fieldsKey, requestId, fields: { ...fields }, inFlight: false,
       body: JSON.stringify({ ...JSON.parse(fieldsKey), status: "open", priority: "medium", source: "manual", requestId,
         expectedOwnerId: owner.user!.id, expectedCoupleId: owner.profile.couple_id }) };
-    createAttempt.current = attempt;
-    setCreateLockedScope(scope);
+    if (!claimPreparationCreate(attempt)) return false;
     pendingUpdates.current.add(pendingKey);
     controller.current?.abort(); sequence.current += 1; pageInFlight.current = false;
     setState(previous => ({ ...previous, loading: false, loadingMore: false }));
     setMutation({ scope, ids: new Set([CREATE_ID]), error: null });
     let saved = false;
     try {
-      const response = await fetch("/api/amora/actions", {
-        method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" },
-        body: attempt.body,
-      });
-      if (!response.ok) throw new Error("create_failed");
-      const receipt = z.object({ action: actionSchema, requestId: z.string(), replayed: z.boolean() }).parse(await response.json());
+      const receipt = await boundedRequest(async signal => {
+        const response = await fetch("/api/amora/actions", {
+          method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" },
+          body: attempt.body, signal,
+        });
+        if (!response.ok) throw new Error("create_failed");
+        return z.object({ action: actionSchema, requestId: z.string(), replayed: z.boolean() }).parse(await response.json());
+      }, MUTATION_TIMEOUT_MS);
       const { action } = receipt;
       if (receipt.requestId !== requestId || action.title !== cleanOptionalText(fields.title, 120) || action.source !== "manual"
         || action.status !== "open" || action.priority !== "medium"
@@ -298,23 +328,40 @@ export function useAmoraPreparationActions() {
         || action.href !== undefined
         || !matchesPlanFields(action, { description: fields.description ?? "", due_date: fields.due_date ?? "" })) throw new Error("create_receipt_mismatch");
       if (!current()) return false;
-      createAttempt.current = null;
-      setCreateLockedScope("");
+      clearPreparationCreate(scope, attempt);
       saved = true;
+      // 저장 영수증은 최종 목록 조회와 별개인 정본이다. 조회 실패에도 저장된 카드를 보존한다.
+      setState(previous => {
+        const snapshot = previous.scope === scope ? previous : { ...EMPTY, scope };
+        const existing = snapshot.actions.find(item => item.id === action.id);
+        const actions = [action, ...snapshot.actions.filter(item => item.id !== action.id)];
+        // replay는 중간 조회의 전체 건수에 이미 들어 있을 수 있다. 보이는 카드 수만 하한으로 보정한다.
+        const added = Number(!existing && !receipt.replayed);
+        return { ...snapshot, loading: false, loadingMore: false, error: null,
+          actions,
+          count: Math.max(actions.length, snapshot.count + added),
+          open_count: Math.max(actions.filter(item => item.status === "open").length,
+            snapshot.open_count + added + Number(!!existing && existing.status !== "open")),
+        };
+      });
       // 생성부터 최종 조회까지 카드 수정을 막아 조회가 다른 PATCH에 밀려 빠지지 않게 한다.
       await readPage(null, pendingKey);
     } catch {
       if (current()) setMutation(previous => ({ ...previous, scope, error: "저장 결과를 확인하지 못했어요. 같은 요청을 다시 확인하거나 목록을 확인해 주세요. 이미 저장됐을 수 있어요." }));
     } finally {
+      finishPreparationCreate(attempt);
       pendingUpdates.current.delete(pendingKey);
       if (current()) setMutation(previous => ({ ...previous, ids: new Set([...previous.ids].filter(id => id !== CREATE_ID)) }));
     }
     return saved && current();
-  }, [scope, isDemo, readPage]);
+  }, [scope, commandEpoch, isDemo, readPage]);
 
   const snapshot = isDemo && scope
     ? { actions: demoActions, count: demoActions.length, open_count: demoActions.filter((action) => action.status === "open").length, truncated: false, nextCursor: null }
     : state.scope === scope ? state : EMPTY;
+  const unresolvedUpdates = listPreparationUpdates(scope);
+  const mutationError = mutation.scope === scope
+    && (mutation.error !== UPDATE_UNKNOWN || unresolvedUpdates.length > 0) ? mutation.error : null;
   return {
     ...snapshot,
     loading: !initialized || awaitingProfile || (!!scope && !isDemo && (state.scope !== scope || state.loading)),
@@ -322,11 +369,12 @@ export function useAmoraPreparationActions() {
     refresh,
     loadMore,
     loadingMore: state.scope === scope && !isDemo && state.loadingMore,
-    update, create, cancelCreate, createLocked: !!scope && createLockedScope === scope, ownerScope: scope,
+    update, create, cancelCreate, createLocked: !!retainedCreate, pendingCreateFields: retainedCreate?.fields ?? null, ownerScope: JSON.stringify([scope, commandEpoch]),
     canCreate: !!scope && !isDemo && !!useAuthStore.getState().profile?.couple_id,
-    creating: mutation.scope === scope && mutation.ids.has(CREATE_ID),
+    creating: retainedCreate?.inFlight === true || (mutation.scope === scope && mutation.ids.has(CREATE_ID)),
     updatingIds: mutation.scope === scope ? mutation.ids : NO_UPDATES,
-    updateError: mutation.scope === scope ? mutation.error : null,
+    updateError: mutationError ?? (unresolvedUpdates.some(attempt => attempt.needsReview) ? UPDATE_UNKNOWN : null) ?? (retainedCreate && !retainedCreate.inFlight
+      ? "저장 결과를 확인하지 못했어요. 같은 요청을 다시 확인하거나 목록을 확인해 주세요. 이미 저장됐을 수 있어요." : null),
     isDemo,
   };
 }

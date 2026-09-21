@@ -3,6 +3,7 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import ChatContent from "./ChatContent";
+import { resetChatComposerSession } from "@/stores/chatComposerStore";
 import type { ChatMessage } from "@/types/database.types";
 
 /**
@@ -36,7 +37,10 @@ const mocks = vi.hoisted(() => ({
   profileRole: "bride" as "bride" | "groom" | null,
   profileId: "user-1",
   coupleId: "couple-1",
+  linkedPartnerId: "user-2" as string | null,
   isDemo: false,
+  sharedClearedAt: null as string | null,
+  privateClearedAt: null as string | null,
 }));
 
 vi.mock("next/navigation", () => ({
@@ -55,7 +59,7 @@ vi.mock("@/stores/authStore", () => ({
     couple: {
       id: mocks.coupleId,
       bride_id: mocks.profileId,
-      groom_id: "user-2",
+      groom_id: mocks.linkedPartnerId,
     },
     journey: null,
     isDemo: mocks.isDemo,
@@ -79,6 +83,8 @@ vi.mock("@/stores/chatStore", () => {
     get messages() {
       return mocks.messages;
     },
+    get sharedClearedAt() { return mocks.sharedClearedAt; },
+    get privateClearedAt() { return mocks.privateClearedAt; },
     isStreaming: false,
     isSending: false,
     streamingContent: "",
@@ -139,6 +145,14 @@ vi.mock("@/lib/care/requestProactiveCare", () => ({
 }));
 
 type MemorySettingRow = { visibility: string; enabled: boolean };
+const memoryResponse = (enabled: boolean) => new Response(JSON.stringify({
+  runtimeEnabled: true, settings: [{ visibility: "shared", enabled }],
+}));
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>(complete => { resolve = complete; });
+  return { promise, resolve };
+}
 
 describe("채팅 상단에서 기억 상태를 읽는다", () => {
   let root: Root;
@@ -146,7 +160,7 @@ describe("채팅 상단에서 기억 상태를 읽는다", () => {
 
   function answerMemoryWith(
     answer:
-      | { kind: "ok"; settings: MemorySettingRow[] }
+      | { kind: "ok"; settings: MemorySettingRow[]; runtimeEnabled?: boolean }
       | { kind: "error" }
       | { kind: "offline" },
   ) {
@@ -166,18 +180,22 @@ describe("채팅 상단에서 기억 상태를 읽는다", () => {
       return {
         ok: true,
         status: 200,
-        json: async () => ({ runtimeEnabled: true, settings: answer.settings, memories: [], profiles: [] }),
+        json: async () => ({ runtimeEnabled: answer.runtimeEnabled ?? true, settings: answer.settings, memories: [], profiles: [] }),
       } as unknown as Response;
     }));
   }
 
   beforeEach(() => {
+    resetChatComposerSession();
     vi.clearAllMocks();
     mocks.messages = [];
     mocks.profileRole = "bride";
     mocks.profileId = "user-1";
     mocks.coupleId = "couple-1";
+    mocks.linkedPartnerId = "user-2";
     mocks.isDemo = false;
+    mocks.sharedClearedAt = null;
+    mocks.privateClearedAt = null;
     window.sessionStorage.clear();
     window.localStorage.clear();
     container = document.createElement("div");
@@ -209,7 +227,7 @@ describe("채팅 상단에서 기억 상태를 읽는다", () => {
   const statusNode = () =>
     container.querySelector('[data-testid="amora-memory-status"]');
 
-  it("켜져 있으면 이 탭의 대화가 기억으로 정리된다고 말한다", async () => {
+  it("켜져 있으면 모든 대화의 저장을 보장하지 않고 유효한 기억 사용 상태만 말한다", async () => {
     answerMemoryWith({
       kind: "ok",
       settings: [
@@ -219,7 +237,7 @@ describe("채팅 상단에서 기억 상태를 읽는다", () => {
     });
     await render();
 
-    expect(statusNode()?.textContent).toBe("이 탭의 대화는 장기 기억으로 정리돼요");
+    expect(statusNode()?.textContent).toBe("이 탭의 장기 기억 사용이 켜져 있어요");
   });
 
   it("꺼져 있으면 저장하지 않는다고 말하고 설정으로 가는 길을 준다", async () => {
@@ -235,6 +253,145 @@ describe("채팅 상단에서 기억 상태를 읽는다", () => {
     expect(statusNode()?.textContent).toBe("지금은 장기 기억을 저장하지 않아요 · 설정에서 켜기");
     const link = statusNode()?.querySelector("a");
     expect(link?.getAttribute("href")).toContain("/settings/amora-memory");
+  });
+
+  it("동의가 켜져 있어도 서버 런타임이 중지되면 기억 중이라고 약속하지 않는다", async () => {
+    answerMemoryWith({
+      kind: "ok",
+      runtimeEnabled: false,
+      settings: [{ visibility: "shared", enabled: true }],
+    });
+    await render();
+
+    expect(statusNode()?.textContent).toBe("지금은 장기 기억 기능이 중지되어 있어요 · 설정에서 확인");
+    expect(statusNode()?.querySelector("a")?.getAttribute("href")).toContain("/settings/amora-memory");
+  });
+
+  it("비공개 삭제 커서가 바뀌면 서버에서 꺼진 기억 상태를 다시 읽는다", async () => {
+    answerMemoryWith({ kind: "ok", settings: [{ visibility: "bride_private", enabled: true }] });
+    await render();
+    const privateTab = Array.from(container.querySelectorAll("button"))
+      .find(button => button.textContent?.includes("나만"));
+    await act(async () => { privateTab!.click(); });
+    expect(statusNode()?.textContent).toBe("이 탭의 장기 기억 사용이 켜져 있어요");
+
+    answerMemoryWith({ kind: "ok", settings: [{ visibility: "bride_private", enabled: false }] });
+    mocks.privateClearedAt = "2026-09-20T00:00:00.000Z";
+    await render();
+
+    expect(statusNode()?.textContent).toBe("지금은 장기 기억을 저장하지 않아요 · 설정에서 켜기");
+  });
+
+  it("같은 커플의 계정이 바뀌고 조회가 실패하면 이전 계정의 기억 상태를 남기지 않는다", async () => {
+    answerMemoryWith({ kind: "ok", settings: [{ visibility: "shared", enabled: true }] });
+    await render();
+    expect(statusNode()).not.toBeNull();
+
+    mocks.profileId = "user-3";
+    answerMemoryWith({ kind: "error" });
+    await render();
+
+    expect(statusNode()).toBeNull();
+  });
+
+  it("같은 계정으로 돌아와도 이전 인증 세대의 기억 상태를 다시 사용하지 않는다", async () => {
+    answerMemoryWith({ kind: "ok", settings: [{ visibility: "shared", enabled: true }] });
+    await render();
+    expect(statusNode()).not.toBeNull();
+
+    answerMemoryWith({ kind: "error" });
+    await act(async () => { resetChatComposerSession(); });
+    await render();
+
+    expect(statusNode()).toBeNull();
+  });
+
+  it("연결된 파트너 구성이 바뀌면 이전 구성의 기억 상태를 재사용하지 않는다", async () => {
+    mocks.linkedPartnerId = null;
+    answerMemoryWith({ kind: "ok", settings: [{ visibility: "shared", enabled: false }] });
+    await render();
+    expect(statusNode()).not.toBeNull();
+
+    mocks.linkedPartnerId = "user-3";
+    answerMemoryWith({ kind: "error" });
+    await render();
+
+    expect(statusNode()).toBeNull();
+  });
+
+  it("설정 확인 후 창으로 돌아오면 서버에서 현재 동의를 다시 읽는다", async () => {
+    answerMemoryWith({ kind: "ok", settings: [{ visibility: "shared", enabled: true }] });
+    await render();
+    expect(statusNode()).not.toBeNull();
+
+    answerMemoryWith({ kind: "ok", settings: [{ visibility: "shared", enabled: false }] });
+    await act(async () => { window.dispatchEvent(new Event("focus")); });
+
+    expect(statusNode()?.textContent).toBe("지금은 장기 기억을 저장하지 않아요 · 설정에서 켜기");
+  });
+
+  it.each([undefined, null, "true", 1])("런타임 값 %j를 확인하지 못하면 켜짐을 추정하지 않는다", async runtimeEnabled => {
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({
+      runtimeEnabled, settings: [{ visibility: "shared", enabled: true }],
+    }))));
+    await render();
+    expect(statusNode()).toBeNull();
+  });
+
+  it("확인된 삭제 뒤 재조회가 실패하면 이전 켜짐을 남기지 않는다", async () => {
+    answerMemoryWith({ kind: "ok", settings: [{ visibility: "shared", enabled: true }] });
+    await render();
+    answerMemoryWith({ kind: "error" });
+    mocks.sharedClearedAt = "2026-09-20T00:00:00.000Z";
+    await render();
+    expect(statusNode()).toBeNull();
+  });
+
+  it("원문 삭제 없는 화면 정리 뒤에는 서버의 켜짐을 임의로 끄지 않는다", async () => {
+    answerMemoryWith({ kind: "ok", settings: [{ visibility: "shared", enabled: true }] });
+    await render();
+    mocks.sharedClearedAt = "2026-09-20T00:00:00.000Z";
+    await render();
+    expect(statusNode()?.textContent).toBe("이 탭의 장기 기억 사용이 켜져 있어요");
+  });
+
+  it("새 계정 조회가 끝난 뒤 도착한 이전 계정의 응답을 무시한다", async () => {
+    const oldResponse = deferred<Response>();
+    vi.stubGlobal("fetch", vi.fn()
+      .mockImplementationOnce(() => oldResponse.promise)
+      .mockImplementation(async () => memoryResponse(false)));
+    await render();
+    expect(statusNode()).toBeNull();
+    mocks.profileId = "user-3";
+    await render();
+    expect(statusNode()?.textContent).toBe("지금은 장기 기억을 저장하지 않아요 · 설정에서 켜기");
+
+    await act(async () => { oldResponse.resolve(memoryResponse(true)); });
+    expect(statusNode()?.textContent).toBe("지금은 장기 기억을 저장하지 않아요 · 설정에서 켜기");
+  });
+
+  it("같은 계정의 재조회가 뒤집혀 도착해도 최신 결과만 표시한다", async () => {
+    answerMemoryWith({ kind: "ok", settings: [{ visibility: "shared", enabled: true }] });
+    await render();
+    const oldResponse = deferred<Response>();
+    vi.stubGlobal("fetch", vi.fn()
+      .mockImplementationOnce(() => oldResponse.promise)
+      .mockImplementation(async () => memoryResponse(false)));
+    await act(async () => { window.dispatchEvent(new Event("focus")); });
+    expect(statusNode()).toBeNull();
+    await act(async () => { window.dispatchEvent(new Event("focus")); });
+    expect(statusNode()?.textContent).toBe("지금은 장기 기억을 저장하지 않아요 · 설정에서 켜기");
+
+    await act(async () => { oldResponse.resolve(memoryResponse(true)); });
+    expect(statusNode()?.textContent).toBe("지금은 장기 기억을 저장하지 않아요 · 설정에서 켜기");
+  });
+
+  it("데모로 바뀌면 실제 계정의 기억 상태를 숨긴다", async () => {
+    answerMemoryWith({ kind: "ok", settings: [{ visibility: "shared", enabled: true }] });
+    await render();
+    mocks.isDemo = true;
+    await render();
+    expect(statusNode()).toBeNull();
   });
 
   it("응답을 못 읽으면 아무 말도 하지 않는다", async () => {
@@ -262,7 +419,7 @@ describe("채팅 상단에서 기억 상태를 읽는다", () => {
       ],
     });
     await render();
-    expect(statusNode()?.textContent).toBe("이 탭의 대화는 장기 기억으로 정리돼요");
+    expect(statusNode()?.textContent).toBe("이 탭의 장기 기억 사용이 켜져 있어요");
 
     const privateTab = Array.from(container.querySelectorAll("button"))
       .find((button) => button.textContent?.includes("나만"));

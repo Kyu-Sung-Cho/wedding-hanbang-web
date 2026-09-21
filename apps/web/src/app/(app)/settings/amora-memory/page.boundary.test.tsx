@@ -28,6 +28,7 @@ const PROFILE_A: Profile = {
 function memoryResponse(marker = "A의 개인 기억") {
   return new Response(JSON.stringify({
     runtimeEnabled: true,
+    confirmationTarget: { ownerId: useAuthStore.getState().user?.id, coupleId: useAuthStore.getState().profile?.couple_id ?? SPACE_A.id, privacyEpoch: 7 },
     settings: [
       { visibility: "shared", enabled: false, consentedByMe: false, consentedCount: 0,
         requiredCount: 2, enabledAt: null, memoryResetAt: null, legacyPurgedAt: null,
@@ -100,6 +101,18 @@ describe("memory settings scope and account boundaries", () => {
 
   async function render() { await act(async () => root.render(<AmoraMemorySettingsPage />)); }
 
+  it("does not render remembered content whose response target belongs to another account", async () => {
+    read = async () => {
+      const payload = await memoryResponse("다른 계정의 기억").json();
+      payload.confirmationTarget.ownerId = ACCOUNT_B.id;
+      return Response.json(payload);
+    };
+    await render();
+    expect(container.textContent).not.toContain("다른 계정의 기억");
+    expect(container.textContent).toContain("다시");
+    expect(findButton("나만 상담")).toBeUndefined();
+  });
+
   it("a shared enable confirmation cannot carry into the personal scope", async () => {
     await render();
     await click("내 공유 기억 동의");
@@ -115,7 +128,8 @@ describe("memory settings scope and account boundaries", () => {
     await render();
     await click("내 공유 기억 동의");
     await click("지우고 켜기");
-    expect(writes).toEqual([{ action: "toggle", visibility: "shared", enabled: true }]);
+    expect(writes).toEqual([{ action: "toggle", visibility: "shared", enabled: true,
+      confirmationTarget: { ownerId: ACCOUNT_A.id, coupleId: SPACE_A.id, privacyEpoch: 7 } }]);
     expect(reads).toBe(2);
     expect(findButton("지우고 켜기")).toBeUndefined();
   });
@@ -162,7 +176,8 @@ describe("memory settings scope and account boundaries", () => {
     await click("나만 상담");
     expect(findButton("둘이 함께")?.getAttribute("aria-selected")).toBe("true");
     await act(async () => pending.resolve(new Response(JSON.stringify({ success: true }))));
-    expect(writes).toEqual([{ action: "toggle", visibility: "shared", enabled: true }]);
+    expect(writes).toEqual([{ action: "toggle", visibility: "shared", enabled: true,
+      confirmationTarget: { ownerId: ACCOUNT_A.id, coupleId: SPACE_A.id, privacyEpoch: 7 } }]);
   });
 
   it("a late mutation response from another account cannot refetch or show an error", async () => {

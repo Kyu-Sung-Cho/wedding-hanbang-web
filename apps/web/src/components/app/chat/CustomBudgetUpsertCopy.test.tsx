@@ -11,8 +11,8 @@ import { getPersistableToolResults } from "@/lib/ai/placeSearchResultPolicy";
 import type { ToolExecutionContext } from "@/lib/ai/tools/toolTypes";
 import type { BudgetImpactPreview } from "@hanbang/shared";
 import type { ChatMessage, ToolExecutionResult } from "@/types/database.types";
-
-vi.mock("@/stores/authStore", () => ({ useAuthStore: () => ({ journey: null, updateJourney: vi.fn() }) }));
+import { useAuthStore } from "@/stores/authStore";
+import { setPendingActionActor } from "./__tests__/fixtures/pendingActionActor";
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 
 const NOW = Date.parse("2026-09-10T02:00:00.000Z");
@@ -48,6 +48,8 @@ describe("custom budget upsert confirmation and receipt truthfulness", () => {
   let root: Root;
   let container: HTMLDivElement;
   beforeEach(() => {
+    useAuthStore.getState().reset();
+    setPendingActionActor();
     vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({
       approvalMode: "couple", accepted: false, acceptedCount: 0, requiredCount: 1,
       partnerLinked: false, ready: false,
@@ -58,6 +60,7 @@ describe("custom budget upsert confirmation and receipt truthfulness", () => {
   });
   afterEach(async () => {
     await act(async () => root.unmount());
+    useAuthStore.getState().reset();
     document.body.replaceChildren();
     vi.unstubAllGlobals();
   });

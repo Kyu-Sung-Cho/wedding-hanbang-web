@@ -26,6 +26,7 @@ import { observeAmoraSafetyRecall } from "@/lib/ai/amoraSafetyRecallProbe";
 import { verifyChatImageObjectBindings } from "@/lib/chat/attachmentStorage";
 import { log } from "@/utils/log";
 import { resolveAmoraPreparationSource } from "@/lib/amora/preparationHandoff";
+import { isAmoraQueuedCardSkip } from "@/lib/ai/amoraQueuedCardSkip";
 
 const MAX_BODY_BYTES = 8 * 1024;
 // 20,000 Unicode code points can occupy up to 80KiB in UTF-8. Keep bounded
@@ -48,6 +49,7 @@ const POST_BODY_KEYS = new Set([
   "requestedVisibility",
   "target",
   "confirmedActionId",
+  "skippedActionId",
   "preparationSource",
   "imagePaths",
   "providerAttachmentCount",
@@ -96,6 +98,7 @@ type ExpectedUserRow = {
   partnerRecipientId: string | null;
   visibility: ChatVisibility;
   confirmedActionId: string | null;
+  skippedActionId: string | null;
   preparationSource: string | null;
   imagePaths: string[];
   providerAttachmentCount: number | null;
@@ -269,6 +272,7 @@ function isBoundCanonicalUserRow(
     ? metadata.confirmed_amora_action_id
     : null;
   if (storedAction !== expected.confirmedActionId) return false;
+  if ((metadata.skipped_amora_action_id ?? null) !== expected.skippedActionId) return false;
   if ((metadata.preparation_source ?? null) !== expected.preparationSource) return false;
   if (
     expected.providerAttachmentCount === null
@@ -597,6 +601,25 @@ export async function POST(request: Request) {
       );
     }
 
+    const skippedActionId = deliveryPlan.disposition === "private_safety_route"
+      ? null
+      : body.skippedActionId === undefined
+        ? null
+        : isUuid(body.skippedActionId)
+          ? body.skippedActionId.toLowerCase()
+          : undefined;
+    if (
+      skippedActionId === undefined
+      || (skippedActionId !== null && (
+        target !== "ai"
+        || effectiveVisibility !== "shared"
+        || confirmedActionId !== null
+        || !isAmoraQueuedCardSkip(content)
+      ))
+    ) {
+      return postJson({ error: "건너뛸 항목을 다시 확인해 주세요.", code: "INVALID_SKIPPED_ACTION" }, 400);
+    }
+
     // 공개 안내는 질문과 분리해 묶고, 안전 전환에는 싣지 않는다.
     let preparationSource: string | null = null;
     if (deliveryPlan.disposition !== "private_safety_route" && body.preparationSource !== undefined) {
@@ -604,6 +627,7 @@ export async function POST(request: Request) {
         target !== "ai"
         || effectiveVisibility !== "shared"
         || confirmedActionId !== null
+        || skippedActionId !== null
         || typeof body.preparationSource !== "string"
         || !(await resolveAmoraPreparationSource(body.preparationSource))
       ) {
@@ -828,6 +852,7 @@ export async function POST(request: Request) {
       ...(confirmedActionId
         ? { confirmed_amora_action_id: confirmedActionId }
         : {}),
+      ...(skippedActionId ? { skipped_amora_action_id: skippedActionId } : {}),
     };
     const expected: ExpectedUserRow = {
       coupleId,
@@ -841,6 +866,7 @@ export async function POST(request: Request) {
         : null,
       visibility: effectiveVisibility,
       confirmedActionId,
+      skippedActionId,
       preparationSource,
       imagePaths,
       providerAttachmentCount,

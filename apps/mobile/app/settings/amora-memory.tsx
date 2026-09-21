@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { PRIVACY_CONFIRMATION_CHANGED, readPrivacyConfirmationTarget } from "@hanbang/shared";
 import { Alert, Modal, Pressable, ScrollView, StyleSheet, Switch, View } from "react-native";
 import { TextInput } from "@/components/ui/AppText";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -79,6 +80,7 @@ type MemoryItem = {
 };
 
 type MemoryResponse = {
+  confirmationTarget?: unknown;
   runtimeEnabled: boolean;
   settings: MemorySetting[];
   memories: MemoryItem[];
@@ -176,6 +178,11 @@ export default function AmoraMemoryScreen() {
       );
       // 응답을 기다리는 사이 계정이나 커플이 바뀌었으면 한 글자도 반영하지 않는다.
       if (!(await isLoadCommitCurrent(sequence, token))) return;
+      const target = readPrivacyConfirmationTarget(payload.confirmationTarget);
+      if (!target || target.ownerId !== token.ownerId || target.coupleId !== token.coupleId) {
+        clearIdentityBoundState();
+        throw new Error(PRIVACY_CONFIRMATION_CHANGED);
+      }
       setData(payload);
       const available = payload.settings.map((setting) => setting.visibility);
       setActiveVisibility((current) => available.includes(current) ? current : available[0] ?? "shared");
@@ -222,17 +229,22 @@ export default function AmoraMemoryScreen() {
     [activeVisibility, data?.memories],
   );
   const profileLines = memoryProfileLines(data?.profiles, activeVisibility);
+  // Alert는 이 렌더의 확인 대상에 묶인다. 클릭 시 새 계정 token을 다시 얻지 않는다.
+  const mutationToken = sessionFenceRef.capture();
 
   async function patch(body: Record<string, unknown>) {
     // 쓰기도 같은 identity에 결박한다. 계정 전환 중이면 요청 자체를 보내지 않는다.
-    const token = sessionFenceRef.capture();
-    if (!token) {
-      throw new Error("계정을 확인하고 있어요. 잠시 후 다시 시도해주세요.");
+    const token = mutationToken;
+    const confirmationTarget = readPrivacyConfirmationTarget(data?.confirmationTarget);
+    if (!token || !sessionFenceRef.isCurrent(token) || !confirmationTarget
+      || confirmationTarget.ownerId !== token.ownerId || confirmationTarget.coupleId !== token.coupleId) {
+      throw new Error(PRIVACY_CONFIRMATION_CHANGED);
     }
     await apiJsonForExpectedUser(token.ownerId, "/api/amora/memory", {
       method: "PATCH",
-      body: JSON.stringify(body),
+      body: JSON.stringify({ ...body, confirmationTarget }),
     });
+    if (!sessionFenceRef.isCurrent(token)) throw new Error(PRIVACY_CONFIRMATION_CHANGED);
   }
 
   async function applyMemoryToggle() {

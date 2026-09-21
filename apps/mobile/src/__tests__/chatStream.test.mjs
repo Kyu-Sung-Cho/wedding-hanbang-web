@@ -86,6 +86,18 @@ function sourceBetween(startMarker, endMarker) {
   return sourceText.slice(start, end);
 }
 
+function actualFunction(name, bindings) {
+  let declaration;
+  const visit = (node) => {
+    if (ts.isFunctionDeclaration(node) && node.name?.text === name) declaration = node.getText(sourceFile);
+    ts.forEachChild(node, visit);
+  };
+  visit(sourceFile);
+  assert.ok(declaration, `${name}: 실제 화면 함수가 있어야 한다`);
+  const javascript = ts.transpileModule(declaration, { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText;
+  return new Function("bindings", `with (bindings) { ${javascript}; return ${name}; }`)(bindings);
+}
+
 function loadAiMessageIngestContract() {
   const ingestFunctionNames = new Set([
     "normalizeChatVisibility",
@@ -116,7 +128,7 @@ function loadAiMessageIngestContract() {
     },
   });
   return new Function(
-    `${transpiled.outputText}\nreturn { AiMessageIngestError, parseAiMessageIngestResult, parseRetryAfterMs, getAiMessageIngestFailureMessage, getEphemeralSafetyPersistencePresentation };`,
+    `${transpiled.outputText}\nreturn { AiMessageIngestError, parseAiMessageIngestResult, parseRetryAfterMs, getAiMessageIngestFailureMessage, getEphemeralSafetyPersistencePresentation, chatMessageFromRealtimeRow };`,
   )();
 }
 
@@ -163,6 +175,18 @@ test("SSE parser survives arbitrary CRLF and JSON chunk boundaries", () => {
   assert.deepEqual(updates, ["안", "안녕", "안녕하세요"]);
   assert.equal(parser.finish(), "안녕하세요");
   assert.equal(updates.some((text) => text.includes("data:") || text.includes("text_delta")), false);
+});
+
+test("quota SSE preserves daily versus total scope and rejects unknown periods", () => {
+  const quotas = [];
+  const parser = createChatStreamParser(() => {}, (remaining, period) => quotas.push([remaining, period]));
+  for (const event of [
+    { type: "quota", remaining: 3, period: "daily" },
+    { type: "quota", remaining: 2 },
+    { type: "quota", remaining: 1, period: "total" },
+    { type: "quota", remaining: 1, period: "unknown" },
+  ]) parser.push(`data: ${JSON.stringify(event)}\n\n`);
+  assert.deepEqual(quotas, [[3, "daily"], [2, undefined], [1, "total"]]);
 });
 
 test("text_clear resets partial output and suggestion markup never reaches chat text", () => {
@@ -1196,6 +1220,84 @@ test("AI message ingest accepts a reconciled 23505 row only as a reused 200 resu
   );
 });
 
+test("AI message ingest binds a skipped card without accepting another card or a confirmation", () => {
+  const { AiMessageIngestError, parseAiMessageIngestResult } = loadAiMessageIngestContract();
+  const expected = { coupleId: "couple", userId: "user", senderType: "bride", text: "skip",
+    clientRequestId: "request", target: "ai", providerAttachmentCount: 0, skippedActionId: "card-A" };
+  const message = { id: "message", couple_id: "couple", sender_id: "user", role: "user", sender_type: "bride",
+    content: "skip", visibility: "shared", created_at: "2026-09-19T00:00:00.000Z", metadata: { client_request_id: "request", skipped_amora_action_id: "card-A",
+      amora_ingest_contract_version: 1, ai_response_requested: true, provider_attachment_state: "none", provider_attachment_count: 0 } };
+  const payload = { outcome: "persisted", reused: false, effectiveVisibility: "shared", safetyPrivacyRedirected: false, message };
+  assert.equal(parseAiMessageIngestResult(201, payload, expected).message.metadata.skipped_amora_action_id, "card-A");
+  for (const metadata of [
+    { ...message.metadata, skipped_amora_action_id: "card-B" },
+    { ...message.metadata, skipped_amora_action_id: undefined },
+    { ...message.metadata, confirmed_amora_action_id: "card-A" },
+  ]) assert.throws(() => parseAiMessageIngestResult(201, { ...payload, message: { ...message, metadata } }, expected), AiMessageIngestError);
+  assert.throws(() => parseAiMessageIngestResult(201, payload, { ...expected, confirmedActionId: "card-A" }), AiMessageIngestError);
+  const redirected = { ...payload, safetyPrivacyRedirected: true, safetyResolution: "non_immediate_safety", effectiveVisibility: "bride_private",
+    message: { ...message, visibility: "bride_private", metadata: { ...message.metadata, skipped_amora_action_id: undefined } } };
+  assert.equal(parseAiMessageIngestResult(201, redirected, expected).message.metadata.skipped_amora_action_id, undefined);
+  assert.throws(() => parseAiMessageIngestResult(201, { ...redirected, message: { ...redirected.message, metadata: message.metadata } }, expected), AiMessageIngestError);
+});
+
+test("skip binding crosses durable ingest and chat transport unchanged and rejects dual action intent before fetch", async () => {
+  const contract = loadAiMessageIngestContract();
+  const writes = [];
+  const requests = [];
+  const draft = { coupleId: "couple", userId: "user", senderType: "bride", senderName: "사용자", text: "skip",
+    sourceLane: "shared_ai", target: "ai", clientRequestId: "request", skippedActionId: "card-A",
+    requestedVisibility: "shared", visibility: "shared", providerAttachmentCount: 0, sessionGeneration: 1 };
+  const message = { id: "message", couple_id: draft.coupleId, sender_id: draft.userId, sender_type: draft.senderType,
+    role: "user", content: draft.text, visibility: "shared", created_at: "2026-09-19T00:00:00.000Z",
+    metadata: { client_request_id: draft.clientRequestId, skipped_amora_action_id: draft.skippedActionId,
+      amora_ingest_contract_version: 1, ai_response_requested: true, provider_attachment_state: "none", provider_attachment_count: 0 } };
+  const ingest = actualFunction("requestAiMessageIngest", {
+    ...contract, CHAT_INGEST_TIMEOUT_MS: 1000, API_BASE: "https://example.invalid",
+    supabase: { auth: { getSession: async () => ({ data: { session: { access_token: "synthetic", user: { id: "user" } } } }) } },
+    fetch: async (_url, init) => {
+      writes.push(JSON.parse(init.body));
+      return new globalThis.Response(JSON.stringify({ outcome: "persisted", reused: false,
+        effectiveVisibility: "shared", safetyPrivacyRedirected: false, message }), { status: 201 });
+    },
+  });
+  const state = { messages: [], input: { shared_ai: "", private_ai: "", shared_partner: "" } };
+  let stored = message;
+  const query = { select: () => query, eq: () => query, contains: () => query, order: () => query,
+    limit: () => query, maybeSingle: async () => ({ data: stored, error: null }) };
+  const readback = actualFunction("findDurableUserMessage", {
+    ...contract, supabase: { from: () => query },
+  });
+  const bindings = {
+    ...contract,
+    aiLaneForVisibility: actualFunction("aiLaneForVisibility", {}),
+    isCurrentChatSession: () => true, requestAiMessageIngest: ingest,
+    setStreaming() {}, setLaneFailure() {}, messages: [],
+    setMessages(update) { state.messages = update(state.messages); },
+    setInputByLane(update) { state.input = update(state.input); },
+    streamAiRequest: async (request) => { requests.push(request); },
+    findDurableUserMessage: readback,
+  };
+  const send = actualFunction("sendAiDraft", bindings);
+  await send(draft, false);
+  await send(draft, true);
+  assert.equal(writes.length, 1, "내구적 메시지를 찾은 재시도는 다시 저장하지 않는다");
+  assert.equal(writes[0].skippedActionId, "card-A");
+  assert.equal(writes[0].confirmedActionId, undefined);
+  assert.equal(requests.length, 2);
+  for (const request of requests) {
+    assert.equal(request.body.skippedActionId, "card-A");
+    assert.equal(request.body.clientRequestId, "request");
+    assert.equal(request.body.confirmedActionId, undefined);
+  }
+  await assert.rejects(ingest({ ...draft, confirmedActionId: "card-A" }, () => true), contract.AiMessageIngestError);
+  assert.equal(writes.length, 1, "확인·건너뛰기를 동시에 보내지 않는다");
+  for (const skipped of [undefined, "card-B"]) {
+    stored = { ...message, metadata: { ...message.metadata, skipped_amora_action_id: skipped } };
+    assert.equal(await readback(draft, "ai"), null, "재시도에서 다른 카드나 식별자가 없는 원문을 재사용하지 않는다");
+  }
+});
+
 test("AI message ingest binds a shared confirmed action to the canonical metadata", () => {
   const { AiMessageIngestError, parseAiMessageIngestResult } = loadAiMessageIngestContract();
   const expected = {
@@ -1793,6 +1895,15 @@ test("cold-start recovery rejects malformed canonical request and user-row ident
     senderType: "bride",
     visibility: "shared",
   };
+
+  const skippedActionId = "55555555-5555-4555-8555-555555555555";
+  const skipped = { ...baseMessage, metadata: { ...baseMessage.metadata, skipped_amora_action_id: skippedActionId } };
+  assert.equal(findColdStartAiRecovery([skipped], context)?.skippedActionId, skippedActionId,
+    "앱 재시작 뒤에도 건너뛸 카드 식별자를 그대로 복구한다");
+  for (const changed of [
+    { ...skipped, metadata: { ...skipped.metadata, skipped_amora_action_id: "invalid" } },
+    { ...skipped, visibility: "bride_private" },
+  ]) assert.equal(findColdStartAiRecovery([changed], { ...context, visibility: changed.visibility }), null);
 
   assert.equal(findColdStartAiRecovery([{
     ...baseMessage,

@@ -6,7 +6,7 @@ export type MediationResponseState = { actorId: string; proposalVersion: string;
 export type MediationSessionState = { snapshot: MediationResponseState|null; loading: boolean; busy: boolean; error: string|null; taskSaved: string|null; taskUnknown: boolean };
 export const mediationChoiceLabels: Record<MediationChoice,string>;
 export function parseMediationResponseState(value: unknown, scope: MediationIdentity, revision: MediationResponseRevision): MediationResponseState|null;
-export function createMediationResponseSession(options: { revision: MediationResponseRevision; readScope: () => Promise<MediationIdentity|null>; request: (scope: MediationIdentity, path: string, options: RequestInit) => Promise<Response> }): {
+export function createMediationResponseSession(options: { revision: MediationResponseRevision; timeoutMs?: number; readScope: () => Promise<MediationIdentity|null>; request: (scope: MediationIdentity, path: string, options: RequestInit) => Promise<Response> }): {
  getState: () => MediationSessionState; subscribe: (listener:()=>void)=>()=>void; invalidate:()=>void; load:()=>Promise<boolean>; respond:(choice:MediationChoice,condition:string|null)=>Promise<boolean>; revoke:()=>Promise<boolean>; createTask:(title:string,description:string)=>Promise<boolean>;
 };
 export type MediationResponseSession = ReturnType<typeof createMediationResponseSession>;

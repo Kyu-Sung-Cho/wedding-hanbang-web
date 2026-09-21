@@ -14,8 +14,10 @@ vi.mock("@/utils/rateLimit", () => ({
 }));
 
 const USER_ID = "00000000-0000-4000-8000-000000000001";
+const PARTNER_ID = "00000000-0000-4000-8000-000000000002";
 const COUPLE_ID = "10000000-0000-4000-8000-000000000001";
 const MEMORY_ID = "20000000-0000-4000-8000-000000000001";
+const CONFIRMATION_TARGET = { ownerId: USER_ID, coupleId: COUPLE_ID, privacyEpoch: 7 };
 
 function query(result: { data: unknown; error: unknown }) {
   const chain = {
@@ -64,17 +66,17 @@ function selectableQuery(
   return chain;
 }
 
-function mockRequestClient(memoryOverrides: Record<string, unknown> = {}) {
+function mockRequestClient(memoryOverrides: Record<string, unknown> = {}, authenticatedUserId = USER_ID) {
   vi.mocked(createClientFromRequest).mockResolvedValue({
     auth: {
-      getUser: vi.fn(async () => ({ data: { user: { id: USER_ID } } })),
+      getUser: vi.fn(async () => ({ data: { user: { id: authenticatedUserId } } })),
     },
     from: vi.fn((table: string) => {
       if (table === "profiles") {
-        return query({ data: { couple_id: COUPLE_ID, role: "bride" }, error: null });
+        return query({ data: { couple_id: COUPLE_ID, role: authenticatedUserId === USER_ID ? "bride" : "groom" }, error: null });
       }
       if (table === "couples") {
-        return query({ data: { bride_id: USER_ID, groom_id: null }, error: null });
+        return query({ data: { bride_id: USER_ID, groom_id: PARTNER_ID }, error: null });
       }
       return query({
         data: {
@@ -180,6 +182,7 @@ function mockGetClients(options: {
       getUser: vi.fn(async () => ({ data: { user: { id: USER_ID } } })),
     },
     from: requestFrom,
+    rpc: vi.fn(async () => ({ data: 7, error: null })),
   } as unknown as Awaited<ReturnType<typeof createClientFromRequest>>);
 
   vi.mocked(createAdminClient).mockReturnValue({
@@ -207,6 +210,101 @@ describe("/api/amora/memory PATCH", () => {
     vi.clearAllMocks();
     mockRequestClient();
   });
+  it.each(["update_memory", "delete_memory"])("rejects a prior account's %s confirmation even when the authenticated partner can access the same shared row", async action => {
+    mockRequestClient({ visibility: "shared", source_actor_role: null }, PARTNER_ID);
+    const rpc = vi.fn(async () => ({ data: action === "delete_memory" ? true : MEMORY_ID, error: null }));
+    vi.mocked(createAdminClient).mockReturnValue({ rpc } as unknown as ReturnType<typeof createAdminClient>);
+    const response = await PATCH(new Request("https://hanbang.ai/api/amora/memory", {
+      method: "PATCH", headers: { "content-type": "application/json", cookie: "synthetic-session=partner" },
+      body: JSON.stringify({ action, visibility: "shared", memoryId: MEMORY_ID,
+        title: "선호 지역", value: "서울 동쪽", confirmationTarget: CONFIRMATION_TARGET }),
+    }));
+    expect.soft(response.status).toBe(409);
+    expect.soft(rpc).not.toHaveBeenCalled();
+    expect(await response.json()).toMatchObject({ reason: "confirmation_changed" });
+    expect(createAdminClient).not.toHaveBeenCalled();
+  });
+  it.each(["clear_scope", "toggle", "update_memory", "delete_memory"])("explains the required reviewed target before legacy %s without performing it", async action => {
+    const rpc = vi.fn(async () => ({ data: { cleared: true }, error: null }));
+    vi.mocked(createAdminClient).mockReturnValue({ rpc } as unknown as ReturnType<typeof createAdminClient>);
+    const response = await PATCH(new Request("http://localhost/api/amora/memory", {
+      method: "PATCH", headers: { "content-type": "application/json", authorization: "Bearer legacy-token" },
+      body: JSON.stringify({ action, visibility: "shared", memoryId: MEMORY_ID, title: "선호 지역", value: "서울 동쪽",
+        ...(action === "toggle" ? { enabled: false } : {}) }),
+    }));
+    expect(response.status).toBe(409);
+    const body = await response.json();
+    expect(body.reason).toBe("confirmation_required");
+    expect(body.error).toContain("앱을 업데이트");
+    expect(body.error).toContain("https://hanbang.ai/settings/amora-memory");
+    expect(body.error).toContain("같은 계정");
+    expect(body.error).not.toContain(USER_ID);
+    expect(body.error).not.toContain(COUPLE_ID);
+    expect(rpc).not.toHaveBeenCalled();
+    expect(createAdminClient).not.toHaveBeenCalled();
+  });
+
+  it.each(["clear_scope", "toggle", "update_memory", "delete_memory"].flatMap(action => [
+    { target: null, reason: "confirmation_invalid" },
+    { target: [], reason: "confirmation_invalid" },
+    { target: { ownerId: "private-untrusted-value" }, reason: "confirmation_invalid" },
+    { target: { ownerId: USER_ID, coupleId: COUPLE_ID, privacyEpoch: 0 }, reason: "confirmation_invalid" },
+    { target: { ownerId: MEMORY_ID, coupleId: COUPLE_ID, privacyEpoch: 7 }, reason: "confirmation_changed" },
+    { target: { ownerId: USER_ID, coupleId: MEMORY_ID, privacyEpoch: 7 }, reason: "confirmation_changed" },
+  ].map(testCase => ({ action, ...testCase }))))("distinguishes malformed memory confirmation from changed membership for $action: $reason ($target)", async ({ action, target, reason }) => {
+    const response = await PATCH(new Request("https://hanbang.ai/api/amora/memory", {
+      method: "PATCH", headers: { authorization: "Bearer legacy-token" },
+      body: JSON.stringify({ action, visibility: "shared", memoryId: MEMORY_ID,
+        title: "선호 지역", value: "서울 동쪽", enabled: false, confirmationTarget: target }),
+    }));
+    expect(response.status).toBe(409);
+    const body = await response.json();
+    expect(body.reason).toBe(reason);
+    expect(body.error).toContain(reason === "confirmation_invalid" ? "형식" : "바뀌었어요");
+    expect(JSON.stringify(body)).not.toContain("private-untrusted-value");
+    for (const id of [USER_ID, COUPLE_ID, MEMORY_ID]) expect(JSON.stringify(body)).not.toContain(id);
+    expect(createAdminClient).not.toHaveBeenCalled();
+  });
+
+  it.each(["update_memory", "delete_memory"])("preserves a freshly confirmed partner's %s on a shared row", async action => {
+    mockRequestClient({ visibility: "shared", source_actor_role: null }, PARTNER_ID);
+    const rpc = vi.fn(async () => ({ data: action === "delete_memory" ? true : MEMORY_ID, error: null }));
+    vi.mocked(createAdminClient).mockReturnValue({ rpc } as unknown as ReturnType<typeof createAdminClient>);
+    const response = await PATCH(new Request("https://hanbang.ai/api/amora/memory", {
+      method: "PATCH", headers: { "content-type": "application/json" },
+      body: JSON.stringify({ action, visibility: "shared", memoryId: MEMORY_ID,
+        title: "선호 지역", value: "서울 동쪽", confirmationTarget: { ...CONFIRMATION_TARGET, ownerId: PARTNER_ID } }),
+    }));
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ success: true });
+    expect(rpc).toHaveBeenCalledExactlyOnceWith(action === "delete_memory" ? "delete_amora_memory_node" : "update_amora_memory_node", {
+      p_couple_id: COUPLE_ID, p_visibility: "shared", p_memory_id: MEMORY_ID, p_user_id: PARTNER_ID,
+      ...(action === "update_memory" ? { p_title: "선호 지역", p_value: "서울 동쪽" } : {}),
+    });
+  });
+
+  it("still reports an unsupported action as invalid without performing a mutation", async () => {
+    const rpc = vi.fn();
+    vi.mocked(createAdminClient).mockReturnValue({ rpc } as unknown as ReturnType<typeof createAdminClient>);
+    const response = await PATCH(new Request("https://hanbang.ai/api/amora/memory", {
+      method: "PATCH", body: JSON.stringify({ action: "unknown_action", visibility: "shared" }),
+    }));
+    expect(response.status).toBe(400);
+    expect(await response.json()).not.toHaveProperty("reason", "confirmation_required");
+    expect(rpc).not.toHaveBeenCalled();
+  });
+
+  it("clears through the tuple-fenced transaction instead of a separate server precheck", async () => {
+    const rpc = vi.fn(async (name: string, args: Record<string, unknown>) => name === "mutate_amora_memory_with_confirmation" && args.p_expected_privacy_epoch === 7
+      ? { data: { cleared: true }, error: null } : { data: null, error: { code: "40001" } });
+    vi.mocked(createAdminClient).mockReturnValue({ rpc } as unknown as ReturnType<typeof createAdminClient>);
+    const response = await PATCH(new Request("http://localhost/api/amora/memory", {
+      method: "PATCH", headers: { "content-type": "application/json" },
+      body: JSON.stringify({ action: "clear_scope", visibility: "shared", confirmationTarget: { ownerId: USER_ID, coupleId: COUPLE_ID, privacyEpoch: 7 } }),
+    }));
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ success: true, enabled: false });
+  });
 
   it("rejects sensitive personal data before a manual memory edit reaches the database", async () => {
     const rpc = vi.fn(async () => ({ data: MEMORY_ID, error: null }));
@@ -220,6 +318,7 @@ describe("/api/amora/memory PATCH", () => {
         memoryId: MEMORY_ID,
         title: "연락처",
         value: "010.1234.5678",
+        confirmationTarget: CONFIRMATION_TARGET,
       }),
     });
 
@@ -243,6 +342,7 @@ describe("/api/amora/memory PATCH", () => {
         memoryId: MEMORY_ID,
         title: "연락처",
         value: "010\u200B-1234\u200B-5678",
+        confirmationTarget: CONFIRMATION_TARGET,
       }),
     });
 
@@ -266,6 +366,7 @@ describe("/api/amora/memory PATCH", () => {
         memoryId: MEMORY_ID,
         title: "  Ａ\u200BＢ  ",
         value: "  서울\u2060 동쪽  ",
+        confirmationTarget: CONFIRMATION_TARGET,
       }),
     });
 
@@ -299,6 +400,7 @@ describe("/api/amora/memory PATCH", () => {
         memoryId: MEMORY_ID,
         title: "현재 상태",
         value: "12주차",
+        confirmationTarget: CONFIRMATION_TARGET,
       }),
     });
 
@@ -337,6 +439,7 @@ describe("/api/amora/memory GET profile projection", () => {
     }]);
     expect(JSON.stringify(body)).not.toContain("LEGACY_PROFILE_MUST_NOT_LEAK");
     expect(body.memories).toEqual([]);
+    expect(body.confirmationTarget).toEqual({ ownerId: USER_ID, coupleId: COUPLE_ID, privacyEpoch: 7 });
   });
 
   it("keeps the memory response available but fails profiles closed on a source-query error", async () => {

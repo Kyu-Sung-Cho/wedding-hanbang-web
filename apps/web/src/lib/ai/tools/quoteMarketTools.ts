@@ -50,27 +50,37 @@ interface PriceStats {
   minKrw: number;
   medianKrw: number;
   maxKrw: number;
+  rangeMethod: "published_bounds";
+  medianMethod: "median_of_row_midpoints";
 }
+
+interface PriceRange { min: number; midpoint: number; max: number; }
 
 /**
  * 공시 한 행은 금액 구간(min~max)으로 온다. 구간의 중점을 그 행의 대표값으로 쓴다.
  * 값이 없는 행(0 또는 결측)은 표본에서 뺀다 — 0을 최솟값으로 두면 "최소 0원"이라는
  * 거짓이 나온다.
  */
-function midpointOf(row: Record<string, unknown>): number | null {
+function rangeOf(row: Record<string, unknown>): PriceRange | null {
   const usable = [Number(row.price_min_krw), Number(row.price_max_krw)]
     .filter((value) => Number.isFinite(value) && value > 0);
   if (usable.length === 0) return null;
-  return Math.round(usable.reduce((sum, value) => sum + value, 0) / usable.length);
+  return {
+    min: Math.min(...usable),
+    midpoint: Math.round(usable.reduce((sum, value) => sum + value, 0) / usable.length),
+    max: Math.max(...usable),
+  };
 }
 
-function statsOf(midpoints: number[]): PriceStats | null {
-  if (midpoints.length === 0) return null;
+function statsOf(ranges: PriceRange[]): PriceStats | null {
+  if (ranges.length === 0) return null;
   return {
-    sampleCount: midpoints.length,
-    minKrw: Math.min(...midpoints),
-    medianKrw: median(midpoints),
-    maxKrw: Math.max(...midpoints),
+    sampleCount: ranges.length,
+    minKrw: Math.min(...ranges.map((range) => range.min)),
+    medianKrw: median(ranges.map((range) => range.midpoint)),
+    maxKrw: Math.max(...ranges.map((range) => range.max)),
+    rangeMethod: "published_bounds",
+    medianMethod: "median_of_row_midpoints",
   };
 }
 
@@ -220,12 +230,12 @@ export async function executeGetMarketPrice(
   // 결혼식장인데 항목을 고르지 않았으면 **섞지 않고 유형별로 나눠서** 준다.
   // 단일 중위값을 함께 주면 모델이 그걸 집어 쓰므로 아예 넣지 않는다.
   if (category === "hall" && !itemType) {
-    const buckets = new Map<HallItemType, number[]>();
+    const buckets = new Map<HallItemType, PriceRange[]>();
     for (const row of rows) {
       const type = hallItemTypeOf(row.item_name);
-      const midpoint = midpointOf(row);
-      if (!type || midpoint === null) continue;
-      buckets.set(type, [...(buckets.get(type) ?? []), midpoint]);
+      const range = rangeOf(row);
+      if (!type || range === null) continue;
+      buckets.set(type, [...(buckets.get(type) ?? []), range]);
     }
     const breakdown = HALL_ITEM_TYPES
       .map((type) => ({ itemType: type, stats: statsOf(buckets.get(type) ?? []) }))
@@ -250,18 +260,18 @@ export async function executeGetMarketPrice(
             + `${formatKrw(entry.medianKrw)} (${entry.sampleCount}건)`
           ))
           .join(", ")
-        + ". 개별 업체 금액은 업체 공시가에서 출처와 기준 시점을 함께 확인해 주세요.",
+        + ". 중간값은 행별 공시 구간 중점의 중앙값이며, 최소·최대는 공시 구간의 양끝입니다. 개별 업체 금액은 업체 공시가에서 출처와 기준 시점을 함께 확인해 주세요.",
     };
   }
 
-  const midpoints: number[] = [];
+  const ranges: PriceRange[] = [];
   for (const row of rows) {
     if (itemType && hallItemTypeOf(row.item_name) !== itemType) continue;
-    const midpoint = midpointOf(row);
-    if (midpoint !== null) midpoints.push(midpoint);
+    const range = rangeOf(row);
+    if (range !== null) ranges.push(range);
   }
 
-  const stats = statsOf(midpoints);
+  const stats = statsOf(ranges);
   if (!stats) return emptyResult;
 
   const perPerson = itemType !== null && PER_PERSON_HALL_ITEM_TYPES.has(itemType);
@@ -280,7 +290,7 @@ export async function executeGetMarketPrice(
       `${source} 기준 ${scope} ${label ? `${label} ` : ""}공시가 ${stats.sampleCount}건: `
       + `중간값 ${formatKrw(stats.medianKrw)}`
       + ` (최소 ${formatKrw(stats.minKrw)} ~ 최대 ${formatKrw(stats.maxKrw)}).`
-      + " 개별 업체 금액은 업체 공시가에서 출처와 기준 시점을 함께 확인해 주세요.",
+      + " 중간값은 행별 공시 구간 중점의 중앙값이며, 최소·최대는 공시 구간의 양끝입니다. 개별 업체 금액은 업체 공시가에서 출처와 기준 시점을 함께 확인해 주세요.",
   };
 }
 

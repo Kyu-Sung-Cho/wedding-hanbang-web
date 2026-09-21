@@ -158,7 +158,7 @@ function createProfilePatchRequest(
   return new Request("http://localhost/api/profile", {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ name, ...body }),
+    body: JSON.stringify({ name, expectedOwnerId: "user-1", ...body }),
   });
 }
 
@@ -317,6 +317,37 @@ describe("/api/profile PATCH", () => {
     mockAuthClient();
   });
 
+  it.each([undefined, "Bearer legacy-token"])("explains a missing profile owner without granting a legacy transport exception (%s)", async authorization => {
+    const admin = mockAdminClient({});
+    const response = await PATCH(new Request("https://hanbang.ai/api/profile", {
+      method: "PATCH", headers: { "content-type": "application/json", ...(authorization ? { authorization } : {}) },
+      body: JSON.stringify({ care_notifications_enabled: false }),
+    }));
+    expect(response.status).toBe(409);
+    const body = await response.json();
+    expect(body).toMatchObject({ code: "PROFILE_OWNER_CHANGED", reason: "owner_required" });
+    expect(body.error).toContain("앱을 업데이트");
+    expect(body.error).toContain("https://hanbang.ai/settings");
+    expect(body.error).toContain("같은 계정");
+    expect(body.error).not.toContain("user-1");
+    expect(admin.rpc).not.toHaveBeenCalled();
+    expect(createClient).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    [null, "owner_invalid"], [0, "owner_invalid"], [{ id: "private-owner" }, "owner_invalid"],
+    ["", "owner_invalid"], ["user-2", "owner_changed"],
+  ])("distinguishes invalid profile owner information from an actual owner mismatch (%j)", async (expectedOwnerId, reason) => {
+    const admin = mockAdminClient({});
+    const response = await PATCH(createProfilePatchRequest("private-draft", { expectedOwnerId }));
+    expect(response.status).toBe(409);
+    const body = await response.json();
+    expect(body).toMatchObject({ code: "PROFILE_OWNER_CHANGED", reason });
+    expect(body.error).toContain(reason === "owner_invalid" ? "형식" : "계정");
+    expect(JSON.stringify(body)).not.toMatch(/private-owner|private-draft|user-1|user-2/);
+    expect(admin.rpc).not.toHaveBeenCalled();
+  });
+
   it.each([true, false])("preserves optional explicit role while editing a name (lookup available: %s)", async available => {
     mockAdminClient({}, {data:{profile:{id:"user-1",name:"새 이름",role:"bride",avatar_url:"unchanged"},community_profile_synced:false},error:null});
     roleRead.mockResolvedValue(new Map(available ? [["user-1",{user_id:"user-1",confirmed_role:"groom",revision:"r1",couple_id:null}]] : []));
@@ -337,7 +368,7 @@ describe("/api/profile PATCH", () => {
     admin.rpc.mockImplementation(async (name:string)=> name==="read_profile_avatar_snapshot"
       ? {data:failed?null:[{user_id:owner,kind:"photo",emoji:null,object_path:`${owner}/${revision}.webp`,revision,updated_at:"2026-09-13T00:00:00Z"}],error:failed?{code:"offline"}:null}
       : {data:{profile:{id:owner,name:"New Name",avatar_url:"https://untrusted.invalid/stale.jpg"},community_profile_synced:false},error:null});
-    const response=await PATCH(createProfilePatchRequest("New Name"));
+    const response=await PATCH(createProfilePatchRequest("New Name", { expectedOwnerId: owner }));
     expect(response.status).toBe(200); const body=await response.json();
     expect(body.profile.name).toBe("New Name");
     expect(body.profile).toMatchObject({confirmed_role:"groom",confirmed_role_revision:"role-revision"});
@@ -405,7 +436,7 @@ describe("/api/profile PATCH", () => {
     const response = await PATCH(new Request("http://localhost/api/profile", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ community_nickname: "Community Nick" }),
+      body: JSON.stringify({ community_nickname: "Community Nick", expectedOwnerId: "user-1" }),
     }));
 
     expect(response.status).toBe(200);
@@ -485,7 +516,7 @@ describe("/api/profile PATCH", () => {
     const response = await PATCH(new Request("http://localhost/api/profile", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ care_notifications_enabled: true }),
+      body: JSON.stringify({ care_notifications_enabled: true, expectedOwnerId: "user-1" }),
     }));
 
     expect(response.status).toBe(409);
@@ -514,7 +545,7 @@ describe("/api/profile PATCH", () => {
     const response = await PATCH(new Request("http://localhost/api/profile", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ care_notifications_enabled: true }),
+      body: JSON.stringify({ care_notifications_enabled: true, expectedOwnerId: "user-1" }),
     }));
 
     expect(response.status).toBe(200);
@@ -548,7 +579,7 @@ describe("/api/profile PATCH", () => {
     const response = await PATCH(new Request("http://localhost/api/profile", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ care_notifications_enabled: false }),
+      body: JSON.stringify({ care_notifications_enabled: false, expectedOwnerId: "user-1" }),
     }));
 
     expect(response.status).toBe(200);
@@ -587,7 +618,7 @@ describe("/api/profile PATCH", () => {
     const response = await PATCH(new Request("http://localhost/api/profile", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ phone_care_consent: true }),
+      body: JSON.stringify({ phone_care_consent: true, expectedOwnerId: "user-1" }),
     }));
 
     expect(response.status).toBe(200);
@@ -612,7 +643,7 @@ describe("/api/profile PATCH", () => {
     const response = await PATCH(new Request("http://localhost/api/profile", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ phone_care_consent: true }),
+      body: JSON.stringify({ phone_care_consent: true, expectedOwnerId: "user-1" }),
     }));
 
     expect(response.status).toBe(400);
@@ -651,6 +682,7 @@ describe("/api/profile PATCH", () => {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
+        expectedOwnerId: "user-1",
         name: "All Or Nothing",
         care_notifications_enabled: false,
         sync_community_nickname: true,

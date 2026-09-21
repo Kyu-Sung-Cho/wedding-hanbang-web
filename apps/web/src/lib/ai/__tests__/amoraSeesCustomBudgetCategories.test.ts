@@ -182,9 +182,10 @@ describe("직접 추가한 항목을 고칠 수 있되 슬롯을 지어내지는
   // 경우별로 실측했고 그 표는 마이그레이션 머리말에 있다.
   const MIGRATIONS_DIR = join(process.cwd(), "..", "..", "supabase", "migrations");
 
-  function latestMigrationDefining(signature: string): string {
+  function latestMigrationDefining(signature: string, before?: string): string {
     const files = readdirSync(MIGRATIONS_DIR)
       .filter((name) => name.endsWith(".sql"))
+      .filter((name) => before === undefined || name < before)
       .filter((name) => readFileSync(join(MIGRATIONS_DIR, name), "utf8").includes(signature))
       .sort();
     if (files.length === 0) throw new Error(`정의를 찾지 못했다: ${signature}`);
@@ -204,12 +205,23 @@ describe("직접 추가한 항목을 고칠 수 있되 슬롯을 지어내지는
   // 다시 정의하면서 그 파일이 죽은 정의가 됐다. 그래서 살아 있는 정의에서 키
   // 규칙을 통째로 지워도 가드가 초록이었다(2026-08-24 적대적 검토가 재현).
   // 다음번 재정의에도 가드가 따라가게 계산해서 고른다.
+  const dispatcherSignature = "CREATE OR REPLACE FUNCTION public.apply_amora_atomic_tool_execution_pre_shared_revision";
+  const wrapperMigration = latestMigrationDefining(dispatcherSignature);
+  const wrapperSql = activeSql(wrapperMigration);
+  // 최신 정의는 새 결정 기록만 처리하고 직전 본문을 이름 바꿔 위임한다.
+  // 위임 연결 자체를 아래에서 검증해야 오래된 비활성 본문만 검사하지 않는다.
   const keyRuleSql = activeSql(latestMigrationDefining(
-    "CREATE OR REPLACE FUNCTION public.apply_amora_atomic_tool_execution_pre_shared_revision",
+    dispatcherSignature, wrapperMigration,
   ));
   const labelRuleSql = activeSql(
     "20260824150000_amora_custom_category_label_match.sql",
   );
+
+  it("현재 결정 기록 wrapper가 기존 예산 본문을 그대로 이름 바꿔 위임한다", () => {
+    expect(wrapperSql).toContain(`ALTER FUNCTION public.apply_amora_atomic_tool_execution_pre_shared_revision(\n  uuid,text,text,integer,text,jsonb,jsonb,jsonb\n) RENAME TO apply_amora_atomic_tool_execution_pre_decision_record;`);
+    expect(wrapperSql).toContain(`IF p_domain_mutation ->> 'kind' IS DISTINCT FROM 'decision_record_insert' THEN\n    RETURN public.apply_amora_atomic_tool_execution_pre_decision_record(\n      p_couple_id,p_request_key,p_operation_key,p_request_attempt_count,\n      p_input_digest,p_tool_input,p_domain_mutation,p_result\n    );`);
+    expect(wrapperSql).not.toContain("CREATE OR REPLACE FUNCTION public.apply_amora_atomic_tool_execution_pre_decision_record(");
+  });
 
   it("새로 만들 때는 라벨에서 유도한 해시 키만 받는다", () => {
     expect(keyRuleSql).toContain(

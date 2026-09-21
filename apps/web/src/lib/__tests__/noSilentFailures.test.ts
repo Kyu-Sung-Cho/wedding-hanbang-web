@@ -146,12 +146,14 @@ describe("초대 코드 재발급이 실패하면 다시 조회한다", () => {
       settings.indexOf("const saveName = async () => {"),
     );
     expect(fn.length, "재발급 함수를 못 찾았다").toBeGreaterThan(200);
-    // 실패 갈래(else)와 예외 갈래(catch) 둘 다 다시 조회를 걸어야 한다.
-    expect(
-      fn.split("setConnectionRetryNonce").length - 1,
-      "실패·예외 두 갈래 모두에서 다시 조회하지 않는다",
-    ).toBeGreaterThanOrEqual(2);
-    expect(fn).toContain("setRegenerateError");
-    expect(fn).toContain("REGENERATE_FAILED");
+    // HTTP 거절도 예외로 모아 같은 catch에서 복구한다. 옛 else/catch의 호출 횟수를
+    // 강요하지 않고 거절 → 공통 오류 처리 → 재조회 연결을 검사한다. 실제 HTTP·전송·
+    // 본문 오류 뒤 GET/화면 복구는 page.invite-recovery.test.tsx가 별도로 실행한다.
+    const rejection = fn.slice(fn.indexOf("if (!res.ok"), fn.indexOf("// 정상 영수증"));
+    expect(rejection).toContain('throw new Error("INVITE_REGENERATION_UNCONFIRMED")');
+    const recovery = fn.slice(fn.indexOf("} catch {"), fn.lastIndexOf("} finally {"));
+    expect(recovery).toContain("markInviteCodeUnknown");
+    expect(recovery).toContain("setConnectionRetryNonce");
+    expect(recovery).toContain("setRegenerateError(REGENERATE_FAILED)");
   });
 });

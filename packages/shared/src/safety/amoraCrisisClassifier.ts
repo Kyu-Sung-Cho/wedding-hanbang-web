@@ -87,6 +87,42 @@ const PARTNER_PATTERN =
   /(?:예비\s*신랑|예비\s*신부|남친|여친|파트너|상대방|그\s*사람|배우자|남편|아내|남자친구|여자친구|신랑|신부|시어머니|시아버지|시부모|시댁|예비\s*시댁|장모|장인|형부|상대)/;
 const KNOWN_OTHER_PATTERN =
   /(?:친구|지인|동생|형|누나|언니|오빠|엄마|아빠|부모님|시어머니|시아버지|시부모|시댁|예비\s*시댁|장모|장인|형부|처가|제부|올케|처제|매형|동서|예비\s*신랑|예비\s*신부|남친|여친|파트너|상대방|그\s*사람|배우자|남편|아내|남자친구|여자친구|신랑|신부|상대)/;
+// 중재의 넓은 보조 신호와 달리, 일반 채팅에서는 행위자 + 내 소유물 + 반복 확인을
+// 한 구문으로 요구한다. `카톡으로 받은 견적을 다 확인` 같은 준비 업무는 포함하지 않는다.
+const PERSONAL_SURVEILLANCE_PATTERN = new RegExp(
+  `${PARTNER_PATTERN.source}(?:이|가|은|는|도)? {0,2}(?:제|내|저의|나의) {0,2}(?:폰|휴대폰|핸드폰|카톡|메시지|문자|통화 {0,2}(?:목록|내역))(?:을|를) {0,2}(?:강제로 {0,2})?(?:매일|계속|늘) {0,2}확인(?:해|했)`,
+);
+const PERSONAL_FUNDS_CONFISCATION_PATTERN = new RegExp(
+  `${PARTNER_PATTERN.source}(?:이|가|은|는|도)? {0,2}(?:제|내|저의|나의) {0,2}(?:통장|카드|월급|수입|돈|계좌)(?:을|를) {0,2}(?:강제로 {0,2})?(?:빼앗|뺏)`,
+);
+const CURRENT_NECK_PRESSURE_PATTERN = new RegExp(
+  `${PARTNER_PATTERN.source}(?:이|가|은|는) {0,2}(?:(?:제|내|저의|나의) {0,2})?목(?:을|를) {0,2}누르고 {0,2}있(?:어|는(?! {0,2}(?:건|게|것은) {0,2}아니))`,
+);
+const CURRENT_BREATHING_DIFFICULTY_PATTERN = /숨(?:이|을)? {0,2}(?:안 {0,2}쉬어져|못 {0,2}쉬(?:어|겠))/;
+// `때리`와 활용형 `때려서`는 별개다. 호칭 바로 뒤의 피해 서술만 받으며
+// 북·비트·가격 같은 다른 목적어나 임의 문자열을 건너뛰지 않는다.
+const PARTNER_ASSAULT_WITH_DISTRESS_PATTERN = new RegExp(
+  `${PARTNER_PATTERN.source}(?:이|가|은|는) {0,2}(?:(?:자꾸|계속|또|자주) {0,2})?(?:(?:저를|나를|날|절) {0,2})?때려서 {0,2}(?:(?:너무|정말) {0,2})?(?:무서워(?:요)?|아파(?:요)?|겁(?:이)? {0,2}나(?:요)?)(?=$|[ .!?])`,
+);
+
+function hasAffirmedPersonalControl(text: string): boolean {
+  return [PERSONAL_SURVEILLANCE_PATTERN, PERSONAL_FUNDS_CONFISCATION_PATTERN].some((pattern) => {
+    for (const match of text.matchAll(new RegExp(pattern.source, "g"))) {
+      const before = text.slice(Math.max(0, match.index - 32), match.index);
+      const after = text.slice(match.index + match[0].length, match.index + match[0].length + 32);
+      if (/^(?:은|는|던|었던)? {0,2}(?:건|것은|게|적은|적이) {0,2}(?:아니|없)|^지 {0,2}(?:않|못)/.test(after)) {
+        continue;
+      }
+      if (
+        pattern === PERSONAL_SURVEILLANCE_PATTERN
+        && /(?:제가|내가) {0,2}(?:부탁해서|요청해서) {0,2}$/.test(before)
+        && !/강제로/.test(match[0])
+      ) continue;
+      return true;
+    }
+    return false;
+  });
+}
 const REPORTER_TARGET_PATTERN = /(?:나|저|날|절)(?:를)?/;
 // 1인칭 주어(느슨한 쪽). 경계가 없어서 `나`가 `나오`·`나중`의 첫 음절에도 걸린다.
 //
@@ -214,7 +250,7 @@ const META_CONTEXT_PATTERN =
   /(?:(?:문구|표현|단어|대사|가사|예시|캠페인|예방\s*교육).{0,100}(?:검토|작성|추천|분석|가정(?:해|하면|한))|(?:검토|작성|추천|분석|가정(?:해|하면|한)).{0,100}(?:문구|표현|단어|대사|가사|예시|캠페인|예방\s*교육))/;
 const FICTIONAL_GAME_CONTEXT_PATTERN = /게임(?:에서|중에|속에서)/;
 const CURRENT_DISCLOSURE_OVERRIDE_PATTERN =
-  /(?:(?:아니라|그런데|근데|하지만).{0,40}(?:나|저|남편|아내|배우자|남친|여친|신랑|신부|상대).{0,40}(?:진짜|지금|현재|오늘|방금).{0,40}(?:죽\s*고\s*싶|자살|자해|때리|맞고|협박|위협|칼|흉기)|(?:오늘|지금|현재|방금).{0,50}(?:때리|맞고|폭행|협박|위협|죽\s*고\s*싶|자살|자해|칼|흉기))/;
+  /(?:(?:아니라|그런데|근데|하지만).{0,40}(?:나|저|남편|아내|배우자|남친|여친|신랑|신부|상대).{0,40}(?:진짜|지금|현재|오늘|방금).{0,40}(?:죽\s*고\s*싶|죽으려고|자살|자해|때리|맞고|협박|위협|칼|흉기)|(?:오늘|지금|현재|방금).{0,50}(?:때리|맞고|폭행|협박|위협|죽\s*고\s*싶|죽으려고|자살|자해|칼|흉기))/;
 const CONCRETE_SELF_HARM_ATTEMPT_PATTERN =
   /(?:(?:졸피뎀|수면제|진통제|타이레놀|아세트아미노펜|약|알약)(?:을|를)?\s*(?:(?:[1-9]\d+)\s*(?:알|개)|한\s*(?:통|병)|여러\s*알|전부|모두|다|몽땅|너무\s*많이|많이|과다|과량|한꺼번에|왕창|잔뜩|한\s*(?:움큼|줌))(?:을|를)?\s*(?:먹|삼키|삼켰|복용|드시|드셨|드시고)|(?:옥상|난간|다리|베란다|한강).{0,36}(?:뛰어내리|몸을?\s*던지)(?:려고|려는|려|겠|ㄹ)|(?:뛰어내리|몸을?\s*던지)(?:려고|려는|려).{0,36}(?:옥상|난간|다리|베란다|한강)|(?:농약|락스|표백제|세제|부동액)(?:을|를)?\s*(?:마시|마셨|먹|삼키)|(?:번개탄|연탄)(?:을|를)?\s*(?:피우|피웠|피워|점화|켜)|(?:졸피뎀|수면제|진통제|타이레놀|아세트아미노펜|약|알약)(?:을|를)?\s*한\s*(?:통|병)(?:을|를)?\s*(?:다|전부|모두|몽땅)?\s*(?:먹었|삼켰|복용했|드시고|드셨)|(?:약|영양제|감기약|진통제)(?:이랑|랑|과|까지)[^.!?\n]{0,16}다\s*먹었[^.!?\n]{0,24}(?:어지러|토했|쓰러|의식|깨어나))/;
 /**
@@ -376,9 +412,40 @@ const ELIDED_INGESTION_CONTINUATION_PATTERN = new RegExp(
   `^(?:나는|내가|나도|저는|제가|저도|${KNOWN_OTHER_PATTERN.source}(?:가|이|는|은|도))\\s*(?:먹었(?:어|어요|다)?|먹지\\s*않았(?:어|어요|다)?|삼켰(?:어|어요|다)?|삼키지\\s*않았(?:어|어요|다)?|복용했(?:어|어요|다)?|복용하지\\s*않았(?:어|어요|다)?)[.!?]?$`,
 );
 const INDEPENDENT_IMMEDIATE_SAFETY_CUE_PATTERN =
-  /(?:죽\s*고\s*싶|자살|자해|목숨을?\s*끊|칼|흉기|때리|때려|때렸|때린|맞고|맞았|폭행|협박|위협|감금|가둬|성폭행|성폭력|성추행|강간|목을?\s*조르|수면제|졸피뎀|농약|락스|표백제|번개탄|연탄)/;
+  /(?:죽\s*고\s*싶|죽으려고|자살|자해|목숨을?\s*끊|칼|흉기|때리|때려|때렸|때린|맞고|맞았|폭행|협박|위협|감금|가둬|성폭행|성폭력|성추행|강간|목을?\s*조르|수면제|졸피뎀|농약|락스|표백제|번개탄|연탄)/;
 const UNAMBIGUOUS_SELF_HARM_IDEATION_PATTERN =
   /(?:(?:더는\s*)?못\s*살겠(?:어|다|어요)?|차라리\s*죽는\s*게\s*나아|이제\s*그만\s*살래)(?=$|[.!?])/;
+// 의도형은 주어가 생략되어도 관용 강조(`힘들어 죽겠어`)와 구별된다.
+const SUBJECTLESS_DEATH_INTENTION_PATTERN =
+  /(?<![가-힣])(?:죽으려고|(?<!게임 |가상 )세상(?:을)? {0,2}떠나려고)|(?:할\s*일|계획|다음\s*(?:순서|일정))(?:은|는|이|가)\s*(?:자살|자해)(?=이야|이에요|입니다|이다|[.!?]|$)/;
+// 과제의 종료와 구별하기 위해 직접적인 1인칭 종료 의도와 삶의 이유 상실을 함께 요구한다.
+const TERMINAL_INTENTION_WITH_DESPAIR_PATTERN =
+  /(?<![가-힣])(?:난|나는|저는|내가|제가|전) {0,2}오늘 {0,2}끝낼 {0,2}(?:거야|거예요|겁니다)(?=.{0,64}살아 {0,2}있을 {0,2}이유(?:가|는)? {0,2}없(?:어요|어|다|습니다)(?=$|[\s.!?]))/;
+
+function assessSubjectlessDeathIntention(text: string): AmoraSafetyAssessment | null {
+  const match = SUBJECTLESS_DEATH_INTENTION_PATTERN.exec(text)
+    ?? TERMINAL_INTENTION_WITH_DESPAIR_PATTERN.exec(text);
+  if (!match) return null;
+  const after = text.slice(match.index + match[0].length, match.index + match[0].length + 40);
+  const negated = /^ {0,2}(?:(?:한|하는) {0,2})?(?:건|것은|게) {0,2}아니|^ {0,2}하지(?:는|도)? {0,2}않/.test(after);
+  const hypothetical = /^ {0,2}(?:하면|한다면|할 {0,2}경우)/.test(after);
+  const before = text.slice(Math.max(0, match.index - 64), match.index);
+  const historical = /^ {0,2}했었/.test(after) || (HISTORICAL_MARKER_PATTERN.test(before)
+    && lastPatternIndex(HISTORICAL_MARKER_PATTERN, before)
+      > lastPatternIndex(/지금|현재|오늘|방금/, before));
+  const actor: AmoraSafetyActor = lastPatternIndex(EXPLICIT_KNOWN_OTHER_ACTOR_PATTERN, before)
+    > lastPatternIndex(EXPLICIT_REPORTER_ACTOR_PATTERN, before) ? "known_other" : "self";
+  return {
+    resolution: negated ? "no_safety_signal" : historical || hypothetical ? "non_immediate_safety" : "immediate_crisis",
+    kind: negated || historical || hypothetical ? null : actor === "known_other" ? "third_party_self_harm" : "self_harm",
+    responseDirection: negated || historical || hypothetical || actor === "self" ? null : "third_party",
+    events: [{
+      actor, target: "self", direction: "self_directed",
+      action: "self_harm_intent", temporality: hypothetical ? "hypothetical" : historical ? "past" : "impending",
+      polarity: negated ? "negated" : "affirmed", context: "disclosure",
+    }],
+  };
+}
 
 function splitAmoraSafetyClauses(text: string): string[] {
   return text
@@ -406,7 +473,7 @@ function hasIndependentCurrentDisclosureClause(text: string): boolean {
     || META_CONTEXT_PATTERN.test(text)
     || FICTIONAL_GAME_CONTEXT_PATTERN.test(text);
   const explicitRealWorldTransitionPattern = new RegExp(
-    `(?:그런데|근데|하지만|(?:했|였|았|었|겠)는데|${EXPLICIT_SAFETY_CLAUSE_BOUNDARY_SOURCE})\\s*.{0,64}(?:오늘|지금|현재|방금|진짜).{0,48}(?:죽\\s*고\\s*싶|자살|자해|때리|맞고|폭행|협박|위협|칼|흉기)`,
+    `(?:그런데|근데|하지만|(?:했|였|았|었|겠)는데|${EXPLICIT_SAFETY_CLAUSE_BOUNDARY_SOURCE})\\s*.{0,64}(?:오늘|지금|현재|방금|진짜).{0,48}(?:죽\\s*고\\s*싶|죽으려고|자살|자해|때리|맞고|폭행|협박|위협|칼|흉기)`,
   );
   const hasExplicitRealWorldTransition =
     explicitRealWorldTransitionPattern.test(text);
@@ -858,6 +925,8 @@ export function assessAmoraSafetyText(value: string): AmoraSafetyAssessment {
   // 요구하므로, 호칭이 없어도 평범한 문장을 끌어오지 않는다.
   const standaloneInterpersonalDanger =
     PHYSICAL_ASSAULT_PATTERN.test(text)
+    || PARTNER_ASSAULT_WITH_DISTRESS_PATTERN.test(text)
+    || (CURRENT_NECK_PRESSURE_PATTERN.test(text) && CURRENT_BREATHING_DIFFICULTY_PATTERN.test(text))
     || CONFINEMENT_PATTERN.test(text)
     || SEXUAL_COERCION_PATTERN.test(text)
     // 폭력 동사와 몸에 남은 피해가 함께 있으면 사고가 아니다.
@@ -1415,6 +1484,9 @@ export function assessAmoraSafetyText(value: string): AmoraSafetyAssessment {
     };
   }
 
+  const subjectlessDeathIntention = assessSubjectlessDeathIntention(text);
+  if (subjectlessDeathIntention?.resolution === "immediate_crisis") return subjectlessDeathIntention;
+
   if ((reporterSelfHarm.test(text) || vanishingWish) && !declaredJokeOnly) {
     return {
       resolution: "immediate_crisis",
@@ -1433,6 +1505,18 @@ export function assessAmoraSafetyText(value: string): AmoraSafetyAssessment {
           context: "disclosure",
         },
       ],
+    };
+  }
+
+  if (subjectlessDeathIntention) return subjectlessDeathIntention;
+
+  if (hasAffirmedPersonalControl(text)) {
+    return {
+      resolution: "non_immediate_safety", kind: null, responseDirection: null,
+      events: [{
+        actor: "known_other", target: "reporter", direction: "toward_reporter",
+        action: "coercive_control", temporality: "current", polarity: "affirmed", context: "disclosure",
+      }],
     };
   }
 

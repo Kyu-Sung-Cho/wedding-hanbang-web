@@ -7,6 +7,7 @@ import { SCREEN_CATEGORY_LABELS } from "@/lib/ai/tools/planningConstants";
 import { CHECKLIST_MAP } from "@/constants/checklists";
 import { ymdInKst } from "@/lib/utils/kstDate";
 import { hasUnsupportedScheduleFields, UNSUPPORTED_SCHEDULE_FIELDS_NOTICE } from "@/lib/ai/amoraUnsupportedScheduleFields";
+import { containsPotentialSensitiveData } from "@/lib/ai/amoraSensitiveData";
 
 const MAX_PENDING_ACTION_JSON_CHARS = 4_000;
 const MAX_CANONICAL_CONFIRMATION_CHARS = 2_000;
@@ -33,6 +34,7 @@ const TOOL_LABELS: Readonly<Record<string, string>> = {
   delete_schedule_event: "지원 중단된 일정 삭제",
   toggle_checklist_item: "체크리스트 상태 변경",
   add_amora_action: "아모라 행동 카드 추가",
+  add_decision_record: "결정 기록 추가",
   update_amora_action: "아모라 행동 카드 변경",
   log_wedding_event: "웨딩 일정 기억",
   create_booking: "아모라 방문·상담 요청 기록",
@@ -87,6 +89,9 @@ const ENUM_VALUE_LABELS: Readonly<Record<string, Readonly<Record<string, string>
     open: "진행 중",
     done: "완료",
     dismissed: "숨김",
+    exploring: "미정",
+    considering: "논의 중",
+    decided: "확정",
   },
   priority: {
     high: "높음",
@@ -549,6 +554,9 @@ function validateMarker(
   if (!isRecord(value)) return null;
   if (typeof value.tool !== "string" || !isRecord(value.input)) return null;
   if (!isSafeJsonValue(value.input)) return null;
+  if (value.tool === "add_decision_record" && Object.values(value.input).some(
+    (field) => typeof field === "string" && containsPotentialSensitiveData(field),
+  )) return null;
 
   const tool = tools.find((candidate) => candidate.name === value.tool);
   if (!tool) return null;
@@ -910,6 +918,10 @@ function formatFieldListConfirmation(
     // 변경은 승인받은 변경이 아니다.
     if (!itemLabel) return null;
     fieldLines.push(`- ${FIELD_LABELS.item_id}: ${itemLabel}`);
+  }
+  if (tool.name === "add_decision_record") {
+    fieldLines.push("- 공개 범위: 상대에게도 보이는 공유 기록");
+    fieldLines.push("- 한 사람의 저장 확인이며, 두 사람의 합의를 뜻하지 않아요.");
   }
 
   const confirmation = [
@@ -2107,6 +2119,11 @@ export function buildAmoraPendingActionPrompt(
     // (`coerceLenientOptionalFields`). 같은 자리를 일정 줄에 내준다.
     ...(supports("add_amora_action") ? [
       "- 할 일·투두·챙길 것을 추가해 달라는 요청에는 `add_amora_action` 표식을 이번 답변에 내세요. 필요한 값은 `title` 하나이고, 마감일을 함께 말했으면 `due_date` 에 넣습니다. 마감일·카테고리가 있다고 되묻지 마세요.",
+    ] : []),
+    ...(supports("add_decision_record") ? [
+      "- 결정 보드 기록 요청에는 `add_decision_record` 표식을 이번 답변에 내세요. 미정·논의 중을 확정으로 바꾸지 마세요. 상태가 명확하지 않으면 상태만 물으세요. 할 일·일정·예산으로 바꾸거나 평문 미리보기만 쓰고 끝내지 마세요.",
+      '- 결정 기록 표식 예시(값은 사용자 요청만): [pending_action]{"tool":"add_decision_record","input":{"title":"식사 중심 예식 검토","status":"considering","memo":"지역 미정"}}[/pending_action]',
+      "- 기록은 상대에게도 보이는 공유 정보입니다. 한 사람의 저장 승인이지 두 사람의 합의가 아니며, 비공개 상담·민감정보를 옮기지 마세요. 저장 성공은 서버 영수증으로만 확인합니다.",
     ] : []),
     // 2026-09-04 스테이징 실측: 날짜·제목이 다 적힌 일정 3건 요청에 표식이 **0개**
     // 나왔다. 답변은 "세 일정 모두 2026년 날짜로 확인했어요 … 우선 9월 10일 일정을

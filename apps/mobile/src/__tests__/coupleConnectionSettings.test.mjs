@@ -46,8 +46,17 @@ test("mobile awaiting-partner offers a way out when both partners started separa
   assert.match(awaiting, /파트너도 따로 시작해서/);
 });
 
-test("mobile restart uses the authenticated atomic reset endpoint", () => {
-  assert.match(settingsSource, /apiFetch\("\/api\/couple\/reset"/);
-  assert.match(settingsSource, /confirmText:\s*"초기화합니다"/);
-  assert.match(settingsSource, /router\.replace\("\/onboarding"\)/);
+test("mobile restart uses the owner-reviewed atomic reset endpoint", () => {
+  const start = settingsSource.indexOf("async function handleStartNewCouple()");
+  const end = settingsSource.indexOf("async function performLogout()", start);
+  assert.ok(start >= 0 && end > start, "초기화 핸들러를 찾지 못했습니다");
+  const restart = settingsSource.slice(start, end);
+  // 기존 의도는 인증된 원자적 API 사용이다. 현재 계정을 다시 얻는 apiFetch가 아니라
+  // 확인한 계정과 서버 대상 tuple에 결박한다. 실제 Alert 수명은 별도 행동 테스트로 검증한다.
+  assert.match(restart, /apiFetchForExpectedUser\(reviewed\.userId, "\/api\/couple\/reset"\)/);
+  assert.match(restart, /apiFetchForExpectedUser\(reviewed\.userId, "\/api\/couple\/reset", \{\s*method: "POST"/);
+  assert.match(restart, /JSON\.stringify\(\{ confirmText: "초기화합니다", confirmationTarget \}\)/);
+  assert.doesNotMatch(restart, /apiFetch\(/);
+  assert.match(restart, /payload\.success !== true/);
+  assert.match(restart, /router\.replace\("\/onboarding"\)/);
 });

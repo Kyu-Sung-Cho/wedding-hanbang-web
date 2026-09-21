@@ -9,13 +9,17 @@
  * 내부 식별자(UUID, act_/evt_ 접두 id, "ID:" 표기)가 든 문장은 웹과 같은 규칙으로
  * 일반 문구로 바꾼다 — 실행기가 가끔 내부 id 를 그대로 말한다.
  */
-export type ToolResultCardTone = "success" | "failure";
+import { AMORA_DECISION_SCOPE_NOTICE, AMORA_DECISION_STATUS_LABELS, readAmoraDecisionReceipt } from "@hanbang/shared";
+
+export type ToolResultCardTone = "success" | "failure" | "unknown";
 
 export type ToolResultCardModel = {
   toolName: string;
   title: string;
   tone: ToolResultCardTone;
   message: string;
+  /** 화면에는 노출하지 않고 동일 영수증만 접을 때 사용한다. */
+  recordId?: string;
 };
 
 type ToolResultLike = {
@@ -41,6 +45,7 @@ const TITLES: Record<string, string> = {
   restore_schedule_event: "취소 일정 복원",
   add_amora_action: "할 일 저장",
   log_wedding_event: "웨딩 일정 기록",
+  add_decision_record: "결정 기록 저장",
 };
 
 /** 이 앱이 카드로 그리는 도구. 장소 검색은 `PlaceCards` 가 따로 그린다. */
@@ -105,6 +110,26 @@ function containsInternalIdentifier(result: ToolResultLike, message: string): bo
 export function getToolResultCardModel(result: ToolResultLike): ToolResultCardModel | null {
   const title = TITLES[result.toolName];
   if (!title) return null;
+  const uncertain = result.toolOutput?.requires_state_review === true || result.toolOutput?.error === "TOOL_EXECUTION_UNCERTAIN"
+    || result.toolOutput?.error === "TOOL_EXECUTION_IN_PROGRESS" || result.toolOutput?.error === "TOOL_LEDGER_RESULT_INVALID";
+  if (result.toolName === "add_decision_record") {
+    const decision = result.success && !uncertain ? readAmoraDecisionReceipt(result.toolOutput) : null;
+    const unconfirmed = result.success || uncertain;
+    return {
+      toolName: result.toolName,
+      title,
+      tone: decision ? "success" : unconfirmed ? "unknown" : "failure",
+      ...(decision ? { recordId: decision.id } : {}),
+      message: decision
+        ? `${decision.title}\n${AMORA_DECISION_STATUS_LABELS[decision.status]} 상태로 저장했어요.${decision.memo ? `\n${decision.memo}` : ""}\n${AMORA_DECISION_SCOPE_NOTICE}`
+        : unconfirmed ? "저장 여부를 확인하지 못했어요. 결정 기록에서 확인해 주세요."
+          : "결정 기록을 저장하지 못했어요. 잠시 후 다시 시도해 주세요.",
+    };
+  }
+  if (uncertain) return {
+    toolName: result.toolName, title, tone: "unknown",
+    message: "반영 여부를 확인하지 못했어요. 다시 변경하기 전에 현재 상태를 확인해 주세요.",
+  };
   const raw = (result.displayMessage ?? "").trim();
   let message: string;
   if (raw.length === 0) {
@@ -129,7 +154,7 @@ export function dedupeToolResultCards(models: ToolResultCardModel[]): ToolResult
   const seen = new Set<string>();
   const out: ToolResultCardModel[] = [];
   for (const model of models) {
-    const key = `${model.toolName}|${model.tone}|${model.message}`;
+    const key = JSON.stringify([model.toolName, model.tone, model.message, model.recordId]);
     if (seen.has(key)) continue;
     seen.add(key);
     out.push(model);

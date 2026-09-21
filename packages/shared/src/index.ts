@@ -24,3 +24,6 @@ export * from "./contracts/amoraFirstHello";
 export * from "./contracts/loungeFirstRun";
 export * from "./contracts/neutralPreparationSpace";
 export * from "./contracts/signupConsent";
+export * from "./contracts/amoraQuotaNotice";
+export * from "./contracts/amoraDecisionReceipt";
+export * from "./contracts/privacyConfirmationTarget";

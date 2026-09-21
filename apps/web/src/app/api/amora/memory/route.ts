@@ -21,12 +21,14 @@ import {
 import { isBodyTooLarge } from "@/utils/requestValidation";
 import { checkRateLimit, rateLimitKey } from "@/utils/rateLimit";
 import { isTrustedMutationRequest } from "@/utils/trustedMutation";
+import { PRIVACY_CONFIRMATION_CHANGED, readPrivacyConfirmationTarget } from "@hanbang/shared";
+import { readOwnPrivacyConfirmationTarget } from "@/lib/privacy/confirmationTarget";
 
 export const dynamic = "force-dynamic";
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const VISIBILITIES = new Set<AmoraMemoryVisibility>(["shared", "bride_private", "groom_private"]);
-const PATCH_KEYS = new Set(["action", "visibility", "enabled", "memoryId", "title", "value"]);
+const PATCH_KEYS = new Set(["action", "visibility", "enabled", "memoryId", "title", "value", "confirmationTarget"]);
 const MAX_BODY_BYTES = 4 * 1024;
 
 type AuthContext = {
@@ -112,6 +114,7 @@ export async function GET(request: Request) {
     const auth = await getAuthContext(request);
     if (!auth.ok) return auth.response;
     const { supabase, context } = auth;
+    const confirmationTarget = await readOwnPrivacyConfirmationTarget(supabase, context.userId, context.coupleId);
     const admin = createAdminClient();
     const [settingsResult, memoriesResult, profileNodesResult, consentsResult, coupleResult] = await Promise.all([
       supabase
@@ -247,6 +250,7 @@ export async function GET(request: Request) {
     return NextResponse.json(
       {
         runtimeEnabled: isAuxiliaryMemoryRuntimeEnabled(),
+        confirmationTarget,
         settings: settingsWithPurge,
         memories,
         profiles: projectedProfiles,
@@ -296,6 +300,25 @@ export async function PATCH(request: Request) {
     if (!context.allowedVisibilities.includes(visibility as AmoraMemoryVisibility)) {
       return NextResponse.json({ error: "이 기억 범위에 접근할 수 없어요." }, { status: 403 });
     }
+    // 개별 기억도 화면 계정과 실제 쿠키/Bearer 계정이 같아야 한다.
+    const requiresConfirmation = record.action === "clear_scope" || record.action === "toggle"
+      || record.action === "update_memory" || record.action === "delete_memory";
+    if (requiresConfirmation
+      && !Object.prototype.hasOwnProperty.call(record, "confirmationTarget")) {
+      return NextResponse.json({
+        error: "이 요청에는 확인한 기억 설정 대상 정보가 없어 변경하지 않았어요. 앱을 업데이트하거나 https://hanbang.ai/settings/amora-memory 에 같은 계정으로 로그인해 현재 기억 범위와 변경 대상을 다시 확인한 뒤 진행해 주세요.",
+        reason: "confirmation_required",
+      }, { status: 409 });
+    }
+    const target = readPrivacyConfirmationTarget(record.confirmationTarget);
+    if (requiresConfirmation
+      && (!target || target.ownerId !== context.userId || target.coupleId !== context.coupleId)) {
+      return NextResponse.json({
+        error: target ? PRIVACY_CONFIRMATION_CHANGED
+          : "확인 대상 정보의 형식이 올바르지 않아 기억 설정을 바꾸지 않았어요. 현재 화면을 새로 열어 범위와 변경 대상을 다시 확인해 주세요.",
+        reason: target ? "confirmation_changed" : "confirmation_invalid",
+      }, { status: 409 });
+    }
     const admin = createAdminClient();
 
     if (record.action === "toggle") {
@@ -308,12 +331,15 @@ export async function PATCH(request: Request) {
           { status: 503 },
         );
       }
-      const { data, error } = await admin.rpc("set_amora_memory_consent", {
+      const { data, error } = await admin.rpc("mutate_amora_memory_with_confirmation", {
         p_couple_id: context.coupleId,
         p_visibility: visibility,
         p_user_id: context.userId,
         p_consented: record.enabled,
+        p_action: "toggle",
+        p_expected_privacy_epoch: target?.privacyEpoch,
       });
+      if (error?.code === "40001" || error?.code === "42501") return NextResponse.json({ error: PRIVACY_CONFIRMATION_CHANGED }, { status: 409 });
       if (error) throw new Error("MEMORY_SETTING_WRITE_FAILED");
       if (!data || typeof data !== "object" || Array.isArray(data)) {
         throw new Error("MEMORY_SETTING_RESULT_INVALID");
@@ -392,11 +418,15 @@ export async function PATCH(request: Request) {
     }
 
     if (record.action === "clear_scope") {
-      const { data, error } = await admin.rpc("clear_amora_memory_scope", {
+      const { data, error } = await admin.rpc("mutate_amora_memory_with_confirmation", {
         p_couple_id: context.coupleId,
         p_visibility: visibility,
         p_user_id: context.userId,
+        p_action: "clear_scope",
+        p_expected_privacy_epoch: target?.privacyEpoch,
+        p_consented: null,
       });
+      if (error?.code === "40001" || error?.code === "42501") return NextResponse.json({ error: PRIVACY_CONFIRMATION_CHANGED }, { status: 409 });
       if (
         error
         || !data

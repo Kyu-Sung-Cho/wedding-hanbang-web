@@ -32,6 +32,7 @@ describe("AmoraDecisionBoard", () => {
     mocks.decisions.refresh.mockReset(); mocks.decisions.loadMore.mockReset();
     Object.assign(mocks.data, { actions: [], loading: false, error: null, count: 0, open_count: 0, truncated: false, isDemo: false, creating: false, createLocked: false, updateError: null, updatingIds: new Set<string>() });
     mocks.data.refresh.mockReset(); mocks.data.update.mockReset().mockResolvedValue(true);
+    Object.assign(mocks.data, { pendingCreateFields: null, canCreate: false });
     mocks.data.loadMore.mockReset(); mocks.data.nextCursor = null; mocks.data.loadingMore = false;
     container = document.createElement("div"); document.body.appendChild(container); root = createRoot(container);
   });
@@ -537,6 +538,14 @@ describe("AmoraDecisionBoard", () => {
     await act(async () => root.render(<AmoraDecisionBoard />));
     expect(container.textContent).not.toContain("아직 저장된 할 일이 없어요");
     expect(container.textContent).toContain("저장 여부는 목록을 새로고쳐 확인해 주세요");
+  });
+
+  it("connects an unresolved creation snapshot to the restored form", async () => {
+    Object.assign(mocks.data, { createLocked: true, pendingCreateFields: { title: "복구할 공유 할 일", description: "승인했던 설명" }, canCreate: true });
+    await act(async () => root.render(<AmoraDecisionBoard />));
+    expect(container.querySelector<HTMLInputElement>('form[aria-label="공유 할 일 추가"] input')?.value).toBe("복구할 공유 할 일");
+    expect(container.querySelector<HTMLTextAreaElement>('form[aria-label="공유 할 일 추가"] textarea')?.value).toBe("승인했던 설명");
+    Object.assign(mocks.data, { pendingCreateFields: null });
   });
 
   it("filters actual titles and categories and exposes a truthful mobile status selection", async () => {

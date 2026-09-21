@@ -348,7 +348,7 @@ function PreparationCard({ action, busy, update, changeStatus }: {
 
 export default function AmoraDecisionBoard() {
   const decisions = useDecisionBoard();
-  const { actions, loading, loadingMore, error, count, truncated, nextCursor, loadMore, refresh, update, updatingIds, updateError, isDemo, create, cancelCreate, createLocked, creating, canCreate, ownerScope } = useAmoraPreparationActions();
+  const { actions, loading, loadingMore, error, count, truncated, nextCursor, loadMore, refresh, update, updatingIds, updateError, isDemo, create, cancelCreate, createLocked, pendingCreateFields, creating, canCreate, ownerScope } = useAmoraPreparationActions();
   const location = useSyncExternalStore(subscribeBoardLocation, boardLocation, serverBoardLocation);
   const requestedView = new URLSearchParams(location.split("?")[1] ?? "").get("view");
   const [selectedBoard, setSelectedBoard] = useState<BoardView | null>(null);
@@ -457,7 +457,7 @@ export default function AmoraDecisionBoard() {
       <div id={decisionPanelId} hidden={board !== "decisions"}><DecisionRecords data={decisions} searchId={decisionSearchId} query={decisionQuery} onQueryChange={setDecisionQuery} mobileSearchOpen={mobileSearchOpen} active={board === "decisions"} /></div>
       <section ref={taskPanelRef} id={taskPanelId} hidden={board !== "tasks"} aria-label="공유 할 일">
       <h2 className="sr-only">공유 할 일</h2>
-      <CreatePreparationAction key={ownerScope} create={create} cancelCreate={cancelCreate} locked={createLocked} busy={creating || updatingIds.size > 0} available={canCreate && !loading && !error} isDemo={isDemo} focusIntent={focusIntent} onCreated={() => {
+      <CreatePreparationAction key={ownerScope} pendingFields={pendingCreateFields} create={create} cancelCreate={cancelCreate} locked={createLocked} busy={creating || updatingIds.size > 0} available={canCreate && !loading && !error} isDemo={isDemo} focusIntent={focusIntent} onCreated={() => {
         setActiveStatus("open"); setCategory("all"); setQuery("");
         setAnnouncement(previous => ({ message: "공유 할 일을 추가했어요.", sequence: previous.sequence + 1 }));
       }} />

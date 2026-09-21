@@ -24,6 +24,8 @@ import { extractAmoraPendingAction } from "@/lib/ai/amoraPendingAction";
 import { buildAmoraBudgetImpactPreview } from "@/lib/ai/amoraBudgetImpactPreview";
 import { getAmoraToolOperationIdentity } from "@/lib/ai/amoraToolIdentity";
 import type { ChatMessage, PendingAmoraAction } from "@/types/database.types";
+import { useAuthStore } from "@/stores/authStore";
+import { PENDING_ACTOR_ID, setPendingActionActor } from "./__tests__/fixtures/pendingActionActor";
 
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean })
   .IS_REACT_ACT_ENVIRONMENT = true;
@@ -117,6 +119,8 @@ describe("PendingAmoraActionCard", () => {
 
   beforeEach(() => {
     vi.stubGlobal("fetch", vi.fn());
+    useAuthStore.getState().reset();
+    setPendingActionActor();
     container = document.createElement("div");
     document.body.appendChild(container);
     root = createRoot(container);
@@ -124,6 +128,7 @@ describe("PendingAmoraActionCard", () => {
 
   afterEach(async () => {
     await act(async () => root.unmount());
+    useAuthStore.getState().reset();
     vi.unstubAllGlobals();
     document.body.replaceChildren();
   });
@@ -176,6 +181,7 @@ describe("PendingAmoraActionCard", () => {
         method: "PUT",
         body: JSON.stringify({
           messageId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          expectedActorId: PENDING_ACTOR_ID,
         }),
       }),
     );
@@ -628,7 +634,7 @@ describe("PendingAmoraActionCard", () => {
     vi.mocked(fetch).mockResolvedValueOnce(new Response(JSON.stringify({ applicationGranted: true, retryAfterMs: 0 }), { status: 200 }));
     await act(async () => dialog.querySelector<HTMLButtonElement>("button[data-amora-confirm]")!.click());
     expect(fetch).toHaveBeenCalledExactlyOnceWith(`/api/amora/shared-actions/${plan.actionId}`,
-      expect.objectContaining({ method: "PUT", body: JSON.stringify({ messageId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa" }) }));
+      expect.objectContaining({ method: "PUT", body: JSON.stringify({ messageId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", expectedActorId: PENDING_ACTOR_ID }) }));
     expect(onApply).toHaveBeenCalledExactlyOnceWith(plan.actionId);
   });
 
@@ -906,6 +912,8 @@ describe("배우자 합류 여부에 따른 알림 문구", () => {
   let container: HTMLDivElement;
 
   beforeEach(() => {
+    useAuthStore.getState().reset();
+    setPendingActionActor();
     container = document.createElement("div");
     document.body.appendChild(container);
     root = createRoot(container);
@@ -913,6 +921,7 @@ describe("배우자 합류 여부에 따른 알림 문구", () => {
 
   afterEach(() => {
     act(() => root.unmount());
+    useAuthStore.getState().reset();
     container.remove();
   });
 

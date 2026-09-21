@@ -3,6 +3,7 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import ChatContent from "./ChatContent";
+import { resetChatComposerSession } from "@/stores/chatComposerStore";
 import type { ChatMessage } from "@/types/database.types";
 import {
   rememberPendingAmoraFirstHello,
@@ -216,6 +217,7 @@ describe("전체 페이지 대화에서도 아모라의 첫마디를 만난다",
   let container: HTMLDivElement;
 
   beforeEach(() => {
+    resetChatComposerSession();
     vi.clearAllMocks();
     mocks.messages = [];
     mocks.suggestions = [];
@@ -270,6 +272,47 @@ describe("전체 페이지 대화에서도 아모라의 첫마디를 만난다",
 
   const helloNode = () =>
     container.querySelector('[data-testid="amora-first-hello-message"]');
+
+  it.each([false, true])("스트리밍 중 검색 진입은 읽는 위치를 보호한다: 검색=%s", async search => {
+    const initial: ChatMessage = { id: "scroll-seed", couple_id: "couple-1", sender_id: null, sender_role: "ai", visibility: "shared", content: "처음 답변", metadata: {}, created_at: "2026-09-20T00:00:00Z" };
+    mocks.messages = [initial];
+    await render();
+    const scroll = container.querySelector('[data-role-message="scroll-seed"]')?.closest<HTMLDivElement>('.overflow-y-auto');
+    expect(scroll).toBeTruthy();
+    Object.defineProperty(scroll, "scrollHeight", { configurable: true, value: 1000 });
+    Object.defineProperty(scroll, "scrollTo", { configurable: true, value: vi.fn() });
+    mocks.messages = [...mocks.messages, { ...initial, id: "scroll-mine", sender_id: "user-1", sender_role: "bride", content: "다음 질문" }];
+    mocks.isStreaming = true;
+    mocks.streamingContent = "첫 토큰";
+    await render();
+    if (search) await act(async () => container.querySelector<HTMLButtonElement>('button[aria-label="대화 검색"]')!.click());
+    // jsdom은 레이아웃을 계산하지 않는다. 검색 autoFocus 후 위쪽을 읽는 위치만 재현한다.
+    scroll!.scrollTop = 123;
+    mocks.streamingContent = "두 번째 토큰";
+    await render();
+    expect(scroll!.scrollTop).toBe(search ? 123 : 1000);
+  });
+
+  it.each([false, true])("저장 실패 안내는 최신 위치에서만 따라간다: 이전 기록 읽는 중=%s", async away => {
+    const frames: FrameRequestCallback[] = [];
+    vi.spyOn(window, "requestAnimationFrame").mockImplementation(callback => { frames.push(callback); return frames.length; });
+    mocks.messages = [{ id: "failure-scroll", couple_id: "couple-1", sender_id: null, sender_role: "ai", visibility: "shared", content: "기존 답변", metadata: {}, created_at: "2026-09-20T00:00:00Z" }];
+    await render();
+    const scroll = container.querySelector('[data-role-message="failure-scroll"]')!.closest<HTMLDivElement>('.overflow-y-auto')!;
+    Object.defineProperty(scroll, "scrollHeight", { configurable: true, value: 1000 });
+    Object.defineProperty(scroll, "clientHeight", { configurable: true, value: 200 });
+    Object.defineProperty(scroll, "scrollTo", { configurable: true, value: vi.fn() });
+    scroll.scrollTop = away ? 200 : 800;
+    await act(async () => scroll.dispatchEvent(new Event("scroll")));
+    frames.length = 0;
+    mocks.error = "메시지 저장을 확인하지 못했어요. 같은 요청으로 다시 확인해 주세요.";
+    Object.defineProperty(scroll, "scrollHeight", { configurable: true, value: 1400 });
+    await render();
+    await act(async () => { for (const callback of frames.splice(0)) callback(0); });
+    expect(container.textContent).toContain(mocks.error);
+    expect(scroll.scrollTop).toBe(away ? 200 : 1400);
+    if (away) expect(container.querySelector('button[aria-label="최신 메시지로"]')).not.toBeNull();
+  });
 
   it("사이드바로 들어온 사람에게도 첫마디가 놓여 있다", async () => {
     // 사이드바의 "아모라"는 /chat으로 간다. 라운지의 말풍선은 그 길에 없으므로,

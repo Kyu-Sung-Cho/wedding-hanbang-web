@@ -11,6 +11,9 @@ import {
 
 export const AMORA_PERSONALIZATION_PATH = "/api/amora/personalization";
 const EXPECTED_OWNER_HEADER = "X-Amora-Expected-Owner";
+const REQUEST_TIMEOUT_MS = 30_000;
+
+class PersonalizationDeadlineError extends Error {}
 
 /** 웹 설정 화면(`settings/amora-style/page.tsx`)과 웹 훅이 쓰는 문장 그대로다. */
 export const AMORA_STYLE_COPY = Object.freeze({
@@ -130,9 +133,12 @@ export function buildAmoraStyleSections(selected) {
  */
 export function createAmoraPersonalizationSession(request, options = {}) {
   const readSessionOwner = typeof options.readSessionOwner === "function" ? options.readSessionOwner : null;
+  const timeoutMs = Number.isFinite(options.timeoutMs) && options.timeoutMs > 0 ? options.timeoutMs : REQUEST_TIMEOUT_MS;
   let state = empty(options.initialOwnerId ?? null);
   let epoch = 0;
   let sequence = 0;
+  let unverifiedSaveDraft = null;
+  let activeOperation = null;
   const listeners = new Set();
   const emit = (patch) => {
     state = { ...state, ...patch };
@@ -159,12 +165,37 @@ export function createAmoraPersonalizationSession(request, options = {}) {
   /** 서버의 지금 상태를 모른다. 고를 수 있는 값을 내리고 다시 불러오게 한다. */
   const fail = (message) => emit({ status: "error", profile: null, draft: null, pending: null, notice: null, error: message });
 
-  const send = async (token, method, body) => {
+  const send = async (token, method, body, signal) => {
     const init = body === undefined
-      ? { method, headers: { [EXPECTED_OWNER_HEADER]: token.owner } }
-      : { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) };
+      ? { method, signal, headers: { [EXPECTED_OWNER_HEADER]: token.owner } }
+      : { method, signal, headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) };
     const response = await request(token.owner, AMORA_PERSONALIZATION_PATH, init);
+    if (signal?.aborted) throw new PersonalizationDeadlineError();
     return { response, payload: await readPayload(response) };
+  };
+
+  // 요청 내부 인증과 본문 읽기, 마지막 계정 확인까지 같은 마감 시간을 쓴다.
+  const beginOperation = () => {
+    activeOperation?.cancel();
+    const controller = new globalThis.AbortController();
+    let rejectDeadline;
+    const deadline = new Promise((_resolve, reject) => { rejectDeadline = reject; });
+    const cancel = () => {
+      rejectDeadline(new PersonalizationDeadlineError());
+      controller.abort();
+    };
+    const timer = globalThis.setTimeout(cancel, timeoutMs);
+    const operation = {
+      signal: controller.signal,
+      wait: (promise) => Promise.race([promise, deadline]),
+      cancel,
+      close: () => {
+        globalThis.clearTimeout(timer);
+        if (activeOperation === operation) activeOperation = null;
+      },
+    };
+    activeOperation = operation;
+    return operation;
   };
 
   const applyFailure = (response, payload, fallback) => {
@@ -192,18 +223,34 @@ export function createAmoraPersonalizationSession(request, options = {}) {
     emit({ pending: null, notice: null, error: message });
   };
 
-  const load = async () => {
+  const load = async ({ refreshOwner = false } = {}) => {
     if (state.pending !== null) return false;
-    const token = identity();
-    if (!token.owner) {
+    let token = identity();
+    if (!token.owner && !refreshOwner) {
       emit({ ...empty(null), status: "error", error: AMORA_STYLE_COPY.loadFailed });
       return false;
     }
     const requestSequence = ++sequence;
     emit({ status: "loading", profile: null, draft: null, error: null, notice: null });
+    const operation = beginOperation();
     try {
-      const { response, payload } = await send(token, "GET");
-      const check = await settle(token, requestSequence);
+      if (refreshOwner) {
+        const ownerId = await operation.wait(readSessionOwner ? readSessionOwner() : Promise.resolve(null));
+        if (epoch !== token.epoch || sequence !== requestSequence) return false;
+        const nextOwner = typeof ownerId === "string" && ownerId ? ownerId : null;
+        if (nextOwner !== state.ownerId) {
+          epoch += 1;
+          unverifiedSaveDraft = null;
+          emit({ ...empty(nextOwner), status: "loading" });
+          token = identity();
+        }
+      }
+      if (!token.owner) {
+        fail(AMORA_STYLE_COPY.loadFailed);
+        return false;
+      }
+      const { response, payload } = await operation.wait(send(token, "GET", undefined, operation.signal));
+      const check = await operation.wait(settle(token, requestSequence));
       if (check === "stale") return false;
       if (check === "foreign" || !response.ok) {
         fail(response.status === 409 && check === "ok" ? conflictCopy(payload, AMORA_STYLE_COPY.loadFailed) : AMORA_STYLE_COPY.loadFailed);
@@ -216,11 +263,18 @@ export function createAmoraPersonalizationSession(request, options = {}) {
         fail(AMORA_STYLE_COPY.loadUnsafe);
         return false;
       }
-      emit({ status: "ready", profile: saved, draft: null, pending: null, error: null, notice: null });
+      const recoveredDraft = unverifiedSaveDraft
+        && !samePreferences(unverifiedSaveDraft, saved?.preferences ?? DEFAULT_AMORA_PERSONALIZATION)
+        ? unverifiedSaveDraft : null;
+      unverifiedSaveDraft = null;
+      emit({ status: "ready", profile: saved, draft: recoveredDraft, pending: null,
+        error: recoveredDraft ? AMORA_STYLE_COPY.saveUnverified : null, notice: null });
       return true;
     } catch {
-      if (current(token, requestSequence)) fail(AMORA_STYLE_COPY.loadFailed);
+      if (epoch === token.epoch && sequence === requestSequence) fail(AMORA_STYLE_COPY.loadFailed);
       return false;
+    } finally {
+      operation.close();
     }
   };
 
@@ -240,13 +294,14 @@ export function createAmoraPersonalizationSession(request, options = {}) {
     const expectedRevision = state.profile ? state.profile.revision : null;
     const requestSequence = ++sequence;
     emit({ pending: "save", error: null, notice: null });
+    const operation = beginOperation();
     try {
-      const { response, payload } = await send(token, "PUT", {
+      const { response, payload } = await operation.wait(send(token, "PUT", {
         expectedOwnerUserId: token.owner,
         expectedRevision,
         preferences,
-      });
-      const check = await settle(token, requestSequence);
+      }, operation.signal));
+      const check = await operation.wait(settle(token, requestSequence));
       if (check === "stale") return false;
       if (check === "foreign") {
         fail(AMORA_STYLE_COPY.saveUnverified);
@@ -265,23 +320,37 @@ export function createAmoraPersonalizationSession(request, options = {}) {
       emit({ status: "ready", profile: saved, draft: null, pending: null, error: null, notice: AMORA_STYLE_COPY.saved });
       return true;
     } catch {
-      if (current(token, requestSequence)) emit({ pending: null, notice: null, error: AMORA_STYLE_COPY.saveFailed });
+      if (current(token, requestSequence)) {
+        // 연결 오류도 서버의 저장 취소를 뜻하지 않는다. GET에서 대조할 초안만 계정 안에 남긴다.
+        unverifiedSaveDraft = preferences;
+        fail(AMORA_STYLE_COPY.saveUnverified);
+      }
       return false;
+    } finally {
+      operation.close();
     }
   };
 
-  const reset = async () => {
+  const captureReset = () => viewAmoraPersonalization(state).canReset
+    ? { ...identity(), revision: state.profile.revision }
+    : null;
+
+  const reset = async (confirmation = captureReset()) => {
     const token = identity();
     if (!token.owner || !viewAmoraPersonalization(state).canReset) return false;
+    // 네이티브 확인창은 계정 전환 뒤에도 남는다. 창을 열었던 소유자 세대·버전만 삭제한다.
+    if (!confirmation || confirmation.owner !== token.owner || confirmation.epoch !== token.epoch
+      || confirmation.revision !== state.profile.revision) return false;
     const expectedRevision = state.profile.revision;
     const requestSequence = ++sequence;
     emit({ pending: "reset", error: null, notice: null });
+    const operation = beginOperation();
     try {
-      const { response, payload } = await send(token, "DELETE", {
+      const { response, payload } = await operation.wait(send(token, "DELETE", {
         expectedRevision,
         expectedOwnerUserId: token.owner,
-      });
-      const check = await settle(token, requestSequence);
+      }, operation.signal));
+      const check = await operation.wait(settle(token, requestSequence));
       if (check === "stale") return false;
       if (check === "foreign") {
         fail(AMORA_STYLE_COPY.resetUnverified);
@@ -298,8 +367,10 @@ export function createAmoraPersonalizationSession(request, options = {}) {
       emit({ status: "ready", profile: null, draft: null, pending: null, error: null, notice: AMORA_STYLE_COPY.resetDone });
       return true;
     } catch {
-      if (current(token, requestSequence)) emit({ pending: null, notice: null, error: AMORA_STYLE_COPY.resetFailed });
+      if (current(token, requestSequence)) fail(AMORA_STYLE_COPY.resetUnverified);
       return false;
+    } finally {
+      operation.close();
     }
   };
 
@@ -315,6 +386,8 @@ export function createAmoraPersonalizationSession(request, options = {}) {
       if (next === state.ownerId) return false;
       epoch += 1;
       sequence += 1;
+      unverifiedSaveDraft = null;
+      activeOperation?.cancel();
       state = empty(next);
       listeners.forEach((listener) => listener());
       return true;
@@ -326,11 +399,14 @@ export function createAmoraPersonalizationSession(request, options = {}) {
     dispose: () => {
       epoch += 1;
       sequence += 1;
+      unverifiedSaveDraft = null;
+      activeOperation?.cancel();
       state = empty(null);
     },
     load,
     select,
     save,
+    captureReset,
     reset,
   };
 }

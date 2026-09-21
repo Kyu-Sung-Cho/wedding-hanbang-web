@@ -12,6 +12,7 @@ import { useAccessibleModal } from "@/hooks/useAccessibleModal";
 import { useAuthStore } from "@/stores/authStore";
 import { isPreviewStubMode } from "@/lib/previewStub";
 import { stripWeddingBasePath } from "@/lib/weddingPaths";
+import { isRecord } from "@/utils/requestValidation";
 
 const ChatSidePanel = dynamic(() => import("@/components/app/chat/ChatSidePanel"), {
   ssr: false,
@@ -68,13 +69,6 @@ export default function CommunityAmoraLauncher() {
     const requestGeneration = ++authRequestGeneration.current;
     const isCurrentRequest = () => requestGeneration === authRequestGeneration.current;
     try {
-      if (document.cookie.includes("demo_mode=true")) {
-        await initialize({ force: true });
-        if (!isCurrentRequest()) return;
-        setChatPanelOpen(true);
-        return;
-      }
-
       const res = await fetch("/api/auth/me?guest_probe=1", {
         cache: "no-store",
         credentials: "include",
@@ -89,15 +83,31 @@ export default function CommunityAmoraLauncher() {
         throw new Error("auth_check_failed");
       }
 
-      const data = (await res.json().catch(() => null)) as { user?: unknown } | null;
+      const data: unknown = await res.json();
       if (!isCurrentRequest()) return;
-      if (!data?.user) {
+      if (!isRecord(data) || !(data.user === null
+        || (isRecord(data.user) && typeof data.user.id === "string" && data.user.id.length > 0))) {
+        throw new Error("auth_check_failed");
+      }
+      const serverVerifiedDemo = data.user === null && data.demo === true;
+      const expectedUserId = isRecord(data.user) ? data.user.id : null;
+      if (!data.user && !serverVerifiedDemo) {
         setLoginPromptOpen(true);
         return;
       }
 
-      await initialize({ force: true });
+      await initialize({ force: true, requireVerifiedSession: true });
       if (!isCurrentRequest()) return;
+      const initialized = useAuthStore.getState();
+      if (!initialized.user && !initialized.isDemo) {
+        setLoginPromptOpen(true);
+        return;
+      }
+      if (!initialized.isInitialized || initialized.isLoading || (serverVerifiedDemo
+        ? !initialized.isDemo || initialized.user?.id !== "demo"
+        : initialized.isDemo || initialized.user?.id !== expectedUserId)) {
+        throw new Error("auth_check_changed");
+      }
       setChatPanelOpen(true);
     } catch {
       if (isCurrentRequest()) setAuthError("연결을 확인하지 못했어요. 잠시 후 아모라 버튼을 다시 눌러 주세요.");

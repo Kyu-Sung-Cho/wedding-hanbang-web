@@ -5,10 +5,14 @@ import { readFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
 import { appendPreparationStyleReceipt, parsePreparationStyleReleaseArgs, runPreparationStyleRelease } from '../lib/preparation-style-release.mjs';
+import { createPreparationStyleHistoricalRepository } from './fixtures/preparation-style-historical-repository.mjs';
 import { buildPreparationStyleMutationSql, buildPreparationStyleObservationSql, expectedPreparationStyleCatalog,
   validatePreparationStyleObservation } from '../lib/preparation-style-catalog.mjs';
 
-const root=resolve(import.meta.dirname,'../..'),read=file=>readFileSync(join(root,file),'utf8');
+const actualRoot=resolve(import.meta.dirname,'../..');
+const historical=createPreparationStyleHistoricalRepository(actualRoot);
+test.after(historical.cleanup);
+const root=historical.root,read=file=>readFileSync(join(root,file),'utf8');
 const sql=read('supabase/migrations/20260920120000_wedding_preparation_style.sql');
 const predecessorSql=read('supabase/migrations/20260918090000_wedding_code_research_scene_v10.sql');
 const catalog=JSON.parse(read('supabase/release-contracts/preparation-style-pg17-catalog-v1.json'));

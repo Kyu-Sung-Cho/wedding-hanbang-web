@@ -35,6 +35,8 @@ import {
   type CoupleConnectionState,
   ACCOUNT_DELETION_EMAIL_REQUEST_LABEL,
   ACCOUNT_DELETION_FACTS,
+  PRIVACY_CONFIRMATION_CHANGED,
+  readPrivacyConfirmationTarget,
 } from "@hanbang/shared";
 import { supabase } from "@/lib/supabase";
 import { signOut } from "@/lib/auth";
@@ -56,6 +58,7 @@ import { clearCommunityCaches } from "@/lib/communityPostCache";
 import { purgeCommunityDecisionPendingForOwnerWithRetry } from "@/lib/communityDecisionPending";
 import { hasActiveCareConsent } from "@/lib/careSettings";
 import { toKoreanErrorMessage } from "@/lib/errorCopy";
+import { preferenceRequest } from "@/lib/preferenceRequest";
 import { ActionRow, AppHeader, LoadingState, PrimaryButton, Surface } from "@/components/ui/AppUI";
 import AppGuide from "@/components/AppGuide";
 import InviteCodeCard from "@/components/invite/InviteCodeCard";
@@ -83,6 +86,7 @@ export default function SettingsScreen() {
     useState<WeddingSettingsSnapshot | null>(null);
   const [legacyCareConsentActive, setLegacyCareConsentActive] = useState(false);
   const [revokingLegacyCareConsent, setRevokingLegacyCareConsent] = useState(false);
+  const [legacyOwnerEpoch, setLegacyOwnerEpoch] = useState(0);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [loadAttempt, setLoadAttempt] = useState(0);
@@ -114,6 +118,34 @@ export default function SettingsScreen() {
   );
   const [codeCopied, setCodeCopied] = useState(false);
   const [resettingCouple, setResettingCouple] = useState(false);
+  const resetLifetime = useRef({ generation: 0, ownerGeneration: 0, mounted: false, ownerId: null as string | null, busy: false });
+  const legacyCareAttemptRef = useRef<object | null>(null);
+
+  useEffect(() => {
+    const lifetime = resetLifetime.current;
+    lifetime.mounted = true;
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      const ownerId = session?.user.id ?? null;
+      if (lifetime.ownerId === ownerId) return;
+      lifetime.ownerId = ownerId;
+      lifetime.generation += 1;
+      lifetime.ownerGeneration += 1;
+      legacyCareAttemptRef.current = null;
+      setLegacyOwnerEpoch(lifetime.ownerGeneration);
+      setRevokingLegacyCareConsent(false);
+      if (settingsDataRef.current?.userId !== ownerId) setLegacyCareConsentActive(false);
+      lifetime.busy = false;
+      setResettingCouple(false);
+    });
+    return () => {
+      lifetime.mounted = false;
+      lifetime.generation += 1;
+      lifetime.ownerGeneration += 1;
+      legacyCareAttemptRef.current = null;
+      lifetime.busy = false;
+      subscription.unsubscribe();
+    };
+  }, []);
 
   // 회원 탈퇴 — 접수가 열려 있는지 묻는 동안 같은 버튼이 두 번 확인창을 띄우지 않게 한다.
   const deletionIntakeCheckRef = useRef(false);
@@ -414,34 +446,42 @@ export default function SettingsScreen() {
   }
 
   async function handleRevokeLegacyCareConsent() {
+    const reviewed = settingsSnapshot;
+    const lifetime = resetLifetime.current;
+    const isCurrent = () => lifetime.mounted && lifetime.ownerGeneration === legacyOwnerEpoch
+      && !!reviewed?.userId && settingsDataRef.current?.userId === reviewed.userId
+      && (lifetime.ownerId === null || lifetime.ownerId === reviewed.userId);
+    if (!reviewed?.userId || !isCurrent() || legacyCareAttemptRef.current) return;
+    lifetime.ownerId = reviewed.userId;
+    const attempt = {};
+    legacyCareAttemptRef.current = attempt;
     setRevokingLegacyCareConsent(true);
     try {
-      const response = await apiFetch("/api/profile", {
-        method: "PATCH",
-        body: JSON.stringify({ care_notifications_enabled: false }),
+      const { response, payload } = await preferenceRequest(async signal => {
+        if (!isCurrent()) throw new Error("PROFILE_OWNER_CHANGED");
+        const response = await apiFetchForExpectedUser(reviewed.userId, "/api/profile", {
+          method: "PATCH", signal,
+          body: JSON.stringify({ care_notifications_enabled: false, expectedOwnerId: reviewed.userId }),
+        });
+        const payload: unknown = await response.json();
+        return { response, payload };
       });
-      const payload = await response.json().catch(() => ({}));
-      if (!response.ok) {
-        const message =
-          typeof payload === "object" &&
-          payload !== null &&
-          "error" in payload &&
-          typeof payload.error === "string"
-            ? payload.error
-            : "수신 동의를 해제하지 못했어요.";
-        throw new Error(message);
+      if (!isCurrent()) return;
+      if (!response.ok || !isRecord(payload) || !isRecord(payload.profile)
+        || payload.profile.id !== reviewed.userId || payload.profile.care_notifications_enabled !== false) {
+        throw new Error("PROFILE_REVOKE_UNVERIFIED");
       }
       setLegacyCareConsentActive(false);
       Alert.alert("해제 완료", "이전 이메일 수신 동의를 해제했어요.");
-    } catch (error) {
+    } catch {
+      if (!isCurrent()) return;
       Alert.alert(
-        "해제 실패",
-        error instanceof Error
-          ? error.message
-          : "수신 동의를 해제하지 못했어요. 잠시 후 다시 시도해주세요.",
+        "해제 결과 확인",
+        "수신 동의 해제 결과를 확인하지 못했어요. 이미 반영됐을 수 있으니 설정을 다시 열어 확인해 주세요.",
       );
     } finally {
-      setRevokingLegacyCareConsent(false);
+      if (legacyCareAttemptRef.current === attempt) legacyCareAttemptRef.current = null;
+      if (isCurrent()) setRevokingLegacyCareConsent(false);
     }
   }
 
@@ -491,27 +531,63 @@ export default function SettingsScreen() {
     }
   }
 
-  function handleStartNewCouple() {
-    if (resettingCouple) return;
-
+  async function handleStartNewCouple() {
+    const lifetime = resetLifetime.current;
+    const reviewed = settingsDataRef.current;
+    if (lifetime.busy || !lifetime.mounted || !reviewed?.userId || !reviewed.coupleId) return;
+    if (lifetime.ownerId !== null && lifetime.ownerId !== reviewed.userId) return;
+    lifetime.ownerId = reviewed.userId;
+    const generation = ++lifetime.generation;
+    const isCurrent = () => lifetime.mounted && lifetime.generation === generation
+      && lifetime.ownerId === reviewed.userId
+      && settingsDataRef.current?.userId === reviewed.userId
+      && settingsDataRef.current?.coupleId === reviewed.coupleId;
+    const release = () => {
+      if (!isCurrent()) return;
+      lifetime.busy = false;
+      setResettingCouple(false);
+    };
+    lifetime.busy = true;
+    setResettingCouple(true);
+    let confirmationTarget;
+    try {
+      const response = await apiFetchForExpectedUser(reviewed.userId, "/api/couple/reset");
+      const payload: unknown = await response.json();
+      if (!isCurrent()) return;
+      confirmationTarget = readPrivacyConfirmationTarget(isRecord(payload) ? payload.confirmationTarget : null);
+      if (!response.ok || !confirmationTarget || confirmationTarget.ownerId !== reviewed.userId
+        || confirmationTarget.coupleId !== reviewed.coupleId) throw new Error(PRIVACY_CONFIRMATION_CHANGED);
+    } catch (error) {
+      if (isCurrent()) Alert.alert("초기화 대상을 확인하지 못했어요", toKoreanErrorMessage(error, PRIVACY_CONFIRMATION_CHANGED));
+      release();
+      return;
+    }
     Alert.alert(
       "새 커플로 다시 시작",
       "현재 커플 연결과 공유 준비 데이터를 분리하고 온보딩으로 돌아갑니다. 이 작업은 되돌릴 수 없어요.",
       [
-        { text: "취소", style: "cancel" },
+        { text: "취소", style: "cancel", onPress: () => { if (isCurrent()) { release(); lifetime.generation += 1; } } },
         {
           text: "계속",
           style: "destructive",
           onPress: async () => {
-            setResettingCouple(true);
+            if (!isCurrent()) return;
+            // 같은 네이티브 확인 콜백의 중복 호출도 하나의 요청만 허용한다.
+            lifetime.generation += 1;
+            const confirmedGeneration = lifetime.generation;
+            const isConfirmedCurrent = () => lifetime.mounted && lifetime.generation === confirmedGeneration
+              && lifetime.ownerId === reviewed.userId
+              && settingsDataRef.current?.userId === reviewed.userId
+              && settingsDataRef.current?.coupleId === reviewed.coupleId;
             try {
-              const response = await apiFetch("/api/couple/reset", {
+              const response = await apiFetchForExpectedUser(reviewed.userId, "/api/couple/reset", {
                 method: "POST",
-                body: JSON.stringify({ confirmText: "초기화합니다" }),
+                body: JSON.stringify({ confirmText: "초기화합니다", confirmationTarget }),
               });
-              const payload = (await response.json().catch(() => ({}))) as { error?: string };
-              if (!response.ok) {
-                throw new Error(payload.error ?? "새 커플을 시작하지 못했어요.");
+              const payload = (await response.json().catch(() => ({}))) as { error?: string; success?: boolean };
+              if (!isConfirmedCurrent()) return;
+              if (!response.ok || payload.success !== true) {
+                throw new Error(payload.error ?? "초기화 결과를 확인하지 못했어요. 현재 연결 상태를 다시 확인해 주세요.");
               }
 
               clearCommunityCaches();
@@ -521,16 +597,21 @@ export default function SettingsScreen() {
               setInitialData((current) => current ? { ...current, coupleId: null } : current);
               router.replace("/onboarding");
             } catch (error) {
+              if (!isConfirmedCurrent()) return;
               Alert.alert(
-                "새 커플을 시작하지 못했어요",
-                toKoreanErrorMessage(error, "잠시 후 다시 시도해 주세요."),
+                "초기화 결과 확인",
+                toKoreanErrorMessage(error, "초기화 결과를 확인하지 못했어요. 현재 연결 상태를 다시 확인해 주세요."),
               );
             } finally {
-              setResettingCouple(false);
+              if (isConfirmedCurrent()) {
+                lifetime.busy = false;
+                setResettingCouple(false);
+              }
             }
           },
         },
       ],
+      { cancelable: false },
     );
   }
 

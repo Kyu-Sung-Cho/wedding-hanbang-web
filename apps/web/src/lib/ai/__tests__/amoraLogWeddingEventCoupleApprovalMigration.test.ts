@@ -25,10 +25,10 @@ const migrationPaths = [
   "20260805120000_amora_log_wedding_event_couple_approval.sql",
 ].map((name) => resolve(process.cwd(), "../../supabase/migrations", name));
 
-const policyOverridePath = resolve(
-  process.cwd(),
-  "../../supabase/migrations/20260823120000_couple_approval_becomes_notification.sql",
-);
+const policyOverridePaths = [
+  "20260823120000_couple_approval_becomes_notification.sql",
+  "20260921100000_amora_approved_decision_records.sql",
+].map((name) => resolve(process.cwd(), "../../supabase/migrations", name));
 
 /** 새 마이그레이션에서 `amora_shared_action_policy` 정의만 떼어낸다. */
 function extractPolicyFunction(sql: string): string {
@@ -47,6 +47,7 @@ const REPRESENTATIVE_INPUT: Readonly<Record<string, Record<string, unknown>>> = 
   log_wedding_event: { moment_type: "venue_tour", date: "2027-03-12" },
   update_category_budget: { category: "venue", budget: 1_000_000 },
   add_custom_category: { label: "예단", budget: 1_000_000 },
+  add_decision_record: { title: "식사 중심 예식 검토", status: "considering" },
 };
 
 describe("승인 정책이 앱과 DB에서 같다", () => {
@@ -64,9 +65,9 @@ describe("승인 정책이 앱과 DB에서 같다", () => {
     for (const migrationPath of migrationPaths) {
       await db.exec(await readFile(migrationPath, "utf8"));
     }
-    await db.exec(
-      extractPolicyFunction(await readFile(policyOverridePath, "utf8")),
-    );
+    for (const policyOverridePath of policyOverridePaths) {
+      await db.exec(extractPolicyFunction(await readFile(policyOverridePath, "utf8")));
+    }
   });
 
   afterEach(async () => {
@@ -109,6 +110,7 @@ describe("승인 정책이 앱과 DB에서 같다", () => {
     expect(await policyOf("cancel_schedule_event", {})).toBe("single");
     expect(await policyOf("delete_schedule_event", {})).toBe("blocked");
     expect(await policyOf("create_booking", {})).toBe("blocked");
+    expect(await policyOf("add_decision_record", REPRESENTATIVE_INPUT.add_decision_record)).toBe("single");
   });
 
   it("agrees with the TypeScript policy for every mutating tool", async () => {

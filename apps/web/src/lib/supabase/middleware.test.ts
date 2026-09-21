@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { buildSignupConsentServerEvidence, buildSignupConsentSubmission, setAllSignupConsent } from "@hanbang/shared";
+import { createDemoSessionToken } from "@/lib/demoSession";
 
 const verifiedConsentMetadata = {
   signup_consent: buildSignupConsentServerEvidence(
@@ -19,6 +20,138 @@ vi.mock("@supabase/ssr", () => ({
 }));
 
 import { updateSession } from "./middleware";
+
+describe("서명된 데모 세션과 보호 경로 재진입", () => {
+  const destination = `/wedding/chat?${new URLSearchParams({
+    prefill: "예산 & 준비? 무엇부터 + 확인",
+    amoraSource: "c.venue.venue_04",
+  })}`;
+  const demoToken = (issuedAt = Date.now()) => {
+    const token = createDemoSessionToken(issuedAt);
+    if (!token) throw new Error("synthetic demo signing secret is required");
+    return token;
+  };
+  const requestWithDemo = (kind: "missing" | "tampered" | "expired" | "valid", path = destination) => {
+    const request = new NextRequest(`https://hanbang.ai${path}`);
+    request.cookies.set("demo_mode", "true");
+    if (kind !== "missing") {
+      const token = demoToken(kind === "expired" ? Date.now() - 24 * 60 * 60 * 1000 - 5000 : Date.now());
+      request.cookies.set("demo_session", kind === "tampered"
+        ? `${token.slice(0, -1)}${token.endsWith("A") ? "B" : "A"}`
+        : token);
+    }
+    return request;
+  };
+
+  beforeEach(() => {
+    vi.stubEnv("NEXT_PUBLIC_SUPABASE_URL", "https://abcdefghijklmnopqrst.supabase.co");
+    vi.stubEnv("NEXT_PUBLIC_SUPABASE_ANON_KEY", "anon-key");
+    vi.stubEnv("DEMO_SESSION_SECRET", "synthetic-middleware-demo-secret-not-a-production-key");
+    mocks.getUser.mockReset().mockResolvedValue({ data: { user: null } });
+    mocks.createServerClient.mockReset().mockReturnValue({ auth: { getUser: mocks.getUser } });
+  });
+
+  afterEach(() => vi.unstubAllEnvs());
+
+  it("데모 표식만 남은 로그아웃 사용자는 원래 질문과 출처를 보존해 로그인으로 보낸다", async () => {
+    const request = new NextRequest(`https://hanbang.ai${destination}`);
+    request.cookies.set("demo_mode", "true");
+
+    const response = await updateSession(request);
+
+    expect(response.status).toBe(307);
+    const location = new URL(response.headers.get("location")!);
+    expect(location.pathname).toBe("/login");
+    expect(location.searchParams.get("redirect")).toBe(destination);
+    expect(mocks.getUser).toHaveBeenCalledOnce();
+  });
+
+  it.each(["tampered", "expired"] as const)("%s 데모 토큰은 원래 질문과 출처를 보존해 로그인으로 보낸다", async (kind) => {
+    const response = await updateSession(requestWithDemo(kind));
+
+    expect(response.status).toBe(307);
+    const location = new URL(response.headers.get("location")!);
+    expect(location.pathname).toBe("/login");
+    expect(location.searchParams.get("redirect")).toBe(destination);
+    expect(mocks.getUser).toHaveBeenCalledOnce();
+  });
+
+  it("유효한 서명 데모는 고객 화면과 원래 질문을 로그인 없이 계속 연다", async () => {
+    const request = requestWithDemo("valid");
+
+    const response = await updateSession(request);
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("location")).toBeNull();
+    expect(request.nextUrl.pathname + request.nextUrl.search).toBe(destination);
+    expect(mocks.createServerClient).not.toHaveBeenCalled();
+  });
+
+  it.each([undefined, "false"])("서명 토큰만 있고 데모 표식이 %s 이면 기존 인증 관문을 따른다", async (marker) => {
+    const request = new NextRequest(`https://hanbang.ai${destination}`);
+    request.cookies.set("demo_session", demoToken());
+    if (marker !== undefined) request.cookies.set("demo_mode", marker);
+
+    const response = await updateSession(request);
+
+    expect(response.status).toBe(307);
+    const location = new URL(response.headers.get("location")!);
+    expect(location.pathname).toBe("/login");
+    expect(location.searchParams.get("redirect")).toBe(destination);
+    expect(mocks.getUser).toHaveBeenCalledOnce();
+  });
+
+  it("서명 비밀값이 없으면 기존 데모 토큰으로 보호 경로를 통과하지 않는다", async () => {
+    const request = requestWithDemo("valid");
+    vi.stubEnv("DEMO_SESSION_SECRET", "");
+
+    const response = await updateSession(request);
+
+    expect(response.status).toBe(307);
+    const location = new URL(response.headers.get("location")!);
+    expect(location.pathname).toBe("/login");
+    expect(location.searchParams.get("redirect")).toBe(destination);
+    expect(mocks.getUser).toHaveBeenCalledOnce();
+  });
+
+  it.each(["missing", "tampered", "expired"] as const)("%s 데모 쿠키가 실제 계정의 동의나 온보딩을 건너뛰게 하지 않는다", async (kind) => {
+    for (const gate of ["consent", "onboarding"] as const) {
+      mocks.getUser.mockResolvedValueOnce({ data: { user: {
+        id: "signed-in-user", user_metadata: {},
+        app_metadata: gate === "onboarding" ? verifiedConsentMetadata : {},
+      } } });
+      const response = await updateSession(requestWithDemo(kind));
+
+      expect(response.status).toBe(307);
+      const location = new URL(response.headers.get("location")!);
+      expect(location.pathname).toBe(gate === "consent" ? "/consent" : "/wedding/onboarding");
+      expect(location.searchParams.get("redirect")).toBe(destination);
+    }
+    expect(mocks.getUser).toHaveBeenCalledTimes(2);
+  });
+
+  it("만료 데모 쿠키가 있어도 동의와 온보딩을 마친 실제 계정은 계속 통과한다", async () => {
+    mocks.getUser.mockResolvedValueOnce({ data: { user: {
+      id: "signed-in-user", app_metadata: verifiedConsentMetadata, user_metadata: {},
+    } } });
+    const request = requestWithDemo("expired");
+    request.cookies.set("onboarding_complete", "true");
+
+    const response = await updateSession(request);
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("location")).toBeNull();
+    expect(mocks.getUser).toHaveBeenCalledOnce();
+  });
+
+  it("유효한 고객 데모 서명도 관리자 인증을 건너뛰지 못한다", async () => {
+    const response = await updateSession(requestWithDemo("valid", "/admin/dashboard"));
+
+    expect(response.status).toBe(307);
+    expect(new URL(response.headers.get("location")!).pathname).toBe("/admin/login");
+    expect(mocks.getUser).toHaveBeenCalledOnce();
+  });
+});
 
 describe("세션 갱신과 redirect가 함께 일어나는 요청", () => {
   beforeEach(() => {

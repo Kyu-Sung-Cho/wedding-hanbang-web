@@ -204,7 +204,8 @@ describe("preparation actions open-tab synchronization", () => {
     await act(async () => {
       oldRead.resolve(response([action]));
       window.dispatchEvent(new Event("focus"));
-      await vi.advanceTimersByTimeAsync(30_000);
+      // 아직 저장 중인 경계를 검사한다. 30초부터는 새 유한 기한에 따라 결과 불명으로 끝난다.
+      await vi.advanceTimersByTimeAsync(29_999);
     });
     expect(fetchMock).toHaveBeenCalledTimes(3);
     const done: AmoraActionItem = { ...action, status: "done" };

@@ -9,21 +9,21 @@ import { loadWeddingCodeSceneVersionHistoricalReleasePlan, loadWeddingCodeSceneV
   from '../lib/wedding-code-research-scene-v09-release-contract.mjs';
 import { loadWeddingCodeResearchReleasePlan } from '../lib/wedding-code-research-contributions-release-contract.mjs';
 import { createWeddingCodeSceneVersionHistoricalRepository } from './fixtures/wedding-code-research-scene-v09-historical-repository.mjs';
+import { createWeddingCodeSceneV10HistoricalRepository } from './fixtures/wedding-code-research-scene-v10-historical-repository.mjs';
 import { validateSuccessorReleaseContract } from '../lib/supabase-successor-release-contract.mjs';
 import { runProductionRelease } from '../lib/supabase-production-release-controller.mjs';
 
-import { createWeddingCodeSceneV10HistoricalRepository } from './fixtures/wedding-code-research-scene-v10-historical-repository.mjs';
-const actualRoot = resolve(import.meta.dirname, '../..');
-const historical = createWeddingCodeSceneV10HistoricalRepository(actualRoot);
-test.after(historical.cleanup);
-const root = historical.root;
+const root = resolve(import.meta.dirname, '../..');
+const reviewed = createWeddingCodeSceneV10HistoricalRepository(root);
+test.after(reviewed.cleanup);
 const MIGRATION = 'supabase/migrations/20260918090000_wedding_code_research_scene_v10.sql';
 const sql = readFileSync(join(root, MIGRATION), 'utf8');
-const run = args => spawnSync(process.execPath, [join(root, 'scripts/supabase-release-fence.mjs'), ...args],
-  { cwd: root, encoding: 'utf8', windowsHide: true, timeout: 30_000 });
+const run = (args, repository = root) => spawnSync(process.execPath, [join(repository, 'scripts/supabase-release-fence.mjs'), ...args],
+  { cwd: repository, encoding: 'utf8', windowsHide: true, timeout: 30_000 });
 const code = value => error => error?.code === value;
 
 test('236 exact successor keeps all 235 pins, adds only v1.0 to the scene version and claims no runtime evidence, deployment or remote write', () => {
+  const root = reviewed.root;
   const plan = loadWeddingCodeSceneV10ReleasePlan(root);
   assert.equal(plan.migrationCount, 236); assert.equal(plan.followupMigrations.length, 10);
   assert.deepEqual(plan.followupMigrations.at(-1), { file: '20260918090000_wedding_code_research_scene_v10.sql', version: '20260918090000' });
@@ -50,11 +50,19 @@ test('236 exact successor keeps all 235 pins, adds only v1.0 to the scene versio
   for (const followup of ['wedding-code-research-scene-v09', 'wedding-code-research-contributions'])
     assert.throws(() => validateSuccessorReleaseContract({ repoRoot: root, followup }), code('FOLLOWUP_RELEASE_INVALID'), followup);
   assert.throws(() => validateSuccessorReleaseContract({ repoRoot: root }), code('MIGRATION_SET_DRIFT'));
-  const result = run(['--wedding-code-research-scene-v10']); assert.equal(result.status, 0, result.stderr);
+  const result = run(['--wedding-code-research-scene-v10'], root); assert.equal(result.status, 0, result.stderr);
   assert.match(result.stdout, /WeddingCode research scene v1\.0 contract verified \(236 exact SQL files; runtime evidence not verified; deployment not authorized; no remote writes\)/);
   // 235 정적 모드는 설계상 236 checkout을 거절한다(235 실행은 SQL 235개인 커밋에서만 한다).
-  const previous = run(['--wedding-code-research-scene-v09']);
+  const previous = run(['--wedding-code-research-scene-v09'], root);
   assert.equal(previous.status, 1); assert.match(previous.stderr, /NEW_MIGRATION_NOT_REVIEWED/);
+});
+
+test('the 236 contract still rejects the actual checkout containing the unreviewed decision-record SQL', () => {
+  assert.throws(() => loadWeddingCodeSceneV10ReleasePlan(root), code('NEW_MIGRATION_NOT_REVIEWED'));
+  const result = run(['--wedding-code-research-scene-v10']);
+  assert.equal(result.status, 1, result.stderr);
+  assert.match(result.stderr, /NEW_MIGRATION_NOT_REVIEWED/);
+  assert.doesNotMatch(result.stdout, /contract verified/);
 });
 
 test('mixed static modes and incomplete runtime commands fail before any network call', async () => {
@@ -122,8 +130,8 @@ test('the reviewed SQL is exactly one scene-version CHECK swap plus its verifica
 });
 
 test('every new artifact, predecessor and unregistered migration is fail-closed', t => {
-  const fixture = createWeddingCodeSceneVersionHistoricalRepository(actualRoot); t.after(fixture.cleanup);
-  const plan = loadWeddingCodeSceneV10ReleasePlan(root);
+  const fixture = createWeddingCodeSceneVersionHistoricalRepository(root); t.after(fixture.cleanup);
+  const plan = loadWeddingCodeSceneV10ReleasePlan(reviewed.root);
   const paths = [WEDDING_CODE_SCENE_V10_CONTRACT_FILE, plan.contract.runtime.file, MIGRATION];
   assert.throws(() => loadWeddingCodeSceneV10ReleasePlan(fixture.root));
   assert.equal(loadWeddingCodeSceneVersionReleasePlan(fixture.root).migrationCount, 235);

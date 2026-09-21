@@ -26,13 +26,14 @@ const actionApprovalPath = fileURLToPath(new URL(
   import.meta.url,
 ));
 
-function compileCommonJs(source, resolveDependency = () => {
-  throw new Error("unexpected dependency");
+function compileCommonJs(source, resolveDependency = (specifier) => {
+  throw new Error(`unexpected dependency: ${specifier}`);
 }) {
   const result = ts.transpileModule(source, {
     compilerOptions: {
       module: ts.ModuleKind.CommonJS,
       target: ts.ScriptTarget.ES2022,
+      jsx: ts.JsxEmit.ReactJSX,
     },
   });
   const module = { exports: {} };
@@ -96,9 +97,15 @@ const {
 
 const chatPath = fileURLToPath(new URL("../../app/(tabs)/chat.tsx", import.meta.url));
 const chatSource = readFileSync(chatPath, "utf8");
+const decisionReceiptModule = compileCommonJs(readFileSync(new URL(
+  "../../../../packages/shared/src/contracts/amoraDecisionReceipt.ts", import.meta.url,
+), "utf8"));
 const toolResultCardModule = compileCommonJs(readFileSync(new URL(
   "../components/chat/toolResultCardModel.ts", import.meta.url,
-), "utf8"));
+), "utf8"), (specifier) => {
+  if (specifier === "@hanbang/shared") return decisionReceiptModule;
+  throw new Error(`unexpected tool result dependency: ${specifier}`);
+});
 
 const action = {
   version: 2,
@@ -419,7 +426,7 @@ test("mobile shows a separate skip control only on the latest queued card that i
   assert.equal(skipButtons(busy)[0].props.disabled, true);
 });
 
-test("mobile skip sends only the fixed sentence through the ordinary send path, never as a confirmation", () => {
+test("mobile skip sends the fixed sentence bound to its card, never as a confirmation", () => {
   const tree = ts.createSourceFile("chat.tsx", chatSource, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
   let handler;
   const visit = (node) => {
@@ -431,6 +438,7 @@ test("mobile skip sends only the fixed sentence through the ordinary send path, 
   assert.match(handler, /await sendAiDraft\(\{\s*text: AMORA_QUEUED_CARD_SKIP_TEXT,/);
   assert.match(handler, /visibility: "shared"/);
   assert.match(handler, /target: "ai"/);
+  assert.match(handler, /skippedActionId: actionId/);
   // 적용이 아니다 — 확인 id·적용 순서 확인을 보내지 않는다.
   assert.doesNotMatch(handler, /confirmedActionId|amoraSourceMessageId|requestAmoraApplicationClaim|requestAmoraSharedActionApproval/);
   // 누르는 순간의 최신 카드가 이 카드이고 뒤에 남은 요청이 있을 때만 보낸다.
@@ -619,6 +627,53 @@ test("sanitized AI display preserves pending approval, budget receipt and safety
   const alert = safety.nodes.find(node => node.props?.accessibilityRole === "alert");
   assert.equal(alert.props.accessibilityLabel, "긴급 안전 안내. 위험한 상황이면 112에 연락해 주세요.");
   assert.doesNotMatch(safety.text, /저장된 도구|toolName|total_budget/);
+});
+
+test("saved decision metadata reaches the real native receipt card through chat rendering", () => {
+  const rendered = renderProposal([], {
+    itemOverrides: { content: "결정 기록을 확인해 주세요.", metadata: { toolResults: [{
+      toolName: "add_decision_record", success: true,
+      toolInput: { title: "저장 전 제안", status: "decided" },
+      toolOutput: { verified: true, decision: {
+        id: "12345678-1234-4234-8234-123456789abc", title: "상견례 장소 후보 비교",
+        status: "considering", memo: "양가 이동 거리를 먼저 확인해요.",
+        category_key: "meeting", created_at: "2026-09-20T01:00:00Z",
+      } },
+    }] } },
+  });
+  const receipt = rendered.nodes.find(node => node.type === "ToolResultCard");
+  assert.ok(receipt, "chat renderMessage filtered out the saved decision receipt");
+
+  const jsx = (type, props) => ({ type, props });
+  const dependencies = {
+    "react/jsx-runtime": { jsx, jsxs: jsx, Fragment: "Fragment" },
+    "react-native": { View: "View", Pressable: "Pressable", StyleSheet: { create: value => value } },
+    "@/components/ui/AppText": { Text: "Text" },
+    "expo-router": { router: {} },
+    "lucide-react-native": { CheckCircle2: "CheckCircle2", XCircle: "XCircle", Info: "Info" },
+    "@hanbang/design-tokens": { colors: { noir: { 800: "black", soft: "gray" }, rose: { 700: "rose" } } },
+    "@hanbang/shared": decisionReceiptModule,
+    "./toolResultCardModel": toolResultCardModule,
+    "@/lib/siteUrl.mjs": compileCommonJs(readFileSync(new URL("../lib/siteUrl.mjs", import.meta.url), "utf8")),
+  };
+  const { ToolResultCard } = compileCommonJs(readFileSync(new URL(
+    "../components/chat/ToolResultCard.tsx", import.meta.url,
+  ), "utf8"), (specifier) => {
+    assert.ok(dependencies[specifier], `unexpected receipt component dependency: ${specifier}`);
+    return dependencies[specifier];
+  });
+  const card = ToolResultCard(receipt.props);
+  const nodes = value => !value ? [] : Array.isArray(value) ? value.flatMap(nodes)
+    : typeof value === "object" ? [value, ...nodes(value.props?.children)] : [];
+  const text = value => value == null ? "" : Array.isArray(value) ? value.map(text).join("")
+    : typeof value === "object" ? text(value.props?.children) : String(value);
+  assert.match(text(card), /상견례 장소 후보 비교/);
+  assert.match(text(card), /논의 중 상태로 저장했어요/);
+  assert.match(text(card), /양가 이동 거리를 먼저 확인해요/);
+  assert.doesNotMatch(text(card), /저장 전 제안|확정 상태/);
+  assert.match(card.props.accessibilityLabel, /반영됨/);
+  assert.ok(nodes(card).find(node => node.props?.accessibilityRole === "link"
+    && node.props.accessibilityLabel === "웹에서 결정 기록 보기"));
 });
 
 test("모바일도 웹과 같은 승인 정책을 쓴다 — 전부 한 사람 확인", () => {
@@ -960,12 +1015,12 @@ test("mobile obtains the single application lease before sending a confirmation"
     chatSource,
     // P0-2 이후 이 요청은 누른 사람에 결박된다. lease를 얻는다는 원래 의도에
     // 더해 결박까지 함께 고정한다.
-    /requestAmoraSharedAction\(actionId, messageId, "PUT", expectedUserId\)/,
+    /requestAmoraSharedAction\(actionId, messageId, "PUT", expectedUserId, isCurrentSession\)/,
   );
   assert.match(chatSource, /Authorization: `Bearer \$\{accessToken\}`/);
   assert.match(
     handler,
-    /await requestAmoraApplicationClaim\(\s*actionId,\s*latestSharedMessage\.id,\s*sessionUserIdRef\.current,\s*\)/,
+    /await requestAmoraApplicationClaim\(\s*actionId,\s*latestSharedMessage\.id,\s*userId,\s*isCurrentPendingActionSession,\s*\)/,
   );
   assert.ok(
     handler.indexOf("await requestAmoraApplicationClaim(")
@@ -995,7 +1050,7 @@ test("mobile retry reconciles a durable confirmation before reacquiring its leas
   );
   assert.match(
     sender,
-    /await requestAmoraApplicationClaim\(\s*draft\.confirmedActionId,\s*draft\.amoraSourceMessageId,\s*sessionUserIdRef\.current,\s*\)/,
+    /await requestAmoraApplicationClaim\(\s*draft\.confirmedActionId,\s*draft\.amoraSourceMessageId,\s*draft\.userId,\s*\(\) => isCurrentChatSession\(draft\.sessionGeneration\) && sessionUserIdRef\.current === draft\.userId,\s*\)/,
   );
   assert.ok(
     sender.indexOf('findDurableUserMessage(draft, "ai")')

@@ -7,13 +7,14 @@ import {
 } from "@/utils/requestValidation";
 import { checkRateLimit, rateLimitKey } from "@/utils/rateLimit";
 import { isTrustedMutationRequest } from "@/utils/trustedMutation";
+import { parseAuthorizationHeader } from "@/utils/bearerAuthorization";
 
 export const dynamic = "force-dynamic";
 
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const MAX_BODY_BYTES = 2 * 1024;
-const POST_KEYS = new Set(["messageId"]);
+const POST_KEYS = new Set(["messageId", "expectedActorId"]);
 
 type ApprovalStatus = {
   approvalMode: "couple";
@@ -135,8 +136,8 @@ function approvalError(error: { code?: string; message?: string } | null) {
 
 async function requestContext(request: Request): Promise<RequestAuthResult> {
   const supabase = await createClientFromRequest(request);
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) {
+  const { data: { user }, error: authError } = await supabase.auth.getUser();
+  if (authError || !user || !UUID_PATTERN.test(user.id)) {
     return {
       error: NextResponse.json(
         { error: "인증이 필요합니다." },
@@ -166,6 +167,19 @@ async function requestContext(request: Request): Promise<RequestAuthResult> {
     };
   }
   return { userId: user.id, coupleId: profile.couple_id as string };
+}
+
+function actorBoundary(request: Request, supplied: boolean, expectedActorId: unknown, actualActorId: string, readOnly = false) {
+  // 구버전 앱의 인증된 읽기만 호환한다. 쓰기는 Bearer라도 누른 화면 주체가 반드시 필요하다.
+  // 쿠키의 암묵적 현재 계정이나 명시한 null/잘못된 UUID를 호환 경로로 추정하지 않는다.
+  if (readOnly && !supplied && parseAuthorizationHeader(request.headers.get("authorization")).kind === "bearer") return null;
+  const reason = !supplied ? "actor_required"
+    : typeof expectedActorId !== "string" || !UUID_PATTERN.test(expectedActorId) ? "actor_invalid"
+      : expectedActorId.toLowerCase() !== actualActorId.toLowerCase() ? "actor_changed" : null;
+  if (!reason) return null;
+  return NextResponse.json({ code: "AMORA_SHARED_ACTION_ACTOR_CHANGED", reason,
+    error: "로그인 상태를 다시 확인해야 해요. 현재 계정으로 화면을 새로 열어 제안을 확인해 주세요. 앱에서는 최신 버전으로 업데이트한 뒤 다시 확인해 주세요.",
+  }, { status: 409, headers: { "Cache-Control": "private, no-store" } });
 }
 
 async function identifiers(
@@ -199,9 +213,13 @@ export async function GET(
   request: Request,
   context: { params: Promise<{ actionId: string }> },
 ) {
-  const messageId = new URL(request.url).searchParams.get("messageId");
+  const params = new URL(request.url).searchParams;
+  const messageId = params.get("messageId");
   const scoped = await identifiers(request, context, messageId);
   if ("error" in scoped) return scoped.error;
+  const actorError = actorBoundary(request, params.has("expectedActorId"),
+    params.getAll("expectedActorId").length === 1 ? params.get("expectedActorId") : undefined, scoped.userId, true);
+  if (actorError) return actorError;
 
   const { data, error } = await createAdminClient().rpc(
     "get_amora_shared_action_status",
@@ -268,6 +286,8 @@ async function mutateApproval(
   }
   const scoped = await identifiers(request, context, body.messageId);
   if ("error" in scoped) return scoped.error;
+  const actorError = actorBoundary(request, Object.hasOwn(body, "expectedActorId"), body.expectedActorId, scoped.userId);
+  if (actorError) return actorError;
 
   const limited = checkRateLimit(
     rateLimitKey("amora:shared-action", request, scoped.userId),

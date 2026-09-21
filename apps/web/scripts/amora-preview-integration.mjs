@@ -2,6 +2,7 @@ import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { createClient } from "@supabase/supabase-js";
 import { verifySupabaseServiceDestination } from "../../../scripts/lib/supabase-service-destination.mjs";
 import { joinSyntheticCoupleViaApi, validateSyntheticAppUrl } from "./lib/synthetic-couple-api.mjs";
+import { verifySyntheticResetConfirmation } from "./lib/synthetic-privacy-confirmation.mjs";
 
 const previewUrl = process.env.AMORA_PREVIEW_SUPABASE_URL;
 const anonKey = process.env.AMORA_PREVIEW_SUPABASE_ANON_KEY;
@@ -142,8 +143,7 @@ async function testAccountDeletionCascade() {
 async function testAtomicReset() {
   const user = await createSyntheticUser("reset");
   const couple = await createCouple(user);
-  expectSuccess("atomic reset", await user.client.rpc("reset_current_couple_membership"));
-  expectSuccess("atomic reset retry", await user.client.rpc("reset_current_couple_membership"));
+  await verifySyntheticResetConfirmation({ admin, user, coupleId: couple.couple_id });
 
   const profile = expectSuccess(
     "verify reset profile",

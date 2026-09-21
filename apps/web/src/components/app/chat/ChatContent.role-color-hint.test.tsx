@@ -3,6 +3,7 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import ChatContent from "./ChatContent";
+import { resetChatComposerSession } from "@/stores/chatComposerStore";
 import type { ChatMessage } from "@/types/database.types";
 
 /**
@@ -115,6 +116,7 @@ describe("말풍선 색 안내", () => {
   let container: HTMLDivElement;
 
   beforeEach(() => {
+    resetChatComposerSession();
     vi.clearAllMocks();
     mocks.messages = [];
     mocks.profileId = "user-1";
