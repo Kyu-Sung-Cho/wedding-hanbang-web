@@ -4,6 +4,7 @@ import Link from "next/link";
 import type { ComponentProps, ReactNode } from "react";
 
 import { captureEvent } from "@/lib/analytics";
+import type { LandingCtaSource } from "@/lib/landingAnalytics";
 import { clearStartHereDateHandoff } from "@/lib/marketing/startHereDateHandoff";
 
 /**
@@ -12,27 +13,7 @@ import { clearStartHereDateHandoff } from "@/lib/marketing/startHereDateHandoff"
  * **고정 목록이다.** 사용자 입력·화면 문구·URL 조각을 싣지 않는다 — 이 저장소에서
  * 클릭 흔적이 첨부 파일명·게시글 제목·닉네임을 실어 나른 적이 있다.
  */
-export type LandingCtaSource =
-  | "landing_header"
-  | "landing_hero_primary"
-  | "landing_hero_secondary"
-  // 2026-08-28 정본 시안(`docs/landing/NotebookBest.html`)으로 되돌리면서
-  // 섹션 구성이 바뀌었다. `landing_scenes` 는 그 시안에 없는 섹션이라 없어지고,
-  // 공시 위약금 비교와 "지금 되는 것" 카드 세 장이 새로 센다.
-  //
-  // ⚠️ 2026-08-29에 `landing_scenes_cta` 가 **되돌아왔다.** 시안에는 없던 섹션이지만
-  // 운영 랜딩(`hanbang.ai/landing` 의 `#scenes`)에는 계속 있었고, 파운더가 운영과
-  // 비슷해야 한다고 지적해 장면 카드를 되살렸다. 이 자리를 지우면 스무 장면으로
-  // 가는 클릭이 어디서도 세어지지 않는다.
-  // 2026-09-03: 장면 섹션 자체는 시안에서 없어졌지만 **스무 장면으로 가는 버튼은
-  // 남았다** — ④ "편을 들지 않아요" 섹션의 버튼("둘이 갈리는 장면 먼저 해보기")이
-  // 그 자리를 이어받는다. 이름을 그대로 두면 어디서 눌렸는지가 거짓이 되므로 바꾼다.
-  | "landing_noside_scenes"
-  | "landing_community_cta"
-  | "landing_now_card"
-  | "landing_closing_primary"
-  | "landing_closing_signup"
-  | "landing_closing_login";
+export type { LandingCtaSource } from "@/lib/landingAnalytics";
 
 type TrackedLandingLinkProps = Omit<ComponentProps<typeof Link>, "children" | "onClick"> & {
   children: ReactNode;
@@ -49,13 +30,8 @@ export default function TrackedLandingLink({
       {...props}
       onClick={() => {
         clearStartHereDateHandoff();
-          // 이름이 도착지를 말해야 한다. 옛 이름 `landing_amora_start_click` 은
-          // 도착지가 아모라이던 때 지은 것인데, 지금 1차 CTA 는 `/wedding-code` 로 간다.
-          //
-          // 도착지가 `wedding_code_started`·`wedding_code_completed` 를 스스로 내므로
-          // 여기서는 **어느 자리에서 눌렀는지**만 붙이면 퍼널이 이어진다. 도착지 이벤트는
-          // `WEDDING_CODE_FUNNEL_ANALYTICS_EFFECTIVE_AT` 이후에만 나간다(그 전에는 이 한 칸뿐이다).
-          captureEvent("landing_cta_click", { source });
+        // 자리 이름만 전달한다. 지연 전송의 출발 화면·시각은 분석 래퍼가 고정한다.
+        captureEvent("landing_cta_click", { source });
       }}
     >
       {children}

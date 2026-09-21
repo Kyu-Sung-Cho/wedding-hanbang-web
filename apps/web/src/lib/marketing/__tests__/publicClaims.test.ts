@@ -333,8 +333,8 @@ describe("public marketing claim boundary", () => {
     // 전용 섹션을 다시 찾으면 안 된다 — 고지는 카드의 작은 글씨가 진다.
 
     // WeddingCode는 검증된 궁합 검사가 아니다(CLAUDE.md). 이 한 줄이 그 계약이다.
-    // 2026-09-03 시안으로 카드 제목이 짧아졌다("둘이 어디서 갈리는지 보기" → "둘이 갈리는 장면 보기").
-    const weddingCode = cardTitled("둘이 갈리는 장면");
+    // 랜딩에서 기능을 찾을 때 쓰는 제품명으로 찾고, 기존 고지 계약은 유지한다.
+    const weddingCode = cardTitled("웨딩코드");
     expect(weddingCode.note, "점수·궁합 금지 고지가 웨딩코드 카드에 없다").toContain(
       "점수도 궁합도 매기지 않아요",
     );

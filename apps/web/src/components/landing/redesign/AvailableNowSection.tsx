@@ -68,7 +68,7 @@ export default function AvailableNowSection() {
           {availableNow.cards.map((card) => (
             <TrackedLandingLink
               key={card.no}
-              source="landing_now_card"
+              source={card.href === "/wedding-code" ? "landing_now_wedding_code" : "landing_now_card"}
               href={card.href}
               className="flex min-h-11 items-center gap-[14px] rounded-[14px] border border-[var(--color-paper-edge)] bg-[var(--color-paper-card)] px-[18px] py-4 transition-colors duration-200 hover:border-[var(--color-paper-ink)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-paper-pen)] focus-visible:ring-offset-2 motion-reduce:transition-none lg:block lg:rounded-[16px] lg:px-[22px] lg:py-[26px]"
             >

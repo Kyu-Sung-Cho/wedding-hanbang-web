@@ -253,13 +253,8 @@ describe("landing available-now section", () => {
     expect(tracker, "옛 이름이 되살아나면 이 카드들이 아모라 시작으로 세어진다")
       .not.toContain("landing_amora_start_click");
 
-    const sources = [...section.matchAll(/source=\{?"([^"]+)"\}?/gu)].map((m) => m[1]);
-    expect(sources.length, "이 섹션의 링크가 어느 자리인지 말하지 않는다")
-      .toBeGreaterThan(0);
-    for (const source of sources) {
-      expect(source, `"${source}" 는 이 섹션의 자리 이름이 아니다`)
-        .toBe("landing_now_card");
-    }
+    // 실제 카드 클릭의 source 경계는 TrackedLandingLink.test.tsx에서 검사한다.
+    // 웨딩코드와 다른 카드의 분기를 실제로 눌러 확인하므로 JSX 표현식 모양에 기대지 않는다.
 
     // 원래 이 자리에는 `${secondaryLink}`(landingType.ts의 링크 레시피)를 쓰는지
     // 봤다. 2026-08-27 개편으로 공유 레시피가 `landingType.ts`에서 `notebook.tsx`로

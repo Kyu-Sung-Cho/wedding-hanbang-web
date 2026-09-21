@@ -1,12 +1,12 @@
 "use client";
 
 // App Router 페이지뷰 추적. NEXT_PUBLIC_POSTHOG_KEY 없으면 완전 no-op.
-// UTM 파라미터는 $pageview의 $current_url에서 PostHog이 자동 추출한다.
+// 랜딩은 별도 전송 경계에서 경로만 남긴다. 다른 화면은 기존 주소 정리를 따른다.
 // posthog-js 로드·초기화는 lib/analytics의 loadPostHog 하나로 모아 두었다
 // (유휴 시점 동적 로드 — 하이드레이션과 경쟁시키지 않는다).
 import { useEffect, Suspense } from "react";
 import { usePathname, useSearchParams } from "next/navigation";
-import { loadPostHog } from "@/lib/analytics";
+import { capturePageview } from "@/lib/analytics";
 import {
   analyticsSafeSearchParams,
   isAnalyticsSuppressedLocation,
@@ -27,9 +27,7 @@ function PageViewTracker() {
     const qs = analyticsSafeSearchParams(pathname, searchParams);
     // 주소는 지금 값으로 고정한다 — 로드가 늦게 끝나도 실제 방문한 화면으로 기록된다.
     const url = window.location.origin + pathname + (qs ? `?${qs}` : "");
-    void loadPostHog().then((posthog) => {
-      posthog?.capture("$pageview", { $current_url: url });
-    });
+    capturePageview({ $current_url: url });
   }, [pathname, searchParams]);
 
   return null;
