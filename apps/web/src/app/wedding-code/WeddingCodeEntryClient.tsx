@@ -2,6 +2,8 @@
 
 import { useCallback, useMemo, useState, useSyncExternalStore } from "react";
 
+import Button from "@/components/ui/Button";
+
 import WeddingCodeV06Client from "./WeddingCodeV06Client";
 import WeddingCodeV20Client from "./WeddingCodeV20Client";
 import {
@@ -29,13 +31,14 @@ function ErrorEntry({ onRestart }: { onRestart: () => void }) {
         <p className="mt-3 text-sm leading-7 text-[var(--hb-text-body)]">
           링크가 중간에 잘렸거나, 아직 지원하지 않는 버전이에요. 처음부터 다시 답하거나 보낸 사람에게 링크를 다시 받아 주세요.
         </p>
-        <button
+        <Button
+          variant="primary"
           type="button"
           onClick={onRestart}
           className="mt-6 inline-flex min-h-12 w-full items-center justify-center rounded-[6px] bg-[var(--hb-action)] px-5 text-sm font-semibold text-white hover:bg-[var(--hb-action-hover)]"
         >
           처음부터 답하기
-        </button>
+        </Button>
       </section>
     </main>
   );

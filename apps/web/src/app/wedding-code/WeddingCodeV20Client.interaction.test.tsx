@@ -19,6 +19,10 @@ describe("WeddingCodeV20Client", () => {
     await act(async () => root.render(<WeddingCodeV20Client shareOrigin="https://hanbang.ai" />));
     await act(async () => [...container.querySelectorAll("button")].find((button) => button.textContent?.includes("시작하기"))?.click());
     expect(container.querySelectorAll("[data-answer]")).toHaveLength(5);
+    expect(container.querySelectorAll('[role="radiogroup"] [role="radio"]')).toHaveLength(5);
+    expect(container.querySelectorAll('[role="radio"][aria-checked="true"]')).toHaveLength(0);
+    expect(container.querySelector<HTMLButtonElement>('button[aria-label="이전 문장"]')?.disabled).toBe(true);
+    expect([...container.querySelectorAll("button")].find((button) => button.textContent?.includes("다음 문장"))?.disabled).toBe(true);
     expect(container.querySelector('[role="progressbar"]')?.getAttribute("aria-valuenow")).toBe("1");
     for (let index = 0; index < WEDDING_CODE_V20_TOTAL; index += 1) {
       const skip = [...container.querySelectorAll("button")].find((button) => button.textContent?.includes("지금은 답하기 어려워요"));
@@ -34,7 +38,10 @@ describe("WeddingCodeV20Client", () => {
     for (let index = 0; index < WEDDING_CODE_V20_TOTAL; index += 1) {
       const value = index === 0 ? "1" : index === 1 ? "3" : "5";
       await act(async () => container.querySelector<HTMLButtonElement>(`[data-answer="${value}"]`)?.click());
+      expect(container.querySelectorAll('[role="radio"][aria-checked="true"]')).toHaveLength(1);
+      expect(container.querySelector(`[data-answer="${value}"]`)?.getAttribute("aria-checked")).toBe("true");
       const next = [...container.querySelectorAll("button")].find((button) => button.textContent?.includes(index === WEDDING_CODE_V20_TOTAL - 1 ? "결과 보기" : "다음 문장"));
+      expect(next?.disabled).toBe(false);
       await act(async () => next?.click());
     }
     expect(container.querySelector('[data-result="solo-v20"]')).not.toBeNull();

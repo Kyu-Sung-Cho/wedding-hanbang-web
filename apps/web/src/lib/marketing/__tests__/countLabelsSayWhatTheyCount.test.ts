@@ -3,10 +3,8 @@ import { join, resolve } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
-import {
-  CURRENT_WEDDING_CODE_SCENE_CONFIG,
-  weddingCodeSceneCountLabel,
-} from "@/lib/weddingCode/scene/config";
+import { WEDDING_CODE_V20_TOTAL } from "@/constants/weddingCodeV20";
+import { parseWeddingCodeEntryQuery } from "@/app/wedding-code/entry";
 
 import {
   contentBlock,
@@ -236,25 +234,12 @@ describe("랜딩은 수 대신 출처를 남긴다", () => {
   });
 });
 
-describe("장면 수는 도착 화면이 묻는 문항 수다", () => {
-  const live = weddingCodeSceneCountLabel(
-    CURRENT_WEDDING_CODE_SCENE_CONFIG.questions.length,
-  );
+describe("랜딩의 문장 수는 도착 화면이 묻는 문항 수다", () => {
+  const countPattern = /([0-9]+)\s*(?:개\s*)?문장/gu;
 
-  it("첫 화면과 마무리가 같은 수를 말한다", () => {
-    // 이 자리가 무방비였다. `landingAvailableNow.test.ts` 는 `availableNow` 블록만
-    // 보므로, 히어로를 "열여섯 장면"으로 바꿔도 아무도 안 깨졌다.
-    //
-    // 2026-08-29: 랜딩이 정본 시안으로 다시 지어지면서 히어로가 더 이상 장면 수로
-    // 사람을 부르지 않는다 — 첫 행동이 공시 가격으로 바뀌었다. 지키려는 것은 특정
-    // 자리가 아니라 **화면이 말하는 장면 수가 도착 화면의 문항 수와 같은가** 이다.
-    //
-    // ⚠️ 처음에는 `availableNow` 한 블록만 보도록 옮겼다. 그런데 `closing.note` 가
-    // 여전히 "… 견적 점검, 스무 장면, 예절 가이드 …" 라고 말한다. 자리를 하나만
-    // 집으면 **다른 자리는 무방비로 남는다** — 이 검사가 원래 고치려던 바로 그
-    // 실패 방식이다. 그래서 자리를 손으로 적지 않고 **`장면` 이라고 말하는 블록을
-    // 전부 찾아** 하나하나 라이브 라벨과 대조한다. 카피가 옮겨 다녀도 따라간다.
-    const BLOCKS = [
+  it("첫 화면과 마무리가 실제 기본 검사와 같은 수를 말한다", () => {
+    expect(parseWeddingCodeEntryQuery({}).kind).toBe("v20");
+    const blocks = [
       ["hero", "blockedReasons"],
       ["blockedReasons", "amoraNote"],
       ["amoraNote", "noSide"],
@@ -267,49 +252,26 @@ describe("장면 수는 도착 화면이 묻는 문항 수다", () => {
       ["closing", "footer"],
       ["footer", "headerNav"],
     ] as const;
+    const copy = blocks.map(([from, to]) => [from, contentBlock(from, to)] as const);
+    const speaking = copy.flatMap(([name, text]) =>
+      Array.from(text.matchAll(countPattern), (match) => ({ name, count: Number(match[1]) })),
+    );
 
-    const speaking = BLOCKS
-      .map(([from, to]) => [from, contentBlock(from, to)] as const)
-      // ⚠️ 2026-09-03 이전에는 `text.includes("장면")` 이었다. 시안이 ④ 섹션에
-      // "둘이 갈리는 장면 먼저 해보기" 라는 **수 없는** 버튼을 들여오면서, 수를 아예
-      // 말하지 않는 블록까지 "스무 장면" 을 요구하게 됐다.
-      //
-      // 이 검사가 막는 것은 **틀린 수**이지 수를 안 말하는 것이 아니다. 그래서 대상을
-      // "수를 말하는 블록" 으로 좁힌다 — 숫자든 한글 수사든, `장면` 앞에 수가 붙은 자리.
-      // 아래 하한이 그 자리가 0개로 줄지 않는지 계속 본다.
-      .filter(([, text]) => /(?:[0-9]+|한|두|세|네|다섯|열|스무|스물|서른)\s*장면/u.test(text));
-
-    expect(
-      speaking.map(([name]) => name),
-      "랜딩 어느 블록도 장면 수를 말하지 않는다 — 이 검사가 헛돈다",
-    ).not.toEqual([]);
-
-    for (const [name, text] of speaking) {
-      expect(text, `${name} 블록의 장면 수가 라이브 설정(${live})과 다르다`)
-        .toContain(`${live} 장면`);
+    expect(speaking, "랜딩에서 답할 문장 수를 안내해야 한다").not.toEqual([]);
+    for (const { name, count } of speaking) {
+      expect(count, `${name} 블록의 문장 수가 실제 검사와 다르다`)
+        .toBe(WEDDING_CODE_V20_TOTAL);
     }
-
-    // 그 수를 말하는 자리에서 도착 화면으로 가는 길도 살아 있어야 한다 — 수만 맞고
-    // 링크가 없으면 사람은 어디로 가야 할지 모른다.
-    expect(
-      BLOCKS.map(([from, to]) => contentBlock(from, to)).join(""),
-      "웨딩코드로 가는 길이 랜딩에서 사라졌다",
-    ).toMatch(/href:\s*"\/wedding-code"/u);
+    expect(copy.map(([, text]) => text).join(""), "웨딩코드로 가는 길이 사라졌다")
+      .toMatch(/href:\s*"\/wedding-code"/u);
   });
 
-  it("랜딩 어디에도 다른 장면 수가 남아 있지 않다", () => {
-    // 컴포넌트가 라벨을 직접 적는 자리가 있다(`LandingHeader` · `ScenesSection` 의
-    // 버튼 글자). 카피 정본만 고치면 그 둘이 옛 수를 그대로 들고 화면에 남는다.
-    for (const other of ["열두", "열여섯", "스무", "스물네"].filter((n) => n !== live)) {
-      expect(LANDING_RENDERED, `옛 장면 수 "${other}" 가 랜딩에 남아 있다`)
-        .not.toContain(`${other} 장면`);
-    }
-    // 표기를 숫자로 바꾸면 위 목록을 통째로 빠져나간다("20개 장면").
-    expect(LANDING_RENDERED, "장면 수를 숫자로 적었다 — 문항 수와 함께 썩는다")
-      .not.toMatch(/\d+\s*(개\s*)?장면/u);
-    // 라이브 라벨은 실제로 화면에 있어야 한다. 위 둘은 "없는 것"만 보므로
-    // 장면 수를 통째로 지운 상태도 통과시킨다.
-    expect(LANDING_RENDERED, `랜딩이 장면 수를 말하지 않는다(${live})`)
-      .toContain(`${live} 장면`);
+  it("랜딩의 컴포넌트에도 잘못된 수나 예전 장면 수가 남아 있지 않다", () => {
+    // 카피뿐 아니라 헤더 등에서 직접 그리는 문장 수까지 확인한다.
+    const counts = Array.from(LANDING_RENDERED.matchAll(countPattern), (match) => Number(match[1]));
+    expect(counts, "랜딩이 답할 문장 수를 말하지 않는다").not.toEqual([]);
+    for (const count of counts) expect(count).toBe(WEDDING_CODE_V20_TOTAL);
+    expect(LANDING_RENDERED, "예전 선택형 검사의 장면 수가 랜딩에 남아 있다")
+      .not.toMatch(/(?:[0-9]+|열두|열여섯|스무|스물네)\s*(?:개\s*)?장면/u);
   });
 });
