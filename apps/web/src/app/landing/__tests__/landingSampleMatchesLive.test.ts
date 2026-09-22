@@ -1,9 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { WEDDING_CODE_V20_TOTAL } from "@/constants/weddingCodeV20";
-
-import {
-  CURRENT_WEDDING_CODE_SCENE_CONFIG,
-} from "@/lib/weddingCode/scene/config";
+import { WEDDING_CODE_V30_QUESTIONS, WEDDING_CODE_V30_OPTIONS, WEDDING_CODE_V30_TASTES } from "@/constants/weddingCodeV30";
 
 import { CONTENT_PATH, everyLandingComponent, rendered } from "./landingSource";
 
@@ -49,8 +45,6 @@ import { CONTENT_PATH, everyLandingComponent, rendered } from "./landingSource";
  *    넣는 순간 살아난다 — 실제 사고가 정확히 "다시 넣으면서 끝을 바꾼" 것이었다.
  */
 
-const { questions } = CURRENT_WEDDING_CODE_SCENE_CONFIG;
-
 /**
  * 랜딩이 사용자에게 실제로 내보내는 텍스트 전부(`[파일, 주석 벗긴 소스]`).
  *
@@ -68,20 +62,16 @@ function landingSurface(): Array<[string, string]> {
 
 describe("랜딩이 웨딩코드에 대해 말하는 것은 라이브다", () => {
   it("랜딩이 말하는 문장 수가 새 질문판과 같다", () => {
-    // 새 공개판은 장면 선택지가 아니라 16개 문장에 같은 척도로 답한다.
+    // 수를 명시한다면 새 기본판의 실제 문장 수와 같아야 한다.
     const wrong: string[] = [];
     for (const [file, text] of landingSurface()) {
       for (const match of text.matchAll(/(\d+)\s*개\s*문장/gu)) {
-        if (Number(match[1]) !== WEDDING_CODE_V20_TOTAL) {
+        if (Number(match[1]) !== WEDDING_CODE_V30_QUESTIONS.length) {
           wrong.push(`${file}: "${match[0]}"`);
         }
       }
     }
     expect([...new Set(wrong)], "랜딩이 새 질문판과 다른 문장 수를 말합니다").toEqual([]);
-    expect(
-      landingSurface().some(([, text]: [string, string]) => text.includes(`${WEDDING_CODE_V20_TOTAL}개 문장`)),
-      "랜딩이 문장 수를 한 번도 말하지 않습니다",
-    ).toBe(true);
   });
 
   it("랜딩이 문항 번호를 지어내지 않는다", () => {
@@ -112,13 +102,14 @@ describe("랜딩이 웨딩코드에 대해 말하는 것은 라이브다", () =>
     const surface = landingSurface();
 
     const live: Array<{ what: string; text: string }> = [];
-    for (const q of questions) {
-      live.push({ what: `${q.key} 장면`, text: q.scene });
-      live.push({ what: `${q.key} 질문`, text: q.question });
-      q.options.forEach((option: { label: string }, index: number) => {
-        live.push({ what: `${q.key} 선택지 ${index + 1}`, text: option.label });
-      });
+    for (const q of WEDDING_CODE_V30_QUESTIONS) {
+      live.push({ what: `${q.id} 문장`, text: q.statement });
     }
+    WEDDING_CODE_V30_OPTIONS.forEach(option => live.push({ what: `동의 정도 ${option.value}`, text: option.label }));
+    WEDDING_CODE_V30_TASTES.forEach(taste => {
+      live.push({ what: `${taste.key} 취향`, text: taste.question });
+      taste.options.forEach(option => live.push({ what: `${taste.key} 선택지`, text: option.label }));
+    });
 
     const misquoted: string[] = [];
     for (const { what, text } of live) {

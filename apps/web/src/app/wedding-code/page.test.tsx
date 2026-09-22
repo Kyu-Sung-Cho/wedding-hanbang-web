@@ -29,6 +29,8 @@ import {
 } from "@/constants/weddingCodeV12";
 import { encodeWeddingCodeV06 } from "@/lib/weddingCode/v06/code";
 import type { WeddingCodeV06Answers } from "@/lib/weddingCode/v06/gap";
+import { WEDDING_CODE_V20_VERSION } from "@/constants/weddingCodeV20";
+import { WEDDING_CODE_V30_QUESTIONS, WEDDING_CODE_V30_TASTES, WEDDING_CODE_V30_VERSION } from "@/constants/weddingCodeV30";
 import WeddingCodePage, { generateMetadata } from "./page";
 
 const LEFT_ISH: WeddingCodeV06Answers = Object.fromEntries(
@@ -78,7 +80,7 @@ describe("웨딩코드 진입 화면", () => {
     expect(clean.alternates?.canonical).toBe("/wedding-code");
     expect(clean).toMatchObject({ referrer: "no-referrer" });
 
-    for (const carrying of [{ a: "AACB" }, { b: "AACB" }, { a: "AACB", b: "AACB" }]) {
+    for (const carrying of [{ a: "AACB" }, { b: "AACB" }, { a: "AACB", b: "AACB" }, { a: "" }, { v: WEDDING_CODE_V30_VERSION, a: "broken" }]) {
       const guarded = await generateMetadata({ searchParams: Promise.resolve(carrying) });
       expect(guarded.robots, JSON.stringify(carrying)).toMatchObject({
         index: false,
@@ -89,20 +91,37 @@ describe("웨딩코드 진입 화면", () => {
 
   it("코드가 없으면 처음부터 답하는 화면이다", async () => {
     const page = await WeddingCodePage({ searchParams: Promise.resolve({}) });
-    expect(page.props.v20Initial).toMatchObject({ partnerAnswers: null, bothAnswers: null });
+    expect(page.props.initialEntry).toEqual({ kind: "v30", initial: { partnerDraft: null, partnerCode: null, bothDrafts: null } });
     const html = await render({});
-    expect(html).toContain("16문장");
+    expect(html).not.toContain("16문장");
     expect(html).toContain("시작하기");
     // 예전의 중단 안내가 남아 있으면 안 된다.
     expect(html).not.toContain("정식 검증을 준비하고 있어요");
     expect(html).not.toContain("답변을 받거나 저장하지 않습니다");
   });
 
-  it("판정 언어를 화면에 쓰지 않는다", async () => {
+  it("기본 통합판을 판정 언어로 소개하지 않는다", async () => {
     const html = await render({});
     for (const banned of ["점수가", "등급", "궁합이", "유형이에요", "당신은 "]) {
       expect(html, banned).not.toContain(banned);
     }
+  });
+
+  it("통합판은 전체 분량과 답의 저장·공유 경계를 시작 전에 밝힌다", async () => {
+    const html = await render({});
+    const container = document.createElement("div");
+    container.innerHTML = html;
+    const text = container.textContent ?? "";
+    expect(text).toContain(`전체 ${WEDDING_CODE_V30_QUESTIONS.length + WEDDING_CODE_V30_TASTES.length + 2}개 질문`);
+    expect(text).toContain("답은 서버나 계정에 저장하지 않아요");
+    expect(text).toContain("새로고침하면 진행 중인 답은 사라져요");
+    expect(text).toContain("동의하고 만든 공유 링크에는 답 전체가 담겨요");
+    expect(text).toContain("내 웨딩코드 시작하기");
+  });
+
+  it("명시된 v20 입구의 설명과 개인정보 경계도 유지한다", async () => {
+    const html = await render({ v: WEDDING_CODE_V20_VERSION });
+    expect(html).toContain("16문장");
     expect(html).toContain("성격검사나 MBTI 공식 검사가 아니에요");
     expect(html).toContain("문장 하나씩 읽고 지금의 나와 가까운 정도");
     expect(html).toContain("지금 답하기 어렵거나 우리 상황에 해당하지 않으면");
@@ -116,11 +135,30 @@ describe("웨딩코드 진입 화면", () => {
   });
 
   it("DB 비저장과 URL 노출을 구분해 알린다", async () => {
-    const html = await render({});
+    const html = await render({ v: WEDDING_CODE_V20_VERSION });
     // 브라우저에는 동의와 상관없이 남기지 않고(새로고침하면 사라짐), 서버에도 저장하지 않는다.
     expect(html).toContain("답은 새로고침하면 사라져요");
     expect(html).toContain("공유 링크에는 답한 내용이 담기니");
     expect(html).not.toContain("답은 저장되지 않아요");
+  });
+
+  it("새 기본판의 metadata는 취향·준비 방식·직접 고른 우선순위를 설명한다", async () => {
+    for (const search of [{}, { v: WEDDING_CODE_V30_VERSION }]) {
+      const metadata = await generateMetadata({ searchParams: Promise.resolve(search) });
+      expect(metadata.title).toContain("원하는 결혼식과 준비 방식");
+      expect(metadata.description).toContain("결혼식 취향과 준비 방식");
+      expect(metadata.description).toContain("꼭 지키고 싶은 것과 돈을 더 쓰고 싶은 곳");
+      expect(metadata.description).not.toMatch(/모든 성향|완벽|정확히|MBTI|16개 문장|32개 문장만/);
+    }
+    const old = await generateMetadata({ searchParams: Promise.resolve({ v: WEDDING_CODE_V20_VERSION }) });
+    expect(old.description).toContain("16개 문장");
+  });
+
+  it("query에 중복된 버전이나 새 응답이 오면 복원하지 않는다", async () => {
+    const duplicate = await WeddingCodePage({ searchParams: Promise.resolve({ v: [WEDDING_CODE_V30_VERSION, WEDDING_CODE_V30_VERSION] }) });
+    expect(renderToStaticMarkup(duplicate)).toContain("이 링크는 열 수 없어요");
+    const carried = await render({ v: WEDDING_CODE_V30_VERSION, a: "broken" });
+    expect(carried).toContain("이 링크는 열 수 없어요");
   });
 
   /**

@@ -35,8 +35,9 @@ describe("WeddingCodeV20Client", () => {
     await act(async () => button?.click());
   }
 
-  it("진입 컴포넌트에서도 두 번 연속 다시 답하면 처음부터 빈 응답으로 시작한다", async () => {
-    await act(async () => root.render(<WeddingCodeEntryClient shareOrigin="https://hanbang.ai" />));
+  it("부모가 다시 시작을 처리해도 v20 자체는 두 번 연속 빈 응답으로 초기화한다", async () => {
+    const onRestart = vi.fn();
+    await act(async () => root.render(<WeddingCodeV20Client shareOrigin="https://hanbang.ai" onRestart={onRestart} />));
     for (let attempt = 0; attempt < 2; attempt += 1) {
       await clickButton("시작하기");
       expect(container.querySelector('[data-question="C1"]')).not.toBeNull();
@@ -50,10 +51,11 @@ describe("WeddingCodeV20Client", () => {
       expect(container.querySelector('[data-result="solo-v20"]')).toBeNull();
     }
     expect(vi.mocked(captureWeddingCodeEvent).mock.calls.filter(([event]) => event === "wedding_code_restarted")).toHaveLength(2);
+    expect(onRestart).toHaveBeenCalledTimes(2);
   });
 
   it("마지막 답을 고른 뒤 건너뛰면 완료 이벤트와 결과 모두 그 답을 제외한다", async () => {
-    await act(async () => root.render(<WeddingCodeEntryClient shareOrigin="https://hanbang.ai" />));
+    await act(async () => root.render(<WeddingCodeV20Client shareOrigin="https://hanbang.ai" />));
     await clickButton("시작하기");
     for (let index = 0; index < WEDDING_CODE_V20_TOTAL - 1; index += 1) await clickButton("지금은 답하기 어려워요");
     await act(async () => container.querySelector<HTMLButtonElement>('[data-answer="5"]')?.click());

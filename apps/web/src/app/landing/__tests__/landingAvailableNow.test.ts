@@ -1,7 +1,6 @@
 // @vitest-environment node
 
 import { describe, expect, it } from "vitest";
-import { WEDDING_CODE_V20_TOTAL } from "@/constants/weddingCodeV20";
 import { landingContent } from "@/components/landing/redesign/landingContent";
 import {
   CONTENT_PATH,
@@ -266,11 +265,13 @@ describe("landing available-now section", () => {
     }
   });
 
-  it("names the statement count the destination screen actually asks", () => {
-    // 새 공개판은 장면 선택지가 아니라 16개 문장에 같은 척도로 답한다.
-    // 랜딩의 숫자가 입구 화면과 어긋나면 한 클릭 만에 약속이 깨진다.
-    expect(content, `새 질문판은 ${WEDDING_CODE_V20_TOTAL}개 문장인데 랜딩이 그 수를 말하지 않는다`)
-      .toContain(`${WEDDING_CODE_V20_TOTAL}개 문장`);
+  it("describes the integrated preferences instead of advertising a partial flow count", () => {
+    const weddingCode = landingContent.availableNow.cards.find(card => card.href === "/wedding-code");
+    expect(weddingCode?.body).toContain("결혼식 취향과 준비 방식");
+    expect(weddingCode?.body).toContain("꼭 지키고 싶은 것과 돈을 더 쓰고 싶은 곳");
+    expect(weddingCode?.body).toContain("혼자 내 결과");
+    expect(weddingCode?.body).toContain("상대도 답하면");
+    expect(weddingCode?.body).not.toMatch(/(?:16|32)\s*(?:개\s*)?(?:문장|문항)(?:만|으로 끝)/u);
     expect(content, "옛 장면 수 표현이 랜딩에 남아 있다")
       .not.toMatch(/(?:열두|열여섯|스무|스물네|\d+)\s*장면/u);
   });

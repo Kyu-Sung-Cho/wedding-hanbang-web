@@ -400,8 +400,8 @@ describe("landing hero product experience contract", () => {
     // 그 셋이 무엇인지 랜딩 어디에도 없었다. 스무 장면은 2026-08-29 개편에서
     // 히어로 후크 자리를 내주고 "지금 되는 것" 카드 02 로 내려갔다 —
     // **도구가 내려가도 산출물을 이름으로 말하는 계약은 따라간다.**
-    expect(availableNowCatalogue).toContain("16개 문장에 각자 답하면");
-    expect(availableNowCatalogue).toContain("같은 문장에 대한 두 사람의 답을 나란히 비교할 수 있어요");
+    expect(availableNowCatalogue).toContain("원하는 결혼식 취향과 준비 방식");
+    expect(availableNowCatalogue).toContain("상대도 답하면 함께 원하는 것과 먼저 의논할 부분을 비교할 수 있어요");
     // 어형·표기를 넓힌다. "세 가지"만 막던 시절에는 "3가지"로 바꾸면 통과했다.
     expect(heroCopy, "첫 화면이 산출물을 개수로만 말하면 안 된다").not.toMatch(
       /(?:세|3|셋)\s*가지/u,
