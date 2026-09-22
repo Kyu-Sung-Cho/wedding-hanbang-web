@@ -6,6 +6,7 @@ import Button from "@/components/ui/Button";
 
 import WeddingCodeV06Client from "./WeddingCodeV06Client";
 import WeddingCodeV20Client from "./WeddingCodeV20Client";
+import WeddingCodeV30Client from "./WeddingCodeV30Client";
 import {
   EMPTY_WEDDING_CODE_ENTRY,
   parseWeddingCodeEntryHash,
@@ -16,11 +17,6 @@ import {
 } from "./entry";
 
 export { parseWeddingCodeEntryHash } from "./entry";
-
-const EMPTY_V20: WeddingCodeV20EntryInitial = EMPTY_WEDDING_CODE_ENTRY.kind === "v20"
-  ? EMPTY_WEDDING_CODE_ENTRY.initial
-  : { partnerAnswers: null, partnerCode: null, bothAnswers: null };
-
 
 function ErrorEntry({ onRestart }: { onRestart: () => void }) {
   return (
@@ -47,7 +43,7 @@ function ErrorEntry({ onRestart }: { onRestart: () => void }) {
 export default function WeddingCodeEntryClient({
   shareOrigin,
   initialEntry,
-  v20Initial = EMPTY_V20,
+  v20Initial,
   legacyInitial = null,
   researchContributionOpen = false,
   researchStorageActive = false,
@@ -63,7 +59,10 @@ export default function WeddingCodeEntryClient({
   initialError?: boolean;
 }) {
   const defaultEntry = useMemo<WeddingCodeEntry>(
-    () => initialEntry ?? (initialError ? { kind: "error" } : legacyInitial ? { kind: "legacy", initial: legacyInitial } : { kind: "v20", initial: v20Initial }),
+    () => initialEntry ?? (initialError ? { kind: "error" }
+      : legacyInitial ? { kind: "legacy", initial: legacyInitial }
+      : v20Initial ? { kind: "v20", initial: v20Initial }
+      : EMPTY_WEDDING_CODE_ENTRY),
     [initialEntry, initialError, legacyInitial, v20Initial],
   );
   // Server and first client render deliberately share the same entry. The URL fragment is applied
@@ -91,6 +90,17 @@ export default function WeddingCodeEntryClient({
   }, []);
 
   if (entry.kind === "error") return <ErrorEntry onRestart={restart} />;
+  if (entry.kind === "v30") {
+    return (
+      <WeddingCodeV30Client
+        key={`v30:${weddingCodeEntryKey(entry)}`}
+        shareOrigin={shareOrigin}
+        partnerDraft={entry.initial.partnerDraft}
+        bothDrafts={entry.initial.bothDrafts}
+        onRestart={restart}
+      />
+    );
+  }
   if (entry.kind === "legacy") {
     return (
       <WeddingCodeV06Client
