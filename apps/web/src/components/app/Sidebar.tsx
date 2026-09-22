@@ -4,6 +4,7 @@ import type { ComponentType } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
+  ArrowLeft,
   BookOpen,
   CalendarCheck,
   ClipboardCheck,
@@ -118,6 +119,14 @@ export default function Sidebar({ isOpen, onClose, amoraWorkspace = false, plann
         </nav>
 
         <div className={plannerOverview ? "mx-[14px] mt-[10px] border-t border-[var(--amora-line)] pb-4 pt-[14px]" : "px-3 pb-4"}>
+          <Link
+            href="/landing"
+            onClick={onClose}
+            className={`mb-2 flex min-h-11 items-center gap-2 text-[13px] text-[var(--hb-text-body)] transition-colors hover:bg-[var(--hb-surface-hover)] hover:text-[var(--hb-accent-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--hb-focus-ring)] focus-visible:ring-offset-2 ${htmlDesign ? "rounded-[9px]" : "rounded-[6px]"} ${plannerOverview ? "px-[10px]" : "px-4"}`}
+          >
+            <ArrowLeft className="h-4 w-4 shrink-0" aria-hidden="true" />
+            웨딩한방 소개
+          </Link>
           <div className={plannerOverview ? "px-[10px] pb-[10px] pt-[6px]" : "rounded-[6px] border border-[var(--hb-hairline)] bg-white p-4"}>
             <div className="flex items-center gap-3">
               <ProfileAvatar name={profile?.name} label={userName} avatarUrl={profile?.avatar_url} size={plannerOverview ? 32 : 40} />
