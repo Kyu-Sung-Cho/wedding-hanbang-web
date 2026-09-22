@@ -349,6 +349,6 @@ describe("웨딩코드 v3 공유 경계", () => {
     expect(decodeV30(params.get("b"))).toEqual(second);
     expect(buildV30ShareUrl({ origin: "https://hanbang.ai", first, second: all("skipped") })).toBeNull();
     expect(buildV30ShareUrl({ origin: "https://hanbang.ai", first: createV30Draft() })).toBeNull();
-    for (const origin of ["javascript:alert(1)", "https://user:password@hanbang.ai", "https://hanbang.ai/?answer=4", "https://hanbang.ai/#answer", "https://hanbang.ai/unexpected-path"]) expect(buildV30ShareUrl({ origin, first })).toBeNull();
+    for (const origin of ["javascript:alert(1)", "https://user:password@example.com", "https://hanbang.ai/?answer=4", "https://hanbang.ai/#answer", "https://hanbang.ai/unexpected-path"]) expect(buildV30ShareUrl({ origin, first })).toBeNull();
   });
 });
