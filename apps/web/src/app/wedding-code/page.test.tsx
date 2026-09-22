@@ -30,7 +30,8 @@ import {
 import { encodeWeddingCodeV06 } from "@/lib/weddingCode/v06/code";
 import type { WeddingCodeV06Answers } from "@/lib/weddingCode/v06/gap";
 import { WEDDING_CODE_V20_VERSION } from "@/constants/weddingCodeV20";
-import { WEDDING_CODE_V30_QUESTIONS, WEDDING_CODE_V30_TASTES, WEDDING_CODE_V30_VERSION } from "@/constants/weddingCodeV30";
+import { WEDDING_CODE_V30_VERSION } from "@/constants/weddingCodeV30";
+import { WEDDING_CODE_V31_QUESTIONS, WEDDING_CODE_V31_TASTES, WEDDING_CODE_V31_VERSION } from "@/constants/weddingCodeV31";
 import WeddingCodePage, { generateMetadata } from "./page";
 
 const LEFT_ISH: WeddingCodeV06Answers = Object.fromEntries(
@@ -91,7 +92,7 @@ describe("웨딩코드 진입 화면", () => {
 
   it("코드가 없으면 처음부터 답하는 화면이다", async () => {
     const page = await WeddingCodePage({ searchParams: Promise.resolve({}) });
-    expect(page.props.initialEntry).toEqual({ kind: "v30", initial: { partnerDraft: null, partnerCode: null, bothDrafts: null } });
+    expect(page.props.initialEntry).toEqual({ kind: "v31", initial: { partnerDraft: null, partnerCode: null, bothDrafts: null } });
     const html = await render({});
     expect(html).not.toContain("16문장");
     expect(html).toContain("시작하기");
@@ -112,7 +113,7 @@ describe("웨딩코드 진입 화면", () => {
     const container = document.createElement("div");
     container.innerHTML = html;
     const text = container.textContent ?? "";
-    expect(text).toContain(`전체 ${WEDDING_CODE_V30_QUESTIONS.length + WEDDING_CODE_V30_TASTES.length + 2}개 질문`);
+    expect(text).toContain(`전체 ${WEDDING_CODE_V31_QUESTIONS.length + WEDDING_CODE_V31_TASTES.length + 3}개 질문`);
     expect(text).toContain("답은 서버나 계정에 저장하지 않아요");
     expect(text).toContain("새로고침하면 진행 중인 답은 사라져요");
     expect(text).toContain("동의하고 만든 공유 링크에는 답 전체가 담겨요");
@@ -143,7 +144,7 @@ describe("웨딩코드 진입 화면", () => {
   });
 
   it("새 기본판의 metadata는 취향·준비 방식·직접 고른 우선순위를 설명한다", async () => {
-    for (const search of [{}, { v: WEDDING_CODE_V30_VERSION }]) {
+    for (const search of [{}, { v: WEDDING_CODE_V31_VERSION }, { v: WEDDING_CODE_V30_VERSION }]) {
       const metadata = await generateMetadata({ searchParams: Promise.resolve(search) });
       expect(metadata.title).toContain("원하는 결혼식과 준비 방식");
       expect(metadata.description).toContain("결혼식 취향과 준비 방식");
@@ -159,6 +160,16 @@ describe("웨딩코드 진입 화면", () => {
     expect(renderToStaticMarkup(duplicate)).toContain("이 링크는 열 수 없어요");
     const carried = await render({ v: WEDDING_CODE_V30_VERSION, a: "broken" });
     expect(carried).toContain("이 링크는 열 수 없어요");
+    const latest = await render({ v: WEDDING_CODE_V31_VERSION, a: "broken" });
+    expect(latest).toContain("이 링크는 열 수 없어요");
+  });
+
+  it("v30 주소에서는 40개 원문 판을 유지한다", async () => {
+    const html = await render({ v: WEDDING_CODE_V30_VERSION });
+    const container = document.createElement("div");
+    container.innerHTML = html;
+    expect(container.textContent).toContain("전체 40개 질문");
+    expect(container.textContent).toContain("32개 문장");
   });
 
   /**
