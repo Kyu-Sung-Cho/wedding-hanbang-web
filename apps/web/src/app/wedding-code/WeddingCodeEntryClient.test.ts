@@ -46,9 +46,9 @@ describe("웨딩코드 진입 fragment dispatch", () => {
     "#b=4444444444444444",
     "#v=unknown&a=AAAAAAAAAAAAAAAAAAAA",
     "#v=v20-code&a=4444444444444444&b=4444444444444444",
-    "#v=v20-code&a=4444444444444444&a=4444444444444444",
-    "#v=v20-code&c=4444444444444444",
-    "#v=v20-code&a=0000000000000000",
+    `#v=${WEDDING_CODE_V20_VERSION}&a=4444444444444444&a=4444444444444444`,
+    `#v=${WEDDING_CODE_V20_VERSION}&c=4444444444444444`,
+    `#v=${WEDDING_CODE_V20_VERSION}&a=0000000000000000`,
   ])("손상·중복·미지원 fragment %s는 답을 추정하지 않는다", (hash) => {
     expect(parseWeddingCodeEntryHash(hash)?.kind).toBe("error");
   });
