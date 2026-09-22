@@ -89,9 +89,9 @@ describe("웨딩코드 진입 화면", () => {
 
   it("코드가 없으면 처음부터 답하는 화면이다", async () => {
     const page = await WeddingCodePage({ searchParams: Promise.resolve({}) });
-    expect(page.props.version).toBe(WEDDING_CODE_V12_VERSION);
+    expect(page.props.v20Initial).toMatchObject({ partnerAnswers: null, bothAnswers: null });
     const html = await render({});
-    expect(html).toContain("결혼 준비 스무 장면");
+    expect(html).toContain("16문장");
     expect(html).toContain("시작하기");
     // 예전의 중단 안내가 남아 있으면 안 된다.
     expect(html).not.toContain("정식 검증을 준비하고 있어요");
@@ -103,12 +103,10 @@ describe("웨딩코드 진입 화면", () => {
     for (const banned of ["점수가", "등급", "궁합이", "유형이에요", "당신은 "]) {
       expect(html, banned).not.toContain(banned);
     }
-    expect(html).toContain("성격이나 궁합을 보는 검사는 아니에요");
-    expect(html).toContain("아직 겪어 보지 않은 일도 지금 나라면 어떻게 할지");
-    expect(html).toContain("우리 상황과 맞지 않으면 건너뛰세요");
-    // 금액 규모와 가족 구성이 다른 사람도 배제되지 않는다고 먼저 말한다.
-    expect(html).toContain("금액과 상황은 예시예요");
-    expect(html).toContain("결혼식을 안 하거나 부모님, 하객 이야기가 우리 상황과 맞지 않으면");
+    expect(html).toContain("성격검사나 MBTI 공식 검사가 아니에요");
+    expect(html).toContain("문장 하나씩 읽고 지금의 나와 가까운 정도");
+    expect(html).toContain("지금 답하기 어렵거나 우리 상황에 해당하지 않으면");
+    expect(html).toContain("서버에도 저장하지 않아요");
   });
 
   it("먼저 답한 사람의 코드가 오면 응답 순서를 정확히 알린다", async () => {
@@ -120,8 +118,8 @@ describe("웨딩코드 진입 화면", () => {
   it("DB 비저장과 URL 노출을 구분해 알린다", async () => {
     const html = await render({});
     // 브라우저에는 동의와 상관없이 남기지 않고(새로고침하면 사라짐), 서버에도 저장하지 않는다.
-    expect(html).toContain("고른 답은 브라우저에 남기지 않아서 새로고침하면 사라지고, 서버에도 저장하지 않아요");
-    expect(html).toContain("공유 링크에는 내 답이 담기니");
+    expect(html).toContain("답은 새로고침하면 사라져요");
+    expect(html).toContain("공유 링크에는 답한 내용이 담기니");
     expect(html).not.toContain("답은 저장되지 않아요");
   });
 
@@ -132,7 +130,7 @@ describe("웨딩코드 진입 화면", () => {
   it("망가진 코드는 상대 답으로 취급하지 않는다", async () => {
     for (const broken of ["ABC", "ZZZZZZZZZZZZZZZZ", "", "----------------"]) {
       const html = await render({ a: broken });
-      expect(html, `코드 "${broken}"`).toContain("시작하기");
+      expect(html, `코드 "${broken}"`).toContain("이 링크는 열 수 없어요");
       expect(html, `코드 "${broken}"`).not.toContain("상대가 먼저 답하고 보냈어요");
     }
   });
@@ -160,7 +158,7 @@ describe("웨딩코드 진입 화면", () => {
       a: encodeWeddingCodeV06(LEFT_ISH),
       b: encodeWeddingCodeV06(RIGHT_ISH),
     });
-    expect(html).toContain("결혼 준비 스무 장면");
+    expect(html).toContain("이 링크는 열 수 없어요");
     expect(html).not.toContain('data-result="couple"');
   });
 

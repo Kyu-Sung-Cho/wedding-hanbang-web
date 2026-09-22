@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
+import { WEDDING_CODE_V20_TOTAL } from "@/constants/weddingCodeV20";
 
 import {
   CURRENT_WEDDING_CODE_SCENE_CONFIG,
-  weddingCodeSceneCountLabel,
 } from "@/lib/weddingCode/scene/config";
 
 import { CONTENT_PATH, everyLandingComponent, rendered } from "./landingSource";
@@ -50,7 +50,6 @@ import { CONTENT_PATH, everyLandingComponent, rendered } from "./landingSource";
  */
 
 const { questions } = CURRENT_WEDDING_CODE_SCENE_CONFIG;
-const liveCountLabel = weddingCodeSceneCountLabel(questions.length);
 
 /**
  * 랜딩이 사용자에게 실제로 내보내는 텍스트 전부(`[파일, 주석 벗긴 소스]`).
@@ -68,40 +67,21 @@ function landingSurface(): Array<[string, string]> {
 }
 
 describe("랜딩이 웨딩코드에 대해 말하는 것은 라이브다", () => {
-  it("랜딩이 말하는 장면 수가 실제 문항 수와 같다", () => {
-    // "스무 장면" 은 현재 버전(v0.8, 20문항) 기준이다. 버전이 바뀌면 여기서 걸린다.
-    // 한글 수사는 손으로 적지 않는다 — 라이브와 **같은 함수**로 만든다.
-    // (옛 검사는 이 파일 안에 자기 KOREAN 표를 갖고 있어서, 표를 안 고치면
-    //  문항 수가 바뀌어도 라벨이 그대로 맞아떨어질 수 있었다.)
-    const knownLabels = new Set(
-      Array.from({ length: 60 }, (_unused: unknown, i: number) =>
-        weddingCodeSceneCountLabel(i + 1),
-      ),
-    );
-
-    // "맞는 말이 있나" 로 물으면 안 된다 — 랜딩은 장면 수를 여러 번 말하는데,
-    // 한 곳만 틀려도 다른 곳이 대신 답한다(변형으로 확인했다).
-    // **틀린 말이 있나** 로 묻는다.
+  it("랜딩이 말하는 문장 수가 새 질문판과 같다", () => {
+    // 새 공개판은 장면 선택지가 아니라 16개 문장에 같은 척도로 답한다.
     const wrong: string[] = [];
     for (const [file, text] of landingSurface()) {
-      for (const m of text.matchAll(/([가-힣]+|\d+)\s*장면/gu)) {
-        const token = m[1];
-        // 수사가 아닌 말("한 장면", "그 장면")은 장면 수 주장이 아니다.
-        if (!knownLabels.has(token)) continue;
-        if (token === liveCountLabel) continue;
-        wrong.push(`${file}: "${m[0]}"`);
+      for (const match of text.matchAll(/(\d+)\s*개\s*문장/gu)) {
+        if (Number(match[1]) !== WEDDING_CODE_V20_TOTAL) {
+          wrong.push(`${file}: "${match[0]}"`);
+        }
       }
     }
+    expect([...new Set(wrong)], "랜딩이 새 질문판과 다른 문장 수를 말합니다").toEqual([]);
     expect(
-      [...new Set(wrong)],
-      `랜딩이 현재 문항 수(${questions.length}개 = "${liveCountLabel} 장면")와 다른 수를 말합니다`,
-    ).toEqual([]);
-
-    // 그리고 적어도 한 번은 말해야 한다 — 전부 지워도 위 검사는 통과한다.
-    const saysIt = landingSurface().some(([, text]: [string, string]) =>
-      text.includes(`${liveCountLabel} 장면`),
-    );
-    expect(saysIt, "랜딩이 장면 수를 한 번도 말하지 않습니다").toBe(true);
+      landingSurface().some(([, text]: [string, string]) => text.includes(`${WEDDING_CODE_V20_TOTAL}개 문장`)),
+      "랜딩이 문장 수를 한 번도 말하지 않습니다",
+    ).toBe(true);
   });
 
   it("랜딩이 문항 번호를 지어내지 않는다", () => {

@@ -97,7 +97,7 @@ export const landingContent = {
     title: "서로의 생각이 다를 때도\n함께 정리해요.",
     body:
       "누가 맞는지 판정하지 않고, 각자가 중요하게 생각하는 것을 함께 살펴봐요. "
-      + "가입 전에는 스무 장면에 답하며 서로 고른 문장을 나란히 볼 수 있어요.",
+      + "가입 전에는 16개 문장에 답하고, 혼자 결과를 보거나 상대의 답을 나란히 비교할 수 있어요.",
     cta: { label: "웨딩코드로 준비 방식 살펴보기", href: "/wedding-code" },
 
     photo: {
@@ -181,7 +181,7 @@ export const landingContent = {
       {
         no: "02",
         title: "웨딩코드 해보기",
-        body: "혼자 답해도 내 결과를 볼 수 있어요. 스무 장면에 각자 답하면 두 사람이 고른 문장을 그대로 나란히 놓아드려요.",
+        body: "혼자 답해도 내 결과를 볼 수 있어요. 16개 문장에 각자 답하면 같은 문장에 대한 두 사람의 답을 나란히 비교할 수 있어요.",
         note:
           "점수도 궁합도 매기지 않아요 · 답은 기기 안에서 계산해요 · "
           + "공유 링크에는 고른 답이 담기니 함께 볼 사람에게만 보내세요",
@@ -268,7 +268,7 @@ export const landingContent = {
     secondary: { label: "가입 전에 무료 도구 둘러보기", href: "#now" },
     tertiary: { label: "계정이 있다면 로그인", href: "/login" },
     note:
-      "공시 가격·위약금 원문, 견적 점검, 스무 장면, 예절 가이드, 커뮤니티는 "
+      "공시 가격·위약금 원문, 견적 점검, 웨딩코드 16문장, 예절 가이드, 커뮤니티는 "
       + "로그인·결제 없이 열려요. 예산·할 일·일정을 남기려면 계정이 필요해요. "
       + "계정을 만들어도 지금은 결제를 요청하지 않아요.",
   },
@@ -281,7 +281,7 @@ export const landingContent = {
         links: [
           { label: "공시 가격·위약금", href: "/price" },
           { label: "견적 점검", href: "/wedding/community/quote-check" },
-          { label: "웨딩코드 스무 장면", href: "/wedding-code" },
+          { label: "웨딩코드 16문장", href: "/wedding-code" },
           { label: "결혼 예절 가이드", href: "/wedding/manners" },
           { label: "커뮤니티", href: "/wedding" },
         ],
