@@ -55,12 +55,17 @@ describe("라운지의 저장값 요약과 조회 실패 구분", () => {
     await act(async () => { useAuthStore.setState({ journey }); root.render(<LoungePage />); });
   }
 
-  it("초기 라운지는 커뮤니티를 표시하거나 조회하지 않고 준비 스타일과 견적 도구를 연다", async () => {
+  it("초기 라운지는 커뮤니티를 표시하거나 조회하지 않고 웨딩코드와 견적 도구를 연다", async () => {
     await render();
     expect(container.textContent).not.toContain("참고한 자료와 같은 시기 준비 이야기");
     expect(container.querySelector('a[href="/wedding/community/cohort"]')).toBeNull();
     expect(fetchMock.mock.calls.filter(([url]) => String(url).startsWith("/api/community/"))).toHaveLength(0);
-    expect(container.querySelector('a[href="/wedding/preparation-style"]')).not.toBeNull();
+    const weddingCode = container.querySelector('[data-lounge-preparation-style]')!;
+    expect(weddingCode.querySelector("h2")?.textContent).toBe("웨딩코드");
+    expect(weddingCode.querySelector('a[href="/wedding/preparation-style"]')?.textContent).toBe("웨딩코드 보기");
+    expect(weddingCode.textContent).toContain("기본 23문항으로 결과를 보고, 궁금하면 9문항을 더 답할 수 있어요.");
+    expect(weddingCode.textContent).toContain("이 브라우저에 저장한 답");
+    expect(weddingCode.textContent).toContain("내 답이 담긴 링크");
     expect(container.querySelector('a[href="/wedding/community/quote-check"]')).not.toBeNull();
   });
 

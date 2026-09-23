@@ -9,17 +9,19 @@ import { WEDDING_CODE_V30_QUESTIONS, WEDDING_CODE_V30_VERSION, type V30Draft } f
 import { createV30Draft, encodeV30 } from "@/lib/weddingCode/v30";
 import { WEDDING_CODE_V31_VERSION, type V31Draft } from "@/constants/weddingCodeV31";
 import { createV31Draft, encodeV31 } from "@/lib/weddingCode/v31";
+import { CURRENT_WEDDING_CODE_SCENE_CONFIG } from "@/lib/weddingCode/scene/config";
 import WeddingCodeEntryClient from "./WeddingCodeEntryClient";
 import { parseWeddingCodeEntryQuery } from "./entry";
 
 vi.mock("./WeddingCodeV31Client", () => ({
-  default: function V31Probe({ partnerDraft, bothDrafts, onRestart }: {
+  default: function V31Probe({ partnerDraft, bothDrafts, onRestart, embedded }: {
     partnerDraft: V31Draft | null;
     bothDrafts: { first: V31Draft; second: V31Draft } | null;
     onRestart: () => void;
+    embedded?: boolean;
   }) {
     const [touched, setTouched] = useState(false);
-    return <section data-entry="v31" data-touched={touched}>
+    return <section data-entry="v31" data-touched={touched} data-embedded={embedded}>
       <output>{JSON.stringify({ partnerDraft, bothDrafts })}</output>
       <button onClick={() => setTouched(true)}>local edit</button>
       <button onClick={onRestart}>restart</button>
@@ -28,13 +30,14 @@ vi.mock("./WeddingCodeV31Client", () => ({
 }));
 
 vi.mock("./WeddingCodeV30Client", () => ({
-  default: function V30Probe({ partnerDraft, bothDrafts, onRestart }: {
+  default: function V30Probe({ partnerDraft, bothDrafts, onRestart, embedded }: {
     partnerDraft: V30Draft | null;
     bothDrafts: { first: V30Draft; second: V30Draft } | null;
     onRestart: () => void;
+    embedded?: boolean;
   }) {
     const [touched, setTouched] = useState(false);
-    return <section data-entry="v30" data-touched={touched}>
+    return <section data-entry="v30" data-touched={touched} data-embedded={embedded}>
       <output>{JSON.stringify({ partnerDraft, bothDrafts })}</output>
       <button onClick={() => setTouched(true)}>local edit</button>
       <button onClick={onRestart}>restart</button>
@@ -42,10 +45,10 @@ vi.mock("./WeddingCodeV30Client", () => ({
   },
 }));
 vi.mock("./WeddingCodeV20Client", () => ({
-  default: ({ onRestart }: { onRestart: () => void }) => <section data-entry="v20"><button onClick={onRestart}>restart</button></section>,
+  default: ({ onRestart, embedded }: { onRestart: () => void; embedded?: boolean }) => <section data-entry="v20" data-embedded={embedded}><button onClick={onRestart}>restart</button></section>,
 }));
 vi.mock("./WeddingCodeV06Client", () => ({
-  default: ({ onRestart }: { onRestart: () => void }) => <section data-entry="legacy"><button onClick={onRestart}>restart</button></section>,
+  default: ({ onRestart, embedded }: { onRestart: () => void; embedded?: boolean }) => <section data-entry="legacy" data-embedded={embedded}><button onClick={onRestart}>restart</button></section>,
 }));
 
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -76,6 +79,32 @@ describe("웨딩코드 판별과 다시 시작", () => {
     expect(button).toBeDefined();
     await act(async () => button?.click());
   }
+
+  it.each([
+    [WEDDING_CODE_V31_VERSION, "v31"],
+    [WEDDING_CODE_V30_VERSION, "v30"],
+    ["v2.0-agreement", "v20"],
+    [CURRENT_WEDDING_CODE_SCENE_CONFIG.version, "legacy"],
+  ])("라운지에서도 %s 판별·다시 시작에 embedded를 유지한다", async (version, kind) => {
+    window.history.replaceState(null, "", "/wedding/preparation-style");
+    root = createRoot(container);
+    await act(async () => root?.render(<WeddingCodeEntryClient embedded shareOrigin="https://hanbang.ai" initialEntry={parseWeddingCodeEntryQuery({ v: version })} />));
+    expect(container.querySelector(`[data-entry="${kind}"]`)?.getAttribute("data-embedded")).toBe("true");
+    await restart();
+    expect(container.querySelector('[data-entry="v31"]')?.getAttribute("data-embedded")).toBe("true");
+    expect(window.location.pathname).toBe("/wedding/preparation-style");
+  });
+
+  it("라운지의 손상된 링크도 main을 중첩하지 않고 같은 자리에서 다시 시작한다", async () => {
+    window.history.replaceState(null, "", "/wedding/preparation-style#v=v3.1-preferences&a=broken");
+    root = createRoot(container);
+    await act(async () => root?.render(<main><WeddingCodeEntryClient embedded shareOrigin="https://hanbang.ai" /></main>));
+    expect(container.querySelectorAll("main")).toHaveLength(1);
+    expect(container.textContent).toContain("이 링크는 열 수 없어요");
+    await restart();
+    expect(container.querySelector('[data-entry="v31"]')?.getAttribute("data-embedded")).toBe("true");
+    expect(window.location.pathname).toBe("/wedding/preparation-style");
+  });
 
   it("손상된 fragment에서 다시 시작하면 빈 통합판을 연다", async () => {
     window.history.replaceState(null, "", "/wedding-code#v=v3.0-preferences&a=broken");

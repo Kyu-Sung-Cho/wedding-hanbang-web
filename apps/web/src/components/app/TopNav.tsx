@@ -16,7 +16,7 @@ import { daysUntilWedding } from "@/lib/utils/weddingDate";
 
 const pageTitles: Record<string, string> = {
   "/lounge": "웨딩 라운지",
-  "/preparation-style": "우리의 준비 스타일",
+  "/preparation-style": "웨딩코드",
   "/chat": "아모라",
   "/budget": "예산",
   "/market-prices": "공시 가격",
@@ -39,7 +39,7 @@ const quickLinks = [
   { linkProps: weddingLinkProps("/checklist"), legacyPath: "/checklist", label: "체크리스트" },
   { linkProps: weddingLinkProps("/schedule"), legacyPath: "/schedule", label: "일정" },
   { linkProps: weddingLinkProps("/budget"), legacyPath: "/budget", label: "예산" },
-  { linkProps: weddingLinkProps("/preparation-style"), legacyPath: "/preparation-style", label: "우리의 준비 스타일" },
+  { linkProps: weddingLinkProps("/preparation-style"), legacyPath: "/preparation-style", label: "웨딩코드" },
   { linkProps: weddingLinkProps(), legacyPath: "/community", label: "커뮤니티" },
 ];
 

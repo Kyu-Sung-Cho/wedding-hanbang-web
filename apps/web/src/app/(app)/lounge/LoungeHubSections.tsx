@@ -8,6 +8,7 @@ import type { MissionGroup } from "@/lib/amora/missions";
 import { formatLoungeWon } from "@/lib/amora/loungeSummary";
 import { mannersPartForCategory } from "@/lib/manners/categoryMap";
 import { weddingLinkProps } from "@/lib/weddingPaths";
+import { V31_CORE_INDEXES, V31_EXTRA_INDEXES } from "@/lib/weddingCode/v31Flow";
 import { isValidScheduleTime } from "@/utils/scheduleEvents";
 import { daysUntilLoungeEvent, type LoungePriorityItem } from "./hubModel";
 
@@ -100,12 +101,13 @@ export function LoungeReferencePanels({ categoryKey, allocated }: { categoryKey:
       <p className="mt-2 text-[11.5px] leading-[1.75] text-[var(--amora-soft)]">처음이라 낯선 순서와 확인할 내용을 가이드에서 살펴보세요.</p>
       <Link {...weddingLinkProps(guide ? `/manners/${guide.slug}` : "/manners")} className={`mt-1 inline-flex min-h-11 items-center gap-1.5 text-[11px] font-semibold ${focus}`}>가이드 읽기<ArrowRight size={12} aria-hidden="true" /></Link>
     </section>
-    {/* 2026-09-20: 공개 테스트를 바로 시작하는 대신 로그인 후 준비 스타일 허브로 이어 준다. */}
+    {/* 라운지에서도 공개 화면과 같은 웨딩코드 문항·결과로 이어 준다. */}
     <section className="rounded-[16px] border border-[var(--amora-line)] bg-white p-[18px]" data-lounge-preparation-style="">
       <p className="inline-flex items-center gap-1.5 text-[10px] text-[var(--amora-muted)]"><Split size={13} aria-hidden="true" />고른 답으로 이야기하기</p>
-      <h2 className="mt-2 text-[14px] font-semibold">우리의 준비 스타일</h2>
-      <p className="mt-2 text-[11.5px] leading-[1.75] text-[var(--amora-soft)]">웨딩코드 결과와 예산·역할·가족 이야기를 한곳에서 살펴봐요.</p>
-      <Link {...weddingLinkProps("/preparation-style")} className={`mt-1 inline-flex min-h-11 items-center gap-1.5 text-[11px] font-semibold ${focus}`}>준비 스타일 보기<ArrowRight size={12} aria-hidden="true" /></Link>
+      <h2 className="mt-2 text-[14px] font-semibold">웨딩코드</h2>
+      <p className="mt-2 text-[11.5px] leading-[1.75] text-[var(--amora-soft)]">내가 원하는 결혼식과 준비 방식을 살펴봐요. 기본 {V31_CORE_INDEXES.length}문항으로 결과를 보고, 궁금하면 {V31_EXTRA_INDEXES.length}문항을 더 답할 수 있어요.</p>
+      <p className="mt-2 text-[11.5px] leading-[1.75] text-[var(--amora-soft)]">이 브라우저에 저장한 답을 이어 보고, 원하면 내 답이 담긴 링크를 보내 서로 비교해요.</p>
+      <Link {...weddingLinkProps("/preparation-style")} className={`mt-1 inline-flex min-h-11 items-center gap-1.5 text-[11px] font-semibold ${focus}`}>웨딩코드 보기<ArrowRight size={12} aria-hidden="true" /></Link>
     </section>
     <Link {...weddingLinkProps("/chat")} className={`block rounded-[16px] border border-[var(--hb-amora-line,#8F6662)] bg-[var(--hb-amora-surface,#FBF8F2)] p-[18px] text-[var(--hb-amora-ink,#7D5753)] transition-colors hover:bg-[var(--hb-amora-hover,#EADDD8)] ${focus}`}>
       <span className="flex items-center gap-2 text-[10px]"><AmoraMark size={13} aria-hidden="true" />AMORA</span><span className="amora-display mt-2 block text-[17px]">혼자 고민하지 않아도 괜찮아요</span><span className="mt-2 block text-[11px] leading-[1.75]">정리가 안 되는 준비, 아모라와 하나씩 이야기해 봐요.</span><span className={`${AMORA_ACTION_CLASS} mt-4`}><AmoraMark size={20} />아모라와 대화하기<ArrowRight size={12} aria-hidden="true" /></span>

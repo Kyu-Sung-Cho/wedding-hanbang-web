@@ -26,7 +26,7 @@ function responseForGuide(response: PreparationStyleSavedResponse) {
   return answers ? { version: response.sceneVersion, answers } : null;
 }
 
-export default function PreparationStyleHub() {
+export default function PreparationStyleHub({ previousOnly = false }: { previousOnly?: boolean }) {
   const { user, profile, couple, partner, isDemo, isInitialized } = useAuthStore();
   if (!isInitialized || !user) return <Loading />;
   const binding: PreparationStyleBinding = {
@@ -35,7 +35,7 @@ export default function PreparationStyleHub() {
     partnerUserId: partner?.couple_id === couple?.id ? partner?.id ?? null : null,
   };
   // 계정뿐 아니라 공유 상대가 바뀌는 순간 개인 초안과 상대 결과도 함께 폐기한다.
-  return <BoundStyleHub key={`${preparationStyleBindingKey(binding)}:${isDemo}`} binding={binding} demo={isDemo} partnerName={partner?.name || "상대"} />;
+  return <BoundStyleHub key={`${preparationStyleBindingKey(binding)}:${isDemo}:${previousOnly}`} binding={binding} demo={isDemo} partnerName={partner?.name || "상대"} previousOnly={previousOnly} />;
 }
 
 function Loading() {
@@ -44,7 +44,7 @@ function Loading() {
 
 type Draft = { answers: WeddingCodeV06Answers; expectedRevision: number | null; stage: "questions" | "review" };
 
-function BoundStyleHub({ binding, demo, partnerName }: { binding: PreparationStyleBinding; demo: boolean; partnerName: string }) {
+function BoundStyleHub({ binding, demo, partnerName, previousOnly }: { binding: PreparationStyleBinding; demo: boolean; partnerName: string; previousOnly: boolean }) {
   const { snapshot, loading, busy, error, refresh, mutate } = usePreparationStyle(binding, demo);
   const [draft, setDraft] = useState<Draft | null>(null);
   const [tab, setTab] = useState<"personal" | "couple">("personal");
@@ -83,6 +83,7 @@ function BoundStyleHub({ binding, demo, partnerName }: { binding: PreparationSty
   }, [draft?.stage, tab]);
 
   function start() {
+    if (previousOnly) return;
     setNotice(null);
     setConfirmation(null);
     setDraft({ answers: {}, expectedRevision: snapshot?.stateRevision ?? null, stage: "questions" });
@@ -143,12 +144,12 @@ function BoundStyleHub({ binding, demo, partnerName }: { binding: PreparationSty
     }
   }
 
-  return <div className="mx-auto max-w-5xl scroll-mt-28 px-4 py-6 sm:px-7 sm:py-8" ref={screenRef} tabIndex={-1} aria-label="우리의 준비 스타일">
+  return <div className="mx-auto max-w-5xl scroll-mt-28 px-4 py-6 sm:px-7 sm:py-8" ref={screenRef} tabIndex={-1} aria-label={previousOnly ? "이전에 계정에 저장한 답" : "우리의 준비 스타일"}>
     <header className="mb-7 flex flex-wrap items-start justify-between gap-4">
       <div>
-        <p className="mb-2 flex items-center gap-2 text-xs font-semibold text-[var(--hb-primary)]"><HeartHandshake className="size-4" aria-hidden="true" />우리의 준비 스타일</p>
-        <h1 className="text-[var(--hb-text-strong)]">결혼 준비, 우리는 어떻게 할까요?</h1>
-        <p className="mt-3 max-w-2xl text-sm leading-7 text-[var(--hb-text-body)]">돈 쓸 때, 일 나눌 때, 가족과 정할 때. 각자 고른 답을 보면서 미리 이야기해 봐요.</p>
+        <p className="mb-2 flex items-center gap-2 text-xs font-semibold text-[var(--hb-primary)]"><HeartHandshake className="size-4" aria-hidden="true" />{previousOnly ? "웨딩코드 · 이전 기록" : "우리의 준비 스타일"}</p>
+        <h1 className="text-[var(--hb-text-strong)]">{previousOnly ? "예전에 계정에 저장한 답" : "결혼 준비, 우리는 어떻게 할까요?"}</h1>
+        <p className="mt-3 max-w-2xl text-sm leading-7 text-[var(--hb-text-body)]">{previousOnly ? "예전 ‘우리의 준비 스타일’에서 저장한 답이에요. 당시 질문과 결과로 다시 볼 수 있고, 공유를 중단하거나 답을 지울 수 있어요. 최신 웨딩코드의 답과는 합치지 않아요." : "돈 쓸 때, 일 나눌 때, 가족과 정할 때. 각자 고른 답을 보면서 미리 이야기해 봐요."}</p>
       </div>
       {!demo && !draft && <Button variant="ghost" onClick={() => void refresh()} disabled={busy || loading}><RefreshCw className="size-4" aria-hidden="true" />새로 불러오기</Button>}
     </header>
@@ -178,7 +179,11 @@ function BoundStyleHub({ binding, demo, partnerName }: { binding: PreparationSty
           </div>}
         </section>
         <PersonalStyleResults personal={personal} showTools={false} />
-      </> : loading ? <Loading /> : !mine ? <section className={`${panel} p-6 sm:p-8`}>
+      </> : loading ? <Loading /> : previousOnly && !demo && !snapshot ? null : !mine && previousOnly ? <section className={`${panel} p-6 sm:p-8`}>
+        <h2 className="text-[var(--hb-text-strong)]">계정에 저장한 이전 답이 없어요</h2>
+        <p className="mt-3 text-sm leading-7 text-[var(--hb-text-body)]">공개 웨딩코드에서 이 브라우저에 남긴 답은 최신 웨딩코드에서 이어 볼 수 있어요.</p>
+        <Link {...weddingLinkProps("/preparation-style")} className="mt-4 inline-flex min-h-11 items-center gap-2 text-sm font-semibold text-[var(--hb-primary)]">최신 웨딩코드 열기<ArrowRight className="size-4" aria-hidden="true" /></Link>
+      </section> : !mine ? <section className={`${panel} p-6 sm:p-8`}>
         <h2 className="text-[var(--hb-text-strong)]">먼저 내 생각부터 골라 보세요</h2>
         <p className="mt-3 max-w-2xl text-sm leading-7 text-[var(--hb-text-body)]">결혼을 준비하면서 겪을 법한 {config.questions.length}장면이에요. 혼자 답해도 내가 고른 답과 챙겨볼 내용을 볼 수 있어요. 둘이 연결하고 각자 공유하면 같은 답과 다른 답을 나란히 볼 수 있어요.</p>
         <p className="mt-3 text-sm leading-7 text-[var(--hb-text-body)]">성격이나 궁합을 판단하는 검사는 아니에요. 아직 겪어 보지 않은 일은 지금 내 생각으로 답하면 돼요.</p>
@@ -190,7 +195,7 @@ function BoundStyleHub({ binding, demo, partnerName }: { binding: PreparationSty
             <Button variant={tab === "personal" ? "primary" : "ghost"} aria-pressed={tab === "personal"} onClick={() => setTab("personal")}>내 준비 스타일</Button>
             <Button variant={tab === "couple" ? "primary" : "ghost"} aria-pressed={tab === "couple"} onClick={() => setTab("couple")}>둘이 함께 보기</Button>
           </div>
-          <Button variant="ghost" onClick={start} disabled={busy}>새로 답하기</Button>
+          {!previousOnly && <Button variant="ghost" onClick={start} disabled={busy}>새로 답하기</Button>}
         </div>
 
         {tab === "personal" ? <PersonalStyleResults personal={guide.personal} />
@@ -198,7 +203,7 @@ function BoundStyleHub({ binding, demo, partnerName }: { binding: PreparationSty
           : guide.status === "version_mismatch" ? <p role="status" className={`${panel} p-5`}>{guide.message}</p>
           : <section className={`${panel} p-6`}>
             <h2 className="text-[var(--hb-text-strong)]">{demo ? "두 사람 화면도 살펴볼까요?" : partnerUnavailable ? "지금은 둘이 함께 볼 수 없어요" : !availablePartnerId ? "함께 준비할 사람을 연결해 주세요" : !snapshot?.sharing ? "서로 공유하면 함께 볼 수 있어요" : "상대가 공유한 결과가 아직 없어요"}</h2>
-            <p className="mt-3 text-sm leading-7 text-[var(--hb-text-body)]">{demo ? "가상의 상대 답을 더해 비교 화면을 볼 수 있어요. 실제 상대의 결과가 아니에요." : partnerUnavailable ? "내 결과는 계속 볼 수 있어요. 연결 설정에서 현재 상태를 확인해 주세요." : !availablePartnerId ? "연결한 뒤에도 내 답은 바로 공개되지 않아요. 각자 답하고 공유를 눌러 주세요." : `나와 ${partnerName}님이 각자 이 화면에서 답을 저장하고 공유하면, 예산·역할·가족·도움 방식에서 같은 답과 다른 답을 볼 수 있어요.`}</p>
+            <p className="mt-3 text-sm leading-7 text-[var(--hb-text-body)]">{demo ? "가상의 상대 답을 더해 비교 화면을 볼 수 있어요. 실제 상대의 결과가 아니에요." : partnerUnavailable ? "내 결과는 계속 볼 수 있어요. 연결 설정에서 현재 상태를 확인해 주세요." : previousOnly ? "두 사람 모두 예전에 계정에 저장한 답이 있다면, 연결한 뒤 각자 공유해서 비교할 수 있어요. 한 사람이라도 이전 답이 없다면 최신 웨딩코드에서 함께 새로 답해 주세요." : !availablePartnerId ? "연결한 뒤에도 내 답은 바로 공개되지 않아요. 각자 답하고 공유를 눌러 주세요." : `나와 ${partnerName}님이 각자 이 화면에서 답을 저장하고 공유하면, 예산·역할·가족·도움 방식에서 같은 답과 다른 답을 볼 수 있어요.`}</p>
             {demo ? <Button className="mt-4" onClick={() => setDemoPair(true)}>가상의 상대 답으로 비교해 보기</Button>
               : !availablePartnerId ? <Link {...weddingLinkProps("/settings")} className="mt-4 inline-flex min-h-11 items-center gap-2 text-sm font-semibold text-[var(--hb-primary)]">연결 설정으로 가기<ArrowRight className="size-4" aria-hidden="true" /></Link>
               : !snapshot?.sharing ? <Button className="mt-4" onClick={() => openConfirmation("share")} disabled={busy}>내 답 공유하기</Button> : <Button className="mt-4" onClick={() => void refresh()} disabled={busy}>상대가 공유했는지 다시 확인</Button>}
@@ -216,7 +221,7 @@ function BoundStyleHub({ binding, demo, partnerName }: { binding: PreparationSty
 
     {confirmation && snapshot?.own && <section role="region" aria-label="저장과 공유 확인" className={`${panel} mt-5 p-5`}>
       <h2 className="text-[var(--hb-text-strong)]">{confirmation === "share" ? `${partnerName}님과 내 답을 공유할까요?` : confirmation === "unshare" ? "내 답 공유를 중단할까요?" : "저장한 답을 지울까요?"}</h2>
-      <p className="mt-3 text-sm leading-7 text-[var(--hb-text-body)]">{confirmation === "share" ? "고른 답, 건너뛴 장면과 그 답으로 만든 결과가 보여요. 상대도 공유해야 두 사람의 비교가 열려요. 공유는 여기서 중단할 수 있어요." : confirmation === "unshare" ? "내 결과는 남고, 상대는 내 답을 더 이상 조회할 수 없어요. 두 사람 비교도 닫혀요." : "내 결과와 공유 허가를 삭제하고 두 사람 비교를 닫아요. 지운 답은 되돌릴 수 없지만 언제든 새로 답할 수 있어요."}</p>
+      <p className="mt-3 text-sm leading-7 text-[var(--hb-text-body)]">{confirmation === "share" ? "고른 답, 건너뛴 장면과 그 답으로 만든 결과가 보여요. 상대도 공유해야 두 사람의 비교가 열려요. 공유는 여기서 중단할 수 있어요." : confirmation === "unshare" ? "내 결과는 남고, 상대는 내 답을 더 이상 조회할 수 없어요. 두 사람 비교도 닫혀요." : previousOnly ? "내 이전 결과와 공유 허가를 삭제하고 두 사람 비교를 닫아요. 지운 이전 답은 되돌릴 수 없어요. 새 답은 최신 웨딩코드에서 작성할 수 있고, 이 기록에 합쳐지지는 않아요." : "내 결과와 공유 허가를 삭제하고 두 사람 비교를 닫아요. 지운 답은 되돌릴 수 없지만 언제든 새로 답할 수 있어요."}</p>
       <p className="mt-2 text-xs leading-6 text-[var(--hb-text-muted)]">이미 상대가 읽거나 따로 보관한 내용까지 회수할 수는 없어요.</p>
       <div className="mt-4 flex flex-wrap gap-2"><Button variant="primary" loading={busy} onClick={() => void confirm()}>{confirmation === "share" ? "동의하고 이 상대와 공유" : confirmation === "unshare" ? "공유 중단" : "답과 공유 허가 삭제"}</Button><Button disabled={busy} onClick={() => setConfirmation(null)}>취소</Button></div>
     </section>}

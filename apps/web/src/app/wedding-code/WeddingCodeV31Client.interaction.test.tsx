@@ -63,6 +63,38 @@ describe("WeddingCodeV31Client", () => {
   }
   async function consent(index = 0) { await click(container.querySelectorAll<HTMLInputElement>('input[type="checkbox"]')[index]); }
 
+  it.each([false, true])("embedded=%s에서도 같은 질문을 쓰고 화면의 탐색·스크롤만 맞춘다", async (embedded) => {
+    const scrollIntoView = vi.fn();
+    const original = Object.getOwnPropertyDescriptor(Element.prototype, "scrollIntoView");
+    Object.defineProperty(Element.prototype, "scrollIntoView", { configurable: true, value: scrollIntoView });
+    try {
+      await renderClient({ embedded });
+      expect(container.querySelectorAll("main")).toHaveLength(embedded ? 0 : 1);
+      expect(container.querySelectorAll('nav[aria-label="웨딩코드 탐색"]')).toHaveLength(embedded ? 0 : 1);
+      expect(container.firstElementChild?.classList.contains("min-h-dvh")).toBe(!embedded);
+      await button("내 웨딩코드 시작하기");
+      const screen = container.querySelector('[aria-label="웨딩코드 기본 질문 1번째"]');
+      expect(document.activeElement).toBe(screen);
+      expect(container.querySelector("progress")?.getAttribute("max")).toBe("23");
+      if (embedded) {
+        expect(window.scrollTo).not.toHaveBeenCalled();
+        expect(scrollIntoView.mock.contexts.at(-1)).toBe(screen);
+        expect(scrollIntoView).toHaveBeenLastCalledWith({ block: "start", behavior: "instant" });
+        expect(screen?.classList.contains("scroll-mt-20")).toBe(true);
+        expect(screen?.classList.contains("md:scroll-mt-28")).toBe(true);
+      } else expect(window.scrollTo).toHaveBeenCalledWith({ top: 0, behavior: "instant" });
+      scrollIntoView.mockClear(); vi.mocked(window.scrollTo).mockClear();
+      await rating(5);
+      expect(scrollIntoView).not.toHaveBeenCalled();
+      expect(window.scrollTo).not.toHaveBeenCalled();
+      await next();
+      expect(document.activeElement?.getAttribute("aria-label")).toBe("웨딩코드 기본 질문 2번째");
+    } finally {
+      if (original) Object.defineProperty(Element.prototype, "scrollIntoView", original);
+      else delete (Element.prototype as { scrollIntoView?: unknown }).scrollIntoView;
+    }
+  });
+
   it("기본 23개만 답해 결과를 받고 선택 질문이나 우선순위를 임의로 채우지 않는다", async () => {
     await renderClient();
     expect(container.textContent).toContain("기본 23개 질문");
