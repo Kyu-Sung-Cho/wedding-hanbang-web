@@ -20,6 +20,7 @@ function compile(relative) {
   });
   const module = { exports: {} };
   new Function("exports", "module", "require", compiled.outputText)(module.exports, module, (specifier) => {
+    if (specifier === "@hanbang/shared") return compile("../../../../packages/shared/src/contracts/amoraQuotaNotice.ts");
     throw new Error(`amoraChatNotices 는 의존성이 없어야 한다: ${specifier}`);
   });
   return module.exports;
@@ -69,7 +70,7 @@ test("기억 안내 문구는 웹 채팅과 같다", () => {
   for (const copy of [notices.AMORA_MEMORY_ON_COPY, notices.AMORA_MEMORY_OFF_COPY, notices.AMORA_MEMORY_SETTINGS_LINK]) {
     assert.ok(webChat.includes(copy), `웹에 없는 문구: ${copy}`);
   }
-  assert.equal(notices.AMORA_MEMORY_ON_COPY, "이 탭의 대화는 장기 기억으로 정리돼요");
+  assert.equal(notices.AMORA_MEMORY_ON_COPY, "이 탭의 장기 기억 사용이 켜져 있어요");
 });
 
 test("채팅 화면이 기억 상태 줄을 실제로 읽고 그린다", () => {
@@ -89,9 +90,9 @@ test("무료 상담 안내는 소진돼도 기록이 남는다고 웹과 같은 
     "무료 상담이 3회 남았어요. 소진돼도 예산·일정 기록은 그대로 보관돼요.",
   );
   assert.equal(notices.formatAmoraQuotaNotice(0), "무료 상담을 모두 사용했어요. 예산·일정 기록은 그대로 보관돼요.");
-  assert.ok(webChat.includes("`무료 상담이 ${quotaRemaining}회 남았어요. 소진돼도 예산·일정 기록은 그대로 보관돼요.`"));
-  assert.ok(webChat.includes("\"무료 상담을 모두 사용했어요. 예산·일정 기록은 그대로 보관돼요.\""));
-  assert.match(chat, /formatAmoraQuotaNotice\(quotaRemaining\)/);
+  assert.match(notices.formatAmoraQuotaNotice(3, "daily"), /오늘.*약 3회/);
+  assert.match(notices.formatAmoraQuotaNotice(3, "daily"), /대화 정리/);
+  assert.match(chat, /formatAmoraQuotaNotice\(quotaRemaining, quotaPeriod\)/);
   assert.doesNotMatch(chat, /`무료 상담이 \$\{quotaRemaining\}회 남았어요\.`/);
 });
 

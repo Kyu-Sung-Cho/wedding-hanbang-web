@@ -2,6 +2,7 @@ import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { resetChatComposerSession } from "@/stores/chatComposerStore";
 import ChatContent from "./ChatContent";
 import ChatSidePanel from "./ChatSidePanel";
 
@@ -148,6 +149,8 @@ describe("web chat surfaces pick the same Amora safety lane", () => {
   let container: HTMLDivElement;
 
   beforeEach(() => {
+    // 각 문장은 독립 세션이다. SPA 왕복용 메모리 레인이 다음 사례에 이어지지 않게 한다.
+    resetChatComposerSession();
     vi.clearAllMocks();
     mocks.sendMessage.mockResolvedValue({
       userMessage: "persisted",
@@ -161,6 +164,7 @@ describe("web chat surfaces pick the same Amora safety lane", () => {
 
   afterEach(async () => {
     await act(async () => root.unmount());
+    resetChatComposerSession();
     document.body.replaceChildren();
     vi.restoreAllMocks();
   });
@@ -259,6 +263,38 @@ describe("web chat surfaces pick the same Amora safety lane", () => {
     await vi.waitFor(() => {
       expect(composer("chat")?.placeholder).toContain("아모라에게 솔직히");
     });
+  });
+
+  it.each(["chat", "panel"] as const)("keeps the private draft when moving from %s to the other surface and back", async start => {
+    const other = start === "chat" ? "panel" : "chat";
+    await mount(start);
+    await act(async () => {
+      Array.from(container.querySelectorAll<HTMLButtonElement>("button"))
+        .find(button => button.textContent?.includes("나만 (상담)"))?.click();
+    });
+    await typeIntoComposer(start, "옮겨도 남아야 하는 개인 초안");
+    await mount(other);
+    expect(composer(other)?.value).toBe("옮겨도 남아야 하는 개인 초안");
+    await typeIntoComposer(other, "옮긴 화면에서 이어 쓴 초안");
+    await mount(start);
+    expect(composer(start)?.value).toBe("옮긴 화면에서 이어 쓴 초안");
+    expect(mocks.sendMessage).not.toHaveBeenCalled();
+  });
+
+  it("only sends once when both surfaces submit the same draft in the same tick", async () => {
+    let finish!: (outcome: { userMessage: "persisted"; userMessageId: string }) => void;
+    mocks.sendMessage.mockImplementationOnce(() => new Promise(resolve => { finish = resolve; }));
+    await act(async () => root.render(<><ChatContent /><ChatSidePanel isOpen onClose={vi.fn()} /></>));
+    await typeIntoComposer("chat", "두 화면에서 한 번만 보내는 질문");
+    expect(composer("panel")?.value).toBe("두 화면에서 한 번만 보내는 질문");
+    await act(async () => {
+      container.querySelector<HTMLButtonElement>(`button[aria-label="${SEND_LABEL.chat}"]`)?.click();
+      container.querySelector<HTMLButtonElement>(`button[aria-label="${SEND_LABEL.panel}"]`)?.click();
+    });
+    expect(mocks.sendMessage).toHaveBeenCalledTimes(1);
+    await act(async () => finish({ userMessage: "persisted", userMessageId: "one-request" }));
+    expect(composer("panel")?.value).toBe("");
+    expect(composer("chat")?.value).toBe("");
   });
 
   it("restores the held draft into the private composer instead of losing it", async () => {

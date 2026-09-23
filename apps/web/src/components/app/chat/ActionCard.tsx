@@ -25,6 +25,7 @@ import { getActionPriorityLabel, getActionStatusLabel, type AmoraActionItem } fr
 import { formatWon } from "@/lib/formatWon";
 import { PREPARATION_PROGRESS_STATUS_LABELS } from "@hanbang/shared";
 import { readStoredBudgetSummary } from "./budgetSummaryDisplay";
+import DecisionRecordResultCard from "./DecisionRecordResultCard";
 
 interface ActionCardProps {
   result: ToolExecutionResult;
@@ -111,6 +112,8 @@ function getTitle(result: ToolExecutionResult) {
       return "아모라 행동 저장";
     case "get_amora_actions":
       return "아모라 행동 목록";
+    case "get_decision_records":
+      return "결정 기록 조회";
     case "update_amora_action":
       return "아모라 행동 변경";
     default:
@@ -675,8 +678,28 @@ function ScheduleMiniCard() {
 }
 
 export default function ActionCard({ result }: ActionCardProps) {
+  if (result.toolName === "add_decision_record") return <DecisionRecordResultCard result={result} />;
   // get_wedding_info는 AI가 텍스트로 안내하므로 카드 불필요
   if (result.toolName === "get_wedding_info") return null;
+
+  const unknown = result.toolOutput?.requires_state_review === true
+    || result.toolOutput?.error === "TOOL_EXECUTION_UNCERTAIN"
+    || result.toolOutput?.error === "TOOL_EXECUTION_IN_PROGRESS"
+    || result.toolOutput?.error === "TOOL_LEDGER_RESULT_INVALID";
+  if (unknown) {
+    const destination = /budget|custom_category/.test(result.toolName) ? "/budget"
+      : /schedule|wedding_event/.test(result.toolName) ? "/schedule"
+        : /task_status|checklist|venue/.test(result.toolName) ? "/checklist"
+          : /amora_action/.test(result.toolName) ? "/wedding/chat/board?view=tasks"
+            : result.toolName === "update_wedding_date" ? "/settings" : null;
+    return <div className="flex justify-start ml-11 my-1.5">
+      <div className="rounded-[6px] border border-[#B89785]/30 bg-[#B89785]/5 px-4 py-3 max-w-[24rem] w-full shadow-sm" role="status">
+        <div className="flex items-center gap-1.5 mb-1.5"><Info className="w-4 h-4" /><span className="text-sm font-semibold">{getTitle(result)} · 반영 확인 필요</span></div>
+        <p className="text-xs leading-relaxed">반영 여부를 확인하지 못했어요. 다시 변경하기 전에 현재 상태를 확인해 주세요.</p>
+        {destination && <a className="inline-flex min-h-11 items-center text-sm underline" href={destination}>현재 상태 확인하기</a>}
+      </div>
+    </div>;
+  }
 
   // 사용자에게 설명할 메시지가 없는 내부 실패만 카드를 그리지 않는다.
   // 이전 사고: DB 부족 등으로 AI가 같은 tool 을 6번 호출해 모두 실패하면

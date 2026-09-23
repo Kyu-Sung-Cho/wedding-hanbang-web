@@ -659,6 +659,35 @@ export const WEDDING_TOOLS: AiToolDefinition[] = [
     },
   },
   {
+    name: "add_decision_record",
+    description:
+      "사용자가 결정 보드에 남기길 요청한 결혼 준비 결정 기록을 추가합니다. 미정·논의 중도 그대로 기록하며, 할 일이나 일정·예산 변경으로 해석하지 않습니다. 서버 확인 카드로 한 사람이 승인하면 공유 기록으로 저장하며 두 사람의 합의로 간주하지 않습니다.",
+    input_schema: {
+      type: "object" as const,
+      additionalProperties: false,
+      properties: {
+        title: { type: "string", minLength: 1, maxLength: 160, pattern: "\\S", description: "사용자가 확인할 결정 기록 제목. 160자 이하" },
+        status: { type: "string", enum: ["exploring", "considering", "decided"], description: "사용자가 밝힌 상태: exploring=미정, considering=논의 중, decided=확정. 논의 중인 내용을 확정으로 올리지 않습니다." },
+        memo: { type: "string", maxLength: 1000, description: "사용자가 공유 저장을 요청한 참고 사실과 미정인 사항. 1000자 이하" },
+        category_key: { type: "string", enum: SCHEDULE_CATEGORY_KEYS, description: `분야. 생략하면 general(일반). ${PLANNING_CATEGORY_DESCRIPTION}` },
+      },
+      required: ["title", "status"],
+    },
+  },
+  {
+    name: "get_decision_records",
+    description:
+      "결정 보드의 공유 결정 기록을 조회합니다. 미정·논의 중·확정 기록이며 공유 할 일과 별개입니다. 최근 최대 30건의 현재 기록만 반환하므로 반환 건수를 전체 보드 수로 해석하지 않습니다. 저장 영수증의 decision id가 있으면 decision_id로 해당 기록을 재조회하세요. 비공개 상담·자동 추출 기억·이전 기록은 포함하지 않습니다.",
+    input_schema: {
+      type: "object" as const,
+      additionalProperties: false,
+      properties: {
+        decision_id: { type: "string", pattern: "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$", description: "저장 영수증 또는 현재 조회로 확인한 결정 기록 UUID. 지어내지 않습니다." },
+      },
+      required: [],
+    },
+  },
+  {
     name: "get_amora_actions",
     description:
       "결정 보드에 저장된 공유 할 일(아모라 행동 카드)을 조회합니다. 기본 준비 카테고리·체크리스트와 다른 목록입니다. 완료한 일과 남은 일을 함께 묻거나 전체 현황을 확인하면 status=all로 조회하세요. 조회하지 않은 상태는 과거 대화나 카테고리 수로 추정하지 마세요.",

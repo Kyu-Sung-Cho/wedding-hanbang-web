@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import ChatSidePanel from "./ChatSidePanel";
 import { amoraPersonalizationPendingStorageKey } from "./amoraPersonalizationFlow";
 import { getAmoraToolOperationIdentity } from "@/lib/ai/amoraToolIdentity";
+import { resetChatComposerSession, forgetComposerRecovery, useChatComposerStore, rememberComposerLane } from "@/stores/chatComposerStore";
 
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean })
   .IS_REACT_ACT_ENVIRONMENT = true;
@@ -16,6 +17,19 @@ function pendingIdentity(
   const { inputDigest, operationKey } = getAmoraToolOperationIdentity(tool, input);
   return { inputDigest, operationKey };
 }
+
+const actors = vi.hoisted(() => ({
+  primary: "11111111-1111-4111-8111-111111111111",
+  secondary: "33333333-3333-4333-8333-333333333333",
+  partnerBride: "44444444-4444-4444-8444-444444444444",
+  partnerGroom: "55555555-5555-4555-8555-555555555555",
+  other: "66666666-6666-4666-8666-666666666666",
+  newOwner: "77777777-7777-4777-8777-777777777777",
+  newUser: "88888888-8888-4888-8888-888888888888",
+  couple: "22222222-2222-4222-8222-222222222222",
+  newOwnerCouple: "99999999-9999-4999-8999-999999999999",
+  newCouple: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+}));
 
 const mocks = vi.hoisted(() => ({
   sendMessage: vi.fn(),
@@ -54,10 +68,10 @@ const mocks = vi.hoisted(() => ({
     metadata: Record<string, unknown>;
     created_at: string;
   }>,
-  profileId: "user-1" as string | null,
+  profileId: actors.primary as string | null,
   confirmedRole: null as "bride" | "groom" | null,
   partner: null as null | { id: string; name: string; couple_id: string; confirmed_role: "bride" | "groom" | null; avatar_url?: string | null },
-  coupleId: "couple-1" as string | null,
+  coupleId: actors.couple as string | null,
   hasLinkedPartner: true,
   isDemo: false,
   profileRole: "bride" as "bride" | "groom" | null,
@@ -82,11 +96,15 @@ vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: mocks.push }),
 }));
 
-vi.mock("@/stores/authStore", () => ({
-  useAuthStore: () => {
+vi.mock("@/stores/authStore", () => {
+  // 기존 역할·계정 전환 시나리오를 유지하며 렌더와 지연 콜백이 같은 인증 주체를 읽는다.
+  const read = () => {
     const currentUserId = mocks.profileId;
     const isGroom = mocks.profileRole === "groom";
     return {
+      user: currentUserId ? { id: currentUserId } : null,
+      isInitialized: true,
+      isLoading: false,
       profile: currentUserId
         ? {
             id: currentUserId,
@@ -100,19 +118,20 @@ vi.mock("@/stores/authStore", () => ({
         ? {
             id: mocks.coupleId,
             bride_id: isGroom
-              ? (mocks.hasLinkedPartner ? "partner-bride" : null)
+              ? (mocks.hasLinkedPartner ? actors.partnerBride : null)
               : currentUserId,
             groom_id: isGroom
               ? currentUserId
-              : (mocks.hasLinkedPartner ? "partner-groom" : null),
+              : (mocks.hasLinkedPartner ? actors.partnerGroom : null),
           }
         : null,
       journey: null,
       partner: mocks.partner,
       isDemo: mocks.isDemo,
     };
-  },
-}));
+  };
+  return { useAuthStore: Object.assign(read, { getState: read }) };
+});
 
 vi.mock("@/hooks/useAmoraPersonalization", () => ({
   useAmoraPersonalization: () => ({
@@ -196,8 +215,26 @@ vi.mock("./StreamingBubble", () => ({
 describe("ChatSidePanel attachment sending", () => {
   let root: Root;
   let container: HTMLDivElement;
+  const composer = () => container.querySelector<HTMLInputElement>('input[aria-label="메시지 입력"]');
+  const typeComposer = async (value: string) => act(async () => {
+    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set?.call(composer(), value);
+    composer()?.dispatchEvent(new Event("input", { bubbles: true }));
+  });
+  const clickText = async (label: string) => act(async () => {
+    Array.from(container.querySelectorAll<HTMLButtonElement>("button"))
+      .find(button => button.textContent?.includes(label))?.click();
+  });
+  const sendComposer = async () => act(async () => {
+    container.querySelector<HTMLButtonElement>('button[aria-label="메시지 보내기"]')?.click();
+  });
+  const remount = async () => {
+    await act(async () => root.unmount());
+    root = createRoot(container);
+    await act(async () => root.render(<ChatSidePanel isOpen onClose={vi.fn()} />));
+  };
 
   beforeEach(async () => {
+    resetChatComposerSession();
     vi.clearAllMocks();
     window.sessionStorage.clear();
     mocks.messages = [];
@@ -206,10 +243,10 @@ describe("ChatSidePanel attachment sending", () => {
       userMessage: "ephemeral_demo",
       userMessageId: "demo-sidepanel-message",
     });
-    mocks.profileId = "user-1";
+    mocks.profileId = actors.primary;
     mocks.partner = null;
     mocks.confirmedRole = null;
-    mocks.coupleId = "couple-1";
+    mocks.coupleId = actors.couple;
     mocks.hasLinkedPartner = true;
     mocks.isDemo = false;
     mocks.profileRole = "bride";
@@ -255,15 +292,190 @@ describe("ChatSidePanel attachment sending", () => {
     });
   });
 
-  it.each(["user-1", "partner-groom", "former-partner", null])("현재 본인·상대의 확정 역할만 전달한다: %s", async senderId => {
+  it("preserves an unsent private draft across actual unmount and remount", async () => {
+    const clickLabel = (label: string) => Array.from(container.querySelectorAll<HTMLButtonElement>("button"))
+      .find(button => button.textContent?.includes(label))?.click();
+    await act(async () => { clickLabel("나만"); });
+    await act(async () => {
+      const composer = container.querySelector<HTMLInputElement>('input[aria-label="메시지 입력"]');
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set?.call(composer, "개인적으로 작성 중인 질문");
+      composer?.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    await act(async () => { root.unmount(); });
+    root = createRoot(container);
+    await act(async () => { root.render(<ChatSidePanel isOpen onClose={vi.fn()} />); });
+    expect(container.querySelector<HTMLInputElement>('input[aria-label="메시지 입력"]')?.value).toBe("개인적으로 작성 중인 질문");
+    expect(mocks.sendMessage).not.toHaveBeenCalled();
+  });
+
+  it("keeps a failed safety transmission separate from an existing private draft and retries its own snapshot", async () => {
+    const disclosure = "작년에 신랑이 칼 들고 죽인다고 했는데 지금은 안전해";
+    const requestId = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
+    const composer = () => container.querySelector<HTMLInputElement>('input[aria-label="메시지 입력"]');
+    const type = async (value: string) => act(async () => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set?.call(composer(), value);
+      composer()?.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    const click = async (label: string) => act(async () => {
+      Array.from(container.querySelectorAll<HTMLButtonElement>("button"))
+        .find(button => button.textContent?.includes(label))?.click();
+    });
+    await click("나만");
+    await type("원래 작성 중인 개인 질문");
+    await click("함께");
+    await type(disclosure);
+    mocks.sendMessage.mockResolvedValueOnce({ userMessage: "persistence_unknown", clientRequestId: requestId });
+    await act(async () => { container.querySelector<HTMLButtonElement>('button[aria-label="메시지 보내기"]')?.click(); });
+    expect(composer()?.value).toBe("원래 작성 중인 개인 질문");
+    expect(container.textContent).toContain("보류 메시지 다시 확인");
+    await act(async () => { root.unmount(); });
+    root = createRoot(container);
+    await act(async () => { root.render(<ChatSidePanel isOpen onClose={vi.fn()} />); });
+    await click("보류 메시지 다시 확인");
+    expect(mocks.sendMessage).toHaveBeenLastCalledWith(expect.objectContaining({
+      content: disclosure, clientRequestId: requestId, visibility: "bride_private", images: undefined,
+    }));
+    expect(composer()?.value).toBe("원래 작성 중인 개인 질문");
+    expect(container.textContent).not.toContain("보류 메시지 다시 확인");
+  });
+
+  it("unlocks a new composer epoch while an invalidated request is still pending", async () => {
+    let finish!: (outcome: { userMessage: "not_persisted" }) => void;
+    mocks.sendMessage.mockImplementationOnce(() => new Promise(resolve => { finish = resolve; }));
+    await typeComposer("삭제 전에 보낸 질문");
+    await sendComposer();
+    expect(composer()?.disabled).toBe(true);
+    await act(async () => { forgetComposerRecovery("shared"); });
+    expect(composer()?.disabled).toBe(false);
+    await typeComposer("삭제 후 새 질문");
+    await act(async () => { finish({ userMessage: "not_persisted" }); });
+    expect(composer()?.value).toBe("삭제 후 새 질문");
+    await sendComposer();
+    expect(mocks.sendMessage).toHaveBeenLastCalledWith(expect.objectContaining({ content: "삭제 후 새 질문" }));
+  });
+
+  it("retries a separate private safety snapshot while the unrelated composer attachment is still reading", async () => {
+    await clickText("나만 (상담)");
+    await typeComposer("원래 개인 질문");
+    await clickText("함께 대화");
+    const disclosure = "작년에 신랑이 칼 들고 죽인다고 했는데 지금은 안전해";
+    await typeComposer(disclosure);
+    mocks.sendMessage.mockResolvedValueOnce({ userMessage: "persistence_unknown", clientRequestId: "safety-original-key" });
+    await sendComposer();
+    const readers: FileReader[] = [];
+    vi.spyOn(FileReader.prototype, "readAsDataURL").mockImplementation(function (this: FileReader) { readers.push(this); });
+    const picker = container.querySelector<HTMLInputElement>('input[type="file"]')!;
+    Object.defineProperty(picker, "files", { configurable: true, value: [new File(["private"], "pending-private.pdf", { type: "application/pdf" })] });
+    await act(async () => picker.dispatchEvent(new Event("change", { bubbles: true })));
+    expect(readers).toHaveLength(1);
+    expect(composer()?.disabled).toBe(true);
+    const retry = Array.from(container.querySelectorAll<HTMLButtonElement>("button")).find(button => button.textContent?.includes("보류 메시지 다시 확인"))!;
+    expect(retry.disabled).toBe(false);
+    await act(async () => retry.click());
+    expect(mocks.sendMessage).toHaveBeenLastCalledWith(expect.objectContaining({
+      content: disclosure, clientRequestId: "safety-original-key", visibility: "bride_private", images: undefined,
+    }));
+    expect(mocks.sendMessage).toHaveBeenCalledTimes(2);
+    expect(composer()?.value).toBe("원래 개인 질문");
+    await act(async () => {
+      Object.defineProperty(readers[0], "result", { value: "data:application/pdf;base64,cHJpdmF0ZQ==" });
+      readers[0].onload?.(new ProgressEvent("load") as ProgressEvent<FileReader>);
+    });
+    expect(container.querySelector('button[aria-label="pending-private.pdf 첨부 제거"]')).not.toBeNull();
+  });
+
+  it.each(["shared", "private"] as const)("retains a pending %s panel snapshot only across opposite-scope raw deletion", async scope => {
+    if (scope === "private") await clickText("나만 (상담)");
+    await typeComposer("전송 중이던 범위의 원래 질문");
+    let finish!: (outcome: { userMessage: "not_persisted" }) => void;
+    mocks.sendMessage.mockReturnValueOnce(new Promise(resolve => { finish = resolve; }));
+    await sendComposer();
+    const sent = mocks.sendMessage.mock.calls[0][0];
+    await act(async () => forgetComposerRecovery(scope === "private" ? "shared" : "private"));
+    expect(composer()?.value).toBe("전송 중이던 범위의 원래 질문");
+    await remount();
+    await act(async () => finish({ userMessage: "not_persisted" }));
+    await sendComposer();
+    expect(mocks.sendMessage.mock.calls[1][0]).toMatchObject({ content: sent.content, visibility: sent.visibility, clientRequestId: sent.clientRequestId });
+  });
+
+  it("does not let a hidden panel overwrite a different surface's selected lane", async () => {
+    await act(async () => root.render(<ChatSidePanel isOpen={false} onClose={vi.fn()} />));
+    const identity = useChatComposerStore.getState().identity;
+    expect(identity).toEqual(expect.any(String));
+    await act(async () => {
+      if (identity) rememberComposerLane(identity, "private_ai");
+    });
+    await act(async () => root.render(<ChatSidePanel isOpen onClose={vi.fn()} />));
+    expect(container.textContent).toContain("현재 범위 · 나만 (상담)");
+    expect(useChatComposerStore.getState().activeLane).toBe("private_ai");
+  });
+
+  it("finishes a pending attachment into the same session after panel remount", async () => {
+    const readers: FileReader[] = [];
+    vi.spyOn(FileReader.prototype, "readAsDataURL").mockImplementation(function (this: FileReader) { readers.push(this); });
+    const fileInput = container.querySelector<HTMLInputElement>('input[type="file"]');
+    Object.defineProperty(fileInput, "files", { configurable: true, value: [new File(["contract"], "pending.pdf", { type: "application/pdf" })] });
+    await act(async () => { fileInput?.dispatchEvent(new Event("change", { bubbles: true })); });
+    await remount();
+    expect(composer()?.disabled).toBe(true);
+    await act(async () => {
+      Object.defineProperty(readers[0], "result", { value: "data:application/pdf;base64,Y29udHJhY3Q=" });
+      readers[0].onload?.(new ProgressEvent("load") as ProgressEvent<FileReader>);
+    });
+    expect(composer()?.disabled).toBe(false);
+    expect(container.querySelector('button[aria-label="pending.pdf 첨부 제거"]')).not.toBeNull();
+  });
+
+  it("keeps an untransmitted safety hold local until the user explicitly retrieves it", async () => {
+    await clickText("나만 (상담)");
+    await typeComposer("원래 개인 질문");
+    await clickText("함께 대화");
+    await typeComposer("지금 죽고 싶어");
+    mocks.sendMessage.mockResolvedValueOnce({ userMessage: "ephemeral_safety" });
+    await sendComposer();
+    expect(composer()?.value).toBe("원래 개인 질문");
+    expect(container.textContent).toContain("보류 초안 불러오기");
+    await remount();
+    expect(mocks.sendMessage).toHaveBeenCalledTimes(1);
+    await typeComposer("");
+    await clickText("보류 초안 불러오기");
+    expect(composer()?.value).toBe("지금 죽고 싶어");
+    expect(mocks.sendMessage).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([false, true])("restores an unmounted unknown request only into its original session (changed owner: %s)", async changedOwner => {
+    let finish!: (outcome: { userMessage: "persistence_unknown"; clientRequestId: string }) => void;
+    mocks.sendMessage.mockImplementationOnce(() => new Promise(resolve => { finish = resolve; }));
+    await typeComposer("응답보다 먼저 화면을 나간 질문");
+    await sendComposer();
+    const submittedId = mocks.sendMessage.mock.calls.at(-1)?.[0].clientRequestId;
+    await act(async () => root.unmount());
+    if (changedOwner) {
+      // 실제 authStore의 전역 subscriber가 하는 폐기. 별도 auth-lifecycle 테스트가 이를 검증한다.
+      resetChatComposerSession();
+      mocks.profileId = actors.other;
+    }
+    root = createRoot(container);
+    await act(async () => root.render(<ChatSidePanel isOpen onClose={vi.fn()} />));
+    if (changedOwner) await typeComposer("새 계정의 질문");
+    await act(async () => finish({ userMessage: "persistence_unknown", clientRequestId: submittedId }));
+    expect(composer()?.value).toBe(changedOwner ? "새 계정의 질문" : "응답보다 먼저 화면을 나간 질문");
+    await sendComposer();
+    const resent = mocks.sendMessage.mock.calls.at(-1)?.[0];
+    if (changedOwner) expect(resent.clientRequestId).not.toBe(submittedId);
+    else expect(resent.clientRequestId).toBe(submittedId);
+  });
+
+  it.each([actors.primary, actors.partnerGroom, "former-partner", null])("현재 본인·상대의 확정 역할만 전달한다: %s", async senderId => {
     mocks.confirmedRole = "groom";
-    mocks.partner = { id: "partner-groom", name: "상대", couple_id: "couple-1", confirmed_role: "bride", avatar_url: "🌷" };
-    mocks.messages = [{ id: "role-binding", couple_id: "couple-1", sender_id: senderId, sender_role: "groom", visibility: "shared", content: "안녕하세요", metadata: {}, created_at: "2026-09-13T00:00:00Z" }];
+    mocks.partner = { id: actors.partnerGroom, name: "상대", couple_id: actors.couple, confirmed_role: "bride", avatar_url: "🌷" };
+    mocks.messages = [{ id: "role-binding", couple_id: actors.couple, sender_id: senderId, sender_role: "groom", visibility: "shared", content: "안녕하세요", metadata: {}, created_at: "2026-09-13T00:00:00Z" }];
     await act(async () => root.render(<ChatSidePanel isOpen onClose={vi.fn()} />));
     expect(container.querySelector('[data-role-message="role-binding"]')?.getAttribute("data-confirmed-role"))
-      .toBe(senderId === "user-1" ? "groom" : senderId === "partner-groom" ? "bride" : "");
+      .toBe(senderId === actors.primary ? "groom" : senderId === actors.partnerGroom ? "bride" : "");
     expect(container.querySelector('[data-role-message="role-binding"]')?.getAttribute("data-avatar"))
-      .toBe(senderId === "partner-groom" ? "🌷" : "");
+      .toBe(senderId === actors.partnerGroom ? "🌷" : "");
   });
 
   afterEach(async () => {
@@ -356,8 +568,8 @@ describe("ChatSidePanel attachment sending", () => {
     mocks.messages = [
       {
         id: "conflict-bride",
-        couple_id: "couple-1",
-        sender_id: "user-1",
+        couple_id: actors.couple,
+        sender_id: actors.primary,
         sender_role: "bride",
         content: "너는 맨날 내 말을 안 들어서 너무 서운해.",
         visibility: "shared",
@@ -366,8 +578,8 @@ describe("ChatSidePanel attachment sending", () => {
       },
       {
         id: "conflict-groom",
-        couple_id: "couple-1",
-        sender_id: "user-2",
+        couple_id: actors.couple,
+        sender_id: actors.secondary,
         sender_role: "groom",
         content: "난 절대 반대야. 그건 동의 못 해.",
         visibility: "shared",
@@ -405,8 +617,8 @@ describe("ChatSidePanel attachment sending", () => {
     mocks.messages = [
       {
         id: "conflict-bride",
-        couple_id: "couple-1",
-        sender_id: "user-1",
+        couple_id: actors.couple,
+        sender_id: actors.primary,
         sender_role: "bride",
         content: "너는 맨날 내 말을 안 들어서 너무 서운해. PARTNER_RAW_ONE",
         visibility: "shared",
@@ -415,8 +627,8 @@ describe("ChatSidePanel attachment sending", () => {
       },
       {
         id: "conflict-groom",
-        couple_id: "couple-1",
-        sender_id: "user-2",
+        couple_id: actors.couple,
+        sender_id: actors.secondary,
         sender_role: "groom",
         content: "난 절대 반대야. 그건 동의 못 해. PARTNER_RAW_TWO",
         visibility: "shared",
@@ -457,7 +669,7 @@ describe("ChatSidePanel attachment sending", () => {
     });
 
     expect(mocks.requestMediation).toHaveBeenCalledWith(expect.objectContaining({
-      coupleId: "couple-1",
+      coupleId: actors.couple,
       senderRole: "bride",
       conflictContext: "예산 상한선을 두고 의견이 달라요.",
     }));
@@ -470,7 +682,7 @@ describe("ChatSidePanel attachment sending", () => {
   it("sends quick-start to shared Amora and confirms only the exact correlated reply", async () => {
     const greeting = {
       id: "greeting-1",
-      couple_id: "couple-1",
+      couple_id: actors.couple,
       sender_id: null,
       sender_role: "ai" as const,
       content: "무엇부터 함께 정리할까요?",
@@ -511,8 +723,8 @@ describe("ChatSidePanel attachment sending", () => {
       visibility: "shared",
     }));
     const pendingStorageKey = amoraPersonalizationPendingStorageKey(
-      "user-1",
-      "couple-1",
+      actors.primary,
+      actors.couple,
     );
     expect(window.sessionStorage.getItem(pendingStorageKey)).toBe(
       "recommendation",
@@ -521,8 +733,8 @@ describe("ChatSidePanel attachment sending", () => {
 
     const selectedUserMessage = {
       id: "quick-user-1",
-      couple_id: "couple-1",
-      sender_id: "user-1",
+      couple_id: actors.couple,
+      sender_id: actors.primary,
       sender_role: "bride" as const,
       content: quickStartMessage,
       visibility: "shared" as const,
@@ -534,7 +746,7 @@ describe("ChatSidePanel attachment sending", () => {
       selectedUserMessage,
       {
         id: "unrelated-ai-1",
-        couple_id: "couple-1",
+        couple_id: actors.couple,
         sender_id: null,
         sender_role: "ai",
         content: "다른 질문에 대한 답변",
@@ -556,7 +768,7 @@ describe("ChatSidePanel attachment sending", () => {
       ...mocks.messages,
       {
         id: "correlated-ai-1",
-        couple_id: "couple-1",
+        couple_id: actors.couple,
         sender_id: null,
         sender_role: "ai",
         content: "먼저 예식 날짜 범위를 정해보세요.",
@@ -598,16 +810,16 @@ describe("ChatSidePanel attachment sending", () => {
     const quickStartMessage =
       "추천안 하나부터 보고 싶어요. 지금 제 결혼 준비에서 가장 먼저 정할 한 가지를 알려주세요.";
     const pendingStorageKey = amoraPersonalizationPendingStorageKey(
-      "user-1",
-      "couple-1",
+      actors.primary,
+      actors.couple,
     );
     window.sessionStorage.setItem(pendingStorageKey, "recommendation");
     mocks.initialLoadDone = true;
     mocks.messages = [
       {
         id: "quick-user-recovered",
-        couple_id: "couple-1",
-        sender_id: "user-1",
+        couple_id: actors.couple,
+        sender_id: actors.primary,
         sender_role: "bride",
         content: quickStartMessage,
         visibility: "shared",
@@ -616,7 +828,7 @@ describe("ChatSidePanel attachment sending", () => {
       },
       {
         id: "quick-ai-recovered",
-        couple_id: "couple-1",
+        couple_id: actors.couple,
         sender_id: null,
         sender_role: "ai",
         content: "먼저 예식 날짜 범위를 정해보세요.",
@@ -661,16 +873,16 @@ describe("ChatSidePanel attachment sending", () => {
     const quickStartMessage =
       "추천안 하나부터 보고 싶어요. 지금 제 결혼 준비에서 가장 먼저 정할 한 가지를 알려주세요.";
     const pendingStorageKey = amoraPersonalizationPendingStorageKey(
-      "user-1",
-      "couple-1",
+      actors.primary,
+      actors.couple,
     );
     window.sessionStorage.setItem(pendingStorageKey, "recommendation");
     mocks.initialLoadDone = true;
     mocks.messages = [
       {
         id: "quick-user-stale",
-        couple_id: "couple-1",
-        sender_id: "user-1",
+        couple_id: actors.couple,
+        sender_id: actors.primary,
         sender_role: "bride",
         content: quickStartMessage,
         visibility: "shared",
@@ -679,7 +891,7 @@ describe("ChatSidePanel attachment sending", () => {
       },
       {
         id: "quick-ai-stale",
-        couple_id: "couple-1",
+        couple_id: actors.couple,
         sender_id: null,
         sender_role: "ai",
         content: "먼저 예식 날짜 범위를 정해보세요.",
@@ -691,8 +903,8 @@ describe("ChatSidePanel attachment sending", () => {
       },
       {
         id: "newer-amora-turn",
-        couple_id: "couple-1",
-        sender_id: "user-2",
+        couple_id: actors.couple,
+        sender_id: actors.secondary,
         sender_role: "groom",
         content: "그다음에는 무엇을 할까요?",
         visibility: "shared",
@@ -916,7 +1128,7 @@ describe("ChatSidePanel attachment sending", () => {
     mocks.messages = [
       {
         id: "shared-1",
-        sender_id: "user-1",
+        sender_id: actors.primary,
         sender_role: "bride",
         content: "함께 볼 메시지",
         visibility: "shared",
@@ -925,7 +1137,7 @@ describe("ChatSidePanel attachment sending", () => {
       },
       {
         id: "private-1",
-        sender_id: "user-1",
+        sender_id: actors.primary,
         sender_role: "bride",
         content: "나만 볼 메시지",
         visibility: "bride_private",
@@ -993,7 +1205,7 @@ describe("ChatSidePanel attachment sending", () => {
   it("truthfully hides only the shared conversation from this screen", async () => {
     mocks.messages = [{
       id: "shared-1",
-      sender_id: "user-1",
+      sender_id: actors.primary,
       sender_role: "bride",
       content: "함께 볼 메시지",
       visibility: "shared",
@@ -1025,13 +1237,91 @@ describe("ChatSidePanel attachment sending", () => {
       await Promise.resolve();
     });
 
-    expect(mocks.clearMessages).toHaveBeenCalledWith("couple-1", "view_reset_shared");
+    expect(mocks.clearMessages).toHaveBeenCalledWith(actors.couple, "view_reset_shared");
+  });
+
+  it("expires a view-clear confirmation when its account changes instead of clearing the new account", async () => {
+    mocks.messages = [{ id: "clear-owner-shared", sender_id: actors.primary, sender_role: "bride", content: "이전 계정 대화", visibility: "shared", metadata: {}, created_at: "2026-09-20T00:00:00Z" }];
+    await act(async () => root.render(<ChatSidePanel isOpen onClose={vi.fn()} />));
+    await act(async () => container.querySelector<HTMLButtonElement>('button[title="대화 화면 정리"]')?.click());
+    expect(container.textContent).toContain("내 화면에서만 숨길까요?");
+    mocks.profileId = actors.newOwner;
+    mocks.coupleId = actors.newOwnerCouple;
+    await act(async () => root.render(<ChatSidePanel isOpen onClose={vi.fn()} />));
+    await act(async () => {
+      Array.from(container.querySelectorAll<HTMLButtonElement>("button"))
+        .find(button => button.textContent?.trim() === "내 화면에서만 숨기기")?.click();
+    });
+    expect(mocks.clearMessages).not.toHaveBeenCalled();
+    expect(container.textContent).not.toContain("내 화면에서만 숨길까요?");
+  });
+
+  it("expires a view-clear confirmation on scope change and on panel close/reopen", async () => {
+    mocks.messages = [
+      { id: "clear-shared", sender_id: actors.primary, sender_role: "bride", content: "함께 대화", visibility: "shared", metadata: {}, created_at: "2026-09-20T00:00:00Z" },
+      { id: "clear-private", sender_id: actors.primary, sender_role: "bride", content: "개인 대화", visibility: "bride_private", metadata: {}, created_at: "2026-09-20T00:00:01Z" },
+    ];
+    await act(async () => root.render(<ChatSidePanel isOpen onClose={vi.fn()} />));
+    const openClear = () => container.querySelector<HTMLButtonElement>('button[title="대화 화면 정리"]')?.click();
+    await act(async () => openClear());
+    await clickText("나만 (상담)");
+    expect(container.textContent).not.toContain("내 화면에서만 숨길까요?");
+    await act(async () => openClear());
+    expect(container.textContent).toContain("나만의 상담 이전 메시지를 내 화면에서만 숨길까요?");
+    await act(async () => root.render(<ChatSidePanel isOpen={false} onClose={vi.fn()} />));
+    await act(async () => root.render(<ChatSidePanel isOpen onClose={vi.fn()} />));
+    expect(container.textContent).not.toContain("내 화면에서만 숨길까요?");
+    expect(mocks.clearMessages).not.toHaveBeenCalled();
+  });
+
+  it("rechecks the view-clear session at click time before React effects can close the old dialog", async () => {
+    mocks.messages = [{ id: "clear-stale", sender_id: actors.primary, sender_role: "bride", content: "함께 대화", visibility: "shared", metadata: {}, created_at: "2026-09-20T00:00:00Z" }];
+    await act(async () => root.render(<ChatSidePanel isOpen onClose={vi.fn()} />));
+    await act(async () => container.querySelector<HTMLButtonElement>('button[title="대화 화면 정리"]')?.click());
+    const oldConfirm = Array.from(container.querySelectorAll<HTMLButtonElement>("button"))
+      .find(button => button.textContent?.trim() === "내 화면에서만 숨기기");
+    expect(oldConfirm).toBeDefined();
+    await act(async () => {
+      resetChatComposerSession(); // same-owner A→B→A/explicit reset still expires the old permission
+      oldConfirm?.click();
+    });
+    expect(mocks.clearMessages).not.toHaveBeenCalled();
+    expect(container.textContent).not.toContain("내 화면에서만 숨길까요?");
+  });
+
+  it("invalidates view-clear permission synchronously when scope changes in the same event batch", async () => {
+    mocks.messages = [{ id: "clear-scope-race", sender_id: actors.primary, sender_role: "bride", content: "함께 대화", visibility: "shared", metadata: {}, created_at: "2026-09-20T00:00:00Z" }];
+    await act(async () => root.render(<ChatSidePanel isOpen onClose={vi.fn()} />));
+    await act(async () => container.querySelector<HTMLButtonElement>('button[title="대화 화면 정리"]')?.click());
+    const oldConfirm = Array.from(container.querySelectorAll<HTMLButtonElement>("button")).find(button => button.textContent?.trim() === "내 화면에서만 숨기기");
+    const privateTab = Array.from(container.querySelectorAll<HTMLButtonElement>("button")).find(button => button.textContent?.trim() === "나만 (상담)");
+    await act(async () => {
+      privateTab?.click();
+      oldConfirm?.click();
+    });
+    expect(mocks.clearMessages).not.toHaveBeenCalled();
+  });
+
+  it("consumes a view-clear confirmation once and a late completion cannot close a newly opened dialog", async () => {
+    let finish!: () => void;
+    mocks.clearMessages.mockImplementationOnce(() => new Promise<void>(resolve => { finish = resolve; }));
+    mocks.messages = [{ id: "clear-once", sender_id: actors.primary, sender_role: "bride", content: "함께 대화", visibility: "shared", metadata: {}, created_at: "2026-09-20T00:00:00Z" }];
+    await act(async () => root.render(<ChatSidePanel isOpen onClose={vi.fn()} />));
+    const open = () => container.querySelector<HTMLButtonElement>('button[title="대화 화면 정리"]')?.click();
+    await act(async () => open());
+    const oldConfirm = Array.from(container.querySelectorAll<HTMLButtonElement>("button")).find(button => button.textContent?.trim() === "내 화면에서만 숨기기");
+    await act(async () => { oldConfirm?.click(); oldConfirm?.click(); });
+    expect(mocks.clearMessages).toHaveBeenCalledTimes(1);
+    await act(async () => open());
+    await act(async () => finish());
+    expect(container.textContent).toContain("내 화면에서만 숨길까요?");
+    expect(mocks.clearMessages).toHaveBeenCalledTimes(1);
   });
 
   it("truthfully hides only the selected private conversation from this screen", async () => {
     mocks.messages = [{
       id: "private-1",
-      sender_id: "user-1",
+      sender_id: actors.primary,
       sender_role: "bride",
       content: "나만 볼 메시지",
       visibility: "bride_private",
@@ -1070,7 +1360,7 @@ describe("ChatSidePanel attachment sending", () => {
       await Promise.resolve();
     });
 
-    expect(mocks.clearMessages).toHaveBeenCalledWith("couple-1", "view_reset_private");
+    expect(mocks.clearMessages).toHaveBeenCalledWith(actors.couple, "view_reset_private");
   });
 
   it("shows a failed private request only inside its original private scope", async () => {
@@ -1508,8 +1798,8 @@ describe("ChatSidePanel attachment sending", () => {
     await act(async () => findButton("나만 (상담)")?.click());
     await typeIntoComposer("이전 계정 개인 초안");
 
-    mocks.profileId = "user-new";
-    mocks.coupleId = "couple-new";
+    mocks.profileId = actors.newUser;
+    mocks.coupleId = actors.newCouple;
     await act(async () => {
       root.render(<ChatSidePanel isOpen onClose={vi.fn()} />);
       await Promise.resolve();
@@ -1529,11 +1819,12 @@ describe("ChatSidePanel attachment sending", () => {
     });
 
     const latestSend = mocks.sendMessage.mock.calls.at(-1)?.[0];
-    expect(latestSend).not.toHaveProperty("clientRequestId");
+    expect(latestSend.clientRequestId).toEqual(expect.any(String));
+    expect(latestSend.clientRequestId).not.toBe(retryId);
     expect(latestSend).toEqual(expect.objectContaining({
       content: "새 계정 질문",
-      coupleId: "couple-new",
-      senderId: "user-new",
+      coupleId: actors.newCouple,
+      senderId: actors.newUser,
     }));
   });
 
@@ -1576,7 +1867,7 @@ describe("ChatSidePanel attachment sending", () => {
     });
     expect(mocks.requestInitialGreeting).toHaveBeenCalledTimes(1);
 
-    mocks.coupleId = "couple-new";
+    mocks.coupleId = actors.newCouple;
     await act(async () => {
       root.render(<ChatSidePanel isOpen onClose={vi.fn()} />);
       await Promise.resolve();
@@ -1584,7 +1875,7 @@ describe("ChatSidePanel attachment sending", () => {
 
     expect(mocks.requestInitialGreeting).toHaveBeenCalledTimes(2);
     expect(mocks.requestInitialGreeting).toHaveBeenLastCalledWith(expect.objectContaining({
-      coupleId: "couple-new",
+      coupleId: actors.newCouple,
     }));
   });
 
@@ -1623,8 +1914,8 @@ describe("ChatSidePanel attachment sending", () => {
       'button[aria-label="파일 첨부"]',
     )?.disabled).toBe(true);
 
-    mocks.profileId = "user-new";
-    mocks.coupleId = "couple-new";
+    mocks.profileId = actors.newUser;
+    mocks.coupleId = actors.newCouple;
     await act(async () => {
       root.render(<ChatSidePanel isOpen onClose={vi.fn()} />);
       await Promise.resolve();
@@ -2066,7 +2357,7 @@ describe("ChatSidePanel attachment sending", () => {
       },
       {
         id: "new-context-1",
-        sender_id: "user-1",
+        sender_id: actors.primary,
         sender_role: "bride",
         content: "잠깐, 날짜를 다시 볼게.",
         visibility: "shared",
@@ -2128,7 +2419,7 @@ describe("ChatSidePanel attachment sending", () => {
       },
       {
         id: "partner-only-1",
-        sender_id: "user-1",
+        sender_id: actors.primary,
         sender_role: "bride",
         content: "이건 우리끼리 이야기하자.",
         visibility: "shared",

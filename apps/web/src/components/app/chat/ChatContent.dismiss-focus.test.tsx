@@ -5,10 +5,12 @@ import type { ChatMessage } from "@/types/database.types";
 import { getAmoraToolOperationIdentity } from "@/lib/ai/amoraToolIdentity";
 import { getAmoraPendingActionTtlMs } from "@/lib/ai/amoraActionApprovalPolicy";
 import { AMORA_QUEUED_CARD_SKIP_TEXT } from "@/lib/ai/amoraQueuedCardSkip";
+import { useAuthStore } from "@/stores/authStore";
+import { PENDING_ACTOR_ID, PENDING_COUPLE_ID, PENDING_PARTNER_ID, setPendingActionActor } from "./__tests__/fixtures/pendingActionActor";
 
 // 기존 ChatContent fixture의 스토어 경계만 사용하고 제안 카드·확인 시트는 실제로 연다.
 const mocks = vi.hoisted(() => ({
-  profileId: "user-1", coupleId: "couple-1", messages: [] as ChatMessage[],
+  messages: [] as ChatMessage[],
   sendMessage: vi.fn(), idle: vi.fn(), subscribe: vi.fn(() => vi.fn()),
 }));
 
@@ -16,15 +18,6 @@ vi.mock("next/navigation", () => ({
   useSearchParams: () => new URLSearchParams(),
   useRouter: () => ({ replace: mocks.idle, push: mocks.idle }),
 }));
-vi.mock("@/stores/authStore", () => {
-  const read = () => ({
-    user: { id: mocks.profileId },
-    profile: { id: mocks.profileId, role: "bride", name: "테스트", couple_id: mocks.coupleId },
-    couple: { id: mocks.coupleId, bride_id: mocks.profileId, groom_id: "user-2" },
-    journey: null, partner: null, isDemo: false, isInitialized: true, isLoading: false,
-  });
-  return { useAuthStore: Object.assign(read, { getState: read }) };
-});
 vi.mock("@/stores/chatStore", () => {
   const state = {
     get messages() { return mocks.messages; },
@@ -45,6 +38,7 @@ vi.mock("@/lib/care/requestProactiveCare", () => ({ requestProactiveCare: vi.fn(
 vi.mock("./ChatBubble", () => ({ default: () => <div /> }));
 
 import ChatContent from "./ChatContent";
+import { resetChatComposerSession } from "@/stores/chatComposerStore";
 
 const actEnvironment = globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean };
 
@@ -55,15 +49,16 @@ describe("제안을 나중에 정할 때 대화 초점", () => {
   let frameId: number;
 
   beforeEach(() => {
+    resetChatComposerSession();
     actEnvironment.IS_REACT_ACT_ENVIRONMENT = true;
     vi.clearAllMocks();
-    mocks.profileId = "user-1";
-    mocks.coupleId = "couple-1";
+    useAuthStore.getState().reset();
+    setPendingActionActor();
     const input = { date: "2027-02-01", title: "드레스 피팅", schedule_scope: "confirmed_fact" };
     const identity = getAmoraToolOperationIdentity("add_schedule_event", input);
     const issuedAt = Date.now() - 1_000;
     mocks.messages = [{
-      id: "dismiss-focus-message", couple_id: "couple-1", sender_id: null, sender_role: "ai",
+      id: "dismiss-focus-message", couple_id: PENDING_COUPLE_ID, sender_id: null, sender_role: "ai",
       visibility: "shared", content: "일정을 확인해 주세요.", created_at: new Date().toISOString(),
       metadata: { pending_amora_action: {
         version: 2, actionId: "22222222-2222-4222-8222-222222222222", tool: "add_schedule_event",
@@ -91,6 +86,7 @@ describe("제안을 나중에 정할 때 대화 초점", () => {
 
   afterEach(async () => {
     await act(async () => root.unmount());
+    useAuthStore.getState().reset();
     container.remove();
     vi.unstubAllGlobals();
     vi.restoreAllMocks();
@@ -170,7 +166,7 @@ describe("제안을 나중에 정할 때 대화 초점", () => {
     expect(container.textContent).not.toContain("내용 확인하기");
 
     mocks.messages = [...mocks.messages,
-      { ...original, id: "new-request", sender_role: "bride", sender_id: mocks.profileId, metadata: null, content: "아직 적용하지 말고 같은 변경 내용을 다시 보여줘." },
+      { ...original, id: "new-request", sender_role: "bride", sender_id: PENDING_ACTOR_ID, metadata: null, content: "아직 적용하지 말고 같은 변경 내용을 다시 보여줘." },
       { ...original, id: "new-carry", metadata: { pending_amora_action: action } },
     ];
     await render();
@@ -184,7 +180,7 @@ describe("제안을 나중에 정할 때 대화 초점", () => {
   });
 
   // 2026-09-18: 대기열 카드의 "이 항목 건너뛰기" 는 숨기기와 달리 서버에 알린다. 적용이 아니므로
-  // 확인 id 없이 고정 문장만 공유 대화로 보낸다.
+  // 적용 확인 id 없이 건너뛸 카드 id와 고정 문장을 공유 대화로 보낸다.
   function withQueue(remainingActions: unknown[], currentActionId?: string) {
     const original = mocks.messages[0];
     const pending = original.metadata!.pending_amora_action!;
@@ -195,7 +191,7 @@ describe("제안을 나중에 정할 때 대화 초점", () => {
     return pending;
   }
 
-  it("대기열 카드에서 건너뛰면 확인 id 없이 고정 문장만 보낸다", async () => {
+  it("대기열 카드에서 건너뛰면 적용 확인 없이 건너뛸 카드 id를 보낸다", async () => {
     const pending = withQueue([{ tool: "add_schedule_event", input: { date: "2027-03-01", title: "본식 드레스 가봉" } }]);
     await render();
     await flushFrames();
@@ -207,13 +203,14 @@ describe("제안을 나중에 정할 때 대화 초점", () => {
     const sent = mocks.sendMessage.mock.calls[0]?.[0] as Record<string, unknown>;
     expect(sent).toMatchObject({
       content: AMORA_QUEUED_CARD_SKIP_TEXT,
+      skippedActionId: pending.actionId,
       target: "ai",
       visibility: "shared",
-      senderId: mocks.profileId,
-      coupleId: mocks.coupleId,
+      senderId: PENDING_ACTOR_ID,
+      coupleId: PENDING_COUPLE_ID,
     });
     expect(sent).not.toHaveProperty("confirmedActionId");
-    expect(JSON.stringify(sent)).not.toContain(pending.actionId);
+    expect(sent.skippedActionId).toBe(pending.actionId);
   });
 
   it.each([
@@ -268,7 +265,7 @@ describe("제안을 나중에 정할 때 대화 초점", () => {
 
   it("프레임 전에 계정이 바뀌면 새 사용자의 입력창에 초점을 넣지 않는다", async () => {
     await deferFromSheet();
-    mocks.profileId = "user-3";
+    await act(async () => setPendingActionActor(PENDING_PARTNER_ID));
     await render();
     await flushFrames();
     expect(document.activeElement).not.toBe(container.querySelector("textarea"));

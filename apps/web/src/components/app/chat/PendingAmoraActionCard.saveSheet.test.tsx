@@ -5,6 +5,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import PendingAmoraActionCard from "./PendingAmoraActionCard";
 import { getAmoraToolOperationIdentity } from "@/lib/ai/amoraToolIdentity";
 import type { PendingAmoraAction } from "@/types/database.types";
+import { useAuthStore } from "@/stores/authStore";
+import { PENDING_ACTOR_ID, PENDING_PARTNER_ID, setPendingActionActor } from "./__tests__/fixtures/pendingActionActor";
 
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean })
   .IS_REACT_ACT_ENVIRONMENT = true;
@@ -30,6 +32,8 @@ describe("아모라 변경 확인 시트", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.stubGlobal("fetch", vi.fn());
+    useAuthStore.getState().reset();
+    setPendingActionActor();
     container = document.createElement("div");
     document.body.appendChild(container);
     root = createRoot(container);
@@ -41,6 +45,7 @@ describe("아모라 변경 확인 시트", () => {
     vi.unstubAllGlobals();
     document.body.replaceChildren();
     document.body.style.overflow = "";
+    useAuthStore.getState().reset();
   });
 
   async function renderCard(disabledReason: "expired" | null = null) {
@@ -143,7 +148,7 @@ describe("아모라 변경 확인 시트", () => {
     expect(document.querySelector('[role="dialog"]')).toBe(dialog);
     await act(async () => resolveClaim(new Response(JSON.stringify({ applicationGranted: true, retryAfterMs: 0 }), { status: 200 })));
     expect(fetch).toHaveBeenCalledWith(`/api/amora/shared-actions/${action.actionId}`, expect.objectContaining({
-      method: "PUT", body: JSON.stringify({ messageId }),
+      method: "PUT", body: JSON.stringify({ messageId, expectedActorId: PENDING_ACTOR_ID }),
     }));
     expect(onApply).toHaveBeenCalledExactlyOnceWith(action.actionId);
     expect(document.querySelector('[role="dialog"]')).toBeNull();
@@ -170,6 +175,105 @@ describe("아모라 변경 확인 시트", () => {
     expect(dialog.textContent).toContain("확인 시간이 지났어요");
     expect(confirm(dialog).disabled).toBe(true);
     await act(async () => confirm(dialog).click());
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it("A의 지연된 적용권 응답은 같은 커플 B로 로그인한 뒤 적용을 시작하지 않는다", async () => {
+    let resolveClaim!: (response: Response) => void;
+    vi.mocked(fetch).mockReturnValueOnce(new Promise(resolve => { resolveClaim = resolve; }));
+    await renderCard();
+    const { dialog } = await openSheet();
+    await act(async () => confirm(dialog).click());
+    await act(async () => setPendingActionActor(PENDING_PARTNER_ID));
+    await act(async () => resolveClaim(new Response(JSON.stringify({ applicationGranted: true, retryAfterMs: 0 }))));
+    expect(onApply).not.toHaveBeenCalled();
+    expect(document.querySelector('[role="dialog"]')).toBeNull();
+    expect(container.textContent).toContain("현재 계정으로 화면을 새로 열어");
+    expect(container.querySelector<HTMLButtonElement>('button[aria-label="변경 내용 확인하기"]')?.disabled).toBe(true);
+  });
+
+  it("인증 전환과 같은 이벤트 턴의 오래된 건너뛰기도 새 계정으로 보내지 않는다", async () => {
+    const onSkip = vi.fn();
+    await act(async () => root.render(<PendingAmoraActionCard action={action} messageId={messageId}
+      disabledReason={null} isApplying={false} queuedRemainingCount={2} onSkip={onSkip} onApply={onApply} onDismiss={onDismiss} />));
+    const skip = container.querySelector<HTMLButtonElement>('button[aria-label="이 항목 건너뛰기"]')!;
+    await act(async () => { setPendingActionActor(PENDING_PARTNER_ID); skip.click(); });
+    expect(onSkip).not.toHaveBeenCalled();
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it("A 확인창은 B 전환 직후 React가 다시 그리기 전에도 요청을 보내지 않는다", async () => {
+    await renderCard();
+    const { dialog } = await openSheet();
+    const button = confirm(dialog);
+    await act(async () => { setPendingActionActor(PENDING_PARTNER_ID); button.click(); });
+    expect(fetch).not.toHaveBeenCalled();
+    expect(onApply).not.toHaveBeenCalled();
+    await renderCard();
+    expect(container.querySelector<HTMLButtonElement>('button[aria-label="변경 내용 확인하기"]')?.disabled).toBe(true);
+    expect(document.querySelector('[role="dialog"]')).toBeNull();
+  });
+
+  it.each(["다른 계정을 거쳐 A 복귀", "커플 변경", "로그아웃"])("지연된 요청은 %s 후 살아나지 않는다", async change => {
+    let resolveClaim!: (response: Response) => void;
+    vi.mocked(fetch).mockReturnValueOnce(new Promise(resolve => { resolveClaim = resolve; }));
+    await renderCard();
+    const { dialog } = await openSheet();
+    await act(async () => confirm(dialog).click());
+    await act(async () => {
+      if (change === "다른 계정을 거쳐 A 복귀") {
+        setPendingActionActor(PENDING_PARTNER_ID); setPendingActionActor(PENDING_ACTOR_ID);
+      } else if (change === "커플 변경") setPendingActionActor(PENDING_ACTOR_ID, "77777777-7777-4777-8777-777777777777");
+      else useAuthStore.getState().reset();
+    });
+    await act(async () => resolveClaim(new Response(JSON.stringify({ applicationGranted: true, retryAfterMs: 0 }))));
+    expect(onApply).not.toHaveBeenCalled();
+    expect(fetch).toHaveBeenCalledTimes(1);
+    expect(document.querySelector('[role="dialog"]')).toBeNull();
+  });
+
+  it("A 응답 본문을 읽는 중 B로 바뀌면 이전 오류를 B 화면에 표시하지 않는다", async () => {
+    let resolveBody!: (payload: unknown) => void;
+    const response = new Response(null, { status: 409 });
+    response.json = () => new Promise(resolve => { resolveBody = resolve; });
+    vi.mocked(fetch).mockResolvedValueOnce(response);
+    await renderCard();
+    const { dialog } = await openSheet();
+    await act(async () => confirm(dialog).click());
+    await act(async () => setPendingActionActor(PENDING_PARTNER_ID));
+    await act(async () => resolveBody({ error: "A 전용 이전 오류" }));
+    expect(container.textContent).not.toContain("A 전용 이전 오류");
+    expect(onApply).not.toHaveBeenCalled();
+  });
+
+  it("확인 카드를 닫은 뒤 온 성공 응답은 적용하지 않는다", async () => {
+    let resolveClaim!: (response: Response) => void;
+    vi.mocked(fetch).mockReturnValueOnce(new Promise(resolve => { resolveClaim = resolve; }));
+    await renderCard();
+    const { dialog } = await openSheet();
+    await act(async () => confirm(dialog).click());
+    await act(async () => root.render(null));
+    await act(async () => resolveClaim(new Response(JSON.stringify({ applicationGranted: true, retryAfterMs: 0 }))));
+    expect(onApply).not.toHaveBeenCalled();
+  });
+
+  it("처음 인증 정보가 비어 있던 카드는 첫 검증된 주체에서만 활성화된다", async () => {
+    useAuthStore.getState().reset();
+    await renderCard();
+    expect(container.querySelector<HTMLButtonElement>('button[aria-label="변경 내용 확인하기"]')?.disabled).toBe(true);
+    await act(async () => setPendingActionActor());
+    const { dialog } = await openSheet();
+    vi.mocked(fetch).mockResolvedValueOnce(new Response(JSON.stringify({ applicationGranted: true, retryAfterMs: 0 })));
+    await act(async () => confirm(dialog).click());
+    expect(onApply).toHaveBeenCalledExactlyOnceWith(action.actionId);
+    expect(fetch).toHaveBeenCalledWith(expect.any(String), expect.objectContaining({ body: JSON.stringify({ messageId, expectedActorId: PENDING_ACTOR_ID }) }));
+  });
+
+  it("A의 프로필 부팅이 끝나기 전에 B가 인증되어도 원래 카드를 B에게 결박하지 않는다", async () => {
+    useAuthStore.setState({ user: { id: PENDING_ACTOR_ID, email: "synthetic@example.invalid" }, profile: null, couple: null, isInitialized: false });
+    await renderCard();
+    await act(async () => setPendingActionActor(PENDING_PARTNER_ID));
+    expect(container.querySelector<HTMLButtonElement>('button[aria-label="변경 내용 확인하기"]')?.disabled).toBe(true);
     expect(fetch).not.toHaveBeenCalled();
   });
 });

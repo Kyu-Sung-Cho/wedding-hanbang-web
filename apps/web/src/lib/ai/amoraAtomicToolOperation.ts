@@ -41,7 +41,8 @@ import {
   ymdInKst,
 } from "@/lib/utils/kstDate";
 import { getAmoraToolOperationIdentity } from "@/lib/ai/amoraToolIdentity";
-import { BUDGET_CATEGORY_KEYS } from "@/lib/ai/tools";
+import { containsPotentialSensitiveData } from "@/lib/ai/amoraSensitiveData";
+import { BUDGET_CATEGORY_KEYS, SCHEDULE_CATEGORY_KEYS } from "@/lib/ai/tools";
 import {
   formatWeddingBudgetCeiling,
   isValidWeddingWonAmount,
@@ -87,6 +88,7 @@ export const AMORA_ATOMIC_TOOL_NAMES = new Set([
   "restore_schedule_event",
   "toggle_checklist_item",
   "add_amora_action",
+  "add_decision_record",
   "log_wedding_event",
   "update_amora_action",
 ]);
@@ -1180,6 +1182,38 @@ function buildWeddingEventOperation(
   }
 }
 
+function buildDecisionRecordOperation(
+  toolInput: Record<string, unknown>,
+): AmoraAtomicToolOperation {
+  const { title, status, memo, category_key: categoryKey } = toolInput;
+  if (
+    Object.keys(toolInput).some((key) => !["title", "status", "memo", "category_key"].includes(key))
+    || typeof title !== "string" || !title.trim() || title.length > 160
+    || typeof status !== "string" || !["exploring", "considering", "decided"].includes(status)
+    || (memo !== undefined && (typeof memo !== "string" || memo.length > 1000))
+    || (categoryKey !== undefined && (typeof categoryKey !== "string" || !SCHEDULE_CATEGORY_KEYS.includes(categoryKey)))
+    || [title, memo].some((value) => typeof value === "string" && /[\p{Cc}\p{Cf}]/u.test(value.replace(/[\t\n\r]/g, "")))
+    || [title, memo].some((field) => typeof field === "string" && containsPotentialSensitiveData(field))
+  ) {
+    return noOpFailure("add_decision_record", toolInput, "invalid_decision_record", "결정 기록의 제목·상태·메모를 다시 확인해 주세요.");
+  }
+  const stateLabel = status === "exploring" ? "미정" : status === "considering" ? "논의 중" : "확정";
+  return {
+    domainMutation: {
+      kind: "decision_record_insert",
+      record: { title, decision_type: status, reasoning: memo ?? null, category: categoryKey ?? "general" },
+    },
+    result: {
+      toolName: "add_decision_record",
+      toolInput,
+      // 저장된 id·값·verified는 DB의 INSERT RETURNING 영수증만 만든다.
+      toolOutput: {},
+      success: true,
+      displayMessage: `결정 보드에 “${title}” 내용을 ${stateLabel} 상태로 기록했어요. 상대에게도 보이는 기록이며 두 사람의 합의를 뜻하지 않아요.`,
+    },
+  };
+}
+
 function buildAddActionOperation(
   toolInput: Record<string, unknown>,
   context: ToolExecutionContext,
@@ -1411,6 +1445,9 @@ export function buildAmoraAtomicToolOperation(
   context: ToolExecutionContext,
   operationKey = getAmoraToolOperationIdentity(toolName, toolInput).operationKey,
 ): AmoraAtomicToolOperation {
+  if (toolName === "add_decision_record") {
+    return buildDecisionRecordOperation(toolInput);
+  }
   if (toolName === "update_wedding_date") {
     return buildWeddingDateOperation(toolInput, context);
   }

@@ -6,13 +6,21 @@ import { spawnSync } from 'node:child_process';
 import { loadPreparationStyleReleasePlan, PREPARATION_STYLE_CONTRACT_FILE, PREPARATION_STYLE_SCOPE } from '../lib/preparation-style-release-contract.mjs';
 import { loadWeddingCodeSceneV10ReleasePlan, loadWeddingCodeSceneV10HistoricalReleasePlan } from '../lib/wedding-code-research-scene-v10-release-contract.mjs';
 import { createWeddingCodeSceneV10HistoricalRepository } from './fixtures/wedding-code-research-scene-v10-historical-repository.mjs';
+import { createPreparationStyleHistoricalRepository } from './fixtures/preparation-style-historical-repository.mjs';
 import { validateSuccessorReleaseContract } from '../lib/supabase-successor-release-contract.mjs';
 import { runProductionRelease } from '../lib/supabase-production-release-controller.mjs';
 
-const root=resolve(import.meta.dirname,'../..');
+const actualRoot=resolve(import.meta.dirname,'../..');
+const historical=createPreparationStyleHistoricalRepository(actualRoot);
+test.after(historical.cleanup);
+const root=historical.root;
 const code=value=>error=>error?.code===value;
 const run=args=>spawnSync(process.execPath,[join(root,'scripts/supabase-release-fence.mjs'),...args],
   {cwd:root,encoding:'utf8',windowsHide:true,timeout:30_000});
+
+test('the strict 237 contract rejects the actual checkout with unregistered Amora SQL',()=>{
+  assert.throws(()=>loadPreparationStyleReleasePlan(actualRoot),code('NEW_MIGRATION_NOT_REVIEWED'));
+});
 
 test('237 exact SQL successor preserves the 236 chain and never treats static pins as hosted evidence or deployment authority',()=>{
   const plan=loadPreparationStyleReleasePlan(root);
@@ -41,7 +49,7 @@ test('static mode refuses mixed operations and malformed controller requests bef
 });
 
 test('missing, changed or additional artifacts cannot fall back to the prior release',t=>{
-  const fixture=createWeddingCodeSceneV10HistoricalRepository(root);t.after(fixture.cleanup);
+  const fixture=createWeddingCodeSceneV10HistoricalRepository(actualRoot);t.after(fixture.cleanup);
   const plan=loadPreparationStyleReleasePlan(root);
   assert.equal(loadWeddingCodeSceneV10ReleasePlan(fixture.root).migrationCount,236);
   assert.throws(()=>loadPreparationStyleReleasePlan(fixture.root));

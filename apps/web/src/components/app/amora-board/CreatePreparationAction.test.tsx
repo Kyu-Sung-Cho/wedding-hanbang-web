@@ -42,6 +42,23 @@ describe("CreatePreparationAction", () => {
     expect(document.activeElement).toBe(container.querySelector("button"));
   });
 
+  it("restores every approved field on remount and retries that exact intent", async () => {
+    const pendingFields = { title: "원래 승인한 할 일", category_key: "venue", description: "확인할 조건", due_date: "2027-10-10" };
+    await act(async () => root.render(<CreatePreparationAction create={create} cancelCreate={cancelCreate} locked busy={false} available isDemo={false} onCreated={onCreated} focusIntent={focusIntent} pendingFields={pendingFields} />));
+    expect(container.querySelector<HTMLInputElement>('input:not([data-plan-date])')?.value).toBe(pendingFields.title);
+    expect(container.querySelector<HTMLSelectElement>("select")?.value).toBe("venue");
+    expect(container.querySelector<HTMLTextAreaElement>("textarea")?.value).toBe(pendingFields.description);
+    expect(container.querySelector<HTMLInputElement>("[data-plan-date]")?.value).toBe(pendingFields.due_date);
+    expect(container.querySelector<HTMLInputElement>('input:not([data-plan-date])')?.disabled).toBe(true);
+    expect(container.textContent).toContain("새로고침하거나 로그아웃하면");
+    await submit(); expect(create).toHaveBeenCalledExactlyOnceWith(pendingFields);
+  });
+  it("preserves explicitly empty optional fields when replaying an approved intent", async () => {
+    const pendingFields = { title: "원래 할 일", category_key: "", description: "", due_date: "" };
+    await act(async () => root.render(<CreatePreparationAction create={create} cancelCreate={cancelCreate} locked busy={false} available isDemo={false} onCreated={onCreated} focusIntent={focusIntent} pendingFields={pendingFields} />));
+    await submit(); expect(create).toHaveBeenCalledExactlyOnceWith(pendingFields);
+  });
+
   it("keeps every draft after failure and guards duplicate submit before a rerender", async () => {
     let finish!: (saved: boolean) => void;
     create.mockImplementationOnce(() => new Promise<boolean>(resolve => { finish = resolve; }));

@@ -769,6 +769,39 @@ test("그려진 화면: 로그아웃하면 값을 비우고 요청하지 않으�
   assert.equal(s.holder.session.getState().profile, null);
 });
 
+test("초기화 확인은 열린 계정 세대와 설정 버전에만 유효하다", async () => {
+  for (const change of ["A→B", "A→B→A", "revision"]) {
+    const r = await renderScreen([
+      response(200, { profile: profile({ toneStyle: "warm" }, 2) }),
+      response(200, { profile: profile({ toneStyle: "calm_clear" }, change === "revision" ? 3 : 2) }),
+      response(200, { profile: profile({ toneStyle: "warm" }, 2) }),
+      response(200, { deleted: true, profile: null }),
+    ]);
+    r.mount();
+    await flush();
+    const trigger = r.nodes(r.render()).find((node) => node.type === "Pressable" && r.texts(node).includes(AMORA_STYLE_COPY.resetTrigger));
+    trigger.props.onPress();
+    const staleConfirm = r.holder.alerts[0][2][1].onPress;
+    if (change === "revision") {
+      await r.holder.session.load();
+    } else {
+      r.emitAuth("SIGNED_IN", other);
+      await tick();
+      await flush();
+      if (change === "A→B→A") {
+        r.emitAuth("SIGNED_IN", owner);
+        await tick();
+        await flush();
+      }
+    }
+    staleConfirm();
+    await flush();
+    const writes = r.holder.calls.filter((call) => call.init.method === "DELETE");
+    r.unmount();
+    assert.equal(writes.length, 0, `${change}: 오래된 확인창은 새 상태를 지우지 않는다`);
+  }
+});
+
 test("설정 > 아모라 칸에서 '아모라가 기억하는 것' 위에 '아모라 도움 방식' 줄이 있다", () => {
   const style = settingsIndex.indexOf('title="아모라 도움 방식"');
   const memory = settingsIndex.indexOf('title="아모라가 기억하는 것"');

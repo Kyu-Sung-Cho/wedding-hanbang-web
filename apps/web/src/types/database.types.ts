@@ -246,6 +246,7 @@ export interface ChatMessageMetadata {
   raw_disclosure_persistence?: "none" | "private_only" | "shared" | "unknown";
   /** Client echo consumed by the DB application lease trigger. */
   confirmed_amora_action_id?: string;
+  skipped_amora_action_id?: string;
   /** Proposal-time wedding_journeys state token enforced by the database. */
   pending_amora_action_journey_revision?: number;
   /** Server-computed current→proposed budget effect, bound to action + revision. */

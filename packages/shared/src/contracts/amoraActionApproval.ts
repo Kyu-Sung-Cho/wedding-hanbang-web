@@ -34,6 +34,8 @@ export const SHARED_PLAN_TOOLS: ReadonlySet<string> = new Set([
   "add_schedule_event",
   "update_category_budget",
   "add_custom_category",
+  // 공유 보드 기록 저장이지, 두 사람이 합의했다는 승인이 아니다.
+  "add_decision_record",
 ]);
 
 const SINGLE_APPROVAL_TOOLS: ReadonlySet<string> = new Set([

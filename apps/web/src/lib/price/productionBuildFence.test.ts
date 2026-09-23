@@ -1,7 +1,7 @@
 // @vitest-environment node
 
 import { createHash } from "node:crypto";
-import { mkdir, mkdtemp, readFile, rm, unlink, writeFile } from "node:fs/promises";
+import { copyFile, mkdir, mkdtemp, readFile, rm, unlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -10,6 +10,7 @@ import {
   SUCCESSOR_RUNTIME_EVIDENCE_REQUIREMENTS,
   validateSuccessorReleaseContract,
 } from "../../../../../scripts/lib/supabase-successor-release-contract.mjs";
+import { createWeddingCodeSceneVersionHistoricalRepository } from "../../../../../scripts/tests/fixtures/wedding-code-research-scene-v09-historical-repository.mjs";
 import {
   assertVendorDisclosureProductionBuild,
   expectedProductionAuthorizationSha256,
@@ -394,8 +395,18 @@ async function writeManifest(fixture: Fixture) {
 }
 
 describe("vendor disclosure production build fence", () => {
-  it("validates the registered explicit-budget SQL before requiring the existing owner signature", () => {
-    const repoRoot = resolve(process.cwd(), "../..");
+  it("validates the registered historical SQL before requiring the existing owner signature", async () => {
+    const sourceRoot = resolve(process.cwd(), "../..");
+    const historical = createWeddingCodeSceneVersionHistoricalRepository(sourceRoot);
+    try {
+      // 기존 고정 Git 기반 235 후보에 검토된 236의 정확한 세 원문만 추가한다.
+      // 실제 loader가 각 contract/source hash를 검증한다. 현재 SQL 목록을 필터링하지 않는다.
+      for (const file of [
+        "supabase/release-contracts/wedding-code-research-scene-v10-v1.json",
+        "scripts/lib/wedding-code-research-scene-v10-release.mjs",
+        "supabase/migrations/20260918090000_wedding_code_research_scene_v10.sql",
+      ]) await copyFile(join(sourceRoot, file), join(historical.root, file));
+      const repoRoot = historical.root;
     expectBlockedWithCode(
       () => assertProduction(repoRoot),
       VENDOR_DISCLOSURE_EXTERNAL_AUTHORIZATION_NOT_IMPLEMENTED,
@@ -407,7 +418,19 @@ describe("vendor disclosure production build fence", () => {
         VENDOR_DISCLOSURE_PRODUCTION_AUTHORIZATION: expectedProductionAuthorizationSha256(repoRoot),
       },
     })).not.toThrow();
-  });
+    } finally {
+      historical.cleanup();
+    }
+  }, 120_000);
+
+  it("blocks the actual unreviewed SQL before owner authorization can permit production", () => {
+    const repoRoot = resolve(process.cwd(), "../..");
+    expectBlockedWithCode(() => assertProduction(repoRoot), VENDOR_DISCLOSURE_STATIC_CONTRACT_INVALID);
+    expectBlockedWithCode(() => assertVendorDisclosureProductionBuild({
+      repoRoot,
+      environment: { VERCEL_ENV: "production", VENDOR_DISCLOSURE_PRODUCTION_AUTHORIZATION: expectedProductionAuthorizationSha256(repoRoot) },
+    }), VENDOR_DISCLOSURE_STATIC_CONTRACT_INVALID);
+  }, 120_000);
 
   it("does not fall back to an older release when a registered explicit-budget contract is invalid", async () => {
     const fixture = await createBlockedFixture();

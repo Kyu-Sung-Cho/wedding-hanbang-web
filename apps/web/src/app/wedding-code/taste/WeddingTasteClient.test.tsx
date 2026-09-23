@@ -193,9 +193,12 @@ describe("직접 취향의 끝까지 흐름", () => {
     expect(destination.searchParams.get("redirect")).toMatch(/^\/wedding-code\/taste\?wcTasteReview=/);
     expect(sessionStorage.length).toBe(1);
   });
-  it("데모임을 알리고 비활성 버튼으로 막지 않고 실제 로그인에서 내 선택을 다시 확인하게 한다", async () => {
-    document.cookie = "demo_mode=true; path=/";
+  it.each([true, false])("데모임을 알리고 비활성 버튼으로 막지 않고 실제 로그인에서 내 선택을 다시 확인하게 한다 (표식=%s)", async (hasMarker) => {
+    if (hasMarker) document.cookie = "demo_mode=true; path=/";
+    // 체험 권위는 읽을 수 있는 표식이 아니라 서버가 서명을 확인한 성공 응답이다.
+    vi.mocked(fetch).mockResolvedValueOnce(response({ user: null, demo: true }));
     await render(); await click("내 취향 고르기"); await completePhoto(); await click("전달할 내용 확인하기");
+    expect(useAuthStore.getState().isDemo).toBe(true);
     expect(host.textContent).toContain("체험 모드에서는 취향을 고르고");
     expect(host.textContent).not.toContain("현재 계정: demo");
     await click("로그인하고 내 선택 이어가기");
@@ -203,6 +206,39 @@ describe("직접 취향의 끝까지 흐름", () => {
     expect(destination.pathname).toBe("/login");
     expect(destination.searchParams.get("redirect")).toMatch(/^\/wedding-code\/taste\?wcTasteReview=/);
     expect(destination.href).not.toContain("demo");
+  });
+
+  it.each([200, 401])("서명 없는 표식과 HTTP %s 응답은 체험으로 승격하지 않고 로그인에서 선택을 이어간다", async (status) => {
+    document.cookie = "demo_mode=true; path=/";
+    vi.mocked(fetch).mockResolvedValueOnce(response(status === 200 ? { user: null } : { user: null, demo: true }, status));
+
+    await render(); await click("내 취향 고르기"); await completePhoto(); await click("전달할 내용 확인하기");
+
+    expect(useAuthStore.getState()).toMatchObject({ user: null, profile: null, isDemo: false });
+    expect(host.textContent).not.toContain("체험 모드에서는 취향을 고르고");
+    expect(host.textContent).not.toContain("현재 계정: demo");
+    expect(host.querySelector("[data-taste-own]")?.textContent).toContain("자연스러운 순간");
+    expect(window.sessionStorage.length).toBe(0);
+    await click("로그인하고 내 선택 이어가기");
+    const destination = new URL(push.mock.calls[0][0], window.location.origin);
+    expect(destination.pathname).toBe("/login");
+    expect(destination.searchParams.get("redirect")).toMatch(/^\/wedding-code\/taste\?wcTasteReview=/);
+    expect(destination.href).not.toContain("demo");
+    expect(window.sessionStorage.length).toBe(1);
+  });
+
+  it.each([403, 503])("서버가 HTTP %s로 거절하면 표식과 demo 응답 본문이 있어도 확인 전 입력을 열지 않는다", async (status) => {
+    document.cookie = "demo_mode=true; path=/";
+    vi.mocked(fetch).mockResolvedValueOnce(response({ user: null, demo: true }, status));
+
+    await render();
+
+    expect(host.textContent).toContain("로그인 상태를 확인하지 못했어요");
+    expect(host.querySelector("[data-taste-experience]")).toBeNull();
+    expect(host.textContent).not.toContain("체험 모드에서는 취향을 고르고");
+    expect(useAuthStore.getState()).toMatchObject({ user: null, profile: null, isDemo: false });
+    expect(push).not.toHaveBeenCalled();
+    expect(window.sessionStorage.length).toBe(0);
   });
 });
 

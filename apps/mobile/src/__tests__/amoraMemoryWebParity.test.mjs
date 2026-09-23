@@ -17,6 +17,7 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 import { fileURLToPath, URL } from "node:url";
 import ts from "typescript";
+import * as sessionFence from "../lib/ownerCoupleSessionFence.mjs";
 
 const read = (relative) => readFileSync(fileURLToPath(new URL(relative, import.meta.url)), "utf8");
 
@@ -41,6 +42,7 @@ function compile(relative, deps = {}, { jsx = false } = {}) {
 const WEB_PAGE = "../../../web/src/app/(app)/settings/amora-memory/page.tsx";
 const webSource = read(WEB_PAGE);
 const display = compile("../lib/amoraMemoryDisplay.ts");
+const confirmationContract = compile("../../../../packages/shared/src/contracts/privacyConfirmationTarget.ts");
 
 // ── 화면 렌더 ──────────────────────────────────────────────────────────────
 // 훅은 부르는 순서대로 상태를 돌려준다. 순서가 바뀌면 여기가 **시끄럽게** 깨진다
@@ -67,6 +69,7 @@ function renderScreen(state) {
   const icons = new Proxy({}, { get: (_target, key) => (typeof key === "string" ? `Icon:${key}` : undefined) });
   const screen = compile("../../app/settings/amora-memory.tsx", {
     react,
+    "@hanbang/shared": confirmationContract,
     "react/jsx-runtime": { jsx, jsxs: jsx, Fragment: "Fragment" },
     "react-native": {
       Alert: { alert: () => {} },
@@ -84,7 +87,7 @@ function renderScreen(state) {
     "@hanbang/design-tokens": { colors: token, radius: token, spacing: token, amoraIdentity: token },
     "@/lib/api": { apiJsonForExpectedUser: async () => { throw new Error("렌더 중에는 요청하지 않는다"); } },
     "@/lib/supabase": { supabase: {} },
-    "@/lib/ownerCoupleSessionFence.mjs": { createOwnerCoupleSessionFence: () => ({}) },
+    "@/lib/ownerCoupleSessionFence.mjs": sessionFence,
     "@/lib/amoraMemoryDisplay": display,
     "@/components/ui/AppUI": {
       AppHeader: "AppHeader",

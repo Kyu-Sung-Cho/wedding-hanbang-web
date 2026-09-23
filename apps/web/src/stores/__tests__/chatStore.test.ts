@@ -346,6 +346,7 @@ async function defaultIngestFetch(_input: RequestInfo | URL, init?: RequestInit)
     ...(typeof body.confirmedActionId === "string"
       ? { confirmed_amora_action_id: body.confirmedActionId }
       : {}),
+    ...(typeof body.skippedActionId === "string" ? { skipped_amora_action_id: body.skippedActionId } : {}),
     ...(typeof body.preparationSource === "string" ? { preparation_source: body.preparationSource } : {}),
     ...(Array.isArray(body.imagePaths) ? { imagePaths: body.imagePaths } : {}),
   };
@@ -651,6 +652,17 @@ describe("unanswered Amora turn recovery", () => {
       ...baseUserMessage, metadata: { ...baseUserMessage.metadata, preparation_source: "g.cost-saving.section-3" },
     }], TEST_COUPLE_UUID);
     expect(JSON.parse(recovery!.requestBody)).toEqual(expect.objectContaining({ preparationSource: "g.cost-saving.section-3", userMessageId: baseUserMessage.id }));
+    expect(mockFetch).not.toHaveBeenCalled();
+  });
+
+  it("restores the exact skipped card ID after reopening an unanswered skip", () => {
+    const recovery = buildUnansweredMessageRecoveryRequest([{
+      ...baseUserMessage, content: "이 항목은 적용하지 않고 다음 항목으로 넘어갈게요.",
+      metadata: { ...baseUserMessage.metadata, skipped_amora_action_id: TEST_CONFIRMED_ACTION_UUID },
+    }], TEST_COUPLE_UUID);
+    expect(JSON.parse(recovery!.requestBody)).toMatchObject({
+      skippedActionId: TEST_CONFIRMED_ACTION_UUID, userMessageId: baseUserMessage.id, clientRequestId: TEST_CLIENT_REQUEST_UUID,
+    });
     expect(mockFetch).not.toHaveBeenCalled();
   });
 
@@ -2867,6 +2879,22 @@ describe("Amora crisis reload recovery", () => {
 
   // 2026-09-17 운영 재검사: 이 문장이 상대 호칭 뒤 `맞았` 하나로 안전 신호가 되어
   // 나만 레인으로 옮겨지고 "긴급 안전 안내" 카드가 붙었으며 확인 표식도 버려졌다.
+  it("binds a queued skip target through durable ingest and the provider request", async () => {
+    mockFetch.mockResolvedValueOnce(completedChatResponse("다음 항목을 확인해 주세요."));
+    await useChatStore.getState().sendMessage({
+      content: "이 항목은 적용하지 않고 다음 항목으로 넘어갈게요.",
+      senderId: TEST_USER_UUID, senderRole: "bride", coupleId: TEST_COUPLE_UUID,
+      senderName: "테스터", weddingContext: {} as WeddingContext,
+      visibility: "shared", target: "ai", clientRequestId: TEST_CLIENT_REQUEST_UUID,
+      skippedActionId: TEST_CONFIRMED_ACTION_UUID,
+    });
+    for (const fetcher of [mockIngestFetch, mockFetch]) {
+      expect(JSON.parse(String((fetcher.mock.calls[0]?.[1] as RequestInit).body)))
+        .toMatchObject({ skippedActionId: TEST_CONFIRMED_ACTION_UUID });
+    }
+    expect(useChatStore.getState().messages[0]?.metadata?.skipped_amora_action_id).toBe(TEST_CONFIRMED_ACTION_UUID);
+  });
+
   it("keeps an ordinary \"신랑 말이 맞았어\" decision in the shared lane", async () => {
     const decision = "어제 결혼식장 고르는 문제로 신랑이랑 얘기했는데 결국 신랑 말이 맞았어. 그 식장으로 하자.";
     mockFetch.mockResolvedValueOnce(completedChatResponse("그 식장으로 정리해볼게요"));
@@ -3540,12 +3568,12 @@ describe("useChatStore quota warning", () => {
     expect(useChatStore.getState().error).toContain("상황을 짧게");
   });
 
-  it("consumes CRLF SSE frames split across network chunks and keeps quota metadata", async () => {
+  it.each([["daily", "daily"], [undefined, "total"], ["unknown", "total"]])("consumes CRLF SSE frames and keeps quota period %s as %s", async (period, expectedPeriod) => {
     const encoder = new TextEncoder();
     const stream = new ReadableStream({
       start(controller) {
         controller.enqueue(encoder.encode("da"));
-        controller.enqueue(encoder.encode('ta: {"type":"quota","remaining":7}\r'));
+        controller.enqueue(encoder.encode(`ta: ${JSON.stringify({type:"quota",remaining:7,period})}\r`));
         controller.enqueue(encoder.encode("\n\r\n"));
         controller.enqueue(encoder.encode('data: {"type":"text_delta","content":"안녕"}\r\n\r'));
         controller.enqueue(encoder.encode("\n"));
@@ -3570,6 +3598,7 @@ describe("useChatStore quota warning", () => {
     });
 
     expect(useChatStore.getState().quotaRemaining).toBe(7);
+    expect(useChatStore.getState().quotaPeriod).toBe(expectedPeriod);
     expect(useChatStore.getState().messages).toEqual(expect.arrayContaining([
       expect.objectContaining({ sender_role: "ai", content: "안녕하세요" }),
     ]));

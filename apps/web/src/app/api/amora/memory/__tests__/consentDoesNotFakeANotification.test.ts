@@ -112,7 +112,7 @@ function toggle(visibility: string, enabled: boolean) {
   return new Request("http://localhost/api/amora/memory", {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ action: "toggle", visibility, enabled }),
+    body: JSON.stringify({ action: "toggle", visibility, enabled, confirmationTarget: { ownerId: USER_ID, coupleId: COUPLE_ID, privacyEpoch: 7 } }),
   });
 }
 

@@ -7,6 +7,7 @@ import test from "node:test";
 import { fileURLToPath } from "node:url";
 
 import { buildQaMergedSummary } from "../lib/qa-merged-summary.mjs";
+import { createPreparationStyleHistoricalRepository } from "./fixtures/preparation-style-historical-repository.mjs";
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
 
@@ -184,7 +185,7 @@ test("qa:merged가 qa:local의 검사 목록을 그대로 쓴다", async () => {
   }
 });
 
-test("공유 QA 목록은 CI와 같은 후속 준비 스타일 계약을 실제 검사하고 배포 인가로 표시하지 않는다", async () => {
+test("공유 QA는 승인된 준비 스타일 fixture를 검증하고 미승인 현 checkout은 차단한다", async (t) => {
   const { checks } = await import("../verify-local.mjs");
   const fences = checks.filter(check => check.name === "supabase release fence");
   assert.equal(fences.length, 1);
@@ -192,13 +193,22 @@ test("공유 QA 목록은 CI와 같은 후속 준비 스타일 계약을 실제 
   const { readFileSync } = await import("node:fs");
   const pkg = JSON.parse(readFileSync(path.join(repoRoot, "package.json"), "utf8"));
   assert.equal(pkg.scripts["supabase:release:fence"], "node ./scripts/supabase-release-fence.mjs");
+  const reviewed = createPreparationStyleHistoricalRepository(repoRoot);
+  t.after(reviewed.cleanup);
   const result = spawnSync(process.execPath, ["scripts/supabase-release-fence.mjs", ...fences[0].args.slice(2)], {
-    cwd: repoRoot, encoding: "utf8", windowsHide: true, timeout: 30_000,
+    cwd: reviewed.root, encoding: "utf8", windowsHide: true, timeout: 30_000,
   });
   assert.equal(result.error, undefined);
   assert.equal(result.status, 0, `${result.stdout}${result.stderr}`);
   assert.match(result.stdout, /Preparation style contract verified \(237 exact SQL files;/);
   assert.match(result.stdout, /runtime evidence not verified; deployment not authorized; no remote writes/);
+  const currentResult = spawnSync(process.execPath, ["scripts/supabase-release-fence.mjs", ...fences[0].args.slice(2)], {
+    cwd: repoRoot, encoding: "utf8", windowsHide: true, timeout: 30_000,
+  });
+  assert.equal(currentResult.error, undefined);
+  assert.equal(currentResult.status, 1, `${currentResult.stdout}${currentResult.stderr}`);
+  assert.match(currentResult.stderr, /NEW_MIGRATION_NOT_REVIEWED/);
+  assert.doesNotMatch(currentResult.stdout, /contract verified/);
 });
 
 /** 저장소 수준 검사를 빼먹으면 배포 펜스·인계 계약·훅 배선이 검사되지 않는다. */

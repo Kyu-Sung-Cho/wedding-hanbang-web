@@ -1,7 +1,11 @@
 "use client";
 
 import { create } from "zustand";
-import { PlanChangeError } from "@/lib/journey/planChangeError";
+import { invalidateSharedComposerDrafts, resetChatComposerSession } from "@/stores/chatComposerStore";
+import { PLAN_CHANGE_MESSAGES, PlanChangeError } from "@/lib/journey/planChangeError";
+import { boundedRequest, RequestDeadlineError } from "@/lib/journey/boundedRequest";
+import { ProfileUpdateError } from "@/lib/profileUpdateError";
+import { isRecord } from "@/utils/requestValidation";
 import { createClient } from "@/lib/supabase/client";
 import { CHECKLIST_MAP } from "@/constants/checklists";
 import { useCommunityStore } from "@/stores/communityStore";
@@ -135,6 +139,15 @@ let journeyWriteSequence = 0;
 let profileWriteSequence = 0;
 let authBindingSequence = 0;
 let authInitializeSequence = 0;
+const PROFILE_REQUEST_TIMEOUT_MS = 30_000;
+// 원 HTTP가 끝나기 전에는 같은 사용자의 반대 변경을 보내지 않는다(A→B→A 포함).
+// 이름·전화번호·요청 본문은 이 복구 장부나 영구 저장소에 복사하지 않는다.
+const profileUpdateAttempts = new Map<string, { rawPending: boolean; unknown: boolean; reviewing: boolean; syncNickname: boolean }>();
+// 응답 유실은 실패가 아니다. 같은 owner 안에서는 원래 revision/내용만 재전송한다.
+// 민감한 준비 내용은 영구 저장소에 복사하지 않고 세션 메모리에만 둔다.
+let pendingJourneyWrite: {
+  binding: number; body: string; input: string; expectedRevision: number; inFlight: boolean;
+} | null = null;
 type RoleProjection = Pick<Profile, "id" | "couple_id" | "confirmed_role" | "confirmed_role_revision">;
 function roleChanged(current: RoleProjection | null, baseline: RoleProjection | null) {
   return current?.confirmed_role !== baseline?.confirmed_role || current?.confirmed_role_revision !== baseline?.confirmed_role_revision;
@@ -238,6 +251,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     if (!options?.force) set({ isLoading: true });
 
     try {
+      let serverVerifiedDemo = false;
       // 실제 인증 세션 먼저 확인 (데모 모드보다 우선)
       const res = await fetch("/api/auth/me");
 
@@ -248,7 +262,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
       if (res.ok) {
         const data = await res.json();
-        if (initializeSequence !== authInitializeSequence) {
+        if (initializeSequence !== authInitializeSequence || initializeBindingSequence !== authBindingSequence) {
           if (options?.requireVerifiedSession) throw new Error("로그인 확인이 갱신됐어요. 다시 확인해 주세요.");
           return;
         }
@@ -307,14 +321,18 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           });
           return;
         }
+        serverVerifiedDemo = data.user === null && data.demo === true;
       }
 
-      if (initializeSequence !== authInitializeSequence) {
+      // 대기 중 직접 로그인·커플 전환(A→B→A 포함)이 있었다면 예전
+      // no-user 응답으로 새 계정을 로그아웃하거나 데모로 바꾸지 않는다.
+      if (initializeSequence !== authInitializeSequence || initializeBindingSequence !== authBindingSequence) {
         if (options?.requireVerifiedSession) throw new Error("로그인 확인이 갱신됐어요. 다시 확인해 주세요.");
         return;
       }
-      // 실제 유저가 없을 때만 데모 모드 체크
-      if (isDemoMode()) {
+      // 읽을 수 있는 demo_mode 표식은 인증 근거가 아니다. 서버가 서명된
+      // 세션을 확인한 성공 응답만 체험 데이터로 연결한다.
+      if (serverVerifiedDemo) {
         journeyWriteSequence += 1;
         useCommunityStore.getState().bindViewer("demo");
         set({
@@ -329,7 +347,6 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         });
         return;
       }
-
       useCommunityStore.getState().bindViewer(null);
       set({
         user: null,
@@ -343,29 +360,12 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       });
     } catch (err) {
       if (options?.requireVerifiedSession) {
-        if (initializeSequence === authInitializeSequence) set({ isLoading: false });
+        if (initializeSequence === authInitializeSequence && initializeBindingSequence === authBindingSequence) set({ isLoading: false });
         throw err;
       }
-      if (initializeSequence !== authInitializeSequence) return;
+      if (initializeSequence !== authInitializeSequence || initializeBindingSequence !== authBindingSequence) return;
       if (!isTransientAuthFetchError(err)) {
         console.error("Auth store init error:", err);
-      }
-
-      // fetch 에러 시에도 데모 모드 폴백
-      if (isDemoMode()) {
-        journeyWriteSequence += 1;
-        useCommunityStore.getState().bindViewer("demo");
-        set({
-          user: { id: "demo", email: "demo@hanbang.ai" },
-          profile: DEMO_PROFILE,
-          couple: DEMO_COUPLE,
-          journey: DEMO_JOURNEY,
-          partner: null,
-          isDemo: true,
-          isLoading: false,
-          isInitialized: true,
-        });
-        return;
       }
 
       set({ isLoading: false, isInitialized: true });
@@ -520,6 +520,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   updateJourney: async (updates) => {
     const { isDemo, journey, user, profile, couple } = get();
+    const expectedBinding = authBindingSequence;
 
     // 데모 모드: 로컬만 업데이트
     if (isDemo) {
@@ -555,6 +556,12 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     ) {
       throw identityChanged();
     }
+    if (pendingJourneyWrite?.inFlight) {
+      throw new PlanChangeError("PLAN_CHANGE_IN_FLIGHT", PLAN_CHANGE_MESSAGES.PLAN_CHANGE_IN_FLIGHT);
+    }
+    const priorAttempt = pendingJourneyWrite;
+    const input = JSON.stringify(updates);
+    const isDifferentRecovery = !!priorAttempt && priorAttempt.input !== input;
 
     // progress는 전체 덮어쓰기 대신 변경된 최상위 키만 원자 patch로 보낸다.
     // 전체 전송은 이 클라이언트의 스테일 스냅샷으로 파트너/AI의 다른 키 변경을
@@ -578,7 +585,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       const otherFieldCount = Object.keys(body).length;
       if (Object.keys(patch).length === 0 && removeKeys.length === 0) {
         // progress 변경이 실제로 없으면 progress 파트는 생략 (no-op 방지)
-        if (otherFieldCount === 0) {
+        if (otherFieldCount === 0 && !priorAttempt) {
           if (!journey) {
             throw new Error("결혼 준비 정보를 찾을 수 없습니다.");
           }
@@ -590,18 +597,33 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       }
     }
 
-    const expectedRevision = journey?.state_revision ?? 0;
+    const expectedRevision = priorAttempt?.expectedRevision ?? journey?.state_revision ?? 0;
     body.expected_revision = expectedRevision;
     body.expected_couple_id = expectedCoupleId;
+    const attempt = priorAttempt ?? {
+      binding: expectedBinding, body: JSON.stringify(body), input, expectedRevision, inFlight: false,
+    };
+    pendingJourneyWrite = attempt;
+    attempt.inFlight = true;
+    const outcomeUnknown = () => new PlanChangeError("PLAN_CHANGE_OUTCOME_UNKNOWN", PLAN_CHANGE_MESSAGES.PLAN_CHANGE_OUTCOME_UNKNOWN);
+    const finishRecovery = () => {
+      if (pendingJourneyWrite === attempt) pendingJourneyWrite = null;
+      if (isDifferentRecovery) throw new PlanChangeError("PLAN_CHANGE_PREVIOUS_RESOLVED", PLAN_CHANGE_MESSAGES.PLAN_CHANGE_PREVIOUS_RESOLVED);
+    };
 
     const updateSequence = ++journeyWriteSequence;
     try {
-      const res = await fetch("/api/journey", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
+      const { res, payload } = await boundedRequest(async (signal) => {
+        const res = await fetch("/api/journey", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: attempt.body, signal,
+        });
+        return { res, payload: await res.json().catch(() => null) as unknown };
+      }, 30_000).catch(() => {
+        throw outcomeUnknown();
       });
-      const data = (await res.json().catch(() => null)) as
+      const data = payload as
         | {
             status?: unknown;
             journey?: unknown;
@@ -611,6 +633,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           }
         | null;
       if (!res.ok) {
+        // 재확인 요청의 로그인/권한/속도 제한은 원래 요청의 미저장을 증명하지 않는다.
+        if (res.status >= 500 || (priorAttempt && [401, 403, 429].includes(res.status))) throw outcomeUnknown();
+        if (pendingJourneyWrite === attempt) pendingJourneyWrite = null;
         const message = typeof data?.error === "string"
           ? data.error
           : "결혼 준비 정보를 저장하지 못했습니다.";
@@ -624,7 +649,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
       const current = get();
       if (
-        current.user?.id !== expectedUserId
+        expectedBinding !== authBindingSequence
+        || current.user?.id !== expectedUserId
         || current.profile?.id !== expectedUserId
         || current.profile.couple_id !== expectedCoupleId
         || current.journey?.couple_id !== expectedCoupleId
@@ -639,6 +665,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         && PLAN_CHANGE_REQUEST_ID_PATTERN.test(data.requestId)
         && isPlanChangeSummary(data.summary)
       ) {
+        finishRecovery();
         return {
           status: "pending_partner",
           requestId: data.requestId,
@@ -653,7 +680,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         || typeof data.journey !== "object"
         || data.journey === null
       ) {
-        throw new Error("저장 결과를 안전하게 확인하지 못했습니다.");
+        throw outcomeUnknown();
       }
 
       const appliedJourney = data.journey as WeddingJourney;
@@ -664,22 +691,25 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         || !Number.isSafeInteger(appliedRevision)
         || appliedRevision <= expectedRevision
       ) {
-        throw new Error("저장 결과를 안전하게 확인하지 못했습니다.");
+        throw outcomeUnknown();
       }
-      if (updateSequence === journeyWriteSequence) {
+      if (updateSequence === journeyWriteSequence && appliedRevision >= (current.journey?.state_revision ?? 0)) {
         set({ journey: appliedJourney });
-      } else {
+      } else if (appliedRevision > (current.journey?.state_revision ?? 0)) {
         void current.refreshJourney(expectedUserId);
       }
+      finishRecovery();
       return { status: "applied", journey: appliedJourney };
     } catch (err) {
       console.error("Journey 업데이트 에러:", err);
       throw err;
+    } finally {
+      attempt.inFlight = false;
     }
   },
 
   updateProfile: async (updates) => {
-    const { isDemo, profile } = get();
+    const { isDemo, profile, user } = get();
     const expectedBindingSequence = authBindingSequence;
 
     if (isDemo) {
@@ -691,21 +721,73 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       return;
     }
 
+    if (!profile || !user || profile.id !== user.id) throw new Error("현재 프로필을 다시 확인해 주세요.");
+    const previous = profileUpdateAttempts.get(profile.id);
+    if (previous) {
+      if (previous.rawPending || !previous.unknown || previous.reviewing) throw new ProfileUpdateError("PROFILE_UPDATE_IN_FLIGHT");
+      previous.reviewing = true;
+      try {
+        const { incoming, nickname } = await boundedRequest(async signal => {
+          const res = await fetch("/api/profile", { method: "GET", cache: "no-store", signal });
+          const payload: unknown = await res.json();
+          if (!res.ok || !isRecord(payload) || !isRecord(payload.profile)) throw new Error("PROFILE_RECOVERY_UNAVAILABLE");
+          let nickname: string | null = null;
+          if (previous.syncNickname) {
+            const communityRes = await fetch("/api/community/profile", { method: "GET", cache: "no-store", signal });
+            const community: unknown = await communityRes.json();
+            if (!communityRes.ok || !isRecord(community)) throw new Error("PROFILE_RECOVERY_UNAVAILABLE");
+            if (community.profile !== null) {
+              if (!isRecord(community.profile) || community.profile.user_id !== profile.id
+                || typeof community.profile.nickname !== "string" || !community.profile.nickname.trim()) throw new Error("PROFILE_RECOVERY_UNAVAILABLE");
+              nickname = community.profile.nickname;
+            }
+          }
+          return { incoming: payload.profile, nickname };
+        }, PROFILE_REQUEST_TIMEOUT_MS);
+        const current = get();
+        if (expectedBindingSequence !== authBindingSequence || current.profile?.id !== profile.id || current.isDemo
+          || incoming.id !== profile.id || incoming.couple_id !== profile.couple_id || incoming.role !== profile.role) {
+          throw new Error("계정 상태가 바뀌었어요. 현재 프로필을 다시 확인해 주세요.");
+        }
+        if ((incoming.name !== null && typeof incoming.name !== "string") || typeof incoming.care_notifications_enabled !== "boolean"
+          || (incoming.care_notifications_consented_at !== null && typeof incoming.care_notifications_consented_at !== "string")) {
+          throw new Error("PROFILE_RECOVERY_UNAVAILABLE");
+        }
+        // GET의 이름·케어만 정본으로 적용한다. 별도로 바꾼 사진/확인 역할은 유지한다.
+        set({ profile: { ...current.profile, name: incoming.name ?? "",
+          care_notifications_enabled: incoming.care_notifications_enabled,
+          care_notifications_consented_at: incoming.care_notifications_consented_at } });
+        if (nickname !== null) useCommunityStore.getState().applyOwnNickname(profile.id, nickname);
+        if (profileUpdateAttempts.get(profile.id) === previous) profileUpdateAttempts.delete(profile.id);
+      } catch {
+        throw new ProfileUpdateError("PROFILE_UPDATE_OUTCOME_UNKNOWN");
+      } finally { previous.reviewing = false; }
+      throw new ProfileUpdateError("PROFILE_UPDATE_REVIEW_REQUIRED");
+    }
+    const attempt = { rawPending: true, unknown: false, reviewing: false, syncNickname: updates.sync_community_nickname === true };
+    profileUpdateAttempts.set(profile.id, attempt);
     try {
-      const res = await fetch("/api/profile", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(updates),
-      });
-      const data = (await res.json().catch(() => ({}))) as {
-        profile?: Profile;
-        error?: string;
-      };
+      const { res, data } = await boundedRequest(async signal => {
+        try {
+          const res = await fetch("/api/profile", {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ ...updates, expectedOwnerId: profile.id }),
+            signal,
+          });
+          const data = (await res.json()) as { profile?: Profile; error?: string };
+          return { res, data };
+        } catch {
+          throw new ProfileUpdateError("PROFILE_UPDATE_OUTCOME_UNKNOWN");
+        } finally { attempt.rawPending = false; }
+      }, PROFILE_REQUEST_TIMEOUT_MS);
+      if (!isRecord(data) || res.status >= 500) throw new ProfileUpdateError("PROFILE_UPDATE_OUTCOME_UNKNOWN");
       if (!res.ok) {
         throw new Error(data.error ?? "프로필 업데이트에 실패했습니다.");
       }
       const current = get();
       if (expectedBindingSequence !== authBindingSequence || current.profile?.id !== profile?.id || current.isDemo) {
+        attempt.unknown = true;
         throw new Error("계정 상태가 바뀌었어요. 현재 프로필을 다시 확인해 주세요.");
       }
       if (data.profile && data.profile.id === profile?.id && current.profile) {
@@ -714,13 +796,19 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           || current.profile.avatar_url !== profile.avatar_url;
         const nextProfile = { ...data.profile, ...(preserveAvatar ? { avatar_url: current.profile.avatar_url ?? null } : {}) };
         set({ profile: retainConfirmedRole(nextProfile, current.profile, roleChanged(current.profile, profile)) });
-        if (updates.sync_community_nickname) {
+        if (attempt.syncNickname) {
           useCommunityStore.getState().applyOwnNickname(data.profile.id, data.profile.name);
         }
-      } else throw new Error("프로필 저장 결과를 확인하지 못했어요.");
+      } else throw new ProfileUpdateError("PROFILE_UPDATE_OUTCOME_UNKNOWN");
     } catch (err) {
       console.error("Profile 업데이트 에러:", err);
+      if (err instanceof RequestDeadlineError || err instanceof ProfileUpdateError) {
+        attempt.unknown = true;
+        throw new ProfileUpdateError("PROFILE_UPDATE_OUTCOME_UNKNOWN");
+      }
       throw err;
+    } finally {
+      if (!attempt.unknown && profileUpdateAttempts.get(profile.id) === attempt) profileUpdateAttempts.delete(profile.id);
     }
   },
 
@@ -736,6 +824,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 
   reset: () => {
+    pendingJourneyWrite = null;
     authInitializeSequence += 1;
     journeyWriteSequence += 1;
     useCommunityStore.getState().reset();
@@ -763,5 +852,10 @@ useAuthStore.subscribe((current, previous) => {
     || current.couple?.id !== previous.couple?.id
     || current.journey?.couple_id !== previous.journey?.couple_id) {
     authBindingSequence += 1;
+    pendingJourneyWrite = null;
+    resetChatComposerSession();
+  } else if (current.couple?.bride_id !== previous.couple?.bride_id
+    || current.couple?.groom_id !== previous.couple?.groom_id) {
+    invalidateSharedComposerDrafts();
   }
 });

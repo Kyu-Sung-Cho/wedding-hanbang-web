@@ -12,6 +12,8 @@ import {
 import { AMORA_QUEUED_CARD_SKIP_TEXT } from "@/lib/ai/amoraQueuedCardSkip";
 import { getAmoraToolOperationIdentity } from "@/lib/ai/amoraToolIdentity";
 import type { ChatMessage } from "@/types/database.types";
+import { useAuthStore } from "@/stores/authStore";
+import { PENDING_ACTOR_ID, PENDING_COUPLE_ID, setPendingActionActor } from "./__tests__/fixtures/pendingActionActor";
 
 /**
  * 웹 두 표면이 같은 카드에 같은 말을 한다 (2026-09-04).
@@ -47,17 +49,6 @@ const mocks = vi.hoisted(() => ({
 vi.mock("next/navigation", () => ({
   useSearchParams: () => new URLSearchParams(),
   useRouter: () => ({ replace: mocks.replace, push: mocks.push }),
-}));
-
-vi.mock("@/stores/authStore", () => ({
-  useAuthStore: () => ({
-    profile: { id: "user-1", role: "bride", name: "테스트", couple_id: "couple-1" },
-    couple: { id: "couple-1", bride_id: "user-1", groom_id: "user-2" },
-    journey: null,
-    isDemo: false,
-    isInitialized: true,
-    isLoading: false,
-  }),
 }));
 
 vi.mock("@/hooks/useAmoraPersonalization", () => ({
@@ -136,8 +127,8 @@ function messagesWithCarryCount(carryCount: number): ChatMessage[] {
   return [
     {
       id: "user-msg-1",
-      couple_id: "couple-1",
-      sender_id: "user-1",
+      couple_id: PENDING_COUPLE_ID,
+      sender_id: PENDING_ACTOR_ID,
       sender_role: "bride",
       content: "부케는 어디서 알아봐?",
       metadata: { target: "ai" },
@@ -146,7 +137,7 @@ function messagesWithCarryCount(carryCount: number): ChatMessage[] {
     } as ChatMessage,
     {
       id: "ai-msg-1",
-      couple_id: "couple-1",
+      couple_id: PENDING_COUPLE_ID,
       sender_id: null,
       sender_role: "ai",
       content: "9월 10일 일정을 등록할까요?",
@@ -217,8 +208,8 @@ function messagesWithCardMovedToLatestReply(): ChatMessage[] {
     original,
     {
       id: "user-msg-2",
-      couple_id: "couple-1",
-      sender_id: "user-1",
+      couple_id: PENDING_COUPLE_ID,
+      sender_id: PENDING_ACTOR_ID,
       sender_role: "bride",
       content: "응 적용해줘",
       metadata: { target: "ai" },
@@ -227,7 +218,7 @@ function messagesWithCardMovedToLatestReply(): ChatMessage[] {
     } as ChatMessage,
     {
       id: "ai-msg-2",
-      couple_id: "couple-1",
+      couple_id: PENDING_COUPLE_ID,
       sender_id: null,
       sender_role: "ai",
       content: "아래 카드에서 확인해 주세요.",
@@ -270,6 +261,8 @@ describe("이월 카드는 두 표면에서 같게 보인다", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    useAuthStore.getState().reset();
+    setPendingActionActor();
     vi.stubGlobal("fetch", vi.fn(async () => ({
       ok: false,
       status: 404,
@@ -285,6 +278,7 @@ describe("이월 카드는 두 표면에서 같게 보인다", () => {
 
   afterEach(async () => {
     await act(async () => root.unmount());
+    useAuthStore.getState().reset();
     vi.unstubAllGlobals();
     vi.restoreAllMocks();
     document.body.replaceChildren();
@@ -413,7 +407,7 @@ describe("이월 카드는 두 표면에서 같게 보인다", () => {
     }
   });
 
-  it("건너뛰기를 누르면 두 표면 모두 고정 문장만 보낸다 — 확인 id 는 보내지 않는다", async () => {
+  it("건너뛰기를 누르면 두 표면 모두 선택한 카드 id를 보낸다 — 적용 확인 id 는 보내지 않는다", async () => {
     for (const surface of ["content", "panel"] as const) {
       mocks.sendMessage.mockClear();
       await renderMessages(surface, messagesWithQueuedCard());
@@ -424,6 +418,7 @@ describe("이월 카드는 두 표면에서 같게 보인다", () => {
       expect(payload.content, surface).toBe(AMORA_QUEUED_CARD_SKIP_TEXT);
       expect(payload.target, surface).toBe("ai");
       expect(payload.visibility, surface).toBe("shared");
+      expect(payload.skippedActionId, surface).toBe(mocks.messages.at(-1)?.metadata?.pending_amora_action?.actionId);
       // 건너뛰기는 적용이 아니다. 확인 id 가 함께 가면 서버에서 확인이 이긴다.
       expect(payload, surface).not.toHaveProperty("confirmedActionId");
       await resetRoot();

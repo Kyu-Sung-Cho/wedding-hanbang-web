@@ -14,12 +14,12 @@ import {
 import { expectedWeddingCodeSceneVersionCatalog } from '../lib/wedding-code-research-scene-v09-release.mjs';
 import { weddingCodeResearchTargetCatalogSql } from '../lib/wedding-code-research-contributions-release.mjs';
 import { CurrentBaselineBlocked } from '../lib/current-baseline-release-contract.mjs';
-
 import { createWeddingCodeSceneV10HistoricalRepository } from './fixtures/wedding-code-research-scene-v10-historical-repository.mjs';
-const actualRoot = resolve(import.meta.dirname, '../..');
-const historical = createWeddingCodeSceneV10HistoricalRepository(actualRoot);
-test.after(historical.cleanup);
-const root = historical.root;
+
+const root = resolve(import.meta.dirname, '../..');
+const actualRoot = root;
+const reviewed = createWeddingCodeSceneV10HistoricalRepository(root);
+test.after(reviewed.cleanup);
 const read = file => readFileSync(join(root, file), 'utf8');
 const sql = read('supabase/migrations/20260918090000_wedding_code_research_scene_v10.sql');
 const predecessorSql = read('supabase/migrations/20260917090000_wedding_code_research_scene_v09.sql');
@@ -49,15 +49,22 @@ const withScene = (base, definition) => {
 const withRelation = (base, change) => { const value = base; value.catalog.relations[0] = { ...value.catalog.relations[0], ...change }; return value; };
 const withFunction = (base, change) => { const value = base; value.catalog.functions[0] = { ...value.catalog.functions[0], ...change }; return value; };
 
-function fixture({ mode = 'apply', observations = [before(), before(), after()], onQuery, onRecord, onSource, now } = {}) {
+function fixture({ repoRoot = reviewed.root, mode = 'apply', observations = [before(), before(), after()], onQuery, onRecord, onSource, now } = {}) {
   const calls = [], events = []; let reads = 0, closed = false, sourceChecks = 0;
   return { calls, events, get closed() { return closed; }, get sourceChecks() { return sourceChecks; },
-    run: () => runWeddingCodeSceneV10Release({ repoRoot: root, argv: args(mode), now: now ?? (() => instant),
+    run: () => runWeddingCodeSceneV10Release({ repoRoot, argv: args(mode), now: now ?? (() => instant),
       assertSource: () => { sourceChecks += 1; onSource?.(sourceChecks); },
       receiptFactory: () => ({ append: event => { onRecord?.(event); events.push(event); }, close: () => { closed = true; } }),
       query: async text => { calls.push(text); await onQuery?.(text, calls.length);
         return text === buildWeddingCodeSceneV10ObservationSql() ? [{ observation: structuredClone(observations[reads++]) }] : []; } }) };
 }
+
+test('unreviewed decision-record SQL in the current checkout blocks before any query or receipt', async () => {
+  const f = fixture({ repoRoot: root });
+  await assert.rejects(f.run(), code('NEW_MIGRATION_NOT_REVIEWED'));
+  assert.equal(f.calls.length, 0);
+  assert.equal(f.events.length, 0);
+});
 
 test('the expected catalog differs from the 235 state only in the scene version CHECK definition', () => {
   const unapplied = expectedWeddingCodeSceneV10Catalog(storeSql, false);

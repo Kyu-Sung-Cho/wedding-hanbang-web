@@ -1,0 +1,62 @@
+{
+  "version": 1,
+  "kind": "amora-decision-privacy-candidate",
+  "release": "amora-decision-privacy-20260921",
+  "status": "deployment-blocked",
+  "productionApplyImplemented": false,
+  "runtimeEvidenceVerified": false,
+  "projectRef": "slrtobkksjmxgzatjyqb",
+  "systemIdentifier": "7581440907192989109",
+  "predecessor": {
+    "file": "supabase/release-contracts/preparation-style-v1.json",
+    "sha256": "dd80bc6417c8344b1ef5d0b1bb3b60b0edd91bab5f5d7d44bbb231e57b88b48c"
+  },
+  "reviewedPredecessorMigrationCount": 237,
+  "migrations": [
+    {
+      "file": "20260921100000_amora_approved_decision_records.sql",
+      "sha256": "1edf7c437efb122ea6d782edbf6aea1fefc87ab1b61b41c0735c6aa195afc70c"
+    },
+    {
+      "file": "20260921101000_privacy_confirmation_targets.sql",
+      "sha256": "2ae8d9e054ff5b8f9b04d3858e471311dabf13cfe965e31c3ab961514d918328"
+    }
+  ],
+  "scope": {
+    "changedFunctions": [
+      "public.amora_shared_action_policy(text,jsonb)",
+      "public.apply_amora_atomic_tool_execution_pre_shared_revision(uuid,text,text,integer,text,jsonb,jsonb,jsonb)",
+      "public.claim_amora_tool_execution(uuid,text,text,text,text,integer,uuid)",
+      "public.claim_amora_tool_execution(uuid,text,text,text,text,integer,uuid,integer)",
+      "public.clear_amora_memory_scope(uuid,text,uuid)",
+      "public.enforce_amora_shared_action_execution()",
+      "public.reset_current_couple_membership()",
+      "public.set_amora_memory_consent(uuid,text,uuid,boolean)"
+    ],
+    "addedFunctions": [
+      "public.apply_amora_atomic_tool_execution_pre_decision_record(uuid,text,text,integer,text,jsonb,jsonb,jsonb)",
+      "public.claim_amora_tool_execution_pre_decision_record(uuid,text,text,text,text,integer,uuid)",
+      "public.lock_privacy_confirmation_target(uuid,uuid,bigint,text)",
+      "public.mutate_amora_memory_with_confirmation(uuid,uuid,bigint,text,text,boolean)",
+      "public.reset_current_couple_membership(uuid,uuid,bigint)",
+      "public.reset_current_couple_membership_pre_confirmation()"
+    ],
+    "tableDdl": "unchanged",
+    "existingRows": "no-backfill",
+    "legacyReset": "rejected-without-confirmation",
+    "legacyMemoryPrimitives": "owner-only",
+    "rollback": "keep-privacy-fences-and-data-forward-fix-compatible-server"
+  },
+  "requiredRuntimeEvidence": [
+    "clean-reviewed-commit",
+    "exact-production-destination-and-ledger",
+    "global-web-api-auth-db-storage-write-fence",
+    "database-and-storage-original-backup",
+    "isolated-restore-verification",
+    "hosted-two-account-rls-and-concurrency",
+    "exact-before-after-function-catalog-and-unaffected-object-preservation",
+    "transactional-rehearsal-rollback-and-independent-readback",
+    "old-client-recovery-and-compatible-server-rollback",
+    "finalizer-and-production-canary"
+  ]
+}

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/client";
 import { useAuthStore } from "@/stores/authStore";
+import { boundedRequest } from "@/lib/journey/boundedRequest";
 import { DECISION_PAGE_SIZE, decisionCursorFilter, parsePreparationDecisions, type DecisionCursor, type PreparationDecision } from "@/lib/amora/preparationBoard";
 
 export type DecisionScope = { ownerId: string; coupleId: string; role: string; brideId: string | null; groomId: string | null };
@@ -73,7 +74,10 @@ export function useDecisionBoard() {
     const current = () => mounted.current && request === sequence.current && generation === epoch.current && scopeKey === keyFor(decisionScope());
     setState(previous => ({ ...(cursor && previous.scope === scopeKey ? previous : empty), scope: scopeKey, loading: !cursor, loadingMore: !!cursor, error: null, errorKind: null }));
     try {
-      const page = await readDecisionPage(createClient(), scope, current, signal, cursor);
+      const page = await boundedRequest(
+        () => readDecisionPage(createClient(), scope, current, signal, cursor),
+        10_000, controller.current,
+      );
       if (current()) setState(previous => ({ ...page, scope: scopeKey, loading: false, loadingMore: false, error: null, errorKind: null,
         records: cursor && previous.scope === scopeKey ? [...new Map([...previous.records, ...page.records].map(row => [row.id, row])).values()] : page.records }));
     } catch {

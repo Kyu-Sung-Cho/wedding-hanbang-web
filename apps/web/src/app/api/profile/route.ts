@@ -149,6 +149,26 @@ export async function PATCH(request: Request) {
       return NextResponse.json({ error: "잘못된 요청입니다." }, { status: 400 });
     }
 
+    // 다른 탭에서 인증이 바뀌어도 이전 화면의 초안을 새 로그인 계정에 쓰지 않는다.
+    if (!Object.prototype.hasOwnProperty.call(body, "expectedOwnerId")) {
+      return profileReadResponse({
+        error: "이 요청에는 화면에서 확인한 계정 정보가 없어 변경하지 않았어요. 앱을 업데이트하거나 https://hanbang.ai/settings 에 같은 계정으로 로그인해 현재 설정을 다시 확인한 뒤 변경해 주세요.",
+        code: "PROFILE_OWNER_CHANGED", reason: "owner_required",
+      }, 409);
+    }
+    if (typeof body.expectedOwnerId !== "string" || body.expectedOwnerId.length === 0) {
+      return profileReadResponse({
+        error: "계정 확인 정보의 형식이 올바르지 않아 변경하지 않았어요. 현재 화면을 새로 열어 다시 확인해 주세요.",
+        code: "PROFILE_OWNER_CHANGED", reason: "owner_invalid",
+      }, 409);
+    }
+    if (body.expectedOwnerId !== user.id) {
+      return profileReadResponse({
+        error: "저장할 계정을 확인하지 못했어요. 화면을 새로 열거나 앱을 업데이트한 뒤 다시 시도해 주세요.",
+        code: "PROFILE_OWNER_CHANGED", reason: "owner_changed",
+      }, 409);
+    }
+
     let name: string | null = null;
     let communityNickname: string | null = null;
     let phone: string | null = null;

@@ -173,6 +173,7 @@ import {
 } from "@/lib/ai/amoraActionQueue";
 import { isAmoraQueuedCardSkip } from "@/lib/ai/amoraQueuedCardSkip";
 import { getAmoraToolOperationIdentity } from "@/lib/ai/amoraToolIdentity";
+import { isUnchangedDecisionRecordAcceptance, parseExplicitDecisionRecordRequest, needsLegacyDecisionRecordReconfirmation, LEGACY_DECISION_RECONFIRMATION_NOTICE } from "@/lib/ai/amoraExplicitDecisionRecord";
 import {
   buildAmoraBudgetImpactPreview,
   findAmoraBudgetProposalRefusal,
@@ -205,6 +206,7 @@ import {
   takeRecentAmoraConversation,
 } from "@/lib/ai/amoraRequestPolicy";
 import { AmoraCostGuardError } from "@/lib/ai/costGuard";
+import { getAmoraQuotaWarning } from "@hanbang/shared";
 import {
   AMORA_CRISIS_CONTACT_POLICY_VERSION,
   buildAmoraCrisisResponse,
@@ -901,6 +903,7 @@ export async function POST(request: Request) {
     clientRequestId: bodyClientRequestId,
     userMessageId: bodyUserMessageId,
     confirmedActionId: bodyConfirmedActionId,
+    skippedActionId: bodySkippedActionId,
     preparationSource: bodyPreparationSource,
     requestKind: bodyRequestKind,
     visibility: bodyVisibility,
@@ -1005,6 +1008,11 @@ export async function POST(request: Request) {
     );
   }
   const rawClientRequestId = bodyClientRequestId ?? randomUUID();
+  if (bodySkippedActionId !== undefined && (typeof bodySkippedActionId !== "string"
+    || !isUuid(bodySkippedActionId) || bodyConfirmedActionId !== undefined)) {
+    return NextResponse.json({ error: "건너뛸 항목을 다시 확인해 주세요.", code: "INVALID_SKIPPED_ACTION_ID" },
+      { status: 409, headers: { "Cache-Control": "no-store" } });
+  }
   const requestKind =
     bodyRequestKind === "initial_greeting"
       ? "initial_greeting"
@@ -2769,6 +2777,7 @@ export async function POST(request: Request) {
     content: string;
     metadata: {
       target?: string;
+      skipped_amora_action_id?: unknown;
       pending_amora_action?: unknown;
       pending_amora_action_queue?: unknown;
       // 아직 안 누른 카드를 새 답변으로 옮길 때 **원래 값 그대로** 들고 간다.
@@ -3117,13 +3126,12 @@ export async function POST(request: Request) {
       : null;
   // 버튼을 누르지 않고 말로 승인했을 때를 위한 **읽기 신호**.
   // 실행 권한이 아니다 — 적용은 여전히 서버 발급 action_id 를 받아야 한다.
-  const awaitingPendingCard =
+  const unconfirmedPendingCard =
     bodyConfirmedActionId === undefined
     && !previousFailedCarriedProposal
     // 새 변경 요청에는 과거 카드·대기열·확인 안내를 새 요청의 문맥으로 전달하지 않는다.
     // 원본 기록과 action_id 승인 경계는 유지하고, 설명 질문·짧은 동의만 이어간다.
     // 허용 목록 문법의 맨 승낙("ㅇㅇ 적용해줘")은 새 변경이 아니라 바로 이 카드에 대한 답이다.
-    && (!hasNewAmoraChangeIntent(lastUserText) || isAmoraTypedCardAcceptance(lastUserText))
     && !isDemo
     && requestKind === "chat"
     && visibility === "shared"
@@ -3136,6 +3144,11 @@ export async function POST(request: Request) {
           now: Date.now(),
         })
       : null;
+  const unchangedDecisionAcceptance = unconfirmedPendingCard?.tool === "add_decision_record"
+    && isUnchangedDecisionRecordAcceptance(lastUserText, unconfirmedPendingCard.input);
+  const awaitingPendingCard = !hasNewAmoraChangeIntent(lastUserText)
+    || isAmoraTypedCardAcceptance(lastUserText) || unchangedDecisionAcceptance
+      ? unconfirmedPendingCard : null;
   if (bodyConfirmedActionId !== undefined && !approvedPendingAction) {
     await releaseClaimBeforeStream("AMORA_PENDING_ACTION_CONFIRMATION_REJECTED");
     return NextResponse.json(
@@ -3161,12 +3174,29 @@ export async function POST(request: Request) {
    * 이 문장은 짧은 답 모양(`isAmoraClarificationAnswerShaped`)이라 W4 여도 위의 저장 문맥
    * 읽기를 건너뛰지 않는다 — 그래서 직전 행·대기열·저니 리비전이 여기 있다.
    */
-  const queueSkipRequested = !approvedPendingAction
+  const queueSkipCandidate = !approvedPendingAction
     && awaitingPendingCard !== null
     && storedActionQueue !== null
     && isDurableUserMessageBound
     && canonicalJourneyStateRevision !== null
     && isAmoraQueuedCardSkip(lastUserText);
+  // 화면에서 고른 대상과 저장된 사용자 행, 현재 정본 카드가 모두 같아야 한다.
+  // 고정 문장만으로는 다른 화면이 먼저 넘긴 다음 카드를 잘못 건너뛸 수 있다.
+  if ((queueSkipCandidate || bodySkippedActionId !== undefined) && !(queueSkipCandidate
+    && requestKind === "chat" && visibility === "shared"
+    && typeof bodySkippedActionId === "string"
+    && awaitingPendingCard?.actionId === bodySkippedActionId
+    && canonicalRows.at(-1)?.metadata?.skipped_amora_action_id === bodySkippedActionId)) {
+    await releaseClaimBeforeStream("AMORA_QUEUED_SKIP_TARGET_CHANGED");
+    return NextResponse.json({
+      error: bodySkippedActionId === undefined
+        ? "건너뛸 항목을 확인할 수 없어요. 웹에서는 새로고침하고, 앱에서는 최신 버전으로 업데이트한 뒤 다시 시도해 주세요."
+        : "확인하던 항목이 바뀌었어요. 최신 카드를 확인한 뒤 다시 선택해 주세요.",
+      code: "AMORA_QUEUED_SKIP_TARGET_CHANGED",
+    },
+      { status: 409, headers: { "Cache-Control": "no-store" } });
+  }
+  const queueSkipRequested = queueSkipCandidate && typeof bodySkippedActionId === "string";
   /**
    * 이번 턴이 이어받지 않으면 **말없이 사라질** 직전 대기열 (2026-09-18).
    *
@@ -3444,7 +3474,9 @@ export async function POST(request: Request) {
   // 직전 행이 카드 자체를 말하는 행일 때만 카드 승낙으로 본다 — 카드를 낸 원본 행(이월 횟수
   // 없음·0)이거나 앞선 승낙 턴의 서버 안내 행. 적용 동사·카드 지시어가 있는 말은 그대로다.
   const typedCardAcceptanceStrength = awaitingPendingCard !== null
-    ? classifyAmoraTypedCardAcceptance(lastUserText)
+    ? (unchangedDecisionAcceptance
+        ? "explicit"
+        : classifyAmoraTypedCardAcceptance(lastUserText))
     : null;
   const previousRowCarryCount = isRecord(previousCanonicalRow?.metadata)
     ? previousCanonicalRow.metadata.pending_amora_action_carry_count
@@ -4459,6 +4491,12 @@ export async function POST(request: Request) {
           const explicitBudgetPlan = canonicalTerminalText === null && !budgetAssessment && pendingOfferEnabled && !approvedPendingAction
             && pendingProposalTools.some(tool => tool.name === "apply_budget_plan")
             ? parseExplicitBudgetPlanRequest(lastUserText, resolvedWeddingContext.storedProgress, resolvedWeddingContext.budget) : null;
+          // 현재 사용자 원문의 완결된 필드만 복구한다. 모델의 미리보기·과거 산문은 저장 근거가 아니다.
+          const explicitDecision = canonicalTerminalText === null && !budgetAssessment && !explicitBudgetPlan
+            && !queuedProposal?.pendingAction && !storedActionQueue && !approvedPendingAction
+            && attachmentKind === "none" && pendingOfferEnabled
+            && pendingProposalTools.some(tool => tool.name === "add_decision_record")
+            ? parseExplicitDecisionRecordRequest(lastUserText) : null;
           // 명시 목록에 담당·기한·비공개·취소 조건이 섞이면 모델 표식으로 우회하지 않는다.
           // 적용할 수 있는 원문 목록과 다시 확인할 요청을 구분해 같은 승인 경계로 보낸다.
           const taskAssessment = canonicalTerminalText === null && !budgetAssessment && !explicitBudgetPlan && !queuedProposal?.pendingAction
@@ -4492,6 +4530,8 @@ export async function POST(request: Request) {
               ? `[pending_action]${JSON.stringify(assessedBudgetAction)}[/pending_action]`
               : explicitBudgetPlan
               ? `[pending_action]${JSON.stringify({ tool: "apply_budget_plan", input: explicitBudgetPlan })}[/pending_action]`
+              : explicitDecision
+              ? `[pending_action]${JSON.stringify({ tool: "add_decision_record", input: explicitDecision })}[/pending_action]`
               : afterSuggest),
           });
           const explicitSchedules = canonicalTerminalText === null && !budgetAssessment && !explicitBudgetPlan && !taskAssessment && !queuedProposal?.pendingAction
@@ -4561,7 +4601,24 @@ export async function POST(request: Request) {
                 .join("\n\n"),
             };
           }
-          const effectiveSuggestions = canonicalTerminalText !== null || blockedBudgetText !== null || blockedTaskText !== null
+          // 옛 산문은 카드/승인 권위가 아니다. 유효한 새 카드가 없을 때만 값 복사 없이 재확인을 안내한다.
+          const legacyDecisionReconfirmation = canonicalTerminalText === null
+            && !isDemo && requestKind === "chat" && isDurableUserMessageBound && visibility === "shared"
+            && (questionScope.scope === "W0_wedding_core" || questionScope.scope === "W1_wedding_adjacent")
+            && !hasPriorityAction && !storedActionQueue && toolResults.length === 0
+            && attachmentKind === "none" && personalConversationTools.length === 0 && !offersPlaceSearch
+            && blockedBudgetText === null && blockedTaskText === null && proposalRefusals.length === 0
+            && !modelPendingExtraction.pendingAction
+            && pendingProposalTools.some(tool => tool.name === "add_decision_record")
+            && previousCanonicalRow?.role === "assistant" && previousCanonicalRow.sender_type === "ai"
+            && previousCanonicalRow.visibility === "shared"
+            && previousCanonicalRow.segment_id === canonicalRows.at(-1)?.segment_id
+            && !["pending_amora_action", "pending_amora_action_queue"].some(key =>
+              Object.hasOwn(previousCanonicalRow.metadata ?? {}, key))
+            && (!Object.hasOwn(previousCanonicalRow.metadata ?? {}, "toolResults")
+              || (Array.isArray(previousCanonicalRow.metadata?.toolResults) && previousCanonicalRow.metadata.toolResults.length === 0))
+            && needsLegacyDecisionRecordReconfirmation(lastUserText, previousCanonicalRow.content);
+          const effectiveSuggestions = legacyDecisionReconfirmation || canonicalTerminalText !== null || blockedBudgetText !== null || blockedTaskText !== null
             || proposalRefusals.length > 0
             ? []
             // 개인 레인에서 공유 변경을 다시 부탁하는 추천 문장은 같은 안내만 되돌려받는다.
@@ -4639,7 +4696,7 @@ export async function POST(request: Request) {
           const privateLaneOfferScreen = privateLaneSharedChangeTurn?.kind === "mixed"
             && canonicalTerminalText === null && !requiresW4AttachmentReuploadGuidance
             ? stripAmoraPrivateLaneSharedChangeOffers(outputHygiene.text) : null;
-          const cleanText = requiresW4AttachmentReuploadGuidance
+          const cleanText = legacyDecisionReconfirmation ? LEGACY_DECISION_RECONFIRMATION_NOTICE : requiresW4AttachmentReuploadGuidance
             ? "지금 요청만으로는 이 파일이 결혼 준비와 어떤 관련이 있는지 확인할 수 없어요. 결혼 준비 관련 파일이라면 관련성을 한 줄로 알려주시고, 파일을 다시 첨부해 주세요."
             : privateLaneOfferScreen?.text ?? outputHygiene.text;
           const persistenceClaimGuard = composeAmoraPersistenceTerminal({
@@ -5039,12 +5096,8 @@ export async function POST(request: Request) {
                   getAmoraProviderCallCostReservationMicrousd(modelRole),
               },
               onCostReserved: (reservation) => {
-                if (
-                  typeof reservation.remaining === "number"
-                  && reservation.remaining <= 15
-                ) {
-                  send({ type: "quota", remaining: reservation.remaining });
-                }
+                const warning = getAmoraQuotaWarning(reservation);
+                if (warning) send(warning);
               },
             },
             async (reserveBeforeGeneration, reserveBeforeSideEffect) => {
@@ -5572,12 +5625,8 @@ export async function POST(request: Request) {
                 getAmoraProviderCallCostReservationMicrousd(modelRole),
             },
             onCostReserved: (reservation) => {
-              if (
-                typeof reservation.remaining === "number"
-                && reservation.remaining <= 15
-              ) {
-                send({ type: "quota", remaining: reservation.remaining });
-              }
+              const warning = getAmoraQuotaWarning(reservation);
+              if (warning) send(warning);
             },
           },
           async (reserveBeforeGeneration) => {

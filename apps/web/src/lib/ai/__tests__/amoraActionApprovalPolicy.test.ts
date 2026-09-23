@@ -41,6 +41,7 @@ const EXPECTED_POLICY_BY_MUTATING_TOOL = {
   add_custom_category: "single",
   add_schedule_event: "single",
   add_amora_action: "single",
+  add_decision_record: "single",
   log_wedding_event: "single",
   create_booking: "blocked",
 } as const satisfies Record<MutatingToolName, "single" | "couple" | "blocked">;

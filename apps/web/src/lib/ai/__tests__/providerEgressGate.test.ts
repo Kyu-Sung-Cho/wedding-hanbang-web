@@ -211,6 +211,27 @@ describe("provider all-egress gate (P0-5)", () => {
   });
 
   describe("chatWithToolsStream", () => {
+    it("does not resend private context after consent changes during a failed count", async () => {
+      const { client, calls, count, create } = recordingClient();
+      let revoked = false;
+      const denial = new SyntheticEgressGateError();
+      const guard = async () => { if (revoked) throw denial; };
+      count.mockImplementationOnce((...args: unknown[]) => {
+        calls.push({ method: "responses.inputTokens.count", serializedArgs: serializeArgs(args) });
+        return { withResponse: vi.fn(async () => {
+          revoked = true;
+          throw Object.assign(new Error("count unavailable"), { status: 503 });
+        }) };
+      });
+
+      await expect(chatWithToolsStream({
+        tools: [], beforeProviderEgress: guard, beforeGeneration: guard, client,
+      })).rejects.toBe(denial);
+
+      expect(calls).toHaveLength(1);
+      expect(create).not.toHaveBeenCalled();
+    });
+
     it("never counts input tokens when the provider egress gate fails", async () => {
       const { client, count } = recordingClient();
       const beforeProviderEgress = vi.fn().mockRejectedValue(
@@ -425,8 +446,7 @@ describe("provider all-egress gate (P0-5)", () => {
 
     // 2026-09-14 계약 변경: 측정 *호출*이 죽은 텍스트 전용 턴은 한 번 다시 재고,
     // 그래도 안 되면 로컬 추정으로 상한을 지킨 채 생성으로 간다(openai.test.ts).
-    // 이 파일이 지키는 것은 순서다 — egress gate 는 여전히 첫 provider 요청보다
-    // 앞서고, 재시도가 gate 를 다시 열지 않으며, 유료 예약은 생성 직전 한 번뿐이다.
+    // 원문을 다시 보내는 시도마다 egress gate를 확인한다. 유료 예약은 생성 직전 한 번이다.
     it("keeps the egress gate first when a text-only turn falls back after the count outage", async () => {
       const countError = Object.assign(new Error("count service unavailable"), {
         status: 503,
@@ -444,7 +464,7 @@ describe("provider all-egress gate (P0-5)", () => {
         client,
       });
 
-      expect(beforeProviderEgress).toHaveBeenCalledTimes(1);
+      expect(beforeProviderEgress).toHaveBeenCalledTimes(2);
       expect(count).toHaveBeenCalledTimes(2);
       expect(beforeGeneration).toHaveBeenCalledTimes(1);
       expect(create).toHaveBeenCalledTimes(1);
@@ -473,6 +493,29 @@ describe("provider all-egress gate (P0-5)", () => {
   });
 
   describe("createOpenAIResponseWithAudit", () => {
+    it("does not resend private context after consent changes during an audited count", async () => {
+      const { client, calls, count, create } = recordingClient({ nonStreamResponse: completedResponse() });
+      let revoked = false;
+      const denial = new SyntheticEgressGateError();
+      const guard = async () => { if (revoked) throw denial; };
+      count.mockImplementationOnce((...args: unknown[]) => {
+        calls.push({ method: "responses.inputTokens.count", serializedArgs: serializeArgs(args) });
+        return { withResponse: vi.fn(async () => {
+          revoked = true;
+          throw Object.assign(new Error("count unavailable"), { status: 503 });
+        }) };
+      });
+
+      await expect(createOpenAIResponseWithAudit({
+        modelRole: "fast", instructions: SYNTHETIC_SYSTEM_MARKER,
+        input: SYNTHETIC_PRIVATE_MARKER, maxInputTokens: 64_000, maxOutputTokens: 100,
+        beforeProviderEgress: guard, beforeGeneration: guard, client,
+        audit: { interactionType: "chat_turn" },
+      })).rejects.toBe(denial);
+      expect(calls).toHaveLength(1);
+      expect(create).not.toHaveBeenCalled();
+    });
+
     it("never counts input tokens or starts generation when the egress gate fails", async () => {
       const { client, calls } = recordingClient({
         nonStreamResponse: completedResponse(),

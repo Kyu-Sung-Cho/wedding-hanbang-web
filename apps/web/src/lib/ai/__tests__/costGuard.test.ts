@@ -431,6 +431,77 @@ describe("reserveAmoraProviderCall", () => {
     process.env = ENV;
   });
 
+  it("returns a daily near-limit warning even when the lifetime quota is disabled", async () => {
+    process.env.AMORA_COUPLE_QUOTA_ENABLED = "false";
+    process.env.AMORA_COUPLE_DAILY_CAP_ENABLED = "true";
+    process.env.AMORA_COUPLE_DAILY_CAP = "80";
+    vi.resetModules();
+    const guard = await import("../costGuard");
+    const { admin } = makeReserveAdmin({ rpc: { allowed: true }, counts: { global: 78 } });
+    const result = await guard.reserveAmoraProviderCall(admin, {
+      ...BASE, receiptId: "30000000-0000-4000-8000-000000000001",
+      claimToken: "40000000-0000-4000-8000-000000000001", requestKey: "daily_notice",
+    });
+    expect(result).toMatchObject({ allowed: true, dailyRemaining: 1 });
+    expect(result.remaining).toBeUndefined();
+  });
+
+  it.each([0, 78, 79, 80])("keeps both reservation paths aligned at %s used daily turns", async (used) => {
+    process.env.AMORA_COUPLE_QUOTA_ENABLED = "false";
+    process.env.AMORA_COUPLE_DAILY_CAP_ENABLED = "true";
+    process.env.AMORA_COUPLE_DAILY_CAP = "80";
+    vi.resetModules();
+    const guard = await import("../costGuard");
+    const turn = makeReserveAdmin({ rpc: { allowed: true }, counts: { global: used } });
+    const provider = makeReserveAdmin({ rpc: { allowed: true }, counts: { global: used } });
+    const results = await Promise.all([
+      guard.reserveAmoraTurn(turn.admin, BASE),
+      guard.reserveAmoraProviderCall(provider.admin, {
+        ...BASE, receiptId: "30000000-0000-4000-8000-000000000001",
+        claimToken: "40000000-0000-4000-8000-000000000001", requestKey: "daily_boundary",
+      }),
+    ]);
+    for (const result of results) {
+      expect(result).toMatchObject(used >= 80
+        ? { allowed: false, reason: "couple_daily" }
+        : { allowed: true, dailyRemaining: 79 - used });
+    }
+    expect(turn.rpcSpy).toHaveBeenCalledTimes(used >= 80 ? 0 : 1);
+    expect(provider.rpcSpy).toHaveBeenCalledTimes(used >= 80 ? 0 : 1);
+  });
+
+  it.each([
+    { isAdmin: true }, { isQuotaExempt: true },
+    { quotaScope: "demo" as const }, { quotaScope: "release_eval" as const },
+    { quotaScope: "background" as const },
+  ])("does not issue a daily warning for exempt scopes %j", async (scope) => {
+    process.env.AMORA_COUPLE_DAILY_CAP_ENABLED = "true";
+    vi.resetModules();
+    const guard = await import("../costGuard");
+    const { admin, rpcSpy } = makeReserveAdmin({ rpc: { allowed: true }, counts: { global: 999 } });
+    const result = await guard.reserveAmoraProviderCall(admin, {
+      ...BASE, ...scope, receiptId: "30000000-0000-4000-8000-000000000001",
+      claimToken: "40000000-0000-4000-8000-000000000001", requestKey: "daily_exempt",
+    });
+    expect(result.allowed).toBe(true);
+    expect(result.dailyRemaining).toBeUndefined();
+    expect(rpcSpy).toHaveBeenCalledOnce();
+  });
+
+  it("omits unknown daily usage without skipping the atomic cost reservation", async () => {
+    process.env.AMORA_COUPLE_DAILY_CAP_ENABLED = "true";
+    vi.resetModules();
+    const guard = await import("../costGuard");
+    const { admin, rpcSpy } = makeReserveAdmin({ rpc: { allowed: true }, counts: { error: true } });
+    const result = await guard.reserveAmoraProviderCall(admin, {
+      ...BASE, receiptId: "30000000-0000-4000-8000-000000000001",
+      claimToken: "40000000-0000-4000-8000-000000000001", requestKey: "daily_unknown",
+    });
+    expect(result.allowed).toBe(true);
+    expect(result.dailyRemaining).toBeUndefined();
+    expect(rpcSpy).toHaveBeenCalledOnce();
+  });
+
   it("reserves exactly one provider-call receipt under the logical request", async () => {
     const { admin, rpcSpy } = makeReserveAdmin({
       rpc: { allowed: true, reason: null },

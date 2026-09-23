@@ -3,6 +3,7 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import ChatContent from "./ChatContent";
+import { forgetComposerRecovery, resetChatComposerSession } from "@/stores/chatComposerStore";
 import { AmoraNavigationTargetContext } from "@/components/app/amora/AmoraNavigationContext";
 import type { ChatMessage } from "@/types/database.types";
 import { buildWeddingTasteAmoraText, createEmptyWeddingTasteDraft } from "@/lib/weddingCode/taste";
@@ -51,6 +52,7 @@ const mocks = vi.hoisted(() => ({
   isSending: false,
   streamingContent: "",
   quotaRemaining: null as number | null,
+  quotaPeriod: "total" as "daily" | "total",
   profileRole: "bride" as "bride" | "groom" | null,
   profileId: "user-1" as string | null,
   coupleId: "couple-1" as string | null,
@@ -161,6 +163,7 @@ vi.mock("@/stores/chatStore", () => {
     get quotaRemaining() {
       return mocks.quotaRemaining;
     },
+    get quotaPeriod() { return mocks.quotaPeriod; },
     initialLoadDone: true,
     get presence() {
       return { partnerTyping: mocks.partnerTyping };
@@ -242,6 +245,7 @@ describe("ChatContent composer draft lanes", () => {
   let container: HTMLDivElement;
 
   beforeEach(async () => {
+    resetChatComposerSession();
     mocks.personalHandoffPending = false; mocks.takePersonalHandoff.mockReset();
     vi.clearAllMocks();
     mocks.messages = [];
@@ -256,6 +260,7 @@ describe("ChatContent composer draft lanes", () => {
     mocks.isSending = false;
     mocks.streamingContent = "";
     mocks.quotaRemaining = null;
+    mocks.quotaPeriod = "total";
     mocks.profileRole = "bride";
     mocks.profileId = "user-1";
     mocks.coupleId = "couple-1";
@@ -317,6 +322,222 @@ describe("ChatContent composer draft lanes", () => {
     await act(async () => container.querySelector<HTMLButtonElement>('button[aria-label="대화 화면 정리"]')!.click());
     await act(async () => buttonWith("둘의 화면 함께 정리").click());
   };
+
+  it("keeps an unsent draft across route unmount without writing its text to browser storage", async () => {
+    const storage = vi.spyOn(Storage.prototype, "setItem");
+    await act(async () => typeComposer("화면 왕복 미전송 초안"));
+    await act(async () => root.unmount());
+    root = createRoot(container);
+    await act(async () => root.render(<ChatContent />));
+    expect(container.querySelector<HTMLTextAreaElement>("textarea")?.value).toBe("화면 왕복 미전송 초안");
+    expect(mocks.sendMessage).not.toHaveBeenCalled();
+    expect(storage.mock.calls.some(call => String(call[1]).includes("화면 왕복 미전송 초안"))).toBe(false);
+  });
+
+  it.each(["before", "after"])("keeps the same unknown-send key when failure settles %s route remount", async when => {
+    let finish!: (value: unknown) => void;
+    const requestId = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
+    mocks.sendMessage.mockReturnValueOnce(new Promise(resolve => { finish = resolve; }));
+    await act(async () => typeComposer("이번 주말 준비할 것"));
+    await act(async () => container.querySelector<HTMLButtonElement>('button[aria-label="함께 보는 아모라 메시지 보내기"]')!.click());
+    if (when === "before") await act(async () => finish({ userMessage: "persistence_unknown", clientRequestId: requestId }));
+    await act(async () => root.unmount());
+    root = createRoot(container);
+    await act(async () => root.render(<ChatContent />));
+    if (when === "after") await act(async () => finish({ userMessage: "persistence_unknown", clientRequestId: requestId }));
+    expect(container.querySelector<HTMLTextAreaElement>("textarea")?.value).toBe("이번 주말 준비할 것");
+    await act(async () => container.querySelector<HTMLButtonElement>('button[aria-label="함께 보는 아모라 메시지 보내기"]')!.click());
+    expect(mocks.sendMessage.mock.calls[1][0]).toMatchObject({ content: "이번 주말 준비할 것", clientRequestId: requestId });
+  });
+
+  it("does not restore a late failed send after an offscreen account reset and return", async () => {
+    let finish!: (value: unknown) => void;
+    mocks.sendMessage.mockReturnValueOnce(new Promise(resolve => { finish = resolve; }));
+    await act(async () => typeComposer("계정 A 비공개 메모"));
+    await act(async () => container.querySelector<HTMLButtonElement>('button[aria-label="함께 보는 아모라 메시지 보내기"]')!.click());
+    await act(async () => root.unmount());
+    resetChatComposerSession();
+    root = createRoot(container);
+    await act(async () => root.render(<ChatContent />));
+    await act(async () => finish({ userMessage: "persistence_unknown", clientRequestId: "old-key" }));
+    expect(container.querySelector<HTMLTextAreaElement>("textarea")?.value).toBe("");
+    expect(mocks.sendMessage).toHaveBeenCalledTimes(1);
+  });
+
+  it("preserves a pending private send for same-key recovery when only shared raw history is deleted", async () => {
+    let finish!: (value: unknown) => void;
+    mocks.sendMessage.mockReturnValueOnce(new Promise(resolve => { finish = resolve; }));
+    await act(async () => buttonWith("나만 (상담)").click());
+    await act(async () => typeComposer("나만 정리할 예산 기준"));
+    const privateSend = () => container.querySelector<HTMLButtonElement>('button[aria-label="나만의 아모라 상담 메시지 보내기"]')!;
+    await act(async () => privateSend().click());
+    expect(mocks.sendMessage).toHaveBeenCalledTimes(1);
+    const sent = mocks.sendMessage.mock.calls[0][0];
+    expect(sent).toMatchObject({ content: "나만 정리할 예산 기준", visibility: "bride_private" });
+    expect(sent.clientRequestId).toEqual(expect.any(String));
+    expect(container.querySelector<HTMLTextAreaElement>("textarea")?.value).toBe("");
+
+    // 실제 chatStore가 공유 원문 삭제를 확인한 뒤 호출하는 메모리 경계.
+    await act(async () => { forgetComposerRecovery("shared"); });
+    await act(async () => finish({ userMessage: "not_persisted", clientRequestId: sent.clientRequestId }));
+
+    expect(container.querySelector<HTMLTextAreaElement>("textarea")?.value).toBe("나만 정리할 예산 기준");
+    await act(async () => buttonWith("함께 대화").click());
+    expect(container.querySelector<HTMLTextAreaElement>("textarea")?.value).toBe("");
+    await act(async () => buttonWith("나만 (상담)").click());
+    await act(async () => privateSend().click());
+    expect(mocks.sendMessage).toHaveBeenCalledTimes(2);
+    expect(mocks.sendMessage.mock.calls[1][0]).toMatchObject({
+      content: "나만 정리할 예산 기준", visibility: "bride_private", clientRequestId: sent.clientRequestId,
+    });
+  });
+
+  it("keeps a private attachment read alive across remount and never exposes it in shared", async () => {
+    const readers: FileReader[] = [];
+    vi.spyOn(FileReader.prototype, "readAsDataURL").mockImplementation(function (this: FileReader) { readers.push(this); });
+    await act(async () => buttonWith("나만 (상담)").click());
+    await act(async () => typeComposer("비공개 문서 질문"));
+    const fileInput = container.querySelector<HTMLInputElement>('input[type="file"]')!;
+    Object.defineProperty(fileInput, "files", { configurable: true, value: [new File(["private"], "private.pdf", { type: "application/pdf" })] });
+    await act(async () => fileInput.dispatchEvent(new Event("change", { bubbles: true })));
+    await act(async () => root.unmount());
+    root = createRoot(container);
+    await act(async () => root.render(<ChatContent />));
+    const send = () => container.querySelector<HTMLButtonElement>('button[aria-label="나만의 아모라 상담 메시지 보내기"]')!;
+    expect(send().disabled).toBe(true);
+    await act(async () => {
+      Object.defineProperty(readers[0], "result", { value: "data:application/pdf;base64,cHJpdmF0ZQ==" });
+      readers[0].onload?.(new ProgressEvent("load") as ProgressEvent<FileReader>);
+    });
+    expect(send().disabled).toBe(false);
+    expect(container.textContent).toContain("private.pdf");
+    await act(async () => buttonWith("함께 대화").click());
+    expect(container.textContent).not.toContain("private.pdf");
+    expect(container.querySelector<HTMLTextAreaElement>("textarea")?.value).toBe("");
+    await act(async () => buttonWith("나만 (상담)").click());
+    await act(async () => send().click());
+    expect(mocks.sendMessage).toHaveBeenLastCalledWith(expect.objectContaining({ content: "비공개 문서 질문", visibility: "bride_private", images: [expect.objectContaining({ fileName: "private.pdf" })] }));
+  });
+
+  it.each(["application/pdf", "image/png"])("preserves the pending shared %s snapshot with its reference and live preview when private raw history is deleted", async mediaType => {
+    let finish!: (value: unknown) => void;
+    mocks.preparationSources = ["c.venue"];
+    await renderAndSettle();
+    const readers: FileReader[] = [];
+    vi.spyOn(FileReader.prototype, "readAsDataURL").mockImplementation(function (this: FileReader) { readers.push(this); });
+    vi.spyOn(URL, "createObjectURL").mockReturnValue("blob:recovered-draft-preview");
+    const revoke = vi.spyOn(URL, "revokeObjectURL");
+    const picker = container.querySelector<HTMLInputElement>('input[type="file"]')!;
+    const fileName = mediaType === "image/png" ? "shared.png" : "shared.pdf";
+    Object.defineProperty(picker, "files", { configurable: true, value: [new File(["contract"], fileName, { type: mediaType })] });
+    await act(async () => picker.dispatchEvent(new Event("change", { bubbles: true })));
+    await act(async () => {
+      Object.defineProperty(readers[0], "result", { value: `data:${mediaType};base64,Y29udHJhY3Q=` });
+      readers[0].onload?.(new ProgressEvent("load") as ProgressEvent<FileReader>);
+    });
+    mocks.sendMessage.mockReturnValueOnce(new Promise(resolve => { finish = resolve; }));
+    const send = () => container.querySelector<HTMLButtonElement>('button[aria-label="함께 보는 아모라 메시지 보내기"]')!;
+    await act(async () => send().click());
+    const sent = mocks.sendMessage.mock.calls[0][0];
+    expect(sent).toMatchObject({ preparationSource: "c.venue", images: [expect.objectContaining({ fileName })] });
+    if (mediaType === "image/png") expect(sent.images[0].previewUrl).toBe("blob:recovered-draft-preview");
+    await act(async () => forgetComposerRecovery("private"));
+    await act(async () => finish({ userMessage: "persistence_unknown", clientRequestId: sent.clientRequestId }));
+    expect(container.querySelector<HTMLTextAreaElement>("textarea")?.value).toBe(sent.content);
+    if (mediaType === "image/png") {
+      expect(container.querySelector<HTMLImageElement>('img[src="blob:recovered-draft-preview"]')).not.toBeNull();
+    } else expect(container.textContent).toContain(fileName);
+    expect(revoke).not.toHaveBeenCalledWith(sent.images[0].previewUrl);
+    await act(async () => root.unmount()); root = createRoot(container);
+    await act(async () => root.render(<ChatContent />));
+    await act(async () => send().click());
+    expect(mocks.sendMessage.mock.calls[1][0]).toMatchObject({
+      content: sent.content, preparationSource: "c.venue", images: sent.images, clientRequestId: sent.clientRequestId,
+    });
+    // 새 소유자의 전송 성공 시에는 같은 미리보기를 정상 해제한다.
+    if (mediaType === "image/png") expect(revoke).toHaveBeenCalledExactlyOnceWith(sent.images[0].previewUrl);
+  });
+
+  it.each(["shared", "private"] as const)("discards a pending %s snapshot when that same raw scope is deleted", async scope => {
+    let finish!: (value: unknown) => void;
+    mocks.sendMessage.mockReturnValueOnce(new Promise(resolve => { finish = resolve; }));
+    if (scope === "private") await act(async () => buttonWith("나만 (상담)").click());
+    await act(async () => typeComposer("삭제할 범위에 보냈던 질문"));
+    const send = () => container.querySelector<HTMLButtonElement>(scope === "private"
+      ? 'button[aria-label="나만의 아모라 상담 메시지 보내기"]' : 'button[aria-label="함께 보는 아모라 메시지 보내기"]')!;
+    await act(async () => send().click());
+    const oldKey = mocks.sendMessage.mock.calls[0][0].clientRequestId;
+    await act(async () => forgetComposerRecovery(scope));
+    expect(container.querySelector<HTMLTextAreaElement>("textarea")?.value).toBe("");
+    await act(async () => typeComposer("삭제 후 새로 작성한 질문"));
+    // 오래된 요청이 아직 끝나지 않아도 새 epoch의 전송은 가능하다.
+    await act(async () => send().click());
+    expect(mocks.sendMessage).toHaveBeenCalledTimes(2);
+    expect(mocks.sendMessage.mock.calls[1][0].clientRequestId).not.toBe(oldKey);
+    await act(async () => finish({ userMessage: "not_persisted", clientRequestId: oldKey }));
+    expect(container.querySelector<HTMLTextAreaElement>("textarea")?.value).toBe("");
+    expect(container.textContent).not.toContain("보류 메시지 다시 확인");
+  });
+
+  it("does not revive an opposite-scope snapshot after an offscreen A to B to A account switch", async () => {
+    let finish!: (value: unknown) => void;
+    mocks.sendMessage.mockReturnValueOnce(new Promise(resolve => { finish = resolve; }));
+    await act(async () => buttonWith("나만 (상담)").click());
+    await act(async () => typeComposer("A의 전송 중 비공개 질문"));
+    await act(async () => container.querySelector<HTMLButtonElement>('button[aria-label="나만의 아모라 상담 메시지 보내기"]')!.click());
+    await act(async () => root.unmount());
+    resetChatComposerSession(); mocks.profileId = "user-B";
+    root = createRoot(container); await act(async () => root.render(<ChatContent />));
+    await act(async () => root.unmount());
+    resetChatComposerSession(); mocks.profileId = "user-1";
+    root = createRoot(container); await act(async () => root.render(<ChatContent />));
+    await act(async () => forgetComposerRecovery("shared"));
+    await act(async () => finish({ userMessage: "not_persisted" }));
+    await act(async () => buttonWith("나만 (상담)").click());
+    expect(container.querySelector<HTMLTextAreaElement>("textarea")?.value).toBe("");
+    expect(mocks.sendMessage).toHaveBeenCalledTimes(1);
+  });
+
+  it.each(["persisted", "ephemeral_safety", "throw"])("ignores late %s send results after an account epoch changes", async result => {
+    let finish!: (value: unknown) => void;
+    let reject!: (reason: unknown) => void;
+    mocks.sendMessage.mockReturnValueOnce(new Promise((resolve, fail) => { finish = resolve; reject = fail; }));
+    await act(async () => typeComposer("계정 A 질문"));
+    await act(async () => container.querySelector<HTMLButtonElement>('button[aria-label="함께 보는 아모라 메시지 보내기"]')!.click());
+    await act(async () => resetChatComposerSession());
+    await act(async () => typeComposer("다시 인증한 계정의 새 질문"));
+    mocks.setChatState.mockClear();
+    await act(async () => {
+      if (result === "throw") reject(new Error("old error"));
+      else finish({ userMessage: result, userMessageId: "old-message" });
+    });
+    expect(container.querySelector<HTMLTextAreaElement>("textarea")?.value).toBe("다시 인증한 계정의 새 질문");
+    expect(mocks.setChatState).not.toHaveBeenCalled();
+  });
+
+  it("admits only one send when two mounted chat views share the same draft", async () => {
+    let finish!: (value: unknown) => void;
+    mocks.sendMessage.mockReturnValue(new Promise(resolve => { finish = resolve; }));
+    await act(async () => root.render(<><ChatContent /><ChatContent /></>));
+    await act(async () => typeComposer("두 화면의 같은 초안"));
+    const buttons = container.querySelectorAll<HTMLButtonElement>('button[aria-label="함께 보는 아모라 메시지 보내기"]');
+    await act(async () => { buttons[0].click(); buttons[1].click(); });
+    expect(mocks.sendMessage).toHaveBeenCalledTimes(1);
+    await act(async () => finish({ userMessage: "persisted", userMessageId: "one" }));
+    expect([...container.querySelectorAll<HTMLTextAreaElement>("textarea")].map(input => input.value)).toEqual(["", ""]);
+  });
+
+  it("retains private deletion access after visible history is empty without showing shared-empty cleanup", async () => {
+    await renderAndSettle();
+    expect(container.querySelector('button[aria-label="대화 화면 정리"]')).toBeNull();
+    await act(async () => buttonWith("나만 (상담)").click());
+    await renderAndSettle();
+    const cleanup = container.querySelector<HTMLButtonElement>('button[aria-label="대화 화면 정리"]');
+    expect(cleanup).not.toBeNull();
+    await act(async () => cleanup!.click());
+    expect(container.querySelector('[role="dialog"]')?.textContent).toContain("비공개 대화·아모라 기억 삭제");
+    expect(mocks.clearMessages).not.toHaveBeenCalled();
+  });
 
   it("keeps a dismissed long-chat banner hidden in the same scope and segment after polling", async () => {
     mocks.messages = history("shared"); await renderAndSettle();
@@ -583,6 +804,27 @@ describe("ChatContent composer draft lanes", () => {
     expect(container.querySelector<HTMLTextAreaElement>("textarea")?.value).toBe(buildWeddingTasteAmoraText(tasteDraft()));
     expect(mocks.sendMessage).not.toHaveBeenCalled();
   });
+  it.each(["raw-delete", "session-reset"] as const)("places a new-generation taste handoff after %s without waiting for the invalidated send", async boundary => {
+    let finish!: (value: unknown) => void;
+    mocks.sendMessage.mockReturnValueOnce(new Promise(resolve => { finish = resolve; }));
+    await act(async () => typeComposer("이전 세대에서 보낸 공유 질문"));
+    await act(async () => container.querySelector<HTMLButtonElement>('button[aria-label="함께 보는 아모라 메시지 보내기"]')!.click());
+    queueTaste();
+    await act(async () => root.render(<ChatContent />));
+    // 같은 세대의 전송 잠금은 여전히 보호한다. 실제 store busy 플래그 없이도 인계를 소비하지 않는다.
+    expect(container.querySelector<HTMLTextAreaElement>("textarea")?.value).toBe("");
+    expect(sessionStorage.getItem(WEDDING_TASTE_CHAT_KEY)).not.toBeNull();
+    await act(async () => {
+      if (boundary === "raw-delete") forgetComposerRecovery("shared");
+      else resetChatComposerSession();
+    });
+    expect(container.querySelector<HTMLTextAreaElement>("textarea")?.value).toBe(buildWeddingTasteAmoraText(tasteDraft()));
+    expect(container.querySelector('textarea[aria-label="나만의 아모라 상담 메시지 입력"]')).not.toBeNull();
+    expect(sessionStorage.getItem(WEDDING_TASTE_CHAT_KEY)).toBeNull();
+    await act(async () => finish({ userMessage: "not_persisted" }));
+    expect(container.querySelector<HTMLTextAreaElement>("textarea")?.value).toBe(buildWeddingTasteAmoraText(tasteDraft()));
+    expect(mocks.sendMessage).toHaveBeenCalledTimes(1);
+  });
   it.each(["owner", "couple"])("discards a pending taste handoff on %s change and never restores it when returning", async kind => {
     queueTaste(); mocks.isStreaming = true;
     await act(async () => root.render(<ChatContent />));
@@ -604,7 +846,7 @@ describe("ChatContent composer draft lanes", () => {
     expect(container.querySelector<HTMLTextAreaElement>("textarea")?.value).toBe(buildWeddingTasteAmoraText(tasteDraft()));
     await act(async () => root.unmount()); root = createRoot(container);
     await act(async () => root.render(<ChatContent />));
-    expect(container.querySelector<HTMLTextAreaElement>("textarea")?.value).toBe("");
+    expect(container.querySelector<HTMLTextAreaElement>("textarea")?.value).toBe(buildWeddingTasteAmoraText(tasteDraft()));
     expect(container.textContent).toContain("유효 시간을 확인하지 못했어요");
   });
   it("revalidates expiry on retry without replacing an existing draft or silently truncating text", async () => {
@@ -962,6 +1204,159 @@ describe("ChatContent composer draft lanes", () => {
     expect(container.textContent).toContain("amora-only.pdf");
   });
 
+  it.each(["not_persisted", "persistence_unknown", "throw"])("restores a failed safety-routed draft only in private (%s)", async outcome => {
+    const disclosure = "작년에 신랑이 칼 들고 죽인다고 했는데 지금은 안전해";
+    const requestId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+    if (outcome === "throw") mocks.sendMessage.mockRejectedValueOnce(new Error("network"));
+    else mocks.sendMessage.mockResolvedValueOnce({ userMessage: outcome, clientRequestId: requestId });
+    await act(async () => typeComposer(disclosure));
+    await act(async () => container.querySelector<HTMLButtonElement>('button[aria-label="함께 보는 아모라 메시지 보내기"]')!.click());
+    expect(container.querySelector<HTMLTextAreaElement>('textarea[aria-label="나만의 아모라 상담 메시지 입력"]')?.value).toBe(disclosure);
+    await act(async () => buttonWith("함께 대화").click());
+    expect(container.querySelector<HTMLTextAreaElement>("textarea")?.value).toBe("");
+    await act(async () => buttonWith("나만 (상담)").click());
+    await act(async () => container.querySelector<HTMLButtonElement>('button[aria-label="나만의 아모라 상담 메시지 보내기"]')!.click());
+    expect(mocks.sendMessage.mock.calls[1][0]).toMatchObject({ content: disclosure, visibility: "bride_private" });
+    if (outcome === "persistence_unknown") expect(mocks.sendMessage.mock.calls[1][0].clientRequestId).toBe(requestId);
+  });
+
+  it("keeps an existing private draft separate from a failed safety send and retries only the original payload", async () => {
+    const disclosure = "작년에 신랑이 칼 들고 죽인다고 했는데 지금은 안전해";
+    const requestId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+    await act(async () => buttonWith("나만 (상담)").click());
+    await act(async () => typeComposer("개인적으로 작성하던 다른 질문"));
+    await act(async () => buttonWith("함께 대화").click());
+    await act(async () => typeComposer(disclosure));
+    mocks.sendMessage.mockResolvedValueOnce({ userMessage: "persistence_unknown", clientRequestId: requestId });
+    await act(async () => container.querySelector<HTMLButtonElement>('button[aria-label="함께 보는 아모라 메시지 보내기"]')!.click());
+    expect(container.querySelector<HTMLTextAreaElement>("textarea")?.value).toBe("개인적으로 작성하던 다른 질문");
+    const recovery = buttonWith("보류 메시지 다시 확인");
+    expect(recovery).toBeDefined();
+    await act(async () => recovery.click());
+    expect(mocks.sendMessage.mock.calls[1][0]).toMatchObject({ content: disclosure, clientRequestId: requestId, visibility: "bride_private" });
+    expect(container.querySelector<HTMLTextAreaElement>("textarea")?.value).toBe("개인적으로 작성하던 다른 질문");
+    expect(buttonWith("보류 메시지 다시 확인")).toBeUndefined();
+  });
+
+  it.each([false, true])("does not combine a safety retry with a private attachment-only draft (reading=%s)", async pending => {
+    const readers: FileReader[] = [];
+    vi.spyOn(FileReader.prototype, "readAsDataURL").mockImplementation(function (this: FileReader) { readers.push(this); });
+    await act(async () => buttonWith("나만 (상담)").click());
+    const picker = container.querySelector<HTMLInputElement>('input[type="file"]')!;
+    Object.defineProperty(picker, "files", { configurable: true, value: [new File(["private"], "private.pdf", { type: "application/pdf" })] });
+    await act(async () => picker.dispatchEvent(new Event("change", { bubbles: true })));
+    if (!pending) await act(async () => {
+      Object.defineProperty(readers[0], "result", { value: "data:application/pdf;base64,cHJpdmF0ZQ==" });
+      readers[0].onload?.(new ProgressEvent("load") as ProgressEvent<FileReader>);
+    });
+    await act(async () => buttonWith("함께 대화").click());
+    const disclosure = "작년에 신랑이 칼 들고 죽인다고 했는데 지금은 안전해";
+    await act(async () => typeComposer(disclosure));
+    mocks.sendMessage.mockResolvedValueOnce({ userMessage: "persistence_unknown", clientRequestId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa" });
+    await act(async () => container.querySelector<HTMLButtonElement>('button[aria-label="함께 보는 아모라 메시지 보내기"]')!.click());
+    expect(container.querySelector<HTMLTextAreaElement>("textarea")?.value).toBe("");
+    expect(buttonWith("보류 메시지 다시 확인")).toBeDefined();
+    await act(async () => buttonWith("보류 메시지 다시 확인").click());
+    expect(mocks.sendMessage.mock.calls[1][0]).toMatchObject({ content: disclosure, clientRequestId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", visibility: "bride_private" });
+    expect(mocks.sendMessage.mock.calls[1][0].images).toBeUndefined();
+    if (!pending) expect(container.textContent).toContain("private.pdf");
+  });
+
+  it("keeps pending private recovery across remount and discards only that local recovery on explicit click", async () => {
+    await act(async () => buttonWith("나만 (상담)").click());
+    await act(async () => typeComposer("원래 개인 질문"));
+    await act(async () => buttonWith("함께 대화").click());
+    await act(async () => typeComposer("작년에 신랑이 칼 들고 죽인다고 했는데 지금은 안전해"));
+    mocks.sendMessage.mockResolvedValueOnce({ userMessage: "persistence_unknown", clientRequestId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa" });
+    await act(async () => container.querySelector<HTMLButtonElement>('button[aria-label="함께 보는 아모라 메시지 보내기"]')!.click());
+    await act(async () => root.unmount()); root = createRoot(container);
+    await act(async () => root.render(<ChatContent />));
+    expect(buttonWith("보류 메시지 다시 확인")).toBeDefined();
+    expect(container.querySelector<HTMLTextAreaElement>("textarea")?.value).toBe("원래 개인 질문");
+    await act(async () => buttonWith("이 기기의 보류 초안만 지우기").click());
+    expect(buttonWith("보류 메시지 다시 확인")).toBeUndefined();
+    expect(container.querySelector<HTMLTextAreaElement>("textarea")?.value).toBe("원래 개인 질문");
+    expect(mocks.clearMessages).not.toHaveBeenCalled();
+    expect(mocks.sendMessage).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps local safety hold text separate from an existing private draft and loads it only on request", async () => {
+    await act(async () => buttonWith("나만 (상담)").click());
+    await act(async () => typeComposer("작성 중인 개인 질문"));
+    await act(async () => buttonWith("함께 대화").click());
+    const heldText = "지금 죽고 싶어";
+    await act(async () => typeComposer(heldText));
+    mocks.sendMessage.mockResolvedValueOnce({ userMessage: "ephemeral_safety" });
+    await act(async () => container.querySelector<HTMLButtonElement>('button[aria-label="함께 보는 아모라 메시지 보내기"]')!.click());
+    expect(container.querySelector<HTMLTextAreaElement>("textarea")?.value).toBe("작성 중인 개인 질문");
+    expect(buttonWith("보류 초안 불러오기")).toBeDefined();
+    expect(buttonWith("보류 초안 불러오기").disabled).toBe(true);
+    await act(async () => typeComposer(""));
+    await act(async () => buttonWith("보류 초안 불러오기").click());
+    expect(container.querySelector<HTMLTextAreaElement>("textarea")?.value).toBe(heldText);
+    expect(mocks.sendMessage).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps an existing local safety hold when opposite deletion restores a different pending private draft", async () => {
+    await act(async () => buttonWith("나만 (상담)").click());
+    await act(async () => typeComposer("작성 중인 개인 질문"));
+    await act(async () => buttonWith("함께 대화").click());
+    await act(async () => typeComposer("지금 죽고 싶어"));
+    mocks.sendMessage.mockResolvedValueOnce({ userMessage: "ephemeral_safety" });
+    await act(async () => container.querySelector<HTMLButtonElement>('button[aria-label="함께 보는 아모라 메시지 보내기"]')!.click());
+    expect(buttonWith("보류 초안 불러오기")).toBeDefined();
+    let finish!: (value: unknown) => void;
+    mocks.sendMessage.mockReturnValueOnce(new Promise(resolve => { finish = resolve; }));
+    await act(async () => container.querySelector<HTMLButtonElement>('button[aria-label="나만의 아모라 상담 메시지 보내기"]')!.click());
+    await act(async () => forgetComposerRecovery("shared"));
+    await act(async () => finish({ userMessage: "not_persisted" }));
+    expect(container.querySelector<HTMLTextAreaElement>("textarea")?.value).toBe("작성 중인 개인 질문");
+    expect(buttonWith("보류 초안 불러오기")).toBeDefined();
+    await act(async () => typeComposer(""));
+    await act(async () => buttonWith("보류 초안 불러오기").click());
+    expect(container.querySelector<HTMLTextAreaElement>("textarea")?.value).toBe("지금 죽고 싶어");
+    expect(mocks.sendMessage).toHaveBeenCalledTimes(2);
+  });
+
+  it.each(["shared", "private"] as const)("keeps safety-routed pending text private and strips its attachment/reference after %s raw deletion", async deleted => {
+    await act(async () => buttonWith("나만 (상담)").click());
+    await act(async () => typeComposer("기존 개인 초안"));
+    await act(async () => buttonWith("함께 대화").click());
+    mocks.preparationSources = ["c.venue"];
+    await renderAndSettle();
+    const disclosure = "작년에 신랑이 칼 들고 죽인다고 했는데 지금은 안전해";
+    await act(async () => typeComposer(disclosure));
+    const readers: FileReader[] = [];
+    vi.spyOn(FileReader.prototype, "readAsDataURL").mockImplementation(function (this: FileReader) { readers.push(this); });
+    const picker = container.querySelector<HTMLInputElement>('input[type="file"]')!;
+    Object.defineProperty(picker, "files", { configurable: true, value: [new File(["private"], "discard.pdf", { type: "application/pdf" })] });
+    await act(async () => picker.dispatchEvent(new Event("change", { bubbles: true })));
+    await act(async () => {
+      Object.defineProperty(readers[0], "result", { value: "data:application/pdf;base64,cHJpdmF0ZQ==" });
+      readers[0].onload?.(new ProgressEvent("load") as ProgressEvent<FileReader>);
+    });
+    let finish!: (value: unknown) => void;
+    mocks.sendMessage.mockReturnValueOnce(new Promise(resolve => { finish = resolve; }));
+    await act(async () => container.querySelector<HTMLButtonElement>('button[aria-label="함께 보는 아모라 메시지 보내기"]')!.click());
+    const key = mocks.sendMessage.mock.calls[0][0].clientRequestId;
+    await act(async () => forgetComposerRecovery(deleted));
+    await act(async () => finish({ userMessage: "not_persisted", clientRequestId: key }));
+    expect(container.querySelector<HTMLTextAreaElement>("textarea")?.value).toBe("기존 개인 초안");
+    expect(container.textContent).not.toContain("discard.pdf");
+    if (deleted === "shared") {
+      expect(buttonWith("보류 메시지 다시 확인")).toBeDefined();
+      await act(async () => buttonWith("보류 메시지 다시 확인").click());
+      expect(mocks.sendMessage.mock.calls[1][0]).toMatchObject({ content: disclosure, visibility: "bride_private", clientRequestId: key, images: undefined });
+      expect(mocks.sendMessage.mock.calls[1][0]).not.toHaveProperty("preparationSource");
+    } else {
+      expect(buttonWith("보류 메시지 다시 확인")).toBeUndefined();
+      expect(mocks.sendMessage).toHaveBeenCalledTimes(1);
+    }
+    await act(async () => buttonWith("함께 대화").click());
+    expect(container.querySelector<HTMLTextAreaElement>("textarea")?.value).toBe("");
+    expect(container.textContent).not.toContain("discard.pdf");
+  });
+
   it("moves a non-immediate relationship safety disclosure to private before sending", async () => {
     mocks.sendMessage.mockResolvedValueOnce({
       userMessage: "persisted",
@@ -1146,7 +1541,8 @@ describe("ChatContent composer draft lanes", () => {
     });
     await act(async () => send()?.click());
     expect(mocks.sendMessage.mock.calls[2][0]).not.toHaveProperty("preparationSource");
-    expect(mocks.sendMessage.mock.calls[2][0]).not.toHaveProperty("clientRequestId");
+    expect(mocks.sendMessage.mock.calls[2][0].clientRequestId).not.toBe(key);
+    expect(mocks.sendMessage.mock.calls[2][0].clientRequestId).toEqual(expect.any(String));
   });
 
   it.each(["", "   "])("clearing an imported question to %j also removes its reference before a new question", async cleared => {
@@ -1599,6 +1995,16 @@ describe("ChatContent composer draft lanes", () => {
       finishSend?.({ userMessage: "persisted", userMessageId: "message-1" });
       await Promise.resolve();
     });
+  });
+
+  it("shows a daily notice without calling the beta lifetime quota exhausted", async () => {
+    mocks.quotaRemaining = 2; mocks.quotaPeriod = "daily";
+    await renderAndSettle();
+    expect(container.textContent).toContain("오늘 상담이 약 2회 남았어요.");
+    expect(container.textContent).not.toContain("무료 상담이 2회");
+    mocks.quotaRemaining = 0; await renderAndSettle();
+    expect(container.textContent).toContain("내일 다시");
+    expect(container.textContent).not.toContain("무료 상담을 모두");
   });
 
   it("shows transient artifacts only in the visibility that produced them", async () => {

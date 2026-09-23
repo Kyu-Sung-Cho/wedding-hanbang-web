@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { ActivityIndicator, StyleSheet, Switch, View } from "react-native";
+import { ActivityIndicator, Pressable, StyleSheet, Switch, View } from "react-native";
 import { Text } from "@/components/ui/AppText";
 import { BellRing, ShieldCheck } from "lucide-react-native";
 import { colors, radius, spacing } from "@hanbang/design-tokens";
@@ -14,7 +14,18 @@ type ViewState =
 
 async function currentOwnerId() {
   const { data, error } = await supabase.auth.getUser();
-  return error ? null : data.user?.id ?? null;
+  if (error) throw error;
+  return data.user?.id ?? null;
+}
+
+async function ownerBoundRpc(ownerId: string, name: string, args: Record<string, boolean>, signal: AbortSignal, current: () => boolean) {
+  const { data, error } = await supabase.auth.getSession();
+  const session = data.session;
+  if (error || !session || session.user.id !== ownerId || !current()) throw new Error("OWNER_CHANGED");
+  const verified = await supabase.auth.getUser(session.access_token);
+  if (verified.error || verified.data.user?.id !== ownerId || !current()) throw new Error("OWNER_CHANGED");
+  // SDK가 전송 직전 새 로그인 토큰을 읽더라도 이 요청의 주체는 바뀌지 않는다.
+  return supabase.rpc(name, args).setHeader("Authorization", `Bearer ${session.access_token}`).abortSignal(signal);
 }
 
 export default function CommunityReplyPushPreferenceControl() {
@@ -22,73 +33,133 @@ export default function CommunityReplyPushPreferenceControl() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const generation = useRef(0);
+  const [reload, setReload] = useState(0);
+  const owner = useRef<string | null | undefined>(undefined);
+  const saveInFlight = useRef(false);
+  const pendingSave = useRef<{ ownerId: string; settled: boolean } | null>(null);
+
+  useEffect(() => {
+    const { data } = supabase.auth.onAuthStateChange((event, session) => {
+      const next = session?.user.id ?? null;
+      if (event === "INITIAL_SESSION" && owner.current === undefined) { owner.current = next; return; }
+      if (owner.current === next) return;
+      owner.current = next;
+      generation.current += 1;
+      saveInFlight.current = false;
+      pendingSave.current = null;
+      setSaving(false); setView({ kind: "unavailable" });
+      setError("로그인 상태가 바뀌었어요. 현재 계정의 설정을 다시 확인해 주세요.");
+    });
+    return () => { generation.current += 1; pendingSave.current = null; data.subscription.unsubscribe(); };
+  }, []);
 
   useEffect(() => {
     const operation = ++generation.current;
+    const controller = new AbortController();
+    const current = () => operation === generation.current && !controller.signal.aborted;
+    const timer = setTimeout(() => {
+      if (current()) { setView({ kind: "unavailable" }); controller.abort(); }
+    }, 10_000);
     void (async () => {
       try {
         const ownerId = await currentOwnerId();
+        if (!current()) return;
+        owner.current = ownerId;
         if (!ownerId) {
           if (operation === generation.current) setView({ kind: "unavailable" });
+          setError("로그인 상태를 확인한 뒤 다시 시도해 주세요.");
           return;
         }
-        const result = await supabase.rpc("community_get_reply_push_preference");
-        if (
-          operation !== generation.current
-          || await currentOwnerId() !== ownerId
-        ) return;
+        const result = await ownerBoundRpc(ownerId, "community_get_reply_push_preference", {}, controller.signal, current);
+        if (!current()) return;
+        const latestOwner = await currentOwnerId();
+        if (!current()) return;
+        if (latestOwner !== ownerId) {
+          setView({ kind: "unavailable" });
+          setError("로그인 상태가 바뀌었어요. 현재 계정의 설정을 다시 확인해 주세요.");
+          return;
+        }
         if (result.error || typeof result.data !== "boolean") {
           setView({ kind: "unavailable" });
           return;
         }
+        if (pendingSave.current?.ownerId === ownerId && !pendingSave.current.settled) {
+          setView({ kind: "unavailable" });
+          setError("저장 여부를 확인하지 못했어요. 앞선 처리가 끝난 뒤 설정을 다시 확인해 주세요.");
+          return;
+        }
         setView({ kind: "ready", ownerId, enabled: result.data });
+        setError("");
       } catch {
-        if (operation === generation.current) setView({ kind: "unavailable" });
+        if (current()) setView({ kind: "unavailable" });
+      } finally {
+        clearTimeout(timer);
       }
     })();
-    return () => { generation.current += 1; };
-  }, []);
+    return () => { generation.current += 1; controller.abort(); clearTimeout(timer); };
+  }, [reload]);
 
   async function setEnabled(nextEnabled: boolean) {
-    if (view.kind !== "ready" || saving) return;
+    if (view.kind !== "ready" || saveInFlight.current) return;
+    saveInFlight.current = true;
     const operation = ++generation.current;
-    const previous = view.enabled;
+    const attempt = { ownerId: view.ownerId, settled: false };
+    pendingSave.current = attempt;
+    const controller = new AbortController();
+    const current = () => operation === generation.current && !controller.signal.aborted;
+    let timedOut = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
     setSaving(true);
     setError("");
-    try {
+    const task = (async () => {
+      if (await currentOwnerId() !== view.ownerId || !current()) throw new Error("OWNER_CHANGED");
       if (nextEnabled) {
         const token = await registerForPushNotifications();
-        if (!token) {
-          throw new Error("PUSH_PERMISSION_NOT_GRANTED");
-        }
+        if (!token) throw new Error("PUSH_PERMISSION_NOT_GRANTED");
       }
-      if (await currentOwnerId() !== view.ownerId) return;
-      const result = await supabase.rpc("community_set_reply_push_preference", {
+      if (await currentOwnerId() !== view.ownerId || !current()) throw new Error("OWNER_CHANGED");
+      const result = await ownerBoundRpc(view.ownerId, "community_set_reply_push_preference", {
         p_enabled: nextEnabled,
-      });
-      if (
-        result.error
-        || result.data !== nextEnabled
-        || await currentOwnerId() !== view.ownerId
-      ) {
-        throw new Error("COMMUNITY_PUSH_PREFERENCE_SAVE_FAILED");
+      }, controller.signal, current);
+      if (result.error || result.data !== nextEnabled) throw new Error("COMMUNITY_PUSH_PREFERENCE_SAVE_FAILED");
+      if (await currentOwnerId() !== view.ownerId || !current()) throw new Error("OWNER_CHANGED");
+    })().finally(() => {
+      attempt.settled = true;
+      // 응답 대기 중의 조회는 저장 완료 증거가 아니다. 늦게 끝나면 같은 계정으로 다시 읽는다.
+      if (timedOut && pendingSave.current === attempt && owner.current === attempt.ownerId) {
+        pendingSave.current = null;
+        setReload(value => value + 1);
       }
+    });
+    try {
+      await Promise.race([task, new Promise<never>((_, reject) => {
+        timer = setTimeout(() => { timedOut = true; reject(new Error("PREFERENCE_TIMEOUT")); controller.abort(); }, 10_000);
+      })]);
       if (operation === generation.current) {
         setView({ ...view, enabled: nextEnabled });
       }
-    } catch {
+    } catch (failure) {
       if (operation === generation.current) {
-        setView({ ...view, enabled: previous });
-        setError(nextEnabled
-          ? "휴대폰 알림을 허용한 뒤 다시 켜 주세요. 아직 외부 푸시는 보내지 않아요."
-          : "설정을 저장하지 못했어요. 기존 설정은 그대로예요.");
+        if (failure instanceof Error && failure.message === "PUSH_PERMISSION_NOT_GRANTED") {
+          setError("휴대폰 알림을 허용한 뒤 다시 켜 주세요. 아직 외부 푸시는 보내지 않아요.");
+          return;
+        }
+        setView({ kind: "unavailable" });
+        setError("저장 여부를 확인하지 못했어요. 현재 설정을 다시 확인해 주세요.");
+        if (attempt.settled) setReload(value => value + 1);
       }
     } finally {
+      clearTimeout(timer);
       if (operation === generation.current) setSaving(false);
+      if (operation === generation.current) saveInFlight.current = false;
+      if (attempt.settled && pendingSave.current === attempt) pendingSave.current = null;
     }
   }
 
-  if (view.kind === "unavailable") return null;
+  if (view.kind === "unavailable") return <View style={styles.container}>
+    <Text accessibilityRole="alert">{error || "커뮤니티 답글 푸시 설정을 확인하지 못했어요."}</Text>
+    <Pressable accessibilityRole="button" accessibilityLabel="설정 다시 확인하기" onPress={() => { setView({ kind: "loading" }); setReload(value => value + 1); }} style={{ minHeight: 44, justifyContent: "center" }}><Text>설정 다시 확인하기</Text></Pressable>
+  </View>;
   if (view.kind === "loading") {
     return (
       <View style={styles.loading} accessibilityRole="progressbar">

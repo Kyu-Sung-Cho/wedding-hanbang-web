@@ -269,20 +269,20 @@ async function createOpenAIResponseWithAuditInternal<T>(
         "[ai-config] beforeProviderEgress is required before any content-bearing provider request",
       );
     }
-    options.signal?.throwIfAborted();
-    try {
-      await options.beforeProviderEgress();
-    } catch (error) {
-      providerEgressGateFailed = true;
-      throw error;
-    }
-    options.signal?.throwIfAborted();
-
     // 측정 *호출*이 전송·제공자 장애(네트워크·5xx·429·타임아웃)로 죽으면 한 번만
     // 다시 잰다. 측정이 성공하고 그 판정이 막은 것(한도 초과·잘못된 응답)과
     // 호출부의 취소는 다시 재지 않는다.
     let inputCountFailure: OpenAIProviderError | null = null;
     for (let attempt = 1; attempt <= 2; attempt += 1) {
+      // 동의가 바뀐 재시도를 측정 장애로 처리하거나 원문을 다시 보내지 않는다.
+      options.signal?.throwIfAborted();
+      try {
+        await options.beforeProviderEgress();
+      } catch (error) {
+        providerEgressGateFailed = true;
+        throw error;
+      }
+      options.signal?.throwIfAborted();
       try {
         const countPromise = client.responses.inputTokens.count(
           {

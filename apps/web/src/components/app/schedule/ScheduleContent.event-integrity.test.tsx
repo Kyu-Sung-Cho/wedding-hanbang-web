@@ -42,7 +42,7 @@ const authState = vi.hoisted(
 );
 
 vi.mock("@/stores/authStore", () => ({
-  useAuthStore: () => authState,
+  useAuthStore: Object.assign(() => authState, { getState: () => authState, subscribe: () => () => undefined }),
 }));
 
 vi.mock("next/navigation", () => ({

@@ -17,7 +17,14 @@ const compiled = ts.transpileModule(readFileSync(sourcePath, "utf8"), {
   compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
 });
 const module = { exports: {} };
-new Function("module", "exports", compiled.outputText)(module, module.exports);
+const receiptModule = { exports: {} };
+const receiptCode = ts.transpileModule(readFileSync(new URL("../../../../packages/shared/src/contracts/amoraDecisionReceipt.ts", import.meta.url), "utf8"), {
+  compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
+}).outputText;
+new Function("module", "exports", receiptCode)(receiptModule, receiptModule.exports);
+new Function("module", "exports", "require", compiled.outputText)(module, module.exports, key => {
+  assert.equal(key, "@hanbang/shared"); return receiptModule.exports;
+});
 const { getToolResultCardModel, dedupeToolResultCards, TOOL_RESULT_CARD_TOOLS, getToolResultDestination } = module.exports;
 
 const chatSource = readFileSync(
@@ -121,6 +128,8 @@ test("actual native result buttons open only the app-owned destination and never
     "lucide-react-native": { CheckCircle2: "CheckCircle2", XCircle: "XCircle" },
     "@hanbang/design-tokens": { colors: { noir: { 800: "black", soft: "gray" }, rose: { 600: "rose" } } },
     "./toolResultCardModel": module.exports,
+    "@hanbang/shared": receiptModule.exports,
+    "@/lib/siteUrl.mjs": {},
   };
   const cardModule = { exports: {} };
   new Function("exports", "module", "require", code)(cardModule.exports, cardModule, key => {

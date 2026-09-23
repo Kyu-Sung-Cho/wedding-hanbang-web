@@ -29,7 +29,11 @@ function stats(value: Data): Data | null {
   const { minKrw, medianKrw, maxKrw } = value;
   if (!integer(minKrw) || !integer(medianKrw) || !integer(maxKrw)
     || minKrw > medianKrw || medianKrw > maxKrw) return null;
-  return { sampleCount: value.sampleCount, minKrw, medianKrw, maxKrw };
+  return {
+    sampleCount: value.sampleCount, minKrw, medianKrw, maxKrw,
+    ...(value.rangeMethod === "published_bounds" ? { rangeMethod: value.rangeMethod } : {}),
+    ...(value.medianMethod === "median_of_row_midpoints" ? { medianMethod: value.medianMethod } : {}),
+  };
 }
 
 function searchData(output: Data): Data | null {

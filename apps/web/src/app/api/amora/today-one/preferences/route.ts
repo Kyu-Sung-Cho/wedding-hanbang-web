@@ -5,6 +5,7 @@ import { createClientFromRequest } from "@/lib/supabase/server";
 import { checkRateLimit, rateLimitKey } from "@/utils/rateLimit";
 import { isRecord, isUuid, readBoundedUtf8Text } from "@/utils/requestValidation";
 import { isTrustedMutationRequest } from "@/utils/trustedMutation";
+import { parseAuthorizationHeader } from "@/utils/bearerAuthorization";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -117,8 +118,8 @@ async function authenticate(
   request: Request,
 ): Promise<{ ok: true; value: AuthContext } | { ok: false; response: NextResponse }> {
   const supabase = await createClientFromRequest(request);
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user || !isUuid(user.id)) {
+  const { data: { user }, error } = await supabase.auth.getUser();
+  if (error || !user || !isUuid(user.id)) {
     return {
       ok: false,
       response: response({ error: "인증이 필요합니다.", code: "TODAY_ONE_AUTH_REQUIRED" }, 401),
@@ -207,7 +208,14 @@ function checkRate(
   return limited ? withPrivateHeaders(limited) : null;
 }
 
-async function readMode(request: Request): Promise<PreferenceMode | NextResponse> {
+function ownerChangedResponse(reason: "owner_invalid" | "owner_changed" = "owner_changed") {
+  const error = reason === "owner_invalid"
+    ? "계정 확인 정보의 형식이 올바르지 않아 설정을 바꾸지 않았어요. 현재 화면을 새로 열어 다시 확인해 주세요."
+    : "로그인 상태가 바뀌었어요. 화면을 새로고침하거나 앱을 업데이트한 뒤 다시 확인해 주세요.";
+  return response({ code: "TODAY_ONE_OWNER_CHANGED", reason, error }, 409);
+}
+
+async function readMode(request: Request): Promise<{ mode: PreferenceMode; expectedOwnerId: string | null } | NextResponse> {
   const body = await readBoundedUtf8Text(request, MAX_BODY_BYTES);
   if (!body.ok) {
     return response(
@@ -223,10 +231,22 @@ async function readMode(request: Request): Promise<PreferenceMode | NextResponse
     const parsed = JSON.parse(body.text) as unknown;
     if (
       isRecord(parsed)
-      && Object.keys(parsed).length === 1
+      && Object.keys(parsed).every(key => key === "mode" || key === "expectedOwnerId")
       && MODES.includes(parsed.mode as PreferenceMode)
     ) {
-      return parsed.mode as PreferenceMode;
+      // 구버전 앱은 화면 계정에 결박한 Bearer로 보낸다. 인증 검증은 아래에서 수행한다.
+      // 쿠키 요청이나 명시된 잘못된 owner에는 이 호환 경로를 적용하지 않는다.
+      if (!Object.prototype.hasOwnProperty.call(parsed, "expectedOwnerId")) {
+        if (parseAuthorizationHeader(request.headers.get("authorization")).kind === "bearer") {
+          return { mode: parsed.mode as PreferenceMode, expectedOwnerId: null };
+        }
+        return response({
+          code: "TODAY_ONE_OWNER_CHANGED", reason: "owner_required",
+          error: "이 요청에는 화면에서 확인한 계정 정보가 없어 설정을 바꾸지 않았어요. 앱을 업데이트하거나 https://hanbang.ai/settings 에 같은 계정으로 로그인해 현재 설정을 다시 확인한 뒤 변경해 주세요.",
+        }, 409);
+      }
+      if (!isUuid(parsed.expectedOwnerId)) return ownerChangedResponse("owner_invalid");
+      return { mode: parsed.mode as PreferenceMode, expectedOwnerId: parsed.expectedOwnerId.toLowerCase() };
     }
   } catch {
     // Fall through to the bounded generic error.
@@ -244,6 +264,8 @@ export async function GET(request: Request) {
   try {
     const auth = await authenticate(request);
     if (!auth.ok) return auth.response;
+    const expectedOwner = request.headers.get("X-Amora-Expected-Owner");
+    if (expectedOwner !== null && (!isUuid(expectedOwner) || expectedOwner.toLowerCase() !== auth.value.userId.toLowerCase())) return ownerChangedResponse();
     if (!isAmoraTodayOneEnabled()) return unavailableResponse();
     const limited = checkRate(
       "amora-today-one-preferences:read",
@@ -258,6 +280,7 @@ export async function GET(request: Request) {
     if (preference instanceof NextResponse) return preference;
     return response({
       available: true,
+      ownerId: auth.value.userId,
       preference: preference ?? DEFAULT_PREFERENCE,
     });
   } catch (error) {
@@ -271,10 +294,12 @@ export async function PUT(request: Request) {
     if (!isTrustedMutationRequest(request)) {
       return response({ error: "잘못된 요청 출처입니다." }, 403);
     }
-    const mode = await readMode(request);
-    if (mode instanceof NextResponse) return mode;
+    const input = await readMode(request);
+    if (input instanceof NextResponse) return input;
+    const { mode, expectedOwnerId } = input;
     const auth = await authenticate(request);
     if (!auth.ok) return auth.response;
+    if (expectedOwnerId !== null && expectedOwnerId !== auth.value.userId.toLowerCase()) return ownerChangedResponse();
     if (!isAmoraTodayOneEnabled()) return unavailableResponse();
     const limited = checkRate(
       "amora-today-one-preferences:write",
@@ -331,7 +356,7 @@ export async function PUT(request: Request) {
     if (!preference) {
       return response({ error: "설정이 저장됐는지 확인하지 못했어요." }, 503);
     }
-    return response({ available: true, preference });
+    return response({ available: true, ownerId: auth.value.userId, preference });
   } catch (error) {
     console.error("[today-one-preferences] PUT failed", error);
     return response(

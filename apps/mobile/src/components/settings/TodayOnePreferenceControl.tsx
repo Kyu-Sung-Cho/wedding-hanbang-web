@@ -6,6 +6,7 @@ import { colors, radius, spacing } from "@hanbang/design-tokens";
 
 import { apiFetchForExpectedUser } from "@/lib/api";
 import { supabase } from "@/lib/supabase";
+import { preferenceRequest } from "@/lib/preferenceRequest";
 import {
   parseTodayOnePreferenceEnvelope,
   type TodayOnePreference,
@@ -18,9 +19,15 @@ type ViewState =
   | { kind: "ready"; ownerUserId: string; preference: TodayOnePreference }
   | { kind: "error"; message: string };
 
+function pendingWriteView(preference?: TodayOnePreference): ViewState {
+  const snapshot = preference ? ` 조회 시점 설정: ${preference.enabled ? "켜짐" : "꺼짐"}.` : "";
+  return { kind: "error", message: `변경 결과를 확인하지 못했어요.${snapshot} 앞선 저장 처리가 끝나기 전에는 다시 변경하지 않아요. 다시 불러와 확인해 주세요.` };
+}
+
 async function currentVerifiedUserId(): Promise<string | null> {
   const { data, error } = await supabase.auth.getUser();
-  return error ? null : data.user?.id ?? null;
+  if (error) throw error;
+  return data.user?.id ?? null;
 }
 
 function payloadError(payload: unknown, fallback: string): string {
@@ -57,35 +64,34 @@ export default function TodayOnePreferenceControl() {
   const saveInFlight = useRef(false);
   const saveController = useRef<AbortController | null>(null);
   const sessionUserId = useRef<string | null>(null);
+  const writeAttempt = useRef<{ settled: boolean; reconcileOnSettle: boolean } | null>(null);
 
   const load = useCallback(async () => {
     const operation = ++loadGeneration.current;
     setView({ kind: "loading" });
     setActionError("");
     try {
-      const userId = await currentVerifiedUserId();
+      const result = await preferenceRequest(async signal => {
+        const userId = await currentVerifiedUserId();
+        if (signal.aborted || operation !== loadGeneration.current) throw new Error("PREFERENCE_OWNER_CHANGED");
+        if (!userId) return null;
+        const response = await apiFetchForExpectedUser(userId, "/api/amora/today-one/preferences", {
+          method: "GET", headers: { Accept: "application/json" }, signal,
+        });
+        const payload: unknown = await response.json().catch(() => null);
+        if (await currentVerifiedUserId() !== userId) throw new Error("PREFERENCE_OWNER_CHANGED");
+        return { userId, response, payload };
+      });
+      if (operation !== loadGeneration.current) return;
+      const userId = result?.userId ?? null;
       sessionUserId.current = userId;
-      if (!userId) {
+      if (!result) {
         if (operation === loadGeneration.current) setView({ kind: "unavailable" });
         return;
       }
-      const response = await apiFetchForExpectedUser(
-        userId,
-        "/api/amora/today-one/preferences",
-        {
-          method: "GET",
-          headers: { Accept: "application/json" },
-        },
-      );
-      const payload = await response.json().catch(() => null);
-      if (
-        operation !== loadGeneration.current
-        || await currentVerifiedUserId() !== userId
-      ) {
-        return;
-      }
+      const { response, payload } = result;
       const parsed = parseTodayOnePreferenceEnvelope(payload);
-      if (!parsed) {
+      if (!response.ok || !parsed) {
         setView({
           kind: "error",
           message: response.ok
@@ -94,11 +100,15 @@ export default function TodayOnePreferenceControl() {
         });
         return;
       }
-      setView(parsed.available
-        ? { kind: "ready", ownerUserId: userId, preference: parsed.preference }
+      if (writeAttempt.current && !writeAttempt.current.settled) {
+        writeAttempt.current.reconcileOnSettle = true;
+        setView(pendingWriteView(parsed.available ? parsed.preference : undefined));
+      } else setView(parsed.available
+        ? { kind: "ready", ownerUserId: result.userId, preference: parsed.preference }
         : { kind: "unavailable" });
     } catch {
       if (operation === loadGeneration.current) {
+        if (writeAttempt.current && !writeAttempt.current.settled) writeAttempt.current.reconcileOnSettle = true;
         setView({ kind: "error", message: "오늘의 한 가지 설정을 불러오지 못했어요." });
       }
     }
@@ -121,6 +131,7 @@ export default function TodayOnePreferenceControl() {
       saveController.current?.abort();
       saveController.current = null;
       saveInFlight.current = false;
+      writeAttempt.current = null;
       setPendingMode(null);
       setActionError("");
       setView(nextUserId ? { kind: "loading" } : { kind: "unavailable" });
@@ -132,6 +143,7 @@ export default function TodayOnePreferenceControl() {
       saveController.current?.abort();
       saveController.current = null;
       saveInFlight.current = false;
+      writeAttempt.current = null;
       subscription.unsubscribe();
     };
   }, []);
@@ -139,52 +151,70 @@ export default function TodayOnePreferenceControl() {
   async function saveMode(mode: PreferenceMode) {
     if (view.kind !== "ready" || pendingMode || saveInFlight.current) return;
     saveInFlight.current = true;
-    const previousPreference = view.preference;
     const ownerUserId = view.ownerUserId;
     const operation = ++saveGeneration.current;
+    const attempt = { settled: false, reconcileOnSettle: false };
+    writeAttempt.current = attempt;
     const controller = new AbortController();
     saveController.current = controller;
     setPendingMode(mode);
     setActionError("");
     try {
-      const userId = await currentVerifiedUserId();
-      if (!userId || userId !== ownerUserId) {
-        setView(userId ? { kind: "loading" } : { kind: "unavailable" });
-        setAuthGeneration((generation) => generation + 1);
-        return;
-      }
-      const response = await apiFetchForExpectedUser(
-        ownerUserId,
-        "/api/amora/today-one/preferences",
-        {
-          method: "PUT",
-          headers: { Accept: "application/json" },
-          body: JSON.stringify({ mode }),
-          signal: controller.signal,
-        },
-      );
-      const payload = await response.json().catch(() => null);
-      if (
-        operation !== saveGeneration.current
-        || await currentVerifiedUserId() !== ownerUserId
-      ) {
-        return;
-      }
+      const { response, payload } = await preferenceRequest(async signal => {
+        const userId = await currentVerifiedUserId();
+        if (signal.aborted || operation !== saveGeneration.current || userId !== ownerUserId) {
+          throw new Error("PREFERENCE_OWNER_CHANGED");
+        }
+        const response = await apiFetchForExpectedUser(ownerUserId, "/api/amora/today-one/preferences", {
+          method: "PUT", headers: { Accept: "application/json" }, body: JSON.stringify({ mode, expectedOwnerId: ownerUserId }), signal,
+        });
+        const payload: unknown = await response.json().catch(() => null);
+        if (await currentVerifiedUserId() !== ownerUserId) throw new Error("PREFERENCE_OWNER_CHANGED");
+        return { response, payload };
+      }, controller.signal, () => {
+        attempt.settled = true;
+        if (attempt.reconcileOnSettle && writeAttempt.current === attempt && operation === saveGeneration.current) {
+          writeAttempt.current = null;
+          void load();
+        }
+      });
+      if (operation !== saveGeneration.current) return;
       const parsed = parseTodayOnePreferenceEnvelope(payload);
       if (!response.ok || !parsed || !parsed.available) {
-        if (parsed && !parsed.available) setView({ kind: "unavailable" });
-        else setView({ kind: "ready", ownerUserId, preference: previousPreference });
-        setActionError(payloadError(
-          payload,
-          "설정을 저장하지 못했어요. 기존 설정은 그대로예요.",
-        ));
-        return;
+        throw new Error("PREFERENCE_RESULT_UNKNOWN");
       }
       setView({ kind: "ready", ownerUserId, preference: parsed.preference });
     } catch {
-      if (operation === saveGeneration.current) {
-        setView({ kind: "ready", ownerUserId, preference: previousPreference });
-        setActionError("설정을 저장하지 못했어요. 기존 설정은 그대로예요.");
+      if (operation !== saveGeneration.current) return;
+      const recovery = ++loadGeneration.current;
+      attempt.reconcileOnSettle = !attempt.settled;
+      try {
+        const parsed = await preferenceRequest(async signal => {
+          if (operation !== saveGeneration.current || await currentVerifiedUserId() !== ownerUserId || signal.aborted) {
+            throw new Error("PREFERENCE_OWNER_CHANGED");
+          }
+          const response = await apiFetchForExpectedUser(ownerUserId, "/api/amora/today-one/preferences", {
+            method: "GET", headers: { Accept: "application/json" }, signal,
+          });
+          const parsed = parseTodayOnePreferenceEnvelope(await response.json());
+          if (!response.ok || !parsed?.available || await currentVerifiedUserId() !== ownerUserId) {
+            throw new Error("PREFERENCE_READ_FAILED");
+          }
+          return parsed;
+        }, controller.signal);
+        if (operation !== saveGeneration.current || recovery !== loadGeneration.current) return;
+        if (!attempt.settled) {
+          attempt.reconcileOnSettle = true;
+          setView(pendingWriteView(parsed.preference));
+        } else {
+          setView({ kind: "ready", ownerUserId, preference: parsed.preference });
+          setActionError("저장 응답을 확인하지 못해 현재 서버 설정을 다시 불러왔어요. 변경이 늦게 반영될 수 있어요.");
+        }
+      } catch {
+        if (operation === saveGeneration.current && recovery === loadGeneration.current) {
+          attempt.reconcileOnSettle = !attempt.settled;
+          setView(pendingWriteView());
+        }
       }
     } finally {
       if (operation === saveGeneration.current) {

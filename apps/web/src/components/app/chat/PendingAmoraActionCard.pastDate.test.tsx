@@ -15,6 +15,8 @@ import {
 } from "../../../../../mobile/src/lib/pendingAmoraAction";
 import { getAmoraToolOperationIdentity } from "@/lib/ai/amoraToolIdentity";
 import type { PendingAmoraAction } from "@/types/database.types";
+import { useAuthStore } from "@/stores/authStore";
+import { setPendingActionActor } from "./__tests__/fixtures/pendingActionActor";
 
 /**
  * 지난 날짜 일정을 카드가 말해 주는가 (2026-09-03).
@@ -55,6 +57,8 @@ describe("지난 날짜 일정 카드", () => {
 
   beforeEach(() => {
     vi.stubGlobal("fetch", vi.fn());
+    useAuthStore.getState().reset();
+    setPendingActionActor();
     container = document.createElement("div");
     document.body.appendChild(container);
     root = createRoot(container);
@@ -62,6 +66,7 @@ describe("지난 날짜 일정 카드", () => {
 
   afterEach(async () => {
     await act(async () => root.unmount());
+    useAuthStore.getState().reset();
     vi.useRealTimers();
     vi.unstubAllGlobals();
     document.body.replaceChildren();

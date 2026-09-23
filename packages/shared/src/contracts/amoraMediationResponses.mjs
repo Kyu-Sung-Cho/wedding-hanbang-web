@@ -29,78 +29,87 @@ export function parseMediationResponseState(value, scope, revision) {
   if (value.acceptedCount !== acceptedCount || value.accepted !== (mine?.choice === 'ok') || (value.completed && (acceptedCount !== 2 || !value.partnerLinked)) || (!value.partnerLinked && responses.some(item=>item.userId!==scope.ownerId))) return null;
   return { actorId:value.actorId,proposalVersion:value.proposalVersion,rosterFingerprint:value.rosterFingerprint,accepted:value.accepted,acceptedCount,requiredCount:2,completed:value.completed,partnerLinked:value.partnerLinked,myResponse,myResponseRevision:value.myResponseRevision,responses };
 }
-export function createMediationResponseSession({ revision, readScope, request }) {
+export function createMediationResponseSession({ revision, readScope, request, timeoutMs=30_000 }) {
   let generation=0, identity=null;
   let state={ snapshot:null, loading:false, busy:false, error:null, taskSaved:null, taskUnknown:false };
   const listeners=new Set();
+  const operations=new Set();
+  const begin=()=>{
+    const controller=new AbortController();
+    const aborted=new Promise((_,reject)=>controller.signal.addEventListener('abort',()=>reject(new Error('REQUEST_ABORTED')),{once:true}));
+    const timer=setTimeout(()=>controller.abort(),Number.isFinite(timeoutMs)&&timeoutMs>0?timeoutMs:30_000);
+    const operation={signal:controller.signal,wait:value=>Promise.race([value,aborted]),abort:()=>controller.abort(),close:()=>{clearTimeout(timer);operations.delete(operation);}};
+    operations.add(operation);return operation;
+  };
   const set=patch=>{ state={...state,...patch}; for(const listener of listeners) listener(); };
-  const invalidate=()=>{ generation++;identity=null;set({snapshot:null,loading:false,busy:false,error:null,taskSaved:null, taskUnknown:false}); };
-  const current=async (epoch, scope)=>epoch===generation && sameScope(scope,await readScope()) && epoch===generation;
+  const invalidate=()=>{ generation++;identity=null;for(const operation of operations)operation.abort();set({snapshot:null,loading:false,busy:false,error:null,taskSaved:null, taskUnknown:false}); };
+  const current=async (epoch, scope, operation)=>epoch===generation && sameScope(scope,await operation.wait(readScope())) && epoch===generation;
   const path='/api/amora/mediation/responses';
-  async function read(epoch, scope) {
+  async function read(epoch, scope, operation) {
     const params=new URLSearchParams({...revision,expectedOwnerId:scope.ownerId});
-    const response=await request(scope,`${path}?${params}`,{method:'GET',cache:'no-store'});
-    const payload=await response.json();
-    if (!(await current(epoch,scope))) throw new Error('SCOPE_CHANGED');
+    const response=await operation.wait(request(scope,`${path}?${params}`,{method:'GET',cache:'no-store',signal:operation.signal}));
+    const payload=await operation.wait(response.json());
+    if (!(await current(epoch,scope,operation))) throw new Error('SCOPE_CHANGED');
     const parsed=response.ok ? parseMediationResponseState(payload,scope,revision) : null;
     if (!parsed) throw new Error('READ_FAILED');
     return parsed;
   }
   async function load() {
     if(state.loading||state.busy) return false;
-    const epoch=generation;set({loading:true,error:null});
+    const epoch=generation,operation=begin();set({loading:true,error:null});
     try {
-      const scope=await readScope();
+      const scope=await operation.wait(readScope());
       if(epoch!==generation||!validScope(scope)) throw new Error('SCOPE_CHANGED');
       if(identity&&!sameScope(identity,scope)) { invalidate();return false; }
       identity=scope;
-      const snapshot=await read(epoch,scope);
+      const snapshot=await read(epoch,scope,operation);
       if(epoch!==generation) return false;
       set({snapshot});return true;
     } catch { if(epoch===generation) set({snapshot:null,error:'확인 상태를 불러오지 못했어요. 다시 확인해 주세요.'}); return false; }
-    finally { if(epoch===generation) set({loading:false}); }
+    finally { operation.close();if(epoch===generation) set({loading:false}); }
   }
   async function mutate(method, choice, condition) {
     if(state.busy||state.loading||!identity||!state.snapshot||state.snapshot.completed||!state.snapshot.partnerLinked) return false;
     if(method==='DELETE'&&!state.snapshot.myResponse) return false;
     const normalized=method==='POST'?cleanCondition(choice,condition):null;
     if(normalized===undefined) {set({error:'조건부 가능을 선택하면 확인할 조건을 500자 안으로 적어 주세요.'});return false;}
-    const epoch=generation, scope=identity, expectedResponseRevision=state.snapshot.myResponseRevision;
+    const epoch=generation, scope=identity, expectedResponseRevision=state.snapshot.myResponseRevision,operation=begin();
     set({busy:true,error:null});
     try {
-      if(!(await current(epoch,scope))) { if(epoch===generation) invalidate();return false; }
-      const response=await request(scope,path,{method,headers:{'Content-Type':'application/json'},body:JSON.stringify({...revision,expectedOwnerId:scope.ownerId,expectedResponseRevision,...(method==='POST'?{choice,condition:normalized}:{})})});
-      const payload=await response.json();
-      if(!(await current(epoch,scope))) { if(epoch===generation) invalidate();return false; }
+      if(!(await current(epoch,scope,operation))) { if(epoch===generation) invalidate();return false; }
+      const response=await operation.wait(request(scope,path,{method,signal:operation.signal,headers:{'Content-Type':'application/json'},body:JSON.stringify({...revision,expectedOwnerId:scope.ownerId,expectedResponseRevision,...(method==='POST'?{choice,condition:normalized}:{})})}));
+      const payload=await operation.wait(response.json());
+      if(!(await current(epoch,scope,operation))) { if(epoch===generation) invalidate();return false; }
       if(!response.ok) {
-        if(response.status===409) { const snapshot=await read(epoch,scope);if(epoch===generation)set({snapshot}); }
+        if(response.status===409) { const snapshot=await read(epoch,scope,operation);if(epoch===generation)set({snapshot}); }
         throw new Error('WRITE_FAILED');
       }
       const parsed=parseMediationResponseState(payload,scope,revision);
       if(!parsed||parsed.myResponseRevision<=expectedResponseRevision||(method==='POST'?(parsed.myResponse?.choice!==choice||parsed.myResponse.condition!==normalized):(parsed.myResponse!==null||parsed.accepted||parsed.completed))) throw new Error('INVALID_RECEIPT');
       set({snapshot:parsed});return true;
     } catch { if(epoch===generation)set({error:'응답 결과를 확인하지 못했어요. 상태를 다시 확인하고 시도해 주세요.'});return false; }
-    finally { if(epoch===generation)set({busy:false}); }
+    finally { operation.close();if(epoch===generation)set({busy:false}); }
   }
   async function createTask(title, description) {
     if(state.busy||state.loading||!identity||!state.snapshot||state.taskSaved||state.taskUnknown) return false;
     const cleanTitle=typeof title==='string'?title.trim():'';
     const cleanDescription=typeof description==='string'?description.trim():'';
     if(!cleanTitle||cleanTitle.length>120||cleanDescription.length>500) {set({error:'제목은 120자, 내용은 500자 안으로 확인해 주세요.'});return false;}
-    const epoch=generation,scope=identity;let dispatched=false, rejected=false;set({busy:true,error:null});
+    const epoch=generation,scope=identity,operation=begin();let dispatched=false, rejected=false;set({busy:true,error:null});
     try {
-      if(!(await current(epoch,scope))) {if(epoch===generation)invalidate();return false;}
-      const body={title:cleanTitle,description:cleanDescription,status:'open',source:'manual',href:'/chat',expectedOwnerId:scope.ownerId,expectedCoupleId:scope.coupleId};
+      if(!(await current(epoch,scope,operation))) {if(epoch===generation)invalidate();return false;}
+      // 같은 제안에서 사용자가 확인한 후속 할 일은 화면을 다시 열어도 같은 요청이다.
+      const body={title:cleanTitle,description:cleanDescription,status:'open',source:'manual',href:'/chat',expectedOwnerId:scope.ownerId,expectedCoupleId:scope.coupleId,requestId:revision.expectedProposalVersion};
       dispatched=true;
-      const response=await request(scope,'/api/amora/actions',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+      const response=await operation.wait(request(scope,'/api/amora/actions',{method:'POST',signal:operation.signal,headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}));
       rejected=!response.ok && response.status>=400 && response.status<500;
-      const payload=await response.json();
-      if(!(await current(epoch,scope))) {if(epoch===generation)invalidate();return false;}
+      const payload=await operation.wait(response.json());
+      if(!(await current(epoch,scope,operation))) {if(epoch===generation)invalidate();return false;}
       const item=record(payload)?payload.action:null;
       if(!response.ok||!record(item)||typeof item.id!=='string'||!item.id||item.title!==cleanTitle||(item.description??'')!==cleanDescription||item.status!=='open'||item.source!=='manual'||item.href!=='/chat')throw new Error('INVALID_RECEIPT');
       set({taskSaved:item.id});return true;
     } catch {if(epoch===generation)set({taskUnknown:dispatched&&!rejected,error:rejected?'할 일을 저장하지 못했어요. 입력과 연결 상태를 확인한 뒤 다시 시도해 주세요.':'할 일 저장 결과를 확인하지 못했어요. 공유 할 일을 먼저 확인해 주세요.'});return false;}
-    finally{if(epoch===generation)set({busy:false});}
+    finally{operation.close();if(epoch===generation)set({busy:false});}
   }
   return {getState:()=>state,subscribe(listener){listeners.add(listener);return()=>{listeners.delete(listener);};},invalidate,load,respond:(choice,condition)=>mutate('POST',choice,condition),revoke:()=>mutate('DELETE'),createTask};
 }

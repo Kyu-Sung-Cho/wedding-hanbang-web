@@ -45,7 +45,7 @@ test('fresh couple recheck blocks old proposal response before mutation and doub
 test('a shared follow-up is separate explicit reviewed creation with fixed scope and verified receipt',async()=>{
  const title='계약 해제 조건 확인';const description='내가 확인해서 함께 이야기하기';
  const {session,calls}=setup([response(state(row('conditional'))),response({action:{id:'action-1',title,description,status:'open',source:'manual',href:'/chat'}})]);await session.load();assert.equal(calls.length,1);
- assert.equal(await session.createTask(title,description),true);assert.deepEqual(JSON.parse(calls[1].options.body),{title,description,status:'open',source:'manual',href:'/chat',expectedOwnerId:owner,expectedCoupleId:couple});
+ assert.equal(await session.createTask(title,description),true);assert.deepEqual(JSON.parse(calls[1].options.body),{title,description,status:'open',source:'manual',href:'/chat',expectedOwnerId:owner,expectedCoupleId:couple,requestId:revision.expectedProposalVersion});
  const bad=setup([response(state()),response({action:{id:'other',title:'다른 제목',status:'open',source:'manual',href:'/chat'}})]);await bad.session.load();assert.equal(await bad.session.createTask(title,description),false);assert.equal(bad.session.getState().taskSaved,null);
 });
 
@@ -61,4 +61,31 @@ test('unknown shared task outcome blocks repeat creation even after a successful
 test('same couple roster replacement during an in-flight response cannot publish the old receipt',async()=>{
  let current={...scope,rosterKey:owner+':'+partner};const pending=defer();let writes=0;
  const session=createMediationResponseSession({revision,readScope:async()=>current,request:async(_scope,_path,options)=>{if(options.method==='POST'){writes++;return pending.promise;}return response(state());}});await session.load();const saving=session.respond('ok',null);while(!writes)await Promise.resolve();current={...current,rosterKey:owner+':new-member'};pending.resolve(response(state(row())));assert.equal(await saving,false);assert.equal(session.getState().snapshot,null);
+});
+
+test('a hung read has a deadline, aborts transport, and permits a canonical reload without a late overwrite',{timeout:1000},async()=>{
+ const pending=defer();let calls=0,signal;
+ const session=createMediationResponseSession({revision,timeoutMs:15,readScope:async()=>scope,request:async(_s,_p,options)=>{calls++;signal??=options.signal;return calls===1?pending.promise:response(state(row('difficult')));}});
+ assert.equal(await session.load(),false);assert.equal(session.getState().loading,false);assert.equal(signal?.aborted,true);
+ assert.equal(await session.load(),true);pending.resolve(response(state(row())));await Promise.resolve();
+ assert.equal(session.getState().snapshot.myResponse.choice,'difficult');
+});
+
+test('scope and response-body waits are bounded, and unknown mutation can reload canonical state',{timeout:1000},async()=>{
+ const pending=defer();let scopeCalls=0;
+ const noScope=createMediationResponseSession({revision,timeoutMs:15,readScope:()=>++scopeCalls===1?pending.promise:Promise.resolve(scope),request:async()=>response(state())});
+ assert.equal(await noScope.load(),false);assert.equal(await noScope.load(),true);
+ let posts=0;
+ const session=createMediationResponseSession({revision,timeoutMs:15,readScope:async()=>scope,request:async(_s,_p,o)=>o.method==='POST'?(posts++,{ok:true,json:()=>pending.promise}):response(posts?state(row()):state())});
+ await session.load();assert.equal(await session.respond('ok',null),false);assert.equal(session.getState().busy,false);
+ assert.equal(await session.load(),true);assert.equal(session.getState().snapshot.myResponse.choice,'ok');
+});
+
+test('a committed follow-up with lost reply reuses its idempotency key after remount',async()=>{
+ const saved=new Map();let loseReply=true;
+ const request=async(_s,_p,o)=>{if(o.method==='GET')return response(state());const body=JSON.parse(o.body);const key=body.requestId??String(saved.size);const action=saved.get(key)??{id:`action-${saved.size}`,title:body.title,description:body.description,status:'open',source:'manual',href:'/chat'};saved.set(key,action);if(loseReply){loseReply=false;throw new Error('lost reply');}return response({action});};
+ const make=()=>createMediationResponseSession({revision,readScope:async()=>scope,request});
+ const first=make();await first.load();assert.equal(await first.createTask('계약 확인',''),false);
+ const remounted=make();await remounted.load();assert.equal(await remounted.createTask('계약 확인',''),true);
+ assert.equal(saved.size,1);assert.equal(remounted.getState().taskSaved,'action-0');
 });

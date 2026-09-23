@@ -586,6 +586,18 @@ function verifyRemotePending() {
 
 // 새 후속 릴리스는 기존 기본 fence의 목록/핀을 바꾸지 않고 명시 모드로만 검증한다.
 // 이 분기는 로컬 계약 검사이며 hosted 증거 수집이나 원격 명령을 실행하지 않는다.
+if (args.has("--amora-decision-privacy")) {
+  if (process.argv.slice(2).length !== 1) fail("AMORA_DECISION_PRIVACY_STATIC_ARGUMENTS_INVALID: only the explicit non-deploy mode is allowed");
+  try {
+    const { loadAmoraDecisionPrivacyCandidate } = await import("./lib/amora-decision-privacy-candidate.mjs");
+    const plan = loadAmoraDecisionPrivacyCandidate(repoRoot);
+    console.log(`Amora decision/privacy candidate pins verified (${plan.migrationCount} exact SQL files; production apply not implemented; deployment not authorized; no remote writes).`);
+    process.exit(0);
+  } catch (error) {
+    fail(/^[A-Z_]+$/.test(error?.code ?? "") ? error.code : "AMORA_DECISION_PRIVACY_STATIC_UNCONFIRMED");
+  }
+}
+
 if (args.has("--preparation-style")) {
   if (process.argv.slice(2).length !== 1) fail("PREPARATION_STYLE_STATIC_ARGUMENTS_INVALID: only the explicit non-deploy mode is allowed");
   try {

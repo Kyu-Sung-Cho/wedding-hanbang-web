@@ -401,6 +401,27 @@ const THIRD_PARTY_PARTNER_BEFORE = String.raw`(?:친구|지인|동료|옆집|언
 // 는 호칭의 낱말 경계다 — "새신랑" 같은 다른 낱말의 꼬리를 호칭으로 읽지 않는다.
 const MATAT_UNLESS_OPINION_WAS_CORRECT = String.raw`(?<!(?<!${THIRD_PARTY_PARTNER_BEFORE})(?<=(?<![가-힣])${PARTNER_NOUN}(?:분|님)?(?:의)?\s*)${CORRECT_OPINION_NOUN}(?:이|가|은|는|도)\s*)맞았`;
 
+// 상대가 말하거나 계산한 준비 사실의 옳음만 검사본에서 바꾼다. 사람/물건에 맞았다는
+// 별도 서술은 남기고, 문장 전체를 정상이라고 판정하지 않는다. 공백·수식 범위는 고정한다.
+const REPORTED_WEDDING_FACT_AGREEMENT_PATTERN = new RegExp(
+  String.raw`(?<![가-힣])(${PARTNER_NOUN}(?:이|가) {0,2}(?:(?:말한|제안한|계산한) {0,2}(?:예산 {0,2}배분|하객 {0,2}수|날짜|시간|금액)|제안한 {0,2}안)(?:이|가|은|는|도) {0,2}(?:(?:딱|잘) {0,2})?)맞았`,
+  "gu",
+);
+
+// 동반 조사와 추상 명사가 결속된 일치 서술만 바꾼다. 다른 절의 피격·폭력은 남긴다.
+const PARTNER_ABSTRACT_AGREEMENT_PATTERN = new RegExp(
+  String.raw`(?<![가-힣])(${PARTNER_NOUN}(?<!${THIRD_PARTY_PARTNER_BEFORE})(?:과|와|이랑|랑) {0,2}(?:취향|의견)(?:이|가|은|는|도) {0,2}(?:(?:딱|잘) {0,2})?)맞았`,
+  "gu",
+);
+
+// 부정어만으로 안전을 해제하지 않는다. 비폭력적 의미를 명시한 완결 정정 구간만 가린다.
+const EXPLICIT_AGREEMENT_MEANING_CORRECTION_PATTERN =
+  /(?<![가-힣])(?:폭력|폭행) {0,2}(?:얘기|이야기|말)(?:가|는|은|이) {0,2}아니(?:라|고) {0,2}(?:의견|취향|계산)(?:이|가) {0,2}맞았다는 {0,2}(?:뜻|말)(?:이야|이에요|입니다)(?=$|[\s,.!?])/gu;
+const EXPLICIT_PARTNER_MEANING_CORRECTION_PATTERN = new RegExp(
+  String.raw`(?<![가-힣])${PARTNER_NOUN}(?<!${THIRD_PARTY_PARTNER_BEFORE})(?:이|가) {0,2}맞았다는 {0,2}뜻(?:이)? {0,2}아니(?:라|고) {0,2}(?:의견|취향|계산)(?:이|가) {0,2}맞았어(?:요)?(?=$|[\s,.!?])`,
+  "gu",
+);
+
 const HIGH_RISK_SAFETY_CONCRETE_PATTERN = new RegExp(
   String.raw`(?:돈|카드|통장|계좌).{0,16}(?:못\s*쓰|통제|감시|검사)|(?:폰|휴대폰|연락|위치).{0,24}(?:검사|추적|통제|감시)|(?:예비\s*신랑|예비\s*신부|남친|여친|파트너|상대방|그\s*사람|배우자|남편|아내|남자친구|여자친구|신랑|신부|상대)(?:에게|한테|가|이|은|는)?\s*.{0,40}(?:${MATAT_UNLESS_OPINION_WAS_CORRECT}|때렸|때릴|때릴까|죽(?:인|이겠)다고|죽여\s*버린다고|죽여\s*버리겠다고|(?:방|집|차)(?:에|에서)?\s*.{0,12}가둬)|동의\s*없이\s*.{0,24}(?:옷(?:을|를)?\s*벗(?:기|겼)|성관계|성적\s*행위)|동의\s*없이\s*.{0,24}관계(?:를|을)?\s*강요`,
   "iu",
@@ -819,9 +840,16 @@ export function classifyAmoraQuestionScope({
   // The current message's safety/domain boundary is authoritative. A prior
   // confirmation or an approved wedding action must not launder a newly added
   // medical, legal, financial, or otherwise out-of-scope question into W0.
+  const safetyInspectionText = normalizedText
+    .replace(EXPLICIT_AGREEMENT_MEANING_CORRECTION_PATTERN, (span) => " ".repeat(span.length))
+    .replace(EXPLICIT_PARTNER_MEANING_CORRECTION_PATTERN, (span) => " ".repeat(span.length));
   const safetyHighRisk =
-    HIGH_RISK_SAFETY_PATTERN.test(normalizedText)
-    || HIGH_RISK_SAFETY_CONCRETE_PATTERN.test(normalizedText)
+    HIGH_RISK_SAFETY_PATTERN.test(safetyInspectionText)
+    || HIGH_RISK_SAFETY_CONCRETE_PATTERN.test(
+      safetyInspectionText
+        .replace(REPORTED_WEDDING_FACT_AGREEMENT_PATTERN, "$1옳았")
+        .replace(PARTNER_ABSTRACT_AGREEMENT_PATTERN, "$1같았"),
+    )
     || HIGH_RISK_HYPOTHETICAL_SAFETY_PATTERN.test(normalizedText)
     || (
       BARE_THREAT_DISCLOSURE_PATTERN.test(normalizedText)
@@ -1075,8 +1103,14 @@ export function classifyAmoraQuestionScope({
   }
   // 저장된 계획을 명사로만 묻는 말("그럼 남은 예산은?"). 위 모든 분기 — 안전·고위험·투자·
   // 결혼 밖 상태·위로·관계 진술 — 가 끝난 뒤에만 닿는다. 묻기만 하는 말이라 기억할 사실이
-  // 없으므로 장기 기억은 켜지 않는다. 자세한 경계는 패턴 주석 참고.
-  if (STORED_PLAN_NOUN_QUESTION_PATTERN.test(normalizedText)) {
+  // 없으므로 장기 기억은 켜지 않는다. 결정 기록이라는 제품 이름도 여기서만 연다.
+  // 제품 이름을 붙인 비웨딩 자료 저장은 새 권한을 얻지 않는다. 앞선 결혼 문맥은 그대로 둔다.
+  if (STORED_PLAN_NOUN_QUESTION_PATTERN.test(normalizedText)
+    || (/결정\s*(?:보드|기록)/u.test(normalizedText)
+      && /저장|기록|남겨|추가|등록|보여|조회|확인|뭐|어떻게|있/u.test(normalizedText)
+      && !NON_WEDDING_DOMAIN_HINT_PATTERN.test(normalizedText)
+      && !LATE_NON_WEDDING_TOPIC_PATTERN.test(normalizedText)
+      && !/파이썬|자바(?:스크립트)?|타입스크립트|알고리즘|소스\s*코드|프로그래밍|코딩/iu.test(normalizedText))) {
     return {
       scope: "W0_wedding_core",
       allowsLongTermMemory: false,

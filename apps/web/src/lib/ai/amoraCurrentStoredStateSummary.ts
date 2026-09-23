@@ -3,6 +3,8 @@ import { inspectScheduleEvents } from "@/utils/scheduleEvents";
 import { isValidWeddingWonAmount } from "@/lib/weddingBudget";
 import { CATEGORY_LABELS } from "./tools/planningConstants";
 import { isCustomBudgetCategoryKey } from "./budgetCustomCategories";
+import { z } from "zod";
+import { arrangePreparationDecisions } from "@/lib/amora/preparationBoard";
 
 type BudgetField = "total_budget" | "total_allocated" | "unallocated" | "total_spent";
 
@@ -10,6 +12,7 @@ export interface CurrentStoredStateRequest {
   budgetFields: BudgetField[];
   taskTitles: string[] | null;
   scheduleTitles: string[] | null;
+  decisionRecords?: true;
 }
 
 const BUDGET_FIELDS: Record<string, BudgetField> = {
@@ -44,6 +47,9 @@ export function assessCurrentStoredStateRequest(userText: string): CurrentStored
   // 현재 저장값을 우선하라는 끝 문장만 분리한다. 과거 조회·비교 요청은 계속 제외한다.
   const text = userText.trim().replace(/\s*과거 대화보다 지금 저장된 값을 기준으로 답해줘[.!]?$/, "");
   if (/[\r\n"'“”‘’`]|개인|나만|지난|예전|과거|비교|가정|만약/.test(text)) return null;
+  if (/^결정\s*보드(?:에\s*저장된\s*기록(?:을|만)?\s*(?:보여|알려)|\s*기록(?:을|만)?\s*확인해)\s*(?:줘|주세요)[.!?。]?$/u.test(text)) {
+    return { budgetFields: [], taskTitles: null, scheduleTitles: null, decisionRecords: true };
+  }
   const naturalSchedule = CURRENT_SINGLE_SCHEDULE_FORMS
     .map(pattern => pattern.exec(text)).find(match => match !== null);
   if (naturalSchedule) {
@@ -96,12 +102,13 @@ export function assessCurrentStoredStateRequest(userText: string): CurrentStored
 }
 
 export function getRequiredCurrentStoredStateReads(request: CurrentStoredStateRequest): Array<{
-  tool: "get_budget_summary" | "get_amora_actions";
+  tool: "get_budget_summary" | "get_amora_actions" | "get_decision_records";
   input: Record<string, unknown>;
 }> {
   const reads: ReturnType<typeof getRequiredCurrentStoredStateReads> = [];
   if (request.budgetFields.length > 0) reads.push({ tool: "get_budget_summary", input: {} });
   if (request.taskTitles !== null) reads.push({ tool: "get_amora_actions", input: { status: "all" } });
+  if (request.decisionRecords) reads.push({ tool: "get_decision_records", input: {} });
   return reads;
 }
 
@@ -128,6 +135,7 @@ export function formatCurrentStoredStateSummary(input: {
   const hasRevision = typeof input.sourceRevision === "number" && Number.isSafeInteger(input.sourceRevision) && input.sourceRevision >= 0;
   const progress = isRecord(input.canonicalProgress) ? input.canonicalProgress : null;
   const lines: string[] = [];
+  if (request.decisionRecords) lines.push(...decisionRecordLines(latestRead(toolResults, "get_decision_records")));
   const budgetResult = latestRead(toolResults, "get_budget_summary");
   const hiddenKeys = progress && Array.isArray(progress.__hidden) ? progress.__hidden : [];
   const rawBudgetRows = progress ? Object.entries(progress).filter(([key]) =>
@@ -212,4 +220,40 @@ export function formatCurrentStoredStateSummary(input: {
 function actionLine(action: Record<string, unknown>): string {
   const status = action.status === "done" ? "완료" : action.status === "open" ? "미완료" : "제외됨";
   return `- ${displayTitle(String(action.title))}: ${status}`;
+}
+
+const decisionReadSchema = z.object({
+  list_kind: z.literal("decision_records"), count_scope: z.literal("returned_records_only"),
+  count: z.number().int().min(0).max(30), truncated: z.boolean(),
+  records: z.array(z.object({
+    id: z.string().uuid(), category: z.string(), title: z.string().trim().min(1), detail: z.string().nullable(),
+    status: z.enum(["exploring", "considering", "confirmed"]), stateLabel: z.string().min(1).max(100),
+    source: z.string(), createdAt: z.string().datetime({ offset: true }),
+    displayTitle: z.string().optional(), displayDetail: z.string().optional(),
+    valueSlots: z.array(z.string()).optional(), relatedCategories: z.array(z.string()).optional(),
+    routineChanges: z.number().int().nonnegative().optional(),
+  })).max(30),
+});
+
+function decisionRecordLines(result: ToolExecutionResult | undefined): string[] {
+  const parsed = result?.success === true && Object.keys(result.toolInput).length === 0
+    ? decisionReadSchema.safeParse(result.toolOutput) : null;
+  if (!parsed?.success || parsed.data.count !== parsed.data.records.length
+    || new Set(parsed.data.records.map(row => row.id)).size !== parsed.data.records.length) {
+    return ["- 공유 결정 기록: 확인 불가. 저장 여부를 단정하지 않고 결정 기록에서 다시 확인해 주세요."];
+  }
+  const arranged = arrangePreparationDecisions(parsed.data.records);
+  const lines = arranged.decisions.map(row => {
+    const state = row.status === "considering" ? "논의 중" : row.status === "exploring" ? "미정" : `확정 기록 · ${displayTitle(row.stateLabel)}`;
+    const history = row.valueState === "previous" ? " · 이전 값의 기록" : "";
+    const duplicate = arranged.decisions.filter(other => other.title === row.title).length > 1 ? " · 동명 기록" : "";
+    return `- ${displayTitle(row.displayTitle ?? row.title).slice(0, 160)}: ${state}${history}${duplicate} (기록일 ${row.createdAt})${row.detail ? `\n  메모: ${displayTitle(row.displayDetail ?? row.detail).slice(0, 300)}` : ""}`;
+  });
+  return [
+    `이번에 조회한 공유 결정 기록 ${parsed.data.count}개예요. 최근 최대 30개를 확인한 결과예요.`,
+    "아래 내용은 저장된 기록이며 현재 예산·일정 값이나 두 사람의 합의를 뜻하지 않아요.",
+    ...lines,
+    ...(arranged.routineCount ? [`진행 상태 변경 이력 ${arranged.routineCount}건은 결정 목록과 구분해 집계했어요.`] : []),
+    ...(parsed.data.truncated ? ["이전 기록이 더 있어요. 결정 보드에서 더 불러와 확인해 주세요."] : []),
+  ];
 }

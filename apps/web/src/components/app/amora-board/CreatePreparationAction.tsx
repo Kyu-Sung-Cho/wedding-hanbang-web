@@ -15,9 +15,10 @@ type Props = {
   isDemo: boolean;
   onCreated: () => void;
   focusIntent: (origin: HTMLElement | null) => () => boolean;
+  pendingFields?: AmoraPreparationActionCreate | null;
 };
 
-export default function CreatePreparationAction({ create, cancelCreate, locked, busy, available, isDemo, onCreated, focusIntent }: Props) {
+export default function CreatePreparationAction({ create, cancelCreate, locked, busy, available, isDemo, onCreated, focusIntent, pendingFields }: Props) {
   const id = useId();
   const [open, setOpen] = useState(false);
   const [title, setTitle] = useState("");
@@ -29,6 +30,12 @@ export default function CreatePreparationAction({ create, cancelCreate, locked, 
   const titleInput = useRef<HTMLInputElement>(null);
   const inFlight = useRef(false);
   const finishFocus = useRef<(() => boolean) | null>(null);
+  useLayoutEffect(() => {
+    if (!pendingFields) return;
+    setTitle(pendingFields.title); setCategory(pendingFields.category_key ?? "");
+    setDescription(pendingFields.description ?? ""); setDueDate(pendingFields.due_date ?? "");
+    setOpen(true);
+  }, [pendingFields]);
   useLayoutEffect(() => {
     const finish = finishFocus.current; finishFocus.current = null;
     if (finish?.()) (open ? titleInput.current : trigger.current)?.focus();
@@ -49,7 +56,7 @@ export default function CreatePreparationAction({ create, cancelCreate, locked, 
       const active = document.activeElement;
       const finish = focusIntent(active instanceof HTMLElement && event.currentTarget.contains(active) ? active : null);
       try {
-        if (await create({ title: title.trim(), ...(category ? { category_key: category } : {}), ...(description ? { description } : {}), ...(dueDate ? { due_date: dueDate } : {}) })) {
+        if (await create(locked && pendingFields ? { ...pendingFields } : { title: title.trim(), ...(category ? { category_key: category } : {}), ...(description ? { description } : {}), ...(dueDate ? { due_date: dueDate } : {}) })) {
           finishFocus.current = finish;
           setConfirmCancel(false); setTitle(""); setCategory(""); setDescription(""); setDueDate(""); setOpen(false); onCreated();
         } else finish();
@@ -61,7 +68,7 @@ export default function CreatePreparationAction({ create, cancelCreate, locked, 
       <select id={`${id}-category`} value={category} onChange={event => setCategory(event.target.value)} disabled={busy || locked} className="min-h-11 w-full rounded-[9px] border border-[var(--amora-line)] bg-[var(--amora-surface)] px-3 text-[13px] focus-visible:outline-2 focus-visible:outline-[var(--amora-accent)]"><option value="">나중에 정하기</option>{CATEGORY_CHECKLISTS.map(item => <option key={item.key} value={item.key}>{item.label}</option>)}</select>
       <AmoraActionPlanFields description={description} dueDate={dueDate} onDescriptionChange={setDescription} onDueDateChange={setDueDate} disabled={busy || locked} />
       <p className="pt-2 text-[12px] leading-relaxed text-[var(--amora-muted)]">함께 준비하는 사람에게도 보이는 할 일이에요. 저장은 두 사람의 합의나 실제 수행 완료를 뜻하지 않아요.</p>
-      {locked && !busy && <p role="status" className="text-[12px] leading-relaxed text-[var(--amora-muted)]">이미 저장됐을 수 있어 같은 내용으로 다시 확인해요. 이 요청은 현재 화면에서만 유지돼요. 화면을 다시 열었다면 목록부터 확인해 주세요.</p>}
+      {locked && !busy && <p role="status" className="text-[12px] leading-relaxed text-[var(--amora-muted)]">이미 저장됐을 수 있어 같은 내용으로 다시 확인해요. 같은 계정으로 화면을 이동해도 요청을 유지하지만, 새로고침하거나 로그아웃하면 사라져요. 그때는 목록부터 확인해 주세요.</p>}
       <div className="flex flex-wrap gap-2 pt-1"><Button variant="primary" type="submit" disabled={busy || !available || !title.trim()} className={`${button} bg-[var(--amora-action)]! text-white! hover:bg-[var(--amora-action-hover)]!`}>{busy ? "추가하는 중…" : locked ? "같은 요청 다시 확인" : "할 일 저장"}</Button><Button variant="secondary" type="button" disabled={busy} onClick={event => {
         if (locked) { setConfirmCancel(true); return; }
         if (cancelCreate()) { setTitle(""); setCategory(""); setDescription(""); setDueDate(""); close(event.currentTarget); }

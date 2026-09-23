@@ -23,6 +23,7 @@ export const CREATE_OR_APPEND_TOOLS = [
   "add_custom_category",
   "add_schedule_event",
   "add_amora_action",
+  "add_decision_record",
   "log_wedding_event",
   "create_booking",
 ] as const;

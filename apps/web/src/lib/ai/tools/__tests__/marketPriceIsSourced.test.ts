@@ -107,6 +107,16 @@ describe("공시가를 돌려줄 때 출처를 함께 돌려준다", () => {
     expect(output.maxKrw).toBe(9_000_000);
   });
 
+  it("공시 구간의 양끝을 보존하고 중간값이 행별 구간 중점의 중앙값임을 밝힌다", async () => {
+    const result = await executeGetMarketPrice({ category: "studio" }, clientReturning([row(1_000_000, 3_000_000)]));
+    expect(result.toolOutput).toMatchObject({
+      sampleCount: 1, minKrw: 1_000_000, medianKrw: 2_000_000, maxKrw: 3_000_000,
+      rangeMethod: "published_bounds", medianMethod: "median_of_row_midpoints",
+    });
+    expect(result.displayMessage).toContain("최소 100만원 ~ 최대 300만원");
+    expect(result.displayMessage).toContain("행별 공시 구간 중점의 중앙값");
+  });
+
   it("표본이 없으면 수치를 지어내지 않고 없다고 말한다", async () => {
     const client = clientReturning([]);
     const result = await executeGetMarketPrice({ category: "dress", region: "jeju" }, client);
@@ -184,6 +194,8 @@ describe("결혼식장은 항목 성격이 다른 것을 섞지 않는다", () =
     // 공시 한 행은 구간(min~max)이라 중점을 그 행의 대표값으로 쓴다.
     // 식대 두 행은 58,000~68,000(중점 63,000)과 62,000 → 중위값 62,500.
     expect(meal?.medianKrw).toBe(62_500);
+    expect(meal).toMatchObject({ minKrw: 58_000, maxKrw: 68_000,
+      rangeMethod: "published_bounds", medianMethod: "median_of_row_midpoints" });
     expect(meal?.perPerson).toBe(true);
     expect(rental?.perPerson).toBe(false);
     // 섞인 단일 중위값을 함께 주면 모델이 그걸 집어 쓴다.

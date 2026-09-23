@@ -1,4 +1,5 @@
 import { hasWebSignupConsentAccess } from "@/lib/auth/signupConsentAccess";
+import { verifyDemoSessionToken } from "@/lib/demoSession";
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import { SIGNUP_CONSENT_PATH } from "@hanbang/shared";
@@ -65,8 +66,12 @@ export async function updateSession(request: NextRequest) {
     return supabaseResponse;
   }
 
-  // 데모 모드는 고객 앱 shell에만 허용한다. 관리자 보호 경로는 실제 인증 필요.
-  if (protectedType === "customer" && request.cookies.get("demo_mode")?.value === "true") {
+  // 서버 앱 shell과 같은 서명 검증을 거친 데모만 허용한다. 표식만으로 인증을 생략하지 않는다.
+  if (
+    protectedType === "customer"
+    && request.cookies.get("demo_mode")?.value === "true"
+    && verifyDemoSessionToken(request.cookies.get("demo_session")?.value)
+  ) {
     return supabaseResponse;
   }
 

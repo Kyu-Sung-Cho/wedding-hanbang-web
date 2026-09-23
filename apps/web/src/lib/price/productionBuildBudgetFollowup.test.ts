@@ -150,7 +150,7 @@ afterAll(async () => {
 
 describe("production build registers only the exact preparation-style successor after the 236 scene release", () => {
   it("accepts 237 reviewed SQL files while keeping hosted evidence and authorization independent", () => {
-    for (const root of [repoRoot, preparationFixtureRoot]) {
+    for (const root of [preparationFixtureRoot]) {
       const plan = loadPreparationStyleReleasePlan(root);
       expect(plan.migrationCount).toBe(237);
       expect(plan.runtimeEvidenceVerified).toBe(false);
@@ -173,6 +173,7 @@ describe("production build registers only the exact preparation-style successor 
 
 describe("production build registers the exact WeddingCode scene v1.0 successor after the 235 scene v0.9 release", () => {
   it("accepts 236 exact SQL files only through the new successor, without claiming hosted application", () => {
+    // 현 checkout에는 미등록 결정 기록 SQL이 있으므로 검토된 236 역사 후보만 성공해야 한다.
     for (const root of [sceneV10FixtureRoot]) {
       const plan = loadWeddingCodeSceneV10ReleasePlan(root);
       expect(plan.migrationCount).toBe(236);
@@ -184,6 +185,11 @@ describe("production build registers the exact WeddingCode scene v1.0 successor 
     }
     expect(() => loadWeddingCodeSceneVersionReleasePlan(repoRoot)).toThrowError(expect.objectContaining({code: "NEW_MIGRATION_NOT_REVIEWED"}));
     expect(() => loadWeddingCodeResearchReleasePlan(repoRoot)).toThrowError(expect.objectContaining({code: "NEW_MIGRATION_NOT_REVIEWED"}));
+  }, 120_000);
+  it("rejects the actual checkout's unreviewed decision SQL even with the exact existing owner authorization", () => {
+    expect(() => loadWeddingCodeSceneV10ReleasePlan(repoRoot))
+      .toThrowError(expect.objectContaining({ code: "NEW_MIGRATION_NOT_REVIEWED" }));
+    expect(() => production(repoRoot)).toThrow(VENDOR_DISCLOSURE_STATIC_CONTRACT_INVALID);
   }, 120_000);
   it.each(sceneV10Pins)("refuses a changed or missing WeddingCode scene v1.0 artifact without fallback: %s", async file => {
     const target = join(sceneV10FixtureRoot, file), bytes = await readFile(target);
@@ -374,8 +380,8 @@ describe("production build registers only the exact feedback-nullability success
 });
 
 describe("production build explicitly registers the pinned budget followup", () => {
-  it("accepts the actual checkout in production only with the exact owner authorization", () => {
-    expect(() => production(repoRoot)).not.toThrow();
+  it("accepts the registered historical checkout in production only with the exact owner authorization", () => {
+    expect(() => production(sceneV10FixtureRoot)).not.toThrow();
   });
 
   it("retains default drift rejection while the explicit static followup succeeds", () => {
@@ -398,7 +404,7 @@ describe("production build explicitly registers the pinned budget followup", () 
     ["0".repeat(64), VENDOR_DISCLOSURE_EXTERNAL_AUTHORIZATION_INVALID],
   ])("still rejects absent or wrong owner authorization (%s)", (authorization, code) => {
     expect(() => assertVendorDisclosureProductionBuild({
-      repoRoot,
+      repoRoot: sceneV10FixtureRoot,
       environment: { VERCEL_ENV: "production", VENDOR_DISCLOSURE_PRODUCTION_AUTHORIZATION: authorization },
     })).toThrow(code);
   });

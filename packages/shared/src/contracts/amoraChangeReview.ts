@@ -28,6 +28,7 @@ export const AMORA_CHANGE_DETAILS: Readonly<Record<string, AmoraChangeDetail>> =
   update_task_status: { category: "체크리스트", effect: "해당 준비 항목의 진행 상태를 바꿔요." },
   toggle_checklist_item: { category: "체크리스트", effect: "해당 체크리스트 항목의 완료 여부를 바꿔요." },
   add_amora_action: { category: "준비 행동", effect: "다음에 할 일을 준비 행동으로 추가해요. 이미 끝낸 일로 표시하지 않아요." },
+  add_decision_record: { category: "결정 기록", effect: "확인한 제목·상태·메모를 공유 결정 보드에 기록해요. 일정·예산은 바꾸지 않고, 두 사람의 합의를 뜻하지 않아요." },
 };
 
 /** 표에 없는 도구. 승인 정책도 이런 도구는 막는다(`getAmoraActionApprovalPolicy` → blocked). */

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useRef, useEffect, useMemo, useSyncExternalStore } from "react";
+import { useState, useCallback, useRef, useEffect, useMemo, useSyncExternalStore, useId } from "react";
 import {
   FileText,
   TrendingUp,
@@ -60,6 +60,7 @@ import AmoraMark from "@/components/ui/AmoraMark";
 import { AMORA_ACTION_CLASS } from "@/components/ui/amoraActionStyles";
 import { FEATURE_SUMMARY_CLASS, SUMMARY_LABEL_CLASS, SUMMARY_VALUE_CLASS } from "@/components/ui/featureSummaryStyles";
 import BudgetProgress from "./BudgetProgress";
+import { useAccessibleModal } from "@/hooks/useAccessibleModal";
 
 const ICON_MAP: Record<string, React.ElementType> = {
   FileText,
@@ -544,11 +545,22 @@ function ScopedBudgetContent({
   }, [openedCategories]);
 
   // 커스텀 카테고리 추가 폼
+  const addCategoryId = useId();
   const [showAddModal, setShowAddModal] = useState(false);
+  const addModalRef = useAccessibleModal({
+    open: showAddModal,
+    onClose: () => setShowAddModal(false),
+    initialFocusSelector: "input",
+  });
   const [newCatLabel, setNewCatLabel] = useState("");
   const [newCatBudget, setNewCatBudget] = useState("");
   const [newCatSpent, setNewCatSpent] = useState("");
   const [deletingKey, setDeletingKey] = useState<string | null>(null);
+  const deleteModalRef = useAccessibleModal({
+    open: deletingKey !== null,
+    onClose: () => setDeletingKey(null),
+    initialFocusSelector: "[data-cancel-delete]",
+  });
   const [journeyNotice, setJourneyNotice] = useState("");
   const [journeyError, setJourneyError] = useState("");
 
@@ -1268,10 +1280,12 @@ function ScopedBudgetContent({
         {showAddModal && (
           <div className="fixed inset-0 z-50 flex items-center justify-center">
             <div className="absolute inset-0 bg-[#1b1c1c]/40 backdrop-blur-sm" onClick={() => setShowAddModal(false)} />
-            <div role="dialog" aria-modal="true" aria-label="새 항목 추가" className="relative max-h-[90dvh] overflow-y-auto bg-white rounded-2xl w-[90%] max-w-[420px] p-8 shadow-[var(--shadow-raised)]">
+            <div ref={addModalRef} tabIndex={-1} role="dialog" aria-modal="true" aria-label="새 항목 추가" className="relative max-h-[90dvh] overflow-y-auto bg-white rounded-2xl w-[90%] max-w-[420px] p-8 shadow-[var(--shadow-raised)]">
               <div className="flex items-center justify-between mb-5">
                 <h3 className="text-[18px] font-semibold text-[var(--amora-ink)]">새 항목 추가</h3>
                 <button
+                  type="button"
+                  aria-label="새 항목 추가 닫기"
                   onClick={() => setShowAddModal(false)}
                   className="tap-area shrink-0 w-8 h-8 rounded-lg flex items-center justify-center text-[var(--amora-muted)] hover:bg-[var(--hb-surface-hover)] transition-colors"
                 >
@@ -1281,12 +1295,12 @@ function ScopedBudgetContent({
 
               <div className="space-y-4">
                 <div>
-                  <label className="text-[11px] text-[var(--amora-muted)] mb-1.5 block">카테고리 이름 <span className="text-[var(--amora-rose-deep)]">*</span></label>
+                  <label htmlFor={`${addCategoryId}-name`} className="text-[11px] text-[var(--amora-muted)] mb-1.5 block">카테고리 이름 <span className="text-[var(--amora-rose-deep)]">*</span></label>
                   {/* 60자는 아모라(add_custom_category)가 거절하는 경계와 같다.
                       화면만 더 길게 받으면 아모라가 이름을 잘라 부르고, 그 잘린
                       이름으로 고치면 같은 항목이 하나 더 생긴다. */}
                   <input
-                    autoFocus
+                    id={`${addCategoryId}-name`}
                     type="text"
                     maxLength={60}
                     value={newCatLabel}
@@ -1303,8 +1317,9 @@ function ScopedBudgetContent({
 
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="text-[11px] text-[var(--amora-muted)] mb-1.5 block">예산 (만원)</label>
+                    <label htmlFor={`${addCategoryId}-budget`} className="text-[11px] text-[var(--amora-muted)] mb-1.5 block">예산 (만원)</label>
                     <input
+                      id={`${addCategoryId}-budget`}
                       type="number"
                       value={newCatBudget}
                       onChange={(e) => setNewCatBudget(e.target.value)}
@@ -1313,8 +1328,9 @@ function ScopedBudgetContent({
                     />
                   </div>
                   <div>
-                    <label className="text-[11px] text-[var(--amora-muted)] mb-1.5 block">기록 지출 (만원 · 결제 확인과 별도)</label>
+                    <label htmlFor={`${addCategoryId}-spent`} className="text-[11px] text-[var(--amora-muted)] mb-1.5 block">기록 지출 (만원 · 결제 확인과 별도)</label>
                     <input
+                      id={`${addCategoryId}-spent`}
                       type="number"
                       value={newCatSpent}
                       onChange={(e) => setNewCatSpent(e.target.value)}
@@ -1355,7 +1371,7 @@ function ScopedBudgetContent({
           return (
             <div className="fixed inset-0 z-50 flex items-center justify-center">
               <div className="absolute inset-0 bg-[#1b1c1c]/40 backdrop-blur-sm" onClick={() => setDeletingKey(null)} />
-              <div role="dialog" aria-modal="true" aria-label="예산 항목 관리" className="relative max-h-[90dvh] overflow-y-auto bg-white rounded-2xl w-[90%] max-w-[380px] p-6 shadow-[var(--shadow-raised)]">
+              <div ref={deleteModalRef} tabIndex={-1} role="dialog" aria-modal="true" aria-label="예산 항목 관리" className="relative max-h-[90dvh] overflow-y-auto bg-white rounded-2xl w-[90%] max-w-[380px] p-6 shadow-[var(--shadow-raised)]">
                 <div className="flex items-center gap-3 mb-4">
                   <div className="w-11 h-11 rounded-full bg-red-50 flex items-center justify-center flex-shrink-0">
                     <AlertTriangle className="w-5 h-5 text-danger-700" />
@@ -1396,6 +1412,7 @@ function ScopedBudgetContent({
                         </button>
                       </div>
                       <button
+                        data-cancel-delete
                         onClick={() => setDeletingKey(null)}
                         className="py-2.5 rounded-lg bg-[var(--hb-surface-hover)] text-[13px] text-[var(--hb-text-body)] hover:bg-[#EFEBEA] transition-colors"
                       >
@@ -1405,6 +1422,7 @@ function ScopedBudgetContent({
                   ) : (
                     <>
                       <button
+                        data-cancel-delete
                         onClick={() => setDeletingKey(null)}
                         className="flex-1 py-2.5 rounded-lg bg-[var(--hb-surface-hover)] text-[13px] text-[var(--hb-text-body)] hover:bg-[#EFEBEA] transition-colors"
                       >

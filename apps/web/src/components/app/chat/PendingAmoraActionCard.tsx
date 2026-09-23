@@ -14,6 +14,8 @@ import {
 } from "@hanbang/shared";
 import { todayYmdInKst } from "@hanbang/shared/utils";
 import { formatWon } from "@/lib/formatWon";
+import { useAuthStore } from "@/stores/authStore";
+import { chatComposerEpoch, useChatComposerStore } from "@/stores/chatComposerStore";
 import Button from "@/components/ui/Button";
 import AmoraSaveSheet from "./AmoraSaveSheet";
 import type {
@@ -31,6 +33,16 @@ const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3
 const SHA256_HEX_PATTERN = /^[a-f0-9]{64}$/;
 const SCHEDULE_DATE_TOOLS = new Set(["add_schedule_event", "update_schedule_event"]);
 const SCHEDULE_YMD_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+const ACTOR_CHANGED_COPY = "로그인 상태가 바뀌었어요. 현재 계정으로 화면을 새로 열어 제안을 다시 확인해 주세요.";
+type ActionActorBinding = { actorId: string; scope: string };
+function actionActorBinding(state: ReturnType<typeof useAuthStore.getState>, epoch: number): ActionActorBinding | null {
+  const { user, profile, couple } = state;
+  if (!state.isInitialized || state.isDemo || !user || !profile || !couple
+    || user.id !== profile.id || profile.couple_id !== couple.id
+    || !UUID_PATTERN.test(user.id) || !UUID_PATTERN.test(couple.id)
+    || (couple.bride_id !== user.id && couple.groom_id !== user.id)) return null;
+  return { actorId: user.id, scope: JSON.stringify([user.id, couple.id, profile.role, couple.bride_id, couple.groom_id, epoch]) };
+}
 
 /**
  * 이 카드가 지난 날짜를 저장하려 하는가 (2026-09-03).
@@ -504,6 +516,20 @@ export default function PendingAmoraActionCard({
   onDismiss,
   onSkip,
 }: PendingAmoraActionCardProps) {
+  const authState = useAuthStore();
+  const epoch = useChatComposerStore(state => state.generation);
+  const currentBinding = actionActorBinding(authState, epoch);
+  const [initialActorId] = useState(() => authState.user?.id ?? authState.profile?.id ?? null);
+  const [actorBinding, setActorBinding] = useState(() => currentBinding);
+  // 인증 부팅 중에는 첫 검증된 주체만 결박한다. 한번 A에게 보인 카드는 B로 재결박하지 않는다.
+  useEffect(() => {
+    if (!actorBinding && currentBinding && (!initialActorId || initialActorId === currentBinding.actorId)) setActorBinding(currentBinding);
+  }, [actorBinding, currentBinding, initialActorId]);
+  const actorCurrent = actorBinding !== null && actorBinding.scope === currentBinding?.scope;
+  const mounted = useRef(true);
+  useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
+  const isActorCurrent = useCallback(() => mounted.current && actorBinding !== null
+    && actionActorBinding(useAuthStore.getState(), chatComposerEpoch.current)?.scope === actorBinding.scope, [actorBinding]);
   const [reviewedActionKey, setReviewedActionKey] = useState<string | null>(null);
   const actionKey = `${messageId}:${action.actionId}:${action.inputDigest}`;
   // 같은 제안이 최신 답변으로 옮겨졌는가. 적용됨·만료는 옮겨졌어도 그 말이 먼저다.
@@ -514,6 +540,7 @@ export default function PendingAmoraActionCard({
       ? DISABLED_COPY[disabledReason]
       : null;
   const reviewOpen = reviewedActionKey === actionKey
+    && actorCurrent
     && disabledReason !== "applied"
     && !movedToLatestReply;
   const mutationInFlight = useRef(false);
@@ -556,10 +583,10 @@ export default function PendingAmoraActionCard({
     `/api/amora/shared-actions/${encodeURIComponent(action.actionId)}`;
 
   const loadApprovalStatus = useCallback(async (signal?: AbortSignal) => {
-    if (!requiresCoupleApproval || disabledReason !== null) return;
+    if (!requiresCoupleApproval || disabledReason !== null || !isActorCurrent() || !actorBinding) return;
     try {
       const response = await fetch(
-        `${sharedActionUrl}?messageId=${encodeURIComponent(messageId)}`,
+        `${sharedActionUrl}?messageId=${encodeURIComponent(messageId)}&expectedActorId=${encodeURIComponent(actorBinding.actorId)}`,
         {
           method: "GET",
           credentials: "same-origin",
@@ -567,7 +594,9 @@ export default function PendingAmoraActionCard({
           signal,
         },
       );
+      if (!isActorCurrent()) return;
       const payload: unknown = await response.json().catch(() => null);
+      if (!isActorCurrent()) return;
       const parsed = response.ok ? parseSharedActionApprovalStatus(payload) : null;
       if (!parsed) {
         const message = isPlainRecord(payload) && typeof payload.error === "string"
@@ -578,6 +607,7 @@ export default function PendingAmoraActionCard({
       setApprovalStatus(parsed);
       setApprovalError(null);
     } catch (error) {
+      if (!isActorCurrent()) return;
       if (error instanceof DOMException && error.name === "AbortError") return;
       setApprovalError(
         error instanceof Error
@@ -585,7 +615,7 @@ export default function PendingAmoraActionCard({
           : "공동 확인 상태를 불러오지 못했어요.",
       );
     }
-  }, [disabledReason, messageId, requiresCoupleApproval, sharedActionUrl]);
+  }, [actorBinding, disabledReason, isActorCurrent, messageId, requiresCoupleApproval, sharedActionUrl]);
 
   useEffect(() => {
     if (!requiresCoupleApproval || disabledReason !== null) return;
@@ -613,7 +643,7 @@ export default function PendingAmoraActionCard({
   ]);
 
   const confirmOrApply = async () => {
-    if (disabled || !reviewOpen || mutationInFlight.current) return;
+    if (disabled || !reviewOpen || mutationInFlight.current || !isActorCurrent() || !actorBinding) return;
     mutationInFlight.current = true;
     setApprovalMutation("confirm");
     setApprovalError(null);
@@ -624,9 +654,11 @@ export default function PendingAmoraActionCard({
           method: "POST",
           credentials: "same-origin",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ messageId }),
+          body: JSON.stringify({ messageId, expectedActorId: actorBinding.actorId }),
         });
+        if (!isActorCurrent()) return;
         const payload: unknown = await response.json().catch(() => null);
+        if (!isActorCurrent()) return;
         const parsed = response.ok
           ? parseSharedActionApprovalStatus(payload)
           : null;
@@ -641,15 +673,18 @@ export default function PendingAmoraActionCard({
         if (!parsed.ready) return;
       }
 
+      if (!isActorCurrent()) return;
       const claimResponse = await fetch(sharedActionUrl, {
         method: "PUT",
         credentials: "same-origin",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ messageId }),
+        body: JSON.stringify({ messageId, expectedActorId: actorBinding.actorId }),
       });
+      if (!isActorCurrent()) return;
       const claimPayload: unknown = await claimResponse.json().catch(
         () => null,
       );
+      if (!isActorCurrent()) return;
       const claim = claimResponse.ok
         ? parseSharedActionApplicationClaim(claimPayload)
         : null;
@@ -675,14 +710,17 @@ export default function PendingAmoraActionCard({
       // 적용 결과는 기존 채팅 흐름이 알린다. 리스 획득을 저장 성공으로 말하지 않는다.
       setReviewedActionKey(null);
     } catch (error) {
+      if (!isActorCurrent()) return;
       setApprovalError(
         error instanceof Error
           ? error.message
           : "내 확인을 안전하게 저장하지 못했어요.",
       );
     } finally {
-      mutationInFlight.current = false;
-      setApprovalMutation(null);
+      if (isActorCurrent()) {
+        mutationInFlight.current = false;
+        setApprovalMutation(null);
+      }
     }
   };
 
@@ -692,6 +730,8 @@ export default function PendingAmoraActionCard({
       || approvalStatus?.requiredCount !== 2
       || !approvalStatus.accepted
       || isSavingApproval
+      || !isActorCurrent()
+      || !actorBinding
     ) return;
     setApprovalMutation("withdraw");
     setApprovalError(null);
@@ -701,9 +741,11 @@ export default function PendingAmoraActionCard({
         method: "DELETE",
         credentials: "same-origin",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ messageId }),
+        body: JSON.stringify({ messageId, expectedActorId: actorBinding.actorId }),
       });
+      if (!isActorCurrent()) return;
       const payload: unknown = await response.json().catch(() => null);
+      if (!isActorCurrent()) return;
       const parsed = response.ok ? parseSharedActionApprovalStatus(payload) : null;
       if (!parsed) {
         throw new Error(
@@ -714,13 +756,14 @@ export default function PendingAmoraActionCard({
       }
       setApprovalStatus(parsed);
     } catch (error) {
+      if (!isActorCurrent()) return;
       setApprovalError(
         error instanceof Error
           ? error.message
           : "내 확인을 안전하게 취소하지 못했어요.",
       );
     } finally {
-      setApprovalMutation(null);
+      if (isActorCurrent()) setApprovalMutation(null);
     }
   };
 
@@ -734,14 +777,16 @@ export default function PendingAmoraActionCard({
     && approvalStatus === null
     && approvalError === null;
   const disabled =
-    disabledReason !== null
+    !actorCurrent
+    || disabledReason !== null
     || isApplying
     || isSavingApproval
     || loadingApproval
     || waitingForPartner
     || approvalPolicy === "blocked";
   const canWithdrawApproval = Boolean(
-    requiresCoupleApproval
+    actorCurrent
+    && requiresCoupleApproval
     && disabledReason === null
     && !isApplying
     && approvalStatus?.requiredCount === 2
@@ -757,7 +802,7 @@ export default function PendingAmoraActionCard({
     && queuedRemaining > 0
     && (disabledReason === null || disabledReason === "busy");
 
-  let approvalCopy: string | null = approvalError ?? applicationNotice;
+  let approvalCopy: string | null = !actorCurrent ? ACTOR_CHANGED_COPY : approvalError ?? applicationNotice;
   // 승인이 없어진 자리에 **알림**이 들어왔다(2026-08-23 파운더 결정). 그런데
   // 바꾸는 사람에게는 그 사실을 아무도 알려주지 않았다 — 혼자 총예산을 바꾸고,
   // 상대는 종 아이콘으로만 알게 되어 "상의 없이 바뀌었다" 로 읽힌다.
@@ -942,7 +987,7 @@ export default function PendingAmoraActionCard({
         <div className="mt-3 flex flex-col gap-2 sm:flex-row">
           <button
             type="button"
-            onClick={() => setReviewedActionKey(actionKey)}
+            onClick={() => { if (isActorCurrent()) setReviewedActionKey(actionKey); }}
             disabled={disabled}
             aria-label="변경 내용 확인하기"
             aria-haspopup="dialog"
@@ -984,8 +1029,8 @@ export default function PendingAmoraActionCard({
           */}
           <button
             type="button"
-            onClick={onDismiss}
-            disabled={disabledReason === "applied" || isApplying || isSavingApproval}
+            onClick={() => { if (isActorCurrent()) onDismiss(); }}
+            disabled={!actorCurrent || disabledReason === "applied" || isApplying || isSavingApproval}
             aria-label={PENDING_ACTION_HIDE_LABEL}
             className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-[6px] border border-[#D8C7BB] bg-white px-4 py-2.5 text-sm font-medium text-[var(--hb-text-body)] transition-colors hover:bg-[#F8F4F0] disabled:cursor-not-allowed disabled:opacity-50"
           >
@@ -1014,8 +1059,8 @@ export default function PendingAmoraActionCard({
           {canSkipQueuedItem && (
             <Button
               variant="secondary"
-              onClick={() => onSkip?.(action.actionId)}
-              disabled={disabledReason !== null || isApplying || isSavingApproval}
+              onClick={() => { if (isActorCurrent()) onSkip?.(action.actionId); }}
+              disabled={!actorCurrent || disabledReason !== null || isApplying || isSavingApproval}
               aria-label={QUEUED_CARD_SKIP_LABEL}
               className="[--hb-hairline:var(--amora-action)] [--hb-text-strong:var(--amora-rose-deep)] [--hb-surface-hover:var(--amora-rose-pale)]"
             >
@@ -1044,7 +1089,7 @@ export default function PendingAmoraActionCard({
           if (!mutationInFlight.current && !isApplying) setReviewedActionKey(null);
         }}
         onDefer={() => {
-          if (mutationInFlight.current || isApplying) return;
+          if (mutationInFlight.current || isApplying || !isActorCurrent()) return;
           setReviewedActionKey(null);
           onDismiss();
         }}

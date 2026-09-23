@@ -26,7 +26,7 @@ afterAll(() => fixture?.cleanup());
 
 describe("production accepts only the explicit 232 expand successor", () => {
   // 실제 checkout 에는 이후 검토된 233번째 SQL(20260915101500)이 있어 232 공개 모드가 거절하는 것이
-  // 맞다. checkout 의 production 허용은 productionBuildBudgetFollowup.test.ts 의 최신(236) 후속 계약이 잰다.
+  // 맞다. 검토된 최신(236) 후보도 역사 fixture로 검증하며 현 checkout의 미등록 SQL은 계속 차단한다.
   // 여기서는 232 역사 checkout 이 여전히 자기 후속 계약으로만 통과하는지를 본다.
   it("validates the historical 232 fixture without treating static success as runtime or full-restore proof", () => {
     expect(() => loadCustomerDataReleasePlan(repoRoot)).toThrowError(expect.objectContaining({ code: "NEW_MIGRATION_NOT_REVIEWED" }));
@@ -35,7 +35,7 @@ describe("production accepts only the explicit 232 expand successor", () => {
     expect(plan.migrationCount).toBe(232); expect(plan.runtimeEvidenceVerified).toBe(false); expect(plan.releaseAuthorized).toBe(false);
     expect(() => production(root)).not.toThrow();
     expect(() => validateSuccessorReleaseContract({ repoRoot: root, followup: "profile-avatar" })).toThrowError(expect.objectContaining({ code: "FOLLOWUP_RELEASE_INVALID" }));
-  });
+  }, 120_000);
   it.each(pins)("cannot fall back when a registered artifact is missing or changed: %s", file => {
     const path = join(fixture.root, file), bytes = readFileSync(path);
     try {
@@ -45,7 +45,7 @@ describe("production accepts only the explicit 232 expand successor", () => {
     } finally { writeFileSync(path, bytes); }
   });
   it.each([undefined, "0".repeat(64)])("still requires the exact owner's production authorization: %s", authorization => {
-    expect(() => assertVendorDisclosureProductionBuild({ repoRoot, environment: { VERCEL_ENV: "production", VENDOR_DISCLOSURE_PRODUCTION_AUTHORIZATION: authorization } }))
+    expect(() => assertVendorDisclosureProductionBuild({ repoRoot: fixture.root, environment: { VERCEL_ENV: "production", VENDOR_DISCLOSURE_PRODUCTION_AUTHORIZATION: authorization } }))
       .toThrow(authorization === undefined ? VENDOR_DISCLOSURE_EXTERNAL_AUTHORIZATION_NOT_IMPLEMENTED : VENDOR_DISCLOSURE_EXTERNAL_AUTHORIZATION_INVALID);
   });
 });

@@ -37,13 +37,7 @@ export default function AmoraStyleScreen() {
 
   useEffect(() => {
     let active = true;
-    let generation = 0;
-    // 소유자가 실제로 바뀌었을 때만 이전 계정의 값·초안을 비우고 새로 불러온다(커플 조건 없음).
-    const apply = (ownerId: string | null) => {
-      if (session.setOwner(ownerId) || ownerId === null) void session.load();
-    };
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, authSession) => {
-      generation += 1;
       const ownerId = authSession?.user.id ?? null;
       // 화면 상태는 알림을 받은 즉시 비운다. 불러오기는 인증 콜백 밖에서 한다 — 콜백 안에서
       // 세션을 다시 읽으면 인증 잠금을 기다리며 멈출 수 있다.
@@ -53,12 +47,8 @@ export default function AmoraStyleScreen() {
         }, 0);
       }
     });
-    const requestGeneration = generation;
-    void readCurrentOwner()
-      .catch(() => null)
-      .then((ownerId) => {
-        if (active && generation === requestGeneration) apply(ownerId);
-      });
+    // 첫 인증 읽기도 세션의 제한 시간·계정 세대 보호 안에서 수행한다.
+    void session.load({ refreshOwner: true });
     return () => {
       active = false;
       subscription.unsubscribe();
@@ -67,16 +57,16 @@ export default function AmoraStyleScreen() {
   }, [session]);
 
   async function retry() {
-    const ownerId = await readCurrentOwner().catch(() => null);
-    session.setOwner(ownerId);
-    await session.load();
+    await session.load({ refreshOwner: true });
   }
 
   function confirmReset() {
     if (!view.canReset) return;
+    const confirmation = session.captureReset();
+    if (!confirmation) return;
     Alert.alert(AMORA_STYLE_COPY.resetTrigger, AMORA_STYLE_COPY.resetConfirmBody, [
       { text: AMORA_STYLE_COPY.resetCancel, style: "cancel" },
-      { text: AMORA_STYLE_COPY.resetConfirm, style: "destructive", onPress: () => { void session.reset(); } },
+      { text: AMORA_STYLE_COPY.resetConfirm, style: "destructive", onPress: () => { void session.reset(confirmation); } },
     ]);
   }
 

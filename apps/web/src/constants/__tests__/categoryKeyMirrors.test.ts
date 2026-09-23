@@ -3,6 +3,7 @@ import { join, relative, resolve, sep } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
+import { readAmoraDecisionReceipt } from "@hanbang/shared";
 import { CATEGORY_CHECKLISTS, PLANNING_CATEGORY_LABELS } from "@hanbang/shared/constants";
 
 /**
@@ -21,14 +22,40 @@ import { CATEGORY_CHECKLISTS, PLANNING_CATEGORY_LABELS } from "@hanbang/shared/c
  *
  * 그래서 목록을 손으로 적지 않는다. **저장소를 훑어 "분야 키를 여러 개 나열한 파일"을
  * 스스로 찾는다.** 실제로 세어 보면 갈림이 뚜렷하다 — 스물두 키 중 열다섯 이상을 담은
- * 파일은 전부 "빠짐없이 담으려는" 목록이고, 열한 개 이하는 전부 일부러 고른 부분
- * 목록이다(커뮤니티 분류, 업체 매핑, 알림 종류). 그 사이는 비어 있다.
+ * 파일은 대부분 "빠짐없이 담으려는" 목록이고, 열한 개 이하는 일부러 고른 부분
+ * 목록이다(커뮤니티 분류, 업체 매핑, 알림 종류).
+ *
+ * 결정 저장 영수증은 UI 전체가 아니라 승인 저장 RPC의 분야 계약을 따른다. 이 경로도
+ * 검사에서 빼지 않고, 최신 SQL 허용 목록과 누락·추가를 모두 대조한다.
  */
 describe("분야 키를 옮겨 적은 곳", () => {
   const repoRoot = resolve(process.cwd(), "..", "..");
   const checklistKeys = CATEGORY_CHECKLISTS.map((category) => category.key);
   /** 예산 전용 칸(`reserve`)까지 포함한 전체. 파일마다 어느 쪽인지 다르다. */
   const allKeys = Object.keys(PLANNING_CATEGORY_LABELS);
+  const decisionReceiptPath = "packages/shared/src/contracts/amoraDecisionReceipt.ts";
+
+  function decisionCategoriesTheDatabaseAccepts(): string[] {
+    const migrationDir = join(repoRoot, "supabase", "migrations");
+    const names = readdirSync(migrationDir)
+      .filter((name) => /^\d{14}_.+\.sql$/.test(name))
+      .sort();
+    let latestBody = "";
+    for (const name of names) {
+      const sql = readFileSync(join(migrationDir, name), "utf8");
+      for (const match of sql.matchAll(
+        /CREATE OR REPLACE FUNCTION public\.apply_amora_atomic_tool_execution_pre_shared_revision\([\s\S]*?AS \$function\$([\s\S]*?)\$function\$;/g,
+      )) latestBody = match[1];
+    }
+    // 가장 최근 handler에서 못 읽으면 과거 목록으로 우회하지 않고 아래 존재 검사에서 실패한다.
+    if (!latestBody.includes("'decision_record_insert'")) return [];
+    const categoryList = latestBody.match(
+      /p_tool_input\s*->>\s*'category_key'\s+NOT IN\s*\(\s*((?:'[a-z_]+',?\s*)+)\)/,
+    );
+    return Array.from(categoryList?.[1].matchAll(/'([a-z_]+)'/g) ?? [], (match) => match[1]);
+  }
+
+  const decisionCategoryKeys = decisionCategoriesTheDatabaseAccepts();
 
   /**
    * 빠짐없이 담으려는 목록과 일부러 고른 부분 목록을 가르는 선.
@@ -87,18 +114,67 @@ describe("분야 키를 옮겨 적은 곳", () => {
   });
 
   it("빠짐없이 담으려는 목록에는 분야가 하나도 빠지지 않았다", () => {
-    const exhaustive = files.filter((f) => f.quoted.length >= EXHAUSTIVE_THRESHOLD);
+    const exhaustive = files.filter((f) => (
+      f.path === decisionReceiptPath || f.quoted.length >= EXHAUSTIVE_THRESHOLD
+    ));
     expect(exhaustive.length).toBeGreaterThan(3);
 
     const gaps = exhaustive
-      .map((f) => ({ path: f.path, missing: checklistKeys.filter((key) => !f.quoted.includes(key)) }))
-      .filter((f) => f.missing.length > 0);
+      .map((f) => {
+        if (f.path === decisionReceiptPath) {
+          const source = readFileSync(resolve(repoRoot, f.path), "utf8");
+          const block = source.match(/const DECISION_CATEGORIES[^=]*= new Set\(\[([\s\S]*?)\]\)/)?.[1];
+          expect(block, "결정 영수증의 허용 목록을 읽지 못했다").toBeDefined();
+          const actual = Array.from(block?.matchAll(/"([a-z_]+)"/g) ?? [], (match) => match[1]);
+          return {
+            path: f.path,
+            missing: decisionCategoryKeys.filter((key) => !actual.includes(key)),
+            extra: actual.filter((key) => !decisionCategoryKeys.includes(key)),
+          };
+        }
+        return { path: f.path, missing: checklistKeys.filter((key) => !f.quoted.includes(key)), extra: [] };
+      })
+      .filter((f) => f.missing.length > 0 || f.extra.length > 0);
 
     expect(
-      gaps.map((f) => `${f.path} — 빠진 분야: ${f.missing.join(", ")}`),
-      "분야 키를 빠짐없이 담아야 할 목록에서 분야가 빠졌다",
+      gaps.map((f) => `${f.path} — 빠진 분야: ${f.missing.join(", ")}; 계약 밖 분야: ${f.extra.join(", ")}`),
+      "분야 목록이 해당 UI 또는 저장 RPC 계약과 다르다",
     ).toEqual([]);
   });
+
+  it("결정 영수증과 최신 결정 저장 RPC의 분야 계약을 실제로 찾아낸다", () => {
+    expect(files.some((file) => file.path === decisionReceiptPath)).toBe(true);
+    expect(decisionCategoryKeys).toHaveLength(20);
+    expect(new Set(decisionCategoryKeys).size).toBe(20);
+    expect(decisionCategoryKeys).toContain("general");
+  });
+
+  function receiptForCategory(categoryKey: string) {
+    return {
+      verified: true,
+      decision: {
+        id: "11111111-1111-4111-8111-111111111111",
+        title: "확인한 결정",
+        status: "considering",
+        memo: null,
+        category_key: categoryKey,
+        created_at: "2026-09-20T00:00:00.000Z",
+      },
+    };
+  }
+
+  it.each(decisionCategoryKeys)("결정 영수증은 SQL이 받는 %s 분야를 받는다", (categoryKey) => {
+    const output = receiptForCategory(categoryKey);
+    expect(readAmoraDecisionReceipt(output)).toEqual(output.decision);
+  });
+
+  it.each(["greeting", "registration", "reserve", "unknown_category"])(
+    "결정 영수증은 RPC 계약 밖 %s 분야를 거절한다",
+    (categoryKey) => {
+      expect(decisionCategoryKeys).not.toContain(categoryKey);
+      expect(readAmoraDecisionReceipt(receiptForCategory(categoryKey))).toBeNull();
+    },
+  );
 
   /**
    * 예절 편 지도는 빠져도 조용하다 — 매핑이 없으면 `null`을 돌려주고 카드를 안 그리도록

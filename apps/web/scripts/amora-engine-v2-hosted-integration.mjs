@@ -2,6 +2,7 @@ import { randomBytes, randomUUID } from "node:crypto";
 import { createClient } from "@supabase/supabase-js";
 import { verifySupabaseServiceDestination } from "../../../scripts/lib/supabase-service-destination.mjs";
 import { joinSyntheticCoupleViaApi, validateSyntheticAppUrl } from "./lib/synthetic-couple-api.mjs";
+import { mutateSyntheticMemoryWithConfirmation } from "./lib/synthetic-privacy-confirmation.mjs";
 
 const previewUrl = process.env.AMORA_PREVIEW_SUPABASE_URL;
 const anonKey = process.env.AMORA_PREVIEW_SUPABASE_ANON_KEY;
@@ -203,11 +204,8 @@ async function testMemoryEngine({ bride, groom, coupleId, userMessage, aiMessage
 
   const firstConsent = expectSuccess(
     "first shared consent",
-    await admin.rpc("set_amora_memory_consent", {
-      p_couple_id: coupleId,
-      p_visibility: "shared",
-      p_user_id: bride.id,
-      p_consented: true,
+    await mutateSyntheticMemoryWithConfirmation({
+      admin, user: bride, coupleId, visibility: "shared", action: "toggle", consented: true,
     }),
   );
   invariant(firstConsent?.enabled === false && firstConsent?.consented_count === 1 && firstConsent?.required_count === 2,
@@ -215,11 +213,8 @@ async function testMemoryEngine({ bride, groom, coupleId, userMessage, aiMessage
 
   const secondConsent = expectSuccess(
     "second shared consent",
-    await admin.rpc("set_amora_memory_consent", {
-      p_couple_id: coupleId,
-      p_visibility: "shared",
-      p_user_id: groom.id,
-      p_consented: true,
+    await mutateSyntheticMemoryWithConfirmation({
+      admin, user: groom, coupleId, visibility: "shared", action: "toggle", consented: true,
     }),
   );
   invariant(secondConsent?.enabled === true && secondConsent?.consented_count === 2,
@@ -508,10 +503,8 @@ async function testMemoryEngine({ bride, groom, coupleId, userMessage, aiMessage
 
   const cleared = expectSuccess(
     "clear memory scope",
-    await admin.rpc("clear_amora_memory_scope", {
-      p_couple_id: coupleId,
-      p_visibility: "shared",
-      p_user_id: bride.id,
+    await mutateSyntheticMemoryWithConfirmation({
+      admin, user: bride, coupleId, visibility: "shared", action: "clear_scope",
     }),
   );
   invariant(cleared?.cleared === true && Number(cleared.deleted_memory_count) >= 2, "memory scope clear postcondition failed");

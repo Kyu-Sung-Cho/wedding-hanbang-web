@@ -6,6 +6,7 @@ import ProfileAvatar from "@/components/ui/ProfileAvatar";
 import { AMORA_ACTION_CLASS } from "@/components/ui/amoraActionStyles";
 
 import { getAmoraVisibleText } from "@hanbang/shared/amora-visible-text";
+import { formatAmoraQuotaNotice } from "@hanbang/shared";
 
 import { personalActionContinuation } from "@/lib/amora/personalActionContinuation";
 import { buildWeddingTasteAmoraText } from "@/lib/weddingCode/taste";
@@ -14,6 +15,8 @@ import {
   peekWeddingTasteChat, WEDDING_TASTE_CHAT_PARAM,
 } from "@/lib/weddingCode/tasteHandoff";
 import { AMORA_PREPARATION_SOURCE_PARAM, resolveAmoraPreparationSource, type AmoraPreparationDraft } from "@/lib/amora/preparationHandoff";
+import { chatComposerEpoch, claimComposerSubmission, createEmptyComposerDrafts, getRememberedComposerLane, invalidateSharedComposerDrafts, releaseComposerSubmission, rememberComposerLane, type ChatComposerAttachment as AttachmentItem, type ChatComposerLane, type PrivateSafetyRecovery } from "@/stores/chatComposerStore";
+import { useChatComposerDrafts } from "./useChatComposerDrafts";
 
 import { useState, useEffect, useMemo, useRef, useCallback, type SetStateAction } from "react";
 import { createPortal } from "react-dom";
@@ -100,58 +103,14 @@ const MAX_ATTACHMENTS = CHAT_ATTACHMENT_MAX_COUNT;
 const NEW_CHAT_THRESHOLD = 200;
 /** 말풍선 색 안내를 닫은 계정. 뒤에 사용자 id 를 붙인다. */
 const ROLE_COLOR_HINT_STORAGE_PREFIX = "hanbang:chat-role-color-hint-dismissed:";
+const composerEpochRef = chatComposerEpoch;
 
 // 허용 파일 타입
 const ALLOWED_TYPES = CHAT_ATTACHMENT_TYPE_INFO;
 
-interface AttachmentItem {
-  base64: string;
-  mediaType: string;
-  previewUrl: string;
-  fileName: string;
-}
-
-type ChatComposerLane = "shared_ai" | "shared_partner" | "private_ai";
-
-interface ChatComposerDraft {
-  input: string;
-  preparation: { source: string; draft: AmoraPreparationDraft } | null;
-  attachments: AttachmentItem[];
-  retryClientRequestId: string | null;
-  pendingAttachmentReads: number;
-  tasteHandoffNonce?: string;
-  tasteHandoffOriginalText?: string;
-}
-
 interface PendingSend {
   text?: string;
   target: ChatMessageTarget;
-}
-
-function createEmptyComposerDrafts(): Record<ChatComposerLane, ChatComposerDraft> {
-  return {
-    shared_ai: {
-      input: "",
-      preparation: null,
-      attachments: [],
-      retryClientRequestId: null,
-      pendingAttachmentReads: 0,
-    },
-    shared_partner: {
-      input: "",
-      preparation: null,
-      attachments: [],
-      retryClientRequestId: null,
-      pendingAttachmentReads: 0,
-    },
-    private_ai: {
-      input: "",
-      preparation: null,
-      attachments: [],
-      retryClientRequestId: null,
-      pendingAttachmentReads: 0,
-    },
-  };
 }
 
 function fileInputKey(file: File): string {
@@ -475,7 +434,7 @@ function getCommunityAskCue(
 
 export default function ChatContent({ embedded = false }: ChatContentProps = {}) {
   const navigationTarget = useAmoraNavigationTarget();
-  const { profile, couple, journey, partner, isDemo, isInitialized: authInitialized, isLoading: authLoading } = useAuthStore();
+  const { user, profile, couple, journey, partner, isDemo, isInitialized: authInitialized, isLoading: authLoading } = useAuthStore();
   const amoraPersonalization = useAmoraPersonalization(
     !isDemo && Boolean(profile?.id),
   );
@@ -494,6 +453,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
     failedRequest,
     isRetrying,
     quotaRemaining,
+    quotaPeriod,
     initialLoadDone,
     presence,
     loadMessages,
@@ -514,18 +474,18 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
   const isInterruptedTurnRecovery =
     failedRequest?.recoveryKind === "interrupted_turn";
   const isRecoveryNotice = Boolean(failedRequest?.recoveryKind);
-  const [messageTarget, setMessageTarget] = useState<ChatMessageTarget>("ai");
+  const draftIdentity = JSON.stringify([user?.id ?? null, profile?.id ?? null, couple?.id ?? null, profile?.role ?? null, isDemo]);
+  const [messageTarget, setMessageTarget] = useState<ChatMessageTarget>(() => getRememberedComposerLane(draftIdentity) === "shared_partner" ? "partner" : "ai");
   // 채팅 탭 — "shared" (둘이 함께 + 상대방에게) | "private" (나만의 1:1)
-  const [activeTab, setActiveTab] = useState<"shared" | "private">("shared");
+  const [activeTab, setActiveTab] = useState<"shared" | "private">(() => getRememberedComposerLane(draftIdentity) === "private_ai" ? "private" : "shared");
   const isPrivate = activeTab === "private"; // private 탭일 때만 비공개 모드
   const activeComposerLane: ChatComposerLane = isPrivate
     ? "private_ai"
     : messageTarget === "partner"
       ? "shared_partner"
       : "shared_ai";
-  const [composerDrafts, setComposerDrafts] = useState<Record<ChatComposerLane, ChatComposerDraft>>(
-    createEmptyComposerDrafts,
-  );
+  const [composerDrafts, setComposerDrafts] = useChatComposerDrafts(draftIdentity);
+  useEffect(() => { rememberComposerLane(draftIdentity, activeComposerLane); }, [draftIdentity, activeComposerLane]);
   const composerDraftsRef = useRef(composerDrafts);
   composerDraftsRef.current = composerDrafts;
   const activeComposerLaneRef = useRef(activeComposerLane);
@@ -555,7 +515,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
         },
       };
     });
-  }, []);
+  }, [setComposerDrafts]);
   const setInput = useCallback((nextInput: SetStateAction<string>) => {
     setDraftInput(activeComposerLane, nextInput);
   }, [activeComposerLane, setDraftInput]);
@@ -580,7 +540,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
         },
       };
     });
-  }, []);
+  }, [setComposerDrafts]);
   const setAttachments = useCallback((nextAttachments: SetStateAction<AttachmentItem[]>) => {
     setDraftAttachments(activeComposerLane, nextAttachments);
   }, [activeComposerLane, setDraftAttachments]);
@@ -595,7 +555,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
         },
       };
     });
-  }, []);
+  }, [setComposerDrafts]);
   const setDraftRetryClientRequestId = useCallback((
     lane: ChatComposerLane,
     clientRequestId: string | null,
@@ -604,7 +564,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
       ...currentDrafts,
       [lane]: { ...currentDrafts[lane], retryClientRequestId: clientRequestId },
     }));
-  }, []);
+  }, [setComposerDrafts]);
   // pre-send confirm — 상대방 입력 중이거나 AI 응답 중일 때 마찰 추가
   const [pendingSend, setPendingSend] = useState<PendingSend | null>(null);
   // 새 채팅 modal 단계 — closed | shared 옵션 선택 | shared 둘 다 추가확인 | private 확인
@@ -665,7 +625,6 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
   const transientArtifactsVisible =
     activeArtifactVisibility !== null && artifactVisibility === activeArtifactVisibility;
   const sendInFlightRef = useRef<number | null>(null);
-  const composerEpochRef = useRef(0);
   const greetingRequested = useRef(false);
   /**
    * 아모라가 먼저 건넨 첫마디.
@@ -762,51 +721,80 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
    * 하나뿐인데, 정작 말을 하는 채팅에는 그 상태가 어디에도 없었다. 켜진 줄 알고
    * 말한 사람과 꺼진 줄 알고 말한 사람이 똑같은 화면을 본다.
    *
-   * 설정 화면이 이미 쓰는 GET `/api/amora/memory` 의 `settings[].enabled` 를 그대로
+   * 설정 화면이 이미 쓰는 GET `/api/amora/memory` 의 runtime과 유효 동의를 함께
    * 읽기만 한다 — 켜고 끄는 판정도, 저장 경로도 여기서 건드리지 않는다. 못 읽으면
    * 아무 말도 하지 않는다: 틀린 상태를 말하느니 침묵이 낫다.
    */
-  const [memoryEnabledByVisibility, setMemoryEnabledByVisibility] =
-    useState<Record<string, boolean> | null>(null);
+  const [memoryStatus, setMemoryStatus] = useState<{
+    context: string;
+    runtimeEnabled: boolean;
+    enabledByVisibility: Record<string, boolean>;
+  } | null>(null);
+  const memoryReady = authInitialized && !authLoading && !isDemo && Boolean(profile?.id && coupleId);
+  const memoryEpoch = composerEpochRef.current;
+  const memoryContext = JSON.stringify([
+    draftIdentity, couple?.bride_id, couple?.groom_id, memoryReady, memoryEpoch, sharedClearedAt, privateClearedAt,
+  ]);
 
   useEffect(() => {
-    if (isDemo || !coupleId) return;
+    if (!memoryReady) return;
     let cancelled = false;
-    void (async () => {
+    let requestVersion = 0;
+    let controller: AbortController | null = null;
+    const load = async () => {
+      const version = ++requestVersion;
+      controller?.abort();
+      controller = new AbortController();
       try {
-        const response = await fetch("/api/amora/memory", { cache: "no-store" });
+        const response = await fetch("/api/amora/memory", { cache: "no-store", signal: controller.signal });
         if (!response.ok) return;
         const payload = await response.json() as {
+          runtimeEnabled?: unknown;
           settings?: { visibility?: unknown; enabled?: unknown }[];
         };
-        if (cancelled || !Array.isArray(payload?.settings)) return;
+        if (cancelled || version !== requestVersion || memoryEpoch !== composerEpochRef.current
+          || typeof payload?.runtimeEnabled !== "boolean" || !Array.isArray(payload.settings)) return;
         const next: Record<string, boolean> = {};
         for (const setting of payload.settings) {
           if (typeof setting?.visibility === "string" && typeof setting?.enabled === "boolean") {
             next[setting.visibility] = setting.enabled;
           }
         }
-        setMemoryEnabledByVisibility(next);
+        setMemoryStatus({ context: memoryContext, runtimeEnabled: payload.runtimeEnabled, enabledByVisibility: next });
       } catch {
         // 못 읽으면 상태 줄을 그리지 않는다.
       }
-    })();
-    return () => { cancelled = true; };
-  }, [coupleId, isDemo]);
+    };
+    const refresh = () => {
+      setMemoryStatus(null);
+      void load();
+    };
+    const onVisibilityChange = () => {
+      if (document.visibilityState === "visible") refresh();
+    };
+    void load();
+    window.addEventListener("focus", refresh);
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    return () => {
+      cancelled = true;
+      controller?.abort();
+      window.removeEventListener("focus", refresh);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+    };
+  }, [memoryReady, memoryContext, memoryEpoch]);
 
   // 탭마다 기억 범위가 다르다 — 함께 대화는 공유 기억, 나만 상담은 내 비공개 기억.
   const activeMemoryEnabled = (() => {
-    if (!memoryEnabledByVisibility) return null;
+    if (!memoryReady || !memoryStatus || memoryStatus.context !== memoryContext) return null;
     const visibility = isPrivate ? myPrivateVisibility : "shared";
     if (!visibility) return null;
-    const enabled = memoryEnabledByVisibility[visibility];
-    return typeof enabled === "boolean" ? enabled : null;
+    const enabled = memoryStatus.enabledByVisibility[visibility];
+    return typeof enabled === "boolean" ? memoryStatus.runtimeEnabled && enabled : null;
   })();
 
   useEffect(() => {
     if (composerIdentityRef.current === composerIdentity) return;
     composerIdentityRef.current = composerIdentity;
-    composerEpochRef.current += 1;
     setDismissedNewChatSegments(new Set());
     sendInFlightRef.current = null;
     greetingRequested.current = false;
@@ -824,7 +812,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
         draft.attachments.forEach((attachment) => revokeObjectPreview(attachment.previewUrl));
       });
       const emptied = createEmptyComposerDrafts();
-      if (mayHydrate && currentDrafts.shared_ai.input === pending.text
+      if (mayHydrate && (!currentDrafts.shared_ai.input || currentDrafts.shared_ai.input === pending.text)
         && !currentDrafts.shared_ai.attachments.length && !currentDrafts.shared_ai.pendingAttachmentReads) {
         emptied.shared_ai = { ...emptied.shared_ai, input: pending.text };
       }
@@ -833,7 +821,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
     setActiveTab("shared");
     setMessageTarget("ai");
     setPendingSend(null);
-  }, [authInitialized, authLoading, composerIdentity, coupleId, profile?.id, senderRole, stopSharedTyping]);
+  }, [authInitialized, authLoading, composerIdentity, coupleId, profile?.id, senderRole, stopSharedTyping, setComposerDrafts]);
 
   // 이전 범위·계정의 늦은 동의 요청 응답이 새 확인 화면을 닫지 않게 한다.
   useEffect(() => {
@@ -850,6 +838,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
     if (previousLinkedPartnerId === linkedPartnerId || previousLinkedPartnerId === null) return;
 
     partnerComposerEpochRef.current += 1;
+    invalidateSharedComposerDrafts();
     setMessageTarget("ai");
     setPendingSend(null);
     setComposerDrafts((currentDrafts) => {
@@ -871,7 +860,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
       error: "상대방 연결 정보가 바뀌었어요. 이전 상대용 미전송 초안과 첨부는 안전을 위해 삭제했어요. 전송 중이던 메시지는 대화에서 상태를 확인해주세요.",
       artifactVisibility: "shared",
     });
-  }, [hasLinkedPartner, linkedPartnerId]);
+  }, [hasLinkedPartner, linkedPartnerId, setComposerDrafts]);
 
   const handleScopeChange = useCallback((nextScope: "shared" | "private") => {
     if (
@@ -991,7 +980,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
       setTasteNotice({ identity, epoch, status: "error" }); cleanTasteQuery(); return;
     }
     setTasteNotice({ identity, epoch, nonce, status: "pending" });
-    if (useChatStore.getState().isStreaming || useChatStore.getState().isSending || sendInFlightRef.current !== null) return;
+    if (useChatStore.getState().isStreaming || useChatStore.getState().isSending || sendInFlightRef.current === composerEpochRef.current) return;
     const text = buildWeddingTasteAmoraText(draft);
     handleScopeChange("private");
     // React가 앞서 큐에 넣은 타이핑·파일 선택도 확인한다. 저장소 소비는 실제 반영 뒤에 한다.
@@ -999,10 +988,10 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
       const lane = previous.private_ai;
       if (lane.input.length || lane.attachments.length || lane.pendingAttachmentReads || lane.tasteHandoffNonce
         || epoch !== composerEpochRef.current || getWeddingTasteChatIdentity() !== identity
-        || useChatStore.getState().isStreaming || useChatStore.getState().isSending || sendInFlightRef.current !== null) return previous;
+        || useChatStore.getState().isStreaming || useChatStore.getState().isSending || sendInFlightRef.current === composerEpochRef.current) return previous;
       return { ...previous, private_ai: { ...lane, input: text, preparation: null, retryClientRequestId: null, tasteHandoffNonce: nonce, tasteHandoffOriginalText: text } };
     });
-  }, [cleanTasteQuery, handleScopeChange]);
+  }, [cleanTasteQuery, handleScopeChange, setComposerDrafts]);
   useEffect(() => {
     if (!hasTasteHandoff || embedded || !authInitialized || authLoading || !profile?.id || !coupleId || !senderRole) return;
     let active = true;
@@ -1047,7 +1036,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
       });
     });
     return () => { active = false; };
-  }, [cleanTasteQuery, composerIdentity, placedTasteNonce]);
+  }, [cleanTasteQuery, composerIdentity, placedTasteNonce, setComposerDrafts]);
   const preparationVisitRef = useRef<{ key: string; identity: string; completed: boolean } | null>(null);
   const [preparationNotice, setPreparationNotice] = useState<{
     identity: string;
@@ -1119,7 +1108,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
       }
     })();
     return () => { active = false; };
-  }, [authInitialized, authLoading, composerIdentity, coupleId, embedded, hasTasteHandoff, isDemo, preparationKey, profile?.id, senderRole, suppressPublicHandoff]);
+  }, [authInitialized, authLoading, composerIdentity, coupleId, embedded, hasTasteHandoff, isDemo, preparationKey, profile?.id, senderRole, suppressPublicHandoff, setComposerDrafts]);
   const appliedRouteScope = useRef<string | null>(null);
   const requestedRouteScope = searchParams.get("scope");
   const [personalContinuationNotice, setPersonalContinuationNotice] = useState<{ identity: string; text: string } | null>(null);
@@ -1594,6 +1583,23 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
     scrollContainerToBottom(true);
   }, [scrollContainerToBottom]);
 
+  const visibleRecoveryError = transientArtifactsVisible && !isStreaming ? error : null;
+  const visibleSafetyRecovery = activeTab === "private" ? composerDrafts.private_ai.safetyRecovery : null;
+  useEffect(() => {
+    if (!visibleRecoveryError && !visibleSafetyRecovery) return;
+    // 실패 안내가 늘어났을 때 최신 대화를 보던 사람에게만 보여 준다. 검색·과거 읽기는 유지한다.
+    const wasNearBottom = isNearBottomRef.current;
+    const frame = requestAnimationFrame(() => {
+      const element = messagesContainerRef.current;
+      if (!element) return;
+      if (wasNearBottom && isNearBottomRef.current && !searchOpen) {
+        scrollContainerToBottom(false);
+      }
+      setShowJumpToBottom(element.scrollHeight - element.scrollTop - element.clientHeight > 240);
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [visibleRecoveryError, visibleSafetyRecovery, searchOpen, scrollContainerToBottom]);
+
   // AI streaming 중 — followStreamRef 가 true 일 때만 컨테이너 바닥으로 따라감.
   // 사용자가 메시지 보내면 follow=true 가 되고, wheel/touch 로 올리면 false 로 풀림.
   // 매 토큰마다 강제 yank 하던 race-condition 회피 (codex P2 review fix).
@@ -1850,14 +1856,23 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
   })();
 
   const handleSend = useCallback(
-    async (text?: string, targetOverride?: ChatMessageTarget) => {
-      if (isStreaming || isSending || sendInFlightRef.current !== null) return;
-      const usesComposer = text === undefined;
-      const content = usesComposer ? input.trim() : text;
+    async (text?: string, targetOverride?: ChatMessageTarget, recovery?: PrivateSafetyRecovery) => {
+      if (isStreaming || isSending || sendInFlightRef.current === composerEpochRef.current) return;
+      if (recovery && (!isPrivate || recovery !== composerDraftsRef.current.private_ai.safetyRecovery)) return;
+      if (!recovery && composerDraftsRef.current.private_ai.safetyRecovery
+        && !(isPrivate && composerDraftsRef.current.private_ai.safetyRecovery.localOnly)) {
+        setActiveTab("private");
+        setMessageTarget("ai");
+        return;
+      }
+      const usesComposer = text === undefined && !recovery;
+      const content = recovery ? recovery.input.trim() : usesComposer ? input.trim() : text;
       const currentAttachments = usesComposer ? [...attachments] : [];
       const sourceLane = activeComposerLane;
       const submittedPreparation = usesComposer ? composerDraftsRef.current[sourceLane].preparation : null;
-      const submittedClientRequestId = usesComposer ? retryClientRequestId : null;
+      const submittedClientRequestId = recovery?.clientRequestId
+        ?? (usesComposer ? retryClientRequestId : null)
+        ?? crypto.randomUUID();
       if (
         (!content && currentAttachments.length === 0)
         || !coupleId
@@ -1900,6 +1915,8 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
       const isPrivateSafetyRoute = crisisPreflight.disposition === "private_safety_route";
       const canTransmitAttachments = crisisPreflight.disposition === "continue";
       const submittedLane = isPrivateSafetyRoute ? "private_ai" : sourceLane;
+      if (!recovery && composerDraftsRef.current.private_ai.safetyRecovery
+        && crisisPreflight.disposition !== "continue") return;
       if (!isLocalSafetyHold && sendTarget === "partner" && !hasLinkedPartner) {
         setMessageTarget("ai");
         useChatStore.setState({
@@ -1921,7 +1938,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
         return;
       }
 
-      const submittedInput = usesComposer ? input : "";
+      const submittedInput = recovery?.input ?? (usesComposer ? input : "");
       const submittedEpoch = composerEpochRef.current;
       if (canTransmitAttachments) {
         const attachmentCheck = prepareChatAttachmentPayload(currentAttachments);
@@ -1951,34 +1968,46 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
         if (composerEpochRef.current !== submittedEpoch) return;
         setComposerDrafts((currentDrafts) => {
           const currentDraft = currentDrafts.private_ai;
-          if (currentDraft.input) return currentDrafts;
+          if (currentDraft.input || currentDraft.attachments.length || currentDraft.pendingAttachmentReads || currentDraft.preparation) {
+            return { ...currentDrafts, private_ai: { ...currentDraft,
+              safetyRecovery: { input: submittedInput, clientRequestId: null, localOnly: true },
+            } };
+          }
           return {
             ...currentDrafts,
-            private_ai: { ...currentDraft, input: submittedInput },
+            private_ai: { ...currentDraft, input: submittedInput, retryClientRequestId: null },
           };
         });
       };
 
       const restoreComposer = (clientRequestId: string | null) => {
         if (
-          isPrivateSafetyRoute
-          ||
-          !usesComposer
+          (!usesComposer && !recovery)
           || composerEpochRef.current !== submittedEpoch
           || !partnerRecipientIsStillCurrent()
         ) return;
         setComposerDrafts((currentDrafts) => {
           const currentDraft = currentDrafts[submittedLane];
+          // 안전 전환 전부터 작성하던 private 초안과 전송 스냅샷의 키를 섞지 않는다.
+          if (recovery || (isPrivateSafetyRoute && (
+            currentDraft.input.length > 0 || currentDraft.attachments.length > 0
+            || currentDraft.pendingAttachmentReads > 0 || currentDraft.preparation
+          ))) {
+            return {
+              ...currentDrafts,
+              private_ai: { ...currentDrafts.private_ai, safetyRecovery: { input: submittedInput, clientRequestId } },
+            };
+          }
           const existingKeys = new Set(currentDraft.attachments.map(chatAttachmentKey));
           return {
             ...currentDrafts,
             [submittedLane]: {
               ...currentDraft,
               input: currentDraft.input || submittedInput,
-              preparation: currentDraft.input ? currentDraft.preparation : submittedPreparation,
+              preparation: currentDraft.input ? currentDraft.preparation : isPrivateSafetyRoute ? null : submittedPreparation,
               attachments: [
                 ...currentDraft.attachments,
-                ...currentAttachments.filter(
+                ...(isPrivateSafetyRoute ? [] : currentAttachments).filter(
                   (attachment) => !existingKeys.has(chatAttachmentKey(attachment)),
                 ),
               ],
@@ -2001,6 +2030,23 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
         }
       }
 
+      const privateSafetySnapshot = isLocalSafetyHold || isPrivateSafetyRoute || Boolean(recovery);
+      const submissionClaim = claimComposerSubmission(submittedEpoch, submittedClientRequestId, usesComposer || recovery ? {
+        lane: privateSafetySnapshot ? "private_ai" : sourceLane,
+        draft: {
+          ...composerDraftsRef.current[sourceLane], input: submittedInput,
+          preparation: privateSafetySnapshot ? null : submittedPreparation,
+          attachments: privateSafetySnapshot ? [] : currentAttachments,
+          retryClientRequestId: isLocalSafetyHold ? null : submittedClientRequestId,
+          pendingAttachmentReads: 0,
+          safetyRecovery: privateSafetySnapshot ? undefined : composerDraftsRef.current[sourceLane].safetyRecovery,
+        },
+        ...(privateSafetySnapshot ? { safetyRecovery: {
+          input: submittedInput, clientRequestId: isLocalSafetyHold ? null : submittedClientRequestId,
+          ...(isLocalSafetyHold ? { localOnly: true } : {}),
+        } } : {}),
+      } : undefined);
+      if (!submissionClaim) return;
       sendInFlightRef.current = submittedEpoch;
       if (activeTab === "shared") stopSharedTyping();
       if (usesComposer) {
@@ -2011,7 +2057,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
             input: "",
             preparation: null,
             attachments: [],
-            retryClientRequestId: submittedClientRequestId,
+            retryClientRequestId: isPrivateSafetyRoute ? null : submittedClientRequestId,
           },
         }));
       }
@@ -2053,6 +2099,9 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
             ? { clientRequestId: submittedClientRequestId }
             : {}),
         });
+        if (composerEpochRef.current !== submittedEpoch) {
+          return;
+        }
         if (outcome?.userMessage === "ephemeral_safety") {
           setActiveTab("private");
           setMessageTarget("ai");
@@ -2073,13 +2122,17 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
           restoreComposer(submittedClientRequestId);
           return;
         }
+        if (recovery && composerEpochRef.current === submittedEpoch) {
+          setComposerDrafts(current => current.private_ai.safetyRecovery !== recovery ? current : {
+            ...current, private_ai: { ...current.private_ai, safetyRecovery: undefined },
+          });
+        }
         if (usesComposer && composerEpochRef.current === submittedEpoch) {
           setDraftRetryClientRequestId(sourceLane, null);
         }
         currentAttachments.forEach((attachment) => revokeObjectPreview(attachment.previewUrl));
       } catch {
-        if (!partnerRecipientIsStillCurrent()) {
-          currentAttachments.forEach((attachment) => revokeObjectPreview(attachment.previewUrl));
+        if (composerEpochRef.current !== submittedEpoch || !partnerRecipientIsStillCurrent()) {
           return;
         }
         restoreComposer(submittedClientRequestId);
@@ -2087,11 +2140,12 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
           error:
             state.artifactVisibility === visibility && state.error
               ? state.error
-              : "메시지를 저장하지 못했습니다. 입력 내용을 복구했어요.",
+              : "메시지 저장 결과를 확인하지 못했어요. 작성창 또는 비공개 보류 메시지에서 다시 확인해 주세요.",
           artifactVisibility: visibility,
         }));
       } finally {
-        if (composerEpochRef.current !== submittedEpoch) {
+        releaseComposerSubmission(submittedEpoch, submittedClientRequestId);
+        if (composerEpochRef.current !== submittedEpoch && !submissionClaim.attachmentsTransferred) {
           currentAttachments.forEach((attachment) => revokeObjectPreview(attachment.previewUrl));
         }
         if (sendInFlightRef.current === submittedEpoch) {
@@ -2118,6 +2172,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
       isStreaming,
       isSending,
       setDraftRetryClientRequestId,
+      setComposerDrafts,
       stopSharedTyping,
     ]
   );
@@ -2210,6 +2265,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
     try {
       await sendMessage({
         content: AMORA_QUEUED_CARD_SKIP_TEXT,
+        skippedActionId: actionId,
         senderId: profile.id,
         senderRole: profile.role,
         coupleId,
@@ -2822,7 +2878,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
         />
       )}
 
-    <div className="h-full flex flex-col w-full">
+    <div className="h-full min-h-0 flex flex-col w-full overflow-y-auto">
       {/* 풀페이지 범위 버튼은 공통 헤더, embedded 버튼은 현재 화면에 둔다. */}
       <div className="mx-auto flex w-full max-w-[70rem] flex-wrap items-center gap-x-3 gap-y-1 px-[18px] pt-[14px] pb-2 md:px-9">
         {embedded && <div className="flex w-full min-w-0 items-center gap-1.5 md:w-auto md:flex-1">
@@ -2888,6 +2944,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
           </a>
           <button
             onClick={() => {
+              if (!searchOpen) followStreamRef.current = false;
               setSearchOpen((v) => {
                 if (v) setSearchQuery(""); // 닫을 때 검색어 리셋
                 return !v;
@@ -2915,7 +2972,8 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
           >
             <PanelRightOpen className="w-4 h-4" />
           </button>
-          {messages.length > 0 && (
+          {(activeMessageCount > 0 || (activeTab === "private" && initialLoadDone
+            && authInitialized && !authLoading && !isDemo && profile?.id && coupleId)) && (
             <button
               onClick={openNewChatModal}
               className="flex size-11 shrink-0 items-center justify-center rounded-full text-[var(--amora-muted,#6E5A54)] transition-colors hover:bg-[var(--amora-low,#F0EAD9)]"
@@ -2962,6 +3020,9 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
         </a>
       </div>
 
+      {/* 검색·긴 안내도 대화 영역에서 스크롤되어 작은 화면의 입력창을 밀지 않는다. */}
+      <div className="relative min-h-11 flex-1">
+      <div ref={messagesContainerRef} className="h-full overflow-y-auto py-4">
       {/* 검색 바 — 헤더 아래 토글 */}
       {searchOpen && (
         <div className="mx-2 mb-2 flex items-center gap-2 px-3 py-2 bg-white border border-[#F0EFED] rounded-[6px] shadow-[var(--shadow-raised)]">
@@ -3149,7 +3210,6 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
 
       {/* 채팅 영역 — 컨테이너는 full-width 라 스크롤바가 viewport 우측 가장자리.
           안쪽 reading column wrapper 에서 메시지가 가운데 reading 폭으로 정렬. */}
-      <div ref={messagesContainerRef} className="flex-1 overflow-y-auto py-4">
         <div className="w-full max-w-[70rem] mx-auto px-2 sm:px-3 space-y-4">
         {/* 기억 상태 한 줄 — 못 읽었으면(activeMemoryEnabled === null) 아무 말도 하지 않는다 */}
         {activeMemoryEnabled !== null && (
@@ -3158,15 +3218,17 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
             className="mb-2 px-3 py-2 rounded-[6px] bg-[var(--hb-surface-hover)] text-[12.5px] leading-relaxed text-[var(--hb-text-muted)]"
           >
             {activeMemoryEnabled ? (
-              <span>이 탭의 대화는 장기 기억으로 정리돼요</span>
+              <span>이 탭의 장기 기억 사용이 켜져 있어요</span>
             ) : (
               <span>
-                지금은 장기 기억을 저장하지 않아요{" · "}
+                {memoryStatus?.runtimeEnabled === false
+                  ? "지금은 장기 기억 기능이 중지되어 있어요"
+                  : "지금은 장기 기억을 저장하지 않아요"}{" · "}
                 <a
                   href={weddingPath("/settings/amora-memory")}
                   className="underline text-[var(--hb-accent-hover)]"
                 >
-                  설정에서 켜기
+                  {memoryStatus?.runtimeEnabled === false ? "설정에서 확인" : "설정에서 켜기"}
                 </a>
               </span>
             )}
@@ -3516,34 +3578,17 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
           </div>
         )}
 
-        <div ref={messagesEndRef} />
         </div>
-      </div>
-
-      {/* 최신 메시지로 ↓ 점프 — 사용자가 바닥에서 240px+ 위로 올라가 있을 때만 */}
-      {showJumpToBottom && (
-        <button
-          type="button"
-          onClick={jumpToBottom}
-          className="absolute bottom-[140px] right-4 sm:right-6 z-20 w-11 h-11 rounded-full bg-white text-[var(--hb-accent-hover)] shadow-[var(--shadow-raised)] border border-[#E8DDD3] hover:bg-[#FAF8F5] flex items-center justify-center transition-colors"
-          aria-label="최신 메시지로"
-          title="최신 메시지로"
-        >
-          ↓
-        </button>
-      )}
 
       {/* 쿼터 소진 예고 — 갑작스런 차단(429) 대신 미리 안내 */}
       {transientArtifactsVisible && quotaRemaining !== null && !isStreaming && (
         <div className="mx-2 mt-2 flex items-center justify-between rounded-[6px] bg-[var(--hb-surface-hover)] p-3 shadow-[var(--shadow-raised)]">
           <p className="text-[13px] font-medium text-[#6d625a]">
-            {quotaRemaining > 0
-              ? `무료 상담이 ${quotaRemaining}회 남았어요. 소진돼도 예산·일정 기록은 그대로 보관돼요.`
-              : "무료 상담을 모두 사용했어요. 예산·일정 기록은 그대로 보관돼요."}
+            {formatAmoraQuotaNotice(quotaRemaining, quotaPeriod)}
           </p>
           <Button variant="ghost" onClick={() => setInfoPanelOpen(true)} className="shrink-0 px-2! text-xs!">대화 정리</Button>
           <button
-            onClick={() => useChatStore.setState({ quotaRemaining: null })}
+            onClick={() => useChatStore.setState({ quotaRemaining: null, quotaPeriod: "total" })}
             className="ml-2 flex-shrink-0 text-[var(--hb-text-muted)] hover:text-[#6d625a]"
             aria-label="안내 닫기"
           >
@@ -3592,6 +3637,34 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
       {activeTab === "private" && personalContinuationNotice?.identity === composerIdentity && <div role="alert" className="mx-3 my-2 rounded-lg border border-[var(--hb-hairline)] p-3 text-sm leading-relaxed">
         <p>{personalContinuationNotice.text}</p><Link href="/chat/personal" className="inline-flex min-h-11 items-center underline">개인 목록에서 다시 확인</Link>
       </div>}
+      {activeTab === "private" && composerDrafts.private_ai.safetyRecovery && (
+        <div role="alert" className="mx-3 my-2 rounded-lg border border-[var(--hb-hairline)] p-3 text-sm leading-relaxed">
+          <p>{composerDrafts.private_ai.safetyRecovery.localOnly
+            ? "안전 안내로 멈춘 글은 나만 보는 초안으로 보관했어요. 작성 중이던 글을 마치거나 비운 뒤 불러올 수 있어요."
+            : "비공개로 보낸 메시지의 저장을 확인하지 못했어요. 작성 중이던 글은 그대로 두고, 보류 메시지만 같은 요청으로 다시 확인할 수 있어요."}</p>
+          {composerDrafts.private_ai.safetyRecovery.localOnly ? (
+            <Button variant="ghost" className="underline"
+              disabled={isSending || isStreaming || Boolean(input) || attachments.length > 0 || pendingAttachmentReads > 0}
+              onClick={() => setComposerDrafts(current => {
+                const draft = current.private_ai;
+                if (!draft.safetyRecovery?.localOnly || draft.input || draft.attachments.length || draft.pendingAttachmentReads) return current;
+                return { ...current, private_ai: { ...draft, input: draft.safetyRecovery.input, preparation: null, retryClientRequestId: null, safetyRecovery: undefined } };
+              })}>보류 초안 불러오기</Button>
+          ) : (
+          <Button variant="ghost" className="underline"
+            disabled={isSending || isStreaming}
+            onClick={() => void handleSend(undefined, undefined, composerDrafts.private_ai.safetyRecovery)}>
+            보류 메시지 다시 확인
+          </Button>
+          )}
+          <p className="text-xs text-[var(--hb-text-muted)]">초안을 지워도 서버에 이미 저장된 메시지는 취소되지 않아요.</p>
+          <Button variant="ghost" className="underline"
+            disabled={isSending || isStreaming}
+            onClick={() => setComposerDrafts(current => ({ ...current, private_ai: { ...current.private_ai, safetyRecovery: undefined } }))}>
+            이 기기의 보류 초안만 지우기
+          </Button>
+        </div>
+      )}
       {transientArtifactsVisible && error && !isStreaming && (
         <div
           className={`mx-2 mt-2 rounded-[6px] border p-3.5 shadow-[var(--shadow-raised)] ${
@@ -3801,8 +3874,24 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
         </div>
       )}
 
-      {/* 입력창 — ChatGPT 스타일로 reading width 유지 + 가운데 정렬 */}
-      <div className="px-0 sm:px-2 pt-3 pb-2 w-full max-w-[53.75rem] mx-auto">
+        <div ref={messagesEndRef} />
+      </div>
+      {/* 메시지 viewport에 고정해 짧은 화면에서도 범위·정책 안내를 가리지 않는다. */}
+      {showJumpToBottom && (
+        <button
+          type="button"
+          onClick={jumpToBottom}
+          className="absolute bottom-0 right-4 sm:right-6 z-20 w-11 h-11 rounded-full bg-white text-[var(--hb-accent-hover)] shadow-[var(--shadow-raised)] border border-[#E8DDD3] hover:bg-[#FAF8F5] flex items-center justify-center transition-colors"
+          aria-label="최신 메시지로"
+          title="최신 메시지로"
+        >
+          ↓
+        </button>
+      )}
+      </div>
+
+      {/* 안내·재시도·추천은 대화와 함께 스크롤하고, 입력은 높이를 양보하지 않는다. */}
+      <div className="shrink-0 px-0 sm:px-2 pt-3 pb-2 w-full max-w-[53.75rem] mx-auto">
         {/* 첨부 미리보기 */}
         {attachments.length > 0 && (
           <div className="flex gap-2 mb-2 px-1 sm:px-2 flex-wrap">
@@ -3969,6 +4058,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
               || isStreaming
               || isSending
               || pendingAttachmentReads > 0
+              || Boolean(composerDrafts.private_ai.safetyRecovery && !composerDrafts.private_ai.safetyRecovery.localOnly)
             }
             aria-label={
               messageTarget === "partner"

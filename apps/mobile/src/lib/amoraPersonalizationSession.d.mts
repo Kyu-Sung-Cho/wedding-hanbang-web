@@ -67,10 +67,11 @@ export type AmoraPersonalizationSession = {
   subscribe(listener: () => void): () => void;
   setOwner(ownerId: string | null): boolean;
   dispose(): void;
-  load(): Promise<boolean>;
+  load(options?: { refreshOwner?: boolean }): Promise<boolean>;
   select(key: string, value: unknown): boolean;
   save(): Promise<boolean>;
-  reset(): Promise<boolean>;
+  captureReset(): { owner: string | null; epoch: number; revision: number } | null;
+  reset(confirmation?: { owner: string | null; epoch: number; revision: number } | null): Promise<boolean>;
 };
 
 export declare function formatAmoraPersonalizationDate(value: unknown): string | null;
@@ -81,5 +82,6 @@ export declare function createAmoraPersonalizationSession(
   options?: {
     initialOwnerId?: string | null;
     readSessionOwner?: () => Promise<string | null>;
+    timeoutMs?: number;
   },
 ): AmoraPersonalizationSession;

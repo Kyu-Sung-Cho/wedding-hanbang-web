@@ -53,6 +53,7 @@ import { planAmoraCrisisDelivery } from "@hanbang/shared/amora-crisis-delivery";
 import { hasAmoraSafetySignal } from "@/lib/ai/amoraQuestionScope";
 import { MUTATING_TOOL_NAMES } from "@/lib/ai/mutationTools";
 import { useAuthStore } from "./authStore";
+import { forgetComposerRecovery } from "./chatComposerStore";
 
 /** 서버가 이유를 밝히며 거절한 중재 요청. 그 문장을 사용자에게 그대로 보여준다. */
 const MEDIATION_REQUEST_REJECTED = "MediationRequestRejected";
@@ -70,6 +71,30 @@ type ActiveProviderRequest = {
 };
 
 const activeProviderRequests = new Set<ActiveProviderRequest>();
+
+// Abort를 무시하는 transport도 기다림은 끝낸다. 늦게 온 결과는 race 밖으로 나오지 않는다.
+function beginChatIngestDeadline(lifecycleBinding: ChatLifecycleBinding) {
+  const controller = new AbortController();
+  const activeRequest = { controller, lifecycleBinding };
+  activeProviderRequests.add(activeRequest);
+  let rejectAborted!: (reason: DOMException) => void;
+  const aborted = new Promise<never>((_resolve, reject) => { rejectAborted = reject; });
+  const abortError = () => new DOMException("Chat ingest interrupted", "AbortError");
+  const onAbort = () => rejectAborted(abortError());
+  controller.signal.addEventListener("abort", onAbort, { once: true });
+  const timer = setTimeout(() => controller.abort(), 30_000);
+  return {
+    signal: controller.signal,
+    wait: <T,>(value: PromiseLike<T>): Promise<T> => controller.signal.aborted
+      ? Promise.reject(abortError())
+      : Promise.race([value, aborted]),
+    close: () => {
+      clearTimeout(timer);
+      controller.signal.removeEventListener("abort", onAbort);
+      activeProviderRequests.delete(activeRequest);
+    },
+  };
+}
 
 // 화면 정리는 진행 중인 작업만 무효화한다. Realtime 구독의 계정 경계는 유지한다.
 function captureChatViewGuard(binding: ChatLifecycleBinding): () => boolean {
@@ -308,6 +333,7 @@ interface ChatStoreState {
 
   /** 베타 무료 상담 잔여 횟수 — 임계 이하일 때만 서버가 알려줌(소진 예고 배너용). */
   quotaRemaining: number | null;
+  quotaPeriod: "daily" | "total";
 
   /** Last provider request that failed after the user message was accepted. */
   failedRequest: FailedChatRequest | null;
@@ -339,6 +365,7 @@ interface ChatStoreState {
     visibility?: "shared" | "bride_private" | "groom_private";
     partnerRecipientId?: string;
     confirmedActionId?: string;
+    skippedActionId?: string;
     preparationSource?: string;
     clientRequestId?: string;
   }) => Promise<ChatSendOutcome>;
@@ -736,7 +763,7 @@ async function parseSSEStream(
     onTextClear?: () => void;
     onToolResult: (result: ToolExecutionResult) => void;
     onSuggestions: (suggestions: string[]) => void;
-    onQuota?: (remaining: number) => void;
+    onQuota?: (remaining: number, period?: "daily" | "total") => void;
     onDone: (fullContent: string, metadata: ChatMessageMetadata) => void;
     onError: (error: Extract<SSEEvent, { type: "error" }>) => void;
   }
@@ -777,7 +804,7 @@ async function parseSSEStream(
             Number.isInteger(event.remaining)
             && event.remaining >= 0
           ) {
-            callbacks.onQuota?.(event.remaining);
+            callbacks.onQuota?.(event.remaining, event.period === "daily" ? "daily" : "total");
           }
           break;
         case "done":
@@ -917,6 +944,7 @@ function isBoundUserMessageRow(
     target: ChatMessageTarget;
     partnerRecipientId: string | null;
     confirmedActionId: string | null;
+    skippedActionId: string | null;
     preparationSource: string | null;
     clientRequestId: string;
     providerAttachmentCount: number;
@@ -974,7 +1002,8 @@ function isBoundUserMessageRow(
     && manifestMatches
     && rowTarget === expected.target
     && rowPartnerRecipientId === (expected.partnerRecipientId?.toLowerCase() ?? null)
-    && rowConfirmation === expected.confirmedActionId;
+    && rowConfirmation === expected.confirmedActionId
+    && (record.skipped_amora_action_id ?? null) === expected.skippedActionId;
 }
 
 function isCanonicalV2AttachmentManifest(value: unknown, count: number): boolean {
@@ -1225,6 +1254,9 @@ export function buildUnansweredMessageRecoveryRequest(
 
   const clientRequestId = unanswered.metadata.client_request_id!.toLowerCase();
   const preparationSource = unanswered.metadata.preparation_source;
+  const skippedActionId = unanswered.metadata.skipped_amora_action_id;
+  if (skippedActionId !== undefined && (!EXPLICIT_ACTION_ID_PATTERN.test(skippedActionId)
+    || unanswered.visibility !== "shared" || preparationSource !== undefined)) return null;
   if (preparationSource !== undefined && (typeof preparationSource !== "string"
     || !parseAmoraPreparationSource(preparationSource) || unanswered.visibility !== "shared")) return null;
   const attachmentCount = unanswered.metadata.provider_attachment_count ?? 0;
@@ -1265,6 +1297,7 @@ export function buildUnansweredMessageRecoveryRequest(
         userMessageId: unanswered.id,
         visibility: unanswered.visibility,
         ...(preparationSource ? { preparationSource } : {}),
+        ...(skippedActionId ? { skippedActionId } : {}),
       });
 
   return {
@@ -1471,6 +1504,7 @@ async function executeChatProviderRequest(
     artifactVisibility: request.visibility,
     error: null,
     quotaRemaining: null,
+    quotaPeriod: "total",
   });
 
   const abortController = new AbortController();
@@ -1561,8 +1595,8 @@ async function executeChatProviderRequest(
       onSuggestions: (nextSuggestions) => {
         if (isCurrentLifecycle()) set({ suggestions: nextSuggestions });
       },
-      onQuota: (remaining) => {
-        if (isCurrentLifecycle()) set({ quotaRemaining: remaining });
+      onQuota: (remaining, period = "total") => {
+        if (isCurrentLifecycle()) set({ quotaRemaining: remaining, quotaPeriod: period });
       },
       onDone: (content, metadata) => {
         if (!isCurrentLifecycle()) return;
@@ -1713,6 +1747,7 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
   error: null,
   initialLoadDone: false,
   quotaRemaining: null,
+  quotaPeriod: "total",
   failedRequest: null,
   isSending: false,
   isRetrying: false,
@@ -1965,7 +2000,7 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
 
   sendMessage: async ({
     content, senderId, senderRole, coupleId, senderName, weddingContext, images, target = "ai", visibility,
-    confirmedActionId, preparationSource, clientRequestId: requestedClientRequestId, partnerRecipientId,
+    confirmedActionId, skippedActionId, preparationSource, clientRequestId: requestedClientRequestId, partnerRecipientId,
   }) => {
     const lifecycleBinding = captureActiveChatLifecycleBinding();
     // Durable Supabase account/couple scopes are UUID-bound. Signed demo and
@@ -2007,13 +2042,19 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
         })
       : null;
     let finalVisibility = crisisPreflight?.effectiveVisibility ?? requestedVisibility;
-    const effectiveConfirmedActionId = crisisPreflight?.disposition === "private_safety_route"
+    let effectiveConfirmedActionId = crisisPreflight?.disposition === "private_safety_route"
       ? undefined
       : confirmedActionId;
+    let effectiveSkippedActionId = crisisPreflight?.disposition === "private_safety_route"
+      ? undefined : skippedActionId;
+    if (effectiveSkippedActionId !== undefined && (!EXPLICIT_ACTION_ID_PATTERN.test(effectiveSkippedActionId)
+      || finalVisibility !== "shared" || target !== "ai" || effectiveConfirmedActionId !== undefined)) {
+      return { userMessage: "not_persisted", reason: "validation" };
+    }
     let effectivePreparationSource = crisisPreflight?.disposition === "private_safety_route" ? undefined : preparationSource;
     if (effectivePreparationSource !== undefined && (typeof effectivePreparationSource !== "string"
       || !parseAmoraPreparationSource(effectivePreparationSource) || target !== "ai"
-      || finalVisibility !== "shared" || effectiveConfirmedActionId !== undefined)) {
+      || finalVisibility !== "shared" || effectiveConfirmedActionId !== undefined || effectiveSkippedActionId !== undefined)) {
       return { userMessage: "not_persisted", reason: "validation" };
     }
     let privateSafetyCardId: string | null = null;
@@ -2241,6 +2282,7 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
       ...(effectiveConfirmedActionId
         ? { confirmed_amora_action_id: effectiveConfirmedActionId }
         : {}),
+      ...(effectiveSkippedActionId ? { skipped_amora_action_id: effectiveSkippedActionId } : {}),
       ...(effectivePreparationSource ? { preparation_source: effectivePreparationSource } : {}),
     };
 
@@ -2254,6 +2296,7 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
       target,
       partnerRecipientId: target === "partner" ? normalizedPartnerRecipientId : null,
       confirmedActionId: effectiveConfirmedActionId ?? null,
+      skippedActionId: effectiveSkippedActionId ?? null,
       preparationSource: effectivePreparationSource ?? null,
       clientRequestId,
       providerAttachmentCount: target === "partner" ? 0 : attachments.length,
@@ -2369,10 +2412,13 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
 
     if (!isDemo) {
       let ingestResponse: Response;
+      let ingestPayload: Record<string, unknown> | null = null;
+      const ingestDeadline = beginChatIngestDeadline(lifecycleBinding);
       try {
-        ingestResponse = await fetch("/api/chat/messages", {
+        ingestResponse = await ingestDeadline.wait(fetch("/api/chat/messages", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
+          signal: ingestDeadline.signal,
           body: JSON.stringify({
             coupleId,
             content,
@@ -2386,10 +2432,11 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
             ...(effectiveConfirmedActionId
               ? { confirmedActionId: effectiveConfirmedActionId }
               : {}),
+            ...(effectiveSkippedActionId ? { skippedActionId: effectiveSkippedActionId } : {}),
             ...(effectivePreparationSource ? { preparationSource: effectivePreparationSource } : {}),
             ...(imagePaths.length > 0 ? { imagePaths } : {}),
           }),
-        });
+        }));
         const ingestDefinitivelyRejectedBeforePersistence =
           isDefinitiveChatIngestRejection(ingestResponse.status);
         if (!isCurrentLifecycle()) {
@@ -2397,6 +2444,15 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
             await cleanupNewlyUploadedImages();
           }
           return { userMessage: "not_persisted", reason: "unexpected" };
+        }
+        try {
+          const parsed = await ingestDeadline.wait(ingestResponse.json()) as unknown;
+          if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+            ingestPayload = parsed as Record<string, unknown>;
+          }
+        } catch (error) {
+          // 2xx 본문도 INSERT 확정 전에 끊길 수 있다. 같은 키로 서버 정본을 확인한다.
+          if (!ingestDefinitivelyRejectedBeforePersistence) throw error;
         }
       } catch (error) {
         if (!isCurrentLifecycle()) {
@@ -2407,20 +2463,12 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
           error: "메시지가 전송됐는지 확인할 수 없어요. 같은 메시지로 다시 시도해 주세요.",
         });
         return { userMessage: "persistence_unknown", clientRequestId };
+      } finally {
+        ingestDeadline.close();
       }
 
       const ingestDefinitivelyRejectedBeforePersistence =
         isDefinitiveChatIngestRejection(ingestResponse.status);
-      let ingestPayload: Record<string, unknown> | null = null;
-      try {
-        const parsed = await ingestResponse.json() as unknown;
-        if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
-          ingestPayload = parsed as Record<string, unknown>;
-        }
-      } catch {
-        // A broken response can hide a committed INSERT, so retry only with
-        // the same client request id and let the server reconcile it.
-      }
       if (!isCurrentLifecycle()) {
         if (ingestDefinitivelyRejectedBeforePersistence) {
           await cleanupNewlyUploadedImages();
@@ -2567,6 +2615,10 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
       finalVisibility = serverVisibility;
       expectedRow.visibility = serverVisibility;
       if (ingestPayload.safetyPrivacyRedirected === true) {
+        effectiveConfirmedActionId = undefined;
+        effectiveSkippedActionId = undefined;
+        expectedRow.confirmedActionId = null;
+        expectedRow.skippedActionId = null;
         effectivePreparationSource = undefined;
         expectedRow.preparationSource = null;
         expectedRow.providerAttachmentCount = 0;
@@ -2700,6 +2752,7 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
         ...(effectiveConfirmedActionId !== undefined
           ? { confirmedActionId: effectiveConfirmedActionId }
           : {}),
+        ...(effectiveSkippedActionId ? { skippedActionId: effectiveSkippedActionId } : {}),
         ...(effectivePreparationSource ? { preparationSource: effectivePreparationSource } : {}),
         ...(attachmentPayload.length > 0 ? { attachments: attachmentPayload } : {}),
       });
@@ -2778,6 +2831,7 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
       artifactVisibility: "shared",
       error: null,
       quotaRemaining: null,
+      quotaPeriod: "total",
       failedRequest: null,
       isRetrying: false,
     });
@@ -2833,8 +2887,8 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
         onSuggestions: (sug) => {
           if (isCurrentLifecycle()) set({ suggestions: sug });
         },
-        onQuota: (remaining) => {
-          if (isCurrentLifecycle()) set({ quotaRemaining: remaining });
+        onQuota: (remaining, period = "total") => {
+          if (isCurrentLifecycle()) set({ quotaRemaining: remaining, quotaPeriod: period });
         },
         onDone: (fc, meta) => {
           if (!isCurrentLifecycle()) return;
@@ -2934,6 +2988,7 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
         artifactVisibility: mediationSafetyPlan.effectiveVisibility,
         error: null,
         quotaRemaining: null,
+        quotaPeriod: "total",
         failedRequest: null,
       }));
       // 안내 카드가 어느 탭에 있는지 호출부가 알아야 한다.
@@ -2948,6 +3003,7 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
       artifactVisibility: "shared",
       error: null,
       quotaRemaining: null,
+      quotaPeriod: "total",
       failedRequest: null,
       isRetrying: false,
     });
@@ -3030,8 +3086,8 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
         onSuggestions: (sug) => {
           if (isCurrentLifecycle()) set({ suggestions: sug });
         },
-        onQuota: (remaining) => {
-          if (isCurrentLifecycle()) set({ quotaRemaining: remaining });
+        onQuota: (remaining, period = "total") => {
+          if (isCurrentLifecycle()) set({ quotaRemaining: remaining, quotaPeriod: period });
         },
         onDone: (fc, meta) => {
           if (!isCurrentLifecycle()) return;
@@ -3113,6 +3169,14 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
     const advancesView = !appliedCursor || compareChatTimestamps(nowIso, appliedCursor) === 1;
     // 연속 초기화의 HTTP 응답이 뒤집혀도 새 화면과 그 뒤 시작한 요청을 건드리지 않는다.
     if (advancesView) invalidateChatView(coupleId);
+    if (
+      !isDemo && advancesView
+      && (mode === "delete_private" || mode === "delete_shared")
+      && serverClearedAt && Number.isFinite(Date.parse(serverClearedAt))
+      && compareChatTimestamps(serverClearedAt, nowIso) === 0
+    ) {
+      forgetComposerRecovery(scope);
+    }
     writeLocalClearedAt(coupleId, scope, nowIso);
 
     // 로컬 state 업데이트 — 영향받는 메시지 제거 + cleared_at 갱신
@@ -3466,6 +3530,7 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
       error: null,
       initialLoadDone: false,
       quotaRemaining: null,
+      quotaPeriod: "total",
       failedRequest: null,
       isSending: false,
       isRetrying: false,

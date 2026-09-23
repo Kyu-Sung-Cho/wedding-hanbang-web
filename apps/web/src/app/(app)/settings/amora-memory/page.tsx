@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import { weddingLinkProps } from "@/lib/weddingPaths";
 import { useAuthStore } from "@/stores/authStore";
+import { PRIVACY_CONFIRMATION_CHANGED, readPrivacyConfirmationTarget } from "@hanbang/shared";
 
 type Visibility = "shared" | "bride_private" | "groom_private";
 
@@ -119,6 +120,7 @@ function describePendingPurge(setting: MemorySetting): string {
 }
 
 type MemoryResponse = {
+  confirmationTarget?: unknown;
   runtimeEnabled: boolean;
   settings: MemorySetting[];
   memories: MemoryItem[];
@@ -197,6 +199,14 @@ function MemorySettingsContent({ ownerKey }: { ownerKey: string | null }) {
       const payload = await response.json() as MemoryResponse & { error?: string };
       if (!isCurrentOwner() || sequence !== loadSequence.current) return;
       if (!response.ok) throw new Error(payload.error ?? "기억을 불러오지 못했어요.");
+      const target = readPrivacyConfirmationTarget(payload.confirmationTarget);
+      const current = useAuthStore.getState();
+      if (!target || target.ownerId !== current.user?.id
+        || (current.profile?.couple_id && target.coupleId !== current.profile.couple_id)
+        || (current.couple?.id && target.coupleId !== current.couple.id)) {
+        setData(null);
+        throw new Error(PRIVACY_CONFIRMATION_CHANGED);
+      }
       setData(payload);
       const available = payload.settings.map((setting) => setting.visibility);
       setActiveVisibility((current) => available.includes(current) ? current : available[0] ?? "shared");
@@ -234,10 +244,17 @@ function MemorySettingsContent({ ownerKey }: { ownerKey: string | null }) {
 
   async function patch(body: Record<string, unknown>) {
     if (!isCurrentOwner()) return false;
+    const confirmationTarget = readPrivacyConfirmationTarget(data?.confirmationTarget);
+    const current = useAuthStore.getState();
+    if (!confirmationTarget || confirmationTarget.ownerId !== current.user?.id
+      || (current.profile?.couple_id && confirmationTarget.coupleId !== current.profile.couple_id)
+      || (current.couple?.id && confirmationTarget.coupleId !== current.couple.id)) {
+      throw new Error(PRIVACY_CONFIRMATION_CHANGED);
+    }
     const response = await fetch("/api/amora/memory", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
+      body: JSON.stringify({ ...body, confirmationTarget }),
     });
     const payload = await response.json() as { error?: string };
     if (!isCurrentOwner()) return false;

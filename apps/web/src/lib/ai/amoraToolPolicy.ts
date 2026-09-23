@@ -1,6 +1,7 @@
 import { CATEGORY_CHECKLISTS } from "@/constants/checklists";
 import type { AiToolDefinition } from "@/lib/ai/toolDefinition";
 import type { SpecialistType } from "@/types/moat.types";
+import { parseExplicitDecisionRecordRequest } from "@/lib/ai/amoraExplicitDecisionRecord";
 
 const BASE_READ_TOOLS = [
   "get_wedding_info",
@@ -56,6 +57,8 @@ export const AMORA_TOOL_POLICY_NAMES: ReadonlySet<string> = new Set([
   ...DOCUMENT_ATTACHMENT_READ_TOOLS,
   ...ACTION_READ_TOOLS,
   ...ACTION_WRITE_TOOLS,
+  "add_decision_record",
+  "get_decision_records",
   "update_venue",
 ]);
 
@@ -99,6 +102,17 @@ const QUOTE_INTENT = /견적|estimate|quotation/i;
 //
 // 같은 파일의 `ACTION_ADD_WRITE` 에는 이미 들어 있다 — 두 선택기가 갈려 있었다.
 const ACTION_INTENT = /기억|기록|메모|액션|챙겨|리마인드|할\s*일|투두|remember|note|remind|to-?do/i;
+const DECISION_RECORD_INTENT = /결정\s*(?:보드|기록)/u;
+const DECISION_RECORD_WRITE = /(?:(?:저장|기록|추가|등록|반영)\s*해\s*|남겨\s*|넣어\s*)(?:줘요?|주세요|줄래요?)\s*[.!~。…]*\s*$/u;
+const DECISION_RECORD_VERIFY_TAIL = /\s*저장\s*후\s*결정\s*보드에\s*반영됐는지\s*확인해서\s*알려\s*(?:줘|주세요)[.!。]?\s*$/u;
+
+function requestsDecisionRecord(userText: string): boolean {
+  // 저장 뒤 조회해 달라는 한 문장만 걷는다. 취소·새 지시는 끝에 남아 승낙이 되지 않는다.
+  const writeRequest = userText.replace(DECISION_RECORD_VERIFY_TAIL, "").trim();
+  return DECISION_RECORD_INTENT.test(userText)
+    && (DECISION_RECORD_WRITE.test(writeRequest) || parseExplicitDecisionRecordRequest(userText) !== null)
+    && !isNotOurDecision(userText);
+}
 const BUDGET_CATEGORY_WORDS =
   /상견례|예식장|웨딩홀|스튜디오|드레스|턱시도|메이크업|스드메|예물|반지|한복|예단|신혼여행|혼수|신혼집|청첩장|스냅|영상|웨딩\s*구두|부케|꽃장식|답례품|사회|축가|폐백|예비비/;
 const KNOWN_BUDGET_CATEGORY = new RegExp(BUDGET_CATEGORY_WORDS.source, "i");
@@ -773,6 +787,12 @@ function pendingProposalToolNames({
   // 그 낱말 하나다.
   // 출처가 우리가 아닌 말은 어떤 경로에서도 카드가 되면 안 된다.
   if (isNotOurDecision(userText)) return selected;
+  // 미정인 내용을 기록하는 것은 확정된 일정·예산을 바꾸는 것과 다르다.
+  // 명시한 보드 기록 요청은 다른 변경 도구로 넓히지 않고 전용 확인 카드만 낸다.
+  if (requestsDecisionRecord(userText)) {
+    selected.add("add_decision_record");
+    return selected;
+  }
   // 값이 덜 정해진 말은 보통 카드를 안 내지만, 서버가 배분·일정 전문 경로로 보낸
   // 턴에서는 그것이 **정상이고 방아쇠**다. `NON_EXECUTABLE_RESTORE` 도 같은 성격이라
   // (`좋을까|어떨|추천해`) 함께 예외를 받는다 — 남 이야기 쪽은 위 가드가 이미 잡는다.
@@ -841,6 +861,11 @@ export function selectAmoraTools({
   const selected = new Set<string>();
   const acceptsDirectDeclaration = !NON_EXECUTABLE_DECLARATION.test(userText);
   addAll(selected, BASE_READ_TOOLS);
+  if (DECISION_RECORD_INTENT.test(userText)) selected.add("get_decision_records");
+  if (requestsDecisionRecord(userText)) {
+    selected.add("add_decision_record");
+    return availableTools.filter((tool) => selected.has(tool.name));
+  }
 
   const hasBudgetIntent = BUDGET_INTENT.test(userText)
     || specialistType === "budget_optimizer";
