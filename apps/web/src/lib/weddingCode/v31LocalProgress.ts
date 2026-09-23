@@ -5,13 +5,15 @@ import {
   type V31Draft,
 } from "@/constants/weddingCodeV31";
 import { decodeV31Progress, encodeV31 } from "./v31";
+import { getV31FlowIndexes, isV31CoreComplete, isV31Flow, isV31FullComplete, type V31Flow } from "./v31Flow";
 
 export const LOCAL_KEY = "hanbang:wedding-code:v3.1:progress";
 export const LOCAL_TTL_MS = 30 * 24 * 60 * 60 * 1000;
-export const LOCAL_SCHEMA = 1;
+export const LOCAL_SCHEMA = 2;
 export type V31ProgressStorage = Pick<Storage, "getItem" | "setItem" | "removeItem">;
 export type V31LocalProgressSnapshot = {
   draft: V31Draft;
+  flow: V31Flow;
   index: number;
   screen: "questions" | "result";
   editing: boolean;
@@ -25,8 +27,9 @@ export type V31LocalProgressWrite = { status: "saved"; raw: string }
 
 const MAX_ENVELOPE_LENGTH = 2048;
 const QUESTION_COUNT = WEDDING_CODE_V31_QUESTIONS.length + WEDDING_CODE_V31_TASTES.length + 3;
-const SNAPSHOT_KEYS = ["draft", "index", "screen", "editing", "needsPriorityReview"] as const;
-const ENVELOPE_KEYS = ["schema", "version", "savedAt", "answerCode", "index", "screen", "editing", "needsPriorityReview"] as const;
+const SNAPSHOT_KEYS = ["draft", "flow", "index", "screen", "editing", "needsPriorityReview"] as const;
+const LEGACY_ENVELOPE_KEYS = ["schema", "version", "savedAt", "answerCode", "index", "screen", "editing", "needsPriorityReview"] as const;
+const ENVELOPE_KEYS = [...LEGACY_ENVELOPE_KEYS, "flow"] as const;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   if (value === null || typeof value !== "object" || Array.isArray(value)) return false;
@@ -39,16 +42,12 @@ function exactKeys(value: Record<string, unknown>, keys: readonly string[]): boo
 function isTimestamp(value: unknown): value is number {
   return typeof value === "number" && Number.isSafeInteger(value) && value >= 0;
 }
-function isComplete(draft: V31Draft): boolean {
-  return WEDDING_CODE_V31_QUESTIONS.every((question) => draft.answers[question.id] !== undefined)
-    && WEDDING_CODE_V31_TASTES.every((taste) => draft.tastes[taste.key] !== undefined)
-    && draft.avoidances !== undefined && draft.priorities !== undefined && draft.spending !== undefined;
-}
-function validPosition(value: Record<string, unknown>, draft: V31Draft): boolean {
+function validPosition(value: Record<string, unknown>, draft: V31Draft, flow: V31Flow): boolean {
   if (typeof value.index !== "number" || !Number.isInteger(value.index) || value.index < 0 || value.index >= QUESTION_COUNT
     || (value.screen !== "questions" && value.screen !== "result")
     || typeof value.editing !== "boolean" || typeof value.needsPriorityReview !== "boolean") return false;
-  return value.screen !== "result" || (!value.editing && !value.needsPriorityReview && isComplete(draft));
+  if (value.screen === "questions") return value.editing || getV31FlowIndexes(flow).includes(value.index);
+  return !value.editing && !value.needsPriorityReview && (flow === "full" ? isV31FullComplete(draft) : isV31CoreComplete(draft));
 }
 
 /** 읽기만으로 저장 기간을 연장하거나 다른 탭의 값을 지우지 않는다. */
@@ -61,16 +60,19 @@ export function readV31LocalProgress(storage: V31ProgressStorage, now = Date.now
   if (raw.length > MAX_ENVELOPE_LENGTH) return { status: "invalid", raw };
   try {
     const value: unknown = JSON.parse(raw);
-    if (!isRecord(value) || !exactKeys(value, ENVELOPE_KEYS) || value.schema !== LOCAL_SCHEMA
+    if (!isRecord(value) || (value.schema !== 1 && value.schema !== LOCAL_SCHEMA)
+      || !exactKeys(value, value.schema === 1 ? LEGACY_ENVELOPE_KEYS : ENVELOPE_KEYS)
       || value.version !== WEDDING_CODE_V31_VERSION || !isTimestamp(value.savedAt) || value.savedAt > now
       || typeof value.answerCode !== "string") return { status: "invalid", raw };
     const draft = decodeV31Progress(value.answerCode);
-    if (!draft || !validPosition(value, draft)) return { status: "invalid", raw };
+    // 이전 인덱스는 34개 전체 순서다. 읽을 때만 흐름을 붙이고 저장 시각은 유지한다.
+    const flow = value.schema === 1 ? "full" : value.flow;
+    if (!draft || !isV31Flow(flow) || !validPosition(value, draft, flow)) return { status: "invalid", raw };
     if (now - value.savedAt >= LOCAL_TTL_MS) return { status: "expired", raw };
     return {
       status: "ready", raw, savedAt: value.savedAt,
       snapshot: {
-        draft, index: value.index as number, screen: value.screen as V31LocalProgressSnapshot["screen"],
+        draft, flow, index: value.index as number, screen: value.screen as V31LocalProgressSnapshot["screen"],
         editing: value.editing as boolean, needsPriorityReview: value.needsPriorityReview as boolean,
       },
     };
@@ -82,12 +84,12 @@ export function writeV31LocalProgress(storage: V31ProgressStorage, snapshot: V31
   let raw: string;
   try {
     if (!isTimestamp(now) || (expectedRaw !== null && typeof expectedRaw !== "string")
-      || !isRecord(snapshot) || !exactKeys(snapshot, SNAPSHOT_KEYS)) return { status: "invalid" };
+      || !isRecord(snapshot) || !exactKeys(snapshot, SNAPSHOT_KEYS) || !isV31Flow(snapshot.flow)) return { status: "invalid" };
     const answerCode = encodeV31(snapshot.draft);
-    if (!validPosition(snapshot, snapshot.draft)) return { status: "invalid" };
+    if (!validPosition(snapshot, snapshot.draft, snapshot.flow)) return { status: "invalid" };
     raw = JSON.stringify({
       schema: LOCAL_SCHEMA, version: WEDDING_CODE_V31_VERSION, savedAt: now, answerCode,
-      index: snapshot.index, screen: snapshot.screen, editing: snapshot.editing, needsPriorityReview: snapshot.needsPriorityReview,
+      flow: snapshot.flow, index: snapshot.index, screen: snapshot.screen, editing: snapshot.editing, needsPriorityReview: snapshot.needsPriorityReview,
     });
     if (raw.length > MAX_ENVELOPE_LENGTH) return { status: "invalid" };
   } catch { return { status: "invalid" }; }

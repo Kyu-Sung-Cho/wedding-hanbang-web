@@ -36,7 +36,7 @@ export function V31RatingInput({ value, onChange, showScopeHint = false }: {
       </label>)}
     </div>
     <p className="mt-3 text-xs leading-relaxed text-[var(--hb-text-muted)]">가운데 답은 ‘어느 쪽도 아님’이에요. 아직 모르거나 해당하지 않으면 아래에서 골라 주세요.</p>
-    {showScopeHint ? <p className={`mt-2 rounded-lg bg-[var(--hb-surface-hover)] p-3 ${v31Body}`}>예를 들어, 꽃이 많은 예식을 원하지 않으면 ‘그렇지 않아요’ 쪽을 골라요. 예식 자체를 하지 않을 계획이면 ‘이번 계획에는 없어요’를 골라 주세요.</p> : null}
+    {showScopeHint ? <p className={`mt-2 rounded-lg bg-[var(--hb-surface-hover)] p-3 ${v31Body}`}>원하지 않는 내용이면 ‘그렇지 않아요’ 쪽을 골라요. 이번 결혼 준비에 해당하지 않는 내용은 ‘이번 계획에는 없어요’를 골라 주세요.</p> : null}
     <div className="mt-3 border-t border-[var(--hb-hairline)] pt-2">
       {escapeOptions.map(option => <label key={option.value}
         className={`flex min-h-11 cursor-pointer items-center gap-3 rounded-lg px-3 py-2 text-sm focus-within:ring-2 focus-within:ring-[var(--hb-focus-ring)] ${value === option.value ? "bg-[var(--hb-selected-bg)]" : ""}`}>

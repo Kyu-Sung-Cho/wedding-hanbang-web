@@ -31,7 +31,7 @@ import { encodeWeddingCodeV06 } from "@/lib/weddingCode/v06/code";
 import type { WeddingCodeV06Answers } from "@/lib/weddingCode/v06/gap";
 import { WEDDING_CODE_V20_VERSION } from "@/constants/weddingCodeV20";
 import { WEDDING_CODE_V30_VERSION } from "@/constants/weddingCodeV30";
-import { WEDDING_CODE_V31_QUESTIONS, WEDDING_CODE_V31_TASTES, WEDDING_CODE_V31_VERSION } from "@/constants/weddingCodeV31";
+import { WEDDING_CODE_V31_VERSION } from "@/constants/weddingCodeV31";
 import WeddingCodePage, { generateMetadata } from "./page";
 
 const LEFT_ISH: WeddingCodeV06Answers = Object.fromEntries(
@@ -113,7 +113,8 @@ describe("웨딩코드 진입 화면", () => {
     const container = document.createElement("div");
     container.innerHTML = html;
     const text = container.textContent ?? "";
-    expect(text).toContain(`전체 ${WEDDING_CODE_V31_QUESTIONS.length + WEDDING_CODE_V31_TASTES.length + 3}개 질문`);
+    expect(text).toContain("기본 23개 질문");
+    expect(text).toContain("결과에서 9개 선택 질문");
     expect(text).toContain("답은 서버나 계정에 저장하지 않아요");
     expect(text).toContain("이 브라우저에 자동 저장해 나중에 이어 할 수 있어요");
     expect(text).toContain("공용 기기에서는");

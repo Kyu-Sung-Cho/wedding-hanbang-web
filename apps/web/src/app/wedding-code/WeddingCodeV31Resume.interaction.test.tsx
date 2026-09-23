@@ -9,6 +9,7 @@ import { LOCAL_KEY, LOCAL_TTL_MS, readV31LocalProgress, writeV31LocalProgress, t
 import WeddingCodeV31Client from "./WeddingCodeV31Client";
 import WeddingCodeEntryClient from "./WeddingCodeEntryClient";
 import { V31_SAVE_PREFERENCE_KEY } from "./useV31LocalProgress";
+import { V31_CORE_INDEXES, V31_CORE_RATING_IDS, getV31IndexForId } from "@/lib/weddingCode/v31Flow";
 
 vi.mock("@/lib/analytics", () => ({ captureWeddingCodeEvent: vi.fn() }));
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -23,7 +24,14 @@ function completed(): V31Draft {
   return draft;
 }
 function snapshot(draft = createV31Draft(), fields: Partial<V31LocalProgressSnapshot> = {}): V31LocalProgressSnapshot {
-  return { draft, index: 0, screen: "questions", editing: false, needsPriorityReview: false, ...fields };
+  return { draft, index: 0, flow: "full", screen: "questions", editing: false, needsPriorityReview: false, ...fields };
+}
+function coreCompleted(): V31Draft {
+  const draft = createV31Draft();
+  for (const id of V31_CORE_RATING_IDS) draft.answers[id] = 4;
+  for (const taste of WEDDING_CODE_V31_TASTES) draft.tastes[taste.key] = { status: "no_preference" };
+  draft.avoidances = { status: "no_preference" }; draft.spending = { status: "no_preference" };
+  return draft;
 }
 
 describe("V31 same-browser resume", () => {
@@ -54,20 +62,21 @@ describe("V31 same-browser resume", () => {
     await render(); await button("내 웨딩코드 시작하기");
     await click(container.querySelector('input[value="5"]'));
     let stored = readV31LocalProgress(window.localStorage);
-    expect(stored.status === "ready" && stored.snapshot.draft.answers.V1).toBe(5);
+    expect(stored.status === "ready" && stored.snapshot.draft.answers.G1).toBe(5);
     await button("다음 질문");
     const raw = window.localStorage.getItem(LOCAL_KEY);
     await remount();
-    expect(container.textContent).toContain("2번째 질문부터 이어 할 수 있어요");
+    expect(container.textContent).toContain("기본 질문 2 / 23부터 이어 할 수 있어요");
     expect(container.querySelector("[data-question]")).toBeNull();
     expect(window.localStorage.getItem(LOCAL_KEY)).toBe(raw);
     await button("이어서 답하기");
-    expect(container.querySelector("[data-question]")?.getAttribute("data-question")).toBe("G1");
+    expect(container.querySelector("[data-question]")?.getAttribute("data-question")).toBe("G3");
     expect(window.localStorage.getItem(LOCAL_KEY)).toBe(raw);
     await click(container.querySelector('button[aria-label="이전 질문"]'));
     expect(container.querySelector<HTMLInputElement>('input[value="5"]')?.checked).toBe(true);
     stored = readV31LocalProgress(window.localStorage);
-    expect(stored.status === "ready" && stored.snapshot.index).toBe(0);
+    expect(stored.status === "ready" && stored.snapshot.index).toBe(getV31IndexForId("G1"));
+    expect(stored.status === "ready" && stored.snapshot.flow).toBe("core");
   });
 
   it("restores only the user's saved result, with fresh sharing consent and no memo persistence", async () => {
@@ -80,9 +89,76 @@ describe("V31 same-browser resume", () => {
     await remount(); await button("내 결과 다시 보기");
     expect(container.querySelector<HTMLInputElement>('input[type="checkbox"]')?.checked).toBe(false);
     expect(container.querySelector('input[aria-label="답이 담긴 웨딩코드 공유 링크"]')).toBeNull();
-    expect(Object.keys(JSON.parse(window.localStorage.getItem(LOCAL_KEY)!))).toEqual([
-      "schema", "version", "savedAt", "answerCode", "index", "screen", "editing", "needsPriorityReview",
-    ]);
+    expect(Object.keys(JSON.parse(window.localStorage.getItem(LOCAL_KEY)!)).sort()).toEqual([
+      "schema", "version", "savedAt", "answerCode", "index", "flow", "screen", "editing", "needsPriorityReview",
+    ].sort());
+  });
+
+  it("a completed core result resumes without requiring unanswered extras and keeps the optional ordinal on reload", async () => {
+    const own = coreCompleted();
+    seed(snapshot(own, { flow: "core", index: V31_CORE_INDEXES[V31_CORE_INDEXES.length - 1], screen: "result" }));
+    await render(); await button("내 결과 다시 보기");
+    expect(container.textContent).toContain("답을 남긴 질문은 23개예요");
+    expect(container.querySelector('[data-result="solo-v31"]')).not.toBeNull();
+    await button("원하면 더 알아보기 (선택)");
+    await click(container.querySelector('input[value="5"]')); await button("다음 질문");
+    expect(container.querySelector('[data-question="G2"]')).not.toBeNull();
+    const raw = window.localStorage.getItem(LOCAL_KEY);
+    await remount();
+    expect(container.textContent).toContain("선택 질문 2 / 9부터 이어 할 수 있어요");
+    expect(window.localStorage.getItem(LOCAL_KEY)).toBe(raw);
+    await button("이어서 답하기"); await button("여기까지 보고 결과 보기");
+    const saved = readV31LocalProgress(window.localStorage);
+    expect(saved.status).toBe("ready");
+    if (saved.status !== "ready") return;
+    expect(saved.snapshot.flow).toBe("extra");
+    expect(saved.snapshot.draft.answers.V1).toBe(5);
+    expect(saved.snapshot.draft.answers.G2).toBeUndefined();
+    expect(saved.snapshot.draft.answers.B2).toBeUndefined();
+    expect(saved.snapshot.draft.answers.D2).toBeUndefined();
+    expect(saved.snapshot.draft.priorities).toBeUndefined();
+    expect(saved.snapshot.screen).toBe("result");
+  });
+
+  it("schema 1 saved progress retains its original full order and is not rewritten by restoration", async () => {
+    const draft = createV31Draft(); draft.answers.V1 = 4; draft.answers.G1 = 5;
+    const raw = JSON.stringify({ schema: 1, version: draft.version, savedAt: Date.now(), answerCode: encodeV31(draft), index: 2, screen: "questions", editing: false, needsPriorityReview: false });
+    window.localStorage.setItem(LOCAL_KEY, raw);
+    await render();
+    expect(container.textContent).toContain("이전 전체 질문 3 / 34부터 이어 할 수 있어요");
+    await button("이어서 답하기");
+    expect(window.localStorage.getItem(LOCAL_KEY)).toBe(raw);
+    expect(container.querySelector('[data-question="G2"]')).not.toBeNull();
+    expect(container.textContent).toContain("이전 전체 질문 3 / 34");
+    await click(container.querySelector('input[value="3"]')); await button("다음 질문");
+    const saved = readV31LocalProgress(window.localStorage);
+    expect(saved.status === "ready" && saved.snapshot.flow).toBe("full");
+    expect(saved.status === "ready" && saved.snapshot.draft.answers.G2).toBe(3);
+    expect(JSON.parse(window.localStorage.getItem(LOCAL_KEY)!).schema).toBe(2);
+    expect(container.querySelector('[data-question="G3"]')).not.toBeNull();
+  });
+
+  it("editing a saved answer outside the current flow changes only that answer and never forces all 34 questions", async () => {
+    const own = coreCompleted(); own.answers.R3 = 5;
+    seed(snapshot(own, { flow: "core", index: getV31IndexForId("spending"), screen: "result" }));
+    await render(); await button("내 결과 다시 보기");
+    const statement = WEDDING_CODE_V31_QUESTIONS.find(item => item.id === "R3")!.statement;
+    await click(container.querySelector(`[aria-label="${statement} 답 수정"]`));
+    expect(container.querySelector('[data-question="R3"]')).not.toBeNull();
+    expect(container.textContent).not.toContain("이 주제는 계획에 없어요");
+    await click(container.querySelector('input[value="not_applicable"]'));
+    await remount(); await button("이어서 답하기");
+    expect(container.querySelector('[data-question="R3"]')).not.toBeNull();
+    await button("수정한 결과 보기");
+    expect(container.querySelector('[data-result="solo-v31"]')).not.toBeNull();
+    const saved = readV31LocalProgress(window.localStorage);
+    expect(saved.status).toBe("ready");
+    if (saved.status !== "ready") return;
+    expect(saved.snapshot.draft.answers.R3).toBe("not_applicable");
+    expect(saved.snapshot.draft.answers.R4).toBe(4);
+    expect(saved.snapshot.draft.answers.V1).toBeUndefined();
+    expect(saved.snapshot.draft.answers.B2).toBeUndefined();
+    expect(saved.snapshot.draft.priorities).toBeUndefined();
   });
 
   it("does not read or write a personal saved answer while hydrating a received couple link", async () => {
@@ -151,7 +227,7 @@ describe("V31 same-browser resume", () => {
     expect(container.textContent).toContain("자동 저장을 멈췄어요");
     await button("이 화면의 답으로 저장하기");
     const stored = readV31LocalProgress(window.localStorage);
-    expect(stored.status === "ready" && stored.snapshot.draft.answers.V1).toBe(4);
+    expect(stored.status === "ready" && stored.snapshot.draft.answers.G1).toBe(4);
   });
 
   it("restored changes from another tab remain protected from later external deletion", async () => {
@@ -171,7 +247,7 @@ describe("V31 same-browser resume", () => {
   it("storage denial never blocks answering or claims that an answer was saved", async () => {
     vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => { throw new DOMException("blocked", "QuotaExceededError"); });
     await render(); await button("내 웨딩코드 시작하기"); await click(container.querySelector('input[value="5"]')); await button("다음 질문");
-    expect(container.querySelector("[data-question]")?.getAttribute("data-question")).toBe("G1");
+    expect(container.querySelector("[data-question]")?.getAttribute("data-question")).toBe("G3");
     expect(container.textContent).toContain("이 브라우저에 저장할 수 없어요");
     expect(container.textContent).not.toContain("이 브라우저에 저장됐어요");
   });

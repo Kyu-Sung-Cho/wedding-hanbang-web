@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { WEDDING_CODE_V31_QUESTIONS, WEDDING_CODE_V31_TASTES, WEDDING_CODE_V31_VERSION, type V31Draft } from "@/constants/weddingCodeV31";
 import { buildV31ShareUrl, createV31Draft, decodeV31, decodeV31Progress, encodeV31 } from "../v31";
 import { clearV31LocalProgress, LOCAL_KEY, LOCAL_SCHEMA, LOCAL_TTL_MS, readV31LocalProgress, writeV31LocalProgress, type V31LocalProgressSnapshot, type V31ProgressStorage } from "../v31LocalProgress";
+import { V31_CORE_RATING_IDS } from "../v31Flow";
 
 const NOW = Date.parse("2026-09-24T10:00:00Z");
 function memory() {
@@ -14,7 +15,7 @@ function memory() {
   return { storage, values };
 }
 function snapshot(draft: V31Draft = createV31Draft()): V31LocalProgressSnapshot {
-  return { draft, index: 0, screen: "questions", editing: false, needsPriorityReview: false };
+  return { draft, flow: "full", index: 0, screen: "questions", editing: false, needsPriorityReview: false };
 }
 function complete(): V31Draft {
   const draft = createV31Draft();
@@ -26,7 +27,7 @@ function complete(): V31Draft {
   return draft;
 }
 function envelope(value = snapshot(), savedAt = NOW): Record<string, unknown> {
-  return { schema: LOCAL_SCHEMA, version: WEDDING_CODE_V31_VERSION, savedAt, answerCode: encodeV31(value.draft), index: value.index, screen: value.screen, editing: value.editing, needsPriorityReview: value.needsPriorityReview };
+  return { schema: LOCAL_SCHEMA, version: WEDDING_CODE_V31_VERSION, savedAt, answerCode: encodeV31(value.draft), flow: value.flow, index: value.index, screen: value.screen, editing: value.editing, needsPriorityReview: value.needsPriorityReview };
 }
 function setEnvelope(storage: V31ProgressStorage, patch: Record<string, unknown> = {}, value = snapshot(), savedAt = NOW) {
   const raw = JSON.stringify({ ...envelope(value, savedAt), ...patch });
@@ -89,7 +90,7 @@ describe("v3.1 본인 진행 저장과 복원", () => {
     if (written.status !== "saved") throw new Error("진행이 저장되어야 한다");
     const parsed: unknown = JSON.parse(written.raw);
     expect(parsed).toEqual(envelope(value));
-    expect(Object.keys(Object(parsed)).sort()).toEqual(["schema", "version", "savedAt", "answerCode", "index", "screen", "editing", "needsPriorityReview"].sort());
+    expect(Object.keys(Object(parsed)).sort()).toEqual(["schema", "version", "savedAt", "answerCode", "flow", "index", "screen", "editing", "needsPriorityReview"].sort());
     expect(written.raw).not.toMatch(/https?:|partner|consent|memo|account|userId/);
     expect(readV31LocalProgress(storage, NOW)).toEqual({ status: "ready", snapshot: value, savedAt: NOW, raw: written.raw });
   });
@@ -160,7 +161,7 @@ describe("v3.1 본인 진행 저장과 복원", () => {
   it("잘못된 스키마·버전·시각·인덱스·화면·추가 필드·과대 payload를 엄격하게 거절한다", () => {
     const { storage } = memory();
     const patches: Record<string, unknown>[] = [
-      { schema: 0 }, { schema: "1" }, { version: "v3.0-preferences" },
+      { schema: 0 }, { schema: "1" }, { schema: 3 }, { version: "v3.0-preferences" }, { flow: "unknown" }, { flow: null },
       { savedAt: NOW + 1 }, { savedAt: -1 }, { savedAt: 1.5 }, { savedAt: "yesterday" }, { savedAt: null },
       { index: -1 }, { index: 34 }, { index: 0.5 }, { index: "2" }, { screen: "intro" },
       { editing: 0 }, { needsPriorityReview: "false" }, { partnerDraft: {} }, { consent: true }, { memo: "내 메모" },
@@ -226,5 +227,94 @@ describe("v3.1 본인 진행 저장과 복원", () => {
     expect(storage.getItem(LOCAL_KEY)).toBeNull();
     expect(storage.getItem("unrelated")).toBe("keep");
     expect(storage.removeItem).toHaveBeenCalledExactlyOnceWith(LOCAL_KEY);
+  });
+});
+
+describe("v3.1 단축 흐름 저장과 이전 진행 호환", () => {
+  function coreComplete(): V31Draft {
+    const draft = createV31Draft();
+    for (const id of V31_CORE_RATING_IDS) draft.answers[id] = 4;
+    for (const taste of WEDDING_CODE_V31_TASTES) draft.tastes[taste.key] = { status: "undecided" };
+    draft.avoidances = { status: "no_preference" };
+    draft.spending = { status: "no_preference" };
+    return draft;
+  }
+
+  it.each([0, 1, 24, 25, 32, 33])("schema1의 기존 %i번 자리를 full로 읽으며 저장 기간과 raw를 바꾸지 않는다", index => {
+    const { storage } = memory();
+    const saved: V31LocalProgressSnapshot = { ...snapshot(complete()), index, editing: index === 32, needsPriorityReview: index === 32 };
+    const legacy = envelope(saved, NOW - 5000);
+    legacy.schema = 1;
+    delete legacy.flow;
+    const raw = JSON.stringify(legacy);
+    storage.setItem(LOCAL_KEY, raw);
+    vi.mocked(storage.setItem).mockClear();
+    vi.mocked(storage.removeItem).mockClear();
+    const read = readV31LocalProgress(storage, NOW);
+    expect(read).toEqual({ status: "ready", snapshot: saved, savedAt: NOW - 5000, raw });
+    expect(storage.setItem).not.toHaveBeenCalled();
+    expect(storage.removeItem).not.toHaveBeenCalled();
+    if (read.status !== "ready") throw new Error("이전 진행이 보존되어야 한다");
+    const written = writeV31LocalProgress(storage, read.snapshot, read.raw, NOW + 100);
+    expect(written.status).toBe("saved");
+    if (written.status !== "saved") throw new Error("다음 실제 저장에서 새 형식을 써야 한다");
+    expect(JSON.parse(written.raw)).toMatchObject({ schema: 2, flow: "full", index, savedAt: NOW + 100 });
+  });
+
+  it("schema1의 완료 결과는 full로 복원하고, 23개뿐인 값을 구판 완료로 받아들이지 않는다", () => {
+    const { storage } = memory();
+    const value: V31LocalProgressSnapshot = { ...snapshot(complete()), screen: "result", index: 33 };
+    const legacy = envelope(value); legacy.schema = 1; delete legacy.flow;
+    storage.setItem(LOCAL_KEY, JSON.stringify(legacy));
+    expect(readV31LocalProgress(storage, NOW)).toMatchObject({ status: "ready", snapshot: value });
+    legacy.answerCode = encodeV31(coreComplete());
+    storage.setItem(LOCAL_KEY, JSON.stringify(legacy));
+    expect(readV31LocalProgress(storage, NOW).status).toBe("invalid");
+    legacy.flow = "core";
+    storage.setItem(LOCAL_KEY, JSON.stringify(legacy));
+    expect(readV31LocalProgress(storage, NOW).status).toBe("invalid");
+  });
+
+  it.each(["core", "extra"] as const)("%s 결과는 핵심 23개를 보존하고 추가 답을 몰래 채우지 않는다", flow => {
+    const { storage } = memory();
+    const value: V31LocalProgressSnapshot = { ...snapshot(coreComplete()), flow, screen: "result", index: 33 };
+    const original = structuredClone(value);
+    const written = writeV31LocalProgress(storage, value, null, NOW);
+    expect(written.status).toBe("saved");
+    expect(readV31LocalProgress(storage, NOW)).toMatchObject({ status: "ready", snapshot: original });
+    expect(value).toEqual(original);
+    expect(value.draft.answers.B2).toBeUndefined();
+    expect(value.draft.answers.D2).toBeUndefined();
+    expect(value.draft.priorities).toBeUndefined();
+    for (const field of ["G1", "H4"] as const) {
+      const missing = structuredClone(value); delete missing.draft.answers[field];
+      expect(writeV31LocalProgress(storage, missing, storage.getItem(LOCAL_KEY), NOW).status).toBe("invalid");
+      setEnvelope(storage, {}, missing);
+      expect(readV31LocalProgress(storage, NOW).status).toBe("invalid");
+    }
+    for (const patch of [{ editing: true }, { needsPriorityReview: true }]) {
+      const pending = { ...value, ...patch };
+      expect(writeV31LocalProgress(storage, pending, storage.getItem(LOCAL_KEY), NOW).status).toBe("invalid");
+    }
+  });
+
+  it("질문 진행은 선택한 흐름 안의 자리를 요구하지만 한 문항 편집과 결과는 기존 자리를 보존한다", () => {
+    const { storage } = memory();
+    const core: V31LocalProgressSnapshot = { ...snapshot(coreComplete()), flow: "core", index: 1 };
+    expect(writeV31LocalProgress(storage, core, null, NOW).status).toBe("saved");
+    for (const value of [{ ...core, index: 0 }, { ...core, flow: "extra" as const }, { ...core, flow: "extra" as const, index: 7 }]) {
+      expect(writeV31LocalProgress(storage, value, storage.getItem(LOCAL_KEY), NOW).status).toBe("invalid");
+      setEnvelope(storage, {}, value);
+      expect(readV31LocalProgress(storage, NOW).status).toBe("invalid");
+    }
+    const edit = { ...core, editing: true, index: 7 };
+    expect(writeV31LocalProgress(storage, edit, storage.getItem(LOCAL_KEY), NOW).status).toBe("saved");
+    expect(readV31LocalProgress(storage, NOW)).toMatchObject({ status: "ready", snapshot: edit });
+    const done: V31LocalProgressSnapshot = { ...edit, editing: false, screen: "result" };
+    expect(writeV31LocalProgress(storage, done, storage.getItem(LOCAL_KEY), NOW).status).toBe("saved");
+    expect(readV31LocalProgress(storage, NOW)).toMatchObject({ status: "ready", snapshot: done });
+    const missingFlow = envelope(core); delete missingFlow.flow;
+    storage.setItem(LOCAL_KEY, JSON.stringify(missingFlow));
+    expect(readV31LocalProgress(storage, NOW).status).toBe("invalid");
   });
 });
