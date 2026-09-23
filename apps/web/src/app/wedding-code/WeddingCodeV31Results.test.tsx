@@ -15,14 +15,61 @@ function basicDraft(): V31Draft {
   return draft;
 }
 
-function render(draft: V31Draft, first: V31Draft | null = null) {
+function render(draft: V31Draft, first: V31Draft | null = null, received = false) {
   const container = document.createElement("div");
-  container.innerHTML = renderToStaticMarkup(<WeddingCodeV31Results draft={draft} first={first} received={false}
+  container.innerHTML = renderToStaticMarkup(<WeddingCodeV31Results draft={draft} first={first} received={received}
     shareOrigin="https://hanbang.ai" onEdit={() => {}} onRestart={() => {}} onMore={() => {}} optionalCount={9} />);
   return container;
 }
 
 describe("짧은 웨딩코드 결과의 미노출 문항", () => {
+  it("네 글자와 독립 문장 척도를 실제 답에서 보여주며 선택 질문을 만들어 채우지 않는다", () => {
+    const view = render(basicDraft());
+    const summary = view.querySelector('[data-style-summary="KBBB"]');
+    expect(summary).not.toBeNull();
+    expect(summary?.querySelector('[data-statement-scale="B1"] [role="meter"]')?.getAttribute("aria-valuenow")).toBe("100");
+    expect(summary?.querySelector('[data-statement-scale="B3"] [role="meter"]')?.getAttribute("aria-valuenow")).toBe("25");
+    expect(summary?.querySelector('[data-statement-scale="T1"] [role="meter"]')?.getAttribute("aria-valuenow")).toBe("75");
+    expect(summary?.querySelector('[data-statement-scale="T2"] [role="meter"]')?.getAttribute("aria-valuenow")).toBe("75");
+    expect(summary?.querySelector('[data-statement-scale="V1"]')).toBeNull();
+    expect(summary?.textContent).toContain("문장 동의 정도");
+  });
+
+  it("모름·비해당·건너뜀은 수치로 바꾸지 않고 답이 없는 코드 자리를 보류한다", () => {
+    const draft = basicDraft();
+    draft.answers.B1 = "undecided";
+    draft.answers.T1 = "not_applicable";
+    draft.answers.F1 = "skipped";
+    delete draft.answers.H1;
+    const view = render(draft);
+    const summary = view.querySelector('[data-style-summary="????"]');
+    expect(summary).not.toBeNull();
+    for (const id of ["B1", "T1", "F1", "H1"]) {
+      expect(summary?.querySelector(`[data-statement-scale="${id}"] [role="meter"]`)).toBeNull();
+    }
+    expect(summary?.textContent).toContain("이번 계획에는 없어요");
+    expect(summary?.textContent).toContain("지금 답하지 않을게요");
+  });
+
+  it("커플의 순서와 소유권을 유지하고 받은 링크에는 답 수정 버튼을 추가하지 않는다", () => {
+    const first = basicDraft();
+    const second = basicDraft();
+    second.answers.B1 = 2; second.answers.B3 = 5;
+    const view = render(second, first);
+    const summaries = view.querySelectorAll("[data-style-summary]");
+    expect(summaries).toHaveLength(2);
+    expect(summaries[0].getAttribute("data-style-summary")).toBe("KBBB");
+    expect(summaries[1].getAttribute("data-style-summary")).toBe("RBBB");
+    expect(summaries[0].textContent).toContain("먼저 답한 사람");
+    expect(summaries[1].textContent).toContain("나중에 답한 사람");
+    expect(summaries[0].querySelectorAll("button")).toHaveLength(0);
+    expect(summaries[1].querySelectorAll("button").length).toBeGreaterThan(0);
+    for (const summary of render(second, first, true).querySelectorAll("[data-style-summary]")) {
+      expect(summary.querySelectorAll("button")).toHaveLength(0);
+    }
+    expect(view.textContent).toContain("같은 코드여도 구체적인 취향과 답은 다를 수 있어요.");
+  });
+
   it("기본 답 23개만 세고 보지 않은 문항을 빈 우선순위나 미정 목록으로 만들지 않는다", () => {
     const view = render(basicDraft());
     expect(view.textContent).toContain("답을 남긴 질문은 23개예요.");
