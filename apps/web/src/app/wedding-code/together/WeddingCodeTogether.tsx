@@ -38,6 +38,7 @@ function JoinComparison({ draft, link, expiresAt }: { draft: V31Draft; link: Pai
   const [ageConfirmed, setAgeConfirmed] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [recoveryUrl, setRecoveryUrl] = useState("");
   const token = useRef<string | null>(null);
   async function join() {
     if (busy) return;
@@ -46,6 +47,7 @@ function JoinComparison({ draft, link, expiresAt }: { draft: V31Draft; link: Pai
     try {
       token.current ??= createPairSessionKeys().participantToken;
       const member: PairSessionLink = { roomId: link.roomId, token: token.current, mode: "member" };
+      setRecoveryUrl(pairSessionUrl(window.location.origin, member));
       savePairSessionRecovery({ ...member, expiresAt });
       const result = await requestPairSession({ action: "join", roomId: link.roomId, inviteToken: link.token, participantToken: token.current,
         answerCode: encodeV31(draft), consentVersion: PAIR_SESSION_CONSENT_VERSION, consent: true, ageConfirmed: true });
@@ -60,7 +62,7 @@ function JoinComparison({ draft, link, expiresAt }: { draft: V31Draft; link: Pai
     <p className={`mb-3 ${v31Body}`}>여기서 동의하면 초대한 사람도 내 결과를 볼 수 있어요. 결과 링크를 다시 보내지 않아도 돼요.</p>
     <PairSessionConsent consent={consent} ageConfirmed={ageConfirmed} disabled={busy} onConsent={setConsent} onAge={setAgeConfirmed} />
     <Button variant="primary" fullWidth disabled={busy} onClick={() => void join()} className="mt-4 whitespace-normal!">{busy ? "함께 볼 결과를 연결하고 있어요…" : "동의하고 두 사람 결과 보기"}</Button>
-    {error ? <div role="alert" className={`mt-3 ${v31Body}`}><p>{error}</p>{token.current ? <Link className="mt-2 inline-flex min-h-11 items-center underline" href={pairSessionUrl(window.location.origin, { roomId: link.roomId, token: token.current, mode: "member" })}>이미 처리됐는지 내 결과 확인하기</Link> : null}</div> : null}
+    {error ? <div role="alert" className={`mt-3 ${v31Body}`}><p>{error}</p>{recoveryUrl ? <Link className="mt-2 inline-flex min-h-11 items-center underline" href={recoveryUrl}>이미 처리됐는지 내 결과 확인하기</Link> : null}</div> : null}
   </section>;
 }
 
@@ -84,7 +86,7 @@ function TogetherSession({ link }: { link: PairSessionLink }) {
   const [savedLocally, setSavedLocally] = useState<boolean | null>(null);
   const [expired, setExpired] = useState(false);
   const requestVersion = useRef(0);
-  const memberRef = useRef<PairSessionLink | null>(null);
+  const [member, setMember] = useState<PairSessionLink | null>(null);
   const mutating = useRef(false);
   const closed = useRef(false);
   const knownInvite = useRef(false);
@@ -120,7 +122,7 @@ function TogetherSession({ link }: { link: PairSessionLink }) {
         return;
       }
       if ((used.mode === "invite") !== (result.snapshot.role === "invite")) { setError("이 링크의 접근 권한을 확인하지 못했어요."); return; }
-      setError(""); setRefreshNotice(""); setSnapshot(result.snapshot); memberRef.current = used;
+      setError(""); setRefreshNotice(""); setSnapshot(result.snapshot); setMember(used);
       knownInvite.current = result.snapshot.role === "invite" && result.snapshot.state === "waiting";
       if (result.snapshot.state === "closed") { closed.current = true; forgetPairSession(roomId); return; }
       if (used.mode === "member") {
@@ -139,7 +141,6 @@ function TogetherSession({ link }: { link: PairSessionLink }) {
 
   const reload = useCallback(() => setRetry(value => value + 1), []);
   async function revoke() {
-    const member = memberRef.current;
     if (!member || member.mode !== "member" || busy) return;
     mutating.current = true; setBusy(true); const version = ++requestVersion.current;
     const result = await requestPairSession({ action: "revoke", roomId: member.roomId, token: member.token });
@@ -151,7 +152,6 @@ function TogetherSession({ link }: { link: PairSessionLink }) {
   }
 
   const activeSnapshot = snapshot?.roomId === roomId ? snapshot : null;
-  const member = memberRef.current;
   const own = activeSnapshot?.ownAnswerCode ? decodeV31(activeSnapshot.ownAnswerCode) : null;
   const partner = activeSnapshot?.partnerAnswerCode ? decodeV31(activeSnapshot.partnerAnswerCode) : null;
   const manage = activeSnapshot && member?.mode === "member" ? <section className={`${v31Surface} my-5 p-5`} aria-label="두 사람 연결 관리">
