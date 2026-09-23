@@ -7,6 +7,7 @@ import { WEDDING_CODE_V31_QUESTIONS, WEDDING_CODE_V31_TASTES, type V31Draft } fr
 import { buildV31Profile, compareV31, v31ChoiceLabels, type V31Insight, type V31PairItem, type V31Profile } from "@/lib/weddingCode/v31";
 import { v31Body, v31Surface, v31Title } from "./WeddingCodeV31Inputs";
 import WeddingCodeV31Sharing from "./WeddingCodeV31Sharing";
+import WeddingCodeV31StyleSummary from "./WeddingCodeV31StyleSummary";
 
 type EditHandler = (id?: string) => void;
 
@@ -168,6 +169,13 @@ export default function WeddingCodeV31Results({ draft, first, received, shareOri
       <p className={`mt-3 ${v31Body}`}>{first ? "함께 원하는 것부터, 서로 다르게 답한 것까지 나란히 봐요. 같은 답도 이유는 다를 수 있으니, 각자 떠올린 장면을 이야기해 보세요." : profile.hasContent ? "지금 직접 고른 취향과 답을 정리했어요. 맞는 설명인지 읽어보고, 내 생각과 다르면 답을 고칠 수 있어요." : "모르거나 해당하지 않는다고 답한 것을 취향으로 바꾸지는 않았어요. 관심 가는 질문 하나부터 다시 답해도 돼요."}</p>
       <p className="mt-3 text-xs leading-relaxed text-[var(--hb-text-muted)]">{received ? "받은 링크에 담긴 답이에요. 이름이나 본인 여부는 확인하지 않아요." : `답을 남긴 질문은 ${profile.respondedCount}개예요. 동의 정도를 고른 문장은 ${profile.ratedCount}개예요.`} 취향과 바람은 달라질 수 있어요. 성격 진단이나 궁합 점수는 아니에요.</p>
     </header>
+    {first ? <section aria-label="두 사람의 웨딩코드 요약" className="mb-5">
+      <p className={`mb-4 ${v31Body}`}>같은 코드여도 구체적인 취향과 답은 다를 수 있어요. 각자의 척도와 아래 대화할 내용을 함께 봐요.</p>
+      <div className="grid items-start gap-4 lg:grid-cols-2">
+        <WeddingCodeV31StyleSummary draft={first} label="먼저 답한 사람" compact />
+        <WeddingCodeV31StyleSummary draft={draft} label="나중에 답한 사람" onEdit={editable} compact />
+      </div>
+    </section> : <WeddingCodeV31StyleSummary draft={draft} onEdit={editable} />}
     {first ? <>
       <PairSection title="둘 다 원한다고 답한 것" description="문장에 둘 다 ‘그런 편’ 이상으로 답했거나, 구체 선택을 같게 고른 내용이에요. 중간 응답이나 둘 다 모르는 내용은 여기에 넣지 않았어요." items={items.filter(item => item.kind === "shared_wish")} empty={items.some(item => item.id !== "avoidances" && item.sharedLabels?.length) ? "일부 보기는 함께 골랐어요. 아래 차이에서 함께 고른 보기와 나머지 선택을 나란히 볼 수 있어요." : "이번 답에서는 함께 원한다고 확인한 내용이 없어요. 한 사람의 답부터 이유를 들어보세요."} />
       {items.some(item => item.kind === "shared_avoidance") ? <PairSection title="함께 피하고 싶은 것" description="피하고 싶은 것으로 같은 보기를 골랐어요. 구체적인 후보를 볼 때 어느 정도까지 괜찮은지 함께 확인해 보세요." items={items.filter(item => item.kind === "shared_avoidance")} empty="" /> : null}
