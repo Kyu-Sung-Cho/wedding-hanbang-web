@@ -153,8 +153,23 @@ describe("POST /api/auth/consent", () => {
     expect(stored.app_metadata.role).toBe("new");
   });
 
-  it("구판·누락 판본을 최신 동의로 기록하지 않는다", async () => {
-    for (const consentPolicyVersion of ["1900-01-01", "2026-08-22", undefined]) {
+  it("직전 정식 모바일의 동의도 세션 주인에게 실제 판본 그대로 기록한다", async () => {
+    const consentPolicyVersion = "2026-09-11";
+    const response = await consent(consentRequest({ ...AGREED, consentPolicyVersion }));
+    expect(response.status).toBe(200);
+    expect(mocks.updateUserById).toHaveBeenCalledTimes(1);
+    const [owner, patch] = mocks.updateUserById.mock.calls[0];
+    expect(owner).toBe("user-1");
+    expect(patch.user_metadata.consent_policy_version).toBe(consentPolicyVersion);
+    expect(patch.app_metadata.signup_consent).toMatchObject({
+      schemaVersion: 1,
+      source: "hanbang_auth_server",
+      record: { consent_policy_version: consentPolicyVersion, age_over_14_confirmed: true },
+    });
+  });
+
+  it("지원하지 않는 판본·누락 판본을 동의로 기록하지 않는다", async () => {
+    for (const consentPolicyVersion of ["1900-01-01", "2026-08-22", "2026-08-31", "2026-09-12", "2026-09-24", undefined]) {
       const response = await consent(consentRequest({ ...AGREED, consentPolicyVersion }));
       expect(response.status).toBe(409);
       expect((await response.json()).code).toBe("SIGNUP_CONSENT_VERSION_REQUIRED");

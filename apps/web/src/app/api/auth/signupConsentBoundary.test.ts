@@ -219,8 +219,22 @@ describe("가입 동의 서버 관문 (실행)", () => {
     expect(mocks.send).not.toHaveBeenCalled();
   });
 
-  it("구판이나 판본 없는 요청은 새 계정·서버 증거·메일을 만들지 않는다", async () => {
-    for (const consentPolicyVersion of ["1900-01-01", "2026-08-22", undefined]) {
+  it("직전 정식 모바일의 가입은 허용하고 실제 동의판을 서버 증거에 보존한다", async () => {
+    const consentPolicyVersion = "2026-09-11";
+    const response = await signup(signupRequest({ ...VALID_BODY, consentPolicyVersion }));
+    expect(response.status).toBe(200);
+    expect(mocks.createUser).toHaveBeenCalledTimes(1);
+    const created = mocks.createUser.mock.calls[0]?.[0];
+    expect(created?.user_metadata?.consent_policy_version).toBe(consentPolicyVersion);
+    expect(created?.app_metadata?.signup_consent).toMatchObject({
+      schemaVersion: 1,
+      source: "hanbang_auth_server",
+      record: { consent_policy_version: consentPolicyVersion, age_over_14_confirmed: true },
+    });
+  });
+
+  it("지원하지 않는 판본이나 판본 없는 요청은 새 계정·서버 증거·메일을 만들지 않는다", async () => {
+    for (const consentPolicyVersion of ["1900-01-01", "2026-08-22", "2026-08-31", "2026-09-12", "2026-09-24", undefined]) {
       const response = await signup(signupRequest({ ...VALID_BODY, consentPolicyVersion }));
       expect(response.status).toBe(409);
       expect((await response.json()).code).toBe("SIGNUP_CONSENT_VERSION_REQUIRED");

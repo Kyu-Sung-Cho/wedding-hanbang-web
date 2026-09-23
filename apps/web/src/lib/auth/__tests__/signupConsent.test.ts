@@ -10,6 +10,7 @@ import {
   buildSignupConsentRecord,
   buildSignupConsentServerEvidence,
   buildSignupConsentSubmission,
+  getSignupConsentAccess,
   hasRecordedSignupConsent,
   isSignupConsentAll,
   isPreConsentAccount,
@@ -120,10 +121,11 @@ describe("가입 동의 계약", () => {
         expect(hasRecordedSignupConsent(value)).toBe(false);
       }
     });
-    it("과거 판본의 진짜 서버 기록도 그대로 인정한다", () => {
-      const evidence = buildSignupConsentServerEvidence({ termsAgreed: true, privacyAgreed: true, ageOver14Confirmed: true, marketingAgreed: false, consentPolicyVersion: "2026-08-31" }, "2026-08-31T01:00:00.000Z");
+    it.each(["2026-08-31", "2026-09-11"])("과거 %s 판본의 진짜 서버 기록도 재동의 없이 그대로 인정한다", consentPolicyVersion => {
+      const evidence = buildSignupConsentServerEvidence({ termsAgreed: true, privacyAgreed: true, ageOver14Confirmed: true, marketingAgreed: false, consentPolicyVersion }, `${consentPolicyVersion}T01:00:00.000Z`);
       expect(hasRecordedSignupConsent({ signup_consent: evidence })).toBe(true);
-      expect(evidence.record.consent_policy_version).toBe("2026-08-31");
+      expect(getSignupConsentAccess({ app_metadata: { signup_consent: evidence } })).toBe("server_verified");
+      expect(evidence.record.consent_policy_version).toBe(consentPolicyVersion);
     });
   });
 
@@ -149,6 +151,12 @@ describe("가입 동의 계약", () => {
   });
 
   describe("서버가 요청 본문을 읽을 때", () => {
+    it("웨딩코드 함께 보기 공유 동의를 가입 동의로 대신하지 않는다", () => {
+      const pairConsent = { consent: true, ageConfirmed: true, consentVersion: "2026-09-23" };
+      expect(parseSignupConsent(pairConsent)).toBeNull();
+      expect(hasRecordedSignupConsent({ signup_consent: pairConsent })).toBe(false);
+    });
+
     it("필수 동의가 없으면 null 이다", () => {
       expect(parseSignupConsent(null)).toBeNull();
       expect(parseSignupConsent({})).toBeNull();

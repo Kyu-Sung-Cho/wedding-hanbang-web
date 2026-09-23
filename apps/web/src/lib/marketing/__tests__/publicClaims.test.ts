@@ -492,10 +492,11 @@ describe("public marketing claim boundary", () => {
     expect(privacy).toContain("새 입력은 분석 응답 생성 후 별도 DB에 저장하지 않으며");
     expect(privacy).toContain("공개 결과 링크도 만들지 않습니다");
     expect(privacy).toContain("선택한 분야·항목 상태·견적 금액은 해당 통계 이벤트에 넣지 않습니다");
-    // 답 보태기가 켜진 운영에서는 "동의한 경우가 아니면" 이 끼어든다. 켜짐·꺼짐 두 판의
-    // 실제 렌더 문장은 `privacy/__tests__/weddingCodeResearchNotice.test.tsx` 가 본다.
-    expect(privacy).toContain("웨딩코드: 답은 기기 안에서 계산하고 ");
-    expect(privacy).toContain("서버에 저장하지 않으며 세션 녹화를 하지 않습니다");
+    // 서버 공유는 별도 동의한 함께 보기와 연구 보태기로 제한한다.
+    // 연구 저장소 켜짐·꺼짐의 실제 문장은 privacy의 렌더 검사에서 확인한다.
+    expect(privacy).toContain("웨딩코드: 답은 기기 안에서 계산하며 세션 녹화를 하지 않습니다");
+    expect(privacy).toContain("에 별도로 동의한 경우에만 해당 기능에 필요한 답을 서버에 저장합니다");
+    expect(privacy).toContain("각자 보관·공유에 동의하면 초대 생성 후 7일까지 서로의 답과 결과를 볼 수 있습니다");
     expect(privacy).toContain("고른 답·웨딩코드·공유 링크 주소는 이 통계에 넣지 않습니다");
     expect(privacy).toContain("2026년 7월 30일");
 

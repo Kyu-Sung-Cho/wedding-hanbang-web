@@ -193,12 +193,12 @@ export default function WeddingCodeV31Results({ draft, first, received, shareOri
     </header>
     {first ? <>
       <div role="tablist" aria-label="두 사람 결과 보기" className="mb-5 grid grid-cols-3 gap-1 rounded-xl border border-paper-outline bg-[var(--hb-surface-hover)] p-1">
-        {tabs.map((tab, index) => <button key={tab.id} ref={element => { tabButtons.current[index] = element; }} type="button" role="tab"
+        {tabs.map((tab, index) => <Button key={tab.id} variant="ghost" ref={element => { tabButtons.current[index] = element; }} type="button" role="tab"
           id={`${tabId}-tab-${tab.id}`} aria-controls={`${tabId}-panel`} aria-selected={activeTab === tab.id} tabIndex={activeTab === tab.id ? 0 : -1}
           onClick={() => setActiveTab(tab.id)} onKeyDown={event => handleTabKey(event, index)}
-          className={`min-h-12 min-w-0 rounded-lg border px-2 py-3 text-sm font-semibold leading-snug focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--hb-focus-ring)] ${activeTab === tab.id ? "border-[var(--hb-action)] bg-[var(--hb-surface-raised)] text-[var(--hb-text-strong)] underline decoration-2 underline-offset-4" : "border-transparent text-[var(--hb-text-body)] hover:bg-[var(--hb-surface-raised)]"}`}>
+          className={`min-h-12! min-w-0 rounded-lg! border px-2! py-3 text-sm! font-semibold whitespace-normal! leading-snug ${activeTab === tab.id ? "border-[var(--hb-action)] bg-[var(--hb-surface-raised)] text-[var(--hb-text-strong)] underline decoration-2 underline-offset-4" : "border-transparent text-[var(--hb-text-body)] hover:bg-[var(--hb-surface-raised)]!"}`}>
           {tab.label}
-        </button>)}
+        </Button>)}
       </div>
       <div key={activeTab} role="tabpanel" id={`${tabId}-panel`} aria-labelledby={`${tabId}-tab-${activeTab}`} tabIndex={0}
         className="rounded-lg focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[var(--hb-focus-ring)]">

@@ -50,7 +50,7 @@ describe("두 사람 비교의 주소와 기기 저장", () => {
       expect(new URLSearchParams(url.hash.slice(1)).has("a")).toBe(false);
       expect(new URLSearchParams(url.hash.slice(1)).has("b")).toBe(false);
     }
-    for (const origin of ["https://user:password@hanbang.ai", "ftp://hanbang.ai", "javascript:alert(1)"]) {
+    for (const origin of ["https://user:password@example.invalid", "ftp://hanbang.ai", "javascript:alert(1)"]) {
       expect(() => pairSessionUrl(origin, saved)).toThrow();
     }
     expect(() => pairSessionUrl("https://hanbang.ai", { ...saved, token: "invalid" })).toThrow();
