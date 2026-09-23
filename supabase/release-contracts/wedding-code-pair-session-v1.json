@@ -1,0 +1,73 @@
+{
+  "version": 1,
+  "kind": "wedding-code-pair-session-static-successor",
+  "release": "wedding-code-pair-session-20260923",
+  "status": "requires-scoped-runtime-evidence",
+  "productionApplyImplemented": true,
+  "runtimeEvidenceVerified": false,
+  "projectRef": "slrtobkksjmxgzatjyqb",
+  "systemIdentifier": "7581440907192989109",
+  "predecessor": {
+    "file": "supabase/release-contracts/preparation-style-v1.json",
+    "sha256": "dd80bc6417c8344b1ef5d0b1bb3b60b0edd91bab5f5d7d44bbb231e57b88b48c"
+  },
+  "reviewedPredecessorMigrationCount": 237,
+  "migrations": [
+    {
+      "file": "20260923104336_wedding_code_pair_sessions.sql",
+      "sha256": "48f49c545b984de2a838e6927ed0ef4cc5b44c5ee9d809b3191fed6b62824058"
+    }
+  ],
+  "scope": {
+    "newTables": [
+      "public.wedding_code_pair_sessions"
+    ],
+    "serviceFunctions": [
+      "public.create_wedding_code_pair_session(uuid,text,text,text,text,bigint,boolean,boolean)",
+      "public.read_wedding_code_pair_session(uuid,text)",
+      "public.join_wedding_code_pair_session(uuid,text,text,text,text,boolean,boolean)",
+      "public.revoke_wedding_code_pair_session(uuid,text)"
+    ],
+    "internalFunctions": [
+      "public.purge_expired_wedding_code_pair_sessions()"
+    ],
+    "cron": {
+      "name": "wedding-code-pair-session-purge",
+      "schedule": "17 3 * * *",
+      "command": "SELECT public.purge_expired_wedding_code_pair_sessions();",
+      "database": "postgres",
+      "username": "postgres",
+      "active": true,
+      "destination": "local-current-port",
+      "existingJobs": "unchanged"
+    },
+    "tableAccess": "owner-only-force-rls-no-client-policies",
+    "sceneVersion": "v3.1-preferences",
+    "snapshots": "immutable",
+    "consentVersion": "2026-09-23",
+    "ageConfirmation": "required-true",
+    "retention": "fixed-seven-days-with-daily-purge",
+    "revocation": "erase-both-answers-and-consent-fields-immediately-preserve-replay-tombstone-until-expiry",
+    "existingFunctions": "unchanged",
+    "existingData": "unchanged",
+    "newRows": "none",
+    "backfill": "none",
+    "rollback": "disable-new-session-creation-preserve-revoke-and-expiry-cleanup"
+  },
+  "runtime": {
+    "file": "scripts/lib/wedding-code-pair-session-release.mjs",
+    "sha256": "59de9ab2ad936c280627d3ad20101296bd0340c7261ec9668fead0190e6ab410"
+  },
+  "catalog": {
+    "file": "scripts/lib/wedding-code-pair-session-catalog.mjs",
+    "sha256": "30e7e73450654a4b650a4f1d6f5b0c2e119d17b6ef8962a401004660111058e8"
+  },
+  "catalogFixture": {
+    "file": "supabase/release-contracts/wedding-code-pair-session-pg17-catalog-v1.json",
+    "sha256": "abecb56d7f511418366d082ece67c62b75bc6434e2d70fd0332dbb2c999b543a"
+  },
+  "predecessorMigration": {
+    "file": "supabase/migrations/20260920120000_wedding_preparation_style.sql",
+    "sha256": "a7beb94156758753676aac366e04477365713eaf7f28dfc0e44f41646c7b5520"
+  }
+}

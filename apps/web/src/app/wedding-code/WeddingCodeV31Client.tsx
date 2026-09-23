@@ -6,7 +6,7 @@ import Button from "@/components/ui/Button";
 import {
   WEDDING_CODE_V31_AVOIDANCES, WEDDING_CODE_V31_QUESTIONS, WEDDING_CODE_V31_SPENDING, WEDDING_CODE_V31_TASTES,
   WEDDING_CODE_V31_TOPICS, WEDDING_CODE_V31_VERSION,
-  type V31Choice, type V31Draft, type V31Response,
+  type V31Choice, type V31Draft, type V31QuestionId, type V31Response, type V31Topic,
 } from "@/constants/weddingCodeV31";
 import { captureWeddingCodeEvent } from "@/lib/analytics";
 import { createV31Draft, getV31PriorityOptions, normalizeV31Draft } from "@/lib/weddingCode/v31";
@@ -16,8 +16,9 @@ import { useV31LocalProgress } from "./useV31LocalProgress";
 import type { V31LocalProgressSnapshot } from "@/lib/weddingCode/v31LocalProgress";
 import {
   V31_CORE_INDEXES, V31_CORE_RATING_IDS, V31_EXTRA_INDEXES,
-  getV31FlowIndexes, getV31MissingIndex, getV31NextIndex, getV31PreviousIndex, getV31ResponseAt,
+  getV31FlowIndexes, getV31MissingIndex, getV31NextIndex, getV31ResponseAt,
 } from "@/lib/weddingCode/v31Flow";
+import { getV31Page, getV31PageMissingIndex, getV31Pages, isV31PageComplete } from "@/lib/weddingCode/v31Pages";
 
 const coreCount = WEDDING_CODE_V31_QUESTIONS.length;
 const avoidanceIndex = coreCount + WEDDING_CODE_V31_TASTES.length;
@@ -34,10 +35,10 @@ function responseCounts(draft: V31Draft, indexes: readonly number[]) {
   };
 }
 
-export default function WeddingCodeV31Client({ shareOrigin, partnerDraft = null, bothDrafts = null, onRestart, allowLocalProgress = true, initialNotice = "", embedded = false }: {
+export default function WeddingCodeV31Client({ shareOrigin, partnerDraft = null, bothDrafts = null, onRestart, allowLocalProgress = true, initialNotice = "", embedded = false, renderResultActions }: {
   shareOrigin: string; partnerDraft?: V31Draft | null;
   bothDrafts?: { first: V31Draft; second: V31Draft } | null; onRestart?: (message?: string) => void; allowLocalProgress?: boolean; initialNotice?: string;
-  embedded?: boolean;
+  embedded?: boolean; renderResultActions?: (draft: V31Draft) => ReactNode;
 }) {
   const screenRef = useRef<HTMLElement>(null);
   const [progress, setProgress] = useState<Progress>(() => ({
@@ -60,10 +61,18 @@ export default function WeddingCodeV31Client({ shareOrigin, partnerDraft = null,
   const ordinal = flowIndexes.indexOf(index) + 1;
   const totalQuestions = flowIndexes.length;
   const flowLabel = flow === "extra" ? "선택 질문" : flow === "full" ? "이전 전체 질문" : "기본 질문";
-  const nextIndex = getV31NextIndex(flow, index);
-  const previousIndex = getV31PreviousIndex(flow, index);
+  const page = getV31Page(flow, index, editing);
+  const grouped = !editing && flow !== "full";
+  const ratingPage = grouped && Boolean(question);
+  const nextIndex = page.nextIndex;
+  const previousIndex = page.previousIndex;
+  const pageComplete = isV31PageComplete(draft, page.indexes);
+  const firstOrdinal = flowIndexes.indexOf(page.indexes[0]) + 1;
+  const lastOrdinal = flowIndexes.indexOf(page.indexes[page.indexes.length - 1]) + 1;
+  const screenLabel = screen === "intro" ? "웨딩코드 소개" : screen === "result" ? "웨딩코드 결과"
+    : grouped ? `웨딩코드 ${flowLabel} ${page.position + 1}페이지`
+      : ordinal > 0 ? `웨딩코드 ${flowLabel} ${ordinal}번째` : "웨딩코드 답 수정";
   const optionalRemaining = V31_EXTRA_INDEXES.filter(item => getV31ResponseAt(draft, item) === undefined).length;
-  const topicIndexes = question ? flowIndexes.filter(item => WEDDING_CODE_V31_QUESTIONS[item]?.topic === question.topic) : [];
 
   useEffect(() => {
     screenRef.current?.focus({ preventScroll: true });
@@ -102,8 +111,8 @@ export default function WeddingCodeV31Client({ shareOrigin, partnerDraft = null,
     commit({ draft: normalized, ...extra });
     setRevision(value => value + 1);
   }
-  function changeRating(value: V31Response) {
-    if (question) update({ ...draft, answers: { ...draft.answers, [question.id]: value } });
+  function changeRating(id: V31QuestionId, value: V31Response) {
+    update({ ...draft, answers: { ...draft.answers, [id]: value } });
   }
   function changeChoice(value: V31Choice | undefined) {
     if (taste) {
@@ -135,6 +144,15 @@ export default function WeddingCodeV31Client({ shareOrigin, partnerDraft = null,
     commit({ ...changes, draft: nextDraft, index: flowIndexes.includes(index) ? index : flowIndexes[flowIndexes.length - 1], screen: "result", editing: false, needsPriorityReview: false });
   }
   function next() {
+    const missingIndex = getV31PageMissingIndex(draft, page.indexes);
+    if (missingIndex !== null) {
+      setNotice("이 페이지의 문장마다 답을 골라 주세요. 아직 모르거나 지금 답하지 않겠다는 선택도 괜찮아요.");
+      const missingQuestion = WEDDING_CODE_V31_QUESTIONS[missingIndex];
+      const target = missingQuestion ? screenRef.current?.querySelector<HTMLElement>(`[data-question="${missingQuestion.id}"]`) : screenRef.current;
+      target?.focus({ preventScroll: true });
+      target?.scrollIntoView?.({ block: "start", behavior: "instant" });
+      return;
+    }
     if (index === priorityIndex && draft.priorities !== undefined) setNotice("");
     if (nextIndex === null) finish();
     else commit({ index: nextIndex, needsPriorityReview: index === priorityIndex ? false : needsPriorityReview });
@@ -178,12 +196,23 @@ export default function WeddingCodeV31Client({ shareOrigin, partnerDraft = null,
     commit({ flow: "extra", index: target, editing: false, screen: "questions" });
     setNotice("");
   }
-  function markTopicNotApplicable() {
-    if (!question) return;
+  function markTopicNotApplicable(topicKey: V31Topic) {
+    const topicIndexes = flowIndexes.filter(item => WEDDING_CODE_V31_QUESTIONS[item]?.topic === topicKey);
+    if (!topicIndexes.length) return;
     const answers = { ...draft.answers };
     for (const item of topicIndexes) answers[WEDDING_CODE_V31_QUESTIONS[item].id] = "not_applicable";
     const lastIndex = topicIndexes[topicIndexes.length - 1];
-    update({ ...draft, answers }, undefined, { index: getV31NextIndex(flow, lastIndex) ?? index });
+    update({ ...draft, answers }, undefined, grouped ? {} : { index: getV31NextIndex(flow, lastIndex) ?? index });
+  }
+  function topicScope(topicKey: V31Topic) {
+    const topicIndexes = flowIndexes.filter(item => WEDDING_CODE_V31_QUESTIONS[item]?.topic === topicKey);
+    const topic = WEDDING_CODE_V31_TOPICS.find(item => item.key === topicKey);
+    if (editing || !topicIndexes.length || !["vision", "records", "family"].includes(topicKey)) return null;
+    return <details className={`mt-4 border-t border-[var(--hb-hairline)] pt-2 ${v31Body}`}>
+      <summary className="flex min-h-11 cursor-pointer items-center underline underline-offset-4">이 주제 전체가 이번 계획에 없다면</summary>
+      <p className="mt-2">지금 답하는 {flowLabel}에서 ‘{topic?.title}’에 해당하는 {topicIndexes.length}문장을 ‘이번 계획에는 없어요’로 바꿔요. 이미 고른 답도 바뀌며, 되돌아오면 한 문장씩 다시 답할 수 있어요.</p>
+      <Button variant="secondary" fullWidth onClick={() => markTopicNotApplicable(topicKey)} className="mt-3 whitespace-normal!">이 주제는 계획에 없어요</Button>
+    </details>;
   }
   function toggleSaving() {
     const enabled = !local.enabled;
@@ -211,13 +240,14 @@ export default function WeddingCodeV31Client({ shareOrigin, partnerDraft = null,
     </div> : null}
     <details className={`mt-2 ${v31Body}`}>
       <summary className="flex min-h-11 cursor-pointer items-center underline underline-offset-4">자동 저장 설정</summary>
-      <p>마지막으로 저장한 날부터 30일 동안 같은 브라우저에서 이어 할 수 있어요. 서버나 계정에는 보내지 않아요. 상대의 답·공유 동의·메모는 저장하지 않아요.</p>
+      <p>자동 저장은 이 브라우저에만 남겨요. 마지막으로 저장한 날부터 30일 동안 같은 브라우저에서 이어 할 수 있어요. 상대의 답·공유 동의·메모는 자동 저장하지 않아요.</p>
       <p className="mt-2">공용 기기라면 자동 저장을 꺼 주세요. 이 브라우저를 쓰는 다른 사람도 저장된 답을 열 수 있어요. 시크릿 모드나 브라우저 데이터 삭제 후에는 이어 하지 못할 수 있어요.</p>
       <div className="mt-2 flex flex-wrap gap-2">
         <Button variant="secondary" aria-pressed={local.enabled} onClick={toggleSaving}>{local.enabled ? "자동 저장 끄기" : "자동 저장 켜기"}</Button>
         {local.saved || owned ? <Button variant="ghost" onClick={restart}>이 브라우저의 답 지우기</Button> : null}
       </div>
       <p className="mt-2 text-xs">자동 저장을 끄면 저장된 답도 지워져요. 지금 화면에서는 계속 답할 수 있어요.</p>
+      <p className="mt-2 text-xs">기기 저장을 꺼도 서버 함께 보기 연결은 남아요. 종료는 연결 결과에서 해주세요.</p>
     </details>
   </aside>;
 
@@ -225,7 +255,7 @@ export default function WeddingCodeV31Client({ shareOrigin, partnerDraft = null,
   const shell = (children: ReactNode) => <Root className={embedded ? "px-4 pb-8 pt-5 sm:px-6" : "min-h-dvh bg-[var(--hb-surface-page)] px-4 pb-16 pt-5 sm:px-6"}>
     <div className="mx-auto max-w-2xl">
       {!embedded && <nav aria-label="웨딩코드 탐색" className="mb-6 flex items-center justify-between gap-3"><Button href="/landing" variant="ghost" size="sm" className="px-0!">웨딩한방</Button><span className="text-xs font-semibold tracking-wide text-[var(--hb-text-muted)]">WEDDING CODE</span></nav>}
-      <section ref={screenRef} tabIndex={-1} aria-label={screen === "intro" ? "웨딩코드 소개" : screen === "result" ? "웨딩코드 결과" : ordinal > 0 ? `웨딩코드 ${flowLabel} ${ordinal}번째` : "웨딩코드 답 수정"} className={embedded ? "scroll-mt-20 outline-none md:scroll-mt-28" : "outline-none"}>
+      <section ref={screenRef} tabIndex={-1} aria-label={screenLabel} className={embedded ? "scroll-mt-20 outline-none md:scroll-mt-28" : "outline-none"}>
         {notice ? <p role="status" className="mb-5 rounded-lg border border-[var(--hb-hairline)] bg-[var(--hb-surface-hover)] p-4 text-sm leading-relaxed text-[var(--hb-text-strong)]">{notice}</p> : null}
         {children}
         {storageControls}
@@ -251,8 +281,9 @@ export default function WeddingCodeV31Client({ shareOrigin, partnerDraft = null,
         <div className="mt-7 border-t border-[var(--hb-hairline)] pt-5">
           <p className={`text-sm ${v31Title}`}>기본 {V31_CORE_INDEXES.length}개 질문 · 로그인 없이 시작</p>
           <p className={`mt-2 ${v31Body}`}>{V31_CORE_RATING_IDS.length}개 문장에 다섯 단계로 답하고, {WEDDING_CODE_V31_TASTES.length}가지 취향과 피하고 싶은 것·더 쓰고 싶은 곳을 골라요. 여기까지 답하면 결과를 볼 수 있어요.</p>
+          <p className={`mt-2 ${v31Body}`}>짧은 문장은 한 페이지에 최대 3개씩, 취향은 하나씩 물어봐요. 기본 질문은 {getV31Pages("core").length}페이지예요. 답을 골라도 자동으로 넘어가지 않아요.</p>
           <p className={`mt-2 ${v31Body}`}>더 궁금하면 결과에서 {V31_EXTRA_INDEXES.length}개 선택 질문을 이어서 볼 수 있어요. 아직 모르거나 계획에 없는 것은 따로 표시해도 괜찮아요.</p>
-          <p className={`mt-3 ${v31Body}`}>답은 서버나 계정에 저장하지 않아요. 이 브라우저에 자동 저장해 나중에 이어 할 수 있어요. 공용 기기에서는 아래 ‘자동 저장 설정’에서 꺼 주세요. 결과에서 동의하고 만든 공유 링크에는 답 전체가 담겨요.</p>
+          <p className={`mt-3 ${v31Body}`}>답하는 동안에는 서버나 계정에 보내지 않아요. 이 브라우저에 자동 저장해 나중에 이어 할 수 있어요. 공용 기기에서는 아래 ‘자동 저장 설정’에서 꺼 주세요. 결과에서 함께 보기에 동의하면 선택한 답을 7일간 서버에 보관해요.</p>
           {context.first ? <p className={`mt-3 ${v31Body}`}>상대의 답은 이 브라우저에 저장하지 않아요. 내가 직접 답하거나 불러온 내 답만 저장해요. 나중에 상대와 비교하려면 이 초대 링크를 다시 열어 주세요.</p> : null}
           <details className={`mt-3 ${v31Body}`}><summary className="flex min-h-11 cursor-pointer items-center underline underline-offset-4">어디까지 알아볼 수 있나요?</summary><p>지금 내가 원하는 결혼식과 준비 방식을 살펴봐요. 성격 진단이나 공식 MBTI 검사가 아니고, 결혼에 관한 모든 가치관을 판단하지 않아요. 신혼집·여행·혼수와 실제 예산 금액은 별도로 정해야 해요.</p></details>
         </div>
@@ -266,32 +297,47 @@ export default function WeddingCodeV31Client({ shareOrigin, partnerDraft = null,
     <Button variant={!owned && local.saved ? "secondary" : "primary"} size="lg" fullWidth onClick={start} className="mt-5 min-h-14! whitespace-normal!">{!owned && local.saved ? "저장된 답 지우고 새로 시작" : started ? "이어서 답하기" : context.first ? "나도 답해보기" : "내 웨딩코드 시작하기"}<ArrowRight aria-hidden="true" className="size-4 shrink-0" /></Button>
   </>);
 
-  if (screen === "result") return shell(<WeddingCodeV31Results key={revision} draft={draft} first={context.first} received={context.received} shareOrigin={shareOrigin} onEdit={edit} onRestart={restart} onMore={!context.received && optionalRemaining > 0 ? more : undefined} optionalCount={optionalRemaining} />);
+  if (screen === "result") return shell(<WeddingCodeV31Results key={revision} draft={draft} first={context.first} received={context.received} shareOrigin={shareOrigin} onEdit={edit} onRestart={restart} onMore={!context.received && optionalRemaining > 0 ? more : undefined} optionalCount={optionalRemaining} sharingContent={renderResultActions?.(draft)} />);
 
   const topic = question ? WEDDING_CODE_V31_TOPICS.find(item => item.key === question.topic) : null;
   const title = question?.statement ?? taste?.question ?? (index === avoidanceIndex ? "이번 결혼식에서 피하고 싶은 것이 있나요?" : index === priorityIndex ? "이번 결혼식에서 특히 지키고 싶은 것은 무엇인가요?" : "다른 곳의 비용을 줄여서라도 더 쓰고 싶은 곳이 있나요?");
   return shell(<>
     <div className="mb-5 flex items-center gap-3">
       <Button variant="icon" label="이전 질문" onClick={() => previousIndex !== null ? commit({ index: previousIndex }) : editing || flow === "extra" ? finish() : commit({ screen: "intro" })}><ArrowLeft aria-hidden="true" className="size-5" /></Button>
-      <progress value={ordinal > 0 ? ordinal : 1} max={ordinal > 0 ? totalQuestions : 1} aria-label="현재 질문" aria-valuetext={ordinal > 0 ? `${flowLabel} ${totalQuestions}개 중 ${ordinal}번째` : "선택한 답 수정"}
+      <progress value={grouped ? page.position + 1 : ordinal > 0 ? ordinal : 1} max={grouped ? page.total : ordinal > 0 ? totalQuestions : 1} aria-label={grouped ? "현재 페이지" : "현재 질문"} aria-valuetext={grouped ? `${flowLabel} ${page.total}페이지 중 ${page.position + 1}페이지, ${totalQuestions}개 질문 중 ${firstOrdinal}${lastOrdinal !== firstOrdinal ? `~${lastOrdinal}` : ""}번째` : ordinal > 0 ? `${flowLabel} ${totalQuestions}개 중 ${ordinal}번째` : "선택한 답 수정"}
         className="h-1.5 min-w-0 flex-1 overflow-hidden rounded-full bg-[var(--hb-hairline)] accent-[var(--hb-success)] [&::-webkit-progress-bar]:bg-[var(--hb-hairline)] [&::-webkit-progress-value]:bg-[var(--hb-success)]" />
-      <span className="text-sm font-semibold tabular-nums text-[var(--hb-text-body)]">{ordinal > 0 ? `${flowLabel} ${ordinal} / ${totalQuestions}` : "답 수정"}</span>
+      <span className="shrink-0 text-sm font-semibold tabular-nums text-[var(--hb-text-body)]">{grouped ? `${page.position + 1} / ${page.total} 페이지` : ordinal > 0 ? `${flowLabel} ${ordinal} / ${totalQuestions}` : "답 수정"}</span>
     </div>
-    <section className={`${v31Surface} p-5 sm:p-7`} data-question={question?.id ?? (taste ? `taste.${taste.key}` : index === avoidanceIndex ? "avoidances" : index === priorityIndex ? "priorities" : "spending")}>
+    {ratingPage ? <>
+      <p className="text-xs font-semibold text-[var(--hb-success)]">{flowLabel} {firstOrdinal}–{lastOrdinal} / {totalQuestions}</p>
+      <h1 className={`mt-2 text-xl leading-relaxed ${v31Title}`}>문장마다 가까운 답을 골라 주세요</h1>
+      <p className={`mb-5 mt-2 ${v31Body}`}>가운데 답은 ‘어느 쪽도 아님’이에요. 아직 모르거나 해당하지 않으면 각 문장 아래에서 따로 골라 주세요.</p>
+      {page.position === 0 ? <p className={`mb-5 rounded-lg bg-[var(--hb-surface-hover)] p-3 ${v31Body}`}>원하지 않는 내용이면 ‘그렇지 않아요’ 쪽을 골라요. 이번 결혼 준비에 해당하지 않는 내용은 ‘이번 계획에는 없어요’를 골라 주세요.</p> : null}
+      <div className="space-y-5">
+        {page.indexes.map((questionIndex, position) => {
+          const pageQuestion = WEDDING_CODE_V31_QUESTIONS[questionIndex];
+          const pageTopic = WEDDING_CODE_V31_TOPICS.find(item => item.key === pageQuestion.topic);
+          const firstOfTopic = page.indexes.findIndex(item => WEDDING_CODE_V31_QUESTIONS[item].topic === pageQuestion.topic) === position;
+          return <section key={pageQuestion.id} tabIndex={-1} aria-label={pageQuestion.statement} data-question={pageQuestion.id}
+            className={`${v31Surface} scroll-mt-20 p-1.5 outline-none min-[360px]:p-3.5 sm:p-6 md:scroll-mt-28`}>
+            <p className="text-xs font-semibold text-[var(--hb-success)]">{firstOrdinal + position}. {pageTopic?.title}</p>
+            <h2 className={`mb-4 mt-2 text-base leading-relaxed sm:text-lg ${v31Title}`}>{pageQuestion.statement}</h2>
+            <V31RatingInput compact questionLabel={pageQuestion.statement} value={draft.answers[pageQuestion.id]} onChange={value => changeRating(pageQuestion.id, value)} />
+            {firstOfTopic ? topicScope(pageQuestion.topic) : null}
+          </section>;
+        })}
+      </div>
+    </> : <section className={`${v31Surface} p-5 sm:p-7`} data-question={question?.id ?? (taste ? `taste.${taste.key}` : index === avoidanceIndex ? "avoidances" : index === priorityIndex ? "priorities" : "spending")}>
       <p className="text-xs font-semibold text-[var(--hb-success)]">{topic?.title ?? (taste ? `구체 취향 · ${taste.title}` : "마지막으로, 내 기준 확인")}</p>
       <h1 className={`mb-5 mt-3 text-2xl leading-relaxed ${v31Title}`}>{title}</h1>
-      {question ? <V31RatingInput key={question.id} value={draft.answers[question.id]} onChange={changeRating} showScopeHint={ordinal === 1} /> : <>
+      {question ? <V31RatingInput key={question.id} value={draft.answers[question.id]} onChange={value => changeRating(question.id, value)} showScopeHint={ordinal === 1} /> : <>
         {!taste ? <p className={`mb-4 ${v31Body}`}>{index === avoidanceIndex ? "원하는 것만큼 피하고 싶은 것도 준비 기준이 될 수 있어요. 없다면 아래에서 ‘따로 피하고 싶은 것은 없어요’를 골라 주세요." : index === priorityIndex ? "앞의 답만으로도 결과를 볼 수 있어요. 특히 지키고 싶은 것이 떠오를 때만 골라 주세요. 결과를 본 뒤 골라도 괜찮아요." : "전체 예산을 늘리겠다는 뜻은 아니에요. 지금 없다면 ‘더 쓰고 싶은 곳은 지금 없어요’를 골라도 돼요."}</p> : null}
         {index === priorityIndex ? <V31PriorityInput value={draft.priorities} options={getV31PriorityOptions(draft)} onChange={changeChoice} onSkip={skipPriority} /> : <V31ChoiceInput key={taste?.key ?? index} value={choice} options={taste?.options ?? (index === avoidanceIndex ? WEDDING_CODE_V31_AVOIDANCES : WEDDING_CODE_V31_SPENDING)}
           max={taste?.max ?? (index === avoidanceIndex ? WEDDING_CODE_V31_AVOIDANCES.length : 2)} onChange={changeChoice} tasteKey={taste?.key} kind={taste ? "taste" : index === avoidanceIndex ? "avoidances" : "spending"} />}
       </>}
-      {!editing && question && topicIndexes.length > 0 && ["vision", "records", "family"].includes(question.topic) ? <details className={`mt-4 border-t border-[var(--hb-hairline)] pt-2 ${v31Body}`}>
-        <summary className="flex min-h-11 cursor-pointer items-center underline underline-offset-4">이 주제 전체가 이번 계획에 없다면</summary>
-        <p className="mt-2">지금 답하는 {flowLabel}에서 ‘{topic?.title}’에 해당하는 {topicIndexes.length}문장을 ‘이번 계획에는 없어요’로 바꿔요. 이미 고른 답도 바뀌며, 되돌아오면 한 문장씩 다시 답할 수 있어요.</p>
-        <Button variant="secondary" fullWidth onClick={markTopicNotApplicable} className="mt-3 whitespace-normal!">이 주제는 계획에 없어요</Button>
-      </details> : null}
-    </section>
-    {index !== priorityIndex || draft.priorities !== undefined ? <Button variant="primary" size="lg" fullWidth disabled={currentResponse === undefined} onClick={next} className="mt-5 min-h-14! whitespace-normal!">{nextIndex === null ? "결과 보기" : "다음 질문"}<ArrowRight aria-hidden="true" className="size-4 shrink-0" /></Button> : null}
+      {question ? topicScope(question.topic) : null}
+    </section>}
+    {index !== priorityIndex || draft.priorities !== undefined ? <Button variant="primary" size="lg" fullWidth disabled={!pageComplete} onClick={next} className="mt-5 min-h-14! whitespace-normal!">{nextIndex === null ? "결과 보기" : "다음 질문"}<ArrowRight aria-hidden="true" className="size-4 shrink-0" /></Button> : null}
     {editing ? <Button variant="secondary" size="lg" fullWidth disabled={currentResponse === undefined} onClick={() => finish()} className="mt-3 whitespace-normal!"><Check aria-hidden="true" className="size-4 shrink-0" />수정한 결과 보기</Button> : null}
     {flow === "extra" && !editing ? <Button variant="secondary" size="lg" fullWidth onClick={() => finish()} className="mt-3 whitespace-normal!">여기까지 보고 결과 보기</Button> : null}
     <p className="mt-3 text-center text-xs leading-relaxed text-[var(--hb-text-muted)]">앞으로 돌아가 답을 바꿔도 괜찮아요.</p>

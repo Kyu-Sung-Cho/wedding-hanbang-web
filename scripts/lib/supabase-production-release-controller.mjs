@@ -2618,6 +2618,11 @@ export async function runProductionRelease({
   now = () => new Date(),
 } = {}) {
   const repoRoot = resolve(requestedRepoRoot ?? process.cwd());
+  if ((argv ?? []).includes("--wedding-code-pair-session")) {
+    assertSafeExecutionEnvironment(process.env);
+    const { runWeddingCodePairSessionRelease } = await import("./wedding-code-pair-session-release.mjs");
+    return runWeddingCodePairSessionRelease({ repoRoot, argv, now });
+  }
   if ((argv ?? []).includes("--preparation-style")) {
     assertSafeExecutionEnvironment(process.env);
     const { runPreparationStyleRelease } = await import("./preparation-style-release.mjs");

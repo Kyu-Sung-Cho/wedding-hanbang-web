@@ -7,6 +7,7 @@ import { WEDDING_CODE_V31_VERSION, type V31Draft } from "@/constants/weddingCode
 import { captureWeddingCodeEvent } from "@/lib/analytics";
 import { buildV31ShareUrl, hasV31Content } from "@/lib/weddingCode/v31";
 import { v31Body, v31Surface, v31Title } from "./WeddingCodeV31Inputs";
+import WeddingCodeV31Connection from "./WeddingCodeV31Connection";
 
 function CopyLink({ url, label, inputLabel, resultKind }: { url: string; label: string; inputLabel: string; resultKind?: "solo" | "couple" }) {
   const [state, setState] = useState<"idle" | "copied" | "failed">("idle");
@@ -43,11 +44,14 @@ export default function WeddingCodeV31Sharing({ shareOrigin, first, second, rece
   const mayBuild = canShare && consent && (!second || partnerConsent);
   const url = mayBuild ? buildV31ShareUrl({ origin: shareOrigin, first, second }) : null;
 
-  return <section className={`${v31Surface} mt-6 p-5 sm:p-7`} aria-labelledby={`${consentId}-heading`} data-share-box="v31">
+  return <>
+    {canShare && !second ? <WeddingCodeV31Connection draft={first} /> : null}
+    <section className={`${v31Surface} mt-6 p-5 sm:p-7`} aria-labelledby={`${consentId}-heading`} data-share-box="v31">
     <div className="flex items-center gap-2"><LinkIcon aria-hidden="true" className="size-5 text-[var(--hb-text-body)]" /><h2 id={`${consentId}-heading`} className={`text-lg ${v31Title}`}>같이 이야기하고 싶다면</h2></div>
     <p className={`mt-3 ${v31Body}`}>답을 보내지 않고 웨딩코드만 권할 수도 있어요. 일반 시작 링크에는 답이 담기지 않고, 두 사람의 결과가 자동으로 연결되지 않아요.</p>
     <CopyLink url={genericUrl} label="답 없는 시작 링크 복사" inputLabel="웨딩코드 일반 시작 링크" />
-    {canShare ? <div className="mt-5 border-t border-[var(--hb-hairline)] pt-5">
+    {canShare ? <details className="mt-5 border-t border-[var(--hb-hairline)] pt-5">
+      <summary className={`flex min-h-11 cursor-pointer items-center text-sm underline underline-offset-4 ${v31Title}`}>답을 링크에 담아 직접 보내기</summary>
       <h3 className={`text-base ${v31Title}`}>{second ? "둘이 답한 결과 공유하기" : "내 답을 보내고 함께 비교하기"}</h3>
       <p className={`mt-2 ${v31Body}`}>
         {second ? "두 사람의 답 전체가 링크에 담겨요." : "내가 고른 답 전체가 링크에 담겨요. 상대도 답하면 두 사람의 내용을 나란히 볼 수 있어요."}
@@ -63,10 +67,10 @@ export default function WeddingCodeV31Sharing({ shareOrigin, first, second, rece
         <span className={`text-sm ${v31Title}`}>먼저 답한 사람도 두 사람의 답을 함께 공유하는 데 동의했어요.</span>
       </label> : null}
       {url ? <CopyLink key={url} url={url} label={second ? "두 사람 결과 링크 복사" : "비교 초대 링크 복사"} inputLabel="답이 담긴 웨딩코드 공유 링크" resultKind={second ? "couple" : "solo"} /> : <p className="mt-3 text-xs leading-relaxed text-[var(--hb-text-muted)]">{mayBuild ? "공유 링크를 만들지 못했어요. 답을 확인해 주세요." : "동의 항목을 확인하면 답이 담긴 링크가 나타나요."}</p>}
-    </div> : <p className={`mt-4 border-t border-[var(--hb-hairline)] pt-4 ${v31Body}`} data-response-share-unavailable>
+    </details> : <p className={`mt-4 border-t border-[var(--hb-hairline)] pt-4 ${v31Body}`} data-response-share-unavailable>
       {received ? "받은 링크를 열었다고 이 답이 내 것으로 저장되지는 않아요. 다른 사람의 답을 다시 보낼 때는 먼저 그 사람에게 확인해 주세요. 여기서는 답 없는 시작 링크만 제공해요."
         : second ? "두 사람이 모두 비교할 내용을 답해야 결과 링크를 만들 수 있어요. 모르는 내용이나 건너뛴 내용만으로 결과를 만들지 않아요."
           : "지금은 공유할 답이 없어요. 원하는 내용에 답한 뒤 결과를 보낼 수 있어요."}
     </p>}
-  </section>;
+  </section></>;
 }

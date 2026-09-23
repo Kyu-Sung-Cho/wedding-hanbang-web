@@ -21,7 +21,10 @@ export const PREPARATION_STYLE_SCOPE = Object.freeze({
 });
 
 // 정적 원문·연쇄 핀만 검증한다. 운영 적용이나 런타임 증거 승인이 아니다.
-export function loadPreparationStyleReleasePlan(repoRoot) {
+export function loadPreparationStyleReleasePlan(repoRoot) { return loadPlan(repoRoot, true); }
+// 후속 계약 전용. 공개 237 lane의 정확한 디렉터리 경계는 바꾸지 않는다.
+export function loadPreparationStyleHistoricalReleasePlan(repoRoot) { return loadPlan(repoRoot, false); }
+function loadPlan(repoRoot, checkCurrentDirectory) {
   const bytes=pinnedArtifact(repoRoot,{file:PREPARATION_STYLE_CONTRACT_FILE,sha256:CONTRACT_SHA});
   const contract=JSON.parse(bytes);
   requireRelease(contract.version===1&&contract.kind==='preparation-style-static-successor'&&contract.release==='preparation-style-20260920'
@@ -40,7 +43,7 @@ export function loadPreparationStyleReleasePlan(repoRoot) {
   const reviewed=[...predecessor.reviewedMigrations,...contract.migrations].sort((a,b)=>a.file.localeCompare(b.file));
   const dependencyFile='20260716114000_current_couple_membership_privacy_fence.sql';
   same(contract.dependencyMigration,{file:`supabase/migrations/${dependencyFile}`,sha256:reviewed.find(pin=>pin.file===dependencyFile)?.sha256},'PREPARATION_STYLE_DEPENDENCY_CHANGED');
-  same(readdirSync(join(repoRoot,'supabase/migrations')).filter(file=>/\.sql$/i.test(file)).sort(),reviewed.map(pin=>pin.file),'NEW_MIGRATION_NOT_REVIEWED');
+  if (checkCurrentDirectory) same(readdirSync(join(repoRoot,'supabase/migrations')).filter(file=>/\.sql$/i.test(file)).sort(),reviewed.map(pin=>pin.file),'NEW_MIGRATION_NOT_REVIEWED');
   for(const pin of reviewed) pinnedArtifact(repoRoot,{...pin,file:`supabase/migrations/${pin.file}`});
   const sql=pinnedArtifact(repoRoot,{...contract.migrations[0],file:`supabase/migrations/${MIGRATION_FILE}`});
   requireRelease(!sql.includes(13)&&sql.toString('utf8').startsWith('BEGIN;\n')&&sql.toString('utf8').endsWith('COMMIT;\n'),'PREPARATION_STYLE_SQL_NOT_CANONICAL');

@@ -9,7 +9,11 @@ import { createWeddingCodeSceneV10HistoricalRepository } from './fixtures/weddin
 import { validateSuccessorReleaseContract } from '../lib/supabase-successor-release-contract.mjs';
 import { runProductionRelease } from '../lib/supabase-production-release-controller.mjs';
 
-const root=resolve(import.meta.dirname,'../..');
+import { createPreparationStyleHistoricalRepository } from './fixtures/preparation-style-historical-repository.mjs';
+const actualRoot=resolve(import.meta.dirname,'../..');
+const historical=createPreparationStyleHistoricalRepository(actualRoot);
+test.after(historical.cleanup);
+const root=historical.root;
 const code=value=>error=>error?.code===value;
 const run=args=>spawnSync(process.execPath,[join(root,'scripts/supabase-release-fence.mjs'),...args],
   {cwd:root,encoding:'utf8',windowsHide:true,timeout:30_000});
@@ -41,7 +45,7 @@ test('static mode refuses mixed operations and malformed controller requests bef
 });
 
 test('missing, changed or additional artifacts cannot fall back to the prior release',t=>{
-  const fixture=createWeddingCodeSceneV10HistoricalRepository(root);t.after(fixture.cleanup);
+  const fixture=createWeddingCodeSceneV10HistoricalRepository(actualRoot);t.after(fixture.cleanup);
   const plan=loadPreparationStyleReleasePlan(root);
   assert.equal(loadWeddingCodeSceneV10ReleasePlan(fixture.root).migrationCount,236);
   assert.throws(()=>loadPreparationStyleReleasePlan(fixture.root));

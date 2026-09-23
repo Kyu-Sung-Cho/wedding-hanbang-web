@@ -60,13 +60,21 @@ describe("짧은 웨딩코드 결과의 미노출 문항", () => {
     expect(summaries).toHaveLength(2);
     expect(summaries[0].getAttribute("data-style-summary")).toBe("KBBB");
     expect(summaries[1].getAttribute("data-style-summary")).toBe("RBBB");
-    expect(summaries[0].textContent).toContain("먼저 답한 사람");
-    expect(summaries[1].textContent).toContain("나중에 답한 사람");
+    expect(summaries[0].getAttribute("aria-label")).toBe("상대");
+    expect(summaries[1].getAttribute("aria-label")).toBe("나");
     expect(summaries[0].querySelectorAll("button")).toHaveLength(0);
     expect(summaries[1].querySelectorAll("button").length).toBeGreaterThan(0);
-    for (const summary of render(second, first, true).querySelectorAll("[data-style-summary]")) {
+    const received = render(second, first, true);
+    expect([...view.querySelectorAll('[role="tab"]')].map(tab => tab.textContent)).toEqual(["함께 보기", "내 결과", "상대 결과"]);
+    expect([...received.querySelectorAll('[role="tab"]')].map(tab => tab.textContent)).toEqual(["함께 보기", "먼저 답한 사람", "나중에 답한 사람"]);
+    expect([...received.querySelectorAll("[data-style-summary]")].map(summary => summary.getAttribute("aria-label"))).toEqual(["먼저 답한 사람", "나중에 답한 사람"]);
+    for (const summary of received.querySelectorAll("[data-style-summary]")) {
       expect(summary.querySelectorAll("button")).toHaveLength(0);
     }
+    expect(view.querySelectorAll('[role="tabpanel"]')).toHaveLength(1);
+    expect(view.querySelector('[role="tab"][aria-selected="true"]')?.textContent).toBe("함께 보기");
+    expect(view.querySelector('[data-comparison="B1"] dt')?.textContent).toBe("상대");
+    expect(received.querySelector('[data-comparison="B1"] dt')?.textContent).toBe("먼저 답한 사람");
     expect(view.textContent).toContain("같은 코드여도 구체적인 취향과 답은 다를 수 있어요.");
   });
 

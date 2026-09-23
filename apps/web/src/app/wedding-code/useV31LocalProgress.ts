@@ -5,6 +5,7 @@ import {
   LOCAL_KEY, clearV31LocalProgress, readV31LocalProgress, writeV31LocalProgress,
   type V31LocalProgressSnapshot,
 } from "@/lib/weddingCode/v31LocalProgress";
+import { clearSavedPairSessionLink } from "@/lib/weddingCode/pairSessionClient";
 
 export const V31_SAVE_PREFERENCE_KEY = "hanbang.wedding-code.v31.autosave";
 type SaveStatus = "idle" | "saved" | "off" | "unavailable" | "conflict" | "invalid" | "expired";
@@ -86,6 +87,7 @@ function createProgressStore(active: boolean) {
       if (enabled) storage.removeItem(V31_SAVE_PREFERENCE_KEY);
       else storage.setItem(V31_SAVE_PREFERENCE_KEY, "off");
       if (!enabled && clearV31LocalProgress(storage).status !== "cleared") throw new Error("clear failed");
+      if (!enabled && !clearSavedPairSessionLink()) throw new Error("comparison address clear failed");
       expectedRaw = storage.getItem(LOCAL_KEY);
       publish({ ...state, ready: true, enabled, status: enabled ? "idle" : "off", saved: enabled ? state.saved : null });
       return true;
