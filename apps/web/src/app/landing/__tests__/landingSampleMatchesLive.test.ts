@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { WEDDING_CODE_V30_QUESTIONS, WEDDING_CODE_V30_OPTIONS, WEDDING_CODE_V30_TASTES } from "@/constants/weddingCodeV30";
+import { WEDDING_CODE_V31_QUESTIONS, WEDDING_CODE_V31_OPTIONS, WEDDING_CODE_V31_TASTES } from "@/constants/weddingCodeV31";
 
 import { CONTENT_PATH, everyLandingComponent, rendered } from "./landingSource";
 
@@ -66,7 +66,7 @@ describe("랜딩이 웨딩코드에 대해 말하는 것은 라이브다", () =>
     const wrong: string[] = [];
     for (const [file, text] of landingSurface()) {
       for (const match of text.matchAll(/(\d+)\s*개\s*문장/gu)) {
-        if (Number(match[1]) !== WEDDING_CODE_V30_QUESTIONS.length) {
+        if (Number(match[1]) !== WEDDING_CODE_V31_QUESTIONS.length) {
           wrong.push(`${file}: "${match[0]}"`);
         }
       }
@@ -102,11 +102,11 @@ describe("랜딩이 웨딩코드에 대해 말하는 것은 라이브다", () =>
     const surface = landingSurface();
 
     const live: Array<{ what: string; text: string }> = [];
-    for (const q of WEDDING_CODE_V30_QUESTIONS) {
+    for (const q of WEDDING_CODE_V31_QUESTIONS) {
       live.push({ what: `${q.id} 문장`, text: q.statement });
     }
-    WEDDING_CODE_V30_OPTIONS.forEach(option => live.push({ what: `동의 정도 ${option.value}`, text: option.label }));
-    WEDDING_CODE_V30_TASTES.forEach(taste => {
+    WEDDING_CODE_V31_OPTIONS.forEach(option => live.push({ what: `동의 정도 ${option.value}`, text: option.label }));
+    WEDDING_CODE_V31_TASTES.forEach(taste => {
       live.push({ what: `${taste.key} 취향`, text: taste.question });
       taste.options.forEach(option => live.push({ what: `${taste.key} 선택지`, text: option.label }));
     });

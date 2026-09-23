@@ -3,7 +3,7 @@ import { join, resolve } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
-import { WEDDING_CODE_V30_QUESTIONS } from "@/constants/weddingCodeV30";
+import { WEDDING_CODE_V31_QUESTIONS } from "@/constants/weddingCodeV31";
 import { parseWeddingCodeEntryQuery } from "@/app/wedding-code/entry";
 
 import {
@@ -238,7 +238,7 @@ describe("랜딩의 문장 수는 도착 화면이 묻는 문항 수다", () => 
   const countPattern = /([0-9]+)\s*(?:개\s*)?문장/gu;
 
   it("첫 화면과 마무리가 실제 기본 검사와 같은 수를 말한다", () => {
-    expect(parseWeddingCodeEntryQuery({}).kind).toBe("v30");
+    expect(parseWeddingCodeEntryQuery({}).kind).toBe("v31");
     const blocks = [
       ["hero", "blockedReasons"],
       ["blockedReasons", "amoraNote"],
@@ -260,7 +260,7 @@ describe("랜딩의 문장 수는 도착 화면이 묻는 문항 수다", () => 
     // 통합판은 문장 뒤에 취향과 우선순위를 더 묻는다. 고정 문장 수를 전체 분량처럼 약속하지 않는다.
     for (const { name, count } of speaking) {
       expect(count, `${name} 블록의 문장 수가 실제 검사와 다르다`)
-        .toBe(WEDDING_CODE_V30_QUESTIONS.length);
+        .toBe(WEDDING_CODE_V31_QUESTIONS.length);
     }
     expect(copy.map(([, text]) => text).join(""), "웨딩코드로 가는 길이 사라졌다")
       .toMatch(/href:\s*"\/wedding-code"/u);
@@ -269,7 +269,7 @@ describe("랜딩의 문장 수는 도착 화면이 묻는 문항 수다", () => 
   it("랜딩의 컴포넌트에도 잘못된 수나 예전 장면 수가 남아 있지 않다", () => {
     // 카피뿐 아니라 헤더 등에서 직접 그리는 문장 수까지 확인한다.
     const counts = Array.from(LANDING_RENDERED.matchAll(countPattern), (match) => Number(match[1]));
-    for (const count of counts) expect(count).toBe(WEDDING_CODE_V30_QUESTIONS.length);
+    for (const count of counts) expect(count).toBe(WEDDING_CODE_V31_QUESTIONS.length);
     expect(LANDING_RENDERED, "예전 선택형 검사의 장면 수가 랜딩에 남아 있다")
       .not.toMatch(/(?:[0-9]+|열두|열여섯|스무|스물네)\s*(?:개\s*)?장면/u);
   });

@@ -7,8 +7,25 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { WEDDING_CODE_V30_QUESTIONS, WEDDING_CODE_V30_VERSION, type V30Draft } from "@/constants/weddingCodeV30";
 import { createV30Draft, encodeV30 } from "@/lib/weddingCode/v30";
+import { WEDDING_CODE_V31_VERSION, type V31Draft } from "@/constants/weddingCodeV31";
+import { createV31Draft, encodeV31 } from "@/lib/weddingCode/v31";
 import WeddingCodeEntryClient from "./WeddingCodeEntryClient";
 import { parseWeddingCodeEntryQuery } from "./entry";
+
+vi.mock("./WeddingCodeV31Client", () => ({
+  default: function V31Probe({ partnerDraft, bothDrafts, onRestart }: {
+    partnerDraft: V31Draft | null;
+    bothDrafts: { first: V31Draft; second: V31Draft } | null;
+    onRestart: () => void;
+  }) {
+    const [touched, setTouched] = useState(false);
+    return <section data-entry="v31" data-touched={touched}>
+      <output>{JSON.stringify({ partnerDraft, bothDrafts })}</output>
+      <button onClick={() => setTouched(true)}>local edit</button>
+      <button onClick={onRestart}>restart</button>
+    </section>;
+  },
+}));
 
 vi.mock("./WeddingCodeV30Client", () => ({
   default: function V30Probe({ partnerDraft, bothDrafts, onRestart }: {
@@ -66,7 +83,7 @@ describe("웨딩코드 판별과 다시 시작", () => {
     expect(container.textContent).toContain("이 링크는 열 수 없어요");
     await restart();
     expect(window.location.hash).toBe("");
-    expect(container.querySelector('[data-entry="v30"]')).not.toBeNull();
+    expect(container.querySelector('[data-entry="v31"]')).not.toBeNull();
     expect(container.querySelector("output")?.textContent).toBe(JSON.stringify({ partnerDraft: null, bothDrafts: null }));
   });
 
@@ -77,7 +94,7 @@ describe("웨딩코드 판별과 다시 시작", () => {
     expect(container.querySelector('[data-entry="v20"]')).not.toBeNull();
     await restart();
     expect(window.location.search).toBe("");
-    expect(container.querySelector('[data-entry="v30"]')).not.toBeNull();
+    expect(container.querySelector('[data-entry="v31"]')).not.toBeNull();
   });
 
   it("두 번째 응답만 바뀌어도 이전 결과의 편집 state를 넘기지 않는다", async () => {
@@ -101,6 +118,29 @@ describe("웨딩코드 판별과 다시 시작", () => {
     const onRecoverableError = vi.fn();
     await act(async () => { root = hydrateRoot(container, element, { onRecoverableError }); });
     expect(onRecoverableError).not.toHaveBeenCalled();
+    expect(container.querySelector("output")?.textContent).toBe(JSON.stringify({ partnerDraft: first, bothDrafts: null }));
+    expect(container.querySelector('[data-entry="v30"]')).not.toBeNull();
+  });
+
+  it("v31 커플의 두 번째 응답 변경과 이전 판 전환 때 편집 상태를 재사용하지 않는다", async () => {
+    const a = createV31Draft(); a.answers.B1 = 5;
+    const b = createV31Draft(); b.answers.B1 = 1;
+    const hash = `#v=${WEDDING_CODE_V31_VERSION}&a=${encodeV31(a)}`;
+    window.history.replaceState(null, "", `/wedding-code${hash}&b=${encodeV31(a)}`);
+    await mount();
+    expect(container.querySelector('[data-entry="v31"]')).not.toBeNull();
+    await act(async () => container.querySelector<HTMLButtonElement>("button")?.click());
+    await act(async () => {
+      window.history.replaceState(null, "", `/wedding-code${hash}&b=${encodeV31(b)}`);
+      window.dispatchEvent(new Event("hashchange"));
+    });
+    expect(container.querySelector("section")?.getAttribute("data-touched")).toBe("false");
+    expect(container.querySelector("output")?.textContent).toBe(JSON.stringify({ partnerDraft: null, bothDrafts: { first: a, second: b } }));
+    await act(async () => {
+      window.history.replaceState(null, "", `/wedding-code${firstHash}`);
+      window.dispatchEvent(new Event("hashchange"));
+    });
+    expect(container.querySelector('[data-entry="v30"]')).not.toBeNull();
     expect(container.querySelector("output")?.textContent).toBe(JSON.stringify({ partnerDraft: first, bothDrafts: null }));
   });
 });

@@ -7,6 +7,7 @@ import Button from "@/components/ui/Button";
 import WeddingCodeV06Client from "./WeddingCodeV06Client";
 import WeddingCodeV20Client from "./WeddingCodeV20Client";
 import WeddingCodeV30Client from "./WeddingCodeV30Client";
+import WeddingCodeV31Client from "./WeddingCodeV31Client";
 import {
   EMPTY_WEDDING_CODE_ENTRY,
   parseWeddingCodeEntryHash,
@@ -90,6 +91,17 @@ export default function WeddingCodeEntryClient({
   }, []);
 
   if (entry.kind === "error") return <ErrorEntry onRestart={restart} />;
+  if (entry.kind === "v31") {
+    return (
+      <WeddingCodeV31Client
+        key={`v31:${weddingCodeEntryKey(entry)}`}
+        shareOrigin={shareOrigin}
+        partnerDraft={entry.initial.partnerDraft}
+        bothDrafts={entry.initial.bothDrafts}
+        onRestart={restart}
+      />
+    );
+  }
   if (entry.kind === "v30") {
     return (
       <WeddingCodeV30Client
