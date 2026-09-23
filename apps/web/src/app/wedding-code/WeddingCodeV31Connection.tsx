@@ -1,12 +1,12 @@
 "use client";
 
-import { useRef, useState, useSyncExternalStore } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import Link from "next/link";
 import Button from "@/components/ui/Button";
 import type { V31Draft } from "@/constants/weddingCodeV31";
 import { encodeV31 } from "@/lib/weddingCode/v31";
 import { PAIR_SESSION_CONSENT_VERSION, PAIR_SESSION_RETENTION_DAYS, createPairSessionKeys, requestPairSession, type PairSessionRequest } from "@/lib/weddingCode/pairSessionContract";
-import { pairSessionUrl, readSavedPairSession, savePairSessionLink, savePairSessionRecovery, subscribePairSession } from "@/lib/weddingCode/pairSessionClient";
+import { pairSessionUrl, readPairSessionRecovery, readSavedPairSession, savePairSessionLink, savePairSessionRecovery, subscribePairSession } from "@/lib/weddingCode/pairSessionClient";
 import { v31Body, v31Surface, v31Title } from "./WeddingCodeV31Inputs";
 
 export function PairSessionConsent({ consent, ageConfirmed, disabled, onConsent, onAge }: {
@@ -33,10 +33,21 @@ export function WeddingCodeComparisonResume({ compact = false }: { compact?: boo
   const url = useSyncExternalStore(subscribePairSession, () => {
     const saved = readSavedPairSession(); return saved ? pairSessionUrl(window.location.origin, saved) : "";
   }, () => "");
-  if (!url) return null;
+  const recoveryUrl = useSyncExternalStore(subscribePairSession, () => {
+    const saved = readSavedPairSession(); const recovery = readPairSessionRecovery();
+    return recovery && !(saved?.roomId === recovery.roomId && saved.token === recovery.token)
+      ? pairSessionUrl(window.location.origin, recovery) : "";
+  }, () => "");
+  if (!url && !recoveryUrl) return null;
   return <aside className={compact ? "mt-4 border-t border-paper-outline pt-3" : `mx-auto mt-6 mb-4 w-full max-w-[680px] ${v31Surface} p-4`} aria-label="연결한 비교 결과">
+    {url ? <div>
     <p className={v31Body}>이 브라우저에서 함께 보기를 시작한 결과가 있어요.</p>
     <Link href={url} className="mt-2 inline-flex min-h-11 items-center font-semibold text-[var(--hb-text-strong)] underline underline-offset-4">연결한 두 사람 결과 보기</Link>
+    </div> : null}
+    {recoveryUrl ? <div className={url ? "mt-3 border-t border-paper-outline pt-3" : undefined}>
+      <p className={v31Body}>이 탭에 함께 보기 요청의 확인 주소가 남아 있어요. 완료 여부는 주소를 열어 확인해 주세요.</p>
+      <Link href={recoveryUrl} className="mt-2 inline-flex min-h-11 items-center font-semibold text-[var(--hb-text-strong)] underline underline-offset-4">이 탭에서 요청한 함께 보기 확인</Link>
+    </div> : null}
   </aside>;
 }
 
@@ -48,6 +59,8 @@ export default function WeddingCodeV31Connection({ draft }: { draft: V31Draft })
   const [error, setError] = useState("");
   const [recoveryUrl, setRecoveryUrl] = useState("");
   const pending = useRef<Extract<PairSessionRequest, { action: "create" }> | null>(null);
+  const active = useRef(true);
+  useEffect(() => { active.current = true; return () => { active.current = false; }; }, []);
   async function create() {
     if (busy) return;
     if (!consent || !ageConfirmed) { setError("공유할 내용과 나이 확인 항목을 먼저 확인해 주세요."); return; }
@@ -63,11 +76,12 @@ export default function WeddingCodeV31Connection({ draft }: { draft: V31Draft })
       savePairSessionRecovery({ ...member, expiresAt: new Date(input.issuedAt + PAIR_SESSION_RETENTION_DAYS * 86400000).toISOString() });
       setRecoveryUrl(pairSessionUrl(window.location.origin, member));
       const result = await requestPairSession(input);
+      if (!active.current) return;
       if (!result.ok) { setError(result.error); if (result.code === "CREATE_EXPIRED") pending.current = null; return; }
       savePairSessionLink({ ...member, expiresAt: result.snapshot.expiresAt });
       window.location.assign(pairSessionUrl(window.location.origin, member));
-    } catch { setError("초대를 만들지 못했어요. 연결 상태를 확인하고 다시 시도해 주세요."); }
-    finally { setBusy(false); }
+    } catch { if (active.current) setError("초대를 만들지 못했어요. 연결 상태를 확인하고 다시 시도해 주세요."); }
+    finally { if (active.current) setBusy(false); }
   }
   return <section className={`${v31Surface} mt-6 p-5 sm:p-7`} aria-label="상대 초대하고 함께 보기">
     <h2 className={`text-lg ${v31Title}`}>상대도 답하면, 함께 볼 수 있어요</h2>

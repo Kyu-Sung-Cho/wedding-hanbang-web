@@ -184,9 +184,118 @@ describe("웨딩코드 v3.1 문항 의미와 개인 결과", () => {
     expect(insight.body).toContain("실제 금액을 묻지 않았어요");
     expect(insight.evidence.map((item) => item.id)).toEqual(["B1", "spending"]);
   });
+
+  it("하객 없는 예식에는 초대 안내 대신 둘만의 진행을 제안하고 다른 하객 답도 보존한다", () => {
+    const draft = createV31Draft();
+    draft.answers = { G1: 5, G2: 4, G3: 5 };
+    draft.tastes.guests = answered(["no_guests"]);
+    draft.tastes.ceremony = answered(["participatory", "our_story"]);
+    draft.priorities = answered(["G1", "taste.guests", "taste.ceremony"]);
+    const original = encodeV31(draft);
+    const profile = buildV31Profile(draft);
+    expect(profile.insights.find(item => item.id === "direct-guests")?.nextStep).toContain("둘만의 예식이 가능한지");
+    expect(profile.insights.find(item => item.id === "direct-guests")?.nextStep).not.toMatch(/초대할 사람|수용 인원|명단/);
+    for (const id of ["G1", "G2", "G3"]) {
+      const insight = profile.insights.find(item => item.id === `single-${id}`)!;
+      expect(insight.evidence.map(item => item.id)).toEqual([id, "taste.guests"]);
+      expect(insight.nextStep).toContain("서로 다른 상황");
+      expect(insight.nextStep).not.toMatch(/적어보세요|걸리는 시간을 비교|초대할 사람/);
+    }
+    expect(profile.insights.find(item => item.id === "direct-ceremony")?.evidence.map(item => item.id)).toEqual(["taste.ceremony", "taste.guests"]);
+    expect(profile.priorityGuides.every(item => item.nextStep.includes("둘만"))).toBe(true);
+    expect(encodeV31(draft)).toBe(original);
+    expect(decodeV31(original)).toEqual(draft);
+  });
+
+  it("함께 받고 싶은 도움은 듣기와 내 일 일부를 맡아주기로 설명한다", () => {
+    const draft = createV31Draft();
+    draft.answers = { H1: 5, H2: 5 };
+    const insight = buildV31Profile(draft).insights.find(item => item.id === "support-listen-help")!;
+    expect(insight.body).toContain("상대가 내 일의 일부도 맡아주길");
+    expect(insight.nextStep).toContain("내 일의 일부도 맡아주면");
+    expect(`${insight.title} ${insight.body} ${insight.nextStep}`).not.toContain("나눠주");
+  });
+
+  it("둘만의 예식에서는 식사와 승격된 참여 조합도 하객을 전제로 실행하지 않는다", () => {
+    const draft = createV31Draft();
+    draft.tastes.guests = answered(["no_guests"]);
+    draft.tastes.meal = answered(["buffet"]);
+    draft.tastes.ceremony = answered(["participatory"]);
+    draft.avoidances = answered(["stage_participation"]);
+    draft.priorities = answered(["taste.ceremony"]);
+    const profile = buildV31Profile(draft);
+    expect(profile.insights.find(item => item.id === "direct-meal")?.nextStep).not.toContain("하객");
+    expect(row(draft, draft, "taste.meal").followUp).not.toContain("하객");
+    expect(profile.insights.find(item => item.id === "avoid-stage_participation")?.nextStep).toContain("다른 날의 행사");
+    const guide = profile.priorityGuides[0];
+    expect(guide.sourceInsightId).toBe("participation-format");
+    expect(guide.nextStep).toContain("하객 없이 둘만");
+    expect(guide.nextStep).not.toContain("참여 여부를 하객이 선택");
+    expect(guide.evidence.map(item => item.id)).toEqual(["taste.ceremony", "avoidances", "taste.guests", "priorities"]);
+    draft.priorities = answered(["taste.guests"]);
+    expect(buildV31Profile(draft).priorityGuides.map(item => item.sourceInsightId)).toEqual(["direct-guests"]);
+  });
+
+  it("우선순위에 연결된 조합은 한 번씩 올리고 선택하지 않은 근거를 우선순위로 바꾸지 않는다", () => {
+    const draft = createV31Draft();
+    draft.answers = { B1: 5, B3: 4, T2: 4, T3: 5 };
+    draft.spending = answered(["photo"]);
+    draft.priorities = answered(["B1", "B3", "T2"]);
+    const original = encodeV31(draft);
+    const profile = buildV31Profile(draft);
+    expect(profile.priorityGuides.map(item => item.sourceInsightId)).toEqual(["budget-revisit", "budget-explicit-spending", "delegate-update"]);
+    expect(profile.priorityGuides.filter(item => item.sourceInsightId === "budget-revisit")).toHaveLength(1);
+    const delegate = profile.priorityGuides.find(item => item.sourceInsightId === "delegate-update")!;
+    expect(delegate.evidence.map(item => item.id)).toEqual(["T2", "T3", "priorities"]);
+    expect(delegate.evidence.find(item => item.id === "priorities")?.answer).toBe("계약·추가 결제 없는 세부 선택 맡기기");
+    expect(delegate.coveredInsightIds).toEqual(["delegate-update", "single-T2", "single-T3"]);
+    expect(profile.priorityLabels).toEqual(["처음 정한 전체 예산 지키기", "전체 예산을 늘릴지 의논하기", "계약·추가 결제 없는 세부 선택 맡기기"]);
+    expect(encodeV31(draft)).toBe(original);
+  });
+
+  it("관련 없는 회피 우선순위에 꽃 조합을 붙이지 않고 낮아진 답의 조합은 승격하지 않는다", () => {
+    const draft = createV31Draft();
+    draft.answers = { V1: 5, B1: 5, B3: 3 };
+    draft.avoidances = answered(["heavy_decoration", "loud_music"]);
+    draft.priorities = answered(["avoid.loud_music", "B1"]);
+    expect(buildV31Profile(draft).priorityGuides.map(item => item.sourceInsightId)).toEqual(["avoid-loud_music", "single-B1"]);
+    draft.priorities = answered(["avoid.heavy_decoration"]);
+    const flower = buildV31Profile(draft).priorityGuides[0];
+    expect(flower.sourceInsightId).toBe("flower-amount");
+    expect(flower.evidence.find(item => item.id === "priorities")?.answer).toBe("피하기: 꽃과 장식이 빼곡한 공간");
+  });
 });
 
 describe("웨딩코드 v3.1 커플 응답 의미", () => {
+  it("하객 없는 두 사람과 규모가 다른 두 사람 모두 초대 여부부터 확인하며 원답을 유지한다", () => {
+    const first = createV31Draft();
+    const second = createV31Draft();
+    first.tastes.guests = answered(["no_guests"]);
+    second.tastes.guests = answered(["no_guests"]);
+    first.answers.G1 = 4; second.answers.G1 = 5;
+    first.tastes.ceremony = answered(["participatory"]);
+    second.tastes.ceremony = answered(["participatory"]);
+    expect(row(first, second, "taste.guests").followUp).toContain("둘만의 예식이 가능한지");
+    expect(row(first, second, "taste.guests").followUp).not.toMatch(/초대할 사람|수용 인원|명단/);
+    expect(row(first, second, "G1")).toMatchObject({ kind: "shared_wish", first: "그런 편이에요", second: "매우 그래요" });
+    expect(row(first, second, "G1").followUp).toContain("각각 어떤 상황");
+    expect(row(first, second, "taste.ceremony").followUp).toContain("서로 다른 날이나 상황");
+    second.tastes.guests = answered(["under50"]);
+    for (const [a, b] of [[first, second], [second, first]]) {
+      expect(row(a, b, "taste.guests").kind).toBe("different");
+      expect(row(a, b, "taste.guests").followUp).toContain("초대 여부와 규모부터");
+      expect(row(a, b, "taste.guests").followUp).not.toContain("실제 초대할 사람");
+    }
+  });
+
+  it("맞는 보기 없음은 아직 모름과 다른 원답으로 두고 보기 밖의 생각을 묻는다", () => {
+    const first = createV31Draft(); const second = createV31Draft();
+    first.tastes.attire = { status: "no_match" }; second.tastes.attire = { status: "undecided" };
+    const item = row(first, second, "taste.attire");
+    expect(item).toMatchObject({ kind: "unavailable", first: "맞는 보기가 없어요", second: "아직 모르겠어요" });
+    expect(item.followUp).toContain("서로 다른 답");
+    expect(item.followUp).toContain("어떤 생각이 빠져 있었는지");
+  });
   it("같이 높은 답·같이 낮은 답·중간·차이·비교 불가를 구별한다", () => {
     const first = createV31Draft();
     const second = createV31Draft();
@@ -412,4 +521,3 @@ describe("웨딩코드 v3.1 공유와 구판 경계", () => {
     for (const origin of ["javascript:alert(1)", "https://user:password@example.com", "https://hanbang.ai/path", "https://hanbang.ai/?answers=1", "https://hanbang.ai/#answers"]) expect(buildV31ShareUrl({ origin, first })).toBeNull();
   });
 });
-

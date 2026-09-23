@@ -291,7 +291,7 @@ describe("WeddingCodeV31Client", () => {
     const partner: V31Draft = { ...createV31Draft(), answers: { V1: 5 } };
     await renderClient({ partnerDraft: partner }); await button("나도 답해보기"); await finishFromHere(true);
     expect(container.querySelector('[data-result="couple-v31"]')).not.toBeNull();
-    expect(container.textContent).toContain("함께 원한다고 확인한 내용이 없어요");
+    expect(container.textContent).toContain("함께 동의하거나 같게 고른 내용이 확인되지 않았어요");
     expect(container.textContent).toContain("두 사람이 모두 비교할 내용을 답해야 결과 링크");
     expect(container.textContent).toContain("두 사람이 같은 항목에 답한 내용이 없어 아직 차이를 비교할 수 없어요");
     expect(container.querySelector('input[type="checkbox"]')).toBeNull();
@@ -437,7 +437,7 @@ describe("WeddingCodeV31Client", () => {
     const first: V31Draft = { ...createV31Draft(), tastes: { attire: { status: "answered", values: ["simple", "flowing"] } } };
     const second: V31Draft = { ...createV31Draft(), tastes: { attire: { status: "answered", values: ["flowing", "traditional"] } } };
     await renderClient({ bothDrafts: { first, second } });
-    expect(container.textContent).not.toContain("함께 원한다고 확인한 내용이 없어요");
+    expect(container.textContent).not.toContain("함께 동의하거나 같게 고른 내용이 확인되지 않았어요");
     expect(container.textContent).toContain("일부 보기는 함께 골랐어요");
     const comparison = container.querySelector('[data-comparison="taste.attire"]');
     expect(comparison?.textContent).toContain("함께 고른 보기: 하늘하늘한 옷");

@@ -18,7 +18,7 @@ import {
 } from "@/constants/weddingCodeV31";
 
 export type V31Evidence = { id: string; text: string; answer: string };
-export type V31Insight = { id: string; title: string; body: string; evidence: V31Evidence[]; nextStep: string };
+export type V31Insight = { id: string; title: string; body: string; evidence: V31Evidence[]; nextStep: string; sourceInsightId?: string; coveredInsightIds?: string[] };
 export type V31Profile = {
   ratedCount: number;
   respondedCount: number;
@@ -265,24 +265,68 @@ function directTasteInsight(draft: V31Draft, key: V31TasteKey): V31Insight | nul
   const choice = draft.tastes[key];
   if (choice?.status !== "answered") return null;
   const labels = v31ChoiceLabels(choice, taste.options).join(" · ");
+  const evidence = [tasteEvidence(draft, key)];
   let nextStep = TASTE_FOLLOW_UP[key];
   if (key === "venue" && choice.values.some((value) => value === "outdoor" || value === "both_spaces")) nextStep = "마음에 드는 야외 공간과 비가 오거나 날씨가 더울 때 사용할 공간을 함께 확인해 보세요.";
   if (key === "photo" && choice.values.includes("both_styles")) nextStep = "자연스럽게 남길 순간과 미리 준비할 장면을 각각 골라보세요. 어느 쪽에 시간을 더 쓸지는 따로 정해도 괜찮아요.";
-  return { id: `direct-${key}`, title: `내가 원하는 ${taste.title}`, body: `앞에서 ‘${labels}’ 보기를 골랐어요. 실제 후보를 볼 때 이 답을 출발점으로 써 보세요.`, evidence: [tasteEvidence(draft, key)], nextStep };
+  if (key === "guests" && wantsNoGuests(draft)) nextStep = "하객 없이 둘만 하는 예식에서 남기고 싶은 순간과 진행 순서를 이야기해 보세요. 후보 장소에서 둘만의 예식이 가능한지도 확인해 보세요.";
+  if (key === "ceremony" && wantsNoGuests(draft) && choice.values.includes("participatory")) {
+    nextStep = "하객 없이 둘만 하는 예식과 하객이 참여하는 순서를 함께 골랐어요. 서로 다른 날이나 상황을 떠올린 것인지 이야기해 보세요. 어느 답도 지우지 않고 남겨둘 수 있어요.";
+    evidence.push(tasteEvidence(draft, "guests"));
+  }
+  return { id: `direct-${key}`, title: `내가 원하는 ${taste.title}`, body: `앞에서 ‘${labels}’ 보기를 골랐어요. 실제 후보를 볼 때 이 답을 출발점으로 써 보세요.`, evidence, nextStep };
 }
-function priorityGuides(draft: V31Draft): V31Insight[] {
+function wantsNoGuests(draft: V31Draft): boolean {
+  return draft.tastes.guests?.status === "answered" && draft.tastes.guests.values.includes("no_guests");
+}
+function singleInsight(draft: V31Draft, question: V31Question): V31Insight {
+  const insight = { id: `single-${question.id}`, ...SINGLE_READINGS[question.id], evidence: [evidence(draft, question.id)] };
+  if (!wantsNoGuests(draft) || question.topic !== "guests") return insight;
+  return { ...insight, evidence: [...insight.evidence, tasteEvidence(draft, "guests")], nextStep: "하객 없이 둘만 하는 예식도 골랐어요. 이 문장과 하객 규모에 답할 때 서로 다른 상황을 떠올렸는지 이야기해 보세요. 어느 답도 틀린 것으로 정하지 않아요." };
+}
+function avoidanceInsight(draft: V31Draft, option: V31Option): V31Insight {
+  const noGuestParticipation = wantsNoGuests(draft) && option.value === "stage_participation";
+  return { id: `avoid-${option.value}`, title: `피하고 싶은 것: ${option.label}`, body: "결혼식에서 피하고 싶은 조건으로 직접 골랐어요. 어떤 정도나 방식이 부담스러운지 실제 예시로 확인해 보세요.",
+    evidence: noGuestParticipation ? [avoidanceEvidence(draft), tasteEvidence(draft, "guests")] : [avoidanceEvidence(draft)],
+    nextStep: noGuestParticipation ? "하객 없이 둘만 하는 예식과 함께 고른 답이에요. 다른 날의 행사나 바뀔 수 있는 상황도 생각한 것인지 이야기해 보세요. 피하고 싶은 방식은 그대로 남겨둘 수 있어요." : AVOIDANCE_NEXT_STEPS[option.value],
+  };
+}
+function priorityGuides(draft: V31Draft, insights: V31Insight[]): V31Insight[] {
   if (draft.priorities?.status !== "answered") return [];
+  const selected = draft.priorities.values;
+  // 상황을 확인하는 보조 근거와, 조합이 실제로 설명하는 선택을 구분한다.
+  const relatedIds = (insight: V31Insight): readonly string[] => COMBINATIONS.find(rule => rule.id === insight.id)?.items
+    ?? (insight.id === "budget-explicit-spending" ? ["B1", "spending"]
+      : insight.id === "flower-amount" ? ["V1", "avoid.heavy_decoration"]
+        : insight.id === "participation-format" ? ["taste.ceremony", "avoid.stage_participation"] : []);
+  const simpleInsightId = (id: string): string | null => id.startsWith("taste.") ? id.replace("taste.", "direct-")
+    : id.startsWith("avoid.") ? id.replace("avoid.", "avoid-") : QUESTION_IDS.includes(id as V31QuestionId) ? `single-${id}` : null;
+  const combinations = insights.filter(insight => !/^(single-|direct-|avoid-)/.test(insight.id) && relatedIds(insight).some(id => selected.includes(id)));
+  const emitted = new Set<string>();
   return draft.priorities.values.flatMap((id): V31Insight[] => {
+    const related = combinations.filter(insight => relatedIds(insight).includes(id));
+    if (related.length) return related.flatMap(insight => {
+      if (emitted.has(insight.id)) return [];
+      emitted.add(insight.id);
+      const labels = getV31PriorityOptions(draft).filter(option => selected.includes(option.value) && relatedIds(insight).includes(option.value)).map(option => option.label);
+      return [{ ...insight, id: `priority-${insight.id}`, sourceInsightId: insight.id,
+        coveredInsightIds: [insight.id, ...relatedIds(insight).flatMap(value => { const simpleId = simpleInsightId(value); return simpleId ? [simpleId] : []; })],
+        body: `직접 고른 우선순위와 연결되는 답을 함께 봤어요. ${insight.body}`,
+        evidence: [...insight.evidence, { id: "priorities", text: "이 설명에서 내가 우선순위로 고른 것", answer: labels.join(" · ") }],
+      }];
+    });
     const question = WEDDING_CODE_V31_QUESTIONS.find((item) => item.id === id);
     const confirmation: V31Evidence = { id: "priorities", text: "이번 결혼식에서 특히 지키고 싶은 것", answer: getV31PriorityOptions(draft).find((option) => option.value === id)?.label ?? "" };
-    if (question) return [{ id: `priority-${id}`, ...SINGLE_READINGS[question.id], evidence: [evidence(draft, question.id), confirmation] }];
+    if (question) { const insight = singleInsight(draft, question); return [{ ...insight, id: `priority-${id}`, sourceInsightId: insight.id, evidence: [...insight.evidence, confirmation] }]; }
     const taste = WEDDING_CODE_V31_TASTES.find((item) => `taste.${item.key}` === id);
     if (taste) {
       const insight = directTasteInsight(draft, taste.key);
-      return insight ? [{ ...insight, id: `priority-${id}`, evidence: [...insight.evidence, confirmation] }] : [];
+      return insight ? [{ ...insight, id: `priority-${id}`, sourceInsightId: insight.id, evidence: [...insight.evidence, confirmation] }] : [];
     }
     const avoid = WEDDING_CODE_V31_AVOIDANCES.find((option) => `avoid.${option.value}` === id);
-    return avoid ? [{ id: `priority-${id}`, title: `피하고 싶은 것: ${avoid.label}`, body: "피하고 싶은 것 중에서도 특히 지키고 싶은 기준으로 골랐어요. 어디까지 괜찮은지는 실제 후보를 보며 정해 보세요.", evidence: [avoidanceEvidence(draft), confirmation], nextStep: AVOIDANCE_NEXT_STEPS[avoid.value] }] : [];
+    if (!avoid) return [];
+    const insight = avoidanceInsight(draft, avoid);
+    return [{ ...insight, id: `priority-${id}`, sourceInsightId: insight.id, body: "피하고 싶은 것 중에서도 특히 지키고 싶은 기준으로 골랐어요. 어디까지 괜찮은지는 실제 후보를 보며 정해 보세요.", evidence: [...insight.evidence, confirmation] }];
   });
 }
 const COMBINATIONS: readonly { id: string; items: readonly V31QuestionId[]; title: string; body: string; nextStep: string }[] = [
@@ -290,9 +334,9 @@ const COMBINATIONS: readonly { id: string; items: readonly V31QuestionId[]; titl
   { id: "budget-reallocate", items: ["B1", "B2"], title: "예산 안에서 원하는 항목에 더 쓰고 싶어요", body: "전체 예산은 지키면서, 꼭 하고 싶은 항목에는 다른 비용을 줄여 더 쓰고 싶어 해요.", nextStep: "더 쓰고 싶은 한 항목과 줄여도 되는 한 항목을 직접 정해 보세요." },
   { id: "budget-revisit", items: ["B1", "B3"], title: "예산을 다시 이야기할 경우도 정해 두면 좋겠어요", body: "정한 총액을 지키고 싶지만, 새로 원하는 것이 생기면 예산을 늘릴지도 의논하고 싶다고 답했어요.", nextStep: "어떤 경우에만 총액을 다시 의논할지 함께 정해 보세요. 예산을 늘리는 데 동의했다는 뜻은 아니에요." },
   { id: "decision-conditions", items: ["D1", "D2"], title: "비교를 마칠 기준을 정해 보면 좋겠어요", body: "다른 후보도 보고 싶고, 정한 조건에 맞으면 선택하고 싶다고 답했어요.", nextStep: "어디까지 비교할지, 어떤 조건이면 선택할지 직접 정해 보세요." },
-  { id: "delegate-update", items: ["T2", "T3"], title: "세부 선택은 맡기고, 진행 상황은 나누고 싶어요", body: "계약이나 추가 결제가 없는 세부 결정은 맡겨도 괜찮지만, 진행 상황은 함께 알고 싶어 해요.", nextStep: "중간에 알려줄 시점과 반드시 함께 결정할 범위를 나눠보세요." },
+  { id: "delegate-update", items: ["T2", "T3"], title: "세부 선택을 맡겨도, 진행 상황은 알고 싶어요", body: "계약이나 추가 결제가 없는 세부 결정은 맡겨도 괜찮지만, 진행 상황은 함께 알고 싶어 해요.", nextStep: "중간에 알려줄 시점과 반드시 함께 결정할 범위를 나눠보세요." },
   { id: "family-listen-decide", items: ["F1", "F2"], title: "가족의 바람을 듣고, 선택은 둘이 하고 싶어요", body: "가족의 바람은 먼저 듣고, 마지막 선택은 둘이 하고 싶어 해요.", nextStep: "가족과 상의할 내용과 둘이 최종 선택할 내용을 나눠보세요." },
-  { id: "support-listen-help", items: ["H1", "H2"], title: "이야기도 들어주고, 일도 나눠주길 바라요", body: "힘들 때는 이야기를 먼저 들어주고, 몰린 일도 나눠주길 바라요.", nextStep: "이야기만 들어주면 되는 때와 일을 나눠주면 좋은 때를 구분해 말해 보세요. 상대가 해줄 수 있는지도 함께 확인해 보세요." },
+  { id: "support-listen-help", items: ["H1", "H2"], title: "이야기를 듣고, 몰린 일도 일부 맡아주길 바라요", body: "힘들 때는 이야기를 먼저 들어주고, 할 일이 몰리면 상대가 내 일의 일부도 맡아주길 바라요.", nextStep: "이야기를 먼저 들어주면 좋은 때와, 내 일의 일부도 맡아주면 좋은 때를 말해 보세요. 상대가 맡을 수 있는 범위도 함께 확인해 보세요." },
 ];
 
 function buildInsights(draft: V31Draft): V31Insight[] {
@@ -311,7 +355,7 @@ function buildInsights(draft: V31Draft): V31Insight[] {
   }
   const covered = new Set(insights.flatMap((insight) => insight.evidence.map((item) => item.id)));
   for (const question of WEDDING_CODE_V31_QUESTIONS) {
-    if (high(question.id) && !covered.has(question.id)) insights.push({ id: `single-${question.id}`, ...SINGLE_READINGS[question.id], evidence: [evidence(draft, question.id)] });
+    if (high(question.id) && !covered.has(question.id)) insights.push(singleInsight(draft, question));
   }
   for (const taste of WEDDING_CODE_V31_TASTES) {
     const insight = directTasteInsight(draft, taste.key);
@@ -319,19 +363,22 @@ function buildInsights(draft: V31Draft): V31Insight[] {
   }
   if (draft.avoidances?.status === "answered") {
     for (const option of WEDDING_CODE_V31_AVOIDANCES.filter((item) => draft.avoidances?.status === "answered" && draft.avoidances.values.includes(item.value))) {
-      insights.push({ id: `avoid-${option.value}`, title: `피하고 싶은 것: ${option.label}`, body: "결혼식에서 피하고 싶은 조건으로 직접 골랐어요. 어떤 정도나 방식이 부담스러운지 실제 예시로 확인해 보세요.", evidence: [avoidanceEvidence(draft)], nextStep: AVOIDANCE_NEXT_STEPS[option.value] });
+      insights.push(avoidanceInsight(draft, option));
     }
     if (high("V1") && draft.avoidances.values.includes("heavy_decoration")) insights.push({
       id: "flower-amount", title: "좋아하는 꽃 장식의 정도를 정해 보면 좋겠어요", body: "풍성한 꽃은 원하면서, 꽃과 장식이 빼곡한 공간은 피하고 싶다고 답했어요. 원하는 양이나 장식할 위치가 있을 수 있어요.", evidence: [evidence(draft, "V1"), avoidanceEvidence(draft)], nextStep: "마음에 드는 사진과 부담스러운 사진을 나란히 놓고 꽃의 양과 위치를 짚어보세요. 둘 다 맞는 답으로 남겨두어도 괜찮아요.",
     });
     if (draft.tastes.ceremony?.status === "answered" && draft.tastes.ceremony.values.includes("participatory") && draft.avoidances.values.includes("stage_participation")) insights.push({
-      id: "participation-format", title: "하객이 함께하는 방식은 따로 정하면 돼요", body: "하객이 참여하는 순서는 원하면서, 하객을 무대로 부르는 순서는 피하고 싶다고 답했어요. 자리에서 함께하는 방식도 있어요.", evidence: [tasteEvidence(draft, "ceremony"), avoidanceEvidence(draft)], nextStep: "원하는 참여 방식과 피할 방식을 나눠 진행자에게 알려 주세요. 참여 여부를 하객이 선택할 수 있는지도 확인해 보세요.",
+      id: "participation-format", title: "하객이 함께하는 방식은 따로 정하면 돼요", body: "하객이 참여하는 순서는 원하면서, 하객을 무대로 부르는 순서는 피하고 싶다고 답했어요. 자리에서 함께하는 방식도 있어요.",
+      evidence: [tasteEvidence(draft, "ceremony"), avoidanceEvidence(draft), ...(wantsNoGuests(draft) ? [tasteEvidence(draft, "guests")] : [])],
+      nextStep: wantsNoGuests(draft) ? "하객 없이 둘만 하는 예식도 골랐어요. 참여 순서를 떠올린 상황이 예식과 다른 날인지, 생각해 두고 싶은 가능성인지 이야기해 보세요. 어느 답도 지우지 않고 남겨둘 수 있어요." : "원하는 참여 방식과 피할 방식을 나눠 진행자에게 알려 주세요. 참여 여부를 하객이 선택할 수 있는지도 확인해 보세요.",
     });
   }
   return insights;
 }
 export function buildV31Profile(input: V31Draft): V31Profile {
   const draft = normalizeV31Draft(input);
+  const insights = buildInsights(draft);
   const topics = WEDDING_CODE_V31_TOPICS.map((topic) => ({ key: topic.key, title: topic.title, responses: WEDDING_CODE_V31_QUESTIONS.filter((question) => question.topic === topic.key).map((question) => evidence(draft, question.id)) }));
   const unresolved = WEDDING_CODE_V31_QUESTIONS.filter((question) => !isRating(draft.answers[question.id])).map((question) => evidence(draft, question.id));
   for (const taste of WEDDING_CODE_V31_TASTES) {
@@ -346,9 +393,9 @@ export function buildV31Profile(input: V31Draft): V31Profile {
     hasContent: hasV31Content(draft),
     priorityLabels: draft.priorities?.status === "answered" ? v31ChoiceLabels(draft.priorities, getV31PriorityOptions(draft)) : [],
     avoidanceLabels: v31ChoiceLabels(draft.avoidances, WEDDING_CODE_V31_AVOIDANCES),
-    priorityGuides: priorityGuides(draft),
+    priorityGuides: priorityGuides(draft, insights),
     spendingLabels: v31ChoiceLabels(draft.spending, WEDDING_CODE_V31_SPENDING),
-    insights: buildInsights(draft),
+    insights,
     tastes: WEDDING_CODE_V31_TASTES.map((taste) => ({ key: taste.key, title: taste.title, labels: v31ChoiceLabels(draft.tastes[taste.key], taste.options) })),
     topics,
     unresolved,
@@ -384,7 +431,7 @@ const TASTE_FOLLOW_UP: Record<V31TasteKey, string> = {
   venue: "서로 원하는 공간의 후보와 꼭 필요한 조건을 함께 골라보세요. 둘의 중간이 정답일 필요는 없어요.",
   photo: "각자 남기고 싶은 장면을 골라보고, 함께 담을 수 있는지 살펴보세요.",
   attire: "각자 입고 싶은 옷을 고르고, 함께 맞추고 싶은 부분만 의논해 보세요.",
-  meal: "원하는 식사 방식의 후보와 하객에게 필요한 조건을 함께 살펴보세요.",
+  meal: "원하는 식사 방식의 후보를 살펴보고, 함께 식사할 사람에게 필요한 조건도 확인해 보세요.",
   guests: "이 답은 바라는 규모예요. 실제 초대할 사람과 장소의 수용 인원은 따로 확인해 보세요.",
   ceremony: "각자 넣고 싶은 순서를 고르고, 전체 길이와 진행 방법을 함께 정해 보세요.",
 };
@@ -422,7 +469,7 @@ function questionFollowUp(question: V31Question, kind: V31PairItem["kind"]): str
   return question.topic === "support" ? `${followUp} 서로 해줄 수 있는 방식과 여유도 이야기해 보세요.` : followUp;
 }
 function choiceFollowUp(kind: V31PairItem["kind"], followUp: string): string {
-  if (kind === "unavailable") return "원하는 보기를 고르지 않은 답은 의견 차이로 보지 않아요. 어떤 상태로 답했는지 보고, 지금 이야기하고 싶은 내용인지부터 확인해 보세요.";
+  if (kind === "unavailable") return "아직 모름, 계획 없음, 지금 답하지 않음, 맞는 보기 없음은 서로 다른 답이에요. 보기가 맞지 않았다면 어떤 생각이 빠져 있었는지 이야기해 보세요. 비교할 구체 선택이 없다는 이유만으로 의견 차이로 보지는 않아요.";
   if (kind === "middle") return "두 사람 모두 특정 보기를 고르지는 않았어요. 실제 후보나 준비 상황이 생기면 다시 이야기해 보세요.";
   if (kind === "open_preference") return "‘어느 쪽도 괜찮아요’는 아직 모른다는 답과 달라요. 구체적으로 고른 답이 있다면 그 후보부터 함께 살펴볼 수 있어요. 같은 취향으로 합의한 것은 아니에요.";
   return followUp;
@@ -436,15 +483,24 @@ export function compareV31(firstInput: V31Draft, secondInput: V31Draft): V31Pair
     return {
       id: question.id, title: question.statement,
       first: v31ResponseLabel(first.answers[question.id]), second: v31ResponseLabel(second.answers[question.id]),
-      kind, followUp: questionFollowUp(question, kind), isPriority: priorities.has(question.id),
+      kind, followUp: question.topic === "guests" && kind !== "unavailable" && (wantsNoGuests(first) || wantsNoGuests(second))
+        ? "하객 없이 둘만 하는 예식이라는 답도 있어요. 이 문장과 하객 규모에 답할 때 각각 어떤 상황을 떠올렸는지 먼저 이야기해 보세요."
+        : questionFollowUp(question, kind), isPriority: priorities.has(question.id),
     };
   });
   for (const taste of WEDDING_CODE_V31_TASTES) {
     const kind = choicePairKind(first.tastes[taste.key], second.tastes[taste.key]);
+    const followUp = taste.key === "guests" && (wantsNoGuests(first) || wantsNoGuests(second))
+      ? wantsNoGuests(first) && wantsNoGuests(second)
+        ? "둘만 하는 예식에서 남기고 싶은 순간과 진행 순서를 이야기해 보세요. 후보 장소에서 둘만의 예식이 가능한지도 확인해 보세요."
+        : "한 사람은 하객 없이 둘만 하는 예식을 골랐어요. 각자 떠올린 예식의 모습을 이야기하고, 초대 여부와 규모부터 맞춰보세요."
+      : taste.key === "ceremony" && [first, second].some(person => wantsNoGuests(person) && person.tastes.ceremony?.status === "answered" && person.tastes.ceremony.values.includes("participatory"))
+        ? "하객 없이 둘만 하는 예식과 하객 참여 순서를 함께 고른 답이 있어요. 서로 다른 날이나 상황을 떠올린 것인지 먼저 이야기해 보세요. 어느 답도 틀린 것으로 정하지 않아요."
+        : TASTE_FOLLOW_UP[taste.key];
     items.push({
       id: `taste.${taste.key}`, title: taste.question,
       first: v31ChoiceLabels(first.tastes[taste.key], taste.options).join(" · "), second: v31ChoiceLabels(second.tastes[taste.key], taste.options).join(" · "),
-      kind, followUp: choiceFollowUp(kind, TASTE_FOLLOW_UP[taste.key]), isPriority: priorities.has(`taste.${taste.key}`),
+      kind, followUp: choiceFollowUp(kind, followUp), isPriority: priorities.has(`taste.${taste.key}`),
       sharedLabels: sharedChoiceLabels(first.tastes[taste.key], second.tastes[taste.key], taste.options, taste.key),
     });
   }

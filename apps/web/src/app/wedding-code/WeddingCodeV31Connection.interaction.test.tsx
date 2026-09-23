@@ -7,8 +7,8 @@ import { WEDDING_CODE_V31_TASTES } from "@/constants/weddingCodeV31";
 import { createV31Draft, encodeV31 } from "@/lib/weddingCode/v31";
 import { V31_CORE_RATING_IDS } from "@/lib/weddingCode/v31Flow";
 import { getPairSessionIssuedAt, parsePairSessionRequest, type PairSessionRequest } from "@/lib/weddingCode/pairSessionContract";
-import { parsePairSessionHash, readPairSessionRecovery, readSavedPairSession } from "@/lib/weddingCode/pairSessionClient";
-import WeddingCodeV31Connection from "./WeddingCodeV31Connection";
+import { parsePairSessionHash, readPairSessionRecovery, readSavedPairSession, savePairSessionLink, savePairSessionRecovery, forgetPairSession } from "@/lib/weddingCode/pairSessionClient";
+import WeddingCodeV31Connection, { WeddingCodeComparisonResume } from "./WeddingCodeV31Connection";
 
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -130,5 +130,54 @@ describe("본인 결과에서 두 사람 초대 만들기", () => {
     expect([...container.querySelectorAll<HTMLInputElement>('input[type="checkbox"]')].every(item => !item.disabled)).toBe(true);
     await button("초대 만들기 다시 시도"); expect(fetcher).toHaveBeenCalledTimes(2);
     expect(request(1)).toEqual(request(0));
+  });
+
+  it("생성 요청 뒤 화면을 떠나면 늦은 성공으로 현재 화면이나 영구 주소를 바꾸지 않고 확인 주소만 남긴다", async () => {
+    let resolve!: (value: Response) => void;
+    fetcher.mockImplementationOnce(() => new Promise<Response>(done => { resolve = done; }));
+    await render(); await consent(); await button("동의하고 초대 만들기");
+    const input = request(0);
+    const recovery = readPairSessionRecovery(input.roomId);
+    await act(async () => root.render(<section>내 답 수정 화면</section>));
+    await act(async () => resolve(new Response(JSON.stringify({ snapshot: {
+      roomId: input.roomId, state: "waiting", role: "owner", ownAnswerCode: input.answerCode,
+      expiresAt: new Date(now + 7 * 86400000).toISOString(),
+    } }), { status: 200 })));
+    expect(container.textContent).toBe("내 답 수정 화면");
+    expect(readSavedPairSession()).toBeNull();
+    expect(readPairSessionRecovery(input.roomId)).toEqual(recovery);
+    await act(async () => root.render(<WeddingCodeComparisonResume />));
+    expect(container.textContent).toContain("완료 여부는 주소를 열어 확인해 주세요");
+    expect(container.textContent).not.toContain("연결한 두 사람 결과 보기");
+    const link = container.querySelector<HTMLAnchorElement>("a")!;
+    expect(parsePairSessionHash(new URL(link.href).hash)?.token).toBe(input.ownerToken);
+  });
+
+  it.each([false, true])("자동 저장 OFF=%s에서 응답 유실 후 같은 탭을 다시 열어도 요청 확인 주소를 복원한다", async off => {
+    if (off) window.localStorage.setItem("hanbang.wedding-code.v31.autosave", "off");
+    await render(); await consent(); await button("동의하고 초대 만들기");
+    const input = request(0);
+    await act(async () => root.unmount()); root = createRoot(container);
+    await act(async () => root.render(<WeddingCodeComparisonResume />));
+    expect(fetcher).toHaveBeenCalledTimes(1);
+    expect(container.textContent).toContain("이 탭에서 요청한 함께 보기 확인");
+    expect(container.textContent).not.toContain("연결한 두 사람 결과 보기");
+    expect(parsePairSessionHash(new URL(container.querySelector<HTMLAnchorElement>("a")!.href).hash)).toMatchObject({ roomId: input.roomId, token: input.ownerToken });
+    expect(readSavedPairSession()).toBeNull();
+  });
+
+  it("다른 방의 저장 결과와 미확인 요청은 각각 보여주고 같은 권한은 중복하지 않는다", async () => {
+    const first = { roomId: "11111111-1111-4111-8111-111111111111", token: "a".repeat(64), mode: "member" as const, expiresAt: new Date(now + 86400000).toISOString() };
+    const second = { ...first, roomId: "22222222-2222-4222-8222-222222222222", token: "b".repeat(64) };
+    savePairSessionLink(first); savePairSessionRecovery(second);
+    await act(async () => root.render(<WeddingCodeComparisonResume />));
+    const links = [...container.querySelectorAll<HTMLAnchorElement>("a")];
+    expect(links.map(item => item.textContent)).toEqual(["연결한 두 사람 결과 보기", "이 탭에서 요청한 함께 보기 확인"]);
+    expect(links.map(item => parsePairSessionHash(new URL(item.href).hash)?.roomId)).toEqual([first.roomId, second.roomId]);
+    await act(async () => savePairSessionLink(second));
+    expect(container.querySelectorAll("a")).toHaveLength(1);
+    expect(container.textContent).not.toContain("이 탭에서 요청한 함께 보기 확인");
+    await act(async () => forgetPairSession(second.roomId));
+    expect(container.querySelector("a")).toBeNull();
   });
 });

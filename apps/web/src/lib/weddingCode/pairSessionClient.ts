@@ -50,19 +50,24 @@ export function readSavedPairSession(): SavedPairSession | null {
   try { return window.localStorage.getItem(SAVE_PREFERENCE_KEY) === "off" ? null : readSaved(window.localStorage, PAIR_SESSION_LOCAL_KEY); }
   catch { return null; }
 }
-export function readPairSessionRecovery(roomId: string): SavedPairSession | null {
-  try { const saved = readSaved(window.sessionStorage, RECOVERY_KEY); return saved?.roomId === roomId ? saved : null; }
+export function readPairSessionRecovery(roomId?: string): SavedPairSession | null {
+  try { const saved = readSaved(window.sessionStorage, RECOVERY_KEY); return roomId === undefined || saved?.roomId === roomId ? saved : null; }
   catch { return null; }
 }
+function writePairSessionRecovery(value: SavedPairSession): boolean {
+  try { window.sessionStorage.setItem(RECOVERY_KEY, JSON.stringify(value)); return true; }
+  catch { return false; }
+}
 export function savePairSessionRecovery(value: SavedPairSession): void {
-  try { window.sessionStorage.setItem(RECOVERY_KEY, JSON.stringify(value)); } catch { /* 같은 화면의 재시도는 메모리의 키를 유지한다. */ }
+  if (writePairSessionRecovery(value)) window.dispatchEvent(new Event("wedding-code-comparison-change"));
 }
 export function savePairSessionLink(value: SavedPairSession): boolean {
-  savePairSessionRecovery(value);
+  let changed = writePairSessionRecovery(value);
   try {
     if (window.localStorage.getItem(SAVE_PREFERENCE_KEY) === "off") return false;
-    window.localStorage.setItem(PAIR_SESSION_LOCAL_KEY, JSON.stringify(value)); window.dispatchEvent(new Event("wedding-code-comparison-change")); return true;
+    window.localStorage.setItem(PAIR_SESSION_LOCAL_KEY, JSON.stringify(value)); changed = true; return true;
   } catch { return false; }
+  finally { if (changed) window.dispatchEvent(new Event("wedding-code-comparison-change")); }
 }
 export function clearSavedPairSessionLink(): boolean {
   try {

@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { WEDDING_CODE_V31_TASTES, type V31Draft } from "@/constants/weddingCodeV31";
 import { createV31Draft, encodeV31 } from "@/lib/weddingCode/v31";
 import { requestPairSession, type PairSessionResult, type PairSessionSnapshot } from "@/lib/weddingCode/pairSessionContract";
+import { readPairSessionRecovery, readSavedPairSession } from "@/lib/weddingCode/pairSessionClient";
 import type WeddingCodeV31Client from "../WeddingCodeV31Client";
 import type WeddingCodeV31Results from "../WeddingCodeV31Results";
 import WeddingCodeTogether from "./WeddingCodeTogether";
@@ -25,7 +26,8 @@ vi.mock("../WeddingCodeV31Client", () => ({ default: function Client(props: Clie
   useEffect(() => () => { observed.unmount(); }, []);
   observed.client(props);
   return <section aria-label="작성 중인 내 질문"><p>작성한 답 {answers}개</p><button onClick={() => setAnswers(count => count + 1)}>문항 답하기</button>
-    <button onClick={() => setCompleted(true)}>내 결과 보기</button>{completed ? props.renderResultActions?.(completeDraft(2)) : null}
+    <button onClick={() => setCompleted(true)}>내 결과 보기</button>{completed ? props.renderResultActions?.(completeDraft(answers > 0 ? 5 : 2)) : null}
+    {completed ? <button onClick={() => setCompleted(false)}>내 답 수정하기</button> : null}
   </section>;
 } }));
 vi.mock("../WeddingCodeV31Results", () => ({ default: function Results(props: ResultsProps) {
@@ -71,8 +73,9 @@ describe("두 사람 연결의 접근 권한과 늦게 도착한 응답", () => 
   });
   afterEach(async () => {
     await act(async () => root.unmount()); document.body.replaceChildren();
+    vi.restoreAllMocks();
     window.localStorage.clear(); window.sessionStorage.clear();
-    vi.restoreAllMocks(); vi.useRealTimers();
+    vi.useRealTimers();
   });
 
   function ready(role: "owner" | "participant" = "owner"): PairSessionSnapshot {
@@ -222,5 +225,57 @@ describe("두 사람 연결의 접근 권한과 늦게 도착한 응답", () => 
     expect(vi.mocked(requestPairSession).mock.calls[2][0]).toEqual(firstJoin);
     expect(window.location.hash).toBe(originalHash);
     expect(observed.unmount).not.toHaveBeenCalled();
+  });
+
+  it("참여 요청 뒤 답을 수정하면 늦은 성공과 이전·후속 조회가 수정 화면을 바꾸지 않고 복구 주소를 남긴다", async () => {
+    const oldRead = deferred(); const join = deferred();
+    vi.mocked(requestPairSession).mockResolvedValueOnce({ ok: true, snapshot: waiting() })
+      .mockReturnValueOnce(oldRead.promise).mockReturnValueOnce(join.promise)
+      .mockResolvedValue({ ok: true, snapshot: ready("participant") });
+    await render("invite", INVITE); await click("내 결과 보기"); await poll();
+    for (const checkbox of container.querySelectorAll<HTMLInputElement>('input[type="checkbox"]')) await act(async () => checkbox.click());
+    await click("동의하고 두 사람 결과 보기");
+    const input = vi.mocked(requestPairSession).mock.calls[2][0];
+    if (input.action !== "join") throw new Error("참여 요청이 필요해요.");
+    const originalHash = window.location.hash;
+    await click("내 답 수정하기"); await click("문항 답하기");
+    const editing = quiz();
+    await act(async () => oldRead.resolve({ ok: true, snapshot: { ...waiting(), state: "ready" } }));
+    expect(quiz()).toBe(editing);
+    await act(async () => join.resolve({ ok: true, snapshot: ready("participant") }));
+    expect(readSavedPairSession()).toBeNull();
+    expect(readPairSessionRecovery(ROOM)?.token).toBe(input.participantToken);
+    await poll();
+    expect(requestPairSession).toHaveBeenCalledTimes(3);
+    expect(quiz()).toBe(editing); expect(quiz()?.textContent).toContain("작성한 답 1개");
+    expect(observed.unmount).not.toHaveBeenCalled();
+    expect(result()).toBeNull(); expect(window.location.hash).toBe(originalHash);
+    expect(container.textContent).toContain("이 탭에서 요청한 함께 보기 확인");
+    expect(container.textContent).toContain("완료 여부는 주소를 열어 확인해 주세요");
+  });
+
+  it.each([false, true])("참여 실패 뒤 답을 수정해도 최초 동의한 답과 접근 키로만 다시 시도한다 (탭 저장 차단 %s)", async blocked => {
+    if (blocked) vi.spyOn(window, "sessionStorage", "get").mockImplementation(() => { throw new DOMException("blocked", "SecurityError"); });
+    vi.mocked(requestPairSession).mockResolvedValueOnce({ ok: true, snapshot: waiting() })
+      .mockResolvedValue({ ok: false, code: blocked ? "NOT_FOUND" : "NETWORK_ERROR", error: "참여 결과를 확인하지 못했어요." });
+    await render("invite", INVITE); await click("내 결과 보기");
+    for (const checkbox of container.querySelectorAll<HTMLInputElement>('input[type="checkbox"]')) await act(async () => checkbox.click());
+    await click("동의하고 두 사람 결과 보기");
+    const input = vi.mocked(requestPairSession).mock.calls[1][0];
+    if (input.action !== "join") throw new Error("참여 요청이 필요해요.");
+    await click("내 답 수정하기"); await click("문항 답하기"); await click("내 결과 보기");
+    expect(container.textContent).toContain("수정한 답은 앞선 요청에 반영되지 않아요");
+    expect(container.querySelectorAll('input[type="checkbox"]')).toHaveLength(0);
+    expect(requestPairSession).toHaveBeenCalledTimes(2);
+    const recovery = [...container.querySelectorAll<HTMLAnchorElement>("a")].find(link => link.textContent === "앞서 요청한 함께 보기 확인")!;
+    expect(recovery).toBeTruthy();
+    expect(new URLSearchParams(new URL(recovery.href).hash.slice(1)).get("access")).toBe(input.participantToken);
+    await click("앞서 요청한 답으로 다시 시도");
+    expect(requestPairSession).toHaveBeenCalledTimes(3);
+    expect(vi.mocked(requestPairSession).mock.calls[2][0]).toEqual(input);
+    expect(input.answerCode).not.toBe(encodeV31(completeDraft(5)));
+    expect(readSavedPairSession()).toBeNull();
+    expect(container.querySelector('[role="alert"]')?.textContent).toContain("참여 결과를 확인하지 못했어요");
+    if (!blocked) expect(readPairSessionRecovery(ROOM)?.token).toBe(input.participantToken);
   });
 });
