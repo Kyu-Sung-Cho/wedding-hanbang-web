@@ -61,12 +61,16 @@ function PersonalProfile({ draft, onEdit, nested = false }: { draft: V31Draft; o
   const priorityInsightIds = new Set(profile.priorityGuides.map(item => item.id
     .replace(/^priority-taste\./, "direct-").replace(/^priority-avoid\./, "avoid-").replace(/^priority-/, "single-")));
   const insights = profile.insights.filter(item => !priorityInsightIds.has(item.id));
-  const priorityLabels = profile.priorityLabels.length ? profile.priorityLabels : [draft.priorities?.status === "no_preference" ? "특히 지킬 것을 따로 고르지 않았어요." : draft.priorities?.status === "undecided" ? "우선순위는 아직 정하지 않았어요." : v31ChoiceLabels(draft.priorities, []).join(" · ")];
+  const priorityStatus = draft.priorities?.status === "skipped" ? "우선순위는 이번에 고르지 않았어요."
+    : draft.priorities?.status === "no_preference" ? "특히 지킬 것을 따로 고르지 않았어요."
+      : draft.priorities?.status === "undecided" ? "우선순위는 아직 정하지 않았어요."
+        : v31ChoiceLabels(draft.priorities, []).join(" · ");
   return <div>
     <section className={`${v31Surface} p-5 sm:p-7`}>
       <p className="text-xs font-semibold text-[var(--hb-success)]">내가 직접 고른 우선순위</p>
       <h2 className={`mt-2 text-xl ${v31Title}`}>이번 결혼식에서 지키고 싶은 것</h2>
-      <ul className="mt-4 space-y-2">{priorityLabels.map((label, index) => <li key={`${label}-${index}`} className={`flex gap-2 ${v31Body}`}><span aria-hidden="true" className="text-[var(--hb-success)]">·</span>{label}</li>)}</ul>
+      {profile.priorityLabels.length ? <ul className="mt-4 space-y-2">{profile.priorityLabels.map((label, index) => <li key={`${label}-${index}`} className={`flex gap-2 ${v31Body}`}><span aria-hidden="true" className="text-[var(--hb-success)]">·</span>{label}</li>)}</ul>
+        : <p className={`mt-4 ${v31Body}`}>{priorityStatus}</p>}
       <p className="mt-3 text-xs leading-relaxed text-[var(--hb-text-muted)]">{profile.priorityLabels.length ? "직접 고른 내용이에요. 동의 점수가 높은 순서로 정하지 않았어요." : "직접 고르지 않은 우선순위는 만들어 넣지 않았어요."}</p>
       {onEdit ? <Button variant="ghost" onClick={() => onEdit("priorities")} className="mt-2">우선순위 수정</Button> : null}
       {profile.priorityGuides.length ? <div className="mt-5 border-t border-[var(--hb-hairline)] pt-5" data-priority-guides>
@@ -107,12 +111,13 @@ function PersonalProfile({ draft, onEdit, nested = false }: { draft: V31Draft; o
       <ul className="mt-3 divide-y divide-[var(--hb-hairline)]">{profile.unresolved.map(item => <li key={item.id} className="py-3"><p className={v31Body}>{item.text}</p><p className={`mt-1 text-sm ${v31Title}`}>{item.answer}</p>{onEdit ? <Button variant="ghost" onClick={() => onEdit(item.id)} className="mt-1" aria-label={`${item.text} 답 수정`}>다시 답하기</Button> : null}</li>)}</ul>
     </details> : null}
     <RawAnswers profile={profile} onEdit={onEdit} />
-    {!nested ? <section className={`${v31Surface} mt-5 p-5 sm:p-7`}>
-      <label htmlFor="wedding-code-personal-note" className={`text-base ${v31Title}`}>보기에는 없지만, 내가 꼭 남기고 싶은 것</label>
-      <p className={`mb-3 mt-2 ${v31Body}`}>지금 화면에서만 쓰는 메모예요. 공유 링크에 넣거나 저장하지 않고, 새로고침하거나 답을 수정하면 지워져요.</p>
+    {!nested ? <details className={`${v31Surface} mt-5 p-5 sm:p-7`} data-optional-personal-note>
+      <summary className={`flex min-h-11 cursor-pointer items-center text-base ${v31Title}`}>내 메모 남기기 (선택)</summary>
+      <label htmlFor="wedding-code-personal-note" className={`mt-3 block text-sm ${v31Title}`}>보기에는 없지만, 내가 남기고 싶은 것</label>
+      <p className={`mb-3 mt-2 ${v31Body}`}>쓰지 않아도 결과를 보는 데는 문제가 없어요. 메모는 이 화면에서만 볼 수 있고, 자동 저장이나 공유 링크에는 포함되지 않아요. 새로고침하거나 답을 수정하면 지워져요.</p>
       <textarea id="wedding-code-personal-note" maxLength={500} value={memo} onChange={event => setMemo(event.target.value)} rows={3}
         className="w-full resize-y rounded-lg border border-paper-outline bg-[var(--hb-surface-raised)] p-3 text-sm leading-relaxed text-[var(--hb-text-strong)] focus-visible:outline-2 focus-visible:outline-[var(--hb-focus-ring)]" placeholder="예: 입장할 때는 우리 둘이 같이 걷고 싶어요." />
-    </section> : null}
+    </details> : null}
   </div>;
 }
 

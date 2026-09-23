@@ -8,6 +8,7 @@ import {
   WEDDING_CODE_RESEARCH_RETENTION_DAYS,
   WEDDING_CODE_RESEARCH_TOMBSTONE_DAYS,
 } from "@/lib/weddingCode/contribution/contract";
+import { LOCAL_TTL_MS } from "@/lib/weddingCode/v31LocalProgress";
 import PrivacyPage from "../page";
 
 const SECRET = "test-secret-that-is-at-least-thirty-two-chars";
@@ -34,12 +35,31 @@ describe("privacy notice for WeddingCode research contributions", () => {
     vi.unstubAllEnvs();
   });
 
-  it("저장소가 없으면 받는다고 말하지 않고, 답은 서버에 저장하지 않는다고만 말한다", () => {
+  it("저장소가 없으면 받는다고 말하지 않고, 답의 서버 비저장 고지를 유지한다", () => {
     vi.stubEnv("WEDDING_CODE_RESEARCH_RECEIPT_SECRET", "");
     vi.stubEnv("WEDDING_CODE_RESEARCH_CONTRIBUTION_ENABLED", "true");
     const text = render();
     expect(text).not.toContain("답 보태기");
     expect(text).toContain("웨딩코드: 답은 기기 안에서 계산하고 서버에 저장하지 않으며");
+  });
+
+  it.each(["", SECRET])("연구 저장소 유무와 별개로 본인 브라우저 보관 범위와 제어를 알린다 (%#)", (secret) => {
+    vi.stubEnv("WEDDING_CODE_RESEARCH_RECEIPT_SECRET", secret);
+    vi.stubEnv("WEDDING_CODE_RESEARCH_CONTRIBUTION_ENABLED", "false");
+    const text = render();
+    const localNotice = text.slice(text.indexOf("기본 웨딩코드(v3.1) 이어하기:"), text.indexOf("지워 주세요.") + "지워 주세요.".length);
+
+    expect(text.indexOf("기본 웨딩코드(v3.1) 이어하기:")).toBeGreaterThan(text.indexOf("로그인 없이 이용하는 공개 웨딩코드:"));
+    expect(localNotice).toContain("본인 답과 현재 단계·수정 상태를 같은 브라우저에 보관합니다");
+    expect(localNotice).toContain(`마지막으로 답이나 진행을 저장한 때부터 ${LOCAL_TTL_MS / (24 * 60 * 60 * 1000)}일`);
+    expect(localNotice).toContain("읽거나 재방문만 해서는 기간이 늘어나지 않습니다");
+    expect(localNotice).toContain("기한이 지난 답은 불러오지 않습니다");
+    expect(localNotice).toContain("상대 답·공유 동의·자유 메모는 이 기록에 넣지 않습니다");
+    expect(localNotice).toContain("받은 두 사람 결과 링크에서는 개인 저장 기록을 읽거나 쓰지 않습니다");
+    expect(localNotice).toContain("자동저장을 끄면 저장된 답을 지우고 이후 저장을 멈추며, 꺼짐 설정만 브라우저에 남깁니다");
+    expect(localNotice).toContain("이때 현재 화면의 답은 유지됩니다");
+    expect(localNotice).toContain("‘저장된 답 지우기’는 저장 기록과 현재 진행을 함께 초기화합니다");
+    expect(localNotice).toContain("공용 기기에서는 같은 브라우저를 쓰는 사람이 답을 볼 수 있으므로");
   });
 
   it("수집 플래그를 꺼도 저장소를 지키는 동안에는 고지·기간·삭제 방법을 계속 알린다", () => {

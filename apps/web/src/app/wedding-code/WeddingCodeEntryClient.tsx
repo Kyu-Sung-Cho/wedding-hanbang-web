@@ -31,7 +31,7 @@ function ErrorEntry({ onRestart }: { onRestart: () => void }) {
         <Button
           variant="primary"
           type="button"
-          onClick={onRestart}
+          onClick={() => onRestart()}
           className="mt-6 inline-flex min-h-12 w-full items-center justify-center rounded-[6px] bg-[var(--hb-action)] px-5 text-sm font-semibold text-white hover:bg-[var(--hb-action-hover)]"
         >
           처음부터 답하기
@@ -78,14 +78,16 @@ export default function WeddingCodeEntryClient({
       };
     },
     () => window.location.hash,
-    () => "",
+    () => null,
   );
   const [restarted, setRestarted] = useState(false);
-  const entry = parseWeddingCodeEntryHash(hash) ?? (restarted ? EMPTY_WEDDING_CODE_ENTRY : defaultEntry);
+  const [restartNotice, setRestartNotice] = useState("");
+  const entry = parseWeddingCodeEntryHash(hash ?? "") ?? (restarted ? EMPTY_WEDDING_CODE_ENTRY : defaultEntry);
 
-  const restart = useCallback(() => {
+  const restart = useCallback((message?: string) => {
     // replaceState clears the fragment without ever placing an answer in `?a=` or `?b=`.
     window.history.replaceState(null, "", window.location.pathname);
+    setRestartNotice(typeof message === "string" ? message : "");
     setRestarted(true);
     window.dispatchEvent(new Event("popstate"));
   }, []);
@@ -98,6 +100,8 @@ export default function WeddingCodeEntryClient({
         shareOrigin={shareOrigin}
         partnerDraft={entry.initial.partnerDraft}
         bothDrafts={entry.initial.bothDrafts}
+        allowLocalProgress={hash !== null}
+        initialNotice={entry.initial.partnerDraft || entry.initial.bothDrafts ? "" : restartNotice}
         onRestart={restart}
       />
     );
