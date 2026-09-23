@@ -1,0 +1,476 @@
+{
+  "cronJobs": [
+    {
+      "active": true,
+      "command": "SELECT public.purge_expired_wedding_code_pair_sessions();",
+      "jobname": "wedding-code-pair-session-purge",
+      "database": "postgres",
+      "schedule": "17 3 * * *",
+      "username": "postgres",
+      "localNode": true,
+      "portMatches": true
+    }
+  ],
+  "functions": [
+    {
+      "acl": [
+        [
+          "postgres",
+          "postgres",
+          "EXECUTE",
+          false
+        ],
+        [
+          "service_role",
+          "postgres",
+          "EXECUTE",
+          false
+        ]
+      ],
+      "args": "uuid, text",
+      "body": "\nDECLARE v_row public.wedding_code_pair_sessions%ROWTYPE; v_role text; v_state text; v_result jsonb;\nBEGIN\n  IF p_room_id IS NULL OR p_token_hash IS NULL OR p_token_hash !~ '^[0-9a-f]{64}$' THEN\n    RAISE EXCEPTION 'PAIR_SESSION_INVALID' USING ERRCODE='22023';\n  END IF;\n  SELECT * INTO v_row FROM public.wedding_code_pair_sessions WHERE room_id=p_room_id FOR SHARE;\n  IF NOT FOUND THEN RAISE EXCEPTION 'PAIR_SESSION_NOT_FOUND' USING ERRCODE='28000'; END IF;\n  v_role := CASE p_token_hash WHEN v_row.owner_hash THEN 'owner' WHEN v_row.participant_hash THEN 'participant' WHEN v_row.invite_hash THEN 'invite' ELSE NULL END;\n  IF v_role IS NULL THEN RAISE EXCEPTION 'PAIR_SESSION_NOT_FOUND' USING ERRCODE='28000'; END IF;\n  v_state := CASE WHEN v_row.closed_at IS NOT NULL OR v_row.expires_at <= clock_timestamp() THEN 'closed'\n    WHEN v_row.participant_hash IS NULL THEN 'waiting' ELSE 'ready' END;\n  v_result := pg_catalog.jsonb_build_object('roomId',v_row.room_id,'state',v_state,'role',v_role,'expiresAt',v_row.expires_at);\n  -- 초대 권한은 참여 상태만 알려주며, 어느 단계에서도 원응답을 읽지 못한다.\n  IF v_role='invite' OR v_state='closed' THEN RETURN v_result; END IF;\n  v_result := v_result || pg_catalog.jsonb_build_object('ownAnswerCode',CASE WHEN v_role='owner' THEN v_row.owner_answer_code ELSE v_row.participant_answer_code END);\n  IF v_state='ready' THEN\n    v_result := v_result || pg_catalog.jsonb_build_object('partnerAnswerCode',CASE WHEN v_role='owner' THEN v_row.participant_answer_code ELSE v_row.owner_answer_code END);\n  END IF;\n  RETURN v_result;\nEND;\n",
+      "kind": "f",
+      "name": "read_wedding_code_pair_session",
+      "owner": "postgres",
+      "config": [
+        "search_path=\"\"",
+        "lock_timeout=5s",
+        "statement_timeout=5s"
+      ],
+      "result": "jsonb",
+      "strict": false,
+      "language": "plpgsql",
+      "parallel": "u",
+      "definition": "CREATE OR REPLACE FUNCTION public.read_wedding_code_pair_session(p_room_id uuid, p_token_hash text)\n RETURNS jsonb\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO ''\n SET lock_timeout TO '5s'\n SET statement_timeout TO '5s'\nAS $function$\nDECLARE v_row public.wedding_code_pair_sessions%ROWTYPE; v_role text; v_state text; v_result jsonb;\nBEGIN\n  IF p_room_id IS NULL OR p_token_hash IS NULL OR p_token_hash !~ '^[0-9a-f]{64}$' THEN\n    RAISE EXCEPTION 'PAIR_SESSION_INVALID' USING ERRCODE='22023';\n  END IF;\n  SELECT * INTO v_row FROM public.wedding_code_pair_sessions WHERE room_id=p_room_id FOR SHARE;\n  IF NOT FOUND THEN RAISE EXCEPTION 'PAIR_SESSION_NOT_FOUND' USING ERRCODE='28000'; END IF;\n  v_role := CASE p_token_hash WHEN v_row.owner_hash THEN 'owner' WHEN v_row.participant_hash THEN 'participant' WHEN v_row.invite_hash THEN 'invite' ELSE NULL END;\n  IF v_role IS NULL THEN RAISE EXCEPTION 'PAIR_SESSION_NOT_FOUND' USING ERRCODE='28000'; END IF;\n  v_state := CASE WHEN v_row.closed_at IS NOT NULL OR v_row.expires_at <= clock_timestamp() THEN 'closed'\n    WHEN v_row.participant_hash IS NULL THEN 'waiting' ELSE 'ready' END;\n  v_result := pg_catalog.jsonb_build_object('roomId',v_row.room_id,'state',v_state,'role',v_role,'expiresAt',v_row.expires_at);\n  -- 초대 권한은 참여 상태만 알려주며, 어느 단계에서도 원응답을 읽지 못한다.\n  IF v_role='invite' OR v_state='closed' THEN RETURN v_result; END IF;\n  v_result := v_result || pg_catalog.jsonb_build_object('ownAnswerCode',CASE WHEN v_role='owner' THEN v_row.owner_answer_code ELSE v_row.participant_answer_code END);\n  IF v_state='ready' THEN\n    v_result := v_result || pg_catalog.jsonb_build_object('partnerAnswerCode',CASE WHEN v_role='owner' THEN v_row.participant_answer_code ELSE v_row.owner_answer_code END);\n  END IF;\n  RETURN v_result;\nEND;\n$function$\n",
+      "volatility": "v",
+      "securityDefiner": true
+    },
+    {
+      "acl": [
+        [
+          "postgres",
+          "postgres",
+          "EXECUTE",
+          false
+        ],
+        [
+          "service_role",
+          "postgres",
+          "EXECUTE",
+          false
+        ]
+      ],
+      "args": "uuid, text",
+      "body": "\nDECLARE v_row public.wedding_code_pair_sessions%ROWTYPE;\nBEGIN\n  IF p_room_id IS NULL OR p_token_hash IS NULL OR p_token_hash !~ '^[0-9a-f]{64}$' THEN RAISE EXCEPTION 'PAIR_SESSION_INVALID' USING ERRCODE='22023'; END IF;\n  SELECT * INTO v_row FROM public.wedding_code_pair_sessions WHERE room_id=p_room_id FOR UPDATE;\n  IF NOT FOUND OR (p_token_hash IS DISTINCT FROM v_row.owner_hash AND p_token_hash IS DISTINCT FROM v_row.participant_hash) THEN\n    RAISE EXCEPTION 'PAIR_SESSION_NOT_FOUND' USING ERRCODE='28000';\n  END IF;\n  UPDATE public.wedding_code_pair_sessions SET closed_at=coalesce(closed_at,clock_timestamp()),owner_answer_code=NULL,participant_answer_code=NULL,\n    owner_consent_version=NULL,participant_consent_version=NULL,owner_age_confirmed=NULL,participant_age_confirmed=NULL,joined_at=NULL WHERE room_id=p_room_id;\n  RETURN public.read_wedding_code_pair_session(p_room_id,p_token_hash);\nEND;\n",
+      "kind": "f",
+      "name": "revoke_wedding_code_pair_session",
+      "owner": "postgres",
+      "config": [
+        "search_path=\"\"",
+        "lock_timeout=5s",
+        "statement_timeout=5s"
+      ],
+      "result": "jsonb",
+      "strict": false,
+      "language": "plpgsql",
+      "parallel": "u",
+      "definition": "CREATE OR REPLACE FUNCTION public.revoke_wedding_code_pair_session(p_room_id uuid, p_token_hash text)\n RETURNS jsonb\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO ''\n SET lock_timeout TO '5s'\n SET statement_timeout TO '5s'\nAS $function$\nDECLARE v_row public.wedding_code_pair_sessions%ROWTYPE;\nBEGIN\n  IF p_room_id IS NULL OR p_token_hash IS NULL OR p_token_hash !~ '^[0-9a-f]{64}$' THEN RAISE EXCEPTION 'PAIR_SESSION_INVALID' USING ERRCODE='22023'; END IF;\n  SELECT * INTO v_row FROM public.wedding_code_pair_sessions WHERE room_id=p_room_id FOR UPDATE;\n  IF NOT FOUND OR (p_token_hash IS DISTINCT FROM v_row.owner_hash AND p_token_hash IS DISTINCT FROM v_row.participant_hash) THEN\n    RAISE EXCEPTION 'PAIR_SESSION_NOT_FOUND' USING ERRCODE='28000';\n  END IF;\n  UPDATE public.wedding_code_pair_sessions SET closed_at=coalesce(closed_at,clock_timestamp()),owner_answer_code=NULL,participant_answer_code=NULL,\n    owner_consent_version=NULL,participant_consent_version=NULL,owner_age_confirmed=NULL,participant_age_confirmed=NULL,joined_at=NULL WHERE room_id=p_room_id;\n  RETURN public.read_wedding_code_pair_session(p_room_id,p_token_hash);\nEND;\n$function$\n",
+      "volatility": "v",
+      "securityDefiner": true
+    },
+    {
+      "acl": [
+        [
+          "postgres",
+          "postgres",
+          "EXECUTE",
+          false
+        ],
+        [
+          "service_role",
+          "postgres",
+          "EXECUTE",
+          false
+        ]
+      ],
+      "args": "uuid, text, text, text, text, bigint, boolean, boolean",
+      "body": "\nDECLARE v_now timestamptz := clock_timestamp(); v_row public.wedding_code_pair_sessions%ROWTYPE;\nBEGIN\n  IF p_room_id IS NULL OR p_room_id::text !~ '^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$'\n    OR p_owner_hash IS NULL OR p_owner_hash !~ '^[0-9a-f]{64}$' OR p_invite_hash IS NULL OR p_invite_hash !~ '^[0-9a-f]{64}$' OR p_owner_hash=p_invite_hash\n    OR p_answer_code IS NULL OR octet_length(p_answer_code)>256 OR p_answer_code !~ '^31_[1-5uns-]{25}_[0-9a-z.-]+_[0-9a-z-]+_[0-9a-z-]+_[0-9a-z-]+$'\n    OR p_consent_version IS DISTINCT FROM '2026-09-23' OR p_consented IS DISTINCT FROM TRUE OR p_age_confirmed IS DISTINCT FROM TRUE\n    OR p_issued_at IS NULL OR p_issued_at <= 0\n    OR ('x'||substr(replace(p_room_id::text,'-',''),1,12))::bit(48)::bigint IS DISTINCT FROM p_issued_at\n    OR abs(extract(epoch FROM v_now)*1000-p_issued_at)>300000 THEN\n    RAISE EXCEPTION 'PAIR_SESSION_INVALID' USING ERRCODE='22023';\n  END IF;\n  INSERT INTO public.wedding_code_pair_sessions(room_id,owner_hash,invite_hash,owner_answer_code,owner_consent_version,owner_age_confirmed,issued_at,created_at,expires_at)\n    VALUES(p_room_id,p_owner_hash,p_invite_hash,p_answer_code,p_consent_version,TRUE,p_issued_at,v_now,v_now+interval '7 days')\n    ON CONFLICT(room_id) DO NOTHING;\n  SELECT * INTO v_row FROM public.wedding_code_pair_sessions WHERE room_id=p_room_id FOR UPDATE;\n  IF v_row.owner_hash IS DISTINCT FROM p_owner_hash OR v_row.invite_hash IS DISTINCT FROM p_invite_hash THEN\n    RAISE EXCEPTION 'PAIR_SESSION_CONFLICT' USING ERRCODE='PT409';\n  END IF;\n  IF v_row.closed_at IS NOT NULL OR v_row.expires_at <= clock_timestamp() THEN RAISE EXCEPTION 'PAIR_SESSION_CLOSED' USING ERRCODE='55000'; END IF;\n  IF v_row.owner_answer_code IS DISTINCT FROM p_answer_code OR v_row.issued_at IS DISTINCT FROM p_issued_at THEN\n    RAISE EXCEPTION 'PAIR_SESSION_CONFLICT' USING ERRCODE='PT409';\n  END IF;\n  RETURN public.read_wedding_code_pair_session(p_room_id,p_owner_hash);\nEND;\n",
+      "kind": "f",
+      "name": "create_wedding_code_pair_session",
+      "owner": "postgres",
+      "config": [
+        "search_path=\"\"",
+        "lock_timeout=5s",
+        "statement_timeout=5s"
+      ],
+      "result": "jsonb",
+      "strict": false,
+      "language": "plpgsql",
+      "parallel": "u",
+      "definition": "CREATE OR REPLACE FUNCTION public.create_wedding_code_pair_session(p_room_id uuid, p_owner_hash text, p_invite_hash text, p_answer_code text, p_consent_version text, p_issued_at bigint, p_consented boolean, p_age_confirmed boolean)\n RETURNS jsonb\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO ''\n SET lock_timeout TO '5s'\n SET statement_timeout TO '5s'\nAS $function$\nDECLARE v_now timestamptz := clock_timestamp(); v_row public.wedding_code_pair_sessions%ROWTYPE;\nBEGIN\n  IF p_room_id IS NULL OR p_room_id::text !~ '^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$'\n    OR p_owner_hash IS NULL OR p_owner_hash !~ '^[0-9a-f]{64}$' OR p_invite_hash IS NULL OR p_invite_hash !~ '^[0-9a-f]{64}$' OR p_owner_hash=p_invite_hash\n    OR p_answer_code IS NULL OR octet_length(p_answer_code)>256 OR p_answer_code !~ '^31_[1-5uns-]{25}_[0-9a-z.-]+_[0-9a-z-]+_[0-9a-z-]+_[0-9a-z-]+$'\n    OR p_consent_version IS DISTINCT FROM '2026-09-23' OR p_consented IS DISTINCT FROM TRUE OR p_age_confirmed IS DISTINCT FROM TRUE\n    OR p_issued_at IS NULL OR p_issued_at <= 0\n    OR ('x'||substr(replace(p_room_id::text,'-',''),1,12))::bit(48)::bigint IS DISTINCT FROM p_issued_at\n    OR abs(extract(epoch FROM v_now)*1000-p_issued_at)>300000 THEN\n    RAISE EXCEPTION 'PAIR_SESSION_INVALID' USING ERRCODE='22023';\n  END IF;\n  INSERT INTO public.wedding_code_pair_sessions(room_id,owner_hash,invite_hash,owner_answer_code,owner_consent_version,owner_age_confirmed,issued_at,created_at,expires_at)\n    VALUES(p_room_id,p_owner_hash,p_invite_hash,p_answer_code,p_consent_version,TRUE,p_issued_at,v_now,v_now+interval '7 days')\n    ON CONFLICT(room_id) DO NOTHING;\n  SELECT * INTO v_row FROM public.wedding_code_pair_sessions WHERE room_id=p_room_id FOR UPDATE;\n  IF v_row.owner_hash IS DISTINCT FROM p_owner_hash OR v_row.invite_hash IS DISTINCT FROM p_invite_hash THEN\n    RAISE EXCEPTION 'PAIR_SESSION_CONFLICT' USING ERRCODE='PT409';\n  END IF;\n  IF v_row.closed_at IS NOT NULL OR v_row.expires_at <= clock_timestamp() THEN RAISE EXCEPTION 'PAIR_SESSION_CLOSED' USING ERRCODE='55000'; END IF;\n  IF v_row.owner_answer_code IS DISTINCT FROM p_answer_code OR v_row.issued_at IS DISTINCT FROM p_issued_at THEN\n    RAISE EXCEPTION 'PAIR_SESSION_CONFLICT' USING ERRCODE='PT409';\n  END IF;\n  RETURN public.read_wedding_code_pair_session(p_room_id,p_owner_hash);\nEND;\n$function$\n",
+      "volatility": "v",
+      "securityDefiner": true
+    },
+    {
+      "acl": [
+        [
+          "postgres",
+          "postgres",
+          "EXECUTE",
+          false
+        ],
+        [
+          "service_role",
+          "postgres",
+          "EXECUTE",
+          false
+        ]
+      ],
+      "args": "uuid, text, text, text, text, boolean, boolean",
+      "body": "\nDECLARE v_row public.wedding_code_pair_sessions%ROWTYPE;\nBEGIN\n  IF p_room_id IS NULL OR p_invite_hash IS NULL OR p_invite_hash !~ '^[0-9a-f]{64}$'\n    OR p_participant_hash IS NULL OR p_participant_hash !~ '^[0-9a-f]{64}$' OR p_participant_hash=p_invite_hash\n    OR p_answer_code IS NULL OR octet_length(p_answer_code)>256 OR p_answer_code !~ '^31_[1-5uns-]{25}_[0-9a-z.-]+_[0-9a-z-]+_[0-9a-z-]+_[0-9a-z-]+$'\n    OR p_consent_version IS DISTINCT FROM '2026-09-23' OR p_consented IS DISTINCT FROM TRUE OR p_age_confirmed IS DISTINCT FROM TRUE THEN\n    RAISE EXCEPTION 'PAIR_SESSION_INVALID' USING ERRCODE='22023';\n  END IF;\n  SELECT * INTO v_row FROM public.wedding_code_pair_sessions WHERE room_id=p_room_id FOR UPDATE;\n  IF NOT FOUND OR v_row.invite_hash IS DISTINCT FROM p_invite_hash THEN RAISE EXCEPTION 'PAIR_SESSION_NOT_FOUND' USING ERRCODE='28000'; END IF;\n  IF v_row.closed_at IS NOT NULL OR v_row.expires_at <= clock_timestamp() THEN RAISE EXCEPTION 'PAIR_SESSION_CLOSED' USING ERRCODE='55000'; END IF;\n  IF p_participant_hash=v_row.owner_hash THEN RAISE EXCEPTION 'PAIR_SESSION_INVALID' USING ERRCODE='22023'; END IF;\n  IF v_row.participant_hash IS NOT NULL THEN\n    IF v_row.participant_hash IS DISTINCT FROM p_participant_hash OR v_row.participant_answer_code IS DISTINCT FROM p_answer_code THEN\n      RAISE EXCEPTION 'PAIR_SESSION_CONFLICT' USING ERRCODE='PT409';\n    END IF;\n  ELSE\n    UPDATE public.wedding_code_pair_sessions SET participant_hash=p_participant_hash,participant_answer_code=p_answer_code,\n      participant_consent_version=p_consent_version,participant_age_confirmed=TRUE,joined_at=clock_timestamp() WHERE room_id=p_room_id;\n  END IF;\n  RETURN public.read_wedding_code_pair_session(p_room_id,p_participant_hash);\nEND;\n",
+      "kind": "f",
+      "name": "join_wedding_code_pair_session",
+      "owner": "postgres",
+      "config": [
+        "search_path=\"\"",
+        "lock_timeout=5s",
+        "statement_timeout=5s"
+      ],
+      "result": "jsonb",
+      "strict": false,
+      "language": "plpgsql",
+      "parallel": "u",
+      "definition": "CREATE OR REPLACE FUNCTION public.join_wedding_code_pair_session(p_room_id uuid, p_invite_hash text, p_participant_hash text, p_answer_code text, p_consent_version text, p_consented boolean, p_age_confirmed boolean)\n RETURNS jsonb\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO ''\n SET lock_timeout TO '5s'\n SET statement_timeout TO '5s'\nAS $function$\nDECLARE v_row public.wedding_code_pair_sessions%ROWTYPE;\nBEGIN\n  IF p_room_id IS NULL OR p_invite_hash IS NULL OR p_invite_hash !~ '^[0-9a-f]{64}$'\n    OR p_participant_hash IS NULL OR p_participant_hash !~ '^[0-9a-f]{64}$' OR p_participant_hash=p_invite_hash\n    OR p_answer_code IS NULL OR octet_length(p_answer_code)>256 OR p_answer_code !~ '^31_[1-5uns-]{25}_[0-9a-z.-]+_[0-9a-z-]+_[0-9a-z-]+_[0-9a-z-]+$'\n    OR p_consent_version IS DISTINCT FROM '2026-09-23' OR p_consented IS DISTINCT FROM TRUE OR p_age_confirmed IS DISTINCT FROM TRUE THEN\n    RAISE EXCEPTION 'PAIR_SESSION_INVALID' USING ERRCODE='22023';\n  END IF;\n  SELECT * INTO v_row FROM public.wedding_code_pair_sessions WHERE room_id=p_room_id FOR UPDATE;\n  IF NOT FOUND OR v_row.invite_hash IS DISTINCT FROM p_invite_hash THEN RAISE EXCEPTION 'PAIR_SESSION_NOT_FOUND' USING ERRCODE='28000'; END IF;\n  IF v_row.closed_at IS NOT NULL OR v_row.expires_at <= clock_timestamp() THEN RAISE EXCEPTION 'PAIR_SESSION_CLOSED' USING ERRCODE='55000'; END IF;\n  IF p_participant_hash=v_row.owner_hash THEN RAISE EXCEPTION 'PAIR_SESSION_INVALID' USING ERRCODE='22023'; END IF;\n  IF v_row.participant_hash IS NOT NULL THEN\n    IF v_row.participant_hash IS DISTINCT FROM p_participant_hash OR v_row.participant_answer_code IS DISTINCT FROM p_answer_code THEN\n      RAISE EXCEPTION 'PAIR_SESSION_CONFLICT' USING ERRCODE='PT409';\n    END IF;\n  ELSE\n    UPDATE public.wedding_code_pair_sessions SET participant_hash=p_participant_hash,participant_answer_code=p_answer_code,\n      participant_consent_version=p_consent_version,participant_age_confirmed=TRUE,joined_at=clock_timestamp() WHERE room_id=p_room_id;\n  END IF;\n  RETURN public.read_wedding_code_pair_session(p_room_id,p_participant_hash);\nEND;\n$function$\n",
+      "volatility": "v",
+      "securityDefiner": true
+    },
+    {
+      "acl": [
+        [
+          "postgres",
+          "postgres",
+          "EXECUTE",
+          false
+        ]
+      ],
+      "args": "",
+      "body": "\nDECLARE v_deleted bigint;\nBEGIN\n  DELETE FROM public.wedding_code_pair_sessions WHERE expires_at <= clock_timestamp();\n  GET DIAGNOSTICS v_deleted = ROW_COUNT;\n  RETURN v_deleted;\nEND;\n",
+      "kind": "f",
+      "name": "purge_expired_wedding_code_pair_sessions",
+      "owner": "postgres",
+      "config": [
+        "search_path=\"\"",
+        "lock_timeout=5s",
+        "statement_timeout=30s"
+      ],
+      "result": "bigint",
+      "strict": false,
+      "language": "plpgsql",
+      "parallel": "u",
+      "definition": "CREATE OR REPLACE FUNCTION public.purge_expired_wedding_code_pair_sessions()\n RETURNS bigint\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO ''\n SET lock_timeout TO '5s'\n SET statement_timeout TO '30s'\nAS $function$\nDECLARE v_deleted bigint;\nBEGIN\n  DELETE FROM public.wedding_code_pair_sessions WHERE expires_at <= clock_timestamp();\n  GET DIAGNOSTICS v_deleted = ROW_COUNT;\n  RETURN v_deleted;\nEND;\n$function$\n",
+      "volatility": "v",
+      "securityDefiner": true
+    }
+  ],
+  "relations": [
+    {
+      "acl": [
+        [
+          "postgres",
+          "postgres",
+          "DELETE",
+          false
+        ],
+        [
+          "postgres",
+          "postgres",
+          "INSERT",
+          false
+        ],
+        [
+          "postgres",
+          "postgres",
+          "MAINTAIN",
+          false
+        ],
+        [
+          "postgres",
+          "postgres",
+          "REFERENCES",
+          false
+        ],
+        [
+          "postgres",
+          "postgres",
+          "SELECT",
+          false
+        ],
+        [
+          "postgres",
+          "postgres",
+          "TRIGGER",
+          false
+        ],
+        [
+          "postgres",
+          "postgres",
+          "TRUNCATE",
+          false
+        ],
+        [
+          "postgres",
+          "postgres",
+          "UPDATE",
+          false
+        ]
+      ],
+      "rls": true,
+      "kind": "r",
+      "name": "public.wedding_code_pair_sessions",
+      "owner": "postgres",
+      "columns": [
+        [
+          "closed_at",
+          "timestamp with time zone",
+          false,
+          "",
+          "",
+          null,
+          []
+        ],
+        [
+          "created_at",
+          "timestamp with time zone",
+          true,
+          "",
+          "",
+          "clock_timestamp()",
+          []
+        ],
+        [
+          "expires_at",
+          "timestamp with time zone",
+          true,
+          "",
+          "",
+          null,
+          []
+        ],
+        [
+          "invite_hash",
+          "text",
+          true,
+          "",
+          "",
+          null,
+          []
+        ],
+        [
+          "issued_at",
+          "bigint",
+          true,
+          "",
+          "",
+          null,
+          []
+        ],
+        [
+          "joined_at",
+          "timestamp with time zone",
+          false,
+          "",
+          "",
+          null,
+          []
+        ],
+        [
+          "owner_age_confirmed",
+          "boolean",
+          false,
+          "",
+          "",
+          null,
+          []
+        ],
+        [
+          "owner_answer_code",
+          "text",
+          false,
+          "",
+          "",
+          null,
+          []
+        ],
+        [
+          "owner_consent_version",
+          "text",
+          false,
+          "",
+          "",
+          null,
+          []
+        ],
+        [
+          "owner_hash",
+          "text",
+          true,
+          "",
+          "",
+          null,
+          []
+        ],
+        [
+          "participant_age_confirmed",
+          "boolean",
+          false,
+          "",
+          "",
+          null,
+          []
+        ],
+        [
+          "participant_answer_code",
+          "text",
+          false,
+          "",
+          "",
+          null,
+          []
+        ],
+        [
+          "participant_consent_version",
+          "text",
+          false,
+          "",
+          "",
+          null,
+          []
+        ],
+        [
+          "participant_hash",
+          "text",
+          false,
+          "",
+          "",
+          null,
+          []
+        ],
+        [
+          "room_id",
+          "uuid",
+          true,
+          "",
+          "",
+          null,
+          []
+        ]
+      ],
+      "indexes": [
+        [
+          "CREATE INDEX wedding_code_pair_sessions_expiry ON public.wedding_code_pair_sessions USING btree (expires_at)",
+          true,
+          true
+        ],
+        [
+          "CREATE UNIQUE INDEX wedding_code_pair_sessions_pkey ON public.wedding_code_pair_sessions USING btree (room_id)",
+          true,
+          true
+        ]
+      ],
+      "forceRls": true,
+      "policies": [],
+      "triggers": [],
+      "constraints": [
+        [
+          "wedding_code_pair_sessions_check",
+          "c",
+          true,
+          "CHECK (invite_hash ~ '^[0-9a-f]{64}$'::text AND invite_hash <> owner_hash)"
+        ],
+        [
+          "wedding_code_pair_sessions_check1",
+          "c",
+          true,
+          "CHECK (participant_hash ~ '^[0-9a-f]{64}$'::text AND participant_hash <> owner_hash AND participant_hash <> invite_hash)"
+        ],
+        [
+          "wedding_code_pair_sessions_check2",
+          "c",
+          true,
+          "CHECK (expires_at = (created_at + '7 days'::interval))"
+        ],
+        [
+          "wedding_code_pair_sessions_check3",
+          "c",
+          true,
+          "CHECK (closed_at IS NULL AND owner_answer_code IS NOT NULL AND owner_consent_version IS NOT NULL AND owner_age_confirmed IS TRUE AND (participant_hash IS NULL AND participant_answer_code IS NULL AND participant_consent_version IS NULL AND participant_age_confirmed IS NULL AND joined_at IS NULL OR participant_hash IS NOT NULL AND participant_answer_code IS NOT NULL AND participant_consent_version IS NOT NULL AND participant_age_confirmed IS TRUE AND joined_at IS NOT NULL) OR closed_at IS NOT NULL AND owner_answer_code IS NULL AND participant_answer_code IS NULL AND owner_consent_version IS NULL AND participant_consent_version IS NULL AND owner_age_confirmed IS NULL AND participant_age_confirmed IS NULL AND joined_at IS NULL)"
+        ],
+        [
+          "wedding_code_pair_sessions_issued_at_check",
+          "c",
+          true,
+          "CHECK (issued_at > 0)"
+        ],
+        [
+          "wedding_code_pair_sessions_owner_age_confirmed_check",
+          "c",
+          true,
+          "CHECK (owner_age_confirmed IS NULL OR owner_age_confirmed)"
+        ],
+        [
+          "wedding_code_pair_sessions_owner_answer_code_check",
+          "c",
+          true,
+          "CHECK (octet_length(owner_answer_code) >= 1 AND octet_length(owner_answer_code) <= 256 AND owner_answer_code ~ '^31_[1-5uns-]{25}_[0-9a-z.-]+_[0-9a-z-]+_[0-9a-z-]+_[0-9a-z-]+$'::text)"
+        ],
+        [
+          "wedding_code_pair_sessions_owner_consent_version_check",
+          "c",
+          true,
+          "CHECK (owner_consent_version = '2026-09-23'::text)"
+        ],
+        [
+          "wedding_code_pair_sessions_owner_hash_check",
+          "c",
+          true,
+          "CHECK (owner_hash ~ '^[0-9a-f]{64}$'::text)"
+        ],
+        [
+          "wedding_code_pair_sessions_participant_age_confirmed_check",
+          "c",
+          true,
+          "CHECK (participant_age_confirmed IS NULL OR participant_age_confirmed)"
+        ],
+        [
+          "wedding_code_pair_sessions_participant_answer_code_check",
+          "c",
+          true,
+          "CHECK (octet_length(participant_answer_code) >= 1 AND octet_length(participant_answer_code) <= 256 AND participant_answer_code ~ '^31_[1-5uns-]{25}_[0-9a-z.-]+_[0-9a-z-]+_[0-9a-z-]+_[0-9a-z-]+$'::text)"
+        ],
+        [
+          "wedding_code_pair_sessions_participant_consent_version_check",
+          "c",
+          true,
+          "CHECK (participant_consent_version = '2026-09-23'::text)"
+        ],
+        [
+          "wedding_code_pair_sessions_pkey",
+          "p",
+          true,
+          "PRIMARY KEY (room_id)"
+        ],
+        [
+          "wedding_code_pair_sessions_room_id_check",
+          "c",
+          true,
+          "CHECK (room_id::text ~ '^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$'::text)"
+        ]
+      ]
+    }
+  ],
+  "dependencies": {
+    "jobReady": true,
+    "cronExtension": "pg_cron",
+    "scheduleReady": true
+  }
+}

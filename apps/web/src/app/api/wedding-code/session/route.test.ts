@@ -111,7 +111,17 @@ describe("POST /api/wedding-code/session", () => {
     mocks.rpc.mockResolvedValue({ data: waiting, error: null }); expect((await POST(request(body))).status).toBe(503);
     mocks.rpc.mockResolvedValue({ data: { ...closed, ownAnswerCode: answerCode }, error: null }); expect((await POST(request(body))).status).toBe(503);
   });
-  it.each([["28000", 404], ["40001", 409], ["55000", 410], ["22023", 400], ["XX000", 503]])("SQL 오류 %s는 안전한 오류 %d로 변환한다", async (code, status) => {
+  it.each(["create", "join"])("%s의 업무 충돌은 재시도 없이 안내하고 원답을 보내지 않는다", async (action) => {
+    const body = action === "create" ? create : { action, roomId, inviteToken: create.inviteToken, participantToken: "c".repeat(64),
+      answerCode: otherAnswer, consentVersion: "2026-09-23", consent: true, ageConfirmed: true };
+    mocks.rpc.mockResolvedValue({ data: null, error: { code: "PT409", message: `${create.ownerToken} ${answerCode}` } });
+    const response = await POST(request(body));
+    expect(response.status).toBe(409);
+    expect(await response.json()).toEqual({ code: "CONFLICT", error: "이미 참여한 사람이 있거나 비교 내용이 달라졌어요. 새로운 비교를 시작해 주세요." });
+    expect(mocks.rpc).toHaveBeenCalledTimes(1);
+    expect(response.headers.get("cache-control")).toContain("no-store");
+  });
+  it.each([["28000", 404], ["PT409", 409], ["40001", 503], ["55000", 410], ["22023", 400], ["XX000", 503]])("SQL 오류 %s는 안전한 오류 %d로 변환한다", async (code, status) => {
     mocks.rpc.mockResolvedValue({ data: null, error: { code, message: `${create.ownerToken} ${answerCode}` } });
     const response = await POST(request(create));
     expect(response.status).toBe(status);

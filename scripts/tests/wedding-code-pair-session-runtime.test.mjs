@@ -1,4 +1,5 @@
 import test from 'node:test';
+import { createWeddingCodePairSessionHistoricalRepository } from './fixtures/wedding-code-pair-session-historical-repository.mjs';
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
@@ -8,7 +9,9 @@ import { appendWeddingCodePairSessionReceipt, parseWeddingCodePairSessionRelease
 import { buildWeddingCodePairSessionMutationSql, buildWeddingCodePairSessionObservationSql, expectedWeddingCodePairSessionCatalog,
   validateWeddingCodePairSessionObservation } from '../lib/wedding-code-pair-session-catalog.mjs';
 
-const root=resolve(import.meta.dirname,'../..'),read=file=>readFileSync(join(root,file),'utf8');
+const historical=createWeddingCodePairSessionHistoricalRepository(resolve(import.meta.dirname,'../..'));
+test.after(historical.cleanup);
+const root=historical.root,read=file=>readFileSync(join(root,file),'utf8');
 const sql=read('supabase/migrations/20260923104336_wedding_code_pair_sessions.sql');
 const predecessorSql=read('supabase/migrations/20260920120000_wedding_preparation_style.sql');
 const catalog=JSON.parse(read('supabase/release-contracts/wedding-code-pair-session-pg17-catalog-v1.json'));

@@ -25,6 +25,8 @@ import { createWeddingCodeSceneVersionHistoricalRepository } from "../../../../.
 import { PREPARATION_STYLE_CONTRACT_FILE, loadPreparationStyleReleasePlan } from "../../../../../scripts/lib/preparation-style-release-contract.mjs";
 import { createWeddingCodeSceneV10HistoricalRepository } from "../../../../../scripts/tests/fixtures/wedding-code-research-scene-v10-historical-repository.mjs";
 import { WEDDING_CODE_PAIR_SESSION_CONTRACT_FILE, loadWeddingCodePairSessionReleasePlan } from "../../../../../scripts/lib/wedding-code-pair-session-release-contract.mjs";
+import { WEDDING_CODE_PAIR_SESSION_CONFLICT_CONTRACT_FILE, loadWeddingCodePairSessionConflictReleasePlan } from "../../../../../scripts/lib/wedding-code-pair-session-conflict-release-contract.mjs";
+import { createWeddingCodePairSessionHistoricalRepository } from "../../../../../scripts/tests/fixtures/wedding-code-pair-session-historical-repository.mjs";
 import { createPreparationStyleHistoricalRepository } from "../../../../../scripts/tests/fixtures/preparation-style-historical-repository.mjs";
 import {
   assertVendorDisclosureProductionBuild,
@@ -85,6 +87,12 @@ const pairSessionPins = [WEDDING_CODE_PAIR_SESSION_CONTRACT_FILE, "scripts/lib/w
   "scripts/lib/wedding-code-pair-session-catalog.mjs", "supabase/release-contracts/wedding-code-pair-session-pg17-catalog-v1.json",
   "supabase/migrations/20260923104336_wedding_code_pair_sessions.sql"];
 
+let pairConflictFixtureRoot: string;
+let cleanupPairConflictFixture: (() => void) | undefined;
+const pairConflictPins = [WEDDING_CODE_PAIR_SESSION_CONFLICT_CONTRACT_FILE, "scripts/lib/wedding-code-pair-session-conflict-release.mjs",
+  "scripts/lib/wedding-code-pair-session-conflict-catalog.mjs", "supabase/release-contracts/wedding-code-pair-session-conflict-pg17-catalog-v1.json",
+  "supabase/migrations/20260923132503_wedding_code_pair_session_conflict_response.sql"];
+
 function production(root: string, authorization = expectedProductionAuthorizationSha256(root)) {
   return assertVendorDisclosureProductionBuild({
     repoRoot: root,
@@ -144,6 +152,10 @@ beforeAll(async () => {
   pairSessionFixtureRoot = pairSessionHistory.root;
   cleanupPairSessionFixture = pairSessionHistory.cleanup;
   for (const file of pairSessionPins) await copyFile(join(repoRoot, file), join(pairSessionFixtureRoot, file));
+  const pairConflictHistory = createWeddingCodePairSessionHistoricalRepository(repoRoot);
+  pairConflictFixtureRoot = pairConflictHistory.root;
+  cleanupPairConflictFixture = pairConflictHistory.cleanup;
+  for (const file of pairConflictPins) await copyFile(join(repoRoot, file), join(pairConflictFixtureRoot, file));
 }, 300_000);
 
 afterAll(async () => {
@@ -158,12 +170,64 @@ afterAll(async () => {
   cleanupSceneV10Fixture?.();
   cleanupPreparationFixture?.();
   cleanupPairSessionFixture?.();
+  cleanupPairConflictFixture?.();
+});
+
+describe("production build registers only the exact 239 pair-session conflict successor", () => {
+  describe("reviewed 239 acceptance and authorization", () => {
+    const repositories = [
+      { label: "current checkout", resolveRoot: () => repoRoot },
+      { label: "isolated fixture", resolveRoot: () => pairConflictFixtureRoot },
+    ];
+
+    it.each(repositories)("preserves independent hosted evidence for $label", ({ resolveRoot }) => {
+      const plan = loadWeddingCodePairSessionConflictReleasePlan(resolveRoot());
+      expect(plan.migrationCount).toBe(239);
+      expect(plan.runtimeEvidenceVerified).toBe(false);
+      expect(plan.releaseAuthorized).toBe(false);
+    }, 120_000);
+
+    it.each(repositories)("allows an owner-authorized production build for $label", ({ resolveRoot }) => {
+      expect(() => production(resolveRoot())).not.toThrow();
+    }, 120_000);
+
+    it.each(repositories)("keeps the public 238 loader closed to 239 SQL for $label", ({ resolveRoot }) => {
+      expect(() => loadWeddingCodePairSessionReleasePlan(resolveRoot()))
+        .toThrowError(expect.objectContaining({ code: "NEW_MIGRATION_NOT_REVIEWED" }));
+    }, 120_000);
+
+    it.each(repositories)("rejects an incorrect owner authorization for $label", ({ resolveRoot }) => {
+      expect(() => production(resolveRoot(), "wrong")).toThrow(VENDOR_DISCLOSURE_EXTERNAL_AUTHORIZATION_INVALID);
+    }, 120_000);
+
+    it.each(repositories)("requires an explicit owner authorization for $label", ({ resolveRoot }) => {
+      expect(() => assertVendorDisclosureProductionBuild({ repoRoot: resolveRoot(), environment: { VERCEL_ENV: "production" } }))
+        .toThrow(VENDOR_DISCLOSURE_EXTERNAL_AUTHORIZATION_NOT_IMPLEMENTED);
+    }, 120_000);
+  });
+  it.each([...pairConflictPins, ...pairSessionPins, PREPARATION_STYLE_CONTRACT_FILE])(
+    "rejects changed or missing 239 and predecessor pins without falling back: %s", async file => {
+      const target = join(pairConflictFixtureRoot, file), bytes = await readFile(target);
+      try {
+        await writeFile(target, Buffer.concat([bytes, Buffer.from("\n")]));
+        expect(() => production(pairConflictFixtureRoot)).toThrow(VENDOR_DISCLOSURE_STATIC_CONTRACT_INVALID);
+        await rm(target);
+        expect(() => production(pairConflictFixtureRoot)).toThrow(VENDOR_DISCLOSURE_STATIC_CONTRACT_INVALID);
+      } finally { await writeFile(target, bytes); }
+    }, 60_000,
+  );
+  it("does not admit unreviewed SQL beyond the exact 239 migration set", async () => {
+    const target = join(pairConflictFixtureRoot, "supabase/migrations/20990101000000_unreviewed.sql");
+    try {
+      await writeFile(target, "SELECT 1;\n", { flag: "wx" });
+      expect(() => production(pairConflictFixtureRoot)).toThrow(VENDOR_DISCLOSURE_STATIC_CONTRACT_INVALID);
+    } finally { await rm(target); }
+  });
 });
 
 describe("production build registers only the exact 238 pair-session successor", () => {
   describe("reviewed 238 acceptance and authorization", () => {
     const repositories = [
-      { label: "current checkout", resolveRoot: () => repoRoot },
       { label: "isolated fixture", resolveRoot: () => pairSessionFixtureRoot },
     ];
 

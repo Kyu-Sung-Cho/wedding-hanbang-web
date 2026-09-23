@@ -21,7 +21,10 @@ export const WEDDING_CODE_PAIR_SESSION_SCOPE = Object.freeze({
 });
 
 // 고정된 237개 원문을 보존한 새 238 lane. 정적 검증은 운영 적용 증거가 아니다.
-export function loadWeddingCodePairSessionReleasePlan(repoRoot) {
+export function loadWeddingCodePairSessionReleasePlan(repoRoot) { return loadPlan(repoRoot, true); }
+// 후속 계약 전용. 공개 238 lane은 여전히 정확히 238개 SQL만 수락한다.
+export function loadWeddingCodePairSessionHistoricalReleasePlan(repoRoot) { return loadPlan(repoRoot, false); }
+function loadPlan(repoRoot, checkCurrentDirectory) {
   const bytes = pinnedArtifact(repoRoot, { file: WEDDING_CODE_PAIR_SESSION_CONTRACT_FILE, sha256: CONTRACT_SHA });
   const contract = JSON.parse(bytes);
   requireRelease(contract.version === 1 && contract.kind === 'wedding-code-pair-session-static-successor'
@@ -39,7 +42,7 @@ export function loadWeddingCodePairSessionReleasePlan(repoRoot) {
     requireRelease(contract[key]?.file === file, 'WEDDING_CODE_PAIR_SESSION_IMPLEMENTATION_CHANGED'); pinnedArtifact(repoRoot, contract[key]);
   }
   const reviewed = [...predecessor.reviewedMigrations, ...contract.migrations].sort((a,b) => a.file.localeCompare(b.file));
-  same(readdirSync(join(repoRoot, 'supabase/migrations')).filter(file => /\.sql$/i.test(file)).sort(), reviewed.map(pin => pin.file), 'NEW_MIGRATION_NOT_REVIEWED');
+  if (checkCurrentDirectory) same(readdirSync(join(repoRoot, 'supabase/migrations')).filter(file => /\.sql$/i.test(file)).sort(), reviewed.map(pin => pin.file), 'NEW_MIGRATION_NOT_REVIEWED');
   requireRelease(reviewed.length === 238 && reviewed.at(-1)?.file === MIGRATION_FILE, 'WEDDING_CODE_PAIR_SESSION_MIGRATION_SET_CHANGED');
   for (const pin of reviewed) pinnedArtifact(repoRoot, { ...pin, file: 'supabase/migrations/' + pin.file });
   const sql = pinnedArtifact(repoRoot, { ...contract.migrations[0], file: 'supabase/migrations/' + MIGRATION_FILE });

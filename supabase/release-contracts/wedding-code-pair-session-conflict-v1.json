@@ -1,0 +1,64 @@
+{
+  "version": 1,
+  "kind": "wedding-code-pair-session-conflict-static-successor",
+  "release": "wedding-code-pair-session-conflict-20260923",
+  "status": "requires-scoped-runtime-evidence",
+  "productionApplyImplemented": true,
+  "runtimeEvidenceVerified": false,
+  "projectRef": "slrtobkksjmxgzatjyqb",
+  "systemIdentifier": "7581440907192989109",
+  "predecessor": {
+    "file": "supabase/release-contracts/wedding-code-pair-session-v1.json",
+    "sha256": "f479973b0dbc583981159a687c9d207d25bd21273cd01c41e03672299f73c5e7"
+  },
+  "reviewedPredecessorMigrationCount": 238,
+  "migrations": [
+    {
+      "file": "20260923132503_wedding_code_pair_session_conflict_response.sql",
+      "sha256": "6d1c706e29491b5a9e8b5e05bf9da2a6fbde982c9f4c8d07f03691ccbb4d973f"
+    }
+  ],
+  "scope": {
+    "changedFunctions": [
+      "public.create_wedding_code_pair_session(uuid,text,text,text,text,bigint,boolean,boolean)",
+      "public.join_wedding_code_pair_session(uuid,text,text,text,text,boolean,boolean)"
+    ],
+    "conflictSqlState": {
+      "from": "40001",
+      "to": "PT409",
+      "occurrences": 3
+    },
+    "newTables": [],
+    "tableSchema": "unchanged",
+    "tableRls": "unchanged",
+    "tableAcl": "unchanged",
+    "functionAcl": "unchanged",
+    "otherFunctions": "unchanged",
+    "cron": "unchanged",
+    "existingData": "unchanged",
+    "newRows": "none",
+    "backfill": "none",
+    "apiExternalResponse": "409-CONFLICT",
+    "rollback": "disable-new-session-creation-preserve-revoke-and-expiry-cleanup"
+  },
+  "runtime": {
+    "file": "scripts/lib/wedding-code-pair-session-conflict-release.mjs",
+    "sha256": "b272c0b6be94023a12b8a08512d41b95f8853ad9ef9be9fc5d1f4cb53149d497"
+  },
+  "catalog": {
+    "file": "scripts/lib/wedding-code-pair-session-conflict-catalog.mjs",
+    "sha256": "6d67a4a4a126c6551ed344fc62d1718356d04f60392223eee2bbaf2cb4b8c2b6"
+  },
+  "catalogFixture": {
+    "file": "supabase/release-contracts/wedding-code-pair-session-conflict-pg17-catalog-v1.json",
+    "sha256": "5ba616de6cf4a52734187484ba41d69b9db0857a576ca2ec02394605bb0a9198"
+  },
+  "predecessorMigration": {
+    "file": "supabase/migrations/20260923104336_wedding_code_pair_sessions.sql",
+    "sha256": "48f49c545b984de2a838e6927ed0ef4cc5b44c5ee9d809b3191fed6b62824058"
+  },
+  "predecessorCatalogFixture": {
+    "file": "supabase/release-contracts/wedding-code-pair-session-pg17-catalog-v1.json",
+    "sha256": "abecb56d7f511418366d082ece67c62b75bc6434e2d70fd0332dbb2c999b543a"
+  }
+}

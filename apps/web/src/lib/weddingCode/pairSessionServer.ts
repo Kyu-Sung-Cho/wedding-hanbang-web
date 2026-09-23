@@ -31,7 +31,7 @@ function rpcRequest(input: PairSessionRequest): { name: string; params: Record<s
 }
 function rpcFailure(code: string | undefined): NextResponse {
   if (code === "28000") return failure("NOT_FOUND", "이 비교를 열 수 없어요. 받은 링크와 이 브라우저의 연결을 확인해 주세요.", 404);
-  if (code === "40001") return failure("CONFLICT", "이미 참여한 사람이 있거나 비교 내용이 달라졌어요. 새로운 비교를 시작해 주세요.", 409);
+  if (code === "PT409") return failure("CONFLICT", "이미 참여한 사람이 있거나 비교 내용이 달라졌어요. 새로운 비교를 시작해 주세요.", 409);
   if (code === "55000") return failure("CLOSED", "종료되었거나 기간이 지난 비교예요. 새로운 비교를 시작해 주세요.", 410);
   if (code === "22023") return failure("INVALID_REQUEST", "비교할 답과 확인 내용을 다시 확인해 주세요.", 400);
   return failure("UNAVAILABLE", FAILURE, 503);
