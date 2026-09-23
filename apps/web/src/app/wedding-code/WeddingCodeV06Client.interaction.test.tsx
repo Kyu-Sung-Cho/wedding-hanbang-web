@@ -11,6 +11,7 @@ import {
   WEDDING_CODE_V12_SCENE_CONFIG,
 } from "@/lib/weddingCode/scene/config";
 import { useAuthStore } from "@/stores/authStore";
+import { decodeWeddingCodeV06 } from "@/lib/weddingCode/v06/code";
 import WeddingCodeV06Client from "./WeddingCodeV06Client";
 
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean })
@@ -32,6 +33,43 @@ describe("WeddingCodeV06Client interaction", () => {
     await act(async () => root.unmount());
     document.body.replaceChildren();
     vi.restoreAllMocks();
+  });
+
+  it.each([
+    { embedded: true, pathname: "/wedding/preparation-style", pair: false },
+    { embedded: true, pathname: "/wedding/preparation-style", pair: true },
+    { embedded: false, pathname: "/wedding-code", pair: false },
+    { embedded: false, pathname: "/wedding-code", pair: true },
+  ])("옛 query 링크를 fragment로 바꿔도 현재 진입 화면을 유지한다: $pathname, pair=$pair", async ({ embedded, pathname, pair }) => {
+    const config = CURRENT_WEDDING_CODE_SCENE_CONFIG;
+    const firstCode = config.questions.map(question => question.options[0].value).join("");
+    const secondCode = config.questions.map(question => question.options.at(-1)!.value).join("");
+    const first = decodeWeddingCodeV06(firstCode, config.questions)!;
+    const second = decodeWeddingCodeV06(secondCode, config.questions)!;
+    const params = new URLSearchParams({ v: config.version, a: firstCode, utm_source: "old-link" });
+    if (pair) params.set("b", secondCode);
+    window.history.replaceState(null, "", `${pathname}?${params}`);
+    await act(async () => root.render(<WeddingCodeV06Client embedded={embedded} shareOrigin="https://hanbang.ai" version={config.version} partnerAnswers={pair ? null : first} partnerCode={firstCode} bothCodes={pair ? { first, second } : null} />));
+    expect(window.location.pathname).toBe(pathname);
+    expect(window.location.search).toBe("");
+    const hash = new URLSearchParams(window.location.hash.slice(1));
+    expect(hash.get("v")).toBe(config.version);
+    expect(hash.get("a")).toBe(firstCode);
+    expect(hash.get("b")).toBe(pair ? secondCode : null);
+    expect(container.querySelector('[data-result="couple"]') !== null).toBe(pair);
+  });
+
+  it("라운지에서 예전 장면판을 열어도 본문을 중첩하지 않고 헤더 아래에 질문을 놓는다", async () => {
+    const config = CURRENT_WEDDING_CODE_SCENE_CONFIG;
+    await act(async () => root.render(<WeddingCodeV06Client embedded shareOrigin="https://hanbang.ai" version={config.version} partnerAnswers={null} partnerCode={null} bothCodes={null} />));
+    expect(container.querySelector("main")).toBeNull();
+    const start = [...container.querySelectorAll("button")].find(candidate => candidate.textContent?.includes("시작하기"));
+    await act(async () => start?.click());
+    expect(container.querySelector("main")).toBeNull();
+    expect(document.activeElement?.getAttribute("aria-label")).toBe("웨딩코드 1번째 장면");
+    expect(document.activeElement?.classList.contains("scroll-mt-20")).toBe(true);
+    expect(document.activeElement?.classList.contains("md:scroll-mt-28")).toBe(true);
+    expect(container.querySelector("[data-question]")?.getAttribute("data-question")).toBe(config.questions[0].key);
   });
 
   it("문항·결과·다시 시작 전환은 맨 위로 이동하고 답 선택만으로는 읽던 위치를 바꾸지 않는다", async () => {

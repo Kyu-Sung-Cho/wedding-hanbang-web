@@ -81,20 +81,20 @@ describe("Amora header search meaning", () => {
     expect(container.textContent).not.toContain("날짜 미정");
   });
 
-  it.each(["/preparation-style", "/wedding/preparation-style"])("uses the preparation style title without community discovery at %s", async pathname => {
+  it.each(["/preparation-style", "/wedding/preparation-style"])("uses the WeddingCode title without community discovery at %s", async pathname => {
     navigation.pathname = pathname;
     await act(async () => root.render(<TopNav loungeWorkspace onMenuToggle={vi.fn()} />));
-    expect(container.querySelector("h1")?.textContent).toBe("우리의 준비 스타일");
+    expect(container.querySelector("h1")?.textContent).toBe("웨딩코드");
     expect(control("커뮤니티 검색")).toBeNull();
     expect(control("메뉴 열기")).not.toBeNull();
     expect(control("알림")).not.toBeNull();
   });
 
-  it("keeps the preparation style shortcut and hides community on generic signed-in pages", async () => {
+  it("keeps the WeddingCode shortcut and hides community on generic signed-in pages", async () => {
     navigation.pathname = "/wedding/settings";
     await act(async () => root.render(<TopNav onMenuToggle={vi.fn()} />));
     const nav = container.querySelector('nav[aria-label="주요 기능 바로가기"]')!;
-    expect(nav.querySelector('a[href="/preparation-style"]')?.textContent).toBe("우리의 준비 스타일");
+    expect(nav.querySelector('a[href="/preparation-style"]')?.textContent).toBe("웨딩코드");
     expect(nav.textContent).not.toContain("커뮤니티");
     expect(control("커뮤니티 검색")).toBeNull();
   });

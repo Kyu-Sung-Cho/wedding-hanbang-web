@@ -10,6 +10,12 @@ import type { WeddingCodeV06Answers } from "@/lib/weddingCode/v06/gap";
 import type { PreparationStyleSnapshot, PreparationStyleSavedResponse } from "@/lib/weddingCode/preparationStyle";
 import { WEDDING_CODE_V12_VERSION } from "@/constants/weddingCodeV12";
 import PreparationStyleHub from "./PreparationStyleHub";
+import PreparationStylePage from "@/app/(app)/preparation-style/page";
+import { createV31Draft } from "@/lib/weddingCode/v31";
+import { writeV31LocalProgress } from "@/lib/weddingCode/v31LocalProgress";
+import { getV31IndexForId } from "@/lib/weddingCode/v31Flow";
+
+vi.mock("@/lib/analytics", () => ({ captureWeddingCodeEvent: vi.fn() }));
 
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 const owner = "11111111-1111-4111-8111-111111111111";
@@ -31,6 +37,8 @@ describe("준비 스타일의 개인 저장과 두 사람 공유", () => {
   let container: HTMLDivElement;
   let fetchMock = vi.fn<typeof fetch>();
   beforeEach(() => {
+    window.localStorage.clear();
+    vi.spyOn(window, "scrollTo").mockImplementation(() => {});
     useAuthStore.setState({ user: { id: owner, email: "test@example.com" }, profile: profile(), couple: { id: coupleId, invite_code: null, bride_id: owner, groom_id: partnerId, membership_sealed_at: now, created_at: now, updated_at: now }, partner: { id: partnerId, name: "지은", role: null, couple_id: coupleId }, isInitialized: true, isDemo: false });
     fetchMock = vi.fn<typeof fetch>().mockImplementation(async () => result());
     vi.stubGlobal("fetch", fetchMock);
@@ -44,6 +52,7 @@ describe("준비 스타일의 개인 저장과 두 사람 공유", () => {
     document.body.replaceChildren();
     vi.restoreAllMocks();
     vi.unstubAllGlobals();
+    window.localStorage.clear();
     useAuthStore.setState({ user: null, profile: null, couple: null, partner: null, isInitialized: false, isDemo: false });
   });
   const render = async () => { await act(async () => root.render(<PreparationStyleHub />)); };
@@ -56,6 +65,70 @@ describe("준비 스타일의 개인 저장과 두 사람 공유", () => {
       await click(index === config.questions.length - 1 ? "내 답 확인하기" : "다음 문항");
     }
   }
+
+  it("라운지 기본 주소는 공개 화면과 같은 최신 문항을 열고 구판 계정 API를 호출하지 않는다", async () => {
+    const page = await PreparationStylePage({ searchParams: Promise.resolve({}) });
+    await act(async () => root.render(<main>{page}</main>));
+    expect(container.querySelector("[data-lounge-wedding-code]")).not.toBeNull();
+    expect(container.textContent).toContain("기본 23개 질문");
+    expect(container.textContent).toContain("9개 선택 질문");
+    expect(container.textContent).toContain("답은 서버나 계정에 저장하지 않아요");
+    expect(container.querySelectorAll("main")).toHaveLength(1);
+    expect(fetchMock).not.toHaveBeenCalled();
+    await click("내 웨딩코드 시작하기");
+    expect(container.querySelector('[data-question="G1"]')).not.toBeNull();
+    expect(container.querySelectorAll('input[type="radio"]')).toHaveLength(8);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("공개 웨딩코드에서 남긴 브라우저 답을 라운지에서도 같은 질문부터 이어 하며 계정으로 보내지 않는다", async () => {
+    const draft = createV31Draft();
+    draft.answers.G1 = 5;
+    expect(writeV31LocalProgress(window.localStorage, {
+      draft, index: getV31IndexForId("G3"), flow: "core", screen: "questions", editing: false, needsPriorityReview: false,
+    }, null).status).toBe("saved");
+    const page = await PreparationStylePage({ searchParams: Promise.resolve({}) });
+    await act(async () => root.render(<main>{page}</main>));
+    expect(container.textContent).toContain("기본 질문 2 / 23부터 이어 할 수 있어요");
+    await click("이어서 답하기");
+    expect(container.querySelector('[data-question="G3"]')).not.toBeNull();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("이전 기록에서는 저장한 구판 답과 삭제 기능을 보존하되 구판 설문을 새로 시작하지 않는다", async () => {
+    fetchMock.mockResolvedValueOnce(result(snapshot({ own: response })));
+    const page = await PreparationStylePage({ searchParams: Promise.resolve({ view: "previous" }) });
+    await act(async () => root.render(<main>{page}</main>));
+    expect(container.querySelector("[data-personal-style]")).not.toBeNull();
+    expect(container.querySelector("[data-lounge-wedding-code]")).toBeNull();
+    expect(container.textContent).toContain("예전에 계정에 저장한 답");
+    expect(button("새로 답하기")).toBeUndefined();
+    await click("둘이 함께 보기");
+    expect(container.textContent).toContain("두 사람 모두 예전에 계정에 저장한 답이 있다면");
+    expect(container.textContent).toContain("한 사람이라도 이전 답이 없다면 최신 웨딩코드에서 함께 새로 답해 주세요.");
+    expect(container.textContent).not.toContain("각자 이 화면에서 답을 저장하고 공유하면");
+    await click("저장한 답 지우기");
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const confirmation = container.querySelector('[aria-label="저장과 공유 확인"]');
+    expect(confirmation?.textContent).toContain("지운 이전 답은 되돌릴 수 없어요.");
+    expect(confirmation?.textContent).toContain("새 답은 최신 웨딩코드에서 작성할 수 있고, 이 기록에 합쳐지지는 않아요.");
+    expect(confirmation?.textContent).not.toContain("언제든 새로 답할 수 있어요");
+    fetchMock.mockResolvedValueOnce(result(snapshot({ stateRevision: 2 })));
+    await click("답과 공유 허가 삭제");
+    expect(fetchMock.mock.calls[1][1]?.method).toBe("DELETE");
+    expect(container.textContent).toContain("계정에 저장한 이전 답이 없어요");
+    expect(button("내 답 고르기")).toBeUndefined();
+    expect(container.querySelector('a[href="/wedding/preparation-style"]')?.textContent).toContain("최신 웨딩코드");
+  });
+
+  it("이전 기록 조회에 실패하면 저장한 답이 없다고 단정하지 않는다", async () => {
+    fetchMock.mockResolvedValueOnce(new Response("{}", { status: 503 }));
+    const page = await PreparationStylePage({ searchParams: Promise.resolve({ view: "previous" }) });
+    await act(async () => root.render(<main>{page}</main>));
+    expect(container.querySelector('[role="alert"]')).not.toBeNull();
+    expect(container.textContent).not.toContain("계정에 저장한 이전 답이 없어요");
+    expect(button("내 답 고르기")).toBeUndefined();
+  });
 
   it("문항 완료는 저장하지 않고, 명시적 저장만 본인 응답을 보내며 공유는 따로 한다", async () => {
     await render();

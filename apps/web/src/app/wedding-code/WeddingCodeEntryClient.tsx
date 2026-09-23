@@ -19,9 +19,10 @@ import {
 
 export { parseWeddingCodeEntryHash } from "./entry";
 
-function ErrorEntry({ onRestart }: { onRestart: () => void }) {
+function ErrorEntry({ onRestart, embedded }: { onRestart: () => void; embedded: boolean }) {
+  const Root = embedded ? "div" : "main";
   return (
-    <main className="mx-auto flex min-h-[60vh] w-full max-w-[680px] items-center px-5 py-12">
+    <Root className={`mx-auto flex w-full max-w-[680px] items-center px-5 py-12${embedded ? "" : " min-h-[60vh]"}`}>
       <section className="w-full rounded-[6px] border border-[var(--hb-hairline)] bg-white px-5 py-8 shadow-sm sm:px-8">
         <p className="text-[12px] font-semibold text-[var(--color-rose-700)]">웨딩코드 링크</p>
         <h1 className="mt-3 text-xl font-semibold text-[var(--hb-text-strong)]">이 링크는 열 수 없어요</h1>
@@ -37,7 +38,7 @@ function ErrorEntry({ onRestart }: { onRestart: () => void }) {
           처음부터 답하기
         </Button>
       </section>
-    </main>
+    </Root>
   );
 }
 
@@ -49,6 +50,7 @@ export default function WeddingCodeEntryClient({
   researchContributionOpen = false,
   researchStorageActive = false,
   initialError = false,
+  embedded = false,
 }: {
   shareOrigin: string;
   initialEntry?: WeddingCodeEntry;
@@ -58,6 +60,7 @@ export default function WeddingCodeEntryClient({
   researchStorageActive?: boolean;
   /** 서버가 query를 판별했지만 지원하지 않거나 깨진 링크로 확인한 경우. */
   initialError?: boolean;
+  embedded?: boolean;
 }) {
   const defaultEntry = useMemo<WeddingCodeEntry>(
     () => initialEntry ?? (initialError ? { kind: "error" }
@@ -92,10 +95,11 @@ export default function WeddingCodeEntryClient({
     window.dispatchEvent(new Event("popstate"));
   }, []);
 
-  if (entry.kind === "error") return <ErrorEntry onRestart={restart} />;
+  if (entry.kind === "error") return <ErrorEntry onRestart={restart} embedded={embedded} />;
   if (entry.kind === "v31") {
     return (
       <WeddingCodeV31Client
+        embedded={embedded}
         key={`v31:${weddingCodeEntryKey(entry)}`}
         shareOrigin={shareOrigin}
         partnerDraft={entry.initial.partnerDraft}
@@ -109,6 +113,7 @@ export default function WeddingCodeEntryClient({
   if (entry.kind === "v30") {
     return (
       <WeddingCodeV30Client
+        embedded={embedded}
         key={`v30:${weddingCodeEntryKey(entry)}`}
         shareOrigin={shareOrigin}
         partnerDraft={entry.initial.partnerDraft}
@@ -120,6 +125,7 @@ export default function WeddingCodeEntryClient({
   if (entry.kind === "legacy") {
     return (
       <WeddingCodeV06Client
+        embedded={embedded}
         key={`legacy:${weddingCodeEntryKey(entry)}`}
         shareOrigin={shareOrigin}
         version={entry.initial.version}
@@ -134,6 +140,7 @@ export default function WeddingCodeEntryClient({
   }
   return (
     <WeddingCodeV20Client
+      embedded={embedded}
       key={`v20:${weddingCodeEntryKey(entry)}`}
       shareOrigin={shareOrigin}
       partnerAnswers={entry.initial.partnerAnswers}

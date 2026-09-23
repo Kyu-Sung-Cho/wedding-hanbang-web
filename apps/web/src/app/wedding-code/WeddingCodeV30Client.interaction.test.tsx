@@ -55,6 +55,26 @@ describe("WeddingCodeV30Client", () => {
   }
   async function consent(index = 0) { await click(container.querySelectorAll<HTMLInputElement>('input[type="checkbox"]')[index]); }
 
+  it("라운지에서는 기존 40문항을 유지하고 중복 main·탐색 없이 질문으로 이동한다", async () => {
+    const scrollIntoView = vi.fn();
+    const original = Object.getOwnPropertyDescriptor(Element.prototype, "scrollIntoView");
+    Object.defineProperty(Element.prototype, "scrollIntoView", { configurable: true, value: scrollIntoView });
+    try {
+      await renderClient({ embedded: true });
+      expect(container.querySelector("main")).toBeNull();
+      expect(container.querySelector('nav[aria-label="웨딩코드 탐색"]')).toBeNull();
+      await button("내 웨딩코드 시작하기");
+      expect(container.querySelector("progress")?.getAttribute("max")).toBe("40");
+      expect(scrollIntoView.mock.contexts.at(-1)).toBe(document.activeElement);
+      expect(document.activeElement?.getAttribute("aria-label")).toBe("웨딩코드 1번째 질문");
+      expect(document.activeElement?.classList.contains("md:scroll-mt-28")).toBe(true);
+      expect(window.scrollTo).not.toHaveBeenCalled();
+    } finally {
+      if (original) Object.defineProperty(Element.prototype, "scrollIntoView", original);
+      else delete (Element.prototype as { scrollIntoView?: unknown }).scrollIntoView;
+    }
+  });
+
   it("40개 질문을 한 흐름으로 끝내고 취향·연결 설명·사용자가 고른 우선순위를 보여준다", async () => {
     await renderClient();
     expect(container.textContent).toContain("전체 40개 질문");

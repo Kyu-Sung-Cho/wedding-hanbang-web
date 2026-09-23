@@ -35,6 +35,16 @@ describe("WeddingCodeV20Client", () => {
     await act(async () => button?.click());
   }
 
+  it.each([false, true])("embedded=%s인 예전 문장판은 한 main 안에서 같은 응답을 받는다", async (embedded) => {
+    await act(async () => root.render(<WeddingCodeV20Client embedded={embedded} shareOrigin="https://hanbang.ai" />));
+    expect(container.querySelectorAll("main")).toHaveLength(embedded ? 0 : 1);
+    await clickButton("시작하기");
+    expect(container.querySelectorAll("main")).toHaveLength(embedded ? 0 : 1);
+    expect(container.querySelectorAll("[data-answer]")).toHaveLength(5);
+    expect(document.activeElement?.getAttribute("aria-label")).toBe("웨딩코드 1번째 문장");
+    expect(document.activeElement?.classList.contains("md:scroll-mt-28")).toBe(embedded);
+  });
+
   it("부모가 다시 시작을 처리해도 v20 자체는 두 번 연속 빈 응답으로 초기화한다", async () => {
     const onRestart = vi.fn();
     await act(async () => root.render(<WeddingCodeV20Client shareOrigin="https://hanbang.ai" onRestart={onRestart} />));

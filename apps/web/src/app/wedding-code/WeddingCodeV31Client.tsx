@@ -34,9 +34,10 @@ function responseCounts(draft: V31Draft, indexes: readonly number[]) {
   };
 }
 
-export default function WeddingCodeV31Client({ shareOrigin, partnerDraft = null, bothDrafts = null, onRestart, allowLocalProgress = true, initialNotice = "" }: {
+export default function WeddingCodeV31Client({ shareOrigin, partnerDraft = null, bothDrafts = null, onRestart, allowLocalProgress = true, initialNotice = "", embedded = false }: {
   shareOrigin: string; partnerDraft?: V31Draft | null;
   bothDrafts?: { first: V31Draft; second: V31Draft } | null; onRestart?: (message?: string) => void; allowLocalProgress?: boolean; initialNotice?: string;
+  embedded?: boolean;
 }) {
   const screenRef = useRef<HTMLElement>(null);
   const [progress, setProgress] = useState<Progress>(() => ({
@@ -66,8 +67,9 @@ export default function WeddingCodeV31Client({ shareOrigin, partnerDraft = null,
 
   useEffect(() => {
     screenRef.current?.focus({ preventScroll: true });
-    window.scrollTo({ top: 0, behavior: "instant" });
-  }, [index, screen]);
+    if (embedded) screenRef.current?.scrollIntoView?.({ block: "start", behavior: "instant" });
+    else window.scrollTo({ top: 0, behavior: "instant" });
+  }, [embedded, index, screen]);
   useEffect(() => {
     if (screen === "result" && context.first) captureWeddingCodeEvent("wedding_code_comparison_viewed", { version: WEDDING_CODE_V31_VERSION, scene_total: totalQuestions });
   }, [context.first, screen, totalQuestions]);
@@ -219,16 +221,17 @@ export default function WeddingCodeV31Client({ shareOrigin, partnerDraft = null,
     </details>
   </aside>;
 
-  const shell = (children: ReactNode) => <main className="min-h-dvh bg-[var(--hb-surface-page)] px-4 pb-16 pt-5 sm:px-6">
+  const Root = embedded ? "div" : "main";
+  const shell = (children: ReactNode) => <Root className={embedded ? "px-4 pb-8 pt-5 sm:px-6" : "min-h-dvh bg-[var(--hb-surface-page)] px-4 pb-16 pt-5 sm:px-6"}>
     <div className="mx-auto max-w-2xl">
-      <nav aria-label="웨딩코드 탐색" className="mb-6 flex items-center justify-between gap-3"><Button href="/landing" variant="ghost" size="sm" className="px-0!">웨딩한방</Button><span className="text-xs font-semibold tracking-wide text-[var(--hb-text-muted)]">WEDDING CODE</span></nav>
-      <section ref={screenRef} tabIndex={-1} aria-label={screen === "intro" ? "웨딩코드 소개" : screen === "result" ? "웨딩코드 결과" : ordinal > 0 ? `웨딩코드 ${flowLabel} ${ordinal}번째` : "웨딩코드 답 수정"} className="outline-none">
+      {!embedded && <nav aria-label="웨딩코드 탐색" className="mb-6 flex items-center justify-between gap-3"><Button href="/landing" variant="ghost" size="sm" className="px-0!">웨딩한방</Button><span className="text-xs font-semibold tracking-wide text-[var(--hb-text-muted)]">WEDDING CODE</span></nav>}
+      <section ref={screenRef} tabIndex={-1} aria-label={screen === "intro" ? "웨딩코드 소개" : screen === "result" ? "웨딩코드 결과" : ordinal > 0 ? `웨딩코드 ${flowLabel} ${ordinal}번째` : "웨딩코드 답 수정"} className={embedded ? "scroll-mt-20 outline-none md:scroll-mt-28" : "outline-none"}>
         {notice ? <p role="status" className="mb-5 rounded-lg border border-[var(--hb-hairline)] bg-[var(--hb-surface-hover)] p-4 text-sm leading-relaxed text-[var(--hb-text-strong)]">{notice}</p> : null}
         {children}
         {storageControls}
       </section>
     </div>
-  </main>;
+  </Root>;
 
   if (screen === "intro") return shell(<>
     <section className={`${v31Surface} overflow-hidden`}>

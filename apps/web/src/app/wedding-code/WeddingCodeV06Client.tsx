@@ -100,6 +100,7 @@ export default function WeddingCodeV06Client({
   researchContributionOpen = false,
   researchStorageActive = false,
   onRestart,
+  embedded = false,
 }: {
   shareOrigin: string;
   version: WeddingCodeSceneVersion;
@@ -114,6 +115,7 @@ export default function WeddingCodeV06Client({
   bothCodes: { first: WeddingCodeV06Answers; second: WeddingCodeV06Answers } | null;
   /** 새 질문판 wrapper가 소유한 전체 재시작 동작. */
   onRestart?: () => void;
+  embedded?: boolean;
 }) {
   const [activeVersion, setActiveVersion] = useState(version);
   const [linkContext, setLinkContext] = useState({
@@ -263,10 +265,12 @@ export default function WeddingCodeV06Client({
             : null,
         })
         : `${window.location.origin}${window.location.pathname}`;
-      window.history.replaceState(null, "", privateUrl);
+      window.history.replaceState(null, "", embedded
+        ? `${window.location.pathname}${new URL(privateUrl).hash}`
+        : privateUrl);
     }
     return () => window.removeEventListener("hashchange", applyShareHash);
-  }, [bothCodes, partnerCode, version]);
+  }, [bothCodes, embedded, partnerCode, version]);
 
   function restart() {
     if (onRestart) {
@@ -291,7 +295,7 @@ export default function WeddingCodeV06Client({
   }
 
   if (linkError) {
-    return <Shell screenRef={screenRef} screenLabel={screenLabel}><section className={`${surface} px-5 py-7`} role="alert">
+    return <Shell embedded={embedded} screenRef={screenRef} screenLabel={screenLabel}><section className={`${surface} px-5 py-7`} role="alert">
       <h1 className="text-xl font-semibold text-[var(--hb-text-strong)]">이 링크는 열 수 없어요</h1>
       <p className="mt-3 text-sm leading-relaxed text-[var(--hb-text-body)]">링크 주소가 중간에 잘렸거나 바뀐 것 같아요. 보낸 사람에게 링크를 다시 받거나, 처음부터 새로 답해 주세요.</p>
       <Button className="mt-5" onClick={restart}>처음부터 새로 답하기</Button>
@@ -300,7 +304,7 @@ export default function WeddingCodeV06Client({
 
   if (step === "result") {
     return (
-      <Shell screenRef={screenRef} screenLabel={screenLabel}>
+      <Shell embedded={embedded} screenRef={screenRef} screenLabel={screenLabel}>
         <ResultView
           key={`${activeVersion}:${encodeWeddingCodeV06(theirs ?? {}, questions)}:${encodeWeddingCodeV06(answers, questions)}`}
           answers={answers}
@@ -319,7 +323,7 @@ export default function WeddingCodeV06Client({
 
   if (step === "intro") {
     return (
-      <Shell screenRef={screenRef} screenLabel={screenLabel}>
+      <Shell embedded={embedded} screenRef={screenRef} screenLabel={screenLabel}>
         <section className={`${surface} overflow-hidden`}>
           <div className="bg-[var(--hb-primary)] px-5 py-8 text-white sm:px-8">
             <p className="text-[12px] font-semibold text-[var(--hb-on-primary)]">웨딩코드</p>
@@ -439,7 +443,7 @@ export default function WeddingCodeV06Client({
   }
 
   return (
-    <Shell screenRef={screenRef} screenLabel={screenLabel}>
+    <Shell embedded={embedded} screenRef={screenRef} screenLabel={screenLabel}>
       <div className="mb-4 flex items-center gap-3">
         <button
           type="button"
@@ -537,15 +541,17 @@ export default function WeddingCodeV06Client({
   );
 }
 
-function Shell({ children, screenRef, screenLabel }: {
+function Shell({ children, screenRef, screenLabel, embedded }: {
   children: React.ReactNode;
   screenRef: React.RefObject<HTMLElement | null>;
   screenLabel: string;
+  embedded: boolean;
 }) {
+  const Root = embedded ? "section" : "main";
   return (
-    <main ref={screenRef} tabIndex={-1} aria-label={screenLabel} className="min-h-dvh bg-[var(--hb-surface-page)] px-4 py-6 sm:px-6 sm:py-10">
+    <Root ref={screenRef} tabIndex={-1} aria-label={screenLabel} className={embedded ? "scroll-mt-20 px-4 py-6 sm:px-6 sm:py-10 md:scroll-mt-28" : "min-h-dvh bg-[var(--hb-surface-page)] px-4 py-6 sm:px-6 sm:py-10"}>
       <div className="mx-auto w-full max-w-[560px]">{children}</div>
-    </main>
+    </Root>
   );
 }
 
