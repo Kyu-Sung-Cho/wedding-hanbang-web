@@ -10,14 +10,18 @@ import {
 } from "@/constants/weddingCodeV31";
 import { captureWeddingCodeEvent } from "@/lib/analytics";
 import { createV31Draft, getV31PriorityOptions, normalizeV31Draft } from "@/lib/weddingCode/v31";
-import { V31ChoiceInput, V31RatingInput, v31Body, v31Surface, v31Title } from "./WeddingCodeV31Inputs";
+import { V31ChoiceInput, V31PriorityInput, V31RatingInput, v31Body, v31Surface, v31Title } from "./WeddingCodeV31Inputs";
 import WeddingCodeV31Results from "./WeddingCodeV31Results";
+import { useV31LocalProgress } from "./useV31LocalProgress";
+import type { V31LocalProgressSnapshot } from "@/lib/weddingCode/v31LocalProgress";
 
 const coreCount = WEDDING_CODE_V31_QUESTIONS.length;
 const avoidanceIndex = coreCount + WEDDING_CODE_V31_TASTES.length;
 const priorityIndex = avoidanceIndex + 1;
 const totalQuestions = priorityIndex + 2;
 const missingAnswerNotice = "선택이 비어 있는 질문으로 돌아왔어요. 답을 고르거나, 아래에서 ‘아직 모르겠어요’나 ‘지금 답하지 않을게요’를 골라 주세요.";
+const resetStorageFailureNotice = "현재 화면은 새로 시작했지만, 브라우저에 저장된 답을 지우지 못했어요. 공용 기기라면 브라우저 설정에서 이 사이트의 데이터를 지워 주세요.";
+type Progress = Omit<V31LocalProgressSnapshot, "screen"> & { screen: "intro" | "questions" | "result" };
 
 function responseCounts(draft: V31Draft) {
   const responses = Object.values(draft.answers);
@@ -28,19 +32,21 @@ function responseCounts(draft: V31Draft) {
   };
 }
 
-export default function WeddingCodeV31Client({ shareOrigin, partnerDraft = null, bothDrafts = null, onRestart }: {
+export default function WeddingCodeV31Client({ shareOrigin, partnerDraft = null, bothDrafts = null, onRestart, allowLocalProgress = true, initialNotice = "" }: {
   shareOrigin: string; partnerDraft?: V31Draft | null;
-  bothDrafts?: { first: V31Draft; second: V31Draft } | null; onRestart?: () => void;
+  bothDrafts?: { first: V31Draft; second: V31Draft } | null; onRestart?: (message?: string) => void; allowLocalProgress?: boolean; initialNotice?: string;
 }) {
   const screenRef = useRef<HTMLElement>(null);
-  const [screen, setScreen] = useState<"intro" | "questions" | "result">(bothDrafts ? "result" : "intro");
-  const [draft, setDraft] = useState<V31Draft>(() => bothDrafts?.second ?? createV31Draft());
+  const [progress, setProgress] = useState<Progress>(() => ({
+    screen: bothDrafts ? "result" : "intro", draft: bothDrafts?.second ?? createV31Draft(),
+    index: 0, editing: false, needsPriorityReview: false,
+  }));
+  const { screen, draft, index, editing, needsPriorityReview } = progress;
   const [context, setContext] = useState({ first: bothDrafts?.first ?? partnerDraft, received: Boolean(bothDrafts) });
-  const [index, setIndex] = useState(0);
-  const [editing, setEditing] = useState(false);
-  const [needsPriorityReview, setNeedsPriorityReview] = useState(false);
+  const [owned, setOwned] = useState(false);
+  const local = useV31LocalProgress(allowLocalProgress && !context.received);
   const [revision, setRevision] = useState(0);
-  const [notice, setNotice] = useState("");
+  const [notice, setNotice] = useState(initialNotice);
   const question = index < coreCount ? WEDDING_CODE_V31_QUESTIONS[index] : null;
   const taste = index >= coreCount && index < avoidanceIndex ? WEDDING_CODE_V31_TASTES[index - coreCount] : null;
   const choice = taste ? draft.tastes[taste.key] : index === avoidanceIndex ? draft.avoidances : index === priorityIndex ? draft.priorities : draft.spending;
@@ -64,7 +70,12 @@ export default function WeddingCodeV31Client({ shareOrigin, partnerDraft = null,
     });
   }, [hasPartnerLink, index, screen]);
 
-  function update(nextDraft: V31Draft, staleTastePriority?: string) {
+  function commit(next: Partial<Progress>, persist = owned) {
+    const changed = { ...progress, ...next };
+    setProgress(changed);
+    if (persist && changed.screen !== "intro") local.store.save({ ...changed, screen: changed.screen });
+  }
+  function update(nextDraft: V31Draft, staleTastePriority?: string, extra: Partial<Progress> = {}) {
     const normalized = normalizeV31Draft(nextDraft);
     if (staleTastePriority && normalized.priorities?.status === "answered") {
       const kept = normalized.priorities.values.filter(value => value !== staleTastePriority);
@@ -74,9 +85,9 @@ export default function WeddingCodeV31Client({ shareOrigin, partnerDraft = null,
     const nextPriorities = normalized.priorities?.status === "answered" ? normalized.priorities.values : [];
     if (previousPriorities.some(value => !nextPriorities.includes(value))) {
       setNotice("앞의 답이 바뀌어 더 이상 맞지 않는 우선순위를 뺐어요. 결과에서 우선순위를 다시 확인해 주세요.");
-      setNeedsPriorityReview(true);
+      extra.needsPriorityReview = true;
     }
-    setDraft(normalized);
+    commit({ draft: normalized, ...extra });
     setRevision(value => value + 1);
   }
   function changeRating(value: V31Response) {
@@ -92,61 +103,107 @@ export default function WeddingCodeV31Client({ shareOrigin, partnerDraft = null,
     }
     else if (index === avoidanceIndex) update({ ...draft, avoidances: value });
     else if (index === priorityIndex) {
-      update({ ...draft, priorities: value });
-      if (value !== undefined) { setNeedsPriorityReview(false); setNotice(""); }
+      update({ ...draft, priorities: value }, undefined, value === undefined ? {} : { needsPriorityReview: false });
+      if (value !== undefined) setNotice("");
     }
     else update({ ...draft, spending: value });
   }
   function finish() {
     if (needsPriorityReview && index !== priorityIndex) {
-      setIndex(priorityIndex);
+      commit({ index: priorityIndex });
       setNotice("앞의 답이 바뀌어 이전 우선순위를 다시 확인해야 해요. 지키고 싶은 것을 다시 고르거나, 아직 정하지 않았다고 답해 주세요.");
       return;
     }
-    if (needsPriorityReview && draft.priorities !== undefined) { setNeedsPriorityReview(false); setNotice(""); }
+    if (needsPriorityReview && draft.priorities !== undefined) setNotice("");
     const missingCore = WEDDING_CODE_V31_QUESTIONS.findIndex(item => draft.answers[item.id] === undefined);
     const missingTaste = WEDDING_CODE_V31_TASTES.findIndex(item => draft.tastes[item.key] === undefined);
     const missingIndex = missingCore >= 0 ? missingCore : missingTaste >= 0 ? coreCount + missingTaste
       : draft.avoidances === undefined ? avoidanceIndex : draft.priorities === undefined ? priorityIndex : draft.spending === undefined ? priorityIndex + 1 : -1;
-    if (missingIndex >= 0) { setIndex(missingIndex); setNotice(missingAnswerNotice); return; }
+    if (missingIndex >= 0) { commit({ index: missingIndex }); setNotice(missingAnswerNotice); return; }
     if (notice === missingAnswerNotice) setNotice("");
     if (!editing) captureWeddingCodeEvent("wedding_code_completed", { version: WEDDING_CODE_V31_VERSION, scene_total: totalQuestions, ...responseCounts(draft), result_kind: context.first ? "couple" : "solo" });
-    setScreen("result");
-    setEditing(false);
+    commit({ screen: "result", editing: false, needsPriorityReview: false });
   }
   function next() {
-    if (index === priorityIndex && draft.priorities !== undefined) { setNeedsPriorityReview(false); setNotice(""); }
+    if (index === priorityIndex && draft.priorities !== undefined) setNotice("");
     if (index === totalQuestions - 1) finish();
-    else setIndex(value => value + 1);
+    else commit({ index: index + 1, needsPriorityReview: index === priorityIndex ? false : needsPriorityReview });
+  }
+  function skipPriority() {
+    update({ ...draft, priorities: { status: "skipped" } }, undefined, { index: priorityIndex + 1, needsPriorityReview: false });
+    setNotice("");
   }
   function start() {
+    if (!owned && local.saved && !local.store.clear()) setNotice(resetStorageFailureNotice);
     if (!started) captureWeddingCodeEvent("wedding_code_started", { version: WEDDING_CODE_V31_VERSION, scene_total: totalQuestions, has_partner_link: Boolean(context.first) });
-    setScreen("questions");
+    setOwned(true);
+    commit({ screen: "questions" }, true);
+  }
+  function resume(saved = local.store.restore()) {
+    if (!saved) return;
+    setOwned(true); setProgress(saved); setRevision(value => value + 1);
+    setNotice(saved.needsPriorityReview ? "앞의 답이 바뀌어 우선순위를 다시 확인해야 해요." : "저장된 내 답을 불러왔어요.");
   }
   function restart() {
+    const cleared = local.store.clear();
+    const restartNotice = cleared ? "" : resetStorageFailureNotice;
     // Entry의 key가 그대로여도 로컬 답과 받은 링크 맥락을 먼저 비운다.
-    setDraft(createV31Draft()); setContext({ first: null, received: false }); setIndex(0);
-    setScreen("intro"); setEditing(false); setNeedsPriorityReview(false); setNotice(""); setRevision(value => value + 1);
+    setProgress({ draft: createV31Draft(), index: 0, screen: "intro", editing: false, needsPriorityReview: false });
+    setContext({ first: null, received: false }); setOwned(false); setNotice(restartNotice); setRevision(value => value + 1);
     window.history.replaceState(null, "", window.location.pathname);
     captureWeddingCodeEvent("wedding_code_restarted", { version: WEDDING_CODE_V31_VERSION });
-    onRestart?.();
+    onRestart?.(restartNotice);
   }
   function edit(id?: string) {
     const questionIndex = WEDDING_CODE_V31_QUESTIONS.findIndex(item => item.id === id);
     const tasteIndex = WEDDING_CODE_V31_TASTES.findIndex(item => `taste.${item.key}` === id);
     const target = questionIndex >= 0 ? questionIndex : tasteIndex >= 0 ? coreCount + tasteIndex
       : id === "avoidances" || id?.startsWith("avoid.") ? avoidanceIndex : id === "priorities" ? priorityIndex : id === "spending" ? priorityIndex + 1 : 0;
-    setIndex(target); setEditing(true); setScreen("questions");
+    commit({ index: target, editing: true, screen: "questions" });
   }
   function markTopicNotApplicable() {
     if (!question) return;
     const topicQuestions = WEDDING_CODE_V31_QUESTIONS.filter(item => item.topic === question.topic);
     const answers = { ...draft.answers };
     for (const item of topicQuestions) answers[item.id] = "not_applicable";
-    update({ ...draft, answers });
     const lastIndex = WEDDING_CODE_V31_QUESTIONS.findLastIndex(item => item.topic === question.topic);
-    setIndex(lastIndex + 1);
+    update({ ...draft, answers }, undefined, { index: lastIndex + 1 });
   }
+  function toggleSaving() {
+    const enabled = !local.enabled;
+    if (!local.store.setEnabled(enabled)) {
+      setNotice("저장 설정을 바꾸지 못했어요. 저장된 답을 지우려면 브라우저의 사이트 데이터를 확인해 주세요.");
+      return;
+    }
+    setNotice("");
+    if (enabled && owned && screen !== "intro") local.store.save({ ...progress, screen });
+  }
+  const storageMessage = !local.ready ? "저장 상태를 확인하고 있어요."
+    : local.status === "saved" ? "이 브라우저에 저장됐어요. 나중에 이어 할 수 있어요."
+    : local.status === "off" ? "자동 저장을 껐어요. 나가면 지금 답은 사라져요."
+    : local.status === "unavailable" ? "이 브라우저에 저장할 수 없어요. 계속 답할 수 있지만, 나가면 지금 답은 사라질 수 있어요."
+    : local.status === "conflict" ? "다른 탭에서 저장된 답이 바뀌었어요. 덮어쓰지 않도록 자동 저장을 멈췄어요."
+    : local.status === "expired" ? "저장된 답의 이어하기 기간이 지났어요. 새로 답해 주세요."
+    : local.status === "invalid" ? "저장된 답을 읽을 수 없어요. 새로 답하면 다시 저장해요."
+    : "답하면 이 브라우저에 자동으로 저장돼요.";
+
+  const storageControls = context.received ? null : <aside aria-label="이 브라우저의 답 저장" className="mt-6 border-t border-[var(--hb-hairline)] pt-4">
+    <p role="status" className={`text-xs leading-relaxed ${local.status === "unavailable" || local.status === "conflict" ? "text-[var(--hb-text-strong)]" : "text-[var(--hb-text-muted)]"}`}>{storageMessage}</p>
+    {local.status === "conflict" ? <div className="mt-2 flex flex-wrap gap-2">
+      <Button variant="secondary" onClick={() => { const saved = local.store.reload(); if (saved) resume(saved); else setNotice("불러올 저장된 답이 없어요. 현재 답은 이 화면에 남아 있어요."); }}>저장된 답 불러오기</Button>
+      {owned && screen !== "intro" ? <Button variant="secondary" onClick={() => local.store.takeOver({ ...progress, screen })}>이 화면의 답으로 저장하기</Button> : null}
+    </div> : null}
+    <details className={`mt-2 ${v31Body}`}>
+      <summary className="flex min-h-11 cursor-pointer items-center underline underline-offset-4">자동 저장 설정</summary>
+      <p>마지막으로 저장한 날부터 30일 동안 같은 브라우저에서 이어 할 수 있어요. 서버나 계정에는 보내지 않아요. 상대의 답·공유 동의·메모는 저장하지 않아요.</p>
+      <p className="mt-2">공용 기기라면 자동 저장을 꺼 주세요. 이 브라우저를 쓰는 다른 사람도 저장된 답을 열 수 있어요. 시크릿 모드나 브라우저 데이터 삭제 후에는 이어 하지 못할 수 있어요.</p>
+      <div className="mt-2 flex flex-wrap gap-2">
+        <Button variant="secondary" aria-pressed={local.enabled} onClick={toggleSaving}>{local.enabled ? "자동 저장 끄기" : "자동 저장 켜기"}</Button>
+        {local.saved || owned ? <Button variant="ghost" onClick={restart}>이 브라우저의 답 지우기</Button> : null}
+      </div>
+      <p className="mt-2 text-xs">자동 저장을 끄면 저장된 답도 지워져요. 지금 화면에서는 계속 답할 수 있어요.</p>
+    </details>
+  </aside>;
 
   const shell = (children: ReactNode) => <main className="min-h-dvh bg-[var(--hb-surface-page)] px-4 pb-16 pt-5 sm:px-6">
     <div className="mx-auto max-w-2xl">
@@ -154,6 +211,7 @@ export default function WeddingCodeV31Client({ shareOrigin, partnerDraft = null,
       <section ref={screenRef} tabIndex={-1} aria-label={screen === "intro" ? "웨딩코드 소개" : screen === "result" ? "웨딩코드 결과" : `웨딩코드 ${index + 1}번째 질문`} className="outline-none">
         {notice ? <p role="status" className="mb-5 rounded-lg border border-[var(--hb-hairline)] bg-[var(--hb-surface-hover)] p-4 text-sm leading-relaxed text-[var(--hb-text-strong)]">{notice}</p> : null}
         {children}
+        {storageControls}
       </section>
     </div>
   </main>;
@@ -176,13 +234,18 @@ export default function WeddingCodeV31Client({ shareOrigin, partnerDraft = null,
         <div className="mt-7 border-t border-[var(--hb-hairline)] pt-5">
           <p className={`text-sm ${v31Title}`}>전체 {totalQuestions}개 질문 · 로그인 없이 시작</p>
           <p className={`mt-2 ${v31Body}`}>{coreCount}개 문장에 다섯 단계로 답하고, {WEDDING_CODE_V31_TASTES.length}가지 취향과 피하고 싶은 것·우선순위·더 쓰고 싶은 곳을 직접 골라요. 아직 모르거나 계획에 없는 것은 따로 표시할 수 있어요.</p>
-          <p className={`mt-3 ${v31Body}`}>답은 서버나 계정에 저장하지 않아요. 새로고침하면 진행 중인 답은 사라져요. 결과에서 동의하고 만든 공유 링크에는 답 전체가 담겨요.</p>
-          {context.first ? <p className={`mt-3 ${v31Body}`}>이 링크를 열었다고 상대의 답이 내 답으로 저장되지는 않아요. 내 응답은 직접 공유하기 전까지 이 화면에서만 볼 수 있어요.</p> : null}
+          <p className={`mt-3 ${v31Body}`}>답은 서버나 계정에 저장하지 않아요. 이 브라우저에 자동 저장해 나중에 이어 할 수 있어요. 공용 기기에서는 아래 ‘자동 저장 설정’에서 꺼 주세요. 결과에서 동의하고 만든 공유 링크에는 답 전체가 담겨요.</p>
+          {context.first ? <p className={`mt-3 ${v31Body}`}>상대의 답은 이 브라우저에 저장하지 않아요. 내가 직접 답하거나 불러온 내 답만 저장해요. 나중에 상대와 비교하려면 이 초대 링크를 다시 열어 주세요.</p> : null}
           <details className={`mt-3 ${v31Body}`}><summary className="flex min-h-11 cursor-pointer items-center underline underline-offset-4">어디까지 알아볼 수 있나요?</summary><p>지금 내가 원하는 결혼식과 준비 방식을 살펴봐요. 성격 진단이나 공식 MBTI 검사가 아니고, 결혼에 관한 모든 가치관을 판단하지 않아요. 신혼집·여행·혼수와 실제 예산 금액은 별도로 정해야 해요.</p></details>
         </div>
       </div>
     </section>
-    <Button variant="primary" size="lg" fullWidth onClick={start} className="mt-5 min-h-14! whitespace-normal!">{started ? "이어서 답하기" : context.first ? "나도 답해보기" : "내 웨딩코드 시작하기"}<ArrowRight aria-hidden="true" className="size-4 shrink-0" /></Button>
+    {!owned && local.saved ? <section className={`${v31Surface} mt-5 p-5`} aria-label="저장된 내 답 이어하기">
+      <h2 className={`text-lg ${v31Title}`}>이 브라우저에 남겨 둔 답이 있어요</h2>
+      <p className={`mt-2 ${v31Body}`}>{local.saved.screen === "result" ? "전에 답한 내 결과를 다시 볼 수 있어요." : `${local.saved.index + 1}번째 질문부터 이어 할 수 있어요.`}</p>
+      <Button variant="primary" size="lg" fullWidth onClick={() => resume()} className="mt-3 whitespace-normal!">{local.saved.screen === "result" ? context.first ? "저장한 내 답으로 비교하기" : "내 결과 다시 보기" : "이어서 답하기"}</Button>
+    </section> : null}
+    <Button variant={!owned && local.saved ? "secondary" : "primary"} size="lg" fullWidth onClick={start} className="mt-5 min-h-14! whitespace-normal!">{!owned && local.saved ? "저장된 답 지우고 새로 시작" : started ? "이어서 답하기" : context.first ? "나도 답해보기" : "내 웨딩코드 시작하기"}<ArrowRight aria-hidden="true" className="size-4 shrink-0" /></Button>
   </>);
 
   if (screen === "result") return shell(<WeddingCodeV31Results key={revision} draft={draft} first={context.first} received={context.received} shareOrigin={shareOrigin} onEdit={edit} onRestart={restart} />);
@@ -191,7 +254,7 @@ export default function WeddingCodeV31Client({ shareOrigin, partnerDraft = null,
   const title = question?.statement ?? taste?.question ?? (index === avoidanceIndex ? "이번 결혼식에서 피하고 싶은 것이 있나요?" : index === priorityIndex ? "이번 결혼식에서 특히 지키고 싶은 것은 무엇인가요?" : "다른 곳의 비용을 줄여서라도 더 쓰고 싶은 곳이 있나요?");
   return shell(<>
     <div className="mb-5 flex items-center gap-3">
-      <Button variant="icon" label="이전 질문" onClick={() => index > 0 ? setIndex(value => value - 1) : setScreen("intro")}><ArrowLeft aria-hidden="true" className="size-5" /></Button>
+      <Button variant="icon" label="이전 질문" onClick={() => commit(index > 0 ? { index: index - 1 } : { screen: "intro" })}><ArrowLeft aria-hidden="true" className="size-5" /></Button>
       <progress value={index + 1} max={totalQuestions} aria-label="현재 질문" aria-valuetext={`${totalQuestions}개 중 ${index + 1}번째 질문`}
         className="h-1.5 min-w-0 flex-1 overflow-hidden rounded-full bg-[var(--hb-hairline)] accent-[var(--hb-success)] [&::-webkit-progress-bar]:bg-[var(--hb-hairline)] [&::-webkit-progress-value]:bg-[var(--hb-success)]" />
       <span className="text-sm font-semibold tabular-nums text-[var(--hb-text-body)]">{index + 1} / {totalQuestions}</span>
@@ -200,9 +263,9 @@ export default function WeddingCodeV31Client({ shareOrigin, partnerDraft = null,
       <p className="text-xs font-semibold text-[var(--hb-success)]">{topic?.title ?? (taste ? `구체 취향 · ${taste.title}` : "마지막으로, 내 기준 확인")}</p>
       <h1 className={`mb-5 mt-3 text-2xl leading-relaxed ${v31Title}`}>{title}</h1>
       {question ? <V31RatingInput key={question.id} value={draft.answers[question.id]} onChange={changeRating} showScopeHint={index === 0} /> : <>
-        {!taste ? <p className={`mb-4 ${v31Body}`}>{index === avoidanceIndex ? "원하는 것만큼 피하고 싶은 것도 준비 기준이 될 수 있어요. 없다면 아래에서 ‘따로 피하고 싶은 것은 없어요’를 골라 주세요." : index === priorityIndex ? "앞에서 원한다고 답한 내용과 직접 고른 취향, 피하고 싶은 것을 모았어요. 이 중에서 특히 지키고 싶은 것을 골라 주세요. 1개만 골라도 괜찮아요." : "전체 예산을 늘리겠다는 뜻은 아니에요. 더 쓰고 싶은 곳이 없다면 아래에서 ‘더 쓰고 싶은 곳은 지금 없어요’를 골라도 돼요."}</p> : null}
-        <V31ChoiceInput key={taste?.key ?? index} value={choice} options={taste?.options ?? (index === avoidanceIndex ? WEDDING_CODE_V31_AVOIDANCES : index === priorityIndex ? getV31PriorityOptions(draft) : WEDDING_CODE_V31_SPENDING)}
-          max={taste?.max ?? (index === avoidanceIndex ? WEDDING_CODE_V31_AVOIDANCES.length : index === priorityIndex ? 3 : 2)} onChange={changeChoice} tasteKey={taste?.key} kind={taste ? "taste" : index === avoidanceIndex ? "avoidances" : index === priorityIndex ? "priorities" : "spending"} />
+        {!taste ? <p className={`mb-4 ${v31Body}`}>{index === avoidanceIndex ? "원하는 것만큼 피하고 싶은 것도 준비 기준이 될 수 있어요. 없다면 아래에서 ‘따로 피하고 싶은 것은 없어요’를 골라 주세요." : index === priorityIndex ? "앞의 답만으로도 결과를 볼 수 있어요. 특히 지키고 싶은 것이 떠오를 때만 골라 주세요. 결과를 본 뒤 골라도 괜찮아요." : "전체 예산을 늘리겠다는 뜻은 아니에요. 지금 없다면 ‘더 쓰고 싶은 곳은 지금 없어요’를 골라도 돼요."}</p> : null}
+        {index === priorityIndex ? <V31PriorityInput value={draft.priorities} options={getV31PriorityOptions(draft)} onChange={changeChoice} onSkip={skipPriority} /> : <V31ChoiceInput key={taste?.key ?? index} value={choice} options={taste?.options ?? (index === avoidanceIndex ? WEDDING_CODE_V31_AVOIDANCES : WEDDING_CODE_V31_SPENDING)}
+          max={taste?.max ?? (index === avoidanceIndex ? WEDDING_CODE_V31_AVOIDANCES.length : 2)} onChange={changeChoice} tasteKey={taste?.key} kind={taste ? "taste" : index === avoidanceIndex ? "avoidances" : "spending"} />}
       </>}
       {question && ["vision", "records", "family"].includes(question.topic) ? <details className={`mt-4 border-t border-[var(--hb-hairline)] pt-2 ${v31Body}`}>
         <summary className="flex min-h-11 cursor-pointer items-center underline underline-offset-4">이 주제 전체가 이번 계획에 없다면</summary>
@@ -210,8 +273,8 @@ export default function WeddingCodeV31Client({ shareOrigin, partnerDraft = null,
         <Button variant="secondary" fullWidth onClick={markTopicNotApplicable} className="mt-3 whitespace-normal!">이 주제는 계획에 없어요</Button>
       </details> : null}
     </section>
-    <Button variant="primary" size="lg" fullWidth disabled={currentResponse === undefined} onClick={next} className="mt-5 min-h-14! whitespace-normal!">{index === totalQuestions - 1 ? "결과 보기" : "다음 질문"}<ArrowRight aria-hidden="true" className="size-4 shrink-0" /></Button>
+    {index !== priorityIndex || draft.priorities !== undefined ? <Button variant="primary" size="lg" fullWidth disabled={currentResponse === undefined} onClick={next} className="mt-5 min-h-14! whitespace-normal!">{index === totalQuestions - 1 ? "결과 보기" : "다음 질문"}<ArrowRight aria-hidden="true" className="size-4 shrink-0" /></Button> : null}
     {editing ? <Button variant="secondary" size="lg" fullWidth disabled={currentResponse === undefined} onClick={finish} className="mt-3 whitespace-normal!"><Check aria-hidden="true" className="size-4 shrink-0" />수정한 결과 보기</Button> : null}
-    <p className="mt-3 text-center text-xs leading-relaxed text-[var(--hb-text-muted)]">앞으로 돌아가 답을 바꿔도 괜찮아요. 새로고침하면 진행 중인 답은 사라져요.</p>
+    <p className="mt-3 text-center text-xs leading-relaxed text-[var(--hb-text-muted)]">앞으로 돌아가 답을 바꿔도 괜찮아요.</p>
   </>);
 }

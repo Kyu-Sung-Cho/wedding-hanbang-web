@@ -115,7 +115,9 @@ describe("웨딩코드 진입 화면", () => {
     const text = container.textContent ?? "";
     expect(text).toContain(`전체 ${WEDDING_CODE_V31_QUESTIONS.length + WEDDING_CODE_V31_TASTES.length + 3}개 질문`);
     expect(text).toContain("답은 서버나 계정에 저장하지 않아요");
-    expect(text).toContain("새로고침하면 진행 중인 답은 사라져요");
+    expect(text).toContain("이 브라우저에 자동 저장해 나중에 이어 할 수 있어요");
+    expect(text).toContain("공용 기기에서는");
+    expect(text).toContain("30일 동안 같은 브라우저");
     expect(text).toContain("동의하고 만든 공유 링크에는 답 전체가 담겨요");
     expect(text).toContain("내 웨딩코드 시작하기");
   });

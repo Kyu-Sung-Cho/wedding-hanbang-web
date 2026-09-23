@@ -8,6 +8,7 @@ import { captureWeddingCodeEvent } from "@/lib/analytics";
 import { createV31Draft, decodeV31 } from "@/lib/weddingCode/v31";
 import WeddingCodeV31Client from "./WeddingCodeV31Client";
 import WeddingCodeV31Sharing from "./WeddingCodeV31Sharing";
+import { V31PriorityInput } from "./WeddingCodeV31Inputs";
 
 vi.mock("@/lib/analytics", () => ({ captureWeddingCodeEvent: vi.fn() }));
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -16,11 +17,11 @@ describe("WeddingCodeV31Client", () => {
   let container: HTMLDivElement;
   let root: Root;
   beforeEach(() => {
-    vi.clearAllMocks(); window.history.replaceState(null, "", "/wedding-code");
+    vi.clearAllMocks(); window.localStorage.clear(); window.history.replaceState(null, "", "/wedding-code");
     vi.spyOn(window, "scrollTo").mockImplementation(() => {});
     container = document.createElement("div"); document.body.appendChild(container); root = createRoot(container);
   });
-  afterEach(async () => { await act(async () => root.unmount()); document.body.replaceChildren(); vi.restoreAllMocks(); });
+  afterEach(async () => { await act(async () => root.unmount()); document.body.replaceChildren(); window.localStorage.clear(); vi.restoreAllMocks(); });
 
   async function click(element: HTMLElement | null | undefined) {
     expect(element).toBeTruthy(); await act(async () => element!.click());
@@ -30,8 +31,13 @@ describe("WeddingCodeV31Client", () => {
   }
   async function rating(value: string | number) { await click(container.querySelector<HTMLInputElement>(`input[type="radio"][value="${value}"]`)); }
   async function next() { await button(container.querySelector('[data-question="spending"]') ? "결과 보기" : "다음 질문"); }
+  async function expandPriorities() {
+    const toggle = [...container.querySelectorAll("button")].find(item => item.textContent?.trim() === "우선순위도 골라볼게요 (선택)");
+    if (toggle) await click(toggle);
+  }
   async function finishFromHere(skip = false) {
     while (container.querySelector("[data-question]")) {
+      if (container.querySelector('[data-question="priorities"]')) await expandPriorities();
       if (container.querySelector('input[type="radio"]')) await rating(skip ? "skipped" : 5);
       else if (skip) await button("지금 답하지 않을게요");
       else {
@@ -92,6 +98,7 @@ describe("WeddingCodeV31Client", () => {
     expect(container.querySelector('[data-result="solo-v31"]')).toBeNull();
     expect(container.textContent).toContain("지키고 싶은 것을 다시 고르거나");
     expect([...container.querySelectorAll("button")].find(item => item.textContent?.trim() === "수정한 결과 보기")?.disabled).toBe(true);
+    await expandPriorities();
     await button("아직 우선순위를 정하지 못했어요"); await button("수정한 결과 보기");
     expect(linkValue()).toBeUndefined();
     await consent();
@@ -127,6 +134,7 @@ describe("WeddingCodeV31Client", () => {
     await click(container.querySelector<HTMLButtonElement>('[data-choice="outdoor"]'));
     await button("수정한 결과 보기");
     expect(container.querySelector('[data-question="priorities"]')).not.toBeNull();
+    await expandPriorities();
     expect(container.querySelector('[data-choice="taste.venue"]')?.getAttribute("aria-pressed")).toBe("false");
     await button("맞는 보기가 없어요"); await button("수정한 결과 보기"); await consent();
     expect(decodedLink(linkValue()!)?.priorities).toEqual({ status: "no_match" });
@@ -240,6 +248,7 @@ describe("WeddingCodeV31Client", () => {
     for (const option of WEDDING_CODE_V31_AVOIDANCES) await click(container.querySelector<HTMLButtonElement>(`[data-choice="${option.value}"]`));
     expect(container.querySelectorAll('[data-choice][aria-pressed="true"]')).toHaveLength(5);
     await next();
+    await expandPriorities();
     expect(container.textContent).toContain("1개만 골라도 괜찮아요");
     expect(container.querySelector('[data-choice="R1"]')).toBeNull();
     expect(container.querySelector('[data-choice="R2"]')).toBeNull();
@@ -284,6 +293,7 @@ describe("WeddingCodeV31Client", () => {
     for (const question of WEDDING_CODE_V31_QUESTIONS) { await rating(question.id === "B1" ? 5 : 2); await next(); }
     for (const taste of WEDDING_CODE_V31_TASTES) { await click(container.querySelector<HTMLButtonElement>(`[data-choice="${taste.options[0].value}"]`)); await next(); }
     await button("따로 피하고 싶은 것은 없어요"); await next();
+    await expandPriorities();
     await click(container.querySelector<HTMLButtonElement>('[data-choice="B1"]')); await next();
     await button("더 쓰고 싶은 곳은 지금 없어요"); await next();
     const guide = container.querySelector("[data-priority-guides] [data-insight]");
@@ -322,5 +332,65 @@ describe("WeddingCodeV31Client", () => {
     expect(comparison?.textContent).toContain("함께 고른 보기: 하늘하늘한 옷");
     expect(comparison?.textContent).toContain("깔끔하고 단순한 옷");
     expect(comparison?.textContent).toContain("한복 같은 전통 혼례복");
+  });
+
+  it("우선순위는 펼치지 않고 넘어갈 수 있고 더 쓸 곳 없음과 메모 선택이 먼저 명확하게 보인다", async () => {
+    await renderClient(); await button("내 웨딩코드 시작하기");
+    while (!container.querySelector('[data-question="priorities"]')) {
+      if (container.querySelector('input[type="radio"]')) await rating(4);
+      else await click(container.querySelector<HTMLButtonElement>("[data-choice]"));
+      await next();
+    }
+    expect(container.querySelector("[data-choice]")).toBeNull();
+    expect([...container.querySelectorAll("button")].find(item => item.textContent?.trim() === "우선순위도 골라볼게요 (선택)")?.getAttribute("aria-expanded")).toBe("false");
+    await button("지금은 넘어갈게요");
+    const spending = container.querySelector('[data-question="spending"]');
+    expect(spending).not.toBeNull();
+    const optionLabels = [...spending!.querySelectorAll("button")].map(item => item.textContent?.trim());
+    expect(optionLabels.slice(0, 2)).toEqual(["더 쓰고 싶은 곳은 지금 없어요", "아직 모르겠어요"]);
+    expect(optionLabels.filter(label => label === "더 쓰고 싶은 곳은 지금 없어요")).toHaveLength(1);
+    expect(optionLabels.filter(label => label === "아직 모르겠어요")).toHaveLength(1);
+    await button("더 쓰고 싶은 곳은 지금 없어요"); await next();
+    const note = container.querySelector<HTMLDetailsElement>("[data-optional-personal-note]");
+    expect(note?.open).toBe(false);
+    expect(note?.querySelector("summary")?.textContent).toBe("내 메모 남기기 (선택)");
+    expect(note?.textContent).toContain("자동 저장이나 공유 링크에는 포함되지 않아요");
+    expect(container.querySelector("[data-priority-guides]")).toBeNull();
+    const prioritySummary = [...container.querySelectorAll("h2")].find(item => item.textContent === "이번 결혼식에서 지키고 싶은 것")?.closest("section");
+    expect(prioritySummary?.textContent).toContain("우선순위는 이번에 고르지 않았어요.");
+    expect(prioritySummary?.textContent).not.toContain("지금 답하지 않을게요");
+    expect(prioritySummary?.querySelector("ul")).toBeNull();
+    await consent();
+    expect(decodedLink(linkValue()!)?.priorities).toEqual({ status: "skipped" });
+    expect(decodedLink(linkValue()!)?.spending).toEqual({ status: "no_preference" });
+  });
+
+  it("기존에 고른 우선순위는 펼쳐서 보여주고 접고 펼치는 동작만으로 답을 바꾸지 않는다", async () => {
+    const onChange = vi.fn(); const onSkip = vi.fn();
+    await act(async () => root.render(<V31PriorityInput value={{ status: "answered", values: ["B1"] }} options={[{ value: "B1", label: "전체 예산 지키기" }]} onChange={onChange} onSkip={onSkip} />));
+    expect(container.querySelector('[data-choice="B1"]')?.getAttribute("aria-pressed")).toBe("true");
+    expect(container.textContent).toContain("넘어가면 이전에 고른 우선순위는 지워져요");
+    await button("우선순위 고르기 접기");
+    expect(container.querySelector("[data-choice]")).toBeNull();
+    expect(container.textContent).toContain("우선순위 1개를 골랐어요");
+    await button("우선순위도 골라볼게요 (선택)");
+    expect(container.querySelector('[data-choice="B1"]')?.getAttribute("aria-pressed")).toBe("true");
+    expect(onChange).not.toHaveBeenCalled(); expect(onSkip).not.toHaveBeenCalled();
+    await button("지금은 넘어갈게요");
+    expect(onSkip).toHaveBeenCalledOnce(); expect(onChange).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["undecided", "아직 우선순위를 정하지 못했어요"],
+    ["no_preference", "특히 지킬 것을 따로 고르지 않을게요"],
+    ["skipped", "지금 답하지 않을게요"],
+  ] as const)("기존 %s 답은 선택 후보를 펼쳐도 그대로 유지한다", async (status, label) => {
+    const onChange = vi.fn(); const onSkip = vi.fn();
+    await act(async () => root.render(<V31PriorityInput value={{ status }} options={[{ value: "B1", label: "전체 예산 지키기" }]} onChange={onChange} onSkip={onSkip} />));
+    expect(container.querySelector("[data-choice]")).toBeNull();
+    await button("우선순위도 골라볼게요 (선택)");
+    expect([...container.querySelectorAll("button")].find(item => item.textContent?.trim() === label)?.getAttribute("aria-pressed")).toBe("true");
+    expect(container.querySelector('[data-choice="B1"]')?.getAttribute("aria-pressed")).toBe("false");
+    expect(onChange).not.toHaveBeenCalled(); expect(onSkip).not.toHaveBeenCalled();
   });
 });

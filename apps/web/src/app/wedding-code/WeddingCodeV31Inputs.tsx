@@ -1,7 +1,7 @@
 "use client";
 
 import { BookHeart, Check, Clock3, Flower2, HeartHandshake, Music2, UsersRound } from "lucide-react";
-import { useId, type ReactNode } from "react";
+import { useId, useState, type ReactNode } from "react";
 import Button from "@/components/ui/Button";
 import { DETAIL_SCENES } from "@/components/wedding-code/tasteScenes";
 import {
@@ -79,7 +79,15 @@ export function V31ChoiceInput({ value, options, max, onChange, tasteKey, kind =
     { value: "not_applicable", label: "이번 계획에는 없어요" },
     { value: "skipped", label: "지금 답하지 않을게요" },
   ];
+  const leadingStatuses = kind === "spending" ? [statuses[1], statuses[0]] : [];
+  const remainingStatuses = kind === "spending" ? statuses.slice(2) : statuses;
+  const statusButton = (option: (typeof statuses)[number]) => <Button key={option.value} variant="ghost" fullWidth
+    onClick={() => onChange({ status: option.value })} aria-pressed={value?.status === option.value}
+    className={`min-h-11! justify-start! whitespace-normal! px-3 text-left text-sm ${value?.status === option.value ? "bg-[var(--hb-selected-bg)]" : ""}`}>
+    <span className="flex-1">{option.label}</span>{value?.status === option.value ? <Check aria-hidden="true" className="size-4 shrink-0" /> : null}
+  </Button>;
   return <div>
+    {leadingStatuses.length ? <div className="mb-4 space-y-1 border-b border-[var(--hb-hairline)] pb-3">{leadingStatuses.map(statusButton)}</div> : null}
     <p className={`mb-3 ${v31Body}`}>{max === 1 ? "하나를 골라 주세요." : kind === "avoidances" || tasteKey === "attire" || tasteKey === "ceremony" ? "해당하는 것을 모두 골라 주세요. 다시 누르면 선택이 풀려요." : `최대 ${max}개까지 고를 수 있어요. 다시 누르면 선택이 풀려요.`}</p>
     {options.length ? <div className={tasteKey ? "grid grid-cols-1 gap-3 min-[360px]:grid-cols-2" : "space-y-2"}>
       {options.map(option => <Button key={option.value} variant="secondary" fullWidth
@@ -97,11 +105,32 @@ export function V31ChoiceInput({ value, options, max, onChange, tasteKey, kind =
       </Button>)}
     </div> : <p className="rounded-lg bg-[var(--hb-surface-hover)] p-4 text-sm leading-relaxed text-[var(--hb-text-body)]">앞에서 원한다고 답한 내용이나 직접 고른 취향, 피하고 싶은 것이 아직 없어요. 이전 질문에서 답을 바꾸거나, 아래에서 지금 생각을 골라도 괜찮아요.</p>}
     <div className="mt-5 space-y-1 border-t border-[var(--hb-hairline)] pt-2">
-      {statuses.map(option => <Button key={option.value} variant="ghost" fullWidth
-        onClick={() => onChange({ status: option.value })} aria-pressed={value?.status === option.value}
-        className={`min-h-11! justify-start! whitespace-normal! px-3 text-left text-sm ${value?.status === option.value ? "bg-[var(--hb-selected-bg)]" : ""}`}>
-        <span className="flex-1">{option.label}</span>{value?.status === option.value ? <Check aria-hidden="true" className="size-4 shrink-0" /> : null}
-      </Button>)}
+      {remainingStatuses.map(statusButton)}
     </div>
+  </div>;
+}
+
+export function V31PriorityInput({ value, options, onChange, onSkip }: {
+  value: V31Choice | undefined; options: readonly V31Option[];
+  onChange: (value: V31Choice | undefined) => void; onSkip: () => void;
+}) {
+  const [expanded, setExpanded] = useState(value?.status === "answered");
+  const optionsId = useId();
+  const previousAnswer = value?.status === "answered" ? `우선순위 ${value.values.length}개를 골랐어요.`
+    : value?.status === "undecided" ? "아직 우선순위를 정하지 못했어요."
+      : value?.status === "no_preference" ? "특히 지킬 것을 따로 고르지 않았어요."
+        : value?.status === "skipped" ? "이 질문은 넘어갔어요."
+          : value?.status === "not_applicable" ? "이번 계획에는 없어요."
+            : value?.status === "no_match" ? "맞는 보기가 없어요." : "";
+  return <div>
+    <Button variant="primary" fullWidth onClick={onSkip} className="min-h-12! whitespace-normal!">지금은 넘어갈게요</Button>
+    {value?.status === "answered" ? <p className={`mt-2 ${v31Body}`}>넘어가면 이전에 고른 우선순위는 지워져요.</p> : null}
+    <Button variant="secondary" fullWidth onClick={() => setExpanded(current => !current)} aria-expanded={expanded} aria-controls={optionsId}
+      className="mt-3 min-h-12! whitespace-normal!">{expanded ? "우선순위 고르기 접기" : "우선순위도 골라볼게요 (선택)"}</Button>
+    {!expanded && previousAnswer ? <p className={`mt-3 ${v31Body}`}>{previousAnswer} 고른 내용은 다시 펼쳐서 바꿀 수 있어요.</p> : null}
+    {expanded ? <div id={optionsId} className="mt-5">
+      <p className={`mb-2 ${v31Body}`}>1개만 골라도 괜찮아요.</p>
+      <V31ChoiceInput value={value} options={options} max={3} onChange={onChange} kind="priorities" />
+    </div> : null}
   </div>;
 }

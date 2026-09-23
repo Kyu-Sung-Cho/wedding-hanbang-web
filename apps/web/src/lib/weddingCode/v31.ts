@@ -169,7 +169,7 @@ export function encodeV31(draft: V31Draft): string {
   if (code.length > MAX_CODE_LENGTH) throw new Error("공유할 응답이 너무 길어요.");
   return code;
 }
-export function decodeV31(code: string | null | undefined): V31Draft | null {
+function parseV31Code(code: string | null | undefined): V31Draft | null {
   if (typeof code !== "string" || code.length > MAX_CODE_LENGTH || !/^[0-9a-z_.-]+$/.test(code)) return null;
   const parts = code.split("_");
   if (parts.length !== 6 || parts[0] !== "31" || parts[1].length !== WEDDING_CODE_V31_QUESTIONS.length || !/^[1-5uns-]+$/.test(parts[1])) return null;
@@ -195,7 +195,15 @@ export function decodeV31(code: string | null | undefined): V31Draft | null {
   if (avoidances) draft.avoidances = avoidances;
   if (priorities) draft.priorities = priorities;
   if (spending) draft.spending = spending;
-  return validDraft(draft) && hasV31Content(draft) ? draft : null;
+  return validDraft(draft) ? draft : null;
+}
+export function decodeV31(code: string | null | undefined): V31Draft | null {
+  const draft = parseV31Code(code);
+  return draft && hasV31Content(draft) ? draft : null;
+}
+/** 진행 복원은 모름·건너뜀만 있는 답도 보존한다. 공유 가능 여부는 별도로 검증한다. */
+export function decodeV31Progress(code: string | null | undefined): V31Draft | null {
+  return parseV31Code(code);
 }
 export function buildV31ShareUrl({ origin, first, second }: { origin: string; first: V31Draft; second?: V31Draft | null }): string | null {
   if (!validDraft(first) || !hasV31Content(first) || (second != null && (!validDraft(second) || !hasV31Content(second)))) return null;
