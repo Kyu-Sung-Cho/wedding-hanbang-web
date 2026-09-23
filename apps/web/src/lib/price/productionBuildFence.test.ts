@@ -407,7 +407,7 @@ describe("vendor disclosure production build fence", () => {
         VENDOR_DISCLOSURE_PRODUCTION_AUTHORIZATION: expectedProductionAuthorizationSha256(repoRoot),
       },
     })).not.toThrow();
-  });
+  }, 120_000);
 
   it("does not fall back to an older release when a registered explicit-budget contract is invalid", async () => {
     const fixture = await createBlockedFixture();

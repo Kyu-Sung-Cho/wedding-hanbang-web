@@ -161,19 +161,37 @@ afterAll(async () => {
 });
 
 describe("production build registers only the exact 238 pair-session successor", () => {
-  it("accepts the reviewed current checkout and preserves independent hosted evidence and owner authorization", () => {
-    for (const root of [repoRoot, pairSessionFixtureRoot]) {
-      const plan = loadWeddingCodePairSessionReleasePlan(root);
+  describe("reviewed 238 acceptance and authorization", () => {
+    const repositories = [
+      { label: "current checkout", resolveRoot: () => repoRoot },
+      { label: "isolated fixture", resolveRoot: () => pairSessionFixtureRoot },
+    ];
+
+    it.each(repositories)("preserves independent hosted evidence for $label", ({ resolveRoot }) => {
+      const plan = loadWeddingCodePairSessionReleasePlan(resolveRoot());
       expect(plan.migrationCount).toBe(238);
       expect(plan.runtimeEvidenceVerified).toBe(false);
       expect(plan.releaseAuthorized).toBe(false);
-      expect(() => production(root)).not.toThrow();
-      expect(() => loadPreparationStyleReleasePlan(root)).toThrowError(expect.objectContaining({ code: "NEW_MIGRATION_NOT_REVIEWED" }));
-      expect(() => production(root, "wrong")).toThrow(VENDOR_DISCLOSURE_EXTERNAL_AUTHORIZATION_INVALID);
-      expect(() => assertVendorDisclosureProductionBuild({ repoRoot: root, environment: { VERCEL_ENV: "production" } }))
+    }, 120_000);
+
+    it.each(repositories)("allows an owner-authorized production build for $label", ({ resolveRoot }) => {
+      expect(() => production(resolveRoot())).not.toThrow();
+    }, 120_000);
+
+    it.each(repositories)("keeps the public 237 loader closed to 238 SQL for $label", ({ resolveRoot }) => {
+      expect(() => loadPreparationStyleReleasePlan(resolveRoot()))
+        .toThrowError(expect.objectContaining({ code: "NEW_MIGRATION_NOT_REVIEWED" }));
+    }, 120_000);
+
+    it.each(repositories)("rejects an incorrect owner authorization for $label", ({ resolveRoot }) => {
+      expect(() => production(resolveRoot(), "wrong")).toThrow(VENDOR_DISCLOSURE_EXTERNAL_AUTHORIZATION_INVALID);
+    }, 120_000);
+
+    it.each(repositories)("requires an explicit owner authorization for $label", ({ resolveRoot }) => {
+      expect(() => assertVendorDisclosureProductionBuild({ repoRoot: resolveRoot(), environment: { VERCEL_ENV: "production" } }))
         .toThrow(VENDOR_DISCLOSURE_EXTERNAL_AUTHORIZATION_NOT_IMPLEMENTED);
-    }
-  }, 120_000);
+    }, 120_000);
+  });
   it.each([...pairSessionPins, PREPARATION_STYLE_CONTRACT_FILE, "supabase/migrations/20260920120000_wedding_preparation_style.sql"])(
     "rejects changed or missing 238 and predecessor pins without falling back: %s", async file => {
       const target = join(pairSessionFixtureRoot, file), bytes = await readFile(target);
