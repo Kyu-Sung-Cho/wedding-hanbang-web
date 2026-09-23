@@ -6,11 +6,11 @@ import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "
 import Button from "@/components/ui/Button";
 import type { V31Draft } from "@/constants/weddingCodeV31";
 import { decodeV31, encodeV31 } from "@/lib/weddingCode/v31";
-import { createPairSessionKeys, PAIR_SESSION_CONSENT_VERSION, requestPairSession, type PairSessionSnapshot } from "@/lib/weddingCode/pairSessionContract";
+import { createPairSessionKeys, PAIR_SESSION_CONSENT_VERSION, requestPairSession, type PairSessionRequest, type PairSessionSnapshot } from "@/lib/weddingCode/pairSessionContract";
 import { forgetPairSession, pairSessionUrl, parsePairSessionHash, readPairSessionRecovery, savePairSessionLink, savePairSessionRecovery, type PairSessionLink } from "@/lib/weddingCode/pairSessionClient";
 import WeddingCodeV31Client from "../WeddingCodeV31Client";
 import WeddingCodeV31Results from "../WeddingCodeV31Results";
-import { PairSessionConsent } from "../WeddingCodeV31Connection";
+import { PairSessionConsent, WeddingCodeComparisonResume } from "../WeddingCodeV31Connection";
 import { v31Body, v31Surface, v31Title } from "../WeddingCodeV31Inputs";
 
 function subscribeHash(listener: () => void) {
@@ -33,30 +33,49 @@ function CopyAddress({ url, label, privateLink = false }: { url: string; label: 
   </div>;
 }
 
-function JoinComparison({ draft, link, expiresAt }: { draft: V31Draft; link: PairSessionLink; expiresAt: string }) {
+type JoinRequest = Extract<PairSessionRequest, { action: "join" }>;
+
+function JoinComparison({ draft, link, expiresAt, previousRequest, onRequestStart }: {
+  draft: V31Draft; link: PairSessionLink; expiresAt: string; previousRequest: JoinRequest | null;
+  onRequestStart: (input: JoinRequest) => void;
+}) {
   const [consent, setConsent] = useState(false);
   const [ageConfirmed, setAgeConfirmed] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  const [recoveryUrl, setRecoveryUrl] = useState("");
-  const token = useRef<string | null>(null);
+  const [priorRequest] = useState(previousRequest);
+  const [recoveryUrl, setRecoveryUrl] = useState(() => previousRequest
+    ? pairSessionUrl(window.location.origin, { roomId: previousRequest.roomId, token: previousRequest.participantToken, mode: "member" }) : "");
+  const pending = useRef<JoinRequest | null>(previousRequest);
+  const active = useRef(true);
+  useEffect(() => { active.current = true; return () => { active.current = false; }; }, []);
   async function join() {
     if (busy) return;
-    if (!consent || !ageConfirmed) { setError("공유할 내용과 나이 확인 항목을 먼저 확인해 주세요."); return; }
+    if (!priorRequest && (!consent || !ageConfirmed)) { setError("공유할 내용과 나이 확인 항목을 먼저 확인해 주세요."); return; }
     setBusy(true); setError("");
     try {
-      token.current ??= createPairSessionKeys().participantToken;
-      const member: PairSessionLink = { roomId: link.roomId, token: token.current, mode: "member" };
+      pending.current ??= { action: "join", roomId: link.roomId, inviteToken: link.token, participantToken: createPairSessionKeys().participantToken,
+        answerCode: encodeV31(draft), consentVersion: PAIR_SESSION_CONSENT_VERSION, consent: true, ageConfirmed: true };
+      const input = pending.current;
+      const member: PairSessionLink = { roomId: input.roomId, token: input.participantToken, mode: "member" };
       setRecoveryUrl(pairSessionUrl(window.location.origin, member));
       savePairSessionRecovery({ ...member, expiresAt });
-      const result = await requestPairSession({ action: "join", roomId: link.roomId, inviteToken: link.token, participantToken: token.current,
-        answerCode: encodeV31(draft), consentVersion: PAIR_SESSION_CONSENT_VERSION, consent: true, ageConfirmed: true });
+      onRequestStart(input);
+      const result = await requestPairSession(input);
+      if (!active.current) return;
       if (!result.ok) { setError(result.error); return; }
       savePairSessionLink({ ...member, expiresAt: result.snapshot.expiresAt });
       window.location.replace(pairSessionUrl(window.location.origin, member));
-    } catch { setError("함께 보기를 연결하지 못했어요. 같은 화면에서 다시 시도해 주세요."); }
-    finally { setBusy(false); }
+    } catch { if (active.current) setError("함께 보기를 연결하지 못했어요. 같은 화면에서 다시 시도해 주세요."); }
+    finally { if (active.current) setBusy(false); }
   }
+  if (priorRequest) return <section className={`${v31Surface} mt-6 p-5 sm:p-7`} aria-label="앞선 참여 요청 확인">
+    <h2 className={`mb-3 text-lg ${v31Title}`}>앞선 참여 요청부터 확인해 주세요</h2>
+    <p className={v31Body}>수정한 답은 앞선 요청에 반영되지 않아요. 먼저 처리됐는지 확인하거나, 앞서 동의한 답 그대로 다시 시도할 수 있어요.</p>
+    <Link href={recoveryUrl} className="mt-3 inline-flex min-h-11 items-center font-semibold underline underline-offset-4">앞서 요청한 함께 보기 확인</Link>
+    <Button variant="secondary" fullWidth disabled={busy} onClick={() => void join()} className="mt-3 whitespace-normal!">{busy ? "함께 볼 결과를 연결하고 있어요…" : "앞서 요청한 답으로 다시 시도"}</Button>
+    {error ? <p role="alert" className={`mt-3 ${v31Body}`}>{error}</p> : null}
+  </section>;
   return <section className={`${v31Surface} mt-6 p-5 sm:p-7`} aria-label="내 답 공유하고 함께 보기">
     <h2 className={`mb-3 text-lg ${v31Title}`}>내 답을 공유하고, 두 사람 결과 보기</h2>
     <p className={`mb-3 ${v31Body}`}>여기서 동의하면 초대한 사람도 내 결과를 볼 수 있어요. 결과 링크를 다시 보내지 않아도 돼요.</p>
@@ -90,6 +109,8 @@ function TogetherSession({ link }: { link: PairSessionLink }) {
   const mutating = useRef(false);
   const closed = useRef(false);
   const knownInvite = useRef(false);
+  const joinStarted = useRef(false);
+  const [joinRequest, setJoinRequest] = useState<JoinRequest | null>(null);
   const { roomId, token, mode, invitation } = link;
   const expiresAt = snapshot?.expiresAt;
 
@@ -104,7 +125,7 @@ function TogetherSession({ link }: { link: PairSessionLink }) {
     let active = true; let inFlight = false;
     const current: PairSessionLink = { roomId, token, mode, ...(invitation ? { invitation } : {}) };
     async function refresh() {
-      if (!active || inFlight || mutating.current || closed.current || document.visibilityState === "hidden") return;
+      if (!active || inFlight || mutating.current || closed.current || joinStarted.current || document.visibilityState === "hidden") return;
       inFlight = true;
       const version = ++requestVersion.current;
       const recovery = current.mode === "invite" ? readPairSessionRecovery(current.roomId) : null;
@@ -140,6 +161,10 @@ function TogetherSession({ link }: { link: PairSessionLink }) {
   }, [roomId, token, mode, invitation, retry]);
 
   const reload = useCallback(() => setRetry(value => value + 1), []);
+  const beginJoin = useCallback((input: JoinRequest) => {
+    // 참여를 요청한 뒤에는 이전 조회나 자동 복구가 작성·수정 화면을 바꾸지 않는다.
+    joinStarted.current = true; requestVersion.current += 1; setJoinRequest(input);
+  }, []);
   async function revoke() {
     if (!member || member.mode !== "member" || busy) return;
     mutating.current = true; setBusy(true); const version = ++requestVersion.current;
@@ -172,6 +197,7 @@ function TogetherSession({ link }: { link: PairSessionLink }) {
 
   return <main className="mx-auto w-full max-w-[960px] px-4 py-6 sm:px-6 sm:py-10">
     <nav aria-label="두 사람 웨딩코드 탐색" className="mb-6"><Link href="/wedding-code" className="inline-flex min-h-11 items-center text-sm font-semibold text-[var(--hb-text-strong)] underline underline-offset-4">웨딩코드로 돌아가기</Link></nav>
+    {joinRequest ? <WeddingCodeComparisonResume compact /> : null}
     {refreshNotice ? <p role="status" className={`mb-4 ${v31Body}`}>{refreshNotice}</p> : null}
     {error ? <section role="alert"><h1 className={`text-2xl ${v31Title}`}>비교 결과를 확인하지 못했어요</h1><p className={`mt-3 ${v31Body}`}>{error}</p><Button variant="primary" className="mt-4" onClick={reload}>다시 확인하기</Button></section>
         : !activeSnapshot ? <p role="status" className={v31Body}>두 사람 연결을 확인하고 있어요…</p>
@@ -180,7 +206,7 @@ function TogetherSession({ link }: { link: PairSessionLink }) {
               <section className={`${v31Surface} mb-5 p-5`} aria-label="받은 초대 안내"><h2 className={`text-lg ${v31Title}`}>결혼 준비에 대해 서로 알아보자는 초대가 왔어요</h2><p className={`mt-2 ${v31Body}`}>먼저 내 생각대로 답해 보세요. 내 결과를 확인한 뒤 공유에 동의하면 상대도 내 결과를 보고, 나도 상대 결과를 볼 수 있어요. 아직 상대 답은 보여주지 않아요.</p></section>
               <WeddingCodeV31Client embedded shareOrigin={window.location.origin}
                 onRestart={() => window.history.replaceState(null, "", pairSessionUrl(window.location.origin, link))}
-                renderResultActions={draft => <JoinComparison draft={draft} link={link} expiresAt={activeSnapshot.expiresAt} />} />
+                renderResultActions={draft => <JoinComparison draft={draft} link={link} expiresAt={activeSnapshot.expiresAt} previousRequest={joinRequest} onRequestStart={beginJoin} />} />
             </> : own ? <>
               {manage}
               <WeddingCodeV31Results draft={own} first={partner} received={false} readOnly shareOrigin={window.location.origin} onEdit={() => {}} onRestart={() => router.push("/wedding-code")} sharingContent={<p className={`mt-5 ${v31Body}`}>이 비교 결과는 두 참여자의 확인 주소에서 볼 수 있어요. 다른 사람에게 답이 담긴 링크를 만드는 기능은 제공하지 않아요.</p>} />

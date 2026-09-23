@@ -248,6 +248,7 @@ export default function WeddingCodeV31Client({ shareOrigin, partnerDraft = null,
       </div>
       <p className="mt-2 text-xs">자동 저장을 끄면 저장된 답도 지워져요. 지금 화면에서는 계속 답할 수 있어요.</p>
       <p className="mt-2 text-xs">기기 저장을 꺼도 서버 함께 보기 연결은 남아요. 종료는 연결 결과에서 해주세요.</p>
+      <p className="mt-2 text-xs">함께 보기 요청의 처리 여부를 확인할 주소는 현재 탭에 임시로 남아요.</p>
     </details>
   </aside>;
 
@@ -330,6 +331,7 @@ export default function WeddingCodeV31Client({ shareOrigin, partnerDraft = null,
     </> : <section className={`${v31Surface} p-5 sm:p-7`} data-question={question?.id ?? (taste ? `taste.${taste.key}` : index === avoidanceIndex ? "avoidances" : index === priorityIndex ? "priorities" : "spending")}>
       <p className="text-xs font-semibold text-[var(--hb-success)]">{topic?.title ?? (taste ? `구체 취향 · ${taste.title}` : "마지막으로, 내 기준 확인")}</p>
       <h1 className={`mb-5 mt-3 text-2xl leading-relaxed ${v31Title}`}>{title}</h1>
+      {taste?.key === "guests" ? <p className={`mb-4 ${v31Body}`}>두 사람의 가족·지인을 모두 합한 전체 하객 수를 떠올려 주세요.</p> : null}
       {question ? <V31RatingInput key={question.id} value={draft.answers[question.id]} onChange={value => changeRating(question.id, value)} showScopeHint={ordinal === 1} /> : <>
         {!taste ? <p className={`mb-4 ${v31Body}`}>{index === avoidanceIndex ? "원하는 것만큼 피하고 싶은 것도 준비 기준이 될 수 있어요. 없다면 아래에서 ‘따로 피하고 싶은 것은 없어요’를 골라 주세요." : index === priorityIndex ? "앞의 답만으로도 결과를 볼 수 있어요. 특히 지키고 싶은 것이 떠오를 때만 골라 주세요. 결과를 본 뒤 골라도 괜찮아요." : "전체 예산을 늘리겠다는 뜻은 아니에요. 지금 없다면 ‘더 쓰고 싶은 곳은 지금 없어요’를 골라도 돼요."}</p> : null}
         {index === priorityIndex ? <V31PriorityInput value={draft.priorities} options={getV31PriorityOptions(draft)} onChange={changeChoice} onSkip={skipPriority} /> : <V31ChoiceInput key={taste?.key ?? index} value={choice} options={taste?.options ?? (index === avoidanceIndex ? WEDDING_CODE_V31_AVOIDANCES : WEDDING_CODE_V31_SPENDING)}
@@ -337,8 +339,8 @@ export default function WeddingCodeV31Client({ shareOrigin, partnerDraft = null,
       </>}
       {question ? topicScope(question.topic) : null}
     </section>}
-    {index !== priorityIndex || draft.priorities !== undefined ? <Button variant="primary" size="lg" fullWidth disabled={!pageComplete} onClick={next} className="mt-5 min-h-14! whitespace-normal!">{nextIndex === null ? "결과 보기" : "다음 질문"}<ArrowRight aria-hidden="true" className="size-4 shrink-0" /></Button> : null}
-    {editing ? <Button variant="secondary" size="lg" fullWidth disabled={currentResponse === undefined} onClick={() => finish()} className="mt-3 whitespace-normal!"><Check aria-hidden="true" className="size-4 shrink-0" />수정한 결과 보기</Button> : null}
+    {!editing && (index !== priorityIndex || draft.priorities !== undefined) ? <Button variant="primary" size="lg" fullWidth disabled={!pageComplete} onClick={next} className="mt-5 min-h-14! whitespace-normal!">{nextIndex === null ? "결과 보기" : "다음 질문"}<ArrowRight aria-hidden="true" className="size-4 shrink-0" /></Button> : null}
+    {editing ? <Button variant="primary" size="lg" fullWidth disabled={currentResponse === undefined} onClick={() => finish()} className="mt-5 min-h-14! whitespace-normal!"><Check aria-hidden="true" className="size-4 shrink-0" />수정한 결과 보기</Button> : null}
     {flow === "extra" && !editing ? <Button variant="secondary" size="lg" fullWidth onClick={() => finish()} className="mt-3 whitespace-normal!">여기까지 보고 결과 보기</Button> : null}
     <p className="mt-3 text-center text-xs leading-relaxed text-[var(--hb-text-muted)]">앞으로 돌아가 답을 바꿔도 괜찮아요.</p>
   </>);

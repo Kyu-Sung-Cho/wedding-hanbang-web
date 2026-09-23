@@ -74,8 +74,7 @@ function PersonalProfile({ draft, onEdit, nested = false, personLabel }: { draft
   const profile = buildV31Profile(draft);
   const unresolved = profile.unresolved.filter(item => hasResponse(draft, item.id));
   const [memo, setMemo] = useState("");
-  const priorityInsightIds = new Set(profile.priorityGuides.map(item => item.id
-    .replace(/^priority-taste\./, "direct-").replace(/^priority-avoid\./, "avoid-").replace(/^priority-/, "single-")));
+  const priorityInsightIds = new Set(profile.priorityGuides.flatMap(item => item.coveredInsightIds ?? [item.sourceInsightId]));
   const insights = profile.insights.filter(item => !priorityInsightIds.has(item.id));
   const priorityStatus = draft.priorities?.status === "skipped" ? "우선순위는 이번에 고르지 않았어요."
     : draft.priorities?.status === "no_preference" ? "특히 지킬 것을 따로 고르지 않았어요."
@@ -122,8 +121,8 @@ function PersonalProfile({ draft, onEdit, nested = false, personLabel }: { draft
       <p className={`mt-3 ${v31Body}`}>{draft.spending?.status === "no_preference" ? "지금은 다른 비용을 줄여서까지 더 쓰고 싶은 곳이 없다는 답이에요. 상대가 더 쓰고 싶은 곳이 있다면, 그 이유와 전체 예산 안에서 가능한지 함께 살펴봐요." : draft.spending?.status === "answered" ? "전체 예산을 늘리겠다는 약속은 아니에요. 더 쓸 곳과 줄일 수 있는 곳을 함께 이야기해 보세요." : "이 질문에서는 실제 금액이나 전체 예산을 늘릴지를 정하지 않아요. 더 쓰고 싶은 곳이 생기면 다시 답해도 괜찮아요."}</p>
       {onEdit ? <Button variant="ghost" onClick={() => onEdit("spending")} className="mt-2">더 쓰고 싶은 곳 수정</Button> : null}
     </section>
-    {unresolved.length ? <details className={`${v31Surface} mt-5 p-5 sm:p-7`}><summary className={`min-h-11 cursor-pointer text-base ${v31Title}`}>모르거나, 해당하지 않거나, 답하지 않은 내용</summary>
-      <p className={`mt-2 ${v31Body}`}>안 정했다고 준비가 부족한 것은 아니에요. 상황이 생겼을 때 다시 생각해도 괜찮아요.</p>
+    {unresolved.length ? <details className={`${v31Surface} mt-5 p-5 sm:p-7`}><summary className={`min-h-11 cursor-pointer text-base ${v31Title}`}>모름·계획 없음·답하지 않음·맞는 보기 없음</summary>
+      <p className={`mt-2 ${v31Body}`}>각각 다른 뜻의 답으로 남겨요. ‘맞는 보기가 없어요’는 취향이 아직 정해지지 않았다는 뜻은 아니에요. 보기 밖의 생각이 있다면 대화할 때 직접 들려주세요.</p>
       <ul className="mt-3 divide-y divide-[var(--hb-hairline)]">{unresolved.map(item => <li key={item.id} className="py-3"><p className={v31Body}>{item.text}</p><p className={`mt-1 text-sm ${v31Title}`}>{item.answer}</p>{onEdit ? <Button variant="ghost" onClick={() => onEdit(item.id)} className="mt-1" aria-label={`${item.text} 답 수정`}>다시 답하기</Button> : null}</li>)}</ul>
     </details> : null}
     <RawAnswers profile={profile} draft={draft} onEdit={onEdit} personLabel={personLabel} />
@@ -186,8 +185,8 @@ export default function WeddingCodeV31Results({ draft, first, received, shareOri
   return <div data-result={first ? "couple-v31" : "solo-v31"} data-empty={!profile.hasContent || undefined}>
     <header className="mb-6">
       <p className="text-xs font-semibold text-[var(--hb-success)]">웨딩코드 · {first ? "두 사람의 결과" : "내 결과"}</p>
-      <h1 className={`mt-3 text-3xl leading-snug ${v31Title}`}>{first ? "우리, 어디부터 맞춰볼까요?" : profile.hasContent ? "내가 바라는 결혼식과 준비 방식" : "아직 정하지 않아도 괜찮아요"}</h1>
-      <p className={`mt-3 ${v31Body}`}>{first ? "함께 원하는 것부터, 서로 다르게 답한 것까지 나란히 봐요. 같은 답도 이유는 다를 수 있으니, 각자 떠올린 장면을 이야기해 보세요." : profile.hasContent ? editable ? "지금 직접 고른 취향과 답을 정리했어요. 맞는 설명인지 읽어보고, 내 생각과 다르면 답을 고칠 수 있어요." : "공유된 취향과 답을 정리했어요. 이 화면에서는 답을 수정할 수 없어요." : "모르거나 해당하지 않는다고 답한 것을 취향으로 바꾸지는 않았어요. 관심 가는 질문 하나부터 다시 답해도 돼요."}</p>
+      <h1 className={`mt-3 text-3xl leading-snug ${v31Title}`}>{first ? "우리, 어디부터 맞춰볼까요?" : profile.hasContent ? "내가 바라는 결혼식과 준비 방식" : "이번에 남긴 답을 살펴봐요"}</h1>
+      <p className={`mt-3 ${v31Body}`}>{first ? "함께 동의하거나 고른 내용부터, 서로 다르게 답한 것까지 나란히 봐요. 같은 답도 이유는 다를 수 있으니, 각자 떠올린 장면을 이야기해 보세요." : profile.hasContent ? editable ? "지금 직접 고른 취향과 답을 정리했어요. 맞는 설명인지 읽어보고, 내 생각과 다르면 답을 고칠 수 있어요." : "공유된 취향과 답을 정리했어요. 이 화면에서는 답을 수정할 수 없어요." : "모름·계획 없음·답하지 않음·맞는 보기 없음은 서로 다른 답이에요. 이 답들로 구체적인 취향을 만들지는 않았어요. 원할 때 다시 답해도 괜찮아요."}</p>
       <p className="mt-3 text-xs leading-relaxed text-[var(--hb-text-muted)]">{received ? "받은 링크에 담긴 답이에요. 이름이나 본인 여부는 확인하지 않아요." : `답을 남긴 질문은 ${profile.respondedCount}개예요. 동의 정도를 고른 문장은 ${profile.ratedCount}개예요.`} 취향과 바람은 달라질 수 있어요. 성격 진단이나 궁합 점수는 아니에요.</p>
       {!first && editable && profile.hasContent ? <Button variant="secondary" className="mt-4 whitespace-normal!" onClick={() => { sharingRef.current?.scrollIntoView({ block: "start" }); sharingRef.current?.focus({ preventScroll: true }); }}>상대와 함께 보는 방법</Button> : null}
     </header>
@@ -210,12 +209,12 @@ export default function WeddingCodeV31Results({ draft, first, received, shareOri
         <WeddingCodeV31StyleSummary draft={draft} label={labels.second} onEdit={editable} compact />
       </div>
     </section>
-      <PairSection labels={labels} title="둘 다 원한다고 답한 것" description="문장에 둘 다 ‘그런 편’ 이상으로 답했거나, 구체 선택을 같게 고른 내용이에요. 중간 응답이나 둘 다 모르는 내용은 여기에 넣지 않았어요." items={items.filter(item => item.kind === "shared_wish")} empty={items.some(item => item.id !== "avoidances" && item.sharedLabels?.length) ? "일부 보기는 함께 골랐어요. 아래 차이에서 함께 고른 보기와 나머지 선택을 나란히 볼 수 있어요." : "이번 답에서는 함께 원한다고 확인한 내용이 없어요. 한 사람의 답부터 이유를 들어보세요."} />
+      <PairSection labels={labels} title="함께 동의하거나 고른 내용" description="문장에 둘 다 ‘그런 편’ 이상으로 답했거나, 구체 선택을 같게 고른 내용이에요. ‘맡겨도 괜찮다’는 허용과 ‘하고 싶다’는 바람은 각 문장의 뜻대로 읽어요." items={items.filter(item => item.kind === "shared_wish")} empty={items.some(item => item.id !== "avoidances" && item.sharedLabels?.length) ? "일부 보기는 함께 골랐어요. 아래 차이에서 함께 고른 보기와 나머지 선택을 나란히 볼 수 있어요." : "이번 답에서는 함께 동의하거나 같게 고른 내용이 확인되지 않았어요. 한 사람의 답부터 이유를 들어보세요."} />
       {items.some(item => item.kind === "shared_avoidance") ? <PairSection labels={labels} title="함께 피하고 싶은 것" description="피하고 싶은 것으로 같은 보기를 골랐어요. 구체적인 후보를 볼 때 어느 정도까지 괜찮은지 함께 확인해 보세요." items={items.filter(item => item.kind === "shared_avoidance")} empty="" /> : null}
       {items.some(item => item.kind === "open_preference") ? <PairSection labels={labels} title="열어 두고 있는 취향" description="한 사람 이상이 ‘어느 쪽도 괜찮아요’라고 답했어요. 모른다는 뜻이나 특정 선택에 합의했다는 뜻은 아니에요." items={items.filter(item => item.kind === "open_preference")} empty="" /> : null}
       <PairSection labels={labels} title="먼저 이야기해 볼 차이" description="누가 맞는지 정하지 않아요. 둘 중 한 사람이 우선순위로 고른 내용부터 보여줘요. 나머지는 질문 순서이며, 차이의 크기가 문제의 크기를 뜻하지 않아요." items={items.filter(item => item.kind === "different")} empty={items.every(item => item.kind === "unavailable") ? "두 사람이 같은 항목에 답한 내용이 없어 아직 차이를 비교할 수 없어요." : "지금 비교할 수 있는 답에서는 뚜렷한 차이가 나오지 않았어요. 그래도 실제 후보와 금액은 함께 정해야 해요."} />
       <details className={`${v31Surface} mt-5 p-5 sm:p-7`}><summary className={`min-h-11 cursor-pointer text-base ${v31Title}`}>낮게 답하거나 특별히 고르지 않은 내용</summary><p className={`my-3 ${v31Body}`}>둘 다 낮게 답했다고 반대 취향이 같다는 뜻은 아니에요. 중간 응답이나 따로 고르지 않은 답도 그대로 비교해요.</p>{items.filter(item => item.kind === "shared_distance" || item.kind === "middle").map(item => <PairItem key={item.id} item={item} labels={labels} />)}</details>
-      {items.some(item => item.kind === "unavailable") ? <details className={`${v31Surface} mt-5 p-5 sm:p-7`}><summary className={`flex min-h-11 cursor-pointer text-base ${v31Title}`}>아직 함께 비교하지 않은 내용</summary><p className={`my-3 ${v31Body}`}>한 사람만 답했거나, 아직 모름·계획 없음·답하지 않음으로 남긴 내용이에요. 의견 차이로 해석하지 않아요.</p>{items.filter(item => item.kind === "unavailable").map(item => <PairItem key={item.id} item={item} labels={labels} />)}</details> : null}
+      {items.some(item => item.kind === "unavailable") ? <details className={`${v31Surface} mt-5 p-5 sm:p-7`}><summary className={`flex min-h-11 cursor-pointer text-base ${v31Title}`}>아직 함께 비교하지 않은 내용</summary><p className={`my-3 ${v31Body}`}>한 사람만 답했거나, 모름·계획 없음·답하지 않음·맞는 보기 없음으로 남긴 내용이에요. 보기 밖의 생각이 있는 답을 미정으로 바꾸거나, 의견 차이로 단정하지 않아요.</p>{items.filter(item => item.kind === "unavailable").map(item => <PairItem key={item.id} item={item} labels={labels} />)}</details> : null}
         </> : <>
           <p className={`mb-4 ${v31Body}`}>{received ? `${labels[activeTab]}의 답을 정리했어요. 누가 본인인지는 확인하지 않으며, 이곳에서 답을 수정할 수는 없어요.` : activeTab === "second" ? readOnly ? "내가 공유한 답이에요. 이 화면에서는 답을 수정할 수 없어요." : "내가 직접 답한 내용이에요. 생각과 다른 부분은 답을 수정할 수 있어요." : "상대가 공유한 답이에요. 상대의 답을 대신 수정할 수는 없어요."}</p>
           <WeddingCodeV31StyleSummary draft={activeTab === "first" ? first : draft} label={labels[activeTab]} onEdit={activeTab === "second" ? editable : undefined} />

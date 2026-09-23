@@ -127,4 +127,28 @@ describe("두 사람 비교의 주소와 기기 저장", () => {
     window.dispatchEvent(new StorageEvent("storage", { key: PAIR_SESSION_LOCAL_KEY }));
     expect(listener).toHaveBeenCalledTimes(3);
   });
+
+  it("방을 모르는 재방문도 현재 탭의 미확인 요청 주소를 찾고 만료·삭제 시에는 노출하지 않는다", () => {
+    const listener = vi.fn(); const unsubscribe = subscribePairSession(listener);
+    savePairSessionRecovery(saved);
+    expect(listener).toHaveBeenCalledTimes(1);
+    expect(readPairSessionRecovery()).toEqual(saved);
+    expect(readSavedPairSession()).toBeNull();
+    forgetPairSession(roomId);
+    expect(readPairSessionRecovery()).toBeNull();
+    savePairSessionRecovery(saved);
+    vi.mocked(Date.now).mockReturnValue(Date.parse(saved.expiresAt));
+    expect(readPairSessionRecovery()).toBeNull();
+    unsubscribe();
+  });
+
+  it("자동저장 OFF의 성공 주소도 현재 탭 구독자에게만 복구 변경을 알린다", () => {
+    window.localStorage.setItem(savePreference, "off");
+    const listener = vi.fn(); const unsubscribe = subscribePairSession(listener);
+    expect(savePairSessionLink(saved)).toBe(false);
+    expect(listener).toHaveBeenCalledTimes(1);
+    expect(readPairSessionRecovery()).toEqual(saved);
+    expect(window.localStorage.getItem(PAIR_SESSION_LOCAL_KEY)).toBeNull();
+    unsubscribe();
+  });
 });
