@@ -64,6 +64,7 @@ async function createFixture() {
   );
   for (const dependency of [
     "wedding-code-pair-session-release-contract.mjs",
+    "wedding-code-pair-session-conflict-release-contract.mjs",
     "preparation-style-release-contract.mjs",
     "wedding-code-research-scene-v10-release-contract.mjs",
     "wedding-code-research-scene-v09-release-contract.mjs",

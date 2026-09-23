@@ -2618,6 +2618,11 @@ export async function runProductionRelease({
   now = () => new Date(),
 } = {}) {
   const repoRoot = resolve(requestedRepoRoot ?? process.cwd());
+  if ((argv ?? []).includes("--wedding-code-pair-session-conflict")) {
+    assertSafeExecutionEnvironment(process.env);
+    const { runWeddingCodePairSessionConflictRelease } = await import("./wedding-code-pair-session-conflict-release.mjs");
+    return runWeddingCodePairSessionConflictRelease({ repoRoot, argv, now });
+  }
   if ((argv ?? []).includes("--wedding-code-pair-session")) {
     assertSafeExecutionEnvironment(process.env);
     const { runWeddingCodePairSessionRelease } = await import("./wedding-code-pair-session-release.mjs");
