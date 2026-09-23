@@ -24,6 +24,8 @@ import { WEDDING_CODE_SCENE_V10_CONTRACT_FILE, loadWeddingCodeSceneV10ReleasePla
 import { createWeddingCodeSceneVersionHistoricalRepository } from "../../../../../scripts/tests/fixtures/wedding-code-research-scene-v09-historical-repository.mjs";
 import { PREPARATION_STYLE_CONTRACT_FILE, loadPreparationStyleReleasePlan } from "../../../../../scripts/lib/preparation-style-release-contract.mjs";
 import { createWeddingCodeSceneV10HistoricalRepository } from "../../../../../scripts/tests/fixtures/wedding-code-research-scene-v10-historical-repository.mjs";
+import { WEDDING_CODE_PAIR_SESSION_CONTRACT_FILE, loadWeddingCodePairSessionReleasePlan } from "../../../../../scripts/lib/wedding-code-pair-session-release-contract.mjs";
+import { createPreparationStyleHistoricalRepository } from "../../../../../scripts/tests/fixtures/preparation-style-historical-repository.mjs";
 import {
   assertVendorDisclosureProductionBuild,
   expectedProductionAuthorizationSha256,
@@ -77,6 +79,11 @@ let cleanupPreparationFixture: (() => void) | undefined;
 const preparationPins = [PREPARATION_STYLE_CONTRACT_FILE, "scripts/lib/preparation-style-release.mjs",
   "scripts/lib/preparation-style-catalog.mjs", "supabase/release-contracts/preparation-style-pg17-catalog-v1.json",
   "supabase/migrations/20260920120000_wedding_preparation_style.sql"];
+let pairSessionFixtureRoot: string;
+let cleanupPairSessionFixture: (() => void) | undefined;
+const pairSessionPins = [WEDDING_CODE_PAIR_SESSION_CONTRACT_FILE, "scripts/lib/wedding-code-pair-session-release.mjs",
+  "scripts/lib/wedding-code-pair-session-catalog.mjs", "supabase/release-contracts/wedding-code-pair-session-pg17-catalog-v1.json",
+  "supabase/migrations/20260923104336_wedding_code_pair_sessions.sql"];
 
 function production(root: string, authorization = expectedProductionAuthorizationSha256(root)) {
   return assertVendorDisclosureProductionBuild({
@@ -133,6 +140,10 @@ beforeAll(async () => {
   preparationFixtureRoot = preparationHistory.root;
   cleanupPreparationFixture = preparationHistory.cleanup;
   for (const file of preparationPins) await copyFile(join(repoRoot, file), join(preparationFixtureRoot, file));
+  const pairSessionHistory = createPreparationStyleHistoricalRepository(repoRoot);
+  pairSessionFixtureRoot = pairSessionHistory.root;
+  cleanupPairSessionFixture = pairSessionHistory.cleanup;
+  for (const file of pairSessionPins) await copyFile(join(repoRoot, file), join(pairSessionFixtureRoot, file));
 }, 300_000);
 
 afterAll(async () => {
@@ -146,11 +157,64 @@ afterAll(async () => {
   cleanupSceneFixture?.();
   cleanupSceneV10Fixture?.();
   cleanupPreparationFixture?.();
+  cleanupPairSessionFixture?.();
+});
+
+describe("production build registers only the exact 238 pair-session successor", () => {
+  describe("reviewed 238 acceptance and authorization", () => {
+    const repositories = [
+      { label: "current checkout", resolveRoot: () => repoRoot },
+      { label: "isolated fixture", resolveRoot: () => pairSessionFixtureRoot },
+    ];
+
+    it.each(repositories)("preserves independent hosted evidence for $label", ({ resolveRoot }) => {
+      const plan = loadWeddingCodePairSessionReleasePlan(resolveRoot());
+      expect(plan.migrationCount).toBe(238);
+      expect(plan.runtimeEvidenceVerified).toBe(false);
+      expect(plan.releaseAuthorized).toBe(false);
+    }, 120_000);
+
+    it.each(repositories)("allows an owner-authorized production build for $label", ({ resolveRoot }) => {
+      expect(() => production(resolveRoot())).not.toThrow();
+    }, 120_000);
+
+    it.each(repositories)("keeps the public 237 loader closed to 238 SQL for $label", ({ resolveRoot }) => {
+      expect(() => loadPreparationStyleReleasePlan(resolveRoot()))
+        .toThrowError(expect.objectContaining({ code: "NEW_MIGRATION_NOT_REVIEWED" }));
+    }, 120_000);
+
+    it.each(repositories)("rejects an incorrect owner authorization for $label", ({ resolveRoot }) => {
+      expect(() => production(resolveRoot(), "wrong")).toThrow(VENDOR_DISCLOSURE_EXTERNAL_AUTHORIZATION_INVALID);
+    }, 120_000);
+
+    it.each(repositories)("requires an explicit owner authorization for $label", ({ resolveRoot }) => {
+      expect(() => assertVendorDisclosureProductionBuild({ repoRoot: resolveRoot(), environment: { VERCEL_ENV: "production" } }))
+        .toThrow(VENDOR_DISCLOSURE_EXTERNAL_AUTHORIZATION_NOT_IMPLEMENTED);
+    }, 120_000);
+  });
+  it.each([...pairSessionPins, PREPARATION_STYLE_CONTRACT_FILE, "supabase/migrations/20260920120000_wedding_preparation_style.sql"])(
+    "rejects changed or missing 238 and predecessor pins without falling back: %s", async file => {
+      const target = join(pairSessionFixtureRoot, file), bytes = await readFile(target);
+      try {
+        await writeFile(target, Buffer.concat([bytes, Buffer.from("\n")]));
+        expect(() => production(pairSessionFixtureRoot)).toThrow(VENDOR_DISCLOSURE_STATIC_CONTRACT_INVALID);
+        await rm(target);
+        expect(() => production(pairSessionFixtureRoot)).toThrow(VENDOR_DISCLOSURE_STATIC_CONTRACT_INVALID);
+      } finally { await writeFile(target, bytes); }
+    }, 60_000,
+  );
+  it("does not admit unreviewed SQL beyond the exact 238 migration set", async () => {
+    const target = join(pairSessionFixtureRoot, "supabase/migrations/20990101000000_unreviewed.sql");
+    try {
+      await writeFile(target, "SELECT 1;\n", { flag: "wx" });
+      expect(() => production(pairSessionFixtureRoot)).toThrow(VENDOR_DISCLOSURE_STATIC_CONTRACT_INVALID);
+    } finally { await rm(target); }
+  });
 });
 
 describe("production build registers only the exact preparation-style successor after the 236 scene release", () => {
   it("accepts 237 reviewed SQL files while keeping hosted evidence and authorization independent", () => {
-    for (const root of [repoRoot, preparationFixtureRoot]) {
+    for (const root of [preparationFixtureRoot]) {
       const plan = loadPreparationStyleReleasePlan(root);
       expect(plan.migrationCount).toBe(237);
       expect(plan.runtimeEvidenceVerified).toBe(false);

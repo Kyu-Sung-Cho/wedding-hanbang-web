@@ -10,6 +10,7 @@ import WeddingCodeV31Client from "./WeddingCodeV31Client";
 import WeddingCodeV31Sharing from "./WeddingCodeV31Sharing";
 import { V31PriorityInput } from "./WeddingCodeV31Inputs";
 import { V31_CORE_RATING_IDS, V31_EXTRA_RATING_IDS } from "@/lib/weddingCode/v31Flow";
+import { readV31LocalProgress } from "@/lib/weddingCode/v31LocalProgress";
 
 vi.mock("@/lib/analytics", () => ({ captureWeddingCodeEvent: vi.fn() }));
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -30,7 +31,21 @@ describe("WeddingCodeV31Client", () => {
   async function button(label: string) {
     await click([...container.querySelectorAll("button")].find(item => item.textContent?.trim() === label));
   }
-  async function rating(value: string | number) { await click(container.querySelector<HTMLInputElement>(`input[type="radio"][value="${value}"]`)); }
+  async function rating(value: string | number, id?: string) { await click(container.querySelector<HTMLInputElement>(`${id ? `[data-question="${id}"] ` : ""}input[type="radio"][value="${value}"]`)); }
+  async function ratePage(value: string | number) {
+    const ids = [...container.querySelectorAll("[data-question]")].map(item => item.getAttribute("data-question")!);
+    for (const id of ids) await rating(value, id);
+  }
+  async function rateFlow(ids: readonly string[], value: number | ((id: string) => number)) {
+    let answered = 0;
+    while (answered < ids.length) {
+      const pageIds = [...container.querySelectorAll("[data-question]")].map(item => item.getAttribute("data-question")!);
+      expect(pageIds).toEqual(ids.slice(answered, answered + Math.min(3, ids.length - answered)));
+      for (const id of pageIds) await rating(typeof value === "number" ? value : value(id), id);
+      answered += pageIds.length;
+      await next();
+    }
+  }
   async function next() { await button([...container.querySelectorAll("button")].some(item => item.textContent?.trim() === "다음 질문") ? "다음 질문" : "결과 보기"); }
   async function expandPriorities() {
     const toggle = [...container.querySelectorAll("button")].find(item => item.textContent?.trim() === "우선순위도 골라볼게요 (선택)");
@@ -39,7 +54,7 @@ describe("WeddingCodeV31Client", () => {
   async function finishFromHere(skip = false) {
     while (container.querySelector("[data-question]")) {
       if (container.querySelector('[data-question="priorities"]')) await expandPriorities();
-      if (container.querySelector('input[type="radio"]')) await rating(skip ? "skipped" : 5);
+      if (container.querySelector('input[type="radio"]')) await ratePage(skip ? "skipped" : 5);
       else if (skip) await button("지금 답하지 않을게요");
       else {
         const choice = container.querySelector<HTMLButtonElement>('[data-choice="G1"]')
@@ -63,6 +78,35 @@ describe("WeddingCodeV31Client", () => {
   }
   async function consent(index = 0) { await click(container.querySelectorAll<HTMLInputElement>('input[type="checkbox"]')[index]); }
 
+  it("세 문장의 선택과 즉시 저장을 구분하고 모두 답한 뒤에만 다음 페이지로 간다", async () => {
+    await renderClient(); await button("내 웨딩코드 시작하기");
+    expect([...container.querySelectorAll("[data-question]")].map(item => item.getAttribute("data-question"))).toEqual(["G1", "G3", "R4"]);
+    const nextButton = [...container.querySelectorAll<HTMLButtonElement>("button")].find(item => item.textContent?.trim() === "다음 질문")!;
+    expect(nextButton.disabled).toBe(true);
+    const pick = async (id: string, value: string) => click(container.querySelector<HTMLInputElement>(`[data-question="${id}"] input[value="${value}"]`));
+    vi.mocked(window.scrollTo).mockClear();
+    await pick("G1", "3");
+    let saved = readV31LocalProgress(window.localStorage);
+    expect(saved.status === "ready" && saved.snapshot.draft.answers).toEqual({ G1: 3 });
+    expect(nextButton.disabled).toBe(true);
+    await next();
+    expect(container.querySelector('[data-question="B1"]')).toBeNull();
+    await pick("G3", "undecided");
+    expect(nextButton.disabled).toBe(true);
+    await pick("R4", "skipped");
+    expect(nextButton.disabled).toBe(false);
+    expect(window.scrollTo).not.toHaveBeenCalled();
+    saved = readV31LocalProgress(window.localStorage);
+    expect(saved.status === "ready" && saved.snapshot.draft.answers).toEqual({ G1: 3, G3: "undecided", R4: "skipped" });
+    expect(container.querySelector('[data-question="B1"]')).toBeNull();
+    await next();
+    expect([...container.querySelectorAll("[data-question]")].map(item => item.getAttribute("data-question"))).toEqual(["B1", "B3", "D1"]);
+    await click(container.querySelector<HTMLButtonElement>('button[aria-label="이전 질문"]'));
+    expect(container.querySelector<HTMLInputElement>('[data-question="G1"] input[value="3"]')?.checked).toBe(true);
+    expect(container.querySelector<HTMLInputElement>('[data-question="G3"] input[value="undecided"]')?.checked).toBe(true);
+    expect(container.querySelector<HTMLInputElement>('[data-question="R4"] input[value="skipped"]')?.checked).toBe(true);
+  });
+
   it.each([false, true])("embedded=%s에서도 같은 질문을 쓰고 화면의 탐색·스크롤만 맞춘다", async (embedded) => {
     const scrollIntoView = vi.fn();
     const original = Object.getOwnPropertyDescriptor(Element.prototype, "scrollIntoView");
@@ -73,9 +117,9 @@ describe("WeddingCodeV31Client", () => {
       expect(container.querySelectorAll('nav[aria-label="웨딩코드 탐색"]')).toHaveLength(embedded ? 0 : 1);
       expect(container.firstElementChild?.classList.contains("min-h-dvh")).toBe(!embedded);
       await button("내 웨딩코드 시작하기");
-      const screen = container.querySelector('[aria-label="웨딩코드 기본 질문 1번째"]');
+      const screen = container.querySelector('[aria-label="웨딩코드 기본 질문 1페이지"]');
       expect(document.activeElement).toBe(screen);
-      expect(container.querySelector("progress")?.getAttribute("max")).toBe("23");
+      expect(container.querySelector("progress")?.getAttribute("max")).toBe("13");
       if (embedded) {
         expect(window.scrollTo).not.toHaveBeenCalled();
         expect(scrollIntoView.mock.contexts.at(-1)).toBe(screen);
@@ -84,11 +128,11 @@ describe("WeddingCodeV31Client", () => {
         expect(screen?.classList.contains("md:scroll-mt-28")).toBe(true);
       } else expect(window.scrollTo).toHaveBeenCalledWith({ top: 0, behavior: "instant" });
       scrollIntoView.mockClear(); vi.mocked(window.scrollTo).mockClear();
-      await rating(5);
+      await ratePage(5);
       expect(scrollIntoView).not.toHaveBeenCalled();
       expect(window.scrollTo).not.toHaveBeenCalled();
       await next();
-      expect(document.activeElement?.getAttribute("aria-label")).toBe("웨딩코드 기본 질문 2번째");
+      expect(document.activeElement?.getAttribute("aria-label")).toBe("웨딩코드 기본 질문 2페이지");
     } finally {
       if (original) Object.defineProperty(Element.prototype, "scrollIntoView", original);
       else delete (Element.prototype as { scrollIntoView?: unknown }).scrollIntoView;
@@ -99,8 +143,8 @@ describe("WeddingCodeV31Client", () => {
     await renderClient();
     expect(container.textContent).toContain("기본 23개 질문");
     await button("내 웨딩코드 시작하기");
-    expect(container.querySelectorAll("[data-answer]")).toHaveLength(5);
-    expect(container.querySelector('progress')?.getAttribute("max")).toBe("23");
+    expect(container.querySelectorAll("[data-answer]")).toHaveLength(15);
+    expect(container.querySelector('progress')?.getAttribute("max")).toBe("13");
     await finishFromHere();
     expect(container.querySelector('[data-result="solo-v31"]')).not.toBeNull();
     expect(container.textContent).toContain("답을 남긴 질문은 23개예요");
@@ -197,25 +241,50 @@ describe("WeddingCodeV31Client", () => {
 
   it("중간·미정·비해당·건너뜀을 구분하고 이전 질문에서 고른 상태를 복원한다", async () => {
     await renderClient(); await button("내 웨딩코드 시작하기");
-    await rating(3); await next(); await rating("undecided"); await next();
-    await rating("not_applicable"); await next(); await rating("skipped"); await next();
+    await rating(3, "G1"); await rating("undecided", "G3");
+    await rating("not_applicable", "R4"); await next(); await ratePage("skipped"); await next();
     await click(container.querySelector<HTMLButtonElement>('[aria-label="이전 질문"]'));
     expect(container.querySelector('input[value="skipped"]:checked')).not.toBeNull();
     await next(); await finishFromHere(true); await consent();
     expect(decodedLink(linkValue()!)?.answers).toMatchObject({ G1: 3, G3: "undecided", R4: "not_applicable", B1: "skipped" });
   });
 
-  it("가족 주제 전체를 비해당으로 표시하면 이미 고른 답도 명시적으로 바꾸고 다음 주제로 이동한다", async () => {
+  it("가족 주제 전체를 비해당으로 표시하면 가족 답만 바꾸고 명시적으로 다음 페이지로 이동한다", async () => {
     await renderClient(); await button("내 웨딩코드 시작하기");
-    while (container.querySelector("[data-question]")?.getAttribute("data-question") !== "F1") { await rating(4); await next(); }
-    await rating(5); await next();
+    while (container.querySelector("[data-question]")?.getAttribute("data-question") !== "F1") { await ratePage(4); await next(); }
+    await rating(5, "F1");
     expect(container.textContent).toContain("이미 고른 답도 바뀌며");
     await button("이 주제는 계획에 없어요");
+    expect(container.querySelector('[data-question="F1"]')).not.toBeNull();
+    for (const id of ["F1", "F2", "F4"]) expect(container.querySelector<HTMLInputElement>(`[data-question="${id}"] input[value="not_applicable"]`)?.checked).toBe(true);
+    await next();
     expect(container.querySelector('[data-question="H1"]')).not.toBeNull();
     await finishFromHere(); await consent();
     const saved = decodedLink(linkValue()!);
     for (const id of ["F1", "F2", "F4"] as const) expect(saved?.answers[id]).toBe("not_applicable");
     expect(saved?.answers.F3).toBeUndefined();
+    expect(saved?.answers.T3).toBe(4);
+    expect(saved?.answers.H1).toBe(5);
+  });
+
+  it("서로 다른 주제를 묶은 선택 페이지에서 계획 없음은 해당 주제만 바꾸고 기존 기본 답을 보존한다", async () => {
+    await renderClient(); await button("내 웨딩코드 시작하기"); await finishFromHere();
+    await button("원하면 더 알아보기 (선택)");
+    const scopeButton = (id: string) => [...container.querySelectorAll<HTMLButtonElement>(`[data-question="${id}"] button`)].find(item => item.textContent?.trim() === "이 주제는 계획에 없어요");
+    await click(scopeButton("V1"));
+    expect([...container.querySelectorAll("[data-question]")].map(item => item.getAttribute("data-question"))).toEqual(["V1", "G2", "R3"]);
+    let saved = readV31LocalProgress(window.localStorage);
+    expect(saved.status === "ready" && saved.snapshot.draft.answers.V1).toBe("not_applicable");
+    expect(saved.status === "ready" && saved.snapshot.draft.answers.G2).toBeUndefined();
+    expect(saved.status === "ready" && saved.snapshot.draft.answers.R3).toBeUndefined();
+    await rating(4, "G2");
+    await click(scopeButton("R3"));
+    saved = readV31LocalProgress(window.localStorage);
+    expect(saved.status === "ready" && saved.snapshot.draft.answers.R3).toBe("not_applicable");
+    expect(saved.status === "ready" && saved.snapshot.draft.answers.R4).toBe(5);
+    expect(saved.status === "ready" && saved.snapshot.draft.answers.G2).toBe(4);
+    await next();
+    expect([...container.querySelectorAll("[data-question]")].map(item => item.getAttribute("data-question"))).toEqual(["B4", "D3", "T4"]);
   });
 
   it("상대 링크에서 모두 건너뛰어도 공통 취향을 만들거나 커플 공유를 열지 않는다", async () => {
@@ -265,11 +334,8 @@ describe("WeddingCodeV31Client", () => {
 
   it("옷과 식순과 피하고 싶은 것은 모두 고를 수 있고 우선순위는 하나만 골라도 완료된다", async () => {
     await renderClient(); await button("내 웨딩코드 시작하기");
-    expect(container.textContent).toContain("이번 결혼 준비에 해당하지 않는 내용은");
-    for (const id of V31_CORE_RATING_IDS) {
-      expect(container.querySelector("[data-question]")?.getAttribute("data-question")).toBe(id);
-      await rating(3); await next();
-    }
+    expect(container.textContent).toContain("아직 모르거나 해당하지 않으면 각 문장 아래에서 따로 골라 주세요");
+    await rateFlow(V31_CORE_RATING_IDS, 3);
     for (const taste of WEDDING_CODE_V31_TASTES) {
       if (taste.key === "attire" || taste.key === "ceremony") {
         expect(container.textContent).toContain("해당하는 것을 모두 골라 주세요");
@@ -289,7 +355,7 @@ describe("WeddingCodeV31Client", () => {
     await next();
     await button("더 쓰고 싶은 곳은 지금 없어요"); await next();
     await button("원하면 더 알아보기 (선택)");
-    for (const id of V31_EXTRA_RATING_IDS) { expect(container.querySelector("[data-question]")?.getAttribute("data-question")).toBe(id); await rating(3); await next(); }
+    await rateFlow(V31_EXTRA_RATING_IDS, 3);
     await expandPriorities();
     expect(container.textContent).toContain("1개만 골라도 괜찮아요");
     expect(container.querySelector('[data-choice="R1"]')).toBeNull();
@@ -333,12 +399,12 @@ describe("WeddingCodeV31Client", () => {
 
   it("특정 긍정 조합이 없는 사람도 직접 고른 우선순위에서 준비 행동을 얻는다", async () => {
     await renderClient(); await button("내 웨딩코드 시작하기");
-    for (const id of V31_CORE_RATING_IDS) { await rating(id === "B1" ? 5 : 2); await next(); }
+    await rateFlow(V31_CORE_RATING_IDS, id => id === "B1" ? 5 : 2);
     for (const taste of WEDDING_CODE_V31_TASTES) { await click(container.querySelector<HTMLButtonElement>(`[data-choice="${taste.options[0].value}"]`)); await next(); }
     await button("따로 피하고 싶은 것은 없어요"); await next();
     await button("더 쓰고 싶은 곳은 지금 없어요"); await next();
     await button("원하면 더 알아보기 (선택)");
-    for (const id of V31_EXTRA_RATING_IDS) { expect(container.querySelector("[data-question]")?.getAttribute("data-question")).toBe(id); await rating(2); await next(); }
+    await rateFlow(V31_EXTRA_RATING_IDS, 2);
     await expandPriorities();
     await click(container.querySelector<HTMLButtonElement>('[data-choice="B1"]')); await next();
     const guide = container.querySelector("[data-priority-guides] [data-insight]");
@@ -382,7 +448,7 @@ describe("WeddingCodeV31Client", () => {
   it("우선순위는 펼치지 않고 넘어갈 수 있고 더 쓸 곳 없음과 메모 선택이 먼저 명확하게 보인다", async () => {
     await renderClient(); await button("내 웨딩코드 시작하기");
     while (!container.querySelector('[data-question="spending"]')) {
-      if (container.querySelector('input[type="radio"]')) await rating(4);
+      if (container.querySelector('input[type="radio"]')) await ratePage(4);
       else await click(container.querySelector<HTMLButtonElement>("[data-choice]"));
       await next();
     }
@@ -394,7 +460,7 @@ describe("WeddingCodeV31Client", () => {
     expect(optionLabels.filter(label => label === "아직 모르겠어요")).toHaveLength(1);
     await button("더 쓰고 싶은 곳은 지금 없어요"); await next();
     await button("원하면 더 알아보기 (선택)");
-    for (const id of V31_EXTRA_RATING_IDS) { expect(container.querySelector("[data-question]")?.getAttribute("data-question")).toBe(id); await rating(4); await next(); }
+    await rateFlow(V31_EXTRA_RATING_IDS, 4);
     expect(container.querySelector("[data-choice]")).toBeNull();
     expect([...container.querySelectorAll("button")].find(item => item.textContent?.trim() === "우선순위도 골라볼게요 (선택)")?.getAttribute("aria-expanded")).toBe("false");
     await button("지금은 넘어갈게요");
@@ -416,13 +482,13 @@ describe("WeddingCodeV31Client", () => {
     await renderClient(); await button("내 웨딩코드 시작하기"); await finishFromHere();
     await button("원하면 더 알아보기 (선택)");
     expect(container.querySelector('[data-question="V1"]')).not.toBeNull();
-    expect(container.querySelector('progress')?.getAttribute("max")).toBe("9");
-    expect(container.textContent).toContain("선택 질문 1 / 9");
+    expect(container.querySelector('progress')?.getAttribute("max")).toBe("4");
+    expect(container.textContent).toContain("선택 질문 1–3 / 9");
     await button("여기까지 보고 결과 보기"); await consent();
     expect(decodedLink(linkValue()!)?.answers.V1).toBeUndefined();
     expect(decodedLink(linkValue()!)?.priorities).toBeUndefined();
     await button("원하면 더 알아보기 (선택)");
-    await rating(5); await next();
+    await rating(5, "V1");
     expect(container.querySelector('[data-question="G2"]')).not.toBeNull();
     await button("여기까지 보고 결과 보기");
     expect(container.textContent).toContain("답을 남긴 질문은 24개예요");

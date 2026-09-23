@@ -8,6 +8,7 @@ import WeddingCodeV06Client from "./WeddingCodeV06Client";
 import WeddingCodeV20Client from "./WeddingCodeV20Client";
 import WeddingCodeV30Client from "./WeddingCodeV30Client";
 import WeddingCodeV31Client from "./WeddingCodeV31Client";
+import { WeddingCodeComparisonResume } from "./WeddingCodeV31Connection";
 import {
   EMPTY_WEDDING_CODE_ENTRY,
   parseWeddingCodeEntryHash,
@@ -98,6 +99,8 @@ export default function WeddingCodeEntryClient({
   if (entry.kind === "error") return <ErrorEntry onRestart={restart} embedded={embedded} />;
   if (entry.kind === "v31") {
     return (
+      <>
+      {hash !== null && !entry.initial.partnerDraft && !entry.initial.bothDrafts ? <WeddingCodeComparisonResume /> : null}
       <WeddingCodeV31Client
         embedded={embedded}
         key={`v31:${weddingCodeEntryKey(entry)}`}
@@ -108,6 +111,7 @@ export default function WeddingCodeEntryClient({
         initialNotice={entry.initial.partnerDraft || entry.initial.bothDrafts ? "" : restartNotice}
         onRestart={restart}
       />
+      </>
     );
   }
   if (entry.kind === "v30") {

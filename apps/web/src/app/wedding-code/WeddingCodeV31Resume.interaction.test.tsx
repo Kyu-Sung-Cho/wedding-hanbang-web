@@ -10,6 +10,7 @@ import WeddingCodeV31Client from "./WeddingCodeV31Client";
 import WeddingCodeEntryClient from "./WeddingCodeEntryClient";
 import { V31_SAVE_PREFERENCE_KEY } from "./useV31LocalProgress";
 import { V31_CORE_INDEXES, V31_CORE_RATING_IDS, getV31IndexForId } from "@/lib/weddingCode/v31Flow";
+import { PAIR_SESSION_LOCAL_KEY, readPairSessionRecovery, savePairSessionLink } from "@/lib/weddingCode/pairSessionClient";
 
 vi.mock("@/lib/analytics", () => ({ captureWeddingCodeEvent: vi.fn() }));
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -38,11 +39,11 @@ describe("V31 same-browser resume", () => {
   let container: HTMLDivElement;
   let root: Root;
   beforeEach(() => {
-    window.localStorage.clear(); window.history.replaceState(null, "", "/wedding-code");
+    window.localStorage.clear(); window.sessionStorage.clear(); window.history.replaceState(null, "", "/wedding-code");
     vi.spyOn(window, "scrollTo").mockImplementation(() => {});
     container = document.createElement("div"); document.body.appendChild(container); root = createRoot(container);
   });
-  afterEach(async () => { await act(async () => root.unmount()); vi.restoreAllMocks(); document.body.replaceChildren(); window.localStorage.clear(); });
+  afterEach(async () => { await act(async () => root.unmount()); vi.restoreAllMocks(); document.body.replaceChildren(); window.localStorage.clear(); window.sessionStorage.clear(); });
   async function click(element: Element | null | undefined) {
     if (!(element instanceof HTMLElement)) throw new Error("클릭할 HTML 요소가 없어요.");
     await act(async () => element.click());
@@ -57,26 +58,54 @@ describe("V31 same-browser resume", () => {
   function seed(value: V31LocalProgressSnapshot, now = Date.now()) {
     expect(writeV31LocalProgress(window.localStorage, value, null, now).status).toBe("saved");
   }
+  function seedPairSession() {
+    const saved = { roomId: "11111111-1111-4111-8111-111111111111", token: "a".repeat(64), mode: "member" as const, expiresAt: new Date(Date.now() + 86_400_000).toISOString() };
+    expect(savePairSessionLink(saved)).toBe(true);
+    return saved;
+  }
 
-  it("saves a click immediately, keeps the exact next question and resumes only after an explicit choice", async () => {
+  it("saves every click immediately, resumes the next page only after an explicit choice and goes back to the complete previous page", async () => {
     await render(); await button("내 웨딩코드 시작하기");
     await click(container.querySelector('input[value="5"]'));
     let stored = readV31LocalProgress(window.localStorage);
     expect(stored.status === "ready" && stored.snapshot.draft.answers.G1).toBe(5);
+    await click(container.querySelector('[data-question="G3"] input[value="4"]'));
+    await click(container.querySelector('[data-question="R4"] input[value="skipped"]'));
     await button("다음 질문");
     const raw = window.localStorage.getItem(LOCAL_KEY);
     await remount();
-    expect(container.textContent).toContain("기본 질문 2 / 23부터 이어 할 수 있어요");
+    expect(container.textContent).toContain("기본 질문 4 / 23부터 이어 할 수 있어요");
     expect(container.querySelector("[data-question]")).toBeNull();
     expect(window.localStorage.getItem(LOCAL_KEY)).toBe(raw);
     await button("이어서 답하기");
-    expect(container.querySelector("[data-question]")?.getAttribute("data-question")).toBe("G3");
+    expect([...container.querySelectorAll("[data-question]")].map(item => item.getAttribute("data-question"))).toEqual(["B1", "B3", "D1"]);
     expect(window.localStorage.getItem(LOCAL_KEY)).toBe(raw);
     await click(container.querySelector('button[aria-label="이전 질문"]'));
     expect(container.querySelector<HTMLInputElement>('input[value="5"]')?.checked).toBe(true);
+    expect(container.querySelector<HTMLInputElement>('[data-question="G3"] input[value="4"]')?.checked).toBe(true);
+    expect(container.querySelector<HTMLInputElement>('[data-question="R4"] input[value="skipped"]')?.checked).toBe(true);
     stored = readV31LocalProgress(window.localStorage);
     expect(stored.status === "ready" && stored.snapshot.index).toBe(getV31IndexForId("G1"));
     expect(stored.status === "ready" && stored.snapshot.flow).toBe("core");
+  });
+
+  it("restores a saved middle-of-page canonical index without rewriting it or hiding earlier answers", async () => {
+    const draft = createV31Draft(); draft.answers.G1 = 2;
+    seed(snapshot(draft, { flow: "core", index: getV31IndexForId("G3") }));
+    const raw = window.localStorage.getItem(LOCAL_KEY);
+    await render(); await button("이어서 답하기");
+    expect(window.localStorage.getItem(LOCAL_KEY)).toBe(raw);
+    expect([...container.querySelectorAll("[data-question]")].map(item => item.getAttribute("data-question"))).toEqual(["G1", "G3", "R4"]);
+    expect(container.querySelector<HTMLInputElement>('[data-question="G1"] input[value="2"]')?.checked).toBe(true);
+    await click(container.querySelector('[data-question="G3"] input[value="undecided"]'));
+    const saved = readV31LocalProgress(window.localStorage);
+    expect(saved.status === "ready" && saved.snapshot.index).toBe(getV31IndexForId("G3"));
+    expect(saved.status === "ready" && saved.snapshot.draft.answers).toEqual({ G1: 2, G3: "undecided" });
+    await button("다음 질문");
+    expect(container.querySelector('[data-question="G1"]')).not.toBeNull();
+    await click(container.querySelector('[data-question="R4"] input[value="skipped"]'));
+    await button("다음 질문");
+    expect(container.querySelector('[data-question="B1"]')).not.toBeNull();
   });
 
   it("restores only the user's saved result, with fresh sharing consent and no memo persistence", async () => {
@@ -101,13 +130,22 @@ describe("V31 same-browser resume", () => {
     expect(container.textContent).toContain("답을 남긴 질문은 23개예요");
     expect(container.querySelector('[data-result="solo-v31"]')).not.toBeNull();
     await button("원하면 더 알아보기 (선택)");
-    await click(container.querySelector('input[value="5"]')); await button("다음 질문");
+    await click(container.querySelector('[data-question="V1"] input[value="5"]'));
     expect(container.querySelector('[data-question="G2"]')).not.toBeNull();
+    // 이전 한 문항 화면에서 저장한 선택 질문 2번도 같은 페이지 전체로 복원한다.
+    const partial = readV31LocalProgress(window.localStorage);
+    expect(partial.status).toBe("ready");
+    if (partial.status !== "ready") throw new Error("답이 저장되지 않았어요.");
+    expect(writeV31LocalProgress(window.localStorage, { ...partial.snapshot, index: getV31IndexForId("G2") }, window.localStorage.getItem(LOCAL_KEY)).status).toBe("saved");
     const raw = window.localStorage.getItem(LOCAL_KEY);
     await remount();
     expect(container.textContent).toContain("선택 질문 2 / 9부터 이어 할 수 있어요");
     expect(window.localStorage.getItem(LOCAL_KEY)).toBe(raw);
-    await button("이어서 답하기"); await button("여기까지 보고 결과 보기");
+    await button("이어서 답하기");
+    expect([...container.querySelectorAll("[data-question]")].map(item => item.getAttribute("data-question"))).toEqual(["V1", "G2", "R3"]);
+    expect(container.querySelector<HTMLInputElement>('[data-question="V1"] input[value="5"]')?.checked).toBe(true);
+    expect(window.localStorage.getItem(LOCAL_KEY)).toBe(raw);
+    await button("여기까지 보고 결과 보기");
     const saved = readV31LocalProgress(window.localStorage);
     expect(saved.status).toBe("ready");
     if (saved.status !== "ready") return;
@@ -129,6 +167,7 @@ describe("V31 same-browser resume", () => {
     await button("이어서 답하기");
     expect(window.localStorage.getItem(LOCAL_KEY)).toBe(raw);
     expect(container.querySelector('[data-question="G2"]')).not.toBeNull();
+    expect(container.querySelectorAll("[data-question]")).toHaveLength(1);
     expect(container.textContent).toContain("이전 전체 질문 3 / 34");
     await click(container.querySelector('input[value="3"]')); await button("다음 질문");
     const saved = readV31LocalProgress(window.localStorage);
@@ -145,6 +184,7 @@ describe("V31 same-browser resume", () => {
     const statement = WEDDING_CODE_V31_QUESTIONS.find(item => item.id === "R3")!.statement;
     await click(container.querySelector(`[aria-label="${statement} 답 수정"]`));
     expect(container.querySelector('[data-question="R3"]')).not.toBeNull();
+    expect(container.querySelectorAll("[data-question]")).toHaveLength(1);
     expect(container.textContent).not.toContain("이 주제는 계획에 없어요");
     await click(container.querySelector('input[value="not_applicable"]'));
     await remount(); await button("이어서 답하기");
@@ -200,16 +240,52 @@ describe("V31 same-browser resume", () => {
     expect(window.localStorage.getItem(LOCAL_KEY)).toBeNull();
     expect(window.localStorage.getItem("unrelated")).toBe("keep");
     expect(window.localStorage.getItem(V31_SAVE_PREFERENCE_KEY)).toBe("off");
-    await button("다음 질문"); await click(container.querySelector('input[value="4"]'));
+    await click(container.querySelector('[data-question="G3"] input[value="4"]'));
+    await click(container.querySelector('[data-question="R4"] input[value="4"]'));
+    await button("다음 질문"); await click(container.querySelector('[data-question="B1"] input[value="4"]'));
     expect(window.localStorage.getItem(LOCAL_KEY)).toBeNull();
     await remount(); expect(container.textContent).toContain("자동 저장을 껐어요");
     expect(container.textContent).not.toContain("이 브라우저에 남겨 둔 답");
   });
 
+  it("switching saving off removes the persistent comparison address without ending the server connection or reviving it when saving is enabled", async () => {
+    const pair = seedPairSession();
+    const fetch = vi.spyOn(globalThis, "fetch");
+    await render(); await button("내 웨딩코드 시작하기");
+    await click(container.querySelector('input[value="5"]'));
+    expect(container.textContent).toContain("기기 저장을 꺼도 서버 함께 보기 연결은 남아요. 종료는 연결 결과에서 해주세요.");
+    await button("자동 저장 끄기");
+    expect(window.localStorage.getItem(PAIR_SESSION_LOCAL_KEY)).toBeNull();
+    expect(window.localStorage.getItem(LOCAL_KEY)).toBeNull();
+    expect(readPairSessionRecovery(pair.roomId)).toEqual(pair);
+    expect(fetch).not.toHaveBeenCalled();
+    await button("자동 저장 켜기");
+    expect(window.localStorage.getItem(PAIR_SESSION_LOCAL_KEY)).toBeNull();
+    expect(readPairSessionRecovery(pair.roomId)).toEqual(pair);
+  });
+
+  it("reports a storage failure when the persistent comparison address could not be removed", async () => {
+    seedPairSession();
+    await render(); await button("내 웨딩코드 시작하기");
+    await click(container.querySelector('input[value="5"]'));
+    const remove = Storage.prototype.removeItem;
+    vi.spyOn(Storage.prototype, "removeItem").mockImplementation(function (this: Storage, key: string) {
+      if (this === window.localStorage && key === PAIR_SESSION_LOCAL_KEY) throw new DOMException("blocked", "SecurityError");
+      remove.call(this, key);
+    });
+    await button("자동 저장 끄기");
+    expect(window.localStorage.getItem(PAIR_SESSION_LOCAL_KEY)).not.toBeNull();
+    expect(container.textContent).toContain("저장 설정을 바꾸지 못했어요");
+    expect(container.textContent).not.toContain("자동 저장을 껐어요. 나가면 지금 답은 사라져요.");
+  });
+
   it("deletion resets the current flow without resurrecting the removed answer", async () => {
+    seedPairSession();
+    const pair = window.localStorage.getItem(PAIR_SESSION_LOCAL_KEY);
     await render(); await button("내 웨딩코드 시작하기"); await click(container.querySelector('input[value="5"]'));
     await button("이 브라우저의 답 지우기");
     expect(window.localStorage.getItem(LOCAL_KEY)).toBeNull();
+    expect(window.localStorage.getItem(PAIR_SESSION_LOCAL_KEY)).toBe(pair);
     expect(container.querySelector("[data-question]")).toBeNull();
     await remount(); expect(container.textContent).not.toContain("이 브라우저에 남겨 둔 답");
   });
@@ -246,8 +322,10 @@ describe("V31 same-browser resume", () => {
 
   it("storage denial never blocks answering or claims that an answer was saved", async () => {
     vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => { throw new DOMException("blocked", "QuotaExceededError"); });
-    await render(); await button("내 웨딩코드 시작하기"); await click(container.querySelector('input[value="5"]')); await button("다음 질문");
-    expect(container.querySelector("[data-question]")?.getAttribute("data-question")).toBe("G3");
+    await render(); await button("내 웨딩코드 시작하기");
+    for (const id of ["G1", "G3", "R4"]) await click(container.querySelector(`[data-question="${id}"] input[value="5"]`));
+    await button("다음 질문");
+    expect(container.querySelector("[data-question]")?.getAttribute("data-question")).toBe("B1");
     expect(container.textContent).toContain("이 브라우저에 저장할 수 없어요");
     expect(container.textContent).not.toContain("이 브라우저에 저장됐어요");
   });

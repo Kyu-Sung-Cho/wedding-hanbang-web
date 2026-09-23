@@ -19,9 +19,16 @@
  *
  * 현재 값의 근거:
  *   apps/web/src/app/terms/page.tsx   최종 수정일 2026년 8월 31일
- *   apps/web/src/app/privacy/page.tsx 최종 수정일 2026년 9월 11일
+ *   apps/web/src/app/privacy/page.tsx 최종 수정일 2026년 9월 23일
  */
-export const SIGNUP_CONSENT_POLICY_VERSION = "2026-09-11";
+export const SIGNUP_CONSENT_POLICY_VERSION = "2026-09-23";
+
+// 배포된 모바일의 가입을 유지하되, 직전 정식판을 최신판 동의로 바꾸지 않는다.
+// 웨딩코드 함께 보기의 저장·공유는 가입 동의와 별도로 해당 기능에서 받는다.
+const ACCEPTED_SIGNUP_CONSENT_POLICY_VERSIONS: readonly string[] = [
+  SIGNUP_CONSENT_POLICY_VERSION,
+  "2026-09-11",
+];
 
 /**
  * 가입 화면에서 **동의를 받기 시작한** 시각.
@@ -210,13 +217,14 @@ export function parseSignupConsent(body: unknown): SignupConsentSubmission | nul
   const record = body;
   if (record.termsAgreed !== true || record.privacyAgreed !== true) return null;
   if (record.ageOver14Confirmed !== true) return null;
-  if (record.consentPolicyVersion !== SIGNUP_CONSENT_POLICY_VERSION) return null;
+  if (typeof record.consentPolicyVersion !== "string"
+    || !ACCEPTED_SIGNUP_CONSENT_POLICY_VERSIONS.includes(record.consentPolicyVersion)) return null;
   return {
     termsAgreed: true,
     privacyAgreed: true,
     ageOver14Confirmed: true,
     marketingAgreed: record.marketingAgreed === true,
-    // 정확히 현재 폼의 판본만 수락한다. 구판·누락을 최신판으로 바꾸지 않는다.
+    // 명시적으로 지원하는 판본만 수락하고, 실제로 제출한 판을 그대로 기록한다.
     consentPolicyVersion: record.consentPolicyVersion,
   };
 }

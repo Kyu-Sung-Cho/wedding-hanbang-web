@@ -72,12 +72,19 @@ describe("준비 스타일의 개인 저장과 두 사람 공유", () => {
     expect(container.querySelector("[data-lounge-wedding-code]")).not.toBeNull();
     expect(container.textContent).toContain("기본 23개 질문");
     expect(container.textContent).toContain("9개 선택 질문");
-    expect(container.textContent).toContain("답은 서버나 계정에 저장하지 않아요");
+    expect(container.textContent).toContain("답하는 동안에는 서버나 계정에 보내지 않아요");
+    expect(container.textContent).toContain("함께 보기에 동의하면 선택한 답을 7일간 서버에 보관해요");
     expect(container.querySelectorAll("main")).toHaveLength(1);
     expect(fetchMock).not.toHaveBeenCalled();
     await click("내 웨딩코드 시작하기");
-    expect(container.querySelector('[data-question="G1"]')).not.toBeNull();
-    expect(container.querySelectorAll('input[type="radio"]')).toHaveLength(8);
+    const questions = [...container.querySelectorAll("[data-question]")];
+    expect(questions.map(question => question.getAttribute("data-question"))).toEqual(["G1", "G3", "R4"]);
+    for (const question of questions) expect(question.querySelectorAll('input[type="radio"]')).toHaveLength(8);
+    const firstAnswer = container.querySelector<HTMLInputElement>('[data-question="G1"] input[type="radio"][value="5"]')!;
+    await act(async () => firstAnswer.click());
+    expect(firstAnswer.checked).toBe(true);
+    expect(container.querySelector('[data-question="G3"] input:checked')).toBeNull();
+    expect(container.querySelector('[data-question="R4"] input:checked')).toBeNull();
     expect(fetchMock).not.toHaveBeenCalled();
   });
 

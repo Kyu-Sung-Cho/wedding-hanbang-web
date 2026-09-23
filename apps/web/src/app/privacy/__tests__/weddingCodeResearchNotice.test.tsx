@@ -9,6 +9,7 @@ import {
   WEDDING_CODE_RESEARCH_TOMBSTONE_DAYS,
 } from "@/lib/weddingCode/contribution/contract";
 import { LOCAL_TTL_MS } from "@/lib/weddingCode/v31LocalProgress";
+import { PAIR_SESSION_RETENTION_DAYS } from "@/lib/weddingCode/pairSessionContract";
 import PrivacyPage from "../page";
 
 const SECRET = "test-secret-that-is-at-least-thirty-two-chars";
@@ -35,12 +36,24 @@ describe("privacy notice for WeddingCode research contributions", () => {
     vi.unstubAllEnvs();
   });
 
-  it("저장소가 없으면 받는다고 말하지 않고, 답의 서버 비저장 고지를 유지한다", () => {
+  it("연구 저장소가 없으면 연구 수집을 말하지 않고, 별도 동의한 함께 보기만 안내한다", () => {
     vi.stubEnv("WEDDING_CODE_RESEARCH_RECEIPT_SECRET", "");
     vi.stubEnv("WEDDING_CODE_RESEARCH_CONTRIBUTION_ENABLED", "true");
     const text = render();
     expect(text).not.toContain("답 보태기");
-    expect(text).toContain("웨딩코드: 답은 기기 안에서 계산하고 서버에 저장하지 않으며");
+    expect(text).toContain("웨딩코드: 답은 기기 안에서 계산하며 세션 녹화를 하지 않습니다");
+    expect(text).toContain("아래 ‘함께 보기’에 별도로 동의한 경우에만 해당 기능에 필요한 답을 서버에 저장합니다");
+  });
+
+  it.each(["", SECRET])("연구 저장소와 독립적으로 두 사람 공유 동의·만료·철회·확인 주소의 권한을 안내한다 (%#)", (secret) => {
+    vi.stubEnv("WEDDING_CODE_RESEARCH_RECEIPT_SECRET", secret);
+    const text = render();
+    expect(text).toContain(`각자 보관·공유에 동의하면 초대 생성 후 ${PAIR_SESSION_RETENTION_DAYS}일까지 서로의 답과 결과를 볼 수 있습니다`);
+    expect(text).toContain("만료 즉시 접근을 막고 하루 안에 기록을 삭제합니다");
+    expect(text).toContain("‘연결 끝내기’를 누르면 두 사람의 공유 답을 즉시 지웁니다");
+    expect(text).toContain("이미 상대가 읽거나 따로 보관한 내용은 회수할 수 없습니다");
+    expect(text).toContain("저장 끄기는 이 영구 확인 주소를 지우지만 서버 연결을 끝내지는 않습니다");
+    expect(text).toContain("확인 주소를 가진 사람은 해당 참여자의 권한으로 결과를 보고 연결을 끝낼 수 있으므로 본인만 보관해야 합니다");
   });
 
   it.each(["", SECRET])("연구 저장소 유무와 별개로 본인 브라우저 보관 범위와 제어를 알린다 (%#)", (secret) => {
@@ -68,7 +81,7 @@ describe("privacy notice for WeddingCode research contributions", () => {
     const text = render();
     const dateLabel = kstDateLabel(WEDDING_CODE_RESEARCH_CONTRIBUTION_EFFECTIVE_AT);
 
-    expect(text).toContain("아래 답 보태기에 동의한 경우가 아니면 서버에 저장하지 않으며");
+    expect(text).toContain("아래 ‘함께 보기’ 또는 답 보태기에 별도로 동의한 경우에만 해당 기능에 필요한 답을 서버에 저장합니다");
     // 제1조 항목, 제3조 보관, 부칙 — 세 곳 모두 같은 적용일
     expect(text).toContain(`웨딩코드 답 보태기에 동의한 경우(${dateLabel.replace(/부터$/, "")}부터, 선택)`);
     expect(text).toContain(`웨딩코드 답 보태기(선택, ${dateLabel})`);

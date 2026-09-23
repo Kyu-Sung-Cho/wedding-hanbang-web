@@ -188,7 +188,7 @@ test("공유 QA 목록은 CI와 같은 후속 준비 스타일 계약을 실제 
   const { checks } = await import("../verify-local.mjs");
   const fences = checks.filter(check => check.name === "supabase release fence");
   assert.equal(fences.length, 1);
-  assert.deepEqual(fences[0].args, ["pnpm", "supabase:release:fence", "--preparation-style"]);
+  assert.deepEqual(fences[0].args, ["pnpm", "supabase:release:fence", "--wedding-code-pair-session"]);
   const { readFileSync } = await import("node:fs");
   const pkg = JSON.parse(readFileSync(path.join(repoRoot, "package.json"), "utf8"));
   assert.equal(pkg.scripts["supabase:release:fence"], "node ./scripts/supabase-release-fence.mjs");
@@ -197,7 +197,7 @@ test("공유 QA 목록은 CI와 같은 후속 준비 스타일 계약을 실제 
   });
   assert.equal(result.error, undefined);
   assert.equal(result.status, 0, `${result.stdout}${result.stderr}`);
-  assert.match(result.stdout, /Preparation style contract verified \(237 exact SQL files;/);
+  assert.match(result.stdout, /WeddingCode pair session contract verified \(238 exact SQL files;/);
   assert.match(result.stdout, /runtime evidence not verified; deployment not authorized; no remote writes/);
 });
 

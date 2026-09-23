@@ -15,11 +15,24 @@ const cutoff = "2026-09-10T00:00:00.000Z";
 const oldUser = { created_at: "2026-08-31T00:00:00.000Z", user_metadata: { terms_agreed: true, privacy_agreed: true } };
 
 describe("가입 동의의 제출 판본과 서버 소유 출처", () => {
-  it("누락·임의·구판 제출을 최신판 동의로 바꾸지 않는다", () => {
-    for (const consentPolicyVersion of [undefined, "", "1900-01-01", "2026-08-22", `${SIGNUP_CONSENT_POLICY_VERSION} `]) {
+  it("누락·임의·지원하지 않는 과거판·미래판 제출을 동의로 인정하지 않는다", () => {
+    for (const consentPolicyVersion of [undefined, "", 20260923, "1900-01-01", "2026-08-22", "2026-08-31", "2026-09-12", "2026-09-24", "2999-01-01", "2026-09-11 ", `${SIGNUP_CONSENT_POLICY_VERSION} `]) {
       expect(parseSignupConsent({ ...submission, consentPolicyVersion })).toBeNull();
     }
     expect(parseSignupConsent(submission)?.consentPolicyVersion).toBe(SIGNUP_CONSENT_POLICY_VERSION);
+  });
+
+  it.each([SIGNUP_CONSENT_POLICY_VERSION, "2026-09-11"])("정식 지원판 %s는 제출한 판과 선택값을 그대로 보존한다", consentPolicyVersion => {
+    expect(parseSignupConsent({ ...submission, consentPolicyVersion }))
+      .toEqual({ ...submission, consentPolicyVersion });
+  });
+
+  it("직전 모바일 판본도 필수 동의와 연령 확인의 실제 true를 요구한다", () => {
+    for (const field of ["termsAgreed", "privacyAgreed", "ageOver14Confirmed"]) {
+      for (const value of [undefined, false, "true", 1, null]) {
+        expect(parseSignupConsent({ ...submission, consentPolicyVersion: "2026-09-11", [field]: value })).toBeNull();
+      }
+    }
   });
 
   it("새 계정의 복사·조작한 user_metadata는 서버 동의가 아니다", () => {

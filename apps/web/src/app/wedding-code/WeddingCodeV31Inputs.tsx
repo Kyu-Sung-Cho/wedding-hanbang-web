@@ -19,12 +19,35 @@ const escapeOptions = [
   { value: "skipped", label: "지금 답하지 않을게요" },
 ] as const;
 
-export function V31RatingInput({ value, onChange, showScopeHint = false }: {
+export function V31RatingInput({ value, onChange, showScopeHint = false, compact = false, questionLabel }: {
   value: V31Response | undefined; onChange: (value: V31Response) => void; showScopeHint?: boolean;
+  compact?: boolean; questionLabel?: string;
 }) {
   const name = useId();
+  if (compact) return <fieldset>
+    <legend className="sr-only">{questionLabel ?? "지금 내 생각에 가까운 정도"}</legend>
+    <div className="grid grid-cols-5 gap-0.5 min-[360px]:gap-1 sm:gap-2">
+      {WEDDING_CODE_V31_OPTIONS.map(option => <label key={option.value}
+        className={`flex min-h-24 min-w-0 cursor-pointer flex-col items-center gap-2 rounded-lg border py-3 text-center min-[360px]:px-0.5 focus-within:ring-2 focus-within:ring-[var(--hb-focus-ring)] focus-within:ring-offset-2 ${value === option.value ? "border-[var(--hb-selected-line)] bg-[var(--hb-selected-bg)]" : "border-paper-outline bg-[var(--hb-surface-raised)]"}`}>
+        <span className="inline-flex items-center gap-1">
+          <input type="radio" name={name} value={option.value} checked={value === option.value}
+            onChange={() => onChange(option.value)} data-answer={option.value} className="size-4 shrink-0 accent-[var(--hb-action)]" />
+          <span aria-hidden="true" className="text-xs tabular-nums text-[var(--hb-text-muted)]">{option.value}</span>
+        </span>
+        <span className={`w-full break-keep text-xs leading-4 sm:text-sm sm:leading-5 ${v31Title}`}>{option.label}</span>
+      </label>)}
+    </div>
+    <div className="mt-3 grid grid-cols-3 gap-1.5 sm:gap-2">
+      {escapeOptions.map(option => <label key={option.value}
+        className={`flex min-h-11 min-w-0 cursor-pointer flex-col items-center gap-2 rounded-lg border px-2 py-3 text-center text-xs leading-4 focus-within:ring-2 focus-within:ring-[var(--hb-focus-ring)] focus-within:ring-offset-2 ${value === option.value ? "border-[var(--hb-selected-line)] bg-[var(--hb-selected-bg)]" : "border-[var(--hb-hairline)]"}`}>
+        <input type="radio" name={name} value={option.value} checked={value === option.value}
+          onChange={() => onChange(option.value)} className="size-4 shrink-0 accent-[var(--hb-action)]" />
+        <span className="w-full text-[var(--hb-text-body)]">{option.label}</span>
+      </label>)}
+    </div>
+  </fieldset>;
   return <fieldset>
-    <legend className="sr-only">지금 내 생각에 가까운 정도</legend>
+    <legend className="sr-only">{questionLabel ?? "지금 내 생각에 가까운 정도"}</legend>
     <div className="space-y-2">
       {WEDDING_CODE_V31_OPTIONS.map(option => <label key={option.value}
         className={`flex min-h-12 cursor-pointer items-center gap-3 rounded-lg border px-4 py-3 focus-within:ring-2 focus-within:ring-[var(--hb-focus-ring)] focus-within:ring-offset-2 ${value === option.value ? "border-[var(--hb-selected-line)] bg-[var(--hb-selected-bg)]" : "border-paper-outline bg-[var(--hb-surface-raised)]"}`}>
