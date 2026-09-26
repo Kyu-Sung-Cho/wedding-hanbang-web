@@ -1,7 +1,7 @@
 "use client";
 
 import { BookHeart, Check, Clock3, Flower2, HeartHandshake, Music2, UsersRound } from "lucide-react";
-import { useId, useState, type ReactNode } from "react";
+import { useId, type ReactNode } from "react";
 import Button from "@/components/ui/Button";
 import { DETAIL_SCENES } from "@/components/wedding-code/tasteScenes";
 import {
@@ -19,11 +19,16 @@ const escapeOptions = [
   { value: "skipped", label: "지금 답하지 않을게요" },
 ] as const;
 
-export function V31RatingInput({ value, onChange, showScopeHint = false, compact = false, questionLabel }: {
-  value: V31Response | undefined; onChange: (value: V31Response) => void; showScopeHint?: boolean;
+/** 가운데 답과 반대쪽 답을 고르는 법. 평정 흐름의 첫 화면에서만 보여준다. */
+export const v31RatingGuide = "가운데 ‘어느 쪽도 아니에요’는 어느 쪽에도 가깝지 않을 때 골라요. 원하지 않는 내용이면 ‘그렇지 않은 편이에요’ 쪽으로 골라요.";
+export const v31EscapeFoldLabel = "답하기 어려워요";
+
+export function V31RatingInput({ value, onChange, showGuide = false, compact = false, questionLabel }: {
+  value: V31Response | undefined; onChange: (value: V31Response) => void; showGuide?: boolean;
   compact?: boolean; questionLabel?: string;
 }) {
   const name = useId();
+  const escapeChosen = escapeOptions.some(option => option.value === value);
   if (compact) return <fieldset>
     <legend className="sr-only">{questionLabel ?? "지금 내 생각에 가까운 정도"}</legend>
     <div className="grid grid-cols-5 gap-0.5 min-[360px]:gap-1 sm:gap-2">
@@ -37,14 +42,18 @@ export function V31RatingInput({ value, onChange, showScopeHint = false, compact
         <span className={`w-full break-keep text-xs leading-4 sm:text-sm sm:leading-5 ${v31Title}`}>{option.label}</span>
       </label>)}
     </div>
-    <div className="mt-3 grid grid-cols-3 gap-1.5 sm:gap-2">
-      {escapeOptions.map(option => <label key={option.value}
-        className={`flex min-h-11 min-w-0 cursor-pointer flex-col items-center gap-2 rounded-lg border px-2 py-3 text-center text-xs leading-4 focus-within:ring-2 focus-within:ring-[var(--hb-focus-ring)] focus-within:ring-offset-2 ${value === option.value ? "border-[var(--hb-selected-line)] bg-[var(--hb-selected-bg)]" : "border-[var(--hb-hairline)]"}`}>
-        <input type="radio" name={name} value={option.value} checked={value === option.value}
-          onChange={() => onChange(option.value)} className="size-4 shrink-0 accent-[var(--hb-action)]" />
-        <span className="w-full text-[var(--hb-text-body)]">{option.label}</span>
-      </label>)}
-    </div>
+    {/* 같은 라디오 묶음이라 펼치면 화살표 키로 이어서 고를 수 있다. 이미 고른 문장은 펼친 채로 둔다. */}
+    <details data-escape-options open={escapeChosen || undefined} className="mt-2">
+      <summary className="flex min-h-11 cursor-pointer items-center text-sm text-[var(--hb-text-body)] underline underline-offset-4">{v31EscapeFoldLabel}</summary>
+      <div className="mt-1 grid grid-cols-3 gap-1.5 sm:gap-2">
+        {escapeOptions.map(option => <label key={option.value}
+          className={`flex min-h-11 min-w-0 cursor-pointer flex-col items-center gap-2 rounded-lg border px-2 py-3 text-center text-xs leading-4 focus-within:ring-2 focus-within:ring-[var(--hb-focus-ring)] focus-within:ring-offset-2 ${value === option.value ? "border-[var(--hb-selected-line)] bg-[var(--hb-selected-bg)]" : "border-[var(--hb-hairline)]"}`}>
+          <input type="radio" name={name} value={option.value} checked={value === option.value}
+            onChange={() => onChange(option.value)} className="size-4 shrink-0 accent-[var(--hb-action)]" />
+          <span className="w-full text-[var(--hb-text-body)]">{option.label}</span>
+        </label>)}
+      </div>
+    </details>
   </fieldset>;
   return <fieldset>
     <legend className="sr-only">{questionLabel ?? "지금 내 생각에 가까운 정도"}</legend>
@@ -58,8 +67,7 @@ export function V31RatingInput({ value, onChange, showScopeHint = false, compact
         <span aria-hidden="true" className="text-xs tabular-nums text-[var(--hb-text-muted)]">{option.value}</span>
       </label>)}
     </div>
-    <p className="mt-3 text-xs leading-relaxed text-[var(--hb-text-muted)]">가운데 답은 ‘어느 쪽도 아님’이에요. 아직 모르거나 해당하지 않으면 아래에서 골라 주세요.</p>
-    {showScopeHint ? <p className={`mt-2 rounded-lg bg-[var(--hb-surface-hover)] p-3 ${v31Body}`}>원하지 않는 내용이면 ‘그렇지 않아요’ 쪽을 골라요. 이번 결혼 준비에 해당하지 않는 내용은 ‘이번 계획에는 없어요’를 골라 주세요.</p> : null}
+    {showGuide ? <p className={`mt-3 rounded-lg bg-[var(--hb-surface-hover)] p-3 ${v31Body}`}>{v31RatingGuide} 아직 모르겠거나 이번 계획에 없는 내용이면 아래에서 따로 골라 주세요.</p> : null}
     <div className="mt-3 border-t border-[var(--hb-hairline)] pt-2">
       {escapeOptions.map(option => <label key={option.value}
         className={`flex min-h-11 cursor-pointer items-center gap-3 rounded-lg px-3 py-2 text-sm focus-within:ring-2 focus-within:ring-[var(--hb-focus-ring)] ${value === option.value ? "bg-[var(--hb-selected-bg)]" : ""}`}>
@@ -97,13 +105,14 @@ export function V31ChoiceInput({ value, options, max, onChange, tasteKey, kind =
   }
   const statuses: { value: Exclude<V31Choice["status"], "answered">; label: string }[] = [
     { value: "undecided", label: kind === "priorities" ? "아직 우선순위를 정하지 못했어요" : "아직 모르겠어요" },
-    { value: "no_preference", label: kind === "spending" ? "더 쓰고 싶은 곳은 지금 없어요" : kind === "avoidances" ? "따로 피하고 싶은 것은 없어요" : kind === "priorities" ? "특히 지킬 것을 따로 고르지 않을게요" : "어느 쪽도 괜찮아요" },
+    { value: "no_preference", label: kind === "spending" ? "더 쓰고 싶은 곳은 지금 없어요" : kind === "avoidances" ? "따로 피하고 싶은 것은 없어요" : kind === "priorities" ? "꼭 지키고 싶은 건 따로 없어요" : "어느 쪽도 괜찮아요" },
     { value: "no_match", label: "맞는 보기가 없어요" },
     { value: "not_applicable", label: "이번 계획에는 없어요" },
     { value: "skipped", label: "지금 답하지 않을게요" },
   ];
   const leadingStatuses = kind === "spending" ? [statuses[1], statuses[0]] : [];
-  const remainingStatuses = kind === "spending" ? statuses.slice(2) : statuses;
+  // 우선순위는 ‘지금은 고르지 않을게요’ 버튼이 같은 답(건너뜀)을 남기므로 같은 뜻의 보기를 두 번 두지 않는다.
+  const remainingStatuses = kind === "spending" ? statuses.slice(2) : kind === "priorities" ? statuses.filter(option => option.value !== "skipped") : statuses;
   const statusButton = (option: (typeof statuses)[number]) => <Button key={option.value} variant="ghost" fullWidth
     onClick={() => onChange({ status: option.value })} aria-pressed={value?.status === option.value}
     className={`min-h-11! justify-start! whitespace-normal! px-3 text-left text-sm ${value?.status === option.value ? "bg-[var(--hb-selected-bg)]" : ""}`}>
@@ -133,27 +142,18 @@ export function V31ChoiceInput({ value, options, max, onChange, tasteKey, kind =
   </div>;
 }
 
+/** 주 행동은 고르기다. 고르지 않고 넘어가기는 아래의 보조 버튼으로 둔다. */
 export function V31PriorityInput({ value, options, onChange, onSkip }: {
   value: V31Choice | undefined; options: readonly V31Option[];
   onChange: (value: V31Choice | undefined) => void; onSkip: () => void;
 }) {
-  const [expanded, setExpanded] = useState(value?.status === "answered");
-  const optionsId = useId();
-  const previousAnswer = value?.status === "answered" ? `우선순위 ${value.values.length}개를 골랐어요.`
-    : value?.status === "undecided" ? "아직 우선순위를 정하지 못했어요."
-      : value?.status === "no_preference" ? "특히 지킬 것을 따로 고르지 않았어요."
-        : value?.status === "skipped" ? "이 질문은 넘어갔어요."
-          : value?.status === "not_applicable" ? "이번 계획에는 없어요."
-            : value?.status === "no_match" ? "맞는 보기가 없어요." : "";
   return <div>
-    <Button variant="primary" fullWidth onClick={onSkip} className="min-h-12! whitespace-normal!">지금은 넘어갈게요</Button>
-    {value?.status === "answered" ? <p className={`mt-2 ${v31Body}`}>넘어가면 이전에 고른 우선순위는 지워져요.</p> : null}
-    <Button variant="secondary" fullWidth onClick={() => setExpanded(current => !current)} aria-expanded={expanded} aria-controls={optionsId}
-      className="mt-3 min-h-12! whitespace-normal!">{expanded ? "우선순위 고르기 접기" : "우선순위도 골라볼게요 (선택)"}</Button>
-    {!expanded && previousAnswer ? <p className={`mt-3 ${v31Body}`}>{previousAnswer} 고른 내용은 다시 펼쳐서 바꿀 수 있어요.</p> : null}
-    {expanded ? <div id={optionsId} className="mt-5">
-      <p className={`mb-2 ${v31Body}`}>1개만 골라도 괜찮아요.</p>
-      <V31ChoiceInput value={value} options={options} max={3} onChange={onChange} kind="priorities" />
-    </div> : null}
+    <V31ChoiceInput value={value} options={options} max={3} onChange={onChange} kind="priorities" />
+    <div className="mt-4 border-t border-[var(--hb-hairline)] pt-4">
+      <Button variant="secondary" fullWidth onClick={onSkip} className="min-h-12! whitespace-normal!">지금은 고르지 않을게요</Button>
+      <p className={`mt-2 ${v31Body}`}>{value?.status === "answered" ? "이 버튼을 누르면 지금 고른 우선순위는 지워져요."
+        : value?.status === "skipped" ? "지난번에는 고르지 않고 넘어갔어요."
+          : "고르지 않아도 결과를 볼 수 있고, 결과 화면에서 나중에 고를 수 있어요."}</p>
+    </div>
   </div>;
 }

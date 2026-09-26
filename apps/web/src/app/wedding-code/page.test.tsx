@@ -90,6 +90,39 @@ describe("웨딩코드 진입 화면", () => {
     }
   });
 
+  /**
+   * openGraph 를 정하지 않으면 루트 layout 의 카드(아모라 문구, `og:url=/landing`)를 통째로
+   * 물려받는다. 웨딩코드 링크를 보냈는데 받는 사람에게 아모라 소개가 보이던 상태를 막는다.
+   * 답이 담긴 링크도 답은 `#` 뒤에 있어 서버가 못 읽으므로 카드는 늘 이 화면의 제목·설명이다.
+   *
+   * `og:url` 은 비워 둔다. 비교 초대 링크(`/wedding-code#v=…&a=…`)도 서버에는 `/wedding-code` 로
+   * 보이므로, 적으면 그 주소를 따라가는 앱에서 카드를 누를 때 `#` 뒤 답이 빠진 채 열릴 수 있다.
+   */
+  it("공유 카드는 웨딩코드 제목·설명을 쓰고 og:url 을 적지 않으며, 색인 규칙은 그대로다", async () => {
+    const searches = [{}, { v: WEDDING_CODE_V31_VERSION }, { v: WEDDING_CODE_V30_VERSION }, { v: WEDDING_CODE_V20_VERSION }, { a: "AACB" }, { v: WEDDING_CODE_V30_VERSION, a: "broken" }];
+    for (const search of searches) {
+      const label = JSON.stringify(search);
+      const metadata = await generateMetadata({ searchParams: Promise.resolve(search) });
+      expect(metadata.openGraph, label).toMatchObject({
+        title: metadata.title,
+        description: metadata.description,
+        siteName: "웨딩한방",
+        locale: "ko_KR",
+        type: "website",
+      });
+      expect(Object.prototype.hasOwnProperty.call(metadata.openGraph, "url"), label).toBe(false);
+      // 검색용 대표 주소는 canonical 이 맡는다.
+      expect(metadata.alternates?.canonical, label).toBe("/wedding-code");
+      expect(metadata.twitter, label).toMatchObject({ card: "summary_large_image", title: metadata.title, description: metadata.description });
+      expect(String(metadata.title), label).toContain("웨딩코드");
+      const card = JSON.stringify([metadata.openGraph, metadata.twitter]);
+      expect(card, label).not.toMatch(/landing|아모라|og-image|AACB|broken/);
+    }
+    // 카드를 넣었다고 답이 실린 주소의 색인 차단이 풀리면 안 된다.
+    expect((await generateMetadata({ searchParams: Promise.resolve({ a: "AACB" }) })).robots).toMatchObject({ index: false, follow: false });
+    expect((await generateMetadata({ searchParams: Promise.resolve({}) })).robots).toMatchObject({ index: true, follow: true });
+  });
+
   it("코드가 없으면 처음부터 답하는 화면이다", async () => {
     const page = await WeddingCodePage({ searchParams: Promise.resolve({}) });
     expect(page.props.initialEntry).toEqual({ kind: "v31", initial: { partnerDraft: null, partnerCode: null, bothDrafts: null } });
@@ -113,8 +146,8 @@ describe("웨딩코드 진입 화면", () => {
     const container = document.createElement("div");
     container.innerHTML = html;
     const text = container.textContent ?? "";
-    expect(text).toContain("기본 23개 질문");
-    expect(text).toContain("결과에서 9개 선택 질문");
+    expect(text).toContain("기본 24개 질문");
+    expect(text).toContain("결과에서 8개 선택 질문");
     expect(text).toContain("답하는 동안에는 서버나 계정에 보내지 않아요");
     expect(text).toContain("이 브라우저에 자동 저장해 나중에 이어 할 수 있어요");
     expect(text).toContain("공용 기기에서는");
