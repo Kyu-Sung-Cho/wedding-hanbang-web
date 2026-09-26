@@ -116,7 +116,9 @@ test("vendor webview back and share actions follow the current in-page navigatio
   assert.match(webviewSource, /const \[canGoBack, setCanGoBack\]/);
   assert.match(webviewSource, /onNavigationStateChange=\{handleNavigationStateChange\}/);
   assert.match(webviewSource, /webViewRef\.current\?\.goBack\(\)/);
-  assert.match(webviewSource, /Share\.share\(\{ url: currentUrl, message: currentUrl \}\)/);
+  // 공유는 지금 보는 화면을 따라가되, `#` 뒤(답·접근 키)는 빼고 보낸다(webviewShare.test.mjs).
+  assert.match(webviewSource, /const shareUrl = shareableWebViewUrl\(currentUrl, SITE_ORIGIN\);/);
+  assert.match(webviewSource, /Share\.share\(\{ url: shareUrl, message: shareUrl \}\)/);
   assert.match(webviewSource, /accessibilityLabel="이전 화면"/);
   assert.match(webviewSource, /accessibilityLabel="현재 페이지 공유"/);
 });

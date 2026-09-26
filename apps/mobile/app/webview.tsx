@@ -26,6 +26,7 @@ import {
   resolveMobileSiteOrigin,
 } from "@/lib/siteUrl.mjs";
 import { holdsUnsavedWork } from "@/lib/webviewUnsavedWork.mjs";
+import { shareableWebViewUrl } from "@/lib/webviewShare.mjs";
 import { checklistCategoryFromSearch, checklistRoute } from "@/lib/checklistCategoryParam";
 
 const SITE_ORIGIN = resolveMobileSiteOrigin(
@@ -148,10 +149,12 @@ export default function WebViewScreen() {
     return `(()=>{if(window.top!==window.self)return true;const key=${property};const nonce=${nonce};if(window[key]===nonce)return true;if(window[key]!==undefined)return false;Object.defineProperty(window,key,{value:nonce,writable:false,configurable:false,enumerable:false});return true;})();true;`;
   }, [bridgeNonce]);
 
+  // 지금 보는 주소를 그대로 보내지 않는다. `#` 뒤에 답이나 접근 키가 실린 화면이 있다.
   const handleShare = useCallback(async () => {
-    if (!currentUrl) return;
+    const shareUrl = shareableWebViewUrl(currentUrl, SITE_ORIGIN);
+    if (!shareUrl) return;
     try {
-      await Share.share({ url: currentUrl, message: currentUrl });
+      await Share.share({ url: shareUrl, message: shareUrl });
     } catch {
       // 공유 취소
     }

@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { buildAmoraPendingActionPrompt } from "../amoraPendingAction";
 import { isMutatingTool } from "../mutationTools";
@@ -55,10 +55,27 @@ describe("체크리스트 항목 ID가 프롬프트에 실린다", () => {
 });
 
 describe("일정 id가 프롬프트에 실린다", () => {
+  // 프롬프트는 오늘(KST) 이후 일정에만 id를 붙인다. 시계를 고정하지 않았을 때는
+  // 픽스처 날짜(2026-09-25)가 지나자 이 테스트가 코드 변경 없이 깨졌다(2026-09-26).
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-09-24T03:00:00Z"));
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   it("취소·변경 도구가 쓸 event_id가 보인다", () => {
     const prompt = build(PROGRESS);
     expect(prompt).toContain("evt_m1a2b3_zx90");
     expect(prompt).toContain("양가 상견례");
+  });
+
+  it("지난 일정에는 id를 붙이지 않는다", () => {
+    vi.setSystemTime(new Date("2026-09-26T03:00:00Z"));
+    const prompt = build(PROGRESS);
+    expect(prompt).toContain("양가 상견례");
+    expect(prompt).not.toContain("evt_m1a2b3_zx90");
   });
 });
 
