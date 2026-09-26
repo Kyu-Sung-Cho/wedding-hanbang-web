@@ -38,6 +38,8 @@ function loadChatFunctions(names, bindings = {}) {
   // 화면의 「대화 화면 정리」 잠금(진행 중인 정리 없음)이 기본값이다 — 그 잠금은 chatViewClearScreen.test.mjs 가 잰다.
   // 새 객체로 펼치지 않는다 — 몇몇 하네스는 함수를 만든 뒤에 bindings 에 값을 더 붙인다.
   if (!Object.hasOwn(bindings, "viewClearInFlightRef")) bindings.viewClearInFlightRef = { current: null };
+  // 대화 칸은 이미 정해져 있다가 기본값이다(2026-09-26 첫 칸 고르기) — 정하기 전 보내기를 막는 것은 amoraLaneChoice.test.mjs 가 잰다.
+  if (!Object.hasOwn(bindings, "laneOpeningRef")) bindings.laneOpeningRef = { current: "decided" };
   return new Function("bindings", `with(bindings){${output};return {${names.join(",")}};}`)(bindings);
 }
 function compileLib(relative) {

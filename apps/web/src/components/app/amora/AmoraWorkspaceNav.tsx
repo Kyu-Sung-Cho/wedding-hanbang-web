@@ -7,7 +7,8 @@ import { stripWeddingBasePath, weddingLinkProps } from "@/lib/weddingPaths";
 import { useAuthStore } from "@/stores/authStore";
 
 export interface AmoraChatNavigationControls {
-  activeScope: "shared" | "private";
+  /** `null` 이면 아직 레인을 고르지 않았다(처음 여는 사람). 어느 탭도 눌린 것으로 그리지 않는다. */
+  activeScope: "shared" | "private" | null;
   onScopeChange: (scope: "shared" | "private") => void;
   disabled: boolean;
   privateDisabled: boolean;

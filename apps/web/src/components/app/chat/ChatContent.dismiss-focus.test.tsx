@@ -5,6 +5,7 @@ import type { ChatMessage } from "@/types/database.types";
 import { getAmoraToolOperationIdentity } from "@/lib/ai/amoraToolIdentity";
 import { getAmoraPendingActionTtlMs } from "@/lib/ai/amoraActionApprovalPolicy";
 import { AMORA_QUEUED_CARD_SKIP_TEXT } from "@/lib/ai/amoraQueuedCardSkip";
+import { amoraLaneStorageKey } from "@hanbang/shared/amora-lane-choice";
 
 // 기존 ChatContent fixture의 스토어 경계만 사용하고 제안 카드·확인 시트는 실제로 연다.
 const mocks = vi.hoisted(() => ({
@@ -74,6 +75,9 @@ describe("제안을 나중에 정할 때 대화 초점", () => {
     }];
     window.sessionStorage.clear();
     window.localStorage.clear();
+    // 2026-09-26 부터 처음 여는 사람은 '함께/나만'을 먼저 고른다(`amoraLaneFirstChoice.test.tsx`).
+    // 이 파일은 이미 '함께'를 고른 사람의 제안 카드 초점만 잰다.
+    window.localStorage.setItem(amoraLaneStorageKey("user-1") as string, "shared");
     frames = new Map();
     frameId = 0;
     vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback) => {

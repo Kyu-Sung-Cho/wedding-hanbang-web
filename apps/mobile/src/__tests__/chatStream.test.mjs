@@ -2495,15 +2495,23 @@ test("mobile local safety hold is synchronously deduplicated until the draft cha
 });
 
 test("mobile UI exposes accessible shared/private scopes and renders only the selected scope", () => {
+  // 2026-09-26 파운더 결정으로 기본 칸이 없어졌다. "shared" 는 자리값으로만 남고, 칸이 정해지기 전
+  // (laneOpening 이 "decided" 가 아닐 때)에는 입력칸도 목록도 열지 않는다. 옛 모양
+  // `const [activeScope, setActiveScope] = useState<ChatScope>("shared")` 를 고정하던 자리를 새 모양으로 옮겼다.
+  // 처음 열 때 고르는 동작 자체는 amoraLaneChoice.test.mjs 가 잰다.
   assert.match(
     sourceText,
-    /const \[activeScope, setActiveScope\] = useState<ChatScope>\("shared"\)/,
+    /const \[activeScope, setActiveScopeState\] = useState<ChatScope>\("shared"\)/,
   );
-  assert.match(sourceText, /const activeLane = resolveAmoraChatLane\(activeScope, target, hasLinkedPartner\)/);
+  assert.match(
+    sourceText,
+    /const activeLane = laneOpening === "decided"\s*\?\s*resolveAmoraChatLane\(activeScope, target, hasLinkedPartner\)\s*:\s*null;/,
+  );
   assert.match(sourceText, /const input = activeLane \? inputByLane\[activeLane\] : ""/);
   assert.match(sourceText, /isMessageInChatScope\(message\.visibility, activeScope, userRole\)/);
   // 화면에 그리는 목록은 여전히 "선택된 범위로 거른 것"에서만 나온다. 여기에 붙는 것은
-  // 아모라가 먼저 건넨 첫마디 하나뿐이고, 그것도 함께 대화 범위에서만 붙는다.
+  // 아모라가 먼저 건넨 첫마디 하나뿐이다. 2026-09-26 부터 아모라와 이야기하는 두 칸 모두에 붙고
+  // (처음 여는 사람이 '나만 (상담)'을 골라도 본다), 상대에게 쓰는 칸에는 붙지 않는다.
   assert.match(
     sourceText,
     /const displayedMessages = useMemo\(\s*\(\) => \(firstHelloMessage \? \[firstHelloMessage, \.\.\.scopedMessages\] : scopedMessages\)/,
@@ -2514,13 +2522,16 @@ test("mobile UI exposes accessible shared/private scopes and renders only the se
   );
   assert.match(
     sourceText,
-    /if \(!firstHelloBody \|\| activeScope !== "shared" \|\| target === "partner"\) \{\s*return null;/,
+    /if \(!firstHelloBody \|\| target === "partner"\) \{\s*return null;/,
   );
   assert.match(sourceText, /function handleScopeChange\(nextScope: ChatScope\)/);
   assert.match(sourceText, /selectChatScope\([\s\S]*nextScope,[\s\S]*userRole/);
   assert.match(sourceText, /accessibilityLabel="상담 공개 범위"/);
   assert.match(sourceText, /accessibilityRole="tab"/);
-  assert.match(sourceText, /accessibilityState=\{\{ selected: activeScope === "shared"/);
+  // 칸을 정하기 전에는 어느 탭도 선택된 것으로 읽히지 않는다(shownScope 는 정하기 전 null).
+  assert.match(sourceText, /const shownScope: ChatScope \| null = laneDecided \? activeScope : null;/);
+  assert.match(sourceText, /accessibilityState=\{\{ selected: shownScope === "shared"/);
+  assert.match(sourceText, /accessibilityState=\{\{ selected: shownScope === "private"/);
   assert.match(sourceText, />함께 대화<\/Text>/);
   assert.match(sourceText, />나만 \(상담\)<\/Text>/);
   assert.match(sourceText, /현재 범위 · 함께 대화 — 파트너에게 보여요/);
