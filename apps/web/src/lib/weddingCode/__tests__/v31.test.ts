@@ -6,7 +6,8 @@ import {
 } from "@/constants/weddingCodeV31";
 import { WEDDING_CODE_V30_QUESTIONS, WEDDING_CODE_V30_TASTES } from "@/constants/weddingCodeV30";
 import { createV30Draft, decodeV30, encodeV30 } from "../v30";
-import { buildV31Profile, buildV31ShareUrl, compareV31, createV31Draft, decodeV31, encodeV31, getV31PriorityOptions, hasV31Content, normalizeV31Draft, v31ChoiceLabels, v31ResponseLabel } from "../v31";
+import { V31_PRIORITY_NO_PREFERENCE_LABEL, V31_PRIORITY_SKIPPED_LABEL, V31_PRIORITY_UNDECIDED_LABEL, buildV31Profile, buildV31ShareUrl, compareV31, createV31Draft, decodeV31, encodeV31, getV31PriorityOptions, hasV31Content, normalizeV31Draft, v31ChoiceLabels, v31ResponseLabel } from "../v31";
+import { V31_CORE_RATING_IDS, V31_EXTRA_RATING_IDS, V31_LEGACY_ONLY_RATING_IDS } from "../v31Flow";
 
 function all(value: V31Response): V31Draft {
   const draft = createV31Draft();
@@ -166,7 +167,9 @@ describe("웨딩코드 v3.1 문항 의미와 개인 결과", () => {
     for (const id of ["taste.photo", "avoidances", "priorities", "spending"]) expect(profile.unresolved.some((item) => item.id === id)).toBe(false);
     expect(profile.avoidanceLabels).toEqual(["따로 피하고 싶은 것은 없어요"]);
     expect(profile.spendingLabels).toEqual(["더 쓰고 싶은 곳은 지금 없어요"]);
-    expect(v31ChoiceLabels(draft.priorities, getV31PriorityOptions(draft))).toEqual(["특히 지킬 것을 따로 고르지 않을게요"]);
+    // 2026-09-27: 입력 버튼 이름과 글자까지 같게 인용한다(예전에는 누른 적 없는 「특히 지킬 것을 따로 고르지 않을게요」가 나왔다).
+    expect(v31ChoiceLabels(draft.priorities, getV31PriorityOptions(draft))).toEqual([V31_PRIORITY_NO_PREFERENCE_LABEL]);
+    expect(V31_PRIORITY_NO_PREFERENCE_LABEL).toBe("꼭 지키고 싶은 건 따로 없어요");
     for (const field of ["avoidances", "spending"] as const) {
       const onlyNone = createV31Draft();
       onlyNone[field] = { status: "no_preference" };
@@ -183,9 +186,11 @@ describe("웨딩코드 v3.1 문항 의미와 개인 결과", () => {
     expect(buildV31Profile(draft).insights.some((item) => item.id === "budget-explicit-spending")).toBe(false);
     draft.spending = answered(["beauty"]);
     const insight = buildV31Profile(draft).insights.find((item) => item.id === "budget-explicit-spending")!;
-    // 2026-09-27: 고른 곳은 본문에서 되풀이하지 않고 근거(직접 고른 답)로 보여준다. 금액으로 읽지 않게 하는 경계는 본문에 남긴다.
+    // 2026-09-27: 고른 곳은 본문에서 되풀이하지 않고 근거(직접 고른 답)로 보여준다. 금액으로 읽지 않게 하는 경계는
+    // 다음 행동(같은 총액 안에서 비교)과 같은 화면의 ‘더 쓰고 싶은 곳’ 영역이 말하므로 본문에 「~않았어요」를 두지 않는다.
     expect(insight.evidence.find((item) => item.id === "spending")?.answer).toBe("헤어·메이크업");
-    expect(insight.body).toContain("실제 금액을 묻지 않았어요");
+    expect(insight.body).toBeUndefined();
+    expect(insight.nextStep).toContain("같은 총액 안에서");
     expect(insight.evidence.map((item) => item.id)).toEqual(["B1", "spending"]);
   });
 
@@ -316,9 +321,9 @@ describe("웨딩코드 v3.1 커플 응답 의미", () => {
     second.answers = { V1: 5, G1: 2, G2: 4, G3: 4, R3: "undecided", R4: 5 };
     const items = compareV31(first, second);
     expect(items).toHaveLength(34);
-    // 2026-09-27: 3 대 4 는 중간 응답으로 접히던 것을 '한 사람만 원한 것'으로, 1 대 4 는 크기와 상관없이
+    // 2026-09-27: 3 대 4 는 중간 응답으로 접히던 것을 '한 사람만 동의한 문장'으로, 1 대 4 는 크기와 상관없이
     // 문장의 서로 반대편으로 가른다. 예전에는 각각 middle·different 였다.
-    expect(items.slice(0, 6).map((item) => item.kind)).toEqual(["shared_wish", "shared_distance", "one_sided", "opposite", "unavailable", "unavailable"]);
+    expect(["V1", "G1", "G2", "G3", "R3", "R4"].map((id) => items.find((item) => item.id === id)?.kind)).toEqual(["shared_wish", "shared_distance", "one_sided", "opposite", "unavailable", "unavailable"]);
     expect(row(first, second, "G1").followUp).toContain("두 사람 모두 가깝지 않다고");
     expect(row(first, second, "G1").followUp).not.toContain("꼭 초대");
   });
@@ -350,15 +355,24 @@ describe("웨딩코드 v3.1 커플 응답 의미", () => {
     expect([...seen].sort()).toEqual(["degree", "middle", "one_sided", "opposite", "shared_distance", "shared_request", "shared_wish"]);
   });
 
-  it("둘 다 바라는 도움은 합의로 묶지 않고 누가 먼저 해줄 수 있는지 묻는다", () => {
+  it("상대가 해 주길 바라는 도움만 둘 다 바라는 도움으로 묶고, 둘이 같은 방식을 원하는 문장은 함께 동의로 둔다", () => {
     const first = createV31Draft(); const second = createV31Draft();
     first.answers = { H1: 4, H2: 5, H3: 4, H4: 5, T3: 4 };
     second.answers = { H1: 5, H2: 4, H3: 5, H4: 4, T3: 5 };
-    for (const id of ["H1", "H2", "H3", "H4"]) {
+    // H1(이야기 들어주기)·H2(일 나눠 맡아주기)는 「상대가 … 해주면 좋겠다」라 서로에게 바라는 요구 두 개다.
+    for (const id of ["H1", "H2"]) {
       const item = row(first, second, id);
       expect(item.kind, id).toBe("shared_request");
       expect(item.followUp, id).toMatch(/누가 먼저/);
       expect(item.followUp, id).not.toContain(WEDDING_CODE_V31_QUESTIONS.find(question => question.id === id)!.followUp);
+    }
+    // 2026-09-27: H3(다음 할 일 같이 정하기)·H4(잠깐 쉬고 다시 이야기하기)는 상대가 해 주는 도움이 아니라
+    // 둘이 같은 방식을 원한다는 답이다. 합의 목록에서 빼지 않고, 누가 먼저 해줄지나 해줄 여유를 묻지 않는다.
+    for (const id of ["H3", "H4"]) {
+      const item = row(first, second, id);
+      expect(item.kind, id).toBe("shared_wish");
+      expect(item.followUp, id).not.toMatch(/누가 먼저|해줄 수 있는|해줄지/);
+      expect(item.followUp, id).toBe(WEDDING_CODE_V31_QUESTIONS.find(question => question.id === id)!.followUp);
     }
     // 힘들 때 받고 싶은 도움이 아닌 문장은 그대로 함께 동의로 둔다.
     expect(row(first, second, "T3").kind).toBe("shared_wish");
@@ -384,8 +398,10 @@ describe("웨딩코드 v3.1 커플 응답 의미", () => {
     for (const [a, b] of [[first, second], [second, first]]) {
       const item = row(a, b, "spending");
       // 2026-09-27: 한쪽만 '지금 없어요'면 취향의 '어느 쪽도 괜찮아요'와 같게 열린 답이다(예전에는 different 로 차이에 섰다).
+      // 반대 의견으로 읽지 않게 하는 것은 판정 고지가 아니라 배치(차이 묶음이 아닌 열린 답 묶음)가 맡는다.
       expect(item.kind).toBe("open_preference");
-      expect(item.followUp).toMatch(/희망에 반대한다는 뜻[은이] 아니에요/);
+      expect(item.followUp).not.toMatch(/반대|아니에요/);
+      expect(item.followUp).toContain("고른 사람에게 왜 그곳에 더 쓰고 싶은지");
       expect(item.followUp).toContain("전체 예산을 늘릴지는 따로 정해요");
       expect(item.followUp).not.toMatch(/상대가|상대의/);
       expect(item.followUp).not.toMatch(/합의/);
@@ -417,7 +433,8 @@ describe("웨딩코드 v3.1 커플 응답 의미", () => {
     for (const [a, b] of [[first, second], [second, first]]) {
       const item = row(a, b, "priorities");
       expect(item.kind).toBe("open_preference");
-      expect(item.followUp).toContain("특히 지킬 것을 따로 고르지 않았어요");
+      expect(item.followUp).toContain("한 사람은 꼭 지키고 싶은 게 따로 없다고 했어요");
+      expect(item.followUp).not.toContain("특히 지킬 것을 따로 고르지");
       expect(item.followUp).not.toMatch(/상대가|상대의/);
     }
   });
@@ -429,8 +446,10 @@ describe("웨딩코드 v3.1 커플 응답 의미", () => {
     second.tastes.venue = { status: "no_preference" };
     for (const [a, b] of [[first, second], [second, first]]) {
       const item = row(a, b, "taste.venue");
+      // 합의로 읽지 않게 하는 것은 판정 고지가 아니라 묶음(함께 동의한 내용이 아닌 열린 답)이 맡는다.
       expect(item.kind).toBe("open_preference");
-      expect(item.followUp).toContain("같은 취향으로 합의한 것은 아니에요");
+      expect(item.followUp).toBe("구체적으로 고른 답이 있다면 그 후보부터 함께 살펴보세요.");
+      expect(item.followUp).not.toMatch(/합의|아니에요/);
     }
     first.tastes.venue = { status: "no_preference" };
     expect(row(first, second, "taste.venue").kind).toBe("open_preference");
@@ -521,7 +540,49 @@ describe("웨딩코드 v3.1 커플 응답 의미", () => {
     first.avoidances = answered(["crowded_space"]);
     second.avoidances = { status: "no_preference" };
     first.priorities = answered(["H4", "avoid.crowded_space"]);
-    expect(compareV31(first, second).slice(0, 3).map((item) => item.id)).toEqual(["H4", "avoidances", "V1"]);
+    const answeredItems = compareV31(first, second).filter((item) => item.kind !== "unavailable");
+    expect(answeredItems.map((item) => item.id)).toEqual(["H4", "avoidances", "V1"]);
+  });
+
+  it("결과 화면이 말하는 ‘질문 순서대로’가 화면에서 묻는 순서다", () => {
+    const ids = compareV31(createV31Draft(), createV31Draft()).map((item) => item.id);
+    // 기본 문장 → 선택 문장 → 예전 흐름에만 있던 문장, 그 뒤 취향 → 피하고 싶은 것 → 더 쓰고 싶은 곳 → 우선순위.
+    // 2026-09-27: 우선순위를 기본 흐름 끝으로 옮긴 뒤에도 비교는 우선순위를 지출보다 먼저, 문장은 저장 자리 순서(V1 먼저)로 뒀다.
+    expect(ids).toEqual([
+      ...V31_CORE_RATING_IDS, ...V31_EXTRA_RATING_IDS, ...V31_LEGACY_ONLY_RATING_IDS,
+      ...WEDDING_CODE_V31_TASTES.map((taste) => `taste.${taste.key}`),
+      "avoidances", "spending", "priorities",
+    ]);
+    const first = createV31Draft(); const second = createV31Draft();
+    first.answers = { V1: 5, H4: 4, G1: 5 }; second.answers = { V1: 1, H4: 1, G1: 1 };
+    first.spending = answered(["photo"]); second.spending = answered(["meal"]);
+    first.answers.B1 = 5; first.priorities = answered(["B1"]);
+    second.answers.D1 = 5; second.priorities = answered(["D1"]);
+    const opposite = compareV31(first, second).filter((item) => item.kind === "opposite").map((item) => item.id);
+    expect(opposite).toEqual(["G1", "H4", "V1"]);
+    const different = compareV31(first, second).filter((item) => item.kind === "different").map((item) => item.id);
+    expect(different).toEqual(["spending", "priorities"]);
+  });
+
+  it("우선순위를 고르지 않고 넘어간 답과 아직 못 정한 답은 그 화면에 없던 보기 이름으로 인용하지 않는다", () => {
+    const first = createV31Draft(); const second = createV31Draft();
+    first.answers.B1 = 5; second.answers.B1 = 5;
+    first.priorities = { status: "skipped" };
+    second.priorities = { status: "undecided" };
+    const item = row(first, second, "priorities");
+    // 우선순위 화면에는 ‘지금 답하지 않을게요’ 보기가 없다(넘어가기 버튼이 같은 답을 남긴다).
+    expect(item.first).toBe(V31_PRIORITY_SKIPPED_LABEL);
+    expect(item.second).toBe(V31_PRIORITY_UNDECIDED_LABEL);
+    expect(`${item.first} ${item.second}`).not.toMatch(/지금 답하지 않을게요|아직 모르겠어요/);
+    for (const draft of [first, second]) {
+      const unresolved = buildV31Profile(draft).unresolved.find((entry) => entry.id === "priorities");
+      expect(unresolved?.answer).toBe(draft === first ? V31_PRIORITY_SKIPPED_LABEL : V31_PRIORITY_UNDECIDED_LABEL);
+    }
+    // 우선순위가 아닌 질문의 건너뜀·모름은 원래 보기 이름 그대로다.
+    const skippedTaste = createV31Draft(); skippedTaste.tastes.venue = { status: "skipped" };
+    expect(buildV31Profile(skippedTaste).unresolved.find((entry) => entry.id === "taste.venue")?.answer).toBe("지금 답하지 않을게요");
+    const skippedSpending = createV31Draft(); skippedSpending.spending = { status: "undecided" };
+    expect(buildV31Profile(skippedSpending).unresolved.find((entry) => entry.id === "spending")?.answer).toBe("아직 모르겠어요");
   });
 });
 

@@ -74,8 +74,9 @@ describe("V31 same-browser resume", () => {
     await button("다음 질문");
     const raw = window.localStorage.getItem(LOCAL_KEY);
     await remount();
-    // 질문 화면의 진행 표기와 같은 단위(페이지)로 알린다.
-    expect(container.textContent).toContain("기본 질문 2 / 14 페이지부터 이어 할 수 있어요");
+    // 질문 화면의 진행 표기와 같은 단위(페이지)로 알리되, 문장 안에서는 분수 표기 대신 풀어서 쓴다.
+    expect(container.textContent).toContain("기본 질문 14페이지 중 2페이지부터 이어 할 수 있어요");
+    expect(container.textContent).not.toMatch(/\d+ \/ \d+ 페이지부터/);
     expect(container.querySelector("[data-question]")).toBeNull();
     expect(window.localStorage.getItem(LOCAL_KEY)).toBe(raw);
     await button("이어서 답하기");
@@ -140,7 +141,7 @@ describe("V31 same-browser resume", () => {
     expect(writeV31LocalProgress(window.localStorage, { ...partial.snapshot, index: getV31IndexForId("G2") }, window.localStorage.getItem(LOCAL_KEY)).status).toBe("saved");
     const raw = window.localStorage.getItem(LOCAL_KEY);
     await remount();
-    expect(container.textContent).toContain("선택 질문 1 / 3 페이지부터 이어 할 수 있어요");
+    expect(container.textContent).toContain("선택 질문 3페이지 중 1페이지부터 이어 할 수 있어요");
     expect(window.localStorage.getItem(LOCAL_KEY)).toBe(raw);
     await button("이어서 답하기");
     expect([...container.querySelectorAll("[data-question]")].map(item => item.getAttribute("data-question"))).toEqual(["V1", "G2", "R3"]);
@@ -164,7 +165,7 @@ describe("V31 same-browser resume", () => {
     const raw = JSON.stringify({ schema: 1, version: draft.version, savedAt: Date.now(), answerCode: encodeV31(draft), index: 2, screen: "questions", editing: false, needsPriorityReview: false });
     window.localStorage.setItem(LOCAL_KEY, raw);
     await render();
-    expect(container.textContent).toContain("이전 전체 질문 3 / 34부터 이어 할 수 있어요");
+    expect(container.textContent).toContain("이전 전체 질문 34개 중 3번째부터 이어 할 수 있어요");
     await button("이어서 답하기");
     expect(window.localStorage.getItem(LOCAL_KEY)).toBe(raw);
     expect(container.querySelector('[data-question="G2"]')).not.toBeNull();
@@ -259,6 +260,8 @@ describe("V31 same-browser resume", () => {
     expect(window.localStorage.getItem(PAIR_SESSION_LOCAL_KEY)).toBeNull();
     expect(window.localStorage.getItem(LOCAL_KEY)).toBeNull();
     expect(readPairSessionRecovery(pair.roomId)).toEqual(pair);
+    // 끄기가 지우지 않는 탭 사본은 같은 이름(확인 주소)으로, 이 탭에 잠시 남는다고 적는다.
+    expect(container.querySelector("[data-pair-tab-address-note]")?.textContent).toBe("함께 보기 요청이 처리됐는지 볼 수 있게, 확인 주소는 이 탭에 잠시 남아요.");
     expect(fetch).not.toHaveBeenCalled();
     await button("자동 저장 켜기");
     expect(window.localStorage.getItem(PAIR_SESSION_LOCAL_KEY)).toBeNull();
@@ -285,9 +288,10 @@ describe("V31 same-browser resume", () => {
     const pair = window.localStorage.getItem(PAIR_SESSION_LOCAL_KEY);
     await render(); await button("내 웨딩코드 시작하기"); await click(container.querySelector('input[value="5"]'));
     // 답 지우기는 확인 주소를 남긴다(처리방침과 같은 동작). 그 사실과 지우는 방법을 버튼 바로 옆에 적는다.
+    // 처리방침과 같은 이름(확인 주소)으로 부르고, 끄기가 지우는 것은 이 브라우저에 저장된 사본이라고 범위를 좁힌다.
     const note = container.querySelector("[data-pair-address-note]");
-    expect(note?.textContent).toContain("‘이 브라우저의 답 지우기’를 눌러도 함께 보기 확인 주소는 남아요");
-    expect(note?.textContent).toContain("주소까지 지우려면 ‘자동 저장 끄기’를 눌러 주세요");
+    expect(note?.textContent).toBe("‘이 브라우저의 답 지우기’는 답만 지워요. 이 브라우저에 저장된 함께 보기 확인 주소까지 지우려면 ‘자동 저장 끄기’를 눌러 주세요.");
+    expect(container.textContent).not.toContain("함께 보기 요청의 처리 여부를 확인할 주소");
     expect([...note!.previousElementSibling!.querySelectorAll("button")].map(item => item.textContent?.trim())).toEqual(["자동 저장 끄기", "이 브라우저의 답 지우기"]);
     await button("이 브라우저의 답 지우기");
     expect(window.localStorage.getItem(LOCAL_KEY)).toBeNull();
@@ -418,17 +422,27 @@ describe("V31 same-browser resume", () => {
     expect(container.querySelector<HTMLInputElement>('input[value="2"]')?.checked).toBe(false);
   });
 
-  it("keeps the next button visible but disabled on an unanswered priority step and enables it after a choice", async () => {
+  it("on an unanswered priority step of the old full flow the fixed button skips to the next question, and moves on normally after a choice", async () => {
     const draft = completed(); draft.priorities = undefined;
     seed(snapshot(draft, { index: 32 }));
     await render(); await button("이어서 답하기");
-    const next = () => [...container.querySelectorAll<HTMLButtonElement>("[data-question-actions] button")].find(item => item.textContent?.trim() === "다음 질문");
-    expect(next()?.disabled).toBe(true);
+    const action = () => container.querySelector<HTMLButtonElement>("[data-question-actions] button");
+    // 이전 전체 흐름은 우선순위 뒤에 더 쓰고 싶은 곳을 묻는다. 비어 있으면 고정 버튼이 넘어가기를 맡는다.
+    expect(action()?.textContent?.trim()).toBe("고르지 않고 다음 질문");
+    expect(action()?.disabled).toBe(false);
     expect([...container.querySelectorAll("button")].some(item => item.textContent?.trim() === "우선순위도 골라볼게요 (선택)")).toBe(false);
     await click(container.querySelector('[data-choice="V1"]'));
-    expect(next()?.disabled).toBe(false);
-    await click(next());
+    expect(action()?.textContent?.trim()).toBe("다음 질문");
+    await click(action());
     expect(container.querySelector('[data-question="spending"]')).not.toBeNull();
+    let stored = readV31LocalProgress(window.localStorage);
+    expect(stored.status === "ready" && stored.snapshot.draft.priorities).toEqual({ status: "answered", values: ["V1"] });
+    await click(container.querySelector('button[aria-label="이전 질문"]'));
+    await click(container.querySelector('[data-choice="V1"]'));
+    await click(action());
+    expect(container.querySelector('[data-question="spending"]')).not.toBeNull();
+    stored = readV31LocalProgress(window.localStorage);
+    expect(stored.status === "ready" && stored.snapshot.draft.priorities).toEqual({ status: "skipped" });
   });
 
   it("resumes a place saved when the optional flow still asked the priority question as a one-question edit", async () => {
@@ -440,7 +454,7 @@ describe("V31 same-browser resume", () => {
     await button("이어서 답하기");
     expect(window.localStorage.getItem(LOCAL_KEY)).toBe(raw);
     expect(container.querySelector('[data-question="priorities"]')).not.toBeNull();
-    await button("지금은 고르지 않을게요");
+    await button("고르지 않고 결과 보기");
     expect(container.querySelector('[data-result="solo-v31"]')).not.toBeNull();
     const saved = readV31LocalProgress(window.localStorage);
     expect(saved.status === "ready" && saved.snapshot.draft.priorities).toEqual({ status: "skipped" });
@@ -463,7 +477,57 @@ describe("V31 same-browser resume", () => {
     expect(container.querySelector('[data-result="solo-v31"]')).toBeNull();
     await remount(); await button("이어서 답하기");
     expect(container.querySelector("[data-question]")?.getAttribute("data-question")).toBe("priorities");
-    await button("지금은 고르지 않을게요"); await button("수정한 결과 보기");
+    // 앞의 답이 바뀌어 우선순위를 다시 보는 수정 화면에서도 넘어가기가 남는다(고정 버튼이 맡는다).
+    await button("고르지 않고 다음 질문"); await button("수정한 결과 보기");
     expect(container.querySelector('[data-result="solo-v31"]')).not.toBeNull();
+    const saved = readV31LocalProgress(window.localStorage);
+    expect(saved.status === "ready" && saved.snapshot.draft.priorities).toEqual({ status: "skipped" });
+  });
+
+  it("a saved result from the old core flow, which never asked the priority question, can still choose priorities from the result", async () => {
+    const own = coreCompleted();
+    seed(snapshot(own, { flow: "core", index: V31_CORE_INDEXES[V31_CORE_INDEXES.length - 1], screen: "result" }));
+    await render(); await button("내 결과 다시 보기");
+    expect(container.querySelector('[data-result="solo-v31"]')).not.toBeNull();
+    // 예전 기본 흐름은 우선순위를 묻지 않았고, 선택 질문은 이제 우선순위를 묻지 않는다. 결과에서 고를 길이 있어야 한다.
+    const entry = container.querySelector("[data-priority-entry]");
+    expect(entry).not.toBeNull();
+    await click([...entry!.querySelectorAll("button")].find(item => item.textContent?.trim() === "꼭 지키고 싶은 것 고르기"));
+    expect(container.querySelector('[data-question="priorities"]')).not.toBeNull();
+    expect(container.querySelector('[data-question="priorities"] [data-choice="G1"]')).not.toBeNull();
+    await click(container.querySelector('[data-choice="G1"]'));
+    await button("수정한 결과 보기");
+    expect(container.querySelector('[data-result="solo-v31"]')).not.toBeNull();
+    expect(container.querySelector("[data-priority-entry]")).toBeNull();
+    expect([...container.querySelectorAll("button")].some(item => item.textContent?.trim() === "우선순위 수정")).toBe(true);
+    const saved = readV31LocalProgress(window.localStorage);
+    expect(saved.status === "ready" && saved.snapshot.draft.priorities).toEqual({ status: "answered", values: ["G1"] });
+    // 같은 길로 들어가 고르지 않고 나와도 결과로 돌아오고, 그다음부터는 ‘우선순위 수정’이 그 일을 한다.
+    await act(async () => root.unmount()); window.localStorage.clear(); root = createRoot(container);
+    seed(snapshot(own, { flow: "core", index: V31_CORE_INDEXES[V31_CORE_INDEXES.length - 1], screen: "result" }));
+    await render(); await button("내 결과 다시 보기");
+    await click([...container.querySelectorAll("button")].find(item => item.textContent?.trim() === "꼭 지키고 싶은 것 고르기"));
+    await button("고르지 않고 결과 보기");
+    expect(container.querySelector('[data-result="solo-v31"]')).not.toBeNull();
+    expect([...container.querySelectorAll("button")].some(item => item.textContent?.trim() === "우선순위 수정")).toBe(true);
+  });
+
+  it("after skipping an empty priority step, choosing a taste later offers the priority question from the result", async () => {
+    const own = createV31Draft();
+    for (const id of V31_CORE_RATING_IDS) own.answers[id] = 2;
+    for (const taste of WEDDING_CODE_V31_TASTES) own.tastes[taste.key] = { status: "undecided" };
+    own.avoidances = { status: "undecided" }; own.spending = { status: "no_preference" };
+    seed(snapshot(own, { flow: "core", index: V31_CORE_INDEXES[V31_CORE_INDEXES.length - 1], screen: "result" }));
+    await render(); await button("내 결과 다시 보기");
+    // 고를 보기가 없으면 버튼을 두지 않는다.
+    expect(container.querySelector("[data-priority-entry]")).toBeNull();
+    await click(container.querySelector('[aria-label="장소 취향 수정"]'));
+    await click(container.querySelector('[data-choice="indoor"]'));
+    await button("수정한 결과 보기");
+    expect(container.querySelector('[data-result="solo-v31"]')).not.toBeNull();
+    const entry = container.querySelector("[data-priority-entry]");
+    expect(entry).not.toBeNull();
+    await click([...entry!.querySelectorAll("button")].find(item => item.textContent?.trim() === "꼭 지키고 싶은 것 고르기"));
+    expect([...container.querySelectorAll('[data-question="priorities"] [data-choice]')].map(item => item.getAttribute("data-choice"))).toEqual(["taste.venue"]);
   });
 });

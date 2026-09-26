@@ -96,7 +96,7 @@ describe("준비 스타일의 개인 저장과 두 사람 공유", () => {
     }, null).status).toBe("saved");
     const page = await PreparationStylePage({ searchParams: Promise.resolve({}) });
     await act(async () => root.render(<main>{page}</main>));
-    expect(container.textContent).toContain("기본 질문 1 / 14 페이지부터 이어 할 수 있어요");
+    expect(container.textContent).toContain("기본 질문 14페이지 중 1페이지부터 이어 할 수 있어요");
     await click("이어서 답하기");
     expect(container.querySelector('[data-question="G3"]')).not.toBeNull();
     expect(fetchMock).not.toHaveBeenCalled();

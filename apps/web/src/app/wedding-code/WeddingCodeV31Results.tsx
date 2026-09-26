@@ -4,7 +4,7 @@ import { ArrowRight, Pencil, RotateCcw } from "lucide-react";
 import { useId, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import Button from "@/components/ui/Button";
 import { WEDDING_CODE_V31_QUESTIONS, WEDDING_CODE_V31_TASTES, type V31Draft } from "@/constants/weddingCodeV31";
-import { buildV31Profile, compareV31, splitV31InsightsBySummary, v31ChoiceLabels, type V31Insight, type V31PairItem, type V31Profile } from "@/lib/weddingCode/v31";
+import { buildV31Profile, compareV31, getV31PriorityOptions, splitV31InsightsBySummary, v31ChoiceLabels, type V31Insight, type V31PairItem, type V31Profile } from "@/lib/weddingCode/v31";
 import { V31_STYLE_DIMENSIONS } from "@/lib/weddingCode/v31StyleSummary";
 import { v31Body, v31Surface, v31Title } from "./WeddingCodeV31Inputs";
 import WeddingCodeV31Sharing from "./WeddingCodeV31Sharing";
@@ -91,13 +91,24 @@ function PersonalProfile({ draft, onEdit, nested = false, personLabel }: { draft
   // 요약에 없는 답이 섞인 설명을 앞에 세 개까지 펼치고, 네 글자 요약과 같은 여덟 문장만 근거인 설명은 따로 접는다.
   const { fresh, summaryOnly } = splitV31InsightsBySummary(profile.insights.filter(item => !priorityInsightIds.has(item.id)), SUMMARY_STATEMENT_IDS);
   const insightCount = fresh.length + summaryOnly.length;
+  // 참여 방식 안내 카드(무대로 부르지 않고 자리에서 함께하는 방식)가 펼친 채 보이면, 무대 참여를 피하고 싶다는 줄은
+  // 같은 이야기를 다시 하지 않는다. 카드가 ‘다른 설명 더 보기’ 안에 접혀 있으면 줄의 다음 행동을 그대로 둔다.
+  const participationShown = profile.priorityGuides.some(item => item.sourceInsightId === "participation-format")
+    || fresh.slice(0, 3).some(item => item.id === "participation-format");
   const who = personLabel ? "이 사람이" : "내가";
   const priorityStatus = draft.priorities?.status === "skipped" ? "우선순위는 이번에 고르지 않았어요."
-    : draft.priorities?.status === "no_preference" ? "특히 지킬 것을 따로 고르지 않았어요."
+    : draft.priorities?.status === "no_preference" ? "꼭 지키고 싶은 건 따로 없다고 답했어요."
       : draft.priorities?.status === "undecided" ? "우선순위는 아직 정하지 않았어요."
         : v31ChoiceLabels(draft.priorities, []).join(" · ");
   const foldSummary = `flex min-h-11 cursor-pointer items-center text-sm ${v31Title}`;
+  // 우선순위를 한 번도 묻지 않은 결과(예전 기본 흐름을 마친 저장본)나, 고를 보기가 없어 건너뛴 뒤 취향을 고친 결과에서도
+  // 결과 화면에서 우선순위를 고를 수 있게 한다. 받은 결과·상대 탭처럼 수정할 수 없는 화면에서는 그리지 않는다.
+  const priorityEntry = draft.priorities === undefined && onEdit !== undefined && getV31PriorityOptions(draft).length > 0;
   return <div>
+    {priorityEntry ? <section className={`${v31Surface} p-5 sm:p-7`} data-priority-entry>
+      <h2 className={`text-lg ${v31Title}`}>꼭 지키고 싶은 것도 골라볼 수 있어요</h2>
+      <Button variant="secondary" onClick={() => onEdit("priorities")} className="mt-3 whitespace-normal!">꼭 지키고 싶은 것 고르기</Button>
+    </section> : null}
     {draft.priorities !== undefined ? <section className={`${v31Surface} p-5 sm:p-7`}>
       <p className="text-xs font-semibold text-[var(--hb-success)]">{personLabel ? `${personLabel}의 우선순위` : "내가 직접 고른 우선순위"}</p>
       <h2 className={`mt-2 text-xl ${v31Title}`}>이번 결혼식에서 지키고 싶은 것</h2>
@@ -125,13 +136,13 @@ function PersonalProfile({ draft, onEdit, nested = false, personLabel }: { draft
       <h2 className={`text-lg ${v31Title}`}>이번 결혼식에서 피하고 싶은 것</h2>
       {profile.avoidanceSteps.length ? <ul className="mt-3 divide-y divide-[var(--hb-hairline)]" data-avoidance-summary>{profile.avoidanceSteps.map(step => <li key={step.value} className="py-3" data-avoidance-step={step.value}>
         <p className={`text-sm ${v31Title}`}>{step.label}</p>
-        {guidedSteps.has(`avoid-${step.value}`) ? null : <p className={`mt-1 flex gap-2 ${v31Body}`} data-next-step><ArrowRight aria-hidden="true" className="mt-1 size-3.5 shrink-0 text-[var(--hb-success)]" />{step.nextStep}</p>}
+        {guidedSteps.has(`avoid-${step.value}`) || (step.value === "stage_participation" && participationShown) ? null : <p className={`mt-1 flex gap-2 ${v31Body}`} data-next-step><ArrowRight aria-hidden="true" className="mt-1 size-3.5 shrink-0 text-[var(--hb-success)]" />{step.nextStep}</p>}
       </li>)}</ul> : <p className={`mt-3 ${v31Body}`} data-avoidance-summary>{profile.avoidanceLabels.join(" · ")}</p>}
       {onEdit ? <Button variant="ghost" onClick={() => onEdit("avoidances")} className="mt-2">피하고 싶은 것 수정</Button> : null}
     </section>
     <section className={`${v31Surface} mt-5 p-5 sm:p-7`}>
       <h2 className={`text-xl ${v31Title}`}>{personLabel ? `${personLabel}의 결혼식 취향` : "내가 그려본 결혼식"}</h2>
-      <p className={`mt-2 ${v31Body}`}>예약 조건이 아니라 지금 바라는 모습이에요.</p>
+      <p className={`mt-2 ${v31Body}`}>예약 조건은 후보를 보면서 따로 정해요.</p>
       <dl className="mt-4 divide-y divide-[var(--hb-hairline)]">{profile.tastes.map(taste => <div key={taste.key} className="py-3" data-taste={taste.key}>
         <div className="flex items-center justify-between gap-3"><dt className={`text-sm ${v31Title}`}>{taste.title}</dt>{onEdit ? <Button variant="ghost" onClick={() => onEdit(`taste.${taste.key}`)} size="sm" aria-label={`${taste.title} 취향 수정`}>수정</Button> : null}</div>
         <dd className={`mt-1 ${v31Body}`}>{taste.labels.join(" · ")}</dd>
@@ -224,7 +235,9 @@ function DifferenceSection({ items, labels, empty }: { items: V31PairItem[]; lab
     </> : <p className={`rounded-lg bg-[var(--hb-surface-hover)] p-4 ${v31Body}`}>{foldedDegree.length ? "서로 반대로 답하거나 다르게 고른 것은 없어요. 정도가 다른 답은 아래에서 볼 수 있어요." : empty}</p>}
     {foldedDegree.length ? <details className="mt-4" data-pair-group="degree-folded"><summary className={`flex min-h-11 cursor-pointer items-center text-sm ${v31Title}`}>정도가 다른 답 {foldedDegree.length}개 보기</summary>
       <p className={`mb-4 mt-2 ${v31Body}`}>한 사람은 ‘전혀 그렇지 않아요’, 다른 사람은 ‘어느 쪽도 아니에요’라고 답한 문장이에요.</p>
-      {foldedDegree.map(item => <PairItem key={item.id} item={item} labels={labels} />)}
+      {/* 펼친 묶음처럼 묶음 제목 아래 항목을 둔다. 제목은 바로 위 접기 버튼과 같은 말이라 화면에는 한 번만 보인다. */}
+      <h3 className="sr-only">정도가 다른 답</h3>
+      {foldedDegree.map(item => <PairItem key={item.id} item={item} labels={labels} level={4} />)}
     </details> : null}
   </section>;
 }
@@ -242,18 +255,22 @@ function FoldedPairs({ title, description, items, labels }: { title: string; des
   </section>;
 }
 
+/**
+ * 두 사람 결과의 묶음 순서. 함께 동의한 내용 다음에 서로 다른 답을 바로 둔다(차이가 이 화면의 핵심이라
+ * 여러 묶음 아래로 밀리지 않게). 둘 다 바라는 도움·일부 겹침·함께 피하기·열린 답·한 사람만 동의한 문장은 그 뒤에 둔다.
+ */
 function CoupleResults({ items, labels }: { items: V31PairItem[]; labels: PairLabels }) {
   const ofKind = (...kinds: V31PairItem["kind"][]) => items.filter(item => kinds.includes(item.kind));
   const partial = ofKind("partial_overlap");
   return <>
     <PairSection labels={labels} title="함께 동의하거나 고른 내용" description="문장에 둘 다 ‘그런 편’ 이상으로 답했거나, 구체 선택을 같게 고른 내용이에요. ‘맡겨도 괜찮다’는 허용과 ‘하고 싶다’는 바람은 각 문장의 뜻대로 읽어요." items={ofKind("shared_wish")} empty={partial.some(item => item.id !== "avoidances") ? "일부 보기는 함께 골랐어요. 아래 ‘일부만 겹치게 고른 것’에서 둘 다 고른 보기를 볼 수 있어요." : "이번 답에서는 함께 동의하거나 같게 고른 내용이 확인되지 않았어요. 한 사람의 답부터 이유를 들어보세요."} />
-    {ofKind("shared_request").length ? <PairSection labels={labels} limit={Infinity} title="둘 다 바라는 도움" description="둘 다 상대에게 받고 싶다고 답한 도움이에요. 서로에게 바라는 것이라, 둘이 한꺼번에 힘들 때 누가 먼저 해줄지 정해 두면 좋아요." items={ofKind("shared_request")} empty="" /> : null}
-    {partial.length ? <PairSection labels={labels} limit={Infinity} title="일부만 겹치게 고른 것" description="둘 다 고른 보기와 한 사람만 고른 보기를 나눠 보여줘요. 둘 다 고른 것부터 이야기하면 쉬워요." items={partial} empty="" /> : null}
-    {ofKind("shared_avoidance").length ? <PairSection labels={labels} title="함께 피하고 싶은 것" description="피하고 싶은 것으로 같은 보기를 골랐어요. 구체적인 후보를 볼 때 어느 정도까지 괜찮은지 함께 확인해 보세요." items={ofKind("shared_avoidance")} empty="" /> : null}
-    {ofKind("open_preference").length ? <PairSection labels={labels} title="열어 두고 있는 답" description="한 사람 이상이 특정 보기를 고르지 않고 열어 둔 답이에요. 한 사람이 고른 보기가 있다면 그것부터 같이 살펴보세요." items={ofKind("open_preference")} empty="" /> : null}
     <DifferenceSection labels={labels} items={items} empty={items.every(item => item.kind === "unavailable") ? "두 사람이 같은 항목에 답한 내용이 없어 아직 차이를 비교할 수 없어요." : "지금 비교할 수 있는 답에서는 뚜렷한 차이가 나오지 않았어요. 그래도 실제 후보와 금액은 함께 정해야 해요."} />
-    {ofKind("one_sided").length ? <PairSection labels={labels} limit={Infinity} title="한 사람만 원한 것" description="한 사람은 ‘그런 편’ 이상으로 답했고, 다른 사람은 ‘어느 쪽도 아니에요’라고 답한 문장이에요. 원하는 사람의 이유부터 들어보세요." items={ofKind("one_sided")} empty="" /> : null}
-    <FoldedPairs labels={labels} title="낮게 답하거나 특별히 고르지 않은 내용" description="둘 다 낮게 답했다고 반대 취향이 같다는 뜻은 아니에요. 중간 응답이나 따로 고르지 않은 답도 그대로 비교해요." items={ofKind("shared_distance", "middle")} />
+    {ofKind("shared_request").length ? <PairSection labels={labels} limit={Infinity} title="둘 다 바라는 도움" description="둘 다 상대에게 받고 싶다고 답한 도움이에요." items={ofKind("shared_request")} empty="" /> : null}
+    {partial.length ? <PairSection labels={labels} limit={Infinity} title="일부만 겹치게 고른 것" description="둘 다 고른 보기와 한 사람만 고른 보기를 나눠 보여줘요. 둘 다 고른 것부터 이야기하면 쉬워요." items={partial} empty="" /> : null}
+    {ofKind("shared_avoidance").length ? <PairSection labels={labels} title="함께 피하고 싶은 것" description="둘 다 같은 것을 피하고 싶다고 골랐어요." items={ofKind("shared_avoidance")} empty="" /> : null}
+    {ofKind("open_preference").length ? <PairSection labels={labels} title="열어 두고 있는 답" description="둘 중 한 사람이라도 어느 쪽도 괜찮다고 했거나, 따로 없다고 답한 내용이에요." items={ofKind("open_preference")} empty="" /> : null}
+    {ofKind("one_sided").length ? <PairSection labels={labels} limit={Infinity} title="한 사람만 동의한 문장" description="한 사람은 ‘그런 편’ 이상으로 답했고, 다른 사람은 ‘어느 쪽도 아니에요’라고 답한 문장이에요. 동의한 사람의 이유부터 들어보세요." items={ofKind("one_sided")} empty="" /> : null}
+    <FoldedPairs labels={labels} title="낮게 답하거나 특별히 고르지 않은 내용" description="둘 다 낮게 답하거나 중간으로 답한 문장, 둘 다 따로 고르지 않은 답을 모았어요. 낮게 답한 이유는 서로 다를 수 있어요." items={ofKind("shared_distance", "middle")} />
     <FoldedPairs labels={labels} title="아직 함께 비교하지 않은 내용" description="한 사람만 답했거나, 모름·계획 없음·답하지 않음·맞는 보기 없음으로 남긴 내용이에요. 보기 밖의 생각이 있는 답을 미정으로 바꾸거나, 의견 차이로 단정하지 않아요." items={ofKind("unavailable")} />
   </>;
 }

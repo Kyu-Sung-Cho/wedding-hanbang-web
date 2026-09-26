@@ -1,5 +1,6 @@
 "use client";
 
+import { useId } from "react";
 import Button from "@/components/ui/Button";
 import type { V31Draft } from "@/constants/weddingCodeV31";
 import {
@@ -13,7 +14,7 @@ import { v31Body, v31Surface, v31Title } from "./WeddingCodeV31Inputs";
 type EditHandler = (id?: string) => void;
 const COUNT_WORDS = ["한", "두", "세", "네", "다섯"] as const;
 
-/** 고른 보기를 다섯 칸 점과 보기 이름으로 보여준다. 모름·계획 없음·건너뜀은 칸 없이 답만 적는다. */
+/** 고른 보기를 다섯 칸 점과 보기 이름으로 보여준다. 아직 모름·이번 계획에 없음·지금 답하지 않음은 칸 없이 답만 적는다. */
 function Answer({ item }: { item: V31StatementScale }) {
   return <span className="inline-flex flex-wrap items-baseline gap-x-2 gap-y-1">
     {item.rating !== null ? <span role="img" aria-label={`다섯 칸 중 ${COUNT_WORDS[item.rating - 1]} 칸`}
@@ -45,30 +46,32 @@ export default function WeddingCodeV31StyleSummary({ draft, label, onEdit, compa
     .map(dimension => ({ ...dimension, items: dimension.items.filter(item => item.response !== undefined) }))
     .filter(dimension => dimension.items.length > 0);
   const spokenCode = summary.dimensions.map(dimension => dimension.letter === "?" ? "물음표" : dimension.letter).join(", ");
+  const headingId = useId();
+  // 카드의 첫 제목은 누구의 코드인지다. 제목으로 건너뛰어도 아슬한 글자 안내·코드·이름 출처를 이름보다 먼저 듣는다.
+  const heading = !label || label === "나" ? "내 웨딩코드" : `${label}의 웨딩코드`;
 
   return <section
-    aria-label={label ?? "내 웨딩코드 응답 요약"}
+    aria-labelledby={headingId}
     data-style-summary={summary.code}
     data-summary-version={summary.version}
     data-borderline-count={summary.borderlineCount}
     className={`${v31Surface} min-w-0 ${compact ? "p-4 sm:p-5" : "p-5 sm:p-7"}`}
   >
-    <p className="text-xs font-semibold text-[var(--hb-success)]">{label ?? "내 웨딩코드"}</p>
+    <h2 id={headingId} className="text-xs font-semibold text-[var(--hb-success)]">{heading}</h2>
     {summary.borderlineNotice ? <p className={`mt-3 ${v31Body}`} data-borderline-notice>{summary.borderlineNotice}</p> : null}
     <p className={`mt-3 break-words font-mono text-4xl leading-tight tracking-widest ${v31Title}`} data-code>
       <span aria-hidden="true">{summary.dimensions.map(dimension => <span key={dimension.key} data-code-letter={dimension.key}
-        data-borderline={dimension.borderline || undefined}
-        className={dimension.borderline ? "underline decoration-dotted decoration-2 underline-offset-8" : undefined}>{dimension.letter}</span>)}</span>
+        data-borderline={dimension.borderline || undefined}>{dimension.letter}</span>)}</span>
       <span className="sr-only">{`네 글자 코드 ${spokenCode}`}</span>
     </p>
     <p className="mt-4 text-xs font-semibold text-[var(--hb-text-muted)]" data-name-source={summary.nameFrom ?? "none"}>{summary.nameSource}</p>
-    <h2 className={`mt-1 text-xl leading-snug ${v31Title}`}>{summary.name}</h2>
+    <p className={`mt-1 text-xl leading-snug ${v31Title}`} data-style-name>{summary.name}</p>
     <p className={`mt-2 ${v31Body}`}>{summary.headline}</p>
     <p className={`mt-3 ${v31Body}`}>{summary.dimensions.map(dimension => dimension.topicName).join(", ")} 순서로 주제마다 한 글자씩 붙였어요.</p>
     {summary.pendingNotice ? <p className={`mt-2 ${v31Body}`} data-pending-notice>{summary.pendingNotice}</p> : null}
-    {!compact ? <p className="mt-2 text-xs leading-relaxed text-[var(--hb-text-muted)]">결혼식 취향은 네 글자에 넣지 않았어요. 아래 개인 결과에서 따로 볼 수 있어요.</p> : null}
+    {!compact ? <p className="mt-2 text-xs leading-relaxed text-[var(--hb-text-muted)]">결혼식 취향은 아래에 따로 모았어요.</p> : null}
 
-    <p className={`mt-5 ${v31Body}`}>주제마다 두 문장에 따로 답했어요. 칠한 칸이 많을수록 그 문장에 더 동의한 답이에요.</p>
+    <p className={`mt-5 ${v31Body}`}>주제마다 두 문장에 따로 답했어요. 칠한 칸이 많을수록 그 문장에 더 동의했다는 거예요.</p>
     <dl className="mt-3 divide-y divide-[var(--hb-hairline)] border-y border-[var(--hb-hairline)]">
       {summary.dimensions.map(dimension => <div key={dimension.key} className="py-4" data-summary-topic={dimension.key}
         data-borderline={dimension.borderline || undefined} data-pending={dimension.pending ?? undefined}>
@@ -79,25 +82,24 @@ export default function WeddingCodeV31StyleSummary({ draft, label, onEdit, compa
             {dimension.borderline ? <span className="text-xs font-semibold text-[var(--hb-text-body)]" data-borderline-tag>바뀔 수 있어요</span> : null}
           </span>
         </dt>
-        <dd className={`mt-2 ${v31Body}`}>
-          {dimension.label}
-          {dimension.englishLabel ? <span className="ml-2 text-xs text-[var(--hb-text-muted)]" data-english-label>{dimension.englishLabel}</span> : null}
-        </dd>
+        {/* 한 문장에서 나온 글자는 뜻을 한 줄 더 쓰지 않고 그 문장의 답 줄에 영문 낱말을 붙인다. */}
+        {dimension.letterFrom ? null : <dd className={`mt-2 ${v31Body}`} data-letter-meaning>{dimension.label}</dd>}
         <dd className="mt-2">
           <ul className="space-y-1">{dimension.items.map(item => <li key={item.id} data-letter-answer={item.id}
             className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 text-sm">
-            <span className="text-[var(--hb-text-body)]">{item.shortLabel}</span>
+            <span className="text-[var(--hb-text-body)]">{item.shortLabel}{item.id === dimension.letterFrom && dimension.englishLabel
+              ? <span className="ml-2 text-xs text-[var(--hb-text-muted)]" data-letter-source={dimension.letter} data-english-label>{dimension.englishLabel}</span> : null}</span>
             <Answer item={item} />
           </li>)}</ul>
         </dd>
-        <dd className="mt-2 text-xs leading-relaxed text-[var(--hb-text-muted)]">{dimension.basis}</dd>
+        {dimension.basis ? <dd className="mt-2 text-xs leading-relaxed text-[var(--hb-text-muted)]">{dimension.basis}</dd> : null}
       </div>)}
     </dl>
 
     <details className="mt-4" data-core-statement-scales>
       <summary className={`flex min-h-11 cursor-pointer items-center text-sm underline underline-offset-4 ${v31Title}`}>코드를 만든 문장 전체 보기</summary>
       <div className="pt-3">
-        <p className={v31Body}>모름, 계획 없음, 건너뜀은 칸 없이 고른 답만 적었어요.</p>
+        <p className={v31Body}>‘아직 모르겠어요’, ‘이번 계획에는 없어요’, ‘지금 답하지 않을게요’는 칸 없이 그 답만 적었어요.</p>
         {coreGroups.length ? coreGroups.map(group => <section key={group.key} className="mt-5" aria-label={`${group.title} 문장과 고른 답`}>
           <h3 className={`mb-3 text-sm ${v31Title}`}>{group.title}</h3>
           <div className="divide-y divide-[var(--hb-hairline)]">{group.items.map(item => <Statement key={item.id} item={item} onEdit={onEdit} />)}</div>

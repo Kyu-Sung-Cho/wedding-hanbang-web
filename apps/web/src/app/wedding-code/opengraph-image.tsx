@@ -11,8 +11,13 @@ import { ImageResponse } from "next/og";
  *
  * 카드에는 이곳이 무엇을 하는 곳인지만 적는다. 네 글자 예시나 사람을 설명하는 말은
  * 넣지 않는다. 답이 담긴 링크도 답은 `#` 뒤에 있어서 서버가 읽지 못하므로, 모든
- * 링크가 같은 일반 카드를 쓴다. `/wedding-code/together` 와 `/wedding-code/c/[code]` 는
- * 자기 metadata 에서 이 이미지 주소(`/wedding-code/opengraph-image`)를 직접 가리킨다.
+ * 링크가 같은 일반 카드를 쓴다.
+ *
+ * 하위 경로는 자기 metadata 에서 openGraph 를 정하는 순간 이 이미지를 물려받지 못한다. 그래서
+ * `/wedding-code/together` 와 `/wedding-code/taste` 는 이 이미지 주소(`/wedding-code/opengraph-image`)를
+ * 직접 가리킨다. `/wedding-code/c/[code]` 는 이전 판 화면이라 이 이미지를 붙이지 않는다(그 페이지가
+ * openGraph 를 정하므로 부모 이미지는 따라오지 않는다). openGraph 를 정하지 않는 하위 경로는 루트 카드의
+ * 제목·설명·`og:url=/landing` 에 이 그림만 붙은 섞인 카드가 된다(`opengraph-image.test.tsx` 가 막는다).
  */
 
 export const alt = "웨딩코드, 내가 원하는 결혼식과 준비 방식을 살펴보는 곳";

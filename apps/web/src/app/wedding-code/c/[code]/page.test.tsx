@@ -64,6 +64,8 @@ describe("코드만 아는 사람을 위한 화면", () => {
       expect(label.compareDocumentPosition(firstAxis) & Node.DOCUMENT_POSITION_FOLLOWING, code).toBeTruthy();
 
       const note = root.querySelector("[data-current-edition-note]");
+      // 달라진 것은 검사와 코드의 비교가 아니라 글자 풀이다(MTFA 처럼 글자가 같아도 참이어야 한다).
+      expect(note?.querySelector("h2")?.textContent?.trim(), code).toBe("지금 웨딩코드는 글자 풀이가 달라요");
       expect(note?.textContent, code).toContain("질문도, 네 글자를 정하는 방식도 바뀌었어요.");
       expect(note?.textContent, code).toContain("지금 웨딩코드에서 받은 네 글자라면 여기 풀이와 맞지 않아요.");
 

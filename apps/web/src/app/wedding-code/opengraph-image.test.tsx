@@ -1,7 +1,8 @@
 // @vitest-environment node
 
-import { existsSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
+import type { Metadata } from "next";
 import type { ReactElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
@@ -27,6 +28,7 @@ vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn() }) }));
 import OpenGraphImage, { alt, contentType, size } from "./opengraph-image";
 import WeddingCodePage, { generateMetadata } from "./page";
 import { metadata as togetherMetadata } from "./together/page";
+import { metadata as tasteMetadata } from "./taste/page";
 
 function pngSize(bytes: Uint8Array) {
   const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
@@ -119,5 +121,54 @@ describe("웨딩코드 공유 카드 이미지", () => {
     expect(togetherMetadata.twitter).toMatchObject({ card: "summary_large_image", title: togetherMetadata.title, description: togetherMetadata.description });
     expect(Object.prototype.hasOwnProperty.call(togetherMetadata.openGraph, "url")).toBe(false);
     expect(JSON.stringify([togetherMetadata.openGraph, togetherMetadata.twitter])).not.toMatch(/landing|아모라|og-image/);
+  });
+
+  /**
+   * 고른 취향이 담긴 링크(`/wedding-code/taste#v=…&a=…`)도 대화창에 붙여 보내는 주소다. 여기서 카드를 정하지 않으면
+   * 루트 카드의 아모라 제목·설명과 `og:url=/landing` 에 부모 폴더의 웨딩코드 그림만 붙은 섞인 카드가 나갔다.
+   */
+  it("취향 링크도 랜딩 카드 대신 자기 제목·설명과 같은 카드 그림을 쓰고, 답이 빠지는 og:url 은 적지 않는다", () => {
+    expect(tasteMetadata.robots).toMatchObject({ index: false, follow: false });
+    expect(tasteMetadata.referrer).toBe("no-referrer");
+    expect(tasteMetadata.openGraph).toMatchObject({
+      title: tasteMetadata.title,
+      description: tasteMetadata.description,
+      siteName: "웨딩한방",
+      locale: "ko_KR",
+      type: "website",
+    });
+    expect(tasteMetadata.twitter).toMatchObject({ card: "summary_large_image", title: tasteMetadata.title, description: tasteMetadata.description });
+    expect(Object.prototype.hasOwnProperty.call(tasteMetadata.openGraph, "url")).toBe(false);
+    expect(JSON.stringify([tasteMetadata.openGraph, tasteMetadata.twitter])).not.toMatch(/landing|아모라|og-image/);
+    const images = tasteMetadata.openGraph?.images;
+    const list = Array.isArray(images) ? images : [images];
+    expect(list).toHaveLength(1);
+    // 그림을 직접 적지 않으면 부모 폴더 그림도 붙지 않아 그림 없는 카드가 된다.
+    expect(list[0]).toMatchObject({ url: "/wedding-code/opengraph-image", width: 1200, height: 630 });
+  });
+
+  /**
+   * 부모 폴더에 카드 그림이 있으면, openGraph 를 스스로 정하지 않은 하위 경로는 루트 카드 글에 그 그림만 붙은
+   * 섞인 카드가 된다. 새 하위 경로가 생겨도 같은 일이 되풀이되지 않게, 이 폴더의 모든 화면이 openGraph 를 정하는지 본다.
+   */
+  it("웨딩코드 폴더의 모든 화면이 공유 카드(openGraph)를 스스로 정한다", async () => {
+    const root = resolve(process.cwd(), "src/app/wedding-code");
+    const pages = (readdirSync(root, { recursive: true }) as string[])
+      .map(file => file.split("\\").join("/"))
+      .filter(file => /(^|\/)page\.tsx$/.test(file))
+      .sort();
+    // 찾는 방법이 고장 나 빈 목록으로 통과하지 않게, 알고 있는 화면이 모두 잡히는지 먼저 본다.
+    expect(pages).toEqual(expect.arrayContaining(["page.tsx", "c/[code]/page.tsx", "result/page.tsx", "taste/page.tsx", "together/page.tsx"]));
+    // 화면 없이 입구로 돌려보내기만 하는 경로는 카드가 필요 없다(돌려보낸 곳의 카드가 쓰인다).
+    const redirectOnly = new Set(["result/page.tsx"]);
+    for (const file of pages) {
+      const source = readFileSync(resolve(root, file), "utf8");
+      if (redirectOnly.has(file)) { expect(source, file).toMatch(/redirect\("\/wedding-code"\)/); continue; }
+      const mod = await import(/* @vite-ignore */ `./${file}`) as { metadata?: Metadata; generateMetadata?: (props: unknown) => Promise<Metadata> };
+      const metadata = mod.metadata ?? await mod.generateMetadata?.({ params: Promise.resolve({ code: "MTFA" }), searchParams: Promise.resolve({}) });
+      expect(metadata, file).toBeDefined();
+      expect(metadata?.openGraph, file).toBeDefined();
+      expect(JSON.stringify(metadata?.openGraph), file).not.toMatch(/landing|아모라/);
+    }
   });
 });

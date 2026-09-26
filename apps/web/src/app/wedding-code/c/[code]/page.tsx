@@ -183,7 +183,7 @@ export default async function WeddingCodeMeaningPage({
 
         <section data-current-edition-note="" className={`${surface} mt-5 px-5 py-5 sm:px-8`}>
           <h2 className="text-[15px] font-semibold leading-[1.5] text-[var(--hb-text-strong)]">
-            지금 웨딩코드는 이 코드와 달라요
+            지금 웨딩코드는 글자 풀이가 달라요
           </h2>
           <p className="mt-2 text-[13px] font-medium leading-[1.7] text-[var(--hb-text-strong)]">
             질문도, 네 글자를 정하는 방식도 바뀌었어요.

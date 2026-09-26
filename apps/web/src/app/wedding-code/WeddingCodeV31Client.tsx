@@ -31,15 +31,25 @@ type Progress = Omit<V31LocalProgressSnapshot, "screen"> & { screen: "intro" | "
 function v31FlowLabel(flow: V31Flow) {
   return flow === "extra" ? "선택 질문" : flow === "full" ? "이전 전체 질문" : "기본 질문";
 }
-/** 질문 화면 위의 진행 표기와 같은 단위로 적는다. 묶음 흐름은 페이지, 이전 전체 흐름은 한 문항씩이다. */
+/**
+ * 질문 화면의 진행 단위(묶음 흐름은 페이지, 이전 전체 흐름은 한 문항씩)로 적되, 문장 안에서는 분수 표기 대신
+ * 진행 막대의 읽는 이름(aria-valuetext)과 같은 말로 쓴다.
+ */
 function v31PositionLabel(flow: V31Flow, index: number) {
   if (flow === "full") {
     const indexes = getV31ScreenIndexes(flow);
-    return `${v31FlowLabel(flow)} ${indexes.indexOf(index) + 1} / ${indexes.length}`;
+    return `${v31FlowLabel(flow)} ${indexes.length}개 중 ${indexes.indexOf(index) + 1}번째`;
   }
   const page = getV31Page(flow, index);
-  return `${v31FlowLabel(flow)} ${page.position + 1} / ${page.total} 페이지`;
+  return `${v31FlowLabel(flow)} ${page.total}페이지 중 ${page.position + 1}페이지`;
 }
+/** 이 페이지에 아직 비어 있는 답이 있을 때 다음 버튼이 알리는 말. 페이지마다 실제로 있는 보기 이름만 가리킨다. */
+const PAGE_MISSING_NOTICES = {
+  ratingPage: `아직 답을 고르지 않은 문장이 있어요. 모르겠거나 계획에 없는 문장은 그 아래 ‘${v31EscapeFoldLabel}’를 열어 골라요.`,
+  rating: "답을 골라 주세요. 모르겠으면 아래 ‘아직 모르겠어요’나 ‘지금 답하지 않을게요’를 골라도 돼요.",
+  choice: "보기에서 골라 주세요. 모르겠으면 아래 ‘아직 모르겠어요’나 ‘지금 답하지 않을게요’를 골라도 돼요.",
+} as const;
+const pageMissingNotices: readonly string[] = Object.values(PAGE_MISSING_NOTICES);
 function hasSavedPairAddress() {
   return readSavedPairSession() !== null;
 }
@@ -97,6 +107,7 @@ export default function WeddingCodeV31Client({ shareOrigin, partnerDraft = null,
   const nextIndex = flow === "core" && !editing && page.nextIndex === priorityIndex && priorityOptions.length === 0 ? null : page.nextIndex;
   const previousIndex = page.previousIndex;
   const pageComplete = isV31PageComplete(draft, page.indexes);
+  const priorityEmpty = index === priorityIndex && draft.priorities === undefined;
   const firstOrdinal = flowIndexes.indexOf(page.indexes[0]) + 1;
   const screenLabel = screen === "intro" ? "웨딩코드 소개" : screen === "result" ? "웨딩코드 결과"
     : grouped ? `웨딩코드 ${flowLabel} ${page.position + 1}페이지`
@@ -158,8 +169,13 @@ export default function WeddingCodeV31Client({ shareOrigin, partnerDraft = null,
     }
     else update({ ...draft, spending: value });
   }
-  function finish(nextDraft = draft, changes: Partial<Progress> = {}) {
-    const reviewNeeded = changes.needsPriorityReview ?? needsPriorityReview;
+  function finish(nextDraft = draft, requested: Partial<Progress> = {}) {
+    const reviewRequested = requested.needsPriorityReview ?? needsPriorityReview;
+    // 앞의 답이 바뀌어 고를 수 있는 우선순위가 하나도 남지 않았으면 빈 우선순위 화면으로 보내지 않는다.
+    // 기본 흐름이 보기 0개일 때 우선순위 화면을 건너뛰는 것과 같다. 우선순위는 채우지 않는다(정리에서 이미 비었다).
+    const reviewNeeded = reviewRequested && getV31PriorityOptions(nextDraft).length > 0;
+    const reviewDropped = reviewRequested && !reviewNeeded;
+    const changes: Partial<Progress> = reviewDropped ? { ...requested, needsPriorityReview: false } : requested;
     if (reviewNeeded && (index !== priorityIndex || nextDraft.priorities === undefined)) {
       commit({ ...changes, draft: nextDraft, index: priorityIndex, editing: true });
       setNotice("앞의 답이 바뀌어 이전 우선순위를 다시 확인해야 해요. 지키고 싶은 것을 다시 고르거나, 아직 정하지 않았다고 답해 주세요.");
@@ -168,21 +184,26 @@ export default function WeddingCodeV31Client({ shareOrigin, partnerDraft = null,
     if (reviewNeeded && nextDraft.priorities !== undefined) setNotice("");
     const missingIndex = getV31MissingIndex(nextDraft, flow === "full" ? "full" : "core");
     if (missingIndex !== null) { commit({ ...changes, draft: nextDraft, index: missingIndex, editing: true }); setNotice(missingAnswerNotice); return; }
-    if (notice === missingAnswerNotice) setNotice("");
-    if (!editing) captureWeddingCodeEvent("wedding_code_completed", { version: WEDDING_CODE_V31_VERSION, scene_total: totalQuestions, ...responseCounts(nextDraft, flowIndexes), result_kind: hasPartnerLink ? "couple" : "solo", placement: flow });
+    // 결과 화면에는 우선순위를 다시 고를 칸이 없으니(보기가 없다), 결과에서 다시 확인하라는 앞의 안내를 사실로 바꾼다.
+    if (reviewDropped) setNotice("앞의 답이 바뀌어 전에 고른 우선순위를 뺐어요.");
+    else if (notice === missingAnswerNotice) setNotice("");
+    // 결과 종류는 화면에 보이는 결과를 따른다. 함께 보기 초대로 답한 사람도 상대 답을 받기 전에는 혼자 결과를 본다.
+    // 초대로 왔다는 사실은 시작·장면 이벤트의 has_partner_link 가 맡는다.
+    if (!editing) captureWeddingCodeEvent("wedding_code_completed", { version: WEDDING_CODE_V31_VERSION, scene_total: totalQuestions, ...responseCounts(nextDraft, flowIndexes), result_kind: context.first ? "couple" : "solo", placement: flow });
     commit({ ...changes, draft: nextDraft, index: flowIndexes.includes(index) ? index : flowIndexes[flowIndexes.length - 1], screen: "result", editing: false, needsPriorityReview: false });
   }
   function next() {
     const missingIndex = getV31PageMissingIndex(draft, page.indexes);
     if (missingIndex !== null) {
-      setNotice(`이 페이지의 문장마다 답을 골라 주세요. 답하기 어려우면 문장 아래 ‘${v31EscapeFoldLabel}’에서 골라도 돼요.`);
+      // 버튼은 누를 수 있게 두고(키보드로도 이유를 들을 수 있게), 비어 있는 곳으로 초점을 옮기며 이유를 알린다.
+      setNotice(ratingPage ? PAGE_MISSING_NOTICES.ratingPage : question ? PAGE_MISSING_NOTICES.rating : PAGE_MISSING_NOTICES.choice);
       const missingQuestion = WEDDING_CODE_V31_QUESTIONS[missingIndex];
       const target = missingQuestion ? screenRef.current?.querySelector<HTMLElement>(`[data-question="${missingQuestion.id}"]`) : screenRef.current;
       target?.focus({ preventScroll: true });
       target?.scrollIntoView?.({ block: "start", behavior: "instant" });
       return;
     }
-    if (index === priorityIndex && draft.priorities !== undefined) setNotice("");
+    if ((index === priorityIndex && draft.priorities !== undefined) || pageMissingNotices.includes(notice)) setNotice("");
     if (nextIndex === null) finish();
     else commit({ index: nextIndex, needsPriorityReview: index === priorityIndex ? false : needsPriorityReview });
   }
@@ -275,11 +296,14 @@ export default function WeddingCodeV31Client({ shareOrigin, partnerDraft = null,
         <Button variant="secondary" aria-pressed={local.enabled} onClick={toggleSaving}>{local.enabled ? "자동 저장 끄기" : "자동 저장 켜기"}</Button>
         {local.saved || owned ? <Button variant="ghost" onClick={restart}>이 브라우저의 답 지우기</Button> : null}
       </div>
-      {/* 답 지우기는 답만 지운다(처리방침: 저장 끄기가 확인 주소를 지운다). 남는 것을 버튼 옆에서 먼저 알린다. */}
-      {(local.saved || owned) && pairAddressSaved ? <p className="mt-2 text-xs" data-pair-address-note>‘이 브라우저의 답 지우기’를 눌러도 함께 보기 확인 주소는 남아요. 주소까지 지우려면 ‘자동 저장 끄기’를 눌러 주세요.</p> : null}
+      {/*
+        답 지우기는 답만 지운다. 처리방침은 두 사본을 모두 ‘확인 주소’라 부르고, 저장 끄기는 이 브라우저에 저장된
+        사본만 지우며 현재 탭의 임시 사본은 남긴다. 같은 이름으로, 지우는 범위를 좁혀 버튼 옆에서 먼저 알린다.
+      */}
+      {(local.saved || owned) && pairAddressSaved ? <p className="mt-2 text-xs" data-pair-address-note>‘이 브라우저의 답 지우기’는 답만 지워요. 이 브라우저에 저장된 함께 보기 확인 주소까지 지우려면 ‘자동 저장 끄기’를 눌러 주세요.</p> : null}
       <p className="mt-2 text-xs">자동 저장을 끄면 저장된 답도 지워져요. 지금 화면에서는 계속 답할 수 있어요.</p>
       <p className="mt-2 text-xs">기기 저장을 꺼도 서버 함께 보기 연결은 남아요. 종료는 연결 결과에서 해주세요.</p>
-      <p className="mt-2 text-xs">함께 보기 요청의 처리 여부를 확인할 주소는 현재 탭에 임시로 남아요.</p>
+      <p className="mt-2 text-xs" data-pair-tab-address-note>함께 보기 요청이 처리됐는지 볼 수 있게, 확인 주소는 이 탭에 잠시 남아요.</p>
     </details>
   </aside>;
 
@@ -288,7 +312,7 @@ export default function WeddingCodeV31Client({ shareOrigin, partnerDraft = null,
     <div className="mx-auto max-w-2xl">
       {!embedded && <nav aria-label="웨딩코드 탐색" className="mb-6 flex items-center justify-between gap-3"><Button href="/landing" variant="ghost" size="sm" className="px-0!">웨딩한방</Button><span className="text-xs font-semibold tracking-wide text-[var(--hb-text-muted)]">WEDDING CODE</span></nav>}
       <section ref={screenRef} tabIndex={-1} aria-label={screenLabel} className={embedded ? "scroll-mt-20 outline-none md:scroll-mt-28" : "outline-none"}>
-        {notice ? <p role="status" className="mb-5 rounded-lg border border-[var(--hb-hairline)] bg-[var(--hb-surface-hover)] p-4 text-sm leading-relaxed text-[var(--hb-text-strong)]">{notice}</p> : null}
+        {notice ? <p role="status" data-screen-notice className="mb-5 rounded-lg border border-[var(--hb-hairline)] bg-[var(--hb-surface-hover)] p-4 text-sm leading-relaxed text-[var(--hb-text-strong)]">{notice}</p> : null}
         {children}
         {storageControls}
       </section>
@@ -312,12 +336,14 @@ export default function WeddingCodeV31Client({ shareOrigin, partnerDraft = null,
         </div>
         <div className="mt-7 border-t border-[var(--hb-hairline)] pt-5">
           <p className={`text-sm ${v31Title}`}>기본 {V31_CORE_SCREEN_INDEXES.length}개 질문 · 로그인 없이 시작</p>
-          <p className={`mt-2 ${v31Body}`}>{V31_CORE_RATING_IDS.length}개 문장에 다섯 단계로 답하고, {WEDDING_CODE_V31_TASTES.length}가지 취향과 피하고 싶은 것, 더 쓰고 싶은 곳을 골라요. 마지막에는 앞에서 고른 답 가운데 꼭 지키고 싶은 것을 골라요. 고르지 않고 넘어가도 결과를 볼 수 있어요.</p>
+          {/* 우선순위 화면은 고를 보기가 있을 때만 나온다(그렇다는 문장, 직접 고른 취향, 피하고 싶은 것). 그 조건을 그대로 적는다. */}
+          <p className={`mt-2 ${v31Body}`} data-intro-priority>{V31_CORE_RATING_IDS.length}개 문장에 다섯 단계로 답하고, {WEDDING_CODE_V31_TASTES.length}가지 취향과 피하고 싶은 것, 더 쓰고 싶은 곳을 골라요. 그렇다고 답한 문장이나 직접 고른 취향, 피하고 싶은 것이 있으면 마지막에 그중 꼭 지키고 싶은 것을 골라요. 고르지 않고 넘어가도 결과를 볼 수 있어요.</p>
           <p className={`mt-2 ${v31Body}`}>짧은 문장은 한 페이지에 최대 3개씩, 나머지는 하나씩 물어봐요. 기본 질문은 {getV31Pages("core").length}페이지예요. 답을 골라도 자동으로 넘어가지 않아요.</p>
           <p className={`mt-2 ${v31Body}`}>더 궁금하면 결과에서 {V31_EXTRA_INDEXES.length}개 선택 질문을 이어서 볼 수 있어요. 아직 모르거나 계획에 없는 것은 따로 표시해도 괜찮아요.</p>
           <p className={`mt-3 ${v31Body}`}>답하는 동안에는 서버나 계정에 보내지 않아요. 이 브라우저에 자동 저장해 나중에 이어 할 수 있어요. 공용 기기에서는 아래 ‘자동 저장 설정’에서 꺼 주세요. 결과에서 함께 보기에 동의하면 선택한 답을 7일간 서버에 보관해요.</p>
           {context.first ? <p className={`mt-3 ${v31Body}`}>상대의 답은 이 브라우저에 저장하지 않아요. 내가 직접 답하거나 불러온 내 답만 저장해요. 나중에 상대와 비교하려면 이 초대 링크를 다시 열어 주세요.</p> : null}
-          <details className={`mt-3 ${v31Body}`}><summary className="flex min-h-11 cursor-pointer items-center underline underline-offset-4">어디까지 알아볼 수 있나요?</summary><p>결혼식 장소, 사진, 옷, 식사, 하객 수, 식순 같은 취향과 돈을 쓰는 기준, 둘이 일을 나누는 방식, 가족과 상의하는 순서, 힘들 때 바라는 도움을 물어봐요. 신혼집, 예단과 예물, 양쪽 집안의 비용 나누기, 실제 예산 금액은 이 질문에 없으니 둘이 따로 정해 주세요.</p></details>
+          {/* 묻지 않는 것의 목록은 시작 버튼 위 범위 줄에 한 번만 둔다. */}
+          <details className={`mt-3 ${v31Body}`}><summary className="flex min-h-11 cursor-pointer items-center underline underline-offset-4">어디까지 알아볼 수 있나요?</summary><p>결혼식 장소, 사진, 옷, 식사, 하객 수, 식순 같은 취향과 돈을 쓰는 기준, 둘이 일을 나누는 방식, 가족과 상의하는 순서, 힘들 때 바라는 도움을 물어봐요. 실제 예산 금액은 묻지 않으니 둘이 따로 정해 주세요.</p></details>
         </div>
       </div>
     </section>
@@ -346,8 +372,8 @@ export default function WeddingCodeV31Client({ shareOrigin, partnerDraft = null,
         className="h-1.5 min-w-0 flex-1 overflow-hidden rounded-full bg-[var(--hb-hairline)] accent-[var(--hb-success)] [&::-webkit-progress-bar]:bg-[var(--hb-hairline)] [&::-webkit-progress-value]:bg-[var(--hb-success)]" />
       <span className="shrink-0 text-sm font-semibold tabular-nums text-[var(--hb-text-body)]" data-progress-text>{progressText}</span>
     </div>
-    {/* 아래 고정 버튼 뒤로 초점이 숨지 않게, 키보드로 옮겨 간 칸은 버튼 높이만큼 띄워서 보여준다. */}
-    <div className="**:scroll-mb-40">
+    {/* 아래 고정 버튼 뒤로 초점이 숨지 않게, 키보드로 옮겨 간 칸은 버튼 높이만큼 띄워서 보여준다. 앱 안에서는 하단 탭과 안전 영역까지 더해진다. */}
+    <div className="**:scroll-mb-[calc(10rem+env(safe-area-inset-bottom))]">
       {ratingPage ? <>
         <p className="text-xs font-semibold text-[var(--hb-success)]">{flowLabel}</p>
         <h1 className={`mt-2 text-xl leading-relaxed ${v31Title} ${page.position === 0 ? "" : "mb-5"}`}>문장마다 가까운 답을 골라 주세요</h1>
@@ -371,8 +397,8 @@ export default function WeddingCodeV31Client({ shareOrigin, partnerDraft = null,
         <h1 className={`mb-5 mt-3 text-2xl leading-relaxed ${v31Title}`}>{title}</h1>
         {taste?.key === "guests" ? <p className={`mb-4 ${v31Body}`}>두 사람의 가족·지인을 모두 합한 전체 하객 수를 떠올려 주세요.</p> : null}
         {question ? <V31RatingInput key={question.id} value={draft.answers[question.id]} onChange={value => changeRating(question.id, value)} showGuide={ordinal === 1} /> : <>
-          {!taste ? <p className={`mb-4 ${v31Body}`}>{index === avoidanceIndex ? "원하는 것만큼 피하고 싶은 것도 준비 기준이 될 수 있어요. 없다면 아래에서 ‘따로 피하고 싶은 것은 없어요’를 골라 주세요." : index === priorityIndex ? "앞에서 고른 것 가운데 이번 결혼식에서 꼭 지키고 싶은 것을 골라요. 하나만 골라도 돼요." : "전체 예산을 늘리겠다는 뜻은 아니에요. 지금 없다면 ‘더 쓰고 싶은 곳은 지금 없어요’를 골라도 돼요."}</p> : null}
-          {index === priorityIndex ? <V31PriorityInput value={draft.priorities} options={priorityOptions} onChange={changeChoice} onSkip={skipPriority} /> : <V31ChoiceInput key={taste?.key ?? index} value={choice} options={taste?.options ?? (index === avoidanceIndex ? WEDDING_CODE_V31_AVOIDANCES : WEDDING_CODE_V31_SPENDING)}
+          {!taste ? <p className={`mb-4 ${v31Body}`}>{index === avoidanceIndex ? "원하는 것만큼 피하고 싶은 것도 준비 기준이 될 수 있어요. 없다면 아래에서 ‘따로 피하고 싶은 것은 없어요’를 골라 주세요." : index === priorityIndex ? "앞에서 고른 답 가운데 꼭 지키고 싶은 것을 골라요. 고르지 않아도 결과를 볼 수 있어요." : "전체 예산을 늘리겠다는 뜻은 아니에요. 지금 없다면 ‘더 쓰고 싶은 곳은 지금 없어요’를 골라도 돼요."}</p> : null}
+          {index === priorityIndex ? <V31PriorityInput value={draft.priorities} options={priorityOptions} onChange={changeChoice} /> : <V31ChoiceInput key={taste?.key ?? index} value={choice} options={taste?.options ?? (index === avoidanceIndex ? WEDDING_CODE_V31_AVOIDANCES : WEDDING_CODE_V31_SPENDING)}
             max={taste?.max ?? (index === avoidanceIndex ? WEDDING_CODE_V31_AVOIDANCES.length : 2)} onChange={changeChoice} tasteKey={taste?.key} kind={taste ? "taste" : index === avoidanceIndex ? "avoidances" : "spending"} />}
         </>}
         {question ? topicScope(question.topic) : null}
@@ -380,8 +406,14 @@ export default function WeddingCodeV31Client({ shareOrigin, partnerDraft = null,
     </div>
     {/* 문장이 길어 버튼이 첫 화면 밖으로 밀리지 않게 화면 아래에 붙인다. 앱 안에서는 하단 탭 위에 둔다. */}
     <div data-question-actions className="sticky bottom-0 z-10 mt-5 border-t border-[var(--hb-hairline)] bg-[var(--hb-surface-page)] pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3 max-md:[.amora-workspace_&]:bottom-[calc(75px+env(safe-area-inset-bottom))] max-md:[.amora-workspace_&]:pb-3">
-      {editing ? <Button variant="primary" size="lg" fullWidth disabled={currentResponse === undefined} onClick={() => finish()} className="min-h-12! whitespace-normal!"><Check aria-hidden="true" className="size-4 shrink-0" />수정한 결과 보기</Button>
-        : <Button variant="primary" size="lg" fullWidth disabled={!pageComplete} onClick={next} className="min-h-12! whitespace-normal!">{nextIndex === null ? "결과 보기" : "다음 질문"}<ArrowRight aria-hidden="true" className="size-4 shrink-0" /></Button>}
+      {/*
+        우선순위 화면에서 아직 아무것도 고르지 않았으면 이 버튼이 넘어가기를 맡는다(수정 화면도 같다). 막힌 버튼과
+        목록 아래 넘어가기 버튼을 겹쳐 두지 않는다. 고르면 평소처럼 결과 보기나 수정한 결과 보기로 돌아온다.
+      */}
+      {priorityEmpty ? <Button variant="primary" size="lg" fullWidth onClick={skipPriority} data-skip-priority className="min-h-12! whitespace-normal!">{nextIndex === null ? "고르지 않고 결과 보기" : "고르지 않고 다음 질문"}<ArrowRight aria-hidden="true" className="size-4 shrink-0" /></Button>
+        : editing ? <Button variant="primary" size="lg" fullWidth disabled={currentResponse === undefined} onClick={() => finish()} className="min-h-12! whitespace-normal!"><Check aria-hidden="true" className="size-4 shrink-0" />수정한 결과 보기</Button>
+          // 비어 있는 답이 있어도 막지 않는다. 막힌 버튼은 키보드 Tab 에서 빠져 이유를 들을 수 없다. 누르면 비어 있는 곳으로 안내한다.
+          : <Button variant="primary" size="lg" fullWidth aria-disabled={!pageComplete} onClick={next} className="min-h-12! whitespace-normal! aria-disabled:cursor-not-allowed aria-disabled:opacity-50">{nextIndex === null ? "결과 보기" : "다음 질문"}<ArrowRight aria-hidden="true" className="size-4 shrink-0" /></Button>}
     </div>
     {flow === "extra" && !editing ? <Button variant="secondary" size="lg" fullWidth onClick={() => finish()} className="mt-3 whitespace-normal!">여기까지 보고 결과 보기</Button> : null}
     <p className="mt-3 text-center text-xs leading-relaxed text-[var(--hb-text-muted)]">앞으로 돌아가 답을 바꿔도 괜찮아요.</p>
