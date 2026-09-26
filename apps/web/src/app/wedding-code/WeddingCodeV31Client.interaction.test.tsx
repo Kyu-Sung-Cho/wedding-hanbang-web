@@ -426,9 +426,12 @@ describe("WeddingCodeV31Client", () => {
     };
     await renderClient({ bothDrafts: { first, second } });
     const sectionTitle = (id: string) => container.querySelector(`[data-comparison="${id}"]`)?.closest("section")?.querySelector("h2")?.textContent;
-    expect(sectionTitle("taste.venue")).toBe("열어 두고 있는 취향");
+    // 2026-09-27: 한쪽만 '더 쓰고 싶은 곳은 지금 없어요'면 취향의 '어느 쪽도 괜찮아요'와 같게 열린 답이다.
+    // 예전에는 지출만 '먼저 이야기해 볼 차이'에 섰다. 섹션 이름도 취향에 한정하지 않는다.
+    expect(sectionTitle("taste.venue")).toBe("열어 두고 있는 답");
     expect(sectionTitle("avoidances")).toBe("함께 피하고 싶은 것");
-    expect(sectionTitle("spending")).toBe("먼저 이야기해 볼 차이");
+    expect(sectionTitle("spending")).toBe("열어 두고 있는 답");
+    expect(container.querySelector('[data-pair-section="difference"] [data-comparison="spending"]')).toBeNull();
     expect(container.querySelector('[data-comparison="spending"]')?.textContent).toContain("더 쓰고 싶은 곳은 지금 없어요");
     expect(container.querySelector('input[type="checkbox"]')).toBeNull();
   });
