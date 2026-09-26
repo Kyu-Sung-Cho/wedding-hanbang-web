@@ -5,7 +5,7 @@ import {
   type V31Draft,
 } from "@/constants/weddingCodeV31";
 import { decodeV31Progress, encodeV31 } from "./v31";
-import { getV31FlowIndexes, isV31CoreComplete, isV31Flow, isV31FullComplete, type V31Flow } from "./v31Flow";
+import { V31_PRIORITY_INDEX, getV31ScreenIndexes, isV31CoreComplete, isV31Flow, isV31FullComplete, type V31Flow } from "./v31Flow";
 
 export const LOCAL_KEY = "hanbang:wedding-code:v3.1:progress";
 export const LOCAL_TTL_MS = 30 * 24 * 60 * 60 * 1000;
@@ -46,8 +46,15 @@ function validPosition(value: Record<string, unknown>, draft: V31Draft, flow: V3
   if (typeof value.index !== "number" || !Number.isInteger(value.index) || value.index < 0 || value.index >= QUESTION_COUNT
     || (value.screen !== "questions" && value.screen !== "result")
     || typeof value.editing !== "boolean" || typeof value.needsPriorityReview !== "boolean") return false;
-  if (value.screen === "questions") return value.editing || getV31FlowIndexes(flow).includes(value.index);
+  if (value.screen === "questions") return value.editing || getV31ScreenIndexes(flow).includes(value.index);
   return !value.editing && !value.needsPriorityReview && (flow === "full" ? isV31FullComplete(draft) : isV31CoreComplete(draft));
+}
+/**
+ * 우선순위를 선택 흐름 끝에서 묻던 때 저장한 자리. 이제 선택 흐름에는 그 화면이 없으므로
+ * 버리지 않고 그 한 문항을 고치는 화면으로 이어 준다. 새로 저장할 때는 이 자리를 받지 않는다.
+ */
+function isLegacyExtraPriorityStep(value: Record<string, unknown>, flow: V31Flow): boolean {
+  return flow === "extra" && value.screen === "questions" && value.editing === false && value.index === V31_PRIORITY_INDEX;
 }
 
 /** 읽기만으로 저장 기간을 연장하거나 다른 탭의 값을 지우지 않는다. */
@@ -67,13 +74,15 @@ export function readV31LocalProgress(storage: V31ProgressStorage, now = Date.now
     const draft = decodeV31Progress(value.answerCode);
     // 이전 인덱스는 34개 전체 순서다. 읽을 때만 흐름을 붙이고 저장 시각은 유지한다.
     const flow = value.schema === 1 ? "full" : value.flow;
-    if (!draft || !isV31Flow(flow) || !validPosition(value, draft, flow)) return { status: "invalid", raw };
+    if (!draft || !isV31Flow(flow)) return { status: "invalid", raw };
+    const position = isLegacyExtraPriorityStep(value, flow) ? { ...value, editing: true } : value;
+    if (!validPosition(position, draft, flow)) return { status: "invalid", raw };
     if (now - value.savedAt >= LOCAL_TTL_MS) return { status: "expired", raw };
     return {
       status: "ready", raw, savedAt: value.savedAt,
       snapshot: {
-        draft, flow, index: value.index as number, screen: value.screen as V31LocalProgressSnapshot["screen"],
-        editing: value.editing as boolean, needsPriorityReview: value.needsPriorityReview as boolean,
+        draft, flow, index: position.index as number, screen: position.screen as V31LocalProgressSnapshot["screen"],
+        editing: position.editing as boolean, needsPriorityReview: position.needsPriorityReview as boolean,
       },
     };
   } catch { return { status: "invalid", raw }; }

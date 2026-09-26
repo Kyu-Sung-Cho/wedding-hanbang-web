@@ -24,17 +24,26 @@ export const V31_CORE_INDEXES: readonly number[] = Object.freeze([
   ...WEDDING_CODE_V31_TASTES.map((_, index) => WEDDING_CODE_V31_QUESTIONS.length + index),
   V31_AVOIDANCE_INDEX, V31_SPENDING_INDEX,
 ]);
-export const V31_EXTRA_INDEXES: readonly number[] = Object.freeze([
-  ...V31_EXTRA_RATING_IDS.map(id => V31_ALL_STEP_IDS.indexOf(id)), V31_PRIORITY_INDEX,
-]);
+// 우선순위는 선택 흐름에서 빼고 기본 흐름 끝에서 한 번만 묻는다.
+export const V31_EXTRA_INDEXES: readonly number[] = Object.freeze(V31_EXTRA_RATING_IDS.map(id => V31_ALL_STEP_IDS.indexOf(id)));
 export const V31_LEGACY_ONLY_INDEXES: readonly number[] = Object.freeze(V31_LEGACY_ONLY_RATING_IDS.map(id => V31_ALL_STEP_IDS.indexOf(id)));
 export const V31_FULL_INDEXES: readonly number[] = Object.freeze(V31_ALL_STEP_IDS.map((_, index) => index));
+/**
+ * 기본 흐름의 화면 순서. 완료 판정(isV31CoreComplete, 서버 함께 보기 계약)은 V31_CORE_INDEXES 23개만 보고,
+ * 화면은 그 뒤에 우선순위를 한 번 더 묻는다. 우선순위는 건너뛰어도 결과를 볼 수 있다.
+ */
+export const V31_CORE_SCREEN_INDEXES: readonly number[] = Object.freeze([...V31_CORE_INDEXES, V31_PRIORITY_INDEX]);
 
 export function isV31Flow(value: unknown): value is V31Flow {
   return value === "core" || value === "extra" || value === "full";
 }
+/** 결과를 보기 위해 답이 있어야 하는 자리. 화면 이동 순서는 getV31ScreenIndexes를 쓴다. */
 export function getV31FlowIndexes(flow: V31Flow): readonly number[] {
   return flow === "core" ? V31_CORE_INDEXES : flow === "extra" ? V31_EXTRA_INDEXES : V31_FULL_INDEXES;
+}
+/** 화면에 보여주는 순서. 기본 흐름만 끝에 우선순위가 붙는다. */
+export function getV31ScreenIndexes(flow: V31Flow): readonly number[] {
+  return flow === "core" ? V31_CORE_SCREEN_INDEXES : getV31FlowIndexes(flow);
 }
 export function getV31IndexForId(id: string): number {
   return V31_ALL_STEP_IDS.findIndex(step => step === id);
@@ -57,12 +66,12 @@ export function isV31FullComplete(draft: V31Draft): boolean {
   return getV31MissingIndex(draft, "full") === null;
 }
 export function getV31NextIndex(flow: V31Flow, index: number): number | null {
-  const steps = getV31FlowIndexes(flow);
+  const steps = getV31ScreenIndexes(flow);
   const position = steps.indexOf(index);
   return position < 0 ? null : steps[position + 1] ?? null;
 }
 export function getV31PreviousIndex(flow: V31Flow, index: number): number | null {
-  const steps = getV31FlowIndexes(flow);
+  const steps = getV31ScreenIndexes(flow);
   const position = steps.indexOf(index);
   return position <= 0 ? null : steps[position - 1];
 }

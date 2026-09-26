@@ -1,5 +1,5 @@
 import { WEDDING_CODE_V31_QUESTIONS, type V31Draft } from "@/constants/weddingCodeV31";
-import { getV31FlowIndexes, getV31NextIndex, getV31PreviousIndex, getV31ResponseAt, type V31Flow } from "./v31Flow";
+import { getV31NextIndex, getV31PreviousIndex, getV31ResponseAt, getV31ScreenIndexes, type V31Flow } from "./v31Flow";
 
 export type V31Page = {
   indexes: readonly number[];
@@ -9,10 +9,10 @@ export type V31Page = {
   nextIndex: number | null;
 };
 
-/** 저장된 질문 자리는 그대로 두고, 새 기본·선택 흐름의 동의 문장만 묶는다. */
+/** 저장된 질문 자리는 그대로 두고, 화면 순서에서 이어지는 기본·선택 흐름의 동의 문장만 묶는다. */
 export function getV31Pages(flow: V31Flow): readonly (readonly number[])[] {
   const pages: number[][] = [];
-  for (const index of getV31FlowIndexes(flow)) {
+  for (const index of getV31ScreenIndexes(flow)) {
     const previous = pages.at(-1);
     if (flow !== "full" && index < WEDDING_CODE_V31_QUESTIONS.length
       && previous && previous.length < 3 && previous[0] < WEDDING_CODE_V31_QUESTIONS.length) previous.push(index);
@@ -23,7 +23,7 @@ export function getV31Pages(flow: V31Flow): readonly (readonly number[])[] {
 
 export function getV31Page(flow: V31Flow, index: number, editing = false): V31Page {
   if (editing) return {
-    indexes: [index], position: getV31FlowIndexes(flow).indexOf(index), total: getV31FlowIndexes(flow).length,
+    indexes: [index], position: getV31ScreenIndexes(flow).indexOf(index), total: getV31ScreenIndexes(flow).length,
     previousIndex: getV31PreviousIndex(flow, index), nextIndex: getV31NextIndex(flow, index),
   };
   const pages = getV31Pages(flow);
