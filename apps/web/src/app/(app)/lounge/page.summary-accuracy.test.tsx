@@ -63,7 +63,8 @@ describe("라운지의 저장값 요약과 조회 실패 구분", () => {
     const weddingCode = container.querySelector('[data-lounge-preparation-style]')!;
     expect(weddingCode.querySelector("h2")?.textContent).toBe("웨딩코드");
     expect(weddingCode.querySelector('a[href="/wedding/preparation-style"]')?.textContent).toBe("웨딩코드 보기");
-    expect(weddingCode.textContent).toContain("기본 23문항으로 결과를 보고, 궁금하면 9문항을 더 답할 수 있어요.");
+    // 기본 흐름은 동의·취향 23문항 뒤에 우선순위 한 화면을 더 묻는다(v31Flow V31_CORE_SCREEN_INDEXES).
+    expect(weddingCode.textContent).toContain("기본 24문항으로 결과를 보고, 궁금하면 8문항을 더 답할 수 있어요.");
     expect(weddingCode.textContent).toContain("이 브라우저에 저장한 답");
     expect(weddingCode.textContent).toContain("내 답이 담긴 링크");
     expect(container.querySelector('a[href="/wedding/community/quote-check"]')).not.toBeNull();

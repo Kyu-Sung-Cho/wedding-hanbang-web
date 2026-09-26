@@ -204,7 +204,8 @@ function TogetherSession({ link }: { link: PairSessionLink }) {
           : activeSnapshot.state === "closed" || expired ? <section><h1 className={`text-2xl ${v31Title}`}>이 비교는 끝났어요</h1><p className={`mt-3 ${v31Body}`}>한 사람이 연결을 끝냈거나 볼 수 있는 기간이 지났어요. 다시 함께 보려면 새로 초대해 주세요.</p><Link href="/wedding-code" className="mt-4 inline-flex min-h-11 items-center underline">내 웨딩코드로 돌아가기</Link></section>
             : activeSnapshot.role === "invite" ? activeSnapshot.state === "ready" ? <section><h1 className={`text-2xl ${v31Title}`}>이미 참여한 초대예요</h1><p className={`mt-3 ${v31Body}`}>직접 답한 브라우저의 ‘연결한 두 사람 결과 보기’에서 확인해 주세요. 다른 사람이 참여했다면 초대한 사람에게 새 초대를 요청해 주세요.</p></section> : <>
               <section className={`${v31Surface} mb-5 p-5`} aria-label="받은 초대 안내"><h2 className={`text-lg ${v31Title}`}>결혼 준비에 대해 서로 알아보자는 초대가 왔어요</h2><p className={`mt-2 ${v31Body}`}>먼저 내 생각대로 답해 보세요. 내 결과를 확인한 뒤 공유에 동의하면 상대도 내 결과를 보고, 나도 상대 결과를 볼 수 있어요. 아직 상대 답은 보여주지 않아요.</p></section>
-              <WeddingCodeV31Client embedded shareOrigin={window.location.origin}
+              {/* 상대 답은 동의 전까지 넘기지 않지만, 상대가 보낸 초대로 답하는 사람이라는 사실은 통계 값에 그대로 싣는다. */}
+              <WeddingCodeV31Client embedded pairInvite shareOrigin={window.location.origin}
                 onRestart={() => window.history.replaceState(null, "", pairSessionUrl(window.location.origin, link))}
                 renderResultActions={draft => <JoinComparison draft={draft} link={link} expiresAt={activeSnapshot.expiresAt} previousRequest={joinRequest} onRequestStart={beginJoin} />} />
             </> : own ? <>

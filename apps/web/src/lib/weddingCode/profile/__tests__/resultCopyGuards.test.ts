@@ -2,6 +2,15 @@ import { describe, expect, it } from "vitest";
 
 import { WEDDING_CODE_V06_AXES, type WeddingCodeV06AxisKey } from "@/constants/weddingCodeV06";
 import {
+  WEDDING_CODE_V31_AVOIDANCES,
+  WEDDING_CODE_V31_QUESTIONS,
+  WEDDING_CODE_V31_SPENDING,
+  WEDDING_CODE_V31_TASTES,
+  type V31Choice,
+  type V31Draft,
+} from "@/constants/weddingCodeV31";
+import { buildV31Profile, createV31Draft, getV31PriorityOptions } from "@/lib/weddingCode/v31";
+import {
   WEDDING_CODE_CHECK_PHRASE,
   WEDDING_CODE_SELF_READING,
   type WeddingCodeSelfLean,
@@ -379,5 +388,158 @@ describe("「먼저 얘기해 볼 주제」 칸 — 만들 수 있는 모든 문
   it.each(TALK_BANNED)("$name — 어느 문장에도 없다", ({ pattern }) => {
     const hits = sentences.filter((item) => pattern.test(item.text));
     expect(hits.map((item) => `${item.label}: ${item.text}`)).toEqual([]);
+  });
+});
+
+/**
+ * 웨딩코드 v3.1 개인 결과 설명 (2026-09-27 감사).
+ *
+ * 한 가상 응답자의 설명 17개 중 15개가 방금 고른 답을 「~라고 답했어요」로 다시 말했고, 본문마다
+ * 「~뜻은 아니에요」가 붙었다. 설명 문장은 답에 따라 골라 붙이므로(문장 하나, 두 문장 조합, 두 답을 잇는
+ * 교차 안내, 우선순위 안내, 취향·피하고 싶은 것의 다음 행동, 하객 없는 예식 변형), 손으로 고른 예시가 아니라
+ * 나올 수 있는 응답을 전부 만들어 모든 제목·본문·다음 행동을 본다.
+ */
+type V31CopyPart = "title" | "body" | "nextStep";
+type V31Copy = { label: string; part: V31CopyPart; text: string };
+
+function answeredChoice(values: string[]): V31Choice {
+  return { status: "answered", values };
+}
+function allHigh(draft: V31Draft): void {
+  for (const question of WEDDING_CODE_V31_QUESTIONS) draft.answers[question.id] = 5;
+}
+function v31Drafts(): V31Draft[] {
+  const drafts: V31Draft[] = [];
+  const make = (fill: (draft: V31Draft) => void) => {
+    const draft = createV31Draft();
+    fill(draft);
+    drafts.push(draft);
+  };
+  for (const question of WEDDING_CODE_V31_QUESTIONS) {
+    make((draft) => { draft.answers[question.id] = 4; });
+    make((draft) => { draft.answers[question.id] = 5; draft.tastes.guests = answeredChoice(["no_guests"]); });
+  }
+  for (const spending of WEDDING_CODE_V31_SPENDING) make((draft) => { allHigh(draft); draft.spending = answeredChoice([spending.value]); });
+  for (const taste of WEDDING_CODE_V31_TASTES) {
+    for (const option of taste.options) {
+      make((draft) => { draft.tastes[taste.key] = answeredChoice([option.value]); });
+      if (taste.key !== "guests") make((draft) => { draft.tastes[taste.key] = answeredChoice([option.value]); draft.tastes.guests = answeredChoice(["no_guests"]); });
+    }
+  }
+  for (const noGuests of [false, true]) {
+    for (const avoidStage of [false, true]) {
+      make((draft) => {
+        draft.answers.V1 = 5;
+        draft.tastes.ceremony = answeredChoice(["participatory"]);
+        if (noGuests) draft.tastes.guests = answeredChoice(["no_guests"]);
+        draft.avoidances = answeredChoice(avoidStage
+          ? WEDDING_CODE_V31_AVOIDANCES.map((option) => option.value)
+          : ["heavy_decoration", "crowded_space", "long_photography", "loud_music"]);
+      });
+    }
+  }
+  // 우선순위는 고를 수 있는 보기마다 하나씩 골라 안내 카드를 만든다.
+  // 참여 순서나 꽃 장식을 높게 고르면 식순·장식 회피 우선순위가 교차 안내로 가므로, 둘 다 아닌 경우도 함께 본다.
+  for (const [noGuests, ceremony] of [[false, "short"], [false, "participatory"], [true, "short"], [true, "participatory"]] as const) {
+    const rich = createV31Draft();
+    allHigh(rich);
+    if (ceremony === "short") rich.answers.V1 = 2;
+    for (const taste of WEDDING_CODE_V31_TASTES) rich.tastes[taste.key] = answeredChoice([taste.options[0].value]);
+    rich.tastes.ceremony = answeredChoice([ceremony]);
+    if (noGuests) rich.tastes.guests = answeredChoice(["no_guests"]);
+    rich.avoidances = answeredChoice(WEDDING_CODE_V31_AVOIDANCES.map((option) => option.value));
+    rich.spending = answeredChoice(["photo"]);
+    for (const option of getV31PriorityOptions(rich)) {
+      make((draft) => { Object.assign(draft, structuredClone(rich)); draft.priorities = answeredChoice([option.value]); });
+    }
+  }
+  return drafts;
+}
+
+function generatedV31Copy(): { copies: V31Copy[]; reached: Set<string> } {
+  const copies = new Map<string, V31Copy>();
+  const reached = new Set<string>();
+  const add = (label: string, part: V31CopyPart, text: string | null | undefined) => {
+    if (!text) return;
+    const key = `${part}|${text}`;
+    if (!copies.has(key)) copies.set(key, { label, part, text });
+  };
+  for (const draft of v31Drafts()) {
+    const profile = buildV31Profile(draft);
+    for (const item of [...profile.insights, ...profile.priorityGuides]) {
+      const id = item.sourceInsightId ?? item.id;
+      reached.add(id);
+      add(id, "title", item.title);
+      add(id, "body", item.body);
+      add(id, "nextStep", item.nextStep);
+    }
+    for (const taste of profile.tastes) {
+      if (!taste.nextStep) continue;
+      reached.add(`taste:${taste.key}`);
+      add(`taste:${taste.key}`, "nextStep", taste.nextStep);
+    }
+    for (const step of profile.avoidanceSteps) {
+      reached.add(`avoidance:${step.value}`);
+      add(`avoidance:${step.value}`, "nextStep", step.nextStep);
+    }
+  }
+  return { copies: [...copies.values()], reached };
+}
+
+/** 모든 문장에서 막는 것. 판정, 줄표, 「~뜻은 아니에요」류 면책, 명사형 「~인 답」, 시스템 말투, 업계 말. */
+const V31_COPY_BANNED: readonly { name: string; pattern: RegExp }[] = [
+  { name: "판정 언어", pattern: JUDGMENT_WORDS },
+  { name: "줄표", pattern: /[—–]/ },
+  { name: "뜻은 아니", pattern: /뜻은 아니|뜻으로 읽지|뜻이 다를 수/ },
+  { name: "명사형 「~인 답」", pattern: /[가-힣]인 답/ },
+  { name: "시스템 말투", pattern: /선택값|요약 보류|\d+\/\d+개/ },
+  { name: "업계 말", pattern: TALK_BANNED.find((item) => item.name === "업계 말·가리키는 말")!.pattern },
+];
+/** 본문은 고른 답을 다시 말하지 않는다. 원래 문장과 답은 근거로 따로 보여준다. */
+const V31_BODY_RESTATES = /답했어요|골랐어요|고른 답이에요|라고 답/;
+const V31_NEGATIONS = /아니에요|않아요|않았어요/g;
+
+describe("웨딩코드 v3.1 개인 결과 — 만들 수 있는 모든 설명 문장", () => {
+  const { copies, reached } = generatedV31Copy();
+
+  it("측정기가 살아 있다 — 모든 설명 갈래가 실제로 나오고, 금지 틀을 잡는다", () => {
+    const expected = [
+      ...WEDDING_CODE_V31_QUESTIONS.map((question) => `single-${question.id}`),
+      "attire-comfort", "budget-reallocate", "budget-revisit", "decision-conditions", "delegate-update", "family-listen-decide", "support-listen-help",
+      "budget-explicit-spending", "flower-amount", "participation-format", "guests-participation",
+      ...WEDDING_CODE_V31_TASTES.map((taste) => `direct-${taste.key}`),
+      ...WEDDING_CODE_V31_AVOIDANCES.map((option) => `avoid-${option.value}`),
+      ...WEDDING_CODE_V31_TASTES.map((taste) => `taste:${taste.key}`),
+      ...WEDDING_CODE_V31_AVOIDANCES.map((option) => `avoidance:${option.value}`),
+    ];
+    for (const id of expected) expect(reached.has(id), id).toBe(true);
+    expect(copies.filter((item) => item.part === "nextStep").length).toBeGreaterThan(50);
+    expect(copies.some((item) => item.part === "body")).toBe(true);
+    const caught: Record<string, string> = {
+      "판정 언어": "당신은 예산을 지키는 유형이에요",
+      줄표: "예산은 지키고 — 다시 의논해요",
+      "뜻은 아니": "작은 결혼식을 원한다는 뜻으로 읽지는 않아요",
+      "명사형 「~인 답」": "예산을 지키는 쪽인 답",
+      "시스템 말투": "2/2개 문장에 답했어요",
+      "업계 말": "상견례 전에 정해 보세요",
+    };
+    for (const { name, pattern } of V31_COPY_BANNED) expect(caught[name], name).toMatch(pattern);
+    expect("평소 가깝게 지내는 사람 위주로 초대하고 싶다고 답했어요.").toMatch(V31_BODY_RESTATES);
+    expect("해결책이 필요 없다는 뜻은 아니에요. 도울 여유가 있다는 뜻도 아니에요.".match(V31_NEGATIONS)).toHaveLength(2);
+  });
+
+  it.each(V31_COPY_BANNED)("$name — 어느 설명 문장에도 없다", ({ pattern }) => {
+    const hits = copies.filter((item) => pattern.test(item.text));
+    expect(hits.map((item) => `${item.label} ${item.part}: ${item.text}`)).toEqual([]);
+  });
+
+  it("본문은 고른 답을 「~라고 답했어요」로 다시 말하지 않는다", () => {
+    const hits = copies.filter((item) => item.part === "body" && V31_BODY_RESTATES.test(item.text));
+    expect(hits.map((item) => `${item.label}: ${item.text}`)).toEqual([]);
+  });
+
+  it("한 설명 칸에 부정 고지를 둘 이상 겹쳐 쓰지 않는다", () => {
+    const hits = copies.filter((item) => (item.text.match(V31_NEGATIONS) ?? []).length > 1);
+    expect(hits.map((item) => `${item.label} ${item.part}: ${item.text}`)).toEqual([]);
   });
 });

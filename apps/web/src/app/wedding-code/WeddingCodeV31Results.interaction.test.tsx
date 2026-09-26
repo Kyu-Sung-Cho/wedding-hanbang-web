@@ -173,6 +173,19 @@ describe("두 사람 결과 탭", () => {
     expect(onEdit).not.toHaveBeenCalled();
   });
 
+  it("상대 결과 탭의 우선순위 안내 카드는 보는 사람을 ‘내가’로 부르지 않는다", async () => {
+    // 상대가 장소 취향과 T2(T2·T3 둘 다 ‘그런 편’ 이상이라 조합 안내가 나온다)를 우선순위로 골랐다.
+    first.priorities = { status: "answered", values: ["taste.venue", "T2"] };
+    await render();
+    await click(tab("상대 결과"));
+    const text = panel().textContent ?? "";
+    expect(panel().querySelector('[data-insight="priority-taste.venue"]')?.querySelector("h3")?.textContent).toBe("원하는 장소");
+    expect(panel().querySelector('[data-insight="priority-delegate-update"]')).not.toBeNull();
+    expect(text).toContain("이 설명에서 우선순위로 고른 것");
+    expect(text).not.toContain("내가 원하는");
+    expect(text).not.toContain("내가 우선순위");
+  });
+
   it("혼자 본 결과는 탭 없이 전체 해석과 선택 메모를 그대로 보여준다", async () => {
     await render({ first: null });
     expect(container.querySelector('[role="tablist"]')).toBeNull();
