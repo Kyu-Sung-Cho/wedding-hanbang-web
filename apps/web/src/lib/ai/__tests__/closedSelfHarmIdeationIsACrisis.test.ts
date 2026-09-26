@@ -17,13 +17,22 @@
  *        전달 계획은 원문 저장 없는 고정 안내(`local_safety_hold`)다.
  *  (ii)  **덧붙이기만** — 이 파일의 모든 행에서 판정은 규칙을 뺀 판정과 깊은 동등이다.
  *        `NEWLY_CAUGHT` 만 예외다. 계획형 진술 규칙이 잡는 행은 그 판정이 그대로 나간다.
- *  (iii) 서지 않는 행 — 부정·남 얘기·물음·웃음·과거·인용·목록 밖 수단.
+ *  (iii) 본인 고백이 아닌 문장(`NOT_A_DISCLOSURE`) — 서면 틀린다. 부정·남 얘기·물음·웃음·맨 명사·
+ *        전언과 매체·모으기가 아닌 수단 문장. 실제 고백인데 운영이 이미 즉시 위기로 잡는 문장은
+ *        `ALREADY_HELD_BY_MAIN` 에 따로 둔다.
  *  (iv)  구조 — `NEWLY_CAUGHT` 행에 어휘 밖 토큰 하나·웃음·물음표를 넣으면 규칙이 서지 않는다.
  *        우는 자모·말줄임·슬픈 얼굴은 판정을 지킨다.
  *  (v)   체크리스트 답 — 규칙의 낱말만으로 조립한 신혼여행 짐 싸기 답은 서지 않는다(2026-09-27
  *        백상자 검토: 열아홉 문장이 즉시 위기 고정 안내로 갔다). 이 파일의 옛 판은 `약 모았어`·
  *        `진통제 모아뒀어` 를 반드시 즉시 위기로 못 박고 있었고, 반례에는 어휘 안의 약 문장이 0개였다.
- *  (vi)  알고 남긴 값 — 미탐과 오탐을 이유와 함께 고정한다.
+ *  (vi)  알고 남긴 값 — 오탐과 누출을 이유와 함께 적는다. 누출(`KNOWN_MISS`)은 실제 고백인데 이
+ *        규칙도 운영도 잡지 않아 공유 레인에 남는 문장이다. **정상이 아니다** — `it.fails` 로 바라는
+ *        동작("공유 레인에 남지 않는다")을 단언하고, 오늘은 그 단언이 실패한다고 기록한다.
+ *
+ * 2026-09-27: 예전 판은 서지 않는 행 한 목록(`MUST_NOT_FIRE`)에 부정·남 얘기와 실제 고백(과거형
+ * `자살 생각이 났어`, 경험 `자살 생각 해본 적 있어`)을 섞어 "규칙이 판정을 바꾸면 안 된다" 로 못
+ * 박았다. 나중에 그 누출을 잡으면 단언이 빨개지고, 고치는 사람은 단언을 지우거나 다른 누출 예문으로
+ * 갈아 끼우게 된다. 그래서 나눴다.
  *
  * 1인칭 계획형 진술 규칙의 검사(`terminalDeathIntentIsACrisis.test.ts` (ii))가 그 파일의
  * 1,150여 행에서 "규칙 밖 행은 본문과 깊은 동등" 을 대조한다. 그 검사는 이 규칙까지 더한
@@ -123,34 +132,35 @@ const IN_VOCABULARY_BUT_ALREADY_CAUGHT: readonly string[] = [
   "저 자살 생각해요",
 ];
 
-/** (iii) 서지 않는 행. 어휘 밖 낱말 하나·부정·물음·웃음·과거·남 얘기. */
-const MUST_NOT_FIRE: readonly string[] = [
+/**
+ * (iii) **본인 고백이 아닌 문장.** 이 규칙이 서면 틀린다 — 부정·남 얘기와 상대에게 하는 말·물음·
+ * 웃음·맨 명사(화제)·전언과 매체·모으기가 아닌 수단 문장. 실제 고백으로 읽히는 문장은 여기 두지
+ * 말고 `KNOWN_MISS`(공유 레인에 남음)나 `ALREADY_HELD_BY_MAIN`(운영이 이미 잡음)에 둔다.
+ */
+const NOT_A_DISCLOSURE: readonly string[] = [
+  // 부정
   "자살 생각 안 해",
   "자살 생각은 없어",
   "자살 생각 안 나",
   "자살 생각 나지 않아",
   "이제 자살 생각 안 해요",
+  // 남 얘기·상대에게 하는 말
   "너 자살 생각해",
   "친구가 자살 생각해",
   "엄마가 요즘 자살 생각해",
-  "우리 자살 생각해",
+  // 물음·웃음
   "자살 생각해?",
   "자살 생각 있어?",
   "자살 생각해 ㅋㅋ",
   "자살 생각해요 😂",
-  "요즘 자살 생각해 -.-",
-  "자살 생각이 자꾸 나 🍺",
-  "자살 생각 나면 어떡해",
-  "자살 생각 해본 적 있어",
+  // 맨 명사(화제)·전언·매체
   "자살 생각",
-  "자살 생각이 났어",
-  "자살 생각 했어",
   "자살 생각하는 사람이 많대",
   "자살 생각이 드는 영화야",
-  "드라마 보다가 자살 생각 나",
   "자살 생각 나는 노래 추천해줘",
   "자살 충동",
   "수면제",
+  // 수단 — 모으기가 아니거나 평범한 물건·남 얘기·물음·웃음·까닭
   "수면제 사뒀어",
   "약 사뒀어",
   "약 다 모아놨어",
@@ -167,6 +177,17 @@ const MUST_NOT_FIRE: readonly string[] = [
   "축의금 봉투 모아 놨어",
   "포인트 모았어",
   "약국에서 약 모아서 처방받았어",
+];
+
+/**
+ * 실제 고백이지만 이 규칙 밖이고, **운영(`classifyAmoraCrisis` 의 옛 정규식 갈래)이 이미 즉시 위기로
+ * 잡는** 문장. 규칙은 이 판정에 손대지 않는다. 운영이 놓치게 되면 여기가 빨개진다 — 그때는
+ * `KNOWN_MISS` 로 옮길지 정할 것.
+ */
+const ALREADY_HELD_BY_MAIN: readonly string[] = [
+  "자살 생각 했어",
+  "자살 생각 나면 어떡해",
+  "드라마 보다가 자살 생각 나",
 ];
 
 /**
@@ -213,11 +234,15 @@ const CHECKLIST_ANSWERS: readonly string[] = [
 ];
 
 /**
- * **알고 남긴 미탐.** 오늘 이 규칙이 잡지 않는 위험 문장이다. 공유 레인 요청이면 운영 판정대로
- * 저장된다. 잡게 되면 이 목록에서 `NEWLY_CAUGHT` 로 옮기고 이유를 지울 것 — 조용히 바뀌지 않게
- * 고정해 둔다.
+ * **누출 기록(`KNOWN_MISS`).** 오늘 이 규칙도 운영도 잡지 않아, 공유 레인 요청이면 **공유 레인에
+ * 저장되는** 위험 문장이다. 저장되는 순간 배우자가 읽는다. 정상이 아니다.
+ *
+ * 아래 `it.fails` 는 바라는 동작("공유 레인에 남지 않는다")을 단언하고, 오늘은 그 단언이 실패한다고
+ * 기록한다. 누가 이 문장을 잡게 되면 그 테스트가 빨개진다. 그때 이 목록에서 빼서 `NEWLY_CAUGHT`
+ * (이 규칙이 잡음)나 `ALREADY_HELD_BY_MAIN`(운영이 잡음)으로 옮기고 이유를 지울 것. **`NOT_A_DISCLOSURE`
+ * 로 옮기지 말 것** — 누출을 정상으로 못 박게 된다.
  */
-const KNOWN_COST_MISSED: ReadonlyArray<readonly [string, string]> = [
+const KNOWN_MISS: ReadonlyArray<readonly [string, string]> = [
   ["이미 수면제 많이 모아놨어", "`이미`·`많이` 는 짐을 다 쌌다는 보고와 같은 모양이라 어휘에서 뺐다"],
   ["수면제 한 달 치 모아뒀어", "수량(`한 달 치`)은 처방약 한 달 치를 챙겼다는 말과 같은 모양이다"],
   ["약 모아뒀어", "맨 `약` 은 상비약을 포함하는 상위어다"],
@@ -226,6 +251,12 @@ const KNOWN_COST_MISSED: ReadonlyArray<readonly [string, string]> = [
   ["자살 생각이 자꾸 나 무서워", "괴로움·도움 요청 꼬리를 받을지는 오탐과 맞바꾸는 설계 결정이라 넓히지 않았다"],
   ["요즘 결혼 준비하면서 자살 생각이 자꾸 나", "이유 절(`결혼 준비하면서`)은 닫힌 어휘 밖이다"],
   ["자살 생각이 자꾸 나 어떡하지?", "물음표 관문은 세 닫힌 어휘 규칙이 함께 쓴다 — 따로 정할 일이다"],
+  // 2026-09-27: 예전 판이 서지 않는 행(`MUST_NOT_FIRE`)에 두었던 고백
+  ["자살 생각이 났어", "과거형 서술어(`났어`)는 닫힌 활용형 밖이다"],
+  ["자살 생각 해본 적 있어", "경험 서술(`해본 적 있어`)은 어휘 밖이다"],
+  ["우리 자살 생각해", "`우리` 는 1인칭에서 뺐다 — 누가 생각하는지 가르지 못한다"],
+  ["요즘 자살 생각해 -.-", "`-.-` 는 닫힌 장식 목록 밖이다"],
+  ["자살 생각이 자꾸 나 🍺", "내용 이모지는 닫힌 장식 목록 밖이다"],
 ];
 
 /**
@@ -300,8 +331,8 @@ const MUTATED_ROWS: readonly string[] = NEWLY_CAUGHT.flatMap((row) =>
   RULE_BREAKING_MUTATIONS.map(([, mutate]) => mutate(row)));
 const EVERY_ROW: readonly string[] = [
   ...new Set([
-    ...NEWLY_CAUGHT, ...IN_VOCABULARY_BUT_ALREADY_CAUGHT, ...MUST_NOT_FIRE, ...EVERYDAY, ...MUTATED_ROWS,
-    ...CHECKLIST_ANSWERS, ...KNOWN_COST_MISSED.map(([text]) => text),
+    ...NEWLY_CAUGHT, ...IN_VOCABULARY_BUT_ALREADY_CAUGHT, ...NOT_A_DISCLOSURE, ...ALREADY_HELD_BY_MAIN,
+    ...EVERYDAY, ...MUTATED_ROWS, ...CHECKLIST_ANSWERS, ...KNOWN_MISS.map(([text]) => text),
   ]),
 ];
 
@@ -386,9 +417,22 @@ describe("(ii) 덧붙이기만 한다 — 이 파일의 모든 행", () => {
   });
 });
 
-describe("(iii) 서지 않는 행 — 부정·남 얘기·물음·웃음·과거·인용·목록 밖 수단", () => {
-  it.each(MUST_NOT_FIRE)("%s", (text) => {
+describe("(iii) 본인 고백이 아닌 문장 — 부정·남 얘기·물음·웃음·맨 명사·전언·목록 밖 수단", () => {
+  it.each(NOT_A_DISCLOSURE)("%s", (text) => {
     expect(assess(text)).toEqual(assessWithoutRule(text));
+  });
+
+  it.each(ALREADY_HELD_BY_MAIN)("고백이지만 운영이 이미 즉시 위기로 잡는다 — 규칙은 손대지 않는다: %s", (text) => {
+    expect(assess(text)).toEqual(assessWithoutRule(text));
+    expect(classifyAmoraCrisis(text)).toEqual({ kind: "self_harm" });
+    const server = planAmoraCrisisDelivery({
+      userText: text,
+      requestedVisibility: "shared",
+      target: "ai",
+      senderRole: "bride",
+      externalSafetySignal: hasAmoraSafetySignal(text, "chat"),
+    });
+    expect(server.disposition).toBe("local_safety_hold");
   });
 
   it.each(EVERYDAY)("평범한 문장: %s", (text) => {
@@ -422,11 +466,27 @@ describe("(v) 체크리스트 답 — 규칙의 낱말만으로 조립한 짐 �
   });
 });
 
-describe("(vi) 알고 남긴 값 — 조용히 바뀌지 않게 고정한다", () => {
-  it.each(KNOWN_COST_MISSED)("미탐: %s — %s", (text) => {
-    // 이 규칙은 서지 않는다. 운영 판정이 그대로 나간다.
-    expect(assess(text)).toEqual(assessWithoutRule(text));
-    expect(NEWLY_CAUGHT_SET.has(text)).toBe(false);
+describe("(vi) 알고 남긴 값 — 누출 기록(KNOWN_MISS)은 정상이 아니다", () => {
+  // 바라는 동작을 단언한다: 실제 고백은 공유 레인에 남지 않는다. 오늘은 이 단언이 실패한다 —
+  // 그래서 `it.fails` 다. 누가 이 문장을 잡으면 빨개진다. 그때 `NEWLY_CAUGHT`·`ALREADY_HELD_BY_MAIN` 으로 옮길 것.
+  it.fails.each(KNOWN_MISS)("누출: %s — %s (공유 레인에 남지 않아야 한다)", (text) => {
+    const server = planAmoraCrisisDelivery({
+      userText: text,
+      requestedVisibility: "shared",
+      target: "ai",
+      senderRole: "bride",
+      externalSafetySignal: hasAmoraSafetySignal(text, "chat"),
+    });
+    expect(server.disposition).not.toBe("continue");
+  });
+
+  it("누출 행은 서는 행·고백이 아닌 문장·운영이 잡는 행과 겹치지 않는다", () => {
+    const elsewhere = new Set([...NEWLY_CAUGHT, ...NOT_A_DISCLOSURE, ...ALREADY_HELD_BY_MAIN]);
+    for (const [text] of KNOWN_MISS) {
+      expect(elsewhere.has(text), text).toBe(false);
+      // 이 규칙은 서지 않는다(판정이 규칙을 뺀 판정과 같다).
+      expect(assess(text), text).toEqual(assessWithoutRule(text));
+    }
   });
 
   it("오탐으로 남긴 행은 규칙이 서는 행이다(어휘 안에서 위험 서술과 모양이 같다)", () => {
