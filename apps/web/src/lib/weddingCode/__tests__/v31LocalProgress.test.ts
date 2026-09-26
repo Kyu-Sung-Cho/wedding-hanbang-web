@@ -317,4 +317,27 @@ describe("v3.1 단축 흐름 저장과 이전 진행 호환", () => {
     storage.setItem(LOCAL_KEY, JSON.stringify(missingFlow));
     expect(readV31LocalProgress(storage, NOW).status).toBe("invalid");
   });
+
+  it("기본 흐름 끝의 우선순위 자리를 저장·복원하고, 선택 흐름에서 묻던 때의 자리는 그 한 문항 수정으로 이어 준다", () => {
+    const { storage } = memory();
+    const atPriority: V31LocalProgressSnapshot = { ...snapshot(coreComplete()), flow: "core", index: 32 };
+    expect(writeV31LocalProgress(storage, atPriority, null, NOW).status).toBe("saved");
+    expect(readV31LocalProgress(storage, NOW)).toMatchObject({ status: "ready", snapshot: atPriority });
+    // 선택 흐름에는 이제 우선순위 화면이 없으므로 새로 저장하지 않는다.
+    const legacy: V31LocalProgressSnapshot = { ...atPriority, flow: "extra" };
+    expect(writeV31LocalProgress(storage, legacy, storage.getItem(LOCAL_KEY), NOW).status).toBe("invalid");
+    // 이전에 저장된 그 자리는 버리지 않고, 읽을 때만 한 문항 수정으로 바꾼다. 저장값은 건드리지 않는다.
+    const raw = setEnvelope(storage, {}, legacy, NOW - 5000);
+    vi.mocked(storage.setItem).mockClear();
+    vi.mocked(storage.removeItem).mockClear();
+    expect(readV31LocalProgress(storage, NOW)).toEqual({ status: "ready", raw, savedAt: NOW - 5000, snapshot: { ...legacy, editing: true } });
+    expect(storage.setItem).not.toHaveBeenCalled();
+    expect(storage.removeItem).not.toHaveBeenCalled();
+    // 다른 선택 흐름 밖 자리와 결과 화면 자리는 그대로 다룬다.
+    setEnvelope(storage, {}, { ...legacy, index: 31 });
+    expect(readV31LocalProgress(storage, NOW).status).toBe("invalid");
+    const result: V31LocalProgressSnapshot = { ...legacy, screen: "result" };
+    setEnvelope(storage, {}, result);
+    expect(readV31LocalProgress(storage, NOW)).toMatchObject({ status: "ready", snapshot: result });
+  });
 });

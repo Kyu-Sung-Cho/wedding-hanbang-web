@@ -15,7 +15,8 @@ vi.mock("next/link", () => ({
 }));
 
 import { WEDDING_CODE_V06_AXES } from "@/constants/weddingCodeV06";
-import { WEDDING_CODE_LETTERS } from "@/lib/weddingCode/profile/letters";
+import { parseWeddingCodeString, WEDDING_CODE_LETTERS } from "@/lib/weddingCode/profile/letters";
+import { V31_STYLE_DIMENSIONS } from "@/lib/weddingCode/v31StyleSummary";
 import WeddingCodeMeaningPage, { generateMetadata, generateStaticParams } from "./page";
 
 const LOOKUP_LABELS = [
@@ -43,7 +44,69 @@ describe("코드만 아는 사람을 위한 화면", () => {
     }
     // 반대쪽 글자도 알려줘야 자리를 이해할 수 있다.
     expect(html).toContain("반대쪽 글자");
-    expect(html).toContain("내 웨딩코드 받아보기");
+    expect(html).toContain("지금 웨딩코드 해보기");
+  });
+
+  /**
+   * 이 경로의 글자표는 장면 문항 판(v0.6~v1.2)의 것이다. 지금 판(v3.1)은 질문도 글자를
+   * 정하는 방식도 다르다. 예전에는 판을 밝히지 않고 옛 판의 「스무 장면」을 지금 검사처럼
+   * 적었다(2026-09-26 감사).
+   */
+  it("이전 판 코드라는 사실과 지금 판으로 가는 안내를 화면에 적는다", async () => {
+    for (const { code } of generateStaticParams()) {
+      const root = document.createElement("div");
+      root.innerHTML = await render(code);
+      const meaning = root.querySelector("[data-code-meaning]")!;
+      expect(meaning.querySelector('[data-code-edition="previous"]')?.textContent, code).toBe("이전 판 웨딩코드");
+      // 판 표시는 코드 바로 위, 풀이보다 먼저 나와야 한다.
+      const label = meaning.querySelector("[data-code-edition]")!;
+      const firstAxis = meaning.querySelector("[data-meaning-axis]")!;
+      expect(label.compareDocumentPosition(firstAxis) & Node.DOCUMENT_POSITION_FOLLOWING, code).toBeTruthy();
+
+      const note = root.querySelector("[data-current-edition-note]");
+      // 달라진 것은 검사와 코드의 비교가 아니라 글자 풀이다(MTFA 처럼 글자가 같아도 참이어야 한다).
+      expect(note?.querySelector("h2")?.textContent?.trim(), code).toBe("지금 웨딩코드는 글자 풀이가 달라요");
+      expect(note?.textContent, code).toContain("질문도, 네 글자를 정하는 방식도 바뀌었어요.");
+      expect(note?.textContent, code).toContain("지금 웨딩코드에서 받은 네 글자라면 여기 풀이와 맞지 않아요.");
+
+      const cta = [...root.querySelectorAll("a")].find((link) => link.textContent === "지금 웨딩코드 해보기");
+      expect(cta?.getAttribute("href"), code).toBe("/wedding-code");
+
+      const text = root.textContent ?? "";
+      // 옛 판 문항 수를 지금 검사의 분량처럼 적지 않는다. 재지 않은 소요 시간도 적지 않는다.
+      expect(text, code).not.toMatch(/스무|20\s*장면|장면 · 로그인|\d+\s*분|약\s*\d/);
+      // 줄표를 쓰지 않고, 판정이 아니라는 말은 화면에 한 번만 한다.
+      expect(text, code).not.toMatch(/[—–]/);
+      expect(text.match(/아니에요/g) ?? [], code).toHaveLength(1);
+    }
+  });
+
+  /**
+   * 지금 판도 네 글자를 만든다. 그중 `MTFA`(M=중간 답, T, F, A)는 이전 판 글자표로도 읽혀서
+   * 이 화면이 옛 뜻으로 풀어 준다. 판을 밝혀야 하는 이유가 이것이다.
+   * 나머지 지금 판 코드는 이 경로에서 풀지 않는다(새 경로도 만들지 않았다).
+   */
+  it("지금 판 코드는 옛 뜻으로 풀지 않고, 겹치는 글자는 이전 판이라고 밝힌다", async () => {
+    // 자리마다 두 문장 글자와 둘 다(B)·중간(M)·둘 다 낮음(N). `?`는 주소에 들어갈 수 없어 뺀다.
+    const v31Letters = V31_STYLE_DIMENSIONS.map((dimension) => [dimension.first.letter, dimension.second.letter, "B", "M", "N"]);
+    const v31Codes: string[] = [];
+    const walk = (prefix: string, depth: number) => {
+      if (depth === v31Letters.length) { v31Codes.push(prefix); return; }
+      for (const letter of v31Letters[depth]) walk(prefix + letter, depth + 1);
+    };
+    walk("", 0);
+    expect(v31Codes).toHaveLength(625);
+
+    const collide = v31Codes.filter((code) => parseWeddingCodeString(code));
+    expect(collide).toEqual(["MTFA"]);
+    const root = document.createElement("div");
+    root.innerHTML = await render("MTFA");
+    expect(root.querySelector('[data-code-edition="previous"]')?.textContent).toBe("이전 판 웨딩코드");
+    expect(root.querySelector("[data-current-edition-note]")?.textContent).toContain("여기 풀이와 맞지 않아요");
+
+    for (const code of v31Codes.filter((item) => !collide.includes(item))) {
+      await expect(render(code), code).rejects.toThrow("NEXT_NOT_FOUND");
+    }
   });
 
   /**
@@ -104,17 +167,38 @@ describe("코드만 아는 사람을 위한 화면", () => {
   });
 
   /**
-   * 이 경로에는 네 글자밖에 없다 — 누가 어떤 장면에서 무엇을 골랐는지는 코드에 들어
-   * 있지 않다. 그래서 색인해도 남의 응답이 노출되지 않는다.
+   * 예전에는 "응답이 없으니 색인해도 된다"고 열어 두었다. 응답이 없는 건 여전하지만, 이 화면은
+   * 지금 판을 설명하지 않는다. 검색으로 들어온 사람이 옛 판 풀이를 지금 웨딩코드로 읽게 두지 않는다.
    */
-  it("응답이 없으므로 색인을 막지 않는다", async () => {
-    const metadata = await generateMetadata({ params: Promise.resolve({ code: "MOFA" }) });
-    expect(metadata.robots).toBeUndefined();
-    expect(metadata.title).toContain("MOFA");
-    expect(metadata.alternates?.canonical).toBe("/wedding-code/c/MOFA");
+  it("이전 판 화면이라 검색 색인을 막고, 판을 제목에 밝힌다", async () => {
+    for (const { code } of generateStaticParams()) {
+      const metadata = await generateMetadata({ params: Promise.resolve({ code }) });
+      expect(metadata.robots, code).toMatchObject({ index: false });
+      expect(metadata.title, code).toContain(`이전 판 웨딩코드 ${code}`);
+      // 자기 자신을 대표 주소로 적으면 "색인하지 말라"와 엇갈린 신호가 된다.
+      expect(metadata.alternates, code).toBeUndefined();
+    }
+    const lower = await generateMetadata({ params: Promise.resolve({ code: "mofa" }) });
+    expect(lower.robots).toMatchObject({ index: false });
 
     const broken = await generateMetadata({ params: Promise.resolve({ code: "ZZZZ" }) });
     expect(broken.robots).toMatchObject({ index: false });
+  });
+
+  /**
+   * 정하지 않으면 루트 layout 의 카드(아모라 문구, `og:url=/landing`)를 물려받는다.
+   * 부모 폴더의 웨딩코드 카드 이미지는 지금 판을 소개하므로 여기엔 붙이지 않는다.
+   */
+  it("공유 카드는 이 화면의 제목·설명을 쓰고 랜딩 카드를 물려받지 않는다", async () => {
+    for (const code of ["MOFA", "vtuh", "ZZZZ"]) {
+      const metadata = await generateMetadata({ params: Promise.resolve({ code }) });
+      expect(metadata.openGraph, code).toMatchObject({ title: metadata.title, description: metadata.description, siteName: "웨딩한방", locale: "ko_KR", type: "website" });
+      expect(metadata.twitter, code).toMatchObject({ title: metadata.title, description: metadata.description });
+      const card = JSON.stringify([metadata.openGraph, metadata.twitter]);
+      expect(card, code).not.toMatch(/landing|아모라|og-image/);
+      expect(Object.prototype.hasOwnProperty.call(metadata.openGraph, "url"), code).toBe(false);
+      expect(Object.prototype.hasOwnProperty.call(metadata.openGraph, "images"), code).toBe(false);
+    }
   });
 
   it("성격을 설명하거나 궁합을 매기지 않는다", async () => {

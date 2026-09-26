@@ -102,6 +102,8 @@ describe("두 사람 연결의 접근 권한과 늦게 도착한 응답", () => 
     expect(observed.client).toHaveBeenCalled();
     const props = observed.client.mock.calls.at(-1)![0];
     expect(props.embedded).toBe(true);
+    // 상대 답은 넘기지 않되, 초대로 답한다는 사실은 넘겨서 통계 값(상대 링크 여부)을 사실대로 낸다.
+    expect(props.pairInvite).toBe(true);
     expect(props.partnerDraft ?? null).toBeNull();
     expect(props.bothDrafts ?? null).toBeNull();
     expect(typeof props.renderResultActions).toBe("function");
