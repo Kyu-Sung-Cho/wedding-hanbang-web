@@ -857,6 +857,17 @@ export async function POST(request: Request) {
       metadata,
       visibility: effectiveVisibility,
     };
+    // `safetyResolution` 은 **레인을 옮겼을 때만** 싣는다(2026-09-27). 설치된 앱의 응답 검증기
+    // (apps/mobile/app/(tabs)/chat.tsx `parseAiMessageIngestResult` 의 `safetyContractMatches`)는
+    // `safetyPrivacyRedirected: false` 인 persisted 응답에 이 필드가 있으면 거부한다. 나만 레인에서
+    // 보낸 비즉시 안전 문장(`남편이 때려요`)은 레인이 그대로라 옮긴 것이 아니다 — 필드를 실으면 앱이
+    // "전송 결과를 확인하지 못했어요" 를 띄우고 답을 요청하지 않으며, 재시도(reused)도 같은 모양이라
+    // 또 거부된다. 웹은 persisted 경로에서 이 필드를 보지 않는다. 이 한 줄이 서버 배포만으로 설치된
+    // 앱을 복구한다(OTA 불필요).
+    const persistedSafetyResolution = deliveryPlan.disposition === "private_safety_route"
+      && deliveryPlan.safetyPrivacyRedirected
+      ? { safetyResolution: deliveryPlan.safetyResolution }
+      : {};
 
     let inserted: unknown = null;
     let insertError: unknown = null;
@@ -879,9 +890,7 @@ export async function POST(request: Request) {
           reused: false,
           effectiveVisibility,
           safetyPrivacyRedirected: deliveryPlan.safetyPrivacyRedirected,
-          ...(deliveryPlan.disposition === "private_safety_route"
-            ? { safetyResolution: deliveryPlan.safetyResolution }
-            : {}),
+          ...persistedSafetyResolution,
           message: inserted,
         },
         201,
@@ -920,9 +929,7 @@ export async function POST(request: Request) {
         reused: true,
         effectiveVisibility,
         safetyPrivacyRedirected: deliveryPlan.safetyPrivacyRedirected,
-        ...(deliveryPlan.disposition === "private_safety_route"
-          ? { safetyResolution: deliveryPlan.safetyResolution }
-          : {}),
+        ...persistedSafetyResolution,
         message: reconciled,
       });
     }

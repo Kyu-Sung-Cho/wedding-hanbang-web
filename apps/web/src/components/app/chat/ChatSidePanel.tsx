@@ -857,8 +857,17 @@ export default function ChatSidePanel({
         else finalContent = "이 이미지를 분석해주세요.";
       }
 
+      // 2026-09-26: 전체화면 채팅과 같은 이유 — 서버만 나만 레인으로 옮긴 경우 탭을 따라 옮긴다.
+      let serverPrivacyRedirectShown = false;
+      const showServerPrivacyRedirect = () => {
+        if (composerSessionGenerationRef.current !== submittedSessionGeneration) return;
+        serverPrivacyRedirectShown = true;
+        setActiveScope("private");
+        setMessageTarget("ai");
+      };
       try {
         const outcome = await sendMessage({
+          onSafetyPrivacyRedirect: showServerPrivacyRedirect,
           content: finalContent,
           senderId: profile.id,
           senderRole,
@@ -906,6 +915,18 @@ export default function ChatSidePanel({
             outcome.clientRequestId ?? submittedClientRequestId,
           );
         } else {
+          if (
+            outcome?.userMessage === "persisted"
+            && !isPrivateSafetyRoute
+            && !serverPrivacyRedirectShown
+            && (
+              outcome.safetyPrivacyRedirected === true
+              || outcome.effectiveVisibility === "bride_private"
+              || outcome.effectiveVisibility === "groom_private"
+            )
+          ) {
+            showServerPrivacyRedirect();
+          }
           setDraftRetryClientRequestId(sourceLane, null);
         }
       } catch {

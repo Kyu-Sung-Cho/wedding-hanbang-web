@@ -2021,8 +2021,18 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
         currentAttachments.forEach((attachment) => revokeObjectPreview(attachment.previewUrl));
       }
 
+      // 2026-09-26: 화면 사전 판정은 `continue` 였는데 서버가 나만 레인으로 옮긴 경우. 스토어가
+      // 저장 직후(답을 기다리기 전) 알려 주면 곧바로 옮기고, 그 알림이 없었으면 결과를 보고 옮긴다.
+      // 안 옮기면 함께 탭에 남은 사용자는 말풍선도 답도 안내도 못 본다.
+      let serverPrivacyRedirectShown = false;
+      const showServerPrivacyRedirect = () => {
+        serverPrivacyRedirectShown = true;
+        setActiveTab("private");
+        setMessageTarget("ai");
+      };
       try {
         const outcome = await sendMessage({
+          onSafetyPrivacyRedirect: showServerPrivacyRedirect,
           content: content || defaultMsg,
           senderId: profile.id,
           senderRole,
@@ -2072,6 +2082,18 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
         if (outcome?.userMessage === "not_persisted") {
           restoreComposer(submittedClientRequestId);
           return;
+        }
+        if (
+          outcome?.userMessage === "persisted"
+          && !isPrivateSafetyRoute
+          && !serverPrivacyRedirectShown
+          && (
+            outcome.safetyPrivacyRedirected === true
+            || outcome.effectiveVisibility === "bride_private"
+            || outcome.effectiveVisibility === "groom_private"
+          )
+        ) {
+          showServerPrivacyRedirect();
         }
         if (usesComposer && composerEpochRef.current === submittedEpoch) {
           setDraftRetryClientRequestId(sourceLane, null);

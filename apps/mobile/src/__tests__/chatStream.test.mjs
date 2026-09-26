@@ -976,6 +976,57 @@ test("AI message ingest accepts only the sender's canonical W2 private row", () 
   );
 });
 
+test("AI message ingest from the private lane: a W2 row the server did not move carries no safetyResolution", () => {
+  // 2026-09-27: 서버(apps/web/src/app/api/chat/messages/route.ts `persistedSafetyResolution`)는
+  // 레인을 옮겼을 때만 safetyResolution 을 싣는다. 이 검증기는 옮기지 않은 응답에 그 필드가 있으면
+  // 거부한다 — 서버가 실으면 나만 레인에서 보낸 `남편이 때려요` 가 "전송 결과를 확인하지 못했어요"
+  // 로 끝나고 재시도도 거부된다. 실제 라우트 응답을 이 검증기에 넣는 대조는
+  // apps/web/src/app/api/chat/messages/sharedLaneEvalNine.test.ts 에 있다.
+  const { AiMessageIngestError, parseAiMessageIngestResult } = loadAiMessageIngestContract();
+  const expected = {
+    coupleId: "11111111-1111-4111-8111-111111111111",
+    userId: "22222222-2222-4222-8222-222222222222",
+    senderType: "bride",
+    text: "남편이 때려요",
+    clientRequestId: "33333333-3333-4333-8333-333333333333",
+    target: "ai",
+    providerAttachmentCount: 0,
+  };
+  const payload = {
+    outcome: "persisted",
+    reused: false,
+    effectiveVisibility: "bride_private",
+    safetyPrivacyRedirected: false,
+    message: {
+      id: "44444444-4444-4444-8444-444444444444",
+      couple_id: expected.coupleId,
+      sender_id: expected.userId,
+      role: "user",
+      sender_type: expected.senderType,
+      content: expected.text,
+      metadata: {
+        client_request_id: expected.clientRequestId,
+        amora_ingest_contract_version: 1,
+        ai_response_requested: true,
+        provider_attachment_state: "none",
+        provider_attachment_count: 0,
+      },
+      created_at: "2026-09-27T00:00:00.000Z",
+      visibility: "bride_private",
+    },
+  };
+
+  const result = parseAiMessageIngestResult(201, payload, expected);
+  assert.equal(result.effectiveVisibility, "bride_private");
+  assert.equal(result.safetyPrivacyRedirected, false);
+  assert.equal(result.safetyResolution, null);
+  assert.equal(parseAiMessageIngestResult(200, { ...payload, reused: true }, expected).message.id, payload.message.id);
+  assert.throws(
+    () => parseAiMessageIngestResult(201, { ...payload, safetyResolution: "non_immediate_safety" }, expected),
+    (error) => error instanceof AiMessageIngestError && error.retryPolicy === "same_request",
+  );
+});
+
 test("AI message ingest recognizes a server W5 ephemeral fallback without a durable row", () => {
   const { AiMessageIngestError, parseAiMessageIngestResult } = loadAiMessageIngestContract();
   const expected = {

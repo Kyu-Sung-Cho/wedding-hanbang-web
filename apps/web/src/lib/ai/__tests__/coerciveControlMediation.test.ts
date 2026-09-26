@@ -52,7 +52,12 @@ describe("낮춘 문턱은 중재에만 적용된다", () => {
     // 일반 대화에까지 넓히면 평범한 재정·일정 이야기가 고위험으로 떨어진다.
     // (기존 고위험 패턴에 걸리는 문장은 원래대로 W2다 — 여기서는 그 목록에 없는
     //  표현을 골라 이 규칙만의 효과를 본다.)
-    const text = "친구들을 못 만나게 해요.";
+    //
+    // 2026-09-26: 예전 예문 `친구들을 못 만나게 해요.` 는 이제 일반 대화에서도 W2 다 — 메시지
+    // 전체가 닫힌 어휘인 폭력·통제 서술을 잡는 `partnerViolenceClosedVocabulary.ts` 가 걸린다.
+    // 그 규칙은 이 낮춘 문턱이 아니라서, 예문을 그 규칙 밖(`속상해요`)으로 옮겨 이 규칙만의
+    // 효과를 계속 본다.
+    const text = "친구들을 못 만나게 해서 속상해요.";
     expect(mediationScope(text)).toBe("W2_high_risk_adjacent");
     expect(chatScope(text)).not.toBe("W2_high_risk_adjacent");
   });

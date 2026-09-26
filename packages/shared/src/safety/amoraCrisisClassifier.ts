@@ -1799,10 +1799,187 @@ function plannedFirstPersonDeathStatementAssessment(): AmoraSafetyAssessment {
   };
 }
 
+/**
+ * 닫힌 어휘 규칙들이 함께 쓰는 토큰화. 위 계획형 진술 규칙(`isPlannedFirstPersonDeathStatement`)의
+ * 앞단과 **같은 단계, 같은 상수**다 — 정규화 두 번(NFKC), 웃음·물음 관문(정규화본에서만),
+ * 구분자 얼굴 → 어휘 밖 토큰, 허용 목록 장식 걷기, 구분자로 끊기. 웃음·물음 표시가 있거나
+ * 남는 것이 없으면 `null` 이다.
+ *
+ * 계획형 진술 규칙은 이 함수를 부르지 않는다(그 본문은 한 글자도 바꾸지 않았다). 아래 자해
+ * 생각·수단 규칙과 `partnerViolenceClosedVocabulary.ts` 가 부른다. 세 규칙이 같은 문장을 같은
+ * 토큰으로 읽어야 "장식·웃음·물음" 판단이 규칙마다 갈리지 않는다.
+ */
+export function canonicalizeClosedVocabularyMessage(value: string): string | null {
+  const text = normalizeAmoraSafetyText(value).normalize("NFKC");
+  if (
+    PLANNED_STATEMENT_LAUGH_PATTERN.test(text)
+    || PLANNED_STATEMENT_QUESTION_PATTERN.test(text)
+  ) {
+    return null;
+  }
+  const canonical = text
+    .toLowerCase()
+    .replace(PLANNED_STATEMENT_SEPARATOR_FACE_PATTERN, PLANNED_STATEMENT_OUT_OF_VOCABULARY_TOKEN)
+    .replace(PLANNED_STATEMENT_DECORATION_PATTERN, " ")
+    .replace(PLANNED_STATEMENT_SEPARATOR_PATTERN, " ")
+    .trim();
+  return canonical || null;
+}
+
+/* ────────────────────────────────────────────────────────────────────────────
+ * 자해 생각·수단 모으기 규칙 (2026-09-26)
+ *
+ * 평가에서 공유 레인(`continue:shared`)으로 저장된 자해 문장 넷 중 셋이 이 자리다:
+ * `자살 생각이 자꾸 나`·`요즘 자살 생각해`·`수면제 모아뒀어`. 운영은 `자살 생각이 나`·
+ * `자살 생각 들어` 는 옛 정규식 갈래로 잡지만(`classifyAmoraCrisis`), 그 사이에 채움말
+ * (`자꾸`)이 끼거나 서술어가 `해` 로 바뀌면 놓친다. 수단을 모았다는 말은 아예 갈래가 없다.
+ *
+ * 계획형 진술 규칙과 **같은 구조**다.
+ *  1. 덧붙이기만 한다. 본문과 계획형 진술 규칙이 아무것도 못 찾았을 때(`inconclusive`)만 본다.
+ *  2. 메시지의 **모든** 토큰이 아래 닫힌 어휘여야 한다. `^…$` 로 메시지 전체를 맞춘다.
+ *  3. 웃음·물음 표시가 있으면 서지 않는다(`canonicalizeClosedVocabularyMessage`).
+ *
+ * 핵은 둘이다.
+ *  (i)  자살·자해 생각/충동 + 닫힌 서술어: `나`·`들어`·`해`·`있어` 의 현재형과 `생각 중이야`.
+ *       과거형(`났어`·`했어`)은 없다 — `예전에` 같은 말 없이도 지난 일을 말할 수 있어서다.
+ *  (ii) 수단 명사 + `모으다` 의 닫힌 활용형(`모아뒀어`·`모아 놨어`·`모았어`·`모으고 있어`).
+ *       `사뒀어` 는 없다 — `번개탄 사뒀어`·`수면제 사뒀어` 는 캠핑·불면의 평범한 말이다.
+ *
+ * 어휘 규칙: 서술어는 위의 활용형뿐이다. 채움말은 빈도·때 부사와 1인칭뿐이다 — 주어·이유·
+ * 물건을 실을 수 있는 낱말은 없다. `너`·`엄마가`·`예전에`·`안`·`없어`·`본 적` 이 하나라도
+ * 있으면 서지 않고 운영 판정이 남는다. `다`(`약 다 모아놨어` = 한곳에 챙겨 뒀다)와 `우리` 도
+ * 일부러 뺐다.
+ *
+ * **`모아 두다` 는 짐 싸기 말이기도 하다(2026-09-27 백상자 검토).** 신혼여행 D-1 체크리스트가
+ * "복용 중인 약과 목적지 반입 규정 확인"을 묻는다(`apps/web/src/constants/moments.ts`). 그 물음의
+ * 가장 짧은 답(`약 이미 모아뒀어`·`제가 약 모아놨어요`·`진통제 벌써 모아뒀어요`)이 이 어휘 안에
+ * 그대로 들어가 즉시 위기 고정 안내로 갔다 — 19문장, 원문 소실. 그래서 아래 셋을 좁혔다.
+ *  - 수단 명사는 **모아 둘 평범한 까닭이 드문 것만** 둔다. 맨 `약`·`알약`·`진통제`·`처방약` 은
+ *    상비약을 포함하는 상위어라 뺐다(`상비약` 을 뺀 것과 같은 까닭). `농약`·`제초제` 는 폐기·
+ *    정리로 모으는 물건이라 뺐다.
+ *  - 모으는 모습의 부사에서 완료·수량·분배를 말하는 `이미`·`벌써`·`많이`·`하나씩` 을 뺐다.
+ *    `수면제 이미 모아뒀어` 는 짐을 다 쌌다는 보고와 같은 모양이다(`하나씩` = 한 사람에 하나씩).
+ *    남긴 `몰래`·`조금씩`·`틈틈이` 는 짐 싸기로 읽히지 않는다.
+ *  - 1인칭은 화제 꼴만 받는다. `제가 약 모아놨어요`·`저도 약 모아뒀어요` 는 "누가 챙겼어?" 의
+ *    답이거나 맞장구다.
+ * 그 값으로 `이미 수면제 많이 모아놨어`·`약 모아뒀어` 는 이 규칙 밖이다(검사의 `KNOWN_COST`).
+ *
+ * 판정은 본문이 `나 자살 생각해` 에 오늘 내는 것과 같은 모양이다(아래 함수).
+ *
+ * 알고 남긴 것: 계획형 진술 규칙과 같다. 앞 메시지에 주어를 두고 조각만 보낸 말(`또 자살
+ * 생각해` 가 남 얘기의 뒷절일 때)은 선다. 과거형·`극단적인 생각`·`죽고 싶은 생각` 류는
+ * 이 규칙 밖이다(`죽고 싶` 은 본문이 이미 잡는다).
+ * ──────────────────────────────────────────────────────────────────────────── */
+/** 1인칭. `우리` 는 없다 — `우리 자살 생각해` 는 1인칭 고백으로 읽을 수 없다. */
+const SI_FIRST_PERSON = ps`(?:나|난|나는|내가|나도|저|전|저는|제가|저도)`;
+/** 빈도·때 부사. 닫힌 목록이다. */
+const SI_ADVERB = ps`(?:자꾸|요즘|요즘은|요즘엔|요새|계속|매일|맨날|또|자주|가끔|문득|오늘|오늘도|밤마다|진짜|정말)`;
+const SI_FILLER = psAny(SI_FIRST_PERSON, SI_ADVERB);
+const SI_HEAD = ps`(?:자살|자해) ?(?:생각|충동)`;
+const SI_PRED_NA = ps`(?:나|나요|난다|납니다)`;
+const SI_PRED_DEUL = ps`(?:들어|들어요|든다|듭니다)`;
+const SI_PRED_ISS = ps`(?:있어|있어요|있습니다)`;
+const SI_PRED_HAE = ps`(?:해|해요|한다|합니다|하고 있어|하고 있어요|하고 있습니다)`;
+const SI_CORE = psAny(
+  // 떨어진 서술어 — 사이에 채움말이 낄 수 있다: `자살 생각이 자꾸 나`·`자해 충동이 요즘 들어`.
+  ps`${SI_HEAD}(?:이|은|도)?(?: ${SI_FILLER})* ${psAny(SI_PRED_NA, SI_PRED_DEUL, SI_PRED_ISS)}`,
+  ps`${SI_HEAD}(?:을|은|도)?(?: ${SI_FILLER})* ${SI_PRED_HAE}`,
+  ps`${SI_HEAD} ?중(?:이야|이에요|입니다)`,
+  // 붙여 쓴 서술어: `자살 생각나`·`자살생각해`·`자살 생각하고 있어`.
+  ps`${SI_HEAD}(?:나|나요|난다|납니다|해|해요|한다|합니다)`,
+  ps`${SI_HEAD}하고 있(?:어|어요|습니다)`,
+);
+const SELF_HARM_IDEATION_WHOLE_MESSAGE_PATTERN = new RegExp(
+  `^(?:${SI_FILLER} )*${SI_CORE}(?: ${SI_FILLER})*$`,
+);
+
+/**
+ * 자해 수단. 모아 둘 평범한 까닭이 드문 것만 둔다. `상비약`·`영양제` 는 없다 — 모아 두는 것이
+ * 평범한 물건이다. 맨 `약`·`알약`·`진통제`·`처방약` 도 없다 — 상비약을 포함하는 상위어라서
+ * `약 이미 모아뒀어` 가 신혼여행 짐 싸기 답과 같은 모양이다. `농약`·`제초제` 는 폐기·정리로
+ * 모으는 물건이라 없다.
+ */
+const SM_MEANS = ps`(?:수면제|수면 ?유도제|수면약|신경 ?안정제|안정제|우울증 ?약|항우울제|번개탄)(?:을|를)?`;
+const SM_GATHER = psAny(
+  ps`모아 ?(?:뒀|두었|놨|놓았)(?:어|어요|습니다|다)`,
+  ps`모았(?:어|어요|습니다|다)`,
+  ps`모으고 있(?:어|어요|습니다|다)`,
+  ps`모으는 중(?:이야|이에요|입니다)`,
+);
+/**
+ * 모으는 모습의 부사. `다` 는 없다 — `약 다 모아놨어` 는 한곳에 챙겨 뒀다는 말이다.
+ * `이미`·`벌써`(완료)·`많이`(수량)·`하나씩`(분배)도 없다 — 짐을 다 쌌다는 보고와 같은 모양이다.
+ */
+const SM_ADVERB = ps`(?:몰래|조금씩|틈틈이|요즘|요새|계속|매일|자꾸|또|진짜|정말)`;
+/**
+ * 수단 모으기의 1인칭은 화제 꼴(`나`·`저는`)만 받는다. `제가`·`내가`(누가 했나에 대한 답)와
+ * `저도`·`나도`(남의 말에 맞장구)는 없다 — `제가 수면제 모아놨어요` 는 "약 누가 챙겼어?" 의 답과
+ * 같은 모양이다.
+ */
+const SM_FIRST_PERSON = ps`(?:나|난|나는|저|전|저는)`;
+const SM_FILLER = psAny(SM_FIRST_PERSON, SM_ADVERB);
+const SELF_HARM_MEANS_WHOLE_MESSAGE_PATTERN = new RegExp(
+  `^(?:${SM_FILLER} )*${SM_MEANS}(?: ${SM_FILLER})* ${SM_GATHER}(?: ${SM_FILLER})*$`,
+);
+/** 계획형 진술 규칙과 같은 상한. */
+const SELF_HARM_IDEATION_MAX_TOKENS = 16;
+
+function isClosedSelfHarmIdeationOrMeansStatement(value: string): boolean {
+  const canonical = canonicalizeClosedVocabularyMessage(value);
+  if (!canonical) return false;
+  if (canonical.split(" ").length > SELF_HARM_IDEATION_MAX_TOKENS) return false;
+  return (
+    SELF_HARM_IDEATION_WHOLE_MESSAGE_PATTERN.test(canonical)
+    || SELF_HARM_MEANS_WHOLE_MESSAGE_PATTERN.test(canonical)
+  );
+}
+
+/**
+ * 본문이 `나 자살 생각해`(1인칭 + 자살 생각) 에 오늘 내는 것과 **같은 모양**이다.
+ * 뒤의 소비자는 그 문장과 똑같이 다룬다(즉시 위기 → 원문 저장 없이 고정 안내).
+ */
+function closedSelfHarmIdeationAssessment(): AmoraSafetyAssessment {
+  return {
+    resolution: "immediate_crisis",
+    kind: "self_harm",
+    responseDirection: null,
+    events: [
+      {
+        actor: "self",
+        target: "self",
+        direction: "self_directed",
+        action: "self_harm_intent",
+        temporality: "impending",
+        polarity: "affirmed",
+        context: "disclosure",
+      },
+    ],
+  };
+}
+
 export function assessAmoraSafetyText(value: string): AmoraSafetyAssessment {
   const base = assessAmoraSafetyTextBase(value);
   // `inconclusive` 는 본문이 끝까지 내려가 **아무 갈래에도 안 걸렸다**는 뜻이다.
   // 그 밖의 판정은 본문이 뭔가를 보고 내린 결론이므로 손대지 않는다.
+  if (base.resolution !== "inconclusive") return base;
+  if (isPlannedFirstPersonDeathStatement(value)) {
+    return plannedFirstPersonDeathStatementAssessment();
+  }
+  // 2026-09-26: 계획형 진술 규칙도 못 찾았을 때만 본다.
+  return isClosedSelfHarmIdeationOrMeansStatement(value)
+    ? closedSelfHarmIdeationAssessment()
+    : base;
+}
+
+/**
+ * **검사 전용.** 자해 생각·수단 규칙만 뺀 판정(= 본문 + 계획형 진술 규칙 = 이 규칙을 더하기
+ * 전의 판정). `closedSelfHarmIdeationIsACrisis.test.ts` 가 "새 규칙이 잡은 행 말고는 전부
+ * 이것과 똑같다" 를 행마다 대조하는 데 쓴다. 제품 코드에서 부르지 않는다.
+ */
+export function assessAmoraSafetyTextWithoutClosedSelfHarmIdeationRuleForTests(
+  value: string,
+): AmoraSafetyAssessment {
+  const base = assessAmoraSafetyTextBase(value);
   if (base.resolution !== "inconclusive") return base;
   return isPlannedFirstPersonDeathStatement(value)
     ? plannedFirstPersonDeathStatementAssessment()

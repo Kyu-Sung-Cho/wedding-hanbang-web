@@ -72,6 +72,10 @@ export const SAFETY_FILES = Object.freeze([
   "apps/web/src/lib/ai/amoraBoundedContinuity.ts",
   "packages/shared/src/safety/amoraCrisisSafety.ts",
   "packages/shared/src/safety/amoraCrisisClassifier.ts",
+  // 2026-09-26: 전달 계획과 닫힌 어휘 폭력 판정. `amoraQuestionScope.ts` 가 뒤의 것을 부르므로
+  // base 로 함께 바꿔 재야 한다(base 에 없는 파일은 "base 에 없음" 으로 남고 바꿔 끼우지 않는다).
+  "packages/shared/src/safety/amoraCrisisDelivery.ts",
+  "packages/shared/src/safety/partnerViolenceClosedVocabulary.ts",
 ]);
 
 const hashBytes = (v) => createHash("md5").update(v).digest("hex");

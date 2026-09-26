@@ -4,6 +4,7 @@ import {
   type AmoraCrisisClassification,
 } from "./amoraCrisisSafety";
 import { assessAmoraSafetyText } from "./amoraCrisisClassifier";
+import { isClosedPartnerViolenceStatement } from "./partnerViolenceClosedVocabulary";
 
 export type AmoraCrisisDeliveryVisibility =
   | "shared"
@@ -87,7 +88,20 @@ export function planAmoraCrisisDelivery(input: {
   }
 
   const assessment = assessAmoraSafetyText(input.userText);
-  if (assessment.resolution === "non_immediate_safety" || input.externalSafetySignal) {
+  // 2026-09-26: 닫힌 어휘로 된 친밀한 관계 폭력·위협·통제 서술(`남편이 때려요`·`밀쳐서 멍들었어`·
+  // `파혼하면 죽인대`·`친구 못 만나게 해`). 두 판정이 **아무것도 못 찾았고**(위기 분류 null ·
+  // 구조 판정 inconclusive) 호출자 신호도 없을 때만 본다 — 운영 판정은 그대로 두고 더하기만 한다.
+  // 결과는 아래 비즉시 경로와 같다(새 disposition 없음). 모바일 사전 판정은 호출자 신호를
+  // 넘기지 않으므로 여기 있어야 앱도 같은 레인을 고른다.
+  const closedPartnerViolence =
+    assessment.resolution === "inconclusive"
+    && !input.externalSafetySignal
+    && isClosedPartnerViolenceStatement(input.userText);
+  if (
+    assessment.resolution === "non_immediate_safety"
+    || input.externalSafetySignal
+    || closedPartnerViolence
+  ) {
     if (input.target === "partner") {
       return {
         disposition: "local_safety_hold",
