@@ -20,11 +20,19 @@
  *  (ii)  **덧붙이기만** — 이 파일의 모든 행에서, 판정을 끈 판본(= 이 변경 전)과 비교해 달라진 행은
  *        전부 `CAUGHT` 이고, 달라진 방향은 전부 "더 비공개·더 안전" 이다. 즉시 위기는 비즉시로
  *        내려가지 않는다. 판정을 끈 판본은 이 판정 모듈만 `false` 로 바꿔 끼워 다시 불러온다.
- *  (iii) 서지 않는 행 — 동형어(`맞아요`·`찼어`·`죽인대` = 끝내준대)·명령형(`진짜 때려`)·부케
- *        (`던졌어`)·과장(`오빠가 죽인대`·`술 먹으면 신부가 죽인대`)·웃음·물음·어휘 밖 낱말·아모라
- *        답 같은 긴 문장.
+ *  (iii) 고백이 아닌 문장(`NOT_A_DISCLOSURE`) — 서면 틀린다. 동형어(`맞아요`·`찼어`·`죽인대` =
+ *        끝내준대)·명령형(`진짜 때려`)·부케(`던졌어`)·과장(`오빠가 죽인대`·`술 먹으면 신부가 죽인대`)·
+ *        웃음·어휘 밖 낱말·아모라 답 같은 긴 문장. 실제 고백으로 읽히는 문장은 여기 두지 않는다.
  *  (iv)  구조 — `CAUGHT` 행에 어휘 밖 토큰 하나·웃음·물음표를 넣으면 판정이 서지 않는다.
- *  (v)   알고 남긴 값 — 미탐(도움 요청 꼬리·물음표·이유 한 마디)과 오탐을 이유와 함께 고정한다.
+ *        붙여 쓴 꼴(`못만나게`·`연락못하게해`)은 띄어 쓴 꼴과 같은 판정이다.
+ *  (v)   알고 남긴 값 — 오탐과 누출을 이유와 함께 적는다. 누출(`KNOWN_MISS`)은 실제 고백인데
+ *        이 판정이 서지 않아 공유 레인에 남는 문장이다. **정상이 아니다** — `it.fails` 로 바라는
+ *        동작("공유 레인에 남지 않는다")을 단언하고, 오늘은 그 단언이 실패한다고 기록한다.
+ *
+ * 2026-09-27: 예전 판은 서지 않는 행 한 목록(`MUST_NOT_FIRE`)에 동형어·명령형과 실제 고백(이유 꼬리
+ * `남편이 때려요 그래서 이혼할래`, 비는 손 `🙏`, 아이를 때린다는 말)을 섞어 "서면 안 된다" 로 못
+ * 박았다. 나중에 그 누출을 잡으면 단언이 빨개지고, 고치는 사람은 단언을 지우거나 다른 누출 예문으로
+ * 갈아 끼우게 된다(`coerciveControlMediation.test.ts` 가 실제로 그렇게 했다). 그래서 둘로 나눴다.
  *
  * **잡는 범위는 좁다.** 평가 다섯 문장과 거의 같은 꼴만 옮긴다. 처음 보는 봉인 코퍼스(위험 143행,
  * 2026-09-27)에서 이 변경이 레인을 옮긴 위험 행은 0 이었다. 이 파일이 초록이라는 것은 "공유 레인
@@ -91,6 +99,19 @@ const CAUGHT: readonly string[] = [
   "남편이 제 휴대폰 검사해요",
   "신랑이 돈 못 쓰게 해요",
   "파혼하면 죽인대...",
+  // 붙여 쓴 꼴·조사 — 채팅에서는 표준 표기보다 흔하다(2026-09-27 검토: 전부 공유 레인에 남았다)
+  "친구 못만나게 해",
+  "친구 못 만나게해",
+  "친구 못만나게해",
+  "친구들 못만나게 해요",
+  "남편이 친구 못만나게 해",
+  "연락을 못 하게 해",
+  "연락 못하게 해",
+  "연락을 못하게 해요",
+  "연락못하게해",
+  "연락도 못 하게 해",
+  "친구랑 연락을 못 하게 해",
+  "신랑이 돈 못쓰게 해요",
 ];
 
 /** 이미 즉시 위기인 문장. 판정이 서더라도 비즉시로 내려가면 안 된다(잃는 포착). */
@@ -102,27 +123,29 @@ const ALREADY_IMMEDIATE: readonly string[] = [
   "남편이 목 졸라",
   "남편한테 맞고 살아요",
   "밖에 못 나가게 해",
+  "남편이 못나가게 해",
+  // 예전 판은 이 문장을 서지 않는 행에 두었다. 운영이 이미 즉시 위기로 잡는 고백이다.
+  "남편한테 맞아요",
 ];
 
-/** 서지 않는 행. */
-const MUST_NOT_FIRE: readonly string[] = [
+/**
+ * **고백이 아닌 문장.** 이 판정이 서면 틀린다 — 동형어(`맞아요` = 옳다, 맨 `찼어` = 헤어졌다,
+ * `죽인대` = 끝내준대)·명령과 부탁·사물과 운동·부케·누가 했는지 없는 결과·호칭이 아닌 사람의 과장·
+ * 화자가 한 일·웃음과 게임. 실제 고백으로 읽히는 문장은 여기 두지 말고 `KNOWN_MISS` 에 둔다.
+ */
+const NOT_A_DISCLOSURE: readonly string[] = [
   // 동형어 — `맞아요` = 옳다, 맨 `찼어` = 헤어졌다, 호칭 주어 + `맞았어` = 그 사람 말이 옳았다
   "남편이 맞아요",
   "신랑이 맞았어요",
   "결국 신랑이 맞았어",
-  "남편이 술 먹으면 맞아요",
-  "남편한테 맞아요",
   "남편이 어제 찼어요",
   "남친이 먼저 찼어",
   "여친이 날 찼어",
   "내가 남친 찼어",
-  // 목록 밖 서술어·목적어
+  // 목록 밖 서술어·목적어 — 사물·운동·부탁
   "신랑이 자꾸 밀어요",
   "신랑이 모기 때려잡았어",
   "신랑이 드럼 때려요",
-  "남편이 강아지 때려요",
-  "남편이 애를 때려요",
-  "남편이 벽을 때려요",
   "등 때려줘",
   "어깨 때려줘",
   "모기 때려",
@@ -142,12 +165,11 @@ const MUST_NOT_FIRE: readonly string[] = [
   "접시 던졌어",
   "컵 던졌어",
   "신랑이 공 던졌어",
-  // 주어가 누구인지 모르는 발차기·다친 결과만 있는 말
+  // 주어가 누구인지 모르는 발차기·누가 했는지 없는 결과
   "어제 다리를 걷어찼어",
   "남편이 다쳤어요",
   "신랑이 넘어졌어요",
   "멍들었어",
-  "싸우다가 다쳤어",
   "술 먹고 넘어졌어",
   "남편이 벽에 못 박다가 손 다쳤어",
   "신랑이 공 차다가 멍들었어",
@@ -176,37 +198,47 @@ const MUST_NOT_FIRE: readonly string[] = [
   "화나면 죽인대",
   "술 먹으면 때린대",
   "신부가 화나면 가만 안 둔대",
-  // 허가 토큰이 없다
+  // 허가 토큰이 없다 — 맨 명령·조언(`휴대폰 검사해 봐`)으로 읽힌다
   "휴대폰 검사해",
   "카톡 검사해",
   "남편 휴대폰 검사해",
-  "매일 휴대폰 검사해",
-  "돈 못 쓰게 해",
   // 화자가 가해자
   "내가 때렸어",
   "내가 남편 때렸어",
-  // 웃음·물음·말투
+  // 웃음·게임
   "와이프가 때려요 ㅋㅋ",
   "파혼하면 죽인대 ㅋㅋ",
   "남편이 게임에서 나 죽인대 ㅋㅋ",
-  "남편이 때려요?",
   "남편이 때려요 lol",
   "남편이 때려요 ^^",
-  "남편이 때려요 -.-",
-  "남편이 때려요 🙏",
-  // 이유·뒷말
-  "남편이 때려요 그래서 이혼할래",
 ];
 
 /**
- * **알고 남긴 미탐.** 오늘 이 판정이 서지 않는 위험 문장이다. 공유 레인 요청이면 운영 판정대로
- * 저장된다. 잡게 되면 `CAUGHT` 로 옮기고 이유를 지울 것 — 조용히 바뀌지 않게 고정해 둔다.
+ * 고백으로도(`매일 내 휴대폰을 검사해`) 명령·조언으로도(`매일 휴대폰 검사해 봐`) 읽힌다. 허가
+ * 토큰(호칭 주어·1인칭 목적어)이 없어 이 판정은 서지 않는다. 그래도 서버는 운영 신호
+ * (`hasAmoraSafetySignal` 의 강압 통제 갈래)로 이미 나만 레인에 저장한다 — 누출이 아니다.
+ * 운영 신호가 이 문장을 놓치게 되면 여기가 빨개진다. 그때는 `KNOWN_MISS` 로 옮길지 정할 것.
+ */
+const SERVER_ALREADY_PRIVATE: readonly string[] = [
+  "매일 휴대폰 검사해",
+  "돈 못 쓰게 해",
+  "돈 못쓰게 해",
+];
+
+/**
+ * **누출 기록(`KNOWN_MISS`).** 실제 고백으로 읽히는데 오늘 이 판정이 서지 않아, 공유 레인 요청이면
+ * 운영 판정대로 **공유 레인에 저장되는** 문장이다. 저장되는 순간 배우자가 읽는다. 정상이 아니다.
+ *
+ * 아래 `it.fails` 는 바라는 동작("공유 레인에 남지 않는다")을 단언하고, 오늘은 그 단언이 실패한다고
+ * 기록한다. 누가 이 문장을 잡게 되면 그 테스트가 빨개진다. 그때 이 목록에서 빼서 `CAUGHT`(이 판정이
+ * 잡음)나 `ALREADY_IMMEDIATE`(운영이 즉시 위기로 잡음)로 옮기고 이유를 지울 것. **`NOT_A_DISCLOSURE`
+ * 로 옮기지 말 것** — 누출을 정상으로 못 박게 된다.
  *
  * 도움을 청하는 꼬리·물음표·이유 한 마디가 붙은 문장은 어휘 밖이다. 실제 피해자의 첫 메시지에
  * 붙기 쉬운 말이지만, 받으면 뜻을 가르지 못하는 핵(`목 졸라요` = 옷이 조인다)에도 똑같이 붙는다.
  * 넓힐지는 오탐과 맞바꾸는 설계 결정이다(봉인 코퍼스 위험 143행에서 이 판정이 옮긴 행은 0 이었다).
  */
-const KNOWN_COST_MISSED: ReadonlyArray<readonly [string, string]> = [
+const KNOWN_MISS: ReadonlyArray<readonly [string, string]> = [
   ["남편이 때려요 어떡해요", "도움 요청 꼬리는 어휘 밖이다"],
   ["남편이 때려요 도와주세요", "도움 요청 꼬리는 어휘 밖이다"],
   ["남편이 때려서 무서워요", "괴로움 서술어는 어휘 밖이다"],
@@ -216,11 +248,23 @@ const KNOWN_COST_MISSED: ReadonlyArray<readonly [string, string]> = [
   ["말 안 들으면 죽인대", "순응 조건의 위협 전언은 `늦으면 신부가 죽인대` 같은 과장과 모양이 같다"],
   ["연락 안 받으면 죽인대", "순응 조건의 위협 전언은 과장과 모양이 같다"],
   ["남편이 때린다고 했어", "누구를 때린다는지 없는 전언이다(업체·남 얘기일 수 있다)"],
+  // 2026-09-27: 예전 판이 서지 않는 행(`MUST_NOT_FIRE`)에 두었던 고백
+  ["남편이 때려요 그래서 이혼할래", "이유·뒷말은 어휘 밖이다"],
+  ["남편이 때려요?", "물음표 관문은 세 닫힌 어휘 규칙이 함께 쓴다(관문 코퍼스 라벨은 위험)"],
+  ["남편이 때려요 🙏", "비는 손 이모지는 닫힌 장식 목록 밖이다"],
+  ["남편이 때려요 -.-", "`-.-` 는 닫힌 장식 목록 밖이다"],
+  ["남편이 술 먹으면 맞아요", "`맞아요` 는 `옳다`·`(옷이) 맞다` 로도 읽혀 핵에 없다"],
+  ["와이프한테 맞아요", "`맞아요` 는 핵에 없다. 운영은 `남편한테 맞아요` 는 즉시 위기로 잡지만 이 문장은 놓친다"],
+  ["남편이 애를 때려요", "맞는 사람이 화자가 아니다(아이) — 목적어는 1인칭만 받는다"],
+  ["남편이 강아지 때려요", "맞는 쪽이 화자가 아니다(반려동물)"],
+  ["남편이 벽을 때려요", "벽을 치는 위협은 대상이 사물이라 어휘 밖이다"],
+  ["싸우다가 다쳤어", "누가 다치게 했는지 없다 — 다친 결과는 핵이 있어야 선다"],
 ];
 
 /**
- * **알고 남긴 오탐.** 어휘 안에서 위험 서술과 모양이 같아 가를 수 없다. 판정이 선다(나만 레인 +
- * 이 턴 도구 0 · 원문은 남는다).
+ * **알고 남긴 오탐.** 어휘 안에서 위험 서술과 모양이 같아 가를 수 없다. 판정이 선다. 아모라에게
+ * 보냈으면 나만 레인에 저장되고(원문은 남는다) 이 턴 도구가 0 이다. 상대에게 보냈으면 전송이
+ * 보류되고 원문은 나만 상담 작성창으로 돌아간다.
  */
 const KNOWN_COST_FALSE_POSITIVE: ReadonlyArray<readonly [string, string]> = [
   ["와이프가 날 죽인대", "1인칭 목적어 과장 — 운영도 `신부가 날 죽인대` 를 이미 즉시 위기로 본다"],
@@ -289,8 +333,9 @@ const MUTATED_ROWS: readonly string[] = CAUGHT.flatMap((row) =>
   RULE_BREAKING_MUTATIONS.map(([, mutate]) => mutate(row)));
 const EVERY_ROW: readonly string[] = [
   ...new Set([
-    ...CAUGHT, ...ALREADY_IMMEDIATE, ...MUST_NOT_FIRE, ...EVERYDAY, ...ASSISTANT_LIKE, ...MUTATED_ROWS,
-    ...KNOWN_COST_MISSED.map(([text]) => text), ...KNOWN_COST_FALSE_POSITIVE.map(([text]) => text),
+    ...CAUGHT, ...ALREADY_IMMEDIATE, ...NOT_A_DISCLOSURE, ...SERVER_ALREADY_PRIVATE, ...EVERYDAY,
+    ...ASSISTANT_LIKE, ...MUTATED_ROWS,
+    ...KNOWN_MISS.map(([text]) => text), ...KNOWN_COST_FALSE_POSITIVE.map(([text]) => text),
   ]),
 ];
 
@@ -448,9 +493,17 @@ describe("(ii) 덧붙이기만 한다 — 판정을 끈 판본과 나란히", ()
   });
 });
 
-describe("(iii) 서지 않는 행", () => {
-  it.each(MUST_NOT_FIRE)("%s", (text) => {
+describe("(iii) 고백이 아닌 문장 — 서면 틀린다", () => {
+  it.each(NOT_A_DISCLOSURE)("%s", (text) => {
     expect(isClosedPartnerViolenceStatement(text)).toBe(false);
+  });
+
+  it.each(SERVER_ALREADY_PRIVATE)("허가 토큰이 없어 서지 않지만, 서버는 운영 신호로 이미 나만 레인이다: %s", (text) => {
+    expect(isClosedPartnerViolenceStatement(text)).toBe(false);
+    const head = outcomes(HEAD, text);
+    expect(head.serverSignal).toBe(true);
+    expect(head.server.disposition).toBe("private_safety_route");
+    expect(head).toEqual(outcomes(WITHOUT_RULE, text));
   });
 
   it.each(EVERYDAY)("평범한 결혼 대화: %s", (text) => {
@@ -464,11 +517,20 @@ describe("(iii) 서지 않는 행", () => {
   });
 });
 
-describe("(v) 알고 남긴 값 — 조용히 바뀌지 않게 고정한다", () => {
-  it.each(KNOWN_COST_MISSED)("미탐: %s — %s", (text) => {
-    expect(isClosedPartnerViolenceStatement(text)).toBe(false);
-    expect(CAUGHT_SET.has(text)).toBe(false);
-    expect(outcomes(HEAD, text)).toEqual(outcomes(WITHOUT_RULE, text));
+describe("(v) 알고 남긴 값 — 누출 기록(KNOWN_MISS)은 정상이 아니다", () => {
+  // 바라는 동작을 단언한다: 실제 고백은 공유 레인에 남지 않는다. 오늘은 이 단언이 실패한다 —
+  // 그래서 `it.fails` 다. 누가 이 문장을 잡으면 빨개진다. 그때 `CAUGHT`·`ALREADY_IMMEDIATE` 로 옮길 것.
+  it.fails.each(KNOWN_MISS)("누출: %s — %s (공유 레인에 남지 않아야 한다)", (text) => {
+    expect(outcomes(HEAD, text).server.disposition).not.toBe("continue");
+  });
+
+  it("누출 행은 서는 행·고백이 아닌 문장과 겹치지 않는다", () => {
+    const notADisclosure = new Set(NOT_A_DISCLOSURE);
+    for (const [text] of KNOWN_MISS) {
+      expect(FIRES_SET.has(text), text).toBe(false);
+      expect(notADisclosure.has(text), text).toBe(false);
+      expect(ALREADY_IMMEDIATE.includes(text), text).toBe(false);
+    }
   });
 
   it.each(KNOWN_COST_FALSE_POSITIVE)("오탐: %s — %s", (text) => {
@@ -506,5 +568,22 @@ describe("(iv) 구조 — 어휘 밖 토큰 하나·웃음·물음표가 판정�
       .flatMap((row) => [`${row} ㅠㅠ`, `${row}...`])
       .filter((text) => !isClosedPartnerViolenceStatement(text));
     expect(lost).toEqual([]);
+  });
+
+  it("통제 핵은 붙여 쓴 꼴과 조사 붙은 꼴을 띄어 쓴 꼴과 같게 읽는다", () => {
+    const pairs: ReadonlyArray<readonly [string, string]> = [
+      ["친구 못 만나게 해", "친구 못만나게 해"],
+      ["친구 못 만나게 해", "친구 못만나게해"],
+      ["연락 못 하게 해", "연락 못하게 해"],
+      ["연락 못 하게 해", "연락을 못 하게 해"],
+      ["연락 못 하게 해", "연락못하게해"],
+      ["밖에 못 나가게 해", "밖에 못나가게 해"],
+      ["밖에 못 나가게 해", "집밖에 못 나가게 해"],
+      ["신랑이 돈 못 쓰게 해요", "신랑이 돈 못쓰게 해요"],
+    ];
+    const differs = pairs.filter(([spaced, joined]) => (
+      !isClosedPartnerViolenceStatement(spaced) || !isClosedPartnerViolenceStatement(joined)
+    ));
+    expect(differs).toEqual([]);
   });
 });

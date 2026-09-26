@@ -148,18 +148,21 @@ test("the doors into Amora no longer open the same empty screen", () => {
    (d) 대화 화면이 실제로 받아서 입력창에 놓는다
    ───────────────────────────────────────────── */
 
-test("the conversation actually reads the entry and drafts it into the shared lane", () => {
+test("the conversation actually reads the entry and drafts it into the chosen Amora lane", () => {
   // 예전에는 useLocalSearchParams가 이 파일에 0건이었다 — 문이 무엇을 들고 오든 읽는
   // 쪽이 없으니 전부 같은 화면이었다.
   assert.match(chatSource, /useLocalSearchParams/);
   assert.match(chatSource, /getAmoraChatEntryPrefill\(entryParam\)/);
   assert.match(chatSource, /AMORA_CHAT_ENTRY_PARAM/);
 
-  // 공유 아모라 레인에만 놓는다. 파트너 대화나 비공개 상담에 진입 문구가 섞이면 사람은
-  // 자기가 쓰지 않은 말을 상대에게 보낼 뻔한다. 웹도 같은 규칙이다.
+  // 고른 칸의 아모라 입력칸에만 놓는다. 상대에게 쓰는 칸에 진입 문구가 섞이면 사람은 자기가
+  // 쓰지 않은 말을 상대에게 보낼 뻔한다. 웹도 같은 규칙이다.
+  // 2026-09-27: 예전에는 함께 대화 입력칸에만 놓았다. 진입구가 칸을 정하지 않게 되면서(처음 여는
+  // 사람은 선택 카드, 기억이 있으면 그 칸) '나만 (상담)'으로 열린 사람의 초안이 보이지 않는 함께 대화
+  // 입력칸에 남았다. 그래서 칸이 정해진 뒤 그 칸의 아모라 입력칸에 놓는다. 동작은 아래 효과 검사가 잰다.
   assert.match(
     chatSource,
-    /updateAmoraChatLaneRecord\(current, "shared_ai", prefill\)/,
+    /const lane = activeScope === "private" \? "private_ai" : "shared_ai";\s*setInputByLane\(\(current\) =>\s*current\[lane\]\.trim\(\) \? current : updateAmoraChatLaneRecord\(current, lane, prefill\),/,
   );
   assert.doesNotMatch(
     chatSource,
@@ -187,7 +190,7 @@ test("the entry adds no new dependency", () => {
   assert.ok(declared.has("expo-router"));
 });
 
-test("the actual entry effect waits until the session reset finishes and preserves an existing draft", () => {
+test("the actual entry effect waits until the session reset finishes and the lane is decided, and preserves an existing draft", () => {
   const tree = ts.createSourceFile("chat.tsx", chatSource, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
   let effect;
   const visit = node => {
@@ -197,19 +200,43 @@ test("the actual entry effect waits until the session reset finishes and preserv
   visit(tree);
   assert.ok(effect);
   const compiledEffect = ts.transpileModule(`const run = ${effect};`, { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText;
-  for (const existingDraft of ["", "이미 쓰고 있던 질문"]) {
-    const state = { shared_ai: existingDraft, private_ai: "나만의 초안", shared_partner: "" };
+  const setup = ({ existingDraft = "", activeScope = "shared" } = {}) => {
+    const other = activeScope === "private" ? "shared_ai" : "private_ai";
+    const own = activeScope === "private" ? "private_ai" : "shared_ai";
+    const state = { shared_ai: "", private_ai: "", shared_partner: "", [own]: existingDraft, [other]: "다른 칸의 초안" };
     const bindings = { initialLoaded: false, userId: null, coupleId: null, chatLoadError: null,
+      laneOpening: "decided", activeScope,
       entryParam: "lounge_fab", entryPrefillAppliedRef: { current: false }, getAmoraChatEntryPrefill: entry.getAmoraChatEntryPrefill,
       updateAmoraChatLaneRecord: (current, lane, value) => ({ ...current, [lane]: value }),
       setInputByLane: update => Object.assign(state, update(state)),
     };
     const run = new Function("bindings", `with (bindings) { ${compiledEffect} return run; }`)(bindings);
+    return { state, bindings, run, own, other };
+  };
+  for (const activeScope of ["shared", "private"]) {
+    for (const existingDraft of ["", "이미 쓰고 있던 질문"]) {
+      const { state, bindings, run, own, other } = setup({ existingDraft, activeScope });
+      run();
+      assert.equal(bindings.entryPrefillAppliedRef.current, false, "do not consume the entry before the loader clears screen state");
+      bindings.initialLoaded = true; bindings.userId = "viewer"; bindings.coupleId = "couple";
+      run();
+      assert.equal(state[own], existingDraft || entry.getAmoraChatEntryPrefill("lounge_fab"), `${activeScope}: 고른 칸에 초안이 없다`);
+      assert.equal(state[other], "다른 칸의 초안", `${activeScope}: 고르지 않은 칸을 건드렸다`);
+      assert.equal(state.shared_partner, "", "상대에게 쓰는 칸에 진입 문구가 들어갔다");
+    }
+  }
+  // 칸을 정하기 전(선택 카드가 떠 있거나 기억을 읽는 중)에는 놓지도 소비하지도 않는다.
+  // 2026-09-27: 예전에는 칸과 상관없이 곧바로 함께 대화에 놓아, '나만 (상담)'을 고른 사람에게는 보이지 않았다.
+  for (const laneOpening of ["choosing", "waiting"]) {
+    const { state, bindings, run } = setup();
+    state.private_ai = "";
+    Object.assign(bindings, { initialLoaded: true, userId: "viewer", coupleId: "couple", laneOpening });
     run();
-    assert.equal(bindings.entryPrefillAppliedRef.current, false, "do not consume the entry before the loader clears screen state");
-    bindings.initialLoaded = true; bindings.userId = "viewer"; bindings.coupleId = "couple";
+    assert.equal(bindings.entryPrefillAppliedRef.current, false, `${laneOpening}: 칸을 정하기 전에 소비했다`);
+    assert.equal(state.shared_ai, "", `${laneOpening}: 칸을 정하기 전에 함께 대화에 놓았다`);
+    bindings.laneOpening = "decided"; bindings.activeScope = "private";
     run();
-    assert.equal(state.shared_ai, existingDraft || entry.getAmoraChatEntryPrefill("lounge_fab"));
-    assert.equal(state.private_ai, "나만의 초안");
+    assert.equal(state.private_ai, entry.getAmoraChatEntryPrefill("lounge_fab"), `${laneOpening}: 고른 '나만' 칸에 초안이 없다`);
+    assert.equal(state.shared_ai, "");
   }
 });

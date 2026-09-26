@@ -89,9 +89,23 @@ import {
 } from "./useChatComposerAutoResize";
 import { planAmoraCrisisDelivery } from "@hanbang/shared/amora-crisis-delivery";
 import { hasAmoraSafetySignal } from "@/lib/ai/amoraQuestionScope";
-import type { AmoraFirstHello } from "@hanbang/shared";
+import {
+  amoraFirstHelloBodyForLane,
+  buildAmoraFirstHello,
+  readPreparationStage,
+  type AmoraFirstHello,
+} from "@hanbang/shared";
+import { JOINED_PLAN_REVIEW_PROMPT } from "@/lib/amora/dashboardCompanion";
 import { consumePendingAmoraFirstHello } from "@/lib/amora/pendingFirstHello";
 import { isAmoraCommunityBridgeSafetyScoped } from "@/lib/chat/amoraCommunitySafety";
+import {
+  AMORA_LANE_CHOICE_COPY,
+  resolveAmoraLaneEntryScope,
+  resolveInitialAmoraLane,
+  type AmoraLaneChoice,
+} from "@hanbang/shared/amora-lane-choice";
+import { readRememberedAmoraLane, rememberAmoraLane } from "@/lib/chat/amoraLaneMemory";
+import AmoraLaneChoiceCard from "@/components/app/chat/AmoraLaneChoiceCard";
 
 type CommunityDraftPrivacyMode = "shared" | "redacted_private";
 
@@ -679,21 +693,61 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
   // 보관을 확인하기 전에는 "인사가 없다"고 단정하지 않는다. 확인 전에 첫 인사를
   // 요청하면 아모라가 같은 자리에서 두 번 인사한다.
   const [firstHelloChecked, setFirstHelloChecked] = useState(false);
+  const composerIdentity = `${profile?.id ?? "anonymous"}:${coupleId ?? "no-couple"}:${senderRole ?? "no-role"}`;
+  /**
+   * '나만 (상담)'을 고른 사람에게 놓는 화면 전용 첫인사(2026-09-26).
+   *
+   * 모델 첫 인사(`requestInitialGreeting`)는 서버가 **함께 대화 레인에** 저장한다. 서버와 DB는
+   * 이번 결정으로 바꾸지 않으므로, 처음 온 사람이 '나만'을 고르면 그 인사를 볼 길이 없다.
+   * 그래서 라운지 첫마디와 같은 `buildAmoraFirstHello` 로 이 화면에만 인사를 놓는다. 저장하지
+   * 않고, 모델도 부르지 않는다.
+   */
+  const [laneGreeting, setLaneGreeting] = useState<{ identity: string; body: string } | null>(null);
+  const greetingBody = firstHello?.body
+    ?? (laneGreeting?.identity === composerIdentity ? laneGreeting.body : null);
+  const composerIdentityRef = useRef(composerIdentity);
+  /**
+   * 처음 열 때 어느 레인으로 여나(2026-09-26 파운더 결정).
+   *
+   * 예전에는 누구나 '함께 대화'로 열렸다. 이제는 나만 레인을 쓸 수 있는 사람(역할 있음,
+   * 체험 아님)이 이 브라우저에 기억이 없으면 선택 카드를 띄운다. 규칙은
+   * `resolveInitialAmoraLane` 한 벌이고, 앱과 옆 패널도 같은 것을 쓴다.
+   *
+   * - 계정·커플이 바뀌면(`composerIdentity`) 한 번 다시 정한다.
+   * - 정하기 전(`laneReady` 가 거짓)에는 보내지 않는다. 기억된 칸이 '나만'인 사람의 글이
+   *   정하는 사이 '함께'로 가면 안 된다.
+   * - 주소·준비 안내·안전 판정이 탭을 옮기면(`settleLane`) 카드는 거두지만 기억은 쓰지
+   *   않는다. 사람이 고른 것만 기억한다(`chooseLane`).
+   */
+  const [laneGate, setLaneGate] = useState<{ identity: string; needsChoice: boolean } | null>(null);
+  const laneGateIdentityRef = useRef(composerIdentity);
+  laneGateIdentityRef.current = composerIdentity;
+  const laneReady = laneGate?.identity === composerIdentity && !laneGate.needsChoice;
+  const laneChoiceNeeded = laneGate?.identity === composerIdentity && laneGate.needsChoice;
+  // 어느 계정에 대해 레인을 정했나. 상태는 다음 렌더에야 보이므로, 같은 커밋 안에서 먼저 돈
+  // 효과(개인 할 일 이어가기·`?scope=`)가 옮긴 탭을 뒤의 결정 효과가 기억으로 덮지 않게 한다.
+  const laneDecidedForRef = useRef<string | null>(null);
+  const settleLane = useCallback(() => {
+    laneDecidedForRef.current = laneGateIdentityRef.current;
+    setLaneGate({ identity: laneGateIdentityRef.current, needsChoice: false });
+  }, []);
+  // 첫마디는 지금 보는 탭 맨 위에 놓는다. '나만'을 고른 사람도 인사를 만난다.
+  // 라운지 첫마디 끝의 초대 문단("…두 사람이 같은 화면을 봐요")은 '함께 대화'로 정해진 뒤에만
+  // 남긴다. 나만 레인에서는 거짓이고, 고르기 전에는 선택 카드의 덧붙임과 같은 말이다(2026-09-27).
+  const greetingLane = laneReady ? activeTab : null;
   const firstHelloMessage = useMemo<ChatMessage | null>(() => {
-    if (!firstHello || !coupleId || isDemo) return null;
+    if (!greetingBody || !coupleId || isDemo) return null;
     return {
       id: "amora-first-hello",
       couple_id: coupleId,
       sender_id: null,
       sender_role: "ai",
-      visibility: "shared",
-      content: firstHello.body,
+      visibility: activeArtifactVisibility ?? "shared",
+      content: amoraFirstHelloBodyForLane(greetingBody, greetingLane),
       metadata: {},
       created_at: new Date().toISOString(),
     };
-  }, [coupleId, firstHello, isDemo]);
-  const composerIdentity = `${profile?.id ?? "anonymous"}:${coupleId ?? "no-couple"}:${senderRole ?? "no-role"}`;
-  const composerIdentityRef = useRef(composerIdentity);
+  }, [activeArtifactVisibility, coupleId, greetingBody, greetingLane, isDemo]);
   const clearRequestPending = pendingClearRequestOwners.has(composerIdentity);
   const newChatSegmentKey = JSON.stringify([
     composerIdentity, isDemo, activeArtifactVisibility,
@@ -878,11 +932,30 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
       isStreaming
       || isSending
       || (nextScope === "private" && (isDemo || !myPrivateVisibility))
-    ) return;
+    ) return false;
     if (nextScope === "private") stopSharedTyping();
     setActiveTab(nextScope);
     setMessageTarget("ai");
-  }, [isDemo, isSending, isStreaming, myPrivateVisibility, stopSharedTyping]);
+    // 레인을 정해서 옮겼으니 선택 카드는 거둔다. 기억은 여기서 쓰지 않는다 — 주소의
+    // `?scope=`·준비 안내·개인 할 일 이어가기도 이 길로 온다(사람이 고른 것이 아니다).
+    settleLane();
+    return true;
+  }, [isDemo, isSending, isStreaming, myPrivateVisibility, settleLane, stopSharedTyping]);
+
+  /**
+   * 사람이 직접 고른 레인 — 선택 카드와 위쪽 탭. 이것만 이 브라우저에 계정별로 기억한다.
+   *
+   * 서버가 안전 때문에 '나만'으로 옮긴 경우(`onSafetyPrivacyRedirect`·`ephemeral_safety`)는
+   * 여기를 거치지 않는다. 그 사람이 고른 것이 아니고, 판정은 오탐일 수 있다. 기억하면
+   * '함께'를 고른 사람이 다음 방문부터 고르지 않은 '나만'으로 열린다. 다음 글도 서버가
+   * 글마다 다시 판정하므로 기억이 안전을 더해 주지 않는다. 옮겨진 탭은 이번 화면에서만
+   * 유지된다.
+   */
+  const chooseLane = useCallback((nextScope: AmoraLaneChoice) => {
+    if (!handleScopeChange(nextScope)) return;
+    // 체험은 늘 '함께'로 열리므로 적어 둘 이유가 없다.
+    if (!isDemo) rememberAmoraLane(profile?.id, nextScope);
+  }, [handleScopeChange, isDemo, profile?.id]);
 
   useEffect(() => {
     if (!isDemo || activeTab !== "private") return;
@@ -1159,11 +1232,74 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
     appliedRouteScope.current = requestedRouteScope;
     handleScopeChange(requestedRouteScope);
   }, [authInitialized, authLoading, embedded, handleScopeChange, isDemo, isSending, isStreaming, myPrivateVisibility, requestedRouteScope]);
+  /**
+   * 레인을 정해서 들어온 길(`resolveAmoraLaneEntryScope`, 앱과 같은 규칙 한 벌). `?scope=` 가
+   * 먼저이고, 그다음 준비 안내 질문(`amoraSource`)과 파트너 합류 직후 계획 점검 문장만 '함께'를
+   * 정한다.
+   *
+   * 일반 `prefill`(라운지 '아모라에게 물어보기'·대시보드·온보딩 직후 등)과 가입 인계는 칸을
+   * 정하지 않는다(2026-09-27 검토). 처음 온 사람은 카드를 보고, 기억이 있으면 그 칸으로 열린다.
+   * 그 초안은 고른 칸의 입력칸에 들어간다(`heldPrefillRef`).
+   */
+  const preparationLaneEntry = searchParams.has(AMORA_PREPARATION_SOURCE_PARAM);
+  const prefillValues = searchParams.getAll("prefill");
+  const joinedPlanReviewLaneEntry = prefillValues.length === 1 && prefillValues[0] === JOINED_PLAN_REVIEW_PROMPT;
+  const hasSharedLaneEntry = preparationLaneEntry || joinedPlanReviewLaneEntry;
+  // 인계를 받은 뒤 주소를 곧바로 정리하므로(router.replace) 한 번 본 것을 기억해 둔다.
+  const sharedLaneEntrySeenRef = useRef<{ preparationSource: boolean; joinedPlanReview: boolean } | null>(null);
+  if (hasSharedLaneEntry) {
+    sharedLaneEntrySeenRef.current = {
+      preparationSource: preparationLaneEntry,
+      joinedPlanReview: joinedPlanReviewLaneEntry,
+    };
+  }
+  const laneEntryScope = embedded
+    ? null
+    : resolveAmoraLaneEntryScope({ scope: requestedRouteScope, ...sharedLaneEntrySeenRef.current });
+  useEffect(() => {
+    // 역할 정보가 오기 전에는 정하지 않는다. 카드가 떴다가 체험·무역할로 판명되면 깜빡인다.
+    if (!authInitialized || authLoading) return;
+    // 이 계정에서 이미 정했으면 다시 정하지 않는다. 사람이 바꾼 탭을 주소 쪽으로 끌어오지
+    // 않기 위해서다. 카드가 떠 있는 동안 레인을 정한 진입이 새로 오면 그것만 받는다.
+    const choicePendingWithEntry = laneGate?.identity === composerIdentity
+      && laneGate.needsChoice && Boolean(laneEntryScope);
+    if (laneDecidedForRef.current === composerIdentity && !choicePendingWithEntry) return;
+    laneDecidedForRef.current = composerIdentity;
+    const initial = resolveInitialAmoraLane({
+      storedLane: readRememberedAmoraLane(profile?.id),
+      privateAvailable: Boolean(myPrivateVisibility),
+      isDemo,
+      explicitScope: laneEntryScope,
+      roleKnown: true,
+    });
+    if (initial.lane) {
+      if (initial.lane === "private") stopSharedTyping();
+      setActiveTab(initial.lane);
+      setMessageTarget("ai");
+    }
+    setLaneGate({ identity: composerIdentity, needsChoice: initial.needsChoice });
+  }, [authInitialized, authLoading, composerIdentity, isDemo, laneEntryScope, laneGate, myPrivateVisibility, profile?.id, stopSharedTyping]);
+  useEffect(() => {
+    // 주소가 정리됐고 나만 레인을 쓸 수 있는 계정으로 레인이 정해졌으면 인계 표시를 내린다.
+    // 남겨 두면 나중에 계정이 바뀌었을 때 그 계정까지 '함께'로 연다.
+    if (!hasSharedLaneEntry && laneGate?.identity === composerIdentity && myPrivateVisibility) {
+      sharedLaneEntrySeenRef.current = null;
+    }
+  }, [composerIdentity, hasSharedLaneEntry, laneGate, myPrivateVisibility]);
   const prefillAppliedRef = useRef(false);
   // 적용한 초안을 기억해 둔다. authStore 가 늦게 하이드레이션되면
   // composerIdentity 가 바뀌어 모든 초안을 비우는데, 로그인 직후 진입은 항상
   // 그 순서라 방금 채운 초안이 지워졌다.
   const pendingPrefillRef = useRef<{ text: string; ownerId: string | null; coupleId: string | null } | null>(null);
+  /**
+   * 칸을 정하지 않는 초안(일반 `prefill`·가입 인계)을 칸이 정해질 때까지 들고 있는다(2026-09-27).
+   *
+   * 초안은 먼저 함께 대화 입력칸에 받아 둔다(늦은 로그인 복원 `pendingPrefillRef` 가 그 칸을 본다).
+   * 칸이 정해지는 순간(기억·선택 카드·위쪽 탭) 한 번만 본다. '나만 (상담)'이면 나만 입력칸으로
+   * 옮긴다. 옮기지 않으면 질문이 보이지 않는 함께 대화 입력칸에 남는다. 받은 뒤 사람이 고친 글과
+   * 이미 쓰던 나만 입력칸은 건드리지 않는다.
+   */
+  const heldPrefillRef = useRef<string | null>(null);
   useEffect(() => {
     if (prefillAppliedRef.current) return;
     if (hasTasteHandoff || suppressPublicHandoff) return;
@@ -1228,8 +1364,10 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
     pendingPrefillRef.current = !authInitialized || authLoading || !profile?.id || !coupleId || !senderRole
       ? { text: prefill, ownerId: profile?.id ?? null, coupleId: coupleId ?? null }
       : null;
-    if (canPlace) setDraftInput("shared_ai", previous => previous.trim() ? previous : prefill);
-    else {
+    if (canPlace) {
+      setDraftInput("shared_ai", previous => previous.trim() ? previous : prefill);
+      heldPrefillRef.current = prefill;
+    } else {
       pendingPrefillRef.current = null;
       setPreparationNotice({ identity: composerIdentity, epoch: composerEpochRef.current, error: "작성 중인 함께 대화는 그대로 두었어요. 보내거나 비운 뒤 원래 화면에서 질문을 다시 이어 주세요." });
     }
@@ -1243,6 +1381,27 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
     }
     if (canPlace && activeComposerLaneRef.current === "shared_ai") requestAnimationFrame(() => textareaRef.current?.focus());
   }, [authInitialized, authLoading, composerIdentity, coupleId, hasTasteHandoff, profile?.id, searchParams, router, senderRole, setDraftInput, suppressPublicHandoff]);
+  const sharedAiDraftInput = composerDrafts.shared_ai.input;
+  useEffect(() => {
+    const held = heldPrefillRef.current;
+    if (!held || !laneReady) return;
+    heldPrefillRef.current = null;
+    if (activeTab !== "private") return;
+    setComposerDrafts((previous) => {
+      const shared = previous.shared_ai;
+      const personal = previous.private_ai;
+      if (shared.input !== held || shared.attachments.length || shared.pendingAttachmentReads
+        || personal.input.trim() || personal.attachments.length || personal.pendingAttachmentReads) return previous;
+      return {
+        ...previous,
+        shared_ai: { ...shared, input: "", preparation: null, retryClientRequestId: null },
+        private_ai: { ...personal, input: held, preparation: null, retryClientRequestId: null },
+      };
+    });
+    requestAnimationFrame(() => {
+      if (activeComposerLaneRef.current === "private_ai") textareaRef.current?.focus();
+    });
+  }, [activeTab, laneReady, sharedAiDraftInput]);
 
   useEffect(() => {
     if (!profile?.id || !coupleId || isDemo) {
@@ -1378,10 +1537,15 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
       tasteReviewVisitRef.current ||
       !profile ||
       isDemo ||
+      // 모델 첫 인사는 서버가 '함께 대화' 레인에 저장한다. 레인을 고르기 전이나 '나만'을
+      // 보고 있을 때 부르면, 고르지도 않은 레인에 대화가 먼저 생긴다(2026-09-26).
+      !laneReady ||
+      activeTab !== "shared" ||
       // 아모라가 첫 실행 안내 직후 이미 먼저 말을 걸어뒀다. 여기서 또 인사를
       // 요청하면 같은 자리에 인사가 두 번 뜬다.
       !firstHelloChecked ||
       firstHello ||
+      greetingBody ||
       !initialLoadDone ||
       isStreaming ||
       messages.length > 0 ||
@@ -1402,7 +1566,33 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
         progress: journey?.progress ?? {},
       },
     });
-  }, [coupleId, profile, journey, initialLoadDone, messages.length, isStreaming, requestInitialGreeting, isDemo, firstHello, firstHelloChecked]);
+  }, [coupleId, profile, journey, initialLoadDone, messages.length, isStreaming, requestInitialGreeting, isDemo, firstHello, firstHelloChecked, laneReady, activeTab, greetingBody]);
+
+  // '나만 (상담)'으로 시작하는 처음 온 사람에게도 인사를 건넨다. 모델 인사는 함께 대화
+  // 레인에 저장되므로 부르지 않고, 라운지 첫마디와 같은 결정적 문장을 이 화면에만 놓는다.
+  // 파트너 초대 줄은 붙이지 않는다(나만 레인에서 "두 사람이 같은 화면을 봐요"는 어긋난다).
+  useEffect(() => {
+    if (
+      !coupleId ||
+      tasteReviewVisitRef.current ||
+      !profile ||
+      isDemo ||
+      !laneReady ||
+      activeTab !== "private" ||
+      !firstHelloChecked ||
+      greetingBody ||
+      !initialLoadDone ||
+      messages.length > 0 ||
+      greetingRequested.current
+    )
+      return;
+    const hello = buildAmoraFirstHello({
+      weddingDate: journey?.wedding_date ?? null,
+      preparationStage: readPreparationStage(journey?.progress),
+      now: Date.now(),
+    });
+    setLaneGreeting({ identity: composerIdentity, body: hello.body });
+  }, [activeTab, composerIdentity, coupleId, firstHelloChecked, greetingBody, initialLoadDone, isDemo, journey, laneReady, messages.length, profile]);
 
   // 2026-09-04: 첫 인사가 실패하면 `greetingRequested` 가 잠긴 채 "새로고침" 말고는
   // 길이 없었다 — 새 커플의 첫 화면이 막다른 길이었다. 같은 인자로 한 번 더 부른다.
@@ -1645,6 +1835,8 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
 
   // 파일을 첨부 목록에 추가하는 공통 함수
   const addFiles = useCallback((files: File[]) => {
+    // 레인을 정하기 전에는 첨부를 받지 않는다. 받으면 보이지 않는 레인 입력창에 쌓인다.
+    if (!laneReady) return;
     const remaining = MAX_ATTACHMENTS - attachments.length;
     if (remaining <= 0) return;
     const originLane = activeComposerLane;
@@ -1765,6 +1957,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
     activeComposerLane,
     adjustPendingAttachmentReads,
     attachments.length,
+    laneReady,
     setDraftAttachments,
   ]);
 
@@ -1852,6 +2045,8 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
   const handleSend = useCallback(
     async (text?: string, targetOverride?: ChatMessageTarget) => {
       if (isStreaming || isSending || sendInFlightRef.current !== null) return;
+      // 레인을 정하기 전에는 보내지 않는다. 입력창·칩·카드 어느 길로 와도 여기서 멈춘다.
+      if (!laneReady) return;
       const usesComposer = text === undefined;
       const content = usesComposer ? input.trim() : text;
       const currentAttachments = usesComposer ? [...attachments] : [];
@@ -2139,6 +2334,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
       linkedPartnerId,
       isStreaming,
       isSending,
+      laneReady,
       setDraftRetryClientRequestId,
       stopSharedTyping,
     ]
@@ -2391,6 +2587,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
         || !coupleId
         || !profile
         || pendingAttachmentReads > 0
+        || !laneReady
       ) return;
       const sendTarget = isPrivate ? "ai" : targetOverride ?? messageTarget;
 
@@ -2410,6 +2607,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
       profile,
       pendingAttachmentReads,
       isPrivate,
+      laneReady,
       messageTarget,
       partnerTypingActive,
       aiResponding,
@@ -2463,6 +2661,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
   const showAmoraQuickStart = shouldOfferAmoraQuickStart({
     enabled:
       !isDemo &&
+      laneReady &&
       initialLoadDone &&
       Boolean(coupleId) &&
       Boolean(profile),
@@ -2627,8 +2826,9 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
   };
 
   const workspaceNavigation = !embedded ? <AmoraWorkspaceNav chatControls={{
-    activeScope: activeTab,
-    onScopeChange: handleScopeChange,
+    // 레인을 고르기 전에는 어느 탭도 눌린 것으로 보이지 않는다. 탭을 누르면 그게 선택이다.
+    activeScope: laneReady ? activeTab : null,
+    onScopeChange: chooseLane,
     disabled: isStreaming || isSending,
     privateDisabled: isDemo || !myPrivateVisibility,
     sharedCount: sharedMessageCount,
@@ -2855,11 +3055,11 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
         >
           <button
             type="button"
-            onClick={() => handleScopeChange("shared")}
+            onClick={() => chooseLane("shared")}
             disabled={isStreaming || isSending}
-            aria-pressed={activeTab === "shared"}
+            aria-pressed={laneReady && activeTab === "shared"}
             className={`flex min-h-11 min-w-0 flex-1 items-center justify-center gap-1 rounded-full px-2 py-[9px] text-[12px] font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
-              activeTab === "shared"
+              laneReady && activeTab === "shared"
                 ? "bg-[var(--amora-selected-bg,var(--hb-selected-bg))] text-[var(--amora-selected-text,var(--hb-selected-text))] ring-1 ring-inset ring-[var(--amora-selected-line,var(--hb-selected-line))]"
                 : "text-[var(--hb-text-muted)] hover:text-[var(--hb-text-body)]"
             }`}
@@ -2872,11 +3072,11 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
           </button>
           <button
             type="button"
-            onClick={() => handleScopeChange("private")}
+            onClick={() => chooseLane("private")}
             disabled={isDemo || isStreaming || isSending || !myPrivateVisibility}
-            aria-pressed={activeTab === "private"}
+            aria-pressed={laneReady && activeTab === "private"}
             className={`flex min-h-11 min-w-0 flex-1 items-center justify-center gap-1 rounded-full px-2 py-[9px] text-[12px] font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
-              activeTab === "private"
+              laneReady && activeTab === "private"
                 ? "bg-[var(--amora-selected-bg,var(--hb-selected-bg))] text-[var(--amora-selected-text,var(--hb-selected-text))] ring-1 ring-inset ring-[var(--amora-selected-line,var(--hb-selected-line))]"
                 : "text-[var(--hb-text-muted)] hover:text-[var(--hb-text-body)]"
             }`}
@@ -2956,7 +3156,10 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
           activeTab === "private" ? "text-[#5a6147]" : "text-[var(--hb-accent-hover)]"
         }`}
       >
-        {isDemo
+        {/* 레인을 고르기 전에는 '현재 범위'를 말하지 않는다. 아직 정해진 범위가 없다. */}
+        {!laneReady && !isDemo
+          ? null
+          : isDemo
           ? "현재 범위 · 체험용 함께 대화 — 체험 대화와 변경은 계정의 준비 기록에 남지 않아요"
           : activeTab === "private"
           ? "현재 범위 · 나만 (상담) — 서비스에 저장되며 상대방에게는 보이지 않아요"
@@ -3233,7 +3436,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
           </div>
         )}
 
-        {firstHelloMessage && activeTab === "shared" && (
+        {firstHelloMessage && (
           <div className="animate-fade-in" data-testid="amora-first-hello-message">
             <ChatBubble
               message={firstHelloMessage}
@@ -3782,8 +3985,20 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
         </div>
       )}
 
+      {/* 처음 여는 사람에게 '함께/나만'을 먼저 고르게 한다(2026-09-26). 입력창 바로 위. */}
+      {laneChoiceNeeded && (
+        <div className="px-2 pt-2 pb-3">
+          <AmoraLaneChoiceCard
+            onChoose={chooseLane}
+            partnerLinked={hasLinkedPartner}
+            disabled={isStreaming || isSending}
+          />
+        </div>
+      )}
+
       {/* 시작 칩 — 첫 화면(사용자 메시지 0개)에만. 모바일과 같은 세 문장. */}
       {!isDemo &&
+        laneReady &&
         initialLoadDone &&
         Boolean(coupleId) &&
         Boolean(profile) &&
@@ -3809,6 +4024,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
 
       {/* 제안 버튼 — 입력창과 충분한 간격 유지 */}
       {messageTarget === "ai" &&
+        laneReady &&
         transientArtifactsVisible &&
         suggestions.length > 0 &&
         !isStreaming &&
@@ -3859,7 +4075,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
         )}
 
         {/* 대상 토글 — 한 단계 컴팩트 (px/py/font 톤다운) */}
-        {activeTab === "shared" && hasLinkedPartner && (
+        {laneReady && activeTab === "shared" && hasLinkedPartner && (
           <div
             className="grid grid-cols-2 sm:flex sm:items-center gap-1.5 mb-2 px-0.5 sm:px-1"
             role="group"
@@ -3917,7 +4133,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
           <button
             type="button"
             onClick={() => fileInputRef.current?.click()}
-            disabled={isStreaming || isSending || attachments.length >= MAX_ATTACHMENTS}
+            disabled={isStreaming || isSending || !laneReady || attachments.length >= MAX_ATTACHMENTS}
             aria-label="파일 첨부"
             className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-[6px] text-[var(--hb-text-muted)] transition-colors bg-[#f3e9df] hover:text-[var(--hb-accent-hover)] disabled:cursor-not-allowed disabled:opacity-30"
             title={
@@ -3932,7 +4148,9 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
           <textarea
             ref={textareaRef}
             rows={1}
-            value={input}
+            // 고르기 전에는 비워 둔다. 들고 온 초안(`heldPrefillRef`)이 있어도 막힘 안내가 보여야
+            // 하고, 그 초안은 고른 칸의 입력칸에 들어간다.
+            value={laneChoiceNeeded ? "" : input}
             aria-label={
               messageTarget === "partner"
                 ? "상대방에게 보낼 메시지 입력"
@@ -3973,13 +4191,18 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
             }}
             onPaste={handlePaste}
             placeholder={
-              messageTarget === "partner"
+              laneChoiceNeeded
+                ? AMORA_LANE_CHOICE_COPY.composerBlockedPlaceholder
+                : messageTarget === "partner"
                 ? "상대방에게 메시지…"
                 : isPrivate
                   ? "아모라에게 솔직히…"
                   : "결혼 준비에서 궁금한 점을 물어보세요…"
             }
-            disabled={isStreaming || isSending}
+            // 고르기 전에는 읽기 전용으로 둔다. 비활성(disabled)으로 두면 안내 문구가 흐려져 읽기 어렵다.
+            readOnly={laneChoiceNeeded}
+            aria-disabled={laneChoiceNeeded || undefined}
+            disabled={isStreaming || isSending || (!laneReady && !laneChoiceNeeded)}
             className="flex-1 min-w-0 px-1 sm:px-2 py-2.5 sm:py-3 text-[0.9375rem] text-[var(--hb-text-strong)] placeholder:text-[var(--hb-text-muted)] bg-transparent outline-none disabled:opacity-50 resize-none leading-6 max-h-[10rem] overflow-y-auto"
           />
           <button
@@ -3988,6 +4211,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
             disabled={
               (!input.trim() && attachments.length === 0)
               || !senderRole
+              || !laneReady
               || isStreaming
               || isSending
               || pendingAttachmentReads > 0
@@ -4023,13 +4247,13 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
         recap={activeArtifactVisibility ? {
           visibility: activeArtifactVisibility,
           nowMs,
-          canDraft: !isStreaming && !isSending && !isDemo
+          canDraft: !isStreaming && !isSending && !isDemo && laneReady
             && !composerDrafts[isPrivate ? "private_ai" : "shared_ai"].input.trim()
             && composerDrafts[isPrivate ? "private_ai" : "shared_ai"].attachments.length === 0
             && composerDrafts[isPrivate ? "private_ai" : "shared_ai"].pendingAttachmentReads === 0,
           onDraft: text => {
             const lane = isPrivate ? "private_ai" : "shared_ai";
-            if (isStreaming || isSending || composerDrafts[lane].input.trim()
+            if (isStreaming || isSending || !laneReady || composerDrafts[lane].input.trim()
               || composerDrafts[lane].attachments.length || composerDrafts[lane].pendingAttachmentReads) return;
             setDraftInput(lane, text);
             setMessageTarget("ai");

@@ -316,8 +316,9 @@ test("머리 버튼 — 다 불러왔고 이 범위에 메시지가 있을 때�
   assert.match(header, /accessibilityLabel=\{CHAT_VIEW_CLEAR_COPY\.entryLabel\}/);
   assert.match(header, /onPress=\{openViewClearSheet\}/);
   assert.match(chat, /headerIconBtn: \{ width: 44, height: 44,/);
-  // 입력창과 보내기 버튼이 그 잠금을 따른다.
-  assert.match(chat, /editable=\{!streaming && initialLoaded && !chatLoadError && !composerLockedByViewClear\}/);
+  // 입력창과 보내기 버튼이 그 잠금을 따른다. 2026-09-26 부터 입력창에는 첫 칸 고르기 잠금이 하나 더
+  // 붙는다(amoraLaneChoice.test.mjs 가 잰다). 이 검사는 정리 잠금이 그대로 붙어 있는지를 본다.
+  assert.match(chat, /editable=\{!streaming && initialLoaded && !chatLoadError && !composerLockedByViewClear && !composerLockedByLaneChoice\}/);
   assert.match(chat, /disabled=\{!input\.trim\(\) \|\| streaming \|\| !initialLoaded \|\| Boolean\(chatLoadError\) \|\| composerLockedByViewClear\}/);
 });
 
@@ -374,6 +375,8 @@ test("정리하는 동안 그 범위의 입력창은 보내지 않는다 — 다
       coupleId: couple, userId: viewer, userRole: "bride", activeScope: scope, activeLane: scope === "private" ? "private_ai" : "shared_ai",
       chatVisibilityForScope: privacy.chatVisibilityForScope,
       viewClearInFlightRef: { current: clearing },
+      // 대화 칸은 정해져 있다(2026-09-26 첫 칸 고르기의 잠금은 amoraLaneChoice.test.mjs 가 잰다).
+      laneOpeningRef: { current: "decided" },
       setFollowUpSuggestions: () => { proceeded = true; throw new Error("PROCEEDED"); },
     };
     const { handleSend } = loadChat(["handleSend"], bindings);

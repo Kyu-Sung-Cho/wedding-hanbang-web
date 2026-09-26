@@ -2,6 +2,8 @@ import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { amoraLaneStorageKey } from "@hanbang/shared/amora-lane-choice";
+
 import ChatContent from "./ChatContent";
 import ChatSidePanel from "./ChatSidePanel";
 
@@ -155,6 +157,10 @@ describe("web chat surfaces follow a server-only private safety redirect", () =>
 
   beforeEach(() => {
     vi.clearAllMocks();
+    // 2026-09-26 부터 처음 여는 사람은 '함께/나만'을 먼저 고른다(`amoraLaneFirstChoice.test.tsx`).
+    // 이 파일은 이미 '함께'를 고른 사람이 보낸 글을 서버가 옮기는 경우만 잰다.
+    window.localStorage.clear();
+    window.localStorage.setItem(amoraLaneStorageKey("user-1") as string, "shared");
     HTMLElement.prototype.scrollIntoView = vi.fn();
     container = document.createElement("div");
     document.body.appendChild(container);

@@ -10,6 +10,7 @@
     "./constants": "./src/constants/index.ts",
     "./utils": "./src/utils/index.ts",
     "./chat-lane": "./src/utils/chatLane.ts",
+    "./amora-lane-choice": "./src/contracts/amoraLaneChoice.ts",
     "./amora-crisis-classifier": "./src/safety/amoraCrisisClassifier.ts",
     "./amora-crisis": "./src/safety/amoraCrisisSafety.ts",
     "./amora-crisis-english": "./src/safety/amoraCrisisEnglish.ts",

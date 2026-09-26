@@ -2,6 +2,8 @@ import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { amoraLaneStorageKey } from "@hanbang/shared/amora-lane-choice";
+
 import ChatContent from "./ChatContent";
 import ChatSidePanel from "./ChatSidePanel";
 
@@ -149,6 +151,10 @@ describe("web chat surfaces pick the same Amora safety lane", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    // 2026-09-26 부터 처음 여는 사람은 '함께/나만'을 먼저 고른다(`amoraLaneFirstChoice.test.tsx`).
+    // 이 파일은 이미 '함께'를 고른 사람의 화면에서 안전 판정만 잰다.
+    window.localStorage.clear();
+    window.localStorage.setItem(amoraLaneStorageKey("user-1") as string, "shared");
     mocks.sendMessage.mockResolvedValue({
       userMessage: "persisted",
       userMessageId: "user-message-1",

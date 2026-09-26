@@ -2,6 +2,8 @@ import { act, StrictMode } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { amoraLaneStorageKey } from "@hanbang/shared/amora-lane-choice";
+
 import ChatContent from "./ChatContent";
 import { AmoraNavigationTargetContext } from "@/components/app/amora/AmoraNavigationContext";
 import type { ChatMessage } from "@/types/database.types";
@@ -278,6 +280,11 @@ describe("ChatContent composer draft lanes", () => {
     });
     window.sessionStorage.clear();
     window.localStorage.clear();
+    // 2026-09-26 부터 처음 여는 사람은 '함께/나만'을 먼저 고른다(`amoraLaneFirstChoice.test.tsx`).
+    // 이 파일은 레인별 초안을 재므로, 여기 나오는 계정은 모두 이미 '함께'를 고른 사람이다.
+    for (const userId of ["user-1", "other-user", "next-user", "different-user"]) {
+      window.localStorage.setItem(amoraLaneStorageKey(userId) as string, "shared");
+    }
     container = document.createElement("div");
     document.body.appendChild(container);
     root = createRoot(container);

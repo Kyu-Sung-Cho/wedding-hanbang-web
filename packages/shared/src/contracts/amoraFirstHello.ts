@@ -129,6 +129,42 @@ function describeWeddingTiming(
 }
 
 /**
+ * 파트너가 아직 연결되지 않은 사람에게 첫마디 끝에 붙이는 초대 문단.
+ *
+ * 이 문장은 **함께 대화에서만 참이다.** 나만 (상담)은 파트너를 연결해도 보이지 않는다.
+ * 그래서 대화 화면은 이 문단을 `amoraFirstHelloBodyForLane` 으로 걸러서 그린다.
+ */
+export const AMORA_FIRST_HELLO_PARTNER_INVITE =
+  "설정에서 초대 코드를 보내면 두 사람이 같은 화면을 봐요.";
+
+/**
+ * 대화 화면 맨 위에 놓을 첫마디 본문. 초대 문단은 '함께 대화'로 정해진 칸에서만 남긴다.
+ *
+ * ## 왜 있나(2026-09-27 검토)
+ *
+ * 라운지는 파트너가 없는 사람에게 `partnerLinked: false` 로 첫마디를 만들고, 본문 끝에
+ * 초대 문단을 붙인다. 대화 화면은 처음 여는 사람에게 '함께/나만'을 고르게 하는데, 첫마디를
+ * 그 본문 그대로 그리면 두 곳에서 틀린다.
+ * - '나만 (상담)'을 고른 사람의 탭 맨 위에 "두 사람이 같은 화면을 봐요"가 남는다. 나만
+ *   레인은 파트너를 연결해도 보이지 않으니 거짓이고, 안전 때문에 '나만'을 고른 사람에게는
+ *   비공개 약속을 의심하게 만든다.
+ * - 고르기 전에는 선택 카드의 '함께' 덧붙임("파트너를 연결하면 …")과 같은 말을 두 번 한다.
+ *
+ * `lane` 은 칸이 정해졌을 때만 넘긴다. 정하기 전(선택 카드가 떠 있거나 기억을 읽는 중)은
+ * `null` 이다. 문단 단위로 걷으므로 초대 문단이 본문 어디에 있어도 빠진다.
+ */
+export function amoraFirstHelloBodyForLane(
+  body: string,
+  lane: "shared" | "private" | null,
+): string {
+  if (lane === "shared") return body;
+  return body
+    .split("\n\n")
+    .filter((paragraph) => paragraph.trim() !== AMORA_FIRST_HELLO_PARTNER_INVITE)
+    .join("\n\n");
+}
+
+/**
  * 첫마디를 만든다. 아는 것이 하나도 없어도 말은 건다 — 그게 이 기능의 요점이다.
  */
 export function buildAmoraFirstHello(
@@ -148,7 +184,7 @@ export function buildAmoraFirstHello(
     : "지금 어디까지 오셨는지는 편하실 때 알려주세요.";
 
   const invite = input.partnerLinked === false
-    ? "\n\n설정에서 초대 코드를 보내면 두 사람이 같은 화면을 봐요."
+    ? `\n\n${AMORA_FIRST_HELLO_PARTNER_INVITE}`
     : "";
 
   const body = [
