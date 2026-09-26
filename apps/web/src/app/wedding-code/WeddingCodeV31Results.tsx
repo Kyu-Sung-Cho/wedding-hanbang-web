@@ -306,7 +306,7 @@ export default function WeddingCodeV31Results({ draft, first, received, shareOri
         className="rounded-lg focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[var(--hb-focus-ring)]">
         {activeTab === "together" ? <>
     <section aria-label="두 사람의 웨딩코드 요약" className="mb-5">
-      <p className={`mb-4 ${v31Body}`}>같은 코드여도 구체적인 취향과 답은 다를 수 있어요. 각자의 척도와 아래 대화할 내용을 함께 봐요.</p>
+      <p className={`mb-4 ${v31Body}`}>같은 코드여도 구체적인 취향과 답은 다를 수 있어요. 각자 고른 답과 아래 이야기할 거리를 같이 봐요.</p>
       <div className="grid items-start gap-4 lg:grid-cols-2">
         <WeddingCodeV31StyleSummary draft={first} label={labels.first} compact />
         <WeddingCodeV31StyleSummary draft={draft} label={labels.second} onEdit={editable} compact />
