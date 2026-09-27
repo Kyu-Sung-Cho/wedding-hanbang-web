@@ -2,7 +2,7 @@
 
 import { readFile } from "node:fs/promises";
 import { NextResponse } from "next/server";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClientFromRequest } from "@/lib/supabase/server";
 import { checkRateLimitPersistent } from "@/utils/rateLimit";
@@ -95,6 +95,16 @@ function request(
 }
 
 describe("/api/journey PATCH couple plan-change contract", () => {
+  // PATCH 는 오늘(KST) 이전 결혼일을 거부한다. 시계를 고정하지 않으면 픽스처
+  // 결혼일(2027-05-01)이 지난 뒤 코드 변경 없이 깨진다.
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-09-27T03:00:00Z"));
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.user = { id: USER_ID };
