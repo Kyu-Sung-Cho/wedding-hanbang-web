@@ -976,6 +976,57 @@ test("AI message ingest accepts only the sender's canonical W2 private row", () 
   );
 });
 
+test("AI message ingest from the private lane: a W2 row the server did not move carries no safetyResolution", () => {
+  // 2026-09-27: 서버(apps/web/src/app/api/chat/messages/route.ts `persistedSafetyResolution`)는
+  // 레인을 옮겼을 때만 safetyResolution 을 싣는다. 이 검증기는 옮기지 않은 응답에 그 필드가 있으면
+  // 거부한다 — 서버가 실으면 나만 레인에서 보낸 `남편이 때려요` 가 "전송 결과를 확인하지 못했어요"
+  // 로 끝나고 재시도도 거부된다. 실제 라우트 응답을 이 검증기에 넣는 대조는
+  // apps/web/src/app/api/chat/messages/sharedLaneEvalNine.test.ts 에 있다.
+  const { AiMessageIngestError, parseAiMessageIngestResult } = loadAiMessageIngestContract();
+  const expected = {
+    coupleId: "11111111-1111-4111-8111-111111111111",
+    userId: "22222222-2222-4222-8222-222222222222",
+    senderType: "bride",
+    text: "남편이 때려요",
+    clientRequestId: "33333333-3333-4333-8333-333333333333",
+    target: "ai",
+    providerAttachmentCount: 0,
+  };
+  const payload = {
+    outcome: "persisted",
+    reused: false,
+    effectiveVisibility: "bride_private",
+    safetyPrivacyRedirected: false,
+    message: {
+      id: "44444444-4444-4444-8444-444444444444",
+      couple_id: expected.coupleId,
+      sender_id: expected.userId,
+      role: "user",
+      sender_type: expected.senderType,
+      content: expected.text,
+      metadata: {
+        client_request_id: expected.clientRequestId,
+        amora_ingest_contract_version: 1,
+        ai_response_requested: true,
+        provider_attachment_state: "none",
+        provider_attachment_count: 0,
+      },
+      created_at: "2026-09-27T00:00:00.000Z",
+      visibility: "bride_private",
+    },
+  };
+
+  const result = parseAiMessageIngestResult(201, payload, expected);
+  assert.equal(result.effectiveVisibility, "bride_private");
+  assert.equal(result.safetyPrivacyRedirected, false);
+  assert.equal(result.safetyResolution, null);
+  assert.equal(parseAiMessageIngestResult(200, { ...payload, reused: true }, expected).message.id, payload.message.id);
+  assert.throws(
+    () => parseAiMessageIngestResult(201, { ...payload, safetyResolution: "non_immediate_safety" }, expected),
+    (error) => error instanceof AiMessageIngestError && error.retryPolicy === "same_request",
+  );
+});
+
 test("AI message ingest recognizes a server W5 ephemeral fallback without a durable row", () => {
   const { AiMessageIngestError, parseAiMessageIngestResult } = loadAiMessageIngestContract();
   const expected = {
@@ -2444,15 +2495,23 @@ test("mobile local safety hold is synchronously deduplicated until the draft cha
 });
 
 test("mobile UI exposes accessible shared/private scopes and renders only the selected scope", () => {
+  // 2026-09-26 파운더 결정으로 기본 칸이 없어졌다. "shared" 는 자리값으로만 남고, 칸이 정해지기 전
+  // (laneOpening 이 "decided" 가 아닐 때)에는 입력칸도 목록도 열지 않는다. 옛 모양
+  // `const [activeScope, setActiveScope] = useState<ChatScope>("shared")` 를 고정하던 자리를 새 모양으로 옮겼다.
+  // 처음 열 때 고르는 동작 자체는 amoraLaneChoice.test.mjs 가 잰다.
   assert.match(
     sourceText,
-    /const \[activeScope, setActiveScope\] = useState<ChatScope>\("shared"\)/,
+    /const \[activeScope, setActiveScopeState\] = useState<ChatScope>\("shared"\)/,
   );
-  assert.match(sourceText, /const activeLane = resolveAmoraChatLane\(activeScope, target, hasLinkedPartner\)/);
+  assert.match(
+    sourceText,
+    /const activeLane = laneOpening === "decided"\s*\?\s*resolveAmoraChatLane\(activeScope, target, hasLinkedPartner\)\s*:\s*null;/,
+  );
   assert.match(sourceText, /const input = activeLane \? inputByLane\[activeLane\] : ""/);
   assert.match(sourceText, /isMessageInChatScope\(message\.visibility, activeScope, userRole\)/);
   // 화면에 그리는 목록은 여전히 "선택된 범위로 거른 것"에서만 나온다. 여기에 붙는 것은
-  // 아모라가 먼저 건넨 첫마디 하나뿐이고, 그것도 함께 대화 범위에서만 붙는다.
+  // 아모라가 먼저 건넨 첫마디 하나뿐이다. 2026-09-26 부터 아모라와 이야기하는 두 칸 모두에 붙고
+  // (처음 여는 사람이 '나만 (상담)'을 골라도 본다), 상대에게 쓰는 칸에는 붙지 않는다.
   assert.match(
     sourceText,
     /const displayedMessages = useMemo\(\s*\(\) => \(firstHelloMessage \? \[firstHelloMessage, \.\.\.scopedMessages\] : scopedMessages\)/,
@@ -2463,13 +2522,16 @@ test("mobile UI exposes accessible shared/private scopes and renders only the se
   );
   assert.match(
     sourceText,
-    /if \(!firstHelloBody \|\| activeScope !== "shared" \|\| target === "partner"\) \{\s*return null;/,
+    /if \(!firstHelloBody \|\| target === "partner"\) \{\s*return null;/,
   );
   assert.match(sourceText, /function handleScopeChange\(nextScope: ChatScope\)/);
   assert.match(sourceText, /selectChatScope\([\s\S]*nextScope,[\s\S]*userRole/);
   assert.match(sourceText, /accessibilityLabel="상담 공개 범위"/);
   assert.match(sourceText, /accessibilityRole="tab"/);
-  assert.match(sourceText, /accessibilityState=\{\{ selected: activeScope === "shared"/);
+  // 칸을 정하기 전에는 어느 탭도 선택된 것으로 읽히지 않는다(shownScope 는 정하기 전 null).
+  assert.match(sourceText, /const shownScope: ChatScope \| null = laneDecided \? activeScope : null;/);
+  assert.match(sourceText, /accessibilityState=\{\{ selected: shownScope === "shared"/);
+  assert.match(sourceText, /accessibilityState=\{\{ selected: shownScope === "private"/);
   assert.match(sourceText, />함께 대화<\/Text>/);
   assert.match(sourceText, />나만 \(상담\)<\/Text>/);
   assert.match(sourceText, /현재 범위 · 함께 대화 — 파트너에게 보여요/);

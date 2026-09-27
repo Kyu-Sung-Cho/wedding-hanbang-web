@@ -48,6 +48,10 @@ const SAFETY_CRITICAL = [
   "apps/web/src/lib/ai/amoraBoundedContinuity.ts",
   "packages/shared/src/safety/amoraCrisisSafety.ts",
   "packages/shared/src/safety/amoraCrisisClassifier.ts",
+  // 2026-09-26: 저장 레인을 정하는 전달 계획과 그것이 부르는 닫힌 어휘 판정. 이 둘이 목록에
+  // 없으면 레인을 바꾸는 변경이 델타 측정 없이 관문을 지나간다.
+  "packages/shared/src/safety/amoraCrisisDelivery.ts",
+  "packages/shared/src/safety/partnerViolenceClosedVocabulary.ts",
   "apps/web/src/lib/compliance/ai-log.ts",
 ];
 
