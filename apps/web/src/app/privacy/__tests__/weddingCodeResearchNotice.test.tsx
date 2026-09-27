@@ -8,7 +8,7 @@ import {
   WEDDING_CODE_RESEARCH_RETENTION_DAYS,
   WEDDING_CODE_RESEARCH_TOMBSTONE_DAYS,
 } from "@/lib/weddingCode/contribution/contract";
-import { LOCAL_TTL_MS } from "@/lib/weddingCode/v31LocalProgress";
+import { LOCAL_TTL_MS, V31_CLEAR_LOCAL_LABEL } from "@/lib/weddingCode/v31LocalProgress";
 import { PAIR_SESSION_RETENTION_DAYS } from "@/lib/weddingCode/pairSessionContract";
 import PrivacyPage from "../page";
 
@@ -71,7 +71,8 @@ describe("privacy notice for WeddingCode research contributions", () => {
     expect(localNotice).toContain("받은 두 사람 결과 링크에서는 개인 저장 기록을 읽거나 쓰지 않습니다");
     expect(localNotice).toContain("자동저장을 끄면 저장된 답을 지우고 이후 저장을 멈추며, 꺼짐 설정만 브라우저에 남깁니다");
     expect(localNotice).toContain("이때 현재 화면의 답은 유지됩니다");
-    expect(localNotice).toContain("‘저장된 답 지우기’는 저장 기록과 현재 진행을 함께 초기화합니다");
+    // 방침이 부르는 버튼 이름은 화면 버튼과 같은 상수다. 예전엔 ‘저장된 답 지우기’라 적어 화면에 없는 버튼을 가리켰다.
+    expect(localNotice).toContain(`‘${V31_CLEAR_LOCAL_LABEL}’는 저장 기록과 현재 진행을 함께 초기화합니다`);
     expect(localNotice).toContain("공용 기기에서는 같은 브라우저를 쓰는 사람이 답을 볼 수 있으므로");
   });
 
