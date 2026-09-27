@@ -35,6 +35,19 @@ describe("v3.1 핵심·추가 흐름의 응답 의미 보존", () => {
     expect(getV31ScreenIndexes("full")).toEqual(V31_FULL_INDEXES);
   });
 
+  it("비어 있는 칸은 화면에서 묻는 순서로 먼저 찾는다", () => {
+    // 옷 문장(R4)과 하객 규모가 둘 다 비었으면, 화면에서 먼저 묻는 하객 규모(1쪽)부터 안내한다. R4 는 9쪽이다.
+    const draft = coreDraft();
+    delete draft.answers.R4; delete draft.tastes.guests;
+    expect(getV31MissingIndex(draft, "core")).toBe(29);
+    delete draft.spending;
+    expect(getV31MissingIndex(draft, "core")).toBe(29);
+    draft.tastes.guests = { status: "undecided" };
+    expect(getV31MissingIndex(draft, "core")).toBe(33);
+    draft.spending = { status: "no_preference" };
+    expect(getV31MissingIndex(draft, "core")).toBe(5);
+  });
+
   it("화면 순번이 아닌 기존 질문 자리로 앞뒤 이동하며 다른 흐름으로 새지 않는다", () => {
     expect(getV31PreviousIndex("core", 1)).toBeNull();
     expect(getV31NextIndex("core", 1)).toBe(3);
