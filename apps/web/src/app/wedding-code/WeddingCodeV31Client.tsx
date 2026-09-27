@@ -13,7 +13,7 @@ import { createV31Draft, getV31PriorityOptions, normalizeV31Draft } from "@/lib/
 import { V31ChoiceInput, V31PriorityInput, V31RatingInput, v31Body, v31EscapeFoldLabel, v31RatingGuide, v31Surface, v31Title } from "./WeddingCodeV31Inputs";
 import WeddingCodeV31Results from "./WeddingCodeV31Results";
 import { useV31LocalProgress } from "./useV31LocalProgress";
-import type { V31LocalProgressSnapshot } from "@/lib/weddingCode/v31LocalProgress";
+import { V31_CLEAR_LOCAL_LABEL, type V31LocalProgressSnapshot } from "@/lib/weddingCode/v31LocalProgress";
 import {
   V31_CORE_INDEXES, V31_CORE_RATING_IDS, V31_CORE_SCREEN_INDEXES, V31_EXTRA_INDEXES,
   getV31MissingIndex, getV31NextIndex, getV31ResponseAt, getV31ScreenIndexes, type V31Flow,
@@ -294,13 +294,13 @@ export default function WeddingCodeV31Client({ shareOrigin, partnerDraft = null,
       <p className="mt-2">공용 기기라면 자동 저장을 꺼 주세요. 이 브라우저를 쓰는 다른 사람도 저장된 답을 열 수 있어요. 시크릿 모드나 브라우저 데이터 삭제 후에는 이어 하지 못할 수 있어요.</p>
       <div className="mt-2 flex flex-wrap gap-2">
         <Button variant="secondary" aria-pressed={local.enabled} onClick={toggleSaving}>{local.enabled ? "자동 저장 끄기" : "자동 저장 켜기"}</Button>
-        {local.saved || owned ? <Button variant="ghost" onClick={restart}>이 브라우저의 답 지우기</Button> : null}
+        {local.saved || owned ? <Button variant="ghost" onClick={restart}>{V31_CLEAR_LOCAL_LABEL}</Button> : null}
       </div>
       {/*
         답 지우기는 답만 지운다. 처리방침은 두 사본을 모두 ‘확인 주소’라 부르고, 저장 끄기는 이 브라우저에 저장된
         사본만 지우며 현재 탭의 임시 사본은 남긴다. 같은 이름으로, 지우는 범위를 좁혀 버튼 옆에서 먼저 알린다.
       */}
-      {(local.saved || owned) && pairAddressSaved ? <p className="mt-2 text-xs" data-pair-address-note>‘이 브라우저의 답 지우기’는 답만 지워요. 이 브라우저에 저장된 함께 보기 확인 주소까지 지우려면 ‘자동 저장 끄기’를 눌러 주세요.</p> : null}
+      {(local.saved || owned) && pairAddressSaved ? <p className="mt-2 text-xs" data-pair-address-note>‘{V31_CLEAR_LOCAL_LABEL}’는 답만 지워요. 이 브라우저에 저장된 함께 보기 확인 주소까지 지우려면 ‘자동 저장 끄기’를 눌러 주세요.</p> : null}
       <p className="mt-2 text-xs">자동 저장을 끄면 저장된 답도 지워져요. 지금 화면에서는 계속 답할 수 있어요.</p>
       <p className="mt-2 text-xs">기기 저장을 꺼도 서버 함께 보기 연결은 남아요. 종료는 연결 결과에서 해주세요.</p>
       <p className="mt-2 text-xs" data-pair-tab-address-note>함께 보기 요청이 처리됐는지 볼 수 있게, 확인 주소는 이 탭에 잠시 남아요.</p>
