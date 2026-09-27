@@ -1,4 +1,5 @@
 import {
+  WEDDING_CODE_V31_OPTIONS,
   WEDDING_CODE_V31_QUESTIONS,
   WEDDING_CODE_V31_TOPICS,
   WEDDING_CODE_V31_VERSION,
@@ -73,28 +74,36 @@ export type V31StyleDimension = {
    */
   basis: string | null;
   ratedCount: number;
-  /** 두 답 중 하나만 한 칸 달라져도 글자가 바뀌는 자리. */
+  /** 한 문장만 ‘그런 편’ 이상인 한쪽 글자이고, 두 문장의 답이 정확히 한 칸 차이(4 대 3, 3 대 4)인 자리. */
   borderline: boolean;
   pending: V31StylePending;
   items: [V31StatementScale, V31StatementScale];
 };
+/**
+ * 네 글자 요약. 2026-09-27 파운더 결정으로 ‘~스타일’ 이름·이름 출처 줄·이름에 딸린 헤드라인은 두지 않는다.
+ * 코드 옆에는 코드와 주제별 줄(글자, 글자 뜻 한 줄, 두 문장의 실제 답)이 있다. 한 문장에서 나온 글자(K·R·T·D·F·C·L·A)는
+ * 뜻 줄을 따로 두지 않고 그 문장의 답 줄에 영문 낱말을 붙이며, 글자가 정해진 자리(이 여덟 글자와 B)에는 근거 한 줄이 붙는다.
+ */
 export type V31StyleSummary = {
   version: typeof V31_STYLE_SUMMARY_VERSION;
   code: string;
-  name: string;
-  /** 이름을 따온 주제. 이름을 붙이지 않았으면 null. */
-  nameFrom: V31StyleKey | null;
-  /** 이름 위에 붙는 출처 한 줄. */
-  nameSource: string;
-  headline: string;
   hasIncomplete: boolean;
   borderlineCount: number;
-  /** 코드보다 먼저 보여주는 한 줄. 글자가 하나도 정해지지 않았으면 null. */
+  /** 코드보다 먼저, 아슬한 글자를 주제 이름과 실제로 고른 두 보기 이름으로 알리는 한 줄. 그런 글자가 없으면 null. */
   borderlineNotice: string | null;
+  /** 모든 코드에 한 번 붙는 한 줄(V31_STYLE_CHANGE_NOTICE). 정해진 글자가 하나도 없으면 null. */
+  changeNotice: string | null;
   /** ‘?’ 자리를 설명하는 한 줄. ‘?’가 없으면 null. */
   pendingNotice: string | null;
   dimensions: V31StyleDimension[];
 };
+
+/**
+ * 아슬한 글자가 있든 없든 참인 한 줄. 아슬한 글자가 0개여도 다시 답하면 글자가 바뀔 수 있다(PRINCIPLES.md 5절).
+ * 예전 0개일 때의 「지금 글자는 답 하나를 한 칸 옮겨도 그대로예요」는 새 기준에서 거짓이라 쓰지 않는다
+ * (예: 4 대 4 의 B 는 아슬하지 않지만 4를 한 칸 내리면 글자가 바뀐다).
+ */
+export const V31_STYLE_CHANGE_NOTICE = "다시 답하면 글자가 달라질 수 있어요." as const;
 
 const BOTH_LABELS: Record<V31StyleKey, string> = {
   budget: "총액은 지키고 싶고, 늘릴지도 다시 의논하고 싶어요",
@@ -107,6 +116,19 @@ const BOTH_LABELS: Record<V31StyleKey, string> = {
 const AGREE_FROM: V31Rating = 4;
 /** ‘그렇지 않은 편이에요’(2) 이하면 낮게 답한 것이다. */
 const DISAGREE_UNTIL: V31Rating = 2;
+/**
+ * 아슬한 칸(4 대 3, 3 대 4)에서 사용자가 실제로 누른 두 보기 이름. 안내가 보기 이름을 인용하므로 문자열을 따로 적지 않고
+ * 질문 화면의 보기에서 가져온다(보기 이름이 바뀌면 안내도 같이 바뀐다).
+ */
+const BORDERLINE_AGREE_LABEL = WEDDING_CODE_V31_OPTIONS.find(option => option.value === AGREE_FROM)!.label;
+const BORDERLINE_NEUTRAL_LABEL = WEDDING_CODE_V31_OPTIONS.find(option => option.value === AGREE_FROM - 1)!.label;
+
+/**
+ * 아슬한 글자 줄에 다는 글로 된 표시. 「한 칸 차이」만 적으면 표시가 없는 줄 가운데 두 답이 한 칸 차이인 곳
+ * (5 대 4 의 B, 2 대 3 의 M, 1 대 2 의 N)도 칠한 칸으로 보이는 같은 성질이라, 표시 없는 줄은 한 칸 차이가 아니라고 읽힌다.
+ * 그래서 아슬한 칸에서만 참인 사실(두 답이 ‘그런 편이에요’와 ‘어느 쪽도 아니에요’)을 줄여 적는다.
+ */
+export const V31_STYLE_BORDERLINE_TAG = "‘그런 편’과 ‘어느 쪽도’로 갈렸어요" as const;
 
 export function getV31Rating(response: V31Response | undefined): V31Rating | null {
   return typeof response === "number" && Number.isInteger(response) && response >= 1 && response <= 5
@@ -137,18 +159,20 @@ export function getV31StyleLetter(key: V31StyleKey, first: V31Response | undefin
 }
 
 /**
- * 두 답 중 하나를 한 칸(1~5 안에서 ±1) 옮겼을 때 글자가 바뀌면 아슬한 글자다.
- * 경계를 표로 적지 않고 글자 함수를 그대로 다시 돌려서 판정한다. ‘?’ 자리는 대상이 아니다.
+ * 아슬한 글자(2026-09-27 파운더 결정 「아슬한 글자 기준도 바꿔줘」): 한 문장만 ‘그런 편’ 이상인 한쪽 글자
+ * (K·R·T·D·F·C·L·A)이고, 두 문장의 답이 정확히 한 칸 차이일 때만이다. 글자 규칙상 4 대 3 과 3 대 4 두 칸뿐이다.
+ * 두 방향 중 한쪽으로 한 칸 차이로만 기운 글자라는 뜻이다. B·M·N·‘?’는 아슬하다고 하지 않는다.
+ * 예전 기준(두 답 중 하나를 ±1 옮겨 글자가 바뀌면 아슬)은 25칸 중 19칸이었다. 답이 25칸에 고르게, 주제끼리 따로
+ * 흩어진다고 치면 네 주제 중 하나라도 걸릴 확률이 약 99.7%다(계산값이며 실제 사용자 비율은 재지 않았다).
  */
 export function isV31StyleLetterBorderline(key: V31StyleKey, first: V31Response | undefined, second: V31Response | undefined): boolean {
-  const current = getV31StyleLetter(key, first, second);
+  const definition = definitionOf(key);
+  const letter = getV31StyleLetter(key, first, second);
   const a = getV31Rating(first);
   const b = getV31Rating(second);
-  if (current === "?" || a === null || b === null) return false;
-  const neighbors: [number, number][] = [[a - 1, b], [a + 1, b], [a, b - 1], [a, b + 1]];
-  return neighbors
-    .filter(([x, y]) => x >= 1 && x <= 5 && y >= 1 && y <= 5)
-    .some(([x, y]) => getV31StyleLetter(key, x as V31Rating, y as V31Rating) !== current);
+  if (a === null || b === null) return false;
+  if (letter !== definition.first.letter && letter !== definition.second.letter) return false;
+  return Math.abs(a - b) === 1;
 }
 
 function assertVersion(draft: V31Draft): void {
@@ -204,96 +228,29 @@ function dimension(draft: V31Draft, definition: DimensionDefinition): V31StyleDi
   return { ...base, englishLabel: null, letterFrom: null, label: "중간으로 답한 문장이 있어요", basis: null };
 }
 
-const HEADLINES: Record<V31StyleKey, { first: string; second: string; both: string }> = {
-  teamwork: {
-    first: "업체는 시간을 맞춰 함께 찾아보고 싶어요",
-    second: "계약·추가 결제 없는 세부 선택은 맡겨도 괜찮아요",
-    both: "업체는 함께 찾고, 계약·추가 결제 없는 세부 선택은 맡겨도 괜찮아요",
-  },
-  budget: {
-    first: "처음 정한 전체 예산 안에서 준비하고 싶어요",
-    second: "전체 예산을 늘릴지도 다시 의논하고 싶어요",
-    both: "전체 예산을 지키고 싶고, 늘릴지도 다시 의논하고 싶어요",
-  },
-  family: {
-    first: "가족의 바람을 준비 초반에 들어보고 싶어요",
-    second: "마지막 선택은 우리 둘이 하고 싶어요",
-    both: "가족의 바람을 초반에 듣고, 마지막 선택은 둘이 하고 싶어요",
-  },
-  support: {
-    first: "힘들 때 해결책보다 이야기를 먼저 들어주면 좋겠어요",
-    second: "일이 몰리면 일부를 맡아주는 도움이 있으면 좋겠어요",
-    both: "이야기를 먼저 들어주고, 몰린 일의 일부도 맡아주면 좋겠어요",
-  },
-};
-const NAMES: Record<V31StyleKey, { first: string; second: string; both: string }> = {
-  teamwork: {
-    first: "함께 찾는 스타일",
-    second: "세부 선택은 맡겨도 되는 스타일",
-    both: "함께 찾고, 세부는 맡겨도 되는 스타일",
-  },
-  budget: {
-    first: "예산을 지키는 스타일",
-    second: "예산을 다시 의논하는 스타일",
-    both: "예산 유지와 재논의를 함께 생각하는 스타일",
-  },
-  family: {
-    first: "가족의 바람을 초반에 듣는 스타일",
-    second: "둘이 마지막에 정하는 스타일",
-    both: "가족에게 듣고, 선택은 둘이 하는 스타일",
-  },
-  support: {
-    first: "이야기를 먼저 들어주길 바라는 스타일",
-    second: "몰린 일을 일부 맡아주길 바라는 스타일",
-    both: "이야기를 듣고, 일도 일부 맡아주길 바라는 스타일",
-  },
-};
-/**
- * 이름을 붙이지 못했을 때의 출처 줄은 이름이 나오는 조건을 그대로 적는다. 글자 규칙과 같게, 두 문장 모두
- * 다섯 칸 중 하나를 골라야 한다(‘아직 모르겠어요’나 ‘이번 계획에는 없어요’도 고른 답이라 「답하고」로 쓰지 않는다).
- */
-export const V31_STYLE_NAME_FALLBACK = {
-  name: "이번 답에는 이름을 붙이지 않았어요",
-  nameSource: "이름은 두 문장 모두 동의하는 정도를 고르고, 그중 ‘그런 편’ 이상이 있는 주제에서 따와요",
-  headline: "고른 답은 아래에서 하나씩 볼 수 있어요",
-} as const;
-
-function summaryCopy(dimensions: V31StyleDimension[]): Pick<V31StyleSummary, "name" | "nameFrom" | "nameSource" | "headline"> {
-  // 제목의 편집 순서일 뿐 중요도 순위나 대표 성격을 계산하지 않는다. 그래서 이름 위에 출처 주제를 함께 적는다.
-  // 이름을 따온 글자가 한 칸 차이로 바뀌는 글자면 이름도 함께 바뀐다는 것을 출처 줄에서 먼저 말한다.
-  // 순서를 바꿔 아슬하지 않은 글자를 먼저 고르면, 그 글자도 한 칸 옮기면 아슬해져 이름이 다른 주제로
-  // 넘어가므로 오히려 이름이 흔들리는 답이 늘어난다(2026-09-27 전수 계산). 그래서 순서는 그대로 둔다.
-  const order: readonly V31StyleKey[] = ["teamwork", "budget", "family", "support"];
-  for (const key of order) {
-    const current = dimensions.find(item => item.key === key)!;
-    const definition = definitionOf(key);
-    const pattern = current.letter === "B" ? "both" : current.letter === definition.first.letter ? "first" : current.letter === definition.second.letter ? "second" : null;
-    if (pattern) return {
-      name: NAMES[key][pattern], nameFrom: key, headline: HEADLINES[key][pattern],
-      nameSource: current.borderline
-        ? `이름은 ‘${definition.topicName}’ 답에서 따와서, 이 글자가 바뀌면 이름도 바뀌어요`
-        : `이름은 ‘${definition.topicName}’ 답에서 따왔어요`,
-    };
-  }
-  return { ...V31_STYLE_NAME_FALLBACK, nameFrom: null };
-}
-
 function quotedTopics(dimensions: V31StyleDimension[]): string {
   return dimensions.map(item => `‘${item.topicName}’`).join(", ");
 }
 
 /**
- * 코드보다 먼저 보여주는 한 줄. 어느 글자가 한 칸 차이로 바뀌는지 주제 이름으로 적는다(밑줄 같은 눈으로만 보이는
- * 표시를 가리키지 않아야 화면 읽기 프로그램으로도 어느 글자인지 안다). 아슬하지 않은 글자도 다시 답하면 바뀔 수
- * 있으므로 그 말은 늘 함께 둔다(PRINCIPLES.md 5절).
+ * 코드보다 먼저 보여주는 한 줄. 아슬한 글자를 주제 이름으로 적고(밑줄 같은 눈으로만 보이는 표시를 가리키지 않아야
+ * 화면 읽기 프로그램으로도 어느 글자인지 안다), 두 답으로 실제로 고른 보기 이름을 ‘’ 안에 인용한다.
+ * 「한 칸 차이」만 적으면 두 답이 한 칸 차이인 B·M·N 자리도 같은 말에 들어맞는다. 보기 이름까지 적으면 4 대 3·3 대 4
+ * 에서만 참이고, 어느 문장에 어느 보기를 골랐는지는 말하지 않으므로 두 칸 모두에서 참이다. 그런 글자가 없으면 쓰지 않는다.
+ * 보기 이름은 반드시 ‘’ 안에 둔다(‘어느 쪽도 아니에요’를 밖에 두면 판정 고지처럼 읽힌다).
+ * 다시 답하면 바뀔 수 있다는 말은 이 줄이 아니라 changeNotice 가 모든 코드에 한 번 한다.
  */
 function borderlineNotice(dimensions: V31StyleDimension[]): string | null {
-  const decided = dimensions.filter(item => item.letter !== "?").length;
   const borderline = dimensions.filter(item => item.borderline);
-  if (!decided) return null;
-  if (!borderline.length) return "지금 글자는 답 하나를 한 칸 옮겨도 그대로예요. 다시 답하면 달라질 수 있어요.";
-  if (borderline.length === dimensions.length) return "네 글자 모두 답 하나만 한 칸 달라져도 바뀌어요.";
-  return `${quotedTopics(borderline)} 글자는 답 하나만 한 칸 달라져도 바뀌어요. 다른 글자도 다시 답하면 달라질 수 있어요.`;
+  if (!borderline.length) return null;
+  const split = `두 문장의 답이 ‘${BORDERLINE_AGREE_LABEL}’와 ‘${BORDERLINE_NEUTRAL_LABEL}’로 한 칸 차이예요.`;
+  if (borderline.length === dimensions.length) return `네 글자 모두 ${split}`;
+  return `${quotedTopics(borderline)} 글자는 ${split}`;
+}
+
+/** 정해진 글자가 하나라도 있으면 붙인다. 모두 ‘?’면 카드 위 ‘?’ 안내가 글자가 생기는 길을 따로 말한다. */
+function changeNotice(dimensions: V31StyleDimension[]): string | null {
+  return dimensions.some(item => item.letter !== "?") ? V31_STYLE_CHANGE_NOTICE : null;
 }
 
 /**
@@ -324,10 +281,10 @@ export function buildV31StyleSummary(draft: V31Draft): V31StyleSummary {
   return {
     version: V31_STYLE_SUMMARY_VERSION,
     code: dimensions.map(item => item.letter).join(""),
-    ...summaryCopy(dimensions),
     hasIncomplete: dimensions.some(item => item.letter === "?"),
     borderlineCount: dimensions.filter(item => item.borderline).length,
     borderlineNotice: borderlineNotice(dimensions),
+    changeNotice: changeNotice(dimensions),
     pendingNotice: pendingNotice(dimensions),
     dimensions,
   };

@@ -51,6 +51,19 @@ describe("두 사람 결과 탭", () => {
   function codes() { return [...container.querySelectorAll("[data-style-summary]")].map(item => item.getAttribute("data-style-summary")); }
   function editButtons() { return [...container.querySelectorAll("button")].filter(item => `${item.textContent} ${item.getAttribute("aria-label") ?? ""}`.includes("수정")); }
 
+  it("다시 답하면 글자가 달라질 수 있다는 말은 함께 보기에서는 두 카드 위에 한 번, 한 사람 탭에서는 그 카드 안에 한 번 둔다", async () => {
+    const change = "다시 답하면 글자가 달라질 수 있어요.";
+    await render();
+    expect(panel().textContent?.split(change).length).toBe(2);
+    expect(panel().querySelector("[data-change-notice]")?.closest("[data-style-summary]")).toBeNull();
+    for (const label of ["내 결과", "상대 결과"]) {
+      await click(tab(label));
+      expect(panel().textContent?.split(change).length, label).toBe(2);
+      expect(panel().querySelector("[data-style-summary] [data-change-notice]"), label).not.toBeNull();
+      expect(panel().textContent, label).not.toContain("스타일");
+    }
+  });
+
   it("함께 비교하다 내 전체 결과와 상대 전체 결과를 각각 열고 본인 답만 수정한다", async () => {
     await render();
     expect(codes()).toEqual(["KBBB", "RBBB"]);
