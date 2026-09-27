@@ -110,6 +110,22 @@ describe("V31 same-browser resume", () => {
     expect(container.querySelector('[data-question="B1"]')).not.toBeNull();
   });
 
+  it("예전 묶음 중간에 저장한 사람은 앞으로 옮겨 간 빈 칸(하객 규모)의 페이지부터 이어 한다", async () => {
+    // 예전 3쪽(T1)에 저장: G1·G3·R4·B1·B3·D1 만 답했다. 하객 규모는 지금 1쪽, 더 쓰고 싶은 곳은 2쪽이다.
+    const draft = createV31Draft();
+    for (const id of ["G1", "G3", "R4", "B1", "B3", "D1"] as const) draft.answers[id] = 4;
+    seed(snapshot(draft, { flow: "core", index: getV31IndexForId("T1") }));
+    const raw = window.localStorage.getItem(LOCAL_KEY);
+    await render();
+    expect(container.textContent).toContain("기본 질문 13페이지 중 1페이지부터 이어 할 수 있어요");
+    await button("이어서 답하기");
+    expect([...container.querySelectorAll("[data-question]")].map(item => item.getAttribute("data-question"))).toEqual(["G1", "G3", "taste.guests"]);
+    expect(window.localStorage.getItem(LOCAL_KEY)).toBe(raw);
+    await click(container.querySelector('[data-question="taste.guests"] [data-choice="under50"]'));
+    await button("다음 질문");
+    expect([...container.querySelectorAll("[data-question]")].map(item => item.getAttribute("data-question"))).toEqual(["B1", "B3", "spending"]);
+  });
+
   it("예전 묶음에서 끝쪽(더 쓰고 싶은 곳)에 저장한 사람은 그 칸이 옮겨 간 주제 페이지에서 이어 한다", async () => {
     // 2026-09-27 전에는 ‘더 쓰고 싶은 곳’이 13쪽에 혼자 있었다. 지금은 돈 페이지(2쪽)에 문장 두 개와 함께 있다.
     const draft = coreCompleted(); delete draft.spending;

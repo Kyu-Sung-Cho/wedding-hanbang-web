@@ -18,7 +18,7 @@ import {
   V31_ALL_STEP_IDS, V31_CORE_INDEXES, V31_CORE_PAGES, V31_EXTRA_INDEXES,
   getV31MissingIndex, getV31NextIndex, getV31ResponseAt, getV31ScreenIndexes, type V31Flow,
 } from "@/lib/weddingCode/v31Flow";
-import { getV31Page, getV31PageMissingIndex, getV31Pages, isV31PageComplete } from "@/lib/weddingCode/v31Pages";
+import { getV31Page, getV31PageMissingIndex, getV31Pages, getV31ResumeIndex, isV31PageComplete } from "@/lib/weddingCode/v31Pages";
 import { readSavedPairSession, subscribePairSession } from "@/lib/weddingCode/pairSessionClient";
 
 const coreCount = WEDDING_CODE_V31_QUESTIONS.length;
@@ -248,7 +248,9 @@ export default function WeddingCodeV31Client({ shareOrigin, partnerDraft = null,
   }
   function resume(saved = local.store.restore()) {
     if (!saved) return;
-    setOwned(true); setProgress(saved); setRevision(value => value + 1);
+    // 예전 묶음에서 저장한 사람은 앞 페이지에 빈 칸이 있을 수 있다. 그 페이지부터 연다(저장본은 다음 답을 고를 때 새로 쓴다).
+    const index = saved.screen === "questions" ? getV31ResumeIndex(saved.draft, saved.flow, saved.index, saved.editing) : saved.index;
+    setOwned(true); setProgress({ ...saved, index }); setRevision(value => value + 1);
     setNotice(saved.needsPriorityReview ? "앞의 답이 바뀌어 우선순위를 다시 확인해야 해요." : "저장된 내 답을 불러왔어요.");
   }
   function restart() {
@@ -380,7 +382,7 @@ export default function WeddingCodeV31Client({ shareOrigin, partnerDraft = null,
     </section>
     {!owned && local.saved ? <section className={`${v31Surface} mt-5 p-5`} aria-label="저장된 내 답 이어하기">
       <h2 className={`text-lg ${v31Title}`}>이 브라우저에 남겨 둔 답이 있어요</h2>
-      <p className={`mt-2 ${v31Body}`}>{local.saved.screen === "result" ? "전에 답한 내 결과를 다시 볼 수 있어요." : local.saved.editing ? "수정하던 질문부터 이어 할 수 있어요." : `${v31PositionLabel(local.saved.flow, local.saved.index)}부터 이어 할 수 있어요.`}</p>
+      <p className={`mt-2 ${v31Body}`}>{local.saved.screen === "result" ? "전에 답한 내 결과를 다시 볼 수 있어요." : local.saved.editing ? "수정하던 질문부터 이어 할 수 있어요." : `${v31PositionLabel(local.saved.flow, getV31ResumeIndex(local.saved.draft, local.saved.flow, local.saved.index, local.saved.editing))}부터 이어 할 수 있어요.`}</p>
       <Button variant="primary" size="lg" fullWidth onClick={() => resume()} className="mt-3 whitespace-normal!">{local.saved.screen === "result" ? context.first ? "저장한 내 답으로 비교하기" : "내 결과 다시 보기" : "이어서 답하기"}</Button>
     </section> : null}
     <div className="mt-5 space-y-1" data-intro-scope>

@@ -1,5 +1,5 @@
 import { WEDDING_CODE_V31_QUESTIONS, type V31Draft } from "@/constants/weddingCodeV31";
-import { V31_CORE_PAGE_INDEXES, getV31NextIndex, getV31PreviousIndex, getV31ResponseAt, getV31ScreenIndexes, type V31Flow } from "./v31Flow";
+import { V31_CORE_PAGE_INDEXES, getV31MissingIndex, getV31NextIndex, getV31PreviousIndex, getV31ResponseAt, getV31ScreenIndexes, type V31Flow } from "./v31Flow";
 
 export type V31Page = {
   indexes: readonly number[];
@@ -37,6 +37,20 @@ export function getV31Page(flow: V31Flow, index: number, editing = false): V31Pa
     previousIndex: position > 0 ? pages[position - 1][0] : null,
     nextIndex: position >= 0 ? pages[position + 1]?.[0] ?? null : null,
   };
+}
+
+/**
+ * 이어 하기로 열 자리. 저장된 자리보다 앞 페이지에 빈 칸이 있으면 그 페이지부터 연다. 2026-09-27 에 기본 흐름을 주제별로
+ * 다시 묶으면서 하객 규모와 더 쓰고 싶은 곳이 1·2쪽으로 옮겨 갔다. 예전 묶음에서 중간까지 답한 사람은 그 두 칸이 빈 채로
+ * 뒤 페이지에 저장돼 있다. 새 묶음에서는 빈 칸이 있으면 다음 페이지로 못 가므로 저장 자리 앞에 빈 칸이 생기지 않는다.
+ */
+export function getV31ResumeIndex(draft: V31Draft, flow: V31Flow, index: number, editing: boolean): number {
+  if (flow !== "core" || editing) return index;
+  const missing = getV31MissingIndex(draft, flow);
+  if (missing === null) return index;
+  const saved = getV31Page(flow, index);
+  const target = getV31Page(flow, missing);
+  return target.position >= 0 && target.position < saved.position ? target.indexes[0] : index;
 }
 
 export function getV31PageMissingIndex(draft: V31Draft, indexes: readonly number[]): number | null {

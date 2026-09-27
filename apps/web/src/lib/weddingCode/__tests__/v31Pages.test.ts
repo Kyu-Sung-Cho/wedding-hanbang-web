@@ -4,7 +4,7 @@ import { createV31Draft, encodeV31 } from "../v31";
 import {
   V31_ALL_STEP_IDS, V31_CORE_INDEXES, V31_CORE_SCREEN_INDEXES, V31_EXTRA_INDEXES, V31_FULL_INDEXES, V31_PRIORITY_INDEX, getV31IndexForId,
 } from "../v31Flow";
-import { getV31Page, getV31PageMissingIndex, getV31Pages, isV31PageComplete } from "../v31Pages";
+import { getV31Page, getV31PageMissingIndex, getV31Pages, getV31ResumeIndex, isV31PageComplete } from "../v31Pages";
 
 describe("v3.1 페이지는 기존 응답 자리를 바꾸지 않는다", () => {
   it("기본 흐름은 주제 하나에 한 쪽이고 우선순위는 혼자 맨 끝이며, 선택 흐름은 문장 3개씩 묶는다", () => {
@@ -42,6 +42,26 @@ describe("v3.1 페이지는 기존 응답 자리를 바꾸지 않는다", () => 
     expect(getV31Page("extra", 23)).toMatchObject({ indexes: [19, 23], previousIndex: 9, nextIndex: null, total: 3 });
     expect(getV31Page("extra", 32)).toMatchObject({ indexes: [], position: -1 });
     expect(getV31Page("full", 8)).toMatchObject({ indexes: [8], previousIndex: 7, nextIndex: 9, total: 34 });
+  });
+
+  it("이어 하기는 저장 자리보다 앞 페이지에 빈 칸이 있으면 그 페이지부터 연다", () => {
+    // 예전 묶음 3쪽(T1, 13)에 저장한 사람: G1·G3·R4·B1·B3·D1 만 답했고 하객 규모(1쪽)와 더 쓰고 싶은 곳(2쪽)이 비었다.
+    const oldLayout = createV31Draft();
+    for (const id of ["G1", "G3", "R4", "B1", "B3", "D1"] as const) oldLayout.answers[id] = 4;
+    expect(getV31ResumeIndex(oldLayout, "core", 13, false)).toBe(1);
+    oldLayout.tastes.guests = { status: "undecided" };
+    expect(getV31ResumeIndex(oldLayout, "core", 13, false)).toBe(6);
+    // 빈 칸이 저장 자리와 같은 페이지이거나 뒤에 있으면 저장 자리를 그대로 쓴다.
+    oldLayout.spending = { status: "no_preference" };
+    expect(getV31ResumeIndex(oldLayout, "core", 13, false)).toBe(13);
+    const spendingOnly = createV31Draft();
+    for (const id of ["G1", "G3", "B1", "B3"] as const) spendingOnly.answers[id] = 4;
+    spendingOnly.tastes.guests = { status: "undecided" };
+    expect(getV31ResumeIndex(spendingOnly, "core", 33, false)).toBe(33);
+    // 수정 화면·선택 흐름·이전 전체 흐름은 저장 자리를 그대로 연다.
+    expect(getV31ResumeIndex(createV31Draft(), "core", 13, true)).toBe(13);
+    expect(getV31ResumeIndex(createV31Draft(), "extra", 9, false)).toBe(9);
+    expect(getV31ResumeIndex(createV31Draft(), "full", 20, false)).toBe(20);
   });
 
   it("결과 수정은 흐름 밖 문장도 한 개만 열고 기존 다음·이전 질문 의미를 유지한다", () => {
