@@ -333,7 +333,7 @@ describe("WeddingCodeV31Client", () => {
     await button("맞는 보기가 없어요"); await button("수정한 결과 보기"); await consent();
     expect(decodedLink(linkValue()!)?.priorities).toEqual({ status: "no_match" });
     expect(decodedLink(linkValue()!)?.tastes.venue).toEqual({ status: "answered", values: ["outdoor"] });
-    await button("더 쓰고 싶은 곳 수정"); await button("맞는 보기가 없어요"); await button("수정한 결과 보기"); await consent();
+    await click(container.querySelector<HTMLButtonElement>('[aria-label="더 쓰고 싶은 곳 수정"]')); await button("맞는 보기가 없어요"); await button("수정한 결과 보기"); await consent();
     expect(decodedLink(linkValue()!)?.spending).toEqual({ status: "no_match" });
   });
 
@@ -498,7 +498,7 @@ describe("WeddingCodeV31Client", () => {
     await button("수정한 결과 보기"); await consent();
     const oldUrl = linkValue()!;
     expect(decodedLink(oldUrl)?.priorities).toEqual({ status: "answered", values: ["G1", "avoid.heavy_decoration"] });
-    await button("피하고 싶은 것 수정");
+    await click(container.querySelector<HTMLButtonElement>('[aria-label="피하고 싶은 것 수정"]'));
     await click(container.querySelector<HTMLButtonElement>('[data-choice="heavy_decoration"]'));
     await click(container.querySelector<HTMLButtonElement>('[data-choice="loud_music"]'));
     await button("수정한 결과 보기");

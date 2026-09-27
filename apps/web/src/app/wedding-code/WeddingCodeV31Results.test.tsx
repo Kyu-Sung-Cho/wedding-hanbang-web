@@ -378,7 +378,7 @@ describe("개인 결과는 고른 답을 되풀이하지 않고 고지를 한 �
     expect(view.querySelector('[data-insight="participation-format"]')).not.toBeNull();
     // 2026-09-27: 그 카드가 펼친 채 보이면 무대 참여를 피하고 싶다는 줄은 같은 이야기(자리·무대·진행자)를 다시 하지 않는다.
     expect(view.querySelector('[data-insight="participation-format"]')?.closest("details")).toBeNull();
-    expect(view.querySelector('[data-avoidance-step="stage_participation"]')).not.toBeNull();
+    expect(view.querySelector("[data-avoidance-summary]")?.textContent).toContain("하객을 무대로 부르는 참여 순서");
     expect(view.querySelector('[data-avoidance-step="stage_participation"] [data-next-step]')).toBeNull();
     // 취향을 예약 조건으로 읽지 않게 하는 경계는 판정 고지가 아니라 할 일로 한 번 적는다.
     expect(view.textContent?.match(/예약 조건은 후보를 보면서 따로 정해요/g)).toHaveLength(1);
@@ -414,14 +414,56 @@ describe("개인 결과는 고른 답을 되풀이하지 않고 고지를 한 �
     const ids = (root: Element) => [...root.querySelectorAll("[data-insight]")].map(card => card.getAttribute("data-insight"));
     const open = [...section.querySelectorAll("[data-insight]")].filter(card => !card.closest("details"));
     expect(open.map(card => card.getAttribute("data-insight"))).toEqual(["delegate-update", "budget-explicit-spending", "participation-format"]);
-    const summaryGroup = section.querySelector('[data-insight-group="summary"]')!;
+    // 2026-09-27 결과 간추리기: 접힌 설명은 접기 하나에 모으고, 네 글자와 같은 답으로 만든 설명은 그 안 뒤쪽에 따로 묶는다.
+    const more = section.querySelector('details[data-insight-group="more"]')!;
+    expect(section.querySelectorAll("details[data-insight-group]")).toHaveLength(1);
+    expect(more.querySelector("summary")?.textContent).toBe("설명 6개 더 보기");
+    const summaryGroup = more.querySelector('[data-insight-group="summary"]')!;
     expect(ids(summaryGroup)).toEqual(["budget-revisit", "support-listen-help", "single-T1", "single-F2"]);
-    expect(summaryGroup.querySelector("summary")?.textContent).toBe("위 네 글자에 쓴 답으로 만든 설명 4개 보기");
-    expect(ids(section.querySelector('[data-insight-group="more"]')!)).toEqual(["single-G1", "single-G3"]);
+    expect(summaryGroup.textContent).toContain("위 네 글자에 쓴 답으로 만든 설명");
+    expect(ids(more)).toEqual(["single-G1", "single-G3", "budget-revisit", "support-listen-help", "single-T1", "single-F2"]);
     // 펼친 설명은 요약 밖의 답을 하나 이상 근거로 쓰고, 요약 묶음은 여덟 문장만 근거로 쓴다.
     const evidenceOf = new Map(buildV31Profile(draft).insights.map(item => [item.id, item.evidence.map(answer => answer.id)]));
     for (const card of open) expect(evidenceOf.get(card.getAttribute("data-insight")!)!.some(id => !SUMMARY_IDS.includes(id))).toBe(true);
     for (const id of ids(summaryGroup)) expect(evidenceOf.get(id!)!.every(item => SUMMARY_IDS.includes(item)), `${id}`).toBe(true);
+  });
+
+  it("취향·피하고 싶은 것·더 쓰고 싶은 곳을 한 목록에 두고, 준비 팁은 접기 하나에 모으되 예산 경계는 접지 않는다", () => {
+    const draft = mixedDraft();
+    draft.spending = { status: "answered", values: ["photo"] };
+    const view = render(draft);
+    const picture = view.querySelector("[data-wedding-picture]")!;
+    expect(picture.querySelectorAll("[data-taste-row]")).toHaveLength(WEDDING_CODE_V31_TASTES.length);
+    expect(picture.querySelector("[data-avoidance-summary]")).not.toBeNull();
+    expect(picture.querySelector("[data-spending-summary]")).not.toBeNull();
+    // 예전에는 피하고 싶은 것과 더 쓰고 싶은 곳이 각자 구역(제목·팁·수정 버튼)이었다.
+    const headings = [...view.querySelectorAll("h2")].map(heading => heading.textContent);
+    expect(headings).not.toContain("이번 결혼식에서 피하고 싶은 것");
+    expect(headings).not.toContain("다른 곳을 줄여서라도 더 쓰고 싶은 곳");
+    const tips = [...view.querySelectorAll("[data-next-step]")];
+    expect(tips.length).toBeGreaterThan(0);
+    for (const tip of tips) expect(tip.closest("details[data-preparation-tips]"), tip.textContent ?? "").not.toBeNull();
+    expect(view.querySelectorAll("details[data-preparation-tips]")).toHaveLength(1);
+    // 더 쓰고 싶은 곳을 전체 예산을 늘리자는 말로 읽지 않게 하는 문장은 접지 않고 목록에 둔다.
+    const spending = picture.querySelector("[data-spending-summary]")!;
+    expect(spending.textContent).toContain("전체 예산을 늘릴지는 따로 정해요");
+    expect(spending.closest("details")).toBeNull();
+    for (const label of ["피하고 싶은 것 수정", "더 쓰고 싶은 곳 수정"]) expect(picture.querySelector(`button[aria-label="${label}"]`), label).not.toBeNull();
+  });
+
+  it("우선순위 안내 카드가 있으면 설명 카드는 두 장만 펼쳐, 펼친 안내가 모두 세 장을 넘지 않는다", () => {
+    const draft = mixedDraft();
+    draft.priorities = { status: "answered", values: ["G3"] };
+    const view = render(draft);
+    const guides = [...view.querySelectorAll("[data-priority-guides] [data-insight]")];
+    expect(guides.length).toBeGreaterThan(0);
+    const open = [...view.querySelectorAll("[data-personal-insights] [data-insight]")].filter(card => !card.closest("details"));
+    expect(open).toHaveLength(2);
+    expect(guides.length + open.length).toBeLessThanOrEqual(3);
+    // 나머지는 한 접기에 그대로 있다.
+    const more = view.querySelector('[data-personal-insights] details[data-insight-group="more"]')!;
+    const total = [...view.querySelectorAll("[data-personal-insights] [data-insight]")].length;
+    expect(more.querySelector("summary")?.textContent).toBe(`설명 ${total - 2}개 더 보기`);
   });
 
   it("모든 문장을 낮게 답해도 반대 성향 설명을 만들지 않고, 취향의 다음 행동은 남긴다", () => {

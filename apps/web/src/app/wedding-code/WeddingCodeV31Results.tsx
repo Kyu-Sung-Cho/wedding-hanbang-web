@@ -66,8 +66,8 @@ function Insight({ item, onEdit }: { item: V31Insight; onEdit?: EditHandler }) {
 function RawAnswers({ profile, draft, onEdit, personLabel }: { profile: V31Profile; draft: V31Draft; onEdit?: EditHandler; personLabel?: string }) {
   const topics = profile.topics.map(topic => ({ ...topic, responses: topic.responses.filter(response => hasResponse(draft, response.id)) }))
     .filter(topic => topic.responses.length > 0);
-  return <details className={`${v31Surface} mt-5 p-5 sm:p-7`}>
-    <summary className={`min-h-11 cursor-pointer text-base ${v31Title}`}>{personLabel ? `${personLabel}의 문장별 답 모두 보기` : "문장별로 내가 고른 답 모두 보기"}</summary>
+  return <details className="py-2">
+    <summary className={`flex min-h-11 cursor-pointer items-center text-base underline underline-offset-4 ${v31Title}`}>{personLabel ? `${personLabel}의 문장별 답 모두 보기` : "문장별로 내가 고른 답 모두 보기"}</summary>
     <p className={`mt-2 ${v31Body}`}>중간 응답, 아직 모름, 계획 없음, 답하지 않음은 각각 그대로 남겨요.</p>
     {topics.map(topic => <section key={topic.key} className="mt-5">
       <h3 className={`text-sm ${v31Title}`}>{topic.title}</h3>
@@ -88,19 +88,31 @@ function PersonalProfile({ draft, onEdit, nested = false, personLabel }: { draft
   const priorityInsightIds = new Set(profile.priorityGuides.flatMap(item => item.coveredInsightIds ?? [item.sourceInsightId]));
   // 우선순위 안내 카드가 가져간 취향·피하고 싶은 것의 다음 행동은 아래 영역에서 다시 쓰지 않는다.
   const guidedSteps = new Set(profile.priorityGuides.map(item => item.sourceInsightId));
-  // 요약에 없는 답이 섞인 설명을 앞에 세 개까지 펼치고, 네 글자 요약과 같은 여덟 문장만 근거인 설명은 따로 접는다.
+  // 요약에 없는 답이 섞인 설명을 앞에 펼치고, 네 글자 요약과 같은 여덟 문장만 근거인 설명은 따로 접는다.
   const { fresh, summaryOnly } = splitV31InsightsBySummary(profile.insights.filter(item => !priorityInsightIds.has(item.id)), SUMMARY_STATEMENT_IDS);
   const insightCount = fresh.length + summaryOnly.length;
+  // 펼친 안내 카드는 우선순위 안내를 합쳐 세 장 안쪽으로 둔다(2026-09-27 결과 간추리기). 우선순위 안내가 있으면 설명은 두 장만 펼친다.
+  const openLimit = profile.priorityGuides.length ? 2 : 3;
+  const openFresh = fresh.slice(0, openLimit);
   // 참여 방식 안내 카드(무대로 부르지 않고 자리에서 함께하는 방식)가 펼친 채 보이면, 무대 참여를 피하고 싶다는 줄은
   // 같은 이야기를 다시 하지 않는다. 카드가 ‘다른 설명 더 보기’ 안에 접혀 있으면 줄의 다음 행동을 그대로 둔다.
   const participationShown = profile.priorityGuides.some(item => item.sourceInsightId === "participation-format")
-    || fresh.slice(0, 3).some(item => item.id === "participation-format");
+    || openFresh.some(item => item.id === "participation-format");
   const who = personLabel ? "이 사람이" : "내가";
+  // 우선순위 안내 카드나 펼친 설명 카드가 이미 말한 팁은 다시 쓰지 않는다(예전 줄마다 팁을 붙일 때와 같은 규칙).
+  const preparationTips: { key: string; title: string; nextStep: string; data: Record<string, string> }[] = [
+    ...profile.tastes.filter(taste => taste.nextStep && !guidedSteps.has(`direct-${taste.key}`))
+      .map(taste => ({ key: `taste.${taste.key}`, title: taste.title, nextStep: taste.nextStep!, data: { "data-taste": taste.key } })),
+    ...profile.avoidanceSteps.filter(step => !guidedSteps.has(`avoid-${step.value}`) && !(step.value === "stage_participation" && participationShown))
+      .map(step => ({ key: `avoid.${step.value}`, title: `피하고 싶은 것 · ${step.label}`, nextStep: step.nextStep, data: { "data-avoidance-step": step.value } })),
+  ];
   const priorityStatus = draft.priorities?.status === "skipped" ? "우선순위는 이번에 고르지 않았어요."
     : draft.priorities?.status === "no_preference" ? "꼭 지키고 싶은 건 따로 없다고 답했어요."
       : draft.priorities?.status === "undecided" ? "우선순위는 아직 정하지 않았어요."
         : v31ChoiceLabels(draft.priorities, []).join(" · ");
-  const foldSummary = `flex min-h-11 cursor-pointer items-center text-sm ${v31Title}`;
+  const foldSummary = `flex min-h-11 cursor-pointer items-center text-sm underline underline-offset-4 ${v31Title}`;
+  const pictureLabel = "text-xs font-semibold text-[var(--hb-text-muted)]";
+  const pictureValue = `mt-0.5 text-sm leading-relaxed ${v31Title}`;
   // 우선순위를 한 번도 묻지 않은 결과(예전 기본 흐름을 마친 저장본)나, 고를 보기가 없어 건너뛴 뒤 취향을 고친 결과에서도
   // 결과 화면에서 우선순위를 고를 수 있게 한다. 받은 결과·상대 탭처럼 수정할 수 없는 화면에서는 그리지 않는다.
   const priorityEntry = draft.priorities === undefined && onEdit !== undefined && getV31PriorityOptions(draft).length > 0;
@@ -127,46 +139,64 @@ function PersonalProfile({ draft, onEdit, nested = false, personLabel }: { draft
       {insightCount ? <>
         {/* 카드 사용법은 화면에 한 번만 쓴다. 우선순위 안내가 있으면 그쪽에 이미 적었다. */}
         {profile.priorityGuides.length ? null : <p className={`mb-5 mt-2 ${v31Body}`} data-insight-note>{insightNote(onEdit)}</p>}
-        <div className={profile.priorityGuides.length ? "mt-5" : undefined}>{fresh.slice(0, 3).map(item => <Insight key={item.id} item={item} onEdit={onEdit} />)}</div>
-        {fresh.length > 3 ? <details className="mt-5 border-t border-[var(--hb-hairline)] pt-4" data-insight-group="more"><summary className={foldSummary}>다른 설명 {fresh.length - 3}개 더 보기</summary><div className="pt-4">{fresh.slice(3).map(item => <Insight key={item.id} item={item} onEdit={onEdit} />)}</div></details> : null}
-        {summaryOnly.length ? <details className="mt-5 border-t border-[var(--hb-hairline)] pt-4" data-insight-group="summary"><summary className={foldSummary}>위 네 글자에 쓴 답으로 만든 설명 {summaryOnly.length}개 보기</summary><div className="pt-4">{summaryOnly.map(item => <Insight key={item.id} item={item} onEdit={onEdit} />)}</div></details> : null}
+        <div className={profile.priorityGuides.length ? "mt-5" : undefined}>{openFresh.map(item => <Insight key={item.id} item={item} onEdit={onEdit} />)}</div>
+        {/* 접힌 설명은 한 곳에 모은다(2026-09-27 결과 간추리기). 네 글자와 같은 답으로 만든 설명은 그 안에서 뒤에 따로 묶는다. */}
+        {insightCount > openFresh.length ? <details className="mt-5 border-t border-[var(--hb-hairline)] pt-4" data-insight-group="more">
+          <summary className={foldSummary}>설명 {insightCount - openFresh.length}개 더 보기</summary>
+          {fresh.length > openFresh.length ? <div className="pt-4">{fresh.slice(openFresh.length).map(item => <Insight key={item.id} item={item} onEdit={onEdit} />)}</div> : null}
+          {summaryOnly.length ? <div className="pt-4" data-insight-group="summary">
+            <p className={`mb-4 text-sm ${v31Title}`}>위 네 글자에 쓴 답으로 만든 설명</p>
+            {summaryOnly.map(item => <Insight key={item.id} item={item} onEdit={onEdit} />)}
+          </div> : null}
+        </details> : null}
       </> : <p className={`mt-2 rounded-lg bg-[var(--hb-surface-hover)] p-4 ${v31Body}`}>아래에 {who} 고른 답을 그대로 정리했어요. 낮게 답하거나 아직 정하지 않은 것을 반대 취향으로 바꾸지 않아요. 생각이 달라지면 다시 답해도 괜찮아요.</p>}
     </section> : null}
-    <section className={`${v31Surface} mt-5 p-5 sm:p-7`}>
-      <h2 className={`text-lg ${v31Title}`}>이번 결혼식에서 피하고 싶은 것</h2>
-      {profile.avoidanceSteps.length ? <ul className="mt-3 divide-y divide-[var(--hb-hairline)]" data-avoidance-summary>{profile.avoidanceSteps.map(step => <li key={step.value} className="py-3" data-avoidance-step={step.value}>
-        <p className={`text-sm ${v31Title}`}>{step.label}</p>
-        {guidedSteps.has(`avoid-${step.value}`) || (step.value === "stage_participation" && participationShown) ? null : <p className={`mt-1 flex gap-2 ${v31Body}`} data-next-step><ArrowRight aria-hidden="true" className="mt-1 size-3.5 shrink-0 text-[var(--hb-success)]" />{step.nextStep}</p>}
-      </li>)}</ul> : <p className={`mt-3 ${v31Body}`} data-avoidance-summary>{profile.avoidanceLabels.join(" · ")}</p>}
-      {onEdit ? <Button variant="ghost" onClick={() => onEdit("avoidances")} className="mt-2">피하고 싶은 것 수정</Button> : null}
-    </section>
-    <section className={`${v31Surface} mt-5 p-5 sm:p-7`}>
+    {/*
+      2026-09-27 결과 간추리기: 취향 여섯, 피하고 싶은 것, 더 쓰고 싶은 곳을 한 목록에 한 줄씩 두고, 줄마다 붙던 준비 팁은
+      아래 접기 하나로 모은다. 예전에는 세 구역에 팁이 줄마다 펼쳐져 휴대폰 두 화면 가까이 됐다. 예산 경계 문장은 목록에 남긴다.
+    */}
+    <section className={`${v31Surface} mt-5 p-5 sm:p-7`} data-wedding-picture>
       <h2 className={`text-xl ${v31Title}`}>{personLabel ? `${personLabel}의 결혼식 취향` : "내가 그려본 결혼식"}</h2>
       <p className={`mt-2 ${v31Body}`}>예약 조건은 후보를 보면서 따로 정해요.</p>
-      <dl className="mt-4 divide-y divide-[var(--hb-hairline)]">{profile.tastes.map(taste => <div key={taste.key} className="py-3" data-taste={taste.key}>
-        <div className="flex items-center justify-between gap-3"><dt className={`text-sm ${v31Title}`}>{taste.title}</dt>{onEdit ? <Button variant="ghost" onClick={() => onEdit(`taste.${taste.key}`)} size="sm" aria-label={`${taste.title} 취향 수정`}>수정</Button> : null}</div>
-        <dd className={`mt-1 ${v31Body}`}>{taste.labels.join(" · ")}</dd>
-        {taste.nextStep && !guidedSteps.has(`direct-${taste.key}`) ? <dd className={`mt-1 flex gap-2 ${v31Body}`} data-next-step><ArrowRight aria-hidden="true" className="mt-1 size-3.5 shrink-0 text-[var(--hb-success)]" />{taste.nextStep}</dd> : null}
-      </div>)}</dl>
+      <dl className="mt-4 divide-y divide-[var(--hb-hairline)]">
+        {/* 한 줄에 항목 이름(작게)과 고른 답, 오른쪽에 수정. 예전처럼 이름 줄과 답 줄을 나누면 여덟 줄이 두 배로 길어진다. */}
+        {profile.tastes.map(taste => <div key={taste.key} className="flex items-start justify-between gap-3 py-2.5" data-taste-row={taste.key}>
+          <div className="min-w-0"><dt className={pictureLabel}>{taste.title}</dt><dd className={pictureValue}>{taste.labels.join(" · ")}</dd></div>
+          {onEdit ? <Button variant="ghost" onClick={() => onEdit(`taste.${taste.key}`)} size="sm" className="shrink-0" aria-label={`${taste.title} 취향 수정`}>수정</Button> : null}
+        </div>)}
+        <div className="flex items-start justify-between gap-3 py-2.5" data-avoidance-summary>
+          <div className="min-w-0"><dt className={pictureLabel}>피하고 싶은 것</dt><dd className={pictureValue}>{profile.avoidanceSteps.length ? profile.avoidanceSteps.map(step => step.label).join(" · ") : profile.avoidanceLabels.join(" · ")}</dd></div>
+          {onEdit ? <Button variant="ghost" onClick={() => onEdit("avoidances")} size="sm" className="shrink-0" aria-label="피하고 싶은 것 수정">수정</Button> : null}
+        </div>
+        <div className="flex items-start justify-between gap-3 py-2.5" data-spending-summary>
+          <div className="min-w-0"><dt className={pictureLabel}>다른 곳을 줄여서라도 더 쓰고 싶은 곳</dt><dd className={pictureValue}>{draft.spending?.status === "no_preference" ? "더 쓰고 싶은 곳은 지금 없어요." : profile.spendingLabels.join(" · ")}</dd>
+          <dd className="mt-1 text-xs leading-relaxed text-[var(--hb-text-muted)]">{draft.spending?.status === "no_preference" ? "상대가 더 쓰고 싶은 곳이 있다면 이유를 듣고, 전체 예산 안에서 가능한지 같이 살펴봐요." : draft.spending?.status === "answered" ? "더 쓸 곳마다 대신 줄일 곳을 같이 정해 보세요. 전체 예산을 늘릴지는 따로 정해요." : "더 쓰고 싶은 곳이 생기면 다시 답해도 괜찮아요."}</dd></div>
+          {onEdit ? <Button variant="ghost" onClick={() => onEdit("spending")} size="sm" className="shrink-0" aria-label="더 쓰고 싶은 곳 수정">수정</Button> : null}
+        </div>
+      </dl>
+      {preparationTips.length ? <details className="mt-4 border-t border-[var(--hb-hairline)] pt-3" data-preparation-tips>
+        <summary className={foldSummary}>준비할 때 볼 것 {preparationTips.length}개 보기</summary>
+        <ul className="mt-2 divide-y divide-[var(--hb-hairline)]">{preparationTips.map(tip => <li key={tip.key} className="py-3" {...tip.data}>
+          <p className={`text-sm ${v31Title}`}>{tip.title}</p>
+          <p className={`mt-1 flex gap-2 ${v31Body}`} data-next-step><ArrowRight aria-hidden="true" className="mt-1 size-3.5 shrink-0 text-[var(--hb-success)]" />{tip.nextStep}</p>
+        </li>)}</ul>
+      </details> : null}
     </section>
-    <section className={`${v31Surface} mt-5 p-5 sm:p-7`}>
-      <h2 className={`text-lg ${v31Title}`}>다른 곳을 줄여서라도 더 쓰고 싶은 곳</h2>
-      <p className={`mt-3 ${v31Body}`}>{draft.spending?.status === "no_preference" ? "더 쓰고 싶은 곳은 지금 없어요." : profile.spendingLabels.join(" · ")}</p>
-      <p className={`mt-3 ${v31Body}`}>{draft.spending?.status === "no_preference" ? "상대가 더 쓰고 싶은 곳이 있다면 이유를 듣고, 전체 예산 안에서 가능한지 같이 살펴봐요." : draft.spending?.status === "answered" ? "더 쓸 곳마다 대신 줄일 곳을 같이 정해 보세요. 전체 예산을 늘릴지는 따로 정해요." : "더 쓰고 싶은 곳이 생기면 다시 답해도 괜찮아요."}</p>
-      {onEdit ? <Button variant="ghost" onClick={() => onEdit("spending")} className="mt-2">더 쓰고 싶은 곳 수정</Button> : null}
-    </section>
-    {unresolved.length ? <details className={`${v31Surface} mt-5 p-5 sm:p-7`}><summary className={`min-h-11 cursor-pointer text-base ${v31Title}`}>모름·계획 없음·답하지 않음·맞는 보기 없음</summary>
+    {/* 접어 둔 세 가지(모름 등, 문장별 답, 메모)는 카드 하나에 줄로 나눠 둔다. 카드를 따로 두면 접힌 줄 하나마다 카드 한 장 높이가 든다. */}
+    <section className={`${v31Surface} mt-5 divide-y divide-[var(--hb-hairline)] px-5 py-2 sm:px-7`} data-answer-folds>
+    {unresolved.length ? <details className="py-2"><summary className={`flex min-h-11 cursor-pointer items-center text-base underline underline-offset-4 ${v31Title}`}>모름·계획 없음·답하지 않음·맞는 보기 없음</summary>
       <p className={`mt-2 ${v31Body}`}>각각 다른 뜻의 답으로 남겨요. ‘맞는 보기가 없어요’는 취향이 아직 정해지지 않았다는 뜻은 아니에요. 보기 밖의 생각이 있다면 대화할 때 직접 들려주세요.</p>
       <ul className="mt-3 divide-y divide-[var(--hb-hairline)]">{unresolved.map(item => <li key={item.id} className="py-3"><p className={v31Body}>{item.text}</p><p className={`mt-1 text-sm ${v31Title}`}>{item.answer}</p>{onEdit ? <Button variant="ghost" onClick={() => onEdit(item.id)} className="mt-1" aria-label={`${item.text} 답 수정`}>다시 답하기</Button> : null}</li>)}</ul>
     </details> : null}
     <RawAnswers profile={profile} draft={draft} onEdit={onEdit} personLabel={personLabel} />
-    {!nested ? <details className={`${v31Surface} mt-5 p-5 sm:p-7`} data-optional-personal-note>
-      <summary className={`flex min-h-11 cursor-pointer items-center text-base ${v31Title}`}>내 메모 남기기 (선택)</summary>
+    {!nested ? <details className="py-2" data-optional-personal-note>
+      <summary className={`flex min-h-11 cursor-pointer items-center text-base underline underline-offset-4 ${v31Title}`}>내 메모 남기기 (선택)</summary>
       <label htmlFor="wedding-code-personal-note" className={`mt-3 block text-sm ${v31Title}`}>보기에는 없지만, 내가 남기고 싶은 것</label>
       <p className={`mb-3 mt-2 ${v31Body}`}>쓰지 않아도 결과를 보는 데는 문제가 없어요. 메모는 이 화면에서만 볼 수 있고, 자동 저장이나 공유 링크에는 포함되지 않아요. 새로고침하거나 답을 수정하면 지워져요.</p>
       <textarea id="wedding-code-personal-note" maxLength={500} value={memo} onChange={event => setMemo(event.target.value)} rows={3}
         className="w-full resize-y rounded-lg border border-paper-outline bg-[var(--hb-surface-raised)] p-3 text-sm leading-relaxed text-[var(--hb-text-strong)] focus-visible:outline-2 focus-visible:outline-[var(--hb-focus-ring)]" placeholder="예: 입장할 때는 우리 둘이 같이 걷고 싶어요." />
     </details> : null}
+    </section>
   </div>;
 }
 
@@ -309,8 +339,9 @@ export default function WeddingCodeV31Results({ draft, first, received, shareOri
       <h1 className={`mt-3 text-3xl leading-snug ${v31Title}`}>{first ? "우리, 어디부터 맞춰볼까요?" : profile.hasContent ? "내가 바라는 결혼식과 준비 방식" : "이번에 남긴 답을 살펴봐요"}</h1>
       <p className={`mt-3 ${v31Body}`}>{first ? "함께 동의하거나 고른 내용부터, 서로 다르게 답한 것까지 나란히 봐요. 같은 답도 이유는 다를 수 있으니, 각자 떠올린 장면을 이야기해 보세요." : profile.hasContent ? editable ? "지금 직접 고른 취향과 답을 정리했어요." : "공유된 취향과 답을 정리했어요. 이 화면에서는 답을 수정할 수 없어요." : "모름·계획 없음·답하지 않음·맞는 보기 없음은 서로 다른 답이에요. 이 답들로 구체적인 취향을 만들지는 않았어요. 원할 때 다시 답해도 괜찮아요."}</p>
       {/* 답한 개수는 적지 않는다. 시작 화면이 페이지로 세는데 여기서 질문·문장 개수를 또 말하면 숫자가 셋으로 갈린다(2026-09-27). */}
-      <p className="mt-3 text-xs leading-relaxed text-[var(--hb-text-muted)]">{received ? "받은 링크에 담긴 답이에요. 이름이나 본인 여부는 확인하지 않아요. " : null}취향과 바람은 달라질 수 있어요. 성격 진단이나 궁합 점수는 아니에요.</p>
-      {!first && editable && profile.hasContent ? <Button variant="secondary" className="mt-4 whitespace-normal!" onClick={() => { sharingRef.current?.scrollIntoView({ block: "start" }); sharingRef.current?.focus({ preventScroll: true }); }}>상대와 함께 보는 방법</Button> : null}
+      {/* 판정이 아니라는 말은 여기서 한 번만 한다. 글자가 바뀔 수 있다는 말은 코드 카드가 코드 바로 위에서 한다. */}
+      <p className="mt-3 text-xs leading-relaxed text-[var(--hb-text-muted)]">{received ? "받은 링크에 담긴 답이에요. 이름이나 본인 여부는 확인하지 않아요. " : null}성격 진단이나 궁합 점수는 아니에요.</p>
+      {!first && editable && profile.hasContent ? <Button variant="ghost" size="sm" className="mt-2 px-0! underline underline-offset-4 whitespace-normal!" onClick={() => { sharingRef.current?.scrollIntoView({ block: "start" }); sharingRef.current?.focus({ preventScroll: true }); }}>상대와 함께 보는 방법</Button> : null}
     </header>
     {first ? <>
       <div role="tablist" aria-label="두 사람 결과 보기" className="mb-5 grid grid-cols-3 gap-1 rounded-xl border border-paper-outline bg-[var(--hb-surface-hover)] p-1">
