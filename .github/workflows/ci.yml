@@ -1,8 +1,23 @@
 name: CI
 
-# 코드 검사는 PR과 main push에서 자동 실행한다. 수동 재검증도 유지한다.
+# 이벤트마다 도는 잡이 다르다(2026-09-27 파운더 승인, 설계 1단계 6·8번).
+#   - pull_request: 코드 검사 다섯 잡과 필수 검사(Code Quality)가 돈다.
+#   - push(main):   설치 캐시를 채우는 `main_install_cache` 하나만 돈다.
+#   - workflow_dispatch: 코드 검사 전부에 더해, 무조건 실패하는
+#     Production Readiness와 Quality Gate까지 돈다.
 # Code Quality는 코드 검사 결과이며 운영 릴리스 인가를 대신하지 않는다.
-# 항상 실패하는 Production Readiness와 Quality Gate는 기존 계약대로 남긴다.
+#
+# main push에서 코드 검사를 다시 돌리지 않는 이유: main 보호에 strict(최신이어야
+# 병합, 관리자 포함)가 켜져 있어 main 트리는 PR에서 잰 트리와 같다(#451
+# ebcc29d5, #454 48aed5cd에서 PR 트리와 main 트리가 같음을 확인). main 재검사
+# 76회 중 코드 결함을 잡은 것은 0건이었고, 끝날 무렵이면 Vercel 운영 배포는 이미
+# 17~26분 전에 끝나 있어 막지도 못했다.
+# **strict를 끄는 날에는 같은 변경에서 main push 재검사를 되살린다.** 그때부터는
+# main 트리가 어떤 PR에서도 검사받지 않은 조합일 수 있다.
+#
+# push 트리거 자체를 지우지 않는 이유: setup-node의 pnpm 저장소 캐시(418MB)는
+# main에서 저장한 것만 모든 PR이 읽을 수 있다(PR끼리는 서로의 캐시를 못 본다).
+# main 실행을 통째로 없애면 잠금 파일이 바뀐 뒤부터 모든 PR 잡이 설치를 처음부터 한다.
 on:
   workflow_dispatch: {}
   push:
@@ -18,8 +33,42 @@ permissions:
   contents: read
 
 jobs:
+  # main push에서 도는 유일한 잡. 코드를 검사하지 않고 설치만 해서 setup-node가
+  # pnpm 저장소 캐시를 main 범위에 저장하게 한다(키는 잠금 파일 해시라 잠금
+  # 파일이 그대로면 저장을 건너뛰고 몇십 초 만에 끝난다). 액션 핀은 아래 잡들과
+  # 같아야 캐시 경로·키가 어긋나지 않는다.
+  # 필수 검사(code_quality_signal)의 needs에 넣지 않는다. PR에서는 이 잡이
+  # skipped라, 넣으면 그 결과가 success가 아니어서 모든 PR이 막힌다.
+  main_install_cache:
+    name: Main Install Cache (push only)
+    if: ${{ github.event_name == 'push' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
+
+      - name: Setup Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22.13.0
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+  # 아래 코드 검사 다섯 잡은 push에서 건너뛴다. pull_request와 workflow_dispatch
+  # 에서는 전과 같이 돈다. PR에서 이 조건이 거짓이 되면 안 된다: 필수 검사는
+  # 다섯 결과가 모두 success여야 통과하므로 skipped 하나로 모든 PR이 막힌다.
   web_quality:
     name: Web Quality
+    if: ${{ github.event_name != 'push' }}
     runs-on: ubuntu-latest
     # Typecheck, lint and production build run once alongside the test shards.
     timeout-minutes: 45
@@ -77,15 +126,22 @@ jobs:
       - name: Web production build
         run: pnpm --filter @hanbang/web build
 
+  # 네 갈래(2026-09-27, 설계 7번). 두 갈래일 때 한 갈래가 21~27분이었고 시간의
+  # 약 90%를 PGlite 테스트 130개가 썼다(run 36292542453). 속도는 갈래 수로 올리고
+  # 갈래 안의 동시 작업 수(--maxWorkers=2, apps/web/vitest.config.ts의 maxWorkers)는
+  # 올리지 않는다. 07-17에 4로 올렸다가 PGlite가 테스트 프로세스를 두 번 죽였다.
+  # 갈래는 파일 수로 나뉘어 느린 파일이 한 갈래에 몰릴 수 있다. 가장 긴 갈래가
+  # 20분을 넘으면 갈래 수를 다시 정한다.
   web_tests:
-    name: Web Tests (shard ${{ matrix.shard }}/2)
+    name: Web Tests (shard ${{ matrix.shard }}/4)
+    if: ${{ github.event_name != 'push' }}
     runs-on: ubuntu-latest
     timeout-minutes: 45
     strategy:
       fail-fast: false
-      max-parallel: 2
+      max-parallel: 4
       matrix:
-        shard: [1, 2]
+        shard: [1, 2, 3, 4]
 
     env:
       # Placeholder values keep CI focused on static verification and build integrity.
@@ -128,10 +184,11 @@ jobs:
 
       - name: Web tests
         # Independent runners retain the release-proven PGlite worker bound.
-        run: pnpm --filter @hanbang/web exec vitest run --shard=${{ matrix.shard }}/2 --maxWorkers=2
+        run: pnpm --filter @hanbang/web exec vitest run --shard=${{ matrix.shard }}/4 --maxWorkers=2
 
   mobile_quality:
     name: Mobile Quality
+    if: ${{ github.event_name != 'push' }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
 
@@ -184,6 +241,7 @@ jobs:
 
   vendor_disclosure_quality:
     name: Vendor Disclosure Quality
+    if: ${{ github.event_name != 'push' }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
 
@@ -215,6 +273,7 @@ jobs:
 
   static_release_contracts:
     name: Static Release Contracts (Non-Deploy)
+    if: ${{ github.event_name != 'push' }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
 
@@ -253,9 +312,20 @@ jobs:
       - name: Test fail-closed release controllers (no hosted evidence)
         run: pnpm supabase:release:test
 
+  # 무조건 실패하는 두 잡(production_readiness, ci)은 수동 실행(workflow_dispatch)
+  # 에서만 돈다. 돌 때는 지금처럼 fail-closed(exit 1)다. 지우지 않는다.
+  #
+  # 2026-07-19에는 "초록불을 배포 허가로 읽지 않게" 하려고 이 둘을 PR마다 빨갛게
+  # 두기로 했다. 2026-09-27 파운더 승인으로 그 결정을 뒤집는다. 근거:
+  #   - 30일 동안 CI 209회가 모두 '실패'로 보였고, 그중 184회는 이 두 잡만
+  #     빨갰다. 전체 결과가 늘 빨개서 진짜 파손을 알아보려면 잡을 하나씩 열어야 했다.
+  #   - 이 두 잡은 병합 54건 중 어느 것도, 운영 배포도 막은 적이 없다. 막는 일은
+  #     필수 검사(Code Quality)와 운영 DB 쓰기 절차가 한다.
+  # 초록불은 여전히 배포 허가나 DB 적용 허가가 아니다. 누군가 초록불을 그렇게
+  # 읽고 움직이면 이 두 잡을 PR 실행으로 되돌린다.
   production_readiness:
     name: "Production Readiness: BLOCKED (Hosted Evidence Required)"
-    if: ${{ always() }}
+    if: ${{ always() && github.event_name == 'workflow_dispatch' }}
     needs: [static_release_contracts]
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -270,21 +340,23 @@ jobs:
           echo "A clean-commit hosted-staging RLS receipt plus the remaining backup, restore, storage, and finalizer evidence must be independently pinned before production." >> "$GITHUB_STEP_SUMMARY"
           exit 1
 
-  # 파손 신호 전용 집계.
+  # 파손 신호 전용 집계. main 보호의 유일한 필수 검사다.
   #
   # 아래 `ci`(Quality Gate)는 production_readiness의 성공을 요구하고 그 잡은
-  # 의도적으로 항상 실패한다 — "초록불을 보고 배포해도 된다고 믿는 사람이 없게"
-  # 하려는 결정이고, `vendor-public-rls-probe.test.mjs`가 그 구조를 못 박고 있다.
-  # 그 대가로 **이 커밋이 뭔가를 깼는지**를 알려 주는 신호가 없었다. 집계가 늘
-  # 빨간불이라 개별 잡을 열어 봐야 했고, 그래서 실수를 잡는 신호로는 약했다
-  # (`cebda752`가 pre-push 훅을 만든 이유).
+  # 의도적으로 항상 실패한다. 이 잡이 생기기 전에는 두 잡이 PR마다 빨개서
+  # **이 커밋이 뭔가를 깼는지**를 알려 주는 신호가 없었다(`cebda752`가 pre-push
+  # 훅을 만든 이유). 2026-09-27부터 그 둘은 수동 실행에서만 돈다.
   #
-  # 그래서 차단은 그대로 두고 신호만 따로 낸다. 이 잡의 빨간불은 오직
-  # "코드 검사가 깨졌다"는 뜻이다. **릴리스 인가와는 무관하다** —
-  # 초록이어도 배포 가능하다는 뜻이 아니다.
+  # 이 잡의 빨간불은 오직 "코드 검사가 깨졌다"는 뜻이다. **릴리스 인가와는
+  # 무관하다** — 초록이어도 배포 가능하다는 뜻이 아니다.
+  #
+  # 잡 이름은 main 보호가 찾는 필수 검사 이름이라 한 글자도 바꾸지 않는다.
+  # push 제외는 main 재검사를 끄려는 것뿐이다. PR에서 이 잡이 skipped가 되면
+  # GitHub은 필수 검사를 통과로 친다(조건으로 건너뛴 잡은 성공으로 보고된다).
+  # 그래서 PR에서 이 조건이 참인지를 `ci-signal-integrity.test.mjs`가 못 박는다.
   code_quality_signal:
     name: "Code Quality (breakage signal only — not a release authorization)"
-    if: ${{ always() }}
+    if: ${{ always() && github.event_name != 'push' }}
     needs: [web_quality, web_tests, mobile_quality, vendor_disclosure_quality, static_release_contracts]
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -310,9 +382,11 @@ jobs:
             exit 1
           fi
 
+  # 수동 실행 전용(위 production_readiness 주석 참고). 돌면 production_readiness의
+  # 실패를 받아 반드시 실패한다.
   ci:
     name: Quality Gate
-    if: ${{ always() }}
+    if: ${{ always() && github.event_name == 'workflow_dispatch' }}
     needs: [web_quality, web_tests, mobile_quality, vendor_disclosure_quality, static_release_contracts, production_readiness]
     runs-on: ubuntu-latest
     timeout-minutes: 5

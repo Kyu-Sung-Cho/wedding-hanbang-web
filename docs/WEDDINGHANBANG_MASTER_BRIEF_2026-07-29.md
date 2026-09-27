@@ -259,6 +259,11 @@ DB 테이블 목록, 라우트 목록, 실측 숫자는 시간이 지나면 코�
 - 실제 파손 신호는 **`Code Quality (breakage signal only)`** 잡이다.
   이게 빨간불이면 뭔가 깼다는 뜻이다.
 - 그래서 CI 결과만 보고는 판단할 수 없어, 로컬 `pre-push` 훅으로 한 번 막는다.
+- **2026-09-27 갱신(파운더 승인):** 위 첫 줄은 더 이상 PR에 해당하지 않는다.
+  `Production Readiness`와 `Quality Gate`는 수동 실행(workflow_dispatch)에서만 돌고,
+  돌면 여전히 반드시 실패한다. PR에서는 코드 검사 다섯 잡과 필수 검사
+  `Code Quality (breakage signal only — not a release authorization)`만 돈다.
+  main push에서는 설치 캐시 잡 하나만 돈다. 초록불은 여전히 배포 허가가 아니다.
 
 ---
 

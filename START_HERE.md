@@ -39,7 +39,10 @@
 - Supabase release manifest는 `deployment_blocked`다.
 - 현재 GitHub의 Production Readiness job은 hosted 증거를 동적으로 판별하지 않고 항상
   fail-closed한다. hosted 증거 5종 수집 후 workflow/controller 갱신과 exact-SHA
-  재실행까지 필요하다.
+  재실행까지 필요하다. 2026-09-27부터 이 job과 Quality Gate는 수동 실행
+  (workflow_dispatch)에서만 돌고 PR·main push에서는 돌지 않는다(파운더 승인).
+  PR의 초록불은 필수 검사 `Code Quality`가 코드 검사를 통과했다는 뜻일 뿐,
+  운영 배포나 DB 적용 허가가 아니다.
 
 ### 지금 가능한 일
 
