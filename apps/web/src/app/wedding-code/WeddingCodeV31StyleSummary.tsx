@@ -4,6 +4,7 @@ import { useId } from "react";
 import Button from "@/components/ui/Button";
 import type { V31Draft } from "@/constants/weddingCodeV31";
 import {
+  V31_STYLE_BORDERLINE_TAG,
   buildV31StatementScales,
   buildV31StyleSummary,
   formatV31RatingDots,
@@ -31,11 +32,16 @@ function Statement({ item, onEdit }: { item: V31StatementScale; onEdit?: EditHan
   </div>;
 }
 
-export default function WeddingCodeV31StyleSummary({ draft, label, onEdit, compact = false }: {
+export default function WeddingCodeV31StyleSummary({ draft, label, onEdit, compact = false, showChangeNotice = true }: {
   draft: V31Draft;
   label?: string;
   onEdit?: EditHandler;
   compact?: boolean;
+  /**
+   * 「다시 답하면 글자가 달라질 수 있어요.」를 이 카드에 둘지. 두 사람 카드를 나란히 둘 때는 두 코드에 공통인 이 말을
+   * 카드 묶음 위에서 한 번만 하므로 끈다.
+   */
+  showChangeNotice?: boolean;
 }) {
   const summary = buildV31StyleSummary(draft);
   const coreIds = new Set(summary.dimensions.flatMap(dimension => dimension.items.map(item => item.id)));
@@ -47,8 +53,11 @@ export default function WeddingCodeV31StyleSummary({ draft, label, onEdit, compa
     .filter(dimension => dimension.items.length > 0);
   const spokenCode = summary.dimensions.map(dimension => dimension.letter === "?" ? "물음표" : dimension.letter).join(", ");
   const headingId = useId();
-  // 카드의 첫 제목은 누구의 코드인지다. 제목으로 건너뛰어도 아슬한 글자 안내·코드·이름 출처를 이름보다 먼저 듣는다.
+  // 카드의 첫 제목은 누구의 코드인지다. 그 아래 (아슬한 글자 안내)·다시 답하면 달라질 수 있다는 한 줄 → 코드 →
+  // 주제 순서 설명 → (‘?’ 안내) → 주제별 줄 순서로 읽힌다. 두 사람 카드를 나란히 두면 그 한 줄은 카드 묶음 위에서 한 번만 한다.
+  // 2026-09-27 파운더 결정으로 ‘~스타일’ 이름·이름 출처 줄·헤드라인은 두지 않는다.
   const heading = !label || label === "나" ? "내 웨딩코드" : `${label}의 웨딩코드`;
+  const change = showChangeNotice ? summary.changeNotice : null;
 
   return <section
     aria-labelledby={headingId}
@@ -58,16 +67,17 @@ export default function WeddingCodeV31StyleSummary({ draft, label, onEdit, compa
     className={`${v31Surface} min-w-0 ${compact ? "p-4 sm:p-5" : "p-5 sm:p-7"}`}
   >
     <h2 id={headingId} className="text-xs font-semibold text-[var(--hb-success)]">{heading}</h2>
-    {summary.borderlineNotice ? <p className={`mt-3 ${v31Body}`} data-borderline-notice>{summary.borderlineNotice}</p> : null}
+    {summary.borderlineNotice || change ? <p className={`mt-3 ${v31Body}`} data-code-notice>
+      {summary.borderlineNotice ? <span data-borderline-notice>{summary.borderlineNotice}</span> : null}
+      {summary.borderlineNotice && change ? " " : null}
+      {change ? <span data-change-notice>{change}</span> : null}
+    </p> : null}
     <p className={`mt-3 break-words font-mono text-4xl leading-tight tracking-widest ${v31Title}`} data-code>
       <span aria-hidden="true">{summary.dimensions.map(dimension => <span key={dimension.key} data-code-letter={dimension.key}
         data-borderline={dimension.borderline || undefined}>{dimension.letter}</span>)}</span>
       <span className="sr-only">{`네 글자 코드 ${spokenCode}`}</span>
     </p>
-    <p className="mt-4 text-xs font-semibold text-[var(--hb-text-muted)]" data-name-source={summary.nameFrom ?? "none"}>{summary.nameSource}</p>
-    <p className={`mt-1 text-xl leading-snug ${v31Title}`} data-style-name>{summary.name}</p>
-    <p className={`mt-2 ${v31Body}`}>{summary.headline}</p>
-    <p className={`mt-3 ${v31Body}`}>{summary.dimensions.map(dimension => dimension.topicName).join(", ")} 순서로 주제마다 한 글자씩 붙였어요.</p>
+    <p className={`mt-3 ${v31Body}`} data-topic-order>{summary.dimensions.map(dimension => dimension.topicName).join(", ")} 순서로 주제마다 한 글자씩 붙였어요.</p>
     {summary.pendingNotice ? <p className={`mt-2 ${v31Body}`} data-pending-notice>{summary.pendingNotice}</p> : null}
     {!compact ? <p className="mt-2 text-xs leading-relaxed text-[var(--hb-text-muted)]">결혼식 취향은 아래에 따로 모았어요.</p> : null}
 
@@ -79,7 +89,8 @@ export default function WeddingCodeV31StyleSummary({ draft, label, onEdit, compa
           <span className={`text-sm ${v31Title}`}>{dimension.title}</span>
           <span className="flex flex-wrap items-baseline gap-x-2">
             <span className={`font-mono text-sm ${v31Title}`}>{dimension.letter}</span>
-            {dimension.borderline ? <span className="text-xs font-semibold text-[var(--hb-text-body)]" data-borderline-tag>바뀔 수 있어요</span> : null}
+            {/* 카드 위 안내와 같은 뜻: 두 답이 ‘그런 편이에요’와 ‘어느 쪽도 아니에요’로 갈린 한쪽 글자다. 글로 적어 화면 읽기 프로그램도 읽는다. */}
+            {dimension.borderline ? <span className="text-xs font-semibold text-[var(--hb-text-body)]" data-borderline-tag>{V31_STYLE_BORDERLINE_TAG}</span> : null}
           </span>
         </dt>
         {/* 한 문장에서 나온 글자는 뜻을 한 줄 더 쓰지 않고 그 문장의 답 줄에 영문 낱말을 붙인다. */}

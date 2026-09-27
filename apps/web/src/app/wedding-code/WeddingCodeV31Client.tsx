@@ -330,7 +330,7 @@ export default function WeddingCodeV31Client({ shareOrigin, partnerDraft = null,
         <div className="space-y-5">
           {[
             { icon: Paintbrush, title: "내가 그리는 결혼식", body: "장소·사진·옷·식사·하객·식순, 구체적인 취향을 한눈에 봐요." },
-            { icon: ListChecks, title: "네 글자로 보는 준비 스타일", body: "예산·분담·가족·도움에 관한 답을 코드로 묶고, 문장별 동의 정도도 보여줘요." },
+            { icon: ListChecks, title: "네 글자로 보는 준비 방식", body: "예산·분담·가족·도움에 관한 답을 코드로 묶고, 문장별 동의 정도도 보여줘요." },
             { icon: HeartHandshake, title: "둘이 먼저 나눠볼 이야기", body: "혼자 해도 결과를 받고, 상대도 답하면 함께 비교할 수 있어요." },
           ].map(item => <div key={item.title} className="flex gap-3"><item.icon aria-hidden="true" className="mt-1 size-5 shrink-0 text-[var(--hb-success)]" /><div><h2 className={`text-base ${v31Title}`}>{item.title}</h2><p className={`mt-1 ${v31Body}`}>{item.body}</p></div></div>)}
         </div>
