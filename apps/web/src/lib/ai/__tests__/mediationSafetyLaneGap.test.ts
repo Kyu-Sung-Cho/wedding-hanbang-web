@@ -52,7 +52,7 @@ const B_ONLY_ANY_KIND = [
   // A 가 잡으면 B_ONLY 가 아니다. 나머지 여섯은 여전히 B 에만 걸린다.
   "한 번 때린 뒤로는 안 그런다고 하는데요",
   "목을 조른 적도 있어요",
-  "화나면 물건을 집어 던져요",
+  // 2026-09-26: "화나면 물건을 집어 던져요" 를 아래 `B_ONLY_BUT_PLANNER_CLOSED` 로 옮겼다.
   "계약금 환불 얘기하다가 저를 때린 적도 있어요",
 ];
 
@@ -64,7 +64,20 @@ const B_ONLY_MEDIATION_ONLY = [
   "예식장 정하는 걸로 싸웠는데 제 폰을 매일 확인하고 카톡도 다 봐요",
   "헤어지자고 하면 가만 안 둔다고 해요",
   "제 월급을 다 가져가요",
+  // 2026-09-26: "가족을 못 만나게 해요" 를 아래 `B_ONLY_BUT_PLANNER_CLOSED` 로 옮겼다.
+];
+
+/**
+ * 2026-09-26: A(위기 분류기)는 여전히 못 잡지만, **전달 계획이 신호 없이도** 공유 레인에서
+ * 빼는 문장. 전달 계획에 메시지 전체가 닫힌 어휘인 폭력·통제 서술을 보는 규칙
+ * (`partnerViolenceClosedVocabulary.ts`)이 들어왔다 — 앱 사전 판정은 신호를 넘기지 않아서 그
+ * 규칙이 전달 계획 안에 있다. "B가 A에 포함되지 않는다" 는 이 문장들에도 여전히 참이므로 첫
+ * 검사에는 남기고, "신호 없이는 공유에 남는다" 검사에서만 뺀다(그 검사의 규칙: 신호 없이도
+ * 빠지면 그 목록의 문장이 아니다).
+ */
+const B_ONLY_BUT_PLANNER_CLOSED = [
   "가족을 못 만나게 해요",
+  "화나면 물건을 집어 던져요",
 ];
 
 /** B에는 걸리고 A에는 안 걸리던 문장들. 2026-08-07 측정. */
@@ -74,9 +87,31 @@ describe("안전 탐지기 두 갈래는 서로를 대신하지 못한다", () =
   it("B에만 걸리는 문장이 실재한다", () => {
     // 이 목록이 빈다면 두 갈래가 합쳐졌다는 뜻이고, 그때는 route.ts·chatStore.ts에서
     // 한쪽을 지워도 된다. 그전에는 안 된다.
-    for (const text of B_ONLY) {
+    for (const text of [...B_ONLY, ...B_ONLY_BUT_PLANNER_CLOSED]) {
       expect(branchB(text), `B가 못 잡는다: ${text}`).toBe(true);
       expect(branchA(text), `A도 잡는다면 이 문장은 목록에서 빼야 한다: ${text}`).toBe(false);
+    }
+  });
+
+  it("전달 계획이 닫은 문장은 신호가 있든 없든 공유 레인에서 빠진다", () => {
+    for (const text of B_ONLY_BUT_PLANNER_CLOSED) {
+      for (const kind of ["mediation", "chat"] as const) {
+        const base = {
+          userText: text,
+          requestedVisibility: "shared" as const,
+          target: "partner" as const,
+          senderRole: "bride" as const,
+        };
+        expect(
+          planAmoraCrisisDelivery({
+            ...base,
+            externalSafetySignal: hasAmoraSafetySignal(text, kind),
+          }).effectiveVisibility,
+          `${kind}: ${text}`,
+        ).toBe("bride_private");
+        expect(planAmoraCrisisDelivery(base).effectiveVisibility, `신호 없음: ${text}`)
+          .toBe("bride_private");
+      }
     }
   });
 

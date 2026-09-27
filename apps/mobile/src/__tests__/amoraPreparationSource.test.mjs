@@ -32,7 +32,8 @@ function chatFunction(name) {
 function loadChatFunctions(names, bindings = {}) {
   const output = ts.transpileModule(names.map(chatFunction).join('\n'), { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText;
   // 진행 중인 「대화 화면 정리」가 없는 화면이 기본값이다(그 잠금은 chatViewClearScreen.test.mjs 가 잰다).
-  return new Function('bindings', `with(bindings){${output};return {${names.join(',')}};}`)({ ...helper, viewClearInFlightRef: { current: null }, ...bindings });
+  // 대화 칸도 이미 정해진 화면이 기본값이다(2026-09-26 첫 칸 고르기 — 정하기 전 잠금은 amoraLaneChoice.test.mjs 가 잰다).
+  return new Function('bindings', `with(bindings){${output};return {${names.join(',')}};}`)({ ...helper, viewClearInFlightRef: { current: null }, laneOpeningRef: { current: 'decided' }, ...bindings });
 }
 const ingestNames = ['AiMessageIngestError', 'isRecord', 'asToolExecutionResult', 'asChatMessageMetadata', 'normalizeChatVisibility', 'chatMessageFromRealtimeRow', 'parseAiMessageIngestResult', 'parseRetryAfterMs'];
 const SOURCE = 'g.gift-money.section-2';

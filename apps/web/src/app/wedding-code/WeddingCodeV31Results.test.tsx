@@ -83,7 +83,48 @@ describe("짧은 웨딩코드 결과의 미노출 문항", () => {
     expect(view.querySelector('[role="tab"][aria-selected="true"]')?.textContent).toBe("함께 보기");
     expect(view.querySelector('[data-comparison="B1"] dt')?.textContent).toBe("상대");
     expect(received.querySelector('[data-comparison="B1"] dt')?.textContent).toBe("먼저 답한 사람");
-    expect(view.textContent).toContain("같은 코드여도 구체적인 취향과 답은 다를 수 있어요.");
+    expect(view.textContent).toContain("다시 답하면 글자가 달라질 수 있어요. 코드만 보지 말고 각자 고른 답과 아래 이야기할 거리도 같이 봐요.");
+    // 머리글의 「같은 답도 이유는 다를 수 있으니, 각자 …」와 같은 틀을 두 문단 사이에서 되풀이하지 않는다.
+    expect(view.textContent).not.toContain("같은 코드여도");
+    expect(view.querySelector('[role="tabpanel"] > section p')?.textContent?.match(/(달라질|다를|바뀔) 수 있/g)).toHaveLength(1);
+    // 두 사람 모두 글자가 없으면(‘?’만) 다시 답하면 달라질 수 있다는 말 없이 볼 곳만 말한다.
+    const blankPair = render(createV31Draft(), createV31Draft()).querySelector('[role="tabpanel"] > section p');
+    expect(blankPair?.textContent).toBe("각자 고른 답과 아래 이야기할 거리를 같이 봐요.");
+  });
+
+  it("두 사람 카드를 나란히 둘 때 다시 답하면 달라질 수 있다는 말은 두 코드보다 먼저 한 번만, 한 칸 차이 안내는 그 사람 카드에 둔다", () => {
+    const first = basicDraft(); // KBBB, 예산 5 대 2 라 아슬하지 않다
+    const second = basicDraft();
+    second.answers.B1 = 4; second.answers.B3 = 3; // KBBB, 예산 4 대 3 이라 아슬하다
+    for (const view of [render(second, first), render(second, first, true)]) {
+      const panel = view.querySelector('[role="tabpanel"]')!;
+      const summaries = [...panel.querySelectorAll("[data-style-summary]")];
+      expect(summaries.map(item => item.getAttribute("data-style-summary"))).toEqual(["KBBB", "KBBB"]);
+      expect(panel.textContent?.split("다시 답하면 글자가 달라질 수 있어요.").length).toBe(2);
+      const change = panel.querySelector("[data-change-notice]")!;
+      expect(change.closest("[data-style-summary]")).toBeNull();
+      for (const summary of summaries) {
+        expect(change.compareDocumentPosition(summary.querySelector("[data-code]")!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+        // 카드 첫머리: 제목 → (한 칸 차이 안내) → 코드 → 주제 순서 설명. 이름·헤드라인은 없다.
+        expect(summary.querySelector("[data-code]")?.nextElementSibling?.hasAttribute("data-topic-order")).toBe(true);
+        expect(summary.querySelector("[data-style-name], [data-name-source]")).toBeNull();
+      }
+      expect(summaries[0].querySelector("[data-borderline-notice]")).toBeNull();
+      expect(summaries[1].querySelector("[data-borderline-notice]")?.textContent).toBe("‘예산’ 글자는 두 문장의 답이 ‘그런 편이에요’와 ‘어느 쪽도 아니에요’로 한 칸 차이예요.");
+      expect(summaries[1].querySelector('[data-summary-topic="budget"] [data-borderline-tag]')?.textContent).toBe("‘그런 편’과 ‘어느 쪽도’로 갈렸어요");
+      expect(view.textContent).not.toContain("스타일");
+      // 안내가 인용한 보기 이름(‘어느 쪽도 아니에요’)은 판정 고지로 세지 않는다. 고지는 머리글 한 번뿐이다.
+      expect(judgmentNotices(view)).toEqual([expect.stringContaining("성격 진단이나 궁합 점수는 아니에요.")]);
+    }
+    // 혼자 결과는 카드 안에서 코드보다 먼저 한 번 말한다.
+    const solo = render(second);
+    expect(judgmentNotices(solo)).toEqual([expect.stringContaining("성격 진단이나 궁합 점수는 아니에요.")]);
+    expect(solo.textContent?.split("다시 답하면 글자가 달라질 수 있어요.").length).toBe(2);
+    expect(solo.querySelector("[data-style-summary] [data-change-notice]")).not.toBeNull();
+    expect(solo.textContent).not.toContain("스타일");
+    // 두 사람 모두 글자가 하나도 정해지지 않았으면 그 말도 두지 않는다(‘?’ 안내가 글자가 생기는 길을 말한다).
+    const blank = createV31Draft();
+    expect(render(blank, createV31Draft()).querySelector("[data-change-notice]")).toBeNull();
   });
 
   it("기본 답 23개만 세고 보지 않은 문항을 빈 우선순위나 미정 목록으로 만들지 않는다", () => {

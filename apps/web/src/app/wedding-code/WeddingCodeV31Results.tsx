@@ -5,7 +5,7 @@ import { useId, useRef, useState, type KeyboardEvent, type ReactNode } from "rea
 import Button from "@/components/ui/Button";
 import { WEDDING_CODE_V31_QUESTIONS, WEDDING_CODE_V31_TASTES, type V31Draft } from "@/constants/weddingCodeV31";
 import { buildV31Profile, compareV31, getV31PriorityOptions, splitV31InsightsBySummary, v31ChoiceLabels, type V31Insight, type V31PairItem, type V31Profile } from "@/lib/weddingCode/v31";
-import { V31_STYLE_DIMENSIONS } from "@/lib/weddingCode/v31StyleSummary";
+import { V31_STYLE_DIMENSIONS, buildV31StyleSummary } from "@/lib/weddingCode/v31StyleSummary";
 import { v31Body, v31Surface, v31Title } from "./WeddingCodeV31Inputs";
 import WeddingCodeV31Sharing from "./WeddingCodeV31Sharing";
 import WeddingCodeV31StyleSummary from "./WeddingCodeV31StyleSummary";
@@ -287,6 +287,7 @@ export default function WeddingCodeV31Results({ draft, first, received, shareOri
   const sharingRef = useRef<HTMLDivElement>(null);
   const profile = buildV31Profile(draft);
   const items = first ? compareV31(first, draft).filter(item => hasResponse(first, item.id) || hasResponse(draft, item.id)) : [];
+  const pairChangeNotice = first ? [first, draft].map(item => buildV31StyleSummary(item).changeNotice).find(notice => notice !== null) ?? null : null;
   const editable = received || readOnly ? undefined : onEdit;
   const labels: PairLabels = received ? { first: "먼저 답한 사람", second: "나중에 답한 사람" } : { first: "상대", second: "나" };
   const tabs: { id: ResultTab; label: string }[] = received
@@ -324,10 +325,11 @@ export default function WeddingCodeV31Results({ draft, first, received, shareOri
         className="rounded-lg focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[var(--hb-focus-ring)]">
         {activeTab === "together" ? <>
     <section aria-label="두 사람의 웨딩코드 요약" className="mb-5">
-      <p className={`mb-4 ${v31Body}`}>같은 코드여도 구체적인 취향과 답은 다를 수 있어요. 각자 고른 답과 아래 이야기할 거리를 같이 봐요.</p>
+      {/* 두 코드에 공통인 「다시 답하면 글자가 달라질 수 있어요.」는 카드마다 되풀이하지 않고 여기서 코드보다 먼저 한 번만 말한다. */}
+      <p className={`mb-4 ${v31Body}`}>{pairChangeNotice ? <><span data-change-notice>{pairChangeNotice}</span> 코드만 보지 말고 각자 고른 답과 아래 이야기할 거리도 같이 봐요.</> : "각자 고른 답과 아래 이야기할 거리를 같이 봐요."}</p>
       <div className="grid items-start gap-4 lg:grid-cols-2">
-        <WeddingCodeV31StyleSummary draft={first} label={labels.first} compact />
-        <WeddingCodeV31StyleSummary draft={draft} label={labels.second} onEdit={editable} compact />
+        <WeddingCodeV31StyleSummary draft={first} label={labels.first} compact showChangeNotice={false} />
+        <WeddingCodeV31StyleSummary draft={draft} label={labels.second} onEdit={editable} compact showChangeNotice={false} />
       </div>
     </section>
       <CoupleResults items={items} labels={labels} />

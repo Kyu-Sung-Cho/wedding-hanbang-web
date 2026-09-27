@@ -2,6 +2,8 @@ import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { amoraLaneStorageKey } from "@hanbang/shared/amora-lane-choice";
+
 import ChatSidePanel from "./ChatSidePanel";
 import { amoraPersonalizationPendingStorageKey } from "./amoraPersonalizationFlow";
 import { getAmoraToolOperationIdentity } from "@/lib/ai/amoraToolIdentity";
@@ -110,6 +112,8 @@ vi.mock("@/stores/authStore", () => ({
       journey: null,
       partner: mocks.partner,
       isDemo: mocks.isDemo,
+      isInitialized: true,
+      isLoading: false,
     };
   },
 }));
@@ -200,6 +204,12 @@ describe("ChatSidePanel attachment sending", () => {
   beforeEach(async () => {
     vi.clearAllMocks();
     window.sessionStorage.clear();
+    // 2026-09-26 부터 처음 여는 사람은 '함께/나만'을 먼저 고른다(`amoraLaneFirstChoice.test.tsx`).
+    // 이 파일은 레인별 전송·초안을 재므로, 여기 나오는 계정은 모두 이미 '함께'를 고른 사람이다.
+    window.localStorage.clear();
+    for (const userId of ["user-1", "user-new"]) {
+      window.localStorage.setItem(amoraLaneStorageKey(userId) as string, "shared");
+    }
     mocks.messages = [];
     mocks.suggestions = [];
     mocks.sendMessage.mockResolvedValue({
@@ -1559,7 +1569,11 @@ describe("ChatSidePanel attachment sending", () => {
       await Promise.resolve();
     });
 
-    expect(container.textContent).toContain("현재 범위 · 함께 대화");
+    // 2026-09-26: 같은 계정이 위쪽 탭으로 '나만'을 골랐으므로 역할이 바뀐 뒤에도 그 칸으로 다시
+    // 연다(기억은 계정별이다). 예전에는 '함께'로 되돌아갔다. 재는 것은 그대로 — 이전 역할의
+    // 나만 초안이 새 역할의 나만 입력창에 남지 않는다.
+    expect(container.textContent).toContain("현재 범위 · 나만 (상담)");
+    expect(composer()?.value).toBe("");
     await act(async () => {
       Array.from(container.querySelectorAll<HTMLButtonElement>("button"))
         .find((button) => button.textContent?.includes("나만 (상담)"))

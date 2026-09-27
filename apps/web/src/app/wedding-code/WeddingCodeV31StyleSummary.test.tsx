@@ -4,7 +4,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { WEDDING_CODE_V31_OPTIONS, WEDDING_CODE_V31_STATUS_OPTIONS, type V31Draft, type V31Response } from "@/constants/weddingCodeV31";
 import { createV31Draft } from "@/lib/weddingCode/v31";
-import { V31_STYLE_NAME_FALLBACK } from "@/lib/weddingCode/v31StyleSummary";
+import { V31_STYLE_BORDERLINE_TAG, V31_STYLE_CHANGE_NOTICE, V31_STYLE_DIMENSIONS, buildV31StyleSummary } from "@/lib/weddingCode/v31StyleSummary";
 import WeddingCodeV31StyleSummary from "./WeddingCodeV31StyleSummary";
 
 function draftOf(answers: V31Draft["answers"]): V31Draft {
@@ -15,7 +15,7 @@ function draftOf(answers: V31Draft["answers"]): V31Draft {
 function paired(first: V31Response, second: V31Response): V31Draft {
   return draftOf({ B1: first, B3: second, T1: first, T2: second, F1: first, F2: second, H1: first, H2: second });
 }
-function render(draft: V31Draft, props: { compact?: boolean; onEdit?: (id?: string) => void } = {}) {
+function render(draft: V31Draft, props: { compact?: boolean; onEdit?: (id?: string) => void; showChangeNotice?: boolean } = {}) {
   const container = document.createElement("div");
   container.innerHTML = renderToStaticMarkup(<WeddingCodeV31StyleSummary draft={draft} {...props} />);
   return container.querySelector<HTMLElement>("[data-style-summary]")!;
@@ -27,44 +27,106 @@ function textNodes(root: HTMLElement): string[] {
   return texts;
 }
 
-/** 두 자리(일 나누기·받고 싶은 도움)만 한 칸 차이로 글자가 바뀐다. */
-const MIXED = { B1: 5, B3: 5, T1: 4, T2: 4, F1: 5, F2: 1, H1: 3, H2: 3 } as const;
+/** 두 자리(일 나누기 4 대 3·가족과 상의 3 대 4)만 한 문장 쪽으로 한 칸 차이로 기운 글자다. */
+const MIXED = { B1: 5, B3: 5, T1: 4, T2: 3, F1: 3, F2: 4, H1: 3, H2: 3 } as const;
+/** 두 문장의 칸이 넓게 갈린 답(5 대 1, 3 대 3, 4 대 4). 아슬한 글자는 없다. */
+const SPREAD = { B1: 5, B3: 5, T1: 4, T2: 4, F1: 5, F2: 1, H1: 3, H2: 3 } as const;
+const TOPIC_NAMES: Record<string, string> = { budget: "예산", teamwork: "일 나누기", family: "가족과 상의", support: "받고 싶은 도움" };
 
 describe("웨딩코드 v3.1 네 글자 요약 화면", () => {
-  it("아슬한 글자가 어느 주제인지 코드보다 먼저 이름으로 알리고, 그 주제 줄에 글로 된 표시를 단다", () => {
+  it("한 칸 차이로 갈린 글자가 어느 주제인지 코드보다 먼저 이름으로 알리고, 그 주제 줄에 글로 된 표시를 단다", () => {
     const summary = render(draftOf(MIXED));
-    expect(summary.getAttribute("data-style-summary")).toBe("BBFM");
+    expect(summary.getAttribute("data-style-summary")).toBe("BTCM");
     expect(summary.getAttribute("data-borderline-count")).toBe("2");
     const notice = summary.querySelector("[data-borderline-notice]")!;
     const code = summary.querySelector("[data-code]")!;
-    // 2026-09-27: 「밑줄 친 2개」는 눈으로만 알 수 있고 화면 읽기 프로그램은 어느 글자인지 몰랐다. 주제 이름을 적는다.
-    expect(notice.textContent).toBe("‘일 나누기’, ‘받고 싶은 도움’ 글자는 답 하나만 한 칸 달라져도 바뀌어요. 다른 글자도 다시 답하면 달라질 수 있어요.");
+    // 「밑줄 친 2개」처럼 눈으로만 알 수 있는 말 대신 주제 이름과 사실(실제로 고른 두 보기, 한 칸 차이)을 적는다.
+    expect(notice.textContent).toBe("‘일 나누기’, ‘가족과 상의’ 글자는 두 문장의 답이 ‘그런 편이에요’와 ‘어느 쪽도 아니에요’로 한 칸 차이예요.");
+    expect(summary.querySelector("[data-code-notice]")?.textContent).toBe("‘일 나누기’, ‘가족과 상의’ 글자는 두 문장의 답이 ‘그런 편이에요’와 ‘어느 쪽도 아니에요’로 한 칸 차이예요. 다시 답하면 글자가 달라질 수 있어요.");
     expect(notice.compareDocumentPosition(code) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    // 안내가 적은 주제 이름은 실제로 아슬하다고 표시한 줄과 같다.
+    // 안내가 적은 주제 이름은 실제로 표시한 줄과 같다.
     const tagged = [...summary.querySelectorAll("[data-summary-topic]")].filter(row => row.querySelector("[data-borderline-tag]"));
-    expect(tagged.map(row => row.getAttribute("data-summary-topic"))).toEqual(["teamwork", "support"]);
-    const topicNames: Record<string, string> = { budget: "예산", teamwork: "일 나누기", family: "가족과 상의", support: "받고 싶은 도움" };
+    expect(tagged.map(row => row.getAttribute("data-summary-topic"))).toEqual(["teamwork", "family"]);
     for (const row of summary.querySelectorAll("[data-summary-topic]")) {
-      const topicName = topicNames[row.getAttribute("data-summary-topic")!];
+      const topicName = TOPIC_NAMES[row.getAttribute("data-summary-topic")!];
       expect(notice.textContent!.includes(`‘${topicName}’`), topicName).toBe(row.querySelector("[data-borderline-tag]") !== null);
     }
+    for (const tag of summary.querySelectorAll("[data-borderline-tag]")) expect(tag.textContent).toBe(V31_STYLE_BORDERLINE_TAG);
+    // 화면 읽기 프로그램도 어느 글자인지 글로 듣는다. 안내와 표시는 숨긴 영역 밖에 있다.
+    for (const element of [notice, ...summary.querySelectorAll("[data-borderline-tag]")]) {
+      expect(element.closest('[aria-hidden="true"]')).toBeNull();
+      expect(element.closest(".sr-only")).toBeNull();
+    }
     const letters = [...summary.querySelectorAll<HTMLElement>("[data-code-letter]")];
-    expect(letters.map(item => item.textContent).join("")).toBe("BBFM");
-    // 안내가 더는 밑줄을 가리키지 않으므로 코드 글자에 밑줄을 긋지 않는다(설명 없는 표시가 된다).
+    expect(letters.map(item => item.textContent).join("")).toBe("BTCM");
+    // 안내가 밑줄을 가리키지 않으므로 코드 글자에 밑줄을 긋지 않는다(설명 없는 표시가 된다).
     expect(letters.some(item => item.className.includes("underline"))).toBe(false);
-    expect(summary.querySelector('[data-summary-topic="teamwork"] [data-borderline-tag]')?.textContent).toBe("바뀔 수 있어요");
 
-    const steady = render(paired(5, 5));
-    expect(steady.querySelector("[data-borderline-notice]")?.textContent).toBe("지금 글자는 답 하나를 한 칸 옮겨도 그대로예요. 다시 답하면 달라질 수 있어요.");
-    expect(steady.querySelectorAll("[data-borderline-tag]")).toHaveLength(0);
-    const shaky = render(paired(4, 4));
-    expect(shaky.querySelector("[data-borderline-notice]")?.textContent).toContain("네 글자 모두");
+    // 아슬한 글자가 없으면 그 줄은 없고, 다시 답하면 달라질 수 있다는 말만 코드보다 먼저 한 번 둔다.
+    for (const steadyDraft of [paired(5, 5), paired(4, 4), draftOf(SPREAD), paired(5, 1)]) {
+      const steady = render(steadyDraft);
+      expect(steady.querySelector("[data-borderline-notice]")).toBeNull();
+      expect(steady.querySelectorAll("[data-borderline-tag]")).toHaveLength(0);
+      expect(steady.querySelector("[data-code-notice]")?.textContent).toBe(V31_STYLE_CHANGE_NOTICE);
+      expect(steady.textContent).not.toContain("한 칸 옮겨도 그대로");
+    }
+    // 4 대 4 는 B 라 아슬하지 않다(예전 기준에서는 네 글자 모두 아슬했다).
+    expect(render(paired(4, 4)).getAttribute("data-borderline-count")).toBe("0");
+    const shaky = render(paired(4, 3));
+    expect(shaky.querySelector("[data-borderline-notice]")?.textContent).toBe("네 글자 모두 두 문장의 답이 ‘그런 편이에요’와 ‘어느 쪽도 아니에요’로 한 칸 차이예요.");
     expect(shaky.querySelectorAll("[data-borderline-tag]")).toHaveLength(4);
-    expect(render(createV31Draft()).querySelector("[data-borderline-notice]")).toBeNull();
+    expect(render(createV31Draft()).querySelector("[data-code-notice]")).toBeNull();
+  });
+
+  it("아슬 표시와 안내는 두 답이 ‘그런 편이에요’와 ‘어느 쪽도 아니에요’인 칸에만 붙고, 한 칸 차이인 B·M·N 칸에는 같은 말이 없다", () => {
+    const agree = WEDDING_CODE_V31_OPTIONS.find(option => option.value === 4)!.label;
+    const neutral = WEDDING_CODE_V31_OPTIONS.find(option => option.value === 3)!.label;
+    // 표시는 두 보기 이름을 줄여 인용한다. 보기 이름이 바뀌면 여기서 빨개진다.
+    const tagQuotes = [...V31_STYLE_BORDERLINE_TAG.matchAll(/‘([^’]*)’/g)].map(match => match[1]);
+    expect(tagQuotes).toHaveLength(2);
+    expect(agree.startsWith(tagQuotes[0]) && neutral.startsWith(tagQuotes[1])).toBe(true);
+    const ratings = [1, 2, 3, 4, 5] as const;
+    let oneApartUntagged = 0;
+    for (const definition of V31_STYLE_DIMENSIONS) for (const a of ratings) for (const b of ratings) {
+      const summary = render(draftOf({ ...paired(5, 5).answers, [definition.first.id]: a, [definition.second.id]: b }));
+      const name = `${definition.key} ${a}/${b}`;
+      // 안내와 표시가 말하는 사실을 답에서 바로 계산한다: 한 답은 정확히 ‘그런 편이에요’, 다른 답은 정확히 ‘어느 쪽도 아니에요’.
+      const fact = (a === 4 && b === 3) || (a === 3 && b === 4);
+      const tagged = [...summary.querySelectorAll("[data-summary-topic]")].filter(row => row.querySelector("[data-borderline-tag]"));
+      expect(tagged.map(row => row.getAttribute("data-summary-topic")), name).toEqual(fact ? [definition.key] : []);
+      const notice = summary.querySelector("[data-borderline-notice]")?.textContent ?? null;
+      if (fact) {
+        // 안내가 인용한 두 보기는 그 줄에 실제로 보이는 두 답이다.
+        const shown = [...tagged[0].querySelectorAll("[data-letter-answer]")].map(item => item.lastElementChild?.lastElementChild?.textContent);
+        expect(new Set(shown), name).toEqual(new Set([agree, neutral]));
+        expect(notice, name).toBe(`‘${TOPIC_NAMES[definition.key]}’ 글자는 두 문장의 답이 ‘${agree}’와 ‘${neutral}’로 한 칸 차이예요.`);
+        continue;
+      }
+      expect(notice, name).toBeNull();
+      expect(summary.textContent, name).not.toContain("한 칸 차이");
+      expect(summary.textContent, name).not.toContain(V31_STYLE_BORDERLINE_TAG);
+      if (Math.abs(a - b) === 1) oneApartUntagged += 1;
+    }
+    // 두 답이 한 칸 차이지만 표시가 없는 칸: 4,5·5,4(B)·2,3·3,2(M)·1,2·2,1(N) 여섯 칸 × 네 주제.
+    expect(oneApartUntagged).toBe(24);
+  });
+
+  it("다시 답하면 달라질 수 있다는 말은 카드마다 한 번이고, 두 사람 카드처럼 바깥에서 말하면 카드에서는 뺀다", () => {
+    const drafts = [draftOf(MIXED), draftOf(SPREAD), paired(4, 3), paired(1, 1), paired(3, 3)];
+    for (const draft of drafts) for (const compact of [false, true]) {
+      const summary = render(draft, { compact });
+      expect(summary.textContent?.split(V31_STYLE_CHANGE_NOTICE).length, summary.getAttribute("data-style-summary")!).toBe(2);
+      const change = summary.querySelector("[data-change-notice]")!;
+      expect(change.compareDocumentPosition(summary.querySelector("[data-code]")!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+      const outside = render(draft, { compact, showChangeNotice: false });
+      expect(outside.textContent).not.toContain(V31_STYLE_CHANGE_NOTICE);
+      // 아슬한 글자 안내는 그 사람의 글자에 대한 사실이라 카드에 남는다.
+      expect(outside.querySelector("[data-borderline-notice]")?.textContent ?? null).toBe(buildV31StyleSummary(draft).borderlineNotice);
+    }
   });
 
   it("글자마다 두 문장에 고른 답을 다섯 칸 점과 보기 이름으로 보여주고 퍼센트와 막대는 쓰지 않는다", () => {
-    const summary = render(draftOf(MIXED), { onEdit: () => {} });
+    const summary = render(draftOf(SPREAD), { onEdit: () => {} });
     expect(summary.querySelector('[role="meter"]')).toBeNull();
     expect(summary.innerHTML).not.toContain("aria-valuenow");
     expect(summary.textContent).not.toContain("%");
@@ -85,31 +147,34 @@ describe("웨딩코드 v3.1 네 글자 요약 화면", () => {
     expect(summary.querySelector('[data-statement-scale="B3"] button')?.textContent).toBe("답 수정");
   });
 
-  it("이름 바로 위에 어느 주제의 답에서 따온 이름인지 적고, 이름이 없을 때도 자연스럽게 말한다", () => {
-    const summary = render(draftOf(MIXED));
-    const source = summary.querySelector("[data-name-source]")!;
-    expect(source.getAttribute("data-name-source")).toBe("teamwork");
-    // 일 나누기(4 대 4)는 한 칸 차이로 바뀌는 글자라 이름도 바뀔 수 있다고 먼저 말한다.
-    expect(source.textContent).toBe("이름은 ‘일 나누기’ 답에서 따와서, 이 글자가 바뀌면 이름도 바뀌어요");
-    expect(source.nextElementSibling?.hasAttribute("data-style-name")).toBe(true);
-    expect(source.nextElementSibling?.textContent).toBe("함께 찾고, 세부는 맡겨도 되는 스타일");
-
-    const budget = render(draftOf({ T1: 3, T2: 3, B1: 2, B3: 5 }));
-    expect(budget.querySelector("[data-name-source]")?.textContent).toBe("이름은 ‘예산’ 답에서 따왔어요");
-    expect(budget.querySelector("[data-style-name]")?.textContent).toBe("예산을 다시 의논하는 스타일");
-
-    const none = render(paired(3, 3));
-    expect(none.querySelector("[data-name-source]")?.getAttribute("data-name-source")).toBe("none");
-    expect(none.querySelector("[data-name-source]")?.textContent).toBe(V31_STYLE_NAME_FALLBACK.nameSource);
-    expect(none.querySelector("[data-style-name]")?.textContent).toBe(V31_STYLE_NAME_FALLBACK.name);
-
-    // ‘아직 모르겠어요’도 고른 답이라, 한 문장만 칸으로 답한 주제는 이름을 내지 않는다고 사실대로 적는다.
-    const unknown = render(draftOf({ B1: 5, B3: "undecided", T1: 3, T2: 3, F1: 1, F2: 1, H1: 2, H2: 3 }));
-    expect(unknown.getAttribute("data-style-summary")).toBe("?MNM");
-    expect(unknown.querySelector("[data-name-source]")?.textContent).toBe("이름은 두 문장 모두 동의하는 정도를 고르고, 그중 ‘그런 편’ 이상이 있는 주제에서 따와요");
+  it("‘~스타일’ 이름·이름 출처 줄·헤드라인을 어떤 답에서도 화면에 두지 않는다 (2026-09-27 파운더 결정)", () => {
+    // 예전 이름·헤드라인 문장. 글자 뜻 줄(BOTH_LABELS·문장 라벨)과 겹치지 않는 것만 적는다.
+    const oldCopy = [
+      "업체는 시간을 맞춰 함께 찾아보고 싶어요", "업체는 함께 찾고", "처음 정한 전체 예산 안에서 준비하고 싶어요",
+      "전체 예산을 늘릴지도 다시 의논하고 싶어요", "전체 예산을 지키고 싶고", "가족의 바람을 준비 초반에 들어보고 싶어요",
+      "마지막 선택은 우리 둘이 하고 싶어요", "힘들 때 해결책보다 이야기를 먼저 들어주면 좋겠어요",
+      "일이 몰리면 일부를 맡아주는 도움이 있으면 좋겠어요", "몰린 일의 일부도 맡아주면 좋겠어요", "고른 답은 아래에서 하나씩 볼 수 있어요",
+    ];
+    const ratings = [1, 2, 3, 4, 5] as const;
+    const drafts = [
+      ...ratings.flatMap(first => ratings.map(second => paired(first, second))),
+      draftOf(MIXED), draftOf(SPREAD), createV31Draft(), paired("undecided", 5), paired("not_applicable", "not_applicable"),
+      draftOf({ B1: 5, B3: "undecided", T1: 3, T2: 3, F1: 1, F2: 1, H1: 2, H2: 3 }),
+    ];
+    for (const draft of drafts) for (const compact of [false, true]) {
+      const summary = render(draft, { compact, onEdit: () => {} });
+      const code = summary.getAttribute("data-style-summary")!;
+      expect(summary.querySelector("[data-style-name], [data-name-source]"), code).toBeNull();
+      expect(summary.textContent, code).not.toMatch(/스타일|이름은|이름을 붙이|이름도 바뀌|따왔어요|따와요/);
+      for (const text of oldCopy) expect(summary.textContent, `${code} ${text}`).not.toContain(text);
+      // 코드 바로 다음은 주제 순서 설명이다. 이름·헤드라인이 끼어들 자리가 없다.
+      expect(summary.querySelector("[data-code]")?.nextElementSibling?.hasAttribute("data-topic-order"), code).toBe(true);
+      // 제목은 누구의 코드인지 하나뿐이다(이름을 제목으로 세우지 않는다).
+      expect([...summary.querySelectorAll("h1, h2")].map(item => item.textContent), code).toEqual(["내 웨딩코드"]);
+    }
   });
 
-  it("카드의 첫 제목은 누구의 코드인지이고, 그 아래 아슬한 글자 안내·코드·이름 출처·이름 순서로 읽힌다", () => {
+  it("카드의 첫 제목은 누구의 코드인지이고, 그 아래 아슬한 글자 안내·코드·주제 순서 설명·주제별 줄 순서로 읽힌다", () => {
     const cases: [string | undefined, string][] = [[undefined, "내 웨딩코드"], ["나", "내 웨딩코드"], ["상대", "상대의 웨딩코드"], ["먼저 답한 사람", "먼저 답한 사람의 웨딩코드"]];
     for (const [label, heading] of cases) {
       const container = document.createElement("div");
@@ -121,9 +186,9 @@ describe("웨딩코드 v3.1 네 글자 요약 화면", () => {
       // 섹션 이름은 이 제목에서 가져온다(이름이 두 번 읽히지 않게).
       expect(summary.getAttribute("aria-labelledby")).toBe(headings[0]!.id);
       expect(summary.hasAttribute("aria-label")).toBe(false);
-      // 이름은 제목이 아니다. 제목으로 건너뛰어도 이름보다 안내와 코드를 먼저 듣는다.
-      expect(headings.some(item => item.textContent === "함께 찾고, 세부는 맡겨도 되는 스타일")).toBe(false);
-      const order = ["[data-borderline-notice]", "[data-code]", "[data-name-source]", "[data-style-name]"].map(selector => summary.querySelector(selector)!);
+      const order = ["[data-borderline-notice]", "[data-change-notice]", "[data-code]", "[data-topic-order]", "[data-summary-topic]"].map(selector => summary.querySelector(selector)!);
+      expect(order.every(Boolean), String(label)).toBe(true);
+      expect(summary.querySelector("[data-topic-order]")?.textContent).toBe("예산, 일 나누기, 가족과 상의, 받고 싶은 도움 순서로 주제마다 한 글자씩 붙였어요.");
       expect(headings[0]!.compareDocumentPosition(order[0]) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
       for (let index = 1; index < order.length; index += 1) {
         expect(order[index - 1].compareDocumentPosition(order[index]) & Node.DOCUMENT_POSITION_FOLLOWING, `${index}`).toBeTruthy();

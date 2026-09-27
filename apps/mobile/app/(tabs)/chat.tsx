@@ -39,6 +39,14 @@ import {
 } from "@hanbang/shared/amora-crisis-recovery";
 import { planAmoraCrisisDelivery } from "@hanbang/shared/amora-crisis-delivery";
 import { getAmoraVisibleText } from "@hanbang/shared/amora-visible-text";
+import {
+  AMORA_LANE_CHOICE_COPY,
+  resolveAmoraLaneEntryScope,
+  resolveInitialAmoraLane,
+  type InitialAmoraLane,
+} from "@hanbang/shared/amora-lane-choice";
+import { readRememberedAmoraLane, rememberAmoraLane } from "@/lib/amoraLaneMemory";
+import { AmoraLaneChoiceCard } from "@/components/chat/AmoraLaneChoiceCard";
 import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
 import {
   readPreparationSource, loadPreparationForContext, preparationContextMatches,
@@ -49,6 +57,7 @@ import {
   AMORA_CHANGE_REVIEW_COPY,
   AMORA_SHARED_PLAN_PARTNER_NOTICE,
   SHARED_PLAN_TOOLS,
+  amoraFirstHelloBodyForLane,
   buildAmoraActionConfirmationOutcomes,
   getAmoraPendingActionApplicationState,
   buildAmoraConversationRecap,
@@ -69,6 +78,7 @@ import {
 import {
   AMORA_CHAT_ENTRY_PARAM,
   getAmoraChatEntryPrefill,
+  resolveAmoraChatEntry,
 } from "@/lib/amoraChatEntry";
 import { createChatSessionGenerationGuard } from "@/lib/chatSessionGeneration";
 import {
@@ -227,6 +237,8 @@ interface ChatMessageMetadata {
 
 type ChatMessageVisibility = "shared" | "bride_private" | "groom_private";
 type ViewerRole = "bride" | "groom" | null;
+/** 대화를 열 때 칸을 정했는가. `ChatScreen` 의 `laneOpening` 설명을 볼 것. */
+type AmoraLaneOpening = "waiting" | "choosing" | "decided";
 
 interface ChatMessage {
   id: string;
@@ -2036,11 +2048,42 @@ export default function ChatScreen() {
   const [initialLoaded, setInitialLoaded] = useState(false);
   const [chatLoadError, setChatLoadError] = useState<string | null>(null);
   const [target, setTarget] = useState<MessageTarget>("ai");
-  const [activeScope, setActiveScope] = useState<ChatScope>("shared");
+  // 여기 "shared" 는 자리를 채우는 값이다. 칸이 정해지기 전(laneOpening 이 "decided" 가 아닐 때)에는
+  // activeLane 이 null 이고 scopedMessages 가 비어 있어, 이 값으로 그리거나 보내지 않는다.
+  const [activeScope, setActiveScopeState] = useState<ChatScope>("shared");
+  /**
+   * 대화를 열 때 어느 칸으로 열지 정했는가(2026-09-26 파운더 결정: 처음 열면 고르게 하고 기억한다).
+   * - "waiting": 역할이나 이 기기의 기억을 아직 모른다. 준비 중 화면을 두고 보내지 않는다.
+   * - "choosing": 처음 여는 사람이다. 선택 카드를 띄우고 보내지 않는다.
+   * - "decided": 칸이 정해졌다.
+   * 세션을 처음부터 다시 그릴 때(resetChatSessionState) "waiting" 으로 돌아간다.
+   */
+  const [laneOpening, setLaneOpeningState] = useState<AmoraLaneOpening>("waiting");
+  // 핸들러와 늦게 끝나는 저장소 읽기가 지금 값을 동기적으로 본다.
+  const laneOpeningRef = useRef<AmoraLaneOpening>("waiting");
+  const setLaneOpening = useCallback((next: AmoraLaneOpening) => {
+    laneOpeningRef.current = next;
+    setLaneOpeningState(next);
+  }, []);
+  /**
+   * 칸을 명시해서 여는 모든 경로가 이 함수를 거친다. 위쪽 탭과 선택 카드, 준비 안내 질문, 개인 할 일
+   * 이어가기, 확인한 변경 반영, 화면 정리 뒤 되돌아가기, 서버의 안전 이동이 그렇다. 그래서 어느 경로로
+   * 칸이 정해져도 "decided" 가 되고, 늦게 끝난 기억 읽기가 그 칸을 덮지 않는다.
+   * 기본값으로 되돌리는 곳은 resetChatSessionState 하나이고, 거기서는 setActiveScopeState 를 쓴다.
+   * 기억(저장소)에 쓰는 것은 사람이 직접 고른 경우뿐이다(handleScopeChange).
+   */
+  const setActiveScope = useCallback((next: ChatScope) => {
+    laneOpeningRef.current = "decided";
+    setLaneOpeningState("decided");
+    setActiveScopeState(next);
+  }, []);
   const [inputByLane, setInputByLane] = useState<AmoraChatLaneRecord<string>>(
     () => createEmptyAmoraChatLaneRecord(() => ""),
   );
-  const activeLane = resolveAmoraChatLane(activeScope, target, hasLinkedPartner);
+  // 칸이 정해지기 전에는 어느 입력칸도 열지 않는다. 입력창이 비고, 보내기·다시 보내기·칩이 모두 멈춘다.
+  const activeLane = laneOpening === "decided"
+    ? resolveAmoraChatLane(activeScope, target, hasLinkedPartner)
+    : null;
   const input = activeLane ? inputByLane[activeLane] : "";
   const setActiveInput = useCallback((nextInput: SetStateAction<string>) => {
     if (!activeLane) return;
@@ -2139,11 +2182,13 @@ export default function ChatScreen() {
   useFocusEffect(useCallback(() => {
     boardNavigationRef.current = false;
   }, []));
+  // 칸이 정해지기 전에는 어느 칸의 대화도 그리지 않는다. 자리값 "shared" 로 함께 대화가 먼저
+  // 보였다가 기억된 '나만 (상담)'으로 바뀌는 깜빡임도, 고르기 전 카드·버튼을 누르는 일도 없다.
   const scopedMessages = useMemo(
-    () => messages.filter((message) => (
+    () => laneOpening !== "decided" ? [] : messages.filter((message) => (
       isMessageInChatScope(message.visibility, activeScope, userRole)
     )),
-    [activeScope, messages, userRole],
+    [activeScope, laneOpening, messages, userRole],
   );
   /**
    * 라운지에서 아모라가 먼저 건넨 첫마디. 사람이 먼저 말을 걸어야 대화가 시작되는 게
@@ -2152,9 +2197,16 @@ export default function ChatScreen() {
    * `messages`에 섞지 않는 이유: 그 배열은 서버로 보내는 맥락이자 리얼타임 동기화 대상이라,
    * 저장되지 않은 로컬 메시지를 넣으면 새로고침마다 사라졌다 나타나고 모델에게는 없는
    * 기록으로 간다. 화면에 그릴 때만 앞에 붙인다.
+   *
+   * 2026-09-26: 함께 대화에서만 그리던 것을 아모라와 이야기하는 두 칸 모두에서 그린다. 처음 여는
+   * 사람이 '나만 (상담)'을 골라도 첫마디를 본다. 저장하지 않는 화면용 인사라 어느 칸에 그려도
+   * 상대에게 가지 않는다. 상대에게 쓰는 칸에는 그리지 않는다.
+   *
+   * 2026-09-27: 라운지 첫마디 끝의 초대 문단("…두 사람이 같은 화면을 봐요")은 '함께 대화'로 정해진
+   * 뒤에만 남긴다. 나만 레인에서는 거짓이고, 선택 카드가 떠 있을 때는 카드의 덧붙임과 같은 말이다.
    */
   const firstHelloMessage = useMemo<ChatMessage | null>(() => {
-    if (!firstHelloBody || activeScope !== "shared" || target === "partner") {
+    if (!firstHelloBody || target === "partner") {
       return null;
     }
     return {
@@ -2163,11 +2215,11 @@ export default function ChatScreen() {
       sender_id: null,
       role: "assistant",
       sender_type: "ai",
-      content: firstHelloBody,
+      content: amoraFirstHelloBodyForLane(firstHelloBody, laneOpening === "decided" ? activeScope : null),
       metadata: null,
-      visibility: "shared",
+      visibility: chatVisibilityForScope(activeScope, userRole) ?? "shared",
     };
-  }, [activeScope, coupleId, firstHelloBody, target]);
+  }, [activeScope, coupleId, firstHelloBody, laneOpening, target, userRole]);
   const displayedMessages = useMemo(
     () => (firstHelloMessage ? [firstHelloMessage, ...scopedMessages] : scopedMessages),
     [firstHelloMessage, scopedMessages],
@@ -2186,6 +2238,12 @@ export default function ChatScreen() {
   const routeParams = useLocalSearchParams();
   const entryParam = routeParams[AMORA_CHAT_ENTRY_PARAM];
   const preparationParam = routeParams.amoraSource;
+  // 이 진입이 칸을 정해 주는가(웹과 같은 규칙 한 벌). 준비 안내 질문은 진입구 키와 섞이지 않았을 때만
+  // 읽으므로(아래 준비 안내 효과) 여기서도 같은 조건으로 본다.
+  const laneEntryScope = resolveAmoraLaneEntryScope({
+    preparationSource: readPreparationSource(preparationParam) !== null && entryParam === undefined,
+    joinedPlanReview: resolveAmoraChatEntry(entryParam) === "joined_plan_review",
+  });
   const consumedPreparationRef = useRef<string | null>(null);
   const preparationContextRef = useRef<PreparationContext>({ ownerId: null, coupleId: null, generation: 0, lane: null, ready: false, busy: false, input: "" });
   preparationContextRef.current = {
@@ -2293,18 +2351,22 @@ export default function ChatScreen() {
     return () => { active = false; };
   }, [chatLoadError, coupleId, initialLoaded, streaming, userId, userRole]));
   useEffect(() => {
-    if (!initialLoaded || !userId || !coupleId || chatLoadError) return;
+    // 칸이 정해진 뒤에 놓는다(2026-09-27). 라운지 버튼 같은 진입구는 칸을 정하지 않으므로 기억이나
+    // 선택 카드가 칸을 정한 다음 그 칸에 넣는다. 먼저 함께 대화에 넣으면 '나만 (상담)'을 고른 사람의
+    // 질문이 보이지 않는 입력칸에 남는다.
+    if (!initialLoaded || !userId || !coupleId || chatLoadError || laneOpening !== "decided") return;
     if (entryPrefillAppliedRef.current) return;
     const prefill = getAmoraChatEntryPrefill(entryParam);
     if (!prefill) return;
     // 한 번만 놓는다. 다시 놓으면 사람이 지운 초안이 화면이 다시 그려질 때마다 되살아난다.
     entryPrefillAppliedRef.current = true;
-    // 공유 아모라 레인에만 놓는다. 파트너 대화나 비공개 상담에 진입 문구가 섞이면,
+    // 고른 칸의 아모라 입력칸에만 놓는다. 상대에게 쓰는 칸에 진입 문구가 섞이면,
     // 사람은 자기가 쓰지 않은 말을 상대에게 보낼 뻔한다.
+    const lane = activeScope === "private" ? "private_ai" : "shared_ai";
     setInputByLane((current) =>
-      current.shared_ai.trim() ? current : updateAmoraChatLaneRecord(current, "shared_ai", prefill),
+      current[lane].trim() ? current : updateAmoraChatLaneRecord(current, lane, prefill),
     );
-  }, [chatLoadError, coupleId, entryParam, initialLoaded, userId]);
+  }, [activeScope, chatLoadError, coupleId, entryParam, initialLoaded, laneOpening, userId]);
 
   // 라운지에서 만들어 둔 첫마디를 가져온다. 모델을 부르지 않으므로 네트워크가 느려도
   // 대화를 열자마자 놓여 있다.
@@ -2502,7 +2564,9 @@ export default function ChatScreen() {
     setChatLoadError(null);
     setFirstHelloBody(null);
     setTarget("ai");
-    setActiveScope("shared");
+    // 기본 칸은 없다(2026-09-26). 자리값만 되돌리고, 어느 칸으로 열지는 다시 불러온 뒤 정한다.
+    setActiveScopeState("shared");
+    setLaneOpening("waiting");
     setInputByLane(createEmptyAmoraChatLaneRecord(() => ""));
     setSendFailuresByLane(createEmptyAmoraChatLaneRecord(() => null));
     setColdStartAiRecoveryByLane(createEmptyAmoraChatLaneRecord(() => null));
@@ -2520,12 +2584,53 @@ export default function ChatScreen() {
     // 정리 창은 닫는다. 이어받기(chatViewClearCarryRef)·동의 요청 잠금·결과 모름 안내는 비우지 않는다 —
     // 정리가 경계를 옮겨 일어난 리셋 뒤에 쓰이고, 사람·커플에 묶여 있다.
     setViewClearStep("closed");
-  }, [setViewClearStep]);
+  }, [setLaneOpening, setViewClearStep]);
 
   useEffect(() => {
     const timer = setInterval(() => setNowMs(Date.now()), 1_000);
     return () => clearInterval(timer);
   }, []);
+
+  // 처음 열 때 어느 칸으로 여나(2026-09-26 파운더 결정). 규칙은 `resolveInitialAmoraLane` 한 벌이다.
+  // - 역할은 세션을 다 불러오기 전에 정해진다. 불러오지 못했으면 정하지 않는다(다시 불러오기를 기다린다).
+  // - 역할이 없으면 지금처럼 함께 대화다. 이 기기의 기억을 읽지 않는다.
+  // - 기억된 칸이 있으면 그 칸, 없거나 읽지 못했으면 선택 카드를 띄운다.
+  // - 그 사이 칸을 명시한 경로(setActiveScope)가 먼저 정했으면 그것이 이긴다. 늦게 끝난 읽기는 버린다.
+  // 세션마다 한 번만 정한다. 사람이 탭을 바꾼 뒤에 다시 정하지 않는다.
+  // - 칸을 정해서 들어온 길은 웹과 같은 규칙 한 벌(`resolveAmoraLaneEntryScope`)로 읽는다(2026-09-27).
+  //   준비 안내 질문과 파트너 합류 직후 계획 점검(entry=joined_plan_review)만 '함께'로 정한다. 라운지
+  //   버튼(entry=lounge_fab) 같은 다른 진입구는 칸을 정하지 않고, 그 초안은 고른 칸에 들어간다.
+  useEffect(() => {
+    if (laneOpening !== "waiting" || !initialLoaded || chatLoadError) return;
+    const privateAvailable = userRole !== null;
+    const resolve = (storedLane: string | null, storedLaneLoaded: boolean) => resolveInitialAmoraLane({
+      roleKnown: true,
+      privateAvailable,
+      isDemo: false,
+      explicitScope: laneEntryScope,
+      storedLane,
+      storedLaneLoaded,
+    });
+    const settle = (opening: InitialAmoraLane) => {
+      if (laneOpeningRef.current !== "waiting") return;
+      if (opening.lane) setActiveScope(opening.lane);
+      else if (opening.needsChoice) setLaneOpening("choosing");
+    };
+    const withoutMemory = resolve(null, false);
+    if (withoutMemory.lane || withoutMemory.needsChoice) {
+      settle(withoutMemory);
+      return;
+    }
+    const generation = chatSessionGenerationRef.current.current();
+    let active = true;
+    void readRememberedAmoraLane(AsyncStorage, userId).then((storedLane) => {
+      if (!active || !isCurrentChatSession(generation)) return;
+      settle(resolve(storedLane, true));
+    });
+    return () => {
+      active = false;
+    };
+  }, [chatLoadError, initialLoaded, isCurrentChatSession, laneEntryScope, laneOpening, setActiveScope, setLaneOpening, userId, userRole]);
 
   useEffect(() => {
     if (
@@ -3898,6 +4003,9 @@ export default function ChatScreen() {
       || !userRole
       || !activeVisibility
       || !activeLane
+      // 칸을 정하기 전에는 보내지 않는다(2026-09-26). 기억된 칸이 '나만 (상담)'인 사람이 기억을
+      // 읽는 사이 보낸 말이 자리값 '함께 대화'로 가면 안 된다. 선택 카드가 떠 있을 때도 같다.
+      || laneOpeningRef.current !== "decided"
     ) return;
     // 이 범위의 화면을 정리하는 동안에는 보내지 않는다 — 새 말이 정리 경계 앞에 들어가 함께 지워질 수 있다.
     const clearing = viewClearInFlightRef.current;
@@ -4357,6 +4465,9 @@ export default function ChatScreen() {
     );
     setActiveScope(nextSelection.scope);
     setTarget(nextSelection.target);
+    // 위쪽 탭과 선택 카드가 모두 여기로 온다. 사람이 직접 고른 칸만 이 기기에 계정별로 기억한다
+    // (2026-09-26). 쓸 수 없어 무시된 선택은 기억하지 않는다. 저장에 실패하면 다음에 열 때 다시 묻는다.
+    if (nextSelection.scope === nextScope) void rememberAmoraLane(AsyncStorage, userId, nextScope);
   }
 
   // 결정 보드로 옮겨 간다. 답을 받는 중에는 떠나지 않는다 — 돌아올 때 이 탭이 대화를 다시 확인한다.
@@ -5041,6 +5152,11 @@ export default function ChatScreen() {
   const clearRequestSending = viewClearOwner !== null && pendingClearRequestOwners.has(viewClearOwner);
   const pendingSharedClearRequest = hasPendingSharedChatClearRequest(messages);
   const visibleViewClearNotice = viewClearNotice && viewClearNotice.owner === viewClearOwner ? viewClearNotice.text : null;
+  // 칸을 정하기 전(2026-09-26): 선택 카드가 떠 있거나 기억을 읽는 중이다. 입력창을 잠그고, 위쪽 탭은
+  // 어느 쪽도 선택된 것으로 보이지 않는다. 탭을 누르면 그 칸을 고른 것이 된다.
+  const laneDecided = laneOpening === "decided";
+  const composerLockedByLaneChoice = !laneDecided;
+  const shownScope: ChatScope | null = laneDecided ? activeScope : null;
 
   return (
     <SafeAreaView style={st.container} edges={["top"]}>
@@ -5119,26 +5235,27 @@ export default function ChatScreen() {
             disabled={streaming}
             accessibilityRole="tab"
             accessibilityLabel="함께 대화, 파트너에게 보임"
-            accessibilityState={{ selected: activeScope === "shared", disabled: streaming }}
-            style={[st.scopeBtn, activeScope === "shared" && st.scopeBtnActive]}
+            accessibilityState={{ selected: shownScope === "shared", disabled: streaming }}
+            style={[st.scopeBtn, shownScope === "shared" && st.scopeBtnActive]}
             onPress={() => handleScopeChange("shared")}
           >
-            <AmoraMark size={14} color={activeScope === "shared" ? amoraIdentity.ink : colors.textTertiary} />
-            <Text style={[st.scopeText, activeScope === "shared" && st.scopeTextActive]}>함께 대화</Text>
+            <AmoraMark size={14} color={shownScope === "shared" ? amoraIdentity.ink : colors.textTertiary} />
+            <Text style={[st.scopeText, shownScope === "shared" && st.scopeTextActive]}>함께 대화</Text>
           </Pressable>
           <Pressable
             disabled={streaming || userRole === null}
             accessibilityRole="tab"
             accessibilityLabel="나만 상담, 서비스에 저장되며 상대방에게 보이지 않음"
-            accessibilityState={{ selected: activeScope === "private", disabled: streaming || userRole === null }}
-            style={[st.scopeBtn, activeScope === "private" && st.privateScopeBtnActive]}
+            accessibilityState={{ selected: shownScope === "private", disabled: streaming || userRole === null }}
+            style={[st.scopeBtn, shownScope === "private" && st.privateScopeBtnActive]}
             onPress={() => handleScopeChange("private")}
           >
-            <Lock size={14} color={activeScope === "private" ? "#5a6147" : colors.textTertiary} />
-            <Text style={[st.scopeText, activeScope === "private" && st.privateScopeTextActive]}>나만 (상담)</Text>
+            <Lock size={14} color={shownScope === "private" ? "#5a6147" : colors.textTertiary} />
+            <Text style={[st.scopeText, shownScope === "private" && st.privateScopeTextActive]}>나만 (상담)</Text>
           </Pressable>
         </View>
-        <Text
+        {/* 칸을 정하기 전에는 "현재 범위" 줄과 기억 줄을 그리지 않는다. 아직 어느 칸도 아니다. */}
+        {laneDecided && <Text
           style={[st.scopeStatus, activeScope === "private" && st.privateScopeStatus]}
           accessibilityLiveRegion="polite"
         >
@@ -5157,10 +5274,10 @@ export default function ChatScreen() {
             : hasLinkedPartner
               ? "현재 범위 · 함께 대화 — 파트너에게 보여요"
               : "현재 범위 · 함께 대화 — 파트너 연결 후 함께 볼 수 있어요"}
-        </Text>
+        </Text>}
         {/* 이 탭의 기억 상태 한 줄. 못 읽었으면 그리지 않는다. 안전 안내가 떠 있는 동안에는
             "정리돼요"가 그 내용까지 기억된다는 뜻으로 읽히지 않도록 감춘다. */}
-        {!hasActiveW5SafetyCard && memoryLine && (
+        {laneDecided && !hasActiveW5SafetyCard && memoryLine && (
           <View style={st.memoryStatus}>
             <Text style={st.memoryStatusText}>
               {memoryLine.kind === "on"
@@ -5181,7 +5298,7 @@ export default function ChatScreen() {
         )}
       </View>
 
-      {activeScope === "shared" && (
+      {laneDecided && activeScope === "shared" && (
         <View style={st.targetRow}>
           <Pressable disabled={streaming} accessibilityState={{ disabled: streaming }} style={[st.targetBtn, !isP && st.targetActive]} onPress={() => handleTargetChange("ai")}><AmoraMark size={14} color={!isP ? amoraIdentity.ink : colors.textTertiary} /><Text style={[st.targetText, !isP && st.targetTextActive]}>아모라</Text></Pressable>
           {hasLinkedPartner && (
@@ -5191,14 +5308,14 @@ export default function ChatScreen() {
       )}
 
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : undefined}>
-        {initialLoaded && !chatLoadError && !!userRole && !isP && <AmoraConversationRecap
+        {initialLoaded && !chatLoadError && laneDecided && !!userRole && !isP && <AmoraConversationRecap
           key={`${userId}:${coupleId}:${activeScope}`} recap={conversationRecap} scope={activeScope} scopeLabel={activeScope === "private" ? "나만 상담" : "함께 대화"} disabled={streaming}
           onPrefill={text => {
             if (streaming || sendingRef.current || !activeLane || inputByLaneRef.current[activeLane].trim()) return false;
             setInputByLane(current => current[activeLane].trim() ? current : updateAmoraChatLaneRecord(current, activeLane, text));
             return true;
           }} />}
-        {!initialLoaded ? (
+        {!initialLoaded || (!chatLoadError && laneOpening === "waiting") ? (
           <View style={st.loading}>
             <ActivityIndicator color={colors.rose[500]} />
             <Text style={st.loadingText}>대화를 준비하는 중이에요</Text>
@@ -5208,6 +5325,13 @@ export default function ChatScreen() {
             <EmptyState title="대화를 불러오지 못했어요" description={chatLoadError}
               action={<Pressable style={st.retryBtn} onPress={() => reloadChatSessionRef.current()} accessibilityRole="button" accessibilityLabel="대화 다시 불러오기"><Text style={st.retryText}>다시 불러오기</Text></Pressable>} />
           </View>
+        ) : laneOpening === "choosing" ? (
+          // 처음 여는 사람(2026-09-26). 아모라의 첫마디가 있으면 먼저 놓고, 그 아래에서 칸을 고르게 한다.
+          // 고르기 전에는 어느 칸의 대화도 그리지 않고 보내지 않는다. 카드로 고르든 위쪽 탭으로 고르든 같다.
+          <ScrollView style={st.laneChoiceArea} contentContainerStyle={st.laneChoiceContent} keyboardShouldPersistTaps="handled">
+            {firstHelloMessage && <View style={st.laneChoiceHello}>{renderMessage({ item: firstHelloMessage })}</View>}
+            <AmoraLaneChoiceCard hasLinkedPartner={hasLinkedPartner} disabled={streaming} onChoose={handleScopeChange} />
+          </ScrollView>
         ) : displayedMessages.length === 0 ? (
           <View style={st.empty}>
             <EmptyState
@@ -5231,7 +5355,7 @@ export default function ChatScreen() {
 
         {/* 아모라의 첫마디만 놓여 있고 아직 오간 말이 없을 때. 화면은 비어 있지 않지만
             이 사람은 여전히 "무엇부터 물어보지"에 서 있다. */}
-        {initialLoaded && scopedMessages.length === 0 && firstHelloMessage && !isP && (
+        {initialLoaded && laneDecided && scopedMessages.length === 0 && firstHelloMessage && !isP && (
           <View style={st.suggestions}>{AMORA_STARTER_PROMPTS.map((q) => (<Pressable key={q} style={({ pressed }) => [st.sugBtn, pressed && { opacity: 0.85 }]} onPress={() => handleAiSuggestion(q)}><Text style={st.sugText}>{q}</Text></Pressable>))}</View>
         )}
 
@@ -5369,7 +5493,7 @@ export default function ChatScreen() {
         )}
 
         <View style={[st.inputBar, isP && { borderTopColor: colors.rose.light }]}>
-          <TextInput style={st.input} value={input} onChangeText={handleInputChange} placeholder={isP ? `${partnerName ?? "파트너"}에게 메시지...` : activeScope === "private" ? "나만의 상담을 입력하세요..." : "메시지를 입력하세요..."} placeholderTextColor={colors.paper.inkFaint} multiline maxLength={4000} editable={!streaming && initialLoaded && !chatLoadError && !composerLockedByViewClear} returnKeyType="send" accessibilityLabel="메시지 입력" />
+          <TextInput style={st.input} value={input} onChangeText={handleInputChange} placeholder={laneOpening === "choosing" ? AMORA_LANE_CHOICE_COPY.composerBlockedPlaceholder : isP ? `${partnerName ?? "파트너"}에게 메시지...` : activeScope === "private" ? "나만의 상담을 입력하세요..." : "메시지를 입력하세요..."} placeholderTextColor={colors.paper.inkFaint} multiline maxLength={4000} editable={!streaming && initialLoaded && !chatLoadError && !composerLockedByViewClear && !composerLockedByLaneChoice} returnKeyType="send" accessibilityLabel="메시지 입력" />
           <Animated.View style={{ transform: [{ scale: sendBtnScale }] }}>
             <Pressable style={[st.sendBtn, isP && { backgroundColor: colors.rose[600] }, (!input.trim() || streaming || !initialLoaded || Boolean(chatLoadError) || composerLockedByViewClear) && st.sendBtnOff]} onPress={() => { void handleSend(); }} onPressIn={pressIn} onPressOut={pressOut} disabled={!input.trim() || streaming || !initialLoaded || Boolean(chatLoadError) || composerLockedByViewClear} accessibilityLabel="메시지 보내기" accessibilityRole="button">
               {isP ? <Heart size={18} color="#FFF" /> : <Send size={18} color="#FFF" />}
@@ -5438,6 +5562,10 @@ const st = StyleSheet.create({
   empty: { flex: 1, alignItems: "center", justifyContent: "center", paddingHorizontal: 32 },
   loading: { flex: 1, alignItems: "center", justifyContent: "center", gap: 10 },
   loadingText: { fontSize: 13, color: colors.paper.inkFaint },
+  // 선택 카드 자리(2026-09-26). 첫마디 말풍선은 대화 목록과 같은 여백으로 놓는다.
+  laneChoiceArea: { flex: 1 },
+  laneChoiceContent: { paddingTop: 12, paddingBottom: 12 },
+  laneChoiceHello: { paddingHorizontal: 16 },
   suggestions: { width: "100%", gap: 8 },
   sugBtn: { minHeight: 44, justifyContent: "center", paddingHorizontal: 16, paddingVertical: 13, borderRadius: 16, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border },
   sugText: { fontSize: 14, color: colors.noir[800] },

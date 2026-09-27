@@ -341,6 +341,11 @@ interface ChatStoreState {
     confirmedActionId?: string;
     preparationSource?: string;
     clientRequestId?: string;
+    /**
+     * 서버가 저장 직전에 이 메시지를 나만 레인으로 옮겼을 때, 아모라 답을 기다리기 **전에** 한 번
+     * 부른다. 화면이 탭을 옮기는 데 쓴다 — 결과는 답 스트림이 끝난 뒤에야 돌아오기 때문이다.
+     */
+    onSafetyPrivacyRedirect?: (effectiveVisibility: "bride_private" | "groom_private") => void;
   }) => Promise<ChatSendOutcome>;
   retryFailedMessage: () => Promise<void>;
   dismissFailedMessageRetry: () => void;
@@ -1966,6 +1971,7 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
   sendMessage: async ({
     content, senderId, senderRole, coupleId, senderName, weddingContext, images, target = "ai", visibility,
     confirmedActionId, preparationSource, clientRequestId: requestedClientRequestId, partnerRecipientId,
+    onSafetyPrivacyRedirect,
   }) => {
     const lifecycleBinding = captureActiveChatLifecycleBinding();
     // Durable Supabase account/couple scopes are UUID-bound. Signed demo and
@@ -2601,6 +2607,52 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
           artifactVisibility: serverVisibility,
         };
       });
+      if (
+        serverSafetyPrivacyRedirected
+        && (serverVisibility === "bride_private" || serverVisibility === "groom_private")
+      ) {
+        // 2026-09-26: 서버만 나만 레인으로 옮긴 경우(화면 사전 판정은 `continue` — 배포 직후의
+        // 옛 번들, 또는 서버에만 있는 판정). 화면 판정으로 옮겼을 때 만드는 안내 카드를
+        // **서버 판정 기준으로도** 만든다. 없으면 함께 탭에 남은 사용자는 말풍선도 안내도
+        // 못 본다(2026-09-03 과 같은 증상). 앱(chat.tsx)의 서버 전환 카드와 같은 동작이다.
+        if (!privateSafetyCardId) {
+          const serverPrivacyCardId = `amora-safety-privacy-preflight:${coupleId}:${clientRequestId}`;
+          const attachmentNotice = attachments.length > 0
+            ? " 첨부 파일은 안전을 위해 전송하지 않았어요."
+            : "";
+          const serverPrivacyCard: ChatMessage = {
+            id: serverPrivacyCardId,
+            couple_id: coupleId,
+            sender_id: null,
+            sender_role: "ai",
+            content: `민감한 안전 관련 내용이라 상대방에게 공유하지 않고 나만 상담으로 옮겼어요.${attachmentNotice}`,
+            metadata: {
+              response_origin: "client_deterministic_safety_privacy_preflight",
+              question_scope: "W2_high_risk_adjacent",
+              memory_eligible: false,
+              persistence_status: "ephemeral_local_only",
+              pinned_safety_card: true,
+              raw_disclosure_persisted: true,
+              raw_disclosure_shared: false,
+              raw_disclosure_persistence: "private_only",
+            },
+            visibility: serverVisibility,
+            created_at: new Date().toISOString(),
+          };
+          set((state) => ({
+            messages: state.messages.some((message) => message.id === serverPrivacyCardId)
+              ? state.messages
+              : [...state.messages, serverPrivacyCard],
+          }));
+        }
+        // 화면이 탭을 옮기게 알린다. 결과는 답 스트림이 끝난 뒤에 돌아오므로 여기서 먼저 알린다.
+        // 화면 쪽 실패가 전송을 깨뜨리면 안 된다.
+        try {
+          onSafetyPrivacyRedirect?.(serverVisibility);
+        } catch {
+          // 탭 전환 실패는 전송 결과와 무관하다. 결과(`safetyPrivacyRedirected`)로 한 번 더 옮긴다.
+        }
+      }
     }
 
     if (isDemo) {

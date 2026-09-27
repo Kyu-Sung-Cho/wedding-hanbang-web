@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  WEDDING_CODE_V31_OPTIONS,
   WEDDING_CODE_V31_QUESTIONS,
   WEDDING_CODE_V31_VERSION,
   type V31Draft,
@@ -8,9 +9,10 @@ import {
 } from "@/constants/weddingCodeV31";
 import { createV31Draft, decodeV31, encodeV31 } from "@/lib/weddingCode/v31";
 import { V31_CORE_RATING_IDS, V31_EXTRA_RATING_IDS } from "@/lib/weddingCode/v31Flow";
+import * as summaryModule from "@/lib/weddingCode/v31StyleSummary";
 import {
+  V31_STYLE_CHANGE_NOTICE,
   V31_STYLE_DIMENSIONS,
-  V31_STYLE_NAME_FALLBACK,
   V31_STYLE_SUMMARY_VERSION,
   buildV31StatementScales,
   buildV31StyleSummary,
@@ -47,7 +49,10 @@ function legacyLetter(first: V31Response | undefined, second: V31Response | unde
   return "M";
 }
 
-/** 글자 함수와 따로 만든 기준으로 한 칸 이웃을 훑는다. */
+/**
+ * 2026-09-27 파운더 결정 이전의 아슬 기준(두 답 중 하나를 ±1 옮겨 글자가 바뀌면 아슬). 새 기준과 견주는 데만 쓴다.
+ * 글자 함수와 따로 만든 기준으로 한 칸 이웃을 훑는다.
+ */
 function legacyBorderline(first: V31Rating, second: V31Rating): boolean {
   const current = legacyLetter(first, second, "X", "Y");
   const moves: [number, number][] = [[first - 1, second], [first + 1, second], [first, second - 1], [first, second + 1]];
@@ -57,7 +62,7 @@ function legacyBorderline(first: V31Rating, second: V31Rating): boolean {
 
 function screenStrings(summary: V31StyleSummary): string[] {
   return [
-    summary.name, summary.nameSource, summary.headline, summary.borderlineNotice ?? "", summary.pendingNotice ?? "",
+    summary.borderlineNotice ?? "", summary.changeNotice ?? "", summary.pendingNotice ?? "",
     ...summary.dimensions.flatMap(item => [item.label, item.basis ?? "", item.englishLabel ?? ""]),
   ];
 }
@@ -173,18 +178,13 @@ describe("v3.1 네 글자 응답 요약", () => {
     const empty = buildV31StyleSummary(createV31Draft());
     expect(empty.code).toBe("????");
     expect(empty.dimensions.every(item => item.ratedCount === 0 && item.pending === "open")).toBe(true);
-    expect(empty.name).toBe(V31_STYLE_NAME_FALLBACK.name);
-    expect(empty.headline).toBe(V31_STYLE_NAME_FALLBACK.headline);
-    expect(empty.nameFrom).toBeNull();
     expect(empty.borderlineNotice).toBeNull();
+    expect(empty.changeNotice).toBeNull();
   });
 
-  it("중간·낮은 답만 있는 경우 긍정적 이름이나 반대 취향을 만들지 않는다", () => {
+  it("중간·낮은 답만 있는 경우 긍정적 뜻이나 반대 취향을 만들지 않는다", () => {
     for (const [first, second] of [[1, 2], [2, 3], [3, 3]] as const) {
       const summary = buildV31StyleSummary(paired(first, second));
-      expect(summary.name).toBe(V31_STYLE_NAME_FALLBACK.name);
-      expect(summary.headline).toBe(V31_STYLE_NAME_FALLBACK.headline);
-      expect(summary.nameFrom).toBeNull();
       expect(summary.dimensions.every(item => item.letter === "N" || item.letter === "M")).toBe(true);
       const copy = summary.dimensions.flatMap(item => [item.label, item.basis ?? ""]).join(" ");
       expect(copy).not.toMatch(/독립적인|유연한|가족을 배제|혼자 결정|즉흥적인|균형형|궁합|정확도/);
@@ -195,65 +195,16 @@ describe("v3.1 네 글자 응답 요약", () => {
     expect(buildV31StyleSummary(paired(1, 1)).dimensions[0]).toMatchObject({ label: "두 문장 모두 낮게 답했어요", basis: null });
   });
 
-  it("대표 제목은 실제 긍정한 내용만 쓰고 계약·추가 결제·경청 순서를 보존한다", () => {
-    expect(buildV31StyleSummary(paired(5, 1)).headline).toBe("업체는 시간을 맞춰 함께 찾아보고 싶어요");
-    expect(buildV31StyleSummary(paired(5, 1)).name).toBe("함께 찾는 스타일");
-    expect(buildV31StyleSummary(paired(1, 5)).headline).toContain("계약·추가 결제 없는 세부 선택");
-    expect(buildV31StyleSummary(paired(1, 5)).name).toBe("세부 선택은 맡겨도 되는 스타일");
-    expect(buildV31StyleSummary(paired(5, 5)).headline).toContain("업체는 함께 찾고");
-    expect(buildV31StyleSummary(paired(5, 5)).headline).toContain("계약·추가 결제 없는");
-    const budget = createV31Draft();
-    budget.answers = { B1: 2, B3: 5 };
-    expect(buildV31StyleSummary(budget).headline).toBe("전체 예산을 늘릴지도 다시 의논하고 싶어요");
-    const family = createV31Draft();
-    family.answers = { F1: 5, F2: 5 };
-    expect(buildV31StyleSummary(family).headline).toBe("가족의 바람을 초반에 듣고, 마지막 선택은 둘이 하고 싶어요");
-    const support = createV31Draft();
-    support.answers = { H1: 5, H2: 1 };
-    expect(buildV31StyleSummary(support).headline).toBe("힘들 때 해결책보다 이야기를 먼저 들어주면 좋겠어요");
-    support.answers.H2 = 5;
-    expect(buildV31StyleSummary(support).headline).toContain("몰린 일의 일부도 맡아주면");
+  it("글자 뜻 줄은 실제 긍정한 문장만 쓰고 계약·추가 결제·경청 순서를 보존한다", () => {
+    const first = buildV31StyleSummary(paired(5, 1));
+    expect(first.dimensions.map(item => item.label)).toEqual(V31_STYLE_DIMENSIONS.map(item => item.first.label));
+    const second = buildV31StyleSummary(paired(1, 5));
+    expect(second.dimensions[1].label).toBe("계약·추가 결제 없는 세부 선택 맡기기");
     const together = buildV31StyleSummary(paired(5, 5));
-    expect(together.dimensions[1].label).toContain("계약·추가 결제 없는 세부 선택은 맡겨도 괜찮아요");
+    expect(together.dimensions[1].label).toBe("함께 찾고, 계약·추가 결제 없는 세부 선택은 맡겨도 괜찮아요");
     expect(together.dimensions[1].basis).not.toContain("두 바람");
-    expect(together.dimensions[3].label).toContain("일 일부도 맡아주길");
-  });
-
-  it("이름은 어느 주제의 답에서 따왔는지 함께 알려주고, 그 주제가 실제로 이름을 낸 주제다", () => {
-    const teamwork = buildV31StyleSummary(paired(5, 1));
-    expect(teamwork.nameFrom).toBe("teamwork");
-    expect(teamwork.nameSource).toBe("이름은 ‘일 나누기’ 답에서 따왔어요");
-    const cases = [
-      [{ B1: 2, B3: 5 }, "budget", "이름은 ‘예산’ 답에서 따왔어요", "예산을 다시 의논하는 스타일"],
-      [{ T1: 3, T2: 3, B1: 5, B3: 1, F1: 5, F2: 5 }, "budget", "이름은 ‘예산’ 답에서 따왔어요", "예산을 지키는 스타일"],
-      [{ T1: 1, T2: 2, B1: "undecided", B3: 5, F1: 5, F2: 5 }, "family", "이름은 ‘가족과 상의’ 답에서 따왔어요", "가족에게 듣고, 선택은 둘이 하는 스타일"],
-      // 4 대 2 는 4를 한 칸 내리면 글자가 바뀌어 이름도 바뀐다. 출처 줄이 그 사실을 먼저 말한다.
-      [{ T1: 5, B1: 3, B3: 3, F1: "not_applicable", F2: 5, H1: 4, H2: 2 }, "support", "이름은 ‘받고 싶은 도움’ 답에서 따와서, 이 글자가 바뀌면 이름도 바뀌어요", "이야기를 먼저 들어주길 바라는 스타일"],
-    ] as const;
-    for (const [answers, key, source, name] of cases) {
-      const draft = createV31Draft();
-      draft.answers = { ...answers };
-      const summary = buildV31StyleSummary(draft);
-      expect(summary.nameFrom).toBe(key);
-      expect(summary.nameSource).toBe(source);
-      expect(summary.name).toBe(name);
-      const origin = summary.dimensions.find(item => item.key === key)!;
-      expect(["M", "N", "?"]).not.toContain(origin.letter);
-      expect(summary.nameSource).toContain(origin.topicName);
-    }
-    for (const first of RESPONSES) for (const second of RESPONSES) {
-      const summary = buildV31StyleSummary(paired(first, second));
-      if (summary.nameFrom === null) {
-        expect(summary.nameSource).toBe(V31_STYLE_NAME_FALLBACK.nameSource);
-        expect(summary.dimensions.every(item => ["M", "N", "?"].includes(item.letter))).toBe(true);
-      } else {
-        const origin = summary.dimensions.find(item => item.key === summary.nameFrom)!;
-        expect(["M", "N", "?"]).not.toContain(origin.letter);
-        expect(summary.nameSource).toBe(origin.borderline
-          ? `이름은 ‘${origin.topicName}’ 답에서 따와서, 이 글자가 바뀌면 이름도 바뀌어요`
-          : `이름은 ‘${origin.topicName}’ 답에서 따왔어요`);
-      }
-    }
+    expect(together.dimensions[2].label).toBe("가족의 바람은 초반에 듣고, 마지막 선택은 둘이 하고 싶어요");
+    expect(together.dimensions[3].label).toBe("이야기를 먼저 들어주고, 몰린 일 일부도 맡아주길 바라요");
   });
 
   it("선택 질문·다른 기본 답·직접 취향·우선순위를 추가해도 코드와 근거를 바꾸지 않는다", () => {
@@ -302,28 +253,82 @@ describe("v3.1 네 글자 응답 요약", () => {
   });
 });
 
-describe("v3.1 아슬한 글자", () => {
-  it("25조합 중 답 하나를 한 칸 옮겨도 그대로인 6조합만 아슬하지 않다", () => {
-    const stable = new Set(["1,1", "1,5", "2,5", "5,1", "5,2", "5,5"]);
+/**
+ * 2026-09-27 파운더 결정(「아슬한 글자 기준도 바꿔줘」)의 판정표. 행은 첫 문장 답(1~5), 열은 둘째 문장 답(1~5).
+ * 아슬한 칸은 한 문장만 ‘그런 편’ 이상인 한쪽 글자가 정확히 한 칸 차이로 정해진 (4,3)·(3,4) 두 칸뿐이다.
+ * 표를 손으로 적어 둔다. 함수를 다시 돌려 만든 기대값은 함수가 틀리면 같이 틀린다.
+ */
+const BORDERLINE_TABLE = [
+  // 둘째: 1  2  3  4  5
+  /* 1 */ [0, 0, 0, 0, 0],
+  /* 2 */ [0, 0, 0, 0, 0],
+  /* 3 */ [0, 0, 0, 1, 0],
+  /* 4 */ [0, 0, 1, 0, 0],
+  /* 5 */ [0, 0, 0, 0, 0],
+];
+
+describe("v3.1 아슬한 글자 (한쪽 글자의 한 칸 차이)", () => {
+  it("25조합 판정표: 네 주제 모두 아슬한 칸은 4 대 3 과 3 대 4 두 칸뿐이다", () => {
     for (const definition of V31_STYLE_DIMENSIONS) {
-      let count = 0;
+      const table = RATINGS.map(first => RATINGS.map(second => isV31StyleLetterBorderline(definition.key, first, second) ? 1 : 0));
+      expect(table, definition.key).toEqual(BORDERLINE_TABLE);
+      expect(table.flat().filter(Boolean)).toHaveLength(2);
+      // 안내가 말하는 사실(한 답은 정확히 ‘그런 편이에요’, 다른 답은 정확히 ‘어느 쪽도 아니에요’)과 판정이 같다.
       for (const first of RATINGS) for (const second of RATINGS) {
-        const borderline = isV31StyleLetterBorderline(definition.key, first, second);
-        expect(borderline, `${definition.key} ${first}/${second}`).toBe(!stable.has(`${first},${second}`));
-        expect(borderline, `${definition.key} ${first}/${second} 기준`).toBe(legacyBorderline(first, second));
-        if (borderline) count += 1;
+        const labels = [first, second].map(value => WEDDING_CODE_V31_OPTIONS.find(option => option.value === value)!.label).sort();
+        const fact = labels.join("|") === ["그런 편이에요", "어느 쪽도 아니에요"].sort().join("|");
+        expect(isV31StyleLetterBorderline(definition.key, first, second), `${definition.key} ${first}/${second}`).toBe(fact);
       }
-      expect(count).toBe(19);
+      // 두 칸은 각각 첫 문장·둘째 문장 쪽 한쪽 글자다.
+      expect(getV31StyleLetter(definition.key, 4, 3)).toBe(definition.first.letter);
+      expect(getV31StyleLetter(definition.key, 3, 4)).toBe(definition.second.letter);
     }
   });
 
-  it("아슬하다고 한 글자는 실제로 한 칸 이웃에서 글자가 바뀌고, 아니라고 한 글자는 어느 이웃에서도 그대로다", () => {
-    for (const definition of V31_STYLE_DIMENSIONS) for (const first of RATINGS) for (const second of RATINGS) {
-      const current = getV31StyleLetter(definition.key, first, second);
-      const neighbors = [[first - 1, second], [first + 1, second], [first, second - 1], [first, second + 1]]
-        .filter(([a, b]) => a >= 1 && a <= 5 && b >= 1 && b <= 5)
-        .map(([a, b]) => getV31StyleLetter(definition.key, a as V31Rating, b as V31Rating));
-      expect(isV31StyleLetterBorderline(definition.key, first, second)).toBe(neighbors.some(letter => letter !== current));
+  it("B·M·N·‘?’는 아슬하지 않고, 한쪽 글자도 두 칸 이상 차이면 아슬하지 않다", () => {
+    for (const definition of V31_STYLE_DIMENSIONS) {
+      // 4 대 4 는 B, 5 대 4 도 B, 3 대 3·2 대 3 은 M, 2 대 2 는 N. 예전 기준에서는 모두 아슬했다.
+      for (const [first, second] of [[4, 4], [5, 4], [4, 5], [3, 3], [2, 3], [3, 2], [2, 2], [1, 2]] as const) {
+        expect(["B", "M", "N"]).toContain(getV31StyleLetter(definition.key, first, second));
+        expect(isV31StyleLetterBorderline(definition.key, first, second), `${definition.key} ${first}/${second}`).toBe(false);
+        expect(legacyBorderline(first, second), `${first}/${second} 예전 기준`).toBe(true);
+      }
+      // 한쪽 글자지만 두 칸 이상 차이.
+      for (const [first, second] of [[4, 2], [2, 4], [5, 3], [3, 5], [4, 1], [5, 1]] as const) {
+        expect([definition.first.letter, definition.second.letter]).toContain(getV31StyleLetter(definition.key, first, second));
+        expect(isV31StyleLetterBorderline(definition.key, first, second), `${definition.key} ${first}/${second}`).toBe(false);
+      }
+    }
+  });
+
+  it("모든 답 조합에서 ‘한쪽 글자이고 두 답이 정확히 한 칸 차이’일 때만 아슬하다", () => {
+    for (const definition of V31_STYLE_DIMENSIONS) for (const first of RESPONSES) for (const second of RESPONSES) {
+      const letter = getV31StyleLetter(definition.key, first, second);
+      const a = getV31Rating(first);
+      const b = getV31Rating(second);
+      const oneSided = letter === definition.first.letter || letter === definition.second.letter;
+      const expected = oneSided && a !== null && b !== null && Math.abs(a - b) === 1;
+      expect(isV31StyleLetterBorderline(definition.key, first, second), `${definition.key} ${String(first)}/${String(second)}`).toBe(expected);
+      if (letter === "B" || letter === "M" || letter === "N" || letter === "?") expect(isV31StyleLetterBorderline(definition.key, first, second)).toBe(false);
+    }
+  });
+
+  it("새 기준의 아슬한 칸은 예전 ±1 기준(19칸)의 일부이고, 실제로 한 칸 이웃에서 글자가 바뀐다", () => {
+    for (const definition of V31_STYLE_DIMENSIONS) {
+      let now = 0;
+      let before = 0;
+      for (const first of RATINGS) for (const second of RATINGS) {
+        const borderline = isV31StyleLetterBorderline(definition.key, first, second);
+        if (legacyBorderline(first, second)) before += 1;
+        if (!borderline) continue;
+        now += 1;
+        expect(legacyBorderline(first, second), `${definition.key} ${first}/${second}`).toBe(true);
+        const current = getV31StyleLetter(definition.key, first, second);
+        const neighbors = [[first - 1, second], [first + 1, second], [first, second - 1], [first, second + 1]]
+          .map(([a, b]) => getV31StyleLetter(definition.key, a as V31Rating, b as V31Rating));
+        expect(neighbors.some(letter => letter !== current)).toBe(true);
+      }
+      expect([now, before]).toEqual([2, 19]);
     }
   });
 
@@ -334,28 +339,72 @@ describe("v3.1 아슬한 글자", () => {
     }
   });
 
-  it("코드보다 먼저 보여줄 한 줄에 아슬한 글자 수를 사실대로 적는다", () => {
+  it("코드보다 먼저 보여줄 한 줄은 한 칸 차이로 갈린 글자의 주제를 적고, 다시 답하면 달라질 수 있다는 말은 따로 한 줄이다", () => {
+    expect(V31_STYLE_CHANGE_NOTICE).toBe("다시 답하면 글자가 달라질 수 있어요.");
     const steady = buildV31StyleSummary(paired(5, 5));
     expect(steady.borderlineCount).toBe(0);
+    expect(steady.borderlineNotice).toBeNull();
     // 아슬한 글자가 없어도 다시 답하면 코드가 바뀔 수 있다는 말은 남긴다(PRINCIPLES.md 5절).
-    expect(steady.borderlineNotice).toBe("지금 글자는 답 하나를 한 칸 옮겨도 그대로예요. 다시 답하면 달라질 수 있어요.");
-    const shaky = buildV31StyleSummary(paired(4, 4));
+    expect(steady.changeNotice).toBe(V31_STYLE_CHANGE_NOTICE);
+    // 4 대 4 는 B 라 아슬하지 않다. 그래도 4를 한 칸 내리면 글자가 바뀌므로 「한 칸 옮겨도 그대로」라고 쓰면 거짓이다.
+    const both = buildV31StyleSummary(paired(4, 4));
+    expect(both.code).toBe("BBBB");
+    expect(both.borderlineCount).toBe(0);
+    expect(both.borderlineNotice).toBeNull();
+    expect(both.changeNotice).toBe(V31_STYLE_CHANGE_NOTICE);
+    expect(getV31StyleLetter("budget", 3, 4)).not.toBe("B");
+    const shaky = buildV31StyleSummary(paired(4, 3));
+    expect(shaky.code).toBe("KTFL");
     expect(shaky.borderlineCount).toBe(4);
-    expect(shaky.borderlineNotice).toBe("네 글자 모두 답 하나만 한 칸 달라져도 바뀌어요.");
+    expect(shaky.borderlineNotice).toBe("네 글자 모두 두 문장의 답이 ‘그런 편이에요’와 ‘어느 쪽도 아니에요’로 한 칸 차이예요.");
     const mixed = createV31Draft();
-    mixed.answers = { B1: 5, B3: 5, T1: 4, T2: 4, F1: 5, F2: 1, H1: 3, H2: 3 };
+    mixed.answers = { B1: 5, B3: 5, T1: 4, T2: 3, F1: 3, F2: 4, H1: 3, H2: 3 };
     const mixedSummary = buildV31StyleSummary(mixed);
-    expect(mixedSummary.code).toBe("BBFM");
-    expect(mixedSummary.dimensions.map(item => item.borderline)).toEqual([false, true, false, true]);
+    expect(mixedSummary.code).toBe("BTCM");
+    expect(mixedSummary.dimensions.map(item => item.borderline)).toEqual([false, true, true, false]);
     expect(mixedSummary.borderlineCount).toBe(2);
     // 어느 글자인지 주제 이름으로 적는다. 밑줄처럼 눈으로만 보이는 표시를 가리키지 않는다.
-    expect(mixedSummary.borderlineNotice).toBe("‘일 나누기’, ‘받고 싶은 도움’ 글자는 답 하나만 한 칸 달라져도 바뀌어요. 다른 글자도 다시 답하면 달라질 수 있어요.");
+    expect(mixedSummary.borderlineNotice).toBe("‘일 나누기’, ‘가족과 상의’ 글자는 두 문장의 답이 ‘그런 편이에요’와 ‘어느 쪽도 아니에요’로 한 칸 차이예요.");
+    expect(mixedSummary.changeNotice).toBe(V31_STYLE_CHANGE_NOTICE);
     const partial = paired(5, 5);
     partial.answers.B1 = "undecided";
-    expect(buildV31StyleSummary(partial).borderlineNotice).toBe("지금 글자는 답 하나를 한 칸 옮겨도 그대로예요. 다시 답하면 달라질 수 있어요.");
+    expect(buildV31StyleSummary(partial).borderlineNotice).toBeNull();
+    expect(buildV31StyleSummary(partial).changeNotice).toBe(V31_STYLE_CHANGE_NOTICE);
+    // 글자가 하나도 정해지지 않았으면 ‘?’ 안내가 글자가 생기는 길을 말하므로 두 줄 모두 없다.
+    for (const empty of [createV31Draft(), paired("not_applicable", "not_applicable"), paired("undecided", 5)]) {
+      expect(buildV31StyleSummary(empty).borderlineNotice).toBeNull();
+      expect(buildV31StyleSummary(empty).changeNotice).toBeNull();
+    }
     for (const first of RESPONSES) for (const second of RESPONSES) {
       const summary = buildV31StyleSummary(paired(first, second));
       expect(summary.borderlineCount).toBe(summary.dimensions.filter(item => item.borderline).length);
+      // 예전 기준의 문장은 새 기준에서 거짓이라 어느 답에서도 나오지 않는다.
+      for (const text of screenStrings(summary)) expect(text, text).not.toMatch(/한 칸 옮겨도 그대로|한 칸 달라져도 바뀌어요|다른 글자도 다시 답하면/);
+    }
+  });
+});
+
+/** 2026-09-27 파운더 결정 「스타일 이름은 빼고」. 코드 옆에는 코드와 주제별 줄(글자, 글자 뜻 한 줄, 두 문장의 실제 답)만 있다. */
+describe("v3.1 네 글자 요약에 이름이 없다", () => {
+  const SUMMARY_KEYS = ["borderlineCount", "borderlineNotice", "changeNotice", "code", "dimensions", "hasIncomplete", "pendingNotice", "version"];
+  const DIMENSION_KEYS = ["basis", "englishLabel", "items", "key", "label", "letter", "letterFrom", "borderline", "pending", "ratedCount", "title", "topicName"].sort();
+  const NAME_WORDS = /스타일|이름은|이름을 붙이|이름도 바뀌|따왔어요|따와서|따와요/;
+
+  it("요약 데이터에 이름·이름 출처·헤드라인 칸이 없고, 어떤 문장에도 이름 말이 없다", () => {
+    const drafts = [...RESPONSES.flatMap(first => RESPONSES.map(second => paired(first, second))), ...sampledDrafts(500)];
+    for (const draft of drafts) {
+      const summary = buildV31StyleSummary(draft);
+      expect(Object.keys(summary).sort()).toEqual(SUMMARY_KEYS);
+      for (const item of summary.dimensions) expect(Object.keys(item).sort()).toEqual(DIMENSION_KEYS);
+      expect(JSON.stringify(summary), summary.code).not.toMatch(NAME_WORDS);
+    }
+  });
+
+  it("모듈이 이름·헤드라인 목록을 내보내지 않는다", () => {
+    expect(Object.keys(summaryModule)).not.toContain("V31_STYLE_NAME_FALLBACK");
+    for (const [key, value] of Object.entries(summaryModule)) {
+      if (typeof value === "function") continue;
+      expect(JSON.stringify(value), key).not.toMatch(NAME_WORDS);
     }
   });
 });
@@ -440,63 +489,47 @@ function sampledDrafts(count: number): V31Draft[] {
 const quoted = (summary: V31StyleSummary, keys: readonly string[]) =>
   summary.dimensions.filter(item => keys.includes(item.key)).map(item => `‘${item.topicName}’`).join(", ");
 
+/** 네 주제 중 고른 주제만 4 대 3(아슬), 나머지는 5 대 5(B)인 답. 아슬한 글자 수 0~4를 모두 만든다. */
+function borderlineSubsets(): V31Draft[] {
+  return Array.from({ length: 16 }, (_, mask) => {
+    const draft = createV31Draft();
+    V31_STYLE_DIMENSIONS.forEach((definition, index) => {
+      const shaky = (mask >> index) & 1;
+      draft.answers[definition.first.id] = shaky ? 4 : 5;
+      draft.answers[definition.second.id] = shaky ? 3 : 5;
+    });
+    return draft;
+  });
+}
+
 describe("v3.1 요약 문장이 실제 글자와 맞는다 (2026-09-27)", () => {
-  it("아슬한 글자 안내는 그 글자의 주제 이름을 적고, 아슬하지 않은 글자도 다시 답하면 바뀔 수 있다고 늘 말한다", () => {
+  it("아슬한 글자 안내는 한 칸 차이로 갈린 글자의 주제 이름만 적고, 다시 답하면 달라질 수 있다는 말은 정해진 글자가 있으면 늘 붙는다", () => {
     const seen = new Set<number>();
-    for (const draft of [...sampledDrafts(3000), ...RATINGS.flatMap(a => RATINGS.map(b => paired(a, b)))]) {
+    for (const draft of [...sampledDrafts(3000), ...RATINGS.flatMap(a => RATINGS.map(b => paired(a, b))), ...borderlineSubsets()]) {
       const summary = buildV31StyleSummary(draft);
-      const borderline = summary.dimensions.filter(item => item.borderline).map(item => item.key);
+      const borderline = summary.dimensions.filter(item => item.borderline);
       seen.add(borderline.length);
+      // 아슬한 글자는 한쪽 글자이고 두 답이 정확히 한 칸 차이다.
+      for (const item of borderline) {
+        const definition = V31_STYLE_DIMENSIONS.find(entry => entry.key === item.key)!;
+        expect([definition.first.letter, definition.second.letter], summary.code).toContain(item.letter);
+        expect(Math.abs(item.items[0].rating! - item.items[1].rating!), summary.code).toBe(1);
+      }
+      expect(summary.changeNotice, summary.code).toBe(summary.dimensions.some(item => item.letter !== "?") ? V31_STYLE_CHANGE_NOTICE : null);
       const notice = summary.borderlineNotice;
-      if (summary.dimensions.every(item => item.letter === "?")) { expect(notice).toBeNull(); continue; }
-      expect(notice, summary.code).not.toMatch(/밑줄|\d/);
-      if (borderline.length === 0) expect(notice).toBe("지금 글자는 답 하나를 한 칸 옮겨도 그대로예요. 다시 답하면 달라질 수 있어요.");
-      else if (borderline.length === 4) expect(notice).toBe("네 글자 모두 답 하나만 한 칸 달라져도 바뀌어요.");
+      if (!borderline.length) { expect(notice, summary.code).toBeNull(); continue; }
+      expect(notice, summary.code).not.toMatch(/밑줄|\d|다시 답하면/);
+      // 실제로 고른 두 보기 이름을 ‘’ 안에 인용한다. 인용 밖에는 판정 고지처럼 읽히는 「아니에요」가 없다.
+      for (const value of [4, 3]) expect(notice, summary.code).toContain(`‘${WEDDING_CODE_V31_OPTIONS.find(option => option.value === value)!.label}’`);
+      expect(notice!.replace(/‘[^’]*’/g, ""), summary.code).not.toMatch(/아니에요|아니라/);
+      if (borderline.length === 4) expect(notice).toBe("네 글자 모두 두 문장의 답이 ‘그런 편이에요’와 ‘어느 쪽도 아니에요’로 한 칸 차이예요.");
       else {
-        expect(notice, summary.code).toBe(`${quoted(summary, borderline)} 글자는 답 하나만 한 칸 달라져도 바뀌어요. 다른 글자도 다시 답하면 달라질 수 있어요.`);
+        expect(notice, summary.code).toBe(`${quoted(summary, borderline.map(item => item.key))} 글자는 두 문장의 답이 ‘그런 편이에요’와 ‘어느 쪽도 아니에요’로 한 칸 차이예요.`);
         // 안내에 적힌 주제는 아슬한 글자뿐이다.
         for (const item of summary.dimensions) expect(notice!.includes(`‘${item.topicName}’`), `${summary.code} ${item.key}`).toBe(item.borderline);
       }
     }
     expect([...seen].sort()).toEqual([0, 1, 2, 3, 4]);
-  });
-
-  it("이름을 따온 글자가 아슬하면, 그리고 그때만, 출처 줄이 이름도 바뀔 수 있다고 말한다", () => {
-    const ktfl = createV31Draft();
-    ktfl.answers = { B1: 5, B3: 1, T1: 4, T2: 3, F1: 5, F2: 1, H1: 5, H2: 1 };
-    const shaky = buildV31StyleSummary(ktfl);
-    expect(shaky.code).toBe("KTFL");
-    expect(shaky.dimensions.filter(item => item.borderline).map(item => item.key)).toEqual(["teamwork"]);
-    expect(shaky.nameFrom).toBe("teamwork");
-    expect(shaky.nameSource).toBe("이름은 ‘일 나누기’ 답에서 따와서, 이 글자가 바뀌면 이름도 바뀌어요");
-    // T1 을 한 칸 내리면 일 나누기가 M 이 되어 이름은 아슬하지 않은 예산(5 대 1)에서 나온다.
-    ktfl.answers.T1 = 3;
-    const steady = buildV31StyleSummary(ktfl);
-    expect(steady.code).toBe("KMFL");
-    expect(steady.nameFrom).toBe("budget");
-    expect(steady.nameSource).toBe("이름은 ‘예산’ 답에서 따왔어요");
-    let named = 0;
-    for (const draft of sampledDrafts(3000)) {
-      const summary = buildV31StyleSummary(draft);
-      if (summary.nameFrom === null) { expect(summary.nameSource).toBe(V31_STYLE_NAME_FALLBACK.nameSource); continue; }
-      named += 1;
-      const origin = summary.dimensions.find(item => item.key === summary.nameFrom)!;
-      expect(summary.nameSource.includes("이름도 바뀌어요"), summary.code).toBe(origin.borderline);
-    }
-    expect(named).toBeGreaterThan(100);
-  });
-
-  it("이름이 없을 때 출처 줄은 ‘아직 모르겠어요’도 고른 답으로 세는 화면 말과 맞게 조건을 적는다", () => {
-    expect(V31_STYLE_NAME_FALLBACK.nameSource).toBe("이름은 두 문장 모두 동의하는 정도를 고르고, 그중 ‘그런 편’ 이상이 있는 주제에서 따와요");
-    expect(V31_STYLE_NAME_FALLBACK.nameSource).not.toContain("두 문장에 모두 답하고");
-    for (const unknown of ["undecided", "not_applicable"] as const) {
-      const draft = createV31Draft();
-      draft.answers = { B1: 5, B3: unknown, T1: 3, T2: 3, F1: 1, F2: 1, H1: 2, H2: 3 };
-      const summary = buildV31StyleSummary(draft);
-      expect(summary.code).toBe("?MNM");
-      expect(summary.nameFrom).toBeNull();
-      expect(summary.nameSource).toBe(V31_STYLE_NAME_FALLBACK.nameSource);
-    }
   });
 
   it("한 문장만 계획에 없는 주제와 두 문장 모두 계획에 없는 주제를 나눠 적고, 계획 없음 쪽은 다시 답하라고 하지 않는다", () => {

@@ -3107,6 +3107,139 @@ describe("Amora crisis reload recovery", () => {
     expect(providerPayload).not.toHaveProperty("attachments");
   });
 
+  // 2026-09-26: 화면 사전 판정은 `continue` 였는데 서버만 나만 레인으로 옮긴 경우. 화면 판정으로
+  // 옮겼을 때 만드는 "나만 상담으로 옮겼어요" 카드를 서버 판정 기준으로도 만들고, 답을 기다리기
+  // 전에 화면에 알린다(앱 chat.tsx 의 서버 전환 카드와 같은 동작).
+  it("adds the private-lane notice card and reports the redirect before the answer when only the server moves the message", async () => {
+    const content = "예식장 계약금 환불이 안 된대요";
+    mockIngestFetch.mockResolvedValueOnce(persistedIngestResponse(durableUserRow({
+      content,
+      visibility: "bride_private",
+    }), {
+      effectiveVisibility: "bride_private",
+      safetyPrivacyRedirected: true,
+    }));
+    mockFetch.mockResolvedValueOnce(completedChatResponse("나만 상담에서 이어갈게요"));
+    const providerCallsWhenReported: number[] = [];
+    const onSafetyPrivacyRedirect = vi.fn(() => {
+      providerCallsWhenReported.push(mockFetch.mock.calls.length);
+    });
+
+    const outcome = await useChatStore.getState().sendMessage({
+      content,
+      senderId: TEST_USER_UUID,
+      senderRole: "bride",
+      coupleId: TEST_COUPLE_UUID,
+      senderName: "테스터",
+      weddingContext: {} as WeddingContext,
+      target: "ai",
+      visibility: "shared",
+      clientRequestId: TEST_CLIENT_REQUEST_UUID,
+      onSafetyPrivacyRedirect,
+    });
+
+    expect(outcome).toEqual(expect.objectContaining({
+      userMessage: "persisted",
+      effectiveVisibility: "bride_private",
+      safetyPrivacyRedirected: true,
+    }));
+    // 화면 사전 판정은 함께 대화였다 — 옮긴 것은 서버다.
+    const ingestPayload = JSON.parse(String(
+      (mockIngestFetch.mock.calls[0]?.[1] as RequestInit).body,
+    ));
+    expect(ingestPayload.requestedVisibility).toBe("shared");
+    expect(onSafetyPrivacyRedirect).toHaveBeenCalledTimes(1);
+    expect(onSafetyPrivacyRedirect).toHaveBeenCalledWith("bride_private");
+    // 아모라 답 요청보다 먼저 알렸다.
+    expect(providerCallsWhenReported).toEqual([0]);
+
+    const privacyCards = useChatStore.getState().messages.filter(
+      (candidate) => candidate.metadata?.pinned_safety_card === true
+        && candidate.content.includes("나만 상담으로 옮겼어요"),
+    );
+    expect(privacyCards).toHaveLength(1);
+    expect(privacyCards[0]).toEqual(expect.objectContaining({
+      id: `amora-safety-privacy-preflight:${TEST_COUPLE_UUID}:${TEST_CLIENT_REQUEST_UUID}`,
+      visibility: "bride_private",
+      sender_role: "ai",
+      metadata: expect.objectContaining({
+        memory_eligible: false,
+        persistence_status: "ephemeral_local_only",
+        raw_disclosure_persisted: true,
+        raw_disclosure_shared: false,
+        raw_disclosure_persistence: "private_only",
+      }),
+    }));
+    expect(JSON.stringify(privacyCards[0]?.metadata)).not.toContain(content);
+  });
+
+  it("does not add the server notice card or report a redirect when the server keeps the message shared", async () => {
+    mockFetch.mockResolvedValueOnce(completedChatResponse("정리해볼게요"));
+    const onSafetyPrivacyRedirect = vi.fn();
+
+    await useChatStore.getState().sendMessage({
+      content: "예식장 계약금 환불이 안 된대요",
+      senderId: TEST_USER_UUID,
+      senderRole: "bride",
+      coupleId: TEST_COUPLE_UUID,
+      senderName: "테스터",
+      weddingContext: {} as WeddingContext,
+      target: "ai",
+      visibility: "shared",
+      clientRequestId: TEST_CLIENT_REQUEST_UUID,
+      onSafetyPrivacyRedirect,
+    });
+
+    expect(onSafetyPrivacyRedirect).not.toHaveBeenCalled();
+    expect(useChatStore.getState().messages.some(
+      (candidate) => candidate.content.includes("나만 상담으로 옮겼어요"),
+    )).toBe(false);
+  });
+
+  // 호출자가 요청 id 를 주지 않는 첫 전송이다. 이때 화면 사전 판정 카드와 서버 요청은 **서로 다른
+  // id** 를 만들어서, id 로 걸러 내는 중복 방지가 두 카드를 못 합친다(요청 id 를 주면 두 카드의
+  // id 가 같아져 이 경로가 가려진다 — 변형 검사로 확인했다).
+  it("keeps a single notice card when the screen preflight already moved the message and the server agrees", async () => {
+    const disclosure = "작년에 신랑이 칼 들고 죽인다고 했는데 지금은 안전해";
+    mockIngestFetch.mockImplementationOnce(async (_input: RequestInfo | URL, init?: RequestInit) => {
+      const body = JSON.parse(String(init?.body ?? "{}")) as Record<string, unknown>;
+      return persistedIngestResponse(durableUserRow({
+        content: disclosure,
+        visibility: "bride_private",
+        metadata: {
+          client_request_id: body.clientRequestId,
+          amora_ingest_contract_version: 1,
+          ai_response_requested: true,
+          provider_attachment_state: "none",
+          provider_attachment_count: 0,
+        },
+      }), {
+        effectiveVisibility: "bride_private",
+        safetyPrivacyRedirected: true,
+      });
+    });
+    mockFetch.mockResolvedValueOnce(completedChatResponse("안전하게 정리해볼게요"));
+
+    const outcome = await useChatStore.getState().sendMessage({
+      content: disclosure,
+      senderId: TEST_USER_UUID,
+      senderRole: "bride",
+      coupleId: TEST_COUPLE_UUID,
+      senderName: "테스터",
+      weddingContext: {} as WeddingContext,
+      target: "ai",
+      visibility: "shared",
+    });
+
+    expect(outcome).toEqual(expect.objectContaining({
+      userMessage: "persisted",
+      safetyPrivacyRedirected: true,
+    }));
+    expect(useChatStore.getState().messages.filter(
+      (candidate) => candidate.content.includes("나만 상담으로 옮겼어요"),
+    )).toHaveLength(1);
+  });
+
   it("deduplicates a retried local safety card without persisting the raw text", async () => {
     const params = {
       content: "나 지금 죽고 싶어",

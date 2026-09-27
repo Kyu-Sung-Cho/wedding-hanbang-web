@@ -651,6 +651,9 @@ describe("WeddingCodeV31Client", () => {
     expect(details?.textContent).not.toMatch(/신혼집|예단|예물|양쪽 집안/);
     expect(container.textContent?.match(/신혼집/g)).toHaveLength(1);
     expect(container.textContent).not.toMatch(/양가|상견례|예식장/);
+    // 2026-09-27 파운더 결정: 네 글자 요약에 ‘~스타일’ 이름을 두지 않으므로 시작 화면 소개도 같은 틀을 쓰지 않는다.
+    expect([...container.querySelectorAll("h2")].map(item => item.textContent)).toContain("네 글자로 보는 준비 방식");
+    expect(container.textContent).not.toContain("스타일");
   });
 
   it("세 상태 보기는 문장 아래 ‘답하기 어려워요’ 안에 접어 두고, 고른 문장은 펼친 채로 둔다", async () => {

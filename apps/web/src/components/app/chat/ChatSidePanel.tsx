@@ -57,6 +57,14 @@ import { shouldOfferMediation } from "@/lib/chat/mediationOffer";
 import { deduplicateToolResults } from "./toolResultDeduplication";
 import { planAmoraCrisisDelivery } from "@hanbang/shared/amora-crisis-delivery";
 import { hasAmoraSafetySignal } from "@/lib/ai/amoraQuestionScope";
+import { amoraFirstHelloBodyForLane, buildAmoraFirstHello, readPreparationStage } from "@hanbang/shared";
+import {
+  AMORA_LANE_CHOICE_COPY,
+  resolveInitialAmoraLane,
+  type AmoraLaneChoice,
+} from "@hanbang/shared/amora-lane-choice";
+import { readRememberedAmoraLane, rememberAmoraLane } from "@/lib/chat/amoraLaneMemory";
+import AmoraLaneChoiceCard from "./AmoraLaneChoiceCard";
 
 const MAX_ATTACHMENTS = CHAT_ATTACHMENT_MAX_COUNT;
 
@@ -104,7 +112,7 @@ export default function ChatSidePanel({
   firstHello = null,
 }: ChatSidePanelProps) {
   const router = useRouter();
-  const { profile, couple, journey, partner, isDemo } = useAuthStore();
+  const { profile, couple, journey, partner, isDemo, isInitialized: authInitialized, isLoading: authLoading } = useAuthStore();
   const amoraPersonalization = useAmoraPersonalization(
     isOpen && !isDemo && Boolean(profile?.id),
   );
@@ -266,6 +274,24 @@ export default function ChatSidePanel({
   const composerSessionKeyRef = useRef(composerSessionKey);
   const linkedPartnerIdRef = useRef(linkedPartnerId);
   const partnerComposerEpochRef = useRef(0);
+  /**
+   * 처음 열 때 어느 레인으로 여나 — 전체화면(`ChatContent`)과 같은 규칙·같은 기억(2026-09-26).
+   *
+   * 패널을 열 때 정한다. 고르지 않은 채 닫으면 결정을 내려놓아, 다음에 열 때 다른 화면에서
+   * 고른 기억을 다시 읽는다. 정하기 전에는 보내지 않는다.
+   */
+  const [laneGate, setLaneGate] = useState<{ identity: string; needsChoice: boolean } | null>(null);
+  const laneGateIdentityRef = useRef(composerSessionKey);
+  laneGateIdentityRef.current = composerSessionKey;
+  const laneReady = laneGate?.identity === composerSessionKey && !laneGate.needsChoice;
+  const laneChoiceNeeded = laneGate?.identity === composerSessionKey && laneGate.needsChoice;
+  const settleLane = useCallback(() => {
+    setLaneGate({ identity: laneGateIdentityRef.current, needsChoice: false });
+  }, []);
+  // '나만 (상담)'으로 시작하는 처음 온 사람에게 놓는 화면 전용 첫인사. 전체화면과 같은 이유.
+  const [laneGreeting, setLaneGreeting] = useState<{ identity: string; body: string } | null>(null);
+  const greetingBody = firstHello
+    ?? (laneGreeting?.identity === composerSessionKey ? laneGreeting.body : null);
   const activeVisibility = activeScope === "shared" ? "shared" : myPrivateVisibility;
   const isActiveFileReadPending = pendingFileReads[activeComposerLane] > 0;
   const isComposerBusy =
@@ -284,21 +310,26 @@ export default function ChatSidePanel({
   /**
    * 아모라의 첫마디. 서버에 저장된 메시지가 아니라 이 화면 위에만 있는 말이다 —
    * 모델 호출도 DB 쓰기도 없이 온보딩 입력만으로 만들어졌기 때문이다.
-   * 그래서 함께 대화(shared) 범위의 맨 위에 한 번 놓고, 답장은 평소 경로로 간다.
+   * 그래서 지금 보는 범위의 맨 위에 한 번 놓고, 답장은 평소 경로로 간다. '나만'을 고른
+   * 사람도 인사를 만난다(2026-09-26).
+   *
+   * 라운지 첫마디 끝의 초대 문단("…두 사람이 같은 화면을 봐요")은 '함께 대화'로 정해진 뒤에만
+   * 남긴다. 나만 레인에서는 거짓이고, 고르기 전에는 선택 카드의 덧붙임과 같은 말이다(2026-09-27).
    */
+  const greetingLane = laneReady ? activeScope : null;
   const firstHelloMessage = useMemo<ChatMessage | null>(() => {
-    if (!firstHello || !coupleId || isDemo) return null;
+    if (!greetingBody || !coupleId || isDemo) return null;
     return {
       id: "amora-first-hello",
       couple_id: coupleId,
       sender_id: null,
       sender_role: "ai",
-      visibility: "shared",
-      content: firstHello,
+      visibility: activeVisibility ?? "shared",
+      content: amoraFirstHelloBodyForLane(greetingBody, greetingLane),
       metadata: {},
       created_at: new Date().toISOString(),
     };
-  }, [coupleId, firstHello, isDemo]);
+  }, [activeVisibility, coupleId, greetingBody, greetingLane, isDemo]);
 
   const artifactsMatchActiveVisibility =
     !!activeVisibility && artifactVisibility === activeVisibility;
@@ -445,13 +476,48 @@ export default function ChatSidePanel({
       || submitInFlightRef.current
       || pendingFileReadsRef.current[activeComposerLane] > 0
       || (nextScope === "private" && !myPrivateVisibility)
-    ) return;
+    ) return false;
     setActiveScope(nextScope);
     setMessageTarget("ai");
     // Suggestions are derived from the previous answer and have no scope field.
     // Discard them on a scope change rather than showing private-derived copy in shared chat.
     useChatStore.setState({ suggestions: [] });
-  }, [activeComposerLane, isStreaming, isSending, myPrivateVisibility]);
+    settleLane();
+    return true;
+  }, [activeComposerLane, isStreaming, isSending, myPrivateVisibility, settleLane]);
+
+  /**
+   * 사람이 직접 고른 레인(선택 카드·위쪽 탭)만 기억한다 — 전체화면과 같은 키.
+   * 서버가 안전 때문에 '나만'으로 옮긴 것은 기억하지 않는다(`ChatContent` 의 `chooseLane` 설명).
+   */
+  const chooseLane = useCallback((nextScope: AmoraLaneChoice) => {
+    if (!handleScopeChange(nextScope)) return;
+    if (!isDemo) rememberAmoraLane(profile?.id, nextScope);
+  }, [handleScopeChange, isDemo, profile?.id]);
+
+  const laneRoleKnown = authInitialized && !authLoading;
+  useEffect(() => {
+    // 고르지 않고 닫았으면 결정을 내려놓는다. 다시 열 때 전체화면에서 고른 기억을 읽는다.
+    if (isOpen) return;
+    setLaneGate((gate) => (gate?.needsChoice ? null : gate));
+  }, [isOpen]);
+  useEffect(() => {
+    if (!isOpen || !laneRoleKnown) return;
+    if (laneGate?.identity === composerSessionKey) return;
+    const initial = resolveInitialAmoraLane({
+      storedLane: readRememberedAmoraLane(profile?.id),
+      privateAvailable: Boolean(myPrivateVisibility),
+      isDemo,
+      // 옆 패널로 레인을 정해서 들어오는 길은 없다(주소의 `?scope=` 는 전체화면만 읽는다).
+      explicitScope: null,
+      roleKnown: true,
+    });
+    if (initial.lane) {
+      setActiveScope(initial.lane);
+      setMessageTarget("ai");
+    }
+    setLaneGate({ identity: composerSessionKey, needsChoice: initial.needsChoice });
+  }, [composerSessionKey, isDemo, isOpen, laneGate, laneRoleKnown, myPrivateVisibility, profile?.id]);
 
   const handleMessageTargetChange = useCallback((nextTarget: ChatMessageTarget) => {
     if (
@@ -537,9 +603,14 @@ export default function ChatSidePanel({
       !profile ||
       !senderRole ||
       isDemo ||
+      // 모델 첫 인사는 서버가 '함께 대화' 레인에 저장한다. 고르기 전이나 '나만'을 보고
+      // 있을 때 부르면 고르지 않은 레인에 대화가 먼저 생긴다(2026-09-26).
+      !laneReady ||
+      activeScope !== "shared" ||
       // 아모라가 첫 실행 안내 직후 이미 먼저 말을 걸어뒀다. 여기서 또 인사를
       // 요청하면 같은 자리에 인사가 두 번 뜬다.
       firstHello ||
+      greetingBody ||
       !initialLoadDone ||
       isStreaming ||
       messages.length > 0 ||
@@ -559,7 +630,31 @@ export default function ChatSidePanel({
         progress: journey?.progress ?? {},
       },
     });
-  }, [isOpen, coupleId, profile, senderRole, journey, initialLoadDone, messages.length, isStreaming, requestInitialGreeting, isDemo, firstHello]);
+  }, [isOpen, coupleId, profile, senderRole, journey, initialLoadDone, messages.length, isStreaming, requestInitialGreeting, isDemo, firstHello, laneReady, activeScope, greetingBody]);
+
+  // '나만 (상담)'으로 시작하는 처음 온 사람에게도 인사를 건넨다. 모델은 부르지 않는다.
+  useEffect(() => {
+    if (
+      !isOpen ||
+      !coupleId ||
+      !profile ||
+      !senderRole ||
+      isDemo ||
+      !laneReady ||
+      activeScope !== "private" ||
+      greetingBody ||
+      !initialLoadDone ||
+      messages.length > 0 ||
+      greetingRequested.current
+    )
+      return;
+    const hello = buildAmoraFirstHello({
+      weddingDate: journey?.wedding_date ?? null,
+      preparationStage: readPreparationStage(journey?.progress),
+      now: Date.now(),
+    });
+    setLaneGreeting({ identity: composerSessionKey, body: hello.body });
+  }, [activeScope, composerSessionKey, coupleId, greetingBody, initialLoadDone, isDemo, isOpen, journey, laneReady, messages.length, profile, senderRole]);
 
   // 자동 스크롤
   useEffect(() => {
@@ -579,6 +674,8 @@ export default function ChatSidePanel({
   }, []);
 
   const processFile = useCallback((file: File) => {
+    // 레인을 정하기 전에는 첨부를 받지 않는다. 받으면 보이지 않는 레인 입력창에 쌓인다.
+    if (!laneReady) return;
     const submittedLane = activeComposerLane;
     const submittedVisibility = activeVisibility;
     const submittedSessionGeneration = composerSessionGenerationRef.current;
@@ -685,7 +782,7 @@ export default function ChatSidePanel({
       });
       finishRead();
     }
-  }, [activeComposerLane, activeVisibility, adjustPendingFileReads, setDraftAttachments]);
+  }, [activeComposerLane, activeVisibility, adjustPendingFileReads, laneReady, setDraftAttachments]);
 
   const handleFileSelect = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
@@ -729,6 +826,8 @@ export default function ChatSidePanel({
         || isSending
         || submitInFlightRef.current
         || pendingFileReadsRef.current[activeComposerLane] > 0
+        // 레인을 정하기 전에는 보내지 않는다. 입력창·칩·카드 어느 길로 와도 여기서 멈춘다.
+        || !laneReady
       ) return;
       const usesComposer = text === undefined;
       const content = usesComposer ? input.trim() : text;
@@ -857,8 +956,17 @@ export default function ChatSidePanel({
         else finalContent = "이 이미지를 분석해주세요.";
       }
 
+      // 2026-09-26: 전체화면 채팅과 같은 이유 — 서버만 나만 레인으로 옮긴 경우 탭을 따라 옮긴다.
+      let serverPrivacyRedirectShown = false;
+      const showServerPrivacyRedirect = () => {
+        if (composerSessionGenerationRef.current !== submittedSessionGeneration) return;
+        serverPrivacyRedirectShown = true;
+        setActiveScope("private");
+        setMessageTarget("ai");
+      };
       try {
         const outcome = await sendMessage({
+          onSafetyPrivacyRedirect: showServerPrivacyRedirect,
           content: finalContent,
           senderId: profile.id,
           senderRole,
@@ -906,6 +1014,18 @@ export default function ChatSidePanel({
             outcome.clientRequestId ?? submittedClientRequestId,
           );
         } else {
+          if (
+            outcome?.userMessage === "persisted"
+            && !isPrivateSafetyRoute
+            && !serverPrivacyRedirectShown
+            && (
+              outcome.safetyPrivacyRedirected === true
+              || outcome.effectiveVisibility === "bride_private"
+              || outcome.effectiveVisibility === "groom_private"
+            )
+          ) {
+            showServerPrivacyRedirect();
+          }
           setDraftRetryClientRequestId(sourceLane, null);
         }
       } catch {
@@ -946,6 +1066,7 @@ export default function ChatSidePanel({
       setDraftRetryClientRequestId,
       isStreaming,
       isSending,
+      laneReady,
     ]
   );
   const handleAmoraSend = useCallback(
@@ -998,6 +1119,7 @@ export default function ChatSidePanel({
     enabled:
       isOpen &&
       !isDemo &&
+      laneReady &&
       initialLoadDone &&
       Boolean(coupleId) &&
       Boolean(profile),
@@ -1361,11 +1483,11 @@ export default function ChatSidePanel({
               >
                 <button
                   type="button"
-                  onClick={() => handleScopeChange("shared")}
+                  onClick={() => chooseLane("shared")}
                   disabled={isComposerBusy}
-                  aria-pressed={activeScope === "shared"}
+                  aria-pressed={laneReady && activeScope === "shared"}
                   className={`min-h-11 rounded-[6px] px-2 text-xs font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
-                    activeScope === "shared"
+                    laneReady && activeScope === "shared"
                       ? "bg-white text-[var(--hb-accent-hover)] shadow-sm"
                       : "text-[var(--hb-text-muted)] hover:text-[var(--hb-text-body)]"
                   }`}
@@ -1374,12 +1496,12 @@ export default function ChatSidePanel({
                 </button>
                 <button
                   type="button"
-                  onClick={() => handleScopeChange("private")}
+                  onClick={() => chooseLane("private")}
                   disabled={isComposerBusy || !myPrivateVisibility}
-                  aria-pressed={activeScope === "private"}
+                  aria-pressed={laneReady && activeScope === "private"}
                   title="아모라와 1:1 — 서비스에 저장되지만 상대방에게는 보이지 않습니다"
                   className={`flex min-h-11 items-center justify-center gap-1 rounded-[6px] px-2 text-xs font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
-                    activeScope === "private"
+                    laneReady && activeScope === "private"
                       ? "bg-white text-[#5a6147] shadow-sm"
                       : "text-[var(--hb-text-muted)] hover:text-[var(--hb-text-body)]"
                   }`}
@@ -1395,8 +1517,11 @@ export default function ChatSidePanel({
                   activeScope === "private" ? "text-[#5a6147]" : "text-[var(--hb-accent-hover)]"
                 }`}
               >
-                {activeScope === "private" && <Lock className="h-3 w-3" aria-hidden="true" />}
-                {activeScope === "private"
+                {laneReady && activeScope === "private" && <Lock className="h-3 w-3" aria-hidden="true" />}
+                {/* 레인을 고르기 전에는 '현재 범위'를 말하지 않는다. 아직 정해진 범위가 없다. */}
+                {!laneReady
+                  ? null
+                  : activeScope === "private"
                   ? "현재 범위 · 나만 (상담) — 서비스에 저장되며 상대방에게는 보이지 않아요"
                   : partner
           ? "현재 범위 · 함께 대화 — 파트너에게 보여요"
@@ -1512,7 +1637,7 @@ export default function ChatSidePanel({
 
             {/* 메시지 영역 */}
             <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
-              {firstHelloMessage && activeScope === "shared" && (
+              {firstHelloMessage && (
                 <div className="animate-fade-in" data-testid="amora-first-hello-message">
                   <ChatBubble
                     message={firstHelloMessage}
@@ -1684,8 +1809,21 @@ export default function ChatSidePanel({
               </div>
             )}
 
+            {/* 처음 여는 사람에게 '함께/나만'을 먼저 고르게 한다(2026-09-26). 입력창 바로 위. */}
+            {laneChoiceNeeded && (
+              <div className="px-3 pb-2">
+                <AmoraLaneChoiceCard
+                  onChoose={chooseLane}
+                  partnerLinked={hasCouplePartner}
+                  disabled={isComposerBusy}
+                  compact
+                />
+              </div>
+            )}
+
             {/* 제안 버튼 — 입력창과 충분한 간격 */}
             {messageTarget === "ai" &&
+              laneReady &&
               artifactsMatchActiveVisibility &&
               suggestions.length > 0 &&
               !isStreaming &&
@@ -1739,7 +1877,7 @@ export default function ChatSidePanel({
             {/* 입력 영역 */}
             <div className="px-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] pt-1">
               {/* 대상 토글 (커플 연동 시) */}
-              {activeScope === "shared" && hasCouplePartner && (
+              {laneReady && activeScope === "shared" && hasCouplePartner && (
                 <div
                   className="flex items-center gap-1.5 mb-1.5"
                   role="group"
@@ -1781,7 +1919,7 @@ export default function ChatSidePanel({
                 <button
                   type="button"
                   onClick={() => fileInputRef.current?.click()}
-                  disabled={isComposerBusy || attachments.length >= MAX_ATTACHMENTS}
+                  disabled={isComposerBusy || !laneReady || attachments.length >= MAX_ATTACHMENTS}
                   className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-[6px] transition-colors hover:bg-black/[0.04] disabled:opacity-30"
                   title="파일 첨부"
                   aria-label="파일 첨부"
@@ -1811,8 +1949,13 @@ export default function ChatSidePanel({
                       handleSend();
                     }
                   }}
-                  placeholder={messageTarget === "partner" ? "상대방에게 메시지..." : "결혼 준비에서 궁금한 점을 물어보세요…"}
-                  disabled={isComposerBusy}
+                  placeholder={laneChoiceNeeded
+                    ? AMORA_LANE_CHOICE_COPY.composerBlockedPlaceholder
+                    : messageTarget === "partner" ? "상대방에게 메시지..." : "결혼 준비에서 궁금한 점을 물어보세요…"}
+                  // 고르기 전에는 읽기 전용으로 둔다. 비활성(disabled)으로 두면 안내 문구가 흐려져 읽기 어렵다.
+                  readOnly={laneChoiceNeeded}
+                  aria-disabled={laneChoiceNeeded || undefined}
+                  disabled={isComposerBusy || (!laneReady && !laneChoiceNeeded)}
                   aria-label="메시지 입력"
                   className="flex-1 px-2 py-2 text-[0.8125rem] text-[var(--hb-text-strong)] placeholder:text-[var(--hb-text-muted)] bg-transparent outline-none disabled:opacity-50 min-w-0"
                 />
@@ -1822,6 +1965,7 @@ export default function ChatSidePanel({
                   disabled={
                     (!input.trim() && attachments.length === 0)
                     || isComposerBusy
+                    || !laneReady
                   }
                   aria-label="메시지 보내기"
                   className={`flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-[6px] text-white transition-colors disabled:cursor-not-allowed disabled:opacity-30 ${

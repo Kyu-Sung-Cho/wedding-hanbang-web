@@ -5,6 +5,7 @@ import {
 } from "@/lib/ai/amoraCrisisSafety";
 import { assessAmoraSafetyText } from "@/lib/ai/amoraCrisisClassifier";
 import { hasCoerciveControlSignal } from "@hanbang/shared";
+import { isClosedPartnerViolenceStatement } from "@hanbang/shared/partner-violence-closed-vocabulary";
 import { hasExplicitPersonalActionDraftRequest } from "./amoraPersonalActionConversation";
 
 export type AmoraQuestionScope =
@@ -829,6 +830,16 @@ export function classifyAmoraQuestionScope({
         !BARE_THREAT_VETO_PATTERN.test(normalizedText)
         || REPORTED_VIOLENCE_PATTERN.test(normalizedText)
       )
+    )
+    // 2026-09-26: 닫힌 어휘로 된 친밀한 관계 폭력·위협·통제 서술(`남편이 때려요`·
+    // `밀쳐서 멍들었어`·`파혼하면 죽인대`·`친구 못 만나게 해`). 운영 판정이 이 자리까지
+    // 아무것도 못 찾았을 때(`inconclusive`)만 더한다. 이렇게 해야 W2 safety(도구 0·
+    // 112·1366 안내)로 가고 서버 `hasAmoraSafetySignal` 도 참이 된다. W0 반환보다 앞이어야
+    // `신랑이 술 먹으면 때려요` 가 결혼 핵심·기억 ON 으로 가지 않는다. `assessAmoraSafetyText`
+    // 안에 넣지 않는다 — 넣으면 `classifyAmoraCrisis` 의 옛 즉시 위기 갈래가 끊긴다.
+    || (
+      structuredSafetyAssessment.resolution === "inconclusive"
+      && isClosedPartnerViolenceStatement(normalizedText)
     );
   const domainHighRisk =
     HIGH_RISK_DOMAIN_PATTERN.test(normalizedText)
