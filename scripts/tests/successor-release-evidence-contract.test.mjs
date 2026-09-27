@@ -156,6 +156,34 @@ test("알 수 없는 status와 과거 evidence_pinned 상태는 거부한다", (
   }
 });
 
+// 아래 두 단언은 2026-09-27 에 지운 apps/web/src/lib/price/productionBuildFence.test.ts 에서
+// 옮겨 왔다. 그 파일은 운영 빌드 펜스를 거쳐 공유 검증기를 쟀는데, 펜스를 떼도 검증기는
+// 출시 도구가 계속 쓰고, 이 두 경우는 다른 곳에서 재지 않았다.
+test("옛 합성 영수증 경로(deployment_authorized + verified_success)는 증거를 읽기 전에 거부한다", () => {
+  expectBlocked(
+    fixture((m) => {
+      m.status = "deployment_authorized";
+      m.deploymentEvidence = Object.fromEntries(
+        Object.keys(m.deploymentEvidence).map((name) => [
+          name,
+          { receiptVersion: 1, status: "verified_success" },
+        ]),
+      );
+      return m;
+    }),
+    "DEPLOYMENT_STATUS_INVALID",
+  );
+});
+
+test("선행 매니페스트 파일이 없으면 PIN_MISSING 으로 막힌다", () => {
+  const root = fixture((m) => m);
+  const manifest = JSON.parse(
+    readFileSync(join(root, SUCCESSOR_RELEASE_MANIFEST_RELATIVE_PATH), "utf8"),
+  );
+  rmSync(join(root, manifest.predecessorManifest.file));
+  expectBlocked(root, "PIN_MISSING");
+});
+
 test("controller_ready인데 controllerContract pin이 없으면 형태 위반이다", () => {
   expectBlocked(
     fixture((m) => {

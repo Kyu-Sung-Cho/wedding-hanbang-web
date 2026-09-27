@@ -62,6 +62,7 @@
   `docs/operations/VENDOR_DISCLOSURE_ACCEPTANCE_MATRIX_2026-07-18.md`,
   `docs/operations/VENDOR_DISCLOSURE_HOSTED_STAGING_RLS_PROBE.md`,
   `docs/operations/VENDOR_DISCLOSURE_PRODUCTION_BUILD_FENCE.md`
+  (운영 빌드 펜스와 서명 환경변수는 2026-09-27 은퇴, 문서는 역사 기록)
 - 모바일: `docs/MOBILE_APP_MASTERPLAN_2026-06-30.md`
 - WeddingCode: `docs/wedding-code/README.md`
 

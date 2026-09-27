@@ -1,6 +1,31 @@
 # Vendor disclosure production build fence
 
-## Current decision: NO-GO
+## 상태: 2026-09-27 은퇴(파운더 승인)
+
+이 펜스는 더 이상 운영 빌드에서 돌지 않는다. `apps/web/next.config.ts` 가
+`assertVendorDisclosureProductionBuild` 를 부르지 않고, 서명 환경변수
+`VENDOR_DISCLOSURE_PRODUCTION_AUTHORIZATION` 은 `turbo.json` 과
+`apps/web/.env.example` 에서 빠졌다. 이 파일 아래 본문은 은퇴 전 설계를 남긴
+역사 기록이며 현재 규칙이 아니다.
+
+은퇴 이유:
+
+- 지키던 출시(벤더 공시 v2)는 2026-07-23 에 이미 끝났다.
+- 펜스는 운영 DB 를 보지 않는다. 그래서 실제로 난 사고(앱이 DB 보다 먼저 나가
+  커뮤니티 피드가 07-31~08-20 동안 죽은 일)를 막지 못했다.
+- 대신 운영 배포를 적어도 여덟 번 멈췄다: 08-08~10 세 번, 08-20 세 번,
+  08-21 한 번(약 2시간), 09-03 랜딩 문구만 고친 #304.
+
+남긴 것: `apps/web/vendorDisclosureProductionBuildFence.ts` 는
+`scripts/tests/release-manifest-signature-pin.test.mjs` 가 해시 함수를 불러 쓰므로
+남겼다. `supabase/release-manifests/vendor-disclosure-v2-20260718.json` 은 없으면
+출시 도구가 옛 목록으로 넘어가므로 남겼다.
+
+순서: 이 변경이 main 에 병합돼 운영 배포가 확인된 뒤에 Vercel 운영 환경변수에서
+서명 값을 지운다. 거꾸로 하면 아직 펜스가 붙어 있는 빌드가 서명 없이 돌아 운영
+빌드가 죽는다.
+
+## Historical decision (before 2026-09-27): NO-GO
 
 The vendor-disclosure successor release is not authorized for production.
 `supabase/release-manifests/vendor-disclosure-v2-20260718.json` remains
