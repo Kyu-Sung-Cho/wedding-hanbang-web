@@ -10,6 +10,8 @@ import { V31_PRIORITY_INDEX, getV31ScreenIndexes, isV31CoreComplete, isV31Flow, 
 export const LOCAL_KEY = "hanbang:wedding-code:v3.1:progress";
 export const LOCAL_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 export const LOCAL_SCHEMA = 2;
+/** 저장 기록과 현재 진행을 함께 지우는 버튼. 처리방침 제3조가 이 이름으로 부른다. */
+export const V31_CLEAR_LOCAL_LABEL = "이 브라우저의 답 지우기";
 export type V31ProgressStorage = Pick<Storage, "getItem" | "setItem" | "removeItem">;
 export type V31LocalProgressSnapshot = {
   draft: V31Draft;
