@@ -451,7 +451,21 @@ describe("개인 결과는 고른 답을 되풀이하지 않고 고지를 한 �
     for (const label of ["피하고 싶은 것 수정", "더 쓰고 싶은 곳 수정"]) expect(picture.querySelector(`button[aria-label="${label}"]`), label).not.toBeNull();
   });
 
-  it("우선순위 안내 카드가 있으면 설명 카드는 두 장만 펼쳐, 펼친 안내가 모두 세 장을 넘지 않는다", () => {
+  it("우선순위 안내가 세 장이면 설명 카드는 모두 접고, 접기 이름에 ‘더’를 쓰지 않는다", () => {
+    const draft = basicDraft();
+    draft.answers.B3 = 5;
+    draft.priorities = { status: "answered", values: ["B1", "B3", "T2"] };
+    draft.spending = { status: "answered", values: ["photo"] };
+    const view = render(draft);
+    expect(view.querySelectorAll("[data-priority-guides] [data-insight]")).toHaveLength(3);
+    const insights = view.querySelector("[data-personal-insights]")!;
+    const cards = [...insights.querySelectorAll("[data-insight]")];
+    expect(cards.length).toBeGreaterThan(0);
+    for (const card of cards) expect(card.closest('details[data-insight-group="more"]'), card.getAttribute("data-insight") ?? "").not.toBeNull();
+    expect(insights.querySelector('details[data-insight-group="more"] > summary')?.textContent).toBe(`설명 ${cards.length}개 보기`);
+  });
+
+  it("우선순위 안내가 한 장이면 설명 카드는 두 장만 펼쳐, 펼친 안내가 모두 세 장을 넘지 않는다", () => {
     const draft = mixedDraft();
     draft.priorities = { status: "answered", values: ["G3"] };
     const view = render(draft);

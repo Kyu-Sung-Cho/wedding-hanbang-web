@@ -91,8 +91,9 @@ function PersonalProfile({ draft, onEdit, nested = false, personLabel }: { draft
   // 요약에 없는 답이 섞인 설명을 앞에 펼치고, 네 글자 요약과 같은 여덟 문장만 근거인 설명은 따로 접는다.
   const { fresh, summaryOnly } = splitV31InsightsBySummary(profile.insights.filter(item => !priorityInsightIds.has(item.id)), SUMMARY_STATEMENT_IDS);
   const insightCount = fresh.length + summaryOnly.length;
-  // 펼친 안내 카드는 우선순위 안내를 합쳐 세 장 안쪽으로 둔다(2026-09-27 결과 간추리기). 우선순위 안내가 있으면 설명은 두 장만 펼친다.
-  const openLimit = profile.priorityGuides.length ? 2 : 3;
+  // 펼친 안내 카드는 우선순위 안내를 합쳐 세 장 안쪽으로 둔다(2026-09-27 결과 간추리기). 우선순위 안내는 고른 만큼 모두 펼치고,
+  // 설명 카드는 남은 자리만큼만 펼친다(안내 한 장이면 두 장, 세 장 이상이면 설명은 모두 접는다).
+  const openLimit = Math.max(0, 3 - profile.priorityGuides.length);
   const openFresh = fresh.slice(0, openLimit);
   // 참여 방식 안내 카드(무대로 부르지 않고 자리에서 함께하는 방식)가 펼친 채 보이면, 무대 참여를 피하고 싶다는 줄은
   // 같은 이야기를 다시 하지 않는다. 카드가 ‘다른 설명 더 보기’ 안에 접혀 있으면 줄의 다음 행동을 그대로 둔다.
@@ -139,13 +140,15 @@ function PersonalProfile({ draft, onEdit, nested = false, personLabel }: { draft
       {insightCount ? <>
         {/* 카드 사용법은 화면에 한 번만 쓴다. 우선순위 안내가 있으면 그쪽에 이미 적었다. */}
         {profile.priorityGuides.length ? null : <p className={`mb-5 mt-2 ${v31Body}`} data-insight-note>{insightNote(onEdit)}</p>}
-        <div className={profile.priorityGuides.length ? "mt-5" : undefined}>{openFresh.map(item => <Insight key={item.id} item={item} onEdit={onEdit} />)}</div>
+        {openFresh.length ? <div className={profile.priorityGuides.length ? "mt-5" : undefined}>{openFresh.map(item => <Insight key={item.id} item={item} onEdit={onEdit} />)}</div> : null}
         {/* 접힌 설명은 한 곳에 모은다(2026-09-27 결과 간추리기). 네 글자와 같은 답으로 만든 설명은 그 안에서 뒤에 따로 묶는다. */}
         {insightCount > openFresh.length ? <details className="mt-5 border-t border-[var(--hb-hairline)] pt-4" data-insight-group="more">
-          <summary className={foldSummary}>설명 {insightCount - openFresh.length}개 더 보기</summary>
+          {/* 위에 펼친 설명이 없으면 ‘더’라고 하지 않는다. 네 글자와 같은 답으로 만든 설명뿐이면 그 이름을 그대로 쓴다. */}
+          <summary className={foldSummary}>{openFresh.length ? `설명 ${insightCount - openFresh.length}개 더 보기`
+            : fresh.length ? `설명 ${insightCount}개 보기` : `위 네 글자에 쓴 답으로 만든 설명 ${summaryOnly.length}개 보기`}</summary>
           {fresh.length > openFresh.length ? <div className="pt-4">{fresh.slice(openFresh.length).map(item => <Insight key={item.id} item={item} onEdit={onEdit} />)}</div> : null}
           {summaryOnly.length ? <div className="pt-4" data-insight-group="summary">
-            <p className={`mb-4 text-sm ${v31Title}`}>위 네 글자에 쓴 답으로 만든 설명</p>
+            {fresh.length ? <p className={`mb-4 text-sm ${v31Title}`}>위 네 글자에 쓴 답으로 만든 설명</p> : null}
             {summaryOnly.map(item => <Insight key={item.id} item={item} onEdit={onEdit} />)}
           </div> : null}
         </details> : null}
@@ -175,7 +178,7 @@ function PersonalProfile({ draft, onEdit, nested = false, personLabel }: { draft
         </div>
       </dl>
       {preparationTips.length ? <details className="mt-4 border-t border-[var(--hb-hairline)] pt-3" data-preparation-tips>
-        <summary className={foldSummary}>준비할 때 볼 것 {preparationTips.length}개 보기</summary>
+        <summary className={foldSummary}>준비할 때 챙길 것 {preparationTips.length}개 보기</summary>
         <ul className="mt-2 divide-y divide-[var(--hb-hairline)]">{preparationTips.map(tip => <li key={tip.key} className="py-3" {...tip.data}>
           <p className={`text-sm ${v31Title}`}>{tip.title}</p>
           <p className={`mt-1 flex gap-2 ${v31Body}`} data-next-step><ArrowRight aria-hidden="true" className="mt-1 size-3.5 shrink-0 text-[var(--hb-success)]" />{tip.nextStep}</p>
