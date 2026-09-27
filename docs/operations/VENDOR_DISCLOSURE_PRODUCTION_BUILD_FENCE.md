@@ -25,6 +25,19 @@
 서명 값을 지운다. 거꾸로 하면 아직 펜스가 붙어 있는 빌드가 서명 없이 돌아 운영
 빌드가 죽는다.
 
+값을 지운 뒤의 되돌리기: 펜스가 들어간 뒤부터 2026-09-27 전까지의 커밋은 아직
+펜스를 부른다. 그래서 서명 값을 지운 뒤에는 그런 커밋을 **다시 빌드하는**
+되돌리기(옛 배포 Redeploy, 이 변경의 revert)가 서명 없음으로 빌드 단계에서 죽고,
+운영은 직전 빌드에 머물러 멀쩡해 보인다. 되돌릴 때는 이미 빌드된 배포를 다시 가리키는 방식(Vercel Instant Rollback)을
+쓴다. 옛 커밋을 꼭 다시 빌드해야 하면 **그 커밋의**
+`scripts/tests/release-manifest-signature-pin.test.mjs` 의 `EXPECTED_SIGNATURE`
+(그 커밋 매니페스트의 sha256)를 서명 env 로 되살린다. 커밋마다 값이 다를 수 있다.
+2026-09-27 에 이 변경 직전 main(9e46b1bb0)의 `next.config.ts` 를 운영 조건
+(`VERCEL_ENV=production`)으로 불러 쟀다: 값이 없으면 `..._NOT_IMPLEMENTED`, 틀린 값이면
+`..._INVALID` 로 던졌고, 그 커밋의 `EXPECTED_SIGNATURE` 를 넣으면 통과했다.
+Instant Rollback 이 빌드를 다시 하지 않는다는 것은 Vercel 문서 기준이며, 이 저장소에서
+실측하지는 않았다.
+
 ## Historical decision (before 2026-09-27): NO-GO
 
 The vendor-disclosure successor release is not authorized for production.

@@ -52,10 +52,17 @@ const { expectedProductionAuthorizationSha256 } = tsxRequire(
 const repoRoot = resolve(fileURLToPath(new URL("../..", import.meta.url)));
 
 /**
- * 지금 매니페스트의 sha256. **Vercel Production 환경변수와 같은 값이어야 한다.**
+ * 지금 매니페스트의 sha256.
  *
- * 이 값을 바꾸는 커밋은 반드시 Vercel 서명 교체와 짝이다. 짝 없이 바꾸면 그 순간부터
- * 프로덕션 배포가 전부 막히고, 사이트는 직전 빌드를 계속 서비스해서 멀쩡해 보인다.
+ * 2026-09-27 부터: 이 값은 Vercel 과 짝이 아니다. 운영 빌드 펜스를 은퇴시켜 Vercel 의
+ * `VENDOR_DISCLOSURE_PRODUCTION_AUTHORIZATION` 을 읽는 코드가 없다. 이 값을 바꿔도
+ * Vercel 에서 할 일은 없다. 한 가지 쓰임은 남는다 — 은퇴 전 커밋(아직 펜스를 부르는
+ * 커밋)을 서명 env 가 지워진 뒤에 다시 빌드해야 하면, **그 커밋의** 이 값을 env 로
+ * 되살려야 그 빌드가 통과한다.
+ *
+ * 아래는 은퇴 전 기록이다. 그때는 이 값을 바꾸는 커밋이 반드시 Vercel 서명 교체와
+ * 짝이었고, 짝 없이 바꾸면 프로덕션 배포가 전부 막힌 채 사이트는 직전 빌드를 계속
+ * 서비스해서 멀쩡해 보였다.
  *
  * 2026-09-07 후속 로컬 수정안: 검토한 이름별 예산 배분 SQL 1개를 추가 등록한 기대값이다.
  * 기존 8개 실행 매니페스트는 그대로이며, 이번 SQL은 별도 214→215 경로로 검증한다.
