@@ -2,6 +2,8 @@ import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { amoraLaneStorageKey } from "@hanbang/shared/amora-lane-choice";
+
 import ChatContent from "./ChatContent";
 import type { ChatMessage } from "@/types/database.types";
 import {
@@ -237,6 +239,10 @@ describe("전체 페이지 대화에서도 아모라의 첫마디를 만난다",
     mocks.isDemo = false;
     window.sessionStorage.clear();
     window.localStorage.clear();
+    // 2026-09-26 부터 처음 여는 사람은 '함께/나만'을 먼저 고르고, 모델 첫 인사는 '함께'를
+    // 고른 뒤에만 부른다(`amoraLaneFirstChoice.test.tsx`). 이 파일은 이미 '함께'를 고른
+    // 사람에게 첫마디와 모델 인사가 겹치지 않는지만 잰다.
+    window.localStorage.setItem(amoraLaneStorageKey("user-1") as string, "shared");
     resetAmoraFirstHelloMemory();
     container = document.createElement("div");
     document.body.appendChild(container);

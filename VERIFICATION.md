@@ -71,7 +71,10 @@ node scripts/prove-guard.mjs --test <검사> --target <대상> --find "<문자�
 
 `amoraQuestionScope.ts` · `amoraClarificationContinuity.ts` ·
 `amoraBoundedContinuity.ts` · `amoraCrisisSafety.ts` · `amoraCrisisClassifier.ts` ·
+`amoraCrisisDelivery.ts` · `partnerViolenceClosedVocabulary.ts` ·
 `compliance/ai-log.ts` 를 건드리면 `--safety-delta <결과>` 없이는 통과하지 못한다.
+정본 목록은 `scripts/verify-change.mjs` 의 `SAFETY_CRITICAL` 이다. 이 문단은 사람이 읽는
+사본이라 그 목록이 바뀌면 같이 고친다.
 
 ```bash
 node scripts/scope-delta.mjs <이전-ref> <코퍼스.json>
