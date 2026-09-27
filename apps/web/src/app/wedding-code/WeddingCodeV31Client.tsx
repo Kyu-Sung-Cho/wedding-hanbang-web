@@ -15,7 +15,7 @@ import WeddingCodeV31Results from "./WeddingCodeV31Results";
 import { useV31LocalProgress } from "./useV31LocalProgress";
 import type { V31LocalProgressSnapshot } from "@/lib/weddingCode/v31LocalProgress";
 import {
-  V31_CORE_INDEXES, V31_CORE_RATING_IDS, V31_CORE_SCREEN_INDEXES, V31_EXTRA_INDEXES,
+  V31_CORE_INDEXES, V31_EXTRA_INDEXES,
   getV31MissingIndex, getV31NextIndex, getV31ResponseAt, getV31ScreenIndexes, type V31Flow,
 } from "@/lib/weddingCode/v31Flow";
 import { getV31Page, getV31PageMissingIndex, getV31Pages, isV31PageComplete } from "@/lib/weddingCode/v31Pages";
@@ -101,6 +101,8 @@ export default function WeddingCodeV31Client({ shareOrigin, partnerDraft = null,
   const flowLabel = v31FlowLabel(flow);
   const page = getV31Page(flow, index, editing);
   const grouped = !editing && flow !== "full";
+  // 한 문항씩 순번을 세는 건 이전 전체 흐름뿐이다. 답 수정 화면은 한 문항만 고치므로 "1 / 24" 같은 분수를 두지 않는다.
+  const countedSingle = !editing && ordinal > 0;
   const ratingPage = grouped && Boolean(question);
   const priorityOptions = getV31PriorityOptions(draft);
   // 앞에서 고른 것이 없어 우선순위 보기가 0개면 기본 흐름 끝의 우선순위 화면을 건너뛴다. 답은 채우지 않는다.
@@ -108,11 +110,12 @@ export default function WeddingCodeV31Client({ shareOrigin, partnerDraft = null,
   const previousIndex = page.previousIndex;
   const pageComplete = isV31PageComplete(draft, page.indexes);
   const priorityEmpty = index === priorityIndex && draft.priorities === undefined;
-  const firstOrdinal = flowIndexes.indexOf(page.indexes[0]) + 1;
   const screenLabel = screen === "intro" ? "웨딩코드 소개" : screen === "result" ? "웨딩코드 결과"
     : grouped ? `웨딩코드 ${flowLabel} ${page.position + 1}페이지`
-      : ordinal > 0 ? `웨딩코드 ${flowLabel} ${ordinal}번째` : "웨딩코드 답 수정";
+      : countedSingle ? `웨딩코드 ${flowLabel} ${ordinal}번째` : "웨딩코드 답 수정";
   const optionalRemaining = V31_EXTRA_INDEXES.filter(item => getV31ResponseAt(draft, item) === undefined).length;
+  // 결과의 선택 질문 안내도 시작 화면처럼 페이지로 센다. 일부만 답한 페이지는 남은 페이지다.
+  const optionalPagesRemaining = getV31Pages("extra").filter(extraPage => !isV31PageComplete(draft, extraPage)).length;
 
   useEffect(() => {
     screenRef.current?.focus({ preventScroll: true });
@@ -335,11 +338,15 @@ export default function WeddingCodeV31Client({ shareOrigin, partnerDraft = null,
           ].map(item => <div key={item.title} className="flex gap-3"><item.icon aria-hidden="true" className="mt-1 size-5 shrink-0 text-[var(--hb-success)]" /><div><h2 className={`text-base ${v31Title}`}>{item.title}</h2><p className={`mt-1 ${v31Body}`}>{item.body}</p></div></div>)}
         </div>
         <div className="mt-7 border-t border-[var(--hb-hairline)] pt-5">
-          <p className={`text-sm ${v31Title}`}>기본 {V31_CORE_SCREEN_INDEXES.length}개 질문 · 로그인 없이 시작</p>
+          {/*
+            분량은 진행 표시와 같은 페이지 하나로만 센다. 2026-09-27 테스터가 제목줄의 질문 수와 본문의 문장 수를 함께 보고
+            "15문제라더니 더 많다"고 했다. 문장·취향 개수는 다시 적지 않는다.
+          */}
+          <p className={`text-sm ${v31Title}`}>기본 질문 {getV31Pages("core").length}페이지 · 로그인 없이 시작</p>
           {/* 우선순위 화면은 고를 보기가 있을 때만 나온다(그렇다는 문장, 직접 고른 취향, 피하고 싶은 것). 그 조건을 그대로 적는다. */}
-          <p className={`mt-2 ${v31Body}`} data-intro-priority>{V31_CORE_RATING_IDS.length}개 문장에 다섯 단계로 답하고, {WEDDING_CODE_V31_TASTES.length}가지 취향과 피하고 싶은 것, 더 쓰고 싶은 곳을 골라요. 그렇다고 답한 문장이나 직접 고른 취향, 피하고 싶은 것이 있으면 마지막에 그중 꼭 지키고 싶은 것을 골라요. 고르지 않고 넘어가도 결과를 볼 수 있어요.</p>
-          <p className={`mt-2 ${v31Body}`}>짧은 문장은 한 페이지에 최대 3개씩, 나머지는 하나씩 물어봐요. 기본 질문은 {getV31Pages("core").length}페이지예요. 답을 골라도 자동으로 넘어가지 않아요.</p>
-          <p className={`mt-2 ${v31Body}`}>더 궁금하면 결과에서 {V31_EXTRA_INDEXES.length}개 선택 질문을 이어서 볼 수 있어요. 아직 모르거나 계획에 없는 것은 따로 표시해도 괜찮아요.</p>
+          <p className={`mt-2 ${v31Body}`} data-intro-priority>짧은 문장에 다섯 단계로 답하고, 결혼식 취향과 피하고 싶은 것, 더 쓰고 싶은 곳을 골라요. 그렇다고 답한 문장이나 직접 고른 취향, 피하고 싶은 것이 있으면 마지막에 그중 꼭 지키고 싶은 것을 골라요. 고르지 않고 넘어가도 결과를 볼 수 있어요.</p>
+          <p className={`mt-2 ${v31Body}`}>답을 골라도 자동으로 넘어가지 않아요.</p>
+          <p className={`mt-2 ${v31Body}`}>더 궁금하면 결과에서 선택 질문 {getV31Pages("extra").length}페이지를 이어서 볼 수 있어요. 아직 모르거나 계획에 없는 것은 따로 표시해도 괜찮아요.</p>
           <p className={`mt-3 ${v31Body}`}>답하는 동안에는 서버나 계정에 보내지 않아요. 이 브라우저에 자동 저장해 나중에 이어 할 수 있어요. 공용 기기에서는 아래 ‘자동 저장 설정’에서 꺼 주세요. 결과에서 함께 보기에 동의하면 선택한 답을 7일간 서버에 보관해요.</p>
           {context.first ? <p className={`mt-3 ${v31Body}`}>상대의 답은 이 브라우저에 저장하지 않아요. 내가 직접 답하거나 불러온 내 답만 저장해요. 나중에 상대와 비교하려면 이 초대 링크를 다시 열어 주세요.</p> : null}
           {/* 묻지 않는 것의 목록은 시작 버튼 위 범위 줄에 한 번만 둔다. */}
@@ -359,16 +366,16 @@ export default function WeddingCodeV31Client({ shareOrigin, partnerDraft = null,
     <Button variant={!owned && local.saved ? "secondary" : "primary"} size="lg" fullWidth onClick={start} className="mt-5 min-h-14! whitespace-normal!">{!owned && local.saved ? "저장된 답 지우고 새로 시작" : started ? "이어서 답하기" : context.first ? "나도 답해보기" : "내 웨딩코드 시작하기"}<ArrowRight aria-hidden="true" className="size-4 shrink-0" /></Button>
   </>);
 
-  if (screen === "result") return shell(<WeddingCodeV31Results key={revision} draft={draft} first={context.first} received={context.received} shareOrigin={shareOrigin} onEdit={edit} onRestart={restart} onMore={!context.received && optionalRemaining > 0 ? more : undefined} optionalCount={optionalRemaining} sharingContent={renderResultActions?.(draft)} />);
+  if (screen === "result") return shell(<WeddingCodeV31Results key={revision} draft={draft} first={context.first} received={context.received} shareOrigin={shareOrigin} onEdit={edit} onRestart={restart} onMore={!context.received && optionalRemaining > 0 ? more : undefined} optionalPages={optionalPagesRemaining} sharingContent={renderResultActions?.(draft)} />);
 
   const topic = question ? WEDDING_CODE_V31_TOPICS.find(item => item.key === question.topic) : null;
   const title = question?.statement ?? taste?.question ?? (index === avoidanceIndex ? "이번 결혼식에서 피하고 싶은 것이 있나요?" : index === priorityIndex ? "이번 결혼식에서 특히 지키고 싶은 것은 무엇인가요?" : "다른 곳의 비용을 줄여서라도 더 쓰고 싶은 곳이 있나요?");
-  // 진행 표기는 하나만 둔다. 묶음 흐름은 페이지 단위이고, 한 문항씩 보는 이전 흐름과 수정 화면은 그대로다.
-  const progressText = grouped ? `${page.position + 1} / ${page.total} 페이지` : ordinal > 0 ? `${flowLabel} ${ordinal} / ${totalQuestions}` : "답 수정";
+  // 진행 표기는 하나만 둔다. 묶음 흐름은 페이지 단위, 한 문항씩 보는 이전 흐름은 순번, 수정 화면은 분수 없이 ‘답 수정’이다.
+  const progressText = grouped ? `${page.position + 1} / ${page.total} 페이지` : countedSingle ? `${flowLabel} ${ordinal} / ${totalQuestions}` : "답 수정";
   return shell(<>
     <div className="mb-5 flex items-center gap-3">
       <Button variant="icon" label="이전 질문" onClick={() => previousIndex !== null ? commit({ index: previousIndex }) : editing || flow === "extra" ? finish() : commit({ screen: "intro" })}><ArrowLeft aria-hidden="true" className="size-5" /></Button>
-      <progress value={grouped ? page.position + 1 : ordinal > 0 ? ordinal : 1} max={grouped ? page.total : ordinal > 0 ? totalQuestions : 1} aria-label={grouped ? "현재 페이지" : "현재 질문"} aria-valuetext={grouped ? `${flowLabel} ${page.total}페이지 중 ${page.position + 1}페이지` : ordinal > 0 ? `${flowLabel} ${totalQuestions}개 중 ${ordinal}번째` : "선택한 답 수정"}
+      <progress value={grouped ? page.position + 1 : countedSingle ? ordinal : 1} max={grouped ? page.total : countedSingle ? totalQuestions : 1} aria-label={grouped ? "현재 페이지" : "현재 질문"} aria-valuetext={grouped ? `${flowLabel} ${page.total}페이지 중 ${page.position + 1}페이지` : countedSingle ? `${flowLabel} ${totalQuestions}개 중 ${ordinal}번째` : "선택한 답 수정"}
         className="h-1.5 min-w-0 flex-1 overflow-hidden rounded-full bg-[var(--hb-hairline)] accent-[var(--hb-success)] [&::-webkit-progress-bar]:bg-[var(--hb-hairline)] [&::-webkit-progress-value]:bg-[var(--hb-success)]" />
       <span className="shrink-0 text-sm font-semibold tabular-nums text-[var(--hb-text-body)]" data-progress-text>{progressText}</span>
     </div>
@@ -385,7 +392,8 @@ export default function WeddingCodeV31Client({ shareOrigin, partnerDraft = null,
             const firstOfTopic = page.indexes.findIndex(item => WEDDING_CODE_V31_QUESTIONS[item].topic === pageQuestion.topic) === position;
             return <section key={pageQuestion.id} tabIndex={-1} aria-label={pageQuestion.statement} data-question={pageQuestion.id}
               className={`${v31Surface} scroll-mt-20 p-1.5 outline-none min-[360px]:p-3.5 sm:p-6 md:scroll-mt-28`}>
-              <p className="text-xs font-semibold text-[var(--hb-success)]">{firstOrdinal + position}. {pageTopic?.title}</p>
+              {/* 번호를 붙이지 않는다. 1~15에서 멈추는 번호가 "15문제"로 읽혔다(2026-09-27). 진행은 위 페이지 표시가 맡는다. */}
+              <p className="text-xs font-semibold text-[var(--hb-success)]">{pageTopic?.title}</p>
               <h2 className={`mb-4 mt-2 text-base leading-relaxed sm:text-lg ${v31Title}`}>{pageQuestion.statement}</h2>
               <V31RatingInput compact questionLabel={pageQuestion.statement} value={draft.answers[pageQuestion.id]} onChange={value => changeRating(pageQuestion.id, value)} />
               {firstOfTopic ? topicScope(pageQuestion.topic) : null}

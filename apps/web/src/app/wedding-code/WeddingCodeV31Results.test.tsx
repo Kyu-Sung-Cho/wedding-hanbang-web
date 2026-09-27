@@ -20,7 +20,7 @@ function basicDraft(): V31Draft {
 function render(draft: V31Draft, first: V31Draft | null = null, received = false, readOnly = false) {
   const container = document.createElement("div");
   container.innerHTML = renderToStaticMarkup(<WeddingCodeV31Results draft={draft} first={first} received={received} readOnly={readOnly}
-    shareOrigin="https://hanbang.ai" onEdit={() => {}} onRestart={() => {}} onMore={() => {}} optionalCount={9} />);
+    shareOrigin="https://hanbang.ai" onEdit={() => {}} onRestart={() => {}} onMore={() => {}} optionalPages={3} />);
   return container;
 }
 /** 카드 제목(누구의 코드인지). 요약 카드 섹션의 이름은 이 제목에서 온다. */
@@ -88,7 +88,8 @@ describe("짧은 웨딩코드 결과의 미노출 문항", () => {
 
   it("기본 답 23개만 세고 보지 않은 문항을 빈 우선순위나 미정 목록으로 만들지 않는다", () => {
     const view = render(basicDraft());
-    expect(view.textContent).toContain("답을 남긴 질문은 23개예요.");
+    expect(buildV31Profile(basicDraft()).respondedCount).toBe(23);
+    expect(view.textContent).not.toContain("답을 남긴 질문");
     expect(view.textContent).toContain("원하면 더 알아보기 (선택)");
     expect(view.textContent).not.toContain("내가 직접 고른 우선순위");
     expect(view.textContent).not.toContain("꽃 장식이 풍성한 공간에서 식을 올리고 싶다.");
@@ -100,7 +101,7 @@ describe("짧은 웨딩코드 결과의 미노출 문항", () => {
     draft.answers.V1 = "skipped";
     draft.priorities = { status: "skipped" };
     const view = render(draft);
-    expect(view.textContent).toContain("답을 남긴 질문은 25개예요.");
+    expect(buildV31Profile(draft).respondedCount).toBe(25);
     expect(view.textContent).toContain("꽃 장식이 풍성한 공간에서 식을 올리고 싶다.");
     expect(view.textContent).toContain("우선순위는 이번에 고르지 않았어요.");
     expect(view.textContent).toContain("모름·계획 없음·답하지 않음·맞는 보기 없음");

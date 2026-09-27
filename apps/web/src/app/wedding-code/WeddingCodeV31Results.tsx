@@ -275,10 +275,10 @@ function CoupleResults({ items, labels }: { items: V31PairItem[]; labels: PairLa
   </>;
 }
 
-export default function WeddingCodeV31Results({ draft, first, received, shareOrigin, onEdit, onRestart, onMore, optionalCount = 0, readOnly = false, sharingContent }: {
+export default function WeddingCodeV31Results({ draft, first, received, shareOrigin, onEdit, onRestart, onMore, optionalPages = 0, readOnly = false, sharingContent }: {
   draft: V31Draft; first: V31Draft | null; received: boolean; shareOrigin: string;
   onEdit: EditHandler; onRestart: () => void;
-  onMore?: () => void; optionalCount?: number;
+  onMore?: () => void; optionalPages?: number;
   readOnly?: boolean; sharingContent?: ReactNode;
 }) {
   const tabId = useId();
@@ -307,7 +307,8 @@ export default function WeddingCodeV31Results({ draft, first, received, shareOri
       <p className="text-xs font-semibold text-[var(--hb-success)]">웨딩코드 · {first ? "두 사람의 결과" : "내 결과"}</p>
       <h1 className={`mt-3 text-3xl leading-snug ${v31Title}`}>{first ? "우리, 어디부터 맞춰볼까요?" : profile.hasContent ? "내가 바라는 결혼식과 준비 방식" : "이번에 남긴 답을 살펴봐요"}</h1>
       <p className={`mt-3 ${v31Body}`}>{first ? "함께 동의하거나 고른 내용부터, 서로 다르게 답한 것까지 나란히 봐요. 같은 답도 이유는 다를 수 있으니, 각자 떠올린 장면을 이야기해 보세요." : profile.hasContent ? editable ? "지금 직접 고른 취향과 답을 정리했어요." : "공유된 취향과 답을 정리했어요. 이 화면에서는 답을 수정할 수 없어요." : "모름·계획 없음·답하지 않음·맞는 보기 없음은 서로 다른 답이에요. 이 답들로 구체적인 취향을 만들지는 않았어요. 원할 때 다시 답해도 괜찮아요."}</p>
-      <p className="mt-3 text-xs leading-relaxed text-[var(--hb-text-muted)]">{received ? "받은 링크에 담긴 답이에요. 이름이나 본인 여부는 확인하지 않아요." : `답을 남긴 질문은 ${profile.respondedCount}개예요. 동의 정도를 고른 문장은 ${profile.ratedCount}개예요.`} 취향과 바람은 달라질 수 있어요. 성격 진단이나 궁합 점수는 아니에요.</p>
+      {/* 답한 개수는 적지 않는다. 시작 화면이 페이지로 세는데 여기서 질문·문장 개수를 또 말하면 숫자가 셋으로 갈린다(2026-09-27). */}
+      <p className="mt-3 text-xs leading-relaxed text-[var(--hb-text-muted)]">{received ? "받은 링크에 담긴 답이에요. 이름이나 본인 여부는 확인하지 않아요. " : null}취향과 바람은 달라질 수 있어요. 성격 진단이나 궁합 점수는 아니에요.</p>
       {!first && editable && profile.hasContent ? <Button variant="secondary" className="mt-4 whitespace-normal!" onClick={() => { sharingRef.current?.scrollIntoView({ block: "start" }); sharingRef.current?.focus({ preventScroll: true }); }}>상대와 함께 보는 방법</Button> : null}
     </header>
     {first ? <>
@@ -337,9 +338,9 @@ export default function WeddingCodeV31Results({ draft, first, received, shareOri
         </>}
       </div>
     </> : <><WeddingCodeV31StyleSummary draft={draft} onEdit={editable} /><PersonalProfile draft={draft} onEdit={editable} /></>}
-    {!received && !readOnly && ownActionsVisible && onMore && optionalCount > 0 ? <section className={`${v31Surface} mt-5 p-5 sm:p-7`} aria-label="선택 질문">
+    {!received && !readOnly && ownActionsVisible && onMore && optionalPages > 0 ? <section className={`${v31Surface} mt-5 p-5 sm:p-7`} aria-label="선택 질문">
       <h2 className={`text-lg ${v31Title}`}>궁금한 부분이 더 있다면</h2>
-      <p className={`mt-2 ${v31Body}`}>꽃 장식이나 세부 준비 방식까지 더 살펴볼 수 있어요. 남은 {optionalCount}개를 전부 답할 필요는 없고, 언제든 결과로 돌아올 수 있어요.</p>
+      <p className={`mt-2 ${v31Body}`}>꽃 장식이나 세부 준비 방식까지 더 살펴볼 수 있어요. 남은 {optionalPages}페이지를 전부 답할 필요는 없고, 언제든 결과로 돌아올 수 있어요.</p>
       <Button variant="secondary" fullWidth onClick={onMore} className="mt-4 whitespace-normal!">원하면 더 알아보기 (선택)</Button>
     </section> : null}
     <p className={`mt-6 rounded-lg bg-[var(--hb-surface-hover)] p-4 ${v31Body}`}>예약 전에는 추가 비용을 포함한 총액과 취소·변경 조건을 서면으로 확인해 주세요.</p>

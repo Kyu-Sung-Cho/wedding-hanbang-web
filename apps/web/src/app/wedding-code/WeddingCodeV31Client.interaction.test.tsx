@@ -147,11 +147,14 @@ describe("WeddingCodeV31Client", () => {
 
   it("기본 흐름은 23개 뒤에 우선순위를 마지막으로 묻고, 고르지 않아도 결과를 받으며 다른 답을 채우지 않는다", async () => {
     await renderClient();
-    expect(container.textContent).toContain("기본 24개 질문");
-    expect(container.textContent).toContain("기본 질문은 14페이지예요");
-    expect(container.textContent).toContain("결과에서 8개 선택 질문");
+    // 분량은 진행 표시와 같은 페이지 하나로만 센다(2026-09-27). 질문·문장 개수를 따로 적지 않는다.
+    expect(container.textContent).toContain("기본 질문 14페이지 · 로그인 없이 시작");
+    expect(container.textContent).toContain("결과에서 선택 질문 3페이지");
+    expect(container.textContent).not.toMatch(/\d+ ?(개 질문|개 문장|문항|가지 취향)/);
     await button("내 웨딩코드 시작하기");
     expect(container.querySelectorAll("[data-answer]")).toHaveLength(15);
+    // 문장 카드에는 번호 없이 주제 이름만 둔다. 1~15에서 멈추는 번호가 "15문제"로 읽혔다.
+    expect(container.querySelector('[data-question="G1"] p')?.textContent).toBe("함께할 사람");
     expect(container.querySelector('progress')?.getAttribute("max")).toBe("14");
     while (!container.querySelector('[data-question="priorities"]')) {
       expect(container.querySelector('[data-result="solo-v31"]')).toBeNull();
@@ -180,8 +183,9 @@ describe("WeddingCodeV31Client", () => {
     expect(actionButton()?.textContent?.trim()).toBe("고르지 않고 결과 보기");
     await click(actionButton());
     expect(container.querySelector('[data-result="solo-v31"]')).not.toBeNull();
-    expect(container.textContent).toContain("답을 남긴 질문은 24개예요");
-    expect(container.textContent).toContain("동의 정도를 고른 문장은 15개");
+    // 결과에서도 답한 개수를 다시 세어 보여주지 않는다. 몇 개를 셌는지는 아래 완료 이벤트가 확인한다.
+    expect(container.textContent).not.toContain("답을 남긴 질문");
+    expect(container.textContent).not.toContain("동의 정도를 고른 문장은");
     expect(container.textContent).toContain("원하면 더 알아보기 (선택)");
     expect(container.querySelectorAll("[data-insight]").length).toBeGreaterThan(3);
     expect(container.textContent).toContain("어떤 답에서 나온 설명인가요?");
@@ -214,7 +218,8 @@ describe("WeddingCodeV31Client", () => {
     await next();
     expect(container.querySelector('[data-question="priorities"]')).toBeNull();
     expect(container.querySelector('[data-result="solo-v31"]')).not.toBeNull();
-    expect(container.textContent).toContain("답을 남긴 질문은 23개예요");
+    const saved = readV31LocalProgress(window.localStorage);
+    expect(saved.status === "ready" ? saved.snapshot.draft.priorities : "not-saved").toBeUndefined();
     expect([...container.querySelectorAll("h2")].some(item => item.textContent === "이번 결혼식에서 지키고 싶은 것")).toBe(false);
   });
 
@@ -243,6 +248,10 @@ describe("WeddingCodeV31Client", () => {
   it("결과에서 취향의 마지막 선택을 지우면 새 답이나 명시적 상태를 고르기 전에는 수정 완료할 수 없다", async () => {
     await renderClient(); await button("내 웨딩코드 시작하기"); await finishFromHere();
     await click(container.querySelector<HTMLButtonElement>('[aria-label="장소 취향 수정"]'));
+    // 답 수정 화면은 한 문항만 고치므로 "기본 질문 7 / 24" 같은 분수를 두지 않는다. 시작 화면은 페이지로 센다(2026-09-27).
+    expect(container.querySelector("[data-progress-text]")?.textContent).toBe("답 수정");
+    expect(container.querySelector("progress")?.getAttribute("aria-valuetext")).toBe("선택한 답 수정");
+    expect(document.activeElement?.getAttribute("aria-label")).toBe("웨딩코드 답 수정");
     await click(container.querySelector<HTMLButtonElement>('[data-choice="indoor"]'));
     expect([...container.querySelectorAll("button")].find(item => item.textContent?.trim() === "수정한 결과 보기")?.disabled).toBe(true);
     await click(container.querySelector<HTMLButtonElement>('[aria-label="이전 질문"]'));
@@ -556,7 +565,8 @@ describe("WeddingCodeV31Client", () => {
     await rating(5, "V1");
     expect(container.querySelector('[data-question="G2"]')).not.toBeNull();
     await button("여기까지 보고 결과 보기");
-    expect(container.textContent).toContain("답을 남긴 질문은 25개예요");
+    // 첫 선택 페이지에서 한 문장만 답했으니 그 페이지도 아직 남은 페이지로 센다.
+    expect(container.textContent).toContain("남은 3페이지를 전부 답할 필요는 없고");
     await consent();
     expect(decodedLink(linkValue()!)?.answers).toMatchObject({ V1: 5 });
     expect(decodedLink(linkValue()!)?.answers.G2).toBeUndefined();

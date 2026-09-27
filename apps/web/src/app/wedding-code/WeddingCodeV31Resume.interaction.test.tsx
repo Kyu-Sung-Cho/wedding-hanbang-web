@@ -125,11 +125,27 @@ describe("V31 same-browser resume", () => {
     ].sort());
   });
 
+  it("결과의 선택 질문 안내는 다 답한 페이지만 빼고 남은 페이지를 센다", async () => {
+    // 첫 선택 페이지(V1·G2·R3)를 다 답했으면 남은 페이지는 2다.
+    const firstPageDone = coreCompleted();
+    firstPageDone.answers.V1 = 5; firstPageDone.answers.G2 = 3; firstPageDone.answers.R3 = "undecided";
+    seed(snapshot(firstPageDone, { flow: "core", index: V31_CORE_INDEXES[V31_CORE_INDEXES.length - 1], screen: "result" }));
+    await render(); await button("내 결과 다시 보기");
+    expect(container.textContent).toContain("남은 2페이지를 전부 답할 필요는 없고");
+    // 서로 다른 페이지에서 한 문장씩만 답했으면 세 페이지 모두 아직 남았다(남은 문장 수를 3으로 나눈 값이 아니다).
+    const split = coreCompleted();
+    split.answers.V1 = 5; split.answers.B4 = 2;
+    window.localStorage.clear();
+    seed(snapshot(split, { flow: "core", index: V31_CORE_INDEXES[V31_CORE_INDEXES.length - 1], screen: "result" }));
+    await remount(); await button("내 결과 다시 보기");
+    expect(container.textContent).toContain("남은 3페이지를 전부 답할 필요는 없고");
+  });
+
   it("a completed core result resumes without requiring unanswered extras and keeps the optional ordinal on reload", async () => {
     const own = coreCompleted();
     seed(snapshot(own, { flow: "core", index: V31_CORE_INDEXES[V31_CORE_INDEXES.length - 1], screen: "result" }));
     await render(); await button("내 결과 다시 보기");
-    expect(container.textContent).toContain("답을 남긴 질문은 23개예요");
+    expect(container.textContent).toContain("남은 3페이지를 전부 답할 필요는 없고");
     expect(container.querySelector('[data-result="solo-v31"]')).not.toBeNull();
     await button("원하면 더 알아보기 (선택)");
     await click(container.querySelector('[data-question="V1"] input[value="5"]'));

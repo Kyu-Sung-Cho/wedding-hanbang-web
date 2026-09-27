@@ -38,7 +38,7 @@ describe("두 사람 결과 탭", () => {
 
   async function render(props: Partial<Parameters<typeof WeddingCodeV31Results>[0]> = {}) {
     await act(async () => root.render(<WeddingCodeV31Results draft={draft} first={first} received={false} shareOrigin="https://hanbang.ai"
-      onEdit={onEdit} onRestart={() => {}} onMore={onMore} optionalCount={9} {...props} />));
+      onEdit={onEdit} onRestart={() => {}} onMore={onMore} optionalPages={3} {...props} />));
   }
   function tab(label: string) {
     const result = [...container.querySelectorAll<HTMLButtonElement>('[role="tab"]')].find(item => item.textContent === label);

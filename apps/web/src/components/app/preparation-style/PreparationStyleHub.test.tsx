@@ -70,8 +70,8 @@ describe("준비 스타일의 개인 저장과 두 사람 공유", () => {
     const page = await PreparationStylePage({ searchParams: Promise.resolve({}) });
     await act(async () => root.render(<main>{page}</main>));
     expect(container.querySelector("[data-lounge-wedding-code]")).not.toBeNull();
-    expect(container.textContent).toContain("기본 24개 질문");
-    expect(container.textContent).toContain("8개 선택 질문");
+    expect(container.textContent).toContain("기본 질문 14페이지");
+    expect(container.textContent).toContain("선택 질문 3페이지");
     expect(container.textContent).toContain("답하는 동안에는 서버나 계정에 보내지 않아요");
     expect(container.textContent).toContain("함께 보기에 동의하면 선택한 답을 7일간 서버에 보관해요");
     expect(container.querySelectorAll("main")).toHaveLength(1);
