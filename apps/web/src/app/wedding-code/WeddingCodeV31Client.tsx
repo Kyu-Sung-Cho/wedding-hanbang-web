@@ -15,7 +15,7 @@ import WeddingCodeV31Results from "./WeddingCodeV31Results";
 import { useV31LocalProgress } from "./useV31LocalProgress";
 import type { V31LocalProgressSnapshot } from "@/lib/weddingCode/v31LocalProgress";
 import {
-  V31_CORE_INDEXES, V31_EXTRA_INDEXES,
+  V31_ALL_STEP_IDS, V31_CORE_INDEXES, V31_CORE_PAGES, V31_EXTRA_INDEXES,
   getV31MissingIndex, getV31NextIndex, getV31ResponseAt, getV31ScreenIndexes, type V31Flow,
 } from "@/lib/weddingCode/v31Flow";
 import { getV31Page, getV31PageMissingIndex, getV31Pages, isV31PageComplete } from "@/lib/weddingCode/v31Pages";
@@ -50,6 +50,21 @@ const PAGE_MISSING_NOTICES = {
   choice: "보기에서 골라 주세요. 모르겠으면 아래 ‘아직 모르겠어요’나 ‘지금 답하지 않을게요’를 골라도 돼요.",
 } as const;
 const pageMissingNotices: readonly string[] = Object.values(PAGE_MISSING_NOTICES);
+/** 고르기 칸의 취향 정의. 취향이 아닌 칸(피하고 싶은 것·우선순위·더 쓰고 싶은 곳)이면 null. */
+function choiceTaste(itemIndex: number) {
+  return itemIndex >= coreCount && itemIndex < avoidanceIndex ? WEDDING_CODE_V31_TASTES[itemIndex - coreCount] : null;
+}
+function choiceTitle(itemIndex: number) {
+  return choiceTaste(itemIndex)?.question ?? (itemIndex === avoidanceIndex ? "이번 결혼식에서 피하고 싶은 것이 있나요?"
+    : itemIndex === priorityIndex ? "이번 결혼식에서 특히 지키고 싶은 것은 무엇인가요?" : "다른 곳의 비용을 줄여서라도 더 쓰고 싶은 곳이 있나요?");
+}
+function choiceHelper(itemIndex: number): string | null {
+  const itemTaste = choiceTaste(itemIndex);
+  if (itemTaste) return itemTaste.key === "guests" ? "두 사람의 가족·지인을 모두 합한 전체 하객 수를 떠올려 주세요." : null;
+  return itemIndex === avoidanceIndex ? "원하는 것만큼 피하고 싶은 것도 준비 기준이 될 수 있어요. 없다면 아래에서 ‘따로 피하고 싶은 것은 없어요’를 골라 주세요."
+    : itemIndex === priorityIndex ? "앞에서 고른 답 가운데 꼭 지키고 싶은 것을 골라요. 고르지 않아도 결과를 볼 수 있어요."
+      : "전체 예산을 늘리겠다는 뜻은 아니에요. 지금 없다면 ‘더 쓰고 싶은 곳은 지금 없어요’를 골라도 돼요.";
+}
 function hasSavedPairAddress() {
   return readSavedPairSession() !== null;
 }
@@ -103,7 +118,12 @@ export default function WeddingCodeV31Client({ shareOrigin, partnerDraft = null,
   const grouped = !editing && flow !== "full";
   // 한 문항씩 순번을 세는 건 이전 전체 흐름뿐이다. 답 수정 화면은 한 문항만 고치므로 "1 / 24" 같은 분수를 두지 않는다.
   const countedSingle = !editing && ordinal > 0;
-  const ratingPage = grouped && Boolean(question);
+  // 여러 칸을 한 페이지에 보여주는 화면. 기본 흐름은 주제별 페이지라 동의 문장과 고르기가 한 페이지에 섞일 수 있다.
+  // 고르기 하나만 있는 페이지(장소·사진 등)와 답 수정 화면은 전처럼 한 칸짜리 화면이다.
+  const sectionPage = grouped && (page.indexes.length > 1 || Boolean(question));
+  const coreSection = sectionPage && flow === "core" ? V31_CORE_PAGES[page.position] : null;
+  const pageHasChoice = page.indexes.some(item => item >= coreCount);
+  const pageHasChoiceOnly = page.indexes.every(item => item >= coreCount);
   const priorityOptions = getV31PriorityOptions(draft);
   // 앞에서 고른 것이 없어 우선순위 보기가 0개면 기본 흐름 끝의 우선순위 화면을 건너뛴다. 답은 채우지 않는다.
   const nextIndex = flow === "core" && !editing && page.nextIndex === priorityIndex && priorityOptions.length === 0 ? null : page.nextIndex;
@@ -157,16 +177,18 @@ export default function WeddingCodeV31Client({ shareOrigin, partnerDraft = null,
   function changeRating(id: V31QuestionId, value: V31Response) {
     update({ ...draft, answers: { ...draft.answers, [id]: value } });
   }
-  function changeChoice(value: V31Choice | undefined) {
-    if (taste) {
-      const previous = draft.tastes[taste.key];
+  // 어느 칸의 답인지는 화면의 첫 칸(index)이 아니라 고른 칸(itemIndex)으로 정한다. 한 페이지에 여러 칸이 있다.
+  function changeChoiceAt(itemIndex: number, value: V31Choice | undefined) {
+    const itemTaste = choiceTaste(itemIndex);
+    if (itemTaste) {
+      const previous = draft.tastes[itemTaste.key];
       const changed = previous?.status === "answered" && (value?.status !== "answered"
         || [...previous.values].sort().join("|") !== [...value.values].sort().join("|"));
       // 같은 취향 항목이어도 고른 내용이 바뀌면 이전 우선순위를 새 선택에 넘기지 않는다.
-      update({ ...draft, tastes: { ...draft.tastes, [taste.key]: value } }, changed ? `taste.${taste.key}` : undefined);
+      update({ ...draft, tastes: { ...draft.tastes, [itemTaste.key]: value } }, changed ? `taste.${itemTaste.key}` : undefined);
     }
-    else if (index === avoidanceIndex) update({ ...draft, avoidances: value });
-    else if (index === priorityIndex) {
+    else if (itemIndex === avoidanceIndex) update({ ...draft, avoidances: value });
+    else if (itemIndex === priorityIndex) {
       update({ ...draft, priorities: value }, undefined, value === undefined ? {} : { needsPriorityReview: false });
       if (value !== undefined) setNotice("");
     }
@@ -199,9 +221,11 @@ export default function WeddingCodeV31Client({ shareOrigin, partnerDraft = null,
     const missingIndex = getV31PageMissingIndex(draft, page.indexes);
     if (missingIndex !== null) {
       // 버튼은 누를 수 있게 두고(키보드로도 이유를 들을 수 있게), 비어 있는 곳으로 초점을 옮기며 이유를 알린다.
-      setNotice(ratingPage ? PAGE_MISSING_NOTICES.ratingPage : question ? PAGE_MISSING_NOTICES.rating : PAGE_MISSING_NOTICES.choice);
-      const missingQuestion = WEDDING_CODE_V31_QUESTIONS[missingIndex];
-      const target = missingQuestion ? screenRef.current?.querySelector<HTMLElement>(`[data-question="${missingQuestion.id}"]`) : screenRef.current;
+      const missingIsRating = missingIndex < coreCount;
+      setNotice(missingIsRating ? sectionPage ? PAGE_MISSING_NOTICES.ratingPage : PAGE_MISSING_NOTICES.rating : PAGE_MISSING_NOTICES.choice);
+      // 여러 칸 페이지에서는 비어 있는 그 칸으로 초점을 옮긴다(고르기 칸도 초점을 받는다). 한 칸짜리 고르기 화면은 화면 전체로.
+      const itemTarget = sectionPage || missingIsRating ? screenRef.current?.querySelector<HTMLElement>(`[data-question="${V31_ALL_STEP_IDS[missingIndex]}"]`) : null;
+      const target = itemTarget ?? screenRef.current;
       target?.focus({ preventScroll: true });
       target?.scrollIntoView?.({ block: "start", behavior: "instant" });
       return;
@@ -369,7 +393,17 @@ export default function WeddingCodeV31Client({ shareOrigin, partnerDraft = null,
   if (screen === "result") return shell(<WeddingCodeV31Results key={revision} draft={draft} first={context.first} received={context.received} shareOrigin={shareOrigin} onEdit={edit} onRestart={restart} onMore={!context.received && optionalRemaining > 0 ? more : undefined} optionalPages={optionalPagesRemaining} sharingContent={renderResultActions?.(draft)} />);
 
   const topic = question ? WEDDING_CODE_V31_TOPICS.find(item => item.key === question.topic) : null;
-  const title = question?.statement ?? taste?.question ?? (index === avoidanceIndex ? "이번 결혼식에서 피하고 싶은 것이 있나요?" : index === priorityIndex ? "이번 결혼식에서 특히 지키고 싶은 것은 무엇인가요?" : "다른 곳의 비용을 줄여서라도 더 쓰고 싶은 곳이 있나요?");
+  const title = question?.statement ?? choiceTitle(index);
+  const helper = question ? null : choiceHelper(index);
+  function choiceInput(itemIndex: number) {
+    const itemTaste = choiceTaste(itemIndex);
+    const value = getV31ResponseAt(draft, itemIndex) as V31Choice | undefined;
+    const onChange = (next: V31Choice | undefined) => changeChoiceAt(itemIndex, next);
+    if (itemIndex === priorityIndex) return <V31PriorityInput value={draft.priorities} options={priorityOptions} onChange={onChange} />;
+    return <V31ChoiceInput key={itemTaste?.key ?? itemIndex} value={value} options={itemTaste?.options ?? (itemIndex === avoidanceIndex ? WEDDING_CODE_V31_AVOIDANCES : WEDDING_CODE_V31_SPENDING)}
+      max={itemTaste?.max ?? (itemIndex === avoidanceIndex ? WEDDING_CODE_V31_AVOIDANCES.length : 2)} onChange={onChange} tasteKey={itemTaste?.key}
+      kind={itemTaste ? "taste" : itemIndex === avoidanceIndex ? "avoidances" : "spending"} />;
+  }
   // 진행 표기는 하나만 둔다. 묶음 흐름은 페이지 단위, 한 문항씩 보는 이전 흐름은 순번, 수정 화면은 분수 없이 ‘답 수정’이다.
   const progressText = grouped ? `${page.position + 1} / ${page.total} 페이지` : countedSingle ? `${flowLabel} ${ordinal} / ${totalQuestions}` : "답 수정";
   return shell(<>
@@ -381,34 +415,42 @@ export default function WeddingCodeV31Client({ shareOrigin, partnerDraft = null,
     </div>
     {/* 아래 고정 버튼 뒤로 초점이 숨지 않게, 키보드로 옮겨 간 칸은 버튼 높이만큼 띄워서 보여준다. 앱 안에서는 하단 탭과 안전 영역까지 더해진다. */}
     <div className="**:scroll-mb-[calc(10rem+env(safe-area-inset-bottom))]">
-      {ratingPage ? <>
+      {sectionPage ? <>
         <p className="text-xs font-semibold text-[var(--hb-success)]">{flowLabel}</p>
-        <h1 className={`mt-2 text-xl leading-relaxed ${v31Title} ${page.position === 0 ? "" : "mb-5"}`}>문장마다 가까운 답을 골라 주세요</h1>
-        {page.position === 0 ? <p data-rating-guide className={`mb-5 mt-2 rounded-lg bg-[var(--hb-surface-hover)] p-3 ${v31Body}`}>{v31RatingGuide} 아직 모르겠거나 이번 계획에 없는 내용이면 문장 아래 ‘{v31EscapeFoldLabel}’를 눌러 골라 주세요.</p> : null}
+        {/* 기본 흐름은 페이지 하나가 주제 하나라 페이지 제목이 주제 이름이다. 선택 흐름은 주제가 섞여 카드마다 주제를 적는다. */}
+        <h1 className={`mt-2 text-xl leading-relaxed ${v31Title} ${page.position === 0 && !pageHasChoiceOnly ? "" : "mb-5"}`}>{coreSection?.title ?? "문장마다 가까운 답을 골라 주세요"}</h1>
+        {page.position === 0 && !pageHasChoiceOnly ? <p data-rating-guide className={`mb-5 mt-2 rounded-lg bg-[var(--hb-surface-hover)] p-3 ${v31Body}`}>{v31RatingGuide} 아직 모르겠거나 이번 계획에 없는 내용이면 문장 아래 ‘{v31EscapeFoldLabel}’를 눌러 골라 주세요.</p> : null}
         <div className="space-y-5">
-          {page.indexes.map((questionIndex, position) => {
-            const pageQuestion = WEDDING_CODE_V31_QUESTIONS[questionIndex];
+          {page.indexes.map((itemIndex, position) => {
+            const pageQuestion = WEDDING_CODE_V31_QUESTIONS[itemIndex];
+            if (!pageQuestion) {
+              const stepId = V31_ALL_STEP_IDS[itemIndex];
+              const itemHelper = choiceHelper(itemIndex);
+              return <section key={stepId} tabIndex={-1} aria-labelledby={`${stepId}-title`} data-question={stepId}
+                className={`${v31Surface} scroll-mt-20 p-3.5 outline-none sm:p-6 md:scroll-mt-28`}>
+                <h2 id={`${stepId}-title`} className={`mb-4 text-base leading-relaxed sm:text-lg ${v31Title}`}>{choiceTitle(itemIndex)}</h2>
+                {itemHelper ? <p className={`mb-4 ${v31Body}`}>{itemHelper}</p> : null}
+                {choiceInput(itemIndex)}
+              </section>;
+            }
             const pageTopic = WEDDING_CODE_V31_TOPICS.find(item => item.key === pageQuestion.topic);
-            const firstOfTopic = page.indexes.findIndex(item => WEDDING_CODE_V31_QUESTIONS[item].topic === pageQuestion.topic) === position;
+            const firstOfTopic = page.indexes.findIndex(item => WEDDING_CODE_V31_QUESTIONS[item]?.topic === pageQuestion.topic) === position;
             return <section key={pageQuestion.id} tabIndex={-1} aria-label={pageQuestion.statement} data-question={pageQuestion.id}
               className={`${v31Surface} scroll-mt-20 p-1.5 outline-none min-[360px]:p-3.5 sm:p-6 md:scroll-mt-28`}>
               {/* 번호를 붙이지 않는다. 1~15에서 멈추는 번호가 "15문제"로 읽혔다(2026-09-27). 진행은 위 페이지 표시가 맡는다. */}
-              <p className="text-xs font-semibold text-[var(--hb-success)]">{pageTopic?.title}</p>
-              <h2 className={`mb-4 mt-2 text-base leading-relaxed sm:text-lg ${v31Title}`}>{pageQuestion.statement}</h2>
+              {coreSection ? null : <p className="mb-2 text-xs font-semibold text-[var(--hb-success)]">{pageTopic?.title}</p>}
+              <h2 className={`mb-4 text-base leading-relaxed sm:text-lg ${v31Title}`}>{pageQuestion.statement}</h2>
               <V31RatingInput compact questionLabel={pageQuestion.statement} value={draft.answers[pageQuestion.id]} onChange={value => changeRating(pageQuestion.id, value)} />
-              {firstOfTopic ? topicScope(pageQuestion.topic) : null}
+              {/* 고르기가 같이 있는 페이지(입을 옷)에서는 ‘이 주제 전체’를 문장에만 적용하게 되므로 두지 않는다. */}
+              {firstOfTopic && !pageHasChoice ? topicScope(pageQuestion.topic) : null}
             </section>;
           })}
         </div>
       </> : <section className={`${v31Surface} p-5 sm:p-7`} data-question={question?.id ?? (taste ? `taste.${taste.key}` : index === avoidanceIndex ? "avoidances" : index === priorityIndex ? "priorities" : "spending")}>
         <p className="text-xs font-semibold text-[var(--hb-success)]">{topic?.title ?? (taste ? `구체 취향 · ${taste.title}` : "내 기준 확인")}</p>
         <h1 className={`mb-5 mt-3 text-2xl leading-relaxed ${v31Title}`}>{title}</h1>
-        {taste?.key === "guests" ? <p className={`mb-4 ${v31Body}`}>두 사람의 가족·지인을 모두 합한 전체 하객 수를 떠올려 주세요.</p> : null}
-        {question ? <V31RatingInput key={question.id} value={draft.answers[question.id]} onChange={value => changeRating(question.id, value)} showGuide={ordinal === 1} /> : <>
-          {!taste ? <p className={`mb-4 ${v31Body}`}>{index === avoidanceIndex ? "원하는 것만큼 피하고 싶은 것도 준비 기준이 될 수 있어요. 없다면 아래에서 ‘따로 피하고 싶은 것은 없어요’를 골라 주세요." : index === priorityIndex ? "앞에서 고른 답 가운데 꼭 지키고 싶은 것을 골라요. 고르지 않아도 결과를 볼 수 있어요." : "전체 예산을 늘리겠다는 뜻은 아니에요. 지금 없다면 ‘더 쓰고 싶은 곳은 지금 없어요’를 골라도 돼요."}</p> : null}
-          {index === priorityIndex ? <V31PriorityInput value={draft.priorities} options={priorityOptions} onChange={changeChoice} /> : <V31ChoiceInput key={taste?.key ?? index} value={choice} options={taste?.options ?? (index === avoidanceIndex ? WEDDING_CODE_V31_AVOIDANCES : WEDDING_CODE_V31_SPENDING)}
-            max={taste?.max ?? (index === avoidanceIndex ? WEDDING_CODE_V31_AVOIDANCES.length : 2)} onChange={changeChoice} tasteKey={taste?.key} kind={taste ? "taste" : index === avoidanceIndex ? "avoidances" : "spending"} />}
-        </>}
+        {helper ? <p className={`mb-4 ${v31Body}`}>{helper}</p> : null}
+        {question ? <V31RatingInput key={question.id} value={draft.answers[question.id]} onChange={value => changeRating(question.id, value)} showGuide={ordinal === 1} /> : choiceInput(index)}
         {question ? topicScope(question.topic) : null}
       </section>}
     </div>

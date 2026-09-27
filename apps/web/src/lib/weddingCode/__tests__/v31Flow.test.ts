@@ -20,7 +20,9 @@ describe("v3.1 핵심·추가 흐름의 응답 의미 보존", () => {
   it("완료에 필요한 기본 자리는 23개 그대로이고, 화면은 그 뒤에 우선순위를 한 번만 묻는다", () => {
     expect(V31_CORE_INDEXES).toEqual([1, 3, 5, 6, 8, 10, 13, 14, 15, 17, 18, 20, 21, 22, 24, 25, 26, 27, 28, 29, 30, 31, 33]);
     expect(getV31FlowIndexes("core")).toEqual(V31_CORE_INDEXES);
-    expect(V31_CORE_SCREEN_INDEXES).toEqual([...V31_CORE_INDEXES, V31_PRIORITY_INDEX]);
+    // 화면은 주제별 페이지 순서로 묻는다(2026-09-27). 묻는 자리는 완료 판정 23개와 끝의 우선순위 하나 그대로다.
+    expect(V31_CORE_SCREEN_INDEXES).toEqual([1, 3, 29, 6, 8, 33, 10, 13, 14, 15, 17, 18, 20, 21, 22, 24, 25, 26, 5, 27, 28, 30, 31, V31_PRIORITY_INDEX]);
+    expect([...V31_CORE_SCREEN_INDEXES].sort((a, b) => a - b)).toEqual([...V31_CORE_INDEXES, V31_PRIORITY_INDEX].sort((a, b) => a - b));
     expect(getV31ScreenIndexes("core")).toEqual(V31_CORE_SCREEN_INDEXES);
     expect(V31_EXTRA_INDEXES).toEqual([0, 2, 4, 9, 12, 16, 19, 23]);
     expect(getV31ScreenIndexes("extra")).toEqual(V31_EXTRA_INDEXES);
@@ -37,10 +39,11 @@ describe("v3.1 핵심·추가 흐름의 응답 의미 보존", () => {
     expect(getV31PreviousIndex("core", 1)).toBeNull();
     expect(getV31NextIndex("core", 1)).toBe(3);
     expect(getV31PreviousIndex("core", 3)).toBe(1);
-    expect(getV31NextIndex("core", 31)).toBe(33);
-    expect(getV31NextIndex("core", 33)).toBe(32);
+    expect(getV31NextIndex("core", 3)).toBe(29);
+    expect(getV31NextIndex("core", 33)).toBe(10);
+    expect(getV31NextIndex("core", 31)).toBe(32);
     expect(getV31NextIndex("core", 32)).toBeNull();
-    expect(getV31PreviousIndex("core", 32)).toBe(33);
+    expect(getV31PreviousIndex("core", 32)).toBe(31);
     expect(getV31NextIndex("extra", 19)).toBe(23);
     expect(getV31NextIndex("extra", 23)).toBeNull();
     expect(getV31NextIndex("extra", 32)).toBeNull();

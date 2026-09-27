@@ -70,22 +70,22 @@ describe("V31 same-browser resume", () => {
     let stored = readV31LocalProgress(window.localStorage);
     expect(stored.status === "ready" && stored.snapshot.draft.answers.G1).toBe(5);
     await click(container.querySelector('[data-question="G3"] input[value="4"]'));
-    await click(container.querySelector('[data-question="R4"] input[value="skipped"]'));
+    await click(container.querySelector('[data-question="taste.guests"] [data-choice="under50"]'));
     await button("다음 질문");
     const raw = window.localStorage.getItem(LOCAL_KEY);
     await remount();
     // 질문 화면의 진행 표기와 같은 단위(페이지)로 알리되, 문장 안에서는 분수 표기 대신 풀어서 쓴다.
-    expect(container.textContent).toContain("기본 질문 14페이지 중 2페이지부터 이어 할 수 있어요");
+    expect(container.textContent).toContain("기본 질문 13페이지 중 2페이지부터 이어 할 수 있어요");
     expect(container.textContent).not.toMatch(/\d+ \/ \d+ 페이지부터/);
     expect(container.querySelector("[data-question]")).toBeNull();
     expect(window.localStorage.getItem(LOCAL_KEY)).toBe(raw);
     await button("이어서 답하기");
-    expect([...container.querySelectorAll("[data-question]")].map(item => item.getAttribute("data-question"))).toEqual(["B1", "B3", "D1"]);
+    expect([...container.querySelectorAll("[data-question]")].map(item => item.getAttribute("data-question"))).toEqual(["B1", "B3", "spending"]);
     expect(window.localStorage.getItem(LOCAL_KEY)).toBe(raw);
     await click(container.querySelector('button[aria-label="이전 질문"]'));
     expect(container.querySelector<HTMLInputElement>('input[value="5"]')?.checked).toBe(true);
     expect(container.querySelector<HTMLInputElement>('[data-question="G3"] input[value="4"]')?.checked).toBe(true);
-    expect(container.querySelector<HTMLInputElement>('[data-question="R4"] input[value="skipped"]')?.checked).toBe(true);
+    expect(container.querySelector('[data-question="taste.guests"] [data-choice="under50"]')?.getAttribute("aria-pressed")).toBe("true");
     stored = readV31LocalProgress(window.localStorage);
     expect(stored.status === "ready" && stored.snapshot.index).toBe(getV31IndexForId("G1"));
     expect(stored.status === "ready" && stored.snapshot.flow).toBe("core");
@@ -97,7 +97,7 @@ describe("V31 same-browser resume", () => {
     const raw = window.localStorage.getItem(LOCAL_KEY);
     await render(); await button("이어서 답하기");
     expect(window.localStorage.getItem(LOCAL_KEY)).toBe(raw);
-    expect([...container.querySelectorAll("[data-question]")].map(item => item.getAttribute("data-question"))).toEqual(["G1", "G3", "R4"]);
+    expect([...container.querySelectorAll("[data-question]")].map(item => item.getAttribute("data-question"))).toEqual(["G1", "G3", "taste.guests"]);
     expect(container.querySelector<HTMLInputElement>('[data-question="G1"] input[value="2"]')?.checked).toBe(true);
     await click(container.querySelector('[data-question="G3"] input[value="undecided"]'));
     const saved = readV31LocalProgress(window.localStorage);
@@ -105,9 +105,23 @@ describe("V31 same-browser resume", () => {
     expect(saved.status === "ready" && saved.snapshot.draft.answers).toEqual({ G1: 2, G3: "undecided" });
     await button("다음 질문");
     expect(container.querySelector('[data-question="G1"]')).not.toBeNull();
-    await click(container.querySelector('[data-question="R4"] input[value="skipped"]'));
+    await click(container.querySelector('[data-question="taste.guests"] [data-choice="under50"]'));
     await button("다음 질문");
     expect(container.querySelector('[data-question="B1"]')).not.toBeNull();
+  });
+
+  it("예전 묶음에서 끝쪽(더 쓰고 싶은 곳)에 저장한 사람은 그 칸이 옮겨 간 주제 페이지에서 이어 한다", async () => {
+    // 2026-09-27 전에는 ‘더 쓰고 싶은 곳’이 13쪽에 혼자 있었다. 지금은 돈 페이지(2쪽)에 문장 두 개와 함께 있다.
+    const draft = coreCompleted(); delete draft.spending;
+    seed(snapshot(draft, { flow: "core", index: getV31IndexForId("spending") }));
+    await render();
+    expect(container.textContent).toContain("기본 질문 13페이지 중 2페이지부터 이어 할 수 있어요");
+    await button("이어서 답하기");
+    expect([...container.querySelectorAll("[data-question]")].map(item => item.getAttribute("data-question"))).toEqual(["B1", "B3", "spending"]);
+    expect(container.querySelector<HTMLInputElement>('[data-question="B1"] input[value="4"]')?.checked).toBe(true);
+    await click(container.querySelector('[data-question="spending"] [data-choice="photo"]'));
+    const saved = readV31LocalProgress(window.localStorage);
+    expect(saved.status === "ready" && saved.snapshot.draft.spending).toEqual({ status: "answered", values: ["photo"] });
   });
 
   it("restores only the user's saved result, with fresh sharing consent and no memo persistence", async () => {
@@ -259,7 +273,7 @@ describe("V31 same-browser resume", () => {
     expect(window.localStorage.getItem("unrelated")).toBe("keep");
     expect(window.localStorage.getItem(V31_SAVE_PREFERENCE_KEY)).toBe("off");
     await click(container.querySelector('[data-question="G3"] input[value="4"]'));
-    await click(container.querySelector('[data-question="R4"] input[value="4"]'));
+    await click(container.querySelector('[data-question="taste.guests"] [data-choice="under50"]'));
     await button("다음 질문"); await click(container.querySelector('[data-question="B1"] input[value="4"]'));
     expect(window.localStorage.getItem(LOCAL_KEY)).toBeNull();
     await remount(); expect(container.textContent).toContain("자동 저장을 껐어요");
@@ -359,7 +373,8 @@ describe("V31 same-browser resume", () => {
   it("storage denial never blocks answering or claims that an answer was saved", async () => {
     vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => { throw new DOMException("blocked", "QuotaExceededError"); });
     await render(); await button("내 웨딩코드 시작하기");
-    for (const id of ["G1", "G3", "R4"]) await click(container.querySelector(`[data-question="${id}"] input[value="5"]`));
+    for (const id of ["G1", "G3"]) await click(container.querySelector(`[data-question="${id}"] input[value="5"]`));
+    await click(container.querySelector('[data-question="taste.guests"] [data-choice="under50"]'));
     await button("다음 질문");
     expect(container.querySelector("[data-question]")?.getAttribute("data-question")).toBe("B1");
     expect(container.textContent).toContain("이 브라우저에 저장할 수 없어요");

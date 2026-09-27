@@ -218,7 +218,8 @@ describe("두 사람 비교 묶음", () => {
     first.spending = { status: "answered", values: ["photo"] };
     second.spending = { status: "answered", values: ["meal"] };
     const view = render(second, first);
-    const opposite = ["G1", "G3", "R4", "B1", "D1"];
+    // 묶음 안은 화면에서 묻는 순서다. R4 는 입을 옷 페이지라 D1 뒤에 온다.
+    const opposite = ["G1", "G3", "B1", "D1", "R4"];
     expect(differenceIds(view).slice(0, 5)).toEqual(opposite);
     for (const id of opposite) {
       expect(view.querySelector(`[data-pair-group="opposite"] [data-comparison="${id}"]`), id).not.toBeNull();

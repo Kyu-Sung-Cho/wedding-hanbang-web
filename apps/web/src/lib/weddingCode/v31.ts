@@ -16,7 +16,7 @@ import {
   type V31TasteKey,
   type V31Topic,
 } from "@/constants/weddingCodeV31";
-import { V31_CORE_RATING_IDS, V31_EXTRA_RATING_IDS, V31_LEGACY_ONLY_RATING_IDS } from "./v31Flow";
+import { V31_ALL_STEP_IDS, V31_CORE_RATING_IDS, V31_CORE_SCREEN_INDEXES, V31_EXTRA_RATING_IDS, V31_LEGACY_ONLY_RATING_IDS } from "./v31Flow";
 
 export type V31Evidence = { id: string; text: string; answer: string };
 /**
@@ -616,8 +616,12 @@ export function compareV31(firstInput: V31Draft, secondInput: V31Draft): V31Pair
   const second = normalizeV31Draft(secondInput);
   const priorities = new Set([...(first.priorities?.status === "answered" ? first.priorities.values : []), ...(second.priorities?.status === "answered" ? second.priorities.values : [])]);
   // 결과 화면은 묶음마다 ‘질문 순서대로’ 둔다고 말한다. 저장 자리 순서가 아니라 화면에서 묻는 순서로 만든다:
-  // 기본 문장 → 선택 문장 → (예전 흐름에만 있던 두 문장), 그 뒤 취향 → 피하고 싶은 것 → 더 쓰고 싶은 곳 → 우선순위.
+  // 기본 흐름 페이지 순서(문장과 고르기가 주제별로 섞인다) → 선택 문장 → (예전 흐름에만 있던 두 문장) → 우선순위.
   const ratingOrder: readonly V31QuestionId[] = [...V31_CORE_RATING_IDS, ...V31_EXTRA_RATING_IDS, ...V31_LEGACY_ONLY_RATING_IDS];
+  const screenOrder: readonly string[] = [
+    ...V31_CORE_SCREEN_INDEXES.map((index) => V31_ALL_STEP_IDS[index]).filter((id) => id !== "priorities"),
+    ...V31_EXTRA_RATING_IDS, ...V31_LEGACY_ONLY_RATING_IDS, "priorities",
+  ];
   const questions = ratingOrder.map((id) => WEDDING_CODE_V31_QUESTIONS.find((question) => question.id === id)!);
   const items: V31PairItem[] = questions.map((question) => {
     const kind = ratingPairKind(first.answers[question.id], second.answers[question.id], question.id);
@@ -682,5 +686,7 @@ export function compareV31(firstInput: V31Draft, secondInput: V31Draft): V31Pair
       : choiceFollowUp(resolvedPriorityKind, "각자 고른 기준을 왜 지키고 싶은지 이야기해 보세요. 적힌 순서는 고른 순서예요."),
   });
   // 종류 안에서는 한 사람이라도 우선순위로 고른 항목을 먼저, 나머지는 질문 순서대로 둔다(안정 정렬).
-  return items.sort((a, b) => Number(b.isPriority) - Number(a.isPriority));
+  return items
+    .sort((a, b) => screenOrder.indexOf(a.id) - screenOrder.indexOf(b.id))
+    .sort((a, b) => Number(b.isPriority) - Number(a.isPriority));
 }

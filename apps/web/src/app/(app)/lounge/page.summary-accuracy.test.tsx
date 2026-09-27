@@ -64,7 +64,7 @@ describe("라운지의 저장값 요약과 조회 실패 구분", () => {
     expect(weddingCode.querySelector("h2")?.textContent).toBe("웨딩코드");
     expect(weddingCode.querySelector('a[href="/wedding/preparation-style"]')?.textContent).toBe("웨딩코드 보기");
     // 분량은 웨딩코드 시작 화면·진행 표시와 같은 페이지로 센다(v31Pages getV31Pages). 문항 수를 따로 적지 않는다.
-    expect(weddingCode.textContent).toContain("기본 질문 14페이지로 결과를 보고, 궁금하면 선택 질문 3페이지를 더 답할 수 있어요.");
+    expect(weddingCode.textContent).toContain("기본 질문 13페이지로 결과를 보고, 궁금하면 선택 질문 3페이지를 더 답할 수 있어요.");
     expect(weddingCode.textContent).not.toMatch(/\d+문항/);
     expect(weddingCode.textContent).toContain("이 브라우저에 저장한 답");
     expect(weddingCode.textContent).toContain("내 답이 담긴 링크");

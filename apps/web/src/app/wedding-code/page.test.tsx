@@ -146,7 +146,7 @@ describe("웨딩코드 진입 화면", () => {
     const container = document.createElement("div");
     container.innerHTML = html;
     const text = container.textContent ?? "";
-    expect(text).toContain("기본 질문 14페이지");
+    expect(text).toContain("기본 질문 13페이지");
     expect(text).toContain("결과에서 선택 질문 3페이지");
     expect(text).toContain("답하는 동안에는 서버나 계정에 보내지 않아요");
     expect(text).toContain("이 브라우저에 자동 저장해 나중에 이어 할 수 있어요");

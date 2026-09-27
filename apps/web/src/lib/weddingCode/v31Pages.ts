@@ -1,5 +1,5 @@
 import { WEDDING_CODE_V31_QUESTIONS, type V31Draft } from "@/constants/weddingCodeV31";
-import { getV31NextIndex, getV31PreviousIndex, getV31ResponseAt, getV31ScreenIndexes, type V31Flow } from "./v31Flow";
+import { V31_CORE_PAGE_INDEXES, getV31NextIndex, getV31PreviousIndex, getV31ResponseAt, getV31ScreenIndexes, type V31Flow } from "./v31Flow";
 
 export type V31Page = {
   indexes: readonly number[];
@@ -9,8 +9,12 @@ export type V31Page = {
   nextIndex: number | null;
 };
 
-/** 저장된 질문 자리는 그대로 두고, 화면 순서에서 이어지는 기본·선택 흐름의 동의 문장만 묶는다. */
+/**
+ * 저장된 질문 자리는 그대로 두고 화면에서 함께 보여줄 묶음만 정한다. 기본 흐름은 주제별 페이지(V31_CORE_PAGES)이고,
+ * 선택 흐름은 주제가 모두 달라 이어지는 동의 문장을 3개씩 묶는다. 이전 전체 흐름은 한 문항씩이다.
+ */
 export function getV31Pages(flow: V31Flow): readonly (readonly number[])[] {
+  if (flow === "core") return V31_CORE_PAGE_INDEXES;
   const pages: number[][] = [];
   for (const index of getV31ScreenIndexes(flow)) {
     const previous = pages.at(-1);

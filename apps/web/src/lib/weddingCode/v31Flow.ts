@@ -29,10 +29,33 @@ export const V31_EXTRA_INDEXES: readonly number[] = Object.freeze(V31_EXTRA_RATI
 export const V31_LEGACY_ONLY_INDEXES: readonly number[] = Object.freeze(V31_LEGACY_ONLY_RATING_IDS.map(id => V31_ALL_STEP_IDS.indexOf(id)));
 export const V31_FULL_INDEXES: readonly number[] = Object.freeze(V31_ALL_STEP_IDS.map((_, index) => index));
 /**
- * 기본 흐름의 화면 순서. 완료 판정(isV31CoreComplete, 서버 함께 보기 계약)은 V31_CORE_INDEXES 23개만 보고,
- * 화면은 그 뒤에 우선순위를 한 번 더 묻는다. 우선순위는 건너뛰어도 결과를 볼 수 있다.
+ * 기본 흐름의 페이지. 한 페이지에는 한 주제만 둔다(2026-09-27 테스터: "돈 문제는 한 페이지에 돈 문제만").
+ * 같은 주제의 동의 문장과 고르기(하객 규모, 더 쓰고 싶은 곳, 입을 옷)는 한 페이지에 모은다. 우선순위는 앞의 답으로
+ * 보기를 만들기 때문에 혼자 맨 끝에 둔다. 저장 자리(V31_ALL_STEP_IDS)와 완료 판정(V31_CORE_INDEXES)은 그대로다.
  */
-export const V31_CORE_SCREEN_INDEXES: readonly number[] = Object.freeze([...V31_CORE_INDEXES, V31_PRIORITY_INDEX]);
+export const V31_CORE_PAGES = [
+  { key: "guests", title: "함께할 사람", steps: ["G1", "G3", "taste.guests"] },
+  { key: "budget", title: "돈을 쓰는 기준", steps: ["B1", "B3", "spending"] },
+  { key: "decision", title: "고르고 결정하는 방식", steps: ["D1"] },
+  { key: "teamwork", title: "둘이 나누는 방식", steps: ["T1", "T2", "T3"] },
+  { key: "family", title: "가족과 상의하는 범위", steps: ["F1", "F2", "F4"] },
+  { key: "support", title: "힘들 때 받고 싶은 도움", steps: ["H1", "H2", "H4"] },
+  { key: "venue", title: "장소", steps: ["taste.venue"] },
+  { key: "photo", title: "사진", steps: ["taste.photo"] },
+  { key: "attire", title: "입을 옷", steps: ["R4", "taste.attire"] },
+  { key: "meal", title: "식사", steps: ["taste.meal"] },
+  { key: "ceremony", title: "식순과 연출", steps: ["taste.ceremony"] },
+  { key: "avoidances", title: "피하고 싶은 것", steps: ["avoidances"] },
+  { key: "priorities", title: "꼭 지키고 싶은 것", steps: ["priorities"] },
+] as const satisfies readonly { key: string; title: string; steps: readonly V31StepId[] }[];
+export const V31_CORE_PAGE_INDEXES: readonly (readonly number[])[] = Object.freeze(
+  V31_CORE_PAGES.map(page => Object.freeze(page.steps.map(id => V31_ALL_STEP_IDS.indexOf(id)))),
+);
+/**
+ * 기본 흐름의 화면 순서(위 페이지를 이은 것). 완료 판정(isV31CoreComplete, 서버 함께 보기 계약)은 V31_CORE_INDEXES 23개만
+ * 보고, 화면은 끝에 우선순위를 한 번 더 묻는다. 우선순위는 건너뛰어도 결과를 볼 수 있다.
+ */
+export const V31_CORE_SCREEN_INDEXES: readonly number[] = Object.freeze(V31_CORE_PAGE_INDEXES.flat());
 
 export function isV31Flow(value: unknown): value is V31Flow {
   return value === "core" || value === "extra" || value === "full";
@@ -56,8 +79,10 @@ export function getV31ResponseAt(draft: V31Draft, index: number): V31Response | 
   if (taste) return draft.tastes[taste.key];
   return index === V31_AVOIDANCE_INDEX ? draft.avoidances : index === V31_PRIORITY_INDEX ? draft.priorities : draft.spending;
 }
+/** 비어 있는 첫 자리. 결과에 필요한 자리(getV31FlowIndexes)만 보되, 어느 칸부터 안내할지는 화면 순서를 따른다. */
 export function getV31MissingIndex(draft: V31Draft, flow: V31Flow): number | null {
-  return getV31FlowIndexes(flow).find(index => getV31ResponseAt(draft, index) === undefined) ?? null;
+  const required = getV31FlowIndexes(flow);
+  return getV31ScreenIndexes(flow).find(index => required.includes(index) && getV31ResponseAt(draft, index) === undefined) ?? null;
 }
 export function isV31CoreComplete(draft: V31Draft): boolean {
   return getV31MissingIndex(draft, "core") === null;

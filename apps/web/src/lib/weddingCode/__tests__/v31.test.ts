@@ -7,7 +7,7 @@ import {
 import { WEDDING_CODE_V30_QUESTIONS, WEDDING_CODE_V30_TASTES } from "@/constants/weddingCodeV30";
 import { createV30Draft, decodeV30, encodeV30 } from "../v30";
 import { V31_PRIORITY_NO_PREFERENCE_LABEL, V31_PRIORITY_SKIPPED_LABEL, V31_PRIORITY_UNDECIDED_LABEL, buildV31Profile, buildV31ShareUrl, compareV31, createV31Draft, decodeV31, encodeV31, getV31PriorityOptions, hasV31Content, normalizeV31Draft, v31ChoiceLabels, v31ResponseLabel } from "../v31";
-import { V31_CORE_RATING_IDS, V31_EXTRA_RATING_IDS, V31_LEGACY_ONLY_RATING_IDS } from "../v31Flow";
+import { V31_EXTRA_RATING_IDS, V31_LEGACY_ONLY_RATING_IDS } from "../v31Flow";
 
 function all(value: V31Response): V31Draft {
   const draft = createV31Draft();
@@ -546,12 +546,12 @@ describe("웨딩코드 v3.1 커플 응답 의미", () => {
 
   it("결과 화면이 말하는 ‘질문 순서대로’가 화면에서 묻는 순서다", () => {
     const ids = compareV31(createV31Draft(), createV31Draft()).map((item) => item.id);
-    // 기본 문장 → 선택 문장 → 예전 흐름에만 있던 문장, 그 뒤 취향 → 피하고 싶은 것 → 더 쓰고 싶은 곳 → 우선순위.
-    // 2026-09-27: 우선순위를 기본 흐름 끝으로 옮긴 뒤에도 비교는 우선순위를 지출보다 먼저, 문장은 저장 자리 순서(V1 먼저)로 뒀다.
+    // 기본 흐름 페이지 순서(주제마다 문장과 고르기가 섞인다) → 선택 문장 → 예전 흐름에만 있던 문장 → 우선순위.
+    // 2026-09-27: 기본 흐름을 주제별 페이지로 묶으면서 하객 규모는 G3 뒤, 더 쓰고 싶은 곳은 B3 뒤, R4 는 입을 옷 앞으로 왔다.
     expect(ids).toEqual([
-      ...V31_CORE_RATING_IDS, ...V31_EXTRA_RATING_IDS, ...V31_LEGACY_ONLY_RATING_IDS,
-      ...WEDDING_CODE_V31_TASTES.map((taste) => `taste.${taste.key}`),
-      "avoidances", "spending", "priorities",
+      "G1", "G3", "taste.guests", "B1", "B3", "spending", "D1", "T1", "T2", "T3", "F1", "F2", "F4", "H1", "H2", "H4",
+      "taste.venue", "taste.photo", "R4", "taste.attire", "taste.meal", "taste.ceremony", "avoidances",
+      ...V31_EXTRA_RATING_IDS, ...V31_LEGACY_ONLY_RATING_IDS, "priorities",
     ]);
     const first = createV31Draft(); const second = createV31Draft();
     first.answers = { V1: 5, H4: 4, G1: 5 }; second.answers = { V1: 1, H4: 1, G1: 1 };

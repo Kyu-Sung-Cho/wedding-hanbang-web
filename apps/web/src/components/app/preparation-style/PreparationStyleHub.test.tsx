@@ -70,7 +70,7 @@ describe("준비 스타일의 개인 저장과 두 사람 공유", () => {
     const page = await PreparationStylePage({ searchParams: Promise.resolve({}) });
     await act(async () => root.render(<main>{page}</main>));
     expect(container.querySelector("[data-lounge-wedding-code]")).not.toBeNull();
-    expect(container.textContent).toContain("기본 질문 14페이지");
+    expect(container.textContent).toContain("기본 질문 13페이지");
     expect(container.textContent).toContain("선택 질문 3페이지");
     expect(container.textContent).toContain("답하는 동안에는 서버나 계정에 보내지 않아요");
     expect(container.textContent).toContain("함께 보기에 동의하면 선택한 답을 7일간 서버에 보관해요");
@@ -78,13 +78,13 @@ describe("준비 스타일의 개인 저장과 두 사람 공유", () => {
     expect(fetchMock).not.toHaveBeenCalled();
     await click("내 웨딩코드 시작하기");
     const questions = [...container.querySelectorAll("[data-question]")];
-    expect(questions.map(question => question.getAttribute("data-question"))).toEqual(["G1", "G3", "R4"]);
-    for (const question of questions) expect(question.querySelectorAll('input[type="radio"]')).toHaveLength(8);
+    expect(questions.map(question => question.getAttribute("data-question"))).toEqual(["G1", "G3", "taste.guests"]);
+    for (const question of questions.slice(0, 2)) expect(question.querySelectorAll('input[type="radio"]')).toHaveLength(8);
     const firstAnswer = container.querySelector<HTMLInputElement>('[data-question="G1"] input[type="radio"][value="5"]')!;
     await act(async () => firstAnswer.click());
     expect(firstAnswer.checked).toBe(true);
     expect(container.querySelector('[data-question="G3"] input:checked')).toBeNull();
-    expect(container.querySelector('[data-question="R4"] input:checked')).toBeNull();
+    expect(container.querySelector('[data-question="taste.guests"] [aria-pressed="true"]')).toBeNull();
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
@@ -96,7 +96,7 @@ describe("준비 스타일의 개인 저장과 두 사람 공유", () => {
     }, null).status).toBe("saved");
     const page = await PreparationStylePage({ searchParams: Promise.resolve({}) });
     await act(async () => root.render(<main>{page}</main>));
-    expect(container.textContent).toContain("기본 질문 14페이지 중 1페이지부터 이어 할 수 있어요");
+    expect(container.textContent).toContain("기본 질문 13페이지 중 1페이지부터 이어 할 수 있어요");
     await click("이어서 답하기");
     expect(container.querySelector('[data-question="G3"]')).not.toBeNull();
     expect(fetchMock).not.toHaveBeenCalled();
