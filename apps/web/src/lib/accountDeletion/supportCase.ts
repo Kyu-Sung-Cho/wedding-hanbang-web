@@ -6,8 +6,12 @@ const SHA = /^[a-f0-9]{64}$/;
 const STATES = ["prepared", "enqueue-unverified", "queued", "process-unverified", "pending", "retry", "manual_review", "scope_review_required"] as const;
 export type SupportCaseState = typeof STATES[number];
 export interface SupportCaseEvent { at: string; state: SupportCaseState; jobId: string | null }
-export interface DeletionSupportCase {
-  format: "hanbang-deletion-support-case-v1";
+interface SupportCaseHistory {
+  totalEvents: number;
+  archivedEvents: number;
+  archivedSha256: string | null;
+}
+interface DeletionSupportCaseData {
   caseId: string;
   projectRef: string;
   subject: string;
@@ -23,6 +27,10 @@ export interface DeletionSupportCase {
   /** 엔진 완료는 고객의 대화·파생 정보까지 모두 삭제됐다는 뜻이 아니다. */
   generalCustomerDataRemovalVerified: false;
 }
+export type DeletionSupportCase = DeletionSupportCaseData & (
+  | { format: "hanbang-deletion-support-case-v1"; history?: never }
+  | { format: "hanbang-deletion-support-case-v2"; history: SupportCaseHistory }
+);
 export interface SupportJob {
   id: string;
   userId: string | null;
@@ -96,7 +104,7 @@ function checkJob(job: SupportJob | null, value: DeletionSupportCase): asserts j
 export function validateDeletionSupportCase(value: unknown, projectRef: string): asserts value is DeletionSupportCase {
   requireCase(value && typeof value === "object" && !Array.isArray(value), "SUPPORT_CASE_INVALID");
   const c = value as DeletionSupportCase;
-  requireCase(c.format === "hanbang-deletion-support-case-v1" && c.projectRef === projectRef
+  requireCase(["hanbang-deletion-support-case-v1", "hanbang-deletion-support-case-v2"].includes(c.format) && c.projectRef === projectRef
     && /^[a-z0-9]{20}$/.test(c.projectRef) && UUID.test(c.caseId) && UUID.test(c.subject)
     && UUID.test(c.proofReference) && Number.isSafeInteger(c.proofIssuedAt) && c.proofIssuedAt > 0
     && SHA.test(c.requestSha256) && typeof c.operator === "string" && /^[A-Za-z0-9._@+-]{1,120}$/.test(c.operator)
@@ -104,11 +112,76 @@ export function validateDeletionSupportCase(value: unknown, projectRef: string):
     && c.generalCustomerDataRemovalVerified === false && STATES.includes(c.state)
     && (c.jobId === null || UUID.test(c.jobId)) && Array.isArray(c.events) && c.events.length > 0 && c.events.length <= 100,
   "SUPPORT_CASE_INVALID");
-  requireCase(c.events.every(e => validTime(e.at) && STATES.includes(e.state) && (e.jobId === null || UUID.test(e.jobId)))
+  if (c.format === "hanbang-deletion-support-case-v1") {
+    requireCase(c.history === undefined, "SUPPORT_CASE_HISTORY_INVALID");
+  } else {
+    const h = c.history;
+    requireCase(h && typeof h === "object" && !Array.isArray(h)
+      && Object.keys(h).sort().join(",") === "archivedEvents,archivedSha256,totalEvents"
+      && Number.isSafeInteger(h.totalEvents) && h.totalEvents > 0
+      && Number.isSafeInteger(h.archivedEvents) && h.archivedEvents >= 0
+      && h.totalEvents === c.events.length + h.archivedEvents
+      && c.events.length === Math.min(h.totalEvents, 100)
+      && (h.archivedEvents === 0 ? h.archivedSha256 === null
+        : typeof h.archivedSha256 === "string" && SHA.test(h.archivedSha256)),
+    "SUPPORT_CASE_HISTORY_INVALID");
+  }
+  requireCase(c.events.every(e => e && typeof e === "object" && !Array.isArray(e)
+      && Object.keys(e).sort().join(",") === "at,jobId,state"
+      && validTime(e.at) && STATES.includes(e.state) && (e.jobId === null || UUID.test(e.jobId)))
     && c.events[0].state === "prepared" && c.events[0].jobId === null
     && c.events.at(-1)?.state === c.state && c.events.at(-1)?.jobId === c.jobId
     && (c.jobId !== null || ["prepared", "enqueue-unverified"].includes(c.state))
     && c.events.every(e => e.jobId === null || e.jobId === c.jobId), "SUPPORT_CASE_HISTORY_INVALID");
+}
+
+export function getDeletionSupportCaseEventCount(value: DeletionSupportCase): number {
+  return value.format === "hanbang-deletion-support-case-v2" ? value.history.totalEvents : value.events.length;
+}
+
+function appendEventHistory(value: DeletionSupportCase, event: SupportCaseEvent) {
+  const events = [...value.events, event];
+  const previousHistory = value.format === "hanbang-deletion-support-case-v2" ? value.history : {
+    totalEvents: value.events.length, archivedEvents: 0, archivedSha256: null,
+  };
+  const history = { ...previousHistory, totalEvents: previousHistory.totalEvents + 1 };
+  if (events.length > 100) {
+    // 첫 본인 확인 기록과 최근 99개만 메모리에 둔다. 빠진 원문은 지우지 않고
+    // append-only 암호화 journal의 이전 파일에 보존하며 digest로 연결한다.
+    const [archived] = events.splice(1, 1);
+    history.archivedEvents += 1;
+    history.archivedSha256 = createHash("sha256")
+      .update(JSON.stringify([previousHistory.archivedSha256, archived])).digest("hex");
+  }
+  return { events, history };
+}
+
+/** 저장소도 같은 계약으로 전체 journal을 순서대로 검증한다. hash만으로 원문을 대체하지 않는다. */
+export function validateDeletionSupportCaseTransition(previous: DeletionSupportCase | null, next: DeletionSupportCase): void {
+  validateDeletionSupportCase(next, next.projectRef);
+  if (previous === null) {
+    requireCase(next.state === "prepared" && next.jobId === null && next.events.length === 1
+      && getDeletionSupportCaseEventCount(next) === 1, "SUPPORT_CASE_HISTORY_INVALID");
+    return;
+  }
+  validateDeletionSupportCase(previous, previous.projectRef);
+  const immutable = ["caseId", "projectRef", "subject", "proofReference", "proofIssuedAt",
+    "requestSha256", "operator", "reviewedAt", "scope", "generalCustomerDataRemovalVerified"] as const;
+  requireCase(immutable.every(key => previous[key] === next[key])
+    && (previous.jobId === null || previous.jobId === next.jobId)
+    && Number.isSafeInteger(getDeletionSupportCaseEventCount(previous) + 1)
+    && getDeletionSupportCaseEventCount(next) === getDeletionSupportCaseEventCount(previous) + 1,
+  "SUPPORT_CASE_HISTORY_INVALID");
+  const expected = appendEventHistory(previous, next.events[next.events.length - 1]);
+  requireCase(JSON.stringify(next.events) === JSON.stringify(expected.events), "SUPPORT_CASE_HISTORY_INVALID");
+  if (next.format === "hanbang-deletion-support-case-v2") {
+    requireCase(next.history.totalEvents === expected.history.totalEvents
+      && next.history.archivedEvents === expected.history.archivedEvents
+      && next.history.archivedSha256 === expected.history.archivedSha256, "SUPPORT_CASE_HISTORY_INVALID");
+  } else {
+    requireCase(previous.format === "hanbang-deletion-support-case-v1"
+      && expected.history.archivedEvents === 0, "SUPPORT_CASE_HISTORY_INVALID");
+  }
 }
 
 /** 원본 문의와 본인 코드가 같은 사건에 들어 있어야 한다. 운영자는 실제 탈퇴 요청을 검토한다. */
@@ -125,11 +198,12 @@ export function prepareDeletionSupportCase(input: {
     "SUPPORT_CASE_ORIGINAL_REQUEST_REQUIRED");
   const at = new Date(now).toISOString();
   const value: DeletionSupportCase = {
-    format: "hanbang-deletion-support-case-v1", caseId: input.caseId, projectRef: identity.projectRef,
+    format: "hanbang-deletion-support-case-v2", caseId: input.caseId, projectRef: identity.projectRef,
     subject: identity.subject, proofReference: identity.reference, proofIssuedAt: identity.issuedAt,
     requestSha256: createHash("sha256").update(input.requestText).digest("hex"), operator: input.operator,
     reviewedAt: at, scope: "existing-account-deletion-saga", jobId: null, state: "prepared",
-    events: [{ at, state: "prepared", jobId: null }], generalCustomerDataRemovalVerified: false,
+    events: [{ at, state: "prepared", jobId: null }],
+    history: { totalEvents: 1, archivedEvents: 0, archivedSha256: null }, generalCustomerDataRemovalVerified: false,
   };
   validateDeletionSupportCase(value, input.projectRef);
   return value;
@@ -138,11 +212,13 @@ export function prepareDeletionSupportCase(input: {
 export async function advanceDeletionSupportCase(value: DeletionSupportCase,
   mode: "enqueue" | "inspect" | "process", deps: SupportCaseDependencies): Promise<DeletionSupportCase> {
   validateDeletionSupportCase(value, value.projectRef);
+  // 처리 전·후 두 번의 기록이 모두 가능해야 파괴 단계를 시작할 수 있다.
+  requireCase(Number.isSafeInteger(getDeletionSupportCaseEventCount(value) + 2), "SUPPORT_CASE_HISTORY_LIMIT");
   let current = structuredClone(value);
   const save = async (state: SupportCaseState, jobId = current.jobId) => {
-    const next = { ...current, state, jobId, events: [...current.events,
-      { at: new Date((deps.now ?? Date.now)()).toISOString(), state, jobId }] };
-    validateDeletionSupportCase(next, current.projectRef);
+    const next: DeletionSupportCase = { ...current, format: "hanbang-deletion-support-case-v2", state, jobId,
+      ...appendEventHistory(current, { at: new Date((deps.now ?? Date.now)()).toISOString(), state, jobId }) };
+    validateDeletionSupportCaseTransition(current, next);
     await deps.persist(next);
     current = next;
   };

@@ -39,7 +39,7 @@ async function run(env: Record<string, string | undefined>, status = 200, timing
       : args.includes("origin") ? "https://github.com/Kyu-Sung-Cho/wedding-hanbang-web.git" : "",
     verifySupabaseServiceDestinationFromEnv: () => ({ projectRef: PROJECT, url: `https://${PROJECT}.supabase.co` }),
     openDeletionSupportStore: () => ({ latest: value, persist: vi.fn(), close }), createClient,
-    tsImport: async (path: string) => path.includes("communityStorageSaga")
+    tsxRequire: (path: string) => path.includes("communityStorageSaga")
       ? { requestAccountDeletion: requestDeletion }
       : { validateDeletionSupportCase: vi.fn(), validateSupportRuntimeState,
         advanceDeletionSupportCase: async (current: typeof value, _mode: string, deps: { enqueue: (id: string) => Promise<void> }) => {
