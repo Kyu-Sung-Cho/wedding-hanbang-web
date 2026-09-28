@@ -19,6 +19,22 @@ import OnboardingPage from "../page";
 
 const GENDERED = ["신부", "신랑", "👰", "🤵"];
 
+function mockLocation(search = "") {
+  const location = {
+    href: `https://hanbang.ai/wedding/onboarding${search}`,
+    origin: "https://hanbang.ai",
+    pathname: "/wedding/onboarding",
+    search,
+    hash: "",
+    reload: vi.fn(),
+  };
+  Object.defineProperty(window, "location", {
+    configurable: true,
+    value: location,
+  });
+  return location;
+}
+
 async function renderWithCapability(neutralPreparationSpace: boolean) {
   const container = document.createElement("div");
   document.body.appendChild(container);
@@ -36,6 +52,7 @@ async function renderWithCapability(neutralPreparationSpace: boolean) {
 
 describe("중립 온보딩 화면", () => {
   let cleanup: Array<() => void> = [];
+  const originalLocation = Object.getOwnPropertyDescriptor(window, "location");
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -46,6 +63,10 @@ describe("중립 온보딩 화면", () => {
   afterEach(() => {
     cleanup.forEach((fn) => fn());
     cleanup = [];
+    if (originalLocation) {
+      Object.defineProperty(window, "location", originalLocation);
+    }
+    vi.unstubAllGlobals();
   });
 
   it("중립 모드에서는 화면 어디에도 성별이 나오지 않는다", async () => {
@@ -127,5 +148,53 @@ describe("중립 온보딩 화면", () => {
       expect(text).not.toContain(word);
     }
     expect(text).toContain("다시 시도");
+  });
+
+  it("HTTP 503이면 목적지를 유지한 채 기존 다시 시도로 복구한다", async () => {
+    const search = `?${new URLSearchParams({ redirect: "/wedding/chat?from=onboarding" })}`;
+    const location = mockLocation(search);
+    const originalHref = location.href;
+    vi.stubGlobal("fetch", vi.fn(async () => ({ ok: false, status: 503 })));
+
+    const { container, root } = await renderWithCapability(false);
+    cleanup.push(() => act(() => root.unmount()));
+
+    expect(container.querySelector('[role="alert"]')?.textContent)
+      .toContain("준비 화면을 불러오지 못했어요.");
+    for (const word of GENDERED) {
+      expect(container.textContent).not.toContain(word);
+    }
+    expect(location.href).toBe(originalHref);
+    const retry = Array.from(container.querySelectorAll("button"))
+      .find((button) => button.textContent?.trim() === "다시 시도");
+    expect(retry).toBeDefined();
+    act(() => retry?.click());
+    expect(location.reload).toHaveBeenCalledOnce();
+    expect(location.href).toBe(originalHref);
+  });
+
+  it.each([
+    ["/wedding/chat?from=onboarding#latest", "/wedding/chat?from=onboarding#latest"],
+    ["https://other.example/path", "/wedding/lounge"],
+    ["//other.example/path", "/wedding/lounge"],
+    ["/login?redirect=/wedding/chat", "/wedding/lounge"],
+    ["/wedding/onboarding", "/wedding/lounge"],
+    ["", "/wedding/lounge"],
+  ])("HTTP 401이면 안전한 목적지만 로그인에 보존한다: %s", async (requested, expected) => {
+    const search = requested ? `?${new URLSearchParams({ redirect: requested })}` : "";
+    const location = mockLocation(search);
+    vi.stubGlobal("fetch", vi.fn(async () => ({ ok: false, status: 401 })));
+
+    const { container, root } = await renderWithCapability(false);
+    cleanup.push(() => act(() => root.unmount()));
+
+    const destination = new URL(location.href, location.origin);
+    expect(destination.origin).toBe(location.origin);
+    expect(destination.pathname).toBe("/login");
+    expect(destination.searchParams.get("redirect")).toBe(expected);
+    expect(container.querySelector('[role="alert"]')).toBeNull();
+    for (const word of GENDERED) {
+      expect(container.textContent).not.toContain(word);
+    }
   });
 });
