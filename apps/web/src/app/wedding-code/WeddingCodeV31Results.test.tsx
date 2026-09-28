@@ -449,6 +449,15 @@ describe("개인 결과는 고른 답을 되풀이하지 않고 고지를 한 �
     expect(spending.textContent).toContain("전체 예산을 늘릴지는 따로 정해요");
     expect(spending.closest("details")).toBeNull();
     for (const label of ["피하고 싶은 것 수정", "더 쓰고 싶은 곳 수정"]) expect(picture.querySelector(`button[aria-label="${label}"]`), label).not.toBeNull();
+    // dl 안의 줄(div)에는 dt·dd 만 둔다. 수정 버튼도 dd 안에 있다.
+    const rows = [...picture.querySelectorAll("dl > *")];
+    expect(rows).toHaveLength(WEDDING_CODE_V31_TASTES.length + 2);
+    for (const row of rows) {
+      const name = row.querySelector("dt")?.textContent ?? "";
+      expect(row.tagName, name).toBe("DIV");
+      expect([...row.children].map(child => child.tagName).filter(tag => tag !== "DT" && tag !== "DD"), name).toEqual([]);
+      expect(row.querySelector("button")?.parentElement?.tagName, name).toBe("DD");
+    }
   });
 
   it("우선순위 안내가 세 장이면 설명 카드는 모두 접고, 접기 이름에 ‘더’를 쓰지 않는다", () => {
@@ -465,7 +474,7 @@ describe("개인 결과는 고른 답을 되풀이하지 않고 고지를 한 �
     expect(insights.querySelector('details[data-insight-group="more"] > summary')?.textContent).toBe(`설명 ${cards.length}개 보기`);
   });
 
-  it("우선순위 안내가 한 장이면 설명 카드는 두 장만 펼쳐, 펼친 안내가 모두 세 장을 넘지 않는다", () => {
+  it("우선순위 안내가 한 장이면 설명 카드는 두 장만 펼친다(세 장에서 안내 수를 뺀 만큼)", () => {
     const draft = mixedDraft();
     draft.priorities = { status: "answered", values: ["G3"] };
     const view = render(draft);
@@ -473,11 +482,46 @@ describe("개인 결과는 고른 답을 되풀이하지 않고 고지를 한 �
     expect(guides.length).toBeGreaterThan(0);
     const open = [...view.querySelectorAll("[data-personal-insights] [data-insight]")].filter(card => !card.closest("details"));
     expect(open).toHaveLength(2);
-    expect(guides.length + open.length).toBeLessThanOrEqual(3);
+    expect(open).toHaveLength(Math.max(0, 3 - guides.length));
     // 나머지는 한 접기에 그대로 있다.
     const more = view.querySelector('[data-personal-insights] details[data-insight-group="more"]')!;
     const total = [...view.querySelectorAll("[data-personal-insights] [data-insight]")].length;
     expect(more.querySelector("summary")?.textContent).toBe(`설명 ${total - 2}개 더 보기`);
+  });
+
+  it("고른 우선순위 하나가 안내 두 장이 되면 펼친 안내는 세 장을 넘고, 설명 카드는 모두 접는다", () => {
+    // ‘처음 정한 전체 예산 지키기’(B1) 하나가 예산 재논의 안내와 더 쓸 곳 안내 두 장이 된다. 예전 주석·README 는 세 장 안쪽이라고 했다.
+    const draft = basicDraft();
+    draft.answers.B3 = 5;
+    draft.spending = { status: "answered", values: ["photo"] };
+    draft.priorities = { status: "answered", values: ["B1", "T2", "F1"] };
+    const view = render(draft);
+    expect(view.querySelectorAll("[data-priority-guides] [data-insight]")).toHaveLength(4);
+    const insights = view.querySelector("[data-personal-insights]")!;
+    expect([...insights.querySelectorAll("[data-insight]")].filter(card => !card.closest("details"))).toHaveLength(0);
+    const summary = insights.querySelector('details[data-insight-group="more"] > summary');
+    expect(summary).not.toBeNull();
+    expect(summary?.textContent).not.toContain("더");
+  });
+
+  it("예산을 다시 의논하자는 답의 설명 카드에는 늘릴지는 둘이 결정한다는 문장이 늘 붙는다(접혀 있든 펼쳐 있든)", () => {
+    const boundary = "실제로 늘릴지는 이야기해 본 뒤 둘이 결정해요.";
+    const cases: { name: string; id: string; folded: boolean; make: () => V31Draft }[] = [
+      { name: "B1·B3 둘 다 높음", id: "budget-revisit", folded: true, make: () => { const draft = basicDraft(); draft.answers.B3 = 5; return draft; } },
+      { name: "B3만 높음", id: "single-B3", folded: true, make: () => { const draft = basicDraft(); draft.answers.B1 = 2; draft.answers.B3 = 5; return draft; } },
+      { name: "B1·B3 높고 B3를 우선순위로 고름", id: "priority-budget-revisit", folded: false, make: () => { const draft = basicDraft(); draft.answers.B3 = 5; draft.priorities = { status: "answered", values: ["B3"] }; return draft; } },
+      { name: "B3만 높고 우선순위로 고름", id: "priority-B3", folded: false, make: () => { const draft = basicDraft(); draft.answers.B1 = 2; draft.answers.B3 = 5; draft.priorities = { status: "answered", values: ["B3"] }; return draft; } },
+    ];
+    for (const { name, id, folded, make } of cases) {
+      const view = render(make());
+      const card = view.querySelector(`[data-insight="${id}"]`);
+      expect(card, name).not.toBeNull();
+      expect(card?.closest("details") !== null, name).toBe(folded);
+      // 이 문장을 싣는 카드가 화면 어디에 나오든 본문에 그대로 있다.
+      const cards = [...view.querySelectorAll('[data-insight="single-B3"], [data-insight="budget-revisit"], [data-insight="priority-B3"], [data-insight="priority-budget-revisit"]')];
+      expect(cards.length, name).toBeGreaterThan(0);
+      for (const item of cards) expect(item.querySelector("h3 + p")?.textContent, `${name} ${item.getAttribute("data-insight")}`).toBe(boundary);
+    }
   });
 
   it("모든 문장을 낮게 답해도 반대 성향 설명을 만들지 않고, 취향의 다음 행동은 남긴다", () => {
@@ -514,6 +558,10 @@ const JUDGMENT_NOTICE = /아니에요|아니라/;
 function judgmentNotices(root: Element): string[] {
   return visibleSentences(root).filter(text => JUDGMENT_NOTICE.test(text));
 }
+/** 결과 머리글(탭 밖, 모든 결과 화면에 한 번 나온다)의 글. */
+function resultHeader(root: Element): string {
+  return root.querySelector("[data-result] > header")?.textContent ?? "";
+}
 
 describe("2026-09-27 결과 검토 뒤 고친 것", () => {
   it("우선순위를 한 번도 고르지 않은 결과에서도 결과 화면에서 우선순위를 고를 길이 있다", () => {
@@ -549,6 +597,29 @@ describe("2026-09-27 결과 검토 뒤 고친 것", () => {
   ] as const)("혼자 결과(%s)에서 「~아니에요」류 판정 고지는 머리글 한 번뿐이다", (_name, make) => {
     const hits = judgmentNotices(render(make()));
     expect(hits).toEqual([expect.stringContaining("성격 진단이나 궁합 점수는 아니에요.")]);
+  });
+
+  it.each([
+    ["수정할 수 없는 혼자 결과", () => render(basicDraft(), null, false, true)],
+    ["수정할 수 없는 혼자 결과(여러 답을 섞음)", () => render(mixedDraft(), null, false, true)],
+    ["빈 혼자 결과", () => render(createV31Draft())],
+  ] as const)("%s에서도 「~아니에요」류 판정 고지는 머리글 한 번뿐이다", (_name, view) => {
+    const screen = view();
+    expect(judgmentNotices(screen)).toEqual([expect.stringContaining("성격 진단이나 궁합 점수는 아니에요.")]);
+    expect(resultHeader(screen)).toContain("성격 진단이나 궁합 점수는 아니에요.");
+  });
+
+  it("수정할 수 없는 혼자 결과와 빈 혼자 결과의 머리글 안내는 남는다", () => {
+    expect(resultHeader(render(basicDraft(), null, false, true))).toContain("이 화면에서는 답을 수정할 수 없어요.");
+    expect(resultHeader(render(createV31Draft()))).toContain("이 답들로 구체적인 취향을 만들지는 않았어요.");
+  });
+
+  it("받은 두 사람 결과의 머리글은 링크에 담긴 답이고 본인 여부를 확인하지 않는다고 그대로 말한다", () => {
+    const first = basicDraft();
+    const second = basicDraft();
+    second.answers.B1 = 2;
+    expect(resultHeader(render(second, first, true))).toContain("받은 링크에 담긴 답이에요. 이름이나 본인 여부는 확인하지 않아요.");
+    expect(resultHeader(render(second, first))).not.toContain("받은 링크");
   });
 
   it("두 사람 결과에서도 「~아니에요」류 판정 고지는 머리글 한 번뿐이다", () => {
@@ -596,7 +667,7 @@ describe("2026-09-27 결과 검토 뒤 고친 것", () => {
     expect(guidedView.querySelector('[data-insight="priority-participation-format"]')).not.toBeNull();
     expect(guidedView.querySelector('[data-avoidance-step="stage_participation"] [data-next-step]')).toBeNull();
     expect(guidedView.querySelector('[data-avoidance-step="crowded_space"] [data-next-step]')).not.toBeNull();
-    // 설명이 많아 참여 방식 카드가 ‘다른 설명 더 보기’ 안에 접히면, 줄의 다음 행동을 남긴다.
+    // 설명이 많아 참여 방식 카드가 ‘설명 N개 더 보기’ 안에 접히면, 줄의 다음 행동을 남긴다.
     const folded = mixedDraft();
     folded.answers.V1 = 5; folded.answers.R3 = 5;
     folded.avoidances = { status: "answered", values: ["heavy_decoration", "stage_participation"] };

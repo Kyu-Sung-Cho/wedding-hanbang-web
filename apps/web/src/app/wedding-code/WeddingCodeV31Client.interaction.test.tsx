@@ -1,5 +1,7 @@
 // @vitest-environment jsdom
 
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -446,6 +448,18 @@ describe("WeddingCodeV31Client", () => {
     await consent(); expect(linkValue()).toBeUndefined();
     await consent(1); expect(new URLSearchParams(new URL(linkValue()!).hash.slice(1)).has("b")).toBe(true);
     await consent(1); expect(linkValue()).toBeUndefined();
+  });
+
+  it("답을 담는 공유 접기의 이름은 처리방침이 인용한 ‘답을 링크에 담아 직접 보내기’ 그대로다", async () => {
+    const label = "답을 링크에 담아 직접 보내기";
+    const first = { ...createV31Draft(), answers: { V1: 5 as const } };
+    const second = { ...createV31Draft(), answers: { V1: 1 as const } };
+    for (const props of [{ first }, { first, second }]) {
+      await act(async () => root.render(<WeddingCodeV31Sharing {...props} shareOrigin="https://hanbang.ai" />));
+      expect(container.querySelector('[data-share-box="v31"] > details > summary')?.textContent, props.second ? "두 사람" : "혼자").toBe(label);
+    }
+    // 처리방침이 이 이름을 따옴표로 인용한다. 한쪽만 바꾸면 여기서 빨개진다.
+    expect(readFileSync(resolve(process.cwd(), "src/app/privacy/page.tsx"), "utf8")).toContain(`‘${label}’`);
   });
 
   it("옷과 식순과 피하고 싶은 것은 모두 고를 수 있고 우선순위는 하나만 골라도 완료된다", async () => {

@@ -208,4 +208,23 @@ describe("두 사람 결과 탭", () => {
     expect(editButtons().length).toBeGreaterThan(0);
     expect(container.querySelector('[aria-label="선택 질문"]')).not.toBeNull();
   });
+
+  it("예약 전 확인 문장은 화면마다 한 번, 한 사람 탭 패널 안이 아니라 페이지에 둔다", async () => {
+    const booking = "예약 전에는 추가 비용을 포함한 총액과 취소·변경 조건을 서면으로 확인해 주세요.";
+    function once(name: string) {
+      expect(container.textContent?.split(booking).length, name).toBe(2);
+      const holder = [...container.querySelectorAll("p")].find(item => item.textContent === booking);
+      expect(holder, name).toBeTruthy();
+      expect(holder?.closest('[role="tabpanel"]'), name).toBeNull();
+      expect(holder?.parentElement?.hasAttribute("data-result"), name).toBe(true);
+    }
+    for (const [name, props] of [["두 사람", {}], ["받은 링크", { received: true }], ["읽기 전용", { readOnly: true }]] as const) {
+      await render(props);
+      const labels = [...container.querySelectorAll('[role="tab"]')].map(item => item.textContent ?? "");
+      expect(labels, name).toHaveLength(3);
+      for (const label of labels) { await click(tab(label)); once(`${name} ${label}`); }
+    }
+    await render({ first: null });
+    once("혼자");
+  });
 });

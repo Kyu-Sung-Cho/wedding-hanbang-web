@@ -91,12 +91,12 @@ function PersonalProfile({ draft, onEdit, nested = false, personLabel }: { draft
   // 요약에 없는 답이 섞인 설명을 앞에 펼치고, 네 글자 요약과 같은 여덟 문장만 근거인 설명은 따로 접는다.
   const { fresh, summaryOnly } = splitV31InsightsBySummary(profile.insights.filter(item => !priorityInsightIds.has(item.id)), SUMMARY_STATEMENT_IDS);
   const insightCount = fresh.length + summaryOnly.length;
-  // 펼친 안내 카드는 우선순위 안내를 합쳐 세 장 안쪽으로 둔다(2026-09-27 결과 간추리기). 우선순위 안내는 고른 만큼 모두 펼치고,
-  // 설명 카드는 남은 자리만큼만 펼친다(안내 한 장이면 두 장, 세 장 이상이면 설명은 모두 접는다).
+  // 설명 카드는 세 장에서 우선순위 안내 카드 수를 뺀 만큼만 펼친다. 우선순위 안내 카드는 모두 펼치고,
+  // 고른 우선순위 하나가 안내 두 장이 될 수 있어(예: ‘처음 정한 전체 예산 지키기’) 펼친 카드가 세 장을 넘을 수 있다.
   const openLimit = Math.max(0, 3 - profile.priorityGuides.length);
   const openFresh = fresh.slice(0, openLimit);
   // 참여 방식 안내 카드(무대로 부르지 않고 자리에서 함께하는 방식)가 펼친 채 보이면, 무대 참여를 피하고 싶다는 줄은
-  // 같은 이야기를 다시 하지 않는다. 카드가 ‘다른 설명 더 보기’ 안에 접혀 있으면 줄의 다음 행동을 그대로 둔다.
+  // 같은 이야기를 다시 하지 않는다. 카드가 ‘설명 N개 더 보기’ 안에 접혀 있으면 줄의 다음 행동을 그대로 둔다.
   const participationShown = profile.priorityGuides.some(item => item.sourceInsightId === "participation-format")
     || openFresh.some(item => item.id === "participation-format");
   const who = personLabel ? "이 사람이" : "내가";
@@ -162,19 +162,24 @@ function PersonalProfile({ draft, onEdit, nested = false, personLabel }: { draft
       <h2 className={`text-xl ${v31Title}`}>{personLabel ? `${personLabel}의 결혼식 취향` : "내가 그려본 결혼식"}</h2>
       <p className={`mt-2 ${v31Body}`}>예약 조건은 후보를 보면서 따로 정해요.</p>
       <dl className="mt-4 divide-y divide-[var(--hb-hairline)]">
-        {/* 한 줄에 항목 이름(작게)과 고른 답, 오른쪽에 수정. 예전처럼 이름 줄과 답 줄을 나누면 여덟 줄이 두 배로 길어진다. */}
-        {profile.tastes.map(taste => <div key={taste.key} className="flex items-start justify-between gap-3 py-2.5" data-taste-row={taste.key}>
-          <div className="min-w-0"><dt className={pictureLabel}>{taste.title}</dt><dd className={pictureValue}>{taste.labels.join(" · ")}</dd></div>
-          {onEdit ? <Button variant="ghost" onClick={() => onEdit(`taste.${taste.key}`)} size="sm" className="shrink-0" aria-label={`${taste.title} 취향 수정`}>수정</Button> : null}
+        {/* 한 줄에 항목 이름(작게)과 고른 답, 오른쪽에 수정. 예전처럼 이름 줄과 답 줄을 나누면 여덟 줄이 두 배로 길어진다.
+            dl 안의 줄에는 dt·dd 만 둔다. 수정 버튼도 dd 로 감싸 오른쪽 칸에 세운다. */}
+        {profile.tastes.map(taste => <div key={taste.key} className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-x-3 py-2.5" data-taste-row={taste.key}>
+          <dt className={`col-start-1 ${pictureLabel}`}>{taste.title}</dt>
+          <dd className={`col-start-1 ${pictureValue}`}>{taste.labels.join(" · ")}</dd>
+          {onEdit ? <dd className="col-start-2 row-span-2 row-start-1"><Button variant="ghost" onClick={() => onEdit(`taste.${taste.key}`)} size="sm" className="shrink-0" aria-label={`${taste.title} 취향 수정`}>수정</Button></dd> : null}
         </div>)}
-        <div className="flex items-start justify-between gap-3 py-2.5" data-avoidance-summary>
-          <div className="min-w-0"><dt className={pictureLabel}>피하고 싶은 것</dt><dd className={pictureValue}>{profile.avoidanceSteps.length ? profile.avoidanceSteps.map(step => step.label).join(" · ") : profile.avoidanceLabels.join(" · ")}</dd></div>
-          {onEdit ? <Button variant="ghost" onClick={() => onEdit("avoidances")} size="sm" className="shrink-0" aria-label="피하고 싶은 것 수정">수정</Button> : null}
+        <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-x-3 py-2.5" data-avoidance-summary>
+          <dt className={`col-start-1 ${pictureLabel}`}>피하고 싶은 것</dt>
+          <dd className={`col-start-1 ${pictureValue}`}>{profile.avoidanceSteps.length ? profile.avoidanceSteps.map(step => step.label).join(" · ") : profile.avoidanceLabels.join(" · ")}</dd>
+          {onEdit ? <dd className="col-start-2 row-span-2 row-start-1"><Button variant="ghost" onClick={() => onEdit("avoidances")} size="sm" className="shrink-0" aria-label="피하고 싶은 것 수정">수정</Button></dd> : null}
         </div>
-        <div className="flex items-start justify-between gap-3 py-2.5" data-spending-summary>
-          <div className="min-w-0"><dt className={pictureLabel}>다른 곳을 줄여서라도 더 쓰고 싶은 곳</dt><dd className={pictureValue}>{draft.spending?.status === "no_preference" ? "더 쓰고 싶은 곳은 지금 없어요." : profile.spendingLabels.join(" · ")}</dd>
-          <dd className="mt-1 text-xs leading-relaxed text-[var(--hb-text-muted)]">{draft.spending?.status === "no_preference" ? "상대가 더 쓰고 싶은 곳이 있다면 이유를 듣고, 전체 예산 안에서 가능한지 같이 살펴봐요." : draft.spending?.status === "answered" ? "더 쓸 곳마다 대신 줄일 곳을 같이 정해 보세요. 전체 예산을 늘릴지는 따로 정해요." : "더 쓰고 싶은 곳이 생기면 다시 답해도 괜찮아요."}</dd></div>
-          {onEdit ? <Button variant="ghost" onClick={() => onEdit("spending")} size="sm" className="shrink-0" aria-label="더 쓰고 싶은 곳 수정">수정</Button> : null}
+        <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-x-3 py-2.5" data-spending-summary>
+          <dt className={`col-start-1 ${pictureLabel}`}>다른 곳을 줄여서라도 더 쓰고 싶은 곳</dt>
+          <dd className={`col-start-1 ${pictureValue}`}>{draft.spending?.status === "no_preference" ? "더 쓰고 싶은 곳은 지금 없어요." : profile.spendingLabels.join(" · ")}</dd>
+          {/* 예산 경계 문장은 각주처럼 작게 두지 않고 본문 크기로 둔다. */}
+          <dd className={`col-start-1 mt-1 ${v31Body}`}>{draft.spending?.status === "no_preference" ? "상대가 더 쓰고 싶은 곳이 있다면 이유를 듣고, 전체 예산 안에서 가능한지 같이 살펴봐요." : draft.spending?.status === "answered" ? "더 쓸 곳마다 대신 줄일 곳을 같이 정해 보세요. 전체 예산을 늘릴지는 따로 정해요." : "더 쓰고 싶은 곳이 생기면 다시 답해도 괜찮아요."}</dd>
+          {onEdit ? <dd className="col-start-2 row-span-3 row-start-1"><Button variant="ghost" onClick={() => onEdit("spending")} size="sm" className="shrink-0" aria-label="더 쓰고 싶은 곳 수정">수정</Button></dd> : null}
         </div>
       </dl>
       {preparationTips.length ? <details className="mt-4 border-t border-[var(--hb-hairline)] pt-3" data-preparation-tips>
