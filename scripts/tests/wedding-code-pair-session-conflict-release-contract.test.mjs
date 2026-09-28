@@ -1,4 +1,5 @@
 import test from 'node:test';
+import { createWeddingCodePairSessionConflictHistoricalRepository } from './fixtures/wedding-code-pair-session-conflict-historical-repository.mjs';
 import assert from 'node:assert/strict';
 import { copyFileSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
@@ -11,12 +12,14 @@ import { validateSuccessorReleaseContract } from '../lib/supabase-successor-rele
 import { runProductionRelease } from '../lib/supabase-production-release-controller.mjs';
 
 const root = resolve(import.meta.dirname, '../..');
+const historical239 = createWeddingCodePairSessionConflictHistoricalRepository(root);
+test.after(historical239.cleanup);
 const code = value => error => error?.code === value;
 const run = args => spawnSync(process.execPath, [join(root, 'scripts/supabase-release-fence.mjs'), ...args],
   { cwd: root, encoding: 'utf8', windowsHide: true, timeout: 60_000 });
 
 test('239 exact SQL successor preserves immutable 238 pins and keeps static validation separate from deployment authority', () => {
-  const plan = loadWeddingCodePairSessionConflictReleasePlan(root);
+  const plan = loadWeddingCodePairSessionConflictReleasePlan(historical239.root);
   assert.equal(plan.migrationCount, 239);
   assert.equal(plan.followupMigrations.length, 13);
   assert.deepEqual(plan.followupMigrations.at(-1), { file: '20260923132503_wedding_code_pair_session_conflict_response.sql', version: '20260923132503' });
@@ -28,13 +31,13 @@ test('239 exact SQL successor preserves immutable 238 pins and keeps static vali
   assert.equal(historical.contractSha256, 'f479973b0dbc583981159a687c9d207d25bd21273cd01c41e03672299f73c5e7');
   assert.deepEqual(plan.contract.predecessorCatalogFixture, historical.contract.catalogFixture);
   assert.throws(() => loadWeddingCodePairSessionReleasePlan(root), code('NEW_MIGRATION_NOT_REVIEWED'));
-  const successor = validateSuccessorReleaseContract({ repoRoot: root, followup: 'wedding-code-pair-session-conflict' });
+  const successor = validateSuccessorReleaseContract({ repoRoot: historical239.root, followup: 'wedding-code-pair-session-conflict' });
   assert.equal(successor.deploymentBlocked, true);
   assert.equal(successor.controllerReady, false);
   assert.throws(() => validateSuccessorReleaseContract({ repoRoot: root, followup: 'wedding-code-pair-session' }), code('FOLLOWUP_RELEASE_INVALID'));
   const result = run(['--wedding-code-pair-session-conflict']);
-  assert.equal(result.status, 0, result.stderr);
-  assert.match(result.stdout, /WeddingCode pair session conflict contract verified \(239 exact SQL files; runtime evidence not verified; deployment not authorized; no remote writes\)/);
+  assert.equal(result.status, 1, result.stderr);
+  assert.match(result.stderr, /NEW_MIGRATION_NOT_REVIEWED/);
   const previous = run(['--wedding-code-pair-session']);
   assert.equal(previous.status, 1);
   assert.match(previous.stderr, /NEW_MIGRATION_NOT_REVIEWED/);
@@ -55,7 +58,7 @@ test('239 static mode rejects mixed flags and malformed apply before a network r
 test('239 missing or changed pins and unreviewed SQL cannot fall back to historical acceptance', t => {
   const fixture = createWeddingCodePairSessionHistoricalRepository(root);
   t.after(fixture.cleanup);
-  const plan = loadWeddingCodePairSessionConflictReleasePlan(root);
+  const plan = loadWeddingCodePairSessionConflictReleasePlan(historical239.root);
   assert.equal(loadWeddingCodePairSessionReleasePlan(fixture.root).migrationCount, 238);
   assert.throws(() => loadWeddingCodePairSessionConflictReleasePlan(fixture.root));
   const paths = [WEDDING_CODE_PAIR_SESSION_CONFLICT_CONTRACT_FILE, plan.contract.runtime.file, plan.contract.catalog.file,

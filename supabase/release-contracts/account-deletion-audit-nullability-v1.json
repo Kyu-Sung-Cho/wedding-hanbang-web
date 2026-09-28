@@ -1,0 +1,52 @@
+{
+  "version": 1,
+  "kind": "account-deletion-audit-nullability-static-successor",
+  "release": "account-deletion-audit-nullability-20260928",
+  "status": "requires-scoped-runtime-evidence",
+  "productionApplyImplemented": true,
+  "runtimeEvidenceVerified": false,
+  "projectRef": "slrtobkksjmxgzatjyqb",
+  "systemIdentifier": "7581440907192989109",
+  "predecessor": {
+    "file": "supabase/release-contracts/wedding-code-pair-session-conflict-v1.json",
+    "sha256": "ba4a96b3dfc300fd9b4a7c5d12489af0ecb1d4d37f936b83286e7741633f5031"
+  },
+  "predecessorLoader": {
+    "file": "scripts/lib/wedding-code-pair-session-conflict-release-contract.mjs",
+    "sha256": "e74801f9c729e23d3cd76093ab0f5c8e45cd97964105f57eed642ad60cd523c5"
+  },
+  "reviewedPredecessorMigrationCount": 239,
+  "migrations": [
+    {
+      "file": "20260928073546_account_deletion_anonymous_audit.sql",
+      "sha256": "217901f9ccefc85c701d29b46603138cde7137116c7fcdd73e49b5cae513d11b"
+    }
+  ],
+  "allowedSchemaChanges": [
+    "column:public.account_deletions.user_id:attnotnull:true-to-false"
+  ],
+  "scope": {
+    "dataRows": "unchanged",
+    "auth": "unchanged",
+    "storage": "unchanged",
+    "existingJobs": "unchanged",
+    "functions": "unchanged",
+    "tableAcl": "unchanged",
+    "tableRls": "unchanged",
+    "indexes": "unchanged",
+    "triggers": "unchanged",
+    "constraints": "unchanged-except-target-not-null",
+    "target": {
+      "relation": "public.account_deletions",
+      "column": "user_id",
+      "type": "uuid",
+      "default": null
+    },
+    "rollback": "transaction-rollback-before-commit-preserve-nullable-after-commit",
+    "fullOriginalRestore": "not-proven"
+  },
+  "runtime": {
+    "file": "scripts/lib/account-deletion-audit-nullability-release.mjs",
+    "sha256": "154e58ac98024a12509def947f59296fb8f3325e144d41b3c88e7f7a02b53f45"
+  }
+}
