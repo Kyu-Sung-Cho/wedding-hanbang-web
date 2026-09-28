@@ -194,6 +194,13 @@ export type VendorIdentityRow = {
   region_code: string | null;
 };
 
+export type VendorIdentityCandidateCache = Map<string, Promise<RelationPage<VendorIdentityRow>>>;
+
+export function canonicalVendorSlug(slugs: readonly string[], fallback: string): string {
+  // 목록과 같은 코드유닛 순서다. localeCompare는 대표를 바꿀 수 있다.
+  return [...slugs].sort()[0] ?? fallback;
+}
+
 /** 상세 페이지가 훑을 형제 후보 상한. 실측 최대 151(이름이 "스튜디오"인 1곳). */
 const IDENTITY_CANDIDATE_CAP = 200;
 
@@ -210,7 +217,8 @@ const IDENTITY_CANDIDATE_CAP = 200;
  */
 export async function loadVendorIdentityRows(
   client: SupabaseClient,
-  vendor: PublicVendorProjection,
+  vendor: VendorIdentityRow,
+  options: { candidateCache?: VendorIdentityCandidateCache; strict?: boolean } = {},
 ): Promise<VendorIdentityRow[]> {
   const self: VendorIdentityRow = {
     id: vendor.id,
@@ -233,14 +241,25 @@ export async function loadVendorIdentityRows(
   if (!pattern) return [self];
 
   try {
-    const { data, error } = await client
-      .from("v_public_vendors")
-      .select("id, slug, name, category, region_code")
-      .eq("category", vendor.category)
-      .ilike("name", pattern)
-      .order("slug", { ascending: true })
-      .limit(IDENTITY_CANDIDATE_CAP);
+    const cacheKey = JSON.stringify([vendor.category, pattern]);
+    let pending = options.candidateCache?.get(cacheKey);
+    if (!pending) {
+      pending = (async () => {
+        const result = await client
+          .from("v_public_vendors")
+          .select("id, slug, name, category, region_code")
+          .eq("category", vendor.category)
+          .ilike("name", pattern)
+          .order("slug", { ascending: true })
+          .limit(IDENTITY_CANDIDATE_CAP);
+        return { data: result.data as VendorIdentityRow[] | null, error: result.error };
+      })();
+      // 후보만 공유한다. 방문한 self를 합친 결과를 캐시하면 별칭 판정이 달라진다.
+      options.candidateCache?.set(cacheKey, pending);
+    }
+    const { data, error } = await pending;
     if (error || !Array.isArray(data)) {
+      if (options.strict) throw new Error("PUBLIC_VENDOR_IDENTITY_UNAVAILABLE");
       // self만 돌려주면 상세가 형제를 못 보고, 목록 카드에는 대행사 4곳인데 눌러
       // 보면 1곳인 상태로 되돌아간다(`e7dd16bf`가 고친 사고, 실측 157그룹 누락).
       // 빌드는 통과하면서 내용만 얇아지므로 로그가 유일한 신호다.
@@ -257,6 +276,7 @@ export async function loadVendorIdentityRows(
     if (!rows.some((row) => row.slug === vendor.slug)) rows.push(self);
     return rows.sort((left, right) => left.slug.localeCompare(right.slug));
   } catch (err) {
+    if (options.strict) throw new Error("PUBLIC_VENDOR_IDENTITY_UNAVAILABLE");
     reportIdentityLoadFailure(err);
     return [self];
   }
@@ -302,7 +322,7 @@ function identitySummary(
   const slugs = [...new Set(rows.map(({ slug }) => slug))];
   // 목록의 병합 규칙(`row.vendor_slug < existing.slug`)과 같은 코드유닛 순서로
   // 비교해야 대표가 갈리지 않는다 — localeCompare로 바꾸면 어긋난다.
-  const canonicalSlug = [...slugs].sort()[0] ?? vendor.slug;
+  const canonicalSlug = canonicalVendorSlug(slugs, vendor.slug);
   return {
     vendorIds: [...new Set(rows.map(({ id }) => id))],
     slugs,

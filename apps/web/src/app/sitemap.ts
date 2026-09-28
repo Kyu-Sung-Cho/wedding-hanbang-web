@@ -2,12 +2,19 @@ import { MetadataRoute } from "next";
 import { MANNERS_PARTS } from "@/lib/manners/data";
 import { isPriceCatalogBuildPlaceholderEnvironment } from "@/lib/price/buildCatalog";
 import { PRICE_CATEGORIES } from "@/lib/price/catalog";
+import { vendorIdentityGroup } from "@/lib/price/vendorIdentity";
 import {
   assertPublishedVendorCatalog,
   collectPublishedVendorSlugs,
   requiredPublishedVendorCatalogExpectation,
 } from "@/lib/price/staticVendorSlugs";
 import { createPublicClient } from "@/lib/supabase/public";
+import {
+  canonicalVendorSlug,
+  loadVendorIdentityRows,
+  type VendorIdentityCandidateCache,
+  type VendorIdentityRow,
+} from "@/lib/vendors/publicVendorPriceData";
 
 const BASE_URL = "https://hanbang.ai";
 
@@ -41,29 +48,79 @@ function publicationDate(value: string | null): Date | null {
   return new Date(timestamp);
 }
 
+function isIdentityRow(value: unknown): value is VendorIdentityRow {
+  return value !== null && typeof value === "object"
+    && "id" in value && typeof value.id === "string" && value.id.length > 0
+    && "slug" in value && typeof value.slug === "string" && /^[a-z0-9][a-z0-9-]{0,119}$/.test(value.slug)
+    && "name" in value && typeof value.name === "string"
+    && "category" in value && typeof value.category === "string"
+    && "region_code" in value && (value.region_code === null || typeof value.region_code === "string");
+}
+
+async function loadPublicIdentityIndex(client: ReturnType<typeof createPublicClient>) {
+  const bySlug = new Map<string, VendorIdentityRow>();
+  const ids = new Set<string>();
+  const maxRows = 50_000;
+  let expectedCount: number | undefined;
+  let from = 0;
+  while (true) {
+    const requested = Math.min(500, maxRows - from) || 1;
+    const result = await client.from("v_public_vendors")
+      .select("id, slug, name, category, region_code", from === 0 ? { count: "exact" } : undefined)
+      .order("slug", { ascending: true })
+      .order("id", { ascending: true })
+      .range(from, from + requested - 1);
+    if (result.error) throw new Error("PUBLIC_VENDOR_IDENTITY_UNAVAILABLE");
+    if (from === 0) {
+      if (typeof result.count !== "number" || !Number.isSafeInteger(result.count) || result.count < 0) {
+        throw new Error("PUBLIC_VENDOR_SITEMAP_IDENTITY_INVALID");
+      }
+      if (result.count > maxRows) throw new Error("PUBLIC_VENDOR_SITEMAP_IDENTITY_LIMIT");
+      expectedCount = result.count;
+    }
+    const rows: unknown = result.data;
+    if (!Array.isArray(rows) || rows.length > requested) throw new Error("PUBLIC_VENDOR_SITEMAP_IDENTITY_INVALID");
+    if (rows.length === 0) {
+      if (bySlug.size !== expectedCount) throw new Error("PUBLIC_VENDOR_SITEMAP_IDENTITY_INCOMPLETE");
+      return bySlug;
+    }
+    if (from + rows.length > maxRows) throw new Error("PUBLIC_VENDOR_SITEMAP_IDENTITY_LIMIT");
+    for (const row of rows) {
+      if (!isIdentityRow(row) || bySlug.has(row.slug) || ids.has(row.id)) {
+        throw new Error("PUBLIC_VENDOR_SITEMAP_IDENTITY_INVALID");
+      }
+      bySlug.set(row.slug, row);
+      ids.add(row.id);
+    }
+    from += rows.length;
+  }
+}
+
+function identityGroupKey(vendor: VendorIdentityRow): string {
+  const category = vendor.category === "venue" ? "hall" : vendor.category;
+  return JSON.stringify([vendor.category, vendorIdentityGroup(category, vendor.name)]);
+}
+
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
+  // 검증된 수정일이 없는 정적 페이지에는 빌드 시간을 lastModified로 싣지 않는다.
   const staticPages: MetadataRoute.Sitemap = [
     {
       url: `${BASE_URL}/landing`,
-      lastModified: new Date(),
       changeFrequency: "weekly",
       priority: 1.0,
     },
     {
       url: `${BASE_URL}/wedding`,
-      lastModified: new Date(),
       changeFrequency: "daily",
       priority: 1.0,
     },
     {
       url: `${BASE_URL}/price`,
-      lastModified: new Date(),
       changeFrequency: "weekly",
       priority: 0.9,
     },
     {
       url: `${BASE_URL}/start-here`,
-      lastModified: new Date(),
       changeFrequency: "monthly",
       priority: 0.8,
     },
@@ -71,7 +128,6 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     // 페이지도 맨 주소에만 `index`를 준다(`wedding-code/page.tsx`).
     {
       url: `${BASE_URL}/wedding-code`,
-      lastModified: new Date(),
       changeFrequency: "monthly",
       priority: 0.9,
     },
@@ -80,31 +136,26 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     // 사이트맵에 실으면 색인이 한 단계 낭비된다.
     {
       url: `${BASE_URL}/wedding/manners`,
-      lastModified: new Date(),
       changeFrequency: "monthly",
       priority: 0.8,
     },
     ...MANNERS_PARTS.map((part) => ({
       url: `${BASE_URL}/wedding/manners/${part.slug}`,
-      lastModified: new Date(),
       changeFrequency: "monthly" as const,
       priority: 0.7,
     })),
     ...PRICE_CATEGORIES.map((category) => ({
       url: `${BASE_URL}/price/${category}`,
-      lastModified: new Date(),
       changeFrequency: "daily" as const,
       priority: 0.9,
     })),
     {
       url: `${BASE_URL}/wedding/community/quote-check`,
-      lastModified: new Date(),
       changeFrequency: "monthly",
       priority: 0.7,
     },
     {
       url: `${BASE_URL}/login`,
-      lastModified: new Date(),
       changeFrequency: "monthly",
       priority: 0.3,
     },
@@ -114,9 +165,8 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     return staticPages;
   }
 
-  let vendorPages: MetadataRoute.Sitemap = [];
-
-  const supabase = createPublicClient() as unknown as SitemapVendorClient;
+  const publicClient = createPublicClient();
+  const supabase = publicClient as unknown as SitemapVendorClient;
   const latestPublicationBySlug = new Map<string, Date>();
   const vendorSlugs = await collectPublishedVendorSlugs(async (from, to) => {
     const page = await supabase
@@ -143,15 +193,71 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   if (catalogExpectation) {
     assertPublishedVendorCatalog(vendorSlugs, catalogExpectation);
   }
-  vendorPages = vendorSlugs.map((slug) => {
-    const lastModified = latestPublicationBySlug.get(slug);
-    return {
+  if (vendorSlugs.length === 0) return staticPages;
+
+  const seedBySlug = await loadPublicIdentityIndex(publicClient);
+  if (vendorSlugs.some((slug) => !seedBySlug.has(slug))) {
+    throw new Error("PUBLIC_VENDOR_SITEMAP_IDENTITY_MISSING");
+  }
+  const publishedSlugs = new Set(vendorSlugs);
+  const minimumByGroup = new Map<string, string>();
+  for (const seed of seedBySlug.values()) {
+    const key = identityGroupKey(seed);
+    const previous = minimumByGroup.get(key);
+    if (!previous || seed.slug < previous) minimumByGroup.set(key, seed.slug);
+  }
+
+  // 한 실행 안의 진행 중 후보 조회도 공유한다. 상세와 같은 판정을 최대 4개씩 실행한다.
+  const candidateCache: VendorIdentityCandidateCache = new Map();
+  const canonicalBySlug = new Map<string, string>();
+  let cursor = 0;
+  let failed = false;
+  await Promise.all(Array.from({ length: Math.min(4, vendorSlugs.length) }, async () => {
+    try {
+      while (!failed && cursor < vendorSlugs.length) {
+        const slug = vendorSlugs[cursor++];
+        const seed = seedBySlug.get(slug);
+        if (!seed) throw new Error("PUBLIC_VENDOR_SITEMAP_IDENTITY_MISSING");
+        // 상세 후보는 전체 공개 그룹의 부분집합+self다. 전체 그룹의 최소인 self는
+        // ILIKE·200개 제한이 어떤 후보를 빼도 대표다. 나머지는 기존 조회로 판정한다.
+        if (minimumByGroup.get(identityGroupKey(seed)) === slug) {
+          canonicalBySlug.set(slug, slug);
+          continue;
+        }
+        const identities = await loadVendorIdentityRows(publicClient, seed, { candidateCache, strict: true });
+        const canonical = canonicalVendorSlug(identities.map((row) => row.slug), slug);
+        if (!publishedSlugs.has(canonical)) {
+          const representative = identities.find((row) => row.slug === canonical);
+          if (!representative) throw new Error("PUBLIC_VENDOR_SITEMAP_IDENTITY_MISSING");
+          const canonicalIdentities = await loadVendorIdentityRows(publicClient, representative, { candidateCache, strict: true });
+          // 명칭 변경은 후보 조회가 비대칭일 수 있다. 대표 상세도 현재 가격을 찾을 수 있어야 한다.
+          if (!canonicalIdentities.some((row) => publishedSlugs.has(row.slug))) {
+            throw new Error("PUBLIC_VENDOR_SITEMAP_CANONICAL_WITHOUT_CURRENT_PRICE");
+          }
+        }
+        canonicalBySlug.set(slug, canonical);
+      }
+    } catch (error) {
+      failed = true;
+      throw error;
+    }
+  }));
+  const latestPublicationByCanonical = new Map<string, Date | undefined>();
+  for (const slug of vendorSlugs) {
+    const canonical = canonicalBySlug.get(slug);
+    if (!canonical) throw new Error("PUBLIC_VENDOR_SITEMAP_IDENTITY_MISSING");
+    const publishedAt = latestPublicationBySlug.get(slug);
+    const previous = latestPublicationByCanonical.get(canonical);
+    latestPublicationByCanonical.set(canonical, publishedAt && (!previous || publishedAt > previous) ? publishedAt : previous);
+  }
+  const vendorPages: MetadataRoute.Sitemap = [...latestPublicationByCanonical]
+    .sort(([left], [right]) => left < right ? -1 : left > right ? 1 : 0)
+    .map(([slug, lastModified]) => ({
       url: `${BASE_URL}/price/vendor/${slug}`,
       ...(lastModified ? { lastModified } : {}),
       changeFrequency: "weekly" as const,
       priority: 0.7,
-    };
-  });
+    }));
 
   return [...staticPages, ...vendorPages];
 }
