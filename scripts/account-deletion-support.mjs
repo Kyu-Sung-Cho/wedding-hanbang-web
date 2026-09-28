@@ -2,7 +2,7 @@ import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { createClient } from '@supabase/supabase-js';
-import { tsImport } from 'tsx/esm/api';
+import { require as tsxRequire } from 'tsx/cjs/api';
 import { verifySupabaseServiceDestinationFromEnv } from './lib/supabase-service-destination.mjs';
 import { openDeletionSupportStore } from './lib/account-deletion-support-store.mjs';
 
@@ -40,7 +40,7 @@ try {
     const mutation = ['enqueue', 'process'].includes(options.mode);
     const destination = verifySupabaseServiceDestinationFromEnv({ access: mutation ? 'operator-write' : 'read' });
     need(destination.projectRef === PROJECT, 'SUPPORT_CASE_PROJECT_MISMATCH');
-    const { prepareDeletionSupportCase, validateDeletionSupportCase, advanceDeletionSupportCase, validateSupportRuntimeState } = await tsImport(
+    const { prepareDeletionSupportCase, validateDeletionSupportCase, advanceDeletionSupportCase, validateSupportRuntimeState } = tsxRequire(
       '../apps/web/src/lib/accountDeletion/supportCase.ts', import.meta.url);
     store = openDeletionSupportStore(options['case-id'], { initialize: options.mode === 'prepare' });
     if (options.mode === 'prepare') {
@@ -97,7 +97,7 @@ try {
       const admin = createClient(destination.url, process.env.SUPABASE_SERVICE_ROLE_KEY, {
         auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false }, global: { fetch: fetchBound },
       });
-      const worker = await tsImport('../apps/web/src/lib/accountDeletion/communityStorageSaga.ts', import.meta.url);
+      const worker = tsxRequire('../apps/web/src/lib/accountDeletion/communityStorageSaga.ts', import.meta.url);
       const fields = 'id,user_id,status,claim_token,storage_verified_at,auth_deleted_at,completed_at';
       const project = row => ({ id: row.id, userId: row.user_id, status: row.status, claimToken: row.claim_token,
         storageVerifiedAt: row.storage_verified_at, authDeletedAt: row.auth_deleted_at, completedAt: row.completed_at });

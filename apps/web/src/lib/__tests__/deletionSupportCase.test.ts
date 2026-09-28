@@ -1,7 +1,9 @@
 // @vitest-environment node
+import { createHash } from "node:crypto";
 import { describe, expect, it, vi } from "vitest";
 import { issueDeletionSupportProof } from "../accountDeletion/supportProof";
-import { advanceDeletionSupportCase, prepareDeletionSupportCase, validateDeletionSupportCase, validateSupportExecutionObservation, validateSupportRuntimeState,
+import { advanceDeletionSupportCase, getDeletionSupportCaseEventCount, prepareDeletionSupportCase, validateDeletionSupportCase,
+  validateDeletionSupportCaseTransition, validateSupportExecutionObservation, validateSupportRuntimeState,
   type DeletionSupportCase, type SupportCaseDependencies, type SupportJob } from "../accountDeletion/supportCase";
 
 const projectRef = "abcdefghijklmnopqrst";
@@ -31,6 +33,19 @@ function harness(overrides: Partial<SupportCaseDependencies> = {}) {
     ...overrides,
   };
   return { deps, saved, changeJob: (change: Partial<SupportJob>) => { job = { ...job, ...change }; } };
+}
+
+function legacyCaseAtHistoryLimit(count: 99 | 100): DeletionSupportCase {
+  const value = fixture().value;
+  const at = new Date(now).toISOString();
+  const events: DeletionSupportCase["events"] = [value.events[0],
+    { at, state: "enqueue-unverified", jobId: null },
+    { at, state: "queued", jobId }];
+  while (events.length < count) {
+    events.push({ at, state: events.length % 2 === 1 ? "process-unverified" : "pending", jobId });
+  }
+  return { ...value, format: "hanbang-deletion-support-case-v1", history: undefined,
+    jobId, state: count === 100 ? "process-unverified" : "pending", events };
 }
 describe("지원 사건은 실제 요청·본인·exact job을 묶는다", () => {
   it("새 read-only runtime 응답은 정확 commit·30초·두 false 값만 허용한다", () => {
@@ -149,5 +164,141 @@ describe("지원 사건은 실제 요청·본인·exact job을 묶는다", () =>
     await expect(advanceDeletionSupportCase(queued, "inspect", h.deps)).rejects.toThrow("JOB_MISMATCH");
     expect(() => validateDeletionSupportCase({ ...queued, generalCustomerDataRemovalVerified: true }, projectRef)).toThrow();
     expect(() => validateDeletionSupportCase({ ...queued, jobId: caseId }, projectRef)).toThrow();
+  });
+  it("기존 100개 이력에서 미확정 처리를 조회한 뒤 같은 작업을 재개한다", async () => {
+    const h = harness();
+    const legacy = legacyCaseAtHistoryLimit(100);
+    validateDeletionSupportCase(legacy, projectRef);
+
+    const inspected = await advanceDeletionSupportCase(legacy, "inspect", h.deps);
+    expect(inspected.state).toBe("pending");
+    expect(h.deps.process).not.toHaveBeenCalled();
+    const resumed = await advanceDeletionSupportCase(inspected, "process", h.deps);
+    expect(resumed).toMatchObject({ jobId, state: "pending", requestSha256: legacy.requestSha256 });
+    expect(resumed.events[0]).toEqual(legacy.events[0]);
+    expect(resumed.events.length).toBeLessThanOrEqual(100);
+    expect(h.deps.process).toHaveBeenCalledExactlyOnceWith(jobId);
+  });
+  it("99개 이력에서 시작한 처리의 결과까지 영속화하고 재시도할 수 있다", async () => {
+    const h = harness();
+    const legacy = legacyCaseAtHistoryLimit(99);
+    const result = await advanceDeletionSupportCase(legacy, "process", h.deps);
+    expect(result.state).toBe("pending");
+    expect(h.saved.at(-1)).toEqual(result);
+    expect(result.events[0]).toEqual(legacy.events[0]);
+    expect(result.events.length).toBeLessThanOrEqual(100);
+    await expect(advanceDeletionSupportCase(result, "process", h.deps)).resolves.toMatchObject({ state: "pending" });
+    expect(h.deps.process).toHaveBeenCalledTimes(2);
+  });
+  it("큰 파일 목록과 반복 대기를 처리해도 활성 이력과 메모리 크기가 계속 늘지 않는다", async () => {
+    const h = harness();
+    const prepared = fixture().value;
+    let current = await advanceDeletionSupportCase(prepared, "enqueue", h.deps);
+    for (let attempt = 0; attempt < 600; attempt++) {
+      current = await advanceDeletionSupportCase(current, "process", h.deps);
+      expect(current.events.length).toBeLessThanOrEqual(100);
+      expect(Buffer.byteLength(JSON.stringify(current))).toBeLessThan(32 * 1024);
+      expect(current.events[0]).toEqual(prepared.events[0]);
+      validateDeletionSupportCase(current, projectRef);
+    }
+    expect(current).toMatchObject({ state: "pending", jobId, requestSha256: prepared.requestSha256,
+      generalCustomerDataRemovalVerified: false });
+    expect(h.deps.process).toHaveBeenCalledTimes(600);
+
+    // 활성 창에서 빠진 원문도 앞선 append-only journal 레코드에서 전부 복원된다.
+    const journal = [prepared, ...h.saved];
+    const fullHistory = journal.map((entry, index) => {
+      validateDeletionSupportCaseTransition(index === 0 ? null : journal[index - 1], entry);
+      return entry.events[entry.events.length - 1];
+    });
+    expect(fullHistory).toHaveLength(1203);
+    expect(current.events).toEqual([fullHistory[0], ...fullHistory.slice(-99)]);
+    let archivedSha256: string | null = null;
+    for (const event of fullHistory.slice(1, -99)) {
+      archivedSha256 = createHash("sha256").update(JSON.stringify([archivedSha256, event])).digest("hex");
+    }
+    expect(current).toMatchObject({ format: "hanbang-deletion-support-case-v2",
+      history: { totalEvents: 1203, archivedEvents: 1103, archivedSha256 } });
+  });
+  it("기존 journal을 검증하고 100번째 이후 버전 전환에서 빠진 원문을 연결한다", async () => {
+    const legacy = legacyCaseAtHistoryLimit(100);
+    for (let count = 1; count <= 100; count++) {
+      const events = legacy.events.slice(0, count);
+      const last = events[events.length - 1];
+      const next: DeletionSupportCase = { ...legacy, state: last.state, jobId: last.jobId, events };
+      const previousLast = legacy.events[count - 2];
+      const previous: DeletionSupportCase | null = count === 1 ? null : {
+        ...legacy, state: previousLast.state, jobId: previousLast.jobId, events: legacy.events.slice(0, count - 1),
+      };
+      expect(() => validateDeletionSupportCaseTransition(previous, next)).not.toThrow();
+      expect(getDeletionSupportCaseEventCount(next)).toBe(count);
+    }
+    const before = structuredClone(legacy);
+    const h = harness();
+    const next = await advanceDeletionSupportCase(legacy, "inspect", h.deps);
+    expect(next).toMatchObject({ format: "hanbang-deletion-support-case-v2", history: {
+      totalEvents: 101, archivedEvents: 1,
+      archivedSha256: createHash("sha256").update(JSON.stringify([null, legacy.events[1]])).digest("hex"),
+    } });
+    expect(legacy).toEqual(before);
+    expect(() => validateDeletionSupportCaseTransition(legacy, next)).not.toThrow();
+    expect(() => validateDeletionSupportCaseTransition(null, next)).toThrow("HISTORY_INVALID");
+  });
+  it.each(["hash", "count", "prefix", "first", "owner", "job", "skip", "reorder"])(
+    "journal 전이에서 %s 위조를 거절한다", async (kind) => {
+      const legacy = legacyCaseAtHistoryLimit(100);
+      const next = await advanceDeletionSupportCase(legacy, "inspect", harness().deps);
+      if (next.format !== "hanbang-deletion-support-case-v2") throw new Error("Expected v2 history");
+      if (kind === "hash") next.history.archivedSha256 = "a".repeat(64);
+      if (kind === "count") { next.history.totalEvents++; next.history.archivedEvents++; }
+      if (kind === "prefix") next.events[1].state = "manual_review";
+      if (kind === "first") next.events[0].at = new Date(now + 1).toISOString();
+      if (kind === "owner") next.subject = caseId;
+      if (kind === "job") {
+        next.jobId = caseId;
+        next.events = next.events.map(event => ({ ...event, jobId: event.jobId === null ? null : caseId }));
+      }
+      if (kind === "skip") next.events.splice(1, 1);
+      if (kind === "reorder") [next.events[1], next.events[2]] = [next.events[2], next.events[1]];
+      expect(() => validateDeletionSupportCaseTransition(legacy, next)).toThrow("HISTORY_INVALID");
+    },
+  );
+  it("v2를 옛 형식으로 되돌리거나 메타데이터를 빼서 감사 카운트를 초기화할 수 없다", async () => {
+    const prepared = fixture().value;
+    const h = harness();
+    await advanceDeletionSupportCase(prepared, "enqueue", h.deps);
+    const next = h.saved[0];
+    expect(() => validateDeletionSupportCaseTransition(prepared, {
+      ...next, format: "hanbang-deletion-support-case-v1", history: undefined,
+    })).toThrow("HISTORY_INVALID");
+    const missingHistory = structuredClone(next);
+    Reflect.deleteProperty(missingHistory, "history");
+    expect(() => validateDeletionSupportCase(missingHistory, projectRef)).toThrow("HISTORY_INVALID");
+  });
+  it("숫자 한계에서 처리 전후 두 기록을 남길 수 없으면 원격 조회·처리 전에 멈춘다", async () => {
+    const h = harness();
+    const legacy = legacyCaseAtHistoryLimit(99);
+    const full = await advanceDeletionSupportCase(legacy, "process", h.deps);
+    if (full.format !== "hanbang-deletion-support-case-v2") throw new Error("Expected v2 history");
+    full.history = { totalEvents: Number.MAX_SAFE_INTEGER - 1,
+      archivedEvents: Number.MAX_SAFE_INTEGER - 101, archivedSha256: "a".repeat(64) };
+    validateDeletionSupportCase(full, projectRef);
+    const bounded = harness();
+    await expect(advanceDeletionSupportCase(full, "process", bounded.deps)).rejects.toThrow("HISTORY_LIMIT");
+    expect(bounded.deps.persist).not.toHaveBeenCalled();
+    expect(bounded.deps.readJob).not.toHaveBeenCalled();
+    expect(bounded.deps.process).not.toHaveBeenCalled();
+  });
+  it("100개 이후에도 응답 유실 시 조회 없이 파괴 단계를 다시 실행하지 않는다", async () => {
+    const h = harness();
+    const inspected = await advanceDeletionSupportCase(legacyCaseAtHistoryLimit(100), "inspect", h.deps);
+    h.deps.process = vi.fn(async () => { throw new Error("response lost"); });
+    await expect(advanceDeletionSupportCase(inspected, "process", h.deps)).rejects.toThrow("response lost");
+    const unverified = h.saved.at(-1)!;
+    expect(unverified).toMatchObject({ state: "process-unverified", history: { totalEvents: 102 } });
+    await expect(advanceDeletionSupportCase(unverified, "process", h.deps)).rejects.toThrow("INSPECT_FIRST");
+    const recovered = await advanceDeletionSupportCase(unverified, "inspect", h.deps);
+    expect(recovered).toMatchObject({ state: "pending", history: { totalEvents: 103 } });
+    expect(h.deps.process).toHaveBeenCalledTimes(1);
   });
 });

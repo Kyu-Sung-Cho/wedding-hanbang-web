@@ -85,6 +85,7 @@ function event(
 
 async function createDatabase(options: {
   coupleProgress?: Record<string, unknown>;
+  coupleTotalBudget?: number;
   soloProgress?: Record<string, unknown>;
   seedLegacyApplied?: boolean;
   seedLegacyScheduleApplied?: boolean;
@@ -467,7 +468,7 @@ async function createDatabase(options: {
       couple_id, wedding_date, venue, total_budget, progress
     ) VALUES
       (
-        '${COUPLE_ID}', '2027-05-01', '기존 예식장', 50000000,
+        '${COUPLE_ID}', '2027-05-01', '기존 예식장', ${options.coupleTotalBudget ?? 50_000_000},
         '${coupleProgress}'::jsonb
       ),
       (
@@ -4335,4 +4336,245 @@ describe("일정과 체크리스트를 한 번에 저장할 수 없다", () => {
       })).status,
     ).toBe("applied");
   }, 120000);
+});
+
+describe("W12 fixture current SQL contract", () => {
+  async function createCurrentDatabase() {
+    const db = await createDatabase({ coupleTotalBudget: 0 });
+    try {
+      // 과거 승인 정책 회귀는 유지하고 이 검증에만 현행 정책을 적용한다.
+      await db.exec(migration("20260823120000_couple_approval_becomes_notification.sql"));
+      await db.exec(migration("20260824160000_first_budget_entry_is_not_a_mixed_change.sql"));
+      await setServiceRole(db);
+      return db;
+    } catch (error) {
+      await db.close();
+      throw error;
+    }
+  }
+
+  const checklist = [{ id: "w12-local-check", label: "합성 체크 확인", done: true }];
+  const scheduleEvent = {
+    id: "70000000-0000-4000-8000-000000000001",
+    date: "2027-03-01",
+    title: "합성 일정",
+    status: "planned",
+    categoryKey: "greeting",
+    createdAt: "2026-09-13T03:00:00.000Z",
+    updatedAt: "2026-09-13T03:00:00.000Z",
+  };
+  const legacyMixedChanges = {
+    total_budget: 100_000,
+    progress_patch: {
+      greeting: {
+        category: "greeting", budget: 10_000, spent: 0, payer: "couple",
+        status: "completed", checklist,
+      },
+      __events: [scheduleEvent],
+    },
+  };
+
+  type FixtureJourney = {
+    couple_id: string;
+    state_revision: number;
+    total_budget: number;
+    wedding_date: string | null;
+    venue: string | null;
+    progress: {
+      greeting?: Record<string, unknown>;
+      __events?: Array<Record<string, unknown>>;
+    };
+  };
+  type FixturePatch = {
+    expected_couple_id: string;
+    expected_revision: number;
+    total_budget?: number;
+    progress_patch: Record<string, unknown>;
+  };
+
+  async function readFixtureState(db: PGlite) {
+    const result = await db.query<{
+      journey: FixtureJourney;
+      requests: number;
+      acceptances: number;
+      decisions: number;
+      notifications: number;
+    }>(`
+      SELECT jsonb_build_object(
+        'couple_id', couple_id, 'state_revision', state_revision,
+        'total_budget', total_budget, 'progress', progress,
+        'wedding_date', wedding_date, 'venue', venue
+      ) AS journey,
+        (SELECT count(*)::integer FROM public.couple_plan_change_requests) AS requests,
+        (SELECT count(*)::integer FROM public.couple_plan_change_acceptances) AS acceptances,
+        (SELECT count(*)::integer FROM public.decision_nodes) AS decisions,
+        (SELECT count(*)::integer FROM public.couple_change_notifications) AS notifications
+      FROM public.wedding_journeys WHERE couple_id = $1
+    `, [COUPLE_ID]);
+    return result.rows[0];
+  }
+
+  function buildFixturePatch(
+    current: FixtureJourney,
+    phase: "budget" | "checklist" | "schedule",
+  ): FixturePatch {
+    const binding = {
+      expected_couple_id: current.couple_id,
+      expected_revision: current.state_revision,
+    };
+    if (phase === "budget") {
+      return {
+        ...binding,
+        total_budget: 100_000,
+        progress_patch: {
+          greeting: {
+            category: "greeting", budget: 10_000, spent: 0,
+            payer: "couple", status: "not_started",
+          },
+        },
+      };
+    }
+    if (phase === "checklist") {
+      return {
+        ...binding,
+        // progress_patch는 얕은 병합이다. 직전에 저장한 예산 필드를 보존한다.
+        progress_patch: {
+          greeting: { ...current.progress.greeting, status: "completed", checklist },
+        },
+      };
+    }
+    return {
+      ...binding,
+      progress_patch: {
+        __events: [...(current.progress.__events ?? []), scheduleEvent],
+      },
+    };
+  }
+
+  function submitFixturePatch(db: PGlite, patch: FixturePatch) {
+    const { expected_couple_id, expected_revision, ...changes } = patch;
+    return submit(db, {
+      coupleId: expected_couple_id,
+      revision: expected_revision,
+      changes,
+      surface: changes.total_budget !== undefined ? "/budget" : "/schedule",
+      summary: "합성 준비 기록",
+    });
+  }
+
+  it("rejects the legacy mixed fixture without changing data or audit rows", async () => {
+    const db = await createCurrentDatabase();
+    try {
+      const before = await readFixtureState(db);
+      expect(before.journey).toMatchObject({
+        state_revision: 0, total_budget: 0, progress: {},
+      });
+      await expect(submit(db, {
+        changes: legacyMixedChanges,
+        surface: "/budget",
+      })).rejects.toThrow(/COUPLE_PLAN_CHANGE_UNSUPPORTED_MIXED_DELTA/);
+      expect(await readFixtureState(db)).toEqual(before);
+    } finally {
+      await resetPersona(db).catch(() => undefined);
+      await db.close();
+    }
+  }, 120_000);
+
+  it("applies three independent patches using fresh revisions and replays without duplicates", async () => {
+    const db = await createCurrentDatabase();
+    try {
+      const completed: Array<{ patch: FixturePatch; requestId: string; revision: number }> = [];
+      const expectedGreeting = {
+        category: "greeting", budget: 10_000, spent: 0,
+        payer: "couple", status: "not_started",
+      };
+      for (const phase of ["budget", "checklist", "schedule"] as const) {
+        const before = await readFixtureState(db);
+        const patch = buildFixturePatch(before.journey, phase);
+        const result = await submitFixturePatch(db, patch);
+        expect(result).toMatchObject({
+          status: "applied", requiredCount: 1, acceptedCount: 1,
+          appliedRevision: before.journey.state_revision + 1,
+        });
+        const after = await readFixtureState(db);
+        expect(after.journey.state_revision).toBe(before.journey.state_revision + 1);
+        expect(after.journey.total_budget).toBe(100_000);
+        expect(after.journey.wedding_date).toBe(before.journey.wedding_date);
+        expect(after.journey.venue).toBe(before.journey.venue);
+        expect(Object.keys(after.journey.progress).sort()).toEqual(
+          phase === "schedule" ? ["__events", "greeting"] : ["greeting"],
+        );
+        expect(after.requests).toBe(before.requests + 1);
+        expect(after.acceptances).toBe(before.acceptances + 1);
+        expect(after.decisions).toBe(before.decisions + 1);
+        expect(after.notifications).toBe(before.notifications + 1);
+        expect(after.journey.progress.greeting).toEqual(phase === "budget"
+          ? expectedGreeting
+          : { ...expectedGreeting, status: "completed", checklist });
+        if (phase !== "schedule") {
+          expect(after.journey.progress.__events).toBeUndefined();
+        } else {
+          expect(after.journey.progress.__events).toHaveLength(1);
+          const storedEvent = after.journey.progress.__events?.[0];
+          expect(storedEvent).toMatchObject({
+            id: scheduleEvent.id, date: scheduleEvent.date, title: scheduleEvent.title,
+            status: "planned", categoryKey: "greeting",
+          });
+          expect(storedEvent?.createdAt).not.toBe(scheduleEvent.createdAt);
+          expect(storedEvent?.updatedAt).toBe(storedEvent?.createdAt);
+          const canonical = await db.query<{ event: Record<string, unknown> }>(
+            "SELECT schedule_after_event AS event FROM public.couple_plan_change_requests WHERE id = $1",
+            [result.requestId],
+          );
+          expect(storedEvent).toEqual(canonical.rows[0].event);
+        }
+        completed.push({ patch, requestId: result.requestId, revision: after.journey.state_revision });
+      }
+      const finalState = await readFixtureState(db);
+      expect(finalState.journey.state_revision).toBe(3);
+      expect(finalState.requests).toBe(3);
+      expect(finalState.acceptances).toBe(3);
+      for (const { patch, requestId, revision } of completed) {
+        expect(await submitFixturePatch(db, patch)).toMatchObject({
+          requestId, status: "applied", appliedRevision: revision,
+        });
+        expect(await readFixtureState(db)).toEqual(finalState);
+      }
+    } finally {
+      await resetPersona(db).catch(() => undefined);
+      await db.close();
+    }
+  }, 120_000);
+
+  it("records a stale revision without applying it and succeeds only after a fresh read", async () => {
+    const db = await createCurrentDatabase();
+    try {
+      const initial = await readFixtureState(db);
+      await submitFixturePatch(db, buildFixturePatch(initial.journey, "budget"));
+      const before = await readFixtureState(db);
+      const stale = {
+        ...buildFixturePatch(before.journey, "checklist"),
+        expected_revision: initial.journey.state_revision,
+      };
+      expect(await submitFixturePatch(db, stale)).toMatchObject({
+        status: "stale", appliedRevision: null, journey: null,
+      });
+      const after = await readFixtureState(db);
+      expect(after.journey).toEqual(before.journey);
+      expect(after.decisions).toBe(before.decisions);
+      expect(after.notifications).toBe(before.notifications);
+      // 거절도 감사 대상이다. stale 요청과 실행자 확인 기록만 추가된다.
+      expect(after.requests).toBe(before.requests + 1);
+      expect(after.acceptances).toBe(before.acceptances + 1);
+      const fresh = await readFixtureState(db);
+      expect(await submitFixturePatch(db, buildFixturePatch(fresh.journey, "checklist")))
+        .toMatchObject({ status: "applied", appliedRevision: 2 });
+      expect((await readFixtureState(db)).journey.progress.greeting).toMatchObject({
+        budget: 10_000, spent: 0, payer: "couple", status: "completed", checklist,
+      });
+    } finally {
+      await resetPersona(db).catch(() => undefined);
+      await db.close();
+    }
+  }, 120_000);
 });

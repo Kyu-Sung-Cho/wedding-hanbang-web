@@ -26,7 +26,7 @@ try {
     Assert-HBAM2PrivateDirectoryAcl -Path $path
   }
   if ($FileName) {
-    if ($FileName -cnotmatch '^([0-9]{5}\.dpapi|case\.lock)$') { throw 'invalid' }
+    if ($FileName -cnotmatch '^((?:[0-9]{5}|[1-9][0-9]{5,15})\.dpapi|case\.lock)$') { throw 'invalid' }
     $file = Join-Path $directory $FileName
     Assert-HBAM2PathUnderAnchorWithoutReparsePoints -Path $file -Anchor $anchor
     Assert-HBAM2PrivateFileAcl -Path $file
