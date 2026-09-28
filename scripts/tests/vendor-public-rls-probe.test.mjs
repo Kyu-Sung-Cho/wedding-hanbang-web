@@ -1449,14 +1449,25 @@ test("CI keeps production blocked after the dedicated staging probe is approved"
   assert.match(workflow, /needs: \[[^\]]*production_readiness[^\]]*\]/);
   assert.match(workflow, /PRODUCTION_READINESS_RESULT: \$\{\{ needs\.production_readiness\.result \}\}/);
   assert.match(workflow, /\[ "\$PRODUCTION_READINESS_RESULT" != "success" \]/);
-  const readinessJob = workflow.slice(
-    workflow.indexOf("\n  production_readiness:"),
-    workflow.indexOf("\n  ci:"),
-  );
-  const finalGateJob = workflow.slice(workflow.indexOf("\n  ci:"));
-  assert.match(readinessJob, /if: \$\{\{ always\(\) \}\}/);
+  // Each job body runs from its header to the next job header, with comment lines
+  // dropped so a comment can never answer for the job's own `if:` or `exit 1`.
+  const jobBody = (name) => {
+    const start = workflow.indexOf(`\n  ${name}:\n`);
+    assert.notEqual(start, -1, `job ${name} is missing`);
+    const rest = workflow.slice(start + 1);
+    const next = rest.slice(1).search(/\n {2}[A-Za-z_][A-Za-z0-9_-]*:\n/);
+    return (next === -1 ? rest : rest.slice(0, next + 1))
+      .split("\n").filter((line) => !/^\s*#/.test(line)).join("\n");
+  };
+  const readinessJob = jobBody("production_readiness");
+  const finalGateJob = jobBody("ci");
+  // 2026-09-27 founder approval: both blocking jobs run only on manual dispatch
+  // (they used to turn every PR red). When they run they still fail closed.
+  const dispatchOnly = /^ {4}if: \$\{\{ always\(\) && github\.event_name == 'workflow_dispatch' \}\}$/m;
+  assert.match(readinessJob, dispatchOnly);
   assert.match(readinessJob, /\n\s+exit 1\s*$/m);
-  assert.match(finalGateJob, /if: \$\{\{ always\(\) \}\}/);
+  assert.match(finalGateJob, dispatchOnly);
+  assert.match(finalGateJob, /needs: \[[^\]]*production_readiness[^\]]*\]/);
   assert.match(
     packageJson.scripts["supabase:release:test"],
     /vendor-public-rls-probe\.test\.mjs/,

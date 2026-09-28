@@ -1972,7 +1972,11 @@ P0 test-only branch/PR을 만들고 RED 증거를 고정한 뒤, 기능별 최�
 - EAS production gate 우회
 - memory/push/media/provider flag를 먼저 켜기
 - 2개 saved note를 provenance 확인 없이 삭제
-- `Production Readiness` 실패를 무시하고 merge
+- 필수 검사 `Code Quality (breakage signal only — not a release authorization)`가
+  초록이 아닌 채로 merge하거나, 그 초록불을 운영 배포·DB 적용 허가로 읽기
+  (2026-09-27 갱신: `Production Readiness`와 `Quality Gate`는 파운더 승인으로
+  수동 실행에서만 돈다. PR에는 더 이상 나타나지 않으며, 수동 실행하면 여전히
+  fail-closed로 실패한다. hosted 증거 없이 운영에 내보내지 않는다는 규칙은 그대로다.)
 - 목표 아키텍처를 구현 완료로 표시
 
 ### 20.7 새 LLM에 그대로 전달할 첫 메시지
