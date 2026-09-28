@@ -1,5 +1,5 @@
 import { PRICE_DISCLOSURE_FAQ_MAIN_ENTITY } from "./categoryJsonLd";
-import { DISCLOSURE_ROUND } from "./period";
+import { DISCLOSURE_ROUND, disclosureRoundLabel } from "./period";
 
 const BASE_URL = "https://hanbang.ai";
 
@@ -40,6 +40,7 @@ export function buildPriceVendorStructuredData({
       "@context": "https://schema.org",
       "@type": "Dataset",
       name: `${vendorName} 결혼서비스 공시 가격`,
+      description: `한국소비자원 참가격의 ${disclosureRoundLabel()} 공시를 바탕으로 정리한 ${vendorName}의 ${categoryLabel} 공개 가격 정보입니다. 공시 기준 가격이며 실제 계약 조건·시점에 따라 달라질 수 있습니다.`,
       // 검색엔진에 하는 공개 선언이다. 내부 스냅샷 이름(2026Q3)을 넣으면
       // 2025-11 공시를 2026년 3분기 데이터라고 기계가 읽는다. ISO 8601 연-월로 준다.
       temporalCoverage: DISCLOSURE_ROUND,

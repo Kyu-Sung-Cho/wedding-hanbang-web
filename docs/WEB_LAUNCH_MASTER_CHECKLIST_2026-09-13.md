@@ -10,6 +10,17 @@
 앱스토어 제출은 이번 단계 밖이다. 아래 09-13 표는 당시 검증의 이력이며,
 상충하는 현재 상태는 이 절과 연결된 후속 영수증을 우선한다.
 
+### 09-28 후속 운영 확인
+
+- **W01/W02:** PR462 가입 오류 처리가 운영 `6546dd81a859febb369580d75c38ed607e1483f4`에 반영됐다. Vercel READY·도메인·실제 health와 로그인 화면을 확인했다. 온보딩 접근은 기존 로그인 세션에서 확인한 것이며 익명 401·운영 503 주입 실증으로 확대하지 않는다.
+- **W12 코드 수정:** PR463의 `37571d6058adca156741baafa2f335ad2329f9bc`가 03:26:38 UTC에 병합됐다. 검증 후보와 main tree 일치, CI의 코드·웹 4개 shard·모바일·Vendor·Static Release 전부 성공, 운영 `dpl_BFDqvJxBmQre7uNY29DFacuW8z3a` READY/양 도메인 alias와 03:29:51 UTC health DB up·commit 일치를 확인했다. 100개 지원 이력 제한·로더 수정의 운영 반영이며 실제 A/B 탈퇴 완료가 아니다. 수동 전용 Production Readiness/Quality Gate는 SKIPPED로 구분한다.
+- **검색 메타데이터:** 대표 URL·lastmod·Dataset 설명을 보완했다. 공개 데이터 직접 실행에서 결과 869 URL의 bytes를 유지하며 44.290초/835요청을 13.547초/183요청으로 줄였다. 관련 74개 검사와 전체 정상 pre-push 9개 작업이 성공했다. 최종 통합 후보 CI·프리뷰·운영 검증은 별도다. `docs/operations/WEB_SEARCH_METADATA_2026-09-28.md`에 연결한다.
+- **남은 실제 경계:** W12의 합성 pair 재개·탈퇴 후 상대 보존, W13 원본 반입용 PC 보호/원본 복원, W15 최종 실기기는 미완료다. Google은 현재 계정의 소유권 연결 확인 대기, 네이버는 로그인 필요 상태다. 기존 성공한 합성 복원과 Sentry 수신을 다시 미완료로 돌리지 않는다.
+
+후속 로컬 영수증: `C:/Users/kcho1/.codex/visualizations/web-launch-20260928/`의 `AUTH_PRODUCTION_VERIFICATION.md`, `W12_PRODUCTION_VERIFICATION.md`, `SEARCH_REGISTRATION_STATUS.md`, `W13_HOST_READINESS.md`. 운영 원문·자격증명은 이 문서에 복사하지 않는다.
+
+### 재개 시점의 최초 관측과 진단 이력
+
 - **W01 배포 소스:** Vercel과 GitHub를 직접 대조해 운영 main
   `8b6d96d02c15395a37c894b9c3996632113f70da`, deployment
   `dpl_CbwzivunJWiwJW7GK9oSh2xQgoQ5`의 READY와 양 도메인 alias를 확인했다.
