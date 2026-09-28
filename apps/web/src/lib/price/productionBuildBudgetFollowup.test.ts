@@ -36,6 +36,9 @@ import {
   VENDOR_DISCLOSURE_STATIC_CONTRACT_INVALID,
 } from "../../../vendorDisclosureProductionBuildFence";
 
+import { DELETION_AUDIT_CONTRACT_FILE, loadDeletionAuditNullabilityReleasePlan } from "../../../../../scripts/lib/account-deletion-audit-nullability-release-contract.mjs";
+import { createWeddingCodePairSessionConflictHistoricalRepository } from "../../../../../scripts/tests/fixtures/wedding-code-pair-session-conflict-historical-repository.mjs";
+
 const repoRoot = resolve(import.meta.dirname, "../../../../..");
 const followup = "amora-budget-decision-hotfix";
 const budgetContract = "supabase/release-contracts/amora-budget-decision-hotfix-v1.json";
@@ -92,6 +95,12 @@ let cleanupPairConflictFixture: (() => void) | undefined;
 const pairConflictPins = [WEDDING_CODE_PAIR_SESSION_CONFLICT_CONTRACT_FILE, "scripts/lib/wedding-code-pair-session-conflict-release.mjs",
   "scripts/lib/wedding-code-pair-session-conflict-catalog.mjs", "supabase/release-contracts/wedding-code-pair-session-conflict-pg17-catalog-v1.json",
   "supabase/migrations/20260923132503_wedding_code_pair_session_conflict_response.sql"];
+
+let auditFixtureRoot: string;
+let cleanupAuditFixture: (() => void) | undefined;
+const auditPins = [DELETION_AUDIT_CONTRACT_FILE, "scripts/lib/account-deletion-audit-nullability-release.mjs",
+  "scripts/lib/wedding-code-pair-session-conflict-release-contract.mjs",
+  "supabase/migrations/20260928073546_account_deletion_anonymous_audit.sql"];
 
 function production(root: string, authorization = expectedProductionAuthorizationSha256(root)) {
   return assertVendorDisclosureProductionBuild({
@@ -156,6 +165,10 @@ beforeAll(async () => {
   pairConflictFixtureRoot = pairConflictHistory.root;
   cleanupPairConflictFixture = pairConflictHistory.cleanup;
   for (const file of pairConflictPins) await copyFile(join(repoRoot, file), join(pairConflictFixtureRoot, file));
+  const auditHistory = createWeddingCodePairSessionConflictHistoricalRepository(repoRoot);
+  auditFixtureRoot = auditHistory.root;
+  cleanupAuditFixture = auditHistory.cleanup;
+  for (const file of auditPins) await copyFile(join(repoRoot, file), join(auditFixtureRoot, file));
 }, 300_000);
 
 afterAll(async () => {
@@ -171,12 +184,64 @@ afterAll(async () => {
   cleanupPreparationFixture?.();
   cleanupPairSessionFixture?.();
   cleanupPairConflictFixture?.();
+  cleanupAuditFixture?.();
+});
+
+describe("production build registers only the exact 240 deletion audit nullable successor", () => {
+  describe("reviewed 240 acceptance and authorization", () => {
+    const repositories = [
+      { label: "current checkout", resolveRoot: () => repoRoot },
+      { label: "isolated fixture", resolveRoot: () => auditFixtureRoot },
+    ];
+
+    it.each(repositories)("preserves independent hosted evidence for $label", ({ resolveRoot }) => {
+      const plan = loadDeletionAuditNullabilityReleasePlan(resolveRoot());
+      expect(plan.migrationCount).toBe(240);
+      expect(plan.runtimeEvidenceVerified).toBe(false);
+      expect(plan.releaseAuthorized).toBe(false);
+    }, 120_000);
+
+    it.each(repositories)("allows an owner-authorized production build for $label", ({ resolveRoot }) => {
+      expect(() => production(resolveRoot())).not.toThrow();
+    }, 120_000);
+
+    it.each(repositories)("keeps the public 239 loader closed to 240 SQL for $label", ({ resolveRoot }) => {
+      expect(() => loadWeddingCodePairSessionConflictReleasePlan(resolveRoot()))
+        .toThrowError(expect.objectContaining({ code: "NEW_MIGRATION_NOT_REVIEWED" }));
+    }, 120_000);
+
+    it.each(repositories)("rejects an incorrect owner authorization for $label", ({ resolveRoot }) => {
+      expect(() => production(resolveRoot(), "wrong")).toThrow(VENDOR_DISCLOSURE_EXTERNAL_AUTHORIZATION_INVALID);
+    }, 120_000);
+
+    it.each(repositories)("requires an explicit owner authorization for $label", ({ resolveRoot }) => {
+      expect(() => assertVendorDisclosureProductionBuild({ repoRoot: resolveRoot(), environment: { VERCEL_ENV: "production" } }))
+        .toThrow(VENDOR_DISCLOSURE_EXTERNAL_AUTHORIZATION_NOT_IMPLEMENTED);
+    }, 120_000);
+  });
+  it.each([...auditPins, ...pairSessionPins, PREPARATION_STYLE_CONTRACT_FILE])(
+    "rejects changed or missing 240 and predecessor pins without falling back: %s", async file => {
+      const target = join(auditFixtureRoot, file), bytes = await readFile(target);
+      try {
+        await writeFile(target, Buffer.concat([bytes, Buffer.from("\n")]));
+        expect(() => production(auditFixtureRoot)).toThrow(VENDOR_DISCLOSURE_STATIC_CONTRACT_INVALID);
+        await rm(target);
+        expect(() => production(auditFixtureRoot)).toThrow(VENDOR_DISCLOSURE_STATIC_CONTRACT_INVALID);
+      } finally { await writeFile(target, bytes); }
+    }, 60_000,
+  );
+  it("does not admit unreviewed SQL beyond the exact 240 migration set", async () => {
+    const target = join(auditFixtureRoot, "supabase/migrations/20990101000000_unreviewed.sql");
+    try {
+      await writeFile(target, "SELECT 1;\n", { flag: "wx" });
+      expect(() => production(auditFixtureRoot)).toThrow(VENDOR_DISCLOSURE_STATIC_CONTRACT_INVALID);
+    } finally { await rm(target); }
+  }, 60_000);
 });
 
 describe("production build registers only the exact 239 pair-session conflict successor", () => {
   describe("reviewed 239 acceptance and authorization", () => {
     const repositories = [
-      { label: "current checkout", resolveRoot: () => repoRoot },
       { label: "isolated fixture", resolveRoot: () => pairConflictFixtureRoot },
     ];
 

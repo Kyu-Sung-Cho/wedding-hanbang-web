@@ -10,6 +10,10 @@ const migration = readFileSync(
   resolve(repoRoot, "supabase/migrations/20260716113000_account_deletion_storage_saga.sql"),
   "utf8",
 );
+const anonymousAuditMigration = readFileSync(
+  resolve(repoRoot, "supabase/migrations/20260928073546_account_deletion_anonymous_audit.sql"),
+  "utf8",
+);
 const releasePost = readFileSync(
   resolve(repoRoot, "supabase/release-checks/amora-engine-v2-20260716-post.sql"),
   "utf8",
@@ -62,7 +66,7 @@ const CHAT_FILE_ID = "99999999-9999-4999-8999-999999999999";
 const CHAT_PATH = `${COUPLE_ID}/${USER_ID}/${CHAT_FILE_ID}.jpeg`;
 const OTHER_USER_ID = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 
-async function database() {
+async function database(options: { applyAnonymousAuditMigration?: boolean } = {}) {
   const db = await PGlite.create();
   await db.exec(`
     CREATE ROLE anon NOLOGIN;
@@ -84,10 +88,10 @@ async function database() {
     );
     CREATE TABLE public.account_deletions (
       id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-      user_id uuid,
+      user_id uuid NOT NULL,
       email text,
-      reason text DEFAULT 'unknown',
-      deleted_at timestamptz DEFAULT clock_timestamp()
+      reason text NOT NULL DEFAULT 'unknown',
+      deleted_at timestamptz NOT NULL DEFAULT clock_timestamp()
     );
     CREATE TABLE public.community_upload_sessions (
       id uuid PRIMARY KEY,
@@ -106,8 +110,111 @@ async function database() {
     );
   `);
   await db.exec(migration);
+  if (options.applyAnonymousAuditMigration !== false) await db.exec(anonymousAuditMigration);
   return db;
 }
+
+async function finalizationFixture(db: PGlite) {
+  const jobId = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
+  await db.query(`
+    INSERT INTO public.account_deletion_jobs(
+      id,user_id,reason,status,claim_token,claimed_at,storage_verified_at
+    ) VALUES ($1,$2,'privacy','auth_deleting',$3,clock_timestamp(),clock_timestamp());
+  `, [jobId, USER_ID, DELETE_CLAIM_ID]);
+  await db.query(`
+    INSERT INTO public.account_deletion_media_manifest(job_id,bucket,path,source,not_before,cleaned_at)
+    VALUES ($1,'community-images',$2,'session_final',clock_timestamp(),clock_timestamp());
+  `, [jobId, STAGING_PATH]);
+  return jobId;
+}
+
+describe("legacy non-null account-deletion audit boundary", () => {
+  it("reproduces SQLSTATE 23502 after Auth deletion and rolls back the whole finalization", async () => {
+    const db = await database({ applyAnonymousAuditMigration: false });
+    try {
+      const jobId = await finalizationFixture(db);
+      await db.exec(`DELETE FROM auth.users WHERE id='${USER_ID}'; SET ROLE service_role;`);
+      await expect(db.query("SELECT public.finalize_account_deletion_job($1,$2)", [jobId, DELETE_CLAIM_ID]))
+        .rejects.toMatchObject({ code: "23502", table: "account_deletions", column: "user_id" });
+      expect((await db.query("SELECT status,user_id,claim_token,auth_deleted_at,completed_at FROM public.account_deletion_jobs WHERE id=$1", [jobId])).rows)
+        .toEqual([{ status: "auth_deleting", user_id: USER_ID, claim_token: DELETE_CLAIM_ID, auth_deleted_at: null, completed_at: null }]);
+      expect((await db.query("SELECT count(*)::int AS n FROM public.account_deletion_media_manifest WHERE job_id=$1 AND cleaned_at IS NOT NULL", [jobId])).rows)
+        .toEqual([{ n: 1 }]);
+      await db.exec("RESET ROLE;");
+      expect((await db.query("SELECT count(*)::int AS n FROM public.account_deletions")).rows).toEqual([{ n: 0 }]);
+      expect((await db.query("SELECT count(*)::int AS n FROM auth.users WHERE id=$1", [USER_ID])).rows).toEqual([{ n: 0 }]);
+    } finally {
+      await db.close();
+    }
+  });
+
+  it("lets the unchanged finalizer record an anonymous reason only after Auth is absent and preserves old audits", async () => {
+    const db = await database({ applyAnonymousAuditMigration: false });
+    try {
+      const jobId = await finalizationFixture(db);
+      await db.query("INSERT INTO public.account_deletions(user_id,email,reason) VALUES($1,'synthetic-legacy@example.invalid','unknown')", [OTHER_USER_ID]);
+      const definition = (await db.query("SELECT pg_get_functiondef('public.finalize_account_deletion_job(uuid,uuid)'::regprocedure) AS body")).rows;
+      await db.exec(anonymousAuditMigration);
+      await db.exec(anonymousAuditMigration);
+      expect((await db.query("SELECT pg_get_functiondef('public.finalize_account_deletion_job(uuid,uuid)'::regprocedure) AS body")).rows).toEqual(definition);
+      await db.exec("SET ROLE service_role;");
+      expect((await db.query("SELECT public.finalize_account_deletion_job($1,$2) AS finalized", [jobId, DELETE_CLAIM_ID])).rows)
+        .toEqual([{ finalized: false }]);
+      await db.exec(`RESET ROLE; DELETE FROM auth.users WHERE id='${USER_ID}'; SET ROLE service_role;`);
+      for (const [id, token] of [[OTHER_USER_ID, DELETE_CLAIM_ID], [jobId, CLAIM_ID]]) {
+        expect((await db.query("SELECT public.finalize_account_deletion_job($1,$2) AS finalized", [id, token])).rows)
+          .toEqual([{ finalized: false }]);
+      }
+      expect((await db.query("SELECT public.finalize_account_deletion_job($1,$2) AS finalized", [jobId, DELETE_CLAIM_ID])).rows)
+        .toEqual([{ finalized: true }]);
+      expect((await db.query("SELECT status,user_id,reason,claim_token,auth_deleted_at IS NOT NULL AS auth_deleted,completed_at IS NOT NULL AS completed FROM public.account_deletion_jobs WHERE id=$1", [jobId])).rows)
+        .toEqual([{ status: "completed", user_id: null, reason: null, claim_token: null, auth_deleted: true, completed: true }]);
+      expect((await db.query("SELECT count(*)::int AS n FROM public.account_deletion_media_manifest WHERE job_id=$1", [jobId])).rows).toEqual([{ n: 0 }]);
+      expect((await db.query("SELECT public.finalize_account_deletion_job($1,$2) AS finalized", [jobId, DELETE_CLAIM_ID])).rows)
+        .toEqual([{ finalized: false }]);
+      await db.exec("RESET ROLE;");
+      expect((await db.query("SELECT user_id,email,reason FROM public.account_deletions ORDER BY reason")).rows).toEqual([
+        { user_id: null, email: null, reason: "privacy" },
+        { user_id: OTHER_USER_ID, email: "synthetic-legacy@example.invalid", reason: "unknown" },
+      ]);
+    } finally {
+      await db.close();
+    }
+  });
+
+  it("rolls back the DDL rehearsal to the original NOT NULL and unchanged legacy audit", async () => {
+    const db = await database({ applyAnonymousAuditMigration: false });
+    try {
+      await db.query("INSERT INTO public.account_deletions(user_id,email,reason) VALUES($1,'synthetic-rollback@example.invalid','unknown')", [OTHER_USER_ID]);
+      const rows = (await db.query("SELECT * FROM public.account_deletions")).rows;
+      const columnsSql = "SELECT attname,atttypid,attnotnull FROM pg_attribute WHERE attrelid='public.account_deletions'::regclass AND attnum>0 ORDER BY attnum";
+      const columns = (await db.query(columnsSql)).rows;
+      expect(anonymousAuditMigration).toMatch(/COMMIT;\s*$/);
+      await db.exec(anonymousAuditMigration.replace(/COMMIT;\s*$/, "ROLLBACK;"));
+      expect((await db.query(columnsSql)).rows).toEqual(columns);
+      expect((await db.query("SELECT * FROM public.account_deletions")).rows).toEqual(rows);
+      await expect(db.query("INSERT INTO public.account_deletions(reason) VALUES('privacy')"))
+        .rejects.toMatchObject({ code: "23502", column: "user_id" });
+    } finally {
+      await db.close();
+    }
+  });
+
+  it.each(["ALTER COLUMN user_id TYPE text", "ALTER COLUMN user_id SET DEFAULT gen_random_uuid()"])(
+    "rejects an unexpected legacy column without changing it: %s", async (alteration) => {
+      const db = await database({ applyAnonymousAuditMigration: false });
+      try {
+        await db.exec(`ALTER TABLE public.account_deletions ${alteration};`);
+        await expect(db.exec(anonymousAuditMigration)).rejects.toThrow("ACCOUNT_DELETION_AUDIT_USER_COLUMN_UNEXPECTED");
+        await db.exec("ROLLBACK;");
+        expect((await db.query("SELECT attnotnull FROM pg_attribute WHERE attrelid='public.account_deletions'::regclass AND attname='user_id'")).rows)
+          .toEqual([{ attnotnull: true }]);
+      } finally {
+        await db.close();
+      }
+    },
+  );
+});
 
 describe("account deletion community Storage saga migration", () => {
   it("atomically closes direct authenticated Storage writes once deletion intake starts", async () => {

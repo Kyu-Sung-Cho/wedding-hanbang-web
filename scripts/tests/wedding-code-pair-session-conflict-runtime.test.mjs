@@ -1,4 +1,5 @@
 import test from 'node:test';
+import { createWeddingCodePairSessionConflictHistoricalRepository } from './fixtures/wedding-code-pair-session-conflict-historical-repository.mjs';
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
@@ -8,7 +9,9 @@ import { appendWeddingCodePairSessionConflictReceipt, parseWeddingCodePairSessio
 import { buildWeddingCodePairSessionConflictMutationSql, buildWeddingCodePairSessionConflictObservationSql, expectedWeddingCodePairSessionConflictCatalog,
   validateWeddingCodePairSessionConflictObservation } from '../lib/wedding-code-pair-session-conflict-catalog.mjs';
 
-const root=resolve(import.meta.dirname,'../..'),read=file=>readFileSync(join(root,file),'utf8');
+const historical=createWeddingCodePairSessionConflictHistoricalRepository(resolve(import.meta.dirname,'../..'));
+test.after(historical.cleanup);
+const root=historical.root,read=file=>readFileSync(join(root,file),'utf8');
 const sql=read('supabase/migrations/20260923132503_wedding_code_pair_session_conflict_response.sql');
 const predecessorSql=read('supabase/migrations/20260923104336_wedding_code_pair_sessions.sql');
 const predecessorFixture=JSON.parse(read('supabase/release-contracts/wedding-code-pair-session-pg17-catalog-v1.json'));
