@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import { createClient, StorageApiError } from "@supabase/supabase-js";
 
 import {
   hasActiveAccountDeletion,
@@ -91,14 +92,14 @@ function harness(options: {
     sequence.push("storage.remove");
     return { data: [], error: null };
   });
-  const exists = vi.fn(async () => {
+  const exists = vi.fn(async (): Promise<{ data: unknown; error: unknown }> => {
     sequence.push("storage.exists");
     return { data: options.objectStillExists ?? false, error: null };
   });
-  const list = vi.fn(async (): Promise<{
-    data: Array<{ name: string; id?: string | null }>;
-    error: null;
-  }> => {
+  const list = vi.fn<(prefix: string, options: { offset: number; limit: number }) => Promise<{
+    data: unknown;
+    error: unknown;
+  }>>(async () => {
     sequence.push("storage.list");
     return { data: [], error: null };
   });
@@ -210,6 +211,162 @@ describe("account deletion Storage worker", () => {
       "release_account_deletion_job",
       expect.objectContaining({ p_error_code: "storage_delete_unconfirmed" }),
     );
+  });
+
+  it.each([400, 404])("confirms ambiguous SDK HEAD %i absence with an exact folder list before checkpointing", async status => {
+    const test = harness();
+    const requests: Array<{ method: string; path: string; body: unknown }> = [];
+    const fetchMock = vi.fn<typeof fetch>(async (input, init) => {
+      const path = new URL(String(input)).pathname;
+      const method = init?.method ?? "GET";
+      requests.push({ method, path, body: init?.body ? JSON.parse(String(init.body)) : null });
+      if (method === "HEAD") return new Response(null, { status });
+      if (method === "DELETE" || (method === "POST" && path.includes("/object/list/"))) {
+        return Response.json([]);
+      }
+      throw new Error("unexpected synthetic Storage request");
+    });
+    const sdk = createClient("https://storage-absence.test", "synthetic-key", {
+      global: { fetch: fetchMock },
+      auth: { storageKey: `storage-absence-${status}`, persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
+    });
+    const observed = await sdk.storage.from("community-images").exists(LEGACY_PATH);
+    expect(observed).toEqual({ data: false, error: expect.any(StorageApiError) });
+    requests.length = 0;
+
+    expect(await processAccountDeletionJob({ ...test.admin, storage: sdk.storage } as never, JOB_ID, NOW))
+      .toEqual({ status: "completed" });
+    expect(requests.slice(0, 3)).toEqual([
+      { method: "DELETE", path: "/storage/v1/object/community-images", body: { prefixes: [LEGACY_PATH] } },
+      { method: "HEAD", path: `/storage/v1/object/community-images/${LEGACY_PATH}`, body: null },
+      { method: "POST", path: "/storage/v1/object/list/community-images", body: {
+        prefix: USER_ID, limit: 100, offset: 0, sortBy: { column: "name", order: "asc" },
+      } },
+    ]);
+    expect(test.rpc).toHaveBeenCalledWith("checkpoint_account_deletion_media", expect.objectContaining({ p_path: LEGACY_PATH }));
+    expect(test.deleteUser).toHaveBeenCalledOnce();
+  });
+
+  it.each([
+    { data: false, error: new Error("transport failed") },
+    { data: false, error: new StorageApiError("unauthorized", 403, "403") },
+    { data: false, error: new StorageApiError("server error", 500, "500") },
+    { data: false, error: { name: "StorageUnknownError", status: 400 } },
+    { data: null, error: new StorageApiError("missing", 400, "400") },
+    { data: true, error: new StorageApiError("inconsistent", 404, "404") },
+    { data: null, error: null },
+  ])("does not use a listing to accept unexpected exists results: %j", async result => {
+    const test = harness();
+    test.exists.mockResolvedValue(result);
+    expect(await processAccountDeletionJob(test.admin as never, JOB_ID, NOW)).toEqual({ status: "retry" });
+    expect(test.list).not.toHaveBeenCalled();
+    expect(test.rpc).not.toHaveBeenCalledWith("checkpoint_account_deletion_media", expect.anything());
+    expect(test.deleteUser).not.toHaveBeenCalled();
+  });
+
+  it("checks later pages for the exact target, even when the first page lacks it", async () => {
+    const test = harness();
+    test.exists.mockResolvedValue({ data: false, error: new StorageApiError("missing", 400, "400") });
+    test.list.mockResolvedValueOnce({ data: Array.from({ length: 100 }, (_, i) => ({ name: `other-${i}.jpg` })), error: null })
+      .mockResolvedValueOnce({ data: [{ name: LEGACY_PATH.slice(USER_ID.length + 1) }], error: null });
+    expect(await processAccountDeletionJob(test.admin as never, JOB_ID, NOW)).toEqual({ status: "retry" });
+    expect(test.list).toHaveBeenLastCalledWith(USER_ID, { limit: 100, offset: 100, sortBy: { column: "name", order: "asc" } });
+    expect(test.rpc).toHaveBeenCalledWith("release_account_deletion_job", expect.objectContaining({ p_error_code: "storage_delete_unconfirmed" }));
+    expect(test.rpc).not.toHaveBeenCalledWith("checkpoint_account_deletion_media", expect.anything());
+    expect(test.deleteUser).not.toHaveBeenCalled();
+  });
+
+  it("shares one verified list only within a three-avatar removal batch", async () => {
+    const rows = [1, 2, 3].map(index => manifest({
+      bucket: "profile-avatars", source: "profile_avatar",
+      path: `${USER_ID}/77777777-7777-4777-8777-${String(index).padStart(12, "0")}.webp`,
+    }));
+    const test = harness({ manifest: rows });
+    test.exists.mockResolvedValue({ data: false, error: new StorageApiError("missing", 400, "400") });
+    expect(await processAccountDeletionJob(test.admin as never, JOB_ID, NOW)).toEqual({ status: "completed" });
+    expect(test.exists).toHaveBeenCalledTimes(3);
+    expect(test.rpc.mock.calls.filter(([name]) => name === "checkpoint_account_deletion_media")).toHaveLength(3);
+    expect(test.list).toHaveBeenCalledTimes(6);
+    expect(test.sequence.slice(0, 8)).toEqual([
+      "claim_account_deletion_job", "prepare_account_deletion_customer_data", "storage.remove",
+      "storage.list", "checkpoint_account_deletion_media", "checkpoint_account_deletion_media",
+      "checkpoint_account_deletion_media", "storage.list",
+    ]);
+  });
+
+  it("does not checkpoint when a later fallback page is unavailable", async () => {
+    const test = harness();
+    test.exists.mockResolvedValue({ data: false, error: new StorageApiError("missing", 400, "400") });
+    test.list.mockResolvedValueOnce({ data: Array.from({ length: 100 }, (_, i) => ({ name: `other-${i}.jpg` })), error: null })
+      .mockResolvedValueOnce({ data: null, error: new Error("second page unavailable") });
+    expect(await processAccountDeletionJob(test.admin as never, JOB_ID, NOW)).toEqual({ status: "retry" });
+    expect(test.list).toHaveBeenCalledTimes(2);
+    expect(test.rpc).not.toHaveBeenCalledWith("checkpoint_account_deletion_media", expect.anything());
+    expect(test.deleteUser).not.toHaveBeenCalled();
+  });
+
+  it("requires the empty terminal page for an exact multiple and re-lists after checkpointing", async () => {
+    const test = harness();
+    test.exists.mockResolvedValue({ data: false, error: new StorageApiError("missing", 400, "400") });
+    test.list.mockResolvedValueOnce({ data: Array.from({ length: 100 }, (_, i) => ({ name: `other-${i}.jpg` })), error: null });
+    expect(await processAccountDeletionJob(test.admin as never, JOB_ID, NOW)).toEqual({ status: "completed" });
+    expect(test.list.mock.calls.slice(0, 2)).toEqual([
+      [USER_ID, { limit: 100, offset: 0, sortBy: { column: "name", order: "asc" } }],
+      [USER_ID, { limit: 100, offset: 100, sortBy: { column: "name", order: "asc" } }],
+    ]);
+    const checkpointIndex = test.sequence.indexOf("checkpoint_account_deletion_media");
+    expect(test.sequence.slice(checkpointIndex + 1).filter(step => step === "storage.list")).toHaveLength(5);
+  });
+
+  it.each([
+    { data: null, error: null, status: "retry" },
+    { data: [], error: new Error("list unavailable"), status: "retry" },
+    { data: [null], error: null, status: "manual_review" },
+    { data: [{ name: 42 }], error: null, status: "manual_review" },
+    { data: [{ name: "nested/file.jpg" }], error: null, status: "manual_review" },
+    { data: [{ name: ".." }], error: null, status: "manual_review" },
+    { data: Array.from({ length: 101 }, (_, i) => ({ name: `other-${i}.jpg` })), error: null, status: "manual_review" },
+  ])("never checkpoints an incomplete or malformed fallback listing: $status", async ({ data, error, status }) => {
+    const test = harness();
+    test.exists.mockResolvedValue({ data: false, error: new StorageApiError("missing", 400, "400") });
+    test.list.mockResolvedValueOnce({ data, error });
+    expect(await processAccountDeletionJob(test.admin as never, JOB_ID, NOW)).toEqual({ status });
+    expect(test.rpc).not.toHaveBeenCalledWith("checkpoint_account_deletion_media", expect.anything());
+    expect(test.deleteUser).not.toHaveBeenCalled();
+  });
+
+  it("rejects duplicate names across pages instead of treating a drifting listing as complete", async () => {
+    const test = harness();
+    test.exists.mockResolvedValue({ data: false, error: new StorageApiError("missing", 400, "400") });
+    test.list.mockResolvedValueOnce({ data: Array.from({ length: 100 }, (_, i) => ({ name: `other-${i}.jpg` })), error: null })
+      .mockResolvedValueOnce({ data: [{ name: "other-0.jpg" }], error: null });
+    expect(await processAccountDeletionJob(test.admin as never, JOB_ID, NOW)).toEqual({ status: "manual_review" });
+    expect(test.rpc).not.toHaveBeenCalledWith("checkpoint_account_deletion_media", expect.anything());
+    expect(test.deleteUser).not.toHaveBeenCalled();
+  });
+
+  it("does not accept absence when the 10,000-object bound's overflow probe is nonempty", async () => {
+    const test = harness();
+    test.exists.mockResolvedValue({ data: false, error: new StorageApiError("missing", 400, "400") });
+    test.list.mockImplementation(async (_prefix, { offset, limit }) => ({
+      data: Array.from({ length: limit }, (_, i) => ({ name: `other-${offset + i}.jpg` })), error: null,
+    }));
+    expect(await processAccountDeletionJob(test.admin as never, JOB_ID, NOW)).toEqual({ status: "manual_review" });
+    expect(test.list).toHaveBeenLastCalledWith(USER_ID, { limit: 1, offset: 10000, sortBy: { column: "name", order: "asc" } });
+    expect(test.rpc).not.toHaveBeenCalledWith("checkpoint_account_deletion_media", expect.anything());
+    expect(test.deleteUser).not.toHaveBeenCalled();
+  });
+
+  it.each([false, true])("preserves the final scan boundary when an object reappears after fallback (known=%s)", async known => {
+    const test = harness();
+    test.exists.mockResolvedValue({ data: false, error: new StorageApiError("missing", 400, "400") });
+    test.list.mockResolvedValueOnce({ data: [], error: null })
+      .mockResolvedValueOnce({ data: [], error: null })
+      .mockResolvedValueOnce({ data: [{ name: known ? LEGACY_PATH.slice(USER_ID.length + 1) : "unknown.jpg" }], error: null });
+    expect(await processAccountDeletionJob(test.admin as never, JOB_ID, NOW)).toEqual({ status: known ? "pending" : "manual_review" });
+    expect(test.remove).toHaveBeenCalledTimes(known ? 2 : 1);
+    expect(test.deleteUser).not.toHaveBeenCalled();
+    expect(test.rpc).not.toHaveBeenCalledWith("prepare_account_deletion_auth_delete", expect.anything());
   });
 
   it("moves unproven paths to manual review without deleting any object", async () => {
