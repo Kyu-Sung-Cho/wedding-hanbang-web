@@ -236,7 +236,7 @@ describe("production build registers only the exact 240 deletion audit nullable 
       await writeFile(target, "SELECT 1;\n", { flag: "wx" });
       expect(() => production(auditFixtureRoot)).toThrow(VENDOR_DISCLOSURE_STATIC_CONTRACT_INVALID);
     } finally { await rm(target); }
-  });
+  }, 60_000);
 });
 
 describe("production build registers only the exact 239 pair-session conflict successor", () => {

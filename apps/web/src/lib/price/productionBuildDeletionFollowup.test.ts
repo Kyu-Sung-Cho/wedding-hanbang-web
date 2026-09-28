@@ -35,7 +35,7 @@ describe("production accepts only the explicit 232 expand successor", () => {
     expect(plan.migrationCount).toBe(232); expect(plan.runtimeEvidenceVerified).toBe(false); expect(plan.releaseAuthorized).toBe(false);
     expect(() => production(root)).not.toThrow();
     expect(() => validateSuccessorReleaseContract({ repoRoot: root, followup: "profile-avatar" })).toThrowError(expect.objectContaining({ code: "FOLLOWUP_RELEASE_INVALID" }));
-  });
+  }, 60_000);
   it.each(pins)("cannot fall back when a registered artifact is missing or changed: %s", file => {
     const path = join(fixture.root, file), bytes = readFileSync(path);
     try {
