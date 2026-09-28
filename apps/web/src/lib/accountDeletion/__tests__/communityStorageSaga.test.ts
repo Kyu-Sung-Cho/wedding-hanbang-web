@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
   AccountDeletionStorageError,
   buildCommunityDeletionManifest,
+  buildProviderPortfolioDeletionManifest,
   inventoryCommunityDeletionMedia,
   type CommunityDeletionSession,
 } from "@/lib/accountDeletion/communityStorageSaga";
@@ -130,6 +131,7 @@ describe("community account-deletion Storage manifest", () => {
       "community-images": [UPLOAD_ID + ".png", "1700000000000_66666666-6666-4666-8666-666666666666.jpg"],
       "community-videos": [],
       "profile-avatars": [],
+      "provider-portfolio": [],
     } as const;
     const list = vi.fn(async function (
       this: { bucket: keyof typeof namesByBucket },
@@ -160,8 +162,8 @@ describe("community account-deletion Storage manifest", () => {
 
     const manifest = await inventoryCommunityDeletionMedia(admin as never, USER_ID, NOW);
 
-    expect(storageFrom).toHaveBeenCalledTimes(5);
-    expect(list).toHaveBeenCalledTimes(4);
+    expect(storageFrom).toHaveBeenCalledTimes(6);
+    expect(list).toHaveBeenCalledTimes(5);
     for (const call of list.mock.calls) expect(call[0]).toBe(USER_ID);
     expect(select).toHaveBeenCalledWith(
       "id,user_id,staging_path,final_bucket,final_path,expires_at",
@@ -350,5 +352,59 @@ describe("community account-deletion Storage manifest", () => {
       `${COUPLE_ID}/${USER_ID}`,
       expect.objectContaining({ limit: 1, offset: 10000 }),
     );
+  });
+});
+
+describe("provider portfolio account deletion manifest", () => {
+  const providerId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+  const mediaId = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
+  const path = `${USER_ID}/${providerId}/${mediaId}.webp`;
+  const asset = { id: mediaId, provider_id: providerId, owner_id: USER_ID, storage_path: path, created_at: new Date(NOW).toISOString() };
+
+  it("retains pending upload registrations and waits 35 minutes plus timestamp precision margin", () => {
+    expect(buildProviderPortfolioDeletionManifest({ userId: USER_ID, assets: [asset], listedPaths: [], now: NOW })).toEqual([{
+      bucket: "provider-portfolio", path, source: "provider_portfolio", not_before: "2026-07-17T00:35:01.000Z",
+    }]);
+  });
+
+  it("does not round PostgreSQL microseconds below the database grace boundary", () => {
+    const created_at = "2026-07-17T00:00:00.123456+00:00";
+    const result = buildProviderPortfolioDeletionManifest({ userId: USER_ID, assets: [{ ...asset, created_at }], listedPaths: [], now: NOW });
+    expect(result[0].not_before).toBe("2026-07-17T00:35:01.123Z");
+    expect(Date.parse(result[0].not_before)).toBeGreaterThan(Date.parse(created_at) + 35 * 60 * 1000 + 1);
+  });
+
+  it("quarantines a valid owned prefix without a durable upload proof", () => {
+    expect(buildProviderPortfolioDeletionManifest({ userId: USER_ID, assets: [], listedPaths: [path], now: NOW })).toEqual([{
+      bucket: "provider-portfolio", path, source: "quarantine", not_before: new Date(NOW).toISOString(),
+    }]);
+  });
+
+  it.each([
+    { ...asset, owner_id: providerId },
+    { ...asset, provider_id: mediaId },
+    { ...asset, storage_path: `${providerId}/${mediaId}.webp` },
+    { ...asset, storage_path: `${USER_ID}/${providerId}/../${mediaId}.webp` },
+    { ...asset, storage_path: `${USER_ID}/${providerId}/${mediaId}.svg` },
+  ])("rejects an unproven or noncanonical asset: %j", (invalidAsset) => {
+    expect(() => buildProviderPortfolioDeletionManifest({ userId: USER_ID, assets: [invalidAsset], listedPaths: [], now: NOW })).toThrow("provider_inventory_invalid");
+  });
+
+  it("inventories exact user/provider folders and preserves orphan file proof", async () => {
+    const providerList = vi.fn(async (prefix: string) => ({
+      data: prefix === USER_ID ? [{ name: providerId, id: null }]
+        : prefix === `${USER_ID}/${providerId}` ? [{ name: `${mediaId}.webp`, id: mediaId }] : [], error: null,
+    }));
+    const empty = { data: [], error: null };
+    const admin = {
+      storage: { from: (bucket: string) => ({ list: bucket === "provider-portfolio" ? providerList : async () => empty }) },
+      from: (table: string) => ({ select: () => ({ eq: () => ({
+        limit: async () => ({ data: table === "provider_profiles" ? [{ id: providerId, owner_id: USER_ID }] : [], error: null }),
+        order: () => ({ range: async () => table === "provider_media" ? { data: [asset], error: null } : empty }),
+      }) }) }),
+    };
+    const manifest = await inventoryCommunityDeletionMedia(admin as never, USER_ID, NOW);
+    expect(manifest).toEqual([expect.objectContaining({ bucket: "provider-portfolio", path, source: "provider_portfolio" })]);
+    expect(providerList.mock.calls.map(([prefix]) => prefix)).toEqual([USER_ID, `${USER_ID}/${providerId}`]);
   });
 });

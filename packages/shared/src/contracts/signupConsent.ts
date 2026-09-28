@@ -21,12 +21,13 @@
  *   apps/web/src/app/terms/page.tsx   최종 수정일 2026년 8월 31일
  *   apps/web/src/app/privacy/page.tsx 최종 수정일 2026년 9월 23일
  */
-export const SIGNUP_CONSENT_POLICY_VERSION = "2026-09-23";
+export const SIGNUP_CONSENT_POLICY_VERSION = "2026-09-28";
 
 // 배포된 모바일의 가입을 유지하되, 직전 정식판을 최신판 동의로 바꾸지 않는다.
 // 웨딩코드 함께 보기의 저장·공유는 가입 동의와 별도로 해당 기능에서 받는다.
 const ACCEPTED_SIGNUP_CONSENT_POLICY_VERSIONS: readonly string[] = [
   SIGNUP_CONSENT_POLICY_VERSION,
+  "2026-09-23",
   "2026-09-11",
 ];
 

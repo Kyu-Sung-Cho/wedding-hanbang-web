@@ -33,8 +33,6 @@ const REPO_ROOT = resolve(process.cwd(), "../..");
 /** 지금 아무도 쓰지 않는 컬럼. 늘어나면 실패한다. 줄어들면 이 목록에서 지운다. */
 const KNOWN_UNUSED_COLUMNS = new Set([
   "ai_note",
-  "alt_text",
-  "approved_at",
   "auto_generated",
   "completion_time_seconds",
   "is_thumbnail",

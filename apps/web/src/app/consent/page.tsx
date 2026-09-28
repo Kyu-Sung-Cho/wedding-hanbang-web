@@ -1,8 +1,8 @@
 import { hasWebSignupConsentAccess } from "@/lib/auth/signupConsentAccess";
 import { redirect } from "next/navigation";
-import { isPreConsentAccount } from "@hanbang/shared";
+import { isPreConsentAccount, hasRecordedSignupConsent } from "@hanbang/shared";
 
-import { getOptionalSameOriginRedirectPath } from "@/lib/auth/safeRedirect";
+import { getOptionalSameOriginRedirectPath, isProviderAuthDestination } from "@/lib/auth/safeRedirect";
 import { createClient } from "@/lib/supabase/server";
 
 import ConsentGateClient from "./ConsentGateClient";
@@ -49,7 +49,7 @@ export default async function ConsentPage({
     process.env.NEXT_PUBLIC_SITE_URL || "https://hanbang.ai",
   ) ?? DEFAULT_DESTINATION;
 
-  if (hasWebSignupConsentAccess(user)) {
+  if (isProviderAuthDestination(destination) ? hasRecordedSignupConsent(user.app_metadata) : hasWebSignupConsentAccess(user)) {
     redirect(destination);
   }
 

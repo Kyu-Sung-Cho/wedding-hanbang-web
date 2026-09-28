@@ -86,9 +86,19 @@ export function getPostLoginRedirectPath(
   origin: string,
   onboardingCompleted: boolean,
 ): string {
+  const requested = getRequestedAuthRedirectPath(search, origin);
+  if (requested && isProviderAuthDestination(requested)) return requested;
   return onboardingCompleted
     ? getAuthRedirectPath(search, origin)
     : buildOnboardingRedirectPath(search, origin);
+}
+
+/** 제공자 업무에는 커플의 예산·결혼 일정 입력이 필요하지 않다. */
+export function isProviderAuthDestination(path: string): boolean {
+  const safe = normalizeSameOriginPath(path, "https://hanbang.ai");
+  if (!safe) return false;
+  const pathname = new URL(safe, "https://hanbang.ai").pathname.replace(/\/+$/, "");
+  return ["/provider", "/business/register", "/business/inquiry"].includes(pathname);
 }
 
 export function buildOAuthCallbackUrl(search: string, origin: string): string {

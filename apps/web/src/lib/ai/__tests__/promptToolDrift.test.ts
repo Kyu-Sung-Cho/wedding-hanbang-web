@@ -120,14 +120,27 @@ describe("프롬프트와 도구 목록이 어긋나지 않는다", () => {
     }
   });
 
-  it("할 수 없다는 것을 말하고, 대신 할 수 있는 것으로 잇는다", () => {
-    // 안내만 지우면 모델은 빈자리를 상상으로 채운다. 없다는 사실과 대안을 함께 준다.
-    for (const { label, text } of prompts()) {
-      expect(text, label).toContain("업체 추천·예약은 지금 제공하지 않습니다");
-      expect(text, label).toContain("찾아볼게요");
+  it("공개 참여자 후보 탐색과 여전히 없는 예약 기능을 구분한다", () => {
+    for (const [index, { label, text }] of prompts().entries()) {
+      if (!VARIANTS[index].enabledToolNames.includes("discover_providers")) {
+        expect(text, label).toContain("업체 추천·예약은 지금 제공하지 않습니다");
+        expect(text, label).toContain("업체명을 먼저 꺼내지 마세요");
+        continue;
+      }
+      expect(text, label).toContain("공개 참여자 후보와 예약의 경계");
+      expect(text, label).not.toContain("업체 추천·예약은 지금 제공하지 않습니다");
       expect(text, label).toContain("예약해 드릴게요");
-      // 도구가 없을수록 더 중요해지는 규칙 — 지우면 안 된다.
-      expect(text, label).toContain("업체명을 먼저 꺼내지 마세요");
+      expect(text, label).toContain("공개 참여자 탐색 도구의 성공 결과가 있을 때만");
+      expect(text, label).toContain("도구가 돌려주지 않은 이름·가격을 만들지 마세요");
+      expect(text, label).toContain("필수 조건이 미확인이면 맞는다고 단정하지 말고");
+    }
+    for (const variant of VARIANTS) {
+      const inactive = buildAmoraSystemPrompt(CONTEXT as never, {
+        ...variant, enabledToolNames: LIVE_TOOL_NAMES.filter((name) => name !== "discover_providers"),
+      } as never);
+      expect(inactive).toContain("업체 추천·예약은 지금 제공하지 않습니다");
+      expect(inactive).not.toContain("discover_providers");
+      expect(inactive).toContain("업체명을 먼저 꺼내지 마세요");
     }
   });
 

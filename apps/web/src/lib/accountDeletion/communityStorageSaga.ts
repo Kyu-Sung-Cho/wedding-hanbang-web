@@ -10,8 +10,10 @@ export const ACCOUNT_DELETION_BUCKETS = [
   ...COMMUNITY_DELETION_BUCKETS,
   "profile-avatars",
   "chat-image",
+  "provider-portfolio",
 ] as const;
 const DELETABLE_BUCKETS = [...COMMUNITY_DELETION_BUCKETS, "profile-avatars"] as const;
+const AUTOMATIC_DELETION_BUCKETS = [...DELETABLE_BUCKETS, "provider-portfolio"] as const;
 
 export type CommunityDeletionBucket = typeof COMMUNITY_DELETION_BUCKETS[number];
 export type AccountDeletionBucket = typeof ACCOUNT_DELETION_BUCKETS[number];
@@ -20,6 +22,7 @@ export type CommunityDeletionSource =
   | "session_final"
   | "legacy_prefix"
   | "profile_avatar"
+  | "provider_portfolio"
   | "quarantine";
 
 export interface CommunityDeletionSession {
@@ -50,8 +53,11 @@ const SESSION_FILE_RE = /^([0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-
 const LEGACY_IMAGE_RE = /^[0-9]{13}_[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\.(jpg|png|gif|webp)$/i;
 const LEGACY_VIDEO_RE = /^[0-9]{13}_[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\.(mp4|mov|webm)$/i;
 const CHAT_IMAGE_FILE_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\.(jpeg|jpg|png|gif|webp)$/;
+const PROVIDER_IMAGE_FILE_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\.(jpg|png|webp)$/;
 const SAFE_LISTED_NAME_RE = /^[^/\\\u0000-\u001f\u007f]{1,400}$/;
 const SIGNED_TOKEN_GRACE_MS = 5 * 60 * 1000;
+const PROVIDER_UPLOAD_GRACE_MS = 35 * 60 * 1000;
+const DATABASE_TIMESTAMP_PRECISION_MARGIN_MS = 1000;
 const INVENTORY_PAGE_SIZE = 100;
 const INVENTORY_MAX_OBJECTS = 10_000;
 const CHAT_IMAGE_MAX_COUPLE_FOLDERS = 1_000;
@@ -212,8 +218,9 @@ function isCommunityDeletionSession(value: unknown): value is CommunityDeletionS
 
 async function listExactUserPrefix(
   admin: SupabaseClient,
-  bucket: typeof DELETABLE_BUCKETS[number],
+  bucket: typeof AUTOMATIC_DELETION_BUCKETS[number],
   userId: string,
+  entryKind?: "folder" | "file",
 ): Promise<string[]> {
   const names: string[] = [];
   const seen = new Set<string>();
@@ -246,6 +253,10 @@ async function listExactUserPrefix(
     for (const item of data) {
       if (!item || typeof item.name !== "string") {
         throw new AccountDeletionStorageError("storage_inventory_malformed");
+      }
+      if ((entryKind === "folder" && item.id !== null)
+        || (entryKind === "file" && (typeof item.id !== "string" || !UUID_RE.test(item.id)))) {
+        throw new AccountDeletionStorageError("provider_inventory_invalid");
       }
       assertSafeListedName(item.name);
       if (seen.has(item.name)) {
@@ -414,18 +425,109 @@ async function inventoryProfileAvatarMedia(admin: SupabaseClient, userId: string
   return buildProfileAvatarDeletionManifest(userId, result.data, names, now);
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+async function listProviderPortfolioPaths(admin: SupabaseClient, userId: string): Promise<string[]> {
+  const paths: string[] = [];
+  const folders = await listExactUserPrefix(admin, "provider-portfolio", userId, "folder");
+  if (folders.length > 1000) throw new AccountDeletionStorageError("provider_inventory_invalid");
+  for (const folder of folders) {
+    if (!UUID_RE.test(folder)) throw new AccountDeletionStorageError("provider_inventory_invalid");
+    const names = await listExactUserPrefix(admin, "provider-portfolio", `${userId}/${folder}`, "file");
+    for (const name of names) {
+      if (!PROVIDER_IMAGE_FILE_RE.test(name)) throw new AccountDeletionStorageError("provider_inventory_invalid");
+      paths.push(`${userId}/${folder}/${name}`);
+      if (paths.length > INVENTORY_MAX_OBJECTS) throw new AccountDeletionStorageError("manifest_inventory_limit_exceeded");
+    }
+  }
+  return paths;
+}
+
+export function buildProviderPortfolioDeletionManifest(input: {
+  userId: string;
+  assets: unknown[];
+  listedPaths: string[];
+  now: number;
+}): CommunityDeletionManifestEntry[] {
+  if (!UUID_RE.test(input.userId) || !Number.isFinite(input.now)) {
+    throw new AccountDeletionStorageError("provider_inventory_invalid");
+  }
+  const entries = new Map<string, CommunityDeletionManifestEntry>();
+  for (const asset of input.assets) {
+    if (!isRecord(asset) || asset.owner_id !== input.userId
+      || typeof asset.provider_id !== "string" || !UUID_RE.test(asset.provider_id)
+      || typeof asset.id !== "string" || !UUID_RE.test(asset.id)
+      || typeof asset.storage_path !== "string" || typeof asset.created_at !== "string"
+      || !Number.isFinite(Date.parse(asset.created_at))) {
+      throw new AccountDeletionStorageError("provider_inventory_invalid");
+    }
+    const path = asset.storage_path;
+    const parts = path.split("/");
+    if (parts.length !== 3 || parts[0] !== input.userId || parts[1] !== asset.provider_id
+      || !PROVIDER_IMAGE_FILE_RE.test(parts[2]) || parts[2].slice(0, 36) !== asset.id) {
+      throw new AccountDeletionStorageError("provider_inventory_invalid");
+    }
+    entries.set(path, { bucket: "provider-portfolio", path, source: "provider_portfolio",
+      // PostgreSQL의 미세초가 JS Date에서 잘려 DB의 최소 유예보다 앞서지 않게 한다.
+      not_before: new Date(Date.parse(asset.created_at) + PROVIDER_UPLOAD_GRACE_MS + DATABASE_TIMESTAMP_PRECISION_MARGIN_MS).toISOString() });
+  }
+  for (const path of input.listedPaths) {
+    const parts = path.split("/");
+    if (parts.length !== 3 || parts[0] !== input.userId || !UUID_RE.test(parts[1]) || !PROVIDER_IMAGE_FILE_RE.test(parts[2])) {
+      throw new AccountDeletionStorageError("provider_inventory_invalid");
+    }
+    if (!entries.has(path)) entries.set(path, { bucket: "provider-portfolio", path,
+      source: "quarantine", not_before: new Date(input.now).toISOString() });
+  }
+  if (entries.size > INVENTORY_MAX_OBJECTS) throw new AccountDeletionStorageError("manifest_inventory_limit_exceeded");
+  return [...entries.values()];
+}
+
+async function inventoryProviderPortfolioMedia(admin: SupabaseClient, userId: string, now: number) {
+  const [profiles, paths] = await Promise.all([
+    admin.from("provider_profiles").select("id,owner_id").eq("owner_id", userId).limit(INVENTORY_MAX_OBJECTS + 1),
+    listProviderPortfolioPaths(admin, userId),
+  ]);
+  if (profiles.error || !Array.isArray(profiles.data) || profiles.data.length > INVENTORY_MAX_OBJECTS) {
+    throw new AccountDeletionStorageError("provider_inventory_unavailable");
+  }
+  const assets: unknown[] = [];
+  for (const profile of profiles.data) {
+    if (!isRecord(profile) || typeof profile.id !== "string" || !UUID_RE.test(profile.id) || profile.owner_id !== userId) {
+      throw new AccountDeletionStorageError("provider_inventory_invalid");
+    }
+    for (let offset = 0; offset <= INVENTORY_MAX_OBJECTS; offset += SESSION_PAGE_SIZE) {
+      const result = await admin.from("provider_media").select("id,provider_id,storage_path,created_at")
+        .eq("provider_id", profile.id).order("id", { ascending: true }).range(offset, offset + SESSION_PAGE_SIZE - 1);
+      if (result.error || !Array.isArray(result.data) || result.data.length > SESSION_PAGE_SIZE) {
+        throw new AccountDeletionStorageError("provider_inventory_unavailable");
+      }
+      for (const asset of result.data) {
+        if (!isRecord(asset) || asset.provider_id !== profile.id) throw new AccountDeletionStorageError("provider_inventory_invalid");
+        assets.push({ ...asset, owner_id: userId });
+        if (assets.length > INVENTORY_MAX_OBJECTS) throw new AccountDeletionStorageError("manifest_inventory_limit_exceeded");
+      }
+      if (result.data.length < SESSION_PAGE_SIZE) break;
+    }
+  }
+  return buildProviderPortfolioDeletionManifest({ userId, assets, listedPaths: paths, now });
+}
+
 export async function inventoryCommunityDeletionMedia(
   admin: SupabaseClient,
   userId: string,
   now = Date.now(),
 ): Promise<CommunityDeletionManifestEntry[]> {
-  const [sessions, staging, images, videos, chatImages, avatarManifest] = await Promise.all([
+  const [sessions, staging, images, videos, chatImages, avatarManifest, providerManifest] = await Promise.all([
     listDurableSessions(admin, userId),
     listExactUserPrefix(admin, "community-media-staging", userId),
     listExactUserPrefix(admin, "community-images", userId),
     listExactUserPrefix(admin, "community-videos", userId),
     inventoryChatImageQuarantine(admin, userId, now),
     inventoryProfileAvatarMedia(admin, userId, now),
+    inventoryProviderPortfolioMedia(admin, userId, now),
   ]);
   const communityManifest = buildCommunityDeletionManifest({
     userId,
@@ -437,7 +539,7 @@ export async function inventoryCommunityDeletionMedia(
     },
     now,
   });
-  const manifest = [...communityManifest, ...chatImages, ...avatarManifest].sort((left, right) =>
+  const manifest = [...communityManifest, ...chatImages, ...avatarManifest, ...providerManifest].sort((left, right) =>
     left.bucket.localeCompare(right.bucket) || left.path.localeCompare(right.path)
   );
   if (manifest.length > INVENTORY_MAX_OBJECTS) {
@@ -481,7 +583,7 @@ function isManifestRow(value: unknown): value is AccountDeletionManifestRow {
     && typeof row.bucket === "string"
     && (ACCOUNT_DELETION_BUCKETS as readonly string[]).includes(row.bucket)
     && typeof row.path === "string"
-    && ["session_staging", "session_final", "legacy_prefix", "quarantine", "profile_avatar"]
+    && ["session_staging", "session_final", "legacy_prefix", "quarantine", "profile_avatar", "provider_portfolio"]
       .includes(String(row.source))
     && typeof row.not_before === "string"
     && Number.isFinite(Date.parse(row.not_before))
@@ -491,6 +593,14 @@ function isManifestRow(value: unknown): value is AccountDeletionManifestRow {
 function assertExactManifestPath(row: AccountDeletionManifestRow, job: AccountDeletionJob) {
   if (!job.user_id || row.job_id !== job.id) {
     throw new AccountDeletionStorageError("worker_manifest_invalid");
+  }
+  if (row.bucket === "provider-portfolio") {
+    const parts = row.path.split("/");
+    if (parts.length !== 3 || parts[0] !== job.user_id || !UUID_RE.test(parts[1])
+      || !PROVIDER_IMAGE_FILE_RE.test(parts[2]) || !["provider_portfolio", "quarantine"].includes(row.source)) {
+      throw new AccountDeletionStorageError("worker_manifest_invalid");
+    }
+    return;
   }
   if (row.bucket === "chat-image") {
     const parts = row.path.split("/");
@@ -630,6 +740,7 @@ const MANUAL_REVIEW_CODES = new Set([
   "manifest_inventory_limit_exceeded",
   "vendor_ownership_inventory_malformed",
   "vendor_account_manual_review_required",
+  "provider_inventory_invalid",
 ]);
 
 async function assertNoOwnedVendor(
@@ -700,14 +811,14 @@ async function deleteManifestRows(
   const totalPending = rows.filter((row) => row.cleaned_at === null).length;
   let processed = 0;
   const removeAndCheckpoint = async (
-    bucket: typeof DELETABLE_BUCKETS[number],
+    bucket: typeof AUTOMATIC_DELETION_BUCKETS[number],
     batch: AccountDeletionManifestRow[],
   ) => {
     const paths = batch.map((row) => row.path);
     // A remove error alone is not decisive: a previous attempt may already
     // have removed the object. Exact absence checks below are the boundary.
     await admin.storage.from(bucket).remove(paths);
-    let listedNames: string[] | null = null;
+    const listedNamesByPrefix = new Map<string, string[]>();
     for (const row of batch) {
       const { data: exists, error: existsError } = await admin.storage
         .from(bucket)
@@ -715,8 +826,13 @@ async function deleteManifestRows(
       if (exists === false && isAmbiguousStorageAbsenceError(existsError)) {
         // HEAD 오류만으로 부재를 인정하지 않는다. 검증된 단일 사용자 폴더를 끝까지
         // 조회한 결과만 이 배치에서 공유하고, 아래 최종 재조회에는 재사용하지 않는다.
-        listedNames ??= await listExactUserPrefix(admin, bucket, job.user_id!);
-        if (listedNames.some((name) => `${job.user_id}/${name}` === row.path)) {
+        const prefix = bucket === "provider-portfolio" ? row.path.slice(0, row.path.lastIndexOf("/")) : job.user_id!;
+        let listedNames = listedNamesByPrefix.get(prefix);
+        if (!listedNames) {
+          listedNames = await listExactUserPrefix(admin, bucket, prefix);
+          listedNamesByPrefix.set(prefix, listedNames);
+        }
+        if (listedNames.some((name) => `${prefix}/${name}` === row.path)) {
           throw new AccountDeletionStorageError("storage_delete_unconfirmed");
         }
       } else if (existsError || typeof exists !== "boolean") {
@@ -740,7 +856,7 @@ async function deleteManifestRows(
       processed += 1;
     }
   };
-  for (const bucket of DELETABLE_BUCKETS) {
+  for (const bucket of AUTOMATIC_DELETION_BUCKETS) {
     const pending = rows.filter((row) =>
       row.bucket === bucket && row.cleaned_at === null
     ).slice(0, Math.max(0, MAX_DELETIONS_PER_RUN - processed));
@@ -760,11 +876,11 @@ async function deleteManifestRows(
     row,
   ]));
   const reappeared = new Map<string, AccountDeletionManifestRow>();
-  for (const bucket of DELETABLE_BUCKETS) {
-    const remainingNames = await listExactUserPrefix(admin, bucket, job.user_id!);
-    for (const name of remainingNames) {
-      assertSafeListedName(name);
-      const remainingPath = `${job.user_id}/${name}`;
+  for (const bucket of AUTOMATIC_DELETION_BUCKETS) {
+    const remainingPaths = bucket === "provider-portfolio"
+      ? await listProviderPortfolioPaths(admin, job.user_id!)
+      : (await listExactUserPrefix(admin, bucket, job.user_id!)).map((name) => `${job.user_id}/${name}`);
+    for (const remainingPath of remainingPaths) {
       const key = manifestKey(bucket, remainingPath);
       const row = manifestRows.get(key);
       if (!row) {
@@ -781,7 +897,7 @@ async function deleteManifestRows(
   if (reappeared.size > 0) {
     const available = Math.max(0, MAX_DELETIONS_PER_RUN - processed);
     const selected = [...reappeared.values()].slice(0, available);
-    for (const bucket of DELETABLE_BUCKETS) {
+    for (const bucket of AUTOMATIC_DELETION_BUCKETS) {
       const inBucket = selected.filter((row) => row.bucket === bucket);
       for (let offset = 0; offset < inBucket.length; offset += DELETE_BATCH_SIZE) {
         await removeAndCheckpoint(
