@@ -87,9 +87,9 @@ try {
         const raw = await observed.text();
         need(Buffer.byteLength(raw) <= 4096, 'SUPPORT_CASE_RUNTIME_STATE_INVALID');
         const state = JSON.parse(raw);
-        // 1초 이내 시계 차이만 한 번 기다린 뒤 실제 시각으로 기존 검증을 수행한다.
+        // 5초 이내 시계 차이만 한 번 기다린 뒤 실제 시각으로 기존 검증을 수행한다.
         const aheadMs = typeof state?.observedAt === 'string' ? Date.parse(state.observedAt) - Date.now() : NaN;
-        if (aheadMs > 0 && aheadMs <= 1_000) await new Promise(resolve => setTimeout(resolve, aheadMs));
+        if (aheadMs > 0 && aheadMs <= 5_000) await new Promise(resolve => setTimeout(resolve, aheadMs));
         validateSupportRuntimeState(state, options['expected-commit']); assertSource();
         validateSupportRuntimeState(state, options['expected-commit']);
       };
