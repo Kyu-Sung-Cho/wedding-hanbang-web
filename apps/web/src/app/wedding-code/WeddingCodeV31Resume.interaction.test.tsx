@@ -155,6 +155,42 @@ describe("V31 same-browser resume", () => {
     ].sort());
   });
 
+  it("처음 화면에서 다시 연 결과는 불러왔다는 상자를 화면 읽기용으로만 두고, 수정 화면까지 가져가지 않는다", async () => {
+    seed(snapshot(completed(), { screen: "result", index: 33 }));
+    await render(); await button("내 결과 다시 보기");
+    // 결과가 뜨는 것이 이미 확인이다. 화면 읽기 프로그램은 그대로 듣는다.
+    const notice = container.querySelector("[data-screen-notice]");
+    expect(notice?.textContent).toBe("저장된 내 답을 불러왔어요.");
+    expect(notice?.getAttribute("role")).toBe("status");
+    expect(notice?.className).toContain("sr-only");
+    await button("내 답 수정하기");
+    expect(container.querySelector("[data-question]")).not.toBeNull();
+    expect([...container.querySelectorAll("[data-screen-notice]")].some(item => item.textContent?.includes("저장된 내 답을 불러왔어요."))).toBe(false);
+  });
+
+  it("처음 화면에서 질문으로 이어 가면 불러왔다는 상자가 보인다", async () => {
+    const draft = createV31Draft(); draft.answers.G1 = 2;
+    seed(snapshot(draft, { flow: "core", index: getV31IndexForId("G1") }));
+    await render(); await button("이어서 답하기");
+    expect(container.querySelector('[data-question="G1"]')).not.toBeNull();
+    const notice = container.querySelector("[data-screen-notice]");
+    expect(notice?.textContent).toBe("저장된 내 답을 불러왔어요.");
+    expect(notice?.className).not.toContain("sr-only");
+  });
+
+  it("처음 화면에서 질문으로 이어 가 끝까지 답하면 새 결과에 불러왔다는 말을 남기지 않는다", async () => {
+    // 모두 가운데(3)로 답해 우선순위 보기가 0개다. 우선순위 화면(건너뛰기가 안내를 지운다)을 거치지 않고 ‘결과 보기’로 끝낸다.
+    const draft = coreCompleted();
+    for (const id of V31_CORE_RATING_IDS) draft.answers[id] = 3;
+    seed(snapshot(draft, { flow: "core", index: getV31IndexForId("avoidances") }));
+    await render(); await button("이어서 답하기");
+    expect(container.querySelector("[data-screen-notice]")?.textContent).toBe("저장된 내 답을 불러왔어요.");
+    await button("결과 보기");
+    expect(container.querySelector('[data-result="solo-v31"]')).not.toBeNull();
+    // 화면에서 숨긴 채 읽어 주는 상자로도 남기지 않는다(답을 마쳐 만든 결과라 불러온 결과가 아니다).
+    expect([...container.querySelectorAll("[data-screen-notice]")].some(item => item.textContent?.includes("저장된 내 답을 불러왔어요."))).toBe(false);
+  });
+
   it("결과의 선택 질문 안내는 다 답한 페이지만 빼고 남은 페이지를 센다", async () => {
     // 첫 선택 페이지(V1·G2·R3)를 다 답했으면 남은 페이지는 2다.
     const firstPageDone = coreCompleted();
@@ -364,6 +400,7 @@ describe("V31 same-browser resume", () => {
     expect(window.localStorage.getItem(LOCAL_KEY)).toBeNull();
     expect(container.textContent).toContain("자동 저장을 멈췄어요");
     await button("저장된 답 불러오기");
+    expect(container.querySelector("[data-screen-notice]")?.className).not.toContain("sr-only");
     await click(container.querySelector('input[value="4"]'));
     expect(window.localStorage.getItem(LOCAL_KEY)).toBeNull();
     expect(container.textContent).toContain("자동 저장을 멈췄어요");
@@ -378,12 +415,30 @@ describe("V31 same-browser resume", () => {
     writeV31LocalProgress(window.localStorage, snapshot(updated), window.localStorage.getItem(LOCAL_KEY));
     await act(async () => window.dispatchEvent(new StorageEvent("storage", { key: LOCAL_KEY })));
     await button("저장된 답 불러오기");
+    expect(container.querySelector("[data-screen-notice]")?.textContent).toBe("저장된 내 답을 불러왔어요.");
+    expect(container.querySelector("[data-screen-notice]")?.className).not.toContain("sr-only");
     expect(container.querySelector<HTMLInputElement>('input[value="2"]')?.checked).toBe(true);
     window.localStorage.removeItem(LOCAL_KEY);
     await act(async () => window.dispatchEvent(new StorageEvent("storage", { key: LOCAL_KEY, newValue: null })));
     await click(container.querySelector('input[value="4"]'));
     expect(window.localStorage.getItem(LOCAL_KEY)).toBeNull();
     expect(container.textContent).toContain("자동 저장을 멈췄어요");
+  });
+
+  it("다른 탭과 부딪혀 ‘저장된 답 불러오기’로 다시 연 결과에서는 불러왔다는 상자가 보인다", async () => {
+    seed(snapshot(completed(), { screen: "result", index: 33 }));
+    await render(); await button("내 결과 다시 보기");
+    expect(container.querySelector("[data-screen-notice]")?.className).toContain("sr-only");
+    const updated = completed(); updated.answers.V1 = 2;
+    writeV31LocalProgress(window.localStorage, snapshot(updated, { screen: "result", index: 33 }), window.localStorage.getItem(LOCAL_KEY));
+    await act(async () => window.dispatchEvent(new StorageEvent("storage", { key: LOCAL_KEY })));
+    expect(container.textContent).toContain("자동 저장을 멈췄어요");
+    // 누른 사람이 무엇을 불러왔는지 확인해야 하니, 같은 결과 화면이어도 상자를 숨기지 않는다.
+    await button("저장된 답 불러오기");
+    expect(container.querySelector('[data-result="solo-v31"]')).not.toBeNull();
+    const notice = container.querySelector("[data-screen-notice]");
+    expect(notice?.textContent).toBe("저장된 내 답을 불러왔어요.");
+    expect(notice?.className).not.toContain("sr-only");
   });
 
   it("storage denial never blocks answering or claims that an answer was saved", async () => {

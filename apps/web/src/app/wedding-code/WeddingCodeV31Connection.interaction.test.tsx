@@ -52,6 +52,22 @@ describe("본인 결과에서 두 사람 초대 만들기", () => {
     return parsed;
   }
 
+  it("영역 이름은 제목이 맡고, 이 브라우저에서 다시 연다는 말은 자동저장 조건과 함께만 둔다", async () => {
+    await act(async () => root.render(<WeddingCodeV31Connection draft={completed()} />));
+    const section = container.querySelector("section")!;
+    const heading = section.querySelector("h2")!;
+    // 버튼과 같은 말(상대 초대하고 함께 보기)을 영역 이름으로 한 번 더 읽지 않는다.
+    expect(section.hasAttribute("aria-label")).toBe(false);
+    expect(heading.id).not.toBe("");
+    expect(section.getAttribute("aria-labelledby")).toBe(heading.id);
+    expect(heading.textContent).toBe("상대도 답하면, 함께 볼 수 있어요");
+    expect(heading.nextElementSibling?.textContent).toBe("상대가 공유까지 마치면 결과 링크를 돌려받지 않아도 두 사람 결과를 볼 수 있어요.");
+    // 자동저장이 꺼져 있으면 이 브라우저에 주소가 남지 않는다. 조건 없는 약속을 두지 않는다.
+    expect(container.textContent).not.toContain("이 브라우저에서");
+    await button("상대 초대하고 함께 보기");
+    expect(container.textContent).toContain("자동저장이 켜져 있으면 이 브라우저에 내 결과 확인 주소도 남겨요.");
+  });
+
   it.each([[false, false], [true, false], [false, true]])("나이 확인=%s·공유 동의=%s 중 하나라도 없으면 답을 전송하지 않는다", async (age, share) => {
     await render();
     const checkboxes = container.querySelectorAll<HTMLInputElement>('input[type="checkbox"]');

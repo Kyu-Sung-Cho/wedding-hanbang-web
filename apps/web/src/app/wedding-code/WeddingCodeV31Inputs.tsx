@@ -9,10 +9,25 @@ import {
   type V31Choice, type V31Option, type V31Response, type V31TasteKey,
 } from "@/constants/weddingCodeV31";
 import { V31_PRIORITY_NO_PREFERENCE_LABEL, V31_PRIORITY_UNDECIDED_LABEL } from "@/lib/weddingCode/v31";
+import { formatV31RatingDots, type V31StatementScale } from "@/lib/weddingCode/v31StyleSummary";
 
 export const v31Surface = "rounded-xl border border-[var(--hb-hairline)] bg-[var(--hb-surface-raised)]";
 export const v31Body = "text-sm leading-relaxed text-[var(--hb-text-body)]";
 export const v31Title = "font-semibold text-[var(--hb-text-strong)]";
+
+const COUNT_WORDS = ["한", "두", "세", "네", "다섯"] as const;
+
+/**
+ * 고른 보기를 다섯 칸 점과 보기 이름으로 보여준다. 아직 모름·이번 계획에 없음·지금 답하지 않음은 칸 없이 답만 적는다.
+ * 코드 카드와 ‘문장별로 내가 고른 답 모두 보기’가 같이 쓴다. 코드 카드를 빼도 문장별 답이 남도록 여기에 둔다.
+ */
+export function V31RatingAnswer({ item }: { item: V31StatementScale }) {
+  return <span className="inline-flex flex-wrap items-baseline gap-x-2 gap-y-1">
+    {item.rating !== null ? <span role="img" aria-label={`다섯 칸 중 ${COUNT_WORDS[item.rating - 1]} 칸`}
+      className="font-mono tracking-widest text-[var(--hb-text-strong)]">{formatV31RatingDots(item.rating)}</span> : null}
+    <span className={v31Title}>{item.responseLabel}</span>
+  </span>;
+}
 
 const escapeOptions = [
   { value: "undecided", label: "아직 모르겠어요" },

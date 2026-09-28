@@ -69,8 +69,9 @@ export type V31StyleDimension = {
   letterFrom: V31QuestionId | null;
   label: string;
   /**
-   * 글자가 왜 그렇게 정해졌는지 답 줄만으로 알 수 없을 때만 쓰는 한 줄. 한 문장·두 문장 모두에서 나온 글자는
-   * 왜 다른 글자가 아닌지를 알려 주므로 남기고, ‘?’·M·N 자리는 라벨과 답 줄이 이미 말하므로 null 이다.
+   * 글자가 왜 그렇게 정해졌는지 답 줄만으로 알 수 없을 때만 있는 한 줄. 한 문장·두 문장 모두에서 나온 글자에만 있고
+   * ‘?’·M·N 자리는 라벨과 답 줄이 이미 말하므로 null 이다. 2026-09-28 개정(결과 되풀이 걷기)부터 화면은 이 줄을 주제마다
+   * 붙이지 않고, 이 값이 있는 자리가 하나라도 있으면 카드에 규칙 한 줄(V31_STYLE_LETTER_RULE)을 한 번 둔다.
    */
   basis: string | null;
   ratedCount: number;
@@ -82,7 +83,8 @@ export type V31StyleDimension = {
 /**
  * 네 글자 요약. 2026-09-27 파운더 결정으로 ‘~스타일’ 이름·이름 출처 줄·이름에 딸린 헤드라인은 두지 않는다.
  * 코드 옆에는 코드와 주제별 줄(글자, 글자 뜻 한 줄, 두 문장의 실제 답)이 있다. 한 문장에서 나온 글자(K·R·T·D·F·C·L·A)는
- * 뜻 줄을 따로 두지 않고 그 문장의 답 줄에 영문 낱말을 붙이며, 글자가 정해진 자리(이 여덟 글자와 B)에는 근거 한 줄이 붙는다.
+ * 뜻 줄을 따로 두지 않고 그 문장의 답 줄에 영문 낱말을 붙인다. 글자가 정해진 자리(이 여덟 글자와 B)의 근거는
+ * 2026-09-28 개정부터 주제마다 붙이지 않고 카드에 규칙 한 줄로 한 번 말한다(v31StyleShowsLetterRule).
  */
 export type V31StyleSummary = {
   version: typeof V31_STYLE_SUMMARY_VERSION;
@@ -104,6 +106,15 @@ export type V31StyleSummary = {
  * (예: 4 대 4 의 B 는 아슬하지 않지만 4를 한 칸 내리면 글자가 바뀐다).
  */
 export const V31_STYLE_CHANGE_NOTICE = "다시 답하면 글자가 달라질 수 있어요." as const;
+
+/** 칠한 칸의 뜻. 두 문장이 서로 따로 답한 문장이라는 것도 여기서 말한다(‘그 문장’이 가리킬 곳이 이 앞 절이다). */
+export const V31_STYLE_DOTS_LEGEND = "주제마다 두 문장에 따로 답했어요. 칠한 칸이 많을수록 그 문장에 더 동의했다는 거예요." as const;
+/**
+ * 글자가 정해진 자리의 근거를 카드마다 한 번 말하는 규칙(2026-09-28 개정). 주제마다 붙던 ‘한 문장에만/두 문장 모두
+ * ‘그런 편’ 이상으로 답했어요’는 바로 위 두 문장의 칸과 보기 이름을 되풀이했다. ‘?’는 한 문장이라도 칸으로 고른 답이
+ * 아니면 생기므로, 두 문장 모두 동의 정도를 고른 주제로 범위를 좁혀야 참이다(‘?’ 안내의 「동의하는 정도를 고르면」과 같은 말).
+ */
+export const V31_STYLE_LETTER_RULE = "두 문장 모두 동의 정도를 고른 주제는 ‘그런 편’ 이상으로 답한 문장이 하나면 그 문장의 글자를, 둘이면 ‘B’를 붙였어요." as const;
 
 const BOTH_LABELS: Record<V31StyleKey, string> = {
   budget: "총액은 지키고 싶고, 늘릴지도 다시 의논하고 싶어요",
@@ -288,6 +299,11 @@ export function buildV31StyleSummary(draft: V31Draft): V31StyleSummary {
     pendingNotice: pendingNotice(dimensions),
     dimensions,
   };
+}
+
+/** 규칙 한 줄을 둘지. 한 문장이나 두 문장에서 나온 글자(K·R·T·D·F·C·L·A·B)가 하나라도 있을 때만 참이고 M·N·‘?’만이면 거짓이다. */
+export function v31StyleShowsLetterRule(summary: V31StyleSummary): boolean {
+  return summary.dimensions.some(item => item.basis !== null);
 }
 
 export function buildV31StatementScales(draft: V31Draft): V31StatementScaleGroup[] {

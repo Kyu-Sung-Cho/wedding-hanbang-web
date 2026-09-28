@@ -13,6 +13,8 @@ import * as summaryModule from "@/lib/weddingCode/v31StyleSummary";
 import {
   V31_STYLE_CHANGE_NOTICE,
   V31_STYLE_DIMENSIONS,
+  V31_STYLE_DOTS_LEGEND,
+  V31_STYLE_LETTER_RULE,
   V31_STYLE_SUMMARY_VERSION,
   buildV31StatementScales,
   buildV31StyleSummary,
@@ -60,10 +62,12 @@ function legacyBorderline(first: V31Rating, second: V31Rating): boolean {
     .some(([a, b]) => legacyLetter(a as V31Rating, b as V31Rating, "X", "Y") !== current);
 }
 
+/** 요약이 화면에 내놓는 문장. 2026-09-28부터 카드에 한 번 두는 칠한 칸 설명과 규칙 한 줄도 같이 훑는다. */
 function screenStrings(summary: V31StyleSummary): string[] {
   return [
     summary.borderlineNotice ?? "", summary.changeNotice ?? "", summary.pendingNotice ?? "",
     ...summary.dimensions.flatMap(item => [item.label, item.basis ?? "", item.englishLabel ?? ""]),
+    V31_STYLE_DOTS_LEGEND, V31_STYLE_LETTER_RULE,
   ];
 }
 

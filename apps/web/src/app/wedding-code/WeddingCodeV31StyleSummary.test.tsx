@@ -4,8 +4,11 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { WEDDING_CODE_V31_OPTIONS, WEDDING_CODE_V31_STATUS_OPTIONS, type V31Draft, type V31Response } from "@/constants/weddingCodeV31";
 import { createV31Draft } from "@/lib/weddingCode/v31";
-import { V31_STYLE_BORDERLINE_TAG, V31_STYLE_CHANGE_NOTICE, V31_STYLE_DIMENSIONS, buildV31StyleSummary } from "@/lib/weddingCode/v31StyleSummary";
-import WeddingCodeV31StyleSummary from "./WeddingCodeV31StyleSummary";
+import {
+  V31_STYLE_BORDERLINE_TAG, V31_STYLE_CHANGE_NOTICE, V31_STYLE_DIMENSIONS, V31_STYLE_DOTS_LEGEND, V31_STYLE_LETTER_RULE,
+  buildV31StyleSummary, v31StyleShowsLetterRule,
+} from "@/lib/weddingCode/v31StyleSummary";
+import WeddingCodeV31StyleSummary, { WeddingCodeV31PairSummary } from "./WeddingCodeV31StyleSummary";
 
 function draftOf(answers: V31Draft["answers"]): V31Draft {
   const draft = createV31Draft();
@@ -15,7 +18,7 @@ function draftOf(answers: V31Draft["answers"]): V31Draft {
 function paired(first: V31Response, second: V31Response): V31Draft {
   return draftOf({ B1: first, B3: second, T1: first, T2: second, F1: first, F2: second, H1: first, H2: second });
 }
-function render(draft: V31Draft, props: { compact?: boolean; onEdit?: (id?: string) => void; showChangeNotice?: boolean } = {}) {
+function render(draft: V31Draft, props: { onEdit?: (id?: string) => void } = {}) {
   const container = document.createElement("div");
   container.innerHTML = renderToStaticMarkup(<WeddingCodeV31StyleSummary draft={draft} {...props} />);
   return container.querySelector<HTMLElement>("[data-style-summary]")!;
@@ -111,17 +114,16 @@ describe("웨딩코드 v3.1 네 글자 요약 화면", () => {
     expect(oneApartUntagged).toBe(24);
   });
 
-  it("다시 답하면 달라질 수 있다는 말은 카드마다 한 번이고, 두 사람 카드처럼 바깥에서 말하면 카드에서는 뺀다", () => {
+  it("다시 답하면 달라질 수 있다는 말은 카드마다 한 번, 코드보다 먼저 둔다", () => {
+    // 2026-09-28: 두 사람을 함께 보는 탭은 이 카드 대신 두 사람 표를 쓴다(그 표의 한 번은 아래 두 사람 표 테스트).
     const drafts = [draftOf(MIXED), draftOf(SPREAD), paired(4, 3), paired(1, 1), paired(3, 3)];
-    for (const draft of drafts) for (const compact of [false, true]) {
-      const summary = render(draft, { compact });
+    for (const draft of drafts) {
+      const summary = render(draft);
       expect(summary.textContent?.split(V31_STYLE_CHANGE_NOTICE).length, summary.getAttribute("data-style-summary")!).toBe(2);
       const change = summary.querySelector("[data-change-notice]")!;
       expect(change.compareDocumentPosition(summary.querySelector("[data-code]")!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-      const outside = render(draft, { compact, showChangeNotice: false });
-      expect(outside.textContent).not.toContain(V31_STYLE_CHANGE_NOTICE);
-      // 아슬한 글자 안내는 그 사람의 글자에 대한 사실이라 카드에 남는다.
-      expect(outside.querySelector("[data-borderline-notice]")?.textContent ?? null).toBe(buildV31StyleSummary(draft).borderlineNotice);
+      // 아슬한 글자 안내는 그 사람의 글자에 대한 사실이라 카드에 있다.
+      expect(summary.querySelector("[data-borderline-notice]")?.textContent ?? null).toBe(buildV31StyleSummary(draft).borderlineNotice);
     }
   });
 
@@ -161,8 +163,8 @@ describe("웨딩코드 v3.1 네 글자 요약 화면", () => {
       draftOf(MIXED), draftOf(SPREAD), createV31Draft(), paired("undecided", 5), paired("not_applicable", "not_applicable"),
       draftOf({ B1: 5, B3: "undecided", T1: 3, T2: 3, F1: 1, F2: 1, H1: 2, H2: 3 }),
     ];
-    for (const draft of drafts) for (const compact of [false, true]) {
-      const summary = render(draft, { compact, onEdit: () => {} });
+    for (const draft of drafts) {
+      const summary = render(draft, { onEdit: () => {} });
       const code = summary.getAttribute("data-style-summary")!;
       expect(summary.querySelector("[data-style-name], [data-name-source]"), code).toBeNull();
       expect(summary.textContent, code).not.toMatch(/스타일|이름은|이름을 붙이|이름도 바뀌|따왔어요|따와요/);
@@ -283,11 +285,12 @@ describe("웨딩코드 v3.1 네 글자 요약 화면", () => {
 
   it("요약이 스스로 덧붙이는 문장에는 퍼센트·줄표·시스템 말투·영문 뒤 조사·‘아니에요’ 고지가 없다", () => {
     const optionLabels = new Set<string>([...WEDDING_CODE_V31_OPTIONS, ...WEDDING_CODE_V31_STATUS_OPTIONS].map(option => option.label));
-    const drafts = [draftOf(MIXED), paired(1, 1), paired(3, 3), paired(4, 2), createV31Draft(), (() => {
+    // 규칙 한 줄(2026-09-28)이 붙는 답(한 문장·두 문장 모두에서 나온 글자)도 함께 훑는다.
+    const drafts = [draftOf(MIXED), paired(1, 1), paired(3, 3), paired(4, 2), paired(4, 3), paired(5, 5), paired(4, 1), createV31Draft(), (() => {
       const draft = paired(5, 5); draft.answers.F1 = "not_applicable"; draft.answers.B1 = "undecided"; draft.answers.H2 = "skipped"; return draft;
     })()];
-    for (const draft of drafts) for (const compact of [false, true]) {
-      for (const text of textNodes(render(draft, { compact }))) {
+    for (const draft of drafts) {
+      for (const text of textNodes(render(draft))) {
         expect(text, text).not.toMatch(/%|[—–]/);
         expect(text, text).not.toMatch(/선택값|요약 보류|\d+\/\d+개|요약 근거|Both|Middle|Neither|Unassigned|확인해 주세요/);
         expect(text, text).not.toMatch(/[A-Za-z][가-힣]/);
@@ -297,11 +300,11 @@ describe("웨딩코드 v3.1 네 글자 요약 화면", () => {
     }
   });
 
-  it("아래 개인 결과가 붙는 넓은 화면에서만 결혼식 취향이 따로 있다고 알린다", () => {
+  it("카드 아래 개인 결과에 결혼식 취향이 따로 있다고 알린다", () => {
     // 2026-09-27: 「~넣지 않았어요」 대신 어디에 있는지를 말한다. 판정 고지는 결과 머리글에서 한 번만 한다.
+    // 2026-09-28: 좁은 카드(함께 보기)가 두 사람 표로 바뀌어 이 카드는 늘 아래에 개인 결과가 붙는다.
     expect(render(draftOf(MIXED)).textContent).toContain("결혼식 취향은 아래에 따로 모았어요.");
     expect(render(draftOf(MIXED)).textContent).not.toContain("넣지 않았어요");
-    expect(render(draftOf(MIXED), { compact: true }).textContent).not.toContain("아래에 따로");
   });
 
   it("칸의 뜻과 칸 없는 답을 명사형이나 화면에 없는 이름으로 부르지 않는다", () => {
@@ -313,5 +316,190 @@ describe("웨딩코드 v3.1 네 글자 요약 화면", () => {
     // 칸 없는 답은 실제 보기 이름으로 부른다(화면 어디에도 없는 ‘건너뜀’·‘모름’으로 부르지 않는다).
     expect(fold.textContent).not.toMatch(/건너뜀|모름,/);
     for (const label of WEDDING_CODE_V31_STATUS_OPTIONS.map(option => option.label)) expect(fold.textContent).toContain(`‘${label}’`);
+  });
+});
+
+const RATINGS = [1, 2, 3, 4, 5] as const;
+/** 한 문장·두 문장 모두에서 나온 글자(K·R·T·D·F·C·L·A·B)가 있는 답. */
+const RULE_DRAFTS = (): [string, V31Draft][] => [["MIXED", draftOf(MIXED)], ["4/3", paired(4, 3)], ["5/5", paired(5, 5)], ["4/1", paired(4, 1)]];
+/** M·N·‘?’만 있는 답. */
+const NO_RULE_DRAFTS = (): [string, V31Draft][] => [["3/3", paired(3, 3)], ["1/1", paired(1, 1)], ["모름", paired("undecided", "undecided")], ["빈 답", createV31Draft()]];
+const count = (text: string | null | undefined, part: string) => (text ?? "").split(part).length - 1;
+
+describe("2026-09-28 코드 카드의 규칙 한 줄", () => {
+  it("주제마다 붙던 ‘그런 편’ 근거 줄은 어떤 답에서도 두지 않는다", () => {
+    const drafts = [...RATINGS.flatMap(first => RATINGS.map(second => paired(first, second))), draftOf(MIXED), draftOf(SPREAD), createV31Draft(), paired("undecided", 5)];
+    for (const draft of drafts) expect(render(draft).textContent, buildV31StyleSummary(draft).code).not.toMatch(/‘그런 편’ 이상으로 답했어요/);
+  });
+
+  it("글자가 정해진 자리가 있으면 칠한 칸 설명 뒤에 규칙을 한 번 두고, M·N·‘?’만이면 두지 않는다", () => {
+    for (const [name, draft] of RULE_DRAFTS()) {
+      const summary = render(draft);
+      expect(v31StyleShowsLetterRule(buildV31StyleSummary(draft)), name).toBe(true);
+      expect(count(summary.textContent, V31_STYLE_LETTER_RULE), name).toBe(1);
+      // 규칙은 칠한 칸 설명과 같은 문단에서 그 뒤에 온다(‘그 문장’이 가리킬 앞 절이 있다).
+      const legend = [...summary.querySelectorAll("p")].find(item => item.textContent?.includes(V31_STYLE_LETTER_RULE));
+      expect(legend?.textContent, name).toBe(`${V31_STYLE_DOTS_LEGEND} ${V31_STYLE_LETTER_RULE}`);
+    }
+    for (const [name, draft] of NO_RULE_DRAFTS()) {
+      const summary = render(draft);
+      expect(v31StyleShowsLetterRule(buildV31StyleSummary(draft)), name).toBe(false);
+      expect(summary.textContent, name).not.toContain(V31_STYLE_LETTER_RULE);
+      expect(summary.textContent, name).toContain(V31_STYLE_DOTS_LEGEND);
+    }
+  });
+
+  it("한 주제가 ‘?’여도 다른 주제에 글자가 정해졌으면 규칙은 한 번이고, ‘?’ 안내는 그 주제 이름을 적는다", () => {
+    const summary = render(draftOf({ B1: 5, B3: "undecided", T1: 5, T2: 1, F1: 4, F2: 4, H1: 1, H2: 1 }));
+    expect(summary.getAttribute("data-style-summary")).toBe("?TBN");
+    expect(count(summary.textContent, V31_STYLE_LETTER_RULE)).toBe(1);
+    expect(summary.querySelector('[data-code-letter="budget"]')?.textContent).toBe("?");
+    expect(summary.querySelector("[data-pending-notice]")?.textContent).toContain("‘예산’");
+  });
+
+  it("코드에 쓰지 않은 문장을 여는 ‘다른 문장에 고른 답도 보기’는 두지 않는다(문장별 답 모두 보기에 칸과 함께 있다)", () => {
+    for (const draft of [draftOf({ ...MIXED, V1: 5, G1: 3, T3: 4, H4: "undecided" }), draftOf(MIXED), createV31Draft()]) {
+      const summary = render(draft, { onEdit: () => {} });
+      expect(summary.querySelector("[data-extra-statement-scales]")).toBeNull();
+      expect(summary.textContent).not.toContain("다른 문장에 고른 답도 보기");
+      expect(summary.textContent).not.toContain("네 글자에는 넣지 않았어요");
+    }
+  });
+});
+
+/** 함께 보기 탭이 받는 이름. 읽기 전용(본인이 확인된 두 사람 결과)은 받지 않은 결과와 이름이 같다. */
+const PAIR_LABEL_SETS = [
+  { name: "받지 않은 결과", labels: { first: "상대", second: "나" }, tabNames: ["내 결과", "상대 결과"] },
+  { name: "읽기 전용", labels: { first: "상대", second: "나" }, tabNames: ["내 결과", "상대 결과"] },
+  { name: "받은 링크", labels: { first: "먼저 답한 사람", second: "나중에 답한 사람" }, tabNames: ["먼저 답한 사람", "나중에 답한 사람"] },
+] as const;
+function renderPair(first: V31Draft, second: V31Draft, set: (typeof PAIR_LABEL_SETS)[number] = PAIR_LABEL_SETS[0]) {
+  const changeNotice = [first, second].map(item => buildV31StyleSummary(item).changeNotice).find(notice => notice !== null) ?? null;
+  const container = document.createElement("div");
+  container.innerHTML = renderToStaticMarkup(<WeddingCodeV31PairSummary first={first} second={second} labels={set.labels} tabNames={set.tabNames} changeNotice={changeNotice} />);
+  return container.querySelector<HTMLElement>("[data-pair-summary]")!;
+}
+const UNDECIDED_MIX = draftOf({ B1: "undecided", B3: 5, T1: "not_applicable", T2: "not_applicable", F1: 4, F2: 3, H1: "skipped", H2: 2 });
+const PAIRS = (): [string, V31Draft, V31Draft][] => [
+  ["MIXED·SPREAD", draftOf(MIXED), draftOf(SPREAD)],
+  ["4/3·1/1", paired(4, 3), paired(1, 1)],
+  ["3/3·1/1", paired(3, 3), paired(1, 1)],
+  ["빈 답·MIXED", createV31Draft(), draftOf(MIXED)],
+  ["모름 섞임·5/1", UNDECIDED_MIX, paired(5, 1)],
+];
+
+describe("2026-09-28 함께 보기의 두 사람 코드 표", () => {
+  it("두 코드를 먼저 답한 사람부터 따로 두고, 주제 줄마다 누구의 글자인지 글자 옆에 보이게 적는다", () => {
+    for (const set of PAIR_LABEL_SETS) for (const [name, first, second] of PAIRS()) {
+      const table = renderPair(first, second, set);
+      const label = `${set.name} ${name}`;
+      expect([...table.querySelectorAll("[data-pair-code]")].map(item => item.getAttribute("data-pair-code")), label)
+        .toEqual([buildV31StyleSummary(first).code, buildV31StyleSummary(second).code]);
+      const rows = [...table.querySelectorAll("[data-summary-topic]")];
+      expect(rows.map(row => row.getAttribute("data-summary-topic")), label).toEqual(V31_STYLE_DIMENSIONS.map(item => item.key));
+      for (const row of rows) {
+        const cells = [...row.querySelectorAll("[data-pair-letter]")];
+        expect(cells.map(cell => cell.getAttribute("data-pair-letter")), label).toEqual(["first", "second"]);
+        for (const cell of cells) {
+          const owner = cell.querySelector("[data-pair-owner]")!;
+          expect(owner.textContent, label).toBe(cell.getAttribute("data-pair-letter") === "first" ? set.labels.first : set.labels.second);
+          expect(owner.className, label).not.toContain("sr-only");
+          expect(owner.closest('[aria-hidden="true"], .sr-only'), label).toBeNull();
+        }
+      }
+      expect(table.querySelectorAll("button"), label).toHaveLength(0);
+      expect(table.querySelector("details"), label).toBeNull();
+    }
+  });
+
+  it("「글자가 달라요」는 두 글자가 모두 정해졌고 다를 때만 달고, ‘?’가 있으면 달지 않는다", () => {
+    let marked = 0;
+    for (const [name, first, second] of [...PAIRS(), ["5/1·1/5", paired(5, 1), paired(1, 5)], ["같은 답", draftOf(MIXED), draftOf(MIXED)]] as [string, V31Draft, V31Draft][]) {
+      const table = renderPair(first, second);
+      const [a, b] = [buildV31StyleSummary(first), buildV31StyleSummary(second)];
+      for (const [index, row] of [...table.querySelectorAll("[data-summary-topic]")].entries()) {
+        const [x, y] = [a.dimensions[index].letter, b.dimensions[index].letter];
+        const expected = x !== "?" && y !== "?" && x !== y;
+        expect(row.querySelector("[data-letters-differ]") !== null, `${name} ${x}/${y}`).toBe(expected);
+        if (expected) { marked += 1; expect(row.querySelector("[data-letters-differ]")?.textContent).toBe("글자가 달라요"); }
+      }
+    }
+    expect(marked).toBeGreaterThan(0);
+  });
+
+  it("코드를 만든 여덟 문장을 영문 낱말과 함께 두고, 두 사람의 답을 다섯 칸 점과 보기 이름으로 나란히 둔다", () => {
+    const table = renderPair(draftOf(MIXED), draftOf(SPREAD));
+    const statements = [...table.querySelectorAll("[data-pair-statement]")];
+    const definitions = V31_STYLE_DIMENSIONS.flatMap(item => [item.first, item.second]);
+    expect(statements.map(item => item.getAttribute("data-pair-statement"))).toEqual(definitions.map(item => item.id));
+    for (const [index, statement] of statements.entries()) expect(statement.textContent).toContain(definitions[index].englishLabel);
+    // 모든 답이 칸으로 고른 답이면 주제마다 네 칸 묶음(두 문장 × 두 사람)이다.
+    for (const row of table.querySelectorAll("[data-summary-topic]")) expect(row.querySelectorAll('[role="img"]')).toHaveLength(4);
+    expect(table.querySelector('[data-pair-statement="F2"] [role="img"][aria-label="다섯 칸 중 한 칸"]')).not.toBeNull();
+    expect(table.querySelector('[data-pair-statement="F2"]')?.textContent).toContain("전혀 그렇지 않아요");
+    // 칸이 없는 답은 보기 이름만 적는다.
+    const pending = renderPair(UNDECIDED_MIX, paired(5, 1));
+    expect(pending.querySelectorAll('[data-summary-topic="budget"] [role="img"]')).toHaveLength(3);
+    expect(pending.querySelector('[data-pair-statement="B1"]')?.textContent).toContain("아직 모르겠어요");
+  });
+
+  it("M·N 칸에는 글자 뜻 한 줄을 두고, 그 밖의 칸에는 두지 않으며, ‘?’는 물음표로 읽는다", () => {
+    const table = renderPair(paired(3, 3), paired(1, 1));
+    for (const row of table.querySelectorAll("[data-summary-topic]")) {
+      expect(row.querySelector('[data-pair-letter="first"] [data-letter-meaning]')?.textContent).toBe("중간으로 답한 문장이 있어요");
+      expect(row.querySelector('[data-pair-letter="second"] [data-letter-meaning]')?.textContent).toBe("두 문장 모두 낮게 답했어요");
+    }
+    const lettered = renderPair(paired(5, 5), paired(5, 1));
+    expect(lettered.querySelector("[data-letter-meaning]")).toBeNull();
+    const unknown = renderPair(createV31Draft(), paired(5, 5));
+    for (const cell of unknown.querySelectorAll('[data-pair-letter="first"]')) {
+      expect(cell.querySelector(".sr-only")?.textContent).toBe("물음표");
+      expect(cell.querySelector("[data-letter-meaning]")).toBeNull();
+    }
+    expect(unknown.querySelector('[data-pair-code="????"] .sr-only')?.textContent).toBe("네 글자 코드 물음표, 물음표, 물음표, 물음표");
+  });
+
+  it("규칙 한 줄은 두 사람 중 한 사람이라도 글자가 정해진 자리가 있을 때만 한 번 둔다", () => {
+    expect(renderPair(paired(3, 3), paired(1, 1)).textContent).not.toContain(V31_STYLE_LETTER_RULE);
+    expect(renderPair(paired(3, 3), paired(1, 1)).textContent).toContain(V31_STYLE_DOTS_LEGEND);
+    expect(renderPair(createV31Draft(), paired("undecided", "undecided")).textContent).not.toContain(V31_STYLE_LETTER_RULE);
+    for (const [first, second] of [[draftOf(MIXED), paired(1, 1)], [paired(1, 1), paired(5, 5)], [paired(4, 3), paired(4, 1)]]) {
+      expect(count(renderPair(first, second).textContent, V31_STYLE_LETTER_RULE)).toBe(1);
+    }
+  });
+
+  it("다시 답하면 달라질 수 있다는 말과 사람별 안내는 코드보다 먼저 두고, 나머지는 사람별 탭에서 본다고 탭 이름으로 알린다", () => {
+    for (const set of PAIR_LABEL_SETS) {
+      const table = renderPair(draftOf(MIXED), UNDECIDED_MIX, set);
+      const codes = [...table.querySelectorAll("[data-pair-code] [data-code]")];
+      expect(table.querySelectorAll("[data-change-notice]")).toHaveLength(1);
+      expect(table.querySelector("p")?.querySelector("[data-change-notice]")).not.toBeNull();
+      const firstNotice = table.querySelector('[data-pair-notice="first"]')!;
+      const secondNotice = table.querySelector('[data-pair-notice="second"]')!;
+      expect(firstNotice.querySelector("[data-borderline-notice]")?.textContent).toBe(buildV31StyleSummary(draftOf(MIXED)).borderlineNotice);
+      expect(firstNotice.querySelector("[data-pending-notice]")).toBeNull();
+      expect(secondNotice.querySelector("[data-pending-notice]")?.textContent).toBe(buildV31StyleSummary(UNDECIDED_MIX).pendingNotice);
+      for (const notice of [table.querySelector("[data-change-notice]")!, firstNotice, secondNotice]) {
+        for (const code of codes) expect(notice.compareDocumentPosition(code) & Node.DOCUMENT_POSITION_FOLLOWING, set.name).toBeTruthy();
+      }
+      expect(table.querySelector("[data-pair-pointer]")?.textContent).toBe(`코드를 만든 문장 전체와 나머지 답은 ‘${set.tabNames[0]}’, ‘${set.tabNames[1]}’ 탭에서 볼 수 있어요.`);
+    }
+    expect(renderPair(createV31Draft(), createV31Draft()).querySelector("[data-change-notice]")).toBeNull();
+  });
+
+  it("표가 스스로 덧붙이는 문장에는 퍼센트·줄표·시스템 말투·영문 뒤 조사·이름·‘아니’ 고지·같다·일치·점수가 없다", () => {
+    const optionLabels = new Set<string>([...WEDDING_CODE_V31_OPTIONS, ...WEDDING_CODE_V31_STATUS_OPTIONS].map(option => option.label));
+    const drafts = [draftOf(MIXED), paired(4, 3), paired(1, 1), paired(3, 3), createV31Draft(), UNDECIDED_MIX];
+    for (const set of PAIR_LABEL_SETS) for (const first of drafts) for (const second of drafts) {
+      for (const text of textNodes(renderPair(first, second, set))) {
+        expect(text, text).not.toMatch(/%|[—–]/);
+        expect(text, text).not.toMatch(/선택값|요약 보류|\d+\/\d+개|요약 근거|Both|Middle|Neither|Unassigned|확인해 주세요/);
+        expect(text, text).not.toMatch(/[A-Za-z][가-힣]/);
+        expect(text, text).not.toMatch(/스타일|이름은|이름을 붙이|이름도 바뀌|따왔어요|따와요/);
+        expect(text, text).not.toMatch(/같아요|일치|궁합|점수/);
+        if (optionLabels.has(text)) continue;
+        expect(text.replace(/‘[^’]*’/g, ""), text).not.toContain("아니");
+      }
+    }
   });
 });

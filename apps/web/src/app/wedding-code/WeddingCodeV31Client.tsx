@@ -26,6 +26,7 @@ const avoidanceIndex = coreCount + WEDDING_CODE_V31_TASTES.length;
 const priorityIndex = avoidanceIndex + 1;
 const missingAnswerNotice = "선택이 비어 있는 질문으로 돌아왔어요. 답을 고르거나, 아래에서 ‘아직 모르겠어요’나 ‘지금 답하지 않을게요’를 골라 주세요.";
 const resetStorageFailureNotice = "현재 화면은 새로 시작했지만, 브라우저에 저장된 답을 지우지 못했어요. 공용 기기라면 브라우저 설정에서 이 사이트의 데이터를 지워 주세요.";
+const RESUMED_NOTICE = "저장된 내 답을 불러왔어요.";
 type Progress = Omit<V31LocalProgressSnapshot, "screen"> & { screen: "intro" | "questions" | "result" };
 
 function v31FlowLabel(flow: V31Flow) {
@@ -104,6 +105,8 @@ export default function WeddingCodeV31Client({ shareOrigin, partnerDraft = null,
   const pairAddressSaved = useSyncExternalStore(storageActive ? subscribePairSession : noSubscription, storageActive ? hasSavedPairAddress : noPairAddress, noPairAddress);
   const [revision, setRevision] = useState(0);
   const [notice, setNotice] = useState(initialNotice);
+  // 처음 화면의 ‘내 결과 다시 보기’로 연 결과는 결과가 뜨는 것 자체가 확인이라, 불러왔다는 상자를 화면 읽기용으로만 남긴다.
+  const [quietResumeNotice, setQuietResumeNotice] = useState(false);
   const question = index < coreCount ? WEDDING_CODE_V31_QUESTIONS[index] : null;
   const taste = index >= coreCount && index < avoidanceIndex ? WEDDING_CODE_V31_TASTES[index - coreCount] : null;
   const choice = taste ? draft.tastes[taste.key] : index === avoidanceIndex ? draft.avoidances : index === priorityIndex ? draft.priorities : draft.spending;
@@ -211,7 +214,8 @@ export default function WeddingCodeV31Client({ shareOrigin, partnerDraft = null,
     if (missingIndex !== null) { commit({ ...changes, draft: nextDraft, index: missingIndex, editing: true }); setNotice(missingAnswerNotice); return; }
     // 결과 화면에는 우선순위를 다시 고를 칸이 없으니(보기가 없다), 결과에서 다시 확인하라는 앞의 안내를 사실로 바꾼다.
     if (reviewDropped) setNotice("앞의 답이 바뀌어 전에 고른 우선순위를 뺐어요.");
-    else if (notice === missingAnswerNotice) setNotice("");
+    // 불러왔다는 말은 이어 답하기 시작할 때의 일이다. 답을 마쳐 새로 만든 결과 위에 지난 말로 남기지 않는다.
+    else if (notice === missingAnswerNotice || notice === RESUMED_NOTICE) setNotice("");
     // 결과 종류는 화면에 보이는 결과를 따른다. 함께 보기 초대로 답한 사람도 상대 답을 받기 전에는 혼자 결과를 본다.
     // 초대로 왔다는 사실은 시작·장면 이벤트의 has_partner_link 가 맡는다.
     if (!editing) captureWeddingCodeEvent("wedding_code_completed", { version: WEDDING_CODE_V31_VERSION, scene_total: totalQuestions, ...responseCounts(nextDraft, flowIndexes), result_kind: context.first ? "couple" : "solo", placement: flow });
@@ -246,12 +250,14 @@ export default function WeddingCodeV31Client({ shareOrigin, partnerDraft = null,
     setOwned(true);
     commit({ screen: "questions" }, true);
   }
-  function resume(saved = local.store.restore()) {
+  function resume(saved = local.store.restore(), fromIntro = false) {
     if (!saved) return;
     // 예전 묶음에서 저장한 사람은 앞 페이지에 빈 칸이 있을 수 있다. 그 페이지부터 연다(저장본은 다음 답을 고를 때 새로 쓴다).
     const index = saved.screen === "questions" ? getV31ResumeIndex(saved.draft, saved.flow, saved.index, saved.editing) : saved.index;
     setOwned(true); setProgress({ ...saved, index }); setRevision(value => value + 1);
-    setNotice(saved.needsPriorityReview ? "앞의 답이 바뀌어 우선순위를 다시 확인해야 해요." : "저장된 내 답을 불러왔어요.");
+    setNotice(saved.needsPriorityReview ? "앞의 답이 바뀌어 우선순위를 다시 확인해야 해요." : RESUMED_NOTICE);
+    // 다른 탭과 부딪혀 ‘저장된 답 불러오기’로 부른 것은 누른 사람이 결과를 확인해야 하니 그대로 보인다.
+    setQuietResumeNotice(fromIntro);
   }
   function restart() {
     const cleared = local.store.clear();
@@ -268,6 +274,8 @@ export default function WeddingCodeV31Client({ shareOrigin, partnerDraft = null,
     const tasteIndex = WEDDING_CODE_V31_TASTES.findIndex(item => `taste.${item.key}` === id);
     const target = questionIndex >= 0 ? questionIndex : tasteIndex >= 0 ? coreCount + tasteIndex
       : id === "avoidances" || id?.startsWith("avoid.") ? avoidanceIndex : id === "priorities" ? priorityIndex : id === "spending" ? priorityIndex + 1 : V31_CORE_INDEXES[0];
+    // 불러왔다는 말은 결과를 열 때의 일이다. 수정 화면까지 따라가 지난 일처럼 남지 않게 지운다.
+    if (notice === RESUMED_NOTICE) setNotice("");
     commit({ index: target, editing: true, screen: "questions" });
   }
   function more() {
@@ -341,7 +349,7 @@ export default function WeddingCodeV31Client({ shareOrigin, partnerDraft = null,
     <div className="mx-auto max-w-2xl">
       {!embedded && <nav aria-label="웨딩코드 탐색" className="mb-6 flex items-center justify-between gap-3"><Button href="/landing" variant="ghost" size="sm" className="px-0!">웨딩한방</Button><span className="text-xs font-semibold tracking-wide text-[var(--hb-text-muted)]">WEDDING CODE</span></nav>}
       <section ref={screenRef} tabIndex={-1} aria-label={screenLabel} className={embedded ? "scroll-mt-20 outline-none md:scroll-mt-28" : "outline-none"}>
-        {notice ? <p role="status" data-screen-notice className="mb-5 rounded-lg border border-[var(--hb-hairline)] bg-[var(--hb-surface-hover)] p-4 text-sm leading-relaxed text-[var(--hb-text-strong)]">{notice}</p> : null}
+        {notice ? <p role="status" data-screen-notice className={quietResumeNotice && screen === "result" && notice === RESUMED_NOTICE ? "sr-only" : "mb-5 rounded-lg border border-[var(--hb-hairline)] bg-[var(--hb-surface-hover)] p-4 text-sm leading-relaxed text-[var(--hb-text-strong)]"}>{notice}</p> : null}
         {children}
         {storageControls}
       </section>
@@ -383,7 +391,7 @@ export default function WeddingCodeV31Client({ shareOrigin, partnerDraft = null,
     {!owned && local.saved ? <section className={`${v31Surface} mt-5 p-5`} aria-label="저장된 내 답 이어하기">
       <h2 className={`text-lg ${v31Title}`}>이 브라우저에 남겨 둔 답이 있어요</h2>
       <p className={`mt-2 ${v31Body}`}>{local.saved.screen === "result" ? "전에 답한 내 결과를 다시 볼 수 있어요." : local.saved.editing ? "수정하던 질문부터 이어 할 수 있어요." : `${v31PositionLabel(local.saved.flow, getV31ResumeIndex(local.saved.draft, local.saved.flow, local.saved.index, local.saved.editing))}부터 이어 할 수 있어요.`}</p>
-      <Button variant="primary" size="lg" fullWidth onClick={() => resume()} className="mt-3 whitespace-normal!">{local.saved.screen === "result" ? context.first ? "저장한 내 답으로 비교하기" : "내 결과 다시 보기" : "이어서 답하기"}</Button>
+      <Button variant="primary" size="lg" fullWidth onClick={() => resume(undefined, true)} className="mt-3 whitespace-normal!">{local.saved.screen === "result" ? context.first ? "저장한 내 답으로 비교하기" : "내 결과 다시 보기" : "이어서 답하기"}</Button>
     </section> : null}
     <div className="mt-5 space-y-1" data-intro-scope>
       <p className={v31Body}>결혼식 모습과 둘이 준비하는 방식만 물어봐요. 신혼집, 예단과 예물, 양쪽 집안이 비용을 어떻게 나눌지는 묻지 않아요.</p>

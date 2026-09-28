@@ -48,10 +48,11 @@ describe("두 사람 결과 탭", () => {
   function panel() { return container.querySelector<HTMLElement>('[role="tabpanel"]')!; }
   async function click(element: HTMLElement | null | undefined) { expect(element).toBeTruthy(); await act(async () => element!.click()); }
   async function key(element: HTMLElement, value: string) { await act(async () => element.dispatchEvent(new KeyboardEvent("keydown", { key: value, bubbles: true, cancelable: true }))); }
-  function codes() { return [...container.querySelectorAll("[data-style-summary]")].map(item => item.getAttribute("data-style-summary")); }
+  /** 화면의 코드. 한 사람 탭·혼자 결과는 코드 카드, 함께 보기는 두 사람 코드 표(2026-09-28)에서 읽는다. */
+  function codes() { return [...container.querySelectorAll("[data-style-summary], [data-pair-code]")].map(item => item.getAttribute("data-style-summary") ?? item.getAttribute("data-pair-code")); }
   function editButtons() { return [...container.querySelectorAll("button")].filter(item => `${item.textContent} ${item.getAttribute("aria-label") ?? ""}`.includes("수정")); }
 
-  it("다시 답하면 글자가 달라질 수 있다는 말은 함께 보기에서는 두 카드 위에 한 번, 한 사람 탭에서는 그 카드 안에 한 번 둔다", async () => {
+  it("다시 답하면 글자가 달라질 수 있다는 말은 함께 보기에서는 두 사람 표의 코드 위에 한 번, 한 사람 탭에서는 그 카드 안에 한 번 둔다", async () => {
     const change = "다시 답하면 글자가 달라질 수 있어요.";
     await render();
     expect(panel().textContent?.split(change).length).toBe(2);
@@ -102,7 +103,10 @@ describe("두 사람 결과 탭", () => {
       await click(tab(label));
       expect(codes()).toEqual([code]);
       expect(panel().textContent).toContain(`${label}의 결혼식 취향`);
-      expect(panel().textContent).toContain("누가 본인인지는 확인하지 않으며");
+      // 본인 여부는 모든 탭 위의 머리글이 한 번 말한다. 탭 안에서는 수정할 수 없다는 것만 적는다(2026-09-28).
+      expect(panel().textContent).toContain("이곳에서 답을 수정할 수는 없어요.");
+      expect(panel().textContent).not.toContain("본인");
+      expect(container.querySelector("header")?.textContent).toContain("이름이나 본인 여부는 확인하지 않아요.");
       expect(editButtons()).toHaveLength(0);
       expect(container.querySelector('[aria-label="선택 질문"]')).toBeNull();
       expect(container.querySelector('input[type="checkbox"]')).toBeNull();
@@ -209,14 +213,22 @@ describe("두 사람 결과 탭", () => {
     expect(container.querySelector('[aria-label="선택 질문"]')).not.toBeNull();
   });
 
-  it("예약 전 확인 문장은 화면마다 한 번, 한 사람 탭 패널 안이 아니라 페이지에 둔다", async () => {
+  it("예약 전 확인 문장은 화면마다 한 번, 두 사람 결과는 탭 패널 밖 페이지에, 혼자 결과는 결혼식 취향 목록 끝에 둔다", async () => {
     const booking = "예약 전에는 추가 비용을 포함한 총액과 취소·변경 조건을 서면으로 확인해 주세요.";
-    function once(name: string) {
+    function once(name: string, solo = false) {
       expect(container.textContent?.split(booking).length, name).toBe(2);
       const holder = [...container.querySelectorAll("p")].find(item => item.textContent === booking);
       expect(holder, name).toBeTruthy();
       expect(holder?.closest('[role="tabpanel"]'), name).toBeNull();
-      expect(holder?.parentElement?.hasAttribute("data-result"), name).toBe(true);
+      if (!solo) {
+        expect(holder?.parentElement?.hasAttribute("data-result"), name).toBe(true);
+        return;
+      }
+      // 2026-09-28: 혼자 결과에서는 결혼식 취향 목록(dl) 바로 뒤로 옮겼다.
+      expect(holder?.hasAttribute("data-booking-check"), name).toBe(true);
+      const picture = holder?.closest("[data-wedding-picture]");
+      expect(picture, name).toBeTruthy();
+      expect(picture!.querySelector("dl")!.compareDocumentPosition(holder!) & Node.DOCUMENT_POSITION_FOLLOWING, name).toBeTruthy();
     }
     for (const [name, props] of [["두 사람", {}], ["받은 링크", { received: true }], ["읽기 전용", { readOnly: true }]] as const) {
       await render(props);
@@ -225,6 +237,20 @@ describe("두 사람 결과 탭", () => {
       for (const label of labels) { await click(tab(label)); once(`${name} ${label}`); }
     }
     await render({ first: null });
-    once("혼자");
+    once("혼자", true);
+  });
+
+  it("함께 보기 탭에서 내 답을 고치는 길은 표 아래 ‘내가 방금 답한 내용 수정’이고, 누르면 처음부터 수정한다", async () => {
+    await render();
+    expect(panel().querySelector("[data-pair-summary] button")).toBeNull();
+    await click([...container.querySelectorAll("button")].find(button => button.textContent === "내가 방금 답한 내용 수정"));
+    expect(onEdit).toHaveBeenCalledExactlyOnceWith();
+  });
+
+  it("상대가 아무 답도 남기지 않았어도 상대 결과 탭에는 고른 답을 그대로 정리했다는 안내를 둔다", async () => {
+    first = createV31Draft();
+    await render();
+    await click(tab("상대 결과"));
+    expect(panel().querySelector("[data-personal-insights]")?.textContent).toContain("반대 취향으로 바꾸지 않아요");
   });
 });

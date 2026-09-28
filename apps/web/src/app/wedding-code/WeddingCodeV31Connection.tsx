@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { useEffect, useId, useRef, useState, useSyncExternalStore } from "react";
 import Link from "next/link";
 import Button from "@/components/ui/Button";
 import type { V31Draft } from "@/constants/weddingCodeV31";
@@ -52,6 +52,7 @@ export function WeddingCodeComparisonResume({ compact = false }: { compact?: boo
 }
 
 export default function WeddingCodeV31Connection({ draft }: { draft: V31Draft }) {
+  const headingId = useId();
   const [expanded, setExpanded] = useState(false);
   const [consent, setConsent] = useState(false);
   const [ageConfirmed, setAgeConfirmed] = useState(false);
@@ -83,9 +84,11 @@ export default function WeddingCodeV31Connection({ draft }: { draft: V31Draft })
     } catch { if (active.current) setError("초대를 만들지 못했어요. 연결 상태를 확인하고 다시 시도해 주세요."); }
     finally { if (active.current) setBusy(false); }
   }
-  return <section className={`${v31Surface} mt-6 p-5 sm:p-7`} aria-label="상대 초대하고 함께 보기">
-    <h2 className={`text-lg ${v31Title}`}>상대도 답하면, 함께 볼 수 있어요</h2>
-    <p className={`mt-2 ${v31Body}`}>초대받은 사람이 답과 공유를 마치면 이 브라우저에서 두 사람 결과를 다시 열 수 있어요. 상대가 결과 링크를 돌려보내지 않아도 돼요.</p>
+  // 영역 이름은 제목이 맡는다. 버튼과 같은 말을 영역 이름으로 한 번 더 읽지 않게 한다.
+  return <section className={`${v31Surface} mt-6 p-5 sm:p-7`} aria-labelledby={headingId}>
+    <h2 id={headingId} className={`text-lg ${v31Title}`}>상대도 답하면, 함께 볼 수 있어요</h2>
+    {/* 이 브라우저에서 다시 연다는 말은 자동저장이 켜졌을 때만 참이라, 그 조건과 함께 동의 칸 아래에만 둔다. */}
+    <p className={`mt-2 ${v31Body}`}>상대가 공유까지 마치면 결과 링크를 돌려받지 않아도 두 사람 결과를 볼 수 있어요.</p>
     <WeddingCodeComparisonResume compact />
     {!expanded ? <Button variant="primary" fullWidth className="mt-4 whitespace-normal!" onClick={() => setExpanded(true)}>상대 초대하고 함께 보기</Button> : <div className="mt-4">
       <PairSessionConsent consent={consent} ageConfirmed={ageConfirmed} disabled={busy} onConsent={setConsent} onAge={setAgeConfirmed} />
