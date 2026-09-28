@@ -1,4 +1,4 @@
-import type { SupabaseClient } from "@supabase/supabase-js";
+import { StorageApiError, type SupabaseClient } from "@supabase/supabase-js";
 
 export const COMMUNITY_DELETION_BUCKETS = [
   "community-media-staging",
@@ -216,6 +216,7 @@ async function listExactUserPrefix(
   userId: string,
 ): Promise<string[]> {
   const names: string[] = [];
+  const seen = new Set<string>();
   for (let offset = 0; ; offset += INVENTORY_PAGE_SIZE) {
     if (offset >= INVENTORY_MAX_OBJECTS) {
       const { data, error } = await admin.storage.from(bucket).list(userId, {
@@ -239,10 +240,18 @@ async function listExactUserPrefix(
     if (error || !Array.isArray(data)) {
       throw new AccountDeletionStorageError("storage_inventory_unavailable");
     }
+    if (data.length > INVENTORY_PAGE_SIZE) {
+      throw new AccountDeletionStorageError("storage_inventory_malformed");
+    }
     for (const item of data) {
       if (!item || typeof item.name !== "string") {
         throw new AccountDeletionStorageError("storage_inventory_malformed");
       }
+      assertSafeListedName(item.name);
+      if (seen.has(item.name)) {
+        throw new AccountDeletionStorageError("storage_inventory_malformed");
+      }
+      seen.add(item.name);
       names.push(item.name);
     }
     if (data.length < INVENTORY_PAGE_SIZE) break;
@@ -689,11 +698,20 @@ async function deleteManifestRows(
     // A remove error alone is not decisive: a previous attempt may already
     // have removed the object. Exact absence checks below are the boundary.
     await admin.storage.from(bucket).remove(paths);
+    let listedNames: string[] | null = null;
     for (const row of batch) {
       const { data: exists, error: existsError } = await admin.storage
         .from(bucket)
         .exists(row.path);
-      if (existsError || typeof exists !== "boolean") {
+      if (exists === false && existsError instanceof StorageApiError
+          && (existsError.status === 400 || existsError.status === 404)) {
+        // HEAD 오류만으로 부재를 인정하지 않는다. 검증된 단일 사용자 폴더를 끝까지
+        // 조회한 결과만 이 배치에서 공유하고, 아래 최종 재조회에는 재사용하지 않는다.
+        listedNames ??= await listExactUserPrefix(admin, bucket, job.user_id!);
+        if (listedNames.some((name) => `${job.user_id}/${name}` === row.path)) {
+          throw new AccountDeletionStorageError("storage_delete_unconfirmed");
+        }
+      } else if (existsError || typeof exists !== "boolean") {
         throw new AccountDeletionStorageError("storage_absence_check_unavailable");
       }
       if (exists) {
