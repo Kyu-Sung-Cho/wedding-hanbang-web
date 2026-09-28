@@ -2618,6 +2618,11 @@ export async function runProductionRelease({
   now = () => new Date(),
 } = {}) {
   const repoRoot = resolve(requestedRepoRoot ?? process.cwd());
+  if ((argv ?? []).includes("--legacy-fitting-acl")) {
+    assertSafeExecutionEnvironment(process.env);
+    const { runLegacyFittingAclRelease } = await import("./legacy-fitting-acl-release.mjs");
+    return runLegacyFittingAclRelease({ repoRoot, argv, now });
+  }
   if ((argv ?? []).includes("--account-deletion-audit-nullability")) {
     assertSafeExecutionEnvironment(process.env);
     const { runDeletionAuditNullabilityRelease } = await import("./account-deletion-audit-nullability-release.mjs");

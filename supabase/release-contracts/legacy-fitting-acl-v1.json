@@ -1,0 +1,51 @@
+{
+  "version": 1,
+  "kind": "legacy-fitting-acl-scoped-release",
+  "release": "legacy-fitting-acl-20260928",
+  "projectRef": "slrtobkksjmxgzatjyqb",
+  "systemIdentifier": "7581440907192989109",
+  "serverMajor": 17,
+  "runtimeFile": "scripts/lib/legacy-fitting-acl-release.mjs",
+  "runtimeEvidenceVerified": false,
+  "functions": [
+    {
+      "identity": "public.cleanup_expired_fittings()",
+      "definitionSha256": "c4eb796a6da0f0c1e1f3cdf3abc1e6138b388a3f78726ead302583b7088356aa"
+    },
+    {
+      "identity": "public.increment_fitting_usage(uuid,date)",
+      "definitionSha256": "9b17d7a47a88cfcbbc1100416e37abddf60b43c10562ca158a424428e6c8df03"
+    }
+  ],
+  "scope": {
+    "revokeExecute": [
+      "PUBLIC",
+      "anon",
+      "authenticated"
+    ],
+    "preserveExecute": [
+      "postgres",
+      "service_role"
+    ],
+    "functionBodies": "unchanged",
+    "functionSettings": "unchanged-null",
+    "data": "unchanged",
+    "storage": "unchanged",
+    "auth": "unchanged",
+    "defaultPrivileges": "unchanged",
+    "migrationLedger": "unchanged",
+    "overloads": "exact-two",
+    "rollback": "transaction-rollback-only-no-reopening-after-commit",
+    "fullOriginalRestore": "not-proven"
+  },
+  "sql": {
+    "observationSha256": "9be889c5ef3d7f18ab4962beb966d54745f8d3e20af2528e241d7c8fbd593b23",
+    "mutationTemplateSha256": "2ed52a1eb23a6f4b74d7a1897698763223cae195f2853d58c7579cfc65bc5a84",
+    "templateDeadline": "2000-01-01T00:00:00.000Z",
+    "templatePreservation": {
+      "defaultAclSha256": "0000000000000000000000000000000000000000000000000000000000000000",
+      "ledgerSha256": "0000000000000000000000000000000000000000000000000000000000000000",
+      "ledgerCount": 0
+    }
+  }
+}

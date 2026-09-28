@@ -13,11 +13,12 @@
 ### 09-28 후속 운영 확인
 
 - **W01/W02:** PR462 가입 오류 처리가 운영 `6546dd81a859febb369580d75c38ed607e1483f4`에 반영됐다. Vercel READY·도메인·실제 health와 로그인 화면을 확인했다. 온보딩 접근은 기존 로그인 세션에서 확인한 것이며 익명 401·운영 503 주입 실증으로 확대하지 않는다.
-- **W12 코드 수정:** PR463의 `37571d6058adca156741baafa2f335ad2329f9bc`가 03:26:38 UTC에 병합됐다. 검증 후보와 main tree 일치, CI의 코드·웹 4개 shard·모바일·Vendor·Static Release 전부 성공, 운영 `dpl_BFDqvJxBmQre7uNY29DFacuW8z3a` READY/양 도메인 alias와 03:29:51 UTC health DB up·commit 일치를 확인했다. 100개 지원 이력 제한·로더 수정의 운영 반영이며 실제 A/B 탈퇴 완료가 아니다. 수동 전용 Production Readiness/Quality Gate는 SKIPPED로 구분한다.
+- **W12 합성 지원 탈퇴 완료:** PR463의 지원 이력·로더 수정과 후속 Storage/SDK 수정을 거쳐, PR468 운영 `ae25725b7dd1c3fe2a27e210305f11c753d6ed7b`(tree `c813efed50d5d5f18f9d3baacff09939ef14dcf1`)에서 기존 A/B 사건을 끝까지 검증했다. 원본 baseline을 보존한 22범위의 A 삭제·상대 보존 확인 후 B를 정리했고, 두 completed job·Auth/프로필/Storage 부재·같은 couple 및 16개 couple 테이블 부재와 B의 만료 전 JWT 401/no-store를 확인했다. 오늘 계정을 새로 만들지 않았다. CLI `scope_review_required`와 `generalCustomerDataRemovalVerified=false`는 유지하며, 실제 고객 메일·전체 고객 자료 삭제 완료로 확대하지 않는다. 상세 source 승계·원본 SHA·보호 receipt는 [W12 실제 마감](operations/W12_SYNTHETIC_SUPPORT_CLOSEOUT_2026-09-28.md)에 연결한다. 수동 전용 Production Readiness/Quality Gate의 SKIPPED를 운영 검증 PASS로 합산하지 않는다.
 - **검색 메타데이터:** 대표 URL·lastmod·Dataset 설명을 보완했다. 공개 데이터 직접 실행에서 결과 869 URL의 bytes를 유지하며 44.290초/835요청을 13.547초/183요청으로 줄였다. 관련 74개 검사와 전체 정상 pre-push 9개 작업이 성공했다. 최종 통합 후보 CI·프리뷰·운영 검증은 별도다. `docs/operations/WEB_SEARCH_METADATA_2026-09-28.md`에 연결한다.
-- **남은 실제 경계:** W12의 합성 pair 재개·탈퇴 후 상대 보존, W13 원본 반입용 PC 보호/원본 복원, W15 최종 실기기는 미완료다. Google은 현재 계정의 소유권 연결 확인 대기, 네이버는 로그인 필요 상태다. 기존 성공한 합성 복원과 Sentry 수신을 다시 미완료로 돌리지 않는다.
+- **남은 실제 경계:** W13 원본 반입용 PC 보호/원본 DB·Auth·Storage 복원과 삭제 재반영, W15 최종 실기기는 미완료다. Google은 현재 계정의 소유권 연결 확인 대기, 네이버는 로그인 필요 상태다. 기존 성공한 합성 복원·Sentry 수신과 이번 W12 합성 시험을 다시 미완료로 돌리지 않는다. W12 마감의 `w13OriginalRestoreVerified=false`, `fullWebLaunchReady=false`를 유지한다.
+- **별도 P6 권한 과제:** 09-28 08:44:58 UTC catalog에서 `public.increment_fitting_usage(uuid,date)`와 `public.cleanup_expired_fittings()`의 PUBLIC·anon·authenticated EXECUTE와 호출자 확인 없는 postgres 소유 SECURITY DEFINER 본문을 확인했다. 실제 함수 실행·REST 도달성·악용 여부는 미검증이다. 이 두 기존 함수의 권한 수정·운영 검증은 남은 출시 조건이며 W12 완료나 프로젝트 전체 보안 완료와 혼동하지 않는다. [증거와 범위](operations/W12_SYNTHETIC_SUPPORT_CLOSEOUT_2026-09-28.md).
 
-후속 로컬 영수증: `C:/Users/kcho1/.codex/visualizations/web-launch-20260928/`의 `AUTH_PRODUCTION_VERIFICATION.md`, `W12_PRODUCTION_VERIFICATION.md`, `SEARCH_REGISTRATION_STATUS.md`, `W13_HOST_READINESS.md`. 운영 원문·자격증명은 이 문서에 복사하지 않는다.
+후속 로컬 영수증: `C:/Users/kcho1/.codex/visualizations/web-launch-20260928/`의 `AUTH_PRODUCTION_VERIFICATION.md`, `W12_PRODUCTION_VERIFICATION.md`, `W12_SCOPE_CLOSURE_ACTUAL.md`, `w12-successor/w12-scoped-closeout.json`, `fitting-advisor-catalog-review.json`, `SEARCH_REGISTRATION_STATUS.md`, `W13_HOST_READINESS.md`. 운영 원문·자격증명은 이 문서에 복사하지 않는다.
 
 ### 재개 시점의 최초 관측과 진단 이력
 
