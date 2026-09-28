@@ -101,21 +101,21 @@ describe("support CLI separate runtime-state credential", () => {
 describe("support CLI bounded runtime observation wait", () => {
   afterEach(() => vi.useRealTimers());
 
-  it("waits once for a 169ms-ahead observation before strict validation and enqueue", async () => {
+  it.each([169, 2_151, 5_000])("waits once for a %ims-ahead observation before strict validation and enqueue", async observedOffsetMs => {
     vi.useFakeTimers({ toFake: ["Date"] });
     const now = Date.now();
     const wait = vi.fn((callback: () => void, delay: number) => {
       vi.setSystemTime(now + delay);
       callback();
     });
-    const result = await run({ ACCOUNT_DELETION_STATE_SECRET: STATE }, 200, { observedOffsetMs: 169, wait });
-    expect(wait).toHaveBeenCalledExactlyOnceWith(expect.any(Function), 169);
+    const result = await run({ ACCOUNT_DELETION_STATE_SECRET: STATE }, 200, { observedOffsetMs, wait });
+    expect(wait).toHaveBeenCalledExactlyOnceWith(expect.any(Function), observedOffsetMs);
     expect(result.state.exitCode).toBeUndefined();
-    expect(result.requestDeletion).toHaveBeenCalledExactlyOnceWith(result.admin, value.subject, "privacy", now + 169, { processImmediately: false });
+    expect(result.requestDeletion).toHaveBeenCalledExactlyOnceWith(result.admin, value.subject, "privacy", now + observedOffsetMs, { processImmediately: false });
     expect(result.network.filter(x => x.url.endsWith("/api/ops/account-deletion-state"))).toHaveLength(1);
   });
 
-  it.each([1_001, -30_001])("rejects an observation outside the permitted wait/freshness boundaries without waiting: %sms", async observedOffsetMs => {
+  it.each([5_001, -30_000, -30_001])("rejects an observation outside the permitted wait/freshness boundaries without waiting: %sms", async observedOffsetMs => {
     vi.useFakeTimers({ toFake: ["Date"] });
     const wait = vi.fn();
     const result = await run({ ACCOUNT_DELETION_STATE_SECRET: STATE }, 200, { observedOffsetMs, wait });
@@ -137,5 +137,20 @@ describe("support CLI bounded runtime observation wait", () => {
     expect(result.state.exitCode).toBe(2);
     expect(result.output).toContain("SUPPORT_CASE_RUNTIME_STATE_INVALID");
     expect(result.requestDeletion).not.toHaveBeenCalled();
+  });
+
+  it("does not enqueue if the observation expires while the single wait is suspended", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    const now = Date.now();
+    const wait = vi.fn((callback: () => void, delay: number) => {
+      vi.setSystemTime(now + delay + 30_000);
+      callback();
+    });
+    const result = await run({ ACCOUNT_DELETION_STATE_SECRET: STATE }, 200, { observedOffsetMs: 2_151, wait });
+    expect(wait).toHaveBeenCalledExactlyOnceWith(expect.any(Function), 2_151);
+    expect(result.state.exitCode).toBe(2);
+    expect(result.output).toContain("SUPPORT_CASE_RUNTIME_STATE_INVALID");
+    expect(result.requestDeletion).not.toHaveBeenCalled();
+    expect(result.close).toHaveBeenCalledOnce();
   });
 });
