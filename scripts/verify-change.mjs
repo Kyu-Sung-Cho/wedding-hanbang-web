@@ -263,9 +263,8 @@ if (touched.shared) {
 }
 results.testRepo = run("test-repo", "npx", ["pnpm", "test:repo"], ROOT);
 
-if (touched.migrations) {
-  notes.push("마이그레이션이 바뀌었다 — 릴리스 매니페스트 sha256 과 Vercel 서명을 함께 갱신해야 프로덕션 빌드가 죽지 않는다.");
-}
+// 2026-09-27: 마이그레이션이 바뀌면 "Vercel 서명을 함께 갱신하라" 고 적던 안내를 뺐다.
+// 운영 빌드 펜스를 은퇴시켜 그 서명을 읽는 코드가 없다. 없는 단계를 계획에 넣지 않게 한다.
 
 // ── 5) 영수증 ────────────────────────────────────────────────────
 const failed = Object.entries(results).filter(([, r]) => !r.ok);

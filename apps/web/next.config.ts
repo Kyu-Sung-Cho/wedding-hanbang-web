@@ -2,14 +2,14 @@ import type { NextConfig } from "next";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { assertPreviewStubDeployment } from "./previewStubConfig";
-import { assertVendorDisclosureProductionBuild } from "./vendorDisclosureProductionBuildFence";
 import { WEDDING_APP_ROUTES } from "./weddingAppRoutes";
 
 assertPreviewStubDeployment();
 
+// 2026-09-27 파운더 승인으로 벤더 공시 운영 빌드 펜스(서명 환경변수 대조)를 뗐다.
+// 그 출시는 07-23 에 끝났고, 펜스는 운영 DB 를 보지 않아 실제 사고를 못 막으면서
+// 운영 배포만 여러 번 멈췄다. 경위는 docs/operations/VENDOR_DISCLOSURE_PRODUCTION_BUILD_FENCE.md.
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
-
-assertVendorDisclosureProductionBuild({ repoRoot });
 
 const contentSecurityPolicy = [
   "default-src 'self'",

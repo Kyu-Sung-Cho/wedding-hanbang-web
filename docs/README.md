@@ -46,8 +46,8 @@
 5. 변경 영역의 현재 게이트
    - DB: `docs/operations/SUCCESSOR_SUPABASE_RELEASE_CONTROLLER_2026-07-31.md`
    - 커뮤니티: `docs/operations/COMMUNITY_PRODUCTION_RELEASE_GATE_2026-07-31.md`
-   - 공시 production build:
-     `docs/operations/VENDOR_DISCLOSURE_PRODUCTION_BUILD_FENCE.md`
+   - 공시 production build: 2026-09-27 에 펜스와 서명 환경변수를 은퇴시켰다.
+     경위와 은퇴 전 설계는 `docs/operations/VENDOR_DISCLOSURE_PRODUCTION_BUILD_FENCE.md`
    - WeddingCode: `docs/wedding-code/README.md`
 6. 변경 영역의 실제 코드·테스트·최신 migration
 7. `docs/operations/FULL_REPOSITORY_AUDIT_2026-07-30.md`,

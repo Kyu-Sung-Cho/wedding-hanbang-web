@@ -1,3 +1,10 @@
+// 2026-09-27 은퇴(파운더 승인): next.config.ts 가 더 이상 이 펜스를 부르지 않고,
+// 서명 환경변수는 turbo.json·.env.example 에서 뺐다(Vercel 값은 이 변경의 운영 배포를
+// 확인한 뒤에 지운다). 아래
+// `assertVendorDisclosureProductionBuild` 는 빌드·런타임 어디에서도 부르지 않는다.
+// 파일을 남긴 이유는 하나다: scripts/tests/release-manifest-signature-pin.test.mjs 가
+// `expectedProductionAuthorizationSha256` 로 매니페스트 해시를 잰다. 그 검사를 보관할
+// 때 이 파일도 함께 정리한다. 경위: docs/operations/VENDOR_DISCLOSURE_PRODUCTION_BUILD_FENCE.md
 import { createHash } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
