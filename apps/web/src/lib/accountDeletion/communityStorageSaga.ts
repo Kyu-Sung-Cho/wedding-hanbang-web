@@ -1,4 +1,4 @@
-import { StorageApiError, type SupabaseClient } from "@supabase/supabase-js";
+import type { SupabaseClient } from "@supabase/supabase-js";
 
 export const COMMUNITY_DELETION_BUCKETS = [
   "community-media-staging",
@@ -663,6 +663,15 @@ async function assertNoOwnedVendor(
   }
 }
 
+function isAmbiguousStorageAbsenceError(error: unknown): boolean {
+  // 지원 CLI의 ESM SDK와 tsx/CJS worker는 오류 생성자를 공유하지 않는다.
+  return typeof error === "object" && error !== null
+    && "__isStorageError" in error && error.__isStorageError === true
+    && "name" in error && error.name === "StorageApiError"
+    && "statusCode" in error && typeof error.statusCode === "string"
+    && "status" in error && (error.status === 400 || error.status === 404);
+}
+
 async function deleteManifestRows(
   admin: SupabaseClient,
   job: AccountDeletionJob,
@@ -703,8 +712,7 @@ async function deleteManifestRows(
       const { data: exists, error: existsError } = await admin.storage
         .from(bucket)
         .exists(row.path);
-      if (exists === false && existsError instanceof StorageApiError
-          && (existsError.status === 400 || existsError.status === 404)) {
+      if (exists === false && isAmbiguousStorageAbsenceError(existsError)) {
         // HEAD 오류만으로 부재를 인정하지 않는다. 검증된 단일 사용자 폴더를 끝까지
         // 조회한 결과만 이 배치에서 공유하고, 아래 최종 재조회에는 재사용하지 않는다.
         listedNames ??= await listExactUserPrefix(admin, bucket, job.user_id!);
