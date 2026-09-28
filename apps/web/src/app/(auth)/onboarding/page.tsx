@@ -112,8 +112,17 @@ export default function OnboardingPage() {
     const checkProfile = async () => {
       try {
         const res = await fetch("/api/auth/me");
+        if (res.status === 401) {
+          window.location.href = `/login?${new URLSearchParams({
+            redirect: getAuthRedirectPath(
+              window.location.search,
+              window.location.origin,
+            ),
+          })}`;
+          return;
+        }
         if (!res.ok) {
-          window.location.href = "/login";
+          setCapabilitiesFailed(true);
           return;
         }
         const data = await res.json();
