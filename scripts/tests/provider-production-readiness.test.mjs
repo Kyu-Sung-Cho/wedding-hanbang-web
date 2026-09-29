@@ -52,6 +52,19 @@ test('exact installed schema is necessary but never becomes operational authoriz
   assert.equal(result.releaseAuthorized, false);
 });
 
+test('provider readiness checks its exact bundle without requiring unrelated historical versions to be filled', () => {
+  const observed = make('after');
+  observed.allLedger = observed.allLedger.slice(12);
+  observed.allLedger.push({ version: '20260820100000', name: 'community_report_privacy_reason' });
+  observed.ledgerCount = observed.allLedger.length;
+  const result = assessProviderReadiness(root, observed, now);
+  assert.equal(result.currentLedgerCount, 232);
+  assert.equal(result.schemaReady, true);
+  assert.equal(result.missingLocalVersions.length, 12);
+  assert.equal(result.historicalSchemaEquivalenceVerified, false);
+  assert.equal(result.releaseAuthorized, false);
+});
+
 test('public bucket, permissive policy, function drift and partial ledger remain blocked', () => {
   for (const mutate of [o => { o.target.bucket.public = true; }, o => { o.target.policy[0].permissive = true; },
     o => { o.target.manifestFunction[0].body += ' '; }, o => { o.targetLedger[0].sqlMd5 = 'f'.repeat(32); }]) {

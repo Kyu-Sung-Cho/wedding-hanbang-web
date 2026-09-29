@@ -34,6 +34,7 @@ import {
   VENDOR_DISCLOSURE_EXTERNAL_AUTHORIZATION_INVALID,
   VENDOR_DISCLOSURE_EXTERNAL_AUTHORIZATION_NOT_IMPLEMENTED,
   VENDOR_DISCLOSURE_STATIC_CONTRACT_INVALID,
+  PROVIDER_RELEASE_OPERATIONS_NOT_READY,
 } from "../../../vendorDisclosureProductionBuildFence";
 
 import { DELETION_AUDIT_CONTRACT_FILE, loadDeletionAuditNullabilityReleasePlan } from "../../../../../scripts/lib/account-deletion-audit-nullability-release-contract.mjs";
@@ -226,14 +227,14 @@ describe("production build registers only the exact 240 deletion audit nullable 
     }, 120_000);
 
     it.each([undefined, "0".repeat(64), "exact-existing-signature"])(
-      "rejects current provider SQL before authorization (%s)", (authorization) => {
-        // 현재 SQL을 fixture에서 제외하거나 기존 서명으로 새 SQL을 허용하지 않는다.
+      "requires provider operational evidence before authorization (%s)", (authorization) => {
+        // 제공자 SQL은 별도 계약으로 검사하되 기존 서명으로 운영 게이트를 열지 않는다.
         const value = authorization === "exact-existing-signature"
           ? expectedProductionAuthorizationSha256(repoRoot) : authorization;
         expect(() => assertVendorDisclosureProductionBuild({
           repoRoot,
           environment: { VERCEL_ENV: "production", VENDOR_DISCLOSURE_PRODUCTION_AUTHORIZATION: value },
-        })).toThrowError(expect.objectContaining({ code: VENDOR_DISCLOSURE_STATIC_CONTRACT_INVALID }));
+        })).toThrowError(expect.objectContaining({ code: PROVIDER_RELEASE_OPERATIONS_NOT_READY }));
       }, 120_000,
     );
   });

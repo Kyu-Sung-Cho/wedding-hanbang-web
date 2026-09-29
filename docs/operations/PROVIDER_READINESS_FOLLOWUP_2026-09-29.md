@@ -43,13 +43,33 @@ API 계약 근거: [Supabase Run a query](https://supabase.com/docs/reference/ap
 설정과 안전 경계는 [로컬 SDK 검증 문서](../PROVIDER_LOCAL_SDK_QA_2026-09-29.md)에 있다.
 실제 실행 결과는 통과한 commit과 CI run으로 별도 기록해야 한다.
 
+## 운영 기준선 재확인
+
+2026-09-29 16:07 KST에 로컬 Supabase CLI 2.106.0의 기존 로그인과 원래 checkout의
+고정 project ref를 이용해 같은 생성 SQL을 다시 실행했다. 새 CLI 버전 설치나 `link` 변경은 하지 않았다.
+관찰 시각은 `2026-09-29T07:07:18.453657+00:00`, system identifier는
+`7581440907192989109`, SQL 실행 사용자는 `postgres`, transaction read-only는 true였다.
+
+- `schemaState=absent-reviewed-baseline`, 변경 대상의 before catalog 차이 0개.
+  기존 삭제 manifest 함수 원문·인자·ACL와 세 CHECK 제약이 검토된 선행 상태와 일치했다.
+- 제공자 테이블·RPC·private schema·버킷·restrictive 정책은 아직 없고 제공자 ledger도 비어 있었다.
+- 전체 ledger 229개, 로컬에만 있는 version 15개, 원격에만 있는 version 1개는 이전 감사와 같았다.
+  이력 차이가 전체 schema 동등성까지 설명됐다는 의미는 아니다.
+- 실제 Storage 정책 관리 권한 검사를 통과했다. 운영 적용·hosted rollback은 실행하지 않았다.
+
+검사 SQL SHA-256: `25b77c984ac8f9f6e80d9020254d3fd9a7e56ccec9ce90b299dc18ab20f29058`.
+원문 관찰은 저장소 밖 임시 증거 디렉터리에 보관했으며 Git에는 넣지 않았다.
+이 관찰은 120초 신선도 안에서 검증했고 적용 직전에 새로 수집해야 한다.
+CLI가 관리하는 로그인 역할 초기화와 읽기 전용 제품 SQL 실행을 구분한다.
+고객 행·사진 bytes 열람, 제품 DDL/DML, migration ledger 보정은 하지 않았다.
+
 ## 아직 끝나지 않은 일
 
-1. 현재 운영에 읽기 전용 재접속하여 정확한 기존 삭제 함수·제약·권한과 migration 이력 차이를 확인.
-2. 그 관찰에 맞는 제공자 production apply controller, 전역 write fence·백업·복원·실패 복구 증거 연결.
+1. 확인된 before catalog를 기준으로 제공자 production apply controller에 대상·비대상 보존 검사를 연결.
+2. 전역 write fence·백업·복원·실패 복구 증거를 확보하고 적용 직전 기준선을 다시 검사.
 3. 빈 hosted 환경의 Next HTTP·브라우저·사진 공개 철회 및 35분 대기 삭제 worker 검증.
 4. 같은 후보의 필수 CI, DB·Storage 적용 사후 검사, 웹 배포 및 실서비스 확인.
 
-이번 세션에는 Supabase/Vercel connector와 Management API 토큰이 없으며 이 PC에 Docker도 없다.
-이전 원격 관찰을 새 관찰로 재사용하지 않는다. 로컬 엔지니어링과 CI 준비는 계속할 수 있으나
-운영 기준선 확정과 hosted 검증에는 해당 환경 연결이 필요하다.
+이번 세션에는 Supabase/Vercel connector와 환경변수의 Management API 토큰이 없었지만,
+CLI의 기존 로그인을 확인하여 위 운영 읽기 검사는 완료했다. 이 PC에 Docker는 없으므로 실제
+SDK 검사는 CI runner에서 실행한다. Next HTTP 검증에 사용할 빈 hosted 환경은 아직 정해지지 않았다.
