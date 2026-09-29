@@ -51,6 +51,13 @@ test('shared build validator recognizes the exact provider successor without gra
   assert.equal(result.deploymentBlocked, true);
   assert.throws(() => validateSuccessorReleaseContract({ repoRoot: root, followup: 'account-deletion-audit-nullability' }), code('FOLLOWUP_RELEASE_INVALID'));
 });
+
+test('provider artifacts use canonical LF bytes before pinning, including Windows working copies', () => {
+  const plan = loadProviderParticipationReleasePlan(root);
+  const paths = [PROVIDER_RELEASE_CONTRACT_FILE, ...plan.contract.migrations.map(pin => `supabase/migrations/${pin.file}`),
+    ...Object.values(plan.contract).filter(value => value?.file && value?.sha256).map(pin => pin.file)];
+  for (const file of paths) assert.equal(readFileSync(join(root, file), 'utf8').includes('\r'), false, file);
+});
 test('offline CLI accepts no apply, inspect, project, credentials or SQL argument', () => {
   for (const args of [[], ['--apply'], ['--inspect'], ['--remote'], ['--check', '--apply'], ['--check', '--project-ref=slrtobkksjmxgzatjyqb'], ['--local-rehearsal', '--sql=SELECT 1'], ['--check', '--check']]) {
     const result = spawnSync(process.execPath, ['scripts/provider-participation-release.mjs', ...args], { cwd: root, encoding: 'utf8', windowsHide: true, timeout: 30_000 });

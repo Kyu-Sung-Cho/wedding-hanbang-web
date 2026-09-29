@@ -23,7 +23,7 @@
     },
     {
       "file": "20260928140701_provider_portfolio_account_deletion.sql",
-      "sha256": "ca82810785284506d7a641f6325fa119c0072c07ce60ecfe47e1610881e5a304"
+      "sha256": "6787122a0d2ca717389446e955d7de35d20f81cf8bc0e39025091c6f383024f0"
     },
     {
       "file": "20260928142123_provider_media_cleanup.sql",

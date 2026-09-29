@@ -4,7 +4,7 @@ import { digest, pinnedArtifact, requireRelease, same } from './current-baseline
 import { loadDeletionAuditNullabilityHistoricalReleasePlan } from './account-deletion-audit-nullability-release-contract.mjs';
 
 export const PROVIDER_RELEASE_CONTRACT_FILE = 'supabase/release-contracts/provider-participation-v1.json';
-const CONTRACT_SHA = '40271847492f47ebb8bb9c232cbe44404fb1b006e7bf9a7185f58dc6d285c31f';
+const CONTRACT_SHA = '719538d8dbe6386aa37368d0b4e87aca2cd815c654b65dd7a9036743a7131b71';
 const MIGRATIONS = Object.freeze(['20260928135517_provider_participation_self_publishing.sql',
   '20260928140701_provider_portfolio_account_deletion.sql', '20260928142123_provider_media_cleanup.sql']);
 export const PROVIDER_RELEASE_SCOPE = Object.freeze({

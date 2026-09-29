@@ -42,7 +42,9 @@ jobs:
           node-version: 22.13.0
           cache: pnpm
       - name: Install locked dependencies
-        run: corepack pnpm install --frozen-lockfile
+        # action-setup installs the repository's pinned pnpm. Node 22.13's
+        # bundled Corepack predates its signing key; keep signature checks on.
+        run: pnpm install --frozen-lockfile
       - name: Actual local Auth, PostgREST and Storage integration
         # No hosted project, repository secret or production migration is used.
-        run: corepack pnpm supabase:provider:integration --allow-disposable-local-stack
+        run: pnpm supabase:provider:integration --allow-disposable-local-stack
