@@ -101,11 +101,18 @@ export async function runLocalSdkQa(config, progress = () => {}) {
     const submitted = await rpc(owner.client, 'provider_submit_application', { p_input: application, p_request_id: randomUUID() });
     const providerId = submitted.provider_id;
     const registerArgs = { p_provider_id: providerId, p_owner_id: owner.id, p_mime_type: 'image/webp', p_byte_size: 200 };
+    const introduction = { introduction: 'Synthetic approved team introduction.', website: 'https://example.invalid/portfolio', instagram: '' };
+    denied(await owner.client.rpc('provider_update_profile', { p_provider_id: providerId, p_expected_version: 1, p_input: introduction }), 'PROVIDER_NOT_APPROVED');
     denied(await service.rpc('provider_register_media_upload', registerArgs), 'PROVIDER_NOT_APPROVED');
     denied(await outsider.client.rpc('provider_review_application', { p_application_id: submitted.application_id, p_expected_version: 1, p_action: 'approve', p_reason: 'Not admin' }), 'PROVIDER_FORBIDDEN');
     denied(await owner.client.from('provider_profiles').update({ approval_status: 'approved' }).eq('id', providerId));
     assert.deepEqual((await rpc(outsider.client, 'provider_get_workspace')).profiles, []);
     await rpc(administrator.client, 'provider_review_application', { p_application_id: submitted.application_id, p_expected_version: 1, p_action: 'approve', p_reason: 'Synthetic local approval' });
+    denied(await outsider.client.rpc('provider_update_profile', { p_provider_id: providerId, p_expected_version: 2, p_input: introduction }), 'PROVIDER_NOT_FOUND');
+    const editedProfile = await rpc(owner.client, 'provider_update_profile', { p_provider_id: providerId, p_expected_version: 2, p_input: introduction });
+    assert.equal(editedProfile.introduction, introduction.introduction);
+    assert.equal(editedProfile.version, 3);
+    denied(await owner.client.rpc('provider_update_profile', { p_provider_id: providerId, p_expected_version: 2, p_input: introduction }), 'PROVIDER_VERSION_CONFLICT');
     assert.deepEqual(await catalog(providerId), []);
     denied(await outsider.client.rpc('provider_set_publication', { p_provider_id: providerId, p_expected_version: 2, p_status: 'published' }), 'PROVIDER_NOT_FOUND');
     checked('actual_rpc_pending_approval_direct_write_and_idor');
@@ -130,9 +137,10 @@ export async function runLocalSdkQa(config, progress = () => {}) {
     checked('real_storage_bytes_exact_roundtrip_and_restrictive_client_fence');
 
     step('explicit-publication-withdrawal-and-current-admin-role');
-    let profile = await rpc(owner.client, 'provider_set_publication', { p_provider_id: providerId, p_expected_version: 2, p_status: 'published' });
+    let profile = await rpc(owner.client, 'provider_set_publication', { p_provider_id: providerId, p_expected_version: editedProfile.version, p_status: 'published' });
     let visible = await catalog(providerId);
     assert.equal(visible.length, 1); assert.equal(visible[0].media[0].id, media.id);
+    assert.equal(visible[0].introduction, introduction.introduction);
     for (const field of ['owner_id', 'contact_email', 'storage_path', 'contact_name']) assert.ok(!JSON.stringify(visible).includes(`"${field}"`));
     profile = await rpc(owner.client, 'provider_set_publication', { p_provider_id: providerId, p_expected_version: profile.version, p_status: 'paused' });
     assert.deepEqual(await catalog(providerId), []);
