@@ -34,6 +34,7 @@ import {
   VENDOR_DISCLOSURE_EXTERNAL_AUTHORIZATION_INVALID,
   VENDOR_DISCLOSURE_EXTERNAL_AUTHORIZATION_NOT_IMPLEMENTED,
   VENDOR_DISCLOSURE_STATIC_CONTRACT_INVALID,
+  PROVIDER_RELEASE_OPERATIONS_NOT_READY,
 } from "../../../vendorDisclosureProductionBuildFence";
 
 import { DELETION_AUDIT_CONTRACT_FILE, loadDeletionAuditNullabilityReleasePlan } from "../../../../../scripts/lib/account-deletion-audit-nullability-release-contract.mjs";
@@ -190,7 +191,6 @@ afterAll(async () => {
 describe("production build registers only the exact 240 deletion audit nullable successor", () => {
   describe("reviewed 240 acceptance and authorization", () => {
     const repositories = [
-      { label: "current checkout", resolveRoot: () => repoRoot },
       { label: "isolated fixture", resolveRoot: () => auditFixtureRoot },
     ];
 
@@ -218,6 +218,25 @@ describe("production build registers only the exact 240 deletion audit nullable 
       expect(() => assertVendorDisclosureProductionBuild({ repoRoot: resolveRoot(), environment: { VERCEL_ENV: "production" } }))
         .toThrow(VENDOR_DISCLOSURE_EXTERNAL_AUTHORIZATION_NOT_IMPLEMENTED);
     }, 120_000);
+  });
+  describe("current provider checkout remains outside the reviewed 240 release", () => {
+    it("rejects the current migration set in both current and predecessor loaders", () => {
+      for (const load of [loadDeletionAuditNullabilityReleasePlan, loadWeddingCodePairSessionConflictReleasePlan]) {
+        expect(() => load(repoRoot)).toThrowError(expect.objectContaining({ code: "NEW_MIGRATION_NOT_REVIEWED" }));
+      }
+    }, 120_000);
+
+    it.each([undefined, "0".repeat(64), "exact-existing-signature"])(
+      "requires provider operational evidence before authorization (%s)", (authorization) => {
+        // 제공자 SQL은 별도 계약으로 검사하되 기존 서명으로 운영 게이트를 열지 않는다.
+        const value = authorization === "exact-existing-signature"
+          ? expectedProductionAuthorizationSha256(repoRoot) : authorization;
+        expect(() => assertVendorDisclosureProductionBuild({
+          repoRoot,
+          environment: { VERCEL_ENV: "production", VENDOR_DISCLOSURE_PRODUCTION_AUTHORIZATION: value },
+        })).toThrowError(expect.objectContaining({ code: PROVIDER_RELEASE_OPERATIONS_NOT_READY }));
+      }, 120_000,
+    );
   });
   it.each([...auditPins, ...pairSessionPins, PREPARATION_STYLE_CONTRACT_FILE])(
     "rejects changed or missing 240 and predecessor pins without falling back: %s", async file => {
@@ -567,8 +586,8 @@ describe("production build registers only the exact feedback-nullability success
 });
 
 describe("production build explicitly registers the pinned budget followup", () => {
-  it("accepts the actual checkout in production only with the exact owner authorization", () => {
-    expect(() => production(repoRoot)).not.toThrow();
+  it("accepts the pinned budget fixture in production only with the exact owner authorization", () => {
+    expect(() => production(fixtureRoot)).not.toThrow();
   });
 
   it("retains default drift rejection while the explicit static followup succeeds", () => {
@@ -591,7 +610,7 @@ describe("production build explicitly registers the pinned budget followup", () 
     ["0".repeat(64), VENDOR_DISCLOSURE_EXTERNAL_AUTHORIZATION_INVALID],
   ])("still rejects absent or wrong owner authorization (%s)", (authorization, code) => {
     expect(() => assertVendorDisclosureProductionBuild({
-      repoRoot,
+      repoRoot: fixtureRoot,
       environment: { VERCEL_ENV: "production", VENDOR_DISCLOSURE_PRODUCTION_AUTHORIZATION: authorization },
     })).toThrow(code);
   });

@@ -13,6 +13,7 @@ import {
   executeGetMarketPrice,
 } from "@/lib/ai/tools/quoteMarketTools";
 import { executeSearchNearbyPlaces } from "@/lib/ai/tools/placeSearchTools";
+import { executeDiscoverProviders } from "@/lib/ai/tools/providerDiscoveryTools";
 import {
   executeCheckVendorAvailability,
   executeGetVendorDetail,
@@ -679,6 +680,8 @@ async function executeToolOnce(
         return await executeUpdateAmoraAction(toolInput, context);
       case "search_vendors":
         return await executeSearchVendors(toolInput, context);
+      case "discover_providers":
+        return await executeDiscoverProviders(toolInput);
       case "check_vendor_availability":
         return await executeCheckVendorAvailability(toolInput);
       case "recommend_vendors":

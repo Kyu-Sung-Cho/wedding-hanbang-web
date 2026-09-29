@@ -34,6 +34,18 @@ import { ActionRow, IconBadge } from "@/components/ui/AppUI";
 import ProfileAvatar from "@/components/ui/ProfileAvatar";
 import ProfileAvatarEditorSheet from "@/components/profile/ProfileAvatarEditorSheet";
 import { readProfileAvatarForDisplay } from "@/lib/profileAvatarPresentation.mjs";
+import { buildMobileSiteUrl, resolveMobileSiteOrigin } from "@/lib/siteUrl.mjs";
+
+const providerSiteOrigin = resolveMobileSiteOrigin(process.env.EXPO_PUBLIC_SITE_URL, { isDevelopment: __DEV__ });
+
+async function openProviderPage(path: "/discover" | "/business") {
+  try {
+    // 신청·센터의 웹 로그인은 브라우저에서 이어간다. 앱 토큰은 URL로 전달하지 않는다.
+    await Linking.openURL(buildMobileSiteUrl(path, providerSiteOrigin));
+  } catch {
+    Alert.alert("웹 화면을 열지 못했어요", "잠시 후 메뉴를 다시 눌러 주세요. 앱의 준비 기록은 그대로 유지됩니다.");
+  }
+}
 
 interface ProfileData {
   /** 중립 준비 공간이면 role은 저장 슬롯이지 사용자가 고른 값이 아니다. */
@@ -414,6 +426,11 @@ export default function ProfileScreen() {
               label="공시가·위약금 보기"
               onPress={() => router.push({ pathname: "/market-prices" })}
             />
+            <MenuItem
+              icon={Store}
+              label="웨딩 서비스 찾기 (웹)"
+              onPress={() => void openProviderPage("/discover")}
+            />
             {/* 2026-07-26에 이 메뉴를 지웠던 이유는 "그 페이지가 제거돼 404 웹뷰를
                 열고 있어서"였다. 안내 25편이 /wedding/manners로 복구되면서 그 전제가
                 사라져 다시 넣는다. 앱에서는 아직 웹 화면을 웹뷰로 연다 — 본문이
@@ -455,6 +472,11 @@ export default function ProfileScreen() {
           {/* 기타 메뉴 */}
           <Text style={styles.menuSectionTitle}>기타</Text>
           <View style={styles.menuSection}>
+            <MenuItem
+              icon={Users}
+              label="웨딩 서비스 등록·문의 (웹)"
+              onPress={() => void openProviderPage("/business")}
+            />
             <MenuItem
               icon={Settings}
               label="설정"

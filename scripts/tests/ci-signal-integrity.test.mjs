@@ -516,6 +516,6 @@ test("진짜 강제 수단(매니페스트·컨트롤러 검증)은 계속 돈�
   // 차단을 실제로 하는 것은 이 두 명령이다. 주석·스텝 이름이 아니라 실행 명령으로 확인한다.
   const commands = jobCommands(jobs.get("static_release_contracts"));
   assert.ok(commands.length > 0, "릴리스 계약 잡의 실행 내용을 못 읽었다 — 검사가 공회전한다");
-  assert.match(commands, /supabase:release:fence/, "매니페스트 핀 검증이 CI에서 빠졌다");
+  assert.match(commands, /supabase:provider:prepare --check(?:\s|$)/, "현재 마이그레이션의 정적 준비 핀 검증이 CI에서 빠졌다");
   assert.match(commands, /supabase:release:test/, "fail-closed 컨트롤러 검증이 CI에서 빠졌다");
 });

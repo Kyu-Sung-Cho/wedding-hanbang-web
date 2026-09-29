@@ -635,6 +635,9 @@ export default function AdminPage() {
             <Link href="/admin/enrich" className="flex items-center gap-1.5 px-4 py-2 text-sm font-semibold text-[var(--hb-text-strong)] border border-[#C7D1C2] rounded-[6px] hover:bg-[var(--hb-surface-hover)] transition-colors">
               업체 정보 보강
             </Link>
+            <Link href="/admin/providers" className="flex items-center gap-1.5 px-4 py-2 text-sm font-semibold text-[var(--hb-text-strong)] border border-[#C7D1C2] rounded-[6px] hover:bg-[var(--hb-surface-hover)] transition-colors">
+              제공자 참여
+            </Link>
             <a href="/wedding/lounge" className="flex items-center gap-1.5 px-4 py-2 text-sm text-[var(--hb-text-body)] border border-platinum rounded-[6px] hover:border-rose-500 hover:text-[var(--hb-accent-hover)] transition-colors">
               <LayoutDashboard className="w-3.5 h-3.5" /> 고객 대시보드
             </a>

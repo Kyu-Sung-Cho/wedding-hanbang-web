@@ -32,7 +32,7 @@ function harness({ headStatus = 400, fallback = 'empty', existsResult } = {}) {
         return Response.json([]);
       }
       assert.equal(method, 'POST');
-      assert.match(url.pathname, /^\/storage\/v1\/object\/list\/(community-media-staging|community-images|community-videos|profile-avatars|chat-image)$/);
+      assert.match(url.pathname, /^\/storage\/v1\/object\/list\/(community-media-staging|community-images|community-videos|profile-avatars|provider-portfolio|chat-image)$/);
       const body = JSON.parse(init.body);
       assert.equal(body.prefix, url.pathname.endsWith('/chat-image') ? '' : USER);
       if (url.pathname.endsWith('/community-images')) {
@@ -89,6 +89,11 @@ for (const headStatus of [400, 404]) {
     assert.ok(h.sequence.indexOf(list) < checkpoint);
     assert.ok(h.sequence.lastIndexOf(list) > checkpoint);
     assert.ok(h.sequence.indexOf('prepare_account_deletion_auth_delete') > h.sequence.lastIndexOf(list));
+    // This synthetic owner has no portfolios; the new private bucket must still
+    // pass its final scan before the existing Auth deletion boundary can open.
+    const portfolioScan = h.sequence.indexOf('POST /storage/v1/object/list/provider-portfolio');
+    assert.ok(portfolioScan > checkpoint);
+    assert.ok(h.sequence.indexOf('prepare_account_deletion_auth_delete') > portfolioScan);
     assert.equal(h.imageLists, 2); assert.equal(h.authDeletes, 1);
     assert.deepEqual(h.rpcCalls.find(call => call.name === 'checkpoint_account_deletion_media')?.args,
       { p_job_id: JOB, p_claim_token: h.rpcCalls[0].args.p_claim_token, p_bucket: 'community-images', p_path: PATH });

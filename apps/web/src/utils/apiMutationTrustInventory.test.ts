@@ -23,6 +23,13 @@ const TRUST_GUARD_DELEGATES = [
   },
 ] as const;
 
+const PROVIDER_REVIEW_HANDLER = {
+  name: "reviewProvider",
+  importSource: "@/lib/providers/handlers",
+  file: resolve(HERE, "../lib/providers/handlers.ts"),
+  accountFile: resolve(HERE, "../lib/providers/api.ts"),
+} as const;
+
 const EXEMPT_MUTATIONS = new Map<
   string,
   { reason: string; evidence: readonly string[] }
@@ -134,6 +141,34 @@ describe("admin/community mutation trust inventory", () => {
 
     it(`${key} rejects untrusted browser mutations before privileged work`, () => {
       const directGuard = mutation.source.indexOf("isTrustedMutationRequest(");
+      // This thin route returns the handler's response, rather than an ok/response
+      // preflight union. Verify the complete call chain and the literal mutation flag.
+      if (directGuard < 0 && mutation.source.includes(`${PROVIDER_REVIEW_HANDLER.name}(`)) {
+        expect(mutation.fullSource).toMatch(namedImportPattern(PROVIDER_REVIEW_HANDLER.name, PROVIDER_REVIEW_HANDLER.importSource));
+        const forwarded = /return\s+(?:await\s+)?reviewProvider\(\s*request\s*,\s*id\s*\)\s*;/u.exec(mutation.source);
+        expect(forwarded, `${key} must return the guarded handler response`).not.toBeNull();
+        if (!forwarded) return;
+        for (const boundary of privilegedBoundaryIndexes(mutation.source)) expect(forwarded.index).toBeLessThan(boundary);
+
+        const handlerSource = readFileSync(PROVIDER_REVIEW_HANDLER.file, "utf8");
+        expect(handlerSource).toMatch(namedImportPattern("providerAccount", "./api"));
+        const handler = exportedAsyncFunction(handlerSource, PROVIDER_REVIEW_HANDLER.name);
+        const accountCall = handler.search(/await\s+providerAccount\(\s*request\s*,\s*true\s*,\s*true\s*\)/u);
+        expect(accountCall, "review handler must require mutation trust and administrator access").toBeGreaterThanOrEqual(0);
+        for (const boundary of [
+          ...privilegedBoundaryIndexes(handler),
+          ...[...handler.matchAll(/\b(?:providerBody|providerRateLimit|providerRpc)\s*\(/gu)].map((match) => match.index),
+        ]) expect(accountCall).toBeLessThan(boundary);
+
+        const accountSource = readFileSync(PROVIDER_REVIEW_HANDLER.accountFile, "utf8");
+        expect(accountSource).toMatch(namedImportPattern("isTrustedMutationRequest", "@/utils/trustedMutation"));
+        const account = exportedAsyncFunction(accountSource, "providerAccount");
+        const rejection = /if\s*\(\s*mutation\s*&&\s*!isTrustedMutationRequest\(\s*request\s*\)\s*\)\s*throw\s+new\s+ProviderError\(\s*["']UNTRUSTED_ORIGIN["']\s*,\s*403\s*,/u.exec(account);
+        expect(rejection, "account helper must reject untrusted mutations with 403").not.toBeNull();
+        if (!rejection) return;
+        for (const boundary of privilegedBoundaryIndexes(account)) expect(rejection.index).toBeLessThan(boundary);
+        return;
+      }
       const delegate = TRUST_GUARD_DELEGATES.find(({ functionName }) =>
         mutation.source.includes(`${functionName}(`),
       );

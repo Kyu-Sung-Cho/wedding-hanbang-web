@@ -306,8 +306,8 @@ jobs:
           ./scripts/tests/repository-handoff-docs.test.mjs
           ./scripts/tests/wedding-code-research-safety.test.mjs
 
-      - name: Verify local manifest and migration pins (no deploy)
-        run: pnpm supabase:release:fence --account-deletion-audit-nullability
+      - name: Verify provider release preparation pins (static only, no deploy)
+        run: pnpm supabase:provider:prepare --check
 
       - name: Test fail-closed release controllers (no hosted evidence)
         run: pnpm supabase:release:test

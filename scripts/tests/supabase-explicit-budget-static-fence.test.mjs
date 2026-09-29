@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve, sep } from 'node:path';
 import { tmpdir } from 'node:os';
@@ -34,14 +35,23 @@ test('explicit-budget mode validates only its exact historical checkout without 
   assert.match(output(currentResult), /NEW_MIGRATION_NOT_REVIEWED/);
 });
 
-test('the actual CI local-fence command selects a working non-deploy contract', () => {
+test('the actual CI preparation command checks 243 exact pinned migrations without authorizing production', () => {
   const workflow = readFileSync(join(root, '.github/workflows/ci.yml'), 'utf8');
-  const commands = [...workflow.matchAll(/^\s+run: pnpm supabase:release:fence([^\r\n]*)$/gm)];
+  const commands = [...workflow.matchAll(/^\s+run: pnpm supabase:provider:prepare([^\r\n]*)$/gm)];
   assert.equal(commands.length, 1);
   const args = commands[0][1].trim().split(/\s+/).filter(Boolean);
-  const result = run(root, args);
+  assert.deepEqual(args, ['--check']);
+  const pkg = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'));
+  assert.equal(pkg.scripts['supabase:provider:prepare'], 'node ./scripts/provider-participation-release.mjs');
+  const result = spawnSync(process.execPath, [join(root, 'scripts/provider-participation-release.mjs'), ...args], {
+    cwd: root, encoding: 'utf8', windowsHide: true, timeout: 30000,
+  });
   assert.equal(result.status, 0, output(result));
-  assert.deepEqual(args, ['--account-deletion-audit-nullability']);
+  const report = JSON.parse(result.stdout);
+  assert.equal(report.status, 'static-verified-production-blocked');
+  assert.equal(report.migrationCount, 243);
+  assert.equal(report.contractSha256, createHash('sha256').update(readFileSync(join(root, 'supabase/release-contracts/provider-participation-v1.json'))).digest('hex'));
+  for (const key of ['productionApplyImplemented', 'runtimeEvidenceVerified', 'releaseAuthorized', 'remoteWritesPerformed']) assert.equal(report[key], false, key);
 });
 
 test('explicit static mode rejects remote, duplicate and unknown arguments before any legacy flow', async t => {

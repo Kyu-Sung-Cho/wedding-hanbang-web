@@ -3,6 +3,7 @@ import { CATEGORY_CHECKLISTS } from "@hanbang/shared/constants";
 import { PLANNING_CATEGORY_LABELS } from "@/constants/planningCategories";
 import type { AiToolDefinition } from "@/lib/ai/toolDefinition";
 import { PERSONAL_ACTION_CONVERSATION_TOOLS } from "./amoraPersonalActionConversation";
+import { PROVIDER_CATEGORIES } from "@/lib/providers/contracts";
 
 /**
  * 도구 스키마의 분야 목록은 **손으로 적지 않는다.**
@@ -716,6 +717,23 @@ export const WEDDING_TOOLS: AiToolDefinition[] = [
     },
   },
   // ── 업체 검색 & 추천 도구 ──
+  {
+    name: "discover_providers",
+    description: "개인·팀·업체가 직접 공개하고 별도 서비스 추천 심사를 통과한 참여자 후보를 찾습니다. 촬영·메이크업·예식·행사 장소 등 등록 서비스만 조회하며 공시 가격 검색이나 예약이 아닙니다. 제공자 입력 기본가, 추가금, 운영 검토 시각과 미확인 조건을 함께 설명하세요. 조직 형태로 우선순위를 정하지 마세요.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        category: { type: "string", enum: [...PROVIDER_CATEGORIES], description: "사진 photography, 영상 videography, 헤어·메이크업 hair_makeup, 헤어변형 hair_styling, 꽃 floral, 사회·공연 mc, 디렉팅 directing, 예식·행사 장소 venue, 케이터링 catering, 기타 other" },
+        region: { type: "string", minLength: 1, maxLength: 80, description: "사용자가 명시한 등록 지역과 정확히 매칭합니다. 좁은 지역을 임의로 넓히지 마세요." },
+        budget_max_krw: { type: "integer", minimum: 0, maximum: 1000000000, description: "해당 서비스에 사용자가 명시한 원 단위 상한. 총예산에서 추정하지 않으며 기본가가 낮아도 최종 총액 충족은 미확인입니다." },
+        requested_date: { type: "string", format: "date", description: "사용자가 명시한 YYYY-MM-DD. 예약 가용성을 검증하지 못하므로 미확인으로 반환합니다." },
+        required_conditions: { type: "array", maxItems: 8, items: { type: "string", minLength: 1, maxLength: 160 }, description: "수용인원·반입·접근성·실제 수행자 등 필수 조건. 이 도구로 검증하지 못하므로 충족 조건으로 주장하지 마세요." },
+        limit: { type: "integer", minimum: 1, maximum: 5, description: "최대 후보 수, 기본 3" },
+      },
+      required: ["category"],
+      additionalProperties: false,
+    },
+  },
   {
     name: "search_vendors",
     description:

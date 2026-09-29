@@ -32,6 +32,7 @@ import { loadWeddingCodePairSessionReleasePlan } from "./wedding-code-pair-sessi
 import { loadPreparationStyleReleasePlan } from "./preparation-style-release-contract.mjs";
 import { loadProfileWeddingRolesReleasePlan } from "./profile-wedding-roles-release-contract.mjs";
 import { loadChatFeedbackNullabilityReleasePlan } from "./chat-feedback-nullability-release-contract.mjs";
+import { loadProviderParticipationReleasePlan } from "./provider-participation-release-contract.mjs";
 
 export const SUCCESSOR_RELEASE_MANIFEST_RELATIVE_PATH =
   "supabase/release-manifests/vendor-disclosure-v2-20260718.json";
@@ -1095,7 +1096,7 @@ export function validateSuccessorReleaseContract({
   manifestRelativePath = SUCCESSOR_RELEASE_MANIFEST_RELATIVE_PATH,
   followup = null,
 }) {
-  if (followup !== null && !["amora-budget-decision-hotfix", "amora-explicit-budget-hotfix", "chat-feedback-nullability", "profile-wedding-roles", "profile-avatar", "account-deletion-customer-data", "amora-not-applicable-status", "wedding-code-research-contributions", "wedding-code-research-scene-v09", "wedding-code-research-scene-v10", "preparation-style", "wedding-code-pair-session", "wedding-code-pair-session-conflict", "account-deletion-audit-nullability"].includes(followup)) {
+  if (followup !== null && !["amora-budget-decision-hotfix", "amora-explicit-budget-hotfix", "chat-feedback-nullability", "profile-wedding-roles", "profile-avatar", "account-deletion-customer-data", "amora-not-applicable-status", "wedding-code-research-contributions", "wedding-code-research-scene-v09", "wedding-code-research-scene-v10", "preparation-style", "wedding-code-pair-session", "wedding-code-pair-session-conflict", "account-deletion-audit-nullability", "provider-participation"].includes(followup)) {
     invalid("FOLLOWUP_RELEASE_INVALID", "only explicitly registered followups are supported");
   }
   if (followup !== null && manifestRelativePath !== SUCCESSOR_RELEASE_MANIFEST_RELATIVE_PATH) {
@@ -1172,6 +1173,29 @@ export function validateSuccessorReleaseContract({
   // 구 manifest의 내용·선행 핀·순서는 그대로 검사한다. 후속 SQL은 호출자가
   // 이름 목록을 넘기는 대신 전용 loader의 전체 디렉터리·원문 검증을 통과해야 한다.
   const expectedDirectoryFiles = [...expectedFiles];
+  let providerReadiness = null;
+  if (followup === "provider-participation") {
+    let provider;
+    try { provider = loadProviderParticipationReleasePlan(root); }
+    catch { invalid("FOLLOWUP_RELEASE_INVALID", "the exact provider participation successor could not be verified"); }
+    const followups = provider.reviewedMigrations.filter(pin => pin.file.slice(0, 14) > previousVersion);
+    if (provider.contract.projectRef !== manifest.projectRef || provider.migrationCount !== 243
+        || provider.predecessorMigrations.length !== 240 || followups.length !== 17)
+      invalid("FOLLOWUP_RELEASE_INVALID", "provider participation must preserve all fourteen predecessors and add three migrations");
+    let previousFollowupVersion = previousVersion;
+    for (const migration of followups) {
+      const version = migration.file.slice(0, 14);
+      if (version <= previousFollowupVersion || expectedDirectoryFiles.includes(migration.file))
+        invalid("FOLLOWUP_RELEASE_INVALID", "provider participation successor migration order changed");
+      previousFollowupVersion = version;
+      expectedDirectoryFiles.push(migration.file);
+    }
+    providerReadiness = {
+      productionApplyImplemented: provider.productionApplyImplemented,
+      runtimeEvidenceVerified: provider.runtimeEvidenceVerified,
+      releaseAuthorized: provider.releaseAuthorized,
+    };
+  }
   if (followup === "amora-budget-decision-hotfix") {
     let budgetRelease;
     try {
@@ -1441,5 +1465,6 @@ export function validateSuccessorReleaseContract({
     releaseCommit: deployment.releaseCommit,
     controllerReady: deployment.released,
     controllerManifest,
+    providerReadiness,
   };
 }

@@ -1,0 +1,96 @@
+{
+  "version": 1,
+  "kind": "provider-participation-static-successor",
+  "release": "provider-participation-20260929",
+  "status": "blocked-pending-operational-evidence",
+  "productionApplyImplemented": false,
+  "runtimeEvidenceVerified": false,
+  "projectRef": "slrtobkksjmxgzatjyqb",
+  "systemIdentifier": "7581440907192989109",
+  "predecessor": {
+    "file": "supabase/release-contracts/account-deletion-audit-nullability-v1.json",
+    "sha256": "ad50817b53ee069e99b8dcd5b8b5856b5c9691a32d5dd1ff15daccb5a1c4d73a"
+  },
+  "predecessorLoader": {
+    "file": "scripts/lib/account-deletion-audit-nullability-release-contract.mjs",
+    "sha256": "0434dc864d0b3c2a9e254648239fdb4f115e0890bc91a30816cec6f5f86c607e"
+  },
+  "reviewedPredecessorMigrationCount": 240,
+  "migrations": [
+    {
+      "file": "20260928135517_provider_participation_self_publishing.sql",
+      "sha256": "d3fa2b07f3d43bd18ce13078eef2d8c7b5c5cec114dcb88473f4cf27c85cc009"
+    },
+    {
+      "file": "20260928140701_provider_portfolio_account_deletion.sql",
+      "sha256": "6787122a0d2ca717389446e955d7de35d20f81cf8bc0e39025091c6f383024f0"
+    },
+    {
+      "file": "20260928142123_provider_media_cleanup.sql",
+      "sha256": "390a285f7cc0211ac2f39b84627a1d8ff6f85ce72478e470bfa4a0dd56348966"
+    }
+  ],
+  "scope": {
+    "newTables": [
+      "public.business_inquiries",
+      "public.provider_applications",
+      "public.provider_audit_events",
+      "public.provider_media",
+      "public.provider_offerings",
+      "public.provider_profiles"
+    ],
+    "newPrivateSchema": "provider_private",
+    "newPrivateBucket": "provider-portfolio",
+    "newRestrictivePolicy": "storage.objects.provider_portfolio_service_only",
+    "replaceFunction": "public.replace_account_deletion_media_manifest(uuid,uuid,jsonb)",
+    "widenConstraints": [
+      "public.account_deletion_media_manifest.account_deletion_media_bucket",
+      "public.account_deletion_media_manifest.account_deletion_media_path_shape",
+      "public.account_deletion_media_manifest.account_deletion_media_source"
+    ],
+    "existingData": "unchanged",
+    "authUsers": "unchanged",
+    "existingStorageBytes": "unchanged",
+    "defaultPrivileges": "unchanged",
+    "roleSettings": "unchanged",
+    "rollback": "transaction-rollback-before-commit; after-commit-hold-fences-suspend-and-forward-fix",
+    "backupRestore": "not-proven",
+    "productionApply": "not-implemented"
+  },
+  "runtime": {
+    "file": "scripts/lib/provider-participation-release.mjs",
+    "sha256": "5cb4c1e291c3b06188169bed66f85a4c1b252990b40918660b07e94ca04a05d7"
+  },
+  "catalog": {
+    "file": "scripts/lib/provider-participation-catalog.mjs",
+    "sha256": "8babeec4d32e896ced565a15ec521a7a18c256be955c14eb1c5bda77ad6ae41d"
+  },
+  "catalogFixture": {
+    "file": "supabase/release-contracts/provider-participation-pg17-catalog-v1.json",
+    "sha256": "29fd864c95cfd7d0ba1750803cfa09b905b1638ba86e6f0cd76aab356b706e29"
+  },
+  "platformPolicy": {
+    "file": "supabase/platform-operations/storage/20260928135517_provider_portfolio_service_fence.sql",
+    "sha256": "6d1570302cf6550914c3e12ca8853b258b9166e81e7fbbb984007185825c8ece"
+  },
+  "observation": {
+    "file": "supabase/release-checks/provider-participation-observation.sql",
+    "sha256": "4d6142733e499319152f95920c17f86b836cba947bc54a70c329a94d4ede6c11"
+  },
+  "localFixture": {
+    "file": "scripts/tests/fixtures/provider-release-native-database.mjs",
+    "sha256": "041c0cbabdbb1d5697740b3cb43a695408247946828283c875142f41b7dea3bd"
+  },
+  "previousManifest": {
+    "file": "supabase/migrations/20260913082314_private_profile_avatars_delivery.sql",
+    "sha256": "e04f2e5a1127693490d33731ef5efbbb038db19ec373c43cd4788a2b3fdf4075"
+  },
+  "nativeFactory": {
+    "file": "scripts/tests/fixtures/profile-role-native-database.mjs",
+    "sha256": "053348a84f416be24918ad8286ea9dd28927a5bec39ca5a08209c75e55b3b210"
+  },
+  "cli": {
+    "file": "scripts/provider-participation-release.mjs",
+    "sha256": "1adbd79a3ace88e2606643b5388910dd9fb4cbdf1f5c6dbd95413524938045d6"
+  }
+}

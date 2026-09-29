@@ -53,6 +53,7 @@ export const AMORA_TOOL_POLICY_NAMES: ReadonlySet<string> = new Set([
   ...SCHEDULE_READ_TOOLS,
   ...SCHEDULE_WRITE_TOOLS,
   ...VENDOR_READ_TOOLS,
+  "discover_providers",
   ...DOCUMENT_ATTACHMENT_READ_TOOLS,
   ...ACTION_READ_TOOLS,
   ...ACTION_WRITE_TOOLS,
@@ -74,6 +75,8 @@ const SCHEDULE_INTENT = /일정|스케줄|날짜|예정일|결혼식|예식|본�
 const DATE_LIKE =
   /\d{1,2}\s*월\s*\d{1,2}\s*일|\d{2,4}\s*년\s*\d{1,2}\s*월|(?:이번|다음|담)\s*주\s*(?:월|화|수|목|금|토|일)?요?일?/;
 const VENDOR_INTENT = /업체|웨딩홀|예식장|결혼식장|식장|스튜디오|드레스|(?:혼주\s*)?메이크업|스드메|플래너|웨딩\s*(?:촬영|사진)|본식|결혼\s*준비|예약|대관|vendor|venue|booking/i;
+const PROVIDER_SERVICE_INTENT = /촬영|사진|스냅|영상|메이크업|헤어|플로리스트|꽃장식|부케|사회자|디렉팅|대관|케이터링|포토그래퍼|공간|photograph|makeup|catering/i;
+const PROVIDER_LOOKUP_INTENT = /찾|추천|비교|후보|검색|알려|누가|소개|보여|discover|recommend|find/i;
 /**
  * 견적을 봐 달라는 말.
  *
@@ -860,6 +863,7 @@ export function selectAmoraTools({
   if (hasBudgetIntent) addAll(selected, BUDGET_READ_TOOLS);
   if (hasScheduleIntent) addAll(selected, SCHEDULE_READ_TOOLS);
   if (hasVendorIntent) addAll(selected, VENDOR_READ_TOOLS);
+  if (PROVIDER_SERVICE_INTENT.test(userText) && PROVIDER_LOOKUP_INTENT.test(userText)) selected.add("discover_providers");
   if (hasDocumentAttachment) addAll(selected, DOCUMENT_ATTACHMENT_READ_TOOLS);
   if (hasActionIntent) addAll(selected, ACTION_READ_TOOLS);
   if (hasQuoteIntent) selected.add("analyze_quote");

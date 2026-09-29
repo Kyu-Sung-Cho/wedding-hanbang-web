@@ -1,0 +1,3058 @@
+{
+  "version": 1,
+  "source": "local-synthetic-postgresql-17",
+  "customerData": false,
+  "hostedEvidence": false,
+  "before": {
+    "bucket": null,
+    "policy": [],
+    "schema": [],
+    "functions": [],
+    "relations": [],
+    "manifestFunction": [
+      {
+        "acl": [
+          [
+            "postgres",
+            "postgres",
+            "EXECUTE",
+            false
+          ],
+          [
+            "service_role",
+            "postgres",
+            "EXECUTE",
+            false
+          ]
+        ],
+        "args": "uuid, uuid, jsonb",
+        "body": "\nDECLARE\n  v_job public.account_deletion_jobs%ROWTYPE;\n  v_item jsonb;\n  v_bucket text;\n  v_path text;\n  v_source text;\n  v_not_before timestamptz;\n  v_session public.community_upload_sessions%ROWTYPE;\n  v_quarantine_count integer;\n  v_ready_after timestamptz;\nBEGIN\n  SELECT * INTO v_job\n    FROM public.account_deletion_jobs\n   WHERE id = p_job_id\n     AND status = 'inventorying'\n     AND claim_token = p_claim_token\n   FOR UPDATE;\n  IF NOT FOUND THEN\n    RETURN;\n  END IF;\n  IF p_manifest IS NULL\n     OR jsonb_typeof(p_manifest) <> 'array'\n     OR jsonb_array_length(p_manifest) > 10000 THEN\n    RAISE EXCEPTION 'ACCOUNT_DELETION_MANIFEST_INVALID' USING ERRCODE = '22023';\n  END IF;\n\n  DELETE FROM public.account_deletion_media_manifest WHERE job_id = p_job_id;\n  FOR v_item IN SELECT value FROM jsonb_array_elements(p_manifest)\n  LOOP\n    IF jsonb_typeof(v_item) <> 'object'\n       OR (v_item - 'bucket' - 'path' - 'source' - 'not_before') <> '{}'::jsonb THEN\n      RAISE EXCEPTION 'ACCOUNT_DELETION_MANIFEST_INVALID' USING ERRCODE = '22023';\n    END IF;\n    v_bucket := v_item->>'bucket';\n    v_path := v_item->>'path';\n    v_source := v_item->>'source';\n    BEGIN\n      v_not_before := (v_item->>'not_before')::timestamptz;\n    EXCEPTION WHEN OTHERS THEN\n      RAISE EXCEPTION 'ACCOUNT_DELETION_MANIFEST_INVALID' USING ERRCODE = '22023';\n    END;\n\n    IF v_bucket NOT IN (\n         'community-media-staging', 'community-images', 'community-videos',\n         'chat-image', 'profile-avatars'\n       )\n       OR v_path IS NULL\n       OR char_length(v_path) NOT BETWEEN 38 AND 512\n       OR (\n         v_bucket = 'chat-image'\n         AND v_path !~ (\n           '^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}/'\n           || v_job.user_id::text\n           || '/[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\\.(jpeg|jpg|png|gif|webp)$'\n         )\n       )\n       OR (\n         v_bucket <> 'chat-image'\n         AND (\n           v_path !~ ('^' || v_job.user_id::text || '/[^/\\\\[:cntrl:]]+$')\n           OR split_part(v_path, '/', 2) IN ('.', '..')\n         )\n       ) THEN\n      RAISE EXCEPTION 'ACCOUNT_DELETION_MANIFEST_PATH_INVALID' USING ERRCODE = '22023';\n    END IF;\n\n    IF v_bucket = 'chat-image' THEN\n      IF v_source <> 'quarantine' THEN\n        RAISE EXCEPTION 'ACCOUNT_DELETION_CHAT_PROOF_INVALID' USING ERRCODE = '23514';\n      END IF;\n    ELSIF v_bucket = 'profile-avatars' AND v_source = 'profile_avatar' THEN\n      IF NOT EXISTS (\n        SELECT 1 FROM public.profile_avatar_assets asset\n        WHERE asset.user_id = v_job.user_id AND asset.object_path = v_path\n          AND v_not_before >= asset.upload_until\n      ) THEN\n        RAISE EXCEPTION 'PROFILE_AVATAR_DELETION_PROOF_INVALID' USING ERRCODE = '23514';\n      END IF;\n    ELSIF v_source IN ('session_staging', 'session_final') THEN\n      SELECT * INTO v_session\n        FROM public.community_upload_sessions\n       WHERE user_id = v_job.user_id\n         AND (\n           (v_source = 'session_staging'\n             AND v_bucket = 'community-media-staging'\n             AND staging_path = v_path)\n           OR\n           (v_source = 'session_final'\n             AND final_bucket = v_bucket\n             AND final_path = v_path)\n         );\n      IF NOT FOUND OR v_not_before < v_session.expires_at + interval '5 minutes' THEN\n        RAISE EXCEPTION 'ACCOUNT_DELETION_SESSION_PROOF_INVALID' USING ERRCODE = '23514';\n      END IF;\n    ELSIF v_source = 'legacy_prefix' THEN\n      IF NOT (\n        (\n          v_bucket = 'community-images'\n          AND v_path ~* ('^' || v_job.user_id::text || '/[0-9]{13}_[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\\.(jpg|png|gif|webp)$')\n        )\n        OR (\n          v_bucket = 'community-videos'\n          AND v_path ~* ('^' || v_job.user_id::text || '/[0-9]{13}_[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\\.(mp4|mov|webm)$')\n        )\n      ) THEN\n        RAISE EXCEPTION 'ACCOUNT_DELETION_LEGACY_PROOF_INVALID' USING ERRCODE = '23514';\n      END IF;\n    ELSIF v_source <> 'quarantine' THEN\n      RAISE EXCEPTION 'ACCOUNT_DELETION_MANIFEST_SOURCE_INVALID' USING ERRCODE = '22023';\n    END IF;\n\n    INSERT INTO public.account_deletion_media_manifest(\n      job_id, bucket, path, source, not_before\n    ) VALUES (p_job_id, v_bucket, v_path, v_source, v_not_before);\n  END LOOP;\n\n  SELECT count(*) FILTER (WHERE source = 'quarantine'),\n         coalesce(max(not_before) FILTER (WHERE source <> 'quarantine'), clock_timestamp())\n    INTO v_quarantine_count, v_ready_after\n    FROM public.account_deletion_media_manifest\n   WHERE job_id = p_job_id;\n\n  UPDATE public.account_deletion_jobs\n     SET status = CASE WHEN v_quarantine_count > 0\n                       THEN 'manual_review' ELSE 'inventory_ready' END,\n         quarantine_count = v_quarantine_count,\n         ready_after = v_ready_after,\n         claim_token = NULL,\n         claimed_at = NULL,\n         last_error_code = CASE WHEN v_quarantine_count > 0\n                                THEN 'unproven_legacy_media' ELSE NULL END,\n         updated_at = clock_timestamp()\n   WHERE id = p_job_id\n   RETURNING * INTO v_job;\n  RETURN NEXT v_job;\nEND;\n",
+        "name": "replace_account_deletion_media_manifest",
+        "owner": "postgres",
+        "config": [
+          "search_path=\"\""
+        ],
+        "result": "SETOF account_deletion_jobs",
+        "schema": "public",
+        "strict": false,
+        "language": "plpgsql",
+        "parallel": "u",
+        "arguments": "p_job_id uuid, p_claim_token uuid, p_manifest jsonb",
+        "leakproof": false,
+        "volatility": "v",
+        "securityDefiner": true
+      }
+    ],
+    "manifestConstraints": [
+      [
+        "account_deletion_media_bucket",
+        "c",
+        true,
+        "CHECK (bucket = ANY (ARRAY['community-media-staging'::text, 'community-images'::text, 'community-videos'::text, 'chat-image'::text, 'profile-avatars'::text]))"
+      ],
+      [
+        "account_deletion_media_path_shape",
+        "c",
+        true,
+        "CHECK (bucket = 'chat-image'::text AND char_length(path) >= 111 AND char_length(path) <= 512 AND path ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}/[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}/[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\\.(jpeg|jpg|png|gif|webp)$'::text OR bucket <> 'chat-image'::text AND char_length(path) >= 38 AND char_length(path) <= 512 AND path ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}/[^/\\\\[:cntrl:]]+$'::text AND (split_part(path, '/'::text, 2) <> ALL (ARRAY['.'::text, '..'::text])))"
+      ],
+      [
+        "account_deletion_media_source",
+        "c",
+        true,
+        "CHECK (source = ANY (ARRAY['session_staging'::text, 'session_final'::text, 'legacy_prefix'::text, 'quarantine'::text, 'profile_avatar'::text]))"
+      ]
+    ]
+  },
+  "after": {
+    "bucket": {
+      "id": "provider-portfolio",
+      "name": "provider-portfolio",
+      "public": false,
+      "file_size_limit": 5242880,
+      "allowed_mime_types": [
+        "image/jpeg",
+        "image/png",
+        "image/webp"
+      ]
+    },
+    "policy": [
+      {
+        "name": "provider_portfolio_service_only",
+        "check": "(bucket_id <> 'provider-portfolio'::text)",
+        "roles": [
+          "anon",
+          "authenticated"
+        ],
+        "using": "(bucket_id <> 'provider-portfolio'::text)",
+        "command": "*",
+        "permissive": false
+      }
+    ],
+    "schema": [
+      {
+        "acl": [
+          [
+            "authenticated",
+            "postgres",
+            "USAGE",
+            false
+          ],
+          [
+            "postgres",
+            "postgres",
+            "CREATE",
+            false
+          ],
+          [
+            "postgres",
+            "postgres",
+            "USAGE",
+            false
+          ]
+        ],
+        "name": "provider_private",
+        "owner": "postgres"
+      }
+    ],
+    "functions": [
+      {
+        "acl": [
+          [
+            "anon",
+            "postgres",
+            "EXECUTE",
+            false
+          ],
+          [
+            "authenticated",
+            "postgres",
+            "EXECUTE",
+            false
+          ],
+          [
+            "postgres",
+            "postgres",
+            "EXECUTE",
+            false
+          ],
+          [
+            "service_role",
+            "postgres",
+            "EXECUTE",
+            false
+          ]
+        ],
+        "args": "text, text, text, uuid, integer, boolean, bigint",
+        "body": "\nDECLARE v_ids uuid[]; v_next uuid; v_id uuid; v_item jsonb; v_rows jsonb:='[]'::jsonb;\nBEGIN\n  IF p_limit IS NULL OR p_limit NOT BETWEEN 1 AND 100 OR p_recommendation_only IS NULL\n    OR (p_category IS NOT NULL AND p_category NOT IN ('photography','videography','hair_makeup','hair_styling','floral','mc','directing','venue','catering','other'))\n    OR (p_region IS NOT NULL AND length(btrim(p_region)) NOT BETWEEN 1 AND 80)\n    OR (p_query IS NOT NULL AND length(btrim(p_query)) NOT BETWEEN 1 AND 100)\n    OR p_max_base_price_krw<0 THEN RAISE EXCEPTION 'PROVIDER_INVALID_INPUT'; END IF;\n  SELECT array_agg(id ORDER BY id) INTO v_ids FROM (\n    SELECT p.id FROM public.provider_profiles p WHERE p.approval_status='approved' AND p.publication_status='published'\n      AND NOT EXISTS(SELECT 1 FROM public.account_deletion_jobs d WHERE d.user_id=p.owner_id AND d.status<>'completed')\n      AND (p_after IS NULL OR p.id>p_after)\n      AND (p_query IS NULL OR strpos(lower(p.name||' '||p.introduction),lower(btrim(p_query)))>0)\n      AND (p_region IS NULL OR EXISTS(SELECT 1 FROM unnest(p.regions) r WHERE CASE WHEN p_recommendation_only\n        THEN regexp_replace(lower(r),'[[:space:]]','','g')=regexp_replace(lower(p_region),'[[:space:]]','','g')\n        ELSE strpos(lower(r),lower(btrim(p_region)))>0 END))\n      AND ((p_category IS NULL AND NOT p_recommendation_only AND p_max_base_price_krw IS NULL) OR EXISTS(\n        SELECT 1 FROM public.provider_offerings o WHERE o.provider_id=p.id AND o.is_active AND o.review_status='approved'\n          AND (p_category IS NULL OR o.category=p_category)\n          AND (NOT p_recommendation_only OR (o.recommendation_status='eligible' AND o.reviewed_at IS NOT NULL))\n          AND (p_max_base_price_krw IS NULL OR o.base_price_krw<=p_max_base_price_krw)))\n      ORDER BY p.id LIMIT p_limit+1) q;\n  IF cardinality(v_ids)>p_limit THEN v_next:=v_ids[p_limit]; END IF;\n  FOREACH v_id IN ARRAY coalesce(v_ids[1:p_limit],'{}'::uuid[]) LOOP\n    v_item:=public.provider_public_catalog(v_id,1)->0;\n    IF p_recommendation_only THEN\n      v_item:=jsonb_set(v_item,'{offerings}',coalesce((SELECT jsonb_agg(o ORDER BY o->>'id')\n        FROM jsonb_array_elements(v_item->'offerings') o WHERE (p_category IS NULL OR o->>'category'=p_category)\n          AND o->>'recommendation_status'='eligible' AND o->>'reviewed_at' IS NOT NULL\n          AND (p_max_base_price_krw IS NULL OR (o->>'base_price_krw')::bigint<=p_max_base_price_krw)),'[]'::jsonb));\n    END IF;\n    v_rows:=v_rows||jsonb_build_array(v_item);\n  END LOOP;\n  RETURN jsonb_build_object('providers',v_rows,'next_cursor',v_next);\nEND ",
+        "name": "provider_search_catalog",
+        "owner": "postgres",
+        "config": [
+          "search_path=\"\""
+        ],
+        "result": "jsonb",
+        "schema": "public",
+        "strict": false,
+        "language": "plpgsql",
+        "parallel": "u",
+        "arguments": "p_category text DEFAULT NULL::text, p_region text DEFAULT NULL::text, p_query text DEFAULT NULL::text, p_after uuid DEFAULT NULL::uuid, p_limit integer DEFAULT 30, p_recommendation_only boolean DEFAULT false, p_max_base_price_krw bigint DEFAULT NULL::bigint",
+        "leakproof": false,
+        "volatility": "s",
+        "securityDefiner": true
+      },
+      {
+        "acl": [
+          [
+            "anon",
+            "postgres",
+            "EXECUTE",
+            false
+          ],
+          [
+            "authenticated",
+            "postgres",
+            "EXECUTE",
+            false
+          ],
+          [
+            "postgres",
+            "postgres",
+            "EXECUTE",
+            false
+          ],
+          [
+            "service_role",
+            "postgres",
+            "EXECUTE",
+            false
+          ]
+        ],
+        "args": "uuid, integer",
+        "body": "\n  SELECT coalesce(jsonb_agg(item ORDER BY updated_at DESC,id),'[]'::jsonb) FROM (\n    SELECT p.updated_at,p.id,jsonb_build_object('id',p.id,'kind',p.kind,'name',p.name,'categories',p.categories,'regions',p.regions,\n      'introduction',p.introduction,'website',p.website,'instagram',p.instagram,'updated_at',p.updated_at,\n      'offerings',coalesce((SELECT jsonb_agg(jsonb_build_object('id',o.id,'provider_id',o.provider_id,'name',o.name,'category',o.category,\n        'description',o.description,'base_price_krw',o.base_price_krw,'price_unit',o.price_unit,'includes',o.includes,\n        'extra_charges',o.extra_charges,'conditions',o.conditions,'review_status',o.review_status,'recommendation_status',o.recommendation_status,'version',o.version,\n        'is_active',o.is_active,'reviewed_at',o.reviewed_at,'updated_at',o.updated_at) ORDER BY o.created_at)\n        FROM public.provider_offerings o WHERE o.provider_id=p.id AND o.review_status='approved' AND o.is_active),'[]'::jsonb),\n      'media',coalesce((SELECT jsonb_agg(jsonb_build_object('id',m.id,'provider_id',m.provider_id,'caption',m.caption,'alt_text',m.alt_text,'sort_order',m.sort_order)\n        ORDER BY m.sort_order,m.created_at) FROM public.provider_media m WHERE m.provider_id=p.id AND m.status='ready'),'[]'::jsonb)) AS item\n    FROM public.provider_profiles p WHERE p.approval_status='approved' AND p.publication_status='published'\n      AND NOT EXISTS(SELECT 1 FROM public.account_deletion_jobs d WHERE d.user_id=p.owner_id AND d.status<>'completed')\n      AND (p_provider_id IS NULL OR p.id=p_provider_id)\n    ORDER BY p.updated_at DESC,p.id LIMIT greatest(1,least(coalesce(p_limit,30),100))\n  ) catalog;\n",
+        "name": "provider_public_catalog",
+        "owner": "postgres",
+        "config": [
+          "search_path=\"\""
+        ],
+        "result": "jsonb",
+        "schema": "public",
+        "strict": false,
+        "language": "sql",
+        "parallel": "u",
+        "arguments": "p_provider_id uuid DEFAULT NULL::uuid, p_limit integer DEFAULT 30",
+        "leakproof": false,
+        "volatility": "s",
+        "securityDefiner": true
+      },
+      {
+        "acl": [
+          [
+            "authenticated",
+            "postgres",
+            "EXECUTE",
+            false
+          ],
+          [
+            "postgres",
+            "postgres",
+            "EXECUTE",
+            false
+          ]
+        ],
+        "args": "",
+        "body": "\n  SELECT auth.uid() IS NOT NULL AND EXISTS (\n    SELECT 1 FROM public.profiles WHERE id=auth.uid() AND is_admin=true);\n",
+        "name": "is_admin",
+        "owner": "postgres",
+        "config": [
+          "search_path=\"\""
+        ],
+        "result": "boolean",
+        "schema": "provider_private",
+        "strict": false,
+        "language": "sql",
+        "parallel": "u",
+        "arguments": "",
+        "leakproof": false,
+        "volatility": "s",
+        "securityDefiner": true
+      },
+      {
+        "acl": [
+          [
+            "authenticated",
+            "postgres",
+            "EXECUTE",
+            false
+          ],
+          [
+            "postgres",
+            "postgres",
+            "EXECUTE",
+            false
+          ]
+        ],
+        "args": "",
+        "body": "\nBEGIN\n  PERFORM provider_private.require_admin();\n  RETURN jsonb_build_object(\n    'profiles',coalesce((SELECT jsonb_agg(to_jsonb(p)) FROM (SELECT * FROM public.provider_profiles ORDER BY updated_at DESC LIMIT 100) p),'[]'::jsonb),\n    'applications',coalesce((SELECT jsonb_agg(to_jsonb(a)) FROM (SELECT * FROM public.provider_applications ORDER BY updated_at DESC LIMIT 100) a),'[]'::jsonb),\n    'offerings',coalesce((SELECT jsonb_agg(to_jsonb(o)) FROM (SELECT * FROM public.provider_offerings ORDER BY updated_at DESC LIMIT 100) o),'[]'::jsonb),\n    'media',coalesce((SELECT jsonb_agg(to_jsonb(m)) FROM (SELECT * FROM public.provider_media WHERE status='ready' ORDER BY updated_at DESC LIMIT 100) m),'[]'::jsonb),\n    'business_inquiries',coalesce((SELECT jsonb_agg(to_jsonb(b)) FROM (SELECT * FROM public.business_inquiries ORDER BY updated_at DESC LIMIT 100) b),'[]'::jsonb));\nEND ",
+        "name": "provider_admin_workspace",
+        "owner": "postgres",
+        "config": [
+          "search_path=\"\""
+        ],
+        "result": "jsonb",
+        "schema": "public",
+        "strict": false,
+        "language": "plpgsql",
+        "parallel": "u",
+        "arguments": "",
+        "leakproof": false,
+        "volatility": "s",
+        "securityDefiner": true
+      },
+      {
+        "acl": [
+          [
+            "authenticated",
+            "postgres",
+            "EXECUTE",
+            false
+          ],
+          [
+            "postgres",
+            "postgres",
+            "EXECUTE",
+            false
+          ]
+        ],
+        "args": "",
+        "body": "\nDECLARE v_actor uuid:=provider_private.require_actor();\nBEGIN\n  RETURN jsonb_build_object(\n    'profiles',coalesce((SELECT jsonb_agg(to_jsonb(p) ORDER BY p.created_at DESC) FROM public.provider_profiles p WHERE owner_id=v_actor),'[]'::jsonb),\n    'applications',coalesce((SELECT jsonb_agg(to_jsonb(a) ORDER BY a.created_at DESC) FROM public.provider_applications a WHERE owner_id=v_actor),'[]'::jsonb),\n    'offerings',coalesce((SELECT jsonb_agg(to_jsonb(o)) FROM (SELECT o.* FROM public.provider_offerings o JOIN public.provider_profiles p ON p.id=o.provider_id WHERE p.owner_id=v_actor ORDER BY o.updated_at DESC,o.id) o),'[]'::jsonb),\n    'media',coalesce((SELECT jsonb_agg(to_jsonb(m)) FROM (SELECT m.* FROM public.provider_media m JOIN public.provider_profiles p ON p.id=m.provider_id WHERE p.owner_id=v_actor AND m.status='ready' ORDER BY m.sort_order,m.created_at,m.id) m),'[]'::jsonb),\n    'business_inquiries',coalesce((SELECT jsonb_agg(to_jsonb(b)) FROM (SELECT * FROM public.business_inquiries WHERE owner_id=v_actor ORDER BY created_at DESC,id) b),'[]'::jsonb));\nEND ",
+        "name": "provider_get_workspace",
+        "owner": "postgres",
+        "config": [
+          "search_path=\"\""
+        ],
+        "result": "jsonb",
+        "schema": "public",
+        "strict": false,
+        "language": "plpgsql",
+        "parallel": "u",
+        "arguments": "",
+        "leakproof": false,
+        "volatility": "s",
+        "securityDefiner": true
+      },
+      {
+        "acl": [
+          [
+            "authenticated",
+            "postgres",
+            "EXECUTE",
+            false
+          ],
+          [
+            "postgres",
+            "postgres",
+            "EXECUTE",
+            false
+          ]
+        ],
+        "args": "jsonb, uuid",
+        "body": "\nDECLARE v_actor uuid:=provider_private.require_actor(); b public.business_inquiries;\nBEGIN\n  PERFORM provider_private.keys(p_input,ARRAY['kind','subject','message','contact_name','privacy_consent']);\n  IF p_request_id IS NULL OR p_input->>'kind' IS NULL OR p_input->>'kind' NOT IN ('collaboration','media','data','other')\n    OR p_input->'privacy_consent' IS DISTINCT FROM 'true'::jsonb THEN RAISE EXCEPTION 'PROVIDER_INVALID_INPUT'; END IF;\n  PERFORM provider_private.text_value(p_input,'subject',1,200); PERFORM provider_private.text_value(p_input,'message',1,5000);\n  PERFORM provider_private.text_value(p_input,'contact_name',1,100);\n  PERFORM pg_advisory_xact_lock(hashtextextended('business-inquiry:'||v_actor::text,0));\n  SELECT * INTO b FROM public.business_inquiries WHERE owner_id=v_actor AND request_id=p_request_id;\n  IF FOUND THEN\n    IF b.submission_payload<>p_input THEN RAISE EXCEPTION 'PROVIDER_IDEMPOTENCY_CONFLICT'; END IF;\n    RETURN to_jsonb(b);\n  END IF;\n  IF (SELECT count(*) FROM public.business_inquiries WHERE owner_id=v_actor AND created_at>now()-interval '1 day')>=10\n  THEN RAISE EXCEPTION 'PROVIDER_INVALID_STATE'; END IF;\n  INSERT INTO public.business_inquiries(owner_id,request_id,submission_payload,kind,subject,message,contact_name,contact_email)\n  SELECT v_actor,p_request_id,p_input,p_input->>'kind',btrim(p_input->>'subject'),btrim(p_input->>'message'),btrim(p_input->>'contact_name'),email\n  FROM auth.users WHERE id=v_actor RETURNING * INTO b;\n  PERFORM provider_private.audit(NULL,v_actor,'business_inquiry_submitted',b.id);\n  RETURN to_jsonb(b);\nEND ",
+        "name": "provider_submit_business_inquiry",
+        "owner": "postgres",
+        "config": [
+          "search_path=\"\""
+        ],
+        "result": "jsonb",
+        "schema": "public",
+        "strict": false,
+        "language": "plpgsql",
+        "parallel": "u",
+        "arguments": "p_input jsonb, p_request_id uuid",
+        "leakproof": false,
+        "volatility": "v",
+        "securityDefiner": true
+      },
+      {
+        "acl": [
+          [
+            "authenticated",
+            "postgres",
+            "EXECUTE",
+            false
+          ],
+          [
+            "postgres",
+            "postgres",
+            "EXECUTE",
+            false
+          ]
+        ],
+        "args": "jsonb, uuid",
+        "body": "\nDECLARE v_actor uuid:=provider_private.require_actor(); v_profile uuid; v_app public.provider_applications;\nBEGIN\n  PERFORM provider_private.validate_application(p_input);\n  IF p_request_id IS NULL THEN RAISE EXCEPTION 'PROVIDER_INVALID_INPUT'; END IF;\n  PERFORM pg_advisory_xact_lock(hashtextextended('provider-application:'||v_actor::text,0));\n  SELECT * INTO v_app FROM public.provider_applications WHERE owner_id=v_actor AND request_id=p_request_id;\n  IF FOUND THEN\n    IF v_app.submission_payload<>p_input THEN RAISE EXCEPTION 'PROVIDER_IDEMPOTENCY_CONFLICT'; END IF;\n    RETURN jsonb_build_object('provider_id',v_app.provider_id,'application_id',v_app.id,'status',v_app.status);\n  END IF;\n  IF (SELECT count(*) FROM public.provider_profiles WHERE owner_id=v_actor)>=10 THEN RAISE EXCEPTION 'PROVIDER_INVALID_STATE'; END IF;\n  INSERT INTO public.provider_profiles(owner_id,kind,name,categories,regions,contact_name,contact_email)\n  SELECT v_actor,p_input->>'kind',btrim(p_input->>'name'),provider_private.text_array(p_input->'categories',1,10),\n    provider_private.text_array(p_input->'regions',1,20),btrim(p_input->>'contact_name'),u.email FROM auth.users u WHERE u.id=v_actor\n  RETURNING id INTO v_profile;\n  INSERT INTO public.provider_applications(provider_id,owner_id,request_id,submission_payload,application_note,consents,\n    kind,name,categories,regions,contact_name,contact_email)\n  SELECT v_profile,v_actor,p_request_id,p_input,p_input->>'application_note',p_input->'consents',\n    p.kind,p.name,p.categories,p.regions,p.contact_name,p.contact_email FROM public.provider_profiles p WHERE p.id=v_profile RETURNING * INTO v_app;\n  PERFORM provider_private.audit(v_profile,v_actor,'application_submitted',v_app.id);\n  RETURN jsonb_build_object('provider_id',v_profile,'application_id',v_app.id,'status',v_app.status);\nEND ",
+        "name": "provider_submit_application",
+        "owner": "postgres",
+        "config": [
+          "search_path=\"\""
+        ],
+        "result": "jsonb",
+        "schema": "public",
+        "strict": false,
+        "language": "plpgsql",
+        "parallel": "u",
+        "arguments": "p_input jsonb, p_request_id uuid",
+        "leakproof": false,
+        "volatility": "v",
+        "securityDefiner": true
+      },
+      {
+        "acl": [
+          [
+            "authenticated",
+            "postgres",
+            "EXECUTE",
+            false
+          ],
+          [
+            "postgres",
+            "postgres",
+            "EXECUTE",
+            false
+          ]
+        ],
+        "args": "text, text, uuid, integer",
+        "body": "\nDECLARE v_ids uuid[]; v_next uuid; v_rows jsonb; v_profiles jsonb:='[]'::jsonb;\nBEGIN\n  PERFORM provider_private.require_admin();\n  IF p_kind IS NULL OR p_kind NOT IN ('applications','offerings','inquiries') OR p_limit IS NULL OR p_limit NOT BETWEEN 1 AND 100\n    OR (p_status IS NOT NULL AND NOT CASE p_kind\n      WHEN 'applications' THEN p_status IN ('pending','changes_requested','approved','rejected')\n      WHEN 'offerings' THEN p_status IN ('pending','approved','rejected','withdrawn')\n      WHEN 'inquiries' THEN p_status IN ('received','reviewing','responded','closed') ELSE false END)\n    THEN RAISE EXCEPTION 'PROVIDER_INVALID_INPUT'; END IF;\n  IF p_kind='applications' THEN\n    SELECT array_agg(id ORDER BY id) INTO v_ids FROM (SELECT id FROM public.provider_applications\n      WHERE (p_status IS NULL OR status=p_status) AND (p_after IS NULL OR id>p_after) ORDER BY id LIMIT p_limit+1) q;\n  ELSIF p_kind='offerings' THEN\n    SELECT array_agg(id ORDER BY id) INTO v_ids FROM (SELECT id FROM public.provider_offerings\n      WHERE (p_status IS NULL OR (p_status='withdrawn' AND NOT is_active) OR (is_active AND review_status=p_status))\n      AND (p_after IS NULL OR id>p_after) ORDER BY id LIMIT p_limit+1) q;\n  ELSE\n    SELECT array_agg(id ORDER BY id) INTO v_ids FROM (SELECT id FROM public.business_inquiries\n      WHERE (p_status IS NULL OR status=p_status) AND (p_after IS NULL OR id>p_after) ORDER BY id LIMIT p_limit+1) q;\n  END IF;\n  IF cardinality(v_ids)>p_limit THEN v_next:=v_ids[p_limit]; END IF;\n  v_ids:=v_ids[1:p_limit];\n  IF p_kind='applications' THEN\n    SELECT coalesce(jsonb_agg(to_jsonb(a) ORDER BY a.id),'[]'::jsonb) INTO v_rows FROM public.provider_applications a WHERE a.id=ANY(v_ids);\n    SELECT coalesce(jsonb_agg(to_jsonb(p) ORDER BY p.id),'[]'::jsonb) INTO v_profiles FROM public.provider_profiles p\n      WHERE p.id IN (SELECT provider_id FROM public.provider_applications WHERE id=ANY(v_ids));\n  ELSIF p_kind='offerings' THEN\n    SELECT coalesce(jsonb_agg(to_jsonb(o) ORDER BY o.id),'[]'::jsonb) INTO v_rows FROM public.provider_offerings o WHERE o.id=ANY(v_ids);\n    SELECT coalesce(jsonb_agg(to_jsonb(p) ORDER BY p.id),'[]'::jsonb) INTO v_profiles FROM public.provider_profiles p\n      WHERE p.id IN (SELECT provider_id FROM public.provider_offerings WHERE id=ANY(v_ids));\n  ELSE\n    SELECT coalesce(jsonb_agg(to_jsonb(b) ORDER BY b.id),'[]'::jsonb) INTO v_rows FROM public.business_inquiries b WHERE b.id=ANY(v_ids);\n  END IF;\n  RETURN jsonb_build_object('profiles',v_profiles,'applications',CASE WHEN p_kind='applications' THEN v_rows ELSE '[]'::jsonb END,\n    'offerings',CASE WHEN p_kind='offerings' THEN v_rows ELSE '[]'::jsonb END,\n    'business_inquiries',CASE WHEN p_kind='inquiries' THEN v_rows ELSE '[]'::jsonb END,'media','[]'::jsonb,'next_cursor',v_next);\nEND ",
+        "name": "provider_admin_queue",
+        "owner": "postgres",
+        "config": [
+          "search_path=\"\""
+        ],
+        "result": "jsonb",
+        "schema": "public",
+        "strict": false,
+        "language": "plpgsql",
+        "parallel": "u",
+        "arguments": "p_kind text, p_status text DEFAULT NULL::text, p_after uuid DEFAULT NULL::uuid, p_limit integer DEFAULT 30",
+        "leakproof": false,
+        "volatility": "s",
+        "securityDefiner": true
+      },
+      {
+        "acl": [
+          [
+            "authenticated",
+            "postgres",
+            "EXECUTE",
+            false
+          ],
+          [
+            "postgres",
+            "postgres",
+            "EXECUTE",
+            false
+          ]
+        ],
+        "args": "uuid",
+        "body": "\n  SELECT auth.uid() IS NOT NULL AND EXISTS (\n    SELECT 1 FROM public.provider_profiles WHERE id=p_id AND owner_id=auth.uid());\n",
+        "name": "owns",
+        "owner": "postgres",
+        "config": [
+          "search_path=\"\""
+        ],
+        "result": "boolean",
+        "schema": "provider_private",
+        "strict": false,
+        "language": "sql",
+        "parallel": "u",
+        "arguments": "p_id uuid",
+        "leakproof": false,
+        "volatility": "s",
+        "securityDefiner": true
+      },
+      {
+        "acl": [
+          [
+            "authenticated",
+            "postgres",
+            "EXECUTE",
+            false
+          ],
+          [
+            "postgres",
+            "postgres",
+            "EXECUTE",
+            false
+          ]
+        ],
+        "args": "uuid",
+        "body": "\nDECLARE v_actor uuid:=provider_private.require_actor(); p public.provider_profiles; m public.provider_media;\nBEGIN\n  SELECT * INTO m FROM public.provider_media WHERE id=p_media_id;\n  IF NOT FOUND THEN RAISE EXCEPTION 'PROVIDER_NOT_FOUND'; END IF;\n  SELECT * INTO p FROM public.provider_profiles WHERE id=m.provider_id FOR UPDATE;\n  IF p.owner_id<>v_actor AND NOT provider_private.is_admin() THEN RAISE EXCEPTION 'PROVIDER_NOT_FOUND'; END IF;\n  SELECT * INTO m FROM public.provider_media WHERE id=p_media_id FOR UPDATE;\n  IF m.status<>'removed' THEN\n    UPDATE public.provider_media SET status='removed',updated_at=now() WHERE id=m.id;\n    PERFORM provider_private.audit(p.id,v_actor,'media_removed',m.id);\n  END IF;\n  RETURN jsonb_build_object('id',m.id,'storage_path',m.storage_path);\nEND ",
+        "name": "provider_remove_media",
+        "owner": "postgres",
+        "config": [
+          "search_path=\"\""
+        ],
+        "result": "jsonb",
+        "schema": "public",
+        "strict": false,
+        "language": "plpgsql",
+        "parallel": "u",
+        "arguments": "p_media_id uuid",
+        "leakproof": false,
+        "volatility": "v",
+        "securityDefiner": true
+      },
+      {
+        "acl": [
+          [
+            "authenticated",
+            "postgres",
+            "EXECUTE",
+            false
+          ],
+          [
+            "postgres",
+            "postgres",
+            "EXECUTE",
+            false
+          ]
+        ],
+        "args": "uuid, integer, jsonb",
+        "body": "\nDECLARE v_actor uuid:=provider_private.require_actor(); a public.provider_applications; p public.provider_profiles;\nBEGIN\n  PERFORM provider_private.validate_application(p_input);\n  SELECT * INTO a FROM public.provider_applications WHERE id=p_application_id AND owner_id=v_actor;\n  IF NOT FOUND THEN RAISE EXCEPTION 'PROVIDER_NOT_FOUND'; END IF;\n  SELECT * INTO p FROM public.provider_profiles WHERE id=a.provider_id FOR UPDATE;\n  SELECT * INTO a FROM public.provider_applications WHERE id=p_application_id FOR UPDATE;\n  IF a.version IS DISTINCT FROM p_expected_version THEN RAISE EXCEPTION 'PROVIDER_VERSION_CONFLICT'; END IF;\n  IF a.status NOT IN ('changes_requested','rejected') OR p.approval_status='suspended' THEN RAISE EXCEPTION 'PROVIDER_INVALID_STATE'; END IF;\n  UPDATE public.provider_profiles SET kind=p_input->>'kind',name=btrim(p_input->>'name'),\n    categories=provider_private.text_array(p_input->'categories',1,10),regions=provider_private.text_array(p_input->'regions',1,20),\n    contact_name=btrim(p_input->>'contact_name'),contact_email=(SELECT email FROM auth.users WHERE id=v_actor),\n    approval_status='pending',publication_status='draft',version=version+1,updated_at=now() WHERE id=p.id;\n  UPDATE public.provider_applications SET submission_payload=p_input,application_note=p_input->>'application_note',\n    kind=p_input->>'kind',name=btrim(p_input->>'name'),categories=provider_private.text_array(p_input->'categories',1,10),\n    regions=provider_private.text_array(p_input->'regions',1,20),contact_name=btrim(p_input->>'contact_name'),\n    contact_email=(SELECT email FROM auth.users WHERE id=v_actor),\n    consents=p_input->'consents',status='pending',review_reason=NULL,reviewed_by=NULL,reviewed_at=NULL,\n    version=version+1,updated_at=now() WHERE id=a.id RETURNING * INTO a;\n  PERFORM provider_private.audit(p.id,v_actor,'application_resubmitted',a.id);\n  RETURN to_jsonb(a);\nEND ",
+        "name": "provider_resubmit_application",
+        "owner": "postgres",
+        "config": [
+          "search_path=\"\""
+        ],
+        "result": "jsonb",
+        "schema": "public",
+        "strict": false,
+        "language": "plpgsql",
+        "parallel": "u",
+        "arguments": "p_application_id uuid, p_expected_version integer, p_input jsonb",
+        "leakproof": false,
+        "volatility": "v",
+        "securityDefiner": true
+      },
+      {
+        "acl": [
+          [
+            "authenticated",
+            "postgres",
+            "EXECUTE",
+            false
+          ],
+          [
+            "postgres",
+            "postgres",
+            "EXECUTE",
+            false
+          ]
+        ],
+        "args": "uuid, integer, jsonb",
+        "body": "\nDECLARE v_actor uuid:=provider_private.require_actor(); p public.provider_profiles; v_intro text; v_web text; v_inst text;\nBEGIN\n  PERFORM provider_private.keys(p_input,ARRAY['introduction','website','instagram']);\n  v_intro:=provider_private.text_value(p_input,'introduction',0,5000);\n  v_web:=nullif(provider_private.text_value(p_input,'website',0,500),'');\n  v_inst:=nullif(provider_private.text_value(p_input,'instagram',0,500),'');\n  IF (v_web IS NOT NULL AND v_web !~ '^https://[^[:space:]@]+$')\n    OR (v_inst IS NOT NULL AND v_inst !~ '^https://(www\\.)?instagram\\.com/[^[:space:]@]*$')\n  THEN RAISE EXCEPTION 'PROVIDER_INVALID_INPUT'; END IF;\n  SELECT * INTO p FROM public.provider_profiles WHERE id=p_provider_id AND owner_id=v_actor FOR UPDATE;\n  IF NOT FOUND THEN RAISE EXCEPTION 'PROVIDER_NOT_FOUND'; END IF;\n  IF p.approval_status<>'approved' THEN RAISE EXCEPTION 'PROVIDER_NOT_APPROVED'; END IF;\n  IF p.version IS DISTINCT FROM p_expected_version THEN RAISE EXCEPTION 'PROVIDER_VERSION_CONFLICT'; END IF;\n  UPDATE public.provider_profiles SET introduction=v_intro,website=v_web,instagram=v_inst,version=version+1,updated_at=now()\n    WHERE id=p.id RETURNING * INTO p;\n  PERFORM provider_private.audit(p.id,v_actor,'profile_updated',p.id,jsonb_build_object('version',p.version));\n  RETURN to_jsonb(p);\nEND ",
+        "name": "provider_update_profile",
+        "owner": "postgres",
+        "config": [
+          "search_path=\"\""
+        ],
+        "result": "jsonb",
+        "schema": "public",
+        "strict": false,
+        "language": "plpgsql",
+        "parallel": "u",
+        "arguments": "p_provider_id uuid, p_expected_version integer, p_input jsonb",
+        "leakproof": false,
+        "volatility": "v",
+        "securityDefiner": true
+      },
+      {
+        "acl": [
+          [
+            "authenticated",
+            "postgres",
+            "EXECUTE",
+            false
+          ],
+          [
+            "postgres",
+            "postgres",
+            "EXECUTE",
+            false
+          ]
+        ],
+        "args": "uuid, integer, text",
+        "body": "\nDECLARE v_actor uuid:=provider_private.require_actor(); p public.provider_profiles;\nBEGIN\n  IF p_status IS NULL OR p_status NOT IN ('draft','published','paused') THEN RAISE EXCEPTION 'PROVIDER_INVALID_INPUT'; END IF;\n  SELECT * INTO p FROM public.provider_profiles WHERE id=p_provider_id AND owner_id=v_actor FOR UPDATE;\n  IF NOT FOUND THEN RAISE EXCEPTION 'PROVIDER_NOT_FOUND'; END IF;\n  IF p.version IS DISTINCT FROM p_expected_version THEN RAISE EXCEPTION 'PROVIDER_VERSION_CONFLICT'; END IF;\n  IF p_status='published' AND p.approval_status<>'approved' THEN RAISE EXCEPTION 'PROVIDER_NOT_APPROVED'; END IF;\n  UPDATE public.provider_profiles SET publication_status=p_status,version=version+1,updated_at=now() WHERE id=p.id RETURNING * INTO p;\n  PERFORM provider_private.audit(p.id,v_actor,'publication_changed',p.id,jsonb_build_object('status',p_status));\n  RETURN to_jsonb(p);\nEND ",
+        "name": "provider_set_publication",
+        "owner": "postgres",
+        "config": [
+          "search_path=\"\""
+        ],
+        "result": "jsonb",
+        "schema": "public",
+        "strict": false,
+        "language": "plpgsql",
+        "parallel": "u",
+        "arguments": "p_provider_id uuid, p_expected_version integer, p_status text",
+        "leakproof": false,
+        "volatility": "v",
+        "securityDefiner": true
+      },
+      {
+        "acl": [
+          [
+            "authenticated",
+            "postgres",
+            "EXECUTE",
+            false
+          ],
+          [
+            "postgres",
+            "postgres",
+            "EXECUTE",
+            false
+          ]
+        ],
+        "args": "uuid, integer, text",
+        "body": "\nDECLARE v_actor uuid:=provider_private.require_admin(); p public.provider_profiles;\nBEGIN\n  IF nullif(btrim(p_reason),'') IS NULL OR length(p_reason)>2000 THEN RAISE EXCEPTION 'PROVIDER_INVALID_INPUT'; END IF;\n  SELECT * INTO p FROM public.provider_profiles WHERE id=p_provider_id FOR UPDATE;\n  IF NOT FOUND THEN RAISE EXCEPTION 'PROVIDER_NOT_FOUND'; END IF;\n  IF p.version IS DISTINCT FROM p_expected_version THEN RAISE EXCEPTION 'PROVIDER_VERSION_CONFLICT'; END IF;\n  IF p.approval_status<>'suspended' OR p.approved_at IS NULL THEN RAISE EXCEPTION 'PROVIDER_INVALID_STATE'; END IF;\n  UPDATE public.provider_profiles SET approval_status='approved',publication_status='paused',review_reason=btrim(p_reason),\n    reviewed_by=v_actor,version=version+1,updated_at=now() WHERE id=p.id RETURNING * INTO p;\n  PERFORM provider_private.audit(p.id,v_actor,'profile_restored',p.id);\n  RETURN to_jsonb(p);\nEND ",
+        "name": "provider_restore_profile",
+        "owner": "postgres",
+        "config": [
+          "search_path=\"\""
+        ],
+        "result": "jsonb",
+        "schema": "public",
+        "strict": false,
+        "language": "plpgsql",
+        "parallel": "u",
+        "arguments": "p_provider_id uuid, p_expected_version integer, p_reason text",
+        "leakproof": false,
+        "volatility": "v",
+        "securityDefiner": true
+      },
+      {
+        "acl": [
+          [
+            "authenticated",
+            "postgres",
+            "EXECUTE",
+            false
+          ],
+          [
+            "postgres",
+            "postgres",
+            "EXECUTE",
+            false
+          ]
+        ],
+        "args": "uuid, integer, text",
+        "body": "\nDECLARE v_actor uuid:=provider_private.require_admin(); p public.provider_profiles;\nBEGIN\n  IF nullif(btrim(p_reason),'') IS NULL OR length(p_reason)>2000 THEN RAISE EXCEPTION 'PROVIDER_INVALID_INPUT'; END IF;\n  SELECT * INTO p FROM public.provider_profiles WHERE id=p_provider_id FOR UPDATE;\n  IF NOT FOUND THEN RAISE EXCEPTION 'PROVIDER_NOT_FOUND'; END IF;\n  IF p.version IS DISTINCT FROM p_expected_version THEN RAISE EXCEPTION 'PROVIDER_VERSION_CONFLICT'; END IF;\n  UPDATE public.provider_profiles SET approval_status='suspended',publication_status='paused',review_reason=btrim(p_reason),\n    reviewed_by=v_actor,version=version+1,updated_at=now() WHERE id=p.id RETURNING * INTO p;\n  UPDATE public.provider_offerings SET recommendation_status='blocked',version=version+1,updated_at=now() WHERE provider_id=p.id;\n  PERFORM provider_private.audit(p.id,v_actor,'profile_suspended',p.id);\n  RETURN to_jsonb(p);\nEND ",
+        "name": "provider_suspend_profile",
+        "owner": "postgres",
+        "config": [
+          "search_path=\"\""
+        ],
+        "result": "jsonb",
+        "schema": "public",
+        "strict": false,
+        "language": "plpgsql",
+        "parallel": "u",
+        "arguments": "p_provider_id uuid, p_expected_version integer, p_reason text",
+        "leakproof": false,
+        "volatility": "v",
+        "securityDefiner": true
+      },
+      {
+        "acl": [
+          [
+            "authenticated",
+            "postgres",
+            "EXECUTE",
+            false
+          ],
+          [
+            "postgres",
+            "postgres",
+            "EXECUTE",
+            false
+          ]
+        ],
+        "args": "uuid, integer, text, text",
+        "body": "\nDECLARE v_actor uuid:=provider_private.require_admin(); a public.provider_applications; p public.provider_profiles;\nBEGIN\n  IF p_action IS NULL OR p_action NOT IN ('approve','reject','request_changes') OR length(p_reason)>2000\n    OR (p_action<>'approve' AND nullif(btrim(p_reason),'') IS NULL)\n  THEN RAISE EXCEPTION 'PROVIDER_INVALID_INPUT'; END IF;\n  SELECT * INTO a FROM public.provider_applications WHERE id=p_application_id;\n  IF NOT FOUND THEN RAISE EXCEPTION 'PROVIDER_NOT_FOUND'; END IF;\n  SELECT * INTO p FROM public.provider_profiles WHERE id=a.provider_id FOR UPDATE;\n  SELECT * INTO a FROM public.provider_applications WHERE id=p_application_id FOR UPDATE;\n  IF a.version IS DISTINCT FROM p_expected_version THEN RAISE EXCEPTION 'PROVIDER_VERSION_CONFLICT'; END IF;\n  IF a.status<>'pending' OR p.approval_status='suspended' THEN RAISE EXCEPTION 'PROVIDER_INVALID_STATE'; END IF;\n  UPDATE public.provider_applications SET status=CASE p_action WHEN 'approve' THEN 'approved' WHEN 'reject' THEN 'rejected' ELSE 'changes_requested' END,\n    review_reason=nullif(btrim(p_reason),''),reviewed_by=v_actor,reviewed_at=now(),version=version+1,updated_at=now() WHERE id=a.id RETURNING * INTO a;\n  UPDATE public.provider_profiles SET approval_status=CASE p_action WHEN 'approve' THEN 'approved' WHEN 'reject' THEN 'rejected' ELSE 'pending' END,\n    publication_status='draft',reviewed_by=v_actor,review_reason=nullif(btrim(p_reason),''),approved_at=CASE WHEN p_action='approve' THEN now() ELSE NULL END,\n    version=version+1,updated_at=now() WHERE id=p.id;\n  PERFORM provider_private.audit(p.id,v_actor,'application_'||p_action,a.id,jsonb_build_object('version',a.version));\n  RETURN to_jsonb(a);\nEND ",
+        "name": "provider_review_application",
+        "owner": "postgres",
+        "config": [
+          "search_path=\"\""
+        ],
+        "result": "jsonb",
+        "schema": "public",
+        "strict": false,
+        "language": "plpgsql",
+        "parallel": "u",
+        "arguments": "p_application_id uuid, p_expected_version integer, p_action text, p_reason text",
+        "leakproof": false,
+        "volatility": "v",
+        "securityDefiner": true
+      },
+      {
+        "acl": [
+          [
+            "authenticated",
+            "postgres",
+            "EXECUTE",
+            false
+          ],
+          [
+            "postgres",
+            "postgres",
+            "EXECUTE",
+            false
+          ]
+        ],
+        "args": "uuid, integer, text, text",
+        "body": "\nDECLARE v_actor uuid:=provider_private.require_admin(); b public.business_inquiries;\nBEGIN\n  IF p_status IS NULL OR p_status NOT IN ('received','reviewing','responded','closed') OR p_reply IS NULL OR length(p_reply)>5000\n    OR (p_status='responded' AND nullif(btrim(p_reply),'') IS NULL) THEN RAISE EXCEPTION 'PROVIDER_INVALID_INPUT'; END IF;\n  SELECT * INTO b FROM public.business_inquiries WHERE id=p_inquiry_id FOR UPDATE;\n  IF NOT FOUND THEN RAISE EXCEPTION 'PROVIDER_NOT_FOUND'; END IF;\n  IF b.version IS DISTINCT FROM p_expected_version THEN RAISE EXCEPTION 'PROVIDER_VERSION_CONFLICT'; END IF;\n  UPDATE public.business_inquiries SET status=p_status,reply=nullif(btrim(p_reply),''),reviewed_by=v_actor,version=version+1,updated_at=now()\n    WHERE id=b.id RETURNING * INTO b;\n  PERFORM provider_private.audit(NULL,v_actor,'business_inquiry_reviewed',b.id,jsonb_build_object('status',b.status,'version',b.version));\n  RETURN to_jsonb(b);\nEND ",
+        "name": "provider_review_business_inquiry",
+        "owner": "postgres",
+        "config": [
+          "search_path=\"\""
+        ],
+        "result": "jsonb",
+        "schema": "public",
+        "strict": false,
+        "language": "plpgsql",
+        "parallel": "u",
+        "arguments": "p_inquiry_id uuid, p_expected_version integer, p_status text, p_reply text",
+        "leakproof": false,
+        "volatility": "v",
+        "securityDefiner": true
+      },
+      {
+        "acl": [
+          [
+            "authenticated",
+            "postgres",
+            "EXECUTE",
+            false
+          ],
+          [
+            "postgres",
+            "postgres",
+            "EXECUTE",
+            false
+          ]
+        ],
+        "args": "uuid, integer, text, text, text",
+        "body": "\nDECLARE v_actor uuid:=provider_private.require_admin(); p public.provider_profiles; o public.provider_offerings;\nBEGIN\n  IF p_action IS NULL OR p_action NOT IN ('approve','reject') OR p_recommendation_status IS NULL\n    OR p_recommendation_status NOT IN ('unreviewed','eligible','blocked') OR (p_action='reject' AND p_recommendation_status='eligible')\n    OR (p_action='reject' AND nullif(btrim(p_reason),'') IS NULL) OR length(p_reason)>2000 THEN RAISE EXCEPTION 'PROVIDER_INVALID_INPUT'; END IF;\n  SELECT * INTO o FROM public.provider_offerings WHERE id=p_offering_id;\n  IF NOT FOUND THEN RAISE EXCEPTION 'PROVIDER_NOT_FOUND'; END IF;\n  SELECT * INTO p FROM public.provider_profiles WHERE id=o.provider_id FOR UPDATE;\n  SELECT * INTO o FROM public.provider_offerings WHERE id=p_offering_id FOR UPDATE;\n  IF NOT o.is_active THEN RAISE EXCEPTION 'PROVIDER_INVALID_STATE'; END IF;\n  IF p.approval_status<>'approved' THEN RAISE EXCEPTION 'PROVIDER_NOT_APPROVED'; END IF;\n  IF o.version IS DISTINCT FROM p_expected_version THEN RAISE EXCEPTION 'PROVIDER_VERSION_CONFLICT'; END IF;\n  UPDATE public.provider_offerings SET review_status=CASE WHEN p_action='approve' THEN 'approved' ELSE 'rejected' END,\n    recommendation_status=p_recommendation_status,review_reason=nullif(btrim(p_reason),''),reviewed_by=v_actor,reviewed_at=now(),\n    version=version+1,updated_at=now() WHERE id=o.id RETURNING * INTO o;\n  PERFORM provider_private.audit(p.id,v_actor,'offering_reviewed',o.id,jsonb_build_object('version',o.version,'recommendation_status',o.recommendation_status));\n  RETURN to_jsonb(o);\nEND ",
+        "name": "provider_review_offering",
+        "owner": "postgres",
+        "config": [
+          "search_path=\"\""
+        ],
+        "result": "jsonb",
+        "schema": "public",
+        "strict": false,
+        "language": "plpgsql",
+        "parallel": "u",
+        "arguments": "p_offering_id uuid, p_expected_version integer, p_action text, p_recommendation_status text, p_reason text",
+        "leakproof": false,
+        "volatility": "v",
+        "securityDefiner": true
+      },
+      {
+        "acl": [
+          [
+            "authenticated",
+            "postgres",
+            "EXECUTE",
+            false
+          ],
+          [
+            "postgres",
+            "postgres",
+            "EXECUTE",
+            false
+          ]
+        ],
+        "args": "uuid, text, text, boolean",
+        "body": "\nDECLARE v_actor uuid:=provider_private.require_actor(); p public.provider_profiles; m public.provider_media;\nBEGIN\n  IF p_rights_confirmed IS DISTINCT FROM true OR p_caption IS NULL OR length(p_caption)>500 OR p_alt_text IS NULL OR length(p_alt_text)>300\n  THEN RAISE EXCEPTION 'PROVIDER_INVALID_INPUT'; END IF;\n  SELECT * INTO m FROM public.provider_media WHERE id=p_media_id;\n  IF NOT FOUND THEN RAISE EXCEPTION 'PROVIDER_NOT_FOUND'; END IF;\n  SELECT * INTO p FROM public.provider_profiles WHERE id=m.provider_id AND owner_id=v_actor FOR UPDATE;\n  IF NOT FOUND THEN RAISE EXCEPTION 'PROVIDER_NOT_FOUND'; END IF;\n  SELECT * INTO m FROM public.provider_media WHERE id=p_media_id FOR UPDATE;\n  IF p.approval_status<>'approved' THEN RAISE EXCEPTION 'PROVIDER_NOT_APPROVED'; END IF;\n  IF m.status NOT IN ('uploading','ready') THEN RAISE EXCEPTION 'PROVIDER_INVALID_STATE'; END IF;\n  IF m.status='uploading' AND m.created_at<now()-interval '30 minutes' THEN RAISE EXCEPTION 'PROVIDER_INVALID_STATE'; END IF;\n  IF NOT EXISTS(SELECT 1 FROM storage.objects WHERE bucket_id='provider-portfolio' AND name=m.storage_path)\n  THEN RAISE EXCEPTION 'PROVIDER_MEDIA_NOT_UPLOADED'; END IF;\n  UPDATE public.provider_media SET status='ready',caption=btrim(p_caption),alt_text=btrim(p_alt_text),rights_confirmed_at=now(),updated_at=now()\n    WHERE id=m.id RETURNING * INTO m;\n  PERFORM provider_private.audit(p.id,v_actor,'media_published',m.id);\n  RETURN to_jsonb(m);\nEND ",
+        "name": "provider_finalize_media",
+        "owner": "postgres",
+        "config": [
+          "search_path=\"\""
+        ],
+        "result": "jsonb",
+        "schema": "public",
+        "strict": false,
+        "language": "plpgsql",
+        "parallel": "u",
+        "arguments": "p_media_id uuid, p_caption text, p_alt_text text, p_rights_confirmed boolean",
+        "leakproof": false,
+        "volatility": "v",
+        "securityDefiner": true
+      },
+      {
+        "acl": [
+          [
+            "authenticated",
+            "postgres",
+            "EXECUTE",
+            false
+          ],
+          [
+            "postgres",
+            "postgres",
+            "EXECUTE",
+            false
+          ]
+        ],
+        "args": "uuid, uuid, integer",
+        "body": "\nDECLARE v_actor uuid:=provider_private.require_actor(); p public.provider_profiles; o public.provider_offerings;\nBEGIN\n  SELECT * INTO p FROM public.provider_profiles WHERE id=p_provider_id AND owner_id=v_actor FOR UPDATE;\n  IF NOT FOUND THEN RAISE EXCEPTION 'PROVIDER_NOT_FOUND'; END IF;\n  SELECT * INTO o FROM public.provider_offerings WHERE id=p_offering_id AND provider_id=p.id FOR UPDATE;\n  IF NOT FOUND THEN RAISE EXCEPTION 'PROVIDER_NOT_FOUND'; END IF;\n  IF o.version IS DISTINCT FROM p_expected_version THEN RAISE EXCEPTION 'PROVIDER_VERSION_CONFLICT'; END IF;\n  UPDATE public.provider_offerings SET is_active=false,review_status='pending',recommendation_status='blocked',\n    reviewed_at=NULL,reviewed_by=NULL,version=version+1,updated_at=now() WHERE id=o.id RETURNING * INTO o;\n  PERFORM provider_private.audit(p.id,v_actor,'offering_withdrawn',o.id,jsonb_build_object('version',o.version));\n  RETURN to_jsonb(o);\nEND ",
+        "name": "provider_withdraw_offering",
+        "owner": "postgres",
+        "config": [
+          "search_path=\"\""
+        ],
+        "result": "jsonb",
+        "schema": "public",
+        "strict": false,
+        "language": "plpgsql",
+        "parallel": "u",
+        "arguments": "p_provider_id uuid, p_offering_id uuid, p_expected_version integer",
+        "leakproof": false,
+        "volatility": "v",
+        "securityDefiner": true
+      },
+      {
+        "acl": [
+          [
+            "authenticated",
+            "postgres",
+            "EXECUTE",
+            false
+          ],
+          [
+            "postgres",
+            "postgres",
+            "EXECUTE",
+            false
+          ]
+        ],
+        "args": "uuid, uuid, integer, jsonb",
+        "body": "\nDECLARE v_actor uuid:=provider_private.require_actor(); p public.provider_profiles; o public.provider_offerings; v_price numeric;\nBEGIN\n  PERFORM provider_private.keys(p_input,ARRAY['name','category','description','base_price_krw','price_unit','includes','extra_charges','conditions']);\n  PERFORM provider_private.text_value(p_input,'name',1,120); PERFORM provider_private.text_value(p_input,'category',1,100);\n  PERFORM provider_private.text_value(p_input,'description',0,5000); PERFORM provider_private.text_value(p_input,'price_unit',1,80);\n  PERFORM provider_private.text_value(p_input,'extra_charges',1,3000); PERFORM provider_private.text_value(p_input,'conditions',1,5000);\n  PERFORM provider_private.text_array(p_input->'includes',0,30,200);\n  IF jsonb_typeof(p_input->'base_price_krw') IS DISTINCT FROM 'number' THEN RAISE EXCEPTION 'PROVIDER_INVALID_INPUT'; END IF;\n  v_price:=(p_input->>'base_price_krw')::numeric;\n  IF v_price<>trunc(v_price) OR v_price<0 OR v_price>1000000000 THEN RAISE EXCEPTION 'PROVIDER_INVALID_INPUT'; END IF;\n  SELECT * INTO p FROM public.provider_profiles WHERE id=p_provider_id AND owner_id=v_actor FOR UPDATE;\n  IF NOT FOUND THEN RAISE EXCEPTION 'PROVIDER_NOT_FOUND'; END IF;\n  IF p.approval_status<>'approved' THEN RAISE EXCEPTION 'PROVIDER_NOT_APPROVED'; END IF;\n  IF NOT (p_input->>'category')=ANY(p.categories) THEN RAISE EXCEPTION 'PROVIDER_INVALID_INPUT'; END IF;\n  IF p_offering_id IS NULL THEN\n    IF p_expected_version IS NOT NULL THEN RAISE EXCEPTION 'PROVIDER_INVALID_INPUT'; END IF;\n    IF (SELECT count(*) FROM public.provider_offerings WHERE provider_id=p.id)>=30 THEN RAISE EXCEPTION 'PROVIDER_INVALID_STATE'; END IF;\n    INSERT INTO public.provider_offerings(provider_id,name,category,description,base_price_krw,price_unit,includes,extra_charges,conditions)\n    VALUES(p.id,btrim(p_input->>'name'),p_input->>'category',p_input->>'description',v_price::int,btrim(p_input->>'price_unit'),\n      provider_private.text_array(p_input->'includes',0,30,200),btrim(p_input->>'extra_charges'),btrim(p_input->>'conditions')) RETURNING * INTO o;\n  ELSE\n    SELECT * INTO o FROM public.provider_offerings WHERE id=p_offering_id AND provider_id=p.id FOR UPDATE;\n    IF NOT FOUND THEN RAISE EXCEPTION 'PROVIDER_NOT_FOUND'; END IF;\n    IF o.version IS DISTINCT FROM p_expected_version THEN RAISE EXCEPTION 'PROVIDER_VERSION_CONFLICT'; END IF;\n    UPDATE public.provider_offerings SET name=btrim(p_input->>'name'),category=p_input->>'category',description=p_input->>'description',\n      base_price_krw=v_price::int,price_unit=btrim(p_input->>'price_unit'),includes=provider_private.text_array(p_input->'includes',0,30,200),\n      extra_charges=btrim(p_input->>'extra_charges'),conditions=btrim(p_input->>'conditions'),review_status='pending',\n      is_active=true,recommendation_status='needs_review',reviewed_by=NULL,reviewed_at=NULL,review_reason=NULL,version=version+1,updated_at=now()\n      WHERE id=o.id RETURNING * INTO o;\n  END IF;\n  PERFORM provider_private.audit(p.id,v_actor,'offering_submitted',o.id,jsonb_build_object('version',o.version));\n  RETURN to_jsonb(o);\nEND ",
+        "name": "provider_save_offering",
+        "owner": "postgres",
+        "config": [
+          "search_path=\"\""
+        ],
+        "result": "jsonb",
+        "schema": "public",
+        "strict": false,
+        "language": "plpgsql",
+        "parallel": "u",
+        "arguments": "p_provider_id uuid, p_offering_id uuid, p_expected_version integer, p_input jsonb",
+        "leakproof": false,
+        "volatility": "v",
+        "securityDefiner": true
+      },
+      {
+        "acl": [
+          [
+            "postgres",
+            "postgres",
+            "EXECUTE",
+            false
+          ],
+          [
+            "service_role",
+            "postgres",
+            "EXECUTE",
+            false
+          ]
+        ],
+        "args": "uuid, integer",
+        "body": "\nDECLARE result jsonb;\nBEGIN\n  IF p_claim_token IS NULL OR p_limit IS NULL OR p_limit NOT BETWEEN 1 AND 20\n  THEN RAISE EXCEPTION 'PROVIDER_INVALID_INPUT'; END IF;\n  -- The grace also covers a removed row whose in-flight upload has not returned.\n  -- Row locking serializes this transition with finalize, so a ready file cannot be claimed.\n  WITH candidates AS (\n    SELECT m.id FROM public.provider_media m\n    WHERE m.status IN ('uploading','removed') AND m.cleanup_completed_at IS NULL\n      AND m.created_at<=now()-interval '35 minutes'\n      AND (m.cleanup_claim_until IS NULL OR m.cleanup_claim_until<=now())\n    ORDER BY coalesce(m.cleanup_attempted_at,m.created_at),m.id\n    LIMIT p_limit FOR UPDATE SKIP LOCKED\n  ), claimed AS (\n    UPDATE public.provider_media m SET status='removed',cleanup_claim_token=p_claim_token,\n      cleanup_claim_until=now()+interval '5 minutes',cleanup_attempted_at=now(),updated_at=now()\n    FROM candidates c WHERE m.id=c.id RETURNING m.*\n  )\n  SELECT coalesce(jsonb_agg(jsonb_build_object(\n    'id',m.id,'provider_id',m.provider_id,'owner_id',p.owner_id,'storage_path',m.storage_path,\n    'status',m.status,'created_at',m.created_at,'cleanup_claim_token',m.cleanup_claim_token,\n    'cleanup_claim_until',m.cleanup_claim_until)), '[]'::jsonb)\n    INTO result FROM claimed m JOIN public.provider_profiles p ON p.id=m.provider_id;\n  RETURN result;\nEND ",
+        "name": "provider_claim_media_cleanup",
+        "owner": "postgres",
+        "config": [
+          "search_path=\"\""
+        ],
+        "result": "jsonb",
+        "schema": "public",
+        "strict": false,
+        "language": "plpgsql",
+        "parallel": "u",
+        "arguments": "p_claim_token uuid, p_limit integer DEFAULT 20",
+        "leakproof": false,
+        "volatility": "v",
+        "securityDefiner": true
+      },
+      {
+        "acl": [
+          [
+            "postgres",
+            "postgres",
+            "EXECUTE",
+            false
+          ],
+          [
+            "service_role",
+            "postgres",
+            "EXECUTE",
+            false
+          ]
+        ],
+        "args": "uuid, uuid",
+        "body": "\nDECLARE p public.provider_profiles; m public.provider_media;\nBEGIN\n  SELECT * INTO m FROM public.provider_media WHERE id=p_media_id;\n  IF NOT FOUND THEN RAISE EXCEPTION 'PROVIDER_NOT_FOUND'; END IF;\n  SELECT * INTO p FROM public.provider_profiles WHERE id=m.provider_id AND owner_id=p_owner_id FOR UPDATE;\n  IF NOT FOUND THEN RAISE EXCEPTION 'PROVIDER_NOT_FOUND'; END IF;\n  SELECT * INTO m FROM public.provider_media WHERE id=p_media_id FOR UPDATE;\n  IF m.status='ready' THEN RETURN jsonb_build_object('aborted',false,'storage_path',NULL); END IF;\n  IF m.status='uploading' THEN\n    UPDATE public.provider_media SET status='removed',updated_at=now() WHERE id=m.id;\n    PERFORM provider_private.audit(p.id,p_owner_id,'media_upload_aborted',m.id);\n  END IF;\n  RETURN jsonb_build_object('aborted',true,'storage_path',m.storage_path);\nEND ",
+        "name": "provider_abort_media_upload",
+        "owner": "postgres",
+        "config": [
+          "search_path=\"\""
+        ],
+        "result": "jsonb",
+        "schema": "public",
+        "strict": false,
+        "language": "plpgsql",
+        "parallel": "u",
+        "arguments": "p_media_id uuid, p_owner_id uuid",
+        "leakproof": false,
+        "volatility": "v",
+        "securityDefiner": true
+      },
+      {
+        "acl": [
+          [
+            "postgres",
+            "postgres",
+            "EXECUTE",
+            false
+          ],
+          [
+            "service_role",
+            "postgres",
+            "EXECUTE",
+            false
+          ]
+        ],
+        "args": "uuid, uuid, text",
+        "body": "\nBEGIN\n  UPDATE public.provider_media SET cleanup_completed_at=now(),cleanup_claim_token=NULL,\n    cleanup_claim_until=NULL,updated_at=now()\n  WHERE id=p_media_id AND status='removed' AND storage_path=p_storage_path\n    AND cleanup_claim_token=p_claim_token AND cleanup_claim_until>now()\n    AND created_at<=now()-interval '35 minutes' AND cleanup_completed_at IS NULL;\n  RETURN FOUND;\nEND ",
+        "name": "provider_checkpoint_media_cleanup",
+        "owner": "postgres",
+        "config": [
+          "search_path=\"\""
+        ],
+        "result": "boolean",
+        "schema": "public",
+        "strict": false,
+        "language": "plpgsql",
+        "parallel": "u",
+        "arguments": "p_media_id uuid, p_claim_token uuid, p_storage_path text",
+        "leakproof": false,
+        "volatility": "v",
+        "securityDefiner": true
+      },
+      {
+        "acl": [
+          [
+            "postgres",
+            "postgres",
+            "EXECUTE",
+            false
+          ],
+          [
+            "service_role",
+            "postgres",
+            "EXECUTE",
+            false
+          ]
+        ],
+        "args": "uuid, uuid, text, integer",
+        "body": "\nDECLARE p public.provider_profiles; m public.provider_media; v_id uuid:=gen_random_uuid(); v_suffix text;\nBEGIN\n  -- Only service_role receives EXECUTE; no browser can attest bytes or choose paths.\n  IF p_mime_type IS NULL OR p_mime_type NOT IN ('image/jpeg','image/png','image/webp')\n    OR p_byte_size IS NULL OR p_byte_size NOT BETWEEN 1 AND 5242880 THEN RAISE EXCEPTION 'PROVIDER_INVALID_INPUT'; END IF;\n  IF p_owner_id IS NULL THEN RAISE EXCEPTION 'PROVIDER_INVALID_INPUT'; END IF;\n  PERFORM pg_advisory_xact_lock(hashtextextended(p_owner_id::text,0));\n  IF EXISTS(SELECT 1 FROM public.account_deletion_jobs WHERE user_id=p_owner_id AND status<>'completed')\n  THEN RAISE EXCEPTION 'PROVIDER_ACCOUNT_DELETION_PENDING'; END IF;\n  SELECT * INTO p FROM public.provider_profiles WHERE id=p_provider_id AND owner_id=p_owner_id FOR UPDATE;\n  IF NOT FOUND THEN RAISE EXCEPTION 'PROVIDER_NOT_FOUND'; END IF;\n  IF p.approval_status<>'approved' THEN RAISE EXCEPTION 'PROVIDER_NOT_APPROVED'; END IF;\n  IF NOT EXISTS(SELECT 1 FROM auth.users WHERE id=p_owner_id AND email_confirmed_at IS NOT NULL\n    AND (banned_until IS NULL OR banned_until<=now())) THEN RAISE EXCEPTION 'PROVIDER_EMAIL_REQUIRED'; END IF;\n  IF NOT provider_private.has_signup_consent(p_owner_id) THEN RAISE EXCEPTION 'PROVIDER_CONSENT_REQUIRED'; END IF;\n  UPDATE public.provider_media SET status='removed',updated_at=now()\n    WHERE provider_id=p.id AND status='uploading' AND created_at<now()-interval '30 minutes';\n  IF (SELECT count(*) FROM public.provider_media WHERE provider_id=p.id AND status<>'removed')>=12 THEN RAISE EXCEPTION 'PROVIDER_MEDIA_LIMIT'; END IF;\n  v_suffix:=CASE p_mime_type WHEN 'image/jpeg' THEN 'jpg' WHEN 'image/png' THEN 'png' ELSE 'webp' END;\n  INSERT INTO public.provider_media(id,provider_id,storage_path,mime_type,byte_size,sort_order)\n  VALUES(v_id,p.id,p_owner_id::text||'/'||p.id::text||'/'||v_id::text||'.'||v_suffix,p_mime_type,p_byte_size,\n    coalesce((SELECT max(sort_order)+1 FROM public.provider_media WHERE provider_id=p.id),0)) RETURNING * INTO m;\n  PERFORM provider_private.audit(p.id,p_owner_id,'media_upload_registered',m.id);\n  RETURN to_jsonb(m);\nEND ",
+        "name": "provider_register_media_upload",
+        "owner": "postgres",
+        "config": [
+          "search_path=\"\""
+        ],
+        "result": "jsonb",
+        "schema": "public",
+        "strict": false,
+        "language": "plpgsql",
+        "parallel": "u",
+        "arguments": "p_provider_id uuid, p_owner_id uuid, p_mime_type text, p_byte_size integer",
+        "leakproof": false,
+        "volatility": "v",
+        "securityDefiner": true
+      },
+      {
+        "acl": [
+          [
+            "postgres",
+            "postgres",
+            "EXECUTE",
+            false
+          ]
+        ],
+        "args": "",
+        "body": "\nDECLARE v_actor uuid := provider_private.require_actor();\nBEGIN\n  IF NOT provider_private.is_admin() THEN RAISE EXCEPTION 'PROVIDER_FORBIDDEN'; END IF;\n  RETURN v_actor;\nEND ",
+        "name": "require_admin",
+        "owner": "postgres",
+        "config": [
+          "search_path=\"\""
+        ],
+        "result": "uuid",
+        "schema": "provider_private",
+        "strict": false,
+        "language": "plpgsql",
+        "parallel": "u",
+        "arguments": "",
+        "leakproof": false,
+        "volatility": "v",
+        "securityDefiner": true
+      },
+      {
+        "acl": [
+          [
+            "postgres",
+            "postgres",
+            "EXECUTE",
+            false
+          ]
+        ],
+        "args": "",
+        "body": "\nDECLARE v_id uuid := auth.uid();\nBEGIN\n  IF v_id IS NULL THEN RAISE EXCEPTION 'PROVIDER_AUTH_REQUIRED'; END IF;\n  PERFORM pg_advisory_xact_lock(hashtextextended(v_id::text,0));\n  IF EXISTS(SELECT 1 FROM public.account_deletion_jobs WHERE user_id=v_id AND status<>'completed')\n  THEN RAISE EXCEPTION 'PROVIDER_ACCOUNT_DELETION_PENDING'; END IF;\n  IF NOT EXISTS (SELECT 1 FROM auth.users WHERE id=v_id AND email_confirmed_at IS NOT NULL\n    AND nullif(btrim(email),'') IS NOT NULL AND (banned_until IS NULL OR banned_until<=now()))\n  THEN RAISE EXCEPTION 'PROVIDER_EMAIL_REQUIRED'; END IF;\n  IF NOT provider_private.has_signup_consent(v_id) THEN RAISE EXCEPTION 'PROVIDER_CONSENT_REQUIRED'; END IF;\n  RETURN v_id;\nEND ",
+        "name": "require_actor",
+        "owner": "postgres",
+        "config": [
+          "search_path=\"\""
+        ],
+        "result": "uuid",
+        "schema": "provider_private",
+        "strict": false,
+        "language": "plpgsql",
+        "parallel": "u",
+        "arguments": "",
+        "leakproof": false,
+        "volatility": "v",
+        "securityDefiner": true
+      },
+      {
+        "acl": [
+          [
+            "postgres",
+            "postgres",
+            "EXECUTE",
+            false
+          ]
+        ],
+        "args": "jsonb",
+        "body": "\nBEGIN\n  PERFORM provider_private.keys(p_input,ARRAY['kind','name','categories','regions','contact_name','application_note','consents']);\n  IF (p_input->>'kind') IS NULL OR (p_input->>'kind') NOT IN ('individual','team','company')\n  THEN RAISE EXCEPTION 'PROVIDER_INVALID_INPUT'; END IF;\n  PERFORM provider_private.text_value(p_input,'name',1,120);\n  PERFORM provider_private.text_value(p_input,'contact_name',1,100);\n  PERFORM provider_private.text_value(p_input,'application_note',0,3000);\n  PERFORM provider_private.text_array(p_input->'categories',1,10);\n  IF EXISTS(SELECT 1 FROM jsonb_array_elements_text(p_input->'categories') c WHERE c NOT IN\n    ('photography','videography','hair_makeup','hair_styling','floral','mc','directing','venue','catering','other'))\n  THEN RAISE EXCEPTION 'PROVIDER_INVALID_INPUT'; END IF;\n  PERFORM provider_private.text_array(p_input->'regions',1,20);\n  PERFORM provider_private.keys(p_input->'consents',ARRAY['privacy','price_transparency','extra_charges','standard_terms','version']);\n  IF p_input->'consents'->'privacy' IS DISTINCT FROM 'true'::jsonb\n    OR p_input->'consents'->'price_transparency' IS DISTINCT FROM 'true'::jsonb\n    OR p_input->'consents'->'extra_charges' IS DISTINCT FROM 'true'::jsonb\n    OR p_input->'consents'->'standard_terms' IS DISTINCT FROM 'true'::jsonb\n    OR p_input->'consents'->'version' IS DISTINCT FROM '\"2026-09-28\"'::jsonb\n  THEN RAISE EXCEPTION 'PROVIDER_INVALID_INPUT'; END IF;\nEND ",
+        "name": "validate_application",
+        "owner": "postgres",
+        "config": [
+          "search_path=\"\""
+        ],
+        "result": "void",
+        "schema": "provider_private",
+        "strict": false,
+        "language": "plpgsql",
+        "parallel": "u",
+        "arguments": "p_input jsonb",
+        "leakproof": false,
+        "volatility": "i",
+        "securityDefiner": false
+      },
+      {
+        "acl": [
+          [
+            "postgres",
+            "postgres",
+            "EXECUTE",
+            false
+          ]
+        ],
+        "args": "jsonb, integer, integer, integer",
+        "body": "\nDECLARE v_result text[];\nBEGIN\n  IF jsonb_typeof(p_value) IS DISTINCT FROM 'array' THEN RAISE EXCEPTION 'PROVIDER_INVALID_INPUT'; END IF;\n  IF EXISTS (SELECT 1 FROM jsonb_array_elements(p_value) x WHERE jsonb_typeof(x)<>'string'\n    OR length(btrim(x#>>'{}')) NOT BETWEEN 1 AND p_item_max)\n  THEN RAISE EXCEPTION 'PROVIDER_INVALID_INPUT'; END IF;\n  SELECT coalesce(array_agg(DISTINCT btrim(x)), '{}'::text[]) INTO v_result FROM jsonb_array_elements_text(p_value) x;\n  IF cardinality(v_result)<p_min OR cardinality(v_result)>p_max THEN RAISE EXCEPTION 'PROVIDER_INVALID_INPUT'; END IF;\n  RETURN v_result;\nEND ",
+        "name": "text_array",
+        "owner": "postgres",
+        "config": [
+          "search_path=\"\""
+        ],
+        "result": "text[]",
+        "schema": "provider_private",
+        "strict": false,
+        "language": "plpgsql",
+        "parallel": "u",
+        "arguments": "p_value jsonb, p_min integer, p_max integer, p_item_max integer DEFAULT 100",
+        "leakproof": false,
+        "volatility": "i",
+        "securityDefiner": false
+      },
+      {
+        "acl": [
+          [
+            "postgres",
+            "postgres",
+            "EXECUTE",
+            false
+          ]
+        ],
+        "args": "jsonb, text, integer, integer",
+        "body": "\nDECLARE v_text text;\nBEGIN\n  IF jsonb_typeof(p_input->p_key) IS DISTINCT FROM 'string' THEN RAISE EXCEPTION 'PROVIDER_INVALID_INPUT'; END IF;\n  v_text := btrim(p_input->>p_key);\n  IF length(v_text)<p_min OR length(v_text)>p_max THEN RAISE EXCEPTION 'PROVIDER_INVALID_INPUT'; END IF;\n  RETURN v_text;\nEND ",
+        "name": "text_value",
+        "owner": "postgres",
+        "config": [
+          "search_path=\"\""
+        ],
+        "result": "text",
+        "schema": "provider_private",
+        "strict": false,
+        "language": "plpgsql",
+        "parallel": "u",
+        "arguments": "p_input jsonb, p_key text, p_min integer, p_max integer",
+        "leakproof": false,
+        "volatility": "i",
+        "securityDefiner": false
+      },
+      {
+        "acl": [
+          [
+            "postgres",
+            "postgres",
+            "EXECUTE",
+            false
+          ]
+        ],
+        "args": "jsonb, text[]",
+        "body": "\nBEGIN\n  IF p_input IS NULL OR jsonb_typeof(p_input)<>'object'\n    OR EXISTS (SELECT 1 FROM jsonb_object_keys(p_input) k WHERE NOT k=ANY(p_keys))\n  THEN RAISE EXCEPTION 'PROVIDER_INVALID_INPUT'; END IF;\nEND ",
+        "name": "keys",
+        "owner": "postgres",
+        "config": [
+          "search_path=\"\""
+        ],
+        "result": "void",
+        "schema": "provider_private",
+        "strict": false,
+        "language": "plpgsql",
+        "parallel": "u",
+        "arguments": "p_input jsonb, p_keys text[]",
+        "leakproof": false,
+        "volatility": "i",
+        "securityDefiner": false
+      },
+      {
+        "acl": [
+          [
+            "postgres",
+            "postgres",
+            "EXECUTE",
+            false
+          ]
+        ],
+        "args": "uuid",
+        "body": "\nDECLARE e jsonb; r jsonb; t text;\nBEGIN\n  SELECT raw_app_meta_data->'signup_consent' INTO e FROM auth.users WHERE id=p_user_id;\n  r:=e->'record'; t:=r->>'consent_agreed_at';\n  IF e->'schemaVersion' IS DISTINCT FROM '1'::jsonb OR e->>'source' IS DISTINCT FROM 'hanbang_auth_server'\n    OR jsonb_typeof(r) IS DISTINCT FROM 'object'\n    OR r->'terms_agreed' IS DISTINCT FROM 'true'::jsonb OR r->'privacy_agreed' IS DISTINCT FROM 'true'::jsonb\n    OR r->'age_over_14_confirmed' IS DISTINCT FROM 'true'::jsonb\n    OR jsonb_typeof(r->'marketing_agreed') IS DISTINCT FROM 'boolean'\n    OR coalesce(r->>'consent_policy_version','') !~ '^\\d{4}-\\d{2}-\\d{2}$'\n    OR coalesce(t,'') !~ '^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$'\n  THEN RETURN false; END IF;\n  RETURN to_char(t::timestamptz AT TIME ZONE 'UTC','YYYY-MM-DD\"T\"HH24:MI:SS.MS\"Z\"')=t;\nEXCEPTION WHEN invalid_datetime_format OR datetime_field_overflow THEN RETURN false;\nEND ",
+        "name": "has_signup_consent",
+        "owner": "postgres",
+        "config": [
+          "search_path=\"\""
+        ],
+        "result": "boolean",
+        "schema": "provider_private",
+        "strict": false,
+        "language": "plpgsql",
+        "parallel": "u",
+        "arguments": "p_user_id uuid",
+        "leakproof": false,
+        "volatility": "s",
+        "securityDefiner": true
+      },
+      {
+        "acl": [
+          [
+            "postgres",
+            "postgres",
+            "EXECUTE",
+            false
+          ]
+        ],
+        "args": "uuid, uuid, text, uuid, jsonb",
+        "body": "\n  INSERT INTO public.provider_audit_events(provider_id,inquiry_id,actor_id,event_type,subject_id,detail)\n  VALUES(p_provider,CASE WHEN p_event IN ('business_inquiry_submitted','business_inquiry_reviewed') THEN p_subject ELSE NULL END,p_actor,p_event,p_subject,p_detail);\n",
+        "name": "audit",
+        "owner": "postgres",
+        "config": [
+          "search_path=\"\""
+        ],
+        "result": "void",
+        "schema": "provider_private",
+        "strict": false,
+        "language": "sql",
+        "parallel": "u",
+        "arguments": "p_provider uuid, p_actor uuid, p_event text, p_subject uuid, p_detail jsonb DEFAULT '{}'::jsonb",
+        "leakproof": false,
+        "volatility": "v",
+        "securityDefiner": false
+      }
+    ],
+    "relations": [
+      {
+        "acl": [
+          [
+            "authenticated",
+            "postgres",
+            "SELECT",
+            false
+          ],
+          [
+            "postgres",
+            "postgres",
+            "DELETE",
+            false
+          ],
+          [
+            "postgres",
+            "postgres",
+            "INSERT",
+            false
+          ],
+          [
+            "postgres",
+            "postgres",
+            "MAINTAIN",
+            false
+          ],
+          [
+            "postgres",
+            "postgres",
+            "REFERENCES",
+            false
+          ],
+          [
+            "postgres",
+            "postgres",
+            "SELECT",
+            false
+          ],
+          [
+            "postgres",
+            "postgres",
+            "TRIGGER",
+            false
+          ],
+          [
+            "postgres",
+            "postgres",
+            "TRUNCATE",
+            false
+          ],
+          [
+            "postgres",
+            "postgres",
+            "UPDATE",
+            false
+          ],
+          [
+            "service_role",
+            "postgres",
+            "SELECT",
+            false
+          ]
+        ],
+        "rls": true,
+        "kind": "r",
+        "name": "public.business_inquiries",
+        "owner": "postgres",
+        "columns": [
+          [
+            "contact_email",
+            "text",
+            true,
+            "",
+            "",
+            null,
+            []
+          ],
+          [
+            "contact_name",
+            "text",
+            true,
+            "",
+            "",
+            null,
+            []
+          ],
+          [
+            "created_at",
+            "timestamp with time zone",
+            true,
+            "",
+            "",
+            "now()",
+            []
+          ],
+          [
+            "id",
+            "uuid",
+            true,
+            "",
+            "",
+            "gen_random_uuid()",
+            []
+          ],
+          [
+            "kind",
+            "text",
+            true,
+            "",
+            "",
+            null,
+            []
+          ],
+          [
+            "message",
+            "text",
+            true,
+            "",
+            "",
+            null,
+            []
+          ],
+          [
+            "owner_id",
+            "uuid",
+            true,
+            "",
+            "",
+            null,
+            []
+          ],
+          [
+            "privacy_consented_at",
+            "timestamp with time zone",
+            true,
+            "",
+            "",
+            "now()",
+            []
+          ],
+          [
+            "reply",
+            "text",
+            false,
+            "",
+            "",
+            null,
+            []
+          ],
+          [
+            "request_id",
+            "uuid",
+            true,
+            "",
+            "",
+            null,
+            []
+          ],
+          [
+            "reviewed_by",
+            "uuid",
+            false,
+            "",
+            "",
+            null,
+            []
+          ],
+          [
+            "status",
+            "text",
+            true,
+            "",
+            "",
+            "'received'::text",
+            []
+          ],
+          [
+            "subject",
+            "text",
+            true,
+            "",
+            "",
+            null,
+            []
+          ],
+          [
+            "submission_payload",
+            "jsonb",
+            true,
+            "",
+            "",
+            null,
+            []
+          ],
+          [
+            "updated_at",
+            "timestamp with time zone",
+            true,
+            "",
+            "",
+            "now()",
+            []
+          ],
+          [
+            "version",
+            "integer",
+            true,
+            "",
+            "",
+            "1",
+            []
+          ]
+        ],
+        "indexes": [
+          [
+            "CREATE UNIQUE INDEX business_inquiries_owner_id_request_id_key ON public.business_inquiries USING btree (owner_id, request_id)",
+            true,
+            true
+          ],
+          [
+            "CREATE UNIQUE INDEX business_inquiries_pkey ON public.business_inquiries USING btree (id)",
+            true,
+            true
+          ]
+        ],
+        "forceRls": false,
+        "policies": [
+          {
+            "name": "business_inquiry_private_read",
+            "check": null,
+            "roles": [
+              "authenticated"
+            ],
+            "using": "((owner_id = auth.uid()) OR provider_private.is_admin())",
+            "command": "r",
+            "permissive": true
+          }
+        ],
+        "triggers": [],
+        "constraints": [
+          [
+            "business_inquiries_contact_name_check",
+            "c",
+            true,
+            "CHECK (length(btrim(contact_name)) >= 1 AND length(btrim(contact_name)) <= 100)"
+          ],
+          [
+            "business_inquiries_kind_check",
+            "c",
+            true,
+            "CHECK (kind = ANY (ARRAY['collaboration'::text, 'media'::text, 'data'::text, 'other'::text]))"
+          ],
+          [
+            "business_inquiries_message_check",
+            "c",
+            true,
+            "CHECK (length(btrim(message)) >= 1 AND length(btrim(message)) <= 5000)"
+          ],
+          [
+            "business_inquiries_owner_id_fkey",
+            "f",
+            true,
+            "FOREIGN KEY (owner_id) REFERENCES auth.users(id) ON DELETE CASCADE"
+          ],
+          [
+            "business_inquiries_owner_id_request_id_key",
+            "u",
+            true,
+            "UNIQUE (owner_id, request_id)"
+          ],
+          [
+            "business_inquiries_pkey",
+            "p",
+            true,
+            "PRIMARY KEY (id)"
+          ],
+          [
+            "business_inquiries_reviewed_by_fkey",
+            "f",
+            true,
+            "FOREIGN KEY (reviewed_by) REFERENCES auth.users(id) ON DELETE SET NULL"
+          ],
+          [
+            "business_inquiries_status_check",
+            "c",
+            true,
+            "CHECK (status = ANY (ARRAY['received'::text, 'reviewing'::text, 'responded'::text, 'closed'::text]))"
+          ],
+          [
+            "business_inquiries_subject_check",
+            "c",
+            true,
+            "CHECK (length(btrim(subject)) >= 1 AND length(btrim(subject)) <= 200)"
+          ],
+          [
+            "business_inquiries_version_check",
+            "c",
+            true,
+            "CHECK (version > 0)"
+          ]
+        ]
+      },
+      {
+        "acl": [
+          [
+            "authenticated",
+            "postgres",
+            "SELECT",
+            false
+          ],
+          [
+            "postgres",
+            "postgres",
+            "DELETE",
+            false
+          ],
+          [
+            "postgres",
+            "postgres",
+            "INSERT",
+            false
+          ],
+          [
+            "postgres",
+            "postgres",
+            "MAINTAIN",
+            false
+          ],
+          [
+            "postgres",
+            "postgres",
+            "REFERENCES",
+            false
+          ],
+          [
+            "postgres",
+            "postgres",
+            "SELECT",
+            false
+          ],
+          [
+            "postgres",
+            "postgres",
+            "TRIGGER",
+            false
+          ],
+          [
+            "postgres",
+            "postgres",
+            "TRUNCATE",
+            false
+          ],
+          [
+            "postgres",
+            "postgres",
+            "UPDATE",
+            false
+          ],
+          [
+            "service_role",
+            "postgres",
+            "SELECT",
+            false
+          ]
+        ],
+        "rls": true,
+        "kind": "r",
+        "name": "public.provider_applications",
+        "owner": "postgres",
+        "columns": [
+          [
+            "application_note",
+            "text",
+            true,
+            "",
+            "",
+            "''::text",
+            []
+          ],
+          [
+            "categories",
+            "text[]",
+            true,
+            "",
+            "",
+            null,
+            []
+          ],
+          [
+            "consents",
+            "jsonb",
+            true,
+            "",
+            "",
+            null,
+            []
+          ],
+          [
+            "contact_email",
+            "text",
+            true,
+            "",
+            "",
+            null,
+            []
+          ],
+          [
+            "contact_name",
+            "text",
+            true,
+            "",
+            "",
+            null,
+            []
+          ],
+          [
+            "created_at",
+            "timestamp with time zone",
+            true,
+            "",
+            "",
+            "now()",
+            []
+          ],
+          [
+            "id",
+            "uuid",
+            true,
+            "",
+            "",
+            "gen_random_uuid()",
+            []
+          ],
+          [
+            "kind",
+            "text",
+            true,
+            "",
+            "",
+            null,
+            []
+          ],
+          [
+            "name",
+            "text",
+            true,
+            "",
+            "",
+            null,
+            []
+          ],
+          [
+            "owner_id",
+            "uuid",
+            true,
+            "",
+            "",
+            null,
+            []
+          ],
+          [
+            "provider_id",
+            "uuid",
+            true,
+            "",
+            "",
+            null,
+            []
+          ],
+          [
+            "regions",
+            "text[]",
+            true,
+            "",
+            "",
+            null,
+            []
+          ],
+          [
+            "request_id",
+            "uuid",
+            true,
+            "",
+            "",
+            null,
+            []
+          ],
+          [
+            "review_reason",
+            "text",
+            false,
+            "",
+            "",
+            null,
+            []
+          ],
+          [
+            "reviewed_at",
+            "timestamp with time zone",
+            false,
+            "",
+            "",
+            null,
+            []
+          ],
+          [
+            "reviewed_by",
+            "uuid",
+            false,
+            "",
+            "",
+            null,
+            []
+          ],
+          [
+            "status",
+            "text",
+            true,
+            "",
+            "",
+            "'pending'::text",
+            []
+          ],
+          [
+            "submission_payload",
+            "jsonb",
+            true,
+            "",
+            "",
+            null,
+            []
+          ],
+          [
+            "updated_at",
+            "timestamp with time zone",
+            true,
+            "",
+            "",
+            "now()",
+            []
+          ],
+          [
+            "version",
+            "integer",
+            true,
+            "",
+            "",
+            "1",
+            []
+          ]
+        ],
+        "indexes": [
+          [
+            "CREATE UNIQUE INDEX provider_applications_owner_id_request_id_key ON public.provider_applications USING btree (owner_id, request_id)",
+            true,
+            true
+          ],
+          [
+            "CREATE UNIQUE INDEX provider_applications_pkey ON public.provider_applications USING btree (id)",
+            true,
+            true
+          ],
+          [
+            "CREATE UNIQUE INDEX provider_applications_provider_id_key ON public.provider_applications USING btree (provider_id)",
+            true,
+            true
+          ]
+        ],
+        "forceRls": false,
+        "policies": [
+          {
+            "name": "provider_application_private_read",
+            "check": null,
+            "roles": [
+              "authenticated"
+            ],
+            "using": "((owner_id = auth.uid()) OR provider_private.is_admin())",
+            "command": "r",
+            "permissive": true
+          }
+        ],
+        "triggers": [],
+        "constraints": [
+          [
+            "provider_applications_owner_id_fkey",
+            "f",
+            true,
+            "FOREIGN KEY (owner_id) REFERENCES auth.users(id) ON DELETE CASCADE"
+          ],
+          [
+            "provider_applications_owner_id_request_id_key",
+            "u",
+            true,
+            "UNIQUE (owner_id, request_id)"
+          ],
+          [
+            "provider_applications_pkey",
+            "p",
+            true,
+            "PRIMARY KEY (id)"
+          ],
+          [
+            "provider_applications_provider_id_fkey",
+            "f",
+            true,
+            "FOREIGN KEY (provider_id) REFERENCES provider_profiles(id) ON DELETE CASCADE"
+          ],
+          [
+            "provider_applications_provider_id_key",
+            "u",
+            true,
+            "UNIQUE (provider_id)"
+          ],
+          [
+            "provider_applications_reviewed_by_fkey",
+            "f",
+            true,
+            "FOREIGN KEY (reviewed_by) REFERENCES auth.users(id) ON DELETE SET NULL"
+          ],
+          [
+            "provider_applications_status_check",
+            "c",
+            true,
+            "CHECK (status = ANY (ARRAY['pending'::text, 'changes_requested'::text, 'approved'::text, 'rejected'::text]))"
+          ],
+          [
+            "provider_applications_version_check",
+            "c",
+            true,
+            "CHECK (version > 0)"
+          ]
+        ]
+      },
+      {
+        "acl": [
+          [
+            "authenticated",
+            "postgres",
+            "SELECT",
+            false
+          ],
+          [
+            "postgres",
+            "postgres",
+            "DELETE",
+            false
+          ],
+          [
+            "postgres",
+            "postgres",
+            "INSERT",
+            false
+          ],
+          [
+            "postgres",
+            "postgres",
+            "MAINTAIN",
+            false
+          ],
+          [
+            "postgres",
+            "postgres",
+            "REFERENCES",
+            false
+          ],
+          [
+            "postgres",
+            "postgres",
+            "SELECT",
+            false
+          ],
+          [
+            "postgres",
+            "postgres",
+            "TRIGGER",
+            false
+          ],
+          [
+            "postgres",
+            "postgres",
+            "TRUNCATE",
+            false
+          ],
+          [
+            "postgres",
+            "postgres",
+            "UPDATE",
+            false
+          ],
+          [
+            "service_role",
+            "postgres",
+            "SELECT",
+            false
+          ]
+        ],
+        "rls": true,
+        "kind": "r",
+        "name": "public.provider_audit_events",
+        "owner": "postgres",
+        "columns": [
+          [
+            "actor_id",
+            "uuid",
+            false,
+            "",
+            "",
+            null,
+            []
+          ],
+          [
+            "created_at",
+            "timestamp with time zone",
+            true,
+            "",
+            "",
+            "now()",
+            []
+          ],
+          [
+            "detail",
+            "jsonb",
+            true,
+            "",
+            "",
+            "'{}'::jsonb",
+            []
+          ],
+          [
+            "event_type",
+            "text",
+            true,
+            "",
+            "",
+            null,
+            []
+          ],
+          [
+            "id",
+            "uuid",
+            true,
+            "",
+            "",
+            "gen_random_uuid()",
+            []
+          ],
+          [
+            "inquiry_id",
+            "uuid",
+            false,
+            "",
+            "",
+            null,
+            []
+          ],
+          [
+            "provider_id",
+            "uuid",
+            false,
+            "",
+            "",
+            null,
+            []
+          ],
+          [
+            "subject_id",
+            "uuid",
+            false,
+            "",
+            "",
+            null,
+            []
+          ]
+        ],
+        "indexes": [
+          [
+            "CREATE INDEX provider_audit_events_inquiry_idx ON public.provider_audit_events USING btree (inquiry_id)",
+            true,
+            true
+          ],
+          [
+            "CREATE INDEX provider_audit_events_provider_idx ON public.provider_audit_events USING btree (provider_id)",
+            true,
+            true
+          ],
+          [
+            "CREATE UNIQUE INDEX provider_audit_events_pkey ON public.provider_audit_events USING btree (id)",
+            true,
+            true
+          ]
+        ],
+        "forceRls": false,
+        "policies": [
+          {
+            "name": "provider_audit_admin_read",
+            "check": null,
+            "roles": [
+              "authenticated"
+            ],
+            "using": "provider_private.is_admin()",
+            "command": "r",
+            "permissive": true
+          }
+        ],
+        "triggers": [],
+        "constraints": [
+          [
+            "provider_audit_events_actor_id_fkey",
+            "f",
+            true,
+            "FOREIGN KEY (actor_id) REFERENCES auth.users(id) ON DELETE SET NULL"
+          ],
+          [
+            "provider_audit_events_inquiry_id_fkey",
+            "f",
+            true,
+            "FOREIGN KEY (inquiry_id) REFERENCES business_inquiries(id) ON DELETE CASCADE"
+          ],
+          [
+            "provider_audit_events_pkey",
+            "p",
+            true,
+            "PRIMARY KEY (id)"
+          ],
+          [
+            "provider_audit_events_provider_id_fkey",
+            "f",
+            true,
+            "FOREIGN KEY (provider_id) REFERENCES provider_profiles(id) ON DELETE CASCADE"
+          ]
+        ]
+      },
+      {
+        "acl": [
+          [
+            "authenticated",
+            "postgres",
+            "SELECT",
+            false
+          ],
+          [
+            "postgres",
+            "postgres",
+            "DELETE",
+            false
+          ],
+          [
+            "postgres",
+            "postgres",
+            "INSERT",
+            false
+          ],
+          [
+            "postgres",
+            "postgres",
+            "MAINTAIN",
+            false
+          ],
+          [
+            "postgres",
+            "postgres",
+            "REFERENCES",
+            false
+          ],
+          [
+            "postgres",
+            "postgres",
+            "SELECT",
+            false
+          ],
+          [
+            "postgres",
+            "postgres",
+            "TRIGGER",
+            false
+          ],
+          [
+            "postgres",
+            "postgres",
+            "TRUNCATE",
+            false
+          ],
+          [
+            "postgres",
+            "postgres",
+            "UPDATE",
+            false
+          ],
+          [
+            "service_role",
+            "postgres",
+            "SELECT",
+            false
+          ]
+        ],
+        "rls": true,
+        "kind": "r",
+        "name": "public.provider_media",
+        "owner": "postgres",
+        "columns": [
+          [
+            "alt_text",
+            "text",
+            true,
+            "",
+            "",
+            "''::text",
+            []
+          ],
+          [
+            "byte_size",
+            "integer",
+            true,
+            "",
+            "",
+            null,
+            []
+          ],
+          [
+            "caption",
+            "text",
+            true,
+            "",
+            "",
+            "''::text",
+            []
+          ],
+          [
+            "cleanup_attempted_at",
+            "timestamp with time zone",
+            false,
+            "",
+            "",
+            null,
+            []
+          ],
+          [
+            "cleanup_claim_token",
+            "uuid",
+            false,
+            "",
+            "",
+            null,
+            []
+          ],
+          [
+            "cleanup_claim_until",
+            "timestamp with time zone",
+            false,
+            "",
+            "",
+            null,
+            []
+          ],
+          [
+            "cleanup_completed_at",
+            "timestamp with time zone",
+            false,
+            "",
+            "",
+            null,
+            []
+          ],
+          [
+            "created_at",
+            "timestamp with time zone",
+            true,
+            "",
+            "",
+            "now()",
+            []
+          ],
+          [
+            "id",
+            "uuid",
+            true,
+            "",
+            "",
+            null,
+            []
+          ],
+          [
+            "mime_type",
+            "text",
+            true,
+            "",
+            "",
+            null,
+            []
+          ],
+          [
+            "provider_id",
+            "uuid",
+            true,
+            "",
+            "",
+            null,
+            []
+          ],
+          [
+            "rights_confirmed_at",
+            "timestamp with time zone",
+            false,
+            "",
+            "",
+            null,
+            []
+          ],
+          [
+            "sort_order",
+            "integer",
+            true,
+            "",
+            "",
+            "0",
+            []
+          ],
+          [
+            "status",
+            "text",
+            true,
+            "",
+            "",
+            "'uploading'::text",
+            []
+          ],
+          [
+            "storage_path",
+            "text",
+            true,
+            "",
+            "",
+            null,
+            []
+          ],
+          [
+            "updated_at",
+            "timestamp with time zone",
+            true,
+            "",
+            "",
+            "now()",
+            []
+          ]
+        ],
+        "indexes": [
+          [
+            "CREATE INDEX provider_media_cleanup_pending_idx ON public.provider_media USING btree (COALESCE(cleanup_attempted_at, created_at), id) WHERE ((status = ANY (ARRAY['uploading'::text, 'removed'::text])) AND (cleanup_completed_at IS NULL))",
+            true,
+            true
+          ],
+          [
+            "CREATE INDEX provider_media_profile_idx ON public.provider_media USING btree (provider_id, status)",
+            true,
+            true
+          ],
+          [
+            "CREATE UNIQUE INDEX provider_media_pkey ON public.provider_media USING btree (id)",
+            true,
+            true
+          ],
+          [
+            "CREATE UNIQUE INDEX provider_media_storage_path_key ON public.provider_media USING btree (storage_path)",
+            true,
+            true
+          ]
+        ],
+        "forceRls": false,
+        "policies": [
+          {
+            "name": "provider_media_private_read",
+            "check": null,
+            "roles": [
+              "authenticated"
+            ],
+            "using": "(provider_private.owns(provider_id) OR provider_private.is_admin())",
+            "command": "r",
+            "permissive": true
+          }
+        ],
+        "triggers": [],
+        "constraints": [
+          [
+            "provider_media_alt_text_check",
+            "c",
+            true,
+            "CHECK (length(alt_text) <= 300)"
+          ],
+          [
+            "provider_media_byte_size_check",
+            "c",
+            true,
+            "CHECK (byte_size >= 1 AND byte_size <= 5242880)"
+          ],
+          [
+            "provider_media_caption_check",
+            "c",
+            true,
+            "CHECK (length(caption) <= 500)"
+          ],
+          [
+            "provider_media_check",
+            "c",
+            true,
+            "CHECK (status <> 'ready'::text OR rights_confirmed_at IS NOT NULL)"
+          ],
+          [
+            "provider_media_cleanup_claim_pair",
+            "c",
+            true,
+            "CHECK ((cleanup_claim_token IS NULL) = (cleanup_claim_until IS NULL))"
+          ],
+          [
+            "provider_media_cleanup_removed",
+            "c",
+            true,
+            "CHECK (cleanup_claim_token IS NULL AND cleanup_completed_at IS NULL OR status = 'removed'::text)"
+          ],
+          [
+            "provider_media_mime_type_check",
+            "c",
+            true,
+            "CHECK (mime_type = ANY (ARRAY['image/jpeg'::text, 'image/png'::text, 'image/webp'::text]))"
+          ],
+          [
+            "provider_media_pkey",
+            "p",
+            true,
+            "PRIMARY KEY (id)"
+          ],
+          [
+            "provider_media_provider_id_fkey",
+            "f",
+            true,
+            "FOREIGN KEY (provider_id) REFERENCES provider_profiles(id) ON DELETE CASCADE"
+          ],
+          [
+            "provider_media_status_check",
+            "c",
+            true,
+            "CHECK (status = ANY (ARRAY['uploading'::text, 'ready'::text, 'removed'::text]))"
+          ],
+          [
+            "provider_media_storage_path_key",
+            "u",
+            true,
+            "UNIQUE (storage_path)"
+          ]
+        ]
+      },
+      {
+        "acl": [
+          [
+            "authenticated",
+            "postgres",
+            "SELECT",
+            false
+          ],
+          [
+            "postgres",
+            "postgres",
+            "DELETE",
+            false
+          ],
+          [
+            "postgres",
+            "postgres",
+            "INSERT",
+            false
+          ],
+          [
+            "postgres",
+            "postgres",
+            "MAINTAIN",
+            false
+          ],
+          [
+            "postgres",
+            "postgres",
+            "REFERENCES",
+            false
+          ],
+          [
+            "postgres",
+            "postgres",
+            "SELECT",
+            false
+          ],
+          [
+            "postgres",
+            "postgres",
+            "TRIGGER",
+            false
+          ],
+          [
+            "postgres",
+            "postgres",
+            "TRUNCATE",
+            false
+          ],
+          [
+            "postgres",
+            "postgres",
+            "UPDATE",
+            false
+          ],
+          [
+            "service_role",
+            "postgres",
+            "SELECT",
+            false
+          ]
+        ],
+        "rls": true,
+        "kind": "r",
+        "name": "public.provider_offerings",
+        "owner": "postgres",
+        "columns": [
+          [
+            "base_price_krw",
+            "integer",
+            true,
+            "",
+            "",
+            null,
+            []
+          ],
+          [
+            "category",
+            "text",
+            true,
+            "",
+            "",
+            null,
+            []
+          ],
+          [
+            "conditions",
+            "text",
+            true,
+            "",
+            "",
+            null,
+            []
+          ],
+          [
+            "created_at",
+            "timestamp with time zone",
+            true,
+            "",
+            "",
+            "now()",
+            []
+          ],
+          [
+            "description",
+            "text",
+            true,
+            "",
+            "",
+            "''::text",
+            []
+          ],
+          [
+            "extra_charges",
+            "text",
+            true,
+            "",
+            "",
+            null,
+            []
+          ],
+          [
+            "id",
+            "uuid",
+            true,
+            "",
+            "",
+            "gen_random_uuid()",
+            []
+          ],
+          [
+            "includes",
+            "text[]",
+            true,
+            "",
+            "",
+            "'{}'::text[]",
+            []
+          ],
+          [
+            "is_active",
+            "boolean",
+            true,
+            "",
+            "",
+            "true",
+            []
+          ],
+          [
+            "name",
+            "text",
+            true,
+            "",
+            "",
+            null,
+            []
+          ],
+          [
+            "price_unit",
+            "text",
+            true,
+            "",
+            "",
+            null,
+            []
+          ],
+          [
+            "provider_id",
+            "uuid",
+            true,
+            "",
+            "",
+            null,
+            []
+          ],
+          [
+            "recommendation_status",
+            "text",
+            true,
+            "",
+            "",
+            "'unreviewed'::text",
+            []
+          ],
+          [
+            "review_reason",
+            "text",
+            false,
+            "",
+            "",
+            null,
+            []
+          ],
+          [
+            "review_status",
+            "text",
+            true,
+            "",
+            "",
+            "'pending'::text",
+            []
+          ],
+          [
+            "reviewed_at",
+            "timestamp with time zone",
+            false,
+            "",
+            "",
+            null,
+            []
+          ],
+          [
+            "reviewed_by",
+            "uuid",
+            false,
+            "",
+            "",
+            null,
+            []
+          ],
+          [
+            "updated_at",
+            "timestamp with time zone",
+            true,
+            "",
+            "",
+            "now()",
+            []
+          ],
+          [
+            "version",
+            "integer",
+            true,
+            "",
+            "",
+            "1",
+            []
+          ]
+        ],
+        "indexes": [
+          [
+            "CREATE INDEX provider_offerings_profile_idx ON public.provider_offerings USING btree (provider_id)",
+            true,
+            true
+          ],
+          [
+            "CREATE UNIQUE INDEX provider_offerings_pkey ON public.provider_offerings USING btree (id)",
+            true,
+            true
+          ]
+        ],
+        "forceRls": false,
+        "policies": [
+          {
+            "name": "provider_offering_private_read",
+            "check": null,
+            "roles": [
+              "authenticated"
+            ],
+            "using": "(provider_private.owns(provider_id) OR provider_private.is_admin())",
+            "command": "r",
+            "permissive": true
+          }
+        ],
+        "triggers": [],
+        "constraints": [
+          [
+            "provider_offerings_base_price_krw_check",
+            "c",
+            true,
+            "CHECK (base_price_krw >= 0 AND base_price_krw <= 1000000000)"
+          ],
+          [
+            "provider_offerings_check",
+            "c",
+            true,
+            "CHECK (recommendation_status <> 'eligible'::text OR review_status = 'approved'::text)"
+          ],
+          [
+            "provider_offerings_conditions_check",
+            "c",
+            true,
+            "CHECK (length(btrim(conditions)) >= 1 AND length(btrim(conditions)) <= 5000)"
+          ],
+          [
+            "provider_offerings_description_check",
+            "c",
+            true,
+            "CHECK (length(description) <= 5000)"
+          ],
+          [
+            "provider_offerings_extra_charges_check",
+            "c",
+            true,
+            "CHECK (length(btrim(extra_charges)) >= 1 AND length(btrim(extra_charges)) <= 3000)"
+          ],
+          [
+            "provider_offerings_name_check",
+            "c",
+            true,
+            "CHECK (length(btrim(name)) >= 1 AND length(btrim(name)) <= 120)"
+          ],
+          [
+            "provider_offerings_pkey",
+            "p",
+            true,
+            "PRIMARY KEY (id)"
+          ],
+          [
+            "provider_offerings_price_unit_check",
+            "c",
+            true,
+            "CHECK (length(btrim(price_unit)) >= 1 AND length(btrim(price_unit)) <= 80)"
+          ],
+          [
+            "provider_offerings_provider_id_fkey",
+            "f",
+            true,
+            "FOREIGN KEY (provider_id) REFERENCES provider_profiles(id) ON DELETE CASCADE"
+          ],
+          [
+            "provider_offerings_recommendation_status_check",
+            "c",
+            true,
+            "CHECK (recommendation_status = ANY (ARRAY['unreviewed'::text, 'eligible'::text, 'needs_review'::text, 'blocked'::text]))"
+          ],
+          [
+            "provider_offerings_review_status_check",
+            "c",
+            true,
+            "CHECK (review_status = ANY (ARRAY['pending'::text, 'approved'::text, 'rejected'::text]))"
+          ],
+          [
+            "provider_offerings_reviewed_by_fkey",
+            "f",
+            true,
+            "FOREIGN KEY (reviewed_by) REFERENCES auth.users(id) ON DELETE SET NULL"
+          ],
+          [
+            "provider_offerings_version_check",
+            "c",
+            true,
+            "CHECK (version > 0)"
+          ]
+        ]
+      },
+      {
+        "acl": [
+          [
+            "authenticated",
+            "postgres",
+            "SELECT",
+            false
+          ],
+          [
+            "postgres",
+            "postgres",
+            "DELETE",
+            false
+          ],
+          [
+            "postgres",
+            "postgres",
+            "INSERT",
+            false
+          ],
+          [
+            "postgres",
+            "postgres",
+            "MAINTAIN",
+            false
+          ],
+          [
+            "postgres",
+            "postgres",
+            "REFERENCES",
+            false
+          ],
+          [
+            "postgres",
+            "postgres",
+            "SELECT",
+            false
+          ],
+          [
+            "postgres",
+            "postgres",
+            "TRIGGER",
+            false
+          ],
+          [
+            "postgres",
+            "postgres",
+            "TRUNCATE",
+            false
+          ],
+          [
+            "postgres",
+            "postgres",
+            "UPDATE",
+            false
+          ],
+          [
+            "service_role",
+            "postgres",
+            "SELECT",
+            false
+          ]
+        ],
+        "rls": true,
+        "kind": "r",
+        "name": "public.provider_profiles",
+        "owner": "postgres",
+        "columns": [
+          [
+            "approval_status",
+            "text",
+            true,
+            "",
+            "",
+            "'pending'::text",
+            []
+          ],
+          [
+            "approved_at",
+            "timestamp with time zone",
+            false,
+            "",
+            "",
+            null,
+            []
+          ],
+          [
+            "categories",
+            "text[]",
+            true,
+            "",
+            "",
+            null,
+            []
+          ],
+          [
+            "contact_email",
+            "text",
+            true,
+            "",
+            "",
+            null,
+            []
+          ],
+          [
+            "contact_name",
+            "text",
+            true,
+            "",
+            "",
+            null,
+            []
+          ],
+          [
+            "created_at",
+            "timestamp with time zone",
+            true,
+            "",
+            "",
+            "now()",
+            []
+          ],
+          [
+            "id",
+            "uuid",
+            true,
+            "",
+            "",
+            "gen_random_uuid()",
+            []
+          ],
+          [
+            "instagram",
+            "text",
+            false,
+            "",
+            "",
+            null,
+            []
+          ],
+          [
+            "introduction",
+            "text",
+            true,
+            "",
+            "",
+            "''::text",
+            []
+          ],
+          [
+            "kind",
+            "text",
+            true,
+            "",
+            "",
+            null,
+            []
+          ],
+          [
+            "name",
+            "text",
+            true,
+            "",
+            "",
+            null,
+            []
+          ],
+          [
+            "owner_id",
+            "uuid",
+            true,
+            "",
+            "",
+            null,
+            []
+          ],
+          [
+            "publication_status",
+            "text",
+            true,
+            "",
+            "",
+            "'draft'::text",
+            []
+          ],
+          [
+            "regions",
+            "text[]",
+            true,
+            "",
+            "",
+            null,
+            []
+          ],
+          [
+            "review_reason",
+            "text",
+            false,
+            "",
+            "",
+            null,
+            []
+          ],
+          [
+            "reviewed_by",
+            "uuid",
+            false,
+            "",
+            "",
+            null,
+            []
+          ],
+          [
+            "updated_at",
+            "timestamp with time zone",
+            true,
+            "",
+            "",
+            "now()",
+            []
+          ],
+          [
+            "version",
+            "integer",
+            true,
+            "",
+            "",
+            "1",
+            []
+          ],
+          [
+            "website",
+            "text",
+            false,
+            "",
+            "",
+            null,
+            []
+          ]
+        ],
+        "indexes": [
+          [
+            "CREATE INDEX provider_profiles_owner_idx ON public.provider_profiles USING btree (owner_id)",
+            true,
+            true
+          ],
+          [
+            "CREATE INDEX provider_profiles_public_idx ON public.provider_profiles USING btree (updated_at DESC, id) WHERE ((approval_status = 'approved'::text) AND (publication_status = 'published'::text))",
+            true,
+            true
+          ],
+          [
+            "CREATE UNIQUE INDEX provider_profiles_pkey ON public.provider_profiles USING btree (id)",
+            true,
+            true
+          ]
+        ],
+        "forceRls": false,
+        "policies": [
+          {
+            "name": "provider_profile_private_read",
+            "check": null,
+            "roles": [
+              "authenticated"
+            ],
+            "using": "((owner_id = auth.uid()) OR provider_private.is_admin())",
+            "command": "r",
+            "permissive": true
+          }
+        ],
+        "triggers": [],
+        "constraints": [
+          [
+            "provider_profiles_approval_status_check",
+            "c",
+            true,
+            "CHECK (approval_status = ANY (ARRAY['pending'::text, 'approved'::text, 'rejected'::text, 'suspended'::text]))"
+          ],
+          [
+            "provider_profiles_categories_check",
+            "c",
+            true,
+            "CHECK (cardinality(categories) >= 1 AND cardinality(categories) <= 10)"
+          ],
+          [
+            "provider_profiles_check",
+            "c",
+            true,
+            "CHECK (publication_status <> 'published'::text OR approval_status = 'approved'::text)"
+          ],
+          [
+            "provider_profiles_contact_name_check",
+            "c",
+            true,
+            "CHECK (length(btrim(contact_name)) >= 1 AND length(btrim(contact_name)) <= 100)"
+          ],
+          [
+            "provider_profiles_introduction_check",
+            "c",
+            true,
+            "CHECK (length(introduction) <= 5000)"
+          ],
+          [
+            "provider_profiles_kind_check",
+            "c",
+            true,
+            "CHECK (kind = ANY (ARRAY['individual'::text, 'team'::text, 'company'::text]))"
+          ],
+          [
+            "provider_profiles_name_check",
+            "c",
+            true,
+            "CHECK (length(btrim(name)) >= 1 AND length(btrim(name)) <= 120)"
+          ],
+          [
+            "provider_profiles_owner_id_fkey",
+            "f",
+            true,
+            "FOREIGN KEY (owner_id) REFERENCES auth.users(id) ON DELETE CASCADE"
+          ],
+          [
+            "provider_profiles_pkey",
+            "p",
+            true,
+            "PRIMARY KEY (id)"
+          ],
+          [
+            "provider_profiles_publication_status_check",
+            "c",
+            true,
+            "CHECK (publication_status = ANY (ARRAY['draft'::text, 'published'::text, 'paused'::text]))"
+          ],
+          [
+            "provider_profiles_regions_check",
+            "c",
+            true,
+            "CHECK (cardinality(regions) >= 1 AND cardinality(regions) <= 20)"
+          ],
+          [
+            "provider_profiles_reviewed_by_fkey",
+            "f",
+            true,
+            "FOREIGN KEY (reviewed_by) REFERENCES auth.users(id) ON DELETE SET NULL"
+          ],
+          [
+            "provider_profiles_version_check",
+            "c",
+            true,
+            "CHECK (version > 0)"
+          ]
+        ]
+      }
+    ],
+    "manifestFunction": [
+      {
+        "acl": [
+          [
+            "postgres",
+            "postgres",
+            "EXECUTE",
+            false
+          ],
+          [
+            "service_role",
+            "postgres",
+            "EXECUTE",
+            false
+          ]
+        ],
+        "args": "uuid, uuid, jsonb",
+        "body": "\nDECLARE\n  v_job public.account_deletion_jobs%ROWTYPE;\n  v_item jsonb;\n  v_bucket text;\n  v_path text;\n  v_source text;\n  v_not_before timestamptz;\n  v_session public.community_upload_sessions%ROWTYPE;\n  v_quarantine_count integer;\n  v_ready_after timestamptz;\nBEGIN\n  SELECT * INTO v_job\n    FROM public.account_deletion_jobs\n   WHERE id = p_job_id\n     AND status = 'inventorying'\n     AND claim_token = p_claim_token\n   FOR UPDATE;\n  IF NOT FOUND THEN\n    RETURN;\n  END IF;\n  IF p_manifest IS NULL\n     OR jsonb_typeof(p_manifest) <> 'array'\n     OR jsonb_array_length(p_manifest) > 10000 THEN\n    RAISE EXCEPTION 'ACCOUNT_DELETION_MANIFEST_INVALID' USING ERRCODE = '22023';\n  END IF;\n\n  DELETE FROM public.account_deletion_media_manifest WHERE job_id = p_job_id;\n  FOR v_item IN SELECT value FROM jsonb_array_elements(p_manifest)\n  LOOP\n    IF jsonb_typeof(v_item) <> 'object'\n       OR (v_item - 'bucket' - 'path' - 'source' - 'not_before') <> '{}'::jsonb THEN\n      RAISE EXCEPTION 'ACCOUNT_DELETION_MANIFEST_INVALID' USING ERRCODE = '22023';\n    END IF;\n    v_bucket := v_item->>'bucket';\n    v_path := v_item->>'path';\n    v_source := v_item->>'source';\n    BEGIN\n      v_not_before := (v_item->>'not_before')::timestamptz;\n    EXCEPTION WHEN OTHERS THEN\n      RAISE EXCEPTION 'ACCOUNT_DELETION_MANIFEST_INVALID' USING ERRCODE = '22023';\n    END;\n\n    IF v_bucket NOT IN (\n         'community-media-staging', 'community-images', 'community-videos',\n         'chat-image', 'profile-avatars', 'provider-portfolio'\n       )\n       OR v_path IS NULL\n       OR char_length(v_path) NOT BETWEEN 38 AND 512\n       OR (\n         v_bucket = 'chat-image'\n         AND v_path !~ (\n           '^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}/'\n           || v_job.user_id::text\n           || '/[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\\.(jpeg|jpg|png|gif|webp)$'\n         )\n       )\n       OR (\n         v_bucket = 'provider-portfolio'\n         AND v_path !~ ('^' || v_job.user_id::text\n           || '/[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}'\n           || '/[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\\.(jpg|png|webp)$')\n       )\n       OR (\n         v_bucket NOT IN ('chat-image', 'provider-portfolio')\n         AND (\n           v_path !~ ('^' || v_job.user_id::text || '/[^/\\\\[:cntrl:]]+$')\n           OR split_part(v_path, '/', 2) IN ('.', '..')\n         )\n       ) THEN\n      RAISE EXCEPTION 'ACCOUNT_DELETION_MANIFEST_PATH_INVALID' USING ERRCODE = '22023';\n    END IF;\n\n    IF v_bucket = 'chat-image' THEN\n      IF v_source <> 'quarantine' THEN\n        RAISE EXCEPTION 'ACCOUNT_DELETION_CHAT_PROOF_INVALID' USING ERRCODE = '23514';\n      END IF;\n    ELSIF v_bucket = 'provider-portfolio' THEN\n      IF v_source = 'provider_portfolio' THEN\n        IF NOT EXISTS (\n          SELECT 1 FROM public.provider_media m\n          JOIN public.provider_profiles p ON p.id=m.provider_id\n          WHERE p.owner_id=v_job.user_id AND m.storage_path=v_path\n            AND split_part(v_path,'/',2)=p.id::text\n            AND split_part(split_part(v_path,'/',3),'.',1)=m.id::text\n            AND v_not_before >= m.created_at + interval '35 minutes'\n        ) THEN\n          RAISE EXCEPTION 'PROVIDER_PORTFOLIO_DELETION_PROOF_INVALID' USING ERRCODE='23514';\n        END IF;\n      ELSIF v_source IS DISTINCT FROM 'quarantine' THEN\n        RAISE EXCEPTION 'PROVIDER_PORTFOLIO_DELETION_PROOF_INVALID' USING ERRCODE='23514';\n      END IF;\n    ELSIF v_bucket = 'profile-avatars' AND v_source = 'profile_avatar' THEN\n      IF NOT EXISTS (\n        SELECT 1 FROM public.profile_avatar_assets asset\n        WHERE asset.user_id = v_job.user_id AND asset.object_path = v_path\n          AND v_not_before >= asset.upload_until\n      ) THEN\n        RAISE EXCEPTION 'PROFILE_AVATAR_DELETION_PROOF_INVALID' USING ERRCODE = '23514';\n      END IF;\n    ELSIF v_source IN ('session_staging', 'session_final') THEN\n      SELECT * INTO v_session\n        FROM public.community_upload_sessions\n       WHERE user_id = v_job.user_id\n         AND (\n           (v_source = 'session_staging'\n             AND v_bucket = 'community-media-staging'\n             AND staging_path = v_path)\n           OR\n           (v_source = 'session_final'\n             AND final_bucket = v_bucket\n             AND final_path = v_path)\n         );\n      IF NOT FOUND OR v_not_before < v_session.expires_at + interval '5 minutes' THEN\n        RAISE EXCEPTION 'ACCOUNT_DELETION_SESSION_PROOF_INVALID' USING ERRCODE = '23514';\n      END IF;\n    ELSIF v_source = 'legacy_prefix' THEN\n      IF NOT (\n        (\n          v_bucket = 'community-images'\n          AND v_path ~* ('^' || v_job.user_id::text || '/[0-9]{13}_[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\\.(jpg|png|gif|webp)$')\n        )\n        OR (\n          v_bucket = 'community-videos'\n          AND v_path ~* ('^' || v_job.user_id::text || '/[0-9]{13}_[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\\.(mp4|mov|webm)$')\n        )\n      ) THEN\n        RAISE EXCEPTION 'ACCOUNT_DELETION_LEGACY_PROOF_INVALID' USING ERRCODE = '23514';\n      END IF;\n    ELSIF v_source <> 'quarantine' THEN\n      RAISE EXCEPTION 'ACCOUNT_DELETION_MANIFEST_SOURCE_INVALID' USING ERRCODE = '22023';\n    END IF;\n\n    INSERT INTO public.account_deletion_media_manifest(\n      job_id, bucket, path, source, not_before\n    ) VALUES (p_job_id, v_bucket, v_path, v_source, v_not_before);\n  END LOOP;\n\n  -- Include registrations even before their object appears, so in-flight uploads retain their grace.\n  IF EXISTS (\n    SELECT 1 FROM public.provider_media m JOIN public.provider_profiles p ON p.id=m.provider_id\n    WHERE p.owner_id=v_job.user_id AND NOT EXISTS (\n      SELECT 1 FROM public.account_deletion_media_manifest manifest\n      WHERE manifest.job_id=p_job_id AND manifest.bucket='provider-portfolio'\n        AND manifest.path=m.storage_path AND manifest.source='provider_portfolio'\n    )\n  ) THEN\n    RAISE EXCEPTION 'PROVIDER_PORTFOLIO_DELETION_INVENTORY_INCOMPLETE' USING ERRCODE='23514';\n  END IF;\n\n  SELECT count(*) FILTER (WHERE source = 'quarantine'),\n         coalesce(max(not_before) FILTER (WHERE source <> 'quarantine'), clock_timestamp())\n    INTO v_quarantine_count, v_ready_after\n    FROM public.account_deletion_media_manifest\n   WHERE job_id = p_job_id;\n\n  UPDATE public.account_deletion_jobs\n     SET status = CASE WHEN v_quarantine_count > 0\n                       THEN 'manual_review' ELSE 'inventory_ready' END,\n         quarantine_count = v_quarantine_count,\n         ready_after = v_ready_after,\n         claim_token = NULL,\n         claimed_at = NULL,\n         last_error_code = CASE WHEN v_quarantine_count > 0\n                                THEN 'unproven_legacy_media' ELSE NULL END,\n         updated_at = clock_timestamp()\n   WHERE id = p_job_id\n   RETURNING * INTO v_job;\n  RETURN NEXT v_job;\nEND;\n",
+        "name": "replace_account_deletion_media_manifest",
+        "owner": "postgres",
+        "config": [
+          "search_path=\"\""
+        ],
+        "result": "SETOF account_deletion_jobs",
+        "schema": "public",
+        "strict": false,
+        "language": "plpgsql",
+        "parallel": "u",
+        "arguments": "p_job_id uuid, p_claim_token uuid, p_manifest jsonb",
+        "leakproof": false,
+        "volatility": "v",
+        "securityDefiner": true
+      }
+    ],
+    "manifestConstraints": [
+      [
+        "account_deletion_media_bucket",
+        "c",
+        true,
+        "CHECK (bucket = ANY (ARRAY['community-media-staging'::text, 'community-images'::text, 'community-videos'::text, 'chat-image'::text, 'profile-avatars'::text, 'provider-portfolio'::text]))"
+      ],
+      [
+        "account_deletion_media_path_shape",
+        "c",
+        true,
+        "CHECK ((bucket = ANY (ARRAY['chat-image'::text, 'provider-portfolio'::text])) AND char_length(path) >= 111 AND char_length(path) <= 512 AND path ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}/[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}/[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\\.(jpeg|jpg|png|gif|webp)$'::text AND (bucket = 'chat-image'::text OR path ~ '\\.(jpg|png|webp)$'::text) OR (bucket <> ALL (ARRAY['chat-image'::text, 'provider-portfolio'::text])) AND char_length(path) >= 38 AND char_length(path) <= 512 AND path ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}/[^/\\\\[:cntrl:]]+$'::text AND (split_part(path, '/'::text, 2) <> ALL (ARRAY['.'::text, '..'::text])))"
+      ],
+      [
+        "account_deletion_media_source",
+        "c",
+        true,
+        "CHECK (source = ANY (ARRAY['session_staging'::text, 'session_final'::text, 'legacy_prefix'::text, 'quarantine'::text, 'profile_avatar'::text, 'provider_portfolio'::text]))"
+      ]
+    ]
+  }
+}

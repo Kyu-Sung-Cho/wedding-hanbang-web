@@ -777,6 +777,7 @@ const WEDDING_CONTEXT_READ_TOOL_NAMES: ReadonlySet<string> = new Set([
 export const AMORA_CONTEXT_FREE_READ_TOOL_NAMES: ReadonlySet<string> = new Set([
   "search_nearby_places",
   "get_market_price",
+  "discover_providers",
 ]);
 
 export function classifyAmoraQuestionScope({

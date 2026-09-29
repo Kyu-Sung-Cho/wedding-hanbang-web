@@ -6,7 +6,7 @@ import { shell } from "./notebook";
 /**
  * 푸터.
  *
- * 링크를 **로그인 없이 열리는 것 / 계정이 필요한 것 / 정책** 셋으로 나눈다. 처음 온 사람이
+ * 링크를 **로그인 없이 열리는 것 / 계정이 필요한 것 / 함께하기 / 정책**으로 나눈다. 처음 온 사람이
  * 링크를 눌렀다가 로그인 벽을 만나는 게 이 제품의 오래된 실패였다.
  *
  * 가격 출처 고지는 여기 한 번만 둔다 — 공시 가격이 본문에서 곁블록으로 내려갔으니
@@ -27,7 +27,7 @@ export default function LandingFooter() {
     <footer className="border-t border-[var(--color-paper-edge)] bg-[var(--color-paper-sheet)] py-[38px]">
       <div className={shell}>
         <div className="grid gap-5 lg:grid-cols-[240px_1fr] lg:gap-x-12">
-          <div className="lg:row-span-3">
+          <div className="lg:row-span-4">
             <p className="landing-display text-[19px] text-[var(--color-paper-ink)]">웨딩한방</p>
             <p className="mt-2 text-[12px] leading-[1.75] text-[var(--color-paper-ink-faint)]">
               {footer.tagline}

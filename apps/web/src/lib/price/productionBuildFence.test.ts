@@ -10,6 +10,8 @@ import {
   SUCCESSOR_RUNTIME_EVIDENCE_REQUIREMENTS,
   validateSuccessorReleaseContract,
 } from "../../../../../scripts/lib/supabase-successor-release-contract.mjs";
+import { createExplicitBudgetHistoricalRepository } from "../../../../../scripts/tests/fixtures/explicit-budget-historical-repository.mjs";
+import { loadDeletionAuditNullabilityReleasePlan } from "../../../../../scripts/lib/account-deletion-audit-nullability-release-contract.mjs";
 import {
   assertVendorDisclosureProductionBuild,
   expectedProductionAuthorizationSha256,
@@ -17,6 +19,7 @@ import {
   VENDOR_DISCLOSURE_EXTERNAL_AUTHORIZATION_INVALID,
   VENDOR_DISCLOSURE_EXTERNAL_AUTHORIZATION_NOT_IMPLEMENTED,
   VENDOR_DISCLOSURE_STATIC_CONTRACT_INVALID,
+  PROVIDER_RELEASE_OPERATIONS_NOT_READY,
 } from "../../../vendorDisclosureProductionBuildFence";
 
 const RELEASE = "vendor-disclosure-v2-20260718";
@@ -395,18 +398,41 @@ async function writeManifest(fixture: Fixture) {
 
 describe("vendor disclosure production build fence", () => {
   it("validates the registered explicit-budget SQL before requiring the existing owner signature", () => {
+    // 후속 SQL이 있는 현재 checkout을 과거 릴리스로 간주하지 않는다.
+    // 원문 Git blob/hash로 고정된 fixture만 이 역사적 성공 경로의 입력이다.
+    const historical = createExplicitBudgetHistoricalRepository(resolve(process.cwd(), "../.."));
+    try {
+      expectBlockedWithCode(
+        () => assertProduction(historical.root),
+        VENDOR_DISCLOSURE_EXTERNAL_AUTHORIZATION_NOT_IMPLEMENTED,
+      );
+      expect(() => assertVendorDisclosureProductionBuild({
+        repoRoot: historical.root,
+        environment: {
+          VERCEL_ENV: "production",
+          VENDOR_DISCLOSURE_PRODUCTION_AUTHORIZATION: expectedProductionAuthorizationSha256(historical.root),
+        },
+      })).not.toThrow();
+    } finally {
+      historical.cleanup();
+    }
+  }, 120_000);
+
+  it("blocks the registered provider candidate on missing operational evidence, even with the existing signature", () => {
     const repoRoot = resolve(process.cwd(), "../..");
-    expectBlockedWithCode(
-      () => assertProduction(repoRoot),
-      VENDOR_DISCLOSURE_EXTERNAL_AUTHORIZATION_NOT_IMPLEMENTED,
+    expect(() => loadDeletionAuditNullabilityReleasePlan(repoRoot)).toThrowError(
+      expect.objectContaining({ code: "NEW_MIGRATION_NOT_REVIEWED" }),
     );
-    expect(() => assertVendorDisclosureProductionBuild({
-      repoRoot,
-      environment: {
-        VERCEL_ENV: "production",
-        VENDOR_DISCLOSURE_PRODUCTION_AUTHORIZATION: expectedProductionAuthorizationSha256(repoRoot),
-      },
-    })).not.toThrow();
+    for (const authorization of [undefined, expectedProductionAuthorizationSha256(repoRoot)]) {
+      const error = expectBlockedWithCode(
+        () => assertVendorDisclosureProductionBuild({
+          repoRoot,
+          environment: { VERCEL_ENV: "production", VENDOR_DISCLOSURE_PRODUCTION_AUTHORIZATION: authorization },
+        }),
+        PROVIDER_RELEASE_OPERATIONS_NOT_READY,
+      );
+      expect(error.message).toContain("provider DB and Storage");
+    }
   }, 120_000);
 
   it("does not fall back to an older release when a registered explicit-budget contract is invalid", async () => {

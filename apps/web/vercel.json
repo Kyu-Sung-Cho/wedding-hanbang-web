@@ -20,6 +20,10 @@
       "schedule": "*/15 * * * *"
     },
     {
+      "path": "/api/cron/provider-media-cleanup",
+      "schedule": "*/15 * * * *"
+    },
+    {
       "path": "/api/cron/account-deletion",
       "schedule": "*/5 * * * *"
     },

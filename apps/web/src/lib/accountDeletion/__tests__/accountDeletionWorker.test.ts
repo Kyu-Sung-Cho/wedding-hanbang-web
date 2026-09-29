@@ -131,6 +131,60 @@ function harness(options: {
 }
 
 describe("account deletion Storage worker", () => {
+  const providerId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+  const mediaId = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
+  const providerPath = `${USER_ID}/${providerId}/${mediaId}.webp`;
+
+  it("deletes only the manifest's owned provider image and honors its upload grace", async () => {
+    const row = manifest({ bucket: "provider-portfolio", path: providerPath, source: "provider_portfolio" });
+    const test = harness({ manifest: [row] });
+    expect(await processAccountDeletionJob(test.admin as never, JOB_ID, NOW)).toEqual({ status: "completed" });
+    expect(test.remove).toHaveBeenCalledWith([providerPath]);
+    expect(test.rpc).toHaveBeenCalledWith("checkpoint_account_deletion_media", expect.objectContaining({
+      p_bucket: "provider-portfolio", p_path: providerPath,
+    }));
+    const waiting = harness({ manifest: [{ ...row, not_before: new Date(NOW + 1).toISOString() }] });
+    expect(await processAccountDeletionJob(waiting.admin as never, JOB_ID, NOW)).toEqual({ status: "pending" });
+    expect(waiting.remove).not.toHaveBeenCalled();
+  });
+
+  it("rejects another owner's provider image before any Storage deletion", async () => {
+    const test = harness({ manifest: [manifest({ bucket: "provider-portfolio", path: `${providerId}/${providerId}/${mediaId}.webp`, source: "provider_portfolio" })] });
+    expect(await processAccountDeletionJob(test.admin as never, JOB_ID, NOW)).toEqual({ status: "manual_review" });
+    expect(test.remove).not.toHaveBeenCalled();
+    expect(test.deleteUser).not.toHaveBeenCalled();
+  });
+
+  it("can finish a provider manifest after Auth and provider database rows have already cascaded", async () => {
+    const test = harness({ manifest: [manifest({ bucket: "provider-portfolio", path: providerPath, source: "provider_portfolio", cleaned_at: new Date(NOW).toISOString() })], authMissing: true });
+    expect(await processAccountDeletionJob(test.admin as never, JOB_ID, NOW)).toEqual({ status: "completed" });
+    expect(test.remove).not.toHaveBeenCalled();
+    expect(test.deleteUser).not.toHaveBeenCalled();
+    expect(test.rpc).toHaveBeenCalledWith("finalize_account_deletion_job", expect.anything());
+  });
+
+  it("does not cross Auth deletion when a provider image appears after inventory", async () => {
+    const test = harness({ manifest: [] });
+    test.list
+      .mockResolvedValueOnce({ data: [], error: null })
+      .mockResolvedValueOnce({ data: [], error: null })
+      .mockResolvedValueOnce({ data: [], error: null })
+      .mockResolvedValueOnce({ data: [], error: null })
+      .mockResolvedValueOnce({ data: [{ name: providerId, id: null }], error: null })
+      .mockResolvedValueOnce({ data: [{ name: `${mediaId}.webp`, id: mediaId }], error: null });
+    expect(await processAccountDeletionJob(test.admin as never, JOB_ID, NOW)).toEqual({ status: "manual_review" });
+    expect(test.list).toHaveBeenLastCalledWith(`${USER_ID}/${providerId}`, expect.anything());
+    expect(test.deleteUser).not.toHaveBeenCalled();
+    expect(test.rpc).toHaveBeenCalledWith("mark_account_deletion_manual_review", expect.objectContaining({ p_error_code: "unmanifested_storage_object" }));
+  });
+
+  it("checks the exact provider folder for ambiguous Storage HEAD absence", async () => {
+    const test = harness({ manifest: [manifest({ bucket: "provider-portfolio", path: providerPath, source: "provider_portfolio" })] });
+    test.exists.mockResolvedValue({ data: false, error: new StorageApiError("missing", 404, "404") });
+    expect(await processAccountDeletionJob(test.admin as never, JOB_ID, NOW)).toEqual({ status: "completed" });
+    expect(test.list).toHaveBeenNthCalledWith(1, `${USER_ID}/${providerId}`, expect.anything());
+  });
+
   it("requires an exact claimed job's durable personal-data preparation before deleting any file", async () => {
     const test = harness();
     expect(await processAccountDeletionJob(test.admin as never, JOB_ID, NOW)).toEqual({ status: "completed" });
@@ -184,6 +238,7 @@ describe("account deletion Storage worker", () => {
       "storage.remove",
       "storage.exists",
       "checkpoint_account_deletion_media",
+      "storage.list",
       "storage.list",
       "storage.list",
       "storage.list",
@@ -286,7 +341,7 @@ describe("account deletion Storage worker", () => {
     expect(await processAccountDeletionJob(test.admin as never, JOB_ID, NOW)).toEqual({ status: "completed" });
     expect(test.exists).toHaveBeenCalledTimes(3);
     expect(test.rpc.mock.calls.filter(([name]) => name === "checkpoint_account_deletion_media")).toHaveLength(3);
-    expect(test.list).toHaveBeenCalledTimes(6);
+    expect(test.list).toHaveBeenCalledTimes(7);
     expect(test.sequence.slice(0, 8)).toEqual([
       "claim_account_deletion_job", "prepare_account_deletion_customer_data", "storage.remove",
       "storage.list", "checkpoint_account_deletion_media", "checkpoint_account_deletion_media",
@@ -315,7 +370,7 @@ describe("account deletion Storage worker", () => {
       [USER_ID, { limit: 100, offset: 100, sortBy: { column: "name", order: "asc" } }],
     ]);
     const checkpointIndex = test.sequence.indexOf("checkpoint_account_deletion_media");
-    expect(test.sequence.slice(checkpointIndex + 1).filter(step => step === "storage.list")).toHaveLength(5);
+    expect(test.sequence.slice(checkpointIndex + 1).filter(step => step === "storage.list")).toHaveLength(6);
   });
 
   it.each([
@@ -465,6 +520,7 @@ describe("account deletion Storage worker", () => {
   it("re-inventories chat-image before Auth deletion and quarantines a late attachment", async () => {
     const test = harness();
     test.list
+      .mockResolvedValueOnce({ data: [], error: null })
       .mockResolvedValueOnce({ data: [], error: null })
       .mockResolvedValueOnce({ data: [], error: null })
       .mockResolvedValueOnce({ data: [], error: null })

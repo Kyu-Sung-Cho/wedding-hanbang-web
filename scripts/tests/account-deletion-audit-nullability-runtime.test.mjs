@@ -1,13 +1,30 @@
-import test from 'node:test';
+import test, { after as afterAll } from 'node:test';
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
-import { readFileSync } from 'node:fs';
-import { join, resolve } from 'node:path';
+import { copyFileSync, mkdirSync, readFileSync } from 'node:fs';
+import { dirname, join, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
 import { appendDeletionAuditReceipt, buildDeletionAuditMutationSql, buildDeletionAuditObservationSql, parseDeletionAuditReleaseArgs,
   runDeletionAuditNullabilityRelease, validateDeletionAuditObservation } from '../lib/account-deletion-audit-nullability-release.mjs';
 
-const root = resolve(import.meta.dirname, '../..');
+import { createWeddingCodePairSessionConflictHistoricalRepository } from './fixtures/wedding-code-pair-session-conflict-historical-repository.mjs';
+import { pinnedArtifact } from '../lib/current-baseline-release-contract.mjs';
+
+const sourceRoot = resolve(import.meta.dirname, '../..');
+// 성공 예행은 고정 Git blob 역사에 해시 고정된 240 변경만 추가한다.
+// 실제 checkout의 신규 SQL은 지우거나 허용하지 않는다.
+const historical = createWeddingCodePairSessionConflictHistoricalRepository(sourceRoot);
+afterAll(historical.cleanup);
+const root = historical.root;
+try {
+  const file = 'supabase/release-contracts/account-deletion-audit-nullability-v1.json';
+  const contract = JSON.parse(pinnedArtifact(sourceRoot, { file, sha256: 'ad50817b53ee069e99b8dcd5b8b5856b5c9691a32d5dd1ff15daccb5a1c4d73a' }));
+  const pins = [contract.runtime, contract.predecessorLoader, ...contract.migrations.map(pin => ({ ...pin, file: 'supabase/migrations/' + pin.file }))];
+  for (const pin of pins) pinnedArtifact(sourceRoot, pin);
+  for (const path of [file, ...pins.map(pin => pin.file)]) {
+    mkdirSync(dirname(join(root, path)), { recursive: true }); copyFileSync(join(sourceRoot, path), join(root, path));
+  }
+} catch (error) { historical.cleanup(); throw error; }
 const version = '20260928073546';
 const sql = readFileSync(join(root, `supabase/migrations/${version}_account_deletion_anonymous_audit.sql`), 'utf8');
 const instant = new Date('2026-09-28T05:00:00Z');
@@ -25,13 +42,13 @@ const after = () => ({ ...before(), notNull: false, ledgerSha: 'c'.repeat(32), l
   migration: { version, name: 'account_deletion_anonymous_audit', statementCount: 1,
     sqlMd5: createHash('md5').update(sql).digest('hex') } });
 
-function fixture({ mode = 'apply', observations = [before(), before(), after()], onQuery, onRecord, onSource, now } = {}) {
+function fixture({ repoRoot = root, mode = 'apply', observations = [before(), before(), after()], onQuery, onRecord, onSource, now } = {}) {
   const calls = [], events = [];
-  let reads = 0, closed = false, sourceChecks = 0;
-  return { calls, events, get closed() { return closed; }, get sourceChecks() { return sourceChecks; },
-    run: () => runDeletionAuditNullabilityRelease({ repoRoot: root, argv: args(mode), now: now ?? (() => instant),
+  let reads = 0, closed = false, sourceChecks = 0, receiptFactories = 0;
+  return { calls, events, get closed() { return closed; }, get sourceChecks() { return sourceChecks; }, get receiptFactories() { return receiptFactories; },
+    run: () => runDeletionAuditNullabilityRelease({ repoRoot, argv: args(mode), now: now ?? (() => instant),
       assertSource: () => { sourceChecks += 1; onSource?.(sourceChecks); },
-      receiptFactory: () => ({ append: event => { onRecord?.(event); events.push(event); }, close: () => { closed = true; } }),
+      receiptFactory: () => { receiptFactories += 1; return { append: event => { onRecord?.(event); events.push(event); }, close: () => { closed = true; } }; },
       query: async query => {
         calls.push(query); await onQuery?.(query, calls.length);
         if (query === buildDeletionAuditObservationSql(sql, version)) return [{ observation: structuredClone(observations[reads++]) }];
@@ -202,5 +219,14 @@ test('receipt handles short writes completely before fsync and refuses zero prog
     assert.throws(() => appendDeletionAuditReceipt(42, value, { write: () => invalid, flush: () => { flushed += 1; } }),
       code('DELETION_AUDIT_RECEIPT_WRITE_INCOMPLETE'));
     assert.equal(flushed, 0);
+  }
+});
+
+test('current provider SQL is refused before source authorization, receipts or remote query effects', async () => {
+  for (const mode of ['inspect', 'rehearse', 'apply']) {
+    const f = fixture({ repoRoot: sourceRoot, mode });
+    await assert.rejects(f.run(), code('NEW_MIGRATION_NOT_REVIEWED'));
+    assert.equal(f.sourceChecks, 0); assert.equal(f.receiptFactories, 0); assert.equal(f.calls.length, 0);
+    assert.equal(f.events.length, 0); assert.equal(f.closed, false);
   }
 });

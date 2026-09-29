@@ -10,8 +10,9 @@
  * 동의 기록 없이 온보딩을 시키면 동의 전에 개인정보를 받는 셈이 된다.
  */
 
-import { SIGNUP_CONSENT_PATH, type SignupConsentUser } from "@hanbang/shared";
+import { SIGNUP_CONSENT_PATH, hasRecordedSignupConsent, type SignupConsentUser } from "@hanbang/shared";
 import { hasWebSignupConsentAccess } from "./signupConsentAccess";
+import { isProviderAuthDestination } from "./safeRedirect";
 
 /**
  * 프로필 한 줄을 읽어 오는 함수. Supabase 클라이언트 전체를 요구하지 않는 이유는
@@ -45,9 +46,14 @@ export async function resolvePostAuthLanding({
 }): Promise<PostAuthLanding> {
   // 1) 동의가 먼저다. 소셜 가입은 Supabase 가 계정을 직접 만들어 가입 화면을
   //    거치지 않으므로, 그 경로로 온 사람은 동의 기록이 없다.
-  if (!hasWebSignupConsentAccess(user)) {
+  const providerDestination = isProviderAuthDestination(completedPath) && pendingPath === completedPath;
+  if (!(providerDestination ? hasRecordedSignupConsent(user.app_metadata) : hasWebSignupConsentAccess(user))) {
     const consent = new URLSearchParams({ redirect: pendingPath });
     return { path: `${SIGNUP_CONSENT_PATH}?${consent}`, markOnboardingComplete: false };
+  }
+
+  if (providerDestination) {
+    return { path: completedPath, markOnboardingComplete: false };
   }
 
   // 2) 온보딩. 조회에 실패하면 **아직 안 마친 쪽으로 기운다** — 마쳤다고 잘못 보면
