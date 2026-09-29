@@ -87,6 +87,65 @@ describe("shared Sentry scrubber", () => {
     expect(JSON.stringify(event)).not.toContain(SYNTHETIC_SECRET);
   });
 
+  // 2026-09-29 운영에서 표본에 걸린 성능 이벤트를 그대로 옮긴 모양이다(값만 합성). 예전 테스트는 `request.url` 만 넣어서
+  // 이 자리를 못 봤다. 브라우저 SDK 는 주소 전체를 `contexts.trace.data["url.full"]` 에 싣는다.
+  const PAGELOAD_TRANSACTION = (): ScrubbableTransaction => ({
+    type: "transaction",
+    transaction: "/wedding-code",
+    contexts: {
+      trace: {
+        op: "pageload",
+        data: {
+          "sentry.op": "pageload",
+          "sentry.source": "url",
+          "url.path": "/wedding-code",
+          "url.full": "https://hanbang.ai/wedding-code?utm_source=test#v=v3.1-preferences&a=31_-5-4-35-2-4--455-53-445-2_SYNTHETIC",
+          "lcp.renderTime": 1640,
+          "performance.timeOrigin": 1790683459.9483001,
+        },
+      },
+      culture: { locale: "ko-KR" },
+    },
+    spans: [],
+  });
+
+  it("removes the ? and # tail of the page address the browser SDK puts in contexts", () => {
+    const event = sanitizeSentryTransaction(PAGELOAD_TRANSACTION());
+    const trace = (event.contexts as { trace: { data: Record<string, unknown> } }).trace;
+
+    expect(trace.data["url.full"]).toBe("https://hanbang.ai/wedding-code");
+    expect(JSON.stringify(event)).not.toMatch(/SYNTHETIC|v=v3\.1|utm_source|#/u);
+  });
+
+  it("keeps the rest of the trace so a slow screen can still be found", () => {
+    const event = sanitizeSentryTransaction(PAGELOAD_TRANSACTION());
+    const trace = (event.contexts as { trace: { op: string; data: Record<string, unknown> } }).trace;
+
+    expect(trace.op).toBe("pageload");
+    expect(trace.data["sentry.op"]).toBe("pageload");
+    expect(trace.data["url.path"]).toBe("/wedding-code");
+    expect(trace.data["lcp.renderTime"]).toBe(1640);
+    expect(event.transaction).toBe("/wedding-code");
+  });
+
+  it("does the same for error events and for the shared-link access key", () => {
+    const event = sanitizeSentryEvent<ScrubbableEvent>({
+      contexts: {
+        trace: { data: { "url.full": "https://hanbang.ai/wedding-code/together#room=abc&access=SYNTHETIC-ACCESS-KEY" } },
+        response: { "url.query": "access=SYNTHETIC-QUERY", "url.fragment": "room=abc" },
+      },
+    });
+
+    expect(JSON.stringify(event)).not.toMatch(/SYNTHETIC|room=abc/u);
+    expect(JSON.stringify(event)).toContain("https://hanbang.ai/wedding-code/together");
+  });
+
+  it("leaves contexts that carry no address untouched", () => {
+    const event = sanitizeSentryEvent<ScrubbableEvent>({ contexts: { culture: { locale: "ko-KR" }, react: { version: "19" } } });
+
+    expect(event.contexts).toEqual({ culture: { locale: "ko-KR" }, react: { version: "19" } });
+  });
+
   it("does not throw on the empty shapes a real SDK can hand it", () => {
     for (const shape of [{}, { breadcrumbs: [] }, { exception: {} }, { spans: [] }]) {
       expect(() => sanitizeSentryEvent(shape as ScrubbableTransaction)).not.toThrow();
