@@ -4,13 +4,26 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { loadOwnedVendorWithServiceRole } from "@/lib/vendors/serverOwnership";
 import { NextRequest, NextResponse } from "next/server";
 
+function privateJson(body: unknown, init: ResponseInit = {}) {
+  const headers = new Headers(init.headers);
+  headers.set("Cache-Control", "private, no-store, max-age=0");
+  return NextResponse.json(body, { ...init, headers });
+}
+
+function readFailure() {
+  return privateJson(
+    { error: "대화 목록을 불러오지 못했어요. 잠시 후 다시 시도해 주세요." },
+    { status: 503 },
+  );
+}
+
 export async function GET(req: NextRequest) {
   try {
     const supabase = await createClientFromRequest(req);
     const { data: { user } } = await supabase.auth.getUser();
 
     if (!user) {
-      return NextResponse.json({ error: "인증이 필요합니다." }, { status: 401 });
+      return privateJson({ error: "인증이 필요합니다." }, { status: 401 });
     }
 
     // 내가 업체 소유자인지 확인
@@ -32,11 +45,12 @@ export async function GET(req: NextRequest) {
 
     if (myVendor) {
       // 업체 소유자: 내 업체에 온 모든 대화
-      const { data: messages } = await supabase
+      const { data: messages, error } = await supabase
         .from("vendor_messages")
         .select("*")
         .eq("vendor_id", myVendor.id)
         .order("created_at", { ascending: false });
+      if (error) return readFailure();
 
       // 고객별로 그룹핑
       type Msg = NonNullable<typeof messages>[number];
@@ -70,11 +84,12 @@ export async function GET(req: NextRequest) {
       }
     } else {
       // 일반 고객: 내가 보낸/받은 모든 대화
-      const { data: messages } = await supabase
+      const { data: messages, error } = await supabase
         .from("vendor_messages")
         .select("*")
         .eq("customer_id", user.id)
         .order("created_at", { ascending: false });
+      if (error) return readFailure();
 
       // 업체별로 그룹핑
       type Msg2 = NonNullable<typeof messages>[number];
@@ -88,13 +103,14 @@ export async function GET(req: NextRequest) {
 
       // 업체명 조회
       const vendorIds = [...vendorMap.keys()];
-      const { data: vendors } = vendorIds.length > 0
+      const { data: vendors, error: vendorError } = vendorIds.length > 0
         ? await admin
             .from("vendors")
             .select("id, name")
             .in("id", vendorIds)
             .eq("status", "approved")
-        : { data: [] };
+        : { data: [], error: null };
+      if (vendorError) return readFailure();
 
       const vendorNameMap = Object.fromEntries((vendors ?? []).map((v) => [v.id, v.name]));
 
@@ -117,10 +133,10 @@ export async function GET(req: NextRequest) {
     // 최신 메시지 순 정렬
     threads.sort((a, b) => new Date(b.lastMessageAt).getTime() - new Date(a.lastMessageAt).getTime());
 
-    return NextResponse.json({ threads, isVendor: !!myVendor });
+    return privateJson({ threads, isVendor: !!myVendor });
   } catch (err) {
     log.error("api/messages/threads", err);
     console.error("Message threads error:", err);
-    return NextResponse.json({ error: "서버 오류가 발생했습니다." }, { status: 500 });
+    return privateJson({ error: "서버 오류가 발생했습니다." }, { status: 500 });
   }
 }

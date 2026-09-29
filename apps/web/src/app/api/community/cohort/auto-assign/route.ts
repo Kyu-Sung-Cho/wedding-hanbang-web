@@ -17,6 +17,17 @@ function getServiceClient() {
   return createAdminClient();
 }
 
+function lookupFailedResponse() {
+  return NextResponse.json(
+    {
+      room_id: null,
+      reason: "lookup_failed",
+      error: "동기방과 결혼 시기를 확인하지 못했어요. 잠시 후 다시 시도해 주세요.",
+    },
+    { status: 503, headers: { "Cache-Control": "private, no-store" } },
+  );
+}
+
 /**
  * 자동 동기방 배정 — wedding_journeys.wedding_date 기반.
  *
@@ -47,13 +58,16 @@ export async function POST(req: Request) {
     }
 
     // 1. 이미 가입된 방이 있으면 그대로 반환
-    const { data: existingMemberships } = await supabase
+    const { data: existingMemberships, error: membershipError } = await supabase
       .from("cohort_members")
       .select("room_id")
       .eq("user_id", user.id)
       .eq("is_active", true)
       .order("joined_at", { ascending: false })
       .limit(2);
+
+    // 조회 실패를 미가입으로 간주하면 기존 방과 결혼 시기가 덮어써질 수 있다.
+    if (membershipError) return lookupFailedResponse();
 
     if (existingMemberships?.length === 1) {
       return NextResponse.json(
@@ -82,19 +96,22 @@ export async function POST(req: Request) {
     }
 
     // 2. wedding_date 조회 (couple → journey)
-    const { data: profile } = await supabase
+    const { data: profile, error: profileError } = await supabase
       .from("profiles")
       .select("couple_id")
       .eq("id", user.id)
       .maybeSingle();
 
+    if (profileError) return lookupFailedResponse();
+
     let weddingDate: string | null = null;
     if (profile?.couple_id) {
-      const { data: journey } = await supabase
+      const { data: journey, error: journeyError } = await supabase
         .from("wedding_journeys")
         .select("wedding_date")
         .eq("couple_id", profile.couple_id)
         .maybeSingle();
+      if (journeyError) return lookupFailedResponse();
       weddingDate = journey?.wedding_date ?? null;
     }
 

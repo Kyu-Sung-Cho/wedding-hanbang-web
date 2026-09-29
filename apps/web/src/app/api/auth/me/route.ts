@@ -6,6 +6,7 @@ import { hasSignedDemoSessionFromCookieHeader } from "@/lib/demoSession";
 import { getWebSignupConsentAccess } from "@/lib/auth/signupConsentAccess";
 import { readOptionalProfileWeddingRoles } from "@/lib/profileWeddingRole";
 import { readOptionalProfileAvatars } from "@/lib/profileAvatar";
+import { isConfirmedSignedOut } from "@/lib/auth/sessionFailure";
 
 const PRIVATE_NO_STORE_HEADERS = {
   "Cache-Control": "private, no-store, max-age=0",
@@ -26,6 +27,28 @@ function isNeutralPreparationSpaceEnabled(): boolean {
   return process.env.AMORA_NEUTRAL_PREPARATION_SPACE_ENABLED === "true";
 }
 
+function coupleReadFailure(scopeChanged = false) {
+  return NextResponse.json(
+    {
+      error: scopeChanged
+        ? "커플 연결 상태가 바뀌었어요. 새로고침 후 다시 확인해 주세요."
+        : "결혼 준비 정보를 불러오지 못했어요. 잠시 후 다시 시도해 주세요.",
+      code: scopeChanged ? "COUPLE_MEMBERSHIP_CHANGED" : "PREPARATION_READ_UNAVAILABLE",
+    },
+    { status: scopeChanged ? 409 : 503, headers: PRIVATE_NO_STORE_HEADERS },
+  );
+}
+
+function sessionReadFailure(kind: "auth" | "profile") {
+  return NextResponse.json(
+    {
+      error: "로그인 정보를 확인하지 못했어요. 잠시 후 다시 시도해 주세요.",
+      code: kind === "auth" ? "AUTH_VERIFICATION_UNAVAILABLE" : "PROFILE_READ_UNAVAILABLE",
+    },
+    { status: 503, headers: PRIVATE_NO_STORE_HEADERS },
+  );
+}
+
 export async function GET(request: Request) {
   try {
     const supabase = await createClientFromRequest(request);
@@ -40,9 +63,13 @@ export async function GET(request: Request) {
     const baseCapabilities = { neutralPreparationSpace, accountDeletionIntake };
     const {
       data: { user },
+      error: authError,
     } = await supabase.auth.getUser();
 
-    if (!user) {
+    // 인증 서버 장애를 로그아웃이나 데모 세션으로 확정하지 않는다.
+    if (authError && !isConfirmedSignedOut(authError)) return sessionReadFailure("auth");
+
+    if (!user || authError) {
       if (isDemoRequest) {
         return NextResponse.json(
           { user: null, demo: true },
@@ -81,17 +108,15 @@ export async function GET(request: Request) {
     const admin = createAdminClient();
     const _debug: Record<string, unknown> = {};
 
-    // 프로필 조회 (RLS: profiles_select_own)
+    // 검증된 사용자 본인의 프로필만 조회한다.
     let profile = null;
     const { data: profileData, error: profileSelectErr } = await admin
       .from("profiles")
       .select(PROFILE_AUTH_COLUMNS)
       .eq("id", user.id)
-      .single();
+      .maybeSingle();
 
-    if (profileSelectErr) {
-      _debug.profileSelectError = profileSelectErr.message;
-    }
+    if (profileSelectErr) return sessionReadFailure("profile");
 
     if (profileData) {
       profile = { ...profileData, avatar_url: null };
@@ -124,19 +149,23 @@ export async function GET(request: Request) {
         })
         .select(PROFILE_AUTH_COLUMNS)
         .single();
-      if (profileInsertErr) _debug.profileInsertError = profileInsertErr.message;
-      profile = newProfile ? { ...newProfile, avatar_url: null } : null;
+      if (profileInsertErr?.code === "23505") {
+        // 동시 복구가 먼저 생성했으면 같은 사용자 행을 다시 확인한다.
+        const { data: canonicalProfile, error: profileRaceError } = await admin
+          .from("profiles")
+          .select(PROFILE_AUTH_COLUMNS)
+          .eq("id", user.id)
+          .maybeSingle();
+        if (profileRaceError) return sessionReadFailure("profile");
+        profile = canonicalProfile ? { ...canonicalProfile, avatar_url: null } : null;
+      } else {
+        if (profileInsertErr) return sessionReadFailure("profile");
+        profile = newProfile ? { ...newProfile, avatar_url: null } : null;
+      }
     }
 
     if (!profile) {
-      return NextResponse.json(
-        {
-          user: { id: user.id, email: user.email },
-          capabilities,
-          ...(includeDebug && Object.keys(_debug).length > 0 ? { _debug } : {}),
-        },
-        { headers: PRIVATE_NO_STORE_HEADERS },
-      );
+      return sessionReadFailure("profile");
     }
 
     let couple = null;
@@ -149,9 +178,12 @@ export async function GET(request: Request) {
         .from("couples")
         .select(COUPLE_AUTH_COLUMNS)
         .eq("id", profile.couple_id)
-        .single();
+        .maybeSingle();
 
-      if (coupleErr) _debug.coupleSelectError = coupleErr.message;
+      if (coupleErr) return coupleReadFailure();
+      // 앞서 읽은 프로필은 연결 해제와 경합할 수 있다. 현재 RLS에서 보이지 않는
+      // 커플을 관리자 권한으로 보완하거나 초기화하지 않는다.
+      if (!coupleData) return coupleReadFailure(true);
 
       if (coupleData) {
         const { data: memberModelData } = await supabase
@@ -191,15 +223,15 @@ export async function GET(request: Request) {
         .from("wedding_journeys")
         .select(JOURNEY_AUTH_COLUMNS)
         .eq("couple_id", profile.couple_id)
-        .single();
+        .maybeSingle();
 
-      if (journeyErr) _debug.journeySelectError = journeyErr.message;
+      if (journeyErr) return coupleReadFailure();
 
       if (journeyData) {
         journey = journeyData;
       } else {
         // 여정이 없으면 생성
-        const { data: newJourney, error: journeyInsertErr } = await admin
+        const { error: journeyInsertErr } = await admin
           .from("wedding_journeys")
           .insert({
             couple_id: profile.couple_id,
@@ -208,30 +240,24 @@ export async function GET(request: Request) {
             total_budget: 0,
             progress: {},
           })
-          .select(JOURNEY_AUTH_COLUMNS)
+          .select("id")
           .single();
 
-        if (!journeyInsertErr && newJourney) {
-          journey = newJourney;
-        } else if (journeyInsertErr?.code === "23505") {
-          // Another member or a lost-response retry may win the singleton
-          // neutral bootstrap. Return that canonical row, never an empty lie.
-          const { data: canonicalJourney, error: canonicalJourneyError } =
-            await admin
-              .from("wedding_journeys")
-              .select(JOURNEY_AUTH_COLUMNS)
-              .eq("couple_id", profile.couple_id)
-              .maybeSingle();
-          if (canonicalJourneyError) {
-            _debug.journeyRaceReadError = canonicalJourneyError.message;
-          }
-          journey = canonicalJourney;
-        } else {
-          if (journeyInsertErr) {
-            _debug.journeyInsertError = journeyInsertErr.message;
-          }
-          journey = null;
+        if (journeyInsertErr && journeyInsertErr.code !== "23505") {
+          return coupleReadFailure();
         }
+
+        // 생성 성공과 동시 생성 모두 호출자 권한으로 다시 읽는다. 그 사이 연결을
+        // 해제한 사용자는 관리자 INSERT 결과나 중복 행을 받을 수 없다.
+        const { data: canonicalJourney, error: canonicalJourneyError } =
+          await supabase
+            .from("wedding_journeys")
+            .select(JOURNEY_AUTH_COLUMNS)
+            .eq("couple_id", profile.couple_id)
+            .maybeSingle();
+        if (canonicalJourneyError) return coupleReadFailure();
+        if (!canonicalJourney) return coupleReadFailure(true);
+        journey = canonicalJourney;
       }
     }
 

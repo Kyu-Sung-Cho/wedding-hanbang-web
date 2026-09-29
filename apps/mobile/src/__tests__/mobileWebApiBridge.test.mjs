@@ -23,6 +23,24 @@ const REQUEST_ID = "11111111-1111-4111-8111-111111111111";
 const NONCE = "22222222-2222-4222-8222-222222222222";
 const DOCUMENT_URL = "https://vendor-preview.example.com/price/studio?region=seoul#filters";
 
+test("the native bridge validates and forwards the price owner pin without admitting credential overrides", () => {
+  const owner = "ABCDEF12-3456-4789-ABCD-1234567890AB";
+  const parse = headers => parseMobileWebApiRequest(JSON.stringify({
+    protocol: MOBILE_WEB_API_PROTOCOL, nonce: NONCE, documentUrl: DOCUMENT_URL,
+    id: REQUEST_ID, path: "/api/price/alerts", method: "POST", headers, body: "{}",
+  }), NONCE, DOCUMENT_URL);
+  assert.deepEqual(parse({ "X-Price-Expected-Owner": owner })?.headers, {
+    "x-price-expected-owner": owner.toLowerCase(),
+  });
+  for (const value of ["", "guest", "a".repeat(512), `${owner},${NONCE}`, null, 123]) {
+    assert.equal(parse({ "X-Price-Expected-Owner": value }), null);
+  }
+  assert.equal(parse({ "X-Price-Expected-Owner": owner, "x-price-expected-owner": NONCE }), null);
+  for (const header of ["Authorization", "Cookie", "Origin"]) {
+    assert.equal(parse({ "X-Price-Expected-Owner": owner, [header]: "forged" }), null);
+  }
+});
+
 test("the native vendor bridge accepts only bounded allowlisted API requests", () => {
   assert.deepEqual(parseMobileWebApiRequest(JSON.stringify({
     protocol: MOBILE_WEB_API_PROTOCOL,

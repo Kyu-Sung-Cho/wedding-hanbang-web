@@ -12,6 +12,8 @@ import {
   readBoundedUtf8Text,
 } from "@/utils/requestValidation";
 import { isTrustedMutationRequest } from "@/utils/trustedMutation";
+import { isConfirmedSignedOut } from "@/lib/auth/sessionFailure";
+import { parseAuthorizationHeader } from "@/utils/bearerAuthorization";
 
 const MAX_BODY_BYTES = 4 * 1024;
 const MAX_FAVORITES = 500;
@@ -25,6 +27,15 @@ function withPrivateNoStore(response: NextResponse): NextResponse {
     response.headers.set(name, value);
   }
   return response;
+}
+
+function checkExpectedOwner(req: Request, ownerId: string): NextResponse | null {
+  const expectedOwner = req.headers.get("X-Price-Expected-Owner");
+  const bearer = parseAuthorizationHeader(req.headers.get("authorization")).kind === "bearer";
+  if ((!bearer || expectedOwner !== null) && (!isUuid(expectedOwner) || expectedOwner.toLowerCase() !== ownerId.toLowerCase())) {
+    return mobileBridgeJson({ error: "로그인 계정이 바뀌었어요. 가격 화면을 다시 열어 주세요.", code: "PRICE_ACCOUNT_CHANGED" }, { status: 409, headers: MUTATION_RESPONSE_HEADERS });
+  }
+  return null;
 }
 
 async function readVendorId(req: Request): Promise<string | NextResponse> {
@@ -89,8 +100,11 @@ export async function POST(req: Request) {
     }
 
     const supabase = await createClientFromRequest(req);
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
+    const { data: { user }, error: authError } = await supabase.auth.getUser().catch((error: unknown) => ({ data: { user: null }, error }));
+    if (authError && !isConfirmedSignedOut(authError)) {
+      return mobileBridgeJson({ error: "로그인 정보를 확인하지 못했어요. 잠시 후 다시 시도해 주세요." }, { status: 503, headers: MUTATION_RESPONSE_HEADERS });
+    }
+    if (!user || authError) {
       if (hasSignedDemoSessionFromCookieHeader(req.headers.get("cookie"))) {
         return mobileBridgeJson(
           { isFavorite: false },
@@ -103,6 +117,8 @@ export async function POST(req: Request) {
       );
     }
 
+    const ownerFailure = checkExpectedOwner(req, user.id);
+    if (ownerFailure) return ownerFailure;
     const limited = checkRateLimit(rateLimitKey("favorites:add", req, user.id), {
       maxRequests: 60,
       windowMs: 60 * 1000,
@@ -216,8 +232,11 @@ export async function DELETE(req: Request) {
     }
 
     const supabase = await createClientFromRequest(req);
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
+    const { data: { user }, error: authError } = await supabase.auth.getUser().catch((error: unknown) => ({ data: { user: null }, error }));
+    if (authError && !isConfirmedSignedOut(authError)) {
+      return mobileBridgeJson({ error: "로그인 정보를 확인하지 못했어요. 잠시 후 다시 시도해 주세요." }, { status: 503, headers: MUTATION_RESPONSE_HEADERS });
+    }
+    if (!user || authError) {
       if (hasSignedDemoSessionFromCookieHeader(req.headers.get("cookie"))) {
         return mobileBridgeJson(
           { isFavorite: false },
@@ -230,6 +249,8 @@ export async function DELETE(req: Request) {
       );
     }
 
+    const ownerFailure = checkExpectedOwner(req, user.id);
+    if (ownerFailure) return ownerFailure;
     const limited = checkRateLimit(rateLimitKey("favorites:remove", req, user.id), {
       maxRequests: 60,
       windowMs: 60 * 1000,
@@ -269,11 +290,14 @@ export async function DELETE(req: Request) {
 export async function GET(req: NextRequest) {
   try {
     const supabase = await createClientFromRequest(req);
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
+    const { data: { user }, error: authError } = await supabase.auth.getUser().catch((error: unknown) => ({ data: { user: null }, error }));
+    if (authError && !isConfirmedSignedOut(authError)) {
+      return mobileBridgeJson({ error: "로그인 정보를 확인하지 못했어요. 잠시 후 다시 시도해 주세요." }, { status: 503, headers: MUTATION_RESPONSE_HEADERS });
+    }
+    if (!user || authError) {
       if (hasSignedDemoSessionFromCookieHeader(req.headers.get("cookie"))) {
         return mobileBridgeJson(
-          { vendorIds: [] },
+          { vendorIds: [], ownerUserId: null },
           { headers: MUTATION_RESPONSE_HEADERS },
         );
       }
@@ -310,7 +334,7 @@ export async function GET(req: NextRequest) {
     const vendorIds = (favorites ?? []).map(f => f.vendor_id);
 
     return mobileBridgeJson(
-      { vendorIds },
+      { vendorIds, ownerUserId: user.id },
       { headers: MUTATION_RESPONSE_HEADERS },
     );
   } catch (err) {

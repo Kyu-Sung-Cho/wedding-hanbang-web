@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useMemo, useEffect, useRef } from "react";
+import { useState, useCallback, useMemo, useEffect, useRef, useSyncExternalStore } from "react";
 import { stripPlanningChecklistNotes } from "@hanbang/shared/utils";
 import { useSearchParams, useRouter } from "next/navigation";
 import { List, Calendar, Plus, Pencil, Ban, RotateCcw, CalendarDays, X } from "lucide-react";
@@ -118,8 +118,45 @@ interface ScheduleContentProps {
   embedded?: boolean;
 }
 
-export default function ScheduleContent({ embedded = false }: ScheduleContentProps = {}) {
+function scheduleEditorOwnerKey() {
+  const state = useAuthStore.getState();
+  return JSON.stringify([
+    state.isDemo, state.user?.id, state.profile?.id, state.profile?.couple_id, state.profile?.role,
+    state.couple?.id, state.couple?.bride_id, state.couple?.groom_id,
+    state.journey?.couple_id, state.journey?.id,
+  ]);
+}
+
+export default function ScheduleContent(props: ScheduleContentProps = {}) {
+  // 계정·커플 전환 시 열린 초안과 확인창을 비운다. A→B→A가 한 번에 그려져도
+  // 구독에서 각 전환을 기록해 이전 저장의 후처리가 새 화면을 건드리지 못하게 한다.
+  const [owner] = useState(() => {
+    let snapshot = { key: scheduleEditorOwnerKey(), epoch: 0 };
+    const getSnapshot = () => {
+      const key = scheduleEditorOwnerKey();
+      if (key !== snapshot.key) snapshot = { key, epoch: snapshot.epoch + 1 };
+      return snapshot;
+    };
+    return {
+      getSnapshot,
+      subscribe: (notify: () => void) => useAuthStore.subscribe(() => {
+        const previous = snapshot;
+        if (getSnapshot() !== previous) notify();
+      }),
+    };
+  });
+  const binding = useSyncExternalStore(owner.subscribe, owner.getSnapshot, owner.getSnapshot);
+  const isCurrentOwner = useCallback(() => owner.getSnapshot() === binding, [owner, binding]);
+  return <ScopedScheduleContent {...props} key={`${binding.key}:${binding.epoch}`} isCurrentOwner={isCurrentOwner} />;
+}
+
+function ScopedScheduleContent({ embedded = false, isCurrentOwner }: ScheduleContentProps & { isCurrentOwner: () => boolean }) {
   const { journey, updateJourney, profile, partner, isDemo } = useAuthStore();
+  const mounted = useRef(false);
+  useEffect(() => {
+    mounted.current = true;
+    return () => { mounted.current = false; };
+  }, []);
   // 기본은 달력이다.
   //
   // 타임라인은 체크리스트 화면과 **같은 것**을 그린다 — 같은 상수(`CATEGORY_CHECKLISTS`),
@@ -162,7 +199,13 @@ export default function ScheduleContent({ embedded = false }: ScheduleContentPro
       setJourneyError("");
       setJourneyNotice("");
       try {
+        if (!mounted.current || !isCurrentOwner()) {
+          throw new Error("계정이나 커플 연결이 바뀌었어요. 현재 일정 화면에서 다시 입력해 주세요.");
+        }
         const result = await updateJourney(updates);
+        if (!mounted.current || !isCurrentOwner()) {
+          throw new Error("계정이나 커플 연결이 바뀌었어요. 현재 일정 화면에서 결과를 확인해 주세요.");
+        }
         setJourneyNotice(
           result.status === "pending_partner"
             ? `${result.summary} ${
@@ -176,6 +219,7 @@ export default function ScheduleContent({ embedded = false }: ScheduleContentPro
         );
         return result;
       } catch (error) {
+        if (!mounted.current || !isCurrentOwner()) throw error;
         // 서버가 아는 사유를 말했다면 그것을 보여준다. "잠시 후 다시 시도" 는
         // 상대가 거절했거나 화면이 낡은 경우에는 **틀린 안내**다 — 다시 눌러도 같다.
         setJourneyError(
@@ -185,7 +229,7 @@ export default function ScheduleContent({ embedded = false }: ScheduleContentPro
         throw error;
       }
     },
-    [partner, updateJourney],
+    [isCurrentOwner, partner, updateJourney],
   );
 
   const progress = useMemo(

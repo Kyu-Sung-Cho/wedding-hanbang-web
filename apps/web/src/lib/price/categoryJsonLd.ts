@@ -73,7 +73,7 @@ export function buildPriceCategoryStructuredData({
           "@type": "ListItem",
           position: 2,
           name: "공시가 비교",
-          item: `${BASE_URL}/price/studio`,
+          item: `${BASE_URL}/price`,
         },
         {
           "@type": "ListItem",

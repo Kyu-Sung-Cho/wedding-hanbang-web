@@ -377,6 +377,49 @@ async function setBlock(
 }
 
 describe("community viewer controls migration", () => {
+  it("allows only a readable author-deleted parent ID and keeps blocking authoritative", async () => {
+    const db = await PGlite.create();
+    try {
+      await createBaseline(db);
+      await db.exec(migration);
+      const baseMigration = readFileSync(resolve(repoRoot, "supabase/migrations/20260325000000_community.sql"), "utf8");
+      const releaseMigration = readFileSync(resolve(repoRoot, "supabase/migrations/20260731180000_community_release_trust_boundary.sql"), "utf8");
+      const basePolicy = baseMigration.match(/CREATE POLICY "cc_select"[\s\S]*?;/u)?.[0];
+      const reviewPolicy = releaseMigration.match(/CREATE POLICY community_comments_release_review_visibility[\s\S]*?;/u)?.[0];
+      expect(basePolicy).toBeTruthy();
+      expect(reviewPolicy).toBeTruthy();
+      await db.exec(`
+        ALTER TABLE public.community_comments
+          ADD COLUMN is_deleted boolean NOT NULL DEFAULT false,
+          ADD COLUMN author_deleted_at timestamptz;
+        DROP POLICY baseline_comments_select ON public.community_comments;
+        ${basePolicy}
+        ${reviewPolicy}
+        UPDATE public.community_posts SET author_id = '${USER_C}'
+        WHERE id = '${POST_B}';
+        UPDATE public.community_comments
+        SET is_deleted = true, author_deleted_at = now()
+        WHERE id = '${COMMENT_B}';
+      `);
+      const readDeletedParent = () => db.query<{ id: string }>(`
+        SELECT id FROM public.community_comments
+        WHERE id = '${COMMENT_B}' AND parent_id IS NULL
+          AND is_deleted IS TRUE AND author_deleted_at IS NOT NULL
+      `);
+      await setRequestIdentity(db, "authenticated", USER_A);
+      await db.exec("SET ROLE authenticated");
+      expect((await readDeletedParent()).rows).toEqual([{ id: COMMENT_B }]);
+      await db.exec("RESET ROLE");
+      await setBlock(db, USER_A, USER_B, true);
+      await setRequestIdentity(db, "authenticated", USER_A);
+      await db.exec("SET ROLE authenticated");
+      expect((await readDeletedParent()).rows).toEqual([]);
+    } finally {
+      await db.exec("RESET ROLE").catch(() => undefined);
+      await db.close();
+    }
+  }, 30_000);
+
   it("keeps pair visibility service-only while authenticated RLS filters without a callable oracle", async () => {
     const db = await PGlite.create();
     try {

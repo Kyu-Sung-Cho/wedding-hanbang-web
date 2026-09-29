@@ -1,18 +1,14 @@
 import { NextResponse } from "next/server";
 
-import { createClient } from "@/lib/supabase/server";
+import { createPublicClient } from "@/lib/supabase/public";
 
 /**
  * 로그인 없이 열리는 상태 확인.
  *
  * ## 왜 필요한가
  *
- * 이 저장소는 CI 가 전역에서 꺼져 있어 로컬 게이트가 유일한 안전망이고, 프로덕션 빌드가
- * 죽어도 **직전 배포가 계속 서비스돼서 사이트는 멀쩡해 보인다.** 실제로 2026-08-21 에
- * 그런 상태가 두 시간 있었다. 지금은 앱이 죽거나 DB 가 끊겨도 **사용자가 말해줄 때까지
- * 아무도 모른다** — 잡힌 서버 오류를 밖으로 올리는 제품 코드가 사실상 없다.
- *
- * 그래서 무료 감시 서비스가 1분마다 두드릴 수 있는 주소 하나를 낸다.
+ * 프로덕션 빌드가 실패해도 직전 배포는 계속 서비스될 수 있다. 배포 커밋과 DB
+ * 연결 상태를 외부 감시 서비스가 함께 확인할 수 있도록 공개한다.
  *
  * ## 무엇을 확인하고 무엇을 말하지 않는가
  *
@@ -34,8 +30,9 @@ import { createClient } from "@/lib/supabase/server";
  * ## DB 확인이 값싼 이유
  *
  * 로그인 없이 열리는 자리에서 DB 를 두드리므로 **아무나 반복해서 부를 수 있다.**
- * 그래서 행을 읽지 않는다 — `head: true` 로 개수만 세고, 그마저 `limit(1)` 로 묶는다.
- * RLS 아래의 익명 클라이언트를 쓰므로 이 요청은 어떤 사적인 행에도 닿지 않는다.
+ * 그래서 `head: true`로 본문을 받지 않고 `limit(1)`로 제한한다. 전체 행을 세는
+ * count는 요청하지 않는다. 쿠키 없는 익명 클라이언트로 방문자의 로그인 상태를
+ * 분리하고, 응답이 멈추면 5초 후 중단한다.
  */
 
 export const dynamic = "force-dynamic";
@@ -61,14 +58,15 @@ export async function GET() {
 
   let database: "up" | "down" = "down";
   try {
-    const supabase = await createClient();
+    const supabase = createPublicClient();
     // 행을 읽지 않는다. 닿는지만 본다.
     // 공개 공시 가격 뷰. `/price` 화면이 로그인 없이 읽는 것과 같은 자리라, 익명
     // 권한으로 닿는 것이 이미 증명돼 있다. 사적인 행은 이 뷰에 들어오지 않는다.
     const { error } = await supabase
       .from("v_public_prices")
-      .select("*", { count: "exact", head: true })
-      .limit(1);
+      .select("*", { head: true })
+      .limit(1)
+      .abortSignal(AbortSignal.timeout(5_000));
     if (!error) database = "up";
   } catch {
     // 오류 원문은 밖으로 내보내지 않는다. 아래 한 마디로 충분하다.

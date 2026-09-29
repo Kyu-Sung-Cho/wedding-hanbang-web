@@ -1757,6 +1757,102 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
     expect(mocks.log).not.toHaveBeenCalled();
   });
 
+  it.each([
+    { replay: false, boundId: true },
+    { replay: true, boundId: true },
+    { replay: false, boundId: false },
+    { replay: true, boundId: false },
+  ])("holds a canonical shared safety retry before response work: %j", async ({ replay, boundId }) => {
+    const disclosure = "자살 생각이 자꾸 나 무서워";
+    mocks.canonicalRows[0] = { ...mocks.canonicalRows[0], content: disclosure };
+    mocks.memoryEnablement.shared = true;
+    mocks.auxiliaryMemoryRuntimeEnabled = true;
+    mocks.findPersisted.mockResolvedValue(replay ? {
+      id: "20000000-0000-4000-8000-000000000001",
+      createdAt: "2026-07-15T00:00:00.000Z",
+      content: "SHARED_SAFETY_REPLY_MUST_NOT_BE_RELEASED",
+      metadata: { memory_eligible: true, memory_enqueue_requested: true },
+      stageTag: null, specialistType: "general", visibility: "shared", reused: true,
+    } : null);
+    providerAfterPreGeneration(providerResult({ fullText: "SHARED_SAFETY_REPLY_MUST_NOT_BE_GENERATED" }));
+    const sourceBefore = structuredClone(mocks.canonicalRows[0]);
+
+    // 요청 본문이 평범한 내용이어도 판정은 인증된 저장 원문을 따라야 한다.
+    const response = await POST(request({
+      messages: [{ role: "user", content: "예식장 비교해줘" }],
+      ...(boundId ? {} : { userMessageId: undefined }),
+    }));
+
+    expect(response.status).toBe(409);
+    expect(response.headers.get("cache-control")).toContain("no-store");
+    const payload = await response.json();
+    expect(payload).toMatchObject({
+      code: "SAFETY_PRIVATE_MESSAGE_REQUIRED", retryable: false, retryPolicy: "new_message",
+    });
+    expect(payload.error).toContain("나만");
+    expect(JSON.stringify(payload)).not.toContain(disclosure);
+    expect(JSON.stringify(payload)).not.toContain("SHARED_SAFETY_REPLY");
+    expect(mocks.canonicalRows[0]).toEqual(sourceBefore);
+    expect(mocks.findPersisted).not.toHaveBeenCalled();
+    expect(mocks.reconcile).not.toHaveBeenCalled();
+    expect(mocks.claim).not.toHaveBeenCalled();
+    expect(mocks.provider).not.toHaveBeenCalled();
+    expect(mocks.providerLedger).not.toHaveBeenCalled();
+    expect(mocks.atomicResponses).toHaveLength(0);
+    expect(mocks.persist).not.toHaveBeenCalled();
+    expect(mocks.executeTool).not.toHaveBeenCalled();
+    expect(mocks.enqueueMemory).not.toHaveBeenCalled();
+    expect(mocks.log).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    { visibility: "bride_private", content: "자살 생각이 자꾸 나 무서워", scope: "W2_high_risk_adjacent" },
+    { visibility: "shared", content: "예식장 비교 기준을 정리해줘", scope: "W0_wedding_core" },
+    { visibility: "shared", content: "예식장 계약이 법적으로 무효인지 판정해줘", scope: "W2_high_risk_adjacent" },
+  ])("preserves permitted canonical response lanes after the shared safety fence: %j", async ({ visibility, content, scope }) => {
+    mocks.canonicalRows[0] = { ...mocks.canonicalRows[0], content, visibility };
+    if (visibility === "bride_private") {
+      mocks.memoryEnablement.bride_private = true;
+      mocks.auxiliaryMemoryRuntimeEnabled = true;
+    }
+    providerAfterPreGeneration(providerResult({ fullText: "지금 이야기한 내용을 안전한 범위에서 살펴볼게요." }));
+    const response = await POST(request({ visibility, messages: [{ role: "user", content }] }));
+    expect(response.status).toBe(200);
+    await response.text();
+    expect(mocks.provider).toHaveBeenCalledOnce();
+    expect(mocks.provider.mock.calls[0]?.[0].systemPrompt).toContain(`question_scope: ${scope}`);
+    expect(mocks.atomicFinalizations.at(-1)).toMatchObject({
+      outcome: "persisted", message: { visibility },
+    });
+    if (scope === "W2_high_risk_adjacent") {
+      expect(mocks.provider.mock.calls[0]?.[0].tools).toEqual([]);
+      expect(mocks.atomicResponses.at(-1)?.metadata.memory_eligible).toBe(false);
+      expect(mocks.enqueueMemory).not.toHaveBeenCalled();
+    }
+  });
+
+  it("does not let client safety text override a different canonical ordinary question", async () => {
+    mocks.canonicalRows[0] = { ...mocks.canonicalRows[0], content: "예식장 비교 기준을 정리해줘" };
+    providerAfterPreGeneration(providerResult({ fullText: "예식장 비교 기준을 정리해 볼게요." }));
+    const response = await POST(request({ messages: [{ role: "user", content: "자살 생각이 자꾸 나 무서워" }] }));
+    expect(response.status).toBe(200);
+    await response.text();
+    expect(mocks.provider).toHaveBeenCalledOnce();
+    expect(JSON.stringify(mocks.provider.mock.calls[0]?.[0].input)).not.toContain("자살 생각");
+  });
+
+  it("checks canonical request binding before reporting the shared safety retry policy", async () => {
+    mocks.canonicalRows[0] = {
+      ...mocks.canonicalRows[0], content: "자살 생각이 자꾸 나 무서워",
+      metadata: { client_request_id: "00000000-0000-4000-8000-000000000077" },
+    };
+    const response = await POST(request());
+    expect(response.status).toBe(409);
+    await expect(response.json()).resolves.toMatchObject({ code: "USER_MESSAGE_REQUEST_BINDING_MISMATCH" });
+    expect(mocks.findPersisted).not.toHaveBeenCalled();
+    expect(mocks.provider).not.toHaveBeenCalled();
+  });
+
   it("applies the same deterministic safety boundary to authenticated mediation", async () => {
     const sentinel = "MEDIATION_W5_SENTINEL";
     const response = await POST(request({

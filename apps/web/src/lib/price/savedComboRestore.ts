@@ -1,4 +1,4 @@
-import type { PriceCatalog } from "./catalog";
+import { PRICE_CATEGORIES, type PriceCatalog, type PriceCategory, type PriceOption, type PriceVendor } from "./catalog";
 import type {
   ComboCategory,
   ComboSelection,
@@ -8,6 +8,31 @@ import type {
 const COMBO_CATEGORIES: readonly ComboCategory[] = ["studio", "dress", "makeup"];
 const MAX_MONEY_KRW = 1_000_000_000;
 const MAX_OPTIONS_PER_SELECTION = 50;
+
+/** 비활성 카테고리도 저장 조합 복구에 쓰이므로 모든 가격 식별자는 보존한다. */
+export function catalogForPriceBrowser(catalog: PriceCatalog, activeCategory: PriceCategory): PriceCatalog {
+  const categories = { ...catalog.categories };
+  for (const category of PRICE_CATEGORIES) {
+    if (category === activeCategory) continue;
+    categories[category] = category === "hall" ? [] : catalog.categories[category].map((vendor) => ({
+      ...vendor,
+      aliases: [],
+      regionCode: null,
+      offers: vendor.offers.map((offer) => ({
+        id: offer.id,
+        agencyId: offer.agencyId,
+        agencyName: offer.agencyName,
+        minimumKrw: offer.minimumKrw,
+        maximumKrw: null,
+        priceNote: null,
+        baseSpec: null,
+        options: [],
+        optionCount: offer.options.length || offer.optionCount,
+      })),
+    }));
+  }
+  return { ...catalog, categories };
+}
 
 type SavedSelection = {
   vendorId: string;
@@ -135,6 +160,9 @@ export function restoreSavedComboAgainstCatalog(
     const offer = vendor?.offers.find((candidate) => (
       candidate.agencyId === savedSelection.agencyId
       && candidate.minimumKrw === savedSelection.baseKrw
+      && savedSelection.selectedOptions.every((savedOption) => candidate.options.some((option) => (
+        option.name === savedOption.name && option.minimumKrw === savedOption.krw
+      )))
     ));
     const selectedOptions = offer
       ? savedSelection.selectedOptions.flatMap((savedOption) => {
@@ -167,4 +195,32 @@ export function restoreSavedComboAgainstCatalog(
   })) as ComboSelections;
 
   return { selections, restoredCategories, skippedCategories };
+}
+
+/** 저장된 추가금의 본문만 확인한다. 조회 실패를 가격 변경으로 오인하지 않는다. */
+export async function restoreSavedComboWithOptions(
+  saved: SavedComboPreview,
+  catalog: PriceCatalog,
+  loadOptions: (vendor: PriceVendor) => Promise<Map<string, PriceOption[]>>,
+) {
+  const categories = { ...catalog.categories };
+  for (const category of COMBO_CATEGORIES) {
+    const selection = saved.selections[category];
+    if (!selection || selection.selectedOptions.length === 0) continue;
+    const vendor = categories[category].find((candidate) => candidate.id === selection.vendorId);
+    if (!vendor) continue;
+    const candidates = vendor.offers.filter((offer) => offer.agencyId === selection.agencyId
+      && offer.minimumKrw === selection.baseKrw);
+    const missing = candidates.filter((offer) => offer.options.length === 0);
+    if (missing.length === 0) continue;
+    const options = await loadOptions({
+      ...vendor,
+      offers: missing.map((offer) => ({ ...offer, optionCount: Math.max(offer.optionCount ?? 0, selection.selectedOptions.length) })),
+    });
+    categories[category] = categories[category].map((candidate) => candidate.id !== vendor.id ? candidate : {
+      ...candidate,
+      offers: candidate.offers.map((offer) => ({ ...offer, options: options.get(offer.id) ?? offer.options })),
+    });
+  }
+  return restoreSavedComboAgainstCatalog(saved, { ...catalog, categories });
 }

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { ChevronDown, Heart, LoaderCircle } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { track } from "@/lib/analytics/track";
 import { krwRangeLabel } from "@/lib/format/krw";
@@ -79,9 +79,16 @@ export function PriceVendorCard({
   onOpenCombo,
 }: PriceVendorCardProps) {
   const cardRef = useRef<HTMLElement>(null);
+  const optionsDetailsRef = useRef<HTMLDetailsElement>(null);
   // 슬림 카탈로그(옵션 본문 미탑재)의 지연 로드 상태 — 펼칠 때 1회 조회, 모듈 캐시 공유.
-  const [lazyOptions, setLazyOptions] = useState<Map<string, PriceOption[]> | null>(null);
-  const [lazyStatus, setLazyStatus] = useState<"idle" | "loading" | "error" | "ready">("idle");
+  const optionRequestKey = JSON.stringify([vendor.id, vendor.offers.map((offer) => [offer.id, offer.optionCount])]);
+  const [lazyState, setLazyState] = useState<{
+    key: string;
+    status: "loading" | "error" | "ready";
+    options: Map<string, PriceOption[]> | null;
+  } | null>(null);
+  const lazyStatus = lazyState?.key === optionRequestKey ? lazyState.status : "idle";
+  const lazyOptions = lazyState?.key === optionRequestKey ? lazyState.options : null;
   const [showAllAgencies, setShowAllAgencies] = useState(false);
   const offersByAgency = new Map<string, typeof vendor.offers>();
   for (const offer of vendor.offers) {
@@ -126,16 +133,25 @@ export function PriceVendorCard({
   const needsLazyLoad = displayedOffers.some(
     (offer) => offer.options.length === 0 && (offer.optionCount ?? 0) > 0,
   );
-  const loadLazyOptions = () => {
+  const loadLazyOptions = useCallback(() => {
     if (!needsLazyLoad || lazyStatus === "loading" || lazyStatus === "ready") return;
-    setLazyStatus("loading");
+    setLazyState({ key: optionRequestKey, status: "loading", options: null });
     loadVendorOptions(vendor)
       .then((resolved) => {
-        setLazyOptions(resolved);
-        setLazyStatus("ready");
+        setLazyState((current) => current?.key === optionRequestKey
+          ? { key: optionRequestKey, status: "ready", options: resolved } : current);
       })
-      .catch(() => setLazyStatus("error"));
-  };
+      .catch(() => setLazyState((current) => current?.key === optionRequestKey
+        ? { key: optionRequestKey, status: "error", options: null } : current));
+  }, [lazyStatus, needsLazyLoad, optionRequestKey, vendor]);
+  useEffect(() => {
+    // 지역을 바꿔 같은 업체의 공시 행이 늘어나도 열린 목록을 최신 범위로 채운다.
+    let active = true;
+    if (optionsDetailsRef.current?.open && lazyStatus === "idle") {
+      queueMicrotask(() => { if (active) loadLazyOptions(); });
+    }
+    return () => { active = false; };
+  }, [lazyStatus, loadLazyOptions]);
   const optionsForOffer = (offer: PriceOffer): PriceOption[] =>
     offer.options.length > 0 ? offer.options : lazyOptions?.get(offer.id) ?? [];
   // 대행사가 많으면 가로 컬럼은 대부분이 화면 밖으로 밀린다(9곳이면 1,512px).
@@ -428,6 +444,7 @@ export function PriceVendorCard({
 
       {optionCount > 0 ? (
         <details
+          ref={optionsDetailsRef}
           data-add-on-breakdown="true"
           className="group border-b border-[var(--hb-primary)]/10"
           onToggle={(event) => {

@@ -119,11 +119,65 @@ export async function GET(req: NextRequest) {
 
     const topLevel: CommentWithAuthor[] = [];
     const repliesMap: Record<string, CommentWithAuthor[]> = {};
+    const visibleCommentIds = new Set(commentsWithVotes.map((comment) => comment.id));
+    const missingParentIds = [...new Set(commentsWithVotes
+      .map((comment) => comment.parent_id)
+      .filter((id): id is string => Boolean(id) && !visibleCommentIds.has(id)))];
+    const deletedParentIds = new Set<string>();
+    if (missingParentIds.length > 0) {
+      // 같은 열람자 권한으로 작성자가 삭제한 부모의 ID만 확인한다.
+      // 차단·운영 숨김·존재하지 않는 부모는 복원하지 않는다.
+      const { data: deletedParents, error: deletedParentsError } = await supabase
+        .from("community_comments")
+        .select("id")
+        .eq("post_id", postId)
+        .is("parent_id", null)
+        .eq("is_deleted", true)
+        .not("author_deleted_at", "is", null)
+        .in("id", missingParentIds);
+      if (deletedParentsError) {
+        log.error("Deleted comment parent lookup failed:", deletedParentsError);
+        return json({ error: "댓글을 불러올 수 없습니다." }, { status: 500 });
+      }
+      for (const parent of deletedParents ?? []) deletedParentIds.add(parent.id);
+      if (deletedParentIds.size > 0) {
+        // 작성자 삭제 뒤 운영 숨김이 겹칠 수 있다. 후보 ID의 활성 조치만
+        // 서버 권한으로 확인하고 원문·작성자·사유는 읽거나 응답하지 않는다.
+        const { data: activeCases, error: moderationError } = await createAdminClient()
+          .from("community_moderation_cases")
+          .select("target_id")
+          .eq("target_type", "comment")
+          .eq("status", "active")
+          .in("target_id", [...deletedParentIds]);
+        if (moderationError || !Array.isArray(activeCases)) {
+          log.error("Deleted comment parent moderation check failed:", moderationError);
+          return json({ error: "댓글을 불러올 수 없습니다." }, { status: 500 });
+        }
+        for (const moderationCase of activeCases) deletedParentIds.delete(moderationCase.target_id);
+      }
+    }
 
     for (const comment of commentsWithVotes) {
       if (comment.parent_id) {
         if (!repliesMap[comment.parent_id]) {
           repliesMap[comment.parent_id] = [];
+          // 삭제 부모의 원문·신원·시간을 싣지 않고 기존 자리표시자만 구성한다.
+          if (deletedParentIds.has(comment.parent_id)) {
+            topLevel.push({
+              id: comment.parent_id,
+              post_id: postId,
+              parent_id: null,
+              author_id: "",
+              content_origin: "legacy_unverified",
+              content: "",
+              upvote_count: 0,
+              is_deleted: true,
+              created_at: "",
+              updated_at: "",
+              author: fallbackCommunityAuthor(null),
+              user_vote: null,
+            } as CommentWithAuthor);
+          }
         }
         repliesMap[comment.parent_id].push(comment as CommentWithAuthor);
       } else {

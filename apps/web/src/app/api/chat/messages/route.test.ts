@@ -21,7 +21,8 @@ vi.mock("@/utils/rateLimit", () => ({
   checkRateLimitPersistent: vi.fn(async () => null),
   rateLimitKey: vi.fn(() => "private-delete-test"),
 }));
-vi.mock("@hanbang/shared/amora-crisis-delivery", () => ({
+vi.mock("@hanbang/shared/amora-crisis-delivery", async (importOriginal) => ({
+  ...await importOriginal<typeof import("@hanbang/shared/amora-crisis-delivery")>(),
   planAmoraCrisisDelivery: vi.fn(),
 }));
 

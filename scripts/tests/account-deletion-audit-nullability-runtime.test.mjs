@@ -6,8 +6,12 @@ import { join, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
 import { appendDeletionAuditReceipt, buildDeletionAuditMutationSql, buildDeletionAuditObservationSql, parseDeletionAuditReleaseArgs,
   runDeletionAuditNullabilityRelease, validateDeletionAuditObservation } from '../lib/account-deletion-audit-nullability-release.mjs';
+import { createDeletionAuditHistoricalRepository } from './fixtures/account-deletion-audit-historical-repository.mjs';
 
-const root = resolve(import.meta.dirname, '../..');
+const actualRoot = resolve(import.meta.dirname, '../..');
+const historical240 = createDeletionAuditHistoricalRepository(actualRoot);
+test.after(historical240.cleanup);
+const root = historical240.root;
 const version = '20260928073546';
 const sql = readFileSync(join(root, `supabase/migrations/${version}_account_deletion_anonymous_audit.sql`), 'utf8');
 const instant = new Date('2026-09-28T05:00:00Z');
@@ -51,6 +55,16 @@ test('apply observes, rolls the same exact migration back, rechecks, applies onc
   assert.equal(f.events.at(-1).status, result.status);
   assert.equal(f.sourceChecks, 2);
   assert.equal(f.closed, true);
+});
+
+test('the old operational lane rejects the current successor directory before any source, receipt or query effect', async () => {
+  let effects = 0;
+  await assert.rejects(runDeletionAuditNullabilityRelease({ repoRoot: actualRoot, argv: args(), now: () => instant,
+    assertSource: () => { effects++; },
+    receiptFactory: () => { effects++; return { append: () => {}, close: () => {} }; },
+    query: async () => { effects++; return []; },
+  }), code('NEW_MIGRATION_NOT_REVIEWED'));
+  assert.equal(effects, 0);
 });
 
 test('inspect, rehearsal and already-applied states never issue a committed mutation', async () => {

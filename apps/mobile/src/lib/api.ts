@@ -5,6 +5,7 @@ import { fetch as expoFetch, type FetchRequestInit } from "expo/fetch";
 import { supabase } from "./supabase";
 import { signOut } from "./auth";
 import {
+  buildMobileWebApiUnauthorizedResponse,
   createMobileWebApiSessionRefreshGate,
   fetchMobileWebApiWithSession,
 } from "./mobileWebApiBridge.mjs";
@@ -133,6 +134,7 @@ async function authenticatedApiFetch(
   options: RequestInit,
   handleExpiredSession: boolean,
   expectedUserId?: string,
+  isCurrentOwner?: () => boolean,
 ) {
   if (!path.startsWith("/") || path.startsWith("//")) {
     throw new Error("내부 API 경로만 호출할 수 있습니다.");
@@ -144,6 +146,7 @@ async function authenticatedApiFetch(
   const userId = data.session?.user.id;
   const token = data.session?.access_token;
   const initialSession = userId && token ? { userId, accessToken: token } : null;
+  if (isCurrentOwner && !isCurrentOwner()) throw new Error("API_SESSION_OWNER_MISMATCH");
   if (
     expectedUserId !== undefined
     && (
@@ -155,14 +158,17 @@ async function authenticatedApiFetch(
     throw new Error("API_SESSION_OWNER_MISMATCH");
   }
 
-  const fetchWithAccessToken = (accessToken: string) => fetch(`${API_BASE}${path}`, {
-    ...options,
-    headers: {
-      "Content-Type": "application/json",
-      ...options.headers,
-      Authorization: `Bearer ${accessToken}`,
-    },
-  });
+  const fetchWithAccessToken = (accessToken: string) => {
+    if (isCurrentOwner && !isCurrentOwner()) throw new Error("API_SESSION_OWNER_MISMATCH");
+    return fetch(`${API_BASE}${path}`, {
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+        Authorization: `Bearer ${accessToken}`,
+      },
+    });
+  };
 
   if (!handleExpiredSession) {
     return fetchMobileWebApiWithSession({
@@ -249,8 +255,15 @@ export async function apiFetchForExpectedUserQuiet(
 // WebView의 허용 목록 기반 업체 API 브리지는 401 응답을 웹 화면에 그대로
 // 돌려줘야 로그인 게이트를 정확히 표시할 수 있다. 토큰은 이 네이티브 계층을
 // 벗어나지 않는다.
-export async function apiFetchForWebBridge(path: string, options: RequestInit = {}) {
-  return authenticatedApiFetch(path, options, false);
+export async function apiFetchForWebBridge(
+  path: string,
+  options: RequestInit,
+  expectedUserId: string | null,
+  isCurrentOwner: () => boolean,
+) {
+  if (!isCurrentOwner()) throw new Error("API_SESSION_OWNER_MISMATCH");
+  if (expectedUserId === null) return buildMobileWebApiUnauthorizedResponse();
+  return authenticatedApiFetch(path, options, false, expectedUserId, isCurrentOwner);
 }
 
 async function readJsonOrThrow<T>(res: Response): Promise<T> {

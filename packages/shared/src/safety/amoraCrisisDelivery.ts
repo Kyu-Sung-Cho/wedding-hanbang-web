@@ -5,6 +5,8 @@ import {
 } from "./amoraCrisisSafety";
 import { assessAmoraSafetyText } from "./amoraCrisisClassifier";
 import { isClosedPartnerViolenceStatement } from "./partnerViolenceClosedVocabulary";
+import { hasAmoraSensitiveDisclosure } from "./amoraSensitiveDisclosure";
+export { hasAmoraSensitiveDisclosure } from "./amoraSensitiveDisclosure";
 
 export type AmoraCrisisDeliveryVisibility =
   | "shared"
@@ -42,7 +44,7 @@ export type AmoraCrisisDeliveryPreflight =
     };
 
 const NON_IMMEDIATE_PARTNER_HOLD_RESPONSE = [
-  "폭력·위협·통제와 관련된 민감한 안전 내용이라 상대방에게 바로 보내지 않았어요.",
+  "민감한 안전 관련 내용이라 상대방에게 바로 보내지 않았어요.",
   "나만 상담에서 상황과 원하는 도움을 먼저 정리해 주세요. 지금 안전하지 않다면 안전한 곳으로 이동하고 경찰 112 또는 소방 119에 바로 연락해 주세요.",
 ].join("\n\n");
 
@@ -101,6 +103,7 @@ export function planAmoraCrisisDelivery(input: {
     assessment.resolution === "non_immediate_safety"
     || input.externalSafetySignal
     || closedPartnerViolence
+    || hasAmoraSensitiveDisclosure(input.userText)
   ) {
     if (input.target === "partner") {
       return {

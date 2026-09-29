@@ -92,9 +92,12 @@ test("logout, account switch, and deletion purge every owner-scoped decision key
     authListenerSource,
     /event === "TOKEN_REFRESHED"[^}]*scheduleDecisionOwnerPurge/u,
   );
-  const ownerLookup = settingsSource.indexOf("session: deletionSession");
-  const deleteRequest = settingsSource.indexOf('apiFetch("/api/auth/delete"');
-  assert.ok(ownerLookup >= 0 && ownerLookup < deleteRequest);
+  const ownerConfirmation = settingsSource.indexOf("function showDeletionConfirmation(deletionOwnerId: string)");
+  const deleteRequest = settingsSource.indexOf('apiFetchForExpectedUser(deletionOwnerId, "/api/auth/delete"');
+  assert.ok(ownerConfirmation >= 0 && ownerConfirmation < deleteRequest);
+  assert.match(settingsSource.slice(ownerConfirmation, deleteRequest), /getSession\(\)[\s\S]*session\?\.user\.id === deletionOwnerId/u);
+  assert.match(settingsSource, /expectedOwnerId: deletionOwnerId/u);
+  assert.match(settingsSource, /isCurrentSession: \(\) => sessionStillCurrent && settingsMountedRef\.current/u);
   assert.match(settingsSource, /continueOnDecisionPurgeFailure: true/u);
   assert.match(settingsSource, /purgeCommunityDecisionPendingForOwnerWithRetry\(\s*deletionOwnerId/u);
 });

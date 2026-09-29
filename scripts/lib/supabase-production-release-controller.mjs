@@ -2618,6 +2618,11 @@ export async function runProductionRelease({
   now = () => new Date(),
 } = {}) {
   const repoRoot = resolve(requestedRepoRoot ?? process.cwd());
+  if ((argv ?? []).includes("--couple-reset-expected-identity")) {
+    assertSafeExecutionEnvironment(process.env);
+    const { runCoupleResetExpectedIdentityRelease } = await import("./couple-reset-expected-identity-release.mjs");
+    return runCoupleResetExpectedIdentityRelease({ repoRoot, argv, now });
+  }
   if ((argv ?? []).includes("--legacy-fitting-acl")) {
     assertSafeExecutionEnvironment(process.env);
     const { runLegacyFittingAclRelease } = await import("./legacy-fitting-acl-release.mjs");

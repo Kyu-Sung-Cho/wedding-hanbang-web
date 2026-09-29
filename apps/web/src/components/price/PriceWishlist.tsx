@@ -5,7 +5,8 @@ import { AlertCircle, ArrowRight, Heart, LoaderCircle, RefreshCw } from "lucide-
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
 import { track } from "@/lib/analytics/track";
-import { mobileAuthenticatedFetch } from "@/lib/mobile/mobileAuthenticatedFetch";
+import { mobileAuthenticatedFetch, MobileAppUpdateRequiredError, MOBILE_APP_UPDATE_REQUIRED_NOTICE } from "@/lib/mobile/mobileAuthenticatedFetch";
+import { PRICE_EXPECTED_OWNER_HEADER, priceResponseOwner, usePriceOwnerSession } from "@/hooks/usePriceOwnerSession";
 import {
   PRICE_CATEGORIES,
   type PriceCatalog,
@@ -38,7 +39,17 @@ export function PriceWishlist({ catalog }: { catalog: PriceCatalog }) {
   const [busyIds, setBusyIds] = useState<Set<string>>(new Set());
   const [feedback, setFeedback] = useState("");
   const [loadRevision, setLoadRevision] = useState(0);
+  const [mobileUpdateRequired, setMobileUpdateRequired] = useState(false);
   const favoriteBusy = useRef(new Set<string>());
+  const ownerSession = usePriceOwnerSession(() => {
+    favoriteBusy.current.clear();
+    setFavoriteIds([]);
+    setBusyIds(new Set());
+    setFeedback("");
+    setStatus("loading");
+    setMobileUpdateRequired(false);
+    setLoadRevision((value) => value + 1);
+  });
 
   useEffect(() => {
     track("page_view", {
@@ -49,29 +60,37 @@ export function PriceWishlist({ catalog }: { catalog: PriceCatalog }) {
 
   useEffect(() => {
     const controller = new AbortController();
+    const ownerEpoch = ownerSession.state.epoch;
+    const isCurrent = () => !controller.signal.aborted && ownerSession.isCurrent(ownerEpoch);
     setStatus("loading");
+    setMobileUpdateRequired(false);
 
     void mobileAuthenticatedFetch("/api/favorites", {
       cache: "no-store",
       signal: controller.signal,
     }).then(async (response) => {
+      if (!isCurrent()) return;
       if (response.status === 401) {
         setFavoriteIds([]);
         setStatus("guest");
         return;
       }
       if (!response.ok) throw new Error("FAVORITES_UNAVAILABLE");
-      const ids = favoriteIdsFromResponse(await response.json());
-      if (!ids) throw new Error("FAVORITES_INVALID_RESPONSE");
+      const body: unknown = await response.json();
+      if (!isCurrent()) return;
+      const ids = favoriteIdsFromResponse(body);
+      if (!ids || !ownerSession.acceptOwner(priceResponseOwner(body), ownerEpoch)) throw new Error("FAVORITES_INVALID_RESPONSE");
       setFavoriteIds(ids);
       setStatus("ready");
     }).catch((error: unknown) => {
+      if (!isCurrent()) return;
       if (error instanceof DOMException && error.name === "AbortError") return;
+      setMobileUpdateRequired(error instanceof MobileAppUpdateRequiredError);
       setStatus("error");
     });
 
     return () => controller.abort();
-  }, [loadRevision]);
+  }, [loadRevision, ownerSession]);
 
   const groups = useMemo(
     () => selectOfficialWishlistedVendors(catalog, favoriteIds),
@@ -86,6 +105,9 @@ export function PriceWishlist({ catalog }: { catalog: PriceCatalog }) {
 
   const removeFavorite = useCallback(async (vendor: PriceVendor) => {
     if (favoriteBusy.current.has(vendor.id)) return;
+    const owner = ownerSession.state.owner;
+    if (!owner || status !== "ready") return;
+    const ownerEpoch = ownerSession.state.epoch;
     favoriteBusy.current.add(vendor.id);
     setFeedback("");
     setBusyIds((current) => new Set(current).add(vendor.id));
@@ -93,28 +115,35 @@ export function PriceWishlist({ catalog }: { catalog: PriceCatalog }) {
       const response = await mobileAuthenticatedFetch("/api/favorites", {
         method: "DELETE",
         credentials: "same-origin",
-        headers: { "content-type": "application/json" },
+        headers: { "content-type": "application/json", [PRICE_EXPECTED_OWNER_HEADER]: owner },
         body: JSON.stringify({ vendorId: vendor.id }),
       });
+      if (!ownerSession.isCurrent(ownerEpoch)) return;
+      if (response.status === 409) { ownerSession.invalidate(); return; }
       if (response.status === 401) {
+        ownerSession.invalidate();
         setStatus("guest");
         return;
       }
       if (!response.ok) throw new Error("FAVORITE_REMOVE_FAILED");
       const body = await response.json() as { isFavorite?: unknown };
+      if (!ownerSession.isCurrent(ownerEpoch)) return;
       if (body.isFavorite !== false) throw new Error("FAVORITE_REMOVE_NOT_CONFIRMED");
       setFavoriteIds((current) => current.filter((id) => id !== vendor.id));
-    } catch {
-      setFeedback("찜을 해제하지 못했어요. 잠시 후 다시 시도해 주세요.");
+    } catch (error) {
+      if (!ownerSession.isCurrent(ownerEpoch)) return;
+      setFeedback(error instanceof MobileAppUpdateRequiredError ? MOBILE_APP_UPDATE_REQUIRED_NOTICE : "찜을 해제하지 못했어요. 잠시 후 다시 시도해 주세요.");
     } finally {
-      favoriteBusy.current.delete(vendor.id);
-      setBusyIds((current) => {
-        const next = new Set(current);
-        next.delete(vendor.id);
-        return next;
-      });
+      if (ownerSession.isCurrent(ownerEpoch)) {
+        favoriteBusy.current.delete(vendor.id);
+        setBusyIds((current) => {
+          const next = new Set(current);
+          next.delete(vendor.id);
+          return next;
+        });
+      }
     }
-  }, []);
+  }, [ownerSession, status]);
 
   return (
     <div className="min-h-screen bg-[var(--hb-surface-page)] px-4 pb-16 pt-10 text-[var(--hb-text-strong)] sm:px-6 sm:pt-14">
@@ -190,7 +219,7 @@ export function PriceWishlist({ catalog }: { catalog: PriceCatalog }) {
           <StateCard
             icon={<AlertCircle aria-hidden="true" className="size-6" />}
             title="찜한 업체를 불러오지 못했어요"
-            description="저장된 찜에는 영향이 없어요. 연결을 확인한 뒤 다시 불러와 주세요."
+            description={mobileUpdateRequired ? MOBILE_APP_UPDATE_REQUIRED_NOTICE : "저장된 찜에는 영향이 없어요. 연결을 확인한 뒤 다시 불러와 주세요."}
           >
             <button
               type="button"

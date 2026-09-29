@@ -12,8 +12,9 @@ vi.mock("@/lib/supabase/client", () => ({
 }));
 
 // Mock window.location
+const mockLocation = { href: "" };
 Object.defineProperty(window, "location", {
-  value: { href: "" },
+  value: mockLocation,
   writable: true,
 });
 
@@ -43,6 +44,7 @@ function resetStore() {
     isLoading: false,
     isInitialized: false,
     isDemo: false,
+    initializationError: null,
   });
   useCommunityStore.getState().reset();
 }
@@ -60,6 +62,82 @@ describe("useAuthStore", () => {
   // ─── initialize() ───
 
   describe("initialize()", () => {
+    it.each([500, 503])("keeps the verified session and preparation state on a default forced HTTP %s failure", async (status) => {
+      const verified = {
+        user: { id: "existing", email: "existing@example.invalid" },
+        profile: { id: "existing", name: "본인", role: "bride" as const, couple_id: "couple",
+          avatar_url: null, onboarding_completed: true, onboarding_step: 5, is_admin: false,
+          created_at: "2026-09-28T00:00:00Z", updated_at: "2026-09-28T00:00:00Z" },
+        couple: { id: "couple", invite_code: null, bride_id: "existing", groom_id: null,
+          membership_sealed_at: null, created_at: "2026-09-28T00:00:00Z", updated_at: "2026-09-28T00:00:00Z" },
+        journey: { id: "journey", couple_id: "couple", total_budget: 42_000_000, wedding_date: null,
+          venue: null, progress: {}, created_at: "2026-09-28T00:00:00Z", updated_at: "2026-09-28T00:00:00Z" },
+        isInitialized: true,
+      };
+      useAuthStore.setState(verified);
+      useCommunityStore.getState().bindViewer("existing");
+      mockFetch.mockResolvedValue({ ok: false, status });
+      await useAuthStore.getState().initialize({ force: true });
+      expect(useAuthStore.getState()).toMatchObject(verified);
+      expect(useAuthStore.getState().isLoading).toBe(false);
+    });
+
+    it.each([false, true])("does not confirm an empty initial session after HTTP 503 (force=%s)", async (force) => {
+      mockFetch.mockResolvedValue({ ok: false, status: 503 });
+      await useAuthStore.getState().initialize({ force });
+      expect(useAuthStore.getState()).toMatchObject({ user: null, journey: null, isInitialized: false, isLoading: false });
+      expect(useAuthStore.getState().initializationError).toBeTruthy();
+    });
+
+    it("clears the initial error only after a successful explicit retry", async () => {
+      mockFetch.mockResolvedValueOnce({ ok: false, status: 503 });
+      await useAuthStore.getState().initialize();
+      expect(useAuthStore.getState().initializationError).toBeTruthy();
+      mockFetch.mockResolvedValueOnce({ ok: true, json: async () => ({ user: { id: "new", email: "new@example.invalid" } }) });
+      await useAuthStore.getState().initialize({ force: true });
+      expect(useAuthStore.getState()).toMatchObject({ user: { id: "new" }, isInitialized: true, initializationError: null });
+    });
+
+    it("does not revive the previous account when a new binding fails to initialize", async () => {
+      useAuthStore.setState({ user: { id: "old", email: "old@example.invalid" }, isInitialized: true });
+      let finish!: (value: Response) => void;
+      mockFetch.mockReturnValueOnce(new Promise<Response>((resolve) => { finish = resolve; }));
+      const oldPending = useAuthStore.getState().initialize({ force: true });
+      useAuthStore.getState().reset();
+      mockFetch.mockResolvedValueOnce({ ok: false, status: 503 });
+      await useAuthStore.getState().initialize({ force: true });
+      finish(new Response(JSON.stringify({ user: { id: "old", email: "old@example.invalid" } }), { status: 200 }));
+      await oldPending;
+      expect(useAuthStore.getState()).toMatchObject({ user: null, profile: null, journey: null, isInitialized: false });
+      expect(useAuthStore.getState().initializationError).toBeTruthy();
+    });
+
+    it("ignores an old failed initialization after a newer account was verified", async () => {
+      let finish!: (value: Response) => void;
+      mockFetch.mockReturnValueOnce(new Promise<Response>((resolve) => { finish = resolve; }));
+      const oldPending = useAuthStore.getState().initialize({ force: true });
+      mockFetch.mockResolvedValueOnce({ ok: true, json: async () => ({ user: { id: "new", email: "new@example.invalid" } }) });
+      await useAuthStore.getState().initialize({ force: true });
+      finish(new Response("", { status: 503 }));
+      await oldPending;
+      expect(useAuthStore.getState()).toMatchObject({ user: { id: "new" }, isInitialized: true, initializationError: null });
+    });
+
+    it("does not replace a verified real session with the demo cookie on HTTP failure", async () => {
+      setDemoCookie(true);
+      useAuthStore.setState({ user: { id: "real", email: "real@example.invalid" }, isInitialized: true, isDemo: false });
+      mockFetch.mockResolvedValueOnce({ ok: false, status: 503 });
+      await useAuthStore.getState().initialize({ force: true });
+      expect(useAuthStore.getState()).toMatchObject({ user: { id: "real" }, isDemo: false, isInitialized: true });
+    });
+
+    it("still clears a real session after an actual 401 with the default options", async () => {
+      useAuthStore.setState({ user: { id: "old", email: "old@example.invalid" }, isInitialized: true });
+      mockFetch.mockResolvedValueOnce({ ok: false, status: 401 });
+      await useAuthStore.getState().initialize({ force: true });
+      expect(useAuthStore.getState()).toMatchObject({ user: null, journey: null, isInitialized: true, initializationError: null });
+    });
+
     it.each([503, 403])("공개 화면의 확인 요청은 HTTP %s를 로그아웃으로 확정하지 않는다", async (status) => {
       useAuthStore.setState({ user: { id: "existing", email: "existing@example.com" }, isInitialized: true });
       mockFetch.mockResolvedValue({ ok: false, status });
@@ -93,7 +171,7 @@ describe("useAuthStore", () => {
     });
 
     it("sets isInitialized to true after completion", async () => {
-      mockFetch.mockResolvedValue({ ok: false });
+      mockFetch.mockResolvedValue({ ok: false, status: 401 });
       await useAuthStore.getState().initialize();
       expect(useAuthStore.getState().isInitialized).toBe(true);
       expect(useAuthStore.getState().isLoading).toBe(false);
@@ -242,14 +320,15 @@ describe("useAuthStore", () => {
       expect(state.isInitialized).toBe(true);
     });
 
-    it("remains unauthenticated when fetch fails and no demo cookie", async () => {
+    it("keeps initial authentication unconfirmed when fetch fails and no demo cookie", async () => {
       mockFetch.mockRejectedValue(new Error("Network error"));
 
       await useAuthStore.getState().initialize();
       const state = useAuthStore.getState();
       expect(state.user).toBeNull();
       expect(state.isDemo).toBe(false);
-      expect(state.isInitialized).toBe(true);
+      expect(state.isInitialized).toBe(false);
+      expect(state.initializationError).toBeTruthy();
     });
 
     it("prefers real user over demo mode when real user exists", async () => {
@@ -1029,6 +1108,40 @@ describe("useAuthStore", () => {
 
     resolveSignOut?.();
     await pending;
+  });
+
+  it("blocks verified and demo initialization until logout has removed the SDK session", async () => {
+    let finish!: () => void;
+    supabaseMocks.signOut.mockReturnValueOnce(new Promise((resolve) => { finish = () => resolve({ error: null }); }));
+    useAuthStore.setState({ user: { id: "old", email: "old@example.invalid" }, isInitialized: true });
+    const pending = useAuthStore.getState().signOut();
+    try {
+      await expect(useAuthStore.getState().initialize({ force: true, requireVerifiedSession: true })).rejects.toThrow();
+      await useAuthStore.getState().initialize({ force: true, initialDemo: true });
+      expect(useAuthStore.getState()).toMatchObject({ user: null, isDemo: false });
+      expect(mockFetch).not.toHaveBeenCalled();
+    } finally {
+      finish();
+      await pending;
+    }
+    mockFetch.mockResolvedValueOnce({ ok: false, status: 401 });
+    await useAuthStore.getState().initialize({ force: true });
+    expect(useAuthStore.getState()).toMatchObject({ user: null, isInitialized: true, initializationError: null });
+  });
+
+  it.each(["returned", "thrown"])("keeps logout failure visible and releases the initialization guard for a %s SDK error", async (mode) => {
+    const error = new Error("sign-out unavailable");
+    if (mode === "returned") supabaseMocks.signOut.mockResolvedValueOnce({ error });
+    else supabaseMocks.signOut.mockRejectedValueOnce(error);
+    mockLocation.href = "/wedding/settings";
+    useAuthStore.setState({ user: { id: "old", email: "old@example.invalid" }, isInitialized: true });
+    await expect(useAuthStore.getState().signOut()).rejects.toThrow("sign-out unavailable");
+    expect(useAuthStore.getState()).toMatchObject({ user: null, profile: null, journey: null, isInitialized: false });
+    expect(useAuthStore.getState().initializationError).toContain("로그아웃");
+    expect(window.location.href).toBe("/wedding/settings");
+    mockFetch.mockResolvedValueOnce({ ok: false, status: 401 });
+    await useAuthStore.getState().initialize({ force: true });
+    expect(useAuthStore.getState()).toMatchObject({ user: null, isInitialized: true, initializationError: null });
   });
 
   it("rebinds and purges community state before committing an account switch", async () => {

@@ -63,7 +63,7 @@ describe("/api/auth/me GET guest probe", () => {
     expect(routeSource).toMatch(
       /JOURNEY_AUTH_COLUMNS[\s\S]*state_revision/,
     );
-    expect(routeSource).toContain("journeyInsertErr?.code === \"23505\"");
+    expect(routeSource).toContain("journeyInsertErr.code !== \"23505\"");
   });
 
   it("legacy와 서버 증거를 구분한 최소 동의 응답은 프로필 생성·조회 없이 반환한다", async () => {

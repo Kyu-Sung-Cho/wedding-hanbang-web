@@ -38,6 +38,7 @@ const SURFACES: Record<string, { role: Role; why: string }> = {
   "src/components/app/schedule/ScheduleContent.tsx": { role: "writes", why: "저장 경로 — 그리지 않는다" },
   "src/lib/ai/amoraAtomicToolOperation.ts": { role: "writes", why: "아모라 원자 실행 저장 경로" },
   "src/lib/ai/tools/scheduleTools.ts": { role: "writes", why: "아모라 도구 저장 경로" },
+  "src/stores/chatStore.ts": { role: "writes", why: "승인된 서버 결과를 로컬 체크리스트에 반영한다. 화면은 그리지 않는다" },
 
   // `src/lib/ai/toolExecutor.ts` 는 2026-09-15부터 항목을 직접 쥐지 않는다. `get_wedding_info` 의
   // 세부 항목 수는 화면과 같은 `summarizePlanningChecklist`(공용 패키지)로 센다.

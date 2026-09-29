@@ -10,6 +10,8 @@ import {
   readBoundedUtf8Text,
 } from "@/utils/requestValidation";
 import { isTrustedMutationRequest } from "@/utils/trustedMutation";
+import { isConfirmedSignedOut } from "@/lib/auth/sessionFailure";
+import { parseAuthorizationHeader } from "@/utils/bearerAuthorization";
 
 const MAX_BODY_BYTES = 4 * 1024;
 const MAX_PRICE_ALERTS = 500;
@@ -23,6 +25,15 @@ function withPrivateNoStore(response: NextResponse): NextResponse {
     response.headers.set(name, value);
   }
   return response;
+}
+
+function checkExpectedOwner(request: Request, ownerId: string): NextResponse | null {
+  const expectedOwner = request.headers.get("X-Price-Expected-Owner");
+  const bearer = parseAuthorizationHeader(request.headers.get("authorization")).kind === "bearer";
+  if ((!bearer || expectedOwner !== null) && (!isUuid(expectedOwner) || expectedOwner.toLowerCase() !== ownerId.toLowerCase())) {
+    return mobileBridgeJson({ error: "로그인 계정이 바뀌었어요. 가격 화면을 다시 열어 주세요.", code: "PRICE_ACCOUNT_CHANGED" }, { status: 409, headers: PRIVATE_NO_STORE_HEADERS });
+  }
+  return null;
 }
 
 async function readVendorId(request: Request): Promise<string | NextResponse> {
@@ -68,8 +79,11 @@ async function readVendorId(request: Request): Promise<string | NextResponse> {
 
 export async function GET(request: Request) {
   const supabase = await createClientFromRequest(request);
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) {
+  const { data: { user }, error: authError } = await supabase.auth.getUser().catch((error: unknown) => ({ data: { user: null }, error }));
+  if (authError && !isConfirmedSignedOut(authError)) {
+    return mobileBridgeJson({ error: "로그인 정보를 확인하지 못했어요. 잠시 후 다시 시도해 주세요." }, { status: 503, headers: PRIVATE_NO_STORE_HEADERS });
+  }
+  if (!user || authError) {
     return mobileBridgeJson(
       { error: "인증이 필요합니다." },
       { status: 401, headers: PRIVATE_NO_STORE_HEADERS },
@@ -97,7 +111,7 @@ export async function GET(request: Request) {
     );
   }
   return mobileBridgeJson(
-    { vendorIds: (data ?? []).map(({ vendor_id }) => vendor_id) },
+    { vendorIds: (data ?? []).map(({ vendor_id }) => vendor_id), ownerUserId: user.id },
     { headers: PRIVATE_NO_STORE_HEADERS },
   );
 }
@@ -110,13 +124,18 @@ export async function POST(request: Request) {
     );
   }
   const supabase = await createClientFromRequest(request);
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) {
+  const { data: { user }, error: authError } = await supabase.auth.getUser().catch((error: unknown) => ({ data: { user: null }, error }));
+  if (authError && !isConfirmedSignedOut(authError)) {
+    return mobileBridgeJson({ error: "로그인 정보를 확인하지 못했어요. 잠시 후 다시 시도해 주세요." }, { status: 503, headers: PRIVATE_NO_STORE_HEADERS });
+  }
+  if (!user || authError) {
     return mobileBridgeJson(
       { error: "인증이 필요합니다." },
       { status: 401, headers: PRIVATE_NO_STORE_HEADERS },
     );
   }
+  const ownerFailure = checkExpectedOwner(request, user.id);
+  if (ownerFailure) return ownerFailure;
   const limited = checkRateLimit(rateLimitKey("price-alerts:add", request, user.id), {
     maxRequests: 30,
     windowMs: 60 * 1000,
@@ -165,13 +184,18 @@ export async function DELETE(request: Request) {
     );
   }
   const supabase = await createClientFromRequest(request);
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) {
+  const { data: { user }, error: authError } = await supabase.auth.getUser().catch((error: unknown) => ({ data: { user: null }, error }));
+  if (authError && !isConfirmedSignedOut(authError)) {
+    return mobileBridgeJson({ error: "로그인 정보를 확인하지 못했어요. 잠시 후 다시 시도해 주세요." }, { status: 503, headers: PRIVATE_NO_STORE_HEADERS });
+  }
+  if (!user || authError) {
     return mobileBridgeJson(
       { error: "인증이 필요합니다." },
       { status: 401, headers: PRIVATE_NO_STORE_HEADERS },
     );
   }
+  const ownerFailure = checkExpectedOwner(request, user.id);
+  if (ownerFailure) return ownerFailure;
   const limited = checkRateLimit(rateLimitKey("price-alerts:remove", request, user.id), {
     maxRequests: 30,
     windowMs: 60 * 1000,

@@ -46,7 +46,7 @@ describe("공개 상태 확인", () => {
     // **주석이 아니라 호출을 본다.** 첫 판은 `source.includes("head: true")` 였는데,
     // 이 파일의 설명 주석에도 그 낱말이 있어서 **코드에서 빼도 통과했다**(뮤테이션으로
     // 확인). 같은 함정을 이 저장소가 전에도 겪었다 — 훅 검사가 주석의 "test" 에 속았다.
-    expect(source).toContain('.select("*", { count: "exact", head: true })');
+    expect(source).toContain('.select("*", { head: true })');
     expect(source).toContain(".limit(1)");
   });
 
@@ -64,10 +64,10 @@ describe("공개 상태 확인", () => {
   describe("실제 응답", () => {
     it("DB 에 닿으면 200 과 up 을 돌려준다", async () => {
       vi.resetModules();
-      vi.doMock("@/lib/supabase/server", () => ({
-        createClient: async () => ({
+      vi.doMock("@/lib/supabase/public", () => ({
+        createPublicClient: () => ({
           from: () => ({
-            select: () => ({ limit: async () => ({ error: null }) }),
+            select: () => ({ limit: () => ({ abortSignal: async () => ({ error: null }) }) }),
           }),
         }),
       }));
@@ -83,11 +83,11 @@ describe("공개 상태 확인", () => {
 
     it("DB 가 끊기면 503 을 돌려주고 원인을 밖으로 내지 않는다", async () => {
       vi.resetModules();
-      vi.doMock("@/lib/supabase/server", () => ({
-        createClient: async () => ({
+      vi.doMock("@/lib/supabase/public", () => ({
+        createPublicClient: () => ({
           from: () => ({
             select: () => ({
-              limit: async () => ({ error: { message: "relation does not exist" } }),
+              limit: () => ({ abortSignal: async () => ({ error: { message: "relation does not exist" } }) }),
             }),
           }),
         }),
@@ -105,9 +105,9 @@ describe("공개 상태 확인", () => {
     it("커밋을 모르면 지어내지 않는다", async () => {
       vi.resetModules();
       vi.stubEnv("VERCEL_GIT_COMMIT_SHA", "");
-      vi.doMock("@/lib/supabase/server", () => ({
-        createClient: async () => ({
-          from: () => ({ select: () => ({ limit: async () => ({ error: null }) }) }),
+      vi.doMock("@/lib/supabase/public", () => ({
+        createPublicClient: () => ({
+          from: () => ({ select: () => ({ limit: () => ({ abortSignal: async () => ({ error: null }) }) }) }),
         }),
       }));
       const { GET } = await import("@/app/api/health/route");

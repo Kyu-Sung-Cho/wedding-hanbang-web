@@ -1,9 +1,11 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
-import type { PriceCatalog } from "./catalog";
+import { slimPriceCatalogOptions, type PriceCatalog, type PriceVendor } from "./catalog";
 import {
+  catalogForPriceBrowser,
   parseLatestSavedComboPayload,
   restoreSavedComboAgainstCatalog,
+  restoreSavedComboWithOptions,
 } from "./savedComboRestore";
 
 const catalog: PriceCatalog = {
@@ -129,5 +131,59 @@ describe("saved combo restore", () => {
     expect(restored.selections.studio).toBeNull();
     expect(restored.restoredCategories).toEqual([]);
     expect(restored.skippedCategories).toEqual(["studio"]);
+  });
+
+  it("keeps non-cheapest offer identities for restoring an inactive category", async () => {
+    const original = catalog.categories.studio[0];
+    const fullCatalog = { ...catalog, categories: { ...catalog.categories, studio: [{
+      ...original, offers: [{ ...original.offers[0], id: "cheapest", minimumKrw: 900_000 }, ...original.offers],
+    }] } };
+    const browserCatalog = catalogForPriceBrowser(slimPriceCatalogOptions(fullCatalog), "dress");
+    expect(browserCatalog.categories.studio[0].offers.map(({ id }) => id))
+      .toEqual(["cheapest", "price-studio"]);
+    expect(browserCatalog.categories.studio[0].offers.every(({ options }) => options.length === 0)).toBe(true);
+    const parsed = parseLatestSavedComboPayload(payload());
+    if (!parsed.ok || !parsed.combo) throw new Error("fixture must parse");
+    const loader = vi.fn(async (vendor: PriceVendor) => {
+      expect(vendor.offers.map(({ id }) => id)).toEqual(["price-studio"]);
+      return new Map([["price-studio", original.offers[0].options]]);
+    });
+    const result = await restoreSavedComboWithOptions(parsed.combo, browserCatalog, loader);
+    expect(loader).toHaveBeenCalledTimes(1);
+    expect(result.restoredCategories).toEqual(["studio"]);
+    expect(result.selections.studio?.selectedOptions).toEqual([{ name: "원본 파일", krw: 100_000 }]);
+  });
+
+  it("hydrates only saved candidates even when inactive option counts are unavailable", async () => {
+    const browserCatalog = catalogForPriceBrowser(catalog, "dress");
+    browserCatalog.categories.studio[0].offers[0].optionCount = undefined;
+    const parsed = parseLatestSavedComboPayload(payload());
+    if (!parsed.ok || !parsed.combo) throw new Error("fixture must parse");
+    const loader = vi.fn(async (vendor: PriceVendor) => {
+      expect(vendor.offers.map(({ id }) => id)).toEqual(["price-studio"]);
+      expect(vendor.offers[0].optionCount).toBe(1);
+      return new Map([["price-studio", catalog.categories.studio[0].offers[0].options]]);
+    });
+    const result = await restoreSavedComboWithOptions(parsed.combo, browserCatalog, loader);
+    expect(result.restoredCategories).toEqual(["studio"]);
+    expect(browserCatalog.categories.studio[0].offers[0].options).toEqual([]);
+  });
+
+  it("rejects a lookup failure rather than converting it to price drift", async () => {
+    const parsed = parseLatestSavedComboPayload(payload());
+    if (!parsed.ok || !parsed.combo) throw new Error("fixture must parse");
+    await expect(restoreSavedComboWithOptions(parsed.combo, slimPriceCatalogOptions(catalog), async () => {
+      throw new Error("unavailable");
+    })).rejects.toThrow("unavailable");
+  });
+
+  it("checks all same-price offers before declaring a saved add-on unavailable", () => {
+    const original = catalog.categories.studio[0];
+    const alternatives = { ...catalog, categories: { ...catalog.categories, studio: [{
+      ...original, offers: [{ ...original.offers[0], id: "without-addon", options: [] }, ...original.offers],
+    }] } };
+    const parsed = parseLatestSavedComboPayload(payload());
+    if (!parsed.ok || !parsed.combo) throw new Error("fixture must parse");
+    expect(restoreSavedComboAgainstCatalog(parsed.combo, alternatives).restoredCategories).toEqual(["studio"]);
   });
 });

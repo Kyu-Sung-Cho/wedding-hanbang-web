@@ -1,5 +1,14 @@
 export const MOBILE_WEB_API_PROTOCOL = "hanbang.mobile.api.v1";
 export const MOBILE_WEB_API_NONCE_PROPERTY = "__HANBANG_MOBILE_API_NONCE__";
+export const MOBILE_WEB_API_OWNER_SCOPE_PROPERTY = "__HANBANG_MOBILE_API_OWNER_SCOPE_V1__";
+export const MOBILE_APP_UPDATE_REQUIRED_NOTICE = "이 앱 버전에서는 찜과 저장 조합을 불러올 수 없어요. 앱을 최신 버전으로 업데이트할 수 있는지 확인해 주세요. 그전에는 웹브라우저에서 hanbang.ai를 이용해 주세요.";
+
+export class MobileAppUpdateRequiredError extends Error {
+  constructor() {
+    super(MOBILE_APP_UPDATE_REQUIRED_NOTICE);
+    this.name = "MobileAppUpdateRequiredError";
+  }
+}
 
 const RESPONSE_EVENT = "hanbang-mobile-api-response";
 const RESPONSE_TIMEOUT_MS = 15_000;
@@ -30,6 +39,7 @@ declare global {
   interface Window {
     ReactNativeWebView?: NativeBridge;
     __HANBANG_MOBILE_API_NONCE__?: string;
+    __HANBANG_MOBILE_API_OWNER_SCOPE_V1__?: string;
   }
 }
 
@@ -61,6 +71,13 @@ function normalizeBridgeRequest(input: RequestInfo | URL, init: RequestInit) {
   const forwardedHeaders: Record<string, string> = {};
   for (const [name, value] of headers.entries()) {
     const normalizedName = name.toLowerCase();
+    if (normalizedName === "x-price-expected-owner") {
+      if (value.length !== 36 || !NONCE_PATTERN.test(value)) {
+        throw new Error("Mobile authenticated API bridge price owner is invalid");
+      }
+      forwardedHeaders[normalizedName] = value.toLowerCase();
+      continue;
+    }
     if (normalizedName !== "content-type" && normalizedName !== "idempotency-key") {
       throw new Error(`Mobile authenticated API bridge header is not allowed: ${normalizedName}`);
     }
@@ -133,6 +150,11 @@ export async function mobileAuthenticatedFetch(
   const { bridge, nonce } = bridgeContext;
 
   const request = normalizeBridgeRequest(input, init);
+  // 구 앱은 새 owner 헤더를 무응답으로 버리고 계정 전환도 문서에 반영하지 못한다.
+  // 같은 문서 nonce에 연결된 지원 표시가 있어야 개인 조회와 저장을 모두 허용한다.
+  if (window[MOBILE_WEB_API_OWNER_SCOPE_PROPERTY] !== nonce) {
+    throw new MobileAppUpdateRequiredError();
+  }
   const id = createRequestId();
 
   return new Promise<Response>((resolve, reject) => {

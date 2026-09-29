@@ -12,6 +12,14 @@ import { PriceExplorer } from "./PriceExplorer";
   .IS_REACT_ACT_ENVIRONMENT = true;
 
 vi.mock("@/lib/analytics/track", () => ({ track: vi.fn() }));
+const authEvents = vi.hoisted(() => ({ listeners: [] as Array<(event: string, session: { user: { id: string } } | null) => void> }));
+vi.mock("@/lib/supabase/client", () => ({ createClient: () => ({ auth: {
+  onAuthStateChange: (listener: (event: string, session: { user: { id: string } } | null) => void) => {
+    authEvents.listeners.push(listener);
+    return { data: { subscription: { unsubscribe: () => { authEvents.listeners = authEvents.listeners.filter((item) => item !== listener); } } } };
+  },
+} }) }));
+const OWNER_ID = "40000000-0000-4000-8000-000000000001";
 
 function offer(id: string, agencyId: string, agencyName: string, price: number) {
   return {
@@ -72,7 +80,9 @@ const catalog: PriceCatalog = {
 };
 
 function jsonResponse(body: unknown, status = 200): Response {
-  return new Response(JSON.stringify(body), {
+  const payload = body && typeof body === "object" && ("vendorIds" in body || "combos" in body)
+    ? { ownerUserId: OWNER_ID, ...body } : body;
+  return new Response(JSON.stringify(payload), {
     status,
     headers: { "content-type": "application/json" },
   });
@@ -99,6 +109,24 @@ describe("PriceExplorer", () => {
     vi.unstubAllGlobals();
     await act(async () => root.unmount());
     document.body.replaceChildren();
+  });
+
+  it("keeps the public catalog visible and shows update guidance before an older native bridge reads private state", async () => {
+    const postMessage = vi.fn();
+    const fetchMock = vi.fn();
+    vi.stubGlobal("ReactNativeWebView", { postMessage });
+    vi.stubGlobal("__HANBANG_MOBILE_API_NONCE__", OWNER_ID);
+    vi.stubGlobal("fetch", fetchMock);
+    window.localStorage.setItem("hanbang:price:region", "");
+    await act(async () => {
+      root.render(<PriceExplorer catalog={catalog} category="studio" />);
+      await flushAsyncWork();
+    });
+    expect(container.textContent).toContain("앱을 최신 버전으로 업데이트");
+    expect(container.textContent).toContain("웹브라우저에서 hanbang.ai");
+    expect(container.textContent).toContain(firstVendor.name);
+    expect(postMessage).not.toHaveBeenCalled();
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it("preserves the signed-in vendor hub while reusing the official catalog", async () => {
@@ -299,6 +327,163 @@ describe("PriceExplorer", () => {
     });
   });
 
+  it("restores saved add-ons from the public slim catalog through the options read", async () => {
+    const slimVendor: PriceVendor = {
+      ...firstVendor,
+      offers: [{ ...firstVendor.offers[0], id: "slim-restore-offer", options: [], optionCount: 1 }],
+    };
+    const slimCatalog = { ...catalog, categories: { ...catalog.categories, studio: [slimVendor] } };
+    const fetchMock = vi.fn(async (input: string | URL | Request) => {
+      if (String(input).includes("vendor-options")) return jsonResponse({ options: [{
+        id: "restore-addon", officialPriceId: "slim-restore-offer", name: "원본 파일",
+        minimumKrw: 100_000, maximumKrw: 100_000, unit: null, condition: null,
+        rawText: "원본 파일 10만원", isEffectivelyMandatory: false,
+      }] });
+      if (String(input).includes("/api/favorites")) return jsonResponse({ vendorIds: [] });
+      return jsonResponse({ combos: [{
+        id: "combo-options", name: "추가금 포함 조합", created_at: "2026-07-20T05:00:00.000Z",
+        selections: {
+          studio: { vendor_id: firstVendor.id, agency_id: "agency-a", base_krw: 1_000_000,
+            selected_options: [{ name: "원본 파일", krw: 100_000 }], custom_krw: null },
+          dress: null, makeup: null,
+        },
+      }] });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    await act(async () => {
+      root.render(<PriceExplorer catalog={slimCatalog} category="studio" />);
+      await flushAsyncWork();
+    });
+    const restoreButton = Array.from(container.querySelectorAll<HTMLButtonElement>("button"))
+      .find((button) => button.textContent?.includes("최근 저장 조합 불러오기"));
+    await act(async () => { restoreButton?.click(); await flushAsyncWork(); });
+    expect(container.querySelector('aside[aria-label="사진·드레스·메이크업 조합"]')?.textContent)
+      .toContain(firstVendor.name);
+    expect(container.querySelector('[role="status"]')?.textContent)
+      .toContain("현재 공시 정보로 확인해 불러왔어요");
+    expect(fetchMock.mock.calls.some(([url]) => String(url).includes("vendor-options"))).toBe(true);
+    await act(async () => {
+      container.querySelector<HTMLButtonElement>(`button[aria-label="${firstVendor.name} 빼기"]`)?.click();
+    });
+  });
+
+  it.each(["lookup-failure", "edited-while-loading", "account-changed"])("preserves current choices on %s during restore", async (scenario) => {
+    const offerId = `restore-${scenario}`;
+    const slimVendor: PriceVendor = {
+      ...firstVendor, offers: [{ ...firstVendor.offers[0], id: offerId, options: [], optionCount: 1 }],
+    };
+    const slimCatalog = { ...catalog, categories: { ...catalog.categories, studio: [slimVendor] } };
+    window.sessionStorage.setItem("hanbang-price-combo-v1", JSON.stringify({ ownerId: null, selections: {
+      studio: { vendorId: firstVendor.id, vendorSlug: firstVendor.slug, vendorName: firstVendor.name,
+        agencyId: "agency-a", agencyName: "대행사 A", baseKrw: 1_000_000, selectedOptions: [], customKrw: null },
+      dress: null, makeup: null,
+    } }));
+    let resolveOptions!: (response: Response) => void;
+    const optionsPromise = new Promise<Response>((resolve) => { resolveOptions = resolve; });
+    const fetchMock = vi.fn(async (input: string | URL | Request) => {
+      if (String(input).includes("vendor-options")) return optionsPromise;
+      if (String(input).includes("/api/favorites")) return jsonResponse({ vendorIds: [] });
+      return jsonResponse({ combos: [{
+        id: "combo-options", name: "추가금 포함 조합", created_at: "2026-07-20T05:00:00.000Z",
+        selections: {
+          studio: { vendor_id: firstVendor.id, agency_id: "agency-a", base_krw: 1_000_000,
+            selected_options: [{ name: "원본 파일", krw: 100_000 }], custom_krw: null },
+          dress: null, makeup: null,
+        },
+      }] });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    await act(async () => {
+      root.render(<PriceExplorer catalog={slimCatalog} category="studio" />);
+      await flushAsyncWork();
+    });
+    const restoreButton = Array.from(container.querySelectorAll<HTMLButtonElement>("button"))
+      .find((button) => button.textContent?.includes("최근 저장 조합 불러오기"));
+    await act(async () => { restoreButton?.click(); });
+    const replaceButton = Array.from(container.querySelectorAll<HTMLButtonElement>("button"))
+      .find((button) => button.textContent === "바꾸기");
+    await act(async () => { replaceButton?.click(); await Promise.resolve(); });
+    expect(fetchMock.mock.calls.filter(([url]) => String(url).includes("vendor-options"))).toHaveLength(1);
+    if (scenario === "edited-while-loading") {
+      await act(async () => {
+        container.querySelector<HTMLButtonElement>(`button[aria-label="${firstVendor.name} 빼기"]`)?.click();
+      });
+    }
+    if (scenario === "account-changed") {
+      await act(async () => {
+        for (const listener of authEvents.listeners) listener("SIGNED_IN", { user: { id: "40000000-0000-4000-8000-000000000002" } });
+      });
+    }
+    await act(async () => {
+      resolveOptions(scenario === "lookup-failure" ? jsonResponse({ error: "unavailable" }, 503) : jsonResponse({ options: [{
+        id: "restore-addon", officialPriceId: offerId, name: "원본 파일", minimumKrw: 100_000,
+        maximumKrw: 100_000, unit: null, condition: null, rawText: "원본 파일 10만원", isEffectivelyMandatory: false,
+      }] }));
+      await flushAsyncWork();
+    });
+    if (scenario === "edited-while-loading" || scenario === "account-changed") {
+      expect(container.querySelector('aside[aria-label="사진·드레스·메이크업 조합"]')).toBeNull();
+    } else {
+      expect(container.querySelector('aside[aria-label="사진·드레스·메이크업 조합"]')?.textContent).toContain(firstVendor.name);
+      expect(container.querySelector('[role="status"]')?.textContent).toContain("네트워크를 확인한 뒤");
+      await act(async () => {
+        container.querySelector<HTMLButtonElement>(`button[aria-label="${firstVendor.name} 빼기"]`)?.click();
+      });
+    }
+  });
+
+  it("discards the previous owner's saved combo immediately on account change", async () => {
+    let switched = false;
+    vi.stubGlobal("fetch", vi.fn(async (input: string | URL | Request) => {
+      if (switched) return new Promise<Response>(() => {});
+      return String(input).includes("favorites") ? jsonResponse({ vendorIds: [firstVendor.id] }) : jsonResponse({ combos: [{
+        id: "owner-a-combo", name: "A계정의 비공개 조합", created_at: "2026-07-20T05:00:00.000Z",
+        selections: { studio: { vendor_id: firstVendor.id, agency_id: "agency-a", base_krw: 1_000_000,
+          selected_options: [], custom_krw: null }, dress: null, makeup: null },
+      }] });
+    }));
+    await act(async () => {
+      root.render(<PriceExplorer catalog={catalog} category="studio" />);
+      await flushAsyncWork();
+    });
+    expect(container.textContent).toContain("A계정의 비공개 조합");
+    switched = true;
+    await act(async () => {
+      for (const listener of authEvents.listeners) listener("SIGNED_IN", { user: { id: "40000000-0000-4000-8000-000000000002" } });
+    });
+    expect(container.textContent).not.toContain("A계정의 비공개 조합");
+    expect(container.querySelector(`button[aria-label="${firstVendor.name} 찜 해제"]`)).toBeNull();
+  });
+
+  it.each([true, false])("keeps locally added choices scoped when private reads fail (session known: %s)", async (knownSession) => {
+    vi.stubGlobal("fetch", vi.fn(async () => jsonResponse({ error: "unavailable" }, 503)));
+    await act(async () => {
+      root.render(<PriceExplorer catalog={catalog} category="studio" />);
+      await flushAsyncWork();
+    });
+    if (knownSession) {
+      await act(async () => {
+        for (const listener of authEvents.listeners) listener("INITIAL_SESSION", { user: { id: OWNER_ID } });
+      });
+    }
+    await act(async () => {
+      Array.from(container.querySelectorAll<HTMLButtonElement>("button"))
+        .find((button) => button.textContent?.includes("+ 조합에 담기"))?.click();
+    });
+    await act(async () => {
+      Array.from(container.querySelectorAll<HTMLButtonElement>('[role="dialog"] button'))
+        .find((button) => button.textContent?.includes("담기"))?.click();
+    });
+    expect(container.querySelector('aside[aria-label="사진·드레스·메이크업 조합"]')).not.toBeNull();
+    const raw = window.sessionStorage.getItem("hanbang-price-combo-v1");
+    if (knownSession) expect(JSON.parse(raw ?? "{}").ownerId).toBe(OWNER_ID);
+    else expect(raw).toBeNull();
+    await act(async () => {
+      for (const listener of authEvents.listeners) listener("SIGNED_IN", { user: { id: "40000000-0000-4000-8000-000000000002" } });
+    });
+    expect(container.querySelector('aside[aria-label="사진·드레스·메이크업 조합"]')).toBeNull();
+  });
+
   it("keeps wishlist actions disabled until the initial owner state is hydrated", async () => {
     let resolveFavorites!: (response: Response) => void;
     const favoritesResponse = new Promise<Response>((resolve) => {
@@ -429,6 +614,7 @@ describe("PriceExplorer", () => {
       (init as RequestInit | undefined)?.method === "POST"
     ));
     expect(favoriteMutations).toHaveLength(2);
+    expect(new Headers(favoriteMutations[0][1]?.headers).get("X-Price-Expected-Owner")).toBe(OWNER_ID);
     expect(container.querySelector(
       `button[aria-label="${secondVendor.name} 찜 해제"]`,
     )).not.toBeNull();

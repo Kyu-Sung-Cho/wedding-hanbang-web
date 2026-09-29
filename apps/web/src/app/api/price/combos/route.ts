@@ -18,6 +18,8 @@ import {
   readBoundedUtf8Text,
 } from "@/utils/requestValidation";
 import { isTrustedMutationRequest } from "@/utils/trustedMutation";
+import { isConfirmedSignedOut } from "@/lib/auth/sessionFailure";
+import { parseAuthorizationHeader } from "@/utils/bearerAuthorization";
 
 const MAX_BODY_BYTES = 32 * 1024;
 const LATEST_SAVED_COMBO_LIMIT = 1;
@@ -59,8 +61,11 @@ function publicCombo(row: SavedComboRow) {
 
 export async function GET(request: Request) {
   const supabase = await createClientFromRequest(request);
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) {
+  const { data: { user }, error: authError } = await supabase.auth.getUser().catch((error: unknown) => ({ data: { user: null }, error }));
+  if (authError && !isConfirmedSignedOut(authError)) {
+    return mobileBridgeJson({ error: "로그인 정보를 확인하지 못했어요. 잠시 후 다시 시도해 주세요." }, { status: 503 });
+  }
+  if (!user || authError) {
     return mobileBridgeJson({ error: "로그인이 필요합니다." }, { status: 401 });
   }
 
@@ -76,7 +81,7 @@ export async function GET(request: Request) {
       { status: 503 },
     );
   }
-  return mobileBridgeJson({ combos: data ?? [] });
+  return mobileBridgeJson({ combos: data ?? [], ownerUserId: user.id });
 }
 
 export async function POST(request: Request) {
@@ -92,16 +97,28 @@ export async function POST(request: Request) {
   }
 
   const supabase = await createClientFromRequest(request);
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) {
+  const { data: { user }, error: authError } = await supabase.auth.getUser().catch((error: unknown) => ({ data: { user: null }, error }));
+  if (authError && !isConfirmedSignedOut(authError)) {
+    return mobileBridgeJson({ error: "로그인 정보를 확인하지 못했어요. 잠시 후 다시 시도해 주세요." }, { status: 503 });
+  }
+  if (!user || authError) {
     return mobileBridgeJson({ error: "로그인이 필요합니다." }, { status: 401 });
+  }
+
+  const expectedOwner = request.headers.get("X-Price-Expected-Owner");
+  const bearer = parseAuthorizationHeader(request.headers.get("authorization")).kind === "bearer";
+  if ((!bearer || expectedOwner !== null) && (!isUuid(expectedOwner) || expectedOwner.toLowerCase() !== user.id.toLowerCase())) {
+    return mobileBridgeJson({ error: "로그인 계정이 바뀌었어요. 가격 화면을 다시 열어 주세요.", code: "PRICE_ACCOUNT_CHANGED" }, { status: 409 });
   }
 
   const limited = checkRateLimit(rateLimitKey("price-combos:create", request, user.id), {
     maxRequests: 20,
     windowMs: 60 * 1000,
   });
-  if (limited) return limited;
+  if (limited) {
+    for (const [name, value] of Object.entries(PRIVATE_NO_STORE_HEADERS)) limited.headers.set(name, value);
+    return limited;
+  }
 
   const bodyResult = await readBoundedUtf8Text(request, MAX_BODY_BYTES);
   if (!bodyResult.ok) {

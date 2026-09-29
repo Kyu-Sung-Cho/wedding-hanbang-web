@@ -34,6 +34,7 @@ function deleteRequest(body: unknown, headers: HeadersInit = {}): Request {
     headers: {
       "content-type": "application/json",
       "sec-fetch-site": "same-origin",
+      "X-Price-Expected-Owner": USER_ID,
       ...headers,
     },
     body: JSON.stringify(body),
@@ -46,6 +47,7 @@ function postRequest(body: unknown, headers: HeadersInit = {}): Request {
     headers: {
       "content-type": "application/json",
       "sec-fetch-site": "same-origin",
+      "X-Price-Expected-Owner": USER_ID,
       ...headers,
     },
     body: JSON.stringify(body),
@@ -126,6 +128,27 @@ function favoritesListClient(result: { data: unknown; error: unknown }) {
   };
 }
 
+describe("favorites stale account requests", () => {
+  it("does not remove the new account's existing favorite from an old screen", async () => {
+    const database = authenticatedClient();
+    mocks.createClientFromRequest.mockResolvedValue(database.client);
+    const response = await DELETE(deleteRequest({ vendorId: VENDOR_ID }, {
+      "X-Price-Expected-Owner": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+    }));
+    expect(response.status).toBe(409);
+    expect(database.remove).not.toHaveBeenCalled();
+  });
+  it("does not add an old account's selection to a new account", async () => {
+    const database = favoriteAddClient();
+    mocks.createClientFromRequest.mockResolvedValue(database.client);
+    const response = await POST(postRequest({ vendorId: VENDOR_ID }, {
+      "X-Price-Expected-Owner": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+    }));
+    expect(response.status).toBe(409);
+    expect(database.upsert).not.toHaveBeenCalled();
+  });
+});
+
 describe("GET /api/favorites", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -147,7 +170,7 @@ describe("GET /api/favorites", () => {
     expect(database.select).toHaveBeenCalledWith("vendor_id");
     expect(database.limit).toHaveBeenCalledWith(501);
     expect(response.headers.get(MOBILE_BRIDGE_RESPONSE_BYTES_HEADER)).toMatch(/^[1-9][0-9]*$/);
-    await expect(response.json()).resolves.toEqual({ vendorIds: [VENDOR_ID] });
+    await expect(response.json()).resolves.toEqual({ vendorIds: [VENDOR_ID], ownerUserId: USER_ID });
   });
 
   it("fails closed instead of presenting a database error as an empty list", async () => {

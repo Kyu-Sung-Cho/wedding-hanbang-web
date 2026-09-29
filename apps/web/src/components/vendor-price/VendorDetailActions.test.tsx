@@ -12,6 +12,14 @@ import VendorDetailActions from "./VendorDetailActions";
 vi.mock("@/lib/analytics/track", () => ({
   track: vi.fn(),
 }));
+const authEvents = vi.hoisted(() => ({ listeners: [] as Array<(event: string, session: { user: { id: string } } | null) => void> }));
+vi.mock("@/lib/supabase/client", () => ({ createClient: () => ({ auth: {
+  onAuthStateChange: (listener: (event: string, session: { user: { id: string } } | null) => void) => {
+    authEvents.listeners.push(listener);
+    return { data: { subscription: { unsubscribe: () => { authEvents.listeners = authEvents.listeners.filter((item) => item !== listener); } } } };
+  },
+} }) }));
+const OWNER_ID = "40000000-0000-4000-8000-000000000001";
 
 function deferred<T>() {
   let resolve!: (value: T) => void;
@@ -24,7 +32,8 @@ function deferred<T>() {
 }
 
 function jsonResponse(body: unknown, status = 200) {
-  return new Response(JSON.stringify(body), {
+  const payload = body && typeof body === "object" && "vendorIds" in body ? { ownerUserId: OWNER_ID, ...body } : body;
+  return new Response(JSON.stringify(payload), {
     status,
     headers: { "content-type": "application/json" },
   });
@@ -49,6 +58,22 @@ describe("VendorDetailActions", () => {
     vi.unstubAllGlobals();
     await act(async () => root.unmount());
     document.body.replaceChildren();
+  });
+
+  it("shows an update notice for an older native bridge before loading or mutating saved state", async () => {
+    const postMessage = vi.fn();
+    const fetchMock = vi.fn();
+    vi.stubGlobal("ReactNativeWebView", { postMessage });
+    vi.stubGlobal("__HANBANG_MOBILE_API_NONCE__", OWNER_ID);
+    vi.stubGlobal("fetch", fetchMock);
+    await act(async () => {
+      root.render(<VendorDetailActions vendorId="vendor-1" redirectPath="/price/studio/sample" />);
+      await flushAsyncWork();
+    });
+    expect(container.textContent).toContain("앱을 최신 버전으로 업데이트");
+    expect(container.querySelector<HTMLButtonElement>("button[aria-pressed]")?.disabled).toBe(true);
+    expect(postMessage).not.toHaveBeenCalled();
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it("keeps actions disabled until their initial saved state is settled", async () => {
@@ -266,5 +291,30 @@ describe("VendorDetailActions", () => {
     expect(labels.filter((label) => label.includes("알림"))).toEqual([]);
     expect(container.textContent).not.toContain("가격 알림");
     expect(fetchMock.mock.calls.map(([url]) => String(url))).not.toContain("/api/price/alerts");
+  });
+
+  it("pins writes to their loaded owner and ignores that owner's late response after switching", async () => {
+    const oldMutation = deferred<Response>();
+    const ownerB = "40000000-0000-4000-8000-000000000002";
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(jsonResponse({ vendorIds: [] }))
+      .mockReturnValueOnce(oldMutation.promise)
+      .mockResolvedValueOnce(jsonResponse({ vendorIds: [], ownerUserId: ownerB }));
+    vi.stubGlobal("fetch", fetchMock);
+    await act(async () => {
+      root.render(<VendorDetailActions vendorId="vendor-1" redirectPath="/price/studio/sample" />);
+      await flushAsyncWork();
+    });
+    await act(async () => { container.querySelector<HTMLButtonElement>('button[aria-pressed]')?.click(); });
+    expect(new Headers(fetchMock.mock.calls[1][1].headers).get("X-Price-Expected-Owner")).toBe(OWNER_ID);
+    await act(async () => {
+      for (const listener of authEvents.listeners) listener("SIGNED_IN", { user: { id: ownerB } });
+      await flushAsyncWork();
+    });
+    await act(async () => {
+      oldMutation.resolve(jsonResponse({ isFavorite: true }));
+      await flushAsyncWork();
+    });
+    expect(container.querySelector('button[aria-pressed]')?.getAttribute("aria-pressed")).toBe("false");
   });
 });

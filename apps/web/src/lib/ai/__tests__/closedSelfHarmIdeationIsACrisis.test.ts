@@ -25,9 +25,8 @@
  *  (v)   체크리스트 답 — 규칙의 낱말만으로 조립한 신혼여행 짐 싸기 답은 서지 않는다(2026-09-27
  *        백상자 검토: 열아홉 문장이 즉시 위기 고정 안내로 갔다). 이 파일의 옛 판은 `약 모았어`·
  *        `진통제 모아뒀어` 를 반드시 즉시 위기로 못 박고 있었고, 반례에는 어휘 안의 약 문장이 0개였다.
- *  (vi)  알고 남긴 값 — 오탐과 누출을 이유와 함께 적는다. 누출(`KNOWN_MISS`)은 실제 고백인데 이
- *        규칙도 운영도 잡지 않아 공유 레인에 남는 문장이다. **정상이 아니다** — `it.fails` 로 바라는
- *        동작("공유 레인에 남지 않는다")을 단언하고, 오늘은 그 단언이 실패한다고 기록한다.
+ *  (vi)  종전 누락 13개는 별도 민감공유 보호 규칙으로 비즉시 나만 상담에 보낸다.
+ *        약·과거 생각을 즉시 위기로 단정하거나 원문을 버리지 않는다.
  *
  * 2026-09-27: 예전 판은 서지 않는 행 한 목록(`MUST_NOT_FIRE`)에 부정·남 얘기와 실제 고백(과거형
  * `자살 생각이 났어`, 경험 `자살 생각 해본 적 있어`)을 섞어 "규칙이 판정을 바꾸면 안 된다" 로 못
@@ -135,7 +134,7 @@ const IN_VOCABULARY_BUT_ALREADY_CAUGHT: readonly string[] = [
 /**
  * (iii) **본인 고백이 아닌 문장.** 이 규칙이 서면 틀린다 — 부정·남 얘기와 상대에게 하는 말·물음·
  * 웃음·맨 명사(화제)·전언과 매체·모으기가 아닌 수단 문장. 실제 고백으로 읽히는 문장은 여기 두지
- * 말고 `KNOWN_MISS`(공유 레인에 남음)나 `ALREADY_HELD_BY_MAIN`(운영이 이미 잡음)에 둔다.
+ * 말고 `PRIVACY_PROTECTED`(비즉시 비공개 보호)나 `ALREADY_HELD_BY_MAIN`(운영이 이미 잡음)에 둔다.
  */
 const NOT_A_DISCLOSURE: readonly string[] = [
   // 부정
@@ -182,7 +181,7 @@ const NOT_A_DISCLOSURE: readonly string[] = [
 /**
  * 실제 고백이지만 이 규칙 밖이고, **운영(`classifyAmoraCrisis` 의 옛 정규식 갈래)이 이미 즉시 위기로
  * 잡는** 문장. 규칙은 이 판정에 손대지 않는다. 운영이 놓치게 되면 여기가 빨개진다 — 그때는
- * `KNOWN_MISS` 로 옮길지 정할 것.
+ * `PRIVACY_PROTECTED` 로 옮길지 정할 것.
  */
 const ALREADY_HELD_BY_MAIN: readonly string[] = [
   "자살 생각 했어",
@@ -234,15 +233,11 @@ const CHECKLIST_ANSWERS: readonly string[] = [
 ];
 
 /**
- * **누출 기록(`KNOWN_MISS`).** 오늘 이 규칙도 운영도 잡지 않아, 공유 레인 요청이면 **공유 레인에
- * 저장되는** 위험 문장이다. 저장되는 순간 배우자가 읽는다. 정상이 아니다.
- *
- * 아래 `it.fails` 는 바라는 동작("공유 레인에 남지 않는다")을 단언하고, 오늘은 그 단언이 실패한다고
- * 기록한다. 누가 이 문장을 잡게 되면 그 테스트가 빨개진다. 그때 이 목록에서 빼서 `NEWLY_CAUGHT`
- * (이 규칙이 잡음)나 `ALREADY_HELD_BY_MAIN`(운영이 잡음)으로 옮기고 이유를 지울 것. **`NOT_A_DISCLOSURE`
- * 로 옮기지 말 것** — 누출을 정상으로 못 박게 된다.
+ * **종전 누락 회귀(`PRIVACY_PROTECTED`).** 처음 함께/나만을 선택한 뒤 함께로 보낸 경우에도
+ * 별도 보호 규칙이 비공개로 처리한다. 즉시 위기 판정은 바꾸지 않으며 모호한 약·과거 생각의
+ * 원문은 나만 상담에 남긴다. 두 번째 열은 종전 누락의 이유다.
  */
-const KNOWN_MISS: ReadonlyArray<readonly [string, string]> = [
+const PRIVACY_PROTECTED: ReadonlyArray<readonly [string, string]> = [
   ["이미 수면제 많이 모아놨어", "`이미`·`많이` 는 짐을 다 쌌다는 보고와 같은 모양이라 어휘에서 뺐다"],
   ["수면제 한 달 치 모아뒀어", "수량(`한 달 치`)은 처방약 한 달 치를 챙겼다는 말과 같은 모양이다"],
   ["약 모아뒀어", "맨 `약` 은 상비약을 포함하는 상위어다"],
@@ -332,7 +327,7 @@ const MUTATED_ROWS: readonly string[] = NEWLY_CAUGHT.flatMap((row) =>
 const EVERY_ROW: readonly string[] = [
   ...new Set([
     ...NEWLY_CAUGHT, ...IN_VOCABULARY_BUT_ALREADY_CAUGHT, ...NOT_A_DISCLOSURE, ...ALREADY_HELD_BY_MAIN,
-    ...EVERYDAY, ...MUTATED_ROWS, ...CHECKLIST_ANSWERS, ...KNOWN_MISS.map(([text]) => text),
+    ...EVERYDAY, ...MUTATED_ROWS, ...CHECKLIST_ANSWERS, ...PRIVACY_PROTECTED.map(([text]) => text),
   ]),
 ];
 
@@ -466,10 +461,8 @@ describe("(v) 체크리스트 답 — 규칙의 낱말만으로 조립한 짐 �
   });
 });
 
-describe("(vi) 알고 남긴 값 — 누출 기록(KNOWN_MISS)은 정상이 아니다", () => {
-  // 바라는 동작을 단언한다: 실제 고백은 공유 레인에 남지 않는다. 오늘은 이 단언이 실패한다 —
-  // 그래서 `it.fails` 다. 누가 이 문장을 잡으면 빨개진다. 그때 `NEWLY_CAUGHT`·`ALREADY_HELD_BY_MAIN` 으로 옮길 것.
-  it.fails.each(KNOWN_MISS)("누출: %s — %s (공유 레인에 남지 않아야 한다)", (text) => {
+describe("(vi) 종전 누락은 즉시 위기를 단정하지 않고 비공개로 보호한다", () => {
+  it.each(PRIVACY_PROTECTED)("비공개 보호: %s — 종전 누락 이유: %s", (text) => {
     const server = planAmoraCrisisDelivery({
       userText: text,
       requestedVisibility: "shared",
@@ -477,12 +470,17 @@ describe("(vi) 알고 남긴 값 — 누출 기록(KNOWN_MISS)은 정상이 아�
       senderRole: "bride",
       externalSafetySignal: hasAmoraSafetySignal(text, "chat"),
     });
-    expect(server.disposition).not.toBe("continue");
+    expect(server).toMatchObject({ disposition: "private_safety_route", effectiveVisibility: "bride_private", classification: null });
+    expect(classifyAmoraCrisis(text)).toBeNull();
+    expect(classifyAmoraQuestionScope({ userText: text, requestKind: "chat" }))
+      .toMatchObject({ scope: "W2_high_risk_adjacent", highRiskReason: "safety", allowsLongTermMemory: false });
+    const mobile = planAmoraCrisisDelivery({ userText: text, requestedVisibility: "shared", target: "ai", senderRole: "bride" });
+    expect(mobile).toEqual(server);
   });
 
   it("누출 행은 서는 행·고백이 아닌 문장·운영이 잡는 행과 겹치지 않는다", () => {
     const elsewhere = new Set([...NEWLY_CAUGHT, ...NOT_A_DISCLOSURE, ...ALREADY_HELD_BY_MAIN]);
-    for (const [text] of KNOWN_MISS) {
+    for (const [text] of PRIVACY_PROTECTED) {
       expect(elsewhere.has(text), text).toBe(false);
       // 이 규칙은 서지 않는다(판정이 규칙을 뺀 판정과 같다).
       expect(assess(text), text).toEqual(assessWithoutRule(text));

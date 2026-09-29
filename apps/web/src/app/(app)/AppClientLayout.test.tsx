@@ -18,10 +18,14 @@ const mocks = vi.hoisted(() => ({
   searchParams: new URLSearchParams(),
   isDemo: true,
   isInitialized: true,
-  initializeCalls: [] as Array<{ initialDemo?: boolean } | undefined>,
+  isLoading: false,
+  initializationError: null as string | null,
+  reportedErrors: [] as Error[],
+  initializeCalls: [] as Array<{ initialDemo?: boolean; force?: boolean } | undefined>,
   authSyncCalls: [] as boolean[],
   pageViewCalls: [] as boolean[],
-  profile: null as { id?: string; role?: string | null } | null,
+  authListeners: new Set<() => void>(),
+  profile: null as { id?: string; role?: string | null; couple_id?: string | null } | null,
   journey: null as
     | { wedding_date?: string | null; progress?: Record<string, unknown> }
     | null,
@@ -75,19 +79,31 @@ vi.mock("@/hooks/useAuthSessionSync", () => ({
   },
 }));
 
-vi.mock("@/stores/authStore", () => ({
-  useAuthStore: () => ({
-    initialize: (options?: { initialDemo?: boolean }) => {
+vi.mock("@/lib/observability/clientErrorReport", () => ({
+  reportClientError: (error: Error) => mocks.reportedErrors.push(error),
+}));
+
+vi.mock("@/stores/authStore", () => {
+  const getState = () => ({
+    initialize: (options?: { initialDemo?: boolean; force?: boolean }) => {
       mocks.initializeCalls.push(options);
     },
     isInitialized: mocks.isInitialized,
-    isLoading: false,
+    isLoading: mocks.isLoading,
+    initializationError: mocks.initializationError,
     isDemo: mocks.isDemo,
     profile: mocks.profile,
     journey: mocks.journey,
     partner: mocks.partner,
-  }),
-}));
+  });
+  return { useAuthStore: Object.assign(getState, {
+    getState,
+    subscribe: (listener: () => void) => {
+      mocks.authListeners.add(listener);
+      return () => mocks.authListeners.delete(listener);
+    },
+  }) };
+});
 
 describe("AppClientLayout global Amora panel", () => {
   let root: Root;
@@ -98,6 +114,9 @@ describe("AppClientLayout global Amora panel", () => {
     mocks.searchParams = new URLSearchParams();
     mocks.isDemo = true;
     mocks.isInitialized = true;
+    mocks.isLoading = false;
+    mocks.initializationError = null;
+    mocks.reportedErrors.length = 0;
     mocks.initializeCalls.length = 0;
     mocks.authSyncCalls.length = 0;
     mocks.pageViewCalls.length = 0;
@@ -118,6 +137,7 @@ describe("AppClientLayout global Amora panel", () => {
 
   async function renderLayout() {
     await act(async () => {
+      for (const listener of mocks.authListeners) listener();
       root.render(
         <AppClientLayout>
           <div>page content</div>
@@ -156,6 +176,36 @@ describe("AppClientLayout global Amora panel", () => {
     const restored = container.querySelector<HTMLButtonElement>('button[aria-label="아모라 AI 상담"]');
     expect(restored).not.toBeNull();
     expect(document.activeElement).toBe(restored);
+  });
+
+  it("uses the existing error screen for a failed initial session without automatic retry loops", async () => {
+    mocks.isInitialized = false;
+    mocks.initializationError = "로그인 상태를 확인하지 못했어요.";
+    await renderLayout();
+    expect(container.textContent).toContain("화면을 불러오지 못했어요");
+    expect(container.textContent).not.toContain("page content");
+    expect(mocks.initializeCalls).toEqual([]);
+    expect(mocks.reportedErrors).toHaveLength(1);
+    await renderLayout();
+    expect(mocks.reportedErrors).toHaveLength(1);
+    expect(mocks.initializeCalls).toEqual([]);
+    const retry = [...container.querySelectorAll("button")].find((button) => button.textContent === "다시 시도하기");
+    expect(retry).toBeDefined();
+    await act(async () => retry?.click());
+    expect(mocks.initializeCalls).toEqual([{ force: true, initialDemo: false }]);
+    mocks.initializationError = null;
+    mocks.isLoading = true;
+    await renderLayout();
+    expect(container.textContent).toContain("웨딩 라운지를 불러오는 중");
+    expect(mocks.initializeCalls).toHaveLength(1);
+  });
+
+  it("keeps the verified app content when a background session refresh is temporarily unavailable", async () => {
+    mocks.initializationError = "로그인 상태를 확인하지 못했어요.";
+    await renderLayout();
+    expect(container.textContent).toContain("page content");
+    expect(container.textContent).not.toContain("화면을 불러오지 못했어요");
+    expect(mocks.initializeCalls).toEqual([]);
   });
 
   it.each(["/wedding/chat", "/wedding/checklist", "/checklist", "/wedding/budget", "/budget", "/wedding/schedule", "/schedule", "/wedding/lounge", "/lounge", "/wedding/preparation-style", "/preparation-style"])("unmounts and resets the global panel when navigation enters %s", async (pathname) => {
@@ -311,6 +361,71 @@ describe("AppClientLayout global Amora panel", () => {
     const panel = container.querySelector('[data-testid="global-amora-panel"]');
     expect(panel?.getAttribute("data-open")).toBe("true");
     expect(panel?.getAttribute("data-first-hello")).toBe(expected.body);
+  });
+
+  it("discards the previous account's first hello when a background refresh replaces its snapshot", async () => {
+    mocks.isDemo = false;
+    mocks.profile = { id: "owner-a", role: "bride" };
+    mocks.journey = { wedding_date: "2026-10-17", progress: { __stage: "venue_booked" } };
+    await renderLayout();
+    await act(async () => window.dispatchEvent(new CustomEvent(FIRST_RUN_TUTORIAL_COMPLETED_EVENT)));
+    expect(container.querySelector('[data-testid="global-amora-panel"]')?.getAttribute("data-first-hello")).toBeTruthy();
+    mocks.profile = { id: "owner-b", role: "groom" };
+    mocks.journey = null;
+    await renderLayout();
+    expect(container.querySelector('[data-testid="global-amora-panel"]')?.getAttribute("data-first-hello")).toBe("");
+    expect(container.querySelector('[data-testid="amora-first-hello-bubble"]')).toBeNull();
+  });
+
+  it.each(["account-roundtrip", "couple-change"])("closes a stale panel and expires its pending hello on %s", async (change) => {
+    mocks.isDemo = false;
+    mocks.profile = { id: "owner-a", role: "bride", couple_id: "couple-a" };
+    await renderLayout();
+    await act(async () => window.dispatchEvent(new CustomEvent(FIRST_RUN_TUTORIAL_COMPLETED_EVENT)));
+    if (change === "account-roundtrip") {
+      await act(async () => container.querySelector<HTMLButtonElement>('button[aria-label="아모라 AI 상담"]')?.click());
+    }
+    await act(async () => {
+      mocks.profile = { id: change === "account-roundtrip" ? "owner-b" : "owner-a", couple_id: "couple-b" };
+      for (const listener of mocks.authListeners) listener();
+      if (change === "account-roundtrip") {
+        mocks.profile = { id: "owner-a", role: "bride", couple_id: "couple-a" };
+        for (const listener of mocks.authListeners) listener();
+      }
+    });
+    await renderLayout();
+    expect(container.querySelector('[data-testid="global-amora-panel"]')?.getAttribute("data-open")).toBe("false");
+    expect(container.querySelector('[data-testid="global-amora-panel"]')?.getAttribute("data-first-hello")).toBe("");
+    expect(window.localStorage.getItem("hanbang.amoraFirstHello.v1")).toBeNull();
+  });
+
+  it("keeps the current owner's greeting across ordinary profile refreshes and role updates", async () => {
+    mocks.isDemo = false;
+    mocks.profile = { id: "owner-a", role: "bride", couple_id: "couple-a" };
+    await renderLayout();
+    await act(async () => window.dispatchEvent(new CustomEvent(FIRST_RUN_TUTORIAL_COMPLETED_EVENT)));
+    const before = container.querySelector('[data-testid="global-amora-panel"]')?.getAttribute("data-first-hello");
+    mocks.profile = { ...mocks.profile, role: "groom" };
+    await renderLayout();
+    expect(container.querySelector('[data-testid="global-amora-panel"]')?.getAttribute("data-first-hello")).toBe(before);
+    expect(container.querySelector('[data-testid="amora-first-hello-bubble"]')).not.toBeNull();
+  });
+
+  it("expires a pending greeting when couple ownership changes on a route without the global panel", async () => {
+    mocks.isDemo = false;
+    mocks.profile = { id: "owner-a", couple_id: "couple-a" };
+    await renderLayout();
+    await act(async () => window.dispatchEvent(new CustomEvent(FIRST_RUN_TUTORIAL_COMPLETED_EVENT)));
+    mocks.pathname = "/wedding/lounge";
+    await renderLayout();
+    expect(container.querySelector('[data-testid="global-amora-panel"]')).toBeNull();
+    expect(window.localStorage.getItem("hanbang.amoraFirstHello.v1")).not.toBeNull();
+    mocks.profile = { id: "owner-a", couple_id: "couple-b" };
+    await renderLayout();
+    mocks.pathname = "/wedding/settings";
+    await renderLayout();
+    expect(container.querySelector('[data-testid="global-amora-panel"]')?.getAttribute("data-first-hello")).toBe("");
+    expect(container.querySelector('[data-testid="amora-first-hello-bubble"]')).toBeNull();
   });
 
   it("말풍선을 닫으면 다시 뜨지 않는다", async () => {

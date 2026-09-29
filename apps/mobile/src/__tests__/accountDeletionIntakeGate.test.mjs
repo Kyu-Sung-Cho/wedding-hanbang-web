@@ -43,7 +43,7 @@ function meResponse(body, { ok = true } = {}) {
 }
 
 async function run({ owners = [OWNER], fetchMe }) {
-  const calls = { confirm: 0, support: [], fetched: [] };
+  const calls = { confirm: 0, confirmedOwners: [], support: [], fetched: [] };
   let ownerRead = 0;
   const state = await gate.beginAccountDeletion({
     readOwnerId: async () => owners[Math.min(ownerRead++, owners.length - 1)],
@@ -51,7 +51,7 @@ async function run({ owners = [OWNER], fetchMe }) {
       calls.fetched.push(ownerId);
       return fetchMe(ownerId);
     },
-    showConfirm: () => { calls.confirm += 1; },
+    showConfirm: (ownerId) => { calls.confirm += 1; calls.confirmedOwners.push(ownerId); },
     showSupport: (notice, supportState) => { calls.support.push({ notice, state: supportState }); },
   });
   return { state, calls };
@@ -63,6 +63,7 @@ test("열림이 확인되면 삭제 확인만 띄운다", async () => {
   });
   assert.equal(state, "open");
   assert.equal(calls.confirm, 1);
+  assert.deepEqual(calls.confirmedOwners, [OWNER]);
   assert.deepEqual(calls.support, []);
   assert.deepEqual(calls.fetched, [OWNER]);
 });
@@ -176,7 +177,7 @@ test("삭제 요청은 확인된 열림 뒤의 두 번 확인 안에만 있다",
   const occurrences = settings.split('"/api/auth/delete"').length - 1;
   assert.equal(occurrences, 1, "삭제 요청 경로가 한 곳에만 있어야 한다");
   const confirm = functionBody(settings, "showDeletionConfirmation");
-  assert.ok(confirm.includes('apiFetch("/api/auth/delete"'), "삭제 요청이 확인창 밖에 있다");
+  assert.ok(confirm.includes('apiFetchForExpectedUser(deletionOwnerId, "/api/auth/delete"'), "삭제 요청이 확인창 밖에 있다");
   assert.ok(confirm.includes("최종 확인"));
 });
 

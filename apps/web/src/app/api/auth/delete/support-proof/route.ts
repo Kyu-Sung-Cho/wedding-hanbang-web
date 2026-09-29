@@ -6,6 +6,7 @@ import { checkRateLimitPersistent, rateLimitKey } from "@/utils/rateLimit";
 import { isRecord, readBoundedUtf8Text } from "@/utils/requestValidation";
 import { isTrustedMutationRequest } from "@/utils/trustedMutation";
 import { log } from "@/utils/log";
+import { isConfirmedSignedOut } from "@/lib/auth/sessionFailure";
 
 export const runtime = "nodejs";
 const HEADERS = { "Cache-Control": "private, no-store", "Referrer-Policy": "no-referrer" };
@@ -25,6 +26,7 @@ export async function POST(request: Request) {
   try {
     const supabase = await createClientFromRequest(request);
     const { data: { user }, error: authError } = await supabase.auth.getUser();
+    if (authError && !isConfirmedSignedOut(authError)) return error("로그인 정보를 확인하지 못했어요. 잠시 후 다시 시도해 주세요.", 503);
     if (authError || !user || user.is_anonymous) return error("로그인 후 다시 시도해 주세요.", 401);
     const limited = await checkRateLimitPersistent(rateLimitKey("auth:deletion-support-proof", request, user.id), {
       maxRequests: 3, windowMs: 60 * 60 * 1000,

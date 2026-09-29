@@ -131,10 +131,13 @@ function isTransientAuthFetchError(err: unknown) {
   );
 }
 
+const INITIALIZATION_ERROR_MESSAGE = "로그인 상태를 확인하지 못했어요. 잠시 후 다시 시도해 주세요.";
+
 let journeyWriteSequence = 0;
 let profileWriteSequence = 0;
 let authBindingSequence = 0;
 let authInitializeSequence = 0;
+let authSignOutsInFlight = 0;
 type RoleProjection = Pick<Profile, "id" | "couple_id" | "confirmed_role" | "confirmed_role_revision">;
 function roleChanged(current: RoleProjection | null, baseline: RoleProjection | null) {
   return current?.confirmed_role !== baseline?.confirmed_role || current?.confirmed_role_revision !== baseline?.confirmed_role_revision;
@@ -176,6 +179,7 @@ interface AuthState {
   isLoading: boolean;
   isInitialized: boolean;
   isDemo: boolean;
+  initializationError: string | null;
 
   initialize: (options?: { force?: boolean; initialDemo?: boolean; requireVerifiedSession?: boolean }) => Promise<void>;
   updateJourney: (
@@ -207,8 +211,14 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   isLoading: false,
   isInitialized: false,
   isDemo: false,
+  initializationError: null,
 
   initialize: async (options) => {
+    // SDK가 쿠키를 제거하기 전에는 초기 화면·focus 조회도 이전 계정을 복원할 수 없다.
+    if (authSignOutsInFlight > 0) {
+      if (options?.requireVerifiedSession) throw new Error("로그아웃 중이에요. 잠시 후 다시 확인해 주세요.");
+      return;
+    }
     if (get().isInitialized && !options?.force) return;
     const initializeSequence = ++authInitializeSequence;
     const initializeJourneySequence = ++journeyWriteSequence;
@@ -231,19 +241,20 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         isDemo: true,
         isLoading: false,
         isInitialized: true,
+        initializationError: null,
       });
       return;
     }
 
-    if (!options?.force) set({ isLoading: true });
+    set({ ...(!options?.force || !get().isInitialized ? { isLoading: true } : {}), initializationError: null });
 
     try {
       // 실제 인증 세션 먼저 확인 (데모 모드보다 우선)
       const res = await fetch("/api/auth/me");
 
-      // 공개 화면에서 계정 인계를 준비할 때는 장애를 비로그인으로 해석하지 않는다.
-      if (options?.requireVerifiedSession && !res.ok && res.status !== 401) {
-        throw new Error("로그인 상태를 확인하지 못했어요. 다시 시도해 주세요.");
+      // 읽기 장애는 로그아웃 증거가 아니다. 실제 401만 비로그인으로 처리한다.
+      if (!res.ok && res.status !== 401) {
+        throw new Error(INITIALIZATION_ERROR_MESSAGE);
       }
 
       if (res.ok) {
@@ -304,6 +315,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
             isDemo: false,
             isLoading: false,
             isInitialized: true,
+            initializationError: null,
           });
           return;
         }
@@ -326,6 +338,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           isDemo: true,
           isLoading: false,
           isInitialized: true,
+          initializationError: null,
         });
         return;
       }
@@ -340,6 +353,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         isDemo: false,
         isLoading: false,
         isInitialized: true,
+        initializationError: null,
       });
     } catch (err) {
       if (options?.requireVerifiedSession) {
@@ -347,12 +361,14 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         throw err;
       }
       if (initializeSequence !== authInitializeSequence) return;
-      if (!isTransientAuthFetchError(err)) {
+      if (!isTransientAuthFetchError(err)
+        && !(err instanceof Error && err.message === INITIALIZATION_ERROR_MESSAGE)) {
         console.error("Auth store init error:", err);
       }
 
-      // fetch 에러 시에도 데모 모드 폴백
-      if (isDemoMode()) {
+      // 실제 세션의 조회 실패를 남아 있는 데모 쿠키로 덮어쓰지 않는다.
+      const current = get();
+      if (isDemoMode() && (!current.user || current.isDemo)) {
         journeyWriteSequence += 1;
         useCommunityStore.getState().bindViewer("demo");
         set({
@@ -364,11 +380,16 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           isDemo: true,
           isLoading: false,
           isInitialized: true,
+          initializationError: null,
         });
         return;
       }
 
-      set({ isLoading: false, isInitialized: true });
+      set({
+        isLoading: false,
+        isInitialized: current.user !== null && current.isInitialized,
+        initializationError: INITIALIZATION_ERROR_MESSAGE,
+      });
     }
   },
 
@@ -725,14 +746,21 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 
   signOut: async () => {
-    const supabase = createClient();
-    // Purge auth and viewer-owned state before I/O so logout cannot paint or
-    // refetch the outgoing account while the network request is pending.
+    // reset으로 레이아웃이 다시 초기화를 시도하기 전에 재조회를 먼저 차단한다.
+    authSignOutsInFlight += 1;
     get().reset();
-    await supabase.auth.signOut();
-    document.cookie = "onboarding_complete=; path=/; max-age=0";
-    document.cookie = "demo_mode=; path=/; max-age=0";
-    window.location.href = "/login";
+    try {
+      const { error } = await createClient().auth.signOut();
+      if (error) throw error;
+      document.cookie = "onboarding_complete=; path=/; max-age=0";
+      document.cookie = "demo_mode=; path=/; max-age=0";
+      window.location.href = "/login";
+    } catch (error) {
+      set({ isLoading: false, initializationError: "로그아웃을 완료하지 못했어요. 잠시 후 다시 시도해 주세요." });
+      throw error;
+    } finally {
+      authSignOutsInFlight -= 1;
+    }
   },
 
   reset: () => {
@@ -748,6 +776,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       isLoading: false,
       isInitialized: false,
       isDemo: false,
+      initializationError: null,
     });
   },
 }));

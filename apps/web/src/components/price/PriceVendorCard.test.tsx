@@ -186,6 +186,75 @@ describe("PriceVendorCard", () => {
     vi.unstubAllGlobals();
   });
 
+  it("loads newly visible regional offers while the same vendor card stays open", async () => {
+    const offer = (id: string) => ({
+      id, agencyId: "agency-region", agencyName: "대행사", minimumKrw: 1_000_000,
+      maximumKrw: 1_000_000, priceNote: null, baseSpec: null, options: [], optionCount: 1,
+    });
+    const vendor: PriceVendor = {
+      id: "regional-vendor", slug: "regional-vendor", name: "지역 공시 업체", aliases: [],
+      category: "studio", regionCode: "seoul_etc", offers: [offer("regional-a")],
+    };
+    const fetcher = vi.fn(async (url: string) => {
+      const ids = new URL(url, "https://hanbang.ai").searchParams.get("ids")!.split(",");
+      return Response.json({ options: ids.map((id) => ({
+        id: `option-${id}`, officialPriceId: id, name: `추가금 ${id}`, minimumKrw: 100_000,
+        maximumKrw: 100_000, unit: null, condition: null, rawText: `원문 ${id}`, isEffectivelyMandatory: false,
+      })) });
+    });
+    vi.stubGlobal("fetch", fetcher);
+    await act(async () => { root.render(<PriceVendorCard vendor={vendor} isWishlisted={false} onToggleWishlist={() => {}} />); });
+    const details = container.querySelector<HTMLDetailsElement>('details[data-add-on-breakdown="true"]')!;
+    await act(async () => {
+      details.open = true;
+      details.dispatchEvent(new Event("toggle", { bubbles: true }));
+      await Promise.resolve();
+    });
+    expect(container.textContent).toContain("원문 regional-a");
+    await act(async () => {
+      root.render(<PriceVendorCard vendor={{ ...vendor, offers: [offer("regional-a"), offer("regional-b")] }} isWishlisted={false} onToggleWishlist={() => {}} />);
+      await Promise.resolve();
+    });
+    expect(details.open).toBe(true);
+    expect(container.textContent).toContain("원문 regional-b");
+    expect(fetcher.mock.calls).toHaveLength(2);
+    vi.unstubAllGlobals();
+  });
+
+  it("does not let a previous regional lookup replace the current options", async () => {
+    const offer = (id: string) => ({
+      id, agencyId: null, agencyName: "직접 공시", minimumKrw: 1_000_000,
+      maximumKrw: null, priceNote: null, baseSpec: null, options: [], optionCount: 1,
+    });
+    const vendor: PriceVendor = {
+      id: "racing-vendor", slug: "racing-vendor", name: "늦은 지역 응답", aliases: [],
+      category: "studio", regionCode: "seoul_etc", offers: [offer("racing-old")],
+    };
+    let resolveOld!: (response: Response) => void;
+    const oldResponse = new Promise<Response>((resolve) => { resolveOld = resolve; });
+    const result = (id: string) => Response.json({ options: [{
+      id: `option-${id}`, officialPriceId: id, name: `추가금 ${id}`, minimumKrw: 100_000,
+      maximumKrw: null, unit: null, condition: null, rawText: `원문 ${id}`, isEffectivelyMandatory: false,
+    }] });
+    vi.stubGlobal("fetch", vi.fn(async (url: string) => url.includes("racing-old") ? oldResponse : result("racing-new")));
+    await act(async () => { root.render(<PriceVendorCard vendor={vendor} isWishlisted={false} onToggleWishlist={() => {}} />); });
+    const details = container.querySelector<HTMLDetailsElement>('details[data-add-on-breakdown="true"]')!;
+    await act(async () => {
+      details.open = true;
+      details.dispatchEvent(new Event("toggle", { bubbles: true }));
+      await Promise.resolve();
+    });
+    await act(async () => {
+      root.render(<PriceVendorCard vendor={{ ...vendor, offers: [offer("racing-new")] }} isWishlisted={false} onToggleWishlist={() => {}} />);
+      await Promise.resolve();
+    });
+    expect(container.textContent).toContain("원문 racing-new");
+    await act(async () => { resolveOld(result("racing-old")); await Promise.resolve(); });
+    expect(container.textContent).toContain("원문 racing-new");
+    expect(container.textContent).not.toContain("원문 racing-old");
+    vi.unstubAllGlobals();
+  });
+
   it("keeps an admin preview card read-only", async () => {
     const onToggleWishlist = vi.fn();
     const onOpenCombo = vi.fn();

@@ -1,5 +1,5 @@
 // 범용 WebView 화면 — hanbang.ai 페이지를 앱 내에서 표시
-import { useState, useRef, useCallback, useMemo } from "react";
+import { useState, useRef, useCallback, useMemo, useEffect } from "react";
 import { View, StyleSheet, Pressable, ActivityIndicator, Share, Linking, Alert } from "react-native";
 import { Text } from "@/components/ui/AppText";
 import * as Crypto from "expo-crypto";
@@ -9,10 +9,12 @@ import { ArrowLeft, Share2 } from "lucide-react-native";
 import { WebView, type WebViewMessageEvent } from "react-native-webview";
 import { colors } from "@hanbang/design-tokens";
 import { apiFetchForWebBridge } from "@/lib/api";
+import { supabase } from "@/lib/supabase";
 import { preparationNavigation } from "@/lib/amoraPreparationSource";
 import {
   MOBILE_WEB_API_PROTOCOL,
   MOBILE_WEB_API_NONCE_PROPERTY,
+  MOBILE_WEB_API_OWNER_SCOPE_PROPERTY,
   buildMobileWebApiResponseScript,
   createMobileWebApiAuthRedirectGate,
   createMobileWebApiRequestGate,
@@ -129,6 +131,37 @@ export function nativeRouteForWebPath(pathname: string, search = ""): string | n
 }
 
 export default function WebViewScreen() {
+  const [owner, setOwner] = useState<{ userId: string | null | undefined; epoch: number }>({
+    userId: undefined,
+    epoch: 0,
+  });
+  const ownerRef = useRef(owner);
+  const mountedRef = useRef(true);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    const { data } = supabase.auth.onAuthStateChange((_event, session) => {
+      const userId = session?.user.id ?? null;
+      if (ownerRef.current.userId === userId) return;
+      // 렌더 전에도 이전 문서의 요청·응답을 막고, A→B→A도 새 문서로 연다.
+      const next = { userId, epoch: ownerRef.current.epoch + 1 };
+      ownerRef.current = next;
+      setOwner(next);
+    });
+    return () => {
+      mountedRef.current = false;
+      data.subscription.unsubscribe();
+    };
+  }, []);
+
+  const isCurrentOwner = useCallback(() => (
+    mountedRef.current && ownerRef.current === owner && owner.userId !== undefined
+  ), [owner]);
+
+  return <OwnerScopedWebViewScreen key={owner.epoch} ownerId={owner.userId ?? null} isCurrentOwner={isCurrentOwner} />;
+}
+
+function OwnerScopedWebViewScreen({ ownerId, isCurrentOwner }: { ownerId: string | null; isCurrentOwner: () => boolean }) {
   const params = useLocalSearchParams<{ url?: string | string[] }>();
   const url = firstParam(params.url);
   const safeUrl = normalizeMobileSiteUrl(url, SITE_ORIGIN);
@@ -143,10 +176,12 @@ export default function WebViewScreen() {
   const [currentTitle, setCurrentTitle] = useState(titleFromUrl(safeUrl ?? ""));
   const [currentUrl, setCurrentUrl] = useState(safeUrl ?? "");
   const [canGoBack, setCanGoBack] = useState(false);
+  useEffect(() => () => { documentEpochRef.current += 1; }, []);
   const bridgeNonceScript = useMemo(() => {
     const property = JSON.stringify(MOBILE_WEB_API_NONCE_PROPERTY);
+    const ownerScopeProperty = JSON.stringify(MOBILE_WEB_API_OWNER_SCOPE_PROPERTY);
     const nonce = JSON.stringify(bridgeNonce);
-    return `(()=>{if(window.top!==window.self)return true;const key=${property};const nonce=${nonce};if(window[key]===nonce)return true;if(window[key]!==undefined)return false;Object.defineProperty(window,key,{value:nonce,writable:false,configurable:false,enumerable:false});return true;})();true;`;
+    return `(()=>{if(window.top!==window.self)return true;const key=${property};const nonce=${nonce};if(window[key]===nonce)return true;if(window[key]!==undefined)return false;Object.defineProperty(window,key,{value:nonce,writable:false,configurable:false,enumerable:false});Object.defineProperty(window,${ownerScopeProperty},{value:nonce,writable:false,configurable:false,enumerable:false});return true;})();true;`;
   }, [bridgeNonce]);
 
   // 지금 보는 주소를 그대로 보내지 않는다. `#` 뒤에 답이나 접근 키가 실린 화면이 있다.
@@ -218,6 +253,7 @@ export default function WebViewScreen() {
   }, []);
 
   const handleMessage = useCallback(async (event: WebViewMessageEvent) => {
+    if (!isCurrentOwner()) return;
     if (!isMobileWebApiBridgeSourceUrl(event.nativeEvent.url, SITE_ORIGIN)) return;
     const request = parseMobileWebApiRequest(
       event.nativeEvent.data,
@@ -230,7 +266,7 @@ export default function WebViewScreen() {
     if (gateResult === "replay") return;
 
     if (gateResult !== "accepted") {
-      if (requestEpoch !== documentEpochRef.current) return;
+      if (!isCurrentOwner() || requestEpoch !== documentEpochRef.current) return;
       const responseScript = buildMobileWebApiResponseScript({
         protocol: MOBILE_WEB_API_PROTOCOL,
         nonce: bridgeNonce,
@@ -249,14 +285,17 @@ export default function WebViewScreen() {
     let redirectToNativeLogin = false;
 
     try {
-      const response = await runMobileWebApiRequestWithTimeout((signal: AbortSignal) => (
-        apiFetchForWebBridge(request.path, {
+      const response = await runMobileWebApiRequestWithTimeout((signal: AbortSignal) => {
+        if (!isCurrentOwner() || requestEpoch !== documentEpochRef.current) {
+          throw new Error("MOBILE_WEB_API_DOCUMENT_CHANGED");
+        }
+        return apiFetchForWebBridge(request.path, {
           method: request.method,
           headers: request.headers,
           signal,
           ...(request.body === undefined ? {} : { body: request.body }),
-        })
-      ));
+        }, ownerId, () => isCurrentOwner() && requestEpoch === documentEpochRef.current);
+      });
       status = response.status;
       const responseContentType = response.headers.get("content-type");
       contentType = responseContentType && responseContentType.length <= MAX_BRIDGE_CONTENT_TYPE_LENGTH
@@ -270,7 +309,7 @@ export default function WebViewScreen() {
           contentType = "application/json";
           body = JSON.stringify({ error: "로그인이 필요합니다." });
         }
-        redirectToNativeLogin = requestEpoch === documentEpochRef.current
+        redirectToNativeLogin = isCurrentOwner() && requestEpoch === documentEpochRef.current
           && bridgeAuthRedirectGate.claim();
       } else if (!responseBody.ok) {
         status = 502;
@@ -288,7 +327,7 @@ export default function WebViewScreen() {
     // A response belongs only to the main document that initiated it. A full
     // navigation invalidates pending results before bearer-authenticated data
     // can be injected into a later page.
-    if (requestEpoch !== documentEpochRef.current) return;
+    if (!isCurrentOwner() || requestEpoch !== documentEpochRef.current) return;
     const responseScript = buildMobileWebApiResponseScript({
       protocol: MOBILE_WEB_API_PROTOCOL,
       nonce: bridgeNonce,
@@ -301,7 +340,7 @@ export default function WebViewScreen() {
     if (redirectToNativeLogin) {
       router.replace("/(auth)/login");
     }
-  }, [bridgeAuthRedirectGate, bridgeNonce, bridgeRequestGate]);
+  }, [bridgeAuthRedirectGate, bridgeNonce, bridgeRequestGate, isCurrentOwner, ownerId]);
 
   if (!safeUrl) {
     return (

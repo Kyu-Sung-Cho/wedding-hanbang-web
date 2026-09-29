@@ -192,6 +192,16 @@ export default function SettingsPage() {
   const [resetWeddingConfirmText, setResetWeddingConfirmText] = useState("");
   const [resettingWedding, setResettingWedding] = useState(false);
   const [resetWeddingError, setResetWeddingError] = useState("");
+  const [resetWeddingContext, setResetWeddingContext] = useState<{ ownerId: string; coupleId: string | null } | null>(null);
+  const resetWeddingOwnerId = !isDemo ? user?.id ?? null : null;
+  const resetWeddingCoupleId = profile?.couple_id ?? null;
+  useEffect(() => {
+    setShowResetWeddingModal(false);
+    setResetWeddingContext(null);
+    setResetWeddingConfirmText("");
+    setResetWeddingError("");
+    setResettingWedding(false);
+  }, [resetWeddingOwnerId, resetWeddingCoupleId]);
   const [draftPrefs, setDraftPrefs] = useState<WeddingPreferenceState>({});
   const [preferenceSaving, setPreferenceSaving] = useState(false);
   const [revokingLegacyCareConsent, setRevokingLegacyCareConsent] = useState(false);
@@ -516,7 +526,7 @@ export default function SettingsPage() {
       const res = await fetch("/api/auth/delete", {
         method: "DELETE",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ reason: deleteReason }),
+        body: JSON.stringify({ reason: deleteReason, expectedOwnerId: deletionOwnerId }),
       });
       const data = (await res.json().catch(() => ({}))) as {
         error?: string;
@@ -556,7 +566,13 @@ export default function SettingsPage() {
   };
 
   const handleResetWedding = async () => {
-    if (resetWeddingConfirmText !== "초기화합니다") return;
+    const context = resetWeddingContext;
+    const isCurrentContext = () => {
+      const current = useAuthStore.getState();
+      return Boolean(context && !current.isDemo && current.user?.id === context.ownerId
+        && (current.profile?.couple_id ?? null) === context.coupleId);
+    };
+    if (resetWeddingConfirmText !== "초기화합니다" || resettingWedding || !context || !isCurrentContext()) return;
     setResettingWedding(true);
     setResetWeddingError("");
 
@@ -564,9 +580,10 @@ export default function SettingsPage() {
       const res = await fetch("/api/couple/reset", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ confirmText: resetWeddingConfirmText }),
+        body: JSON.stringify({ confirmText: resetWeddingConfirmText, expectedUserId: context.ownerId, expectedCoupleId: context.coupleId }),
       });
       const data = await res.json().catch(() => ({}));
+      if (!isCurrentContext()) return;
 
       if (!res.ok) {
         setResetWeddingError(data.error ?? "초기화에 실패했습니다.");
@@ -576,9 +593,9 @@ export default function SettingsPage() {
       document.cookie = "onboarding_complete=; path=/; max-age=0";
       window.location.href = "/onboarding";
     } catch {
-      setResetWeddingError("오류가 발생했습니다. 다시 시도해주세요.");
+      if (isCurrentContext()) setResetWeddingError("오류가 발생했습니다. 다시 시도해주세요.");
     } finally {
-      setResettingWedding(false);
+      if (isCurrentContext()) setResettingWedding(false);
     }
   };
 
@@ -1059,6 +1076,8 @@ export default function SettingsPage() {
             <button
               type="button"
               onClick={() => {
+                if (!resetWeddingOwnerId) return;
+                setResetWeddingContext({ ownerId: resetWeddingOwnerId, coupleId: resetWeddingCoupleId });
                 setResetWeddingConfirmText("");
                 setResetWeddingError("");
                 setShowResetWeddingModal(true);

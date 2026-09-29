@@ -101,6 +101,9 @@ interface CommunityState {
 }
 
 const LIMIT = 20;
+// 같은 계정에서도 이전 필터·새로고침·페이지 요청이 최신 피드를 덮지 않게 한다.
+let feedRequestSequence = 0;
+let commentsRequestSequence = 0;
 
 // SWR 캐시 — sessionStorage 기반.
 // fresh window 안엔 네트워크 skip, 그 후엔 stale-while-revalidate.
@@ -219,6 +222,7 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
   communityProfile: null,
 
   hydrateInitialFeed: (feed) => {
+    feedRequestSequence += 1;
     set({
       posts: feed.posts,
       total: feed.total,
@@ -236,6 +240,7 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
   },
 
   fetchPosts: async (reset = true) => {
+    const requestSequence = ++feedRequestSequence;
     const {
       viewerId,
       privacyEpoch,
@@ -246,6 +251,8 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
       currentAuthorId,
     } = get();
     const viewerSnapshot = { viewerId, privacyEpoch };
+    const isCurrentRequest = () => requestSequence === feedRequestSequence
+      && isViewerSnapshotCurrent(get, viewerSnapshot);
     const cacheKey = feedCacheKey(
       viewerId,
       currentCategory,
@@ -290,14 +297,14 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
       const res = await fetch(`/api/community/posts?${params}`);
       if (!res.ok) throw new Error();
       const data = await res.json();
-      if (!isViewerSnapshotCurrent(get, viewerSnapshot)) return;
+      if (!isCurrentRequest()) return;
       const posts = data.posts ?? [];
       const total = data.total ?? 0;
       const hasMore = data.hasMore ?? false;
       set({ posts, total, hasMore, currentPage: 1, isLoading: false, errorMessage: null, lastSyncedAt: new Date().toISOString() });
       writeFeedCache(cacheKey, { posts, total, hasMore, ts: Date.now() });
     } catch {
-      if (!isViewerSnapshotCurrent(get, viewerSnapshot)) return;
+      if (!isCurrentRequest()) return;
       set({ isLoading: false, errorMessage: "게시글을 불러오지 못했습니다. 잠시 후 다시 시도해주세요." });
     }
   },
@@ -306,6 +313,9 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
     const viewerSnapshot = captureViewerSnapshot(get());
     const { currentCategory, currentSort, currentPeriod, currentTag, currentAuthorId, currentPage, hasMore, isLoading } = get();
     if (!hasMore || isLoading) return;
+    const requestSequence = ++feedRequestSequence;
+    const isCurrentRequest = () => requestSequence === feedRequestSequence
+      && isViewerSnapshotCurrent(get, viewerSnapshot);
     set({ isLoading: true, errorMessage: null });
 
     const nextPage = currentPage + 1;
@@ -322,7 +332,7 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
       const res = await fetch(`/api/community/posts?${params}`);
       if (!res.ok) throw new Error();
       const data = await res.json();
-      if (!isViewerSnapshotCurrent(get, viewerSnapshot)) return;
+      if (!isCurrentRequest()) return;
       set((s) => ({
         posts: [...s.posts, ...data.posts],
         hasMore: data.hasMore,
@@ -332,7 +342,7 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
         lastSyncedAt: new Date().toISOString(),
       }));
     } catch {
-      if (!isViewerSnapshotCurrent(get, viewerSnapshot)) return;
+      if (!isCurrentRequest()) return;
       set({ isLoading: false, errorMessage: "다음 글을 불러오지 못했습니다." });
     }
   },
@@ -360,6 +370,9 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
 
   fetchComments: async (postId) => {
     const viewerSnapshot = captureViewerSnapshot(get());
+    const requestSequence = ++commentsRequestSequence;
+    const isCurrentRequest = () => requestSequence === commentsRequestSequence
+      && isViewerSnapshotCurrent(get, viewerSnapshot);
     set((state) => ({
       commentsLoading: true,
       errorMessage: null,
@@ -371,14 +384,14 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
       const res = await fetch(`/api/community/comments?postId=${postId}`);
       if (!res.ok) throw new Error();
       const data = await res.json();
-      if (!isViewerSnapshotCurrent(get, viewerSnapshot)) return;
+      if (!isCurrentRequest()) return;
       set((state) =>
         state.commentsPostId === postId
           ? { comments: data.comments ?? data, commentsLoading: false }
           : state
       );
     } catch {
-      if (!isViewerSnapshotCurrent(get, viewerSnapshot)) return;
+      if (!isCurrentRequest()) return;
       if (get().commentsPostId !== postId) return;
       set({ commentsLoading: false, errorMessage: "댓글을 불러오지 못했습니다." });
     }
@@ -646,8 +659,10 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
         && responseBody.post_comment_count >= 0
           ? responseBody.post_comment_count
           : null;
-      // 댓글 다시 불러오기
-      await get().fetchComments(input.post_id);
+      // 저장을 기다리는 동안 다른 글로 이동했다면 그 글의 댓글을 유지한다.
+      if (get().commentsPostId === input.post_id) {
+        await get().fetchComments(input.post_id);
+      }
       if (!isViewerSnapshotCurrent(get, viewerSnapshot)) return false;
       invalidateFeedCache();
       // 첫 답변이 달린 글은 즉시 "답변 기다려요" 피드에서 빠져야 한다.
@@ -686,6 +701,7 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
 
   updateComment: async (commentId, content) => {
     const viewerSnapshot = captureViewerSnapshot(get());
+    const commentsPostId = get().commentsPostId;
     const trimmed = content.trim();
     if (!trimmed) return { ok: false, message: COMMENT_EDIT_FAILED };
 
@@ -715,6 +731,12 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
       const nextContent = data?.comment?.content ?? trimmed;
       const nextUpdatedAt = data?.comment?.updated_at ?? new Date().toISOString();
 
+      // 저장 전에 시작된 조회로 수정 성공이 되돌아가지 않게 한다.
+      if (get().commentsPostId === commentsPostId) {
+        commentsRequestSequence += 1;
+        set({ commentsLoading: false });
+      }
+
       const updateComment = (c: CommentWithAuthor): CommentWithAuthor => {
         if (c.id === commentId) {
           return { ...c, content: nextContent, updated_at: nextUpdatedAt };
@@ -732,6 +754,7 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
 
   deleteComment: async (commentId) => {
     const viewerSnapshot = captureViewerSnapshot(get());
+    const commentsPostId = get().commentsPostId;
     try {
       const res = await fetch(`/api/community/comments/${commentId}`, { method: "DELETE" });
       const data = (await res.json().catch(() => null)) as { error?: string } | null;
@@ -747,6 +770,10 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
         };
       }
       // 소프트 삭제 반영
+      if (get().commentsPostId === commentsPostId) {
+        commentsRequestSequence += 1;
+        set({ commentsLoading: false });
+      }
       const updateComment = (c: CommentWithAuthor): CommentWithAuthor => {
         if (c.id === commentId) return { ...c, is_deleted: true, content: "삭제된 댓글입니다." };
         if (c.replies) return { ...c, replies: c.replies.map(updateComment) };
@@ -815,24 +842,29 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
 
   setCategory: (category) => {
     if (get().currentCategory === category) return;
+    feedRequestSequence += 1;
     set({ currentCategory: category, posts: [], hasMore: true, currentPage: 1 });
   },
 
   setSort: (sort) => {
+    feedRequestSequence += 1;
     set({ currentSort: sort, posts: [], hasMore: true, currentPage: 1 });
   },
 
   setPeriod: (period) => {
+    feedRequestSequence += 1;
     set({ currentPeriod: period, posts: [], hasMore: true, currentPage: 1 });
   },
 
   setTag: (tag) => {
     if (get().currentTag === tag) return;
+    feedRequestSequence += 1;
     set({ currentTag: tag, posts: [], hasMore: true, currentPage: 1 });
   },
 
   setAuthorId: (authorId) => {
     if (get().currentAuthorId === authorId) return;
+    feedRequestSequence += 1;
     set({ currentAuthorId: authorId, posts: [], hasMore: true, currentPage: 1 });
   },
 
