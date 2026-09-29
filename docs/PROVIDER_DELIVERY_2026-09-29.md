@@ -108,10 +108,10 @@ corepack pnpm supabase:provider:prepare --local-rehearsal
 | 웹 빌드 | 최종 앱 코드의 합성 로컬 QA 빌드 통과 |
 | release 준비 CLI | --check와 --local-rehearsal 성공. 운영 적용/인가 false 유지 |
 
-전체 실행에서 발견한 실패 파일은 위와 같이 모두 수정하고 해당 범위를 재실행했다.
-웹 전체 실행 중 앱 실행 코드는 고정했고, 이후 변경은 기존 테스트 전제와 QA/CI의 정적 검사
-연결이었다. 대규모 웹·저장소 전체 명령을 최종 테스트 수정 뒤 다시 한 차례 모두 실행한
-기록은 없으므로, 위 최초 집계를 단일 전체 통과로 바꾸어 표기하지 않는다.
+이 표는 최초 실행과 당시 수정 범위의 집계다. 이후 CI에서 발견한 줄바꿈 검증값과
+fixture 의존성 누락도 수정했다. 최종 코드의 pre-push typecheck·lint·test 9개 작업은
+성공했으며, 위 최초 집계를 새 단일 전체 실행의 테스트 개수로 사용하지 않는다.
+정확한 commit에 대한 CI 결과와 후속 범위는 아래 후속 기록을 따른다.
 
 ## 실제 화면 확인
 
@@ -135,8 +135,9 @@ DB 연결 실패는 빈 검색 결과로 꾸미지 않고 오류와 다시 불�
 확장하지 않았고, 새 계약의 성공 결과도 releaseAuthorized=false를 반환한다.
 
 현재 PC에는 전체 로컬 Supabase 스택을 위한 Docker/Podman/WSL이 없다.
-실제 로컬 Auth·Storage SDK 검증 스크립트와 실행 안전장치를 준비했지만
-실제 업로드·다운로드 통합 실행은 하지 못했다. 별도 테스트 브랜치 비용·대상 승인은
+이후 GitHub Actions의 빈 로컬 Supabase 스택에서 실제 Auth·Storage SDK 검증을 통과했다.
+검증 commit과 실행 링크는 아래 후속 기록과 SDK 검증 문서에 있다.
+Next HTTP·브라우저 검증용 hosted 테스트 브랜치의 비용·대상 승인은
 확정되지 않아 원격 환경을 새로 만들지 않았다.
 
 운영 반영에는 승인된 격리 환경에서의 Auth/Storage·브라우저 검증, 실제 Storage 정책
@@ -161,4 +162,9 @@ DB 연결 실패는 빈 검색 결과로 꾸미지 않고 오류와 다시 불�
 [운영 준비 보완 기록](operations/PROVIDER_READINESS_FOLLOWUP_2026-09-29.md)에 정리했다.
 243개 계약을 production 빌드에 등록했고, 제공자 운영 증거가 없는 후보는 별도 검사로 계속 차단한다.
 운영 catalog 읽기 전용 검사와 빈 실제 Supabase 스택의 Auth·Storage CI 실행 경로를 추가했다.
+`b69d8413845478fb8a30ac669eadf66a1a2ceb0c`의
+[실제 통합 CI](https://github.com/Kyu-Sung-Cho/wedding-hanbang-web/actions/runs/36538633277)가 통과했다.
+승인 후 소개 수정·사진 파일 왕복·공개 철회·정리 worker 실패 재시도·Auth 삭제 및 합성 리소스 정리를 확인했다.
+같은 commit의 [전체 코드 CI](https://github.com/Kyu-Sung-Cho/wedding-hanbang-web/actions/runs/36538633364)도
+웹 테스트 네 shard·웹 빌드·모바일·저장소·정적 release 계약까지 성공했다.
 이는 운영 적용이나 배포 완료를 의미하지 않는다.

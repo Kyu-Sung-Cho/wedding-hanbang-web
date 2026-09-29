@@ -6,8 +6,26 @@ HTTP mock, PGlite의 `auth.uid()` 대체 함수, Storage 메타데이터에 직�
 ## 현재 확인한 환경
 
 2026-09-29 이 작업 PC에서 Supabase CLI 2.106.0은 실행되었지만 Docker·Podman 명령/설치 경로/엔진 파이프가 없고 WSL도 미설치 상태였다.
-따라서 이 스크립트의 실제 통합 실행은 **미검증**이다. 실행 안전장치 단위 테스트 통과는 통합 통과가 아니다.
+이 PC에서는 실제 통합 실행을 하지 않았다. 이후 아래 GitHub Actions의 빈 Docker 스택에서 실제 통합을 통과했다.
+실행 안전장치 단위 테스트와 실제 통합 결과는 구분한다.
 기존 PG17 테스트는 SQL·RLS·트랜잭션 검증이며 실제 Auth·Storage 서비스 검증과 구분한다.
+
+### 실제 통합 통과 기록
+
+- 소스 commit: `b69d8413845478fb8a30ac669eadf66a1a2ceb0c`.
+- [Provider Integration 실행 36538633277](https://github.com/Kyu-Sung-Cho/wedding-hanbang-web/actions/runs/36538633277),
+  `Provider Auth and Storage` 성공. 완료 출력 시각 `2026-09-29T07:49:29Z`.
+- 실제 Auth 계정 생성·로그인, 승인 전 쓰기 차단, 승인 후 소개글 저장·오래된 버전 충돌,
+  private Storage의 실제 WebP bytes 왕복, 공개·중지·정지·복구·관리자 권한 회수를 확인했다.
+- 실제 사진 정리 worker의 실패 후 파일 보존·lease·재시도·삭제 checkpoint, Auth 삭제 cascade와
+  기존 세션 거부를 확인했다. 성공 JSON의 7개 검사 그룹이 모두 기록됐다.
+- `cleanupSucceeded=true`, `disposableStackStopped=true`: 생성한 합성 계정·파일과 이번 임시 스택 정리까지 확인했다.
+- `nextHttpRoutesVerified=false`, `accountDeletionWorkerVerified=false`, `realTimeGraceWaitVerified=false`,
+  `restoredProductionBaseline=false`, `releaseAuthorized=false`는 그대로다.
+
+첫 CI에서 드러난 Node 22.13 Corepack 서명 키 문제는 action-setup이 설치한 고정 pnpm 사용으로 수정했다.
+SQL의 혼합 줄바꿈으로 생긴 Windows/Linux 해시 차이는 Git의 LF 원문으로 계약을 다시 고정했다.
+서명 검사나 해시 검사를 끄지 않았고, SQL 실행 내용도 바뀌지 않았다.
 
 ## 자동으로 임시 스택 준비하기
 

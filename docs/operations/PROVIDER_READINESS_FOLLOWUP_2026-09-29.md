@@ -41,7 +41,19 @@ API 계약 근거: [Supabase Run a query](https://supabase.com/docs/reference/ap
 빈 Docker Supabase 스택을 매번 생성하는 runner와 별도 CI를 추가했다.
 세 합성 계정의 실제 로그인·RPC·사진 업로드/다운로드/삭제·권한 회수·Auth 삭제를 실행하고 정리한다.
 설정과 안전 경계는 [로컬 SDK 검증 문서](../PROVIDER_LOCAL_SDK_QA_2026-09-29.md)에 있다.
-실제 실행 결과는 통과한 commit과 CI run으로 별도 기록해야 한다.
+`b69d8413845478fb8a30ac669eadf66a1a2ceb0c`의
+[Provider Integration 36538633277](https://github.com/Kyu-Sung-Cho/wedding-hanbang-web/actions/runs/36538633277)이 통과했다.
+실제 Auth 로그인·승인 후 소개 수정·버전 충돌·WebP bytes 왕복·공개 철회·정리 worker 실패 재시도와
+Auth 삭제를 확인했고, 합성 리소스 정리와 임시 스택 종료도 성공했다.
+Next HTTP·브라우저·계정삭제 worker 전체·실제 35분 대기는 이 결과의 범위가 아니다.
+
+최초 CI의 패키지 설치 서명 키 문제, SQL 한 파일의 혼합 줄바꿈 해시 차이,
+기존 release fence 테스트 fixture의 신규 모듈 복사 누락을 수정했다.
+수정 후 계약·native PG17 검사 11개, 준비 검사·SDK 안전장치·release fence 검사 30개가 통과했다.
+pre-push의 모노레포 typecheck·lint·test 9개 작업도 성공했다.
+같은 코드 commit의 [전체 CI 36538633364](https://github.com/Kyu-Sung-Cho/wedding-hanbang-web/actions/runs/36538633364)도
+성공했다. 웹 빌드·품질, 웹 테스트 네 shard, 모바일, 저장소, 정적 release 계약과 최종 Code Quality가 모두 통과했다.
+운영 준비 잡은 PR에서 실행하지 않는 구조이며, 코드 CI 성공은 운영 릴리스 인가가 아니다.
 
 ## 운영 기준선 재확인
 
@@ -69,6 +81,18 @@ CLI가 관리하는 로그인 역할 초기화와 읽기 전용 제품 SQL 실�
 2. 전역 write fence·백업·복원·실패 복구 증거를 확보하고 적용 직전 기준선을 다시 검사.
 3. 빈 hosted 환경의 Next HTTP·브라우저·사진 공개 철회 및 35분 대기 삭제 worker 검증.
 4. 같은 후보의 필수 CI, DB·Storage 적용 사후 검사, 웹 배포 및 실서비스 확인.
+
+다음 코드 연결 지점은 `scripts/lib/supabase-production-release-controller.mjs`의
+`runProductionRelease`다. 현재 진입점에 제공자 운영 적용 분기는 없다.
+새 분기는 정확한 commit·배포 대상·새 외부 증거를 검증한 뒤에만 열어야 한다.
+기존 `profile-avatar` 경로의 영수증 기록·결과 불명확 시 재시도 금지 방식은 참고할 수 있지만,
+과거 아바타 릴리스 인가나 이미 만료된 관찰을 새 제공자 릴리스 인가로 사용할 수는 없다.
+
+제공자 원문 핀·대상 catalog·ledger 원문 비교는 이미 `provider-participation-release-contract.mjs`,
+`provider-participation-catalog.mjs`, `providerBundleParts`/`expectedProviderLedger`에 있다.
+운영 적용에서는 새로 관찰한 기존 ledger와 비대상 digest를 보존하면서 제공자 세 항목만 더해야 한다.
+로컬 예행의 240→243개 수나 `buildProviderLocalBundle`의 loopback 전용 검사를 운영용으로 바꾸지 않는다.
+전역 fence·DB와 파일 백업/복원·hosted 검증 증거가 연결되기 전까지 production 빌드 차단을 유지한다.
 
 이번 세션에는 Supabase/Vercel connector와 환경변수의 Management API 토큰이 없었지만,
 CLI의 기존 로그인을 확인하여 위 운영 읽기 검사는 완료했다. 이 PC에 Docker는 없으므로 실제
