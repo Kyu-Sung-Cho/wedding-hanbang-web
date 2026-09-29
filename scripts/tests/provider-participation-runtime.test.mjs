@@ -61,6 +61,95 @@ async function create(db,{approve=false,publish=false}={}) {
   return result;
 }
 async function catalog(db,id=null) {return rpc(db,'provider_public_catalog',[id,30],['uuid','int']);}
+async function search(db,{category=null,region=null,query=null,after=null,limit=30,recommendation=false,budget=null}={}) {
+  return rpc(db,'provider_search_catalog',[category,region,query,after,limit,recommendation,budget],['text','text','text','uuid','int','boolean','bigint']);
+}
+async function seedLargeCatalog(db) {
+  await db.exec('RESET ROLE');
+  await db.exec(`
+    INSERT INTO public.provider_profiles(id,owner_id,kind,name,categories,regions,contact_name,contact_email,approval_status,publication_status)
+    SELECT ('aaaaaaaa-aaaa-4aaa-8aaa-'||lpad(n::text,12,'0'))::uuid,'${OWNER}','individual','Synthetic '||n,
+      ARRAY['photography','floral'],ARRAY['서울 강남'],'Synthetic owner','owner@example.invalid','approved','published'
+    FROM generate_series(1,137) n;
+    INSERT INTO public.provider_applications(id,provider_id,owner_id,kind,name,categories,regions,contact_name,contact_email,request_id,submission_payload,consents,status)
+    SELECT ('bbbbbbbb-bbbb-4bbb-8bbb-'||lpad(n::text,12,'0'))::uuid,p.id,p.owner_id,p.kind,p.name,p.categories,p.regions,
+      p.contact_name,p.contact_email,gen_random_uuid(),'{}','{}',CASE WHEN n>100 THEN 'pending' ELSE 'approved' END
+    FROM generate_series(1,137) n JOIN public.provider_profiles p ON p.id=('aaaaaaaa-aaaa-4aaa-8aaa-'||lpad(n::text,12,'0'))::uuid;
+    INSERT INTO public.provider_offerings(provider_id,name,category,base_price_krw,price_unit,extra_charges,conditions,review_status,recommendation_status,reviewed_at)
+    SELECT id,'Synthetic photography','photography',300000,'2시간','출장 별도','날짜 협의','approved','eligible',now()
+    FROM public.provider_profiles;
+    INSERT INTO public.business_inquiries(owner_id,request_id,submission_payload,kind,subject,message,contact_name,contact_email)
+    SELECT '${OWNER}',gen_random_uuid(),'{}','other','Synthetic inquiry '||n,'Synthetic only','Synthetic owner','owner@example.invalid'
+    FROM generate_series(1,137) n;
+  `);
+}
+
+test('global catalog filters before paging, survives updates, and never mixes eligibility across offerings',async()=>{
+  const db=await fixture();
+  try {
+    await seedLargeCatalog(db);await persona(db,'anon',null);
+    const ids=[];let after=null;
+    do {const page=await search(db,{category:'photography',region:'강남',after});ids.push(...page.providers.map(p=>p.id));after=page.next_cursor;}while(after);
+    assert.equal(ids.length,137);assert.equal(new Set(ids).size,137);
+    const first=await search(db,{query:'Synthetic 137'});assert.equal(first.providers.length,1);assert.equal(first.providers[0].name,'Synthetic 137');
+    assert.equal((await search(db,{query:'%'})).providers.length,0);
+    await db.exec('RESET ROLE');
+    const decoy=ids.at(-1);
+    await db.query('update public.provider_offerings set base_price_krw=900000 where provider_id=$1',[decoy]);
+    await db.query(`insert into public.provider_offerings(provider_id,name,category,base_price_krw,price_unit,extra_charges,conditions,review_status,recommendation_status,reviewed_at)
+      values($1,'Cheap flowers','floral',1000,'회','별도 없음','일정 협의','approved','eligible',now())`,[decoy]);
+    await db.query("update public.provider_profiles set updated_at=now()+interval '1 day' where id=$1",[ids[0]]);
+    await persona(db,'anon',null);
+    const next=await search(db,{after:ids[29]});assert.equal(next.providers[0].id,ids[30]);
+    const eligible=[];after=null;
+    do {const page=await search(db,{category:'photography',region:'서울강남',budget:400000,recommendation:true,after,limit:5});
+      for(const profile of page.providers){eligible.push(profile.id);assert.ok(profile.offerings.every(o=>o.category==='photography'&&o.base_price_krw<=400000&&o.is_active));}after=page.next_cursor;
+    }while(after);
+    assert.equal(eligible.length,136);assert.equal(eligible.includes(decoy),false);
+    assert.deepEqual((await search(db,{region:'서울',recommendation:true})).providers,[]);
+    assert.deepEqual((await search(db,{category:'photography',budget:0,recommendation:true})).providers,[]);
+    await assert.rejects(search(db,{limit:101}),/PROVIDER_INVALID_INPUT/);
+    await assert.rejects(search(db,{category:'unknown'}),/PROVIDER_INVALID_INPUT/);
+  }finally{await db.close();}
+});
+test('admin queues reach older matching applications with their profiles and owner records are never silently truncated',async()=>{
+  const db=await fixture();
+  try {
+    await seedLargeCatalog(db);await persona(db);
+    const owned=await rpc(db,'provider_get_workspace');assert.equal(owned.offerings.length,137);assert.equal(owned.business_inquiries.length,137);
+    await assert.rejects(rpc(db,'provider_admin_queue',['applications','pending',null,30]),/PROVIDER_FORBIDDEN/);
+    await persona(db,'authenticated',OTHER);const outsider=await rpc(db,'provider_get_workspace');assert.equal(outsider.offerings.length,0);assert.equal(outsider.business_inquiries.length,0);
+    await persona(db,'authenticated',ADMIN);
+    const page=await rpc(db,'provider_admin_queue',['applications','pending',null,30]);
+    assert.equal(page.applications.length,30);assert.equal(page.profiles.length,30);assert.ok(page.applications.every(a=>a.status==='pending'&&page.profiles.some(p=>p.id===a.provider_id)));
+    assert.deepEqual(page.offerings,[]);assert.deepEqual(page.business_inquiries,[]);
+    const last=await rpc(db,'provider_admin_queue',['applications','pending',page.next_cursor,30]);assert.equal(last.applications.length,7);assert.equal(last.next_cursor,null);
+    assert.equal(new Set([...page.applications,...last.applications].map(a=>a.id)).size,37);
+    await assert.rejects(rpc(db,'provider_admin_queue',['applications','responded',null,30]),/PROVIDER_INVALID_INPUT/);
+    await persona(db,'anon',null);await assert.rejects(rpc(db,'provider_admin_queue',['applications',null,null,30]),/permission denied/);
+  }finally{await db.close();}
+});
+test('withdrawal retains history, immediately removes services, and cannot bypass a fresh review',async()=>{
+  const db=await fixture();
+  try {
+    const item=await create(db,{approve:true,publish:true});
+    let service=await rpc(db,'provider_save_offering',[item.provider_id,null,null,offering()],['uuid','uuid','int','jsonb']);
+    await persona(db,'authenticated',ADMIN);service=await rpc(db,'provider_review_offering',[service.id,1,'approve','eligible','Verified']);
+    await persona(db,'authenticated',OTHER);await assert.rejects(rpc(db,'provider_withdraw_offering',[item.provider_id,service.id,2]),/PROVIDER_NOT_FOUND/);
+    await persona(db);await assert.rejects(rpc(db,'provider_withdraw_offering',[item.provider_id,service.id,1]),/PROVIDER_VERSION_CONFLICT/);
+    service=await rpc(db,'provider_withdraw_offering',[item.provider_id,service.id,2]);assert.equal(service.is_active,false);assert.equal(service.recommendation_status,'blocked');assert.equal(service.reviewed_at,null);
+    assert.equal((await catalog(db)).length,1);assert.deepEqual((await catalog(db))[0].offerings,[]);assert.deepEqual((await search(db,{recommendation:true})).providers,[]);
+    await persona(db,'authenticated',ADMIN);await assert.rejects(rpc(db,'provider_review_offering',[service.id,3,'approve','eligible','No shortcut']),/PROVIDER_INVALID_STATE/);
+    const withdrawn=await rpc(db,'provider_admin_queue',['offerings','withdrawn',null,30]);assert.equal(withdrawn.offerings[0].id,service.id);
+    assert.deepEqual((await rpc(db,'provider_admin_queue',['offerings','pending',null,30])).offerings,[]);
+    await persona(db);service=await rpc(db,'provider_save_offering',[item.provider_id,service.id,3,offering()],['uuid','uuid','int','jsonb']);
+    assert.equal(service.is_active,true);assert.equal(service.review_status,'pending');assert.equal(service.recommendation_status,'needs_review');assert.deepEqual((await catalog(db))[0].offerings,[]);
+    await persona(db,'authenticated',ADMIN);await rpc(db,'provider_suspend_profile',[item.provider_id,3,'Synthetic suspension']);
+    await persona(db);service=(await rpc(db,'provider_get_workspace')).offerings[0];
+    assert.equal((await rpc(db,'provider_withdraw_offering',[item.provider_id,service.id,service.version])).is_active,false);
+    assert.equal((await rpc(db,'provider_get_workspace')).offerings.length,1);
+  }finally{await db.close();}
+});
 
 test('migration requires the separate restrictive storage fence',async()=>{
   const db=await fixture({fence:false,apply:false});

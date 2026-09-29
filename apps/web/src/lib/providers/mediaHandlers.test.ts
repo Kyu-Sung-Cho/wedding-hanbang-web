@@ -56,6 +56,30 @@ describe("공개 상태를 따르는 비공개 사진 전달", () => {
     expect((await readProviderMedia(request(), provider, media)).status).toBe(404);
     expect(mocks.download).toHaveBeenCalledOnce();
   });
+  it("파일을 읽는 동안 사진 철회나 계정삭제가 시작되면 bytes를 내보내지 않는다", async () => {
+    mediaRows = [asset, { status: "removed" }];
+    expect((await readProviderMedia(request(), provider, media)).status).toBe(404);
+    profileRows = [profile, profile]; mediaRows = [asset, { status: "ready" }];
+    mocks.deleting.mockResolvedValueOnce(false).mockResolvedValueOnce(true);
+    expect((await readProviderMedia(request(), provider, media)).status).toBe(404);
+    expect(mocks.download).toHaveBeenCalledTimes(2);
+  });
+  it("등록된 파일 경로가 소유자와 다르면 Storage에서 읽지 않는다", async () => {
+    mediaRows = [{ ...asset, storage_path: `bb000000-0000-4000-8000-000000000099/${provider}/${media}.webp` }];
+    const response = await readProviderMedia(request(), provider, media);
+    expect(response.status).toBe(503); expect(mocks.download).not.toHaveBeenCalled();
+    expect(await response.text()).not.toContain("bb000000");
+  });
+  it("타인의 사진 삭제는 RPC와 Storage 전에 거절한다", async () => {
+    profileRows = [{ owner_id: "bb000000-0000-4000-8000-000000000099" }];
+    const response = await removeProviderMedia(new Request(request().url, { method: "DELETE", headers: { origin: "https://hanbang.ai" } }), provider, media);
+    expect(response.status).toBe(404); expect(mocks.rpc).not.toHaveBeenCalled(); expect(mocks.remove).not.toHaveBeenCalled();
+  });
+  it("읽기 중 재검증 DB가 실패하면 성공 응답으로 대체하지 않는다", async () => {
+    profileRows = [profile, null];
+    const response = await readProviderMedia(request(), provider, media);
+    expect(response.status).toBe(404); expect(mocks.download).toHaveBeenCalledOnce();
+  });
   it("사진 공개 철회 후 Storage 통신이 끊겨도 철회 결과를 유지한다", async () => {
     mocks.remove.mockRejectedValue(new Error("network"));
     const response = await removeProviderMedia(new Request(request().url, { method: "DELETE", headers: { origin: "https://hanbang.ai" } }), provider, media);

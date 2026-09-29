@@ -79,6 +79,7 @@ CREATE TABLE public.provider_offerings (
   includes text[] NOT NULL DEFAULT '{}',
   extra_charges text NOT NULL CHECK (length(btrim(extra_charges)) BETWEEN 1 AND 3000),
   conditions text NOT NULL CHECK (length(btrim(conditions)) BETWEEN 1 AND 5000),
+  is_active boolean NOT NULL DEFAULT true,
   review_status text NOT NULL DEFAULT 'pending' CHECK (review_status IN ('pending','approved','rejected')),
   recommendation_status text NOT NULL DEFAULT 'unreviewed' CHECK (recommendation_status IN ('unreviewed','eligible','needs_review','blocked')),
   version integer NOT NULL DEFAULT 1 CHECK (version>0),
@@ -311,9 +312,9 @@ BEGIN
   RETURN jsonb_build_object(
     'profiles',coalesce((SELECT jsonb_agg(to_jsonb(p) ORDER BY p.created_at DESC) FROM public.provider_profiles p WHERE owner_id=v_actor),'[]'::jsonb),
     'applications',coalesce((SELECT jsonb_agg(to_jsonb(a) ORDER BY a.created_at DESC) FROM public.provider_applications a WHERE owner_id=v_actor),'[]'::jsonb),
-    'offerings',coalesce((SELECT jsonb_agg(to_jsonb(o)) FROM (SELECT o.* FROM public.provider_offerings o JOIN public.provider_profiles p ON p.id=o.provider_id WHERE p.owner_id=v_actor ORDER BY o.updated_at DESC LIMIT 100) o),'[]'::jsonb),
-    'media',coalesce((SELECT jsonb_agg(to_jsonb(m)) FROM (SELECT m.* FROM public.provider_media m JOIN public.provider_profiles p ON p.id=m.provider_id WHERE p.owner_id=v_actor AND m.status='ready' ORDER BY m.sort_order,m.created_at LIMIT 100) m),'[]'::jsonb),
-    'business_inquiries',coalesce((SELECT jsonb_agg(to_jsonb(b)) FROM (SELECT * FROM public.business_inquiries WHERE owner_id=v_actor ORDER BY created_at DESC LIMIT 100) b),'[]'::jsonb));
+    'offerings',coalesce((SELECT jsonb_agg(to_jsonb(o)) FROM (SELECT o.* FROM public.provider_offerings o JOIN public.provider_profiles p ON p.id=o.provider_id WHERE p.owner_id=v_actor ORDER BY o.updated_at DESC,o.id) o),'[]'::jsonb),
+    'media',coalesce((SELECT jsonb_agg(to_jsonb(m)) FROM (SELECT m.* FROM public.provider_media m JOIN public.provider_profiles p ON p.id=m.provider_id WHERE p.owner_id=v_actor AND m.status='ready' ORDER BY m.sort_order,m.created_at,m.id) m),'[]'::jsonb),
+    'business_inquiries',coalesce((SELECT jsonb_agg(to_jsonb(b)) FROM (SELECT * FROM public.business_inquiries WHERE owner_id=v_actor ORDER BY created_at DESC,id) b),'[]'::jsonb));
 END $$;
 CREATE FUNCTION public.provider_admin_workspace() RETURNS jsonb
 LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path='' AS $$
@@ -440,7 +441,7 @@ BEGIN
     UPDATE public.provider_offerings SET name=btrim(p_input->>'name'),category=p_input->>'category',description=p_input->>'description',
       base_price_krw=v_price::int,price_unit=btrim(p_input->>'price_unit'),includes=provider_private.text_array(p_input->'includes',0,30,200),
       extra_charges=btrim(p_input->>'extra_charges'),conditions=btrim(p_input->>'conditions'),review_status='pending',
-      recommendation_status='needs_review',reviewed_by=NULL,reviewed_at=NULL,review_reason=NULL,version=version+1,updated_at=now()
+      is_active=true,recommendation_status='needs_review',reviewed_by=NULL,reviewed_at=NULL,review_reason=NULL,version=version+1,updated_at=now()
       WHERE id=o.id RETURNING * INTO o;
   END IF;
   PERFORM provider_private.audit(p.id,v_actor,'offering_submitted',o.id,jsonb_build_object('version',o.version));
@@ -457,12 +458,28 @@ BEGIN
   IF NOT FOUND THEN RAISE EXCEPTION 'PROVIDER_NOT_FOUND'; END IF;
   SELECT * INTO p FROM public.provider_profiles WHERE id=o.provider_id FOR UPDATE;
   SELECT * INTO o FROM public.provider_offerings WHERE id=p_offering_id FOR UPDATE;
+  IF NOT o.is_active THEN RAISE EXCEPTION 'PROVIDER_INVALID_STATE'; END IF;
   IF p.approval_status<>'approved' THEN RAISE EXCEPTION 'PROVIDER_NOT_APPROVED'; END IF;
   IF o.version IS DISTINCT FROM p_expected_version THEN RAISE EXCEPTION 'PROVIDER_VERSION_CONFLICT'; END IF;
   UPDATE public.provider_offerings SET review_status=CASE WHEN p_action='approve' THEN 'approved' ELSE 'rejected' END,
     recommendation_status=p_recommendation_status,review_reason=nullif(btrim(p_reason),''),reviewed_by=v_actor,reviewed_at=now(),
     version=version+1,updated_at=now() WHERE id=o.id RETURNING * INTO o;
   PERFORM provider_private.audit(p.id,v_actor,'offering_reviewed',o.id,jsonb_build_object('version',o.version,'recommendation_status',o.recommendation_status));
+  RETURN to_jsonb(o);
+END $$;
+
+CREATE FUNCTION public.provider_withdraw_offering(p_provider_id uuid,p_offering_id uuid,p_expected_version int) RETURNS jsonb
+LANGUAGE plpgsql SECURITY DEFINER SET search_path='' AS $$
+DECLARE v_actor uuid:=provider_private.require_actor(); p public.provider_profiles; o public.provider_offerings;
+BEGIN
+  SELECT * INTO p FROM public.provider_profiles WHERE id=p_provider_id AND owner_id=v_actor FOR UPDATE;
+  IF NOT FOUND THEN RAISE EXCEPTION 'PROVIDER_NOT_FOUND'; END IF;
+  SELECT * INTO o FROM public.provider_offerings WHERE id=p_offering_id AND provider_id=p.id FOR UPDATE;
+  IF NOT FOUND THEN RAISE EXCEPTION 'PROVIDER_NOT_FOUND'; END IF;
+  IF o.version IS DISTINCT FROM p_expected_version THEN RAISE EXCEPTION 'PROVIDER_VERSION_CONFLICT'; END IF;
+  UPDATE public.provider_offerings SET is_active=false,review_status='pending',recommendation_status='blocked',
+    reviewed_at=NULL,reviewed_by=NULL,version=version+1,updated_at=now() WHERE id=o.id RETURNING * INTO o;
+  PERFORM provider_private.audit(p.id,v_actor,'offering_withdrawn',o.id,jsonb_build_object('version',o.version));
   RETURN to_jsonb(o);
 END $$;
 
@@ -592,8 +609,8 @@ LANGUAGE sql STABLE SECURITY DEFINER SET search_path='' AS $$
       'offerings',coalesce((SELECT jsonb_agg(jsonb_build_object('id',o.id,'provider_id',o.provider_id,'name',o.name,'category',o.category,
         'description',o.description,'base_price_krw',o.base_price_krw,'price_unit',o.price_unit,'includes',o.includes,
         'extra_charges',o.extra_charges,'conditions',o.conditions,'review_status',o.review_status,'recommendation_status',o.recommendation_status,'version',o.version,
-        'reviewed_at',o.reviewed_at,'updated_at',o.updated_at) ORDER BY o.created_at)
-        FROM public.provider_offerings o WHERE o.provider_id=p.id AND o.review_status='approved'),'[]'::jsonb),
+        'is_active',o.is_active,'reviewed_at',o.reviewed_at,'updated_at',o.updated_at) ORDER BY o.created_at)
+        FROM public.provider_offerings o WHERE o.provider_id=p.id AND o.review_status='approved' AND o.is_active),'[]'::jsonb),
       'media',coalesce((SELECT jsonb_agg(jsonb_build_object('id',m.id,'provider_id',m.provider_id,'caption',m.caption,'alt_text',m.alt_text,'sort_order',m.sort_order)
         ORDER BY m.sort_order,m.created_at) FROM public.provider_media m WHERE m.provider_id=p.id AND m.status='ready'),'[]'::jsonb)) AS item
     FROM public.provider_profiles p WHERE p.approval_status='approved' AND p.publication_status='published'
@@ -604,21 +621,100 @@ LANGUAGE sql STABLE SECURITY DEFINER SET search_path='' AS $$
 $$;
 
 -- New definer functions are never left callable through PUBLIC's default ACL.
+-- UUID keyset order is stable when another operator edits a row between pages.
+CREATE FUNCTION public.provider_admin_queue(p_kind text,p_status text DEFAULT NULL,p_after uuid DEFAULT NULL,p_limit int DEFAULT 30) RETURNS jsonb
+LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path='' AS $$
+DECLARE v_ids uuid[]; v_next uuid; v_rows jsonb; v_profiles jsonb:='[]'::jsonb;
+BEGIN
+  PERFORM provider_private.require_admin();
+  IF p_kind IS NULL OR p_kind NOT IN ('applications','offerings','inquiries') OR p_limit IS NULL OR p_limit NOT BETWEEN 1 AND 100
+    OR (p_status IS NOT NULL AND NOT CASE p_kind
+      WHEN 'applications' THEN p_status IN ('pending','changes_requested','approved','rejected')
+      WHEN 'offerings' THEN p_status IN ('pending','approved','rejected','withdrawn')
+      WHEN 'inquiries' THEN p_status IN ('received','reviewing','responded','closed') ELSE false END)
+    THEN RAISE EXCEPTION 'PROVIDER_INVALID_INPUT'; END IF;
+  IF p_kind='applications' THEN
+    SELECT array_agg(id ORDER BY id) INTO v_ids FROM (SELECT id FROM public.provider_applications
+      WHERE (p_status IS NULL OR status=p_status) AND (p_after IS NULL OR id>p_after) ORDER BY id LIMIT p_limit+1) q;
+  ELSIF p_kind='offerings' THEN
+    SELECT array_agg(id ORDER BY id) INTO v_ids FROM (SELECT id FROM public.provider_offerings
+      WHERE (p_status IS NULL OR (p_status='withdrawn' AND NOT is_active) OR (is_active AND review_status=p_status))
+      AND (p_after IS NULL OR id>p_after) ORDER BY id LIMIT p_limit+1) q;
+  ELSE
+    SELECT array_agg(id ORDER BY id) INTO v_ids FROM (SELECT id FROM public.business_inquiries
+      WHERE (p_status IS NULL OR status=p_status) AND (p_after IS NULL OR id>p_after) ORDER BY id LIMIT p_limit+1) q;
+  END IF;
+  IF cardinality(v_ids)>p_limit THEN v_next:=v_ids[p_limit]; END IF;
+  v_ids:=v_ids[1:p_limit];
+  IF p_kind='applications' THEN
+    SELECT coalesce(jsonb_agg(to_jsonb(a) ORDER BY a.id),'[]'::jsonb) INTO v_rows FROM public.provider_applications a WHERE a.id=ANY(v_ids);
+    SELECT coalesce(jsonb_agg(to_jsonb(p) ORDER BY p.id),'[]'::jsonb) INTO v_profiles FROM public.provider_profiles p
+      WHERE p.id IN (SELECT provider_id FROM public.provider_applications WHERE id=ANY(v_ids));
+  ELSIF p_kind='offerings' THEN
+    SELECT coalesce(jsonb_agg(to_jsonb(o) ORDER BY o.id),'[]'::jsonb) INTO v_rows FROM public.provider_offerings o WHERE o.id=ANY(v_ids);
+    SELECT coalesce(jsonb_agg(to_jsonb(p) ORDER BY p.id),'[]'::jsonb) INTO v_profiles FROM public.provider_profiles p
+      WHERE p.id IN (SELECT provider_id FROM public.provider_offerings WHERE id=ANY(v_ids));
+  ELSE
+    SELECT coalesce(jsonb_agg(to_jsonb(b) ORDER BY b.id),'[]'::jsonb) INTO v_rows FROM public.business_inquiries b WHERE b.id=ANY(v_ids);
+  END IF;
+  RETURN jsonb_build_object('profiles',v_profiles,'applications',CASE WHEN p_kind='applications' THEN v_rows ELSE '[]'::jsonb END,
+    'offerings',CASE WHEN p_kind='offerings' THEN v_rows ELSE '[]'::jsonb END,
+    'business_inquiries',CASE WHEN p_kind='inquiries' THEN v_rows ELSE '[]'::jsonb END,'media','[]'::jsonb,'next_cursor',v_next);
+END $$;
+
+CREATE FUNCTION public.provider_search_catalog(p_category text DEFAULT NULL,p_region text DEFAULT NULL,p_query text DEFAULT NULL,
+  p_after uuid DEFAULT NULL,p_limit int DEFAULT 30,p_recommendation_only boolean DEFAULT false,p_max_base_price_krw bigint DEFAULT NULL) RETURNS jsonb
+LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path='' AS $$
+DECLARE v_ids uuid[]; v_next uuid; v_id uuid; v_item jsonb; v_rows jsonb:='[]'::jsonb;
+BEGIN
+  IF p_limit IS NULL OR p_limit NOT BETWEEN 1 AND 100 OR p_recommendation_only IS NULL
+    OR (p_category IS NOT NULL AND p_category NOT IN ('photography','videography','hair_makeup','hair_styling','floral','mc','directing','venue','catering','other'))
+    OR (p_region IS NOT NULL AND length(btrim(p_region)) NOT BETWEEN 1 AND 80)
+    OR (p_query IS NOT NULL AND length(btrim(p_query)) NOT BETWEEN 1 AND 100)
+    OR p_max_base_price_krw<0 THEN RAISE EXCEPTION 'PROVIDER_INVALID_INPUT'; END IF;
+  SELECT array_agg(id ORDER BY id) INTO v_ids FROM (
+    SELECT p.id FROM public.provider_profiles p WHERE p.approval_status='approved' AND p.publication_status='published'
+      AND NOT EXISTS(SELECT 1 FROM public.account_deletion_jobs d WHERE d.user_id=p.owner_id AND d.status<>'completed')
+      AND (p_after IS NULL OR p.id>p_after)
+      AND (p_query IS NULL OR strpos(lower(p.name||' '||p.introduction),lower(btrim(p_query)))>0)
+      AND (p_region IS NULL OR EXISTS(SELECT 1 FROM unnest(p.regions) r WHERE CASE WHEN p_recommendation_only
+        THEN regexp_replace(lower(r),'[[:space:]]','','g')=regexp_replace(lower(p_region),'[[:space:]]','','g')
+        ELSE strpos(lower(r),lower(btrim(p_region)))>0 END))
+      AND ((p_category IS NULL AND NOT p_recommendation_only AND p_max_base_price_krw IS NULL) OR EXISTS(
+        SELECT 1 FROM public.provider_offerings o WHERE o.provider_id=p.id AND o.is_active AND o.review_status='approved'
+          AND (p_category IS NULL OR o.category=p_category)
+          AND (NOT p_recommendation_only OR (o.recommendation_status='eligible' AND o.reviewed_at IS NOT NULL))
+          AND (p_max_base_price_krw IS NULL OR o.base_price_krw<=p_max_base_price_krw)))
+      ORDER BY p.id LIMIT p_limit+1) q;
+  IF cardinality(v_ids)>p_limit THEN v_next:=v_ids[p_limit]; END IF;
+  FOREACH v_id IN ARRAY coalesce(v_ids[1:p_limit],'{}'::uuid[]) LOOP
+    v_item:=public.provider_public_catalog(v_id,1)->0;
+    IF p_recommendation_only THEN
+      v_item:=jsonb_set(v_item,'{offerings}',coalesce((SELECT jsonb_agg(o ORDER BY o->>'id')
+        FROM jsonb_array_elements(v_item->'offerings') o WHERE (p_category IS NULL OR o->>'category'=p_category)
+          AND o->>'recommendation_status'='eligible' AND o->>'reviewed_at' IS NOT NULL
+          AND (p_max_base_price_krw IS NULL OR (o->>'base_price_krw')::bigint<=p_max_base_price_krw)),'[]'::jsonb));
+    END IF;
+    v_rows:=v_rows||jsonb_build_array(v_item);
+  END LOOP;
+  RETURN jsonb_build_object('providers',v_rows,'next_cursor',v_next);
+END $$;
+
 DO $acl$
 DECLARE f record;
 BEGIN
   FOR f IN SELECT p.oid::regprocedure AS signature,n.nspname,p.proname FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace
     WHERE n.nspname='provider_private' OR (n.nspname='public' AND p.proname IN (
-      'provider_submit_application','provider_resubmit_application','provider_get_workspace','provider_admin_workspace',
+      'provider_submit_application','provider_resubmit_application','provider_get_workspace','provider_admin_workspace','provider_admin_queue',
       'provider_update_profile','provider_set_publication','provider_review_application','provider_suspend_profile','provider_restore_profile',
-      'provider_save_offering','provider_review_offering','provider_register_media_upload','provider_abort_media_upload','provider_finalize_media','provider_remove_media',
-      'provider_submit_business_inquiry','provider_review_business_inquiry','provider_public_catalog'))
+      'provider_save_offering','provider_withdraw_offering','provider_review_offering','provider_register_media_upload','provider_abort_media_upload','provider_finalize_media','provider_remove_media',
+      'provider_submit_business_inquiry','provider_review_business_inquiry','provider_public_catalog','provider_search_catalog'))
   LOOP
     EXECUTE format('REVOKE ALL ON FUNCTION %s FROM PUBLIC,anon,authenticated,service_role',f.signature);
     IF f.nspname='public' THEN
       IF f.proname IN ('provider_register_media_upload','provider_abort_media_upload') THEN
         EXECUTE format('GRANT EXECUTE ON FUNCTION %s TO service_role',f.signature);
-      ELSIF f.proname='provider_public_catalog' THEN
+      ELSIF f.proname IN ('provider_public_catalog','provider_search_catalog') THEN
         EXECUTE format('GRANT EXECUTE ON FUNCTION %s TO anon,authenticated,service_role',f.signature);
       ELSE EXECUTE format('GRANT EXECUTE ON FUNCTION %s TO authenticated',f.signature);
       END IF;

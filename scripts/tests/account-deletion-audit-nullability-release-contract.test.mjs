@@ -1,4 +1,4 @@
-import test from 'node:test';
+import test, { after } from 'node:test';
 import assert from 'node:assert/strict';
 import { copyFileSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
@@ -7,26 +7,31 @@ import { DELETION_AUDIT_CONTRACT_FILE, DELETION_AUDIT_SCHEMA_CHANGE, DELETION_AU
   loadDeletionAuditNullabilityReleasePlan } from '../lib/account-deletion-audit-nullability-release-contract.mjs';
 import { loadWeddingCodePairSessionConflictReleasePlan } from '../lib/wedding-code-pair-session-conflict-release-contract.mjs';
 import { createWeddingCodePairSessionHistoricalRepository } from './fixtures/wedding-code-pair-session-historical-repository.mjs';
-import { digest } from '../lib/current-baseline-release-contract.mjs';
+import { digest, pinnedArtifact } from '../lib/current-baseline-release-contract.mjs';
 
-const root = resolve(import.meta.dirname, '../..');
+const sourceRoot = resolve(import.meta.dirname, '../..');
 const code = expected => error => error?.code === expected;
 const mode = '--account-deletion-audit-nullability';
 
 function fixture(t) {
-  const result = createWeddingCodePairSessionHistoricalRepository(root);
+  const result = createWeddingCodePairSessionHistoricalRepository(sourceRoot);
   t.after(result.cleanup);
-  const contract = JSON.parse(readFileSync(join(root, DELETION_AUDIT_CONTRACT_FILE), 'utf8'));
-  const predecessor = JSON.parse(readFileSync(join(root, contract.predecessor.file), 'utf8'));
+  const contract = JSON.parse(pinnedArtifact(sourceRoot, { file: DELETION_AUDIT_CONTRACT_FILE,
+    sha256: 'ad50817b53ee069e99b8dcd5b8b5856b5c9691a32d5dd1ff15daccb5a1c4d73a' }));
+  const predecessor = JSON.parse(readFileSync(join(sourceRoot, contract.predecessor.file), 'utf8'));
   const files = [DELETION_AUDIT_CONTRACT_FILE, contract.predecessor.file, contract.predecessorLoader.file,
     contract.runtime.file, predecessor.runtime.file, predecessor.catalog.file, predecessor.catalogFixture.file,
     ...[contract, predecessor].flatMap(c => c.migrations.map(pin => `supabase/migrations/${pin.file}`))];
   for (const file of files) {
     mkdirSync(dirname(join(result.root, file)), { recursive: true });
-    copyFileSync(join(root, file), join(result.root, file));
+    copyFileSync(join(sourceRoot, file), join(result.root, file));
   }
   return { ...result, files, contract, predecessor };
 }
+
+// 고정 Git blob의 역사 자료에 검증된 239·240 pin만 추가한다. 현재 SQL을 걸러내지 않는다.
+const historical = fixture({ after });
+const root = historical.root;
 
 test('240 exact SQL lane preserves 239 pins and authorizes no operation by static success', () => {
   const plan = loadDeletionAuditNullabilityReleasePlan(root);
@@ -48,11 +53,11 @@ test('new contract, runtime and SQL are pinned canonical LF bytes', () => {
   for (const [file, sha] of [[DELETION_AUDIT_CONTRACT_FILE, plan.contractSha256],
     [plan.contract.runtime.file, plan.contract.runtime.sha256],
     [`supabase/migrations/${plan.contract.migrations[0].file}`, plan.migrationSha256]]) {
-    const bytes = readFileSync(join(root, file));
+    const bytes = readFileSync(join(sourceRoot, file));
     assert.equal(bytes.includes(13), false, file);
     assert.equal(digest(bytes), sha, file);
-    const raw = spawnSync('git', ['hash-object', '--no-filters', join(root, file)], { cwd: root, encoding: 'utf8', windowsHide: true });
-    const canonical = spawnSync('git', ['hash-object', `--path=${file}`, join(root, file)], { cwd: root, encoding: 'utf8', windowsHide: true });
+    const raw = spawnSync('git', ['hash-object', '--no-filters', join(sourceRoot, file)], { cwd: sourceRoot, encoding: 'utf8', windowsHide: true });
+    const canonical = spawnSync('git', ['hash-object', `--path=${file}`, join(sourceRoot, file)], { cwd: sourceRoot, encoding: 'utf8', windowsHide: true });
     assert.equal(raw.status, 0, raw.stderr);
     assert.equal(canonical.status, 0, canonical.stderr);
     assert.equal(raw.stdout.trim(), canonical.stdout.trim(), file);
@@ -104,4 +109,13 @@ test('registered static CLI rejects operational, mixed and unknown flags without
     assert.equal(result.status, 1, result.stdout);
     assert.match(result.stderr, /DELETION_AUDIT_STATIC_ARGUMENTS_INVALID/);
   }
+});
+
+test('the current provider checkout is rejected by the unchanged 240 loader and static CLI', () => {
+  assert.throws(() => loadDeletionAuditNullabilityReleasePlan(sourceRoot), code('NEW_MIGRATION_NOT_REVIEWED'));
+  const result = spawnSync(process.execPath, [join(sourceRoot, 'scripts/supabase-release-fence.mjs'), mode], {
+    cwd: sourceRoot, encoding: 'utf8', windowsHide: true, timeout: 60_000,
+  });
+  assert.equal(result.status, 1); assert.match(result.stderr, /NEW_MIGRATION_NOT_REVIEWED/);
+  assert.doesNotMatch(result.stdout, /240 exact SQL files/);
 });

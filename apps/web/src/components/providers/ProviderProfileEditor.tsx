@@ -16,9 +16,10 @@ export default function ProviderProfileEditor({ profile, onChanged }: Props) {
   const [error, setError] = useState("");
   const inFlight = useRef(false);
   const canEdit = profile.approval_status === "approved";
+  const dirty = introduction.trim() !== profile.introduction || website.trim() !== (profile.website ?? "") || instagram.trim() !== (profile.instagram ?? "");
 
   async function mutate(action: "save" | "publish" | "pause") {
-    if (inFlight.current || !canEdit) return;
+    if (inFlight.current || !canEdit || (action === "publish" && dirty)) return;
     inFlight.current = true; setBusy(action); setError("");
     try {
       await providerRequest(`/api/provider/profiles/${profile.id}`, providerJson("PATCH", {
@@ -47,7 +48,8 @@ export default function ProviderProfileEditor({ profile, onChanged }: Props) {
       <div className="mt-6 border-t border-[var(--hb-hairline)] pt-5">
         <h3 className="text-sm font-semibold text-[var(--hb-text-strong)]">프로필 공개</h3>
         <p className="mb-4 mt-2 text-sm leading-7">{profile.publication_status === "published" ? "현재 소개글과 사진이 공개되어 있어요. 공개를 중단하면 탐색 목록과 공개 상세에서 내려갑니다." : "등록 승인은 게시 권한을 부여합니다. 직접 공개하기를 눌러야 다른 사람이 소개글과 사진을 볼 수 있어요."}</p>
-        <Button onClick={() => void mutate(profile.publication_status === "published" ? "pause" : "publish")} variant="secondary" loading={busy === "publish" || busy === "pause"} disabled={!canEdit || busy !== null}>{profile.publication_status === "published" ? "프로필 공개 중단" : "프로필 공개하기"}</Button>
+        {dirty && profile.publication_status !== "published" ? <p id="profile-publish-save-first" className="mb-3 text-sm leading-6">먼저 소개글·링크를 저장한 뒤 공개해 주세요. 저장하지 않은 내용은 게시되지 않습니다.</p> : null}
+        <Button onClick={() => void mutate(profile.publication_status === "published" ? "pause" : "publish")} variant="secondary" loading={busy === "publish" || busy === "pause"} aria-describedby={dirty && profile.publication_status !== "published" ? "profile-publish-save-first" : undefined} disabled={!canEdit || busy !== null || (profile.publication_status !== "published" && dirty)}>{profile.publication_status === "published" ? "프로필 공개 중단" : "프로필 공개하기"}</Button>
       </div>
       {error ? <p role="alert" className="mt-4 rounded-md border border-rose-700/30 p-3 text-sm text-rose-700">{error}</p> : null}
     </section>

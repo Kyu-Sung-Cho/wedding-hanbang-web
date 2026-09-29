@@ -2,14 +2,18 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { User } from "@supabase/supabase-js";
 import { buildSignupConsentServerEvidence } from "@hanbang/shared";
-const mocks = vi.hoisted(() => ({ auth: vi.fn(), rpc: vi.fn(), client: vi.fn(), rate: vi.fn(), admin: vi.fn() }));
+const mocks = vi.hoisted(() => ({ auth: vi.fn(), rpc: vi.fn(), client: vi.fn(), rate: vi.fn(), admin: vi.fn(), catalog: vi.fn(), detail: vi.fn() }));
 vi.mock("@/lib/supabase/server", () => ({ createClientFromRequest: mocks.client }));
 vi.mock("@/lib/utils/adminAuth", () => ({ verifyAdmin: mocks.admin }));
 vi.mock("@/utils/rateLimit", () => ({ checkRateLimitPersistent: mocks.rate, rateLimitKey: () => "test-provider" }));
+vi.mock("./publicData", () => ({ getPublicProviderPage: mocks.catalog, getPublicProviders: mocks.detail }));
 import { POST as submit } from "@/app/api/provider/applications/route";
 import { PATCH as update } from "@/app/api/provider/profiles/[id]/route";
 import { PATCH as review } from "@/app/api/admin/providers/[id]/route";
 import { GET as workspace } from "@/app/api/provider/workspace/route";
+import { GET as queue } from "@/app/api/admin/providers/route";
+import { GET as catalog } from "@/app/api/providers/route";
+import { PATCH as offeringUpdate } from "@/app/api/provider/profiles/[id]/offerings/[offeringId]/route";
 import { providerBody } from "./api";
 import { applicationInputSchema } from "./validation";
 
@@ -25,6 +29,7 @@ beforeEach(() => {
   mocks.client.mockResolvedValue({ auth: { getUser: mocks.auth }, rpc: mocks.rpc });
   mocks.rpc.mockResolvedValue({ data: { provider_id: id, application_id: requestId, status: "pending" }, error: null });
   mocks.rate.mockResolvedValue(null); mocks.admin.mockResolvedValue({ authorized: true });
+  mocks.catalog.mockResolvedValue({ providers: [], next_cursor: null }); mocks.detail.mockResolvedValue([]);
 });
 describe("제공자 API 권한·접수 증거", () => {
   it("다른 출처의 쿠키 쓰기는 인증 조회 전 차단한다", async () => {
@@ -93,5 +98,34 @@ describe("제공자 API 권한·접수 증거", () => {
   });
   it("Content-Length 없이 큰 본문을 흘려보내도 제한한다", async () => {
     await expect(providerBody(req({ ...input, application_note: "x".repeat(80_000) }), applicationInputSchema)).rejects.toMatchObject({ status: 413 });
+  });
+  it("관리자 상태 필터와 페이지 커서를 제한된 큐 RPC로 전달한다", async () => {
+    mocks.rpc.mockResolvedValue({ data: { profiles: [], applications: [], offerings: [], media: [], business_inquiries: [], next_cursor: id, secret: "private" }, error: null });
+    const response = await queue(new Request(`https://hanbang.ai/api/admin/providers?kind=offerings&status=withdrawn&after=${id}`));
+    expect(response.status).toBe(200); expect(await response.json()).toEqual({ profiles: [], applications: [], offerings: [], media: [], business_inquiries: [], next_cursor: id });
+    expect(mocks.rpc).toHaveBeenCalledWith("provider_admin_queue", { p_kind: "offerings", p_status: "withdrawn", p_after: id, p_limit: 30 });
+  });
+  it.each(["kind=applications&status=responded", "kind=unknown", "after=bad", "kind=offerings&kind=applications"])("잘못된 관리자 필터 %s를 RPC 전에 거부한다", async (query) => {
+    expect((await queue(new Request(`https://hanbang.ai/api/admin/providers?${query}`))).status).toBe(400); expect(mocks.rpc).not.toHaveBeenCalled();
+  });
+  it("비관리자는 심사 큐를 읽지 못한다", async () => {
+    mocks.admin.mockResolvedValue({ authorized: false });
+    expect((await queue(new Request("https://hanbang.ai/api/admin/providers"))).status).toBe(403);expect(mocks.rpc).not.toHaveBeenCalled();
+  });
+  it("공개 검색은 지역·이름·페이지 조건을 서버 검색으로 전달한다", async () => {
+    expect((await catalog(new Request(`https://hanbang.ai/api/providers?category=photography&region=${encodeURIComponent("서울")}&q=Test&after=${id}`))).status).toBe(200);
+    expect(mocks.catalog).toHaveBeenCalledWith({ category: "photography", region: "서울", q: "Test", after: id }); expect(mocks.auth).not.toHaveBeenCalled();
+  });
+  it.each(["category=unknown", "after=bad", "q=%20", "q=a&q=b", `id=${id}&q=a`, "owner_id=private"])("잘못되거나 모호한 공개 필터 %s를 조회 전에 거부한다", async (query) => {
+    expect((await catalog(new Request(`https://hanbang.ai/api/providers?${query}`))).status).toBe(400); expect(mocks.catalog).not.toHaveBeenCalled();expect(mocks.detail).not.toHaveBeenCalled();
+  });
+  it("서비스 철회는 소유자·상태 주입 없이 버전이 있는 전용 RPC만 호출한다", async () => {
+    mocks.rpc.mockResolvedValue({ data: null, error: { message: "PROVIDER_VERSION_CONFLICT" } });
+    const response = await offeringUpdate(req({ action: "withdraw", expected_version: 2 }, "PATCH"), { params: Promise.resolve({ id, offeringId: requestId }) });
+    expect(response.status).toBe(409);
+    expect(mocks.rpc).toHaveBeenCalledWith("provider_withdraw_offering", { p_provider_id: id, p_offering_id: requestId, p_expected_version: 2 });
+  });
+  it.each([{ action: "withdraw" }, { action: "withdraw", expected_version: 1, owner_id: id }, { action: "withdraw", expected_version: 1, is_active: true }])("잘못된 철회 본문을 거부한다", async (body) => {
+    expect((await offeringUpdate(req(body, "PATCH"), { params: Promise.resolve({ id, offeringId: requestId }) })).status).toBe(400); expect(mocks.rpc).not.toHaveBeenCalled();
   });
 });

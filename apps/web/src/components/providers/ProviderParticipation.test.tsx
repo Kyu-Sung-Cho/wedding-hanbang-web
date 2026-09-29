@@ -4,13 +4,15 @@ import { act, type ReactNode } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { ProviderProfile, ProviderWorkspace, PublicProvider } from "@/lib/providers/contracts";
+import type { ProviderOffering, ProviderProfile, ProviderWorkspace, PublicProvider } from "@/lib/providers/contracts";
 import ProviderApplicationForm from "./ProviderApplicationForm";
 import BusinessInquiryForm from "./BusinessInquiryForm";
 import ProviderCenter from "./ProviderCenter";
 import ProviderDiscovery from "./ProviderDiscovery";
 import ProviderMediaManager from "./ProviderMediaManager";
 import ProviderProfileEditor from "./ProviderProfileEditor";
+import ProviderOfferingWithdrawal from "./ProviderOfferingWithdrawal";
+import ProviderOfferingEditor from "./ProviderOfferingEditor";
 import { safeProviderWebsite } from "./providerClient";
 
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -23,6 +25,8 @@ const profile: ProviderProfile = {
   version: 2, created_at: "2026-09-28T00:00:00Z", updated_at: "2026-09-28T00:00:00Z",
 };
 function workspace(current: ProviderProfile): ProviderWorkspace { return { profiles: [current], applications: [], offerings: [], media: [], business_inquiries: [] }; }
+function publicProfile(id = providerId, name = "공개 촬영팀"): PublicProvider { return { id, name, kind: "team", categories: ["photography"], regions: ["서울"], introduction: "사진 소개", website: null, instagram: null, updated_at: profile.updated_at, offerings: [], media: [] }; }
+function offering(): ProviderOffering { return { id: applicationId, provider_id: providerId, name: "가족 촬영", category: "photography", description: "가족 기록", base_price_krw: 100, price_unit: "1시간", includes: ["촬영"], extra_charges: "없음", conditions: "일정 확인", is_active: true, review_status: "approved", recommendation_status: "eligible", review_reason: null, version: 4, created_at: profile.created_at, updated_at: profile.updated_at }; }
 function response(body: unknown, status = 200) { return new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } }); }
 function deferred<T>() { let resolve!: (value: T) => void; const promise = new Promise<T>((complete) => { resolve = complete; }); return { promise, resolve }; }
 
@@ -81,6 +85,62 @@ describe("provider participation boundaries", () => {
     expect(container.querySelector('[role="alert"]')?.textContent).toContain("다른 변경");
     expect(container.textContent).not.toContain("private database detail");
     expect(changed).not.toHaveBeenCalled();
+  });
+
+  it("requires saving changed introduction before publishing but keeps withdrawal available", async () => {
+    await mount(<ProviderProfileEditor profile={profile} onChanged={vi.fn()} />);
+    await fill("#profile-introduction", "아직 저장하지 않은 소개");
+    const publish = Array.from(container.querySelectorAll("button")).find((button) => button.textContent === "프로필 공개하기");
+    expect(publish?.disabled).toBe(true);
+    expect(container.textContent).toContain("먼저 소개글·링크를 저장");
+    await mount(<ProviderProfileEditor key="published" profile={{ ...profile, publication_status: "published" }} onChanged={vi.fn()} />);
+    await fill("#profile-introduction", "미저장 변경");
+    expect(Array.from(container.querySelectorAll("button")).find((button) => button.textContent === "프로필 공개 중단")?.disabled).toBe(false);
+  });
+
+  it("lets suspended owners remove stored photos without exposing upload or photo bytes", async () => {
+    const current = workspace({ ...profile, approval_status: "suspended", publication_status: "paused" });
+    current.media = [{ id: applicationId, provider_id: providerId, caption: "철회할 작업 사진", alt_text: "작업 설명", sort_order: 0 }];
+    fetchMock.mockResolvedValueOnce(response(current)).mockResolvedValueOnce(response({ success: true, cleanup_pending: true })).mockResolvedValueOnce(response({ ...current, media: [] }));
+    await mount(<ProviderCenter />); await flush();
+    expect(container.querySelector('input[type="file"]')).toBeNull();
+    expect(container.querySelector("img")).toBeNull();
+    expect(container.textContent).toContain("철회할 작업 사진");
+    const remove = Array.from(container.querySelectorAll("button")).find((button) => button.textContent === "사진 삭제");
+    expect(remove).toBeDefined();
+    await act(async () => { remove?.click(); }); await flush();
+    expect(fetchMock.mock.calls[1][0]).toBe(`/api/provider/profiles/${providerId}/media/${applicationId}`);
+    expect(fetchMock.mock.calls[1][1].method).toBe("DELETE");
+    expect(container.textContent).toContain("사진을 프로필에서 삭제했어요");
+  });
+
+  it("lets suspended owners withdraw a service without reopening editing or public access", async () => {
+    const current = workspace({ ...profile, approval_status: "suspended", publication_status: "paused" });
+    current.offerings = [offering()];
+    const withdrawn = { ...offering(), is_active: false, recommendation_status: "blocked" as const, version: 5 };
+    fetchMock.mockResolvedValueOnce(response(current)).mockResolvedValueOnce(response(withdrawn)).mockResolvedValueOnce(response({ ...current, offerings: [withdrawn] }));
+    await mount(<ProviderCenter />); await flush();
+    expect(container.textContent).toContain("등록 서비스 정리");
+    expect(container.textContent).not.toContain("서비스 수정·재검토");
+    expect(container.querySelector("#profile-introduction")).toBeNull();
+    await act(async () => { Array.from(container.querySelectorAll("button")).find((button) => button.textContent === "이 서비스 제공 중단")?.click(); });
+    await act(async () => { Array.from(container.querySelectorAll("button")).find((button) => button.textContent === "서비스 제공 중단 확인")?.click(); }); await flush();
+    expect(JSON.parse(fetchMock.mock.calls[1][1].body)).toEqual({ action: "withdraw", expected_version: 4 });
+    expect(container.textContent).toContain("제공 중단 · 기록 보관");
+    expect(container.textContent).not.toContain("이 서비스 제공 중단");
+  });
+
+  it("preserves an unsaved introduction when a photo removal refreshes the workspace", async () => {
+    const current = workspace(profile);
+    current.media = [{ id: applicationId, provider_id: providerId, caption: "작업 사진", alt_text: "작업 설명", sort_order: 0 }];
+    const refreshed = deferred<Response>();
+    fetchMock.mockResolvedValueOnce(response(current)).mockResolvedValueOnce(response({ success: true })).mockReturnValueOnce(refreshed.promise);
+    await mount(<ProviderCenter />); await flush();
+    await fill("#profile-introduction", "사진 삭제 중에도 보존할 소개");
+    await act(async () => { Array.from(container.querySelectorAll("button")).find((button) => button.textContent === "사진 삭제")?.click(); });
+    expect(container.querySelector<HTMLTextAreaElement>("#profile-introduction")?.value).toBe("사진 삭제 중에도 보존할 소개");
+    await act(async () => { refreshed.resolve(response({ ...current, media: [] })); }); await flush();
+    expect(container.querySelector<HTMLTextAreaElement>("#profile-introduction")?.value).toBe("사진 삭제 중에도 보존할 소개");
   });
 
   it("submits individual applications once and reuses the request id after an uncertain failure", async () => {
@@ -154,12 +214,78 @@ describe("provider participation boundaries", () => {
   });
 
   it("offers an honest empty state without silently widening a category", async () => {
-    const publicProfile: PublicProvider = { id: providerId, kind: "individual", name: "테스트 사진가", categories: ["photography"], regions: ["서울"], introduction: "사진 촬영", website: null, instagram: null, updated_at: profile.updated_at, media: [], offerings: [{ id: applicationId, provider_id: providerId, name: "촬영", category: "photography", description: "촬영", base_price_krw: 100, price_unit: "1시간", includes: ["원본"], extra_charges: "확인", conditions: "확인", review_status: "approved", recommendation_status: "unreviewed", updated_at: profile.updated_at }] };
-    await mount(<ProviderDiscovery providers={[publicProfile]} />);
+    const publicProfile: PublicProvider = { id: providerId, kind: "individual", name: "테스트 사진가", categories: ["photography"], regions: ["서울"], introduction: "사진 촬영", website: null, instagram: null, updated_at: profile.updated_at, media: [], offerings: [{ id: applicationId, provider_id: providerId, name: "촬영", category: "photography", description: "촬영", base_price_krw: 100, price_unit: "1시간", includes: ["원본"], extra_charges: "확인", conditions: "확인", is_active: true, review_status: "approved", recommendation_status: "unreviewed", updated_at: profile.updated_at }] };
+    await mount(<ProviderDiscovery initialPage={{ providers: [publicProfile], next_cursor: null }} />);
     const select = container.querySelector<HTMLSelectElement>("#discovery-category");
     await act(async () => { if (select) { select.value = "venue"; select.dispatchEvent(new Event("change", { bubbles: true })); } });
+    fetchMock.mockResolvedValue(response({ providers: [], next_cursor: null }));
+    await submit();
+    expect(fetchMock.mock.calls[0][0]).toBe("/api/providers?category=venue");
     expect(container.textContent).toContain("지역이나 분야를 자동으로 넓히지 않았어요");
     expect(container.querySelector(`a[href="/providers/${providerId}"]`)).toBeNull();
+  });
+
+  it("loads later public profiles and preserves results when the next page fails", async () => {
+    const first = publicProfile(); const second = publicProfile(applicationId, "다음 촬영팀");
+    await mount(<ProviderDiscovery initialPage={{ providers: [first], next_cursor: providerId }} />);
+    fetchMock.mockResolvedValueOnce(response({}, 503)).mockResolvedValueOnce(response({ providers: [first, second], next_cursor: null }));
+    await act(async () => { Array.from(container.querySelectorAll("button")).find((button) => button.textContent === "프로필 더 보기")?.click(); });
+    expect(container.querySelectorAll("article")).toHaveLength(1);
+    expect(container.querySelector('[role="alert"]')).not.toBeNull();
+    await act(async () => { Array.from(container.querySelectorAll("button")).find((button) => button.textContent === "다시 불러오기")?.click(); });
+    expect(fetchMock.mock.calls.map((call) => call[0])).toEqual([`/api/providers?after=${providerId}`, `/api/providers?after=${providerId}`]);
+    expect(container.querySelectorAll("article")).toHaveLength(2);
+    expect(container.textContent).toContain("다음 촬영팀");
+    expect(container.textContent).not.toContain("프로필 더 보기");
+  });
+
+  it("searches the whole catalog with explicit conditions and ignores superseded responses", async () => {
+    const stale = deferred<Response>();
+    fetchMock.mockReturnValueOnce(stale.promise).mockResolvedValueOnce(response({ providers: [publicProfile(applicationId, "최근 검색 결과")], next_cursor: null }));
+    await mount(<ProviderDiscovery initialPage={{ providers: [publicProfile()], next_cursor: providerId }} />);
+    await fill("#discovery-region", "수원"); await fill("#discovery-query", "오래된 조건"); await submit();
+    await fill("#discovery-query", "새 조건"); await submit();
+    expect(fetchMock.mock.calls[1][0]).toBe(`/api/providers?${new URLSearchParams({ region: "수원", q: "새 조건" })}`);
+    expect(fetchMock.mock.calls[0][1].signal.aborted).toBe(true);
+    await act(async () => { stale.resolve(response({ providers: [publicProfile(providerId, "옛 검색 결과")], next_cursor: null })); });
+    expect(container.textContent).toContain("최근 검색 결과");
+    expect(container.textContent).not.toContain("옛 검색 결과");
+  });
+
+  it("withdraws only the confirmed service version and does not claim malformed success", async () => {
+    const changed = vi.fn(); const current = offering();
+    fetchMock.mockResolvedValueOnce(response({ success: true })).mockResolvedValueOnce(response({ ...current, is_active: false, recommendation_status: "blocked", version: 5 }));
+    await mount(<ProviderOfferingWithdrawal offering={current} onChanged={changed} />);
+    await act(async () => { Array.from(container.querySelectorAll("button")).find((button) => button.textContent === "이 서비스 제공 중단")?.click(); });
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(container.textContent).toContain("다른 서비스와 프로필은 유지됩니다");
+    await act(async () => { Array.from(container.querySelectorAll("button")).find((button) => button.textContent === "서비스 제공 중단 확인")?.click(); });
+    expect(changed).not.toHaveBeenCalled();
+    expect(container.querySelector('[role="alert"]')).not.toBeNull();
+    await act(async () => { Array.from(container.querySelectorAll("button")).find((button) => button.textContent === "서비스 제공 중단 확인")?.click(); });
+    expect(JSON.parse(fetchMock.mock.calls[1][1].body)).toEqual({ action: "withdraw", expected_version: 4 });
+    expect(changed).toHaveBeenCalledWith(expect.stringContaining("공개·추천에서 제외"));
+  });
+
+  it("starts a hair-and-makeup-only provider in its approved category and offers no unapproved fields", async () => {
+    fetchMock.mockResolvedValue(response(workspace({ ...profile, categories: ["hair_makeup"] })));
+    await mount(<ProviderCenter />); await flush();
+    await act(async () => { Array.from(container.querySelectorAll("button")).find((button) => button.textContent === "새 서비스 등록")?.click(); });
+    const select = container.querySelector<HTMLSelectElement>("#offering-category");
+    expect(select?.value).toBe("hair_makeup");
+    expect(Array.from(select?.options ?? []).map((option) => option.value)).toEqual(["hair_makeup"]);
+  });
+
+  it("retains the approved existing category and requires explicit correction when outside approval scope", async () => {
+    const current = { ...offering(), category: "hair_makeup" };
+    await mount(<ProviderOfferingEditor providerId={providerId} approvedCategories={["photography", "hair_makeup"]} offering={current} onChanged={vi.fn()} onCancel={vi.fn()} />);
+    expect(container.querySelector<HTMLSelectElement>("#offering-category")?.value).toBe("hair_makeup");
+    await mount(<ProviderOfferingEditor key="invalid" providerId={providerId} approvedCategories={["photography"]} offering={current} onChanged={vi.fn()} onCancel={vi.fn()} />);
+    expect(container.querySelector<HTMLSelectElement>("#offering-category")?.value).toBe("hair_makeup");
+    expect(container.querySelector<HTMLButtonElement>('button[type="submit"]')?.disabled).toBe(true);
+    await submit();
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(container.querySelector('[role="alert"]')?.textContent).toContain("승인된 분야");
   });
 });
 

@@ -104,8 +104,8 @@ export const checks = [
   },
   {
     kind: "check",
-    name: "supabase release fence",
-    args: ["pnpm", "supabase:release:fence", "--account-deletion-audit-nullability"],
+    name: "provider release preparation pins (static only, no deploy)",
+    args: ["pnpm", "supabase:provider:prepare", "--check"],
   },
 ];
 

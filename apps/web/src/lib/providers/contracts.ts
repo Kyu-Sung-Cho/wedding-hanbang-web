@@ -32,6 +32,7 @@ export const providerApplicationSchema = z.object({
 export const providerOfferingSchema = z.object({
   id: z.string().uuid(), provider_id: z.string().uuid(), name: z.string(), category: z.string(), description: z.string(),
   base_price_krw: z.number().nonnegative(), price_unit: z.string(), includes: z.array(z.string()), extra_charges: z.string(), conditions: z.string(),
+  is_active: z.boolean(),
   review_status: z.enum(["pending", "approved", "rejected"]),
   recommendation_status: z.enum(["unreviewed", "eligible", "needs_review", "blocked"]),
   review_reason: nullableText, version: z.number().int(), created_at: z.string(), updated_at: z.string(),
@@ -49,6 +50,10 @@ export const publicProviderSchema = providerProfileSchema.omit({ approval_status
   offerings: z.array(providerOfferingSchema.omit({ review_reason: true, version: true, created_at: true })),
   media: z.array(providerMediaSchema),
 });
+export const providerCatalogPageSchema = z.object({ providers: z.array(publicProviderSchema), next_cursor: z.string().uuid().nullable() });
+export const providerAdminPageSchema = providerWorkspaceSchema.extend({ next_cursor: z.string().uuid().nullable() });
+export type ProviderCatalogPage = z.infer<typeof providerCatalogPageSchema>;
+export type ProviderAdminPage = z.infer<typeof providerAdminPageSchema>;
 export type ProviderProfile = z.infer<typeof providerProfileSchema>;
 export type ProviderApplication = z.infer<typeof providerApplicationSchema>;
 export type ProviderOffering = z.infer<typeof providerOfferingSchema>;

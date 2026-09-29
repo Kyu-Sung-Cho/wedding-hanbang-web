@@ -30,7 +30,21 @@ export const offeringInputSchema = z.object({
   base_price_krw: z.number().int().min(0).max(1_000_000_000), price_unit: required(60),
   includes: z.array(required(200)).min(1).max(30), extra_charges: required(2000), conditions: required(3000),
 }).strict();
-export const offeringUpdateSchema = offeringInputSchema.extend({ expected_version: version });
+export const offeringUpdateSchema = z.union([
+  offeringInputSchema.extend({ expected_version: version }),
+  z.object({ action: z.literal("withdraw"), expected_version: version }).strict(),
+]);
+export const catalogQuerySchema = z.object({
+  category: z.enum(PROVIDER_CATEGORIES).optional(), region: required(80).optional(),
+  q: required(100).optional(), after: z.string().uuid().optional(),
+}).strict();
+export const adminQuerySchema = z.object({
+  kind: z.enum(["applications", "offerings", "inquiries"]).default("inquiries"),
+  status: z.string().max(30).default("all"), after: z.string().uuid().optional(),
+}).strict().superRefine((value, context) => {
+  const statuses = { applications: ["pending", "changes_requested", "approved", "rejected"], offerings: ["pending", "approved", "rejected", "withdrawn"], inquiries: ["received", "reviewing", "responded", "closed"] };
+  if (value.status !== "all" && !statuses[value.kind].includes(value.status)) context.addIssue({ code: "custom", path: ["status"], message: "처리 상태를 확인해 주세요." });
+});
 export const inquiryInputSchema = z.object({
   request_id: z.string().uuid(), kind: z.enum(["collaboration", "media", "data", "other"]),
   subject: required(160), message: required(5000), contact_name: required(80), privacy_consent: z.literal(true),

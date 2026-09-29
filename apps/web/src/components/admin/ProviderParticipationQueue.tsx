@@ -7,7 +7,7 @@ import Button from "@/components/ui/Button";
 import {
   PROVIDER_CATEGORY_LABELS,
   PROVIDER_KIND_LABELS,
-  providerWorkspaceSchema,
+  providerAdminPageSchema,
   type BusinessInquiry,
   type ProviderApplication,
   type ProviderOffering,
@@ -39,7 +39,7 @@ const tabs: { key: QueueTab; label: string }[] = [
 const statusLabels: Record<string, string> = {
   all: "전체", pending: "검토 대기", changes_requested: "보완 요청", approved: "승인", rejected: "반려", suspended: "이용 정지",
   received: "접수", reviewing: "검토 중", responded: "답변 등록", closed: "종료",
-  draft: "비공개", published: "공개 중", paused: "공개 중지",
+  withdrawn: "제공 중단", draft: "비공개", published: "공개 중", paused: "공개 중지",
   unreviewed: "미검토", eligible: "자격 확인", needs_review: "재검토 필요", blocked: "추천 차단",
 };
 const inquiryKindLabels: Record<BusinessInquiry["kind"], string> = {
@@ -83,6 +83,12 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
+function mergeRows<T extends { id: string }>(previous: T[], incoming: T[]): T[] {
+  const merged = new Map(previous.map((item) => [item.id, item]));
+  incoming.forEach((item) => merged.set(item.id, item));
+  return [...merged.values()];
+}
+
 export default function ProviderParticipationQueue() {
   const [authorization, setAuthorization] = useState<Authorization>("loading");
   const [authAttempt, setAuthAttempt] = useState(0);
@@ -90,6 +96,8 @@ export default function ProviderParticipationQueue() {
   const [workspace, setWorkspace] = useState<ProviderWorkspace | null>(null);
   const [tab, setTab] = useState<QueueTab>("inquiries");
   const [filter, setFilter] = useState("all");
+  const [nextCursor, setNextCursor] = useState<string | null>(null);
+  const retryCursor = useRef<string | undefined>(undefined);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [loadError, setLoadError] = useState("");
@@ -104,13 +112,17 @@ export default function ProviderParticipationQueue() {
   const submitting = useRef(false);
   const loadGeneration = useRef(0);
 
-  const loadWorkspace = useCallback(async () => {
+  const loadWorkspace = useCallback(async (after?: string) => {
     const generation = ++loadGeneration.current;
     setLoading(true);
     setLoadError("");
+    retryCursor.current = after;
+    if (!after) { setWorkspace(null); setNextCursor(null); }
     setConfirmation(null);
     try {
-      const response = await fetch("/api/admin/providers", { cache: "no-store" });
+      const query = new URLSearchParams({ kind: tab, status: filter });
+      if (after) query.set("after", after);
+      const response = await fetch(`/api/admin/providers?${query}`, { cache: "no-store" });
       const body: unknown = await response.json().catch(() => null);
       if (generation !== loadGeneration.current) return;
       if (response.status === 401 || response.status === 403) {
@@ -123,26 +135,34 @@ export default function ProviderParticipationQueue() {
         setLoadError(response.status === 503
           ? "제공자 참여 기능이 아직 준비되지 않았습니다. 운영 설정을 확인한 뒤 다시 시도해 주세요."
           : "참여 목록을 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.");
-        setWorkspace(null);
+        if (!after) setWorkspace(null);
         return;
       }
-      const parsed = providerWorkspaceSchema.safeParse(body);
+      const parsed = providerAdminPageSchema.safeParse(body);
       if (!parsed.success) {
         setLoadError("참여 목록을 안전하게 확인하지 못했습니다. 목록을 다시 불러와 주세요.");
-        setWorkspace(null);
+        if (!after) setWorkspace(null);
         return;
       }
-      setWorkspace(parsed.data);
+      if (after && parsed.data.next_cursor === after) throw new Error("Unexpected repeated cursor");
+      setWorkspace((previous) => after && previous ? {
+        profiles: mergeRows(previous.profiles, parsed.data.profiles),
+        applications: mergeRows(previous.applications, parsed.data.applications),
+        offerings: mergeRows(previous.offerings, parsed.data.offerings),
+        media: mergeRows(previous.media, parsed.data.media),
+        business_inquiries: mergeRows(previous.business_inquiries, parsed.data.business_inquiries),
+      } : parsed.data);
+      setNextCursor(parsed.data.next_cursor);
       setRefreshRequired(false);
     } catch {
       if (generation === loadGeneration.current) {
         setLoadError("참여 목록을 불러오지 못했습니다. 연결을 확인한 뒤 다시 시도해 주세요.");
-        setWorkspace(null);
+        if (!after) setWorkspace(null);
       }
     } finally {
       if (generation === loadGeneration.current) setLoading(false);
     }
-  }, []);
+  }, [tab, filter]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -187,6 +207,8 @@ export default function ProviderParticipationQueue() {
   }
 
   function selectTab(next: QueueTab) {
+    if (next === tab) return;
+    setWorkspace(null);
     setTab(next);
     setFilter("all");
     resetSelection();
@@ -284,11 +306,11 @@ export default function ProviderParticipationQueue() {
     ? workspace.business_inquiries.map((item) => ({ id: item.id, name: item.subject, subtitle: `${inquiryKindLabels[item.kind]} · ${item.contact_name}`, status: item.status, createdAt: item.created_at }))
     : tab === "applications"
       ? workspace.applications.map((item) => ({ id: item.id, name: item.name, subtitle: `${PROVIDER_KIND_LABELS[item.kind]} · ${item.categories.map(categoryLabel).join(", ")}`, status: workspace.profiles.find((candidate) => candidate.id === item.provider_id)?.approval_status === "suspended" ? "suspended" : item.status, createdAt: item.created_at }))
-      : workspace.offerings.map((item) => ({ id: item.id, name: item.name, subtitle: `${workspace.profiles.find((candidate) => candidate.id === item.provider_id)?.name ?? "제공자 확인 필요"} · ${categoryLabel(item.category)}`, status: workspace.profiles.find((candidate) => candidate.id === item.provider_id)?.approval_status === "suspended" ? "suspended" : item.review_status, createdAt: item.created_at }));
-  const filteredRows = rows.filter((item) => filter === "all" || item.status === filter);
+      : workspace.offerings.map((item) => ({ id: item.id, name: item.name, subtitle: `${workspace.profiles.find((candidate) => candidate.id === item.provider_id)?.name ?? "제공자 확인 필요"} · ${categoryLabel(item.category)}`, status: workspace.profiles.find((candidate) => candidate.id === item.provider_id)?.approval_status === "suspended" ? "suspended" : !item.is_active ? "withdrawn" : item.review_status, createdAt: item.created_at }));
+  const filteredRows = rows;
   const filters = tab === "inquiries" ? ["all", "received", "reviewing", "responded", "closed"]
-    : tab === "applications" ? ["all", "pending", "changes_requested", "approved", "rejected", "suspended"]
-      : ["all", "pending", "approved", "rejected", "suspended"];
+    : tab === "applications" ? ["all", "pending", "changes_requested", "approved", "rejected"]
+      : ["all", "pending", "approved", "rejected", "withdrawn"];
 
   function reviewButton(id: string, command: ReviewCommand, label: string, blocked = false) {
     return <Button disabled={disabled || blocked} variant={command.action === "approve" || command.action === "responded" ? "primary" : "secondary"} onClick={() => stageReview(id, command, label)}>{label}</Button>;
@@ -313,7 +335,7 @@ export default function ProviderParticipationQueue() {
             <div className="flex flex-wrap items-start justify-between gap-4">
               <div className="max-w-3xl">
                 <p className="text-sm leading-6 text-[var(--hb-text-body)]">개인·팀·업체의 참여를 같은 기준으로 검토합니다. 등록 승인 후 소개·사진은 제공자가 직접 게시하며, 서비스·가격과 추천 자격은 따로 확인합니다.</p>
-                <p className="mt-2 text-xs leading-5 text-[var(--hb-text-muted)]">각 목록의 최근 최대 100건을 불러옵니다. 아래 건수와 필터는 불러온 범위에만 적용됩니다.</p>
+                <p className="mt-2 text-xs leading-5 text-[var(--hb-text-muted)]">선택한 상태를 전체 접수 기록에서 찾습니다. 더 보기를 눌러 오래된 기록까지 확인할 수 있습니다.</p>
               </div>
               <Button disabled={busy || loading} onClick={() => void loadWorkspace()}><RefreshCcw size={16} aria-hidden="true" />목록 새로고침</Button>
             </div>
@@ -335,21 +357,22 @@ export default function ProviderParticipationQueue() {
             <section id="provider-queue-panel" role="tabpanel" aria-labelledby={`provider-tab-${tab}`} className="pt-5">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <label className="flex items-center gap-2 text-sm font-medium">상태
-                  <select value={filter} disabled={busy} onChange={(event) => { setFilter(event.target.value); resetSelection(); }} className="min-h-11 rounded-lg border border-[var(--color-paper-outline)] bg-white px-3 text-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--hb-focus-ring)]">
+                  <select value={filter} disabled={busy} onChange={(event) => { setWorkspace(null); setFilter(event.target.value); resetSelection(); }} className="min-h-11 rounded-lg border border-[var(--color-paper-outline)] bg-white px-3 text-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--hb-focus-ring)]">
                     {filters.map((value) => <option key={value} value={value}>{statusLabels[value]}</option>)}
                   </select>
                 </label>
-                {workspace && <p className="text-xs tabular-nums text-[var(--hb-text-muted)]">불러온 {rows.length}건 중 {filteredRows.length}건</p>}
+                {workspace && <p className="text-xs tabular-nums text-[var(--hb-text-muted)]">{rows.length}건 불러옴{nextCursor ? " · 더 불러올 수 있어요" : ""}</p>}
               </div>
               {notice && <p role="status" className="mt-4 rounded-lg bg-[var(--hb-surface-hover)] p-4 text-sm leading-6">{notice}</p>}
               {actionError && <div role="alert" className="mt-4 border-l-2 border-danger-700 pl-4 text-sm leading-6 text-danger-700">{actionError}</div>}
               {loading && <p role="status" className="flex items-center gap-2 py-12 text-sm"><Loader2 size={18} className="animate-spin" aria-hidden="true" />참여 목록을 불러오고 있습니다.</p>}
-              {!loading && loadError && <div role="alert" className="py-12"><p className="text-sm leading-6">{loadError}</p><Button onClick={() => void loadWorkspace()} className="mt-4">다시 불러오기</Button></div>}
+              {!loading && loadError && <div role="alert" className="py-12"><p className="text-sm leading-6">{loadError}</p><Button onClick={() => void loadWorkspace(retryCursor.current)} className="mt-4">다시 불러오기</Button></div>}
               {!loading && workspace && (
                 <div className="mt-5 grid items-start gap-7 lg:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)]">
                   <section aria-label="접수 목록">
-                    {filteredRows.length === 0 ? <p className="border-y border-[var(--hb-hairline)] py-12 text-sm leading-6 text-[var(--hb-text-muted)]">불러온 범위에 해당하는 {tab === "inquiries" ? "문의가" : tab === "applications" ? "등록 신청이" : "서비스가"} 없습니다. 다른 상태를 선택하거나 목록을 새로고침해 주세요.</p>
+                    {filteredRows.length === 0 ? <p className="border-y border-[var(--hb-hairline)] py-12 text-sm leading-6 text-[var(--hb-text-muted)]">선택한 상태의 {tab === "inquiries" ? "문의가" : tab === "applications" ? "등록 신청이" : "서비스가"} 없습니다. 다른 상태를 선택하거나 목록을 새로고침해 주세요.</p>
                       : <ul className="divide-y divide-[var(--hb-hairline)] border-y border-[var(--hb-hairline)]">{filteredRows.map((item) => <li key={item.id}><Button variant="ghost" fullWidth disabled={busy} aria-pressed={selectedId === item.id} onClick={() => selectItem(item.id)} className={`min-h-24! justify-start! gap-3! rounded-none! px-3! py-4! text-left font-normal! whitespace-normal! ${selectedId === item.id ? "bg-[var(--hb-surface-hover)]" : ""}`}><span className="min-w-0 flex-1"><span className="flex flex-wrap items-center gap-2"><strong className="break-words text-sm font-semibold">{item.name}</strong><Status value={item.status} /></span><span className="mt-1 block break-words text-xs leading-5 text-[var(--hb-text-muted)]">{item.subtitle}</span><span className="mt-1 block text-xs text-[var(--hb-text-muted)]">{formatDate(item.createdAt)}</span></span><ChevronRight size={16} className="shrink-0" aria-hidden="true" /></Button></li>)}</ul>}
+                    {nextCursor ? <Button className="mt-4" fullWidth disabled={busy || loading} onClick={() => void loadWorkspace(nextCursor)}>접수 더 보기</Button> : null}
                   </section>
                   <section aria-label="선택 항목 상세" className="min-w-0 rounded-xl border border-[var(--hb-hairline)] bg-white p-5 sm:p-6">
                     {!application && !offering && !inquiry ? <p className="py-10 text-sm text-[var(--hb-text-muted)]">목록에서 항목을 선택해 제출 내용과 처리 이력을 확인하세요.</p> : (
@@ -372,7 +395,7 @@ export default function ProviderParticipationQueue() {
                             {reviewButton(application.id, { kind: "application", action: "reject", expected_version: application.version }, "등록 반려", application.status !== "pending" || profile?.approval_status === "suspended")}
                           </div>
                         </>}
-                        {offering && <>
+                        {offering && !offering.is_active ? <p className="mt-4 text-sm leading-7">제공자가 이 서비스를 중단했습니다. 재제출 전까지 검토·승인할 수 없으며 공개·추천에서 제외됩니다.</p> : null}{offering?.is_active && <>
                           <label className="mt-5 flex items-start gap-3 text-sm leading-6"><input type="checkbox" checked={recommendationEligible} onChange={(event) => { setRecommendationEligible(event.target.checked); setConfirmation(null); }} disabled={disabled || profile?.approval_status !== "approved"} className="mt-1 h-4 w-4 shrink-0 accent-[var(--hb-primary)]" /><span>추천 자격도 확인했습니다.<span className="block text-xs leading-5 text-[var(--hb-text-muted)]">책임 주체·가격·추가금·적용 약관·수행 조건을 확인한 경우에만 선택하세요. 선택하지 않으면 서비스 승인 후에도 추천 자격은 미검토입니다.</span></span></label>
                           {profile?.approval_status !== "approved" && <p className="mt-2 text-xs leading-5 text-danger-700">제공자의 등록 자격이 승인된 뒤 서비스 승인이 가능합니다.</p>}
                           <div className="mt-4 flex flex-wrap gap-2">
@@ -440,5 +463,5 @@ function ApplicationDetails({ application, profile }: { application: ProviderApp
 }
 
 function OfferingDetails({ offering, profile }: { offering: ProviderOffering; profile: ProviderProfile | undefined }) {
-  return <><ProfileSummary profile={profile} /><dl className="mt-5 grid gap-5 sm:grid-cols-2"><Field label="서비스 검토"><Status value={offering.review_status} /></Field><Field label="추천 자격"><Status value={offering.recommendation_status} /></Field><Field label="제공자 공개 가격">{offering.base_price_krw.toLocaleString("ko-KR")}원 / {offering.price_unit}</Field><Field label="서비스 분야">{categoryLabel(offering.category)}</Field><div className="sm:col-span-2"><Field label="서비스 설명">{offering.description}</Field></div><div className="sm:col-span-2"><Field label="포함 항목">{offering.includes.join("\n")}</Field></div><div className="sm:col-span-2"><Field label="추가금">{offering.extra_charges}</Field></div><div className="sm:col-span-2"><Field label="이용·취소 조건">{offering.conditions}</Field></div>{offering.review_reason && <div className="sm:col-span-2"><Field label="최근 검토 사유">{offering.review_reason}</Field></div>}</dl></>;
+  return <><ProfileSummary profile={profile} /><dl className="mt-5 grid gap-5 sm:grid-cols-2"><Field label="서비스 제공 상태">{offering.is_active ? "제공 중" : "제공 중단 · 기록 보관"}</Field><Field label="서비스 검토"><Status value={offering.review_status} /></Field><Field label="추천 자격"><Status value={offering.recommendation_status} /></Field><Field label="제공자 공개 가격">{offering.base_price_krw.toLocaleString("ko-KR")}원 / {offering.price_unit}</Field><Field label="서비스 분야">{categoryLabel(offering.category)}</Field><div className="sm:col-span-2"><Field label="서비스 설명">{offering.description}</Field></div><div className="sm:col-span-2"><Field label="포함 항목">{offering.includes.join("\n")}</Field></div><div className="sm:col-span-2"><Field label="추가금">{offering.extra_charges}</Field></div><div className="sm:col-span-2"><Field label="이용·취소 조건">{offering.conditions}</Field></div>{offering.review_reason && <div className="sm:col-span-2"><Field label="최근 검토 사유">{offering.review_reason}</Field></div>}</dl></>;
 }

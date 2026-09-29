@@ -1,11 +1,11 @@
 // @vitest-environment jsdom
 
-import { act, type AnchorHTMLAttributes, type ReactNode } from "react";
+import { act, type AnchorHTMLAttributes } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import ProviderParticipationQueue from "./ProviderParticipationQueue";
-import type { ProviderWorkspace } from "@/lib/providers/contracts";
+import type { ProviderAdminPage } from "@/lib/providers/contracts";
 
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean })
   .IS_REACT_ACT_ENVIRONMENT = true;
@@ -29,8 +29,9 @@ const OFFERING_ID = "33333333-3333-4333-8333-333333333333";
 const INQUIRY_ID = "44444444-4444-4444-8444-444444444444";
 const timestamp = "2026-09-28T12:00:00.000Z";
 
-function workspace(): ProviderWorkspace {
+function workspace(): ProviderAdminPage {
   return {
+    next_cursor: null,
     profiles: [{
       id: PROFILE_ID, kind: "team", name: "작은 촬영팀", categories: ["photography"], regions: ["서울"],
       introduction: "두 사람이 기록합니다.", website: null, instagram: null,
@@ -46,7 +47,7 @@ function workspace(): ProviderWorkspace {
     offerings: [{
       id: OFFERING_ID, provider_id: PROFILE_ID, name: "가족 식사 촬영", category: "photography",
       description: "식사 전후 두 시간 촬영", base_price_krw: 400000, price_unit: "2시간", includes: ["원본", "보정 10장"],
-      extra_charges: "서울 외 출장비 별도", conditions: "일정은 문의로 확인합니다.", review_status: "pending",
+      is_active: true, extra_charges: "서울 외 출장비 별도", conditions: "일정은 문의로 확인합니다.", review_status: "pending",
       recommendation_status: "unreviewed", review_reason: null, version: 4, created_at: timestamp, updated_at: timestamp,
     }],
     media: [],
@@ -121,7 +122,7 @@ describe("ProviderParticipationQueue", () => {
     expect(container.querySelector('[aria-label="접수 목록"]')).toBeNull();
     consentRecorded = true;
     await act(async () => findButton(container, "권한·목록 다시 확인")?.click());
-    expect(calls).toEqual(["/api/admin/auth", "/api/admin/providers", "/api/admin/auth", "/api/admin/providers"]);
+    expect(calls).toEqual(["/api/admin/auth", "/api/admin/providers?kind=inquiries&status=all", "/api/admin/auth", "/api/admin/providers?kind=inquiries&status=all"]);
     expect(container.querySelector('a[href="/provider"]')).toBeNull();
     expect(container.textContent).toContain("전시 공간 협업 문의");
   });
@@ -155,7 +156,7 @@ describe("ProviderParticipationQueue", () => {
     mockWorkspace();
     await renderQueue();
 
-    expect(container.textContent).toContain("최근 최대 100건");
+    expect(container.textContent).toContain("전체 접수 기록에서 찾습니다");
     await selectDetail("비즈니스 문의", "전시 공간 협업 문의");
     expect(container.textContent).toContain("가족 전시를 함께 준비하고 싶습니다.");
 
@@ -193,7 +194,7 @@ describe("ProviderParticipationQueue", () => {
     });
     expect(container.querySelector('[role="status"]')?.textContent)
       .toContain("공개 시작과 서비스·추천 자격 승인은 별도");
-    expect(fetchMock.mock.calls.filter(([input]) => input === "/api/admin/providers")).toHaveLength(2);
+    expect(fetchMock.mock.calls.filter(([input]) => input === "/api/admin/providers?kind=applications&status=all")).toHaveLength(2);
   });
 
   it("leaves recommendation unreviewed when only approving a service", async () => {
@@ -296,6 +297,40 @@ describe("ProviderParticipationQueue", () => {
     await renderQueue();
     expect(container.querySelector('[role="alert"]')?.textContent).toContain("안전하게 확인하지 못했습니다");
     expect(container.querySelector('[aria-label="접수 목록"]')).toBeNull();
+  });
+
+  it("loads older queue pages, retains the first page after a failure, and resets the cursor for another status", async () => {
+    const first = workspace(); first.next_cursor = INQUIRY_ID;
+    const second = workspace(); second.business_inquiries = [{ ...second.business_inquiries[0], id: APPLICATION_ID, subject: "이전 접수 문의" }];
+    let failed = false;
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const path = String(input);
+      if (path === "/api/admin/auth") return jsonResponse({ isAdmin: true });
+      if (path.includes("after=")) { if (!failed) { failed = true; return jsonResponse({}, 503); } return jsonResponse(second); }
+      return jsonResponse(first);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    await renderQueue();
+    await act(async () => findButton(container, "접수 더 보기")?.click());
+    expect(container.textContent).toContain("전시 공간 협업 문의");
+    expect(container.querySelector('[role="alert"]')).not.toBeNull();
+    await act(async () => findButton(container, "다시 불러오기")?.click());
+    expect(container.textContent).toContain("이전 접수 문의");
+    expect(container.querySelectorAll('[aria-label="접수 목록"] li')).toHaveLength(2);
+    const filter = container.querySelector("select");
+    await act(async () => { if (filter) { filter.value = "received"; filter.dispatchEvent(new Event("change", { bubbles: true })); } });
+    expect(fetchMock.mock.calls.at(-1)?.[0]).toBe("/api/admin/providers?kind=inquiries&status=received");
+    expect(container.textContent).not.toContain("이전 접수 문의");
+  });
+
+  it("keeps withdrawn offerings out of administrative approval actions", async () => {
+    const data = workspace(); data.offerings[0].is_active = false;
+    mockWorkspace(data);
+    await renderQueue(); await selectDetail("서비스 검토", "가족 식사 촬영");
+    expect(container.textContent).toContain("재제출 전까지 검토·승인할 수 없으며");
+    expect(findButton(container, "서비스 승인")).toBeUndefined();
+    expect(findButton(container, "서비스 반려")).toBeUndefined();
+    expect(container.querySelector('input[type="checkbox"]')).toBeNull();
   });
 
   it("does not interpret an authorization network error as an empty queue", async () => {

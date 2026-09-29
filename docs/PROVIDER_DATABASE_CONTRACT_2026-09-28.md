@@ -1,6 +1,6 @@
 # 제공자 승인·자율 게시 DB 계약
 
-상태: 로컬 구현·합성 PGlite 검증. 운영 DB·Storage에는 적용하지 않았다.
+상태: 로컬 구현·PGlite/native PG17 검증. 운영 DB·Storage에는 적용하지 않았다.
 
 최신 사용자 결정은 **한방의 제공자 승인 이후 소개글과 사진을 직접 게시**하는 것이다.
 신청 승인, 사용자 게시 선택, 서비스 가격 심사, 추천 자격은 서로 다른 상태다.
@@ -24,7 +24,7 @@
 |---|---|
 | `provider_profiles` | 개인/팀/업체, 단일 책임자 계정, 소개, 승인 및 게시 상태, version |
 | `provider_applications` | 비공개 신청 내용·연락처·동의·요청키·검수·제출 버전 |
-| `provider_offerings` | 서비스 범위·기본금액·단위·포함·추가금·조건, 서비스 심사·추천 자격 |
+| `provider_offerings` | 서비스 범위·기본금액·단위·포함·추가금·조건, is_active·서비스 심사·추천 자격 |
 | `provider_media` | 서버 발급 경로·타입·크기·게시 권리 동의·상태·정렬 |
 | `business_inquiries` | 비공개 사업 문의, 확인된 Auth 이메일, 포털 답변 |
 | `provider_audit_events` | 행위자·대상·상태/버전 사건. 소개 본문·연락처·증빙 복사 없음 |
@@ -35,7 +35,7 @@ authenticated SELECT도 현재 소유자 또는 현재 `profiles.is_admin`에 �
 팀 프로필을 지원하지만 팀원 초대·역할 위임은 첫 릴리스에 포함하지 않는다.
 
 공개 조회는 `provider_public_catalog`의 명시적 필드만 반환한다. 공개 프로필은 `approved + published`,
-공개 서비스는 `review_status=approved`, 공개 사진은 `status=ready`여야 한다.
+공개 서비스는 `is_active=true + review_status=approved`, 공개 사진은 `status=ready`여야 한다.
 신청 본문·연락처·소유자·검수자·Storage 경로를 공개하지 않는다. 추천은 여기서도 별도의
 `recommendation_status=eligible` 조건이 필요하며 게시 승인만으로 부여되지 않는다.
 
@@ -52,8 +52,11 @@ wire contract는 `apps/web/src/lib/providers/contracts.ts` 및
 | `provider_update_profile(p_provider_id,p_expected_version,p_input)` | 승인 소유자만 introduction/website/instagram 저장. 즉시 반영 |
 | `provider_set_publication(p_provider_id,p_expected_version,p_status)` | published는 승인 후 명시적 선택. paused/draft는 철회 |
 | `provider_save_offering(p_provider_id,p_offering_id,p_expected_version,p_input)` | 신규 ID·version은 NULL. 중요 조건 편집은 pending/needs_review로 변경 |
-| `provider_get_workspace()` | 본인 프로필·신청·서비스·사진·사업문의. 각 목록 최대 100 |
-| `provider_admin_workspace()` | 현재 관리자만, 각 목록 최신 최대 100. 전체 목록으로 오인하지 않음 |
+| `provider_withdraw_offering(p_provider_id,p_offering_id,p_expected_version)` | 소유자가 서비스 이력을 보존하며 active=false, pending/blocked로 철회. 정지 중 가능, 재제출은 다시 검토 |
+| `provider_get_workspace()` | 본인 프로필·신청·서비스·사진·사업문의. 본인 자료를 임의로 100개에서 자르지 않음 |
+| `provider_admin_queue(p_kind,p_status,p_after,p_limit)` | 현재 관리자만. 종류·상태 선필터 후 UUID 커서, 기본 30개. 페이지가 참조하는 프로필을 함께 반환 |
+| `provider_admin_workspace()` | 초기 호환 조회는 각 목록 최신 최대 100. 현재 관리자 UI는 전체 탐색 가능한 queue RPC 사용 |
+| `provider_search_catalog(...)` | 공개 자료 선필터 후 UUID 커서. 추천 조회는 동일 서비스의 자격·분야·가격을 함께 확인 |
 | `provider_review_application(...)` | 관리자, 제출 version 대조. 보완/반려 이유 필수. 승인해도 draft |
 | `provider_review_offering(...)` | 서비스 심사와 추천 상태를 명시. 소개·사진 승인을 추천으로 확장하지 않음 |
 | `provider_suspend_profile(...)` | 즉시 paused, 추천 blocked. 새 편집·사진 등록 차단 |
@@ -120,8 +123,11 @@ PGlite 통과를 운영 적용·실제 발송·모바일 동기화 성공으로 
 ## 아모라 읽기 연결
 
 `discover_providers`는 기존 도구 실행·AI 기록 경로를 이용한다. 신규 AI 호출이나 업체 연락은 만들지 않는다.
-공개 catalog 최신 최대 100개 안에서 별도 서비스 심사가 approved이고 추천 자격이 eligible인 항목만 반환한다.
-사용자가 지정한 분야·등록 지역의 정확한 일치·기본가 상한을 적용하며, 조직 형태·광고·제휴를 순위에 사용하지 않는다.
+`provider_search_catalog`가 전체 공개 프로필에서 조건을 먼저 적용한 뒤 UUID 순서로 요청 수만큼 반환한다.
+동일 서비스의 분야·활성 상태·approved·eligible·검토 시각·기본가 상한을 함께 적용하므로,
+다른 분야의 저렴한 가격이나 최신 100개 제한으로 일치 여부를 판단하지 않는다.
+등록 지역은 소문자·공백 제거 후 전체 문자열이 같은 경우만 일치하며, 조직 형태·광고·제휴를 순위에 사용하지 않는다.
+응답 cursor 또는 응답 안의 미표시 서비스가 있으면 추가 후보가 있음을 표시한다.
 전체 시장의 포괄성·품질 순위를 주장하지 않는다. 미지원 세부 지역을 넓은 권역으로 자동 완화하지 않는다.
 
 도구에는 제공자 입력 가격 출처, 서비스 갱신 시각, 운영 검토 시각을 따로 보낸다.

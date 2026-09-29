@@ -1,18 +1,29 @@
 import { z } from "zod";
 import { providerAccount, providerBody, providerError, providerJson, providerRateLimit, providerRpc, ProviderError } from "./api";
-import { providerApplicationSchema, providerProfileSchema, providerOfferingSchema, businessInquirySchema, providerWorkspaceSchema, providerMediaUrl } from "./contracts";
-import { adminInputSchema, applicationInputSchema, resubmitInputSchema, profileInputSchema, offeringInputSchema, offeringUpdateSchema, inquiryInputSchema, providerIdSchema } from "./validation";
-import { getPublicProviders } from "./publicData";
+import { providerApplicationSchema, providerProfileSchema, providerOfferingSchema, businessInquirySchema, providerWorkspaceSchema, providerAdminPageSchema, providerMediaUrl } from "./contracts";
+import { adminInputSchema, adminQuerySchema, catalogQuerySchema, applicationInputSchema, resubmitInputSchema, profileInputSchema, offeringInputSchema, offeringUpdateSchema, inquiryInputSchema, providerIdSchema } from "./validation";
+import { getPublicProviders, getPublicProviderPage } from "./publicData";
 
 export function providerOutput<T>(schema: z.ZodType<T>, data: unknown): T {
   const parsed = schema.safeParse(data);
   if (!parsed.success) throw new ProviderError("PROVIDER_UNAVAILABLE", 503, "처리 결과를 확인하지 못했어요. 새로고침 후 확인해 주세요.");
   return parsed.data;
 }
+function providerQuery(request: Request) {
+  const params = new URL(request.url).searchParams;
+  if ([...params.keys()].some((key) => params.getAll(key).length > 1)) throw new ProviderError("PROVIDER_INVALID_INPUT", 400, "검색 조건을 확인해 주세요.");
+  return params;
+}
 export async function getWorkspace(request: Request, admin = false) {
   try {
     const { client } = await providerAccount(request, false, admin);
-    const result = providerOutput(providerWorkspaceSchema, await providerRpc(client, admin ? "provider_admin_workspace" : "provider_get_workspace"));
+    if (admin) {
+      const query = adminQuerySchema.parse(Object.fromEntries(providerQuery(request)));
+      return providerJson(providerOutput(providerAdminPageSchema, await providerRpc(client, "provider_admin_queue", {
+        p_kind: query.kind, p_status: query.status === "all" ? null : query.status, p_after: query.after ?? null, p_limit: 30,
+      })));
+    }
+    const result = providerOutput(providerWorkspaceSchema, await providerRpc(client, "provider_get_workspace"));
     return providerJson({ ...result, media: result.media.map((media) => ({ ...media, image_url: providerMediaUrl(media.provider_id, media.id) })) });
   } catch (error) { return providerError(error); }
 }
@@ -49,6 +60,10 @@ export async function saveOffering(request: Request, providerId: string, offerin
     if (offeringId) providerIdSchema.parse(offeringId);
     await providerRateLimit(request, user.id);
     const parsed = offeringId ? await providerBody(request, offeringUpdateSchema) : await providerBody(request, offeringInputSchema);
+    if ("action" in parsed) {
+      const result = await providerRpc(client, "provider_withdraw_offering", { p_provider_id: providerId, p_offering_id: offeringId, p_expected_version: parsed.expected_version });
+      return providerJson(providerOutput(providerOfferingSchema, result));
+    }
     const version = "expected_version" in parsed ? parsed.expected_version : null;
     const input = offeringInputSchema.parse(Object.fromEntries(Object.entries(parsed).filter(([key]) => key !== "expected_version")));
     const result = await providerRpc(client, "provider_save_offering", { p_provider_id: providerId, p_offering_id: offeringId ?? null, p_expected_version: version, p_input: input });
@@ -66,9 +81,14 @@ export async function submitInquiry(request: Request) {
 }
 export async function publicCatalog(request: Request) {
   try {
-    const id = new URL(request.url).searchParams.get("id") ?? undefined;
-    if (id) providerIdSchema.parse(id);
-    return providerJson({ providers: await getPublicProviders(id) });
+    const params = providerQuery(request);
+    const id = params.get("id");
+    if (id) {
+      providerIdSchema.parse(id);
+      if ([...params.keys()].some((key) => key !== "id")) throw new ProviderError("PROVIDER_INVALID_INPUT", 400, "검색 조건을 확인해 주세요.");
+      return providerJson({ providers: await getPublicProviders(id), next_cursor: null });
+    }
+    return providerJson(await getPublicProviderPage(catalogQuerySchema.parse(Object.fromEntries(params))));
   } catch (error) { return providerError(error); }
 }
 export async function reviewProvider(request: Request, id: string) {

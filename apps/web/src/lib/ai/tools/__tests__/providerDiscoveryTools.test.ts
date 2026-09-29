@@ -18,16 +18,20 @@ function provider(n = 1, kind = "individual", status = "eligible") {
     offerings: [{
       id: id(n + 100), provider_id: id(n), name: "합성 촬영 서비스", category: "photography", description: "합성 서비스",
       base_price_krw: 300_000, price_unit: "2시간", includes: ["원본"], extra_charges: "출장비 별도", conditions: "일정 확인",
-      review_status: "approved", recommendation_status: status, reviewed_at: "2026-09-27T10:00:00Z", updated_at: "2026-09-27T10:00:00Z",
+      is_active: true, review_status: "approved", recommendation_status: status, reviewed_at: "2026-09-27T10:00:00Z", updated_at: "2026-09-27T10:00:00Z",
     }],
   };
 }
-beforeEach(() => { mocks.rpc.mockReset(); mocks.rpc.mockResolvedValue({ data: [provider()], error: null }); });
+const response = (providers: ReturnType<typeof provider>[], next_cursor: string | null = null) => ({ data: { providers, next_cursor }, error: null });
+beforeEach(() => { mocks.rpc.mockReset(); mocks.rpc.mockResolvedValue(response([provider()])); });
 
 describe("public provider discovery", () => {
   it("uses the public RPC and returns provider pricing provenance without private data", async () => {
     const result = await executeDiscoverProviders({ category: "photography", region: "서울", budget_max_krw: 400_000 });
-    expect(mocks.rpc).toHaveBeenCalledExactlyOnceWith("provider_public_catalog", { p_provider_id: null, p_limit: 100 });
+    expect(mocks.rpc).toHaveBeenCalledExactlyOnceWith("provider_search_catalog", {
+      p_category: "photography", p_region: "서울", p_query: null, p_after: null,
+      p_limit: 3, p_recommendation_only: true, p_max_base_price_krw: 400_000,
+    });
     expect(result.success).toBe(true);
     expect(result.toolOutput.providers).toEqual([expect.objectContaining({
       organization_type: "individual", base_price_krw: 300_000, price_source: "provider_submitted",
@@ -40,7 +44,8 @@ describe("public provider discovery", () => {
   it("excludes services awaiting review, blocked services and absent review evidence", async () => {
     const unapproved = provider(2); unapproved.offerings[0].review_status = "pending";
     const missingReview = { ...provider(3), offerings: [{ ...provider(3).offerings[0], reviewed_at: null }] };
-    mocks.rpc.mockResolvedValue({ data: [provider(), unapproved, missingReview, provider(4, "team", "unreviewed"), provider(5, "company", "blocked")], error: null });
+    const inactive = provider(6); inactive.offerings[0].is_active = false;
+    mocks.rpc.mockResolvedValue({ data: { providers: [provider(), unapproved, missingReview, provider(4, "team", "unreviewed"), provider(5, "company", "blocked"), inactive], next_cursor: null }, error: null });
     const result = await executeDiscoverProviders({ category: "photography", limit: 5 });
     expect(result.toolOutput.count).toBe(1);
   });
@@ -53,8 +58,8 @@ describe("public provider discovery", () => {
     ]) {
       const result = await executeDiscoverProviders(input);
       expect(result.success).toBe(true); expect(result.toolOutput.providers).toEqual([]);
-      expect(result.toolOutput.coverage_note).toContain("최대 100개");
-      expect(result.toolOutput.empty_reason).toBe("no_verified_candidate_in_loaded_catalog");
+      expect(result.toolOutput.coverage_note).toContain("조건을 먼저 적용");
+      expect(result.toolOutput.empty_reason).toBe("no_verified_candidate_for_requested_filters");
     }
   });
 
@@ -68,9 +73,30 @@ describe("public provider discovery", () => {
     expect(result.toolOutput.next_step).toContain("필수 조건이 미확인이면 충족한다고 추천하지 말고");
   });
 
+  it("keeps category, active eligibility and ceiling on the same service", async () => {
+    const row = provider();
+    row.offerings[0].base_price_krw = 500_000;
+    row.offerings.push({ ...row.offerings[0], id: id(200), category: "makeup", base_price_krw: 100_000 });
+    mocks.rpc.mockResolvedValue(response([row]));
+    const result = await executeDiscoverProviders({ category: "photography", budget_max_krw: 300_000 });
+    expect(result.toolOutput.providers).toEqual([]);
+  });
+
+  it("queries the filtered catalog, preserves a zero ceiling, and discloses remaining matches", async () => {
+    const row = provider(); row.offerings[0].base_price_krw = 0; row.regions = ["서울 강남"];
+    mocks.rpc.mockResolvedValue(response([row], row.id));
+    const result = await executeDiscoverProviders({ category: "photography", region: " 서울강남 ", budget_max_krw: 0, limit: 1 });
+    expect(mocks.rpc).toHaveBeenCalledExactlyOnceWith("provider_search_catalog", {
+      p_category: "photography", p_region: "서울강남", p_query: null, p_after: null,
+      p_limit: 1, p_recommendation_only: true, p_max_base_price_krw: 0,
+    });
+    expect(result.toolOutput).toMatchObject({ count: 1, filtered_profile_count: 1, has_more_candidates: true });
+    expect(result.toolOutput.coverage_note).not.toMatch(/최신|100개/);
+  });
+
   it("keeps ordering independent of organization type", async () => {
     const rows = [provider(3, "company"), provider(1, "individual"), provider(2, "team")];
-    mocks.rpc.mockResolvedValue({ data: rows, error: null });
+    mocks.rpc.mockResolvedValue(response(rows));
     const before = await executeDiscoverProviders({ category: "photography", limit: 5 });
     rows[0].kind = "individual"; rows[1].kind = "company";
     const after = await executeDiscoverProviders({ category: "photography", limit: 5 });
@@ -96,7 +122,7 @@ describe("public provider discovery", () => {
       row.offerings[0].includes = Array.from({ length: 30 }, () => "포".repeat(200));
       row.offerings[0].extra_charges = "추".repeat(3000); row.offerings[0].conditions = "조".repeat(5000);
     }
-    mocks.rpc.mockResolvedValue({ data: rows, error: null });
+    mocks.rpc.mockResolvedValue(response(rows));
     const result = await executeDiscoverProviders({ category: "photography", limit: 5, required_conditions: Array.from({ length: 8 }, () => "필".repeat(160)) });
     expect(JSON.stringify(result.toolOutput).length).toBeLessThan(4000);
     expect(result.toolOutput.providers).toEqual([expect.objectContaining({ details_excerpted: true, suitability_status: "needs_confirmation" })]);

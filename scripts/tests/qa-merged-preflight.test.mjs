@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { execFileSync, spawnSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import { cpSync, mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -184,21 +185,25 @@ test("qa:merged가 qa:local의 검사 목록을 그대로 쓴다", async () => {
   }
 });
 
-test("공유 QA 목록은 CI와 같은 후속 준비 스타일 계약을 실제 검사하고 배포 인가로 표시하지 않는다", async () => {
+test("공유 QA 목록은 CI와 같은 243개 제공자 정적 준비 계약을 검사하고 운영 인가로 표시하지 않는다", async () => {
   const { checks } = await import("../verify-local.mjs");
-  const fences = checks.filter(check => check.name === "supabase release fence");
+  const fences = checks.filter(check => check.name === "provider release preparation pins (static only, no deploy)");
   assert.equal(fences.length, 1);
-  assert.deepEqual(fences[0].args, ["pnpm", "supabase:release:fence", "--account-deletion-audit-nullability"]);
+  assert.deepEqual(fences[0].args, ["pnpm", "supabase:provider:prepare", "--check"]);
   const { readFileSync } = await import("node:fs");
   const pkg = JSON.parse(readFileSync(path.join(repoRoot, "package.json"), "utf8"));
+  assert.equal(pkg.scripts["supabase:provider:prepare"], "node ./scripts/provider-participation-release.mjs");
   assert.equal(pkg.scripts["supabase:release:fence"], "node ./scripts/supabase-release-fence.mjs");
-  const result = spawnSync(process.execPath, ["scripts/supabase-release-fence.mjs", ...fences[0].args.slice(2)], {
+  const result = spawnSync(process.execPath, ["scripts/provider-participation-release.mjs", ...fences[0].args.slice(2)], {
     cwd: repoRoot, encoding: "utf8", windowsHide: true, timeout: 30_000,
   });
   assert.equal(result.error, undefined);
   assert.equal(result.status, 0, `${result.stdout}${result.stderr}`);
-  assert.match(result.stdout, /Account deletion audit nullability contract verified \(240 exact SQL files;/);
-  assert.match(result.stdout, /runtime evidence not verified; deployment not authorized; no remote writes/);
+  const report = JSON.parse(result.stdout);
+  assert.equal(report.status, "static-verified-production-blocked");
+  assert.equal(report.migrationCount, 243);
+  assert.equal(report.contractSha256, createHash("sha256").update(readFileSync(path.join(repoRoot, "supabase/release-contracts/provider-participation-v1.json"))).digest("hex"));
+  for (const key of ["productionApplyImplemented", "runtimeEvidenceVerified", "releaseAuthorized", "remoteWritesPerformed"]) assert.equal(report[key], false, key);
 });
 
 /** 저장소 수준 검사를 빼먹으면 배포 펜스·인계 계약·훅 배선이 검사되지 않는다. */
@@ -243,7 +248,7 @@ test("ingest 타입체크가 포함돼 있다", async () => {
   );
   assert.match(verify, /"ingest:typecheck"/, "ingest 타입체크가 빠지면 그 코드는 아무도 안 본다");
   assert.match(verify, /"test:repo"/, "저장소 스크립트 테스트가 빠지면 배포 펜스가 검사되지 않는다");
-  assert.match(verify, /"supabase:release:fence"/, "릴리스 펜스는 어디선가 반드시 돌아야 한다");
+  assert.match(verify, /"supabase:provider:prepare", "--check"/, "현재 마이그레이션의 정적 해시 검사가 빠지면 안 된다");
 
   // 두 곳이 같은 검사를 돌리면 qa:merged가 그만큼 느려지고, 목록이 조용히 어긋난다.
   assert.doesNotMatch(

@@ -36,18 +36,29 @@ import { BETA_SAFE_TOOLS } from "@/lib/ai/tools";
  * 한꺼번에 되돌리면 기억 가득 경우가 2/11 로 떨어진다.
  */
 
-const CONTRACT_HEADINGS = [
+const COMMON_CONTRACT_HEADINGS = [
   "## 판정 금지 · 업체 상대 발언 금지",
   "## 할루시네이션 방지",
   "## 공시 가격 사용 규칙",
   "## 견적의 포함·불포함 확인 원칙",
   "## 업체·계약 상담 안전 원칙",
-  "## 업체 추천·예약은 지금 제공하지 않습니다",
   "## 출처 표기 (Source Citation) — 사용자 신뢰의 핵심",
   "## 대화 규칙",
   "## 커플 갈등 중재",
   "## 이어서 할 수 있는 것 (선택)",
 ] as const;
+const LEGACY_VENDOR_HEADING = "## 업체 추천·예약은 지금 제공하지 않습니다";
+const PROVIDER_DISCOVERY_HEADING = "## 공개 참여자 후보와 예약의 경계";
+function contractHeadings(tools: readonly string[]) {
+  return [...COMMON_CONTRACT_HEADINGS, tools.includes("discover_providers") ? PROVIDER_DISCOVERY_HEADING : LEGACY_VENDOR_HEADING];
+}
+function capabilitySection(prompt: string, tools: readonly string[]) {
+  const heading = tools.includes("discover_providers") ? PROVIDER_DISCOVERY_HEADING : LEGACY_VENDOR_HEADING;
+  const start = prompt.indexOf(heading);
+  expect(start, "후보·예약 보호 섹션이 없다").toBeGreaterThanOrEqual(0);
+  const end = prompt.indexOf("\n## ", start + heading.length);
+  return (end === -1 ? prompt.slice(start) : prompt.slice(start, end)).trim();
+}
 
 /**
  * `## 요청 기반 조율 (MEDIATION_REQUEST)` 은 여기 없다 — **잘려서**가 아니라
@@ -62,6 +73,7 @@ const MEDIATION_TURN_CONTRACT = "## 요청 기반 조율 (MEDIATION_REQUEST)";
 const PRODUCTION_READ_TOOLS = BETA_SAFE_TOOLS
   .map((tool) => tool.name)
   .filter((name) => !isMutatingTool(name));
+const WITHOUT_PROVIDER_DISCOVERY = PRODUCTION_READ_TOOLS.filter((name) => name !== "discover_providers");
 
 /** 투영 상한(`AMORA_PROFILE_FIELD_MAX_CHARS`)까지 채운 기억. */
 const SATURATED_FIELD = "가".repeat(2_000);
@@ -108,8 +120,12 @@ function build(tools: readonly string[], extra: Record<string, unknown> = {}) {
 const CASES: Array<[string, readonly string[], Record<string, unknown>]> = [
   ["도구 0개", [], {}],
   ["운영 읽기 도구", PRODUCTION_READ_TOOLS, {}],
+  ["공개 후보 탐색 비활성", WITHOUT_PROVIDER_DISCOVERY, {}],
   ["전체 도구", BETA_SAFE_TOOLS.map((tool) => tool.name), {}],
   ["읽기 도구 + 기억 상한까지", PRODUCTION_READ_TOOLS, {
+    amoraProfiles: { shared: SATURATED_PROFILE, private: SATURATED_PROFILE },
+  }],
+  ["공개 후보 탐색 비활성 + 기억 상한까지", WITHOUT_PROVIDER_DISCOVERY, {
     amoraProfiles: { shared: SATURATED_PROFILE, private: SATURATED_PROFILE },
   }],
 ];
@@ -118,8 +134,8 @@ describe("제품 계약은 길이 예산에 밀려 사라지지 않는다", () =
   for (const [label, tools, extra] of CASES) {
     const prompt = build(tools, extra);
 
-    it(`${label} — 계약 ${CONTRACT_HEADINGS.length}개가 전부 남는다`, () => {
-      const missing = CONTRACT_HEADINGS.filter((heading) => !prompt.includes(heading));
+    it(`${label} — 계약 ${contractHeadings(tools).length}개가 전부 남는다`, () => {
+      const missing = contractHeadings(tools).filter((heading) => !prompt.includes(heading));
       expect(missing, `사라진 계약: ${missing.join(" / ")}`).toEqual([]);
     });
 
@@ -187,8 +203,32 @@ describe("기억이 가득 차도 계약이 먼저 잘리지 않는다", () => {
   it("잘리는 쪽은 참조표·안내다", () => {
     // 없어도 안전하게 물러설 수 있는 것들만 사라져야 한다.
     const headings = new Set(saturated.match(/^## .*/gm) ?? []);
-    for (const heading of CONTRACT_HEADINGS) {
+    for (const heading of contractHeadings(PRODUCTION_READ_TOOLS)) {
       expect(headings.has(heading), `계약이 잘렸다: ${heading}`).toBe(true);
     }
   });
+
+  for (const [label, tools] of [["활성", PRODUCTION_READ_TOOLS], ["비활성", WITHOUT_PROVIDER_DISCOVERY]] as const) {
+    it(`공개 후보 탐색 ${label} — 실제 절단 후 보호 본문 전체가 보존된다`, () => {
+      const context = promptContext({ amoraProfiles: { shared: SATURATED_PROFILE, private: SATURATED_PROFILE } });
+      const options = { enabledToolNames: tools, requestKind: "chat", persistenceMode: "durable" } as const;
+      const full = buildAmoraSystemPrompt(context, options);
+      const trimmed = buildAmoraSystemPrompt(context, { ...options, maxChars: AMORA_SYSTEM_PROMPT_MAX_CHARS });
+      expect(full.length).toBeGreaterThan(AMORA_SYSTEM_PROMPT_MAX_CHARS);
+      expect(trimmed.length).toBeLessThanOrEqual(AMORA_SYSTEM_PROMPT_MAX_CHARS);
+      expect(trimmed).toContain("[저장 문맥 일부는 길이 제한으로 생략됨]");
+      const section = capabilitySection(trimmed, tools);
+      expect(section).toBe(capabilitySection(full, tools));
+      expect(section).toContain("예약해 드릴게요");
+      if (tools.includes("discover_providers")) {
+        expect(section).toContain("공개 참여자 탐색 도구의 성공 결과가 있을 때만");
+        expect(section).toContain("도구가 돌려주지 않은 이름·가격을 만들지 마세요");
+        expect(section).toContain("필수 조건이 미확인이면 맞는다고 단정하지 말고");
+        expect(section).toContain("예약 생성·확정·취소와 문의 전송은 제공하지 않습니다");
+      } else {
+        expect(section).toContain("일반 장소 검색은 여기 해당하지 않습니다");
+        expect(section).toContain("절대 가짜 업체 만들지 마세요");
+      }
+    });
+  }
 });
