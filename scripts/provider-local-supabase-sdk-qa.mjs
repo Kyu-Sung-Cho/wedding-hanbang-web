@@ -51,9 +51,9 @@ export async function runLocalSdkQa(config, progress = () => {}) {
   const [{ createClient }, { Client }, { default: sharp }] = await Promise.all([
     import('@supabase/supabase-js'), import('pg'), import('sharp'),
   ]);
-  const makeClient = (key) => createClient(config.apiUrl, key, {
+  const makeClient = (key, transport = localOnlyFetch(config.apiUrl)) => createClient(config.apiUrl, key, {
     auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
-    global: { fetch: localOnlyFetch(config.apiUrl) },
+    global: { fetch: transport },
   });
   const service = makeClient(config.serviceKey), anonymous = makeClient(config.anonKey);
   const db = new Client({ connectionString: config.databaseUrl, connectionTimeoutMillis: 5000, query_timeout: 10000 });
@@ -153,7 +153,33 @@ export async function runLocalSdkQa(config, progress = () => {}) {
     denied(await outsider.client.rpc('provider_remove_media', { p_media_id: media.id }), 'PROVIDER_NOT_FOUND');
     await rpc(owner.client, 'provider_remove_media', { p_media_id: media.id });
     assert.deepEqual((await catalog(providerId))[0].media, []);
-    succeeded(await storage(service).remove([media.storage_path]));
+    const { require: tsxRequire } = await import('tsx/cjs/api');
+    const { cleanupProviderMedia } = tsxRequire('../apps/web/src/lib/providers/mediaCleanup.ts', import.meta.url);
+    assert.deepEqual(await cleanupProviderMedia(service), { claimed: 0, cleaned: 0, retired: 0, pending: 0 });
+    // Advance only this synthetic row past the grace interval; this is not a
+    // real-time 35-minute wait or an account-deletion worker rehearsal.
+    await db.query("UPDATE public.provider_media SET created_at=now()-interval '36 minutes' WHERE id=$1", [media.id]);
+    let failedDeletes = 0;
+    const realTransport = localOnlyFetch(config.apiUrl);
+    const transientFailure = makeClient(config.serviceKey, (input, init) => {
+      const url = new URL(input instanceof Request ? input.url : String(input));
+      const method = init?.method ?? (input instanceof Request ? input.method : 'GET');
+      if (url.origin === config.apiUrl && url.pathname === '/storage/v1/object/provider-portfolio' && method === 'DELETE') {
+        failedDeletes++;
+        return Promise.resolve(Response.json({ message: 'Synthetic transient storage failure' }, { status: 503 }));
+      }
+      return realTransport(input, init);
+    });
+    assert.deepEqual(await cleanupProviderMedia(transientFailure), { claimed: 1, cleaned: 0, retired: 0, pending: 1 });
+    assert.ok(failedDeletes > 0);
+    assert.equal((await db.query('SELECT cleanup_completed_at FROM public.provider_media WHERE id=$1', [media.id])).rows[0].cleanup_completed_at, null);
+    assert.deepEqual(Buffer.from(await succeeded(await storage(service).download(media.storage_path)).arrayBuffer()), bytes);
+    assert.deepEqual(await cleanupProviderMedia(service), { claimed: 0, cleaned: 0, retired: 0, pending: 0 });
+    await db.query("UPDATE public.provider_media SET cleanup_claim_until=now()-interval '1 second' WHERE id=$1", [media.id]);
+    assert.deepEqual(await cleanupProviderMedia(service), { claimed: 1, cleaned: 1, retired: 0, pending: 0 });
+    assert.ok((await db.query('SELECT cleanup_completed_at FROM public.provider_media WHERE id=$1', [media.id])).rows[0].cleanup_completed_at);
+    assert.deepEqual(await cleanupProviderMedia(service), { claimed: 0, cleaned: 0, retired: 0, pending: 0 });
+    checked('actual_media_cleanup_worker_grace_lease_failure_retry_and_checkpoint');
     assert.equal((await db.query("SELECT count(*)::int n FROM storage.objects WHERE bucket_id='provider-portfolio' AND name=$1", [media.storage_path])).rows[0].n, 0);
     denied(await storage(service).download(media.storage_path));
     succeeded(await service.auth.admin.deleteUser(owner.id));
@@ -197,7 +223,8 @@ export async function runLocalSdkQa(config, progress = () => {}) {
     }
   }
   return { environment: 'actual-local-supabase-auth-storage-postgres', passed: true, checks, cleanupSucceeded,
-    remoteDestinationAllowed: false, nextHttpRoutesVerified: false, accountDeletionWorkerVerified: false };
+    remoteDestinationAllowed: false, nextHttpRoutesVerified: false, accountDeletionWorkerVerified: false,
+    mediaCleanupWorkerVerified: true, realTimeGraceWaitVerified: false };
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {

@@ -75,6 +75,9 @@ SDK 요청은 동일 origin만 허용하며 redirect를 따라가지 않는다.
 - anon·소유자·타인이 Storage 원본에 직접 접근하지 못하는지 확인. 실제 owner RPC만 사진 확정.
 - 공개 pause/suspend/restore 상태, 이미 발급된 관리자 세션의 DB 역할 회수, 미승인 쓰기 거부.
 - 사진 공개 철회→실제 Storage 객체 삭제→Auth 삭제에 따른 FK cascade 및 옛 세션 거부.
+- 실제 사진 정리 worker에 같은 로컬 SDK를 전달하여 35분 전 실행 거절, lease 중복 실행 방지,
+  DELETE 전송 실패 주입 후 파일 보존·checkpoint 미완료, lease 만료 후 실제 삭제·checkpoint·재실행을 검사.
+  합성 사진 행의 시간만 앞당기므로 실제 35분 경과나 계정삭제 worker 검증은 아니다.
 - 생성한 파일 경로·Auth ID만 정리하고 SQL로 정리 여부를 확인. 파일 삭제가 불확실하면 synthetic 소유자를 남겨 재시도 가능하게 한다.
 
 성공 JSON의 `environment`는 `actual-local-supabase-auth-storage-postgres`이며 각 통과 검사와 `cleanupSucceeded`를 포함한다.
