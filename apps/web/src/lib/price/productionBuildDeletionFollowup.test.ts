@@ -7,7 +7,7 @@ import { CUSTOMER_DATA_CONTRACT_FILE, loadCustomerDataReleasePlan } from "../../
 import { validateSuccessorReleaseContract } from "../../../../../scripts/lib/supabase-successor-release-contract.mjs";
 import { assertVendorDisclosureProductionBuild, expectedProductionAuthorizationSha256,
   VENDOR_DISCLOSURE_STATIC_CONTRACT_INVALID, VENDOR_DISCLOSURE_EXTERNAL_AUTHORIZATION_INVALID,
-  VENDOR_DISCLOSURE_EXTERNAL_AUTHORIZATION_NOT_IMPLEMENTED } from "../../../vendorDisclosureProductionBuildFence";
+  VENDOR_DISCLOSURE_EXTERNAL_AUTHORIZATION_NOT_IMPLEMENTED, PROVIDER_RELEASE_OPERATIONS_NOT_READY } from "../../../vendorDisclosureProductionBuildFence";
 
 const repoRoot = resolve(import.meta.dirname, "../../../../..");
 let fixture: ReturnType<typeof createProfileAvatarHistoricalRepository>;
@@ -37,7 +37,7 @@ describe("production accepts only the explicit 232 expand successor", () => {
     expect(() => validateSuccessorReleaseContract({ repoRoot: root, followup: "profile-avatar" })).toThrowError(expect.objectContaining({ code: "FOLLOWUP_RELEASE_INVALID" }));
   }, 60_000);
   it("blocks the current provider checkout even with the existing owner signature", () => {
-    expect(() => production(repoRoot)).toThrowError(expect.objectContaining({ code: VENDOR_DISCLOSURE_STATIC_CONTRACT_INVALID }));
+    expect(() => production(repoRoot)).toThrowError(expect.objectContaining({ code: PROVIDER_RELEASE_OPERATIONS_NOT_READY }));
   }, 60_000);
   it.each(pins)("cannot fall back when a registered artifact is missing or changed: %s", file => {
     const path = join(fixture.root, file), bytes = readFileSync(path);

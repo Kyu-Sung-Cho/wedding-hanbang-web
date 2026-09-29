@@ -9,6 +9,32 @@ HTTP mock, PGlite의 `auth.uid()` 대체 함수, Storage 메타데이터에 직�
 따라서 이 스크립트의 실제 통합 실행은 **미검증**이다. 실행 안전장치 단위 테스트 통과는 통합 통과가 아니다.
 기존 PG17 테스트는 SQL·RLS·트랜잭션 검증이며 실제 Auth·Storage 서비스 검증과 구분한다.
 
+## 자동으로 임시 스택 준비하기
+
+Docker가 있는 PC 또는 GitHub Actions에서 다음 명령으로 빈 스택 준비부터 SDK 검사·정리까지 실행한다.
+
+```powershell
+corepack pnpm supabase:provider:integration --allow-disposable-local-stack
+```
+
+`scripts/provider-local-supabase-stack.mjs`는 매번 임시 디렉터리·고유 project ID·빈 포트를 만든다.
+이 저장소의 linked 프로젝트나 과거 migration 전체를 실행하지 않으며, 고정된 제공자 SQL과
+검사에 필요한 public 선행 테이블만 넣는다. Auth·PostgREST·Storage는 Supabase CLI의 실제
+서비스다. 운영 복원본은 아니다. SDK 검사 전에 DB의 운영 system identifier·기존 Auth 사용자·
+public 테이블·Storage 객체를 확인하여 기존 데이터가 있으면 중단한다.
+
+Docker는 이 컴퓨터의 기본 로컬 소켓만 사용한다. 상속된 Supabase 자격증명·DB 환경변수·
+원격 Docker context는 제거한다. CLI가 출력하는 로컬 키·비밀번호·서비스 오류 원문은 출력하지
+않고 단계 이름만 기록한다. 종료 시 이번 실행의 ID만 `stop --no-backup`으로 정리하며,
+전체 프로젝트 정지나 운영 연결 기능은 없다.
+
+`.github/workflows/provider-integration.yml`의 **Provider Auth and Storage** 검사는 이 명령을
+별도 Ubuntu runner에서 실행한다. 저장소 secret이나 hosted 테스트 프로젝트를 사용하지 않는다.
+CI 파일을 추가한 것만으로 실제 통합 통과를 선언하지 않으며 해당 commit의 실행 결과를 확인해야 한다.
+
+현재 웹의 service-role 목적지 검사는 hosted Supabase URL만 허용하므로 이 로컬 runner를
+Next HTTP 검증으로 간주하지 않는다. 그 검증에는 승인된 빈 hosted 환경이 추가로 필요하다.
+
 ## 준비 조건
 
 - Docker 호환 런타임을 갖춘 별도 로컬 Supabase 스택이 필요하다. 외부에 노출하지 않는다.

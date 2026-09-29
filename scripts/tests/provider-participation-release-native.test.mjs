@@ -16,6 +16,25 @@ test('owned local PostgreSQL17 verifies pinned expansion and full/late-failure r
 
 import { loadProviderParticipationReleasePlan } from '../lib/provider-participation-release-contract.mjs';
 import { providerTargetCatalogSql } from '../lib/provider-participation-catalog.mjs';
+import { buildProviderReadinessSql } from '../lib/provider-production-readiness.mjs';
+
+test('readiness observation executes as read-only on native PostgreSQL with complete ledger metadata', {
+  skip: nativeProviderReleaseAvailable ? false : 'native PG17 unavailable; readiness SQL NOT verified', timeout: 120000,
+}, async () => {
+  const root = resolve(import.meta.dirname, '../..'), plan = loadProviderParticipationReleasePlan(root);
+  const owned = await createProviderReleaseNativeDatabase(root, plan.predecessorMigrations);
+  try {
+    const response = await owned.client.query(buildProviderReadinessSql());
+    const observation = response.find(result => result.rows?.[0]?.observation)?.rows[0].observation;
+    assert.equal(observation.readOnly, true);
+    assert.equal(observation.systemIdentifier, owned.system);
+    assert.equal(observation.ledgerCount, 240);
+    assert.equal(observation.allLedger.length, 240);
+    assert.deepEqual(observation.targetLedger, []);
+    assert.equal(observation.target.bucket, null);
+    assert.deepEqual(Object.keys(observation.allLedger[0]).sort(), ['name', 'version']);
+  } finally { await owned.close(); }
+});
 
 test('native catalog captures callable RPC argument defaults even when types and body are unchanged', {
   skip: nativeProviderReleaseAvailable ? false : 'native PG17 unavailable; exact RPC argument check NOT verified', timeout: 120000,

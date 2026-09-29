@@ -9,6 +9,7 @@ import { createWeddingCodePairSessionHistoricalRepository } from './fixtures/wed
 import { buildProviderObservationSql, validateProviderObservation } from '../lib/provider-participation-catalog.mjs';
 import { analyzeReadOnlySqlEnvelope } from '../lib/sql-read-only-envelope.mjs';
 import { buildProviderLocalBundle, providerBundleParts, providerTransactionBody } from '../lib/provider-participation-release.mjs';
+import { validateSuccessorReleaseContract } from '../lib/supabase-successor-release-contract.mjs';
 
 const root = resolve(import.meta.dirname, '../..');
 const code = expected => error => error?.code === expected;
@@ -42,6 +43,13 @@ test('every provider implementation pin and unknown SQL fails closed', t => {
   const unknown = join(f.root, 'supabase/migrations/20260930000000_unreviewed.sql');
   try { writeFileSync(unknown, 'SELECT 1;\n', { flag: 'wx' }); assert.throws(() => loadProviderParticipationReleasePlan(f.root), code('NEW_MIGRATION_NOT_REVIEWED')); }
   finally { rmSync(unknown); }
+});
+
+test('shared build validator recognizes the exact provider successor without granting release authorization', () => {
+  const result = validateSuccessorReleaseContract({ repoRoot: root, followup: 'provider-participation' });
+  assert.deepEqual(result.providerReadiness, { productionApplyImplemented: false, runtimeEvidenceVerified: false, releaseAuthorized: false });
+  assert.equal(result.deploymentBlocked, true);
+  assert.throws(() => validateSuccessorReleaseContract({ repoRoot: root, followup: 'account-deletion-audit-nullability' }), code('FOLLOWUP_RELEASE_INVALID'));
 });
 test('offline CLI accepts no apply, inspect, project, credentials or SQL argument', () => {
   for (const args of [[], ['--apply'], ['--inspect'], ['--remote'], ['--check', '--apply'], ['--check', '--project-ref=slrtobkksjmxgzatjyqb'], ['--local-rehearsal', '--sql=SELECT 1'], ['--check', '--check']]) {

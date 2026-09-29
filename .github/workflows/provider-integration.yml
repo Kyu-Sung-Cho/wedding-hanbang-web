@@ -1,0 +1,48 @@
+name: Provider Integration
+
+on:
+  workflow_dispatch: {}
+  pull_request:
+    branches: [main]
+    paths:
+      - '.github/workflows/provider-integration.yml'
+      - 'scripts/provider-*.mjs'
+      - 'scripts/lib/provider-*.mjs'
+      - 'scripts/tests/fixtures/provider-*'
+      - 'supabase/**'
+      - 'apps/web/src/lib/providers/**'
+      - 'apps/web/src/lib/accountDeletion/**'
+      - 'apps/web/src/app/api/provider/**'
+      - 'apps/web/src/app/api/providers/**'
+      - 'apps/web/src/app/api/provider-media/**'
+      - 'apps/web/src/app/api/admin/providers/**'
+      - 'apps/web/src/app/api/cron/provider-media-cleanup/**'
+      - 'package.json'
+      - 'pnpm-lock.yaml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: provider-integration-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  actual_auth_storage:
+    name: Provider Auth and Storage
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22.13.0
+          cache: pnpm
+      - name: Install locked dependencies
+        run: corepack pnpm install --frozen-lockfile
+      - name: Actual local Auth, PostgREST and Storage integration
+        # No hosted project, repository secret or production migration is used.
+        run: corepack pnpm supabase:provider:integration --allow-disposable-local-stack

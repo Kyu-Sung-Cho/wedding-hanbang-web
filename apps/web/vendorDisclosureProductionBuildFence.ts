@@ -20,6 +20,10 @@ import { DELETION_AUDIT_CONTRACT_FILE } from "../../scripts/lib/account-deletion
 import { WEDDING_CODE_PAIR_SESSION_CONTRACT_FILE } from "../../scripts/lib/wedding-code-pair-session-release-contract.mjs";
 import { PROFILE_WEDDING_ROLES_CONTRACT_FILE } from "../../scripts/lib/profile-wedding-roles-release-contract.mjs";
 import { CHAT_FEEDBACK_CONTRACT_FILE } from "../../scripts/lib/chat-feedback-nullability-release-contract.mjs";
+import { PROVIDER_RELEASE_CONTRACT_FILE } from "../../scripts/lib/provider-participation-release-contract.mjs";
+
+export const PROVIDER_RELEASE_OPERATIONS_NOT_READY =
+  "PROVIDER_RELEASE_OPERATIONS_NOT_READY";
 
 export const VENDOR_DISCLOSURE_STATIC_CONTRACT_INVALID =
   "VENDOR_DISCLOSURE_STATIC_RELEASE_CONTRACT_INVALID";
@@ -82,7 +86,9 @@ export function assertVendorDisclosureProductionBuild({
     // 구 경로로 재시도하지 않으며, 계약이 없는 과거 checkout은 기존 검사를 유지한다.
     releaseContract = validateSuccessorReleaseContract({
       repoRoot,
-      followup: existsSync(join(repoRoot, DELETION_AUDIT_CONTRACT_FILE))
+      followup: existsSync(join(repoRoot, PROVIDER_RELEASE_CONTRACT_FILE))
+        ? "provider-participation"
+        : existsSync(join(repoRoot, DELETION_AUDIT_CONTRACT_FILE))
         ? "account-deletion-audit-nullability"
         : existsSync(join(repoRoot, WEDDING_CODE_PAIR_SESSION_CONFLICT_CONTRACT_FILE))
         ? "wedding-code-pair-session-conflict"
@@ -122,6 +128,20 @@ export function assertVendorDisclosureProductionBuild({
     blocked(
       VENDOR_DISCLOSURE_STATIC_CONTRACT_INVALID,
       "shared successor release contract could not be verified",
+    );
+  }
+
+  // 새 버킷·삭제 manifest가 없는 DB에 앱을 먼저 배포하면 기존 회원의 탈퇴도
+  // 재시도 상태에 머문다. 과거 벤더 릴리스의 유예나 소유자 서명으로 이 검사를
+  // 열지 않는다. 제공자 계약이 실제 운영 적용·통합 검증을 증명해야 한다.
+  if (releaseContract.providerReadiness && (
+    releaseContract.providerReadiness.productionApplyImplemented !== true
+    || releaseContract.providerReadiness.runtimeEvidenceVerified !== true
+    || releaseContract.providerReadiness.releaseAuthorized !== true
+  )) {
+    blocked(
+      PROVIDER_RELEASE_OPERATIONS_NOT_READY,
+      "provider DB and Storage must be deployed and verified before this web candidate; the reviewed provider contract still lacks the operational controller and runtime evidence",
     );
   }
 

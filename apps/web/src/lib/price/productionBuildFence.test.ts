@@ -19,6 +19,7 @@ import {
   VENDOR_DISCLOSURE_EXTERNAL_AUTHORIZATION_INVALID,
   VENDOR_DISCLOSURE_EXTERNAL_AUTHORIZATION_NOT_IMPLEMENTED,
   VENDOR_DISCLOSURE_STATIC_CONTRACT_INVALID,
+  PROVIDER_RELEASE_OPERATIONS_NOT_READY,
 } from "../../../vendorDisclosureProductionBuildFence";
 
 const RELEASE = "vendor-disclosure-v2-20260718";
@@ -417,7 +418,7 @@ describe("vendor disclosure production build fence", () => {
     }
   }, 120_000);
 
-  it("blocks current unregistered provider migrations before authorization, even with the existing signature", () => {
+  it("blocks the registered provider candidate on missing operational evidence, even with the existing signature", () => {
     const repoRoot = resolve(process.cwd(), "../..");
     expect(() => loadDeletionAuditNullabilityReleasePlan(repoRoot)).toThrowError(
       expect.objectContaining({ code: "NEW_MIGRATION_NOT_REVIEWED" }),
@@ -428,10 +429,9 @@ describe("vendor disclosure production build fence", () => {
           repoRoot,
           environment: { VERCEL_ENV: "production", VENDOR_DISCLOSURE_PRODUCTION_AUTHORIZATION: authorization },
         }),
-        VENDOR_DISCLOSURE_STATIC_CONTRACT_INVALID,
+        PROVIDER_RELEASE_OPERATIONS_NOT_READY,
       );
-      // 공통 fence는 하위 검증 사유를 FOLLOWUP_RELEASE_INVALID로 감싼다.
-      expect(error.message).toContain("FOLLOWUP_RELEASE_INVALID");
+      expect(error.message).toContain("provider DB and Storage");
     }
   }, 120_000);
 

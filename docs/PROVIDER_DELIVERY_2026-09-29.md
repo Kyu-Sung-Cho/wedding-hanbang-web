@@ -155,3 +155,10 @@ DB 연결 실패는 빈 검색 결과로 꾸미지 않고 오류와 다시 불�
 - [실제 로컬 Auth·Storage SDK 검증 준비](PROVIDER_LOCAL_SDK_QA_2026-09-29.md)
 - [DB 계약](PROVIDER_DATABASE_CONTRACT_2026-09-28.md)
 - [이전 구현과 검증 기록](PROVIDER_DELIVERY_2026-09-28.md)
+# 배포 선행 작업 후속 기록
+
+사용자의 “뭘 더해야 하는지 보고 진행하자” 요청에 따른 후속 구현은
+[운영 준비 보완 기록](operations/PROVIDER_READINESS_FOLLOWUP_2026-09-29.md)에 정리했다.
+243개 계약을 production 빌드에 등록했고, 제공자 운영 증거가 없는 후보는 별도 검사로 계속 차단한다.
+운영 catalog 읽기 전용 검사와 빈 실제 Supabase 스택의 Auth·Storage CI 실행 경로를 추가했다.
+이는 운영 적용이나 배포 완료를 의미하지 않는다.
