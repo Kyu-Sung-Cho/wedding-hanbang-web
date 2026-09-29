@@ -6,8 +6,8 @@ import { buildMobileSiteUrl, resolveMobileSiteOrigin } from "../lib/siteUrl.mjs"
 
 test("provider discovery and participation open the configured website without session credentials", async () => {
   const source = await readFile(new URL("../../app/(tabs)/profile.tsx", import.meta.url), "utf8");
-  assert.match(source, /label="서비스·공간 찾기 \(웹\)"[\s\S]*?openProviderPage\("\/discover"\)/);
-  assert.match(source, /label="서비스 참여·비즈니스 문의 \(웹\)"[\s\S]*?openProviderPage\("\/business"\)/);
+  assert.match(source, /label="웨딩 서비스 찾기 \(웹\)"[\s\S]*?openProviderPage\("\/discover"\)/);
+  assert.match(source, /label="웨딩 서비스 등록·문의 \(웹\)"[\s\S]*?openProviderPage\("\/business"\)/);
   assert.match(source, /Linking\.openURL\(buildMobileSiteUrl\(path, providerSiteOrigin\)\)/);
   assert.match(source, /catch \{\s*Alert\.alert\("웹 화면을 열지 못했어요"/);
   const origin = resolveMobileSiteOrigin("https://preview.example.com", { isDevelopment: false });

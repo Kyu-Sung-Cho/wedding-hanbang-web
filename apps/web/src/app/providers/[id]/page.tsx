@@ -7,7 +7,7 @@ import { isUuid } from "@/utils/requestValidation";
 import ProviderPageRetry from "@/components/providers/ProviderPageRetry";
 
 export const dynamic = "force-dynamic";
-export const metadata: Metadata = { title: "서비스·공간 소개 | 웨딩한방", robots: { index: false, follow: true } };
+export const metadata: Metadata = { title: "웨딩 서비스 소개 | 웨딩한방", robots: { index: false, follow: true } };
 
 export default async function ProviderPublicPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;

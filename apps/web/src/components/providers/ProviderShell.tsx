@@ -18,9 +18,9 @@ export default function ProviderShell({ children, active }: ProviderShellProps) 
       <header className="border-b border-[var(--hb-hairline)]">
         <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-x-5 gap-y-1 px-5 py-3 sm:px-8">
           <Link href="/landing" className={`inline-flex min-h-11 items-center text-lg font-semibold text-[var(--hb-text-strong)] ${providerFocus}`}>웨딩한방</Link>
-          <nav aria-label="서비스·공간 메뉴" className="flex flex-wrap gap-x-4">
+          <nav aria-label="웨딩 서비스 메뉴" className="flex flex-wrap gap-x-4">
             {[
-              { key: "discover", href: "/discover", label: "서비스·공간 찾기" },
+              { key: "discover", href: "/discover", label: "웨딩 서비스 찾기" },
               { key: "business", href: "/business", label: "함께하기" },
               { key: "provider", href: "/provider", label: "제공자 센터" },
             ].map((item) => (

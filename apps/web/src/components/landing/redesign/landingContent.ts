@@ -284,7 +284,7 @@ export const landingContent = {
           { label: "웨딩코드", href: "/wedding-code" },
           { label: "결혼 예절 가이드", href: "/wedding/manners" },
           { label: "커뮤니티", href: "/wedding" },
-          { label: "웨딩 서비스·공간 찾기", href: "/discover" },
+          { label: "웨딩 서비스 찾기", href: "/discover" },
         ],
       },
       {
@@ -295,7 +295,7 @@ export const landingContent = {
         heading: "함께하기",
         links: [
           { label: "개인·팀·업체 참여 안내", href: "/business" },
-          { label: "서비스 등록 신청", href: "/business/register" },
+          { label: "웨딩 서비스 등록 신청", href: "/business/register" },
           { label: "비즈니스 문의", href: "/business/inquiry" },
           { label: "제공자 센터", href: "/provider" },
         ],

@@ -5,7 +5,7 @@ export const PROVIDER_CATEGORIES = ["photography", "videography", "hair_makeup",
 export const PROVIDER_KIND_LABELS: Record<ProviderKind, string> = { individual: "개인", team: "팀", company: "업체" };
 export const PROVIDER_CATEGORY_LABELS: Record<ProviderCategory, string> = {
   photography: "사진", videography: "영상", hair_makeup: "헤어·메이크업", hair_styling: "헤어변형",
-  floral: "꽃·스타일링", mc: "사회·공연", directing: "진행·디렉팅", venue: "공간 대관", catering: "식사·케이터링", other: "기타",
+  floral: "꽃·스타일링", mc: "사회·공연", directing: "진행·디렉팅", venue: "예식·행사 장소", catering: "식사·케이터링", other: "기타",
 };
 export type ProviderKind = typeof PROVIDER_KINDS[number];
 export type ProviderCategory = typeof PROVIDER_CATEGORIES[number];

@@ -4,19 +4,19 @@ import ProviderShell, { ProviderHeading } from "@/components/providers/ProviderS
 import Button from "@/components/ui/Button";
 
 export const metadata: Metadata = {
-  title: "함께하기 · 서비스·공간 등록 | 웨딩한방",
-  description: "결혼 준비를 돕는 개인, 팀, 업체와 공간 운영자를 위한 웨딩한방 참여 안내입니다.",
+  title: "함께하기 · 웨딩 서비스 등록 신청 | 웨딩한방",
+  description: "결혼 준비를 돕는 개인·팀·업체와 예식·행사 장소 운영자를 위한 웨딩한방 참여 안내입니다.",
   alternates: { canonical: "/business" },
 };
 
 export default function BusinessPage() {
   return (
     <ProviderShell active="business">
-      <ProviderHeading eyebrow="웨딩한방과 함께하기" title="당신의 일과 공간을 소개해 주세요">
-        <p>혼자 일하는 사진가도, 함께 움직이는 작은 팀도, 공간을 운영하는 분도 참여할 수 있어요. 서비스의 범위와 조건을 분명히 알리고, 결혼을 준비하는 사람들과 만나는 창구입니다.</p>
+      <ProviderHeading eyebrow="웨딩한방과 함께하기" title="결혼 준비를 돕는 일을 소개해 주세요">
+        <p>사진가와 메이크업 팀, 웨딩홀·레스토랑·갤러리 운영자까지. 결혼 준비를 돕는 개인·팀·업체라면 참여할 수 있어요. 제공하는 서비스와 이용 조건을 소개해 주세요.</p>
       </ProviderHeading>
       <div className="flex flex-wrap gap-3">
-        <Button href="/business/register" variant="primary" size="lg">서비스·공간 등록</Button>
+        <Button href="/business/register" variant="primary" size="lg">웨딩 서비스 등록 신청</Button>
         <Button href="/business/inquiry" variant="secondary" size="lg">협업·비즈니스 문의</Button>
       </div>
       <p className="mt-3 text-xs leading-6 text-[var(--hb-text-muted)]">신청과 문의는 기존 웨딩한방 계정으로 진행합니다. 커플 연결이나 결혼 준비 정보 입력은 필요하지 않아요.</p>
@@ -27,7 +27,7 @@ export default function BusinessPage() {
           {[
             ["사진·영상", "본식 스냅, 가족식 촬영, 웨딩 영상. 실제 촬영자와 작업 범위를 소개해 주세요."],
             ["헤어·메이크업", "샵과 출장 서비스. 활동 지역, 준비 시간, 포함 항목과 추가 비용을 함께 안내해 주세요."],
-            ["공간과 진행", "레스토랑, 갤러리, 꽃, 사회, 디렉팅 등. 공간의 이용 조건과 가능한 서비스를 알려주세요."],
+            ["예식·행사 장소와 진행", "소규모 예식·가족 식사를 위한 장소 대관부터 꽃 장식·사회·디렉팅까지. 이용 조건과 제공 범위를 알려주세요."],
           ].map(([title, description]) => (
             <article key={title} className="border-t border-[var(--hb-hairline)] pt-4">
               <h3 className="font-semibold text-[var(--hb-text-strong)]">{title}</h3>

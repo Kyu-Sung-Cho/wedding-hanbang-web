@@ -428,7 +428,7 @@ export default function ProfileScreen() {
             />
             <MenuItem
               icon={Store}
-              label="서비스·공간 찾기 (웹)"
+              label="웨딩 서비스 찾기 (웹)"
               onPress={() => void openProviderPage("/discover")}
             />
             {/* 2026-07-26에 이 메뉴를 지웠던 이유는 "그 페이지가 제거돼 404 웹뷰를
@@ -474,7 +474,7 @@ export default function ProfileScreen() {
           <View style={styles.menuSection}>
             <MenuItem
               icon={Users}
-              label="서비스 참여·비즈니스 문의 (웹)"
+              label="웨딩 서비스 등록·문의 (웹)"
               onPress={() => void openProviderPage("/business")}
             />
             <MenuItem
