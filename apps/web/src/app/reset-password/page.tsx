@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { getPasswordErrorMessage } from "@hanbang/shared";
 import { useState, useEffect, useMemo } from "react";
 import Logo from "@/components/ui/Logo";
 import { AUTH_ERROR_MESSAGES } from "@/lib/auth/authErrorMessages";
@@ -99,7 +100,7 @@ export default function ResetPasswordPage() {
         password,
       });
       if (updateError) {
-        setError("비밀번호 변경에 실패했습니다. 다시 시도해주세요.");
+        setError(getPasswordErrorMessage(updateError) ?? "비밀번호 변경에 실패했습니다. 잠시 후 다시 시도해 주세요.");
       } else {
         setSuccess(true);
         // redirect 쿼리 파라미터가 있으면 해당 경로로, 없으면 /login으로
@@ -111,8 +112,7 @@ export default function ResetPasswordPage() {
         }, 2000);
       }
     } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      setError(`오류: ${msg}`);
+      setError(getPasswordErrorMessage(err) ?? "비밀번호 변경에 실패했습니다. 잠시 후 다시 시도해 주세요.");
     } finally {
       setLoading(false);
     }

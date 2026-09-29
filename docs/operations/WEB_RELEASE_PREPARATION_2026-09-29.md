@@ -1,6 +1,6 @@
 # 웹 출시 후보 준비 — 2026-09-29
 
-웹 우선 출시를 위한 후속 작업이다. 앞선 [다섯 차례 점검](WEB_FIVE_PASS_AUDIT_2026-09-28.md)은 로컬 검증 이력으로 유지한다. 이 문서는 그 이후의 변경과 실제 운영 조회를 구분한다. 원격 쓰기·배포·고객 자료 반입은 실행하지 않았다.
+웹 우선 출시를 위한 후속 작업이다. 앞선 [다섯 차례 점검](WEB_FIVE_PASS_AUDIT_2026-09-28.md)은 로컬 검증 이력으로 유지한다. 이 문서는 그 이후의 변경과 실제 운영 조회를 구분한다. 운영 설정·DB 변경·배포·고객 자료 반입은 실행하지 않았다. 검토용 Git 후보 공유는 운영 배포 승인을 뜻하지 않는다.
 
 ## 1. 운영 기준 확인 — 완료
 
@@ -71,3 +71,21 @@ E: 공식 opclass 기준 카탈로그 검사에서 ltree index·float GiST index
 - 위 DB 시험 로그는 `C:/Users/kcho1/.codex/visualizations/web-five-pass-20260928/release1-couple-reset-native-final.log`와 `release1-couple-reset-runtime.log`다. 앞선 실패 재현 로그도 같은 폴더에 보존했다.
 
 운영 조회 증거: `C:/Users/kcho1/.codex/visualizations/web-release-prep-20260929/`의 `read-only-readiness.json`, `migration-ledger-metadata.json`, `reset-target-catalog.json`. 같은 폴더에 빌드·CLI 차단·소스 검사 로그를 보존했다. 기존 복원 미완료 근거는 `C:/Users/kcho1/.codex/visualizations/web-launch-20260928/W13_HOST_READINESS.md`다. 원격 계정·키·고객 원문은 이 문서에 저장하지 않는다.
+
+## 7. 출시 후보 공유를 위한 후속 확인
+
+E: 첫 고정 후보 `90f41f513f22ad5dac6f4b80fc66870d4aeaad6a`에서 Turbo 타입·lint·test 9개 작업이 모두 통과했다. 웹은 배포 경계 시험을 포함한 1,148파일·18,765개, 모바일 1,425개, shared 134개 통과다. 이 결과는 이후 비밀번호 오류 수정까지 포함한 전체 실행 결과가 아니다. 정상 push hook이 같은 검사를 다시 시작해, 준비된 후속 수정까지 한 번에 검증하도록 해당 push와 그 자식 검사만 중단했다. 원격 branch가 생성되지 않았음을 확인했고 hook 변경·우회는 하지 않았다.
+
+E: Supabase CLI의 읽기 전용 백업 목록에서 운영 physical backup 7개가 모두 COMPLETED였다. 최신 시각은 `2026-09-28T20:14:22.608Z`, PITR은 false다. 백업 본체는 내려받지 않았고 실제 복구 성공도 아직 확인하지 않았다. [공식 복제 안내](https://supabase.com/docs/guides/platform/clone-project)처럼 DB 복제에는 Storage 파일 원본이 포함되지 않으므로 이 관측으로 파일 복구 조건을 대체하지 않는다.
+
+E: 기존 복구 branch `amora-restore-verify-20260714-2315`를 READ ONLY로 확인했다. Auth 사용자·세션·Storage 객체·버킷은 0개지만 DB 전체가 빈 상태는 아니다. `cron.launch_active_jobs=on`이고 대상 postgres에는 해당 설정을 바꿀 권한이 없다. [공식 Postgres 설정 API](https://supabase.com/docs/reference/api/v1-update-postgres-config)에도 해당 제어가 없고, [DB IP 제한](https://supabase.com/docs/guides/platform/network-restrictions)은 HTTPS Auth·Storage·PostgREST까지 차단하지 않는다. 현재 확인한 제어로 복원 후 자동 작업·외부 송신 차단을 입증하지 못했으므로 원본 복구 대상으로 승인하지 않았다. branch 초기화·설정 변경·고객 원본 전송은 하지 않았다.
+
+I: 유출 비밀번호 차단을 설정만으로 먼저 켜는 것도 보류한다. 현재 가입은 서버 `admin.createUser`를 사용한다. [공식 Auth 소스](https://github.com/supabase/auth/blob/master/internal/api/admin.go)는 이메일 중복 확인 후 비밀번호 강도를 검사한다. 이 순서라면 같은 유출 비밀번호에 대해 기존 주소는 성공 안내, 신규 주소는 오류가 되어 계정 존재 여부를 드러낼 수 있다. 운영 Auth의 정확한 버전과 이 동작은 미검증이며, 현재 비활성 상태에서 이 문제가 이미 발생한다고 주장하지 않는다. 계정 존재 여부에 독립적인 검사 또는 공개 응답 설계를 검증한 뒤 설정을 활성화해야 한다.
+
+비밀번호 변경의 반환·예외 오류는 웹과 모바일이 같은 구조화된 오류 안내를 쓰도록 보완했다. 유출/강도 오류와 같은 비밀번호 재사용을 구별하고, 웹의 서버 오류 원문 노출을 제거했다. 가입 응답·로그인 세션·정상 이동 경로는 유지한다.
+
+E: 적용 후 웹 4파일·60개와 모바일 8개 표적 검사가 모두 통과했다. 실제 reset 컴포넌트의 반환·throw 오류, 원문 비노출, 진행 중 잠금, 실패 후 재시도, 정상 2초 이동 예약, 복구 세션 없음과 기존 가입 동의·중복 계정 안내 회귀를 포함한다. SDK·메일 호출은 합성 응답으로 대체했으며 실제 운영 비밀번호 차단 검증은 아니다. 별도 코드 검토에서도 blocking 결함은 발견되지 않았다.
+
+E: 같은 최종 수정 상태에서 shared·web·mobile 타입 검사(`tsc --noEmit --incremental false`), 변경된 7개 코드·테스트 파일 ESLint, diff 공백 검사가 통과했다. 전체 자동 검사의 최종 후보 결과와 PR 상태는 후보 commit에 연결된 원격 검사에서 따로 확인한다.
+
+후속 관측·실행 로그는 `C:/Users/kcho1/.codex/visualizations/web-release-sequence-20260929/`에 보존한다. 자동 백업 관측, 원본 복원, 운영 DB 적용, 웹 배포는 각각 별도 완료 조건이다. 현재 원본 복원과 운영 적용·배포는 미완료다.
