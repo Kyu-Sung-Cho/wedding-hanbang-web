@@ -40,7 +40,7 @@ describe("price category SEO", () => {
           "@type": "ListItem",
           position: 2,
           name: "공시가 비교",
-          item: "https://hanbang.ai/price/studio",
+          item: "https://hanbang.ai/price",
         },
         {
           "@type": "ListItem",

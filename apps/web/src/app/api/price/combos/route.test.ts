@@ -40,6 +40,7 @@ function comboRequest(
   const headers = new Headers({
     "content-type": "application/json",
     "sec-fetch-site": "same-origin",
+    "X-Price-Expected-Owner": USER_ID,
     "x-forwarded-for": `${Math.floor(Math.random() * 200) + 1}.0.0.1`,
     ...extraHeaders,
   });
@@ -71,6 +72,7 @@ function streamedComboRequest(chunks: string[]) {
       "content-type": "application/json",
       "idempotency-key": IDEMPOTENCY_KEY,
       "sec-fetch-site": "same-origin",
+      "X-Price-Expected-Owner": USER_ID,
       "x-forwarded-for": `${Math.floor(Math.random() * 200) + 1}.0.0.1`,
     },
     body,
@@ -124,12 +126,20 @@ describe("GET /api/price/combos", () => {
     expect(response.headers.get("cache-control")).toContain("private");
     expect(response.headers.get("cache-control")).toContain("no-store");
     expect(limit).toHaveBeenCalledWith(1);
-    await expect(response.json()).resolves.toEqual({ combos: [latest] });
+    await expect(response.json()).resolves.toEqual({ combos: [latest], ownerUserId: USER_ID });
     expect(response.headers.get(MOBILE_BRIDGE_RESPONSE_BYTES_HEADER)).toMatch(/^[1-9][0-9]*$/);
   });
 });
 
 describe("POST /api/price/combos", () => {
+  it("does not persist a valid old-account combination under the new session", async () => {
+    const response = await POST(comboRequest(validBody(), IDEMPOTENCY_KEY, {
+      "X-Price-Expected-Owner": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+    }));
+    expect(response.status).toBe(409);
+    expect(mocks.comboSelect).not.toHaveBeenCalled();
+    expect(mocks.createAdminClient).not.toHaveBeenCalled();
+  });
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.pricesEq.mockResolvedValue({

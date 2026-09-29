@@ -81,6 +81,14 @@ export default function SettingsScreen() {
   const [initialData, setInitialData] = useState<SettingsData | null>(null);
   const [settingsSnapshot, setSettingsSnapshot] =
     useState<WeddingSettingsSnapshot | null>(null);
+  const settingsSnapshotRef = useRef(settingsSnapshot);
+  settingsSnapshotRef.current = settingsSnapshot;
+  const settingsMountedRef = useRef(true);
+  useEffect(() => {
+    settingsMountedRef.current = true;
+    return () => { settingsMountedRef.current = false; };
+  }, []);
+  const resetInFlightRef = useRef(false);
   const [legacyCareConsentActive, setLegacyCareConsentActive] = useState(false);
   const [revokingLegacyCareConsent, setRevokingLegacyCareConsent] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -117,6 +125,7 @@ export default function SettingsScreen() {
 
   // 회원 탈퇴 — 접수가 열려 있는지 묻는 동안 같은 버튼이 두 번 확인창을 띄우지 않게 한다.
   const deletionIntakeCheckRef = useRef(false);
+  const deletionInFlightRef = useRef(false);
   const [checkingDeletionIntake, setCheckingDeletionIntake] = useState(false);
 
   // 현재 데이터 로드
@@ -492,7 +501,16 @@ export default function SettingsScreen() {
   }
 
   function handleStartNewCouple() {
-    if (resettingCouple) return;
+    const resetContext = settingsSnapshot;
+    if (resettingCouple || resetInFlightRef.current || !resetContext) return;
+    const isCurrentContext = async () => {
+      try {
+        const { data: sessionData, error } = await supabase.auth.getSession();
+        const current = settingsSnapshotRef.current;
+        return !error && settingsMountedRef.current && sessionData.session?.user.id === resetContext.userId
+          && current?.userId === resetContext.userId && current.coupleId === resetContext.coupleId;
+      } catch { return false; }
+    };
 
     Alert.alert(
       "새 커플로 다시 시작",
@@ -503,13 +521,17 @@ export default function SettingsScreen() {
           text: "계속",
           style: "destructive",
           onPress: async () => {
-            setResettingCouple(true);
+            if (resetInFlightRef.current) return;
+            resetInFlightRef.current = true;
             try {
-              const response = await apiFetch("/api/couple/reset", {
+              if (!await isCurrentContext()) return;
+              setResettingCouple(true);
+              const response = await apiFetchForExpectedUser(resetContext.userId, "/api/couple/reset", {
                 method: "POST",
-                body: JSON.stringify({ confirmText: "초기화합니다" }),
+                body: JSON.stringify({ confirmText: "초기화합니다", expectedUserId: resetContext.userId, expectedCoupleId: resetContext.coupleId }),
               });
               const payload = (await response.json().catch(() => ({}))) as { error?: string };
+              if (!await isCurrentContext()) return;
               if (!response.ok) {
                 throw new Error(payload.error ?? "새 커플을 시작하지 못했어요.");
               }
@@ -521,12 +543,14 @@ export default function SettingsScreen() {
               setInitialData((current) => current ? { ...current, coupleId: null } : current);
               router.replace("/onboarding");
             } catch (error) {
+              if (!await isCurrentContext()) return;
               Alert.alert(
                 "새 커플을 시작하지 못했어요",
                 toKoreanErrorMessage(error, "잠시 후 다시 시도해 주세요."),
               );
             } finally {
-              setResettingCouple(false);
+              resetInFlightRef.current = false;
+              if (await isCurrentContext()) setResettingCouple(false);
             }
           },
         },
@@ -618,7 +642,17 @@ export default function SettingsScreen() {
   }
 
   // 자동 접수가 열려 있음을 확인한 뒤에만 부른다.
-  function showDeletionConfirmation() {
+  function showDeletionConfirmation(deletionOwnerId: string) {
+    let submitted = false;
+    const isCurrentOwner = async () => {
+      if (!settingsMountedRef.current) return false;
+      try {
+        const { data: { session }, error } = await supabase.auth.getSession();
+        return !error && settingsMountedRef.current && session?.user.id === deletionOwnerId;
+      } catch {
+        return false;
+      }
+    };
     // 되돌릴 수 없는 행동 앞에서 무엇이 지워지고 무엇이 남는지 먼저 말한다.
     //
     // 예전에는 "계정과 직접 소유한 데이터 삭제를 요청해요" 한 줄뿐이라,
@@ -647,33 +681,47 @@ export default function SettingsScreen() {
                   text: "탈퇴 확인",
                   style: "destructive",
                   onPress: async () => {
+                    if (submitted || deletionInFlightRef.current) return;
+                    deletionInFlightRef.current = true;
                     try {
-                      const {
-                        data: { session: deletionSession },
-                        error: deletionSessionError,
-                      } = await supabase.auth.getSession();
-                      if (deletionSessionError || !deletionSession?.user.id) {
-                        throw new Error("계정의 기기 데이터를 안전하게 정리할 사용자를 확인하지 못했어요.");
-                      }
-                      const deletionOwnerId = deletionSession.user.id;
-                      const res = await apiFetch("/api/auth/delete", {
+                      if (!(await isCurrentOwner())) return;
+                      const res = await apiFetchForExpectedUser(deletionOwnerId, "/api/auth/delete", {
                         method: "DELETE",
-                        body: JSON.stringify({ reason: "mobile_request" }),
+                        body: JSON.stringify({ reason: "mobile_request", expectedOwnerId: deletionOwnerId }),
                       });
                       const body = (await res.json().catch(() => ({}))) as {
                         error?: string;
                         message?: string;
                         pending?: boolean;
                       };
+                      if (!(await isCurrentOwner())) return;
                       if (!res.ok && !body.pending) {
                         throw new Error(
                           body.error ?? "탈퇴 요청을 시작하지 못했어요. 잠시 후 다시 시도해 주세요.",
                         );
                       }
+                      submitted = true;
+                      let finishing = false;
                       const finishSignOut = async () => {
-                        const { decisionDataPurged } = await signOut({
-                          continueOnDecisionPurgeFailure: true,
+                        if (finishing) return;
+                        finishing = true;
+                        let sessionStillCurrent = true;
+                        const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+                          if (session?.user.id !== deletionOwnerId) sessionStillCurrent = false;
                         });
+                        let decisionDataPurged = true;
+                        try {
+                          if (!(await isCurrentOwner())) return;
+                          ({ decisionDataPurged } = await signOut({
+                            continueOnDecisionPurgeFailure: true,
+                            isCurrentSession: () => sessionStillCurrent && settingsMountedRef.current,
+                          }));
+                        } finally {
+                          subscription.unsubscribe();
+                          finishing = false;
+                        }
+                        const { data: { session: remainingSession }, error } = await supabase.auth.getSession();
+                        if (error || remainingSession) return;
                         router.replace("/(auth)/login");
                         if (!decisionDataPurged) {
                           Alert.alert(
@@ -707,15 +755,23 @@ export default function SettingsScreen() {
                           "삭제 요청 접수",
                           body.message
                             ?? "계정 삭제를 안전하게 처리 중이에요. 새 파일 업로드는 제한돼요.",
-                          [{ text: "확인", onPress: finishSignOut }],
+                          [{ text: "확인", onPress: () => {
+                            void finishSignOut().catch(async (error: unknown) => {
+                              if (!(await isCurrentOwner())) return;
+                              Alert.alert("오류", toKoreanErrorMessage(error, "로그아웃을 끝내지 못했어요. 잠시 뒤 다시 시도해 주세요."));
+                            });
+                          } }],
                         );
                         return;
                       }
                       await finishSignOut();
                     } catch (err) {
+                      if (!(await isCurrentOwner())) return;
                       const message =
                         toKoreanErrorMessage(err, "탈퇴를 끝내지 못했어요. 잠시 뒤 다시 시도해 주세요.");
                       Alert.alert("오류", message);
+                    } finally {
+                      deletionInFlightRef.current = false;
                     }
                   },
                 },

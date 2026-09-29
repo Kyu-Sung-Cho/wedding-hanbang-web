@@ -2,6 +2,7 @@
 
 export const MOBILE_WEB_API_PROTOCOL = "hanbang.mobile.api.v1";
 export const MOBILE_WEB_API_NONCE_PROPERTY = "__HANBANG_MOBILE_API_NONCE__";
+export const MOBILE_WEB_API_OWNER_SCOPE_PROPERTY = "__HANBANG_MOBILE_API_OWNER_SCOPE_V1__";
 export const MOBILE_WEB_API_RESPONSE_BYTES_HEADER = "x-hanbang-response-bytes";
 export const MAX_MOBILE_WEB_API_REQUEST_BODY_BYTES = 64 * 1024;
 export const MAX_MOBILE_WEB_API_RESPONSE_BODY_BYTES = 256 * 1024;
@@ -50,6 +51,15 @@ function parseHeaders(value) {
     }
     if (name === "idempotency-key") {
       if (!REQUEST_ID_PATTERN.test(rawValue)) return null;
+      result[name] = rawValue.toLowerCase();
+      continue;
+    }
+    if (name === "x-price-expected-owner") {
+      if (
+        rawValue.length !== 36
+        || !REQUEST_ID_PATTERN.test(rawValue)
+        || Object.prototype.hasOwnProperty.call(result, name)
+      ) return null;
       result[name] = rawValue.toLowerCase();
       continue;
     }

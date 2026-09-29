@@ -2,10 +2,12 @@ import type { AiToolDefinition } from "@/lib/ai/toolDefinition";
 import {
   classifyAmoraCrisis,
   normalizeAmoraSafetyText,
+  withoutAmoraExcludedWeddingVideoScenes,
 } from "@/lib/ai/amoraCrisisSafety";
 import { assessAmoraSafetyText } from "@/lib/ai/amoraCrisisClassifier";
 import { hasCoerciveControlSignal } from "@hanbang/shared";
 import { isClosedPartnerViolenceStatement } from "@hanbang/shared/partner-violence-closed-vocabulary";
+import { hasAmoraSensitiveDisclosure } from "@hanbang/shared/amora-crisis-delivery";
 import { hasExplicitPersonalActionDraftRequest } from "./amoraPersonalActionConversation";
 
 export type AmoraQuestionScope =
@@ -158,6 +160,13 @@ const HIGH_RISK_DOMAIN_CONCRETE_PATTERN =
 // 그건 어휘가 아니라 **틀 재설계**(행위자 결속)이고 파운더 판단 사안이다.
 const HIGH_RISK_SAFETY_PATTERN =
   /가정\s*폭력|데이트\s*폭력|폭력|폭행|성추행|강간|신체적\s*위협|강압적(?:인|으로)?\s*통제|감금|스토킹|손찌검|(?:저|제|나|내)(?:를|을|한테|에게)\s*[^.!?\n]{0,10}?(?:때린|때렸|때려|때리는|때리려|때립|밀쳐|밀치|밀쳤|밀었)|(?:때린|때렸|때려)\s*(?:적|뒤|이후|후)|때리려고\s*(?:손|팔)|주먹질|목(?:을|를)?\s*(?:조른|졸랐)|물건(?:을|를)?\s*(?:던지|던졌|집어\s*던)|(?:저|제|나|내)(?:를|을|한테|에게)\s*[^.!?\n]{0,12}?(?:협박|위협)|못\s*나가게\s*.{0,8}가(?:둬|뒀|둔|두)|때리는\s*(?:남자친구|남친|여자친구|여친|신랑|신부|남편|아내|배우자|예비\s*신랑|예비\s*신부|사람)/iu;
+// 명시적으로 없다고 한 대상만 가린다. '없지 않다/없는 건 아니다'와 다른 고백은 그대로 둔다.
+function bareSafetyEvidence(value: string): string {
+  return withoutAmoraExcludedWeddingVideoScenes(value).replace(
+    /폭력\s*같은\s*일(?:은|이)\s*전혀\s*없(?:고|어요|습니다|어)(?=$|[\s.!?,])/gu,
+    " ",
+  );
+}
 /**
  * 목적어를 생략한 협박 고백.
  *
@@ -821,7 +830,8 @@ export function classifyAmoraQuestionScope({
   // confirmation or an approved wedding action must not launder a newly added
   // medical, legal, financial, or otherwise out-of-scope question into W0.
   const safetyHighRisk =
-    HIGH_RISK_SAFETY_PATTERN.test(normalizedText)
+    hasAmoraSensitiveDisclosure(normalizedText)
+    || HIGH_RISK_SAFETY_PATTERN.test(bareSafetyEvidence(normalizedText))
     || HIGH_RISK_SAFETY_CONCRETE_PATTERN.test(normalizedText)
     || HIGH_RISK_HYPOTHETICAL_SAFETY_PATTERN.test(normalizedText)
     || (

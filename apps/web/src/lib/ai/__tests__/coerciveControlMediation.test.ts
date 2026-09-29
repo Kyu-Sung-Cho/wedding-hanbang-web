@@ -71,22 +71,18 @@ describe("낮춘 문턱은 중재에만 적용된다", () => {
   });
 });
 
-describe("누출 기록 — 일반 대화에서 놓치는 강압 통제 고백(정상이 아니다)", () => {
-  // 중재 요청이면 낮춘 문턱이 잡는다. 일반 대화에서는 아무 판정도 서지 않아 공유 레인에 저장되고,
-  // 저장되는 순간 배우자가 읽는다. 닫힌 어휘 폭력 판정(`partnerViolenceClosedVocabulary.ts`)은
-  // `해서 속상해요` 가 어휘 밖이라 서지 않는다.
-  //
-  // 바라는 동작(일반 대화에서도 안전 신호)을 `it.fails` 로 단언한다. 오늘은 실패한다. 누가 이 문장을
-  // 잡게 되면 빨개진다 — 그때 `it.fails` 를 `it` 으로 바꿀 것. "일반 대화는 막지 않는다" 쪽으로
-  // 옮기지 말 것.
+describe("민감공유 보호 — 일반 대화의 고립 고백도 공유·기억·준비 도구로 넘기지 않는다", () => {
+  // 낮은 문턱의 중재 정규식은 그대로 둔다. 별도 절 단위 보호가 이 일반 고백을 잡는다.
   const LEAK = "친구들을 못 만나게 해서 속상해요.";
 
   it("중재 요청이면 낮춘 문턱이 잡는다", () => {
     expect(mediationScope(LEAK)).toBe("W2_high_risk_adjacent");
   });
 
-  it.fails("일반 대화에서도 안전 신호가 서야 한다(아직 공유 레인에 남는다)", () => {
+  it("일반 대화에서도 안전 신호가 서고 장기기억을 허용하지 않는다", () => {
     expect(hasAmoraSafetySignal(LEAK, "chat")).toBe(true);
+    expect(classifyAmoraQuestionScope({ userText: LEAK, requestKind: "chat" }))
+      .toMatchObject({ scope: "W2_high_risk_adjacent", highRiskReason: "safety", allowsLongTermMemory: false });
   });
 });
 

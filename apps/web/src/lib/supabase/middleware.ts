@@ -1,4 +1,5 @@
 import { hasWebSignupConsentAccess } from "@/lib/auth/signupConsentAccess";
+import { isConfirmedSignedOut } from "@/lib/auth/sessionFailure";
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import { SIGNUP_CONSENT_PATH } from "@hanbang/shared";
@@ -95,10 +96,6 @@ export async function updateSession(request: NextRequest) {
     }
   );
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
   const redirectWithSession = (url: URL) => {
     const response = NextResponse.redirect(url);
     // 동의·온보딩으로 이동해도 갱신·삭제한 세션 쿠키를 브라우저에 전달한다.
@@ -108,8 +105,31 @@ export async function updateSession(request: NextRequest) {
     return response;
   };
 
+  const unavailableSession = () => {
+    const response = new NextResponse(
+      "로그인 정보를 확인하지 못했어요. 잠시 후 새로고침해 주세요.",
+      { status: 503, headers: {
+        "Content-Type": "text/plain; charset=utf-8",
+        "Cache-Control": "private, no-store, max-age=0",
+        "Retry-After": "5",
+      } },
+    );
+    finalResponse.cookies.getAll().forEach(cookie => response.cookies.set(cookie));
+    return response;
+  };
+
+  let authResult: Awaited<ReturnType<typeof supabase.auth.getUser>>;
+  try {
+    authResult = await supabase.auth.getUser();
+  } catch {
+    return unavailableSession();
+  }
+  const { data: { user }, error: authError } = authResult;
+  // 조회 장애는 로그아웃 증거가 아니다. 보호 화면은 닫되 기존 세션은 지우지 않는다.
+  if (authError && !isConfirmedSignedOut(authError)) return unavailableSession();
+
   // 미인증 → 로그인 페이지로 리다이렉트
-  if (!user) {
+  if (!user || authError) {
     const url = protectedType === "customer"
       ? buildCustomerGateRedirect(request, "/login")
       : request.nextUrl.clone();

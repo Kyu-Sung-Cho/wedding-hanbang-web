@@ -13,7 +13,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useStore } from "zustand";
 
 import { track } from "@/lib/analytics/track";
-import { mobileAuthenticatedFetch } from "@/lib/mobile/mobileAuthenticatedFetch";
+import { mobileAuthenticatedFetch, MobileAppUpdateRequiredError, MOBILE_APP_UPDATE_REQUIRED_NOTICE } from "@/lib/mobile/mobileAuthenticatedFetch";
+import { PRICE_EXPECTED_OWNER_HEADER, priceResponseOwner, usePriceOwnerSession } from "@/hooks/usePriceOwnerSession";
 import type { BudgetCombination } from "@/lib/price/budgetFinder";
 import {
   filterPriceCatalog,
@@ -41,7 +42,7 @@ import {
 import { disclosureRoundLabel } from "@/lib/price/period";
 import {
   parseLatestSavedComboPayload,
-  restoreSavedComboAgainstCatalog,
+  restoreSavedComboWithOptions,
   type SavedComboPreview,
 } from "@/lib/price/savedComboRestore";
 
@@ -52,13 +53,13 @@ import { ComboBar } from "./ComboBar";
 import { PriceDisclosureFooter } from "./PriceDisclosureFooter";
 import { PriceEmptyState } from "./PriceEmptyState";
 import { PriceVendorCard } from "./PriceVendorCard";
+import { loadVendorOptions } from "./vendorOptionsClient";
 
 const PAGE_SIZE = 20;
 // 고른 지역은 브라우저에 남긴다 — 올 때마다 다시 묻지 않기 위해서.
 const REGION_STORAGE_KEY = "hanbang.price.region";
 // 접힌 상태에서 보여줄 대행사 칩 수 — 나머지는 "모두 보기"로 펼친다.
 const AGENCY_PREVIEW_COUNT = 12;
-const comboStore = createPriceComboStore();
 
 type AuthStatus = "loading" | "authenticated" | "guest" | "unknown";
 type WishlistHydrationStatus = "loading" | "ready" | "error";
@@ -95,6 +96,7 @@ export function PriceExplorer({
   surface = "public",
   preview = false,
 }: PriceExplorerProps) {
+  const [comboStore] = useState(() => createPriceComboStore());
   const [searchInput, setSearchInput] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [regionCode, setRegionCode] = useState("");
@@ -115,6 +117,7 @@ export function PriceExplorer({
   const [wishlistHydrationStatus, setWishlistHydrationStatus] =
     useState<WishlistHydrationStatus>("loading");
   const [ownerStateReload, setOwnerStateReload] = useState(0);
+  const [mobileUpdateRequired, setMobileUpdateRequired] = useState(false);
   const [authStatus, setAuthStatus] = useState<AuthStatus>("loading");
   const [savedComboHydrationStatus, setSavedComboHydrationStatus] =
     useState<SavedComboHydrationStatus>("loading");
@@ -129,13 +132,42 @@ export function PriceExplorer({
   const favoriteBusy = useRef(new Set<string>());
   const comboSaveBusy = useRef(false);
   const comboSaveRequest = useRef<{ key: string; signature: string } | null>(null);
+  const restoreRevision = useRef(0);
+  const restoreBusy = useRef(false);
   const lastTrackedSearchSignature = useRef("");
   const lastTrackedFilterSignature = useRef("");
+  const ownerSession = usePriceOwnerSession((previousOwner) => {
+    restoreRevision.current += 1;
+    restoreBusy.current = false;
+    favoriteBusy.current.clear();
+    comboSaveBusy.current = false;
+    comboSaveRequest.current = null;
+    if (previousOwner || comboStore.getState().ownerId !== null) comboStore.getState().reset();
+    setWishlistedIds(new Set());
+    setWishlistBusyIds(new Set());
+    setWishlistOnly(false);
+    setLatestSavedCombo(null);
+    setRestoreConfirming(false);
+    setComboVendor(null);
+    setComboSaving(false);
+    setShowAuthGate(false);
+    setAuthStatus("loading");
+    setWishlistHydrationStatus("loading");
+    setSavedComboHydrationStatus("loading");
+    setMobileUpdateRequired(false);
+    setFeedback("");
+    setOwnerStateReload((value) => value + 1);
+  }, !preview);
 
   const selections = useStore(comboStore, (state) => state.selections);
   const comboTotalKrw = useStore(comboStore, (state) => state.totalKrw);
   const comboCount = Object.values(selections).filter(Boolean).length;
   const visibleComboCount = preview ? 0 : comboCount;
+
+  useEffect(() => () => {
+    restoreRevision.current += 1;
+    restoreBusy.current = false;
+  }, [catalog, latestSavedCombo, ownerStateReload, preview]);
 
   useEffect(() => {
     const timer = setTimeout(() => setDebouncedSearch(searchInput.trim()), 300);
@@ -185,9 +217,10 @@ export function PriceExplorer({
 
   useEffect(() => {
     if (preview) return;
-    comboStore.getState().hydrate(sessionStorage);
+    const sessionOwner = ownerSession.state.sessionOwner;
+    comboStore.getState().hydrate(sessionStorage, sessionOwner === undefined ? ownerSession.state.owner ?? undefined : sessionOwner);
     track("page_view", { surface: "price_list", context: { category } });
-  }, [category, preview]);
+  }, [category, comboStore, ownerSession, preview]);
 
   useEffect(() => {
     if (preview) {
@@ -202,17 +235,40 @@ export function PriceExplorer({
       return;
     }
     const controller = new AbortController();
+    const ownerEpoch = ownerSession.state.epoch;
+    const isCurrent = () => !controller.signal.aborted && ownerSession.isCurrent(ownerEpoch);
     setWishlistHydrationStatus("loading");
     setSavedComboHydrationStatus("loading");
+    setMobileUpdateRequired(false);
     setRestoreConfirming(false);
     void Promise.all([
       mobileAuthenticatedFetch("/api/price/combos", { cache: "no-store", signal: controller.signal }),
       mobileAuthenticatedFetch("/api/favorites", { cache: "no-store", signal: controller.signal }),
     ]).then(async ([comboResponse, favoriteResponse]) => {
-      if (controller.signal.aborted) return;
+      if (!isCurrent()) return;
+      const [comboBody, favoriteBody]: unknown[] = await Promise.all([
+        comboResponse.ok ? comboResponse.json().catch(() => null) : null,
+        favoriteResponse.ok ? favoriteResponse.json().catch(() => null) : null,
+      ]);
+      if (!isCurrent()) return;
+      const comboOwner = priceResponseOwner(comboBody);
+      const favoriteOwner = priceResponseOwner(favoriteBody);
+      if ((comboResponse.ok && !comboOwner) || (favoriteResponse.ok && !favoriteOwner)
+        || (comboOwner && favoriteOwner && comboOwner !== favoriteOwner)
+        || (comboResponse.status === 401 && favoriteOwner) || (favoriteResponse.status === 401 && comboOwner)
+        || ((comboOwner || favoriteOwner) && !ownerSession.acceptOwner(comboOwner || favoriteOwner, ownerEpoch))) {
+        setAuthStatus("unknown");
+        setLatestSavedCombo(null);
+        setWishlistedIds(new Set());
+        setWishlistHydrationStatus("error");
+        setSavedComboHydrationStatus("error");
+        return;
+      }
       if (comboResponse.status === 401 || favoriteResponse.status === 401) {
+        comboStore.getState().hydrate(sessionStorage, null);
         setAuthStatus("guest");
       } else if (comboResponse.ok) {
+        comboStore.getState().hydrate(sessionStorage, comboOwner);
         setAuthStatus("authenticated");
       } else {
         setAuthStatus("unknown");
@@ -224,13 +280,6 @@ export function PriceExplorer({
       } else if (!comboResponse.ok) {
         setSavedComboHydrationStatus("error");
       } else {
-        let comboBody: unknown;
-        try {
-          comboBody = await comboResponse.json() as unknown;
-        } catch {
-          comboBody = null;
-        }
-        if (controller.signal.aborted) return;
         const parsedCombo = parseLatestSavedComboPayload(comboBody);
         if (!parsedCombo.ok) {
           setSavedComboHydrationStatus("error");
@@ -251,13 +300,8 @@ export function PriceExplorer({
         return;
       }
 
-      let body: { vendorIds?: unknown };
-      try {
-        body = await favoriteResponse.json() as { vendorIds?: unknown };
-      } catch {
-        body = {};
-      }
-      if (controller.signal.aborted) return;
+      const body = favoriteBody && typeof favoriteBody === "object" && "vendorIds" in favoriteBody
+        ? favoriteBody : { vendorIds: null };
       if (
         !Array.isArray(body.vendorIds)
         || !body.vendorIds.every((id): id is string => typeof id === "string" && id.length > 0)
@@ -269,7 +313,9 @@ export function PriceExplorer({
       setWishlistedIds(new Set(body.vendorIds));
       setWishlistHydrationStatus("ready");
     }).catch((error: unknown) => {
+      if (!isCurrent()) return;
       if (!(error instanceof DOMException && error.name === "AbortError")) {
+        setMobileUpdateRequired(error instanceof MobileAppUpdateRequiredError);
         setAuthStatus("unknown");
         setWishlistOnly(false);
         setWishlistHydrationStatus("error");
@@ -277,7 +323,7 @@ export function PriceExplorer({
       }
     });
     return () => controller.abort();
-  }, [ownerStateReload, preview]);
+  }, [comboStore, ownerStateReload, ownerSession, preview]);
 
   const vendors = catalog.categories[category];
   const activeAgencyIds = useMemo(() => new Set(vendors.flatMap((vendor) => vendor.offers.flatMap((offer) => (
@@ -419,16 +465,22 @@ export function PriceExplorer({
       return;
     }
     if (favoriteBusy.current.has(vendor.id)) return;
+    const owner = ownerSession.state.owner;
+    if (!owner) return;
+    const ownerEpoch = ownerSession.state.epoch;
     const desiredFavorite = !wishlistedIds.has(vendor.id);
     favoriteBusy.current.add(vendor.id);
     setWishlistBusyIds((current) => new Set(current).add(vendor.id));
     try {
       const response = await mobileAuthenticatedFetch("/api/favorites", {
         method: desiredFavorite ? "POST" : "DELETE",
-        headers: { "content-type": "application/json" },
+        headers: { "content-type": "application/json", [PRICE_EXPECTED_OWNER_HEADER]: owner },
         body: JSON.stringify({ vendorId: vendor.id }),
       });
+      if (!ownerSession.isCurrent(ownerEpoch)) return;
+      if (response.status === 409) { ownerSession.invalidate(); return; }
       if (response.status === 401) {
+        ownerSession.invalidate();
         setAuthStatus("guest");
         setShowAuthGate(true);
         return;
@@ -438,6 +490,7 @@ export function PriceExplorer({
         return;
       }
       const body = await response.json() as { isFavorite?: boolean };
+      if (!ownerSession.isCurrent(ownerEpoch)) return;
       if (body.isFavorite !== desiredFavorite) {
         setFeedback("찜 상태를 확인하지 못했어요. 다시 시도해 주세요.");
         return;
@@ -456,19 +509,26 @@ export function PriceExplorer({
           context: { category: vendor.category },
         });
       }
-    } catch {
-      setFeedback("네트워크를 확인한 뒤 다시 시도해 주세요.");
+    } catch (error) {
+      if (!ownerSession.isCurrent(ownerEpoch)) return;
+      setFeedback(error instanceof MobileAppUpdateRequiredError ? MOBILE_APP_UPDATE_REQUIRED_NOTICE : "네트워크를 확인한 뒤 다시 시도해 주세요.");
     } finally {
-      favoriteBusy.current.delete(vendor.id);
-      setWishlistBusyIds((current) => {
-        const next = new Set(current);
-        next.delete(vendor.id);
-        return next;
-      });
+      if (ownerSession.isCurrent(ownerEpoch)) {
+        favoriteBusy.current.delete(vendor.id);
+        setWishlistBusyIds((current) => {
+          const next = new Set(current);
+          next.delete(vendor.id);
+          return next;
+        });
+      }
     }
-  }, [authStatus, preview, wishlistHydrationStatus, wishlistedIds]);
+  }, [authStatus, ownerSession, preview, wishlistHydrationStatus, wishlistedIds]);
 
   const addCombo = (comboCategory: ComboCategory, selection: ComboSelection) => {
+    const sessionOwner = ownerSession.state.sessionOwner;
+    comboStore.getState().setOwner(sessionOwner === undefined
+      ? ownerSession.state.owner ?? (authStatus === "guest" ? null : undefined)
+      : sessionOwner);
     comboStore.getState().setSelection(comboCategory, selection);
     track("combo_add", {
       vendor_id: selection.vendorId,
@@ -497,25 +557,39 @@ export function PriceExplorer({
     setFeedback("예산 안의 사진·드레스·메이크업 조합을 담았어요.");
   };
 
-  const restoreLatestCombo = () => {
-    if (!latestSavedCombo || savedComboHydrationStatus !== "ready") return;
+  const restoreLatestCombo = async () => {
+    if (!latestSavedCombo || savedComboHydrationStatus !== "ready" || restoreBusy.current) return;
     if (comboCount > 0 && !restoreConfirming) {
       setRestoreConfirming(true);
       return;
     }
 
-    const restored = restoreSavedComboAgainstCatalog(latestSavedCombo, catalog);
+    restoreBusy.current = true;
+    const revision = ++restoreRevision.current;
+    const ownerEpoch = ownerSession.state.epoch;
+    const currentSelections = comboStore.getState().selections;
     setRestoreConfirming(false);
-    if (restored.restoredCategories.length === 0) {
-      setFeedback("최근 저장 조합의 가격이 바뀌었거나 업체가 공개 종료되어 불러오지 않았어요.");
-      return;
-    }
+    try {
+      const restored = await restoreSavedComboWithOptions(latestSavedCombo, catalog, loadVendorOptions);
+      // 조회 도중 바꾼 조합이나 새 화면을 오래된 복구 응답으로 덮지 않는다.
+      if (!ownerSession.isCurrent(ownerEpoch) || revision !== restoreRevision.current || comboStore.getState().selections !== currentSelections) return;
+      if (restored.restoredCategories.length === 0) {
+        setFeedback("최근 저장 조합의 가격이 바뀌었거나 업체가 공개 종료되어 불러오지 않았어요.");
+        return;
+      }
 
-    comboStore.getState().replaceSelections(restored.selections);
-    if (restored.skippedCategories.length > 0) {
-      setFeedback(`최근 저장 조합 ${restored.restoredCategories.length}개를 불러왔어요. 변경되거나 공개 종료된 ${restored.skippedCategories.length}개는 제외했어요.`);
-    } else {
-      setFeedback("최근 저장 조합을 현재 공시 정보로 확인해 불러왔어요.");
+      comboStore.getState().replaceSelections(restored.selections);
+      if (restored.skippedCategories.length > 0) {
+        setFeedback(`최근 저장 조합 ${restored.restoredCategories.length}개를 불러왔어요. 변경되거나 공개 종료된 ${restored.skippedCategories.length}개는 제외했어요.`);
+      } else {
+        setFeedback("최근 저장 조합을 현재 공시 정보로 확인해 불러왔어요.");
+      }
+    } catch {
+      if (revision === restoreRevision.current && comboStore.getState().selections === currentSelections) {
+        setFeedback("네트워크를 확인한 뒤 다시 시도해 주세요.");
+      }
+    } finally {
+      if (revision === restoreRevision.current) restoreBusy.current = false;
     }
   };
 
@@ -525,6 +599,9 @@ export function PriceExplorer({
       return;
     }
     if (comboSaveBusy.current) return;
+    const owner = ownerSession.state.owner;
+    if (!owner) return;
+    const ownerEpoch = ownerSession.state.epoch;
     const payload = {
       name: "내 사진·드레스·메이크업 조합",
       selections: {
@@ -553,16 +630,25 @@ export function PriceExplorer({
         headers: {
           "content-type": "application/json",
           "idempotency-key": comboSaveRequest.current.key,
+          [PRICE_EXPECTED_OWNER_HEADER]: owner,
         },
         body: signature,
       });
+      if (!ownerSession.isCurrent(ownerEpoch)) return;
       if (response.status === 401) {
+        ownerSession.invalidate();
         setAuthStatus("guest");
         setFeedback("");
         setShowAuthGate(true);
         return;
       }
       if (response.status === 409) {
+        const body: unknown = await response.json().catch(() => null);
+        if (!ownerSession.isCurrent(ownerEpoch)) return;
+        if (body && typeof body === "object" && "code" in body && body.code === "PRICE_ACCOUNT_CHANGED") {
+          ownerSession.invalidate();
+          return;
+        }
         setFeedback("가격이 갱신됐어요. 최신 가격으로 다시 조합해 주세요.");
         return;
       }
@@ -574,11 +660,14 @@ export function PriceExplorer({
       setFeedback("조합을 저장했어요. ‘최근 저장 조합 불러오기’로 다시 열 수 있어요.");
       setOwnerStateReload((value) => value + 1);
       track("combo_save", { surface: "combo" });
-    } catch {
-      setFeedback("네트워크를 확인한 뒤 다시 저장해 주세요.");
+    } catch (error) {
+      if (!ownerSession.isCurrent(ownerEpoch)) return;
+      setFeedback(error instanceof MobileAppUpdateRequiredError ? MOBILE_APP_UPDATE_REQUIRED_NOTICE : "네트워크를 확인한 뒤 다시 저장해 주세요.");
     } finally {
-      comboSaveBusy.current = false;
-      setComboSaving(false);
+      if (ownerSession.isCurrent(ownerEpoch)) {
+        comboSaveBusy.current = false;
+        setComboSaving(false);
+      }
     }
   };
 
@@ -880,7 +969,7 @@ export function PriceExplorer({
 
         {!preview && wishlistHydrationStatus === "error" ? (
           <div role="alert" className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-[6px] border border-[#8F6662]/25 bg-[#F5ECE4] px-4 py-3 text-sm text-[#7A4742]">
-            <p className="font-semibold">찜 목록을 불러오지 못했어요. 기존 찜은 변경하지 않았어요.</p>
+            <p className="font-semibold">{mobileUpdateRequired ? MOBILE_APP_UPDATE_REQUIRED_NOTICE : "찜 목록을 불러오지 못했어요. 기존 찜은 변경하지 않았어요."}</p>
             <button
               type="button"
               onClick={() => setOwnerStateReload((value) => value + 1)}

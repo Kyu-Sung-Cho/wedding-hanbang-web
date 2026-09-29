@@ -4,6 +4,16 @@ import test from "node:test";
 import { fileURLToPath, URL } from "node:url";
 import ts from "typescript";
 
+const sharedSource = readFileSync(
+  fileURLToPath(new URL("../../../../packages/shared/src/contracts/passwordError.ts", import.meta.url)),
+  "utf8",
+);
+const sharedCompiled = ts.transpileModule(sharedSource, {
+  compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
+});
+const sharedModule = { exports: {} };
+new Function("exports", "module", sharedCompiled.outputText)(sharedModule.exports, sharedModule);
+
 const helperPath = fileURLToPath(new URL("../lib/errorCopy.ts", import.meta.url));
 const compiled = ts.transpileModule(readFileSync(helperPath, "utf8"), {
   compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
@@ -12,8 +22,9 @@ const module = { exports: {} };
 new Function("exports", "module", "require", compiled.outputText)(
   module.exports,
   module,
-  () => {
-    throw new Error("unexpected dependency");
+  (id) => {
+    assert.equal(id, "@hanbang/shared");
+    return sharedModule.exports;
   },
 );
 const { toKoreanErrorMessage } = module.exports;
@@ -72,4 +83,31 @@ test("영어를 그대로 띄우던 세 자리가 모두 이 함수를 지난다
   // 옛 소문자 조건이 되살아나면 잡는다.
   assert.doesNotMatch(settingsSource, /includes\("network"\)/);
   assert.doesNotMatch(writeSource, /includes\("network"\)/);
+});
+
+test("실제 shared helper로 유출 비밀번호 오류를 처리하고 원문은 숨긴다", () => {
+  const error = Object.assign(new Error("민감한 진단: token=secret"), {
+    name: "AuthWeakPasswordError", code: "weak_password", reasons: ["pwned"],
+  });
+  assert.equal(
+    toKoreanErrorMessage(error, "기본 안내"),
+    "유출된 적이 있는 비밀번호는 사용할 수 없어요. 다른 사이트에서 쓰지 않는 새 비밀번호를 입력해 주세요.",
+  );
+  assert.equal(toKoreanErrorMessage({ code: "weak_password", reasons: ["pwned"] }), toKoreanErrorMessage(error));
+});
+
+test("같은 비밀번호 구조화 코드는 SDK 원문과 무관하게 기존 한국어 안내를 유지한다", () => {
+  assert.equal(
+    toKoreanErrorMessage({ code: "same_password", message: "민감한 서버 진단" }),
+    "지금 쓰는 비밀번호와 다른 비밀번호를 입력해 주세요.",
+  );
+});
+
+test("기타 약한 비밀번호 사유는 강도만 안내하고 성공 로그인 경고는 오류로 취급하지 않는다", () => {
+  assert.equal(
+    toKoreanErrorMessage({ code: "weak_password", reasons: ["characters"] }),
+    "보안 기준에 맞지 않는 비밀번호예요. 더 길고 추측하기 어려운 새 비밀번호를 입력해 주세요.",
+  );
+  assert.equal(toKoreanErrorMessage({ reasons: ["pwned"], message: "weak" }, "기본 안내"), "기본 안내");
+  assert.equal(toKoreanErrorMessage({ name: "AuthWeakPasswordError", code: "email_exists" }, "기본 안내"), "기본 안내");
 });

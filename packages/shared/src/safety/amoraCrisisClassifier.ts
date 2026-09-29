@@ -1,4 +1,6 @@
 // Browser, native, and server must classify the same canonical disclosure.
+import { withoutAmoraExcludedWeddingVideoScenes } from "./amoraSafetyContentReferences";
+
 export type AmoraCrisisKind =
   | "self_harm"
   | "third_party_self_harm"
@@ -800,6 +802,9 @@ function assessAmoraSafetyTextBase(value: string): AmoraSafetyAssessment {
     + `|${TERMINAL_DESPAIR_PATTERN.source}`
     + `|${AFFAIRS_IN_ORDER_PATTERN.source})`,
   );
+  // '식전'의 '전'과 제외할 자해 소재를 1인칭 고백으로 합치지 않는다.
+  // 실제 고백의 나머지 구절과 다른 위기 판정에는 원문을 그대로 남긴다.
+  const reporterSelfHarmEvidence = withoutAmoraExcludedWeddingVideoScenes(text);
   // `없어지고 싶다` 는 창피함을 뜻하기도 한다. 부끄러움 표시가 없을 때만 센다.
   const vanishingWish =
     VANISHING_WISH_PATTERN.test(text)
@@ -1236,7 +1241,7 @@ function assessAmoraSafetyTextBase(value: string): AmoraSafetyAssessment {
 
   if (
     ((otherInterpersonalDanger.test(text) || standaloneInterpersonalDanger) || currentReporterTargetDanger.test(text))
-    && reporterSelfHarm.test(text)
+    && reporterSelfHarm.test(reporterSelfHarmEvidence)
     && !declaredJokeOnly
   ) {
     return {
@@ -1270,7 +1275,7 @@ function assessAmoraSafetyTextBase(value: string): AmoraSafetyAssessment {
     !partnerMurderSuicide.test(text)
     && !knownOtherReportsReporterSelfHarm.test(text)
     && knownOtherSelfHarm.test(text)
-    && reporterSelfHarm.test(text)
+    && reporterSelfHarm.test(reporterSelfHarmEvidence)
     && !declaredJokeOnly
   ) {
     return {
@@ -1421,7 +1426,7 @@ function assessAmoraSafetyTextBase(value: string): AmoraSafetyAssessment {
     };
   }
 
-  if ((reporterSelfHarm.test(text) || vanishingWish) && !declaredJokeOnly) {
+  if ((reporterSelfHarm.test(reporterSelfHarmEvidence) || vanishingWish) && !declaredJokeOnly) {
     return {
       resolution: "immediate_crisis",
       kind: "self_harm",

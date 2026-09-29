@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { usePathname, useSearchParams } from "next/navigation";
 import AmoraMark from "@/components/ui/AmoraMark";
 import { AMORA_FAB_CLASS } from "@/components/ui/amoraActionStyles";
@@ -17,6 +17,7 @@ import {
   dismissAmoraFirstHelloBubble,
   peekPendingAmoraFirstHello,
   rememberPendingAmoraFirstHello,
+  resetAmoraFirstHelloMemory,
 } from "@/lib/amora/pendingFirstHello";
 import ChatSidePanel from "@/components/app/chat/ChatSidePanel";
 import Sidebar from "@/components/app/Sidebar";
@@ -27,6 +28,7 @@ import { useAuthSessionSync } from "@/hooks/useAuthSessionSync";
 import { stripWeddingBasePath } from "@/lib/weddingPaths";
 import { isAnalyticsSuppressedLocation } from "@/lib/analyticsPrivacy";
 import { useAuthStore } from "@/stores/authStore";
+import RootError from "@/app/error";
 
 /**
  * 아모라 버튼과 그 옆 말풍선.
@@ -47,7 +49,39 @@ import { useAuthStore } from "@/stores/authStore";
  * **영영** 못 만난다. 그래서 만든 즉시 짧은 보관(`lib/amora/pendingFirstHello`)에 넣고,
  * 대화 화면이 가져가면 지운다. 앱도 같은 이유로 같은 모양의 보관을 쓴다.
  */
-function GlobalChatAssistant({ aboveBottomNav = false }: { aboveBottomNav?: boolean }) {
+function useGlobalAssistantOwnerBinding() {
+  const [ownerScope] = useState(() => {
+    const readBinding = () => {
+      const state = useAuthStore.getState();
+      return { ownerId: state.profile?.id ?? null, key: JSON.stringify([
+        state.isDemo, state.user?.id, state.profile?.id, state.profile?.couple_id,
+        state.couple?.id, state.journey?.couple_id, state.partner?.id,
+      ]) };
+    };
+    let snapshot = { ...readBinding(), epoch: 0 };
+    return {
+      getSnapshot: () => snapshot,
+      subscribe: (notify: () => void) => {
+        const sync = () => {
+          const next = readBinding();
+          if (next.key === snapshot.key) return;
+          const previousOwner = snapshot.ownerId;
+          snapshot = { ...next, epoch: snapshot.epoch + 1 };
+          // 첫 인사 저장소도 이전 커플의 준비 정보이므로 화면 상태와 함께 만료한다.
+          consumePendingAmoraFirstHello({ ownerId: previousOwner });
+          resetAmoraFirstHelloMemory();
+          notify();
+        };
+        const unsubscribe = useAuthStore.subscribe(sync);
+        sync();
+        return unsubscribe;
+      },
+    };
+  });
+  return useSyncExternalStore(ownerScope.subscribe, ownerScope.getSnapshot, ownerScope.getSnapshot);
+}
+
+function ScopedGlobalChatAssistant({ aboveBottomNav = false }: { aboveBottomNav?: boolean }) {
   const [chatPanelOpen, setChatPanelOpen] = useState(false);
   const [firstHello, setFirstHello] = useState<AmoraFirstHello | null>(null);
   const [bubbleVisible, setBubbleVisible] = useState(false);
@@ -232,7 +266,13 @@ export default function AppClientLayout({
   const isPreparationStylePage = appPathname === "/preparation-style";
   const isLoungeWorkspace = isLoungePage || isPreparationStylePage;
   const hasHtmlDesign = isAmoraPage || isPlanningPage || isLoungeWorkspace;
-  const { initialize, isInitialized, isLoading, isDemo } = useAuthStore();
+  const { initialize, isInitialized, isLoading, isDemo, initializationError } = useAuthStore();
+  // 라운지·준비 화면에서 전역 패널이 없을 때도 임시 인사의 계정 경계를 유지한다.
+  const assistantOwner = useGlobalAssistantOwnerBinding();
+  const initializationFailure = useMemo(
+    () => initializationError ? new Error(initializationError) : null,
+    [initializationError],
+  );
 
   const analyticsSuppressed = isAnalyticsSuppressedLocation(pathname, searchParams);
   const vendorAdminPreview = (
@@ -245,8 +285,14 @@ export default function AppClientLayout({
   useAuthSessionSync(!initialDemo && !isDemo);
 
   useEffect(() => {
-    if (!isInitialized) void initialize({ initialDemo });
-  }, [initialize, initialDemo, isInitialized]);
+    if (!isInitialized && !isLoading && (!initializationError || initialDemo)) {
+      void initialize({ initialDemo });
+    }
+  }, [initialize, initialDemo, isInitialized, isLoading, initializationError]);
+
+  if (!isInitialized && initializationFailure) {
+    return <RootError error={initializationFailure} reset={() => void initialize({ force: true, initialDemo })} />;
+  }
 
   if (!isInitialized || isLoading) {
     return (
@@ -301,7 +347,7 @@ export default function AppClientLayout({
 
       {/* 준비 화면은 본문 질문과 하단 탐색을 사용해 고정 버튼이 목록을 덮지 않게 한다. */}
       {!hasHtmlDesign && !vendorAdminPreview && (
-        <GlobalChatAssistant />
+        <ScopedGlobalChatAssistant key={`${assistantOwner.key}:${assistantOwner.epoch}`} />
       )}
     </div>
     </AmoraNavigationTargetContext.Provider>

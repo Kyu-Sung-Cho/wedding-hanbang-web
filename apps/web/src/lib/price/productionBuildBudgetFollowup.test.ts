@@ -189,8 +189,9 @@ afterAll(async () => {
 
 describe("production build registers only the exact 240 deletion audit nullable successor", () => {
   describe("reviewed 240 acceptance and authorization", () => {
+    // 현재 241 checkout은 productionBuildFence.test.ts가 검증한다.
+    // 240 공개 loader를 넓히지 않고 고정된 당시 fixture의 계약만 확인한다.
     const repositories = [
-      { label: "current checkout", resolveRoot: () => repoRoot },
       { label: "isolated fixture", resolveRoot: () => auditFixtureRoot },
     ];
 

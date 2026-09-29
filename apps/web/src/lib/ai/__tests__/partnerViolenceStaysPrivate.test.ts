@@ -3,7 +3,7 @@
 /**
  * 닫힌 어휘로 된 친밀한 관계 폭력·위협·통제 서술은 공유 레인에 남지 않는다 (2026-09-26).
  *
- * 아모라 대화의 기본 레인은 '함께(공유)'다. 판정이 `continue` 면 요청한 레인에 저장되고,
+ * 첫 방문은 함께/나만 선택 전 전송을 막는다. 함께를 선택한 뒤 판정이 `continue` 면 공유 저장되고,
  * 저장되는 순간 배우자가 읽는다. 평가에서 `남편이 때려요`·`밀쳐서 멍들었어`·`술 먹으면 때려요`·
  * `파혼하면 죽인대`·`친구 못 만나게 해` 가 전부 공유 레인에 남았다. 가해자가 배우자라면
  * 피해자의 도움 요청을 가해자가 읽는다.
@@ -25,9 +25,8 @@
  *        웃음·어휘 밖 낱말·아모라 답 같은 긴 문장. 실제 고백으로 읽히는 문장은 여기 두지 않는다.
  *  (iv)  구조 — `CAUGHT` 행에 어휘 밖 토큰 하나·웃음·물음표를 넣으면 판정이 서지 않는다.
  *        붙여 쓴 꼴(`못만나게`·`연락못하게해`)은 띄어 쓴 꼴과 같은 판정이다.
- *  (v)   알고 남긴 값 — 오탐과 누출을 이유와 함께 적는다. 누출(`KNOWN_MISS`)은 실제 고백인데
- *        이 판정이 서지 않아 공유 레인에 남는 문장이다. **정상이 아니다** — `it.fails` 로 바라는
- *        동작("공유 레인에 남지 않는다")을 단언하고, 오늘은 그 단언이 실패한다고 기록한다.
+ *  (v)   종전 누출 19개는 별도 민감공유 보호 규칙으로 비즉시 나만 상담에 보낸다.
+ *        기존 닫힌 어휘·즉시 위기 판정은 유지하고 서버·앱 전달 경계를 정상 회귀로 검증한다.
  *
  * 2026-09-27: 예전 판은 서지 않는 행 한 목록(`MUST_NOT_FIRE`)에 동형어·명령형과 실제 고백(이유 꼬리
  * `남편이 때려요 그래서 이혼할래`, 비는 손 `🙏`, 아이를 때린다는 말)을 섞어 "서면 안 된다" 로 못
@@ -41,7 +40,7 @@
 import { isDeepStrictEqual } from "node:util";
 import { beforeAll, describe, expect, it, vi } from "vitest";
 import { isClosedPartnerViolenceStatement } from "@hanbang/shared/partner-violence-closed-vocabulary";
-import { planAmoraCrisisDelivery } from "@hanbang/shared/amora-crisis-delivery";
+import { hasAmoraSensitiveDisclosure, planAmoraCrisisDelivery } from "@hanbang/shared/amora-crisis-delivery";
 import {
   classifyAmoraQuestionScope,
   hasAmoraSafetySignal,
@@ -131,7 +130,7 @@ const ALREADY_IMMEDIATE: readonly string[] = [
 /**
  * **고백이 아닌 문장.** 이 판정이 서면 틀린다 — 동형어(`맞아요` = 옳다, 맨 `찼어` = 헤어졌다,
  * `죽인대` = 끝내준대)·명령과 부탁·사물과 운동·부케·누가 했는지 없는 결과·호칭이 아닌 사람의 과장·
- * 화자가 한 일·웃음과 게임. 실제 고백으로 읽히는 문장은 여기 두지 말고 `KNOWN_MISS` 에 둔다.
+ * 화자가 한 일·웃음과 게임. 실제 고백으로 읽히는 문장은 여기 두지 말고 `PRIVACY_PROTECTED` 에 둔다.
  */
 const NOT_A_DISCLOSURE: readonly string[] = [
   // 동형어 — `맞아요` = 옳다, 맨 `찼어` = 헤어졌다, 호칭 주어 + `맞았어` = 그 사람 말이 옳았다
@@ -217,7 +216,7 @@ const NOT_A_DISCLOSURE: readonly string[] = [
  * 고백으로도(`매일 내 휴대폰을 검사해`) 명령·조언으로도(`매일 휴대폰 검사해 봐`) 읽힌다. 허가
  * 토큰(호칭 주어·1인칭 목적어)이 없어 이 판정은 서지 않는다. 그래도 서버는 운영 신호
  * (`hasAmoraSafetySignal` 의 강압 통제 갈래)로 이미 나만 레인에 저장한다 — 누출이 아니다.
- * 운영 신호가 이 문장을 놓치게 되면 여기가 빨개진다. 그때는 `KNOWN_MISS` 로 옮길지 정할 것.
+ * 운영 신호가 이 문장을 놓치게 되면 여기가 빨개진다. 그때는 `PRIVACY_PROTECTED` 로 옮길지 정할 것.
  */
 const SERVER_ALREADY_PRIVATE: readonly string[] = [
   "매일 휴대폰 검사해",
@@ -226,19 +225,14 @@ const SERVER_ALREADY_PRIVATE: readonly string[] = [
 ];
 
 /**
- * **누출 기록(`KNOWN_MISS`).** 실제 고백으로 읽히는데 오늘 이 판정이 서지 않아, 공유 레인 요청이면
- * 운영 판정대로 **공유 레인에 저장되는** 문장이다. 저장되는 순간 배우자가 읽는다. 정상이 아니다.
- *
- * 아래 `it.fails` 는 바라는 동작("공유 레인에 남지 않는다")을 단언하고, 오늘은 그 단언이 실패한다고
- * 기록한다. 누가 이 문장을 잡게 되면 그 테스트가 빨개진다. 그때 이 목록에서 빼서 `CAUGHT`(이 판정이
- * 잡음)나 `ALREADY_IMMEDIATE`(운영이 즉시 위기로 잡음)로 옮기고 이유를 지울 것. **`NOT_A_DISCLOSURE`
- * 로 옮기지 말 것** — 누출을 정상으로 못 박게 된다.
+ * **종전 누락 회귀(`PRIVACY_PROTECTED`).** 닫힌 어휘 밖의 고백은 별도 민감공유 보호로
+ * 나만 상담에 저장한다. 함께를 선택했어도 상대에게 보내지 않는다. 두 번째 열은 종전 누락 이유다.
  *
  * 도움을 청하는 꼬리·물음표·이유 한 마디가 붙은 문장은 어휘 밖이다. 실제 피해자의 첫 메시지에
  * 붙기 쉬운 말이지만, 받으면 뜻을 가르지 못하는 핵(`목 졸라요` = 옷이 조인다)에도 똑같이 붙는다.
- * 넓힐지는 오탐과 맞바꾸는 설계 결정이다(봉인 코퍼스 위험 143행에서 이 판정이 옮긴 행은 0 이었다).
+ * 닫힌 어휘 자체는 유지하고 별도 보호 규칙을 검증한다. 즉시 위기로 격상하지 않는다.
  */
-const KNOWN_MISS: ReadonlyArray<readonly [string, string]> = [
+const PRIVACY_PROTECTED: ReadonlyArray<readonly [string, string]> = [
   ["남편이 때려요 어떡해요", "도움 요청 꼬리는 어휘 밖이다"],
   ["남편이 때려요 도와주세요", "도움 요청 꼬리는 어휘 밖이다"],
   ["남편이 때려서 무서워요", "괴로움 서술어는 어휘 밖이다"],
@@ -335,7 +329,7 @@ const EVERY_ROW: readonly string[] = [
   ...new Set([
     ...CAUGHT, ...ALREADY_IMMEDIATE, ...NOT_A_DISCLOSURE, ...SERVER_ALREADY_PRIVATE, ...EVERYDAY,
     ...ASSISTANT_LIKE, ...MUTATED_ROWS,
-    ...KNOWN_MISS.map(([text]) => text), ...KNOWN_COST_FALSE_POSITIVE.map(([text]) => text),
+    ...PRIVACY_PROTECTED.map(([text]) => text), ...KNOWN_COST_FALSE_POSITIVE.map(([text]) => text),
   ]),
 ];
 
@@ -376,7 +370,7 @@ const HEAD: Surfaces = {
   scope: classifyAmoraQuestionScope,
   signal: hasAmoraSafetySignal,
 };
-/** 판정 모듈만 `false` 로 바꿔 끼운 판본 — 이 변경 전과 같은 코드 경로다. */
+/** 닫힌 어휘만 끈 판본. 별도 민감공유 보호는 양쪽 모두 유지한다. */
 let WITHOUT_RULE: Surfaces;
 
 beforeAll(async () => {
@@ -406,10 +400,12 @@ describe("(i) CAUGHT — 판정이 서고, 어느 입구로도 공유 레인에 
     expect(CAUGHT.length).toBeGreaterThanOrEqual(40);
   });
 
-  it("판정을 끈 판본이 실제로 끼워졌다 — 평가 다섯 문장이 그 판본에서는 앱 사전 판정 `continue` 다", () => {
+  it("닫힌 어휘를 끄면 별도 민감공유 신호가 없는 평가 문장만 continue로 돌아간다", () => {
+    expect(EVAL_ROWS.some((text) => !hasAmoraSensitiveDisclosure(text))).toBe(true);
     for (const text of EVAL_ROWS) {
-      expect(outcomes(WITHOUT_RULE, text).mobile.disposition, text).toBe("continue");
-      expect(outcomes(WITHOUT_RULE, text).server.disposition, text).toBe("continue");
+      const expected = hasAmoraSensitiveDisclosure(text) ? "private_safety_route" : "continue";
+      expect(outcomes(WITHOUT_RULE, text).mobile.disposition, text).toBe(expected);
+      expect(outcomes(WITHOUT_RULE, text).server.disposition, text).toBe(expected);
     }
   });
 
@@ -517,16 +513,18 @@ describe("(iii) 고백이 아닌 문장 — 서면 틀린다", () => {
   });
 });
 
-describe("(v) 알고 남긴 값 — 누출 기록(KNOWN_MISS)은 정상이 아니다", () => {
-  // 바라는 동작을 단언한다: 실제 고백은 공유 레인에 남지 않는다. 오늘은 이 단언이 실패한다 —
-  // 그래서 `it.fails` 다. 누가 이 문장을 잡으면 빨개진다. 그때 `CAUGHT`·`ALREADY_IMMEDIATE` 로 옮길 것.
-  it.fails.each(KNOWN_MISS)("누출: %s — %s (공유 레인에 남지 않아야 한다)", (text) => {
-    expect(outcomes(HEAD, text).server.disposition).not.toBe("continue");
+describe("(v) 종전 누출은 즉시 위기를 단정하지 않고 비공개로 보호한다", () => {
+  it.each(PRIVACY_PROTECTED)("비공개 보호: %s — 종전 누락 이유: %s", (text) => {
+    const result = outcomes(HEAD, text);
+    expect(result.server).toMatchObject({ disposition: "private_safety_route", effectiveVisibility: "bride_private", classification: null });
+    expect(result.mobile).toEqual(result.server);
+    expect(result.partner).toMatchObject({ disposition: "local_safety_hold", partnerDeliveryHeld: true, safetyResolution: "non_immediate_safety" });
+    expect(result.scope).toMatchObject({ scope: "W2_high_risk_adjacent", highRiskReason: "safety", allowsLongTermMemory: false });
   });
 
   it("누출 행은 서는 행·고백이 아닌 문장과 겹치지 않는다", () => {
     const notADisclosure = new Set(NOT_A_DISCLOSURE);
-    for (const [text] of KNOWN_MISS) {
+    for (const [text] of PRIVACY_PROTECTED) {
       expect(FIRES_SET.has(text), text).toBe(false);
       expect(notADisclosure.has(text), text).toBe(false);
       expect(ALREADY_IMMEDIATE.includes(text), text).toBe(false);
@@ -585,5 +583,65 @@ describe("(iv) 구조 — 어휘 밖 토큰 하나·웃음·물음표가 판정�
       !isClosedPartnerViolenceStatement(spaced) || !isClosedPartnerViolenceStatement(joined)
     ));
     expect(differs).toEqual([]);
+  });
+});
+
+describe("민감공유 보호의 행위·문맥 경계", () => {
+  it.each([
+    "남편이 때려ㅋㅋ",
+    "친구가 남편에게 맞아요 도와줘",
+    "요즘 자해 생각이 자꾸 나 무서워",
+    "자살 생각이 자꾸 나 돈도 없어",
+    "자살 생각이 자꾸 나 이건 영화 대사가 아니야",
+    "잠들고 다시 안 깼으면 좋겠어",
+    "저를 다치게 하고 싶은 충동이 들어요",
+    "아내가 손목을 꽉 잡았어",
+    "신랑이 휴대폰을 빼앗았어요",
+    "남친이 문을 막고 벽을 주먹으로 쳐",
+    "헤어지면 사적인 사진을 공개하겠대",
+    "손이 떨려서 밖에 못 나가겠어요",
+    "먹고 나서 일부러 토하게 돼",
+    "영화 속 장면 이야기야. 그런데 남편이 때려요 도와줘",
+    "자살 생각은 없어. 하지만 자해 충동이 있어 무서워",
+    "자살 생각은 없어 남편이 때려요",
+    "남편이 때려요ㅋㅋ 도와줘",
+    "신랑이 폰을 뺏어 갔어 사진 보려고 한다는데 무서워",
+    "아내가 내 팔을 세게 잡고 폰을 빼앗았어 사진 보려고",
+    "남친이 폰을 뺏어 사진 보려고 하고 연락을 못 하게 해",
+  ])("즉시 위기 여부와 무관하게 공유에서 보호한다: %s", (text) => {
+    expect(hasAmoraSensitiveDisclosure(text)).toBe(true);
+    const result = outcomes(HEAD, text);
+    expect(result.server.effectiveVisibility).toBe("bride_private");
+    expect(result.mobile.effectiveVisibility).toBe("bride_private");
+    expect(result.partner.partnerDeliveryHeld).toBe(true);
+    expect(result.scope.allowsLongTermMemory).toBe(false);
+  });
+
+  it.each([
+    "남편이 드럼 때려요 도와주세요",
+    "남편이 때리지 않아요",
+    "남편이 안 때려요",
+    "남편이 때렸다는 영화 대사를 번역해줘",
+    "기사에서 친구가 남편한테 맞아요 라고 했대",
+    "신랑이 내 팔을 잡고 함께 걸어요",
+    "약을 모아뒀어 처방대로 복용하려고",
+    "친구가 여행 갈 때 먹을 약을 모아뒀대",
+    "자살 생각 해본 적 없어",
+    "자살 생각이 자꾸 나지 않아요",
+    "약 모아뒀다는 문장을 번역해줘",
+    "계약금 못 모아서 불안해요",
+    "친구를 못 만나서 속상해요",
+    "남편이 벽에 못 박느라 주먹으로 쳐",
+    "신랑이 폰을 매일 확인해줘 설정이 어려워",
+    "남편이 내 팔을 세게 잡지 않아",
+    "먹고 나서 일부러 토하지 않아",
+    "나를 다치게 하고 싶지 않아",
+    "신랑이 폰을 뺏어 갔어 사진 보려고",
+    "아내가 휴대폰을 빼앗아 갔어 지도 확인하려고",
+    "예비신부가 폰을 뺏었어 음악 틀려고",
+    "남편이 전화기를 빼앗았어 충전하려고",
+    "신랑이 폰을 뺏지 않아",
+  ])("일상·부정·인용을 새 민감공유 신호로 만들지 않는다: %s", (text) => {
+    expect(hasAmoraSensitiveDisclosure(text)).toBe(false);
   });
 });

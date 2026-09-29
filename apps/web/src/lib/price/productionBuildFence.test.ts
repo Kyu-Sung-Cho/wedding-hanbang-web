@@ -1,15 +1,21 @@
 // @vitest-environment node
 
 import { createHash } from "node:crypto";
-import { mkdir, mkdtemp, readFile, rm, unlink, writeFile } from "node:fs/promises";
+import { copyFile, mkdir, mkdtemp, readFile, rm, unlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join, resolve } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 
 import {
   SUCCESSOR_RUNTIME_EVIDENCE_REQUIREMENTS,
   validateSuccessorReleaseContract,
 } from "../../../../../scripts/lib/supabase-successor-release-contract.mjs";
+import { loadDeletionAuditNullabilityReleasePlan } from "../../../../../scripts/lib/account-deletion-audit-nullability-release-contract.mjs";
+import {
+  COUPLE_RESET_EXPECTED_IDENTITY_CONTRACT_FILE,
+  loadCoupleResetExpectedIdentityReleasePlan,
+} from "../../../../../scripts/lib/couple-reset-expected-identity-release-contract.mjs";
+import { createDeletionAuditHistoricalRepository } from "../../../../../scripts/tests/fixtures/account-deletion-audit-historical-repository.mjs";
 import {
   assertVendorDisclosureProductionBuild,
   expectedProductionAuthorizationSha256,
@@ -394,19 +400,61 @@ async function writeManifest(fixture: Fixture) {
 }
 
 describe("vendor disclosure production build fence", () => {
-  it("validates the registered explicit-budget SQL before requiring the existing owner signature", () => {
+  it("validates the exact 241 SQL successor while preserving the existing owner authorization gate", () => {
     const repoRoot = resolve(process.cwd(), "../..");
-    expectBlockedWithCode(
-      () => assertProduction(repoRoot),
-      VENDOR_DISCLOSURE_EXTERNAL_AUTHORIZATION_NOT_IMPLEMENTED,
-    );
+    const reviewed = loadCoupleResetExpectedIdentityReleasePlan(repoRoot);
+    expect(reviewed.staticVerified).toBe(true);
+    expect(reviewed.migrationCount).toBe(241);
+    expect(reviewed.followupMigrations).toHaveLength(15);
+    expect(reviewed.productionApplyImplemented).toBe(true);
+    expect(reviewed.productionExecutionEnabled).toBe(false);
+    expect(reviewed.expectedLedgerVersions).toHaveLength(229);
+    expect(reviewed.runtimeEvidenceVerified).toBe(false);
+    expect(reviewed.releaseAuthorized).toBe(false);
+    expect(reviewed.remoteWritesPerformed).toBe(false);
+    expect(() => loadDeletionAuditNullabilityReleasePlan(repoRoot)).toThrow("NEW_MIGRATION_NOT_REVIEWED");
+    expectBlockedWithCode(() => assertProduction(repoRoot), VENDOR_DISCLOSURE_EXTERNAL_AUTHORIZATION_NOT_IMPLEMENTED);
+    expectBlockedWithCode(() => assertVendorDisclosureProductionBuild({
+      repoRoot, environment: { VERCEL_ENV: "production", VENDOR_DISCLOSURE_PRODUCTION_AUTHORIZATION: "0".repeat(64) },
+    }), VENDOR_DISCLOSURE_EXTERNAL_AUTHORIZATION_INVALID);
+    // 아래 값은 로컬 단위 테스트용 입력이다. 운영 환경의 승인·적용 상태는 바꾸지 않는다.
     expect(() => assertVendorDisclosureProductionBuild({
-      repoRoot,
-      environment: {
-        VERCEL_ENV: "production",
-        VENDOR_DISCLOSURE_PRODUCTION_AUTHORIZATION: expectedProductionAuthorizationSha256(repoRoot),
-      },
+      repoRoot, environment: { VERCEL_ENV: "production", VENDOR_DISCLOSURE_PRODUCTION_AUTHORIZATION: expectedProductionAuthorizationSha256(repoRoot) },
     })).not.toThrow();
+  }, 120_000);
+
+  it("cannot fall back or accept unregistered SQL when a pinned couple-reset artifact is missing or changed", async () => {
+    const repoRoot = resolve(process.cwd(), "../..");
+    const plan = loadCoupleResetExpectedIdentityReleasePlan(repoRoot);
+    const fixture = createDeletionAuditHistoricalRepository(repoRoot);
+    const files = [COUPLE_RESET_EXPECTED_IDENTITY_CONTRACT_FILE, plan.contract.predecessorLoader.file,
+      plan.contract.runtime.file, plan.contract.catalog.file, plan.contract.catalogFixture.file,
+      ...plan.contract.migrations.map((pin: { file: string }) => `supabase/migrations/${pin.file}`),
+      ...plan.contract.verificationTests.map((pin: { file: string }) => pin.file)];
+    const production = () => assertVendorDisclosureProductionBuild({
+      repoRoot: fixture.root, environment: { VERCEL_ENV: "production", VENDOR_DISCLOSURE_PRODUCTION_AUTHORIZATION: expectedProductionAuthorizationSha256(fixture.root) },
+    });
+    try {
+      for (const file of files) {
+        await mkdir(dirname(join(fixture.root, file)), { recursive: true });
+        await copyFile(join(repoRoot, file), join(fixture.root, file));
+      }
+      expect(production).not.toThrow();
+      for (const file of files) {
+        const target = join(fixture.root, file);
+        const bytes = await readFile(target);
+        try {
+          await writeFile(target, Buffer.concat([bytes, Buffer.from("\n")]));
+          expectBlockedWithCode(production, VENDOR_DISCLOSURE_STATIC_CONTRACT_INVALID);
+          await unlink(target);
+          expectBlockedWithCode(production, VENDOR_DISCLOSURE_STATIC_CONTRACT_INVALID);
+        } finally { await writeFile(target, bytes); }
+      }
+      await writeFile(join(fixture.root, "supabase/migrations/20260930000000_unreviewed.sql"), "SELECT 1;\n");
+      expectBlockedWithCode(production, VENDOR_DISCLOSURE_STATIC_CONTRACT_INVALID);
+    } finally {
+      fixture.cleanup();
+    }
   }, 120_000);
 
   it("does not fall back to an older release when a registered explicit-budget contract is invalid", async () => {

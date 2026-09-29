@@ -12,6 +12,8 @@ export const dynamic = "force-dynamic";
 // 이미 공개된 뷰(v_public_official_price_options)의 읽기 전용 재노출이며,
 // 목록 첫 전송에서 옵션 11k개를 빼기 위한 다이어트 짝꿍이다.
 const MAX_IDS = 60;
+const PAGE_SIZE = 500;
+const MAX_OPTIONS = 20_000;
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
 export async function GET(request: Request) {
@@ -28,16 +30,30 @@ export async function GET(request: Request) {
   }
 
   try {
-    const { data, error } = await createPublicClient()
-      .from("v_public_official_price_options")
-      .select("id, official_price_id, name, price_min_krw, price_max_krw, unit, condition, raw_text, is_effectively_mandatory, sort_order")
-      .in("official_price_id", ids)
-      .order("sort_order", { ascending: true, nullsFirst: false })
-      .order("id", { ascending: true })
-      .range(0, 999);
-    if (error) throw new Error(error.message);
+    const client = createPublicClient();
+    const rows: PublicOptionRow[] = [];
+    // DB 응답 상한을 전체 결과로 오인하지 않는다. 빈 페이지까지 확인하고,
+    // 전체 카탈로그와 같은 상한을 넘으면 일부 추가금만 성공으로 반환하지 않는다.
+    while (true) {
+      const requested = Math.min(PAGE_SIZE, MAX_OPTIONS - rows.length) || 1;
+      const { data, error } = await client
+        .from("v_public_official_price_options")
+        .select("id, official_price_id, name, price_min_krw, price_max_krw, unit, condition, raw_text, is_effectively_mandatory, sort_order")
+        .in("official_price_id", ids)
+        .order("official_price_id", { ascending: true })
+        .order("sort_order", { ascending: true, nullsFirst: false })
+        .order("id", { ascending: true })
+        .range(rows.length, rows.length + requested - 1);
+      if (error) throw new Error("PUBLIC_PRICE_OPTIONS_UNAVAILABLE");
+      if (!Array.isArray(data) || data.length > requested) {
+        throw new Error("PUBLIC_PRICE_OPTIONS_INVALID");
+      }
+      if (data.length === 0) break;
+      if (rows.length + data.length > MAX_OPTIONS) throw new Error("PUBLIC_PRICE_OPTIONS_LIMIT");
+      rows.push(...data);
+    }
 
-    const options = ((data ?? []) as PublicOptionRow[]).flatMap((row) => {
+    const options = rows.flatMap((row) => {
       const option = optionFromRow(row);
       return option ? [{ ...option, officialPriceId: row.official_price_id }] : [];
     });
@@ -48,6 +64,9 @@ export async function GET(request: Request) {
     );
   } catch (err) {
     log.error("api/price/vendor-options", err);
-    return NextResponse.json({ error: "옵션을 불러오지 못했습니다." }, { status: 503 });
+    return NextResponse.json(
+      { error: "옵션을 불러오지 못했습니다." },
+      { status: 503, headers: { "Cache-Control": "no-store" } },
+    );
   }
 }

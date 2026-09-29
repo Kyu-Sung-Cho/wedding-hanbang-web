@@ -3,6 +3,7 @@
 // 직접 치는 경우가 그것이다. 셸에서도 같은 관문을 지나야 한다.
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { AuthApiError, AuthRetryableFetchError, AuthSessionMissingError } from "@supabase/supabase-js";
 
 const mocks = vi.hoisted(() => ({
   redirect: vi.fn((path: string) => {
@@ -92,5 +93,44 @@ describe("앱 셸 동의 관문", () => {
     await renderShell();
 
     expect(mocks.getUser).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([
+    new AuthRetryableFetchError("private SDK transport detail", 503),
+    new AuthApiError("private service detail", 500, "unexpected_failure"),
+    new AuthApiError("private limiter detail", 429, "over_request_rate_limit"),
+    new Error("private unknown detail"),
+  ])("인증 장애는 로그인 이동 대신 재시도 경계로 보내고 내부 오류를 숨긴다: $name", async error => {
+    for (const user of [null, { id: "stale-user", created_at: "2026-08-30T00:00:00.000Z" }]) {
+      mocks.getUser.mockResolvedValue({ data: { user }, error });
+      await expect(AuthenticatedAppShell({ children: <span>비공개 내용</span> }))
+        .rejects.toThrow("로그인 정보를 확인하지 못했어요. 잠시 후 다시 시도해 주세요.");
+      expect(mocks.redirect).not.toHaveBeenCalled();
+    }
+  });
+
+  it("인증 SDK 예외도 내부 진단 없이 같은 재시도 경계로 보낸다", async () => {
+    mocks.getUser.mockRejectedValue(new Error("private thrown SDK detail"));
+    await expect(AuthenticatedAppShell({ children: <span>비공개 내용</span> }))
+      .rejects.toThrow("로그인 정보를 확인하지 못했어요. 잠시 후 다시 시도해 주세요.");
+    expect(mocks.redirect).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    new AuthSessionMissingError(),
+    new AuthApiError("expired", 403, "bad_jwt"),
+  ])("확정된 세션 종료는 모순된 사용자 값이 있어도 로그인으로 보낸다: $name", async error => {
+    mocks.getUser.mockResolvedValue({ data: { user: { id: "stale-user", created_at: "2026-08-30T00:00:00.000Z" } }, error });
+    expect(await renderShell()).toBe("/login");
+  });
+
+  it("서명된 데모는 인증 서버 조회 없이 정상 데모 계약을 유지한다", async () => {
+    mocks.cookieGet.mockImplementation((name?: string) => name === "demo_mode" ? { value: "true" } : { value: "signed-demo" });
+    mocks.verifyDemoSessionToken.mockReturnValue(true);
+    mocks.getUser.mockRejectedValue(new Error("must not query auth"));
+    const result = await AuthenticatedAppShell({ children: <span>체험 화면</span> });
+    expect(result.props.initialDemo).toBe(true);
+    expect(mocks.getUser).not.toHaveBeenCalled();
+    expect(mocks.redirect).not.toHaveBeenCalled();
   });
 });

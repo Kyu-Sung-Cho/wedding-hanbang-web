@@ -12,6 +12,14 @@ import { PriceWishlist } from "./PriceWishlist";
   .IS_REACT_ACT_ENVIRONMENT = true;
 
 vi.mock("@/lib/analytics/track", () => ({ track: vi.fn() }));
+const authEvents = vi.hoisted(() => ({ listeners: [] as Array<(event: string, session: { user: { id: string } } | null) => void> }));
+vi.mock("@/lib/supabase/client", () => ({ createClient: () => ({ auth: {
+  onAuthStateChange: (listener: (event: string, session: { user: { id: string } } | null) => void) => {
+    authEvents.listeners.push(listener);
+    return { data: { subscription: { unsubscribe: () => { authEvents.listeners = authEvents.listeners.filter((item) => item !== listener); } } } };
+  },
+} }) }));
+const OWNER_ID = "40000000-0000-4000-8000-000000000001";
 
 function vendor(id: string, category: PriceCategory, name: string): PriceVendor {
   return {
@@ -44,7 +52,8 @@ const catalog: PriceCatalog = {
 };
 
 function jsonResponse(body: unknown, status = 200): Response {
-  return new Response(JSON.stringify(body), {
+  const payload = body && typeof body === "object" && "vendorIds" in body ? { ownerUserId: OWNER_ID, ...body } : body;
+  return new Response(JSON.stringify(payload), {
     status,
     headers: { "content-type": "application/json" },
   });
@@ -69,6 +78,18 @@ describe("PriceWishlist", () => {
     vi.unstubAllGlobals();
     await act(async () => root.unmount());
     document.body.replaceChildren();
+  });
+
+  it("shows an update notice for an older native bridge without fetching private favorites", async () => {
+    const postMessage = vi.fn();
+    const fetchMock = vi.fn();
+    vi.stubGlobal("ReactNativeWebView", { postMessage });
+    vi.stubGlobal("__HANBANG_MOBILE_API_NONCE__", OWNER_ID);
+    vi.stubGlobal("fetch", fetchMock);
+    await renderWishlist();
+    expect(container.textContent).toContain("앱을 최신 버전으로 업데이트");
+    expect(postMessage).not.toHaveBeenCalled();
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
   async function renderWishlist() {
@@ -151,7 +172,32 @@ describe("PriceWishlist", () => {
     expect(fetchMock).toHaveBeenLastCalledWith("/api/favorites", expect.objectContaining({
       method: "DELETE",
       credentials: "same-origin",
+      headers: expect.objectContaining({ "X-Price-Expected-Owner": OWNER_ID }),
     }));
     expect(container.textContent).toContain("공식 가격 업체를 아직 찜하지 않았어요");
+  });
+
+  it("clears the previous account and ignores its late removal response", async () => {
+    let resolveRemoval!: (response: Response) => void;
+    const removal = new Promise<Response>((resolve) => { resolveRemoval = resolve; });
+    const ownerB = "40000000-0000-4000-8000-000000000002";
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(jsonResponse({ vendorIds: [officialStudio.id] }))
+      .mockReturnValueOnce(removal)
+      .mockResolvedValueOnce(jsonResponse({ vendorIds: [officialStudio.id], ownerUserId: ownerB }));
+    vi.stubGlobal("fetch", fetchMock);
+    await renderWishlist();
+    await act(async () => {
+      container.querySelector<HTMLButtonElement>('button[aria-label="공식 스튜디오 찜 해제"]')?.click();
+    });
+    await act(async () => {
+      for (const listener of authEvents.listeners) listener("SIGNED_IN", { user: { id: ownerB } });
+      await flushAsyncWork();
+    });
+    await act(async () => {
+      resolveRemoval(jsonResponse({ isFavorite: false }));
+      await flushAsyncWork();
+    });
+    expect(container.querySelector('button[aria-label="공식 스튜디오 찜 해제"]')).not.toBeNull();
   });
 });

@@ -5,7 +5,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import { AuthGateModal } from "@/components/price/AuthGateModal";
 import { track } from "@/lib/analytics/track";
-import { mobileAuthenticatedFetch } from "@/lib/mobile/mobileAuthenticatedFetch";
+import { mobileAuthenticatedFetch, MobileAppUpdateRequiredError, MOBILE_APP_UPDATE_REQUIRED_NOTICE } from "@/lib/mobile/mobileAuthenticatedFetch";
+import { PRICE_EXPECTED_OWNER_HEADER, priceResponseOwner, usePriceOwnerSession } from "@/hooks/usePriceOwnerSession";
 
 type Props = {
   vendorId: string;
@@ -16,6 +17,8 @@ type SavedStateStatus = "loading" | "ready" | "guest" | "error";
 type MembershipResult = {
   status: Exclude<SavedStateStatus, "loading">;
   selected: boolean;
+  ownerUserId?: string;
+  mobileUpdateRequired?: boolean;
 };
 
 /**
@@ -36,16 +39,18 @@ async function loadMembership(
     const response = await mobileAuthenticatedFetch(url, { cache: "no-store", signal });
     if (response.status === 401) return { status: "guest", selected: false };
     if (!response.ok) return { status: "error", selected: false };
-    const body = await response.json() as { vendorIds?: unknown };
+    const body: unknown = await response.json();
+    const ownerUserId = priceResponseOwner(body);
     if (
-      !Array.isArray(body.vendorIds)
+      !ownerUserId || !body || typeof body !== "object" || !("vendorIds" in body)
+      || !Array.isArray(body.vendorIds)
       || !body.vendorIds.every((id): id is string => typeof id === "string" && id.length > 0)
     ) {
       return { status: "error", selected: false };
     }
-    return { status: "ready", selected: body.vendorIds.includes(vendorId) };
-  } catch {
-    return { status: "error", selected: false };
+    return { status: "ready", selected: body.vendorIds.includes(vendorId), ownerUserId };
+  } catch (error) {
+    return { status: "error", selected: false, mobileUpdateRequired: error instanceof MobileAppUpdateRequiredError };
   }
 }
 
@@ -57,22 +62,40 @@ export default function VendorDetailActions({ vendorId, redirectPath }: Props) {
   const [busy, setBusy] = useState<"favorite" | "alert" | null>(null);
   const [showGate, setShowGate] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [mobileUpdateRequired, setMobileUpdateRequired] = useState(false);
   const mutationBusyRef = useRef(false);
   const loadGenerationRef = useRef(0);
   const loadAbortRef = useRef<AbortController | null>(null);
   const latestVendorIdRef = useRef(vendorId);
   latestVendorIdRef.current = vendorId;
+  const [ownerRevision, setOwnerRevision] = useState(0);
+  const ownerSession = usePriceOwnerSession(() => {
+    loadAbortRef.current?.abort();
+    loadGenerationRef.current += 1;
+    mutationBusyRef.current = false;
+    setFavorite(false);
+    setSubscribed(false);
+    setFavoriteStatus("loading");
+    setAlertStatus("loading");
+    setBusy(null);
+    setShowGate(false);
+    setError(null);
+    setMobileUpdateRequired(false);
+    setOwnerRevision((value) => value + 1);
+  });
 
   const loadSavedState = useCallback(async () => {
     loadAbortRef.current?.abort();
     const controller = new AbortController();
     loadAbortRef.current = controller;
     const generation = ++loadGenerationRef.current;
+    const ownerEpoch = ownerSession.state.epoch;
     setFavoriteStatus("loading");
     setAlertStatus("loading");
     setFavorite(false);
     setSubscribed(false);
     setError(null);
+    setMobileUpdateRequired(false);
 
     const [favoriteResult, alertResult] = await Promise.all([
       loadMembership("/api/favorites", vendorId, controller.signal),
@@ -82,15 +105,24 @@ export default function VendorDetailActions({ vendorId, redirectPath }: Props) {
     ]);
     if (
       controller.signal.aborted
+      || !ownerSession.isCurrent(ownerEpoch)
       || generation !== loadGenerationRef.current
       || latestVendorIdRef.current !== vendorId
     ) return;
+    if ((favoriteResult.status === "ready" && !ownerSession.acceptOwner(favoriteResult.ownerUserId ?? null, ownerEpoch))
+      || (PRICE_ALERT_TOGGLE_ENABLED && alertResult.status === "ready"
+        && !ownerSession.acceptOwner(alertResult.ownerUserId ?? null, ownerEpoch))) {
+      setFavoriteStatus("error");
+      setAlertStatus("error");
+      return;
+    }
 
     setFavorite(favoriteResult.selected);
+    setMobileUpdateRequired(Boolean(favoriteResult.mobileUpdateRequired || alertResult.mobileUpdateRequired));
     setFavoriteStatus(favoriteResult.status);
     setSubscribed(alertResult.selected);
     setAlertStatus(alertResult.status);
-  }, [vendorId]);
+  }, [ownerSession, vendorId]);
 
   useEffect(() => {
     track("vendor_detail_view", { vendor_id: vendorId, surface: "price_detail" });
@@ -99,7 +131,7 @@ export default function VendorDetailActions({ vendorId, redirectPath }: Props) {
       loadAbortRef.current?.abort();
       loadGenerationRef.current += 1;
     };
-  }, [loadSavedState, vendorId]);
+  }, [loadSavedState, ownerRevision, vendorId]);
 
   async function toggleFavorite() {
     if (mutationBusyRef.current) return;
@@ -108,6 +140,9 @@ export default function VendorDetailActions({ vendorId, redirectPath }: Props) {
       return;
     }
     if (favoriteStatus !== "ready") return;
+    const owner = ownerSession.state.owner;
+    if (!owner) return;
+    const ownerEpoch = ownerSession.state.epoch;
     const requestedVendorId = vendorId;
     const desiredFavorite = !favorite;
     mutationBusyRef.current = true;
@@ -116,11 +151,13 @@ export default function VendorDetailActions({ vendorId, redirectPath }: Props) {
     try {
       const response = await mobileAuthenticatedFetch("/api/favorites", {
         method: desiredFavorite ? "POST" : "DELETE",
-        headers: { "content-type": "application/json" },
+        headers: { "content-type": "application/json", [PRICE_EXPECTED_OWNER_HEADER]: owner },
         body: JSON.stringify({ vendorId }),
       });
-      if (latestVendorIdRef.current !== requestedVendorId) return;
+      if (!ownerSession.isCurrent(ownerEpoch) || latestVendorIdRef.current !== requestedVendorId) return;
+      if (response.status === 409) { ownerSession.invalidate(); return; }
       if (response.status === 401) {
+        ownerSession.invalidate();
         setFavoriteStatus("guest");
         setShowGate(true);
         return;
@@ -130,7 +167,7 @@ export default function VendorDetailActions({ vendorId, redirectPath }: Props) {
         return;
       }
       const body = await response.json();
-      if (latestVendorIdRef.current !== requestedVendorId) return;
+      if (!ownerSession.isCurrent(ownerEpoch) || latestVendorIdRef.current !== requestedVendorId) return;
       if (body.isFavorite !== desiredFavorite) {
         setError("찜 상태를 확인하지 못했어요. 다시 시도해 주세요.");
         return;
@@ -139,13 +176,15 @@ export default function VendorDetailActions({ vendorId, redirectPath }: Props) {
       if (desiredFavorite) {
         track("wishlist_add", { vendor_id: requestedVendorId, surface: "price_detail" });
       }
-    } catch {
-      if (latestVendorIdRef.current === requestedVendorId) {
-        setError("찜 저장에 실패했어요. 잠시 후 다시 시도해 주세요.");
+    } catch (error) {
+      if (ownerSession.isCurrent(ownerEpoch) && latestVendorIdRef.current === requestedVendorId) {
+        setError(error instanceof MobileAppUpdateRequiredError ? MOBILE_APP_UPDATE_REQUIRED_NOTICE : "찜 저장에 실패했어요. 잠시 후 다시 시도해 주세요.");
       }
     } finally {
-      mutationBusyRef.current = false;
-      setBusy(null);
+      if (ownerSession.isCurrent(ownerEpoch)) {
+        mutationBusyRef.current = false;
+        setBusy(null);
+      }
     }
   }
 
@@ -156,6 +195,9 @@ export default function VendorDetailActions({ vendorId, redirectPath }: Props) {
       return;
     }
     if (alertStatus !== "ready") return;
+    const owner = ownerSession.state.owner;
+    if (!owner) return;
+    const ownerEpoch = ownerSession.state.epoch;
     const requestedVendorId = vendorId;
     const desiredSubscription = !subscribed;
     mutationBusyRef.current = true;
@@ -164,11 +206,13 @@ export default function VendorDetailActions({ vendorId, redirectPath }: Props) {
     try {
       const response = await mobileAuthenticatedFetch("/api/price/alerts", {
         method: desiredSubscription ? "POST" : "DELETE",
-        headers: { "content-type": "application/json" },
+        headers: { "content-type": "application/json", [PRICE_EXPECTED_OWNER_HEADER]: owner },
         body: JSON.stringify({ vendorId }),
       });
-      if (latestVendorIdRef.current !== requestedVendorId) return;
+      if (!ownerSession.isCurrent(ownerEpoch) || latestVendorIdRef.current !== requestedVendorId) return;
+      if (response.status === 409) { ownerSession.invalidate(); return; }
       if (response.status === 401) {
+        ownerSession.invalidate();
         setAlertStatus("guest");
         setShowGate(true);
         return;
@@ -178,7 +222,7 @@ export default function VendorDetailActions({ vendorId, redirectPath }: Props) {
         return;
       }
       const body = await response.json();
-      if (latestVendorIdRef.current !== requestedVendorId) return;
+      if (!ownerSession.isCurrent(ownerEpoch) || latestVendorIdRef.current !== requestedVendorId) return;
       if (body.subscribed !== desiredSubscription) {
         setError("가격 알림 상태를 확인하지 못했어요. 다시 시도해 주세요.");
         return;
@@ -187,13 +231,15 @@ export default function VendorDetailActions({ vendorId, redirectPath }: Props) {
       if (desiredSubscription) {
         track("alert_subscribe", { vendor_id: requestedVendorId, surface: "price_detail" });
       }
-    } catch {
-      if (latestVendorIdRef.current === requestedVendorId) {
-        setError("가격 알림 저장에 실패했어요. 잠시 후 다시 시도해 주세요.");
+    } catch (error) {
+      if (ownerSession.isCurrent(ownerEpoch) && latestVendorIdRef.current === requestedVendorId) {
+        setError(error instanceof MobileAppUpdateRequiredError ? MOBILE_APP_UPDATE_REQUIRED_NOTICE : "가격 알림 저장에 실패했어요. 잠시 후 다시 시도해 주세요.");
       }
     } finally {
-      mutationBusyRef.current = false;
-      setBusy(null);
+      if (ownerSession.isCurrent(ownerEpoch)) {
+        mutationBusyRef.current = false;
+        setBusy(null);
+      }
     }
   }
 
@@ -229,9 +275,9 @@ export default function VendorDetailActions({ vendorId, redirectPath }: Props) {
       {favoriteStatus === "error" || alertStatus === "error" ? (
         <div role="alert" className="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-[6px] border border-[#8F6662]/25 bg-[#F5ECE4] px-4 py-3 text-sm text-[#7A4742]">
           <p className="font-semibold">
-            {[favoriteStatus === "error" ? "찜" : null, alertStatus === "error" ? "가격 알림" : null]
+            {mobileUpdateRequired ? MOBILE_APP_UPDATE_REQUIRED_NOTICE : `${[favoriteStatus === "error" ? "찜" : null, alertStatus === "error" ? "가격 알림" : null]
               .filter(Boolean)
-              .join("·")} 상태를 불러오지 못했어요. 기존 저장은 변경하지 않았어요.
+              .join("·")} 상태를 불러오지 못했어요. 기존 저장은 변경하지 않았어요.`}
           </p>
           <button
             type="button"

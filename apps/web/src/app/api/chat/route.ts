@@ -1,6 +1,7 @@
 import { asksWhereToStart } from "@/lib/marketing/preparationPriorities";
 import { resolveAmoraPreparationSource } from "@/lib/amora/preparationHandoff";
 import { createClientFromRequest } from "@/lib/supabase/server";
+import { isConfirmedSignedOut } from "@/lib/auth/sessionFailure";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { buildFirstHelloContextTurn } from "@/lib/ai/firstHelloContext";
 import { compareChatTimestamps, normalizePreparationStatus } from "@hanbang/shared";
@@ -932,10 +933,14 @@ export async function POST(request: Request) {
   const supabase = await createClientFromRequest(request);
   const {
     data: { user },
-  } = await supabase.auth.getUser();
+    error: authError,
+  } = await supabase.auth.getUser().catch((error: unknown) => ({ data: { user: null }, error }));
 
-  if (!user && !isDemo) {
-    return NextResponse.json({ error: "인증이 필요합니다." }, { status: 401 });
+  if (!isDemo && authError && !isConfirmedSignedOut(authError)) {
+    return NextResponse.json({ error: "로그인 정보를 확인하지 못했어요. 잠시 후 다시 시도해 주세요." }, { status: 503, headers: { "Cache-Control": "private, no-store" } });
+  }
+  if ((!user || authError) && !isDemo) {
+    return NextResponse.json({ error: "인증이 필요합니다." }, { status: 401, headers: { "Cache-Control": "private, no-store" } });
   }
 
   const actorId = user?.id ?? (isEvaluation ? EVAL_ACTOR_ID : DEMO_ACTOR_ID);
@@ -1392,6 +1397,27 @@ export async function POST(request: Request) {
         imagePaths: canonicalImagePaths,
       };
     }
+  }
+
+  // 예전에 공유로 저장된 민감 질문도 재시도에서 공유 답변을 새로 만들거나 재생하지 않는다.
+  // 인증된 원문과 요청 결합을 확인한 뒤 판단하며, 기존 행의 공개 범위는 조용히 바꾸지 않는다.
+  if (
+    !isDemo
+    && requestKind === "chat"
+    && visibility === "shared"
+    && trustedCanonicalScopeUserRow?.visibility === "shared"
+    && typeof trustedCanonicalScopeUserRow.content === "string"
+    && hasAmoraSafetySignal(trustedCanonicalScopeUserRow.content, "chat")
+  ) {
+    return NextResponse.json(
+      {
+        error: "민감한 안전 관련 내용이라 함께 대화에서 답변을 이어가지 않았어요. 나만 대화로 전환한 뒤 새 메시지로 보내주세요.",
+        code: "SAFETY_PRIVATE_MESSAGE_REQUIRED",
+        retryable: false,
+        retryPolicy: "new_message",
+      },
+      { status: 409, headers: { "Cache-Control": "no-store" } },
+    );
   }
 
   // 안내의 숫자·예시는 사용자 사실이나 결정이 아니다. 저장된 질문의 공개 ID만

@@ -23,6 +23,7 @@ function request(body: unknown, method = "POST", headers: HeadersInit = {}) {
     headers: {
       "content-type": "application/json",
       "sec-fetch-site": "same-origin",
+      "X-Price-Expected-Owner": USER_ID,
       "x-forwarded-for": `${Math.floor(Math.random() * 200) + 1}.1.1.1`,
       ...headers,
     },
@@ -72,7 +73,7 @@ describe("GET /api/price/alerts", () => {
 
     expect(response.status).toBe(200);
     expect(database.limit).toHaveBeenCalledWith(501);
-    await expect(response.json()).resolves.toEqual({ vendorIds: [VENDOR_ID] });
+    await expect(response.json()).resolves.toEqual({ vendorIds: [VENDOR_ID], ownerUserId: USER_ID });
     expect(response.headers.get(MOBILE_BRIDGE_RESPONSE_BYTES_HEADER)).toMatch(/^[1-9][0-9]*$/);
   });
 
@@ -93,6 +94,14 @@ describe("GET /api/price/alerts", () => {
 });
 
 describe("POST /api/price/alerts", () => {
+  it.each(["POST", "DELETE"])("does not apply %s from an old account screen", async method => {
+    const response = await (method === "POST" ? POST : DELETE)(request({ vendorId: VENDOR_ID }, method, {
+      "X-Price-Expected-Owner": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+    }));
+    expect(response.status).toBe(409);
+    expect(mocks.upsert).not.toHaveBeenCalled();
+    expect(mocks.deleteResult).not.toHaveBeenCalled();
+  });
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.publicMaybeSingle.mockResolvedValue({ data: { vendor_id: VENDOR_ID }, error: null });

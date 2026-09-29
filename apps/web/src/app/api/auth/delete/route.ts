@@ -11,6 +11,8 @@ import { checkRateLimitPersistent, rateLimitKey } from "@/utils/rateLimit";
 import { isBodyTooLarge, isRecord } from "@/utils/requestValidation";
 import { isTrustedMutationRequest } from "@/utils/trustedMutation";
 import { CONTACT } from "@/lib/constants/contact";
+import { isConfirmedSignedOut } from "@/lib/auth/sessionFailure";
+import { parseAuthorizationHeader } from "@/utils/bearerAuthorization";
 
 const MAX_BODY_BYTES = 8 * 1024;
 const NO_STORE_HEADERS = { "Cache-Control": "no-store" };
@@ -59,11 +61,38 @@ export async function DELETE(request: Request) {
     }
 
     const supabase = await createClientFromRequest(request);
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    if (authError && !isConfirmedSignedOut(authError)) {
+      return NextResponse.json(
+        { error: "로그인 정보를 확인하지 못했어요. 잠시 후 다시 시도해 주세요." },
+        { status: 503, headers: NO_STORE_HEADERS },
+      );
+    }
+    if (!user || authError) {
       return NextResponse.json(
         { error: "인증이 필요합니다." },
         { status: 401, headers: NO_STORE_HEADERS },
+      );
+    }
+
+    let reason = "unknown";
+    let expectedOwnerId: unknown;
+    try {
+      const body = await request.json();
+      reason = isRecord(body)
+        ? accountDeletionReasonCode(body.reason)
+        : "unknown";
+      expectedOwnerId = isRecord(body) ? body.expectedOwnerId : undefined;
+    } catch {
+      // A reason is optional; the durable deletion boundary is not.
+    }
+
+    // 쿠키는 다른 탭에서 바뀔 수 있다. 확인 화면의 계정과 실제 인증 계정을 묶는다.
+    const isBearerRequest = parseAuthorizationHeader(request.headers.get("authorization")).kind === "bearer";
+    if ((!isBearerRequest || expectedOwnerId !== undefined) && expectedOwnerId !== user.id) {
+      return NextResponse.json(
+        { error: "로그인 계정이 바뀌었어요. 설정 화면을 다시 열고 확인해 주세요.", code: "ACCOUNT_DELETION_IDENTITY_CHANGED" },
+        { status: 409, headers: NO_STORE_HEADERS },
       );
     }
 
@@ -72,16 +101,6 @@ export async function DELETE(request: Request) {
       windowMs: 60 * 60 * 1000,
     });
     if (limited) return limited;
-
-    let reason = "unknown";
-    try {
-      const body = await request.json();
-      reason = isRecord(body)
-        ? accountDeletionReasonCode(body.reason)
-        : "unknown";
-    } catch {
-      // A reason is optional; the durable deletion boundary is not.
-    }
 
     const result = await requestAccountDeletion(
       createAdminClient(),

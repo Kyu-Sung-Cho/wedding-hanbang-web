@@ -47,7 +47,15 @@ test("mobile awaiting-partner offers a way out when both partners started separa
 });
 
 test("mobile restart uses the authenticated atomic reset endpoint", () => {
-  assert.match(settingsSource, /apiFetch\("\/api\/couple\/reset"/);
-  assert.match(settingsSource, /confirmText:\s*"초기화합니다"/);
-  assert.match(settingsSource, /router\.replace\("\/onboarding"\)/);
+  const resetSource = settingsSource.slice(
+    settingsSource.indexOf("function handleStartNewCouple()"),
+    settingsSource.indexOf("async function performLogout()"),
+  );
+  assert.match(resetSource, /apiFetchForExpectedUser\(resetContext\.userId, "\/api\/couple\/reset"/);
+  assert.match(resetSource, /confirmText:\s*"초기화합니다"/);
+  assert.match(resetSource, /expectedUserId: resetContext\.userId, expectedCoupleId: resetContext\.coupleId/);
+  const rejectedReceipt = resetSource.indexOf("if (!response.ok)");
+  const clearCaches = resetSource.indexOf("clearCommunityCaches();");
+  assert.ok(rejectedReceipt >= 0 && clearCaches > rejectedReceipt);
+  assert.match(resetSource, /router\.replace\("\/onboarding"\)/);
 });

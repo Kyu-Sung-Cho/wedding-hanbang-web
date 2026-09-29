@@ -1568,6 +1568,56 @@ describe("community release trust migration", () => {
     }
   }, 30_000);
 
+  it("keeps an author-deleted parent contained when a moderator later hides it", async () => {
+    const db = await PGlite.create();
+    try {
+      await createBaseline(db);
+      await db.exec(migration);
+      await db.exec(atomicReportResolutionMigration);
+      await setRequestIdentity(db, "service_role");
+      await db.exec(`
+        UPDATE public.community_comments
+        SET author_deleted_at = clock_timestamp(), is_deleted = true,
+            content = '삭제된 댓글입니다.'
+        WHERE id = '${COMMENT_ID}';
+      `);
+      await db.query(`
+        SELECT public.community_moderate_content(
+          'comment', '${COMMENT_ID}', 'hide',
+          'parent thread requires continued containment', '${ADMIN_ID}',
+          '85000000-0000-4000-8000-000000000003'
+        )
+      `);
+      await db.exec(`
+        GRANT USAGE ON SCHEMA auth TO authenticated;
+        GRANT SELECT ON public.community_comments, public.community_posts TO authenticated;
+      `);
+      await setRequestIdentity(db, "authenticated", REPORTER_ID);
+      await db.exec("SET ROLE authenticated");
+      const candidates = await db.query<{ id: string }>(`
+        SELECT id FROM public.community_comments
+        WHERE id = '${COMMENT_ID}' AND post_id = '${POST_ID}'
+          AND is_deleted IS TRUE AND author_deleted_at IS NOT NULL
+      `);
+      // The viewer's deleted-parent predicate alone still returns this ID.
+      expect(candidates.rows).toEqual([{ id: COMMENT_ID }]);
+      await db.exec("RESET ROLE");
+      await setRequestIdentity(db, "service_role");
+      await db.exec("SET ROLE service_role");
+      const activeCases = await db.query<{ target_id: string }>(`
+        SELECT target_id FROM public.community_moderation_cases
+        WHERE target_type = 'comment' AND status = 'active'
+          AND target_id = '${COMMENT_ID}'
+      `);
+      expect(activeCases.rows).toEqual([{ target_id: COMMENT_ID }]);
+      const containedIds = new Set(activeCases.rows.map((row) => row.target_id));
+      expect(candidates.rows.filter((row) => !containedIds.has(row.id))).toEqual([]);
+    } finally {
+      await db.exec("RESET ROLE").catch(() => undefined);
+      await db.close();
+    }
+  }, 30_000);
+
   it("does not resurrect a comment the author deletes during a report hold", async () => {
     const db = await PGlite.create();
     try {

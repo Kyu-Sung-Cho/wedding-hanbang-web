@@ -1,8 +1,23 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
+import { createRequire } from "node:module";
 import test from "node:test";
 
 const root = new URL("../../", import.meta.url);
+
+test("installed fast-uri rejects malformed authority brackets without breaking valid IPv6", () => {
+  const webRequire = createRequire(new URL("apps/web/package.json", root));
+  const ajvRequire = createRequire(webRequire.resolve("ajv"));
+  const uri = ajvRequire("fast-uri");
+  // 호스트 정책과 실제 HTTP 목적지가 달라지던 입력이다. 네트워크 요청은 하지 않는다.
+  const ambiguous = "http://user@[@127.0.0.1/";
+  assert.equal(new URL(ambiguous).hostname, "127.0.0.1");
+  for (const input of [ambiguous, "http://[fe80", "https://example.test]/path"]) {
+    assert.equal(uri.parse(input).error, "URI host is malformed.");
+  }
+  assert.equal(uri.parse("http://[::1]/path").error, undefined);
+  assert.equal(uri.parse("https://example.test/path").host, "example.test");
+});
 
 test("dependency security floors and compatibility patches stay pinned", async () => {
   const [
@@ -40,7 +55,7 @@ test("dependency security floors and compatibility patches stay pinned", async (
     '"js-yaml@>=4.0.0 <4.3.2": "4.3.2"',
     '"nanoid@<3.3.18": "3.3.18"',
     'brace-expansion: "5.0.9"',
-    'fast-uri: "3.1.6"',
+    'fast-uri: "3.1.7"',
     'browserslist: "4.28.7"',
     '"@humanfs/node": "0.16.8"',
     'fflate: "0.4.9"',
@@ -85,7 +100,7 @@ test("September advisory fixes are resolved in the lockfile, not only requested 
     ["next", "16.3.4"],
     ["eslint-config-next", "16.3.4"],
     ["sharp", "0.35.4"],
-    ["fast-uri", "3.1.6"],
+    ["fast-uri", "3.1.7"],
     ["browserslist", "4.28.7"],
     ["@humanfs/node", "0.16.8"],
     ["fflate", "0.4.9"],

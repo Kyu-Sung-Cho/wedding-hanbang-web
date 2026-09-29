@@ -16,10 +16,13 @@ export function useAuthSessionSync(enabled = true) {
     if (!enabled) return;
 
     const supabase = createClient();
+    let syncGeneration = 0;
 
     const refreshFromServer = async () => {
+      const generation = ++syncGeneration;
       const beforeUserId = useAuthStore.getState().user?.id ?? null;
       await useAuthStore.getState().initialize({ force: true });
+      if (generation !== syncGeneration) return;
       const afterUserId = useAuthStore.getState().user?.id ?? null;
       if (beforeUserId !== afterUserId) {
         useChatStore.getState().reset();
@@ -31,10 +34,13 @@ export function useAuthSessionSync(enabled = true) {
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
+    } = supabase.auth.onAuthStateChange((event, session) => {
       const currentUserId = useAuthStore.getState().user?.id ?? null;
       const nextUserId = session?.user?.id ?? null;
-      if (currentUserId === nextUserId) return;
+      // 전환 조회 중 user가 비어 있어도 로그아웃은 대기 중인 조회를 무효화한다.
+      if (currentUserId === nextUserId && event !== "SIGNED_OUT") return;
+      // 이전 계정의 늦은 조회 후처리가 새 계정의 채팅을 다시 지우지 않는다.
+      syncGeneration += 1;
 
       if (currentUserId === null && nextUserId !== null) {
         useChatStore.getState().reset();
@@ -64,6 +70,7 @@ export function useAuthSessionSync(enabled = true) {
     document.addEventListener("visibilitychange", handleVisibilityChange);
 
     return () => {
+      syncGeneration += 1;
       subscription.unsubscribe();
       window.removeEventListener("focus", handleFocus);
       document.removeEventListener("visibilitychange", handleVisibilityChange);

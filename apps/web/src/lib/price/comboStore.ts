@@ -1,4 +1,5 @@
 import { createStore, type StoreApi } from "zustand/vanilla";
+import { isUuid } from "@/utils/requestValidation";
 
 export type ComboCategory = "studio" | "dress" | "makeup";
 
@@ -16,12 +17,14 @@ export type ComboSelection = {
 export type ComboSelections = Record<ComboCategory, ComboSelection | null>;
 
 export type PriceComboState = {
+  ownerId: string | null | undefined;
+  setOwner(ownerId: string | null | undefined): void;
   selections: ComboSelections;
   totalKrw: number;
   setSelection(category: ComboCategory, selection: ComboSelection): void;
   replaceSelections(selections: ComboSelections): void;
   clearSelection(category: ComboCategory): void;
-  hydrate(storage?: SessionStorageLike): void;
+  hydrate(storage?: SessionStorageLike, ownerId?: string | null): void;
   reset(): void;
 };
 
@@ -101,14 +104,24 @@ export function createPriceComboStore(
   initialStorage?: SessionStorageLike,
 ): StoreApi<PriceComboState> {
   let activeStorage = initialStorage;
+  let activeOwner: string | null | undefined;
+  const removePersisted = () => {
+    try { activeStorage?.removeItem(PRICE_COMBO_STORAGE_KEY); } catch { /* 저장소 차단은 비교를 막지 않는다. */ }
+  };
   const persist = (selections: ComboSelections) => {
+    if (activeOwner === undefined) return;
     try {
-      activeStorage?.setItem(PRICE_COMBO_STORAGE_KEY, JSON.stringify({ selections }));
+      activeStorage?.setItem(PRICE_COMBO_STORAGE_KEY, JSON.stringify({ selections, ownerId: activeOwner }));
     } catch {
       // Session persistence is best effort and must never block price comparison.
     }
   };
   return createStore<PriceComboState>((set) => ({
+    ownerId: undefined,
+    setOwner(ownerId) {
+      activeOwner = ownerId;
+      set({ ownerId });
+    },
     selections: { ...EMPTY_SELECTIONS },
     totalKrw: 0,
     setSelection(category, selection) {
@@ -130,30 +143,43 @@ export function createPriceComboStore(
         return { selections, totalKrw: total(selections) };
       });
     },
-    hydrate(storage) {
+    hydrate(storage, ownerId) {
       if (storage) activeStorage = storage;
       if (!activeStorage) return;
       try {
         const raw = activeStorage.getItem(PRICE_COMBO_STORAGE_KEY);
-        if (!raw) return;
-        const parsed = JSON.parse(raw) as unknown;
-        const selections = isRecord(parsed) ? parseSelections(parsed.selections) : null;
-        if (!selections) {
-          activeStorage.removeItem(PRICE_COMBO_STORAGE_KEY);
+        activeOwner = ownerId;
+        set({ ownerId });
+        if (!raw) {
+          set({ selections: { ...EMPTY_SELECTIONS }, totalKrw: 0 });
           return;
         }
-        set({ selections, totalKrw: total(selections) });
+        const parsed = JSON.parse(raw) as unknown;
+        const selections = isRecord(parsed) ? parseSelections(parsed.selections) : null;
+        if (!selections || !isRecord(parsed) || !(parsed.ownerId === null || isUuid(parsed.ownerId))) {
+          removePersisted();
+          set({ selections: { ...EMPTY_SELECTIONS }, totalKrw: 0 });
+          return;
+        }
+        const storedOwner = parsed.ownerId;
+        // 계정을 확인하기 전에는 개인 초안을 노출하지 않고 같은 계정 확인 후 복원한다.
+        if (storedOwner && storedOwner !== ownerId) {
+          if (ownerId !== undefined) removePersisted();
+          set({ selections: { ...EMPTY_SELECTIONS }, totalKrw: 0 });
+          return;
+        }
+        activeOwner = ownerId === undefined ? storedOwner : ownerId;
+        if (ownerId !== undefined) persist(selections);
+        set({ selections, totalKrw: total(selections), ownerId: activeOwner });
       } catch {
-        activeStorage.removeItem(PRICE_COMBO_STORAGE_KEY);
+        removePersisted();
+        set({ selections: { ...EMPTY_SELECTIONS }, totalKrw: 0 });
       }
     },
     reset() {
-      try {
-        activeStorage?.removeItem(PRICE_COMBO_STORAGE_KEY);
-      } catch {
-        // Session persistence is best effort.
-      }
-      set({ selections: { ...EMPTY_SELECTIONS }, totalKrw: 0 });
+      activeOwner = undefined;
+      removePersisted();
+      set({ selections: { ...EMPTY_SELECTIONS }, totalKrw: 0, ownerId: undefined });
     },
   }));
 }

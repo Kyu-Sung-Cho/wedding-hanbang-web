@@ -14,6 +14,7 @@ const ANALYTICS_SUPPRESSED_PATH_PREFIXES = [
   "/preparation-style",
   "/wedding/preparation-style",
   "/invite",
+  "/auth/mobile-callback",
 ] as const;
 const ADMIN_VENDOR_PREVIEW_PATH = "/wedding/vendors";
 const COMMUNITY_PATH_PREFIXES = ["/wedding", "/community"] as const;
@@ -26,7 +27,10 @@ const COMMUNITY_ANALYTICS_QUERY_ALLOWLIST = new Set([
   "source",
   "view",
 ]);
-const PRIVATE_HANDOFF_QUERY_KEYS = new Set(["wcTasteChat", "wcTasteReview", "wcAmoraHandoff"]);
+const PRIVATE_HANDOFF_QUERY_KEYS = new Set(["wcTasteChat", "wcTasteReview", "wcAmoraHandoff", "prefill"]);
+const AUTH_SECRET_QUERY_KEYS = new Set([
+  "code", "state", "token_hash", "access_token", "refresh_token", "id_token",
+]);
 const MAX_NESTED_LOCATION_QUERY_DEPTH = 8;
 
 type SearchParamsReader = Pick<URLSearchParams, "get">;
@@ -62,19 +66,28 @@ export function analyticsSafeSearchParams(
   searchParams?: Pick<URLSearchParams, "entries" | "toString"> | null,
 ): string {
   if (!searchParams) return "";
+  return safeLocationSearchParams(pathname, searchParams).toString();
+}
+
+function safeLocationSearchParams(
+  pathname: string | null | undefined,
+  searchParams: Pick<URLSearchParams, "entries">,
+  depth = 0,
+): URLSearchParams {
+  if (isAnalyticsSuppressedPath(pathname)) return new URLSearchParams();
   const isCommunityPath = Boolean(
     pathname &&
       COMMUNITY_PATH_PREFIXES.some(
         (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`),
       ),
   );
-  if (!isCommunityPath) return safeHandoffSearchParams(searchParams).toString();
+  if (!isCommunityPath) return safeHandoffSearchParams(searchParams, depth);
 
   const safe = new URLSearchParams();
-  for (const [key, value] of safeHandoffSearchParams(searchParams).entries()) {
+  for (const [key, value] of safeHandoffSearchParams(searchParams, depth).entries()) {
     if (COMMUNITY_ANALYTICS_QUERY_ALLOWLIST.has(key)) safe.append(key, value);
   }
-  return safe.toString();
+  return safe;
 }
 
 type AnalyticsCapture = {
@@ -93,7 +106,7 @@ function safeHandoffSearchParams(
 ): URLSearchParams {
   const safe = new URLSearchParams();
   for (const [key, value] of params.entries()) {
-    if (PRIVATE_HANDOFF_QUERY_KEYS.has(key)) continue;
+    if (PRIVATE_HANDOFF_QUERY_KEYS.has(key) || AUTH_SECRET_QUERY_KEYS.has(key.toLowerCase())) continue;
     safe.append(key, looksLikeLocationValue(value) ? stripLocationSecrets(value, depth + 1) : value);
   }
   return safe;
@@ -109,7 +122,8 @@ function stripLocationSecrets(value: string, depth = 0): string {
   // 비정상적으로 깊게 중첩된 URL은 그 지점의 경로만 분석에 남긴다.
   if (depth >= MAX_NESTED_LOCATION_QUERY_DEPTH) return prefix;
   const original = new URLSearchParams(withoutFragment.slice(queryIndex + 1));
-  const safe = safeHandoffSearchParams(original, depth);
+  // SDK가 자체 생성한 최초 방문·이탈·리퍼러 주소도 페이지뷰와 같은 규칙을 쓴다.
+  const safe = safeLocationSearchParams(pathnameFromLocationValue(prefix), original, depth);
   if (safe.toString() === original.toString()) return withoutFragment;
   return prefix + (safe.size ? `?${safe.toString()}` : "");
 }
@@ -194,18 +208,8 @@ function pathnameFromLocationValue(value: unknown): string | null {
 export function stripAnalyticsUrlFragments<
   T extends { properties?: Record<string, unknown> } | null,
 >(capture: T): T {
-  if (!capture?.properties) return capture;
-
-  let changed = false;
-  const properties: Record<string, unknown> = {};
-  for (const [key, value] of Object.entries(capture.properties)) {
-    const stripped = stripLocationFragment(value);
-    if (stripped !== value) changed = true;
-    properties[key] = stripped;
-  }
-  if (!changed) return capture;
-
-  return { ...capture, properties } as T;
+  // SDK의 최상위 $set_once에 붙은 최초 주소도 같은 전송 경계를 거친다.
+  return stripLocationFragment(capture) as T;
 }
 
 /**

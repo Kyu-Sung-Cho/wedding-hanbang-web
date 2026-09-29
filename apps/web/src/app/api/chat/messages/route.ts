@@ -1,5 +1,6 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClientFromRequest } from "@/lib/supabase/server";
+import { isConfirmedSignedOut } from "@/lib/auth/sessionFailure";
 import { NextResponse } from "next/server";
 import { hasSignedDemoSessionFromCookieHeader } from "@/lib/demoSession";
 import {
@@ -392,8 +393,12 @@ export async function POST(request: Request) {
     const supabase = await createClientFromRequest(request);
     const {
       data: { user },
-    } = await supabase.auth.getUser();
-    if (!user) {
+      error: authError,
+    } = await supabase.auth.getUser().catch((error: unknown) => ({ data: { user: null }, error }));
+    if (authError && !isConfirmedSignedOut(authError)) {
+      return postJson({ error: "로그인 정보를 확인하지 못했어요. 잠시 후 다시 시도해 주세요." }, 503);
+    }
+    if (!user || authError) {
       return postJson({ error: "인증이 필요합니다.", code: "AUTH_REQUIRED" }, 401);
     }
     if (!isTrustedMutationRequest(request)) {
@@ -491,9 +496,8 @@ export async function POST(request: Request) {
     // This deterministic policy must run before rate limiting, attachment path
     // handling, durable writes, Realtime visibility, or any provider request.
     const narrowSafetySignal = hasAmoraSafetySignal(content, "chat");
-    // 좁은 그물이 놓친 것을 **센다.** 동작은 바꾸지 않는다 —
-    // 지금 규모에서 미탐 빈도가 낮다는 것은 쟀지만(687건 중 1건),
-    // 사용자가 늘었을 때 판단할 근거가 없으면 안 된다.
+    // 관찰기는 원문 없이 미탐 유형만 센다. 낮은 관측 빈도가 공유 안전성을
+    // 증명하지는 않으며, 실제 저장 범위는 아래 전달 계획이 결정한다.
     observeAmoraSafetyRecall(content, narrowSafetySignal);
     const deliveryPlan = planAmoraCrisisDelivery({
       userText: content,
@@ -979,12 +983,16 @@ export async function DELETE(request: Request) {
     const supabase = await createClientFromRequest(request);
     const {
       data: { user },
-    } = await supabase.auth.getUser();
+      error: authError,
+    } = await supabase.auth.getUser().catch((error: unknown) => ({ data: { user: null }, error }));
 
     const isDemo = hasSignedDemoSessionFromCookieHeader(request.headers.get("cookie"));
 
-    if (!user && !isDemo) {
-      return NextResponse.json({ error: "인증이 필요합니다." }, { status: 401 });
+    if (!isDemo && authError && !isConfirmedSignedOut(authError)) {
+      return postJson({ error: "로그인 정보를 확인하지 못했어요. 잠시 후 다시 시도해 주세요." }, 503);
+    }
+    if ((!user || authError) && !isDemo) {
+      return postJson({ error: "인증이 필요합니다." }, 401);
     }
 
     if (isDemo) {

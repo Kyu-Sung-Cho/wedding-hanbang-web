@@ -21,6 +21,30 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 const srcRoot = path.resolve(here, "../..");
 
 describe("zero-I/O research analytics boundary", () => {
+  it("suppresses OAuth callbacks, including events delayed until after navigation", () => {
+    expect(isAnalyticsSuppressedLocation("/auth/mobile-callback", new URLSearchParams("code=synthetic-pkce"))).toBe(true);
+    expect(analyticsCaptureTouchesSuppressedPath({ properties: {
+      $current_url: "https://hanbang.ai/auth/mobile-callback?code=synthetic-pkce",
+    } }, "/login")).toBe(true);
+    expect(isAnalyticsSuppressedPath("/login")).toBe(false);
+  });
+
+  it("removes authentication secrets from nested URLs and SDK initial properties", () => {
+    const callback = "/auth/mobile-callback?code=synthetic-pkce&state=synthetic-state";
+    const capture = stripAnalyticsUrlFragments({
+      event: "$pageview",
+      $set_once: { $initial_current_url: `https://hanbang.ai${callback}` },
+      properties: {
+        $current_url: `https://hanbang.ai/login?redirect=${encodeURIComponent(callback)}&utm_source=launch`,
+        $set_once: { $initial_referrer: "/api/auth/confirm?token_hash=synthetic-hash&type=recovery" },
+        nested: ["/login?access_token=synthetic-access&refresh_token=synthetic-refresh&id_token=synthetic-id"],
+      },
+    });
+    expect(JSON.stringify(capture)).not.toContain("synthetic-");
+    expect(capture.properties.$current_url).toContain("utm_source=launch");
+    expect(analyticsSafeSearchParams("/login", new URLSearchParams("code=synthetic-pkce&utm_source=launch"))).toBe("utm_source=launch");
+  });
+
   it("suppresses the guarded research path and public WeddingCode answer links", () => {
     expect(isAnalyticsSuppressedPath("/internal/wedding-code-research")).toBe(true);
     expect(isAnalyticsSuppressedPath("/internal/wedding-code-research/session")).toBe(true);
@@ -91,6 +115,27 @@ describe("zero-I/O research analytics boundary", () => {
       "/landing",
       new URLSearchParams("utm_source=test"),
     )).toBe("utm_source=test");
+  });
+
+  it("applies draft privacy to SDK pageleave, initial and nested login URLs too", () => {
+    const draft = "synthetic-private-draft";
+    const target = `/wedding/community/post/write?body=${draft}&title=${draft}&category=is_normal`;
+    const capture = stripAnalyticsUrlFragments({
+      event: "$pageleave",
+      $set_once: { $initial_current_url: `/wedding-code?a=${draft}` },
+      properties: {
+        $current_url: `https://hanbang.ai${target}`,
+        $referrer: `/login?redirect=${encodeURIComponent(target)}`,
+        nested: [{ url: `/chat?prefill=${draft}&source=quote_check` }],
+        search: `/wedding?search=${draft}&sort=new`,
+      },
+    });
+    expect(JSON.stringify(capture)).not.toContain(draft);
+    expect(capture.properties.$current_url).toBe("https://hanbang.ai/wedding/community/post/write?category=is_normal");
+    expect(capture.properties.nested[0].url).toBe("/chat?source=quote_check");
+    expect(capture.properties.search).toBe("/wedding?sort=new");
+    expect(analyticsSafeSearchParams("/chat", new URLSearchParams(`prefill=${draft}&source=quote_check`)))
+      .toBe("source=quote_check");
   });
 
   it("keeps both global persistence entry points wired to the suppression guard", () => {

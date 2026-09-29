@@ -1,3 +1,5 @@
+import { getPasswordErrorMessage } from "@hanbang/shared";
+
 /**
  * 서버·SDK 가 영어로 던진 오류를 사용자가 읽을 수 있는 한국어로 바꾼다.
  *
@@ -53,6 +55,9 @@ const FALLBACK = "잠시 문제가 있었어요. 잠시 뒤 다시 시도해 주
  * @param fallback 이 자리에 맞는 기본 문구가 따로 있으면 넘긴다.
  */
 export function toKoreanErrorMessage(raw: unknown, fallback: string = FALLBACK): string {
+  const passwordMessage = getPasswordErrorMessage(raw);
+  if (passwordMessage) return passwordMessage;
+
   const message = raw instanceof Error ? raw.message : typeof raw === "string" ? raw : "";
   const trimmed = message.trim();
   if (trimmed === "") return fallback;

@@ -1,0 +1,75 @@
+{
+  "format": "couple-reset-expected-identity-pg17-catalog-v1",
+  "functions": [
+    {
+      "acl": [
+        [
+          "authenticated",
+          "postgres",
+          "EXECUTE",
+          false
+        ],
+        [
+          "postgres",
+          "postgres",
+          "EXECUTE",
+          false
+        ]
+      ],
+      "args": "uuid, uuid",
+      "body": "\nDECLARE\n  v_user_id uuid := auth.uid();\n  v_couple_id uuid;\nBEGIN\n  IF v_user_id IS NULL\n     OR auth.role() IS DISTINCT FROM 'authenticated' THEN\n    RAISE EXCEPTION 'authentication_required' USING ERRCODE = '42501';\n  END IF;\n\n  -- 기존 reset RPC와 같은 profile -> couple 순서다. 이 잠금은 내부 RPC의\n  -- 재조회·분리 작업이 끝날 때까지 유지되어 검증 뒤 커플이 바뀌지 않는다.\n  SELECT profile.couple_id\n  INTO v_couple_id\n  FROM public.profiles AS profile\n  WHERE profile.id = v_user_id\n  FOR UPDATE;\n\n  IF NOT FOUND THEN\n    RAISE EXCEPTION 'profile_not_found' USING ERRCODE = 'P0002';\n  END IF;\n\n  IF p_expected_user_id IS DISTINCT FROM v_user_id THEN\n    RAISE EXCEPTION 'couple_reset_user_changed' USING ERRCODE = 'P0001';\n  END IF;\n  IF p_expected_couple_id IS DISTINCT FROM v_couple_id THEN\n    RAISE EXCEPTION 'couple_reset_couple_changed' USING ERRCODE = 'P0001';\n  END IF;\n\n  RETURN public.reset_current_couple_membership();\nEND;\n",
+      "kind": "f",
+      "name": "reset_expected_couple_membership",
+      "owner": "postgres",
+      "config": [
+        "search_path=pg_catalog, public",
+        "lock_timeout=5s",
+        "statement_timeout=15s"
+      ],
+      "result": "jsonb",
+      "strict": false,
+      "language": "plpgsql",
+      "parallel": "u",
+      "definition": "CREATE OR REPLACE FUNCTION public.reset_expected_couple_membership(p_expected_user_id uuid, p_expected_couple_id uuid)\n RETURNS jsonb\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'pg_catalog', 'public'\n SET lock_timeout TO '5s'\n SET statement_timeout TO '15s'\nAS $function$\nDECLARE\n  v_user_id uuid := auth.uid();\n  v_couple_id uuid;\nBEGIN\n  IF v_user_id IS NULL\n     OR auth.role() IS DISTINCT FROM 'authenticated' THEN\n    RAISE EXCEPTION 'authentication_required' USING ERRCODE = '42501';\n  END IF;\n\n  -- 기존 reset RPC와 같은 profile -> couple 순서다. 이 잠금은 내부 RPC의\n  -- 재조회·분리 작업이 끝날 때까지 유지되어 검증 뒤 커플이 바뀌지 않는다.\n  SELECT profile.couple_id\n  INTO v_couple_id\n  FROM public.profiles AS profile\n  WHERE profile.id = v_user_id\n  FOR UPDATE;\n\n  IF NOT FOUND THEN\n    RAISE EXCEPTION 'profile_not_found' USING ERRCODE = 'P0002';\n  END IF;\n\n  IF p_expected_user_id IS DISTINCT FROM v_user_id THEN\n    RAISE EXCEPTION 'couple_reset_user_changed' USING ERRCODE = 'P0001';\n  END IF;\n  IF p_expected_couple_id IS DISTINCT FROM v_couple_id THEN\n    RAISE EXCEPTION 'couple_reset_couple_changed' USING ERRCODE = 'P0001';\n  END IF;\n\n  RETURN public.reset_current_couple_membership();\nEND;\n$function$\n",
+      "volatility": "v",
+      "description": "Checks the confirmed actor and couple under a profile row lock before the existing atomic reset.",
+      "securityDefiner": true
+    }
+  ],
+  "legacyFunctions": [
+    {
+      "acl": [
+        [
+          "authenticated",
+          "postgres",
+          "EXECUTE",
+          false
+        ],
+        [
+          "postgres",
+          "postgres",
+          "EXECUTE",
+          false
+        ]
+      ],
+      "args": "",
+      "body": "\nDECLARE\n  v_user_id uuid := auth.uid();\n  v_couple_id uuid;\n  v_bride_id uuid;\n  v_groom_id uuid;\nBEGIN\n  IF v_user_id IS NULL\n     OR auth.role() IS DISTINCT FROM 'authenticated' THEN\n    RAISE EXCEPTION 'authentication_required' USING ERRCODE = '42501';\n  END IF;\n\n  SELECT profile.couple_id\n  INTO v_couple_id\n  FROM public.profiles AS profile\n  WHERE profile.id = v_user_id\n  FOR UPDATE;\n\n  IF NOT FOUND THEN\n    RAISE EXCEPTION 'profile_not_found' USING ERRCODE = 'P0002';\n  END IF;\n\n  -- Both the couple and profile membership guards require this transaction-\n  -- local capability, including an idempotent retry where couple_id is null.\n  PERFORM pg_catalog.set_config('hanbang.allow_membership_write', 'on', true);\n\n  IF v_couple_id IS NOT NULL THEN\n    -- Serialize membership changes for this couple before locking its row.\n    PERFORM pg_catalog.pg_advisory_xact_lock(\n      pg_catalog.hashtextextended(v_couple_id::text, 0)\n    );\n\n    SELECT couple.bride_id, couple.groom_id\n    INTO v_bride_id, v_groom_id\n    FROM public.couples AS couple\n    WHERE couple.id = v_couple_id\n    FOR UPDATE;\n\n    IF FOUND THEN\n      IF v_bride_id IS DISTINCT FROM v_user_id\n         AND v_groom_id IS DISTINCT FROM v_user_id THEN\n        RAISE EXCEPTION 'membership_inconsistent' USING ERRCODE = 'P0001';\n      END IF;\n\n      UPDATE public.couples\n      SET bride_id = CASE WHEN bride_id = v_user_id THEN NULL ELSE bride_id END,\n          groom_id = CASE WHEN groom_id = v_user_id THEN NULL ELSE groom_id END,\n          updated_at = now()\n      WHERE id = v_couple_id;\n    END IF;\n  END IF;\n\n  UPDATE public.profiles\n  SET couple_id = NULL,\n      onboarding_completed = false,\n      onboarding_step = 1,\n      shared_chat_cleared_at = NULL,\n      private_chat_cleared_at = NULL,\n      updated_at = now()\n  WHERE id = v_user_id;\n\n  RETURN jsonb_build_object(\n    'success', true,\n    'previous_couple_id', v_couple_id\n  );\nEND;\n",
+      "kind": "f",
+      "name": "reset_current_couple_membership",
+      "owner": "postgres",
+      "config": [
+        "search_path=pg_catalog, public",
+        "lock_timeout=5s",
+        "statement_timeout=15s"
+      ],
+      "result": "jsonb",
+      "strict": false,
+      "language": "plpgsql",
+      "parallel": "u",
+      "definition": "CREATE OR REPLACE FUNCTION public.reset_current_couple_membership()\n RETURNS jsonb\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'pg_catalog', 'public'\n SET lock_timeout TO '5s'\n SET statement_timeout TO '15s'\nAS $function$\nDECLARE\n  v_user_id uuid := auth.uid();\n  v_couple_id uuid;\n  v_bride_id uuid;\n  v_groom_id uuid;\nBEGIN\n  IF v_user_id IS NULL\n     OR auth.role() IS DISTINCT FROM 'authenticated' THEN\n    RAISE EXCEPTION 'authentication_required' USING ERRCODE = '42501';\n  END IF;\n\n  SELECT profile.couple_id\n  INTO v_couple_id\n  FROM public.profiles AS profile\n  WHERE profile.id = v_user_id\n  FOR UPDATE;\n\n  IF NOT FOUND THEN\n    RAISE EXCEPTION 'profile_not_found' USING ERRCODE = 'P0002';\n  END IF;\n\n  -- Both the couple and profile membership guards require this transaction-\n  -- local capability, including an idempotent retry where couple_id is null.\n  PERFORM pg_catalog.set_config('hanbang.allow_membership_write', 'on', true);\n\n  IF v_couple_id IS NOT NULL THEN\n    -- Serialize membership changes for this couple before locking its row.\n    PERFORM pg_catalog.pg_advisory_xact_lock(\n      pg_catalog.hashtextextended(v_couple_id::text, 0)\n    );\n\n    SELECT couple.bride_id, couple.groom_id\n    INTO v_bride_id, v_groom_id\n    FROM public.couples AS couple\n    WHERE couple.id = v_couple_id\n    FOR UPDATE;\n\n    IF FOUND THEN\n      IF v_bride_id IS DISTINCT FROM v_user_id\n         AND v_groom_id IS DISTINCT FROM v_user_id THEN\n        RAISE EXCEPTION 'membership_inconsistent' USING ERRCODE = 'P0001';\n      END IF;\n\n      UPDATE public.couples\n      SET bride_id = CASE WHEN bride_id = v_user_id THEN NULL ELSE bride_id END,\n          groom_id = CASE WHEN groom_id = v_user_id THEN NULL ELSE groom_id END,\n          updated_at = now()\n      WHERE id = v_couple_id;\n    END IF;\n  END IF;\n\n  UPDATE public.profiles\n  SET couple_id = NULL,\n      onboarding_completed = false,\n      onboarding_step = 1,\n      shared_chat_cleared_at = NULL,\n      private_chat_cleared_at = NULL,\n      updated_at = now()\n  WHERE id = v_user_id;\n\n  RETURN jsonb_build_object(\n    'success', true,\n    'previous_couple_id', v_couple_id\n  );\nEND;\n$function$\n",
+      "volatility": "v",
+      "description": "Atomically detaches auth.uid() from its couple and resets onboarding state.",
+      "securityDefiner": true
+    }
+  ]
+}

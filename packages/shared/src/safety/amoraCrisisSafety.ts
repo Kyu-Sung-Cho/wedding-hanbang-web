@@ -3,6 +3,8 @@ import {
   KOREAN_QUOTATION_CONTEXT,
   MIXED_LANGUAGE_SELF_HARM,
 } from "./amoraCrisisEnglish";
+import { withoutAmoraExcludedWeddingVideoScenes } from "./amoraSafetyContentReferences";
+export { withoutAmoraExcludedWeddingVideoScenes } from "./amoraSafetyContentReferences";
 /** 한글 음절. 혼용 판정을 **한글이 있을 때로** 한정하는 데 쓴다. */
 const KOREAN_SYLLABLE_PATTERN = /[가-힣]/;
 import {
@@ -415,7 +417,7 @@ export function classifyAmoraCrisis(
     english.interpersonalDanger || CURRENT_STALKING_COMPOSITE_PATTERN.test(text);
 
   for (const segment of text.split(SEGMENT_BOUNDARY_PATTERN)) {
-    const candidate = segment.trim();
+    const candidate = withoutAmoraExcludedWeddingVideoScenes(segment).trim();
     if (!candidate) continue;
     if (
       FICTIONAL_GAME_CONTEXT_PATTERN.test(candidate)

@@ -76,4 +76,12 @@ describe("AnalyticsProvider admin preview boundary", () => {
       $current_url: `${window.location.origin}/wedding/vendors`,
     });
   });
+
+  it("never initializes analytics on the mobile OAuth callback", async () => {
+    mocks.pathname = "/auth/mobile-callback";
+    mocks.searchParams = new URLSearchParams("code=synthetic-pkce");
+    await renderProvider();
+    expect(mocks.init).not.toHaveBeenCalled();
+    expect(mocks.capture).not.toHaveBeenCalled();
+  });
 });

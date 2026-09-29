@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { log } from "@/utils/log";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClientFromRequest } from "@/lib/supabase/server";
+import { isConfirmedSignedOut } from "@/lib/auth/sessionFailure";
 import { isTrustedMutationRequest } from "@/utils/trustedMutation";
 import { checkRateLimitPersistent, rateLimitKey } from "@/utils/rateLimit";
 import { isBodyTooLarge } from "@/utils/requestValidation";
@@ -134,10 +135,14 @@ export async function POST(request: Request) {
     const authClient = await createClientFromRequest(request);
     const {
       data: { user },
-    } = await authClient.auth.getUser();
+      error: authError,
+    } = await authClient.auth.getUser().catch((error: unknown) => ({ data: { user: null }, error }));
 
-    if (!user) {
-      return NextResponse.json({ error: "인증이 필요합니다." }, { status: 401 });
+    if (authError && !isConfirmedSignedOut(authError)) {
+      return NextResponse.json({ error: "로그인 정보를 확인하지 못했어요. 잠시 후 다시 시도해 주세요." }, { status: 503, headers: { "Cache-Control": "private, no-store" } });
+    }
+    if (!user || authError) {
+      return NextResponse.json({ error: "인증이 필요합니다." }, { status: 401, headers: { "Cache-Control": "private, no-store" } });
     }
 
     const limited = await checkRateLimitPersistent(

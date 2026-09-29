@@ -13,7 +13,7 @@ const source = fs.readFileSync(
 );
 
 test("mobile account deletion uses the durable web saga and handles pending truthfully", () => {
-  assert.match(source, /apiFetch\("\/api\/auth\/delete"/);
+  assert.match(source, /apiFetchForExpectedUser\(deletionOwnerId, "\/api\/auth\/delete"/);
   assert.match(source, /body\.pending/);
   assert.match(source, /삭제 요청 접수/);
   assert.doesNotMatch(source, /functions\/v1\/delete-account/);

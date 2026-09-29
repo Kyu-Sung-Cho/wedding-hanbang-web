@@ -3,6 +3,8 @@
 import { create } from "zustand";
 import { compareChatTimestamps } from "@hanbang/shared";
 import { PLANNING_CATEGORY_LABELS } from "@/constants/planningCategories";
+import { CHECKLIST_MAP } from "@/constants/checklists";
+import { calculateStatus, mergeChecklist } from "@/utils/checklist";
 import type { RealtimeChannel } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/client";
 import { captureEvent } from "@/lib/analytics";
@@ -38,6 +40,7 @@ import type {
   ToolExecutionResult,
   ChatMessageMetadata,
   ChatMessageTarget,
+  ChecklistItem,
 } from "@/types/database.types";
 import type { ChatSendOutcome, SSEEvent, WeddingContext } from "@/types/chat.types";
 import {
@@ -599,18 +602,44 @@ export function syncToolResult(result: ToolExecutionResult) {
     }
     case "toggle_checklist_item": {
       const currentP4 = authStore.journey?.progress ?? {};
-      const cat = result.toolInput.category as string;
-      const iId = result.toolInput.item_id as string;
-      const doneVal = result.toolInput.done as boolean;
-      const newStat = result.toolOutput.new_status as string;
+      const { category: cat, item_id: iId, done: doneVal } = result.toolInput;
+      const output = result.toolOutput;
+      const newStat = output.new_status;
+      if (typeof cat !== "string" || !Object.hasOwn(CHECKLIST_MAP, cat)
+        || typeof iId !== "string" || typeof doneVal !== "boolean"
+        || output.category !== cat || output.item_id !== iId || output.done !== doneVal
+        || typeof output.item_label !== "string"
+        || (newStat !== "not_started" && newStat !== "in_progress" && newStat !== "completed")) break;
       const existingCat = currentP4[cat];
-      const cl = (existingCat?.checklist ?? []).map((c: { id: string; label: string; done: boolean }) =>
-        c.id === iId ? { ...c, done: doneVal } : c
-      );
+      const validChecklist = (value: unknown): value is ChecklistItem[] => Array.isArray(value)
+        && value.length <= 100
+        && value.every((item: unknown) => typeof item === "object" && item !== null
+          && "id" in item && typeof item.id === "string" && item.id.length > 0 && [...item.id].length <= 120
+          && "label" in item && typeof item.label === "string" && item.label.length > 0 && [...item.label].length <= 500
+          && "done" in item && typeof item.done === "boolean")
+        && new Set(value.map((item: ChecklistItem) => item.id)).size === value.length;
+      let cl: ChecklistItem[];
+      if (Object.hasOwn(output, "progress_value") || Object.hasOwn(output, "progress_key")) {
+        const value = output.progress_value;
+        if (output.progress_key !== cat || typeof value !== "object" || value === null
+          || !("category" in value) || value.category !== cat
+          || !("status" in value) || value.status !== newStat
+          || !("checklist" in value) || !validChecklist(value.checklist)) break;
+        // 저장된 전체 항목을 사용한다. 첫 체크는 로컬 배열에 아직 없을 수 있다.
+        cl = value.checklist.map(({ id, label, done }) => ({ id, label, done }));
+      } else {
+        // 과거 영수증은 정확한 성공 대상·상태가 맞을 때만 템플릿과 병합한다.
+        if (existingCat?.checklist !== undefined && !validChecklist(existingCat.checklist)) break;
+        cl = mergeChecklist(CHECKLIST_MAP[cat].items, existingCat?.checklist)
+          .map(({ id, label, done }) => ({ id, label, done: id === iId ? doneVal : done }));
+      }
+      const target = cl.find((item) => item.id === iId);
+      if (!target || target.done !== doneVal || target.label !== output.item_label
+        || calculateStatus(cl) !== newStat) break;
       authStore.updateJourneyLocal({
         progress: {
           ...currentP4,
-          [cat]: { ...(existingCat ?? { category: cat }), category: cat, status: newStat as "not_started" | "in_progress" | "completed", checklist: cl },
+          [cat]: { ...existingCat, category: cat, status: newStat, checklist: cl },
         },
       });
       break;

@@ -61,7 +61,7 @@ export type BeginAccountDeletionDeps = {
   /** 그 사용자로만 `/api/auth/me` 를 읽는다. */
   fetchMe: (ownerId: string) => Promise<MeResponseLike>;
   /** 열림이 확인됐을 때만 부른다 — 되돌릴 수 없는 두 번 확인. */
-  showConfirm: () => void;
+  showConfirm: (ownerId: string) => void;
   /** 닫힘·모름 — 이메일 요청 안내. 삭제 API 를 부르지 않는다. */
   showSupport: (notice: string, state: AccountDeletionSupportState) => void;
 };
@@ -70,6 +70,7 @@ export async function beginAccountDeletion(
   deps: BeginAccountDeletionDeps,
 ): Promise<AccountDeletionIntakeState> {
   let state: AccountDeletionIntakeState = "unknown";
+  let confirmedOwnerId = "";
   try {
     const ownerId = await deps.readOwnerId();
     if (ownerId) {
@@ -78,12 +79,13 @@ export async function beginAccountDeletion(
       state = readAccountDeletionIntakeState(response.ok, payload, ownerId);
       // 응답을 기다리는 사이 계정이 바뀌었으면 그 열림은 지금 계정의 것이 아니다.
       if (state === "open" && (await deps.readOwnerId()) !== ownerId) state = "unknown";
+      if (state === "open") confirmedOwnerId = ownerId;
     }
   } catch {
     state = "unknown";
   }
   if (state === "open") {
-    deps.showConfirm();
+    deps.showConfirm(confirmedOwnerId);
   } else {
     deps.showSupport(accountDeletionSupportNotice(state), state);
   }

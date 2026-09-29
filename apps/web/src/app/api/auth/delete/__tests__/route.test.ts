@@ -29,7 +29,7 @@ function deletionRequest(reason = "unsatisfied") {
   return new Request("http://localhost/api/auth/delete", {
     method: "DELETE",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ reason }),
+    body: JSON.stringify({ reason, expectedOwnerId: USER_ID }),
   });
 }
 
@@ -124,6 +124,39 @@ describe("/api/auth/delete DELETE", () => {
       expect.any(Number),
       { processImmediately: false },
     );
+  });
+
+  it("rejects a cookie account change after the user confirmed a different account", async () => {
+    vi.mocked(requestAccountDeletion).mockResolvedValue({ status: "pending" });
+    vi.mocked(createClientFromRequest).mockResolvedValue({
+      auth: { getUser: vi.fn().mockResolvedValue({ data: { user: { id: "22222222-2222-4222-8222-222222222222" } }, error: null }) },
+    } as never);
+    const response = await DELETE(deletionRequest("privacy"));
+    expect(response.status).toBe(409);
+    expect(await response.json()).toMatchObject({ code: "ACCOUNT_DELETION_IDENTITY_CHANGED" });
+    expect(requestAccountDeletion).not.toHaveBeenCalled();
+    expect(createAdminClient).not.toHaveBeenCalled();
+  });
+
+  it("requires a confirmed account for cookie-authenticated deletion", async () => {
+    vi.mocked(requestAccountDeletion).mockResolvedValue({ status: "pending" });
+    const response = await DELETE(new Request("http://localhost/api/auth/delete", {
+      method: "DELETE", headers: { "content-type": "application/json" }, body: JSON.stringify({ reason: "privacy" }),
+    }));
+    expect(response.status).toBe(409);
+    expect(requestAccountDeletion).not.toHaveBeenCalled();
+  });
+
+  it("keeps legacy native Bearer requests compatible while honoring an explicit expected account", async () => {
+    vi.mocked(requestAccountDeletion).mockResolvedValue({ status: "pending" });
+    const request = (expectedOwnerId?: string) => new Request("http://localhost/api/auth/delete", {
+      method: "DELETE", headers: { "content-type": "application/json", authorization: "Bearer synthetic.jwt.token" },
+      body: JSON.stringify({ reason: "mobile_request", ...(expectedOwnerId ? { expectedOwnerId } : {}) }),
+    });
+    expect((await DELETE(request())).status).toBe(202);
+    vi.mocked(requestAccountDeletion).mockClear();
+    expect((await DELETE(request("22222222-2222-4222-8222-222222222222"))).status).toBe(409);
+    expect(requestAccountDeletion).not.toHaveBeenCalled();
   });
 
   it("does not persist free-text deletion feedback that may contain PII", async () => {

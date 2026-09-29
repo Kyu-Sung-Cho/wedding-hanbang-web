@@ -273,6 +273,158 @@ describe("community comments route", () => {
   });
 
   it.each([
+    { label: "keeps replies below a readable author-deleted parent", deletedParents: [{ id: PARENT_ID }], lookupError: null, activeCases: [], moderationError: null, expectedStatus: 200, expectedThreads: 2 },
+    { label: "keeps blocked, moderated, or missing parent subtrees hidden", deletedParents: [], lookupError: null, activeCases: [], moderationError: null, expectedStatus: 200, expectedThreads: 1 },
+    { label: "fails closed when deleted-parent visibility cannot be checked", deletedParents: null, lookupError: { code: "42501" }, activeCases: [], moderationError: null, expectedStatus: 500, expectedThreads: 0 },
+    { label: "keeps active moderation containment after the parent author deletes", deletedParents: [{ id: PARENT_ID }], lookupError: null, activeCases: [{ target_id: PARENT_ID }], moderationError: null, expectedStatus: 200, expectedThreads: 1 },
+    { label: "fails closed when active moderation cannot be checked", deletedParents: [{ id: PARENT_ID }], lookupError: null, activeCases: null, moderationError: { code: "42501" }, expectedStatus: 500, expectedThreads: 0 },
+  ])("$label", async ({ deletedParents, lookupError, activeCases, moderationError, expectedStatus, expectedThreads }) => {
+    const reply = {
+      id: "66666666-6666-4666-8666-666666666666",
+      post_id: POST_ID,
+      parent_id: PARENT_ID,
+      author_id: USER_ID,
+      content_origin: "member",
+      content: "삭제하지 않은 다른 회원의 답글",
+      upvote_count: 0,
+      is_deleted: false,
+      created_at: "2026-09-28T00:00:00.000Z",
+      updated_at: "2026-09-28T00:00:00.000Z",
+    };
+    const regularParent = { ...reply, id: OTHER_POST_ID, parent_id: null };
+    const regularReply = { ...reply, id: IDEMPOTENCY_KEY, parent_id: OTHER_POST_ID };
+    const siblingReply = { ...reply, id: "77777777-7777-4777-8777-777777777777" };
+    const visibleRows = [regularParent, reply, regularReply, siblingReply];
+    const filters: Array<[string, unknown]> = [];
+    const commentsQuery = {
+      eq: vi.fn((column: string, value: unknown) => {
+        filters.push([column, value]);
+        return commentsQuery;
+      }),
+      order: vi.fn(async () => queryResult(visibleRows)),
+    };
+    const parentFilters: Array<[string, ...unknown[]]> = [];
+    const parentQuery = {
+      eq: vi.fn((column: string, value: unknown) => {
+        parentFilters.push(["eq", column, value]);
+        return parentQuery;
+      }),
+      is: vi.fn((column: string, value: unknown) => {
+        parentFilters.push(["is", column, value]);
+        return parentQuery;
+      }),
+      not: vi.fn((column: string, operator: string, value: unknown) => {
+        parentFilters.push(["not", column, operator, value]);
+        return parentQuery;
+      }),
+      in: vi.fn(async (column: string, value: unknown) => {
+        parentFilters.push(["in", column, value]);
+        return queryResult(deletedParents, lookupError);
+      }),
+    };
+    const from = vi.fn((table: string) => {
+      if (table === "community_posts") {
+        return {
+          select: vi.fn(() => ({
+            eq: vi.fn(() => ({
+              maybeSingle: vi.fn(async () => queryResult({
+                id: POST_ID,
+                author_id: USER_ID,
+                visibility: "public",
+                under_review: false,
+              })),
+            })),
+          })),
+        };
+      }
+      if (table === "community_comments") {
+        return { select: vi.fn((columns: string) => {
+          if (columns === "*") return commentsQuery;
+          if (columns === "id") return parentQuery;
+          throw new Error(`Unexpected comment projection: ${columns}`);
+        }) };
+      }
+      throw new Error(`Unexpected table: ${table}`);
+    });
+    mocks.createClientFromRequest.mockResolvedValue({
+      auth: { getUser: vi.fn(async () => ({ data: { user: null } })) },
+      from,
+    });
+    const moderationFilters: Array<[string, unknown]> = [];
+    const moderationQuery = {
+      eq: vi.fn((column: string, value: unknown) => {
+        moderationFilters.push([column, value]);
+        return moderationQuery;
+      }),
+      in: vi.fn(async (column: string, value: unknown) => {
+        moderationFilters.push([column, value]);
+        return queryResult(activeCases, moderationError);
+      }),
+    };
+    const moderationSelect = vi.fn((columns: string) => {
+      expect(columns).toBe("target_id");
+      return moderationQuery;
+    });
+    const serviceFrom = vi.fn((table: string) => {
+      expect(table).toBe("community_moderation_cases");
+      return { select: moderationSelect };
+    });
+    mocks.createAdminClient.mockReturnValue({ from: serviceFrom });
+
+    const response = await GET(request("GET") as never);
+    const body = await response.json();
+
+    expect(response.status).toBe(expectedStatus);
+    expect(filters).toEqual([["post_id", POST_ID], ["is_deleted", false]]);
+    expect(parentFilters).toEqual([
+      ["eq", "post_id", POST_ID],
+      ["is", "parent_id", null],
+      ["eq", "is_deleted", true],
+      ["not", "author_deleted_at", "is", null],
+      ["in", "id", [PARENT_ID]],
+    ]);
+    if (expectedStatus === 200) expect(body.comments).toHaveLength(expectedThreads);
+    if (!lookupError && deletedParents?.length) {
+      expect(moderationFilters).toEqual([
+        ["target_type", "comment"],
+        ["status", "active"],
+        ["target_id", [PARENT_ID]],
+      ]);
+    } else {
+      expect(mocks.createAdminClient).not.toHaveBeenCalled();
+    }
+    expect(mocks.getCommunityAuthorMap).toHaveBeenCalledWith(expect.anything(), [USER_ID]);
+    if (expectedStatus !== 200) {
+      expect(body.comments).toBeUndefined();
+      return;
+    }
+    expect(body.comments).toHaveLength(expectedThreads);
+    expect(body.comments[0]).toMatchObject({
+      id: OTHER_POST_ID,
+      replies: [{ id: IDEMPOTENCY_KEY }],
+    });
+    if (expectedThreads === 1) {
+      expect(JSON.stringify(body)).not.toContain(reply.id);
+      return;
+    }
+    expect(body.comments[1]).toMatchObject({
+      id: PARENT_ID,
+      parent_id: null,
+      is_deleted: true,
+      author_id: "",
+      content: "",
+      created_at: "",
+      updated_at: "",
+      replies: [
+        { id: reply.id, content: reply.content },
+        { id: siblingReply.id, content: siblingReply.content },
+      ],
+    });
+    expect(body.comments[1].author.user_id).not.toBe(USER_ID);
+    expect(from.mock.calls.filter(([table]) => table === "community_comments")).toHaveLength(2);
+  });
+
+  it.each([
     ["missing", null, 404],
     [
       "deleted",

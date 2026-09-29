@@ -17,6 +17,12 @@ const UUID_RE =
 const MAX_MESSAGE_BODY_BYTES = 16 * 1024;
 const MAX_MESSAGE_LENGTH = 2000;
 
+function privateJson(body: unknown, init: ResponseInit = {}) {
+  const headers = new Headers(init.headers);
+  headers.set("Cache-Control", "private, no-store, max-age=0");
+  return NextResponse.json(body, { ...init, headers });
+}
+
 function isUuid(value: unknown): value is string {
   return typeof value === "string" && UUID_RE.test(value);
 }
@@ -27,7 +33,7 @@ export async function GET(req: Request) {
     const { data: { user } } = await supabase.auth.getUser();
 
     if (!user) {
-      return NextResponse.json({ error: "인증이 필요합니다." }, { status: 401 });
+      return privateJson({ error: "인증이 필요합니다." }, { status: 401 });
     }
 
     const { searchParams } = new URL(req.url);
@@ -35,11 +41,11 @@ export async function GET(req: Request) {
     const customerId = searchParams.get("customerId");
 
     if (!isUuid(vendorId)) {
-      return NextResponse.json({ error: "vendorId는 필수입니다." }, { status: 400 });
+      return privateJson({ error: "vendorId는 필수입니다." }, { status: 400 });
     }
 
     if (customerId && !isUuid(customerId)) {
-      return NextResponse.json({ error: "customerId가 올바르지 않습니다." }, { status: 400 });
+      return privateJson({ error: "customerId가 올바르지 않습니다." }, { status: 400 });
     }
 
     let query = supabase
@@ -57,7 +63,7 @@ export async function GET(req: Request) {
       );
 
       if (!vendorOwner) {
-        return NextResponse.json({ error: "권한이 없습니다." }, { status: 403 });
+        return privateJson({ error: "권한이 없습니다." }, { status: 403 });
       }
       query = query.eq("customer_id", customerId);
     } else {
@@ -67,15 +73,15 @@ export async function GET(req: Request) {
     const { data: messageRows, error } = await query;
 
     if (error) {
-      return NextResponse.json({ error: "메시지를 불러올 수 없습니다." }, { status: 500 });
+      return privateJson({ error: "메시지를 불러올 수 없습니다." }, { status: 500 });
     }
 
-    // 읽음 처리
+    // 외부 링크 이동과 HEAD 사전 조회는 읽음 상태를 바꾸지 않는다.
     const unreadIds = (messageRows ?? [])
       .filter((m) => !m.is_read && m.sender_type !== (customerId ? "vendor" : "customer"))
       .map((m) => m.id);
 
-    if (unreadIds.length > 0) {
+    if (unreadIds.length > 0 && req.method === "GET" && isTrustedMutationRequest(req)) {
       await supabase
         .from("vendor_messages")
         .update({ is_read: true })
@@ -84,12 +90,17 @@ export async function GET(req: Request) {
 
     const messages = (messageRows ?? []).map(messageRowToMessage);
 
-    return NextResponse.json({ messages });
+    return privateJson({ messages });
   } catch (err) {
     log.error("api/messages", err);
     console.error("Messages GET error:", err);
-    return NextResponse.json({ error: "서버 오류가 발생했습니다." }, { status: 500 });
+    return privateJson({ error: "서버 오류가 발생했습니다." }, { status: 500 });
   }
+}
+
+export async function HEAD(req: Request) {
+  const response = await GET(req);
+  return new Response(null, { status: response.status, headers: response.headers });
 }
 
 export async function POST(req: Request) {

@@ -36,6 +36,8 @@ describe("settings account deletion requires a current account and explicit conf
   let readAccount: () => Promise<Response>;
   let respondToDelete: () => Promise<Response>;
   let deleteRequests: RequestInit[];
+  let resetRequests: RequestInit[];
+  let respondToReset: () => Promise<Response>;
 
   beforeEach(() => {
     originalState = useAuthStore.getState();
@@ -45,12 +47,18 @@ describe("settings account deletion requires a current account and explicit conf
     readAccount = async () => accountResponse(false);
     respondToDelete = async () => new Response(JSON.stringify({ error: "테스트 응답" }), { status: 503 });
     deleteRequests = [];
+    resetRequests = [];
+    respondToReset = async () => new Response(JSON.stringify({ error: "초기화 테스트 응답" }), { status: 503 });
     vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       if (String(input) === "/api/auth/me") return readAccount();
       if (String(input) === "/api/auth/delete") {
         deleteRequests.push(init ?? {});
         // 실제 계정은 건드리지 않는다. 요청이 발생했는지만 관찰한다.
         return respondToDelete();
+      }
+      if (String(input) === "/api/couple/reset") {
+        resetRequests.push(init ?? {});
+        return respondToReset();
       }
       throw new Error(`Unexpected request: ${String(input)}`);
     }));
@@ -134,7 +142,7 @@ describe("settings account deletion requires a current account and explicit conf
     await act(async () => button("계정 삭제 요청").click());
     expect(deleteRequests).toHaveLength(1);
     expect(deleteRequests[0]?.method).toBe("DELETE");
-    expect(JSON.parse(String(deleteRequests[0]?.body))).toEqual({ reason: "privacy" });
+    expect(JSON.parse(String(deleteRequests[0]?.body))).toEqual({ reason: "privacy", expectedOwnerId: ACCOUNT_A.id });
   });
 
   it("an old account's delayed capability cannot enable deletion after switching accounts", async () => {
@@ -190,5 +198,69 @@ describe("settings account deletion requires a current account and explicit conf
     await act(async () => button("계정 탈퇴").click());
     expect(button("계정 삭제 요청").disabled).toBe(true);
     expect(deleteRequests).toHaveLength(1);
+  });
+
+  const COUPLE_A = "20000000-0000-4000-8000-000000000001";
+  const COUPLE_B = "20000000-0000-4000-8000-000000000002";
+  function setPreparation(coupleId: string, account = ACCOUNT_A) {
+    useAuthStore.setState({ user: account, profile: { id: account.id, name: "본인", role: null, couple_id: coupleId,
+      avatar_url: null, onboarding_completed: true, onboarding_step: 5, is_admin: false,
+      created_at: "2026-09-28T00:00:00Z", updated_at: "2026-09-28T00:00:00Z" } });
+  }
+  async function openReset() {
+    const action = [...container.querySelectorAll("button")].find(candidate => candidate.textContent?.includes("새 커플로 다시 시작"));
+    expect(action).toBeTruthy();
+    await act(async () => action!.click());
+  }
+  async function fillReset() {
+    const input = container.querySelector<HTMLInputElement>('input[placeholder="초기화합니다"]');
+    expect(input).toBeTruthy();
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(input, "초기화합니다");
+      input!.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+  }
+
+  it("pins reset to the user and couple shown in its confirmation", async () => {
+    setPreparation(COUPLE_A);
+    await act(async () => root.render(<SettingsPage />));
+    await openReset();
+    await fillReset();
+    await act(async () => button("다시 시작").click());
+    expect(resetRequests).toHaveLength(1);
+    expect(JSON.parse(String(resetRequests[0]?.body))).toEqual({ confirmText: "초기화합니다", expectedUserId: ACCOUNT_A.id, expectedCoupleId: COUPLE_A });
+  });
+
+  it.each(["account", "couple"])("invalidates an already typed reset confirmation after %s changes", async change => {
+    setPreparation(COUPLE_A);
+    await act(async () => root.render(<SettingsPage />));
+    await openReset();
+    await fillReset();
+    await act(async () => setPreparation(COUPLE_B, change === "account" ? ACCOUNT_B : ACCOUNT_A));
+    // 퇴장 애니메이션이 보관한 옛 버튼을 눌러도 새 준비 공간을 초기화하지 않는다.
+    const exitingButton = [...container.querySelectorAll("button")].find(candidate => candidate.textContent?.trim() === "다시 시작");
+    if (exitingButton) await act(async () => exitingButton.click());
+    expect(resetRequests).toEqual([]);
+    await openReset();
+    expect(container.querySelector<HTMLInputElement>('input[placeholder="초기화합니다"]')?.value).toBe("");
+    expect(button("다시 시작").disabled).toBe(true);
+    expect(resetRequests).toEqual([]);
+  });
+
+  it("ignores a delayed reset success after the current couple has changed", async () => {
+    setPreparation(COUPLE_A);
+    const pending = deferredResponse();
+    respondToReset = () => pending.promise;
+    await act(async () => root.render(<SettingsPage />));
+    await openReset();
+    await fillReset();
+    await act(async () => button("다시 시작").click());
+    document.cookie = "onboarding_complete=true; path=/";
+    await act(async () => setPreparation(COUPLE_B));
+    await act(async () => pending.resolve(new Response(JSON.stringify({ success: true }))));
+    expect(document.cookie).toContain("onboarding_complete=true");
+    expect(window.location.pathname).toBe("/settings");
+    expect(resetRequests).toHaveLength(1);
+    document.cookie = "onboarding_complete=; path=/; max-age=0";
   });
 });

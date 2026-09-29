@@ -57,7 +57,7 @@ describe("support identity issuance API", () => {
   });
   it.each([{ data: { user: null }, error: null }, { data: { user: { id: USER, is_anonymous: true } }, error: null }, { data: { user: { id: USER } }, error: new Error("private-auth-details") }])("rejects missing, anonymous or failed server authentication", async auth => {
     m.auth.mockResolvedValue(auth); const response = await POST(request());
-    expect(response.status).toBe(401); privateResponse(response); expect(m.limit).not.toHaveBeenCalled();
+    expect(response.status).toBe(auth.error ? 503 : 401); privateResponse(response); expect(m.limit).not.toHaveBeenCalled();
   });
   it("keeps rate denial private and does not sign when the limiter refuses or fails", async () => {
     m.limit.mockResolvedValue(new Response(JSON.stringify({ error: "limited" }), { status: 429 }));
