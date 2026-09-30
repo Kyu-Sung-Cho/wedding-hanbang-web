@@ -16,6 +16,7 @@ export interface ScrubbableEvent {
   user?: unknown;
   request?: unknown;
   extra?: unknown;
+  contexts?: unknown;
   message?: string;
   transaction?: string;
   breadcrumbs?: ScrubbableBreadcrumb[];
@@ -44,11 +45,38 @@ export function redactSentryText(value: string | undefined): string | undefined 
     .replace(/\b(?:sk|sbp|sntrys)_[A-Za-z0-9_-]{16,}\b/g, REDACTED);
 }
 
+/**
+ * 브라우저 SDK 는 페이지 로드 성능 이벤트에 `contexts.trace.data["url.full"]` 로 **주소 전체**를 싣는다
+ * (2026-09-29 운영에서 확인: `…/wedding-code?utm_source=x#v=…&a=<답 코드>`). `request` 를 지워도 이 자리는 남는다.
+ * 웨딩코드 링크는 `#` 뒤에 답 전체와 함께 보기 접근 키를, `?` 뒤에는 유입 표식을 싣고 다니므로 서버에 보내지
+ * 않으려고 `#` 뒤에 둔 것이 여기서 새어 나간다. 주소는 도메인과 경로만 남긴다.
+ *
+ * 주소 모양이 아닌 값(`sentry.op`, 측정값)은 그대로 둔다. 어느 화면이 느렸는지는 알아야 하기 때문이다.
+ * `url.query`·`url.fragment` 처럼 이름이 꼬리를 뜻하는 칸은 통째로 버린다.
+ */
+const URL_TAIL = /[?#][\s\S]*$/;
+const URL_TAIL_KEY = /(?:^|[._])(?:query|fragment|hash|search)$/i;
+const MAX_CONTEXT_DEPTH = 6;
+
+function stripUrlTails(value: unknown, depth = 0): unknown {
+  if (typeof value === "string") return /^https?:\/\//i.test(value) ? value.replace(URL_TAIL, "") : value;
+  if (value === null || typeof value !== "object" || depth >= MAX_CONTEXT_DEPTH) return value;
+  if (Array.isArray(value)) return value.map(item => stripUrlTails(item, depth + 1));
+
+  const cleaned: Record<string, unknown> = {};
+  for (const [key, item] of Object.entries(value)) {
+    if (URL_TAIL_KEY.test(key)) continue;
+    cleaned[key] = stripUrlTails(item, depth + 1);
+  }
+  return cleaned;
+}
+
 function removeCommonPrivateFields<T extends ScrubbableEvent>(event: T): T {
   // `extra`는 임의 payload가 실리는 자리다. 마스킹이 아니라 통째로 버린다.
   event.user = undefined;
   event.request = undefined;
   event.extra = undefined;
+  if (event.contexts !== undefined) event.contexts = stripUrlTails(event.contexts);
   event.message = redactSentryText(event.message);
   event.transaction = redactSentryText(event.transaction);
   event.breadcrumbs = event.breadcrumbs?.map(sanitizeSentryBreadcrumb);
