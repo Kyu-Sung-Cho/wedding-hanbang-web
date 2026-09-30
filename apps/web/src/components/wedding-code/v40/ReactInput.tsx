@@ -86,8 +86,8 @@ export function ReactInput({ view, value, onAnswer, idPrefix, incomplete = false
         </div>
         {/* 양끝 이름은 칸의 낭독 이름과 그룹 설명에 이미 들어 있어서 눈에만 보이게 한다. */}
         <div aria-hidden="true" className="mt-1 flex justify-between gap-4">
-          <span className={cx(bodyText, "max-w-[46%] text-left font-medium")}>{view.ends.left}</span>
-          <span className={cx(bodyText, "max-w-[46%] text-right font-medium")}>{view.ends.right}</span>
+          <span className={cx(bodyText, "max-w-[46%] text-left text-balance font-medium")}>{view.ends.left}</span>
+          <span className={cx(bodyText, "max-w-[46%] text-right text-balance font-medium")}>{view.ends.right}</span>
         </div>
       </div>
       <p id={ids.incomplete} role="status" aria-live="polite" className={cx(noticeText, showIncomplete && cx("mt-3", noticeBox))}>

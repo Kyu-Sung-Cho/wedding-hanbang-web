@@ -564,6 +564,18 @@ export interface SelfContrast {
   readonly gatheredBand: "clear" | "lean";
 }
 
+/**
+ * 마지막에 직접 고른 쪽 줄(결과 화면 주제 블록의 사실 줄, 웨딩코드 4.1 단계 1). 자기 선택 문항에서 본인이 고른 방향과 세기를 그대로 적는다.
+ * 여러 질문에서 모인 답과 견주지 않고 위치 반복 힌트와 건너뜀 힌트에도 흔들리지 않는다(score.selfLine).
+ */
+export interface SelfLine {
+  readonly axis: Axis;
+  readonly side: Side;
+  readonly letter: Letter;
+  /** 자기 선택 세기: 1 조금, 2 꽤, 3 아주. */
+  readonly level: 1 | 2 | 3;
+}
+
 /** 힌트를 적용한 뒤의 축 결과(화면이 읽는 것). */
 export interface AxisResult extends AxisScore {
   /** 위치 반복 힌트 또는 건너뜀 힌트가 있으면 band 를 한 단계 낮춘 값(한 단계까지만). unusable 이면 null. */

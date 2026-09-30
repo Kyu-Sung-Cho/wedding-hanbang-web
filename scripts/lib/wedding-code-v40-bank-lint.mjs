@@ -14,13 +14,17 @@
  *     structure 와 balance 위반은 어떤 경우에도 오류다.
  *
  * 내보내는 것
- *   lintBank(data, options)       은행 원본을 검사한다. options: { allowPlaceholder, layout, balanceTrials }. 반환 { errors, warnings, stats }.
+ *   lintBank(data, options)       은행 원본을 검사한다. options: { allowPlaceholder, layout, balanceTrials, noLegacy }. 반환 { errors, warnings, stats }.
+ *                                 noLegacy 는 경고 규칙 cost-repeats-head 와 split-third-decoy 의 「아직 안 고친 문항」 예외 목록을 끄고 규칙이 잡는 전부를 보게 한다(시험용).
  *   lintBankFile(path, options)   파일을 읽어 lintBank 를 부른다.
  *   formatReport(result, options) 사람이 읽는 보고서(options.verbose 이면 규칙마다 전부).
  *   RULES                         규칙 id -> { category, severity, description }. 시험이 모든 오류 규칙의 변형 시험 유무를 이것으로 센다.
  *   LIMITS                        글자 수 상한과 15퍼센트, 소재 유사도 상한.
  *   LETTER_NAMES, ENGLISH_NAMES, AXIS_TITLES, WRAP_UP_TITLE   문항에 쓰지 않는 이름과 자기 선택 캡션(상수 파일과 같은지 시험이 대조).
  *   BANNED_WORDS, VALUE_JUDGEMENT_WORDS, FORBIDDEN_TOPICS      금지어 목록.
+ *   REACT_END_ACCEPTANCE_TAIL     react 양끝 이름의 마지막 절 맺음(경고 규칙 react-end-acceptance).
+ *   COST_ECHO_GENERIC_STEMS, COST_ECHO_LEGACY_ITEMS      경고 규칙 cost-repeats-head 가 보지 않는 흔한 말과 아직 안 고친 문항.
+ *   SPLIT_THIRD_REST_PHRASES, SPLIT_THIRD_LEGACY_ITEMS   경고 규칙 split-third-decoy 가 잡는 쉬기·미루기 낱말과 아직 안 고친 문항.
  */
 import { readFileSync } from "node:fs";
 import * as ref from "./wedding-code-v40-ref.mjs";
@@ -40,6 +44,38 @@ export const BANNED_WORDS = ["검증", "정확", "과학", "진단", "점수", "
 export const VALUE_JUDGEMENT_WORDS = ["현명", "합리", "감성적", "충동적", "꼼꼼", "무난", "이성적", "감정적", "즉흥적", "계획적", "알뜰", "낭비", "사치", "이기적", "똑똑", "어리석"];
 /** 묻지 않는 주제(시작 화면 약속). */
 export const FORBIDDEN_TOPICS = ["신혼집", "예단", "예물", "양가비용", "비용분담"];
+/**
+ * react 양끝 이름의 마지막 절 맺음(R0, 2026-09-30). 다섯 칸의 양끝은 「대가 절 + 그 끝의 방식」 꼴이고(예: 지쳐도 다 같이 돌아보고 싶어요),
+ * 대가 절(~해도, ~지만, ~는데) 뒤의 마지막 절은 그 끝의 방식을 받아들이는 말로 맺는다.
+ * 옛 꼴(함께 가면 든든해도 지칠 것 같아요)은 마지막 절이 대가나 느낌이라 우리말 어법상 응답자가 그 절을 자기 마음으로 읽는다.
+ * 키는 첫 절이 이름 붙인 방식을 극으로 삼으므로, 오독한 응답자는 반대 칸을 누른다(시뮬레이션 응답자 18명 중 10명이 한 칸 이상 거꾸로 눌렀다).
+ */
+export const REACT_END_ACCEPTANCE_TAIL = "고 싶어요";
+
+/**
+ * 대가 절이 반대 극의 머리 절을 되풀이하는지 볼 때 세지 않는 흔한 낱말 뿌리(낱말의 첫 두 글자). 어느 극의 보기에도 들어갈 말이라 극 단서가 되지 않는다.
+ * 규칙 cost-repeats-head(R1, 2026-09-30): 보기는 「손이 하는 일(머리 절) + 대가 절」 꼴이고, 한 극의 대가 절이 반대 극의 머리 절에 있는 낱말을 되풀이하면
+ * 그 대가가 반대 극의 이득을 다시 말하는 두 번째 극 단서가 된다(옛 은행 「그리던 장면 하나는 접어야 해요」가 반대 카드의 「그리고」를 되풀이했다).
+ * 대가는 시간, 분위기, 쑥스러움처럼 반대 극의 이득과 다른 종류로 쓴다.
+ */
+export const COST_ECHO_GENERIC_STEMS = ["마음", "우리", "다시", "조금", "그날", "하나", "서로", "상대", "하루", "다른", "나중", "모두", "먼저", "바로", "아주", "지금", "이번", "자꾸"];
+/**
+ * R1 에서 다시 쓰지 않은 문항 가운데 이 규칙이 잡는 것들(2026-09-30 실제 은행에서 이 규칙이 낸 목록). 병합 관문(경고 0)을 지키려고 빼 두었을 뿐 고쳐도 된다는 뜻이 아니다.
+ * 새로 쓰거나 고친 문항은 이 목록에 넣지 않는다. 문항을 다시 쓰면 그 id 를 여기서 지운다(시험이 「목록의 문항이 아직 잡히는가」와
+ * 「목록 밖의 문항은 안 잡히는가」를 함께 본다).
+ */
+export const COST_ECHO_LEGACY_ITEMS = [
+  "scope.final.1", "scope.circle.1", "scope.form.2", "scope.form.3", "scope.circle.4",
+  "money.worth.2", "process.owner.3", "support.recover.1", "support.give.2", "support.recover.3",
+];
+
+/**
+ * 칸 나누기 셋째 항목(값 0)이 쉬기나 미루기로 끝나는 낱말. 값이 0이라도 셋째 항목은 고를 만한 실제 대안이어야 한다:
+ * 「쉬기」 「미루기」는 아무도 안 고르는 미끼라 여섯 칸이 앞 극과 뒤 극에만 몰리고, 그 몰림이 극 단서가 된다(WP3, 판정관 수정 q54).
+ */
+export const SPLIT_THIRD_REST_PHRASES = ["쉬기", "쉬고", "쉬면서", "쉬어", "쉬는", "쉴 수", "멍하니", "미루", "미뤄", "미룰", "접어 두", "접고", "내려놓", "잠시", "나중에", "손을 떼", "보류", "다른 급한 일", "자리를 비켜"];
+/** R1 에서 다시 쓰지 않은 칸 나누기 문항 가운데 셋째 항목이 위 낱말을 쓰는 것들. COST_ECHO_LEGACY_ITEMS 와 같은 규칙으로 다룬다. */
+export const SPLIT_THIRD_LEGACY_ITEMS = ["money.check.3", "process.detail.2", "scope.timing.2", "scope.final.4", "support.vent.1", "support.give.3"];
 
 export const LIMITS = {
   caption: 12,
@@ -143,6 +179,9 @@ export const RULES = {
   "duplicate-stem": { category: "content", severity: "error", description: "같은 주제 안에서 앞말이 겹치지 않음" },
   "duplicate-topic": { category: "content", severity: "error", description: "같은 주제 안 두 문항이 거의 같은 소재가 아님" },
   "question-form": { category: "content", severity: "warning", description: "react 물음이 물음표나 요로 끝남" },
+  "react-end-acceptance": { category: "content", severity: "warning", description: "react 양끝 이름에 대가 절(~해도, ~지만, ~는데)이 있으면 마지막 절이 그 끝의 방식을 받아들이는 말(~고 싶어요)로 끝남(대가나 느낌으로 끝나면 응답자가 그 끝을 거꾸로 읽는다)" },
+  "cost-repeats-head": { category: "content", severity: "warning", description: "한 극 보기의 대가 절이 반대 극 보기의 머리 절 낱말을 되풀이하지 않음(되풀이하면 대가가 반대 극의 이득을 다시 말하는 두 번째 극 단서가 된다)" },
+  "split-third-decoy": { category: "content", severity: "warning", description: "칸 나누기 셋째 항목(값 0)이 쉬기나 미루기 낱말이 아님(미끼 항목은 고르는 사람이 없어 칸이 두 극에만 몰린다)" },
 };
 
 // ---------------------------------------------------------------------------
@@ -435,6 +474,19 @@ function politenessProblem(field, item) {
   return null;
 }
 
+/** 대가 절을 잇는 말: 「~해도」 꼴(앞 글자 + 도 + 띄어쓰기), 「~지만」, 「~는데」 「~은데」 「~인데」. */
+const CONCESSIVE_RE = /(?:[가-힣]도|지만|[는은인]데)\s+/gu;
+
+/**
+ * react 양끝 이름의 마지막 대가 절 뒤에 오는 글. 대가 절이 없으면 null(「더 남을 것 같아요」 꼴의 비교처럼 이 꼴이 아닌 끝).
+ * 접속이 여럿이면 마지막 접속 뒤를 본다(「친구도 가족도 챙기고 싶어요」의 「도」 조사에 속지 않는다).
+ */
+function reactEndTail(text) {
+  let cut = -1;
+  for (const m of text.matchAll(CONCESSIVE_RE)) cut = m.index + m[0].length;
+  return cut < 0 ? null : text.slice(cut);
+}
+
 /** 이중음절 집합 유사도(자카드). */
 function bigramSet(text) {
   const s = squash(text).replace(/[^\p{L}]/gu, "");
@@ -499,7 +551,64 @@ function poleLengthIssue(item) {
   return null;
 }
 
-function contentIssues(item, push) {
+/**
+ * 보기 글을 머리 절(손이 하는 일)과 대가 절로 나눈다. 카드, 순간이 아닌 두 카드, 자기 선택, 지난 일, 그때 나는은 첫 문장이 머리 절이고 나머지가 대가 절이다.
+ * 가장·아닌 것 카드는 첫 「, 」 앞이 머리 절이다. 나눌 수 없는 글(문장이 하나뿐인 순간 카드 등)은 null.
+ */
+function headAndCost(fmt, text) {
+  if (fmt === "bestworst") {
+    const at = text.indexOf(", ");
+    return at < 0 ? null : { head: text.slice(0, at), cost: text.slice(at + 2) };
+  }
+  if (fmt === "pair" || fmt === "self" || fmt === "recall" || fmt === "instant") {
+    const sentences = text.split(/(?<=[.?!])\s+/);
+    return sentences.length < 2 ? null : { head: sentences[0], cost: sentences.slice(1).join(" ") };
+  }
+  return null;
+}
+
+/**
+ * 두 글자 이상 한글 낱말의 뿌리(첫 두 글자) 집합. 세 글자 이상 낱말은 뒤의 조사와 어미가 뿌리에 들어가지 않는다(「계산기를」 「계산기부터」는 같은 뿌리).
+ * 두 글자 서술어(가요, 해요, 봐요 ...)는 어느 문장에나 있는 맺음이라 뿌리로 세지 않는다. 한계: 한 글자 명사에 조사가 붙은 낱말(돈이, 돈은)은 뿌리가 서로 달라 못 잡는다.
+ */
+const wordStems = (text) => new Set((text.match(/[가-힣]{2,}/gu) ?? []).filter((w) => !(w.length === 2 && w.endsWith("요"))).map((w) => w.slice(0, 2)));
+
+/**
+ * cost-repeats-head: 한 극 보기의 대가 절이, 자기 머리 절에는 없고 반대 극 보기의 머리 절에는 있는 낱말(뿌리)을 되풀이하면 경고.
+ * 낱말 되풀이만 본다(뜻이 같은 다른 낱말은 못 잡는다). 흔한 말은 COST_ECHO_GENERIC_STEMS 로 뺀다.
+ */
+function costEchoIssues(item, push, noLegacy) {
+  if (!noLegacy && COST_ECHO_LEGACY_ITEMS.includes(item.id)) return;
+  const name = item.fmt === "recall" || item.fmt === "instant" ? "options" : "cards";
+  const list = item.fmt === "recall" || item.fmt === "instant" ? item.options : item.fmt === "pair" || item.fmt === "self" || item.fmt === "bestworst" ? item.cards : null;
+  if (!Array.isArray(list)) return;
+  const parts = list.map((e, i) => ({ i, pole: e?.pole, parts: isStr(e?.text) ? headAndCost(item.fmt, e.text) : null }));
+  const generic = new Set(COST_ECHO_GENERIC_STEMS);
+  for (const x of parts) {
+    if (!x.parts || (x.pole !== "front" && x.pole !== "back")) continue;
+    const own = wordStems(x.parts.head);
+    const cost = wordStems(x.parts.cost);
+    const echoed = new Set();
+    for (const y of parts) {
+      if (!y.parts || (y.pole !== "front" && y.pole !== "back") || y.pole === x.pole) continue;
+      for (const stem of wordStems(y.parts.head)) if (cost.has(stem) && !own.has(stem) && !generic.has(stem)) echoed.add(stem);
+    }
+    if (echoed.size > 0) push("cost-repeats-head", item.id, `${name}[${x.i}]: 대가 절이 반대 극 보기의 머리 절 낱말을 되풀이한다: ${[...echoed].map((s) => `「${s}」`).join(" ")}(대가는 시간, 분위기, 쑥스러움처럼 반대 극의 이득과 다른 종류로 쓴다)`);
+  }
+}
+
+/** split-third-decoy: 칸 나누기의 값 0 항목이 쉬기나 미루기 낱말을 쓰면 경고. */
+function splitThirdIssues(item, push, noLegacy) {
+  if (item.fmt !== "split" || !Array.isArray(item.entries)) return;
+  if (!noLegacy && SPLIT_THIRD_LEGACY_ITEMS.includes(item.id)) return;
+  item.entries.forEach((entry, i) => {
+    if (entry?.pole !== "neutral" || !isStr(entry.text)) return;
+    const hit = SPLIT_THIRD_REST_PHRASES.find((phrase) => entry.text.includes(phrase));
+    if (hit) push("split-third-decoy", item.id, `entries[${i}]: 셋째 항목이 쉬기나 미루기 낱말 「${hit}」를 쓴다(값이 0이어도 고를 만한 실제 대안이어야 한다)`);
+  });
+}
+
+function contentIssues(item, push, options = {}) {
   const id = item.id;
   const bad = (rule, message) => push(rule, id, message);
   const fields = textFieldsOf(item);
@@ -539,6 +648,11 @@ function contentIssues(item, push) {
       const problem = politenessProblem(f, item);
       if (problem) bad("politeness", `${where}${problem}`);
     }
+    // 요로 끝나지 않는 끝은 해요체 규칙이 이미 잡으므로 여기서는 요로 끝나는 끝만 본다.
+    if (role === "end" && /요$/.test(text)) {
+      const tail = reactEndTail(text);
+      if (tail !== null && !tail.endsWith(REACT_END_ACCEPTANCE_TAIL)) bad("react-end-acceptance", `${where}대가 절 뒤의 마지막 절이 「${tail}」 꼴이다(그 끝의 방식을 받아들이는 「~${REACT_END_ACCEPTANCE_TAIL}」로 맺어야 한다)`);
+    }
     // 글자 수
     const n = len(text);
     if (role === "caption" && n > LIMITS.caption) bad("length-caption", `${where}${n}자(${LIMITS.caption}자 이하)`);
@@ -556,6 +670,8 @@ function contentIssues(item, push) {
   }
   const poleIssue = poleLengthIssue(item);
   if (poleIssue) bad("pole-length", poleIssue);
+  costEchoIssues(item, push, options.noLegacy === true);
+  splitThirdIssues(item, push, options.noLegacy === true);
   // 한 문항 안의 같은 문구
   const choices = fields.filter((f) => ["card", "card-moment", "option", "entry", "bw-card"].includes(f.role)).map((f) => squash(f.text));
   if (new Set(choices).size !== choices.length) bad("same-text", "한 문항 안에 같은 문구의 보기가 있다");
@@ -568,7 +684,7 @@ function contentIssues(item, push) {
 
 /**
  * @param data 은행 원본 { version, placeholder?, note?, items }
- * @param options { allowPlaceholder?: boolean, layout?: 배치 골격 행 배열, balanceTrials?: number }
+ * @param options { allowPlaceholder?: boolean, layout?: 배치 골격 행 배열, balanceTrials?: number, noLegacy?: boolean }
  * @returns { errors, warnings, stats } 각 항목은 { rule, category, itemId, message }
  */
 export function lintBank(data, options = {}) {
@@ -649,7 +765,7 @@ export function lintBank(data, options = {}) {
     push("balance-skipped", null, "구조 오류가 있어 정적 균형 시험을 건너뛰었다");
   }
   // 문구
-  for (const item of items) if (isObj(item) && isStr(item.id)) contentIssues(item, push);
+  for (const item of items) if (isObj(item) && isStr(item.id)) contentIssues(item, push, options);
   // 중복
   const scored = items.filter((it) => isObj(it) && it.fmt !== "self" && isStr(it.caption));
   const captionOwner = new Map();

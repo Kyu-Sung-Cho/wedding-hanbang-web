@@ -66,7 +66,7 @@ import {
   type StrengthBand,
 } from "@/constants/weddingCodeV40";
 import { V40_ENTRY_COPY } from "./entryCopy";
-import type { Perspective } from "./types";
+import type { Perspective, SelfLine } from "./types";
 
 export { V40_ENTRY_COPY };
 
@@ -349,6 +349,12 @@ export const V40_COPY = {
     unusableNoteNotApplicable: `「${V40_ESCAPES.notApplicable}」로 넘어간 질문은 「${V40_LABELS.reviewAxis}」에서 다시 답할 수 있어요.`,
     /** 직접 고른 쪽 대비 블록의 제목. */
     selfChoiceHeading: V40_WRAP_UP.title,
+    /**
+     * 주제 블록의 「내가 마지막에 직접 고른 쪽」 줄의 머리말(4.1 단계 1, selfChoiceLine). 본인이 자기 선택 문항에서 고른 것만 말하는 사실 줄이다.
+     * 「내가」로 시작해 시스템이 세는 세기 문장이 아니라 본인이 고른 것이라는 점이 머리말에서 읽힌다.
+     * 대비 문장(selfContrastSentence)이 같은 사실을 이미 말하는 주제에서는 이 줄을 그리지 않는다.
+     */
+    selfLineLeadLabel: "내가 마지막에 직접 고른 쪽",
   },
 
   // 품질 안내 ----------------------------------------------------------------
@@ -987,6 +993,38 @@ export function selfContrastSentence(input: {
 }): string {
   const gathered = input.gatheredBand === "clear" ? "뚜렷하게 모였어요" : "대체로 모였어요";
   return `마지막에 직접 고른 쪽은 「${legendLetterCell(input.selfLetter)}」였어요. 여러 질문에서 고른 답은 「${legendLetterCell(input.gatheredLetter)}」 쪽으로 ${gathered}. 어느 쪽이 지금 나에게 더 가까운지 둘이 이야기해 봐도 좋아요.`;
+}
+
+/**
+ * 자기 선택 세기(1 조금, 2 꽤, 3 아주)를 「아주 가까워요」 꼴로 적는다. 고른 답 덧말(V40_QUOTE_TEMPLATES 의 「아주 가까워요」 「조금 가까워요」)과
+ * 두 가지 중 고르기 칸 이름표(pairCellAccessibleName)가 쓰는 낱말과 같다.
+ */
+export function selfLevelPhrase(level: 1 | 2 | 3): string {
+  const label = V40_PAIR_LEVEL_LABELS[level - 1];
+  if (label === undefined) throw new RangeError(`자기 선택 세기는 1에서 3이에요: ${String(level)}`);
+  return `${label} 가까워요`;
+}
+
+/**
+ * 주제 블록의 「내가 마지막에 직접 고른 쪽」 줄을 세 덩어리로 낸다(4.1 단계 1). 화면은 두 번째와 세 번째 덩어리를 줄바꿈 없이 붙여 그려서
+ * 좁은 폭에서도 「· 꽤」와 「가까워요」가 갈라지거나 「D 나눠」와 「하기」가 갈라지지 않는다. 덩어리 사이에는 공백 한 칸이 들어간다.
+ */
+export function selfChoiceParts(line: SelfLine): { readonly label: string; readonly pick: string; readonly level: string } {
+  assertLetterOfAxis(line.axis, line.letter);
+  return {
+    label: `${V40_COPY.block.selfLineLeadLabel}:`,
+    pick: `「${legendLetterCell(line.letter)}」 ·`,
+    level: selfLevelPhrase(line.level),
+  };
+}
+
+/**
+ * 주제 블록의 「내가 마지막에 직접 고른 쪽」 줄(4.1 단계 1): 「내가 마지막에 직접 고른 쪽: 「D 나눠 하기」 · 아주 가까워요」.
+ * 본인이 고른 방향의 글자와 이름, 고른 세기만 적는다. 모은 답과 견주지 않고 어느 쪽이 맞다고 말하지 않는다.
+ */
+export function selfChoiceLine(line: SelfLine): string {
+  const parts = selfChoiceParts(line);
+  return `${parts.label} ${parts.pick} ${parts.level}`;
 }
 
 /** 코드 줄 전체의 낭독 이름. 예: 「웨딩코드 네 글자예요. 돈은 S 장면 먼저, 기울어요. ...」 */

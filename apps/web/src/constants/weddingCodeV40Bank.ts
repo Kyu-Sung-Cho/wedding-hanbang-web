@@ -11,7 +11,7 @@ import type { BankData } from "@/lib/weddingCode/v40/types";
 export const V40_BANK_IS_PLACEHOLDER: boolean = false;
 
 /** 원본 내용의 해시(placeholder 필드 제외). 생성 파일이 원본과 같은지 시험이 대조한다. */
-export const V40_BANK_SOURCE_SHA256 = "dbde667ed0f27906ad3f79de0985f211dc707a9566a0885a2ecd2d456fec4b3c";
+export const V40_BANK_SOURCE_SHA256 = "340450e094cf6d9a4c0acb3040a6f8ed7dc264ed2c2d347962ef480253fbbe5b";
 
 /** 문항 은행 원본(질문 순서 68개). createBank(V40_BANK_DATA) 로 조회 구조를 만든다. */
 export const V40_BANK_DATA: BankData = {
@@ -30,7 +30,7 @@ export const V40_BANK_DATA: BankData = {
       stem: "결혼 준비로 둘러볼 곳이 세 군데 남았을 때 상대가 말해요.",
       quote: { speaker: "상대", text: "이번 주말에 세 곳 다 같이 돌아보자. 같이 보고 같이 정하고 싶어." },
       question: "그때 내 마음은?",
-      ends: { left: "나눠 가면 더 봐도 허전할 것 같아요", right: "함께 가면 든든해도 지칠 것 같아요" },
+      ends: { left: "허전해도 나눠서 보고 싶어요", right: "지쳐도 다 같이 돌아보고 싶어요" },
       highPole: "front",
       recap: "상대가 세 곳을 다 같이 돌아보자고 하면",
     },
@@ -46,8 +46,8 @@ export const V40_BANK_DATA: BankData = {
       caption: "첫 주말의 대화",
       stem: "결혼 준비를 막 시작한 주말, 둘이 마주 앉았어요. 형편이 넉넉하든 빠듯하든 지금 마음이 가는 쪽을 골라 주세요.",
       cards: [
-        { pole: "front", text: "쓸 수 있는 총액부터 정하고 그 안에서 채워 가요. 마음은 편해도 그리던 장면 하나는 접어야 해요." },
-        { pole: "back", text: "결혼하는 날의 모습부터 그리고 돈은 맞춰 가요. 설레는 만큼 나중에 덜어 낼 것도 생겨요." },
+        { pole: "front", text: "메모장 맨 위에 쓸 수 있는 돈부터 적고 그 밑에 하고 싶은 걸 적어요. 이야기가 금세 표처럼 딱딱해져요." },
+        { pole: "back", text: "저장해 둔 사진 중 마음에 남은 장면부터 나란히 놓고 얘기해요. 이야기가 길어져 끝이 안 보여요." },
       ],
     },
     {
@@ -79,7 +79,7 @@ export const V40_BANK_DATA: BankData = {
       stem: "업체 상담을 마치고 나오는 길, 아직 들뜬 나에게 상대가 말해요.",
       quote: { speaker: "상대", text: "잠깐만, 추가금이랑 환불 조건부터 표로 정리해 볼게." },
       question: "그때 내 마음은?",
-      ends: { left: "설렘은 이어져도 불안할 것 같아요", right: "든든해도 분위기가 딱딱할 것 같아요" },
+      ends: { left: "조금 불안해도 설렘부터 즐기고 싶어요", right: "번거로워도 표부터 보고 싶어요" },
       highPole: "front",
       recap: "상대가 추가금과 환불 조건을 표로 정리하겠다고 하면",
     },
@@ -128,7 +128,7 @@ export const V40_BANK_DATA: BankData = {
       stem: "상대가 유난히 지쳐 보여서 무슨 일이냐고 물었더니 이렇게 말해요.",
       quote: { speaker: "상대", text: "휴, 오늘 진짜 힘들었어." },
       question: "그때 내 마음은?",
-      ends: { left: "도우면 후련해도 말을 끊을 것 같아요", right: "듣는 게 편해도 답답할 것 같아요" },
+      ends: { left: "말을 끊게 돼도 도와주고 싶어요", right: "답답해도 끝까지 들어 주고 싶어요" },
       highPole: "front",
       recap: "상대가 한숨을 쉬며 오늘 진짜 힘들었다고 하면",
     },
@@ -244,9 +244,9 @@ export const V40_BANK_DATA: BankData = {
       caption: "혜택이 걸린 날",
       stem: "마음에 드는 곳에서 직원이 「오늘 정하면 혜택을 드려요」라고 해요. 형편이 넉넉하든 빠듯하든 나라면 어떻게 할지 여섯 칸을 나눠 놓아 주세요.",
       entries: [
-        { pole: "front", text: "혜택이 사라지고 자리도 넘어가도 하룻밤 두고 다른 곳과 비교해 마음 놓고 정하기" },
-        { pole: "back", text: "다른 곳은 못 보고 끝나도 여기다 싶은 마음이 식기 전에 그 자리에서 정하기" },
-        { pole: "neutral", text: "정하는 건 미루고 다른 급한 일부터 하기" },
+        { pole: "front", text: "혜택 내용을 적어 두고 다른 곳 두어 군데를 더 둘러본 뒤 다시 와서 정하기" },
+        { pole: "back", text: "여기다 싶으면 오늘 안에 계약금을 내고 마음에 든 날짜를 먼저 잡아 두기" },
+        { pole: "neutral", text: "혜택이 왜 오늘까지인지 직원에게 자세히 물어보기" },
       ],
     },
     {
@@ -279,7 +279,7 @@ export const V40_BANK_DATA: BankData = {
       stem: "결혼 준비를 이야기하다가 상대가 말해요.",
       quote: { speaker: "상대", text: "우리 집안은 중요한 일이 있으면 어른들께 먼저 인사를 드려 왔어. 이번에도 그러고 싶어." },
       question: "그때 내 마음은?",
-      ends: { left: "둘이 정하고 싶어도 죄송할 것 같아요", right: "편해도 우리 계획이 밀릴 것 같아요" },
+      ends: { left: "미안해도 둘이 먼저 정하고 싶어요", right: "계획이 밀려도 먼저 인사드리고 싶어요" },
       highPole: "back",
       recap: "상대가 집안에서 하던 대로 어른들께 먼저 인사드리고 싶다고 하면",
     },
@@ -312,9 +312,9 @@ export const V40_BANK_DATA: BankData = {
       stem: "결혼을 준비한 선배가 말해요.",
       quote: { speaker: "선배", text: "일은 굳이 안 나누고 막힐 때마다 같이 붙어서 풀었어. 준비하는 내내 그렇게 했어." },
       question: "내가 그 방식이라면?",
-      ends: { left: "든든해도 내 일이 밀릴 것 같아요", right: "몰입은 돼도 막히면 혼자일 것 같아요" },
+      ends: { left: "일이 밀려도 같이 붙어 풀고 싶어요", right: "혼자여도 각자 집중하고 싶어요" },
       highPole: "back",
-      recap: "선배처럼 일을 안 나누고 막힐 때마다 같이 붙어서 푼다면",
+      recap: "선배가 일은 안 나누고 막힐 때마다 같이 붙어서 풀었다는 얘기를 들으면",
     },
     {
       id: "money.worth.2",
@@ -396,9 +396,9 @@ export const V40_BANK_DATA: BankData = {
       stem: "친구가 결혼을 알린 가족 모임 이야기를 들려줘요.",
       quote: { speaker: "친구", text: "어른들이 권하신 분 대신 우리가 정한 사람에게 건배사를 맡겼어. 자리는 편했는데 어른들은 한동안 말이 없으셨어." },
       question: "내가 그 입장이라면?",
-      ends: { left: "어른들 침묵이 마음에 걸릴 것 같아요", right: "홀가분해도 침묵이 남을 것 같아요" },
+      ends: { left: "아쉬워도 어른들 뜻을 따르고 싶어요", right: "말이 없으셔도 우리가 정하고 싶어요" },
       highPole: "front",
-      recap: "친구처럼 어른들이 권한 분 대신 우리가 정한 사람에게 건배사를 맡긴다면",
+      recap: "친구가 어른들이 권한 분 대신 자기들이 정한 사람에게 건배사를 맡겼다는 얘기를 들으면",
     },
     {
       id: "support.vent.2",
@@ -462,7 +462,7 @@ export const V40_BANK_DATA: BankData = {
       stem: "크게 다투고 화해한 친구 커플의 이야기예요.",
       quote: { speaker: "친구", text: "마음부터 풀고 방법은 다음 날 정했어. 그날은 푹 잤는데 다음 주에 비슷한 일이 또 있었어." },
       question: "내가 그 입장이라면?",
-      ends: { left: "원인 알면 후련해도 어색할 것 같아요", right: "마음 풀면 편해도 또 다툴 것 같아요" },
+      ends: { left: "한동안 어색해도 원인부터 짚고 싶어요", right: "또 부딪혀도 마음부터 풀고 싶어요" },
       highPole: "front",
       recap: "친구가 그날은 화해부터 하고 방법은 다음 날 정했다는 얘기를 들으면",
     },
@@ -527,10 +527,10 @@ export const V40_BANK_DATA: BankData = {
       caption: "맡길 곳 후보",
       stem: "결혼 준비에 맡길 업체나 장소 후보를 골라야 해요. 나는 보통…",
       options: [
-        { text: "한 사람이 두어 곳으로 좁혀 오면 나는 그중에서 골라요. 발품은 덜어도 어떻게 좁혔는지는 잘 몰라요.", pole: "back", strength: "weak" },
-        { text: "검색부터 상담 예약까지 화면을 같이 봐요. 둘이 보니 결정이 뒤집히기도 하지만 놓치는 게 없어요.", pole: "front", strength: "strong" },
-        { text: "각자 찾아본 뒤 만나서 같이 추리고 같이 골라요. 후보는 넉넉해져도 둘 다 알아보느라 품이 들어요.", pole: "front", strength: "weak" },
-        { text: "한 사람이 알아서 골라 오면 그대로 따라요. 고민이 줄어 마음이 가벼워도 다른 후보는 못 본 채 정해져요.", pole: "back", strength: "strong" },
+        { text: "한 사람이 두어 곳으로 좁혀 오면 나는 그중에서 골라요. 좁혀 올 때까지 기다려야 해서 결정이 늦어져요.", pole: "back", strength: "weak" },
+        { text: "검색부터 상담 예약까지 둘이 한 화면을 들여다봐요. 약속을 잡느라 다른 일정이 뒤로 밀려요.", pole: "front", strength: "strong" },
+        { text: "각자 찾아본 뒤 한자리에 앉아 후보를 추리고 골라요. 만날 날을 잡느라 며칠이 더 걸려요.", pole: "front", strength: "weak" },
+        { text: "한 사람이 알아서 골라 오면 그대로 정해요. 골라 온 곳을 내가 보러 가려면 따로 시간을 내야 해요.", pole: "back", strength: "strong" },
       ],
     },
     {
@@ -562,7 +562,7 @@ export const V40_BANK_DATA: BankData = {
       stem: "결혼 준비에 필요한 서류나 예약을 챙기는 상대가 말해요.",
       quote: { speaker: "상대", text: "그건 내가 챙길게. 다 모이면 한 번에 알려 줄 테니까 그때까지 맡겨 줘." },
       question: "그때 내 마음은?",
-      ends: { left: "알면 든든해도 조바심 날 것 같아요", right: "맡기면 홀가분해도 깜깜할 것 같아요" },
+      ends: { left: "재촉처럼 들려도 중간중간 알고 싶어요", right: "깜깜해도 끝날 때까지 맡기고 싶어요" },
       highPole: "back",
       recap: "상대가 서류나 예약을 다 모은 뒤에 한 번에 알려 주겠다고 하면",
     },
@@ -611,7 +611,7 @@ export const V40_BANK_DATA: BankData = {
       stem: "결혼 준비에 쓸 곳의 작업 사진을 넘겨 보던 상대가 눈을 반짝이며 말해요.",
       quote: { speaker: "상대", text: "여기 너무 잘한다. 후기는 못 봤지만 오늘 바로 예약하고 싶어." },
       question: "그때 내 마음은?",
-      ends: { left: "알아보면 든든해도 김이 샐 것 같아요", right: "바로 하면 설레도 찜찜할 것 같아요" },
+      ends: { left: "김이 새도 후기부터 보고 싶어요", right: "찜찜해도 끌릴 때 바로 정하고 싶어요" },
       highPole: "back",
       recap: "상대가 후기도 안 보고 바로 예약하고 싶다고 하면",
     },
@@ -660,7 +660,7 @@ export const V40_BANK_DATA: BankData = {
       stem: "주말 내내 준비 일정을 돌고 나온 카페에서 너무 지쳤다고 했더니 상대가 말해요.",
       quote: { speaker: "상대", text: "남은 건 내가 알아볼게. 오늘은 더 안 해도 돼." },
       question: "그때 내 마음은?",
-      ends: { left: "마음부터 알아주면 풀려도 일은 남아요", right: "숨은 트여도 속마음은 쌓여요" },
+      ends: { left: "늦어져도 마음부터 풀고 싶어요", right: "개운치 않아도 일부터 덜고 싶어요" },
       highPole: "back",
       recap: "상대가 남은 준비를 대신 알아보겠다고 할 때",
     },
@@ -725,10 +725,10 @@ export const V40_BANK_DATA: BankData = {
       caption: "둘러보러 가는 날",
       stem: "결혼 준비로 여러 곳을 둘러보러 가는 날이에요. 어느 장면이 가장 나 같고 어느 장면이 가장 나 같지 않아요?",
       cards: [
-        { pole: "front", text: "둘러볼 곳이 많아도 처음부터 둘이 함께 다녀요, 든든하지만 하루가 훌쩍 가요" },
-        { pole: "back", text: "혼자 발품을 팔아 다녀와서 정리한 후기를 보여 줘요, 시간은 아껴도 상대는 현장을 못 봐요" },
-        { pole: "back", text: "서로의 취향을 아는 한 사람이 후보를 추려 와요, 믿고 맡겨 마음이 편해도 다른 곳은 못 봐요" },
-        { pole: "front", text: "후보 사진을 나란히 펼쳐 놓고 같이 골라요, 의견이 갈려 밤늦게까지 헤매도 고른 뒤엔 둘 다 납득해요" },
+        { pole: "front", text: "여러 곳을 처음부터 끝까지 둘이 나란히 돌아다녀요, 마지막 곳쯤에는 지쳐서 집중이 안 돼요" },
+        { pole: "back", text: "혼자 다녀와서 사진과 메모로 정리해 보여 줘요, 정리하느라 저녁 시간이 다 가요" },
+        { pole: "back", text: "취향을 아는 한 사람이 후보를 추려 오면 거기서 골라요, 추리는 동안 나는 기다리기만 해서 심심해요" },
+        { pole: "front", text: "후보 사진을 펼쳐 놓고 마주 앉아 골라요, 보는 눈이 달라 결정이 좀처럼 안 나요" },
       ],
     },
     {
@@ -811,7 +811,7 @@ export const V40_BANK_DATA: BankData = {
       stem: "결혼을 알리는 식사를 이야기하다가 상대가 말해요.",
       quote: { speaker: "상대", text: "이번 식사는 친구들 중심으로 왁자하게 하자. 가족은 따로 조용히 편하게 모시자." },
       question: "그때 내 마음은?",
-      ends: { left: "가족 먼저면 편해도 친구는 아쉬워요", right: "북적여 신나도 가족은 서운할 듯해요" },
+      ends: { left: "친구가 서운해도 조용히 모시고 싶어요", right: "가족이 서운해도 왁자하게 하고 싶어요" },
       highPole: "front",
       recap: "상대가 친구들 중심으로 왁자하게, 가족은 따로 조용히 모시자고 하면",
     },
@@ -844,9 +844,9 @@ export const V40_BANK_DATA: BankData = {
       stem: "결혼 소식을 알리는 글을 만든 친구가 말해요.",
       quote: { speaker: "친구", text: "문구는 한 명이 써 오고 나는 확인만 했어. 금방 끝났는데, 읽어 보니 처음 보는 표현이 하나 있더라." },
       question: "내가 그 입장이라면?",
-      ends: { left: "홀가분해도 낯선 말이 걸릴 것 같아요", right: "같이 골라 뿌듯해도 길어질 것 같아요" },
+      ends: { left: "낯선 말이 걸려도 맡기고 싶어요", right: "길어져도 같이 고르고 싶어요" },
       highPole: "front",
-      recap: "친구처럼 문구를 맡은 쪽이 써 오는 방식이라면",
+      recap: "친구가 문구는 한 명이 써 오고 자기는 확인만 했다는 얘기를 들으면",
     },
     {
       id: "money.limit.4",
@@ -859,10 +859,10 @@ export const V40_BANK_DATA: BankData = {
       caption: "견적서가 온 저녁",
       stem: "여러 업체의 견적서가 한꺼번에 도착한 저녁이에요. 형편이 넉넉하든 빠듯하든 시작하는 방법 중 어느 것이 가장 나 같고 어느 것이 가장 나 같지 않아요?",
       cards: [
-        { pole: "front", text: "쓸 수 있는 총액 옆에 견적 합계를 나란히 적어 봐요, 안심은 돼도 제일 끌리던 곳이 첫 합계에서 빠져요" },
-        { pole: "back", text: "제일 끌리는 곳부터 골라 두고 다른 항목을 줄여 맞춰요, 고른 확신이 든든해도 줄이는 수고가 커요" },
-        { pole: "back", text: "사진을 펼쳐 놓고 그날의 모습을 그려 본 뒤 총액을 이야기해요, 쓸 이유는 또렷해도 숫자가 뒤로 밀려요" },
-        { pole: "front", text: "곳마다 줄일 항목을 표시해서 총액 안에 맞춰요, 안심이 돼도 표만 보다 지치기도 해요" },
+        { pole: "front", text: "쓸 돈을 먼저 적고 그 옆에 견적 합계를 나란히 적어 봐요, 계산기를 두드리다 보니 어느새 밤이에요" },
+        { pole: "back", text: "가장 끌리는 곳부터 골라 두고 나머지 항목을 줄여 맞춰요, 깎을 때마다 기분이 조금씩 무거워져요" },
+        { pole: "back", text: "사진을 펼쳐 놓고 그날의 모습을 그려 본 뒤 견적서를 열어요, 숫자를 보는 순간 분위기가 조금 식어요" },
+        { pole: "front", text: "곳마다 줄일 항목에 표시해서 예산 안에 맞춰 봐요, 표만 들여다보다 눈이 뻑뻑해져요" },
       ],
     },
     {
@@ -893,11 +893,11 @@ export const V40_BANK_DATA: BankData = {
       kind: "story",
       caption: "친구의 앨범",
       stem: "몇 해 전에 결혼한 친구가 앨범을 넘기며 말해요.",
-      quote: { speaker: "친구", text: "예산을 지키느라 사진 패키지를 올리는 건 접었어. 생활은 편했는데 앨범을 볼 때마다 아쉬워." },
+      quote: { speaker: "친구", text: "예산에 맞추느라 사진 패키지는 접었어. 한동안 생활은 여유로웠고 앨범엔 찍지 못한 장면이 있어." },
       question: "내가 그 입장이라면 뭐가 더 남을 것 같아요?",
-      ends: { left: "편했던 생활이 더 남을 것 같아요", right: "앨범의 아쉬움이 더 남을 것 같아요" },
+      ends: { left: "여유로웠던 생활이 더 남을 것 같아요", right: "찍지 못한 장면이 더 남을 것 같아요" },
       highPole: "back",
-      recap: "친구처럼 예산을 지키느라 사진을 접었다면",
+      recap: "친구처럼 예산에 맞추느라 사진 패키지를 접었다면",
     },
     {
       id: "process.owner.4",
@@ -908,11 +908,11 @@ export const V40_BANK_DATA: BankData = {
       key: -1,
       fmt: "split",
       caption: "꼬인 예약",
-      stem: "내가 맡은 업체 예약이 꼬였어요. 업체 답은 늦고 날짜는 겹쳐요. 이번 주 힘을 어디에 쓸지 여섯 칸을 나눠 놓아 주세요.",
+      stem: "내가 맡은 업체 예약이 꼬였어요. 업체 답은 늦고 날짜는 겹쳐요. 이번 주 힘을 어디에 쓸지 여섯 칸을 나눠 놓아 주세요. 한 곳에 몰아도 괜찮아요.",
       entries: [
-        { pole: "back", text: "시간이 걸려도 내 속도대로 업체 답을 기다리며 나 혼자 풀어 가기" },
-        { pole: "front", text: "상대 일정을 바꾸게 돼 미안해도 바로 털어놓고 같이 풀어 빨리 끝내기" },
-        { pole: "neutral", text: "잠시 내려놓고 다른 급한 일부터 하기" },
+        { pole: "back", text: "상대 일정은 건드리지 않게 업체 답이 올 때까지 내가 따로 붙잡고 풀기" },
+        { pole: "front", text: "내 예약이 꼬였다고 오늘 밤 털어놓고 둘이 날짜를 다시 맞춰 보기" },
+        { pole: "neutral", text: "잘 아는 사람이나 대행 서비스에 예약 건을 넘기기" },
       ],
     },
     {
@@ -928,9 +928,9 @@ export const V40_BANK_DATA: BankData = {
       stem: "친구가 어른들과의 첫 식사 자리를 이야기해요.",
       quote: { speaker: "친구", text: "식당 정하기 전에 어른들께 어디가 좋으신지 먼저 여쭤봤어. 두 주 걸려 가려던 식당은 놓쳤는데 다들 편안해하셨어." },
       question: "내가 그 입장이라면?",
-      ends: { left: "식당부터 정하면 홀가분할 것 같아요", right: "편해도 답이 오래 걸릴 것 같아요" },
+      ends: { left: "서운하셔도 먼저 정하고 싶어요", right: "오래 걸려도 먼저 여쭙고 싶어요" },
       highPole: "back",
-      recap: "친구처럼 식당을 정하기 전에 오실 어른들께 먼저 여쭤본다면",
+      recap: "친구가 식당을 정하기 전에 오실 어른들께 먼저 여쭤봤다는 얘기를 들으면",
     },
     {
       id: "support.give.4",
@@ -975,10 +975,10 @@ export const V40_BANK_DATA: BankData = {
       caption: "마음에 쏙 든 옷",
       stem: "결혼하는 날 입을 옷이 마음에 쏙 들어요. 값은 예산보다 조금 높아요. 형편이 넉넉하든 빠듯하든 나는 보통…",
       options: [
-        { text: "한 번 더 입어 보고 오늘 안에 정해요. 확신이 서서 후련하지만 다른 옷은 더 안 본 채로 끝나요.", pole: "back", strength: "weak" },
-        { text: "일주일 뒤에 다시 와서 같은 마음인지 보고 정해요. 마음이 식거나 그 옷이 나가도 받아들여요.", pole: "front", strength: "strong" },
-        { text: "사진만 찍어 두고 하룻밤 생각한 뒤 정해요. 마음은 차분해져도 밤새 곱씹다 그 옷이 나갈 수 있어요.", pole: "front", strength: "weak" },
-        { text: "입어 보자마자 그 자리에서 정해요. 이 옷이다 싶은 확신이 선명해 더 나은 옷을 봐도 미련은 접어요.", pole: "back", strength: "strong" },
+        { text: "한 번 더 입어 보고 오늘 안에 정해요. 결제하기 전에 값을 한 번 더 보느라 잠깐 머뭇거려요.", pole: "back", strength: "weak" },
+        { text: "일주일 뒤에 다시 와서 같은 마음인지 보고 정해요. 그 사이 자꾸 그 옷 생각이 나서 마음이 조급해요.", pole: "front", strength: "strong" },
+        { text: "사진만 찍어 두고 하룻밤 생각한 뒤 정해요. 자는 동안에도 그 옷이 마음에 걸려요.", pole: "front", strength: "weak" },
+        { text: "입어 보자마자 그 자리에서 정해요. 결제하고 나오는 길에 값이 자꾸 떠올라요.", pole: "back", strength: "strong" },
       ],
     },
     {
@@ -994,7 +994,7 @@ export const V40_BANK_DATA: BankData = {
       stem: "결혼한 지 몇 해 된 선배가 준비하던 시절을 떠올리며 말해요.",
       quote: { speaker: "선배", text: "지칠 땐 밀린 일 하나부터 끝내야 풀리더라. 마음 얘기는 그다음에 했는데 몇 주가 지나서야 꺼냈어." },
       question: "내가 그 입장이라면?",
-      ends: { left: "얘기하면 풀려도 일은 남아요", right: "일부터 하면 편해도 얘기는 미뤄져요" },
+      ends: { left: "뒤처져도 얘기부터 풀고 싶어요", right: "서먹해져도 일부터 끝내고 싶어요" },
       highPole: "back",
       recap: "선배가 밀린 일부터 끝내야 풀린다고 말하는 걸 들으면",
     },
@@ -1059,10 +1059,10 @@ export const V40_BANK_DATA: BankData = {
       caption: "지난 회사 일",
       stem: "가장 최근에 일터나 학교, 모임에서 일을 맡았을 때, 진행 상황을 어떻게 전했어요?",
       options: [
-        { text: "큰 단계가 끝날 때마다 한 번씩 알렸어요. 안심은 시켰지만 알릴 거리를 챙기느라 일이 자꾸 끊겼어요.", pole: "front", strength: "weak" },
-        { text: "다 끝난 뒤 완성본으로 한 번에 알렸어요. 믿고 기다려 줘 몰입했지만 중간엔 혼자라 외로웠어요.", pole: "back", strength: "strong" },
-        { text: "마감이 다가올 때 한 번 정리해 알렸어요. 믿고 기다려 줘 결과는 단단했지만 그전엔 자신이 없었어요.", pole: "back", strength: "weak" },
-        { text: "거의 매일 짧게라도 지금 상태를 나눴어요. 늘 함께 가는 느낌이었지만 알리느라 집중이 깨질 때도 있었어요.", pole: "front", strength: "strong" },
+        { text: "큰 단계가 끝날 때마다 메시지로 진행 상황을 알렸어요.", pole: "front", strength: "weak" },
+        { text: "중간에는 알리지 않고 다 끝난 뒤 정리한 완성본을 넘겼어요.", pole: "back", strength: "strong" },
+        { text: "기한이 가까워졌을 때 지금까지 한 것을 정리해서 알렸어요.", pole: "back", strength: "weak" },
+        { text: "거의 매일 그날 한 일과 남은 일을 적어서 보냈어요.", pole: "front", strength: "strong" },
       ],
     },
     {
@@ -1091,8 +1091,8 @@ export const V40_BANK_DATA: BankData = {
       caption: "직접 고른 쪽",
       stem: "스스로는 어느 쪽에 더 가깝다고 생각해요?",
       cards: [
-        { pole: "front", text: "돈이 걸린 결정은 총액, 한도, 계약 조건부터 맞춰 보고 정해요. 마음은 놓여도 끌리던 하나는 접어요." },
-        { pole: "back", text: "돈이 걸린 결정은 결혼하는 날의 장면과 분위기부터 그려 보고 정해요. 이유는 또렷해도 숫자가 뒤로 밀려요." },
+        { pole: "front", text: "돈이 걸린 일은 계산기부터 두드려 본 뒤에 정해요. 계산이 길어지면 신이 났던 기분이 가라앉아요." },
+        { pole: "back", text: "돈이 걸린 일은 어떤 순간이 남을지부터 그려 본 뒤에 정해요. 그리는 동안 시간만 가고 진도는 안 나가요." },
       ],
     },
     {
@@ -1105,8 +1105,8 @@ export const V40_BANK_DATA: BankData = {
       caption: "직접 고른 쪽",
       stem: "스스로는 어느 쪽에 더 가깝다고 생각해요?",
       cards: [
-        { pole: "back", text: "일을 나눠 맡고 각자 해 온 결과를 모아 함께 봐요. 일이 빨리 끝나도 서로의 과정은 다 모를 수 있어요." },
-        { pole: "front", text: "찾고, 고르고, 확인하는 준비 과정을 둘이 함께 해요. 더디고 시간을 맞춰야 해도 서로를 더 알게 돼요." },
+        { pole: "back", text: "준비는 각자 한 가지씩 맡아 끝내 놓고 마지막에 맞춰 봐요. 진행이 궁금해도 재촉하는 것 같아 참게 돼요." },
+        { pole: "front", text: "준비는 알아보는 일부터 고르는 일까지 둘이 붙어서 해요. 둘 다 일정을 비워 두느라 다른 약속이 밀려요." },
       ],
     },
     {
@@ -1119,8 +1119,8 @@ export const V40_BANK_DATA: BankData = {
       caption: "직접 고른 쪽",
       stem: "가족과의 사이가 어떻든 스스로는 어느 쪽에 더 가깝다고 생각해요?",
       cards: [
-        { pole: "back", text: "결혼 준비의 결정을 정하기 전에 가족의 마음과 의견을 먼저 모아요. 다 같이 안심해도 결정은 늦어져요." },
-        { pole: "front", text: "결혼 준비의 결정은 둘이 먼저 정하고 가족과는 정한 뒤 나눠요. 계획은 우리 것이지만 서운해하실 수 있어요." },
+        { pole: "back", text: "결혼 준비의 결정은 굳히기 전에 가까운 가족이나 어른께 여쭤봐요. 기다리는 동안 일정이 조금 늦어져요." },
+        { pole: "front", text: "결혼 준비의 결정은 둘이 앉아 확정한 뒤 가까운 가족이나 어른께 전해요. 전하기 전까지 마음이 조마조마해요." },
       ],
     },
     {
@@ -1133,8 +1133,8 @@ export const V40_BANK_DATA: BankData = {
       caption: "직접 고른 쪽",
       stem: "스스로는 어느 쪽에 더 가깝다고 생각해요?",
       cards: [
-        { pole: "front", text: "지친 날에는 마음을 알아주는 게 먼저예요. 받을 때도, 해 줄 때도요. 마음은 놓여도 할 일은 남아요." },
-        { pole: "back", text: "지친 날에는 할 일을 덜어 내는 게 먼저예요. 받을 때도, 해 줄 때도요. 짐은 줄어도 속마음은 미뤄져요." },
+        { pole: "front", text: "둘 중 누가 지친 날이든 얼굴을 마주 보며 얘기부터 꺼내요. 얘기가 길어져 잠드는 시간이 한참 늦어져요." },
+        { pole: "back", text: "둘 중 누가 지친 날이든 눈앞의 일 한 가지부터 처리해 짐을 줄여요. 하나를 끝내면 어느새 밤이 깊어져요." },
       ],
     },
   ],

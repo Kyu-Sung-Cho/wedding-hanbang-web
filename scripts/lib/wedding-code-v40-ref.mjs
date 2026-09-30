@@ -44,6 +44,8 @@
  *     rhythmReport(bank, formBit, responses)   위치 반복 검사(주기 1~4, 임계 pair 15/16, react와 choose 14/16).
  *     skippedCount(bank, responses), skipHint(bank, responses)
  *     buildResult(bank, formBit, responses)    힌트, 관문, 코드 글자열, 직접 고른 쪽 대비, 품질 안내까지 낸 전체 결과.
+ *     selfLine(bank, responses, axis)          마지막에 직접 고른 쪽 줄(4.1 단계 1): 자기 선택에 답했고 그 주제에 글자가 있고 대비가 없을 때만
+ *                                              {axis, side, letter, level}, 아니면 null. axis 는 buildResult 가 낸 주제 결과.
  *   링크 코덱
  *     checksumChar(body), encodeCode(bank, formBit, responses), decodeCode(bank, code),
  *     buildShareUrl(bank, origin, first, second?), buildQuestionOnlyUrl(origin, options?),
@@ -579,6 +581,30 @@ export function buildResult(bank, formBit, responses) {
     provisionalAxes: axes.filter((a) => a.provisional).map((a) => a.axis),
   };
   return { formBit, axes, code, gate, rhythm, notes };
+}
+
+// ---------------------------------------------------------------------------
+// 마지막에 직접 고른 쪽 줄 (4.1 단계 1)
+// ---------------------------------------------------------------------------
+
+/**
+ * 결과 화면 주제 블록의 사실 줄. 본인이 자기 선택 문항에서 고른 방향과 세기만 담고 모은 답과 견주지 않는다.
+ * 조건: 그 주제에 글자가 있다(못 정한 주제는 null, 반반이에요는 있다) + 자기 선택에 답했다(skip, na, 빠진 답은 null.
+ * 임시 글자는 자기 선택이 동점을 못 가른 주제라 자기 선택이 비어 있어서 줄이 없다) + 직접 고른 쪽 대비(axis.contrast)가 그 주제에 없다
+ * (대비 문장이 같은 사실을 이미 말한다).
+ * 세기, 힌트, 관문은 읽지 않는다. buildResult 의 어떤 필드도 바꾸지 않는다.
+ * axis 는 buildResult 가 낸 주제 결과여야 한다. contrast 가 없는(undefined) 객체를 넘기면 대비가 없는 주제로 잘못 읽어 줄을 만들거나
+ * 조용히 null 을 내는 대신 던진다(기준 계산기는 모양이 틀린 입력을 눈에 띄게 거절해야 다른 계산기와의 대조가 헛돌지 않는다).
+ */
+export function selfLine(bank, responses, axis) {
+  if (axis === null || typeof axis !== "object" || axis.contrast === undefined) {
+    throw new TypeError("selfLine: axis.contrast 가 없다(undefined). buildResult 가 낸 주제 결과를 넘겨야 한다");
+  }
+  if (axis.letter === null || axis.contrast !== null) return null;
+  const selfItem = bank.self.find((it) => it.axis === axis.axis);
+  const choice = selfItem ? selfChoice(selfItem, responses[selfItem.id]) : null;
+  if (choice === null) return null;
+  return { axis: axis.axis, side: choice.side, letter: LETTER_OF[axis.axis][choice.side], level: choice.level };
 }
 
 // ---------------------------------------------------------------------------

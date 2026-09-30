@@ -2,7 +2,7 @@
 
 import type { ReactNode } from "react";
 import { V40_COPY, codeCopyText } from "@/lib/weddingCode/v40/copy";
-import type { Axis, AxisQuotes, HistoryEntry, V40Result } from "@/lib/weddingCode/v40/types";
+import type { Axis, AxisQuotes, HistoryEntry, SelfLine, V40Result } from "@/lib/weddingCode/v40/types";
 import { AxisBlock } from "./AxisBlock";
 import { CodeLine, codeLineEntries } from "./CodeLine";
 import { GatheredSentences } from "./GatheredSentences";
@@ -20,6 +20,11 @@ export interface ResultScreenProps {
   readonly result: V40Result;
   /** 주제 순서 네 개의 인용(quote.pickQuotes). result.axes 와 같은 순서. */
   readonly quotes: readonly AxisQuotes[];
+  /**
+   * 주제 순서 네 개의 「내가 마지막에 직접 고른 쪽」 줄(score.selfLine). result.axes 와 같은 순서이고 줄이 없는 주제는 null 이다.
+   * 주지 않으면 그 줄을 그리지 않는다. 직접 고른 쪽 대비가 있는 주제는 이 화면(AxisBlock)이 줄을 그리지 않는다.
+   */
+  readonly selfLines?: readonly (SelfLine | null)[];
   /**
    * 지난번 기록 한 건(HistoryEntry). 이 기기에 지난 기록이 있을 때만 준다. 이번 결과를 위해 방금 남긴 기록은 빼고 그 앞의 것이다.
    * 없거나 null이면 지난번과 비교 구역을 그리지 않는다.
@@ -60,7 +65,7 @@ const NO_QUOTES: AxisQuotes = { kind: "none" };
 
 /**
  * 혼자 보는 결과 화면(설계 7절 (1)~(11), 순서 그대로).
- *   (1) 제목, 고지 한 문장, 코드 복사  (2) 코드 줄  (3) 글자 읽는 법  (4) 답을 모아 보니  (5) 주제 블록 네 개
+ *   (1) 제목, 고지 한 문장, 코드 복사  (2) 코드 줄  (3) 글자 읽는 법  (4) 답을 모아 보니  (5) 주제 블록 네 개(내가 마지막에 직접 고른 쪽 한 줄: 뚜렷해요·기울어요는 세기 문장 아래, 반반이에요는 두 글자의 뜻 아래)
  *   (6) 직접 고른 쪽 대비  (7) 품질 안내  (8) 지난번과 비교  (9) 상대에게 보내기(자리)  (10) 취향 카드  (11) 처음부터 다시 하기, 저장 지우기
  * 세기를 낮춘 이유(위치 반복, 건너뜀 힌트)는 모든 글자 옆 세기에 영향을 주므로 설계 5절과 계약 7.1절의 「결과 맨 위에 한 줄」대로 코드 줄 앞에 놓고
  * (7)에는 나머지 안내(넘어간 질문, 글자를 못 정한 주제, 임시 글자)를 둔다.
@@ -70,6 +75,7 @@ const NO_QUOTES: AxisQuotes = { kind: "none" };
 export function ResultScreen({
   result,
   quotes,
+  selfLines,
   previous = null,
   onCopyCode,
   onReviewAxis,
@@ -112,7 +118,13 @@ export function ResultScreen({
           <GatheredSentences entries={entries} />
           <div className="flex flex-col gap-4" data-axis-blocks>
             {result.axes.map((axis, index) => (
-              <AxisBlock key={axis.axis} axis={axis} quotes={quotes[index] ?? NO_QUOTES} onReview={onReviewAxis} />
+              <AxisBlock
+                key={axis.axis}
+                axis={axis}
+                quotes={quotes[index] ?? NO_QUOTES}
+                selfLine={selfLines?.[index] ?? null}
+                onReview={onReviewAxis}
+              />
             ))}
           </div>
           <SelfContrast axes={result.axes} />

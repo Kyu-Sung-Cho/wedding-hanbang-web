@@ -844,6 +844,97 @@ test("직접 고른 쪽 대비: 답이 모인 쪽과 다르고 세기가 뚜렷/
   assert.equal(evenFront.contrast, null, "반반이에요 자리에는 대비가 없다");
 });
 
+test("마지막에 직접 고른 쪽 줄: 자기 선택에 답했고 글자가 있고 대비가 없을 때만, 답한 방향과 세기 그대로", () => {
+  const strongFront = { facetSums: [12, 12, 12, 12] }; // 합 48 -> 뚜렷해요, 앞 글자
+  const lineFor = (plans, selfCells, patch = {}) => {
+    const responses = { ...fullResponses(plans, selfCells), ...patch };
+    const result = ref.buildResult(bank, 0, responses);
+    return { line: ref.selfLine(bank, responses, result.axes[0]), axis: result.axes[0], all: result.axes.map((axis) => ref.selfLine(bank, responses, axis)) };
+  };
+  // self.money: 칸 0 = 앞극 아주, 칸 1 = 앞극 꽤, 칸 2 = 앞극 조금, 칸 3 = 뒤극 조금, 칸 4 = 뒤극 꽤, 칸 5 = 뒤극 아주
+  assert.deepEqual(lineFor({ money: strongFront }, { money: 0 }).line, { axis: "money", side: "front", letter: "V", level: 3 });
+  assert.deepEqual(lineFor({ money: strongFront }, { money: 1 }).line, { axis: "money", side: "front", letter: "V", level: 2 });
+  assert.deepEqual(lineFor({ money: strongFront }, { money: 2 }).line, { axis: "money", side: "front", letter: "V", level: 1 });
+  // 조금 반대쪽은 대비가 없어서 줄이 있다. 꽤 이상 반대쪽은 대비가 뜨므로 줄이 없다(대비 문장이 같은 사실을 말한다).
+  const little = lineFor({ money: strongFront }, { money: 3 });
+  assert.equal(little.axis.contrast, null);
+  assert.deepEqual(little.line, { axis: "money", side: "back", letter: "S", level: 1 });
+  for (const cell of [4, 5]) {
+    const c = lineFor({ money: strongFront }, { money: cell });
+    assert.notEqual(c.axis.contrast, null);
+    assert.equal(c.line, null);
+  }
+  // 건너뜀, 해당 없음, 빠진 답, 범위 밖 상태 문자는 줄이 없다.
+  assert.equal(lineFor({ money: strongFront }, {}).line, null, "자기 선택을 건너뛰면 없다");
+  assert.equal(lineFor({ money: strongFront }, { money: 0 }, { "self.money": "na" }).line, null);
+  const noSelf = fullResponses({ money: strongFront }, { money: 0 });
+  delete noSelf["self.money"];
+  assert.equal(ref.selfLine(bank, noSelf, ref.buildResult(bank, 0, noSelf).axes[0]), null);
+  assert.equal(lineFor({ money: strongFront }, { money: 0 }, { "self.money": "6" }).line, null, "자기 선택은 칸이 여섯 개뿐이다");
+  // 글자를 못 정한 주제(계획에 없는 주제는 해당 없음으로 채워진다)에는 자기 선택에 답했어도 줄이 없다.
+  // 주제마다 위 카드가 어느 극인지 다르므로(문항의 카드 배열) 앞극 아주를 고르는 칸은 문항에서 읽는다.
+  const processTop = bank.self.find((it) => it.axis === "process").cards[0].pole;
+  const processFrontCell = processTop === "front" ? 0 : 5;
+  const unusable = lineFor({ process: strongFront }, { money: 0, process: processFrontCell });
+  assert.equal(unusable.axis.letter, null);
+  assert.equal(unusable.line, null);
+  assert.deepEqual(unusable.all[1], { axis: "process", side: "front", letter: "W", level: 3 });
+  // 반반이에요 주제에는 대비가 없어서 줄이 있다.
+  const even = lineFor({ money: { facetSums: [1, 1, 1, 1] } }, { money: 5 });
+  assert.equal(even.axis.shownBand, "even");
+  assert.deepEqual(even.line, { axis: "money", side: "back", letter: "S", level: 3 });
+  // 세기가 힌트로 낮아져 대비가 사라지면 줄이 나타난다: 기울어요 + 건너뜀 힌트 -> 반반이에요.
+  const leanBack = { facetSums: [9, 9, 9, 9] }; // 합 36 -> N = 108, 기울어요
+  const plainLean = lineFor({ money: leanBack }, { money: 5 });
+  assert.equal(plainLean.axis.shownBand, "lean");
+  assert.notEqual(plainLean.axis.contrast, null);
+  assert.equal(plainLean.line, null);
+  const skipped = fullResponses({ money: leanBack }, { money: 5 });
+  bank.scored
+    .filter((it) => it.axis !== "money" && it.fmt !== "pair" && it.fmt !== "react")
+    .slice(0, 17)
+    .forEach((it) => {
+      skipped[it.id] = "skip";
+    });
+  const hinted = ref.buildResult(bank, 0, skipped);
+  assert.equal(hinted.notes.hintSkip, true);
+  assert.equal(hinted.axes[0].shownBand, "even");
+  assert.equal(hinted.axes[0].contrast, null);
+  assert.deepEqual(ref.selfLine(bank, skipped, hinted.axes[0]), { axis: "money", side: "back", letter: "S", level: 3 });
+  // 임시 글자(동점 사슬 5단계)는 자기 선택이 비어 있는 주제라서 줄이 없다.
+  const tie5 = { facetSums: [4, -4, 4, -4], chooseSum: 0, reactSum: 0 };
+  const provisionalResponses = fullResponses({ money: tie5 });
+  const provisional = ref.buildResult(bank, 0, provisionalResponses);
+  assert.equal(provisional.axes[0].provisional, true);
+  assert.equal(ref.selfLine(bank, provisionalResponses, provisional.axes[0]), null);
+  // 같은 응답에 자기 선택이 있으면 4단계에서 갈려 임시 글자가 아니고, 그 주제에는 답한 그대로의 줄이 있다.
+  const decidedResponses = fullResponses({ money: tie5 }, { money: 5 });
+  const decided = ref.buildResult(bank, 0, decidedResponses);
+  assert.equal(decided.axes[0].provisional, false);
+  assert.equal(decided.axes[0].tieLevel, 4);
+  assert.deepEqual(ref.selfLine(bank, decidedResponses, decided.axes[0]), { axis: "money", side: "back", letter: "S", level: 3 });
+});
+
+test("마지막에 직접 고른 쪽 줄: buildResult 가 낸 주제 결과가 아니면(contrast 가 undefined) 조용히 null 을 내지 않고 던진다", () => {
+  const responses = fullResponses({ money: { facetSums: [12, 12, 12, 12] } }, { money: 0 });
+  const axis = ref.buildResult(bank, 0, responses).axes[0];
+  assert.notEqual(ref.selfLine(bank, responses, axis), null, "기준: 제대로 된 주제 결과에는 줄이 있다");
+  // contrast 를 뺀 객체(다른 계산기의 주제 결과나 손으로 만든 객체)
+  const { contrast, ...withoutContrast } = axis;
+  assert.equal(contrast, null);
+  assert.throws(() => ref.selfLine(bank, responses, withoutContrast), (error) => error instanceof TypeError && /selfLine: axis\.contrast/u.test(error.message));
+  assert.throws(() => ref.selfLine(bank, responses, { ...axis, contrast: undefined }), /selfLine: axis\.contrast/u);
+  // 글자가 없는 주제여도 모양이 틀린 입력은 먼저 거절한다(null 을 낼 수 있는 갈래에 숨지 않는다).
+  assert.throws(() => ref.selfLine(bank, responses, { axis: "money", letter: null }), /selfLine: axis\.contrast/u);
+  // 객체가 아닌 입력은 자바스크립트의 기본 오류가 아니라 이 함수의 말로 거절한다.
+  assert.throws(() => ref.selfLine(bank, responses, null), /selfLine:/u);
+  assert.throws(() => ref.selfLine(bank, responses, undefined), /selfLine:/u);
+  assert.throws(() => ref.selfLine(bank, responses, "money"), /selfLine:/u);
+  // contrast 가 null 인 것과 값이 있는 것은 계속 정상이다.
+  assert.equal(ref.selfLine(bank, responses, { ...axis, contrast: null }) !== null, true);
+  assert.equal(ref.selfLine(bank, responses, { ...axis, contrast: { selfSide: "front" } }), null);
+});
+
 test("품질 안내: 건너뛴 질문이 있으면 hasOmitted", () => {
   const r = ref.buildResult(bank, 0, fullResponses({ money: { facetSums: [4, 4, 4, 4] } }));
   assert.equal(r.notes.hasOmitted, true);
