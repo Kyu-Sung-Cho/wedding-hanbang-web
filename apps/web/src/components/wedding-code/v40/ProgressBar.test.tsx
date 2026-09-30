@@ -112,6 +112,25 @@ describe("ProgressBar", () => {
     expect(fills).toEqual(["100%", "50%", "0%", "0%", "0%"]);
   });
 
+  it("낭독기가 읽는 값은 0 에서 전체 문항 수까지 중 저장된 문항 수다", async () => {
+    await harness.render(<ProgressBar segments={segments(1, [16, 8, 0, 0, 0])} />);
+    expect(bar().getAttribute("aria-valuemin")).toBe("0");
+    expect(bar().getAttribute("aria-valuemax")).toBe("68");
+    expect(bar().getAttribute("aria-valuenow")).toBe("24");
+    await harness.render(<ProgressBar segments={segments(0)} />);
+    expect(bar().getAttribute("aria-valuenow")).toBe("0");
+    expect(bar().getAttribute("aria-valuemax")).toBe("68");
+  });
+
+  it("차오른 부분은 고대비 모드에서도 보이도록 강조색 대신 시스템 색을 쓴다", async () => {
+    await harness.render(<ProgressBar segments={segments(1, [16, 8, 0, 0, 0])} />);
+    const fills = [...harness.container.querySelectorAll<HTMLElement>("[data-fill]")];
+    expect(fills).toHaveLength(5);
+    for (const fill of fills) {
+      expect(fill.className).toContain("forced-colors:bg-[Highlight]");
+    }
+  });
+
   it("범위 밖 값이 와도 막대가 넘치거나 음수가 되지 않는다", async () => {
     const odd: ProgressSegment[] = [
       { index: 0, name: "처음", done: 40, total: 16, current: true },

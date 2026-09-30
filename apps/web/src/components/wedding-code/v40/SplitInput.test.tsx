@@ -180,6 +180,9 @@ function tabStops(): HTMLElement[] {
 function visibleText(): string {
   const copy = host.cloneNode(true) as HTMLElement;
   copy.querySelectorAll(".sr-only, [hidden], [aria-hidden='true']").forEach((node) => node.remove());
+  // 요소마다 앞에 공백을 끼운다. 그러지 않으면 항목 글 앞의 「A.」나 「가.」 라벨이 앞 요소의 글에 붙어서
+  // 아래 (^|\s) 로 찾는 검사가 라벨을 보지 못한다.
+  copy.querySelectorAll("*").forEach((node) => node.before(" "));
   return copy.textContent ?? "";
 }
 
@@ -458,6 +461,25 @@ describe("SplitInput 남은 칸 안내 (aria-live)", () => {
     expect(blockedEl(0).textContent).toBe(V40_COPY.inputs.splitEmptyReason);
     expect(blockedEl(1).textContent).toBe("");
     expect(blockedEl(0).closest("li")).toBe(remove.closest("li"));
+  });
+
+  it("이유 문장 둘은 처음부터 숨김 글이라 누르기 전에는 눈에 보이지 않는다", () => {
+    render(<Harness view={makeView(0)} initial={splitAnswer(2, 1, 0)} />);
+    for (const suffix of ["full", "empty"]) {
+      expect(document.getElementById(`q1-reason-${suffix}`)?.hasAttribute("hidden")).toBe(true);
+    }
+    const text = visibleText();
+    expect(text).not.toContain(V40_COPY.inputs.splitNoRoomReason);
+    expect(text).not.toContain(V40_COPY.inputs.splitEmptyReason);
+  });
+
+  it("다른 항목의 칸을 바꾸면 앞서 뜬 이유는 사라진다(그 항목이 여전히 0칸이어도)", () => {
+    render(<Harness view={makeView(0)} initial={splitAnswer(0, 2, 2)} />);
+    act(() => removeButton(0).click());
+    expect(blockedEl(0).textContent).toBe(V40_COPY.inputs.splitEmptyReason);
+    act(() => removeButton(1).click());
+    expect(countTexts()).toEqual(["0칸", "1칸", "2칸"]);
+    expect(blockedEl(0).textContent).toBe("");
   });
 
   it("이유는 누른 항목에만 뜬다: 다른 항목의 단추를 누르면 이유가 그쪽으로 옮겨 간다", () => {

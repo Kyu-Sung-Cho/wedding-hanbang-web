@@ -396,6 +396,9 @@ describe("웨딩코드 4.0 클라이언트: 결과 화면의 경로", () => {
     await pressText(view.container, V40_COPY.edit.backToResultButton);
     expect(screenName(view.container)).toBe("result");
     expect(shownCode(view.container)).toBe("SWUA");
+    // 답을 고치지 않고 돌아왔다: 처음 끝낸 것이 아니므로 끝냈다는 통계도, 지난번 비교 기록도 새로 생기지 않는다.
+    expect(eventsNamed("wedding_code_completed")).toHaveLength(0);
+    expect(readHistory(storage, NOW).entries).toHaveLength(0);
   });
 
   it("잘 모르겠어요가 많은 주제는 결과 전에 넘어간 질문을 한 번 다시 보여 주고 그대로 결과 보기로 넘어간다", async () => {
@@ -547,6 +550,9 @@ describe("웨딩코드 4.0 클라이언트: 다시 하기와 지우기", () => {
     const sample = fixture("swua-example");
     const storage = new FakeStorage();
     seedProgress(storage, resultSnapshotOf(sample), NOW - DAY);
+    // 지난번 비교 기록도 하나 심어 둔다: 기록이 비어 있는 채로는 「기록을 지운다」를 시험할 수 없다.
+    appendHistory(storage, historyEntryOf(buildResult(bank, sample.formBit, sample.responses), NOW - DAY), NOW - DAY);
+    expect(readHistory(storage, NOW).entries).toHaveLength(1);
     const view = await open({ deps: { storage, now: () => NOW } });
     await pressText(view.container, V40_COPY.intro.resume.continueButton);
     await pressText(view.container, V40_COPY.manage.clear.button);
@@ -555,6 +561,7 @@ describe("웨딩코드 4.0 클라이언트: 다시 하기와 지우기", () => {
     expect(textOf(view.container)).toContain(V40_COPY.manage.clear.done);
     expect(readProgress(storage, bank, NOW).status).toBe("empty");
     expect(readHistory(storage, NOW).status).toBe("empty");
+    expect(readHistory(storage, NOW).entries).toHaveLength(0);
   });
 
   it("지우기가 실패하면 지웠다고 말하지 않는다", async () => {
@@ -578,7 +585,11 @@ describe("웨딩코드 4.0 클라이언트: 라운지 안과 작은 화면", () 
     const view = await open({ embedded: true, deps: { storage: new FakeStorage(), now: () => NOW, random: randomFor(sample) } });
     expect(view.container.firstElementChild?.tagName).toBe("DIV");
     expect(view.container.firstElementChild?.getAttribute("data-embedded")).toBe("true");
-    expect(view.container.querySelector("[data-embedded-note]")).not.toBeNull();
+    const embeddedNote = view.container.querySelector("[data-embedded-note]");
+    expect(embeddedNote).not.toBeNull();
+    // 한 줄이 있다는 것만이 아니라 그 한 줄이 약속한 말을 한다: 로그인해도 이 답은 계정에 저장되지 않는다.
+    expect(embeddedNote === null ? "" : textOf(embeddedNote)).toBe(V40_COPY.intro.embeddedNote);
+    expect(V40_COPY.intro.embeddedNote).toContain("계정에 저장되지 않");
     const tabOffset = "max-md:bottom-[calc(75px+env(safe-area-inset-bottom))]";
     expect(view.container.querySelector("[data-action-bar]")?.className ?? "").toContain(tabOffset);
     await pressText(view.container, V40_COPY.intro.startButton);

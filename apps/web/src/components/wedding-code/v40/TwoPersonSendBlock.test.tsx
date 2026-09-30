@@ -79,6 +79,19 @@ describe("TwoPersonSendBlock: 처음 모양", () => {
     expect(root().textContent).toContain(V40_COPY.send.shareSheetInfo);
   });
 
+  it("결과 알림 자리는 처음부터 문서에 비어 있다가, 보내면 같은 자리의 글이 바뀐다(낭독기가 읽으려면 자리가 먼저 있어야 한다)", async () => {
+    const share = vi.fn(async () => undefined);
+    await renderBlock({ share });
+    const region = status();
+    expect(region).not.toBeNull();
+    expect(region?.getAttribute("aria-live")).toBe("polite");
+    expect(statusText()).toBe("");
+    await checkBoth();
+    await press();
+    expect(status()).toBe(region);
+    expect(statusText()).toBe(V40_COUPLE_SEND_EXTRA_COPY.sharedSheet);
+  });
+
   it("도움말이 이 링크를 보내야 상대도 두 사람 결과를 볼 수 있다고 말한다", async () => {
     await renderBlock();
     expect(V40_COPY.coupleSend.help).toContain("이 링크를 보내야 상대도 두 사람 결과를 볼 수 있어요");
@@ -109,6 +122,9 @@ describe("TwoPersonSendBlock: 체크 둘이 모두 켜져야 열린다", () => {
     expect(button?.hasAttribute("disabled")).toBe(false);
     expect(root().querySelector("[disabled]")).toBeNull();
     expect(button ? describedByText(button) : "").toBe(V40_COPY.coupleSend.disabledReason);
+    // 체크가 둘이라는 것을 이유 글이 말한다(하나만 켜도 막혀 있으므로 「위 칸에 체크하면」만으로는 거짓 약속이 된다).
+    expect(V40_COPY.coupleSend.disabledReason).toContain("두 개");
+    expect(V40_COPY.coupleSend.disabledReason).toContain("모두");
   });
 
   it("하나만 켜도 막혀 있다(어느 쪽을 켜도)", async () => {

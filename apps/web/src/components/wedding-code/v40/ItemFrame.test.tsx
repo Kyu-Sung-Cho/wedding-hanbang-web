@@ -203,6 +203,11 @@ describe("ItemFrame", () => {
     const status = statusOf();
     expect(status.getAttribute("aria-live")).toBe("polite");
     expect(status.textContent).toBe("");
+    // 비어 있는 동안 숨겨 두면(숨김 속성, 낭독기에서 뺌, 안 보임) 낭독기가 나중에 채워지는 글을 읽지 못한다. 문서에 있고 낭독기에도 보여야 한다.
+    expect(status.hidden).toBe(false);
+    expect(status.closest("[hidden]")).toBeNull();
+    expect(status.closest('[aria-hidden="true"]')).toBeNull();
+    expect(status.style.display).not.toBe("none");
   });
 
   it("지난 일 떠올리기에서 해당 없음은 이런 일이 없었어요 문장으로 알린다", async () => {

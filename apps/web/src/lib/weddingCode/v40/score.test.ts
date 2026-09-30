@@ -257,6 +257,82 @@ describe("손계산 예제 열두 개(돈 주제, 정수로 계산)", () => {
     expect(axis.weighted).toBe(33);
     expect(axis).toMatchObject({ side: "front", letter: "V", band: "even", tieLevel: 0, unusable: false });
   });
+
+  it("예제 13: 동점 1단계의 고르기 합에는 그때 나는(instant) 답도 들어간다 - 떠올리기 합 0, 그때 나는 합 +8 이면 앞 글자 V, 부호를 뒤집으면 뒤 글자 S", () => {
+    for (const sign of [1, -1] as const) {
+      const axis = moneyScore(
+        money({
+          "limit.1": -2 * sign, "limit.2": 0, "limit.3": 2 * sign, "limit.4": 2 * sign,
+          "check.1": 0, "check.2": -2 * sign, "check.3": 0, "check.4": -2 * sign,
+          "worth.1": 6 * sign, "worth.2": -2 * sign, "worth.3": -2 * sign, "worth.4": 0,
+          "moment.1": 0, "moment.2": -2 * sign, "moment.3": 0, "moment.4": 2 * sign,
+        }),
+      );
+      expect(axis.weighted, `부호 ${sign}`).toBe(0);
+      // 떠올리기(limit.3, check.2)는 합 0, 그때 나는(worth.1, moment.4)이 +8 x 부호 - 동점 1단계는 이 둘을 합쳐 본다
+      expect(axis, `부호 ${sign}`).toMatchObject({ tieLevel: 1, side: sign === 1 ? "front" : "back", letter: sign === 1 ? "V" : "S", band: "even", provisional: false });
+    }
+  });
+
+  /**
+   * 돈 밖의 세 주제 손계산: 측면 합이 모두 0, 고르기 합 0, 이럴 때 합 0 이라 동점 3단계까지도 갈리지 않고 자기 선택(4단계)이 정한다.
+   * 이름은 주제.측면.구간 번호(1에서 4)이고 값은 그 문항이 낼 수 있는 값이다.
+   */
+  const TIE4_PLANS: Readonly<Record<"process" | "scope" | "support", Readonly<Record<string, Wanted>>>> = {
+    process: {
+      "process.search.1": 0, "process.search.2": 2, "process.search.3": 2, "process.search.4": -4,
+      "process.owner.1": 2, "process.owner.2": 0, "process.owner.3": 2, "process.owner.4": -4,
+      "process.report.1": -2, "process.report.2": 4, "process.report.3": 0, "process.report.4": -2,
+      "process.detail.1": -2, "process.detail.2": 0, "process.detail.3": 2, "process.detail.4": 0,
+    },
+    scope: {
+      "scope.final.1": 2, "scope.final.2": 0, "scope.final.3": -2, "scope.final.4": 0,
+      "scope.circle.1": 2, "scope.circle.2": -4, "scope.circle.3": 0, "scope.circle.4": 2,
+      "scope.timing.1": -2, "scope.timing.2": 0, "scope.timing.3": 2, "scope.timing.4": 0,
+      "scope.form.1": 0, "scope.form.2": 2, "scope.form.3": -6, "scope.form.4": 4,
+    },
+    support: {
+      "support.vent.1": 0, "support.vent.2": 2, "support.vent.3": 0, "support.vent.4": -2,
+      "support.give.1": 0, "support.give.2": 2, "support.give.3": 0, "support.give.4": -2,
+      "support.fight.1": -4, "support.fight.2": 0, "support.fight.3": 2, "support.fight.4": 2,
+      "support.recover.1": -2, "support.recover.2": 6, "support.recover.3": -4, "support.recover.4": 0,
+    },
+  };
+
+  it("예제 14: 동점 3단계 다수결은 세는 측면만 본다 - 답이 1개뿐인 측면의 부호는 다수결에 들어가지 않아 4단계 자기 선택이 정한다", () => {
+    // 측면 합 +2, -2, 0 은 세는 측면이고 moment 는 답이 1개(+2)뿐이라 세지 않는다. N = 3 x (2 - 2 + 0) = 0,
+    // 고르기 합(limit.3, check.2, worth.1, moment.4) = 2 - 2 - 2 + 2 = 0, 이럴 때 합 0. 양 1 음 1 이라 3단계에서 갈리지 않는다.
+    const plan = {
+      "limit.1": 2, "limit.2": 0, "limit.3": 2, "limit.4": -2,
+      "check.1": 0, "check.2": -2, "check.3": 2, "check.4": -2,
+      "worth.1": -2, "worth.2": -2, "worth.3": 4, "worth.4": 0,
+      "moment.4": 2,
+    };
+    for (const [side, letter] of [["back", "S"], ["front", "V"]] as const) {
+      const axis = moneyScore(money(plan, { "self.money": selfState("money", side, 2) }));
+      expect(axis.facets.map((facet) => facet.answered)).toEqual([4, 4, 4, 1]);
+      expect(axis.facets.map((facet) => facet.sum)).toEqual([2, -2, 0, 2]);
+      expect(axis.facets.map((facet) => facet.counted)).toEqual([true, true, true, false]);
+      expect(axis.weighted).toBe(0);
+      expect(axis, side).toMatchObject({ tieLevel: 4, side, letter, band: "even", provisional: false, unusable: false });
+    }
+  });
+
+  it("예제 15: 동점 4단계는 돈 밖의 세 주제에서도 그 주제의 자기 선택으로 글자를 정하고, 자기 선택이 없으면 5단계 임시 글자다", () => {
+    const letters = { process: ["W", "D"], scope: ["U", "F"], support: ["H", "A"] } as const;
+    for (const axis of ["process", "scope", "support"] as const) {
+      const at = (extra: Record<string, ResponseValue>) => scoreResponses(bank, respond(TIE4_PLANS[axis], extra)).axes[V40_AXIS_KEYS.indexOf(axis)];
+      // 다른 주제(돈)의 자기 선택은 일부러 반대로 눌러 둔다: 그 주제 것을 읽으면 결과가 뒤집힌다
+      const back = at({ [`self.${axis}`]: selfState(axis, "back", 2), "self.money": selfState("money", "front", 3) });
+      expect(back.facets.map((facet) => facet.sum), axis).toEqual([0, 0, 0, 0]);
+      expect(back.weighted, axis).toBe(0);
+      expect(back, axis).toMatchObject({ tieLevel: 4, side: "back", letter: letters[axis][1], band: "even", provisional: false });
+      const front = at({ [`self.${axis}`]: selfState(axis, "front", 1), "self.money": selfState("money", "back", 3) });
+      expect(front, axis).toMatchObject({ tieLevel: 4, side: "front", letter: letters[axis][0], provisional: false });
+      const none = at({ "self.money": selfState("money", "back", 3) });
+      expect(none, axis).toMatchObject({ tieLevel: 5, side: "front", letter: letters[axis][0], provisional: true });
+    }
+  });
 });
 
 describe("경계: 세는 측면 수 m 에 따른 정수 임계 |N| >= 36 m 와 |N| >= 18 m", () => {
@@ -548,6 +624,10 @@ describe("buildResult: 힌트와 세기", () => {
       }
       // 글자 자체는 힌트로 바뀌지 않는다
       expect(result.axes.map((axis) => axis.letter)).toEqual(["V", "W", "U", "H"]);
+      // 관문은 위치 반복 형식이 세 개일 때만 닫힌다: 두 개면 세기만 낮추고 코드는 그대로 나온다
+      expect(result.rhythm.flaggedCount).toBe(2);
+      expect(result.gate).toEqual({ closed: false, reason: null });
+      expect(result.code).toBe("VWUH");
     }
   });
 
@@ -643,6 +723,29 @@ describe("buildResult: 직접 고른 쪽 대비", () => {
     });
     expect(result.axes[2].contrast).toBeNull();
     expect(result.axes[3].contrast).toBeNull();
+  });
+
+  it("한 단계 낮춰 뚜렷해요가 기울어요로 보이는 주제의 대비는 화면에 보이는 세기(기울어요)를 담는다", () => {
+    const responses = strong(FRONT4, { money: selfState("money", "back", 2) });
+    // 돈 밖의 채점 문항 17개를 건너뛰어 건너뜀 힌트를 켠다(돈 주제 답은 그대로라 원래 세기는 뚜렷해요)
+    bank.scored
+      .filter((item) => item.axis !== "money" && item.fmt !== "pair" && item.fmt !== "react")
+      .slice(0, 17)
+      .forEach((item) => {
+        responses[item.id] = "skip";
+      });
+    const result = buildResult(bank, 0, responses);
+    expect(result.notes.hintSkip).toBe(true);
+    expect(result.axes[0]).toMatchObject({ band: "clear", shownBand: "lean" });
+    expect(result.axes[0].contrast).toEqual({
+      axis: "money",
+      selfSide: "back",
+      selfLetter: "S",
+      selfLevel: 2,
+      gatheredSide: "front",
+      gatheredLetter: "V",
+      gatheredBand: "lean",
+    });
   });
 
   it("같은 쪽을 골랐거나, 조금만 골랐거나, 자기 선택을 건너뛰었거나 답하지 않았으면 대비가 없다", () => {

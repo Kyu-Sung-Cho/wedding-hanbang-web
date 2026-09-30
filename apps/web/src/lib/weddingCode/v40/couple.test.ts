@@ -593,6 +593,10 @@ describe("detectPerspective", () => {
     expect(detectPerspective(bank, person({}), first, second)).toBeNull();
     const partial = { formBit: first.formBit, responses: Object.fromEntries(Object.entries(first.responses).slice(0, 30)) };
     expect(detectPerspective(bank, partial, first, second)).toBeNull();
+    // 링크 쪽 답도 코드로 만들 수 없으면 (코드 없음) 끼리 같다고 보고 first 나 second 라고 답하면 안 된다.
+    expect(detectPerspective(bank, person({}), person({}), person({}))).toBeNull();
+    expect(detectPerspective(bank, partial, partial, second)).toBeNull();
+    expect(detectPerspective(bank, partial, first, partial)).toBeNull();
   });
 
   it("폼 비트가 다르면 같은 답이어도 다른 코드라 null 이다(70자 코드가 같은지로 가른다)", () => {

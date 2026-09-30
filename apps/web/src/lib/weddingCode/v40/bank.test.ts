@@ -373,6 +373,16 @@ const MUTATIONS: readonly Mutation[] = [
   { name: "이럴 때 양끝 이름이 같다", apply: (d) => { const ends = find(d, "process.search.1").ends as { left: string; right: string }; ends.right = ends.left; }, ts: ["same-text"], lint: ["same-text"] },
   { name: "가장 아닌 것 카드가 요로 끝나지 않는다", apply: (d) => { (find(d, "scope.circle.1").cards as MChoice[])[0].text = "가나다"; }, ts: ["bestworst-ending"], lint: ["bestworst-ending"] },
   { name: "가장 아닌 것 카드에 마침표가 있다", apply: (d) => { const card = (find(d, "scope.circle.1").cards as MChoice[])[0]; card.text = `${card.text.replace(/요$/, "")}요.`; }, ts: ["bestworst-ending"], lint: ["bestworst-ending"] },
+  {
+    name: "가장 아닌 것 카드 글 안쪽에 마침표가 있다(요로는 끝난다)",
+    apply: (d) => {
+      const card = (find(d, "scope.circle.1").cards as MChoice[])[0];
+      expect(card.text.endsWith("요")).toBe(true);
+      card.text = `${card.text.slice(0, 6)}.${card.text.slice(6)}`;
+    },
+    ts: ["bestworst-ending"],
+    lint: ["bestworst-ending"],
+  },
 ];
 
 describe("규칙마다 변형을 심으면 그 규칙이 빨개진다(검사기와 같은 결정)", () => {

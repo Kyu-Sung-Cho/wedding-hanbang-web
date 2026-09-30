@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { V40_COPY } from "@/lib/weddingCode/v40/copy";
+import { V40_COPY, perspectiveChangedAnnouncement } from "@/lib/weddingCode/v40/copy";
 import type { Perspective } from "@/lib/weddingCode/v40/types";
 import { CouplePerspectiveSwitch } from "./CouplePerspectiveSwitch";
 import { click, createHarness, describedByText, labelProblemsIn, type Harness } from "./inputTestKit";
@@ -15,6 +15,7 @@ afterEach(async () => {
 
 const radios = () => [...harness.container.querySelectorAll<HTMLInputElement>('input[type="radio"]')];
 const text = () => harness.container.textContent ?? "";
+const statusRegion = () => harness.container.querySelector<HTMLElement>("[data-perspective-status]");
 
 /** 부모처럼 선택을 들고 있는 껍데기: 사람이 고른 것이 있으면 그것, 없으면 detected. */
 function Host({ detected, spy }: { readonly detected: Perspective | null; readonly spy: (value: Perspective) => void }) {
@@ -71,6 +72,39 @@ describe("CouplePerspectiveSwitch", () => {
     expect(spy).toHaveBeenCalledWith("second");
     expect(text()).not.toContain(V40_COPY.couple.perspective.autoNote);
     expect(text()).not.toContain(V40_COPY.couple.perspective.askNote);
+  });
+
+  it("라디오 값과 글이 짝이 맞다: 첫째는 first 와 먼저 답한 사람, 둘째는 second 와 나중에 답한 사람", async () => {
+    await harness.render(<CouplePerspectiveSwitch idPrefix="t-persp" detected={null} value={null} onChange={() => undefined} />);
+    expect(radios().map((radio) => radio.value)).toEqual(["first", "second"]);
+    const labels = radios().map((radio) => radio.closest("label")?.textContent?.trim());
+    expect(labels).toEqual([V40_COPY.couple.perspective.iAmFirstOption, V40_COPY.couple.perspective.iAmSecondOption]);
+    expect(labels[0]).toContain("먼저");
+    expect(labels[1]).toContain("나중에");
+  });
+
+  it("고르면 낭독기에 알린다: 처음부터 문서에 있는 status 자리의 글이 고른 쪽에 맞게 바뀐다", async () => {
+    await harness.render(<Host detected={null} spy={vi.fn()} />);
+    const region = statusRegion();
+    expect(region).not.toBeNull();
+    expect(region?.getAttribute("role")).toBe("status");
+    expect(region?.getAttribute("aria-live")).toBe("polite");
+    expect(region?.getAttribute("aria-atomic")).toBe("true");
+    expect(region?.textContent).toBe("");
+    await click(radios()[1]);
+    // 같은 요소의 글만 바뀐다(자리를 새로 그리면 낭독기가 바뀐 글을 놓칠 수 있다).
+    expect(statusRegion()).toBe(region);
+    expect(region?.textContent).toBe(perspectiveChangedAnnouncement("second"));
+    expect(region?.textContent).toContain(V40_COPY.couple.perspective.iAmSecondOption);
+    await click(radios()[0]);
+    expect(region?.textContent).toBe(perspectiveChangedAnnouncement("first"));
+    expect(region?.textContent).toContain(V40_COPY.couple.perspective.iAmFirstOption);
+    expect(region?.textContent).not.toContain(V40_COPY.couple.perspective.iAmSecondOption);
+  });
+
+  it("자동으로 정했을 때는 사람이 고른 것이 아니므로 낭독기 알림 자리가 비어 있다", async () => {
+    await harness.render(<CouplePerspectiveSwitch idPrefix="t-persp" detected="second" value="second" onChange={() => undefined} />);
+    expect(statusRegion()?.textContent).toBe("");
   });
 
   it("라디오 둘은 같은 이름의 진짜 라디오이고 번호나 A/B 라벨이 없다", async () => {

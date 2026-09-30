@@ -196,6 +196,10 @@ test("배치 골격을 하나만 깨도 verifyLayout 이 그 성질을 잡는다
     ["layout-screens", (l) => { l.find((r) => r.id === "money.limit.1").pos = 3; }],
     ["layout-latin", (l) => { l.find((r) => r.id === "money.check.1").facet = "limit"; }],
     ["layout-adjacent-axis", (l) => { const a = l.findIndex((r) => r.id === "money.limit.1"); const b = l.findIndex((r) => r.id === "process.owner.1"); [l[a], l[b]] = [l[b], l[a]]; }],
+    // 마음이 무거운 측면(마지막 선택)이 구간의 맨 앞 화면에 오면 잡는다
+    ["layout-heavy-topic", (l) => { l.find((r) => r.id === "money.limit.1").facet = "final"; }],
+    // 자기 묘사 문항(방법 카드, 바로 고르기, 가장·아닌 것)이 주제마다 6개를 넘으면 잡는다: 이럴 때 하나를 바로 고르기로 바꾸면 7개
+    ["layout-indirect", (l) => { l.find((r) => r.id === "money.worth.4").fmt = "instant"; }],
   ];
   for (const [rule, mutate] of cases) {
     const copy = structuredClone(layout);
@@ -780,6 +784,32 @@ test("건너뜀 힌트: 잘 모르겠어요가 16개를 넘으면(17개부터) �
   const r = ref.buildResult(bank, 0, both);
   assert.equal(r.notes.demoted, true);
   for (const a of r.axes) if (a.band !== null) assert.equal(a.shownBand, ref.demoteBand(a.band));
+});
+
+test("전체 결과의 건너뜀 힌트는 16개까지 걸리지 않고 17개부터 세기를 한 단계 낮춘다(뚜렷해요 -> 기울어요 -> 반반이에요)", () => {
+  // 기준 계산기의 demoteBand 를 정답으로 삼지 않고 낮춘 결과를 손으로 적은 값과 견준다.
+  assert.equal(ref.demoteBand("clear"), "lean");
+  assert.equal(ref.demoteBand("lean"), "even");
+  assert.equal(ref.demoteBand("even"), "even");
+  const skipsFrom = (facetSums, n) => {
+    const responses = fullResponses({ money: { facetSums } });
+    for (const item of bank.scored.filter((it) => it.axis !== "money").slice(0, n)) responses[item.id] = "skip";
+    return responses;
+  };
+  for (const [facetSums, band, lowered] of [[[12, 12, 12, 12], "clear", "lean"], [[6, 6, 6, 6], "lean", "even"]]) {
+    const at16 = ref.buildResult(bank, 0, skipsFrom(facetSums, 16));
+    assert.equal(at16.notes.skippedCount, 16);
+    assert.equal(at16.notes.hintSkip, false, `${band} 16개`);
+    assert.equal(at16.notes.demoted, false);
+    assert.equal(at16.axes[0].band, band);
+    assert.equal(at16.axes[0].shownBand, band);
+    const at17 = ref.buildResult(bank, 0, skipsFrom(facetSums, 17));
+    assert.equal(at17.notes.skippedCount, 17);
+    assert.equal(at17.notes.hintSkip, true, `${band} 17개`);
+    assert.equal(at17.notes.demoted, true);
+    assert.equal(at17.axes[0].band, band);
+    assert.equal(at17.axes[0].shownBand, lowered);
+  }
 });
 
 test("관문: 확정 글자가 하나도 없으면(모두 임시이거나 못 정함) 코드를 만들지 않는다", () => {

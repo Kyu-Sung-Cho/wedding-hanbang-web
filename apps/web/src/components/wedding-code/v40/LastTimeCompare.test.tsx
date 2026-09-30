@@ -115,6 +115,33 @@ describe("LastTimeCompare", () => {
     expect(textOf(row("scope"))).toContain(V40_COPY.legend.notSetLabel);
   });
 
+  it("이번 글자가 임시 글자인 주제도 비교에서 뺀다", async () => {
+    const { result } = resultCase("provisional-tie");
+    const provisionalAxes = result.axes.filter((axis) => axis.provisional);
+    // 표본이 바뀌어 임시 글자가 하나도 없어지면 이 검사가 빈 껍데기가 된다.
+    expect(provisionalAxes.length).toBeGreaterThan(0);
+    const previous = historyOf(resultCase("all-clear").result, SEPT_29_NOON_KST);
+    await harness.render(<LastTimeCompare result={result} previous={previous} />);
+    for (const axis of provisionalAxes) {
+      expect(row(axis.axis).getAttribute("data-history-tag")).toBe("excluded");
+      expect(textOf(row(axis.axis))).toContain(V40_COPY.history.excludedTag);
+    }
+    expect(textOf(harness.container)).toContain(V40_COPY.history.excludedNote);
+  });
+
+  it("뺀 주제도 바뀌기 쉬운 주제도 없으면 그 두 안내 글은 나오지 않는다", async () => {
+    const { result } = resultCase("all-clear");
+    await harness.render(<LastTimeCompare result={result} previous={historyOf(result, SEPT_29_NOON_KST)} />);
+    expect([...harness.container.querySelectorAll("[data-history-row]")].map((node) => node.getAttribute("data-history-tag"))).toEqual([
+      "same",
+      "same",
+      "same",
+      "same",
+    ]);
+    expect(textOf(harness.container)).not.toContain(V40_COPY.history.excludedNote);
+    expect(textOf(harness.container)).not.toContain(V40_COPY.history.unstableNote);
+  });
+
   it("이번 세기는 힌트로 낮춘 세기를 쓴다", async () => {
     const { result } = resultCase("rhythm-hint");
     const previous = historyOf(resultCase("all-clear").result, SEPT_29_NOON_KST);

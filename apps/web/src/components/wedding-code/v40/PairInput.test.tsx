@@ -224,6 +224,14 @@ describe.each(CASES)("PairInput: $name", ({ view }) => {
     expect(radios().map((radio) => radio.tabIndex)).toEqual([0, -1, -1, -1, -1, -1]);
   });
 
+  it("다른 형식(이럴 때 내 마음)의 답이 와도 칸을 고른 것으로 그리지 않는다", async () => {
+    await renderInput({ fmt: "react", cell: 2 }, { incomplete: true });
+    expect(radios().every((radio) => radio.getAttribute("aria-checked") === "false")).toBe(true);
+    expect(radios().map((radio) => radio.tabIndex)).toEqual([0, -1, -1, -1, -1, -1]);
+    // 이 문항의 답이 아니니 다음을 눌렀다면 안내가 그대로 뜬다.
+    expect(harness.container.querySelector("#q1-incomplete")?.textContent).toBe(V40_COPY.question.incomplete);
+  });
+
   it("칸을 고른 뒤 넘기기를 누르면 칸이 풀리고 다시 칸을 고르면 넘기기가 풀린다", async () => {
     const answers = await renderControlled();
     await click(radios()[1]);
@@ -243,12 +251,16 @@ describe.each(CASES)("PairInput: $name", ({ view }) => {
     ]);
   });
 
-  it("막는 칸이 없다: 어떤 칸도 disabled 나 aria-disabled 가 아니다", async () => {
-    await renderInput();
-    for (const radio of radios()) {
-      expect(radio.hasAttribute("disabled")).toBe(false);
-      expect(radio.getAttribute("aria-disabled")).toBeNull();
-      expect(radio.className).toMatch(/min-h-1[1-9]/);
+  it("막는 칸이 없다: 비어 있을 때도, 칸을 고른 뒤에도, 넘기기를 고른 뒤에도 어떤 칸도 disabled 나 aria-disabled 가 아니다", async () => {
+    const values: (ViewAnswer | null)[] = [null, { fmt: view.fmt, cell: 2 }, { fmt: "escape", which: "na" }];
+    for (const value of values) {
+      await renderInput(value);
+      expect(radios()).toHaveLength(6);
+      for (const radio of radios()) {
+        expect(radio.hasAttribute("disabled")).toBe(false);
+        expect(radio.getAttribute("aria-disabled")).toBeNull();
+        expect(radio.className).toMatch(/min-h-1[1-9]/);
+      }
     }
   });
 

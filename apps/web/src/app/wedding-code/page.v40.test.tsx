@@ -9,10 +9,21 @@ import { WEDDING_CODE_V20_VERSION } from "@/constants/weddingCodeV20";
 import { WEDDING_CODE_V30_VERSION } from "@/constants/weddingCodeV30";
 import { WEDDING_CODE_V31_VERSION } from "@/constants/weddingCodeV31";
 import { WEDDING_CODE_V40_VERSION } from "@/constants/weddingCodeV40";
+import { WEDDING_CODE_V40_BANK } from "@/lib/weddingCode/v40/bank";
+import { encodeCode } from "@/lib/weddingCode/v40/codec";
 import { V40_COPY } from "@/lib/weddingCode/v40/copy";
+import { fixtureByName } from "@/lib/weddingCode/v40/fixtures";
+import { parseWeddingCodeEntryHash } from "./entry";
 import WeddingCodePage, { generateMetadata } from "./page";
 
 const V40 = WEDDING_CODE_V40_VERSION;
+/** 해시로 오면 읽히는 진짜 코드. 깨진 코드("AACB")로만 시험하면 query 를 읽든 말든 오류라서 「query 의 답을 읽지 않는다」를 밝히지 못한다. */
+const READABLE_CODE = (() => {
+  const fixture = fixtureByName("swua-example");
+  const code = fixture ? encodeCode(WEDDING_CODE_V40_BANK, fixture.formBit, fixture.responses) : null;
+  if (code === null) throw new Error("고정 표본 코드를 만들 수 없어요");
+  return code;
+})();
 const BANNED_IN_DESCRIPTION = /모든 성향|완벽|정확히|MBTI|16개 문장|32개 문장만/;
 const CLAIMS = /검증된|정확|과학|진단|점수|등급|궁합|유형|스타일|퍼센트|%/;
 
@@ -87,11 +98,24 @@ describe("웨딩코드 진입 화면: v4.0-tendency 명시 진입(기본 판 v3.
     }
   });
 
+  it("query 에 읽을 수 있는 진짜 코드가 실려도 서버는 풀지 않고, 코드가 화면에 나가지 않는다(같은 코드가 해시로 오면 읽힌다)", async () => {
+    expect(parseWeddingCodeEntryHash(`#v=${V40}&a=${READABLE_CODE}`)?.kind).toBe("v40");
+    for (const search of [{ v: V40, a: READABLE_CODE }, { v: V40, b: READABLE_CODE }, { v: V40, a: READABLE_CODE, b: READABLE_CODE }]) {
+      const page = await WeddingCodePage({ searchParams: Promise.resolve(search) });
+      expect(page.props.initialEntry, JSON.stringify(search)).toEqual({ kind: "error", version: V40 });
+      const html = renderToStaticMarkup(page);
+      expect(html).toContain(V40_COPY.error.brokenLink.title);
+      expect(html).not.toContain(READABLE_CODE);
+    }
+  });
+
   it("v4 입구를 서버에서 그려도 던지지 않는다(시험 환경에서는 불러오는 자리만 그려진다)", async () => {
     const page = await WeddingCodePage({ searchParams: Promise.resolve({ v: V40 }) });
     const html = renderToStaticMarkup(page);
     expect(html).not.toContain(V40_COPY.error.brokenLink.title);
     expect(html).not.toContain("이 링크는 열 수 없어요");
     expect(html).toContain(V40_COPY.common.loadingLabel);
+    // 낭독기에 들리려면 글자가 있는 것만으로는 모자라고 상태 알림 영역(role=status) 안에 있어야 한다.
+    expect(html).toMatch(new RegExp(`role="status"[^>]*>${V40_COPY.common.loadingLabel}</`));
   });
 });

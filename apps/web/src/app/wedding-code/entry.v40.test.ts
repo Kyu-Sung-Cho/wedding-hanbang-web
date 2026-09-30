@@ -7,10 +7,11 @@ import { WEDDING_CODE_V06_VERSION } from "@/constants/weddingCodeV06";
 import { WEDDING_CODE_V12_VERSION } from "@/constants/weddingCodeV12";
 import { WEDDING_CODE_V30_VERSION } from "@/constants/weddingCodeV30";
 import { WEDDING_CODE_V31_VERSION } from "@/constants/weddingCodeV31";
-import { V40_NA_CHAR, V40_SKIP_CHAR, WEDDING_CODE_V40_VERSION } from "@/constants/weddingCodeV40";
+import { V40_NA_CHAR, V40_SKIP_CHAR, V40_STATE_ALPHABET, WEDDING_CODE_V40_VERSION } from "@/constants/weddingCodeV40";
 import { createV31Draft, encodeV31 } from "@/lib/weddingCode/v31";
 import { WEDDING_CODE_V40_BANK } from "@/lib/weddingCode/v40/bank";
 import { checksumChar, decodeCode, encodeCode } from "@/lib/weddingCode/v40/codec";
+import { fromCodeChar, isResponseValueFor } from "@/lib/weddingCode/v40/states";
 import { V40_ENTRY_COPY as V40_ENTRY_COPY_FROM_COPY } from "@/lib/weddingCode/v40/copy";
 import { V40_ENTRY_COPY } from "@/lib/weddingCode/v40/entryCopy";
 import { V40_FIXTURES, fixtureByName } from "@/lib/weddingCode/v40/fixtures";
@@ -159,6 +160,24 @@ describe("웨딩코드 4.0 진입: 받은 링크와 두 사람 결과(#v=v4.0-te
         expect(parseWeddingCodeEntryHash(`${soloHash}&b=${damaged}`), `b ${index}:${replacement}`).toEqual(V40_BROKEN);
       }
     }
+  });
+
+  it("문항 형식에 없는 상태 값은 체크섬을 맞게 다시 계산해도 링크 전체를 거절한다(체크섬은 0 과 Z 처럼 같은 값을 내는 글자를 구별하지 못하므로 형식별 범위 검사가 막는다)", () => {
+    let planted = 0;
+    WEDDING_CODE_V40_BANK.items.forEach((item, index) => {
+      for (const char of V40_STATE_ALPHABET) {
+        const value = fromCodeChar(char);
+        if (value === null || isResponseValueFor(item.fmt, value)) continue;
+        // 코드의 index + 1 번째 글자가 문항 index 의 답이다. 그 자리만 형식에 없는 글자로 바꾸고 체크섬을 다시 맞춘다.
+        const body = `${A.slice(0, index + 1)}${char}${A.slice(index + 2, A.length - 1)}`;
+        const forged = `${body}${checksumChar(body)}`;
+        expect(parseWeddingCodeEntryHash(`#v=${V40}&a=${forged}`), `${item.id}:${char}`).toEqual(V40_BROKEN);
+        expect(parseWeddingCodeEntryHash(`${soloHash}&b=${forged}`), `b ${item.id}:${char}`).toEqual(V40_BROKEN);
+        planted += 1;
+      }
+    });
+    // 이 시험이 비어 지나가지 않게: 문항 68개마다 형식에 없는 글자가 여럿 있다.
+    expect(planted).toBeGreaterThan(500);
   });
 
   it("v4 코드는 옛 판 링크로 읽히지 않고, 다른 판의 깨진 링크는 v4 오류가 되지 않는다", () => {

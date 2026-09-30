@@ -112,3 +112,49 @@ describe("entry.ts 골든 표", () => {
     ]);
   });
 });
+
+/**
+ * 표의 「긴 해시」 두 행은 코드 없는 x 덩어리고, 「공백 버전」 행은 이름이 v3.1 이라서 어느 쪽으로 읽어도 오류다.
+ * 그래서 해시 길이 상한(12000자)과 버전 이름의 앞뒤 공백 검사가 사라져도 표는 초록으로 남는다.
+ * 옛 파서가 지키던 이 두 경계를 표 안의 유효한 행에서 만든 링크로 직접 잠근다.
+ */
+describe("entry.ts 골든 표가 못 밝히는 두 경계", () => {
+  const rowByLabel = (label: string): GoldenRow => {
+    const row = rows.find((candidate) => candidate.label === label);
+    if (!row) throw new Error(`골든 행이 없어요: ${label}`);
+    return row;
+  };
+  const optionsList = [undefined, { defaultVersion: WEDDING_CODE_V40_VERSION }] as const;
+
+  it("해시 길이 상한: # 뒤 12000자까지는 읽고 12001자부터는 오류다(빈 조각은 무시되므로 유효한 링크를 길게 늘일 수 있다)", () => {
+    const valid = rowByLabel("hash v2.0 a");
+    const base = valid.input as string;
+    const padded = (rawLength: number) => base + "&".repeat(rawLength - (base.length - 1));
+    for (const options of optionsList) {
+      expect(summarize(parseWeddingCodeEntryHash(padded(base.length - 1), options))).toEqual(valid.expected);
+      expect(summarize(parseWeddingCodeEntryHash(padded(12000), options))).toEqual(valid.expected);
+      expect(parseWeddingCodeEntryHash(padded(12001), options)).toEqual({ kind: "error" });
+      expect(parseWeddingCodeEntryHash(padded(20000), options)).toEqual({ kind: "error" });
+    }
+  });
+
+  it("버전 이름의 앞뒤 공백은 이름이 옳아도 오류다(장면 판 여섯 개, v2.0, v3.0, v3.1)", () => {
+    const names = ["v0.6-scene", "v0.8-code", "v0.9-code", "v1.0-code", "v1.1-code", "v1.2-code", "v2.0-agreement", "v3.0-preferences", "v3.1-preferences"];
+    for (const options of optionsList) {
+      for (const name of names) {
+        for (const spaced of [` ${name}`, `${name} `, `\t${name}`, `${name}\n`]) {
+          expect(parseWeddingCodeEntryQuery({ v: spaced }, options), JSON.stringify(spaced)).toEqual({ kind: "error" });
+          expect(parseWeddingCodeEntryQuery(new URLSearchParams({ v: spaced }), options), JSON.stringify(spaced)).toEqual({ kind: "error" });
+        }
+      }
+      // 해시로 와도 같다. 표의 유효한 링크에서 이름에 공백만 더한다(달라진 것이 공백뿐임을 확인한다).
+      const valid = rowByLabel("hash v1.2-code a");
+      const hash = valid.input as string;
+      expect(summarize(parseWeddingCodeEntryHash(hash, options))).toEqual(valid.expected);
+      for (const spaced of [hash.replace("v=v1.2-code", "v=%20v1.2-code"), hash.replace("v=v1.2-code", "v=v1.2-code%20")]) {
+        expect(spaced).not.toBe(hash);
+        expect(parseWeddingCodeEntryHash(spaced, options), spaced).toEqual({ kind: "error" });
+      }
+    }
+  });
+});

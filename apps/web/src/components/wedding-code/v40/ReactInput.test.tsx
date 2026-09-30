@@ -102,8 +102,9 @@ describe.each(BITS)("ReactInput: 폼 비트 %i", (formBit) => {
     expect(speaker).toBe("말한 사람: 상대");
     expect(quote).toBe("「그럼 내일 할 일부터 같이 정리해 볼까?」");
     expect(describedByText(groups[0])).toBe([speaker, quote, view.groupDescription].join(" "));
-    expect(view.groupDescription).toContain(`「${left}」`);
-    expect(view.groupDescription).toContain(`「${right}」`);
+    // 어느 이름이 어느 쪽 끝인지까지 맞아야 한다(두 이름이 들어 있기만 하면 거울 짝이 뒤집혀도 통과한다).
+    expect(view.groupDescription).toContain(`왼쪽 끝은 「${left}」`);
+    expect(view.groupDescription).toContain(`오른쪽 끝은 「${right}」`);
   });
 
   it("사연이 없는 뷰에서는 그룹 설명이 양끝 이름뿐이다", async () => {
@@ -187,7 +188,9 @@ describe.each(BITS)("ReactInput: 폼 비트 %i", (formBit) => {
     const answers = await renderControlled();
     radios()[2].focus();
     for (const key of ["Tab", "x", "Home", "End"]) expect((await pressKey(key)).defaultPrevented).toBe(false);
-    expect((await pressKey("ArrowRight", { altKey: true })).defaultPrevented).toBe(false);
+    for (const init of [{ altKey: true }, { ctrlKey: true }, { metaKey: true }]) {
+      expect((await pressKey("ArrowRight", init)).defaultPrevented).toBe(false);
+    }
     expect(document.activeElement).toBe(radios()[2]);
     expect(answers).toEqual([]);
   });
@@ -202,19 +205,36 @@ describe.each(BITS)("ReactInput: 폼 비트 %i", (formBit) => {
     expect(radios().every((radio) => radio.getAttribute("aria-checked") === "false")).toBe(true);
   });
 
-  it("막는 칸이 없고 터치 목표 클래스가 있다", async () => {
-    await renderInput();
-    for (const radio of radios()) {
-      expect(radio.hasAttribute("disabled")).toBe(false);
-      expect(radio.getAttribute("aria-disabled")).toBeNull();
-      expect(radio.className).toMatch(/min-h-1[1-9]/);
+  it("막는 칸이 없고 터치 목표 클래스가 있다: 비어 있을 때도, 칸을 고른 뒤에도, 넘기기를 고른 뒤에도", async () => {
+    const values: (ViewAnswer | null)[] = [null, { fmt: "react", cell: 2 }, { fmt: "escape", which: "na" }];
+    for (const value of values) {
+      await renderInput(value);
+      expect(radios()).toHaveLength(5);
+      for (const radio of radios()) {
+        expect(radio.hasAttribute("disabled")).toBe(false);
+        expect(radio.getAttribute("aria-disabled")).toBeNull();
+        expect(radio.className).toMatch(/min-h-1[1-9]/);
+      }
     }
   });
 
   it("비어 있는데 다음을 눌렀으면 안내하고 답이 있으면 안내하지 않는다", async () => {
     await renderInput(null, { incomplete: true });
-    expect(harness.container.querySelector("#q1-incomplete")?.textContent).toBe(V40_COPY.question.incomplete);
+    const notice = harness.container.querySelector("#q1-incomplete");
+    expect(notice?.textContent).toBe(V40_COPY.question.incomplete);
+    // 안내 자리는 처음부터 문서에 있는 aria-live 영역이고, 글이 있을 때만 다섯 형식이 같은 상자 모양으로 보인다.
+    expect(notice?.getAttribute("role")).toBe("status");
+    expect(notice?.getAttribute("aria-live")).toBe("polite");
+    expect(notice?.className).toMatch(/rounded-lg/);
     await renderInput({ fmt: "react", cell: 2 }, { incomplete: true });
+    expect(harness.container.querySelector("#q1-incomplete")).toBe(notice);
+    expect(notice?.getAttribute("aria-live")).toBe("polite");
+    expect(notice?.textContent).toBe("");
+    expect(notice?.className).not.toMatch(/rounded-lg/);
+    // 넘기기도 답이다.
+    await renderInput({ fmt: "escape", which: "unsure" }, { incomplete: true });
+    expect(harness.container.querySelector("#q1-incomplete")?.textContent).toBe("");
+    await renderInput({ fmt: "escape", which: "na" }, { incomplete: true });
     expect(harness.container.querySelector("#q1-incomplete")?.textContent).toBe("");
   });
 

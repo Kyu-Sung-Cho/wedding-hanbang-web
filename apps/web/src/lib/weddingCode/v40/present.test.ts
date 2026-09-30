@@ -173,6 +173,23 @@ describe("present: react", () => {
     }
   });
 
+  it("낭독 문구는 구현이 쓴 함수가 아니라 글자 그대로 검사한다: 양끝 칸은 그 끝 이름, 안쪽 칸은 위치, 그룹 설명은 왼쪽 끝 다음에 오른쪽 끝", () => {
+    for (const item of reacts) {
+      for (const formBit of FORMS) {
+        const view = present(item, formBit) as ReactView;
+        const { left, right } = view.ends;
+        expect(view.groupDescription).toBe(`왼쪽 끝은 「${left}」, 오른쪽 끝은 「${right}」예요.`);
+        expect(view.cells.map((cell) => cell.accessibleName)).toEqual([
+          `${left}, 다섯 칸 중 왼쪽 끝`,
+          "다섯 칸 중 왼쪽에서 두 번째",
+          "다섯 칸 중 가운데",
+          "다섯 칸 중 오른쪽에서 두 번째",
+          `${right}, 다섯 칸 중 오른쪽 끝`,
+        ]);
+      }
+    }
+  });
+
   it("인용문이 있으면 화자와 원문을 싣고 없으면 null", () => {
     for (const item of reacts) {
       for (const formBit of FORMS) {
@@ -193,10 +210,12 @@ describe("present: recall, instant, bestworst, split", () => {
       const one = present(item, 1) as ChoiceView;
       expect(zero.options.map((option) => option.text)).toEqual(item.options.map((option) => option.text));
       expect(one.options.map((option) => option.text)).toEqual([...item.options].reverse().map((option) => option.text));
-      const expectedNone = item.fmt === "recall" ? V40_ESCAPES.recallNone : null;
+      // 문구는 상수를 되읽지 않고 글자 그대로 적는다(상수가 바뀌면 이 시험이 알아챈다)
+      const expectedNone = item.fmt === "recall" ? "이런 일이 없었어요" : null;
       expect(zero.noneLabel).toBe(expectedNone);
       expect(one.noneLabel).toBe(expectedNone);
     }
+    expect(V40_ESCAPES.recallNone).toBe("이런 일이 없었어요");
   });
 
   it("가장·가장 아닌 것 카드 네 장은 폼 비트 1 이면 역순이고 두 그룹 이름과 낭독 문장을 싣는다", () => {
@@ -211,6 +230,9 @@ describe("present: recall, instant, bestworst, split", () => {
         expect(view.bestLabel).toBe(V40_BESTWORST_LABELS.best);
         expect(view.worstLabel).toBe(V40_BESTWORST_LABELS.worst);
         expect(view.duplicateAnnounce).toBe(V40_BESTWORST_LABELS.duplicateAnnounce);
+        // 두 그룹 이름은 상수를 되읽지 않고 글자 그대로 검사한다(이름이 서로 바뀌면 값이 거꾸로 저장된다)
+        expect(view.bestLabel).toBe("가장 나 같은 것");
+        expect(view.worstLabel).toBe("가장 나 같지 않은 것");
       }
     }
   });

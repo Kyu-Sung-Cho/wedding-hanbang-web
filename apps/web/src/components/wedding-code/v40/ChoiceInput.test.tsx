@@ -145,8 +145,13 @@ describe.each(cases())("ChoiceInput: $name", ({ view, texts, hasNone }) => {
     expect(radios().filter((radio) => radio.getAttribute("aria-checked") === "true")).toHaveLength(0);
 
     // 범위 밖 번호나 다른 형식의 답은 고른 것으로 그리지 않는다.
-    await renderInput({ fmt: view.fmt, option: 9 });
-    expect(radios().filter((radio) => radio.getAttribute("aria-checked") === "true")).toHaveLength(0);
+    // 보기 수와 같은 번호는 지난 일 떠올리기에서 이런 일이 없었어요 카드 자리라서, 그 카드를 고른 것으로 그리면 안 된다.
+    // 답으로 세지 않으니 다음을 눌렀다면 안내도 그대로 뜬다.
+    for (const option of [-1, texts.length, 9]) {
+      await renderInput({ fmt: view.fmt, option }, { incomplete: true });
+      expect(radios().filter((radio) => radio.getAttribute("aria-checked") === "true")).toHaveLength(0);
+      expect(harness.container.querySelector("#q1-incomplete")?.textContent).toBe(V40_COPY.question.incomplete);
+    }
     await renderInput({ fmt: "react", cell: 1 });
     expect(radios().filter((radio) => radio.getAttribute("aria-checked") === "true")).toHaveLength(0);
   });
@@ -197,18 +202,28 @@ describe.each(cases())("ChoiceInput: $name", ({ view, texts, hasNone }) => {
     }
   });
 
-  it("막는 카드가 없다", async () => {
-    await renderInput();
-    for (const radio of radios()) {
-      expect(radio.hasAttribute("disabled")).toBe(false);
-      expect(radio.getAttribute("aria-disabled")).toBeNull();
+  it("막는 카드가 없다: 비어 있을 때도, 카드를 고른 뒤에도, 넘기기를 고른 뒤에도", async () => {
+    const values: (ViewAnswer | null)[] = [null, { fmt: view.fmt, option: 1 }, { fmt: "escape", which: "na" }];
+    for (const value of values) {
+      await renderInput(value);
+      expect(radios()).toHaveLength(rowCount);
+      for (const radio of radios()) {
+        expect(radio.hasAttribute("disabled")).toBe(false);
+        expect(radio.getAttribute("aria-disabled")).toBeNull();
+      }
     }
   });
 
   it("비어 있는데 다음을 눌렀으면 안내하고 답이 있으면 안내하지 않는다", async () => {
     await renderInput(null, { incomplete: true });
     expect(harness.container.querySelector("#q1-incomplete")?.textContent).toBe(V40_COPY.question.incomplete);
+    // 안내 자리는 처음부터 문서에 있는 낭독기용 영역이라서, 글이 없을 때도 같은 요소가 알림 영역이다.
+    const notice = harness.container.querySelector("#q1-incomplete");
+    expect(notice?.getAttribute("role")).toBe("status");
+    expect(notice?.getAttribute("aria-live")).toBe("polite");
     await renderInput({ fmt: view.fmt, option: 1 }, { incomplete: true });
+    expect(harness.container.querySelector("#q1-incomplete")).toBe(notice);
+    expect(notice?.getAttribute("aria-live")).toBe("polite");
     expect(harness.container.querySelector("#q1-incomplete")?.textContent).toBe("");
     await renderInput({ fmt: "escape", which: "unsure" }, { incomplete: true });
     expect(harness.container.querySelector("#q1-incomplete")?.textContent).toBe("");

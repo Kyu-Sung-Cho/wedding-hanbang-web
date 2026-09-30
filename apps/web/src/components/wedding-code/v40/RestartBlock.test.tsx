@@ -52,6 +52,9 @@ describe("RestartBlock: 처음부터 다시 하기", () => {
     await renderBlock();
     await click(buttonByText(harness.container, V40_COPY.manage.restart.button));
     const box = dialog()!;
+    // 문서 맨 끝(body)에 그려서 부모의 잘림이나 하단 탭 막대에 가려지지 않는다. 블록 안쪽에 그리면 안 된다.
+    expect(box.closest("[data-confirm-overlay]")?.parentElement).toBe(document.body);
+    expect(harness.container.contains(box)).toBe(false);
     expect(box.getAttribute("aria-modal")).toBe("true");
     expect(labelledByText(box)).toBe(V40_COPY.manage.restart.confirmTitle);
     expect(describedByText(box)).toBe(V40_COPY.manage.restart.confirmBody);

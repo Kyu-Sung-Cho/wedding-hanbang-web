@@ -179,6 +179,9 @@ describe("웨딩코드 4.0 상수", () => {
     expect(guideKeyOf("recall")).toBe("choose");
     expect(guideKeyOf("instant")).toBe("choose");
     expect(guideKeyOf("pair")).toBe("pair");
+    expect(guideKeyOf("react")).toBe("react");
+    expect(guideKeyOf("bestworst")).toBe("bestworst");
+    expect(guideKeyOf("split")).toBe("split");
     expect(guideKeyOf("self")).toBeNull();
     expect(V40_STATE_COUNTS).toEqual({ pair: 6, react: 5, recall: 4, instant: 4, bestworst: 12, split: 28, self: 6 });
     expect(V40_STATE_ALPHABET).toHaveLength(62);
@@ -186,8 +189,17 @@ describe("웨딩코드 4.0 상수", () => {
     expect(Math.max(...Object.values(V40_STATE_COUNTS))).toBeLessThanOrEqual(62);
     expect(pairCellAccessibleName(0, 3)).toBe("위 카드에 가까워요, 아주");
     expect(pairCellAccessibleName(1, 1)).toBe("아래 카드에 가까워요, 조금");
+    // 세 단계 이름이 위 카드와 아래 카드 모두에서 자리마다 맞는다(낭독기가 읽는 세기 낱말).
+    expect(pairCellAccessibleName(0, 1)).toBe("위 카드에 가까워요, 조금");
+    expect(pairCellAccessibleName(0, 2)).toBe("위 카드에 가까워요, 꽤");
+    expect(pairCellAccessibleName(1, 2)).toBe("아래 카드에 가까워요, 꽤");
+    expect(pairCellAccessibleName(1, 3)).toBe("아래 카드에 가까워요, 아주");
     expect(reactCellAccessibleName(2, "가", "나")).toBe("다섯 칸 중 가운데");
     expect(reactCellAccessibleName(0, "서운할 것 같아요", "든든할 것 같아요")).toBe("서운할 것 같아요, 다섯 칸 중 왼쪽 끝");
+    // 오른쪽 끝 칸도 끝 이름을 앞에 붙이고, 양끝이 아닌 칸은 끝 이름 없이 자리만 읽는다.
+    expect(reactCellAccessibleName(4, "서운할 것 같아요", "든든할 것 같아요")).toBe("든든할 것 같아요, 다섯 칸 중 오른쪽 끝");
+    expect(reactCellAccessibleName(1, "서운할 것 같아요", "든든할 것 같아요")).toBe("다섯 칸 중 왼쪽에서 두 번째");
+    expect(reactCellAccessibleName(3, "서운할 것 같아요", "든든할 것 같아요")).toBe("다섯 칸 중 오른쪽에서 두 번째");
   });
 
   it("저장소 키와 기간", () => {

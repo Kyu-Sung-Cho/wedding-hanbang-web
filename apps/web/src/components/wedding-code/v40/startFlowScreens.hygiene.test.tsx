@@ -1,7 +1,8 @@
 import type { ReactElement } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { V40_SEGMENT_NAMES } from "@/constants/weddingCodeV40";
+import { V40_SEGMENT_NAMES, V40_SPLIT_TOTAL } from "@/constants/weddingCodeV40";
 import { WEDDING_CODE_V40_BANK } from "@/lib/weddingCode/v40/bank";
+import { V40_COPY, splitRemainingNotice } from "@/lib/weddingCode/v40/copy";
 import { buildPages, initialFlowState, createFlowReducer, progressSegments } from "@/lib/weddingCode/v40/flow";
 import { present } from "@/lib/weddingCode/v40/present";
 import type { ProgressSegment, QuestionsPage, SectionIndex } from "@/lib/weddingCode/v40/types";
@@ -12,7 +13,7 @@ import { QuestionScreen } from "./QuestionScreen";
 import { ReceiverScreen } from "./ReceiverScreen";
 import { RestCard } from "./RestCard";
 import { SelfIntroCard } from "./SelfIntroCard";
-import { hasDash, notValidatedCount } from "./startFlowTestKit";
+import { hasDash, notValidatedCount, settle } from "./startFlowTestKit";
 
 /**
  * 시작과 질문 흐름 화면 전체의 화면 문구 위생. 주장으로 쓰지 않는 말(README 2절, 설계 부록 E)이 어느 화면 글에도 없어야 한다.
@@ -20,6 +21,31 @@ import { hasDash, notValidatedCount } from "./startFlowTestKit";
  * 이 시험은 실제로 그려진 글(문구 도우미가 이어 붙인 문장 포함)을 본다.
  */
 const CLAIM_WORDS = ["검증된", "정확", "과학적", "진단", "점수", "등급", "궁합", "퍼센트", "%", "스타일", "동물", "캐릭터", "MBTI"] as const;
+
+/**
+ * 줄표류가 있는가. startFlowTestKit 의 hasDash 는 짧은 줄표와 긴 줄표만 본다. 한글 글에서 줄표로 흔히 쓰는 가로선(U+2015)과
+ * 붙임표류(U+2010에서 U+2014), 마이너스 기호는 빠져 있어서(가로선을 심어도 초록불이었다) 여기서 함께 본다.
+ */
+function hasAnyDash(text: string): boolean {
+  return hasDash(text) || /[‐-―−﹘﹣－]/u.test(text);
+}
+
+/** 낭독기가 읽는 이름과 값(aria-label, aria-valuetext)에서 주장으로 쓰지 않는 말이나 줄표를 찾는다. 없으면 빈 배열. */
+function spokenProblems(container: HTMLElement): string[] {
+  const problems: string[] = [];
+  for (const element of container.querySelectorAll("[aria-label], [aria-valuetext]")) {
+    const spoken = `${element.getAttribute("aria-label") ?? ""} ${element.getAttribute("aria-valuetext") ?? ""}`.trim();
+    for (const word of CLAIM_WORDS) if (spoken.includes(word)) problems.push(`${word}: ${spoken}`);
+    if (hasAnyDash(spoken)) problems.push(`줄표: ${spoken}`);
+  }
+  return problems;
+}
+
+/**
+ * 다음을 눌렀는데 덜 채웠을 때 입력 아래에 나오는 안내들(형식마다 하나). 이 안내는 화면이 그려진 직후가 아니라 짧은 시간제한 뒤에
+ * 나오므로(낭독기가 같은 말을 다시 읽게 하려는 것이다) 기다리지 않으면 아래 검사가 이 글을 한 번도 훑지 못한다.
+ */
+const INCOMPLETE_NOTICES = [V40_COPY.question.incomplete, V40_COPY.question.incompleteBestWorst, splitRemainingNotice(V40_SPLIT_TOTAL)] as const;
 
 const bank = WEDDING_CODE_V40_BANK;
 const noop = () => undefined;
@@ -117,6 +143,7 @@ describe("시작과 질문 흐름 화면의 화면 문구 위생", () => {
     const text = harness.container.textContent ?? "";
     for (const word of CLAIM_WORDS) expect(text, word).not.toContain(word);
     expect(hasDash(text)).toBe(false);
+    expect(hasAnyDash(text), "줄표류").toBe(false);
   });
 
   it.each(cases.map((entry) => [entry.name, entry] as const))("%s: 검증 아님 고지가 정해진 횟수다", async (_name, entry) => {
@@ -130,6 +157,7 @@ describe("시작과 질문 흐름 화면의 화면 문구 위생", () => {
       const spoken = `${element.getAttribute("aria-label") ?? ""} ${element.getAttribute("aria-valuetext") ?? ""}`;
       for (const word of CLAIM_WORDS) expect(spoken, word).not.toContain(word);
     }
+    expect(spokenProblems(harness.container)).toEqual([]);
   });
 
   it("질문 화면 모두(받은 링크 안내와 저장 안내를 붙여): 주장으로 쓰지 않는 말과 줄표가 없고 고지도 없다", async () => {
@@ -155,6 +183,47 @@ describe("시작과 질문 흐름 화면의 화면 문구 위생", () => {
       for (const word of CLAIM_WORDS) expect(text, `${page.key} ${word}`).not.toContain(word);
       expect(hasDash(text), page.key).toBe(false);
       expect(notValidatedCount(harness.container), page.key).toBe(0);
+    }
+  });
+
+  it("질문 화면 모두(덜 채운 안내가 나온 뒤): 글, 줄표류, 낭독 이름(aria-label, aria-valuetext)에 주장으로 쓰지 않는 말이 없고 고지도 없다", async () => {
+    const pages = questionPages();
+    expect(pages.length).toBe(42);
+    // 화면마다 새로 그린다(같은 화면을 쪽만 바꿔 다시 그리면 안내의 시간제한이 쪽마다 다시 시작해서 기다림이 42번 든다).
+    const harnesses = pages.map(() => createHarness());
+    try {
+      for (const [index, page] of pages.entries()) {
+        await harnesses[index].render(
+          <QuestionScreen
+            page={page}
+            views={page.itemIds.map((id) => present(bank.byId.get(id)!, 0))}
+            answers={{}}
+            notice={{ kind: "incomplete", itemIds: [...page.itemIds] }}
+            segments={progressSegments(bank, started)}
+            canGoBack
+            receivedNote
+            saveState="off"
+            onAnswer={vi.fn()}
+            onNext={vi.fn()}
+            onBack={vi.fn()}
+          />,
+        );
+      }
+      await settle(250);
+      for (const [index, page] of pages.entries()) {
+        const container = harnesses[index].container;
+        const text = container.textContent ?? "";
+        expect(
+          INCOMPLETE_NOTICES.some((notice) => text.includes(notice)),
+          `${page.key}: 덜 채운 안내가 나오지 않았다. 이 검사가 그 글을 훑지 못한다`,
+        ).toBe(true);
+        for (const word of CLAIM_WORDS) expect(text, `${page.key} ${word}`).not.toContain(word);
+        expect(hasAnyDash(text), `${page.key} 줄표류`).toBe(false);
+        expect(notValidatedCount(container), page.key).toBe(0);
+        expect(spokenProblems(container), `${page.key} 낭독 이름`).toEqual([]);
+      }
+    } finally {
+      for (const entry of harnesses) await entry.unmount();
     }
   });
 });

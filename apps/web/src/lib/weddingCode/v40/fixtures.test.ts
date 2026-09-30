@@ -13,8 +13,8 @@ import { V40_LAYOUT_BY_ID } from "./layout";
 import { fromStored } from "./present";
 import { buildResult } from "./score";
 import { decodeProgressAnswers, encodeProgressAnswers } from "./storage";
-import { isResponseValueFor, splitCountsOf, stateIndex } from "./states";
-import { itemValue } from "./value";
+import { isResponseValueFor, splitCountsOf, stateChar, stateIndex } from "./states";
+import { itemValue, selfChoice } from "./value";
 
 const bank = WEDDING_CODE_V40_BANK;
 
@@ -226,6 +226,41 @@ describe("표본이 보여 주는 것", () => {
     // 반반이에요 주제는 자기 선택이 달라도 대비를 만들지 않는다.
     expect(result.axes[3].shownBand).toBe("even");
     expect(result.axes[3].contrast).toBeNull();
+  });
+
+  it("self-contrast 의 돈 주제에서 자기 선택을 반대쪽 조금(1)로 바꾸면 대비가 없고 꽤(2)로 바꾸면 생긴다(기준 계산기도 같은 결정)", () => {
+    const source = named("self-contrast");
+    const selfItem = bank.self.find((item) => item.axis === "money");
+    if (!selfItem) throw new Error("돈 주제의 자기 선택 문항이 없다");
+    // 돈 주제는 앞극(V)으로 뚜렷하게 모였고 표본의 자기 선택도 앞극이다. 반대쪽(뒤극)을 고른 저장 상태를 세기별로 찾는다.
+    const backChar = (level: 1 | 2 | 3) => {
+      for (let state = 0; state < 6; state += 1) {
+        const char = stateChar(state);
+        const choice = selfChoice(selfItem, char);
+        if (choice !== null && choice.side === "back" && choice.level === level) return char;
+      }
+      throw new Error(`뒤극 세기 ${level} 의 상태가 없다`);
+    };
+    const oracle = oracleModule as unknown as {
+      makeBank(data: unknown): unknown;
+      buildResult(oracleBank: unknown, formBit: number, responses: unknown): unknown;
+    };
+    const oracleBank = oracle.makeBank(V40_BANK_DATA);
+    const withSelf = (level: 1 | 2 | 3) => ({ ...source.responses, [selfItem.id]: backChar(level) });
+
+    const weak = buildResult(bank, source.formBit, withSelf(1));
+    expect(weak.axes[0]).toMatchObject({ letter: "V", side: "front" });
+    expect(weak.axes[0].shownBand === "clear" || weak.axes[0].shownBand === "lean").toBe(true);
+    expect(weak.axes[0].contrast).toBeNull();
+
+    const fair = buildResult(bank, source.formBit, withSelf(2));
+    expect(fair.axes[0].contrast).toMatchObject({ axis: "money", selfSide: "back", selfLetter: "S", selfLevel: 2, gatheredSide: "front", gatheredLetter: "V" });
+    const strong = buildResult(bank, source.formBit, withSelf(3));
+    expect(strong.axes[0].contrast).toMatchObject({ axis: "money", selfLetter: "S", selfLevel: 3 });
+
+    for (const level of [1, 2, 3] as const) {
+      expect(buildResult(bank, source.formBit, withSelf(level)), `세기 ${level}`).toEqual(oracle.buildResult(oracleBank, source.formBit, withSelf(level)));
+    }
   });
 
   it("다른 표본에는 대비가 없다(self-contrast 만 대비를 보여 준다)", () => {

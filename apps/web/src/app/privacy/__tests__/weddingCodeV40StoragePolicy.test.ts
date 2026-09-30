@@ -107,9 +107,22 @@ describe("처리방침 v4 문단의 저장 약속이 storage.ts 에서 참이다
     expect(readProgress(storage, bank, NOW + 30 * DAY)).not.toHaveProperty("snapshot");
   });
 
+  it("기간은 처음 저장한 때가 아니라 마지막으로 저장한 때부터 다시 센다 (방침의 「마지막으로 답이나 진행을 저장한 때부터」)", () => {
+    const storage = new FakeStorage();
+    const first = writeProgress(storage, bank, SNAPSHOT, null, NOW);
+    expect(first.status).toBe("saved");
+    const firstRaw = first.status === "saved" ? first.raw : null;
+    expect(writeProgress(storage, bank, { ...SNAPSHOT, cursor: 1 }, firstRaw, NOW + 20 * DAY).status).toBe("saved");
+    // 처음 저장한 때부터 세면 30일째에 이미 지난 것이다.
+    expect(readProgress(storage, bank, NOW + 30 * DAY).status).toBe("ready");
+    expect(readProgress(storage, bank, NOW + 50 * DAY - 1).status).toBe("ready");
+    expect(readProgress(storage, bank, NOW + 50 * DAY).status).toBe("expired");
+  });
+
   it("읽기는 아무것도 쓰지 않는다: 저장 기간이 늘지 않고 저장된 내용이 바뀌지 않는다 (방침의 「읽거나 재방문만 해서는」과 「읽어도 … 바뀌지 않습니다」)", () => {
     const storage = new FakeStorage();
     expect(writeProgress(storage, bank, SNAPSHOT, null, NOW).status).toBe("saved");
+    expect(appendHistory(storage, historyEntry(NOW - 20 * DAY), NOW).status).toBe("saved");
     expect(appendHistory(storage, historyEntry(NOW - DAY), NOW).status).toBe("saved");
     const before = JSON.stringify([...storage.data.entries()]);
     const writesBefore = storage.writeCalls;
@@ -117,6 +130,9 @@ describe("처리방침 v4 문단의 저장 약속이 storage.ts 에서 참이다
     readProgress(storage, bank, NOW + 10 * DAY);
     readProgress(storage, bank, NOW + 40 * DAY);
     readHistory(storage, NOW + 10 * DAY);
+    // 기록 일부만 기간이 지났을 때와 모두 지났을 때도 읽기는 저장소에서 아무것도 덜어 내지 않는다(기간이 지난 것을 지우는 일은 purgeExpired 몫이다).
+    expect(readHistory(storage, NOW + 15 * DAY).entries).toHaveLength(1);
+    expect(readHistory(storage, NOW + 40 * DAY).status).toBe("expired");
     readAutosavePreference(storage);
     expect(storage.writeCalls, "읽기가 저장소에 썼다").toBe(writesBefore);
     expect(JSON.stringify([...storage.data.entries()])).toBe(before);
@@ -133,6 +149,16 @@ describe("처리방침 v4 문단의 저장 약속이 storage.ts 에서 참이다
     const stored = JSON.parse(storage.data.get(V40_STORAGE.historyKey) ?? "null") as { entries: Record<string, unknown>[] };
     for (const item of stored.entries) expect(Object.keys(item).sort()).toEqual(["at", "axes", "formBit"]);
     expect(storage.data.get(V40_STORAGE.historyKey)).not.toMatch(/responses|answers/u);
+  });
+
+  it("답이 딸린 기록을 넘겨도 답은 저장되지 않는다 (방침의 「이 기록에는 답을 넣지 않고」)", () => {
+    const storage = new FakeStorage();
+    const withAnswers = { ...historyEntry(NOW - DAY), responses: { "money.limit.1": "3" }, answers: "3333" } as unknown as HistoryEntry;
+    appendHistory(storage, withAnswers, NOW);
+    expect(storage.data.get(V40_STORAGE.historyKey) ?? "").not.toMatch(/responses|answers|money\.limit/u);
+    // 정상 기록은 저장된다(위 검사가 저장 자체를 막아 놓고 통과하는 것이 아니다).
+    expect(appendHistory(storage, historyEntry(NOW - DAY), NOW).status).toBe("saved");
+    expect(readHistory(storage, NOW).entries).toHaveLength(1);
   });
 
   it("자동 저장을 끄면 저장된 답, 비교 기록, 이전 판의 저장된 답을 지우고 꺼짐 설정만 남는다 (방침의 「꺼짐 설정만 브라우저에 남깁니다」)", () => {
