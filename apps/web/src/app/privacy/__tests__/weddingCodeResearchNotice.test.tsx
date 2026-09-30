@@ -8,7 +8,13 @@ import {
   WEDDING_CODE_RESEARCH_RETENTION_DAYS,
   WEDDING_CODE_RESEARCH_TOMBSTONE_DAYS,
 } from "@/lib/weddingCode/contribution/contract";
+import { V40_STORAGE, V40_STRENGTH, WEDDING_CODE_V40_VERSION } from "@/constants/weddingCodeV40";
+import {
+  WEDDING_CODE_FUNNEL_ANALYTICS_EFFECTIVE_AT,
+  sanitizeWeddingCodeFunnelCapture,
+} from "@/lib/analyticsPrivacy";
 import { LOCAL_TTL_MS, V31_CLEAR_LOCAL_LABEL } from "@/lib/weddingCode/v31LocalProgress";
+import { V40_COPY } from "@/lib/weddingCode/v40/copy";
 import { PAIR_SESSION_RETENTION_DAYS } from "@/lib/weddingCode/pairSessionContract";
 import PrivacyPage from "../page";
 
@@ -101,5 +107,142 @@ describe("privacy notice for WeddingCode research contributions", () => {
     expect(paragraph.length).toBeGreaterThan(100);
     expect(paragraph).not.toMatch(/백업[^.]*다시 지우/);
     expect(paragraph).not.toContain("익명");
+  });
+});
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+/** 문단이 「최근 세 번」처럼 쓰는 우리말 수 낱말. V40_STORAGE.historyMax 로 찾는다. */
+const COUNT_WORDS = ["영", "한", "두", "세", "네", "다섯"] as const;
+const V4_LABEL = "새 웨딩코드(v4.0-tendency) 이어하기·링크 보내기:";
+const V4_CLOSING = "지워 주세요.";
+
+function v4Paragraph(text: string): string {
+  const start = text.indexOf(V4_LABEL);
+  expect(start, "v4 문단을 못 찾았다. 이 검사가 헛돈다").toBeGreaterThan(-1);
+  const end = text.indexOf(V4_CLOSING, start);
+  expect(end, "v4 문단의 끝 문장을 못 찾았다").toBeGreaterThan(start);
+  return text.slice(start, end + V4_CLOSING.length);
+}
+
+/**
+ * 새 웨딩코드(v4.0-tendency) 문단 (설계 문서 9절 8항).
+ *
+ * v3.1 문단은 그대로 두고 옆에 더한 문단이다. 이 문단이 하는 말은 **v4 코드가 실제로 하는 일**이어야 해서, 기간과 최근 몇 번은
+ * 저장 상수(V40_STORAGE)에서, 버튼 이름은 화면 문구(V40_COPY)에서 읽는다. 화면이 버튼 이름을 바꾸거나 기간을 바꾸면 이 검사가
+ * 빨개져서 방침을 함께 고치게 한다. 처리방침 최종 수정일과 부칙은 이 문단으로 올리지 않는다(동의 판과 한 값이라 파운더 결정).
+ */
+describe("privacy notice for the WeddingCode v4.0-tendency paragraph", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  function renderWithoutResearch(secret: string): string {
+    vi.stubEnv("WEDDING_CODE_RESEARCH_RECEIPT_SECRET", secret);
+    vi.stubEnv("WEDDING_CODE_RESEARCH_CONTRIBUTION_ENABLED", "false");
+    return render();
+  }
+
+  it.each(["", SECRET])("v3.1 문단 뒤에 놓이고, 보관 항목·기간·끄기와 지우기가 저장 상수와 화면 버튼 이름 그대로다 (%#)", (secret) => {
+    const text = renderWithoutResearch(secret);
+    const notice = v4Paragraph(text);
+    const days = V40_STORAGE.ttlMs / DAY_MS;
+    const keepWord = COUNT_WORDS[V40_STORAGE.historyMax];
+    expect(keepWord, "V40_STORAGE.historyMax 가 바뀌었다. 방침의 「최근 ○ 번」을 고칠 것").toBeTruthy();
+
+    // v3.1 문단은 그대로 남고 v4 문단은 그 뒤에 온다.
+    const v31Start = text.indexOf("기본 웨딩코드(v3.1) 이어하기:");
+    expect(v31Start).toBeGreaterThan(-1);
+    expect(text.indexOf(V4_CLOSING, v31Start)).toBeLessThan(text.indexOf(V4_LABEL));
+
+    // 보관하는 것과 기간
+    expect(notice).toContain(
+      "자동저장이 켜져 있으면 본인 답과 질문 화면의 위아래·좌우·보기 순서를 정하는 값(폼 비트), 이어 할 위치(질문 또는 결과 화면)와 넘어간 질문 다시 보기 상태를 같은 브라우저에 보관합니다",
+    );
+    expect(notice).toContain(
+      `마지막으로 답이나 진행을 저장한 때부터 ${days}일 동안 이어서 이용할 수 있고, 읽거나 재방문만 해서는 기간이 늘어나지 않으며, 기한이 지난 답은 불러오지 않습니다`,
+    );
+
+    // 지난번과 비교하는 기록: 글자와 세기 낱말은 상수, 답은 넣지 않는다.
+    const strengthWords = `${V40_STRENGTH.clear.label}·${V40_STRENGTH.lean.label}·${V40_STRENGTH.even.label}`;
+    expect(notice).toContain(
+      `결과의 글자와 세기(${strengthWords}), 임시 글자 여부, 결과를 만든 시각, 폼 비트를 최근 ${keepWord} 번까지 함께 보관하며`,
+    );
+    expect(notice).toContain(`이 기록에는 답을 넣지 않고 결과를 만든 때부터 ${days}일이 지나면 비교에 쓰지 않습니다`);
+
+    // 끄기·지우기·다시 하기: 방침이 부르는 버튼 이름은 화면 버튼과 같은 상수다.
+    expect(notice).toContain(
+      `자동저장은 처음에는 켜져 있고(이전 판에서 꺼 두었다면 꺼진 채로 시작합니다), ‘${V40_COPY.autosave.turnOffButton}’를 누르면 저장된 답과 지난번 비교 기록, 이전 판(v3.1)의 저장된 답을 지우고 이후 저장을 멈추며 꺼짐 설정만 브라우저에 남깁니다`,
+    );
+    expect(notice).toContain(`‘${V40_COPY.manage.clear.button}’는 저장된 답과 지난번 비교 기록을 함께 지우고`);
+    expect(notice).toContain(`‘${V40_COPY.manage.restart.button}’는 저장된 답을 지우되 지난번 비교 기록은 남깁니다`);
+    expect(notice).toContain("공용 기기에서는 같은 브라우저를 쓰는 사람이 답을 볼 수 있으므로 자동저장을 끄거나 저장된 답을 지워 주세요");
+
+    // 방침이 지우거나 남긴다고 말한 것은 화면이 사용자에게 말하는 것과 같아야 한다.
+    expect(V40_COPY.autosave.turnedOffNote, "끄면 비교 기록도 지운다는 화면 문구가 바뀌었다").toMatch(/비교[^.]*기록[^.]*지웠/);
+    expect(V40_COPY.manage.clear.confirmBody, "저장 지우기가 비교 기록도 지운다는 화면 문구가 바뀌었다").toMatch(/지난번[^.]*기록[^.]*지워/);
+    expect(V40_COPY.manage.restart.confirmBody, "다시 하기가 비교 기록을 남긴다는 화면 문구가 바뀌었다").toMatch(/지난번[^.]*남아요/);
+  });
+
+  it.each(["", SECRET])("서버에 답을 보관하지 않고, 받은 링크는 저장하지 않으며, 링크 공유는 되돌릴 수 없음을 알린다 (%#)", (secret) => {
+    const notice = v4Paragraph(renderWithoutResearch(secret));
+
+    expect(notice).toContain("보관한 답과 기록은 서버·계정으로 보내지 않으며 이 판에서는 서버에 답을 보관하는 ‘함께 보기’도 제공하지 않습니다");
+    expect(notice).toContain(
+      "받은 두 사람 결과 링크에서는 어느 쪽이 본인인지 ‘나’로 표시하려고 이 브라우저에 저장된 본인 답을 읽어 링크의 답과 견주기만 하고(읽어도 보관 기간이 늘거나 저장된 내용이 바뀌지 않습니다) 아무것도 쓰지 않으며, 링크에 든 두 사람의 답은 저장하지 않고, 초대 링크로 받은 상대의 답은 이 브라우저에 저장하지 않고 화면에만 둡니다",
+    );
+    // 옛 문장(「개인 저장 기록을 읽거나 쓰지 않으며」)은 설계와 어긋났다: 이 화면은 「나」 표시를 위해 저장된 본인 답을 읽는다.
+    // 읽는다는 사실을 빼는 문장으로 되돌아가면 방침이 거짓이 된다.
+    expect(notice).not.toContain("개인 저장 기록을 읽거나 쓰지 않으며");
+    // 방침이 「나」 표시라고 말하는 그 기능이 화면 문구에 실제로 있다(없으면 방침이 없는 기능을 설명한다).
+    expect(V40_COPY.couple.perspective.autoNote, "이 브라우저에 저장된 내 답으로 「나」를 표시한다는 화면 문구가 바뀌었다").toMatch(/이 브라우저에 저장된 내 답[^.]*「나」/);
+
+    // 두 곳의 링크 보내기 단추는 같은 이름이고, 방침은 그 이름과 두 라디오 이름을 그대로 부른다.
+    expect(V40_COPY.coupleSend.sendButton).toBe(V40_COPY.send.sendButton);
+    expect(notice).toContain(
+      `‘${V40_COPY.send.sendButton}’로 만드는 링크에는 ‘${V40_COPY.send.withAnswersOption}’를 고른 경우 본인의 답 전체가, 두 사람 결과 화면에서는 두 사람의 답 전체가 링크 주소의 # 뒤에 담깁니다`,
+    );
+    expect(notice).toContain(
+      "링크는 이 브라우저 안에서 만들어지고 # 뒤의 내용은 서버 요청에 포함되지 않지만, 링크를 가진 사람은 누구나 답을 읽고 다시 전달할 수 있고 이미 보낸 링크는 되돌릴 수 없으며 답을 고쳐 새 링크를 만들어도 예전 링크는 남습니다",
+    );
+    expect(notice).toContain(`‘${V40_COPY.send.questionsOnlyOption}’ 링크에는 답이 들어 있지 않습니다`);
+  });
+
+  it.each(["", SECRET])("이용 통계는 이미 고지한 항목뿐이라고 말하고, 그 말이 통계 정리기와 어긋나지 않는다 (%#)", (secret) => {
+    const text = renderWithoutResearch(secret);
+    const notice = v4Paragraph(text);
+
+    // 가리키는 문장이 실제로 있다. (항목별 고지는 analyticsPrivacy.test.ts 가 그 문장 안에서 센다.)
+    expect(text).toContain("로그인 없이 이용하는 공개 웨딩코드:");
+    expect(notice).toContain(
+      "이용 통계는 위 ‘로그인 없이 이용하는 공개 웨딩코드’에 적은 항목만 기록하며 이 판에서 새 항목을 더하지 않고, 고른 답·글자·세기·링크 주소는 통계에 넣지 않습니다",
+    );
+
+    // 말한 대로 정리기는 고지한 속성만 통과시킨다: v4 판 이름은 지나가고, 글자·세기·링크 주소는 실수로 실려도 떨어진다.
+    const now = Date.parse(WEDDING_CODE_FUNNEL_ANALYTICS_EFFECTIVE_AT) + 1;
+    const sent = sanitizeWeddingCodeFunnelCapture(
+      {
+        event: "wedding_code_share_copied",
+        properties: {
+          version: WEDDING_CODE_V40_VERSION,
+          placement: "result",
+          result_kind: "solo",
+          letters: "SWUA",
+          strength: "lean",
+          share_url: `https://hanbang.ai/wedding-code#v=${WEDDING_CODE_V40_VERSION}&a=0000000000000000000000000000000000000000000000000000000000000000000000`,
+        },
+      },
+      now,
+    );
+    expect(sent?.properties).toEqual({ version: WEDDING_CODE_V40_VERSION, placement: "result", result_kind: "solo" });
+  });
+
+  it.each(["", SECRET])("# 뒤가 오류 수집 도구로 나가지 않는다는 말은 정제 수정이 운영에서 확인되기 전에는 쓰지 않는다 (%#)", (secret) => {
+    // 설계 문서 9절 7항: # 뒤가 성능 이벤트의 주소로 나가는 문제(PR #473)가 운영에서 확인되기 전에는
+    // 「# 뒤는 보내지 않는다」를 쓰지 않는다. 문단은 v3.1 문장과 같이 사실인 「서버 요청에 포함되지 않는」만 말한다.
+    // 정제 수정이 운영에서 확인되면 이 검사는 그 문장을 더하는 변경에서 함께 바꾼다.
+    const notice = v4Paragraph(renderWithoutResearch(secret));
+    expect(notice).toContain("서버 요청에 포함되지 않지만");
+    expect(notice).not.toMatch(/오류 수집|Sentry|센트리/);
+    expect(notice).not.toMatch(/# 뒤[^.]{0,30}(어디에도|모두|절대)[^.]{0,20}보내지 않/);
   });
 });
