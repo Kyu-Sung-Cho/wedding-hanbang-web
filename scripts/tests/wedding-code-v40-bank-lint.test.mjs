@@ -1066,9 +1066,19 @@ const WARNING_CASES = [
   ["question-form", (b) => { mutateSlot(b, "question", (t) => { const body = t.replace(/[?\s]+$/u, ""); return body.endsWith("요") ? `${body.slice(0, -1)}다` : body; }); }],
   ["length-question", (b) => { mutateSlot(b, "question", () => syn("가", SPEC.question + 1)); }],
   ["speaker-length", (b) => { mutateSlot(b, "speaker", () => "가".repeat(SPEC.speaker + 1)); }],
+  // 옛 꼴: 대가 절(~도) 뒤의 마지막 절이 「~할 것 같아요」 같은 대가나 느낌이다
+  ["react-end-acceptance", (b) => { mutateSlot(b, "end", () => "가가가도 나나나나 것 같아요"); }],
+  // R1: 앞극 대가 절이 뒤극 머리 절의 낱말(장면)을 되풀이한다. 규칙 시험 전체는 wedding-code-v40-bank-lint-cost.test.mjs 에 있다.
+  ["cost-repeats-head", (b) => {
+    const item = firstItem(b, { id: "money.limit.1" });
+    item.cards.find((c) => c.pole === "front").text = "쓸 수 있는 돈부터 적고 그 밑에 하고 싶은 걸 적어요. 장면이 금세 딱딱해져요.";
+    item.cards.find((c) => c.pole === "back").text = "마음에 남은 장면부터 나란히 놓고 얘기해요. 이야기가 길어져 저녁이 훌쩍 가요.";
+  }],
+  // R1: 칸 나누기 값 0 항목이 미루기 낱말을 쓴다
+  ["split-third-decoy", (b) => { firstItem(b, { id: "money.moment.1" }).entries[2].text = "잠시 미뤄 두고 다른 일부터 하기"; }],
 ];
 
-test("경고 수준 규칙: 물음 형태, 물음 길이, 화자 길이는 실패로 세지 않고 경고로 남는다", () => {
+test("경고 수준 규칙: 물음 형태, 물음 길이, 화자 길이, 양끝 이름 마지막 절, 대가 절 되풀이, 셋째 항목 미끼는 실패로 세지 않고 경고로 남는다", () => {
   for (const [rule, mutate] of WARNING_CASES) {
     const bank = finalBank();
     const before = JSON.stringify(bank);
@@ -1090,6 +1100,146 @@ test("경고 수준 규칙 경계: 물음 40자와 화자 8자는 경고가 없�
   const result = lintBank(bank);
   assert.deepEqual(result.errors, [], show(result));
   assert.deepEqual(result.warnings, []);
+});
+
+// ---- 2c-2. react 양끝 이름의 마지막 절 (R0, 2026-09-30) ----
+//
+// 다섯 칸의 양끝은 「대가 절 + 그 끝의 방식」 꼴이어야 한다(예: 허전해도 나눠서 보고 싶어요). 옛 꼴은 마지막 절이 대가나 느낌이라
+// (함께 가면 든든해도 지칠 것 같아요) 응답자가 그 절을 자기 마음으로 읽었고, 시뮬레이션 응답자 열여덟 명 중 열 명이 한 칸 이상 반대 칸을 눌렀다.
+// 아래 옛 문구는 그때 은행에 있던 react 열여섯 문항의 양끝 이름 서른두 개 전부이고, 규칙은 이 문구들에서 정했다.
+// 규칙이 보는 꼴은 「대가 절이 있고 마지막 절이 ~고 싶어요가 아닌 끝」이다. 대가 절이 없는 끝(비교하는 「더 남을 것 같아요」 꼴 등)은 보지 않는다.
+
+/** 옛 꼴의 양끝 이름 중 대가 절(~도, ~지만, ~는데)이 있는 것 스물여섯 개. 모두 잡혀야 한다. */
+const OLD_ENDS_WITH_CONCESSION = [
+  "나눠 가면 더 봐도 허전할 것 같아요", "함께 가면 든든해도 지칠 것 같아요",
+  "설렘은 이어져도 불안할 것 같아요", "든든해도 분위기가 딱딱할 것 같아요",
+  "도우면 후련해도 말을 끊을 것 같아요", "듣는 게 편해도 답답할 것 같아요",
+  "둘이 정하고 싶어도 죄송할 것 같아요", "편해도 우리 계획이 밀릴 것 같아요",
+  "든든해도 내 일이 밀릴 것 같아요", "몰입은 돼도 막히면 혼자일 것 같아요",
+  "홀가분해도 침묵이 남을 것 같아요",
+  "원인 알면 후련해도 어색할 것 같아요", "마음 풀면 편해도 또 다툴 것 같아요",
+  "알면 든든해도 조바심 날 것 같아요", "맡기면 홀가분해도 깜깜할 것 같아요",
+  "알아보면 든든해도 김이 샐 것 같아요", "바로 하면 설레도 찜찜할 것 같아요",
+  "마음부터 알아주면 풀려도 일은 남아요", "숨은 트여도 속마음은 쌓여요",
+  "가족 먼저면 편해도 친구는 아쉬워요", "북적여 신나도 가족은 서운할 듯해요",
+  "홀가분해도 낯선 말이 걸릴 것 같아요", "같이 골라 뿌듯해도 길어질 것 같아요",
+  "편해도 답이 오래 걸릴 것 같아요",
+  "얘기하면 풀려도 일은 남아요", "일부터 하면 편해도 얘기는 미뤄져요",
+];
+/** 옛 꼴의 양끝 이름 중 대가 절이 없는 것 여섯 개(비교하는 「더 남을 것 같아요」 꼴 넷, 대가 절 없이 느낌만 적은 둘). 이 규칙이 보지 않는다. */
+const OLD_ENDS_WITHOUT_CONCESSION = [
+  "식당부터 정하면 홀가분할 것 같아요", "어른들 침묵이 마음에 걸릴 것 같아요",
+  "그날의 기쁨이 더 남을 것 같아요", "빠듯했던 몇 달이 더 남을 것 같아요",
+  "편했던 생활이 더 남을 것 같아요", "앨범의 아쉬움이 더 남을 것 같아요",
+];
+
+/** 첫 react 상대 행동 문항의 한쪽 끝 이름을 text 로 바꾸고 검사한다. */
+function checkEnd(text, side = "left") {
+  const bank = finalBank();
+  const item = firstItem(bank, { fmt: "react", kind: "action" });
+  item.ends[side] = text;
+  const result = lintBank(bank);
+  return { item, result, hits: result.warnings.filter((w) => w.rule === "react-end-acceptance") };
+}
+
+test("react 양끝 이름 마지막 절: 옛 꼴 중 대가 절이 있는 스물여섯 개는 왼쪽 자리에서도 오른쪽 자리에서도 경고 하나씩을 낸다", () => {
+  assert.equal(OLD_ENDS_WITH_CONCESSION.length, 26);
+  assert.equal(OLD_ENDS_WITH_CONCESSION.length + OLD_ENDS_WITHOUT_CONCESSION.length, 32);
+  for (const side of ["left", "right"]) {
+    for (const text of OLD_ENDS_WITH_CONCESSION) {
+      assert.ok(len(text) <= SPEC.end, `옛 문구가 ${SPEC.end}자를 넘는다: ${text}`);
+      const { item, result, hits } = checkEnd(text, side);
+      assert.equal(hits.length, 1, `${side}: ${text}\n${show(result) || "(경고 없음)"}`);
+      assert.equal(hits[0].itemId, item.id);
+      assert.ok(hits[0].message.startsWith(`ends.${side}: `), hits[0].message);
+      // 경고는 실패로 세지 않고 다른 규칙과 겹치지 않는다
+      assert.deepEqual(result.errors, [], `${side}: ${text}\n${show(result)}`);
+      assert.deepEqual(result.warnings.filter((w) => w.rule !== "react-end-acceptance"), []);
+      assert.match(formatReport(result), /통과/);
+    }
+  }
+});
+
+test("react 양끝 이름 마지막 절: 경고 문구는 잘못된 마지막 절을 그대로 보여 준다", () => {
+  const { hits } = checkEnd("든든해도 내 일이 밀릴 것 같아요");
+  assert.equal(hits.length, 1);
+  assert.match(hits[0].message, /「내 일이 밀릴 것 같아요」/);
+  assert.match(hits[0].message, /고 싶어요/);
+  // 접속이 둘이면 마지막 접속 뒤의 글을 보여 준다(조사 「도」가 앞에 있어도 속지 않는다)
+  const twice = checkEnd("가가가도 나나도 다다 걸릴 것 같아요").hits;
+  assert.equal(twice.length, 1);
+  assert.match(twice[0].message, /「다다 걸릴 것 같아요」/);
+  assert.doesNotMatch(twice[0].message, /나나도/);
+});
+
+test("react 양끝 이름 마지막 절: 대가 절이 없는 끝(비교하는 더 남을 것 같아요 꼴 등)은 보지 않는다", () => {
+  for (const side of ["left", "right"]) {
+    for (const text of OLD_ENDS_WITHOUT_CONCESSION) {
+      const { result, hits } = checkEnd(text, side);
+      assert.deepEqual(hits, [], `${side}: ${text}\n${show(result)}`);
+      assert.deepEqual(result.errors, [], `${side}: ${text}\n${show(result)}`);
+      assert.deepEqual(result.warnings, [], `${side}: ${text}\n${show(result)}`);
+    }
+  }
+});
+
+test("react 양끝 이름 마지막 절: 대가 절을 잇는 말(~도, ~지만, ~는데, ~은데, ~인데) 뒤가 대가나 느낌이면 잡는다", () => {
+  const bad = [
+    "가가가도 나나 편해요", "가가가지만 나나나 남아요", "가가가는데 나나나 쌓여요", "가가가은데 나나 아쉬워요", "가가가인데 나나 편해요",
+    "가가가도 나나도 다다 걸릴 것 같아요", // 접속이 둘
+  ];
+  for (const side of ["left", "right"]) {
+    for (const text of bad) {
+      const { result, hits } = checkEnd(text, side);
+      assert.equal(hits.length, 1, `${side}: ${text}\n${show(result) || "(경고 없음)"}`);
+      assert.deepEqual(result.errors, [], `${side}: ${text}\n${show(result)}`);
+    }
+  }
+});
+
+test("react 양끝 이름 마지막 절: 마지막 절이 ~고 싶어요이면 어느 접속 뒤에서도 통과한다", () => {
+  const good = [
+    "가가가도 나나 다다하고 싶어요", "가가가지만 나나나하고 싶어요", "가가가는데 나나나 다다하고 싶어요",
+    "가가가은데 나나하고 싶어요", "가가가인데 나나하고 싶어요",
+    "가가도 나나도 다다하고 싶어요", // 조사 「도」가 앞에 있어도 마지막 접속 뒤가 방식이다
+    "가가 나나 다다하고 싶어요", // 대가 절이 없어도 통과한다
+    "가가하고 싶어도 나나 다다하고 싶어요", // 앞 절의 ~고 싶어요는 마지막 절이 아니다
+  ];
+  for (const side of ["left", "right"]) {
+    for (const text of good) {
+      const { result, hits } = checkEnd(text, side);
+      assert.deepEqual(hits, [], `${side}: ${text}\n${show(result)}`);
+      assert.deepEqual(result.errors, [], `${side}: ${text}\n${show(result)}`);
+      assert.deepEqual(result.warnings, [], `${side}: ${text}\n${show(result)}`);
+    }
+  }
+});
+
+test("react 양끝 이름 마지막 절: 앞 절에만 ~고 싶어요가 있고 마지막 절이 대가이면 잡는다", () => {
+  const { hits } = checkEnd("가가하고 싶어도 나나 것 같아요");
+  assert.equal(hits.length, 1);
+});
+
+test("react 양끝 이름 마지막 절: 요로 끝나지 않는 끝은 해요체 오류만 내고 이 경고는 겹치지 않는다", () => {
+  for (const side of ["left", "right"]) {
+    const { result, hits } = checkEnd("가가가도 나나 것 같아다", side);
+    assert.deepEqual(hits, [], show(result));
+    assert.deepEqual([...rulesOf(result)], ["politeness"], show(result));
+  }
+});
+
+test("react 양끝 이름 마지막 절: 검사기가 내보낸 맺음이 이 시험의 값과 같다", () => {
+  assert.equal(lintModule.REACT_END_ACCEPTANCE_TAIL, "고 싶어요");
+  assert.equal(RULES["react-end-acceptance"].severity, "warning");
+  assert.equal(RULES["react-end-acceptance"].category, "content");
+});
+
+test("react 양끝 이름 마지막 절: 실제 은행의 react 양끝 이름은 대가 절이 있으면 모두 ~고 싶어요로 끝난다(검사기와 무관한 확인)", () => {
+  const ends = realData().items.filter((it) => it.fmt === "react").flatMap((it) => [it.ends.left, it.ends.right]);
+  assert.equal(ends.length, 32);
+  const withConcession = ends.filter((t) => /도 /.test(t));
+  assert.ok(withConcession.length >= 28, `대가 절이 있는 끝 ${withConcession.length}개`);
+  for (const t of withConcession) assert.match(t, /고 싶어요$/, t);
 });
 
 test("경고 수준 규칙: 구조 오류가 있으면 정적 균형 시험을 건너뛰고 balance-skipped 경고를 남긴다", () => {
@@ -1211,8 +1361,9 @@ test("모든 규칙(오류와 경고)은 변형, 경계, 정책 시험 중 하�
   covered.add("balance-skipped"); // 위 경고 시험
   const uncovered = Object.keys(RULES).filter((rule) => !covered.has(rule));
   assert.deepEqual(uncovered, [], `시험 없는 규칙: ${uncovered.join(", ")}`);
-  for (const rule of ["question-form", "length-question", "speaker-length", "balance-skipped"]) assert.equal(RULES[rule].severity, "warning");
-  for (const rule of Object.keys(RULES)) if (!["question-form", "length-question", "speaker-length", "balance-skipped"].includes(rule)) assert.equal(RULES[rule].severity, "error", rule);
+  const WARNING_RULES = ["question-form", "length-question", "speaker-length", "balance-skipped", "react-end-acceptance", "cost-repeats-head", "split-third-decoy"];
+  for (const rule of WARNING_RULES) assert.equal(RULES[rule].severity, "warning");
+  for (const rule of Object.keys(RULES)) if (!WARNING_RULES.includes(rule)) assert.equal(RULES[rule].severity, "error", rule);
   // 범주가 셋뿐이다
   assert.deepEqual([...new Set(Object.values(RULES).map((r) => r.category))].sort(), ["balance", "content", "structure"]);
 });

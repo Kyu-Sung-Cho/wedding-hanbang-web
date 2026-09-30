@@ -53,7 +53,10 @@ import {
   personName,
   receiveStorage,
   savedOnLine,
+  selfChoiceLine,
+  selfChoiceParts,
   selfContrastSentence,
+  selfLevelPhrase,
   splitAddLabel,
   splitCountLabel,
   splitRemainingNotice,
@@ -152,6 +155,12 @@ function samples(): Leaf[] {
         label(`historyCell(${letter},${band})`, historyCell(letter, band, false));
         label(`letterBandCell(${letter},${band})`, letterBandCell(letter, band, false));
       }
+      for (const level of [1, 2, 3] as const) {
+        sentence(
+          `selfChoiceLine(${letter},${level})`,
+          selfChoiceLine({ axis: axis.key, side: letter === axis.front ? "front" : "back", letter, level }),
+        );
+      }
       for (const gathered of [axis.front, axis.back]) {
         for (const gatheredBand of ["clear", "lean"] as const) {
           sentence(
@@ -235,7 +244,7 @@ function countOf(haystack: string, needle: string): number {
 
 /** 화면에 아무 문구도 못 내보내는 낱말. 안 맞아요는 「제 상황과 안 맞아요」에만 남는다. 자리는 아래 검사에서 어디에도 쓰지 못한다. */
 const BANNED =
-  /검증된|정확|과학적|진단|점수|등급|궁합|잘 ?맞|성격|유형|스타일|동물|캐릭터|MBTI|mbti|퍼센트|순위|문항|측면|서버 연결|접근 키|확인 주소|데이터|로딩|에러|오류|타입/u;
+  /검증된|정확|과학적|진단|점수|등급|궁합|잘 ?맞|성격|유형|스타일|동물|캐릭터|MBTI|mbti|퍼센트|순위|문항|측면|서버 연결|접근 키|확인 주소|데이터|로딩|에러|오류|타입|속마음|무의식|본모습|모순|일관성|당신은|숨은 ?(?:성향|마음|이유)/u;
 const BANNED_FORMAL = /(합니다|입니다|습니다|바랍니다|하십시오)/u;
 const BANNED_LABELS_OF_ORDER = /(번째|첫|둘째|셋째) ?(질문|화면|장면)|(질문|화면|장면) ?번호|\d+ ?\/ ?\d+|이야기 ?(카드|편|화면)/u;
 
@@ -713,6 +722,53 @@ describe("문서의 최종 문구를 그대로 옮겼다", () => {
       "마지막에 직접 고른 쪽은 「F 가족과 정하기」였어요. 여러 질문에서 고른 답은 「U 둘이 정하기」 쪽으로 대체로 모였어요. 어느 쪽이 지금 나에게 더 가까운지 둘이 이야기해 봐도 좋아요.",
     );
     expect(V40_COPY.block.selfChoiceHeading).toBe("직접 고른 쪽");
+  });
+
+  it("마지막에 직접 고른 쪽 줄: 글자와 이름, 세기 낱말만 적고 모은 답과 견주지 않는다", () => {
+    expect(selfChoiceLine({ axis: "process", side: "back", letter: "D", level: 3 })).toBe("내가 마지막에 직접 고른 쪽: 「D 나눠 하기」 · 아주 가까워요");
+    expect(selfChoiceLine({ axis: "money", side: "front", letter: "V", level: 2 })).toBe("내가 마지막에 직접 고른 쪽: 「V 조건 먼저」 · 꽤 가까워요");
+    expect(selfChoiceLine({ axis: "support", side: "front", letter: "H", level: 1 })).toBe("내가 마지막에 직접 고른 쪽: 「H 마음 먼저」 · 조금 가까워요");
+    expect(V40_COPY.block.selfLineLeadLabel).toBe("내가 마지막에 직접 고른 쪽");
+    // 세기 낱말은 고른 답 덧말과 같은 낱말이다(같은 뜻을 화면 두 곳에서 다르게 적지 않는다).
+    expect(V40_QUOTE_TEMPLATES.pairStrongSuffix).toBe(` (${selfLevelPhrase(3)})`);
+    expect(V40_QUOTE_TEMPLATES.reactNearSuffix).toBe(` (${selfLevelPhrase(1)})`);
+    expect([1, 2, 3].map((level) => selfLevelPhrase(level as 1 | 2 | 3))).toEqual(["조금 가까워요", "꽤 가까워요", "아주 가까워요"]);
+    // 모은 답 쪽 낱말, 판단, 원인, 숫자가 없다.
+    for (const axis of V40_AXES) {
+      for (const letter of [axis.front, axis.back]) {
+        for (const level of [1, 2, 3] as const) {
+          const line = selfChoiceLine({ axis: axis.key, side: letter === axis.front ? "front" : "back", letter, level });
+          expect(line).not.toMatch(/모였|모은|여러 질문|뚜렷|기울|반반|당신|때문|그래서|진짜|숨은|속마음|무의식|모순|일관|\d/u);
+          expect(line.split("「")).toHaveLength(2);
+        }
+      }
+    }
+  });
+
+  it("마지막에 직접 고른 쪽 줄: 잘못된 세기나 그 주제의 글자가 아닌 글자는 던진다", () => {
+    expect(() => selfLevelPhrase(0 as 1)).toThrow(RangeError);
+    expect(() => selfLevelPhrase(4 as 3)).toThrow(RangeError);
+    expect(() => selfChoiceLine({ axis: "money", side: "back", letter: "D", level: 2 })).toThrow(RangeError);
+    expect(() => selfChoiceParts({ axis: "money", side: "back", letter: "D", level: 2 })).toThrow(RangeError);
+  });
+
+  it("내가 마지막에 직접 고른 쪽 줄: 세 덩어리(머리말, 글자와 이름, 세기 낱말)로 나뉘고 덩어리를 공백으로 이으면 줄 전체다", () => {
+    const line = { axis: "process", side: "back", letter: "D", level: 3 } as const;
+    expect(selfChoiceParts(line)).toEqual({ label: "내가 마지막에 직접 고른 쪽:", pick: "「D 나눠 하기」 ·", level: "아주 가까워요" });
+    for (const axis of V40_AXES) {
+      for (const letter of [axis.front, axis.back]) {
+        for (const level of [1, 2, 3] as const) {
+          const each = { axis: axis.key, side: letter === axis.front ? "front" : "back", letter, level } as const;
+          const parts = selfChoiceParts(each);
+          expect(selfChoiceLine(each), `${axis.key} ${letter} ${level}`).toBe(`${parts.label} ${parts.pick} ${parts.level}`);
+          // 글자 이름은 낫표 안에 있고, 세기 낱말은 낫표 밖의 끝에 있다.
+          expect(parts.pick).toBe(`「${legendLetterCell(letter)}」 ·`);
+          expect(parts.level).toBe(selfLevelPhrase(level));
+        }
+      }
+    }
+    // 머리말은 본인이 고른 것임을 「내가」로 밝힌다(시스템이 세는 문장이 아니다).
+    expect(V40_COPY.block.selfLineLeadLabel.startsWith("내가 ")).toBe(true);
   });
 
   it("지난번과 비교", () => {

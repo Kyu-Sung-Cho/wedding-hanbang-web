@@ -984,8 +984,8 @@ describe("고정 화면 답 248가지: 형식별 축 합이 정확히 0 (폼 비
 });
 
 describe("계약 묶음", () => {
-  it("scoreModule 은 scoreResponses 와 buildResult 를 가진다", () => {
-    expect(Object.keys(scoreModule).sort()).toEqual(["buildResult", "scoreResponses"]);
+  it("scoreModule 은 scoreResponses 와 buildResult 와 selfLine 을 가진다", () => {
+    expect(Object.keys(scoreModule).sort()).toEqual(["buildResult", "scoreResponses", "selfLine"]);
   });
 
   it("결과 타입에 필요한 필드가 있다", () => {
