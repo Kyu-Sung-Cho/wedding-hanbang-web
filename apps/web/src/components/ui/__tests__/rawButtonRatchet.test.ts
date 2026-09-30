@@ -100,7 +100,19 @@ import { describe, expect, it } from "vitest";
  */
 // 2026-09-11: 승인된 HTML 화면의 신규 버튼 13곳을 공통 Button으로 옮겼다.
 // 기존 화면에서 제거한 버튼까지 반영한 합친 트리의 실측값으로 상한을 낮춘다.
-const BASELINE = 705;
+//
+// 2026-09-30 (웨딩코드 4.0): 705 -> 708. 늘어난 3개는 **라디오 칸**이다.
+//   components/wedding-code/v40/ChoiceInput.tsx, PairInput.tsx, ReactInput.tsx
+// 예외 근거 - 왜 프리미티브로 안 되는가:
+//   - 셋 다 `role="radio"` 와 `aria-checked` 를 단 **라디오 그룹의 한 칸**이다(방향키 이동, 한 칸만 탭 정지). 눌러서 무언가를 실행하는
+//     단추가 아니라 고르는 칸이라, 단추 줄의 primary/secondary/ghost/icon 어디에도 맞지 않는다.
+//   - Button 은 `whitespace-nowrap`, 고정 최소 높이, 가로 여백을 기본으로 깔고 className 을 **덧붙이기만** 한다(충돌하는 유틸리티를
+//     지우지 않는다). ChoiceInput 의 칸은 보기 문장 전체(두세 줄로 접힘)라 줄바꿈 금지가 바로 깨지고, PairInput(카드마다 세 칸)과
+//     ReactInput(다섯 칸)의 칸은 좁은 격자라 기본 가로 여백이 칸 폭을 넘친다.
+//   - 이 칸들을 위한 변형(고른 상태를 가진 칸)을 Button 에 올리는 것은 디자인 결정이라 이 브랜치에서 하지 않는다. 이 파일이 세운 원칙과
+//     같은 이유로 PreparationStageSelect(선택 카드) 예외가 이미 위에 있다. 선택 상태 변형이 생기면 이 셋도 함께 옮기고 숫자는 705 로 돌아간다.
+// 이 값은 합친 트리를 실제로 세어 넣었다(main 705 + 이 3개).
+const BASELINE = 708;
 
 const SOURCE_ROOT = path.join(process.cwd(), "src");
 
