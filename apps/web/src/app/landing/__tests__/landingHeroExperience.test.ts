@@ -37,7 +37,7 @@ describe("처음 방문한 사람이 보는 준비 흐름", () => {
     expect(copy).toMatch(/AI[\s\S]*아모라/u);
     expect(copy).toMatch(/확인한[\s\S]*예산·할 일·일정/u);
     const titleLines = [...doc.querySelectorAll("h1 > span")].map((line) => line.textContent);
-    expect(titleLines).toEqual(["결혼 준비, 뭐부터 할지보다", "우리 둘이 뭘 원하는지부터."]);
+    expect(titleLines).toEqual(["결혼식까지 몇 달 남았는데", "지금 뭐부터 하면 될까요?"]);
     expect(doc.querySelector(".landing-tape")?.textContent).toBe("둘이 하는 결혼 준비, 아모라와");
     expect(doc.querySelector('a[href="/login?mode=signup"]')?.textContent).toContain("아모라");
     const weddingCode = doc.querySelector('a[href="/wedding-code"]');
