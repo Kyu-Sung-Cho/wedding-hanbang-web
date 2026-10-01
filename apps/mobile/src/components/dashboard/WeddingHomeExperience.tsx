@@ -125,7 +125,7 @@ function formatWeddingDate(dateValue: string | null): string {
 
 function getGreeting(name: string | null): string {
   const hour = new Date().getHours();
-  const timeLabel = hour < 12 ? "좋은 아침이에요" : hour < 18 ? "좋은 오후에요" : "좋은 저녁이에요";
+  const timeLabel = hour < 12 ? "좋은 아침이에요" : hour < 18 ? "좋은 오후예요" : "좋은 저녁이에요";
   return name ? `${name}님, ${timeLabel}` : timeLabel;
 }
 
@@ -416,7 +416,7 @@ export default function WeddingHomeExperience({
           <FirstRunAnchor id="lounge-tools" style={styles.section}>
             <SectionHeader
               eyebrow="WEDDING TOOLS"
-              title="준비의 모든 순간"
+              title="필요한 것부터 열어 봐요"
             />
             {emptyNote}
             <View style={styles.serviceGrid}>
@@ -552,7 +552,7 @@ export default function WeddingHomeExperience({
             </View>
             <View style={styles.partnerCopy}>
               <Text style={styles.partnerTitle}>
-                웨딩코드 — 어디서 생각이 갈리는지 먼저 보기
+                웨딩코드로 둘이 어디서 갈리는지 알아봐요
               </Text>
               {/*
                 줄 수를 제한하지 않는다. "점수나 궁합은 매기지 않아요" 는 제품 계약이
@@ -561,8 +561,8 @@ export default function WeddingHomeExperience({
                 부정문이 잘리면 정반대로 읽힌다. 카드는 minHeight 라 늘어나면 된다.
               */}
               <Text style={styles.partnerDescription}>
-                결혼 준비 장면에 각자 답하고, 고른 문장을 나란히 봐요. 점수나 궁합은
-                매기지 않아요.
+                상대도 답하면 둘의 답을 나란히 놓고, 먼저 의논할 것부터 볼 수 있어요.
+                점수나 궁합은 매기지 않아요.
               </Text>
             </View>
             <ArrowRight size={16} color={colors.textTertiary} />

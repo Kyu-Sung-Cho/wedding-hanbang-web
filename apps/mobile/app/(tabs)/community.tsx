@@ -262,7 +262,7 @@ function CohortJoinCTA() {
       </View>
       <View style={styles.cohortCtaTextWrap}>
         <Text style={styles.cohortCtaTitle}>동기방 찾기</Text>
-        <Text style={styles.cohortCtaSub}>같은 달에 결혼하는 동기들과 소통하세요</Text>
+        <Text style={styles.cohortCtaSub}>결혼식 분기별로 방이 나뉘어 있어요</Text>
       </View>
       <ChevronRight size={18} color={colors.textTertiary} />
     </Pressable>
@@ -869,11 +869,11 @@ export default function CommunityScreen() {
     return (
       <View style={styles.decisionSection}>
         <SectionHeader
-          eyebrow="경험이 결정으로 이어지는 곳"
+          eyebrow="계약 앞에서 망설여질 때"
           title="계약·추가비용 결정 질문"
         />
         <Text style={styles.decisionSectionCopy}>
-          비슷한 조건의 실제 경험을 확인하고, 선택한 답이 어떤 결과로 이어졌는지까지 봅니다.
+          비슷한 조건의 실제 경험을 보고, 선택한 답이 어떤 결과로 이어졌는지까지 확인해요.
         </Text>
 
         {decisionInbox && inboxCount > 0 && (
@@ -966,7 +966,7 @@ export default function CommunityScreen() {
                   : "공개된 결정 질문이 아직 없어요."}
             </Text>
             <Text style={styles.decisionEmptyCopy}>
-              없는 활동을 꾸며 보여주지 않고, 실제 기록이 생기면 여기에 표시합니다.
+              없는 활동을 꾸며 보여주지 않고, 실제 기록이 생기면 여기에 올라와요.
             </Text>
           </View>
         )}
@@ -1051,7 +1051,7 @@ export default function CommunityScreen() {
 
   return (
     <SafeAreaView style={styles.container} edges={["top"]}>
-      <AppHeader title="커뮤니티" subtitle="사람의 경험으로 결정하고 결과를 돌려주는 곳" />
+      <AppHeader title="커뮤니티" subtitle="경험을 찾고 궁금한 걸 물어봐요" />
 
       {/* 피드 */}
       {loading ? (
@@ -1099,7 +1099,7 @@ export default function CommunityScreen() {
             <EmptyState
               icon={<MessageSquarePlus size={40} color={colors.rose[500]} />}
               title="아직 최신 글이 없어요"
-              description="아래 자유 글쓰기에서 첫 이야기를 나눌 수 있어요. 결정 질문은 오른쪽 아래 버튼으로 시작합니다."
+              description="아래 자유 글쓰기에서 첫 이야기를 나눌 수 있어요. 결정 질문은 오른쪽 아래 버튼으로 시작해요."
             />
           }
         />

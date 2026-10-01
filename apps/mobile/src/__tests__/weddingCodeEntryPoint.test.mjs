@@ -86,7 +86,7 @@ const loungeCard = () =>
 test("라운지 본문에 웨딩코드로 가는 카드가 있다", () => {
   const card = collapse(loungeCard());
   assert.match(card, /router\.push\("\/wedding-code"\)/);
-  assert.match(card, /웨딩코드 — 어디서 생각이 갈리는지 먼저 보기/);
+  assert.match(card, /웨딩코드로 둘이 어디서 갈리는지 알아봐요/);
   // 웹 라운지 카드와 같은 선 긋기. 제품 계약이 점수·궁합 판정을 금지한다(CLAUDE.md).
   assert.match(card, /점수나 궁합은 매기지 않아요/);
 });
@@ -120,7 +120,7 @@ test("카드가 자기 글을 화면 낭독기에게서 숨기지 않는다", ()
 });
 
 test("로그인 화면에서 계정 없이 먼저 해볼 수 있다", () => {
-  assert.match(login, /로그인 없이 웨딩코드 먼저 해보기/);
+  assert.match(login, /로그인 없이 웨딩코드로 원하는 것 먼저 보기/);
   assert.match(login, /router\.push\(\{ pathname: "\/wedding-code" \}\)/);
 });
 

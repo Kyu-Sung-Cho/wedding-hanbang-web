@@ -175,7 +175,7 @@ export default function LoginScreen() {
             />
             <Text style={styles.title}>웨딩한방</Text>
             <Text style={styles.subtitle}>
-              결혼 준비, 아모라와 처음부터 끝까지
+              {"결혼 준비, 뭐부터 하면 될까요?\n아모라와 같이 정리해 봐요"}
             </Text>
           </Animated.View>
 
@@ -357,12 +357,12 @@ export default function LoginScreen() {
           <Pressable
             onPress={() => router.push({ pathname: "/wedding-code" })}
             accessibilityRole="link"
-            accessibilityLabel="로그인 없이 웨딩코드 먼저 해보기"
+            accessibilityLabel="로그인 없이 웨딩코드로 원하는 것 먼저 보기"
             hitSlop={8}
             style={styles.tryWeddingCode}
           >
             <Text style={styles.tryWeddingCodeText}>
-              로그인 없이 웨딩코드 먼저 해보기
+              로그인 없이 웨딩코드로 원하는 것 먼저 보기
             </Text>
           </Pressable>
 

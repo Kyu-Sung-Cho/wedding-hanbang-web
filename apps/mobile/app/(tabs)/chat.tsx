@@ -207,8 +207,8 @@ const AMORA_FIRST_HELLO_MESSAGE_ID = "amora_first_hello_local";
  * 두고 두 자리에서 같이 쓴다.
  */
 const AMORA_STARTER_PROMPTS = [
-  "웨딩 사진 촬영 예산을 정리해줘",
-  "지금 먼저 할 일 세 가지를 알려줘",
+  "결혼 준비, 뭐부터 하면 돼?",
+  "결혼 예산은 어떻게 나누면 돼?",
   "결혼식장 계약 전에 무엇을 확인해야 해?",
 ] as const;
 
@@ -5340,10 +5340,10 @@ export default function ChatScreen() {
               }
               title={activeScope === "private" ? "나만의 상담을 시작해볼까요?" : "안녕하세요, 아모라예요"}
               description={activeScope === "private"
-                ? "이 범위의 대화는 서비스에 저장되지만 상대방에게는 보이지 않아요.\n아모라에게 편하게 이야기해 주세요."
+                ? "이 범위의 대화는 서비스에 저장되지만 상대방에게는 보이지 않아요.\n말 꺼내기 전에 혼자 정리할 얘기부터 해 봐요."
                 : hasLinkedPartner
-                  ? "결혼 준비 뭐든 물어보세요.\n파트너에게도 메시지를 보낼 수 있어요."
-                  : "결혼 준비 뭐든 물어보세요.\n파트너 연결 전에는 아모라와 먼저 준비할 수 있어요."}
+                  ? "뭘 물어볼지 몰라도 돼요.\n파트너에게도 메시지를 보낼 수 있어요."
+                  : "뭘 물어볼지 몰라도 돼요.\n파트너 연결 전에도 아모라와 먼저 시작할 수 있어요."}
             />
             {!isP && (
               <View style={st.suggestions}>{AMORA_STARTER_PROMPTS.map((q) => (<Pressable key={q} style={({ pressed }) => [st.sugBtn, pressed && { opacity: 0.85 }]} onPress={() => handleAiSuggestion(q)}><Text style={st.sugText}>{q}</Text></Pressable>))}</View>
