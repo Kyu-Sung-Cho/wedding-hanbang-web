@@ -73,6 +73,13 @@ export interface QuestionScreenProps {
   readonly onBack: () => void;
   /** 필터 흐름에서 결과로 돌아가기(축 다시 보기), 그대로 결과 보기(넘어간 질문 다시 보기). 없으면 그 단추를 그리지 않는다. */
   readonly onLeaveEdit?: () => void;
+  /**
+   * 넘어간 질문 다시 보기(filter 가 skipped)에서 결과로 나가는 단추의 이름. 안 주면 「그대로 결과 보기」(V40_COPY.edit.skippedReviewSkipButton).
+   * 이 단추를 누른 뒤 결과 앞에 다른 화면(4.1 단계 2의 결과 전 글자 고르기 등)이 끼는 흐름에서는 부모가 결과를 약속하지 않는 이름
+   * (V40_COPY.edit.skippedReviewFinishButton)을 준다. 아래 줄의 「다음」(다음 넘어간 질문)과 같은 이름을 주면 이름이 같은 단추 둘이 생기므로 주지 않는다.
+   * 축 다시 보기의 「결과로 돌아가기」에는 쓰지 않는다.
+   */
+  readonly leaveEditLabel?: string;
   /** saveState 가 conflict 일 때 두 단추. */
   readonly onLoadSaved?: () => void;
   readonly onKeepThis?: () => void;
@@ -143,6 +150,7 @@ export function QuestionScreen({
   onNext,
   onBack,
   onLeaveEdit,
+  leaveEditLabel,
   onLoadSaved,
   onKeepThis,
 }: QuestionScreenProps) {
@@ -253,7 +261,7 @@ export function QuestionScreen({
           <p className={bodyText}>{V40_COPY.edit.skippedReviewLead}</p>
           {onLeaveEdit ? (
             <Button variant="secondary" size="md" onClick={onLeaveEdit}>
-              {V40_COPY.edit.skippedReviewSkipButton}
+              {leaveEditLabel ?? V40_COPY.edit.skippedReviewSkipButton}
             </Button>
           ) : null}
         </div>

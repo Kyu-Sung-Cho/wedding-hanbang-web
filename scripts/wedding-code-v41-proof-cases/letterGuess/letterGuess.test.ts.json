@@ -1,0 +1,80 @@
+[
+  {
+    "name": "isSettledAxis 가 임시 글자를 확정으로 센다",
+    "target": "apps/web/src/lib/weddingCode/v40/letterGuess/letterGuess.ts",
+    "find": "axis.letter !== null && !axis.provisional && (axis.shownBand === \"clear\" || axis.shownBand === \"lean\")",
+    "replace": "axis.letter !== null && (axis.shownBand === \"clear\" || axis.shownBand === \"lean\")"
+  },
+  {
+    "name": "isSettledAxis 가 기울어요를 확정에서 뺀다",
+    "target": "apps/web/src/lib/weddingCode/v40/letterGuess/letterGuess.ts",
+    "find": "(axis.shownBand === \"clear\" || axis.shownBand === \"lean\")",
+    "replace": "(axis.shownBand === \"clear\")"
+  },
+  {
+    "name": "isSettledAxis 가 반반이에요도 확정으로 센다",
+    "target": "apps/web/src/lib/weddingCode/v40/letterGuess/letterGuess.ts",
+    "find": "(axis.shownBand === \"clear\" || axis.shownBand === \"lean\")",
+    "replace": "(axis.shownBand !== null)"
+  },
+  {
+    "name": "isLetterGuessEligible 가 관문이 닫힌 결과도 연다",
+    "target": "apps/web/src/lib/weddingCode/v40/letterGuess/letterGuess.ts",
+    "find": "return result.code !== null && result.axes.some(isSettledAxis);",
+    "replace": "return result.axes.some(isSettledAxis);"
+  },
+  {
+    "name": "summarize 가 관문이 닫혀도 요약을 낸다",
+    "target": "apps/web/src/lib/weddingCode/v40/letterGuess/letterGuess.ts",
+    "find": "result.code === null || !isLetterGuess(guess)",
+    "replace": "!isLetterGuess(guess)"
+  },
+  {
+    "name": "summarize 가 하나도 안 골랐는데 요약을 낸다",
+    "target": "apps/web/src/lib/weddingCode/v40/letterGuess/letterGuess.ts",
+    "find": "!isLetterGuess(guess) || !hasLetterGuessPick(guess)",
+    "replace": "!isLetterGuess(guess)"
+  },
+  {
+    "name": "summarize 가 확정이 아닌 주제도 견준다",
+    "target": "apps/web/src/lib/weddingCode/v40/letterGuess/letterGuess.ts",
+    "find": "if (shown === null || !isSettledAxis(axis)) return;",
+    "replace": "if (shown === null) return;"
+  },
+  {
+    "name": "summarize 가 같은 주제가 있으면 다른 주제의 줄을 버린다",
+    "target": "apps/web/src/lib/weddingCode/v40/letterGuess/letterGuess.ts",
+    "find": "if (lines.length > 0) return { kind: \"lines\", lines };",
+    "replace": "if (same > 0) return { kind: \"same\" };\n  if (lines.length > 0) return { kind: \"lines\", lines };"
+  },
+  {
+    "name": "summarize 가 같은 주제가 없어도 같음이라고 한다",
+    "target": "apps/web/src/lib/weddingCode/v40/letterGuess/letterGuess.ts",
+    "find": "if (same > 0) return { kind: \"same\" };",
+    "replace": "if (same >= 0) return { kind: \"same\" };"
+  },
+  {
+    "name": "줄의 먼저 고른 글자와 결과 글자가 뒤바뀐다",
+    "target": "apps/web/src/lib/weddingCode/v40/letterGuess/letterGuess.ts",
+    "find": "else lines.push({ axis: axis.axis, guessed, shown });",
+    "replace": "else lines.push({ axis: axis.axis, guessed: shown, shown: guessed });"
+  },
+  {
+    "name": "글자 카드 위아래가 폼 비트를 따르지 않는다",
+    "target": "apps/web/src/lib/weddingCode/v40/letterGuess/letterGuess.ts",
+    "find": "return formBit === 1 ? [info.back, info.front] : [info.front, info.back];",
+    "replace": "return [info.front, info.back];"
+  },
+  {
+    "name": "모양 검사가 다른 주제의 글자를 받아들인다",
+    "target": "apps/web/src/lib/weddingCode/v40/letterGuess/letterGuessEnvelope.ts",
+    "find": "return pick === null || (isLetter(pick) && axisOfLetter(pick) === axis);",
+    "replace": "return pick === null || isLetter(pick);"
+  },
+  {
+    "name": "hasLetterGuessLines 가 none 일 때도 참이다(빈 슬롯 상자가 간격만 남긴다)",
+    "target": "apps/web/src/lib/weddingCode/v40/letterGuess/letterGuess.ts",
+    "find": "return summary.kind !== \"none\";",
+    "replace": "return true;"
+  }
+]

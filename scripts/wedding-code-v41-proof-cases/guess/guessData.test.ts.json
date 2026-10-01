@@ -1,0 +1,68 @@
+[
+  {
+    "name": "생성 파일에 개발 메모 키를 심음",
+    "target": "apps/web/src/constants/weddingCodeV40Guess.ts",
+    "find": "    id: \"g.money.gift\",",
+    "replace": "    id: \"g.money.gift\",\n    dev: { lookSide: \"B\" },"
+  },
+  {
+    "name": "생성 파일의 세트 글자를 바꿈",
+    "target": "apps/web/src/constants/weddingCodeV40Guess.ts",
+    "find": "export const V40_GUESS_SET_ID: GuessSetId = \"1\";",
+    "replace": "export const V40_GUESS_SET_ID: GuessSetId = \"2\" as GuessSetId;"
+  },
+  {
+    "name": "생성 파일의 카드 글을 손으로 고침",
+    "target": "apps/web/src/constants/weddingCodeV40Guess.ts",
+    "find": "{ act: \"갖고 싶은 걸 미리 물어보고 그중에서 골라요.\"",
+    "replace": "{ act: \"갖고 싶은 걸 미리 물어보고 그중에서 골라 둬요.\""
+  },
+  {
+    "name": "생성 파일이 사람이 읽었다고 말함",
+    "target": "apps/web/src/constants/weddingCodeV40Guess.ts",
+    "find": "humanReviewed: false,",
+    "replace": "humanReviewed: true,"
+  },
+  {
+    "name": "생성기가 장면의 topic 을 내보냄",
+    "target": "scripts/build-wedding-code-v41-guess.mjs",
+    "find": "    caption: it.caption,",
+    "replace": "    caption: it.caption,\n    topic: it.topic,"
+  },
+  {
+    "name": "생성기가 개발 메모를 내보냄",
+    "target": "scripts/build-wedding-code-v41-guess.mjs",
+    "find": "    escapes: { self: [...it.escapes.self], guess: [...it.escapes.guess] },",
+    "replace": "    escapes: { self: [...it.escapes.self], guess: [...it.escapes.guess] },\n    dev: it.dev,"
+  },
+  {
+    "name": "생성기가 받는 화면 문구를 내보냄",
+    "target": "scripts/build-wedding-code-v41-guess.mjs",
+    "find": "    linkNotices: { sendOwn: data.linkNotices.sendOwn, sendCouple: data.linkNotices.sendCouple },",
+    "replace": "    linkNotices: { sendOwn: data.linkNotices.sendOwn, sendCouple: data.linkNotices.sendCouple, receive: data.linkNotices.receive },"
+  },
+  {
+    "name": "출시용 생성이 미검토 장면을 막지 않음",
+    "target": "scripts/build-wedding-code-v41-guess.mjs",
+    "find": "    if (data.review.humanReviewed !== true || data.review.unreviewedItemIds.length > 0) problems.push(\"사람이 읽지 않은 장면이 남아 있다(review)\");",
+    "replace": ""
+  },
+  {
+    "name": "생성기가 규칙 위반 원천도 받아들임",
+    "target": "scripts/build-wedding-code-v41-guess.mjs",
+    "find": "if (rules.length > 0) {",
+    "replace": "if (rules.length > 99999) {"
+  },
+  {
+    "name": "--check 가 다른 파일도 같다고 말함",
+    "target": "scripts/build-wedding-code-v41-guess.mjs",
+    "find": "if (current !== text) {",
+    "replace": "if (false) {"
+  },
+  {
+    "name": "뜻 해시가 두 물음을 빼고 계산됨",
+    "target": "scripts/build-wedding-code-v41-guess.mjs",
+    "find": "meaning: sha256({ prompts: text.prompts, guessNote: text.guessNote, escapeTexts: text.escapeTexts, items }),",
+    "replace": "meaning: sha256({ guessNote: text.guessNote, escapeTexts: text.escapeTexts, items }),"
+  }
+]

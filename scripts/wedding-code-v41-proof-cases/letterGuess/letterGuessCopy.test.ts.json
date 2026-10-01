@@ -1,0 +1,74 @@
+[
+  {
+    "name": "끝 줄에서 다른 날에는 다르게 한계 문장이 빠진다",
+    "target": "apps/web/src/lib/weddingCode/v40/letterGuess/letterGuessCopy.ts",
+    "find": "결과의 글자는 이번에 고른 답을 모은 것이라 다른 날에는 다르게 나올 수도 있어요. ",
+    "replace": ""
+  },
+  {
+    "name": "안내에 자리라는 낱말이 들어간다",
+    "target": "apps/web/src/lib/weddingCode/v40/letterGuess/letterGuessCopy.ts",
+    "find": "나에게 더 가까운 쪽을",
+    "replace": "나에게 더 가까운 자리를"
+  },
+  {
+    "name": "제목에 짐작이라는 낱말이 들어간다",
+    "target": "apps/web/src/lib/weddingCode/v40/letterGuess/letterGuessCopy.ts",
+    "find": "골라 볼까요?",
+    "replace": "짐작해 볼까요?"
+  },
+  {
+    "name": "저장 안내가 이 브라우저가 아니라 이 기기라고 한다",
+    "target": "apps/web/src/lib/weddingCode/v40/letterGuess/letterGuessCopy.ts",
+    "find": "이 브라우저가 저장을 막고 있어서",
+    "replace": "이 기기가 저장을 막고 있어서"
+  },
+  {
+    "name": "닫힌 카드 안내가 저장 안내와 같은 문장이 된다",
+    "target": "apps/web/src/lib/weddingCode/v40/letterGuess/letterGuessCopy.ts",
+    "find": "note: \"먼저 고른 글자는 누르기 전에는 보이지 않아요.\",",
+    "replace": "note: \"자동 저장을 꺼 두어서 고른 글자는 저장하지 않아요.\","
+  },
+  {
+    "name": "줄에 아쉬움을 담은 말이 들어간다",
+    "target": "apps/web/src/lib/weddingCode/v40/letterGuess/letterGuessCopy.ts",
+    "find": "를 먼저 골랐고, 답을 모아 보니 ${letterWithName(line.shown)}",
+    "replace": "를 먼저 골랐고, 아쉽게도 답을 모아 보니 ${letterWithName(line.shown)}"
+  },
+  {
+    "name": "글자 카드 글에 하이픈을 쓴다",
+    "target": "apps/web/src/lib/weddingCode/v40/letterGuess/letterGuessCopy.ts",
+    "find": "${info.name} · ${info.meaning}",
+    "replace": "${info.name} - ${info.meaning}"
+  },
+  {
+    "name": "정하는 사람 주제의 주어가 답을 모아 보니 문장의 주어와 갈라진다",
+    "target": "apps/web/src/lib/weddingCode/v40/letterGuess/letterGuessCopy.ts",
+    "find": "scope: \"정하는 사람은\",",
+    "replace": "scope: \"정할 때는\","
+  },
+  {
+    "name": "저장 안내에 숫자가 들어간다",
+    "target": "apps/web/src/lib/weddingCode/v40/letterGuess/letterGuessCopy.ts",
+    "find": "링크에는 들어가지 않아요.",
+    "replace": "링크에는 1번도 들어가지 않아요."
+  },
+  {
+    "name": "줄에서 글자 이름이 빠진다",
+    "target": "apps/web/src/lib/weddingCode/v40/letterGuess/letterGuessCopy.ts",
+    "find": "return `「${info.letter} ${info.name}」`;",
+    "replace": "return `「${info.letter}」`;"
+  },
+  {
+    "name": "안내에 고지 문장이 들어간다",
+    "target": "apps/web/src/lib/weddingCode/v40/letterGuess/letterGuessCopy.ts",
+    "find": "고르지 않아도 결과는 그대로예요.",
+    "replace": "검증을 마친 심리검사가 아니에요."
+  },
+  {
+    "name": "컴포넌트 소스가 문구 파일 밖에서 짐작이라는 글을 그린다",
+    "target": "apps/web/src/components/wedding-code/v40/letterGuess/LetterGuessLines.tsx",
+    "find": "const DEFAULT_ID_PREFIX = \"wc40-letter-guess\";",
+    "replace": "const DEFAULT_ID_PREFIX = \"wc40-letter-guess\";\nconst LEAKED_TEXT = \"짐작해 보세요\";"
+  }
+]

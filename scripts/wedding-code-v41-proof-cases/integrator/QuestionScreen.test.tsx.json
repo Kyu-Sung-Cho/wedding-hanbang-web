@@ -1,0 +1,14 @@
+[
+  {
+    "name": "나가기 단추 이름을 주어도 원래 이름을 쓴다",
+    "target": "apps/web/src/components/wedding-code/v40/QuestionScreen.tsx",
+    "find": "{leaveEditLabel ?? V40_COPY.edit.skippedReviewSkipButton}",
+    "replace": "{V40_COPY.edit.skippedReviewSkipButton}"
+  },
+  {
+    "name": "주제 다시 보기의 단추 이름도 바꾼다",
+    "target": "apps/web/src/components/wedding-code/v40/QuestionScreen.tsx",
+    "find": "{V40_COPY.edit.backToResultButton}",
+    "replace": "{leaveEditLabel ?? V40_COPY.edit.backToResultButton}"
+  }
+]

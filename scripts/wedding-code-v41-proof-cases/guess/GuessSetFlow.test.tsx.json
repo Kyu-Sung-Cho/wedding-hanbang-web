@@ -1,0 +1,92 @@
+[
+  {
+    "name": "내 답을 탈출구로 바꿀 때 짐작을 지우는 줄을 삭제",
+    "target": "apps/web/src/components/wedding-code/v40/guess/GuessSetFlow.tsx",
+    "find": "const chooseSelfEscape = (index: number, which: \"notmine\" | \"skip\") => patch(index, { self: which, guess: null });",
+    "replace": "const chooseSelfEscape = (index: number, which: \"notmine\" | \"skip\") => patch(index, { self: which });"
+  },
+  {
+    "name": "카드 고름이 폼 비트를 무시함",
+    "target": "apps/web/src/components/wedding-code/v40/guess/GuessSetFlow.tsx",
+    "find": "onChoose={(option) => patch(sceneIndex, { self: storedPickOf(formBit, option) })}",
+    "replace": "onChoose={(option) => patch(sceneIndex, { self: option === 0 ? 0 : option === 1 ? 1 : null })}"
+  },
+  {
+    "name": "짐작은 건너뛸게요가 고른 것을 넘김",
+    "target": "apps/web/src/components/wedding-code/v40/guess/GuessSetFlow.tsx",
+    "find": "    onLeave();",
+    "replace": "    onDone(answersFrom(picks));\n    onLeave();"
+  },
+  {
+    "name": "두 번 누름 막기를 지움",
+    "target": "apps/web/src/components/wedding-code/v40/guess/GuessSetFlow.tsx",
+    "find": "return turnGuardMs > 0 && at !== null && Date.now() - at < turnGuardMs;",
+    "replace": "return false;"
+  },
+  {
+    "name": "이미 눌린 탈출구를 다시 누르면 풀림",
+    "target": "apps/web/src/components/wedding-code/v40/guess/GuessSetFlow.tsx",
+    "find": "onPress={() => chooseSelfEscape(sceneIndex, \"notmine\")}",
+    "replace": "onPress={() => (pick.self === \"notmine\" ? patch(sceneIndex, { self: null }) : chooseSelfEscape(sceneIndex, \"notmine\"))}"
+  },
+  {
+    "name": "마지막 장면에도 다음이라고 적음",
+    "target": "apps/web/src/components/wedding-code/v40/guess/GuessSetFlow.tsx",
+    "find": "{page >= SCENE_COUNT ? copy.finishButton : copy.nextButton}",
+    "replace": "{copy.nextButton}"
+  },
+  {
+    "name": "장면 이름 옆에 번호를 붙임",
+    "target": "apps/web/src/components/wedding-code/v40/guess/GuessSetFlow.tsx",
+    "find": "{item.caption}",
+    "replace": "{item.caption} 1/6"
+  },
+  {
+    "name": "내 답이 탈출구여도 짐작을 물음",
+    "target": "apps/web/src/components/wedding-code/v40/guess/GuessSetFlow.tsx",
+    "find": "{typeof pick.self === \"number\" ? (",
+    "replace": "{pick.self !== null ? ("
+  },
+  {
+    "name": "마치기에서 저장소에 씀",
+    "target": "apps/web/src/components/wedding-code/v40/guess/GuessSetFlow.tsx",
+    "find": "  const handleNext = () => {",
+    "replace": "  const handleNext = () => {\n    window.localStorage.setItem(\"k\", \"v\");"
+  },
+  {
+    "name": "마치기 때 고른 것을 넘기지 않음",
+    "target": "apps/web/src/components/wedding-code/v40/guess/GuessSetFlow.tsx",
+    "find": "if (page >= SCENE_COUNT) onDone(answersFrom(picks));",
+    "replace": "if (page >= SCENE_COUNT) onDone(null);"
+  },
+  {
+    "name": "화면 이동 때 초점을 옮기지 않음",
+    "target": "apps/web/src/components/wedding-code/v40/guess/GuessSetFlow.tsx",
+    "find": "useScreenFocus(rootRef, `pair-guess:${page}`);",
+    "replace": "void rootRef;"
+  },
+  {
+    "name": "라운지 밖에서도 제목이 h2 다",
+    "target": "apps/web/src/components/wedding-code/v40/guess/GuessSetFlow.tsx",
+    "find": "const Title = embedded ? \"h2\" : \"h1\";",
+    "replace": "const Title = \"h2\";"
+  },
+  {
+    "name": "라운지 안에서도 제목이 h1 이다",
+    "target": "apps/web/src/components/wedding-code/v40/guess/GuessSetFlow.tsx",
+    "find": "const Title = embedded ? \"h2\" : \"h1\";",
+    "replace": "const Title = \"h1\";"
+  },
+  {
+    "name": "받는 사람 저장 안내를 보내는 사람에게도 보임",
+    "target": "apps/web/src/components/wedding-code/v40/guess/GuessSetFlow.tsx",
+    "find": "{role === \"receiver\" ? (",
+    "replace": "{true ? ("
+  },
+  {
+    "name": "받는 사람 저장 안내 글이 비었다",
+    "target": "apps/web/src/components/wedding-code/v40/guess/GuessSetFlow.tsx",
+    "find": "{copy.receiverStorageNote}",
+    "replace": "{\"\"}"
+  }
+]

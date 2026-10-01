@@ -1,0 +1,62 @@
+[
+  {
+    "name": "시작 단추에 이 기기를 쓴다",
+    "target": "apps/web/src/lib/weddingCode/v40/guess/guessCopy.ts",
+    "find": "  startButton: \"시작\",",
+    "replace": "  startButton: \"이 기기에서 시작\","
+  },
+  {
+    "name": "컴포넌트 소스의 문자열에 이 기기를 쓴다",
+    "target": "apps/web/src/components/wedding-code/v40/guess/GuessSetFlow.tsx",
+    "find": "\"min-h-11! whitespace-normal! border border-paper-outline px-3! text-[13px]! font-normal!\"",
+    "replace": "\"min-h-11! whitespace-normal! border border-paper-outline px-3! text-[13px]! font-normal! 이 기기\""
+  },
+  {
+    "name": "닫힌 카드 안내가 닫으면 사라진다고 단정한다",
+    "target": "apps/web/src/lib/weddingCode/v40/letterGuess/letterGuessCopy.ts",
+    "find": "    note: \"먼저 고른 글자는 누르기 전에는 보이지 않아요.\",",
+    "replace": "    note: \"먼저 고른 글자는 창을 닫으면 사라져요.\","
+  },
+  {
+    "name": "자동 저장을 끈 안내가 남는다고 말한다",
+    "target": "apps/web/src/lib/weddingCode/v40/letterGuess/letterGuessCopy.ts",
+    "find": "    storageOff: \"자동 저장을 꺼 두어서 고른 글자는 저장하지 않아요.\",",
+    "replace": "    storageOff: \"자동 저장을 꺼 두어도 고른 글자는 남아요.\","
+  },
+  {
+    "name": "진입 카드의 단추 이름이 보내기 블록과 어긋난다",
+    "target": "apps/web/src/lib/weddingCode/v40/guess/guessCopy.ts",
+    "find": "고른 쪽과 짐작한 쪽은 「내 답과 함께 보내기」 링크에 들어가요.",
+    "replace": "고른 쪽과 짐작한 쪽은 「내 답과 같이 보내기」 링크에 들어가요."
+  },
+  {
+    "name": "다시 하기 확인 창이 먼저 고른 글자를 말하지 않는다",
+    "target": "apps/web/src/lib/weddingCode/v40/copy.ts",
+    "find": " 결과를 보기 전에 먼저 고른 글자도 함께 지워져요.",
+    "replace": ""
+  },
+  {
+    "name": "저장 지우기 확인 창이 먼저 고른 글자를 말하지 않는다",
+    "target": "apps/web/src/lib/weddingCode/v40/copy.ts",
+    "find": " 이 브라우저에 남겨 둔 먼저 고른 글자도 함께 지워져요.",
+    "replace": ""
+  },
+  {
+    "name": "서로 짐작하기 단계 화면에 시작 화면의 고지 묶음을 붙인다",
+    "target": "apps/web/src/lib/weddingCode/v40/copy.ts",
+    "find": "  pairGuess: [\"guess\", \"common\", \"a11y\"],",
+    "replace": "  pairGuess: [\"guess\", \"intro\", \"common\", \"a11y\"],"
+  },
+  {
+    "name": "닫힌 카드 안내가 끝 줄의 문장과 겹친다",
+    "target": "apps/web/src/lib/weddingCode/v40/letterGuess/letterGuessCopy.ts",
+    "find": "    note: \"먼저 고른 글자는 누르기 전에는 보이지 않아요.\",",
+    "replace": "    note: \"혼자 생각해 봐도, 둘이 이야기해 봐도 좋아요.\","
+  },
+  {
+    "name": "두 사람 결과 묶음에서 글자 고르기 묶음을 뺀다",
+    "target": "apps/web/src/lib/weddingCode/v40/copy.ts",
+    "find": "  couple: [\"couple\", \"legend\", \"coupleSend\", \"guess\", \"letterGuess\", \"common\", \"a11y\"],",
+    "replace": "  couple: [\"couple\", \"legend\", \"coupleSend\", \"guess\", \"common\", \"a11y\"],"
+  }
+]

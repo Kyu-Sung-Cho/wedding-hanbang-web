@@ -1,0 +1,56 @@
+[
+  {
+    "name": "none 일 때도 구역을 그린다",
+    "target": "apps/web/src/components/wedding-code/v40/letterGuess/LetterGuessLines.tsx",
+    "find": "export function LetterGuessLines({ summary, headingLevel, idPrefix = DEFAULT_ID_PREFIX }: LetterGuessLinesProps) {\n  if (summary.kind === \"none\") return null;",
+    "replace": "export function LetterGuessLines({ summary, headingLevel, idPrefix = DEFAULT_ID_PREFIX }: LetterGuessLinesProps) {"
+  },
+  {
+    "name": "끝 줄이 빠진다",
+    "target": "apps/web/src/components/wedding-code/v40/letterGuess/LetterGuessLines.tsx",
+    "find": "{copy.lines.closing}",
+    "replace": "{\"\"}"
+  },
+  {
+    "name": "같음 문장 자리에 나란히 놓을 수 없음 문장이 나온다",
+    "target": "apps/web/src/components/wedding-code/v40/letterGuess/LetterGuessLines.tsx",
+    "find": "{summary.kind === \"same\" ? copy.lines.same : copy.lines.unsettledOnly}",
+    "replace": "{copy.lines.unsettledOnly}"
+  },
+  {
+    "name": "제목 수준을 따르지 않는다",
+    "target": "apps/web/src/components/wedding-code/v40/letterGuess/LetterGuessLines.tsx",
+    "find": "const Tag = level === 2 ? \"h2\" : \"h3\";",
+    "replace": "const Tag = \"h2\";"
+  },
+  {
+    "name": "줄을 하나만 그린다",
+    "target": "apps/web/src/components/wedding-code/v40/letterGuess/LetterGuessLines.tsx",
+    "find": "{summary.lines.map((line) => (",
+    "replace": "{summary.lines.slice(0, 1).map((line) => ("
+  },
+  {
+    "name": "줄의 결과 글자가 먼저 고른 글자로 바뀐다",
+    "target": "apps/web/src/components/wedding-code/v40/letterGuess/LetterGuessLines.tsx",
+    "find": "{letterGuessLineText(line)}",
+    "replace": "{letterGuessLineText({ ...line, shown: line.guessed })}"
+  },
+  {
+    "name": "제목 id 가 접두어를 따르지 않는다",
+    "target": "apps/web/src/components/wedding-code/v40/letterGuess/LetterGuessLines.tsx",
+    "find": "const titleId = `${idPrefix}-title`;",
+    "replace": "const titleId = \"wc40-letter-guess-title\";"
+  },
+  {
+    "name": "구역에 고지 문장이 들어간다",
+    "target": "apps/web/src/components/wedding-code/v40/letterGuess/LetterGuessLines.tsx",
+    "find": "{copy.lines.closing}",
+    "replace": "{copy.lines.closing} 검증을 마친 심리검사가 아니에요."
+  },
+  {
+    "name": "구역에 줄 수를 말하는 글이 들어간다",
+    "target": "apps/web/src/components/wedding-code/v40/letterGuess/LetterGuessLines.tsx",
+    "find": "<p className={cx(noteText, \"mt-3\")} data-letter-guess-closing=\"\">",
+    "replace": "<p className={cx(noteText, \"mt-3\")} data-letter-guess-closing=\"\">\n        {String(summary.kind === \"lines\" ? summary.lines.length : 0)}"
+  }
+]

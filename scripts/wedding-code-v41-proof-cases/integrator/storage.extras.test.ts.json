@@ -1,0 +1,122 @@
+[
+  {
+    "name": "off-check-disabled",
+    "target": "apps/web/src/lib/weddingCode/v40/storage.ts",
+    "find": "readAutosavePreference(prefHandle) === \"off\"",
+    "replace": "readAutosavePreference(prefHandle) === \"never\""
+  },
+  {
+    "name": "pref-handle-ignored",
+    "target": "apps/web/src/lib/weddingCode/v40/storage.ts",
+    "find": "const prefHandle = options?.prefHandle === undefined ? handle : options.prefHandle;",
+    "replace": "const prefHandle = handle;"
+  },
+  {
+    "name": "write-never-reads-back",
+    "target": "apps/web/src/lib/weddingCode/v40/storage.ts",
+    "find": "return writeVerified(handle, storageKey, raw) ? \"saved\" : \"unavailable\";",
+    "replace": "return (() => { writeVerified(handle, storageKey, raw); return true; })() ? \"saved\" : \"unavailable\";"
+  },
+  {
+    "name": "autosave-off-keeps-letter-guess-key",
+    "target": "apps/web/src/lib/weddingCode/v40/storage.ts",
+    "find": "V40_STORAGE.legacyV31ProgressKey, V40_STORAGE.letterGuessKey]) {",
+    "replace": "V40_STORAGE.legacyV31ProgressKey]) {"
+  },
+  {
+    "name": "letter-guess-key-collides-with-history-key",
+    "target": "apps/web/src/constants/weddingCodeV40.ts",
+    "find": "letterGuessKey: \"hanbang:wedding-code:v4:letter-guess\",",
+    "replace": "letterGuessKey: \"hanbang:wedding-code:v4:history\","
+  },
+  {
+    "name": "extra-storage-key-added-to-constants",
+    "target": "apps/web/src/constants/weddingCodeV40.ts",
+    "find": "letterGuessKey: \"hanbang:wedding-code:v4:letter-guess\",",
+    "replace": "letterGuessKey: \"hanbang:wedding-code:v4:letter-guess\",\n  part2Key: \"hanbang:wedding-code:v4:part2\","
+  },
+  {
+    "name": "unknown-name-accepted-through-in-operator",
+    "target": "apps/web/src/lib/weddingCode/v40/storage.ts",
+    "find": "Object.prototype.hasOwnProperty.call(EXTRA_STORAGE_KEYS, key) ? EXTRA_STORAGE_KEYS[key] : null",
+    "replace": "key in EXTRA_STORAGE_KEYS ? EXTRA_STORAGE_KEYS[key] : null"
+  },
+  {
+    "name": "remove-blocked-by-autosave-off",
+    "target": "apps/web/src/lib/weddingCode/v40/storage.ts",
+    "find": "remove: () => removeKey(handle, storageKey),",
+    "replace": "remove: () => (honorAutosave && readAutosavePreference(prefHandle) === \"off\" ? false : removeKey(handle, storageKey)),"
+  },
+  {
+    "name": "honor-autosave-default-flipped",
+    "target": "apps/web/src/lib/weddingCode/v40/storage.ts",
+    "find": "options?.honorAutosave !== false",
+    "replace": "options?.honorAutosave === true"
+  },
+  {
+    "name": "null-pref-handle-writes-anyway",
+    "target": "apps/web/src/lib/weddingCode/v40/storage.ts",
+    "find": "if (prefHandle === null) return \"unavailable\";",
+    "replace": "if (prefHandle === null) return writeVerified(handle, storageKey, raw) ? \"saved\" : \"unavailable\";"
+  },
+  {
+    "name": "non-string-write-reaches-storage",
+    "target": "apps/web/src/lib/weddingCode/v40/storage.ts",
+    "find": "if (typeof raw !== \"string\") return \"unavailable\";",
+    "replace": "void 0;"
+  },
+  {
+    "name": "port-writes-the-progress-key",
+    "target": "apps/web/src/lib/weddingCode/v40/storage.ts",
+    "find": "{ letterGuess: V40_STORAGE.letterGuessKey }",
+    "replace": "{ letterGuess: V40_STORAGE.progressKey }"
+  },
+  {
+    "name": "clear-progress-also-clears-letter-guess-key",
+    "target": "apps/web/src/lib/weddingCode/v40/storage.ts",
+    "find": "return removeKey(storage, V40_STORAGE.progressKey) ? { status: \"cleared\" } : { status: \"unavailable\" };",
+    "replace": "removeKey(storage, V40_STORAGE.letterGuessKey);\n  return removeKey(storage, V40_STORAGE.progressKey) ? { status: \"cleared\" } : { status: \"unavailable\" };"
+  },
+  {
+    "name": "purge-expired-also-clears-letter-guess-key",
+    "target": "apps/web/src/lib/weddingCode/v40/storage.ts",
+    "find": "return { progress, history: purgeHistory(storage, now) };",
+    "replace": "removeKey(storage, V40_STORAGE.letterGuessKey);\n  return { progress, history: purgeHistory(storage, now) };"
+  },
+  {
+    "name": "port-added-to-storage-module",
+    "target": "apps/web/src/lib/weddingCode/v40/storage.ts",
+    "find": "  probeLegacyV31Progress,\n} satisfies StorageModule;",
+    "replace": "  probeLegacyV31Progress,\n  createExtraPort,\n} satisfies StorageModule;"
+  },
+  {
+    "name": "port-touches-session-storage-by-name",
+    "target": "apps/web/src/lib/weddingCode/v40/storage.ts",
+    "find": "read: () => readRaw(handle, storageKey),",
+    "replace": "read: () => readRaw(handle ?? window.sessionStorage, storageKey),"
+  },
+  {
+    "name": "port-calls-get-item-directly",
+    "target": "apps/web/src/lib/weddingCode/v40/storage.ts",
+    "find": "read: () => readRaw(handle, storageKey),",
+    "replace": "read: () => ({ ok: true as const, raw: handle.getItem(storageKey) }),"
+  },
+  {
+    "name": "port-read-always-empty",
+    "target": "apps/web/src/lib/weddingCode/v40/storage.ts",
+    "find": "read: () => readRaw(handle, storageKey),",
+    "replace": "read: () => ({ ok: true as const, raw: null }),"
+  },
+  {
+    "name": "port-remove-always-true",
+    "target": "apps/web/src/lib/weddingCode/v40/storage.ts",
+    "find": "remove: () => removeKey(handle, storageKey),",
+    "replace": "remove: () => {\n      removeKey(handle, storageKey);\n      return true;\n    },"
+  },
+  {
+    "name": "letter-guess-key-read-outside-storage-module",
+    "target": "apps/web/src/lib/weddingCode/v40/copy.ts",
+    "find": "const STORAGE_DAYS = Math.round(V40_STORAGE.ttlMs / DAY_MS);",
+    "replace": "const STORAGE_DAYS = Math.round(V40_STORAGE.ttlMs / DAY_MS);\nvoid V40_STORAGE.letterGuessKey;"
+  }
+]

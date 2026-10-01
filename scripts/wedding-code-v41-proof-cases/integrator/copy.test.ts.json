@@ -1,0 +1,14 @@
+[
+  {
+    "name": "글자 고르기 화면 묶음에 시작 화면 묶음을 붙인다",
+    "target": "apps/web/src/lib/weddingCode/v40/copy.ts",
+    "find": "  letterGuess: [\"letterGuess\", \"common\", \"a11y\"],",
+    "replace": "  letterGuess: [\"letterGuess\", \"intro\", \"common\", \"a11y\"],"
+  },
+  {
+    "name": "서로 짐작하기 화면 묶음에 결과 묶음을 붙인다",
+    "target": "apps/web/src/lib/weddingCode/v40/copy.ts",
+    "find": "  pairGuess: [\"guess\", \"common\", \"a11y\"],",
+    "replace": "  pairGuess: [\"guess\", \"result\", \"common\", \"a11y\"],"
+  }
+]

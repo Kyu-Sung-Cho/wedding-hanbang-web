@@ -363,6 +363,8 @@ describe("고지 「검증을 마친 심리검사가 아니」", () => {
   it("시작, 받는 사람, 결과, 두 사람 결과에 정확히 한 번, 나머지 화면에는 없다", () => {
     const expected: Record<keyof typeof V40_COPY_SCREENS, number> = {
       intro: 1, receive: 1, question: 0, rest: 0, wrapUp: 0, result: 1, couple: 1,
+      // 4.1 단계 2 의 단계 화면 둘(결과 전 글자 고르기, 서로 짐작하기)에는 고지가 없다(화면당 한 번 규칙은 시작, 받는 사람, 결과, 두 사람 결과가 이미 맡는다).
+      letterGuess: 0, pairGuess: 0,
     };
     for (const screen of Object.keys(V40_COPY_SCREENS) as (keyof typeof V40_COPY_SCREENS)[]) {
       expect(countOf(screenText(screen), V40_NOT_VALIDATED_PHRASE), screen).toBe(expected[screen]);

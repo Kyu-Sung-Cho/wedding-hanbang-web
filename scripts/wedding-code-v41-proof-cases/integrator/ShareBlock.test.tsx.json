@@ -1,0 +1,14 @@
+[
+  {
+    "name": "질문만 보내기에서도 짐작 한 줄을 그린다",
+    "target": "apps/web/src/components/wedding-code/v40/ShareBlock.tsx",
+    "find": "{option === \"withAnswers\" && guessNote ? <p data-send-guess-note=\"\">{guessNote}</p> : null}",
+    "replace": "{guessNote ? <p data-send-guess-note=\"\">{guessNote}</p> : null}"
+  },
+  {
+    "name": "짐작 한 줄을 그리지 않는다",
+    "target": "apps/web/src/components/wedding-code/v40/ShareBlock.tsx",
+    "find": "        {option === \"withAnswers\" && guessNote ? <p data-send-guess-note=\"\">{guessNote}</p> : null}\n",
+    "replace": ""
+  }
+]

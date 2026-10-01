@@ -212,3 +212,42 @@ describe("ReceiverScreen", () => {
     expect(document.activeElement).toBe(harness.container.querySelector("section"));
   });
 });
+
+describe("ReceiverScreen: 상대가 서로 짐작해 보기도 해 두었다는 한 줄 guessNote(4.1 단계 2)", () => {
+  let harness: Harness;
+  beforeEach(() => {
+    harness = createHarness();
+  });
+  afterEach(async () => {
+    await harness.unmount();
+  });
+
+  const text = () => harness.container.textContent ?? "";
+  const NOTE = "상대가 해 둔 것이 링크에 들어 있다는 시험용 한 줄이에요.";
+
+  it("한 줄을 주면 마치기 전에 읽히는 자리(안내 뒤, 고지 앞)에 한 번 그리고 내용은 받지 않는다", async () => {
+    await harness.render(<Host guessNote={NOTE} />);
+    const note = harness.container.querySelector("[data-receive-guess-note]");
+    expect(note?.textContent).toBe(NOTE);
+    expect(text().split(NOTE).length - 1).toBe(1);
+    const returnStep = harness.container.querySelector("[data-receive-return-step]")!;
+    const honesty = harness.container.querySelector("[data-receive-honesty]")!;
+    expect(isBefore(returnStep, note!)).toBe(true);
+    expect(isBefore(note!, honesty)).toBe(true);
+    // 고지는 여전히 한 번이다.
+    expect(notValidatedCount(harness.container)).toBe(1);
+  });
+
+  it("한 줄을 주지 않으면 그 줄이 없고 나머지 글은 그대로다", async () => {
+    await harness.render(<Host />);
+    expect(harness.container.querySelector("[data-receive-guess-note]")).toBeNull();
+    const plain = harness.container.innerHTML;
+    await harness.render(<Host guessNote={undefined} />);
+    expect(harness.container.innerHTML).toBe(plain);
+  });
+
+  it("빈 글을 주면 빈 줄을 그리지 않는다", async () => {
+    await harness.render(<Host guessNote="" />);
+    expect(harness.container.querySelector("[data-receive-guess-note]")).toBeNull();
+  });
+});

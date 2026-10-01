@@ -9,7 +9,8 @@ import { decodeWeddingCodeV20, encodeWeddingCodeV20 } from "@/lib/weddingCode/v2
 import { encodeWeddingCodeV06 } from "@/lib/weddingCode/v06/code";
 import { decodeV30, encodeV30 } from "@/lib/weddingCode/v30";
 import { decodeV31, encodeV31 } from "@/lib/weddingCode/v31";
-import { decodeShareParams, encodeCode } from "@/lib/weddingCode/v40/codec";
+import { encodeCode } from "@/lib/weddingCode/v40/codec";
+import { V40_GUESS_LINK_KEYS, decodeGuessedShareParams, encodeGuessCode } from "@/lib/weddingCode/v40/guess/guessLink";
 import { V40_LAYOUT } from "@/lib/weddingCode/v40/layout";
 import type { CodecBankView, V40EntryInitial } from "@/lib/weddingCode/v40/types";
 
@@ -17,7 +18,7 @@ export type WeddingCodeEntrySearchParams = Record<string, string | string[] | un
 
 /**
  * 새 방문자가 맨 주소(`/wedding-code`)에서 만나는 판. 기본은 v3.1 이다.
- * v4.0-tendency 는 `?v=v4.0-tendency`(답 없음)와 `#v=v4.0-tendency&a=…[&b=…]` 로만 열리고, 기본을 v4 로 바꾸는 것은
+ * v4.0-tendency 는 `?v=v4.0-tendency`(답 없음)와 `#v=v4.0-tendency&a=…[&ga=…][&b=…[&gb=…]]` 로만 열리고(ga, gb 는 서로 짐작하기의 선택 필드), 기본을 v4 로 바꾸는 것은
  * 문항 검수와 인지면접을 통과한 뒤 이 상수 하나를 고치는 별도 PR 이다(계약 문서 13절).
  */
 export type WeddingCodeDefaultVersion = typeof WEDDING_CODE_V31_VERSION | typeof WEDDING_CODE_V40_VERSION;
@@ -67,6 +68,11 @@ export type WeddingCodeEntry =
 const ERROR: WeddingCodeEntry = { kind: "error" };
 const V40_ERROR: WeddingCodeEntry = { kind: "error", version: WEDDING_CODE_V40_VERSION };
 const SHARE_KEYS = ["v", "a", "b"] as const;
+/**
+ * v4 링크가 받는 키. 서로 짐작하기(4.1 단계 2)의 ga, gb 는 v4 에서만 허용한다(다른 판의 허용 목록 SHARE_KEYS 는 그대로라서 거기서는 예전처럼 거절).
+ * 읽는 쪽은 순서를 따지지 않고, 같은 키는 한 번만 허용한다. ga 는 a 가 있을 때만, gb 는 b 가 있을 때만(guessLink 가 링크 수준에서 거절한다).
+ */
+const V40_SHARE_KEYS: readonly string[] = [...SHARE_KEYS, V40_GUESS_LINK_KEYS.first, V40_GUESS_LINK_KEYS.second];
 
 /** v3.1 의 답 없는 시작 입구. 이름은 예전 그대로다(기본 판이 무엇이든 이 값은 v3.1 이다). */
 export const EMPTY_WEDDING_CODE_ENTRY: WeddingCodeEntry = {
@@ -132,20 +138,23 @@ export function weddingCodeRestartSearch(
 
 function parseParams(params: URLSearchParams, source: "query" | "hash", defaultVersion: WeddingCodeDefaultVersion): WeddingCodeEntry {
   const version = params.get("v");
+  const isV40 = version === WEDDING_CODE_V40_VERSION;
   // v4 링크가 깨진 경우만 오류 화면이 v4 문구를 쓴다. 다른 판의 오류는 예전 그대로다.
-  const fail = version === WEDDING_CODE_V40_VERSION ? V40_ERROR : ERROR;
-  for (const key of SHARE_KEYS) {
+  const fail = isV40 ? V40_ERROR : ERROR;
+  const allowedKeys: readonly string[] = isV40 ? V40_SHARE_KEYS : SHARE_KEYS;
+  for (const key of allowedKeys) {
     if (params.getAll(key).length > 1) return fail;
   }
   if (source === "hash" || version === WEDDING_CODE_V30_VERSION || version === WEDDING_CODE_V31_VERSION) {
     for (const key of params.keys()) {
-      if (!SHARE_KEYS.some(allowed => key === allowed)) return fail;
+      if (!allowedKeys.some(allowed => key === allowed)) return fail;
     }
   }
   if (source === "hash" && !params.has("a")) return fail;
   // 빈 버전도 명시된 잘못된 값이다. 버전이 아예 없던 초기 공유 링크와 구분한다.
   if (version !== null && (!version || version !== version.trim())) return fail;
-  const hasAnswers = params.has("a") || params.has("b");
+  // v4 의 ga, gb 도 답이 든 링크의 일부다(a 없이 ga 만 있으면 아래에서 거절하고, 쿼리에 실려 오면 v4 분기가 거절한다).
+  const hasAnswers = params.has("a") || params.has("b") || (isV40 && (params.has(V40_GUESS_LINK_KEYS.first) || params.has(V40_GUESS_LINK_KEYS.second)));
   if (hasAnswers && !params.has("a")) return fail;
 
   if (!hasAnswers) {
@@ -158,10 +167,30 @@ function parseParams(params: URLSearchParams, source: "query" | "hash", defaultV
   if (version === WEDDING_CODE_V40_VERSION) {
     // 답은 fragment 로만 받는다. query 에 a, b 가 오면 서버가 보게 되므로 읽지 않는다.
     if (source !== "hash") return V40_ERROR;
-    // 코드 하나라도 어긋나면 링크 전체를 거절한다. 한 사람의 답만 살리거나 기본값을 채우지 않는다.
-    const shared = decodeShareParams(V40_LINK_BANK, params.get("a"), params.get("b"));
-    if (shared.kind === "partner") return { kind: "v40", initial: { partner: shared.first, both: null } };
-    if (shared.kind === "both") return { kind: "v40", initial: { partner: null, both: { first: shared.first, second: shared.second } } };
+    // 코드 하나라도 어긋나면 링크 전체를 거절한다. 한 사람의 답만 살리거나 기본값을 채우지 않는다(짐작 ga, gb 도 같다: 나쁜 g 가 있으면 멀쩡한 a 도 버린다).
+    const shared = decodeGuessedShareParams(V40_LINK_BANK, {
+      a: params.get("a"),
+      b: params.get("b"),
+      ga: params.get(V40_GUESS_LINK_KEYS.first),
+      gb: params.get(V40_GUESS_LINK_KEYS.second),
+    });
+    // guess 키는 g 가 링크에 하나라도 있을 때만 붙인다(없으면 옛 링크의 initial 과 키 하나까지 같다).
+    if (shared.kind === "partner") {
+      return {
+        kind: "v40",
+        initial: shared.firstGuess === null ? { partner: shared.first, both: null } : { partner: shared.first, both: null, guess: { first: shared.firstGuess, second: null } },
+      };
+    }
+    if (shared.kind === "both") {
+      const both = { first: shared.first, second: shared.second };
+      return {
+        kind: "v40",
+        initial:
+          shared.firstGuess === null && shared.secondGuess === null
+            ? { partner: null, both }
+            : { partner: null, both, guess: { first: shared.firstGuess, second: shared.secondGuess } },
+      };
+    }
     return V40_ERROR;
   }
   if (version === WEDDING_CODE_V31_VERSION) {
@@ -245,9 +274,11 @@ export function parseWeddingCodeEntryQuery(
   const defaultVersion = options?.defaultVersion ?? WEDDING_CODE_DEFAULT_VERSION;
   if (search instanceof URLSearchParams) return parseParams(search, "query", defaultVersion);
   const params = new URLSearchParams();
+  // 반복된(배열) 값은 답이 든 키(a, b, v4 에서는 ga, gb 도)에서 모두 거절한다. 다른 판이 가리키는 쿼리의 ga 는 예전처럼 모르는 키로 무시된다.
+  const answerKeys: readonly string[] = mentionsV40(search) ? V40_SHARE_KEYS : SHARE_KEYS;
   for (const [key, value] of Object.entries(search)) {
     if (Array.isArray(value)) {
-      if (SHARE_KEYS.some(allowed => key === allowed)) return mentionsV40(search) ? V40_ERROR : ERROR;
+      if (answerKeys.some(allowed => key === allowed)) return mentionsV40(search) ? V40_ERROR : ERROR;
       for (const part of value) params.append(key, part);
       continue;
     }
@@ -263,17 +294,30 @@ export function parseWeddingCodeEntryHash(hash: string, options?: WeddingCodeEnt
   return parseParams(new URLSearchParams(raw), "hash", options?.defaultVersion ?? WEDDING_CODE_DEFAULT_VERSION);
 }
 
-/** v4 링크의 해시. 두 사람 결과(both)는 b 까지, 받는 사람(partner)은 a 까지. 코드를 만들 수 없으면 null. */
-function v40EntryHash({ partner, both }: V40EntryInitial): string | null {
+/**
+ * v4 링크의 해시. 두 사람 결과(both)는 b 까지, 받는 사람(partner)은 a 까지. 코드를 만들 수 없으면 null.
+ * 서로 짐작하기의 ga, gb 가 있으면 정규 순서(v, a, ga, b, gb)로 넣는다(같은 답에 짐작만 다른 두 링크가 다른 key 가 되게). 짐작이 있는데 만들 수 없으면 null.
+ */
+function v40EntryHash({ partner, both, guess }: V40EntryInitial): string | null {
   const first = both ? both.first : partner;
   if (!first) return null;
   const a = encodeCode(V40_LINK_BANK, first.formBit, first.responses);
   if (a === null) return null;
   const params = new URLSearchParams({ v: WEDDING_CODE_V40_VERSION, a });
+  if (guess?.first) {
+    const ga = encodeGuessCode(guess.first);
+    if (ga === null) return null;
+    params.set(V40_GUESS_LINK_KEYS.first, ga);
+  }
   if (both) {
     const b = encodeCode(V40_LINK_BANK, both.second.formBit, both.second.responses);
     if (b === null) return null;
     params.set("b", b);
+    if (guess?.second) {
+      const gb = encodeGuessCode(guess.second);
+      if (gb === null) return null;
+      params.set(V40_GUESS_LINK_KEYS.second, gb);
+    }
   }
   return `#${params.toString()}`;
 }

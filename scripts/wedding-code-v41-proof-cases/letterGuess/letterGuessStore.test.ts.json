@@ -1,0 +1,62 @@
+[
+  {
+    "name": "기간이 지난 보관본을 읽으면서 지우지 않는다",
+    "target": "apps/web/src/lib/weddingCode/v40/letterGuess/letterGuessStore.ts",
+    "find": "if (parsed.status === \"expired\") port.remove();",
+    "replace": ""
+  },
+  {
+    "name": "형식이 틀린 보관본도 읽으면서 지운다",
+    "target": "apps/web/src/lib/weddingCode/v40/letterGuess/letterGuessStore.ts",
+    "find": "if (parsed.status === \"expired\") port.remove();",
+    "replace": "if (parsed.status === \"expired\" || parsed.status === \"invalid\") port.remove();"
+  },
+  {
+    "name": "다른 시도의 보관본도 지금 시도의 것으로 돌려준다",
+    "target": "apps/web/src/lib/weddingCode/v40/letterGuess/letterGuessStore.ts",
+    "find": "load.status === \"ready\" && load.formBit === formBit",
+    "replace": "load.status === \"ready\""
+  },
+  {
+    "name": "전부 고르지 않음일 때 지우지 않고 봉투 만들기로 간다",
+    "target": "apps/web/src/lib/weddingCode/v40/letterGuess/letterGuessStore.ts",
+    "find": "if (guess === null || guess.every((pick) => pick === null)) return port.remove() ? \"cleared\" : \"unavailable\";",
+    "replace": "if (guess === null) return port.remove() ? \"cleared\" : \"unavailable\";"
+  },
+  {
+    "name": "모양이 틀린 입력을 저장했다고 답한다",
+    "target": "apps/web/src/lib/weddingCode/v40/letterGuess/letterGuessStore.ts",
+    "find": "if (raw === null) return \"invalid\";",
+    "replace": "if (raw === null) return \"saved\";"
+  },
+  {
+    "name": "포트가 없는데 저장했다고 답한다",
+    "target": "apps/web/src/lib/weddingCode/v40/letterGuess/letterGuessStore.ts",
+    "find": "if (port === null) return \"unavailable\";",
+    "replace": "if (port === null) return \"saved\";"
+  },
+  {
+    "name": "포트가 없는데 지웠다고 답한다",
+    "target": "apps/web/src/lib/weddingCode/v40/letterGuess/letterGuessStore.ts",
+    "find": "return port === null ? false : port.remove();",
+    "replace": "return port === null ? true : port.remove();"
+  },
+  {
+    "name": "읽기가 막혀도 없음이라고 답한다",
+    "target": "apps/web/src/lib/weddingCode/v40/letterGuess/letterGuessStore.ts",
+    "find": "if (!read.ok) return { status: \"unavailable\" };",
+    "replace": "if (!read.ok) return { status: \"empty\" };"
+  },
+  {
+    "name": "지우기가 막혔는데 지웠다고 답한다",
+    "target": "apps/web/src/lib/weddingCode/v40/letterGuess/letterGuessStore.ts",
+    "find": "return port.remove() ? \"cleared\" : \"unavailable\";",
+    "replace": "port.remove();\n    return \"cleared\";"
+  },
+  {
+    "name": "쓰기가 포트의 답을 그대로 옮기지 않는다",
+    "target": "apps/web/src/lib/weddingCode/v40/letterGuess/letterGuessStore.ts",
+    "find": "return port.write(raw);",
+    "replace": "port.write(raw);\n  return \"saved\";"
+  }
+]

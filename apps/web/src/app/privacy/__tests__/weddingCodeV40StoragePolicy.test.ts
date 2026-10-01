@@ -8,12 +8,15 @@ import PrivacyPage from "../page";
 import { WEDDING_CODE_V40_BANK } from "@/lib/weddingCode/v40/bank";
 import {
   appendHistory,
+  createExtraPort,
   readAutosavePreference,
   readHistory,
   readProgress,
   writeAutosavePreference,
   writeProgress,
 } from "@/lib/weddingCode/v40/storage";
+import { loadLetterGuess, saveLetterGuess } from "@/lib/weddingCode/v40/letterGuess/letterGuess";
+import type { LetterGuess } from "@/lib/weddingCode/v40/letterGuess/letterGuess";
 import type { HistoryEntry, ProgressSnapshot, StorageLike } from "@/lib/weddingCode/v40/types";
 
 /**
@@ -82,6 +85,10 @@ const PROMISES_TESTED_BELOW = [
   "이전 판(v3.1)의 저장된 답을 지우고",
   "꺼짐 설정만 브라우저에 남깁니다",
   "이후 저장을 멈추며",
+  // 4.1 단계 2(결과 전 글자 고르기)가 더한 약속. 아래 「먼저 고른 글자」 시험이 실제 storage.ts 와 letterGuess 모듈로 확인한다.
+  "자동저장이 켜져 있을 때만 이 브라우저에 30일 동안 보관하고",
+  "이 브라우저에 보관한 먼저 고른 글자도 지우며",
+  "화면에 열려 있는 먼저 고른 글자는 새로고침하기 전까지 남아 있습니다",
 ] as const;
 
 describe("처리방침 v4 문단이 저장에 관해 하는 약속", () => {
@@ -183,5 +190,70 @@ describe("처리방침 v4 문단의 저장 약속이 storage.ts 에서 참이다
     writeProgress(storage, bank, SNAPSHOT, null, NOW);
     appendHistory(storage, historyEntry(NOW - DAY), NOW);
     expect(storage.keys(), "끈 뒤에 저장소에 남은 키").toEqual([V40_STORAGE.autosaveKey]);
+  });
+});
+
+/**
+ * 4.1 단계 2: 방침이 결과 전 글자 고르기(「먼저 고른 글자」)에 하는 약속을 실제 storage.ts 와 letterGuess 모듈로 확인한다.
+ * 포트는 클라이언트가 쓰는 것과 같은 createExtraPort(honorAutosave 참)다. 서로 짐작하기는 저장하지 않으므로 여기에 확인할 저장 약속이 없다
+ * (링크로 가는 것은 guess 폴더의 시험과 소스 가드 규칙 5, 11 이 본다).
+ */
+describe("처리방침 v4 문단의 먼저 고른 글자 약속이 storage.ts 에서 참이다", () => {
+  const GUESS: LetterGuess = ["V", null, "U", "A"];
+  const newPort = (storage: StorageLike) => createExtraPort(storage, "letterGuess", { honorAutosave: true });
+
+  it("자동 저장이 켜져 있으면 이 브라우저(local)에 쓰고, 기간은 마지막으로 저장한 때부터 30일이며, 읽기는 쓰지 않아 기간을 늘리지 않는다 (방침의 「30일 동안 보관하고」)", () => {
+    const storage = new FakeStorage();
+    const port = newPort(storage);
+    expect(saveLetterGuess(port, GUESS, 0, NOW)).toBe("saved");
+    expect(storage.keys()).toEqual([V40_STORAGE.letterGuessKey]);
+    expect(V40_STORAGE.ttlMs).toBe(30 * DAY);
+
+    const before = JSON.stringify([...storage.data.entries()]);
+    const writesBefore = storage.writeCalls;
+    expect(loadLetterGuess(port, NOW + 10 * DAY).status).toBe("ready");
+    expect(loadLetterGuess(port, NOW + 30 * DAY - 1).status).toBe("ready");
+    expect(storage.writeCalls, "읽기가 저장소에 썼다").toBe(writesBefore);
+    expect(JSON.stringify([...storage.data.entries()])).toBe(before);
+    // 10일째와 29일째에 읽었어도 기간은 저장한 때부터다.
+    expect(loadLetterGuess(port, NOW + 30 * DAY).status).toBe("expired");
+    expect(loadLetterGuess(port, NOW + 30 * DAY)).not.toHaveProperty("guess");
+  });
+
+  it("보관하는 것은 고른 글자뿐이다: 고른 것이 없으면 쓰지 않고, 답과 링크 코드는 들어가지 않는다 (방침의 「고른 글자는 … 보관하고」)", () => {
+    const storage = new FakeStorage();
+    const port = newPort(storage);
+    expect(saveLetterGuess(port, [null, null, null, null], 0, NOW)).toBe("cleared");
+    expect(storage.keys()).toEqual([]);
+    expect(saveLetterGuess(port, GUESS, 1, NOW)).toBe("saved");
+    const raw = storage.data.get(V40_STORAGE.letterGuessKey) ?? "";
+    const stored = JSON.parse(raw) as Record<string, unknown>;
+    expect(Object.keys(stored).sort()).toEqual(["formBit", "guess", "savedAt", "schema", "version"]);
+    expect(stored.guess).toBe("V-UA");
+    expect(raw).not.toMatch(/responses|answers|[?&#]a=/u);
+  });
+
+  it("자동 저장을 끄면 먼저 고른 글자의 보관본도 지우고 꺼짐 설정만 남으며, 끈 뒤에는 쓰지 않는다 (방침의 「먼저 고른 글자도 지우며」와 「이후 저장을 멈추며」)", () => {
+    const storage = new FakeStorage();
+    storage.data.set(V40_STORAGE.legacyV31ProgressKey, "{}");
+    const port = newPort(storage);
+    expect(writeProgress(storage, bank, SNAPSHOT, null, NOW).status).toBe("saved");
+    expect(appendHistory(storage, historyEntry(NOW - DAY), NOW).status).toBe("saved");
+    expect(saveLetterGuess(port, GUESS, 0, NOW)).toBe("saved");
+    expect(storage.keys()).toEqual([V40_STORAGE.historyKey, V40_STORAGE.legacyV31ProgressKey, V40_STORAGE.letterGuessKey, V40_STORAGE.progressKey].sort());
+
+    expect(writeAutosavePreference(storage, "off")).toEqual({ status: "saved" });
+    expect(storage.keys(), "끈 뒤에 저장소에 남은 키").toEqual([V40_STORAGE.autosaveKey]);
+    expect(readAutosavePreference(storage)).toBe("off");
+
+    // 끈 뒤에는 포트가 쓰지 않는다(화면이 선호 확인을 빠뜨려도 약속이 지켜진다).
+    expect(saveLetterGuess(port, GUESS, 0, NOW)).toBe("off");
+    expect(storage.keys()).toEqual([V40_STORAGE.autosaveKey]);
+  });
+
+  it("저장소를 쓸 수 없으면(null 핸들) 아무것도 쓰지 않고 쓸 수 없다고 답한다 (방침의 「자동저장이 켜져 있을 때만」)", () => {
+    const port = createExtraPort(null, "letterGuess", { honorAutosave: true });
+    expect(saveLetterGuess(port, GUESS, 0, NOW)).toBe("unavailable");
+    expect(loadLetterGuess(port, NOW)).toEqual({ status: "unavailable" });
   });
 });

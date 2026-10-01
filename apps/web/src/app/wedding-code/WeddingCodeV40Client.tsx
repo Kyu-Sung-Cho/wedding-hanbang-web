@@ -22,10 +22,12 @@ import {
   type ShareEnv,
   type ShareSentEvent,
 } from "@/components/wedding-code/v40";
+import { CoupleGuessSection, GuessEntryCard, GuessSetFlow } from "@/components/wedding-code/v40/guess";
+import { LetterGuessClosedCard, LetterGuessLines, LetterGuessScreen } from "@/components/wedding-code/v40/letterGuess";
 import { V40_COUNTS, WEDDING_CODE_V40_VERSION, type Axis } from "@/constants/weddingCodeV40";
 import { captureWeddingCodeEvent } from "@/lib/analytics";
 import { WEDDING_CODE_V40_BANK } from "@/lib/weddingCode/v40/bank";
-import { buildGatedShareUrl, buildQuestionOnlyUrl } from "@/lib/weddingCode/v40/codec";
+import { buildQuestionOnlyUrl } from "@/lib/weddingCode/v40/codec";
 import { V40_CLIENT_COPY, V40_COPY } from "@/lib/weddingCode/v40/copy";
 import { compareCouple, detectPerspective } from "@/lib/weddingCode/v40/couple";
 import {
@@ -37,6 +39,20 @@ import {
   snapshotOf,
   viewAnswerOf,
 } from "@/lib/weddingCode/v40/flow";
+import { compareGuesses } from "@/lib/weddingCode/v40/guess/guessCompare";
+import { buildGatedShareUrlWithGuess } from "@/lib/weddingCode/v40/guess/guessLink";
+import { V40_PAIR_GUESS_ENABLED, type GuessAnswers, type V40EntryGuess } from "@/lib/weddingCode/v40/guess/types";
+import {
+  V40_LETTER_GUESS_ENABLED,
+  clearLetterGuess,
+  hasLetterGuessLines,
+  isLetterGuessEligible,
+  letterGuessForAttempt,
+  loadLetterGuess,
+  saveLetterGuess,
+  summarizeLetterGuess,
+  type LetterGuess,
+} from "@/lib/weddingCode/v40/letterGuess/letterGuess";
 import { present } from "@/lib/weddingCode/v40/present";
 import { pickQuotes } from "@/lib/weddingCode/v40/quote";
 import { buildResult, selfLine } from "@/lib/weddingCode/v40/score";
@@ -45,6 +61,7 @@ import {
   browserStorage,
   clearHistory,
   clearProgress,
+  createExtraPort,
   probeLegacyV31Progress,
   purgeExpired,
   readAutosavePreference,
@@ -52,6 +69,7 @@ import {
   readProgress,
   writeAutosavePreference,
   writeProgress,
+  type ExtraPort,
 } from "@/lib/weddingCode/v40/storage";
 import type {
   DecodedCode,
@@ -62,6 +80,7 @@ import type {
   Perspective,
   ProgressSnapshot,
   StorageLike,
+  V40Result,
   ViewAnswer,
   WeddingCodeV40ClientProps,
 } from "@/lib/weddingCode/v40/types";
@@ -82,6 +101,7 @@ import {
   type LinkOpenedKind,
   type ResultArrival,
 } from "./WeddingCodeV40Client.model";
+import { isStagePending, stageAfterLetter, stageOnResult, useStage2, type StageFacts, type StageSwitches } from "./WeddingCodeV40Client.stage2";
 
 /**
  * 웨딩코드 4.0 클라이언트(설계 6에서 9절, 계약 문서 9에서 14절).
@@ -95,6 +115,13 @@ import {
  * - 두 사람 결과 링크를 연 화면은 이 기기의 저장에 쓰지 않는다(읽기 전용 저장소로 「나」 표시만 알아본다). 지난번 비교 기록은 읽지도 않는다.
  * - 저장이 됐다는 말은 실제로 쓰고 다시 읽어 맞았을 때만 한다(저장 상태는 마지막 쓰기의 결과 그대로다). 자동 저장이 꺼져 있으면 아무것도 쓰지 않는다.
  * - 이용 통계 wedding_code_share_copied 는 링크를 실제로 클립보드에 복사했을 때만 보낸다(코드 복사와 공유 창 완료는 보내지 않는다).
+ *
+ * 4.1 단계 2(어두운 진입 뒤의 선택 화면 둘, 빌드 계획 2절): 결과 쪽에 들어설 때 reducer(flow.ts)는 모르는 단계 화면을 이 파일이 얹는다.
+ * - 결과 전 글자 고르기(letter-guess): 혼자 쓰는 사람과 받는 사람이 결과 앞에서 한 번. 고른 글자는 메모리에 두고 자동 저장이 켜져 있을 때만 이 브라우저에도 둔다(링크에는 넣지 않는다).
+ * - 서로 짐작하기(pair-guess): 받는 사람은 상대의 링크에 ga 가 있을 때 두 사람 결과 앞에서, 보내는 사람은 결과 화면의 카드로 연다. 고른 것은 메모리에만 있고 링크의 # 뒤(ga, gb)로만 나간다.
+ * - 두 단계 모두 이용 통계, 서버, 아모라에 아무것도 보내지 않는다(통계 호출은 위 본체의 열 곳 그대로이고 단계 파일들은 통계를 가져오지 않는다).
+ * - 단계 상태는 WeddingCodeV40Client.stage2.tsx 의 훅 하나가 쥔다. stagesDone 은 상태와 ref 가 한 쌍이다(렌더는 상태만, 핸들러는 ref 만 읽는다).
+ * - deps.stages 로 켜고 끈다(기본은 각 기능의 켬 상수). 끄면 그 화면만 사라지고 꺼진 단계는 저장소도 링크도 건드리지 않는다.
  */
 
 const bank = WEDDING_CODE_V40_BANK;
@@ -115,6 +142,11 @@ export interface WeddingCodeV40ClientDeps {
    * 0 이면 끈다(시험이 빠르게 누를 때).
    */
   readonly turnGuardMs?: number;
+  /**
+   * 결과 앞뒤에 얹는 단계 화면(4.1 단계 2)을 켜고 끈다. 주지 않으면 각 기능의 켬 상수(V40_LETTER_GUESS_ENABLED, V40_PAIR_GUESS_ENABLED).
+   * 끄면 그 화면만 사라지고 결과 계산, 링크 읽기, 저장은 그대로다(꺼진 단계는 저장소도 읽지 않는다). 시험 도구의 기본은 둘 다 꺼짐이다.
+   */
+  readonly stages?: { readonly letterGuess?: boolean; readonly pairGuess?: boolean };
 }
 
 /**
@@ -135,6 +167,8 @@ export type WeddingCodeV40ClientCoreProps = WeddingCodeV40ClientProps & { readon
 interface LinkContext {
   readonly partner: DecodedCode | null;
   readonly both: { readonly first: DecodedCode; readonly second: DecodedCode } | null;
+  /** 링크의 서로 짐작하기(ga, gb)를 푼 것. 링크에 g 가 없으면 null. 메모리에만 두고 이 브라우저에 저장하지 않는다. */
+  readonly guess: V40EntryGuess | null;
 }
 
 interface SavedProgress {
@@ -157,6 +191,11 @@ interface BootReady {
   readonly legacy: { readonly savedAt: number | null } | null;
   /** 두 사람 결과에서 이 기기에 저장된 본인 답이 가리키는 쪽. */
   readonly detected: Perspective | null;
+  /**
+   * 결과 전에 고른 글자(4.1 단계 2)의 저장 포트. 그 화면이 꺼져 있거나 저장소를 못 쓰거나 두 사람 결과 링크를 연 화면이면 null 이다
+   * (저장소를 건드리지 않는다). 자동 저장을 따르는 규칙은 포트가 지킨다(꺼져 있으면 쓰지 않는다).
+   */
+  readonly letterPort: ExtraPort | null;
 }
 
 type Boot = { readonly status: "pending" } | BootReady;
@@ -253,7 +292,7 @@ export function WeddingCodeV40Core({ shareOrigin, initial, resolved, embedded = 
   const [initialFlow] = useState(() => initialFlowState(bank));
   const [flow, setFlow] = useState<FlowState>(initialFlow);
   const flowRef = useRef<FlowState>(initialFlow);
-  const [context, setContext] = useState<LinkContext>(() => ({ partner: initial.partner, both: initial.both }));
+  const [context, setContext] = useState<LinkContext>(() => ({ partner: initial.partner, both: initial.both, guess: initial.guess ?? null }));
   const contextRef = useRef(context);
   const [boot, setBoot] = useState<Boot>(PENDING);
   const bootRef = useRef<Boot>(PENDING);
@@ -287,6 +326,21 @@ export function WeddingCodeV40Core({ shareOrigin, initial, resolved, embedded = 
 
   const clock = (): number => injected?.now?.() ?? Date.now();
   const hasPartnerLink = context.partner !== null || context.both !== null;
+
+  // -- 결과 앞뒤의 단계 화면(4.1 단계 2) ------------------------------------------------
+  // reducer(flow.ts)는 두 화면을 모른다. 클라이언트가 결과 쪽에 들어설 때 열고(send), 끝나면 stagesDone 으로 표시한다.
+  // stages 는 deps(바뀌지 않는다)와 기능 켬 상수에서 정해져서 렌더가 달라도 같다(오래된 클로저가 불러도 같은 값이다).
+  const stages: StageSwitches = {
+    letterGuess: injected?.stages?.letterGuess ?? V40_LETTER_GUESS_ENABLED,
+    pairGuess: injected?.stages?.pairGuess ?? V40_PAIR_GUESS_ENABLED,
+  };
+  const stage = useStage2();
+  const factsOf = (ctx: LinkContext): StageFacts => ({
+    stages,
+    both: ctx.both !== null,
+    partner: ctx.partner !== null,
+    partnerGuessed: ctx.guess?.first != null,
+  });
 
   // -- 상태를 바꾸는 작은 도우미 ------------------------------------------------
 
@@ -408,6 +462,64 @@ export function WeddingCodeV40Core({ shareOrigin, initial, resolved, embedded = 
     replaceAttemptEntry(current.storage, entries, entry, attemptAt, at);
   };
 
+  // -- 결과 앞의 단계 화면과 결과 전에 고른 글자의 보관본(4.1 단계 2) ------------------------
+
+  /** 보관본 포트. 그 화면이 꺼져 있거나 저장소를 못 쓰거나 두 사람 결과 링크를 연 화면이면 null(저장소를 건드리지 않는다). */
+  const letterPortOf = (): ExtraPort | null => {
+    const current = bootRef.current;
+    return current.status === "ready" ? current.letterPort : null;
+  };
+
+  /** 보관본을 지운다. 포트가 없으면 지울 것이 없으니 참, 저장소 접근이 막혔으면 거짓. */
+  const wipeLetterStorage = (): boolean => {
+    const port = letterPortOf();
+    return port === null ? true : clearLetterGuess(port);
+  };
+
+  /**
+   * 이어 받은 흐름이 결과 쪽일 때 보관본을 화면에 올린다(폼 비트가 이어 받은 흐름과 같을 때만). 맞지 않는 보관본은 다른 시도의 낡은 것이라 지운다.
+   * 자동 저장이 꺼져 있으면 읽지 않는다.
+   */
+  const restoreLetterGuess = (restored: FlowState): void => {
+    const port = letterPortOf();
+    const current = bootRef.current;
+    if (port === null || current.status !== "ready" || current.pref !== "on") {
+      stage.setLetterGuess(null);
+      return;
+    }
+    const load = loadLetterGuess(port, clock());
+    const guess = letterGuessForAttempt(load, restored.formBit);
+    stage.setLetterGuess(guess);
+    if (guess === null && (load.status === "ready" || load.status === "invalid")) clearLetterGuess(port);
+  };
+
+  /** 이어 받은 흐름에 단계를 맞춘다: 결과 쪽이면 단계는 끝난 것이고(보관본이 맞으면 줄을 올린다), 질문 도중이면 끝낸 뒤 다시 열리도록 처음 상태로 돌린다. */
+  const settleStagesForResumed = (restored: FlowState): void => {
+    if (isResultView(restored)) {
+      stage.setDone(true);
+      restoreLetterGuess(restored);
+    } else {
+      stage.resetForQuestions();
+      wipeLetterStorage();
+    }
+  };
+
+  /** 글자 고르기를 열지 않거나 끝낸 뒤: 받는 사람의 서로 짐작하기를 열거나 단계를 끝낸다. */
+  const afterLetter = (result: V40Result): void => {
+    if (stageAfterLetter(factsOf(contextRef.current), result.code !== null) === "receiver") stage.openPair("receiver");
+    else stage.setDone(true);
+  };
+
+  /** 결과 쪽에 들어섰을 때(arrive 뒤): 단계가 끝나지 않았으면 첫 단계를 연다. 액션 종류는 보지 않는다(stagesDone 이 거짓인 채 결과 쪽에 들어섰다는 것이 곧 처음 도착이다). */
+  const enterResult = (state: FlowState): void => {
+    if (stage.doneRef.current) return;
+    const result = buildResult(bank, state.formBit, state.responses);
+    const first = stageOnResult(factsOf(contextRef.current), isLetterGuessEligible(result), result.code !== null);
+    if (first === "letter") stage.openLetterGate();
+    else if (first === "receiver") stage.openPair("receiver");
+    else stage.setDone(true);
+  };
+
   /** 흐름을 한 걸음 옮긴다. 화면을 넘길 때 저장하고, 결과에 들어서면 기록을 남긴다. */
   const send = (action: FlowAction): void => {
     const previous = flowRef.current;
@@ -438,7 +550,10 @@ export function WeddingCodeV40Core({ shareOrigin, initial, resolved, embedded = 
       persist(next);
       if (next.filter !== null) syncAttemptHistory(next);
     }
-    if (isResultView(next) && !isResultView(previous)) arrive(next, resultRecordedRef.current ? "return" : "fresh");
+    if (isResultView(next) && !isResultView(previous)) {
+      arrive(next, resultRecordedRef.current ? "return" : "fresh");
+      enterResult(next);
+    }
   };
 
   // -- 시작, 이어 하기, 다시 하기 ---------------------------------------------------
@@ -448,6 +563,9 @@ export function WeddingCodeV40Core({ shareOrigin, initial, resolved, embedded = 
     const random = injected?.random ?? Math.random;
     resultRecordedRef.current = false;
     attemptAtRef.current = null;
+    // 새 시도: 앞 시도의 단계 상태와 결과 전에 고른 글자의 보관본이 이 시도의 결과와 견줘지지 않게 지운다.
+    stage.reset();
+    wipeLetterStorage();
     setAutosaveNote(null);
     setNoticeText("");
     send({ type: "start", formBit: random() < 0.5 ? 0 : 1 });
@@ -476,6 +594,7 @@ export function WeddingCodeV40Core({ shareOrigin, initial, resolved, embedded = 
     resultRecordedRef.current = false;
     attemptAtRef.current = null;
     if (isResultView(next)) arrive(next, "return");
+    settleStagesForResumed(next);
   };
 
   /** 저장된 답을 지우고 처음부터 시작한다(하던 답 카드가 미리 알린 대로). 지난번 비교 기록은 남긴다. */
@@ -523,6 +642,8 @@ export function WeddingCodeV40Core({ shareOrigin, initial, resolved, embedded = 
     if (current.status === "ready" && current.storage !== null && contextRef.current.both === null) {
       if (clearProgress(current.storage).status !== "cleared") message = V40_COPY.manage.clear.failed;
     }
+    // onRestart 가 주어지면 입구가 화면을 새로 만들고 resetLocally 를 거치지 않으므로 보관본은 여기서(onRestart 를 부르기 앞에서) 지운다.
+    if (!wipeLetterStorage()) message = V40_COPY.manage.clear.failed;
     expectedRawRef.current = null;
     captureWeddingCodeEvent("wedding_code_restarted", { version: WEDDING_CODE_V40_VERSION });
     if (onRestart) {
@@ -545,6 +666,7 @@ export function WeddingCodeV40Core({ shareOrigin, initial, resolved, embedded = 
     introSentRef.current = false;
     comparisonSentRef.current = false;
     expectedRawRef.current = null;
+    stage.reset();
     setPreviousEntry(null);
     setUnsaved(false);
     setAutosaveNote(null);
@@ -552,7 +674,7 @@ export function WeddingCodeV40Core({ shareOrigin, initial, resolved, embedded = 
     setSave(null);
     updateBoot({ saved: null, issue: null });
     if (!keepPartner) {
-      updateContext({ partner: null, both: null });
+      updateContext({ partner: null, both: null, guess: null });
       setLinkLost(null);
       clearAddressTail(null);
     }
@@ -561,7 +683,8 @@ export function WeddingCodeV40Core({ shareOrigin, initial, resolved, embedded = 
   /** 받은 링크로 열어 답을 마쳤는데 글자를 정하지 못한 사람이 다시 하기를 누른다. 받은 링크는 그대로 둔다. */
   const handleRestartKeepingPartner = (): void => {
     const current = bootRef.current;
-    if (current.status === "ready" && current.storage !== null && clearProgress(current.storage).status !== "cleared") {
+    const lettersCleared = wipeLetterStorage();
+    if ((current.status === "ready" && current.storage !== null && clearProgress(current.storage).status !== "cleared") || !lettersCleared) {
       resetLocally(V40_COPY.manage.clear.failed, true);
     } else {
       resetLocally("", true);
@@ -573,12 +696,15 @@ export function WeddingCodeV40Core({ shareOrigin, initial, resolved, embedded = 
     const current = bootRef.current;
     if (current.status !== "ready" || current.storage === null) return false;
     const cleared = clearProgress(current.storage).status === "cleared" && clearHistory(current.storage).status === "cleared";
+    // 결과 전에 고른 글자도 같이 지운다(저장소와 화면 둘 다). 셋 모두 지워졌을 때만 지웠다고 말한다.
+    const lettersCleared = wipeLetterStorage();
     if (cleared) {
       expectedRawRef.current = null;
       setPreviousEntry(null);
       setSave(null);
     }
-    return cleared;
+    if (lettersCleared) stage.setLetterGuess(null);
+    return cleared && lettersCleared;
   };
 
   // -- 창끼리 저장이 어긋났을 때 ---------------------------------------------------------
@@ -600,6 +726,7 @@ export function WeddingCodeV40Core({ shareOrigin, initial, resolved, embedded = 
       resultRecordedRef.current = false;
       attemptAtRef.current = null;
       if (isResultView(next)) arrive(next, "return");
+      settleStagesForResumed(next);
       return;
     }
     expectedRawRef.current = read.raw;
@@ -642,6 +769,62 @@ export function WeddingCodeV40Core({ shareOrigin, initial, resolved, embedded = 
     else resetLocally("", false);
   };
 
+  // -- 단계 화면의 동작(4.1 단계 2). 통계도 링크도 만지지 않는다: 고른 것은 메모리, 글자 고르기는 자동 저장이 켜졌을 때만 이 브라우저에도 둔다 -----------------------
+
+  const currentResult = (): V40Result => buildResult(bank, flowRef.current.formBit, flowRef.current.responses);
+
+  /** 결과 보기: 고른 글자를 메모리에 두고(자동 저장이 켜져 있을 때만 이 브라우저에도. 고른 것이 하나도 없으면 이전 보관본을 지운다) 다음 단계로 간다. */
+  const handleLetterContinue = (guess: LetterGuess | null): void => {
+    stage.setLetterGuess(guess);
+    saveLetterGuess(letterPortOf(), guess, flowRef.current.formBit, clock());
+    stage.closeLetterGate();
+    afterLetter(currentResult());
+  };
+
+  /** 고르지 않고 결과 보기: 메모리와 이 브라우저의 이전 보관본을 비우고 다음 단계로 간다. */
+  const handleLetterSkip = (): void => {
+    stage.setLetterGuess(null);
+    saveLetterGuess(letterPortOf(), null, flowRef.current.formBit, clock());
+    stage.closeLetterGate();
+    afterLetter(currentResult());
+  };
+
+  /**
+   * 이전: 단계만 닫는다. 끝난 것으로 치지 않아서 마지막 질문에서 다시 다음을 누르면 이 화면이 다시 뜬다.
+   * 지금까지 고른 것은 메모리에만 둔다(이 브라우저에 쓰지 않는다: 쓰는 것은 「결과 보기」를 눌렀을 때뿐이다). 화면이 다시 뜨면 그대로 돌려준다.
+   */
+  const handleLetterBack = (guess: LetterGuess | null): void => {
+    stage.setLetterGuess(guess);
+    stage.closeLetterGate();
+    send({ type: "back" });
+  };
+
+  /** 받는 사람의 서로 짐작하기를 끝냈다(마치기 또는 건너뛰기): 내 고름은 메모리에만 두고 두 사람 결과로 간다. */
+  const handlePairReceiverDone = (answers: GuessAnswers | null): void => {
+    stage.setOwnGuess(answers);
+    stage.closePair();
+    stage.setDone(true);
+  };
+
+  /** 보내는 사람이 결과 화면의 카드로 연 서로 짐작하기를 닫는다. 결과 화면이 다시 그려지므로 닫은 뒤 초점은 카드 제목으로 돌아간다. */
+  const handlePairSenderDone = (answers: GuessAnswers | null): void => {
+    stage.setOwnGuess(answers);
+    stage.focusTargetRef.current = "pair";
+    stage.closePair();
+  };
+
+  /** 짐작은 건너뛸게요: 고른 것을 버리고 나간다(이미 끝낸 짐작이 있으면 그것은 그대로다). */
+  const handlePairLeave = (): void => {
+    if (stage.pairStage === "receiver") {
+      stage.setOwnGuess(null);
+      stage.closePair();
+      stage.setDone(true);
+      return;
+    }
+    stage.focusTargetRef.current = "pair";
+    stage.closePair();
+  };
+
   // -- 부팅: 주소 해석이 끝난 뒤 저장소를 읽는다 --------------------------------------------
 
   useEffect(() => {
@@ -653,7 +836,7 @@ export function WeddingCodeV40Core({ shareOrigin, initial, resolved, embedded = 
     const handle = injected?.storage !== undefined ? injected.storage : browserStorage();
     let next: BootReady;
     if (handle === null) {
-      next = { status: "ready", storage: null, pref: "on", issue: "unavailable", saved: null, legacy: null, detected: null };
+      next = { status: "ready", storage: null, pref: "on", issue: "unavailable", saved: null, legacy: null, detected: null, letterPort: null };
     } else if (linked.both !== null) {
       // 두 사람 결과: 저장에 쓰지 않는다. 읽기만 되는 저장소로 「나」 표시만 알아본다.
       const readable = readOnlyStorage(handle);
@@ -662,7 +845,7 @@ export function WeddingCodeV40Core({ shareOrigin, initial, resolved, embedded = 
         const read = readProgress(readable, bank, at);
         if (read.status === "ready") detected = detectPerspective(bank, decodedFromSnapshot(read.snapshot), linked.both.first, linked.both.second);
       }
-      next = { status: "ready", storage: handle, pref: "on", issue: null, saved: null, legacy: null, detected };
+      next = { status: "ready", storage: handle, pref: "on", issue: null, saved: null, legacy: null, detected, letterPort: null };
     } else {
       const pref = readAutosavePreference(handle);
       const probe = probeLegacyV31Progress(handle, at);
@@ -677,7 +860,17 @@ export function WeddingCodeV40Core({ shareOrigin, initial, resolved, embedded = 
         else if (read.status === "expired") issue = purged.progress ? "expired" : null;
         else if (read.status === "invalid" || read.status === "unavailable") issue = read.status;
       }
-      next = { status: "ready", storage: handle, pref, issue, saved, legacy: probe.present ? { savedAt: probe.savedAt } : null, detected: null };
+      // 결과 전에 고른 글자(4.1 단계 2): 그 화면이 켜져 있을 때만 포트를 만든다(꺼져 있으면 저장소를 읽지도 쓰지도 않는다). 기간이 지난 것은 읽으며 지우고,
+      // 이어 할 진행이 없는데 보관본만 남은 것(고아)과 읽을 수 없는 것은 지운다. 이어 할 진행이 있으면 이어 하기 때 결과 쪽일 때만 화면에 올린다.
+      let letterPort: ExtraPort | null = null;
+      if (stages.letterGuess) {
+        letterPort = createExtraPort(handle, "letterGuess", { honorAutosave: true });
+        if (pref === "on") {
+          const load = loadLetterGuess(letterPort, at);
+          if (load.status === "invalid" || (load.status === "ready" && saved === null)) clearLetterGuess(letterPort);
+        }
+      }
+      next = { status: "ready", storage: handle, pref, issue, saved, legacy: probe.present ? { savedAt: probe.savedAt } : null, detected: null, letterPort };
     }
     bootRef.current = next;
     setBoot(next);
@@ -736,7 +929,8 @@ export function WeddingCodeV40Core({ shareOrigin, initial, resolved, embedded = 
   // -- 이용 통계: 고지한 이벤트와 개수만 ---------------------------------------------------------
 
   const showsIntro = boot.status === "ready" && !flow.started && context.both === null;
-  const showsCouple = boot.status === "ready" && coupleResult !== null;
+  // 두 사람 비교를 연 것으로 세는 때: 받는 사람이 글자 고르기나 서로 짐작하기 화면에 있는 동안은 아직 비교 화면이 아니다(깔때기 지표의 정의가 바뀌지 않게).
+  const showsCouple = boot.status === "ready" && coupleResult !== null && !stage.letterGate && stage.pairStage !== "receiver";
 
   useEffect(() => {
     if (!showsIntro || introSentRef.current) return;
@@ -782,7 +976,9 @@ export function WeddingCodeV40Core({ shareOrigin, initial, resolved, embedded = 
     (page?.kind === "questions" || page?.kind === "rest" || page?.kind === "selfIntro") &&
     Object.keys(flow.responses).length + Object.keys(flow.drafts).length > 0;
   // 받은 링크의 상대 답은 메모리에만 있어서 새로고침하면 사라진다. 저장돼 있어도 경고한다.
-  const warnOnLeave = midFlow && (context.partner !== null || savedShown !== "saved" || unsaved);
+  // 받는 사람이 단계 화면(글자 고르기, 서로 짐작하기)에 있는 동안에도 같다(midFlow 의 정의는 그대로이고 단계 화면은 질문 쪽이 아니라서 따로 넓힌다).
+  const receiverInStage = context.partner !== null && (stage.letterGate || stage.pairStage === "receiver");
+  const warnOnLeave = (midFlow || receiverInStage) && (context.partner !== null || savedShown !== "saved" || unsaved);
   useEffect(() => {
     if (!warnOnLeave) return;
     const listener = (event: BeforeUnloadEvent): void => {
@@ -814,6 +1010,25 @@ export function WeddingCodeV40Core({ shareOrigin, initial, resolved, embedded = 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [midFlow]);
 
+  // 서로 짐작하기를 닫고 결과 화면이 다시 그려진 뒤: 초점이 화면 맨 위로 떨어지지 않게 진입 카드의 제목으로 돌려준다(핸들러가 적어 두고 여기서 읽는다).
+  // 상태를 바꾸지 않는다(DOM 초점과 스크롤뿐). 단계 화면이 닫히는 순간 한 번만 돈다.
+  // 한 박자 늦게 옮긴다: 새로 그려진 결과 화면 뿌리가 자기 효과로 초점을 가져가는데 개발 서버(StrictMode)에서는 그 효과가 한 번 더 돌아
+  // 이 효과가 먼저 옮긴 초점을 다시 뿌리로 가져가 버린다. 둘이 다 끝난 뒤에 옮기면 어느 쪽에서도 초점은 카드 제목에 남는다.
+  const pairStageOpen = stage.pairStage !== null;
+  const focusTargetRef = stage.focusTargetRef;
+  useEffect(() => {
+    if (pairStageOpen || focusTargetRef.current === null) return;
+    focusTargetRef.current = null;
+    const timer = window.setTimeout(() => {
+      const heading = document.querySelector<HTMLElement>('[data-section-card="pair-guess-entry"] > h2, [data-section-card="pair-guess-entry"] > h3');
+      if (heading === null) return;
+      heading.setAttribute("tabindex", "-1");
+      heading.focus({ preventScroll: true });
+      heading.scrollIntoView?.({ block: "start" });
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [pairStageOpen, focusTargetRef]);
+
   // -- 그리기 -----------------------------------------------------------------------------------------
 
   if (boot.status !== "ready") {
@@ -826,10 +1041,26 @@ export function WeddingCodeV40Core({ shareOrigin, initial, resolved, embedded = 
 
   const resumeCard = boot.saved === null ? null : { savedAt: boot.saved.savedAt, onResume: handleResume, onStartOver: handleStartOver };
 
+  // 두 사람 결과 화면의 구역 제목 수준(CoupleResult 안의 구역과 같다: 라운지 안에서는 한 단계 아래).
+  const coupleSectionLevel = embedded ? 3 : 2;
+  /** 「짐작과 답」 구역(서로 짐작하기). 비교는 링크가 정한 먼저/나중 답한 사람 순서대로 하고, 나 기준 전환은 이름표만 바꾼다. 꺼진 화면이면 그리지 않는다. */
+  const guessSectionFor = (first: GuessAnswers | null, second: GuessAnswers | null) =>
+    stages.pairGuess
+      ? (perspective: Perspective | null) => (
+          <CoupleGuessSection
+            comparison={compareGuesses(first, second)}
+            perspective={perspective}
+            headingLevel={coupleSectionLevel}
+            idPrefix="wc40-couple-guess"
+          />
+        )
+      : undefined;
+
   // 두 사람 결과 링크: 내 답을 묻지 않고 바로 나란히 보여 준다.
   if (context.both !== null && coupleResult !== null) {
     // 바깥 구역에는 이름을 주지 않는다: 안쪽 CoupleResult 가 같은 이름(우리 둘의 웨딩코드)의 구역이라 이름이 겹친다.
     // 새로고침 안내는 제목과 고지 뒤에 CoupleResult 안에서 붙는다(경고가 제목보다 먼저 읽히지 않게).
+    // 짐작과 답은 링크에서 읽은 값만으로 그린다(이 화면은 이 브라우저에 아무것도 쓰지 않는다).
     return (
       <ScreenSection focusKey="couple" embedded={embedded}>
         <CoupleResult
@@ -838,6 +1069,7 @@ export function WeddingCodeV40Core({ shareOrigin, initial, resolved, embedded = 
           onStartOwn={handleStartOwn}
           embedded={embedded}
           note={<span data-couple-reload-note="">{V40_CLIENT_COPY.coupleReloadNote}</span>}
+          guessSection={guessSectionFor(context.guess?.first ?? null, context.guess?.second ?? null)}
         />
       </ScreenSection>
     );
@@ -854,6 +1086,7 @@ export function WeddingCodeV40Core({ shareOrigin, initial, resolved, embedded = 
           storageIssue={boot.issue === "unavailable" ? "unavailable" : null}
           legacyPresent={boot.legacy !== null}
           saved={boot.saved === null ? null : { savedAt: boot.saved.savedAt, onKeepMine: handleResume, onUseLink: handleStartOver }}
+          guessNote={stages.pairGuess && context.guess?.first != null ? V40_COPY.guess.receiverNote : undefined}
           onStart={handleStart}
         />
       );
@@ -882,7 +1115,12 @@ export function WeddingCodeV40Core({ shareOrigin, initial, resolved, embedded = 
     for (const id of page.itemIds) answers[id] = viewAnswerOf(bank, flow, id);
     // 필터 흐름의 첫 쪽에서도 이전이 있다: 사람이 결과에서 연 것이면 결과로, 결과 앞에서 저절로 열린 넘어간 질문 다시 보기이면 마지막 질문 화면으로 돌아간다(리듀서가 정한다).
     const canGoBack = flow.filter !== null ? true : flow.pageIndex > firstQuestion;
-    const nextIsResult = flow.filter !== null ? flow.pageIndex >= flow.pages.length - 1 : flow.pages[flow.pageIndex + 1]?.kind === "result";
+    // 결과 앞에 단계 화면(글자 고르기, 받는 사람의 서로 짐작하기)이 아직 끼어들 수 있으면 마지막 질문의 단추는 「결과 보기」가 아니라 「다음」이다.
+    // 결과 쪽 필터(넘어간 질문 다시 보기)에서도 같고, 그때는 「그대로 결과 보기」 단추의 이름을 「다시 보기 마치기」로 바꾼다.
+    // 아래 단추의 이름 「다음」을 그대로 쓰면 한 화면에 이름이 같은 단추 둘이 생긴다(위는 다시 보기를 끝내고 아래는 다음 넘어간 질문으로 간다).
+    const stagesPending = isStagePending(factsOf(context), stage.done);
+    const nextIsResult =
+      (flow.filter !== null ? flow.pageIndex >= flow.pages.length - 1 : flow.pages[flow.pageIndex + 1]?.kind === "result") && !stagesPending;
     return (
       <QuestionScreen
         page={page}
@@ -893,6 +1131,7 @@ export function WeddingCodeV40Core({ shareOrigin, initial, resolved, embedded = 
         filter={flow.filter}
         canGoBack={canGoBack}
         nextIsResult={nextIsResult}
+        leaveEditLabel={stagesPending && flow.filter?.kind === "skipped" ? V40_COPY.edit.skippedReviewFinishButton : undefined}
         embedded={embedded}
         saveState={savedShown}
         receivedNote={context.partner !== null && flow.filter === null && flow.pageIndex === firstQuestion}
@@ -929,10 +1168,45 @@ export function WeddingCodeV40Core({ shareOrigin, initial, resolved, embedded = 
 
   if (page.kind !== "result" || ownResult === null) return null;
 
+  // 결과 앞에 얹는 단계 화면(4.1 단계 2). 질문·쉼·정리 쪽 뒤, 결과 앞에 그린다. 두 화면의 뿌리는 data-screen 이름(letter-guess, pair-guess)을 가진다.
+  if (stage.letterGate) {
+    return (
+      <LetterGuessScreen
+        formBit={flow.formBit}
+        initial={stage.letterGuess}
+        storageMode={boot.storage === null || boot.issue === "unavailable" ? "blocked" : boot.pref === "off" ? "off" : "on"}
+        embedded={embedded}
+        turnGuardMs={injected?.turnGuardMs}
+        onContinue={handleLetterContinue}
+        onSkip={handleLetterSkip}
+        onBack={handleLetterBack}
+      />
+    );
+  }
+  if (stage.pairStage !== null) {
+    return (
+      <GuessSetFlow
+        role={stage.pairStage}
+        formBit={flow.formBit}
+        initial={stage.pairStage === "receiver" ? null : stage.ownGuess}
+        embedded={embedded}
+        turnGuardMs={injected?.turnGuardMs}
+        onDone={stage.pairStage === "receiver" ? handlePairReceiverDone : handlePairSenderDone}
+        onLeave={handlePairLeave}
+      />
+    );
+  }
+
+  // 결과 전에 먼저 고른 글자를 이 결과와 나란히 놓은 요약(고른 것이 없거나 견줄 수 없으면 none 이라 아무것도 그리지 않는다).
+  const letterSummary = summarizeLetterGuess(ownResult, stage.letterGuess);
+
   // 받은 링크로 열어 내 답을 마쳤다.
   if (context.partner !== null) {
     if (coupleResult === null) return <NoCompareScreen embedded={embedded} onRestart={handleRestartKeepingPartner} />;
     const partner = context.partner;
+    // 상대의 짐작은 오늘 상대의 a 가 실려 가는 것처럼 두 사람 링크에 다시 실려 간다. 서로 짐작하기 화면이 꺼져 있으면 아무 g 도 싣지 않는다.
+    const partnerGuess = stages.pairGuess ? (context.guess?.first ?? null) : null;
+    const ownGuess = stages.pairGuess ? stage.ownGuess : null;
     return (
       <ScreenSection focusKey="couple" embedded={embedded}>
         <CoupleResult
@@ -942,10 +1216,29 @@ export function WeddingCodeV40Core({ shareOrigin, initial, resolved, embedded = 
           embedded={embedded}
           note={<span data-couple-reload-note="">{V40_COPY.receive.reloadNote}</span>}
           send={{
-            buildUrl: () => (ownDecoded === null ? null : buildGatedShareUrl(bank, shareOrigin, partner, ownDecoded)),
+            buildUrl: () =>
+              ownDecoded === null
+                ? null
+                : buildGatedShareUrlWithGuess(bank, shareOrigin, { code: partner, guess: partnerGuess }, { code: ownDecoded, guess: ownGuess }),
             onSent: handleLinkSent,
             env: injected?.shareEnv,
+            // 링크에 실리는 짐작에 맞는 한 줄: 둘 다 있으면 두 사람의 것, 내가 건너뛰어 받은 상대의 것만 다시 실리면 그것만 말한다.
+            // (내 것만 있는 경우는 받는 사람에게 없다: 상대의 짐작이 있어야 서로 짐작하기가 열린다. 그래도 있다면 내 것만 말한다.)
+            guessNote:
+              partnerGuess !== null && ownGuess !== null
+                ? V40_COPY.guess.coupleSendInfo
+                : partnerGuess !== null
+                  ? V40_COPY.guess.coupleSendPartnerInfo
+                  : ownGuess !== null
+                    ? V40_COPY.guess.shareInfo
+                    : undefined,
           }}
+          guessSection={guessSectionFor(partnerGuess, ownGuess)}
+          ownLetterGuessSlot={
+            hasLetterGuessLines(letterSummary) ? (
+              <LetterGuessClosedCard summary={letterSummary} headingLevel={coupleSectionLevel} idPrefix="wc40-couple-letter-guess" />
+            ) : undefined
+          }
         />
       </ScreenSection>
     );
@@ -973,17 +1266,35 @@ export function WeddingCodeV40Core({ shareOrigin, initial, resolved, embedded = 
         tasteHref={V40_TASTE_HREF}
         embedded={embedded}
         linkLostNote={linkLost === null ? undefined : V40_CLIENT_COPY.linkLost.result[linkLost]}
+        letterGuessSlot={hasLetterGuessLines(letterSummary) ? <LetterGuessLines summary={letterSummary} headingLevel={2} /> : undefined}
         sendSlot={
           ownResult.code === null ? undefined : (
-            <ShareBlock
-              env={injected?.shareEnv}
-              onSent={handleLinkSent}
-              buildUrl={(option) =>
-                option === "withAnswers"
-                  ? buildGatedShareUrl(bank, shareOrigin, { formBit: flow.formBit, responses: flow.responses })
-                  : buildQuestionOnlyUrl(shareOrigin, { explicitVersion: !weddingCodeDefaultsToV40() })
-              }
-            />
+            <>
+              {stages.pairGuess && !stage.guessCardHidden ? (
+                <div className="mb-4">
+                  <GuessEntryCard
+                    state={stage.ownGuess === null ? "idle" : "done"}
+                    removed={stage.guessRemoved}
+                    onStart={() => stage.openPair("sender")}
+                    onEdit={() => stage.openPair("sender")}
+                    onRemove={() => stage.setOwnGuess(null, true)}
+                    onDismiss={stage.hideGuessCard}
+                  />
+                </div>
+              ) : null}
+              {/* 짐작을 더하거나 빼면 링크 내용이 달라지므로 보내기 블록을 새로 그린다(주소 칸이 열려 있었다면 옛 링크가 남지 않게, 동의 체크와 초안도 처음으로). */}
+              <ShareBlock
+                key={stage.ownGuess === null ? "n" : "g"}
+                env={injected?.shareEnv}
+                onSent={handleLinkSent}
+                guessNote={stage.ownGuess === null ? undefined : V40_COPY.guess.shareInfo}
+                buildUrl={(option) =>
+                  option === "withAnswers"
+                    ? buildGatedShareUrlWithGuess(bank, shareOrigin, { code: { formBit: flow.formBit, responses: flow.responses }, guess: stage.ownGuess })
+                    : buildQuestionOnlyUrl(shareOrigin, { explicitVersion: !weddingCodeDefaultsToV40() })
+                }
+              />
+            </>
           )
         }
       />

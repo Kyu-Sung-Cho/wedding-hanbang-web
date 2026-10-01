@@ -256,6 +256,11 @@ export interface ShareBlockProps {
   readonly idPrefix?: string;
   /** 제목 레벨. 기본 2. */
   readonly headingLevel?: 2 | 3;
+  /**
+   * 링크에 서로 짐작해 보기(4.1 단계 2)의 고른 쪽과 짐작이 든다는 한 줄. 「내 답과 함께 보내기」를 고른 동안에만 안내 묶음에 그린다
+   * (「질문만 보내기」의 링크에는 짐작이 들지 않는다). 문구는 부모가 준다(이 화면은 트랙 폴더를 가져오지 않는다). 없으면 그리지 않는다.
+   */
+  readonly guessNote?: string;
 }
 
 const OPTIONS = [
@@ -273,7 +278,7 @@ const OPTIONS = [
  * - 공유 창이 안 되면 클립보드, 그것도 안 되면 읽기 전용 주소 칸이 열린다.
  * 서버 요청이 없다. 링크는 누를 때만 만들어져서 그 전에는 화면에 주소가 없다.
  */
-export function ShareBlock({ buildUrl, onSent, env, idPrefix, headingLevel = 2 }: ShareBlockProps) {
+export function ShareBlock({ buildUrl, onSent, env, idPrefix, headingLevel = 2, guessNote }: ShareBlockProps) {
   const uid = useId();
   const prefix = idPrefix ?? `wc40-share${uid}`;
   const ids = {
@@ -370,6 +375,7 @@ export function ShareBlock({ buildUrl, onSent, env, idPrefix, headingLevel = 2 }
         <p>{V40_COPY.send.shareSheetInfo}</p>
         {option === "withAnswers" ? <p>{V40_COPY.send.withAnswersSensitiveInfo}</p> : null}
         {option === "withAnswers" ? <p>{V40_COPY.send.withAnswersLinkInfo}</p> : null}
+        {option === "withAnswers" && guessNote ? <p data-send-guess-note="">{guessNote}</p> : null}
       </div>
 
       <div className="mt-4">

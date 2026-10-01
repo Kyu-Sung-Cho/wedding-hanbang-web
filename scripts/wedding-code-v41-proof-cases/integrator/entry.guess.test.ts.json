@@ -1,0 +1,68 @@
+[
+  {
+    "name": "gb 를 v4 허용 키에서 뺀다",
+    "target": "apps/web/src/app/wedding-code/entry.ts",
+    "find": "[...SHARE_KEYS, V40_GUESS_LINK_KEYS.first, V40_GUESS_LINK_KEYS.second];",
+    "replace": "[...SHARE_KEYS, V40_GUESS_LINK_KEYS.first];"
+  },
+  {
+    "name": "ga 만 query 에 와도 답이 든 주소로 보지 않는다",
+    "target": "apps/web/src/app/wedding-code/entry.ts",
+    "find": "(isV40 && (params.has(V40_GUESS_LINK_KEYS.first) || params.has(V40_GUESS_LINK_KEYS.second)))",
+    "replace": "false"
+  },
+  {
+    "name": "해시 되돌리기가 gb 를 빼먹는다",
+    "target": "apps/web/src/app/wedding-code/entry.ts",
+    "find": "      params.set(V40_GUESS_LINK_KEYS.second, gb);",
+    "replace": ""
+  },
+  {
+    "name": "해시 되돌리기가 ga 를 빼먹는다",
+    "target": "apps/web/src/app/wedding-code/entry.ts",
+    "find": "    params.set(V40_GUESS_LINK_KEYS.first, ga);",
+    "replace": ""
+  },
+  {
+    "name": "g 가 없어도 initial 에 guess 키를 붙인다",
+    "target": "apps/web/src/app/wedding-code/entry.ts",
+    "find": "        initial: shared.firstGuess === null ? { partner: shared.first, both: null } : { partner: shared.first, both: null, guess: { first: shared.firstGuess, second: null } },",
+    "replace": "        initial: { partner: shared.first, both: null, guess: { first: shared.firstGuess, second: null } },"
+  },
+  {
+    "name": "ga 값을 읽지 않는다",
+    "target": "apps/web/src/app/wedding-code/entry.ts",
+    "find": "      ga: params.get(V40_GUESS_LINK_KEYS.first),",
+    "replace": "      ga: null,"
+  },
+  {
+    "name": "다른 판의 해시에도 ga 를 허용한다",
+    "target": "apps/web/src/app/wedding-code/entry.ts",
+    "find": "  const allowedKeys: readonly string[] = isV40 ? V40_SHARE_KEYS : SHARE_KEYS;",
+    "replace": "  const allowedKeys: readonly string[] = V40_SHARE_KEYS;"
+  },
+  {
+    "name": "같은 키가 둘인지 v4 의 ga, gb 에는 보지 않는다",
+    "target": "apps/web/src/app/wedding-code/entry.ts",
+    "find": "  for (const key of allowedKeys) {",
+    "replace": "  for (const key of SHARE_KEYS) {"
+  },
+  {
+    "name": "링크 코덱이 문구를 가져온다",
+    "target": "apps/web/src/lib/weddingCode/v40/guess/guessLink.ts",
+    "find": "import { stateIndex } from \"../states\";",
+    "replace": "import { stateIndex } from \"../states\";\nimport { V40_COPY as leakedCopy } from \"../copy\";\nvoid leakedCopy;"
+  },
+  {
+    "name": "입구가 gb 를 읽지 않는다",
+    "target": "apps/web/src/app/wedding-code/entry.ts",
+    "find": "      gb: params.get(V40_GUESS_LINK_KEYS.second),",
+    "replace": "      gb: null,"
+  },
+  {
+    "name": "해시를 퍼센트 부호를 풀지 않고 읽는다",
+    "target": "apps/web/src/app/wedding-code/entry.ts",
+    "find": "return parseParams(new URLSearchParams(raw), \"hash\",",
+    "replace": "return parseParams(new URLSearchParams(raw.replace(/%/gu, \"%25\")), \"hash\","
+  }
+]

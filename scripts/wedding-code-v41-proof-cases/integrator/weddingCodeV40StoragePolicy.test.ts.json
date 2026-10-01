@@ -1,0 +1,44 @@
+[
+  {
+    "name": "storage: 자동 저장을 꺼도 글자 고르기 보관본을 지우지 않는다",
+    "target": "apps/web/src/lib/weddingCode/v40/storage.ts",
+    "find": "for (const key of [V40_STORAGE.progressKey, V40_STORAGE.historyKey, V40_STORAGE.legacyV31ProgressKey, V40_STORAGE.letterGuessKey]) {",
+    "replace": "for (const key of [V40_STORAGE.progressKey, V40_STORAGE.historyKey, V40_STORAGE.legacyV31ProgressKey]) {"
+  },
+  {
+    "name": "storage: 포트가 자동 저장 꺼짐을 보지 않는다",
+    "target": "apps/web/src/lib/weddingCode/v40/storage.ts",
+    "find": "if (readAutosavePreference(prefHandle) === \"off\") return \"off\";",
+    "replace": "if (readAutosavePreference(prefHandle) === \"never\") return \"off\";"
+  },
+  {
+    "name": "storage: 저장소가 없는 포트의 write 가 저장했다고 답한다",
+    "target": "apps/web/src/lib/weddingCode/v40/storage.ts",
+    "find": "write: () => \"unavailable\", remove: () => false };",
+    "replace": "write: () => \"saved\", remove: () => false };"
+  },
+  {
+    "name": "글자 고르기: 읽을 때 보관본을 다시 써서 기간을 늘린다",
+    "target": "apps/web/src/lib/weddingCode/v40/letterGuess/letterGuessStore.ts",
+    "find": "if (parsed.status === \"expired\") port.remove();",
+    "replace": "if (parsed.status === \"expired\") port.remove();\n  if (parsed.status === \"ready\") port.write(read.raw ?? \"\");"
+  },
+  {
+    "name": "글자 고르기: 모두 고르지 않았을 때 쓰지 않고 지우는 줄을 뺀다",
+    "target": "apps/web/src/lib/weddingCode/v40/letterGuess/letterGuessStore.ts",
+    "find": "if (guess === null || guess.every((pick) => pick === null)) return port.remove() ? \"cleared\" : \"unavailable\";",
+    "replace": "if (guess === null) return port.remove() ? \"cleared\" : \"unavailable\";"
+  },
+  {
+    "name": "글자 고르기: 만료 경계를 기간 초과로 바꾼다(기간 이상이어야 만료)",
+    "target": "apps/web/src/lib/weddingCode/v40/letterGuess/letterGuessEnvelope.ts",
+    "find": "if (now - savedAt >= V40_STORAGE.ttlMs) return { status: \"expired\" };",
+    "replace": "if (now - savedAt > V40_STORAGE.ttlMs) return { status: \"expired\" };"
+  },
+  {
+    "name": "글자 고르기: 봉투에 모르는 키 responses 를 더한다",
+    "target": "apps/web/src/lib/weddingCode/v40/letterGuess/letterGuessEnvelope.ts",
+    "find": "    savedAt,",
+    "replace": "    savedAt,\n    responses: \"x\","
+  }
+]

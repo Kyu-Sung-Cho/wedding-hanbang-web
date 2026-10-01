@@ -26,6 +26,11 @@ export interface CoupleSendConfig {
   readonly onSent: (event: ShareSentEvent) => void;
   /** 시험용 공유 환경. */
   readonly env?: ShareEnv;
+  /**
+   * 링크에 서로 짐작해 보기(4.1 단계 2)의 고른 쪽과 짐작이 든다는 한 줄. 주면 보내는 블록의 안내 묶음에 그린다.
+   * 문구는 부모가 준다(이 화면은 트랙 폴더를 가져오지 않는다). 링크에 짐작이 없으면 주지 않는다.
+   */
+  readonly guessNote?: string;
 }
 
 export interface CoupleResultProps {
@@ -56,6 +61,16 @@ export interface CoupleResultProps {
   readonly embedded?: boolean;
   /** 한 화면 안에서 겹치지 않는 접두어. 없으면 자동. */
   readonly idPrefix?: string;
+  /**
+   * 「짐작과 답」 구역(서로 짐작해 보기, 4.1 단계 2). 이 기준(나 기준 전환의 지금 값, 모르면 null)을 받아 그릴 것을 돌려준다. 이 화면은 「이미 비슷하게 고른 질문」 목록 뒤,
+   * 보내는 블록 앞에 그대로 놓고 안을 모른다. 그릴 것이 없으면 null 을 돌려준다(줄도 상자도 만들지 않는다). 없으면 그 자리를 그리지 않는다.
+   */
+  readonly guessSection?: (perspective: Perspective | null) => ReactNode;
+  /**
+   * 본인이 결과 전에 먼저 고른 글자(결과 전 글자 고르기, 4.1 단계 2)를 나란히 놓는 닫힌 카드. 「주제별 나란히 보기」 구역 바로 뒤에 놓는다.
+   * 옆 사람이 같은 화면을 볼 수 있어서 부모가 기본으로 닫힌 카드를 주고, 그릴 줄이 없으면 아무것도 주지 않는다.
+   */
+  readonly ownLetterGuessSlot?: ReactNode;
 }
 
 function LegendLetter({ row }: { readonly row: LegendLetterRow }) {
@@ -157,6 +172,8 @@ export function CoupleResult({
   note,
   embedded = false,
   idPrefix,
+  guessSection,
+  ownLetterGuessSlot,
 }: CoupleResultProps) {
   const uid = useId();
   const prefix = idPrefix ?? `wc40-couple${uid}`;
@@ -219,8 +236,12 @@ export function CoupleResult({
         </ul>
       </section>
 
+      {ownLetterGuessSlot}
+
       <CoupleTalkList kind="talk" items={result.talk} perspective={perspective} idPrefix={prefix} headingLevel={sectionLevel} />
       <CoupleTalkList kind="similar" items={result.similar} perspective={perspective} idPrefix={prefix} headingLevel={sectionLevel} />
+
+      {guessSection?.(perspective)}
 
       {send !== null ? (
         <TwoPersonSendBlock
@@ -230,6 +251,7 @@ export function CoupleResult({
           buildUrl={send.buildUrl}
           onSent={send.onSent}
           env={send.env}
+          guessNote={send.guessNote}
         />
       ) : null}
 

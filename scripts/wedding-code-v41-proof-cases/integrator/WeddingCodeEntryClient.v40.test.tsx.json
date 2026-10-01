@@ -1,0 +1,14 @@
+[
+  {
+    "name": "오류 입구가 ga, gb 를 주소에서 지우지 않는다",
+    "target": "apps/web/src/app/wedding-code/WeddingCodeEntryClient.tsx",
+    "find": "/[?&](?:a|b|ga|gb)=/",
+    "replace": "/[?&](?:a|b)=/"
+  },
+  {
+    "name": "오류 입구가 gb 를 주소에서 지우지 않는다",
+    "target": "apps/web/src/app/wedding-code/WeddingCodeEntryClient.tsx",
+    "find": "/[?&](?:a|b|ga|gb)=/",
+    "replace": "/[?&](?:a|b|ga)=/"
+  }
+]

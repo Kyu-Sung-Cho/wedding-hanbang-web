@@ -1,0 +1,68 @@
+[
+  {
+    "name": "검사기의 「자리」 거울 규칙을 지움",
+    "target": "scripts/lib/wedding-code-v41-guess-lint.mjs",
+    "find": "export const MIRROR_WORDS = [\"자리\", ",
+    "replace": "export const MIRROR_WORDS = ["
+  },
+  {
+    "name": "검사기의 「기기」 거울 규칙을 지움",
+    "target": "scripts/lib/wedding-code-v41-guess-lint.mjs",
+    "find": "\"데이터\", \"기기\", ",
+    "replace": "\"데이터\", "
+  },
+  {
+    "name": "한 묶음 안 같은 문장 검사를 지움",
+    "target": "scripts/lib/wedding-code-v41-guess-lint.mjs",
+    "find": "  bundleDuplicates(texts, flag);",
+    "replace": ""
+  },
+  {
+    "name": "어휘 목록 이름 규칙을 옛 이름으로",
+    "target": "scripts/lib/wedding-code-v41-guess-lint.mjs",
+    "find": "return join(dirname(setFile), `${basename(setFile, \".json\")}${suffix}`);",
+    "replace": "return join(dirname(setFile), \"guess_set_vocab.json\");"
+  },
+  {
+    "name": "어휘 목록이 없어도 위반으로 알리지 않음",
+    "target": "scripts/lib/wedding-code-v41-guess-lint.mjs",
+    "find": "if (!vocab) V.push({ rule: \"vocab-missing\",",
+    "replace": "if (false) V.push({ rule: \"vocab-missing\","
+  },
+  {
+    "name": "검토 상태를 화면 글로 보지 않게 함(review 비화면 목록에서 빠짐)",
+    "target": "scripts/lib/wedding-code-v41-guess-lint.mjs",
+    "find": "new Set([\"schema\", \"setId\", \"status\", \"rules\", \"review\"])",
+    "replace": "new Set([\"schema\", \"setId\", \"status\", \"rules\"])"
+  },
+  {
+    "name": "여기에 를 원인 어미로 읽는 오탐을 되살림",
+    "target": "scripts/lib/wedding-code-v41-guess-lint.mjs",
+    "find": "(?<![기아거저여])기에",
+    "replace": "(?<![기아])기에"
+  },
+  {
+    "name": "짐작한 장면의 한 을 수로 읽는 오탐을 되살림",
+    "target": "scripts/lib/wedding-code-v41-guess-lint.mjs",
+    "find": "(?<![가-힣])(?:한|두|세|네|다섯|여섯|일곱|여덟|아홉|열|몇) ?(?:가지|",
+    "replace": "(?:한|두|세|네|다섯|여섯|일곱|여덟|아홉|열|몇) ?(?:가지|"
+  },
+  {
+    "name": "명령줄이 새 낱말 위반에도 종료 코드 0",
+    "target": "scripts/wedding-code-v41-guess-lint.mjs",
+    "find": "  return V.length ? 1 : 0;",
+    "replace": "  return 0;"
+  },
+  {
+    "name": "--freeze 가 위반이 있어도 목록을 만듦",
+    "target": "scripts/wedding-code-v41-guess-lint.mjs",
+    "find": "      return 1;\n    }\n    if (args.includes(\"--candidate\")) {",
+    "replace": "    }\n    if (args.includes(\"--candidate\")) {"
+  },
+  {
+    "name": "소개 글 정직 규칙에서 내 답과 함께 보내기 요구를 지움",
+    "target": "scripts/lib/wedding-code-v41-guess-lint.mjs",
+    "find": "if (!isStr(d?.intro) || !/「내 답과 함께 보내기」 링크에만 들어가고/.test(d.intro)) flag(",
+    "replace": "if (false) flag("
+  }
+]

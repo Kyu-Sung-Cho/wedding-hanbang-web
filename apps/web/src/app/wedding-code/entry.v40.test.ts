@@ -283,6 +283,8 @@ describe("웨딩코드 4.0 진입: v4 문구와 화면이 v3.1 길로 들어오�
     expect(imports.sort()).toEqual([
       "@/constants/weddingCodeV40",
       "@/lib/weddingCode/v40/codec",
+      // 4.1 단계 2: 서로 짐작하기의 링크 코덱 하나(상수, states, codec, 타입만 가져오는 파일. 문구와 세트 자료와 화면은 가져오지 않는다: entry.guess.test.ts 가 이어서 확인한다).
+      "@/lib/weddingCode/v40/guess/guessLink",
       "@/lib/weddingCode/v40/layout",
       "@/lib/weddingCode/v40/types",
     ]);

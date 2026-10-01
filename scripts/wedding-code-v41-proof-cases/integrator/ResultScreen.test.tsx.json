@@ -1,0 +1,20 @@
+[
+  {
+    "name": "슬롯을 그리지 않는다",
+    "target": "apps/web/src/components/wedding-code/v40/ResultScreen.tsx",
+    "find": "          {letterGuessSlot ? <div data-result-section=\"letter-guess\">{letterGuessSlot}</div> : null}\n",
+    "replace": ""
+  },
+  {
+    "name": "관문이 닫힌 결과에도 슬롯을 그린다",
+    "target": "apps/web/src/components/wedding-code/v40/ResultScreen.tsx",
+    "find": "<GateNotice gate={result.gate} onReviewSkipped={onReviewSkipped} />",
+    "replace": "<><GateNotice gate={result.gate} onReviewSkipped={onReviewSkipped} />{letterGuessSlot}</>"
+  },
+  {
+    "name": "상자의 구역 이름이 다르다",
+    "target": "apps/web/src/components/wedding-code/v40/ResultScreen.tsx",
+    "find": "data-result-section=\"letter-guess\"",
+    "replace": "data-result-section=\"letterguess\""
+  }
+]
