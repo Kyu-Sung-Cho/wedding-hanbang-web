@@ -1,0 +1,38 @@
+[
+  {
+    "name": "라운지 소개 제목 줄이 옛 문구(개 질문)로 돌아간다",
+    "target": "apps/web/src/app/wedding-code/WeddingCodeV31Client.tsx",
+    "find": "기본 {CORE_PAGE_COUNT}페이지 · 로그인 없이 시작",
+    "replace": "기본 {CORE_PAGE_COUNT}개 질문 · 로그인 없이 시작"
+  },
+  {
+    "name": "라운지 소개가 옛 문장(답하는 동안에는 서버나 계정에 보내지 않아요)으로 돌아간다",
+    "target": "apps/web/src/app/wedding-code/WeddingCodeV31Client.tsx",
+    "find": "고른 답과 웨딩코드는 답하는 동안 서버나 계정에 보내지 않아요.",
+    "replace": "답하는 동안에는 서버나 계정에 보내지 않아요."
+  },
+  {
+    "name": "라운지 소개의 함께 보기 문장이 옛 문장(선택한 답을 7일간)으로 돌아간다",
+    "target": "apps/web/src/app/wedding-code/WeddingCodeV31Client.tsx",
+    "find": "내 답 전체를 서버에 보관하고, ",
+    "replace": "선택한 답을 7일간 서버에 보관하고, "
+  },
+  {
+    "name": "라운지 소개에서 처리방침 링크를 지운다",
+    "target": "apps/web/src/app/wedding-code/WeddingCodeV31Client.tsx",
+    "find": "자세한 내용은{\" \"}<a href=\"/privacy\" target=\"_blank\" rel=\"noopener noreferrer\" className=\"py-2 font-semibold text-[var(--hb-text-strong)] underline underline-offset-4\">개인정보 처리방침</a>에서 볼 수 있어요.",
+    "replace": "자세한 내용은 개인정보 처리방침에서 볼 수 있어요."
+  },
+  {
+    "name": "처리방침 링크의 글이 바뀐다",
+    "target": "apps/web/src/app/wedding-code/WeddingCodeV31Client.tsx",
+    "find": "underline underline-offset-4\">개인정보 처리방침</a>",
+    "replace": "underline underline-offset-4\">처리방침</a>"
+  },
+  {
+    "name": "처리방침 링크가 새 탭에서 열리지 않는다",
+    "target": "apps/web/src/app/wedding-code/WeddingCodeV31Client.tsx",
+    "find": "href=\"/privacy\" target=\"_blank\"",
+    "replace": "href=\"/privacy\""
+  }
+]

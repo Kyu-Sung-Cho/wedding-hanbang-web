@@ -1,0 +1,422 @@
+[
+  {
+    "name": "앱 안에서만 소개 제목 줄 끝에 글자가 붙어 세 화면이 갈라진다",
+    "target": "apps/web/src/app/wedding-code/WeddingCodeV31Client.tsx",
+    "find": "기본 {CORE_PAGE_COUNT}페이지 · 로그인 없이 시작</p>",
+    "replace": "기본 {CORE_PAGE_COUNT}페이지 · 로그인 없이 시작{embedded ? \" 앱\" : \"\"}</p>"
+  },
+  {
+    "name": "받은 링크 전용 줄(상대의 답은 저장하지 않아요)이 일반 소개에도 나온다",
+    "target": "apps/web/src/app/wedding-code/WeddingCodeV31Client.tsx",
+    "find": "{context.first ? <p className={`mt-3 ${v31Body}`}>상대의 답은 이 브라우저에 저장하지 않아요.",
+    "replace": "{true ? <p className={`mt-3 ${v31Body}`}>상대의 답은 이 브라우저에 저장하지 않아요."
+  },
+  {
+    "name": "소개에서 개인정보 처리방침 링크를 지운다",
+    "target": "apps/web/src/app/wedding-code/WeddingCodeV31Client.tsx",
+    "find": "자세한 내용은{\" \"}<a href=\"/privacy\" target=\"_blank\" rel=\"noopener noreferrer\" className=\"py-2 font-semibold text-[var(--hb-text-strong)] underline underline-offset-4\">개인정보 처리방침</a>에서 볼 수 있어요.",
+    "replace": "자세한 내용은 개인정보 처리방침에서 볼 수 있어요."
+  },
+  {
+    "name": "처리방침 링크가 같은 탭에서 열리고 noreferrer 가 없다",
+    "target": "apps/web/src/app/wedding-code/WeddingCodeV31Client.tsx",
+    "find": "href=\"/privacy\" target=\"_blank\" rel=\"noopener noreferrer\"",
+    "replace": "href=\"/privacy\" rel=\"noopener\""
+  },
+  {
+    "name": "이용 통계 문장을 통째로 지운다",
+    "target": "apps/web/src/app/wedding-code/WeddingCodeV31Client.tsx",
+    "find": "화면 개선을 위해 첫 화면을 열었는지, 몇 번째 장면까지 봤는지, 끝까지 했는지, 답한 장면과 건너뛴 장면의 수 같은 이용 통계만 기록하고, 이 통계에 고른 답·웨딩코드·공유 링크 주소는 넣지 않아요. ",
+    "replace": ""
+  },
+  {
+    "name": "소개의 이용 통계 어구가 이용 통계 표(analyticsPrivacy)와 다른 말이 된다",
+    "target": "apps/web/src/app/wedding-code/WeddingCodeV31Client.tsx",
+    "find": "몇 번째 장면까지 봤는지",
+    "replace": "몇 번째 질문까지 답했는지"
+  },
+  {
+    "name": "처리방침의 이용 통계 문장이 답·코드·주소를 빼지 않는 말로 바뀐다",
+    "target": "apps/web/src/app/privacy/page.tsx",
+    "find": "고른 답·웨딩코드·공유 링크 주소는 이 통계에 넣지 않습니다",
+    "replace": "고른 답은 이 통계에 넣지 않습니다"
+  },
+  {
+    "name": "소개 이용 통계 이벤트가 속성에 값을 하나 더 싣는다",
+    "target": "apps/web/src/app/wedding-code/WeddingCodeV31Client.tsx",
+    "find": "has_partner_link: hasPartnerLink, placement: flow,",
+    "replace": "has_partner_link: hasPartnerLink, placement: flow, first_answer: \"5\","
+  },
+  {
+    "name": "소개를 열어도 소개 이용 통계 이벤트가 나가지 않는다",
+    "target": "apps/web/src/app/wedding-code/WeddingCodeV31Client.tsx",
+    "find": "if (screen === \"intro\") captureWeddingCodeEvent(\"wedding_code_intro_viewed\", {",
+    "replace": "if (screen === \"result\") captureWeddingCodeEvent(\"wedding_code_intro_viewed\", {"
+  },
+  {
+    "name": "동의 화면의 만료 삭제 문장이 소개와 달라진다",
+    "target": "apps/web/src/app/wedding-code/WeddingCodeV31Connection.tsx",
+    "find": "만료된 내용은 하루 안에 삭제해요.",
+    "replace": "만료된 내용은 삭제해요."
+  },
+  {
+    "name": "소개의 만료 삭제 문장에서 하루 안에가 빠진다",
+    "target": "apps/web/src/app/wedding-code/WeddingCodeV31Client.tsx",
+    "find": "만료된 내용은 하루 안에 삭제해요.",
+    "replace": "만료된 내용은 삭제해요."
+  },
+  {
+    "name": "소개가 옛 문장(선택한 답을 7일간 서버에 보관)으로 되돌아간다",
+    "target": "apps/web/src/app/wedding-code/WeddingCodeV31Client.tsx",
+    "find": "내 답 전체를 서버에 보관하고, 초대로 연결된 상대에게 보여줘요.",
+    "replace": "선택한 답을 7일간 서버에 보관해요."
+  },
+  {
+    "name": "소개에서 상대가 이미 읽거나 따로 보관한 내용은 회수할 수 없다는 말이 빠진다",
+    "target": "apps/web/src/app/wedding-code/WeddingCodeV31Client.tsx",
+    "find": "지우지만, 상대가 이미 읽거나 따로 보관한 내용은 회수할 수 없어요.",
+    "replace": "지워요."
+  },
+  {
+    "name": "처리방침에서 이미 읽은 내용은 회수할 수 없다는 문장이 사라진다",
+    "target": "apps/web/src/app/privacy/page.tsx",
+    "find": "이미 상대가 읽거나 따로 보관한 내용은 회수할 수 없습니다. ",
+    "replace": ""
+  },
+  {
+    "name": "소개의 이 브라우저 저장 기간이 60일이 된다",
+    "target": "apps/web/src/app/wedding-code/WeddingCodeV31Client.tsx",
+    "find": "{LOCAL_SAVE_DAYS}일 동안 이어 할 수 있어요",
+    "replace": "60일 동안 이어 할 수 있어요"
+  },
+  {
+    "name": "처리방침의 v3.1 이어하기 항목만 60일이 된다(v4 항목의 30일은 그대로)",
+    "target": "apps/web/src/app/privacy/page.tsx",
+    "find": "마지막으로 답이나 진행을 저장한 때부터 30일 동안 이어서 이용할 수 있고, 읽거나 재방문만 해서는 기간이 늘어나지 않습니다.",
+    "replace": "마지막으로 답이나 진행을 저장한 때부터 60일 동안 이어서 이용할 수 있고, 읽거나 재방문만 해서는 기간이 늘어나지 않습니다."
+  },
+  {
+    "name": "공용 기기 안내에서 시작하기 전에가 빠진다",
+    "target": "apps/web/src/app/wedding-code/WeddingCodeV31Client.tsx",
+    "find": "공용 기기에서는 시작하기 전에 아래 ‘자동 저장 설정’에서 꺼 주세요.",
+    "replace": "공용 기기에서는 아래 ‘자동 저장 설정’에서 꺼 주세요."
+  },
+  {
+    "name": "안내가 가리키는 접힌 칸의 이름이 바뀐다",
+    "target": "apps/web/src/app/wedding-code/WeddingCodeV31Client.tsx",
+    "find": "underline underline-offset-4\">자동 저장 설정</summary>",
+    "replace": "underline underline-offset-4\">저장 설정</summary>"
+  },
+  {
+    "name": "소개의 페이지 수가 옛 기본 24개 질문으로 돌아간다",
+    "target": "apps/web/src/app/wedding-code/WeddingCodeV31Client.tsx",
+    "find": "기본 {CORE_PAGE_COUNT}페이지 · 로그인 없이 시작",
+    "replace": "기본 24개 질문 · 로그인 없이 시작"
+  },
+  {
+    "name": "질문 화면의 진행 막대 최댓값이 소개의 페이지 수와 어긋난다",
+    "target": "apps/web/src/app/wedding-code/WeddingCodeV31Client.tsx",
+    "find": "max={grouped ? page.total :",
+    "replace": "max={grouped ? page.total + 1 :"
+  },
+  {
+    "name": "문장 묶음이 3개에서 2개로 줄어 소개의 3개씩 이 거짓이 된다",
+    "target": "apps/web/src/lib/weddingCode/v31Pages.ts",
+    "find": "previous.length < 3",
+    "replace": "previous.length < 2"
+  },
+  {
+    "name": "소개가 한 페이지에 2개씩이라고 말한다",
+    "target": "apps/web/src/app/wedding-code/WeddingCodeV31Client.tsx",
+    "find": "문장은 한 페이지에 최대 3개씩, 나머지는 한 페이지에 하나씩 물어봐요.",
+    "replace": "문장은 한 페이지에 2개씩, 나머지는 한 페이지에 하나씩 물어봐요."
+  },
+  {
+    "name": "선택 질문 수를 코드에서 안 읽고 9개로 적는다",
+    "target": "apps/web/src/app/wedding-code/WeddingCodeV31Client.tsx",
+    "find": "결과에서 {V31_EXTRA_INDEXES.length}개 선택 질문",
+    "replace": "결과에서 9개 선택 질문"
+  },
+  {
+    "name": "꼭 지키고 싶은 것 보기 조건이 4점에서 3점으로 넓어진다(소개 문장은 그대로)",
+    "target": "apps/web/src/lib/weddingCode/v31.ts",
+    "find": "Number(draft.answers[question.id]) >= 4)",
+    "replace": "Number(draft.answers[question.id]) >= 3)"
+  },
+  {
+    "name": "소개가 부르는 5점 보기 이름이 실제 이름과 달라진다",
+    "target": "apps/web/src/app/wedding-code/WeddingCodeV31Client.tsx",
+    "find": "‘매우 그래요’로 답한 문장",
+    "replace": "‘아주 그래요’로 답한 문장"
+  },
+  {
+    "name": "소개에서 고를 것이 없으면 건너뛴다는 말이 빠진다",
+    "target": "apps/web/src/app/wedding-code/WeddingCodeV31Client.tsx",
+    "find": "마지막 ‘꼭 지키고 싶은 것’ 페이지는 고를 것이 없으면 건너뛰어요.",
+    "replace": ""
+  },
+  {
+    "name": "‘?’로 남는다는 설명 문장이 바뀐다",
+    "target": "apps/web/src/app/wedding-code/WeddingCodeV31Client.tsx",
+    "find": "네 글자를 정하는 문장을 이렇게 표시하면 그 글자는 ‘?’로 남아요.",
+    "replace": "네 글자를 정하는 문장을 이렇게 표시해도 글자는 그대로예요."
+  },
+  {
+    "name": "글자 규칙이 바뀌어 한 문장만 모르겠어요여도 ‘?’가 아니게 된다",
+    "target": "apps/web/src/lib/weddingCode/v31StyleSummary.ts",
+    "find": "if (a === null || b === null) return \"?\";",
+    "replace": "if (a === null && b === null) return \"?\";"
+  },
+  {
+    "name": "소개가 부르는 ‘아직 모르겠어요’ 보기가 질문 화면에서 다른 이름이 된다",
+    "target": "apps/web/src/app/wedding-code/WeddingCodeV31Inputs.tsx",
+    "find": "{ value: \"undecided\", label: \"아직 모르겠어요\" },",
+    "replace": "{ value: \"undecided\", label: \"잘 모르겠어요\" },"
+  },
+  {
+    "name": "처리방침의 이용 통계 항목 하나(끝까지 했는지)가 소개와 다른 말이 된다",
+    "target": "apps/web/src/app/privacy/page.tsx",
+    "find": "끝까지 했는지",
+    "replace": "끝까지 갔는지"
+  },
+  {
+    "name": "이용 통계 표의 소개 열람 항목 말이 바뀌어 소개 문장과 어긋난다",
+    "target": "apps/web/src/lib/analyticsPrivacy.ts",
+    "find": "wedding_code_intro_viewed: \"첫 화면을 열었는지\",",
+    "replace": "wedding_code_intro_viewed: \"첫 화면을 봤는지\","
+  },
+  {
+    "name": "처리방침에서 먼저 초대 링크를 사용해 동의한 사람이 상대라는 문장이 바뀐다",
+    "target": "apps/web/src/app/privacy/page.tsx",
+    "find": "초대 링크를 먼저 사용해 동의한 사람이 상대가 됩니다",
+    "replace": "초대 링크를 연 사람이 상대가 됩니다"
+  },
+  {
+    "name": "처리방침에서 만료 뒤 하루 안에 삭제한다는 문장이 바뀐다",
+    "target": "apps/web/src/app/privacy/page.tsx",
+    "find": "만료 즉시 접근을 막고 하루 안에 기록을 삭제합니다",
+    "replace": "만료 후 기록을 삭제합니다"
+  },
+  {
+    "name": "동의 화면이 내 답 전체가 아니라 선택한 답만 보관한다고 말한다",
+    "target": "apps/web/src/app/wedding-code/WeddingCodeV31Connection.tsx",
+    "find": "함께 보기를 선택하면 내 답 전체를 서버에 보관해요.",
+    "replace": "함께 보기를 선택하면 선택한 답을 서버에 보관해요."
+  },
+  {
+    "name": "받은 링크 줄에서 주소가 브라우저 기록에 남을 수 있다는 말이 빠진다",
+    "target": "apps/web/src/app/wedding-code/WeddingCodeV31Client.tsx",
+    "find": "다만 받은 링크 주소에는 상대의 답이 들어 있어서 브라우저 방문 기록에 남을 수 있어요. ",
+    "replace": ""
+  },
+  {
+    "name": "부제가 옛 문장(나만의 준비 기준을 찾아봐요)으로 돌아간다",
+    "target": "apps/web/src/app/wedding-code/WeddingCodeV31Client.tsx",
+    "find": "내가 고른 답을 모아 준비 기준으로 정리해 봐요.",
+    "replace": "따로 생각했던 답을 모아 나만의 준비 기준을 찾아봐요."
+  },
+  {
+    "name": "접힌 칸 목록에서 후보 비교와 이동 시간 문항이 빠진다",
+    "target": "apps/web/src/app/wedding-code/WeddingCodeV31Client.tsx",
+    "find": "초대할 사람과 하객의 이동 시간, 후보를 비교하는 방식, ",
+    "replace": ""
+  },
+  {
+    "name": "공유 카드 그림 문장이 옛 문장(상대도 답하면)으로 돌아간다",
+    "target": "apps/web/src/app/wedding-code/opengraph-image.tsx",
+    "find": "둘 다 답하고 서로 공유하면 두 사람의 답을 나란히 볼 수 있어요",
+    "replace": "상대도 답하면 둘이 고른 답을 나란히 볼 수 있어요"
+  },
+  {
+    "name": "검색·공유 설명이 옛 문장(상대도 답하면)으로 돌아간다",
+    "target": "apps/web/src/app/wedding-code/page.tsx",
+    "find": "둘 다 답하고 서로 공유하면 함께 원하는 것",
+    "replace": "상대도 답하면 함께 원하는 것"
+  },
+  {
+    "name": "화면에 안 보이는 라운지 쪽 소스에 옛 24개 문구가 되돌아온다",
+    "target": "apps/web/src/components/app/preparation-style/LoungeWeddingCode.tsx",
+    "find": "공개 웨딩코드에서 이 브라우저에 남긴 답도 여기서 이어 볼 수 있어요.",
+    "replace": "공개 웨딩코드에서 이 브라우저에 남긴 답도 여기서 이어 볼 수 있어요. 기본 24개 질문이에요."
+  },
+  {
+    "name": "소개 본문에 긴 줄표가 들어간다",
+    "target": "apps/web/src/app/wedding-code/WeddingCodeV31Client.tsx",
+    "find": "결혼식 장소, 사진, 옷, 식사, 하객 규모, 식순 같은 취향",
+    "replace": "결혼식 장소 — 사진, 옷, 식사, 하객 규모, 식순 같은 취향"
+  },
+  {
+    "name": "소개 본문에 이 기기라는 말이 들어간다",
+    "target": "apps/web/src/app/wedding-code/WeddingCodeV31Client.tsx",
+    "find": "하객 규모, 식순 같은 취향과 돈을 쓰는 기준",
+    "replace": "하객 규모, 식순 같은 이 기기의 취향과 돈을 쓰는 기준"
+  },
+  {
+    "name": "소개에 아니에요가 한 번 더 나온다",
+    "target": "apps/web/src/app/wedding-code/WeddingCodeV31Client.tsx",
+    "find": "실제 예산 금액은 묻지 않으니 둘이 직접 정해 주세요.",
+    "replace": "실제 예산 금액은 묻지 않으니 둘이 직접 정해 주세요. 판단이 아니에요."
+  },
+  {
+    "name": "소개를 열면 주소의 # 뒤(상대 답)가 지워져 ‘기록에 남을 수 있어요’ 문장이 거짓이 된다",
+    "target": "apps/web/src/app/wedding-code/WeddingCodeV31Client.tsx",
+    "find": "if (screen === \"intro\") captureWeddingCodeEvent(\"wedding_code_intro_viewed\", {",
+    "replace": "if (screen === \"intro\") window.history.replaceState(null, \"\", window.location.pathname); if (screen === \"intro\") captureWeddingCodeEvent(\"wedding_code_intro_viewed\", {"
+  },
+  {
+    "name": "소개를 그린 직후 주소의 # 뒤가 지워진다(화면 글은 그대로라 주소만 확인하는 단언이 잡아야 한다)",
+    "target": "apps/web/src/app/wedding-code/WeddingCodeV31Client.tsx",
+    "find": "if (screen === \"intro\") captureWeddingCodeEvent(\"wedding_code_intro_viewed\", {",
+    "replace": "if (screen === \"intro\") Promise.resolve().then(() => window.history.replaceState(null, \"\", window.location.pathname)); if (screen === \"intro\") captureWeddingCodeEvent(\"wedding_code_intro_viewed\", {"
+  },
+  {
+    "name": "소개 이용 통계 문장에서 답한 수·건너뛴 수가 빠진다",
+    "target": "apps/web/src/app/wedding-code/WeddingCodeV31Client.tsx",
+    "find": "끝까지 했는지, 답한 장면과 건너뛴 장면의 수 같은 이용 통계만",
+    "replace": "끝까지 했는지 같은 이용 통계만"
+  },
+  {
+    "name": "소개 이용 통계 문장에서 화면 개선을 위해(목적)가 빠진다",
+    "target": "apps/web/src/app/wedding-code/WeddingCodeV31Client.tsx",
+    "find": "화면 개선을 위해 첫 화면을 열었는지",
+    "replace": "첫 화면을 열었는지"
+  },
+  {
+    "name": "소개가 방침의 기록 대신 남기고라고 말한다",
+    "target": "apps/web/src/app/wedding-code/WeddingCodeV31Client.tsx",
+    "find": "같은 이용 통계만 기록하고, 이 통계에",
+    "replace": "같은 이용 통계만 남기고, 이 통계에"
+  },
+  {
+    "name": "소개 이용 통계 문장에서 이 통계에(답·코드·주소를 넣지 않는 대상)가 빠진다",
+    "target": "apps/web/src/app/wedding-code/WeddingCodeV31Client.tsx",
+    "find": "기록하고, 이 통계에 고른 답",
+    "replace": "기록하고, 고른 답"
+  },
+  {
+    "name": "처리방침의 이용 통계 문장 머리(화면 개선을 위해 다음만)가 바뀐다",
+    "target": "apps/web/src/app/privacy/page.tsx",
+    "find": "화면 개선을 위해 다음만 서비스 이용 통계로 기록합니다",
+    "replace": "화면 개선을 위해 다음을 서비스 이용 통계로 기록합니다"
+  },
+  {
+    "name": "이용 통계 표에서 건너뛴 수 항목의 말이 답한 수 항목과 갈라진다",
+    "target": "apps/web/src/lib/analyticsPrivacy.ts",
+    "find": "skipped_count: \"답한 장면과 건너뛴 장면의 수\",",
+    "replace": "skipped_count: \"건너뛴 장면의 수\","
+  },
+  {
+    "name": "소개가 초대한 사람에게만 맞는 말(먼저 사용해 동의한 사람에게 보여줘요)로 돌아간다",
+    "target": "apps/web/src/app/wedding-code/WeddingCodeV31Client.tsx",
+    "find": "초대로 연결된 상대에게 보여줘요. 초대 링크를 먼저 사용한 사람이 상대가 돼요.",
+    "replace": "초대 링크를 먼저 사용해 동의한 사람에게 보여줘요."
+  },
+  {
+    "name": "소개에서 초대로 연결된 상대라는 대상 말만 빠진다(먼저 사용한 사람 문장은 남음)",
+    "target": "apps/web/src/app/wedding-code/WeddingCodeV31Client.tsx",
+    "find": "내 답 전체를 서버에 보관하고, 초대로 연결된 상대에게 보여줘요.",
+    "replace": "내 답 전체를 서버에 보관해요."
+  },
+  {
+    "name": "소개에서 먼저 사용한 사람이 상대가 된다는 문장만 빠진다",
+    "target": "apps/web/src/app/wedding-code/WeddingCodeV31Client.tsx",
+    "find": "초대 링크를 먼저 사용한 사람이 상대가 돼요. 이름이나 계정으로는",
+    "replace": "이름이나 계정으로는"
+  },
+  {
+    "name": "소개에서 이름이나 계정으로는 확인하지 않는다는 문장만 빠진다",
+    "target": "apps/web/src/app/wedding-code/WeddingCodeV31Client.tsx",
+    "find": "이름이나 계정으로는 확인하지 않아요. ",
+    "replace": ""
+  },
+  {
+    "name": "소개가 방침보다 약한 말(이미 본 내용은 되돌릴 수 없어요)로 돌아간다",
+    "target": "apps/web/src/app/wedding-code/WeddingCodeV31Client.tsx",
+    "find": "상대가 이미 읽거나 따로 보관한 내용은 회수할 수 없어요.",
+    "replace": "상대가 이미 본 내용은 되돌릴 수 없어요."
+  },
+  {
+    "name": "소개 저장 문장이 옛 말(자동 저장해 …저장한 날부터)로 돌아간다",
+    "target": "apps/web/src/app/wedding-code/WeddingCodeV31Client.tsx",
+    "find": "내 답은 이 브라우저에 자동으로 저장돼요. 마지막으로 저장한 날부터",
+    "replace": "이 브라우저에 자동 저장해 마지막으로 저장한 날부터"
+  },
+  {
+    "name": "소개가 한 페이지에 최대 3개씩에서 최대를 뺀다",
+    "target": "apps/web/src/app/wedding-code/WeddingCodeV31Client.tsx",
+    "find": "문장은 한 페이지에 최대 3개씩, 나머지는",
+    "replace": "문장은 한 페이지에 3개씩, 나머지는"
+  },
+  {
+    "name": "선택 질문 흐름의 문장 묶음이 3, 3, 2가 아니라 4, 4가 된다(기본 흐름은 그대로)",
+    "target": "apps/web/src/lib/weddingCode/v31Pages.ts",
+    "find": "previous.length < 3",
+    "replace": "previous.length < (flow === \"extra\" ? 4 : 3)"
+  },
+  {
+    "name": "카드 글자 설명이 옛 말(글자를 하나씩 붙이고)로 돌아간다",
+    "target": "apps/web/src/app/wedding-code/WeddingCodeV31Client.tsx",
+    "find": "글자를 하나씩 정하고 문장별 답도 보여줘요",
+    "replace": "글자를 하나씩 붙이고 문장별 답도 보여줘요"
+  },
+  {
+    "name": "소개가 질문 문구와 다른 말(다른 비용을)로 돌아간다",
+    "target": "apps/web/src/app/wedding-code/WeddingCodeV31Client.tsx",
+    "find": "피하고 싶은 것, 다른 곳의 비용을 줄여서라도",
+    "replace": "피하고 싶은 것, 다른 비용을 줄여서라도"
+  },
+  {
+    "name": "소개의 ? 설명이 문법이 안 맞는 말(모르겠거나 …내용은)로 돌아간다",
+    "target": "apps/web/src/app/wedding-code/WeddingCodeV31Client.tsx",
+    "find": "아직 모르거나 이번 계획에 없는 내용은",
+    "replace": "모르겠거나 이번 계획에 없는 내용은"
+  },
+  {
+    "name": "소개의 ? 설명이 옛 말(네 글자에 쓰이는 문장)로 돌아간다",
+    "target": "apps/web/src/app/wedding-code/WeddingCodeV31Client.tsx",
+    "find": "네 글자를 정하는 문장을",
+    "replace": "네 글자에 쓰이는 문장을"
+  },
+  {
+    "name": "받은 링크 줄에서 방문 기록이 그냥 기록이 된다",
+    "target": "apps/web/src/app/wedding-code/WeddingCodeV31Client.tsx",
+    "find": "브라우저 방문 기록에 남을 수 있어요",
+    "replace": "브라우저 기록에 남을 수 있어요"
+  },
+  {
+    "name": "받은 링크 줄의 다만(앞 문장과의 연결)이 빠진다",
+    "target": "apps/web/src/app/wedding-code/WeddingCodeV31Client.tsx",
+    "find": "다만 받은 링크 주소에는",
+    "replace": "받은 링크 주소에는"
+  },
+  {
+    "name": "동의 화면에서 먼저 사용한 사람이 상대가 된다는 문장이 소개와 갈라진다",
+    "target": "apps/web/src/app/wedding-code/WeddingCodeV31Connection.tsx",
+    "find": "초대 링크를 먼저 사용한 사람이 상대가 돼요.",
+    "replace": "초대 링크를 먼저 쓴 사람이 상대가 돼요."
+  },
+  {
+    "name": "동의 화면의 동의 문장이 초대로 연결된 상대가 아니라 초대한 사람이라고 말한다",
+    "target": "apps/web/src/app/wedding-code/WeddingCodeV31Connection.tsx",
+    "find": "초대로 연결된 상대에게 보여주는 데 동의해요",
+    "replace": "초대한 사람에게 보여주는 데 동의해요"
+  },
+  {
+    "name": "[덧붙임] 소개가 새 문장은 둔 채 초대한 사람에게만 맞는 말(먼저 사용해 동의한 사람에게 보여줘요)을 한 줄 더 한다",
+    "target": "apps/web/src/app/wedding-code/WeddingCodeV31Client.tsx",
+    "find": "이름이나 계정으로는 확인하지 않아요. ",
+    "replace": "이름이나 계정으로는 확인하지 않아요. 초대 링크를 먼저 사용해 동의한 사람에게 보여줘요. "
+  },
+  {
+    "name": "[덧붙임] 소개가 새 문장은 둔 채 방침보다 약한 말(상대가 이미 본 내용)을 한 줄 더 한다",
+    "target": "apps/web/src/app/wedding-code/WeddingCodeV31Client.tsx",
+    "find": "회수할 수 없어요.",
+    "replace": "회수할 수 없어요. 상대가 이미 본 내용은 되돌릴 수 없어요."
+  },
+  {
+    "name": "[덧붙임] 소개가 새 문장은 둔 채 한 페이지에 3개씩이라는 말을 한 줄 더 한다",
+    "target": "apps/web/src/app/wedding-code/WeddingCodeV31Client.tsx",
+    "find": "나머지는 한 페이지에 하나씩 물어봐요. 답을 골라도",
+    "replace": "나머지는 한 페이지에 하나씩 물어봐요. 한 페이지에 3개씩 묶어요. 답을 골라도"
+  }
+]

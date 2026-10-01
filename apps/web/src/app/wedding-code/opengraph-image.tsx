@@ -86,7 +86,7 @@ export default async function OpenGraphImage() {
             <div style={{ display: "flex" }}>준비 방식을 살펴봐요</div>
           </div>
           <div style={{ display: "flex", fontSize: 30, color: PAPER.inkSoft }}>
-            상대도 답하면 둘이 고른 답을 나란히 볼 수 있어요
+            둘 다 답하고 서로 공유하면 두 사람의 답을 나란히 볼 수 있어요
           </div>
         </div>
 

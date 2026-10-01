@@ -156,13 +156,16 @@ describe("웨딩코드 진입 화면", () => {
     const container = document.createElement("div");
     container.innerHTML = html;
     const text = container.textContent ?? "";
-    expect(text).toContain("기본 24개 질문");
+    expect(text).toContain("기본 14페이지");
     expect(text).toContain("결과에서 8개 선택 질문");
-    expect(text).toContain("답하는 동안에는 서버나 계정에 보내지 않아요");
-    expect(text).toContain("이 브라우저에 자동 저장해 나중에 이어 할 수 있어요");
+    expect(text).toContain("고른 답과 웨딩코드는 답하는 동안 서버나 계정에 보내지 않아요");
+    expect(text).toContain("화면 개선을 위해 첫 화면을 열었는지, 몇 번째 장면까지 봤는지, 끝까지 했는지, 답한 장면과 건너뛴 장면의 수 같은 이용 통계만 기록하고, 이 통계에 고른 답·웨딩코드·공유 링크 주소는 넣지 않아요");
+    expect(text).toContain("내 답은 이 브라우저에 자동으로 저장돼요. 마지막으로 저장한 날부터 30일 동안 이어 할 수 있어요");
+    expect(text).toContain("공용 기기에서는 시작하기 전에 아래 ‘자동 저장 설정’에서 꺼 주세요");
     expect(text).toContain("공용 기기에서는");
     expect(text).toContain("30일 동안 같은 브라우저");
-    expect(text).toContain("결과에서 함께 보기에 동의하면 선택한 답을 7일간 서버에 보관해요");
+    expect(text).toContain("결과에서 ‘함께 보기’에 동의하면 내 답 전체를 서버에 보관하고, 초대로 연결된 상대에게 보여줘요. 초대 링크를 먼저 사용한 사람이 상대가 돼요.");
+    expect(text).toContain("상대가 이미 읽거나 따로 보관한 내용은 회수할 수 없어요");
     expect(text).toContain("내 웨딩코드 시작하기");
   });
 
@@ -199,6 +202,18 @@ describe("웨딩코드 진입 화면", () => {
     }
     const old = await generateMetadata({ searchParams: Promise.resolve({ v: WEDDING_CODE_V20_VERSION }) });
     expect(old.description).toContain("16개 문장");
+  });
+
+  it("새 기본판의 검색·공유 설명은 두 사람이 나란히 보는 조건을 ‘둘 다 답하고 서로 공유하면’으로 말한다", async () => {
+    for (const search of [{}, { v: WEDDING_CODE_V31_VERSION }]) {
+      const metadata = await generateMetadata({ searchParams: Promise.resolve(search) });
+      const description = String(metadata.description);
+      expect(description).toContain("혼자서도 결과를 볼 수 있고, 둘 다 답하고 서로 공유하면 함께 원하는 것과 먼저 의논할 부분을 나란히 볼 수 있어요.");
+      expect(description).not.toContain("상대도 답하면");
+      // og·twitter 카드가 같은 설명을 쓴다.
+      expect(metadata.openGraph?.description).toBe(description);
+      expect(metadata.twitter?.description).toBe(description);
+    }
   });
 
   it("query에 중복된 버전이나 새 응답이 오면 복원하지 않는다", async () => {

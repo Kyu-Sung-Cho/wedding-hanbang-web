@@ -1,0 +1,62 @@
+[
+  {
+    "name": "이어 하기 카드를 위치만 있는 기록에도 띄운다(local.saved 만 본다)",
+    "target": "apps/web/src/app/wedding-code/WeddingCodeV31Client.tsx",
+    "find": "const resumable = !owned && savedHasAnswer;",
+    "replace": "const resumable = !owned && local.saved !== null;"
+  },
+  {
+    "name": "저장 줄이 답 없이 위치만 저장돼도 저장됐어요라고 말한다",
+    "target": "apps/web/src/app/wedding-code/WeddingCodeV31Client.tsx",
+    "find": "local.status === \"saved\" && savedHasAnswer ?",
+    "replace": "local.status === \"saved\" ?"
+  },
+  {
+    "name": "시작할 때 지울 답이 없어도 지우기를 시도한다(위치만 있는 기록)",
+    "target": "apps/web/src/app/wedding-code/WeddingCodeV31Client.tsx",
+    "find": "if (resumable && !local.store.clear()) setNotice(resetStorageFailureNotice);",
+    "replace": "if (!owned && local.saved && !local.store.clear()) setNotice(resetStorageFailureNotice);"
+  },
+  {
+    "name": "답이 있는 기록을 지우다 실패해도 알리지 않는다",
+    "target": "apps/web/src/app/wedding-code/WeddingCodeV31Client.tsx",
+    "find": "if (resumable && !local.store.clear()) setNotice(resetStorageFailureNotice);",
+    "replace": "if (resumable) local.store.clear();"
+  },
+  {
+    "name": "답이 있다는 판정이 항상 참이다",
+    "target": "apps/web/src/lib/weddingCode/v31LocalProgress.ts",
+    "find": "return V31_FULL_INDEXES.some(index => getV31ResponseAt(snapshot.draft, index) !== undefined);",
+    "replace": "return true;"
+  },
+  {
+    "name": "모르겠어요·계획에 없음·답하지 않음과 고른 보기는 답으로 세지 않는다",
+    "target": "apps/web/src/lib/weddingCode/v31LocalProgress.ts",
+    "find": "getV31ResponseAt(snapshot.draft, index) !== undefined",
+    "replace": "typeof getV31ResponseAt(snapshot.draft, index) === \"number\""
+  },
+  {
+    "name": "끝낸 결과가 저장돼 있어도 카드를 띄우지 않는다",
+    "target": "apps/web/src/app/wedding-code/WeddingCodeV31Client.tsx",
+    "find": "const savedHasAnswer = local.saved !== null && hasV31ResumableAnswer(local.saved);",
+    "replace": "const savedHasAnswer = local.saved !== null && local.saved.screen !== \"result\" && hasV31ResumableAnswer(local.saved);"
+  },
+  {
+    "name": "받은 링크에서 큰 버튼 이름 ‘나도 답해보기’가 사라진다",
+    "target": "apps/web/src/app/wedding-code/WeddingCodeV31Client.tsx",
+    "find": "started ? \"이어서 답하기\" : context.first ? \"나도 답해보기\" : \"내 웨딩코드 시작하기\"}",
+    "replace": "started ? \"이어서 답하기\" : \"내 웨딩코드 시작하기\"}"
+  },
+  {
+    "name": "저장 줄이 첫 답을 골라도 저장됐어요로 바뀌지 않는다",
+    "target": "apps/web/src/app/wedding-code/WeddingCodeV31Client.tsx",
+    "find": "local.status === \"saved\" && savedHasAnswer ?",
+    "replace": "local.status === \"saved\" && false ?"
+  },
+  {
+    "name": "카드 제목이 답 아닌 말(진행)로 바뀐다",
+    "target": "apps/web/src/app/wedding-code/WeddingCodeV31Client.tsx",
+    "find": "이 브라우저에 남겨 둔 답이 있어요",
+    "replace": "이 브라우저에 남겨 둔 진행이 있어요"
+  }
+]

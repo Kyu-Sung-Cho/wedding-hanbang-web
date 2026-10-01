@@ -5,7 +5,7 @@ import {
   type V31Draft,
 } from "@/constants/weddingCodeV31";
 import { decodeV31Progress, encodeV31 } from "./v31";
-import { V31_PRIORITY_INDEX, getV31ScreenIndexes, isV31CoreComplete, isV31Flow, isV31FullComplete, type V31Flow } from "./v31Flow";
+import { V31_FULL_INDEXES, V31_PRIORITY_INDEX, getV31ResponseAt, getV31ScreenIndexes, isV31CoreComplete, isV31Flow, isV31FullComplete, type V31Flow } from "./v31Flow";
 
 export const LOCAL_KEY = "hanbang:wedding-code:v3.1:progress";
 export const LOCAL_TTL_MS = 30 * 24 * 60 * 60 * 1000;
@@ -57,6 +57,16 @@ function validPosition(value: Record<string, unknown>, draft: V31Draft, flow: V3
  */
 function isLegacyExtraPriorityStep(value: Record<string, unknown>, flow: V31Flow): boolean {
   return flow === "extra" && value.screen === "questions" && value.editing === false && value.index === V31_PRIORITY_INDEX;
+}
+
+/**
+ * 저장된 진행에 답이 하나라도 있는가. 소개 화면의 「이 브라우저에 남겨 둔 답이 있어요」 카드는 이 값이 참일 때만 뜬다.
+ * 시작 버튼을 누르면 답 없이 위치만 저장되므로(자동 저장은 시작할 때부터 켜진다) 그 기록은 「답」이 아니다.
+ * ‘아직 모르겠어요’·‘이번 계획에는 없어요’·‘지금 답하지 않을게요’도 고른 답으로 센다. 결과의 「답을 남긴 질문은 N개」
+ * (buildV31Profile.respondedCount)와 같은 셈이다.
+ */
+export function hasV31ResumableAnswer(snapshot: Pick<V31LocalProgressSnapshot, "draft">): boolean {
+  return V31_FULL_INDEXES.some(index => getV31ResponseAt(snapshot.draft, index) !== undefined);
 }
 
 /** 읽기만으로 저장 기간을 연장하거나 다른 탭의 값을 지우지 않는다. */

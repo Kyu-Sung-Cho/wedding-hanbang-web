@@ -9,7 +9,7 @@ import { LOCAL_KEY, LOCAL_TTL_MS, readV31LocalProgress, writeV31LocalProgress, t
 import WeddingCodeV31Client from "./WeddingCodeV31Client";
 import WeddingCodeEntryClient from "./WeddingCodeEntryClient";
 import { V31_SAVE_PREFERENCE_KEY } from "./useV31LocalProgress";
-import { V31_CORE_INDEXES, V31_CORE_RATING_IDS, getV31IndexForId } from "@/lib/weddingCode/v31Flow";
+import { V31_CORE_INDEXES, V31_CORE_RATING_IDS, V31_EXTRA_INDEXES, getV31IndexForId } from "@/lib/weddingCode/v31Flow";
 import { PAIR_SESSION_LOCAL_KEY, readPairSessionRecovery, savePairSessionLink } from "@/lib/weddingCode/pairSessionClient";
 
 vi.mock("@/lib/analytics", () => ({ captureWeddingCodeEvent: vi.fn() }));
@@ -529,5 +529,126 @@ describe("V31 same-browser resume", () => {
     expect(entry).not.toBeNull();
     await click([...entry!.querySelectorAll("button")].find(item => item.textContent?.trim() === "꼭 지키고 싶은 것 고르기"));
     expect([...container.querySelectorAll('[data-question="priorities"] [data-choice]')].map(item => item.getAttribute("data-choice"))).toEqual(["taste.venue"]);
+  });
+
+  /**
+   * 시작 버튼은 답 없이 위치만 저장한다(자동 저장이 시작할 때부터 켜진다). 그 기록을 「남겨 둔 답」이라 부르면 거짓이다.
+   * 아래 테스트는 저장 시점은 그대로 두고, 이어 하기 카드·큰 버튼·저장 줄이 답이 있을 때만 이어 하기를 말하는지 본다.
+   */
+  const RESUME_TITLE = "이 브라우저에 남겨 둔 답이 있어요";
+  const NO_ANSWER_LINE = "답하면 이 브라우저에 자동으로 저장돼요.";
+  const SAVED_LINE = "이 브라우저에 저장됐어요. 나중에 이어 할 수 있어요.";
+  const card = () => container.querySelector('[aria-label="저장된 내 답 이어하기"]');
+  const buttonLabels = () => [...container.querySelectorAll("button")].map(item => item.textContent?.trim());
+  const storageLine = () => container.querySelector('aside[aria-label="이 브라우저의 답 저장"] [role="status"]')?.textContent;
+
+  it("시작만 누르고 나간 사람에게는 남겨 둔 답이 없으니 이어 하기 카드와 지우기 버튼을 띄우지 않는다", async () => {
+    await render(); await button("내 웨딩코드 시작하기");
+    const stored = readV31LocalProgress(window.localStorage);
+    expect(stored.status).toBe("ready");
+    if (stored.status !== "ready") return;
+    // 저장 시점은 그대로다. 시작 버튼은 위치만 저장하고 그 기록에는 답이 한 칸도 없다.
+    expect(stored.snapshot.draft.answers).toEqual({});
+    expect(stored.snapshot.draft.tastes).toEqual({});
+    expect([stored.snapshot.draft.avoidances, stored.snapshot.draft.priorities, stored.snapshot.draft.spending]).toEqual([undefined, undefined, undefined]);
+    await remount();
+    expect(card()).toBeNull();
+    expect(container.textContent).not.toContain("이 브라우저에 남겨 둔 답");
+    expect(buttonLabels()).toContain("내 웨딩코드 시작하기");
+    expect(buttonLabels()).not.toContain("저장된 답 지우고 새로 시작");
+    expect(buttonLabels()).not.toContain("이어서 답하기");
+    // 이 줄은 모든 화면에 붙으니 소개에서만 맞는 말로 바꾸지 않고, 답이 없을 때의 기본 줄을 그대로 쓴다.
+    expect(storageLine()).toBe(NO_ANSWER_LINE);
+    expect(storageLine()).not.toBe(SAVED_LINE);
+  });
+
+  it.each([
+    ["기본 흐름 처음 자리", { flow: "core", index: V31_CORE_INDEXES[0] }],
+    ["기본 흐름 중간 자리", { flow: "core", index: V31_CORE_INDEXES[7] }],
+    ["선택 흐름", { flow: "extra", index: V31_EXTRA_INDEXES[0] }],
+    ["수정 화면", { flow: "core", index: V31_CORE_INDEXES[3], editing: true }],
+    ["이전 전체 흐름", { flow: "full", index: 5 }],
+  ] as const)("위치만 있는 저장 기록(%s)이 이미 쌓여 있어도 카드를 띄우지 않고 시작 버튼을 그대로 둔다", async (_name, position) => {
+    seed(snapshot(createV31Draft(), position));
+    const raw = window.localStorage.getItem(LOCAL_KEY);
+    await render();
+    expect(card()).toBeNull();
+    expect(container.textContent).not.toContain("이 브라우저에 남겨 둔 답");
+    expect(buttonLabels()).toContain("내 웨딩코드 시작하기");
+    expect(buttonLabels()).not.toContain("저장된 답 지우고 새로 시작");
+    expect(storageLine()).toBe(NO_ANSWER_LINE);
+    // 보여 주지 않을 뿐 읽기만으로 기록을 바꾸지 않는다.
+    expect(window.localStorage.getItem(LOCAL_KEY)).toBe(raw);
+  });
+
+  it("받은 링크로 열어도 위치만 있는 기록에는 카드가 없고 ‘나도 답해보기’가 그대로다", async () => {
+    seed(snapshot(createV31Draft(), { flow: "core", index: V31_CORE_INDEXES[2] }));
+    await render({ partnerDraft: completed() });
+    expect(card()).toBeNull();
+    expect(buttonLabels()).toContain("나도 답해보기");
+    expect(buttonLabels()).not.toContain("저장된 답 지우고 새로 시작");
+  });
+
+  it.each([
+    ["별점 3", (draft: V31Draft) => { draft.answers.G1 = 3; }],
+    ["아직 모르겠어요", (draft: V31Draft) => { draft.answers.G1 = "undecided"; }],
+    ["지금 답하지 않을게요", (draft: V31Draft) => { draft.answers.G1 = "skipped"; }],
+    ["이번 계획에는 없어요", (draft: V31Draft) => { draft.answers.G1 = "not_applicable"; }],
+    ["고른 취향", (draft: V31Draft) => { draft.tastes.venue = { status: "answered", values: ["indoor"] }; }],
+    ["따로 피하고 싶은 것 없음", (draft: V31Draft) => { draft.avoidances = { status: "no_preference" }; }],
+    ["우선순위 고르지 않음", (draft: V31Draft) => { draft.priorities = { status: "skipped" }; }],
+    ["더 쓰고 싶은 곳", (draft: V31Draft) => { draft.spending = { status: "answered", values: ["venue"] }; }],
+    ["선택 질문 한 문장", (draft: V31Draft) => { draft.answers.V1 = 5; }],
+  ])("답이 하나만 있어도(%s) 남겨 둔 답이 있다고 알리고 이어 하기와 새로 시작을 둘 다 내놓는다", async (_name, fill) => {
+    const draft = createV31Draft(); fill(draft);
+    seed(snapshot(draft, { flow: "core", index: V31_CORE_INDEXES[0] }));
+    await render();
+    expect(card()?.querySelector("h2")?.textContent).toBe(RESUME_TITLE);
+    expect(buttonLabels()).toContain("이어서 답하기");
+    expect(buttonLabels()).toContain("저장된 답 지우고 새로 시작");
+    expect(buttonLabels()).not.toContain("내 웨딩코드 시작하기");
+  });
+
+  it("위치만 있는 기록 위에서 시작해도 지우기 실패를 알리지 않고 그 자리에 새 위치를 저장한다", async () => {
+    seed(snapshot(createV31Draft(), { flow: "core", index: V31_CORE_INDEXES[7] }));
+    await render();
+    const remove = vi.spyOn(Storage.prototype, "removeItem").mockImplementation(() => { throw new DOMException("blocked", "SecurityError"); });
+    await button("내 웨딩코드 시작하기");
+    // 지울 답이 없으니 지우려 하지 않고, 그래서 지우지 못했다는 안내도 없다.
+    expect(remove).not.toHaveBeenCalled();
+    expect(container.textContent).not.toContain("지우지 못했어요");
+    expect(container.querySelector("[data-question]")).not.toBeNull();
+    const stored = readV31LocalProgress(window.localStorage);
+    expect(stored.status === "ready" && stored.snapshot.index).toBe(V31_CORE_INDEXES[0]);
+    expect(stored.status === "ready" && stored.snapshot.draft.answers).toEqual({});
+  });
+
+  it("답이 있는 기록 위에서 새로 시작하다 지우기가 실패하면 기존대로 알린다", async () => {
+    const draft = createV31Draft(); draft.answers.G1 = 4;
+    seed(snapshot(draft, { flow: "core", index: V31_CORE_INDEXES[0] }));
+    await render();
+    vi.spyOn(Storage.prototype, "removeItem").mockImplementation(() => { throw new DOMException("blocked", "SecurityError"); });
+    await button("저장된 답 지우고 새로 시작");
+    expect(container.textContent).toContain("현재 화면은 새로 시작했지만, 브라우저에 저장된 답을 지우지 못했어요");
+  });
+
+  it("저장 줄은 첫 답 전에는 기본 줄이고, 답을 하나 고르면 저장됐다고 말한다", async () => {
+    await render();
+    expect(storageLine()).toBe(NO_ANSWER_LINE);
+    await button("내 웨딩코드 시작하기");
+    // 시작하면 위치가 저장되지만 답은 아직 없으니 나중에 이어 할 수 있다고 말하지 않는다.
+    expect(window.localStorage.getItem(LOCAL_KEY)).not.toBeNull();
+    expect(storageLine()).toBe(NO_ANSWER_LINE);
+    await click(container.querySelector('input[value="5"]'));
+    expect(storageLine()).toBe(SAVED_LINE);
+  });
+
+  it("끝낸 결과가 저장돼 있으면 카드와 ‘내 결과 다시 보기’가 그대로 뜬다", async () => {
+    seed(snapshot(completed(), { screen: "result", index: 33 }));
+    await render();
+    expect(card()?.querySelector("h2")?.textContent).toBe(RESUME_TITLE);
+    expect(card()?.textContent).toContain("전에 답한 내 결과를 다시 볼 수 있어요.");
+    expect(buttonLabels()).toContain("내 결과 다시 보기");
+    expect(buttonLabels()).toContain("저장된 답 지우고 새로 시작");
   });
 });

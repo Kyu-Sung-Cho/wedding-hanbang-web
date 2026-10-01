@@ -1,0 +1,38 @@
+[
+  {
+    "name": "카드 그림 문장이 옛 문장(상대도 답하면)으로 돌아간다",
+    "target": "apps/web/src/app/wedding-code/opengraph-image.tsx",
+    "find": "둘 다 답하고 서로 공유하면 두 사람의 답을 나란히 볼 수 있어요",
+    "replace": "상대도 답하면 둘이 고른 답을 나란히 볼 수 있어요"
+  },
+  {
+    "name": "카드 그림 문장에서 공유하면이 빠진다",
+    "target": "apps/web/src/app/wedding-code/opengraph-image.tsx",
+    "find": "둘 다 답하고 서로 공유하면 두 사람의 답을 나란히 볼 수 있어요",
+    "replace": "둘 다 답하면 두 사람의 답을 나란히 볼 수 있어요"
+  },
+  {
+    "name": "카드 그림에 새 문장과 옛 문장이 함께 들어간다",
+    "target": "apps/web/src/app/wedding-code/opengraph-image.tsx",
+    "find": "둘 다 답하고 서로 공유하면 두 사람의 답을 나란히 볼 수 있어요",
+    "replace": "둘 다 답하고 서로 공유하면 두 사람의 답을 나란히 볼 수 있어요. 상대도 답하면 바로 비교돼요"
+  },
+  {
+    "name": "시작 화면 카드 셋째 줄이 옛 문장으로 돌아간다",
+    "target": "apps/web/src/app/wedding-code/WeddingCodeV31Client.tsx",
+    "find": "혼자 해도 결과를 볼 수 있고, 둘 다 답하고 서로 공유하면 두 사람의 답을 나란히 볼 수 있어요.",
+    "replace": "혼자 해도 결과를 받고, 상대도 답하면 함께 비교할 수 있어요."
+  },
+  {
+    "name": "시작 화면 카드 셋째 줄에서 서로 공유하면이 빠진다",
+    "target": "apps/web/src/app/wedding-code/WeddingCodeV31Client.tsx",
+    "find": "둘 다 답하고 서로 공유하면 두 사람의 답을 나란히",
+    "replace": "둘 다 답하면 두 사람의 답을 나란히"
+  },
+  {
+    "name": "카드 그림 문장에서 서로가 빠져 시작 화면 카드와 말이 갈라진다",
+    "target": "apps/web/src/app/wedding-code/opengraph-image.tsx",
+    "find": "둘 다 답하고 서로 공유하면 두 사람의 답을 나란히 볼 수 있어요",
+    "replace": "둘 다 답하고 공유하면 두 사람의 답을 나란히 볼 수 있어요"
+  }
+]
