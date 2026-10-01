@@ -140,7 +140,7 @@ export function buildDashboardFocus({
       eyebrow: "첫 번째 준비",
       title: "결혼식 날짜를 알려주세요",
       description:
-        "날짜를 저장하면 두 사람의 일정에 맞춰 오늘 할 일과 준비 순서를 정리해 드려요.",
+        "날짜를 저장하면 D-day가 보여요. 확인할 시기가 된 준비는 이 화면에 올라와요.",
       ctaLabel: "결혼식 날짜 설정",
       route: "/settings",
     };
@@ -223,7 +223,7 @@ export function buildDashboardFocus({
 
 export function getWeddingMomentMessage(dday) {
   if (dday === null) {
-    return "두 사람만의 결혼 준비, 오늘부터 함께 시작해요";
+    return "아직 못 정했어도 오늘부터 시작할 수 있어요";
   }
   if (dday === 0) {
     return "오늘, 두 사람의 결혼을 진심으로 축하해요";
