@@ -381,6 +381,43 @@ describe("웨딩코드 4.0 클라이언트: 결과 화면의 경로", () => {
     expect(text).toContain(V40_COPY.send.title);
   });
 
+  it("swua-example 표본의 결과는 주제 블록마다 마지막에 직접 고른 쪽 한 줄을 보인다(대비가 없어서 대비 구역은 없다)", async () => {
+    const sample = fixture("swua-example");
+    const storage = new FakeStorage();
+    seedProgress(storage, resultSnapshotOf(sample), NOW - DAY);
+    const view = await open({ deps: { storage, now: () => NOW } });
+    await pressText(view.container, V40_COPY.intro.resume.continueButton);
+    expect(screenName(view.container)).toBe("result");
+    const lines = [...view.container.querySelectorAll("[data-self-line]")];
+    expect(lines.map((node) => node.getAttribute("data-self-line"))).toEqual(["money", "process", "scope", "support"]);
+    expect(lines.map((node) => node.textContent)).toEqual([
+      "내가 마지막에 직접 고른 쪽: 「S 장면 먼저」 · 꽤 가까워요",
+      "내가 마지막에 직접 고른 쪽: 「W 같이 하기」 · 아주 가까워요",
+      "내가 마지막에 직접 고른 쪽: 「U 둘이 정하기」 · 꽤 가까워요",
+      "내가 마지막에 직접 고른 쪽: 「A 할 일 먼저」 · 조금 가까워요",
+    ]);
+    // 줄은 주제 블록 안에 있다.
+    for (const line of lines) expect(line.closest("[data-axis-block]")?.getAttribute("data-axis-block")).toBe(line.getAttribute("data-self-line"));
+    expect(view.container.querySelector('[data-result-section="contrast"]')).toBeNull();
+    // 줄이 답이나 코드에 영향을 주지 않는다: 코드는 표본의 코드 그대로다.
+    expect(shownCode(view.container)).toBe("SWUA");
+  });
+
+  it("self-contrast 표본은 대비가 있는 주제에는 줄 대신 대비 문장이 있고, 대비가 없는 주제에만 줄이 있다", async () => {
+    const sample = fixture("self-contrast");
+    const storage = new FakeStorage();
+    seedProgress(storage, resultSnapshotOf(sample), NOW - DAY);
+    const view = await open({ deps: { storage, now: () => NOW } });
+    await pressText(view.container, V40_COPY.intro.resume.continueButton);
+    const contrastAxes = [...view.container.querySelectorAll("[data-contrast-axis]")].map((node) => node.getAttribute("data-contrast-axis"));
+    const lineAxes = [...view.container.querySelectorAll("[data-self-line]")].map((node) => node.getAttribute("data-self-line"));
+    expect(contrastAxes.length).toBeGreaterThan(0);
+    expect(lineAxes.length).toBeGreaterThan(0);
+    // 같은 주제가 두 곳에 나오지 않고, 네 주제가 모두 어느 한쪽에서 말해진다.
+    expect(lineAxes.filter((axis) => contrastAxes.includes(axis!))).toEqual([]);
+    expect([...contrastAxes, ...lineAxes].sort()).toEqual(["money", "process", "scope", "support"]);
+  });
+
   it("이 주제 답 다시 보기는 그 주제 문항을 필터로 열고, 결과로 돌아가기로 돌아온다", async () => {
     const sample = fixture("swua-example");
     const storage = new FakeStorage();

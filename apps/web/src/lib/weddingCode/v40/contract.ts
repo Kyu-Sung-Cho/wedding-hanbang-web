@@ -48,6 +48,7 @@ import type {
   ScoreResult,
   ScoredItem,
   SelfItem,
+  SelfLine,
   ShareParse,
   Side,
   StateChar,
@@ -241,6 +242,12 @@ export interface ScoreModule {
    *  notes.hasOmitted: 채점 문항 중 skip 또는 na 가 하나라도 있음.
    */
   buildResult(bank: Bank, formBit: FormBit, responses: Responses): V40Result;
+  /**
+   * 마지막에 직접 고른 쪽 줄(4.1 단계 1, 결과 화면 주제 블록). 자기 선택에 답했고(skip, na, 빠진 답은 null) 그 주제에 글자가 있고(못 정한 주제는 null)
+   * 직접 고른 쪽 대비(axis.contrast)가 그 주제에 없을 때만 {axis, side, letter, level}. side 와 level 은 자기 선택에서 본인이 고른 방향과 세기(1 조금, 2 꽤, 3 아주)이고
+   * letter 는 그 방향의 글자다. 모은 답과 견주지 않고 세기, 힌트, 관문을 읽지 않으며 결과의 어떤 필드도 바꾸지 않는다.
+   */
+  selfLine(bank: Bank, responses: Responses, axis: AxisResult): SelfLine | null;
 }
 
 // ===========================================================================

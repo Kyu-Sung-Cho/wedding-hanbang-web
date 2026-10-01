@@ -3,8 +3,8 @@ import { V40_LETTER_LIST } from "@/constants/weddingCodeV40";
 import { WEDDING_CODE_V40_BANK } from "@/lib/weddingCode/v40/bank";
 import { V40_FIXTURES, fixtureByName } from "@/lib/weddingCode/v40/fixtures";
 import { pickQuotes } from "@/lib/weddingCode/v40/quote";
-import { buildResult } from "@/lib/weddingCode/v40/score";
-import type { AxisQuotes, HistoryEntry, V40Result } from "@/lib/weddingCode/v40/types";
+import { buildResult, selfLine } from "@/lib/weddingCode/v40/score";
+import type { AxisQuotes, HistoryEntry, SelfLine, V40Result } from "@/lib/weddingCode/v40/types";
 import type { ResultScreenProps } from "./ResultScreen";
 
 /**
@@ -18,15 +18,18 @@ export interface ResultCase {
   readonly name: string;
   readonly result: V40Result;
   readonly quotes: readonly AxisQuotes[];
+  /** 주제별 내가 마지막에 직접 고른 쪽 줄(없으면 null). */
+  readonly selfLines: readonly (SelfLine | null)[];
 }
 
-/** 고정 표본 하나의 결과와 주제별 인용. */
+/** 고정 표본 하나의 결과와 주제별 인용과 직접 고른 쪽 줄. */
 export function resultCase(name: string): ResultCase {
   const fixture = fixtureByName(name);
   if (fixture === undefined) throw new Error(`고정 표본이 없어요: ${name}`);
   const result = buildResult(WEDDING_CODE_V40_BANK, fixture.formBit, fixture.responses);
   const quotes = result.axes.map((axis) => pickQuotes(WEDDING_CODE_V40_BANK, fixture.responses, axis));
-  return { name, result, quotes };
+  const selfLines = result.axes.map((axis) => selfLine(WEDDING_CODE_V40_BANK, fixture.responses, axis));
+  return { name, result, quotes, selfLines };
 }
 
 /** 결과에서 지난번 기록 한 건을 만든다(글자와 세기, 시각, 폼 비트만). 세기는 화면에 보인 shownBand 를 쓴다. */
@@ -46,10 +49,11 @@ export const SEPT_29_NOON_KST = Date.UTC(2026, 8, 29, 3, 0, 0);
 type ScreenOverrides = Partial<Omit<ResultScreenProps, "onCopyCode" | "onReviewAxis" | "onRestart" | "onClearStorage" | "onOpenTaste">>;
 
 export function screenProps(name: string, overrides: ScreenOverrides = {}) {
-  const { result, quotes } = resultCase(name);
+  const { result, quotes, selfLines } = resultCase(name);
   return {
     result,
     quotes,
+    selfLines,
     onCopyCode: vi.fn(async (text: string) => text !== ""),
     onReviewAxis: vi.fn(),
     onRestart: vi.fn(),

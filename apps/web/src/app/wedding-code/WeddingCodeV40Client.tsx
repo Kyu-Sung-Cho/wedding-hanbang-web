@@ -39,7 +39,7 @@ import {
 } from "@/lib/weddingCode/v40/flow";
 import { present } from "@/lib/weddingCode/v40/present";
 import { pickQuotes } from "@/lib/weddingCode/v40/quote";
-import { buildResult } from "@/lib/weddingCode/v40/score";
+import { buildResult, selfLine } from "@/lib/weddingCode/v40/score";
 import {
   appendHistory,
   browserStorage,
@@ -723,6 +723,10 @@ export function WeddingCodeV40Core({ shareOrigin, initial, resolved, embedded = 
     () => (ownDecoded === null || ownResult === null ? [] : ownResult.axes.map((axis) => pickQuotes(bank, ownDecoded.responses, axis))),
     [ownDecoded, ownResult],
   );
+  const selfLines = useMemo(
+    () => (ownDecoded === null || ownResult === null ? [] : ownResult.axes.map((axis) => selfLine(bank, ownDecoded.responses, axis))),
+    [ownDecoded, ownResult],
+  );
   const coupleResult = useMemo(() => {
     if (context.both !== null) return compareCouple(bank, context.both.first, context.both.second);
     if (context.partner !== null && ownDecoded !== null && ownResult !== null && ownResult.code !== null) return compareCouple(bank, context.partner, ownDecoded);
@@ -954,6 +958,7 @@ export function WeddingCodeV40Core({ shareOrigin, initial, resolved, embedded = 
       <ResultScreen
         result={ownResult}
         quotes={quotes}
+        selfLines={selfLines}
         previous={previousEntry}
         onCopyCode={handleCopyCode}
         onReviewAxis={(axis: Axis) => send({ type: "openFilter", filter: { kind: "axis", axis } })}

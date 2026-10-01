@@ -137,6 +137,8 @@ describe.each(BITS)("ReactInput: 폼 비트 %i", (formBit) => {
     const labels = [...ends.querySelectorAll("span")];
     expect(labels.map((element) => element.textContent)).toEqual([left, right]);
     expect(isBefore(labels[0], labels[1])).toBe(true);
+    // 두 줄로 접히는 끝 이름이 「싶어요」 한 낱말만 덩그러니 남지 않도록 줄 길이를 고른다.
+    for (const label of labels) expect(label.className).toMatch(/(^| )text-balance( |$)/u);
     expect(isBefore(radios()[4], ends)).toBe(true);
     for (const radio of radios()) expect(radio.textContent?.trim()).toBe("");
   });

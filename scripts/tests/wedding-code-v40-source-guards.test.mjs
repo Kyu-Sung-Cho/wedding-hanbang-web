@@ -435,8 +435,16 @@ const CLAIM_WORDS = [
   ["검증", /검증/u], ["정확", /정확/u], ["과학", /과학/u], ["진단", /진단/u], ["점수", /점수/u], ["등급", /등급/u],
   ["궁합", /궁합/u], ["동물", /동물/u], ["캐릭터", /캐릭터/u], ["스타일", /스타일/u],
 ];
-/** 결과 문구와 화면 글에서만 금지(문항 은행의 자연스러운 말은 막지 않는다). */
-const CLAIM_WORDS_TEXT_ONLY = [["성격", /성격/u], ["잘 맞음", /잘\s?맞/u]];
+/**
+ * 결과 문구와 화면 글에서만 금지(문항 은행의 자연스러운 말은 막지 않는다).
+ * 4.1 단계 1(CLAUDE.md 2026-09-30 항목)이 더한 말: 본인도 모르는 속을 읽어 냈다고 주장하는 말(속마음, 무의식, 본모습, 숨은 성향·마음·이유)과
+ * 사람을 단정하는 말(당신은, 모순, 일관성). 맨 「숨은」은 다른 뜻으로도 쓰여서(숨은 트이는 순간) 성향, 마음, 이유가 뒤따를 때만 잡는다.
+ */
+const CLAIM_WORDS_TEXT_ONLY = [
+  ["성격", /성격/u], ["잘 맞음", /잘\s?맞/u],
+  ["속마음", /속마음/u], ["무의식", /무의식/u], ["본모습", /본모습/u], ["모순", /모순/u], ["일관성", /일관성/u], ["당신은", /당신은/u],
+  ["숨은 성향·마음·이유", /숨은\s?(?:성향|마음|이유)/u],
+];
 const PERCENT_WORDS = /퍼센트|백분율|퍼센티지/u;
 const PERCENT_SIGN = /[%％﹪]/u;
 const MBTI_WORD = /mbti|엠비티아이/iu;
@@ -1853,6 +1861,23 @@ test("검사기가 실제로 잡는다: 낱말, 글자, 줄표, 라벨", () => {
   hit('export const x = "일하는 스타일이에요";', claim, "스타일", "스타일");
   hit('export const x = "잘 맞는 두 사람이에요";', claim, "잘 맞음", "잘 맞");
   hit('export const x = "성격이 급해요";', claim, "성격", "성격");
+  // 4.1 단계 1이 더한 말. 속을 읽어 냈다는 주장과 사람을 단정하는 말이다.
+  hit('export const x = "말하지 않은 속마음이 보여요";', claim, "속마음", "속마음");
+  hit('export const x = "무의식이 드러나요";', claim, "무의식", "무의식");
+  hit('export const x = "본모습을 알려 줘요";', claim, "본모습", "본모습");
+  hit('export const x = "두 답이 모순돼요";', claim, "모순", "모순");
+  hit('export const x = "답이 일관성 있게 모였어요";', claim, "일관성", "일관성");
+  hit('export const x = "당신은 꼼꼼한 사람이에요";', claim, "당신은", "당신은");
+  hit('export const x = "숨은 성향을 찾았어요";', claim, "숨은", "숨은 성향");
+  hit('export const x = "숨은 마음이 있어요";', claim, "숨은", "숨은 마음");
+  hit('export const x = <p>숨은 이유가 있어요</p>;', claim, "숨은", "JSX 글자의 숨은 이유");
+  // 맨 「숨은」과 이 낱말들의 비슷한 말은 잡지 않는다. 문항 은행 글에서는 이 낱말들을 막지 않는다(자연스러운 말이다).
+  assert.deepEqual(recs('export const x = "숨은 트이는 순간이에요";').flatMap(claim), [], "맨 숨은 을 잡았다");
+  assert.deepEqual(recs('export const x = "숨은 곳을 찾아봐요";').flatMap(claim), [], "숨은 곳 을 잡았다");
+  assert.deepEqual(recs('export const x = "마음은 쌓여도 일부터 덜고 싶어요";').flatMap(claim), [], "마음 을 잡았다");
+  for (const word of ["속마음은 쌓여요", "무의식적으로 웃었어요", "본모습을 보여 줘서 놀랐어요", "말이 모순 같아 보였어요", "숨은 성향이 궁금했어요", "당신은 어디서 왔나요"]) {
+    assert.deepEqual(recs(`export const x = "${word}";`).flatMap((r) => claimHits(r, "bank")), [], `문항 은행 글에서 ${word} 를 잡았다`);
+  }
   assert.deepEqual(recs('export const x = "새로 만든 질문이에요. 검증을 마친 심리검사가 아니고, 바뀔 수 있어요.";').flatMap(claim), [], "허용된 고지 문장을 잡았다");
   assert.ok(recs('export const c = "w-[46%] flex";').flatMap(claim).length === 0, "클래스 이름의 % 를 잡았다");
   hit('export const x = <p>50%</p>;', claim, "백분율", "JSX 글자의 %");

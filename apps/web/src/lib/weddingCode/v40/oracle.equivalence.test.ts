@@ -15,7 +15,7 @@ import { V40_LAYOUT } from "./layout";
 import { buildGatedShareUrl, buildQuestionOnlyUrl, checksumChar, decodeCode, decodeShareParams, encodeCode, parseShareHash } from "./codec";
 import { rhythmReport, skipHint, skippedCount } from "./gates";
 import { fromStored, isViewAnswerComplete, toStored, viewPosition } from "./present";
-import { buildResult, scoreResponses } from "./score";
+import { buildResult, scoreResponses, selfLine } from "./score";
 import {
   bestWorstPairOf,
   bestWorstStateOf,
@@ -74,6 +74,7 @@ interface OracleApi {
   skippedCount(bank: OracleBank, responses: Responses): number;
   skipHint(bank: OracleBank, responses: Responses): boolean;
   buildResult(bank: OracleBank, formBit: number, responses: Responses): unknown;
+  selfLine(bank: OracleBank, responses: Responses, axis: unknown): unknown;
   checksumChar(body: string): string;
   encodeCode(bank: OracleBank, formBit: number, responses: Responses): string | null;
   decodeCode(bank: OracleBank, code: unknown): unknown;
@@ -502,6 +503,72 @@ describe("채점과 결과 대조", () => {
       }
     });
     expect(problems).toEqual([]);
+  });
+
+  it("selfLine(마지막에 직접 고른 쪽 줄)이 모든 응답자, 모든 주제에서 기준 계산기와 같다", () => {
+    const problems = collectMismatches((respondent, push) => {
+      const mine = buildResult(bank, respondent.formBit, respondent.responses);
+      const theirs = ref.buildResult(oracleBank, respondent.formBit, respondent.responses) as typeof mine;
+      mine.axes.forEach((axis, index) => {
+        try {
+          expect(selfLine(bank, respondent.responses, axis)).toEqual(ref.selfLine(oracleBank, respondent.responses, theirs.axes[index]));
+        } catch (error) {
+          push(`selfLine 불일치(${axis.axis}): ${(error as Error).message.slice(0, 300)}`);
+        }
+      });
+    });
+    expect(problems).toEqual([]);
+  });
+
+  it("selfLine 을 불러도 buildResult 의 결과는 바뀌지 않고 링크 코드도 그대로다", () => {
+    const problems = collectMismatches((respondent, push) => {
+      const result = buildResult(bank, respondent.formBit, respondent.responses);
+      const before = json(result);
+      const codeBefore = encodeCode(bank, respondent.formBit, respondent.responses);
+      for (const axis of result.axes) selfLine(bank, respondent.responses, axis);
+      if (json(result) !== before) push("selfLine 이 결과를 바꿨다");
+      if (encodeCode(bank, respondent.formBit, respondent.responses) !== codeBefore) push("selfLine 이 링크 코드를 바꿨다");
+    });
+    expect(problems).toEqual([]);
+  });
+
+  it("시험이 selfLine 의 모든 갈래를 지난다(줄이 있음, 대비 때문에 없음, 건너뜀·해당 없음·빠짐 때문에 없음, 글자를 못 정해서 없음)", () => {
+    const seen = { line: 0, contrast: 0, escaped: 0, missing: 0, unusable: 0, even: 0, provisional: 0, provisionalWithLine: 0, levels: [0, 0, 0, 0], sides: { front: 0, back: 0 } };
+    for (const respondent of ALL) {
+      const result = buildResult(bank, respondent.formBit, respondent.responses);
+      for (const axis of result.axes) {
+        const line = selfLine(bank, respondent.responses, axis);
+        const raw = respondent.responses[`self.${axis.axis}`];
+        if (axis.provisional) seen.provisional += 1;
+        if (line !== null) {
+          seen.line += 1;
+          seen.levels[line.level] += 1;
+          seen.sides[line.side] += 1;
+          if (axis.shownBand === "even") seen.even += 1;
+          if (axis.provisional) seen.provisionalWithLine += 1;
+          // 줄이 있으면 글자가 있고 대비가 없다.
+          expect(axis.letter).not.toBeNull();
+          expect(axis.contrast).toBeNull();
+        } else if (axis.letter === null) seen.unusable += 1;
+        else if (axis.contrast !== null) seen.contrast += 1;
+        else if (raw === undefined) seen.missing += 1;
+        else seen.escaped += 1;
+      }
+    }
+    expect(seen.line).toBeGreaterThan(5000);
+    expect(seen.contrast).toBeGreaterThan(20);
+    expect(seen.escaped).toBeGreaterThan(200);
+    expect(seen.missing).toBeGreaterThan(50);
+    expect(seen.unusable).toBeGreaterThan(50);
+    expect(seen.even).toBeGreaterThan(500);
+    // 임시 글자(동점 사슬 5단계)는 자기 선택이 결정하지 못한 주제라서 자기 선택이 비어 있고, 그래서 줄이 없다.
+    expect(seen.provisional).toBeGreaterThan(50);
+    expect(seen.provisionalWithLine).toBe(0);
+    expect(seen.levels[1]).toBeGreaterThan(500);
+    expect(seen.levels[2]).toBeGreaterThan(500);
+    expect(seen.levels[3]).toBeGreaterThan(500);
+    expect(seen.sides.front).toBeGreaterThan(1000);
+    expect(seen.sides.back).toBeGreaterThan(1000);
   });
 
   it("위치 지표, 힌트, 관문, 위치 반복 검사, 건너뜀 개수가 기준 계산기와 같다", () => {

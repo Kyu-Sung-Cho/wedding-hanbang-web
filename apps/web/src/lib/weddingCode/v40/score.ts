@@ -26,6 +26,7 @@ import type {
   Responses,
   ScoreResult,
   SelfContrast,
+  SelfLine,
   Side,
   StrengthBand,
   TieLevel,
@@ -202,5 +203,21 @@ export function buildResult(bank: Bank, formBit: FormBit, responses: Responses):
   return { formBit, axes, code, gate, rhythm, notes };
 }
 
+/**
+ * 마지막에 직접 고른 쪽 줄(웨딩코드 4.1 단계 1, 결과 화면 주제 블록의 사실 줄). 본인이 자기 선택 문항에서 고른 방향과 세기만 담는다.
+ * 만드는 조건은 셋이다. (1) 그 주제에 글자가 있다(못 정한 주제는 아니다. 반반이에요는 있다). (2) 자기 선택에 답했다
+ * (잘 모르겠어요, 제 상황과 안 맞아요, 빠진 답은 아니다. 임시 글자는 자기 선택이 동점을 못 가른 주제라 자기 선택이 비어 있어서 줄이 없다).
+ * (3) 직접 고른 쪽 대비(axis.contrast)가 그 주제에 없다. 대비 문장이 같은 사실을 이미 말하므로 겹쳐 적지 않는다.
+ * 모은 답의 방향이나 세기와 견주지 않으므로 글자, 세기, shownBand, 위치 반복 힌트, 건너뜀 힌트를 읽지 않는다. 결과의 어떤 필드도 바꾸지 않고
+ * 링크 코드에도 영향이 없다(자기 선택 문항은 이미 코드에 있다). axis 는 buildResult 가 낸 AxisResult 여야 한다(contrast 를 읽는다).
+ */
+export function selfLine(bank: Bank, responses: Responses, axis: AxisResult): SelfLine | null {
+  if (axis.letter === null || axis.contrast !== null) return null;
+  const selfItem = bank.self.find((candidate) => candidate.axis === axis.axis);
+  const choice = selfItem ? selfChoice(selfItem, responseAt(responses, selfItem.id)) : null;
+  if (choice === null) return null;
+  return { axis: axis.axis, side: choice.side, letter: letterOf(axis.axis, choice.side), level: choice.level };
+}
+
 /** 이 파일의 함수를 계약(ScoreModule)대로 묶은 객체. */
-export const scoreModule = { scoreResponses, buildResult } satisfies ScoreModule;
+export const scoreModule = { scoreResponses, buildResult, selfLine } satisfies ScoreModule;
