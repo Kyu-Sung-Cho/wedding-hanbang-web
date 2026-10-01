@@ -1258,7 +1258,8 @@ describe("무작위 행동열", () => {
     // 무작위 열이 각 갈래를 실제로 지나갔는지 센다(지나가지 않았다면 이 시험은 그 갈래를 지키지 못한 것이다).
     expect(seen.actions).toBeGreaterThanOrEqual(30000);
     for (const [name, count] of Object.entries(seen)) expect(count, `무작위 열이 ${name} 갈래를 지나가지 않았다`).toBeGreaterThan(0);
-  }, 60_000);
+  // 이 컴퓨터에서는 16초쯤 걸리지만 CI(작업자 둘, 느린 러너)에서는 60초 제한에 걸려 시간 초과로 빨개졌다(2026-10-01, 66초). 단언은 그대로이고 제한만 넉넉히 둔다.
+  }, 180_000);
 
   it("성실하게 답하는 무작위 흐름은 반드시 결과에 이른다", () => {
     let reached = 0;

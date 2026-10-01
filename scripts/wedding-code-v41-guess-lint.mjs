@@ -168,5 +168,7 @@ function main(args) {
 }
 
 if (process.argv[1] && fileURLToPath(import.meta.url) === resolve(process.argv[1])) {
-  process.exit(main(process.argv.slice(2)));
+  // process.exit() 은 아직 비우지 못한 표준 출력을 잘라 낸다(리눅스에서 파이프로 받으면 64킬로바이트쯤에서 끊겼다: CI 에서 마지막 줄이 사라졌다).
+  // 종료 코드만 정해 두고 프로세스가 스스로 끝나게 한다.
+  process.exitCode = main(process.argv.slice(2));
 }
