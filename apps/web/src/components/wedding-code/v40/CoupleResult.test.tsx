@@ -563,3 +563,96 @@ describe("CoupleResult: 나 기준을 고르면 낭독기에 바뀐 사실을 �
     expect(status().className).toContain("sr-only");
   });
 });
+
+describe("CoupleResult: 짐작과 답 구역, 먼저 고른 글자 슬롯, 보내기 안내 한 줄(4.1 단계 2)", () => {
+  const sendConfig = { buildUrl: () => "https://example.test/x", onSent: () => undefined };
+  const section = (label: string) => <section data-test-slot={label}>{label} 시험용 글이에요.</section>;
+
+  it("guessSection 은 지금의 나 기준을 받고, 비슷하게 고른 질문 목록 뒤 보내는 블록 앞에 놓인다", async () => {
+    const calls: (Perspective | null)[] = [];
+    await renderResult({
+      detectedPerspective: "first",
+      send: sendConfig,
+      guessSection: (perspective) => {
+        calls.push(perspective);
+        return section("guess");
+      },
+    });
+    expect(calls.length).toBeGreaterThan(0);
+    expect(calls.every((perspective) => perspective === "first")).toBe(true);
+    const guess = root().querySelector('[data-test-slot="guess"]')!;
+    const similar = root().querySelector('[data-list="similar"]')!;
+    const send = root().querySelector("#t-couple-send")!;
+    expect(root().querySelectorAll('[data-test-slot="guess"]')).toHaveLength(1);
+    expect(isBefore(similar, guess)).toBe(true);
+    expect(isBefore(guess, send)).toBe(true);
+  });
+
+  it("나 기준 전환을 바꾸면 guessSection 이 새 기준으로 다시 불린다", async () => {
+    const calls: (Perspective | null)[] = [];
+    await renderResult({
+      detectedPerspective: null,
+      guessSection: (perspective) => {
+        calls.push(perspective);
+        return section("guess");
+      },
+    });
+    expect(calls.at(-1)).toBeNull();
+    await click(radios()[0]);
+    expect(calls.at(-1)).toBe("first");
+    await click(radios()[1]);
+    expect(calls.at(-1)).toBe("second");
+  });
+
+  it("guessSection 이 null 을 돌려주면 아무것도 그리지 않고, 주지 않으면 구역 자리가 없다", async () => {
+    await renderResult({ guessSection: () => null });
+    expect(root().querySelector("[data-test-slot]")).toBeNull();
+    const withNothing = root().innerHTML;
+    await harness.unmount();
+    harness = createHarness();
+    await renderResult();
+    expect(root().innerHTML).toBe(withNothing);
+  });
+
+  it("ownLetterGuessSlot 은 주제별 나란히 보기 구역 바로 뒤, 먼저 이야기해 볼 질문 앞에 놓인다", async () => {
+    await renderResult({ ownLetterGuessSlot: section("letter"), send: sendConfig });
+    const slot = root().querySelector('[data-test-slot="letter"]')!;
+    const axes = root().querySelector('[data-part="axes"]')!;
+    const talk = root().querySelector('[data-list="talk"]')!;
+    expect(root().querySelectorAll('[data-test-slot="letter"]')).toHaveLength(1);
+    expect(isBefore(axes, slot)).toBe(true);
+    expect(isBefore(slot, talk)).toBe(true);
+    expect(axes.contains(slot)).toBe(false);
+  });
+
+  it("두 슬롯을 모두 주지 않으면 이 화면은 이 슬롯을 모르던 때와 같은 글이다", async () => {
+    await renderResult({ send: sendConfig });
+    const plain = root().innerHTML;
+    await harness.unmount();
+    harness = createHarness();
+    await renderResult({ send: sendConfig, guessSection: undefined, ownLetterGuessSlot: undefined });
+    expect(root().innerHTML).toBe(plain);
+  });
+
+  it("send.guessNote 를 주면 보내는 블록의 안내 묶음에 한 줄 더 실리고 한 번뿐이다, 주지 않으면 없다", async () => {
+    const note = "짐작 한 줄 시험용 글이에요.";
+    await renderResult({ send: { ...sendConfig, guessNote: note } });
+    const block = root().querySelector("#t-couple-send")!;
+    expect(block.textContent).toContain(note);
+    expect(countOf(text(), note)).toBe(1);
+    expect(block.querySelectorAll("[data-send-guess-note]")).toHaveLength(1);
+    // 기존 안내 문장은 그대로 있고 그 사이에 들어간다.
+    expect(block.textContent).toContain(V40_COPY.coupleSend.anyoneCanReadInfo);
+    expect(block.textContent).toContain(V40_COPY.coupleSend.oldLinksRemainInfo);
+    await harness.unmount();
+    harness = createHarness();
+    await renderResult({ send: sendConfig });
+    expect(root().querySelector("[data-send-guess-note]")).toBeNull();
+    expect(text()).not.toContain(note);
+  });
+
+  it("슬롯이 있어도 고지는 이 화면에서 한 번뿐이다", async () => {
+    await renderResult({ send: sendConfig, guessSection: () => section("guess"), ownLetterGuessSlot: section("letter") });
+    expect(countOf(text(), V40_NOT_VALIDATED_PHRASE)).toBe(1);
+  });
+});

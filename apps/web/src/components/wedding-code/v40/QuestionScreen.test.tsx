@@ -1203,3 +1203,101 @@ describe("QuestionScreen", () => {
     });
   });
 });
+
+describe("QuestionScreen: 넘어간 질문 다시 보기에서 결과로 나가는 단추의 이름 leaveEditLabel(4.1 단계 2)", () => {
+  let harness: Harness;
+  beforeEach(() => {
+    harness = createHarness();
+  });
+  afterEach(async () => {
+    await harness.unmount();
+  });
+
+  const buttonNamed = (name: string) => [...harness.container.querySelectorAll<HTMLButtonElement>("button")].find((button) => button.textContent?.trim() === name);
+
+  async function renderFiltered(filter: "skipped" | "axis", leaveEditLabel?: string, onLeaveEdit: () => void = vi.fn()): Promise<void> {
+    const [first] = questionPages();
+    const ids = first.itemIds;
+    await harness.render(
+      <QuestionScreen
+        page={first}
+        views={viewsOf(first)}
+        answers={{}}
+        notice={null}
+        segments={progressSegments(bank, startedState())}
+        filter={filter === "skipped" ? { kind: "skipped", itemIds: ids } : { kind: "axis", axis: "money" }}
+        canGoBack
+        onAnswer={vi.fn()}
+        onNext={vi.fn()}
+        onBack={vi.fn()}
+        onLeaveEdit={onLeaveEdit}
+        leaveEditLabel={leaveEditLabel}
+      />,
+    );
+  }
+
+  it("이름을 주면 넘어간 질문 다시 보기의 나가기 단추가 그 이름이고 누르면 onLeaveEdit 를 부른다(원래 이름은 없다)", async () => {
+    const onLeaveEdit = vi.fn();
+    await renderFiltered("skipped", V40_COPY.question.nextButton, onLeaveEdit);
+    const block = harness.container.querySelector("[data-edit-mode='skipped']")!;
+    const leave = [...block.querySelectorAll<HTMLButtonElement>("button")];
+    expect(leave).toHaveLength(1);
+    expect(leave[0].textContent?.trim()).toBe(V40_COPY.question.nextButton);
+    expect(buttonNamed(V40_COPY.edit.skippedReviewSkipButton)).toBeUndefined();
+    await click(leave[0]);
+    expect(onLeaveEdit).toHaveBeenCalledTimes(1);
+  });
+
+  it("이름을 주지 않으면 지금처럼 「그대로 결과 보기」다", async () => {
+    await renderFiltered("skipped");
+    const block = harness.container.querySelector("[data-edit-mode='skipped']")!;
+    expect(block.querySelector("button")?.textContent?.trim()).toBe(V40_COPY.edit.skippedReviewSkipButton);
+  });
+
+  it("주제 다시 보기의 「결과로 돌아가기」는 이름을 줘도 바뀌지 않는다", async () => {
+    await renderFiltered("axis", "다른 이름");
+    const block = harness.container.querySelector("[data-edit-mode='axis']")!;
+    expect(block.querySelector("button")?.textContent?.trim()).toBe(V40_COPY.edit.backToResultButton);
+    expect(buttonNamed("다른 이름")).toBeUndefined();
+  });
+
+  it("이름은 나가기 단추에만 쓰이고 아래 줄의 다음 단추 이름은 nextIsResult 가 정한다", async () => {
+    const [first] = questionPages();
+    await harness.render(
+      <QuestionScreen
+        page={first}
+        views={viewsOf(first)}
+        answers={{}}
+        notice={null}
+        segments={progressSegments(bank, startedState())}
+        filter={{ kind: "skipped", itemIds: first.itemIds }}
+        canGoBack
+        nextIsResult={false}
+        onAnswer={vi.fn()}
+        onNext={vi.fn()}
+        onBack={vi.fn()}
+        onLeaveEdit={vi.fn()}
+        leaveEditLabel={V40_COPY.question.nextButton}
+      />,
+    );
+    expect(harness.container.querySelector('[data-nav="next"]')?.textContent?.trim()).toBe(V40_COPY.question.nextButton);
+    await harness.render(
+      <QuestionScreen
+        page={first}
+        views={viewsOf(first)}
+        answers={{}}
+        notice={null}
+        segments={progressSegments(bank, startedState())}
+        filter={{ kind: "skipped", itemIds: first.itemIds }}
+        canGoBack
+        nextIsResult
+        onAnswer={vi.fn()}
+        onNext={vi.fn()}
+        onBack={vi.fn()}
+        onLeaveEdit={vi.fn()}
+        leaveEditLabel={V40_COPY.question.nextButton}
+      />,
+    );
+    expect(harness.container.querySelector('[data-nav="next"]')?.textContent?.trim()).toBe(V40_COPY.question.resultButton);
+  });
+});

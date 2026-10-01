@@ -1,0 +1,44 @@
+[
+  {
+    "name": "빼기 단추가 고치기를 부름",
+    "target": "apps/web/src/components/wedding-code/v40/guess/GuessEntryCard.tsx",
+    "find": "onClick={onRemove}",
+    "replace": "onClick={onEdit}"
+  },
+  {
+    "name": "지금은 안 할게요가 부모에게 알리지 않음",
+    "target": "apps/web/src/components/wedding-code/v40/guess/GuessEntryCard.tsx",
+    "find": "                onDismiss();",
+    "replace": ""
+  },
+  {
+    "name": "지금은 안 할게요 뒤에도 카드가 남음",
+    "target": "apps/web/src/components/wedding-code/v40/guess/GuessEntryCard.tsx",
+    "find": "if (dismissed) return null;",
+    "replace": ""
+  },
+  {
+    "name": "뺐다는 한 줄을 말하지 않음",
+    "target": "apps/web/src/components/wedding-code/v40/guess/GuessEntryCard.tsx",
+    "find": "const statusText = state === \"idle\" && removed ? copy.removedNote : \"\";",
+    "replace": "const statusText = \"\";"
+  },
+  {
+    "name": "끝낸 뒤에도 처음 본문을 보임",
+    "target": "apps/web/src/components/wedding-code/v40/guess/GuessEntryCard.tsx",
+    "find": "{state === \"idle\" ? <p>{copy.body}</p> : <p>{copy.doneNote}</p>}",
+    "replace": "<p>{copy.body}</p>"
+  },
+  {
+    "name": "뺀 뒤 초점을 옮기지 않음",
+    "target": "apps/web/src/components/wedding-code/v40/guess/GuessEntryCard.tsx",
+    "find": "if (removed) statusRef.current?.focus({ preventScroll: true });",
+    "replace": ""
+  },
+  {
+    "name": "해 볼게요가 저장소에 씀",
+    "target": "apps/web/src/components/wedding-code/v40/guess/GuessEntryCard.tsx",
+    "find": "onClick={onStart}",
+    "replace": "onClick={() => { window.localStorage.setItem(\"k\", \"v\"); onStart(); }}"
+  }
+]

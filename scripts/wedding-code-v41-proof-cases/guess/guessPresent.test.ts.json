@@ -1,0 +1,38 @@
+[
+  {
+    "name": "폼 비트 1 의 카드 뒤집기를 지움",
+    "target": "apps/web/src/lib/weddingCode/v40/guess/guessPresent.ts",
+    "find": "const ordered = formBit === 1 ? [item.cards[1], item.cards[0]] : [item.cards[0], item.cards[1]];",
+    "replace": "const ordered = [item.cards[0], item.cards[1]];"
+  },
+  {
+    "name": "화면 번호 변환이 폼 비트를 무시함",
+    "target": "apps/web/src/lib/weddingCode/v40/guess/guessPresent.ts",
+    "find": "if (card === 0) return flipped ? 1 : 0;",
+    "replace": "if (card === 0) return 0;"
+  },
+  {
+    "name": "범위 밖 화면 번호를 받아들임",
+    "target": "apps/web/src/lib/weddingCode/v40/guess/guessPresent.ts",
+    "find": "if (screenOption !== 0 && screenOption !== 1) return null;",
+    "replace": ""
+  },
+  {
+    "name": "두 사람 줄에 값(cost)까지 넣음",
+    "target": "apps/web/src/lib/weddingCode/v40/guess/guessPresent.ts",
+    "find": "return item.cards[card].act;",
+    "replace": "return cardText(item.cards[card]);"
+  },
+  {
+    "name": "이런 일이 없었어요 카드를 되살림",
+    "target": "apps/web/src/lib/weddingCode/v40/guess/guessPresent.ts",
+    "find": "noneLabel: null,",
+    "replace": "noneLabel: \"해당 없음\","
+  },
+  {
+    "name": "카드 글에서 값을 뺌",
+    "target": "apps/web/src/lib/weddingCode/v40/guess/guessPresent.ts",
+    "find": "return `${card.act} ${card.cost}`;",
+    "replace": "return card.act;"
+  }
+]

@@ -262,3 +262,44 @@ describe("TwoPersonSendBlock: 말씨와 라벨", () => {
     expect(textarea()?.value ?? "").not.toMatch(/[A-Za-z]/u);
   });
 });
+
+describe("TwoPersonSendBlock: 링크에 짐작이 든다는 한 줄 guessNote(4.1 단계 2)", () => {
+  const NOTE = "링크에 짐작도 들어 있다는 시험용 한 줄이에요.";
+
+  async function renderWithNote(guessNote?: string): Promise<void> {
+    await harness.render(<TwoPersonSendBlock buildUrl={() => URL_BOTH} onSent={() => undefined} idPrefix="t-couple-send" guessNote={guessNote} />);
+  }
+
+  it("한 줄을 주면 안내 묶음에 한 번 그리고, 누구나 읽을 수 있다는 안내 뒤 예전 링크 안내 앞에 놓는다", async () => {
+    await renderWithNote(NOTE);
+    const note = root().querySelector("[data-send-guess-note]");
+    expect(note?.textContent).toBe(NOTE);
+    expect((root().textContent ?? "").split(NOTE).length - 1).toBe(1);
+    const infos = [...root().querySelectorAll("p")].map((paragraph) => paragraph.textContent);
+    const at = (needle: string) => infos.indexOf(needle);
+    expect(at(V40_COPY.coupleSend.anyoneCanReadInfo)).toBeGreaterThanOrEqual(0);
+    expect(at(NOTE)).toBe(at(V40_COPY.coupleSend.anyoneCanReadInfo) + 1);
+    expect(at(V40_COPY.coupleSend.oldLinksRemainInfo)).toBe(at(NOTE) + 1);
+  });
+
+  it("한 줄을 주지 않으면 그 줄이 없고 나머지는 그대로다", async () => {
+    await renderWithNote();
+    expect(root().querySelector("[data-send-guess-note]")).toBeNull();
+    const plain = root().innerHTML;
+    await renderWithNote(undefined);
+    expect(root().innerHTML).toBe(plain);
+  });
+
+  it("한 줄이 있어도 단추는 하나이고 체크 둘을 모두 켜야 열리며 보낼 링크는 부모가 만든 그대로다", async () => {
+    const build = vi.fn<() => string | null>(() => URL_BOTH);
+    const share = vi.fn(async () => undefined);
+    await harness.render(<TwoPersonSendBlock buildUrl={build} onSent={() => undefined} env={{ share }} idPrefix="t-couple-send" guessNote={NOTE} />);
+    expect(root().querySelectorAll("button")).toHaveLength(1);
+    await click(sendButton());
+    expect(build).not.toHaveBeenCalled();
+    await checkBoth();
+    await press();
+    expect(build).toHaveBeenCalledTimes(1);
+    expect(share).toHaveBeenCalledTimes(1);
+  });
+});

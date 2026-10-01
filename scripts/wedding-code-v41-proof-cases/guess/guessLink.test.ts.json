@@ -1,0 +1,80 @@
+[
+  {
+    "name": "검사 글자 가중치 (index + 1) 를 index 로",
+    "target": "apps/web/src/lib/weddingCode/v40/guess/guessLink.ts",
+    "find": "total += (index + 1) * value;",
+    "replace": "total += index * value;"
+  },
+  {
+    "name": "검사 글자의 법 61 을 60 으로",
+    "target": "apps/web/src/lib/weddingCode/v40/guess/guessLink.ts",
+    "find": "const CHECK_MODULUS = 61;",
+    "replace": "const CHECK_MODULUS = 60;"
+  },
+  {
+    "name": "모두 8(고른 것 없음) 거절 줄을 지움",
+    "target": "apps/web/src/lib/weddingCode/v40/guess/guessLink.ts",
+    "find": "if (value !== 8) informative = true;",
+    "replace": "informative = true;"
+  },
+  {
+    "name": "장면 글자 범위 0에서 8 검사를 지움",
+    "target": "apps/web/src/lib/weddingCode/v40/guess/guessLink.ts",
+    "find": "if (value < 0) return null;",
+    "replace": ""
+  },
+  {
+    "name": "세트 글자 지원 목록 검사를 지움",
+    "target": "apps/web/src/lib/weddingCode/v40/guess/guessLink.ts",
+    "find": "if (!isSupportedSet(set)) return null;",
+    "replace": ""
+  },
+  {
+    "name": "검사 글자 비교를 지움",
+    "target": "apps/web/src/lib/weddingCode/v40/guess/guessLink.ts",
+    "find": "if (code[GUESS_CODE_LENGTH - 1] !== guessChecksumChar(code.slice(0, GUESS_CODE_LENGTH - 1))) return null;",
+    "replace": ""
+  },
+  {
+    "name": "b 없이 gb 가 있어도 통과",
+    "target": "apps/web/src/lib/weddingCode/v40/guess/guessLink.ts",
+    "find": "if (gb !== null && b === null) return { kind: \"invalid\" };",
+    "replace": ""
+  },
+  {
+    "name": "해시 길이 상한을 185 보다 작게 낮춤(정상 링크를 거절)",
+    "target": "apps/web/src/lib/weddingCode/v40/guess/guessLink.ts",
+    "find": "if (body.length > MAX_SHARE_HASH_LENGTH) return { kind: \"invalid\" };",
+    "replace": "if (body.length > 100) return { kind: \"invalid\" };"
+  },
+  {
+    "name": "같은 키가 둘이어도 통과",
+    "target": "apps/web/src/lib/weddingCode/v40/guess/guessLink.ts",
+    "find": "if (!HASH_KEYS.includes(key) || seen.has(key)) return { kind: \"invalid\" };",
+    "replace": "if (!HASH_KEYS.includes(key)) return { kind: \"invalid\" };"
+  },
+  {
+    "name": "모르는 키도 통과",
+    "target": "apps/web/src/lib/weddingCode/v40/guess/guessLink.ts",
+    "find": "if (!HASH_KEYS.includes(key) || seen.has(key)) return { kind: \"invalid\" };",
+    "replace": "if (seen.has(key)) return { kind: \"invalid\" };"
+  },
+  {
+    "name": "ga 를 정규 순서 밖(끝)에 붙임",
+    "target": "apps/web/src/lib/weddingCode/v40/guess/guessLink.ts",
+    "find": "return single + firstPart + full.slice(single.length) + secondPart;",
+    "replace": "return single + full.slice(single.length) + firstPart + secondPart;"
+  },
+  {
+    "name": "오류 메시지에 입력 글자를 실음",
+    "target": "apps/web/src/lib/weddingCode/v40/guess/guessLink.ts",
+    "find": "throw new RangeError(\"검사 글자에 쓸 수 없는 문자\");",
+    "replace": "throw new RangeError(\"검사 글자에 쓸 수 없는 문자 \" + body[index]);"
+  },
+  {
+    "name": "고른 것이 없어도 g 를 만듦",
+    "target": "apps/web/src/lib/weddingCode/v40/guess/guessLink.ts",
+    "find": "if (!hasGuessInfo(answers)) return null;",
+    "replace": ""
+  }
+]

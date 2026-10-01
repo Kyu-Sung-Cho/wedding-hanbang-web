@@ -1,0 +1,80 @@
+[
+  {
+    "name": "가렸을 때 한 줄에 맞힘 말",
+    "target": "apps/web/src/lib/weddingCode/v40/guess/guessCopy.ts",
+    "find": "hiddenNote: \"짐작과 답을 가려 두었어요. 보려면 「보기」를 눌러 주세요.\",",
+    "replace": "hiddenNote: \"맞혔는지는 가려 두었어요. 보려면 「보기」를 눌러 주세요.\","
+  },
+  {
+    "name": "줄 없는 장면 한 줄이 빈 상태와 같은 문장",
+    "target": "apps/web/src/lib/weddingCode/v40/guess/guessCopy.ts",
+    "find": "unlistedNote: V40_GUESS_TEXT.unlistedNote,",
+    "replace": "unlistedNote: V40_GUESS_TEXT.emptyState,"
+  },
+  {
+    "name": "진입 카드 본문에 이 기기",
+    "target": "apps/web/src/lib/weddingCode/v40/guess/guessCopy.ts",
+    "find": "이 브라우저에는 저장하지 않아요.",
+    "replace": "이 기기에는 저장하지 않아요."
+  },
+  {
+    "name": "시작 단추에 숫자",
+    "target": "apps/web/src/lib/weddingCode/v40/guess/guessCopy.ts",
+    "find": "startButton: \"시작\",",
+    "replace": "startButton: \"시작 1\","
+  },
+  {
+    "name": "누른 뒤 한 줄이 계산을 말함",
+    "target": "apps/web/src/lib/weddingCode/v40/guess/guessCopy.ts",
+    "find": "skip: \"이 장면은 넘어갔어요.\",",
+    "replace": "skip: \"이 장면은 계산에서 빼요.\","
+  },
+  {
+    "name": "나 기준 이름표가 뒤바뀜",
+    "target": "apps/web/src/lib/weddingCode/v40/guess/guessCopy.ts",
+    "find": "const mine = perspective === \"first\" ? firstGuessing : !firstGuessing;",
+    "replace": "const mine = perspective === \"first\" ? !firstGuessing : firstGuessing;"
+  },
+  {
+    "name": "copy.ts 를 가져옴",
+    "target": "apps/web/src/lib/weddingCode/v40/guess/guessCopy.ts",
+    "find": "import type { Perspective } from \"../types\";",
+    "replace": "import type { Perspective } from \"../types\";\nimport { V40_COPY as UNUSED_COPY } from \"../copy\";\nvoid UNUSED_COPY;"
+  },
+  {
+    "name": "행 이름표의 사실 쪽 이름이 뒤바뀜",
+    "target": "apps/web/src/constants/weddingCodeV40Guess.ts",
+    "find": "actualLabel: \"상대가 고른 쪽\"",
+    "replace": "actualLabel: \"내가 고른 쪽\""
+  },
+  {
+    "name": "문장 끝이 요가 아님",
+    "target": "apps/web/src/lib/weddingCode/v40/guess/guessCopy.ts",
+    "find": "receiverNote: \"상대가 서로 짐작해 보기도 해 뒀고, 그 짐작도 링크에 들어 있어요. 내 답을 마친 뒤에 해 볼 수 있고, 하지 않아도 결과는 그대로예요.\",",
+    "replace": "receiverNote: \"상대가 서로 짐작해 보기도 해 뒀고, 그 짐작도 링크에 들어 있어요. 내 답을 마친 뒤에 해 볼 수 있고, 하지 않아도 결과는 그대로입니다.\","
+  },
+  {
+    "name": "출처 문장이 보낸 사람이 직접 골랐는지 확인하지 못한다는 말을 뺌",
+    "target": "apps/web/src/lib/weddingCode/v40/guess/guessCopy.ts",
+    "find": "링크를 보낸 사람이 직접 고른 것인지는 이 화면이 확인하지 못해요. ",
+    "replace": ""
+  },
+  {
+    "name": "받은 상대의 짐작만 실리는 링크의 한 줄이 두 사람의 짐작이 읽힌다고 말함",
+    "target": "apps/web/src/lib/weddingCode/v40/guess/guessCopy.ts",
+    "find": "coupleSendPartnerInfo: \"받은 링크에 든 상대의 답과 상대가 한 짐작도 이 링크에 다시 들어가요.\",",
+    "replace": "coupleSendPartnerInfo: \"상대의 답과 짐작도 두 사람 모두 읽혀요.\","
+  },
+  {
+    "name": "받는 사람 저장 안내가 이 기기를 말함",
+    "target": "apps/web/src/lib/weddingCode/v40/guess/guessCopy.ts",
+    "find": "receiverStorageNote: \"이 답은 이 브라우저에 남기지 않아요.\",",
+    "replace": "receiverStorageNote: \"이 답은 이 기기에 남기지 않아요.\","
+  },
+  {
+    "name": "보내는 화면 안내가 보낸 사람이 보지 못한 이름(짐작과 답 장면)을 씀",
+    "target": "apps/web/src/constants/weddingCodeV40Guess.ts",
+    "find": "sendCouple: \"서로 짐작해 보며 고른 두 사람의 답과 짐작도 링크를 가진 사람은 그대로 읽을 수 있어요.\"",
+    "replace": "sendCouple: \"짐작과 답 장면에서 고른 답과 짐작도 두 사람 모두 그대로 읽혀요.\""
+  }
+]

@@ -326,6 +326,31 @@ describe("웨딩코드 입구: 읽을 수 없는 v4 링크", () => {
     expect(window.location.href).not.toContain(A);
   });
 
+  it.each([
+    ["ga 만 query 에 실린 v4 주소", `/wedding-code?v=${V40}&ga=1148056W`, { v: V40, ga: "1148056W" }],
+    ["gb 만 query 에 실린 v4 주소", `/wedding-code?v=${V40}&gb=1401384H`, { v: V40, gb: "1401384H" }],
+    ["answer 도 짐작도 query 에 실린 v4 주소", `/wedding-code?v=${V40}&a=${A}&ga=1148056W`, { v: V40, a: A, ga: "1148056W" }],
+  ])("%s: v4 오류 화면이고, 주소창과 이력에서 짐작 글자도 지운다(서로 짐작하기의 ga, gb)", async (_label, url, query) => {
+    window.history.replaceState(null, "", url);
+    root = createRoot(container);
+    await act(async () => root?.render(<WeddingCodeEntryClient shareOrigin="https://hanbang.ai" initialEntry={parseWeddingCodeEntryQuery(query)} />));
+    expect(container.querySelector("h1")?.textContent).toBe(V40_ENTRY_COPY.brokenLink.title);
+    expect(window.location.search).toBe(`?v=${V40}`);
+    expect(window.location.href).not.toMatch(/g[ab]=/u);
+    expect(window.location.href).not.toContain("1148056W");
+    expect(window.location.href).not.toContain("1401384H");
+  });
+
+  it("해시의 깨진 ga 도 v4 오류 화면이고 주소창의 # 뒤를 지운다", async () => {
+    window.history.replaceState(null, "", `/wedding-code#v=${V40}&a=${A}&ga=1148056X`);
+    root = createRoot(container);
+    await act(async () => root?.render(<WeddingCodeEntryClient shareOrigin="https://hanbang.ai" />));
+    await flush();
+    expect(container.querySelector("h1")?.textContent).toBe(V40_ENTRY_COPY.brokenLink.title);
+    expect(window.location.hash).toBe("");
+    expect(window.location.href).not.toContain("1148056X");
+  });
+
   it("다른 판의 깨진 링크는 주소창을 건드리지 않는다(v4 가 아닌 판은 예전 그대로다)", async () => {
     window.history.replaceState(null, "", "/wedding-code#v=v3.0-preferences&a=broken");
     root = createRoot(container);

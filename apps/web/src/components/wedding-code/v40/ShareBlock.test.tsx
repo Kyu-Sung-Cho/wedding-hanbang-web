@@ -405,3 +405,53 @@ describe("ShareBlock: 말씨와 라벨", () => {
     expect(root().querySelector("h2")).toBeNull();
   });
 });
+
+describe("ShareBlock: 링크에 짐작이 든다는 한 줄 guessNote(4.1 단계 2)", () => {
+  const NOTE = "링크에 짐작도 들어 있다는 시험용 한 줄이에요.";
+
+  async function renderWithNote(guessNote?: string): Promise<void> {
+    await harness.render(<ShareBlock buildUrl={urlFor} onSent={() => undefined} idPrefix="t-share" guessNote={guessNote} />);
+  }
+
+  it("「내 답과 함께 보내기」를 고른 동안 안내 묶음에 한 번 그리고, 링크 안내 뒤에 놓는다", async () => {
+    await renderWithNote(NOTE);
+    const note = root().querySelector("[data-send-guess-note]");
+    expect(note?.textContent).toBe(NOTE);
+    expect((root().textContent ?? "").split(NOTE).length - 1).toBe(1);
+    const infos = [...root().querySelectorAll("p")].map((paragraph) => paragraph.textContent);
+    expect(infos.indexOf(NOTE)).toBe(infos.indexOf(V40_COPY.send.withAnswersLinkInfo) + 1);
+  });
+
+  it("「질문만 보내기」로 바꾸면 사라지고 다시 「내 답과 함께 보내기」로 돌아오면 다시 나온다(질문만 보내는 링크에는 짐작이 들지 않는다)", async () => {
+    await renderWithNote(NOTE);
+    await click(radios()[1]);
+    expect(root().querySelector("[data-send-guess-note]")).toBeNull();
+    expect(root().textContent).not.toContain(NOTE);
+    await click(radios()[0]);
+    expect(root().querySelector("[data-send-guess-note]")?.textContent).toBe(NOTE);
+  });
+
+  it("한 줄을 주지 않으면 어떤 선택에서도 그 줄이 없고 나머지는 그대로다", async () => {
+    await renderWithNote();
+    expect(root().querySelector("[data-send-guess-note]")).toBeNull();
+    const plain = root().innerHTML;
+    await renderWithNote(undefined);
+    expect(root().innerHTML).toBe(plain);
+    await click(radios()[1]);
+    expect(root().querySelector("[data-send-guess-note]")).toBeNull();
+  });
+
+  it("한 줄이 있어도 링크 단추는 하나이고 체크를 켜야 열리며 링크는 부모가 라디오에 맞게 만든 그대로다", async () => {
+    const build = vi.fn<(option: SendOption) => string | null>(urlFor);
+    const share = vi.fn(async () => undefined);
+    await harness.render(<ShareBlock buildUrl={build} onSent={() => undefined} env={{ share }} idPrefix="t-share" guessNote={NOTE} />);
+    expect(root().querySelectorAll("button")).toHaveLength(1);
+    await click(sendButton());
+    expect(build).not.toHaveBeenCalled();
+    await checkConsent();
+    await press();
+    expect(build).toHaveBeenCalledTimes(1);
+    expect(build).toHaveBeenCalledWith("withAnswers");
+    expect(share).toHaveBeenCalledTimes(1);
+  });
+});

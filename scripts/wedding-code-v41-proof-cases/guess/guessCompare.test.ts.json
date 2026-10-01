@@ -1,0 +1,38 @@
+[
+  {
+    "name": "장면 순서를 역순으로",
+    "target": "apps/web/src/lib/weddingCode/v40/guess/guessCompare.ts",
+    "find": "if (diffs.length > 0) scenes.push({ index, diffs });",
+    "replace": "if (diffs.length > 0) scenes.unshift({ index, diffs });"
+  },
+  {
+    "name": "장면을 셋에서 자름",
+    "target": "apps/web/src/lib/weddingCode/v40/guess/guessCompare.ts",
+    "find": "for (let index = 0; index < V40_GUESS_SLOT_COUNT; index += 1) {",
+    "replace": "for (let index = 0; index < 3; index += 1) {"
+  },
+  {
+    "name": "짐작과 실제를 뒤바꿈",
+    "target": "apps/web/src/lib/weddingCode/v40/guess/guessCompare.ts",
+    "find": "diffs.push({ direction: \"firstGuessedSecond\", guessed: mine.guess, actual: theirs.self });",
+    "replace": "diffs.push({ direction: \"firstGuessedSecond\", guessed: theirs.self, actual: mine.guess });"
+  },
+  {
+    "name": "같은 카드도 줄로 만듦",
+    "target": "apps/web/src/lib/weddingCode/v40/guess/guessCompare.ts",
+    "find": "if (mine.guess !== null && theirs.self !== null && mine.guess !== theirs.self) {",
+    "replace": "if (mine.guess !== null && theirs.self !== null) {"
+  },
+  {
+    "name": "한쪽만 있어도 none",
+    "target": "apps/web/src/lib/weddingCode/v40/guess/guessCompare.ts",
+    "find": "if (a === null || b === null) return { kind: \"oneSided\" };",
+    "replace": "if (a === null || b === null) return { kind: \"none\" };"
+  },
+  {
+    "name": "고르지 않은 쪽도 줄로 만듦",
+    "target": "apps/web/src/lib/weddingCode/v40/guess/guessCompare.ts",
+    "find": "if (theirs.guess !== null && mine.self !== null && theirs.guess !== mine.self) {",
+    "replace": "if (theirs.guess !== null && theirs.guess !== mine.self) {"
+  }
+]

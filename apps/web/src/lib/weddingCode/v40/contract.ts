@@ -12,6 +12,10 @@
  *   저장 상태를 화면 번호로 바꾸는 곳은 present.fromStored 와 present.viewPosition 두 곳뿐이다.
  * - 채점(scoreResponses)은 폼 비트를 받지 않는다. 폼 비트가 필요한 것은 위치 반복 검사와 화면뿐이다.
  * - 잘못된 저장값(그 형식에 없는 문자, 알 수 없는 문항 id)은 던지지 않고 빠진 값으로 다룬다. 링크와 저장소는 읽을 때 엄격하게 거절한다.
+ *
+ * 4.1 단계 2(어두운 진입 뒤의 선택 화면): 위 코어 모듈(V40Core)에는 한 줄도 더하지 않았다. 새 모듈 둘의 인터페이스는 각 트랙 폴더가 정의하고 구현 파일 끝에서
+ * satisfies 로 검사하며, 이 파일은 아래에서 타입만 다시 내보낸다. 글자 고르기(letterGuess)는 결과를 읽기만 하는 순수 모듈이고 저장은 포트(storage.ts 의 createExtraPort)로 한다.
+ * 서로 짐작하기(guess)의 링크 코덱은 codec.ts 를 감싸서 선택 필드 ga, gb 를 더한다. flow.ts 의 reducer 와 Page 는 두 단계를 모른다(클라이언트가 결과 앞뒤에 얹는다).
  */
 import type {
   AppendResult,
@@ -528,3 +532,7 @@ export type V40ModuleFile = "states" | "bank" | "present" | "value" | "score" | 
 
 /** 시험과 화면 빌더가 축을 순회할 때 쓰는 보조 타입. */
 export type AxisRecord<T> = Readonly<Record<Axis, T>>;
+
+// 4.1 단계 2: 새 모듈 둘의 인터페이스(정의는 각 트랙 폴더의 *Contract.ts). 타입만 다시 내보낸다.
+export type { GuessLinkModule } from "./guess/guessContract";
+export type { LetterGuessModule } from "./letterGuess/letterGuessContract";

@@ -15,6 +15,8 @@ import {
 } from "@/lib/analyticsPrivacy";
 import { LOCAL_TTL_MS, V31_CLEAR_LOCAL_LABEL } from "@/lib/weddingCode/v31LocalProgress";
 import { V40_COPY } from "@/lib/weddingCode/v40/copy";
+import { V40_GUESS_COPY } from "@/lib/weddingCode/v40/guess/guessCopy";
+import { V40_LETTER_GUESS_COPY } from "@/lib/weddingCode/v40/letterGuess/letterGuessCopy";
 import { PAIR_SESSION_RETENTION_DAYS } from "@/lib/weddingCode/pairSessionContract";
 import PrivacyPage from "../page";
 
@@ -244,5 +246,59 @@ describe("privacy notice for the WeddingCode v4.0-tendency paragraph", () => {
     expect(notice).toContain("서버 요청에 포함되지 않지만");
     expect(notice).not.toMatch(/오류 수집|Sentry|센트리/);
     expect(notice).not.toMatch(/# 뒤[^.]{0,30}(어디에도|모두|절대)[^.]{0,20}보내지 않/);
+  });
+
+  /**
+   * 4.1 단계 2(서로 짐작하기, 결과 전 글자 고르기)가 이 문단의 끝 문장 바로 앞에 더한 여섯 문장(서로 짐작하기 셋, 먼저 고른 글자 셋. 빌드 계획 10.4, 선택 2부 문장은 이 단계에 없다).
+   * 문장은 글자 그대로 고정하고, 단추와 구역 이름과 기간은 상수에서 읽는다. 이름이나 기간이 바뀌면 이 시험이 빨개져서 방침을 함께 고치게 한다.
+   * 끝 문장 「지워 주세요.」는 첫 등장에서 문단을 자르므로 끼운 문장에는 그 말이 없어야 한다(있으면 문단이 일찍 끊긴다).
+   */
+  it.each(["", SECRET])("4.1 단계 2: 서로 짐작하기의 답은 링크에 담기고 저장하지 않으며, 먼저 고른 글자는 이 브라우저에만 남고 링크에 넣지 않는다고 말한다 (%#)", (secret) => {
+    const notice = v4Paragraph(renderWithoutResearch(secret));
+    const days = V40_STORAGE.ttlMs / DAY_MS;
+    const guessName = V40_GUESS_COPY.entry.title.replace(/\s*\(선택\)$/u, "");
+    expect(guessName, "서로 짐작하기 진입 카드의 이름이 바뀌었다. 방침의 ‘서로 짐작해 보기’를 고칠 것").toBe("서로 짐작해 보기");
+
+    const guessSentences = [
+      `‘${guessName}’(선택)를 하면 여러 장면에서 본인이 고른 쪽과 상대가 고를 것이라고 짐작한 쪽이 ‘${V40_COPY.send.withAnswersOption}’ 링크와 두 사람 결과 링크의 # 뒤에 함께 담기고, 두 사람 결과 링크에는 받은 링크에 든 상대의 짐작도 다시 담깁니다.`,
+      "이 답은 이 브라우저에 저장하지 않고 화면에만 두며, 상대가 하지 않았거나 나란히 놓을 장면이 없어도 링크에는 들어 있습니다.",
+      "링크를 가진 사람은 누구나 읽고 다시 전달할 수 있습니다.",
+    ];
+    const letterSentences = [
+      `결과를 보기 전에 주제마다 가까운 글자를 골라 보면(선택) 고른 글자는 자동저장이 켜져 있을 때만 이 브라우저에 ${days}일 동안 보관하고, 결과 화면의 ‘${V40_LETTER_GUESS_COPY.lines.heading}’ 구역에서 결과와 나란히 놓는 데만 쓰며 링크에는 넣지 않습니다.`,
+      `‘${V40_COPY.autosave.turnOffButton}’는 이 브라우저에 보관한 먼저 고른 글자도 지우며, 화면에 열려 있는 먼저 고른 글자는 새로고침하기 전까지 남아 있습니다.`,
+      `‘${V40_COPY.manage.clear.button}’와 ‘${V40_COPY.manage.restart.button}’는 먼저 고른 글자를 보관본과 화면에서 모두 지웁니다.`,
+    ];
+    for (const sentence of [...guessSentences, ...letterSentences]) expect(notice).toContain(sentence);
+
+    // 자리: 이용 통계 문장 뒤, 문단의 끝 문장 앞. 순서는 서로 짐작하기, 글자 고르기(보관, 끄기, 지우기).
+    const statsAt = notice.indexOf("고른 답·글자·세기·링크 주소는 통계에 넣지 않습니다.");
+    const positions = [...guessSentences, ...letterSentences].map((sentence) => notice.indexOf(sentence));
+    const closingAt = notice.indexOf("공용 기기에서는 같은 브라우저를 쓰는 사람이 답을 볼 수 있으므로");
+    expect(statsAt).toBeGreaterThan(-1);
+    expect(closingAt).toBeGreaterThan(-1);
+    expect([statsAt, ...positions, closingAt]).toEqual([statsAt, ...positions, closingAt].sort((a, b) => a - b));
+    expect(notice.endsWith("공용 기기에서는 같은 브라우저를 쓰는 사람이 답을 볼 수 있으므로 자동저장을 끄거나 저장된 답을 지워 주세요.")).toBe(true);
+    expect(notice.indexOf("지워 주세요.")).toBe(notice.length - "지워 주세요.".length);
+
+    // 기존 문장은 한 글자도 바뀌지 않았다(이 단계는 끼우기만 한다).
+    expect(notice).toContain("‘링크 보내기’로 만드는 링크에는");
+    expect(notice).toContain("이용 통계는 위 ‘로그인 없이 이용하는 공개 웨딩코드’에 적은 항목만 기록하며 이 판에서 새 항목을 더하지 않고, 고른 답·글자·세기·링크 주소는 통계에 넣지 않습니다");
+  });
+
+  it.each(["", SECRET])("4.1 단계 2: 방침이 말하는 것을 화면도 같은 말로 한다 (%#)", () => {
+    // 방침이 「링크에 담긴다」 「이 브라우저에 저장하지 않는다」고 말한 기능이 화면 문구에 실제로 있다(없으면 방침이 없는 기능을 설명한다).
+    expect(V40_GUESS_COPY.entry.body, "진입 카드가 짐작이 링크에 들어간다고 말하지 않는다").toMatch(/내 답과 함께 보내기[^.]*링크에 들어가요/);
+    expect(V40_GUESS_COPY.entry.body, "진입 카드가 저장하지 않는다고 말하지 않는다").toMatch(/이 브라우저에는 저장하지 않아요/);
+    expect(V40_GUESS_COPY.shareInfo, "보내기 직전 안내가 링크에 짐작이 들어간다고 말하지 않는다").toMatch(/링크에 들어가요/);
+    expect(V40_LETTER_GUESS_COPY.screen.storageOn, "글자 고르기 화면이 이 브라우저에만 남는다고 말하지 않는다").toMatch(/이 브라우저에만 남아요/);
+    expect(V40_LETTER_GUESS_COPY.screen.storageOn, "글자 고르기 화면이 링크에 안 들어간다고 말하지 않는다").toMatch(/링크에는 들어가지 않아요/);
+    expect(V40_LETTER_GUESS_COPY.screen.storageOff, "자동 저장을 끄면 저장하지 않는다는 화면 문구가 바뀌었다").toMatch(/자동 저장을 꺼 두어서[^.]*저장하지 않아요/);
+  });
+
+  it.each(["", SECRET])("4.1 단계 2: 이 단계에 없는 선택 2부(내 답 나란히 놓기)와 이 창의 임시 저장소는 방침이 말하지 않는다 (%#)", (secret) => {
+    // 만들지 않은 기능을 방침이 설명하면 거짓이다. 후속 PR 이 2부를 더할 때 이 단언을 문장과 함께 바꾼다.
+    const notice = v4Paragraph(renderWithoutResearch(secret));
+    expect(notice).not.toMatch(/내 답 나란히 놓기|겹쳐 놓은 답|세션 저장소|임시 저장소/);
   });
 });

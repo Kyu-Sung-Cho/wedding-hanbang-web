@@ -1,0 +1,104 @@
+[
+  {
+    "name": "글자 카드 위아래가 폼 비트를 따르지 않는다",
+    "target": "apps/web/src/lib/weddingCode/v40/letterGuess/letterGuess.ts",
+    "find": "return formBit === 1 ? [info.back, info.front] : [info.front, info.back];",
+    "replace": "return [info.front, info.back];"
+  },
+  {
+    "name": "두 번 눌림 막기가 꺼진다",
+    "target": "apps/web/src/components/wedding-code/v40/letterGuess/LetterGuessScreen.tsx",
+    "find": "const tooSoon = (): boolean => turnGuardMs > 0 && Date.now() - mountedAtRef.current < turnGuardMs;",
+    "replace": "const tooSoon = (): boolean => false;"
+  },
+  {
+    "name": "두 번 눌림 막기의 시간 비교가 뒤집힌다",
+    "target": "apps/web/src/components/wedding-code/v40/letterGuess/LetterGuessScreen.tsx",
+    "find": "Date.now() - mountedAtRef.current < turnGuardMs",
+    "replace": "Date.now() - mountedAtRef.current > turnGuardMs"
+  },
+  {
+    "name": "결과 보기가 고른 글자 대신 null 을 준다",
+    "target": "apps/web/src/components/wedding-code/v40/letterGuess/LetterGuessScreen.tsx",
+    "find": "onContinue(guessOf(picks));",
+    "replace": "onContinue(null);"
+  },
+  {
+    "name": "하나도 안 골랐는데 null 이 아니라 빈 칸 네 개를 준다",
+    "target": "apps/web/src/components/wedding-code/v40/letterGuess/LetterGuessScreen.tsx",
+    "find": "return letters.every((letter) => letter === null) ? null : letters;",
+    "replace": "return letters;"
+  },
+  {
+    "name": "잘 모르겠어요 카드를 눌러도 눌린 모양이 되지 않는다",
+    "target": "apps/web/src/components/wedding-code/v40/letterGuess/LetterGuessScreen.tsx",
+    "find": "if (answer.fmt === \"escape\") return \"none\";",
+    "replace": "if (answer.fmt === \"escape\") return null;"
+  },
+  {
+    "name": "이전 단추를 그리지 않는다",
+    "target": "apps/web/src/components/wedding-code/v40/letterGuess/LetterGuessScreen.tsx",
+    "find": "{onBack ? (",
+    "replace": "{false ? ("
+  },
+  {
+    "name": "고르지 않고 결과 보기가 onSkip 대신 onContinue 를 부른다",
+    "target": "apps/web/src/components/wedding-code/v40/letterGuess/LetterGuessScreen.tsx",
+    "find": "    onSkip();",
+    "replace": "    onContinue(null);"
+  },
+  {
+    "name": "저장 안내가 저장 모드를 따르지 않는다",
+    "target": "apps/web/src/components/wedding-code/v40/letterGuess/LetterGuessScreen.tsx",
+    "find": "{letterGuessStorageNote(storageMode)}",
+    "replace": "{letterGuessStorageNote(\"on\")}"
+  },
+  {
+    "name": "화면 뿌리의 data-screen 이름이 바뀐다",
+    "target": "apps/web/src/components/wedding-code/v40/letterGuess/LetterGuessScreen.tsx",
+    "find": "data-screen=\"letter-guess\"",
+    "replace": "data-screen=\"letter-guess-screen\""
+  },
+  {
+    "name": "골라 둔 글자가 그 주제에 있는지 확인하지 않는다",
+    "target": "apps/web/src/components/wedding-code/v40/letterGuess/LetterGuessScreen.tsx",
+    "find": "return letter !== null && letterGuessChoices(formBit, axis).includes(letter) ? letter : null;",
+    "replace": "return letter;"
+  },
+  {
+    "name": "라운지 안에서도 제목이 1 수준이다",
+    "target": "apps/web/src/components/wedding-code/v40/letterGuess/LetterGuessScreen.tsx",
+    "find": "const Title = embedded ? \"h2\" : \"h1\";",
+    "replace": "const Title = \"h1\";"
+  },
+  {
+    "name": "눌린 글자 카드가 항상 첫 카드로 표시된다",
+    "target": "apps/web/src/components/wedding-code/v40/letterGuess/LetterGuessScreen.tsx",
+    "find": "option: pick === choices[0] ? 0 : 1",
+    "replace": "option: 0"
+  },
+  {
+    "name": "고른 카드가 항상 첫 글자로 읽힌다",
+    "target": "apps/web/src/components/wedding-code/v40/letterGuess/LetterGuessScreen.tsx",
+    "find": "return choices[answer.option] ?? null;",
+    "replace": "return choices[0];"
+  },
+  {
+    "name": "잘 모르겠어요 카드를 그리지 않는다",
+    "target": "apps/web/src/components/wedding-code/v40/letterGuess/LetterGuessScreen.tsx",
+    "find": "noneLabel: V40_ESCAPES.unsure,",
+    "replace": "noneLabel: null,"
+  },
+  {
+    "name": "화면이 저장소를 직접 부른다(격리 위반)",
+    "target": "apps/web/src/components/wedding-code/v40/letterGuess/LetterGuessScreen.tsx",
+    "find": "const handleContinue = () => {\n    if (tooSoon()) return;",
+    "replace": "const handleContinue = () => {\n    window.localStorage.setItem(\"probe\", \"1\");\n    if (tooSoon()) return;"
+  },
+  {
+    "name": "이전이 고른 것을 넘기지 않는다",
+    "target": "apps/web/src/components/wedding-code/v40/letterGuess/LetterGuessScreen.tsx",
+    "find": "onBack?.(guessOf(picks));",
+    "replace": "onBack?.(null);"
+  }
+]

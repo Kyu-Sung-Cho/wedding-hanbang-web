@@ -29,6 +29,7 @@ import type {
   StrengthBand,
   WEDDING_CODE_V40_VERSION,
 } from "@/constants/weddingCodeV40";
+import type { V40EntryGuess } from "./guess/types";
 
 export type {
   Axis,
@@ -972,6 +973,12 @@ export interface V40EntryInitial {
    * 「나」 표시에 쓰기 위한 readProgress 한 번뿐이다(detectPerspective). 상대 답을 저장하지 않고 읽어도 저장 기간이 늘지 않는다.
    */
   readonly both: { readonly first: DecodedCode; readonly second: DecodedCode } | null;
+  /**
+   * 링크의 서로 짐작하기 필드(ga, gb)를 푼 결과(4.1 단계 2). g 가 링크에 하나라도 있을 때만 이 키를 붙인다(없으면 키 자체가 없어서 옛 링크의
+   * initial 과 toStrictEqual 까지 같다). partner 링크에서는 first 가 상대의 것이고, both 링크에서는 first, second 가 a, b 순서와 같다.
+   * 메모리에만 두고 이 브라우저에 저장하지 않는다.
+   */
+  readonly guess?: V40EntryGuess;
 }
 
 export interface WeddingCodeV40ClientProps {

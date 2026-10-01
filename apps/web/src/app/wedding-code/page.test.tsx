@@ -90,6 +90,16 @@ describe("웨딩코드 진입 화면", () => {
     }
   });
 
+  /** 쿼리에 실린 서로 짐작하기(ga, gb)도 답이 든 주소라서 색인하지 않는다. 답이 없는 다른 키(유입 경로)는 예전처럼 색인한다. */
+  it("쿼리에 ga 나 gb 가 실린 주소도 색인하지 않는다", async () => {
+    for (const carrying of [{ ga: "1148056W" }, { gb: "1401384H" }, { ga: "" }, { v: WEDDING_CODE_V31_VERSION, ga: "1148056W" }, { ga: "1148056W", gb: "1401384H" }]) {
+      const guarded = await generateMetadata({ searchParams: Promise.resolve(carrying) });
+      expect(guarded.robots, JSON.stringify(carrying)).toMatchObject({ index: false, follow: false });
+    }
+    const clean = await generateMetadata({ searchParams: Promise.resolve({ utm_source: "landing" }) });
+    expect(clean.robots).toMatchObject({ index: true, follow: true });
+  });
+
   /**
    * openGraph 를 정하지 않으면 루트 layout 의 카드(아모라 문구, `og:url=/landing`)를 통째로
    * 물려받는다. 웨딩코드 링크를 보냈는데 받는 사람에게 아모라 소개가 보이던 상태를 막는다.

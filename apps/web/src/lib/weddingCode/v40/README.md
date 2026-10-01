@@ -267,3 +267,26 @@ escape: `{ fmt: "escape", which: "unsure" | "na" }`.
 | `SelfLine` (`types.ts`) | 위 함수의 반환 모양. 세기 `level` 은 1 조금, 2 꽤, 3 아주 |
 | `selfChoiceParts`, `selfChoiceLine`, `selfLevelPhrase`, `V40_COPY.block.selfLineLeadLabel` (`copy.ts`) | 「내가 마지막에 직접 고른 쪽: 「D 나눠 하기」 · 아주 가까워요」. `selfChoiceParts` 는 머리말, 글자와 이름, 세기 낱말의 세 덩어리를 내고 `selfChoiceLine` 은 덩어리를 공백으로 이은 줄 전체다 |
 | `AxisBlock` 의 `selfLine`, `ResultScreen` 의 `selfLines` | 뚜렷해요·기울어요 주제는 세기 문장 아래에, 반반이에요 주제는 두 글자의 뜻 아래(세기 문장 「코드에는 한 글자만 …」에서 떨어뜨려)에 작고 흐린 메모 글씨로 그린다. 세 덩어리 중 글자 이름과 세기 낱말은 줄바꿈 없이 붙이고 줄 길이를 고른다. 화면은 대비가 있는 주제와 다른 주제의 줄을 한 번 더 거른다. 주제 순서 네 개로 준다(`quotes` 와 같은 방식). 두 사람 결과와 받는 사람 화면에는 없다 |
+
+## 12. 4.1 단계 2에서 더한 것 (2026-10-01, 계약 문서 §23)
+
+서로 짐작하기(`guess`)와 결과 전 글자 고르기(`letterGuess`)를 어둡게 더했다. 선택 2부(내 답 나란히 놓기)는 이 단계에 없다(후속 PR, 계약 문서 §23.6). **`flow.ts`는 바뀌지 않았고** 엔진 열 개 파일(`flow.ts`, `codec.ts`, `score.ts`, `gates.ts`, `value.ts`, `states.ts`, `layout.ts`, `bank.ts`, `constants/weddingCodeV40Bank.ts`, `scripts/lib/wedding-code-v40-ref.mjs`)이 기준 커밋과 한 글자도 다르지 않다는 것을 소스 가드가 내용 해시로 고정한다. 새 화면 둘은 reducer가 모르는 **단계(stage)**로 클라이언트가 결과 앞뒤에 얹는다.
+
+| 파일(경로는 `apps/web/src/` 아래) | 내용 | 가져오는 것 |
+|---|---|---|
+| `lib/weddingCode/v40/guess/types.ts`, `guessContract.ts` | 타입(`GuessAnswers`, `GuessedShareParse`, `V40EntryGuess` …), 켬 상수 `V40_PAIR_GUESS_ENABLED`, 장면 수 6, 모듈 인터페이스 `GuessLinkModule` | `../types`(타입만) |
+| `lib/weddingCode/v40/guess/guessLink.ts` | 링크 필드 `ga`, `gb`의 코덱(`encodeGuessCode`, `decodeGuessCode`, `guessChecksumChar`, `decodeGuessedShareParams`, `parseGuessedShareHash`, `buildGatedShareUrlWithGuess`, 키 상수 `V40_GUESS_LINK_KEYS`, 세트 글자 `V40_GUESS_SET_IDS`) | 상수, `states`, `codec`, 타입만(문구, 은행, 세트 자료, 화면은 가져오지 않는다) |
+| `lib/weddingCode/v40/guess/guessCompare.ts`, `guessPresent.ts`, `guessCopy.ts`, `guessFixtures.ts` | 두 사람 비교(장면별, 자르지 않음, 한쪽만 있으면 `oneSided`), 폼 비트에 따른 카드 위아래, 문구 묶음 `V40_GUESS_COPY`, 시험 표본 | 생성 상수 `constants/weddingCodeV40Guess.ts`와 타입 |
+| `components/wedding-code/v40/guess/` | `GuessSetFlow`(세트 화면, `data-screen="pair-guess"`), `GuessEntryCard`(보내는 사람 카드), `CoupleGuessSection`(두 사람 결과의 「짐작과 답」) | 각 폴더의 `index.ts`에서만 가져온다(바렐을 고치지 않는다) |
+| `lib/weddingCode/v40/letterGuess/` | 모델(`isSettledAxis`, `isLetterGuessEligible`, `summarizeLetterGuess`, `letterGuessChoices`), 봉투를 만들고 푸는 순수 함수 넷(`letterGuessEnvelope.ts`), 주입받은 포트로 읽고 쓰고 지우는 도우미(`letterGuessStore.ts`), 문구 `V40_LETTER_GUESS_COPY`, 켬 상수 `V40_LETTER_GUESS_ENABLED`, 인터페이스 `LetterGuessModule` | 상수와 `../types`, 결과(`V40Result`)는 읽기만 한다. **저장소 이름도 저장 키도 링크 코덱도 모른다** |
+| `components/wedding-code/v40/letterGuess/` | `LetterGuessScreen`(결과 전 화면, `data-screen="letter-guess"`), `LetterGuessLines`(결과 줄), `LetterGuessClosedCard`(두 사람 결과의 기본으로 닫힌 카드) | 같음 |
+| `app/wedding-code/WeddingCodeV40Client.stage2.tsx` | 단계 상태를 모은 작은 훅과 순수 판단(단계를 열지, 마지막 질문 단추가 「다음」인지). 통계, 저장소, 링크 코덱을 가져오지 않는다 | |
+| `constants/weddingCodeV40Guess.ts` | **생성 파일**(고치지 않는다). 서로 짐작하기 여섯 장면과 화면 글. 원천 `docs/wedding-code/2026-10-01_v41_guess_set.json`을 `scripts/build-wedding-code-v41-guess.mjs`가 검사기(`scripts/wedding-code-v41-guess-lint.mjs`)에 통과시켜 허용한 필드만 내보낸다 | |
+
+- **포트 패턴.** 저장소 이름은 `storage.ts`의 `browserStorage()`(있다면 `browserSessionStorage()`도) 한 곳만 부른다. 새 저장은 `storage.ts`의 **일반 내보내기** `createExtraPort(handle, key, { honorAutosave })`(읽기, 쓰기, 지우기 세 함수를 가진 객체, `storageModule`의 열세 개 함수에는 넣지 않았다)가 만든 포트를 클라이언트가 글자 고르기 도우미에 넘기는 것으로 한다. 글자 고르기 키는 `V40_STORAGE.letterGuessKey`(`hanbang:wedding-code:v4:letter-guess`) 하나이고, 서로 짐작하기는 저장하지 않는다(메모리뿐). `writeAutosavePreference(off)`가 이 키를 함께 지우고 `clearProgress`, `clearHistory`, `purgeExpired`는 건드리지 않는다.
+- **링크 `ga`, `gb`.** `#v=v4.0-tendency&a=<70자>[&ga=<8자>][&b=<70자>[&gb=<8자>]]`. `g` 8자 = 세트 글자 + 장면 글자 여섯(3 x 내 고름 + 짐작, 문자 `0`에서 `8`) + 검사 글자(61 법, 위치 가중치 1에서 7). 70자 코드의 뜻, `codec.ts`, `V40_LINK_KEYS`는 그대로이고 `ga`, `gb`는 `guess/guessLink.ts`만 안다. 계약 문서 §8의 8.x와 §23.5가 정본이다.
+- **새 모듈 인터페이스 둘.** `GuessLinkModule`(`guess/guessContract.ts`), `LetterGuessModule`(`letterGuess/letterGuessContract.ts`)은 `contract.ts`가 타입으로 다시 내보내고 각 구현 파일 끝에서 `satisfies`로 검사한다.
+- **`deps.stages`.** 클라이언트 `deps`에 `stages?: { letterGuess?: boolean; pairGuess?: boolean }`가 있다. 주지 않으면 두 켬 상수(둘 다 켬, 어두운 입구 뒤에서만)를 읽고, 시험 도구(`WeddingCodeV40Client.testKit.tsx`)의 기본은 둘 다 꺼짐이라 기존 클라이언트 시험 다섯 파일이 한 줄도 바뀌지 않는다. `V40_LETTER_GUESS_ENABLED`, `V40_PAIR_GUESS_ENABLED`를 거짓으로 하면 화면만 사라지고 링크 해독은 그대로다.
+- **소스 가드(`scripts/tests/wedding-code-v40-source-guards.test.mjs`)의 규칙 11, 13에서 17과 확장.** 새 단계 파일은 통계를 부르지 않고(11), 글자 고르기는 링크 코덱, 짐작 폴더, 입구를 가져오지 않고(13), 새 폴더에는 골든 링크와 개발 메모가 없고(14), 바렐을 가져오지 않고(15), 클라이언트의 통계 호출은 열 개 그대로이고(16), 오류 메시지에 입력 글자가 없다(17). 규칙 5, 8, 10은 `browserSessionStorage`(있을 때), 해시 키 `ga`, `gb`, 짐작 코덱이 링크를 여는 모듈이라는 것으로 넓어졌다. 규칙 12는 선택 2부의 자리라 비어 있다.
+- **시험과 증명.** 새 시험 파일마다 `scripts/wedding-code-v41-proof-cases/<트랙>/<시험 파일 이름>.json`이 있고 `node scripts/wedding-code-v41-prove-all.mjs`가 영수증 상태를 보고한다(`--run`으로 직렬로 돈다, `--pr-evidence`는 PR 본문에 싣는 엔진과 정제 파일의 `git diff --stat`을 낸다).
+- **사람이 읽은 문구는 한 줄도 없다.** 여섯 장면 중 넷은 비평가 검토도 받지 않았고 승인 낱말 목록은 새 낱말을 얼리지 않았다(계약 문서 §23.11).

@@ -100,7 +100,8 @@ function ErrorEntry({ onRestart, embedded, v40 }: { onRestart: () => void; embed
     // 읽을 수 없는 v4 링크의 코드 조각을 주소창과 이력에서 지운다(받는 사람 화면과 같다). 쿼리에 실려 온 답도 함께 지운다.
     // 화면은 입구가 붙잡은 링크(createLocationHashStore)나 서버가 준 오류로 그대로 남는다. 새로고침하면 v4 빈 입구가 열린다.
     const { pathname, search, hash } = window.location;
-    if (hash === "" && !/[?&][ab]=/.test(search)) return;
+    // a, b 에 이미 있는 배려를 서로 짐작하기의 ga, gb 까지 늘린다(깨진 링크의 짐작 글자도 주소창과 이력에 남기지 않는다).
+    if (hash === "" && !/[?&](?:a|b|ga|gb)=/.test(search)) return;
     window.history.replaceState(window.history.state, "", `${pathname}?v=${WEDDING_CODE_V40_VERSION}`);
   }, [v40]);
   return (

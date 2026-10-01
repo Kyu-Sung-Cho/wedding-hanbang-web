@@ -1,0 +1,74 @@
+[
+  {
+    "name": "카드가 기본으로 열려 있다",
+    "target": "apps/web/src/components/wedding-code/v40/letterGuess/LetterGuessClosedCard.tsx",
+    "find": "const [open, setOpen] = useState(false);",
+    "replace": "const [open, setOpen] = useState(true);"
+  },
+  {
+    "name": "Escape 로 닫히지 않는다",
+    "target": "apps/web/src/components/wedding-code/v40/letterGuess/LetterGuessClosedCard.tsx",
+    "find": "if (event.key === \"Escape\") setOpen(false);",
+    "replace": "if (event.key === \"Enter\") setOpen(false);"
+  },
+  {
+    "name": "화면이 숨겨져도 닫히지 않고 보일 때 닫힌다",
+    "target": "apps/web/src/components/wedding-code/v40/letterGuess/LetterGuessClosedCard.tsx",
+    "find": "if (document.visibilityState === \"hidden\") setOpen(false);",
+    "replace": "if (document.visibilityState === \"visible\") setOpen(false);"
+  },
+  {
+    "name": "Escape 귀를 떼지 않는다",
+    "target": "apps/web/src/components/wedding-code/v40/letterGuess/LetterGuessClosedCard.tsx",
+    "find": "document.removeEventListener(\"keydown\", closeOnEscape);",
+    "replace": ""
+  },
+  {
+    "name": "화면 숨김 귀를 떼지 않는다",
+    "target": "apps/web/src/components/wedding-code/v40/letterGuess/LetterGuessClosedCard.tsx",
+    "find": "document.removeEventListener(\"visibilitychange\", hideWhenBackgrounded);",
+    "replace": ""
+  },
+  {
+    "name": "aria-expanded 가 늘 거짓이다",
+    "target": "apps/web/src/components/wedding-code/v40/letterGuess/LetterGuessClosedCard.tsx",
+    "find": "aria-expanded={shown}",
+    "replace": "aria-expanded={false}"
+  },
+  {
+    "name": "닫을 때 줄을 문서에서 빼지 않고 숨김 속성으로만 감춘다",
+    "target": "apps/web/src/components/wedding-code/v40/letterGuess/LetterGuessClosedCard.tsx",
+    "find": "      {shown ? (\n        <div id={bodyId} data-letter-guess-body=\"\">\n          <LetterGuessBody summary={summary} />\n        </div>\n      ) : null}",
+    "replace": "      <div id={bodyId} data-letter-guess-body=\"\" hidden={!shown}>\n        <LetterGuessBody summary={summary} />\n      </div>"
+  },
+  {
+    "name": "단추 이름이 열린 뒤에도 바뀌지 않는다",
+    "target": "apps/web/src/components/wedding-code/v40/letterGuess/LetterGuessClosedCard.tsx",
+    "find": "{shown ? copy.closedCard.closeButton : copy.closedCard.openButton}",
+    "replace": "{copy.closedCard.openButton}"
+  },
+  {
+    "name": "줄이 없어졌다 다시 생겨도 열린 채로 남는다",
+    "target": "apps/web/src/components/wedding-code/v40/letterGuess/LetterGuessClosedCard.tsx",
+    "find": "if (open && !hasLines) setOpen(false);",
+    "replace": ""
+  },
+  {
+    "name": "열린 뒤에도 안내 한 줄이 남는다",
+    "target": "apps/web/src/components/wedding-code/v40/letterGuess/LetterGuessClosedCard.tsx",
+    "find": "{shown ? null : <p className={cx(noteText, \"mt-1\")}>{copy.closedCard.note}</p>}",
+    "replace": "<p className={cx(noteText, \"mt-1\")}>{copy.closedCard.note}</p>"
+  },
+  {
+    "name": "열림 상태를 브라우저 저장소에 남긴다",
+    "target": "apps/web/src/components/wedding-code/v40/letterGuess/LetterGuessClosedCard.tsx",
+    "find": "onClick={() => setOpen((current) => !current)}",
+    "replace": "onClick={() => { window.localStorage.setItem(\"probe\", \"1\"); setOpen((current) => !current); }}"
+  },
+  {
+    "name": "토글 설명이 구역 제목이 아니라 본문을 가리킨다",
+    "target": "apps/web/src/components/wedding-code/v40/letterGuess/LetterGuessClosedCard.tsx",
+    "find": "aria-describedby={titleId}",
+    "replace": "aria-describedby={bodyId}"
+  }
+]

@@ -11,11 +11,29 @@
 //   6. 이용 통계 호출은 이미 고지한 이벤트와 속성만 쓴다(목록은 analyticsPrivacy.ts 를 검사 때 읽는다). 통계 함수는
 //      `@/lib/analytics` 의 captureWeddingCodeEvent, captureEvent 로만 부른다(하위 모듈, 다른 이름, 재수출은 막는다).
 //   7. 보이는 글자에 A/B, 가나다, 1. 2. 같은 라벨이나 번호가 없다. **부분 검사다**(아래 「한계」).
-//   8. 판 이름표는 v4.0-tendency 이고 링크 해시 키는 v, a, b 뿐이다(쿼리 키는 v 뿐).
+//   8. 판 이름표는 v4.0-tendency 이고 링크 상수(V40_LINK_KEYS)는 v, a, b 뿐이며, 해시에서 읽고 쓰는 키는 거기에 4.1 단계 2 의 ga, gb 를 더한 다섯이다(쿼리 키는 v 뿐).
 //   9. 「검증을 마친 심리검사가 아니」 고지는 시작, 받는 사람, 결과, 두 사람 결과 묶음에 정확히 한 번씩만 있다.
-//  10. v4 링크를 여는 앱 쪽 파일(v4 코덱이나 v4 클라이언트를 가져오는 파일)이 생기면 Sentry 주소 꼬리 정제(#473)가 main 에 있어야 한다.
+//  10. v4 링크를 여는 앱 쪽 파일(v4 코덱, v4 짐작 코덱, v4 클라이언트를 가져오는 파일)이 생기면 Sentry 주소 꼬리 정제(#473)가 main 에 있어야 한다.
+//
+// ## 4.1 단계 2(서로 짐작하기, 결과 전 글자 고르기)가 더한 것 (빌드 계획 11.3)
+//
+//   5 (확장)  저장소 이름은 storage.ts 의 browserStorage 한 함수(localStorage) 안에서만 부른다(이 단계는 이 창의 임시 저장소 sessionStorage 를 쓰지 않는다). 글자 고르기 저장 키(letterGuessKey)는 storage.ts 만 안다.
+//   8 (확장)  해시에서 읽고 쓰는 키는 v, a, ga, b, gb. 쿼리 키는 여전히 v 뿐이다. 짐작 코덱의 키 상수는 정확히 ga, gb 다.
+//  10 (확장)  짐작 코덱(lib/weddingCode/v40/guess/guessLink)도 v4 링크를 여는 모듈이다.
+//  11 (새)    새 단계 파일(guess, letterGuess 폴더와 클라이언트 단계 훅 WeddingCodeV40Client.stage2*)은 통계를 가져오지도 부르지도 않는다.
+//  12         비어 있다. 선택 2부(part2)의 격리 규칙 자리이고 2부는 후속 PR 이라 이 단계에는 규칙도 폴더도 없다.
+//  13 (새)    글자 고르기 폴더는 링크 코덱, 짐작 폴더, 입구를 가져오지 않는다(고른 글자는 링크에 가지 않는다).
+//  14 (새)    새 컴포넌트 폴더는 규칙 7 의 한 글자 문자열 검사를 받는다. 새 lib 폴더와 생성 상수에는 골든 링크와 개발 메모 값이 없다.
+//  15 (새)    새 폴더는 바렐(components/wedding-code/v40 의 index, lib 폴더의 ..)을 가져오지 않는다(순환을 막는다).
+//  16 (새)    WeddingCodeV40Client.tsx 의 통계 호출은 정확히 열 개이고 이벤트 이름 집합은 고지한 여덟 개 그대로다.
+//  17 (새)    새 폴더가 던지는 오류의 메시지에는 입력 글자(템플릿 치환, 이어 붙이기)가 없다.
+//   그 밖   새 폴더와 생성 상수의 화면 글에 누가 맞혔는지, 점수, 개수 말이 없다. 엔진 열 개 파일은 4.1 단계 2 기준과 한 글자도 다르지 않다.
 //
 // ## 한계 (이 파일이 못 하는 것)
+//
+// 4.1 단계 2 규칙(11, 13, 15)은 **직접 가져오기 한 단계**만 본다: 새 폴더가 통계나 링크 코덱을 가져오는 다른 모듈을 거쳐 닿는 길은 못 본다(통계 쪽은 규칙 6 이
+// 모든 v4 소스에서 따로 보지만 링크 코덱 쪽은 사람이 읽어야 한다). 규칙 16 은 클라이언트 본체 한 파일의 호출 식만 센다: 통계를 부르는 다른 파일을 본체가 새로 가져오는 길은 규칙 6 이 이름으로 막는다.
+// 엔진 고정은 파일 내용 해시이고 기준 커밋 5ac9eda24 의 값을 옮겨 적은 표다. 이 가드와 표를 같은 사람이 썼다: 표의 해시가 맞는지는 `git show 5ac9eda24:<경로>` 로 다시 잴 수 있다.
 //
 // 이 파일은 소스 글자를 훑는다. 실행 값은 못 본다. 규칙 7 은 리터럴 모양과 흔한 계산 모양(`{i + 1}`, `{i}/{n}`, `번째` 템플릿,
 // fromCharCode, "ABCD"[i], <ol>, list-decimal)만 잡는 **부분 검사**이고, 번호가 다른 함수를 거쳐 오면 못 본다. 규칙 5 의 이동 주소 검사도
@@ -41,6 +59,7 @@
 // 파일이 있는데 문자열이 0개 뽑히면(파서가 깨졌거나 경로가 어긋남) 조용히 통과하지 않고 실패한다.
 
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { basename, dirname, join, relative, resolve } from "node:path";
 import test from "node:test";
@@ -66,6 +85,9 @@ const PATHS = {
   copy: join(WEB_SRC, "lib/weddingCode/v40/copy.ts"),
   codec: join(WEB_SRC, "lib/weddingCode/v40/codec.ts"),
   storage: join(WEB_SRC, "lib/weddingCode/v40/storage.ts"),
+  client: join(WEB_SRC, "app/wedding-code/WeddingCodeV40Client.tsx"),
+  guessLink: join(WEB_SRC, "lib/weddingCode/v40/guess/guessLink.ts"),
+  guessConstants: join(WEB_SRC, "constants/weddingCodeV40Guess.ts"),
   v31Progress: join(WEB_SRC, "lib/weddingCode/v31LocalProgress.ts"),
   v31Hook: join(WEB_SRC, "app/wedding-code/useV31LocalProgress.ts"),
   sentryScrub: join(repoRoot, "packages/shared/src/safety/sentryScrub.ts"),
@@ -77,7 +99,12 @@ const PATHS = {
 
 const VERSION_TAG = "v4.0-tendency";
 const ALLOWED_LETTERS = ["V", "S", "W", "D", "U", "F", "H", "A"];
-const LINK_HASH_KEYS = ["a", "b", "v"];
+/** 링크 키 상수(V40_LINK_KEYS)의 값. 4.1 단계 2 도 이 상수는 바꾸지 않는다(짐작 키는 V40_GUESS_LINK_KEYS 가 따로 갖는다). */
+const LINK_KEY_CONSTANT = ["a", "b", "v"];
+/** 4.1 단계 2 가 더한 짐작 키. ga 는 a 옆, gb 는 b 옆이고 v4.0-tendency 해시에서만 쓴다. */
+const GUESS_LINK_KEYS = ["ga", "gb"];
+/** 해시에서 읽거나 쓰는 키 전부(링크 키 상수 + 짐작 키). 쿼리에는 이 가운데 어느 것도 싣지 않는다. */
+const ALLOWED_HASH_KEYS = [...LINK_KEY_CONSTANT, ...GUESS_LINK_KEYS];
 /** 허용하는 유일한 부정문(설계 6절, 9절 1항). copy.ts 의 V40_NOT_VALIDATED_PHRASE 와 같아야 한다. */
 const NOT_VALIDATED_PHRASE = "검증을 마친 심리검사가 아니";
 /** 고지가 정확히 한 번 있어야 하는 화면 묶음(copy.ts 의 V40_COPY 최상위 키)과 없어야 하는 묶음. */
@@ -151,6 +178,34 @@ const V31_FILES = discoverV31();
 const byBase = (name) => V40_FILES.filter((f) => f.base === name);
 const COPY_FILE = V40_FILES.find((f) => f.abs === PATHS.copy) ?? null;
 const CONSTANTS_FILE = V40_FILES.find((f) => f.abs === PATHS.constantsMain) ?? null;
+
+// ---------------------------------------------------------------------------
+// 4.1 단계 2 의 새 폴더 (규칙 11, 13에서 17과 단어 규칙이 보는 범위)
+// ---------------------------------------------------------------------------
+
+/**
+ * 4.1 단계 2 가 더한 폴더 이름: guess(서로 짐작하기), letterGuess(결과 전 글자 고르기).
+ * 선택 2부(part2)는 후속 PR 이라 폴더도 규칙도 없다. 2부를 더하는 PR 이 이 목록과 규칙 12 를 함께 더한다.
+ */
+const STAGE_FOLDERS = ["guess", "letterGuess"];
+const GUESS_LIB_DIR = join(PATHS.lib, "guess");
+const LETTER_LIB_DIR = join(PATHS.lib, "letterGuess");
+const GUESS_COMPONENT_DIR = join(PATHS.components, "guess");
+const LETTER_COMPONENT_DIR = join(PATHS.components, "letterGuess");
+const STAGE_LIB_DIRS = STAGE_FOLDERS.map((name) => join(PATHS.lib, name));
+const STAGE_COMPONENT_DIRS = STAGE_FOLDERS.map((name) => join(PATHS.components, name));
+/** 통합자가 만드는 클라이언트 단계 훅(WeddingCodeV40Client.stage2.tsx 와 이름이 같은 길의 파일들). 아직 없으면 자리만 있다. */
+const STAGE2_APP_FILE = /^WeddingCodeV40Client\.stage2/u;
+
+const isUnderDir = (abs, dir) => posix(abs).startsWith(`${posix(dir)}/`);
+const inAnyDir = (abs, dirs) => dirs.some((dir) => isUnderDir(abs, dir));
+
+/** 새 단계 파일: 새 lib 폴더, 새 컴포넌트 폴더, 클라이언트 단계 훅. 시험 파일은 처음부터 V40_FILES 에 없다. */
+const stageFiles = () => V40_FILES.filter((f) => inAnyDir(f.abs, [...STAGE_LIB_DIRS, ...STAGE_COMPONENT_DIRS]) || (f.group === "app" && STAGE2_APP_FILE.test(f.base)));
+/** 결과 전 글자 고르기 폴더(lib와 컴포넌트). */
+const letterGuessFiles = () => V40_FILES.filter((f) => inAnyDir(f.abs, [LETTER_LIB_DIR, LETTER_COMPONENT_DIR]));
+/** 새 lib 폴더와 새 컴포넌트 폴더의 파일(훅은 뺀다). 바렐 순환과 오류 메시지 규칙이 본다. */
+const stageFolderFiles = () => V40_FILES.filter((f) => inAnyDir(f.abs, [...STAGE_LIB_DIRS, ...STAGE_COMPONENT_DIRS]));
 
 /**
  * 문자열 규칙에서 빼는 파일과 이유. 이유가 지금도 참이어야 빠질 수 있다(시험 「측정기가 살아 있다」가 확인한다).
@@ -759,7 +814,7 @@ function apiHits(analysis, file) {
  * 꺼짐만 남는다. 그래서 핸들은 storage.ts 의 함수에 넘기기만 하고, 자동 저장 선호는 readAutosavePreference, writeAutosavePreference 로만 읽고 쓴다.
  */
 const STORAGE_METHODS = /^(?:getItem|setItem|removeItem)$/u;
-const STORAGE_KEY_NAMES = /^(?:progressKey|historyKey|autosaveKey|legacyV31ProgressKey|legacyV31AutosaveKey)$/u;
+const STORAGE_KEY_NAMES = /^(?:progressKey|historyKey|letterGuessKey|autosaveKey|legacyV31ProgressKey|legacyV31AutosaveKey)$/u;
 function storageBypassHits(analysis) {
   const hits = [];
   const sf = analysis.sf;
@@ -1222,7 +1277,7 @@ function hashKeyHits(rec) {
   const at = rec.text.indexOf("#");
   if (at < 0) return hits;
   for (const match of rec.text.slice(at).matchAll(/[#&]([A-Za-z_][A-Za-z0-9_-]*)=/gu)) {
-    if (!LINK_HASH_KEYS.includes(match[1])) hits.push(`해시 키 「${match[1]}」 (허용: v, a, b)`);
+    if (!ALLOWED_HASH_KEYS.includes(match[1])) hits.push(`해시 키 「${match[1]}」 (허용: ${ALLOWED_HASH_KEYS.join(", ")})`);
   }
   return hits;
 }
@@ -1245,8 +1300,8 @@ function urlSearchParamKeyHits(analysis) {
     if (ts.isCallExpression(node) && ts.isPropertyAccessExpression(node.expression) && ts.isIdentifier(node.expression.expression)
       && params.has(node.expression.expression.text) && /^(get|getAll|has|set|append|delete)$/u.test(node.expression.name.text)) {
       const arg = node.arguments[0];
-      if (arg && (ts.isStringLiteral(arg) || ts.isNoSubstitutionTemplateLiteral(arg)) && !LINK_HASH_KEYS.includes(arg.text)) {
-        hits.push({ line: lineOf(sf, node), what: `링크 해시 키 「${arg.text}」 (허용: v, a, b)` });
+      if (arg && (ts.isStringLiteral(arg) || ts.isNoSubstitutionTemplateLiteral(arg)) && !ALLOWED_HASH_KEYS.includes(arg.text)) {
+        hits.push({ line: lineOf(sf, node), what: `링크 해시 키 「${arg.text}」 (허용: ${ALLOWED_HASH_KEYS.join(", ")})` });
       }
     }
     if (isParamsNew(node) && node.arguments?.[0]) {
@@ -1254,7 +1309,7 @@ function urlSearchParamKeyHits(analysis) {
       if (ts.isObjectLiteralExpression(arg)) {
         for (const prop of arg.properties) {
           const key = (ts.isPropertyAssignment(prop) || ts.isShorthandPropertyAssignment(prop)) && (ts.isIdentifier(prop.name) || ts.isStringLiteral(prop.name)) ? prop.name.text : null;
-          if (key === null || !LINK_HASH_KEYS.includes(key)) hits.push({ line: lineOf(sf, prop), what: `URLSearchParams 객체의 키 ${key === null ? "(알 수 없음)" : `「${key}」`} (허용: v, a, b)` });
+          if (key === null || !ALLOWED_HASH_KEYS.includes(key)) hits.push({ line: lineOf(sf, prop), what: `URLSearchParams 객체의 키 ${key === null ? "(알 수 없음)" : `「${key}」`} (허용: ${ALLOWED_HASH_KEYS.join(", ")})` });
         }
       }
     }
@@ -1333,23 +1388,30 @@ function noticeReport(analysis) {
 // --- 규칙 10: v4 링크를 여는 파일 ---------------------------------------------
 
 /**
- * v4 링크(#v=v4.0-tendency&a=…)를 읽거나 여는 앱 쪽 모듈: v4 클라이언트와 v4 코덱.
- * 이 둘을 가져오는 v4 밖의 실서비스 파일(entry.ts, WeddingCodeEntryClient.tsx 등)이 생기는 순간 v4 링크가 실제로 쓰인다.
+ * v4 링크(#v=v4.0-tendency&a=…[&ga=…])를 읽거나 여는 앱 쪽 모듈: v4 클라이언트, v4 코덱, v4 짐작 코덱(ga, gb).
+ * 이 셋을 가져오는 v4 밖의 실서비스 파일(entry.ts, WeddingCodeEntryClient.tsx 등)이 생기는 순간 v4 링크가 실제로 쓰인다.
  * (v4 소스 안에서 서로 가져오는 것은 여기 들지 않는다. 문항 은행, 코어, 입력 컴포넌트는 링크를 열지 않는다.)
  */
 const V40_LINK_OPENERS = [
   /^app\/wedding-code\/weddingcodev40/iu,
   /^lib\/weddingcode\/v40\/codec$/iu,
+  /^lib\/weddingcode\/v40\/guess\/guesslink$/iu,
 ];
+
+/** 가져온 경로를 웹 소스 기준 상대 경로로 바꾸고 확장자와 /index 를 뗀 것(같은 모듈은 같은 글자로 본다). 풀 수 없으면 null. */
+function moduleTargetOf(spec, fromAbs) {
+  if (spec === null) return null;
+  const resolved = resolveSpecifier(spec, fromAbs);
+  if (resolved === null) return null;
+  return relToWeb(resolved).replace(/\.(?:ts|tsx|js|jsx|mjs|cjs)$/u, "").replace(/\/index$/u, "");
+}
 
 /** analysis 가 v4 링크 열기 모듈을 가져오는 자리들(경로를 알 수 없는 동적 가져오기는 여기서는 세지 않는다). */
 function linkOpenerImports(analysis) {
   const out = [];
   for (const imp of analysis.imports) {
-    if (imp.spec === null) continue;
-    const resolved = resolveSpecifier(imp.spec, analysis.fileName);
-    if (resolved === null) continue;
-    const target = relToWeb(resolved).replace(/\.(?:ts|tsx|js|jsx|mjs|cjs)$/u, "").replace(/\/index$/u, "");
+    const target = moduleTargetOf(imp.spec, analysis.fileName);
+    if (target === null) continue;
     if (V40_LINK_OPENERS.some((re) => re.test(target))) out.push({ line: imp.line, spec: imp.spec });
   }
   return out;
@@ -1385,6 +1447,243 @@ function scrubHandlesContexts(text) {
 function sentryGateHits(openers, handled) {
   return handled ? [] : openers.map((opener) => `${opener} — sentryScrub.ts 가 contexts 안 주소의 ?·# 꼬리를 자르지 않는다`);
 }
+
+// ---------------------------------------------------------------------------
+// 4.1 단계 2 규칙 11, 13에서 17, 단어 규칙, 엔진 고정 (빌드 계획 11.3)
+// ---------------------------------------------------------------------------
+
+/**
+ * 규칙 11: 새 단계 파일은 통계 모듈(@/lib/analytics 와 그 하위)을 가져오지 않고, captureWeddingCodeEvent, captureEvent 라는 이름을 어디에도 쓰지 않는다.
+ * 규칙 6 은 v4 전체에서 「고지한 이벤트만」을 보고, 이 규칙은 새 단계에서 **이벤트가 하나도** 불리지 않게 한다(새 단계는 이용 통계 항목을 더하지 않는다).
+ * 식별자 이름으로 보므로 가져오지 않고 부르는 호출, 별칭, 속성 접근도 걸린다.
+ */
+function statsFreeHits(analysis) {
+  const hits = [];
+  for (const imp of analysis.imports) {
+    if (imp.spec === null) continue;
+    const resolved = resolveSpecifier(imp.spec, analysis.fileName);
+    if (resolved !== null && analyticsKindOf(resolved) !== "none") hits.push({ line: imp.line, what: `${imp.spec} 를 가져온다(새 단계는 이용 통계에 닿지 않는다)` });
+  }
+  const visit = (node) => {
+    if (ts.isIdentifier(node) && CAPTURE_NAMES.has(node.text)) hits.push({ line: lineOf(analysis.sf, node), what: `${node.text} 를 쓴다(새 단계는 통계 이벤트를 부르지 않는다)` });
+    ts.forEachChild(node, visit);
+  };
+  visit(analysis.sf);
+  return hits;
+}
+
+/** 규칙 13: 결과 전 글자 고르기는 링크에 가지 않으므로 링크 코덱, 짐작 폴더(lib, 컴포넌트), 입구를 가져오지 않는다. */
+const LETTER_GUESS_FORBIDDEN_IMPORTS = [
+  ["링크 코덱(codec)", /^lib\/weddingcode\/v40\/codec$/iu],
+  ["서로 짐작하기(guess)", /^(?:lib\/weddingcode|components\/wedding-code)\/v40\/guess(?:\/|$)/iu],
+  ["입구(entry)", /^app\/wedding-code\/entry$/iu],
+];
+
+function letterGuessIsolationHits(analysis) {
+  const hits = [];
+  for (const imp of analysis.imports) {
+    const target = moduleTargetOf(imp.spec, analysis.fileName);
+    if (target === null) continue;
+    const found = LETTER_GUESS_FORBIDDEN_IMPORTS.find(([, re]) => re.test(target));
+    if (found) hits.push({ line: imp.line, what: `${found[0]}: ${imp.spec} (먼저 고른 글자는 링크에 가지 않는다)` });
+  }
+  return hits;
+}
+
+/**
+ * 규칙 14(자료 쪽): 새 lib 폴더와 생성 상수는 골든 링크(https:// 이 든 글)와 한 글자 대문자 값을 두지 않는다. 규칙 1 이 v4 소스의 여덟 글자 밖 대문자 한 자를 이미 거절하는데,
+ * 여기서는 여덟 글자도 한 글자 값으로 적지 않게 한다(글자는 상수에서 읽는다). 생성 상수에는 개발 메모 키도 없다(원천 JSON 의 dev, rules, status 와 그 안의 값이 번들로 나가지 않게).
+ * 골든 값은 시험 파일에만 둔다.
+ */
+const GOLDEN_LINK = /https?:\/\//iu;
+const SINGLE_CAPITAL = /^[A-Z]$/u;
+const DEV_NOTE_KEYS = new Set(["dev", "lookSide", "whyItDiffers", "sides", "costKinds", "fit", "rules", "status"]);
+
+function stageDataHits(analysis, { generated = false } = {}) {
+  const hits = [];
+  for (const rec of analysis.strings) {
+    if (rec.dev) continue;
+    if (GOLDEN_LINK.test(rec.text)) hits.push({ line: rec.line, what: `골든 링크가 든 글 「${rec.text.trim().slice(0, 40)}」(골든 값은 시험 파일에만 둔다)` });
+    if (SINGLE_CAPITAL.test(rec.text.trim())) hits.push({ line: rec.line, what: `한 글자 대문자 값 「${rec.text.trim()}」(글자는 상수에서 읽는다)` });
+  }
+  if (generated) {
+    const visit = (node) => {
+      const named = (ts.isPropertyAssignment(node) || ts.isShorthandPropertyAssignment(node) || ts.isPropertySignature(node)) && node.name && (ts.isIdentifier(node.name) || ts.isStringLiteral(node.name));
+      if (named && DEV_NOTE_KEYS.has(node.name.text)) hits.push({ line: lineOf(analysis.sf, node), what: `개발 메모 키 「${node.name.text}」가 생성 상수에 있다(허용 필드만 내보낸다)` });
+      ts.forEachChild(node, visit);
+    };
+    visit(analysis.sf);
+  }
+  return hits;
+}
+
+/** 규칙 15: 새 폴더는 바렐(components/wedding-code/v40 의 index 와 lib/weddingCode/v40 의 .., ../index)을 가져오지 않는다. useScreenFocus, SectionCard, styles 는 파일 경로로 직접 가져온다. */
+const BARREL_TARGETS = [/^components\/wedding-code\/v40$/iu, /^lib\/weddingcode\/v40$/iu];
+
+function barrelImportHits(analysis) {
+  const hits = [];
+  for (const imp of analysis.imports) {
+    const target = moduleTargetOf(imp.spec, analysis.fileName);
+    if (target !== null && BARREL_TARGETS.some((re) => re.test(target))) hits.push({ line: imp.line, what: `바렐 ${imp.spec} 를 가져온다(필요한 파일을 경로로 직접 가져올 것: 순환이 생긴다)` });
+  }
+  return hits;
+}
+
+/** 규칙 17: 새 폴더가 만드는 오류(Error, RangeError, TypeError …)의 메시지는 고정 문자열이다. 템플릿 치환이나 이어 붙이기로 입력 글자를 싣지 않는다. */
+function errorMessageHits(analysis) {
+  const hits = [];
+  const isErrorName = (name) => name === "Error" || /Error$/u.test(name);
+  const fixedMessage = (expr, depth = 0) => {
+    if (depth > 3) return false;
+    const e = peel(expr);
+    if (literalConcat(e) !== null) return true;
+    if (ts.isIdentifier(e)) {
+      const init = findConstInit(e);
+      return init !== null && !ts.isFunctionLike(init) && fixedMessage(init, depth + 1);
+    }
+    return false;
+  };
+  const visit = (node) => {
+    if ((ts.isNewExpression(node) || ts.isCallExpression(node)) && ts.isIdentifier(node.expression) && isErrorName(node.expression.text)) {
+      const message = node.arguments?.[0];
+      if (message !== undefined && !fixedMessage(message)) hits.push({ line: lineOf(analysis.sf, node), what: `${node.expression.text}() 의 메시지가 고정 문자열이 아니다(입력 글자를 싣지 않는다)` });
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(analysis.sf);
+  return hits;
+}
+
+/**
+ * 단어 규칙: 새 폴더의 화면 글과 생성 상수의 화면 글(V40_GUESS_TEXT)에 누가 맞혔는지(맞혔·틀렸·정답·오답·적중·득점·승패·등수·순위)와 점수, 비율(점수, 퍼센트, 백분율, % 기호)이 없고,
+ * 문구 파일 둘과 V40_GUESS_TEXT 에는 개수 말(몇 개, 몇 가지, 여섯 가지, 개 중)과 숫자도 없다. 맞추다, 맞춰 같은 말은 일정을 맞춘다는 뜻으로도 쓰여서 걸지 않는다.
+ * 장면 글(V40_GUESS_SET)은 화면 문구가 아니라 자료라서 이 규칙에서 뺀다(「정답이 없는」 같은 말이 장면 안에 자연스럽게 나올 수 있다).
+ * 점수, 퍼센트, 백분율 기호는 규칙 2 가 v4 전체에서 이미 본다.
+ */
+const WHO_GUESSED_RIGHT_WORDS = /맞혔|맞혀|맞힌|맞히|틀렸|틀린|정답|오답|적중|득점|승패|등수|(?<!우선)순위|몇\s?점|점수|퍼센트|백분율|[%％﹪]/u;
+const COUNT_PHRASES = /몇\s?(?:개|가지|번|장면|주제)|(?:여섯|네|다섯|세)\s?가지|개\s?중|[0-9]/u;
+/** 개수 말 검사까지 받는 문구 파일(copy.ts 에 붙는 번들의 재료). */
+const STAGE_COPY_FILES = new Set(["guessCopy.ts", "letterGuessCopy.ts"]);
+
+/** 이 파일의 글 가운데 어느 것이 낱말 검사(who)와 개수 말 검사(count)를 받는가. 해당 없으면 둘 다 거짓. */
+function wordScopeOf(file, analysis) {
+  if (file.abs === PATHS.guessConstants) {
+    const decl = topLevelDecl(analysis.sf, "V40_GUESS_TEXT");
+    if (decl === null) return { who: () => false, count: () => false };
+    const from = decl.getStart(analysis.sf);
+    const to = decl.getEnd();
+    const inText = (rec) => rec.pos >= from && rec.pos < to;
+    return { who: inText, count: inText };
+  }
+  return { who: () => true, count: () => file.group === "lib" && STAGE_COPY_FILES.has(file.base) };
+}
+
+function stageWordHits(rec, scope) {
+  const hits = [];
+  if (rec.dev || !userFacing(rec)) return hits;
+  if (scope.who(rec) && WHO_GUESSED_RIGHT_WORDS.test(rec.text)) hits.push("누가 맞혔는지나 점수, 비율을 말하는 낱말");
+  if (scope.count(rec) && COUNT_PHRASES.test(rec.text)) hits.push("개수 말이나 숫자");
+  return hits;
+}
+
+/**
+ * 규칙 16: 클라이언트 본체의 통계 호출 자리를 센다. captureWeddingCodeEvent 호출 식의 수와 이벤트 이름 집합, captureEvent 호출 수.
+ * 단계 배선이 고치는 본체 안에서 이벤트가 새로 불리는 길을 막는다(규칙 11 은 새 단계 파일만 본다).
+ */
+const FIXED_FUNNEL_EVENTS = [
+  "wedding_code_comparison_viewed",
+  "wedding_code_completed",
+  "wedding_code_intro_viewed",
+  "wedding_code_restarted",
+  "wedding_code_scene_reached",
+  "wedding_code_share_copied",
+  "wedding_code_started",
+  "wedding_code_taste_clicked",
+];
+/** 기준 커밋 5ac9eda24 에서 직접 센 값: restarted 가 세 곳이라 호출 열 개, 이벤트 이름은 여덟 개. */
+const CLIENT_CAPTURE_CALLS = 10;
+
+/**
+ * 통계 함수를 부르는 호출 식들. 이름 그대로의 호출, 가져올 때 바꾼 이름(import { captureWeddingCodeEvent as cap })의 호출,
+ * 네임스페이스 가져오기의 속성 호출(a.captureWeddingCodeEvent())을 모두 센다(별칭으로 열한 번째 호출을 숨기는 길을 막는다).
+ */
+function captureCallsOf(analysis, wanted) {
+  const sf = analysis.sf;
+  const aliases = new Set([wanted]);
+  for (const imp of analysis.imports) {
+    if (imp.spec === null || !ts.isImportDeclaration(imp.node) || !imp.node.importClause) continue;
+    const resolved = resolveSpecifier(imp.spec, analysis.fileName);
+    if (resolved === null || analyticsKindOf(resolved) === "none") continue;
+    const bindings = imp.node.importClause.namedBindings;
+    if (bindings && ts.isNamedImports(bindings)) {
+      for (const element of bindings.elements) if ((element.propertyName ?? element.name).text === wanted) aliases.add(element.name.text);
+    }
+  }
+  const calls = [];
+  const visit = (node) => {
+    if (ts.isCallExpression(node)) {
+      const callee = node.expression;
+      if (ts.isIdentifier(callee) && aliases.has(callee.text)) calls.push(node);
+      else if (ts.isPropertyAccessExpression(callee) && callee.name.text === wanted) calls.push(node);
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(sf);
+  return calls;
+}
+
+function clientEventReport(analysis) {
+  const ctx = { sf: analysis.sf };
+  const calls = captureCallsOf(analysis, "captureWeddingCodeEvent");
+  const problems = [];
+  const names = new Set();
+  for (const call of calls) {
+    const [eventArg] = call.arguments;
+    if (!eventArg) {
+      problems.push(`${rel(analysis.fileName)}:${lineOf(analysis.sf, call)} 이벤트 이름이 없는 호출`);
+      continue;
+    }
+    const resolved = resolveStrings(eventArg, ctx);
+    if (!resolved.ok) problems.push(`${rel(analysis.fileName)}:${lineOf(analysis.sf, call)} ${resolved.why}`);
+    else for (const value of resolved.values) names.add(value);
+  }
+  return { count: calls.length, otherCalls: captureCallsOf(analysis, "captureEvent").length, names: [...names].sort(), problems };
+}
+
+/**
+ * 엔진 열 개 파일은 4.1 단계 2 기준 커밋(5ac9eda24)의 내용과 한 글자도 다르지 않다(줄 끝 문자는 같게 읽는다). 글자 엔진, 배치, 채점, 동점 사슬, 관문, 은행, 70자 코드의 뜻과 기준 계산기다.
+ * 의도해서 바꿀 때(문항 뜻이 바뀌면 판 태그를 올린다, 설계 D8) 이 표의 해시를 새 값으로 고치고 이유를 PR 에 적는다. 조용히 바뀌는 길만 막는다.
+ */
+const ENGINE_FREEZE = [
+  ["apps/web/src/lib/weddingCode/v40/flow.ts", "f30fc233f111f9a2f093f6b5779113cf51c8fe9579fdbdf6ec3c7593ce300b83"],
+  ["apps/web/src/lib/weddingCode/v40/codec.ts", "9f6bae5bd8b85a7e2806e403c499faa154ec5391f20bdcb5b8309b006a16c030"],
+  ["apps/web/src/lib/weddingCode/v40/score.ts", "03e756e9dc85356a26b8864346239ac5556ed0b125ba8fdf4c60863cf890aae4"],
+  ["apps/web/src/lib/weddingCode/v40/gates.ts", "c130593b322e8d642151890866ef9344de649b1714faecdd30e9172694311596"],
+  ["apps/web/src/lib/weddingCode/v40/value.ts", "11ae45166677b3af39f2a0b234f62cd4cd5513bf75f3810f1b23bd7ce12ccb80"],
+  ["apps/web/src/lib/weddingCode/v40/states.ts", "8ddf7154bf03d6334cafdfefd2a5b9a0add561542610d8cca4278f9c00c8ced6"],
+  ["apps/web/src/lib/weddingCode/v40/layout.ts", "182d744d747feb635467a6234e2280e5ad447e2258bbcd410b0bba91c27da03d"],
+  ["apps/web/src/lib/weddingCode/v40/bank.ts", "efe582c81685449918c05e74ee1122f0a71aa310afb3288a71c7c0debddca3d2"],
+  ["apps/web/src/constants/weddingCodeV40Bank.ts", "23b567abc754cccb35a652f0b08ec0f490fc3613b35c0d868a8e15cf7139aed4"],
+  ["scripts/lib/wedding-code-v40-ref.mjs", "003a17b5d3260b8b850ab26bf88db23c2f0098de420a655a8d20d5abb6f14a62"],
+];
+
+const textHash = (text) => createHash("sha256").update(text.replace(/\r\n/gu, "\n")).digest("hex");
+
+/** table 의 파일을 readText(저장소 상대 경로 -> 글 또는 null)로 읽어 해시가 다르거나 파일이 없는 것을 문장으로 돌려준다. */
+function engineFreezeProblems(readText, table = ENGINE_FREEZE) {
+  const problems = [];
+  for (const [path, want] of table) {
+    const text = readText(path);
+    if (text === null) problems.push(`${path} 를 읽지 못했다(엔진 파일이 지워지거나 옮겨졌다)`);
+    else if (textHash(text) !== want) problems.push(`${path} 가 4.1 단계 2 기준(5ac9eda24)과 다르다(내용 해시 ${textHash(text).slice(0, 12)}…). 엔진은 이 단계에서 한 줄도 바뀌지 않는다`);
+  }
+  return problems;
+}
+
+const readRepoText = (path) => {
+  const abs = join(repoRoot, path);
+  return existsSync(abs) ? readFileSync(abs, "utf8") : null;
+};
 
 // ---------------------------------------------------------------------------
 // 허용 목록 읽기 (analyticsPrivacy.ts — 사본을 두지 않는다)
@@ -1747,12 +2046,12 @@ test("규칙 7: 보이는 글자에 A/B, 가나다, 번호 라벨이 없다", (t
   if (uiFiles.length === 0) t.diagnostic("(화면 컴포넌트가 아직 없다. 생기면 자동으로 훑는다)");
 });
 
-test("규칙 8: 판 이름표는 v4.0-tendency 이고 링크 해시 키는 v, a, b 뿐이다", (t) => {
+test("규칙 8: 판 이름표는 v4.0-tendency 이고 링크 키 상수는 v, a, b 뿐이며 해시 키는 거기에 ga, gb 를 더한 다섯이다", (t) => {
   assert.ok(CONSTANTS_FILE, "상수 파일이 없다");
   const constants = load(CONSTANTS_FILE);
   assert.equal(constValue(constants, "WEDDING_CODE_V40_VERSION"), VERSION_TAG, "WEDDING_CODE_V40_VERSION 이 v4.0-tendency 가 아니다");
   const linkKeys = constValue(constants, "V40_LINK_KEYS");
-  assert.deepEqual(Object.values(linkKeys).sort(), LINK_HASH_KEYS, "링크 해시 키가 정확히 v, a, b 여야 한다");
+  assert.deepEqual(Object.values(linkKeys).sort(), LINK_KEY_CONSTANT, "링크 해시 키가 정확히 v, a, b 여야 한다(짐작 키 ga, gb 는 이 상수가 아니라 V40_GUESS_LINK_KEYS 가 갖는다)");
   assert.deepEqual(Object.keys(linkKeys).sort(), ["first", "second", "version"], "V40_LINK_KEYS 의 항목이 version, first, second 셋이 아니다");
   if (bankJsonExists) assert.equal(bankJson().version, VERSION_TAG, "문항 은행 JSON 의 version 이 판 이름표와 다르다");
 
@@ -1767,8 +2066,17 @@ test("규칙 8: 판 이름표는 v4.0-tendency 이고 링크 해시 키는 v, a,
     }
     for (const hit of urlSearchParamKeyHits(analysis)) offenders.push(`${file.rel}:${hit.line} ${hit.what}`);
   }
-  assertNone(offenders, "판 이름표는 상수 한 곳에서 가져오고, 링크 해시 키는 v, a, b 뿐이며 쿼리 키는 v 뿐이다:");
+  assertNone(offenders, `판 이름표는 상수 한 곳에서 가져오고, 링크 해시 키는 ${ALLOWED_HASH_KEYS.join(", ")} 뿐이며 쿼리 키는 v 뿐이다:`);
   t.diagnostic("판 이름표와 링크 키 상수를 읽어 대조했다");
+});
+
+test("규칙 8: 짐작 코덱의 해시 키 상수는 정확히 ga, gb 이다", () => {
+  assert.ok(existsSync(PATHS.guessLink), `${rel(PATHS.guessLink)} 가 없다 — 짐작 링크 코덱의 자리가 바뀌었으면 이 가드도 함께 고칠 것`);
+  const keys = constValue(loadPath(PATHS.guessLink), "V40_GUESS_LINK_KEYS");
+  assert.deepEqual(keys, { first: "ga", second: "gb" }, "V40_GUESS_LINK_KEYS 가 정확히 ga(a 옆), gb(b 옆)가 아니다");
+  assert.deepEqual(Object.values(keys), GUESS_LINK_KEYS, "가드가 아는 짐작 키와 코덱의 상수가 다르다");
+  // 짐작 키가 링크 키 상수로 새어 들어가지 않았다(70자 a, b 의 뜻과 입구의 키 목록을 그대로 둔다는 약속).
+  assert.equal(GUESS_LINK_KEYS.some((key) => LINK_KEY_CONSTANT.includes(key)), false, "짐작 키가 링크 키 상수와 겹친다");
 });
 
 test("규칙 9: 「검증을 마친 심리검사가 아니」 고지는 시작, 받는 사람, 결과, 두 사람 결과에 한 번씩만 있다", (t) => {
@@ -1814,6 +2122,126 @@ test("규칙 10: v4 링크를 여는 앱 쪽 파일은 Sentry 주소 꼬리 정�
     sentryGateHits(openers, handled),
     "답이 든 v4 링크(# 뒤)는 브라우저 SDK 가 성능 이벤트의 url.full 에 실어 오류 수집 도구로 보낸다. packages/shared 의 sentryScrub.ts 가 contexts 안 주소의 ?·# 꼬리를 자르는 수정(#473)이 main 에 들어오고 운영에서 확인된 뒤에 이 파일들을 병합한다(계약 문서 13절 순서 규칙):",
   );
+});
+
+// ---------------------------------------------------------------------------
+// 4.1 단계 2 규칙 (서로 짐작하기, 결과 전 글자 고르기)
+// ---------------------------------------------------------------------------
+
+test("4.1 단계 2: 새 폴더(guess, letterGuess)와 생성 상수가 검사 대상에 들어 있고 컴포넌트 폴더는 화면 컴포넌트로 읽힌다", (t) => {
+  const dirs = [
+    ["lib/weddingCode/v40/guess", GUESS_LIB_DIR],
+    ["lib/weddingCode/v40/letterGuess", LETTER_LIB_DIR],
+    ["components/wedding-code/v40/guess", GUESS_COMPONENT_DIR],
+    ["components/wedding-code/v40/letterGuess", LETTER_COMPONENT_DIR],
+  ];
+  const staged = new Set(stageFiles().map((f) => f.abs));
+  for (const [label, dir] of dirs) {
+    assert.ok(existsSync(dir), `${label} 폴더가 없다 — 새 단계의 폴더 이름이 바뀌었으면 STAGE_FOLDERS 와 이 가드를 함께 고칠 것`);
+    const inside = V40_FILES.filter((f) => isUnderDir(f.abs, dir));
+    assert.ok(inside.length >= 2, `${label} 에서 소스 ${inside.length}개만 찾았다(시험 파일은 뺀다) — 경로가 어긋났는지 볼 것`);
+    // 규칙 5(새 단계), 11, 14, 17 이 훑는 묶음(stageFiles)이 이 폴더의 파일을 모두 담는다(STAGE_FOLDERS 가 폴더 이름과 어긋나면 규칙이 조용히 빈 손이 된다).
+    for (const file of inside) assert.ok(staged.has(file.abs), `${file.rel} 가 새 단계 파일 묶음에 없다 — STAGE_FOLDERS 가 폴더 이름과 어긋났다`);
+  }
+  // 컴포넌트 폴더의 파일은 group 이 components 라서 규칙 7(한 글자 문자열, 보이는 번호와 라벨)의 화면 컴포넌트 묶음에 든다.
+  for (const dir of STAGE_COMPONENT_DIRS) {
+    for (const file of V40_FILES.filter((f) => isUnderDir(f.abs, dir))) {
+      assert.equal(file.group, "components", `${file.rel} 가 화면 컴포넌트 묶음이 아니다(규칙 7 이 한 글자 문자열을 보지 못한다)`);
+    }
+  }
+  assert.ok(V40_FILES.some((f) => f.abs === PATHS.guessConstants), `${rel(PATHS.guessConstants)} 가 v4 소스 묶음에 없다(생성 상수의 이름은 weddingCodeV40 로 시작해야 모든 규칙이 훑는다)`);
+  const stage2 = V40_FILES.filter((f) => f.group === "app" && STAGE2_APP_FILE.test(f.base));
+  t.diagnostic(`새 단계 소스 ${stageFiles().length}개, 클라이언트 단계 훅 ${stage2.length}개${stage2.length === 0 ? "(통합자가 WeddingCodeV40Client.stage2.tsx 를 더하면 규칙 11 이 자동으로 훑는다)" : ""}`);
+});
+
+test("규칙 5 (새 단계): 새 단계 파일은 저장소 이름, 저장소 메서드, 저장 키(글자 고르기 키 포함)를 쓰지 않는다", () => {
+  const files = stageFiles();
+  assert.ok(files.length > 0, "새 단계 파일을 하나도 찾지 못했다");
+  const offenders = [];
+  for (const file of files) {
+    const analysis = load(file);
+    for (const hit of apiHits(analysis, file)) if (hit.api === "storage") offenders.push(`${file.rel}:${hit.line} ${hit.what}`);
+    for (const hit of storageBypassHits(analysis)) offenders.push(`${file.rel}:${hit.line} ${hit.what}`);
+  }
+  assertNone(offenders, "새 단계는 저장소를 직접 만지지 않는다(글자 고르기 보관본은 storage.ts 의 포트로, 서로 짐작하기는 저장하지 않는다):");
+});
+
+test("규칙 11: 새 단계 파일은 이용 통계를 가져오지도 부르지도 않는다", () => {
+  const files = stageFiles();
+  assert.ok(files.length > 0, "새 단계 파일을 하나도 찾지 못했다");
+  const offenders = [];
+  for (const file of files) for (const hit of statsFreeHits(load(file))) offenders.push(`${file.rel}:${hit.line} ${hit.what}`);
+  assertNone(offenders, "새 단계(서로 짐작하기, 결과 전 글자 고르기)는 이용 통계 항목을 더하지 않는다(처리방침 제3조):");
+});
+
+test("규칙 13: 글자 고르기 폴더는 링크 코덱, 짐작 폴더, 입구를 가져오지 않는다", () => {
+  const files = letterGuessFiles();
+  assert.ok(files.length >= 2, `글자 고르기 소스를 ${files.length}개만 찾았다`);
+  const offenders = [];
+  for (const file of files) for (const hit of letterGuessIsolationHits(load(file))) offenders.push(`${file.rel}:${hit.line} ${hit.what}`);
+  assertNone(offenders, "결과 전에 고른 글자는 링크에 가지 않는다(계약 문서 §23). 링크를 만들고 읽는 모듈과 이어지면 안 된다:");
+});
+
+test("규칙 14: 새 단계 파일과 생성 상수에는 골든 링크, 한 글자 대문자 값, 개발 메모가 없다", () => {
+  const files = [...stageFiles(), ...V40_FILES.filter((f) => f.abs === PATHS.guessConstants)];
+  assert.ok(files.length > 0, "대상 파일을 하나도 찾지 못했다");
+  const offenders = [];
+  for (const file of files) {
+    for (const hit of stageDataHits(load(file), { generated: file.abs === PATHS.guessConstants })) offenders.push(`${file.rel}:${hit.line} ${hit.what}`);
+  }
+  assertNone(offenders, "골든 값은 시험 파일에만 두고, 글자는 상수에서 읽고, 원천 자료의 개발 메모는 번들로 나가지 않는다(규칙 1 이 v4 소스의 여덟 글자 밖 대문자 한 자를 거절한다):");
+});
+
+test("규칙 15: 새 폴더는 바렐을 가져오지 않는다(useScreenFocus, SectionCard, styles 는 경로로 직접)", () => {
+  const files = stageFolderFiles();
+  assert.ok(files.length > 0, "새 폴더의 파일을 하나도 찾지 못했다");
+  const offenders = [];
+  for (const file of files) for (const hit of barrelImportHits(load(file))) offenders.push(`${file.rel}:${hit.line} ${hit.what}`);
+  assertNone(offenders, "바렐(components/wedding-code/v40 의 index)은 useScreenFocus 와 screenRootClass 를 다시 내보내서 새 컴포넌트가 바렐에서 가져오면 순환이 생긴다:");
+});
+
+test("규칙 16: 클라이언트 본체의 통계 호출은 열 개이고 이벤트 이름은 고지한 여덟 개 그대로다", () => {
+  assert.ok(existsSync(PATHS.client), `${rel(PATHS.client)} 가 없다 — 경로가 바뀌었으면 이 가드도 함께 고칠 것`);
+  const report = clientEventReport(loadPath(PATHS.client));
+  assertNone(report.problems, "통계 이벤트 이름을 문자열로 확정하지 못했다(이름은 호출 자리에 글자 그대로 적는다):");
+  assert.equal(report.count, CLIENT_CAPTURE_CALLS, `captureWeddingCodeEvent 호출이 ${report.count}개다(기준 ${CLIENT_CAPTURE_CALLS}개). 단계 배선이 본체에서 통계를 새로 부르면 안 된다`);
+  assert.equal(report.otherCalls, 0, "클라이언트가 captureEvent 를 직접 부른다(통계는 captureWeddingCodeEvent 호출 열 개뿐이다)");
+  assert.deepEqual(report.names, FIXED_FUNNEL_EVENTS, "클라이언트가 부르는 통계 이벤트가 고지한 여덟 개와 다르다");
+  const allow = readFunnelAllowlist();
+  assert.deepEqual([...allow.events].sort(), FIXED_FUNNEL_EVENTS, "analyticsPrivacy.ts 의 고지 이벤트 목록이 이 가드의 여덟 개와 다르다(바꿨다면 이 가드, 처리방침, 계약 문서 §14 를 함께 고칠 것)");
+});
+
+test("규칙 17: 새 단계 파일이 던지는 오류의 메시지에는 입력 글자가 없다", () => {
+  const files = stageFiles();
+  assert.ok(files.length > 0, "새 단계 파일을 하나도 찾지 못했다");
+  const offenders = [];
+  for (const file of files) for (const hit of errorMessageHits(load(file))) offenders.push(`${file.rel}:${hit.line} ${hit.what}`);
+  assertNone(offenders, "오류 메시지는 고정 문자열이다(기존 checksumChar 는 쓸 수 없는 문자 한 글자를 메시지에 싣는데, 새 코덱은 싣지 않는다):");
+});
+
+test("새 단계의 화면 글에는 누가 맞혔는지, 점수, 개수 말이 없다", (t) => {
+  const files = [...stageFiles(), ...V40_FILES.filter((f) => f.abs === PATHS.guessConstants)];
+  assert.ok(files.length > 0, "대상 파일을 하나도 찾지 못했다");
+  const offenders = [];
+  let scanned = 0;
+  for (const file of files) {
+    const analysis = load(file);
+    const scope = wordScopeOf(file, analysis);
+    for (const rec of analysis.strings) {
+      if (rec.dev || !userFacing(rec)) continue;
+      scanned += 1;
+      for (const hit of stageWordHits(rec, scope)) offenders.push(`${file.rel}:${rec.line} [${hit}] ${rec.text.slice(0, 50)}`);
+    }
+  }
+  t.diagnostic(`새 단계의 화면 글 ${scanned}개를 훑었다`);
+  assert.ok(scanned >= 40, `화면 글을 ${scanned}개만 훑었다 — 파서나 경로가 깨졌는지 볼 것`);
+  assertNone(offenders, "짐작한 쪽과 고른 쪽은 사실로 나란히 놓을 뿐이다. 누가 맞혔는지, 점수, 개수를 말하지 않는다(계약 문서 §23):");
+});
+
+test("엔진 열 개 파일은 4.1 단계 2 기준(5ac9eda24)과 한 글자도 다르지 않다", () => {
+  assert.equal(ENGINE_FREEZE.length, 10, "엔진 고정표가 열 개가 아니다");
+  assert.equal(new Set(ENGINE_FREEZE.map(([path]) => path)).size, 10, "엔진 고정표에 같은 파일이 두 번 있다");
+  assertNone(engineFreezeProblems(readRepoText), "글자 엔진, 배치, 채점, 동점 사슬, 관문, 은행, 70자 코드, 기준 계산기는 이 단계에서 한 줄도 바뀌지 않는다(바꾸려면 판 태그를 올릴지부터 정한다):");
 });
 
 // ---------------------------------------------------------------------------
@@ -2179,4 +2607,181 @@ test("검사기가 실제로 잡는다: 구문 오류는 통과가 아니다", (
   assert.ok(broken.syntaxErrors.length > 0, "구문 오류를 읽지 못했다 — 깨진 파일이 조용히 통과한다");
   assert.ok(analyzeText("export const x = 1;", "ok.ts").syntaxErrors.length === 0);
   assert.ok(has(recs("export const s = 'it\\'s';", "q.ts"), (r) => r.text === "it's"), "이스케이프된 따옴표를 잘못 읽었다");
+});
+
+// ---------------------------------------------------------------------------
+// 검사기 자가 시험: 4.1 단계 2 규칙 (심은 위반을 잡고 깨끗한 표본을 잡지 않는다)
+// ---------------------------------------------------------------------------
+
+test("검사기가 실제로 잡는다: 짐작 해시 키 ga, gb 와 짐작 코덱이 링크를 여는 모듈이라는 것", () => {
+  const hash = (text) => hashKeyHits({ text }).length;
+  const P = PLACEHOLDER;
+  assert.equal(hash(`/wedding-code#v=${P}&a=${P}&ga=${P}&b=${P}&gb=${P}`), 0, "정규 순서 v, a, ga, b, gb 의 정상 해시를 잡았다");
+  assert.equal(hash(`/wedding-code#a=${P}&gc=${P}`), 1, "짐작 키 모양의 모르는 키 gc 를 못 잡았다");
+  assert.equal(hash(`/wedding-code#a=${P}&g=${P}`), 1, "옛 설계의 한 글자 키 g 를 못 잡았다");
+  assert.equal(hash(`/wedding-code#a=${P}&GA=${P}`), 1, "대문자 GA 를 못 잡았다");
+  const params = (source) => urlSearchParamKeyHits(analyzeText(source, join(PATHS.components, "Sample.tsx"))).length;
+  assert.equal(params("const p = new URLSearchParams(hash); p.get('ga'); p.get('gb'); p.get('a');"), 0, "허용된 짐작 키 읽기를 잡았다");
+  assert.equal(params("const p = new URLSearchParams(hash); p.get('gc');"), 1, "허용 밖 키 gc 읽기를 못 잡았다");
+  assert.equal(params("const p = new URLSearchParams({ v, a, ga, b, gb });"), 0, "허용된 키 다섯의 객체를 잡았다");
+  assert.equal(params("const p = new URLSearchParams({ a, g });"), 1, "허용 밖 키 g 의 객체를 못 잡았다");
+  // 쿼리에는 짐작 키도 싣지 않는다(서버가 본다).
+  const query = (source) => recs(source).flatMap((r) => queryKeyHits(r)).length;
+  assert.equal(query("export const u = `/wedding-code?ga=${g}`;"), 1, "쿼리에 짐작 키 ga 를 싣는 템플릿을 못 잡았다");
+  assert.equal(query('export const u = "/wedding-code?v=x&gb=" + g;'), 1, "쿼리에 짐작 키 gb 를 잇는 문자열을 못 잡았다");
+  assert.equal(query("export const u = `${origin}/wedding-code#v=${VERSION}&a=${a}&ga=${g}`;"), 0, "# 뒤의 짐작 키를 쿼리로 읽었다");
+
+  // 짐작 코덱은 v4 링크를 여는 모듈이다(규칙 10).
+  const opens = (source) => linkOpenerImports(analyzeText(source, join(PATHS.app, "entry.ts"))).length;
+  assert.equal(opens('import { decodeGuessedShareParams } from "@/lib/weddingCode/v40/guess/guessLink";'), 1, "짐작 코덱을 가져오는 입구를 못 잡았다");
+  assert.equal(opens('import { decodeGuessedShareParams } from "@/lib/weddingCode/v40/guess/guessLink.ts";'), 1, "확장자를 붙인 짐작 코덱을 못 잡았다");
+  assert.equal(opens('import { x } from "../../lib/weddingCode/v40/guess/guessLink";'), 1, "상대 경로의 짐작 코덱을 못 잡았다");
+  assert.equal(opens('import { V40_GUESS_COPY } from "@/lib/weddingCode/v40/guess/guessCopy";'), 0, "링크를 열지 않는 짐작 문구 모듈을 잡았다");
+  assert.equal(opens('import type { GuessAnswers } from "@/lib/weddingCode/v40/guess/types";'), 0, "타입 모듈을 잡았다");
+  assert.equal(sentryGateHits(["app/x.ts:1 @/lib/weddingCode/v40/guess/guessLink"], false).length, 1, "정제 없이 짐작 코덱을 여는 입구를 못 잡았다");
+});
+
+test("검사기가 실제로 잡는다: 저장소 이름은 browserStorage(localStorage) 한 함수 안에서만 부른다. 이 창의 임시 저장소(sessionStorage)는 이 단계에 없다", () => {
+  const problems = (source) => storageHandleProblems(analyzeText(source, PATHS.storage));
+  const GOOD = "export function browserStorage() { try { return window.localStorage; } catch { return null; } }";
+  assert.deepEqual(problems(GOOD), [], "지금의 browserStorage 하나뿐인 storage.ts 를 문제로 읽었다");
+  assert.ok(problems(GOOD.replace("window.localStorage", "window.localStorage ?? window.sessionStorage")).length >= 1, "browserStorage 안에서 저장소 이름을 둘 부르는 것을 못 잡았다");
+  assert.ok(problems(`${GOOD}
+export function browserSessionStorage() { return window.sessionStorage; }`).length >= 1, "이 단계에 없는 임시 저장소 함수(browserSessionStorage)를 못 잡았다: 선택 2부를 더하는 후속 PR 이 이 규칙을 함께 고친다");
+  assert.ok(problems(`${GOOD}
+export const s = window.sessionStorage;`).length >= 1, "모듈 최상위의 sessionStorage 를 못 잡았다");
+  assert.ok(problems(`${GOOD}
+export function readX() { return window.localStorage; }`).length >= 1, "browserStorage 밖에서 부르는 localStorage 를 못 잡았다");
+  // 글자 고르기 저장 키는 storage.ts 만 안다.
+  const bypass = (source) => storageBypassHits(analyzeText(source, join(PATHS.components, "letterGuess", "Sample.tsx"))).length;
+  assert.equal(bypass("const k = V40_STORAGE.letterGuessKey;"), 1, "글자 고르기 저장 키를 storage.ts 밖에서 읽는 것을 못 잡았다");
+  assert.equal(bypass("port.write(raw); port.remove(); const r = port.read();"), 0, "저장 포트의 read, write, remove 를 저장소 메서드로 읽었다");
+});
+
+test("검사기가 실제로 잡는다: 규칙 11(통계 없음), 13(글자 고르기는 링크에 안 간다), 15(바렐 순환 금지)", () => {
+  const at = (dir, source, name = "Sample.ts") => analyzeText(source, join(dir, name));
+
+  // 규칙 11
+  const stats = (source, dir = GUESS_LIB_DIR) => statsFreeHits(at(dir, source)).length;
+  assert.ok(stats('import { captureWeddingCodeEvent } from "@/lib/analytics"; captureWeddingCodeEvent("wedding_code_started", { version: V });') >= 2, "고지된 이벤트여도 통계 가져오기와 호출을 못 잡았다(규칙 6 이 허용하는 호출이다)");
+  assert.equal(stats('import { x } from "@/lib/analytics/track";'), 1, "analytics 하위 모듈 가져오기를 못 잡았다");
+  assert.ok(stats('import { captureEvent } from "@/lib/analytics.ts";') >= 1, "확장자를 붙인 analytics 를 못 잡았다");
+  assert.equal(stats("export const f = (client) => client.captureEvent('x');"), 1, "객체에 대고 부르는 captureEvent 를 못 잡았다");
+  assert.equal(stats("export const f = () => captureWeddingCodeEvent('x');", PATHS.app), 1, "가져오지 않고 부르는 captureWeddingCodeEvent 를 못 잡았다");
+  assert.equal(stats('import type { Axis } from "../types"; export const a = 1;'), 0, "통계와 무관한 가져오기를 잡았다");
+  assert.equal(stats('import type { WeddingCodeFunnelEvent } from "@/lib/analyticsPrivacy";'), 0, "analyticsPrivacy 의 타입 가져오기를 잡았다(analytics 모듈이 아니다)");
+
+  // 규칙 13
+  const letter = (source, dir = LETTER_LIB_DIR) => letterGuessIsolationHits(at(dir, source)).length;
+  assert.equal(letter('import { decodeCode } from "../codec";'), 1, "링크 코덱 가져오기를 못 잡았다");
+  assert.equal(letter('import { decodeCode } from "@/lib/weddingCode/v40/codec";'), 1, "별칭 경로의 링크 코덱을 못 잡았다");
+  assert.equal(letter('import { x } from "../guess/guessLink";'), 1, "짐작 폴더의 링크 코덱을 못 잡았다");
+  assert.equal(letter('import { x } from "@/components/wedding-code/v40/guess";'), 1, "짐작 컴포넌트 폴더를 못 잡았다");
+  assert.equal(letter('import { x } from "@/app/wedding-code/entry";'), 1, "입구를 못 잡았다");
+  assert.equal(letter('const m = await import("../codec");'), 1, "동적 가져오기의 링크 코덱을 못 잡았다");
+  assert.equal(letter('import type { Axis, Letter } from "../types"; import { V40_AXES } from "@/constants/weddingCodeV40"; import { x } from "../score";'), 0, "글자 고르기가 쓸 수 있는 가져오기를 잡았다");
+  assert.equal(letter('import { x } from "../guessLike";'), 0, "이름이 guess 로 시작할 뿐인 다른 모듈을 잡았다");
+  assert.equal(letter('import { x } from "../codecs";'), 0, "이름이 codec 으로 시작할 뿐인 다른 모듈을 잡았다");
+
+  // 규칙 15
+  const barrel = (source, dir = GUESS_COMPONENT_DIR) => barrelImportHits(at(dir, source, "Sample.tsx")).length;
+  assert.equal(barrel('import { screenRootClass } from "@/components/wedding-code/v40";'), 1, "바렐 가져오기를 못 잡았다");
+  assert.equal(barrel('import { x } from "@/components/wedding-code/v40/index";'), 1, "/index 를 붙인 바렐을 못 잡았다");
+  assert.equal(barrel('import { x } from "..";'), 1, "상대 경로 .. 바렐을 못 잡았다");
+  assert.equal(barrel('import { x } from "../index";'), 1, "상대 경로 ../index 바렐을 못 잡았다");
+  assert.equal(barrel('import { x } from "../";'), 1, "끝에 /를 붙인 .. 바렐을 못 잡았다");
+  assert.equal(barrel('import { x } from "..";', LETTER_LIB_DIR), 1, "lib 폴더에서 .. (lib/weddingCode/v40 의 index 자리)를 못 잡았다");
+  assert.equal(barrel('import { useScreenFocus } from "../useScreenFocus"; import { SectionCard } from "../SectionCard"; import { x } from "../styles"; import { y } from "@/components/wedding-code/v40/styles";'), 0, "경로로 직접 가져오는 정상 가져오기를 잡았다");
+  assert.equal(barrel('import { z } from "./GuessSetFlow"; import type { T } from "../../../lib/weddingCode/v40/types";'), 0, "형제 파일이나 lib 의 types 를 잡았다");
+});
+
+test("검사기가 실제로 잡는다: 규칙 14(자료), 17(오류 메시지), 단어 규칙", () => {
+  const at = (source, name = "Sample.ts", dir = GUESS_LIB_DIR) => analyzeText(source, join(dir, name));
+
+  // 규칙 14
+  const data = (source, options) => stageDataHits(at(source), options).length;
+  assert.equal(data('export const L = "링크 https://hanbang.ai/wedding-code#a=x&ga=y";'), 1, "문장 속 골든 링크를 못 잡았다(외부 주소 규칙은 글이 https 로 시작할 때만 본다)");
+  assert.equal(data('export const L = "http://example.com";'), 1, "http 링크를 못 잡았다");
+  assert.equal(data('export const B = "B";'), 1, "한 글자 대문자 값 B 를 못 잡았다");
+  assert.equal(data('export const V = " V ";'), 1, "여덟 글자 중 하나여도 한 글자 값으로 적는 것을 못 잡았다");
+  assert.equal(data('export const T = "V 조건 먼저"; export const k = "0148056W";'), 0, "정상 글과 코드 모양의 값을 잡았다");
+  assert.equal(data('export const D = { title: "t", dev: { lookSide: "x" } };', { generated: true }), 2, "생성 상수의 개발 메모 키 dev, lookSide 를 못 잡았다");
+  assert.equal(data('export const D = { rules: { a: 1 }, status: "x", whyItDiffers: "y" };', { generated: true }), 3, "rules, status, whyItDiffers 를 못 잡았다");
+  assert.equal(data('export const D = { "dev": 1 };', { generated: true }), 1, "따옴표 친 키 dev 를 못 잡았다");
+  assert.equal(data('export const D = { title: "t", cards: [{ act: "a", cost: "c" }], humanReviewed: false };', { generated: true }), 0, "허용 필드만 든 생성 상수를 잡았다");
+  assert.equal(data("export type R = { readonly status: string }; export const D = { status: 1 };"), 0, "생성 상수가 아닌 파일의 status 키를 잡았다(타입 이름으로 쓸 수 있다)");
+
+  // 규칙 17
+  const err = (source) => errorMessageHits(at(source)).length;
+  assert.equal(err("export const f = (code: string) => { throw new RangeError(`쓸 수 없는 문자 ${code}`); };"), 1, "템플릿 치환 메시지를 못 잡았다");
+  assert.equal(err('export const f = (code: string) => { throw new Error("쓸 수 없는 문자 " + code); };'), 1, "이어 붙인 메시지를 못 잡았다");
+  assert.equal(err("export const f = (code: string) => { throw new TypeError(code); };"), 1, "입력을 그대로 메시지로 쓰는 것을 못 잡았다");
+  assert.equal(err("export const f = (code: string) => { throw Error(`bad ${code}`); };"), 1, "new 없이 부르는 Error 를 못 잡았다");
+  assert.equal(err("export const f = (m: string) => new RangeError(m);"), 1, "던지지 않고 만들기만 하는 오류도 본다");
+  assert.equal(err('export const f = () => { throw new RangeError("고정 메시지"); };'), 0, "고정 메시지를 잡았다");
+  assert.equal(err('const MSG = "고정 메시지"; export const f = () => { throw new Error(MSG); };'), 0, "고정 문자열 상수를 잡았다");
+  assert.equal(err('export const f = () => { throw new Error("앞 " + "뒤"); };'), 0, "리터럴만 이은 메시지를 잡았다");
+  assert.equal(err('export const f = (e: unknown) => { throw new Error("고정", { cause: e }); };'), 0, "원인 객체를 넘기는 두 번째 인자를 잡았다");
+  assert.equal(err("export const f = () => { throw new Error(); };"), 0, "메시지가 없는 오류를 잡았다");
+  assert.equal(err("export const f = (x: unknown) => { if (x === undefined) return new Map(); return new Set(); };"), 0, "오류가 아닌 생성식을 잡았다");
+
+  // 단어 규칙
+  const scopeAll = { who: () => true, count: () => false };
+  const scopeCopy = { who: () => true, count: () => true };
+  const words = (text, scope = scopeAll) => stageWordHits({ text, visible: true, dev: false }, scope);
+  for (const text of ["상대가 맞혔어요", "짐작을 맞힌 장면이에요", "틀렸어요", "정답이에요", "오답이에요", "적중했어요", "순위가 나와요", "득점이 있어요", "승패를 가려요", "몇 점이에요", "점수가 나와요", "일치가 퍼센트로 나와요", "백분율로 보여요", "절반은 50% 같아요"]) {
+    assert.ok(words(text).length === 1, `누가 맞혔는지를 말하는 「${text}」를 못 잡았다`);
+  }
+  for (const text of ["일정을 맞춰 보세요", "서로 맞추게 되는 때가 있어요", "우선순위를 정해요", "고른 쪽을 나란히 놓았어요", "짐작한 쪽과 고른 쪽"]) {
+    assert.deepEqual(words(text), [], `정상 문장 「${text}」를 잡았다`);
+  }
+  assert.deepEqual(words("몇 가지를 골라요"), [], "개수 말 검사 범위 밖인 글에서 개수 말을 잡았다");
+  for (const text of ["몇 개를 골랐어요", "몇 가지예요", "여섯 가지 장면이에요", "세 개 중에서 골라요", "장면 6개", "3번 눌러요"]) {
+    assert.ok(words(text, scopeCopy).length === 1, `개수 말이나 숫자 「${text}」를 못 잡았다`);
+  }
+  assert.deepEqual(stageWordHits({ text: "정답이에요", visible: true, dev: true }, scopeAll), [], "개발자용 메시지를 화면 글로 읽었다");
+  assert.deepEqual(stageWordHits({ text: "key", visible: false, dev: false }, scopeAll), [], "한글이 없고 보이지도 않는 글을 잡았다");
+  // 생성 상수에서는 V40_GUESS_TEXT 안의 글만 이 규칙을 받고, 장면 자료(V40_GUESS_SET)는 받지 않는다.
+  const constantsSample = analyzeText('export const V40_GUESS_SET = [{ stem: "정답이 없는 일이에요", act: "몇 가지를 정해요" }];\nexport const V40_GUESS_TEXT = { tail: "상대가 맞혔어요", note: "여섯 가지예요" };', PATHS.guessConstants);
+  const scope = wordScopeOf({ abs: PATHS.guessConstants, group: "constants", base: "weddingCodeV40Guess.ts" }, constantsSample);
+  const flagged = constantsSample.strings.filter((rec) => stageWordHits(rec, scope).length > 0).map((rec) => rec.text);
+  assert.deepEqual(flagged, ["상대가 맞혔어요", "여섯 가지예요"], "생성 상수의 화면 글 범위(V40_GUESS_TEXT)가 어긋났다");
+  // 문구 파일은 개수 말 검사까지, 컴포넌트 파일은 낱말 검사만 받는다.
+  const copyScope = wordScopeOf({ abs: join(GUESS_LIB_DIR, "guessCopy.ts"), group: "lib", base: "guessCopy.ts" }, constantsSample);
+  assert.equal(copyScope.count({}), true, "문구 파일이 개수 말 검사를 받지 않는다");
+  const componentScope = wordScopeOf({ abs: join(GUESS_COMPONENT_DIR, "GuessSetFlow.tsx"), group: "components", base: "GuessSetFlow.tsx" }, constantsSample);
+  assert.equal(componentScope.who({}), true);
+  assert.equal(componentScope.count({}), false, "컴포넌트 파일이 개수 말 검사를 받는다(숫자 속성이 글로 읽힐 수 있다)");
+});
+
+test("검사기가 실제로 잡는다: 규칙 16(클라이언트 통계 호출 자리)과 엔진 고정", () => {
+  const report = (source) => clientEventReport(analyzeText(source, PATHS.client));
+  const head = 'import { captureWeddingCodeEvent } from "@/lib/analytics";\n';
+  const ten = Array.from({ length: 10 }, (_, i) => `captureWeddingCodeEvent("${FIXED_FUNNEL_EVENTS[i % FIXED_FUNNEL_EVENTS.length]}", { version: V });`).join("\n");
+  const base = report(head + ten);
+  assert.equal(base.count, 10, "호출 열 개를 열 개로 세지 못했다");
+  assert.deepEqual(base.names, FIXED_FUNNEL_EVENTS, "여덟 이벤트 이름을 모으지 못했다");
+  assert.deepEqual(base.problems, [], "정상 호출을 문제로 읽었다");
+  assert.equal(report(`${head + ten}\ncaptureWeddingCodeEvent("wedding_code_started", { version: V });`).count, 11, "열한 번째 호출을 못 셌다");
+  assert.ok(report(`${head + ten}\ncaptureWeddingCodeEvent("wedding_code_answered", { version: V });`).names.includes("wedding_code_answered"), "고지하지 않은 이벤트 이름을 모으지 못했다");
+  assert.equal(report(`${head}captureEvent("wedding_code_started");`).otherCalls, 1, "captureEvent 직접 호출을 못 셌다");
+  assert.equal(report(`${head}function go(name: string) { captureWeddingCodeEvent(name); }`).problems.length, 1, "이름을 확정할 수 없는 호출을 못 잡았다");
+  assert.equal(report(`${head}captureWeddingCodeEvent();`).problems.length, 1, "이름이 없는 호출을 못 잡았다");
+  assert.equal(report(`${head}const m = { captureWeddingCodeEvent: 1 }; const n = m.captureWeddingCodeEvent;`).count, 0, "호출이 아닌 속성 이름을 호출로 셌다");
+  // 별칭과 네임스페이스로 부르는 호출도 센다(열한 번째 호출을 별칭으로 숨기지 못한다).
+  const alias = report('import { captureWeddingCodeEvent as cap, captureEvent as other } from "@/lib/analytics";\ncap("wedding_code_started", { version: V });\nother("wedding_code_started");\ncap("wedding_code_intro_viewed");');
+  assert.equal(alias.count, 2, "가져올 때 바꾼 이름의 호출을 못 셌다");
+  assert.equal(alias.otherCalls, 1, "captureEvent 의 별칭 호출을 못 셌다");
+  const namespaced = report('import * as analytics from "@/lib/analytics";\nanalytics.captureWeddingCodeEvent("wedding_code_started", { version: V });');
+  assert.equal(namespaced.count, 1, "네임스페이스 가져오기의 속성 호출을 못 셌다");
+  assert.equal(report('import { cap as captureWeddingCodeEvent } from "./other";\ncaptureWeddingCodeEvent("wedding_code_started");').count, 1, "이름 그대로의 호출은 어디서 가져왔어도 센다(통계 이름을 다른 모듈에서 가져오는 것은 규칙 6 이 따로 막는다)");
+
+  const table = [["a.ts", textHash("one\ntwo\n")], ["b.ts", textHash("three\n")]];
+  const reader = (files) => (path) => (path in files ? files[path] : null);
+  assert.deepEqual(engineFreezeProblems(reader({ "a.ts": "one\ntwo\n", "b.ts": "three\n" }), table), [], "그대로인 엔진 파일을 문제로 읽었다");
+  assert.deepEqual(engineFreezeProblems(reader({ "a.ts": "one\r\ntwo\r\n", "b.ts": "three\r\n" }), table), [], "줄 끝 문자만 다른 파일을 문제로 읽었다");
+  assert.equal(engineFreezeProblems(reader({ "a.ts": "one\ntwo \n", "b.ts": "three\n" }), table).length, 1, "공백 하나가 바뀐 엔진 파일을 못 잡았다");
+  assert.equal(engineFreezeProblems(reader({ "a.ts": "one\ntwo\n" }), table).length, 1, "지워진 엔진 파일을 못 잡았다");
+  assert.equal(engineFreezeProblems(reader({}), table).length, 2, "엔진 파일이 전부 없는 것을 못 잡았다");
+  assert.equal(engineFreezeProblems(reader({ "a.ts": "other", "b.ts": "other" }), table).length, 2, "내용이 모두 바뀐 것을 못 잡았다");
 });

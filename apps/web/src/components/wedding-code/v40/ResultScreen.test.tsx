@@ -21,7 +21,7 @@ import {
   oppositeMeaningLine,
   selfContrastSentence,
 } from "@/lib/weddingCode/v40/copy";
-import { click, createHarness, type Harness } from "./inputTestKit";
+import { click, createHarness, isBefore, type Harness } from "./inputTestKit";
 import { codeLineEntries, isLoweredToEven } from "./CodeLine";
 import { ResultScreen } from "./ResultScreen";
 import {
@@ -531,5 +531,42 @@ describe("라운지 안(embedded)", () => {
     const root = harness.container.querySelector<HTMLElement>("[data-wedding-code-result]")!;
     expect(root.dataset.embedded).toBeUndefined();
     expect(harness.container.querySelector("header h1")?.textContent).toBe(V40_COPY.result.title);
+  });
+});
+
+describe("결과 앞의 선택 구역 슬롯 letterGuessSlot(4.1 단계 2)", () => {
+  const slot = <p data-test-letter-guess-slot="">먼저 고른 글자 구역 자리에 놓은 시험용 글이에요.</p>;
+
+  it("슬롯을 주면 「답을 모아 보니」 바로 뒤, 주제 블록 앞의 letter-guess 상자 안에 그대로 놓는다", async () => {
+    await renderScreen(OPEN_NAMES[0], { letterGuessSlot: slot });
+    const box = harness.container.querySelector<HTMLElement>('[data-result-section="letter-guess"]');
+    expect(box).not.toBeNull();
+    expect(box?.querySelector("[data-test-letter-guess-slot]")).not.toBeNull();
+    expect(harness.container.querySelectorAll('[data-result-section="letter-guess"]')).toHaveLength(1);
+    const collected = harness.container.querySelector('[data-result-section="collected"]')!;
+    const axes = harness.container.querySelector("[data-axis-blocks]")!;
+    expect(isBefore(collected, box!)).toBe(true);
+    expect(isBefore(box!, axes)).toBe(true);
+    const order = sectionOrder(harness.container);
+    expect(order.indexOf("letter-guess")).toBe(order.indexOf("collected") + 1);
+  });
+
+  it("슬롯을 주지 않으면 상자도 구역도 없고 나머지 순서는 그대로다", async () => {
+    await renderScreen(OPEN_NAMES[0]);
+    expect(harness.container.querySelector('[data-result-section="letter-guess"]')).toBeNull();
+    expect(sectionOrder(harness.container)).not.toContain("letter-guess");
+  });
+
+  it("코드가 없는 결과(관문)에서는 슬롯을 줘도 그리지 않는다", async () => {
+    const closed = [...CLOSED][0];
+    expect(closed).toBeDefined();
+    await renderScreen(closed, { letterGuessSlot: slot });
+    expect(harness.container.querySelector("[data-test-letter-guess-slot]")).toBeNull();
+    expect(harness.container.querySelector('[data-result-section="letter-guess"]')).toBeNull();
+  });
+
+  it("슬롯이 있어도 고지는 이 화면에서 한 번뿐이다", async () => {
+    await renderScreen(OPEN_NAMES[0], { letterGuessSlot: slot });
+    expect(countOf(textOf(harness.container), V40_NOT_VALIDATED_PHRASE)).toBe(1);
   });
 });

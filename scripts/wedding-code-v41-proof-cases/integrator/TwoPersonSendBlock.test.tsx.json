@@ -1,0 +1,14 @@
+[
+  {
+    "name": "짐작 한 줄을 그리지 않는다",
+    "target": "apps/web/src/components/wedding-code/v40/TwoPersonSendBlock.tsx",
+    "find": "        {guessNote ? <p data-send-guess-note=\"\">{guessNote}</p> : null}\n",
+    "replace": ""
+  },
+  {
+    "name": "짐작 한 줄을 두 번 그린다",
+    "target": "apps/web/src/components/wedding-code/v40/TwoPersonSendBlock.tsx",
+    "find": "<p data-send-guess-note=\"\">{guessNote}</p>",
+    "replace": "<p data-send-guess-note=\"\">{guessNote}{guessNote}</p>"
+  }
+]

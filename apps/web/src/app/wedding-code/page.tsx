@@ -38,7 +38,8 @@ type WeddingCodePageProps = { searchParams: Promise<WeddingCodeEntrySearchParams
  */
 export async function generateMetadata({ searchParams }: WeddingCodePageProps): Promise<Metadata> {
   const search = await searchParams;
-  const carriesAnswers = search.a !== undefined || search.b !== undefined;
+  // 쿼리에 실린 서로 짐작하기(ga, gb)도 답이 든 링크라 색인하지 않는다.
+  const carriesAnswers = search.a !== undefined || search.b !== undefined || search.ga !== undefined || search.gb !== undefined;
   const defaultsToV40 = weddingCodeDefaultsToV40(WEDDING_CODE_DEFAULT_VERSION);
   const bare = search.v === undefined && !carriesAnswers;
   const isV40 = search.v === WEDDING_CODE_V40_VERSION || (bare && defaultsToV40);

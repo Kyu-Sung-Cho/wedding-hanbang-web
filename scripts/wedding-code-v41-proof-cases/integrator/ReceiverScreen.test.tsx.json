@@ -1,0 +1,14 @@
+[
+  {
+    "name": "빈 글도 한 줄로 그린다",
+    "target": "apps/web/src/components/wedding-code/v40/ReceiverScreen.tsx",
+    "find": "      {guessNote ? (",
+    "replace": "      {guessNote !== undefined ? ("
+  },
+  {
+    "name": "한 줄의 표시를 뺀다",
+    "target": "apps/web/src/components/wedding-code/v40/ReceiverScreen.tsx",
+    "find": "<p data-receive-guess-note=\"\" className={cx(bodyText, \"mt-2 break-keep\")}>",
+    "replace": "<p className={cx(bodyText, \"mt-2 break-keep\")}>"
+  }
+]

@@ -52,6 +52,11 @@ export interface ResultScreenProps {
    * 코드가 없는 결과(관문)에서는 링크를 만들지 않으므로 이 자리를 그리지 않는다.
    */
   readonly sendSlot?: ReactNode;
+  /**
+   * 「먼저 고른 글자와 나란히」 구역(4.1 단계 2, 결과 전에 본인이 고른 글자와 결과 글자를 나란히 놓는 선택 구역). 「답을 모아 보니」 바로 뒤, 주제 블록 앞에 놓는다.
+   * 부모는 그릴 줄이 있을 때만 준다(없는데 주면 빈 상자가 흐름 간격만 남긴다). 코드가 없는 결과(관문)에서는 그리지 않는다.
+   */
+  readonly letterGuessSlot?: ReactNode;
   /** 라운지(/preparation-style) 안에서 쓰는가. 앱 셸 하단 탭 막대에 가리지 않게 끝에 여백을 둔다. */
   readonly embedded?: boolean;
   /**
@@ -65,7 +70,7 @@ const NO_QUOTES: AxisQuotes = { kind: "none" };
 
 /**
  * 혼자 보는 결과 화면(설계 7절 (1)~(11), 순서 그대로).
- *   (1) 제목, 고지 한 문장, 코드 복사  (2) 코드 줄  (3) 글자 읽는 법  (4) 답을 모아 보니  (5) 주제 블록 네 개(내가 마지막에 직접 고른 쪽 한 줄: 뚜렷해요·기울어요는 세기 문장 아래, 반반이에요는 두 글자의 뜻 아래)
+ *   (1) 제목, 고지 한 문장, 코드 복사  (2) 코드 줄  (3) 글자 읽는 법  (4) 답을 모아 보니(그 바로 뒤에 선택 구역 「먼저 고른 글자와 나란히」가 letterGuessSlot 으로 온다)  (5) 주제 블록 네 개(내가 마지막에 직접 고른 쪽 한 줄: 뚜렷해요·기울어요는 세기 문장 아래, 반반이에요는 두 글자의 뜻 아래)
  *   (6) 직접 고른 쪽 대비  (7) 품질 안내  (8) 지난번과 비교  (9) 상대에게 보내기(자리)  (10) 취향 카드  (11) 처음부터 다시 하기, 저장 지우기
  * 세기를 낮춘 이유(위치 반복, 건너뜀 힌트)는 모든 글자 옆 세기에 영향을 주므로 설계 5절과 계약 7.1절의 「결과 맨 위에 한 줄」대로 코드 줄 앞에 놓고
  * (7)에는 나머지 안내(넘어간 질문, 글자를 못 정한 주제, 임시 글자)를 둔다.
@@ -85,6 +90,7 @@ export function ResultScreen({
   onOpenTaste,
   tasteHref,
   sendSlot,
+  letterGuessSlot,
   embedded = false,
   linkLostNote,
 }: ResultScreenProps) {
@@ -116,6 +122,7 @@ export function ResultScreen({
           <CodeLine entries={entries} />
           <LegendTable marks={legendMarksFromEntries(entries)} />
           <GatheredSentences entries={entries} />
+          {letterGuessSlot ? <div data-result-section="letter-guess">{letterGuessSlot}</div> : null}
           <div className="flex flex-col gap-4" data-axis-blocks>
             {result.axes.map((axis, index) => (
               <AxisBlock

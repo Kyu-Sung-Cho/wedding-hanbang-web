@@ -66,6 +66,8 @@ import {
   type StrengthBand,
 } from "@/constants/weddingCodeV40";
 import { V40_ENTRY_COPY } from "./entryCopy";
+import { V40_GUESS_COPY } from "./guess/guessCopy";
+import { V40_LETTER_GUESS_COPY } from "./letterGuess/letterGuessCopy";
 import type { Perspective, SelfLine } from "./types";
 
 export { V40_ENTRY_COPY };
@@ -266,6 +268,12 @@ export const V40_COPY = {
     skippedReviewLead:
       "답할 수 있는 질문이 적은 주제가 있어요. 잘 모르겠다고 넘어간 질문을 한 번만 다시 보여 줄게요. 그대로 결과를 봐도 돼요.",
     skippedReviewSkipButton: "그대로 결과 보기",
+    /**
+     * 결과 앞에 선택 화면(결과 전 글자 고르기, 받는 사람의 서로 짐작하기)이 끼어들 수 있을 때 위 단추 대신 쓰는 이름.
+     * 「그대로 결과 보기」는 결과가 곧 나온다는 말이 되고, 이 화면의 아래 단추 「다음」(다음 넘어간 질문)과 같은 이름을 쓰면 낭독기가
+     * 같은 이름의 단추 둘을 읽는데 하나는 다시 보기를 끝내고 하나는 다음 질문으로 간다. 그래서 둘과 다른 이름을 준다.
+     */
+    skippedReviewFinishButton: "다시 보기 마치기",
   },
 
   // 나가기와 돌아가기 알림 -------------------------------------------------------
@@ -477,7 +485,7 @@ export const V40_COPY = {
       button: "처음부터 다시 하기",
       confirmTitle: "처음부터 다시 할까요?",
       confirmBody:
-        "지금까지 한 답이 이 브라우저에서 지워지고 처음부터 다시 시작해요. 지난번과 비교하는 데 쓰는 결과 글자와 세기는 그대로 남아요. 이미 보낸 링크는 그대로 열려서 받은 사람이 계속 볼 수 있어요.",
+        "지금까지 한 답이 이 브라우저에서 지워지고 처음부터 다시 시작해요. 결과를 보기 전에 먼저 고른 글자도 함께 지워져요. 지난번과 비교하는 데 쓰는 결과 글자와 세기는 그대로 남아요. 이미 보낸 링크는 그대로 열려서 받은 사람이 계속 볼 수 있어요.",
       confirmButton: "지우고 다시 하기",
       cancelButton: "그대로 두기",
     },
@@ -485,7 +493,7 @@ export const V40_COPY = {
       button: "이 브라우저의 저장 지우기",
       confirmTitle: "이 브라우저의 저장을 지울까요?",
       confirmBody:
-        "저장된 답과 지난번 비교용 기록이 지워져요. 지운 뒤에는 되돌릴 수 없어요. 이미 보낸 링크는 지울 수 없어요.",
+        "저장된 답과 지난번 비교용 기록이 지워져요. 이 브라우저에 남겨 둔 먼저 고른 글자도 함께 지워져요. 지운 뒤에는 되돌릴 수 없어요. 이미 보낸 링크는 지울 수 없어요.",
       confirmButton: "저장 지우기",
       cancelButton: "그대로 두기",
       done: "이 브라우저에 저장된 답과 기록을 지웠어요.",
@@ -622,6 +630,12 @@ export const V40_COPY = {
   a11y: {
     legendDescription: "글자 읽는 법 표예요. 줄마다 주제, 앞 글자, 뒤 글자, 내 글자가 있어요.",
   },
+
+  // 4.1 단계 2 (어두운 진입 뒤의 선택 화면 둘). 문구는 각 트랙 폴더의 파일에 있고 여기서는 묶음으로만 붙인다(copy.ts 를 가져오지 않는 파일들이라 순환이 없다).
+  /** 서로 짐작해 보기: 진입 카드, 세트 화면, 받는 사람 한 줄, 보내기 직전 한 줄, 두 사람 결과 구역(guess/guessCopy.ts, 세트 문장은 생성 상수). */
+  guess: V40_GUESS_COPY,
+  /** 결과 전 글자 고르기: 결과 앞 화면, 결과 구역 「먼저 고른 글자와 나란히」, 두 사람 결과의 닫힌 카드(letterGuess/letterGuessCopy.ts). */
+  letterGuess: V40_LETTER_GUESS_COPY,
 } as const;
 
 export type V40Copy = typeof V40_COPY;
@@ -651,15 +665,18 @@ export type V40Copy = typeof V40_COPY;
  */
 export const V40_COPY_SCREENS = {
   intro: ["intro", "autosave", "storageNotice", "error", "common", "a11y"],
-  receive: ["receive", "autosave", "storageNotice", "error", "common", "a11y"],
+  receive: ["receive", "guess", "autosave", "storageNotice", "error", "common", "a11y"],
   question: ["question", "inputs", "progress", "leave", "edit", "storageNotice", "common", "a11y"],
   rest: ["rest", "progress", "autosave", "storageNotice", "common", "a11y"],
   wrapUp: ["wrapUp", "progress", "common", "a11y"],
   result: [
     "result", "legend", "collected", "block", "quality", "gate", "history", "send", "copyCode", "taste", "manage",
-    "autosave", "storageNotice", "progress", "common", "a11y",
+    "autosave", "storageNotice", "progress", "guess", "letterGuess", "common", "a11y",
   ],
-  couple: ["couple", "legend", "coupleSend", "common", "a11y"],
+  couple: ["couple", "legend", "coupleSend", "guess", "letterGuess", "common", "a11y"],
+  // 4.1 단계 2: 클라이언트가 결과 앞뒤에 얹는 단계 화면 둘. 고지 문장은 두 화면 모두 없다(화면당 한 번 규칙은 시작, 받는 사람, 결과, 두 사람 결과가 이미 맡는다).
+  letterGuess: ["letterGuess", "common", "a11y"],
+  pairGuess: ["guess", "common", "a11y"],
 } as const satisfies Readonly<Record<string, readonly (keyof typeof V40_COPY)[]>>;
 
 export type V40CopyScreen = keyof typeof V40_COPY_SCREENS;

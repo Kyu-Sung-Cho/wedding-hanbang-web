@@ -35,6 +35,11 @@ export interface TwoPersonSendBlockProps {
    * 이 블록의 뿌리 요소에 줄 id. 주면 뿌리가 초점을 받을 수 있게 되어(tabIndex -1) 화면 위쪽의 「상대에게 보내는 곳으로 가기」가 이 블록으로 초점과 스크롤을 옮길 수 있다.
    */
   readonly regionId?: string;
+  /**
+   * 링크에 서로 짐작해 보기(4.1 단계 2)의 고른 쪽과 짐작이 든다는 한 줄. 있으면 안내 묶음에 한 줄 더 그린다.
+   * 문구는 부모가 준다(이 화면은 트랙 폴더를 가져오지 않는다). 없으면 그리지 않는다.
+   */
+  readonly guessNote?: string;
 }
 
 /**
@@ -43,7 +48,7 @@ export interface TwoPersonSendBlockProps {
  * 이걸 보내야 상대도 두 사람 결과를 볼 수 있다는 사실을 도움말이 말한다. 내 글자는 보낼 말에 넣지 않는다.
  * 보내기는 ShareBlock 과 같은 길이다(공유 창, 클립보드, 읽기 전용 주소 칸).
  */
-export function TwoPersonSendBlock({ buildUrl, onSent, env, idPrefix, headingLevel = 2, regionId }: TwoPersonSendBlockProps) {
+export function TwoPersonSendBlock({ buildUrl, onSent, env, idPrefix, headingLevel = 2, regionId, guessNote }: TwoPersonSendBlockProps) {
   const uid = useId();
   const prefix = idPrefix ?? `wc40-couple-send${uid}`;
   const ids = {
@@ -110,6 +115,7 @@ export function TwoPersonSendBlock({ buildUrl, onSent, env, idPrefix, headingLev
       <div className={cx(noteText, "mt-4 space-y-1")}>
         <p>{V40_COPY.coupleSend.sensitiveInfo}</p>
         <p>{V40_COPY.coupleSend.anyoneCanReadInfo}</p>
+        {guessNote ? <p data-send-guess-note="">{guessNote}</p> : null}
         <p>{V40_COPY.coupleSend.oldLinksRemainInfo}</p>
         <p>{V40_COPY.send.shareSheetInfo}</p>
       </div>

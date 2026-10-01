@@ -1,0 +1,212 @@
+[
+  {
+    "name": "S1c 결과에 들어서는 길을 액션 종류로 가른다(다음일 때만 연다)",
+    "target": "apps/web/src/app/wedding-code/WeddingCodeV40Client.tsx",
+    "find": "      enterResult(next);",
+    "replace": "      if (action.type === \"next\") enterResult(next);"
+  },
+  {
+    "name": "단계 화면이 떠 있는 동안에도 두 사람 비교를 열었다고 센다",
+    "target": "apps/web/src/app/wedding-code/WeddingCodeV40Client.tsx",
+    "find": " && !stage.letterGate && stage.pairStage !== \"receiver\";",
+    "replace": ";"
+  },
+  {
+    "name": "보내기 블록을 짐작이 바뀔 때 다시 그리지 않는다",
+    "target": "apps/web/src/app/wedding-code/WeddingCodeV40Client.tsx",
+    "find": "key={stage.ownGuess === null ? \"n\" : \"g\"}",
+    "replace": ""
+  },
+  {
+    "name": "이어 하기가 모든 흐름을 단계 끝남으로 둔다",
+    "target": "apps/web/src/app/wedding-code/WeddingCodeV40Client.tsx",
+    "find": "    if (isResultView(next)) arrive(next, \"return\");\n    settleStagesForResumed(next);",
+    "replace": "    if (isResultView(next)) arrive(next, \"return\");\n    stage.setDone(true);"
+  },
+  {
+    "name": "새 시도가 낡은 보관본을 지우지 않는다",
+    "target": "apps/web/src/app/wedding-code/WeddingCodeV40Client.tsx",
+    "find": "    stage.reset();\n    wipeLetterStorage();",
+    "replace": "    stage.reset();"
+  },
+  {
+    "name": "저장 지우기가 화면의 먼저 고른 글자를 비우지 않는다",
+    "target": "apps/web/src/app/wedding-code/WeddingCodeV40Client.tsx",
+    "find": "    if (lettersCleared) stage.setLetterGuess(null);",
+    "replace": ""
+  },
+  {
+    "name": "처음부터 다시 하기가 보관본을 지우지 않는다",
+    "target": "apps/web/src/app/wedding-code/WeddingCodeV40Client.tsx",
+    "find": "    if (!wipeLetterStorage()) message = V40_COPY.manage.clear.failed;",
+    "replace": ""
+  },
+  {
+    "name": "부팅이 고아와 읽을 수 없는 보관본을 지우지 않는다",
+    "target": "apps/web/src/app/wedding-code/WeddingCodeV40Client.tsx",
+    "find": "          if (load.status === \"invalid\" || (load.status === \"ready\" && saved === null)) clearLetterGuess(letterPort);",
+    "replace": ""
+  },
+  {
+    "name": "이어 하기가 폼 비트가 다른 보관본을 화면에 올린다",
+    "target": "apps/web/src/app/wedding-code/WeddingCodeV40Client.tsx",
+    "find": "    const guess = letterGuessForAttempt(load, restored.formBit);",
+    "replace": "    const guess = load.status === \"ready\" ? load.guess : null;"
+  },
+  {
+    "name": "마지막 질문의 단추가 단계를 앞두고도 결과 보기다",
+    "target": "apps/web/src/app/wedding-code/WeddingCodeV40Client.tsx",
+    "find": " && !stagesPending;",
+    "replace": ";"
+  },
+  {
+    "name": "그대로 결과 보기 단추의 이름을 바꾸지 않는다",
+    "target": "apps/web/src/app/wedding-code/WeddingCodeV40Client.tsx",
+    "find": "leaveEditLabel={stagesPending && flow.filter?.kind === \"skipped\" ? V40_COPY.edit.skippedReviewFinishButton : undefined}",
+    "replace": "leaveEditLabel={undefined}"
+  },
+  {
+    "name": "받는 사람 화면이 상대가 짐작도 했다는 한 줄을 안 준다",
+    "target": "apps/web/src/app/wedding-code/WeddingCodeV40Client.tsx",
+    "find": "guessNote={stages.pairGuess && context.guess?.first != null ? V40_COPY.guess.receiverNote : undefined}",
+    "replace": "guessNote={undefined}"
+  },
+  {
+    "name": "돌려보내는 링크에 상대의 짐작을 싣지 않는다",
+    "target": "apps/web/src/app/wedding-code/WeddingCodeV40Client.tsx",
+    "find": "const partnerGuess = stages.pairGuess ? (context.guess?.first ?? null) : null;",
+    "replace": "const partnerGuess = null;"
+  },
+  {
+    "name": "받는 사람의 단계 화면에서 나가기 경고가 없다",
+    "target": "apps/web/src/app/wedding-code/WeddingCodeV40Client.tsx",
+    "find": "const receiverInStage = context.partner !== null && (stage.letterGate || stage.pairStage === \"receiver\");",
+    "replace": "const receiverInStage = false;"
+  },
+  {
+    "name": "글자 고르기 화면에 두 번 누름 막기 시간을 넘기지 않는다",
+    "target": "apps/web/src/app/wedding-code/WeddingCodeV40Client.tsx",
+    "find": "        embedded={embedded}\n        turnGuardMs={injected?.turnGuardMs}\n        onContinue={handleLetterContinue}",
+    "replace": "        embedded={embedded}\n        onContinue={handleLetterContinue}"
+  },
+  {
+    "name": "결과 보기가 고른 글자를 이 브라우저에 쓰지 않는다",
+    "target": "apps/web/src/app/wedding-code/WeddingCodeV40Client.tsx",
+    "find": "    saveLetterGuess(letterPortOf(), guess, flowRef.current.formBit, clock());",
+    "replace": ""
+  },
+  {
+    "name": "보내는 사람의 세트를 받는 사람 처리기로 닫는다",
+    "target": "apps/web/src/app/wedding-code/WeddingCodeV40Client.tsx",
+    "find": "onDone={stage.pairStage === \"receiver\" ? handlePairReceiverDone : handlePairSenderDone}",
+    "replace": "onDone={handlePairReceiverDone}"
+  },
+  {
+    "name": "서로 짐작하기가 꺼져 있어도 짐작과 답 구역을 그린다",
+    "target": "apps/web/src/app/wedding-code/WeddingCodeV40Client.tsx",
+    "find": "    stages.pairGuess\n      ? (perspective: Perspective | null) => (",
+    "replace": "    true\n      ? (perspective: Perspective | null) => ("
+  },
+  {
+    "name": "저장 안내가 늘 저장된다고 말한다",
+    "target": "apps/web/src/app/wedding-code/WeddingCodeV40Client.tsx",
+    "find": "storageMode={boot.storage === null || boot.issue === \"unavailable\" ? \"blocked\" : boot.pref === \"off\" ? \"off\" : \"on\"}",
+    "replace": "storageMode=\"on\""
+  },
+  {
+    "name": "돌려보내는 링크 위의 짐작 한 줄을 안 준다",
+    "target": "apps/web/src/app/wedding-code/WeddingCodeV40Client.tsx",
+    "find": "                ? V40_COPY.guess.coupleSendInfo",
+    "replace": "                ? undefined"
+  },
+  {
+    "name": "두 사람 결과의 먼저 고른 글자를 열린 채로 둔다",
+    "target": "apps/web/src/app/wedding-code/WeddingCodeV40Client.tsx",
+    "find": "<LetterGuessClosedCard summary={letterSummary} headingLevel={coupleSectionLevel} idPrefix=\"wc40-couple-letter-guess\" />",
+    "replace": "<LetterGuessLines summary={letterSummary} headingLevel={coupleSectionLevel} idPrefix=\"wc40-couple-letter-guess\" />"
+  },
+  {
+    "name": "혼자 결과에 먼저 고른 글자 구역을 안 준다",
+    "target": "apps/web/src/app/wedding-code/WeddingCodeV40Client.tsx",
+    "find": "letterGuessSlot={hasLetterGuessLines(letterSummary) ? <LetterGuessLines summary={letterSummary} headingLevel={2} /> : undefined}",
+    "replace": "letterGuessSlot={undefined}"
+  },
+  {
+    "name": "보내는 사람의 세트를 마치면 기록 칸에 고름을 남긴다",
+    "target": "apps/web/src/app/wedding-code/WeddingCodeV40Client.tsx",
+    "find": "  const handlePairSenderDone = (answers: GuessAnswers | null): void => {\n    stage.setOwnGuess(answers);",
+    "replace": "  const handlePairSenderDone = (answers: GuessAnswers | null): void => {\n    stage.setOwnGuess(answers);\n    window.history.replaceState({ leaked: answers }, \"\");"
+  },
+  {
+    "name": "결과 보기가 고른 글자를 서버로 보낸다",
+    "target": "apps/web/src/app/wedding-code/WeddingCodeV40Client.tsx",
+    "find": "    stage.setLetterGuess(guess);\n    saveLetterGuess(letterPortOf(), guess, flowRef.current.formBit, clock());",
+    "replace": "    stage.setLetterGuess(guess);\n    void fetch(\"/letter\", { method: \"POST\", body: JSON.stringify(guess) });\n    saveLetterGuess(letterPortOf(), guess, flowRef.current.formBit, clock());"
+  },
+  {
+    "name": "결과 보기가 통계를 부른다",
+    "target": "apps/web/src/app/wedding-code/WeddingCodeV40Client.tsx",
+    "find": "    saveLetterGuess(letterPortOf(), guess, flowRef.current.formBit, clock());",
+    "replace": "    saveLetterGuess(letterPortOf(), guess, flowRef.current.formBit, clock());\n    captureWeddingCodeEvent(\"wedding_code_restarted\", { version: WEDDING_CODE_V40_VERSION });"
+  },
+  {
+    "name": "단계 판단이 서로 짐작하기를 코드 없는 결과에도 연다",
+    "target": "apps/web/src/app/wedding-code/WeddingCodeV40Client.stage2.tsx",
+    "find": " && facts.partnerGuessed && codeable ? \"receiver\" : \"none\";",
+    "replace": " && facts.partnerGuessed ? \"receiver\" : \"none\";"
+  },
+  {
+    "name": "마지막 질문 단추 판단이 받는 사람의 ga 를 보지 않는다",
+    "target": "apps/web/src/app/wedding-code/WeddingCodeV40Client.stage2.tsx",
+    "find": "  return facts.stages.letterGuess || (facts.stages.pairGuess && facts.partner && facts.partnerGuessed);",
+    "replace": "  return facts.stages.letterGuess || facts.stages.pairGuess;"
+  },
+  {
+    "name": "두 사람 링크에도 글자 고르기를 연다",
+    "target": "apps/web/src/app/wedding-code/WeddingCodeV40Client.stage2.tsx",
+    "find": "  if (facts.stages.letterGuess && !facts.both && letterEligible) return \"letter\";",
+    "replace": "  if (facts.stages.letterGuess && letterEligible) return \"letter\";"
+  },
+  {
+    "name": "나가기 단추에 아래 단추와 같은 이름(다음)을 준다",
+    "target": "apps/web/src/app/wedding-code/WeddingCodeV40Client.tsx",
+    "find": "? V40_COPY.edit.skippedReviewFinishButton : undefined}",
+    "replace": "? V40_COPY.question.nextButton : undefined}"
+  },
+  {
+    "name": "받은 상대의 짐작만 실리는 링크에도 두 사람의 짐작이라는 한 줄을 준다",
+    "target": "apps/web/src/app/wedding-code/WeddingCodeV40Client.tsx",
+    "find": "? V40_COPY.guess.coupleSendPartnerInfo",
+    "replace": "? V40_COPY.guess.coupleSendInfo"
+  },
+  {
+    "name": "이전이 고른 글자를 메모리에 두지 않는다",
+    "target": "apps/web/src/app/wedding-code/WeddingCodeV40Client.tsx",
+    "find": "  const handleLetterBack = (guess: LetterGuess | null): void => {\n    stage.setLetterGuess(guess);",
+    "replace": "  const handleLetterBack = (guess: LetterGuess | null): void => {\n    void guess;"
+  },
+  {
+    "name": "이전이 고른 글자를 이 브라우저에 쓴다",
+    "target": "apps/web/src/app/wedding-code/WeddingCodeV40Client.tsx",
+    "find": "  const handleLetterBack = (guess: LetterGuess | null): void => {\n    stage.setLetterGuess(guess);",
+    "replace": "  const handleLetterBack = (guess: LetterGuess | null): void => {\n    stage.setLetterGuess(guess);\n    saveLetterGuess(letterPortOf(), guess, flowRef.current.formBit, clock());"
+  },
+  {
+    "name": "세트를 다시 열어도 뺐어요 한 줄이 남는다",
+    "target": "apps/web/src/app/wedding-code/WeddingCodeV40Client.stage2.tsx",
+    "find": "      setPairStage(stage);\n      setGuessRemoved(false);",
+    "replace": "      setPairStage(stage);"
+  },
+  {
+    "name": "세트를 닫은 뒤 초점 옮기기를 한 박자 늦추지 않는다(StrictMode 에서 결과 뿌리가 다시 가져간다)",
+    "target": "apps/web/src/app/wedding-code/WeddingCodeV40Client.tsx",
+    "find": "const timer = window.setTimeout(() => {",
+    "replace": "const timer = ((run: () => void) => { run(); return 0; })(() => {"
+  },
+  {
+    "name": "받는 사람 세트 시작 화면의 저장 안내 글이 비었다",
+    "target": "apps/web/src/components/wedding-code/v40/guess/GuessSetFlow.tsx",
+    "find": "{copy.receiverStorageNote}",
+    "replace": "{\"\"}"
+  }
+]

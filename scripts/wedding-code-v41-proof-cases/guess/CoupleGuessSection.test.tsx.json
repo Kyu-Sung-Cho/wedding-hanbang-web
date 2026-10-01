@@ -1,0 +1,92 @@
+[
+  {
+    "name": "닫아도 내용을 문서에서 빼지 않음",
+    "target": "apps/web/src/components/wedding-code/v40/guess/CoupleGuessSection.tsx",
+    "find": "{open ? (",
+    "replace": "{true ? ("
+  },
+  {
+    "name": "화면 숨김에 닫히지 않음",
+    "target": "apps/web/src/components/wedding-code/v40/guess/CoupleGuessSection.tsx",
+    "find": "if (document.visibilityState === \"hidden\") setOpen(false);",
+    "replace": "if (document.visibilityState === \"hidden\") void 0;"
+  },
+  {
+    "name": "Escape 로 닫히지 않음",
+    "target": "apps/web/src/components/wedding-code/v40/guess/CoupleGuessSection.tsx",
+    "find": "if (event.key === \"Escape\") setOpen(false);",
+    "replace": "void 0;"
+  },
+  {
+    "name": "기본이 닫힘",
+    "target": "apps/web/src/components/wedding-code/v40/guess/CoupleGuessSection.tsx",
+    "find": "const [open, setOpen] = useState(true);",
+    "replace": "const [open, setOpen] = useState(false);"
+  },
+  {
+    "name": "한쪽만 있어도 구역을 그림",
+    "target": "apps/web/src/components/wedding-code/v40/guess/CoupleGuessSection.tsx",
+    "find": "if (comparison.kind !== \"both\") return null;",
+    "replace": "if (comparison.kind === \"none\") return null;"
+  },
+  {
+    "name": "장면을 셋에서 자름",
+    "target": "apps/web/src/components/wedding-code/v40/guess/CoupleGuessSection.tsx",
+    "find": "{scenes.map((scene) => (",
+    "replace": "{scenes.slice(0, 3).map((scene) => ("
+  },
+  {
+    "name": "기본 배치를 방향별로",
+    "target": "apps/web/src/components/wedding-code/v40/guess/CoupleGuessSection.tsx",
+    "find": "export const GUESS_LAYOUT: GuessLayout = \"byScene\";",
+    "replace": "export const GUESS_LAYOUT: GuessLayout = \"byDirection\";"
+  },
+  {
+    "name": "나 기준 방향 순서가 뒤바뀜",
+    "target": "apps/web/src/components/wedding-code/v40/guess/CoupleGuessSection.tsx",
+    "find": "return perspective === \"second\" ? [\"secondGuessedFirst\", \"firstGuessedSecond\"] : [\"firstGuessedSecond\", \"secondGuessedFirst\"];",
+    "replace": "return perspective === \"second\" ? [\"firstGuessedSecond\", \"secondGuessedFirst\"] : [\"secondGuessedFirst\", \"firstGuessedSecond\"];"
+  },
+  {
+    "name": "줄에 값(cost)까지 보임",
+    "target": "apps/web/src/components/wedding-code/v40/guess/CoupleGuessSection.tsx",
+    "find": "{cardAct(item, diff.guessed)}</dd>",
+    "replace": "{cardAct(item, diff.guessed)} {item.cards[diff.guessed].cost}</dd>"
+  },
+  {
+    "name": "가렸을 때 한 줄을 지움",
+    "target": "apps/web/src/components/wedding-code/v40/guess/CoupleGuessSection.tsx",
+    "find": "          {copy.hiddenNote}",
+    "replace": ""
+  },
+  {
+    "name": "줄 없는 장면 한 줄을 지움",
+    "target": "apps/web/src/components/wedding-code/v40/guess/CoupleGuessSection.tsx",
+    "find": "              {copy.unlistedNote}",
+    "replace": ""
+  },
+  {
+    "name": "가림 상태를 저장소에 씀",
+    "target": "apps/web/src/components/wedding-code/v40/guess/CoupleGuessSection.tsx",
+    "find": "onClick={() => setOpen((previous) => !previous)}",
+    "replace": "onClick={() => { window.localStorage.setItem(\"k\", \"v\"); setOpen((previous) => !previous); }}"
+  },
+  {
+    "name": "여섯 장면이 모두 놓여도 줄 없는 장면 한 줄을 그림",
+    "target": "apps/web/src/components/wedding-code/v40/guess/CoupleGuessSection.tsx",
+    "find": "{scenes.length < V40_GUESS_SET.length ? (",
+    "replace": "{true ? ("
+  },
+  {
+    "name": "Escape 를 문서가 아니라 토글에서만 들음",
+    "target": "apps/web/src/components/wedding-code/v40/guess/CoupleGuessSection.tsx",
+    "find": "document.addEventListener(\"keydown\", closeOnEscape);",
+    "replace": "toggleRef.current?.addEventListener(\"keydown\", closeOnEscape);"
+  },
+  {
+    "name": "토글 설명이 구역 제목이 아니라 본문을 가리킴",
+    "target": "apps/web/src/components/wedding-code/v40/guess/CoupleGuessSection.tsx",
+    "find": "aria-describedby={titleId}",
+    "replace": "aria-describedby={bodyId}"
+  }
+]

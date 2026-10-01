@@ -8,6 +8,8 @@
  * 저장소가 막히거나 가득 차거나 깨진 값을 줘도 던지지 않고 상태 이름(empty, invalid, expired, unavailable, conflict, off)으로 답한다.
  * 받은 링크의 상대 답과 두 사람 결과 화면의 답은 저장하지 않는다(호출자 몫: 본인 답만 넘긴다).
  * 저장하는 것은 폼 비트와 답(문항 68자)과 이어 할 자리뿐이고, 결과 기록에는 글자, 세기, 시각, 폼 비트만 남는다.
+ * 4.1 단계 2 가 더한 곁가지 저장(createExtraPort)은 문자열 하나를 키 하나에 읽고 쓰고 지우는 포트다. 내용의 모양과 풀이는 부르는 쪽이 맡고,
+ * 저장소 이름을 만지는 일은 여기서도 browserStorage 한 곳뿐이다(포트는 받은 핸들만 쓴다).
  */
 import { V40_AXIS_KEYS, V40_STORAGE, V40_UNANSWERED_CHAR, WEDDING_CODE_V40_VERSION, axisOfLetter, isLetter } from "@/constants/weddingCodeV40";
 import type {
@@ -414,14 +416,14 @@ export function readAutosavePreference(storage: StorageLike): "on" | "off" {
 }
 
 /**
- * 자동 저장 선호 쓰기. off 는 v4 진행 저장, v4 기록, 이전 판 진행 저장을 먼저 함께 지우고(같이 쓰는 브라우저에서 끄기는 남기지 않는다는 뜻)
+ * 자동 저장 선호 쓰기. off 는 v4 진행 저장, v4 기록, 이전 판 진행 저장, 결과 보기 전에 고른 글자를 먼저 함께 지우고(같이 쓰는 브라우저에서 끄기는 남기지 않는다는 뜻)
  * 선호를 쓴다. 지우기가 하나라도 안 됐거나 선호가 저장되지 않았으면 unavailable. on 은 선호만 쓴다.
  */
 export function writeAutosavePreference(storage: StorageLike, preference: "on" | "off"): { readonly status: "saved" | "unavailable" } {
   if (preference !== "on" && preference !== "off") return { status: "unavailable" };
   let cleared = true;
   if (preference === "off") {
-    for (const key of [V40_STORAGE.progressKey, V40_STORAGE.historyKey, V40_STORAGE.legacyV31ProgressKey]) {
+    for (const key of [V40_STORAGE.progressKey, V40_STORAGE.historyKey, V40_STORAGE.legacyV31ProgressKey, V40_STORAGE.letterGuessKey]) {
       if (!removeKey(storage, key)) cleared = false;
     }
   }
@@ -449,6 +451,67 @@ export function probeLegacyV31Progress(storage: StorageLike, now: number = Date.
   const read = readRaw(storage, V40_STORAGE.legacyV31ProgressKey);
   if (!read.ok || read.raw === null || read.raw === "") return { present: false, savedAt: null };
   return { present: true, savedAt: legacySavedAt(read.raw, now) };
+}
+
+// ---------------------------------------------------------------------------
+// 곁가지 저장 포트 (4.1 단계 2)
+// ---------------------------------------------------------------------------
+
+/** 곁가지 저장의 이름. 지금은 결과 보기 전에 고른 글자 하나뿐이다. */
+export type ExtraKey = "letterGuess";
+
+/** 곁가지 저장 이름이 가리키는 저장 키. 키 문자열은 상수에 한 번만 적고 여기서 이름과 이어 준다. */
+const EXTRA_STORAGE_KEYS: Readonly<Record<ExtraKey, string>> = { letterGuess: V40_STORAGE.letterGuessKey };
+
+/**
+ * 문자열 하나를 키 하나에 읽고 쓰고 지우는 포트. 클라이언트는 저장소 이름도 getItem 도 모른 채 이 세 함수만 부른다.
+ * read 는 접근이 던지면 ok false, 값이 없으면 raw null 이다. write 는 saved(쓰고 다시 읽어 같음), off(자동 저장이 꺼져 있어 쓰지 않음),
+ * unavailable(저장소가 없거나 막혔거나 쓴 값이 다르게 읽힘)로 답한다. remove 는 지웠으면 true, 접근이 던지면 false 이고 자동 저장 선호와 무관하다.
+ * 셋 다 던지지 않는다.
+ */
+export interface ExtraPort {
+  read(): { readonly ok: true; readonly raw: string | null } | { readonly ok: false };
+  write(raw: string): "saved" | "off" | "unavailable";
+  remove(): boolean;
+}
+
+export interface ExtraPortOptions {
+  /**
+   * 참이면 write 가 자동 저장이 꺼져 있을 때 아무것도 쓰지 않고 off 로 답한다(writeProgress 와 같은 마지막 안전장치).
+   * 값을 안 주었거나 거짓이 아니면 참으로 읽는다(꺼짐을 어기는 쪽으로 틀리지 않게).
+   */
+  readonly honorAutosave: boolean;
+  /**
+   * 자동 저장 선호를 읽을 핸들. 안 주면 포트의 핸들에서 읽는다. null 이면 선호를 읽을 곳이 없으니 write 는 쓰지 않고 unavailable 이다.
+   * 선호 키는 이 브라우저 저장소에만 있으므로, 그 밖의 핸들(예: 이 창만의 임시 저장소)로 만든 포트는 이 브라우저 저장소 핸들을 여기에 준다.
+   */
+  readonly prefHandle?: StorageLike | null;
+}
+
+/**
+ * 곁가지 저장 포트를 만든다. handle 이 null(저장소를 못 쓰는 브라우저)이면 read 는 ok false, write 는 unavailable, remove 는 false 다.
+ * 모르는 이름(타입을 우회한 호출)도 저장소를 건드리지 않고 같은 답을 낸다. 핸들은 이 파일의 도우미(readRaw, writeVerified, removeKey)로만 만진다.
+ * 포트는 storageModule 에 넣지 않는다(그 객체는 계약이 정한 함수 열세 개로 고정이다). 일반 내보내기로만 둔다.
+ */
+export function createExtraPort(handle: StorageLike | null, key: ExtraKey, options: ExtraPortOptions): ExtraPort {
+  const storageKey = Object.prototype.hasOwnProperty.call(EXTRA_STORAGE_KEYS, key) ? EXTRA_STORAGE_KEYS[key] : null;
+  if (handle === null || handle === undefined || storageKey === null) {
+    return { read: () => ({ ok: false }), write: () => "unavailable", remove: () => false };
+  }
+  const honorAutosave = options?.honorAutosave !== false;
+  const prefHandle = options?.prefHandle === undefined ? handle : options.prefHandle;
+  return {
+    read: () => readRaw(handle, storageKey),
+    write: (raw) => {
+      if (typeof raw !== "string") return "unavailable";
+      if (honorAutosave) {
+        if (prefHandle === null) return "unavailable";
+        if (readAutosavePreference(prefHandle) === "off") return "off";
+      }
+      return writeVerified(handle, storageKey, raw) ? "saved" : "unavailable";
+    },
+    remove: () => removeKey(handle, storageKey),
+  };
 }
 
 /** 이 파일의 함수를 계약(StorageModule)대로 묶은 객체. 서명이 계약과 어긋나면 여기서 타입 오류가 난다. */

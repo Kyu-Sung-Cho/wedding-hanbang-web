@@ -1,0 +1,20 @@
+[
+  {
+    "name": "먼저 고른 글자 슬롯을 그리지 않는다",
+    "target": "apps/web/src/components/wedding-code/v40/CoupleResult.tsx",
+    "find": "      {ownLetterGuessSlot}\n",
+    "replace": ""
+  },
+  {
+    "name": "짐작과 답 구역에 나 기준을 주지 않는다",
+    "target": "apps/web/src/components/wedding-code/v40/CoupleResult.tsx",
+    "find": "{guessSection?.(perspective)}",
+    "replace": "{guessSection?.(null)}"
+  },
+  {
+    "name": "보내는 블록에 짐작 한 줄을 넘기지 않는다",
+    "target": "apps/web/src/components/wedding-code/v40/CoupleResult.tsx",
+    "find": "          guessNote={send.guessNote}\n",
+    "replace": ""
+  }
+]

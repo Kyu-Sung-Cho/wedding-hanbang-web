@@ -113,8 +113,23 @@ export function overwriteProgress(storage: StorageLike, snapshot: ProgressSnapsh
 // 그리기와 조작
 // ---------------------------------------------------------------------------
 
+/**
+ * 클라이언트가 결과 앞뒤에 얹는 단계 화면(4.1 단계 2)을 켜고 끄는 스위치. 클라이언트 deps 의 stages 와 같은 모양이다.
+ * 이 도구의 기본은 둘 다 꺼짐이라(아래 clientProps) 단계가 없던 때의 흐름이 그대로 돌고, 단계를 켠 시험은 켤 것만 명시한다.
+ */
+export interface StageSwitches {
+  readonly letterGuess?: boolean;
+  readonly pairGuess?: boolean;
+}
+
+/** 단계를 모두 끈 값. */
+export const STAGES_OFF = { letterGuess: false, pairGuess: false } as const satisfies Required<StageSwitches>;
+
+/** 시험이 클라이언트에 줄 수 있는 deps. 클라이언트 deps 에 stages 가 있으면 같은 모양으로 겹쳐진다. */
+export type KitDeps = WeddingCodeV40ClientDeps & { readonly stages?: StageSwitches };
+
 export type ClientOverrides = Partial<WeddingCodeV40ClientProps> & {
-  readonly deps?: WeddingCodeV40ClientDeps;
+  readonly deps?: KitDeps;
   /** 개발 서버처럼 React StrictMode 로 감싸 그린다(효과를 두 번씩 돌려 본다). */
   readonly strict?: boolean;
 };
@@ -132,7 +147,9 @@ export function clientProps(overrides: ClientOverrides = {}) {
     resolved: true,
     ...props,
     // 시험은 화면을 순식간에 넘기므로 두 번 눌림 방지 시간(기본 400밀리초)을 끈다. 그 시간을 시험하는 시험만 turnGuardMs 를 직접 준다.
-    deps: { turnGuardMs: 0, ...deps },
+    // 단계 화면(결과 전 글자 고르기, 서로 짐작하기)은 기본으로 끈다. driveToEnd 가 결과 앞에서 새 화면에 멈추지 않고 저장소 쓰기 기록도 단계 이전과 같다.
+    // 일부만 준 stages 는 나머지를 꺼짐으로 채운다(안 준 단계가 기본 상수를 따라 켜지는 일이 없게).
+    deps: { turnGuardMs: 0, ...deps, stages: { ...STAGES_OFF, ...deps?.stages } },
   } satisfies Omit<ClientOverrides, "strict">;
 }
 
@@ -263,14 +280,25 @@ export interface DriveLog {
   readonly last: string;
 }
 
+/** 클라이언트가 얹는 단계 화면의 이름(data-screen). */
+export type StageScreenName = "letter-guess" | "pair-guess";
+
+/**
+ * 단계 화면 이름 → 그 화면에서 누르면 단계를 건너뛰고 나가는 단추의 글자. 글자는 단계 문구 묶음(각 트랙이 소유)에서 오므로 부르는 시험이 넘긴다.
+ * 여기에 없는 단계 화면이 나오면 다른 끝 화면처럼 거기서 멈춘다.
+ */
+export type StageSkipLabels = Readonly<Partial<Record<StageScreenName, string>>>;
+
 /**
  * 시작 화면에서 시작하기를 눌러 표본으로 끝까지 간다. 쉬는 카드와 마지막 정리 카드는 이어서 하기로 넘긴다.
  * 결과, 두 사람 결과, 비교 불가, 관문 같은 끝 화면(questions, rest, self-intro 가 아닌 화면)에서 멈춘다.
+ * skipStages 를 주면 거기 적힌 단계 화면(letter-guess, pair-guess)이 나올 때마다 그 단추를 눌러 지나간다. 지나간 단계 화면은 screens 에도,
+ * onScreen 에도 넣지 않는다(단계를 끈 흐름과 켜고 건너뛴 흐름의 screens 가 같아야 한다).
  */
 export async function driveToEnd(
   container: HTMLElement,
   sample: V40Fixture,
-  options: { readonly start?: boolean; readonly onScreen?: (name: string) => void } = {},
+  options: { readonly start?: boolean; readonly onScreen?: (name: string) => void; readonly skipStages?: StageSkipLabels } = {},
 ): Promise<DriveLog> {
   const screens: string[] = [];
   if (options.start !== false) {
@@ -279,6 +307,11 @@ export async function driveToEnd(
   }
   for (let step = 0; step < 220; step += 1) {
     const name = screenName(container);
+    const skipLabel = options.skipStages?.[name as StageScreenName];
+    if (typeof skipLabel === "string") {
+      await pressText(container, skipLabel);
+      continue;
+    }
     // 결과 전에 한 번 다시 보여 주는 넘어간 질문은 질문 화면과 다른 이름으로 적는다.
     const label = name === "questions" && container.querySelector('[data-edit-mode="skipped"]') !== null ? "skipped-review" : name;
     const previous = screens[screens.length - 1];

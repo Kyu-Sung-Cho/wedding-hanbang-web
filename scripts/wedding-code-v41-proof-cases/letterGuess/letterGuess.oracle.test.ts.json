@@ -1,0 +1,44 @@
+[
+  {
+    "name": "같음을 다름으로 센다",
+    "target": "apps/web/src/lib/weddingCode/v40/letterGuess/letterGuess.ts",
+    "find": "if (guessed === shown) same += 1;",
+    "replace": "if (guessed !== shown) same += 1;"
+  },
+  {
+    "name": "다른 주제의 줄이 주제 순서가 아니라 거꾸로 쌓인다",
+    "target": "apps/web/src/lib/weddingCode/v40/letterGuess/letterGuess.ts",
+    "find": "else lines.push({ axis: axis.axis, guessed, shown });",
+    "replace": "else lines.unshift({ axis: axis.axis, guessed, shown });"
+  },
+  {
+    "name": "힌트로 낮추기 전의 세기로 확정을 판정한다",
+    "target": "apps/web/src/lib/weddingCode/v40/letterGuess/letterGuess.ts",
+    "find": "(axis.shownBand === \"clear\" || axis.shownBand === \"lean\")",
+    "replace": "(axis.band === \"clear\" || axis.band === \"lean\")"
+  },
+  {
+    "name": "반반이에요도 확정으로 센다",
+    "target": "apps/web/src/lib/weddingCode/v40/letterGuess/letterGuess.ts",
+    "find": "(axis.shownBand === \"clear\" || axis.shownBand === \"lean\")",
+    "replace": "(axis.shownBand !== null)"
+  },
+  {
+    "name": "같은 주제가 하나라도 있으면 같음으로 끝낸다(모두 같음이 아니라 하나라도 같음)",
+    "target": "apps/web/src/lib/weddingCode/v40/letterGuess/letterGuess.ts",
+    "find": "if (lines.length > 0) return { kind: \"lines\", lines };",
+    "replace": "if (same > 0) return { kind: \"same\" };\n  if (lines.length > 0) return { kind: \"lines\", lines };"
+  },
+  {
+    "name": "관문이 닫혀도 요약을 낸다",
+    "target": "apps/web/src/lib/weddingCode/v40/letterGuess/letterGuess.ts",
+    "find": "result.code === null || !isLetterGuess(guess)",
+    "replace": "!isLetterGuess(guess)"
+  },
+  {
+    "name": "열기 판정이 확정된 주제가 없어도 연다(코드만 본다)",
+    "target": "apps/web/src/lib/weddingCode/v40/letterGuess/letterGuess.ts",
+    "find": "return result.code !== null && result.axes.some(isSettledAxis);",
+    "replace": "return result.code !== null;"
+  }
+]

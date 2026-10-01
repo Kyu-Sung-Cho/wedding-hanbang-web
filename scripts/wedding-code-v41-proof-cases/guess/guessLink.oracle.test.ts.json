@@ -1,0 +1,56 @@
+[
+  {
+    "name": "TS 검사 글자 가중치를 index 로",
+    "target": "apps/web/src/lib/weddingCode/v40/guess/guessLink.ts",
+    "find": "total += (index + 1) * value;",
+    "replace": "total += index * value;"
+  },
+  {
+    "name": "TS 범위 검사(0에서 8)를 지움",
+    "target": "apps/web/src/lib/weddingCode/v40/guess/guessLink.ts",
+    "find": "if (value < 0) return null;",
+    "replace": ""
+  },
+  {
+    "name": "TS 모두 8 거절 줄을 지움",
+    "target": "apps/web/src/lib/weddingCode/v40/guess/guessLink.ts",
+    "find": "if (!informative) return null;",
+    "replace": ""
+  },
+  {
+    "name": "TS 세트 글자 검사를 지움",
+    "target": "apps/web/src/lib/weddingCode/v40/guess/guessLink.ts",
+    "find": "if (!isSupportedSet(set)) return null;",
+    "replace": ""
+  },
+  {
+    "name": "TS 링크 수준에서 b 없는 gb 를 통과",
+    "target": "apps/web/src/lib/weddingCode/v40/guess/guessLink.ts",
+    "find": "if (gb !== null && b === null) return { kind: \"invalid\" };",
+    "replace": ""
+  },
+  {
+    "name": "TS 해시 길이 상한을 185 보다 작게 낮춤",
+    "target": "apps/web/src/lib/weddingCode/v40/guess/guessLink.ts",
+    "find": "if (body.length > MAX_SHARE_HASH_LENGTH) return { kind: \"invalid\" };",
+    "replace": "if (body.length > 100) return { kind: \"invalid\" };"
+  },
+  {
+    "name": "TS 조립에서 ga 를 끝에",
+    "target": "apps/web/src/lib/weddingCode/v40/guess/guessLink.ts",
+    "find": "return single + firstPart + full.slice(single.length) + secondPart;",
+    "replace": "return single + full.slice(single.length) + firstPart + secondPart;"
+  },
+  {
+    "name": "JS 기준 계산기 가중치를 index 로(둘이 갈라지면 빨개져야 한다)",
+    "target": "scripts/lib/wedding-code-v41-guess-ref.mjs",
+    "find": "return sum + (i + 1) * at;",
+    "replace": "return sum + i * at;"
+  },
+  {
+    "name": "JS 기준 계산기가 범위 밖 글자를 받아들임",
+    "target": "scripts/lib/wedding-code-v41-guess-ref.mjs",
+    "find": "const CODE_SHAPE = new RegExp(`^([${GUESS_SET_IDS.join(\"\")}])([0-8]{6})([0-9a-zA-Z])$`);",
+    "replace": "const CODE_SHAPE = new RegExp(`^([${GUESS_SET_IDS.join(\"\")}])([0-9]{6})([0-9a-zA-Z])$`);"
+  }
+]

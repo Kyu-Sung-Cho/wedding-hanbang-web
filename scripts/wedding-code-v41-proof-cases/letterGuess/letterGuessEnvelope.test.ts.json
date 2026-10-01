@@ -1,0 +1,80 @@
+[
+  {
+    "name": "전부 고르지 않음인데 문자열을 만든다(전부 하이픈이면 null 을 돌려주는 조건 삭제)",
+    "target": "apps/web/src/lib/weddingCode/v40/letterGuess/letterGuessEnvelope.ts",
+    "find": "if (!isLetterGuess(guess) || guess.every((pick) => pick === null)) return null;",
+    "replace": "if (!isLetterGuess(guess)) return null;"
+  },
+  {
+    "name": "전부 하이픈인 문자열을 풀어 준다",
+    "target": "apps/web/src/lib/weddingCode/v40/letterGuess/letterGuessEnvelope.ts",
+    "find": "if (picks.every((pick) => pick === null)) return null;",
+    "replace": ""
+  },
+  {
+    "name": "만료 경계가 한 칸 어긋난다(기간 이상이 아니라 기간 초과)",
+    "target": "apps/web/src/lib/weddingCode/v40/letterGuess/letterGuessEnvelope.ts",
+    "find": "if (now - savedAt >= V40_STORAGE.ttlMs) return { status: \"expired\" };",
+    "replace": "if (now - savedAt > V40_STORAGE.ttlMs) return { status: \"expired\" };"
+  },
+  {
+    "name": "미래 시각을 받아들인다",
+    "target": "apps/web/src/lib/weddingCode/v40/letterGuess/letterGuessEnvelope.ts",
+    "find": "if (!isTimestamp(savedAt) || savedAt > now) return { status: \"invalid\" };",
+    "replace": "if (!isTimestamp(savedAt)) return { status: \"invalid\" };"
+  },
+  {
+    "name": "키 집합 검사를 하지 않는다",
+    "target": "apps/web/src/lib/weddingCode/v40/letterGuess/letterGuessEnvelope.ts",
+    "find": "return own.length === ENVELOPE_KEYS.length && own.every((key) => (ENVELOPE_KEYS as readonly string[]).includes(key));",
+    "replace": "return true;"
+  },
+  {
+    "name": "판 이름을 확인하지 않는다",
+    "target": "apps/web/src/lib/weddingCode/v40/letterGuess/letterGuessEnvelope.ts",
+    "find": "if (value.schema !== ENVELOPE_SCHEMA || value.version !== WEDDING_CODE_V40_VERSION) return { status: \"invalid\" };",
+    "replace": "if (value.schema !== ENVELOPE_SCHEMA) return { status: \"invalid\" };"
+  },
+  {
+    "name": "폼 비트를 확인하지 않는다",
+    "target": "apps/web/src/lib/weddingCode/v40/letterGuess/letterGuessEnvelope.ts",
+    "find": "if (formBit !== 0 && formBit !== 1) return { status: \"invalid\" };",
+    "replace": ""
+  },
+  {
+    "name": "문자열 길이 상한을 없앤다",
+    "target": "apps/web/src/lib/weddingCode/v40/letterGuess/letterGuessEnvelope.ts",
+    "find": "raw.length > MAX_ENVELOPE_LENGTH",
+    "replace": "raw.length > 100000"
+  },
+  {
+    "name": "만든 봉투의 고른 글자 문자열이 바뀐다",
+    "target": "apps/web/src/lib/weddingCode/v40/letterGuess/letterGuessEnvelope.ts",
+    "find": "guess: encoded,",
+    "replace": "guess: encoded.toLowerCase(),"
+  },
+  {
+    "name": "풀 때 다른 주제의 글자를 받아들인다",
+    "target": "apps/web/src/lib/weddingCode/v40/letterGuess/letterGuessEnvelope.ts",
+    "find": "if (!isLetter(char) || axisOfLetter(char) !== V40_AXIS_KEYS[index]) return null;",
+    "replace": "if (!isLetter(char)) return null;"
+  },
+  {
+    "name": "풀 때 길이가 넘는 문자열을 받아들인다",
+    "target": "apps/web/src/lib/weddingCode/v40/letterGuess/letterGuessEnvelope.ts",
+    "find": "text.length !== GUESS_LENGTH",
+    "replace": "text.length < GUESS_LENGTH"
+  },
+  {
+    "name": "봉투 파일이 링크 코덱을 가져온다(격리 위반)",
+    "target": "apps/web/src/lib/weddingCode/v40/letterGuess/letterGuessEnvelope.ts",
+    "find": "import type { FormBit } from \"../types\";",
+    "replace": "import type { FormBit } from \"../types\";\nimport { checksumChar } from \"../codec\";"
+  },
+  {
+    "name": "봉투 파일이 브라우저 저장소를 직접 부른다(격리 위반)",
+    "target": "apps/web/src/lib/weddingCode/v40/letterGuess/letterGuessEnvelope.ts",
+    "find": "const NOT_CHOSEN = \"-\";",
+    "replace": "const NOT_CHOSEN = \"-\";\nconst leaked = typeof window === \"undefined\" ? null : window.localStorage;"
+  }
+]

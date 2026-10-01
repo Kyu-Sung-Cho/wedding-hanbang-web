@@ -1,0 +1,14 @@
+[
+  {
+    "name": "입구가 짐작 코덱을 다른 경로로 가져온다",
+    "target": "apps/web/src/app/wedding-code/entry.ts",
+    "find": "from \"@/lib/weddingCode/v40/guess/guessLink\";",
+    "replace": "from \"../../lib/weddingCode/v40/guess/guessLink\";"
+  },
+  {
+    "name": "입구가 화면 문구를 가져온다",
+    "target": "apps/web/src/app/wedding-code/entry.ts",
+    "find": "import { encodeCode } from \"@/lib/weddingCode/v40/codec\";",
+    "replace": "import { encodeCode } from \"@/lib/weddingCode/v40/codec\";\nimport { V40_COPY as leakedCopy } from \"@/lib/weddingCode/v40/copy\";\nvoid leakedCopy;"
+  }
+]

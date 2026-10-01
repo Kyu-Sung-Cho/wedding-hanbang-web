@@ -1,0 +1,20 @@
+[
+  {
+    "name": "한 사람 주소가 두 사람 주소의 앞부분인지 검사하지 않음",
+    "target": "apps/web/src/lib/weddingCode/v40/guess/guessLink.ts",
+    "find": "if (full === null || !full.startsWith(single)) return null;",
+    "replace": "if (full === null) return null;"
+  },
+  {
+    "name": "끼우는 자리를 첫 &a= 를 문자열로 찾아 정함",
+    "target": "apps/web/src/lib/weddingCode/v40/guess/guessLink.ts",
+    "find": "return single + firstPart + full.slice(single.length) + secondPart;",
+    "replace": "return (() => { const at = full.indexOf(\"&a=\"); const end = full.indexOf(\"&\", at + 1); const cut = end < 0 ? full.length : end; return full.slice(0, cut) + firstPart + full.slice(cut) + secondPart; })();"
+  },
+  {
+    "name": "두 사람 주소를 못 만들어도 한 사람 주소로 돌려줌",
+    "target": "apps/web/src/lib/weddingCode/v40/guess/guessLink.ts",
+    "find": "if (full === null || !full.startsWith(single)) return null;",
+    "replace": "if (full === null) return single;"
+  }
+]

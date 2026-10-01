@@ -48,6 +48,11 @@ export interface ReceiverScreenProps {
   readonly saved?: ReceiverSavedProgress | null;
   /** 이 브라우저에 이전 웨딩코드(v3.1) 저장이 있는가. 자동 저장을 끄면 함께 지워진다는 안내에만 쓴다. */
   readonly legacyPresent?: boolean;
+  /**
+   * 상대가 서로 짐작해 보기(4.1 단계 2)도 해 두었고 그 짐작이 링크에 들어 있다는 한 줄(문구는 부모가 준다. 이 화면은 트랙 폴더를 가져오지 않는다).
+   * 상대의 내용은 어디에도 받지 않는다(사실 하나만 말한다). 링크에 짐작이 없거나 그 화면이 꺼져 있으면 주지 않는다.
+   */
+  readonly guessNote?: string;
   /** 나도 답해 보기(내 답 시작). */
   readonly onStart: () => void;
 }
@@ -60,6 +65,7 @@ export function ReceiverScreen({
   storageIssue = null,
   saved = null,
   legacyPresent = false,
+  guessNote,
   onStart,
 }: ReceiverScreenProps) {
   const titleId = useId();
@@ -99,6 +105,11 @@ export function ReceiverScreen({
       <p data-receive-return-step="" className={cx(bodyText, "mt-2 break-keep")}>
         {copy.returnStepNote}
       </p>
+      {guessNote ? (
+        <p data-receive-guess-note="" className={cx(bodyText, "mt-2 break-keep")}>
+          {guessNote}
+        </p>
+      ) : null}
       <p data-receive-honesty="" className="mt-5 break-keep text-sm font-medium leading-relaxed text-[var(--hb-text-strong)]">
         {copy.notice}
       </p>

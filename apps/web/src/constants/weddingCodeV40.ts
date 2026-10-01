@@ -636,6 +636,8 @@ export const V40_LINK_KEYS = { version: "v", first: "a", second: "b" } as const;
 export const V40_STORAGE = {
   progressKey: "hanbang:wedding-code:v4:progress",
   historyKey: "hanbang:wedding-code:v4:history",
+  /** 결과를 보기 전에 고른 글자. 이 브라우저에만 남고 링크에는 넣지 않는다. */
+  letterGuessKey: "hanbang:wedding-code:v4:letter-guess",
   autosaveKey: "hanbang.wedding-code.v4.autosave",
   /** 이전 판 진행 저장의 키. 읽기만 하며 v3.1 모듈을 가져오지 않는다. 값은 v3.1 의 LOCAL_KEY 와 같아야 한다. */
   legacyV31ProgressKey: "hanbang:wedding-code:v3.1:progress",
