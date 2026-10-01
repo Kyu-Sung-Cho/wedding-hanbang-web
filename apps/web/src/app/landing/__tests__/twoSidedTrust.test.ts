@@ -279,10 +279,12 @@ describe("landing two-sided trust contract", () => {
     // `footer.tagline` 으로 옮겨도 통과했다(2026-08-27 변형).
     //
     // 2026-09-03 시안으로 후크가 한 번 더 옮겨 갔다("결혼 준비 노트, 같이 정리해요" →
-    // "결혼 준비, 뭐부터 할지보다 우리 둘이 뭘 원하는지부터"). 문장은 바뀌어도 여기서
-    // 재는 것은 같다: 첫 화면이 **둘 사이에서 벌어지는 장면**을 말하는가.
+    // "결혼 준비, 뭐부터 할지보다 우리 둘이 뭘 원하는지부터"). 2026-10-01 에 다시
+    // "결혼식까지 몇 달 남았는데 지금 뭐부터 하면 될까요?" 로 옮겼다. 문장은 바뀌어도
+    // 여기서 재는 것은 같다: 첫 화면이 **처음 온 사람이 겪는 장면**(뭐부터 해야 할지
+    // 모르는 순간)을 말하는가.
     const heroCopy = contentBlock("hero", "amoraNote");
-    expect(heroCopy).toMatch(/결혼 준비, 뭐부터 할지보다[\s\S]*우리 둘이 뭘 원하는지부터/u);
+    expect(heroCopy).toMatch(/결혼식까지 몇 달 남았는데[\s\S]*지금 뭐부터 하면 될까요/u);
     expect(heroCopy).toMatch(/예산[^"\n]*준비[^"\n]*순서/u);
     expect(heroCopy).toMatch(/AI[^"\n]*아모라[\s\S]*직접 확인한 내용은 예산·할 일·일정/u);
     expectWired("hero.body");
