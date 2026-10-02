@@ -1,7 +1,8 @@
 /**
  * 웨딩코드 4.0 이 브라우저 저장(StorageModule, 설계 6절 저장과 수정, README 7절 8, 16, 17항).
  *
- * v3.1 진행 저장(v31LocalProgress)을 본떠 v4 용으로 새로 만들었다. v3.1 모듈은 가져오지 않는다(이전 판 진행 저장은 키 문자열과 savedAt 만 읽는다).
+ * v3.1 진행 저장(v31LocalProgress)을 본떠 v4 용으로 새로 만들었다. v3.1 모듈은 가져오지 않는다(이전 판 진행 저장은 키 문자열로 원문만 읽고, 그 모양은 이 파일 안에서
+ * 따로 풀어 본다. 두 풀이가 어긋나지 않는지는 storage.legacyProbe.test.ts 가 v3.1 이 실제로 쓴 값으로 잠근다).
  * 저장소는 인자로 받는 StorageLike 이고, 이 파일이 v4 에서 브라우저 저장소의 이름(window.localStorage)을 부르는 유일한 자리다(계약 문서 9.3절).
  * 클라이언트는 아래 browserStorage() 로 핸들을 받아 이 파일의 함수에 넘기기만 한다. 소스 가드(규칙 5)가 그 밖의 파일이 저장소 이름, 저장소 메서드, 저장 키를
  * 만지는 것을 막고, 이 파일의 시험이 저장소 이름이 browserStorage 안에만 있음을 확인한다.
@@ -37,8 +38,8 @@ import { fromCodeChar, isResponseValueFor, responseAt, toCodeChar } from "./stat
 const PROGRESS_SCHEMA = 1;
 /** 결과 기록 봉투 길이 상한(항목 3건은 1000자 안팎이라 넉넉하게 둔다). */
 const MAX_HISTORY_LENGTH = 2048;
-/** 이전 판 진행 저장 원문에서 savedAt 을 찾아볼 길이 상한(v3.1 봉투 상한의 두 배). */
-const MAX_LEGACY_LENGTH = 4096;
+/** 이전 판 진행 저장 원문의 길이 상한. v3.1 봉투 상한(MAX_ENVELOPE_LENGTH 2048)과 같은 값이다. 그보다 긴 원문은 v3.1 도 읽지 않는다. */
+const MAX_LEGACY_LENGTH = 2048;
 
 const PROGRESS_KEYS = ["schema", "version", "savedAt", "formBit", "answers", "screen", "cursor", "skippedReviewDone"] as const;
 const HISTORY_KEYS = ["schema", "version", "entries"] as const;
@@ -430,27 +431,78 @@ export function writeAutosavePreference(storage: StorageLike, preference: "on" |
   return writeVerified(storage, V40_STORAGE.autosaveKey, preference) && cleared ? { status: "saved" } : { status: "unavailable" };
 }
 
-/** 이전 판 진행 저장 원문에서 savedAt 만 본다. 30일 안이고 미래가 아닌 안전한 정수일 때만 값을 낸다(다른 필드는 보지 않는다). */
-function legacySavedAt(raw: string, now: number): number | null {
+// 이전 판(v3.1) 진행 저장을 읽는 규칙. v3.1 모듈을 가져오지 않으므로 v3.1 이 쓰는 모양을 여기에 따로 적는다. 문항 25개, 취향 6개, 그 밖의 자리 3개는
+// v3.1 상수의 개수이고, 개수나 모양이 v3.1 과 달라지면 storage.legacyProbe.test.ts 가 34칸을 하나씩 채워 보며 빨개진다.
+// 일부러 깊이 보지 않는 것: 취향·피하고 싶은 것의 선택 번호가 보기 개수 안인지, 겹치지 않는지, 고를 수 있는 개수 안인지, 이어 할 자리가 그 흐름의 화면인지는
+// 보지 않는다. v3.1 이 쓰는 값은 늘 유효하고 사람이 손으로 망가뜨린 값만 다르므로, 그런 값은 v3.1 이 못 읽어도 모양만 맞으면 답이 있다고 본다.
+
+/** v3.1 진행 저장 봉투의 버전 문자열(스키마 1과 2 모두). */
+const LEGACY_V31_VERSION = "v3.1-preferences";
+/** 답을 고르는 문장 칸 수(v3.1 문항 25개). */
+const LEGACY_V31_QUESTION_SLOTS = 25;
+/** 취향 칸 수(v3.1 취향 6개). */
+const LEGACY_V31_TASTE_SLOTS = 6;
+/** 이어 할 자리의 수: 문장 25 + 취향 6 + 피하고 싶은 것, 우선순위, 쓰고 싶은 곳 3. */
+const LEGACY_V31_POSITION_COUNT = LEGACY_V31_QUESTION_SLOTS + LEGACY_V31_TASTE_SLOTS + 3;
+/** answerCode 길이 상한(v3.1 MAX_CODE_LENGTH). */
+const LEGACY_V31_CODE_MAX_LENGTH = 256;
+const LEGACY_V31_FLOWS: readonly string[] = ["core", "extra", "full"];
+const LEGACY_V31_ENVELOPE_KEYS_V1 = ["schema", "version", "savedAt", "answerCode", "index", "screen", "editing", "needsPriorityReview"] as const;
+const LEGACY_V31_ENVELOPE_KEYS_V2 = [...LEGACY_V31_ENVELOPE_KEYS_V1, "flow"] as const;
+const LEGACY_V31_CODE_CHARS = /^[0-9a-z_.-]+$/u;
+/** 문장 25칸의 한 칸: 1에서 5점, u 아직 모름, n 해당 없음, s 건너뜀, - 아직 안 봄. */
+const LEGACY_V31_QUESTION_CHARS = /^[1-5uns-]+$/u;
+/** 선택 칸 하나: - 아직 안 봄, 상태 한 글자(u n s p m), 또는 c 와 두 글자 번호가 하나 이상. */
+const LEGACY_V31_CHOICE = /^(?:-|[unspm]|c(?:[0-9a-z]{2})+)$/u;
+
+/**
+ * v3.1 answerCode(31_문장25칸_취향6칸을 점으로 이음_피하고 싶은 것_우선순위_쓰고 싶은 곳)가 읽을 수 있는 모양이고 고른 답이 하나라도 있는가.
+ * 모양이 틀리면 거짓이다. 칸이 전부 - 이면 거짓이다(시작만 누르면 v3.1 은 이런 진행을 저장한다). 아직 모름, 해당 없음, 건너뜀도 고른 답으로 센다(v3.1 의 hasV31ResumableAnswer 와 같은 셈).
+ */
+function legacyV31CodeHasAnswer(code: unknown): boolean {
+  if (typeof code !== "string" || code.length > LEGACY_V31_CODE_MAX_LENGTH || !LEGACY_V31_CODE_CHARS.test(code)) return false;
+  const parts = code.split("_");
+  if (parts.length !== 6 || parts[0] !== "31") return false;
+  const questions = parts[1];
+  const tastes = parts[2].split(".");
+  if (questions.length !== LEGACY_V31_QUESTION_SLOTS || !LEGACY_V31_QUESTION_CHARS.test(questions) || tastes.length !== LEGACY_V31_TASTE_SLOTS) return false;
+  const choices = [...tastes, parts[3], parts[4], parts[5]];
+  if (!choices.every((choice) => LEGACY_V31_CHOICE.test(choice))) return false;
+  return [...questions].some((char) => char !== "-") || choices.some((choice) => choice !== "-");
+}
+
+/**
+ * 이전 판 진행 저장 원문이 읽을 수 있는 v3.1 진행(스키마 1 또는 2, 봉투 키가 정확히 맞음, 버전 일치, 이어 할 자리의 모양이 맞음)이고 30일 안이며 미래가 아니고
+ * 고른 답이 하나라도 있으면 그 저장 시각을 낸다. 하나라도 아니면 null.
+ */
+function legacyV31AnswerSavedAt(raw: string, now: number): number | null {
   if (raw.length > MAX_LEGACY_LENGTH || !isTimestamp(now)) return null;
   try {
     const value: unknown = JSON.parse(raw);
     if (!isRecord(value)) return null;
-    const savedAt = value.savedAt;
-    return isTimestamp(savedAt) && savedAt <= now && now - savedAt < V40_STORAGE.ttlMs ? savedAt : null;
+    const schema = value.schema;
+    if ((schema !== 1 && schema !== 2) || !hasExactKeys(value, schema === 1 ? LEGACY_V31_ENVELOPE_KEYS_V1 : LEGACY_V31_ENVELOPE_KEYS_V2)) return null;
+    if (value.version !== LEGACY_V31_VERSION) return null;
+    if (schema === 2 && !(typeof value.flow === "string" && LEGACY_V31_FLOWS.includes(value.flow))) return null;
+    const { savedAt, index } = value;
+    if (!isTimestamp(savedAt) || savedAt > now || now - savedAt >= V40_STORAGE.ttlMs) return null;
+    if (typeof index !== "number" || !Number.isInteger(index) || index < 0 || index >= LEGACY_V31_POSITION_COUNT) return null;
+    if ((value.screen !== "questions" && value.screen !== "result") || typeof value.editing !== "boolean" || typeof value.needsPriorityReview !== "boolean") return null;
+    return legacyV31CodeHasAnswer(value.answerCode) ? savedAt : null;
   } catch {
     return null;
   }
 }
 
 /**
- * 이 브라우저에 이전 판(v3.1) 진행 저장이 있는가(설계 6절 저장과 수정). 키 문자열과 savedAt 만 읽고 v3.1 모듈은 가져오지 않는다.
- * present 는 키에 값이 있다는 뜻이고, savedAt 은 30일 안일 때만 값이 있다. 읽기만 하고 지우지 않는다.
+ * 이 브라우저에 이전 판(v3.1)이 남겨 둔 답이 있는가(설계 6절 저장과 수정). 키 문자열로 원문만 읽고 v3.1 모듈은 가져오지 않는다.
+ * present 는 원문이 읽을 수 있는 v3.1 진행이고, 30일 안이고, 미래가 아니고, 고른 답이 하나 이상일 때만 true 다. 시작만 눌러 답이 없는 진행, 기간이 지난 값,
+ * 깨진 값, 모르는 모양은 모두 false 다. savedAt 은 present 일 때만 값이 있어서 present === (savedAt !== null) 이다. 읽기만 하고 지우지 않는다.
  */
 export function probeLegacyV31Progress(storage: StorageLike, now: number = Date.now()): LegacyProgressProbe {
   const read = readRaw(storage, V40_STORAGE.legacyV31ProgressKey);
-  if (!read.ok || read.raw === null || read.raw === "") return { present: false, savedAt: null };
-  return { present: true, savedAt: legacySavedAt(read.raw, now) };
+  const savedAt = read.ok && read.raw !== null ? legacyV31AnswerSavedAt(read.raw, now) : null;
+  return savedAt === null ? { present: false, savedAt: null } : { present: true, savedAt };
 }
 
 // ---------------------------------------------------------------------------

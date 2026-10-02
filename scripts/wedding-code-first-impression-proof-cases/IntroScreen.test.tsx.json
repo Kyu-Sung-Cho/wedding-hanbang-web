@@ -1,0 +1,92 @@
+[
+  {
+    "name": "대기 중 시작 단추가 눌린다(loading 을 뺀다)",
+    "target": "apps/web/src/components/wedding-code/v40/IntroScreen.tsx",
+    "find": "<Button variant=\"primary\" size=\"lg\" fullWidth onClick={onStart} loading={pending}>",
+    "replace": "<Button variant=\"primary\" size=\"lg\" fullWidth onClick={onStart}>"
+  },
+  {
+    "name": "대기 중 저장 문구가 켜진 상태의 글이다(저장한다는 말이 서버 HTML 에 나간다)",
+    "target": "apps/web/src/components/wedding-code/v40/IntroScreen.tsx",
+    "find": "const storageMode: V40StorageMode = pending || unavailable ? \"blocked\"",
+    "replace": "const storageMode: V40StorageMode = unavailable ? \"blocked\""
+  },
+  {
+    "name": "대기 중에도 자동 저장 단추를 그린다",
+    "target": "apps/web/src/components/wedding-code/v40/IntroScreen.tsx",
+    "find": "{unavailable || pending ? null : (",
+    "replace": "{unavailable ? null : ("
+  },
+  {
+    "name": "서버 화면을 이어받는 인스턴스도 초점과 스크롤을 옮긴다(건너뛰기를 지운다)",
+    "target": "apps/web/src/components/wedding-code/v40/IntroScreen.tsx",
+    "find": "useScreenFocus(rootRef, \"intro\", !replacesServerIntro);",
+    "replace": "useScreenFocus(rootRef, \"intro\");"
+  },
+  {
+    "name": "이어받는 판정이 늘 거짓이다(서버 화면이 문서에 있어도 모른다)",
+    "target": "apps/web/src/components/wedding-code/v40/IntroScreen.tsx",
+    "find": "useState(() => pending && serverIntroStillShown())",
+    "replace": "useState(() => false)"
+  },
+  {
+    "name": "대기 중이면 무조건 이어받은 것으로 친다(브라우저에서 새로 만든 대기 화면이 초점을 못 받는다)",
+    "target": "apps/web/src/components/wedding-code/v40/IntroScreen.tsx",
+    "find": "useState(() => pending && serverIntroStillShown())",
+    "replace": "useState(() => pending)"
+  },
+  {
+    "name": "문서에 대기가 아닌 시작 화면이 있어도 이어받은 것으로 친다(선택자에서 data-pending 을 뺀다)",
+    "target": "apps/web/src/components/wedding-code/v40/IntroScreen.tsx",
+    "find": "document.querySelector('[data-screen=\"intro\"][data-pending]') !== null",
+    "replace": "document.querySelector('[data-screen=\"intro\"]') !== null"
+  },
+  {
+    "name": "대기 표시 속성(data-pending)을 뺀다",
+    "target": "apps/web/src/components/wedding-code/v40/IntroScreen.tsx",
+    "find": "data-pending={pending ? \"\" : undefined}",
+    "replace": "data-pending={undefined}"
+  },
+  {
+    "name": "대기 안내의 표시(data-intro-pending)를 뺀다",
+    "target": "apps/web/src/components/wedding-code/v40/IntroScreen.tsx",
+    "find": "<p role=\"status\" data-intro-pending=\"\" className={cx(noteText, \"mb-2 text-center\")}>",
+    "replace": "<p role=\"status\" className={cx(noteText, \"mb-2 text-center\")}>"
+  },
+  {
+    "name": "대기 안내가 단추 아래로 내려간다(사라질 때 단추가 따라 내려간다)",
+    "target": "apps/web/src/components/wedding-code/v40/IntroScreen.tsx",
+    "find": "            {pending ? (\n              <p role=\"status\" data-intro-pending=\"\" className={cx(noteText, \"mb-2 text-center\")}>\n                {V40_COPY.common.loadingLabel}\n              </p>\n            ) : null}\n            {/* 대기 중에는 진짜 disabled 로 내보낸다. 서버가 그린 단추는 하이드레이션 전에 눌러도 받는 쪽이 없어 누른 것이 사라진다. */}\n            <Button variant=\"primary\" size=\"lg\" fullWidth onClick={onStart} loading={pending}>\n              {copy.startButton}\n            </Button>\n",
+    "replace": "            {/* 대기 중에는 진짜 disabled 로 내보낸다. 서버가 그린 단추는 하이드레이션 전에 눌러도 받는 쪽이 없어 누른 것이 사라진다. */}\n            <Button variant=\"primary\" size=\"lg\" fullWidth onClick={onStart} loading={pending}>\n              {copy.startButton}\n            </Button>\n            {pending ? (\n              <p role=\"status\" data-intro-pending=\"\" className={cx(noteText, \"mb-2 text-center\")}>\n                {V40_COPY.common.loadingLabel}\n              </p>\n            ) : null}\n"
+  },
+  {
+    "name": "소개 뿌리가 화면 높이만큼 늘어나지 않는다(min-h-dvh 를 걷는다)",
+    "target": "apps/web/src/components/wedding-code/v40/IntroScreen.tsx",
+    "find": "className={pinnedScreenRootClass(embedded)}",
+    "replace": "className={cx(pinnedScreenRootClass(embedded).replace(\"min-h-dvh\", \"\"))}"
+  },
+  {
+    "name": "단추 줄 앞의 빈틈을 지운다(짧은 소개에서 단추가 글 밑에 뜬다)",
+    "target": "apps/web/src/components/wedding-code/v40/IntroScreen.tsx",
+    "find": "          {/* 소개 글이 화면보다 짧으면 남는 높이를 이 빈틈이 먹어 단추 줄이 화면 아래에 붙는다(저장소를 읽어 글이 길어진 뒤와 같은 자리). */}\n          <PinBarSpacer embedded={embedded} />\n",
+    "replace": ""
+  },
+  {
+    "name": "빈틈과 단추 줄 사이에 다른 요소가 끼어든다",
+    "target": "apps/web/src/components/wedding-code/v40/IntroScreen.tsx",
+    "find": "          <PinBarSpacer embedded={embedded} />\n",
+    "replace": "          <PinBarSpacer embedded={embedded} />\n          <div />\n"
+  },
+  {
+    "name": "라운지 안에서도 뿌리를 화면 높이로 늘린다",
+    "target": "apps/web/src/components/wedding-code/v40/IntroScreen.tsx",
+    "find": "className={pinnedScreenRootClass(embedded)}",
+    "replace": "className={pinnedScreenRootClass(false)}"
+  },
+  {
+    "name": "하던 답 카드가 있어도 빈틈을 그린다(단추 줄이 없는데)",
+    "target": "apps/web/src/components/wedding-code/v40/IntroScreen.tsx",
+    "find": "      {resume ? null : (\n        <>\n          {/* 소개 글이 화면보다 짧으면 남는 높이를 이 빈틈이 먹어 단추 줄이 화면 아래에 붙는다(저장소를 읽어 글이 길어진 뒤와 같은 자리). */}\n          <PinBarSpacer embedded={embedded} />\n",
+    "replace": "      <PinBarSpacer embedded={embedded} />\n      {resume ? null : (\n        <>\n"
+  }
+]

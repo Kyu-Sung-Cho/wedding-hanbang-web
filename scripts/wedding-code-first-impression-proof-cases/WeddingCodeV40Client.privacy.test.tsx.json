@@ -1,0 +1,44 @@
+[
+  {
+    "name": "옛 동작으로 돌아간다: 키에 값이 있기만 하면 v3.1 답이 있다고 한다(거짓 카드)",
+    "target": "apps/web/src/lib/weddingCode/v40/storage.ts",
+    "find": "return savedAt === null ? { present: false, savedAt: null } : { present: true, savedAt };",
+    "replace": "return read.ok && read.raw !== null && read.raw !== \"\" ? { present: true, savedAt } : { present: false, savedAt: null };"
+  },
+  {
+    "name": "답이 있는지 보지 않는다: 칸이 전부 - 인 진행(시작만 누름)에도 있다고 한다",
+    "target": "apps/web/src/lib/weddingCode/v40/storage.ts",
+    "find": "return [...questions].some((char) => char !== \"-\") || choices.some((choice) => choice !== \"-\");",
+    "replace": "return questions.length > 0 && choices.length > 0;"
+  },
+  {
+    "name": "30일이 되는 순간에도 읽는다(>= 를 > 로)",
+    "target": "apps/web/src/lib/weddingCode/v40/storage.ts",
+    "find": "savedAt > now || now - savedAt >= V40_STORAGE.ttlMs) return null;",
+    "replace": "savedAt > now || now - savedAt > V40_STORAGE.ttlMs) return null;"
+  },
+  {
+    "name": "기간이 지난 v3.1 진행도 읽는다(30일 검사를 지운다)",
+    "target": "apps/web/src/lib/weddingCode/v40/storage.ts",
+    "find": "savedAt > now || now - savedAt >= V40_STORAGE.ttlMs",
+    "replace": "savedAt > now"
+  },
+  {
+    "name": "자동 저장을 꺼도 v3.1 진행 저장을 지우지 않는다",
+    "target": "apps/web/src/lib/weddingCode/v40/storage.ts",
+    "find": "[V40_STORAGE.progressKey, V40_STORAGE.historyKey, V40_STORAGE.legacyV31ProgressKey, V40_STORAGE.letterGuessKey]",
+    "replace": "[V40_STORAGE.progressKey, V40_STORAGE.historyKey, V40_STORAGE.letterGuessKey]"
+  },
+  {
+    "name": "받은 링크 화면의 끄기 경고가 늘 이전 웨딩코드 답을 지운다고 한다",
+    "target": "apps/web/src/app/wedding-code/WeddingCodeV40Client.tsx",
+    "find": "legacyPresent={boot.legacy !== null}",
+    "replace": "legacyPresent={true}"
+  },
+  {
+    "name": "소개 화면이 v3.1 진행이 없어도 이전 웨딩코드 카드를 낸다",
+    "target": "apps/web/src/app/wedding-code/WeddingCodeV40Client.tsx",
+    "find": "legacy={boot.legacy}",
+    "replace": "legacy={boot.legacy ?? { savedAt: null }}"
+  }
+]

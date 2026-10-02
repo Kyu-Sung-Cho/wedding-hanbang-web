@@ -1,0 +1,68 @@
+[
+  {
+    "name": "링크 없는 입구도 서버에서 불러오는 중 한 줄만 그린다(F5 의 원래 결함으로 돌아간다)",
+    "target": "apps/web/src/app/wedding-code/WeddingCodeV40Client.tsx",
+    "find": "if (!hasPartnerLink) {\n      return (\n        <IntroScreen",
+    "replace": "if (false) {\n      return (\n        <IntroScreen"
+  },
+  {
+    "name": "대기 중 시작 단추가 눌린다(loading 을 뺀다)",
+    "target": "apps/web/src/components/wedding-code/v40/IntroScreen.tsx",
+    "find": "<Button variant=\"primary\" size=\"lg\" fullWidth onClick={onStart} loading={pending}>",
+    "replace": "<Button variant=\"primary\" size=\"lg\" fullWidth onClick={onStart}>"
+  },
+  {
+    "name": "대기 중 저장 문구가 켜진 상태의 글이다(저장한다는 말이 서버 HTML 에 나간다)",
+    "target": "apps/web/src/components/wedding-code/v40/IntroScreen.tsx",
+    "find": "const storageMode: V40StorageMode = pending || unavailable ? \"blocked\"",
+    "replace": "const storageMode: V40StorageMode = unavailable ? \"blocked\""
+  },
+  {
+    "name": "대기 중에도 자동 저장 단추를 그린다",
+    "target": "apps/web/src/components/wedding-code/v40/IntroScreen.tsx",
+    "find": "{unavailable || pending ? null : (",
+    "replace": "{unavailable ? null : ("
+  },
+  {
+    "name": "서버 화면을 이어받는 인스턴스도 초점과 스크롤을 옮긴다(건너뛰기를 지운다)",
+    "target": "apps/web/src/components/wedding-code/v40/IntroScreen.tsx",
+    "find": "useScreenFocus(rootRef, \"intro\", !replacesServerIntro);",
+    "replace": "useScreenFocus(rootRef, \"intro\");"
+  },
+  {
+    "name": "이어받는 판정이 늘 거짓이다(서버 화면이 문서에 있어도 모른다)",
+    "target": "apps/web/src/components/wedding-code/v40/IntroScreen.tsx",
+    "find": "useState(() => pending && serverIntroStillShown())",
+    "replace": "useState(() => false)"
+  },
+  {
+    "name": "대기 중이면 무조건 이어받은 것으로 친다(브라우저에서 새로 만든 대기 화면이 초점을 못 받는다)",
+    "target": "apps/web/src/components/wedding-code/v40/IntroScreen.tsx",
+    "find": "useState(() => pending && serverIntroStillShown())",
+    "replace": "useState(() => pending)"
+  },
+  {
+    "name": "받은 링크와 두 사람 결과 링크 맥락도 서버에서 시작 화면을 그린다(링크 맥락 분기를 늘 참으로)",
+    "target": "apps/web/src/app/wedding-code/WeddingCodeV40Client.tsx",
+    "find": "if (!hasPartnerLink) {\n      return (\n        <IntroScreen",
+    "replace": "if (true) {\n      return (\n        <IntroScreen"
+  },
+  {
+    "name": "부팅 전 시작 화면이 대기 화면이 아니다(pending 속성을 뺀다)",
+    "target": "apps/web/src/app/wedding-code/WeddingCodeV40Client.tsx",
+    "find": "        <IntroScreen\n          pending\n          embedded={embedded}",
+    "replace": "        <IntroScreen\n          embedded={embedded}"
+  },
+  {
+    "name": "본체가 하이드레이션이 끝나기 전에도 저장소를 읽는다(settled 문을 뺀다)",
+    "target": "apps/web/src/app/wedding-code/WeddingCodeV40Client.tsx",
+    "find": "if (!resolved || !settled || bootRef.current.status === \"ready\") return;",
+    "replace": "if (!resolved || bootRef.current.status === \"ready\") return;"
+  },
+  {
+    "name": "서버가 그리는 대기 시작 화면이 라운지 안(embedded) 모양을 잃는다",
+    "target": "apps/web/src/app/wedding-code/WeddingCodeV40Client.tsx",
+    "find": "        <IntroScreen\n          pending\n          embedded={embedded}",
+    "replace": "        <IntroScreen\n          pending\n          embedded={false}"
+  }
+]

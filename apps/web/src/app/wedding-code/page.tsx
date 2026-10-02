@@ -21,11 +21,26 @@ import {
 type WeddingCodePageProps = { searchParams: Promise<WeddingCodeEntrySearchParams> };
 
 /**
+ * v4.0-tendency 입구의 공유 카드 이미지. 폴더에 화면이 없고 카드 그림만 있다(`v40-card/opengraph-image.tsx`).
+ * 크기와 alt 는 그 파일의 `size`, `alt` 와 같은 값이어야 한다(`opengraph-image.test.tsx` 가 견준다).
+ */
+const V40_CARD_IMAGE = {
+  url: "/wedding-code/v40-card/opengraph-image",
+  type: "image/png",
+  width: 1200,
+  height: 630,
+  alt: `웨딩코드, ${V40_COPY.intro.title}`,
+};
+
+/**
  * 응답이 없는 입구만 색인한다. 새 응답은 클라이언트의 fragment에서만 복원한다.
  *
  * 공유 카드(openGraph·twitter)는 이 화면의 제목·설명을 그대로 쓴다. 여기서 정하지 않으면
  * 루트 layout 의 카드(아모라 문구, `og:url=/landing`)를 통째로 물려받는다. 카드 이미지는
  * 같은 폴더의 `opengraph-image.tsx` 가 붙인다(여기서 `images` 를 적으면 그 파일이 밀려난다).
+ * 그 파일은 쿼리를 읽을 수 없어 판을 가리지 못하므로, v4 입구만 일부러 `images` 를 적어 v3.1 문장이 든 기본 카드를 밀어내고
+ * v4 카드(`v40-card/opengraph-image.tsx`)를 붙인다. 다른 판은 `images` 키를 아예 적지 않아 지금과 같다.
+ * 판이 `#` 뒤에 실린 v4 링크(`#v=v4.0-tendency&a=…`)는 서버가 판을 몰라 기본 카드가 나간다.
  * 답은 `#` 뒤에 있어 서버가 못 읽으므로 카드에 답이 들어갈 길은 없다.
  *
  * `og:url` 은 일부러 적지 않는다. 비교 초대 링크(`/wedding-code#v=…&a=…`)도 서버에는 같은
@@ -69,8 +84,9 @@ export async function generateMetadata({ searchParams }: WeddingCodePageProps): 
       siteName: "웨딩한방",
       locale: "ko_KR",
       type: "website",
+      ...(isV40 ? { images: [V40_CARD_IMAGE] } : {}),
     },
-    twitter: { card: "summary_large_image", title, description },
+    twitter: { card: "summary_large_image", title, description, ...(isV40 ? { images: [V40_CARD_IMAGE] } : {}) },
   };
 }
 

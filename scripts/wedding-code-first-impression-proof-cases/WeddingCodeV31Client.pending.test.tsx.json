@@ -1,0 +1,56 @@
+[
+  {
+    "name": "시작 버튼이 저장 상태를 읽기 전에도 눌린다(loading 을 뺀다)",
+    "target": "apps/web/src/app/wedding-code/WeddingCodeV31Client.tsx",
+    "find": "size=\"lg\" fullWidth loading={!local.ready} onClick={start}",
+    "replace": "size=\"lg\" fullWidth onClick={start}"
+  },
+  {
+    "name": "자동 저장 토글이 저장 상태를 읽기 전에도 눌린다(disabled 를 뺀다)",
+    "target": "apps/web/src/app/wedding-code/WeddingCodeV31Client.tsx",
+    "find": "aria-pressed={local.enabled} disabled={!local.ready} onClick={toggleSaving}",
+    "replace": "aria-pressed={local.enabled} onClick={toggleSaving}"
+  },
+  {
+    "name": "저장 상태를 읽는 동안의 안내 줄이 옛 문장으로 돌아간다(곧 시작할 수 있다는 말이 없다)",
+    "target": "apps/web/src/app/wedding-code/WeddingCodeV31Client.tsx",
+    "find": "\"잠깐만요, 저장 상태를 확인하고 있어요. 곧 시작할 수 있어요.\"",
+    "replace": "\"저장 상태를 확인하고 있어요.\""
+  },
+  {
+    "name": "서버가 그린 소개를 이어받는 첫 그림에서도 초점과 스크롤을 옮긴다(hydrating 시작값을 지운다)",
+    "target": "apps/web/src/app/wedding-code/WeddingCodeV31Client.tsx",
+    "find": "useRef<string | null>(hydrating ? focusKey : null)",
+    "replace": "useRef<string | null>(null)"
+  },
+  {
+    "name": "초점·스크롤 효과의 같은 자리 건너뛰기를 지운다",
+    "target": "apps/web/src/app/wedding-code/WeddingCodeV31Client.tsx",
+    "find": "if (settledFocusKey.current === focusKey) return;",
+    "replace": "void 0;"
+  },
+  {
+    "name": "브라우저에서 새로 그린 소개도 마운트할 때 초점과 스크롤을 옮기지 않는다",
+    "target": "apps/web/src/app/wedding-code/WeddingCodeV31Client.tsx",
+    "find": "useRef<string | null>(hydrating ? focusKey : null)",
+    "replace": "useRef<string | null>(focusKey)"
+  },
+  {
+    "name": "서버 값이 거짓이라 hydrating 이 이어받는 첫 그림에서도 거짓이다",
+    "target": "apps/web/src/app/wedding-code/WeddingCodeV31Client.tsx",
+    "find": "useSyncExternalStore(noSubscription, notHydrating, hydratingOnServer)",
+    "replace": "useSyncExternalStore(noSubscription, notHydrating, notHydrating)"
+  },
+  {
+    "name": "시작 버튼을 저장 상태 대신 하이드레이션이 끝났는지로 푼다(저장된 답이 있어도 옛 글로 풀린다)",
+    "target": "apps/web/src/app/wedding-code/WeddingCodeV31Client.tsx",
+    "find": "fullWidth loading={!local.ready} onClick={start}",
+    "replace": "fullWidth loading={hydrating} onClick={start}"
+  },
+  {
+    "name": "저장 줄에서 공용 기기 안내가 사라진다(접힌 칸에만 남는다)",
+    "target": "apps/web/src/app/wedding-code/WeddingCodeV31Client.tsx",
+    "find": "    : \"답하면 이 브라우저에 자동으로 저장돼요. 공용 기기라면 아래 ‘자동 저장 설정’에서 꺼 주세요.\";",
+    "replace": "    : \"답하면 이 브라우저에 자동으로 저장돼요.\";"
+  }
+]

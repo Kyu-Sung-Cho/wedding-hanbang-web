@@ -44,7 +44,7 @@ describe("웨딩코드 진입 화면: v4.0-tendency 명시 진입(기본 판 v3.
     }
   });
 
-  it("공유 카드: 이 화면의 제목·설명을 쓰고 og:url 도 카드 이미지 키도 적지 않는다", async () => {
+  it("공유 카드: 이 화면의 제목·설명과 v4 카드 그림 하나를 쓰고 og:url 은 적지 않는다", async () => {
     const metadata = await generateMetadata({ searchParams: Promise.resolve({ v: V40 }) });
     expect(metadata.openGraph).toMatchObject({
       title: metadata.title,
@@ -54,9 +54,11 @@ describe("웨딩코드 진입 화면: v4.0-tendency 명시 진입(기본 판 v3.
       type: "website",
     });
     expect(Object.prototype.hasOwnProperty.call(metadata.openGraph, "url")).toBe(false);
-    // 카드 이미지는 같은 폴더의 opengraph-image.tsx 가 붙인다. 여기서 images 를 적으면 그 파일이 밀려난다.
-    expect(Object.prototype.hasOwnProperty.call(metadata.openGraph, "images")).toBe(false);
-    expect(Object.prototype.hasOwnProperty.call(metadata.twitter, "images")).toBe(false);
+    // 같은 폴더의 opengraph-image.tsx 는 v3.1 문장이 든 기본 카드이고 쿼리를 읽지 못한다. 그래서 v4 입구만 일부러 images 를 적어
+    // 그 파일을 밀어내고 v4 카드(v40-card/opengraph-image.tsx)를 붙인다. 오픈그래프와 트위터가 같은 그림 하나다.
+    const v4Card = { url: "/wedding-code/v40-card/opengraph-image", type: "image/png", width: 1200, height: 630, alt: `웨딩코드, ${V40_COPY.intro.title}` };
+    expect(metadata.openGraph?.images).toEqual([v4Card]);
+    expect(metadata.twitter?.images).toEqual([v4Card]);
     expect(metadata.twitter).toMatchObject({ card: "summary_large_image", title: metadata.title, description: metadata.description });
     expect(metadata.alternates?.canonical).toBe("/wedding-code");
     expect(metadata).toMatchObject({ referrer: "no-referrer" });
@@ -64,19 +66,28 @@ describe("웨딩코드 진입 화면: v4.0-tendency 명시 진입(기본 판 v3.
   });
 
   it("다른 판의 메타데이터와 색인 규칙은 그대로다(기본 판이 v3.1 인 동안)", async () => {
+    // v4 카드는 v4 입구만 적는다. 다른 판은 images 키가 없어야 같은 폴더의 기본 카드(opengraph-image.tsx)를 그대로 받는다.
+    const noImages = (metadata: Awaited<ReturnType<typeof generateMetadata>>) => [
+      Object.prototype.hasOwnProperty.call(metadata.openGraph, "images"),
+      Object.prototype.hasOwnProperty.call(metadata.twitter, "images"),
+    ];
     const clean = await generateMetadata({ searchParams: Promise.resolve({}) });
     expect(clean.robots).toMatchObject({ index: true, follow: true });
     expect(clean.title).toContain("원하는 결혼식과 준비 방식");
+    expect(noImages(clean)).toEqual([false, false]);
     for (const version of [WEDDING_CODE_V31_VERSION, WEDDING_CODE_V30_VERSION]) {
       const metadata = await generateMetadata({ searchParams: Promise.resolve({ v: version }) });
       expect(metadata.title).toContain("원하는 결혼식과 준비 방식");
       expect(metadata.robots).toMatchObject({ index: true, follow: true });
+      expect(noImages(metadata), version).toEqual([false, false]);
     }
     const v20 = await generateMetadata({ searchParams: Promise.resolve({ v: WEDDING_CODE_V20_VERSION }) });
     expect(v20.title).toContain("내 웨딩 준비 방식");
     expect(v20.robots).toMatchObject({ index: true, follow: true });
+    expect(noImages(v20)).toEqual([false, false]);
     const scene = await generateMetadata({ searchParams: Promise.resolve({ v: "v1.2-code" }) });
     expect(scene.title).toContain("결혼 준비 장면");
+    expect(noImages(scene)).toEqual([false, false]);
   });
 
   it("맨 주소는 v3.1 이고 ?v=v4.0-tendency 만 빈 v4 입구를 넘긴다", async () => {

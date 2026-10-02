@@ -1,0 +1,44 @@
+[
+  {
+    "name": "서버 HTML 의 시작 버튼이 누를 수 있는 상태로 나온다(loading 을 뺀다)",
+    "target": "apps/web/src/app/wedding-code/WeddingCodeV31Client.tsx",
+    "find": "size=\"lg\" fullWidth loading={!local.ready} onClick={start}",
+    "replace": "size=\"lg\" fullWidth onClick={start}"
+  },
+  {
+    "name": "서버 HTML 의 자동 저장 토글이 누를 수 있는 상태로 나온다(disabled 를 뺀다)",
+    "target": "apps/web/src/app/wedding-code/WeddingCodeV31Client.tsx",
+    "find": "aria-pressed={local.enabled} disabled={!local.ready} onClick={toggleSaving}",
+    "replace": "aria-pressed={local.enabled} onClick={toggleSaving}"
+  },
+  {
+    "name": "서버 HTML 의 안내 줄이 옛 문장이다",
+    "target": "apps/web/src/app/wedding-code/WeddingCodeV31Client.tsx",
+    "find": "\"잠깐만요, 저장 상태를 확인하고 있어요. 곧 시작할 수 있어요.\"",
+    "replace": "\"저장 상태를 확인하고 있어요.\""
+  },
+  {
+    "name": "서버 HTML 의 첫 문단에 판정이 아니라는 말이 없다",
+    "target": "apps/web/src/app/wedding-code/WeddingCodeV31Client.tsx",
+    "find": "정리해 봐요. 성격을 진단하는 검사가 아니에요.\"",
+    "replace": "정리해 봐요.\""
+  },
+  {
+    "name": "서버 HTML 의 보이는 한 줄에서 이용 통계 사실이 빠진다",
+    "target": "apps/web/src/app/wedding-code/WeddingCodeV31Client.tsx",
+    "find": "서버에 보내지 않고, 화면 개선을 위해서는 답을 뺀 이용 통계만 기록해요.</span>",
+    "replace": "서버에 보내지 않아요.</span>"
+  },
+  {
+    "name": "서버 HTML 에 처리방침 링크가 둘이다(접힌 칸에 하나 더)",
+    "target": "apps/web/src/app/wedding-code/WeddingCodeV31Client.tsx",
+    "find": "이 통계에 고른 답·웨딩코드·공유 링크 주소는 넣지 않아요.</p>",
+    "replace": "이 통계에 고른 답·웨딩코드·공유 링크 주소는 넣지 않아요. <a href=\"/privacy\">개인정보 처리방침</a></p>"
+  },
+  {
+    "name": "서버 HTML 의 보이는 한 줄이 목적을 뺀다",
+    "target": "apps/web/src/app/wedding-code/WeddingCodeV31Client.tsx",
+    "find": "서버에 보내지 않고, 화면 개선을 위해서는 답을 뺀 이용 통계만 기록해요.</span>",
+    "replace": "서버에 보내지 않고, 답을 뺀 이용 통계만 기록해요.</span>"
+  }
+]

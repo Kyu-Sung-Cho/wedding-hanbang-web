@@ -1,7 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 
 import Button from "@/components/ui/Button";
 import { WEDDING_CODE_V40_VERSION } from "@/constants/weddingCodeV40";
@@ -30,15 +30,24 @@ export { parseWeddingCodeEntryHash } from "./entry";
 
 /**
  * 웨딩코드 4.0 화면은 늦게 불러온다. v3.1 이하 길로 가는 방문자의 번들에 v4 화면과 문항 은행이 들어가지 않게 한다.
- * (서버는 그대로 미리 그리므로 `?v=v4.0-tendency` 는 깜빡임 없이 열린다.)
+ * (링크 없이 여는 `?v=v4.0-tendency` 는 서버가 제목과 소개 글까지 미리 그린다. 이때 시작 단추는 누를 수 없는 채로 나가고, 브라우저가 저장소를 읽은 뒤에 풀린다.
+ * 받은 링크는 주소의 # 뒤를 서버가 볼 수 없어서 하이드레이션 뒤에 읽고, 그동안은 불러오는 중이라는 글을 보인다.)
  */
-const WeddingCodeV40Client = dynamic<WeddingCodeV40ClientProps>(() => import("./WeddingCodeV40Client"), {
+const LazyWeddingCodeV40Client = dynamic<WeddingCodeV40ClientProps>(() => import("./WeddingCodeV40Client"), {
   loading: () => (
     <div role="status" className="mx-auto flex min-h-[60vh] w-full max-w-[680px] items-center justify-center px-5 text-sm text-[var(--hb-text-body)]">
       {V40_ENTRY_COPY.loadingLabel}
     </div>
   ),
 });
+
+/**
+ * 서버가 그린 v4 화면을 하이드레이션으로 이어받게 하는 장치. 늦게 불러오는 경계는 불러오는 동안 부모가 다시 그려져 경계의 props 가 새로 만들어지면
+ * 서버 화면 이어받기를 포기하고 지운 뒤 새로 그린다(개발 서버에서 확인했다: 서버가 그린 소개 노드가 모두 새 노드로 바뀌었다).
+ * 입구는 하이드레이션 직후 주소의 # 뒤를 읽으며 반드시 한 번 다시 그려지므로, props 가 같으면 경계를 건드리지 않게 memo 로 감싼다.
+ * 그래서 이 경계에 넘기는 props 는 하이드레이션 전후로 같아야 한다(`resolved` 를 hash 로 바꾸어 넘기지 않는 까닭이다).
+ */
+const WeddingCodeV40Client = memo(LazyWeddingCodeV40Client);
 
 /**
  * 주소의 # 뒤를 읽는 저장소. useSyncExternalStore 의 바깥 저장소로 쓴다.
@@ -214,7 +223,9 @@ export default function WeddingCodeEntryClient({
         key={`v40:${weddingCodeEntryKey(entry)}:${restartRevision}`}
         shareOrigin={shareOrigin}
         initial={entry.initial}
-        resolved={hash !== null}
+        // 주소의 # 뒤를 읽기 전에 저장소를 읽지 않는 일은 본체가 스스로 한다(서버 렌더와 하이드레이션 첫 그림이 끝난 뒤에야 연다).
+        // 이 값이 하이드레이션 전후로 바뀌면 늦게 불러오는 경계가 서버 화면을 이어받지 못한다(위 memo 설명).
+        resolved
         embedded={embedded}
         onRestart={restartV40}
         initialNotice={received ? "" : restartNotice}

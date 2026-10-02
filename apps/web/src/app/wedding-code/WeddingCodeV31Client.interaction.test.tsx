@@ -570,14 +570,18 @@ describe("WeddingCodeV31Client", () => {
     expect(container.querySelector('[data-result="solo-v31"]')).not.toBeNull();
   });
 
-  it("시작 버튼 바로 위, 접힌 안내 밖에서 다루는 범위와 판정이 아니라는 말을 한 번만 보여준다", async () => {
+  it("시작 버튼 바로 위, 접힌 안내 밖에서 다루는 범위를 보여주고 판정이 아니라는 말은 소개 첫 문단에서 한 번만 한다", async () => {
     await renderClient();
     const scope = container.querySelector<HTMLElement>("[data-intro-scope]");
     expect(scope?.closest("details")).toBeNull();
     expect(scope?.textContent).toContain("결혼식 모습과 둘이 준비하는 방식만 물어봐요");
     for (const word of ["신혼집", "예단", "예물", "양쪽 집안이 비용을 어떻게 나눌지는 묻지 않아요"]) expect(scope?.textContent).toContain(word);
     expect(scope?.nextElementSibling?.textContent?.trim()).toBe("내 웨딩코드 시작하기");
-    expect(scope?.textContent).toContain("성격을 진단하는 검사가 아니에요");
+    // 판정이 아니라는 말은 제목 바로 아래 첫 문단에 있고(접힌 안내 밖), 범위 줄에는 두지 않는다.
+    const lede = container.querySelector<HTMLElement>("h1 + p");
+    expect(lede?.textContent).toContain("성격을 진단하는 검사가 아니에요.");
+    expect(lede?.closest("details")).toBeNull();
+    expect(scope?.textContent).not.toContain("성격을 진단하는 검사");
     // 판정이 아니라는 말은 이 화면에서 한 번만 한다.
     expect(container.textContent?.match(/아니에요/g)).toHaveLength(1);
     expect(container.textContent?.match(/성격|MBTI/g)).toHaveLength(1);

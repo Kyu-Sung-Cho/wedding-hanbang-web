@@ -252,7 +252,7 @@ escape: `{ fmt: "escape", which: "unsure" | "na" }`.
 | `GatesModule.isSkipHintCount` | 「건너뜀 16개 초과」 규칙이 사는 유일한 자리(`skipHint` 와 `buildResult` 가 함께 쓴다) |
 | `compareCouple` 제외 규칙 | 어느 한 사람의 관문이 닫혀 있으면 네 주제가 모두 제외이고, 제외된 주제의 문항은 `talk` 와 `similar` 에 나오지 않는다 |
 | `ProgressSegment.current` | 질문 화면은 그 문항의 구간(필터 흐름도), 쉬는 카드는 방금 끝낸 구간, 마지막 정리 카드는 4, 소개와 결과는 없음. `placementOf` 도 같다 |
-| `LegacyProgressProbe`, `HistoryRead` | `present` 는 비어 있지 않은 문자열, `savedAt` 은 JSON 객체의 30일 안 정수만. `HistoryRead` 의 empty, expired, invalid 정의 |
+| `LegacyProgressProbe`, `HistoryRead` | `present` 는 읽을 수 있는 v3.1 진행(30일 안, 미래 아님)에 고른 답이 하나 이상일 때만(시작만 누른 진행, 기간이 지난 값, 깨진 값은 false)이고 `savedAt` 은 그때만 값. `HistoryRead` 의 empty, expired, invalid 정의 |
 | `FlowState.partialIds`, `filterOrigin` | 중간 화면 답의 문항별 깃발과 필터를 연 방식. 위 6절과 7절 9항 |
 | 은행 주석 | 원본은 생성된 단일 파일 `constants/weddingCodeV40Bank.ts` 이고 주제별 `bank.<주제>.ts` 는 없다 |
 

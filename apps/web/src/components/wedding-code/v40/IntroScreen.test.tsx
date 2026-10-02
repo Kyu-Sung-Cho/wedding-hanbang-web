@@ -1,4 +1,6 @@
-import { useState } from "react";
+import { StrictMode, act, useState, type ReactElement } from "react";
+import { createRoot, hydrateRoot, type Root } from "react-dom/client";
+import { renderToString } from "react-dom/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { V40_COUNTS } from "@/constants/weddingCodeV40";
 import {
@@ -154,6 +156,52 @@ describe("IntroScreen", () => {
     const bar = harness.container.querySelector("[data-action-bar]")!;
     expect(bar.contains(buttonNamed(V40_COPY.intro.startButton)!)).toBe(true);
     expect(isBefore(buttonNamed(V40_COPY.autosave.turnOffButton)!, buttonNamed(V40_COPY.intro.startButton)!)).toBe(true);
+  });
+
+  describe("시작 단추 줄은 소개가 짧든 길든 화면 아래에 붙는다(풀리는 순간 단추가 움직이지 않는다)", () => {
+    const pinned = () => {
+      const root = harness.container.querySelector<HTMLElement>('[data-screen="intro"]')!;
+      const spacer = harness.container.querySelector<HTMLElement>("[data-pin-bar-spacer]");
+      const bar = harness.container.querySelector<HTMLElement>("[data-action-bar]");
+      return { root, spacer, bar };
+    };
+
+    it.each([
+      ["저장소를 읽기 전(pending)", true],
+      ["저장소를 읽은 뒤", false],
+    ] as const)("%s: 뿌리가 화면 높이만큼 늘어나고 단추 줄 바로 앞에 남는 높이를 먹는 빈틈이 있다", async (_label, pending) => {
+      await harness.render(<Host pending={pending} />);
+      const { root, spacer, bar } = pinned();
+      expect(root.className).toContain("min-h-dvh");
+      expect(root.className).toContain("flex-col");
+      expect(spacer, "단추 줄 앞 빈틈").not.toBeNull();
+      expect(spacer!.nextElementSibling, "빈틈은 단추 줄 바로 앞이다").toBe(bar);
+    });
+
+    it("대기를 거둬도 같은 뿌리에서 빈틈과 단추 줄이 그대로 이어진다", async () => {
+      await harness.render(<Host pending />);
+      const before = pinned();
+      await harness.render(<Host />);
+      const after = pinned();
+      expect(after.root).toBe(before.root);
+      expect(after.spacer).toBe(before.spacer);
+      expect(after.bar).toBe(before.bar);
+    });
+
+    it("라운지 안(embedded)은 바깥 화면이 높이를 정하므로 늘리지도 빈틈을 두지도 않는다", async () => {
+      await harness.render(<Host embedded />);
+      const { root, spacer, bar } = pinned();
+      expect(root.className).not.toContain("min-h-dvh");
+      expect(spacer).toBeNull();
+      expect(bar).not.toBeNull();
+    });
+
+    it("하던 답 카드가 있으면 단추 줄이 없으니 빈틈도 없다", async () => {
+      await harness.render(<Host resume={{ savedAt: null, onResume: () => undefined, onStartOver: () => undefined }} />);
+      const { spacer, bar } = pinned();
+      expect(bar).toBeNull();
+      expect(spacer).toBeNull();
+    });
   });
 
   it("번호, n/N, A/B 가 없고 숫자는 질문 수와 저장 기간뿐이다", async () => {
@@ -366,6 +414,195 @@ describe("IntroScreen", () => {
   it("화면이 뜨면 화면 뿌리로 초점이 간다(낭독기가 화면 이름을 읽는다)", async () => {
     await harness.render(<Host />);
     expect(document.activeElement).toBe(harness.container.querySelector("section"));
+  });
+
+  describe("저장 상태를 읽기 전(pending): 서버가 그리는 화면", () => {
+    const storageText = () => harness.container.querySelector("[data-intro-storage]")?.textContent ?? "";
+    const bulletsText = () => [...harness.container.querySelectorAll("li")].map((item) => item.textContent);
+    const root = () => harness.container.querySelector<HTMLElement>('[data-screen="intro"]')!;
+
+    it("시작 단추는 글자 그대로인데 누를 수 없고(disabled, aria-busy), 눌러도 onStart 를 부르지 않는다", async () => {
+      const onStart = vi.fn();
+      await harness.render(<Host pending onStart={onStart} />);
+      const start = buttonNamed(V40_COPY.intro.startButton)!;
+      expect(start.disabled).toBe(true);
+      expect(start.getAttribute("aria-busy")).toBe("true");
+      await click(start);
+      expect(onStart).not.toHaveBeenCalled();
+      expect(root().hasAttribute("data-pending")).toBe(true);
+    });
+
+    it("단추 바로 위에 불러오는 중이라는 안내가 status 로 있다(단추 아래가 아니다: 사라질 때 단추가 내려가지 않는다)", async () => {
+      await harness.render(<Host pending />);
+      const note = harness.container.querySelector<HTMLElement>("[data-intro-pending]")!;
+      expect(note.textContent).toBe(V40_COPY.common.loadingLabel);
+      expect(note.getAttribute("role")).toBe("status");
+      const bar = harness.container.querySelector("[data-action-bar]")!;
+      expect(bar.contains(note)).toBe(true);
+      expect(isBefore(note, buttonNamed(V40_COPY.intro.startButton)!)).toBe(true);
+    });
+
+    it("제목은 h1 하나이고 소개 글 전체가 있다", async () => {
+      await harness.render(<Host pending />);
+      expect(harness.container.querySelectorAll("h1")).toHaveLength(1);
+      expect(harness.container.querySelector("h1")?.textContent).toBe(V40_COPY.intro.title);
+      for (const piece of [V40_COPY.intro.brandLabel, V40_COPY.intro.lede, ...introBullets("blocked", V40_COUNTS.items), V40_COPY.intro.notice, V40_COPY.intro.scope]) {
+        expect(text(), piece).toContain(piece);
+      }
+    });
+
+    it("자동 저장 켜기와 끄기 단추와 상태 줄은 그리지 않는다(실제 선호를 아직 모른다)", async () => {
+      await harness.render(<Host pending initial="off" />);
+      expect(harness.container.querySelector("[data-autosave-toggle]")).toBeNull();
+      expect(buttonNamed(V40_COPY.autosave.turnOffButton)).toBeUndefined();
+      expect(buttonNamed(V40_COPY.autosave.turnOnButton)).toBeUndefined();
+      expect(text()).not.toContain(V40_COPY.autosave.statusOn);
+      expect(text()).not.toContain(V40_COPY.autosave.statusOff);
+      expect(harness.container.querySelector("[data-autosave-warning]")).toBeNull();
+    });
+
+    it("저장 문구는 켜짐, 꺼짐, 막힘 어느 쪽이어도 참인 갈래(blocked)와 같은 글이고 저장한다는 말이 없다", async () => {
+      for (const initial of ["on", "off"] as const) {
+        await harness.render(<Host key={initial} pending initial={initial} />);
+        expect(storageText()).toBe(introStorage("blocked").plain);
+        expect(bulletsText()).toEqual([...introBullets("blocked", V40_COUNTS.items)]);
+        expect(text()).not.toContain("저장돼요");
+        expect(text()).not.toContain("이 브라우저에만");
+        expect(text()).not.toMatch(/일 동안|공용 기기/u);
+        expect(storageText()).toContain("답은 웨딩한방에 보내지 않아요");
+        expect(storageText()).toContain("이용 통계만 남겨요");
+      }
+    });
+
+    it("처리방침 링크가 하나, 고지가 한 번이고 줄표와 번호가 없다", async () => {
+      await harness.render(<Host pending />);
+      const links = harness.container.querySelectorAll<HTMLAnchorElement>('a[href="/privacy"]');
+      expect(links).toHaveLength(1);
+      expect(links[0].getAttribute("rel")).toContain("noopener");
+      expect(notValidatedCount(harness.container)).toBe(1);
+      expect(hasDash(text())).toBe(false);
+      expect(visibleLabelProblems(harness.container, allowedNumberPhrases())).toEqual([]);
+    });
+
+    it("대기를 거두면 같은 화면이 이어진다: 단추가 풀리고 안내가 사라지며 자동 저장 단추가 생기고 저장 문구가 켜진 상태의 글이 된다", async () => {
+      await harness.render(<Host pending />);
+      const before = root();
+      await harness.render(<Host />);
+      expect(root()).toBe(before);
+      expect(root().hasAttribute("data-pending")).toBe(false);
+      expect(harness.container.querySelector("[data-intro-pending]")).toBeNull();
+      const start = buttonNamed(V40_COPY.intro.startButton)!;
+      expect(start.disabled).toBe(false);
+      expect(start.getAttribute("aria-busy")).toBeNull();
+      expect(buttonNamed(V40_COPY.autosave.turnOffButton)).toBeDefined();
+      expect(storageText()).toBe(introStorage("on").plain);
+    });
+
+    it("pending 을 주지 않으면(기본) 대기 표시가 어디에도 없고 단추는 풀려 있다", async () => {
+      await harness.render(<Host />);
+      expect(root().hasAttribute("data-pending")).toBe(false);
+      expect(harness.container.querySelector("[data-intro-pending]")).toBeNull();
+      expect(buttonNamed(V40_COPY.intro.startButton)!.disabled).toBe(false);
+    });
+
+    it("브라우저에서 새로 만든 대기 화면(다시 시작 등)은 화면 뿌리로 초점이 간다", async () => {
+      await harness.render(<Host pending />);
+      expect(document.activeElement).toBe(root());
+    });
+  });
+
+  describe("서버가 그린 대기 화면을 이어받을 때(하이드레이션)", () => {
+    let container: HTMLDivElement;
+    let root: Root | undefined;
+    let scrollIntoView: ReturnType<typeof vi.fn>;
+    let consoleError: ReturnType<typeof vi.spyOn>;
+    const hadScrollIntoView = "scrollIntoView" in Element.prototype;
+    const noop = () => undefined;
+    const intro = (props: Partial<IntroScreenProps> = {}) => <IntroScreen pending autosave="on" onAutosaveChange={noop} onStart={noop} {...props} />;
+
+    beforeEach(() => {
+      // jsdom 에는 scrollIntoView 가 없다. 화면이 스크롤을 시도하는지 보려고 심는다.
+      scrollIntoView = vi.fn();
+      Object.defineProperty(Element.prototype, "scrollIntoView", { configurable: true, writable: true, value: scrollIntoView });
+      consoleError = vi.spyOn(console, "error").mockImplementation(() => undefined);
+      container = document.createElement("div");
+      document.body.appendChild(container);
+    });
+    afterEach(async () => {
+      await act(async () => root?.unmount());
+      root = undefined;
+      container.remove();
+      consoleError.mockRestore();
+      if (!hadScrollIntoView) delete (Element.prototype as { scrollIntoView?: unknown }).scrollIntoView;
+    });
+
+    async function hydrate(html: string, element: ReactElement, onRecoverableError: (error: unknown) => void): Promise<void> {
+      container.innerHTML = html;
+      await act(async () => {
+        root = hydrateRoot(container, element, { onRecoverableError });
+      });
+    }
+
+    it("서버 HTML 의 시작 단추는 disabled 이고, 하이드레이션은 불일치 없이 같은 노드를 이어받으며 초점도 스크롤도 옮기지 않는다", async () => {
+      const html = renderToString(intro());
+      expect(html).toMatch(/<button[^>]*disabled=""[^>]*>시작하기<\/button>/u);
+      expect(html).not.toContain("data-autosave-toggle");
+      const onRecoverableError = vi.fn();
+      await hydrate(html, intro(), onRecoverableError);
+      const heading = container.querySelector("h1");
+      expect(onRecoverableError).not.toHaveBeenCalled();
+      expect(consoleError).not.toHaveBeenCalled();
+      expect(document.activeElement).toBe(document.body);
+      expect(scrollIntoView).not.toHaveBeenCalled();
+      expect(container.querySelector<HTMLButtonElement>("button")!.disabled).toBe(true);
+
+      // 저장소를 읽고 대기가 풀려도 같은 화면은 읽던 자리를 옮기지 않는다.
+      await act(async () => root?.render(intro({ pending: false })));
+      expect(container.querySelector("h1")).toBe(heading);
+      expect(container.querySelector("[data-intro-pending]")).toBeNull();
+      expect(container.querySelector<HTMLButtonElement>("[data-action-bar] button")!.disabled).toBe(false);
+      expect(container.querySelector("[data-autosave-toggle]")).not.toBeNull();
+      expect(document.activeElement).toBe(document.body);
+      expect(scrollIntoView).not.toHaveBeenCalled();
+      expect(consoleError).not.toHaveBeenCalled();
+    });
+
+    it("서버 화면이 문서에 있는 채 하이드레이션 없이 새로 그려도(입구의 늦게 불러오는 경계가 이어받기를 포기하는 실제 경우) 초점과 스크롤을 옮기지 않는다", async () => {
+      container.innerHTML = renderToString(intro());
+      const serverHeading = container.querySelector("h1");
+      const client = createRoot(container);
+      root = client;
+      await act(async () => client.render(intro()));
+      // 서버 노드를 이어받지 않고 새 노드로 바뀌었다.
+      expect(container.querySelector("h1")).not.toBe(serverHeading);
+      expect(container.querySelector("h1")?.textContent).toBe(V40_COPY.intro.title);
+      expect(document.activeElement).toBe(document.body);
+      expect(scrollIntoView).not.toHaveBeenCalled();
+      // 대기가 풀려도 같다.
+      await act(async () => client.render(intro({ pending: false })));
+      expect(container.querySelector<HTMLButtonElement>("[data-action-bar] button")!.disabled).toBe(false);
+      expect(document.activeElement).toBe(document.body);
+      expect(scrollIntoView).not.toHaveBeenCalled();
+    });
+
+    it("문서에 있는 서버 화면이 대기 화면이 아니면(이미 풀린 시작 화면을 새로 그릴 때) 새 화면은 초점을 받는다", async () => {
+      container.innerHTML = renderToString(intro({ pending: false }));
+      const client = createRoot(container);
+      root = client;
+      await act(async () => client.render(intro()));
+      expect(document.activeElement).toBe(container.querySelector("section"));
+      expect(scrollIntoView).toHaveBeenCalled();
+    });
+
+    it("StrictMode 로 감싸도 불일치가 없고 초점과 스크롤을 옮기지 않는다", async () => {
+      const html = renderToString(intro());
+      const onRecoverableError = vi.fn();
+      await hydrate(html, <StrictMode>{intro()}</StrictMode>, onRecoverableError);
+      expect(onRecoverableError).not.toHaveBeenCalled();
+      expect(consoleError).not.toHaveBeenCalled();
+      expect(document.activeElement).toBe(document.body);
+      expect(scrollIntoView).not.toHaveBeenCalled();
+    });
   });
 
   it("키보드만으로 모든 단추에 닿을 수 있다(tabindex 를 죽인 단추가 없다)", async () => {

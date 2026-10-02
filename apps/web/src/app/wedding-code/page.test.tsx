@@ -169,6 +169,30 @@ describe("웨딩코드 진입 화면", () => {
     expect(text).toContain("내 웨딩코드 시작하기");
   });
 
+  /**
+   * 서버가 그린 단추는 자바스크립트가 붙기 전에는 눌러도 아무 일이 없고 누른 것은 어디에도 남지 않는다. 느린 폰에서는 단추가 보인 뒤
+   * 몇 초 동안 첫 탭이 사라졌다(운영 실측). 그래서 서버 HTML 에서부터 누를 수 없는 단추로 내보내고, 글·제목·링크는 그대로 둔다.
+   */
+  it("서버 HTML 의 시작 버튼과 자동 저장 토글은 누를 수 없는 상태로 나오고, 글과 안내는 그대로 있다", async () => {
+    const html = await render({});
+    expect(html).toMatch(/<button[^>]*\bdisabled=""[^>]*>내 웨딩코드 시작하기/);
+    const container = document.createElement("div");
+    container.innerHTML = html;
+    const buttons = [...container.querySelectorAll("button")];
+    const start = buttons.find(item => item.textContent?.trim() === "내 웨딩코드 시작하기");
+    expect(start?.disabled).toBe(true);
+    expect(start?.getAttribute("aria-busy")).toBe("true");
+    const toggle = buttons.find(item => item.hasAttribute("aria-pressed"));
+    expect(toggle?.textContent).toBe("자동 저장 끄기");
+    expect(toggle?.disabled).toBe(true);
+    expect(container.querySelector('aside[aria-label="이 브라우저의 답 저장"] [role="status"]')?.textContent).toBe("잠깐만요, 저장 상태를 확인하고 있어요. 곧 시작할 수 있어요.");
+    // 검색에 잡히는 글과 처리방침 링크는 서버 HTML 그대로 있다. 판정이 아니라는 말은 첫 문단에 있다.
+    expect(container.querySelector("h1")?.textContent).toContain("나는 어떤 결혼식을");
+    expect(container.querySelector("h1 + p")?.textContent).toContain("성격을 진단하는 검사가 아니에요.");
+    expect(container.querySelectorAll('a[href="/privacy"]')).toHaveLength(1);
+    expect(container.querySelector("[data-intro-privacy] > p")?.textContent).toContain("답하는 동안 고른 답은 서버에 보내지 않고, 화면 개선을 위해서는 답을 뺀 이용 통계만 기록해요.");
+  });
+
   it("명시된 v20 입구의 설명과 개인정보 경계도 유지한다", async () => {
     const html = await render({ v: WEDDING_CODE_V20_VERSION });
     expect(html).toContain("16문장");

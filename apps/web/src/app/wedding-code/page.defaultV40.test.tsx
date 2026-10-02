@@ -38,18 +38,28 @@ describe("웨딩코드 진입 화면: 기본 진입을 v4 로 바꾼 뒤", () =>
       const metadata = await generateMetadata({ searchParams: Promise.resolve(search) });
       expect(String(metadata.title), JSON.stringify(search)).toBe(V40_TITLE);
       expect(metadata.robots, JSON.stringify(search)).toMatchObject({ index: false, follow: false });
+      // 제목이 v4 인 주소는 카드 그림도 v4 카드다(제목은 v4 인데 그림이 v3.1 문장이던 어긋남을 막는다).
+      const v4Card = { url: "/wedding-code/v40-card/opengraph-image", type: "image/png", width: 1200, height: 630, alt: `웨딩코드, ${V40_COPY.intro.title}` };
+      expect(metadata.openGraph?.images, JSON.stringify(search)).toEqual([v4Card]);
+      expect(metadata.twitter?.images, JSON.stringify(search)).toEqual([v4Card]);
     }
   });
 
-  it("이전 판 입구는 예전 제목이지만 역시 색인하지 않는다", async () => {
+  it("이전 판 입구는 예전 제목이지만 역시 색인하지 않고, 카드 그림은 같은 폴더의 기본 카드를 받는다", async () => {
+    const noImages = (metadata: Awaited<ReturnType<typeof generateMetadata>>) => [
+      Object.prototype.hasOwnProperty.call(metadata.openGraph, "images"),
+      Object.prototype.hasOwnProperty.call(metadata.twitter, "images"),
+    ];
     for (const version of [WEDDING_CODE_V31_VERSION, WEDDING_CODE_V30_VERSION]) {
       const metadata = await generateMetadata({ searchParams: Promise.resolve({ v: version }) });
       expect(String(metadata.title)).toContain("원하는 결혼식과 준비 방식");
       expect(metadata.robots).toMatchObject({ index: false, follow: false });
+      expect(noImages(metadata), version).toEqual([false, false]);
     }
     const v20 = await generateMetadata({ searchParams: Promise.resolve({ v: WEDDING_CODE_V20_VERSION }) });
     expect(String(v20.title)).toContain("내 웨딩 준비 방식");
     expect(v20.robots).toMatchObject({ index: false, follow: false });
+    expect(noImages(v20)).toEqual([false, false]);
   });
 
   it("맨 주소는 v4 빈 입구, 명시 v3.1(답 없음)은 이전 판 안내가 붙은 v3.1 입구를 넘긴다", async () => {
