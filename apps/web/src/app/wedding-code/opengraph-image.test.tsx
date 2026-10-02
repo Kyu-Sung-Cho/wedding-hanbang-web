@@ -74,6 +74,18 @@ describe("웨딩코드 공유 카드 이미지", () => {
     }
   }, 60_000);
 
+  /**
+   * 카드의 이 줄은 시작 화면 카드 셋째 줄과 같은 약속이다. 각자 답하기만 해서는 두 사람이 연결되지 않고, 둘 다 답한 뒤 서로
+   * 공유해야 나란히 보인다. 예전 글(「상대도 답하면 …」)은 상대가 답하기만 하면 저절로 비교되는 것처럼 읽혔다.
+   */
+  it("두 사람의 답을 나란히 보는 조건을 ‘둘 다 답하고 서로 공유하면’으로 말한다", async () => {
+    const { text } = await drawCard();
+    expect(text).toContain("둘 다 답하고 서로 공유하면 두 사람의 답을 나란히 볼 수 있어요");
+    expect(text).not.toContain("상대도 답하면");
+    const page = await WeddingCodePage({ searchParams: Promise.resolve({}) });
+    expect(renderToStaticMarkup(page)).toContain("둘 다 답하고 서로 공유하면 두 사람의 답을 나란히 볼 수 있어요");
+  }, 60_000);
+
   it("카드가 약속하는 「로그인 없이」는 시작 화면도 그대로 말한다", async () => {
     const { text } = await drawCard();
     expect(text).toContain("로그인 없이");

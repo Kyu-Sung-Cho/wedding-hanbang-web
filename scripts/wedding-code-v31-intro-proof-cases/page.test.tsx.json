@@ -1,0 +1,104 @@
+[
+  {
+    "name": "시작 화면이 옛 기본 질문 수 문구(개 질문)로 돌아간다",
+    "target": "apps/web/src/app/wedding-code/WeddingCodeV31Client.tsx",
+    "find": "기본 {CORE_PAGE_COUNT}페이지 · 로그인 없이 시작",
+    "replace": "기본 {CORE_PAGE_COUNT}개 질문 · 로그인 없이 시작"
+  },
+  {
+    "name": "시작 화면이 옛 문장(답하는 동안에는 서버나 계정에 보내지 않아요)으로 돌아간다",
+    "target": "apps/web/src/app/wedding-code/WeddingCodeV31Client.tsx",
+    "find": "고른 답과 웨딩코드는 답하는 동안 서버나 계정에 보내지 않아요.",
+    "replace": "답하는 동안에는 서버나 계정에 보내지 않아요."
+  },
+  {
+    "name": "시작 화면의 이 브라우저 저장 기간이 60일이 된다",
+    "target": "apps/web/src/app/wedding-code/WeddingCodeV31Client.tsx",
+    "find": "{LOCAL_SAVE_DAYS}일 동안 이어 할 수 있어요",
+    "replace": "60일 동안 이어 할 수 있어요"
+  },
+  {
+    "name": "공용 기기 안내에서 시작하기 전에가 빠진다",
+    "target": "apps/web/src/app/wedding-code/WeddingCodeV31Client.tsx",
+    "find": "공용 기기에서는 시작하기 전에 아래 ‘자동 저장 설정’에서 꺼 주세요.",
+    "replace": "공용 기기에서는 아래 ‘자동 저장 설정’에서 꺼 주세요."
+  },
+  {
+    "name": "함께 보기 보관 문장이 옛 문장(선택한 답을 7일간)으로 돌아간다",
+    "target": "apps/web/src/app/wedding-code/WeddingCodeV31Client.tsx",
+    "find": "내 답 전체를 서버에 보관하고, 초대로 연결된 상대에게 보여줘요.",
+    "replace": "선택한 답을 7일간 서버에 보관해요."
+  },
+  {
+    "name": "검색·공유 설명이 옛 문장(상대도 답하면)으로 돌아간다",
+    "target": "apps/web/src/app/wedding-code/page.tsx",
+    "find": "둘 다 답하고 서로 공유하면 함께 원하는 것",
+    "replace": "상대도 답하면 함께 원하는 것"
+  },
+  {
+    "name": "검색·공유 설명의 첫 절이 옛 말(혼자 내 결과를 보고)로 돌아간다",
+    "target": "apps/web/src/app/wedding-code/page.tsx",
+    "find": "혼자서도 결과를 볼 수 있고, ",
+    "replace": "혼자 내 결과를 보고, "
+  },
+  {
+    "name": "공유 카드(og) 설명만 옛 문장이라 검색 설명과 갈라진다",
+    "target": "apps/web/src/app/wedding-code/page.tsx",
+    "find": "type: \"website\",",
+    "replace": "type: \"website\", ...{ description: \"혼자 내 결과를 보고, 상대도 답하면 함께 원하는 것을 나란히 볼 수 있어요.\" },"
+  },
+  {
+    "name": "트위터 카드 설명만 옛 문장이라 검색 설명과 갈라진다",
+    "target": "apps/web/src/app/wedding-code/page.tsx",
+    "find": "twitter: { card: \"summary_large_image\", title, description },",
+    "replace": "twitter: { card: \"summary_large_image\", title, description: \"혼자 내 결과를 보고, 상대도 답하면 함께 원하는 것을 나란히 볼 수 있어요.\" },"
+  },
+  {
+    "name": "[4.1 단계 2 영수증에서 옮김] 쿼리의 ga 를 답이 든 주소로 보지 않는다",
+    "target": "apps/web/src/app/wedding-code/page.tsx",
+    "find": " || search.ga !== undefined || search.gb !== undefined;",
+    "replace": ";"
+  },
+  {
+    "name": "[4.1 단계 2 영수증에서 옮김] 쿼리의 gb 를 답이 든 주소로 보지 않는다",
+    "target": "apps/web/src/app/wedding-code/page.tsx",
+    "find": " || search.gb !== undefined;",
+    "replace": ";"
+  },
+  {
+    "name": "시작 화면 이용 통계 문장에서 답한 수·건너뛴 수가 빠진다",
+    "target": "apps/web/src/app/wedding-code/WeddingCodeV31Client.tsx",
+    "find": "끝까지 했는지, 답한 장면과 건너뛴 장면의 수 같은 이용 통계만 기록하고",
+    "replace": "끝까지 했는지 같은 이용 통계만 기록하고"
+  },
+  {
+    "name": "시작 화면 이용 통계 문장이 옛 말(남기고)로 돌아간다",
+    "target": "apps/web/src/app/wedding-code/WeddingCodeV31Client.tsx",
+    "find": "같은 이용 통계만 기록하고, 이 통계에 고른 답",
+    "replace": "같은 이용 통계만 남기고, 고른 답"
+  },
+  {
+    "name": "시작 화면 저장 문장이 옛 말(자동 저장해)로 돌아간다",
+    "target": "apps/web/src/app/wedding-code/WeddingCodeV31Client.tsx",
+    "find": "내 답은 이 브라우저에 자동으로 저장돼요. 마지막으로 저장한 날부터",
+    "replace": "이 브라우저에 자동 저장해 마지막으로 저장한 날부터"
+  },
+  {
+    "name": "시작 화면에서 먼저 사용한 사람이 상대라는 문장과 확인 방식 문장이 빠진다",
+    "target": "apps/web/src/app/wedding-code/WeddingCodeV31Client.tsx",
+    "find": "초대 링크를 먼저 사용한 사람이 상대가 돼요. 이름이나 계정으로는 확인하지 않아요. ",
+    "replace": ""
+  },
+  {
+    "name": "시작 화면이 방침보다 약한 말(이미 본 내용은 되돌릴 수 없어요)로 돌아간다",
+    "target": "apps/web/src/app/wedding-code/WeddingCodeV31Client.tsx",
+    "find": "상대가 이미 읽거나 따로 보관한 내용은 회수할 수 없어요.",
+    "replace": "상대가 이미 본 내용은 되돌릴 수 없어요."
+  },
+  {
+    "name": "검색·공유 설명에서 서로가 빠진다",
+    "target": "apps/web/src/app/wedding-code/page.tsx",
+    "find": "둘 다 답하고 서로 공유하면 함께 원하는 것",
+    "replace": "둘 다 답하고 공유하면 함께 원하는 것"
+  }
+]

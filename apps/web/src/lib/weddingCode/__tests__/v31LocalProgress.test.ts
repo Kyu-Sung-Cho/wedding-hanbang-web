@@ -1,8 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
-import { WEDDING_CODE_V31_QUESTIONS, WEDDING_CODE_V31_TASTES, WEDDING_CODE_V31_VERSION, type V31Draft } from "@/constants/weddingCodeV31";
-import { buildV31ShareUrl, createV31Draft, decodeV31, decodeV31Progress, encodeV31 } from "../v31";
-import { clearV31LocalProgress, LOCAL_KEY, LOCAL_SCHEMA, LOCAL_TTL_MS, readV31LocalProgress, writeV31LocalProgress, type V31LocalProgressSnapshot, type V31ProgressStorage } from "../v31LocalProgress";
-import { V31_CORE_RATING_IDS } from "../v31Flow";
+import { WEDDING_CODE_V31_QUESTIONS, WEDDING_CODE_V31_TASTES, WEDDING_CODE_V31_VERSION, type V31Choice, type V31Draft, type V31Response } from "@/constants/weddingCodeV31";
+import { buildV31Profile, buildV31ShareUrl, createV31Draft, decodeV31, decodeV31Progress, encodeV31 } from "../v31";
+import { clearV31LocalProgress, hasV31ResumableAnswer, LOCAL_KEY, LOCAL_SCHEMA, LOCAL_TTL_MS, readV31LocalProgress, writeV31LocalProgress, type V31LocalProgressSnapshot, type V31ProgressStorage } from "../v31LocalProgress";
+import { V31_AVOIDANCE_INDEX, V31_CORE_RATING_IDS, V31_FULL_INDEXES, V31_PRIORITY_INDEX, getV31ResponseAt } from "../v31Flow";
 
 const NOW = Date.parse("2026-09-24T10:00:00Z");
 function memory() {
@@ -339,5 +339,58 @@ describe("v3.1 단축 흐름 저장과 이전 진행 호환", () => {
     const result: V31LocalProgressSnapshot = { ...legacy, screen: "result" };
     setEnvelope(storage, {}, result);
     expect(readV31LocalProgress(storage, NOW)).toMatchObject({ status: "ready", snapshot: result });
+  });
+});
+
+describe("v3.1 이어 하기 카드의 「답이 있다」 기준", () => {
+  /** 34칸 중 한 칸(index)에만 값을 둔 진행. 칸의 위치 규칙은 getV31ResponseAt 과 독립해서 다시 적었다. */
+  function onlyAt(index: number, value: V31Response | V31Choice): V31Draft {
+    const draft = createV31Draft();
+    const question = WEDDING_CODE_V31_QUESTIONS[index];
+    const taste = WEDDING_CODE_V31_TASTES[index - WEDDING_CODE_V31_QUESTIONS.length];
+    if (question) draft.answers[question.id] = value as V31Response;
+    else if (taste) draft.tastes[taste.key] = value as V31Choice;
+    else if (index === V31_AVOIDANCE_INDEX) draft.avoidances = value as V31Choice;
+    else if (index === V31_PRIORITY_INDEX) draft.priorities = value as V31Choice;
+    else draft.spending = value as V31Choice;
+    return draft;
+  }
+  const responseValues: V31Response[] = [1, 2, 3, 4, 5, "undecided", "not_applicable", "skipped"];
+  /** 우선순위의 고른 값은 다른 답에서 파생돼 한 칸만으로는 만들 수 없으므로 상태 값만 쓴다. */
+  const choiceValues: V31Choice[] = [{ status: "undecided" }, { status: "not_applicable" }, { status: "skipped" }, { status: "no_preference" }, { status: "no_match" }];
+
+  it("칸이 하나도 채워지지 않은 진행은 위치가 어디든 답이 아니다", () => {
+    expect(hasV31ResumableAnswer(snapshot())).toBe(false);
+    expect(hasV31ResumableAnswer({ draft: createV31Draft() })).toBe(false);
+    expect(V31_FULL_INDEXES.some(index => getV31ResponseAt(createV31Draft(), index) !== undefined)).toBe(false);
+  });
+
+  it("34칸 어디든 값이 하나만 있으면 답이 있다고 본다. 별점, 모름·계획에 없음·답하지 않음, 고른 보기 모두 센다", () => {
+    // 칸이 늘거나 줄면 이 숫자가 먼저 알려 준다.
+    expect(V31_FULL_INDEXES).toHaveLength(WEDDING_CODE_V31_QUESTIONS.length + WEDDING_CODE_V31_TASTES.length + 3);
+    let checked = 0;
+    for (const index of V31_FULL_INDEXES) {
+      const isQuestion = index < WEDDING_CODE_V31_QUESTIONS.length;
+      const values: Array<V31Response | V31Choice> = isQuestion ? responseValues : [...choiceValues];
+      const taste = WEDDING_CODE_V31_TASTES[index - WEDDING_CODE_V31_QUESTIONS.length];
+      if (taste) values.push({ status: "answered", values: [taste.options[0].value] });
+      if (index === V31_AVOIDANCE_INDEX) values.push({ status: "answered", values: ["loud_music"] });
+      for (const value of values) {
+        const draft = onlyAt(index, value);
+        // 이 진행이 정말 그 한 칸만 채우는지 먼저 본다.
+        expect(V31_FULL_INDEXES.filter(slot => getV31ResponseAt(draft, slot) !== undefined), `칸 ${index}: ${JSON.stringify(value)}`).toEqual([index]);
+        expect(hasV31ResumableAnswer(snapshot(draft)), `칸 ${index}: ${JSON.stringify(value)}`).toBe(true);
+        checked += 1;
+      }
+    }
+    expect(checked).toBeGreaterThan(V31_FULL_INDEXES.length * 5);
+  });
+
+  it("결과 화면의 「답을 남긴 질문은 N개」(respondedCount)와 같은 셈이다", () => {
+    const drafts: V31Draft[] = [createV31Draft(), complete()];
+    const partial = createV31Draft(); partial.answers.V1 = "undecided"; partial.answers.G1 = "not_applicable"; partial.answers.G2 = "skipped";
+    drafts.push(partial);
+    for (const index of V31_FULL_INDEXES) drafts.push(onlyAt(index, index < WEDDING_CODE_V31_QUESTIONS.length ? 3 : { status: "skipped" }));
+    for (const draft of drafts) expect(hasV31ResumableAnswer(snapshot(draft))).toBe(buildV31Profile(draft).respondedCount > 0);
   });
 });

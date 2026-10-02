@@ -1,0 +1,50 @@
+[
+  {
+    "name": "답이 있다는 판정이 항상 참이다(빈 진행도 답으로 센다)",
+    "target": "apps/web/src/lib/weddingCode/v31LocalProgress.ts",
+    "find": "return V31_FULL_INDEXES.some(index => getV31ResponseAt(snapshot.draft, index) !== undefined);",
+    "replace": "return true;"
+  },
+  {
+    "name": "답이 있다는 판정이 항상 거짓이다",
+    "target": "apps/web/src/lib/weddingCode/v31LocalProgress.ts",
+    "find": "return V31_FULL_INDEXES.some(index => getV31ResponseAt(snapshot.draft, index) !== undefined);",
+    "replace": "return false;"
+  },
+  {
+    "name": "기본 흐름 화면의 칸만 본다(선택 질문 칸을 놓친다)",
+    "target": "apps/web/src/lib/weddingCode/v31LocalProgress.ts",
+    "find": "V31_FULL_INDEXES.some(index =>",
+    "replace": "getV31ScreenIndexes(\"core\").some(index =>"
+  },
+  {
+    "name": "앞의 문장 15칸만 본다(취향·피하고 싶은 것·우선순위·더 쓰고 싶은 곳을 놓친다)",
+    "target": "apps/web/src/lib/weddingCode/v31LocalProgress.ts",
+    "find": "V31_FULL_INDEXES.some(index =>",
+    "replace": "V31_FULL_INDEXES.slice(0, 15).some(index =>"
+  },
+  {
+    "name": "별점 5만 답으로 센다",
+    "target": "apps/web/src/lib/weddingCode/v31LocalProgress.ts",
+    "find": "getV31ResponseAt(snapshot.draft, index) !== undefined",
+    "replace": "getV31ResponseAt(snapshot.draft, index) === 5"
+  },
+  {
+    "name": "숫자 별점만 답으로 센다(모름·계획에 없음·답하지 않음과 고른 보기를 놓친다)",
+    "target": "apps/web/src/lib/weddingCode/v31LocalProgress.ts",
+    "find": "getV31ResponseAt(snapshot.draft, index) !== undefined",
+    "replace": "typeof getV31ResponseAt(snapshot.draft, index) === \"number\""
+  },
+  {
+    "name": "‘지금 답하지 않을게요’는 답으로 세지 않는다",
+    "target": "apps/web/src/lib/weddingCode/v31LocalProgress.ts",
+    "find": "getV31ResponseAt(snapshot.draft, index) !== undefined",
+    "replace": "getV31ResponseAt(snapshot.draft, index) !== undefined && getV31ResponseAt(snapshot.draft, index) !== \"skipped\""
+  },
+  {
+    "name": "‘아직 모르겠어요’는 답으로 세지 않는다",
+    "target": "apps/web/src/lib/weddingCode/v31LocalProgress.ts",
+    "find": "getV31ResponseAt(snapshot.draft, index) !== undefined",
+    "replace": "getV31ResponseAt(snapshot.draft, index) !== undefined && getV31ResponseAt(snapshot.draft, index) !== \"undecided\""
+  }
+]

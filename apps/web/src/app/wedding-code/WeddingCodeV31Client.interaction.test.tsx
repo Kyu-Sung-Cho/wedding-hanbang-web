@@ -147,8 +147,8 @@ describe("WeddingCodeV31Client", () => {
 
   it("기본 흐름은 23개 뒤에 우선순위를 마지막으로 묻고, 고르지 않아도 결과를 받으며 다른 답을 채우지 않는다", async () => {
     await renderClient();
-    expect(container.textContent).toContain("기본 24개 질문");
-    expect(container.textContent).toContain("기본 질문은 14페이지예요");
+    expect(container.textContent).toContain("기본 14페이지");
+    expect(container.textContent).toContain("문장은 한 페이지에 최대 3개씩, 나머지는 한 페이지에 하나씩 물어봐요");
     expect(container.textContent).toContain("결과에서 8개 선택 질문");
     await button("내 웨딩코드 시작하기");
     expect(container.querySelectorAll("[data-answer]")).toHaveLength(15);
@@ -581,9 +581,9 @@ describe("WeddingCodeV31Client", () => {
     // 판정이 아니라는 말은 이 화면에서 한 번만 한다.
     expect(container.textContent?.match(/아니에요/g)).toHaveLength(1);
     expect(container.textContent?.match(/성격|MBTI/g)).toHaveLength(1);
-    const details = [...container.querySelectorAll("details")].find(item => item.querySelector("summary")?.textContent === "어디까지 알아볼 수 있나요?");
+    const details = [...container.querySelectorAll("details")].find(item => item.querySelector("summary")?.textContent === "무엇을 물어보나요?");
     // 묻지 않는 것의 목록은 시작 버튼 위 범위 줄에 한 번만 둔다. 접힌 답은 실제 예산 금액만 따로 정하라고 한다.
-    expect(details?.textContent).toContain("실제 예산 금액은 묻지 않으니 둘이 따로 정해 주세요.");
+    expect(details?.textContent).toContain("실제 예산 금액은 묻지 않으니 둘이 직접 정해 주세요.");
     expect(details?.textContent).not.toMatch(/신혼집|예단|예물|양쪽 집안/);
     expect(container.textContent?.match(/신혼집/g)).toHaveLength(1);
     expect(container.textContent).not.toMatch(/양가|상견례|예식장/);
@@ -779,7 +779,7 @@ describe("WeddingCodeV31Client", () => {
   it("시작 화면은 마지막 우선순위 질문이 나오는 조건을 사실대로 적는다", async () => {
     await renderClient();
     const intro = container.querySelector("[data-intro-priority]")?.textContent ?? "";
-    expect(intro).toContain("그렇다고 답한 문장이나 직접 고른 취향, 피하고 싶은 것이 있으면 마지막에 그중 꼭 지키고 싶은 것을 골라요.");
+    expect(intro).toContain("마지막 ‘꼭 지키고 싶은 것’ 페이지에는 ‘그런 편이에요’나 ‘매우 그래요’로 답한 문장, 직접 고른 취향, 피하고 싶은 것이 보기로 나와요.");
     expect(intro).not.toContain("앞에서 고른 답 가운데");
   });
 
