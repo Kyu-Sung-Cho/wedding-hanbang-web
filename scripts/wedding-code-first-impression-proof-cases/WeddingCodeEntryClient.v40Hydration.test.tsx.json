@@ -1,0 +1,32 @@
+[
+  {
+    "name": "v4 경계를 memo 로 감싸지 않는다(입구가 다시 그려질 때마다 경계 props 가 새로 만들어진다)",
+    "target": "apps/web/src/app/wedding-code/WeddingCodeEntryClient.tsx",
+    "find": "const WeddingCodeV40Client = memo(LazyWeddingCodeV40Client);",
+    "replace": "const WeddingCodeV40Client = LazyWeddingCodeV40Client;"
+  },
+  {
+    "name": "resolved 를 주소 해시 읽기 여부로 바꿔 넘긴다(하이드레이션 전후로 props 가 달라진다)",
+    "target": "apps/web/src/app/wedding-code/WeddingCodeEntryClient.tsx",
+    "find": "        resolved\n        embedded={embedded}",
+    "replace": "        resolved={hash !== null}\n        embedded={embedded}"
+  },
+  {
+    "name": "onRestart 를 렌더마다 새 함수로 넘긴다(memo 가 소용없어진다)",
+    "target": "apps/web/src/app/wedding-code/WeddingCodeEntryClient.tsx",
+    "find": "        onRestart={restartV40}\n        initialNotice={received ? \"\" : restartNotice}",
+    "replace": "        onRestart={() => restartV40()}\n        initialNotice={received ? \"\" : restartNotice}"
+  },
+  {
+    "name": "initial 을 렌더마다 새 객체로 넘긴다(memo 가 소용없어진다)",
+    "target": "apps/web/src/app/wedding-code/WeddingCodeEntryClient.tsx",
+    "find": "        initial={entry.initial}\n        // 주소의 # 뒤를 읽기 전에",
+    "replace": "        initial={{ ...entry.initial }}\n        // 주소의 # 뒤를 읽기 전에"
+  },
+  {
+    "name": "v4 경계를 서버에서 그리지 않는다(ssr: false)",
+    "target": "apps/web/src/app/wedding-code/WeddingCodeEntryClient.tsx",
+    "find": "const LazyWeddingCodeV40Client = dynamic<WeddingCodeV40ClientProps>(() => import(\"./WeddingCodeV40Client\"), {",
+    "replace": "const LazyWeddingCodeV40Client = dynamic<WeddingCodeV40ClientProps>(() => import(\"./WeddingCodeV40Client\"), {\n  ssr: false,"
+  }
+]

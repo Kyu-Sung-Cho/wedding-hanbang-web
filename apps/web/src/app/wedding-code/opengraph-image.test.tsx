@@ -25,19 +25,25 @@ vi.mock("next/og", async (importOriginal) => {
 });
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn() }) }));
 
+import { WEDDING_CODE_V20_VERSION } from "@/constants/weddingCodeV20";
+import { WEDDING_CODE_V30_VERSION } from "@/constants/weddingCodeV30";
+import { WEDDING_CODE_V31_VERSION } from "@/constants/weddingCodeV31";
+import { WEDDING_CODE_V40_VERSION } from "@/constants/weddingCodeV40";
+import { V40_COPY } from "@/lib/weddingCode/v40/copy";
 import OpenGraphImage, { alt, contentType, size } from "./opengraph-image";
 import WeddingCodePage, { generateMetadata } from "./page";
 import { metadata as togetherMetadata } from "./together/page";
 import { metadata as tasteMetadata } from "./taste/page";
+import V40OpenGraphImage, { alt as v40Alt, contentType as v40ContentType, size as v40Size } from "./v40-card/opengraph-image";
 
 function pngSize(bytes: Uint8Array) {
   const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
   return { width: view.getUint32(16), height: view.getUint32(20) };
 }
 
-async function drawCard() {
+async function drawCard(render: () => Promise<Response> = OpenGraphImage) {
   captured.length = 0;
-  const response = await OpenGraphImage();
+  const response = await render();
   const bytes = new Uint8Array(await response.arrayBuffer());
   expect(captured, "ImageResponse 를 한 번 만들어야 한다").toHaveLength(1);
   const text = renderToStaticMarkup(captured[0].element).replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
@@ -97,10 +103,13 @@ describe("웨딩코드 공유 카드 이미지", () => {
   /**
    * Next 는 같은 폴더의 `opengraph-image` 를 **그 단계 metadata 에 `openGraph.images` 키가 없을
    * 때만** 붙인다. 입구 metadata 가 `images` 를 적으면 이 카드가 조용히 빠진다.
+   * 그래서 v4.0-tendency 입구만 일부러 `images` 를 적고(아래 「웨딩코드 v4.0-tendency 공유 카드」), 다른 판은 키를 아예 적지 않는다.
    * 하위 경로는 openGraph 를 스스로 정하는 순간 부모 이미지를 잃으므로 주소를 직접 적는다.
    */
-  it("입구는 이 파일을 카드 이미지로 쓰고, 함께 보기 초대 링크는 같은 주소를 가리킨다", async () => {
-    for (const search of [{}, { v: "3.1" }, { a: "AACB" }]) {
+  it("입구는 이 파일을 카드 이미지로 쓰고(v4 입구만 빼고), 함께 보기 초대 링크는 같은 주소를 가리킨다", async () => {
+    // v1.2-code 는 장면 판의 이름이다(`generateMetadata` 의 마지막 갈래).
+    const others = [{}, { v: "3.1" }, { a: "AACB" }, { v: WEDDING_CODE_V31_VERSION }, { v: WEDDING_CODE_V30_VERSION }, { v: WEDDING_CODE_V20_VERSION }, { v: "v1.2-code" }];
+    for (const search of others) {
       const metadata = await generateMetadata({ searchParams: Promise.resolve(search) });
       expect(metadata.openGraph, JSON.stringify(search)).toBeDefined();
       expect(Object.prototype.hasOwnProperty.call(metadata.openGraph, "images"), JSON.stringify(search)).toBe(false);
@@ -183,4 +192,104 @@ describe("웨딩코드 공유 카드 이미지", () => {
       expect(JSON.stringify(metadata?.openGraph), file).not.toMatch(/landing|아모라/);
     }
   });
+});
+
+/**
+ * v4.0-tendency 입구(`?v=v4.0-tendency`)의 카드. 예전에는 이 입구도 위의 기본 카드를 받아서, 제목은 v4 인데 그림은
+ * 「내가 원하는 결혼식과 준비 방식을 살펴봐요 / 둘 다 답하고 서로 공유하면 …」(v3.1 문장)였다.
+ */
+describe("웨딩코드 v4.0-tendency 공유 카드", () => {
+  const V40 = WEDDING_CODE_V40_VERSION;
+  const title = V40_COPY.intro.title;
+  const lede = V40_COPY.intro.lede;
+  /** 첫 문단의 첫 문장(마침표 앞까지). 카드 작은 글은 이 문장만 옮긴다. */
+  const ledeFirstSentence = lede.slice(0, lede.indexOf(". "));
+  const BANNED_ON_CARD = [
+    "성격", "궁합", "유형", "점수", "등급", "당신은", "잘 맞", "예측", "베타", "분이면", "약 ", "—", "–",
+    // 계약 문서가 v4 에서도 쓰지 않는다고 못 박은 말(CLAUDE.md WeddingCode 절)
+    "검증", "정확", "과학", "진단", "퍼센트", "백분율", "동물", "캐릭터", "스타일", "MBTI", "속마음", "무의식", "본모습", "모순", "일관성", "숨은",
+  ];
+  const WEB_ROOT = process.cwd();
+  const read = (file: string) => readFileSync(resolve(WEB_ROOT, file), "utf8");
+
+  it("1200×630 PNG 로 실제로 그려지고 글꼴을 싣는다", async () => {
+    const { response, bytes } = await drawCard(V40OpenGraphImage);
+    expect(v40Size).toEqual({ width: 1200, height: 630 });
+    expect(v40Size).toEqual(size);
+    expect(v40ContentType).toBe("image/png");
+    expect(response.headers.get("content-type")).toContain("image/png");
+    expect([...bytes.slice(0, 8)]).toEqual([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+    expect(pngSize(bytes)).toEqual({ width: 1200, height: 630 });
+    const fonts = captured[0].options.fonts as Array<{ data: ArrayBuffer | Buffer }>;
+    expect(fonts).toHaveLength(1);
+    expect(fonts[0].data.byteLength).toBeGreaterThan(100_000);
+  }, 60_000);
+
+  /**
+   * 카드가 하는 말은 입구 화면이 이미 하는 말(제목, 첫 문단 첫 문장)과 기본 카드와 같은 아래 줄뿐이다. 글 전체를 한 번에 못 박아서
+   * 새 문장이 슬쩍 끼어드는 것(주장, 숫자, 약속)을 잡는다.
+   */
+  it("카드의 글은 입구 제목, 첫 문단 첫 문장, 로그인 없이, 주소뿐이다", async () => {
+    const { text } = await drawCard(V40OpenGraphImage);
+    expect(ledeFirstSentence.length).toBeGreaterThan(10);
+    expect(lede.startsWith(`${ledeFirstSentence}. `)).toBe(true);
+    expect(text).toBe(["한", "웨딩한방", "웨딩코드", title, ledeFirstSentence, "로그인 없이 시작해요", "hanbang.ai"].join(" "));
+  }, 60_000);
+
+  it("주장, 점수, 숫자, 네 글자 예시, 둘이 비교된다는 약속이 없고 v3.1 문장도 없다", async () => {
+    const { text } = await drawCard(V40OpenGraphImage);
+    for (const source of [text, v40Alt]) {
+      const latin = (source.match(/[A-Za-z]+/g) ?? []).filter((run) => run !== "hanbang" && run !== "ai");
+      expect(latin, source).toEqual([]);
+      for (const banned of BANNED_ON_CARD) expect(source, banned).not.toContain(banned);
+      expect(source).not.toMatch(/[0-9%]/);
+      // 혼자 답하는 것만으로 둘이 연결되거나 비교된다고 읽히는 말은 카드에 두지 않는다(비교는 상대가 결과 링크를 돌려보낼 때만 생긴다).
+      expect(source).not.toMatch(/나란히|비교|둘 다|서로 공유|상대/);
+    }
+    for (const v31Sentence of ["내가 원하는 결혼식과", "준비 방식을 살펴봐요", "둘 다 답하고 서로 공유하면", "두 사람의 답을 나란히"]) {
+      expect(text, v31Sentence).not.toContain(v31Sentence);
+      expect(v40Alt, v31Sentence).not.toContain(v31Sentence);
+    }
+  }, 60_000);
+
+  it("alt 는 입구 제목을 그대로 말한다", () => {
+    expect(v40Alt).toBe(`웨딩코드, ${title}`);
+    expect(v40Alt).not.toBe(alt);
+  });
+
+  /**
+   * 이 카드를 받는 길은 입구 metadata 가 적은 `images` 뿐이다(폴더에 화면이 없고 쿼리를 읽는 파일 규약 이미지도 아니다). 그래서
+   * 적는 쪽과 카드 파일이 같은 주소·크기·alt 를 말하는지, v4 입구에서만 적는지를 본다. 트위터 카드도 같은 그림이어야 한다.
+   */
+  it("v4 입구만 이 카드를 openGraph 와 twitter 에 적고, 제목은 v4 제목 그대로다", async () => {
+    const expectedImage = { url: "/wedding-code/v40-card/opengraph-image", type: v40ContentType, width: v40Size.width, height: v40Size.height, alt: v40Alt };
+    expect(existsSync(resolve(WEB_ROOT, "src/app/wedding-code/v40-card/opengraph-image.tsx"))).toBe(true);
+    // 입구 화면이 아닌 폴더라 주소 하나만 카드로 열려야 한다(화면이 생기면 openGraph 를 스스로 정하는지 위의 시험이 따로 본다).
+    expect(existsSync(resolve(WEB_ROOT, "src/app/wedding-code/v40-card/page.tsx"))).toBe(false);
+    for (const search of [{ v: V40 }, { v: V40, utm_source: "kakao" }, { v: V40, a: "AACB" }]) {
+      const metadata = await generateMetadata({ searchParams: Promise.resolve(search) });
+      expect(metadata.openGraph?.images, JSON.stringify(search)).toEqual([expectedImage]);
+      expect(metadata.twitter?.images, JSON.stringify(search)).toEqual([expectedImage]);
+      expect(String(metadata.title), JSON.stringify(search)).toContain(title);
+    }
+    // 다른 판은 키를 적지 않아 기본 카드를 그대로 받는다(위의 「입구는 이 파일을 카드 이미지로 쓰고」 시험이 키가 없음을 본다).
+    const plain = await generateMetadata({ searchParams: Promise.resolve({ v: WEDDING_CODE_V31_VERSION }) });
+    expect(JSON.stringify([plain.openGraph, plain.twitter])).not.toContain("v40-card");
+  });
+
+  /**
+   * 틀(`ogCard.tsx`)을 두 카드가 함께 쓴다. 기본 카드의 글이 틀을 나누며 달라지지 않았는지, 두 카드 파일이 색이나 배치를 다시
+   * 따로 갖지 않는지(그러면 한쪽만 고쳐져 두 카드가 어긋난다)를 본다.
+   */
+  it("기본 카드의 글은 틀을 나눈 뒤에도 그대로이고, 두 카드 파일은 색과 배치를 따로 갖지 않는다", async () => {
+    const { text } = await drawCard();
+    expect(text).toBe(["한", "웨딩한방", "웨딩코드", "내가 원하는 결혼식과 준비 방식을 살펴봐요", "둘 다 답하고 서로 공유하면 두 사람의 답을 나란히 볼 수 있어요", "로그인 없이 시작해요", "hanbang.ai"].join(" "));
+    for (const file of ["src/app/wedding-code/opengraph-image.tsx", "src/app/wedding-code/v40-card/opengraph-image.tsx"]) {
+      const source = read(file);
+      expect(source, `${file}: 색은 ogCard.tsx 한 곳에만 둔다`).not.toMatch(/#[0-9A-Fa-f]{6}\b/);
+      expect(source, `${file}: 배치(style)는 ogCard.tsx 한 곳에만 둔다`).not.toContain("style={{");
+      expect(source, file).toContain("weddingCodeCard(");
+    }
+    expect(read("src/app/wedding-code/ogCard.tsx")).toMatch(/#FDFCF7/);
+  }, 60_000);
 });

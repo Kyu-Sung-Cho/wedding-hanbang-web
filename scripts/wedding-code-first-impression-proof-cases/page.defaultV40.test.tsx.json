@@ -1,0 +1,50 @@
+[
+  {
+    "name": "F4 기본 진입이 v4 로 바뀌어도 맨 주소의 카드 그림 조건이 v4 쿼리일 때만이라 제목만 v4 이고 그림은 v3.1 문장 카드다(openGraph)",
+    "target": "apps/web/src/app/wedding-code/page.tsx",
+    "find": "      type: \"website\",\n      ...(isV40 ? { images: [V40_CARD_IMAGE] } : {}),\n",
+    "replace": "      type: \"website\",\n      ...(search.v === WEDDING_CODE_V40_VERSION ? { images: [V40_CARD_IMAGE] } : {}),\n"
+  },
+  {
+    "name": "F4 기본 진입이 v4 로 바뀌어도 맨 주소의 twitter 카드 그림 조건이 v4 쿼리일 때만이다",
+    "target": "apps/web/src/app/wedding-code/page.tsx",
+    "find": "twitter: { card: \"summary_large_image\", title, description, ...(isV40 ? { images: [V40_CARD_IMAGE] } : {}) },",
+    "replace": "twitter: { card: \"summary_large_image\", title, description, ...(search.v === WEDDING_CODE_V40_VERSION ? { images: [V40_CARD_IMAGE] } : {}) },"
+  },
+  {
+    "name": "F4 v4 입구가 openGraph 에 카드 그림을 적지 않는다",
+    "target": "apps/web/src/app/wedding-code/page.tsx",
+    "find": "      type: \"website\",\n      ...(isV40 ? { images: [V40_CARD_IMAGE] } : {}),\n",
+    "replace": "      type: \"website\",\n"
+  },
+  {
+    "name": "F4 v4 입구가 v3.1 기본 카드 주소를 가리킨다",
+    "target": "apps/web/src/app/wedding-code/page.tsx",
+    "find": "  url: \"/wedding-code/v40-card/opengraph-image\",",
+    "replace": "  url: \"/wedding-code/opengraph-image\","
+  },
+  {
+    "name": "F4 v4 입구의 카드 alt 가 v3.1 문장이다",
+    "target": "apps/web/src/app/wedding-code/page.tsx",
+    "find": "  alt: `웨딩코드, ${V40_COPY.intro.title}`,",
+    "replace": "  alt: \"웨딩코드, 내가 원하는 결혼식과 준비 방식을 살펴보는 곳\","
+  },
+  {
+    "name": "F4 이전 판 입구(v2.0)도 openGraph 에 v4 카드를 적는다",
+    "target": "apps/web/src/app/wedding-code/page.tsx",
+    "find": "      type: \"website\",\n      ...(isV40 ? { images: [V40_CARD_IMAGE] } : {}),\n",
+    "replace": "      type: \"website\",\n      ...(isV40 || isV20 ? { images: [V40_CARD_IMAGE] } : {}),\n"
+  },
+  {
+    "name": "F4 이전 판 입구(v3.1, v3.0)도 twitter 에 v4 카드를 적는다",
+    "target": "apps/web/src/app/wedding-code/page.tsx",
+    "find": "description, ...(isV40 ? { images: [V40_CARD_IMAGE] } : {}) },",
+    "replace": "description, ...(isV40 || isPreferences ? { images: [V40_CARD_IMAGE] } : {}) },"
+  },
+  {
+    "name": "F4 v4 입구의 카드 그림 형식이 카드 파일의 contentType 과 어긋난다",
+    "target": "apps/web/src/app/wedding-code/page.tsx",
+    "find": "  type: \"image/png\",",
+    "replace": "  type: \"image/jpeg\","
+  }
+]

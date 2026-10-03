@@ -1,6 +1,6 @@
 "use client";
 
-import { useId, useRef } from "react";
+import { useId, useRef, useState } from "react";
 import Button from "@/components/ui/Button";
 import { V40_COUNTS } from "@/constants/weddingCodeV40";
 import {
@@ -13,7 +13,7 @@ import {
 } from "@/lib/weddingCode/v40/copy";
 import { PreviousVersionCard } from "./PreviousVersionCard";
 import { StorageNotice } from "./NoticeScreens";
-import { ActionBar, SectionCard, screenRootClass } from "./SectionCard";
+import { ActionBar, PinBarSpacer, SectionCard, pinnedScreenRootClass } from "./SectionCard";
 import { bodyText, cx, noteText, noticeBox, noticeText } from "./styles";
 import { useScreenFocus } from "./useScreenFocus";
 
@@ -87,6 +87,12 @@ export interface IntroResume {
 }
 
 export interface IntroScreenProps {
+  /**
+   * 이 브라우저의 저장 상태를 아직 읽지 못한 때. 서버가 그린 시작 화면과 하이드레이션 첫 그림이 이것이다.
+   * 시작 단추는 누를 수 없고(저장 상태를 모르는 채 시작하면 저장된 답을 덮어쓸 수 있다), 자동 저장 단추는 그리지 않으며,
+   * 저장 문구는 저장 상태가 무엇이어도 참인 갈래(blocked)로 쓴다. 서버가 그린 화면을 이어받은 인스턴스는 초점과 스크롤을 옮기지 않는다.
+   */
+  readonly pending?: boolean;
   /** 라운지 안이면 위에 한 줄(로그인한 상태여도 이 웨딩코드의 답은 계정에 저장되지 않아요)을 보이고 단추 줄을 하단 탭 위에 붙인다. */
   readonly embedded?: boolean;
   /** 화면 위에 한 번 보여 줄 안내(예: 링크를 읽지 못했어요). */
@@ -103,7 +109,17 @@ export interface IntroScreenProps {
   readonly onStart: () => void;
 }
 
+/**
+ * 서버가 그린 대기 시작 화면이 문서에 아직 남아 있는가. 남아 있으면 지금 만드는 화면은 그 화면을 이어받거나(하이드레이션),
+ * 이어받지 못해 그 위에 새로 그려 바꾸는 것이다(하이드레이션 불일치를 React 가 고치는 경우). 두 경우 모두 초점과 스크롤을 옮기면 안 된다.
+ * 처음 한 번 읽을 뿐 그리는 내용에는 쓰지 않는다(서버 렌더에서는 문서가 없어 거짓이다).
+ */
+function serverIntroStillShown(): boolean {
+  return typeof document !== "undefined" && document.querySelector('[data-screen="intro"][data-pending]') !== null;
+}
+
 export function IntroScreen({
+  pending = false,
   embedded = false,
   notice = null,
   autosave,
@@ -116,12 +132,16 @@ export function IntroScreen({
 }: IntroScreenProps) {
   const titleId = useId();
   const rootRef = useRef<HTMLElement | null>(null);
-  useScreenFocus(rootRef, "intro");
+  // 서버가 그린 대기 화면을 이어받거나 바꿔 그리는 인스턴스는 초점도 스크롤도 옮기지 않는다: 읽던 사람이 그 순간 맨 위로 끌려가지 않게 한다.
+  // 저장소를 읽고 대기가 풀려도 같은 인스턴스는 계속 건너뛴다(처음 한 번만 정한다). 브라우저에서 새로 만든 화면(다시 시작 등)은 대기 중이어도 옮긴다.
+  const [replacesServerIntro] = useState(() => pending && serverIntroStillShown());
+  useScreenFocus(rootRef, "intro", !replacesServerIntro);
 
   const copy = V40_COPY.intro;
   const unavailable = storageIssue === "unavailable";
   // 저장 문구는 저장 상태를 따른다: 자동 저장이 꺼져 있거나 브라우저가 저장을 막았으면 「저장돼요」라고 말하지 않는다.
-  const storageMode: V40StorageMode = unavailable ? "blocked" : autosave === "off" ? "off" : "on";
+  // 저장 상태를 아직 모르는 동안은 어느 상태에서도 참인 blocked 갈래만 쓴다(저장한다는 말도, 기간도 없다).
+  const storageMode: V40StorageMode = pending || unavailable ? "blocked" : autosave === "off" ? "off" : "on";
   const bullets = introBullets(storageMode, V40_COUNTS.items);
   const storage = introStorage(storageMode);
   const resumeSavedOn = resume ? savedOnLine(resume.savedAt) : null;
@@ -133,7 +153,10 @@ export function IntroScreen({
       tabIndex={-1}
       aria-labelledby={titleId}
       data-screen="intro"
-      className={screenRootClass(embedded)}
+      data-pending={pending ? "" : undefined}
+      // 소개 글이 화면보다 짧은 동안(대기 화면)과 긴 뒤(저장소를 읽은 화면)에 시작 단추가 같은 자리, 곧 화면 아래에 있게 한다.
+      // 짧은 동안 단추가 글 바로 밑에 떠 있다가 풀리는 순간 화면 아래로 내려가면, 풀리기를 기다려 누르려던 손가락이 자리를 놓친다.
+      className={pinnedScreenRootClass(embedded)}
     >
       {notice ? (
         <p role="status" data-intro-notice="" className={cx(noticeBox, noticeText, "mb-4")}>
@@ -195,16 +218,28 @@ export function IntroScreen({
         {copy.scope}
       </p>
 
-      {unavailable ? null : (
+      {/* 대기 중에는 실제 자동 저장 선호를 모르므로 켜기와 끄기 단추를 그리지 않는다(눌러도 받을 쪽이 아직 없다). */}
+      {unavailable || pending ? null : (
         <AutosaveToggle autosave={autosave} onChange={onAutosaveChange} note={autosaveNote} warning={warning} />
       )}
 
       {resume ? null : (
-        <ActionBar embedded={embedded}>
-          <Button variant="primary" size="lg" fullWidth onClick={onStart}>
-            {copy.startButton}
-          </Button>
-        </ActionBar>
+        <>
+          {/* 소개 글이 화면보다 짧으면 남는 높이를 이 빈틈이 먹어 단추 줄이 화면 아래에 붙는다(저장소를 읽어 글이 길어진 뒤와 같은 자리). */}
+          <PinBarSpacer embedded={embedded} />
+          <ActionBar embedded={embedded}>
+            {/* 안내는 단추 위에 둔다: 사라질 때 아래에 붙은 단추가 따라 내려가 누르려던 자리를 벗어나지 않게 한다. */}
+            {pending ? (
+              <p role="status" data-intro-pending="" className={cx(noteText, "mb-2 text-center")}>
+                {V40_COPY.common.loadingLabel}
+              </p>
+            ) : null}
+            {/* 대기 중에는 진짜 disabled 로 내보낸다. 서버가 그린 단추는 하이드레이션 전에 눌러도 받는 쪽이 없어 누른 것이 사라진다. */}
+            <Button variant="primary" size="lg" fullWidth onClick={onStart} loading={pending}>
+              {copy.startButton}
+            </Button>
+          </ActionBar>
+        </>
       )}
     </section>
   );

@@ -1,0 +1,80 @@
+[
+  {
+    "name": "F4 v4 입구가 openGraph 에 카드 그림을 적지 않아 v3.1 문장 기본 카드로 돌아간다",
+    "target": "apps/web/src/app/wedding-code/page.tsx",
+    "find": "      type: \"website\",\n      ...(isV40 ? { images: [V40_CARD_IMAGE] } : {}),\n",
+    "replace": "      type: \"website\",\n"
+  },
+  {
+    "name": "F4 v4 입구가 twitter 에 카드 그림을 적지 않는다(오픈그래프만 v4 카드)",
+    "target": "apps/web/src/app/wedding-code/page.tsx",
+    "find": "twitter: { card: \"summary_large_image\", title, description, ...(isV40 ? { images: [V40_CARD_IMAGE] } : {}) },",
+    "replace": "twitter: { card: \"summary_large_image\", title, description },"
+  },
+  {
+    "name": "F4 v2.0 입구도 openGraph 에 v4 카드를 적는다(조건이 v4 만이 아니다)",
+    "target": "apps/web/src/app/wedding-code/page.tsx",
+    "find": "      type: \"website\",\n      ...(isV40 ? { images: [V40_CARD_IMAGE] } : {}),\n",
+    "replace": "      type: \"website\",\n      ...(isV40 || isV20 ? { images: [V40_CARD_IMAGE] } : {}),\n"
+  },
+  {
+    "name": "F4 v4 입구가 v3.1 기본 카드 주소를 가리킨다",
+    "target": "apps/web/src/app/wedding-code/page.tsx",
+    "find": "  url: \"/wedding-code/v40-card/opengraph-image\",",
+    "replace": "  url: \"/wedding-code/opengraph-image\","
+  },
+  {
+    "name": "F4 v4 입구의 카드 alt 가 v3.1 문장이다",
+    "target": "apps/web/src/app/wedding-code/page.tsx",
+    "find": "  alt: `웨딩코드, ${V40_COPY.intro.title}`,",
+    "replace": "  alt: \"웨딩코드, 내가 원하는 결혼식과 준비 방식을 살펴보는 곳\","
+  },
+  {
+    "name": "F4 v4 카드의 작은 글이 첫 문장이 아니라 첫 문단 전체다(네 글자 코드 약속까지 실린다)",
+    "target": "apps/web/src/app/wedding-code/v40-card/opengraph-image.tsx",
+    "find": "const DETAIL: string = V40_COPY.intro.lede.split(\". \")[0];",
+    "replace": "const DETAIL: string = V40_COPY.intro.lede;"
+  },
+  {
+    "name": "F4 v4 카드의 큰 글이 v3.1 문장이다",
+    "target": "apps/web/src/app/wedding-code/v40-card/opengraph-image.tsx",
+    "find": "const TITLE_LINES: readonly string[] = V40_COPY.intro.title.split(/(?<=,) /u);",
+    "replace": "const TITLE_LINES: readonly string[] = [\"내가 원하는 결혼식과\", \"준비 방식을 살펴봐요\"];"
+  },
+  {
+    "name": "F4 v4 카드 파일의 alt 가 v3.1 문장이다",
+    "target": "apps/web/src/app/wedding-code/v40-card/opengraph-image.tsx",
+    "find": "export const alt = `웨딩코드, ${V40_COPY.intro.title}`;",
+    "replace": "export const alt = \"웨딩코드, 내가 원하는 결혼식과 준비 방식을 살펴보는 곳\";"
+  },
+  {
+    "name": "F4 두 카드가 함께 쓰는 아래 줄에 주장이 끼어든다",
+    "target": "apps/web/src/app/wedding-code/ogCard.tsx",
+    "find": "<div style={{ display: \"flex\" }}>로그인 없이 시작해요</div>",
+    "replace": "<div style={{ display: \"flex\" }}>로그인 없이 시작해요 · 정확한 결과</div>"
+  },
+  {
+    "name": "F4 기본 카드의 큰 글 둘째 줄이 바뀐다(틀을 나눈 뒤 기본 카드 글이 달라짐)",
+    "target": "apps/web/src/app/wedding-code/opengraph-image.tsx",
+    "find": "\"준비 방식을 살펴봐요\"",
+    "replace": "\"준비 방식을 알아봐요\""
+  },
+  {
+    "name": "F4 기본 카드 파일이 색을 따로 가진다(틀과 어긋날 수 있다)",
+    "target": "apps/web/src/app/wedding-code/opengraph-image.tsx",
+    "find": "export const runtime = \"nodejs\";",
+    "replace": "export const runtime = \"nodejs\";\nconst DRIFT_SHEET = \"#FDFCF7\";"
+  },
+  {
+    "name": "F4 v4 카드 파일이 배치(style)를 따로 가진다",
+    "target": "apps/web/src/app/wedding-code/v40-card/opengraph-image.tsx",
+    "find": "export const runtime = \"nodejs\";",
+    "replace": "export const runtime = \"nodejs\";\nconst DRIFT_BOX = <div style={{ display: \"flex\" }} />;"
+  },
+  {
+    "name": "F4 입구 첫 문단 첫 문장이 정확하다는 말을 담으면 카드에도 실린다",
+    "target": "apps/web/src/lib/weddingCode/v40/copy.ts",
+    "find": "    lede: \"돈을 정할 때, 준비를 굴릴 때,",
+    "replace": "    lede: \"정확히 돈을 정할 때, 준비를 굴릴 때,"
+  }
+]

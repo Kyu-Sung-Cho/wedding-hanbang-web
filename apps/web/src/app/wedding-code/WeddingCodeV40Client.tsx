@@ -1,6 +1,6 @@
 "use client";
 
-import { Component, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { Component, useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 
 import {
   BoundaryFallbackScreen,
@@ -203,6 +203,11 @@ type Boot = { readonly status: "pending" } | BootReady;
 const PENDING: Boot = { status: "pending" };
 
 const loadingClass = "mx-auto flex min-h-[60vh] w-full max-w-[680px] items-center justify-center px-5 text-sm text-[var(--hb-text-body)]";
+
+// 서버 렌더와 하이드레이션 첫 그림이 끝났는가. 서버 값(false)은 그 두 번의 그림에서만 쓰이고, 브라우저에서 새로 만든 본체는 처음부터 true 다.
+const noSubscription = (): (() => void) => () => undefined;
+const settledInBrowser = (): boolean => true;
+const unsettledOnServer = (): boolean => false;
 
 /** 지금 결과 화면인가(전체 흐름의 결과 쪽. 답 다시 보기 필터 흐름은 결과가 아니다). */
 function isResultView(state: FlowState): boolean {
@@ -827,8 +832,11 @@ export function WeddingCodeV40Core({ shareOrigin, initial, resolved, embedded = 
 
   // -- 부팅: 주소 해석이 끝난 뒤 저장소를 읽는다 --------------------------------------------
 
+  // 입구는 주소의 # 뒤를 하이드레이션 뒤에야 읽는다. 그 전에 저장소를 읽거나 시작 화면을 봤다고 알리면 링크를 연 사람을 링크 없는 사람으로 세게 된다.
+  // 입구가 이 값을 바꿔 넘기면 늦게 불러오는 경계가 서버 화면을 이어받지 못하므로, 본체가 스스로 하이드레이션이 끝났는지 안다.
+  const settled = useSyncExternalStore(noSubscription, settledInBrowser, unsettledOnServer);
   useEffect(() => {
-    if (!resolved || bootRef.current.status === "ready") return;
+    if (!resolved || !settled || bootRef.current.status === "ready") return;
     const linked = contextRef.current;
     if (linked.partner !== null || linked.both !== null) clearAddressTail(linked.both !== null ? "both" : "partner");
     else setLinkLost(readOpenedMark());
@@ -875,9 +883,9 @@ export function WeddingCodeV40Core({ shareOrigin, initial, resolved, embedded = 
     bootRef.current = next;
     setBoot(next);
     if (handle === null) setSave("unavailable");
-    // 주소 해석이 끝난 때(resolved) 한 번만 읽는다. 시계와 시험용 저장소는 마운트 때 정해져 바뀌지 않는다.
+    // 주소 해석이 끝난 때(resolved 이고 하이드레이션이 끝난 때) 한 번만 읽는다. 시계와 시험용 저장소는 마운트 때 정해져 바뀌지 않는다.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [resolved]);
+  }, [resolved, settled]);
 
   // -- 화면 크기에 맞는 묶음 ---------------------------------------------------------------
 
@@ -1032,6 +1040,22 @@ export function WeddingCodeV40Core({ shareOrigin, initial, resolved, embedded = 
   // -- 그리기 -----------------------------------------------------------------------------------------
 
   if (boot.status !== "ready") {
+    // 링크 없이 연 입구(서버가 그리는 모든 경우)는 저장소를 읽기 전에도 시작 화면을 그린다. 서버 HTML 에 제목과 소개 글이 들어가는 까닭이다.
+    // 저장 상태를 모르는 동안 시작 단추는 누를 수 없고(pending), 서버와 하이드레이션 첫 그림이 같은 화면이다. 저장소를 읽으면 같은 화면이 속성만 바꿔 이어진다.
+    // 받은 링크와 두 사람 결과 링크는 주소의 # 뒤에 있어서 서버가 볼 수 없다. 그 갈래는 하이드레이션 뒤에 새로 만들어지고 읽는 동안 불러오는 중 글을 보인다.
+    if (!hasPartnerLink) {
+      return (
+        <IntroScreen
+          pending
+          embedded={embedded}
+          notice={noticeText !== "" ? noticeText : null}
+          autosave="on"
+          // 이 화면은 두 단추를 누를 수 없게 그리므로 아래 콜백은 불리지 않는다.
+          onAutosaveChange={() => undefined}
+          onStart={() => undefined}
+        />
+      );
+    }
     return (
       <p role="status" data-v40-loading="" className={loadingClass}>
         {V40_COPY.common.loadingLabel}

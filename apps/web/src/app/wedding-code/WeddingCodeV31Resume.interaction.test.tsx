@@ -536,7 +536,7 @@ describe("V31 same-browser resume", () => {
    * 아래 테스트는 저장 시점은 그대로 두고, 이어 하기 카드·큰 버튼·저장 줄이 답이 있을 때만 이어 하기를 말하는지 본다.
    */
   const RESUME_TITLE = "이 브라우저에 남겨 둔 답이 있어요";
-  const NO_ANSWER_LINE = "답하면 이 브라우저에 자동으로 저장돼요.";
+  const NO_ANSWER_LINE = "답하면 이 브라우저에 자동으로 저장돼요. 공용 기기라면 아래 ‘자동 저장 설정’에서 꺼 주세요.";
   const SAVED_LINE = "이 브라우저에 저장됐어요. 나중에 이어 할 수 있어요.";
   const card = () => container.querySelector('[aria-label="저장된 내 답 이어하기"]');
   const buttonLabels = () => [...container.querySelectorAll("button")].map(item => item.textContent?.trim());

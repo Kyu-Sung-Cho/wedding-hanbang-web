@@ -50,8 +50,8 @@
   {
     "name": "트위터 카드 설명만 옛 문장이라 검색 설명과 갈라진다",
     "target": "apps/web/src/app/wedding-code/page.tsx",
-    "find": "twitter: { card: \"summary_large_image\", title, description },",
-    "replace": "twitter: { card: \"summary_large_image\", title, description: \"혼자 내 결과를 보고, 상대도 답하면 함께 원하는 것을 나란히 볼 수 있어요.\" },"
+    "find": "twitter: { card: \"summary_large_image\", title, description, ...(isV40 ? { images: [V40_CARD_IMAGE] } : {}) },",
+    "replace": "twitter: { card: \"summary_large_image\", title, description: \"혼자 내 결과를 보고, 상대도 답하면 함께 원하는 것을 나란히 볼 수 있어요.\", ...(isV40 ? { images: [V40_CARD_IMAGE] } : {}) },"
   },
   {
     "name": "[4.1 단계 2 영수증에서 옮김] 쿼리의 ga 를 답이 든 주소로 보지 않는다",

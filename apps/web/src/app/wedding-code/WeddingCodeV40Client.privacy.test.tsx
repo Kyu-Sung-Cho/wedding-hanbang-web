@@ -4,7 +4,9 @@ import { V40_COUNTS, V40_STORAGE, WEDDING_CODE_V40_VERSION } from "@/constants/w
 import { WEDDING_CODE_FUNNEL_EVENTS, WEDDING_CODE_FUNNEL_PROPERTIES } from "@/lib/analyticsPrivacy";
 import { captureWeddingCodeEvent } from "@/lib/analytics";
 import { encodeCode } from "@/lib/weddingCode/v40/codec";
-import { V40_COPY } from "@/lib/weddingCode/v40/copy";
+import { createV31Draft } from "@/lib/weddingCode/v31";
+import { writeV31LocalProgress } from "@/lib/weddingCode/v31LocalProgress";
+import { V40_COPY, autosaveTurnOffWarning } from "@/lib/weddingCode/v40/copy";
 import { browserStorage, readHistory, readProgress } from "@/lib/weddingCode/v40/storage";
 import {
   DAY,
@@ -37,6 +39,18 @@ async function open(overrides: Parameters<typeof mountClient>[0] = {}): Promise<
 }
 
 const SHORT_VALUE = /^[a-z0-9][a-z0-9._-]{0,15}$/u;
+
+/**
+ * v3.1 이 실제로 저장하는 진행 봉투를 심는다(v3.1 의 쓰기 함수로 쓴다). answered 가 거짓이면 v3.1 소개에서 시작 단추만 눌렀을 때 남는
+ * 답 0개짜리 진행이고, 참이면 문장 하나에 답한 진행이다. 심은 기록은 읽기 전용 확인에 섞이지 않게 지운다.
+ */
+function seedV31Progress(storage: FakeStorage, { answered, savedAt = NOW - DAY }: { answered: boolean; savedAt?: number }): void {
+  const draft = createV31Draft();
+  if (answered) draft.answers.G1 = 4;
+  const result = writeV31LocalProgress(storage, { draft, flow: "core", index: 1, screen: "questions", editing: false, needsPriorityReview: false }, null, savedAt);
+  expect(result.status).toBe("saved");
+  storage.log.length = 0;
+}
 
 beforeEach(() => {
   capture.mockClear();
@@ -176,16 +190,61 @@ describe("웨딩코드 4.0 클라이언트: 자동 저장 끄기와 이전 판",
 
   it("이전 웨딩코드(v3.1)에 남긴 답이 있으면 읽기만 하는 카드를 보이고, 자동 저장을 끄면 그 답도 지운다고 미리 알린 뒤 지운다", async () => {
     const storage = new FakeStorage();
-    storage.data.set(V40_STORAGE.legacyV31ProgressKey, JSON.stringify({ savedAt: NOW - DAY }));
+    seedV31Progress(storage, { answered: true });
     const view = await open({ deps: { storage, now: () => NOW } });
     expect(textOf(view.container)).toContain(V40_COPY.intro.legacy.title);
-    expect(view.container.querySelector("[data-autosave-warning]")).not.toBeNull();
+    expect(view.container.querySelector("[data-autosave-warning]")?.textContent).toBe(autosaveTurnOffWarning({ saved: false, legacy: true }));
     // 카드는 읽기만 한다: 누를 단추가 없다.
     expect(hasButtonWithText(view.container, V40_COPY.intro.newVersionButton)).toBe(false);
     expect(storage.data.has(V40_STORAGE.legacyV31ProgressKey)).toBe(true);
     await pressText(view.container, V40_COPY.autosave.turnOffButton);
     expect(storage.data.has(V40_STORAGE.legacyV31ProgressKey)).toBe(false);
     expect(textOf(view.container)).not.toContain(V40_COPY.intro.legacy.title);
+  });
+
+  it("v3.1 에서 시작 단추만 눌러 답이 하나도 없는 진행은 카드도, 이전 웨딩코드 답을 지운다는 말도 내지 않는다(그래도 끄면 그 기록은 지운다)", async () => {
+    const storage = new FakeStorage();
+    seedV31Progress(storage, { answered: false });
+    expect(storage.data.has(V40_STORAGE.legacyV31ProgressKey)).toBe(true);
+    const view = await open({ deps: { storage, now: () => NOW } });
+    expect(textOf(view.container)).not.toContain(V40_COPY.intro.legacy.title);
+    expect(view.container.querySelector('[data-section-card="legacy"]')).toBeNull();
+    const warning = view.container.querySelector("[data-autosave-warning]")?.textContent ?? "";
+    expect(warning).toBe(autosaveTurnOffWarning({ saved: false, legacy: false }));
+    expect(warning).not.toContain("이전 웨딩코드");
+    // 읽기만 했다.
+    expect(storage.writes()).toEqual([]);
+    await pressText(view.container, V40_COPY.autosave.turnOffButton);
+    expect(storage.data.has(V40_STORAGE.legacyV31ProgressKey)).toBe(false);
+  });
+
+  it.each([
+    ["30일이 지난 v3.1 진행(답은 있다)", (storage: FakeStorage) => seedV31Progress(storage, { answered: true, savedAt: NOW - 31 * DAY })],
+    ["30일이 되는 순간의 v3.1 진행", (storage: FakeStorage) => seedV31Progress(storage, { answered: true, savedAt: NOW - 30 * DAY })],
+    ["savedAt 만 있는 값", (storage: FakeStorage) => void storage.data.set(V40_STORAGE.legacyV31ProgressKey, JSON.stringify({ savedAt: NOW - DAY }))],
+    ["JSON 이 아닌 값", (storage: FakeStorage) => void storage.data.set(V40_STORAGE.legacyV31ProgressKey, "{깨진 값")],
+    ["빈 문자열", (storage: FakeStorage) => void storage.data.set(V40_STORAGE.legacyV31ProgressKey, "")],
+  ])("읽을 수 없거나 기간이 지난 v3.1 값(%s)은 카드도 경고도 내지 않는다", async (_name, seed) => {
+    const storage = new FakeStorage();
+    seed(storage);
+    const view = await open({ deps: { storage, now: () => NOW } });
+    expect(textOf(view.container)).not.toContain(V40_COPY.intro.legacy.title);
+    expect(view.container.querySelector("[data-autosave-warning]")?.textContent).toBe(autosaveTurnOffWarning({ saved: false, legacy: false }));
+  });
+
+  it("받은 링크 화면의 끄기 경고도 v3.1 에 고른 답이 있을 때만 이전 웨딩코드 답이 지워진다고 말한다", async () => {
+    const partner = decodedOf(fixture("couple-partner"));
+    const started = new FakeStorage();
+    seedV31Progress(started, { answered: false });
+    const withoutAnswer = await open({ initial: { partner, both: null }, deps: { storage: started, now: () => NOW } });
+    expect(screenName(withoutAnswer.container)).toBe("receiver");
+    expect(withoutAnswer.container.querySelector("[data-autosave-warning]")?.textContent).toBe(autosaveTurnOffWarning({ saved: false, legacy: false }));
+
+    const answered = new FakeStorage();
+    seedV31Progress(answered, { answered: true });
+    const withAnswer = await open({ initial: { partner, both: null }, deps: { storage: answered, now: () => NOW } });
+    expect(screenName(withAnswer.container)).toBe("receiver");
+    expect(withAnswer.container.querySelector("[data-autosave-warning]")?.textContent).toBe(autosaveTurnOffWarning({ saved: false, legacy: true }));
   });
 
   it("다른 탭에서 자동 저장을 끄면 이 탭은 더 쓰지 않고, 저장할 수 없다는 안내가 아니라 꺼 두었다는 안내를 보인다(저장소의 off 상태)", async () => {

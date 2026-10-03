@@ -929,41 +929,159 @@ describe("자동 저장 선호", () => {
 
 describe("probeLegacyV31Progress", () => {
   const legacy = (raw: string): FakeStorage => storeWith(V40_STORAGE.legacyV31ProgressKey, raw);
+  const NONE = { present: false, savedAt: null } as const;
+  // v3.1 이 시작 단추를 누를 때 저장하는 모양: 답 0개(스물다섯 칸과 취향 여섯 칸과 세 자리가 모두 -).
+  const NO_ANSWER_CODE = `31_${"-".repeat(25)}_-.-.-.-.-.-_-_-_-`;
+  // 첫 문장에 5점 하나. v3.1 이 쓴 값과 같은 모양이다(실제 v3.1 이 쓴 값과의 대조는 storage.legacyProbe.test.ts).
+  const ONE_ANSWER_CODE = `31_5${"-".repeat(24)}_-.-.-.-.-.-_-_-_-`;
+  /** v3.1 진행 저장 봉투(스키마 2). 기본은 하루 전에 저장한 답 하나. */
+  function v31Envelope(overrides: Record<string, unknown> = {}, drop: readonly string[] = []): string {
+    const base: Record<string, unknown> = {
+      schema: 2,
+      version: "v3.1-preferences",
+      savedAt: NOW - DAY,
+      answerCode: ONE_ANSWER_CODE,
+      flow: "core",
+      index: 1,
+      screen: "questions",
+      editing: false,
+      needsPriorityReview: false,
+    };
+    const merged = { ...base, ...overrides };
+    for (const key of drop) delete merged[key];
+    return JSON.stringify(merged);
+  }
 
   it("없으면 present 가 false 다", () => {
-    expect(probeLegacyV31Progress(new FakeStorage(), NOW)).toEqual({ present: false, savedAt: null });
-    expect(probeLegacyV31Progress(legacy(""), NOW)).toEqual({ present: false, savedAt: null });
+    expect(probeLegacyV31Progress(new FakeStorage(), NOW)).toEqual(NONE);
+    expect(probeLegacyV31Progress(legacy(""), NOW)).toEqual(NONE);
   });
 
-  it("30일 안의 savedAt 이 있으면 present 와 savedAt 을 돌려준다(다른 필드는 보지 않는다)", () => {
-    const raw = JSON.stringify({ savedAt: NOW - 3 * DAY, answerCode: "아무 값", 뭐든: [1, 2, 3] });
-    expect(probeLegacyV31Progress(legacy(raw), NOW)).toEqual({ present: true, savedAt: NOW - 3 * DAY });
+  it("읽을 수 있는 30일 안의 v3.1 진행에 답이 하나 있으면 present 와 그 저장 시각을 돌려준다", () => {
+    expect(probeLegacyV31Progress(legacy(v31Envelope({ savedAt: NOW - 3 * DAY })), NOW)).toEqual({ present: true, savedAt: NOW - 3 * DAY });
+    // 스키마 1(흐름 키 없음)도 읽는다.
+    expect(probeLegacyV31Progress(legacy(v31Envelope({ schema: 1 }, ["flow"])), NOW)).toEqual({ present: true, savedAt: NOW - DAY });
   });
 
-  it("30일이 지났거나 미래이거나 안전한 정수가 아니면 present 만 true 이고 savedAt 은 null 이다", () => {
-    for (const savedAt of [NOW - TTL, NOW - TTL - DAY, NOW + 1, -1, 1.5, "1", null]) {
-      expect(probeLegacyV31Progress(legacy(JSON.stringify({ savedAt })), NOW), String(savedAt)).toEqual({ present: true, savedAt: null });
+  it("시작만 눌러 답이 하나도 없는 진행은 키에 값이 있어도 present 가 false 다(거짓 카드가 뜨지 않는다)", () => {
+    expect(probeLegacyV31Progress(legacy(v31Envelope({ answerCode: NO_ANSWER_CODE })), NOW)).toEqual(NONE);
+    expect(probeLegacyV31Progress(legacy(v31Envelope({ schema: 1, answerCode: NO_ANSWER_CODE }, ["flow"])), NOW)).toEqual(NONE);
+  });
+
+  it("아직 모름, 해당 없음, 건너뜀, 취향 상관없음도 고른 답으로 센다", () => {
+    for (const code of [
+      `31_u${"-".repeat(24)}_-.-.-.-.-.-_-_-_-`,
+      `31_${"-".repeat(24)}n_-.-.-.-.-.-_-_-_-`,
+      `31_${"-".repeat(12)}s${"-".repeat(12)}_-.-.-.-.-.-_-_-_-`,
+      `31_${"-".repeat(25)}_p.-.-.-.-.-_-_-_-`,
+      `31_${"-".repeat(25)}_-.-.-.-.-.c00_-_-_-`,
+      `31_${"-".repeat(25)}_-.-.-.-.-.-_c01_-_-`,
+      `31_${"-".repeat(25)}_-.-.-.-.-.-_-_s_-`,
+      `31_${"-".repeat(25)}_-.-.-.-.-.-_-_-_c00`,
+    ]) {
+      expect(probeLegacyV31Progress(legacy(v31Envelope({ answerCode: code })), NOW), code).toEqual({ present: true, savedAt: NOW - DAY });
     }
-    expect(probeLegacyV31Progress(legacy(JSON.stringify({ savedAt: NOW - TTL + 1 })), NOW).savedAt).toBe(NOW - TTL + 1);
   });
 
-  it("깨진 원문과 JSON 이 아닌 값은 던지지 않고 savedAt 은 null 이다", () => {
+  it("저장 시각 경계: 30일이 되는 순간 지나고, 지금까지는 읽고, 미래나 안전한 정수가 아니면 읽지 않는다", () => {
+    expect(probeLegacyV31Progress(legacy(v31Envelope({ savedAt: NOW - TTL + 1 })), NOW)).toEqual({ present: true, savedAt: NOW - TTL + 1 });
+    expect(probeLegacyV31Progress(legacy(v31Envelope({ savedAt: NOW })), NOW)).toEqual({ present: true, savedAt: NOW });
+    for (const savedAt of [NOW - TTL, NOW - TTL - DAY, NOW + 1, -1, 1.5, "1", null, Number.MAX_SAFE_INTEGER + 1]) {
+      expect(probeLegacyV31Progress(legacy(v31Envelope({ savedAt })), NOW), String(savedAt)).toEqual(NONE);
+    }
+    expect(probeLegacyV31Progress(legacy(v31Envelope()), Number.NaN)).toEqual(NONE);
+  });
+
+  it("깨진 원문과 JSON 이 아닌 값은 던지지 않고 present 가 false 다", () => {
     for (const raw of ["not json", "[]", "null", "7", '"text"', "{", "x".repeat(5000)]) {
-      expect(probeLegacyV31Progress(legacy(raw), NOW), raw.slice(0, 20)).toEqual({ present: true, savedAt: null });
+      expect(probeLegacyV31Progress(legacy(raw), NOW), raw.slice(0, 20)).toEqual(NONE);
     }
+  });
+
+  it("savedAt 만 있는 값이나 answerCode 가 엉뚱한 값은 v3.1 진행이 아니라서 present 가 false 다(키에 값이 있다는 것만으로는 카드를 내지 않는다)", () => {
+    expect(probeLegacyV31Progress(legacy(JSON.stringify({ savedAt: NOW - DAY })), NOW)).toEqual(NONE);
+    expect(probeLegacyV31Progress(legacy(JSON.stringify({ savedAt: NOW - 3 * DAY, answerCode: "아무 값", 뭐든: [1, 2, 3] })), NOW)).toEqual(NONE);
+    expect(probeLegacyV31Progress(legacy(v31Envelope({ answerCode: "아무 값" })), NOW)).toEqual(NONE);
+    expect(probeLegacyV31Progress(legacy(v31Envelope({ answerCode: 31 })), NOW)).toEqual(NONE);
+  });
+
+  it("스키마, 버전, 봉투 키, 이어 할 자리가 v3.1 의 모양과 다르면 읽지 않는다", () => {
+    const cases: Array<[string, string]> = [
+      ["스키마 3", v31Envelope({ schema: 3 })],
+      ["스키마 없음", v31Envelope({}, ["schema"])],
+      ["다른 버전", v31Envelope({ version: "v3.0-preferences" })],
+      ["v4 버전", v31Envelope({ version: "v4.0-tendency" })],
+      ["모르는 키", v31Envelope({ extra: 1 })],
+      ["스키마 2 인데 흐름 키 없음", v31Envelope({}, ["flow"])],
+      ["스키마 1 인데 흐름 키 있음", v31Envelope({ schema: 1 })],
+      ["모르는 흐름", v31Envelope({ flow: "all" })],
+      ["흐름이 문자열이 아님", v31Envelope({ flow: 1 })],
+      ["자리가 음수", v31Envelope({ index: -1 })],
+      ["자리가 34", v31Envelope({ index: 34 })],
+      ["자리가 소수", v31Envelope({ index: 1.5 })],
+      ["자리가 문자열", v31Envelope({ index: "1" })],
+      ["모르는 화면", v31Envelope({ screen: "intro" })],
+      ["editing 이 불리언이 아님", v31Envelope({ editing: 0 })],
+      ["needsPriorityReview 가 불리언이 아님", v31Envelope({ needsPriorityReview: "no" })],
+    ];
+    for (const [name, raw] of cases) expect(probeLegacyV31Progress(legacy(raw), NOW), name).toEqual(NONE);
+    // 자리의 양 끝은 읽는다.
+    expect(probeLegacyV31Progress(legacy(v31Envelope({ index: 0 })), NOW).present).toBe(true);
+    expect(probeLegacyV31Progress(legacy(v31Envelope({ index: 33 })), NOW).present).toBe(true);
+  });
+
+  it("답 코드의 모양이 틀리면 읽지 않는다(칸 수, 글자, 조각 수, 첫 조각)", () => {
+    const cells = "-".repeat(25);
+    const cases: Array<[string, string]> = [
+      ["문장 24칸", `31_5${"-".repeat(23)}_-.-.-.-.-.-_-_-_-`],
+      ["문장 26칸", `31_5${"-".repeat(25)}_-.-.-.-.-.-_-_-_-`],
+      ["문장 칸에 6점", `31_6${"-".repeat(24)}_-.-.-.-.-.-_-_-_-`],
+      ["문장 칸에 p", `31_p${"-".repeat(24)}_-.-.-.-.-.-_-_-_-`],
+      ["취향 5칸", `31_5${"-".repeat(24)}_-.-.-.-.-_-_-_-`],
+      ["취향 7칸", `31_5${"-".repeat(24)}_-.-.-.-.-.-.-_-_-_-`],
+      ["조각 5개", `31_5${"-".repeat(24)}_-.-.-.-.-.-_-_-`],
+      ["조각 7개", `31_5${"-".repeat(24)}_-.-.-.-.-.-_-_-_-_-`],
+      ["첫 조각이 32", `32_5${"-".repeat(24)}_-.-.-.-.-.-_-_-_-`],
+      ["선택 칸이 빈 문자열", `31_5${"-".repeat(24)}_-.-.-.-.-.-__-_-`],
+      ["선택 칸에 모르는 글자", `31_5${"-".repeat(24)}_-.-.-.-.-.x_-_-_-`],
+      ["선택 칸의 c 뒤에 번호 없음", `31_${cells}_c.-.-.-.-.-_-_-_-`],
+      ["선택 칸의 c 뒤 번호가 한 글자", `31_${cells}_c0.-.-.-.-.-_-_-_-`],
+      ["선택 칸의 c 뒤 번호가 세 글자", `31_${cells}_c000.-.-.-.-.-_-_-_-`],
+      ["대문자", `31_5${"-".repeat(24)}_-.-.-.-.-.-_-_-_C00`],
+      ["길이 256 초과", `31_5${"-".repeat(24)}_-.-.-.-.-.-_-_-_c${"00".repeat(130)}`],
+    ];
+    for (const [name, code] of cases) expect(probeLegacyV31Progress(legacy(v31Envelope({ answerCode: code })), NOW), name).toEqual(NONE);
+  });
+
+  it("원문이 2048자를 넘으면 읽지 않고 2048자까지는 읽는다(v3.1 봉투 상한)", () => {
+    const base = v31Envelope();
+    expect(base.length).toBeLessThan(2048);
+    const exact = base + " ".repeat(2048 - base.length);
+    expect(exact).toHaveLength(2048);
+    expect(probeLegacyV31Progress(legacy(exact), NOW).present).toBe(true);
+    expect(probeLegacyV31Progress(legacy(`${exact} `), NOW)).toEqual(NONE);
   });
 
   it("접근이 던지면 present 가 false 이다", () => {
-    const storage = legacy(JSON.stringify({ savedAt: NOW }));
+    const storage = legacy(v31Envelope());
     storage.failGet = true;
-    expect(probeLegacyV31Progress(storage, NOW)).toEqual({ present: false, savedAt: null });
+    expect(probeLegacyV31Progress(storage, NOW)).toEqual(NONE);
   });
 
-  it("읽기만 하고 지우지도 쓰지도 않는다", () => {
-    const storage = legacy(JSON.stringify({ savedAt: NOW - DAY }));
-    probeLegacyV31Progress(storage, NOW);
-    expect(storage.calls).toEqual([`get:${V40_STORAGE.legacyV31ProgressKey}`]);
-    expect(storage.data.has(V40_STORAGE.legacyV31ProgressKey)).toBe(true);
+  it("읽기만 하고 지우지도 쓰지도 않는다(읽을 수 없는 값도 지우지 않는다)", () => {
+    for (const raw of [v31Envelope(), v31Envelope({ answerCode: NO_ANSWER_CODE }), v31Envelope({ savedAt: NOW - TTL }), "not json"]) {
+      const storage = legacy(raw);
+      probeLegacyV31Progress(storage, NOW);
+      expect(storage.calls).toEqual([`get:${V40_STORAGE.legacyV31ProgressKey}`]);
+      expect(storage.data.get(V40_STORAGE.legacyV31ProgressKey)).toBe(raw);
+    }
+  });
+
+  it("present 이면 savedAt 이 있고 아니면 null 이다(화면은 present 만 본다)", () => {
+    for (const raw of [v31Envelope(), v31Envelope({ answerCode: NO_ANSWER_CODE }), v31Envelope({ savedAt: NOW - TTL }), "not json", ""]) {
+      const probe = probeLegacyV31Progress(legacy(raw), NOW);
+      expect(probe.present, raw.slice(0, 30)).toBe(probe.savedAt !== null);
+    }
   });
 });
 

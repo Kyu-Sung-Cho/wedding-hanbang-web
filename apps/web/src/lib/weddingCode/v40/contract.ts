@@ -502,8 +502,9 @@ export interface StorageModule {
   /** off 로 쓰면 v4 진행 저장, v4 기록, 이전 판 진행 저장 키를 함께 지운다(같이 쓰는 브라우저에서 끄기는 남기지 않는다는 뜻). on 이면 선호만 쓰고 이전 판 키는 건드리지 않는다. */
   writeAutosavePreference(storage: StorageLike, preference: "on" | "off"): { readonly status: "saved" | "unavailable" };
   /**
-   * 이전 판(v3.1) 진행 저장이 있는가. 키의 원문을 JSON 으로 읽어 savedAt 만 본다(다른 필드는 보지 않는다). 읽기만 하고 지우지 않는다.
-   * present = 키에 비어 있지 않은 문자열이 있음, savedAt = JSON 객체이고 savedAt 이 30일 안의 안전한 정수일 때만 값. 화면은 savedAt 이 null 이 아닐 때만 카드를 보여 준다.
+   * 이전 판(v3.1)이 남겨 둔 답이 있는가. 키의 원문을 JSON 으로 읽어 v3.1 진행 저장의 모양(스키마 1 또는 2, 봉투 키, 버전, answerCode)을 직접 풀어 본다. 읽기만 하고 지우지 않는다.
+   * present = 읽을 수 있는 v3.1 진행이고 savedAt 이 30일 안의 안전한 정수(미래 아님)이고 고른 답이 하나 이상(시작만 눌러 답이 없는 진행, 기간이 지난 값, 깨진 값은 false).
+   * savedAt = present 일 때 그 저장 시각, 아니면 null. 화면은 present 일 때 카드를 보여 준다.
    */
   probeLegacyV31Progress(storage: StorageLike, now?: number): LegacyProgressProbe;
 }

@@ -1,0 +1,62 @@
+[
+  {
+    "name": "옛 동작으로 돌아간다: 키에 값이 있기만 하면 v3.1 답이 있다고 한다(거짓 카드)",
+    "target": "apps/web/src/lib/weddingCode/v40/storage.ts",
+    "find": "return savedAt === null ? { present: false, savedAt: null } : { present: true, savedAt };",
+    "replace": "return read.ok && read.raw !== null && read.raw !== \"\" ? { present: true, savedAt } : { present: false, savedAt: null };"
+  },
+  {
+    "name": "답이 있는지 보지 않는다: 칸이 전부 - 인 진행(시작만 누름)에도 있다고 한다",
+    "target": "apps/web/src/lib/weddingCode/v40/storage.ts",
+    "find": "return [...questions].some((char) => char !== \"-\") || choices.some((choice) => choice !== \"-\");",
+    "replace": "return questions.length > 0 && choices.length > 0;"
+  },
+  {
+    "name": "30일이 되는 순간에도 읽는다(>= 를 > 로)",
+    "target": "apps/web/src/lib/weddingCode/v40/storage.ts",
+    "find": "savedAt > now || now - savedAt >= V40_STORAGE.ttlMs) return null;",
+    "replace": "savedAt > now || now - savedAt > V40_STORAGE.ttlMs) return null;"
+  },
+  {
+    "name": "스키마 1 봉투를 읽지 않는다",
+    "target": "apps/web/src/lib/weddingCode/v40/storage.ts",
+    "find": "(schema !== 1 && schema !== 2)",
+    "replace": "schema !== 2"
+  },
+  {
+    "name": "봉투 버전을 보지 않는다(다른 판의 값도 읽는다)",
+    "target": "apps/web/src/lib/weddingCode/v40/storage.ts",
+    "find": "if (value.version !== LEGACY_V31_VERSION) return null;",
+    "replace": "void 0;"
+  },
+  {
+    "name": "이어 할 자리 34(범위 밖)도 받아 준다",
+    "target": "apps/web/src/lib/weddingCode/v40/storage.ts",
+    "find": "index >= LEGACY_V31_POSITION_COUNT",
+    "replace": "index > LEGACY_V31_POSITION_COUNT"
+  },
+  {
+    "name": "원문 길이 상한이 2048 에서 4096 으로 늘어난다",
+    "target": "apps/web/src/lib/weddingCode/v40/storage.ts",
+    "find": "const MAX_LEGACY_LENGTH = 2048;",
+    "replace": "const MAX_LEGACY_LENGTH = 4096;"
+  },
+  {
+    "name": "읽을 수 없는 값을 지운다(읽기만 한다는 약속을 깬다)",
+    "target": "apps/web/src/lib/weddingCode/v40/storage.ts",
+    "find": "return savedAt === null ? { present: false, savedAt: null } : { present: true, savedAt };",
+    "replace": "if (savedAt === null) storage.removeItem(V40_STORAGE.legacyV31ProgressKey); return savedAt === null ? { present: false, savedAt: null } : { present: true, savedAt };"
+  },
+  {
+    "name": "건너뜀(s)은 고른 답으로 세지 않는다(선택 칸)",
+    "target": "apps/web/src/lib/weddingCode/v40/storage.ts",
+    "find": "choices.some((choice) => choice !== \"-\")",
+    "replace": "choices.some((choice) => choice !== \"-\" && choice !== \"s\")"
+  },
+  {
+    "name": "문장 칸 수를 24 로 적어 둔다(v3.1 은 25)",
+    "target": "apps/web/src/lib/weddingCode/v40/storage.ts",
+    "find": "const LEGACY_V31_QUESTION_SLOTS = 25;",
+    "replace": "const LEGACY_V31_QUESTION_SLOTS = 24;"
+  }
+]

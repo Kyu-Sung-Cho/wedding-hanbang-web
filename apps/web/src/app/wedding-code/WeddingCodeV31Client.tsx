@@ -64,6 +64,13 @@ function noSubscription() {
 function noPairAddress() {
   return false;
 }
+/** useSyncExternalStore 의 서버 값은 서버와 하이드레이션 첫 그림에서만 쓰인다. 브라우저에서 새로 만든 화면은 client 값(false)을 쓴다. */
+function notHydrating() {
+  return false;
+}
+function hydratingOnServer() {
+  return true;
+}
 
 function responseCounts(draft: V31Draft, indexes: readonly number[]) {
   const responses = indexes.map(index => getV31ResponseAt(draft, index));
@@ -122,11 +129,18 @@ export default function WeddingCodeV31Client({ shareOrigin, partnerDraft = null,
       : ordinal > 0 ? `웨딩코드 ${flowLabel} ${ordinal}번째` : "웨딩코드 답 수정";
   const optionalRemaining = V31_EXTRA_INDEXES.filter(item => getV31ResponseAt(draft, item) === undefined).length;
 
+  // 서버가 그린 소개를 이어받는 첫 그림에서는 초점도 스크롤도 옮기지 않는다. 읽던 사람이 하이드레이션 순간 맨 위로 끌려가지 않게 하고,
+  // 이미 다른 칸(‘자세히’ 같은)에 둔 초점을 빼앗지 않는다. 브라우저에서 새로 만든 화면(다시 시작, 받은 링크로 바뀜)은 그대로 맨 위로 간다.
+  const hydrating = useSyncExternalStore(noSubscription, notHydrating, hydratingOnServer);
+  const focusKey = `${screen}:${index}`;
+  const settledFocusKey = useRef<string | null>(hydrating ? focusKey : null);
   useEffect(() => {
+    if (settledFocusKey.current === focusKey) return;
+    settledFocusKey.current = focusKey;
     screenRef.current?.focus({ preventScroll: true });
     if (embedded) screenRef.current?.scrollIntoView?.({ block: "start", behavior: "instant" });
     else window.scrollTo({ top: 0, behavior: "instant" });
-  }, [embedded, index, screen]);
+  }, [embedded, focusKey]);
   useEffect(() => {
     if (screen === "result" && context.first) captureWeddingCodeEvent("wedding_code_comparison_viewed", { version: WEDDING_CODE_V31_VERSION, scene_total: totalQuestions });
   }, [context.first, screen, totalQuestions]);
@@ -281,14 +295,16 @@ export default function WeddingCodeV31Client({ shareOrigin, partnerDraft = null,
     setNotice("");
     if (enabled && owned && screen !== "intro") local.store.save({ ...progress, screen });
   }
-  const storageMessage = !local.ready ? "저장 상태를 확인하고 있어요."
+  // 서버가 그린 소개는 저장 상태를 아직 모른다. 그동안 시작 버튼과 저장 켜기·끄기 버튼은 누를 수 없고(서버 HTML 에서도 disabled),
+  // 누르면 사라지는 대신 눌러도 되는 때가 곧 온다고 이 줄이 알린다.
+  const storageMessage = !local.ready ? "잠깐만요, 저장 상태를 확인하고 있어요. 곧 시작할 수 있어요."
     : local.status === "saved" && savedHasAnswer ? "이 브라우저에 저장됐어요. 나중에 이어 할 수 있어요."
     : local.status === "off" ? "자동 저장을 껐어요. 나가면 지금 답은 사라져요."
     : local.status === "unavailable" ? "이 브라우저에 저장할 수 없어요. 계속 답할 수 있지만, 나가면 지금 답은 사라질 수 있어요."
     : local.status === "conflict" ? "다른 탭에서 저장된 답이 바뀌었어요. 덮어쓰지 않도록 자동 저장을 멈췄어요."
     : local.status === "expired" ? "저장된 답의 이어하기 기간이 지났어요. 새로 답해 주세요."
     : local.status === "invalid" ? "저장된 답을 읽을 수 없어요. 새로 답하면 다시 저장해요."
-    : "답하면 이 브라우저에 자동으로 저장돼요.";
+    : "답하면 이 브라우저에 자동으로 저장돼요. 공용 기기라면 아래 ‘자동 저장 설정’에서 꺼 주세요.";
 
   const storageControls = context.received ? null : <aside aria-label="이 브라우저의 답 저장" className="mt-6 border-t border-[var(--hb-hairline)] pt-4">
     <p role="status" className={`text-xs leading-relaxed ${local.status === "unavailable" || local.status === "conflict" ? "text-[var(--hb-text-strong)]" : "text-[var(--hb-text-muted)]"}`}>{storageMessage}</p>
@@ -301,7 +317,7 @@ export default function WeddingCodeV31Client({ shareOrigin, partnerDraft = null,
       <p>자동 저장은 이 브라우저에만 남겨요. 마지막으로 저장한 날부터 30일 동안 같은 브라우저에서 이어 할 수 있어요. 상대의 답·공유 동의·메모는 자동 저장하지 않아요.</p>
       <p className="mt-2">공용 기기라면 자동 저장을 꺼 주세요. 이 브라우저를 쓰는 다른 사람도 저장된 답을 열 수 있어요. 시크릿 모드나 브라우저 데이터 삭제 후에는 이어 하지 못할 수 있어요.</p>
       <div className="mt-2 flex flex-wrap gap-2">
-        <Button variant="secondary" aria-pressed={local.enabled} onClick={toggleSaving}>{local.enabled ? "자동 저장 끄기" : "자동 저장 켜기"}</Button>
+        <Button variant="secondary" aria-pressed={local.enabled} disabled={!local.ready} onClick={toggleSaving}>{local.enabled ? "자동 저장 끄기" : "자동 저장 켜기"}</Button>
         {local.saved || owned ? <Button variant="ghost" onClick={restart}>{V31_CLEAR_LOCAL_LABEL}</Button> : null}
       </div>
       {/*
@@ -332,12 +348,13 @@ export default function WeddingCodeV31Client({ shareOrigin, partnerDraft = null,
       <div className="bg-[var(--hb-primary)] px-5 py-8 text-[var(--hb-on-primary)] sm:px-8 sm:py-10">
         <p className="text-xs font-semibold">웨딩코드 · 내가 원하는 결혼 준비</p>
         <h1 className="mt-4 text-3xl font-semibold leading-snug">{context.first ? "같은 질문에, 내 생각으로 답해봐요" : <>나는 어떤 결혼식을<br />바라고 있을까요?</>}</h1>
-        <p className="mt-4 text-base leading-relaxed">{context.first ? "상대의 답이 담긴 링크를 받았어요. 나도 답하면 함께 원하는 것과 먼저 맞춰볼 부분을 나란히 볼 수 있어요." : "취향부터 돈을 쓰는 기준, 함께 준비하는 방식까지. 내가 고른 답을 모아 준비 기준으로 정리해 봐요."}</p>
+        {/* 판정이 아니라는 말은 소개 첫 문단에서 한 번만 한다. 받은 링크에는 앞에 ‘정리해’ 문장이 없어 ‘정리해서 보여줘요’까지 이어 쓴다. */}
+        <p className="mt-4 text-base leading-relaxed">{context.first ? "상대의 답이 담긴 링크를 받았어요. 나도 답하면 함께 원하는 것과 먼저 맞춰볼 부분을 나란히 볼 수 있어요. 성격을 진단하는 검사가 아니에요. 내가 고른 답을 정리해서 보여줘요." : "취향부터 돈을 쓰는 기준, 함께 준비하는 방식까지. 내가 고른 답을 모아 준비 기준으로 정리해 봐요. 성격을 진단하는 검사가 아니에요."}</p>
       </div>
       <div className="p-5 sm:p-8">
         <div className="space-y-5">
           {[
-            { icon: Paintbrush, title: "내가 그리는 결혼식", body: "장소·사진·옷·식사·하객 규모·식순, 구체적인 취향을 한눈에 봐요." },
+            { icon: Paintbrush, title: "내가 그리는 결혼식", body: "장소·사진·옷·식사·하객 규모·식순에서 내가 고른 것을 모아 봐요." },
             { icon: ListChecks, title: "네 글자로 보는 준비 방식", body: "예산·일 나누기·가족·도움, 주제마다 두 문장의 답으로 글자를 하나씩 정하고 문장별 답도 보여줘요." },
             { icon: HeartHandshake, title: "둘이 먼저 나눠볼 이야기", body: "혼자 해도 결과를 볼 수 있고, 둘 다 답하고 서로 공유하면 두 사람의 답을 나란히 볼 수 있어요." },
           ].map(item => <div key={item.title} className="flex gap-3"><item.icon aria-hidden="true" className="mt-1 size-5 shrink-0 text-[var(--hb-success)]" /><div><h2 className={`text-base ${v31Title}`}>{item.title}</h2><p className={`mt-1 ${v31Body}`}>{item.body}</p></div></div>)}
@@ -346,10 +363,21 @@ export default function WeddingCodeV31Client({ shareOrigin, partnerDraft = null,
           <p className={`text-sm ${v31Title}`}>기본 {CORE_PAGE_COUNT}페이지 · 로그인 없이 시작</p>
           <p className={`mt-2 ${v31Body}`}>{V31_CORE_RATING_IDS.length}개 문장에 다섯 단계로 답하고, {WEDDING_CODE_V31_TASTES.length}가지 취향과 피하고 싶은 것, 다른 곳의 비용을 줄여서라도 더 쓰고 싶은 곳을 골라요. 마지막 ‘꼭 지키고 싶은 것’ 페이지는 고를 것이 없으면 건너뛰어요.</p>
           <p className={`mt-2 ${v31Body}`}>아직 모르거나 이번 계획에 없는 내용은 ‘아직 모르겠어요’ 같은 보기로 따로 표시해도 괜찮아요. 네 글자를 정하는 문장을 이렇게 표시하면 그 글자는 ‘?’로 남아요.</p>
-          <div className="mt-3 space-y-2" data-intro-privacy>
-            <p className={v31Body}>고른 답과 웨딩코드는 답하는 동안 서버나 계정에 보내지 않아요. 화면 개선을 위해 첫 화면을 열었는지, 몇 번째 장면까지 봤는지, 끝까지 했는지, 답한 장면과 건너뛴 장면의 수 같은 이용 통계만 기록하고, 이 통계에 고른 답·웨딩코드·공유 링크 주소는 넣지 않아요. 자세한 내용은{" "}<a href="/privacy" target="_blank" rel="noopener noreferrer" className="py-2 font-semibold text-[var(--hb-text-strong)] underline underline-offset-4">개인정보 처리방침</a>에서 볼 수 있어요.</p>
-            <p className={v31Body}>내 답은 이 브라우저에 자동으로 저장돼요. 마지막으로 저장한 날부터 {LOCAL_SAVE_DAYS}일 동안 이어 할 수 있어요. 공용 기기에서는 시작하기 전에 아래 ‘자동 저장 설정’에서 꺼 주세요.</p>
-            <p className={v31Body}>결과에서 ‘함께 보기’에 동의하면 내 답 전체를 서버에 보관하고, 초대로 연결된 상대에게 보여줘요. 초대 링크를 먼저 사용한 사람이 상대가 돼요. 이름이나 계정으로는 확인하지 않아요. 초대 후 {PAIR_SESSION_RETENTION_DAYS}일 동안 볼 수 있고, 만료된 내용은 하루 안에 삭제해요. ‘연결 끝내기’를 누르면 두 사람의 공유 답을 바로 지우지만, 상대가 이미 읽거나 따로 보관한 내용은 회수할 수 없어요.</p>
+          {/*
+            개인정보 안내는 보이는 한 줄과 접힌 ‘자세히’ 두 겹이다. 한 줄이 사람들이 먼저 묻는 두 사실(답은 서버에 보내지 않는다, 이용 통계에는 답이 없다)과
+            처리방침 링크를 맡고, 접힌 칸은 옛 세 문단을 그대로 담는다(링크는 소개 안에 하나만 둔다). 시험이 data-intro-privacy 로 두 겹을 함께 본다.
+          */}
+          <div className="mt-3" data-intro-privacy>
+            <p className={v31Body}><span className="font-semibold text-[var(--hb-text-strong)]">답하는 동안 고른 답은 서버에 보내지 않고, 화면 개선을 위해서는 답을 뺀 이용 통계만 기록해요.</span> 자세한 내용은{" "}<a href="/privacy" target="_blank" rel="noopener noreferrer" className="py-2 font-semibold text-[var(--hb-text-strong)] underline underline-offset-4">개인정보 처리방침</a>에서 볼 수 있어요.</p>
+            <details className={`mt-1 ${v31Body}`}>
+              {/* 보이는 글자는 ‘자세히’ 그대로 두고, 낭독기 목록에서 무엇을 여는지 알리는 이름만 그 글자로 시작해 덧붙인다. */}
+              <summary aria-label="자세히, 개인정보 안내" className="flex min-h-11 cursor-pointer items-center underline underline-offset-4">자세히</summary>
+              <div className="space-y-2">
+                <p className={v31Body}>고른 답과 웨딩코드는 답하는 동안 서버나 계정에 보내지 않아요. 화면 개선을 위해 첫 화면을 열었는지, 몇 번째 장면까지 봤는지, 끝까지 했는지, 답한 장면과 건너뛴 장면의 수 같은 이용 통계만 기록하고, 이 통계에 고른 답·웨딩코드·공유 링크 주소는 넣지 않아요.</p>
+                <p className={v31Body}>내 답은 이 브라우저에 자동으로 저장돼요. 마지막으로 저장한 날부터 {LOCAL_SAVE_DAYS}일 동안 이어 할 수 있어요. 공용 기기에서는 시작하기 전에 아래 ‘자동 저장 설정’에서 꺼 주세요.</p>
+                <p className={v31Body}>결과에서 ‘함께 보기’에 동의하면 내 답 전체를 서버에 보관하고, 초대로 연결된 상대에게 보여줘요. 초대 링크를 먼저 사용한 사람이 상대가 돼요. 이름이나 계정으로는 확인하지 않아요. 초대 후 {PAIR_SESSION_RETENTION_DAYS}일 동안 볼 수 있고, 만료된 내용은 하루 안에 삭제해요. ‘연결 끝내기’를 누르면 두 사람의 공유 답을 바로 지우지만, 상대가 이미 읽거나 따로 보관한 내용은 회수할 수 없어요.</p>
+              </div>
+            </details>
           </div>
           {context.first ? <p className={`mt-3 ${v31Body}`}>상대의 답은 이 브라우저에 저장하지 않아요. 내가 직접 답하거나 불러온 내 답만 저장해요. 다만 받은 링크 주소에는 상대의 답이 들어 있어서 브라우저 방문 기록에 남을 수 있어요. 나중에 상대와 비교하려면 이 초대 링크를 다시 열어 주세요.</p> : null}
           {/* 묻지 않는 것의 목록은 시작 버튼 위 범위 줄에 한 번만 둔다. */}
@@ -368,11 +396,10 @@ export default function WeddingCodeV31Client({ shareOrigin, partnerDraft = null,
       <p className={`mt-2 ${v31Body}`}>{local.saved.screen === "result" ? "전에 답한 내 결과를 다시 볼 수 있어요." : local.saved.editing ? "수정하던 질문부터 이어 할 수 있어요." : `${v31PositionLabel(local.saved.flow, local.saved.index)}부터 이어 할 수 있어요.`}</p>
       <Button variant="primary" size="lg" fullWidth onClick={() => resume()} className="mt-3 whitespace-normal!">{local.saved.screen === "result" ? context.first ? "저장한 내 답으로 비교하기" : "내 결과 다시 보기" : "이어서 답하기"}</Button>
     </section> : null}
-    <div className="mt-5 space-y-1" data-intro-scope>
+    <div className="mt-5" data-intro-scope>
       <p className={v31Body}>결혼식 모습과 둘이 준비하는 방식만 물어봐요. 신혼집, 예단과 예물, 양쪽 집안이 비용을 어떻게 나눌지는 묻지 않아요.</p>
-      <p className={v31Body}>성격을 진단하는 검사가 아니에요. 내가 고른 답을 정리해서 보여줘요.</p>
     </div>
-    <Button variant={resumable ? "secondary" : "primary"} size="lg" fullWidth onClick={start} className="mt-5 min-h-14! whitespace-normal!">{resumable ? "저장된 답 지우고 새로 시작" : started ? "이어서 답하기" : context.first ? "나도 답해보기" : "내 웨딩코드 시작하기"}<ArrowRight aria-hidden="true" className="size-4 shrink-0" /></Button>
+    <Button variant={resumable ? "secondary" : "primary"} size="lg" fullWidth loading={!local.ready} onClick={start} className="mt-5 min-h-14! whitespace-normal!">{resumable ? "저장된 답 지우고 새로 시작" : started ? "이어서 답하기" : context.first ? "나도 답해보기" : "내 웨딩코드 시작하기"}<ArrowRight aria-hidden="true" className="size-4 shrink-0" /></Button>
   </>);
 
   if (screen === "result") return shell(<WeddingCodeV31Results key={revision} draft={draft} first={context.first} received={context.received} shareOrigin={shareOrigin} onEdit={edit} onRestart={restart} onMore={!context.received && optionalRemaining > 0 ? more : undefined} optionalCount={optionalRemaining} sharingContent={renderResultActions?.(draft)} />);

@@ -947,13 +947,16 @@ export type HistoryRead =
   | { readonly status: "empty" | "invalid" | "expired" | "unavailable"; readonly entries: readonly [] };
 
 /**
- * 이 브라우저에 이전 판(v3.1) 진행 저장이 있는가. 키와 savedAt 만 읽고 v3.1 모듈을 가져오지 않는다.
- * 화면은 savedAt 이 null 이 아닐 때만 「이전 판에서 하던 답이 있어요」 카드를 보여 준다(present 만 true 인 값은 풀 수 없는 옛 값이라 카드 없이 둔다).
+ * 이 브라우저에 이전 판(v3.1)이 남겨 둔 답이 있는가. 키의 원문을 직접 풀어 보며 v3.1 모듈을 가져오지 않는다.
+ * 화면은 present 일 때 「이전 웨딩코드에 남겨 둔 답이 있어요」 카드를 보여 주고, 자동 저장을 끄면 그 답도 지워진다고 미리 알린다.
  */
 export interface LegacyProgressProbe {
-  /** 키에 비어 있지 않은 문자열이 있다(JSON 으로 풀리지 않아도 true). */
+  /**
+   * 키의 원문이 읽을 수 있는 v3.1 진행 저장(스키마 1 또는 2)이고, 저장 시각이 30일 안이고 미래가 아닌 안전한 정수이고, 고른 답이 하나 이상일 때만 true 다.
+   * 시작만 눌러 답이 없는 진행, 기간이 지난 값, 깨진 값, 모르는 모양은 키에 값이 있어도 false 다. 아직 모름, 해당 없음, 건너뜀은 고른 답으로 센다.
+   */
   readonly present: boolean;
-  /** 키의 값이 JSON 객체이고 savedAt 이 30일 안이고 미래가 아닌 안전한 정수일 때만 값이 있다. 그 밖에는 null. */
+  /** present 일 때 그 진행을 마지막으로 저장한 시각(밀리초). 아니면 null. 그래서 present === (savedAt !== null) 이다. */
   readonly savedAt: number | null;
 }
 
@@ -985,7 +988,11 @@ export interface WeddingCodeV40ClientProps {
   /** 링크를 만들 때 쓰는 출처(예: https://hanbang.ai). 서버에서 정해 내려준다. */
   readonly shareOrigin: string;
   readonly initial: V40EntryInitial;
-  /** 해시 해석이 끝났는가. 저장소 읽기와 intro_viewed 전송의 문이다(false 이면 저장소를 읽지 않는다). */
+  /**
+   * 저장소 읽기와 intro_viewed 전송의 문이다(false 이면 저장소를 읽지 않는다). 입구는 이 값을 늘 true 로 넘긴다:
+   * 하이드레이션 전후로 바뀌어 넘어가면 늦게 불러오는 경계가 서버가 그린 화면을 이어받지 못한다. 서버 렌더와 하이드레이션 첫 그림이 끝난 뒤에야
+   * 저장소를 읽는 일은 본체가 스스로 한다. false 는 읽기를 붙들어 두려는 시험이 쓴다.
+   */
   readonly resolved: boolean;
   /** 라운지(/preparation-style) 안에서 쓰는가. 하단 고정 막대에 앱 셸 하단 탭 여백을 둔다. */
   readonly embedded?: boolean;

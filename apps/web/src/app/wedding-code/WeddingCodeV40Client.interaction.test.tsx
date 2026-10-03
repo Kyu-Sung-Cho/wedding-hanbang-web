@@ -13,6 +13,8 @@ import {
   NOW,
   answerScreenLikeFixture,
   bank,
+  buttonWithText,
+  decodedOf,
   driveToEnd,
   fixture,
   hasButtonWithText,
@@ -73,17 +75,57 @@ afterEach(async () => {
 });
 
 describe("웨딩코드 4.0 클라이언트: 시작", () => {
-  it("주소 해석이 끝나기 전에는 저장소를 읽지 않고 불러오는 중이라고만 하고, 끝나면 시작 화면이 나온다", async () => {
+  it("주소 해석이 끝나기 전에도 시작 화면을 보이되 저장소는 읽지 않고 시작 단추는 누를 수 없으며, 끝나면 단추가 풀린다", async () => {
     const storage = new FakeStorage();
     const view = await open({ resolved: false, deps: { storage, now: () => NOW } });
-    expect(screenName(view.container)).toBe("loading");
-    expect(textOf(view.container)).toBe(V40_COPY.common.loadingLabel);
+    // 서버가 그리는 화면과 같다: 제목과 소개 글이 있고, 단추는 눌러도 아무 일이 없다.
+    expect(screenName(view.container)).toBe("intro");
+    expect(view.container.querySelector('[data-screen="intro"]')?.hasAttribute("data-pending")).toBe(true);
+    expect(view.container.querySelectorAll("h1")).toHaveLength(1);
+    expect(textOf(view.container.querySelector("h1")!)).toBe(V40_COPY.intro.title);
+    expect(textOf(view.container)).toContain(V40_COPY.intro.lede);
+    const waiting = buttonWithText(view.container, V40_COPY.intro.startButton);
+    expect(waiting.disabled).toBe(true);
+    expect(waiting.getAttribute("aria-busy")).toBe("true");
+    expect(textOf(view.container.querySelector("[data-intro-pending]")!)).toBe(V40_COPY.common.loadingLabel);
+    expect(view.container.querySelector("[data-autosave-toggle]")).toBeNull();
+    // 저장소를 읽지 않았고 통계도 보내지 않았다. 눌러도 시작되지 않는다.
     expect(storage.log).toEqual([]);
     expect(capture).not.toHaveBeenCalled();
+    await click(waiting);
+    expect(screenName(view.container)).toBe("intro");
+    expect(eventsNamed("wedding_code_started")).toEqual([]);
+    expect(storage.log).toEqual([]);
 
     await view.rerender({ resolved: true });
+    // 같은 화면이 속성만 바꿔 이어진다: 대기 표시가 걷히고 단추가 풀리며 자동 저장 단추가 생긴다. 시작 화면을 봤다는 통계는 이때 한 번만 나간다.
     expect(screenName(view.container)).toBe("intro");
-    expect(hasButtonWithText(view.container, V40_COPY.intro.startButton)).toBe(true);
+    expect(view.container.querySelector('[data-screen="intro"]')?.hasAttribute("data-pending")).toBe(false);
+    expect(view.container.querySelector("[data-intro-pending]")).toBeNull();
+    const ready = buttonWithText(view.container, V40_COPY.intro.startButton);
+    expect(ready.disabled).toBe(false);
+    expect(ready.getAttribute("aria-busy")).toBeNull();
+    expect(view.container.querySelector("[data-autosave-toggle]")).not.toBeNull();
+    expect(eventsNamed("wedding_code_intro_viewed")).toHaveLength(1);
+    expect(storage.log.length).toBeGreaterThan(0);
+  });
+
+  it("받은 링크나 두 사람 결과 링크가 입구에서 넘어왔으면 주소 해석이 끝날 때까지 시작 화면 없이 불러오는 중이라고만 한다", async () => {
+    const first = decodedOf(fixture("couple-partner"));
+    const second = decodedOf(fixture("swua-example"));
+    for (const initial of [
+      { partner: first, both: null },
+      { partner: null, both: { first, second } },
+    ]) {
+      const storage = new FakeStorage();
+      const view = await open({ resolved: false, initial, deps: { storage, now: () => NOW } });
+      expect(screenName(view.container)).toBe("loading");
+      expect(textOf(view.container)).toBe(V40_COPY.common.loadingLabel);
+      expect(view.container.querySelector("h1")).toBeNull();
+      expect(hasButtonWithText(view.container, V40_COPY.intro.startButton)).toBe(false);
+      expect(storage.log).toEqual([]);
+      expect(capture).not.toHaveBeenCalled();
+    }
   });
 
   it("시작 화면을 처음 보일 때 한 번만 intro_viewed 를 보내고, 시작하면 started 를 보낸다", async () => {
