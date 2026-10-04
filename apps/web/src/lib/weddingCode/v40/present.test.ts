@@ -642,7 +642,11 @@ describe("answerText 와 answerLabel", () => {
           if (value === 0) expect(text).toBeNull();
           else {
             const index = item.entries.findIndex((entry) => entry.pole === (value > 0 ? "front" : "back"));
-            expect(text).toBe(`6칸 중 ${counts[index]}칸을 「${item.entries[index].text}」에 놓았어요`);
+            expect(text).toBe(
+              counts[index] === 6
+                ? `여섯 칸을 모두 「${item.entries[index].text}」에 놓았어요`
+                : `6칸 중 ${counts[index]}칸을 「${item.entries[index].text}」에 놓았어요`,
+            );
           }
           state += 1;
         }

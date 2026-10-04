@@ -8,7 +8,7 @@ import { buildResult, scoreModule, selfLine } from "./score";
 import { stateChar, stateIndex } from "./states";
 
 /**
- * 마지막에 직접 고른 쪽 줄(score.selfLine, 4.1 단계 1)의 시험.
+ * 마지막 정리에서 고른 쪽 줄(score.selfLine, 4.1 단계 1)의 시험.
  * 기대값은 구현의 selfChoice 나 letterOf 를 빌리지 않고 배치 골격의 키와 글자 표에서 따로 계산한다(구현이 틀리면 같이 틀리지 않게).
  */
 const bank = WEDDING_CODE_V40_BANK;

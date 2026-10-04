@@ -505,7 +505,7 @@ describe("채점과 결과 대조", () => {
     expect(problems).toEqual([]);
   });
 
-  it("selfLine(마지막에 직접 고른 쪽 줄)이 모든 응답자, 모든 주제에서 기준 계산기와 같다", () => {
+  it("selfLine(마지막 정리에서 고른 쪽 줄)이 모든 응답자, 모든 주제에서 기준 계산기와 같다", () => {
     const problems = collectMismatches((respondent, push) => {
       const mine = buildResult(bank, respondent.formBit, respondent.responses);
       const theirs = ref.buildResult(oracleBank, respondent.formBit, respondent.responses) as typeof mine;

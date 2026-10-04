@@ -31,7 +31,7 @@ export const V40_GUESS_COPY = {
   skipNote: V40_GUESS_TEXT.skipNote,
   /** 받는 사람 시작 화면의 저장 한 줄. 보내는 사람은 결과 화면의 진입 카드가 이 말을 이미 한다(받는 사람은 그 카드를 거치지 않는다). 세트 자료는 저장 위치를 말하지 않는다. */
   receiverStorageNote: "이 답은 이 브라우저에 남기지 않아요.",
-  startButton: "시작",
+  startButton: "시작하기",
   /** 고른 것을 버리고 나간다(남기지 않는다). 받는 사람 첫 화면에서는 시작과 같은 무게의 큰 단추다. */
   leaveButton: "고른 것 없이 나갈게요",
   previousButton: "이전",
@@ -58,8 +58,8 @@ export const V40_GUESS_COPY = {
     startButton: "해 볼게요",
     dismissButton: "지금은 안 할게요",
     doneNote: "「내 답과 함께 보내기」를 고르면 이 짐작도 링크에 들어가요. 「질문만 보내기」를 고르면 들어가지 않아요.",
-    editButton: "고치기",
-    removeButton: "빼기",
+    editButton: "짐작 고치기",
+    removeButton: "짐작 빼기",
     removedNote: "이제부터 만드는 링크에서 짐작을 뺐어요. 이미 보낸 링크는 그대로 남아요.",
   },
   /** 보내기 직전에도 링크에 짐작이 든다고 말한다(ShareBlock 의 guessNote). */
@@ -72,7 +72,7 @@ export const V40_GUESS_COPY = {
   receiverNote: "상대가 서로 짐작해 보기도 해 뒀고, 그 짐작도 링크에 들어 있어요. 내 답을 마친 뒤에 해 볼 수 있고, 하지 않아도 결과는 그대로예요.",
   /** 두 사람 결과 구역: 제목 아래 밑줄, 출처 문장, 가리기와 보기, 가렸을 때 한 줄, 줄 없는 장면 한 줄, 끝 줄, 빈 상태. */
   sub: V40_GUESS_TEXT.resultBlock.sub,
-  sourceNote: "링크에 담긴 답을 그대로 옮겼어요. 링크를 보낸 사람이 직접 고른 것인지는 이 화면이 확인하지 못해요. 이 장면들로 서로를 평가하지는 않아요.",
+  sourceNote: "링크에 담긴 답을 그대로 옮겼어요. 각자 정말 고른 답인지는 이 화면에서 확인하지 못해요. 이 장면들로 서로를 평가하지는 않아요.",
   hideButton: "가리기",
   showButton: "보기",
   hiddenNote: "짐작과 답을 가려 두었어요. 보려면 「보기」를 눌러 주세요.",

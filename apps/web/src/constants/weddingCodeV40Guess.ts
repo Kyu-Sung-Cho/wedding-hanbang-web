@@ -15,7 +15,7 @@ export const V40_GUESS_IS_PLACEHOLDER: boolean = false;
 export const V40_GUESS_SET_ID: GuessSetId = "1";
 
 /** 내보낸 내용 전체의 해시(문구, 장면). 생성 파일이 원본과 같은지 시험이 대조한다. */
-export const V40_GUESS_CONTENT_SHA256 = "8853f4df55156b5f33f8e50eb1d4bc989eeea6a3e2c9df50fec67141f07b038b";
+export const V40_GUESS_CONTENT_SHA256 = "30f64aaf491b6474e82293df88c8d4465d33b804765b24407dc8850291bef2ae";
 
 /** 링크의 고름과 짐작이 가리키는 것(두 물음, 짐작 안내, 탈출구 이름, 장면 여섯)의 해시. 바뀌면 세트 글자를 올린다. */
 export const V40_GUESS_MEANING_SHA256 = "2b3b86dc016683d32f2b20fae78a381c40f75cc6739308e501ee4a32ee42432e";
@@ -111,8 +111,8 @@ export const V40_GUESS_SET: GuessSet = [
 /** 서로 짐작하기 화면 글(제목, 안내, 두 물음, 탈출구 이름, 두 사람 결과 줄 이름표, 끝 줄, 빈 상태, 보내는 화면 안내 둘). */
 export const V40_GUESS_TEXT: GuessTextData = {
   title: "짐작과 답",
-  intro: "같은 장면마다 내 답을 고르고, 상대는 어느 쪽을 골랐을지도 짐작해 보세요. 내 답과 짐작은 「내 답과 함께 보내기」 링크에만 들어가고, 링크를 가진 사람은 누구나 읽을 수 있어요. 상대의 답과 다르게 짐작한 장면만 두 사람 결과에 나란히 놓아요.",
-  receiverIntro: "상대가 보낸 링크에 이어 나도 같은 장면에서 내 답을 고르고 상대의 답을 짐작해 보세요. 내 답과 짐작은 돌려보내는 두 사람 결과 링크에 들어가고, 그 링크를 가진 사람은 누구나 읽을 수 있어요. 하지 않아도 결과는 그대로예요.",
+  intro: "장면마다 내 답을 고르고, 상대는 어느 쪽을 골랐을지도 짐작해 보세요. 내 답과 짐작은 「내 답과 함께 보내기」 링크에만 들어가고, 링크를 가진 사람은 누구나 읽을 수 있어요. 상대의 답과 다르게 짐작한 장면만 두 사람 결과에 나란히 놓아요.",
+  receiverIntro: "상대가 보낸 링크에 든 장면마다, 나도 내 답을 고르고 상대가 어느 쪽을 골랐을지 짐작해 보세요. 내 답과 짐작은 돌려보내는 두 사람 결과 링크에 들어가고, 그 링크를 가진 사람은 누구나 읽을 수 있어요. 하지 않아도 결과는 그대로예요.",
   skipNote: "이 장면들은 선택이에요. 건너뛰어도 글자와 결과는 그대로예요.",
   prompts: { self: "지금 마음이 가는 쪽 하나를 골라 주세요.", guess: "상대는 같은 장면에서 어느 쪽을 골랐을 것 같아요?" },
   guessNote: "바라는 쪽이 아니라 상대가 고를 것 같은 쪽으로요.",
@@ -122,8 +122,8 @@ export const V40_GUESS_TEXT: GuessTextData = {
     rows: {
       meGuessedPartner: { subhead: "내가 짐작한 것", actualLabel: "상대가 고른 쪽", guessLabel: "내가 짐작한 쪽" },
       partnerGuessedMe: { subhead: "상대가 짐작한 것", actualLabel: "내가 고른 쪽", guessLabel: "상대가 짐작한 쪽" },
-      firstGuessedSecond: { subhead: "먼저 답한 사람이 짐작한 것", actualLabel: "나중에 답한 사람이 고른 쪽", guessLabel: "먼저 답한 사람이 짐작한 쪽" },
-      secondGuessedFirst: { subhead: "나중에 답한 사람이 짐작한 것", actualLabel: "먼저 답한 사람이 고른 쪽", guessLabel: "나중에 답한 사람이 짐작한 쪽" },
+      firstGuessedSecond: { subhead: "링크를 먼저 보낸 사람이 짐작한 것", actualLabel: "링크를 받은 사람이 고른 쪽", guessLabel: "링크를 먼저 보낸 사람이 짐작한 쪽" },
+      secondGuessedFirst: { subhead: "링크를 받은 사람이 짐작한 것", actualLabel: "링크를 먼저 보낸 사람이 고른 쪽", guessLabel: "링크를 받은 사람이 짐작한 쪽" },
     },
   },
   unlistedNote: "여기에 없는 장면은 짐작이 서로의 답과 같았거나, 한쪽이 건너뛴 장면이에요.",

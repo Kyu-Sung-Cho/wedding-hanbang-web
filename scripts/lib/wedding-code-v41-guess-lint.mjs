@@ -62,8 +62,8 @@ export const EXPECT = {
   rowWho: {
     meGuessedPartner: ["상대가 고른 쪽", "내가 짐작한 쪽", "내가 짐작한 것"],
     partnerGuessedMe: ["내가 고른 쪽", "상대가 짐작한 쪽", "상대가 짐작한 것"],
-    firstGuessedSecond: ["나중에 답한 사람이 고른 쪽", "먼저 답한 사람이 짐작한 쪽", "먼저 답한 사람이 짐작한 것"],
-    secondGuessedFirst: ["먼저 답한 사람이 고른 쪽", "나중에 답한 사람이 짐작한 쪽", "나중에 답한 사람이 짐작한 것"],
+    firstGuessedSecond: ["링크를 받은 사람이 고른 쪽", "링크를 먼저 보낸 사람이 짐작한 쪽", "링크를 먼저 보낸 사람이 짐작한 것"],
+    secondGuessedFirst: ["링크를 먼저 보낸 사람이 고른 쪽", "링크를 받은 사람이 짐작한 쪽", "링크를 받은 사람이 짐작한 것"],
   },
   noticeKeys: ["sendOwn", "sendCouple", "receive"],
 };
@@ -776,7 +776,7 @@ export const MUTATIONS = [
   ["소개 글에 자리(copy.test.ts 가 막는 낱말)", "pinned-word", (d) => { d.intro = d.intro.replace("나란히 놓아요.", "나란히 놓는 자리가 있어요."); }],
   ["소개 글에 데이터", "pinned-word", (d) => { d.intro += " 데이터는 보내지 않아요."; }],
   ["받는 사람 소개 글에 기기", "pinned-word", (d) => { d.receiverIntro += " 이 기기에는 남지 않아요."; }],
-  ["받는 사람 소개 글에 문항", "pinned-word", (d) => { d.receiverIntro = d.receiverIntro.replace("같은 장면에서", "같은 문항에서"); }],
+  ["받는 사람 소개 글에 문항", "pinned-word", (d) => { d.receiverIntro = d.receiverIntro.replace("든 장면마다", "든 문항마다"); }],
   ["건너뛰기 안내에 안 맞아요(단추 이름 밖)", "pinned-word", (d) => { d.skipNote += " 안 맞는 장면은 건너뛰어요."; }],
   ["결과 구역 밑줄에 오류", "pinned-word", (d) => { d.resultBlock.sub = "짐작한 쪽과 고른 쪽을 나란히 놓았어요. 오류는 없어요."; }],
   ["안내에 번째 화면 라벨", "order-label", (d) => { d.skipNote += " 첫 화면부터 시작해요."; }],
@@ -827,7 +827,7 @@ export const MUTATIONS = [
   ["목록 밖 낱말(줄어들어요)을 카드에", "new-word", (d) => { card(d, "g.money.gift", "a").cost = "다만 받는 쪽이 열어 보기 전에 이미 아는 때가 줄어들어요."; }],
   ["목록 밖 낱말(아련)을 카드에", "new-word", (d) => { card(d, "g.money.gift", "a").cost = "다만 받는 쪽이 열어 볼 때 아련해요."; }],
   ["목록 밖 낱말(넉넉한)을 장면에", "new-word", (d) => { find(d, "g.money.gift").stem = "서로에게 줄 선물을 정해 둔 넉넉한 예산 안에서 고르는 중이에요. 선물이 아니어도, 서로에게 무언가를 골라 주는 일이면 괜찮아요."; }],
-  ["목록 밖 낱말을 소개 글에", "new-word", (d) => { d.intro = d.intro.replace("같은 장면마다", "같은 장면마다 천천히"); }],
+  ["목록 밖 낱말을 소개 글에", "new-word", (d) => { d.intro = d.intro.replace("장면마다", "장면마다 천천히"); }],
   ["다른 장면의 카드 한 일이 거의 같음", "same-act", (d) => { card(d, "g.process.review", "b").act = "각자 더 익숙한 일을 정해서 맡아요."; }],
   ["카드 전체 길이 편차가 큼", "length-spread", (d) => { card(d, "g.support.quiet", "a").act = "물어봐요."; card(d, "g.support.quiet", "a").cost = "다만 답이 와요."; card(d, "g.support.quiet", "b").act = "말이 나올 때까지 하던 일을 하면서 그대로 곁에서 기다려요."; }],
   ["세트 글자가 두 글자", "set-id", (d) => { d.setId = "12"; }],

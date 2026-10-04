@@ -36,7 +36,7 @@ export type V31Profile = {
   priorityGuides: V31Insight[];
   spendingLabels: string[];
   insights: V31Insight[];
-  /** nextStep 은 구체적으로 고른 취향에만 있다. 따로 설명 카드를 만들지 않고 '내가 그려본 결혼식' 영역에 붙인다. */
+  /** nextStep 은 구체적으로 고른 취향에만 있다. 따로 설명 카드를 만들지 않고 '내가 그리는 결혼식' 영역에 붙인다. */
   tastes: { key: V31TasteKey; title: string; labels: string[]; nextStep: string | null }[];
   topics: { key: V31Topic; title: string; responses: V31Evidence[] }[];
   unresolved: V31Evidence[];
@@ -49,7 +49,7 @@ export type V31Profile = {
  * - shared_request: 상대가 해 주길 바라는 도움(H1 이야기 들어주기, H2 일 나눠 맡아주기)에 둘 다 4점 이상.
  *   같은 바람이 아니라 서로에게 바라는 요구 두 개다. H3·H4 는 둘이 같은 방식을 원하는 문장이라 함께 동의(shared_wish)로 둔다.
  * - partial_overlap: 여러 개 고르는 질문에서 일부만 겹쳤다.
- * - open_preference: 한 사람 이상이 특정 보기를 고르지 않고 열어 뒀다(어느 쪽도 괜찮아요·따로 없어요).
+ * - open_preference: 한 사람 이상이 특정 보기를 고르지 않고 열어 뒀다(어느 것이든 괜찮아요·따로 없어요).
  */
 export type V31PairItem = {
   id: string;
@@ -67,9 +67,9 @@ export type V31PairItem = {
 
 const STATUS_LABELS = {
   undecided: "아직 모르겠어요",
-  not_applicable: "이번 계획에는 없어요",
+  not_applicable: "해당하지 않아요",
   skipped: "지금 답하지 않을게요",
-  no_preference: "어느 쪽도 괜찮아요",
+  no_preference: "어느 것이든 괜찮아요",
   no_match: "맞는 보기가 없어요",
 } as const;
 const QUESTION_IDS = WEDDING_CODE_V31_QUESTIONS.map((question) => question.id);
@@ -151,7 +151,7 @@ export function v31ResponseLabel(value: V31Response | undefined): string {
  */
 export const V31_PRIORITY_NO_PREFERENCE_LABEL = "꼭 지키고 싶은 건 따로 없어요";
 /** 우선순위 화면의 ‘아직 모름’ 버튼 이름. */
-export const V31_PRIORITY_UNDECIDED_LABEL = "아직 우선순위를 정하지 못했어요";
+export const V31_PRIORITY_UNDECIDED_LABEL = "꼭 지키고 싶은 건 아직 정하지 못했어요";
 /**
  * 우선순위를 고르지 않고 넘어간 답. 우선순위 화면에는 ‘지금 답하지 않을게요’ 보기가 없어(넘어가기 버튼이 같은 답을
  * 남긴다) 그 버튼 이름을 인용할 수 없으므로, 한 일을 과거형으로 적는다.
@@ -294,7 +294,7 @@ const SINGLE_READINGS: Record<V31QuestionId, { title: string; body?: string; nex
   F1: { title: "가족의 바람은 초반에 들어보고 싶어요", nextStep: "가족에게 먼저 여쭤볼 내용을 정리해 보세요. 아직 결정하지 않은 것과 이미 둘이 정한 것을 나눠 말하면 좋아요." },
   F2: { title: "의견이 달라도 마지막 선택은 둘이 하고 싶어요", nextStep: "가족에게 의견을 구할 내용과 둘이 결정할 내용을 나눠 보세요. 다른 의견을 들었을 때 어떻게 설명할지도 함께 생각해 보세요." },
   F3: { title: "가족에게 묻기 전에 둘의 생각부터 맞추고 싶어요", nextStep: "서로 원하는 것과 아직 정하지 못한 것을 적어 보세요. 둘이 같은 말로 설명할 수 있는지 확인해 보세요." },
-  F4: { title: "각자 자기 가족에게 먼저 이야기하면 좋겠어요", nextStep: "먼저 대화할 사람과 전할 내용을 정하고, 둘이 함께 이야기할 필요가 있는 경우도 나눠 보세요." },
+  F4: { title: "각자 자기 쪽 가족에게 먼저 이야기하면 좋겠어요", nextStep: "각자 누구에게 무엇을 먼저 말할지 정하고, 둘이 같이 말해야 할 일은 따로 적어 두세요." },
   H1: { title: "힘들다고 말할 때는 이야기를 먼저 들어주길 바라요", nextStep: "지금은 들어주면 좋은지, 함께 해결해 주면 좋은지를 말해 보세요. 상대가 필요로 하는 반응도 물어보세요." },
   H2: { title: "일이 몰리면 일부를 나눠 맡아주길 바라요", nextStep: "지금 넘길 수 있는 일 하나를 골라 부탁해 보세요. 상대가 맡을 수 있는 범위와 마칠 시점을 함께 확인해 보세요." },
   H3: { title: "막힐 때는 다음 한 가지를 같이 정하고 싶어요", nextStep: "지금 막힌 일을 말하고, 바로 할 수 있는 한 가지부터 같이 골라 보세요. 누가 맡을지는 그다음에 정해도 괜찮아요." },
@@ -317,7 +317,7 @@ function avoidanceNextStep(draft: V31Draft, value: string): string {
   return AVOIDANCE_COPY[value].nextStep;
 }
 /**
- * 취향도 설명 카드를 따로 만들지 않고 '내가 그려본 결혼식'의 그 줄에 다음 행동으로 붙인다.
+ * 취향도 설명 카드를 따로 만들지 않고 '내가 그리는 결혼식'의 그 줄에 다음 행동으로 붙인다.
  * 커플 비교 문장(TASTE_FOLLOW_UP)과 달리 한 사람에게 말한다. 구체적으로 고른 취향에만 붙인다.
  */
 const TASTE_NEXT_STEPS: Record<V31TasteKey, string> = {
@@ -334,6 +334,8 @@ function tasteNextStep(draft: V31Draft, key: V31TasteKey): string | null {
   if (key === "venue" && choice.values.some((value) => value === "outdoor" || value === "both_spaces")) return "비가 오거나 더운 날 쓸 공간도 함께 확인해 보세요.";
   if (key === "photo" && choice.values.includes("both_styles")) return "자연스럽게 남길 순간과 미리 준비할 장면을 각각 골라 두세요.";
   if (key === "guests" && wantsNoGuests(draft)) return "후보 장소에서 둘만의 예식이 가능한지 확인하고, 남기고 싶은 순간과 진행 순서를 이야기해 보세요.";
+  // ‘꼭 필요한 순서만 짧게’ 하나만 골랐다면 순서를 더 넣는 쪽으로 안내하지 않는다.
+  if (key === "ceremony" && choice.values.length === 1 && choice.values[0] === "short") return "꼭 넣을 순서를 두세 가지만 먼저 정하고, 식 전체가 몇 분이면 좋을지 둘이 이야기해 보세요.";
   return TASTE_NEXT_STEPS[key];
 }
 /** 취향을 우선순위로 골랐을 때만 쓰는 안내 카드. 일반 설명 목록에는 넣지 않는다(취향 영역과 같은 말을 되풀이한다). */
@@ -381,11 +383,11 @@ function priorityGuides(draft: V31Draft, insights: V31Insight[]): V31Insight[] {
       const labels = getV31PriorityOptions(draft).filter(option => selected.includes(option.value) && relatedIds(insight).includes(option.value)).map(option => option.label);
       return [{ ...insight, id: `priority-${insight.id}`, sourceInsightId: insight.id,
         coveredInsightIds: [insight.id, ...relatedIds(insight).flatMap(value => { const simpleId = simpleInsightId(value); return simpleId ? [simpleId] : []; })],
-        evidence: [...insight.evidence, { id: "priorities", text: "이 설명에서 우선순위로 고른 것", answer: labels.join(" · ") }],
+        evidence: [...insight.evidence, { id: "priorities", text: "이 설명과 이어진, 꼭 지키고 싶은 것으로 고른 것", answer: labels.join(" · ") }],
       }];
     });
     const question = WEDDING_CODE_V31_QUESTIONS.find((item) => item.id === id);
-    const confirmation: V31Evidence = { id: "priorities", text: "이번 결혼식에서 특히 지키고 싶은 것", answer: getV31PriorityOptions(draft).find((option) => option.value === id)?.label ?? "" };
+    const confirmation: V31Evidence = { id: "priorities", text: "이번 결혼 준비에서 꼭 지키고 싶은 것", answer: getV31PriorityOptions(draft).find((option) => option.value === id)?.label ?? "" };
     if (question) { const insight = singleInsight(draft, question); return [{ ...insight, id: `priority-${id}`, sourceInsightId: insight.id, evidence: [...insight.evidence, confirmation] }]; }
     const taste = WEDDING_CODE_V31_TASTES.find((item) => `taste.${item.key}` === id);
     if (taste) {
@@ -404,7 +406,7 @@ const COMBINATIONS: readonly { id: string; items: readonly V31QuestionId[]; titl
   { id: "budget-reallocate", items: ["B1", "B2"], title: "예산 안에서 원하는 항목에 더 쓰고 싶어요", nextStep: "더 쓰고 싶은 한 항목과 줄여도 되는 한 항목을 직접 정해 보세요." },
   { id: "budget-revisit", items: ["B1", "B3"], title: "전체 예산은 지키고 싶고, 다시 의논할 길도 열어 두고 싶어요", body: BUDGET_REVISIT_BOUNDARY, nextStep: "어떤 경우에 전체 예산을 다시 의논할지 함께 정해 보세요." },
   { id: "decision-conditions", items: ["D1", "D2"], title: "다른 후보도 더 보고 싶고, 조건에 맞으면 그때 고르고 싶어요", nextStep: "어디까지 비교할지, 어떤 조건이면 선택할지 직접 정해 보세요." },
-  { id: "delegate-update", items: ["T2", "T3"], title: "세부 선택을 맡겨도, 진행 상황은 알고 싶어요", nextStep: "중간에 알려줄 시점과 반드시 함께 결정할 범위를 나눠 보세요." },
+  { id: "delegate-update", items: ["T2", "T3"], title: "세부 선택을 맡겨도, 진행 상황은 알고 싶어요", nextStep: "중간에 알려 줄 때를 정하고, 꼭 함께 정할 일의 범위도 정해 보세요." },
   { id: "family-listen-decide", items: ["F1", "F2"], title: "가족의 바람을 듣고, 선택은 둘이 하고 싶어요", nextStep: "가족과 상의할 내용과 둘이 최종 선택할 내용을 나눠 보세요." },
   { id: "support-listen-help", items: ["H1", "H2"], title: "이야기를 먼저 들어주고, 내 일의 일부도 맡아주길 바라요", nextStep: "이야기를 먼저 들어주면 좋은 때와, 내 일의 일부도 맡아주면 좋은 때를 말해 보세요. 상대가 맡을 수 있는 범위도 함께 확인해 보세요." },
 ];
@@ -471,7 +473,7 @@ export function buildV31Profile(input: V31Draft): V31Profile {
     if (draft.tastes[taste.key]?.status !== "answered" && draft.tastes[taste.key]?.status !== "no_preference") unresolved.push(tasteEvidence(draft, taste.key));
   }
   if (draft.avoidances?.status !== "answered" && draft.avoidances?.status !== "no_preference") unresolved.push(avoidanceEvidence(draft));
-  if (draft.priorities?.status !== "answered" && draft.priorities?.status !== "no_preference") unresolved.push({ id: "priorities", text: "이번 결혼식에서 특히 지키고 싶은 것", answer: v31ChoiceLabels(draft.priorities, getV31PriorityOptions(draft)).join(" · ") });
+  if (draft.priorities?.status !== "answered" && draft.priorities?.status !== "no_preference") unresolved.push({ id: "priorities", text: "이번 결혼 준비에서 꼭 지키고 싶은 것", answer: v31ChoiceLabels(draft.priorities, getV31PriorityOptions(draft)).join(" · ") });
   if (draft.spending?.status !== "answered" && draft.spending?.status !== "no_preference") unresolved.push({ id: "spending", text: "다른 곳의 비용을 줄여서라도 더 쓰고 싶은 곳", answer: v31ChoiceLabels(draft.spending, WEDDING_CODE_V31_SPENDING).join(" · ") });
   const avoided = draft.avoidances?.status === "answered" ? draft.avoidances.values : [];
   return {
@@ -510,17 +512,25 @@ function ratingPairKind(first: V31Response | undefined, second: V31Response | un
   if (high(first) || high(second)) return "one_sided";
   return Math.abs(first - second) >= 2 ? "degree" : "middle";
 }
-/** 사진의 '둘 다 남기고 싶어요'는 두 보기를 함께 고른 것으로 펼쳐 겹침을 센다. */
+/**
+ * 두 보기를 함께 쓰겠다는 보기는 두 보기를 함께 고른 것으로 펼쳐 겹침을 센다.
+ * 사진의 '둘 다 남기고 싶어요'와 장소의 '실내와 야외를 함께 쓰는 곳'이 그렇다. 저장 값과 링크 코드는 그대로고 비교만 바뀐다.
+ */
+const BOTH_CHOICE_EXPANSION: Partial<Record<V31TasteKey, Readonly<Record<string, readonly string[]>>>> = {
+  photo: { both_styles: ["candid", "directed"] },
+  venue: { both_spaces: ["indoor", "outdoor"] },
+};
 function choiceValues(choice: V31Choice | undefined, tasteKey?: V31TasteKey): string[] {
   if (choice?.status !== "answered") return [];
-  if (tasteKey !== "photo") return choice.values;
-  return [...new Set(choice.values.flatMap((value) => value === "both_styles" ? ["candid", "directed"] : [value]))];
+  const expansion = tasteKey ? BOTH_CHOICE_EXPANSION[tasteKey] : undefined;
+  if (!expansion) return choice.values;
+  return [...new Set(choice.values.flatMap((value) => expansion[value] ?? [value]))];
 }
 function choicePairKind(first: V31Choice | undefined, second: V31Choice | undefined, context: "taste" | "spending" | "avoidances" | "priorities" = "taste", tasteKey?: V31TasteKey): V31PairItem["kind"] {
   const explicit = (choice: V31Choice | undefined) => choice?.status === "answered" || choice?.status === "no_preference";
   if (!explicit(first) || !explicit(second)) return "unavailable";
   if (first?.status === "no_preference" && second?.status === "no_preference") return context === "taste" ? "open_preference" : "middle";
-  // 한 사람만 '어느 쪽도 괜찮아요'·'따로 없어요'면 반대 의견이 아니라 열어 둔 답이다. 취향·회피·지출·우선순위를 같게 다룬다.
+  // 한 사람만 '어느 것이든 괜찮아요'·'따로 없어요'면 반대 의견이 아니라 열어 둔 답이다. 취향·회피·지출·우선순위를 같게 다룬다.
   if (first?.status === "no_preference" || second?.status === "no_preference") return "open_preference";
   if (first?.status !== "answered" || second?.status !== "answered") return "unavailable";
   const firstValues = choiceValues(first, tasteKey);
@@ -582,17 +592,17 @@ const SHARED_REQUEST_FOLLOW_UP: Partial<Record<V31QuestionId, string>> = {
   H2: "둘 다 일이 몰렸을 때는 누가 먼저 일을 나눠 받을 수 있을까요? 지금 넘길 수 있는 일부터 하나씩 적어 보세요.",
 };
 function questionFollowUp(question: V31Question, kind: V31PairItem["kind"]): string {
-  if (kind === "unavailable") return "아직 모르거나 계획에 없거나 답하지 않은 내용은 차이로 보지 않아요. 이 이야기가 지금 필요한지부터 확인해 보세요.";
+  if (kind === "unavailable") return "아직 모르거나 해당하지 않거나 답하지 않은 내용은 차이로 보지 않아요. 이 이야기가 지금 필요한지부터 확인해 보세요.";
   if (kind === "shared_distance") return `이 문장에는 두 사람 모두 ‘그렇지 않은 편이에요’나 ‘전혀 그렇지 않아요’로 답했어요. ${NEUTRAL_FOLLOW_UP[question.id]}`;
   if (kind === "shared_request") return SHARED_REQUEST_FOLLOW_UP[question.id] ?? `${question.followUp} 둘 다 바라는 것이라 누가 먼저 해줄 수 있을지도 이야기해 보세요.`;
   const followUp = kind === "shared_wish" ? question.followUp : NEUTRAL_FOLLOW_UP[question.id];
   // 둘이 같은 방식을 원한다고 답한 도움(H3·H4 함께 동의)에는 서로 해줄 여유를 묻지 않는다.
-  return question.topic === "support" && kind !== "shared_wish" ? `${followUp} 서로 맞출 수 있는 방식과 여유도 이야기해 보세요.` : followUp;
+  return question.topic === "support" && kind !== "shared_wish" ? `${followUp} 서로 어떻게, 얼마나 맞춰 줄 수 있는지도 말해 보세요.` : followUp;
 }
 function choiceFollowUp(kind: V31PairItem["kind"], followUp: string, context?: "priorities"): string {
-  // 우선순위 화면에는 ‘이번 계획에는 없어요’·‘지금 답하지 않을게요’·‘맞는 보기가 없어요’ 버튼이 없다. 누르지 않은 버튼 이름을 인용하지 않고 그 화면의 이름을 쓴다.
+  // 우선순위 화면에는 ‘해당하지 않아요’·‘지금 답하지 않을게요’·‘맞는 보기가 없어요’ 버튼이 없다. 누르지 않은 버튼 이름을 인용하지 않고 그 화면의 이름을 쓴다.
   if (kind === "unavailable" && context === "priorities") return `‘${V31_PRIORITY_UNDECIDED_LABEL}’와 ‘${V31_PRIORITY_SKIPPED_LABEL}’는 서로 다른 답이에요. 말하고 싶은 사람은 보기에 없던 생각을 들려주면 돼요. 비교할 답이 없을 뿐, 의견이 다르다고 보지는 않아요.`;
-  if (kind === "unavailable") return "‘아직 모르겠어요’, ‘이번 계획에는 없어요’, ‘지금 답하지 않을게요’, ‘맞는 보기가 없어요’는 서로 다른 답이에요. 말하고 싶은 사람은 보기에 없던 생각을 들려주면 돼요. 비교할 답이 없을 뿐, 의견이 다르다고 보지는 않아요.";
+  if (kind === "unavailable") return "‘아직 모르겠어요’, ‘해당하지 않아요’, ‘지금 답하지 않을게요’, ‘맞는 보기가 없어요’는 서로 다른 답이에요. 말하고 싶은 사람은 보기에 없던 생각을 들려주면 돼요. 비교할 답이 없을 뿐, 의견이 다르다고 보지는 않아요.";
   if (kind === "middle") return "두 사람 모두 꼭 지키고 싶은 것을 따로 고르지 않았어요. 실제 후보를 보다가 놓치기 싫은 게 생기면 그때 이야기해 보세요.";
   // 열린 답을 합의나 모름으로 읽지 않게 하는 것은 문장이 아니라 배치가 맡는다(‘열어 두고 있는 답’ 묶음, 모름은 따로 접는 묶음).
   if (kind === "open_preference") return "구체적으로 고른 것이 있다면 그것부터 함께 살펴보세요.";
@@ -621,12 +631,16 @@ export function compareV31(firstInput: V31Draft, secondInput: V31Draft): V31Pair
   // 기본 문장 → 선택 문장 → (예전 흐름에만 있던 두 문장), 그 뒤 취향 → 피하고 싶은 것 → 더 쓰고 싶은 곳 → 우선순위.
   const ratingOrder: readonly V31QuestionId[] = [...V31_CORE_RATING_IDS, ...V31_EXTRA_RATING_IDS, ...V31_LEGACY_ONLY_RATING_IDS];
   const questions = ratingOrder.map((id) => WEDDING_CODE_V31_QUESTIONS.find((question) => question.id === id)!);
+  // 하객 없이 둘만 하는 예식이라는 안내는 하객 주제의 첫 문장 카드에만 붙인다(하객 문장마다 같은 안내가 글자 그대로 되풀이되지 않게).
+  let noGuestNoteGiven = false;
   const items: V31PairItem[] = questions.map((question) => {
     const kind = ratingPairKind(first.answers[question.id], second.answers[question.id], question.id);
+    const noGuestNote = !noGuestNoteGiven && question.topic === "guests" && kind !== "unavailable" && (wantsNoGuests(first) || wantsNoGuests(second));
+    if (noGuestNote) noGuestNoteGiven = true;
     return {
       id: question.id, title: question.statement,
       first: v31ResponseLabel(first.answers[question.id]), second: v31ResponseLabel(second.answers[question.id]),
-      kind, followUp: question.topic === "guests" && kind !== "unavailable" && (wantsNoGuests(first) || wantsNoGuests(second))
+      kind, followUp: noGuestNote
         ? "하객 없이 둘만 하는 예식이라는 답도 있어요. 이 문장과 하객 규모에 답할 때 각각 어떤 상황을 떠올렸는지 먼저 이야기해 보세요."
         : questionFollowUp(question, kind), isPriority: priorities.has(question.id),
     };
@@ -676,7 +690,7 @@ export function compareV31(firstInput: V31Draft, secondInput: V31Draft): V31Pair
       : spendingKind === "open_preference" ? SPENDING_FOLLOW_UP.open
         : choiceFollowUp(spendingKind, SPENDING_FOLLOW_UP.answered),
   }, {
-    id: "priorities", title: "이번 결혼식에서 특히 지키고 싶은 것",
+    id: "priorities", title: "이번 결혼 준비에서 꼭 지키고 싶은 것",
     first: firstPriorityLabels.join(" · "), second: secondPriorityLabels.join(" · "),
     kind: resolvedPriorityKind, isPriority: false,
     followUp: resolvedPriorityKind === "open_preference"

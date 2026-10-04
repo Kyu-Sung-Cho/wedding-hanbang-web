@@ -265,9 +265,9 @@ describe("웨딩코드 v3.1 문항 의미와 개인 결과", () => {
     expect(profile.priorityGuides.filter(item => item.sourceInsightId === "budget-revisit")).toHaveLength(1);
     const delegate = profile.priorityGuides.find(item => item.sourceInsightId === "delegate-update")!;
     expect(delegate.evidence.map(item => item.id)).toEqual(["T2", "T3", "priorities"]);
-    expect(delegate.evidence.find(item => item.id === "priorities")?.answer).toBe("계약·추가 결제 없는 세부 선택은 맡은 사람이 정해도 괜찮아요");
+    expect(delegate.evidence.find(item => item.id === "priorities")?.answer).toBe("계약·추가 결제 없는 세부 선택 맡기기");
     expect(delegate.coveredInsightIds).toEqual(["delegate-update", "single-T2", "single-T3"]);
-    expect(profile.priorityLabels).toEqual(["처음 정한 전체 예산 지키기", "전체 예산을 늘릴지 의논하기", "계약·추가 결제 없는 세부 선택은 맡은 사람이 정해도 괜찮아요"]);
+    expect(profile.priorityLabels).toEqual(["처음 정한 전체 예산 지키기", "전체 예산을 늘릴지 의논하기", "계약·추가 결제 없는 세부 선택 맡기기"]);
     expect(encodeV31(draft)).toBe(original);
   });
 
@@ -291,7 +291,7 @@ describe("웨딩코드 v3.1 커플 응답 의미", () => {
     const item = row(first, second, "priorities");
     expect(item.kind).toBe("unavailable");
     expect(item.followUp).toContain(`‘${V31_PRIORITY_UNDECIDED_LABEL}’와 ‘${V31_PRIORITY_SKIPPED_LABEL}’`);
-    expect(item.followUp).not.toMatch(/지금 답하지 않을게요|이번 계획에는 없어요|맞는 보기가 없어요|아니에요/);
+    expect(item.followUp).not.toMatch(/지금 답하지 않을게요|해당하지 않아요|맞는 보기가 없어요|아니에요/);
     // 취향에는 그 버튼들이 있으므로 이름을 그대로 인용한다.
     first.tastes.attire = { status: "undecided" }; second.tastes.attire = { status: "skipped" };
     expect(row(first, second, "taste.attire").followUp).toContain("‘지금 답하지 않을게요’");
@@ -416,7 +416,7 @@ describe("웨딩코드 v3.1 커플 응답 의미", () => {
     second.spending = { status: "no_preference" };
     for (const [a, b] of [[first, second], [second, first]]) {
       const item = row(a, b, "spending");
-      // 2026-09-27: 한쪽만 '지금 없어요'면 취향의 '어느 쪽도 괜찮아요'와 같게 열린 답이다(예전에는 different 로 차이에 섰다).
+      // 2026-09-27: 한쪽만 '지금 없어요'면 취향의 '어느 것이든 괜찮아요'와 같게 열린 답이다(예전에는 different 로 차이에 섰다).
       // 반대 의견으로 읽지 않게 하는 것은 판정 고지가 아니라 배치(차이 묶음이 아닌 열린 답 묶음)가 맡는다.
       expect(item.kind).toBe("open_preference");
       expect(item.followUp).not.toMatch(/반대|아니에요/);
@@ -458,7 +458,7 @@ describe("웨딩코드 v3.1 커플 응답 의미", () => {
     }
   });
 
-  it("취향의 어느 쪽도 괜찮음은 양방향 모두 열린 선호이고 합의가 아니다", () => {
+  it("취향의 어느 것이든 괜찮음은 양방향 모두 열린 선호이고 합의가 아니다", () => {
     const first = createV31Draft();
     const second = createV31Draft();
     first.tastes.venue = answered(["outdoor"]);
@@ -486,7 +486,7 @@ describe("웨딩코드 v3.1 커플 응답 의미", () => {
       const item = row(a, b, "avoidances");
       expect(item.kind).toBe("open_preference");
       expect(item.followUp).toContain("따로 피하고 싶은 것이 없다고");
-      expect(item.followUp).not.toContain("어느 쪽도 괜찮아요");
+      expect(item.followUp).not.toContain("어느 것이든 괜찮아요");
       // 화면에서 ‘상대’는 두 사람 중 한 쪽을 부르는 이름이라, 누가 없음으로 답했든 맞도록 ‘고른 사람’이라고 쓴다.
       expect(item.followUp).not.toMatch(/상대가|상대의/);
     }
@@ -534,6 +534,28 @@ describe("웨딩코드 v3.1 커플 응답 의미", () => {
     expect(row(first, second, "taste.photo").sharedLabels).toEqual(["미리 계획해 찍은 포즈와 장면"]);
     first.tastes.photo = answered(["candid"]);
     expect(row(first, second, "taste.photo")).toMatchObject({ kind: "different", sharedLabels: [] });
+  });
+
+  it("장소의 실내와 야외를 함께 쓰는 곳은 실내와 야외를 함께 고른 것으로 비교하고 저장 값과 링크 코드는 그대로다", () => {
+    const first = createV31Draft();
+    const second = createV31Draft();
+    first.tastes.venue = answered(["both_spaces"]);
+    second.tastes.venue = answered(["indoor"]);
+    // 예전에는 '서로 다르게 고른 것'으로 갈렸다. 한 사람이 실내를 고르면 실내는 겹친다.
+    expect(row(first, second, "taste.venue")).toMatchObject({ kind: "partial_overlap", sharedLabels: ["실내"], firstOnlyLabels: ["야외"], secondOnlyLabels: [] });
+    expect(row(second, first, "taste.venue")).toMatchObject({ kind: "partial_overlap", sharedLabels: ["실내"], firstOnlyLabels: [], secondOnlyLabels: ["야외"] });
+    second.tastes.venue = answered(["outdoor"]);
+    expect(row(first, second, "taste.venue")).toMatchObject({ kind: "partial_overlap", sharedLabels: ["야외"], firstOnlyLabels: ["실내"], secondOnlyLabels: [] });
+    // 두 사람이 함께 쓰는 곳을 골랐으면 같은 답이다. 화면에는 고른 보기 이름 그대로 나온다.
+    second.tastes.venue = answered(["both_spaces"]);
+    expect(row(first, second, "taste.venue")).toMatchObject({ kind: "shared_wish", first: "실내와 야외를 함께 쓰는 곳", second: "실내와 야외를 함께 쓰는 곳" });
+    // 실내와 야외를 따로 고른 두 사람은 여전히 서로 다르다.
+    first.tastes.venue = answered(["indoor"]);
+    second.tastes.venue = answered(["outdoor"]);
+    expect(row(first, second, "taste.venue")).toMatchObject({ kind: "different", sharedLabels: [] });
+    // 비교만 바뀌고 저장 값은 그대로다: 링크 코드를 풀어도 both_spaces 가 남는다.
+    first.tastes.venue = answered(["both_spaces"]);
+    expect(decodeV31(encodeV31(first))?.tastes.venue).toEqual(answered(["both_spaces"]));
   });
 
   it("같은 주제를 우선순위로 골라도 실제 취향이 다르면 공통 기준으로 만들지 않는다", () => {

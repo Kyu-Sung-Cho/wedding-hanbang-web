@@ -1,7 +1,7 @@
 "use client";
 
-import { V40_COPY, coupleTagNote, letterBandCell, personName } from "@/lib/weddingCode/v40/copy";
-import { axisInfo } from "@/constants/weddingCodeV40";
+import { V40_COPY, coupleTagNote, evenCellCodeNote, letterBandCell, personName } from "@/lib/weddingCode/v40/copy";
+import { V40_STRENGTH, axisInfo } from "@/constants/weddingCodeV40";
 import type { CoupleAxisRow as CoupleAxisRowData, CoupleSideInfo, Perspective } from "@/lib/weddingCode/v40/types";
 import { bodyText, captionText, card, cx, noteText } from "./styles";
 
@@ -31,6 +31,20 @@ export interface CoupleAxisRowProps {
 function PersonCell({ label, side }: { readonly label: string; readonly side: CoupleSideInfo }) {
   const text = letterBandCell(side.letter, side.shownBand, side.provisional);
   const letter = side.letter;
+  // 반반이에요 칸은 글자를 크고 굵게 나란히 놓지 않는다. 반반이에요의 글자는 코드 칸을 채우려고 적은 것이라, 두 사람의 글자가 달라 보여도 다르다는 뜻이 아니다.
+  // 세기 낱말을 앞에 두고 글자는 작은 글씨로 밝힌다.
+  if (letter !== null && side.shownBand === "even") {
+    return (
+      <div className="min-w-0 rounded-lg bg-[var(--hb-surface-hover)] px-3 py-2" data-even-cell="">
+        <p className={captionText}>{label}</p>
+        <p className={cx(bodyText, "mt-1 break-keep font-medium text-[var(--hb-text-strong)]")}>
+          {V40_STRENGTH.even.label}
+          {side.provisional ? ` · ${V40_COPY.result.provisionalMark}` : ""}
+        </p>
+        <p className={cx(noteText, "mt-0.5 break-keep")}>{evenCellCodeNote(letter)}</p>
+      </div>
+    );
+  }
   return (
     <div className="min-w-0 rounded-lg bg-[var(--hb-surface-hover)] px-3 py-2">
       <p className={captionText}>{label}</p>

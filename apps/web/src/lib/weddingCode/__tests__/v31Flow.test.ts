@@ -89,7 +89,7 @@ describe("v3.1 핵심·추가 흐름의 응답 의미 보존", () => {
     expect(getV31MissingIndex(draft, "core")).toBe(33);
   });
 
-  it("기존 전체 응답과 선택 질문 답은 짧은 흐름에서 검사해도 손실되지 않는다", () => {
+  it("기존 전체 응답과 추가 질문 답은 짧은 흐름에서 검사해도 손실되지 않는다", () => {
     const draft = coreDraft();
     for (const question of WEDDING_CODE_V31_QUESTIONS) draft.answers[question.id] = 5;
     draft.priorities = { status: "answered", values: ["V1", "G2", "R3"] };

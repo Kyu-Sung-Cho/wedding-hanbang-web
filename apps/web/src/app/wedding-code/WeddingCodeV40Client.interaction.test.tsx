@@ -423,7 +423,7 @@ describe("웨딩코드 4.0 클라이언트: 결과 화면의 경로", () => {
     expect(text).toContain(V40_COPY.send.title);
   });
 
-  it("swua-example 표본의 결과는 주제 블록마다 마지막에 직접 고른 쪽 한 줄을 보인다(대비가 없어서 대비 구역은 없다)", async () => {
+  it("swua-example 표본의 결과는 주제 블록마다 마지막 정리에서 고른 쪽 한 줄을 보인다(대비가 없어서 대비 구역은 없다)", async () => {
     const sample = fixture("swua-example");
     const storage = new FakeStorage();
     seedProgress(storage, resultSnapshotOf(sample), NOW - DAY);
@@ -433,10 +433,10 @@ describe("웨딩코드 4.0 클라이언트: 결과 화면의 경로", () => {
     const lines = [...view.container.querySelectorAll("[data-self-line]")];
     expect(lines.map((node) => node.getAttribute("data-self-line"))).toEqual(["money", "process", "scope", "support"]);
     expect(lines.map((node) => node.textContent)).toEqual([
-      "내가 마지막에 직접 고른 쪽: 「S 장면 먼저」 · 꽤 가까워요",
-      "내가 마지막에 직접 고른 쪽: 「W 같이 하기」 · 아주 가까워요",
-      "내가 마지막에 직접 고른 쪽: 「U 둘이 정하기」 · 꽤 가까워요",
-      "내가 마지막에 직접 고른 쪽: 「A 할 일 먼저」 · 조금 가까워요",
+      "내가 마지막 정리에서 고른 쪽: 「S 장면 먼저」 · 꽤 가까워요",
+      "내가 마지막 정리에서 고른 쪽: 「W 같이 하기」 · 아주 가까워요",
+      "내가 마지막 정리에서 고른 쪽: 「U 둘이 정하기」 · 꽤 가까워요",
+      "내가 마지막 정리에서 고른 쪽: 「A 할 일 먼저」 · 조금 가까워요",
     ]);
     // 줄은 주제 블록 안에 있다.
     for (const line of lines) expect(line.closest("[data-axis-block]")?.getAttribute("data-axis-block")).toBe(line.getAttribute("data-self-line"));

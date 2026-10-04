@@ -16,7 +16,7 @@ export const v31Title = "font-semibold text-[var(--hb-text-strong)]";
 
 const escapeOptions = [
   { value: "undecided", label: "아직 모르겠어요" },
-  { value: "not_applicable", label: "이번 계획에는 없어요" },
+  { value: "not_applicable", label: "해당하지 않아요" },
   { value: "skipped", label: "지금 답하지 않을게요" },
 ] as const;
 
@@ -76,7 +76,7 @@ export function V31RatingInput({ value, onChange, showGuide = false, compact = f
         <span aria-hidden="true" className="text-xs tabular-nums text-[var(--hb-text-muted)]">{option.value}</span>
       </label>)}
     </div>
-    {showGuide ? <p className={`mt-3 rounded-lg bg-[var(--hb-surface-hover)] p-3 ${v31Body}`}>{v31RatingGuide} 아직 모르겠거나 이번 계획에 없는 내용이면 아래에서 따로 골라 주세요.</p> : null}
+    {showGuide ? <p className={`mt-3 rounded-lg bg-[var(--hb-surface-hover)] p-3 ${v31Body}`}>{v31RatingGuide} 아직 모르겠거나 해당하지 않는 내용이면 아래에서 따로 골라 주세요.</p> : null}
     <div className="mt-3 border-t border-[var(--hb-hairline)] pt-2">
       {escapeOptions.map(option => <label key={option.value}
         className={`flex min-h-11 cursor-pointer items-center gap-3 rounded-lg px-3 py-2 text-sm focus-within:ring-2 focus-within:ring-[var(--hb-focus-ring)] ${value === option.value ? "bg-[var(--hb-selected-bg)]" : ""}`}>
@@ -114,14 +114,14 @@ export function V31ChoiceInput({ value, options, max, onChange, tasteKey, kind =
   }
   const statuses: { value: Exclude<V31Choice["status"], "answered">; label: string }[] = [
     { value: "undecided", label: kind === "priorities" ? V31_PRIORITY_UNDECIDED_LABEL : "아직 모르겠어요" },
-    { value: "no_preference", label: kind === "spending" ? "더 쓰고 싶은 곳은 지금 없어요" : kind === "avoidances" ? "따로 피하고 싶은 것은 없어요" : kind === "priorities" ? V31_PRIORITY_NO_PREFERENCE_LABEL : "어느 쪽도 괜찮아요" },
+    { value: "no_preference", label: kind === "spending" ? "더 쓰고 싶은 곳은 지금 없어요" : kind === "avoidances" ? "따로 피하고 싶은 것은 없어요" : kind === "priorities" ? V31_PRIORITY_NO_PREFERENCE_LABEL : "어느 것이든 괜찮아요" },
     { value: "no_match", label: "맞는 보기가 없어요" },
-    { value: "not_applicable", label: "이번 계획에는 없어요" },
+    { value: "not_applicable", label: "해당하지 않아요" },
     { value: "skipped", label: "지금 답하지 않을게요" },
   ];
   const leadingStatuses = kind === "spending" ? [statuses[1], statuses[0]] : [];
   // 우선순위는 아래 고정 버튼(‘고르지 않고 결과 보기’)이 같은 답(건너뜀)을 남기므로 같은 뜻의 보기를 두 번 두지 않는다.
-  // ‘이번 계획에는 없어요’도 이 화면에서는 뜻이 겹쳐 빼되, 전에 그렇게 답한 사람에게는 눌린 채로 보여준다.
+  // ‘해당하지 않아요’도 이 화면에서는 뜻이 겹쳐 빼되, 전에 그렇게 답한 사람에게는 눌린 채로 보여준다.
   const remainingStatuses = kind === "spending" ? statuses.slice(2)
     : kind === "priorities" ? statuses.filter(option => option.value !== "skipped" && (option.value !== "not_applicable" || value?.status === "not_applicable"))
       : statuses;
@@ -132,7 +132,8 @@ export function V31ChoiceInput({ value, options, max, onChange, tasteKey, kind =
   </Button>;
   return <div>
     {leadingStatuses.length ? <div className="mb-4 space-y-1 border-b border-[var(--hb-hairline)] pb-3">{leadingStatuses.map(statusButton)}</div> : null}
-    <p className={`mb-3 ${v31Body}`}>{max === 1 ? "하나를 골라 주세요. 이미 정해진 것이 있어도 내가 바라는 것을 고르면 돼요." : kind === "avoidances" || tasteKey === "attire" || tasteKey === "ceremony" ? "해당하는 것을 골라 주세요. 여러 개 골라도 되고, 다시 누르면 선택이 풀려요." : `최대 ${max}개까지 고를 수 있어요. 고른 순서대로 결과에 적어요. 다시 누르면 선택이 풀려요.`}</p>
+    {/* 피하고 싶은 것 페이지는 위쪽 안내(여러 개 골라도 되고 다시 누르면 풀린다는 말까지)가 이미 한 문단으로 말해서 같은 요청을 한 번 더 하지 않는다. */}
+    {kind === "avoidances" ? null : <p className={`mb-3 ${v31Body}`}>{max === 1 ? "하나를 골라 주세요. 이미 정해진 것이 있어도 내가 바라는 것을 고르면 돼요." : tasteKey === "attire" || tasteKey === "ceremony" ? "해당하는 것을 골라 주세요. 여러 개 골라도 되고, 다시 누르면 선택이 풀려요." : `최대 ${max}개까지 고를 수 있어요. 고른 순서대로 결과에 적어요. 다시 누르면 선택이 풀려요.`}</p>}
     {options.length ? <div className={tasteKey ? "grid grid-cols-1 gap-3 min-[360px]:grid-cols-2" : "space-y-2"}>
       {options.map(option => <Button key={option.value} variant="secondary" fullWidth
         aria-pressed={selected.includes(option.value)} data-choice={option.value}

@@ -9,14 +9,16 @@ import { PAIR_SESSION_CONSENT_VERSION, PAIR_SESSION_RETENTION_DAYS, createPairSe
 import { pairSessionUrl, readPairSessionRecovery, readSavedPairSession, savePairSessionLink, savePairSessionRecovery, subscribePairSession } from "@/lib/weddingCode/pairSessionClient";
 import { v31Body, v31Surface, v31Title } from "./WeddingCodeV31Inputs";
 
-export function PairSessionConsent({ consent, ageConfirmed, disabled, onConsent, onAge }: {
+export function PairSessionConsent({ consent, ageConfirmed, disabled, onConsent, onAge, participant = false }: {
   consent: boolean; ageConfirmed: boolean; disabled: boolean;
   onConsent: (value: boolean) => void; onAge: (value: boolean) => void;
+  /** 초대를 받아 답한 사람의 동의 구역이다. 초대한 사람은 이미 동의했으므로 이 사람이 동의하면 바로 두 사람 모두 결과를 본다. */
+  participant?: boolean;
 }) {
   return <div className="space-y-3">
-    <p className={v31Body}>함께 보기를 선택하면 내 답 전체를 서버에 보관해요. 상대도 자기 답 공유에 동의하면 두 사람 모두 결과를 볼 수 있어요.</p>
+    <p className={v31Body}>{participant ? "동의하면 내 답 전체를 서버에 보관하고, 초대한 사람도 바로 두 사람 결과를 볼 수 있어요." : "함께 보기를 선택하면 내 답 전체를 서버에 보관해요. 상대도 자기 답 공유에 동의하면 두 사람 모두 결과를 볼 수 있어요."}</p>
     <p className={v31Body}>초대 후 7일 동안 볼 수 있고, 기간이 끝난 내용은 하루 안에 삭제해요. 어느 쪽이든 ‘연결 끝내기’를 누르면 서버에 있는 두 사람의 공유 답을 바로 지워요. 다만 상대가 이미 읽었거나 따로 저장한 내용은 되돌릴 수 없어요. 각자 브라우저에 직접 저장한 답은 그대로 남아요.</p>
-    <p className={v31Body}>초대 링크를 먼저 사용한 사람이 상대가 돼요. 이름이나 계정으로 확인하지 않으니 함께 볼 사람에게만 보내 주세요.</p>
+    <p className={v31Body}>{participant ? "초대 링크를 먼저 쓴 사람이 상대가 돼요. 이름이나 계정으로는 확인하지 않으니, 보낸 사람이 맞는지 확인한 뒤에 동의해 주세요." : "초대 링크를 먼저 사용한 사람이 상대가 돼요. 이름이나 계정으로 확인하지 않으니 함께 볼 사람에게만 보내 주세요."}</p>
     <label className="flex min-h-11 cursor-pointer items-start gap-3 rounded-lg border border-paper-outline p-3 focus-within:ring-2 focus-within:ring-[var(--hb-focus-ring)]">
       <input type="checkbox" checked={ageConfirmed} disabled={disabled} onChange={event => onAge(event.target.checked)} className="mt-0.5 size-5 shrink-0 accent-[var(--hb-action)]" />
       <span className={`text-sm ${v31Title}`}>만 14세 이상이에요.</span>
@@ -39,7 +41,8 @@ export function WeddingCodeComparisonResume({ compact = false }: { compact?: boo
       ? pairSessionUrl(window.location.origin, recovery) : "";
   }, () => "");
   if (!url && !recoveryUrl) return null;
-  return <aside className={compact ? "mt-4 border-t border-paper-outline pt-3" : `mx-auto mt-6 mb-4 w-full max-w-[680px] ${v31Surface} p-4`} aria-label="연결한 비교 결과">
+  // 좁은 폰 폭에서 박스가 화면 양쪽 끝에 붙지 않게 본문과 같은 좌우 여백(16px)을 준다.
+  return <aside className={compact ? "mt-4 border-t border-paper-outline pt-3" : `mx-4 mt-6 mb-4 max-w-[680px] sm:mx-auto ${v31Surface} p-4`} aria-label="연결한 비교 결과">
     {url ? <div>
     <p className={v31Body}>이 브라우저에서 함께 보기를 시작한 결과가 있어요.</p>
     <Link href={url} className="mt-2 inline-flex min-h-11 items-center font-semibold text-[var(--hb-text-strong)] underline underline-offset-4">연결한 두 사람 결과 보기</Link>
@@ -63,7 +66,7 @@ export default function WeddingCodeV31Connection({ draft }: { draft: V31Draft })
   useEffect(() => { active.current = true; return () => { active.current = false; }; }, []);
   async function create() {
     if (busy) return;
-    if (!consent || !ageConfirmed) { setError("만 14세 이상 확인과 공유 동의, 두 칸에 먼저 체크해 주세요."); return; }
+    if (!consent || !ageConfirmed) { setError("두 칸에 모두 체크하면 초대를 만들 수 있어요."); return; }
     setBusy(true); setError("");
     try {
       if (!pending.current) {
@@ -85,12 +88,13 @@ export default function WeddingCodeV31Connection({ draft }: { draft: V31Draft })
   }
   return <section className={`${v31Surface} mt-6 p-5 sm:p-7`} aria-label="상대 초대하고 함께 보기">
     <h2 className={`text-lg ${v31Title}`}>상대도 답하면, 함께 볼 수 있어요</h2>
-    <p className={`mt-2 ${v31Body}`}>초대받은 사람이 답과 공유를 마치면 두 사람 결과를 볼 수 있어요. 자동 저장이 켜져 있으면 이 브라우저에서 바로 다시 열 수 있고, 꺼져 있으면 ‘나만 보관할 확인 주소’로 열 수 있어요. 상대가 결과 링크를 돌려보내지 않아도 돼요.</p>
+    <p className={`mt-2 ${v31Body}`}>상대가 초대 링크로 답하고 공유에 동의하면 두 사람 결과를 함께 볼 수 있어요. 이 방법을 고르면 내 답을 서버에 보관하고, 초대 후 {PAIR_SESSION_RETENTION_DAYS}일 동안 볼 수 있어요. 상대가 결과를 따로 보내 줄 필요는 없어요. 자동 저장이 켜져 있으면 이 브라우저에서 다시 열 수 있고, 꺼져 있으면 초대를 만든 뒤 나오는 ‘나만 보관할 확인 주소’(내 결과를 다시 여는 주소)로 열 수 있어요.</p>
     <WeddingCodeComparisonResume compact />
     {!expanded ? <Button variant="primary" fullWidth className="mt-4 whitespace-normal!" onClick={() => setExpanded(true)}>상대 초대하고 함께 보기</Button> : <div className="mt-4">
-      <PairSessionConsent consent={consent} ageConfirmed={ageConfirmed} disabled={busy} onConsent={setConsent} onAge={setAgeConfirmed} />
-      <p className="mt-3 text-xs leading-relaxed text-[var(--hb-text-body)]">자동 저장이 켜져 있으면 이 브라우저에 내 결과 확인 주소도 남겨요. 다른 사람과 같이 쓰는 컴퓨터나 휴대폰이라면 함께 보기를 끝낸 뒤 ‘자동 저장 끄기’를 눌러 지워 주세요.</p>
-      <Button variant="primary" fullWidth disabled={busy} onClick={() => void create()} className="mt-4 whitespace-normal!">{busy ? "초대를 만들고 있어요…" : error ? "초대 다시 만들기" : "동의하고 초대 만들기"}</Button>
+      {/* 체크가 빠져 낸 오류는 체크를 바꾸면 바로 지운다(서버에 보낸 적이 없는 오류라 두 칸을 채운 뒤에도 남아 있으면 틀린 말이 된다). */}
+      <PairSessionConsent consent={consent} ageConfirmed={ageConfirmed} disabled={busy} onConsent={value => { setConsent(value); if (!recoveryUrl) setError(""); }} onAge={value => { setAgeConfirmed(value); if (!recoveryUrl) setError(""); }} />
+      <p className="mt-3 text-xs leading-relaxed text-[var(--hb-text-body)]">자동 저장이 켜져 있으면 이 브라우저에 나만 보관할 확인 주소도 남겨요. 다른 사람과 같이 쓰는 컴퓨터나 휴대폰이라면 함께 보기를 끝낸 뒤 ‘자동 저장 끄기’를 눌러 지워 주세요.</p>
+      <Button variant="primary" fullWidth disabled={busy} onClick={() => void create()} className="mt-4 whitespace-normal!">{busy ? "초대를 만들고 있어요…" : recoveryUrl ? "초대 다시 만들기" : "동의하고 초대 만들기"}</Button>
       {error ? <div role="alert" className={`mt-3 ${v31Body}`}><p>{error}</p>{recoveryUrl ? <Link href={recoveryUrl} className="mt-2 inline-flex min-h-11 items-center underline">이미 만들어졌는지 내 초대 확인하기</Link> : null}</div> : null}
     </div>}
   </section>;

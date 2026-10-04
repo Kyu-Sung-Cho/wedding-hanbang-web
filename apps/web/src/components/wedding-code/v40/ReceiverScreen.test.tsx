@@ -193,11 +193,11 @@ describe("ReceiverScreen", () => {
       expect(onUseLink).toHaveBeenCalledTimes(1);
     });
 
-    it("받은 링크로 처음부터 하면 하던 답이 지워진다는 것을 누르기 전에 말한다", async () => {
+    it("받은 링크로 처음부터 하면 저장된 내 답이 지워진다는 것을 누르기 전에 말한다", async () => {
       await harness.render(<Host saved={{ savedAt: null, onKeepMine: vi.fn(), onUseLink: vi.fn() }} />);
       const card = harness.container.querySelector<HTMLElement>('[data-section-card="invite-conflict"]')!;
-      expect(card.textContent).toContain("받은 링크로 처음부터 하면 하던 답은 지워져요");
-      expect(card.textContent).toContain("이어서 해도 상대가 보낸 링크의 답은 그대로 쓰여요");
+      expect(card.textContent).toContain("받은 링크로 처음부터 하면 저장된 내 답은 지워져요");
+      expect(card.textContent).toContain("그 답으로 계속해도 상대가 보낸 링크의 답은 그대로 쓰여요");
     });
   });
 

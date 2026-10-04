@@ -74,13 +74,13 @@ describe("CouplePerspectiveSwitch", () => {
     expect(text()).not.toContain(V40_COPY.couple.perspective.askNote);
   });
 
-  it("라디오 값과 글이 짝이 맞다: 첫째는 first 와 먼저 답한 사람, 둘째는 second 와 나중에 답한 사람", async () => {
+  it("라디오 값과 글이 짝이 맞다: 첫째는 first 와 링크를 먼저 보낸 사람, 둘째는 second 와 링크를 받은 사람", async () => {
     await harness.render(<CouplePerspectiveSwitch idPrefix="t-persp" detected={null} value={null} onChange={() => undefined} />);
     expect(radios().map((radio) => radio.value)).toEqual(["first", "second"]);
     const labels = radios().map((radio) => radio.closest("label")?.textContent?.trim());
     expect(labels).toEqual([V40_COPY.couple.perspective.iAmFirstOption, V40_COPY.couple.perspective.iAmSecondOption]);
     expect(labels[0]).toContain("먼저");
-    expect(labels[1]).toContain("나중에");
+    expect(labels[1]).toContain("받은");
   });
 
   it("고르면 낭독기에 알린다: 처음부터 문서에 있는 status 자리의 글이 고른 쪽에 맞게 바뀐다", async () => {

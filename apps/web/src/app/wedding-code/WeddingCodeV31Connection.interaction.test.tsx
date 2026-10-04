@@ -60,7 +60,7 @@ describe("본인 결과에서 두 사람 초대 만들기", () => {
     if (share) await click(checkboxes[1]);
     await button("동의하고 초대 만들기");
     expect(fetcher).not.toHaveBeenCalled();
-    expect(container.querySelector('[role="alert"]')?.textContent).toContain("만 14세 이상 확인과 공유 동의, 두 칸에 먼저 체크해 주세요");
+    expect(container.querySelector('[role="alert"]')?.textContent).toContain("두 칸에 모두 체크하면 초대를 만들 수 있어요");
     expect(container.querySelector('a[href*="/wedding-code/together"]')).toBeNull();
     expect(window.sessionStorage.length).toBe(0);
     expect(readSavedPairSession()).toBeNull();

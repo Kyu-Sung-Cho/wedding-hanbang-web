@@ -93,12 +93,18 @@ describe("WeddingCodeV31Client", () => {
     await next();
     expect(container.querySelector('[data-question="B1"]')).toBeNull();
     // 누르면 비어 있는 첫 문장으로 초점을 옮기고, 이 페이지에 실제로 있는 보기 이름으로 이유를 알린다.
-    expect(container.querySelector("[data-screen-notice]")?.textContent).toBe("아직 답을 고르지 않은 문장이 있어요. 모르겠거나 이번 계획에 없는 문장은 그 아래 ‘답하기 어려워요’를 열어서 골라 주세요.");
+    expect(container.querySelector("[data-screen-notice]")?.textContent).toBe("아직 답을 고르지 않은 문장이 있어요. 모르겠거나 해당하지 않는 문장은 그 아래 ‘답하기 어려워요’를 열어서 골라 주세요.");
     expect(document.activeElement?.getAttribute("data-question")).toBe("G3");
+    // 안내는 화면 위가 아니라 아래 고정 단추 바로 위에 있어서, 빈 문장으로 화면이 움직인 뒤에도 읽힌다. 아직 답하지 않은 문장 카드에는 진한 테두리 표시가 있다.
+    expect(container.querySelector("[data-screen-notice]")?.closest("[data-question-actions]")).not.toBeNull();
+    expect(container.querySelector(`[data-question="G3"]`)?.getAttribute("data-unanswered")).toBe("true");
+    expect(container.querySelector(`[data-question="G1"]`)?.hasAttribute("data-unanswered")).toBe(false);
     await pick("G3", "undecided");
     expect(nextButton.getAttribute("aria-disabled")).toBe("true");
     await pick("R4", "skipped");
     expect(nextButton.getAttribute("aria-disabled")).toBe("false");
+    // 다 답하면 안 답했다는 안내를 바로 지운다.
+    expect(container.querySelector("[data-screen-notice]")).toBeNull();
     expect(window.scrollTo).not.toHaveBeenCalled();
     saved = readV31LocalProgress(window.localStorage);
     expect(saved.status === "ready" && saved.snapshot.draft.answers).toEqual({ G1: 3, G3: "undecided", R4: "skipped" });
@@ -172,8 +178,8 @@ describe("WeddingCodeV31Client", () => {
     // 맨 위 안내는 고르지 않아도 된다는 것을 먼저 말한다(하나는 골라야 하는 것처럼 읽히지 않게).
     expect(priorities.textContent).toContain("앞에서 고른 답 가운데 꼭 지키고 싶은 것을 골라 주세요. 고르지 않아도 결과를 볼 수 있어요.");
     expect(priorities.textContent).not.toContain("하나만 골라도 돼요");
-    // 이 화면에서 ‘이번 계획에는 없어요’는 넘어가기와 뜻이 겹쳐 두지 않는다.
-    expect([...priorities.querySelectorAll("button")].map(item => item.textContent?.trim())).not.toContain("이번 계획에는 없어요");
+    // 이 화면에서 ‘해당하지 않아요’는 넘어가기와 뜻이 겹쳐 두지 않는다.
+    expect([...priorities.querySelectorAll("button")].map(item => item.textContent?.trim())).not.toContain("해당하지 않아요");
     await click(priorities.querySelector<HTMLButtonElement>('[data-choice="G1"]'));
     expect(actionButton()?.textContent?.trim()).toBe("결과 보기");
     await click(priorities.querySelector<HTMLButtonElement>('[data-choice="G1"]'));
@@ -186,8 +192,8 @@ describe("WeddingCodeV31Client", () => {
     expect(container.querySelectorAll("[data-insight]").length).toBeGreaterThan(3);
     expect(container.textContent).toContain("어떤 답에서 나온 설명인가요?");
     expect(container.textContent).toContain("준비할 때 이렇게 해 봐요");
-    const prioritySummary = [...container.querySelectorAll("h2")].find(item => item.textContent === "이번 결혼식에서 지키고 싶은 것")?.closest("section");
-    expect(prioritySummary?.textContent).toContain("우선순위는 이번에 고르지 않았어요.");
+    const prioritySummary = [...container.querySelectorAll("h2")].find(item => item.textContent === "이번 결혼 준비에서 꼭 지키고 싶은 것")?.closest("section");
+    expect(prioritySummary?.textContent).toContain("꼭 지키고 싶은 것은 이번에 고르지 않았어요.");
     expect(linkValue()).toBeUndefined();
     await consent();
     const shared = decodedLink(linkValue()!);
@@ -215,7 +221,7 @@ describe("WeddingCodeV31Client", () => {
     expect(container.querySelector('[data-question="priorities"]')).toBeNull();
     expect(container.querySelector('[data-result="solo-v31"]')).not.toBeNull();
     expect(container.textContent).toContain("답을 남긴 질문은 23개예요");
-    expect([...container.querySelectorAll("h2")].some(item => item.textContent === "이번 결혼식에서 지키고 싶은 것")).toBe(false);
+    expect([...container.querySelectorAll("h2")].some(item => item.textContent === "이번 결혼 준비에서 꼭 지키고 싶은 것")).toBe(false);
   });
 
   it("앞의 답을 바꾸면 맞지 않는 우선순위를 지우고 다시 동의해야 새 링크를 만든다", async () => {
@@ -227,11 +233,12 @@ describe("WeddingCodeV31Client", () => {
     await rating(1); await button("수정한 결과 보기");
     expect(container.querySelector('[data-question="priorities"]')).not.toBeNull();
     expect(container.querySelector('[data-result="solo-v31"]')).toBeNull();
-    expect(container.textContent).toContain("지키고 싶은 것을 다시 고르거나");
+    // 고르지 않아도 결과를 볼 수 있다고 함께 말한다(다시 고르라는 말과 고르지 않아도 된다는 말이 한 화면에서 부딪히지 않게).
+    expect(container.textContent).toContain("‘꼭 지키고 싶은 것’이 달라졌을 수 있어요. 아래 선택을 확인하고, 필요하면 다시 골라 주세요. 고르지 않고 결과를 봐도 돼요.");
     // 수정 화면에서도 비어 있으면 아래 고정 버튼이 넘어가기를 맡고, 고르면 ‘수정한 결과 보기’로 바뀐다.
     expect(actionButton()?.textContent?.trim()).toBe("고르지 않고 결과 보기");
     expect([...container.querySelectorAll("button")].some(item => item.textContent?.trim() === "수정한 결과 보기")).toBe(false);
-    await button("아직 우선순위를 정하지 못했어요"); await button("수정한 결과 보기");
+    await button("꼭 지키고 싶은 건 아직 정하지 못했어요"); await button("수정한 결과 보기");
     expect(linkValue()).toBeUndefined();
     await consent();
     const revised = decodedLink(linkValue()!);
@@ -250,7 +257,7 @@ describe("WeddingCodeV31Client", () => {
     await button("수정한 결과 보기");
     expect(container.querySelector('[data-question="taste.venue"]')).not.toBeNull();
     expect(container.textContent).toContain("답을 고르지 않은 질문으로 돌아왔어요");
-    await button("이번 계획에는 없어요"); await button("수정한 결과 보기"); await consent();
+    await button("해당하지 않아요"); await button("수정한 결과 보기"); await consent();
     expect(container.textContent).not.toContain("답을 고르지 않은 질문으로 돌아왔어요");
     expect(decodedLink(linkValue()!)?.tastes.venue).toEqual({ status: "not_applicable" });
   });
@@ -258,7 +265,7 @@ describe("WeddingCodeV31Client", () => {
   it("우선순위로 고른 취향이 다른 보기로 바뀌면 새로운 취향을 우선순위로 자동 승계하지 않는다", async () => {
     await renderClient(); await button("내 웨딩코드 시작하기"); await finishFromHere();
     await finishOptional();
-    await button("우선순위 수정");
+    await button("꼭 지키고 싶은 것 수정");
     await click(container.querySelector<HTMLButtonElement>('[data-choice="G1"]'));
     await click(container.querySelector<HTMLButtonElement>('[data-choice="taste.venue"]'));
     await button("수정한 결과 보기"); await consent();
@@ -279,6 +286,13 @@ describe("WeddingCodeV31Client", () => {
     const onRestart = vi.fn();
     await renderClient({ onRestart }); await button("내 웨딩코드 시작하기"); await finishFromHere();
     await button("처음부터 다시 답하기");
+    // 저장된 답과 결과를 모두 지우므로 한 번 되묻는다. 되묻는 동안에는 아무것도 지우지 않는다.
+    expect(onRestart).not.toHaveBeenCalled();
+    expect(container.querySelector("[data-restart-confirm]")?.textContent).toContain("저장된 답과 결과가 모두 지워져요. 지우고 다시 답할까요?");
+    await button("그대로 두기");
+    expect(container.querySelector("[data-restart-confirm]")).toBeNull();
+    expect(onRestart).not.toHaveBeenCalled();
+    await button("처음부터 다시 답하기"); await button("지우고 다시 하기");
     expect(onRestart).toHaveBeenCalledOnce();
     await button("내 웨딩코드 시작하기");
     expect(container.querySelector('input[type="radio"]:checked')).toBeNull();
@@ -304,7 +318,7 @@ describe("WeddingCodeV31Client", () => {
     while (container.querySelector("[data-question]")?.getAttribute("data-question") !== "F1") { await ratePage(4); await next(); }
     await rating(5, "F1");
     expect(container.textContent).toContain("이미 고른 답은 지워지고");
-    await button("이 주제는 계획에 없어요");
+    await button("이 주제는 해당하지 않아요");
     expect(container.querySelector('[data-question="F1"]')).not.toBeNull();
     for (const id of ["F1", "F2", "F4"]) expect(container.querySelector<HTMLInputElement>(`[data-question="${id}"] input[value="not_applicable"]`)?.checked).toBe(true);
     await next();
@@ -320,7 +334,7 @@ describe("WeddingCodeV31Client", () => {
   it("서로 다른 주제를 묶은 선택 페이지에서 계획 없음은 해당 주제만 바꾸고 기존 기본 답을 보존한다", async () => {
     await renderClient(); await button("내 웨딩코드 시작하기"); await finishFromHere();
     await button("원하면 더 알아보기 (선택)");
-    const scopeButton = (id: string) => [...container.querySelectorAll<HTMLButtonElement>(`[data-question="${id}"] button`)].find(item => item.textContent?.trim() === "이 주제는 계획에 없어요");
+    const scopeButton = (id: string) => [...container.querySelectorAll<HTMLButtonElement>(`[data-question="${id}"] button`)].find(item => item.textContent?.trim() === "이 주제는 해당하지 않아요");
     await click(scopeButton("V1"));
     expect([...container.querySelectorAll("[data-question]")].map(item => item.getAttribute("data-question"))).toEqual(["V1", "G2", "R3"]);
     let saved = readV31LocalProgress(window.localStorage);
@@ -366,7 +380,7 @@ describe("WeddingCodeV31Client", () => {
     await act(async () => root.render(<WeddingCodeV31Sharing first={first} shareOrigin="https://hanbang.ai" />));
     expect(container.querySelector<HTMLInputElement>('[aria-label="웨딩코드 일반 시작 링크"]')?.value).toBe("https://hanbang.ai/wedding-code");
     expect(linkValue()).toBeUndefined(); await consent(); expect(linkValue()).toContain("#");
-    await button("비교 초대 링크 복사");
+    await button("답이 담긴 링크 복사");
     expect(container.textContent).toContain("자동 복사가 안 됐어요");
     expect(container.querySelector('[aria-label="답이 담긴 웨딩코드 공유 링크"]')?.closest("details")?.open).toBe(true);
     expect(captureWeddingCodeEvent).not.toHaveBeenCalledWith("wedding_code_share_copied", expect.anything());
@@ -384,7 +398,7 @@ describe("WeddingCodeV31Client", () => {
 
   it("옷과 식순과 피하고 싶은 것은 모두 고를 수 있고 우선순위는 하나만 골라도 완료된다", async () => {
     await renderClient(); await button("내 웨딩코드 시작하기");
-    expect(container.textContent).toContain("아직 모르겠거나 이번 계획에 없는 내용이면 문장 아래 ‘답하기 어려워요’를 눌러 골라 주세요");
+    expect(container.textContent).toContain("아직 모르겠거나 해당하지 않는 내용이면 문장 아래 ‘답하기 어려워요’를 눌러 골라 주세요");
     await rateFlow(V31_CORE_RATING_IDS, 3);
     for (const taste of WEDDING_CODE_V31_TASTES) {
       if (taste.key === "attire" || taste.key === "ceremony") {
@@ -404,7 +418,7 @@ describe("WeddingCodeV31Client", () => {
     expect(container.querySelectorAll('[data-choice][aria-pressed="true"]')).toHaveLength(5);
     await next();
     await button("더 쓰고 싶은 곳은 지금 없어요"); await next();
-    // 기본 흐름의 마지막 화면에서 우선순위를 고르고, 선택 질문에서는 다시 묻지 않는다.
+    // 기본 흐름의 마지막 화면에서 우선순위를 고르고, 추가 질문에서는 다시 묻지 않는다.
     expect(container.querySelector('[data-question="priorities"]')).not.toBeNull();
     expect(container.textContent).toContain("고르지 않아도 결과를 볼 수 있어요");
     expect(container.querySelector('[data-choice="R1"]')).toBeNull();
@@ -428,7 +442,7 @@ describe("WeddingCodeV31Client", () => {
   it("피하고 싶은 기준을 바꾸면 사라진 우선순위만 빼고 남은 기준도 다시 확인받는다", async () => {
     await renderClient(); await button("내 웨딩코드 시작하기"); await finishFromHere();
     await finishOptional();
-    await button("우선순위 수정");
+    await button("꼭 지키고 싶은 것 수정");
     await click(container.querySelector<HTMLButtonElement>('[data-choice="avoid.heavy_decoration"]'));
     await button("수정한 결과 보기"); await consent();
     const oldUrl = linkValue()!;
@@ -476,7 +490,7 @@ describe("WeddingCodeV31Client", () => {
     };
     await renderClient({ bothDrafts: { first, second } });
     const sectionTitle = (id: string) => container.querySelector(`[data-comparison="${id}"]`)?.closest("section")?.querySelector("h2")?.textContent;
-    // 2026-09-27: 한쪽만 '더 쓰고 싶은 곳은 지금 없어요'면 취향의 '어느 쪽도 괜찮아요'와 같게 열린 답이다.
+    // 2026-09-27: 한쪽만 '더 쓰고 싶은 곳은 지금 없어요'면 취향의 '어느 것이든 괜찮아요'와 같게 열린 답이다.
     // 예전에는 지출만 '먼저 이야기해 볼 차이'에 섰다. 섹션 이름도 취향에 한정하지 않는다.
     expect(sectionTitle("taste.venue")).toBe("열어 두고 있는 답");
     expect(sectionTitle("avoidances")).toBe("함께 피하고 싶은 것");
@@ -526,12 +540,12 @@ describe("WeddingCodeV31Client", () => {
     expect(note?.querySelector("summary")?.textContent).toBe("내 메모 남기기 (선택)");
     expect(note?.textContent).toContain("자동 저장이나 공유 링크에는 포함되지 않아요");
     expect(container.querySelector("[data-priority-guides]")).toBeNull();
-    const prioritySummary = [...container.querySelectorAll("h2")].find(item => item.textContent === "이번 결혼식에서 지키고 싶은 것")?.closest("section");
-    expect(prioritySummary?.textContent).toContain("우선순위는 이번에 고르지 않았어요.");
+    const prioritySummary = [...container.querySelectorAll("h2")].find(item => item.textContent === "이번 결혼 준비에서 꼭 지키고 싶은 것")?.closest("section");
+    expect(prioritySummary?.textContent).toContain("꼭 지키고 싶은 것은 이번에 고르지 않았어요.");
     expect(prioritySummary?.textContent).not.toContain("지금 답하지 않을게요");
     expect(prioritySummary?.querySelector("ul")).toBeNull();
     // 결과에서 나중에 고를 수 있다는 안내가 사실인지 본다.
-    await button("우선순위 수정");
+    await button("꼭 지키고 싶은 것 수정");
     await click(container.querySelector<HTMLButtonElement>('[data-choice="G1"]'));
     await button("수정한 결과 보기");
     await consent();
@@ -546,8 +560,8 @@ describe("WeddingCodeV31Client", () => {
     expect(container.querySelector('progress')?.getAttribute("max")).toBe("3");
     // 진행 표기는 페이지 하나로 모으고, 선택 흐름인지는 숫자 없는 머리말로만 알린다.
     expect(container.querySelector("[data-progress-text]")?.textContent).toBe("1 / 3 페이지");
-    expect(container.textContent).toContain("선택 질문");
-    expect(container.textContent).not.toMatch(/선택 질문 \d/);
+    expect(container.textContent).toContain("추가 질문");
+    expect(container.textContent).not.toMatch(/추가 질문 \d/);
     await button("여기까지만 답하고 결과 보기"); await consent();
     expect(decodedLink(linkValue()!)?.answers.V1).toBeUndefined();
     // 기본 흐름 끝에서 고른 우선순위가 그대로 남고, 선택 흐름은 이를 다시 묻지 않는다.
@@ -671,8 +685,8 @@ describe("WeddingCodeV31Client", () => {
     expect(actions?.querySelector("input, details")).toBeNull();
     await finishFromHere();
     await button("내 답 수정하기");
-    // 수정 화면의 완료 버튼도 같은 자리에 붙는다.
-    expect(actionButton()?.textContent?.trim()).toBe("수정한 결과 보기");
+    // 수정 화면의 완료 버튼도 같은 자리에 붙는다. 다음 문항으로 넘어가 이어서 고칠 수 있는 보조 단추가 그 위에 있다.
+    expect([...container.querySelectorAll("[data-question-actions] button")].map(item => item.textContent?.trim())).toEqual(["다음 질문", "수정한 결과 보기"]);
     expect(container.querySelector("[data-question-actions]")?.className.split(/\s+/)).toContain("sticky");
   });
 
@@ -720,22 +734,22 @@ describe("WeddingCodeV31Client", () => {
     const labels = [...container.querySelectorAll("button")].map(item => item.textContent?.trim());
     expect(labels).not.toContain("우선순위도 골라볼게요 (선택)");
     expect(labels).not.toContain("지금 답하지 않을게요");
-    // 넘어가기는 화면 아래 고정 버튼이 맡는다. 뜻이 겹치는 ‘이번 계획에는 없어요’도 두지 않는다.
+    // 넘어가기는 화면 아래 고정 버튼이 맡는다. 뜻이 겹치는 ‘해당하지 않아요’도 두지 않는다.
     expect(labels.some(label => /고르지 않/.test(label ?? ""))).toBe(false);
-    expect(labels).not.toContain("이번 계획에는 없어요");
+    expect(labels).not.toContain("해당하지 않아요");
     expect([...container.querySelectorAll("button")].some(item => item.className.includes("bg-[var(--hb-action)]"))).toBe(false);
     expect(container.textContent).not.toContain("이 버튼을 누르면");
     expect(onChange).not.toHaveBeenCalled();
   });
 
   it.each([
-    ["undecided", "아직 우선순위를 정하지 못했어요"],
+    ["undecided", "꼭 지키고 싶은 건 아직 정하지 못했어요"],
     ["no_preference", "꼭 지키고 싶은 건 따로 없어요"],
-    ["not_applicable", "이번 계획에는 없어요"],
+    ["not_applicable", "해당하지 않아요"],
   ] as const)("기존 %s 답은 다른 조작 없이 눌린 채로 보인다", async (status, label) => {
     const onChange = vi.fn();
     await act(async () => root.render(<V31PriorityInput value={{ status }} options={[{ value: "B1", label: "전체 예산 지키기" }]} onChange={onChange} />));
-    // 이 화면에서 빼 둔 ‘이번 계획에는 없어요’도 전에 그렇게 답한 사람에게는 눌린 채로 보여준다.
+    // 이 화면에서 빼 둔 ‘해당하지 않아요’도 전에 그렇게 답한 사람에게는 눌린 채로 보여준다.
     expect([...container.querySelectorAll("button")].find(item => item.textContent?.trim() === label)?.getAttribute("aria-pressed")).toBe("true");
     expect(container.querySelector('[data-choice="B1"]')?.getAttribute("aria-pressed")).toBe("false");
     expect(container.textContent).not.toContain("넘어간 상태예요");
@@ -770,8 +784,8 @@ describe("WeddingCodeV31Client", () => {
     expect(container.querySelector('[data-question="priorities"]')).toBeNull();
     expect(container.querySelector('[data-result="solo-v31"]')).not.toBeNull();
     // 결과에는 우선순위를 다시 고를 칸이 없으니 다시 확인하라고 하지 않고, 한 일만 알린다.
-    expect(container.textContent).not.toContain("우선순위를 다시 확인");
-    expect(container.querySelector("[data-screen-notice]")?.textContent).toBe("앞의 답이 바뀌어 전에 고른 우선순위를 뺐어요.");
+    expect(container.textContent).not.toContain("‘꼭 지키고 싶은 것’을 다시 확인");
+    expect(container.querySelector("[data-screen-notice]")?.textContent).toBe("앞의 답이 바뀌어 전에 고른 ‘꼭 지키고 싶은 것’을 뺐어요.");
     expect(container.querySelector("[data-priority-entry]")).toBeNull();
     const saved = readV31LocalProgress(window.localStorage);
     expect(saved.status).toBe("ready");
@@ -796,7 +810,7 @@ describe("WeddingCodeV31Client", () => {
     await click(actionButton());
     expect(container.querySelector('[data-question="taste.venue"]')).not.toBeNull();
     const status = container.querySelector("[data-screen-notice]")?.textContent ?? "";
-    expect(status).toBe("보기에서 골라 주세요. ‘아직 모르겠어요’, ‘맞는 보기가 없어요’, ‘이번 계획에는 없어요’ 같은 칸을 골라도 돼요.");
+    expect(status).toBe("보기에서 골라 주세요. ‘아직 모르겠어요’, ‘맞는 보기가 없어요’, ‘해당하지 않아요’ 같은 칸을 골라도 돼요.");
     expect(status).not.toContain("답하기 어려워요");
     for (const label of status.match(/‘[^’]+’/g) ?? []) {
       expect([...container.querySelectorAll('[data-question="taste.venue"] button')].map(item => `‘${item.textContent?.trim()}’`)).toContain(label);

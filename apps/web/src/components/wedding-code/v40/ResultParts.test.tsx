@@ -71,7 +71,7 @@ describe("SelfContrast", () => {
       expect(textOf(items[index])).toContain(selfContrastSentence(axis.contrast!));
     });
     const text = textOf(harness.container);
-    expect(text).toContain("마지막에 직접 고른 쪽은");
+    expect(text).toContain("마지막 정리에서 고른 쪽은");
     expect(text).toContain("둘이 이야기해 봐도 좋아요");
     expect(text).not.toMatch(/맞아요|틀렸|더 정확/);
     expect(harness.container.querySelector("h2")?.textContent).toBe("직접 고른 쪽");

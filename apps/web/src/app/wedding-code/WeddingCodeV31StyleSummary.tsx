@@ -17,7 +17,8 @@ const COUNT_WORDS = ["한", "두", "세", "네", "다섯"] as const;
 
 /** 고른 보기를 다섯 칸 점과 보기 이름으로 보여준다. 아직 모름·이번 계획에 없음·지금 답하지 않음은 칸 없이 답만 적는다. */
 function Answer({ item }: { item: V31StatementScale }) {
-  return <span className="inline-flex flex-wrap items-baseline gap-x-2 gap-y-1">
+  // ml-auto: 문장과 꼬리표 뒤에 줄이 바뀌어도 점수 칸과 답 이름이 오른쪽에 붙어 다른 줄과 어긋나지 않는다.
+  return <span className="ml-auto inline-flex flex-wrap items-baseline gap-x-2 gap-y-1">
     {item.rating !== null ? <span role="img" aria-label={`다섯 칸 중 ${COUNT_WORDS[item.rating - 1]} 칸`}
       className="font-mono tracking-widest text-[var(--hb-text-strong)]">{formatV31RatingDots(item.rating)}</span> : null}
     <span className={v31Title}>{item.responseLabel}</span>
@@ -32,7 +33,7 @@ function Statement({ item, onEdit }: { item: V31StatementScale; onEdit?: EditHan
   </div>;
 }
 
-export default function WeddingCodeV31StyleSummary({ draft, label, onEdit, compact = false, showChangeNotice = true }: {
+export default function WeddingCodeV31StyleSummary({ draft, label, onEdit, compact = false, showChangeNotice = true, readingOnce = false }: {
   draft: V31Draft;
   label?: string;
   onEdit?: EditHandler;
@@ -42,6 +43,11 @@ export default function WeddingCodeV31StyleSummary({ draft, label, onEdit, compa
    * 카드 묶음 위에서 한 번만 하므로 끈다.
    */
   showChangeNotice?: boolean;
+  /**
+   * 「주제 순서로 왼쪽부터 글자를 정했어요」와 「칠한 칸이 많을수록 더 동의했다는 거예요」 두 줄을 이 카드에 둘지. 두 사람 카드를 나란히 둘 때는
+   * 두 코드에 공통인 이 설명을 카드 묶음 위에서 한 번만 하므로 끈다.
+   */
+  readingOnce?: boolean;
 }) {
   const summary = buildV31StyleSummary(draft);
   const coreIds = new Set(summary.dimensions.flatMap(dimension => dimension.items.map(item => item.id)));
@@ -77,11 +83,11 @@ export default function WeddingCodeV31StyleSummary({ draft, label, onEdit, compa
         data-borderline={dimension.borderline || undefined}>{dimension.letter}</span>)}</span>
       <span className="sr-only">{`네 글자 코드 ${spokenCode}`}</span>
     </p>
-    <p className={`mt-3 ${v31Body}`} data-topic-order>{summary.dimensions.map(dimension => dimension.topicName).join(", ")} 순서로 왼쪽부터 글자를 하나씩 정했어요.</p>
+    {readingOnce ? null : <p className={`mt-3 ${v31Body}`} data-topic-order>{summary.dimensions.map(dimension => dimension.topicName).join(", ")} 순서로 왼쪽부터 글자를 하나씩 정했어요.</p>}
     {summary.pendingNotice ? <p className={`mt-2 ${v31Body}`} data-pending-notice>{summary.pendingNotice}</p> : null}
     {!compact ? <p className="mt-2 text-xs leading-relaxed text-[var(--hb-text-muted)]">결혼식 취향은 아래에 따로 모았어요.</p> : null}
 
-    <p className={`mt-5 ${v31Body}`}>주제마다 두 문장에 따로 답했어요. 칠한 칸이 많을수록 그 문장에 더 동의했다는 거예요.</p>
+    {readingOnce ? null : <p className={`mt-5 ${v31Body}`}>주제마다 두 문장에 따로 답했어요. 칠한 칸이 많을수록 그 문장에 더 동의했다는 거예요.</p>}
     <dl className="mt-3 divide-y divide-[var(--hb-hairline)] border-y border-[var(--hb-hairline)]">
       {summary.dimensions.map(dimension => <div key={dimension.key} className="py-4" data-summary-topic={dimension.key}
         data-borderline={dimension.borderline || undefined} data-pending={dimension.pending ?? undefined}>
@@ -110,7 +116,7 @@ export default function WeddingCodeV31StyleSummary({ draft, label, onEdit, compa
     <details className="mt-4" data-core-statement-scales>
       <summary className={`flex min-h-11 cursor-pointer items-center text-sm underline underline-offset-4 ${v31Title}`}>코드를 만든 문장 전체 보기</summary>
       <div className="pt-3">
-        <p className={v31Body}>‘아직 모르겠어요’, ‘이번 계획에는 없어요’, ‘지금 답하지 않을게요’는 칸 없이 그 답만 적었어요.</p>
+        <p className={v31Body}>‘아직 모르겠어요’, ‘해당하지 않아요’, ‘지금 답하지 않을게요’는 칸 없이 그 답만 적었어요.</p>
         {coreGroups.length ? coreGroups.map(group => <section key={group.key} className="mt-5" aria-label={`${group.title} 문장과 고른 답`}>
           <h3 className={`mb-3 text-sm ${v31Title}`}>{group.title}</h3>
           <div className="divide-y divide-[var(--hb-hairline)]">{group.items.map(item => <Statement key={item.id} item={item} onEdit={onEdit} />)}</div>

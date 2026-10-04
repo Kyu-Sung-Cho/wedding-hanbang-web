@@ -176,7 +176,8 @@ export function GuessSetFlow({ role, formBit, initial, embedded = false, turnGua
               {copy.receiverStorageNote}
             </p>
           ) : null}
-          <p className={cx(noteText, "mt-3")}>{copy.skipNote}</p>
+          {/* 받는 사람의 소개 글(receiverIntro)이 이미 하지 않아도 결과는 그대로라고 말해서 같은 말을 한 번 더 하지 않는다. */}
+          {role === "receiver" ? null : <p className={cx(noteText, "mt-3")}>{copy.skipNote}</p>}
           <ActionBar embedded={embedded}>
             <div className="flex flex-col gap-3">
               <Button variant="primary" size="lg" fullWidth onClick={handleStart} data-nav="start">

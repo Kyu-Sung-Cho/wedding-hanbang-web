@@ -18,7 +18,7 @@ export interface ResultCase {
   readonly name: string;
   readonly result: V40Result;
   readonly quotes: readonly AxisQuotes[];
-  /** 주제별 내가 마지막에 직접 고른 쪽 줄(없으면 null). */
+  /** 주제별 내가 마지막 정리에서 고른 쪽 줄(없으면 null). */
   readonly selfLines: readonly (SelfLine | null)[];
 }
 

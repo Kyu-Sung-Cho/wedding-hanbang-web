@@ -61,11 +61,18 @@ function writePairSessionRecovery(value: SavedPairSession): boolean {
 export function savePairSessionRecovery(value: SavedPairSession): void {
   if (writePairSessionRecovery(value)) window.dispatchEvent(new Event("wedding-code-comparison-change"));
 }
+/** 진짜 Storage 가 아닌 저장소 대체물(메모리 대체)이면 던진다. 새로고침하면 사라지는 곳에 「이 브라우저에 남겨요」라고 하지 않으려는 것이다. */
+function genuineLocalStorage(): Storage {
+  const handle = window.localStorage;
+  if (Object.prototype.toString.call(handle) !== "[object Storage]") throw new Error("localStorage is not a Storage");
+  return handle;
+}
 export function savePairSessionLink(value: SavedPairSession): boolean {
   let changed = writePairSessionRecovery(value);
   try {
-    if (window.localStorage.getItem(SAVE_PREFERENCE_KEY) === "off") return false;
-    window.localStorage.setItem(PAIR_SESSION_LOCAL_KEY, JSON.stringify(value)); changed = true; return true;
+    const storage = genuineLocalStorage();
+    if (storage.getItem(SAVE_PREFERENCE_KEY) === "off") return false;
+    storage.setItem(PAIR_SESSION_LOCAL_KEY, JSON.stringify(value)); changed = true; return true;
   } catch { return false; }
   finally { if (changed) window.dispatchEvent(new Event("wedding-code-comparison-change")); }
 }

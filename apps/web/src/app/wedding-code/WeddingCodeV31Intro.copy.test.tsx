@@ -162,9 +162,9 @@ describe("웨딩코드 v3.1 시작 화면 문구", () => {
     expect(line!.querySelectorAll('a[href="/privacy"]')).toHaveLength(1);
     expect(line!.textContent).toContain("자세한 내용은 개인정보 처리방침에서 볼 수 있어요.");
     // 접힌 칸: 처음엔 닫혀 있고, 옛 세 문단이 그대로 들어 있으며, 링크는 소개 안에 하나뿐이라 여기엔 없다.
-    expect(fold!.querySelector("summary")?.textContent).toBe("자세히");
-    // 낭독기 목록에서 세 접힘 중 이름에 대상이 없는 것은 이것뿐이라, 보이는 글자로 시작하는 이름에 무엇을 여는지 덧붙인다.
-    expect(fold!.querySelector("summary")?.getAttribute("aria-label")).toBe("자세히, 개인정보 안내");
+    // 접힘 이름은 무엇의 자세한 안내인지 그 자체로 말한다(보이는 글자와 낭독 이름이 같아서 따로 덧붙인 이름이 없다).
+    expect(fold!.querySelector("summary")?.textContent).toBe("개인정보 자세히 보기");
+    expect(fold!.querySelector("summary")?.getAttribute("aria-label")).toBeNull();
     expect(fold!.open).toBe(false);
     expect(fold!.querySelectorAll(":scope > div > p")).toHaveLength(3);
     expect(fold!.querySelector("a")).toBeNull();
@@ -175,7 +175,7 @@ describe("웨딩코드 v3.1 시작 화면 문구", () => {
       `화면 개선을 위해 ${[funnel.wedding_code_intro_viewed, funnel.wedding_code_scene_reached, funnel.wedding_code_completed, funnel.answered_count].join(", ")} 같은 이용 통계만 기록하고, 이 통계에 고른 답·웨딩코드·공유 링크 주소는 넣지 않아요.`,
       `내 답은 이 브라우저에 자동으로 저장돼요. 마지막으로 저장한 날부터 ${LOCAL_TTL_MS / 86_400_000}일 동안 이어 할 수 있어요.`,
       "다른 사람과 같이 쓰는 컴퓨터나 휴대폰이라면 시작하기 전에 아래 ‘자동 저장 설정’에서 꺼 주세요.",
-      "결과에서 ‘함께 보기’에 동의하면 내 답 전체를 서버에 보관하고, 초대로 연결된 상대에게 보여줘요.",
+      "결과에서 ‘상대 초대하고 함께 보기’나 ‘동의하고 두 사람 결과 보기’에 동의하면 내 답 전체를 서버에 보관하고, 초대로 연결된 상대에게 보여줘요. 동의하기 전에는 내 답을 서버에 보내지 않아요.",
       `초대 후 ${PAIR_SESSION_RETENTION_DAYS}일 동안 볼 수 있고, 기간이 끝난 내용은 하루 안에 삭제해요.`,
       "상대가 이미 읽었거나 따로 저장해 둔 내용은 되돌릴 수 없어요.",
     ]) expect(folded, sentence).toContain(sentence);
@@ -250,7 +250,7 @@ describe("웨딩코드 v3.1 시작 화면 문구", () => {
       expect(value, where).toContain("두 사람의 공유 답을 바로 지");
     }
     // 이 글은 초대한 사람도, 초대 링크를 먼저 쓴 사람(초대 화면에서 답하는 사람)도 읽는다. 누가 읽어도 맞게 ‘초대로 연결된 상대’로 쓴다.
-    expect(text).toContain("결과에서 ‘함께 보기’에 동의하면 내 답 전체를 서버에 보관하고, 초대로 연결된 상대에게 보여줘요.");
+    expect(text).toContain("결과에서 ‘상대 초대하고 함께 보기’나 ‘동의하고 두 사람 결과 보기’에 동의하면 내 답 전체를 서버에 보관하고, 초대로 연결된 상대에게 보여줘요. 동의하기 전에는 내 답을 서버에 보내지 않아요.");
     expect(consentText).toContain("초대로 연결된 상대에게 보여주는 데 동의해요");
     for (const [where, value] of [["소개", text], ["동의 화면", consentText]] as const) expect(value, where).toContain("초대 링크를 먼저 사용한 사람이 상대가 돼요.");
     expect(text).toContain("이름이나 계정으로는 확인하지 않아요.");
@@ -279,15 +279,15 @@ describe("웨딩코드 v3.1 시작 화면 문구", () => {
     expect([...intro()!.querySelectorAll("summary")].map(item => item.textContent)).toContain("자동 저장 설정");
   });
 
-  it("보이는 숫자는 사용자가 실제로 지나가는 흐름과 같다: 기본 14페이지, 문장은 한 페이지에 최대 3개씩, 선택 질문 8개", async () => {
+  it("보이는 숫자는 사용자가 실제로 지나가는 흐름과 같다: 기본 14페이지, 문장은 한 페이지에 최대 3개씩, 추가 질문 8개", async () => {
     await show("웹 입구");
     const text = introText();
     const pages = getV31Pages("core");
     expect(text).toContain(`기본 ${pages.length}페이지 · 로그인 없이 시작`);
-    expect(text).toContain(`${V31_CORE_RATING_IDS.length}개 문장에 다섯 단계로 답하고, ${WEDDING_CODE_V31_TASTES.length}가지 취향과 피하고 싶은 것`);
+    expect(text).toContain(`${V31_CORE_RATING_IDS.length}개 문장에 다섯 단계로 답해요. 그다음 ${WEDDING_CODE_V31_TASTES.length}가지 취향을 고르고, 피하고 싶은 것`);
     expect(text).toContain(`결과에서 ${V31_EXTRA_INDEXES.length}개 문장을 이어서 볼 수 있어요`);
     expect(text).toContain("문장은 한 페이지에 최대 3개씩, 취향과 그 밖의 질문은 한 페이지에 하나씩 물어봐요");
-    // 선택 질문 8개는 3, 3, 2개로 묶인다. 그래서 ‘3개씩’이 아니라 ‘최대 3개씩’이 맞다.
+    // 추가 질문 8개는 3, 3, 2개로 묶인다. 그래서 ‘3개씩’이 아니라 ‘최대 3개씩’이 맞다.
     expect(getV31Pages("extra").map(page => page.length)).toEqual([3, 3, 2]);
     expect(text).not.toContain("한 페이지에 3개씩");
     // 문장 15개는 3개씩 5페이지, 나머지 9페이지는 하나씩이라 14페이지다.
@@ -327,7 +327,7 @@ describe("웨딩코드 v3.1 시작 화면 문구", () => {
   it("‘?’ 설명은 실제 글자 규칙과 보기 이름과 같다", async () => {
     await show("웹 입구");
     const text = introText();
-    expect(text).toContain("아직 모르거나 이번 계획에 없는 내용은 억지로 고르지 말고 ‘아직 모르겠어요’ 같은 보기로 표시해 주세요. 네 글자를 정하는 문장에 그렇게 표시하면 그 글자 하나만 ‘?’로 남고, 나머지 결과는 그대로 나와요.");
+    expect(text).toContain("아직 모르거나 해당하지 않는 내용은 억지로 고르지 말고 ‘아직 모르겠어요’ 같은 보기로 표시해 주세요. 글자를 정하는 문장에 그렇게 표시하면 그 주제의 글자만 ‘?’로 남고, 나머지 결과는 그대로 나와요.");
     for (const state of ["undecided", "not_applicable", "skipped"] as const) expect(getV31StyleLetter("budget", 4, state), state).toBe("?");
     // 두 문장을 모두 칸으로 골랐을 때만 글자가 생긴다.
     expect(getV31StyleLetter("budget", 4, 4)).not.toBe("?");
@@ -344,8 +344,11 @@ describe("웨딩코드 v3.1 시작 화면 문구", () => {
     await act(async () => root.render(<WeddingCodeV31Client shareOrigin="https://hanbang.ai" partnerDraft={received()} />));
     expect(introText()).toContain(note);
     expect(introText()).toContain("상대의 답은 이 브라우저에 저장하지 않아요. 내가 직접 답하거나 불러온 내 답만 저장해요.");
-    // 받은 링크의 첫 문단도 판정이 아니라는 말을 한 번만 한다. 앞에 ‘정리해’ 문장이 없어서 ‘정리해서 보여줘요’까지 이어 쓴다.
-    expect(container.querySelector("h1 + p")?.textContent).toBe("상대의 답이 담긴 링크를 받았어요. 상대에게 맞추지 말고 내 생각대로 답해 주세요. 다 답하면 같은 점과 먼저 이야기해 볼 점을 나란히 볼 수 있어요. 성격을 진단하는 검사가 아니고, 아직 여러 사람에게 확인해 보지 못한 질문이에요. 내가 고른 답을 정리해서 보여줘요.");
+    // 받은 링크의 첫 문단도 판정이 아니라는 말을 한 번만 한다. 같은 점을 나란히 보는 이야기는 아래 ‘둘이 먼저 나눠볼 이야기’ 카드가 맡는다.
+    expect(container.querySelector("h1 + p")?.textContent).toBe("상대의 답이 담긴 링크를 받았어요. 상대에게 맞추지 말고 내 생각대로 답해 주세요. 성격을 진단하는 검사가 아니고, 아직 여러 사람에게 확인해 보지 못한 질문이에요.");
+    // 받은 링크에는 상대의 답이 이미 들어 있어서, 내 답을 마치면 서로 공유할 것이 더 없이 바로 두 사람 결과가 열린다. 그래서 ‘서로 공유했을 때’라고 하지 않는다.
+    expect(introText()).toContain("내 답을 마치면 받은 링크에 담긴 상대의 답과 바로 나란히 보고, 같은 점과 먼저 이야기해 볼 점을 알 수 있어요. 내 답은 내가 링크를 보내기 전에는 상대에게 가지 않아요.");
+    expect(introText()).not.toContain("둘 다 답하고 서로 공유했을 때");
     expect(introText().match(/검사가 아니/g)).toHaveLength(1);
     expect(introText().match(/확인해 보지 못한/g)).toHaveLength(1);
     expect(introText().match(/성격|MBTI/g)).toHaveLength(1);
@@ -367,9 +370,10 @@ describe("웨딩코드 v3.1 시작 화면 문구", () => {
     const text = introText();
     // 판정이 아니라는 말은 이 정리한다는 말 바로 뒤, 소개 첫 문단에 붙어 있다.
     expect(text).toContain("내가 고른 답을 모아 준비 기준으로 정리해 봐요. 성격을 진단하는 검사가 아니고, 아직 여러 사람에게 확인해 보지 못한 질문이에요.");
-    expect(text).toContain("예산, 일 나누기, 가족과 상의, 받고 싶은 도움 네 가지에서 글자를 하나씩 정해요. 주제마다 정해진 두 문장의 답을 쓰고, 문장별 답도 함께 보여줘요.");
+    expect(text).toContain("예산, 일 나누기, 가족과 상의, 받고 싶은 도움 네 가지에서 글자를 하나씩 정해요. 글자는 주제마다 두 문장의 답으로 정하고, 문장별 답도 함께 보여줘요.");
     expect(text).toContain("장소·사진·옷·식사·하객 규모·식순에서 내가 고른 것을 모아 봐요.");
-    expect(text).toContain("혼자 해도 결과를 볼 수 있어요. 두 사람의 답을 나란히 보는 것은 내 답을 마친 뒤, 둘 다 답하고 서로 공유했을 때 할 수 있어요.");
+    expect(text).toContain("혼자 해도, 둘이 비교해도 돼요");
+    expect(text).toContain("혼자 해도 결과를 볼 수 있어요. 두 사람의 답을 나란히 보려면, 둘 다 답한 뒤 서로 답을 공유해야 해요.");
     const details = [...intro()!.querySelectorAll("details")].find(item => item.querySelector("summary")?.textContent === "무엇을 물어보나요?");
     expect(details?.textContent).toContain("초대할 사람과 하객의 이동 시간, 후보를 비교하는 방식, 둘이 일을 나누는 방식, 가족과 상의하는 순서와 마지막 선택, 힘들 때 바라는 도움");
   });

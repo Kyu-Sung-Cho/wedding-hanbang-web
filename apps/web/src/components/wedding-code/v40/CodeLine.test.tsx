@@ -31,7 +31,7 @@ describe("CodeLine", () => {
     const cells = [...harness.container.querySelectorAll("[data-code-axis]")];
     expect(cells.map((cell) => cell.getAttribute("data-code-axis"))).toEqual(["money", "process", "scope", "support"]);
     expect(cells.map((cell) => cell.querySelector("[data-code-letter]")?.textContent)).toEqual(["S", "W", "U", "A"]);
-    expect(cells.map((cell) => cell.firstElementChild?.textContent)).toEqual(["돈", "준비", "정하는 사람", "지쳤을 때"]);
+    expect(cells.map((cell) => cell.firstElementChild?.textContent)).toEqual(["돈", "준비", "함께 정할 때", "지쳤을 때"]);
     // 주제 이름이 글자보다 앞(위)에 있다
     for (const cell of cells) {
       const topic = cell.firstElementChild!;

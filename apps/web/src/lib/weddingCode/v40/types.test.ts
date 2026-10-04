@@ -106,13 +106,13 @@ describe("웨딩코드 4.0 상수", () => {
     expect(V40_LETTERS.map((info) => info.english)).toEqual(["Verify", "Scene", "With", "Divide", "Us", "Family", "Heart", "Action"]);
   });
 
-  it("주제는 네 개이고 글자 위치 순서가 돈, 준비, 정하는 사람, 지쳤을 때다", () => {
+  it("주제는 네 개이고 글자 위치 순서가 돈, 준비, 함께 정할 때, 지쳤을 때다", () => {
     expect(V40_AXES).toHaveLength(4);
     expect(V40_AXIS_KEYS).toEqual(["money", "process", "scope", "support"]);
     expect(V40_AXES.map((axis) => axis.order)).toEqual([0, 1, 2, 3]);
     expect(V40_AXES.map((axis) => `${axis.front}${axis.back}`).join("/")).toBe("VS/WD/UF/HA");
     expect(V40_AXES.map((axis) => axis.title)).toEqual(["돈을 정할 때", "준비를 굴릴 때", "누구와 함께 정할 때", "지쳤을 때"]);
-    expect(V40_AXES.map((axis) => axis.topic)).toEqual(["돈", "준비", "정하는 사람", "지쳤을 때"]);
+    expect(V40_AXES.map((axis) => axis.topic)).toEqual(["돈", "준비", "함께 정할 때", "지쳤을 때"]);
     for (const axis of V40_AXES) {
       expect(axisInfo(axis.key)).toBe(axis);
       expect(axis.evenSentence).toBe(`${axis.evenPiece}${V40_SUFFIX.even}`);

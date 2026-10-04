@@ -106,10 +106,10 @@ export type V31StyleSummary = {
 export const V31_STYLE_CHANGE_NOTICE = "아래 글자는 다시 답하면 달라질 수 있어요." as const;
 
 const BOTH_LABELS: Record<V31StyleKey, string> = {
-  budget: "전체 예산은 지키고 싶고, 늘릴지도 다시 의논하고 싶어요",
+  budget: "전체 예산은 지키고 싶고, 다시 의논할 길도 열어 두고 싶어요",
   teamwork: "함께 찾고, 계약·추가 결제 없는 세부 선택은 맡겨도 괜찮아요",
   family: "가족의 바람은 초반에 듣고, 마지막 선택은 둘이 하고 싶어요",
-  support: "이야기를 먼저 들어주고, 몰린 일 일부도 맡아주길 바라요",
+  support: "이야기를 먼저 들어주고, 내 일의 일부도 맡아주길 바라요",
 };
 
 /** ‘그런 편이에요’(4) 이상이면 그 문장 쪽으로 기운 답이다. */
@@ -208,7 +208,7 @@ function dimension(draft: V31Draft, definition: DimensionDefinition): V31StyleDi
     const both = items.every(item => item.response === "not_applicable");
     return {
       ...base, englishLabel: null, letterFrom: null,
-      label: both ? "두 문장 모두 이번 계획에 없어요" : "한 문장이 이번 계획에 없어요",
+      label: both ? "두 문장 모두 해당하지 않아요" : "한 문장이 해당하지 않아요",
       basis: null,
     };
   }
@@ -265,11 +265,11 @@ function pendingNotice(dimensions: V31StyleDimension[]): string | null {
   const notInPlan = dimensions.filter(item => item.pending === "not_in_plan");
   const allNa = notInPlan.filter(item => item.items.every(entry => entry.response === "not_applicable"));
   const oneNa = notInPlan.filter(item => !allNa.includes(item));
-  const oneNaPart = `${quotedTopics(oneNa)} 주제는 한 문장에 ‘이번 계획에는 없어요’로 답해서 ‘?’로 적었어요.`;
+  const oneNaPart = `${quotedTopics(oneNa)} 주제는 한 문장에 ‘해당하지 않아요’로 답해서 ‘?’로 적었어요.`;
   const sentences = [
     open.length ? `${quotedTopics(open)} 주제는 아직 모르거나 답하지 않은 문장이 있어서 ‘?’로 남겼어요. 그대로 둬도 괜찮고, 동의하는 정도를 고르면 그때 글자가 생겨요.` : null,
-    allNa.length && oneNa.length ? `${quotedTopics(allNa)} 주제는 이번 계획에 없다고 답했고, ${oneNaPart}`
-      : allNa.length ? `${quotedTopics(allNa)} 주제는 이번 계획에 없다고 답해서 ‘?’로 적었어요.`
+    allNa.length && oneNa.length ? `${quotedTopics(allNa)} 주제는 해당하지 않는다고 답했고, ${oneNaPart}`
+      : allNa.length ? `${quotedTopics(allNa)} 주제는 해당하지 않는다고 답해서 ‘?’로 적었어요.`
         : oneNa.length ? oneNaPart : null,
   ].filter(Boolean);
   return sentences.length ? sentences.join(" ") : null;

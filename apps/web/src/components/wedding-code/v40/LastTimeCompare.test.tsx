@@ -78,7 +78,7 @@ describe("LastTimeCompare", () => {
     expect(row("money").getAttribute("data-history-tag")).toBe("same");
     expect(textOf(row("money"))).toContain(V40_COPY.history.sameTag);
     expect(harness.container.querySelector("[data-history-changed]")).toBeNull();
-    expect(textOf(harness.container)).toContain("두 번 모두 뚜렷해요나 기울어요로 나온 주제 가운데 글자가 달라진 곳은 없어요.");
+    expect(textOf(harness.container)).toContain("두 번 모두 「뚜렷해요」나 「기울어요」로 나온 주제 가운데 글자가 달라진 곳은 없어요.");
     expect(textOf(harness.container)).not.toContain("글자가 같아요");
   });
 

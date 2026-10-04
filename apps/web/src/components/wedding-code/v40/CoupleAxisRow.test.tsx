@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { axisInfo, oppositeLetter, type Axis, type Letter, type StrengthBand } from "@/constants/weddingCodeV40";
-import { V40_COPY, coupleTagNote, letterBandCell } from "@/lib/weddingCode/v40/copy";
+import { V40_COPY, coupleTagNote, evenCellCodeNote, letterBandCell } from "@/lib/weddingCode/v40/copy";
 import type { CoupleAxisRow as CoupleAxisRowData, CoupleSideInfo, CoupleTag, Perspective } from "@/lib/weddingCode/v40/types";
 import { CoupleAxisRow, peopleInOrder } from "./CoupleAxisRow";
 import { createHarness, labelProblemsIn, type Harness } from "./inputTestKit";
@@ -145,16 +145,32 @@ describe("CoupleAxisRow: 두 사람의 순서와 이름", () => {
 });
 
 describe("CoupleAxisRow: 글자 칸", () => {
-  it("칸의 글은 두 사람 화면의 글자 칸 문구(letterBandCell)와 글자 그대로 같다", async () => {
+  it("뚜렷해요, 기울어요 칸의 글은 두 사람 화면의 글자 칸 문구(letterBandCell)와 글자 그대로 같다", async () => {
     const cases: ReadonlyArray<readonly [Letter, StrengthBand, boolean]> = [
       ["V", "clear", false],
       ["S", "lean", false],
-      ["A", "even", false],
-      ["H", "even", true],
     ];
     for (const [letter, band, provisional] of cases) {
-      const item = await renderRow(makeRow(axisInfo(letter === "V" || letter === "S" ? "money" : "support").key, side(letter, band, provisional), side(oppositeLetter(letter), "lean"), "even"), null);
+      const item = await renderRow(makeRow(axisInfo(letter === "V" || letter === "S" ? "money" : "support").key, side(letter, band, provisional), side(oppositeLetter(letter), "lean"), "different"), null);
       expect(cellsOf(item)[0][1]).toBe(letterBandCell(letter, band, provisional));
+    }
+  });
+
+  it("반반이에요 칸은 세기 낱말을 앞에 두고 글자는 작은 글씨로 밝힌다(글자를 크게 나란히 놓지 않는다)", async () => {
+    const cases: ReadonlyArray<readonly [Letter, boolean]> = [
+      ["A", false],
+      ["H", true],
+    ];
+    for (const [letter, provisional] of cases) {
+      const item = await renderRow(makeRow("support", side(letter, "even", provisional), side(oppositeLetter(letter), "even"), "even"), null);
+      const first = item.querySelector<HTMLElement>("[data-even-cell]");
+      expect(first, letter).not.toBeNull();
+      const paragraphs = [...first!.querySelectorAll("p")].map((paragraph) => paragraph.textContent);
+      expect(paragraphs[1], letter).toBe(provisional ? `반반이에요 · ${V40_COPY.result.provisionalMark}` : "반반이에요");
+      expect(paragraphs[2], letter).toBe(evenCellCodeNote(letter));
+      expect(paragraphs[2]).toContain(`「${letter} `);
+      // 글자만 크고 굵게 따로 그리지 않는다.
+      expect(first!.querySelector("span")).toBeNull();
     }
   });
 

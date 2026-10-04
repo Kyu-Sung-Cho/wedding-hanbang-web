@@ -123,6 +123,11 @@ describe("두 사람 연결의 접근 권한과 늦게 도착한 응답", () => 
     expect(props.sharingContent).toBeTruthy();
     expect(result()?.getAttribute("data-own-answer")).toBe(encodeV31(own));
     expect(result()?.getAttribute("data-partner-answer")).toBe(encodeV31(partner));
+    // 볼 수 있는 기한은 월 일 시 분까지만 적고(연도·초를 쓰지 않는다), 다시 비교하는 길은 연결된 뒤에만 안내한다.
+    const manage = container.querySelector('[aria-label="두 사람 연결 관리"]');
+    expect(manage).not.toBeNull();
+    expect(manage!.textContent).toMatch(/공유한 시점의 답이에요\. \d{1,2}월 \d{1,2}일 (오전|오후) \d{1,2}시( \d{1,2}분)?까지 볼 수 있어요\. 답을 바꿔 다시 비교하려면 이 연결을 끝내고 새로 초대해 주세요\./);
+    expect(manage!.textContent).not.toMatch(/\d{4}\.|:\d{2}:\d{2}/);
     expect(requestPairSession).toHaveBeenCalledExactlyOnceWith({ action: "read", roomId: ROOM, token: role === "owner" ? OWNER : OTHER });
     await act(async () => props.onRestart());
     expect(observed.push).toHaveBeenCalledExactlyOnceWith("/wedding-code");
@@ -137,10 +142,10 @@ describe("두 사람 연결의 접근 권한과 늦게 도착한 응답", () => 
     expect(content).not.toBeNull();
     await act(async () => { await vi.advanceTimersByTimeAsync(999); });
     expect(mode === "access" ? result() : quiz()).toBe(content);
-    expect(container.textContent).not.toContain("이 비교는 끝났어요");
+    expect(container.textContent).not.toContain("함께 보기가 끝났어요");
     await act(async () => { await vi.advanceTimersByTimeAsync(1); });
     expect(result()).toBeNull(); expect(quiz()).toBeNull();
-    expect(container.textContent).toContain("이 비교는 끝났어요");
+    expect(container.textContent).toContain("함께 보기가 끝났어요");
     expect(container.querySelector('[aria-label="두 사람 연결 관리"]')).toBeNull();
     expect(requestPairSession).toHaveBeenCalledTimes(1);
   });
@@ -168,9 +173,9 @@ describe("두 사람 연결의 접근 권한과 늦게 도착한 응답", () => 
     await render("access", OWNER); await poll();
     await click("연결 끝내기"); await click("공유 답 지우고 연결 끝내기");
     expect(requestPairSession).toHaveBeenLastCalledWith({ action: "revoke", roomId: ROOM, token: OWNER });
-    expect(container.textContent).toContain("이 비교는 끝났어요"); expect(result()).toBeNull();
+    expect(container.textContent).toContain("함께 보기가 끝났어요"); expect(result()).toBeNull();
     await act(async () => oldRead.resolve({ ok: true, snapshot: ready() }));
-    expect(container.textContent).toContain("이 비교는 끝났어요"); expect(result()).toBeNull();
+    expect(container.textContent).toContain("함께 보기가 끝났어요"); expect(result()).toBeNull();
     await poll();
     expect(requestPairSession).toHaveBeenCalledTimes(3);
   });

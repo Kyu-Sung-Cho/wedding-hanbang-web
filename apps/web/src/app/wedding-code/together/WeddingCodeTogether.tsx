@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import Button from "@/components/ui/Button";
 import type { V31Draft } from "@/constants/weddingCodeV31";
-import { decodeV31, encodeV31 } from "@/lib/weddingCode/v31";
+import { decodeV31, encodeV31, hasV31Content } from "@/lib/weddingCode/v31";
 import { createPairSessionKeys, PAIR_SESSION_CONSENT_VERSION, requestPairSession, type PairSessionRequest, type PairSessionSnapshot } from "@/lib/weddingCode/pairSessionContract";
 import { forgetPairSession, pairSessionUrl, parsePairSessionHash, readPairSessionRecovery, savePairSessionLink, savePairSessionRecovery, type PairSessionLink } from "@/lib/weddingCode/pairSessionClient";
 import WeddingCodeV31Client from "../WeddingCodeV31Client";
@@ -18,16 +18,34 @@ function subscribeHash(listener: () => void) {
   return () => { window.removeEventListener("hashchange", listener); window.removeEventListener("popstate", listener); };
 }
 
-function CopyAddress({ url, label, privateLink = false }: { url: string; label: string; privateLink?: boolean }) {
+/** 볼 수 있는 기한을 ‘10월 10일 오후 3시 20분’ 꼴로 적는다. 기본 서식은 연도와 초까지 나와 읽기 어렵다. */
+function formatExpiry(iso: string) {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return "";
+  const hour = date.getHours();
+  const minute = date.getMinutes();
+  return `${date.getMonth() + 1}월 ${date.getDate()}일 ${hour < 12 ? "오전" : "오후"} ${hour % 12 || 12}시${minute ? ` ${minute}분` : ""}`;
+}
+
+/**
+ * 주소 복사 단추. privateLink 는 나만 보관할 확인 주소다. inviteStillNeeded 는 상대가 아직 참여하지 않아 초대 링크를 따로 보내야 하는 때이고,
+ * 이미 연결된 뒤에는 초대 링크가 이미 쓰였으므로 「초대 링크를 보내 주세요」라고 하지 않는다.
+ */
+function CopyAddress({ url, label, privateLink = false, inviteStillNeeded = false }: { url: string; label: string; privateLink?: boolean; inviteStillNeeded?: boolean }) {
   const [notice, setNotice] = useState("");
+  const [failed, setFailed] = useState(false);
   async function copy() {
-    try { await navigator.clipboard.writeText(url); setNotice(privateLink ? "나만 보관할 확인 주소를 복사했어요. 상대에게는 초대 링크를 보내 주세요." : "초대 링크를 복사했어요. 함께 볼 사람과의 대화창에 붙여 넣어 주세요."); }
-    catch { setNotice("아래 주소를 선택해서 직접 복사해 주세요."); }
+    try {
+      await navigator.clipboard.writeText(url); setFailed(false);
+      setNotice(privateLink ? (inviteStillNeeded ? "나만 보관할 확인 주소를 복사했어요. 상대에게는 초대 링크를 보내 주세요." : "나만 보관할 확인 주소를 복사했어요. 나만 보관해 주세요.") : "초대 링크를 복사했어요. 함께 볼 사람과의 대화창에 붙여 넣어 주세요.");
+    }
+    catch { setFailed(true); setNotice("자동 복사가 안 됐어요. 아래 주소를 길게 누르거나 선택해서 직접 복사해 주세요."); }
   }
   return <div className="mt-4">
     <Button variant={privateLink ? "secondary" : "primary"} fullWidth onClick={() => void copy()} className="whitespace-normal!">{label}</Button>
     <p role="status" className={`mt-2 ${v31Body}`}>{notice}</p>
-    <details><summary className="flex min-h-11 cursor-pointer items-center text-sm underline underline-offset-4">{privateLink ? "나만 보관할 확인 주소 직접 복사" : "초대 링크 직접 복사"}</summary>
+    {/* 복사가 막히기 쉬운 앱 안 브라우저에서는 주소 칸을 바로 열어 둔다(접힌 칸 안에 있으면 ‘아래 주소’가 화면에 없다). */}
+    <details open={failed || undefined}><summary className="flex min-h-11 cursor-pointer items-center text-sm underline underline-offset-4">{privateLink ? "나만 보관할 확인 주소 직접 복사" : "초대 링크 직접 복사"}</summary>
       <input readOnly value={url} aria-label={privateLink ? "나만 보관할 확인 주소" : "상대에게 보낼 초대 링크"} onFocus={event => event.currentTarget.select()} className="min-h-12 w-full rounded-lg border border-paper-outline px-3 text-sm" />
     </details>
   </div>;
@@ -76,10 +94,15 @@ function JoinComparison({ draft, link, expiresAt, previousRequest, onRequestStar
     <Button variant="secondary" fullWidth disabled={busy} onClick={() => void join()} className="mt-3 whitespace-normal!">{busy ? "함께 볼 결과를 연결하고 있어요…" : "처음 동의했던 답으로 다시 보내기"}</Button>
     {error ? <p role="alert" className={`mt-3 ${v31Body}`}>{error}</p> : null}
   </section>;
+  // 고른 답이 하나도 없으면(모두 ‘아직 모르겠어요’ 같은 답) 보낼 답이 없어 서버 요청 전에 막힌다. 동의를 받고 오류로 끝내지 않고 미리 말한다.
+  if (!hasV31Content(draft)) return <section className={`${v31Surface} mt-6 p-5 sm:p-7`} aria-label="내 답 공유하고 함께 보기">
+    <h2 className={`mb-3 text-lg ${v31Title}`}>내 답을 공유하고, 두 사람 결과 보기</h2>
+    <p className={v31Body} data-join-no-content>고른 답이 아직 없어서 공유할 수 없어요. 하나라도 답하면 함께 볼 수 있어요.</p>
+  </section>;
   return <section className={`${v31Surface} mt-6 p-5 sm:p-7`} aria-label="내 답 공유하고 함께 보기">
     <h2 className={`mb-3 text-lg ${v31Title}`}>내 답을 공유하고, 두 사람 결과 보기</h2>
     <p className={`mb-3 ${v31Body}`}>여기서 동의하면 초대한 사람도 내 답 전체를 볼 수 있어요. 결과 링크를 다시 보내지 않아도 돼요.</p>
-    <PairSessionConsent consent={consent} ageConfirmed={ageConfirmed} disabled={busy} onConsent={setConsent} onAge={setAgeConfirmed} />
+    <PairSessionConsent participant consent={consent} ageConfirmed={ageConfirmed} disabled={busy} onConsent={setConsent} onAge={setAgeConfirmed} />
     <Button variant="primary" fullWidth disabled={busy} onClick={() => void join()} className="mt-4 whitespace-normal!">{busy ? "함께 볼 결과를 연결하고 있어요…" : "동의하고 두 사람 결과 보기"}</Button>
     {error ? <div role="alert" className={`mt-3 ${v31Body}`}><p>{error}</p>{recoveryUrl ? <Link className="mt-2 inline-flex min-h-11 items-center underline" href={recoveryUrl}>이미 연결됐는지 내 결과 확인하기</Link> : null}</div> : null}
   </section>;
@@ -89,7 +112,7 @@ export default function WeddingCodeTogether() {
   const hash = useSyncExternalStore(subscribeHash, () => window.location.hash, () => null);
   const link = hash === null ? null : parsePairSessionHash(hash);
   if (hash === null) return <p role="status" className={`p-6 ${v31Body}`}>두 사람 연결을 확인하고 있어요…</p>;
-  if (!link) return <main className="mx-auto max-w-[680px] p-6"><h1 className={`text-2xl ${v31Title}`}>비교 링크를 확인해 주세요</h1><p className={`mt-3 ${v31Body}`}>주소가 중간에 잘렸거나 잘못된 링크예요. 초대한 사람에게 새 링크를 받아 주세요.</p><Link href="/wedding-code" className="mt-4 inline-flex min-h-11 items-center underline">웨딩코드로 돌아가기</Link></main>;
+  if (!link) return <main className="mx-auto max-w-[680px] p-6"><h1 className={`text-2xl ${v31Title}`}>함께 보기 링크를 확인해 주세요</h1><p className={`mt-3 ${v31Body}`}>주소가 중간에 잘렸거나 잘못된 링크예요. 초대한 사람에게 새 링크를 받아 보세요.</p><Link href="/wedding-code" className="mt-4 inline-flex min-h-11 items-center underline">웨딩코드로 돌아가기</Link></main>;
   // 같은 방이어도 주소의 접근 키가 바뀌면 이전 답과 요청 상태를 모두 버린다.
   return <TogetherSession key={hash} link={link} />;
 }
@@ -142,7 +165,7 @@ function TogetherSession({ link }: { link: PairSessionLink }) {
         } else setError(result.error);
         return;
       }
-      if ((used.mode === "invite") !== (result.snapshot.role === "invite")) { setError("이 링크로는 이 비교를 열 수 없어요. 받은 링크가 맞는지 확인해 주세요."); return; }
+      if ((used.mode === "invite") !== (result.snapshot.role === "invite")) { setError("이 링크로는 이 함께 보기를 열 수 없어요. 받은 링크가 맞는지 확인해 주세요."); return; }
       setError(""); setRefreshNotice(""); setSnapshot(result.snapshot); setMember(used);
       knownInvite.current = result.snapshot.role === "invite" && result.snapshot.state === "waiting";
       if (result.snapshot.state === "closed") { closed.current = true; forgetPairSession(roomId); return; }
@@ -177,21 +200,24 @@ function TogetherSession({ link }: { link: PairSessionLink }) {
   }
 
   const activeSnapshot = snapshot?.roomId === roomId ? snapshot : null;
+  // 상대가 아직 참여하지 않아 초대 링크를 따로 보내야 하는 초대자 화면인가. 연결된 뒤에는 초대 링크가 이미 쓰였다.
+  const inviteStillNeeded = activeSnapshot?.state === "waiting" && activeSnapshot.role === "owner";
   const own = activeSnapshot?.ownAnswerCode ? decodeV31(activeSnapshot.ownAnswerCode) : null;
   const partner = activeSnapshot?.partnerAnswerCode ? decodeV31(activeSnapshot.partnerAnswerCode) : null;
   const manage = activeSnapshot && member?.mode === "member" ? <section className={`${v31Surface} my-5 p-5`} aria-label="두 사람 연결 관리">
     <h2 className={`text-lg ${v31Title}`}>{activeSnapshot.state === "ready" ? "두 사람의 답이 연결됐어요" : "상대의 답을 기다리고 있어요"}</h2>
-    <p className={`mt-2 ${v31Body}`}>공유한 시점의 답이에요. {new Date(activeSnapshot.expiresAt).toLocaleString("ko-KR")}까지 볼 수 있어요. 답을 바꿔 다시 비교하려면 이 연결을 끝내고 새로 초대해 주세요.</p>
+    <p className={`mt-2 ${v31Body}`}>공유한 시점의 답이에요. {activeSnapshot.state === "ready" ? `${formatExpiry(activeSnapshot.expiresAt)}까지 볼 수 있어요. 답을 바꿔 다시 비교하려면 이 연결을 끝내고 새로 초대해 주세요.` : `이 초대는 ${formatExpiry(activeSnapshot.expiresAt)}까지 열려 있어요.`}</p>
     {activeSnapshot.state === "waiting" && activeSnapshot.role === "owner" && member.invitation ? <>
       <p className={`mt-3 ${v31Body}`}>아래 초대 링크를 상대에게 보내 주세요. 상대가 답과 공유를 마치면 이 화면에 결과가 나타나요. 화면을 닫았다면 나중에 다시 들어와 확인해 주세요.</p>
       <CopyAddress url={pairSessionUrl(window.location.origin, { roomId: member.roomId, token: member.invitation, mode: "invite" })} label="상대에게 보낼 초대 링크 복사" />
     </> : null}
     {savedLocally === false ? <p className={`mt-3 ${v31Body}`}>이 브라우저에 확인 주소를 저장하지 못했어요. 아래 ‘나만 보관할 확인 주소’를 따로 보관해 주세요.</p> : <p className={`mt-3 ${v31Body}`}>자동 저장이 켜진 이 브라우저에서는 웨딩코드의 ‘연결한 두 사람 결과 보기’로 다시 들어올 수 있어요.</p>}
-    <details className="mt-2"><summary className="flex min-h-11 cursor-pointer items-center text-sm underline underline-offset-4">나만 보관할 확인 주소</summary><p className={`mt-2 ${v31Body}`}>이 주소를 아는 사람은 누구든 두 사람 결과를 보고 연결도 끝낼 수 있어요. 나만 보관하고, 상대에게는 초대 링크를 따로 보내 주세요.</p><CopyAddress url={pairSessionUrl(window.location.origin, member)} label="나만 보관할 확인 주소 복사" privateLink /></details>
+    <details className="mt-2"><summary className="flex min-h-11 cursor-pointer items-center text-sm underline underline-offset-4">나만 보관할 확인 주소</summary><p className={`mt-2 ${v31Body}`}>{inviteStillNeeded ? "이 주소를 아는 사람은 누구든 두 사람 결과를 보고 연결도 끝낼 수 있어요. 나만 보관하고, 상대에게는 초대 링크를 따로 보내 주세요." : "이 주소를 아는 사람은 누구든 두 사람 결과를 보고 연결도 끝낼 수 있어요. 나만 보관해 주세요."}</p><CopyAddress url={pairSessionUrl(window.location.origin, member)} label="나만 보관할 확인 주소 복사" privateLink inviteStillNeeded={inviteStillNeeded} /></details>
     <Button variant="secondary" disabled={busy} onClick={reload} className="mt-3">현재 상태 다시 확인</Button>
     {!revokeOpen ? <Button variant="ghost" onClick={() => setRevokeOpen(true)} className="mt-3">연결 끝내기</Button> : <div className="mt-4 border-t border-[var(--hb-hairline)] pt-4">
-      <p className={v31Body}>서버에 있는 두 사람의 공유 답을 지우고 이 연결을 끝낼까요? 상대가 이미 읽었거나 따로 저장한 내용은 되돌릴 수 없어요. 다시 함께 보려면 새로 초대해야 해요. 각자 브라우저에 저장한 답은 남아요.</p>
-      <div className="mt-3 flex flex-wrap gap-3"><Button variant="secondary" disabled={busy} onClick={() => setRevokeOpen(false)}>계속 함께 보기</Button><Button variant="primary" disabled={busy} onClick={() => void revoke()}>{busy ? "연결을 끝내고 있어요…" : "공유 답 지우고 연결 끝내기"}</Button></div>
+      {/* 상대가 아직 참여하지 않았으면 서버에는 내 답 하나뿐이고 읽은 사람도 없다. 연결된 뒤의 확인문을 그대로 쓰면 없는 상대와 없는 「함께 보기」를 말하게 된다. */}
+      <p className={v31Body}>{inviteStillNeeded ? "서버에 있는 내 공유 답을 지우고 이 초대를 닫을까요? 이미 보낸 초대 링크는 더 쓸 수 없게 돼요. 각자 브라우저에 저장한 답은 남아요." : "서버에 있는 두 사람의 공유 답을 지우고 이 연결을 끝낼까요? 상대가 이미 읽었거나 따로 저장한 내용은 되돌릴 수 없어요. 다시 함께 보려면 새로 초대해야 해요. 각자 브라우저에 저장한 답은 남아요."}</p>
+      <div className="mt-3 flex flex-wrap gap-3"><Button variant="secondary" disabled={busy} onClick={() => setRevokeOpen(false)}>{inviteStillNeeded ? "초대 유지하기" : "계속 함께 보기"}</Button><Button variant="primary" disabled={busy} onClick={() => void revoke()}>{busy ? "연결을 끝내고 있어요…" : inviteStillNeeded ? "공유 답 지우고 초대 닫기" : "공유 답 지우고 연결 끝내기"}</Button></div>
     </div>}
   </section> : null;
 
@@ -199,10 +225,10 @@ function TogetherSession({ link }: { link: PairSessionLink }) {
     <nav aria-label="두 사람 웨딩코드 탐색" className="mb-6"><Link href="/wedding-code" className="inline-flex min-h-11 items-center text-sm font-semibold text-[var(--hb-text-strong)] underline underline-offset-4">웨딩코드로 돌아가기</Link></nav>
     {joinRequest ? <WeddingCodeComparisonResume compact /> : null}
     {refreshNotice ? <p role="status" className={`mb-4 ${v31Body}`}>{refreshNotice}</p> : null}
-    {error ? <section role="alert"><h1 className={`text-2xl ${v31Title}`}>비교 결과를 확인하지 못했어요</h1><p className={`mt-3 ${v31Body}`}>{error}</p><Button variant="primary" className="mt-4" onClick={reload}>다시 확인하기</Button></section>
+    {error ? <section role="alert"><h1 className={`text-2xl ${v31Title}`}>함께 보기 결과를 확인하지 못했어요</h1><p className={`mt-3 ${v31Body}`}>{error}</p><Button variant="primary" className="mt-4" onClick={reload}>다시 확인하기</Button></section>
         : !activeSnapshot ? <p role="status" className={v31Body}>두 사람 연결을 확인하고 있어요…</p>
-          : activeSnapshot.state === "closed" || expired ? <section><h1 className={`text-2xl ${v31Title}`}>이 비교는 끝났어요</h1><p className={`mt-3 ${v31Body}`}>한 사람이 연결을 끝냈거나 볼 수 있는 기간이 지났어요. 다시 함께 보려면 새로 초대해 주세요.</p><Link href="/wedding-code" className="mt-4 inline-flex min-h-11 items-center underline">내 웨딩코드로 돌아가기</Link></section>
-            : activeSnapshot.role === "invite" ? activeSnapshot.state === "ready" ? <section><h1 className={`text-2xl ${v31Title}`}>이미 참여한 초대예요</h1><p className={`mt-3 ${v31Body}`}>내가 이미 답했다면, 그때 쓴 브라우저의 ‘연결한 두 사람 결과 보기’에서 확인해 주세요. 다른 사람이 먼저 참여했다면, 초대한 사람에게 새 초대를 요청해 주세요.</p></section> : <>
+          : activeSnapshot.state === "closed" || expired ? <section><h1 className={`text-2xl ${v31Title}`}>함께 보기가 끝났어요</h1><p className={`mt-3 ${v31Body}`}>연결을 끝냈다면 서버에 있던 두 사람의 공유 답은 바로 지워졌고, 볼 수 있는 기간이 지났다면 하루 안에 지워져요. 다시 함께 보려면 새로 초대해 주세요.</p><Link href="/wedding-code" className="mt-4 inline-flex min-h-11 items-center underline">내 웨딩코드로 돌아가기</Link></section>
+            : activeSnapshot.role === "invite" ? activeSnapshot.state === "ready" ? <section><h1 className={`text-2xl ${v31Title}`}>이미 참여한 초대예요</h1><p className={`mt-3 ${v31Body}`}>이 초대는 이미 쓰였어요. 내가 답한 초대라면 그때 쓴 브라우저에서 아래 ‘연결한 두 사람 결과 보기’로 열 수 있어요. 보이지 않으면 따로 복사해 둔 ‘나만 보관할 확인 주소’로 열어 주세요. 다른 사람이 먼저 쓴 초대이거나 확인 주소가 없다면 초대한 사람에게 새 초대를 요청해 주세요.</p><WeddingCodeComparisonResume /></section> : <>
               <section className={`${v31Surface} mb-5 p-5`} aria-label="받은 초대 안내"><h2 className={`text-lg ${v31Title}`}>결혼 준비에 대한 각자의 생각을 나란히 보자는 초대가 왔어요</h2><p className={`mt-2 ${v31Body}`}>먼저 내 생각대로 답해 보세요. 내 결과를 확인한 뒤 공유에 동의하면 상대도 내 답 전체를 보고, 나도 상대 답을 볼 수 있어요. 아직 상대 답은 보여주지 않아요. 답하지 않거나 공유하지 않아도 괜찮아요.</p></section>
               {/* 상대 답은 동의 전까지 넘기지 않지만, 상대가 보낸 초대로 답하는 사람이라는 사실은 통계 값에 그대로 싣는다. */}
               <WeddingCodeV31Client embedded pairInvite shareOrigin={window.location.origin}
@@ -210,7 +236,7 @@ function TogetherSession({ link }: { link: PairSessionLink }) {
                 renderResultActions={draft => <JoinComparison draft={draft} link={link} expiresAt={activeSnapshot.expiresAt} previousRequest={joinRequest} onRequestStart={beginJoin} />} />
             </> : own ? <>
               {manage}
-              <WeddingCodeV31Results draft={own} first={partner} received={false} readOnly shareOrigin={window.location.origin} onEdit={() => {}} onRestart={() => router.push("/wedding-code")} sharingContent={<p className={`mt-5 ${v31Body}`}>이 비교 결과는 두 사람의 확인 주소에서만 볼 수 있어요. 이 화면에서는 답이 담긴 링크를 만들 수 없어요.</p>} />
+              <WeddingCodeV31Results draft={own} first={partner} received={false} readOnly shareOrigin={window.location.origin} onEdit={() => {}} onRestart={() => router.push("/wedding-code")} sharingContent={<p className={`mt-5 ${v31Body}`}>이 두 사람 결과는 두 사람의 확인 주소에서만 볼 수 있어요. 이 화면에서는 답이 담긴 링크를 만들 수 없어요.</p>} />
             </> : <p role="alert" className={v31Body}>답을 읽지 못했어요. 현재 상태를 다시 확인해 주세요.</p>}
   </main>;
 }

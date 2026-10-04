@@ -32,8 +32,8 @@
   {
     "name": "줄에 아쉬움을 담은 말이 들어간다",
     "target": "apps/web/src/lib/weddingCode/v40/letterGuess/letterGuessCopy.ts",
-    "find": "를 먼저 골랐고, 답을 모아 보니 ${letterWithName(line.shown)}",
-    "replace": "를 먼저 골랐고, 아쉽게도 답을 모아 보니 ${letterWithName(line.shown)}"
+    "find": "를 골랐는데, 답을 모아 보니 ${letterWithName(line.shown)}",
+    "replace": "를 골랐는데, 아쉽게도 답을 모아 보니 ${letterWithName(line.shown)}"
   },
   {
     "name": "글자 카드 글에 하이픈을 쓴다",
@@ -43,9 +43,9 @@
   },
   {
     "name": "정하는 사람 주제의 주어가 답을 모아 보니 문장의 주어와 갈라진다",
-    "target": "apps/web/src/lib/weddingCode/v40/letterGuess/letterGuessCopy.ts",
-    "find": "scope: \"정하는 사람은\",",
-    "replace": "scope: \"정할 때는\","
+    "target": "apps/web/src/lib/weddingCode/v40/copy.ts",
+    "find": "  scope: \"함께 정할 때는\",",
+    "replace": "  scope: \"정할 때는\","
   },
   {
     "name": "저장 안내에 숫자가 들어간다",

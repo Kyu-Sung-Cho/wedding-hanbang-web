@@ -19,7 +19,7 @@ import {
   getV31MissingIndex, getV31NextIndex, getV31ResponseAt, getV31ScreenIndexes, type V31Flow,
 } from "@/lib/weddingCode/v31Flow";
 import { getV31Page, getV31PageMissingIndex, getV31Pages, isV31PageComplete } from "@/lib/weddingCode/v31Pages";
-import { readSavedPairSession, subscribePairSession } from "@/lib/weddingCode/pairSessionClient";
+import { readPairSessionRecovery, readSavedPairSession, subscribePairSession } from "@/lib/weddingCode/pairSessionClient";
 import { PAIR_SESSION_RETENTION_DAYS } from "@/lib/weddingCode/pairSessionContract";
 
 const coreCount = WEDDING_CODE_V31_QUESTIONS.length;
@@ -29,12 +29,14 @@ const priorityIndex = avoidanceIndex + 1;
 const CORE_PAGE_COUNT = getV31Pages("core").length;
 /** 이 브라우저 자동 저장이 읽히는 기간(일). 마지막으로 저장한 때부터 센다. */
 const LOCAL_SAVE_DAYS = LOCAL_TTL_MS / 86_400_000;
-const missingAnswerNotice = "답을 고르지 않은 질문으로 돌아왔어요. 답을 고르거나 ‘아직 모르겠어요’, ‘이번 계획에는 없어요’, ‘지금 답하지 않을게요’를 골라 주세요.";
+/** 이어 하기 직후에 한 번 알리는 말. 페이지를 넘기거나 이전 질문으로 돌아가면 지난 일이라 지운다. */
+const resumedNotice = "저장된 내 답을 불러왔어요.";
+const missingAnswerNotice = "답을 고르지 않은 질문으로 돌아왔어요. 답을 고르거나 ‘아직 모르겠어요’, ‘해당하지 않아요’, ‘지금 답하지 않을게요’를 골라 주세요.";
 const resetStorageFailureNotice = "현재 화면은 새로 시작했지만, 브라우저에 저장된 답을 지우지 못했어요. 다른 사람과 같이 쓰는 컴퓨터나 휴대폰이라면 브라우저 설정에서 이 사이트의 데이터를 지워 주세요.";
 type Progress = Omit<V31LocalProgressSnapshot, "screen"> & { screen: "intro" | "questions" | "result" };
 
 function v31FlowLabel(flow: V31Flow) {
-  return flow === "extra" ? "선택 질문" : flow === "full" ? "예전 전체 질문" : "기본 질문";
+  return flow === "extra" ? "추가 질문" : flow === "full" ? "예전 전체 질문" : "기본 질문";
 }
 /**
  * 질문 화면의 진행 단위(묶음 흐름은 페이지, 이전 전체 흐름은 한 문항씩)로 적되, 문장 안에서는 분수 표기 대신
@@ -50,13 +52,17 @@ function v31PositionLabel(flow: V31Flow, index: number) {
 }
 /** 이 페이지에 아직 비어 있는 답이 있을 때 다음 버튼이 알리는 말. 페이지마다 실제로 있는 보기 이름만 가리킨다. */
 const PAGE_MISSING_NOTICES = {
-  ratingPage: `아직 답을 고르지 않은 문장이 있어요. 모르겠거나 이번 계획에 없는 문장은 그 아래 ‘${v31EscapeFoldLabel}’를 열어서 골라 주세요.`,
-  rating: "답을 골라 주세요. 아래 ‘아직 모르겠어요’, ‘이번 계획에는 없어요’, ‘지금 답하지 않을게요’를 골라도 돼요.",
-  choice: "보기에서 골라 주세요. ‘아직 모르겠어요’, ‘맞는 보기가 없어요’, ‘이번 계획에는 없어요’ 같은 칸을 골라도 돼요.",
+  ratingPage: `아직 답을 고르지 않은 문장이 있어요. 모르겠거나 해당하지 않는 문장은 그 아래 ‘${v31EscapeFoldLabel}’를 열어서 골라 주세요.`,
+  rating: "답을 골라 주세요. 아래 ‘아직 모르겠어요’, ‘해당하지 않아요’, ‘지금 답하지 않을게요’를 골라도 돼요.",
+  choice: "보기에서 골라 주세요. ‘아직 모르겠어요’, ‘맞는 보기가 없어요’, ‘해당하지 않아요’ 같은 칸을 골라도 돼요.",
 } as const;
 const pageMissingNotices: readonly string[] = Object.values(PAGE_MISSING_NOTICES);
 function hasSavedPairAddress() {
   return readSavedPairSession() !== null;
+}
+/** 이 탭에 함께 보기 확인 주소가 잠시 남아 있는지. 함께 보기를 만들어 본 적이 없으면 false 다. */
+function hasTabPairAddress() {
+  return readPairSessionRecovery() !== null;
 }
 function noSubscription() {
   return () => {};
@@ -102,6 +108,7 @@ export default function WeddingCodeV31Client({ shareOrigin, partnerDraft = null,
   const resumable = !owned && savedHasAnswer;
   // 받은 결과를 볼 때는 이 브라우저 저장소를 읽지 않는다. 저장 설정을 보여줄 때만 함께 보기 주소가 남았는지 확인한다.
   const pairAddressSaved = useSyncExternalStore(storageActive ? subscribePairSession : noSubscription, storageActive ? hasSavedPairAddress : noPairAddress, noPairAddress);
+  const pairTabAddress = useSyncExternalStore(storageActive ? subscribePairSession : noSubscription, storageActive ? hasTabPairAddress : noPairAddress, noPairAddress);
   const [revision, setRevision] = useState(0);
   const [notice, setNotice] = useState(initialNotice);
   const question = index < coreCount ? WEDDING_CODE_V31_QUESTIONS[index] : null;
@@ -160,6 +167,9 @@ export default function WeddingCodeV31Client({ shareOrigin, partnerDraft = null,
   }
   function update(nextDraft: V31Draft, staleTastePriority?: string, extra: Partial<Progress> = {}) {
     const normalized = normalizeV31Draft(nextDraft);
+    // 비어 있던 답을 채워 이 페이지가 다 차면, 단추 위의 ‘아직 답을 고르지 않은 문장이 있어요’ 안내를 바로 지운다(다 답했는데 안 답했다고 말하지 않는다).
+    // 아래에서 우선순위 안내를 새로 띄우면 그 안내가 이긴다(나중에 setNotice 한다).
+    if (pageMissingNotices.includes(notice) && getV31PageMissingIndex(normalized, page.indexes) === null) setNotice("");
     if (staleTastePriority && normalized.priorities?.status === "answered") {
       const kept = normalized.priorities.values.filter(value => value !== staleTastePriority);
       normalized.priorities = kept.length ? { status: "answered", values: kept } : undefined;
@@ -167,7 +177,7 @@ export default function WeddingCodeV31Client({ shareOrigin, partnerDraft = null,
     const previousPriorities = nextDraft.priorities?.status === "answered" ? nextDraft.priorities.values : [];
     const nextPriorities = normalized.priorities?.status === "answered" ? normalized.priorities.values : [];
     if (previousPriorities.some(value => !nextPriorities.includes(value))) {
-      setNotice("앞의 답이 바뀌어 더 이상 맞지 않는 우선순위를 뺐어요.");
+      setNotice("앞의 답이 바뀌어 더 이상 맞지 않는 ‘꼭 지키고 싶은 것’을 뺐어요.");
       extra.needsPriorityReview = true;
     }
     commit({ draft: normalized, ...extra });
@@ -200,14 +210,14 @@ export default function WeddingCodeV31Client({ shareOrigin, partnerDraft = null,
     const changes: Partial<Progress> = reviewDropped ? { ...requested, needsPriorityReview: false } : requested;
     if (reviewNeeded && (index !== priorityIndex || nextDraft.priorities === undefined)) {
       commit({ ...changes, draft: nextDraft, index: priorityIndex, editing: true });
-      setNotice("앞의 답이 바뀌어 전에 고른 우선순위를 다시 확인해 주세요. 꼭 지키고 싶은 것을 다시 고르거나, ‘아직 우선순위를 정하지 못했어요’를 골라 주세요.");
+      setNotice("앞의 답이 바뀌어 ‘꼭 지키고 싶은 것’이 달라졌을 수 있어요. 아래 선택을 확인하고, 필요하면 다시 골라 주세요. 고르지 않고 결과를 봐도 돼요.");
       return;
     }
     if (reviewNeeded && nextDraft.priorities !== undefined) setNotice("");
     const missingIndex = getV31MissingIndex(nextDraft, flow === "full" ? "full" : "core");
     if (missingIndex !== null) { commit({ ...changes, draft: nextDraft, index: missingIndex, editing: true }); setNotice(missingAnswerNotice); return; }
     // 결과 화면에는 우선순위를 다시 고를 칸이 없으니(보기가 없다), 다시 고르라는 말 없이 뺐다는 사실만 알린다.
-    if (reviewDropped) setNotice("앞의 답이 바뀌어 전에 고른 우선순위를 뺐어요.");
+    if (reviewDropped) setNotice("앞의 답이 바뀌어 전에 고른 ‘꼭 지키고 싶은 것’을 뺐어요.");
     else if (notice === missingAnswerNotice) setNotice("");
     // 결과 종류는 화면에 보이는 결과를 따른다. 함께 보기 초대로 답한 사람도 상대 답을 받기 전에는 혼자 결과를 본다.
     // 초대로 왔다는 사실은 시작·장면 이벤트의 has_partner_link 가 맡는다.
@@ -225,9 +235,16 @@ export default function WeddingCodeV31Client({ shareOrigin, partnerDraft = null,
       target?.scrollIntoView?.({ block: "start", behavior: "instant" });
       return;
     }
-    if ((index === priorityIndex && draft.priorities !== undefined) || pageMissingNotices.includes(notice)) setNotice("");
+    if ((index === priorityIndex && draft.priorities !== undefined) || pageMissingNotices.includes(notice) || notice === resumedNotice) setNotice("");
     if (nextIndex === null) finish();
     else commit({ index: nextIndex, needsPriorityReview: index === priorityIndex ? false : needsPriorityReview });
+  }
+  /** 화면 안 ← 단추. 이어 하기 직후의 안내나 안 채운 문장 안내는 지난 화면의 일이라 함께 지운다. */
+  function previous() {
+    if (notice === resumedNotice || pageMissingNotices.includes(notice)) setNotice("");
+    if (previousIndex !== null) commit({ index: previousIndex });
+    else if (editing || flow === "extra") finish();
+    else commit({ screen: "intro" });
   }
   function skipPriority() {
     const nextDraft = { ...draft, priorities: { status: "skipped" as const } };
@@ -244,7 +261,7 @@ export default function WeddingCodeV31Client({ shareOrigin, partnerDraft = null,
   function resume(saved = local.store.restore()) {
     if (!saved) return;
     setOwned(true); setProgress(saved); setRevision(value => value + 1);
-    setNotice(saved.needsPriorityReview ? "앞의 답이 바뀌어 우선순위를 다시 확인해 주세요." : "저장된 내 답을 불러왔어요.");
+    setNotice(saved.needsPriorityReview ? "앞의 답이 바뀌어 ‘꼭 지키고 싶은 것’을 다시 확인해 주세요." : resumedNotice);
   }
   function restart() {
     const cleared = local.store.clear();
@@ -281,9 +298,9 @@ export default function WeddingCodeV31Client({ shareOrigin, partnerDraft = null,
     const topic = WEDDING_CODE_V31_TOPICS.find(item => item.key === topicKey);
     if (editing || !topicIndexes.length || !["vision", "records", "family"].includes(topicKey)) return null;
     return <details className={`mt-4 border-t border-[var(--hb-hairline)] pt-2 ${v31Body}`}>
-      <summary className="flex min-h-11 cursor-pointer items-center underline underline-offset-4">이 주제 전체가 이번 계획에 없다면</summary>
-      <p className="mt-2">지금 답하는 {flowLabel}에서 ‘{topic?.title}’에 해당하는 {topicIndexes.length}문장을 ‘이번 계획에는 없어요’로 바꿔요. 이미 고른 답은 지워지고, 나중에 이 문장으로 돌아오면 한 문장씩 다시 답할 수 있어요.</p>
-      <Button variant="secondary" fullWidth onClick={() => markTopicNotApplicable(topicKey)} className="mt-3 whitespace-normal!">이 주제는 계획에 없어요</Button>
+      <summary className="flex min-h-11 cursor-pointer items-center underline underline-offset-4">이 주제 전체가 해당하지 않는다면</summary>
+      <p className="mt-2">지금 답하는 {flowLabel}에서 ‘{topic?.title}’ 문장 {topicIndexes.length}개를 ‘해당하지 않아요’로 바꿔요. 이미 고른 답은 지워지고, 나중에 돌아오면 한 문장씩 다시 답할 수 있어요.</p>
+      <Button variant="secondary" fullWidth onClick={() => markTopicNotApplicable(topicKey)} className="mt-3 whitespace-normal!">이 주제는 해당하지 않아요</Button>
     </details>;
   }
   function toggleSaving() {
@@ -301,7 +318,7 @@ export default function WeddingCodeV31Client({ shareOrigin, partnerDraft = null,
     : local.status === "saved" && savedHasAnswer ? "이 브라우저에 저장됐어요. 나중에 이어 할 수 있어요."
     : local.status === "off" ? "자동 저장을 껐어요. 나가면 지금 답은 사라져요."
     : local.status === "unavailable" ? "이 브라우저에 저장할 수 없어요. 계속 답할 수 있지만, 나가면 지금 답은 사라질 수 있어요."
-    : local.status === "conflict" ? "다른 탭에서 저장된 답이 바뀌었어요. 덮어쓰지 않도록 자동 저장을 멈췄어요."
+    : local.status === "conflict" ? "다른 탭에서 저장된 답이 바뀌었어요. 그 답이 사라지지 않도록 이 탭의 자동 저장을 멈췄어요. 저장된 답을 불러오면 이 탭에서 고른 답은 쓰이지 않고, 이 화면의 답으로 저장하면 다른 탭에서 저장한 답은 사라져요."
     : local.status === "expired" ? "저장된 답의 이어하기 기간이 지났어요. 새로 답해 주세요."
     : local.status === "invalid" ? "저장된 답을 읽을 수 없어요. 새로 답하면 다시 저장해요."
     : "답하면 이 브라우저에 자동으로 저장돼요. 다른 사람과 같이 쓰는 컴퓨터나 휴대폰이라면 아래 ‘자동 저장 설정’에서 꺼 주세요.";
@@ -314,7 +331,7 @@ export default function WeddingCodeV31Client({ shareOrigin, partnerDraft = null,
     </div> : null}
     <details className={`mt-2 ${v31Body}`}>
       <summary className="flex min-h-11 cursor-pointer items-center underline underline-offset-4">자동 저장 설정</summary>
-      <p>자동 저장은 이 브라우저에만 남겨요. 마지막으로 저장한 날부터 30일 동안 같은 브라우저에서 이어 할 수 있어요. 상대의 답·공유 동의·메모는 자동 저장하지 않아요.</p>
+      <p>자동 저장은 이 브라우저에만 남겨요. 마지막으로 저장한 날부터 30일 동안 같은 브라우저에서 이어 할 수 있어요. 카카오톡 같은 앱 안에서 열었다면 다음에도 같은 곳에서 열어야 이어 할 수 있어요. 상대의 답·공유 동의·메모는 자동 저장하지 않아요.</p>
       <p className="mt-2">이 브라우저를 같이 쓰는 사람이 있다면(상대나 가족 포함) 자동 저장을 꺼 주세요. 저장된 답을 그 사람도 열 수 있어요. 시크릿 모드나 브라우저 데이터를 지운 뒤에는 이어 하지 못할 수 있어요.</p>
       <div className="mt-2 flex flex-wrap gap-2">
         <Button variant="secondary" aria-pressed={local.enabled} disabled={!local.ready} onClick={toggleSaving}>{local.enabled ? "자동 저장 끄기" : "자동 저장 켜기"}</Button>
@@ -326,8 +343,11 @@ export default function WeddingCodeV31Client({ shareOrigin, partnerDraft = null,
       */}
       {(local.saved || owned) && pairAddressSaved ? <p className="mt-2 text-xs" data-pair-address-note>‘{V31_CLEAR_LOCAL_LABEL}’는 답만 지워요. 이 브라우저에 저장된 함께 보기 확인 주소까지 지우려면 ‘자동 저장 끄기’를 눌러 주세요.</p> : null}
       <p className="mt-2 text-xs">자동 저장을 끄면 저장된 답도 지워져요. 지금 화면에서는 계속 답할 수 있어요.</p>
-      <p className="mt-2 text-xs">자동 저장을 꺼도 서버에 있는 함께 보기 연결은 그대로 남아요. 끝내려면 끄기 전에 두 사람 결과 화면에서 ‘연결 끝내기’를 눌러 주세요. 이미 껐다면 따로 복사해 둔 ‘나만 보관할 확인 주소’로 열어 끝낼 수 있어요.</p>
-      <p className="mt-2 text-xs" data-pair-tab-address-note>함께 보기가 잘 연결됐는지 다시 볼 수 있도록, 확인 주소를 이 탭에 잠시 남겨 둬요.</p>
+      {/* 함께 보기를 만들어 본 적이 없는 첫 방문에는 아직 쓰지 않은 기능의 서버 연결 이야기를 하지 않는다. 이 브라우저나 이 탭에 확인 주소가 남아 있을 때만 말한다. */}
+      {pairAddressSaved || pairTabAddress ? <>
+        <p className="mt-2 text-xs">자동 저장을 꺼도 서버에 있는 함께 보기 연결은 그대로 남아요. 끝내려면 끄기 전에 두 사람 결과 화면에서 ‘연결 끝내기’를 눌러 주세요. 이미 껐다면 따로 복사해 둔 ‘나만 보관할 확인 주소’로 열어 끝낼 수 있어요.</p>
+        <p className="mt-2 text-xs" data-pair-tab-address-note>함께 보기가 잘 연결됐는지 다시 볼 수 있도록, 확인 주소를 이 탭에 잠시 남겨 둬요.</p>
+      </> : null}
     </details>
   </aside>;
 
@@ -336,7 +356,8 @@ export default function WeddingCodeV31Client({ shareOrigin, partnerDraft = null,
     <div className="mx-auto max-w-2xl">
       {!embedded && <nav aria-label="웨딩코드 탐색" className="mb-6 flex items-center justify-between gap-3"><Button href="/landing" variant="ghost" size="sm" className="px-0!">웨딩한방</Button><span className="text-xs font-semibold tracking-wide text-[var(--hb-text-muted)]">WEDDING CODE</span></nav>}
       <section ref={screenRef} tabIndex={-1} aria-label={screenLabel} className={embedded ? "scroll-mt-20 outline-none md:scroll-mt-28" : "outline-none"}>
-        {notice ? <p role="status" data-screen-notice className="mb-5 rounded-lg border border-[var(--hb-hairline)] bg-[var(--hb-surface-hover)] p-4 text-sm leading-relaxed text-[var(--hb-text-strong)]">{notice}</p> : null}
+        {/* 안 채운 문장 안내는 화면 위가 아니라 아래 고정 단추 바로 위에 둔다. 위에 두면 빈 문장으로 화면이 움직인 뒤 안내가 화면 밖에 있어 읽히지 않는다. */}
+        {notice && !pageMissingNotices.includes(notice) ? <p role="status" data-screen-notice className="mb-5 rounded-lg border border-[var(--hb-hairline)] bg-[var(--hb-surface-hover)] p-4 text-sm leading-relaxed text-[var(--hb-text-strong)]">{notice}</p> : null}
         {children}
         {storageControls}
       </section>
@@ -344,25 +365,34 @@ export default function WeddingCodeV31Client({ shareOrigin, partnerDraft = null,
   </Root>;
 
   if (screen === "intro") return shell(<>
+    {/* 이어 하러 돌아온 사람이 소개를 한 화면 반 넘게 내리지 않아도 이어 하기를 먼저 보게, 저장된 답 카드를 소개 제목보다 위에 둔다. */}
+    {resumable && local.saved ? <section className={`${v31Surface} mb-5 p-5`} aria-label="저장된 내 답 이어하기">
+      <h2 className={`text-lg ${v31Title}`}>이 브라우저에 남겨 둔 답이 있어요</h2>
+      <p className={`mt-2 ${v31Body}`}>{local.saved.screen === "result" ? "전에 답한 내 결과를 다시 볼 수 있어요." : local.saved.editing ? "수정하던 질문부터 이어 할 수 있어요." : `${v31PositionLabel(local.saved.flow, local.saved.index)}부터 이어 할 수 있어요.`}</p>
+      <Button variant="primary" size="lg" fullWidth onClick={() => resume()} className="mt-3 whitespace-normal!">{local.saved.screen === "result" ? context.first ? "저장한 내 답으로 비교하기" : "내 결과 다시 보기" : "이어서 답하기"}</Button>
+    </section> : null}
     <section className={`${v31Surface} overflow-hidden`}>
       <div className="bg-[var(--hb-primary)] px-5 py-8 text-[var(--hb-on-primary)] sm:px-8 sm:py-10">
         <p className="text-xs font-semibold">웨딩코드 · 내가 원하는 결혼 준비</p>
         <h1 className="mt-4 text-3xl font-semibold leading-snug">{context.first ? "상대와 같은 질문에, 내 생각대로 답해 봐요" : <>나는 어떤 결혼식을<br />바라고 있을까요?</>}</h1>
-        {/* 판정이 아니라는 말은 소개 첫 문단에서 한 번만 한다. 받은 링크에는 앞에 ‘정리해’ 문장이 없어 ‘정리해서 보여줘요’까지 이어 쓴다. */}
-        <p className="mt-4 text-base leading-relaxed">{context.first ? "상대의 답이 담긴 링크를 받았어요. 상대에게 맞추지 말고 내 생각대로 답해 주세요. 다 답하면 같은 점과 먼저 이야기해 볼 점을 나란히 볼 수 있어요. 성격을 진단하는 검사가 아니고, 아직 여러 사람에게 확인해 보지 못한 질문이에요. 내가 고른 답을 정리해서 보여줘요." : "취향부터 돈을 쓰는 기준, 함께 준비하는 방식까지. 내가 고른 답을 모아 준비 기준으로 정리해 봐요. 성격을 진단하는 검사가 아니고, 아직 여러 사람에게 확인해 보지 못한 질문이에요."}</p>
+        {/* 판정이 아니라는 말은 소개 첫 문단에서 한 번만 한다. 받은 링크에서는 같은 점을 나란히 보는 이야기를 아래 ‘둘이 먼저 나눠볼 이야기’ 카드가 한다. */}
+        <p className="mt-4 text-base leading-relaxed">{context.first ? "상대의 답이 담긴 링크를 받았어요. 상대에게 맞추지 말고 내 생각대로 답해 주세요. 성격을 진단하는 검사가 아니고, 아직 여러 사람에게 확인해 보지 못한 질문이에요." : "취향부터 돈을 쓰는 기준, 함께 준비하는 방식까지. 내가 고른 답을 모아 준비 기준으로 정리해 봐요. 성격을 진단하는 검사가 아니고, 아직 여러 사람에게 확인해 보지 못한 질문이에요."}</p>
       </div>
       <div className="p-5 sm:p-8">
         <div className="space-y-5">
           {[
             { icon: Paintbrush, title: "내가 그리는 결혼식", body: "장소·사진·옷·식사·하객 규모·식순에서 내가 고른 것을 모아 봐요." },
-            { icon: ListChecks, title: "네 글자로 보는 준비 방식", body: "예산, 일 나누기, 가족과 상의, 받고 싶은 도움 네 가지에서 글자를 하나씩 정해요. 주제마다 정해진 두 문장의 답을 쓰고, 문장별 답도 함께 보여줘요." },
-            { icon: HeartHandshake, title: "둘이 먼저 나눠볼 이야기", body: "혼자 해도 결과를 볼 수 있어요. 두 사람의 답을 나란히 보는 것은 내 답을 마친 뒤, 둘 다 답하고 서로 공유했을 때 할 수 있어요." },
+            { icon: ListChecks, title: "네 글자로 보는 준비 방식", body: "예산, 일 나누기, 가족과 상의, 받고 싶은 도움 네 가지에서 글자를 하나씩 정해요. 글자는 주제마다 두 문장의 답으로 정하고, 문장별 답도 함께 보여줘요." },
+            context.first
+              // 받은 링크에는 상대의 답이 이미 들어 있어서, 내 답을 마치면 공유할 것이 더 없이 바로 두 사람 결과가 열린다.
+              ? { icon: HeartHandshake, title: "둘이 먼저 나눠볼 이야기", body: "내 답을 마치면 받은 링크에 담긴 상대의 답과 바로 나란히 보고, 같은 점과 먼저 이야기해 볼 점을 알 수 있어요. 내 답은 내가 링크를 보내기 전에는 상대에게 가지 않아요." }
+              : { icon: HeartHandshake, title: "혼자 해도, 둘이 비교해도 돼요", body: "혼자 해도 결과를 볼 수 있어요. 두 사람의 답을 나란히 보려면, 둘 다 답한 뒤 서로 답을 공유해야 해요." },
           ].map(item => <div key={item.title} className="flex gap-3"><item.icon aria-hidden="true" className="mt-1 size-5 shrink-0 text-[var(--hb-success)]" /><div><h2 className={`text-base ${v31Title}`}>{item.title}</h2><p className={`mt-1 ${v31Body}`}>{item.body}</p></div></div>)}
         </div>
         <div className="mt-7 border-t border-[var(--hb-hairline)] pt-5">
           <p className={`text-sm ${v31Title}`}>기본 {CORE_PAGE_COUNT}페이지 · 로그인 없이 시작</p>
-          <p className={`mt-2 ${v31Body}`}>{V31_CORE_RATING_IDS.length}개 문장에 다섯 단계로 답하고, {WEDDING_CODE_V31_TASTES.length}가지 취향과 피하고 싶은 것, 다른 곳의 비용을 줄여서라도 더 쓰고 싶은 곳을 골라요. 마지막 ‘꼭 지키고 싶은 것’ 페이지는 고를 것이 없으면 건너뛰어요.</p>
-          <p className={`mt-2 ${v31Body}`}>아직 모르거나 이번 계획에 없는 내용은 억지로 고르지 말고 ‘아직 모르겠어요’ 같은 보기로 표시해 주세요. 네 글자를 정하는 문장에 그렇게 표시하면 그 글자 하나만 ‘?’로 남고, 나머지 결과는 그대로 나와요.</p>
+          <p className={`mt-2 ${v31Body}`}>{V31_CORE_RATING_IDS.length}개 문장에 다섯 단계로 답해요. 그다음 {WEDDING_CODE_V31_TASTES.length}가지 취향을 고르고, 피하고 싶은 것과 다른 곳의 비용을 줄여서라도 더 쓰고 싶은 곳도 골라요. 마지막 ‘꼭 지키고 싶은 것’ 페이지는 고를 것이 없으면 건너뛰어요.</p>
+          <p className={`mt-2 ${v31Body}`}>아직 모르거나 해당하지 않는 내용은 억지로 고르지 말고 ‘아직 모르겠어요’ 같은 보기로 표시해 주세요. 글자를 정하는 문장에 그렇게 표시하면 그 주제의 글자만 ‘?’로 남고, 나머지 결과는 그대로 나와요.</p>
           {/*
             개인정보 안내는 보이는 한 줄과 접힌 ‘자세히’ 두 겹이다. 한 줄이 사람들이 먼저 묻는 두 사실(답은 서버에 보내지 않는다, 이용 통계에는 답이 없다)과
             처리방침 링크를 맡고, 접힌 칸은 옛 세 문단을 그대로 담는다(링크는 소개 안에 하나만 둔다). 시험이 data-intro-privacy 로 두 겹을 함께 본다.
@@ -370,12 +400,15 @@ export default function WeddingCodeV31Client({ shareOrigin, partnerDraft = null,
           <div className="mt-3" data-intro-privacy>
             <p className={v31Body}><span className="font-semibold text-[var(--hb-text-strong)]">답하는 동안 고른 답은 서버에 보내지 않아요. 화면을 고치는 데 쓸 이용 통계만 기록하고, 이 통계에는 답이 들어 있지 않아요.</span> 자세한 내용은{" "}<a href="/privacy" target="_blank" rel="noopener noreferrer" className="py-2 font-semibold text-[var(--hb-text-strong)] underline underline-offset-4">개인정보 처리방침</a>에서 볼 수 있어요.</p>
             <details className={`mt-1 ${v31Body}`}>
-              {/* 보이는 글자는 ‘자세히’ 그대로 두고, 낭독기 목록에서 무엇을 여는지 알리는 이름만 그 글자로 시작해 덧붙인다. */}
-              <summary aria-label="자세히, 개인정보 안내" className="flex min-h-11 cursor-pointer items-center underline underline-offset-4">자세히</summary>
+              {/* 접힘 이름은 무엇의 자세한 안내인지 그 자체로 말한다(보이는 글자와 낭독 이름이 같다). */}
+              <summary className="flex min-h-11 cursor-pointer items-center underline underline-offset-4">개인정보 자세히 보기</summary>
               <div className="space-y-2">
                 <p className={v31Body}>고른 답과 웨딩코드는 답하는 동안 서버나 계정에 보내지 않아요. 화면 개선을 위해 첫 화면을 열었는지, 몇 번째 장면까지 봤는지, 끝까지 했는지, 답한 장면과 건너뛴 장면의 수 같은 이용 통계만 기록하고, 이 통계에 고른 답·웨딩코드·공유 링크 주소는 넣지 않아요.</p>
-                <p className={v31Body}>내 답은 이 브라우저에 자동으로 저장돼요. 마지막으로 저장한 날부터 {LOCAL_SAVE_DAYS}일 동안 이어 할 수 있어요. 다른 사람과 같이 쓰는 컴퓨터나 휴대폰이라면 시작하기 전에 아래 ‘자동 저장 설정’에서 꺼 주세요.</p>
-                <p className={v31Body}>결과에서 ‘함께 보기’에 동의하면 내 답 전체를 서버에 보관하고, 초대로 연결된 상대에게 보여줘요. 초대 링크를 먼저 사용한 사람이 상대가 돼요. 이름이나 계정으로는 확인하지 않아요. 초대 후 {PAIR_SESSION_RETENTION_DAYS}일 동안 볼 수 있고, 기간이 끝난 내용은 하루 안에 삭제해요. ‘연결 끝내기’를 누르면 두 사람의 공유 답을 바로 지우지만, 상대가 이미 읽었거나 따로 저장해 둔 내용은 되돌릴 수 없어요.</p>
+                {local.status === "off" ? <p className={v31Body}>자동 저장이 꺼져 있어서 내 답은 이 브라우저에 저장되지 않아요. 나가면 지금 답은 사라져요.</p>
+                  : local.status === "unavailable" ? <p className={v31Body}>이 브라우저에 저장할 수 없어서 내 답은 저장되지 않아요. 계속 답할 수 있지만, 나가면 지금 답은 사라질 수 있어요.</p>
+                  : <p className={v31Body}>내 답은 이 브라우저에 자동으로 저장돼요. 마지막으로 저장한 날부터 {LOCAL_SAVE_DAYS}일 동안 이어 할 수 있어요. 카카오톡 같은 앱 안에서 열었다면 다음에도 같은 곳에서 열어야 해요. 다른 사람과 같이 쓰는 컴퓨터나 휴대폰이라면 시작하기 전에 아래 ‘자동 저장 설정’에서 꺼 주세요.</p>}
+                {context.first ? <p className={v31Body}>받은 링크로 답할 때는 내 답을 서버에 보관하지 않아요. 내 답은 내가 링크를 만들어 보낼 때만 상대에게 가요.</p>
+                  : <p className={v31Body}>결과에서 ‘상대 초대하고 함께 보기’나 ‘동의하고 두 사람 결과 보기’에 동의하면 내 답 전체를 서버에 보관하고, 초대로 연결된 상대에게 보여줘요. 동의하기 전에는 내 답을 서버에 보내지 않아요. 초대 링크를 먼저 사용한 사람이 상대가 돼요. 이름이나 계정으로는 확인하지 않아요. 초대 후 {PAIR_SESSION_RETENTION_DAYS}일 동안 볼 수 있고, 기간이 끝난 내용은 하루 안에 삭제해요. ‘연결 끝내기’를 누르면 두 사람의 공유 답을 바로 지우지만, 상대가 이미 읽었거나 따로 저장해 둔 내용은 되돌릴 수 없어요.</p>}
               </div>
             </details>
           </div>
@@ -391,11 +424,7 @@ export default function WeddingCodeV31Client({ shareOrigin, partnerDraft = null,
         </div>
       </div>
     </section>
-    {resumable && local.saved ? <section className={`${v31Surface} mt-5 p-5`} aria-label="저장된 내 답 이어하기">
-      <h2 className={`text-lg ${v31Title}`}>이 브라우저에 남겨 둔 답이 있어요</h2>
-      <p className={`mt-2 ${v31Body}`}>{local.saved.screen === "result" ? "전에 답한 내 결과를 다시 볼 수 있어요." : local.saved.editing ? "수정하던 질문부터 이어 할 수 있어요." : `${v31PositionLabel(local.saved.flow, local.saved.index)}부터 이어 할 수 있어요.`}</p>
-      <Button variant="primary" size="lg" fullWidth onClick={() => resume()} className="mt-3 whitespace-normal!">{local.saved.screen === "result" ? context.first ? "저장한 내 답으로 비교하기" : "내 결과 다시 보기" : "이어서 답하기"}</Button>
-    </section> : null}
+
     <div className="mt-5" data-intro-scope>
       <p className={v31Body}>결혼식 모습과 둘이 준비하는 방식만 물어봐요. 신혼집, 혼수, 예단과 예물, 양쪽 집안이 비용을 어떻게 나눌지는 묻지 않아요. 형편이나 집안 사정이 이미 정해져 있어도, 여기서는 내가 바라는 대로 답해 주세요.</p>
     </div>
@@ -405,13 +434,14 @@ export default function WeddingCodeV31Client({ shareOrigin, partnerDraft = null,
   if (screen === "result") return shell(<WeddingCodeV31Results key={revision} draft={draft} first={context.first} received={context.received} shareOrigin={shareOrigin} onEdit={edit} onRestart={restart} onMore={!context.received && optionalRemaining > 0 ? more : undefined} optionalCount={optionalRemaining} sharingContent={renderResultActions?.(draft)} />);
 
   const topic = question ? WEDDING_CODE_V31_TOPICS.find(item => item.key === question.topic) : null;
-  const title = question?.statement ?? taste?.question ?? (index === avoidanceIndex ? "이번 결혼식에서 피하고 싶은 것이 있나요?" : index === priorityIndex ? "이번 결혼식에서 특히 지키고 싶은 것은 무엇인가요?" : "다른 곳의 비용을 줄여서라도 더 쓰고 싶은 곳이 있나요?");
+  const title = question?.statement ?? taste?.question ?? (index === avoidanceIndex ? "이번 결혼식에서 피하고 싶은 것이 있나요?" : index === priorityIndex ? "이번 결혼 준비에서 꼭 지키고 싶은 것이 있나요?" : "다른 곳의 비용을 줄여서라도 더 쓰고 싶은 곳이 있나요?");
   // 진행 표기는 하나만 둔다. 묶음 흐름은 페이지 단위이고, 한 문항씩 보는 이전 흐름과 수정 화면은 그대로다.
-  const progressText = grouped ? `${page.position + 1} / ${page.total} 페이지` : ordinal > 0 ? `${flowLabel} ${ordinal} / ${totalQuestions}` : "답 수정";
+  // 수정 화면은 흐름의 몇 번째인지 말하지 않는다(결과의 한 칸을 고치러 온 것이라, 흐름 속 번호는 본 흐름의 ‘n / 14 페이지’와 맞지 않아 보인다).
+  const progressText = grouped ? `${page.position + 1} / ${page.total} 페이지` : editing ? "답 수정" : ordinal > 0 ? `${flowLabel} ${ordinal} / ${totalQuestions}` : "답 수정";
   return shell(<>
     <div className="mb-5 flex items-center gap-3">
-      <Button variant="icon" label="이전 질문" onClick={() => previousIndex !== null ? commit({ index: previousIndex }) : editing || flow === "extra" ? finish() : commit({ screen: "intro" })}><ArrowLeft aria-hidden="true" className="size-5" /></Button>
-      <progress value={grouped ? page.position + 1 : ordinal > 0 ? ordinal : 1} max={grouped ? page.total : ordinal > 0 ? totalQuestions : 1} aria-label={grouped ? "현재 페이지" : "현재 질문"} aria-valuetext={grouped ? `${flowLabel} ${page.total}페이지 중 ${page.position + 1}페이지` : ordinal > 0 ? `${flowLabel} ${totalQuestions}개 중 ${ordinal}번째` : "선택한 답 수정"}
+      <Button variant="icon" label="이전 질문" onClick={previous}><ArrowLeft aria-hidden="true" className="size-5" /></Button>
+      <progress value={grouped ? page.position + 1 : ordinal > 0 ? ordinal : 1} max={grouped ? page.total : ordinal > 0 ? totalQuestions : 1} aria-label={grouped ? "현재 페이지" : "현재 질문"} aria-valuetext={grouped ? `${flowLabel} ${page.total}페이지 중 ${page.position + 1}페이지` : editing ? "선택한 답 수정" : ordinal > 0 ? `${flowLabel} ${totalQuestions}개 중 ${ordinal}번째` : "선택한 답 수정"}
         className="h-1.5 min-w-0 flex-1 overflow-hidden rounded-full bg-[var(--hb-hairline)] accent-[var(--hb-success)] [&::-webkit-progress-bar]:bg-[var(--hb-hairline)] [&::-webkit-progress-value]:bg-[var(--hb-success)]" />
       <span className="shrink-0 text-sm font-semibold tabular-nums text-[var(--hb-text-body)]" data-progress-text>{progressText}</span>
     </div>
@@ -420,27 +450,30 @@ export default function WeddingCodeV31Client({ shareOrigin, partnerDraft = null,
       {ratingPage ? <>
         <p className="text-xs font-semibold text-[var(--hb-success)]">{flowLabel}</p>
         <h1 className={`mt-2 text-xl leading-relaxed ${v31Title} ${page.position === 0 ? "" : "mb-5"}`}>문장마다 내 생각에 가까운 답을 골라 주세요</h1>
-        {page.position === 0 ? <p data-rating-guide className={`mb-5 mt-2 rounded-lg bg-[var(--hb-surface-hover)] p-3 ${v31Body}`}>{v31RatingGuide} 아직 모르겠거나 이번 계획에 없는 내용이면 문장 아래 ‘{v31EscapeFoldLabel}’를 눌러 골라 주세요.</p> : null}
+        {page.position === 0 ? <p data-rating-guide className={`mb-5 mt-2 rounded-lg bg-[var(--hb-surface-hover)] p-3 ${v31Body}`}>{v31RatingGuide} 아직 모르겠거나 해당하지 않는 내용이면 문장 아래 ‘{v31EscapeFoldLabel}’를 눌러 골라 주세요.</p> : null}
         <div className="space-y-5">
           {page.indexes.map((questionIndex, position) => {
             const pageQuestion = WEDDING_CODE_V31_QUESTIONS[questionIndex];
             const pageTopic = WEDDING_CODE_V31_TOPICS.find(item => item.key === pageQuestion.topic);
-            const firstOfTopic = page.indexes.findIndex(item => WEDDING_CODE_V31_QUESTIONS[item].topic === pageQuestion.topic) === position;
-            return <section key={pageQuestion.id} tabIndex={-1} aria-label={pageQuestion.statement} data-question={pageQuestion.id}
-              className={`${v31Surface} scroll-mt-20 p-1.5 outline-none min-[360px]:p-3.5 sm:p-6 md:scroll-mt-28`}>
+            // ‘이 주제 전체가 해당하지 않는다면’은 그 주제의 마지막 문장 아래에 둔다(첫 문장 아래에 두면 그 문장 하나에만 걸리는 말로 읽힌다).
+            const lastOfTopic = page.indexes.map(item => WEDDING_CODE_V31_QUESTIONS[item].topic).lastIndexOf(pageQuestion.topic) === position;
+            // 다음 질문을 눌렀는데 아직 답하지 않은 문장은 진한 테두리로 알린다(안내는 아래 고정 단추 위에 있다).
+            const unanswered = pageMissingNotices.includes(notice) && draft.answers[pageQuestion.id] === undefined;
+            return <section key={pageQuestion.id} tabIndex={-1} aria-label={pageQuestion.statement} data-question={pageQuestion.id} data-unanswered={unanswered || undefined}
+              className={`${v31Surface} scroll-mt-20 p-1.5 outline-none min-[360px]:p-3.5 sm:p-6 md:scroll-mt-28 ${unanswered ? "border-2! border-[var(--hb-text-strong)]!" : ""}`}>
               <p className="text-xs font-semibold text-[var(--hb-success)]">{firstOrdinal + position}. {pageTopic?.title}</p>
               <h2 className={`mb-4 mt-2 text-base leading-relaxed sm:text-lg ${v31Title}`}>{pageQuestion.statement}</h2>
               <V31RatingInput compact questionLabel={pageQuestion.statement} value={draft.answers[pageQuestion.id]} onChange={value => changeRating(pageQuestion.id, value)} />
-              {firstOfTopic ? topicScope(pageQuestion.topic) : null}
+              {lastOfTopic ? topicScope(pageQuestion.topic) : null}
             </section>;
           })}
         </div>
       </> : <section className={`${v31Surface} p-5 sm:p-7`} data-question={question?.id ?? (taste ? `taste.${taste.key}` : index === avoidanceIndex ? "avoidances" : index === priorityIndex ? "priorities" : "spending")}>
-        <p className="text-xs font-semibold text-[var(--hb-success)]">{topic?.title ?? (taste ? `내가 그리는 결혼식 · ${taste.title}` : "내 기준")}</p>
+        <p className="text-xs font-semibold text-[var(--hb-success)]">{topic?.title ?? (taste ? `내가 그리는 결혼식 · ${taste.title}` : index === avoidanceIndex ? "내 기준 · 피하고 싶은 것" : index === priorityIndex ? "내 기준 · 꼭 지키고 싶은 것" : "내 기준 · 더 쓰고 싶은 곳")}</p>
         <h1 className={`mb-5 mt-3 text-2xl leading-relaxed ${v31Title}`}>{title}</h1>
         {taste?.key === "guests" ? <p className={`mb-4 ${v31Body}`}>두 사람의 가족·지인을 모두 합한 전체 하객 수를 떠올려 주세요.</p> : null}
         {question ? <V31RatingInput key={question.id} value={draft.answers[question.id]} onChange={value => changeRating(question.id, value)} showGuide={ordinal === 1} /> : <>
-          {!taste ? <p className={`mb-4 ${v31Body}`}>{index === avoidanceIndex ? "피하고 싶은 것이 있으면 골라 주세요. 없다면 ‘따로 피하고 싶은 것은 없어요’를, 목록에 없는 것이라면 ‘맞는 보기가 없어요’를 골라 주세요." : index === priorityIndex ? "앞에서 고른 답 가운데 꼭 지키고 싶은 것을 골라 주세요. 고르지 않아도 결과를 볼 수 있어요." : "전체 예산은 그대로 두고, 그 안에서 더 쓰고 싶은 곳을 골라 주세요. 지금 없다면 ‘더 쓰고 싶은 곳은 지금 없어요’를 골라도 돼요."}</p> : null}
+          {!taste ? <p className={`mb-4 ${v31Body}`}>{index === avoidanceIndex ? "피하고 싶은 것이 있으면 여러 개 골라 주세요. 다시 누르면 선택이 풀려요. 없다면 ‘따로 피하고 싶은 것은 없어요’를, 목록에 없다면 ‘맞는 보기가 없어요’를 골라 주세요." : index === priorityIndex ? "앞에서 고른 답 가운데 꼭 지키고 싶은 것을 골라 주세요. 고르지 않아도 결과를 볼 수 있어요." : "전체 예산은 그대로 두고, 그 안에서 더 쓰고 싶은 곳을 골라 주세요. 지금 없다면 ‘더 쓰고 싶은 곳은 지금 없어요’를 골라도 돼요."}</p> : null}
           {index === priorityIndex ? <V31PriorityInput value={draft.priorities} options={priorityOptions} onChange={changeChoice} /> : <V31ChoiceInput key={taste?.key ?? index} value={choice} options={taste?.options ?? (index === avoidanceIndex ? WEDDING_CODE_V31_AVOIDANCES : WEDDING_CODE_V31_SPENDING)}
             max={taste?.max ?? (index === avoidanceIndex ? WEDDING_CODE_V31_AVOIDANCES.length : 2)} onChange={changeChoice} tasteKey={taste?.key} kind={taste ? "taste" : index === avoidanceIndex ? "avoidances" : "spending"} />}
         </>}
@@ -449,16 +482,24 @@ export default function WeddingCodeV31Client({ shareOrigin, partnerDraft = null,
     </div>
     {/* 문장이 길어 버튼이 첫 화면 밖으로 밀리지 않게 화면 아래에 붙인다. 앱 안에서는 하단 탭 위에 둔다. */}
     <div data-question-actions className="sticky bottom-0 z-10 mt-5 border-t border-[var(--hb-hairline)] bg-[var(--hb-surface-page)] pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3 max-md:[.amora-workspace_&]:bottom-[calc(75px+env(safe-area-inset-bottom))] max-md:[.amora-workspace_&]:pb-3">
+      {/* 안 채운 문장 안내. 누른 단추 바로 위에 있어서, 화면이 빈 문장으로 움직인 뒤에도 왜 넘어가지 않았는지 읽힌다. */}
+      {pageMissingNotices.includes(notice) ? <p role="status" data-screen-notice data-page-notice className="mb-3 rounded-lg border border-[var(--hb-hairline)] bg-[var(--hb-surface-hover)] p-3 text-sm leading-relaxed text-[var(--hb-text-strong)]">{notice}</p> : null}
       {/*
         우선순위 화면에서 아직 아무것도 고르지 않았으면 이 버튼이 넘어가기를 맡는다(수정 화면도 같다). 막힌 버튼과
         목록 아래 넘어가기 버튼을 겹쳐 두지 않는다. 고르면 평소처럼 결과 보기나 수정한 결과 보기로 돌아온다.
       */}
       {priorityEmpty ? <Button variant="primary" size="lg" fullWidth onClick={skipPriority} data-skip-priority className="min-h-12! whitespace-normal!">{nextIndex === null ? "고르지 않고 결과 보기" : "고르지 않고 다음 질문"}<ArrowRight aria-hidden="true" className="size-4 shrink-0" /></Button>
-        : editing ? <Button variant="primary" size="lg" fullWidth disabled={currentResponse === undefined} onClick={() => finish()} className="min-h-12! whitespace-normal!"><Check aria-hidden="true" className="size-4 shrink-0" />수정한 결과 보기</Button>
+        : editing ? <div className="space-y-2">
+          {/* 고치는 도중에도 다음 문항으로 넘어가 다른 답을 이어서 고칠 수 있다(수정 상태는 그대로다). 맨 끝 문항이면 단추가 없다. */}
+          {nextIndex !== null ? <Button variant="secondary" size="lg" fullWidth onClick={() => commit({ index: nextIndex })} data-edit-next className="min-h-12! whitespace-normal!">다음 질문<ArrowRight aria-hidden="true" className="size-4 shrink-0" /></Button> : null}
+          <Button variant="primary" size="lg" fullWidth disabled={currentResponse === undefined} onClick={() => finish()} className="min-h-12! whitespace-normal!"><Check aria-hidden="true" className="size-4 shrink-0" />수정한 결과 보기</Button>
+        </div>
           // 비어 있는 답이 있어도 막지 않는다. 막힌 버튼은 키보드 Tab 에서 빠져 이유를 들을 수 없다. 누르면 비어 있는 곳으로 안내한다.
           : <Button variant="primary" size="lg" fullWidth aria-disabled={!pageComplete} onClick={next} className="min-h-12! whitespace-normal! aria-disabled:cursor-not-allowed aria-disabled:opacity-50">{nextIndex === null ? "결과 보기" : "다음 질문"}<ArrowRight aria-hidden="true" className="size-4 shrink-0" /></Button>}
     </div>
-    {flow === "extra" && !editing ? <Button variant="secondary" size="lg" fullWidth onClick={() => finish()} className="mt-3 whitespace-normal!">여기까지만 답하고 결과 보기</Button> : null}
-    <p className="mt-3 text-center text-xs leading-relaxed text-[var(--hb-text-muted)]">이전 질문으로 돌아가 답을 바꿔도 괜찮아요.</p>
+    {/* 마지막 페이지의 ‘결과 보기’와 같은 곳으로 가는 단추를 둘 두지 않는다. */}
+    {flow === "extra" && !editing && nextIndex !== null ? <Button variant="secondary" size="lg" fullWidth onClick={() => finish()} className="mt-3 whitespace-normal!">여기까지만 답하고 결과 보기</Button> : null}
+    {/* 이전 페이지가 없는 첫 페이지에서는 돌아갈 곳이 없어 이 말을 하지 않는다. */}
+    {previousIndex !== null ? <p className="mt-3 text-center text-xs leading-relaxed text-[var(--hb-text-muted)]">이전 질문으로 돌아가 답을 바꿔도 괜찮아요.</p> : null}
   </>);
 }

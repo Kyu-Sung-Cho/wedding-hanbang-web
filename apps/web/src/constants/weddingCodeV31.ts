@@ -27,7 +27,7 @@ export const WEDDING_CODE_V31_OPTIONS = [
 
 export const WEDDING_CODE_V31_STATUS_OPTIONS = [
   { value: "undecided", label: "아직 모르겠어요" },
-  { value: "not_applicable", label: "이번 계획에는 없어요" },
+  { value: "not_applicable", label: "해당하지 않아요" },
   { value: "skipped", label: "지금 답하지 않을게요" },
 ] as const;
 
@@ -57,7 +57,7 @@ export const WEDDING_CODE_V31_QUESTIONS = [
   { id: "D2", topic: "decision", statement: "미리 정한 조건에 맞는 후보가 있으면 그때 선택하고 싶다.", shortLabel: "조건에 맞으면 선택하기", followUp: "후보를 선택하기 전에 꼭 맞아야 할 조건은 무엇인가요?" },
   { id: "D3", topic: "decision", statement: "사진과 후기가 마음에 들어도, 예식 장소는 직접 가서 둘러본 뒤 고르고 싶다.", shortLabel: "예식 장소 직접 둘러보기", followUp: "방문해서 확인하고 싶은 곳과 시간을 함께 정해 볼까요?" },
   { id: "T1", topic: "teamwork", statement: "업체를 알아볼 때는 시간 맞추기가 번거로워도 둘이 같이 찾아보고 싶다.", shortLabel: "시간을 맞춰 함께 업체 찾아보기", followUp: "함께 알아볼 항목 하나와 시간을 정해 볼까요?" },
-  { id: "T2", topic: "teamwork", statement: "계약이나 추가 결제가 없다면, 맡은 사람이 정한 세부 선택은 내 취향과 달라도 괜찮다.", shortLabel: "계약·추가 결제 없는 세부 선택은 맡은 사람이 정해도 괜찮아요", followUp: "맡아서 정할 세부 내용과 반드시 함께 결정할 내용을 나눠볼까요?" },
+  { id: "T2", topic: "teamwork", statement: "계약이나 추가 결제가 없다면, 맡은 사람이 정한 세부 선택은 내 취향과 달라도 괜찮다.", shortLabel: "계약·추가 결제 없는 세부 선택 맡기기", followUp: "맡아서 정할 세부 내용과 반드시 함께 결정할 내용을 나눠볼까요?" },
   { id: "T3", topic: "teamwork", statement: "각자 맡은 일은 끝난 뒤보다, 진행 중에 어디까지 했는지 서로 알려주면 좋겠다.", shortLabel: "진행 상황 중간에 서로 알려주기", followUp: "진행 상황을 언제, 어떤 방식으로 알려주면 편할까요?" },
   { id: "T4", topic: "teamwork", statement: "중간에 사정이 바뀔 수 있어도, 준비할 일은 시작 전에 누가 맡을지 정해 두고 싶다.", shortLabel: "시작 전에 담당 정하기", followUp: "다음에 할 일은 누가 맡고, 맡은 일이 버거워지면 담당을 어떻게 바꿀까요?" },
   { id: "F1", topic: "family", statement: "가족이 바라는 점은 준비 초반에 들어보고 싶다.", shortLabel: "가족의 바람 초반에 듣기", followUp: "준비 초반에 가족에게 먼저 여쭤볼 것은 무엇인가요?" },

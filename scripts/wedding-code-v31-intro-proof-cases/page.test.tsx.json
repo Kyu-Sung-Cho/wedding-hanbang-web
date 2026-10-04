@@ -32,14 +32,14 @@
   {
     "name": "검색·공유 설명이 옛 문장(상대도 답하면)으로 돌아간다",
     "target": "apps/web/src/app/wedding-code/page.tsx",
-    "find": "둘 다 답하고 서로 공유했을 때 할 수 있어요",
-    "replace": "상대도 답하면 할 수 있어요"
+    "find": "혼자서도 정리해 볼 수 있어요.",
+    "replace": "상대도 답하면 함께 정리해 볼 수 있어요."
   },
   {
     "name": "검색·공유 설명의 첫 절이 옛 말(혼자 내 결과를 보고)로 돌아간다",
     "target": "apps/web/src/app/wedding-code/page.tsx",
-    "find": "혼자 해도 결과를 볼 수 있어요. ",
-    "replace": "혼자 내 결과를 보고, "
+    "find": "꼭 지키고 싶은 것과 돈을 더 쓰고 싶은 곳을 혼자서도",
+    "replace": "꼭 지키고 싶은 것과 돈을 더 쓰고 싶은 곳을 혼자 내 결과를 보고"
   },
   {
     "name": "공유 카드(og) 설명만 옛 문장이라 검색 설명과 갈라진다",
@@ -98,7 +98,7 @@
   {
     "name": "검색·공유 설명에서 서로가 빠진다",
     "target": "apps/web/src/app/wedding-code/page.tsx",
-    "find": "둘 다 답하고 서로 공유했을 때 할 수 있어요",
-    "replace": "둘 다 답하고 공유했을 때 할 수 있어요"
+    "find": "혼자서도 정리해 볼 수 있어요.",
+    "replace": "혼자서도 볼 수 있어요."
   }
 ]

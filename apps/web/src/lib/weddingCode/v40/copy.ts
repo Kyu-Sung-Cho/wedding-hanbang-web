@@ -87,7 +87,7 @@ const NOTICE_STANDARD =
 const TOPIC_SUBJECT: Readonly<Record<Axis, string>> = {
   money: "돈은",
   process: "준비는",
-  scope: "정하는 사람은",
+  scope: "함께 정할 때는",
   support: "지쳤을 때는",
 };
 
@@ -126,7 +126,7 @@ export const V40_COPY = {
     notice: NOTICE_STANDARD,
     /** 식을 올리지 않거나 부모님이 안 계시거나 재혼인 사람도 답할 수 있다는 안내와 넘기는 방법, 묻지 않는 것. */
     scope:
-      "식을 올리지 않아도, 부모님이 안 계셔도, 재혼이어도 답할 수 있어요. 아직 준비 전이거나 이미 마쳤다면 그때를 떠올리거나 만약을 생각하며 답해 주세요. 맞지 않는 질문은 「제 상황과 안 맞아요」를 눌러 주세요. 식을 올리지 않거나 가족이 관여하지 않으면 「누구와 함께 정할 때」 주제는 글자 대신 「·」로 남을 수 있어요. 신혼집, 예단과 예물, 양가 비용 분담, 실제 금액은 묻지 않아요.",
+      "식을 올리지 않아도, 부모님이 안 계셔도, 재혼이어도 답할 수 있어요. 아직 준비 전이거나 이미 마쳤다면 그때를 떠올리거나 만약을 생각하며 답해 주세요. 맞지 않는 질문은 「제 상황과 안 맞아요」를 눌러 주세요. 한 주제에서 넘긴 질문이 많으면 그 주제는 글자 대신 「·」로 남을 수 있어요. 신혼집, 예단과 예물, 양가 비용 분담, 실제 금액은 묻지 않아요.",
     startButton: "시작하기",
     /**
      * 라운지 안(embedded)에서 열렸을 때 위에 한 줄. 로그인 사용자도 v4 에서 계정 저장, 함께 보기, 아모라 도움 설정 연결을 쓰지 못한다.
@@ -140,8 +140,8 @@ export const V40_COPY = {
     },
     /** 이 브라우저에 v4 진행 저장이 있을 때(재방문). 처음부터 다시 하면 저장된 답이 지워지는 것을 카드에서 미리 알린다. */
     resume: {
-      title: "하던 답이 있어요",
-      body: "저장해 둔 곳부터 이어서 할 수 있어요. 다른 사람이 하던 답이라면 이어서 할 때 그 사람의 답이 보여요. 처음부터 다시 하면 저장된 답은 지워져요.",
+      title: "저장해 둔 답이 있어요",
+      body: "저장해 둔 곳부터 이어서 할 수 있어요. 끝까지 마쳤다면 결과가 바로 열려요. 처음부터 다시 하면 저장된 답은 지워져요. 같이 쓰는 폰이라면 다른 사람의 답이 보일 수 있으니, 이어서 하기 전에 내 답인지 확인해 주세요.",
       continueButton: "이어서 하기",
       restartButton: "처음부터 다시 하기",
     },
@@ -150,9 +150,9 @@ export const V40_COPY = {
      * 상대의 답은 방금 연 링크에서 메모리로 읽으므로, 하던 답을 이어 해도 그대로 쓰인다(화면 빌더가 이 동작을 지켜야 본문이 참이다).
      */
     inviteConflict: {
-      title: "하던 답을 이어서 할까요?",
-      body: "이 브라우저에 하던 답이 남아 있어요. 이어서 해도 상대가 보낸 링크의 답은 그대로 쓰여요. 받은 링크로 처음부터 하면 하던 답은 지워져요.",
-      keepMineButton: "하던 답 이어서 하기",
+      title: "저장된 내 답이 있어요",
+      body: "이 브라우저에 저장된 내 답이 있어요. 그 답으로 계속해도 상대가 보낸 링크의 답은 그대로 쓰여요. 받은 링크로 처음부터 하면 저장된 내 답은 지워져요.",
+      keepMineButton: "저장된 답으로 계속하기",
       useLinkButton: "받은 링크로 처음부터 하기",
     },
     /** 이전 웨딩코드(v3.1) 화면에서 v4 로 옮겨 가는 단추. 명시로만 옮겨 간다. 입구의 이전 판 안내 단추와 같은 값(entryCopy.ts). */
@@ -279,7 +279,7 @@ export const V40_COPY = {
   // 나가기와 돌아가기 알림 -------------------------------------------------------
   leave: {
     /** 마지막으로 저장한 결과가 「저장했어요」일 때만 보인다. 저장이 안 된 상태에서는 storageNotice 가 대신 나온다. 이 화면에서 고르기만 하고 넘기지 않은 답은 저장되지 않는다. */
-    autosaveOnNote: "지금 나가도 다음을 눌러 넘긴 답까지는 이 브라우저에 저장돼 있어요. 다음에 이어서 할 수 있어요.",
+    autosaveOnNote: "지금 나가도 「다음」을 눌러 넘긴 답까지는 이 브라우저에 저장돼 있어요. 나중에 같은 곳에서 열면 이어서 할 수 있어요.",
     autosaveOffNote: "자동 저장이 꺼져 있어서 지금 나가면 답이 사라져요.",
   },
 
@@ -358,11 +358,11 @@ export const V40_COPY = {
     /** 직접 고른 쪽 대비 블록의 제목. */
     selfChoiceHeading: V40_WRAP_UP.title,
     /**
-     * 주제 블록의 「내가 마지막에 직접 고른 쪽」 줄의 머리말(4.1 단계 1, selfChoiceLine). 본인이 자기 선택 문항에서 고른 것만 말하는 사실 줄이다.
+     * 주제 블록의 「내가 마지막 정리에서 고른 쪽」 줄의 머리말(4.1 단계 1, selfChoiceLine). 본인이 자기 선택 문항에서 고른 것만 말하는 사실 줄이다.
      * 「내가」로 시작해 시스템이 세는 세기 문장이 아니라 본인이 고른 것이라는 점이 머리말에서 읽힌다.
      * 대비 문장(selfContrastSentence)이 같은 사실을 이미 말하는 주제에서는 이 줄을 그리지 않는다.
      */
-    selfLineLeadLabel: "내가 마지막에 직접 고른 쪽",
+    selfLineLeadLabel: "내가 마지막 정리에서 고른 쪽",
   },
 
   // 품질 안내 ----------------------------------------------------------------
@@ -441,8 +441,8 @@ export const V40_COPY = {
     /** 보낼 말 미리 보기. 내 글자는 넣지 않고 고지 문장도 넣지 않는다. */
     messageWithAnswers:
       "웨딩코드 해 봤어요. 해 보고 싶으면 시간 날 때 링크를 열어 줘요. 안 해도 괜찮아요. 다 하고 나면 두 사람 결과 링크를 나한테도 보내 주면 같이 볼 수 있어요.",
-    messageQuestionsOnly: "웨딩코드 해 봤어요. 해 보고 싶으면 시간 날 때 링크를 열어 줘요. 안 해도 괜찮아요. 하고 나면 어느 장면에서 어떻게 골랐는지 이야기해 봐요.",
-    shareSheetInfo: "휴대폰에서는 공유 창이 열려요. 열리지 않으면 주소를 복사할 수 있게 보여 줘요.",
+    messageQuestionsOnly: "웨딩코드 해 봤어요. 해 보고 싶으면 시간 날 때 링크를 열어 줘요. 안 해도 괜찮아요. 하고 나면 어떤 질문에서 어떻게 답했는지 이야기해 봐요.",
+    shareSheetInfo: "휴대폰에서는 공유 창이 열려요. 열리지 않으면 링크를 복사해 주고, 복사가 안 되면 주소를 보여 줘요.",
     /**
      * 내 답과 함께 보내기가 골라져 있을 때만 보인다. 「누구나 읽을 수 있다」는 말은 체크 문장(consent)이 이미 한다.
      * 질문만 보내기의 링크에는 답이 없어서 되돌릴 것도, 남는 예전 링크도 없으니 그쪽에는 겁을 주는 말을 붙이지 않는다.
@@ -463,7 +463,7 @@ export const V40_COPY = {
   copyCode: {
     button: "코드 복사",
     /** 상대가 답하기 전에 코드를 보내지 않는 까닭(내 글자를 먼저 보면 답이 끌린다)을 화면에서 말한다. */
-    hint: "글자 이름과 옆 표시만 복사하고 내 답은 넣지 않아요. 복사한 글은 상대가 답하기 전에는 보내지 않는 게 좋아요. 내 글자를 먼저 보면 상대 답이 그쪽으로 쏠릴 수 있어요.",
+    hint: "글자 이름과 세기(뚜렷해요, 기울어요, 반반이에요)만 복사하고 내 답은 넣지 않아요. 복사한 글은 상대가 답하기 전에는 보내지 않는 게 좋아요. 내 글자를 먼저 보면 상대 답이 그쪽으로 쏠릴 수 있어요.",
     copied: "코드를 복사했어요",
     failed: "복사하지 못했어요. 아래 글을 직접 복사해 주세요.",
   },
@@ -483,7 +483,7 @@ export const V40_COPY = {
       button: "처음부터 다시 하기",
       confirmTitle: "처음부터 다시 할까요?",
       confirmBody:
-        "지금까지 한 답이 이 브라우저에서 지워지고 처음부터 다시 시작해요. 결과를 보기 전에 고른 글자도 함께 지워져요. 지난번과 비교하는 데 쓰는 결과 글자와 그 옆 표시는 그대로 남아요. 이미 보낸 링크는 그대로 열려서 받은 사람이 계속 볼 수 있어요.",
+        "지금까지 한 답이 이 브라우저에서 지워지고 처음부터 다시 시작해요. 결과를 보기 전에 고른 글자도 함께 지워져요. 지난번과 비교하는 데 쓰는 결과 글자와 그 세기는 그대로 남아요. 이미 보낸 링크는 그대로 열려서 받은 사람이 계속 볼 수 있어요.",
       confirmButton: "지우고 다시 하기",
       cancelButton: "그대로 두기",
     },
@@ -502,6 +502,8 @@ export const V40_COPY = {
   // 받는 사람 화면 ---------------------------------------------------------------
   receive: {
     title: "상대가 웨딩코드를 보냈어요",
+    /** 웨딩코드가 무엇을 묻는지 한 문단. 카카오톡에서 링크를 누르고 처음 온 사람이 결정하는 데 필요하다(시작 화면의 주제 소개와 같은 네 주제). */
+    about: "웨딩코드는 결혼을 준비하며 돈을 정할 때, 준비를 굴릴 때, 누구와 함께 정할 때, 지쳤을 때 어느 쪽으로 기우는지 묻는 질문이에요. 정답은 없어요.",
     lead: "먼저 내 답을 마치면 두 사람 결과를 나란히 볼 수 있어요. 링크 안의 상대 답은 내가 마치기 전에는 화면에 나오지 않아요. 하고 싶지 않으면 여기서 닫아도 돼요.",
     /** 정직한 고지. 이 화면에서 한 번. */
     notice: "새로 만든 질문이라 아직 여러 사람에게 확인해 보지 못했고 검증을 마친 심리검사가 아니에요.",
@@ -516,7 +518,7 @@ export const V40_COPY = {
     /** 두 사람 결과가 없는 화면의 제목. 결과가 없는데 「우리 둘의 웨딩코드」라고 하지 않는다. */
     noCompareTitle: "두 사람 결과를 만들지 못했어요",
     /** 내 답에서 글자를 정하지 못해 두 사람 결과를 만들 수 없을 때. 다시 해도 또 못 정할 수 있어서 볼 수 있다고 약속하지 않는다. */
-    noCompareNote: "이번에는 글자를 정하지 못해서 두 사람 결과를 만들 수 없어요. 처음부터 다시 답해 볼 수 있어요.",
+    noCompareNote: "이번에는 답이 화면의 같은 위치에 몰렸거나 답할 수 있는 질문이 적어서 글자를 정하지 못했어요. 그래서 두 사람 결과를 만들 수 없어요. 처음부터 다시 답해 볼 수 있고, 받은 상대의 답은 그대로 남아 있어요.",
     noCompareRestartButton: "처음부터 다시 하기",
     /**
      * 내 답이 자동으로 상대에게 가지 않는다는 것과, 받는 사람이 꼭 알아야 하는 다음 걸음을 한 문단에 담는다. 보낸 사람은 이 사람이 두 사람 결과 링크를 다시 보내 주기 전에는 두 사람 결과를 볼 수 없다.
@@ -535,10 +537,10 @@ export const V40_COPY = {
       groupLabel: "나 기준으로 보기",
       meLabel: "나",
       partnerLabel: "상대",
-      firstLabel: "먼저 답한 사람",
-      secondLabel: "나중에 답한 사람",
-      iAmFirstOption: "먼저 답한 사람이 나예요",
-      iAmSecondOption: "나중에 답한 사람이 나예요",
+      firstLabel: "링크를 먼저 보낸 사람",
+      secondLabel: "링크를 받은 사람",
+      iAmFirstOption: "링크를 먼저 보낸 사람이 나예요",
+      iAmSecondOption: "링크를 받은 사람이 나예요",
       /** 이 브라우저에 저장된 내 답이 링크의 a 나 b 와 같아서 자동으로 「나」를 표시했을 때. */
       autoNote: "이 브라우저에 저장된 내 답과 같아서 「나」로 표시했어요.",
       /** 맞는 것이 없어서 고르게 할 때. */
@@ -550,7 +552,8 @@ export const V40_COPY = {
       even: "한쪽 또는 둘 다 반반이에요",
     },
     /** 태그 아래 안내: 반반이에요 주제와 비교에서 뺀 주제. 같은 글자와 다른 글자의 안내는 constants 의 V40_SAME_LETTER_NOTE, AxisInfo.differentNote. */
-    evenTagNote: "한쪽이라도 「반반이에요」인 주제는 같은지 다른지 말하지 않아요. 화면의 같은 위치에서 누른 질문이 많거나 넘어간 질문이 많으면 표시가 한 단계 낮아져 반반이에요로 보일 수도 있어요.",
+    evenTagNote:
+      "한쪽이라도 「반반이에요」인 주제는 글자가 같은지 다른지 말하지 않아요. 코드에는 한 글자만 적을 수 있어서, 「반반이에요」인 주제는 둘 중 하나를 적어 두었을 뿐이에요. 답이 화면의 같은 위치에 몰렸거나 넘어간 질문이 많으면 세기가 한 단계 낮아져 「반반이에요」로 나올 수 있어요.",
     excludedTagNote: "글자를 정하지 못했거나 임시 글자라서 이 주제는 비교에서 뺐어요.",
     talk: {
       title: "먼저 이야기해 볼 질문",
@@ -573,7 +576,7 @@ export const V40_COPY = {
      * 「이야기해 볼 질문」과 「비슷하게 고른 질문」 목록 제목 아래에 한 번씩. 고른 문장의 「…해도」로 이어지는 부분은 그 방식의 아쉬운 점이지
      * 상대를 탓하는 말이 아니라는 것을 두 사람이 나란히 읽기 전에 밝힌다(상대가 고른 문장의 아쉬운 점을 나를 향한 말로 읽지 않게).
      */
-    choiceCostNote: "고른 문장에서 「…해도」로 이어지는 부분은 그 방식의 아쉬운 점이에요. 상대를 탓하는 말이 아니에요.",
+    choiceCostNote: "고른 문장에는 그 방식의 좋은 점과 아쉬운 점이 함께 들어 있어요. 아쉬운 점은 상대를 탓하는 말이 아니에요.",
     /**
      * 「이야기해 볼 질문」과 「비슷하게 고른 질문」의 답 글에 「상대」라는 말이 들어갈 때(「상대가 ~하면」으로 시작하는 이럴 때 내 마음 질문과
      * 다른 형식의 보기 글 모두), 목록 제목 아래에 한 번만 붙인다.
@@ -743,7 +746,7 @@ export function introStorage(
   let before: string;
   let after = "에서 볼 수 있어요.";
   if (mode === "on") {
-    before = `답은 웨딩한방에 보내지 않고 이 브라우저에만 ${days}일 동안 저장돼요. 카카오톡 같은 앱 안에서 열었다면 다음에도 같은 곳에서 열어야 이어서 할 수 있어요. 결과 글자와 그 옆 표시는 지난번과 비교하려고 같은 기간 최근 ${timesWord(keep)}까지 남아요. 끝까지 마쳤는지 같은 이용 통계만 남겨요. 자세한 내용은 `;
+    before = `답은 웨딩한방에 보내지 않고 이 브라우저에만 ${days}일 동안 저장돼요. 카카오톡 같은 앱 안에서 열었다면 다음에도 같은 곳에서 열어야 이어서 할 수 있어요. 결과 글자와 그 세기는 지난번과 비교하려고 같은 기간 최근 ${timesWord(keep)}까지 남아요. 끝까지 마쳤는지 같은 이용 통계만 남겨요. 자세한 내용은 `;
     after = "에서 볼 수 있어요. 다른 사람과 같이 쓰는 폰이나 컴퓨터에서는 저장을 꺼 주세요.";
   } else if (mode === "off") {
     before = "자동 저장이 꺼져 있어서 답은 저장되지 않고, 웨딩한방에도 보내지 않아요. 끝까지 마쳤는지 같은 이용 통계만 남겨요. 자세한 내용은 ";
@@ -755,23 +758,39 @@ export function introStorage(
 
 /**
  * 받는 사람 화면의 저장 문단. introStorage 와 같은 세 갈래이고, 웨딩코드가 상대의 답을 저장하지 않는다는 말은 세 갈래 모두에 들어간다.
- * 받은 링크 자체는 받은 곳(대화창 등)에 남으므로 그 사실도 함께 적어, 「상대의 답이 어디에도 남지 않는다」는 뜻으로 읽히지 않게 한다.
+ * 받은 링크 자체에는 상대의 답이 그대로 들어 있어서 받은 곳(대화창 등)에 남고, 그 링크를 다른 사람에게 보내면 그 사람도 읽는다.
+ * 그래서 「상대의 답이 어디에도 남지 않는다」로 읽히지 않게 링크에 답이 들어 있다는 것과 다른 사람에게 보내지 말아 달라는 말을 함께 적는다.
+ * 처리방침 링크를 문장 안에 걸 수 있게 세 조각으로 나눠 준다(시작 화면의 introStorage 와 같은 모양).
  */
+export function receiveStorageParts(
+  mode: V40StorageMode = "on",
+  count: number = V40_COUNTS.items,
+  days: number = STORAGE_DAYS,
+): IntroStorage {
+  const lead = `질문은 모두 ${count}개예요.`;
+  const partnerPart =
+    "웨딩코드는 상대의 답을 이 브라우저에 저장하지 않아요. 다만 받은 링크에는 상대의 답이 들어 있고, 링크는 받은 대화창에서 지우기 전까지 남아 있어요. 그러니 다른 사람에게는 보내지 말아 주세요. 끝까지 마쳤는지 같은 이용 통계만 남겨요.";
+  const linkLabel = "개인정보 처리방침";
+  const after = "에서 볼 수 있어요.";
+  let head: string;
+  if (mode === "on") {
+    head = `${lead} 답은 웨딩한방에 보내지 않고 이 브라우저에 ${days}일 동안 저장돼요. 카카오톡 같은 앱 안에서 열었다면 다음에도 같은 곳에서 열어야 이어서 할 수 있어요. ${partnerPart}`;
+  } else if (mode === "off") {
+    head = `${lead} 자동 저장이 꺼져 있어서 내 답은 저장되지 않고 웨딩한방에도 보내지 않아요. ${partnerPart}`;
+  } else {
+    head = `${lead} 내 답은 웨딩한방에 보내지 않아요. ${partnerPart}`;
+  }
+  const before = `${head} 자세한 내용은 `;
+  return { before, linkLabel, after, plain: `${before}${linkLabel}${after}` };
+}
+
+/** receiveStorageParts 를 한 문단으로 이은 글. */
 export function receiveStorage(
   mode: V40StorageMode = "on",
   count: number = V40_COUNTS.items,
   days: number = STORAGE_DAYS,
 ): string {
-  const lead = `질문은 모두 ${count}개예요.`;
-  const partnerPart =
-    "웨딩코드는 상대의 답을 이 브라우저에 저장하지 않아요. 받은 링크는 받은 곳에서 지우기 전까지 남아 있어요. 끝까지 마쳤는지 같은 이용 통계만 남겨요.";
-  if (mode === "on") {
-    return `${lead} 답은 웨딩한방에 보내지 않고 이 브라우저에 ${days}일 동안 저장돼요. 카카오톡 같은 앱 안에서 열었다면 다음에도 같은 곳에서 열어야 이어서 할 수 있어요. ${partnerPart}`;
-  }
-  if (mode === "off") {
-    return `${lead} 자동 저장이 꺼져 있어서 내 답은 저장되지 않고 웨딩한방에도 보내지 않아요. ${partnerPart}`;
-  }
-  return `${lead} 내 답은 웨딩한방에 보내지 않아요. ${partnerPart}`;
+  return receiveStorageParts(mode, count, days).plain;
 }
 
 /** 진행 저장을 30일이 지나 지웠을 때 시작 화면에 한 줄. */
@@ -932,7 +951,7 @@ function buildCollectedSentences() {
   return {
     money: { ...collectedFor("money"), unusable: "돈은 답할 수 있는 질문이 적어서 글자를 정하지 못했어요." },
     process: { ...collectedFor("process"), unusable: "준비는 답할 수 있는 질문이 적어서 글자를 정하지 못했어요." },
-    scope: { ...collectedFor("scope"), unusable: "누구와 정할지는 답할 수 있는 질문이 적어서 글자를 정하지 못했어요." },
+    scope: { ...collectedFor("scope"), unusable: "누구와 함께 정할 때는 답할 수 있는 질문이 적어서 글자를 정하지 못했어요." },
     support: { ...collectedFor("support"), unusable: "지친 날에는 답할 수 있는 질문이 적어서 글자를 정하지 못했어요." },
   } as const;
 }
@@ -947,7 +966,7 @@ export function collectedSentence(axis: Axis, letter: Letter | null, band: Stren
   if (letter === null || band === null) return sentences.unusable;
   assertLetterOfAxis(axis, letter);
   // 힌트가 세기를 낮춰서 반반이에요가 된 주제: 크게 기울지 않았다고 하지 않고 세기를 낮췄다고만 말한다(고른 답은 주제 블록이 그대로 보여 준다).
-  if (band === "even" && lowered) return `${TOPIC_SUBJECT[axis]} 글자 옆 표시를 한 단계 낮춰 「${V40_STRENGTH.even.label}」로 적었어요.`;
+  if (band === "even" && lowered) return `${TOPIC_SUBJECT[axis]} 글자의 세기를 한 단계 낮춰 「${V40_STRENGTH.even.label}」로 적었어요.`;
   if (band === "even") return sentences.even;
   return letterInfo(letter).side === "front" ? sentences.front : sentences.back;
 }
@@ -1013,7 +1032,7 @@ export function selfContrastSentence(input: {
   readonly gatheredBand: "clear" | "lean";
 }): string {
   const gathered = input.gatheredBand === "clear" ? "뚜렷하게 모였어요" : "대체로 모였어요";
-  return `마지막에 직접 고른 쪽은 「${legendLetterCell(input.selfLetter)}」였고, 여러 질문에서 고른 답은 「${legendLetterCell(input.gatheredLetter)}」 쪽으로 ${gathered}. 둘 다 이번에 내가 고른 답이에요. 어느 쪽이 지금 나에게 더 가까운지 혼자 생각해 봐도, 둘이 이야기해 봐도 좋아요.`;
+  return `마지막 정리에서 고른 쪽은 「${legendLetterCell(input.selfLetter)}」였고, 여러 질문에서 고른 답은 「${legendLetterCell(input.gatheredLetter)}」 쪽으로 ${gathered}. 둘 다 이번에 내가 고른 답이에요. 어느 쪽이 지금 나에게 더 가까운지 혼자 생각해 봐도, 둘이 이야기해 봐도 좋아요.`;
 }
 
 /**
@@ -1027,7 +1046,7 @@ export function selfLevelPhrase(level: 1 | 2 | 3): string {
 }
 
 /**
- * 주제 블록의 「내가 마지막에 직접 고른 쪽」 줄을 세 덩어리로 낸다(4.1 단계 1). 화면은 두 번째와 세 번째 덩어리를 줄바꿈 없이 붙여 그려서
+ * 주제 블록의 「내가 마지막 정리에서 고른 쪽」 줄을 세 덩어리로 낸다(4.1 단계 1). 화면은 두 번째와 세 번째 덩어리를 줄바꿈 없이 붙여 그려서
  * 좁은 폭에서도 「· 꽤」와 「가까워요」가 갈라지거나 「D 나눠」와 「하기」가 갈라지지 않는다. 덩어리 사이에는 공백 한 칸이 들어간다.
  */
 export function selfChoiceParts(line: SelfLine): { readonly label: string; readonly pick: string; readonly level: string } {
@@ -1040,7 +1059,7 @@ export function selfChoiceParts(line: SelfLine): { readonly label: string; reado
 }
 
 /**
- * 주제 블록의 「내가 마지막에 직접 고른 쪽」 줄(4.1 단계 1): 「내가 마지막에 직접 고른 쪽: 「D 나눠 하기」 · 아주 가까워요」.
+ * 주제 블록의 「내가 마지막 정리에서 고른 쪽」 줄(4.1 단계 1): 「내가 마지막 정리에서 고른 쪽: 「D 나눠 하기」 · 아주 가까워요」.
  * 본인이 고른 방향의 글자와 이름, 고른 세기만 적는다. 모은 답과 견주지 않고 어느 쪽이 맞다고 말하지 않는다.
  */
 export function selfChoiceLine(line: SelfLine): string {
@@ -1066,18 +1085,19 @@ export function letterAriaLabel(letter: Letter, band: StrengthBand, provisional:
 }
 
 /**
- * 코드 복사로 나가는 글. 글자와 뜻과 세기만 담고 답과 고지 문장은 담지 않는다.
- * 반반이에요에는 항상 「반반이에요」가 붙고 임시 글자에는 「임시」가 붙는다. 글자를 못 정한 주제는 코드에 「·」로 적고 뜻 자리에 「<주제> · 정하지 못했어요」.
- * 예: 웨딩코드 SWUA, 이번에 고른 답을 모은 글자예요 (S 장면 먼저 · 기울어요, W 같이 하기 · 뚜렷해요, U 둘이 정하기 · 기울어요, A 할 일 먼저 · 반반이에요)
+ * 코드 복사로 나가는 글. 글자와 뜻과 세기만 담고 답과 고지 문장은 담지 않는다. 대화창에 그대로 붙여도 어느 주제의 글자인지 읽히게 주제 이름을 앞에 둔다.
+ * 반반이에요에는 항상 「반반이에요」가 붙고 임시 글자에는 「 · 임시」가 붙는다. 글자를 못 정한 주제는 코드에 「·」로 적고 뜻 자리에 「<주제>는 정하지 못했어요」.
+ * 예: 웨딩코드 VWUH, 이번 답으로 나온 글자예요. 돈은 V 조건 먼저(뚜렷해요), 준비는 W 같이 하기(뚜렷해요), 함께 정할 때는 U 둘이 정하기(기울어요), 지쳤을 때는 H 마음 먼저(뚜렷해요).
  */
 export function codeCopyText(entries: readonly CodeLineEntry[]): string {
   const code = entries.map((entry) => entry.letter ?? UNSET_MARK).join("");
   const parts = entries.map((entry) => {
-    if (entry.letter === null || entry.band === null) return `${axisInfo(entry.axis).topic} · ${V40_COPY.legend.notSetLabel}`;
+    const subject = TOPIC_SUBJECT[entry.axis];
+    if (entry.letter === null || entry.band === null) return `${subject} ${V40_COPY.legend.notSetLabel}`;
     assertLetterOfAxis(entry.axis, entry.letter);
-    return `${legendLetterCell(entry.letter)} · ${V40_STRENGTH[entry.band].label}${entry.provisional ? ` · ${V40_COPY.result.provisionalMark}` : ""}`;
+    return `${subject} ${legendLetterCell(entry.letter)}(${V40_STRENGTH[entry.band].label}${entry.provisional ? ` · ${V40_COPY.result.provisionalMark}` : ""})`;
   });
-  return `웨딩코드 ${code}, 이번에 고른 답을 모은 글자예요 (${parts.join(", ")})`;
+  return `웨딩코드 ${code}, 이번 답으로 나온 글자예요. ${parts.join(", ")}.`;
 }
 
 // ---------------------------------------------------------------------------
@@ -1104,7 +1124,7 @@ export const V40_QUOTE_TEMPLATES = {
   },
   /** 칸 나누기: 고른 쪽 항목 원문과 그 항목에 놓은 칸 수. */
   split(chunks: number, entryText: string): string {
-    return `${V40_SPLIT_TOTAL}칸 중 ${chunks}칸을 「${entryText}」에 놓았어요`;
+    return chunks === V40_SPLIT_TOTAL ? `여섯 칸을 모두 「${entryText}」에 놓았어요` : `${V40_SPLIT_TOTAL}칸 중 ${chunks}칸을 「${entryText}」에 놓았어요`;
   },
 } as const;
 
@@ -1129,7 +1149,7 @@ export function historyLead(dateText: string, anyChanged: boolean): string {
   const when = dateText === "" ? "지난번" : `지난번(${dateText})`;
   return anyChanged
     ? `${when}과 다르게 나온 글자가 있어요.`
-    : `${when}과 비교했어요. 두 번 모두 뚜렷해요나 기울어요로 나온 주제 가운데 글자가 달라진 곳은 없어요. 같은 질문을 다시 푼 것이라 지난 답을 기억하고 있을 수 있어요.`;
+    : `${when}과 비교했어요. 두 번 모두 「뚜렷해요」나 「기울어요」로 나온 주제 가운데 글자가 달라진 곳은 없어요. 같은 질문을 다시 푼 것이라 지난 답을 기억하고 있을 수 있어요.`;
 }
 
 /** 받침이 없으면 는, 있으면 은. 한글 음절이 아니면 는. */
@@ -1195,6 +1215,15 @@ export function letterBandCell(letter: Letter | null, band: StrengthBand | null,
 }
 
 /**
+ * 두 사람 결과에서 세기가 반반이에요인 칸의 설명 한 줄. 반반이에요의 글자는 코드 칸을 채우려고 적은 것이라 칸의 첫머리는 세기 낱말이고
+ * 글자는 이 줄에서 작게 밝힌다(글자를 크게 나란히 놓으면 「나는 조건, 상대는 장면」처럼 다르다고 읽힌다). 낫표 뒤 조사는 를로 고정이다.
+ * 예: 코드에는 「V 조건 먼저」를 적었어요
+ */
+export function evenCellCodeNote(letter: Letter): string {
+  return `코드에는 「${legendLetterCell(letter)}」를 적었어요`;
+}
+
+/**
  * 태그 아래 안내 한 줄. 같은 글자는 「같은 쪽이어도 이유는 다를 수 있어요」, 다른 글자는 그 주제의 다른 글자 안내,
  * 반반이에요는 같은지 다른지 말하지 않는다는 안내, 비교에서 뺀 주제(excluded)는 뺐다는 안내.
  * 같은 말이 줄마다 되풀이되지 않도록 화면 빌더는 같은 글자 안내를 같은 글자 줄 중 첫 줄에만 붙인다(V40_COPY_SCREENS 위의 구성 규칙).
@@ -1244,6 +1273,8 @@ export function autosaveTurnOffWarning(scope: { readonly saved: boolean; readonl
 // ===========================================================================
 
 export const V40_CLIENT_COPY = {
+  /** 탭 제목. 입구(page.tsx)의 v4 제목과 같은 값이다. 답이 든 링크처럼 서버가 판을 모르는 주소에서도 이 판의 제목이 나가게 화면이 직접 정한다. */
+  documentTitle: `${V40_COPY.intro.title} | 웨딩코드 · 웨딩한방`,
   /** 두 사람 결과 링크로 열었을 때 결과 위에 한 줄. */
   coupleReloadNote: "이 화면을 새로고침하면 두 사람의 결과가 화면에서 사라져요. 그럴 때는 받은 링크를 다시 열어 주세요.",
   /**

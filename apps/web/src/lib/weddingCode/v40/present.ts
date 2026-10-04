@@ -309,7 +309,9 @@ export function answerText(item: Item, value: ResponseValue): string | null {
       const wanted = number > 0 ? "front" : "back";
       const index = item.entries.findIndex((entry) => entry.pole === wanted);
       if (index < 0) return null;
-      return `${V40_SPLIT_TOTAL}칸 중 ${counts[index]}칸을 「${item.entries[index].text}」에 놓았어요`;
+      const chunks = counts[index];
+      if (chunks === V40_SPLIT_TOTAL) return `여섯 칸을 모두 「${item.entries[index].text}」에 놓았어요`;
+      return `${V40_SPLIT_TOTAL}칸 중 ${chunks}칸을 「${item.entries[index].text}」에 놓았어요`;
     }
     default:
       return null;

@@ -1090,7 +1090,8 @@ export function WeddingCodeV40Core({ shareOrigin, initial, resolved, embedded = 
         <CoupleResult
           result={coupleResult}
           detectedPerspective={boot.detected}
-          onStartOwn={handleStartOwn}
+          // 이 브라우저의 내 답과 같아서 「나」로 알아본 사람은 이미 답을 마쳤다. 「내 웨딩코드 해 보기」는 처음 해 본다는 말이라 알아보지 못했을 때만 둔다.
+          onStartOwn={boot.detected === null ? handleStartOwn : undefined}
           embedded={embedded}
           note={<span data-couple-reload-note="">{V40_CLIENT_COPY.coupleReloadNote}</span>}
           guessSection={guessSectionFor(context.guess?.first ?? null, context.guess?.second ?? null)}
@@ -1350,6 +1351,17 @@ class WeddingCodeV40Boundary extends Component<{ readonly embedded: boolean; rea
 /** 시험에서 저장소, 시계, 난수, 공유 창을 바꿔 끼울 수 있는 틀(deps). 실제 화면은 아래 default export 를 쓴다. */
 export function WeddingCodeV40ClientWithDeps(props: WeddingCodeV40ClientCoreProps) {
   const Root = props.embedded ? "div" : "main";
+  // 답이 든 링크(#v=…&a=…)는 서버가 판을 몰라 탭 제목이 이전 판의 것으로 나간다. 화면이 뜨면 이 판의 제목으로 바꾸고, 화면이 사라지면 되돌린다.
+  // 라운지 안에서는 바깥 화면의 제목을 건드리지 않는다.
+  const embeddedScreen = props.embedded === true;
+  useEffect(() => {
+    if (embeddedScreen) return undefined;
+    const previous = document.title;
+    document.title = V40_CLIENT_COPY.documentTitle;
+    return () => {
+      document.title = previous;
+    };
+  }, [embeddedScreen]);
   return (
     <Root data-wedding-code-v40="" data-embedded={props.embedded ? "true" : "false"}>
       <WeddingCodeV40Boundary embedded={props.embedded === true}>

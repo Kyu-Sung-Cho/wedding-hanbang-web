@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { V40_AXIS_KEYS, V40_LETTER_LIST, axisInfo, letterInfo } from "@/constants/weddingCodeV40";
+import { V40_AXIS_KEYS, V40_LETTER_LIST, V40_STRENGTH, axisInfo, letterInfo, type Letter, type StrengthBand } from "@/constants/weddingCodeV40";
 import { WEDDING_CODE_V40_BANK } from "@/lib/weddingCode/v40/bank";
 import { compareCouple } from "@/lib/weddingCode/v40/couple";
 import {
@@ -75,6 +75,11 @@ const text = () => root().textContent ?? "";
 const countOf = (haystack: string, needle: string) => haystack.split(needle).length - 1;
 const axisItems = () => [...root().querySelectorAll<HTMLElement>('[data-part="axes"] li[data-axis]')];
 const personLabels = (item: HTMLElement) => [...item.querySelectorAll("div > div > p:first-child")].map((p) => p.textContent);
+/** 사람 칸의 글. 반반이에요 칸은 글자를 앞세우지 않고 세기 낱말(임시이면 뒤에 임시)을 앞에 둔다. */
+const sideText = (side: { letter: Letter | null; shownBand: StrengthBand | null; provisional: boolean }) =>
+  side.letter !== null && side.shownBand === "even"
+    ? `${V40_STRENGTH.even.label}${side.provisional ? ` · ${V40_COPY.result.provisionalMark}` : ""}`
+    : letterBandCell(side.letter, side.shownBand, side.provisional);
 const personCells = (item: HTMLElement) => [...item.querySelectorAll("div > div > p:nth-child(2)")].map((p) => p.textContent);
 const heading = (label: string) => [...root().querySelectorAll("h1, h2, h3")].find((h) => h.textContent === label) ?? null;
 const radios = () => [...root().querySelectorAll<HTMLInputElement>('input[type="radio"]')];
@@ -180,10 +185,7 @@ describe("CoupleResult: 주제별 나란히 보기", () => {
     COUPLE.axes.forEach((data, index) => {
       const item = items[index];
       expect(item.dataset.tag).toBe(data.excluded ? "excluded" : data.tag);
-      expect(personCells(item)).toEqual([
-        letterBandCell(data.first.letter, data.first.shownBand, data.first.provisional),
-        letterBandCell(data.second.letter, data.second.shownBand, data.second.provisional),
-      ]);
+      expect(personCells(item)).toEqual([sideText(data.first), sideText(data.second)]);
       if (!data.excluded) expect(item.textContent).toContain(V40_COPY.couple.tagLabels[data.tag]);
     });
   });
@@ -303,10 +305,7 @@ describe("CoupleResult: 나 기준으로 보기", () => {
     const first = axisItems()[0];
     expect(personLabels(first)).toEqual([V40_COPY.couple.perspective.meLabel, V40_COPY.couple.perspective.partnerLabel]);
     const data = COUPLE.axes[0];
-    expect(personCells(first)).toEqual([
-      letterBandCell(data.second.letter, data.second.shownBand, data.second.provisional),
-      letterBandCell(data.first.letter, data.first.shownBand, data.first.provisional),
-    ]);
+    expect(personCells(first)).toEqual([sideText(data.second), sideText(data.first)]);
   });
 
   it("맞는 것이 없으면 먼저 답한 사람, 나중에 답한 사람으로 부르고 누가 나인지 고르게 한다", async () => {

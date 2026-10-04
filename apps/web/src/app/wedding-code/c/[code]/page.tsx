@@ -26,7 +26,7 @@ import { WeddingCodePoleChip } from "../../WeddingCodeBadge";
  * ## 무엇을 말하지 않나
  *
  * 문항 판과 실제 답이 없으므로 특정 문항에서 무엇을 골랐다고 설명하지 않는다.
- * 글자가 다루는 공통 주제와 반대쪽 글자만 안내한다. 정확한 풀이는 응답 결과의 몫이다.
+ * 글자가 다루는 공통 주제와 반대쪽 글자만 안내한다. 자세한 풀이는 응답 결과의 몫이다.
  */
 
 type LookupSide = Readonly<{ short: string; meaning: string }>;
@@ -99,7 +99,7 @@ export async function generateMetadata({
   return lookupMetadata(
     `이전 판 웨딩코드 ${upper} 글자 뜻 | 웨딩한방`,
     `이전 판 웨딩코드 ${upper}의 네 글자가 다루던 주제를 알려드려요.`
-      + " 코드만으로는 어떤 문항에 답했는지 알 수 없어요. 정확한 풀이와 고른 답은 함께 받은 결과 링크에서 확인해 주세요."
+      + " 코드만으로는 어떤 질문에 답했는지 알 수 없어요. 자세한 풀이와 고른 답은 함께 받은 결과 링크에서 확인해 주세요."
       + " 지금 웨딩코드는 질문도, 네 글자를 정하는 방식도 달라요.",
     // 지금 판을 설명하지 않는 화면이라 검색에 싣지 않는다. 안에 있는 지금 판 링크는 따라가도 된다.
     { index: false, follow: true },
@@ -134,8 +134,8 @@ export default async function WeddingCodeMeaningPage({
               성격을 맞히거나 궁합을 보는 코드는 아니에요.
             </p>
             <p data-code-version-note="" className="mt-3 text-[13px] font-medium leading-[1.7] text-[var(--hb-on-primary)]">
-              코드만으로는 어떤 문항에 답했는지 알 수 없어요.
-              정확한 풀이와 고른 답은 함께 받은 결과 링크에서 확인해 주세요.
+              코드만으로는 어떤 질문에 답했는지 알 수 없어요.
+              자세한 풀이와 고른 답은 함께 받은 결과 링크에서 확인해 주세요.
             </p>
           </div>
 

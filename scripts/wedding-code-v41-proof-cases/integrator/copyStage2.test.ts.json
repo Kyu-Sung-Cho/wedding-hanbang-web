@@ -2,7 +2,7 @@
   {
     "name": "시작 단추에 이 기기를 쓴다",
     "target": "apps/web/src/lib/weddingCode/v40/guess/guessCopy.ts",
-    "find": "  startButton: \"시작\",",
+    "find": "  startButton: \"시작하기\",",
     "replace": "  startButton: \"이 기기에서 시작\","
   },
   {
@@ -32,13 +32,13 @@
   {
     "name": "다시 하기 확인 창이 먼저 고른 글자를 말하지 않는다",
     "target": "apps/web/src/lib/weddingCode/v40/copy.ts",
-    "find": " 결과를 보기 전에 먼저 고른 글자도 함께 지워져요.",
+    "find": " 결과를 보기 전에 고른 글자도 함께 지워져요.",
     "replace": ""
   },
   {
     "name": "저장 지우기 확인 창이 먼저 고른 글자를 말하지 않는다",
     "target": "apps/web/src/lib/weddingCode/v40/copy.ts",
-    "find": " 이 브라우저에 남겨 둔 먼저 고른 글자도 함께 지워져요.",
+    "find": " 결과를 보기 전에 고른 글자도 이 브라우저에서 함께 지워져요.",
     "replace": ""
   },
   {

@@ -455,7 +455,7 @@ describe("코드 복사", () => {
     expect(props.onCopyCode).toHaveBeenCalledTimes(1);
     expect(props.onCopyCode).toHaveBeenCalledWith(expected);
     expect(expected).toBe(
-      "웨딩코드 SWUA, 이번에 고른 답을 모은 글자예요 (S 장면 먼저 · 기울어요, W 같이 하기 · 뚜렷해요, U 둘이 정하기 · 기울어요, A 할 일 먼저 · 반반이에요)",
+      "웨딩코드 SWUA, 이번 답으로 나온 글자예요. 돈은 S 장면 먼저(기울어요), 준비는 W 같이 하기(뚜렷해요), 함께 정할 때는 U 둘이 정하기(기울어요), 지쳤을 때는 A 할 일 먼저(반반이에요).",
     );
     expect(harness.container.querySelector("[data-copy-status]")?.textContent).toBe(V40_COPY.copyCode.copied);
   });

@@ -20,8 +20,8 @@
   {
     "name": "시작 단추에 숫자",
     "target": "apps/web/src/lib/weddingCode/v40/guess/guessCopy.ts",
-    "find": "startButton: \"시작\",",
-    "replace": "startButton: \"시작 1\","
+    "find": "startButton: \"시작하기\",",
+    "replace": "startButton: \"시작하기 1\","
   },
   {
     "name": "누른 뒤 한 줄이 계산을 말함",
@@ -56,7 +56,7 @@
   {
     "name": "출처 문장이 보낸 사람이 직접 골랐는지 확인하지 못한다는 말을 뺌",
     "target": "apps/web/src/lib/weddingCode/v40/guess/guessCopy.ts",
-    "find": "링크를 보낸 사람이 직접 고른 것인지는 이 화면이 확인하지 못해요. ",
+    "find": "각자 정말 고른 답인지는 이 화면에서 확인하지 못해요. ",
     "replace": ""
   },
   {

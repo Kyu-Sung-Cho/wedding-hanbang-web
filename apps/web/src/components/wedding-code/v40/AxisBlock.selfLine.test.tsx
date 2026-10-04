@@ -9,7 +9,7 @@ import { FIXTURE_NAMES, resultCase, screenProps, textOf } from "./resultTestKit"
 import { cx, noteText } from "./styles";
 
 /**
- * 주제 블록의 「내가 마지막에 직접 고른 쪽」 줄(4.1 단계 1)의 화면 시험.
+ * 주제 블록의 「내가 마지막 정리에서 고른 쪽」 줄(4.1 단계 1)의 화면 시험.
  * 보이는 경우(뚜렷해요, 기울어요, 반반이에요)와 감추는 경우(대비가 있는 주제, 글자를 못 정한 주제, 다른 주제의 줄, 줄을 안 줌),
  * 세기 낱말 세 개, 줄의 자리(뚜렷해요·기울어요는 세기 문장 아래, 반반이에요는 두 글자의 뜻 아래), 줄의 글씨(메모 글씨, 줄바꿈 없는 덩어리),
  * 결과 화면 전체에서 줄이 나오는 주제와 대비 구역이 나뉘는 것을 확인한다.
@@ -35,8 +35,8 @@ function quoteOf(id: string, caption: string, text: string): QuoteItem {
   return { itemId: id, caption, facet: "limit", format: "pair", value: 4, text, label: `${caption}: ${text}` };
 }
 
-describe("AxisBlock: 마지막에 직접 고른 쪽 줄이 보이는 경우", () => {
-  it("기울어요 주제: 세기 문장 바로 아래에 「내가 마지막에 직접 고른 쪽: 「S 장면 먼저」 · 꽤 가까워요」 한 줄이 있다", async () => {
+describe("AxisBlock: 마지막 정리에서 고른 쪽 줄이 보이는 경우", () => {
+  it("기울어요 주제: 세기 문장 바로 아래에 「내가 마지막 정리에서 고른 쪽: 「S 장면 먼저」 · 꽤 가까워요」 한 줄이 있다", async () => {
     // swua-example: 돈 S 기울어요, 직접 고른 쪽은 S 꽤(같은 쪽이라 대비가 없다)
     const { axis, line } = axisOf("swua-example", "money");
     expect(axis).toMatchObject({ letter: "S", shownBand: "lean", contrast: null });
@@ -45,7 +45,7 @@ describe("AxisBlock: 마지막에 직접 고른 쪽 줄이 보이는 경우", ()
     const nodes = lineNodes(harness.container);
     expect(nodes).toHaveLength(1);
     expect(nodes[0].tagName).toBe("P");
-    expect(nodes[0].textContent).toBe("내가 마지막에 직접 고른 쪽: 「S 장면 먼저」 · 꽤 가까워요");
+    expect(nodes[0].textContent).toBe("내가 마지막 정리에서 고른 쪽: 「S 장면 먼저」 · 꽤 가까워요");
     expect(nodes[0].getAttribute("data-self-line")).toBe("money");
     // 세기 문장 바로 다음 문단이다.
     const strength = [...harness.container.querySelectorAll("p")].find((node) => node.textContent === strengthSentence("money", "S", "lean"));
@@ -59,7 +59,7 @@ describe("AxisBlock: 마지막에 직접 고른 쪽 줄이 보이는 경우", ()
     const own = { kind: "settled", own: [], opposite: [] } as const;
     await harness.render(<AxisBlock axis={axis} quotes={own} selfLine={line} onReview={vi.fn()} />);
     const node = lineNodes(harness.container)[0];
-    expect(node.textContent).toBe("내가 마지막에 직접 고른 쪽: 「W 같이 하기」 · 아주 가까워요");
+    expect(node.textContent).toBe("내가 마지막 정리에서 고른 쪽: 「W 같이 하기」 · 아주 가까워요");
     const strength = [...harness.container.querySelectorAll("p")].find((each) => each.textContent === strengthSentence("process", "W", "clear"))!;
     expect(strength.nextElementSibling).toBe(node);
     const firstGroup = harness.container.querySelector("[data-quote-group]")!;
@@ -71,7 +71,7 @@ describe("AxisBlock: 마지막에 직접 고른 쪽 줄이 보이는 경우", ()
     expect(axis).toMatchObject({ letter: "A", shownBand: "even" });
     await harness.render(<AxisBlock axis={axis} quotes={{ kind: "even", front: [], back: [] }} selfLine={line} onReview={vi.fn()} />);
     const node = lineNodes(harness.container)[0];
-    expect(node.textContent).toBe("내가 마지막에 직접 고른 쪽: 「A 할 일 먼저」 · 조금 가까워요");
+    expect(node.textContent).toBe("내가 마지막 정리에서 고른 쪽: 「A 할 일 먼저」 · 조금 가까워요");
     const paragraphs: HTMLElement[] = [...harness.container.querySelectorAll<HTMLElement>("p")];
     const heading = paragraphs.findIndex((each) => each.hasAttribute("data-axis-heading"));
     expect(heading).toBe(0);
@@ -120,7 +120,7 @@ describe("AxisBlock: 마지막에 직접 고른 쪽 줄이 보이는 경우", ()
     expect(node.textContent).toBe(selfChoiceLine(line!));
     // 덩어리 밖의 글은 머리말과 공백뿐이다.
     const outside = [...node.childNodes].filter((child) => child.nodeType === Node.TEXT_NODE).map((child) => child.textContent);
-    expect(outside.join("")).toBe("내가 마지막에 직접 고른 쪽:  ");
+    expect(outside.join("")).toBe("내가 마지막 정리에서 고른 쪽:  ");
   });
 
   it("고른 세기에 따라 조금, 꽤, 아주 가까워요로 적는다", async () => {
@@ -129,7 +129,7 @@ describe("AxisBlock: 마지막에 직접 고른 쪽 줄이 보이는 경우", ()
     for (const level of [1, 2, 3] as const) {
       const line: SelfLine = { axis: "money", side: "front", letter: "V", level };
       await harness.render(<AxisBlock key={level} axis={axis} quotes={{ kind: "none" }} selfLine={line} onReview={vi.fn()} />);
-      expect(lineNodes(harness.container)[0].textContent).toBe(`내가 마지막에 직접 고른 쪽: 「V 조건 먼저」 · ${expected[level]}`);
+      expect(lineNodes(harness.container)[0].textContent).toBe(`내가 마지막 정리에서 고른 쪽: 「V 조건 먼저」 · ${expected[level]}`);
       expect(selfChoiceLine(line)).toBe(lineNodes(harness.container)[0].textContent);
     }
   });
@@ -145,14 +145,14 @@ describe("AxisBlock: 마지막에 직접 고른 쪽 줄이 보이는 경우", ()
   });
 });
 
-describe("AxisBlock: 마지막에 직접 고른 쪽 줄을 그리지 않는 경우", () => {
+describe("AxisBlock: 마지막 정리에서 고른 쪽 줄을 그리지 않는 경우", () => {
   it("줄을 주지 않았거나 null 이면 없다", async () => {
     const { axis } = axisOf("swua-example", "money");
     await harness.render(<AxisBlock axis={axis} quotes={{ kind: "none" }} onReview={vi.fn()} />);
     expect(lineNodes(harness.container)).toHaveLength(0);
     await harness.render(<AxisBlock key="null" axis={axis} quotes={{ kind: "none" }} selfLine={null} onReview={vi.fn()} />);
     expect(lineNodes(harness.container)).toHaveLength(0);
-    expect(textOf(harness.container)).not.toContain("마지막에 직접 고른 쪽");
+    expect(textOf(harness.container)).not.toContain("마지막 정리에서 고른 쪽");
   });
 
   it("직접 고른 쪽 대비가 있는 주제에는 줄을 받아도 그리지 않는다(대비 문장이 같은 사실을 말한다)", async () => {
@@ -164,7 +164,7 @@ describe("AxisBlock: 마지막에 직접 고른 쪽 줄을 그리지 않는 경�
       const line: SelfLine = { axis: axis.axis, side: axis.contrast!.selfSide, letter: axis.contrast!.selfLetter, level: axis.contrast!.selfLevel };
       await harness.render(<AxisBlock key={axis.axis} axis={axis} quotes={{ kind: "none" }} selfLine={line} onReview={vi.fn()} />);
       expect(lineNodes(harness.container), axis.axis).toHaveLength(0);
-      expect(textOf(harness.container)).not.toContain("마지막에 직접 고른 쪽");
+      expect(textOf(harness.container)).not.toContain("마지막 정리에서 고른 쪽");
     }
   });
 
@@ -175,7 +175,7 @@ describe("AxisBlock: 마지막에 직접 고른 쪽 줄을 그리지 않는 경�
     expect(unusable.axis).toBe("scope");
     await harness.render(<AxisBlock axis={unusable} quotes={{ kind: "none" }} selfLine={line} onReview={vi.fn()} />);
     expect(lineNodes(harness.container)).toHaveLength(0);
-    expect(textOf(harness.container)).not.toContain("마지막에 직접 고른 쪽");
+    expect(textOf(harness.container)).not.toContain("마지막 정리에서 고른 쪽");
   });
 
   it("다른 주제의 줄은 그리지 않는다(순서가 어긋나도 엉뚱한 주제에 붙지 않는다)", async () => {
@@ -197,10 +197,10 @@ describe("ResultScreen: 주제 블록마다 줄이 붙고 대비 구역과 겹�
     await renderScreen("swua-example");
     const lines = lineNodes(harness.container);
     expect(lines.map((node) => node.textContent)).toEqual([
-      "내가 마지막에 직접 고른 쪽: 「S 장면 먼저」 · 꽤 가까워요",
-      "내가 마지막에 직접 고른 쪽: 「W 같이 하기」 · 아주 가까워요",
-      "내가 마지막에 직접 고른 쪽: 「U 둘이 정하기」 · 꽤 가까워요",
-      "내가 마지막에 직접 고른 쪽: 「A 할 일 먼저」 · 조금 가까워요",
+      "내가 마지막 정리에서 고른 쪽: 「S 장면 먼저」 · 꽤 가까워요",
+      "내가 마지막 정리에서 고른 쪽: 「W 같이 하기」 · 아주 가까워요",
+      "내가 마지막 정리에서 고른 쪽: 「U 둘이 정하기」 · 꽤 가까워요",
+      "내가 마지막 정리에서 고른 쪽: 「A 할 일 먼저」 · 조금 가까워요",
     ]);
     for (const axis of ["money", "process", "scope", "support"]) {
       const block = harness.container.querySelector(`[data-axis-block="${axis}"]`)!;
@@ -260,6 +260,6 @@ describe("ResultScreen: 주제 블록마다 줄이 붙고 대비 구역과 겹�
   it("selfLines 를 주지 않으면 줄이 없다(글은 그대로다)", async () => {
     await renderScreen("swua-example", { selfLines: undefined });
     expect(lineNodes(harness.container)).toHaveLength(0);
-    expect(textOf(harness.container)).not.toContain("마지막에 직접 고른 쪽");
+    expect(textOf(harness.container)).not.toContain("마지막 정리에서 고른 쪽");
   });
 });

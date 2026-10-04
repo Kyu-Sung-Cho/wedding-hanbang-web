@@ -371,7 +371,7 @@ async function screenCheck(actor, label, { digits = true } = {}) {
 const LETTER = { V: "조건 먼저", S: "장면 먼저", W: "같이 하기", D: "나눠 하기", U: "둘이 정하기", F: "가족과 정하기", H: "마음 먼저", A: "할 일 먼저" };
 const PAIRS = [["V", "S"], ["W", "D"], ["U", "F"], ["H", "A"]];
 const AXES = ["money", "process", "scope", "support"];
-const SUBJECT = { money: "돈은", process: "준비는", scope: "정하는 사람은", support: "지쳤을 때는" };
+const SUBJECT = { money: "돈은", process: "준비는", scope: "함께 정할 때는", support: "지쳤을 때는" };
 
 async function lgRead(page) {
   return page.evaluate(() => {
@@ -804,9 +804,9 @@ async function flowCouple(width) {
     checkGuessSection(rs, expectedScenes(ansA, ansB, "second"), "B 두 사람 결과(나=나중에 답한 사람)");
     await screenCheck(B, "B 두 사람 결과", { digits: false });
     await shot(B, "couple");
-    await perspective(B.page, /먼저 답한 사람이 나예요/);
+    await perspective(B.page, /링크를 먼저 보낸 사람이 나예요/);
     checkGuessSection(await readResult(B.page), expectedScenes(ansA, ansB, "first"), "B 나 기준(먼저)");
-    await perspective(B.page, /나중에 답한 사람이 나예요/);
+    await perspective(B.page, /링크를 받은 사람이 나예요/);
     // 가리기, Escape, 화면 숨김
     const toggle = B.page.locator('[data-part="guess"] [data-guess-toggle]');
     await toggle.click();
@@ -871,7 +871,7 @@ async function flowCouple(width) {
       check(!(await C.page.content()).includes(sender.ga), "ga 글자열이 문서에 있음");
       const keys = await C.page.evaluate(() => Object.keys(localStorage).filter((k) => k.startsWith("hanbang")));
       check(keys.length === 0, `두 사람 링크만 열었는데 저장소에 씀 ${keys}`);
-      await perspective(C.page, /먼저 답한 사람이 나예요/);
+      await perspective(C.page, /링크를 먼저 보낸 사람이 나예요/);
       checkGuessSection(await readResult(C.page), expectedScenes(ansA, ansB, "first"), "C 나 기준(먼저)");
       requestCheck(C, codes);
     } catch (e) {

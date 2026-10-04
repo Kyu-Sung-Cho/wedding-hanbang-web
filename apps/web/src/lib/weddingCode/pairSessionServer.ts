@@ -11,7 +11,7 @@ import {
 
 const PRIVATE_HEADERS = { "Cache-Control": "private, no-store, max-age=0", Vary: "Origin, Sec-Fetch-Site", "Referrer-Policy": "no-referrer" };
 const MAX_BODY_BYTES = 2048;
-const FAILURE = "비교 결과를 처리하지 못했어요. 잠시 후 같은 화면에서 다시 시도해 주세요.";
+const FAILURE = "함께 보기를 처리하지 못했어요. 잠시 후 같은 화면에서 다시 시도해 주세요.";
 function reply(body: unknown, status = 200): NextResponse { return NextResponse.json(body, { status, headers: PRIVATE_HEADERS }); }
 function failure(code: string, error: string, status: number): NextResponse { return reply({ code, error }, status); }
 export function hashPairSessionToken(token: string): string { return createHash("sha256").update(token, "utf8").digest("hex"); }
@@ -30,9 +30,9 @@ function rpcRequest(input: PairSessionRequest): { name: string; params: Record<s
     params: { ...base, p_token_hash: hashPairSessionToken(input.token) } };
 }
 function rpcFailure(code: string | undefined): NextResponse {
-  if (code === "28000") return failure("NOT_FOUND", "이 비교를 열 수 없어요. 받은 링크가 맞는지, 처음 연결한 브라우저에서 열었는지 확인해 주세요.", 404);
+  if (code === "28000") return failure("NOT_FOUND", "이 함께 보기를 열 수 없어요. 연결이 끝났거나 볼 수 있는 기간이 지나 지워졌을 수 있어요. 링크가 맞는지도 확인해 주세요. 다시 함께 보려면 새 초대가 필요해요.", 404);
   if (code === "PT409") return failure("CONFLICT", "이미 다른 사람이 참여했거나 보낸 답이 달라졌어요. 새로 초대를 만들거나, 초대한 사람에게 새 초대를 요청해 주세요.", 409);
-  if (code === "55000") return failure("CLOSED", "끝났거나 볼 수 있는 기간이 지난 비교예요. 다시 함께 보려면 새 초대가 필요해요.", 410);
+  if (code === "55000") return failure("CLOSED", "이 함께 보기는 끝났거나 볼 수 있는 기간이 지났어요. 다시 함께 보려면 새 초대가 필요해요.", 410);
   if (code === "22023") return failure("INVALID_REQUEST", "보낸 답이나 동의 항목에 문제가 있어요. 화면에서 다시 확인해 주세요.", 400);
   return failure("UNAVAILABLE", FAILURE, 503);
 }

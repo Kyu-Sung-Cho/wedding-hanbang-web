@@ -6,7 +6,7 @@ import { V40_COUNTS } from "@/constants/weddingCodeV40";
 import {
   V40_COPY,
   autosaveTurnOffWarning,
-  receiveStorage,
+  receiveStorageParts,
   savedOnLine,
   type V40StorageMode,
 } from "@/lib/weddingCode/v40/copy";
@@ -78,6 +78,7 @@ export function ReceiverScreen({
   const unavailable = storageIssue === "unavailable";
   // 저장 문구는 저장 상태를 따른다: 자동 저장이 꺼져 있거나 브라우저가 저장을 막았으면 「저장돼요」라고 말하지 않는다.
   const storageMode: V40StorageMode = unavailable ? "blocked" : autosave === "off" ? "off" : "on";
+  const storage = receiveStorageParts(storageMode, V40_COUNTS.items);
   const warning = autosaveTurnOffWarning({ saved: saved !== null, legacy: legacyPresent });
 
   return (
@@ -98,7 +99,8 @@ export function ReceiverScreen({
       <h1 id={titleId} className="break-keep text-[26px] font-semibold leading-snug text-[var(--hb-text-strong)] sm:text-3xl">
         {copy.title}
       </h1>
-      <p className={cx(bodyText, "mt-4 break-keep")}>{copy.lead}</p>
+      <p data-receive-about="" className={cx(bodyText, "mt-4 break-keep")}>{copy.about}</p>
+      <p className={cx(bodyText, "mt-2 break-keep")}>{copy.lead}</p>
       <p data-receive-return-step="" className={cx(bodyText, "mt-2 break-keep")}>
         {copy.returnStepNote}
       </p>
@@ -111,7 +113,17 @@ export function ReceiverScreen({
         {copy.notice}
       </p>
       <p data-receive-storage="" className={cx(fineText, "mt-3")}>
-        {receiveStorage(storageMode, V40_COUNTS.items)}
+        {storage.before}
+        <a
+          href="/privacy"
+          target="_blank"
+          rel="noopener noreferrer"
+          // 글 속 링크라 줄 높이는 그대로 두고, 위아래 안쪽 여백으로 눌리는 면만 넓힌다(시작 화면의 처리방침 링크와 같은 모양).
+          className="py-2 font-semibold text-[var(--hb-text-strong)] underline underline-offset-4"
+        >
+          {storage.linkLabel}
+        </a>
+        {storage.after}
       </p>
       <p data-receive-scope="" className={cx(fineText, "mt-3")}>
         {copy.scope}

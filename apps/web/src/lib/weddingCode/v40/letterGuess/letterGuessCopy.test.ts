@@ -231,8 +231,8 @@ describe("결과 전 글자 고르기 문구: 낱말과 약속", () => {
       expect(text).not.toMatch(causes);
       expect(text).not.toMatch(counts);
     }
-    // 같음 한 줄은 「모두 같았어요」라고 하되 칭찬하지 않고 나란히 놓은 주제에 대해서만 말한다.
-    expect(V40_LETTER_GUESS_COPY.lines.same).toMatch(/^나란히 놓은 주제는 /u);
+    // 같음 한 줄은 「같았어요」라고 하되 칭찬하지 않고, 세기가 뚜렷해요나 기울어요인 주제만 같았다고 말한다(반반이에요 주제는 비교하지 않았다고 밝힌다).
+    expect(V40_LETTER_GUESS_COPY.lines.same).toMatch(/^내가 고른 주제 중 「뚜렷해요」나 「기울어요」로 나온 주제는 먼저 고른 글자와 /u);
     expect(V40_LETTER_GUESS_COPY.lines.same).not.toMatch(judging);
     expect(V40_LETTER_GUESS_COPY.lines.same).not.toMatch(causes);
   });
@@ -275,7 +275,7 @@ describe("결과 전 글자 고르기 문구: 낱말과 약속", () => {
 
 describe("먼저 고른 글자와 결과 글자가 다른 주제의 줄", () => {
   it("모양: 주어, 먼저 고른 글자(이름과 함께), 답을 모아 보니, 결과 글자(이름과 함께) 쪽으로 답했어요", () => {
-    const form = /^(돈|준비|정하는 사람|지쳤을 때) 주제에서는 결과를 보기 전에 「([VSWDUFHA]) ([가-힣 ]+)」를 골랐는데, 답을 모아 보니 「([VSWDUFHA]) ([가-힣 ]+)」 쪽으로 답했어요\.$/u;
+    const form = /^(돈|준비|함께 정할 때|지쳤을 때) 주제에서는 결과를 보기 전에 「([VSWDUFHA]) ([가-힣 ]+)」를 골랐는데, 답을 모아 보니 「([VSWDUFHA]) ([가-힣 ]+)」 쪽으로 답했어요\.$/u;
     for (const line of allLines()) {
       const text = letterGuessLineText(line);
       const match = form.exec(text);
@@ -293,16 +293,16 @@ describe("먼저 고른 글자와 결과 글자가 다른 주제의 줄", () => 
   });
 
   it("주어는 상수의 주제 이름(topic) 뒤에 「 주제에서는」을 붙인 말이다(주제마다, 주제가 글자를 고른 것으로 읽히지 않는다)", () => {
-    const stems: Record<Axis, string> = { money: "돈 주제에서는", process: "준비 주제에서는", scope: "정하는 사람 주제에서는", support: "지쳤을 때 주제에서는" };
+    const stems: Record<Axis, string> = { money: "돈 주제에서는", process: "준비 주제에서는", scope: "함께 정할 때 주제에서는", support: "지쳤을 때 주제에서는" };
     for (const axis of V40_AXIS_KEYS) {
       const info = axisInfo(axis);
       const line = letterGuessLineText({ axis, guessed: info.front, shown: info.back });
       expect(stems[axis], axis).toBe(`${info.topic} 주제에서는`);
       expect(line.startsWith(`${stems[axis]} 결과를 보기 전에 「`), line).toBe(true);
-      // 세기를 낮춘 반반이에요 문장은 copy.ts 의 TOPIC_SUBJECT(코드 줄 낭독과 같은 주어, 돈은 · 준비는 · 정하는 사람은 · 지쳤을 때는)로 시작한다.
-      const readingSubjects: Record<Axis, string> = { money: "돈은", process: "준비는", scope: "정하는 사람은", support: "지쳤을 때는" };
+      // 세기를 낮춘 반반이에요 문장은 copy.ts 의 TOPIC_SUBJECT(코드 줄 낭독과 같은 주어, 돈은 · 준비는 · 함께 정할 때는 · 지쳤을 때는)로 시작한다.
+      const readingSubjects: Record<Axis, string> = { money: "돈은", process: "준비는", scope: "함께 정할 때는", support: "지쳤을 때는" };
       for (const letter of [info.front, info.back] as const) {
-        expect(collectedSentence(axis, letter, "even", true).startsWith(`${readingSubjects[axis]} 글자 옆 표시를 `), `${axis} ${letter}`).toBe(true);
+        expect(collectedSentence(axis, letter, "even", true).startsWith(`${readingSubjects[axis]} 글자의 세기를 `), `${axis} ${letter}`).toBe(true);
       }
     }
   });

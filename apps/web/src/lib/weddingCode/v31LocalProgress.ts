@@ -62,7 +62,7 @@ function isLegacyExtraPriorityStep(value: Record<string, unknown>, flow: V31Flow
 /**
  * 저장된 진행에 답이 하나라도 있는가. 소개 화면의 「이 브라우저에 남겨 둔 답이 있어요」 카드는 이 값이 참일 때만 뜬다.
  * 시작 버튼을 누르면 답 없이 위치만 저장되므로(자동 저장은 시작할 때부터 켜진다) 그 기록은 「답」이 아니다.
- * ‘아직 모르겠어요’·‘이번 계획에는 없어요’·‘지금 답하지 않을게요’도 고른 답으로 센다. 결과의 「답을 남긴 질문은 N개」
+ * ‘아직 모르겠어요’·‘해당하지 않아요’·‘지금 답하지 않을게요’도 고른 답으로 센다. 결과의 「답을 남긴 질문은 N개」
  * (buildV31Profile.respondedCount)와 같은 셈이다.
  */
 export function hasV31ResumableAnswer(snapshot: Pick<V31LocalProgressSnapshot, "draft">): boolean {

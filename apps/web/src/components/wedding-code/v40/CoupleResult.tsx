@@ -239,7 +239,14 @@ export function CoupleResult({
       {ownLetterGuessSlot}
 
       <CoupleTalkList kind="talk" items={result.talk} perspective={perspective} idPrefix={prefix} headingLevel={sectionLevel} />
-      <CoupleTalkList kind="similar" items={result.similar} perspective={perspective} idPrefix={prefix} headingLevel={sectionLevel} />
+      <CoupleTalkList
+        kind="similar"
+        items={result.similar}
+        perspective={perspective}
+        idPrefix={prefix}
+        headingLevel={sectionLevel}
+        showCostNote={result.talk.length === 0}
+      />
 
       {guessSection?.(perspective)}
 

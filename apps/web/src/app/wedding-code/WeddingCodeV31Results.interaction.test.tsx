@@ -68,12 +68,12 @@ describe("두 사람 결과 탭", () => {
     await render();
     expect(codes()).toEqual(["KBBB", "RBBB"]);
     expect(panel().querySelector('[data-comparison="B1"]')).not.toBeNull();
-    expect(panel().textContent).not.toContain("내가 그려본 결혼식");
+    expect(panel().textContent).not.toContain("내가 그리는 결혼식");
 
     await click(tab("내 결과"));
     expect(codes()).toEqual(["RBBB"]);
     expect(panel().querySelector("[data-comparison]")).toBeNull();
-    expect(panel().textContent).toContain("내가 그려본 결혼식");
+    expect(panel().textContent).toContain("내가 그리는 결혼식");
     expect(panel().textContent).toContain("더 쓰고 싶은 곳은 지금 없어요.");
     expect(panel().textContent).toContain("문장별로 내가 고른 답 모두 보기");
     await click(panel().querySelector<HTMLButtonElement>('[data-statement-scale="B1"] button'));
@@ -83,13 +83,13 @@ describe("두 사람 결과 탭", () => {
     expect(codes()).toEqual(["KBBB"]);
     expect(panel().textContent).toContain("상대의 결혼식 취향");
     expect(panel().textContent).toContain("상대의 문장별 답 모두 보기");
-    expect(panel().textContent).toContain("상대의 답을 대신 수정할 수는 없어요.");
+    expect(panel().textContent).toContain("상대가 고른 답이에요.");
     expect(editButtons()).toHaveLength(0);
-    expect(container.querySelector('[aria-label="선택 질문"]')).toBeNull();
+    expect(container.querySelector('[aria-label="추가 질문"]')).toBeNull();
     expect(panel().querySelector("textarea")).toBeNull();
     expect(onEdit).toHaveBeenCalledTimes(1);
 
-    await click(tab("함께 보기"));
+    await click(tab("나란히 보기"));
     expect(codes()).toEqual(["KBBB", "RBBB"]);
     expect(panel().querySelector('[data-comparison="B1"]')).not.toBeNull();
     expect(container.querySelectorAll('[role="tabpanel"]')).toHaveLength(1);
@@ -97,14 +97,14 @@ describe("두 사람 결과 탭", () => {
 
   it("받은 링크는 본인을 추측하지 않고 두 개인 결과 모두 읽기 전용으로 보여준다", async () => {
     await render({ received: true });
-    expect([...container.querySelectorAll('[role="tab"]')].map(item => item.textContent)).toEqual(["함께 보기", "먼저 답한 사람", "나중에 답한 사람"]);
+    expect([...container.querySelectorAll('[role="tab"]')].map(item => item.textContent)).toEqual(["나란히 보기", "먼저 답한 사람", "나중에 답한 사람"]);
     for (const [label, code] of [["먼저 답한 사람", "KBBB"], ["나중에 답한 사람", "RBBB"]]) {
       await click(tab(label));
       expect(codes()).toEqual([code]);
       expect(panel().textContent).toContain(`${label}의 결혼식 취향`);
       expect(panel().textContent).toContain("누가 본인인지는 확인하지 않고");
       expect(editButtons()).toHaveLength(0);
-      expect(container.querySelector('[aria-label="선택 질문"]')).toBeNull();
+      expect(container.querySelector('[aria-label="추가 질문"]')).toBeNull();
       expect(container.querySelector('input[type="checkbox"]')).toBeNull();
     }
     expect(onEdit).not.toHaveBeenCalled();
@@ -167,7 +167,7 @@ describe("두 사람 결과 탭", () => {
     expect(container.querySelector('[data-share-box="v31"]')).toBeNull();
     expect(container.querySelector('[aria-label="연결한 두 사람의 공유 상태"]')).not.toBeNull();
     expect(editButtons()).toHaveLength(0);
-    expect(container.querySelector('[aria-label="선택 질문"]')).toBeNull();
+    expect(container.querySelector('[aria-label="추가 질문"]')).toBeNull();
     await click(tab("내 결과"));
     expect(codes()).toEqual(["RBBB"]);
     expect(panel().textContent).toContain("내가 공유한 답이에요. 이 화면에서는 답을 수정할 수 없어요.");
@@ -189,7 +189,7 @@ describe("두 사람 결과 탭", () => {
     const sharing = container.querySelector('[aria-label="함께 보기 안내"]')!.parentElement!;
     const scrollIntoView = vi.fn();
     Object.defineProperty(sharing, "scrollIntoView", { configurable: true, value: scrollIntoView });
-    await click([...container.querySelectorAll("button")].find(button => button.textContent === "상대와 함께 보는 방법"));
+    await click([...container.querySelectorAll("button")].find(button => button.textContent === "상대와 함께 보는 방법 보러 가기"));
     expect(document.activeElement).toBe(sharing);
     expect(scrollIntoView).toHaveBeenCalledExactlyOnceWith({ block: "start" });
     expect(window.location.hash).toBe(originalHash);
@@ -206,7 +206,7 @@ describe("두 사람 결과 탭", () => {
     const text = panel().textContent ?? "";
     expect(panel().querySelector('[data-insight="priority-taste.venue"]')?.querySelector("h3")?.textContent).toBe("장소 취향");
     expect(panel().querySelector('[data-insight="priority-delegate-update"]')).not.toBeNull();
-    expect(text).toContain("이 설명에서 우선순위로 고른 것");
+    expect(text).toContain("이 설명과 이어진, 꼭 지키고 싶은 것으로 고른 것");
     expect(text).not.toContain("내가 원하는");
     expect(text).not.toContain("내가 우선순위");
   });
@@ -215,9 +215,9 @@ describe("두 사람 결과 탭", () => {
     await render({ first: null });
     expect(container.querySelector('[role="tablist"]')).toBeNull();
     expect(codes()).toEqual(["RBBB"]);
-    expect(container.textContent).toContain("내가 그려본 결혼식");
+    expect(container.textContent).toContain("내가 그리는 결혼식");
     expect(container.querySelector("textarea")).not.toBeNull();
     expect(editButtons().length).toBeGreaterThan(0);
-    expect(container.querySelector('[aria-label="선택 질문"]')).not.toBeNull();
+    expect(container.querySelector('[aria-label="추가 질문"]')).not.toBeNull();
   });
 });

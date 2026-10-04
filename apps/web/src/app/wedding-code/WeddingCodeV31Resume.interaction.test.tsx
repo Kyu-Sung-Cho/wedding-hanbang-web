@@ -134,14 +134,14 @@ describe("V31 same-browser resume", () => {
     await button("원하면 더 알아보기 (선택)");
     await click(container.querySelector('[data-question="V1"] input[value="5"]'));
     expect(container.querySelector('[data-question="G2"]')).not.toBeNull();
-    // 이전 한 문항 화면에서 저장한 선택 질문 2번도 같은 페이지 전체로 복원한다.
+    // 이전 한 문항 화면에서 저장한 추가 질문 2번도 같은 페이지 전체로 복원한다.
     const partial = readV31LocalProgress(window.localStorage);
     expect(partial.status).toBe("ready");
     if (partial.status !== "ready") throw new Error("답이 저장되지 않았어요.");
     expect(writeV31LocalProgress(window.localStorage, { ...partial.snapshot, index: getV31IndexForId("G2") }, window.localStorage.getItem(LOCAL_KEY)).status).toBe("saved");
     const raw = window.localStorage.getItem(LOCAL_KEY);
     await remount();
-    expect(container.textContent).toContain("선택 질문 3페이지 중 1페이지부터 이어 할 수 있어요");
+    expect(container.textContent).toContain("추가 질문 3페이지 중 1페이지부터 이어 할 수 있어요");
     expect(window.localStorage.getItem(LOCAL_KEY)).toBe(raw);
     await button("이어서 답하기");
     expect([...container.querySelectorAll("[data-question]")].map(item => item.getAttribute("data-question"))).toEqual(["V1", "G2", "R3"]);
@@ -187,7 +187,7 @@ describe("V31 same-browser resume", () => {
     await click(container.querySelector(`[aria-label="${statement} 답 수정"]`));
     expect(container.querySelector('[data-question="R3"]')).not.toBeNull();
     expect(container.querySelectorAll("[data-question]")).toHaveLength(1);
-    expect(container.textContent).not.toContain("이 주제는 계획에 없어요");
+    expect(container.textContent).not.toContain("이 주제는 해당하지 않아요");
     await click(container.querySelector('input[value="not_applicable"]'));
     await remount(); await button("이어서 답하기");
     expect(container.querySelector('[data-question="R3"]')).not.toBeNull();
@@ -489,7 +489,7 @@ describe("V31 same-browser resume", () => {
     seed(snapshot(own, { flow: "core", index: V31_CORE_INDEXES[V31_CORE_INDEXES.length - 1], screen: "result" }));
     await render(); await button("내 결과 다시 보기");
     expect(container.querySelector('[data-result="solo-v31"]')).not.toBeNull();
-    // 예전 기본 흐름은 우선순위를 묻지 않았고, 선택 질문은 이제 우선순위를 묻지 않는다. 결과에서 고를 길이 있어야 한다.
+    // 예전 기본 흐름은 우선순위를 묻지 않았고, 추가 질문은 이제 우선순위를 묻지 않는다. 결과에서 고를 길이 있어야 한다.
     const entry = container.querySelector("[data-priority-entry]");
     expect(entry).not.toBeNull();
     await click([...entry!.querySelectorAll("button")].find(item => item.textContent?.trim() === "꼭 지키고 싶은 것 고르기"));
@@ -499,17 +499,17 @@ describe("V31 same-browser resume", () => {
     await button("수정한 결과 보기");
     expect(container.querySelector('[data-result="solo-v31"]')).not.toBeNull();
     expect(container.querySelector("[data-priority-entry]")).toBeNull();
-    expect([...container.querySelectorAll("button")].some(item => item.textContent?.trim() === "우선순위 수정")).toBe(true);
+    expect([...container.querySelectorAll("button")].some(item => item.textContent?.trim() === "꼭 지키고 싶은 것 수정")).toBe(true);
     const saved = readV31LocalProgress(window.localStorage);
     expect(saved.status === "ready" && saved.snapshot.draft.priorities).toEqual({ status: "answered", values: ["G1"] });
-    // 같은 길로 들어가 고르지 않고 나와도 결과로 돌아오고, 그다음부터는 ‘우선순위 수정’이 그 일을 한다.
+    // 같은 길로 들어가 고르지 않고 나와도 결과로 돌아오고, 그다음부터는 ‘꼭 지키고 싶은 것 수정’이 그 일을 한다.
     await act(async () => root.unmount()); window.localStorage.clear(); root = createRoot(container);
     seed(snapshot(own, { flow: "core", index: V31_CORE_INDEXES[V31_CORE_INDEXES.length - 1], screen: "result" }));
     await render(); await button("내 결과 다시 보기");
     await click([...container.querySelectorAll("button")].find(item => item.textContent?.trim() === "꼭 지키고 싶은 것 고르기"));
     await button("고르지 않고 결과 보기");
     expect(container.querySelector('[data-result="solo-v31"]')).not.toBeNull();
-    expect([...container.querySelectorAll("button")].some(item => item.textContent?.trim() === "우선순위 수정")).toBe(true);
+    expect([...container.querySelectorAll("button")].some(item => item.textContent?.trim() === "꼭 지키고 싶은 것 수정")).toBe(true);
   });
 
   it("after skipping an empty priority step, choosing a taste later offers the priority question from the result", async () => {
@@ -593,12 +593,12 @@ describe("V31 same-browser resume", () => {
     ["별점 3", (draft: V31Draft) => { draft.answers.G1 = 3; }],
     ["아직 모르겠어요", (draft: V31Draft) => { draft.answers.G1 = "undecided"; }],
     ["지금 답하지 않을게요", (draft: V31Draft) => { draft.answers.G1 = "skipped"; }],
-    ["이번 계획에는 없어요", (draft: V31Draft) => { draft.answers.G1 = "not_applicable"; }],
+    ["해당하지 않아요", (draft: V31Draft) => { draft.answers.G1 = "not_applicable"; }],
     ["고른 취향", (draft: V31Draft) => { draft.tastes.venue = { status: "answered", values: ["indoor"] }; }],
     ["따로 피하고 싶은 것 없음", (draft: V31Draft) => { draft.avoidances = { status: "no_preference" }; }],
     ["우선순위 고르지 않음", (draft: V31Draft) => { draft.priorities = { status: "skipped" }; }],
     ["더 쓰고 싶은 곳", (draft: V31Draft) => { draft.spending = { status: "answered", values: ["venue"] }; }],
-    ["선택 질문 한 문장", (draft: V31Draft) => { draft.answers.V1 = 5; }],
+    ["추가 질문 한 문장", (draft: V31Draft) => { draft.answers.V1 = 5; }],
   ])("답이 하나만 있어도(%s) 남겨 둔 답이 있다고 알리고 이어 하기와 새로 시작을 둘 다 내놓는다", async (_name, fill) => {
     const draft = createV31Draft(); fill(draft);
     seed(snapshot(draft, { flow: "core", index: V31_CORE_INDEXES[0] }));

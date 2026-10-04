@@ -109,8 +109,18 @@ export async function requestPairSession(input: PairSessionRequest): Promise<Pai
       method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(input), cache: "no-store", credentials: "same-origin", signal: controller.signal,
     });
     const value: unknown = await response.json();
-    if (!response.ok) return { ok: false, code: isPairSessionRecord(value) && typeof value.code === "string" ? value.code : "UNAVAILABLE",
-      error: isPairSessionRecord(value) && typeof value.error === "string" ? value.error : "비교 결과를 불러오지 못했어요. 잠시 후 다시 시도해 주세요." };
+    if (!response.ok) {
+      // 요청 제한 응답은 함께 보기 서버가 만든 것이 아니라 공용 제한기가 내린 합쇼체 문구라서(code 가 없다) 이 화면의 말투로 바꿔 보여 준다.
+      const record = isPairSessionRecord(value) ? value : null;
+      const rawCode = record?.code;
+      const rawError = record?.error;
+      const named = typeof rawCode === "string";
+      const text = typeof rawError === "string" ? rawError : null;
+      const error = !named && text !== null && response.status === 429 ? "요청이 잠깐 몰렸어요. 조금 뒤에 같은 화면에서 다시 시도해 주세요."
+        : !named && text !== null && response.status === 503 ? "지금은 확인하지 못했어요. 조금 뒤에 같은 화면에서 다시 시도해 주세요."
+          : text ?? "함께 보기 결과를 불러오지 못했어요. 잠시 후 다시 시도해 주세요.";
+      return { ok: false, code: typeof rawCode === "string" ? rawCode : "UNAVAILABLE", error };
+    }
     const snapshot = isPairSessionRecord(value) && hasPairSessionKeys(value, ["snapshot"]) ? parsePairSessionSnapshot(value.snapshot) : null;
     if (snapshot && acknowledgesPairSessionRequest(input, snapshot)) return { ok: true, snapshot };
     return { ok: false, code: "INVALID_RESPONSE", error: "처리가 끝났는지 확인하지 못했어요. 잠시 후 다시 확인해 주세요." };

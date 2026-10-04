@@ -164,7 +164,7 @@ describe("웨딩코드 진입 화면", () => {
     expect(text).toContain("다른 사람과 같이 쓰는 컴퓨터나 휴대폰이라면 시작하기 전에 아래 ‘자동 저장 설정’에서 꺼 주세요");
     expect(text).toContain("다른 사람과 같이 쓰는 컴퓨터나 휴대폰이라면");
     expect(text).toContain("30일 동안 같은 브라우저");
-    expect(text).toContain("결과에서 ‘함께 보기’에 동의하면 내 답 전체를 서버에 보관하고, 초대로 연결된 상대에게 보여줘요. 초대 링크를 먼저 사용한 사람이 상대가 돼요.");
+    expect(text).toContain("결과에서 ‘상대 초대하고 함께 보기’나 ‘동의하고 두 사람 결과 보기’에 동의하면 내 답 전체를 서버에 보관하고, 초대로 연결된 상대에게 보여줘요. 동의하기 전에는 내 답을 서버에 보내지 않아요. 초대 링크를 먼저 사용한 사람이 상대가 돼요.");
     expect(text).toContain("상대가 이미 읽었거나 따로 저장해 둔 내용은 되돌릴 수 없어요");
     expect(text).toContain("내 웨딩코드 시작하기");
   });
@@ -232,7 +232,8 @@ describe("웨딩코드 진입 화면", () => {
     for (const search of [{}, { v: WEDDING_CODE_V31_VERSION }]) {
       const metadata = await generateMetadata({ searchParams: Promise.resolve(search) });
       const description = String(metadata.description);
-      expect(description).toContain("혼자 해도 결과를 볼 수 있어요. 두 사람의 답을 나란히 보는 것은 내 답을 마친 뒤, 둘 다 답하고 서로 공유했을 때 할 수 있어요.");
+      // 설명은 한 문장으로 줄여 「혼자서도 정리해 볼 수 있어요」만 말한다(카카오톡 카드에서 앞 두 줄만 보여 핵심이 잘리지 않게). 조건은 시작 화면이 밝힌다.
+      expect(description).toBe("결혼식 취향과 준비 방식, 꼭 지키고 싶은 것과 돈을 더 쓰고 싶은 곳을 혼자서도 정리해 볼 수 있어요.");
       expect(description).not.toContain("상대도 답하면");
       // og·twitter 카드가 같은 설명을 쓴다.
       expect(metadata.openGraph?.description).toBe(description);

@@ -205,11 +205,11 @@ describe("웨딩코드 v3.1 네 글자 요약 화면", () => {
     expect(summary.getAttribute("data-style-summary")).toBe("?B?B");
     const family = summary.querySelector('[data-summary-topic="family"]')!;
     expect(family.getAttribute("data-pending")).toBe("not_in_plan");
-    expect(family.querySelector("[data-letter-meaning]")?.textContent).toBe("두 문장 모두 이번 계획에 없어요");
+    expect(family.querySelector("[data-letter-meaning]")?.textContent).toBe("두 문장 모두 해당하지 않아요");
     expect(family.querySelector('[role="img"]')).toBeNull();
     expect(summary.querySelector('[data-summary-topic="budget"]')?.getAttribute("data-pending")).toBe("open");
     const notice = summary.querySelector("[data-pending-notice]")!.textContent!;
-    expect(notice).toBe("‘예산’ 주제는 아직 모르거나 답하지 않은 문장이 있어서 ‘?’로 남겼어요. 그대로 둬도 괜찮고, 동의하는 정도를 고르면 그때 글자가 생겨요. ‘가족과 상의’ 주제는 이번 계획에 없다고 답해서 ‘?’로 적었어요.");
+    expect(notice).toBe("‘예산’ 주제는 아직 모르거나 답하지 않은 문장이 있어서 ‘?’로 남겼어요. 그대로 둬도 괜찮고, 동의하는 정도를 고르면 그때 글자가 생겨요. ‘가족과 상의’ 주제는 해당하지 않는다고 답해서 ‘?’로 적었어요.");
     expect(summary.textContent).not.toContain("요약 보류");
     expect(summary.textContent).not.toContain("확인해 주세요");
 
@@ -217,8 +217,8 @@ describe("웨딩코드 v3.1 네 글자 요약 화면", () => {
     const onlyNotInPlan = paired(5, 5);
     onlyNotInPlan.answers.H2 = "not_applicable";
     const notInPlan = render(onlyNotInPlan).querySelector("[data-pending-notice]")!.textContent!;
-    expect(notInPlan).toBe("‘받고 싶은 도움’ 주제는 한 문장에 ‘이번 계획에는 없어요’로 답해서 ‘?’로 적었어요.");
-    expect(notInPlan).not.toContain("이번 계획에 없다고 답해서");
+    expect(notInPlan).toBe("‘받고 싶은 도움’ 주제는 한 문장에 ‘해당하지 않아요’로 답해서 ‘?’로 적었어요.");
+    expect(notInPlan).not.toContain("해당하지 않는다고 답해서");
     expect(notInPlan).not.toContain("글자가 생겨요");
     expect(render(paired(5, 1)).querySelector("[data-pending-notice]")).toBeNull();
   });
@@ -309,7 +309,7 @@ describe("웨딩코드 v3.1 네 글자 요약 화면", () => {
     expect(summary.textContent).toContain("칠한 칸이 많을수록 그 문장에 더 동의했다는 거예요.");
     expect(summary.textContent).not.toContain("동의한 답이에요");
     const fold = summary.querySelector("[data-core-statement-scales]")!;
-    expect(fold.textContent).toContain("‘아직 모르겠어요’, ‘이번 계획에는 없어요’, ‘지금 답하지 않을게요’는 칸 없이 그 답만 적었어요.");
+    expect(fold.textContent).toContain("‘아직 모르겠어요’, ‘해당하지 않아요’, ‘지금 답하지 않을게요’는 칸 없이 그 답만 적었어요.");
     // 칸 없는 답은 실제 보기 이름으로 부른다(화면 어디에도 없는 ‘건너뜀’·‘모름’으로 부르지 않는다).
     expect(fold.textContent).not.toMatch(/건너뜀|모름,/);
     for (const label of WEDDING_CODE_V31_STATUS_OPTIONS.map(option => option.label)) expect(fold.textContent).toContain(`‘${label}’`);

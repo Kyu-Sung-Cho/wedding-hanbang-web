@@ -1,10 +1,10 @@
 "use client";
 
 import { ArrowRight, Pencil, RotateCcw } from "lucide-react";
-import { useId, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
+import { useEffect, useId, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import Button from "@/components/ui/Button";
 import { WEDDING_CODE_V31_QUESTIONS, WEDDING_CODE_V31_TASTES, type V31Draft } from "@/constants/weddingCodeV31";
-import { buildV31Profile, compareV31, getV31PriorityOptions, splitV31InsightsBySummary, v31ChoiceLabels, type V31Insight, type V31PairItem, type V31Profile } from "@/lib/weddingCode/v31";
+import { buildV31Profile, compareV31, getV31PriorityOptions, hasV31Content, splitV31InsightsBySummary, v31ChoiceLabels, type V31Insight, type V31PairItem, type V31Profile } from "@/lib/weddingCode/v31";
 import { V31_STYLE_DIMENSIONS, buildV31StyleSummary } from "@/lib/weddingCode/v31StyleSummary";
 import { v31Body, v31Surface, v31Title } from "./WeddingCodeV31Inputs";
 import WeddingCodeV31Sharing from "./WeddingCodeV31Sharing";
@@ -68,7 +68,7 @@ function RawAnswers({ profile, draft, onEdit, personLabel }: { profile: V31Profi
     .filter(topic => topic.responses.length > 0);
   return <details className={`${v31Surface} mt-5 p-5 sm:p-7`}>
     <summary className={`min-h-11 cursor-pointer text-base ${v31Title}`}>{personLabel ? `${personLabel}의 문장별 답 모두 보기` : "문장별로 내가 고른 답 모두 보기"}</summary>
-    <p className={`mt-2 ${v31Body}`}>‘어느 쪽도 아니에요’, ‘아직 모르겠어요’, ‘이번 계획에는 없어요’, ‘지금 답하지 않을게요’는 서로 다른 답이라 고른 그대로 보여줘요.</p>
+    <p className={`mt-2 ${v31Body}`}>‘어느 쪽도 아니에요’, ‘아직 모르겠어요’, ‘해당하지 않아요’, ‘지금 답하지 않을게요’는 서로 다른 답이라 고른 그대로 보여줘요.</p>
     {topics.map(topic => <section key={topic.key} className="mt-5">
       <h3 className={`text-sm ${v31Title}`}>{topic.title}</h3>
       <ul className="mt-2 divide-y divide-[var(--hb-hairline)]">{topic.responses.map(response => <li key={response.id} className="py-3">
@@ -96,9 +96,9 @@ function PersonalProfile({ draft, onEdit, nested = false, personLabel }: { draft
   const participationShown = profile.priorityGuides.some(item => item.sourceInsightId === "participation-format")
     || fresh.slice(0, 3).some(item => item.id === "participation-format");
   const who = personLabel ? "" : "내가";
-  const priorityStatus = draft.priorities?.status === "skipped" ? "우선순위는 이번에 고르지 않았어요."
+  const priorityStatus = draft.priorities?.status === "skipped" ? "꼭 지키고 싶은 것은 이번에 고르지 않았어요."
     : draft.priorities?.status === "no_preference" ? "꼭 지키고 싶은 건 따로 없다고 답했어요."
-      : draft.priorities?.status === "undecided" ? "우선순위는 아직 정하지 않았어요."
+      : draft.priorities?.status === "undecided" ? "꼭 지키고 싶은 것은 아직 정하지 않았어요."
         : v31ChoiceLabels(draft.priorities, []).join(" · ");
   const foldSummary = `flex min-h-11 cursor-pointer items-center text-sm ${v31Title}`;
   // 우선순위를 한 번도 묻지 않은 결과(예전 기본 흐름을 마친 저장본)나, 고를 보기가 없어 건너뛴 뒤 취향을 고친 결과에서도
@@ -110,12 +110,12 @@ function PersonalProfile({ draft, onEdit, nested = false, personLabel }: { draft
       <Button variant="secondary" onClick={() => onEdit("priorities")} className="mt-3 whitespace-normal!">꼭 지키고 싶은 것 고르기</Button>
     </section> : null}
     {draft.priorities !== undefined ? <section className={`${v31Surface} p-5 sm:p-7`}>
-      <p className="text-xs font-semibold text-[var(--hb-success)]">{personLabel ? `${personLabel}의 우선순위` : "내가 직접 고른 우선순위"}</p>
-      <h2 className={`mt-2 text-xl ${v31Title}`}>이번 결혼식에서 지키고 싶은 것</h2>
+      <p className="text-xs font-semibold text-[var(--hb-success)]">{personLabel ? `${personLabel}의 ‘꼭 지키고 싶은 것’` : "내가 직접 고른 ‘꼭 지키고 싶은 것’"}</p>
+      <h2 className={`mt-2 text-xl ${v31Title}`}>이번 결혼 준비에서 꼭 지키고 싶은 것</h2>
       {profile.priorityLabels.length ? <ul className="mt-4 space-y-2">{profile.priorityLabels.map((label, index) => <li key={`${label}-${index}`} className={`flex gap-2 ${v31Body}`}><span aria-hidden="true" className="text-[var(--hb-success)]">·</span>{label}</li>)}</ul>
         : <p className={`mt-4 ${v31Body}`}>{priorityStatus}</p>}
       {profile.priorityLabels.length ? <p className="mt-3 text-xs leading-relaxed text-[var(--hb-text-muted)]">직접 고른 것만, 고른 순서대로 적었어요.</p> : null}
-      {onEdit ? <Button variant="ghost" onClick={() => onEdit("priorities")} className="mt-2">우선순위 수정</Button> : null}
+      {onEdit ? <Button variant="ghost" onClick={() => onEdit("priorities")} className="mt-2">꼭 지키고 싶은 것 수정</Button> : null}
       {profile.priorityGuides.length ? <div className="mt-5 border-t border-[var(--hb-hairline)] pt-5" data-priority-guides>
         <p className={`text-base ${v31Title}`}>이 기준으로 준비를 시작해 봐요</p>
         <p className={`mb-4 mt-1 ${v31Body}`} data-insight-note>{insightNote(onEdit)}</p>
@@ -141,8 +141,8 @@ function PersonalProfile({ draft, onEdit, nested = false, personLabel }: { draft
       {onEdit ? <Button variant="ghost" onClick={() => onEdit("avoidances")} className="mt-2">피하고 싶은 것 수정</Button> : null}
     </section>
     <section className={`${v31Surface} mt-5 p-5 sm:p-7`}>
-      <h2 className={`text-xl ${v31Title}`}>{personLabel ? `${personLabel}의 결혼식 취향` : "내가 그려본 결혼식"}</h2>
-      <p className={`mt-2 ${v31Body}`}>예약 조건은 후보를 보면서 따로 정해요.</p>
+      <h2 className={`text-xl ${v31Title}`}>{personLabel ? `${personLabel}의 결혼식 취향` : "내가 그리는 결혼식"}</h2>
+      <p className={`mt-2 ${v31Body}`}>날짜와 비용 같은 예약 조건은 후보를 보면서 따로 정해요.</p>
       <dl className="mt-4 divide-y divide-[var(--hb-hairline)]">{profile.tastes.map(taste => <div key={taste.key} className="py-3" data-taste={taste.key}>
         <div className="flex items-center justify-between gap-3"><dt className={`text-sm ${v31Title}`}>{taste.title}</dt>{onEdit ? <Button variant="ghost" onClick={() => onEdit(`taste.${taste.key}`)} size="sm" aria-label={`${taste.title} 취향 수정`}>수정</Button> : null}</div>
         <dd className={`mt-1 ${v31Body}`}>{taste.labels.join(" · ")}</dd>
@@ -170,7 +170,7 @@ function PersonalProfile({ draft, onEdit, nested = false, personLabel }: { draft
   </div>;
 }
 
-function PairItem({ item, labels, level = 3 }: { item: V31PairItem; labels: PairLabels; level?: 3 | 4 }) {
+function PairItem({ item, labels, level = 3, hideFollowUp = false }: { item: V31PairItem; labels: PairLabels; level?: 3 | 4; hideFollowUp?: boolean }) {
   const Heading = level === 4 ? "h4" : "h3";
   const overlap = item.kind === "partial_overlap" ? [
     { key: "shared", label: "함께 고른 보기", values: item.sharedLabels ?? [] },
@@ -178,13 +178,13 @@ function PairItem({ item, labels, level = 3 }: { item: V31PairItem; labels: Pair
     { key: "second", label: `${labels.second}만 고른 보기`, values: item.secondOnlyLabels ?? [] },
   ].filter(row => row.values.length) : [];
   return <article className="border-b border-[var(--hb-hairline)] py-5 first:pt-0 last:border-0 last:pb-0" data-comparison={item.id} data-pair-kind={item.kind}>
-    {item.isPriority ? <p className="mb-2 text-xs font-semibold text-[var(--hb-success)]">둘 중 한 사람이 우선순위로 고른 내용</p> : null}
+    {item.isPriority ? <p className="mb-2 text-xs font-semibold text-[var(--hb-success)]">‘꼭 지키고 싶은 것’으로 고른 내용</p> : null}
     <Heading className={`text-base leading-relaxed ${v31Title}`}>{item.title}</Heading>
     <dl className="mt-3 grid gap-3 sm:grid-cols-2">
       {[{ label: labels.first, value: item.first }, { label: labels.second, value: item.second }].map(answer => <div key={answer.label} className="rounded-lg bg-[var(--hb-surface-hover)] p-3"><dt className="text-xs text-[var(--hb-text-muted)]">{answer.label}</dt><dd className={`mt-1 text-sm font-semibold leading-relaxed ${v31Title}`}>{answer.value}</dd></div>)}
     </dl>
     {overlap.length ? <ul className="mt-3 space-y-1" data-overlap>{overlap.map(row => <li key={row.key} className={v31Body} data-overlap-row={row.key}><span className={v31Title}>{row.label}:</span> {row.values.join(" · ")}</li>)}</ul> : null}
-    <p className={`mt-3 ${v31Body}`}>{item.followUp}</p>
+    {hideFollowUp ? null : <p className={`mt-3 ${v31Body}`}>{item.followUp}</p>}
   </article>;
 }
 
@@ -227,7 +227,7 @@ function DifferenceSection({ items, labels, empty }: { items: V31PairItem[]; lab
   const hasOpen = opposite.length + chosen.length + pinnedDegree.length > 0;
   return <section className={`${v31Surface} mt-5 p-5 sm:p-7`} data-pair-section="difference">
     <h2 className={`text-xl ${v31Title}`}>먼저 이야기해 볼 차이</h2>
-    <p className={`mb-5 mt-2 ${v31Body}`}>한 번에 한 가지씩, 이유부터 들어 보세요. 누가 맞는지는 정하지 않아요. {hasPriority ? "아래 묶음마다 둘 중 한 사람이 우선순위로 고른 것을 앞에 뒀어요." : "아래 묶음마다 질문 순서대로 뒀어요."}</p>
+    <p className={`mb-5 mt-2 ${v31Body}`}>한 번에 한 가지씩, 이유부터 들어 보세요. 차이가 여러 개여도 오늘 다 이야기하지 않아도 돼요. 누가 맞는지는 정하지 않아요.{hasOpen ? (hasPriority ? " 아래 묶음마다 둘 중 한 사람이 ‘꼭 지키고 싶은 것’으로 고른 것을 앞에 뒀어요." : " 아래 묶음마다 질문 순서대로 뒀어요.") : null}</p>
     {hasOpen ? <>
       <PairGroup id="opposite" title="서로 다른 쪽으로 답한 문장" items={opposite} labels={labels} />
       <PairGroup id="different" title="서로 다르게 고른 것" items={chosen} labels={labels} />
@@ -242,16 +242,19 @@ function DifferenceSection({ items, labels, empty }: { items: V31PairItem[]; lab
   </section>;
 }
 
-/** 접어 두는 묶음. 우선순위로 고른 항목이 섞여 있으면 그것만은 펼쳐서 보여준다. */
-function FoldedPairs({ title, description, items, labels }: { title: string; description: string; items: V31PairItem[]; labels: PairLabels }) {
+/**
+ * 접어 두는 묶음. 우선순위로 고른 항목이 섞여 있으면 그것만은 펼쳐서 보여준다.
+ * hideFollowUp 이면 카드마다 붙는 이야기 안내를 그리지 않는다(같은 안내가 카드 수만큼 되풀이되는 묶음이라 묶음 설명이 한 번만 말한다).
+ */
+function FoldedPairs({ title, description, items, labels, hideFollowUp = false }: { title: string; description: string; items: V31PairItem[]; labels: PairLabels; hideFollowUp?: boolean }) {
   if (!items.length) return null;
   const pinned = items.filter(item => item.isPriority);
   const rest = items.filter(item => !item.isPriority);
-  if (!pinned.length) return <details className={`${v31Surface} mt-5 p-5 sm:p-7`}><summary className={`flex min-h-11 cursor-pointer text-base ${v31Title}`}>{title}</summary><p className={`my-3 ${v31Body}`}>{description}</p>{rest.map(item => <PairItem key={item.id} item={item} labels={labels} />)}</details>;
+  if (!pinned.length) return <details className={`${v31Surface} mt-5 p-5 sm:p-7`}><summary className={`flex min-h-11 cursor-pointer text-base ${v31Title}`}>{title}</summary><p className={`my-3 ${v31Body}`}>{description}</p>{rest.map(item => <PairItem key={item.id} item={item} labels={labels} hideFollowUp={hideFollowUp} />)}</details>;
   return <section className={`${v31Surface} mt-5 p-5 sm:p-7`}>
     <h2 className={`text-xl ${v31Title}`}>{title}</h2><p className={`mb-5 mt-2 ${v31Body}`}>{description}</p>
-    {pinned.map(item => <PairItem key={item.id} item={item} labels={labels} />)}
-    {rest.length ? <details className="mt-4"><summary className={`flex min-h-11 cursor-pointer items-center text-sm ${v31Title}`}>나머지 {rest.length}개 보기</summary><div className="pt-3">{rest.map(item => <PairItem key={item.id} item={item} labels={labels} />)}</div></details> : null}
+    {pinned.map(item => <PairItem key={item.id} item={item} labels={labels} hideFollowUp={hideFollowUp} />)}
+    {rest.length ? <details className="mt-4"><summary className={`flex min-h-11 cursor-pointer items-center text-sm ${v31Title}`}>나머지 {rest.length}개 보기</summary><div className="pt-3">{rest.map(item => <PairItem key={item.id} item={item} labels={labels} hideFollowUp={hideFollowUp} />)}</div></details> : null}
   </section>;
 }
 
@@ -263,16 +266,22 @@ function CoupleResults({ items, labels }: { items: V31PairItem[]; labels: PairLa
   const ofKind = (...kinds: V31PairItem["kind"][]) => items.filter(item => kinds.includes(item.kind));
   const partial = ofKind("partial_overlap");
   return <>
-    <PairSection labels={labels} title="함께 동의하거나 고른 내용" description="문장은 둘 다 ‘그런 편이에요’나 ‘매우 그래요’로 답한 것, 취향 같은 선택은 같게 고른 것을 모았어요. ‘~해도 괜찮다’는 문장은 허락하는 말이고, ‘~하고 싶다’는 문장은 바란다는 말이에요." items={ofKind("shared_wish")} empty={partial.some(item => item.id !== "avoidances") ? "일부 보기는 함께 골랐어요. 아래 ‘일부만 겹치게 고른 것’에서 둘 다 고른 보기를 볼 수 있어요." : "이번에 고른 질문에서는 둘 다 같은 쪽으로 답한 내용이 없었어요. 묻지 않은 곳에서는 닮은 점이 있을 수 있어요. 각자 고른 답에서 이유를 들어 보며 시작해 보세요."} />
-    <DifferenceSection labels={labels} items={items} empty={items.every(item => item.kind === "unavailable") ? "두 사람이 같은 항목에 답한 내용이 없어 아직 차이를 비교할 수 없어요." : "지금 비교할 수 있는 답에서는 크게 갈린 곳이 없었어요. 실제 후보와 금액이 나오면 그때 다시 이야기해 봐요."} />
+    <PairSection labels={labels} title="함께 동의하거나 고른 내용" description="문장은 둘 다 ‘그런 편이에요’나 ‘매우 그래요’로 답한 것, 취향 같은 선택은 같게 고른 것을 모았어요. ‘괜찮다’로 끝나는 문장은 받아들일 수 있다는 뜻이고, ‘하고 싶다’로 끝나는 문장은 바란다는 뜻이에요." items={ofKind("shared_wish")} empty={partial.some(item => item.id !== "avoidances") ? "일부 보기는 함께 골랐어요. 아래 ‘일부만 겹치게 고른 것’에서 둘 다 고른 보기를 볼 수 있어요." : "이번에 고른 질문에서는 둘 다 같은 쪽으로 답한 내용이 없었어요. 묻지 않은 곳에서는 닮은 점이 있을 수 있어요. 각자 고른 답에서 이유를 들어 보며 시작해 보세요."} />
+    <DifferenceSection labels={labels} items={items} empty={items.every(item => item.kind === "unavailable") ? "두 사람이 같은 항목에 답한 내용이 없어 아직 차이를 비교할 수 없어요." : items.filter(item => item.kind === "unavailable").length * 2 > items.length ? "아직 서로 비교할 수 있는 답이 적어요. ‘아직 모르겠어요’처럼 비교하지 않는 답이 많아서, 서로 다른지는 아직 알 수 없어요. 답이 더 모이면 차이가 보여요." : "지금 비교할 수 있는 답에서는 크게 갈린 곳이 없었어요. 실제 후보와 금액이 나오면 그때 다시 이야기해 봐요."} />
     {ofKind("shared_request").length ? <PairSection labels={labels} limit={Infinity} title="둘 다 바라는 도움" description="둘 다 상대에게 받고 싶다고 답한 도움이에요." items={ofKind("shared_request")} empty="" /> : null}
     {partial.length ? <PairSection labels={labels} limit={Infinity} title="일부만 겹치게 고른 것" description="둘 다 고른 보기와 한 사람만 고른 보기를 나눠 보여줘요. 둘 다 고른 것부터 이야기하면 쉬워요." items={partial} empty="" /> : null}
     {ofKind("shared_avoidance").length ? <PairSection labels={labels} title="함께 피하고 싶은 것" description="둘 다 같은 것을 피하고 싶다고 골랐어요." items={ofKind("shared_avoidance")} empty="" /> : null}
-    {ofKind("open_preference").length ? <PairSection labels={labels} title="열어 두고 있는 답" description="둘 중 한 사람이라도 어느 쪽도 괜찮다고 했거나, 따로 없다고 답한 내용이에요." items={ofKind("open_preference")} empty="" /> : null}
+    {ofKind("open_preference").length ? <PairSection labels={labels} title="열어 두고 있는 답" description="둘 중 한 사람이라도 어느 것이든 괜찮다고 했거나, 따로 없다고 답한 내용이에요." items={ofKind("open_preference")} empty="" /> : null}
     {ofKind("one_sided").length ? <PairSection labels={labels} limit={Infinity} title="한 사람만 동의한 문장" description="한 사람은 ‘그런 편이에요’나 ‘매우 그래요’로, 다른 사람은 ‘어느 쪽도 아니에요’로 답한 문장이에요. 어떤 장면을 떠올렸는지 서로 차례로 들어 보세요." items={ofKind("one_sided")} empty="" /> : null}
     <FoldedPairs labels={labels} title="둘 다 동의하지 않았거나 따로 고르지 않은 내용" description="두 사람 모두 동의하는 쪽으로 답하지 않은 문장(‘어느 쪽도 아니에요’나 ‘그렇지 않은 편이에요’ 같은 답)과, 둘 다 따로 고르지 않은 답을 모았어요. 같은 쪽으로 답했어도 이유는 서로 다를 수 있어요." items={ofKind("shared_distance", "middle")} />
-    <FoldedPairs labels={labels} title="아직 함께 비교하지 않은 내용" description="한 사람만 답했거나, ‘아직 모르겠어요’, ‘이번 계획에는 없어요’, ‘지금 답하지 않을게요’, ‘맞는 보기가 없어요’로 남긴 내용이에요. 이런 답은 의견 차이로 보지 않아요. 보기 밖의 생각은 서로 직접 이야기해 보세요." items={ofKind("unavailable")} />
+    <FoldedPairs labels={labels} title="아직 함께 비교하지 않은 내용" description="한 사람만 답했거나, ‘아직 모르겠어요’, ‘해당하지 않아요’, ‘지금 답하지 않을게요’, ‘맞는 보기가 없어요’로 남긴 내용이에요. 이런 답은 의견 차이로 보지 않아요. 보기 밖의 생각은 서로 직접 이야기해 보세요." items={ofKind("unavailable")} hideFollowUp />
   </>;
+}
+
+/** 사람이 두 사람 결과를 한 화면에 놓을 때 각 코드 카드 위에서 한 번만 하는 읽는 법(카드마다 같은 두 줄을 되풀이하지 않는다). */
+function pairCodeReading(first: V31Draft) {
+  const topics = buildV31StyleSummary(first).dimensions.map(dimension => dimension.topicName).join(", ");
+  return `두 사람 모두 ${topics} 순서로 글자를 하나씩 정했고, 칠한 칸이 많을수록 그 문장에 더 동의했다는 뜻이에요.`;
 }
 
 export default function WeddingCodeV31Results({ draft, first, received, shareOrigin, onEdit, onRestart, onMore, optionalCount = 0, readOnly = false, sharingContent }: {
@@ -283,6 +292,10 @@ export default function WeddingCodeV31Results({ draft, first, received, shareOri
 }) {
   const tabId = useId();
   const [activeTab, setActiveTab] = useState<ResultTab>("together");
+  // ‘처음부터 다시 답하기’는 저장된 답과 결과를 모두 지우므로 한 번 되묻는다(받은 링크의 읽기 전용 화면에는 이 단추가 없다).
+  const [confirmingRestart, setConfirmingRestart] = useState(false);
+  const restartConfirmRef = useRef<HTMLDivElement>(null);
+  useEffect(() => { if (confirmingRestart) restartConfirmRef.current?.focus(); }, [confirmingRestart]);
   const tabButtons = useRef<(HTMLButtonElement | null)[]>([]);
   const sharingRef = useRef<HTMLDivElement>(null);
   const profile = buildV31Profile(draft);
@@ -291,8 +304,8 @@ export default function WeddingCodeV31Results({ draft, first, received, shareOri
   const editable = received || readOnly ? undefined : onEdit;
   const labels: PairLabels = received ? { first: "먼저 답한 사람", second: "나중에 답한 사람" } : { first: "상대", second: "나" };
   const tabs: { id: ResultTab; label: string }[] = received
-    ? [{ id: "together", label: "함께 보기" }, { id: "first", label: labels.first }, { id: "second", label: labels.second }]
-    : [{ id: "together", label: "함께 보기" }, { id: "second", label: "내 결과" }, { id: "first", label: "상대 결과" }];
+    ? [{ id: "together", label: "나란히 보기" }, { id: "first", label: labels.first }, { id: "second", label: labels.second }]
+    : [{ id: "together", label: "나란히 보기" }, { id: "second", label: "내 결과" }, { id: "first", label: "상대 결과" }];
   const ownActionsVisible = !first || activeTab !== "first";
   function handleTabKey(event: KeyboardEvent<HTMLButtonElement>, index: number) {
     const nextIndex = event.key === "ArrowRight" ? (index + 1) % tabs.length
@@ -306,10 +319,14 @@ export default function WeddingCodeV31Results({ draft, first, received, shareOri
   return <div data-result={first ? "couple-v31" : "solo-v31"} data-empty={!profile.hasContent || undefined}>
     <header className="mb-6">
       <p className="text-xs font-semibold text-[var(--hb-success)]">웨딩코드 · {first ? "두 사람의 결과" : "내 결과"}</p>
-      <h1 className={`mt-3 text-3xl leading-snug ${v31Title}`}>{first ? "우리, 어디부터 맞춰 볼까요?" : profile.hasContent ? "내가 바라는 결혼식과 준비 방식" : "이번에 남긴 답을 살펴봐요"}</h1>
-      <p className={`mt-3 ${v31Body}`}>{first ? "함께 동의하거나 고른 내용부터, 서로 다르게 답한 것까지 나란히 봐요. 문장 속 ‘나’와 ‘상대’는 답한 사람 기준이에요. 같은 답도 이유는 다를 수 있으니, 각자 떠올린 장면을 이야기해 보세요." : profile.hasContent ? editable ? "지금 직접 고른 취향과 답을 정리했어요." : "공유된 취향과 답을 정리했어요. 이 화면에서는 답을 수정할 수 없어요." : "‘아직 모르겠어요’, ‘이번 계획에는 없어요’, ‘지금 답하지 않을게요’, ‘맞는 보기가 없어요’는 서로 다른 답이에요. 이 답만으로는 정리할 취향이 없어요. 원할 때 다시 답해도 괜찮아요."}</p>
-      <p className="mt-3 text-xs leading-relaxed text-[var(--hb-text-muted)]">{received ? "받은 링크에 담긴 답이에요. 이름이나 본인 여부는 확인하지 않아요." : `동의 정도를 고른 문장은 ${profile.ratedCount}개예요. 취향과 선택 항목까지 합치면 답을 남긴 질문은 ${profile.respondedCount}개예요.`} 취향과 바람은 달라질 수 있어요. 새로 만든 질문이라 아직 많은 사람에게 확인해 보지 못했어요. 성격 진단이나 궁합 점수도 아니에요.</p>
-      {!first && editable && profile.hasContent ? <Button variant="secondary" className="mt-4 whitespace-normal!" onClick={() => { sharingRef.current?.scrollIntoView({ block: "start" }); sharingRef.current?.focus({ preventScroll: true }); }}>상대와 함께 보는 방법</Button> : null}
+      <h1 className={`mt-3 text-3xl leading-snug ${v31Title}`}>{first ? "우리, 어디부터 맞춰 볼까요?" : profile.hasContent ? "내가 원하는 결혼식과 준비 방식" : "이번에 남긴 답을 살펴봐요"}</h1>
+      <p className={`mt-3 ${v31Body}`}>{first ? `함께 동의하거나 고른 내용부터, 서로 다르게 답한 것까지 나란히 봐요. ${received ? "문장 속 ‘나’와 ‘상대’는 답한 사람 기준이에요." : "문장 속 ‘나’와 ‘상대’는 그 문장에 답한 사람 입장에서 쓴 말이에요. 줄 앞에 붙은 ‘나’·‘상대’만 지금 보는 사람 기준이에요."} 같은 답도 이유는 다를 수 있으니, 각자 떠올린 장면을 이야기해 보세요.` : profile.hasContent ? editable ? "지금 직접 고른 취향과 답을 정리했어요." : "공유된 취향과 답을 정리했어요. 이 화면에서는 답을 수정할 수 없어요." : "‘아직 모르겠어요’, ‘해당하지 않아요’, ‘지금 답하지 않을게요’, ‘맞는 보기가 없어요’는 서로 다른 답이에요. 이 답만으로는 정리할 취향이 없어요. 원할 때 다시 답해도 괜찮아요."}</p>
+      <p className="mt-3 text-xs leading-relaxed text-[var(--hb-text-muted)]">{received ? "받은 링크에 담긴 답이에요. 이름이나 본인 여부는 확인하지 않아요." : first ? `내가 동의 정도를 고른 문장은 ${profile.ratedCount}개예요. 취향과 선택 항목까지 합치면 내가 답을 남긴 질문은 ${profile.respondedCount}개예요.` : `동의 정도를 고른 문장은 ${profile.ratedCount}개예요. 취향과 선택 항목까지 합치면 답을 남긴 질문은 ${profile.respondedCount}개예요.`} 취향과 바람은 달라질 수 있어요. 새로 만든 질문이라 아직 많은 사람에게 확인해 보지 못했어요. 성격 진단이나 궁합 점수도 아니에요.</p>
+      {!first && editable && profile.hasContent ? <Button variant="secondary" className="mt-4 whitespace-normal!" onClick={() => { sharingRef.current?.scrollIntoView({ block: "start" }); sharingRef.current?.focus({ preventScroll: true }); }}>상대와 함께 보는 방법 보러 가기</Button> : null}
+      {first && editable && sharingContent === undefined && hasV31Content(first) && hasV31Content(draft) ? <>
+        <p className={`mt-3 ${v31Body}`} data-share-return-step>링크를 보낸 사람은 아직 내 답을 볼 수 없어요. 서로 보려면 아래에서 두 사람 결과 링크를 만들어 그 사람에게 보내 주세요.</p>
+        <Button variant="secondary" className="mt-4 whitespace-normal!" onClick={() => { sharingRef.current?.scrollIntoView({ block: "start" }); sharingRef.current?.focus({ preventScroll: true }); }}>상대에게 보내는 곳으로 가기</Button>
+      </> : null}
     </header>
     {first ? <>
       <div role="tablist" aria-label="두 사람 결과 보기" className="mb-5 grid grid-cols-3 gap-1 rounded-xl border border-paper-outline bg-[var(--hb-surface-hover)] p-1">
@@ -325,21 +342,22 @@ export default function WeddingCodeV31Results({ draft, first, received, shareOri
         {activeTab === "together" ? <>
     <section aria-label="두 사람의 웨딩코드 요약" className="mb-5">
       {/* 두 코드에 공통인 「아래 글자는 다시 답하면 달라질 수 있어요.」는 카드마다 되풀이하지 않고 여기서 코드보다 먼저 한 번만 말한다. */}
-      <p className={`mb-4 ${v31Body}`}>{pairChangeNotice ? <><span data-change-notice>{pairChangeNotice}</span> 글자가 같아도 다르게 답한 문장이 있을 수 있고, 글자가 달라도 같은 문장에 둘 다 동의했을 수 있어요. 어느 문장의 답이 달랐는지부터 보고, 아래 이야기할 거리도 같이 봐요.</> : "각자 고른 답과 아래 이야기할 거리를 같이 봐요."}</p>
+      <p className={`mb-4 ${v31Body}`}>{pairChangeNotice ? <><span data-change-notice>{pairChangeNotice}</span> 글자가 같아도 다르게 답한 문장이 있을 수 있고, 글자가 달라도 같은 문장에 둘 다 동의했을 수 있어요. 같은 점을 먼저 보고, 답이 달랐던 문장은 그다음에 하나씩 이야기해 봐요.</> : "각자 고른 답과 아래 이야기할 거리를 같이 봐요."}</p>
+      <p className={`mb-4 ${v31Body}`} data-pair-code-reading>{pairCodeReading(first)}</p>
       <div className="grid items-start gap-4 lg:grid-cols-2">
-        <WeddingCodeV31StyleSummary draft={first} label={labels.first} compact showChangeNotice={false} />
-        <WeddingCodeV31StyleSummary draft={draft} label={labels.second} onEdit={editable} compact showChangeNotice={false} />
+        <WeddingCodeV31StyleSummary draft={first} label={labels.first} compact showChangeNotice={false} readingOnce />
+        <WeddingCodeV31StyleSummary draft={draft} label={labels.second} onEdit={editable} compact showChangeNotice={false} readingOnce />
       </div>
     </section>
       <CoupleResults items={items} labels={labels} />
         </> : <>
-          <p className={`mb-4 ${v31Body}`}>{received ? `${labels[activeTab]}의 답을 정리했어요. 누가 본인인지는 확인하지 않고, 이 화면에서는 답을 수정할 수 없어요.` : activeTab === "second" ? readOnly ? "내가 공유한 답이에요. 이 화면에서는 답을 수정할 수 없어요." : "내가 직접 답한 내용이에요. 생각과 다른 부분은 답을 수정할 수 있어요." : "상대가 공유한 답이에요. 상대의 답을 대신 수정할 수는 없어요."}</p>
+          <p className={`mb-4 ${v31Body}`}>{received ? `${labels[activeTab]}의 답을 정리했어요. 누가 본인인지는 확인하지 않고, 이 화면에서는 답을 수정할 수 없어요.` : activeTab === "second" ? readOnly ? "내가 공유한 답이에요. 이 화면에서는 답을 수정할 수 없어요." : "내가 직접 답한 내용이에요. 생각과 다른 부분은 답을 수정할 수 있어요." : "상대가 고른 답이에요."}</p>
           <WeddingCodeV31StyleSummary draft={activeTab === "first" ? first : draft} label={labels[activeTab]} onEdit={activeTab === "second" ? editable : undefined} />
           <PersonalProfile draft={activeTab === "first" ? first : draft} onEdit={activeTab === "second" ? editable : undefined} personLabel={!received && activeTab === "second" ? undefined : labels[activeTab]} nested />
         </>}
       </div>
     </> : <><WeddingCodeV31StyleSummary draft={draft} onEdit={editable} /><PersonalProfile draft={draft} onEdit={editable} /></>}
-    {!received && !readOnly && ownActionsVisible && onMore && optionalCount > 0 ? <section className={`${v31Surface} mt-5 p-5 sm:p-7`} aria-label="선택 질문">
+    {!received && !readOnly && ownActionsVisible && onMore && optionalCount > 0 ? <section className={`${v31Surface} mt-5 p-5 sm:p-7`} aria-label="추가 질문">
       <h2 className={`text-lg ${v31Title}`}>궁금한 부분이 더 있다면</h2>
       <p className={`mt-2 ${v31Body}`}>꽃 장식이나 세부 준비 방식까지 더 살펴볼 수 있어요. 네 글자는 그대로예요. 남은 문장 {optionalCount}개를 전부 답할 필요는 없고, 언제든 결과로 돌아올 수 있어요.</p>
       <Button variant="secondary" fullWidth onClick={onMore} className="mt-4 whitespace-normal!">원하면 더 알아보기 (선택)</Button>
@@ -348,7 +366,17 @@ export default function WeddingCodeV31Results({ draft, first, received, shareOri
     <div ref={sharingRef} tabIndex={-1} className="scroll-mt-6 outline-none">{sharingContent !== undefined ? sharingContent : <WeddingCodeV31Sharing shareOrigin={shareOrigin} first={first ?? draft} second={first ? draft : undefined} received={received} />}</div>
     <div className="mt-5 grid gap-3 sm:grid-cols-2">
       {editable && ownActionsVisible ? <Button variant="secondary" onClick={() => onEdit()} className="whitespace-normal!"><Pencil aria-hidden="true" className="size-4 shrink-0" />{first ? "내가 방금 답한 내용 수정" : "내 답 수정하기"}</Button> : null}
-      <Button variant="ghost" onClick={onRestart} className="whitespace-normal!"><RotateCcw aria-hidden="true" className="size-4 shrink-0" />{readOnly ? "내 웨딩코드로 돌아가기" : received ? "나도 처음부터 답해 보기" : "처음부터 다시 답하기"}</Button>
+      {confirmingRestart ? null : <Button variant="ghost" onClick={readOnly || received ? onRestart : () => setConfirmingRestart(true)} className="whitespace-normal!"><RotateCcw aria-hidden="true" className="size-4 shrink-0" />{readOnly ? "내 웨딩코드로 돌아가기" : received ? "나도 처음부터 답해 보기" : first ? "상대 답 없이 처음부터 다시 답하기" : "처음부터 다시 답하기"}</Button>}
     </div>
+    {/* 받은 링크로 두 사람 결과를 본 사람이 처음부터 다시 하면 링크의 상대 답이 화면과 주소에서 빠진다. 누르기 전에 알린다. */}
+    {first && !received && !readOnly && !confirmingRestart ? <p className="mt-2 text-xs leading-relaxed text-[var(--hb-text-muted)]" data-restart-partner-note>받은 링크에 담긴 상대의 답은 화면에서 빠져요. 다시 비교하려면 받은 링크를 다시 열어 주세요.</p> : null}
+    {confirmingRestart ? <div ref={restartConfirmRef} tabIndex={-1} role="group" aria-label="처음부터 다시 답하기 확인" data-restart-confirm className={`${v31Surface} mt-5 p-5 outline-none`}>
+      <p className={`text-base ${v31Title}`}>저장된 답과 결과가 모두 지워져요. 지우고 다시 답할까요?</p>
+      {first ? <p className={`mt-2 ${v31Body}`}>받은 링크에 담긴 상대의 답도 화면에서 빠져요. 다시 비교하려면 받은 링크를 다시 열어 주세요.</p> : null}
+      <div className="mt-4 flex flex-col gap-2 sm:flex-row">
+        <Button variant="primary" onClick={onRestart} className="whitespace-normal!">지우고 다시 하기</Button>
+        <Button variant="secondary" onClick={() => setConfirmingRestart(false)} className="whitespace-normal!">그대로 두기</Button>
+      </div>
+    </div> : null}
   </div>;
 }

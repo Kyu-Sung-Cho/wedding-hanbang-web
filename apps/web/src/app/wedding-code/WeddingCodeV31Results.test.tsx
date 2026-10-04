@@ -29,7 +29,7 @@ function summaryHeading(summary: Element) {
 }
 
 describe("짧은 웨딩코드 결과의 미노출 문항", () => {
-  it("네 글자와 독립 문장 척도를 실제 답에서 보여주며 선택 질문을 만들어 채우지 않는다", () => {
+  it("네 글자와 독립 문장 척도를 실제 답에서 보여주며 추가 질문을 만들어 채우지 않는다", () => {
     const view = render(basicDraft());
     const summary = view.querySelector('[data-style-summary="KBBB"]');
     expect(summary).not.toBeNull();
@@ -55,7 +55,7 @@ describe("짧은 웨딩코드 결과의 미노출 문항", () => {
     for (const id of ["B1", "T1", "F1", "H1"]) {
       expect(summary?.querySelector(`[data-statement-scale="${id}"] [role="img"]`)).toBeNull();
     }
-    expect(summary?.textContent).toContain("이번 계획에는 없어요");
+    expect(summary?.textContent).toContain("해당하지 않아요");
     expect(summary?.textContent).toContain("지금 답하지 않을게요");
   });
 
@@ -73,17 +73,17 @@ describe("짧은 웨딩코드 결과의 미노출 문항", () => {
     expect(summaries[0].querySelectorAll("button")).toHaveLength(0);
     expect(summaries[1].querySelectorAll("button").length).toBeGreaterThan(0);
     const received = render(second, first, true);
-    expect([...view.querySelectorAll('[role="tab"]')].map(tab => tab.textContent)).toEqual(["함께 보기", "내 결과", "상대 결과"]);
-    expect([...received.querySelectorAll('[role="tab"]')].map(tab => tab.textContent)).toEqual(["함께 보기", "먼저 답한 사람", "나중에 답한 사람"]);
+    expect([...view.querySelectorAll('[role="tab"]')].map(tab => tab.textContent)).toEqual(["나란히 보기", "내 결과", "상대 결과"]);
+    expect([...received.querySelectorAll('[role="tab"]')].map(tab => tab.textContent)).toEqual(["나란히 보기", "먼저 답한 사람", "나중에 답한 사람"]);
     expect([...received.querySelectorAll("[data-style-summary]")].map(summaryHeading)).toEqual(["먼저 답한 사람의 웨딩코드", "나중에 답한 사람의 웨딩코드"]);
     for (const summary of received.querySelectorAll("[data-style-summary]")) {
       expect(summary.querySelectorAll("button")).toHaveLength(0);
     }
     expect(view.querySelectorAll('[role="tabpanel"]')).toHaveLength(1);
-    expect(view.querySelector('[role="tab"][aria-selected="true"]')?.textContent).toBe("함께 보기");
+    expect(view.querySelector('[role="tab"][aria-selected="true"]')?.textContent).toBe("나란히 보기");
     expect(view.querySelector('[data-comparison="B1"] dt')?.textContent).toBe("상대");
     expect(received.querySelector('[data-comparison="B1"] dt')?.textContent).toBe("먼저 답한 사람");
-    expect(view.textContent).toContain("아래 글자는 다시 답하면 달라질 수 있어요. 글자가 같아도 다르게 답한 문장이 있을 수 있고, 글자가 달라도 같은 문장에 둘 다 동의했을 수 있어요. 어느 문장의 답이 달랐는지부터 보고, 아래 이야기할 거리도 같이 봐요.");
+    expect(view.textContent).toContain("아래 글자는 다시 답하면 달라질 수 있어요. 글자가 같아도 다르게 답한 문장이 있을 수 있고, 글자가 달라도 같은 문장에 둘 다 동의했을 수 있어요. 같은 점을 먼저 보고, 답이 달랐던 문장은 그다음에 하나씩 이야기해 봐요.");
     // 머리글의 「같은 답도 이유는 다를 수 있으니, 각자 …」와 같은 틀을 두 문단 사이에서 되풀이하지 않는다.
     expect(view.textContent).not.toContain("같은 코드여도");
     expect(view.querySelector('[role="tabpanel"] > section p')?.textContent?.match(/(달라질|다를|바뀔) 수 있/g)).toHaveLength(1);
@@ -103,10 +103,13 @@ describe("짧은 웨딩코드 결과의 미노출 문항", () => {
       expect(panel.textContent?.split("아래 글자는 다시 답하면 달라질 수 있어요.").length).toBe(2);
       const change = panel.querySelector("[data-change-notice]")!;
       expect(change.closest("[data-style-summary]")).toBeNull();
+      // 주제 순서와 칠한 칸 설명은 두 코드 카드 위에서 한 번만 한다.
+      expect(panel.querySelectorAll("[data-pair-code-reading]")).toHaveLength(1);
+      expect(panel.querySelector("[data-pair-code-reading]")?.textContent).toBe("두 사람 모두 예산, 일 나누기, 가족과 상의, 받고 싶은 도움 순서로 글자를 하나씩 정했고, 칠한 칸이 많을수록 그 문장에 더 동의했다는 뜻이에요.");
       for (const summary of summaries) {
         expect(change.compareDocumentPosition(summary.querySelector("[data-code]")!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-        // 카드 첫머리: 제목 → (한 칸 차이 안내) → 코드 → 주제 순서 설명. 이름·헤드라인은 없다.
-        expect(summary.querySelector("[data-code]")?.nextElementSibling?.hasAttribute("data-topic-order")).toBe(true);
+        // 카드 첫머리: 제목 → (한 칸 차이 안내) → 코드. 주제 순서와 칠한 칸 설명은 두 카드에 공통이라 카드 묶음 위에서 한 번만 하고, 이름·헤드라인은 없다.
+        expect(summary.querySelector("[data-topic-order]")).toBeNull();
         expect(summary.querySelector("[data-style-name], [data-name-source]")).toBeNull();
       }
       expect(summaries[0].querySelector("[data-borderline-notice]")).toBeNull();
@@ -131,19 +134,19 @@ describe("짧은 웨딩코드 결과의 미노출 문항", () => {
     const view = render(basicDraft());
     expect(view.textContent).toContain("답을 남긴 질문은 23개예요.");
     expect(view.textContent).toContain("원하면 더 알아보기 (선택)");
-    expect(view.textContent).not.toContain("내가 직접 고른 우선순위");
+    expect(view.textContent).not.toContain("내가 직접 고른 ‘꼭 지키고 싶은 것’");
     expect(view.textContent).not.toContain("꽃 장식이 풍성한 공간에서 식을 올리고 싶다.");
     expect(view.textContent).not.toContain("구체적인 보기를 고르지 않은 답");
   });
 
-  it("직접 건너뛴 선택 질문은 보지 않은 질문과 달리 결과에 그대로 남긴다", () => {
+  it("직접 건너뛴 추가 질문은 보지 않은 질문과 달리 결과에 그대로 남긴다", () => {
     const draft = basicDraft();
     draft.answers.V1 = "skipped";
     draft.priorities = { status: "skipped" };
     const view = render(draft);
     expect(view.textContent).toContain("답을 남긴 질문은 25개예요.");
     expect(view.textContent).toContain("꽃 장식이 풍성한 공간에서 식을 올리고 싶다.");
-    expect(view.textContent).toContain("우선순위는 이번에 고르지 않았어요.");
+    expect(view.textContent).toContain("꼭 지키고 싶은 것은 이번에 고르지 않았어요.");
     expect(view.textContent).toContain("구체적인 보기를 고르지 않은 답");
   });
 
@@ -178,8 +181,8 @@ describe("짧은 웨딩코드 결과의 미노출 문항", () => {
     const delegate = guides.querySelector('[data-insight="priority-delegate-update"]')!;
     expect(delegate.textContent).toContain("각자 맡은 일은 끝난 뒤보다, 진행 중에 어디까지 했는지 서로 알려주면 좋겠다.");
     // 상대 결과 탭에서도 같은 카드가 나오므로 ‘내가’라고 쓰지 않는다.
-    const selected = [...delegate.querySelectorAll("li")].find(item => item.textContent?.includes("이 설명에서 우선순위로 고른 것"));
-    expect(selected?.textContent).toContain("계약·추가 결제 없는 세부 선택은 맡은 사람이 정해도 괜찮아요");
+    const selected = [...delegate.querySelectorAll("li")].find(item => item.textContent?.includes("이 설명과 이어진, 꼭 지키고 싶은 것으로 고른 것"));
+    expect(selected?.textContent).toContain("계약·추가 결제 없는 세부 선택 맡기기");
     expect(selected?.textContent).not.toContain("진행 상황 중간에 서로 알려주기");
   });
 
@@ -237,7 +240,7 @@ describe("짧은 웨딩코드 결과의 미노출 문항", () => {
     const view = render(draft, basicDraft());
     const item = view.querySelector('[data-comparison="T2"]')!;
     expect(item.closest("section")?.querySelector("h2")?.textContent).toBe("함께 동의하거나 고른 내용");
-    expect(item.closest("section")?.textContent).toContain("‘~해도 괜찮다’는 문장은 허락하는 말이고");
+    expect(item.closest("section")?.textContent).toContain("‘괜찮다’로 끝나는 문장은 받아들일 수 있다는 뜻이고");
     expect(item.closest("section")?.textContent).not.toContain("둘 다 원한다고");
   });
 });
@@ -299,7 +302,7 @@ describe("두 사람 비교 묶음", () => {
     first.priorities = { status: "answered", values: ["D1", "taste.meal", "F4"] };
     second.priorities = { status: "answered", values: ["F1", "F2", "T3"] };
     const view = render(second, first);
-    expect(view.querySelector('[data-pair-section="difference"]')?.textContent).toContain("둘 중 한 사람이 우선순위로 고른 것을 앞에 뒀어요");
+    expect(view.querySelector('[data-pair-section="difference"]')?.textContent).toContain("둘 중 한 사람이 ‘꼭 지키고 싶은 것’으로 고른 것을 앞에 뒀어요");
     expect(differenceIds(view).slice(0, 2)).toEqual(["D1", "G3"]);
     for (const id of ["F4", "F1", "F2", "T3"]) {
       expect(sectionTitle(view, id), id).toBe("함께 동의하거나 고른 내용");
@@ -468,9 +471,9 @@ describe("2026-09-27 결과 검토 뒤 고친 것", () => {
     expect(entry?.querySelector("h2")?.textContent).toBe("꼭 지키고 싶은 것도 골라볼 수 있어요");
     expect([...entry!.querySelectorAll("button")].map(item => item.textContent)).toEqual(["꼭 지키고 싶은 것 고르기"]);
     // 고른 적 없는 우선순위를 직접 고른 것처럼 쓰거나 ‘아직 보지 않은 질문’으로 적지 않는다.
-    expect(view.textContent).not.toContain("내가 직접 고른 우선순위");
+    expect(view.textContent).not.toContain("내가 직접 고른 ‘꼭 지키고 싶은 것’");
     expect(view.textContent).not.toContain("아직 보지 않은 질문이에요");
-    // 이미 답했으면 ‘우선순위 수정’이 그 일을 한다.
+    // 이미 답했으면 ‘꼭 지키고 싶은 것 수정’이 그 일을 한다.
     expect(render({ ...draft, priorities: { status: "skipped" } }).querySelector("[data-priority-entry]")).toBeNull();
     // 고를 보기가 없으면 버튼을 두지 않는다(누르면 빈 화면이 나온다).
     const nothing = createV31Draft();
@@ -496,7 +499,7 @@ describe("2026-09-27 결과 검토 뒤 고친 것", () => {
   it("두 사람 결과에서도 「~아니에요」류 판정 고지는 머리글 한 번뿐이다", () => {
     const first = mixedDraft();
     const second = basicDraft();
-    // 열린 답(어느 쪽도 괜찮아요·더 쓰고 싶은 곳 없음), 서로 다른 피하고 싶은 것과 우선순위, 반대로 답한 문장을 섞는다.
+    // 열린 답(어느 것이든 괜찮아요·더 쓰고 싶은 곳 없음), 서로 다른 피하고 싶은 것과 우선순위, 반대로 답한 문장을 섞는다.
     second.tastes.venue = { status: "no_preference" };
     second.spending = { status: "no_preference" };
     second.avoidances = { status: "answered", values: ["loud_music"] };
@@ -509,7 +512,7 @@ describe("2026-09-27 결과 검토 뒤 고친 것", () => {
     const view = render(second, first);
     const open = [...view.querySelectorAll("h2")].find(item => item.textContent === "열어 두고 있는 답")!.closest("section")!;
     // 묶음 설명은 무엇을 모았는지만 말한다. 할 일은 항목 문장이 말하므로 설명에서 되풀이하지 않는다.
-    expect(open.querySelector("h2 + p")?.textContent).toBe("둘 중 한 사람이라도 어느 쪽도 괜찮다고 했거나, 따로 없다고 답한 내용이에요.");
+    expect(open.querySelector("h2 + p")?.textContent).toBe("둘 중 한 사람이라도 어느 것이든 괜찮다고 했거나, 따로 없다고 답한 내용이에요.");
     expect(open.querySelector("h2 + p")?.textContent).not.toMatch(/들어보세요|살펴보세요/);
     expect(open.querySelector('[data-comparison="spending"]')?.textContent).not.toMatch(/반대/);
   });
@@ -606,7 +609,7 @@ describe("2026-09-27 결과 검토 뒤 고친 것", () => {
     expect(skipped.querySelector('[data-comparison="priorities"]')?.textContent).not.toContain("지금 답하지 않을게요");
     const solo = render(first);
     const states = [...solo.querySelectorAll("details")].find(entry => entry.querySelector("summary")?.textContent === "구체적인 보기를 고르지 않은 답")!;
-    const priorityRow = [...states.querySelectorAll("li")].find(entry => entry.textContent?.startsWith("이번 결혼식에서 특히 지키고 싶은 것"));
+    const priorityRow = [...states.querySelectorAll("li")].find(entry => entry.textContent?.startsWith("이번 결혼 준비에서 꼭 지키고 싶은 것"));
     expect(priorityRow?.textContent).toContain("고르지 않고 넘어갔어요");
     expect(priorityRow?.textContent).not.toContain("지금 답하지 않을게요");
     const none = basicDraft(); none.priorities = { status: "no_preference" };

@@ -122,8 +122,8 @@
   {
     "name": "단어 규칙: 짐작 문구에 누가 맞혔는지 알려 주는 말을 넣는다",
     "target": "apps/web/src/lib/weddingCode/v40/guess/guessCopy.ts",
-    "find": "  startButton: \"시작\",",
-    "replace": "  startButton: \"시작\",\n  winnerNote: \"누가 더 많이 맞혔는지 알려 줘요.\","
+    "find": "  startButton: \"시작하기\",",
+    "replace": "  startButton: \"시작하기\",\n  winnerNote: \"누가 더 많이 맞혔는지 알려 줘요.\","
   },
   {
     "name": "단어 규칙: 짐작 문구에 개수 말을 넣는다",

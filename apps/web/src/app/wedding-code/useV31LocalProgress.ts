@@ -17,6 +17,17 @@ type LocalState = {
 };
 const initialState: LocalState = { ready: false, enabled: true, status: "idle", saved: null };
 
+/**
+ * 이 브라우저의 진짜 저장소만 쓴다. 쿠키와 사이트 데이터를 막은 브라우저나 앱 안 브라우저 중에는 저장소 자리에 메모리 대체물을 두어
+ * 쓰기가 성공한 것처럼 받는 곳이 있다. 그러면 「이 브라우저에 저장됐어요」라고 말하고도 새로고침하면 사라진다. 진짜 Storage 가 아니면
+ * 저장소가 없는 것으로 보고(던져서) 기존의 「저장할 수 없어요」 길로 보낸다.
+ */
+function genuineLocalStorage(): Storage {
+  const handle = window.localStorage;
+  if (Object.prototype.toString.call(handle) !== "[object Storage]") throw new Error("localStorage is not a Storage");
+  return handle;
+}
+
 function createProgressStore(active: boolean) {
   let state = initialState;
   let expectedRaw: string | null = null;
@@ -30,7 +41,7 @@ function createProgressStore(active: boolean) {
   function load() {
     if (!active) { publish({ ...initialState, ready: true }); return; }
     try {
-      storage = window.localStorage;
+      storage = genuineLocalStorage();
       const enabled = storage.getItem(V31_SAVE_PREFERENCE_KEY) !== "off";
       const read = readV31LocalProgress(storage);
       expectedRaw = read.raw;
@@ -83,7 +94,7 @@ function createProgressStore(active: boolean) {
   function setEnabled(enabled: boolean) {
     if (!active) return false;
     try {
-      storage = window.localStorage;
+      storage = genuineLocalStorage();
       if (enabled) storage.removeItem(V31_SAVE_PREFERENCE_KEY);
       else storage.setItem(V31_SAVE_PREFERENCE_KEY, "off");
       if (!enabled && clearV31LocalProgress(storage).status !== "cleared") throw new Error("clear failed");

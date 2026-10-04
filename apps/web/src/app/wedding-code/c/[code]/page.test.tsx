@@ -146,15 +146,15 @@ describe("코드만 아는 사람을 위한 화면", () => {
       const root = document.createElement("div");
       root.innerHTML = await render(code);
       const meaning = root.querySelector("[data-code-meaning]")!;
-      expect(meaning.textContent, code).toContain("코드만으로는 어떤 문항에 답했는지 알 수 없어요.");
-      expect(meaning.textContent, code).toContain("정확한 풀이와 고른 답은 함께 받은 결과 링크에서 확인해 주세요.");
+      expect(meaning.textContent, code).toContain("코드만으로는 어떤 질문에 답했는지 알 수 없어요.");
+      expect(meaning.textContent, code).toContain("자세한 풀이와 고른 답은 함께 받은 결과 링크에서 확인해 주세요.");
       expect(meaning.textContent, code).toContain("문항에 따라 가족 의견을 언제 들을지, 마지막 선택을 누구와 할지를 물어요.");
       expect(meaning.textContent, code).not.toMatch(/더 많이 골랐어요|적힌 내용이 사실인지|가족과 하객 사정을 앞에 둔|스무 장면|20장면/);
       for (const row of meaning.querySelectorAll("[data-meaning-axis]")) {
         expect(row.textContent, code).toContain("쪽을 뜻해요");
       }
       const metadata = await generateMetadata({ params: Promise.resolve({ code }) });
-      expect(metadata.description, code).toContain("코드만으로는 어떤 문항에 답했는지 알 수 없어요");
+      expect(metadata.description, code).toContain("코드만으로는 어떤 질문에 답했는지 알 수 없어요");
       expect(metadata.description, code).toContain("함께 받은 결과 링크");
       expect(metadata.description, code).not.toMatch(/더 많이 골랐|스무 장면|20장면/);
     }

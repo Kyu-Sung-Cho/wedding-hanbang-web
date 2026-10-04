@@ -263,9 +263,9 @@ escape: `{ fmt: "escape", which: "unsure" | "na" }`.
 
 | 항목 | 내용 |
 |---|---|
-| `ScoreModule.selfLine(bank, responses, axis)` | 내가 마지막에 직접 고른 쪽 줄의 자료. 자기 선택에 답했고 그 주제에 글자가 있고 `axis.contrast` 가 없을 때만 `{ axis, side, letter, level }`, 아니면 null. `buildResult` 의 어떤 필드도 바꾸지 않고 링크 코드에 영향이 없다. 기준 계산기(`scripts/lib/wedding-code-v40-ref.mjs`)에 같은 함수가 있고 `oracle.equivalence.test.ts` 가 대조한다. 기준 계산기의 함수는 `buildResult` 가 낸 주제 결과가 아닌 입력(`axis.contrast` 가 undefined)을 조용히 null 로 돌려주지 않고 던진다 |
+| `ScoreModule.selfLine(bank, responses, axis)` | 내가 마지막 정리에서 고른 쪽 줄의 자료. 자기 선택에 답했고 그 주제에 글자가 있고 `axis.contrast` 가 없을 때만 `{ axis, side, letter, level }`, 아니면 null. `buildResult` 의 어떤 필드도 바꾸지 않고 링크 코드에 영향이 없다. 기준 계산기(`scripts/lib/wedding-code-v40-ref.mjs`)에 같은 함수가 있고 `oracle.equivalence.test.ts` 가 대조한다. 기준 계산기의 함수는 `buildResult` 가 낸 주제 결과가 아닌 입력(`axis.contrast` 가 undefined)을 조용히 null 로 돌려주지 않고 던진다 |
 | `SelfLine` (`types.ts`) | 위 함수의 반환 모양. 세기 `level` 은 1 조금, 2 꽤, 3 아주 |
-| `selfChoiceParts`, `selfChoiceLine`, `selfLevelPhrase`, `V40_COPY.block.selfLineLeadLabel` (`copy.ts`) | 「내가 마지막에 직접 고른 쪽: 「D 나눠 하기」 · 아주 가까워요」. `selfChoiceParts` 는 머리말, 글자와 이름, 세기 낱말의 세 덩어리를 내고 `selfChoiceLine` 은 덩어리를 공백으로 이은 줄 전체다 |
+| `selfChoiceParts`, `selfChoiceLine`, `selfLevelPhrase`, `V40_COPY.block.selfLineLeadLabel` (`copy.ts`) | 「내가 마지막 정리에서 고른 쪽: 「D 나눠 하기」 · 아주 가까워요」. `selfChoiceParts` 는 머리말, 글자와 이름, 세기 낱말의 세 덩어리를 내고 `selfChoiceLine` 은 덩어리를 공백으로 이은 줄 전체다 |
 | `AxisBlock` 의 `selfLine`, `ResultScreen` 의 `selfLines` | 뚜렷해요·기울어요 주제는 세기 문장 아래에, 반반이에요 주제는 두 글자의 뜻 아래(세기 문장 「코드에는 한 글자만 …」에서 떨어뜨려)에 작고 흐린 메모 글씨로 그린다. 세 덩어리 중 글자 이름과 세기 낱말은 줄바꿈 없이 붙이고 줄 길이를 고른다. 화면은 대비가 있는 주제와 다른 주제의 줄을 한 번 더 거른다. 주제 순서 네 개로 준다(`quotes` 와 같은 방식). 두 사람 결과와 받는 사람 화면에는 없다 |
 
 ## 12. 4.1 단계 2에서 더한 것 (2026-10-01, 계약 문서 §23)

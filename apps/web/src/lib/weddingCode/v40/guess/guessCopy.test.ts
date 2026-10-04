@@ -233,8 +233,8 @@ describe("이 단계의 문구 규칙", () => {
 
   it("출처 문장은 링크에서 옮겼다는 것을 밝히고 가리기와 보기 단추 이름이 가렸을 때 한 줄의 말과 맞는다", () => {
     expect(V40_GUESS_COPY.sourceNote).toContain("링크에 담긴 답을 그대로 옮겼어요");
-    // 체크 글자는 오타만 잡고 위조를 막지 못한다: 링크를 보낸 사람이 실제로 고른 것인지 이 화면이 확인하지 못한다고 사실대로 말한다.
-    expect(V40_GUESS_COPY.sourceNote).toContain("링크를 보낸 사람이 직접 고른 것인지는 이 화면이 확인하지 못해요");
+    // 체크 글자는 오타만 잡고 위조를 막지 못한다: 각자 정말 고른 답인지 이 화면이 확인하지 못한다고 사실대로 말한다.
+    expect(V40_GUESS_COPY.sourceNote).toContain("각자 정말 고른 답인지는 이 화면에서 확인하지 못해요");
     expect(V40_GUESS_COPY.hiddenNote).toContain(`「${V40_GUESS_COPY.showButton}」`);
     expect(V40_GUESS_COPY.hideButton).not.toBe(V40_GUESS_COPY.showButton);
   });
@@ -262,8 +262,8 @@ describe("행 이름표 넷(두 사람 결과 줄)", () => {
   const EXPECTED: Record<GuessLineForm, readonly [string, string, string]> = {
     meGuessedPartner: ["내가 짐작한 것", "상대가 고른 쪽", "내가 짐작한 쪽"],
     partnerGuessedMe: ["상대가 짐작한 것", "내가 고른 쪽", "상대가 짐작한 쪽"],
-    firstGuessedSecond: ["먼저 답한 사람이 짐작한 것", "나중에 답한 사람이 고른 쪽", "먼저 답한 사람이 짐작한 쪽"],
-    secondGuessedFirst: ["나중에 답한 사람이 짐작한 것", "먼저 답한 사람이 고른 쪽", "나중에 답한 사람이 짐작한 쪽"],
+    firstGuessedSecond: ["링크를 먼저 보낸 사람이 짐작한 것", "링크를 받은 사람이 고른 쪽", "링크를 먼저 보낸 사람이 짐작한 쪽"],
+    secondGuessedFirst: ["링크를 받은 사람이 짐작한 것", "링크를 먼저 보낸 사람이 고른 쪽", "링크를 받은 사람이 짐작한 쪽"],
   };
 
   it("글자까지 고정한다: 소제목, 사실 쪽 이름, 짐작 쪽 이름 순서", () => {
@@ -279,10 +279,10 @@ describe("행 이름표 넷(두 사람 결과 줄)", () => {
     expect(V40_GUESS_COPY.rowLabels.meGuessedPartner.guessLabel).toMatch(/^내가 짐작한/u);
     expect(V40_GUESS_COPY.rowLabels.partnerGuessedMe.actualLabel).toMatch(/^내가 고른/u);
     expect(V40_GUESS_COPY.rowLabels.partnerGuessedMe.guessLabel).toMatch(/^상대가 짐작한/u);
-    expect(V40_GUESS_COPY.rowLabels.firstGuessedSecond.actualLabel).toMatch(/^나중에 답한 사람이 고른/u);
-    expect(V40_GUESS_COPY.rowLabels.firstGuessedSecond.guessLabel).toMatch(/^먼저 답한 사람이 짐작한/u);
-    expect(V40_GUESS_COPY.rowLabels.secondGuessedFirst.actualLabel).toMatch(/^먼저 답한 사람이 고른/u);
-    expect(V40_GUESS_COPY.rowLabels.secondGuessedFirst.guessLabel).toMatch(/^나중에 답한 사람이 짐작한/u);
+    expect(V40_GUESS_COPY.rowLabels.firstGuessedSecond.actualLabel).toMatch(/^링크를 받은 사람이 고른/u);
+    expect(V40_GUESS_COPY.rowLabels.firstGuessedSecond.guessLabel).toMatch(/^링크를 먼저 보낸 사람이 짐작한/u);
+    expect(V40_GUESS_COPY.rowLabels.secondGuessedFirst.actualLabel).toMatch(/^링크를 먼저 보낸 사람이 고른/u);
+    expect(V40_GUESS_COPY.rowLabels.secondGuessedFirst.guessLabel).toMatch(/^링크를 받은 사람이 짐작한/u);
   });
 
   it("나 기준을 알면 내가 짐작한 쪽과 상대가 짐작한 쪽, 모르면 먼저/나중에 답한 사람 꼴이다(여섯 경우 전수)", () => {
