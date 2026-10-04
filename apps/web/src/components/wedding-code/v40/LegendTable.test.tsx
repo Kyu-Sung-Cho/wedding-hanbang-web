@@ -41,7 +41,7 @@ describe("LegendTable: 표시가 없는 표", () => {
     expect([...harness.container.querySelectorAll("[data-legend-row]")].map((row) => row.querySelector('[role="rowheader"]')?.textContent)).toEqual([
       "돈을 정할 때",
       "준비를 굴릴 때",
-      "함께 정하는 사람",
+      "누구와 함께 정할 때",
       "지쳤을 때",
     ]);
   });

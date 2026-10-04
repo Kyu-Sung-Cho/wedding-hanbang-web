@@ -117,9 +117,10 @@ describe("ShareBlock: 처음 모양", () => {
     await renderBlock();
     expect(root().textContent).toContain(V40_COPY.send.shareSheetInfo);
     expect(root().textContent).toContain(V40_COPY.send.withAnswersLinkInfo);
-    // 어떤 답이 읽히는지도 밝힌다(두 사람 결과 링크의 안내와 같은 말)
-    expect(root().textContent).toContain(V40_COPY.send.withAnswersSensitiveInfo);
-    expect(V40_COPY.send.withAnswersSensitiveInfo).toBe(V40_COPY.coupleSend.sensitiveInfo);
+    // 어떤 답이 읽히는지(가족, 돈, 다툰 뒤와 지쳤을 때)는 체크 문장 안에서 밝히고, 체크 칸 아래 따로 둔 줄은 없다. 두 사람 결과 링크의 체크 문장도 같은 말을 한다.
+    expect(V40_COPY.send.consent).toContain("가족, 돈, 다툰 뒤와 지쳤을 때에 관한 답도 그대로 읽힌다는 걸 알아요");
+    expect(V40_COPY.coupleSend.consentAllAnswers).toContain("가족, 돈, 다툰 뒤와 지쳤을 때에 관한 답도 그대로 읽힌다는 걸 알아요");
+    expect(root().textContent).not.toContain("그대로 읽혀요.");
   });
 
   it("링크 주소는 누르기 전에 화면에도 부르는 쪽 함수에도 나오지 않는다", async () => {
@@ -272,7 +273,6 @@ describe("ShareBlock: 질문만 보내기와 보낼 말", () => {
     expect(root().textContent).not.toContain(V40_COPY.send.consent);
     // 답이 없는 링크에는 되돌릴 수 없다거나 예전 링크가 남는다는 겁주는 말을 붙이지 않는다.
     expect(root().textContent).not.toContain(V40_COPY.send.withAnswersLinkInfo);
-    expect(root().textContent).not.toContain(V40_COPY.send.withAnswersSensitiveInfo);
     expect(root().textContent).not.toMatch(/되돌릴 수 없|예전 링크/u);
     expect(root().textContent).not.toContain(V40_COPY.send.disabledReason);
     expect(sendButton()?.getAttribute("aria-disabled")).toBe("false");

@@ -128,8 +128,8 @@
   {
     "name": "단어 규칙: 짐작 문구에 개수 말을 넣는다",
     "target": "apps/web/src/lib/weddingCode/v40/guess/guessCopy.ts",
-    "find": "  leaveButton: \"짐작은 건너뛸게요\",",
-    "replace": "  leaveButton: \"짐작은 건너뛸게요\",\n  countNote: \"여섯 가지 장면이에요.\","
+    "find": "  leaveButton: \"고른 것 없이 나갈게요\",",
+    "replace": "  leaveButton: \"고른 것 없이 나갈게요\",\n  countNote: \"여섯 가지 장면이에요.\","
   },
   {
     "name": "단어 규칙: 글자 고르기 문구에 맞힌 글자를 알려 주는 말을 넣는다",

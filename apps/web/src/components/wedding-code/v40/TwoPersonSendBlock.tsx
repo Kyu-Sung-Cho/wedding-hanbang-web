@@ -113,7 +113,6 @@ export function TwoPersonSendBlock({ buildUrl, onSent, env, idPrefix, headingLev
       </div>
 
       <div className={cx(noteText, "mt-4 space-y-1")}>
-        <p>{V40_COPY.coupleSend.sensitiveInfo}</p>
         <p>{V40_COPY.coupleSend.anyoneCanReadInfo}</p>
         {guessNote ? <p data-send-guess-note="">{guessNote}</p> : null}
         <p>{V40_COPY.coupleSend.oldLinksRemainInfo}</p>

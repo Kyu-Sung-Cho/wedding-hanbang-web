@@ -30,7 +30,7 @@ vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn() }) }));
 const START = "내 웨딩코드 시작하기";
 const RESET_AND_START = "저장된 답 지우고 새로 시작";
 const WAIT_LINE = "잠깐만요, 저장 상태를 확인하고 있어요. 곧 시작할 수 있어요.";
-const IDLE_LINE = "답하면 이 브라우저에 자동으로 저장돼요. 공용 기기라면 아래 ‘자동 저장 설정’에서 꺼 주세요.";
+const IDLE_LINE = "답하면 이 브라우저에 자동으로 저장돼요. 다른 사람과 같이 쓰는 컴퓨터나 휴대폰이라면 아래 ‘자동 저장 설정’에서 꺼 주세요.";
 
 function snapshot(draft: V31Draft): V31LocalProgressSnapshot {
   return { draft, index: V31_CORE_INDEXES[0], flow: "core", screen: "questions", editing: false, needsPriorityReview: false };
@@ -93,7 +93,7 @@ describe("웨딩코드 v3.1 소개: 서버가 그린 버튼은 눌러도 되는 
     expect(storageLine()).toBe(WAIT_LINE);
     // 서버 HTML 의 글(검색·미리보기에 쓰이는 제목과 첫 문단)과 링크는 그대로 있다.
     expect(container.querySelector("h1")?.textContent).toContain("나는 어떤 결혼식을");
-    expect(container.querySelector("h1 + p")?.textContent).toContain("성격을 진단하는 검사가 아니에요.");
+    expect(container.querySelector("h1 + p")?.textContent).toContain("성격을 진단하는 검사가 아니고, 아직 여러 사람에게 확인해 보지 못한 질문이에요.");
     expect(container.querySelectorAll('a[href="/privacy"]')).toHaveLength(1);
     // 서버가 그리지 못하는 것(이어 하기 카드, 지우기 버튼)은 서버 HTML 에 없다.
     expect(container.querySelector('[aria-label="저장된 내 답 이어하기"]')).toBeNull();

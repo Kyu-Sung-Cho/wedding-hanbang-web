@@ -54,8 +54,8 @@ export default function WeddingCodeV31Sharing({ shareOrigin, first, second, rece
       <summary className={`flex min-h-11 cursor-pointer items-center text-sm underline underline-offset-4 ${v31Title}`}>답을 링크에 담아 직접 보내기</summary>
       <h3 className={`text-base ${v31Title}`}>{second ? "둘이 답한 결과 공유하기" : "내 답을 보내고 함께 비교하기"}</h3>
       <p className={`mt-2 ${v31Body}`}>
-        {second ? "두 사람의 답 전체가 링크에 담겨요." : "내가 고른 답 전체가 링크에 담겨요. 상대도 답하면 두 사람의 내용을 나란히 볼 수 있어요."}
-        {" "}가족·돈·받고 싶은 도움에 관한 답, 구체 취향과 피하고 싶은 것, 우선순위도 포함돼요.
+        {second ? "두 사람의 답 전체가 링크에 담겨요." : "내가 고른 답 전체가 링크 주소 안에 그대로 들어가요. 링크를 받은 사람이 답하면 두 사람의 내용을 나란히 볼 수 있어요."}
+        {" "}가족·돈·받고 싶은 도움에 관한 답, 고른 취향, 피하고 싶은 것, 더 쓰고 싶은 곳, 꼭 지키고 싶은 것도 들어 있어요.
       </p>
       <p className={`mt-3 ${v31Body}`}>링크를 가진 누구나 답을 읽고 다시 전달할 수 있어요. 비밀번호나 본인 확인은 없고, 이미 보낸 링크는 회수하거나 사용을 막을 수 없어요. 답을 고쳐 새 링크를 만들어도 예전 링크는 그대로 남아요.</p>
       <label className="mt-4 flex min-h-11 cursor-pointer items-start gap-3 rounded-lg border border-paper-outline p-3 focus-within:ring-2 focus-within:ring-[var(--hb-focus-ring)]">
@@ -64,12 +64,12 @@ export default function WeddingCodeV31Sharing({ shareOrigin, first, second, rece
       </label>
       {second ? <label className="mt-2 flex min-h-11 cursor-pointer items-start gap-3 rounded-lg border border-paper-outline p-3 focus-within:ring-2 focus-within:ring-[var(--hb-focus-ring)]">
         <input type="checkbox" checked={partnerConsent} onChange={event => setPartnerConsent(event.target.checked)} className="mt-0.5 size-5 shrink-0 accent-[var(--hb-action)]" />
-        <span className={`text-sm ${v31Title}`}>먼저 답한 사람도 두 사람의 답을 함께 공유하는 데 동의했어요.</span>
+        <span className={`text-sm ${v31Title}`}>먼저 답한 사람에게 두 사람의 답을 함께 링크에 담아 보내도 되는지 물어보고 허락을 받았어요.</span>
       </label> : null}
-      {url ? <CopyLink key={url} url={url} label={second ? "두 사람 결과 링크 복사" : "비교 초대 링크 복사"} inputLabel="답이 담긴 웨딩코드 공유 링크" resultKind={second ? "couple" : "solo"} /> : <p className="mt-3 text-xs leading-relaxed text-[var(--hb-text-muted)]">{mayBuild ? "공유 링크를 만들지 못했어요. 답을 확인해 주세요." : "동의 항목을 확인하면 답이 담긴 링크가 나타나요."}</p>}
+      {url ? <CopyLink key={url} url={url} label={second ? "두 사람 결과 링크 복사" : "비교 초대 링크 복사"} inputLabel="답이 담긴 웨딩코드 공유 링크" resultKind={second ? "couple" : "solo"} /> : <p className="mt-3 text-xs leading-relaxed text-[var(--hb-text-muted)]">{mayBuild ? "공유 링크를 만들지 못했어요. 답을 확인해 주세요." : "동의 항목에 체크하면 답이 담긴 링크가 나타나요."}</p>}
     </details> : <p className={`mt-4 border-t border-[var(--hb-hairline)] pt-4 ${v31Body}`} data-response-share-unavailable>
       {received ? "받은 링크를 열었다고 이 답이 내 것으로 저장되지는 않아요. 다른 사람의 답을 다시 보낼 때는 먼저 그 사람에게 확인해 주세요. 여기서는 답 없는 시작 링크만 제공해요."
-        : second ? "두 사람이 모두 비교할 내용을 답해야 결과 링크를 만들 수 있어요. 모르는 내용이나 건너뛴 내용만으로 결과를 만들지 않아요."
+        : second ? "두 사람 모두 직접 고른 답이 하나라도 있어야 결과 링크를 만들 수 있어요. ‘아직 모르겠어요’나 건너뛴 답만으로는 만들지 않아요."
           : "지금은 공유할 답이 없어요. 원하는 내용에 답한 뒤 결과를 보낼 수 있어요."}
     </p>}
   </section></>;

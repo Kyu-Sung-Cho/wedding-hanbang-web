@@ -34,7 +34,7 @@ describe("ReceiverScreen", () => {
   it("제목과 안내가 copy.ts 의 문구 그대로 순서대로 나온다", async () => {
     await harness.render(<Host />);
     const copy = V40_COPY.receive;
-    const order = [copy.title, copy.lead, V40_COPY.receive.ownAnswersNote, copy.returnStepNote, copy.notice, receiveStorage("on", V40_COUNTS.items), copy.scope, copy.reloadNote];
+    const order = [copy.title, copy.lead, copy.returnStepNote, copy.notice, receiveStorage("on", V40_COUNTS.items), copy.scope];
     let cursor = -1;
     for (const piece of order) {
       const at = text().indexOf(piece);
@@ -62,8 +62,7 @@ describe("ReceiverScreen", () => {
 
   it("상대의 답은 링크 안에 있고 마치기 전에는 화면에 나오지 않는다고 말한다", async () => {
     await harness.render(<Host />);
-    expect(text()).toContain("링크 안에는 상대의 답이 들어 있어요");
-    expect(text()).toContain("내가 마치기 전에는 화면에 나오지 않게 해 뒀어요");
+    expect(text()).toContain("링크 안의 상대 답은 내가 마치기 전에는 화면에 나오지 않아요");
   });
 
   it("상대의 글자, 세기, 답은 어디에도 없다(이 화면은 상대의 답을 받지 않는다)", async () => {
@@ -89,7 +88,10 @@ describe("ReceiverScreen", () => {
 
   it("내 답이 링크를 보내기 전에는 상대에게 가지 않는다고 미리 말한다", async () => {
     await harness.render(<Host />);
-    expect(harness.container.querySelector("[data-receive-own-note]")?.textContent).toBe(V40_COPY.receive.ownAnswersNote);
+    // 별도 문단은 없고 다음 걸음 안내(returnStepNote) 한 문단에 합쳤다.
+    expect(harness.container.querySelector("[data-receive-own-note]")).toBeNull();
+    expect(harness.container.querySelector("[data-receive-return-step]")?.textContent).toBe(V40_COPY.receive.returnStepNote);
+    expect(V40_COPY.receive.returnStepNote).toContain("내 답은 내가 링크를 보내기 전에는 상대에게 가지 않아요.");
   });
 
   describe("저장 문구는 저장 상태를 따른다(꺼져 있거나 막혔는데 저장돼요라고 하지 않는다)", () => {
@@ -149,9 +151,11 @@ describe("ReceiverScreen", () => {
     expect(hasDash(text())).toBe(false);
   });
 
-  it("새로고침하면 상대의 답이 화면에서 사라진다는 안내가 있다", async () => {
+  it("첫 화면에는 새로고침 안내를 두지 않는다(첫 화면에서는 잃는 진행이 없고, 같은 경고를 질문 화면 위 안내와 새로고침 뒤 안내가 한다)", async () => {
     await harness.render(<Host />);
-    expect(harness.container.querySelector("[data-receive-reload]")?.textContent).toBe(V40_COPY.receive.reloadNote);
+    expect(harness.container.querySelector("[data-receive-reload]")).toBeNull();
+    expect(text()).not.toContain(V40_COPY.receive.reloadNote);
+    expect(V40_COPY.question.receivedNote).toContain("새로고침하면 상대의 답이 화면에서 사라져요");
   });
 
   describe("자동 저장", () => {

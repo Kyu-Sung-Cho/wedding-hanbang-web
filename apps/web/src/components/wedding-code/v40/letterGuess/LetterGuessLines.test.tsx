@@ -62,7 +62,7 @@ describe("LetterGuessLines: 줄(lines)", () => {
     const items = [...section.querySelectorAll("li")];
     expect(items.map((item) => item.textContent)).toStrictEqual([LINE_MONEY, LINE_PROCESS, LINE_SUPPORT].map(letterGuessLineText));
     expect(items.map((item) => item.getAttribute("data-letter-guess-axis"))).toStrictEqual(["money", "process", "support"]);
-    expect(items[1].textContent).toBe("준비는 「W 같이 하기」를 먼저 골랐고, 답을 모아 보니 「D 나눠 하기」 쪽으로 답했어요.");
+    expect(items[1].textContent).toBe("준비 주제에서는 결과를 보기 전에 「W 같이 하기」를 골랐는데, 답을 모아 보니 「D 나눠 하기」 쪽으로 답했어요.");
     // 같음 문장은 줄이 있을 때 나오지 않는다.
     expect(textOf(section)).not.toContain(V40_LETTER_GUESS_COPY.lines.same);
     expect(textOf(section)).not.toContain(V40_LETTER_GUESS_COPY.lines.unsettledOnly);
@@ -83,8 +83,8 @@ describe("LetterGuessLines: 줄(lines)", () => {
     const container = await mount(summary);
     const items = [...container.querySelectorAll("li")].map((item) => item.textContent);
     expect(items).toStrictEqual([
-      "돈은 「V 조건 먼저」를 먼저 골랐고, 답을 모아 보니 「S 장면 먼저」 쪽으로 답했어요.",
-      "준비는 「D 나눠 하기」를 먼저 골랐고, 답을 모아 보니 「W 같이 하기」 쪽으로 답했어요.",
+      "돈 주제에서는 결과를 보기 전에 「V 조건 먼저」를 골랐는데, 답을 모아 보니 「S 장면 먼저」 쪽으로 답했어요.",
+      "준비 주제에서는 결과를 보기 전에 「D 나눠 하기」를 골랐는데, 답을 모아 보니 「W 같이 하기」 쪽으로 답했어요.",
     ]);
   });
 });

@@ -56,14 +56,14 @@
   {
     "name": "동의 화면의 만료 삭제 문장이 소개와 달라진다",
     "target": "apps/web/src/app/wedding-code/WeddingCodeV31Connection.tsx",
-    "find": "만료된 내용은 하루 안에 삭제해요.",
-    "replace": "만료된 내용은 삭제해요."
+    "find": "기간이 끝난 내용은 하루 안에 삭제해요.",
+    "replace": "기간이 끝난 내용은 삭제해요."
   },
   {
     "name": "소개의 만료 삭제 문장에서 하루 안에가 빠진다",
     "target": "apps/web/src/app/wedding-code/WeddingCodeV31Client.tsx",
-    "find": "만료된 내용은 하루 안에 삭제해요.",
-    "replace": "만료된 내용은 삭제해요."
+    "find": "기간이 끝난 내용은 하루 안에 삭제해요.",
+    "replace": "기간이 끝난 내용은 삭제해요."
   },
   {
     "name": "소개가 옛 문장(선택한 답을 7일간 서버에 보관)으로 되돌아간다",
@@ -74,7 +74,7 @@
   {
     "name": "소개에서 상대가 이미 읽거나 따로 보관한 내용은 회수할 수 없다는 말이 빠진다",
     "target": "apps/web/src/app/wedding-code/WeddingCodeV31Client.tsx",
-    "find": "지우지만, 상대가 이미 읽거나 따로 보관한 내용은 회수할 수 없어요.",
+    "find": "지우지만, 상대가 이미 읽었거나 따로 저장해 둔 내용은 되돌릴 수 없어요.",
     "replace": "지워요."
   },
   {
@@ -98,8 +98,8 @@
   {
     "name": "공용 기기 안내에서 시작하기 전에가 빠진다",
     "target": "apps/web/src/app/wedding-code/WeddingCodeV31Client.tsx",
-    "find": "공용 기기에서는 시작하기 전에 아래 ‘자동 저장 설정’에서 꺼 주세요.",
-    "replace": "공용 기기에서는 아래 ‘자동 저장 설정’에서 꺼 주세요."
+    "find": "다른 사람과 같이 쓰는 컴퓨터나 휴대폰이라면 시작하기 전에 아래 ‘자동 저장 설정’에서 꺼 주세요.",
+    "replace": "다른 사람과 같이 쓰는 컴퓨터나 휴대폰이라면 아래 ‘자동 저장 설정’에서 꺼 주세요."
   },
   {
     "name": "안내가 가리키는 접힌 칸의 이름이 바뀐다",
@@ -128,14 +128,14 @@
   {
     "name": "소개가 한 페이지에 2개씩이라고 말한다",
     "target": "apps/web/src/app/wedding-code/WeddingCodeV31Client.tsx",
-    "find": "문장은 한 페이지에 최대 3개씩, 나머지는 한 페이지에 하나씩 물어봐요.",
-    "replace": "문장은 한 페이지에 2개씩, 나머지는 한 페이지에 하나씩 물어봐요."
+    "find": "문장은 한 페이지에 최대 3개씩, 취향과 그 밖의 질문은 한 페이지에 하나씩 물어봐요.",
+    "replace": "문장은 한 페이지에 2개씩, 취향과 그 밖의 질문은 한 페이지에 하나씩 물어봐요."
   },
   {
     "name": "선택 질문 수를 코드에서 안 읽고 9개로 적는다",
     "target": "apps/web/src/app/wedding-code/WeddingCodeV31Client.tsx",
-    "find": "결과에서 {V31_EXTRA_INDEXES.length}개 선택 질문",
-    "replace": "결과에서 9개 선택 질문"
+    "find": "결과에서 {V31_EXTRA_INDEXES.length}개 문장",
+    "replace": "결과에서 9개 문장"
   },
   {
     "name": "꼭 지키고 싶은 것 보기 조건이 4점에서 3점으로 넓어진다(소개 문장은 그대로)",
@@ -158,8 +158,8 @@
   {
     "name": "‘?’로 남는다는 설명 문장이 바뀐다",
     "target": "apps/web/src/app/wedding-code/WeddingCodeV31Client.tsx",
-    "find": "네 글자를 정하는 문장을 이렇게 표시하면 그 글자는 ‘?’로 남아요.",
-    "replace": "네 글자를 정하는 문장을 이렇게 표시해도 글자는 그대로예요."
+    "find": "네 글자를 정하는 문장에 그렇게 표시하면 그 글자 하나만 ‘?’로 남고, 나머지 결과는 그대로 나와요.",
+    "replace": "네 글자를 정하는 문장에 그렇게 표시해도 글자는 그대로예요."
   },
   {
     "name": "글자 규칙이 바뀌어 한 문장만 모르겠어요여도 ‘?’가 아니게 된다",
@@ -224,14 +224,14 @@
   {
     "name": "공유 카드 그림 문장이 옛 문장(상대도 답하면)으로 돌아간다",
     "target": "apps/web/src/app/wedding-code/opengraph-image.tsx",
-    "find": "둘 다 답하고 서로 공유하면 두 사람의 답을 나란히 볼 수 있어요",
+    "find": "혼자 해도 결과를 볼 수 있어요. 두 사람의 답을 나란히 보는 것은 내 답을 마친 뒤, 둘 다 답하고 서로 공유했을 때 할 수 있어요.",
     "replace": "상대도 답하면 둘이 고른 답을 나란히 볼 수 있어요"
   },
   {
     "name": "검색·공유 설명이 옛 문장(상대도 답하면)으로 돌아간다",
     "target": "apps/web/src/app/wedding-code/page.tsx",
-    "find": "둘 다 답하고 서로 공유하면 함께 원하는 것",
-    "replace": "상대도 답하면 함께 원하는 것"
+    "find": "둘 다 답하고 서로 공유했을 때 할 수 있어요",
+    "replace": "상대도 답하면 할 수 있어요"
   },
   {
     "name": "화면에 안 보이는 라운지 쪽 소스에 옛 24개 문구가 되돌아온다",
@@ -242,20 +242,20 @@
   {
     "name": "소개 본문에 긴 줄표가 들어간다",
     "target": "apps/web/src/app/wedding-code/WeddingCodeV31Client.tsx",
-    "find": "결혼식 장소, 사진, 옷, 식사, 하객 규모, 식순 같은 취향",
-    "replace": "결혼식 장소 — 사진, 옷, 식사, 하객 규모, 식순 같은 취향"
+    "find": "결혼식 장소, 사진, 옷, 식사, 하객 규모, 식순",
+    "replace": "결혼식 장소 — 사진, 옷, 식사, 하객 규모, 식순"
   },
   {
     "name": "소개 본문에 이 기기라는 말이 들어간다",
     "target": "apps/web/src/app/wedding-code/WeddingCodeV31Client.tsx",
-    "find": "하객 규모, 식순 같은 취향과 돈을 쓰는 기준",
-    "replace": "하객 규모, 식순 같은 이 기기의 취향과 돈을 쓰는 기준"
+    "find": "준비 방식으로는 돈을 쓰는 기준",
+    "replace": "준비 방식으로는 이 기기의 돈을 쓰는 기준"
   },
   {
     "name": "소개에 아니에요가 한 번 더 나온다",
     "target": "apps/web/src/app/wedding-code/WeddingCodeV31Client.tsx",
-    "find": "실제 예산 금액은 묻지 않으니 둘이 직접 정해 주세요.",
-    "replace": "실제 예산 금액은 묻지 않으니 둘이 직접 정해 주세요. 판단이 아니에요."
+    "find": "실제 예산 금액은 묻지 않아요.",
+    "replace": "실제 예산 금액은 묻지 않아요. 판단이 아니에요."
   },
   {
     "name": "소개를 열면 주소의 # 뒤(상대 답)가 지워져 ‘기록에 남을 수 있어요’ 문장이 거짓이 된다",
@@ -332,7 +332,7 @@
   {
     "name": "소개가 방침보다 약한 말(이미 본 내용은 되돌릴 수 없어요)로 돌아간다",
     "target": "apps/web/src/app/wedding-code/WeddingCodeV31Client.tsx",
-    "find": "상대가 이미 읽거나 따로 보관한 내용은 회수할 수 없어요.",
+    "find": "상대가 이미 읽었거나 따로 저장해 둔 내용은 되돌릴 수 없어요.",
     "replace": "상대가 이미 본 내용은 되돌릴 수 없어요."
   },
   {
@@ -344,8 +344,8 @@
   {
     "name": "소개가 한 페이지에 최대 3개씩에서 최대를 뺀다",
     "target": "apps/web/src/app/wedding-code/WeddingCodeV31Client.tsx",
-    "find": "문장은 한 페이지에 최대 3개씩, 나머지는",
-    "replace": "문장은 한 페이지에 3개씩, 나머지는"
+    "find": "문장은 한 페이지에 최대 3개씩, 취향과 그 밖의 질문은",
+    "replace": "문장은 한 페이지에 3개씩, 취향과 그 밖의 질문은"
   },
   {
     "name": "선택 질문 흐름의 문장 묶음이 3, 3, 2가 아니라 4, 4가 된다(기본 흐름은 그대로)",
@@ -356,8 +356,8 @@
   {
     "name": "카드 글자 설명이 옛 말(글자를 하나씩 붙이고)로 돌아간다",
     "target": "apps/web/src/app/wedding-code/WeddingCodeV31Client.tsx",
-    "find": "글자를 하나씩 정하고 문장별 답도 보여줘요",
-    "replace": "글자를 하나씩 붙이고 문장별 답도 보여줘요"
+    "find": "글자를 하나씩 정해요. 주제마다 정해진 두 문장의 답을 쓰고, 문장별 답도 함께 보여줘요",
+    "replace": "글자를 하나씩 붙이고 문장별 답도 함께 보여줘요"
   },
   {
     "name": "소개가 질문 문구와 다른 말(다른 비용을)로 돌아간다",
@@ -374,8 +374,8 @@
   {
     "name": "소개의 ? 설명이 옛 말(네 글자에 쓰이는 문장)로 돌아간다",
     "target": "apps/web/src/app/wedding-code/WeddingCodeV31Client.tsx",
-    "find": "네 글자를 정하는 문장을",
-    "replace": "네 글자에 쓰이는 문장을"
+    "find": "네 글자를 정하는 문장에",
+    "replace": "네 글자에 쓰이는 문장에"
   },
   {
     "name": "받은 링크 줄에서 방문 기록이 그냥 기록이 된다",
@@ -410,13 +410,13 @@
   {
     "name": "[덧붙임] 소개가 새 문장은 둔 채 방침보다 약한 말(상대가 이미 본 내용)을 한 줄 더 한다",
     "target": "apps/web/src/app/wedding-code/WeddingCodeV31Client.tsx",
-    "find": "회수할 수 없어요.",
-    "replace": "회수할 수 없어요. 상대가 이미 본 내용은 되돌릴 수 없어요."
+    "find": "되돌릴 수 없어요.",
+    "replace": "되돌릴 수 없어요. 상대가 이미 본 내용은 되돌릴 수 없어요."
   },
   {
     "name": "[덧붙임] 소개가 새 문장은 둔 채 한 페이지에 3개씩이라는 말을 한 줄 더 한다",
     "target": "apps/web/src/app/wedding-code/WeddingCodeV31Client.tsx",
-    "find": "나머지는 한 페이지에 하나씩 물어봐요. 답을 골라도",
-    "replace": "나머지는 한 페이지에 하나씩 물어봐요. 한 페이지에 3개씩 묶어요. 답을 골라도"
+    "find": "취향과 그 밖의 질문은 한 페이지에 하나씩 물어봐요. 답을 골라도",
+    "replace": "취향과 그 밖의 질문은 한 페이지에 하나씩 물어봐요. 한 페이지에 3개씩 묶어요. 답을 골라도"
   }
 ]

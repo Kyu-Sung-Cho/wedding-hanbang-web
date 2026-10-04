@@ -301,8 +301,8 @@ describe("표본 swua-example: 문서 예시 그대로", () => {
     expect([...harness.container.querySelectorAll("[data-collected-axis]")].map((node) => node.textContent)).toEqual([
       "돈은 남을 장면부터 그려 보는 쪽으로 답했어요.",
       "준비는 같이 하는 쪽으로 답했어요.",
-      "정할 때는 둘이 먼저 정하는 쪽으로 답했어요.",
-      "지친 날에는 마음과 할 일 어느 쪽으로도 크게 기울지 않았어요.",
+      "결정은 둘이 먼저 내리는 쪽으로 답했어요.",
+      "지친 날에는 마음과 할 일 중 어느 쪽으로도 크게 기울지 않았어요.",
     ]);
     const marks = [...harness.container.querySelectorAll("[data-legend-mark]")].map((node) => textOf(node));
     expect(marks).toEqual(["내 글자 S · 기울어요", "내 글자 W · 뚜렷해요", "내 글자 U · 기울어요", "내 글자 A · 반반이에요"]);
@@ -312,7 +312,7 @@ describe("표본 swua-example: 문서 예시 그대로", () => {
     const support = textOf(axisBlock("support"));
     expect(support).toContain("A 할 일 먼저 · 반반이에요");
     expect(support).toContain(
-      "「H 마음 먼저」와 「A 할 일 먼저」 중 어느 쪽으로도 크게 기울지 않았어요. 코드에는 한 글자만 적을 수 있어서 「A 할 일 먼저」를 적었어요.",
+      "이 주제에서는 어느 쪽으로도 크게 기울지 않았어요. 코드에는 한 글자만 적을 수 있어서 「A 할 일 먼저」를 적었어요.",
     );
   });
 });
@@ -418,7 +418,7 @@ describe("지난번과 비교", () => {
     await renderScreen("swua-example", { previous });
     const section = harness.container.querySelector('[data-result-section="history"]')!;
     expect(section.querySelector("h2")?.textContent).toBe(V40_COPY.history.title);
-    expect(textOf(section)).toContain("지난번(9월 29일)과 달라진 글자가 있어요.");
+    expect(textOf(section)).toContain("지난번(9월 29일)과 다르게 나온 글자가 있어요.");
     expect(section.querySelectorAll("[data-history-row]")).toHaveLength(4);
   });
 });
@@ -455,7 +455,7 @@ describe("코드 복사", () => {
     expect(props.onCopyCode).toHaveBeenCalledTimes(1);
     expect(props.onCopyCode).toHaveBeenCalledWith(expected);
     expect(expected).toBe(
-      "웨딩코드 SWUA (S 장면 먼저 · 기울어요, W 같이 하기 · 뚜렷해요, U 둘이 정하기 · 기울어요, A 할 일 먼저 · 반반이에요)",
+      "웨딩코드 SWUA, 이번에 고른 답을 모은 글자예요 (S 장면 먼저 · 기울어요, W 같이 하기 · 뚜렷해요, U 둘이 정하기 · 기울어요, A 할 일 먼저 · 반반이에요)",
     );
     expect(harness.container.querySelector("[data-copy-status]")?.textContent).toBe(V40_COPY.copyCode.copied);
   });

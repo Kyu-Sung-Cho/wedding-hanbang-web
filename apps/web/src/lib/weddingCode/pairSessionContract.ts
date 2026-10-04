@@ -101,7 +101,7 @@ export function createPairSessionKeys(): { roomId: string; ownerToken: string; i
   return { roomId, ownerToken, inviteToken, participantToken, issuedAt };
 }
 export async function requestPairSession(input: PairSessionRequest): Promise<PairSessionResult> {
-  if (!parsePairSessionRequest(input)) return { ok: false, code: "INVALID_REQUEST", error: "비교할 답과 확인 내용을 다시 확인해 주세요." };
+  if (!parsePairSessionRequest(input)) return { ok: false, code: "INVALID_REQUEST", error: "보낸 답이나 동의 항목에 문제가 있어요. 화면에서 다시 확인해 주세요." };
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), PAIR_SESSION_REQUEST_TIMEOUT_MS);
   try {
@@ -113,9 +113,9 @@ export async function requestPairSession(input: PairSessionRequest): Promise<Pai
       error: isPairSessionRecord(value) && typeof value.error === "string" ? value.error : "비교 결과를 불러오지 못했어요. 잠시 후 다시 시도해 주세요." };
     const snapshot = isPairSessionRecord(value) && hasPairSessionKeys(value, ["snapshot"]) ? parsePairSessionSnapshot(value.snapshot) : null;
     if (snapshot && acknowledgesPairSessionRequest(input, snapshot)) return { ok: true, snapshot };
-    return { ok: false, code: "INVALID_RESPONSE", error: "처리 결과를 확인하지 못했어요. 다시 불러와 주세요." };
+    return { ok: false, code: "INVALID_RESPONSE", error: "처리가 끝났는지 확인하지 못했어요. 잠시 후 다시 확인해 주세요." };
   } catch {
-    if (controller.signal.aborted) return { ok: false, code: "TIMEOUT", error: "응답을 기다리는 시간이 지났어요. 같은 화면에서 다시 시도해 주세요." };
+    if (controller.signal.aborted) return { ok: false, code: "TIMEOUT", error: "연결이 너무 오래 걸렸어요. 같은 화면에서 다시 시도해 주세요." };
     return { ok: false, code: "NETWORK_ERROR", error: "연결이 끊겼어요. 같은 화면에서 다시 시도해 주세요." };
   } finally {
     clearTimeout(timeout);

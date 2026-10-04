@@ -245,7 +245,7 @@ describe("탈출구 이름", () => {
     expect(V40_GUESS_COPY.notMineButton).toBe(V40_ESCAPES.notApplicable);
     expect(V40_GUESS_COPY.unsureButton).toBe(V40_ESCAPES.unsure);
     expect(V40_GUESS_COPY.skipButton).toBe("지금은 넘어갈게요");
-    expect(V40_GUESS_COPY.leaveButton).toBe("짐작은 건너뛸게요");
+    expect(V40_GUESS_COPY.leaveButton).toBe("고른 것 없이 나갈게요");
   });
 
   it("누른 뒤 한 줄은 「계산」을 말하지 않고(이 화면에는 계산이 없다) 기존 질문 화면의 같은 문장이 아니다", () => {

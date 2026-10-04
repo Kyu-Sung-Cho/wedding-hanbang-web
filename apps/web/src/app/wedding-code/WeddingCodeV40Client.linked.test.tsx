@@ -111,7 +111,8 @@ describe("웨딩코드 4.0 클라이언트: 받은 링크로 열기", () => {
     expect(screenName(view.container)).toBe("receiver");
     const text = textOf(view.container);
     expect(text).toContain(V40_COPY.receive.title);
-    expect(text).toContain(V40_COPY.receive.reloadNote);
+    // 첫 화면에는 새로고침 안내를 두지 않는다(질문 화면 위 안내와 새로고침 뒤 안내가 같은 경고를 한다).
+    expect(text).not.toContain(V40_COPY.receive.reloadNote);
     expect(text.split(V40_NOT_VALIDATED_PHRASE).length - 1).toBe(1);
     // 상대의 글자, 코드, 답이 화면과 문서 어디에도 없다.
     const senderCode = encodeCode(bank, sender.formBit, sender.responses) ?? "";

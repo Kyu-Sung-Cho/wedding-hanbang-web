@@ -33,8 +33,8 @@ interface CompareRow {
 /**
  * 주제 하나의 꼬리표.
  * 한쪽이라도 글자를 못 정했거나 임시 글자였으면 비교에서 뺀다(excluded).
- * 두 번 모두 기울어요 이상이면 글자가 다를 때 달라졌어요, 같을 때 같은 글자예요.
- * 반반이에요가 낀 주제는 글자가 달라 보여도 달라졌다고 하지 않고 바뀌기 쉬운 주제라고만 적는다.
+ * 두 번 모두 기울어요 이상이면 글자가 다를 때 다르게 나왔어요, 같을 때 같은 글자예요.
+ * 반반이에요가 낀 주제는 글자가 달라 보여도 다르게 나왔다고 하지 않고 반반이라 달라질 수 있다고만 적는다.
  */
 function tagOf(previous: HistoryAxis, current: HistoryAxis): Tag {
   if (previous.letter === null || current.letter === null || previous.provisional || current.provisional) return "excluded";

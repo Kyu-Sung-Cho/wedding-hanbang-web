@@ -151,18 +151,18 @@ describe("v3.1 네 글자 응답 요약", () => {
       // 2026-09-27: ‘?’ 자리는 라벨 한 줄만 두고 근거 줄을 비운다. 답 줄이 고른 답을 이미 보여준다.
       expect(budget.basis).toBeNull();
       if (pending === "not_in_plan") {
-        expect(budget.label).toBe("한 문장이 이번 계획에 없어서 ‘?’를 뒀어요");
+        expect(budget.label).toBe("한 문장이 이번 계획에 없어요");
         // 한 문장만 계획에 없다고 답했으면 주제 전체를 계획에 없다고 답했다고 적지 않는다.
         expect(summary.pendingNotice).toBe("‘예산’ 주제는 한 문장에 ‘이번 계획에는 없어요’로 답해서 ‘?’로 적었어요.");
         expect(summary.pendingNotice).not.toContain("이번 계획에 없다고 답해서");
         expect(summary.pendingNotice).not.toContain("글자가 생겨요");
       } else {
         expect(budget.label).toBe("아직 글자가 없어요");
-        expect(summary.pendingNotice).toBe("‘예산’ 주제는 아직 모르거나 답하지 않은 문장이 있어서 ‘?’로 남겼어요. 그 문장에 동의하는 정도를 고르면 글자가 생겨요.");
+        expect(summary.pendingNotice).toBe("‘예산’ 주제는 아직 모르거나 답하지 않은 문장이 있어서 ‘?’로 남겼어요. 그대로 둬도 괜찮고, 동의하는 정도를 고르면 그때 글자가 생겨요.");
       }
     }
     const both = paired("not_applicable", "not_applicable");
-    expect(buildV31StyleSummary(both).dimensions.every(item => item.label === "이번 계획에 없어서 글자 대신 ‘?’를 뒀어요" && item.pending === "not_in_plan" && item.basis === null)).toBe(true);
+    expect(buildV31StyleSummary(both).dimensions.every(item => item.label === "두 문장 모두 이번 계획에 없어요" && item.pending === "not_in_plan" && item.basis === null)).toBe(true);
     expect(buildV31StyleSummary(both).pendingNotice).toBe("‘예산’, ‘일 나누기’, ‘가족과 상의’, ‘받고 싶은 도움’ 주제는 이번 계획에 없다고 답해서 ‘?’로 적었어요.");
     const stillPlanned = paired("not_applicable", "undecided");
     expect(buildV31StyleSummary(stillPlanned).dimensions[0].pending).toBe("not_in_plan");
@@ -172,7 +172,7 @@ describe("v3.1 네 글자 응답 요약", () => {
     mixed.answers.H2 = "undecided";
     const mixedSummary = buildV31StyleSummary(mixed);
     expect(mixedSummary.code).toBe("?B??");
-    expect(mixedSummary.pendingNotice).toBe("‘가족과 상의’, ‘받고 싶은 도움’ 주제는 아직 모르거나 답하지 않은 문장이 있어서 ‘?’로 남겼어요. 그 문장에 동의하는 정도를 고르면 글자가 생겨요. ‘예산’ 주제는 한 문장에 ‘이번 계획에는 없어요’로 답해서 ‘?’로 적었어요.");
+    expect(mixedSummary.pendingNotice).toBe("‘가족과 상의’, ‘받고 싶은 도움’ 주제는 아직 모르거나 답하지 않은 문장이 있어서 ‘?’로 남겼어요. 그대로 둬도 괜찮고, 동의하는 정도를 고르면 그때 글자가 생겨요. ‘예산’ 주제는 한 문장에 ‘이번 계획에는 없어요’로 답해서 ‘?’로 적었어요.");
     expect(buildV31StyleSummary(paired(5, 1)).pendingNotice).toBeNull();
 
     const empty = buildV31StyleSummary(createV31Draft());
@@ -191,15 +191,15 @@ describe("v3.1 네 글자 응답 요약", () => {
       expect(copy).not.toMatch(/반대|싫어|원하지 않/);
     }
     // 2026-09-27: M·N 자리는 라벨 한 줄만 둔다. 근거 줄이 라벨과 답 줄을 되풀이했다.
-    expect(buildV31StyleSummary(paired(3, 3)).dimensions[0]).toMatchObject({ label: "중간으로 답한 문장이 있어요", basis: null });
-    expect(buildV31StyleSummary(paired(1, 1)).dimensions[0]).toMatchObject({ label: "두 문장 모두 낮게 답했어요", basis: null });
+    expect(buildV31StyleSummary(paired(3, 3)).dimensions[0]).toMatchObject({ label: "‘어느 쪽도 아니에요’로 답한 문장이 있어요", basis: null });
+    expect(buildV31StyleSummary(paired(1, 1)).dimensions[0]).toMatchObject({ label: "두 문장 모두 ‘그렇지 않은 편이에요’나 ‘전혀 그렇지 않아요’로 답했어요", basis: null });
   });
 
   it("글자 뜻 줄은 실제 긍정한 문장만 쓰고 계약·추가 결제·경청 순서를 보존한다", () => {
     const first = buildV31StyleSummary(paired(5, 1));
     expect(first.dimensions.map(item => item.label)).toEqual(V31_STYLE_DIMENSIONS.map(item => item.first.label));
     const second = buildV31StyleSummary(paired(1, 5));
-    expect(second.dimensions[1].label).toBe("계약·추가 결제 없는 세부 선택 맡기기");
+    expect(second.dimensions[1].label).toBe("계약·추가 결제 없는 세부 선택은 맡은 사람이 정해도 괜찮아요");
     const together = buildV31StyleSummary(paired(5, 5));
     expect(together.dimensions[1].label).toBe("함께 찾고, 계약·추가 결제 없는 세부 선택은 맡겨도 괜찮아요");
     expect(together.dimensions[1].basis).not.toContain("두 바람");
@@ -340,7 +340,7 @@ describe("v3.1 아슬한 글자 (한쪽 글자의 한 칸 차이)", () => {
   });
 
   it("코드보다 먼저 보여줄 한 줄은 한 칸 차이로 갈린 글자의 주제를 적고, 다시 답하면 달라질 수 있다는 말은 따로 한 줄이다", () => {
-    expect(V31_STYLE_CHANGE_NOTICE).toBe("다시 답하면 글자가 달라질 수 있어요.");
+    expect(V31_STYLE_CHANGE_NOTICE).toBe("아래 글자는 다시 답하면 달라질 수 있어요.");
     const steady = buildV31StyleSummary(paired(5, 5));
     expect(steady.borderlineCount).toBe(0);
     expect(steady.borderlineNotice).toBeNull();
@@ -547,7 +547,7 @@ describe("v3.1 요약 문장이 실제 글자와 맞는다 (2026-09-27)", () => 
     expect(undecidedSummary.pendingNotice).toBe("‘예산’ 주제는 한 문장에 ‘이번 계획에는 없어요’로 답해서 ‘?’로 적었어요.");
     const mixed = createV31Draft();
     mixed.answers = { B1: "not_applicable", B3: 4, T1: 5, T2: 5, F1: "not_applicable", F2: "not_applicable", H1: "skipped", H2: 5 };
-    expect(buildV31StyleSummary(mixed).pendingNotice).toBe("‘받고 싶은 도움’ 주제는 아직 모르거나 답하지 않은 문장이 있어서 ‘?’로 남겼어요. 그 문장에 동의하는 정도를 고르면 글자가 생겨요. ‘가족과 상의’ 주제는 이번 계획에 없다고 답했고, ‘예산’ 주제는 한 문장에 ‘이번 계획에는 없어요’로 답해서 ‘?’로 적었어요.");
+    expect(buildV31StyleSummary(mixed).pendingNotice).toBe("‘받고 싶은 도움’ 주제는 아직 모르거나 답하지 않은 문장이 있어서 ‘?’로 남겼어요. 그대로 둬도 괜찮고, 동의하는 정도를 고르면 그때 글자가 생겨요. ‘가족과 상의’ 주제는 이번 계획에 없다고 답했고, ‘예산’ 주제는 한 문장에 ‘이번 계획에는 없어요’로 답해서 ‘?’로 적었어요.");
     for (const draft of sampledDrafts(2000)) {
       const summary = buildV31StyleSummary(draft);
       for (const item of summary.dimensions.filter(entry => entry.pending === "not_in_plan")) {

@@ -34,7 +34,7 @@ import * as ref from "./wedding-code-v40-ref.mjs";
 // ---------------------------------------------------------------------------
 
 export const LETTER_NAMES = ["조건 먼저", "장면 먼저", "같이 하기", "나눠 하기", "둘이 정하기", "가족과 정하기", "마음 먼저", "할 일 먼저"];
-export const AXIS_TITLES = ["돈을 정할 때", "준비를 굴릴 때", "함께 정하는 사람", "지쳤을 때"];
+export const AXIS_TITLES = ["돈을 정할 때", "준비를 굴릴 때", "누구와 함께 정할 때", "지쳤을 때"];
 export const ENGLISH_NAMES = ["Verify", "Scene", "With", "Divide", "Us", "Family", "Heart", "Action"];
 export const WRAP_UP_TITLE = "직접 고른 쪽";
 
@@ -60,22 +60,19 @@ export const REACT_END_ACCEPTANCE_TAIL = "고 싶어요";
  */
 export const COST_ECHO_GENERIC_STEMS = ["마음", "우리", "다시", "조금", "그날", "하나", "서로", "상대", "하루", "다른", "나중", "모두", "먼저", "바로", "아주", "지금", "이번", "자꾸"];
 /**
- * R1 에서 다시 쓰지 않은 문항 가운데 이 규칙이 잡는 것들(2026-09-30 실제 은행에서 이 규칙이 낸 목록). 병합 관문(경고 0)을 지키려고 빼 두었을 뿐 고쳐도 된다는 뜻이 아니다.
- * 새로 쓰거나 고친 문항은 이 목록에 넣지 않는다. 문항을 다시 쓰면 그 id 를 여기서 지운다(시험이 「목록의 문항이 아직 잡히는가」와
- * 「목록 밖의 문항은 안 잡히는가」를 함께 본다).
+ * 규칙 cost-repeats-head 의 「아직 안 고친 문항」 예외 목록. R1(2026-09-30)에는 다시 쓰지 않은 열 문항이 있었으나
+ * 2026-10-04 문항 정비로 은행 68문항을 모두 다시 써서 목록이 비었다(예외 없이 검사해도 경고 0). 목록은 비어 있어야 하고,
+ * 새로 걸리는 문항은 id 를 여기 넣어 감추지 말고 문구를 고친다(시험이 목록이 비었음을 본다).
  */
-export const COST_ECHO_LEGACY_ITEMS = [
-  "scope.final.1", "scope.circle.1", "scope.form.2", "scope.form.3", "scope.circle.4",
-  "money.worth.2", "process.owner.3", "support.recover.1", "support.give.2", "support.recover.3",
-];
+export const COST_ECHO_LEGACY_ITEMS = [];
 
 /**
  * 칸 나누기 셋째 항목(값 0)이 쉬기나 미루기로 끝나는 낱말. 값이 0이라도 셋째 항목은 고를 만한 실제 대안이어야 한다:
  * 「쉬기」 「미루기」는 아무도 안 고르는 미끼라 여섯 칸이 앞 극과 뒤 극에만 몰리고, 그 몰림이 극 단서가 된다(WP3, 판정관 수정 q54).
  */
 export const SPLIT_THIRD_REST_PHRASES = ["쉬기", "쉬고", "쉬면서", "쉬어", "쉬는", "쉴 수", "멍하니", "미루", "미뤄", "미룰", "접어 두", "접고", "내려놓", "잠시", "나중에", "손을 떼", "보류", "다른 급한 일", "자리를 비켜"];
-/** R1 에서 다시 쓰지 않은 칸 나누기 문항 가운데 셋째 항목이 위 낱말을 쓰는 것들. COST_ECHO_LEGACY_ITEMS 와 같은 규칙으로 다룬다. */
-export const SPLIT_THIRD_LEGACY_ITEMS = ["money.check.3", "process.detail.2", "scope.timing.2", "scope.final.4", "support.vent.1", "support.give.3"];
+/** 규칙 split-third-decoy 의 「아직 안 고친 문항」 예외 목록. COST_ECHO_LEGACY_ITEMS 와 같은 사정으로 2026-10-04 에 비었고, 비어 있어야 한다. */
+export const SPLIT_THIRD_LEGACY_ITEMS = [];
 
 export const LIMITS = {
   caption: 12,

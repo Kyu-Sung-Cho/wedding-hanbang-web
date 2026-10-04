@@ -60,7 +60,7 @@ describe("본인 결과에서 두 사람 초대 만들기", () => {
     if (share) await click(checkboxes[1]);
     await button("동의하고 초대 만들기");
     expect(fetcher).not.toHaveBeenCalled();
-    expect(container.querySelector('[role="alert"]')?.textContent).toContain("공유할 내용과 나이 확인 항목을 먼저 확인");
+    expect(container.querySelector('[role="alert"]')?.textContent).toContain("만 14세 이상 확인과 공유 동의, 두 칸에 먼저 체크해 주세요");
     expect(container.querySelector('a[href*="/wedding-code/together"]')).toBeNull();
     expect(window.sessionStorage.length).toBe(0);
     expect(readSavedPairSession()).toBeNull();
@@ -93,7 +93,7 @@ describe("본인 결과에서 두 사람 초대 만들기", () => {
     await render(); await consent(); await button("동의하고 초대 만들기");
     const first = request(0);
     vi.mocked(Date.now).mockReturnValue(now + 60_000);
-    await button("초대 만들기 다시 시도");
+    await button("초대 다시 만들기");
     expect(fetcher).toHaveBeenCalledTimes(2);
     expect(request(1)).toEqual(first);
     expect(readSavedPairSession()).toBeNull();
@@ -104,10 +104,10 @@ describe("본인 결과에서 두 사람 초대 만들기", () => {
     const first = request(0);
     vi.mocked(Date.now).mockReturnValue(now + 6 * 60_000);
     fetcher.mockResolvedValueOnce(new Response(JSON.stringify({ code: "CREATE_EXPIRED", error: "새 초대를 만들어 주세요." }), { status: 410 }));
-    await button("초대 만들기 다시 시도");
+    await button("초대 다시 만들기");
     expect(request(1)).toEqual(first);
     expect(container.querySelector('[role="alert"]')?.textContent).toContain("새 초대를 만들어 주세요");
-    await button("초대 만들기 다시 시도");
+    await button("초대 다시 만들기");
     const next = request(2);
     expect(next.roomId).not.toBe(first.roomId);
     expect(next.ownerToken).not.toBe(first.ownerToken);
@@ -128,7 +128,7 @@ describe("본인 결과에서 두 사람 초대 만들기", () => {
     expect(pending.disabled).toBe(true); await click(pending); expect(fetcher).toHaveBeenCalledTimes(1);
     await act(async () => resolve(new Response(JSON.stringify({ code: "UNAVAILABLE", error: "잠시 후 다시 시도해 주세요." }), { status: 503 })));
     expect([...container.querySelectorAll<HTMLInputElement>('input[type="checkbox"]')].every(item => !item.disabled)).toBe(true);
-    await button("초대 만들기 다시 시도"); expect(fetcher).toHaveBeenCalledTimes(2);
+    await button("초대 다시 만들기"); expect(fetcher).toHaveBeenCalledTimes(2);
     expect(request(1)).toEqual(request(0));
   });
 
@@ -147,7 +147,7 @@ describe("본인 결과에서 두 사람 초대 만들기", () => {
     expect(readSavedPairSession()).toBeNull();
     expect(readPairSessionRecovery(input.roomId)).toEqual(recovery);
     await act(async () => root.render(<WeddingCodeComparisonResume />));
-    expect(container.textContent).toContain("완료 여부는 주소를 열어 확인해 주세요");
+    expect(container.textContent).toContain("연결이 잘 됐는지 열어서 확인해 주세요");
     expect(container.textContent).not.toContain("연결한 두 사람 결과 보기");
     const link = container.querySelector<HTMLAnchorElement>("a")!;
     expect(parsePairSessionHash(new URL(link.href).hash)?.token).toBe(input.ownerToken);

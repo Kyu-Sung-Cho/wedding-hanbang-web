@@ -117,7 +117,7 @@ describe("POST /api/wedding-code/session", () => {
     mocks.rpc.mockResolvedValue({ data: null, error: { code: "PT409", message: `${create.ownerToken} ${answerCode}` } });
     const response = await POST(request(body));
     expect(response.status).toBe(409);
-    expect(await response.json()).toEqual({ code: "CONFLICT", error: "이미 참여한 사람이 있거나 비교 내용이 달라졌어요. 새로운 비교를 시작해 주세요." });
+    expect(await response.json()).toEqual({ code: "CONFLICT", error: "이미 다른 사람이 참여했거나 보낸 답이 달라졌어요. 새로 초대를 만들거나, 초대한 사람에게 새 초대를 요청해 주세요." });
     expect(mocks.rpc).toHaveBeenCalledTimes(1);
     expect(response.headers.get("cache-control")).toContain("no-store");
   });

@@ -38,7 +38,7 @@ export default function WeddingCodeV31StyleSummary({ draft, label, onEdit, compa
   onEdit?: EditHandler;
   compact?: boolean;
   /**
-   * 「다시 답하면 글자가 달라질 수 있어요.」를 이 카드에 둘지. 두 사람 카드를 나란히 둘 때는 두 코드에 공통인 이 말을
+   * 「아래 글자는 다시 답하면 달라질 수 있어요.」를 이 카드에 둘지. 두 사람 카드를 나란히 둘 때는 두 코드에 공통인 이 말을
    * 카드 묶음 위에서 한 번만 하므로 끈다.
    */
   showChangeNotice?: boolean;
@@ -77,7 +77,7 @@ export default function WeddingCodeV31StyleSummary({ draft, label, onEdit, compa
         data-borderline={dimension.borderline || undefined}>{dimension.letter}</span>)}</span>
       <span className="sr-only">{`네 글자 코드 ${spokenCode}`}</span>
     </p>
-    <p className={`mt-3 ${v31Body}`} data-topic-order>{summary.dimensions.map(dimension => dimension.topicName).join(", ")} 순서로 주제마다 한 글자씩 붙였어요.</p>
+    <p className={`mt-3 ${v31Body}`} data-topic-order>{summary.dimensions.map(dimension => dimension.topicName).join(", ")} 순서로 왼쪽부터 글자를 하나씩 정했어요.</p>
     {summary.pendingNotice ? <p className={`mt-2 ${v31Body}`} data-pending-notice>{summary.pendingNotice}</p> : null}
     {!compact ? <p className="mt-2 text-xs leading-relaxed text-[var(--hb-text-muted)]">결혼식 취향은 아래에 따로 모았어요.</p> : null}
 

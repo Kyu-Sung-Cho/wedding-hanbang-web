@@ -28,7 +28,7 @@ export const V31_STYLE_DIMENSIONS = [
   {
     key: "teamwork", title: "일을 나눌 때", topicName: "일 나누기",
     first: { id: "T1", letter: "T", englishLabel: "Together", label: "시간을 맞춰 함께 업체 찾아보기" },
-    second: { id: "T2", letter: "D", englishLabel: "Delegate", label: "계약·추가 결제 없는 세부 선택 맡기기" },
+    second: { id: "T2", letter: "D", englishLabel: "Delegate", label: "계약·추가 결제 없는 세부 선택은 맡은 사람이 정해도 괜찮아요" },
   },
   {
     key: "family", title: "가족과 상의할 때", topicName: "가족과 상의",
@@ -103,10 +103,10 @@ export type V31StyleSummary = {
  * 예전 0개일 때의 「지금 글자는 답 하나를 한 칸 옮겨도 그대로예요」는 새 기준에서 거짓이라 쓰지 않는다
  * (예: 4 대 4 의 B 는 아슬하지 않지만 4를 한 칸 내리면 글자가 바뀐다).
  */
-export const V31_STYLE_CHANGE_NOTICE = "다시 답하면 글자가 달라질 수 있어요." as const;
+export const V31_STYLE_CHANGE_NOTICE = "아래 글자는 다시 답하면 달라질 수 있어요." as const;
 
 const BOTH_LABELS: Record<V31StyleKey, string> = {
-  budget: "총액은 지키고 싶고, 늘릴지도 다시 의논하고 싶어요",
+  budget: "전체 예산은 지키고 싶고, 늘릴지도 다시 의논하고 싶어요",
   teamwork: "함께 찾고, 계약·추가 결제 없는 세부 선택은 맡겨도 괜찮아요",
   family: "가족의 바람은 초반에 듣고, 마지막 선택은 둘이 하고 싶어요",
   support: "이야기를 먼저 들어주고, 몰린 일 일부도 맡아주길 바라요",
@@ -208,24 +208,24 @@ function dimension(draft: V31Draft, definition: DimensionDefinition): V31StyleDi
     const both = items.every(item => item.response === "not_applicable");
     return {
       ...base, englishLabel: null, letterFrom: null,
-      label: both ? "이번 계획에 없어서 글자 대신 ‘?’를 뒀어요" : "한 문장이 이번 계획에 없어서 ‘?’를 뒀어요",
+      label: both ? "두 문장 모두 이번 계획에 없어요" : "한 문장이 이번 계획에 없어요",
       basis: null,
     };
   }
   if (pending === "open") return { ...base, englishLabel: null, letterFrom: null, label: "아직 글자가 없어요", basis: null };
   if (letter === "B") return {
     ...base, englishLabel: null, letterFrom: null, label: BOTH_LABELS[definition.key],
-    basis: "두 문장 모두 ‘그런 편’ 이상으로 답했어요.",
+    basis: "두 문장 모두 ‘그런 편이에요’나 ‘매우 그래요’로 답했어요. 어느 쪽이 더 와닿는지는 칠한 칸 수로 견줘 볼 수 있어요.",
   };
   if (letter === definition.first.letter || letter === definition.second.letter) {
     const selected = letter === definition.first.letter ? definition.first : definition.second;
     return {
       ...base, englishLabel: selected.englishLabel, letterFrom: selected.id, label: selected.label,
-      basis: "한 문장에만 ‘그런 편’ 이상으로 답했어요.",
+      basis: "한 문장만 ‘그런 편이에요’나 ‘매우 그래요’로 답했어요.",
     };
   }
-  if (letter === "N") return { ...base, englishLabel: null, letterFrom: null, label: "두 문장 모두 낮게 답했어요", basis: null };
-  return { ...base, englishLabel: null, letterFrom: null, label: "중간으로 답한 문장이 있어요", basis: null };
+  if (letter === "N") return { ...base, englishLabel: null, letterFrom: null, label: "두 문장 모두 ‘그렇지 않은 편이에요’나 ‘전혀 그렇지 않아요’로 답했어요", basis: null };
+  return { ...base, englishLabel: null, letterFrom: null, label: "‘어느 쪽도 아니에요’로 답한 문장이 있어요", basis: null };
 }
 
 function quotedTopics(dimensions: V31StyleDimension[]): string {
@@ -267,7 +267,7 @@ function pendingNotice(dimensions: V31StyleDimension[]): string | null {
   const oneNa = notInPlan.filter(item => !allNa.includes(item));
   const oneNaPart = `${quotedTopics(oneNa)} 주제는 한 문장에 ‘이번 계획에는 없어요’로 답해서 ‘?’로 적었어요.`;
   const sentences = [
-    open.length ? `${quotedTopics(open)} 주제는 아직 모르거나 답하지 않은 문장이 있어서 ‘?’로 남겼어요. 그 문장에 동의하는 정도를 고르면 글자가 생겨요.` : null,
+    open.length ? `${quotedTopics(open)} 주제는 아직 모르거나 답하지 않은 문장이 있어서 ‘?’로 남겼어요. 그대로 둬도 괜찮고, 동의하는 정도를 고르면 그때 글자가 생겨요.` : null,
     allNa.length && oneNa.length ? `${quotedTopics(allNa)} 주제는 이번 계획에 없다고 답했고, ${oneNaPart}`
       : allNa.length ? `${quotedTopics(allNa)} 주제는 이번 계획에 없다고 답해서 ‘?’로 적었어요.`
         : oneNa.length ? oneNaPart : null,

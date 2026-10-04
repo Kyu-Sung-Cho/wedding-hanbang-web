@@ -52,7 +52,7 @@ describe("두 사람 결과 탭", () => {
   function editButtons() { return [...container.querySelectorAll("button")].filter(item => `${item.textContent} ${item.getAttribute("aria-label") ?? ""}`.includes("수정")); }
 
   it("다시 답하면 글자가 달라질 수 있다는 말은 함께 보기에서는 두 카드 위에 한 번, 한 사람 탭에서는 그 카드 안에 한 번 둔다", async () => {
-    const change = "다시 답하면 글자가 달라질 수 있어요.";
+    const change = "아래 글자는 다시 답하면 달라질 수 있어요.";
     await render();
     expect(panel().textContent?.split(change).length).toBe(2);
     expect(panel().querySelector("[data-change-notice]")?.closest("[data-style-summary]")).toBeNull();
@@ -102,13 +102,25 @@ describe("두 사람 결과 탭", () => {
       await click(tab(label));
       expect(codes()).toEqual([code]);
       expect(panel().textContent).toContain(`${label}의 결혼식 취향`);
-      expect(panel().textContent).toContain("누가 본인인지는 확인하지 않으며");
+      expect(panel().textContent).toContain("누가 본인인지는 확인하지 않고");
       expect(editButtons()).toHaveLength(0);
       expect(container.querySelector('[aria-label="선택 질문"]')).toBeNull();
       expect(container.querySelector('input[type="checkbox"]')).toBeNull();
     }
     expect(onEdit).not.toHaveBeenCalled();
     expect(onMore).not.toHaveBeenCalled();
+  });
+
+  it("설명 카드가 없을 때 고른 답을 그대로 정리했다는 안내는 상대 결과 탭에서 주어 없이 이어지고 내 탭에서는 ‘내가’로 읽힌다", async () => {
+    for (const id of Object.keys(first.answers) as (keyof typeof first.answers)[]) first.answers[id] = 2;
+    for (const id of Object.keys(draft.answers) as (keyof typeof draft.answers)[]) draft.answers[id] = 2;
+    await render();
+    await click(tab("상대 결과"));
+    const spaced = (element: HTMLElement) => element.textContent?.replace(/\s+/g, " ") ?? "";
+    expect(spaced(panel())).toContain("아래에 고른 답을 그대로 정리했어요.");
+    expect(spaced(panel())).not.toContain("이 사람이");
+    await click(tab("내 결과"));
+    expect(spaced(panel())).toContain("아래에 내가 고른 답을 그대로 정리했어요.");
   });
 
   it.each([false, true])("received=%s 탭은 방향키·Home·End로 이동하며 포커스와 패널 이름을 함께 바꾼다", async received => {
@@ -192,7 +204,7 @@ describe("두 사람 결과 탭", () => {
     await render();
     await click(tab("상대 결과"));
     const text = panel().textContent ?? "";
-    expect(panel().querySelector('[data-insight="priority-taste.venue"]')?.querySelector("h3")?.textContent).toBe("원하는 장소");
+    expect(panel().querySelector('[data-insight="priority-taste.venue"]')?.querySelector("h3")?.textContent).toBe("장소 취향");
     expect(panel().querySelector('[data-insight="priority-delegate-update"]')).not.toBeNull();
     expect(text).toContain("이 설명에서 우선순위로 고른 것");
     expect(text).not.toContain("내가 원하는");

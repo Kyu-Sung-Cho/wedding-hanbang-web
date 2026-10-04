@@ -157,15 +157,15 @@ describe("웨딩코드 진입 화면", () => {
     container.innerHTML = html;
     const text = container.textContent ?? "";
     expect(text).toContain("기본 14페이지");
-    expect(text).toContain("결과에서 8개 선택 질문");
+    expect(text).toContain("결과에서 8개 문장을 이어서 볼 수 있어요");
     expect(text).toContain("고른 답과 웨딩코드는 답하는 동안 서버나 계정에 보내지 않아요");
     expect(text).toContain("화면 개선을 위해 첫 화면을 열었는지, 몇 번째 장면까지 봤는지, 끝까지 했는지, 답한 장면과 건너뛴 장면의 수 같은 이용 통계만 기록하고, 이 통계에 고른 답·웨딩코드·공유 링크 주소는 넣지 않아요");
     expect(text).toContain("내 답은 이 브라우저에 자동으로 저장돼요. 마지막으로 저장한 날부터 30일 동안 이어 할 수 있어요");
-    expect(text).toContain("공용 기기에서는 시작하기 전에 아래 ‘자동 저장 설정’에서 꺼 주세요");
-    expect(text).toContain("공용 기기에서는");
+    expect(text).toContain("다른 사람과 같이 쓰는 컴퓨터나 휴대폰이라면 시작하기 전에 아래 ‘자동 저장 설정’에서 꺼 주세요");
+    expect(text).toContain("다른 사람과 같이 쓰는 컴퓨터나 휴대폰이라면");
     expect(text).toContain("30일 동안 같은 브라우저");
     expect(text).toContain("결과에서 ‘함께 보기’에 동의하면 내 답 전체를 서버에 보관하고, 초대로 연결된 상대에게 보여줘요. 초대 링크를 먼저 사용한 사람이 상대가 돼요.");
-    expect(text).toContain("상대가 이미 읽거나 따로 보관한 내용은 회수할 수 없어요");
+    expect(text).toContain("상대가 이미 읽었거나 따로 저장해 둔 내용은 되돌릴 수 없어요");
     expect(text).toContain("내 웨딩코드 시작하기");
   });
 
@@ -188,9 +188,9 @@ describe("웨딩코드 진입 화면", () => {
     expect(container.querySelector('aside[aria-label="이 브라우저의 답 저장"] [role="status"]')?.textContent).toBe("잠깐만요, 저장 상태를 확인하고 있어요. 곧 시작할 수 있어요.");
     // 검색에 잡히는 글과 처리방침 링크는 서버 HTML 그대로 있다. 판정이 아니라는 말은 첫 문단에 있다.
     expect(container.querySelector("h1")?.textContent).toContain("나는 어떤 결혼식을");
-    expect(container.querySelector("h1 + p")?.textContent).toContain("성격을 진단하는 검사가 아니에요.");
+    expect(container.querySelector("h1 + p")?.textContent).toContain("성격을 진단하는 검사가 아니고, 아직 여러 사람에게 확인해 보지 못한 질문이에요.");
     expect(container.querySelectorAll('a[href="/privacy"]')).toHaveLength(1);
-    expect(container.querySelector("[data-intro-privacy] > p")?.textContent).toContain("답하는 동안 고른 답은 서버에 보내지 않고, 화면 개선을 위해서는 답을 뺀 이용 통계만 기록해요.");
+    expect(container.querySelector("[data-intro-privacy] > p")?.textContent).toContain("답하는 동안 고른 답은 서버에 보내지 않아요. 화면을 고치는 데 쓸 이용 통계만 기록하고, 이 통계에는 답이 들어 있지 않아요.");
   });
 
   it("명시된 v20 입구의 설명과 개인정보 경계도 유지한다", async () => {
@@ -232,7 +232,7 @@ describe("웨딩코드 진입 화면", () => {
     for (const search of [{}, { v: WEDDING_CODE_V31_VERSION }]) {
       const metadata = await generateMetadata({ searchParams: Promise.resolve(search) });
       const description = String(metadata.description);
-      expect(description).toContain("혼자서도 결과를 볼 수 있고, 둘 다 답하고 서로 공유하면 함께 원하는 것과 먼저 의논할 부분을 나란히 볼 수 있어요.");
+      expect(description).toContain("혼자 해도 결과를 볼 수 있어요. 두 사람의 답을 나란히 보는 것은 내 답을 마친 뒤, 둘 다 답하고 서로 공유했을 때 할 수 있어요.");
       expect(description).not.toContain("상대도 답하면");
       // og·twitter 카드가 같은 설명을 쓴다.
       expect(metadata.openGraph?.description).toBe(description);

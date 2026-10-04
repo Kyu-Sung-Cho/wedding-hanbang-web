@@ -71,9 +71,10 @@ describe("TwoPersonSendBlock: 처음 모양", () => {
     expect(root().querySelectorAll("button")).toHaveLength(1);
   });
 
-  it("안내: 가족과 돈 얘기도 읽힘, 누구나 읽고 전달, 되돌릴 수 없음, 예전 링크는 남음, 공유 창", async () => {
+  it("안내: 누구나 읽고 전달, 되돌릴 수 없음, 예전 링크는 남음, 공유 창(가족과 돈 얘기도 읽힌다는 말은 체크 문장 안에 있다)", async () => {
     await renderBlock();
-    expect(root().textContent).toContain(V40_COPY.coupleSend.sensitiveInfo);
+    expect(V40_COPY.coupleSend.consentAllAnswers).toContain("가족, 돈, 다툰 뒤와 지쳤을 때에 관한 답도 그대로 읽힌다는 걸 알아요");
+    expect(root().textContent).toContain(V40_COPY.coupleSend.consentAllAnswers);
     expect(root().textContent).toContain(V40_COPY.coupleSend.anyoneCanReadInfo);
     expect(root().textContent).toContain(V40_COPY.coupleSend.oldLinksRemainInfo);
     expect(root().textContent).toContain(V40_COPY.send.shareSheetInfo);
@@ -92,9 +93,10 @@ describe("TwoPersonSendBlock: 처음 모양", () => {
     expect(statusText()).toBe(V40_COUPLE_SEND_EXTRA_COPY.sharedSheet);
   });
 
-  it("도움말이 이 링크를 보내야 상대도 두 사람 결과를 볼 수 있다고 말한다", async () => {
+  it("도움말이 이 링크를 보내면 상대도 두 사람 결과를 볼 수 있다고 말하고, 보내지 않아도 된다고 함께 말한다", async () => {
     await renderBlock();
-    expect(V40_COPY.coupleSend.help).toContain("이 링크를 보내야 상대도 두 사람 결과를 볼 수 있어요");
+    expect(V40_COPY.coupleSend.help).toContain("이 링크를 보내면 상대도 두 사람 결과를 볼 수 있어요");
+    expect(V40_COPY.coupleSend.help).toContain("보내지 않아도 돼요");
     expect(root().textContent).toContain(V40_COPY.coupleSend.help);
   });
 

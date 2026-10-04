@@ -42,7 +42,7 @@ describe("웨딩코드 v3.1 네 글자 요약 화면", () => {
     const code = summary.querySelector("[data-code]")!;
     // 「밑줄 친 2개」처럼 눈으로만 알 수 있는 말 대신 주제 이름과 사실(실제로 고른 두 보기, 한 칸 차이)을 적는다.
     expect(notice.textContent).toBe("‘일 나누기’, ‘가족과 상의’ 글자는 두 문장의 답이 ‘그런 편이에요’와 ‘어느 쪽도 아니에요’로 한 칸 차이예요.");
-    expect(summary.querySelector("[data-code-notice]")?.textContent).toBe("‘일 나누기’, ‘가족과 상의’ 글자는 두 문장의 답이 ‘그런 편이에요’와 ‘어느 쪽도 아니에요’로 한 칸 차이예요. 다시 답하면 글자가 달라질 수 있어요.");
+    expect(summary.querySelector("[data-code-notice]")?.textContent).toBe("‘일 나누기’, ‘가족과 상의’ 글자는 두 문장의 답이 ‘그런 편이에요’와 ‘어느 쪽도 아니에요’로 한 칸 차이예요. 아래 글자는 다시 답하면 달라질 수 있어요.");
     expect(notice.compareDocumentPosition(code) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     // 안내가 적은 주제 이름은 실제로 표시한 줄과 같다.
     const tagged = [...summary.querySelectorAll("[data-summary-topic]")].filter(row => row.querySelector("[data-borderline-tag]"));
@@ -188,7 +188,7 @@ describe("웨딩코드 v3.1 네 글자 요약 화면", () => {
       expect(summary.hasAttribute("aria-label")).toBe(false);
       const order = ["[data-borderline-notice]", "[data-change-notice]", "[data-code]", "[data-topic-order]", "[data-summary-topic]"].map(selector => summary.querySelector(selector)!);
       expect(order.every(Boolean), String(label)).toBe(true);
-      expect(summary.querySelector("[data-topic-order]")?.textContent).toBe("예산, 일 나누기, 가족과 상의, 받고 싶은 도움 순서로 주제마다 한 글자씩 붙였어요.");
+      expect(summary.querySelector("[data-topic-order]")?.textContent).toBe("예산, 일 나누기, 가족과 상의, 받고 싶은 도움 순서로 왼쪽부터 글자를 하나씩 정했어요.");
       expect(headings[0]!.compareDocumentPosition(order[0]) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
       for (let index = 1; index < order.length; index += 1) {
         expect(order[index - 1].compareDocumentPosition(order[index]) & Node.DOCUMENT_POSITION_FOLLOWING, `${index}`).toBeTruthy();
@@ -205,11 +205,11 @@ describe("웨딩코드 v3.1 네 글자 요약 화면", () => {
     expect(summary.getAttribute("data-style-summary")).toBe("?B?B");
     const family = summary.querySelector('[data-summary-topic="family"]')!;
     expect(family.getAttribute("data-pending")).toBe("not_in_plan");
-    expect(family.querySelector("[data-letter-meaning]")?.textContent).toBe("이번 계획에 없어서 글자 대신 ‘?’를 뒀어요");
+    expect(family.querySelector("[data-letter-meaning]")?.textContent).toBe("두 문장 모두 이번 계획에 없어요");
     expect(family.querySelector('[role="img"]')).toBeNull();
     expect(summary.querySelector('[data-summary-topic="budget"]')?.getAttribute("data-pending")).toBe("open");
     const notice = summary.querySelector("[data-pending-notice]")!.textContent!;
-    expect(notice).toBe("‘예산’ 주제는 아직 모르거나 답하지 않은 문장이 있어서 ‘?’로 남겼어요. 그 문장에 동의하는 정도를 고르면 글자가 생겨요. ‘가족과 상의’ 주제는 이번 계획에 없다고 답해서 ‘?’로 적었어요.");
+    expect(notice).toBe("‘예산’ 주제는 아직 모르거나 답하지 않은 문장이 있어서 ‘?’로 남겼어요. 그대로 둬도 괜찮고, 동의하는 정도를 고르면 그때 글자가 생겨요. ‘가족과 상의’ 주제는 이번 계획에 없다고 답해서 ‘?’로 적었어요.");
     expect(summary.textContent).not.toContain("요약 보류");
     expect(summary.textContent).not.toContain("확인해 주세요");
 

@@ -270,7 +270,7 @@ describe("GuessSetFlow", () => {
       expect(radios().filter((radio) => radio.getAttribute("aria-checked") === "true")).toHaveLength(2);
     });
 
-    it("모든 장면 화면에 이전, 다음, 짐작은 건너뛸게요가 있다(번호는 없다)", async () => {
+    it("모든 장면 화면에 이전, 다음, 고른 것 없이 나갈게요가 있다(번호는 없다)", async () => {
       await mount();
       await start();
       for (let scene = 0; scene < 6; scene += 1) {
@@ -314,7 +314,7 @@ describe("GuessSetFlow", () => {
       expect(done.slots.map((slot) => [nullable(slot.self), nullable(slot.guess)])).toEqual([[0, 1], [1, 0], [null, null], [0, null], [null, null], [1, 1]]);
     });
 
-    it("짐작은 건너뛸게요: 첫 화면에서도 장면 화면에서도 고른 것을 버리고 나간다(onDone 은 부르지 않는다)", async () => {
+    it("고른 것 없이 나갈게요: 첫 화면에서도 장면 화면에서도 고른 것을 버리고 나간다(onDone 은 부르지 않는다)", async () => {
       const { onDone, onLeave } = await mount();
       await click(nav("leave"));
       expect(onLeave).toHaveBeenCalledTimes(1);

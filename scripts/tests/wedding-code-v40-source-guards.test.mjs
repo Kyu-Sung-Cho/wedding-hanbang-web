@@ -1663,7 +1663,8 @@ const ENGINE_FREEZE = [
   ["apps/web/src/lib/weddingCode/v40/states.ts", "8ddf7154bf03d6334cafdfefd2a5b9a0add561542610d8cca4278f9c00c8ced6"],
   ["apps/web/src/lib/weddingCode/v40/layout.ts", "182d744d747feb635467a6234e2280e5ad447e2258bbcd410b0bba91c27da03d"],
   ["apps/web/src/lib/weddingCode/v40/bank.ts", "efe582c81685449918c05e74ee1122f0a71aa310afb3288a71c7c0debddca3d2"],
-  ["apps/web/src/constants/weddingCodeV40Bank.ts", "23b567abc754cccb35a652f0b08ec0f490fc3613b35c0d868a8e15cf7139aed4"],
+  // 2026-10-04 문항 정비: 은행 68문항의 문구를 모두 다시 써서 해시를 새 값으로 고쳤다. 판 태그(v4.0-tendency)는 올리지 않는다(극, 세기, 키, 개수, 순서는 그대로이고 V4 링크가 나간 적이 없다).
+  ["apps/web/src/constants/weddingCodeV40Bank.ts", "c7c7e7766691cfff0ef05f7596c8ceea0e049943bd50730a69af15ae53974718"],
   ["scripts/lib/wedding-code-v40-ref.mjs", "003a17b5d3260b8b850ab26bf88db23c2f0098de420a655a8d20d5abb6f14a62"],
 ];
 
@@ -2314,7 +2315,7 @@ test("검사기가 실제로 잡는다: 낱말, 글자, 줄표, 라벨", () => {
   hit('export const x = <p>Accurate result</p>;', claim, "영어 주장", "영어 accurate");
   hit('export const x = <p aria-label="Your score">x</p>;', claim, "영어 주장", "영어 score");
   hit('export const x = "결과 validated 표시";', claim, "영어 주장", "한국어에 섞인 영어 validated");
-  assert.deepEqual(recs('export const x = "Verify: 조건을 따져 봐요"; export const y = "upgrade";').flatMap(claim), [], "정상 영어 낱말을 잡았다");
+  assert.deepEqual(recs('export const x = "Verify: 조건을 맞춰 봐요"; export const y = "upgrade";').flatMap(claim), [], "정상 영어 낱말을 잡았다");
 
   hit('export const x = "글자 B 는 둘 다예요";', letterHits, "B", "상태 글자 B");
   hit('export const x = "B";', letterHits, "B", "글자 하나짜리 B");

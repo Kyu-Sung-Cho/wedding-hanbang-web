@@ -46,7 +46,8 @@ const sha256 = (value: unknown): string => createHash("sha256").update(JSON.stri
  * 이 세트는 아직 어두운 진입 뒤에서만 열려 나간 링크가 없으므로, 나가기 전의 고침은 같은 글자에서 표를 다시 맞춰도 된다(출시 뒤에는 그렇지 않다).
  */
 const PINNED_MEANING_SHA256: Readonly<Record<string, string>> = {
-  "1": "873639f796797e07e226e9ed2ea7dd933a4a2ea19e2abeeeb18c1fd8d066cacf",
+  // 2026-10-04 문항 점검(장면 여덟 줄 고침)으로 같은 글자 "1" 에서 표를 다시 맞췄다. 이 세트로 나간 링크가 없다(파운더 밖으로 나간 적 없음).
+  "1": "2b3b86dc016683d32f2b20fae78a381c40f75cc6739308e501ee4a32ee42432e",
 };
 
 function keysOf(value: unknown, prefix = "", out: string[] = []): string[] {

@@ -121,7 +121,7 @@ export function getV31PriorityOptions(draft: V31Draft): V31Option[] {
     ...WEDDING_CODE_V31_TASTES.filter((taste) => draft.tastes[taste.key]?.status === "answered")
       .map((taste) => ({ value: `taste.${taste.key}`, label: `${taste.title}: ${v31ChoiceLabels(draft.tastes[taste.key], taste.options).join(" · ")}` })),
     ...WEDDING_CODE_V31_AVOIDANCES.filter((option) => draft.avoidances?.status === "answered" && draft.avoidances.values.includes(option.value))
-      .map((option) => ({ value: `avoid.${option.value}`, label: `피하기: ${option.label}` })),
+      .map((option) => ({ value: `avoid.${option.value}`, label: `피하고 싶은 것: ${option.label}` })),
   ];
 }
 export function normalizeV31Draft(draft: V31Draft): V31Draft {
@@ -274,46 +274,46 @@ const BUDGET_REVISIT_BOUNDARY = "실제로 늘릴지는 이야기해 본 뒤 둘
  * body 에 「~라고 답했어요」를 다시 쓰지 않는다. body 는 답을 넘겨짚기 쉬운 곳에만 한 문장으로 둔다.
  */
 const SINGLE_READINGS: Record<V31QuestionId, { title: string; body?: string; nextStep: string }> = {
-  V1: { title: "꽃 장식이 있는 장면을 떠올리고 있어요", nextStep: "마음에 드는 공간 사진에서 꽃을 꼭 두고 싶은 곳을 짚어보세요. 기본 장식과 추가 장식의 비용도 나눠 확인해 보세요." },
-  G1: { title: "초대할 때 가까운 관계를 먼저 생각해요", nextStep: "꼭 함께하고 싶은 사람부터 적어보세요. 두 사람의 명단을 합친 뒤 원하는 장소에 들어갈 수 있는지 확인해 보세요." },
+  V1: { title: "꽃 장식이 풍성한 공간에서 식을 올리고 싶어요", nextStep: "마음에 드는 공간 사진에서 꽃이 어느 정도면 좋은지, 꼭 두고 싶은 곳은 어디인지 짚어 보세요. 기본 장식과 추가 장식의 비용도 나눠 확인해 보세요." },
+  G1: { title: "초대 명단은 가깝게 지내는 사람 위주였으면 좋겠어요", nextStep: "꼭 함께하고 싶은 사람부터 적어 보세요. 두 사람의 명단에 가족이 초대하고 싶은 분까지 합친 뒤, 원하는 장소에 들어갈 수 있는지 확인해 보세요." },
   G2: { title: "자주 못 만났던 사람도 함께했으면 해요", nextStep: "생각나는 사람을 적고, 어떤 방식으로 소식을 전할지 정해 보세요." },
-  G3: { title: "하객이 오는 길을 먼저 살펴보고 싶어요", nextStep: "하객이 주로 오는 지역에서 후보 장소까지 걸리는 시간을 비교해 보세요. 대중교통, 주차, 이동에 도움이 필요한 사람도 함께 살펴보세요." },
-  R3: { title: "그날은 평소보다 눈에 띄는 옷을 원해요", nextStep: "원하는 옷 사진에서 색, 모양, 소재 중 어떤 점이 좋은지 짚어보세요." },
-  R4: { title: "예식 옷은 움직임부터 확인하고 싶어요", nextStep: "입어볼 때 앉기, 걷기, 팔 들기를 해보세요. 당일 옷을 입고 있어야 할 시간도 함께 생각해 보세요." },
+  G3: { title: "하객이 오가기 편한 곳을 우선하고 싶어요", nextStep: "하객이 주로 오는 지역에서 후보 장소까지 걸리는 시간을 비교해 보세요. 대중교통, 주차, 이동에 도움이 필요한 사람도 함께 살펴보세요." },
+  R3: { title: "그날은 하객들 사이에서도 눈에 띄는 옷을 원해요", nextStep: "원하는 옷 사진에서 색, 모양, 소재 중 어떤 점이 좋은지 짚어 보세요." },
+  R4: { title: "예식 옷은 움직임부터 확인하고 싶어요", nextStep: "입어볼 때 앉기, 걷기, 팔 들기를 해 보세요. 당일 옷을 입고 있어야 할 시간도 함께 생각해 보세요." },
   B1: { title: "처음 정한 전체 예산을 지키고 싶어요", nextStep: "둘이 쓸 수 있는 전체 금액을 먼저 확인하고, 견적에 포함된 비용과 나중에 붙는 비용을 합쳐 비교해 보세요." },
-  B2: { title: "더 원하는 곳에는 다른 비용을 줄여 쓰고 싶어요", nextStep: "더 쓰고 싶은 곳과 줄여도 되는 곳을 하나씩 고르고, 실제 견적에서 옮길 수 있는 금액을 확인해 보세요." },
-  B3: { title: "새로 원하는 것이 생기면 예산도 다시 의논하고 싶어요", body: BUDGET_REVISIT_BOUNDARY, nextStep: "어떤 경우에 예산을 다시 이야기할지 정해 보세요. 늘리는 금액과 부담할 방법은 그때 따로 확인해야 해요." },
+  B2: { title: "다른 비용을 줄여서라도 더 원하는 곳에 쓰고 싶어요", nextStep: "더 쓰고 싶은 곳과 줄여도 되는 곳을 하나씩 고르고, 실제 견적에서 옮길 수 있는 금액을 확인해 보세요." },
+  B3: { title: "새로 원하는 것이 생기면 예산도 다시 의논하고 싶어요", body: BUDGET_REVISIT_BOUNDARY, nextStep: "어떤 경우에 예산을 다시 이야기할지 정해 보세요. 늘릴지, 늘린다면 얼마를 어떻게 마련할지는 그때 함께 확인해요." },
   B4: { title: "처음부터 항목별 금액을 나눠두고 싶어요", nextStep: "장소, 식사, 촬영, 옷처럼 준비할 항목을 적고 각각의 한도를 정해 보세요. 견적을 받은 뒤 다시 볼 시점도 정해 두면 좋아요." },
   D1: { title: "마음을 정하기 전에 다른 후보도 보고 싶어요", nextStep: "비교할 조건과 살펴볼 후보 수를 먼저 정해 보세요. 각 후보의 같은 항목을 놓고 비교하면 차이를 보기 쉬워요." },
-  D2: { title: "정한 조건에 맞으면 선택하고 싶어요", nextStep: "꼭 맞아야 하는 조건과 달라도 괜찮은 조건을 나눠 적어보세요. 결정 전에 확인할 계약 내용은 따로 챙겨보세요." },
-  D3: { title: "장소는 직접 보고 고르고 싶어요", nextStep: "방문할 수 있는 날짜를 확인하고, 식을 올릴 곳과 기다리는 곳, 식사할 곳에서 보고 싶은 점을 적어가세요." },
-  T1: { title: "알아보는 시간도 둘이 함께 보내고 싶어요", nextStep: "이번 주에 함께 볼 항목 하나와 시간을 정해 보세요. 각자 먼저 알아올 내용이 있는지도 나눠보세요." },
-  T2: { title: "일부 세부 선택은 맡은 사람이 정해도 괜찮아요", nextStep: "혼자 정해도 되는 일의 예를 하나씩 들고, 함께 확인해야 할 선택은 따로 적어보세요." },
-  T3: { title: "따로 맡은 일도 중간에 소식을 나누고 싶어요", nextStep: "매번 알려줄지, 정한 시간에 모아서 이야기할지 맞춰보세요. 서로에게 편한 방법을 확인하는 게 먼저예요." },
+  D2: { title: "정한 조건에 맞으면 선택하고 싶어요", nextStep: "꼭 맞아야 하는 조건과 달라도 괜찮은 조건을 나눠 적어 보세요. 결정 전에 확인할 계약 내용은 따로 챙겨 보세요." },
+  D3: { title: "장소는 직접 보고 고르고 싶어요", nextStep: "방문할 수 있는 날짜를 확인하고, 식을 올릴 곳과 대기실, 식사할 곳에서 보고 싶은 점을 적어 가세요." },
+  T1: { title: "업체를 알아볼 때는 시간을 맞춰 둘이 같이 찾아보고 싶어요", nextStep: "함께 볼 항목 하나와 시간을 정해 보세요. 각자 먼저 알아올 내용이 있는지도 나눠 보세요." },
+  T2: { title: "일부 세부 선택은 맡은 사람이 정해도 괜찮아요", nextStep: "혼자 정해도 되는 일의 예를 하나씩 들고, 함께 확인해야 할 선택은 따로 적어 보세요." },
+  T3: { title: "따로 맡은 일도 어디까지 했는지 서로 알려주면 좋겠어요", nextStep: "매번 알려줄지, 정한 시간에 모아서 이야기할지 맞춰 보세요. 서로에게 편한 방법을 확인하는 게 먼저예요." },
   T4: { title: "시작 전에 누가 맡을지 정하고 싶어요", nextStep: "다음에 할 일마다 담당과 마칠 시점을 정해 보세요. 맡은 일이 버거워지면 다시 나누기로 약속해도 좋아요." },
   F1: { title: "가족의 바람은 초반에 들어보고 싶어요", nextStep: "가족에게 먼저 여쭤볼 내용을 정리해 보세요. 아직 결정하지 않은 것과 이미 둘이 정한 것을 나눠 말하면 좋아요." },
-  F2: { title: "의견이 달라도 마지막 선택은 둘이 하고 싶어요", nextStep: "가족에게 의견을 구할 내용과 둘이 결정할 내용을 나눠보세요. 다른 의견을 들었을 때 어떻게 설명할지도 함께 생각해 보세요." },
-  F3: { title: "가족에게 묻기 전에 둘의 생각부터 맞추고 싶어요", nextStep: "서로 원하는 것과 아직 정하지 못한 것을 적어보세요. 둘이 같은 말로 설명할 수 있는지 확인해 보세요." },
-  F4: { title: "각자 자기 가족에게 먼저 이야기하면 좋겠어요", nextStep: "먼저 대화할 사람과 전할 내용을 정하고, 둘이 함께 이야기할 필요가 있는 경우도 나눠보세요." },
+  F2: { title: "의견이 달라도 마지막 선택은 둘이 하고 싶어요", nextStep: "가족에게 의견을 구할 내용과 둘이 결정할 내용을 나눠 보세요. 다른 의견을 들었을 때 어떻게 설명할지도 함께 생각해 보세요." },
+  F3: { title: "가족에게 묻기 전에 둘의 생각부터 맞추고 싶어요", nextStep: "서로 원하는 것과 아직 정하지 못한 것을 적어 보세요. 둘이 같은 말로 설명할 수 있는지 확인해 보세요." },
+  F4: { title: "각자 자기 가족에게 먼저 이야기하면 좋겠어요", nextStep: "먼저 대화할 사람과 전할 내용을 정하고, 둘이 함께 이야기할 필요가 있는 경우도 나눠 보세요." },
   H1: { title: "힘들다고 말할 때는 이야기를 먼저 들어주길 바라요", nextStep: "지금은 들어주면 좋은지, 함께 해결해 주면 좋은지를 말해 보세요. 상대가 필요로 하는 반응도 물어보세요." },
   H2: { title: "일이 몰리면 일부를 나눠 맡아주길 바라요", nextStep: "지금 넘길 수 있는 일 하나를 골라 부탁해 보세요. 상대가 맡을 수 있는 범위와 마칠 시점을 함께 확인해 보세요." },
-  H3: { title: "막힐 때는 다음 한 가지를 같이 정하고 싶어요", nextStep: "지금 막힌 일을 말하고, 바로 할 수 있는 한 가지부터 같이 골라보세요. 누가 맡을지는 그다음에 정해도 괜찮아요." },
-  H4: { title: "의견이 부딪히면 잠깐 쉬고 다시 말하고 싶어요", nextStep: "쉬고 싶다는 말과 다시 이야기할 시점을 함께 정해 두세요. 쉬는 시간이 상대에게 어떻게 느껴지는지도 들어보세요." },
+  H3: { title: "막힐 때는 다음 한 가지를 같이 정하고 싶어요", nextStep: "지금 막힌 일을 말하고, 바로 할 수 있는 한 가지부터 같이 골라 보세요. 누가 맡을지는 그다음에 정해도 괜찮아요." },
+  H4: { title: "의견이 부딪히면 잠깐 쉬고 다시 말하고 싶어요", nextStep: "쉬고 싶다는 말과 다시 이야기할 시점을 함께 정해 두세요. 쉬는 시간이 상대에게 어떻게 느껴지는지도 들어 보세요." },
 };
 /**
  * 피하고 싶은 것은 설명 카드를 따로 만들지 않는다. 같은 화면의 '피하고 싶은 것' 영역이 고른 보기를 이미 보여주므로,
  * 다음 행동만 그 영역의 해당 줄에 붙인다. 우선순위로 고른 것만 같은 문장으로 안내 카드를 만든다.
  */
 const AVOIDANCE_COPY: Record<string, { title: string; nextStep: string }> = {
-  heavy_decoration: { title: "꽃과 장식이 빼곡한 공간은 피하고 싶어요", nextStep: "좋아하는 장식 사진과 부담스러운 사진을 나란히 놓고, 장식의 양과 위치를 짚어보세요." },
-  crowded_space: { title: "사람이 붐비는 공간은 피하고 싶어요", nextStep: "예상 인원이 들어왔을 때 좌석 간격과 이동 동선이 넉넉한지 확인해 보세요." },
-  long_photography: { title: "사진 촬영이 오래 이어지는 건 피하고 싶어요", nextStep: "촬영에 쓸 수 있는 시간을 정하고, 꼭 남길 장면부터 촬영 담당자와 이야기해 보세요." },
-  stage_participation: { title: "하객을 무대로 부르는 순서는 피하고 싶어요", nextStep: "하객이 자리에서 함께하는 순서와 무대에 올라오는 순서를 나눠 보고, 원하지 않는 방식은 진행자에게 미리 알려 주세요." },
+  heavy_decoration: { title: "꽃과 장식이 아주 많은 공간은 피하고 싶어요", nextStep: "좋아하는 장식 사진과 부담스러운 사진을 나란히 놓고, 장식의 양과 위치를 짚어 보세요." },
+  crowded_space: { title: "사람이 아주 많이 모인 공간은 피하고 싶어요", nextStep: "예상 인원이 들어왔을 때 좌석 간격과 이동 동선이 넉넉한지 확인해 보세요." },
+  long_photography: { title: "시간이 많이 드는 사진 촬영은 피하고 싶어요", nextStep: "촬영에 쓸 수 있는 시간을 정하고, 꼭 남길 장면부터 촬영 담당자와 이야기해 보세요." },
+  stage_participation: { title: "하객을 무대로 부르는 순서는 피하고 싶어요", nextStep: "하객이 자리에서 함께하는 순서와 무대에 올라오는 순서를 나눠 보고, 원하지 않는 방식은 사회자에게 미리 알려 주세요." },
   loud_music: { title: "큰 음악 소리는 피하고 싶어요", nextStep: "실제 공간에서 음악 크기를 확인하고, 조절을 부탁할 사람과 방법을 정해 보세요." },
 };
 function avoidanceNextStep(draft: V31Draft, value: string): string {
   // 하객 없이 둘만 하는 예식에서는 하객 순서를 진행자에게 알리라는 안내가 맞지 않는다.
-  if (value === "stage_participation" && wantsNoGuests(draft)) return "하객 없이 둘만 하는 예식도 골랐어요. 다른 날의 행사나 바뀔 수 있는 상황도 떠올린 건지 이야기해 보세요.";
+  if (value === "stage_participation" && wantsNoGuests(draft)) return "하객 없이 둘만 하는 예식도 골랐어요. 이 항목은 지금 계획에는 해당하지 않을 수 있어요. 다른 날의 행사나 나중에 바뀔 수 있는 상황을 떠올렸다면 이야기해 보세요.";
   return AVOIDANCE_COPY[value].nextStep;
 }
 /**
@@ -324,8 +324,8 @@ const TASTE_NEXT_STEPS: Record<V31TasteKey, string> = {
   venue: "후보 공간을 볼 때 꼭 필요한 조건을 먼저 적어 가세요.",
   photo: "꼭 남기고 싶은 장면을 몇 개 골라 두세요.",
   attire: "마음에 드는 옷 사진을 모아 두세요.",
-  meal: "함께 식사할 사람에게 필요한 조건도 확인해 보세요.",
-  guests: "실제로 초대할 사람과 장소에 들어갈 인원은 따로 확인해 보세요.",
+  meal: "함께 식사할 분들 중 알레르기나 먹지 못하는 음식, 어르신 식사처럼 챙길 조건이 있는지 확인해 보세요.",
+  guests: "실제로 초대할 사람(가족이 초대할 분 포함)과 장소에 들어갈 인원은 따로 확인해 보세요.",
   ceremony: "넣고 싶은 순서를 고른 뒤 전체 길이를 정해 보세요.",
 };
 function tasteNextStep(draft: V31Draft, key: V31TasteKey): string | null {
@@ -342,7 +342,7 @@ function directTasteInsight(draft: V31Draft, key: V31TasteKey): V31Insight | nul
   const nextStep = tasteNextStep(draft, key);
   if (!nextStep) return null;
   // 상대 결과 탭에서도 같은 카드가 나오므로 제목에 ‘내가’를 넣지 않는다.
-  return { id: `direct-${key}`, title: `원하는 ${taste.title}`, evidence: [tasteEvidence(draft, key)], nextStep };
+  return { id: `direct-${key}`, title: `${taste.title} 취향`, evidence: [tasteEvidence(draft, key)], nextStep };
 }
 function wantsNoGuests(draft: V31Draft): boolean {
   return draft.tastes.guests?.status === "answered" && draft.tastes.guests.values.includes("no_guests");
@@ -350,7 +350,7 @@ function wantsNoGuests(draft: V31Draft): boolean {
 function singleInsight(draft: V31Draft, question: V31Question): V31Insight {
   const insight = { id: `single-${question.id}`, ...SINGLE_READINGS[question.id], evidence: [evidence(draft, question.id)] };
   if (!wantsNoGuests(draft) || question.topic !== "guests") return insight;
-  return { ...insight, evidence: [...insight.evidence, tasteEvidence(draft, "guests")], nextStep: "하객 없이 둘만 하는 예식도 골랐어요. 이 문장과 하객 규모에 답할 때 서로 다른 상황을 떠올렸는지 이야기해 보세요." };
+  return { ...insight, evidence: [...insight.evidence, tasteEvidence(draft, "guests")], nextStep: "하객 없이 둘만 하는 예식도 골랐어요. 이 문장과 하객 규모에 답할 때 서로 다른 상황을 떠올렸는지 이야기해 보세요. 두 답 모두 그대로 둬도 괜찮아요." };
 }
 /** 피하고 싶은 것을 우선순위로 골랐을 때만 쓰는 안내 카드. */
 function avoidanceInsight(draft: V31Draft, option: V31Option): V31Insight {
@@ -402,10 +402,10 @@ function priorityGuides(draft: V31Draft, insights: V31Insight[]): V31Insight[] {
 const COMBINATIONS: readonly { id: string; items: readonly V31QuestionId[]; title: string; body?: string; nextStep: string }[] = [
   { id: "attire-comfort", items: ["R3", "R4"], title: "눈에 띄는 옷도 편하게 입고 싶어요", nextStep: "마음에 드는 옷을 입고 앉거나 걸어보며 편한지 확인해 보세요." },
   { id: "budget-reallocate", items: ["B1", "B2"], title: "예산 안에서 원하는 항목에 더 쓰고 싶어요", nextStep: "더 쓰고 싶은 한 항목과 줄여도 되는 한 항목을 직접 정해 보세요." },
-  { id: "budget-revisit", items: ["B1", "B3"], title: "예산을 다시 이야기할 경우도 정해 두면 좋겠어요", body: BUDGET_REVISIT_BOUNDARY, nextStep: "어떤 경우에만 총액을 다시 의논할지 함께 정해 보세요." },
-  { id: "decision-conditions", items: ["D1", "D2"], title: "비교를 마칠 기준을 정해 보면 좋겠어요", nextStep: "어디까지 비교할지, 어떤 조건이면 선택할지 직접 정해 보세요." },
-  { id: "delegate-update", items: ["T2", "T3"], title: "세부 선택을 맡겨도, 진행 상황은 알고 싶어요", nextStep: "중간에 알려줄 시점과 반드시 함께 결정할 범위를 나눠보세요." },
-  { id: "family-listen-decide", items: ["F1", "F2"], title: "가족의 바람을 듣고, 선택은 둘이 하고 싶어요", nextStep: "가족과 상의할 내용과 둘이 최종 선택할 내용을 나눠보세요." },
+  { id: "budget-revisit", items: ["B1", "B3"], title: "전체 예산은 지키고 싶고, 다시 의논할 길도 열어 두고 싶어요", body: BUDGET_REVISIT_BOUNDARY, nextStep: "어떤 경우에 전체 예산을 다시 의논할지 함께 정해 보세요." },
+  { id: "decision-conditions", items: ["D1", "D2"], title: "다른 후보도 더 보고 싶고, 조건에 맞으면 그때 고르고 싶어요", nextStep: "어디까지 비교할지, 어떤 조건이면 선택할지 직접 정해 보세요." },
+  { id: "delegate-update", items: ["T2", "T3"], title: "세부 선택을 맡겨도, 진행 상황은 알고 싶어요", nextStep: "중간에 알려줄 시점과 반드시 함께 결정할 범위를 나눠 보세요." },
+  { id: "family-listen-decide", items: ["F1", "F2"], title: "가족의 바람을 듣고, 선택은 둘이 하고 싶어요", nextStep: "가족과 상의할 내용과 둘이 최종 선택할 내용을 나눠 보세요." },
   { id: "support-listen-help", items: ["H1", "H2"], title: "이야기를 먼저 들어주고, 내 일의 일부도 맡아주길 바라요", nextStep: "이야기를 먼저 들어주면 좋은 때와, 내 일의 일부도 맡아주면 좋은 때를 말해 보세요. 상대가 맡을 수 있는 범위도 함께 확인해 보세요." },
 ];
 
@@ -421,7 +421,7 @@ function buildInsights(draft: V31Draft): V31Insight[] {
     insights.push({
       id: "budget-explicit-spending", title: "전체 예산 안에서 더 쓰고 싶은 곳이 있어요",
       evidence: [evidence(draft, "B1"), { id: "spending", text: "다른 곳의 비용을 줄여서라도 더 쓰고 싶은 곳", answer: labels.join(" · ") }],
-      nextStep: "더 쓸 항목과 줄여도 되는 항목의 견적을 같은 총액 안에서 비교해 보세요.",
+      nextStep: "더 쓸 항목과 줄여도 되는 항목의 견적을 같은 전체 예산 안에서 비교해 보세요.",
     });
   }
   // 취향 하나, 피하고 싶은 것 하나만으로는 설명 카드를 만들지 않는다(같은 화면의 취향·피하고 싶은 것 영역과 같은 말이다).
@@ -430,13 +430,13 @@ function buildInsights(draft: V31Draft): V31Insight[] {
   const avoidsStage = draft.avoidances?.status === "answered" && draft.avoidances.values.includes("stage_participation");
   if (draft.avoidances?.status === "answered") {
     if (high("V1") && draft.avoidances.values.includes("heavy_decoration")) insights.push({
-      id: "flower-amount", title: "좋아하는 꽃 장식의 정도를 정해 보면 좋겠어요", body: "꽃을 둘 곳과 비워 둘 곳을 나누면 두 답을 함께 살릴 수 있어요.", evidence: [evidence(draft, "V1"), avoidanceEvidence(draft)],
+      id: "flower-amount", title: "꽃 장식은 풍성하게 원하면서, 장식이 아주 많은 공간은 피하고 싶어요", body: "꽃을 둘 곳과 비워 둘 곳을 나누면 두 답을 함께 살릴 수 있어요.", evidence: [evidence(draft, "V1"), avoidanceEvidence(draft)],
       nextStep: "꽃을 꼭 두고 싶은 자리 한두 곳을 먼저 정해 보세요. 기본 장식에 들어가는 꽃의 양도 함께 확인해 보세요.",
     });
     if (participatory && avoidsStage) insights.push({
-      id: "participation-format", title: "하객이 함께하는 방식은 따로 정하면 돼요", body: "무대로 부르지 않고 자리에서 함께하는 방식도 있어요.",
+      id: "participation-format", title: "하객이 함께하는 방식과 무대 참여는 따로 정해 볼 수 있어요", body: "무대로 부르지 않고 자리에서 함께하는 방식도 있어요.",
       evidence: [tasteEvidence(draft, "ceremony"), avoidanceEvidence(draft), ...(wantsNoGuests(draft) ? [tasteEvidence(draft, "guests")] : [])],
-      nextStep: wantsNoGuests(draft) ? "하객 없이 둘만 하는 예식도 골랐어요. 참여 순서는 예식과 다른 날을 떠올린 건지, 생각해 두고 싶은 가능성인지 이야기해 보세요. 두 답 모두 그대로 둬도 괜찮아요." : "진행자와 순서를 정할 때 참여 여부를 하객이 선택할 수 있는지도 확인해 보세요.",
+      nextStep: wantsNoGuests(draft) ? "하객 없이 둘만 하는 예식도 골랐어요. 하객 참여 순서는 예식이 아닌 다른 날을 떠올린 건지, 나중에 바뀔 수도 있다고 생각한 건지 이야기해 보세요. 두 답 모두 그대로 둬도 괜찮아요." : "사회자와 순서를 정할 때 참여 여부를 하객이 선택할 수 있는지도 확인해 보세요.",
     });
   }
   // 둘만 하는 예식과 하객 참여 순서를 함께 골랐다. 무대 참여를 피하는 답도 있으면 participation-format 이 같은 이야기를 한다.
@@ -542,32 +542,32 @@ function choiceOverlap(first: V31Choice | undefined, second: V31Choice | undefin
   };
 }
 const TASTE_FOLLOW_UP: Record<V31TasteKey, string> = {
-  venue: "서로 원하는 공간의 후보와 꼭 필요한 조건을 함께 골라보세요. 둘의 중간이 정답일 필요는 없어요.",
-  photo: "각자 남기고 싶은 장면을 골라보고, 함께 담을 수 있는지 살펴보세요.",
+  venue: "각자 원하는 공간의 후보와 꼭 필요한 조건을 말해 보고, 함께 골라 보세요.",
+  photo: "각자 남기고 싶은 장면을 골라 보고, 함께 담을 수 있는지 살펴보세요.",
   attire: "각자 입고 싶은 옷을 고르고, 함께 맞추고 싶은 부분만 의논해 보세요.",
-  meal: "원하는 식사 방식의 후보를 살펴보고, 함께 식사할 사람에게 필요한 조건도 확인해 보세요.",
-  guests: "이 답은 바라는 규모예요. 실제 초대할 사람과 장소의 수용 인원은 따로 확인해 보세요.",
+  meal: "원하는 식사 방식의 후보를 살펴보고, 알레르기나 먹지 못하는 음식이 있는 분이 있는지도 확인해 보세요.",
+  guests: "이 답은 바라는 규모예요. 각자 꼭 부르고 싶은 사람을 먼저 적고 가족이 초대할 분까지 합쳐 센 뒤, 장소의 수용 인원과 맞춰 보세요.",
   ceremony: "각자 넣고 싶은 순서를 고르고, 전체 길이와 진행 방법을 함께 정해 보세요.",
 };
 const NEUTRAL_FOLLOW_UP: Record<V31QuestionId, string> = {
   V1: "공간의 장식은 어느 정도면 좋을까요? 각자 마음에 드는 공간 사진을 보며 이야기해 보세요.",
-  G1: "초대할 사람을 어떤 기준으로 정하고 싶은지 각자 이야기해 보세요.",
+  G1: "초대할 사람은 어떤 기준으로 정하고 싶은가요? 각자 떠오르는 사람부터 말해 보세요.",
   G2: "자주 만나지 못했던 지인을 초대할지는 어떤 기준으로 정하면 좋을까요?",
-  G3: "장소를 고를 때 이동 시간과 다른 조건을 어떻게 함께 볼지 이야기해 보세요.",
-  R3: "예식에 입고 싶은 옷 사진을 각자 골라보고, 마음에 드는 부분을 이야기해 보세요.",
-  R4: "옷을 고를 때 가장 먼저 확인하고 싶은 것은 무엇인지 각자 이야기해 보세요.",
-  B1: "전체 예산을 유지하고 싶은 경우와 다시 의논하고 싶은 경우를 각각 이야기해 보세요.",
-  B2: "항목 사이의 비용을 옮기고 싶은지, 옮긴다면 어떤 조건이면 괜찮을지 이야기해 보세요.",
-  B3: "어떤 상황에서 전체 예산을 다시 의논할 수 있을지 각자 생각을 나눠보세요.",
-  B4: "항목별 금액을 언제 정하고 어느 정도까지 정해 둘지 이야기해 보세요.",
-  D1: "후보를 더 비교하고 싶은 경우와 비교를 끝내고 싶은 경우를 각자 이야기해 보세요.",
-  D2: "어떤 조건이 맞으면 선택할 수 있을지, 더 확인할 것이 있는지 이야기해 보세요.",
-  D3: "예식장을 고르기 전에 무엇을 어떤 방식으로 확인하고 싶은지 이야기해 보세요.",
+  G3: "장소를 고를 때 이동 시간과 다른 조건을 어떻게 함께 볼까요?",
+  R3: "예식에 입고 싶은 옷 사진을 각자 골라 보고, 마음에 드는 부분을 이야기해 보세요.",
+  R4: "옷을 고를 때 가장 먼저 확인하고 싶은 것은 무엇인가요? 각자 말해 보세요.",
+  B1: "전체 예산을 그대로 지키고 싶은 때와 다시 의논하고 싶은 때는 각각 언제인가요?",
+  B2: "항목 사이에 비용을 옮기고 싶은가요? 옮긴다면 어떤 조건이면 괜찮을까요?",
+  B3: "어떤 상황이면 전체 예산을 다시 의논할 수 있을까요? 각자 생각을 나눠 보세요.",
+  B4: "항목별 금액은 언제, 어느 정도까지 정해 둘까요?",
+  D1: "후보를 더 비교하고 싶은 때와 비교를 끝내고 싶은 때는 각각 언제인가요?",
+  D2: "어떤 조건이 맞으면 선택할 수 있을까요? 더 확인할 것도 있나요?",
+  D3: "예식 장소를 고르기 전에 무엇을 어떤 방식으로 확인하고 싶은지 이야기해 보세요.",
   T1: "같은 시간에 함께 찾아볼 일과 각자 알아볼 일을 어떻게 나누면 편할까요?",
   T2: "맡아서 정해도 되는 세부 내용과 함께 선택할 내용을 각각 이야기해 보세요.",
   T3: "진행 상황을 어느 시점에 어떤 방식으로 나누면 편할지 이야기해 보세요.",
   T4: "담당을 언제 정하고, 하던 일이 어려워지면 어떻게 다시 나눌지 이야기해 보세요.",
-  F1: "가족의 의견은 언제, 어떤 내용부터 들어보면 좋을지 이야기해 보세요.",
+  F1: "가족의 의견은 언제, 어떤 내용부터 들어 보면 좋을까요?",
   F2: "가족과 상의할 내용과 마지막에 결정할 사람을 어떻게 정할지 이야기해 보세요.",
   F3: "둘이 생각을 맞추는 일과 가족에게 의견을 묻는 일의 순서를 이야기해 보세요.",
   F4: "가족과 상의할 때 누가 대화를 시작하고 누가 함께하면 좋을지 이야기해 보세요.",
@@ -579,37 +579,39 @@ const NEUTRAL_FOLLOW_UP: Record<V31QuestionId, string> = {
 /** 둘 다 바라는 도움은 서로에게 바라는 요구라, 둘이 한꺼번에 힘들 때 누가 먼저 해줄지를 묻는다. */
 const SHARED_REQUEST_FOLLOW_UP: Partial<Record<V31QuestionId, string>> = {
   H1: "둘이 한꺼번에 지쳤을 때는 누가 먼저 이야기를 들어줄 수 있을까요? 들어줄 여유가 없는 날은 어떻게 알릴지도 정해 보세요.",
-  H2: "둘 다 일이 몰렸을 때는 누가 먼저 일을 나눠 받을 수 있을까요? 지금 넘길 수 있는 일부터 하나씩 적어보세요.",
+  H2: "둘 다 일이 몰렸을 때는 누가 먼저 일을 나눠 받을 수 있을까요? 지금 넘길 수 있는 일부터 하나씩 적어 보세요.",
 };
 function questionFollowUp(question: V31Question, kind: V31PairItem["kind"]): string {
   if (kind === "unavailable") return "아직 모르거나 계획에 없거나 답하지 않은 내용은 차이로 보지 않아요. 이 이야기가 지금 필요한지부터 확인해 보세요.";
-  if (kind === "shared_distance") return `이 문장에는 두 사람 모두 가깝지 않다고 답했어요. ${NEUTRAL_FOLLOW_UP[question.id]}`;
+  if (kind === "shared_distance") return `이 문장에는 두 사람 모두 ‘그렇지 않은 편이에요’나 ‘전혀 그렇지 않아요’로 답했어요. ${NEUTRAL_FOLLOW_UP[question.id]}`;
   if (kind === "shared_request") return SHARED_REQUEST_FOLLOW_UP[question.id] ?? `${question.followUp} 둘 다 바라는 것이라 누가 먼저 해줄 수 있을지도 이야기해 보세요.`;
   const followUp = kind === "shared_wish" ? question.followUp : NEUTRAL_FOLLOW_UP[question.id];
   // 둘이 같은 방식을 원한다고 답한 도움(H3·H4 함께 동의)에는 서로 해줄 여유를 묻지 않는다.
-  return question.topic === "support" && kind !== "shared_wish" ? `${followUp} 서로 해줄 수 있는 방식과 여유도 이야기해 보세요.` : followUp;
+  return question.topic === "support" && kind !== "shared_wish" ? `${followUp} 서로 맞출 수 있는 방식과 여유도 이야기해 보세요.` : followUp;
 }
-function choiceFollowUp(kind: V31PairItem["kind"], followUp: string): string {
-  if (kind === "unavailable") return "아직 모름, 계획 없음, 지금 답하지 않음, 맞는 보기 없음은 서로 다른 답이에요. 보기가 맞지 않았다면 어떤 생각이 빠져 있었는지 이야기해 보세요. 비교할 구체 선택이 없다는 이유만으로 의견 차이로 보지는 않아요.";
-  if (kind === "middle") return "두 사람 모두 특정 보기를 고르지는 않았어요. 실제 후보나 준비 상황이 생기면 다시 이야기해 보세요.";
+function choiceFollowUp(kind: V31PairItem["kind"], followUp: string, context?: "priorities"): string {
+  // 우선순위 화면에는 ‘이번 계획에는 없어요’·‘지금 답하지 않을게요’·‘맞는 보기가 없어요’ 버튼이 없다. 누르지 않은 버튼 이름을 인용하지 않고 그 화면의 이름을 쓴다.
+  if (kind === "unavailable" && context === "priorities") return `‘${V31_PRIORITY_UNDECIDED_LABEL}’와 ‘${V31_PRIORITY_SKIPPED_LABEL}’는 서로 다른 답이에요. 말하고 싶은 사람은 보기에 없던 생각을 들려주면 돼요. 비교할 답이 없을 뿐, 의견이 다르다고 보지는 않아요.`;
+  if (kind === "unavailable") return "‘아직 모르겠어요’, ‘이번 계획에는 없어요’, ‘지금 답하지 않을게요’, ‘맞는 보기가 없어요’는 서로 다른 답이에요. 말하고 싶은 사람은 보기에 없던 생각을 들려주면 돼요. 비교할 답이 없을 뿐, 의견이 다르다고 보지는 않아요.";
+  if (kind === "middle") return "두 사람 모두 꼭 지키고 싶은 것을 따로 고르지 않았어요. 실제 후보를 보다가 놓치기 싫은 게 생기면 그때 이야기해 보세요.";
   // 열린 답을 합의나 모름으로 읽지 않게 하는 것은 문장이 아니라 배치가 맡는다(‘열어 두고 있는 답’ 묶음, 모름은 따로 접는 묶음).
-  if (kind === "open_preference") return "구체적으로 고른 답이 있다면 그 후보부터 함께 살펴보세요.";
+  if (kind === "open_preference") return "구체적으로 고른 것이 있다면 그것부터 함께 살펴보세요.";
   return followUp;
 }
 const SPENDING_FOLLOW_UP = {
   // 둘 다 더 쓸 곳을 골랐을 때는 '지금은 없음' 이야기를 꺼내지 않는다.
   answered: "더 쓰고 싶은 곳마다 대신 줄일 수 있는 곳과 실제 금액을 함께 정해 보세요. 전체 예산을 늘릴지는 따로 정해요.",
   // 한쪽만 '지금 없음'이면 차이 묶음이 아니라 열린 답 묶음에 둔다. 반대 의견으로 읽지 않게 하는 것은 그 배치가 맡는다.
-  open: "고른 사람에게 왜 그곳에 더 쓰고 싶은지 들어보고, 대신 줄일 곳과 실제 금액을 함께 정해 보세요. 전체 예산을 늘릴지는 따로 정해요.",
+  open: "고른 사람은 어떤 점이 좋아서 더 쓰고 싶은지, 다른 사람은 그 부분을 어떻게 보는지 서로 들어 보고, 대신 줄일 곳과 실제 금액을 함께 정해 보세요. 전체 예산을 늘릴지는 따로 정해요.",
   middle: "두 사람 모두 지금은 더 쓰고 싶은 곳이 없다고 답했어요. 실제 견적을 보고 생각이 바뀌면 다시 이야기해 보세요.",
 } as const;
 const AVOIDANCE_FOLLOW_UP: Partial<Record<V31PairItem["kind"], string>> = {
   middle: "두 사람 모두 지금은 따로 피하고 싶은 것이 없다고 답했어요. 실제 공간이나 순서를 보다가 불편한 점이 생기면 이야기해 보세요.",
-  open_preference: "한 사람은 따로 피하고 싶은 것이 없다고 했어요. 고른 사람에게 그것이 어떤 장면에서 부담스러운지 실제 예시로 들어보세요.",
-  shared_avoidance: "실제 공간이나 순서를 볼 때 어느 정도까지 괜찮은지 각자 기준을 말해 보세요.",
-  partial_overlap: "둘 다 고른 것은 후보를 볼 때 먼저 확인하고, 한 사람만 고른 것은 어느 정도까지 괜찮은지 실제 예시로 이야기해 보세요.",
+  open_preference: "한 사람은 따로 피하고 싶은 것이 없다고 했어요. 고른 사람은 어떤 장면이 부담스러운지, 없다고 한 사람은 어떻게 보는지 서로 들어 보세요.",
+  shared_avoidance: "실제 공간이나 순서를 볼 때 각자 어떤 점이 가장 신경 쓰이는지, 어떻게 하면 편할지 이야기해 보세요.",
+  partial_overlap: "둘 다 고른 것은 후보를 볼 때 먼저 확인하고, 한 사람만 고른 것은 어떤 장면이 부담스러운지와 어떻게 하면 편할지 들어 보세요.",
   // 판정 고지는 결과 머리글에서 한 번만 한다. 고르지 않은 쪽을 그 방식을 원하는 사람으로 읽지 않게, 물어볼 일로 적는다.
-  different: "각자 피하고 싶은 상황과 괜찮은 정도를 실제 예시로 이야기해 보세요. 고르지 않은 쪽에게는 그 방식이 괜찮은지 따로 물어보세요.",
+  different: "각자 어떤 장면이 부담스러운지와 어떻게 하면 편할지 이야기해 보세요. 고르지 않은 쪽에게는 그 방식이 괜찮은지 따로 물어보세요.",
 };
 export function compareV31(firstInput: V31Draft, secondInput: V31Draft): V31PairItem[] {
   const first = normalizeV31Draft(firstInput);
@@ -634,9 +636,9 @@ export function compareV31(firstInput: V31Draft, secondInput: V31Draft): V31Pair
     const followUp = taste.key === "guests" && (wantsNoGuests(first) || wantsNoGuests(second))
       ? wantsNoGuests(first) && wantsNoGuests(second)
         ? "둘만 하는 예식에서 남기고 싶은 순간과 진행 순서를 이야기해 보세요. 후보 장소에서 둘만의 예식이 가능한지도 확인해 보세요."
-        : "한 사람은 하객 없이 둘만 하는 예식을 골랐어요. 각자 떠올린 예식의 모습을 이야기하고, 초대 여부와 규모부터 맞춰보세요."
+        : "한 사람은 하객 없이 둘만 하는 예식을 골랐어요. 각자 떠올린 예식의 모습을 이야기하고, 초대 여부와 규모부터 맞춰 보세요."
       : taste.key === "ceremony" && [first, second].some(person => wantsNoGuests(person) && person.tastes.ceremony?.status === "answered" && person.tastes.ceremony.values.includes("participatory"))
-        ? "하객 없이 둘만 하는 예식과 하객 참여 순서를 함께 고른 답이 있어요. 서로 다른 날이나 상황을 떠올린 것인지 먼저 이야기해 보세요. 어느 답도 틀린 것으로 정하지 않아요."
+        ? "하객 없이 둘만 하는 예식과 하객 참여 순서를 함께 고른 답이 있어요. 서로 다른 날이나 상황을 떠올린 것인지 먼저 이야기해 보세요. 두 답 모두 그대로 둬도 괜찮아요."
         : TASTE_FOLLOW_UP[taste.key];
     items.push({
       id: `taste.${taste.key}`, title: taste.question,
@@ -678,8 +680,8 @@ export function compareV31(firstInput: V31Draft, secondInput: V31Draft): V31Pair
     first: firstPriorityLabels.join(" · "), second: secondPriorityLabels.join(" · "),
     kind: resolvedPriorityKind, isPriority: false,
     followUp: resolvedPriorityKind === "open_preference"
-      ? "한 사람은 꼭 지키고 싶은 게 따로 없다고 했어요. 고른 사람에게 그 기준을 왜 지키고 싶은지 들어보세요."
-      : choiceFollowUp(resolvedPriorityKind, "각자 고른 기준을 왜 지키고 싶은지 이야기해 보세요. 적힌 순서는 고른 순서예요."),
+      ? "한 사람은 꼭 지키고 싶은 게 따로 없다고 했어요. 고른 사람은 그 기준을 지키고 싶은 마음을, 없다고 한 사람은 어떻게 생각하는지 서로 들어 보세요."
+      : choiceFollowUp(resolvedPriorityKind, "각자 고른 기준을 왜 지키고 싶은지 이야기해 보세요. 적힌 순서는 고른 순서예요.", "priorities"),
   });
   // 종류 안에서는 한 사람이라도 우선순위로 고른 항목을 먼저, 나머지는 질문 순서대로 둔다(안정 정렬).
   return items.sort((a, b) => Number(b.isPriority) - Number(a.isPriority));

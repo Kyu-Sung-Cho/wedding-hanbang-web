@@ -58,7 +58,7 @@ describe("LastTimeCompare", () => {
     expect(harness.container.querySelector("[data-quote-item]")).toBeNull();
   });
 
-  it("두 번 모두 기울어요 이상인데 글자가 다르면 달라졌어요를 붙이고 바뀐 글자를 한 줄씩 적는다", async () => {
+  it("두 번 모두 기울어요 이상인데 글자가 다르면 다르게 나왔어요를 붙이고 다르게 나온 글자를 한 줄씩 적는다", async () => {
     const previous = entryWith([axisOf("V", "lean"), axisOf("W", "clear"), axisOf("F", "clear"), axisOf("H", "lean")]);
     await harness.render(<LastTimeCompare result={swua()} previous={previous} />);
     expect(row("money").getAttribute("data-history-tag")).toBe("changed");
@@ -66,10 +66,10 @@ describe("LastTimeCompare", () => {
     expect(row("scope").getAttribute("data-history-tag")).toBe("changed");
     const lines = [...harness.container.querySelectorAll("[data-history-changed]")].map((node) => node.textContent);
     expect(lines).toEqual([
-      "돈을 정할 때는 「V 조건 먼저」에서 「S 장면 먼저」로 바뀌었어요.",
-      "함께 정하는 사람은 「F 가족과 정하기」에서 「U 둘이 정하기」로 바뀌었어요.",
+      "돈을 정할 때는 지난번 「V 조건 먼저」, 이번 「S 장면 먼저」로 나왔어요.",
+      "누구와 함께 정할 때는 지난번 「F 가족과 정하기」, 이번 「U 둘이 정하기」로 나왔어요.",
     ]);
-    expect(textOf(harness.container)).toContain("지난번(9월 29일)과 달라진 글자가 있어요.");
+    expect(textOf(harness.container)).toContain("지난번(9월 29일)과 다르게 나온 글자가 있어요.");
   });
 
   it("두 번 모두 기울어요 이상이고 글자가 같으면 같은 글자예요, 달라졌다고 하지 않는다", async () => {
@@ -78,7 +78,7 @@ describe("LastTimeCompare", () => {
     expect(row("money").getAttribute("data-history-tag")).toBe("same");
     expect(textOf(row("money"))).toContain(V40_COPY.history.sameTag);
     expect(harness.container.querySelector("[data-history-changed]")).toBeNull();
-    expect(textOf(harness.container)).toContain("두 번 모두 뚜렷하거나 기울었는데 글자가 달라진 주제는 없어요.");
+    expect(textOf(harness.container)).toContain("두 번 모두 뚜렷해요나 기울어요로 나온 주제 가운데 글자가 달라진 곳은 없어요.");
     expect(textOf(harness.container)).not.toContain("글자가 같아요");
   });
 

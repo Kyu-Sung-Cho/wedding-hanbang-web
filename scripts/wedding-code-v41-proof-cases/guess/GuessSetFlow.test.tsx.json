@@ -12,7 +12,7 @@
     "replace": "onChoose={(option) => patch(sceneIndex, { self: option === 0 ? 0 : option === 1 ? 1 : null })}"
   },
   {
-    "name": "짐작은 건너뛸게요가 고른 것을 넘김",
+    "name": "고른 것 없이 나갈게요가 고른 것을 넘김",
     "target": "apps/web/src/components/wedding-code/v40/guess/GuessSetFlow.tsx",
     "find": "    onLeave();",
     "replace": "    onDone(answersFrom(picks));\n    onLeave();"

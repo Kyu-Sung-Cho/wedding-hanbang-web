@@ -185,8 +185,8 @@ export function pairView(formBit: FormBit): PairView {
 }
 
 const SELF_CARD_TEXTS = [
-  "돈이 걸린 결정에서 총액, 한도, 계약 조건 같은 숫자를 먼저 맞춰 보고 정해요.",
-  "돈이 걸린 결정에서 결혼식이 끝난 뒤 남을 장면과 분위기를 먼저 그려 보고 정해요.",
+  "돈이 걸린 결정에서 총액과 계약 조건 같은 숫자를 먼저 맞춰 보고, 돈 쓸 곳은 결혼 뒤 생활 쪽에 둬요.",
+  "돈이 걸린 결정에서 결혼하는 날이 지난 뒤에도 남을 장면과 분위기를 먼저 그려 보고, 돈 쓸 곳은 그날 쪽에 둬요.",
 ] as const;
 
 export function selfView(formBit: FormBit): SelfView {

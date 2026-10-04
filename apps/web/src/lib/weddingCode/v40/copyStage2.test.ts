@@ -144,15 +144,15 @@ describe("단계 2 문구: 저장 낱말과 단정형", () => {
   });
 
   it("다시 하기와 저장 지우기 확인 창이 먼저 고른 글자도 함께 지워진다고 말하고, 두 문장은 서로 다르다", () => {
-    const restart = sentencesOf(V40_COPY.manage.restart.confirmBody).filter((sentence) => sentence.includes("먼저 고른 글자"));
-    const clear = sentencesOf(V40_COPY.manage.clear.confirmBody).filter((sentence) => sentence.includes("먼저 고른 글자"));
+    const restart = sentencesOf(V40_COPY.manage.restart.confirmBody).filter((sentence) => sentence.includes("결과를 보기 전에 고른 글자"));
+    const clear = sentencesOf(V40_COPY.manage.clear.confirmBody).filter((sentence) => sentence.includes("결과를 보기 전에 고른 글자"));
     expect(restart).toHaveLength(1);
     expect(clear).toHaveLength(1);
     expect(restart[0]).toMatch(/함께 지워져요\.$/u);
     expect(clear[0]).toMatch(/함께 지워져요\.$/u);
     expect(restart[0]).not.toBe(clear[0]);
     // 같은 결과 화면 묶음에 있으므로 한 문장이 두 번 나오지 않아야 한다(기존 문장은 그대로다).
-    expect(V40_COPY.manage.restart.confirmBody).toContain("지난번과 비교하는 데 쓰는 결과 글자와 세기는 그대로 남아요.");
+    expect(V40_COPY.manage.restart.confirmBody).toContain("지난번과 비교하는 데 쓰는 결과 글자와 그 옆 표시는 그대로 남아요.");
     expect(V40_COPY.manage.clear.confirmBody).toContain("저장된 답과 지난번 비교용 기록이 지워져요.");
   });
 });

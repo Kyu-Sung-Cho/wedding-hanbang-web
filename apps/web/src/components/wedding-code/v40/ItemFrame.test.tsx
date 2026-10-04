@@ -60,9 +60,9 @@ describe("ItemFrame", () => {
     await renderFrame(view, null);
     expect(harness.container.querySelector("#q1-hint")).toBeNull();
 
-    await renderFrame(view, null, vi.fn(), "더 나 같은 쪽을 골라 주세요. 얼마나 가까운지도 함께 눌러요.");
+    await renderFrame(view, null, vi.fn(), "고른 쪽이 얼마나 가까운지도 함께 눌러 주세요.");
     const hint = harness.container.querySelector("#q1-hint");
-    expect(hint?.textContent).toBe("더 나 같은 쪽을 골라 주세요. 얼마나 가까운지도 함께 눌러요.");
+    expect(hint?.textContent).toBe("고른 쪽이 얼마나 가까운지도 함께 눌러 주세요.");
 
     await renderFrame(view, null, vi.fn(), null);
     expect(harness.container.querySelector("#q1-hint")).toBeNull();
@@ -237,7 +237,7 @@ describe("ItemFrame", () => {
   });
 
   it("번호, n/N, A/B, 가나 라벨이 보이지 않는다", async () => {
-    await renderFrame(pairView(0), { fmt: "escape", which: "na" }, vi.fn(), "더 나 같은 쪽을 골라 주세요. 얼마나 가까운지도 함께 눌러요.");
+    await renderFrame(pairView(0), { fmt: "escape", which: "na" }, vi.fn(), "고른 쪽이 얼마나 가까운지도 함께 눌러 주세요.");
     expect(labelProblemsIn(harness.container)).toEqual([]);
   });
 

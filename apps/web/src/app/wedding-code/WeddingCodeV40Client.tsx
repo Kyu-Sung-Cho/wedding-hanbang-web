@@ -818,7 +818,7 @@ export function WeddingCodeV40Core({ shareOrigin, initial, resolved, embedded = 
     stage.closePair();
   };
 
-  /** 짐작은 건너뛸게요: 고른 것을 버리고 나간다(이미 끝낸 짐작이 있으면 그것은 그대로다). */
+  /** 고른 것 없이 나갈게요: 고른 것을 버리고 나간다(이미 끝낸 짐작이 있으면 그것은 그대로다). */
   const handlePairLeave = (): void => {
     if (stage.pairStage === "receiver") {
       stage.setOwnGuess(null);

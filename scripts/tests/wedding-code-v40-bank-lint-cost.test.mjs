@@ -7,7 +7,8 @@
 //   1. 대가 절이 반대 극 머리 절의 낱말(두 글자 뿌리)을 되풀이하면 그 카드 하나에 경고 하나. 자기 머리 절에도 있는 낱말, 흔한 낱말,
 //      한 글자 낱말, 대가 절이 없는 글은 세지 않는다. 카드 2개, 가장·아닌 것 4개, 보기 4개, 자기 선택을 모두 본다.
 //   2. 칸 나누기의 값 0 항목이 쉬기나 미루기 낱말을 쓰면 경고 하나. 앞극과 뒤극 항목은 보지 않는다.
-//   3. R1 이 다시 쓴 열세 문항과 단계 1(2026-09-30)에서 원문으로 되돌린 두 문항(q10 q11)은 두 규칙에 걸리지 않고, 다시 쓰지 않은 문항 중 걸리는 것은 검사기의 예외 목록과 정확히 같다.
+//   3. R1 이 다시 쓴 열세 문항과 단계 1(2026-09-30)에서 원문으로 되돌린 두 문항(q10 q11)은 두 규칙에 걸리지 않는다. 2026-10-04 문항 정비로 은행 68문항을 모두 다시 써서
+//      검사기의 「아직 안 고친 문항」 예외 목록 둘은 비었고, 예외 없이 검사해도 경고가 0이다(목록에 id 하나를 되살리면 이 시험이 빨개진다).
 //   4. R1 문항의 내용 기준(명세 6절)을 실제 은행에서 검사기와 따로 확인한다.
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
@@ -436,38 +437,20 @@ test("칸 나누기 셋째 항목: 칸 나누기가 아닌 문항의 값 0 자�
 
 const flaggedIds = (result, rule) => [...new Set(hitsOf(result, rule).map((w) => w.itemId))].sort();
 
-test("예외 목록: 실제 은행에서 두 규칙이 (예외 없이) 잡는 문항은 검사기의 예외 목록과 정확히 같다(고친 문항은 목록에서 지우고, 새 되풀이는 목록에 못 숨긴다)", () => {
+test("예외 목록: 두 목록은 비어 있고, 예외 없이 검사해도 실제 은행은 두 규칙에 걸리지 않는다(새 되풀이를 목록에 못 숨긴다)", () => {
+  // 2026-10-04: 문항 정비로 예전 예외 문항(되풀이 10개, 셋째 항목 6개)이 모두 고쳐졌다. 목록에 id 를 되살려 경고를 감출 수 없다.
+  assert.deepEqual(lintModule.COST_ECHO_LEGACY_ITEMS, [], "COST_ECHO_LEGACY_ITEMS 는 비어 있어야 한다");
+  assert.deepEqual(lintModule.SPLIT_THIRD_LEGACY_ITEMS, [], "SPLIT_THIRD_LEGACY_ITEMS 는 비어 있어야 한다");
   const data = realData();
   const all = lintBank(data, { noLegacy: true });
   assert.deepEqual(all.errors, [], show(all));
-  assert.deepEqual(flaggedIds(all, "cost-repeats-head"), [...lintModule.COST_ECHO_LEGACY_ITEMS].sort());
-  assert.deepEqual(flaggedIds(all, "split-third-decoy"), [...lintModule.SPLIT_THIRD_LEGACY_ITEMS].sort());
-  // 예외를 켠 기본 검사는 경고가 없다
+  assert.deepEqual(flaggedIds(all, "cost-repeats-head"), []);
+  assert.deepEqual(flaggedIds(all, "split-third-decoy"), []);
+  // 예외 없는 검사와 기본 검사가 같은 결과다(목록이 비었으니 덜어 내는 경고가 없다)
   const normal = lintBank(data);
   assert.deepEqual(normal.errors, [], show(normal));
   assert.deepEqual(normal.warnings, [], show(normal));
-});
-
-/** R1 때(2026-09-30) 예외 목록에 있던 문항. 목록은 이 안에서 줄기만 한다: 새로 걸리는 문항의 id 를 목록에 넣어 경고를 감출 수 없다. */
-const LEGACY_AT_R1_COST = ["scope.final.1", "scope.circle.1", "scope.form.2", "scope.form.3", "scope.circle.4", "money.worth.2", "process.owner.3", "support.recover.1", "support.give.2", "support.recover.3"];
-const LEGACY_AT_R1_SPLIT = ["money.check.3", "process.detail.2", "scope.timing.2", "scope.final.4", "support.vent.1", "support.give.3"];
-
-test("예외 목록: 목록은 R1 때 목록의 부분집합이다(줄일 수만 있고 새 문항을 더해 경고를 감출 수 없다)", () => {
-  for (const id of lintModule.COST_ECHO_LEGACY_ITEMS) assert.ok(LEGACY_AT_R1_COST.includes(id), `되풀이 예외 목록에 R1 때 없던 문항이 더해졌다: ${id}`);
-  for (const id of lintModule.SPLIT_THIRD_LEGACY_ITEMS) assert.ok(LEGACY_AT_R1_SPLIT.includes(id), `셋째 항목 예외 목록에 R1 때 없던 문항이 더해졌다: ${id}`);
-  assert.ok(lintModule.COST_ECHO_LEGACY_ITEMS.length <= 10);
-  assert.ok(lintModule.SPLIT_THIRD_LEGACY_ITEMS.length <= 6);
-});
-
-test("예외 목록: 목록의 id 는 실제 문항이고 중복이 없으며, 규칙에 맞는 형식이다", () => {
-  const data = realData();
-  const ids = new Set(data.items.map((it) => it.id));
-  for (const [name, list] of [["COST_ECHO_LEGACY_ITEMS", lintModule.COST_ECHO_LEGACY_ITEMS], ["SPLIT_THIRD_LEGACY_ITEMS", lintModule.SPLIT_THIRD_LEGACY_ITEMS]]) {
-    assert.ok(list.length > 0, `${name} 이 비었다`);
-    assert.equal(new Set(list).size, list.length, `${name} 에 중복이 있다`);
-    for (const id of list) assert.ok(ids.has(id), `${name}: 없는 문항 ${id}`);
-  }
-  for (const id of lintModule.SPLIT_THIRD_LEGACY_ITEMS) assert.equal(byId(data, id).fmt, "split", id);
+  assert.deepEqual(all.warnings, [], show(all));
 });
 
 test("R1 문항 열세 개와 되돌린 문항 두 개는 합쳐 명세의 열다섯이고 서로 겹치지 않는다", () => {
@@ -488,21 +471,14 @@ test("R1 문항 열세 개와 원문으로 되돌린 문항 두 개는 예외 �
   }
 });
 
-test("예외 없이 검사(noLegacy)는 오류를 새로 만들지 않고 예외를 켠 검사의 경고를 덜어 내기만 한다", () => {
+test("예외 없이 검사(noLegacy)는 오류를 새로 만들지 않고 기본 검사와 경고가 정확히 같다(예외 목록이 비었다)", () => {
   const data = realData();
   const normal = lintBank(data);
   const strict = lintBank(data, { noLegacy: true });
   assert.deepEqual(strict.errors, normal.errors);
   const key = (w) => `${w.rule}|${w.itemId}|${w.message}`;
-  const strictKeys = new Set(strict.warnings.map(key));
-  for (const w of normal.warnings) assert.ok(strictKeys.has(key(w)), `예외 없는 검사에서 사라진 경고: ${w.rule} ${w.itemId}`);
-  const normalKeys = new Set(normal.warnings.map(key));
-  const extra = strict.warnings.filter((w) => !normalKeys.has(key(w)));
-  assert.ok(extra.length > 0, "예외 없는 검사가 더 잡는 것이 없다");
-  for (const w of extra) {
-    const list = w.rule === "cost-repeats-head" ? lintModule.COST_ECHO_LEGACY_ITEMS : w.rule === "split-third-decoy" ? lintModule.SPLIT_THIRD_LEGACY_ITEMS : null;
-    assert.ok(list?.includes(w.itemId), `예외 목록 밖의 문항이 더 잡혔다: ${w.rule} ${w.itemId}`);
-  }
+  assert.deepEqual(strict.warnings.map(key).sort(), normal.warnings.map(key).sort());
+  assert.deepEqual(strict.warnings, [], show(strict));
 });
 
 test("새 경고 규칙: 두 규칙은 경고이고 문구 범주다", () => {

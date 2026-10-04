@@ -466,7 +466,7 @@ add(plantCase("홀로 선 영문 대문자(Z)를 쓴다", "card", "Z", ["latin-t
 // 글자 이름과 주제 이름
 const LETTER_NAMES = ["조건 먼저", "장면 먼저", "같이 하기", "나눠 하기", "둘이 정하기", "가족과 정하기", "마음 먼저", "할 일 먼저"];
 const ENGLISH_NAMES = ["Verify", "Scene", "With", "Divide", "Us", "Family", "Heart", "Action"];
-const AXIS_NAMES = ["돈을 정할 때", "준비를 굴릴 때", "함께 정하는 사람", "지쳤을 때"];
+const AXIS_NAMES = ["돈을 정할 때", "준비를 굴릴 때", "누구와 함께 정할 때", "지쳤을 때"];
 for (const name of LETTER_NAMES) add(plantCase(`글자 이름(${name})을 문항에 쓴다`, "stem", `${name} `, ["letter-name"]));
 add(plantCase("글자 이름이 띄어쓰기만 다르게(조건먼저) 들어가도 잡는다", "stem", "조건먼저 ", ["letter-name"]));
 add(plantCase("글자 이름이 띄어쓰기만 다르게(같이하기) 들어가도 잡는다", "option", "같이하기 ", ["letter-name"]));

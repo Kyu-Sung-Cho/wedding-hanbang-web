@@ -86,10 +86,10 @@ describe("웨딩코드 공유 카드 이미지", () => {
    */
   it("두 사람의 답을 나란히 보는 조건을 ‘둘 다 답하고 서로 공유하면’으로 말한다", async () => {
     const { text } = await drawCard();
-    expect(text).toContain("둘 다 답하고 서로 공유하면 두 사람의 답을 나란히 볼 수 있어요");
+    expect(text).toContain("혼자 해도 결과를 볼 수 있어요. 두 사람의 답을 나란히 보는 것은 내 답을 마친 뒤, 둘 다 답하고 서로 공유했을 때 할 수 있어요.");
     expect(text).not.toContain("상대도 답하면");
     const page = await WeddingCodePage({ searchParams: Promise.resolve({}) });
-    expect(renderToStaticMarkup(page)).toContain("둘 다 답하고 서로 공유하면 두 사람의 답을 나란히 볼 수 있어요");
+    expect(renderToStaticMarkup(page)).toContain("혼자 해도 결과를 볼 수 있어요. 두 사람의 답을 나란히 보는 것은 내 답을 마친 뒤, 둘 다 답하고 서로 공유했을 때 할 수 있어요.");
   }, 60_000);
 
   it("카드가 약속하는 「로그인 없이」는 시작 화면도 그대로 말한다", async () => {
@@ -283,7 +283,7 @@ describe("웨딩코드 v4.0-tendency 공유 카드", () => {
    */
   it("기본 카드의 글은 틀을 나눈 뒤에도 그대로이고, 두 카드 파일은 색과 배치를 따로 갖지 않는다", async () => {
     const { text } = await drawCard();
-    expect(text).toBe(["한", "웨딩한방", "웨딩코드", "내가 원하는 결혼식과 준비 방식을 살펴봐요", "둘 다 답하고 서로 공유하면 두 사람의 답을 나란히 볼 수 있어요", "로그인 없이 시작해요", "hanbang.ai"].join(" "));
+    expect(text).toBe(["한", "웨딩한방", "웨딩코드", "내가 원하는 결혼식과 준비 방식을 살펴봐요", "혼자 해도 결과를 볼 수 있어요. 두 사람의 답을 나란히 보는 것은 내 답을 마친 뒤, 둘 다 답하고 서로 공유했을 때 할 수 있어요.", "로그인 없이 시작해요", "hanbang.ai"].join(" "));
     for (const file of ["src/app/wedding-code/opengraph-image.tsx", "src/app/wedding-code/v40-card/opengraph-image.tsx"]) {
       const source = read(file);
       expect(source, `${file}: 색은 ogCard.tsx 한 곳에만 둔다`).not.toMatch(/#[0-9A-Fa-f]{6}\b/);

@@ -691,7 +691,7 @@ describe("서로 짐작하기: 보내는 사람의 결과 카드", () => {
     expect(hasButtonWithText(view.container, V40_COPY.guess.entry.startButton)).toBe(true);
   }, LONG);
 
-  it("「고치기」는 고른 것이 미리 눌린 채로 세트를 다시 열고, 「짐작은 건너뛸게요」는 고른 것을 버리고 나가며 이미 끝낸 짐작은 그대로다", async () => {
+  it("「고치기」는 고른 것이 미리 눌린 채로 세트를 다시 열고, 「고른 것 없이 나갈게요」는 고른 것을 버리고 나가며 이미 끝낸 짐작은 그대로다", async () => {
     const view = await soloResult(own);
     await pressText(view.container, V40_COPY.guess.entry.startButton);
     await startPairSet(view.container);
@@ -773,7 +773,7 @@ describe("서로 짐작하기: 받는 사람", () => {
     const log = await driveToEnd(view.container, own, { start: false });
     expect(log.last).toBe("letter-guess");
     await pressText(view.container, V40_COPY.letterGuess.screen.skipButton);
-    // 나도 같은 장면에서 내 답과 짐작을 고른다: 첫 화면은 받는 사람용 안내이고 「짐작은 건너뛸게요」가 같은 무게로 있다.
+    // 나도 같은 장면에서 내 답과 짐작을 고른다: 첫 화면은 받는 사람용 안내이고 「고른 것 없이 나갈게요」가 같은 무게로 있다.
     expect(screenName(view.container)).toBe("pair-guess");
     expect(textOf(view.container)).toContain(V40_COPY.guess.receiverIntro);
     expect(textOf(view.container)).not.toContain(V40_COPY.guess.intro);
@@ -801,7 +801,7 @@ describe("서로 짐작하기: 받는 사람", () => {
     expect(urlsOf(share)).toEqual([`${ORIGIN}/wedding-code#v=${V40}&a=${codeOf(partnerDecoded)}&ga=${GA}&b=${codeOf(ownDecoded)}&gb=${gb}`]);
   }, LONG);
 
-  it("세트 화면에서 「짐작은 건너뛸게요」를 누르면 바로 두 사람 결과가 열리고, 돌려보내는 링크에는 상대의 ga 만 실린다. 짐작과 답 구역은 그리지 않는다", async () => {
+  it("세트 화면에서 「고른 것 없이 나갈게요」를 누르면 바로 두 사람 결과가 열리고, 돌려보내는 링크에는 상대의 ga 만 실린다. 짐작과 답 구역은 그리지 않는다", async () => {
     const share = fakeShare("clipboard");
     const view = await reachNearEnd(own, new FakeStorage(), { ...withGuessLink(), deps: { shareEnv: share.env } });
     await driveToEnd(view.container, own, { start: false, skipStages: SKIP_STAGE_LABELS });

@@ -71,7 +71,7 @@ describe("준비 스타일의 개인 저장과 두 사람 공유", () => {
     await act(async () => root.render(<main>{page}</main>));
     expect(container.querySelector("[data-lounge-wedding-code]")).not.toBeNull();
     expect(container.textContent).toContain("기본 14페이지");
-    expect(container.textContent).toContain("8개 선택 질문");
+    expect(container.textContent).toContain("8개 문장을 이어서 볼 수 있어요");
     expect(container.textContent).toContain("고른 답과 웨딩코드는 답하는 동안 서버나 계정에 보내지 않아요");
     expect(container.textContent).toContain("‘함께 보기’에 동의하면 내 답 전체를 서버에 보관하고");
     const privacyLink = container.querySelector<HTMLAnchorElement>('a[href="/privacy"][target="_blank"]');

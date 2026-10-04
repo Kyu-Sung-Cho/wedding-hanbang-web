@@ -18,7 +18,7 @@ export interface SelfIntroCardProps {
 }
 
 /**
- * 마지막 정리 카드(마지막 구간 뒤, 자기 선택 화면 앞). 「마지막 정리예요. 하나씩만 더 골라 주세요.」 한 문장과 이어서 하기 단추뿐이다.
+ * 마지막 정리 카드(네 번째 구간 뒤, 자기 선택 화면 앞). 「마지막 정리예요. 하나씩만 더 골라 주세요.」 한 문장과 이어서 하기 단추뿐이다.
  * 구간 이름이 내용을 약속하지 않게 이야기나 상황 설정은 두지 않는다. 이 화면에는 고지 문장도 없다.
  */
 export function SelfIntroCard({ segments, embedded = false, onContinue, onBack }: SelfIntroCardProps) {

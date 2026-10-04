@@ -20,13 +20,13 @@
   {
     "name": "서버 HTML 의 첫 문단에 판정이 아니라는 말이 없다",
     "target": "apps/web/src/app/wedding-code/WeddingCodeV31Client.tsx",
-    "find": "정리해 봐요. 성격을 진단하는 검사가 아니에요.\"",
+    "find": "정리해 봐요. 성격을 진단하는 검사가 아니고, 아직 여러 사람에게 확인해 보지 못한 질문이에요.\"",
     "replace": "정리해 봐요.\""
   },
   {
     "name": "서버 HTML 의 보이는 한 줄에서 이용 통계 사실이 빠진다",
     "target": "apps/web/src/app/wedding-code/WeddingCodeV31Client.tsx",
-    "find": "서버에 보내지 않고, 화면 개선을 위해서는 답을 뺀 이용 통계만 기록해요.</span>",
+    "find": "서버에 보내지 않아요. 화면을 고치는 데 쓸 이용 통계만 기록하고, 이 통계에는 답이 들어 있지 않아요.</span>",
     "replace": "서버에 보내지 않아요.</span>"
   },
   {
@@ -38,7 +38,7 @@
   {
     "name": "서버 HTML 의 보이는 한 줄이 목적을 뺀다",
     "target": "apps/web/src/app/wedding-code/WeddingCodeV31Client.tsx",
-    "find": "서버에 보내지 않고, 화면 개선을 위해서는 답을 뺀 이용 통계만 기록해요.</span>",
-    "replace": "서버에 보내지 않고, 답을 뺀 이용 통계만 기록해요.</span>"
+    "find": "서버에 보내지 않아요. 화면을 고치는 데 쓸 이용 통계만 기록하고, 이 통계에는 답이 들어 있지 않아요.</span>",
+    "replace": "서버에 보내지 않아요. 이용 통계만 기록하고, 이 통계에는 답이 들어 있지 않아요.</span>"
   }
 ]

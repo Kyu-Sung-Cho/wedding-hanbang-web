@@ -137,8 +137,8 @@ describe("present: pair 와 self", () => {
       expect(zero.cells.map((cell) => cell.label)).toEqual(["아주", "꽤", "조금", "조금", "꽤", "아주"]);
       expect(zero.cells.map((cell) => cell.label)).toEqual([2, 1, 0, 0, 1, 2].map((index) => V40_PAIR_LEVEL_LABELS[index]));
       zero.cells.forEach((cell) => expect(cell.accessibleName).toBe(pairCellAccessibleName(cell.cardIndex, cell.level)));
-      expect(zero.cells[0].accessibleName).toBe("위 카드에 가까워요, 아주");
-      expect(zero.cells[5].accessibleName).toBe("아래 카드에 가까워요, 아주");
+      expect(zero.cells[0].accessibleName).toBe("위 카드에 아주 가까워요");
+      expect(zero.cells[5].accessibleName).toBe("아래 카드에 아주 가까워요");
     }
   });
 

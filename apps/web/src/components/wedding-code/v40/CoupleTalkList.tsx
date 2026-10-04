@@ -50,6 +50,7 @@ function pickedSameOption(item: CoupleItemPair): boolean {
  * 두 사람이 고른 질문 목록. 문항 제목과 각자 고른 보기 원문을 그대로 보여 주고 해석을 덧붙이지 않는다. 값이나 차이는 내지 않는다.
  * - talk: 목록 위에 「이 질문에서는 두 사람이 다르게 골랐어요」 한 줄, 질문이 뽑힌 주제마다 그 주제의 여는 질문을 처음 나온 항목에만 한 번 붙인다.
  * - similar: 「같은 쪽으로 골랐어요」 한 줄. 여는 질문은 없다.
+ * - 두 목록 모두 한 줄 안내 아래에 「고른 문장에서 …해도로 이어지는 부분은 그 방식의 아쉬운 점이에요」 안내를 한 번 붙인다(상대를 탓하는 말로 읽지 않게).
  * - 이럴 때 내 마음 질문이 들어 있으면 목록 위에 「질문에 나오는 상대는 각자 자기 곁의 사람」 안내를 한 번 붙인다
  *   (「나는 …, 상대는 상대가 …」처럼 읽히는 혼동을 막는다).
  * - 비었으면 없었다고만 말한다.
@@ -72,6 +73,7 @@ export function CoupleTalkList({ kind, items, perspective, idPrefix, headingLeve
       ) : (
         <>
           <p className={cx(bodyText, "mt-2")}>{copy.lead}</p>
+          <p data-choice-cost-note="" className={cx(noteText, "mt-1")}>{V40_COPY.couple.choiceCostNote}</p>
           {needsViewpointNote(items) ? <p className={cx(noteText, "mt-1")}>{V40_COPY.couple.viewpointNote}</p> : null}
           <ul role="list" className="mt-3 space-y-3">
             {items.map((item) => {

@@ -37,6 +37,9 @@ describe("CoupleTalkList: 먼저 이야기해 볼 질문", () => {
     const root = await renderList("talk", [PAIR_ITEM], null);
     expect(root.querySelector("h3")?.textContent).toBe(V40_COPY.couple.talk.title);
     expect(root.textContent).toContain(V40_COPY.couple.talk.lead);
+    // 고른 문장의 「…해도」로 이어지는 부분은 상대를 탓하는 말이 아니라는 안내가 제목 아래에 한 번 있다.
+    expect(root.querySelectorAll("[data-choice-cost-note]")).toHaveLength(1);
+    expect(root.querySelector("[data-choice-cost-note]")?.textContent).toBe(V40_COPY.couple.choiceCostNote);
     expect(root.querySelectorAll("li")).toHaveLength(1);
     // 사람은 보기 원문 위의 이름표로 부르고 원문에 조사를 이어 붙이지 않는다.
     expect(paragraphs(root).slice(0, 5)).toEqual([

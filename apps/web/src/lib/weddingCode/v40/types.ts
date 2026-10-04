@@ -88,7 +88,7 @@ export type TieLevel = 0 | 1 | 2 | 3 | 4 | 5;
 interface AuthoringBase {
   readonly id: ItemId;
   readonly axis: Axis;
-  /** 0 처음, 1 이어서, 2 조금만 더, 3 마지막 구간, 4 마지막 정리(자기 선택). */
+  /** 0 처음, 1 이어서, 2 절반쯤, 3 거의 다, 4 마지막 정리(자기 선택). */
   readonly section: SectionIndex;
   /** 질문 화면 번호(0 기준). 채점 문항 0~39(구간 x 10 + 화면), 자기 선택 40~41. 화면에는 나가지 않는다. */
   readonly screen: number;
@@ -313,7 +313,7 @@ export interface PairCellView {
   readonly level: 1 | 2 | 3;
   /** 보이는 글자(조금, 꽤, 아주). */
   readonly label: string;
-  /** 낭독 이름(예: 위 카드에 가까워요, 아주). */
+  /** 낭독 이름(예: 위 카드에 아주 가까워요). */
   readonly accessibleName: string;
 }
 
@@ -734,7 +734,7 @@ export interface RestPage extends PageBase {
   readonly after: 0 | 1 | 2;
 }
 
-/** 마지막 정리 카드(「마지막 정리예요. 하나씩만 더 골라 주세요.」). 마지막 구간 뒤, 자기 선택 화면 앞. */
+/** 마지막 정리 카드(「마지막 정리예요. 하나씩만 더 골라 주세요.」). 네 번째 구간 뒤, 자기 선택 화면 앞. */
 export interface SelfIntroPage extends PageBase {
   readonly kind: "selfIntro";
 }

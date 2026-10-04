@@ -373,7 +373,6 @@ export function ShareBlock({ buildUrl, onSent, env, idPrefix, headingLevel = 2, 
 
       <div className={cx(noteText, "mt-4 space-y-1")}>
         <p>{V40_COPY.send.shareSheetInfo}</p>
-        {option === "withAnswers" ? <p>{V40_COPY.send.withAnswersSensitiveInfo}</p> : null}
         {option === "withAnswers" ? <p>{V40_COPY.send.withAnswersLinkInfo}</p> : null}
         {option === "withAnswers" && guessNote ? <p data-send-guess-note="">{guessNote}</p> : null}
       </div>

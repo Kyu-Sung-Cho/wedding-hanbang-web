@@ -187,10 +187,10 @@ describe("웨딩코드 v3.1 문항 의미와 개인 결과", () => {
     draft.spending = answered(["beauty"]);
     const insight = buildV31Profile(draft).insights.find((item) => item.id === "budget-explicit-spending")!;
     // 2026-09-27: 고른 곳은 본문에서 되풀이하지 않고 근거(직접 고른 답)로 보여준다. 금액으로 읽지 않게 하는 경계는
-    // 다음 행동(같은 총액 안에서 비교)과 같은 화면의 ‘더 쓰고 싶은 곳’ 영역이 말하므로 본문에 「~않았어요」를 두지 않는다.
+    // 다음 행동(같은 전체 예산 안에서 비교)과 같은 화면의 ‘더 쓰고 싶은 곳’ 영역이 말하므로 본문에 「~않았어요」를 두지 않는다.
     expect(insight.evidence.find((item) => item.id === "spending")?.answer).toBe("헤어·메이크업");
     expect(insight.body).toBeUndefined();
-    expect(insight.nextStep).toContain("같은 총액 안에서");
+    expect(insight.nextStep).toContain("같은 전체 예산 안에서");
     expect(insight.evidence.map((item) => item.id)).toEqual(["B1", "spending"]);
   });
 
@@ -265,9 +265,9 @@ describe("웨딩코드 v3.1 문항 의미와 개인 결과", () => {
     expect(profile.priorityGuides.filter(item => item.sourceInsightId === "budget-revisit")).toHaveLength(1);
     const delegate = profile.priorityGuides.find(item => item.sourceInsightId === "delegate-update")!;
     expect(delegate.evidence.map(item => item.id)).toEqual(["T2", "T3", "priorities"]);
-    expect(delegate.evidence.find(item => item.id === "priorities")?.answer).toBe("계약·추가 결제 없는 세부 선택 맡기기");
+    expect(delegate.evidence.find(item => item.id === "priorities")?.answer).toBe("계약·추가 결제 없는 세부 선택은 맡은 사람이 정해도 괜찮아요");
     expect(delegate.coveredInsightIds).toEqual(["delegate-update", "single-T2", "single-T3"]);
-    expect(profile.priorityLabels).toEqual(["처음 정한 전체 예산 지키기", "전체 예산을 늘릴지 의논하기", "계약·추가 결제 없는 세부 선택 맡기기"]);
+    expect(profile.priorityLabels).toEqual(["처음 정한 전체 예산 지키기", "전체 예산을 늘릴지 의논하기", "계약·추가 결제 없는 세부 선택은 맡은 사람이 정해도 괜찮아요"]);
     expect(encodeV31(draft)).toBe(original);
   });
 
@@ -280,11 +280,30 @@ describe("웨딩코드 v3.1 문항 의미와 개인 결과", () => {
     draft.priorities = answered(["avoid.heavy_decoration"]);
     const flower = buildV31Profile(draft).priorityGuides[0];
     expect(flower.sourceInsightId).toBe("flower-amount");
-    expect(flower.evidence.find(item => item.id === "priorities")?.answer).toBe("피하기: 꽃과 장식이 빼곡한 공간");
+    expect(flower.evidence.find(item => item.id === "priorities")?.answer).toBe("피하고 싶은 것: 꽃과 장식이 아주 많은 공간");
   });
 });
 
 describe("웨딩코드 v3.1 커플 응답 의미", () => {
+  it("우선순위를 비교할 수 없을 때는 우선순위 화면에 있는 버튼 이름만 인용하고 의견 차이로 단정하지 않는다", () => {
+    const first = createV31Draft(); const second = createV31Draft();
+    first.priorities = { status: "undecided" }; second.priorities = { status: "skipped" };
+    const item = row(first, second, "priorities");
+    expect(item.kind).toBe("unavailable");
+    expect(item.followUp).toContain(`‘${V31_PRIORITY_UNDECIDED_LABEL}’와 ‘${V31_PRIORITY_SKIPPED_LABEL}’`);
+    expect(item.followUp).not.toMatch(/지금 답하지 않을게요|이번 계획에는 없어요|맞는 보기가 없어요|아니에요/);
+    // 취향에는 그 버튼들이 있으므로 이름을 그대로 인용한다.
+    first.tastes.attire = { status: "undecided" }; second.tastes.attire = { status: "skipped" };
+    expect(row(first, second, "taste.attire").followUp).toContain("‘지금 답하지 않을게요’");
+  });
+  it("문장을 고친 뒤에도 설명 제목은 문장이 말하는 대상을 그대로 말한다 (2026-10-04)", () => {
+    const draft = createV31Draft();
+    draft.answers = { G1: 5, G3: 5, R3: 5 };
+    const titles = Object.fromEntries(buildV31Profile(draft).insights.map((insight) => [insight.id, insight.title]));
+    expect(titles["single-G1"]).toContain("초대 명단");
+    expect(titles["single-G3"]).toContain("하객이 오가기 편한 곳");
+    expect(titles["single-R3"]).toContain("하객들 사이에서도");
+  });
   it("하객 없는 두 사람과 규모가 다른 두 사람 모두 초대 여부부터 확인하며 원답을 유지한다", () => {
     const first = createV31Draft();
     const second = createV31Draft();
@@ -312,7 +331,7 @@ describe("웨딩코드 v3.1 커플 응답 의미", () => {
     const item = row(first, second, "taste.attire");
     expect(item).toMatchObject({ kind: "unavailable", first: "맞는 보기가 없어요", second: "아직 모르겠어요" });
     expect(item.followUp).toContain("서로 다른 답");
-    expect(item.followUp).toContain("어떤 생각이 빠져 있었는지");
+    expect(item.followUp).toContain("보기에 없던 생각");
   });
   it("같이 높은 답·같이 낮은 답·한 사람만 원한 답·반대편·비교 불가를 구별한다", () => {
     const first = createV31Draft();
@@ -324,7 +343,7 @@ describe("웨딩코드 v3.1 커플 응답 의미", () => {
     // 2026-09-27: 3 대 4 는 중간 응답으로 접히던 것을 '한 사람만 동의한 문장'으로, 1 대 4 는 크기와 상관없이
     // 문장의 서로 반대편으로 가른다. 예전에는 각각 middle·different 였다.
     expect(["V1", "G1", "G2", "G3", "R3", "R4"].map((id) => items.find((item) => item.id === id)?.kind)).toEqual(["shared_wish", "shared_distance", "one_sided", "opposite", "unavailable", "unavailable"]);
-    expect(row(first, second, "G1").followUp).toContain("두 사람 모두 가깝지 않다고");
+    expect(row(first, second, "G1").followUp).toContain("두 사람 모두 ‘그렇지 않은 편이에요’나 ‘전혀 그렇지 않아요’로 답했어요");
     expect(row(first, second, "G1").followUp).not.toContain("꼭 초대");
   });
 
@@ -401,7 +420,7 @@ describe("웨딩코드 v3.1 커플 응답 의미", () => {
       // 반대 의견으로 읽지 않게 하는 것은 판정 고지가 아니라 배치(차이 묶음이 아닌 열린 답 묶음)가 맡는다.
       expect(item.kind).toBe("open_preference");
       expect(item.followUp).not.toMatch(/반대|아니에요/);
-      expect(item.followUp).toContain("고른 사람에게 왜 그곳에 더 쓰고 싶은지");
+      expect(item.followUp).toContain("고른 사람은 어떤 점이 좋아서 더 쓰고 싶은지");
       expect(item.followUp).toContain("전체 예산을 늘릴지는 따로 정해요");
       expect(item.followUp).not.toMatch(/상대가|상대의/);
       expect(item.followUp).not.toMatch(/합의/);
@@ -448,7 +467,7 @@ describe("웨딩코드 v3.1 커플 응답 의미", () => {
       const item = row(a, b, "taste.venue");
       // 합의로 읽지 않게 하는 것은 판정 고지가 아니라 묶음(함께 동의한 내용이 아닌 열린 답)이 맡는다.
       expect(item.kind).toBe("open_preference");
-      expect(item.followUp).toBe("구체적으로 고른 답이 있다면 그 후보부터 함께 살펴보세요.");
+      expect(item.followUp).toBe("구체적으로 고른 것이 있다면 그것부터 함께 살펴보세요.");
       expect(item.followUp).not.toMatch(/합의|아니에요/);
     }
     first.tastes.venue = { status: "no_preference" };
@@ -488,10 +507,10 @@ describe("웨딩코드 v3.1 커플 응답 의미", () => {
     second.avoidances = answered(["loud_music", "stage_participation"]);
     // 2026-09-27: 예전에는 하나만 달라도 전부 different 로 '먼저 이야기해 볼 차이'에 섰다.
     for (const [id, shared, firstOnly, secondOnly] of [
-      ["taste.attire", "하늘하늘한 옷", "깔끔하고 단순한 옷", "한복 같은 전통 혼례복"],
-      ["taste.ceremony", "가족이나 하객에게 감사 인사", "꼭 필요한 순서만 짧게", "축가 같은 축하 공연"],
+      ["taste.attire", "부드럽게 흐르는 옷", "장식이 적고 선이 단순한 옷", "한복 같은 전통 혼례복"],
+      ["taste.ceremony", "가족과 하객에게 따로 전하는 감사 인사", "꼭 필요한 순서만 짧게", "축가 같은 축하 공연"],
       ["spending", "식사", "사진·영상", "헤어·메이크업"],
-      ["avoidances", "큰 음악 소리", "사람이 붐비는 공간", "하객을 무대로 부르는 참여 순서"],
+      ["avoidances", "큰 음악 소리", "사람이 아주 많이 모인 공간", "하객을 무대로 부르는 참여 순서"],
     ]) {
       expect(row(first, second, id)).toMatchObject({ kind: "partial_overlap", sharedLabels: [shared], firstOnlyLabels: [firstOnly], secondOnlyLabels: [secondOnly] });
     }
@@ -500,19 +519,19 @@ describe("웨딩코드 v3.1 커플 응답 의미", () => {
     expect(row(first, second, "taste.attire")).toMatchObject({ kind: "different", sharedLabels: [] });
     expect(row(first, second, "avoidances")).toMatchObject({ kind: "different", sharedLabels: [] });
     second.tastes.attire = answered(["flowing"]);
-    expect(row(first, second, "taste.attire")).toMatchObject({ kind: "partial_overlap", sharedLabels: ["하늘하늘한 옷"], firstOnlyLabels: ["깔끔하고 단순한 옷"], secondOnlyLabels: [] });
+    expect(row(first, second, "taste.attire")).toMatchObject({ kind: "partial_overlap", sharedLabels: ["부드럽게 흐르는 옷"], firstOnlyLabels: ["장식이 적고 선이 단순한 옷"], secondOnlyLabels: [] });
   });
 
-  it("사진의 둘 다와 자연스러운 순간은 전체 일치는 아니지만 자연스러운 사진을 함께 원한다", () => {
+  it("사진의 둘 다와 그날 흘러가는 대로 찍은 순간은 전체 일치는 아니지만 자연스러운 사진을 함께 원한다", () => {
     const first = createV31Draft();
     const second = createV31Draft();
     first.tastes.photo = answered(["both_styles"]);
     second.tastes.photo = answered(["candid"]);
     // '둘 다'는 두 보기를 함께 고른 것과 같아서 여러 개 고르는 질문처럼 일부 겹침으로 둔다(예전에는 different).
-    expect(row(first, second, "taste.photo")).toMatchObject({ kind: "partial_overlap", sharedLabels: ["자연스러운 순간"], firstOnlyLabels: ["준비한 포즈와 장면"], secondOnlyLabels: [] });
-    expect(row(second, first, "taste.photo")).toMatchObject({ kind: "partial_overlap", sharedLabels: ["자연스러운 순간"], firstOnlyLabels: [], secondOnlyLabels: ["준비한 포즈와 장면"] });
+    expect(row(first, second, "taste.photo")).toMatchObject({ kind: "partial_overlap", sharedLabels: ["그날 흘러가는 대로 찍은 순간"], firstOnlyLabels: ["미리 계획해 찍은 포즈와 장면"], secondOnlyLabels: [] });
+    expect(row(second, first, "taste.photo")).toMatchObject({ kind: "partial_overlap", sharedLabels: ["그날 흘러가는 대로 찍은 순간"], firstOnlyLabels: [], secondOnlyLabels: ["미리 계획해 찍은 포즈와 장면"] });
     second.tastes.photo = answered(["directed"]);
-    expect(row(first, second, "taste.photo").sharedLabels).toEqual(["준비한 포즈와 장면"]);
+    expect(row(first, second, "taste.photo").sharedLabels).toEqual(["미리 계획해 찍은 포즈와 장면"]);
     first.tastes.photo = answered(["candid"]);
     expect(row(first, second, "taste.photo")).toMatchObject({ kind: "different", sharedLabels: [] });
   });

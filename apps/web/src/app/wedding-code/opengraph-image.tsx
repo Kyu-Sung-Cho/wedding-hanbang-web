@@ -41,7 +41,7 @@ export default async function OpenGraphImage() {
   return new ImageResponse(
     weddingCodeCard({
       titleLines: ["내가 원하는 결혼식과", "준비 방식을 살펴봐요"],
-      detail: "둘 다 답하고 서로 공유하면 두 사람의 답을 나란히 볼 수 있어요",
+      detail: "혼자 해도 결과를 볼 수 있어요. 두 사람의 답을 나란히 보는 것은 내 답을 마친 뒤, 둘 다 답하고 서로 공유했을 때 할 수 있어요.",
     }),
     {
       ...size,

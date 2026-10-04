@@ -221,7 +221,7 @@ const ALL_LEAVES = [...CONST_LEAVES, ...ENTRY_LEAVES, ...samples()];
 // ---------------------------------------------------------------------------
 
 /** 명사구를 나열한 첫 문장이라 끝맺음 검사에서 빼는 조각(시작 화면 소개글). 목록에 없는 문장은 모두 요, 다, 죠로 끝나야 한다. */
-const SENTENCE_ENDING_EXEMPT = ["돈을 정할 때, 준비를 굴릴 때, 함께 정하는 사람, 지쳤을 때."];
+const SENTENCE_ENDING_EXEMPT = ["돈을 정할 때, 준비를 굴릴 때, 누구와 함께 정할 때, 지쳤을 때."];
 
 function politeEnding(sentence: string): boolean {
   const core = sentence
@@ -449,7 +449,7 @@ describe("글자 읽는 법 표", () => {
     expect(legendRows().map((row) => `${row.title} | ${row.front.cell} | ${row.back.cell}`)).toEqual([
       "돈을 정할 때 | V 조건 먼저 | S 장면 먼저",
       "준비를 굴릴 때 | W 같이 하기 | D 나눠 하기",
-      "함께 정하는 사람 | U 둘이 정하기 | F 가족과 정하기",
+      "누구와 함께 정할 때 | U 둘이 정하기 | F 가족과 정하기",
       "지쳤을 때 | H 마음 먼저 | A 할 일 먼저",
     ]);
     expect(V40_COPY.legend.mineColumn).toBe("내 글자");
@@ -473,22 +473,22 @@ describe("답을 모아 보니 열두 문장", () => {
     money: {
       front: "돈은 조건과 총액부터 맞춰 보는 쪽으로 답했어요.",
       back: "돈은 남을 장면부터 그려 보는 쪽으로 답했어요.",
-      even: "돈은 조건과 장면 어느 쪽으로도 크게 기울지 않았어요.",
+      even: "돈은 조건과 장면 중 어느 쪽으로도 크게 기울지 않았어요.",
     },
     process: {
       front: "준비는 같이 하는 쪽으로 답했어요.",
       back: "준비는 나눠 맡는 쪽으로 답했어요.",
-      even: "준비는 같이 하기와 나눠 하기 어느 쪽으로도 크게 기울지 않았어요.",
+      even: "준비는 같이 하기와 나눠 하기 중 어느 쪽으로도 크게 기울지 않았어요.",
     },
     scope: {
-      front: "정할 때는 둘이 먼저 정하는 쪽으로 답했어요.",
-      back: "정할 때는 가족의 마음도 먼저 모으는 쪽으로 답했어요.",
-      even: "정하는 사람은 둘과 가족 어느 쪽으로도 크게 기울지 않았어요.",
+      front: "결정은 둘이 먼저 내리는 쪽으로 답했어요.",
+      back: "결정은 가족의 마음도 먼저 모으는 쪽으로 답했어요.",
+      even: "결정은 둘이 먼저 내리는 쪽과 가족의 마음도 먼저 모으는 쪽 중 어느 쪽으로도 크게 기울지 않았어요.",
     },
     support: {
       front: "지친 날에는 마음부터 알아주는 쪽으로 답했어요.",
       back: "지친 날에는 할 일부터 덜어 내는 쪽으로 답했어요.",
-      even: "지친 날에는 마음과 할 일 어느 쪽으로도 크게 기울지 않았어요.",
+      even: "지친 날에는 마음과 할 일 중 어느 쪽으로도 크게 기울지 않았어요.",
     },
   };
 
@@ -539,23 +539,23 @@ describe("문서의 최종 문구를 그대로 옮겼다", () => {
     expect(V40_COPY.intro.brandLabel).toBe("웨딩한방 · 웨딩코드");
     expect(V40_COPY.intro.title).toBe("결혼을 준비할 때, 나는 어느 쪽으로 기울까요?");
     expect(V40_COPY.intro.lede).toBe(
-      "돈을 정할 때, 준비를 굴릴 때, 함께 정하는 사람, 지쳤을 때. 결혼을 준비하며 자주 만나는 이 네 가지를 여러 방식으로 물어봐요. 답을 모으면 네 글자 코드가 나와요.",
+      "돈을 정할 때, 준비를 굴릴 때, 누구와 함께 정할 때, 지쳤을 때. 결혼을 준비하며 자주 만나는 이 네 가지를 여러 방식으로 물어봐요. 답을 모으면 네 글자 코드가 나와요.",
     );
     expect(introBullets("on", V40_COUNTS.items)).toEqual([
-      "정답은 없어요. 어느 쪽도 다 괜찮은 준비 방식이에요.",
+      "정답은 없어요. 어느 쪽이 더 좋다고 말하지 않아요.",
       "질문은 모두 68개예요. 네 구간과 마지막 정리로 나눠 물어보고, 쉬고 싶을 때 멈춰도 이 브라우저에 저장돼요.",
-      "끝나면 글자마다 뜻과 함께, 그 글자가 나온 내 답도 보여 줘요.",
+      "끝나면 글자마다 뜻과 함께, 그 글자가 나오게 한 내 답도 보여 줘요.",
       "링크를 보내면 상대도 답할 수 있어요. 상대가 두 사람 결과 링크를 다시 보내 주면 둘이 나란히 볼 수 있어요.",
     ]);
     expect(V40_COPY.intro.notice).toBe(
       "새로 만든 질문이라 아직 여러 사람에게 확인해 보지 못했어요. 검증을 마친 심리검사가 아니고, 다시 하면 글자가 달라질 수 있어요.",
     );
     expect(introStorage("on").plain).toBe(
-      "답은 웨딩한방에 보내지 않고 이 브라우저에만 30일 동안 저장돼요. 카카오톡 같은 앱 안에서 열었다면 다음에도 같은 곳에서 열어야 이어서 할 수 있어요. 결과 글자와 세기는 지난번과 비교하려고 같은 기간 최근 세 번까지 남아요. 끝까지 마쳤는지 같은 이용 통계만 남겨요. 자세한 내용은 개인정보 처리방침에서 볼 수 있어요. 공용 기기에서는 저장을 꺼 주세요.",
+      "답은 웨딩한방에 보내지 않고 이 브라우저에만 30일 동안 저장돼요. 카카오톡 같은 앱 안에서 열었다면 다음에도 같은 곳에서 열어야 이어서 할 수 있어요. 결과 글자와 그 옆 표시는 지난번과 비교하려고 같은 기간 최근 세 번까지 남아요. 끝까지 마쳤는지 같은 이용 통계만 남겨요. 자세한 내용은 개인정보 처리방침에서 볼 수 있어요. 다른 사람과 같이 쓰는 폰이나 컴퓨터에서는 저장을 꺼 주세요.",
     );
     expect(introStorage("on").linkLabel).toBe("개인정보 처리방침");
     expect(V40_COPY.intro.scope).toBe(
-      "식을 올리지 않아도, 부모님이 안 계셔도, 재혼이어도 답할 수 있어요. 맞지 않는 질문은 「제 상황과 안 맞아요」를 눌러 주세요. 신혼집, 예단과 예물, 양가 비용 분담, 실제 금액은 묻지 않아요.",
+      "식을 올리지 않아도, 부모님이 안 계셔도, 재혼이어도 답할 수 있어요. 아직 준비 전이거나 이미 마쳤다면 그때를 떠올리거나 만약을 생각하며 답해 주세요. 맞지 않는 질문은 「제 상황과 안 맞아요」를 눌러 주세요. 식을 올리지 않거나 가족이 관여하지 않으면 「누구와 함께 정할 때」 주제는 글자 대신 「·」로 남을 수 있어요. 신혼집, 예단과 예물, 양가 비용 분담, 실제 금액은 묻지 않아요.",
     );
     expect(V40_COPY.intro.startButton).toBe("시작하기");
     expect(V40_COPY.autosave.turnOnButton).toBe("자동 저장 켜기");
@@ -567,7 +567,7 @@ describe("문서의 최종 문구를 그대로 옮겼다", () => {
   });
 
   it("질문 화면, 쉬는 카드, 마지막 정리", () => {
-    expect(V40_COPY.question.guides.pair).toBe("더 나 같은 쪽을 골라 주세요. 얼마나 가까운지도 함께 눌러요.");
+    expect(V40_COPY.question.guides.pair).toBe("고른 쪽이 얼마나 가까운지도 함께 눌러 주세요.");
     expect(V40_COPY.question.guides.react).toBe("그때 내 마음에 가까운 칸을 눌러 주세요.");
     expect(V40_COPY.question.guides.choose).toBe("가장 가까운 것 하나를 골라 주세요. 해 본 적이 없으면 「이런 일이 없었어요」를 눌러도 돼요.");
     expect(V40_COPY.question.guides.bestworst).toBe("가장 나 같은 것 하나, 가장 나 같지 않은 것 하나를 골라 주세요.");
@@ -580,9 +580,9 @@ describe("문서의 최종 문구를 그대로 옮겼다", () => {
     expect(V40_COPY.rest.autosaveOff).toBe("쉬었다 오려면 자동 저장을 켜 주세요.");
     expect(V40_COPY.wrapUp.intro).toBe("마지막 정리예요. 하나씩만 더 골라 주세요.");
     expect(V40_COPY.progress.sectionAnnouncements[1]).toBe("지금 두 번째 구간이에요");
-    expect(V40_COPY.progress.segmentNames).toEqual(["처음", "이어서", "조금만 더", "마지막 구간", "마지막 정리"]);
+    expect(V40_COPY.progress.segmentNames).toEqual(["처음", "이어서", "절반쯤", "거의 다", "마지막 정리"]);
     // 쉬는 카드는 구간 0, 1, 2 뒤에만 있다(V40_COUNTS.restCards). 쉬는 카드에는 몇 번째 구간이라는 순서 낱말을 쓰지 않는다
-    // (진행 막대가 구간 이름 처음, 이어서, 조금만 더로 부르므로 같은 자리를 두 가지 이름으로 부르게 된다).
+    // (진행 막대가 구간 이름 처음, 이어서, 절반쯤으로 부르므로 같은 자리를 두 가지 이름으로 부르게 된다).
     expect(V40_COUNTS.restCards).toBe(3);
     expect("restSectionDone" in copyExports).toBe(false);
     for (const leaf of copyLeaves(V40_COPY.rest, "rest")) expect(leaf.text, leaf.path).not.toMatch(/번째/u);
@@ -595,17 +595,19 @@ describe("문서의 최종 문구를 그대로 옮겼다", () => {
     // 세기를 낮추는 것이지 글자를 낮추는 것이 아니다. 결과 화면의 고지가 이미 「다시 하면 글자가 달라질 수 있어요」를 말해서 되풀이하지 않는다.
     // 세기라는 낱말은 화면 어디서도 풀어 주지 않으므로 두 안내가 세 낱말을 직접 보여 준다. 질문을 탓하는 말(반복해서 눌렀어요)과 늘(항상)이라는 과장이 없다.
     expect(V40_COPY.quality.rhythmHint).toBe(
-      "답이 같은 위치에 여러 번 몰렸어요. 그래서 이번에는 글자 옆 표시(뚜렷해요, 기울어요, 반반이에요)를 모두 한 단계 낮춰 적었어요. 천천히 다시 해 볼 수도 있어요.",
+      "답이 화면의 같은 위치(예를 들어 위쪽 카드)에 여러 번 몰렸어요. 위치의 영향이 섞였을 수 있어서 이번에는 뚜렷해요와 기울어요로 나온 표시를 한 단계씩 낮춰 적었어요. 원하면 다시 해 볼 수 있어요.",
     );
     expect(V40_COPY.quality.skipHint).toBe(
-      "잘 모르겠다고 넘어간 질문이 많아서 이번에는 글자 옆 표시(뚜렷해요, 기울어요, 반반이에요)를 모두 한 단계 낮춰 적었어요.",
+      "잘 모르겠다고 넘어간 질문이 많아서 이번에는 뚜렷해요와 기울어요로 나온 표시를 한 단계씩 낮춰 적었어요.",
     );
     expect(V40_COPY.quality.rhythmHint).not.toContain("글자가 달라질");
     for (const hint of [V40_COPY.quality.rhythmHint, V40_COPY.quality.skipHint]) {
-      for (const word of Object.values(V40_STRENGTH).map((info) => info.label)) expect(hint, word).toContain(word);
+      // 실제로 낮춰지는 것은 뚜렷해요와 기울어요뿐이다(반반이에요는 더 낮출 것이 없다). 안내는 낮춰지는 낱말만 말한다.
+      for (const word of [V40_STRENGTH.clear.label, V40_STRENGTH.lean.label]) expect(hint, word).toContain(word);
+      expect(hint).not.toContain(V40_STRENGTH.even.label);
       expect(hint).not.toMatch(/눌렀어요|늘 /u);
     }
-    expect(V40_COPY.gate.rhythmBody).toBe("답이 같은 위치에 몰려 있어서 이번에는 글자를 정하지 못했어요. 처음부터 다시 해 볼 수 있어요.");
+    expect(V40_COPY.gate.rhythmBody).toBe("답이 화면의 같은 위치(예를 들어 위쪽 카드)에 몰려 있어서 위치의 영향이 섞였을 수 있어요. 그래서 이번에는 글자를 정하지 못했어요. 원하면 처음부터 다시 해 볼 수 있어요.");
     expect(V40_COPY.gate.rhythmBody).not.toMatch(/늘 /u);
     // 관문 제목은 본문 첫 문장과 같은 말로 시작하지 않는다.
     expect(V40_COPY.gate.title).toBe("이번에는 코드가 나오지 않았어요");
@@ -617,20 +619,20 @@ describe("문서의 최종 문구를 그대로 옮겼다", () => {
     expect(V40_COPY.quality.omitted).toBe("넘어간 질문은 계산에서 뺐어요.");
     // 글자를 못 정한 주제: 이유는 「답을 모아 보니」 문장, 다시 보기는 주제 블록, 품질 안내는 코드 줄의 「·」 설명으로 서로 다른 말을 한다.
     expect(V40_COPY.quality.unusableAxis).toBe("글자를 정하지 못한 주제는 코드에 「·」로 적었어요.");
-    expect(V40_COPY.block.unusableNote).toBe("넘어간 질문이 있다면 다시 볼 수 있어요.");
+    expect(V40_COPY.block.unusableNote).toBe("잘 모르겠다고 넘어간 질문은 아래 「이 주제 답 다시 보기」에서 다시 답할 수 있어요.");
     expect(V40_COPY.block.unusableNote).not.toBe(V40_COPY.quality.unusableAxis);
     // 글자를 못 정한 이유가 「제 상황과 안 맞아요」뿐이면 넘어간 질문 다시 보기(그 질문은 나오지 않는다) 대신 이 주제 답 다시 보기를 말한다.
-    expect(V40_COPY.block.unusableNoteNotApplicable).toBe("「제 상황과 안 맞아요」로 넘어간 질문은 「이 주제 답 다시 보기」에서 다시 답할 수 있어요.");
+    expect(V40_COPY.block.unusableNoteNotApplicable).toBe("내 상황에 맞지 않아 넘어간 질문은 그대로 둬도 괜찮아요. 답을 바꾸고 싶으면 「이 주제 답 다시 보기」에서 다시 답할 수 있어요.");
     expect(V40_COPY.block.unusableNoteNotApplicable).not.toContain("넘어간 질문 다시 보기");
     // 다시 볼 넘어간 질문이 없을 때의 관문 문장은 없는 단추(넘어간 질문 다시 보기)를 권하지 않는다.
     expect(V40_COPY.gate.noInformationBodyRestartOnly).not.toContain("다시 보거나");
     expect(V40_COPY.gate.noInformationBodyRestartOnly).toContain("처음부터 다시 답할 수 있어요");
     // 힌트가 세기를 낮춰서 반반이에요가 된 주제는 「크게 기울지 않았어요」라고 하지 않는다(낮추기 전에는 한쪽으로 기울어 있었다).
-    expect(V40_COPY.result.evenCodeNoteLowered).toBe("「반반」은 어느 쪽으로도 크게 기울지 않았거나, 세기를 한 단계 낮춘 주제예요.");
-    expect(collectedSentence("money", "V", "even", true)).toBe("돈은 세기를 한 단계 낮춰 「반반이에요」로 적었어요.");
-    expect(collectedSentence("support", "H", "even", true)).toBe("지쳤을 때는 세기를 한 단계 낮춰 「반반이에요」로 적었어요.");
+    expect(V40_COPY.result.evenCodeNoteLowered).toBe("「반반」은 어느 쪽으로도 크게 기울지 않았거나, 글자 옆 표시를 한 단계 낮춘 주제예요.");
+    expect(collectedSentence("money", "V", "even", true)).toBe("돈은 글자 옆 표시를 한 단계 낮춰 「반반이에요」로 적었어요.");
+    expect(collectedSentence("support", "H", "even", true)).toBe("지쳤을 때는 글자 옆 표시를 한 단계 낮춰 「반반이에요」로 적었어요.");
     expect(strengthSentence("money", "V", "even", true)).toBe(
-      "세기를 한 단계 낮춰 「반반이에요」로 적었어요. 고른 답은 아래에 그대로 보여 드려요. 코드에는 한 글자만 적을 수 있어서 「V 조건 먼저」를 적었어요.",
+      "글자 옆 표시를 한 단계 낮춰 「반반이에요」로 적었어요. 글자는 모은 답대로 「V 조건 먼저」예요.",
     );
     for (const axis of V40_AXES) {
       for (const letter of [axis.front, axis.back]) {
@@ -644,43 +646,44 @@ describe("문서의 최종 문구를 그대로 옮겼다", () => {
         expect(strengthSentence(axis.key, letter, "even", false)).toBe(strengthSentence(axis.key, letter, "even"));
       }
     }
-    expect(evenOneSidedLine("H")).toBe("고른 답은 「H 마음 먼저」 쪽에만 있었지만 모인 정도가 약해서 한쪽으로 기울었다고 보지는 않았어요.");
+    expect(evenOneSidedLine("H")).toBe("고른 답은 「H 마음 먼저」 쪽에만 있었지만, 강하게 고른 답이 많지 않아서 「반반이에요」로 적었어요.");
     // 형식 안내가 앞말이 이미 한 말이면 되풀이하지 않는다(「6칸」은 앞말의 「여섯 칸」과 같은 말이다)
     const splitGuide = V40_COPY.question.guides.split;
     expect(formatGuideRepeatsStem(splitGuide, "오늘 정말 힘들었다고 털어놓았어요. 여섯 칸을 나눠 놓아 주세요. 한 곳에 몰아도 괜찮아요.")).toBe(true);
     expect(formatGuideRepeatsStem(splitGuide, "어떤 반응이 반가운지 정해 주세요.")).toBe(false);
     expect(formatGuideRepeatsStem(splitGuide, "여섯 칸을 나눠 놓아 주세요.")).toBe(false);
-    expect(formatGuideRepeatsStem(V40_COPY.question.guides.pair, "더 나 같은 쪽을 골라 주세요.")).toBe(false);
+    expect(formatGuideRepeatsStem(V40_COPY.question.guides.pair, "지금 마음이 가는 쪽을 골라 주세요.")).toBe(false);
     expect(formatGuideRepeatsStem("", "아무 앞말")).toBe(false);
-    // 「앞 글자」는 코드의 첫 글자로 읽힐 수 있어서, 표에서 어디에 있는 글자인지로 말한다(표의 앞 글자 칸이 왼쪽이다).
+    // 「앞 글자」는 코드의 첫 글자로 읽힐 수 있어서, 표에서 어디에 있는 글자인지로 말한다(표의 앞쪽 칸 이름도 「왼쪽 글자」다).
     expect(V40_COPY.quality.provisional).toBe("두 쪽이 똑같이 나와서, 글자 읽는 법 표에서 왼쪽에 있는 글자를 임시로 적었어요.");
-    expect(V40_COPY.legend.frontColumn).toBe("앞 글자");
+    expect(V40_COPY.legend.frontColumn).toBe("왼쪽 글자");
+    expect(V40_COPY.legend.backColumn).toBe("오른쪽 글자");
     expect(V40_COPY.taste.title).toBe("결혼식 모습도 골라 볼까요? (선택)");
     expect(V40_COPY.taste.newTabHint).toBe("새 탭에서 열려요");
     expect(V40_COPY.copyCode.button).toBe("코드 복사");
     expect(V40_COPY.copyCode.hint).toBe(
-      "글자와 뜻, 세기만 복사하고 내 답은 넣지 않아요. 복사한 글은 상대가 답하기 전에는 보내지 않는 게 좋아요. 내 글자를 먼저 보면 답이 끌릴 수 있어요.",
+      "글자 이름과 옆 표시만 복사하고 내 답은 넣지 않아요. 복사한 글은 상대가 답하기 전에는 보내지 않는 게 좋아요. 내 글자를 먼저 보면 상대 답이 그쪽으로 쏠릴 수 있어요.",
     );
   });
 
   it("주제 블록 예시(코드 SWUA)와 같은 문장", () => {
-    expect(meaningLine("S")).toBe("S는 돈이 걸린 결정에서 결혼식이 끝난 뒤 남을 장면과 분위기를 먼저 그려 보고 정해요.");
-    expect(oppositeMeaningLine("S")).toBe("반대쪽 V는 돈이 걸린 결정에서 총액, 한도, 계약 조건 같은 숫자를 먼저 맞춰 보고 정해요.");
+    expect(meaningLine("S")).toBe("S는 돈이 걸린 결정에서 결혼하는 날이 지난 뒤에도 남을 장면과 분위기를 먼저 그려 보고, 돈 쓸 곳은 그날 쪽에 둬요.");
+    expect(oppositeMeaningLine("S")).toBe("반대쪽 V는 돈이 걸린 결정에서 총액과 계약 조건 같은 숫자를 먼저 맞춰 보고, 돈 쓸 곳은 결혼 뒤 생활 쪽에 둬요.");
     expect(letterHeading("S", "lean")).toBe("S 장면 먼저 · 기울어요");
-    expect(strengthSentence("money", "S", "lean")).toBe("이 주제에서는 대체로 이쪽으로 답했어요. 뚜렷하게 한쪽으로 모인 정도는 아니에요.");
-    expect(strengthSentence("process", "W", "clear")).toBe("이 주제에서는 답이 한쪽으로 뚜렷하게 모였어요.");
+    expect(strengthSentence("money", "S", "lean")).toBe("대체로 이쪽으로 답했어요.");
+    expect(strengthSentence("process", "W", "clear")).toBe("답이 한쪽으로 크게 모였어요.");
     expect(strengthSentence("support", "A", "even")).toBe(
-      "「H 마음 먼저」와 「A 할 일 먼저」 중 어느 쪽으로도 크게 기울지 않았어요. 코드에는 한 글자만 적을 수 있어서 「A 할 일 먼저」를 적었어요.",
+      "이 주제에서는 어느 쪽으로도 크게 기울지 않았어요. 코드에는 한 글자만 적을 수 있어서 「A 할 일 먼저」를 적었어요.",
     );
-    expect(meaningLine("H")).toBe("H는 지치고 힘든 날, 해결보다 마음을 알아주는 게 먼저인 쪽이에요.");
-    expect(meaningLine("A")).toBe("A는 지치고 힘든 날, 할 일을 정리하고 덜어 내는 게 먼저인 쪽이에요.");
+    expect(meaningLine("H")).toBe("H는 지치고 힘든 날, 마음을 알아주는 게 먼저예요.");
+    expect(meaningLine("A")).toBe("A는 지치고 힘든 날, 할 일을 정리하고 덜어 내는 게 먼저예요.");
     expect(evenSideAnswersHeading("H")).toBe("H 마음 먼저 쪽으로 고른 답");
-    expect(talkLine("S")).toBe("둘이 이야기해 봐요: 마음이 움직여도 꼭 확인하고 싶은 조건이 있나요?");
-    expect(tryLine("S")).toBe("이렇게 해 봐요: 계약 조건은 서면으로 받아 두세요. 마음에 드는 곳을 고를 때도 든든해요.");
+    expect(talkLine("S")).toBe("둘이 이야기해 봐요: 마음에 드는 곳을 만났을 때 가장 놓치고 싶지 않은 장면은 뭐예요?");
+    expect(tryLine("S")).toBe("이렇게 해 봐요: 그날 꼭 남기고 싶은 장면 하나와, 그걸 위해 확인할 조건 하나를 함께 적어 두세요.");
     expect(V40_COPY.block.answersMineHeading).toBe("내가 고른 답");
     expect(V40_COPY.block.answersOppositeHeading).toBe("반대로 고른 답");
     expect(V40_COPY.block.moreToggle).toBe("더 보기");
-    expect(V40_COPY.block.appearancesHeading).toBe("이렇게 나타날 수 있어요");
+    expect(V40_COPY.block.appearancesHeading).toBe("이렇게 나타날 수 있어요 (이 글자를 받은 모든 사람에게 같은 줄이에요)");
     expect(V40_COPY.block.reviewAxisButton).toBe("이 주제 답 다시 보기");
   });
 
@@ -689,14 +692,14 @@ describe("문서의 최종 문구를 그대로 옮겼다", () => {
     expect(V40_COPY.block.noOppositeLine).toBe("반대로 뚜렷하게 고른 답은 없었어요.");
     expect(V40_COPY.block.noOppositeLine).toContain("뚜렷하게");
     expect(V40_COPY.block.noAnswersLine).toBe("보여 줄 답이 없어요.");
-    expect(V40_COPY.block.evenAppearancesNote).toBe("두 글자 모두 이런 모습으로 나타날 수 있어요.");
+    expect(V40_COPY.block.evenAppearancesNote).toBe("아래는 두 글자의 예시예요. 답이 어느 쪽으로도 크게 모이지 않아서 둘 다 보여 드려요. 내 모습과 다른 줄은 넘겨 읽어도 돼요.");
   });
 
   it("세기 문장은 채점이 실제로 낼 수 있는 경우에도 참이다(기울어요에 반대쪽 답이 없어도, 반반이에요가 한쪽 약한 답이어도)", () => {
     // 기울어요는 모든 답이 한쪽으로 약하게만 있어도 나온다(반대쪽 답 0개). 그래서 「반대쪽으로 고른 답도 있었어요」를 말하지 않는다.
     expect(V40_STRENGTH.lean.sentence).not.toMatch(/반대쪽으로 고른 답도/u);
     expect(V40_COPY.legend.strengthGuide.lean).not.toMatch(/반대쪽|고른 답도 있었/u);
-    expect(V40_STRENGTH.lean.sentence).toContain("뚜렷하게 한쪽으로 모인 정도는 아니에요");
+    expect(V40_STRENGTH.lean.sentence).toBe("대체로 이쪽으로 답했어요."); // 뚜렷하게 모인 정도가 아니라는 풀이는 읽는 법 표(strengthGuide.lean)가 말한다.
     expect(V40_COPY.legend.strengthGuide.lean).toBe("기울어요: 대체로 한쪽으로 답했지만 뚜렷하게 모인 정도는 아니에요.");
     // 반반이에요는 두 쪽이 비슷했다는 말을 하지 않는다(가운데 칸만 눌렀거나, 한쪽 약한 답이거나, 힌트로 한 단계 내려간 경우에도 나온다).
     expect(V40_COPY.legend.strengthGuide.even).toBe("반반이에요: 어느 쪽으로도 크게 기울지 않았어요.");
@@ -707,7 +710,8 @@ describe("문서의 최종 문구를 그대로 옮겼다", () => {
         expect(text, `${axis.key} ${shown}`).toContain("어느 쪽으로도 크게 기울지 않았어요");
         // 글자는 늘 이름과 함께 적는다(글자만 덩그러니 적지 않는다).
         expect(text, `${axis.key} ${shown}`).toContain(`코드에는 한 글자만 적을 수 있어서 「${legendLetterCell(shown)}」를 적었어요.`);
-        expect(text).toContain(`「${legendLetterCell(axis.front)}」와 「${legendLetterCell(axis.back)}」 중 어느 쪽으로도`);
+        // 두 글자 이름은 바로 아래 뜻 줄 둘과 글자 옆 이름이 이미 말해서 문장에서 되풀이하지 않는다.
+        expect(text).toMatch(/^이 주제에서는 어느 쪽으로도/u);
       }
     }
     expect(V40_COPY.result.evenCodeNote).not.toMatch(/비슷하게/u);
@@ -718,10 +722,10 @@ describe("문서의 최종 문구를 그대로 옮겼다", () => {
 
   it("직접 고른 쪽 대비", () => {
     expect(selfContrastSentence({ selfLetter: "F", gatheredLetter: "U", gatheredBand: "clear" })).toBe(
-      "마지막에 직접 고른 쪽은 「F 가족과 정하기」였어요. 여러 질문에서 고른 답은 「U 둘이 정하기」 쪽으로 뚜렷하게 모였어요. 어느 쪽이 지금 나에게 더 가까운지 둘이 이야기해 봐도 좋아요.",
+      "마지막에 직접 고른 쪽은 「F 가족과 정하기」였고, 여러 질문에서 고른 답은 「U 둘이 정하기」 쪽으로 뚜렷하게 모였어요. 둘 다 이번에 내가 고른 답이에요. 어느 쪽이 지금 나에게 더 가까운지 혼자 생각해 봐도, 둘이 이야기해 봐도 좋아요.",
     );
     expect(selfContrastSentence({ selfLetter: "F", gatheredLetter: "U", gatheredBand: "lean" })).toBe(
-      "마지막에 직접 고른 쪽은 「F 가족과 정하기」였어요. 여러 질문에서 고른 답은 「U 둘이 정하기」 쪽으로 대체로 모였어요. 어느 쪽이 지금 나에게 더 가까운지 둘이 이야기해 봐도 좋아요.",
+      "마지막에 직접 고른 쪽은 「F 가족과 정하기」였고, 여러 질문에서 고른 답은 「U 둘이 정하기」 쪽으로 대체로 모였어요. 둘 다 이번에 내가 고른 답이에요. 어느 쪽이 지금 나에게 더 가까운지 혼자 생각해 봐도, 둘이 이야기해 봐도 좋아요.",
     );
     expect(V40_COPY.block.selfChoiceHeading).toBe("직접 고른 쪽");
   });
@@ -774,25 +778,25 @@ describe("문서의 최종 문구를 그대로 옮겼다", () => {
   });
 
   it("지난번과 비교", () => {
-    expect(historyLead("9월 29일", true)).toBe("지난번(9월 29일)과 달라진 글자가 있어요.");
+    expect(historyLead("9월 29일", true)).toBe("지난번(9월 29일)과 다르게 나온 글자가 있어요.");
     // 글자는 이름과 함께 적는다(글자만 적으면 어떤 뜻인지 알 수 없다).
-    expect(historyChangedLine("money", "V", "S")).toBe("돈을 정할 때는 「V 조건 먼저」에서 「S 장면 먼저」로 바뀌었어요.");
+    expect(historyChangedLine("money", "V", "S")).toBe("돈을 정할 때는 지난번 「V 조건 먼저」, 이번 「S 장면 먼저」로 나왔어요.");
     // 주제 이름 뒤에 은, 는이 받침에 맞게 붙는다.
-    expect(historyChangedLine("process", "W", "D")).toBe("준비를 굴릴 때는 「W 같이 하기」에서 「D 나눠 하기」로 바뀌었어요.");
-    expect(historyChangedLine("scope", "U", "F")).toBe("함께 정하는 사람은 「U 둘이 정하기」에서 「F 가족과 정하기」로 바뀌었어요.");
-    expect(historyChangedLine("support", "H", "A")).toBe("지쳤을 때는 「H 마음 먼저」에서 「A 할 일 먼저」로 바뀌었어요.");
+    expect(historyChangedLine("process", "W", "D")).toBe("준비를 굴릴 때는 지난번 「W 같이 하기」, 이번 「D 나눠 하기」로 나왔어요.");
+    expect(historyChangedLine("scope", "U", "F")).toBe("누구와 함께 정할 때는 지난번 「U 둘이 정하기」, 이번 「F 가족과 정하기」로 나왔어요.");
+    expect(historyChangedLine("support", "H", "A")).toBe("지쳤을 때는 지난번 「H 마음 먼저」, 이번 「A 할 일 먼저」로 나왔어요.");
     // 바뀐 것이 없다고 해도 반반이에요가 낀 주제는 글자가 달라 보일 수 있다. 표에 다른 글자가 보이는데 「달라진 글자가 없어요」라고 하면
     // 스스로 어긋나므로 무엇을 기준으로 봤는지(두 번 모두 뚜렷하거나 기울었는데 글자가 달라진 주제)를 말한다.
     expect(historyLead("9월 29일", false)).toBe(
-      "지난번(9월 29일)과 비교했어요. 두 번 모두 뚜렷하거나 기울었는데 글자가 달라진 주제는 없어요.",
+      "지난번(9월 29일)과 비교했어요. 두 번 모두 뚜렷해요나 기울어요로 나온 주제 가운데 글자가 달라진 곳은 없어요. 같은 질문을 다시 푼 것이라 지난 답을 기억하고 있을 수 있어요.",
     );
-    expect(historyLead("", false)).toBe("지난번과 비교했어요. 두 번 모두 뚜렷하거나 기울었는데 글자가 달라진 주제는 없어요.");
+    expect(historyLead("", false)).toBe("지난번과 비교했어요. 두 번 모두 뚜렷해요나 기울어요로 나온 주제 가운데 글자가 달라진 곳은 없어요. 같은 질문을 다시 푼 것이라 지난 답을 기억하고 있을 수 있어요.");
     expect(historyLead("9월 29일", false)).not.toContain("글자가 같아요");
     expect(historyLead("9월 29일", false)).not.toMatch(/달라진 글자는 없|달라졌다고 볼 만한 글자는 없/u);
-    expect(historyLead("", true)).toBe("지난번과 달라진 글자가 있어요.");
-    expect(V40_COPY.history.changedTag).toBe("달라졌어요");
-    expect(V40_COPY.history.unstableTag).toBe("바뀌기 쉬운 주제예요");
-    expect(V40_COPY.history.unstableNote).toBe("반반이에요가 낀 주제는 바뀌기 쉬워요.");
+    expect(historyLead("", true)).toBe("지난번과 다르게 나온 글자가 있어요.");
+    expect(V40_COPY.history.changedTag).toBe("다르게 나왔어요");
+    expect(V40_COPY.history.unstableTag).toBe("반반이라 달라질 수 있어요");
+    expect(V40_COPY.history.unstableNote).toBe("한 번이라도 「반반이에요」였던 주제는 글자가 다르게 나올 수 있어요.");
     expect(historyCell("S", "lean", false)).toBe("S 장면 먼저 · 기울어요");
     expect(historyCell("A", "even", true)).toBe("A 할 일 먼저 · 반반이에요 · 임시");
     expect(historyCell(null, null, false)).toBe("정하지 못했어요");
@@ -807,11 +811,11 @@ describe("문서의 최종 문구를 그대로 옮겼다", () => {
       "상대가 답을 마치면 상대 화면에 두 사람 결과가 열려요. 나도 함께 보려면 상대가 두 사람 결과 링크를 나에게 다시 보내 줘야 해요.",
     );
     expect(V40_COPY.send.questionsOnlyHelp).toBe("내 답은 들어 있지 않아요. 상대는 질문에 답하고 자기 결과만 보게 돼요.");
-    expect(V40_COPY.send.consent).toBe("링크를 받은 사람은 누구나 내 답을 읽을 수 있다는 걸 알아요. 상대에게만 보낼게요.");
+    expect(V40_COPY.send.consent).toBe("링크를 받은 사람은 누구나 내 답을 읽을 수 있고, 가족, 돈, 다툰 뒤와 지쳤을 때에 관한 답도 그대로 읽힌다는 걸 알아요. 상대에게만 보낼게요.");
     expect(V40_COPY.send.messageWithAnswers).toBe(
-      "웨딩코드 해 봤어요. 링크 열어서 답해 줘요. 다 하면 두 사람 결과 링크를 나한테도 보내 줘요. 그래야 같이 볼 수 있어요.",
+      "웨딩코드 해 봤어요. 해 보고 싶으면 시간 날 때 링크를 열어 줘요. 안 해도 괜찮아요. 다 하고 나면 두 사람 결과 링크를 나한테도 보내 주면 같이 볼 수 있어요.",
     );
-    expect(V40_COPY.send.messageQuestionsOnly).toBe("웨딩코드 해 봤어요. 링크 열어서 답해 봐요. 다 하면 서로 코드를 이야기해 봐요.");
+    expect(V40_COPY.send.messageQuestionsOnly).toBe("웨딩코드 해 봤어요. 해 보고 싶으면 시간 날 때 링크를 열어 줘요. 안 해도 괜찮아요. 하고 나면 어느 장면에서 어떻게 골랐는지 이야기해 봐요.");
     expect(V40_COPY.send.copied).toBe("링크를 복사했어요. 대화창에 붙여 넣어 주세요.");
     // 마우스로 선택해 복사하는 화면에서도 맞는 말이다(「길게 눌러」는 휴대폰에서만 맞는다).
     expect(V40_COPY.send.manualCopy).toBe("아래 주소를 선택해서 복사해 주세요");
@@ -836,10 +840,10 @@ describe("문서의 최종 문구를 그대로 옮겼다", () => {
     }
     // 보내는 사람이 두 사람 결과를 보려면 상대가 결과 링크를 돌려보내야 한다는 사실이 세 곳에 모두 있다.
     expect(V40_COPY.send.withAnswersHelp).toContain("상대가 두 사람 결과 링크를 나에게 다시 보내 줘야");
-    expect(V40_COPY.send.messageWithAnswers).toContain("두 사람 결과 링크를 나한테도 보내 줘요");
+    expect(V40_COPY.send.messageWithAnswers).toContain("두 사람 결과 링크를 나한테도 보내 주면 같이 볼 수 있어요");
     expect(V40_COPY.intro.title.length).toBeGreaterThan(0);
     expect(introBullets("on")[3]).toContain("두 사람 결과 링크를 다시 보내 주면");
-    expect(V40_COPY.coupleSend.help).toContain("이 링크를 보내야 상대도 두 사람 결과를 볼 수 있어요");
+    expect(V40_COPY.coupleSend.help).toContain("이 링크를 보내면 상대도 두 사람 결과를 볼 수 있어요");
   });
 
   it("링크를 보내는 말에는 가리키는 것이 불분명한 말과 어색한 말이 없다", () => {
@@ -857,12 +861,12 @@ describe("문서의 최종 문구를 그대로 옮겼다", () => {
   it("받는 사람 화면", () => {
     expect(V40_COPY.receive.title).toBe("상대가 웨딩코드를 보냈어요");
     expect(V40_COPY.receive.lead).toBe(
-      "먼저 내 답을 마치면 두 사람 결과를 나란히 볼 수 있어요. 링크 안에는 상대의 답이 들어 있어요. 내가 마치기 전에는 화면에 나오지 않게 해 뒀어요.",
+      "먼저 내 답을 마치면 두 사람 결과를 나란히 볼 수 있어요. 링크 안의 상대 답은 내가 마치기 전에는 화면에 나오지 않아요. 하고 싶지 않으면 여기서 닫아도 돼요.",
     );
     expect(receiveStorage("on")).toBe(
       "질문은 모두 68개예요. 답은 웨딩한방에 보내지 않고 이 브라우저에 30일 동안 저장돼요. 카카오톡 같은 앱 안에서 열었다면 다음에도 같은 곳에서 열어야 이어서 할 수 있어요. 웨딩코드는 상대의 답을 이 브라우저에 저장하지 않아요. 받은 링크는 받은 곳에서 지우기 전까지 남아 있어요. 끝까지 마쳤는지 같은 이용 통계만 남겨요.",
     );
-    expect(V40_COPY.receive.scope).toBe("식을 올리지 않아도, 부모님이 안 계셔도, 재혼이어도 답할 수 있어요.");
+    expect(V40_COPY.receive.scope).toBe("식을 올리지 않아도, 부모님이 안 계셔도, 재혼이어도, 아직 준비 전이어도 답할 수 있어요.");
     expect(V40_COPY.receive.answerButton).toBe("나도 답해 보기");
     expect(V40_COPY.receive.reloadNote).toBe("이 화면을 새로고침하면 상대의 답이 화면에서 사라져요. 그럴 때는 받은 링크를 다시 열어 주세요.");
     expect(V40_COPY.receive.noCompareNote).toBe("이번에는 글자를 정하지 못해서 두 사람 결과를 만들 수 없어요. 처음부터 다시 답해 볼 수 있어요.");
@@ -870,7 +874,9 @@ describe("문서의 최종 문구를 그대로 옮겼다", () => {
     // 두 사람 결과가 없는 화면은 「우리 둘의 웨딩코드」라는 결과 제목을 쓰지 않는다.
     expect(V40_COPY.receive.noCompareTitle).toBe("두 사람 결과를 만들지 못했어요");
     expect(V40_COPY.receive.noCompareTitle).not.toBe(V40_COPY.couple.title);
-    expect(V40_COPY.receive.ownAnswersNote).toBe("내 답도 내가 링크를 보내기 전에는 상대에게 가지 않아요.");
+    // 내 답이 링크를 보내기 전에는 상대에게 가지 않는다는 말은 returnStepNote 한 문단에 합쳤다(받는 사람 첫 화면의 문단을 줄였다).
+    expect("ownAnswersNote" in V40_COPY.receive).toBe(false);
+    expect(V40_COPY.receive.returnStepNote).toContain("내 답은 내가 링크를 보내기 전에는 상대에게 가지 않아요.");
     expect(V40_COPY.error.brokenLink.notice).toBe("링크를 읽지 못했어요. 처음부터 시작할 수 있어요.");
   });
 
@@ -904,7 +910,7 @@ describe("문서의 최종 문구를 그대로 옮겼다", () => {
   });
 
   it("이어 하기 카드와 초대 링크 충돌 카드", () => {
-    expect(V40_COPY.intro.resume.body).toBe("저장해 둔 곳부터 이어서 할 수 있어요. 처음부터 다시 하면 저장된 답은 지워져요.");
+    expect(V40_COPY.intro.resume.body).toBe("저장해 둔 곳부터 이어서 할 수 있어요. 다른 사람이 하던 답이라면 이어서 할 때 그 사람의 답이 보여요. 처음부터 다시 하면 저장된 답은 지워져요.");
     expect(V40_COPY.intro.resume.continueButton).toBe(V40_COPY.rest.continueButton);
     expect(V40_COPY.intro.inviteConflict.title).toBe("하던 답을 이어서 할까요?");
     expect(V40_COPY.intro.inviteConflict.body).toBe(
@@ -922,14 +928,14 @@ describe("문서의 최종 문구를 그대로 옮겼다", () => {
     expect(V40_COPY.couple.tagLabels).toEqual({ same: "같은 글자", different: "다른 글자", even: "한쪽 또는 둘 다 반반이에요" });
     expect(coupleTagNote("money", "different", false)).toBe("돈을 정할 때 무엇부터 보는지가 다를 수 있어요.");
     expect(coupleTagNote("process", "different", false)).toBe("준비를 굴리는 방식이 다를 수 있어요.");
-    expect(coupleTagNote("scope", "different", false)).toBe("누구까지 함께 정할지가 다를 수 있어요.");
+    expect(coupleTagNote("scope", "different", false)).toBe("누구까지 함께 정할지가 다를 수 있어요. 각자 떠올린 어른이 달랐을 수도 있어요.");
     expect(coupleTagNote("support", "different", false)).toBe("지친 날 필요한 도움이 다를 수 있어요.");
     expect(coupleTagNote("money", "same", false)).toBe(`${V40_SAME_LETTER_NOTE}.`);
     expect(V40_SAME_LETTER_NOTE).toBe("같은 쪽이어도 이유는 다를 수 있어요");
     expect(coupleTagNote("money", "even", false)).toBe(V40_COPY.couple.evenTagNote);
     expect(coupleTagNote("money", "same", true)).toBe(V40_COPY.couple.excludedTagNote);
     expect(V40_COPY.couple.talk.title).toBe("먼저 이야기해 볼 질문");
-    expect(V40_COPY.couple.talk.lead).toBe("이 질문에서는 두 사람이 다르게 골랐어요. 다른 날에는 다르게 고를 수도 있어요.");
+    expect(V40_COPY.couple.talk.lead).toBe("이 질문에서는 두 사람이 서로 다른 쪽을 골랐어요. 다른 날에는 답이 달라질 수도 있어요.");
     expect(V40_COPY.couple.similar.title).toBe("이미 비슷하게 고른 질문");
     expect(Object.keys(V40_COPY.couple.talk.opening)).toEqual([...V40_AXIS_KEYS]);
     expect(V40_COPY.couple.notice).toBe(
@@ -939,23 +945,25 @@ describe("문서의 최종 문구를 그대로 옮겼다", () => {
     expect(V40_COPY.couple.perspective.autoNote).toBe("이 브라우저에 저장된 내 답과 같아서 「나」로 표시했어요.");
     // 누르면 지금 보던 결과가 닫히므로 단추 이름은 「처음부터」를 빼고, 닫힌다는 것을 바로 아래에서 말한다.
     expect(V40_COPY.couple.startOwnButton).toBe("내 웨딩코드 해 보기");
-    expect(V40_COPY.couple.startOwnNote).toBe("누르면 이 결과 화면은 닫혀요. 다시 보려면 받은 링크를 다시 열어 주세요.");
+    expect(V40_COPY.couple.startOwnNote).toBe("누르면 이 결과 화면은 닫혀요. 또 보려면 받은 링크를 열어 주세요.");
     expect(V40_COPY.couple.bothTopic).toBe("둘 다");
-    expect(V40_COPY.couple.viewpointNote).toBe("질문에 나오는 「상대」는 각자 자기 곁의 사람이에요.");
+    expect(V40_COPY.couple.choiceCostNote).toBe("고른 문장에서 「…해도」로 이어지는 부분은 그 방식의 아쉬운 점이에요. 상대를 탓하는 말이 아니에요.");
+    expect(V40_COPY.couple.viewpointNote).toBe("질문에 나오는 「상대」는 그 답을 고른 사람의 상대예요. 같은 낱말이어도 누가 고른 답이냐에 따라 가리키는 사람이 달라요.");
     expect(V40_COPY.coupleSend.title).toBe("이 결과를 상대에게도 보내기");
     // 두 사람의 답이 링크에 든다는 말은 바로 아래 체크 문장이 하므로 도움말은 되풀이하지 않는다.
-    expect(V40_COPY.coupleSend.help).toBe("이 링크를 보내야 상대도 두 사람 결과를 볼 수 있어요.");
+    expect(V40_COPY.coupleSend.help).toBe("이 링크를 보내면 상대도 두 사람 결과를 볼 수 있어요. 보내고 싶지 않으면 보내지 않아도 돼요.");
     expect(V40_COPY.coupleSend.help).not.toContain("들어 있어요");
     expect(V40_COPY.coupleSend.disabledReason).toBe("위 칸 두 개에 모두 체크하면 보낼 수 있어요.");
     expect(V40_COPY.coupleSend.message).toBe("우리 둘의 웨딩코드 결과예요. 링크를 열면 나란히 볼 수 있어요.");
-    expect(V40_COPY.coupleSend.consentAllAnswers).toBe("이 링크에 두 사람의 답이 모두 들어 있다는 걸 알아요.");
+    expect(V40_COPY.coupleSend.consentAllAnswers).toBe("이 링크에 두 사람의 답이 모두 들어 있고, 가족, 돈, 다툰 뒤와 지쳤을 때에 관한 답도 그대로 읽힌다는 걸 알아요.");
     // 이 화면의 사람은 다른 사람의 동의를 알 수 없으므로 「먼저 답한 사람도 동의했어요」를 체크로 받지 않는다. 자기가 지킬 수 있는 약속만 받는다.
     expect(V40_COPY.coupleSend.consentSelf).toBe("이 링크는 상대에게만 보낼게요.");
     expect("consentFirstPerson" in V40_COPY.coupleSend).toBe(false);
     for (const leaf of copyLeaves(V40_COPY.coupleSend, "coupleSend")) {
       expect(leaf.text, leaf.path).not.toMatch(/동의|먼저 답한 사람/u);
     }
-    expect(V40_COPY.coupleSend.sensitiveInfo).toBe("가족, 돈, 다툰 뒤와 지쳤을 때에 관한 답도 그대로 읽혀요.");
+    // 가족, 돈, 다툰 뒤와 지쳤을 때의 답도 읽힌다는 말은 체크 문장(consentAllAnswers) 안에 합쳤다(체크 칸 아래 따로 둔 줄은 없다).
+    expect("sensitiveInfo" in V40_COPY.coupleSend).toBe(false);
     expect(V40_COPY.coupleSend.anyoneCanReadInfo).toBe("링크를 가진 누구나 읽고 다시 전달할 수 있고, 이미 보낸 링크는 되돌릴 수 없어요.");
   });
 
@@ -981,10 +989,10 @@ describe("문서의 최종 문구를 그대로 옮겼다", () => {
 describe("도우미 함수", () => {
   it("코드 복사 글은 글자, 뜻, 세기만 담는다", () => {
     expect(codeCopyText(SWUA)).toBe(
-      "웨딩코드 SWUA (S 장면 먼저 · 기울어요, W 같이 하기 · 뚜렷해요, U 둘이 정하기 · 기울어요, A 할 일 먼저 · 반반이에요)",
+      "웨딩코드 SWUA, 이번에 고른 답을 모은 글자예요 (S 장면 먼저 · 기울어요, W 같이 하기 · 뚜렷해요, U 둘이 정하기 · 기울어요, A 할 일 먼저 · 반반이에요)",
     );
     expect(codeCopyText(WITH_UNUSABLE)).toBe(
-      "웨딩코드 S·UH (S 장면 먼저 · 기울어요, 준비 · 정하지 못했어요, U 둘이 정하기 · 반반이에요 · 임시, H 마음 먼저 · 뚜렷해요)",
+      "웨딩코드 S·UH, 이번에 고른 답을 모은 글자예요 (S 장면 먼저 · 기울어요, 준비 · 정하지 못했어요, U 둘이 정하기 · 반반이에요 · 임시, H 마음 먼저 · 뚜렷해요)",
     );
     for (const entries of [SWUA, WITH_UNUSABLE]) {
       const text = codeCopyText(entries);
@@ -1294,7 +1302,7 @@ describe("저장소를 말하는 글은 이 기기가 아니라 이 브라우저
     const texts = sourceTexts(join(SRC_ROOT, "lib/weddingCode/v40/copy.ts"));
     expect(texts.length).toBeGreaterThan(300);
     expect(texts).toContain(V40_COPY.manage.clear.button);
-    expect(texts.some((text) => text.includes("공용 기기에서는 저장을 꺼 주세요"))).toBe(true);
+    expect(texts.some((text) => text.includes("같이 쓰는 폰이나 컴퓨터에서는 저장을 꺼 주세요"))).toBe(true);
     // 주석 속 글은 뽑지 않는다.
     expect(texts.some((text) => text.includes("통합 검토(2026-09-30)"))).toBe(false);
   });

@@ -54,7 +54,7 @@ export type ScoredFormat = Exclude<Format, "self">;
 /** 세기 세 단계. clear = 뚜렷해요, lean = 기울어요, even = 반반이에요. 숫자로 화면에 내지 않는다. */
 export type StrengthBand = "clear" | "lean" | "even";
 
-/** 구간 번호. 0 처음, 1 이어서, 2 조금만 더, 3 마지막 구간, 4 마지막 정리(자기 선택). */
+/** 구간 번호. 0 처음, 1 이어서, 2 절반쯤, 3 거의 다, 4 마지막 정리(자기 선택). */
 export type SectionIndex = 0 | 1 | 2 | 3 | 4;
 /** 폼 비트. 0 이면 문항 은행에 적힌 순서 그대로, 1 이면 위아래, 좌우, 보기 순서를 뒤집는다. */
 export type FormBit = 0 | 1;
@@ -87,34 +87,34 @@ export interface AxisInfo {
 export const V40_AXES = [
   {
     key: "money", order: 0, title: "돈을 정할 때", topic: "돈",
-    question: "돈이 걸린 결정을 내릴 때 무엇을 먼저 붙잡나요? 총액과 조건 같은 숫자인가요, 결혼식이 끝난 뒤에 남을 장면인가요?",
+    question: "돈이 걸린 결정을 내릴 때 무엇을 먼저 붙잡나요? 총액과 조건 같은 숫자인가요, 결혼하는 날이 지난 뒤에도 남을 장면인가요?",
     front: "V", back: "S", facets: ["limit", "check", "worth", "moment"],
-    evenPiece: "돈은 조건과 장면",
-    evenSentence: "돈은 조건과 장면 어느 쪽으로도 크게 기울지 않았어요.",
+    evenPiece: "돈은 조건과 장면 중",
+    evenSentence: "돈은 조건과 장면 중 어느 쪽으로도 크게 기울지 않았어요.",
     differentNote: "돈을 정할 때 무엇부터 보는지가 다를 수 있어요",
   },
   {
     key: "process", order: 1, title: "준비를 굴릴 때", topic: "준비",
     question: "찾고 고르고 확인하는 준비 과정을 어떻게 굴리고 싶나요? 둘이 함께 하나요, 나눠 맡고 결과로 만나나요?",
     front: "W", back: "D", facets: ["search", "detail", "report", "owner"],
-    evenPiece: "준비는 같이 하기와 나눠 하기",
-    evenSentence: "준비는 같이 하기와 나눠 하기 어느 쪽으로도 크게 기울지 않았어요.",
+    evenPiece: "준비는 같이 하기와 나눠 하기 중",
+    evenSentence: "준비는 같이 하기와 나눠 하기 중 어느 쪽으로도 크게 기울지 않았어요.",
     differentNote: "준비를 굴리는 방식이 다를 수 있어요",
   },
   {
-    key: "scope", order: 2, title: "함께 정하는 사람", topic: "정하는 사람",
+    key: "scope", order: 2, title: "누구와 함께 정할 때", topic: "정하는 사람",
     question: "결혼 준비의 결정을 누구까지 함께 정하나요? 우리 둘이 먼저 정하나요, 정하기 전에 가족의 마음도 모으나요?",
     front: "U", back: "F", facets: ["timing", "circle", "final", "form"],
-    evenPiece: "정하는 사람은 둘과 가족",
-    evenSentence: "정하는 사람은 둘과 가족 어느 쪽으로도 크게 기울지 않았어요.",
-    differentNote: "누구까지 함께 정할지가 다를 수 있어요",
+    evenPiece: "결정은 둘이 먼저 내리는 쪽과 가족의 마음도 먼저 모으는 쪽 중",
+    evenSentence: "결정은 둘이 먼저 내리는 쪽과 가족의 마음도 먼저 모으는 쪽 중 어느 쪽으로도 크게 기울지 않았어요.",
+    differentNote: "누구까지 함께 정할지가 다를 수 있어요. 각자 떠올린 어른이 달랐을 수도 있어요",
   },
   {
     key: "support", order: 3, title: "지쳤을 때", topic: "지쳤을 때",
     question: "준비가 힘들어 지친 날 무엇이 먼저 필요한가요? 마음을 알아주는 것인가요, 할 일을 덜어 내는 것인가요? 상대가 지쳤을 때 내가 하는 쪽도 함께 물어요.",
     front: "H", back: "A", facets: ["vent", "fight", "give", "recover"],
-    evenPiece: "지친 날에는 마음과 할 일",
-    evenSentence: "지친 날에는 마음과 할 일 어느 쪽으로도 크게 기울지 않았어요.",
+    evenPiece: "지친 날에는 마음과 할 일 중",
+    evenSentence: "지친 날에는 마음과 할 일 중 어느 쪽으로도 크게 기울지 않았어요.",
     differentNote: "지친 날 필요한 도움이 다를 수 있어요",
   },
 ] as const satisfies readonly AxisInfo[];
@@ -155,15 +155,15 @@ export interface LetterInfo {
 /** 글자 정의 순서는 V S W D U F H A 로 고정한다(축 순서, 축 안에서 앞 글자, 뒤 글자). */
 export const V40_LETTERS = [
   {
-    letter: "V", axis: "money", side: "front", name: "조건 먼저", english: "Verify", mnemonic: "Verify: 조건을 따져 봐요",
-    meaning: "돈이 걸린 결정에서 총액, 한도, 계약 조건 같은 숫자를 먼저 맞춰 보고 정해요.",
+    letter: "V", axis: "money", side: "front", name: "조건 먼저", english: "Verify", mnemonic: "Verify: 조건을 맞춰 봐요",
+    meaning: "돈이 걸린 결정에서 총액과 계약 조건 같은 숫자를 먼저 맞춰 보고, 돈 쓸 곳은 결혼 뒤 생활 쪽에 둬요.",
     appearances: [
-      "견적서를 받으면 총액과 추가금부터 표로 옮겨 적고 예산선과 맞춰 봐요.",
+      "견적서를 받으면 총액과 추가금부터 표로 옮겨 적고 예산과 맞춰 봐요.",
       "계약 전에 환불과 취소 조건을 문서로 받아 끝까지 읽어야 마음이 놓여요.",
-      "남는 돈은 결혼식 뒤의 생활과 예비 쪽에 두고 싶어요.",
-      "오늘 정하면 혜택이라는 말에도 다른 곳과 견줘 보고 정해요.",
+      "돈이 남으면 결혼 뒤의 생활비와 예비비로 두고 싶어요.",
+      "마음에 드는 곳이 있어도 다른 곳을 둘러본 뒤에 정해요.",
     ],
-    scopeNote: "이 글자는 돈을 정하는 순서만 말해요.",
+    scopeNote: "이 글자는 돈을 정하는 순서와 돈을 쓸 곳만 말해요.",
     talk: "총액 안에서 끝까지 지키고 싶은 건 뭐예요?",
     tryThis: "총액 안에서 어디까지가 필수인지 함께 적어 두세요.",
     readingPiece: "돈은 조건과 총액부터 맞춰 보는",
@@ -171,16 +171,16 @@ export const V40_LETTERS = [
   },
   {
     letter: "S", axis: "money", side: "back", name: "장면 먼저", english: "Scene", mnemonic: "Scene: 남을 장면을 그려 봐요",
-    meaning: "돈이 걸린 결정에서 결혼식이 끝난 뒤 남을 장면과 분위기를 먼저 그려 보고 정해요.",
+    meaning: "돈이 걸린 결정에서 결혼하는 날이 지난 뒤에도 남을 장면과 분위기를 먼저 그려 보고, 돈 쓸 곳은 그날 쪽에 둬요.",
     appearances: [
-      "마음에 드는 항목부터 골라 두고 총액은 나중에 맞춰 봐요.",
+      "마음에 드는 항목부터 골라 두고, 총액은 그다음에 맞춰 가요.",
       "계약 전에 그 공간에 직접 앉아 보고 그날이 그려지는지 확인해요.",
-      "남는 돈은 사진이나 꽃처럼 그날 남을 것에 쓰고 싶어요.",
-      "「여기다」 싶은 곳을 만나면 그날 마음을 정해요.",
+      "돈이 남으면 사진이나 꽃처럼 그날을 기억하게 해 줄 것에 쓰고 싶어요.",
+      "「여기다」 싶은 곳을 만나면 다른 곳을 오래 보지 않고 정해요.",
     ],
-    scopeNote: "이 글자는 돈을 정하는 순서만 말해요.",
-    talk: "마음이 움직여도 꼭 확인하고 싶은 조건이 있나요?",
-    tryThis: "계약 조건은 서면으로 받아 두세요. 마음에 드는 곳을 고를 때도 든든해요.",
+    scopeNote: "이 글자는 돈을 정하는 순서와 돈을 쓸 곳만 말해요.",
+    talk: "마음에 드는 곳을 만났을 때 가장 놓치고 싶지 않은 장면은 뭐예요?",
+    tryThis: "그날 꼭 남기고 싶은 장면 하나와, 그걸 위해 확인할 조건 하나를 함께 적어 두세요.",
     readingPiece: "돈은 남을 장면부터 그려 보는",
     answerSentence: "돈은 남을 장면부터 그려 보는 쪽으로 답했어요.",
   },
@@ -191,26 +191,26 @@ export const V40_LETTERS = [
       "웨딩홀 투어와 업체 상담은 시간을 맞춰 둘이 같이 다녀요.",
       "청첩장 문구나 배경음악 같은 작은 것도 같이 정하고 싶어요.",
       "일이 어디까지 됐는지 중간중간 주고받아야 마음이 놓여요.",
-      "막히는 일이 생기면 혼자 붙들지 않고 바로 같이 풀어요.",
+      "막히는 일이 생기면 바로 말해서 같이 풀어요.",
     ],
     scopeNote: "이 글자는 준비 과정을 함께하는 방식만 말해요.",
     talk: "꼭 같이 해야 하는 일과 각자 해도 되는 일은 뭐예요?",
-    tryThis: "같이 갈 상담과 따로 맡을 일을 처음에 나눠 적어 두면 서로 덜 서운해요.",
+    tryThis: "같이 갈 상담과 따로 맡을 일을 처음에 나눠 적어 두고, 서로 생각이 같은지 확인해 보세요.",
     readingPiece: "준비는 같이 하는",
     answerSentence: "준비는 같이 하는 쪽으로 답했어요.",
   },
   {
     letter: "D", axis: "process", side: "back", name: "나눠 하기", english: "Divide", mnemonic: "Divide: 일을 나눠 맡아요",
-    meaning: "준비할 일을 나눠 맡고, 맡은 사람이 이끌어 결과로 만나요.",
+    meaning: "준비할 일을 나눠 맡고, 맡은 일은 맡은 사람이 이끌어 가요.",
     appearances: [
-      "한 사람이 후보를 추려 오고 마지막 선택만 같이 해요.",
+      "한 사람이 후보를 추려 오고, 마지막 선택은 같이 해요.",
       "작은 결정은 맡은 사람이 정하면 그대로 따라도 좋아요.",
       "정리가 끝난 뒤에 한 번에 알려 주는 편이 오히려 편해요.",
       "시작할 때 담당과 마감을 나눠 두면 내 몫은 끝까지 가져가요.",
     ],
     scopeNote: "이 글자는 일을 맡기고 믿는 방식만 말해요.",
-    talk: "맡긴 일에서 중간에 알려 줬으면 하는 순간이 있나요?",
-    tryThis: "맡긴 일마다 중간에 알려 줄 시점을 하나씩 정해 두세요.",
+    talk: "나눠 맡을 때 알아서 해 줬으면 하는 일과 중간에 알려 줬으면 하는 일은 뭐예요?",
+    tryThis: "일마다 중간에 서로 알려 줄 시점을 하나씩 정해 두세요.",
     readingPiece: "준비는 나눠 맡는",
     answerSentence: "준비는 나눠 맡는 쪽으로 답했어요.",
   },
@@ -218,39 +218,39 @@ export const V40_LETTERS = [
     letter: "U", axis: "scope", side: "front", name: "둘이 정하기", english: "Us", mnemonic: "Us: 우리 둘이 먼저 정해요",
     meaning: "결혼 준비의 결정을 우리 둘이 먼저 정하고, 가족과는 정한 뒤에 나눠요.",
     appearances: [
-      "정하기 전에 미리 말씀드리기보다 정해진 뒤에 알려요.",
-      "초대 명단은 두 사람의 관계를 기준으로 정해요.",
+      "정하기 전에는 둘이 먼저 이야기하고, 정해진 뒤에 어른들께 알려 드려요.",
+      "초대 명단은 두 사람이 직접 아는 사람을 기준으로 정해요.",
       "가족 생각이 달라도 마지막 선택은 둘이 해요.",
       "식의 방식은 우리에게 맞게 새로 짜는 쪽이 좋아요.",
     ],
     scopeNote: "이 글자는 결정에 함께하는 사람의 범위만 말해요.",
     talk: "어른들께 알리기 전에 둘이 꼭 맞춰 둘 건 뭐예요?",
     tryThis: "어른들께 알리기 전에 둘이 꼭 맞춰 둘 것 세 가지를 적어 보세요.",
-    readingPiece: "정할 때는 둘이 먼저 정하는",
-    answerSentence: "정할 때는 둘이 먼저 정하는 쪽으로 답했어요.",
+    readingPiece: "결정은 둘이 먼저 내리는",
+    answerSentence: "결정은 둘이 먼저 내리는 쪽으로 답했어요.",
   },
   {
     letter: "F", axis: "scope", side: "back", name: "가족과 정하기", english: "Family", mnemonic: "Family: 가족과 함께 정해요",
-    meaning: "결혼 준비의 결정을 정하기 전에 가족의 마음과 의견을 함께 모아요.",
+    meaning: "결혼 준비의 결정을 정하기 전에 가족의 마음과 의견을 모으고, 그 뜻도 살려요.",
     appearances: [
-      "정하기 전에 미리 말씀드려야 나중에 서운함이 없다고 봐요.",
+      "어른들께는 정하기 전에 미리 말씀드리는 쪽이 마음 편해요.",
       "부모님 쪽 인연과 어른들이 편한 자리도 넉넉히 살펴요.",
-      "가족이 서운해하시면 뜻을 조금 내려놓고 마음을 풀어 드리고 싶어요.",
+      "가족 생각이 다르면 우리 뜻을 조금 조정해서라도 맞춰 가요.",
       "집안에서 해 오던 방식을 살려 맞추는 쪽이 마음 편해요.",
     ],
     scopeNote: "이 글자는 결정에 함께하는 사람의 범위만 말해요.",
-    talk: "어른들 뜻을 듣고도 끝까지 지키고 싶은 건 뭐예요?",
-    tryThis: "어른들께 여쭐 것과 이미 둘이 정한 것을 나눠서 말씀드려 보세요.",
-    readingPiece: "정할 때는 가족의 마음도 먼저 모으는",
-    answerSentence: "정할 때는 가족의 마음도 먼저 모으는 쪽으로 답했어요.",
+    talk: "어른들께 꼭 먼저 여쭙고 싶은 일은 뭐예요?",
+    tryThis: "어른들께 꼭 먼저 여쭙고 싶은 것 세 가지를 둘이 함께 적어 보세요.",
+    readingPiece: "결정은 가족의 마음도 먼저 모으는",
+    answerSentence: "결정은 가족의 마음도 먼저 모으는 쪽으로 답했어요.",
   },
   {
     letter: "H", axis: "support", side: "front", name: "마음 먼저", english: "Heart", mnemonic: "Heart: 마음을 먼저 알아줘요",
-    meaning: "지치고 힘든 날, 해결보다 마음을 알아주는 게 먼저인 쪽이에요.",
+    meaning: "지치고 힘든 날, 마음을 알아주는 게 먼저예요.",
     appearances: [
-      "힘들다고 털어놓을 때 해결책보다 「많이 힘들었겠다」는 말이 먼저 필요해요.",
+      "힘들다고 털어놓을 때 「많이 힘들었겠다」는 말을 먼저 듣고 싶어요.",
       "다툰 뒤에는 서로 마음이 풀렸는지 확인하고 다시 이야기해요.",
-      "상대가 지쳐 보이면 조언보다 「오늘 어땠어?」부터 물어요.",
+      "상대가 지쳐 보이면 먼저 「오늘 어땠어?」라고 물어요.",
       "마음을 말로 꺼내 놓아야 풀려요.",
     ],
     scopeNote: "이 글자는 지친 날 도움이 오가는 순서만 말해요.",
@@ -261,16 +261,16 @@ export const V40_LETTERS = [
   },
   {
     letter: "A", axis: "support", side: "back", name: "할 일 먼저", english: "Action", mnemonic: "Action: 할 일부터 움직여요",
-    meaning: "지치고 힘든 날, 할 일을 정리하고 덜어 내는 게 먼저인 쪽이에요.",
+    meaning: "지치고 힘든 날, 할 일을 정리하고 덜어 내는 게 먼저예요.",
     appearances: [
       "털어놓은 뒤 방법이 하나라도 나와야 마음이 가벼워져요.",
-      "다툰 뒤에는 원인을 짚고 다음 규칙을 정해야 풀려요.",
+      "다툰 뒤에는 무엇이 문제였는지 차분히 짚고, 다음엔 어떻게 할지 정해야 풀려요.",
       "상대가 지친 밤에는 내일 할 일 하나를 대신 가져가 줘요.",
       "일 하나를 끝내면 기분이 풀려요.",
     ],
     scopeNote: "이 글자는 지친 날 도움이 오가는 순서만 말해요.",
-    talk: "해결보다 그냥 들어주면 좋은 날은 어떻게 알릴까요?",
-    tryThis: "정리가 먼저인 사람도 「오늘은 들어만 줘」가 필요한 날이 있다는 걸 상대에게 알려 두세요.",
+    talk: "할 일을 먼저 덜어 줬으면 하는 날과 그냥 들어주면 되는 날을 어떻게 알릴까요?",
+    tryThis: "힘든 날에는 「같이 정리해 줘」와 「들어줘」 중 어느 쪽이 먼저 필요한지 미리 말해 두세요.",
     readingPiece: "지친 날에는 할 일부터 덜어 내는",
     answerSentence: "지친 날에는 할 일부터 덜어 내는 쪽으로 답했어요.",
   },
@@ -278,7 +278,7 @@ export const V40_LETTERS = [
 
 /** 글자 설명 안의 고정 라벨. 「라벨: 내용」 꼴로 이어 붙인다. */
 export const V40_LABELS = {
-  appearances: "이렇게 나타날 수 있어요",
+  appearances: "이렇게 나타날 수 있어요 (이 글자를 받은 모든 사람에게 같은 줄이에요)",
   talk: "둘이 이야기해 봐요",
   tryThis: "이렇게 해 봐요",
   moreToggle: "더 보기",
@@ -396,9 +396,9 @@ export interface StrengthInfo {
 }
 
 export const V40_STRENGTH = {
-  clear: { band: "clear", label: "뚜렷해요", sentence: "이 주제에서는 답이 한쪽으로 뚜렷하게 모였어요." },
+  clear: { band: "clear", label: "뚜렷해요", sentence: "답이 한쪽으로 크게 모였어요." },
   // 기울어요는 반대쪽 답이 하나도 없어도(모두 한쪽으로 약하게만 답해도) 나올 수 있어서 「반대쪽으로 고른 답도 있었어요」라고 하지 않는다.
-  lean: { band: "lean", label: "기울어요", sentence: "이 주제에서는 대체로 이쪽으로 답했어요. 뚜렷하게 한쪽으로 모인 정도는 아니에요." },
+  lean: { band: "lean", label: "기울어요", sentence: "대체로 이쪽으로 답했어요." },
   even: { band: "even", label: "반반이에요", sentence: null },
 } as const satisfies Record<StrengthBand, StrengthInfo>;
 
@@ -410,7 +410,7 @@ export const V40_EVEN_CODE_NOTE = "어느 쪽으로도 크게 기울지 않은 �
  * 「반반」 중에 힌트(위치 반복, 건너뜀)가 세기를 한 단계 낮춰서 된 것이 하나라도 있을 때 위 한 줄 대신 쓴다.
  * 낮추기 전에는 한쪽으로 기울어 있던 주제라서 「크게 기울지 않았어요」라고만 하면 아래에 보여 주는 답과 어긋난다.
  */
-export const V40_EVEN_CODE_NOTE_LOWERED = "「반반」은 어느 쪽으로도 크게 기울지 않았거나, 세기를 한 단계 낮춘 주제예요.";
+export const V40_EVEN_CODE_NOTE_LOWERED = "「반반」은 어느 쪽으로도 크게 기울지 않았거나, 글자 옆 표시를 한 단계 낮춘 주제예요.";
 
 /**
  * 반반이에요 주제의 세기 문장. shown 은 코드에 적은 글자다(그 주제의 두 글자 중 하나).
@@ -421,10 +421,9 @@ export const V40_EVEN_CODE_NOTE_LOWERED = "「반반」은 어느 쪽으로도 �
  */
 export function evenStrengthSentence(axis: Axis, shown: Letter): string {
   const info = axisInfo(axis);
-  const front = letterInfo(info.front);
-  const back = letterInfo(info.back);
   const shownInfo = letterInfo(shown);
-  return `「${front.letter} ${front.name}」와 「${back.letter} ${back.name}」 중 어느 쪽으로도 크게 기울지 않았어요. 코드에는 한 글자만 적을 수 있어서 「${shownInfo.letter} ${shownInfo.name}」를 적었어요.`;
+  if (shown !== info.front && shown !== info.back) throw new RangeError(`글자 ${shown} 는 이 주제의 글자가 아니에요: ${axis}`);
+  return `이 주제에서는 어느 쪽으로도 크게 기울지 않았어요. 코드에는 한 글자만 적을 수 있어서 「${shownInfo.letter} ${shownInfo.name}」를 적었어요.`;
 }
 
 /**
@@ -433,7 +432,7 @@ export function evenStrengthSentence(axis: Axis, shown: Letter): string {
  */
 export function loweredStrengthSentence(shown: Letter): string {
   const shownInfo = letterInfo(shown);
-  return `세기를 한 단계 낮춰 「반반이에요」로 적었어요. 고른 답은 아래에 그대로 보여 드려요. 코드에는 한 글자만 적을 수 있어서 「${shownInfo.letter} ${shownInfo.name}」를 적었어요.`;
+  return `글자 옆 표시를 한 단계 낮춰 「반반이에요」로 적었어요. 글자는 모은 답대로 「${shownInfo.letter} ${shownInfo.name}」예요.`;
 }
 
 /** 세기를 한 단계 낮춘다(뚜렷해요는 기울어요, 기울어요는 반반이에요, 반반이에요는 그대로). */
@@ -446,10 +445,10 @@ export function demoteBand(band: StrengthBand): StrengthBand {
 // ---------------------------------------------------------------------------
 
 /** 질문을 나눈 네 구간의 이름표. 진행 막대와 쉬는 카드에만 붙고 구간마다 따로 카드를 두지 않는다. */
-export const V40_SECTION_NAMES = ["처음", "이어서", "조금만 더", "마지막 구간"] as const;
+export const V40_SECTION_NAMES = ["처음", "이어서", "절반쯤", "거의 다"] as const;
 export const V40_WRAP_UP_NAME = "마지막 정리";
 /** 진행 막대 5칸의 이름(네 구간 + 마지막 정리). SectionIndex 로 찾는다. */
-export const V40_SEGMENT_NAMES = ["처음", "이어서", "조금만 더", "마지막 구간", "마지막 정리"] as const;
+export const V40_SEGMENT_NAMES = ["처음", "이어서", "절반쯤", "거의 다", "마지막 정리"] as const;
 /** 낭독기용 구간 알림(SectionIndex 로 찾는다). */
 export const V40_SECTION_ARIA = [
   "지금 첫 번째 구간이에요",
@@ -483,7 +482,7 @@ export const V40_REST_CARD = {
 export type GuideKey = "pair" | "react" | "choose" | "bestworst" | "split";
 
 export const V40_FORMAT_GUIDES: Readonly<Record<GuideKey, string>> = {
-  pair: "더 나 같은 쪽을 골라 주세요. 얼마나 가까운지도 함께 눌러요.",
+  pair: "고른 쪽이 얼마나 가까운지도 함께 눌러 주세요.",
   react: "그때 내 마음에 가까운 칸을 눌러 주세요.",
   choose: "가장 가까운 것 하나를 골라 주세요. 해 본 적이 없으면 「이런 일이 없었어요」를 눌러도 돼요.",
   bestworst: "가장 나 같은 것 하나, 가장 나 같지 않은 것 하나를 골라 주세요.",
@@ -529,9 +528,9 @@ export const V40_BESTWORST_LABELS = {
 /** 칸 나누기의 칸 수. 세 항목에 나눠 놓는다. */
 export const V40_SPLIT_TOTAL = 6;
 
-/** 두 가지 중 고르기 칸 이름표(낭독용): 「위 카드에 가까워요, 아주」. cardIndex 0 이 위 카드. */
+/** 두 가지 중 고르기 칸 이름표(낭독용): 「위 카드에 아주 가까워요」. cardIndex 0 이 위 카드. */
 export function pairCellAccessibleName(cardIndex: 0 | 1, level: 1 | 2 | 3): string {
-  return `${cardIndex === 0 ? "위 카드" : "아래 카드"}에 가까워요, ${V40_PAIR_LEVEL_LABELS[level - 1]}`;
+  return `${cardIndex === 0 ? "위 카드" : "아래 카드"}에 ${V40_PAIR_LEVEL_LABELS[level - 1]} 가까워요`;
 }
 
 /** 이럴 때 내 마음 칸 위치 이름(낭독용, 왼쪽에서 오른쪽). */
@@ -562,11 +561,11 @@ export function reactGroupDescription(leftEnd: string, rightEnd: string): string
 
 export const V40_QUALITY_COPY = {
   /** 같은 위치를 반복해서 누른 응답이 두 형식 이상이면 모든 세기를 한 단계 낮추고 결과 맨 위에 한 줄. */
-  rhythmHint: "답이 같은 위치에 여러 번 몰렸어요. 그래서 이번에는 글자 옆 표시(뚜렷해요, 기울어요, 반반이에요)를 모두 한 단계 낮춰 적었어요. 천천히 다시 해 볼 수도 있어요.",
+  rhythmHint: "답이 화면의 같은 위치(예를 들어 위쪽 카드)에 여러 번 몰렸어요. 위치의 영향이 섞였을 수 있어서 이번에는 뚜렷해요와 기울어요로 나온 표시를 한 단계씩 낮춰 적었어요. 원하면 다시 해 볼 수 있어요.",
   /** 잘 모르겠어요가 채점 문항 64개 중 16개를 넘으면 모든 세기를 한 단계 낮추고 안내. */
-  skipHint: "잘 모르겠다고 넘어간 질문이 많아서 이번에는 글자 옆 표시(뚜렷해요, 기울어요, 반반이에요)를 모두 한 단계 낮춰 적었어요.",
+  skipHint: "잘 모르겠다고 넘어간 질문이 많아서 이번에는 뚜렷해요와 기울어요로 나온 표시를 한 단계씩 낮춰 적었어요.",
   /** 같은 위치 반복이 세 형식이면 코드를 만들지 않는다. */
-  gate: "답이 같은 위치에 몰려 있어서 이번에는 글자를 정하지 못했어요. 처음부터 다시 해 볼 수 있어요.",
+  gate: "답이 화면의 같은 위치(예를 들어 위쪽 카드)에 몰려 있어서 위치의 영향이 섞였을 수 있어요. 그래서 이번에는 글자를 정하지 못했어요. 원하면 처음부터 다시 해 볼 수 있어요.",
   /** 넘어간 질문이 있을 때 한 줄. */
   omitted: "넘어간 질문은 계산에서 뺐어요.",
   /**

@@ -30,7 +30,7 @@ function StrengthDots({ level }: { readonly level: 1 | 2 | 3 }) {
  * 뷰가 이미 폼 비트를 반영했으므로 여기서는 위아래가 어느 극인지 모른다. 화면에 A/B 나 번호 라벨을 쓰지 않는다.
  * 답은 화면 칸 번호(cell 0에서 5)로 알리고 뷰의 fmt(pair 또는 self)를 그대로 싣는다.
  *
- * 칸의 이름은 「위 카드에 가까워요, 아주」처럼 위치만 말하므로, 카드 글은 그 카드의 세 칸에 설명(aria-describedby)으로 붙인다.
+ * 칸의 이름은 「위 카드에 아주 가까워요」처럼 위치만 말하므로, 카드 글은 그 카드의 세 칸에 설명(aria-describedby)으로 붙인다.
  * 그래서 폼 컨트롤만 훑는 낭독기 사용자도 칸에 초점이 올 때 카드가 무슨 말인지 듣는다.
  */
 export function PairInput({ view, value, onAnswer, idPrefix, incomplete = false }: PairInputProps) {

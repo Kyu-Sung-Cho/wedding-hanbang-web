@@ -964,7 +964,7 @@ describe("progressSegments와 placementOf", () => {
   it("다섯 칸은 구간 16, 16, 16, 16과 마지막 정리 4개이고 done 은 저장값이 있는 문항 수다", () => {
     const fresh = progressSegments(bank, initialFlowState(bank));
     expect(fresh.map((segment) => segment.total)).toEqual([16, 16, 16, 16, 4]);
-    expect(fresh.map((segment) => segment.name)).toEqual(["처음", "이어서", "조금만 더", "마지막 구간", "마지막 정리"]);
+    expect(fresh.map((segment) => segment.name)).toEqual(["처음", "이어서", "절반쯤", "거의 다", "마지막 정리"]);
     expect(fresh.every((segment) => segment.done === 0 && !segment.current)).toBe(true);
     let state = started();
     for (let step = 0; step < 4; step += 1) state = reduce(answerPage(state), { type: "next" });

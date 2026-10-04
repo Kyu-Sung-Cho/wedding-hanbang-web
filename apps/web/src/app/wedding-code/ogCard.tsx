@@ -76,7 +76,7 @@ export function weddingCodeCard({ titleLines, detail }: WeddingCodeCardText): Re
             <div key={line} style={{ display: "flex" }}>{line}</div>
           ))}
         </div>
-        <div style={{ display: "flex", fontSize: 30, color: PAPER.inkSoft }}>
+        <div style={{ display: "flex", fontSize: 30, color: PAPER.inkSoft, wordBreak: "keep-all" }}>
           {detail}
         </div>
       </div>

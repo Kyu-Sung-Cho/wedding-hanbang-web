@@ -2,13 +2,13 @@
   {
     "name": "첫 문단에서 판정이 아니라는 말이 빠진다",
     "target": "apps/web/src/app/wedding-code/WeddingCodeV31Client.tsx",
-    "find": "정리해 봐요. 성격을 진단하는 검사가 아니에요.\"",
+    "find": "정리해 봐요. 성격을 진단하는 검사가 아니고, 아직 여러 사람에게 확인해 보지 못한 질문이에요.\"",
     "replace": "정리해 봐요.\""
   },
   {
     "name": "판정이 아니라는 말이 범위 줄에 한 번 더 나온다",
     "target": "apps/web/src/app/wedding-code/WeddingCodeV31Client.tsx",
-    "find": "양쪽 집안이 비용을 어떻게 나눌지는 묻지 않아요.</p>",
-    "replace": "양쪽 집안이 비용을 어떻게 나눌지는 묻지 않아요.</p><p className={v31Body}>성격을 진단하는 검사가 아니에요.</p>"
+    "find": "여기서는 내가 바라는 대로 답해 주세요.</p>",
+    "replace": "여기서는 내가 바라는 대로 답해 주세요.</p><p className={v31Body}>성격을 진단하는 검사가 아니에요.</p>"
   }
 ]

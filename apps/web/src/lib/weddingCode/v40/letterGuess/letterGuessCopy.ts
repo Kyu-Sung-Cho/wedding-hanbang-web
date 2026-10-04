@@ -19,7 +19,7 @@ export const V40_LETTER_GUESS_COPY = {
   // 결과 전 화면 -------------------------------------------------------------
   screen: {
     title: "결과를 보기 전에, 내가 어느 쪽에 가까운지 골라 볼까요?",
-    lead: "주제마다 두 글자 중 나에게 더 가까운 쪽을 골라 보세요. 결과를 본 뒤에 고른 글자와 나란히 놓아 볼게요. 고르지 않아도 결과는 그대로예요.",
+    lead: "방금은 카드로 골랐어요. 이번에는 글자 이름과 뜻을 보고, 주제마다 나에게 더 가까운 쪽을 골라 보세요. 결과를 본 뒤에 고른 글자와 나란히 놓아 볼게요. 고르지 않아도 결과는 그대로예요.",
     /** 저장 안내 세 갈래(저장 상태를 따른다. 저장이 정말 되는 상태에서만 남는다고 말한다). */
     storageOn: "고른 글자는 이 브라우저에만 남아요. 링크에는 들어가지 않아요.",
     storageOff: "자동 저장을 꺼 두어서 고른 글자는 저장하지 않아요.",
@@ -47,12 +47,12 @@ export const V40_LETTER_GUESS_COPY = {
   },
 } as const;
 
-/** 줄의 주어 조각(조사는 은, 는만 쓴다). 「답을 모아 보니」 문장의 주어와 같은 낱말이다. 시험이 collectedSentence 의 앞머리와 같음을 본다. */
+/** 줄의 주어 조각: 주제 이름 뒤에 「 주제에서는」을 붙인다. 주제가 글자를 고른 것으로 읽히지 않게 하고, 주제 이름은 상수의 topic 을 그대로 쓴다. */
 const TOPIC_SUBJECT: Readonly<Record<Axis, string>> = {
-  money: "돈은",
-  process: "준비는",
-  scope: "정하는 사람은",
-  support: "지쳤을 때는",
+  money: `${axisInfo("money").topic} 주제에서는`,
+  process: `${axisInfo("process").topic} 주제에서는`,
+  scope: `${axisInfo("scope").topic} 주제에서는`,
+  support: `${axisInfo("support").topic} 주제에서는`,
 };
 
 /** 글자와 이름을 낫표로 묶은 조각: 「W 같이 하기」. 글자 한 자 뒤에는 늘 그 글자의 이름이 온다. */
@@ -64,10 +64,10 @@ function letterWithName(letter: Letter): string {
 /**
  * 먼저 고른 글자와 결과 글자가 다른 주제의 줄(사실 줄). 칭찬도 책망도 까닭도 개수도 없다.
  * 낫표 뒤 조사는 를로 고정이라 글자 이름의 받침을 따지지 않는다.
- * 예: 준비는 「W 같이 하기」를 먼저 골랐고, 답을 모아 보니 「D 나눠 하기」 쪽으로 답했어요.
+ * 예: 준비 주제에서는 결과를 보기 전에 「W 같이 하기」를 골랐는데, 답을 모아 보니 「D 나눠 하기」 쪽으로 답했어요.
  */
 export function letterGuessLineText(line: LetterGuessLine): string {
-  return `${TOPIC_SUBJECT[line.axis]} ${letterWithName(line.guessed)}를 먼저 골랐고, 답을 모아 보니 ${letterWithName(line.shown)} 쪽으로 답했어요.`;
+  return `${TOPIC_SUBJECT[line.axis]} 결과를 보기 전에 ${letterWithName(line.guessed)}를 골랐는데, 답을 모아 보니 ${letterWithName(line.shown)} 쪽으로 답했어요.`;
 }
 
 /** 주제 이름(화면에 보이는 주제 제목). 상수에서 읽는다. */
@@ -77,7 +77,7 @@ export function letterGuessTopicTitle(axis: Axis): string {
 
 /**
  * 글자 카드 한 장의 글: 글자와 이름, 가운뎃점, 그 글자의 뜻 한 줄. 글자 이름과 뜻은 상수에서 그대로 읽는다.
- * 예: V 조건 먼저 · 돈이 걸린 결정에서 총액, 한도, 계약 조건 같은 숫자를 먼저 맞춰 보고 정해요.
+ * 예: V 조건 먼저 · 돈이 걸린 결정에서 총액과 계약 조건 같은 숫자를 먼저 맞춰 보고, 돈 쓸 곳은 결혼 뒤 생활 쪽에 둬요.
  */
 export function letterGuessCardText(letter: Letter): string {
   const info = letterInfo(letter);

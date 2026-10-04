@@ -111,7 +111,7 @@ describe("웨딩코드 4.0 상수", () => {
     expect(V40_AXIS_KEYS).toEqual(["money", "process", "scope", "support"]);
     expect(V40_AXES.map((axis) => axis.order)).toEqual([0, 1, 2, 3]);
     expect(V40_AXES.map((axis) => `${axis.front}${axis.back}`).join("/")).toBe("VS/WD/UF/HA");
-    expect(V40_AXES.map((axis) => axis.title)).toEqual(["돈을 정할 때", "준비를 굴릴 때", "함께 정하는 사람", "지쳤을 때"]);
+    expect(V40_AXES.map((axis) => axis.title)).toEqual(["돈을 정할 때", "준비를 굴릴 때", "누구와 함께 정할 때", "지쳤을 때"]);
     expect(V40_AXES.map((axis) => axis.topic)).toEqual(["돈", "준비", "정하는 사람", "지쳤을 때"]);
     for (const axis of V40_AXES) {
       expect(axisInfo(axis.key)).toBe(axis);
@@ -140,7 +140,7 @@ describe("웨딩코드 4.0 상수", () => {
   });
 
   it("구간 이름표와 마지막 정리", () => {
-    expect(V40_SECTION_NAMES).toEqual(["처음", "이어서", "조금만 더", "마지막 구간"]);
+    expect(V40_SECTION_NAMES).toEqual(["처음", "이어서", "절반쯤", "거의 다"]);
     expect(V40_WRAP_UP_NAME).toBe("마지막 정리");
     expect(V40_SEGMENT_NAMES).toEqual([...V40_SECTION_NAMES, "마지막 정리"]);
     expect(V40_SECTION_ARIA).toHaveLength(5);
@@ -157,7 +157,7 @@ describe("웨딩코드 4.0 상수", () => {
     expect(demoteBand("lean")).toBe("even");
     expect(demoteBand("even")).toBe("even");
     expect(evenStrengthSentence("support", "A")).toBe(
-      "「H 마음 먼저」와 「A 할 일 먼저」 중 어느 쪽으로도 크게 기울지 않았어요. 코드에는 한 글자만 적을 수 있어서 「A 할 일 먼저」를 적었어요.",
+      "이 주제에서는 어느 쪽으로도 크게 기울지 않았어요. 코드에는 한 글자만 적을 수 있어서 「A 할 일 먼저」를 적었어요.",
     );
   });
 
@@ -187,13 +187,13 @@ describe("웨딩코드 4.0 상수", () => {
     expect(V40_STATE_ALPHABET).toHaveLength(62);
     expect(new Set(V40_STATE_ALPHABET).size).toBe(62);
     expect(Math.max(...Object.values(V40_STATE_COUNTS))).toBeLessThanOrEqual(62);
-    expect(pairCellAccessibleName(0, 3)).toBe("위 카드에 가까워요, 아주");
-    expect(pairCellAccessibleName(1, 1)).toBe("아래 카드에 가까워요, 조금");
+    expect(pairCellAccessibleName(0, 3)).toBe("위 카드에 아주 가까워요");
+    expect(pairCellAccessibleName(1, 1)).toBe("아래 카드에 조금 가까워요");
     // 세 단계 이름이 위 카드와 아래 카드 모두에서 자리마다 맞는다(낭독기가 읽는 세기 낱말).
-    expect(pairCellAccessibleName(0, 1)).toBe("위 카드에 가까워요, 조금");
-    expect(pairCellAccessibleName(0, 2)).toBe("위 카드에 가까워요, 꽤");
-    expect(pairCellAccessibleName(1, 2)).toBe("아래 카드에 가까워요, 꽤");
-    expect(pairCellAccessibleName(1, 3)).toBe("아래 카드에 가까워요, 아주");
+    expect(pairCellAccessibleName(0, 1)).toBe("위 카드에 조금 가까워요");
+    expect(pairCellAccessibleName(0, 2)).toBe("위 카드에 꽤 가까워요");
+    expect(pairCellAccessibleName(1, 2)).toBe("아래 카드에 꽤 가까워요");
+    expect(pairCellAccessibleName(1, 3)).toBe("아래 카드에 아주 가까워요");
     expect(reactCellAccessibleName(2, "가", "나")).toBe("다섯 칸 중 가운데");
     expect(reactCellAccessibleName(0, "서운할 것 같아요", "든든할 것 같아요")).toBe("서운할 것 같아요, 다섯 칸 중 왼쪽 끝");
     // 오른쪽 끝 칸도 끝 이름을 앞에 붙이고, 양끝이 아닌 칸은 끝 이름 없이 자리만 읽는다.

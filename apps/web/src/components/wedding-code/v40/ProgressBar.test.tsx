@@ -135,7 +135,7 @@ describe("ProgressBar", () => {
     const odd: ProgressSegment[] = [
       { index: 0, name: "처음", done: 40, total: 16, current: true },
       { index: 1, name: "이어서", done: -3, total: 16, current: false },
-      { index: 2, name: "조금만 더", done: 5, total: 0, current: false },
+      { index: 2, name: "절반쯤", done: 5, total: 0, current: false },
     ];
     await harness.render(<ProgressBar segments={odd} />);
     const fills = [...harness.container.querySelectorAll<HTMLElement>("[data-fill]")].map((element) => element.style.width);

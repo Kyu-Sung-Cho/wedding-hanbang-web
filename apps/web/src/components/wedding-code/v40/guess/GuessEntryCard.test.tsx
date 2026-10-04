@@ -40,7 +40,7 @@ describe("GuessEntryCard", () => {
       await mount();
       const text = harness.container.textContent ?? "";
       expect(text).toContain("내 답과 함께 보내기");
-      expect(text).toContain("링크를 가진 사람은 읽을 수 있고");
+      expect(text).toContain("링크를 가진 사람은 누구나 읽을 수 있어요");
       // 나란히 놓이는 것은 짐작이 다른 장면뿐이다(결정하는 자리에서 모든 장면이 놓인다고 말하지 않는다).
       expect(text).toContain("두 사람 결과에 짐작이 다른 장면이 나란히 놓여요");
       expect(text).toContain("이 브라우저에는 저장하지 않아요");

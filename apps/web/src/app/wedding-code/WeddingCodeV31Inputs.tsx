@@ -21,7 +21,7 @@ const escapeOptions = [
 ] as const;
 
 /** 가운데 답과 반대쪽 답을 고르는 법. 평정 흐름의 첫 화면에서만 보여준다. */
-export const v31RatingGuide = "가운데 ‘어느 쪽도 아니에요’는 어느 쪽에도 가깝지 않을 때 골라요. 원하지 않는 내용이면 ‘그렇지 않은 편이에요’ 쪽으로 골라요.";
+export const v31RatingGuide = "가운데 ‘어느 쪽도 아니에요’는 좋지도 싫지도 않거나 상황에 따라 다를 때 골라 주세요. 원하지 않는 내용이면 ‘그렇지 않은 편이에요’나 ‘전혀 그렇지 않아요’를 고르면 돼요.";
 export const v31EscapeFoldLabel = "답하기 어려워요";
 
 export function V31RatingInput({ value, onChange, showGuide = false, compact = false, questionLabel }: {
@@ -132,7 +132,7 @@ export function V31ChoiceInput({ value, options, max, onChange, tasteKey, kind =
   </Button>;
   return <div>
     {leadingStatuses.length ? <div className="mb-4 space-y-1 border-b border-[var(--hb-hairline)] pb-3">{leadingStatuses.map(statusButton)}</div> : null}
-    <p className={`mb-3 ${v31Body}`}>{max === 1 ? "하나를 골라 주세요." : kind === "avoidances" || tasteKey === "attire" || tasteKey === "ceremony" ? "해당하는 것을 모두 골라 주세요. 다시 누르면 선택이 풀려요." : `최대 ${max}개까지 고를 수 있어요. 다시 누르면 선택이 풀려요.`}</p>
+    <p className={`mb-3 ${v31Body}`}>{max === 1 ? "하나를 골라 주세요. 이미 정해진 것이 있어도 내가 바라는 것을 고르면 돼요." : kind === "avoidances" || tasteKey === "attire" || tasteKey === "ceremony" ? "해당하는 것을 골라 주세요. 여러 개 골라도 되고, 다시 누르면 선택이 풀려요." : `최대 ${max}개까지 고를 수 있어요. 고른 순서대로 결과에 적어요. 다시 누르면 선택이 풀려요.`}</p>
     {options.length ? <div className={tasteKey ? "grid grid-cols-1 gap-3 min-[360px]:grid-cols-2" : "space-y-2"}>
       {options.map(option => <Button key={option.value} variant="secondary" fullWidth
         aria-pressed={selected.includes(option.value)} data-choice={option.value}
@@ -147,7 +147,7 @@ export function V31ChoiceInput({ value, options, max, onChange, tasteKey, kind =
           </span>
         </span> : <><span className="flex-1 text-sm leading-relaxed">{option.label}</span>{selected.includes(option.value) ? <Check aria-hidden="true" className="size-4 shrink-0" /> : null}</>}
       </Button>)}
-    </div> : <p className="rounded-lg bg-[var(--hb-surface-hover)] p-4 text-sm leading-relaxed text-[var(--hb-text-body)]">앞에서 원한다고 답한 내용이나 직접 고른 취향, 피하고 싶은 것이 아직 없어요. 이전 질문에서 답을 바꾸거나, 아래에서 지금 생각을 골라도 괜찮아요.</p>}
+    </div> : <p className="rounded-lg bg-[var(--hb-surface-hover)] p-4 text-sm leading-relaxed text-[var(--hb-text-body)]">아직 고를 수 있는 것이 없어요. ‘그런 편이에요’ 이상으로 답한 문장, 직접 고른 취향, 피하고 싶은 것이 있어야 여기에 나와요. 지금은 아래에서 내 생각에 맞는 칸을 골라 주세요.</p>}
     <div className="mt-5 space-y-1 border-t border-[var(--hb-hairline)] pt-2">
       {remainingStatuses.map(statusButton)}
     </div>
@@ -165,6 +165,6 @@ export function V31PriorityInput({ value, options, onChange }: {
   return <div>
     <V31ChoiceInput value={value} options={options} max={3} onChange={onChange} kind="priorities" />
     {/* 건너뜀은 보기로 두지 않아 눌린 버튼이 없다. 전에 넘어갔다는 사실만 알린다. */}
-    {value?.status === "skipped" ? <p className={`mt-4 ${v31Body}`} data-priority-skipped-note>지난번에는 고르지 않고 넘어갔어요.</p> : null}
+    {value?.status === "skipped" ? <p className={`mt-4 ${v31Body}`} data-priority-skipped-note>이 질문은 고르지 않고 넘어간 상태예요.</p> : null}
   </div>;
 }

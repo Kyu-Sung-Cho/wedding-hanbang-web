@@ -147,7 +147,7 @@ describe("V31 same-browser resume", () => {
     expect([...container.querySelectorAll("[data-question]")].map(item => item.getAttribute("data-question"))).toEqual(["V1", "G2", "R3"]);
     expect(container.querySelector<HTMLInputElement>('[data-question="V1"] input[value="5"]')?.checked).toBe(true);
     expect(window.localStorage.getItem(LOCAL_KEY)).toBe(raw);
-    await button("여기까지 보고 결과 보기");
+    await button("여기까지만 답하고 결과 보기");
     const saved = readV31LocalProgress(window.localStorage);
     expect(saved.status).toBe("ready");
     if (saved.status !== "ready") return;
@@ -165,12 +165,12 @@ describe("V31 same-browser resume", () => {
     const raw = JSON.stringify({ schema: 1, version: draft.version, savedAt: Date.now(), answerCode: encodeV31(draft), index: 2, screen: "questions", editing: false, needsPriorityReview: false });
     window.localStorage.setItem(LOCAL_KEY, raw);
     await render();
-    expect(container.textContent).toContain("이전 전체 질문 34개 중 3번째부터 이어 할 수 있어요");
+    expect(container.textContent).toContain("예전 전체 질문 34개 중 3번째부터 이어 할 수 있어요");
     await button("이어서 답하기");
     expect(window.localStorage.getItem(LOCAL_KEY)).toBe(raw);
     expect(container.querySelector('[data-question="G2"]')).not.toBeNull();
     expect(container.querySelectorAll("[data-question]")).toHaveLength(1);
-    expect(container.textContent).toContain("이전 전체 질문 3 / 34");
+    expect(container.textContent).toContain("예전 전체 질문 3 / 34");
     await click(container.querySelector('input[value="3"]')); await button("다음 질문");
     const saved = readV31LocalProgress(window.localStorage);
     expect(saved.status === "ready" && saved.snapshot.flow).toBe("full");
@@ -255,13 +255,13 @@ describe("V31 same-browser resume", () => {
     const fetch = vi.spyOn(globalThis, "fetch");
     await render(); await button("내 웨딩코드 시작하기");
     await click(container.querySelector('input[value="5"]'));
-    expect(container.textContent).toContain("기기 저장을 꺼도 서버 함께 보기 연결은 남아요. 종료는 연결 결과에서 해주세요.");
+    expect(container.textContent).toContain("자동 저장을 꺼도 서버에 있는 함께 보기 연결은 그대로 남아요. 끝내려면 끄기 전에 두 사람 결과 화면에서 ‘연결 끝내기’를 눌러 주세요. 이미 껐다면 따로 복사해 둔 ‘나만 보관할 확인 주소’로 열어 끝낼 수 있어요.");
     await button("자동 저장 끄기");
     expect(window.localStorage.getItem(PAIR_SESSION_LOCAL_KEY)).toBeNull();
     expect(window.localStorage.getItem(LOCAL_KEY)).toBeNull();
     expect(readPairSessionRecovery(pair.roomId)).toEqual(pair);
     // 끄기가 지우지 않는 탭 사본은 같은 이름(확인 주소)으로, 이 탭에 잠시 남는다고 적는다.
-    expect(container.querySelector("[data-pair-tab-address-note]")?.textContent).toBe("함께 보기 요청이 처리됐는지 볼 수 있게, 확인 주소는 이 탭에 잠시 남아요.");
+    expect(container.querySelector("[data-pair-tab-address-note]")?.textContent).toBe("함께 보기가 잘 연결됐는지 다시 볼 수 있도록, 확인 주소를 이 탭에 잠시 남겨 둬요.");
     expect(fetch).not.toHaveBeenCalled();
     await button("자동 저장 켜기");
     expect(window.localStorage.getItem(PAIR_SESSION_LOCAL_KEY)).toBeNull();
@@ -536,7 +536,7 @@ describe("V31 same-browser resume", () => {
    * 아래 테스트는 저장 시점은 그대로 두고, 이어 하기 카드·큰 버튼·저장 줄이 답이 있을 때만 이어 하기를 말하는지 본다.
    */
   const RESUME_TITLE = "이 브라우저에 남겨 둔 답이 있어요";
-  const NO_ANSWER_LINE = "답하면 이 브라우저에 자동으로 저장돼요. 공용 기기라면 아래 ‘자동 저장 설정’에서 꺼 주세요.";
+  const NO_ANSWER_LINE = "답하면 이 브라우저에 자동으로 저장돼요. 다른 사람과 같이 쓰는 컴퓨터나 휴대폰이라면 아래 ‘자동 저장 설정’에서 꺼 주세요.";
   const SAVED_LINE = "이 브라우저에 저장됐어요. 나중에 이어 할 수 있어요.";
   const card = () => container.querySelector('[aria-label="저장된 내 답 이어하기"]');
   const buttonLabels = () => [...container.querySelectorAll("button")].map(item => item.textContent?.trim());

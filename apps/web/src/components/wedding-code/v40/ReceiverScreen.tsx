@@ -99,9 +99,6 @@ export function ReceiverScreen({
         {copy.title}
       </h1>
       <p className={cx(bodyText, "mt-4 break-keep")}>{copy.lead}</p>
-      <p data-receive-own-note="" className={cx(bodyText, "mt-2 break-keep")}>
-        {copy.ownAnswersNote}
-      </p>
       <p data-receive-return-step="" className={cx(bodyText, "mt-2 break-keep")}>
         {copy.returnStepNote}
       </p>
@@ -118,9 +115,6 @@ export function ReceiverScreen({
       </p>
       <p data-receive-scope="" className={cx(fineText, "mt-3")}>
         {copy.scope}
-      </p>
-      <p data-receive-reload="" className={cx(noteText, "mt-3 break-keep")}>
-        {copy.reloadNote}
       </p>
 
       {unavailable ? null : (

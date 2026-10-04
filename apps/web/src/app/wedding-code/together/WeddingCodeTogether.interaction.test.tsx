@@ -201,7 +201,7 @@ describe("두 사람 연결의 접근 권한과 늦게 도착한 응답", () => 
     const originalHash = window.location.hash;
     expect(container.querySelector('[aria-label="내 답 공유하고 함께 보기"]')).not.toBeNull();
     await click("동의하고 두 사람 결과 보기");
-    expect(container.querySelector('[role="alert"]')?.textContent).toContain("공유할 내용과 나이 확인 항목을 먼저 확인해 주세요.");
+    expect(container.querySelector('[role="alert"]')?.textContent).toContain("만 14세 이상 확인과 공유 동의, 두 칸에 먼저 체크해 주세요.");
     expect(requestPairSession).toHaveBeenCalledTimes(1);
     const age = [...container.querySelectorAll("label")].find(label => label.textContent?.includes("만 14세 이상이에요."))!.querySelector<HTMLInputElement>("input")!;
     const consent = [...container.querySelectorAll("label")].find(label => label.textContent?.includes("초대로 연결된 상대에게 보여주는 데 동의해요."))!.querySelector<HTMLInputElement>("input")!;
@@ -220,7 +220,7 @@ describe("두 사람 연결의 접근 권한과 늦게 도착한 응답", () => 
     expect(firstJoin.participantToken).not.toBe(INVITE);
     await act(async () => pendingJoin.resolve({ ok: false, code: "NETWORK_ERROR", error: "연결이 끊겼어요." }));
     expect(window.location.hash).toBe(originalHash);
-    const recovery = [...container.querySelectorAll<HTMLAnchorElement>("a")].find(link => link.textContent === "이미 처리됐는지 내 결과 확인하기")!;
+    const recovery = [...container.querySelectorAll<HTMLAnchorElement>("a")].find(link => link.textContent === "이미 연결됐는지 내 결과 확인하기")!;
     expect(new URLSearchParams(new URL(recovery.href).hash.slice(1)).get("access")).toBe(firstJoin.participantToken);
     await click("동의하고 두 사람 결과 보기");
     expect(requestPairSession).toHaveBeenCalledTimes(3);
@@ -253,7 +253,7 @@ describe("두 사람 연결의 접근 권한과 늦게 도착한 응답", () => 
     expect(observed.unmount).not.toHaveBeenCalled();
     expect(result()).toBeNull(); expect(window.location.hash).toBe(originalHash);
     expect(container.textContent).toContain("이 탭에서 요청한 함께 보기 확인");
-    expect(container.textContent).toContain("완료 여부는 주소를 열어 확인해 주세요");
+    expect(container.textContent).toContain("연결이 잘 됐는지 열어서 확인해 주세요");
   });
 
   it.each([false, true])("참여 실패 뒤 답을 수정해도 최초 동의한 답과 접근 키로만 다시 시도한다 (탭 저장 차단 %s)", async blocked => {
@@ -266,13 +266,13 @@ describe("두 사람 연결의 접근 권한과 늦게 도착한 응답", () => 
     const input = vi.mocked(requestPairSession).mock.calls[1][0];
     if (input.action !== "join") throw new Error("참여 요청이 필요해요.");
     await click("내 답 수정하기"); await click("문항 답하기"); await click("내 결과 보기");
-    expect(container.textContent).toContain("수정한 답은 앞선 요청에 반영되지 않아요");
+    expect(container.textContent).toContain("답을 고쳤더라도 이전 요청에는 고친 내용이 들어가지 않아요");
     expect(container.querySelectorAll('input[type="checkbox"]')).toHaveLength(0);
     expect(requestPairSession).toHaveBeenCalledTimes(2);
-    const recovery = [...container.querySelectorAll<HTMLAnchorElement>("a")].find(link => link.textContent === "앞서 요청한 함께 보기 확인")!;
+    const recovery = [...container.querySelectorAll<HTMLAnchorElement>("a")].find(link => link.textContent === "이전에 보낸 요청이 연결됐는지 확인")!;
     expect(recovery).toBeTruthy();
     expect(new URLSearchParams(new URL(recovery.href).hash.slice(1)).get("access")).toBe(input.participantToken);
-    await click("앞서 요청한 답으로 다시 시도");
+    await click("처음 동의했던 답으로 다시 보내기");
     expect(requestPairSession).toHaveBeenCalledTimes(3);
     expect(vi.mocked(requestPairSession).mock.calls[2][0]).toEqual(input);
     expect(input.answerCode).not.toBe(encodeV31(completeDraft(5)));

@@ -42,9 +42,9 @@ describe("GatheredSentences", () => {
     const lines = [...harness.container.querySelectorAll("li")].map((node) => node.textContent);
     expect(lines).toEqual([
       "돈은 남을 장면부터 그려 보는 쪽으로 답했어요.",
-      "준비는 같이 하기와 나눠 하기 어느 쪽으로도 크게 기울지 않았어요.",
+      "준비는 같이 하기와 나눠 하기 중 어느 쪽으로도 크게 기울지 않았어요.",
       V40_COPY.collected.sentences.scope.unusable,
-      "지친 날에는 마음과 할 일 어느 쪽으로도 크게 기울지 않았어요.",
+      "지친 날에는 마음과 할 일 중 어느 쪽으로도 크게 기울지 않았어요.",
     ]);
     expect(lines[1]).not.toContain(V40_SUFFIX.answered.trim());
     expect(lines[3]).not.toContain(V40_SUFFIX.answered.trim());

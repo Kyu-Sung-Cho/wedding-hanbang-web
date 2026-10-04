@@ -55,8 +55,8 @@ describe("ResultHeader", () => {
     const button = buttonByText(header, V40_COPY.copyCode.button);
     expect(describedByText(button)).toBe(V40_COPY.copyCode.hint);
     expect(textOf(header)).toContain("상대가 답하기 전에는 보내지 않는 게 좋아요");
-    // 왜 보내지 않는 게 좋은지(내 글자를 먼저 보면 답이 끌린다)도 화면에서 말한다.
-    expect(textOf(header)).toContain("내 글자를 먼저 보면 답이 끌릴 수 있어요");
+    // 왜 보내지 않는 게 좋은지(내 글자를 먼저 보면 상대 답이 그쪽으로 쏠린다)도 화면에서 말한다.
+    expect(textOf(header)).toContain("내 글자를 먼저 보면 상대 답이 그쪽으로 쏠릴 수 있어요");
     // 복사 안내는 고지 문장에 섞이지 않는다
     expect(V40_COPY.copyCode.hint).not.toContain(V40_NOT_VALIDATED_PHRASE);
   });
