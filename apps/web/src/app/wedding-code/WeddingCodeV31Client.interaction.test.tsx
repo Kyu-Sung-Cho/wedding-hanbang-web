@@ -937,6 +937,76 @@ describe("WeddingCodeV31Client", () => {
     for (const [, properties] of calls.filter(([name]) => name === "wedding_code_started")) expect(properties?.has_partner_link).toBe(true);
   });
 
+  describe("내가 보낸 링크를 내가 열었을 때(링크의 답이 이 브라우저에 저장된 내 결과와 같음)", () => {
+    /** 혼자 끝까지 답해 결과를 저장하고, 그 답을 받은 링크의 상대 답으로 삼아 새로 연다. */
+    async function openOwnLink(extra: Partial<Parameters<typeof WeddingCodeV31Client>[0]> = {}) {
+      await renderClient(); await button("내 웨딩코드 시작하기"); await finishFromHere();
+      const saved = readV31LocalProgress(window.localStorage);
+      if (saved.status !== "ready") throw new Error("저장된 결과가 없어요");
+      const own = saved.snapshot.draft;
+      await act(async () => root.unmount()); root = createRoot(container);
+      await renderClient({ partnerDraft: own, ...extra });
+      return own;
+    }
+
+    it("소개 대신 안내를 보이고 비교하기 단추도 상대에게 보내기도 열지 않는다", async () => {
+      await openOwnLink();
+      const screen = container.querySelector("[data-own-link]");
+      expect(screen).not.toBeNull();
+      expect(screen?.textContent).toContain("내가 보낸 링크 같아요");
+      expect(screen?.textContent).toContain("내 답이 든 링크라서 상대가 열어야 두 사람 비교를 볼 수 있어요. 상대에게 이 링크를 보내 주세요.");
+      expect([...screen!.querySelectorAll("button")].map(item => item.textContent?.trim())).toEqual(["내 결과로 돌아가기", "그래도 이 링크로 계속하기"]);
+      const buttons = [...container.querySelectorAll("button")].map(item => item.textContent?.trim());
+      expect(buttons).not.toContain("저장한 내 답으로 비교하기");
+      expect(buttons).not.toContain("나도 답해보기");
+      expect(container.querySelector('[data-result="couple-v31"]')).toBeNull();
+      expect(container.querySelector('[data-share-box="v31"]')).toBeNull();
+      // 이 안내는 저장된 답을 건드리지 않는다.
+      expect(readV31LocalProgress(window.localStorage).status).toBe("ready");
+    });
+
+    it("내 결과로 돌아가기는 받은 링크를 버리고 혼자 보는 결과를 연다", async () => {
+      await openOwnLink();
+      await button("내 결과로 돌아가기");
+      expect(container.querySelector("[data-own-link]")).toBeNull();
+      expect(container.querySelector('[data-result="solo-v31"]')).not.toBeNull();
+      expect(container.querySelector('[data-result="couple-v31"]')).toBeNull();
+    });
+
+    it("그래도 이 링크로 계속하기는 기존 소개(저장한 내 답으로 비교하기)로 간다", async () => {
+      await openOwnLink();
+      await button("그래도 이 링크로 계속하기");
+      expect(container.querySelector("[data-own-link]")).toBeNull();
+      const buttons = [...container.querySelectorAll("button")].map(item => item.textContent?.trim());
+      expect(buttons).toContain("저장한 내 답으로 비교하기");
+      await button("저장한 내 답으로 비교하기");
+      expect(container.querySelector('[data-result="couple-v31"]')).not.toBeNull();
+    });
+
+    it("링크의 답이 저장된 답과 다르거나 저장이 끝나지 않았거나 저장이 없으면 안내 없이 기존 소개다", async () => {
+      // 다른 답
+      await renderClient(); await button("내 웨딩코드 시작하기"); await finishFromHere();
+      await act(async () => root.unmount()); root = createRoot(container);
+      const other: V31Draft = { ...createV31Draft(), answers: { G1: 1, B1: 2 } };
+      await renderClient({ partnerDraft: other });
+      expect(container.querySelector("[data-own-link]")).toBeNull();
+      expect([...container.querySelectorAll("button")].map(item => item.textContent?.trim())).toContain("저장한 내 답으로 비교하기");
+      // 끝나지 않은 저장
+      window.localStorage.clear();
+      await act(async () => root.unmount()); root = createRoot(container);
+      await renderClient(); await button("내 웨딩코드 시작하기"); await rating(5, "G1");
+      await act(async () => root.unmount()); root = createRoot(container);
+      await renderClient({ partnerDraft: { ...createV31Draft(), answers: { G1: 5 } } });
+      expect(container.querySelector("[data-own-link]")).toBeNull();
+      // 저장 없음(다른 브라우저)
+      window.localStorage.clear();
+      await act(async () => root.unmount()); root = createRoot(container);
+      await renderClient({ partnerDraft: other });
+      expect(container.querySelector("[data-own-link]")).toBeNull();
+      expect([...container.querySelectorAll("button")].map(item => item.textContent?.trim())).toContain("나도 답해보기");
+    });
+  });
+
   it("우선순위 입력은 보기를 바로 보여주고, 넘어가기 버튼을 목록 안에 따로 두지 않는다", async () => {
     const onChange = vi.fn();
     await act(async () => root.render(<V31PriorityInput value={{ status: "answered", values: ["B1"] }} options={[{ value: "B1", label: "전체 예산 지키기" }]} onChange={onChange} />));

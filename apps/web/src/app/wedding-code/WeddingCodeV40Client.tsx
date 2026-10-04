@@ -12,6 +12,7 @@ import {
   RestCard,
   ResultScreen,
   SelfIntroCard,
+  SelfLinkScreen,
   ShareBlock,
   browserShareEnv,
   isRealClipboardCopy,
@@ -22,6 +23,7 @@ import {
   type ShareEnv,
   type ShareSentEvent,
 } from "@/components/wedding-code/v40";
+import { ConfirmDialog } from "@/components/wedding-code/v40/RestartBlock";
 import { CoupleGuessSection, GuessEntryCard, GuessSetFlow } from "@/components/wedding-code/v40/guess";
 import { LetterGuessClosedCard, LetterGuessLines, LetterGuessScreen } from "@/components/wedding-code/v40/letterGuess";
 import { V40_COUNTS, WEDDING_CODE_V40_VERSION, type Axis } from "@/constants/weddingCodeV40";
@@ -308,6 +310,10 @@ export function WeddingCodeV40Core({ shareOrigin, initial, resolved, embedded = 
   const [previousEntry, setPreviousEntry] = useState<HistoryEntry | null>(null);
   const [unsaved, setUnsavedState] = useState(false);
   const [noticeText, setNoticeText] = useState(initialNotice);
+  /** 하던 답을 지우고 처음부터 하기를 누른 뒤 확인을 기다리는 중인 자리(시작 화면의 하던 답 카드 intro, 받는 화면의 카드 invite). 아니면 null. */
+  const [startOverAsk, setStartOverAsk] = useState<"intro" | "invite" | null>(null);
+  /** 「내가 보낸 링크 같아요」 안내에서 그래도 이 링크로 계속하기를 골랐는가. */
+  const [selfLinkDismissed, setSelfLinkDismissed] = useState(false);
   /**
    * 받은 링크를 열었다가 새로고침해서 링크의 답이 화면에서 사라진 채 다시 열린 화면이면 그 링크의 종류(partner, both). 아니면 null.
    * 이 안내가 없으면 새로고침한 화면은 링크를 연 적이 없는 화면과 똑같아 보여서 두 사람 결과가 왜 없는지 알 수 없었다.
@@ -602,7 +608,7 @@ export function WeddingCodeV40Core({ shareOrigin, initial, resolved, embedded = 
     settleStagesForResumed(next);
   };
 
-  /** 저장된 답을 지우고 처음부터 시작한다(하던 답 카드가 미리 알린 대로). 지난번 비교 기록은 남긴다. */
+  /** 저장된 답을 지우고 처음부터 시작한다(하던 답 카드가 미리 알린 대로, 확인 창은 askStartOver 가 이미 받았다). 지난번 비교 기록은 남긴다. */
   const handleStartOver = (): void => {
     const current = bootRef.current;
     if (current.status !== "ready") return;
@@ -615,6 +621,41 @@ export function WeddingCodeV40Core({ shareOrigin, initial, resolved, embedded = 
     updateBoot({ saved: null, issue });
     captureWeddingCodeEvent("wedding_code_restarted", { version: WEDDING_CODE_V40_VERSION });
     handleStart();
+  };
+
+  /**
+   * 하던 답 카드(시작 화면)와 받는 화면 카드의 처음부터 하기: 저장된 답이 있으면 지우기 전에 확인 창을 한 번 거친다(결과 화면의 다시 하기와 같다).
+   * 카드 본문이 지워진다고 미리 알리지만 한 번 잘못 눌러도 답 68개와 결과가 되돌릴 수 없게 사라지기 때문이다. 저장된 답이 없으면 바로 시작한다.
+   */
+  const askStartOver = (kind: "intro" | "invite"): void => {
+    const current = bootRef.current;
+    if (current.status !== "ready") return;
+    if (current.saved === null) {
+      handleStartOver();
+      return;
+    }
+    setStartOverAsk(kind);
+  };
+
+  const confirmStartOver = (): void => {
+    setStartOverAsk(null);
+    handleStartOver();
+  };
+
+  /** 그대로 두기: 아무것도 지우지 않고, 확인 창이 사라지며 body 로 빠진 초점을 누른 카드의 처음부터 하기 단추로 돌린다. */
+  const cancelStartOver = (): void => {
+    const from = startOverAsk;
+    setStartOverAsk(null);
+    const buttons = document.querySelectorAll<HTMLElement>(`[data-section-card="${from === "invite" ? "invite-conflict" : "resume"}"] button`);
+    buttons[buttons.length - 1]?.focus();
+  };
+
+  /** 내가 보낸 링크 같다는 안내에서 내 결과로 돌아간다: 받은 링크를 버리고(주소의 표시도 지운다) 저장된 내 답을 이어 연다. */
+  const handleSelfLinkBack = (): void => {
+    updateContext({ partner: null, both: null, guess: null });
+    setLinkLost(null);
+    clearAddressTail(null);
+    handleResume();
   };
 
   const handleAutosaveChange = (next: AutosavePreference): void => {
@@ -1064,7 +1105,18 @@ export function WeddingCodeV40Core({ shareOrigin, initial, resolved, embedded = 
     );
   }
 
-  const resumeCard = boot.saved === null ? null : { savedAt: boot.saved.savedAt, onResume: handleResume, onStartOver: handleStartOver };
+  const resumeCard = boot.saved === null ? null : { savedAt: boot.saved.savedAt, onResume: handleResume, onStartOver: () => askStartOver("intro") };
+  const startOverDialog =
+    startOverAsk === null ? null : (
+      <ConfirmDialog
+        title={startOverAsk === "invite" ? V40_COPY.intro.inviteConflict.confirmTitle : V40_COPY.intro.resume.confirmTitle}
+        body={startOverAsk === "invite" ? V40_COPY.intro.inviteConflict.confirmBody : V40_COPY.intro.resume.confirmBody}
+        confirmLabel={startOverAsk === "invite" ? V40_COPY.intro.inviteConflict.confirmButton : V40_COPY.intro.resume.confirmButton}
+        cancelLabel={startOverAsk === "invite" ? V40_COPY.intro.inviteConflict.cancelButton : V40_COPY.intro.resume.cancelButton}
+        onConfirm={confirmStartOver}
+        onCancel={cancelStartOver}
+      />
+    );
 
   // 두 사람 결과 화면의 구역 제목 수준(CoupleResult 안의 구역과 같다: 라운지 안에서는 한 단계 아래).
   const coupleSectionLevel = embedded ? 3 : 2;
@@ -1103,32 +1155,47 @@ export function WeddingCodeV40Core({ shareOrigin, initial, resolved, embedded = 
 
   if (!flow.started) {
     if (context.partner !== null) {
+      // 링크 속 답이 이 브라우저에 저장된 내 답과 정확히 같으면 내가 보낸 링크를 내가 연 것이다. 그대로 받는 화면을 열면 나와 같은 사람끼리 견주는
+      // 두 사람 결과가 나오고 상대에게 보내기까지 열리므로 먼저 알린다(저장된 답이 있을 때만 알 수 있다. 링크의 답은 이 안내 밖으로 나가지 않는다).
+      const openedOwnLink =
+        !selfLinkDismissed &&
+        boot.saved !== null &&
+        detectPerspective(bank, decodedFromSnapshot(boot.saved.snapshot), context.partner, context.partner) !== null;
+      if (openedOwnLink) {
+        return <SelfLinkScreen embedded={embedded} onBack={handleSelfLinkBack} onContinue={() => setSelfLinkDismissed(true)} />;
+      }
       return (
-        <ReceiverScreen
-          embedded={embedded}
-          autosave={boot.pref}
-          onAutosaveChange={handleAutosaveChange}
-          autosaveNote={autosaveNote}
-          storageIssue={boot.issue === "unavailable" ? "unavailable" : null}
-          legacyPresent={boot.legacy !== null}
-          saved={boot.saved === null ? null : { savedAt: boot.saved.savedAt, onKeepMine: handleResume, onUseLink: handleStartOver }}
-          guessNote={stages.pairGuess && context.guess?.first != null ? V40_COPY.guess.receiverNote : undefined}
-          onStart={handleStart}
-        />
+        <>
+          <ReceiverScreen
+            embedded={embedded}
+            autosave={boot.pref}
+            onAutosaveChange={handleAutosaveChange}
+            autosaveNote={autosaveNote}
+            storageIssue={boot.issue === "unavailable" ? "unavailable" : null}
+            legacyPresent={boot.legacy !== null}
+            saved={boot.saved === null ? null : { savedAt: boot.saved.savedAt, onKeepMine: handleResume, onUseLink: () => askStartOver("invite") }}
+            guessNote={stages.pairGuess && context.guess?.first != null ? V40_COPY.guess.receiverNote : undefined}
+            onStart={handleStart}
+          />
+          {startOverDialog}
+        </>
       );
     }
     return (
-      <IntroScreen
-        embedded={embedded}
-        notice={noticeText !== "" ? noticeText : linkLost !== null ? V40_CLIENT_COPY.linkLost.intro[linkLost] : null}
-        autosave={boot.pref}
-        onAutosaveChange={handleAutosaveChange}
-        autosaveNote={autosaveNote}
-        legacy={boot.legacy}
-        resume={resumeCard}
-        storageIssue={boot.issue}
-        onStart={handleStart}
-      />
+      <>
+        <IntroScreen
+          embedded={embedded}
+          notice={noticeText !== "" ? noticeText : linkLost !== null ? V40_CLIENT_COPY.linkLost.intro[linkLost] : null}
+          autosave={boot.pref}
+          onAutosaveChange={handleAutosaveChange}
+          autosaveNote={autosaveNote}
+          legacy={boot.legacy}
+          resume={resumeCard}
+          storageIssue={boot.issue}
+          onStart={handleStart}
+        />
+        {startOverDialog}
+      </>
     );
   }
 

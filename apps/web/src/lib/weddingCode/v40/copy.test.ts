@@ -920,8 +920,25 @@ describe("문서의 최종 문구를 그대로 옮겼다", () => {
     expect(V40_COPY.intro.resume.continueButton).toBe(V40_COPY.rest.continueButton);
     expect(V40_COPY.intro.inviteConflict.title).toBe("저장된 내 답이 있어요");
     expect(V40_COPY.intro.inviteConflict.body).toBe(
-      "이 브라우저에 저장된 내 답이 있어요. 그 답으로 계속해도 상대가 보낸 링크의 답은 그대로 쓰여요. 받은 링크로 처음부터 하면 저장된 내 답은 지워져요.",
+      "이 브라우저에 저장된 내 답이 있어요. 그 답으로 이어 하고 마치면 상대가 보낸 링크의 답과 비교해요. 받은 링크로 처음부터 하면 저장된 내 답은 지워져요.",
     );
+    // 처음부터 하기는 누르면 바로 지우지 않고 결과 화면의 다시 하기 확인과 같은 단추 이름의 확인 창을 거친다.
+    expect(V40_COPY.intro.resume.confirmTitle).toBe(V40_COPY.manage.restart.confirmTitle);
+    expect(V40_COPY.intro.resume.confirmButton).toBe(V40_COPY.manage.restart.confirmButton);
+    expect(V40_COPY.intro.resume.cancelButton).toBe(V40_COPY.manage.restart.cancelButton);
+    expect(V40_COPY.intro.resume.confirmBody).toContain("이 브라우저에서 지워지고 처음부터 다시 시작해요");
+    expect(V40_COPY.intro.inviteConflict.confirmTitle).toBe("저장된 내 답을 지울까요?");
+    expect(V40_COPY.intro.inviteConflict.confirmBody).toContain("상대가 보낸 링크의 답은 그대로 남아서 내 답을 마치면 비교해요");
+    expect(V40_COPY.intro.inviteConflict.confirmButton).toBe(V40_COPY.manage.restart.confirmButton);
+    expect(V40_COPY.intro.inviteConflict.cancelButton).toBe(V40_COPY.manage.restart.cancelButton);
+    // 내가 보낸 링크를 내가 연 경우의 안내.
+    expect(V40_COPY.receive.selfLink).toEqual({
+      title: "내가 보낸 링크 같아요",
+      body: "이 링크에 든 답이 이 브라우저에 저장된 내 답과 같아요. 내 답이 든 링크라서 상대가 열어야 두 사람 비교를 볼 수 있어요. 상대에게 이 링크를 보내 주세요.",
+      backHint: "내가 열어 본 거라면 내 결과로 돌아가면 돼요.",
+      backButton: "내 결과로 돌아가기",
+      continueButton: "그래도 이 링크로 계속하기",
+    });
     expect(V40_COPY.intro.inviteConflict.keepMineButton).toBe("저장된 답으로 계속하기");
     expect(V40_COPY.intro.inviteConflict.useLinkButton).toBe("받은 링크로 처음부터 하기");
     expect(V40_COPY.intro.legacy.body).toBe("질문이 바뀌어서 새 웨딩코드로 옮길 수는 없어요. 새 질문에 처음부터 답하면 돼요.");

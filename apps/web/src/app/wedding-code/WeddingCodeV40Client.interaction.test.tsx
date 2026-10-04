@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { click } from "@/components/wedding-code/v40/inputTestKit";
+import { click, pressKey } from "@/components/wedding-code/v40/inputTestKit";
 import { visibleNumberProblems } from "@/components/wedding-code/v40/startFlowTestKit";
 import { V40_COUNTS, V40_STORAGE, WEDDING_CODE_V40_VERSION } from "@/constants/weddingCodeV40";
 import { captureWeddingCodeEvent } from "@/lib/analytics";
@@ -305,18 +305,65 @@ describe("웨딩코드 4.0 클라이언트: 이 기기에 저장하고 이어 �
     expect(view2.container.querySelector('[data-storage-notice="invalid"]')?.textContent).toBe(V40_COPY.storageNotice.invalid);
   });
 
-  it("하던 답 카드의 처음부터 다시 하기는 저장된 답을 지우고 바로 시작하며 지난번 비교 기록은 남긴다", async () => {
+  it("하던 답 카드의 처음부터 다시 하기는 확인 뒤에 저장된 답을 지우고 시작하며 지난번 비교 기록은 남긴다", async () => {
     const sample = fixture("swua-example");
     const storage = new FakeStorage();
     seedProgress(storage, partialSnapshotOf(sample, 5), NOW - DAY);
     appendHistory(storage, historyEntryOf(buildResult(bank, sample.formBit, sample.responses), NOW - DAY), NOW);
     const view = await open({ deps: { storage, now: () => NOW, random: randomFor(sample) } });
     await pressText(view.container, V40_COPY.intro.resume.restartButton);
+    // 누른 즉시 지우지 않는다: 확인 창이 떠 있고 시작 화면과 저장된 답은 그대로다.
+    expect(screenName(view.container)).toBe("intro");
+    expect(readProgress(storage, bank, NOW).status).toBe("ready");
+    expect(eventsNamed("wedding_code_restarted")).toHaveLength(0);
+    await confirmDialog(V40_COPY.intro.resume.confirmButton);
     expect(screenName(view.container)).toBe("questions");
     expect(readProgress(storage, bank, NOW).status).toBe("empty");
     expect(readHistory(storage, NOW).entries).toHaveLength(1);
     expect(eventsNamed("wedding_code_started")).toHaveLength(1);
     expect(eventsNamed("wedding_code_restarted")).toEqual([["wedding_code_restarted", { version: WEDDING_CODE_V40_VERSION }]]);
+  });
+
+  it("하던 답 카드의 처음부터 다시 하기 확인 창: 결과 화면의 확인과 같은 뜻과 단추, 안전한 쪽에 초점, 그대로 두기와 Esc 는 아무것도 지우지 않고 초점을 되돌린다", async () => {
+    const sample = fixture("swua-example");
+    const storage = new FakeStorage();
+    seedProgress(storage, resultSnapshotOf(sample), NOW - DAY);
+    const view = await open({ deps: { storage, now: () => NOW, random: randomFor(sample) } });
+    const opener = buttonWithText(view.container, V40_COPY.intro.resume.restartButton);
+    await click(opener);
+    const box = document.body.querySelector<HTMLElement>('[role="alertdialog"]')!;
+    expect(textOf(box)).toContain(V40_COPY.intro.resume.confirmTitle);
+    expect(textOf(box)).toContain(V40_COPY.intro.resume.confirmBody);
+    // 결과 화면의 확인 창과 단추 이름이 같다(두 확인이 같은 뜻이다).
+    expect(V40_COPY.intro.resume.confirmButton).toBe(V40_COPY.manage.restart.confirmButton);
+    expect(V40_COPY.intro.resume.cancelButton).toBe(V40_COPY.manage.restart.cancelButton);
+    expect(document.activeElement).toBe(buttonWithText(box, V40_COPY.intro.resume.cancelButton));
+    // 그대로 두기
+    await confirmDialog(V40_COPY.intro.resume.cancelButton);
+    expect(document.body.querySelector('[role="alertdialog"]')).toBeNull();
+    expect(document.activeElement).toBe(opener);
+    expect(screenName(view.container)).toBe("intro");
+    expect(readProgress(storage, bank, NOW).status).toBe("ready");
+    // Esc 도 그대로 두기다.
+    await click(opener);
+    const esc = await pressKey("Escape");
+    expect(esc.defaultPrevented).toBe(true);
+    expect(document.body.querySelector('[role="alertdialog"]')).toBeNull();
+    expect(document.activeElement).toBe(opener);
+    expect(readProgress(storage, bank, NOW).status).toBe("ready");
+    expect(eventsNamed("wedding_code_restarted")).toHaveLength(0);
+    // 이어서 하기는 확인 없이 바로 이어진다.
+    await pressText(view.container, V40_COPY.intro.resume.continueButton);
+    expect(document.body.querySelector('[role="alertdialog"]')).toBeNull();
+  });
+
+  it("저장된 답이 없는 첫 방문의 시작 화면에는 처음부터 다시 하기가 없고 시작하기는 확인 창 없이 바로 시작한다", async () => {
+    const sample = fixture("swua-example");
+    const view = await open({ deps: { storage: new FakeStorage(), now: () => NOW, random: randomFor(sample) } });
+    expect(hasButtonWithText(view.container, V40_COPY.intro.resume.restartButton)).toBe(false);
+    await pressText(view.container, V40_COPY.intro.startButton);
+    expect(document.body.querySelector('[role="alertdialog"]')).toBeNull();
+    expect(screenName(view.container)).toBe("questions");
   });
 
   it("같은 결과를 다시 끝내면 지난번 비교에 앞선 시도의 결과가 나온다", async () => {

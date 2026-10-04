@@ -549,6 +549,7 @@ describe("이어 하기와 결과 전에 고른 글자의 보관본", () => {
     seedGuess(third, ["S", "D", "F", "H"], own.formBit, NOW - DAY);
     const startOver = await open({ deps: { storage: third, now: () => NOW, random: randomFor(own) } });
     await pressText(startOver.container, V40_COPY.intro.resume.restartButton);
+    await confirmDialog(V40_COPY.intro.resume.confirmButton);
     expect(third.data.has(LETTER_KEY)).toBe(false);
   });
 

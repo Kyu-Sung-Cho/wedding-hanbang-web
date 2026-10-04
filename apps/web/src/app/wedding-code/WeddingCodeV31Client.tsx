@@ -10,7 +10,7 @@ import {
   type V31Choice, type V31Draft, type V31QuestionId, type V31Response, type V31Topic,
 } from "@/constants/weddingCodeV31";
 import { captureWeddingCodeEvent } from "@/lib/analytics";
-import { createV31Draft, getV31PriorityOptions, normalizeV31Draft } from "@/lib/weddingCode/v31";
+import { createV31Draft, encodeV31, getV31PriorityOptions, normalizeV31Draft } from "@/lib/weddingCode/v31";
 import { V31ChoiceInput, V31PriorityInput, V31RatingInput, v31Body, v31EscapeFoldLabel, v31RatingGuide, v31Surface, v31Title } from "./WeddingCodeV31Inputs";
 import WeddingCodeV31Results from "./WeddingCodeV31Results";
 import V31ConfirmDialog from "./WeddingCodeV31Confirm";
@@ -34,6 +34,18 @@ const LOCAL_SAVE_DAYS = LOCAL_TTL_MS / 86_400_000;
 /** 이어 하기 직후에 한 번 알리는 말. 페이지를 넘기거나 이전 질문으로 돌아가면 지난 일이라 지운다. */
 const resumedNotice = "저장된 내 답을 불러왔어요.";
 const missingAnswerNotice = "답을 고르지 않은 질문으로 돌아왔어요. 답을 고르거나 ‘아직 모르겠어요’, ‘해당하지 않아요’, ‘지금 답하지 않을게요’를 골라 주세요.";
+/**
+ * 받은 링크 속 답이 이 브라우저에 저장된 내 결과와 정확히 같을 때(내가 보낸 링크를 내가 연 경우) 소개 대신 보이는 안내.
+ * 그대로 두면 「저장한 내 답으로 비교하기」가 나와 같은 사람끼리 견주는 결과를 만들고 상대에게 보내기까지 열린다.
+ * 문구는 웨딩코드 4.0 의 같은 안내(V40_COPY.receive.selfLink)와 같은 뜻이다.
+ */
+const ownLinkCopy = {
+  title: "내가 보낸 링크 같아요",
+  body: "이 링크에 든 답이 이 브라우저에 저장된 내 답과 같아요. 내 답이 든 링크라서 상대가 열어야 두 사람 비교를 볼 수 있어요. 상대에게 이 링크를 보내 주세요.",
+  backHint: "내가 열어 본 거라면 내 결과로 돌아가면 돼요.",
+  backButton: "내 결과로 돌아가기",
+  continueButton: "그래도 이 링크로 계속하기",
+} as const;
 const resetStorageFailureNotice = "현재 화면은 새로 시작했지만, 브라우저에 저장된 답을 지우지 못했어요. 다른 사람과 같이 쓰는 컴퓨터나 휴대폰이라면 브라우저 설정에서 이 사이트의 데이터를 지워 주세요.";
 type Progress = Omit<V31LocalProgressSnapshot, "screen"> & { screen: "intro" | "questions" | "result" };
 
@@ -108,6 +120,10 @@ export default function WeddingCodeV31Client({ shareOrigin, partnerDraft = null,
   // 시작 버튼은 답 없이 위치만 저장한다. 그 기록은 이어 할 답이 아니라서 답이 하나라도 있을 때만 이어 하기를 보여준다.
   const savedHasAnswer = local.saved !== null && hasV31ResumableAnswer(local.saved);
   const resumable = !owned && savedHasAnswer;
+  const [ownLinkDismissed, setOwnLinkDismissed] = useState(false);
+  // 끝낸 저장 결과가 받은 링크의 답과 정확히 같으면 내가 보낸 링크를 내가 연 것이다(끝나지 않은 저장은 링크의 답과 같을 수 없다).
+  const openedOwnLink = progress.screen === "intro" && !ownLinkDismissed && resumable && !context.received && context.first !== null
+    && local.saved !== null && local.saved.screen === "result" && encodeV31(local.saved.draft) === encodeV31(context.first);
   // 받은 결과를 볼 때는 이 브라우저 저장소를 읽지 않는다. 저장 설정을 보여줄 때만 함께 보기 주소가 남았는지 확인한다.
   const pairAddressSaved = useSyncExternalStore(storageActive ? subscribePairSession : noSubscription, storageActive ? hasSavedPairAddress : noPairAddress, noPairAddress);
   const pairTabAddress = useSyncExternalStore(storageActive ? subscribePairSession : noSubscription, storageActive ? hasTabPairAddress : noPairAddress, noPairAddress);
@@ -289,6 +305,18 @@ export default function WeddingCodeV31Client({ shareOrigin, partnerDraft = null,
     setOwned(true); setProgress(saved); setRevision(value => value + 1);
     announce(saved.needsPriorityReview ? "앞의 답이 바뀌어 ‘꼭 지키고 싶은 것’을 다시 확인해 주세요." : resumedNotice, `${saved.screen}:${saved.index}`);
   }
+  /** 내가 보낸 링크 안내에서 내 결과로 돌아간다: 받은 링크를 버리고 저장된 내 결과를 혼자 보는 결과로 연다. */
+  function backToOwnResult() {
+    const saved = local.store.restore();
+    if (!saved) { announce("불러올 저장된 답이 없어요."); return; }
+    setContext({ first: null, received: false });
+    resume(saved);
+  }
+  /** 그래도 이 링크로 계속하기: 소개(받은 링크 소개)로 간다. 안내 단추가 사라지므로 초점은 화면으로 돌린다. */
+  function continueWithLink() {
+    setOwnLinkDismissed(true);
+    window.setTimeout(() => screenRef.current?.focus({ preventScroll: true }), 0);
+  }
   function restart() {
     const cleared = local.store.clear();
     const restartNotice = cleared ? "" : resetStorageFailureNotice;
@@ -409,6 +437,16 @@ export default function WeddingCodeV31Client({ shareOrigin, partnerDraft = null,
         onConfirm={() => { setConfirm(null); confirmOpener.current = null; start(); }} onCancel={cancelConfirm} /> : null}
     </div>
   </Root>;
+
+  if (openedOwnLink) return shell(<section className={`${v31Surface} p-5 sm:p-8`} data-own-link aria-labelledby="v31-own-link-title">
+    <h1 id="v31-own-link-title" className={`text-2xl ${v31Title}`}>{ownLinkCopy.title}</h1>
+    <p className={`mt-3 ${v31Body}`}>{ownLinkCopy.body}</p>
+    <p className={`mt-2 ${v31Body}`}>{ownLinkCopy.backHint}</p>
+    <div className="mt-6 flex flex-col gap-2">
+      <Button variant="primary" size="lg" fullWidth onClick={backToOwnResult}>{ownLinkCopy.backButton}</Button>
+      <Button variant="secondary" size="lg" fullWidth onClick={continueWithLink}>{ownLinkCopy.continueButton}</Button>
+    </div>
+  </section>);
 
   if (screen === "intro") return shell(<>
     {/* 이어 하러 돌아온 사람이 소개를 한 화면 반 넘게 내리지 않아도 이어 하기를 먼저 보게, 저장된 답 카드를 소개 제목보다 위에 둔다. */}

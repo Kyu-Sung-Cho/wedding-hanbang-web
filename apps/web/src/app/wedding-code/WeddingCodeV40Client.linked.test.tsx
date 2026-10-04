@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ShareEnv } from "@/components/wedding-code/v40";
-import { click } from "@/components/wedding-code/v40/inputTestKit";
+import { click, pressKey } from "@/components/wedding-code/v40/inputTestKit";
 import { V40_COUNTS, V40_STORAGE, WEDDING_CODE_V40_VERSION } from "@/constants/weddingCodeV40";
 import { captureWeddingCodeEvent } from "@/lib/analytics";
 import { encodeCode, parseShareHash } from "@/lib/weddingCode/v40/codec";
@@ -19,6 +19,7 @@ import {
   bank,
   decodedOf,
   driveToEnd,
+  buttonWithText,
   fixture,
   hasButtonWithText,
   mountClient,
@@ -61,6 +62,17 @@ function placeLinkInAddress(first: DecodedCode, second?: DecodedCode): string {
   const hash = `#v=${WEDDING_CODE_V40_VERSION}&a=${a}${b === null ? "" : `&b=${b}`}`;
   window.history.replaceState(null, "", `/wedding-code${hash}`);
   return hash;
+}
+
+/** 확인 창(alertdialog)의 단추를 이름으로 누른다. 창은 문서 맨 아래(portal)에 있다. */
+async function confirmDialog(label: string): Promise<void> {
+  const button = [...document.body.querySelectorAll<HTMLButtonElement>('[role="alertdialog"] button')].find((entry) => textOf(entry) === label);
+  if (button === undefined) throw new Error(`확인 창 단추가 없어요: ${label}`);
+  await click(button);
+}
+
+function dialogOpen(): boolean {
+  return document.body.querySelector('[role="alertdialog"]') !== null;
 }
 
 function checkboxes(container: ParentNode): HTMLInputElement[] {
@@ -323,15 +335,130 @@ describe("웨딩코드 4.0 클라이언트: 받은 링크로 열기", () => {
     expect(log.last).toBe("couple");
   }, 60_000);
 
-  it("받은 링크로 처음부터 하기는 하던 답을 지우고 시작한다", async () => {
+  it("받은 링크로 처음부터 하기는 확인 뒤에 하던 답을 지우고 시작하고, 그대로 두면 아무것도 지우지 않는다", async () => {
     const own = fixture("swua-example");
     const storage = new FakeStorage();
     seedProgress(storage, partialSnapshotOf(own, 30), NOW - DAY);
     const view = await open({ initial: { partner: sender, both: null }, deps: { storage, now: () => NOW, random: randomFor(own) } });
-    await pressText(view.container, V40_COPY.intro.inviteConflict.useLinkButton);
+    const opener = buttonWithText(view.container, V40_COPY.intro.inviteConflict.useLinkButton);
+    await click(opener);
+    // 누른 즉시 지우지 않는다. 확인 창은 안전한 쪽(그대로 두기)에 초점이 가고, 상대의 링크가 남는다고 알린다.
+    expect(dialogOpen()).toBe(true);
+    expect(screenName(view.container)).toBe("receiver");
+    expect(readProgress(storage, bank, NOW).status).toBe("ready");
+    expect(textOf(document.body.querySelector('[role="alertdialog"]')!)).toContain(V40_COPY.intro.inviteConflict.confirmBody);
+    expect((document.activeElement as HTMLElement).textContent).toBe(V40_COPY.intro.inviteConflict.cancelButton);
+    await pressKey("Escape");
+    expect(dialogOpen()).toBe(false);
+    expect(document.activeElement).toBe(opener);
+    expect(readProgress(storage, bank, NOW).status).toBe("ready");
+    await click(opener);
+    await confirmDialog(V40_COPY.intro.inviteConflict.cancelButton);
+    expect(dialogOpen()).toBe(false);
+    expect(screenName(view.container)).toBe("receiver");
+    expect(readProgress(storage, bank, NOW).status).toBe("ready");
+    await click(opener);
+    await confirmDialog(V40_COPY.intro.inviteConflict.confirmButton);
     expect(screenName(view.container)).toBe("questions");
     expect(readProgress(storage, bank, NOW).status).toBe("empty");
+    // 받은 링크는 그대로라서 내 답을 마치면 두 사람 결과가 나온다.
+    const log = await driveToEnd(view.container, own, { start: false });
+    expect(log.last).toBe("couple");
+  }, 60_000);
+
+  it("내가 보낸 링크를 이 브라우저에서 열면(링크의 답이 저장된 내 답과 같음) 받는 화면 대신 안내를 보이고, 상대의 답도 비교도 보내기도 열지 않는다", async () => {
+    const own = fixture("swua-example");
+    const storage = new FakeStorage();
+    seedProgress(storage, resultSnapshotOf(own), NOW - DAY);
+    const hash = placeLinkInAddress(decodedOf(own));
+    expect(window.location.hash).toBe(hash);
+    const view = await open({ initial: { partner: decodedOf(own), both: null }, deps: { storage, now: () => NOW, random: randomFor(own) } });
+    expect(screenName(view.container)).toBe("self-link");
+    const copy = V40_COPY.receive.selfLink;
+    const text = textOf(view.container);
+    expect(text).toContain(copy.title);
+    expect(text).toContain(copy.body);
+    expect(text).toContain(copy.backHint);
+    expect([...view.container.querySelectorAll("button")].map((button) => textOf(button))).toEqual([copy.backButton, copy.continueButton]);
+    // 받는 화면의 단추도 하던 답 카드도 두 사람 결과도 없다. 코드는 화면 어디에도 없다.
+    expect(hasButtonWithText(view.container, V40_COPY.receive.answerButton)).toBe(false);
+    expect(view.container.querySelector('[data-section-card="invite-conflict"]')).toBeNull();
+    expect(view.container.innerHTML).not.toContain(encodeCode(bank, own.formBit, own.responses) ?? "");
+    // 해시는 읽은 즉시 지운다(기존 동작 그대로).
+    expect(window.location.hash).toBe("");
+    expect(window.location.search).toBe(`?v=${WEDDING_CODE_V40_VERSION}`);
+    // 이 안내에서는 아무것도 저장소에 쓰지 않았다.
+    expect(readProgress(storage, bank, NOW).status).toBe("ready");
   });
+
+  it("내가 보낸 링크 안내에서 내 결과로 돌아가기는 받은 링크를 버리고 저장된 내 결과를 혼자 보는 결과로 연다", async () => {
+    const own = fixture("swua-example");
+    const storage = new FakeStorage();
+    seedProgress(storage, resultSnapshotOf(own), NOW - DAY);
+    placeLinkInAddress(decodedOf(own));
+    const view = await open({ initial: { partner: decodedOf(own), both: null }, deps: { storage, now: () => NOW, random: randomFor(own) } });
+    expect(screenName(view.container)).toBe("self-link");
+    await pressText(view.container, V40_COPY.receive.selfLink.backButton);
+    expect(screenName(view.container)).toBe("result");
+    expect(view.container.querySelector('[data-screen="couple"]')).toBeNull();
+    expect(shownCode(view.container)).toBe(buildResult(bank, own.formBit, own.responses).code);
+    // 받은 링크의 표시도 남지 않는다: 새로고침해도 링크가 사라졌다는 안내가 뜨지 않는다.
+    expect(readLinkOpened(window.history.state)).toBeNull();
+    expect(readProgress(storage, bank, NOW).status).toBe("ready");
+  });
+
+  it("내가 보낸 링크 안내에서 그래도 이 링크로 계속하기는 기존 흐름(받는 화면과 저장된 답 카드)으로 간다", async () => {
+    const own = fixture("swua-example");
+    const storage = new FakeStorage();
+    seedProgress(storage, resultSnapshotOf(own), NOW - DAY);
+    const view = await open({ initial: { partner: decodedOf(own), both: null }, deps: { storage, now: () => NOW, random: randomFor(own) } });
+    expect(screenName(view.container)).toBe("self-link");
+    await pressText(view.container, V40_COPY.receive.selfLink.continueButton);
+    expect(screenName(view.container)).toBe("receiver");
+    expect(view.container.querySelector('[data-section-card="invite-conflict"]')).not.toBeNull();
+    await pressText(view.container, V40_COPY.intro.inviteConflict.keepMineButton);
+    expect(screenName(view.container)).toBe("couple");
+  });
+
+  it("다른 브라우저에서 열면 안내 없이 받는 화면이다: 저장된 답이 없을 때, 저장된 답이 링크와 다를 때, 끝나지 않았을 때, 자동 저장이 꺼져 있어 읽지 않을 때", async () => {
+    const own = fixture("swua-example");
+    // 저장된 답이 없다.
+    const empty = await open({ initial: { partner: decodedOf(own), both: null }, deps: { storage: new FakeStorage(), now: () => NOW } });
+    expect(screenName(empty.container)).toBe("receiver");
+    expect(hasButtonWithText(empty.container, V40_COPY.receive.answerButton)).toBe(true);
+    // 저장된 답이 링크와 다르다(같은 사람이 답을 고친 경우도 같다).
+    const other = new FakeStorage();
+    seedProgress(other, resultSnapshotOf(fixture("couple-partner")), NOW - DAY);
+    const different = await open({ initial: { partner: decodedOf(own), both: null }, deps: { storage: other, now: () => NOW } });
+    expect(screenName(different.container)).toBe("receiver");
+    expect(different.container.querySelector('[data-section-card="invite-conflict"]')).not.toBeNull();
+    // 저장은 있지만 아직 끝나지 않은 답이다.
+    const partial = new FakeStorage();
+    seedProgress(partial, partialSnapshotOf(own, 30), NOW - DAY);
+    const unfinished = await open({ initial: { partner: decodedOf(own), both: null }, deps: { storage: partial, now: () => NOW } });
+    expect(screenName(unfinished.container)).toBe("receiver");
+    // 자동 저장이 꺼져 있으면 저장된 답을 읽지 않으므로 알아챌 수 없다.
+    const off = new FakeStorage();
+    seedProgress(off, resultSnapshotOf(own), NOW - DAY);
+    off.data.set(V40_STORAGE.autosaveKey, "off");
+    const unread = await open({ initial: { partner: decodedOf(own), both: null }, deps: { storage: off, now: () => NOW } });
+    expect(screenName(unread.container)).toBe("receiver");
+  });
+
+  it("저장된 답이 있는 받는 화면의 카드 문장은 그 답으로 이어 하고 마치면 링크의 답과 비교한다고 말하고, 실제로 그렇게 된다", async () => {
+    const own = fixture("swua-example");
+    const storage = new FakeStorage();
+    seedProgress(storage, partialSnapshotOf(own, 30), NOW - DAY);
+    const view = await open({ initial: { partner: sender, both: null }, deps: { storage, now: () => NOW, random: randomFor(own) } });
+    const card = view.container.querySelector('[data-section-card="invite-conflict"]')!;
+    expect(textOf(card)).toContain(V40_COPY.intro.inviteConflict.body);
+    await pressText(view.container, V40_COPY.intro.inviteConflict.keepMineButton);
+    const log = await driveToEnd(view.container, own, { start: false });
+    expect(log.last).toBe("couple");
+    // 비교는 저장된 내 답(own)과 링크의 답(sender)이다. 화면의 두 사람 결과가 이 둘로 만든 것과 같다.
+    const expected = compareCouple(bank, sender, decodedOf(own));
+    expect(view.container.querySelectorAll("li[data-axis]").length).toBe(expected.axes.length);
+  }, 60_000);
 
   it("받은 링크의 흐름에서는 저장돼 있어도 나가기 경고를 건다(상대의 답은 메모리에만 있다)", async () => {
     const own = fixture("swua-example");

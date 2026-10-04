@@ -215,6 +215,53 @@ export function NoCompareScreen({ onRestart, embedded = false }: NoCompareScreen
 }
 
 // ---------------------------------------------------------------------------
+// 내가 보낸 링크를 내가 열었을 때
+// ---------------------------------------------------------------------------
+
+export interface SelfLinkScreenProps {
+  /** 내 결과로 돌아가기(저장된 내 답을 이어 연다. 받은 링크는 버린다). */
+  readonly onBack: () => void;
+  /** 그래도 이 링크로 계속하기(받는 화면으로 간다). */
+  readonly onContinue: () => void;
+  readonly embedded?: boolean;
+}
+
+/**
+ * 받은 링크 속 답이 이 브라우저에 저장된 내 답과 같을 때(내가 보낸 링크를 내가 연 경우). 받는 화면을 그대로 열면 나와 같은 사람끼리 견주는 결과가 나오고
+ * 상대에게 보내기까지 열리므로, 그 앞에서 한 번 알린다. 화면은 상대의 답을 받지 않는다(같다는 사실 하나만 말한다). 「검증을 마친 심리검사가 아니」라는 고지는 두지 않는다.
+ */
+export function SelfLinkScreen({ onBack, onContinue, embedded = false }: SelfLinkScreenProps) {
+  const copy = V40_COPY.receive.selfLink;
+  const rootRef = useRef<HTMLElement | null>(null);
+  useScreenFocus(rootRef, "self-link");
+  return (
+    <section
+      ref={rootRef}
+      tabIndex={-1}
+      aria-labelledby="v40-self-link-title"
+      data-screen="self-link"
+      className={screenRootClass(embedded)}
+    >
+      <h1 id="v40-self-link-title" className="text-2xl font-semibold leading-snug text-[var(--hb-text-strong)]">
+        {copy.title}
+      </h1>
+      <p className={cx(bodyText, "mt-3 break-keep")}>{copy.body}</p>
+      <p data-self-link-hint="" className={cx(bodyText, "mt-2 break-keep")}>
+        {copy.backHint}
+      </p>
+      <div className="mt-6 flex flex-col gap-2">
+        <Button variant="primary" size="lg" fullWidth onClick={onBack}>
+          {copy.backButton}
+        </Button>
+        <Button variant="secondary" size="lg" fullWidth onClick={onContinue}>
+          {copy.continueButton}
+        </Button>
+      </div>
+    </section>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // 화면 오류 대체
 // ---------------------------------------------------------------------------
 

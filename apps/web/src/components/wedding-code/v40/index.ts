@@ -12,6 +12,7 @@ export {
   BrokenLinkScreen,
   NoCompareScreen,
   PositionGateScreen,
+  SelfLinkScreen,
   StorageNotice,
   type SaveState,
   type StorageProblem,
