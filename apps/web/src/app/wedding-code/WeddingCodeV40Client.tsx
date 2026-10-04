@@ -114,6 +114,7 @@ import { isStagePending, stageAfterLetter, stageOnResult, useStage2, type StageF
  *
  * 지키는 약속
  * - 받은 링크의 상대 답은 메모리에만 둔다. 읽은 즉시 주소의 # 뒤를 지운다(history.replaceState). 내 답을 마치기 전에는 어떤 화면에도 상대 답을 주지 않는다.
+ *   단 링크 속 답이 이 브라우저에 저장된 내 답과 같아서 「내가 보낸 링크 같아요」 안내를 보일 때는 그 안내를 떠나기(계속하기, 돌아가기) 전까지 지우지 않는다(내 답이라 새어 나갈 상대의 것이 없다).
  * - 두 사람 결과 링크를 연 화면은 이 기기의 저장에 쓰지 않는다(읽기 전용 저장소로 「나」 표시만 알아본다). 지난번 비교 기록은 읽지도 않는다.
  * - 저장이 됐다는 말은 실제로 쓰고 다시 읽어 맞았을 때만 한다(저장 상태는 마지막 쓰기의 결과 그대로다). 자동 저장이 꺼져 있으면 아무것도 쓰지 않는다.
  * - 이용 통계 wedding_code_share_copied 는 링크를 실제로 클립보드에 복사했을 때만 보낸다(코드 복사와 공유 창 완료는 보내지 않는다).
@@ -237,6 +238,13 @@ function replaceAttemptEntry(storage: StorageLike, entries: readonly HistoryEntr
   if (clearHistory(storage).status !== "cleared") return;
   for (const older of entries.slice(1).reverse()) appendHistory(storage, older, at);
   appendHistory(storage, { ...entry, at: attemptAt }, at);
+}
+
+/**
+ * 받은 링크 속 답이 이 브라우저에 저장된 내 답과 정확히 같은가(내가 보낸 링크를 내가 연 경우). 저장된 답이 없거나 끝나지 않았으면 알 수 없으므로 거짓이다.
+ */
+function isOwnLink(saved: SavedProgress | null, partner: DecodedCode): boolean {
+  return saved !== null && detectPerspective(bank, decodedFromSnapshot(saved.snapshot), partner, partner) !== null;
 }
 
 /** 이 탭의 브라우저 기록 칸에 받은 링크를 열었다는 표시가 남아 있는가(새로고침해도 남는다). */
@@ -658,6 +666,12 @@ export function WeddingCodeV40Core({ shareOrigin, initial, resolved, embedded = 
     handleResume();
   };
 
+  /** 그래도 이 링크로 계속하기: 이제 받는 화면으로 가므로 다른 받은 링크처럼 주소의 # 뒤를 지운다(안내를 보이는 동안만 남겨 두었다). */
+  const handleSelfLinkContinue = (): void => {
+    clearAddressTail("partner");
+    setSelfLinkDismissed(true);
+  };
+
   const handleAutosaveChange = (next: AutosavePreference): void => {
     const current = bootRef.current;
     if (current.status !== "ready" || current.storage === null) return;
@@ -879,8 +893,10 @@ export function WeddingCodeV40Core({ shareOrigin, initial, resolved, embedded = 
   useEffect(() => {
     if (!resolved || !settled || bootRef.current.status === "ready") return;
     const linked = contextRef.current;
-    if (linked.partner !== null || linked.both !== null) clearAddressTail(linked.both !== null ? "both" : "partner");
-    else setLinkLost(readOpenedMark());
+    // 받은 링크의 # 뒤는 읽은 즉시 지운다. 단 하나의 예외: 링크 속 답이 이 브라우저에 저장된 내 답과 같아서 「내가 보낸 링크 같아요」 안내를 보일 때는
+    // 지우지 않는다(내 답이라 새어 나갈 상대의 것이 없고, 새로고침해도 같은 안내가 다시 뜨게 한다). 그 판단은 저장된 답을 읽은 뒤에 한다(아래).
+    if (linked.both !== null) clearAddressTail("both");
+    else if (linked.partner === null) setLinkLost(readOpenedMark());
     const at = clock();
     const handle = injected?.storage !== undefined ? injected.storage : browserStorage();
     let next: BootReady;
@@ -922,6 +938,7 @@ export function WeddingCodeV40Core({ shareOrigin, initial, resolved, embedded = 
       }
       next = { status: "ready", storage: handle, pref, issue, saved, legacy: probe.present ? { savedAt: probe.savedAt } : null, detected: null, letterPort };
     }
+    if (linked.partner !== null && !isOwnLink(next.saved, linked.partner)) clearAddressTail("partner");
     bootRef.current = next;
     setBoot(next);
     if (handle === null) setSave("unavailable");
@@ -1157,12 +1174,9 @@ export function WeddingCodeV40Core({ shareOrigin, initial, resolved, embedded = 
     if (context.partner !== null) {
       // 링크 속 답이 이 브라우저에 저장된 내 답과 정확히 같으면 내가 보낸 링크를 내가 연 것이다. 그대로 받는 화면을 열면 나와 같은 사람끼리 견주는
       // 두 사람 결과가 나오고 상대에게 보내기까지 열리므로 먼저 알린다(저장된 답이 있을 때만 알 수 있다. 링크의 답은 이 안내 밖으로 나가지 않는다).
-      const openedOwnLink =
-        !selfLinkDismissed &&
-        boot.saved !== null &&
-        detectPerspective(bank, decodedFromSnapshot(boot.saved.snapshot), context.partner, context.partner) !== null;
+      const openedOwnLink = !selfLinkDismissed && isOwnLink(boot.saved, context.partner);
       if (openedOwnLink) {
-        return <SelfLinkScreen embedded={embedded} onBack={handleSelfLinkBack} onContinue={() => setSelfLinkDismissed(true)} />;
+        return <SelfLinkScreen embedded={embedded} onBack={handleSelfLinkBack} onContinue={handleSelfLinkContinue} />;
       }
       return (
         <>

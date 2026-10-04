@@ -92,6 +92,30 @@ describe("AxisBlock: 마지막 정리에서 고른 쪽 줄이 보이는 경우",
     expect(node.compareDocumentPosition(firstGroup) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
+  it("반반이에요 주제에서 코드 글자와 직접 고른 쪽 글자가 다르면 그 줄 바로 아래에 이유 한 줄이 있고, 같으면 없다(최종 점검 Q1)", async () => {
+    const { axis, line } = axisOf("swua-example", "support");
+    expect(axis).toMatchObject({ letter: "A", shownBand: "even" });
+    // 같은 글자(A): 이유 줄이 없다.
+    await harness.render(<AxisBlock axis={axis} quotes={{ kind: "even", front: [], back: [] }} selfLine={line} onReview={vi.fn()} />);
+    expect(harness.container.querySelector("[data-even-self-differs]")).toBeNull();
+    // 다른 글자(H 아주): 줄 바로 아래에 이유가 나온다.
+    const opposite: SelfLine = { axis: "support", side: "front", letter: "H", level: 3 };
+    await harness.render(<AxisBlock key="differs" axis={axis} quotes={{ kind: "even", front: [], back: [] }} selfLine={opposite} onReview={vi.fn()} />);
+    const note = harness.container.querySelector<HTMLElement>("[data-even-self-differs]");
+    expect(note).not.toBeNull();
+    expect(note!.textContent).toBe("답이 거의 반반이라 글자는 아주 작은 차이로 정해졌어요. 그래서 마지막에 직접 고른 쪽과 달라요.");
+    expect(note!.className).toBe(noteText);
+    expect(lineNodes(harness.container)[0].nextElementSibling).toBe(note);
+    // 직접 고른 쪽 줄을 안 그리는 때(줄을 안 줌)에는 이유 줄도 없다.
+    await harness.render(<AxisBlock key="none" axis={axis} quotes={{ kind: "even", front: [], back: [] }} onReview={vi.fn()} />);
+    expect(harness.container.querySelector("[data-even-self-differs]")).toBeNull();
+    // 세기를 한 단계 낮춰 반반이에요가 된 주제는 거의 반반이 아니라서 이 말을 붙이지 않는다.
+    const lowered: AxisResult = { ...axis, band: "lean", shownBand: "even" };
+    await harness.render(<AxisBlock key="lowered" axis={lowered} quotes={{ kind: "even", front: [], back: [] }} selfLine={opposite} onReview={vi.fn()} />);
+    expect(lineNodes(harness.container)).toHaveLength(1);
+    expect(harness.container.querySelector("[data-even-self-differs]")).toBeNull();
+  });
+
   it("한쪽 답 풀이가 있는 반반이에요 주제도 줄은 두 글자의 뜻 아래에 있다", async () => {
     const { axis, line } = axisOf("swua-example", "support");
     const oneSided: AxisQuotes = { kind: "even", front: [], back: [quoteOf("b", "나", "둘")] };

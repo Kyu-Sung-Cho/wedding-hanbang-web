@@ -1,16 +1,25 @@
 "use client";
 
-import { ArrowRight, Pencil, RotateCcw } from "lucide-react";
+import { ArrowRight, ChevronRight, Pencil, RotateCcw } from "lucide-react";
 import { useId, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import Button from "@/components/ui/Button";
 import { WEDDING_CODE_V31_QUESTIONS, WEDDING_CODE_V31_TASTES, type V31Draft } from "@/constants/weddingCodeV31";
-import { buildV31Profile, compareV31, getV31PriorityOptions, hasV31Content, splitV31InsightsBySummary, v31ChoiceLabels, type V31Insight, type V31PairItem, type V31Profile } from "@/lib/weddingCode/v31";
+import { buildV31Profile, compareV31, getV31PriorityOptions, hasV31Content, splitV31InsightsBySummary, v31AnswerCountNote, v31ChoiceLabels, type V31Insight, type V31PairItem, type V31Profile } from "@/lib/weddingCode/v31";
 import { V31_STYLE_DIMENSIONS, buildV31StyleSummary } from "@/lib/weddingCode/v31StyleSummary";
 import { v31Body, v31Surface, v31Title } from "./WeddingCodeV31Inputs";
 import WeddingCodeV31Sharing from "./WeddingCodeV31Sharing";
 import WeddingCodeV31StyleSummary from "./WeddingCodeV31StyleSummary";
 
 type EditHandler = (id?: string) => void;
+/**
+ * 접어 두는 카드(details)의 머리글. 예전에는 카드마다 summary 를 제각각 썼다: 어떤 것은 flex 없이 min-h-11 만 줘서 글자가 44px 칸 맨 위에 붙고
+ * 카드 아래쪽에 한 줄 높이만큼 빈 공간이 남았고, 어떤 것은 flex 를 줘서 접힘 표시(마커)가 사라졌다.
+ * 글자를 칸 가운데에 두고 같은 화살표 하나로 접힘 표시를 맞춘다(소개의 ‘답하기 어려워요’ 접기와 같은 모양).
+ */
+const foldCardSummary = `flex min-h-11 cursor-pointer items-center gap-2 text-base ${v31Title}`;
+function FoldCardChevron() {
+  return <ChevronRight aria-hidden="true" className="size-4 shrink-0 transition-transform group-open:rotate-90" />;
+}
 type PairLabels = { first: string; second: string };
 type ResultTab = "together" | "first" | "second";
 
@@ -66,8 +75,8 @@ function Insight({ item, onEdit }: { item: V31Insight; onEdit?: EditHandler }) {
 function RawAnswers({ profile, draft, onEdit, personLabel }: { profile: V31Profile; draft: V31Draft; onEdit?: EditHandler; personLabel?: string }) {
   const topics = profile.topics.map(topic => ({ ...topic, responses: topic.responses.filter(response => hasResponse(draft, response.id)) }))
     .filter(topic => topic.responses.length > 0);
-  return <details className={`${v31Surface} mt-5 p-5 sm:p-7`}>
-    <summary className={`min-h-11 cursor-pointer text-base ${v31Title}`}>{personLabel ? `${personLabel}의 문장별 답 모두 보기` : "문장별로 내가 고른 답 모두 보기"}</summary>
+  return <details className={`group ${v31Surface} mt-5 p-5 sm:p-7`}>
+    <summary className={foldCardSummary}><FoldCardChevron />{personLabel ? `${personLabel}의 문장별 답 모두 보기` : "문장별로 내가 고른 답 모두 보기"}</summary>
     <p className={`mt-2 ${v31Body}`}>‘어느 쪽도 아니에요’, ‘아직 모르겠어요’, ‘해당하지 않아요’, ‘지금 답하지 않을게요’는 서로 다른 답이라 고른 그대로 보여줘요.</p>
     {topics.map(topic => <section key={topic.key} className="mt-5">
       <h3 className={`text-sm ${v31Title}`}>{topic.title}</h3>
@@ -98,7 +107,7 @@ function PersonalProfile({ draft, onEdit, nested = false, personLabel }: { draft
   const who = personLabel ? "" : "내가";
   const priorityStatus = draft.priorities?.status === "skipped" ? "꼭 지키고 싶은 것은 이번에 고르지 않았어요."
     : draft.priorities?.status === "no_preference" ? "꼭 지키고 싶은 건 따로 없다고 답했어요."
-      : draft.priorities?.status === "undecided" ? "꼭 지키고 싶은 것은 아직 정하지 않았어요."
+      : draft.priorities?.status === "undecided" ? "꼭 지키고 싶은 것은 아직 정하지 못했어요."
         : v31ChoiceLabels(draft.priorities, []).join(" · ");
   const foldSummary = `flex min-h-11 cursor-pointer items-center text-sm ${v31Title}`;
   // 우선순위를 한 번도 묻지 않은 결과(예전 기본 흐름을 마친 저장본)나, 고를 보기가 없어 건너뛴 뒤 취향을 고친 결과에서도
@@ -155,13 +164,13 @@ function PersonalProfile({ draft, onEdit, nested = false, personLabel }: { draft
       <p className={`mt-3 ${v31Body}`}>{draft.spending?.status === "no_preference" ? "더 쓰고 싶은 곳이 생기면 어떤 점이 좋은지 먼저 듣고, 줄일 곳이 있는지 같이 살펴봐요." : draft.spending?.status === "answered" ? "더 쓸 곳마다 대신 줄일 곳을 같이 정해 보세요. 전체 예산을 늘릴지는 따로 정해요." : "더 쓰고 싶은 곳은 나중에 생길 수도 있어요."}</p>
       {onEdit ? <Button variant="ghost" onClick={() => onEdit("spending")} className="mt-2">더 쓰고 싶은 곳 수정</Button> : null}
     </section>
-    {unresolved.length ? <details className={`${v31Surface} mt-5 p-5 sm:p-7`}><summary className={`min-h-11 cursor-pointer text-base ${v31Title}`}>구체적인 보기를 고르지 않은 답</summary>
+    {unresolved.length ? <details className={`group ${v31Surface} mt-5 p-5 sm:p-7`}><summary className={foldCardSummary}><FoldCardChevron />구체적인 보기를 고르지 않은 답</summary>
       <p className={`mt-2 ${v31Body}`}>각각 다른 뜻의 답으로 남겨요. ‘맞는 보기가 없어요’는 취향이 아직 정해지지 않았다는 뜻은 아니에요. 보기 밖의 생각이 있다면 대화할 때 직접 들려주세요.</p>
       <ul className="mt-3 divide-y divide-[var(--hb-hairline)]">{unresolved.map(item => <li key={item.id} className="py-3"><p className={v31Body}>{item.text}</p><p className={`mt-1 text-sm ${v31Title}`}>{item.answer}</p>{onEdit ? <Button variant="ghost" onClick={() => onEdit(item.id)} className="mt-1" aria-label={`${item.text} 답 수정`}>다시 답하기</Button> : null}</li>)}</ul>
     </details> : null}
     <RawAnswers profile={profile} draft={draft} onEdit={onEdit} personLabel={personLabel} />
-    {!nested ? <details className={`${v31Surface} mt-5 p-5 sm:p-7`} data-optional-personal-note>
-      <summary className={`flex min-h-11 cursor-pointer items-center text-base ${v31Title}`}>내 메모 남기기 (선택)</summary>
+    {!nested ? <details className={`group ${v31Surface} mt-5 p-5 sm:p-7`} data-optional-personal-note>
+      <summary className={foldCardSummary}><FoldCardChevron />내 메모 남기기 (선택)</summary>
       <label htmlFor="wedding-code-personal-note" className={`mt-3 block text-sm ${v31Title}`}>보기에는 없지만, 내가 남기고 싶은 것</label>
       <p className={`mb-3 mt-2 ${v31Body}`}>쓰지 않아도 결과를 보는 데는 문제가 없어요. 메모는 이 화면에서만 볼 수 있고, 자동 저장이나 공유 링크에는 포함되지 않아요. 새로고침하거나 답을 수정하면 지워져요.</p>
       <textarea id="wedding-code-personal-note" maxLength={500} value={memo} onChange={event => setMemo(event.target.value)} rows={3}
@@ -250,7 +259,7 @@ function FoldedPairs({ title, description, items, labels, hideFollowUp = false }
   if (!items.length) return null;
   const pinned = items.filter(item => item.isPriority);
   const rest = items.filter(item => !item.isPriority);
-  if (!pinned.length) return <details className={`${v31Surface} mt-5 p-5 sm:p-7`}><summary className={`flex min-h-11 cursor-pointer text-base ${v31Title}`}>{title}</summary><p className={`my-3 ${v31Body}`}>{description}</p>{rest.map(item => <PairItem key={item.id} item={item} labels={labels} hideFollowUp={hideFollowUp} />)}</details>;
+  if (!pinned.length) return <details className={`group ${v31Surface} mt-5 p-5 sm:p-7`}><summary className={foldCardSummary}><FoldCardChevron />{title}</summary><p className={`my-3 ${v31Body}`}>{description}</p>{rest.map(item => <PairItem key={item.id} item={item} labels={labels} hideFollowUp={hideFollowUp} />)}</details>;
   return <section className={`${v31Surface} mt-5 p-5 sm:p-7`}>
     <h2 className={`text-xl ${v31Title}`}>{title}</h2><p className={`mb-5 mt-2 ${v31Body}`}>{description}</p>
     {pinned.map(item => <PairItem key={item.id} item={item} labels={labels} hideFollowUp={hideFollowUp} />)}
@@ -320,8 +329,8 @@ export default function WeddingCodeV31Results({ draft, first, received, shareOri
       <p className="text-xs font-semibold text-[var(--hb-success)]">웨딩코드 · {first ? "두 사람의 결과" : "내 결과"}</p>
       <h1 className={`mt-3 text-3xl leading-snug ${v31Title}`}>{first ? "우리, 어디부터 맞춰 볼까요?" : profile.hasContent ? "내가 원하는 결혼식과 준비 방식" : "이번에 남긴 답을 살펴봐요"}</h1>
       <p className={`mt-3 ${v31Body}`}>{first ? `함께 동의하거나 고른 내용부터, 서로 다르게 답한 것까지 나란히 봐요. ${received ? "문장 속 ‘나’와 ‘상대’는 답한 사람 기준이에요." : "문장 속 ‘나’와 ‘상대’는 그 문장에 답한 사람 입장에서 쓴 말이에요. 줄 앞에 붙은 ‘나’·‘상대’만 지금 보는 사람 기준이에요."} 같은 답도 이유는 다를 수 있으니, 각자 떠올린 장면을 이야기해 보세요.` : profile.hasContent ? editable ? "지금 직접 고른 취향과 답을 정리했어요." : "공유된 취향과 답을 정리했어요. 이 화면에서는 답을 수정할 수 없어요." : "‘아직 모르겠어요’, ‘해당하지 않아요’, ‘지금 답하지 않을게요’, ‘맞는 보기가 없어요’는 서로 다른 답이에요. 이 답만으로는 정리할 취향이 없어요. 원할 때 다시 답해도 괜찮아요."}</p>
-      <p className="mt-3 text-xs leading-relaxed text-[var(--hb-text-muted)]">{received ? "받은 링크에 담긴 답이에요. 이름이나 본인 여부는 확인하지 않아요." : first ? `내가 동의 정도를 고른 문장은 ${profile.ratedCount}개예요. 취향과 선택 항목까지 합치면 내가 답을 남긴 질문은 ${profile.respondedCount}개예요.` : `동의 정도를 고른 문장은 ${profile.ratedCount}개예요. 취향과 선택 항목까지 합치면 답을 남긴 질문은 ${profile.respondedCount}개예요.`} 취향과 바람은 달라질 수 있어요. 새로 만든 질문이라 아직 많은 사람에게 확인해 보지 못했어요. 성격 진단이나 궁합 점수도 아니에요.</p>
-      {!first && editable && profile.hasContent ? <Button variant="secondary" className="mt-4 whitespace-normal!" onClick={() => { sharingRef.current?.scrollIntoView({ block: "start" }); sharingRef.current?.focus({ preventScroll: true }); }}>상대와 함께 보는 방법 보러 가기</Button> : null}
+      <p className="mt-3 text-xs leading-relaxed text-[var(--hb-text-muted)]">{received ? "받은 링크에 담긴 답이에요. 이름이나 본인 여부는 확인하지 않아요." : v31AnswerCountNote(profile, Boolean(first))} 취향과 바람은 달라질 수 있어요. 새로 만든 질문이라 아직 많은 사람에게 확인해 보지 못했어요. 성격 진단이나 궁합 점수도 아니에요.</p>
+      {!first && editable && profile.hasContent ? <Button variant="secondary" className="mt-4 whitespace-normal!" onClick={() => { sharingRef.current?.scrollIntoView({ block: "start" }); sharingRef.current?.focus({ preventScroll: true }); }}>상대와 함께 보는 방법 안내로 가기</Button> : null}
       {returnStep ? <>
         <p className={`mt-3 ${v31Body}`} data-return-step>링크를 보내 준 상대는 아직 이 결과를 볼 수 없어요. 아래 ‘답을 링크에 담아 직접 보내기’에서 두 사람 결과 링크를 만들어 보내면 볼 수 있어요.</p>
         <Button variant="secondary" className="mt-3 whitespace-normal!" onClick={() => { setShareOpenSignal(value => value + 1); sharingRef.current?.scrollIntoView?.({ block: "start" }); sharingRef.current?.focus({ preventScroll: true }); }}>상대에게 보내는 곳으로 가기</Button>

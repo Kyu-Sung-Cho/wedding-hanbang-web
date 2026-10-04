@@ -98,6 +98,8 @@ describe("TasteCard 구역", () => {
     expect(text).toContain("(선택)");
     expect(text).toContain("코드와는 따로");
     expect(text).toContain("안 해도 코드는 그대로예요");
+    // 식을 올리지 않는 사람에게 이 카드가 권하지 않는다(최종 점검 Q3).
+    expect(text).toContain("식을 올리지 않는다면 건너뛰어도 돼요");
   });
 
   it("구역 이름은 제목이고 접두어를 주면 그 접두어의 제목을 가리킨다", async () => {

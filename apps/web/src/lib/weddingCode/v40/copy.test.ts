@@ -663,6 +663,7 @@ describe("문서의 최종 문구를 그대로 옮겼다", () => {
     expect(V40_COPY.legend.frontColumn).toBe("왼쪽 글자");
     expect(V40_COPY.legend.backColumn).toBe("오른쪽 글자");
     expect(V40_COPY.taste.title).toBe("결혼식 모습도 골라 볼까요? (선택)");
+    expect(V40_COPY.taste.body).toBe("코드와는 따로, 끌리는 결혼식 모습을 골라 보는 거예요. 안 해도 코드는 그대로예요. 식을 올리지 않는다면 건너뛰어도 돼요.");
     expect(V40_COPY.taste.newTabHint).toBe("새 탭에서 열려요");
     expect(V40_COPY.copyCode.button).toBe("코드 복사");
     expect(V40_COPY.copyCode.hint).toBe(
@@ -873,7 +874,7 @@ describe("문서의 최종 문구를 그대로 옮겼다", () => {
     expect(V40_COPY.receive.scope).toBe("식을 올리지 않아도, 부모님이 안 계셔도, 재혼이어도, 아직 준비 전이어도 답할 수 있어요.");
     expect(V40_COPY.receive.answerButton).toBe("나도 답해 보기");
     // 감사 B4, B18: 주소를 복사해 다른 브라우저로 옮기면 주소의 # 뒤가 없어서 상대의 답이 따라오지 않는다는 말을 기존 안내 뒤에 더했다.
-    expect(V40_COPY.receive.reloadNote).toBe("이 화면을 새로고침하면 상대의 답이 화면에서 사라져요. 그럴 때는 받은 링크를 다시 열어 주세요. 주소를 복사해 다른 브라우저로 옮기면 상대의 답이 따라오지 않아요. 대화방에서 받은 링크를 그 브라우저에서 다시 열어 주세요.");
+    expect(V40_COPY.receive.reloadNote).toBe("이 화면을 새로고침하면 상대의 답이 화면에서 사라져요. 그럴 때는 받은 링크를 다시 열어 주세요. 주소를 복사해 다른 브라우저로 옮기면 상대의 답이 따라오지 않아요. 옮기려면 대화방의 링크를 길게 눌러 복사한 뒤, 옮길 브라우저에 붙여 열어 주세요.");
     expect(V40_COPY.receive.noCompareNote).toBe("이번에는 답이 화면의 같은 위치에 몰렸거나 답할 수 있는 질문이 적어서 글자를 정하지 못했어요. 그래서 두 사람 결과를 만들 수 없어요. 처음부터 다시 답해 볼 수 있고, 받은 상대의 답은 그대로 남아 있어요.");
     expect(V40_COPY.receive.noCompareRestartButton).toBe(V40_COPY.manage.restart.button);
     // 두 사람 결과가 없는 화면은 「우리 둘의 웨딩코드」라는 결과 제목을 쓰지 않는다.
@@ -889,7 +890,7 @@ describe("문서의 최종 문구를 그대로 옮겼다", () => {
     expect(V40_COPY.question.receivedNote).toContain("상대가 보낸 링크로 열었어요");
     expect(V40_COPY.question.receivedNote).toContain("새로고침하면 상대의 답이 화면에서 사라져요");
     expect(V40_COPY.question.receivedNote).toContain("받은 링크를 다시 열어 주세요");
-    expect(V40_COPY.question.receivedNote).toContain("주소를 복사해 다른 브라우저로 옮기면 상대의 답이 따라오지 않아요. 대화방에서 받은 링크를 그 브라우저에서 다시 열어 주세요.");
+    expect(V40_COPY.question.receivedNote).toContain("주소를 복사해 다른 브라우저로 옮기면 상대의 답이 따라오지 않아요. 옮기려면 대화방의 링크를 길게 눌러 복사한 뒤, 옮길 브라우저에 붙여 열어 주세요.");
     // 받는 사람 묶음에는 이 문장이 없다(그 묶음은 고지 문장이 있어서 질문 화면에 끌어오면 고지 수 규칙이 깨진다).
     expect("inProgressNote" in V40_COPY.receive).toBe(false);
     expect(V40_COPY.question.receivedNote).not.toContain(V40_NOT_VALIDATED_PHRASE);
@@ -934,7 +935,7 @@ describe("문서의 최종 문구를 그대로 옮겼다", () => {
     // 내가 보낸 링크를 내가 연 경우의 안내.
     expect(V40_COPY.receive.selfLink).toEqual({
       title: "내가 보낸 링크 같아요",
-      body: "이 링크에 든 답이 이 브라우저에 저장된 내 답과 같아요. 내 답이 든 링크라서 상대가 열어야 두 사람 비교를 볼 수 있어요. 상대에게 이 링크를 보내 주세요.",
+      body: "이 링크에 든 답이 이 브라우저에 저장된 내 답과 같아요. 내 답이 든 링크라서 상대가 열어야 두 사람 비교를 볼 수 있어요. 링크를 다시 보내려면 내 결과 화면의 「상대에게 보내기」를 써 주세요.",
       backHint: "내가 열어 본 거라면 내 결과로 돌아가면 돼요.",
       backButton: "내 결과로 돌아가기",
       continueButton: "그래도 이 링크로 계속하기",
@@ -958,7 +959,10 @@ describe("문서의 최종 문구를 그대로 옮겼다", () => {
     expect(coupleTagNote("money", "even", false)).toBe(V40_COPY.couple.evenTagNote);
     expect(coupleTagNote("money", "same", true)).toBe(V40_COPY.couple.excludedTagNote);
     expect(V40_COPY.couple.talk.title).toBe("먼저 이야기해 볼 질문");
-    expect(V40_COPY.couple.talk.lead).toBe("이 질문에서는 두 사람이 서로 다른 쪽을 골랐어요. 다른 날에는 답이 달라질 수도 있어요.");
+    expect(V40_COPY.couple.talk.lead).toBe("아래 질문에서는 두 사람이 서로 다른 쪽을 골랐어요. 다른 날에는 답이 달라질 수도 있어요.");
+    // 목록에는 질문이 여러 개 나올 수 있어서 안내는 단수(「이 질문」)로 말하지 않는다.
+    expect(V40_COPY.couple.similar.lead).toBe("아래 질문에서는 두 사람이 같은 쪽으로 골랐어요. 이유까지 같은지는 이야기해 봐야 알 수 있어요.");
+    expect(V40_COPY.couple.talk.lead + V40_COPY.couple.similar.lead).not.toContain("이 질문");
     expect(V40_COPY.couple.similar.title).toBe("이미 비슷하게 고른 질문");
     expect(Object.keys(V40_COPY.couple.talk.opening)).toEqual([...V40_AXIS_KEYS]);
     expect(V40_COPY.couple.notice).toBe(

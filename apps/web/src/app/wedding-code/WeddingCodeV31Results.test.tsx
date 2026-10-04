@@ -615,4 +615,69 @@ describe("2026-09-27 결과 검토 뒤 고친 것", () => {
     const none = basicDraft(); none.priorities = { status: "no_preference" };
     expect(render(none).textContent).toContain("꼭 지키고 싶은 건 따로 없다고 답했어요.");
   });
+
+  it("‘꼭 지키고 싶은 것’을 아직 정하지 못했다고 고르면 결과 문장도 같은 말로 쓴다(‘않았어요’로 바꾸지 않는다)", () => {
+    const draft = basicDraft(); draft.priorities = { status: "undecided" };
+    const text = render(draft).textContent ?? "";
+    expect(text).toContain("꼭 지키고 싶은 것은 아직 정하지 못했어요.");
+    expect(text).not.toContain("아직 정하지 않았어요");
+  });
+
+  describe("맨 위 개수 안내는 더해지는 숫자로 쓴다", () => {
+    /** 안내 문단에서 「동의 정도를 고른 문장은 R개」 「…O개를 더하면」 「답을 남긴 질문은 N개」를 읽는다. */
+    function counts(view: Element) {
+      const note = [...view.querySelectorAll("header p")].find(item => item.textContent?.includes("동의 정도를 고른 문장"))?.textContent ?? "";
+      const rated = Number(note.match(/동의 정도를 고른 문장은 ([0-9]+)개/)?.[1]);
+      const others = note.match(/같은 답 ([0-9]+)개를 더하면/)?.[1];
+      const responded = Number(note.match(/답을 남긴 질문(?:은|도) ([0-9]+)개/)?.[1]);
+      return { note, rated, others: others === undefined ? 0 : Number(others), responded };
+    }
+    it("모르겠어요·해당하지 않아요·건너뜀을 한 문장씩 섞어도 동의 정도를 고른 문장과 그 밖의 답을 더하면 답을 남긴 질문이 된다", () => {
+      const draft = basicDraft();
+      draft.answers.G1 = "undecided"; draft.answers.G3 = "skipped"; draft.answers.R4 = "not_applicable";
+      const { rated, others, responded, note } = counts(render(draft));
+      expect([rated, others, responded]).toEqual([12, 11, 23]);
+      expect(rated + others).toBe(responded);
+      expect(note).toContain("동의 정도를 고른 문장은 12개예요. 여기에 취향·선택 항목에 고른 답과 ‘아직 모르겠어요’ 같은 답 11개를 더하면 답을 남긴 질문은 23개예요.");
+    });
+    it("전부 ‘아직 모르겠어요’면 0개와 전체 개수가 서로 모순 없이 읽힌다", () => {
+      const draft = basicDraft();
+      for (const id of Object.keys(draft.answers) as (keyof typeof draft.answers)[]) draft.answers[id] = "undecided";
+      const { rated, others, responded, note } = counts(render(draft));
+      expect([rated, others, responded]).toEqual([0, 23, 23]);
+      expect(note).toContain("동의 정도를 고른 문장은 0개예요. 여기에");
+    });
+    it("전부 건너뛰었거나 추가 질문까지 답한 경우도 더해진다", () => {
+      const skipped = basicDraft();
+      for (const id of Object.keys(skipped.answers) as (keyof typeof skipped.answers)[]) skipped.answers[id] = "skipped";
+      const a = counts(render(skipped));
+      expect(a.rated + a.others).toBe(a.responded);
+      const extra = basicDraft(); extra.answers.V1 = 4; extra.answers.G2 = "undecided"; extra.priorities = { status: "no_preference" };
+      const b = counts(render(extra));
+      expect([b.rated, b.others, b.responded]).toEqual([16, 10, 26]);
+      expect(b.rated + b.others).toBe(b.responded);
+    });
+    it("문장만 답했거나 아직 아무것도 답하지 않은 결과도 모순이 없고, 두 사람 결과에서는 ‘내가’로 내 쪽을 말한다", () => {
+      const onlyRatings = createV31Draft(); onlyRatings.answers = { G1: 4 };
+      expect(counts(render(onlyRatings)).note).toContain("동의 정도를 고른 문장은 1개이고, 답을 남긴 질문도 1개예요.");
+      expect(render(createV31Draft()).querySelector("header")?.textContent).toContain("답을 남긴 질문이 아직 없어요.");
+      const mine = basicDraft(); mine.answers.G1 = "undecided";
+      const couple = render(mine, basicDraft());
+      expect(couple.querySelector("header")?.textContent).toContain("내가 동의 정도를 고른 문장은 14개예요. 여기에 취향·선택 항목에 고른 답과 ‘아직 모르겠어요’ 같은 답 9개를 더하면 내가 답을 남긴 질문은 23개예요.");
+    });
+  });
+
+  it("접히는 카드의 머리글은 글자를 칸 가운데에 두고 같은 접힘 화살표를 쓴다(글자가 칸 맨 위에 붙어 카드 아래가 비어 보이지 않는다)", () => {
+    const draft = basicDraft(); draft.answers.G1 = "undecided";
+    const view = render(draft);
+    for (const title of ["구체적인 보기를 고르지 않은 답", "문장별로 내가 고른 답 모두 보기", "내 메모 남기기 (선택)"]) {
+      const summary = [...view.querySelectorAll("summary")].find(item => item.textContent?.trim() === title);
+      expect(summary, title).toBeTruthy();
+      const classes = summary!.className.split(/[ ]+/);
+      expect(classes, title).toContain("flex");
+      expect(classes, title).toContain("items-center");
+      expect(summary!.querySelector("svg[aria-hidden='true']"), title).not.toBeNull();
+      expect(summary!.parentElement?.className.split(/[ ]+/), title).toContain("group");
+    }
+  });
 });

@@ -43,15 +43,15 @@
   },
   {
     "name": "소개 이용 통계 이벤트가 속성에 값을 하나 더 싣는다",
-    "target": "apps/web/src/app/wedding-code/WeddingCodeV31Client.tsx",
-    "find": "has_partner_link: hasPartnerLink, placement: flow,",
-    "replace": "has_partner_link: hasPartnerLink, placement: flow, first_answer: \"5\","
+    "target": "apps/web/src/lib/weddingCode/v31IntroAnalytics.ts",
+    "find": "has_partner_link: hasPartnerLink || fromHash, placement,",
+    "replace": "has_partner_link: hasPartnerLink || fromHash, placement, first_answer: \"5\","
   },
   {
     "name": "소개를 열어도 소개 이용 통계 이벤트가 나가지 않는다",
     "target": "apps/web/src/app/wedding-code/WeddingCodeV31Client.tsx",
-    "find": "if (screen === \"intro\") captureWeddingCodeEvent(\"wedding_code_intro_viewed\", {",
-    "replace": "if (screen === \"result\") captureWeddingCodeEvent(\"wedding_code_intro_viewed\", {"
+    "find": "if (screen === \"intro\") sendV31IntroViewedOnce({",
+    "replace": "if (screen === \"result\") sendV31IntroViewedOnce({"
   },
   {
     "name": "동의 화면의 만료 삭제 문장이 소개와 달라진다",
@@ -260,14 +260,14 @@
   {
     "name": "소개를 열면 주소의 # 뒤(상대 답)가 지워져 ‘기록에 남을 수 있어요’ 문장이 거짓이 된다",
     "target": "apps/web/src/app/wedding-code/WeddingCodeV31Client.tsx",
-    "find": "if (screen === \"intro\") captureWeddingCodeEvent(\"wedding_code_intro_viewed\", {",
-    "replace": "if (screen === \"intro\") window.history.replaceState(null, \"\", window.location.pathname); if (screen === \"intro\") captureWeddingCodeEvent(\"wedding_code_intro_viewed\", {"
+    "find": "if (screen === \"intro\") sendV31IntroViewedOnce({",
+    "replace": "if (screen === \"intro\") window.history.replaceState(null, \"\", window.location.pathname); if (screen === \"intro\") sendV31IntroViewedOnce({"
   },
   {
     "name": "소개를 그린 직후 주소의 # 뒤가 지워진다(화면 글은 그대로라 주소만 확인하는 단언이 잡아야 한다)",
     "target": "apps/web/src/app/wedding-code/WeddingCodeV31Client.tsx",
-    "find": "if (screen === \"intro\") captureWeddingCodeEvent(\"wedding_code_intro_viewed\", {",
-    "replace": "if (screen === \"intro\") Promise.resolve().then(() => window.history.replaceState(null, \"\", window.location.pathname)); if (screen === \"intro\") captureWeddingCodeEvent(\"wedding_code_intro_viewed\", {"
+    "find": "if (screen === \"intro\") sendV31IntroViewedOnce({",
+    "replace": "if (screen === \"intro\") Promise.resolve().then(() => window.history.replaceState(null, \"\", window.location.pathname)); if (screen === \"intro\") sendV31IntroViewedOnce({"
   },
   {
     "name": "소개 이용 통계 문장에서 답한 수·건너뛴 수가 빠진다",
@@ -418,5 +418,23 @@
     "target": "apps/web/src/app/wedding-code/WeddingCodeV31Client.tsx",
     "find": "취향과 그 밖의 질문은 한 페이지에 하나씩 물어봐요. 답을 골라도",
     "replace": "취향과 그 밖의 질문은 한 페이지에 하나씩 물어봐요. 한 페이지에 3개씩 묶어요. 답을 골라도"
+  },
+  {
+    "name": "소개 조회가 한 페이지 로드에 여러 번 나간다(하이드레이션 첫 그림과 입구 교체에서 두 번)",
+    "target": "apps/web/src/lib/weddingCode/v31IntroAnalytics.ts",
+    "find": "if (sentThisPageLoad || typeof window",
+    "replace": "if (typeof window"
+  },
+  {
+    "name": "소개 조회가 주소의 상대 링크 표지를 읽지 않아 첫 전송이 has_partner_link false 로 나간다",
+    "target": "apps/web/src/lib/weddingCode/v31IntroAnalytics.ts",
+    "find": "has_partner_link: hasPartnerLink || fromHash",
+    "replace": "has_partner_link: hasPartnerLink"
+  },
+  {
+    "name": "받는 사람 소개에서 ‘링크를 보내기 전에는 상대에게 가지 않아요’가 돌려보내기 안내에 또 나온다",
+    "target": "apps/web/src/app/wedding-code/WeddingCodeV31Client.tsx",
+    "find": "data-intro-return-step>내 답을 마치면 나오는",
+    "replace": "data-intro-return-step>내 답은 내가 링크를 보내기 전에는 상대에게 가지 않아요. 내 답을 마치면 나오는"
   }
 ]

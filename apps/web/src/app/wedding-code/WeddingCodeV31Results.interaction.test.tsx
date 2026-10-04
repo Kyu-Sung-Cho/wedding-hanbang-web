@@ -189,7 +189,7 @@ describe("두 사람 결과 탭", () => {
     const sharing = container.querySelector('[aria-label="함께 보기 안내"]')!.parentElement!;
     const scrollIntoView = vi.fn();
     Object.defineProperty(sharing, "scrollIntoView", { configurable: true, value: scrollIntoView });
-    await click([...container.querySelectorAll("button")].find(button => button.textContent === "상대와 함께 보는 방법 보러 가기"));
+    await click([...container.querySelectorAll("button")].find(button => button.textContent === "상대와 함께 보는 방법 안내로 가기"));
     expect(document.activeElement).toBe(sharing);
     expect(scrollIntoView).toHaveBeenCalledExactlyOnceWith({ block: "start" });
     expect(window.location.hash).toBe(originalHash);

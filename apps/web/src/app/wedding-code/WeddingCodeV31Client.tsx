@@ -11,6 +11,7 @@ import {
 } from "@/constants/weddingCodeV31";
 import { captureWeddingCodeEvent } from "@/lib/analytics";
 import { createV31Draft, encodeV31, getV31PriorityOptions, normalizeV31Draft } from "@/lib/weddingCode/v31";
+import { sendV31IntroViewedOnce } from "@/lib/weddingCode/v31IntroAnalytics";
 import { V31ChoiceInput, V31PriorityInput, V31RatingInput, v31Body, v31EscapeFoldLabel, v31RatingGuide, v31Surface, v31Title } from "./WeddingCodeV31Inputs";
 import WeddingCodeV31Results from "./WeddingCodeV31Results";
 import V31ConfirmDialog from "./WeddingCodeV31Confirm";
@@ -167,9 +168,10 @@ export default function WeddingCodeV31Client({ shareOrigin, partnerDraft = null,
   const pageComplete = isV31PageComplete(draft, page.indexes);
   const priorityEmpty = index === priorityIndex && draft.priorities === undefined;
   const firstOrdinal = flowIndexes.indexOf(page.indexes[0]) + 1;
+  // 읽어 주는 화면 이름은 눈에 보이는 진행 글자(progressText)와 같은 말을 쓴다. 수정 화면은 보이는 말이 「답 수정」이라 「기본 질문 24번째」라 하지 않는다.
   const screenLabel = screen === "intro" ? "웨딩코드 소개" : screen === "result" ? "웨딩코드 결과"
     : grouped ? `웨딩코드 ${flowLabel} ${page.position + 1}페이지`
-      : ordinal > 0 ? `웨딩코드 ${flowLabel} ${ordinal}번째` : "웨딩코드 답 수정";
+      : editing || ordinal <= 0 ? "웨딩코드 답 수정" : `웨딩코드 ${flowLabel} ${ordinal}번째`;
   const optionalRemaining = V31_EXTRA_INDEXES.filter(item => getV31ResponseAt(draft, item) === undefined).length;
 
   // 서버가 그린 소개를 이어받는 첫 그림에서는 초점도 스크롤도 옮기지 않는다. 읽던 사람이 하이드레이션 순간 맨 위로 끌려가지 않게 하고,
@@ -193,9 +195,8 @@ export default function WeddingCodeV31Client({ shareOrigin, partnerDraft = null,
     if (screen === "result" && context.first) captureWeddingCodeEvent("wedding_code_comparison_viewed", { version: WEDDING_CODE_V31_VERSION, scene_total: totalQuestions });
   }, [context.first, screen, totalQuestions]);
   useEffect(() => {
-    if (screen === "intro") captureWeddingCodeEvent("wedding_code_intro_viewed", {
-      version: WEDDING_CODE_V31_VERSION, scene_total: totalQuestions, has_partner_link: hasPartnerLink, placement: flow,
-    });
+    // 소개 조회는 한 페이지 로드에 한 번만, 주소의 상대 링크 표지까지 읽어 첫 전송부터 맞는 값으로 보낸다(v31IntroAnalytics.ts 머리 설명).
+    if (screen === "intro") sendV31IntroViewedOnce({ sceneTotal: totalQuestions, hasPartnerLink, placement: flow });
     if (screen === "questions") captureWeddingCodeEvent("wedding_code_scene_reached", {
       version: WEDDING_CODE_V31_VERSION, scene_index: ordinal > 0 ? ordinal : 1, scene_total: totalQuestions, has_partner_link: hasPartnerLink, placement: editing ? "edit" : flow,
     });
@@ -381,6 +382,9 @@ export default function WeddingCodeV31Client({ shareOrigin, partnerDraft = null,
     : local.status === "invalid" ? `저장된 답을 읽을 수 없어요. 새로 답하면 다시 저장해요.${local.clockAhead ? " 폰 날짜와 시간이 맞는지 확인해 보세요." : ""}`
     : "답하면 이 브라우저에 자동으로 저장돼요. 다른 사람과 같이 쓰는 컴퓨터나 휴대폰이라면 아래 ‘자동 저장 설정’에서 꺼 주세요.";
 
+  // 저장소를 쓸 수 없는 브라우저(사생활 보호 모드, 사이트 데이터 차단)에서는 켜고 끌 저장이 없다. 끄기 단추는 아무 일도 하지 못하고 설명은 저장되는 것처럼 읽히므로,
+  // 단추를 두지 않고 설명도 저장할 수 없다는 말로 바꾼다. 위쪽 저장 줄과 소개의 접힌 ‘개인정보 자세히 보기’ 문단이 이미 같은 말을 한다.
+  const storageBlocked = local.ready && local.status === "unavailable";
   const storageControls = context.received ? null : <aside aria-label="이 브라우저의 답 저장" className="mt-6 border-t border-[var(--hb-hairline)] pt-4">
     <p role="status" className={`text-xs leading-relaxed ${local.status === "unavailable" || local.status === "conflict" ? "text-[var(--hb-text-strong)]" : "text-[var(--hb-text-muted)]"}`}>{storageMessage}</p>
     {/* 화면 조각이 못 내려와 "확인하고 있어요"가 계속 남는 경우를 위한 보강: 12초 뒤에야 보이는 새로고침 한 줄(서버 HTML 에서부터 CSS 로). 확인이 끝나면 함께 사라진다. */}
@@ -391,10 +395,15 @@ export default function WeddingCodeV31Client({ shareOrigin, partnerDraft = null,
     </div> : null}
     <details className={`mt-2 ${v31Body}`}>
       <summary className="flex min-h-11 cursor-pointer items-center underline underline-offset-4">자동 저장 설정</summary>
-      <p>자동 저장은 이 브라우저에만 남겨요. 마지막으로 저장한 날부터 30일 동안 같은 브라우저에서 이어 할 수 있어요. 카카오톡 같은 앱 안에서 열었다면 다음에도 같은 곳에서 열어야 이어 할 수 있어요. 상대의 답·공유 동의·메모는 자동 저장하지 않아요.</p>
-      <p className="mt-2">이 브라우저를 같이 쓰는 사람이 있다면(상대나 가족 포함) 자동 저장을 꺼 주세요. 저장된 답을 그 사람도 열 수 있어요. 시크릿 모드나 브라우저 데이터를 지운 뒤에는 이어 하지 못할 수 있어요.</p>
+      {storageBlocked ? <>
+        <p>이 브라우저에는 저장할 수 없어요. 그래서 자동 저장을 켜거나 끌 수 없고, 답은 이 화면에만 남아요. 나가거나 새로고침하면 지금 답은 사라질 수 있어요.</p>
+        <p className="mt-2">시크릿 모드이거나 브라우저가 이 사이트의 데이터를 막고 있을 수 있어요. 상대의 답·공유 동의·메모는 어느 경우에도 저장하지 않아요.</p>
+      </> : <>
+        <p>자동 저장은 이 브라우저에만 남겨요. 마지막으로 저장한 날부터 30일 동안 같은 브라우저에서 이어 할 수 있어요. 카카오톡 같은 앱 안에서 열었다면 다음에도 같은 곳에서 열어야 이어 할 수 있어요. 상대의 답·공유 동의·메모는 자동 저장하지 않아요.</p>
+        <p className="mt-2">이 브라우저를 같이 쓰는 사람이 있다면(상대나 가족 포함) 자동 저장을 꺼 주세요. 저장된 답을 그 사람도 열 수 있어요. 시크릿 모드나 브라우저 데이터를 지운 뒤에는 이어 하지 못할 수 있어요.</p>
+      </>}
       <div className="mt-2 flex flex-wrap gap-2">
-        <Button variant="secondary" aria-pressed={local.enabled} disabled={!local.ready} aria-haspopup={local.enabled && (offLosesAnswers || offLosesAddress) ? "dialog" : undefined} onClick={() => toggleSaving()}>{local.enabled ? "자동 저장 끄기" : "자동 저장 켜기"}</Button>
+        {storageBlocked ? null : <Button variant="secondary" aria-pressed={local.enabled} disabled={!local.ready} aria-haspopup={local.enabled && (offLosesAnswers || offLosesAddress) ? "dialog" : undefined} onClick={() => toggleSaving()}>{local.enabled ? "자동 저장 끄기" : "자동 저장 켜기"}</Button>}
         {local.saved || owned ? <Button variant="ghost" aria-haspopup="dialog" onClick={() => askConfirm("clear")}>{V31_CLEAR_LOCAL_LABEL}</Button> : null}
       </div>
       {/*
@@ -402,7 +411,7 @@ export default function WeddingCodeV31Client({ shareOrigin, partnerDraft = null,
         사본만 지우며 현재 탭의 임시 사본은 남긴다. 같은 이름으로, 지우는 범위를 좁혀 버튼 옆에서 먼저 알린다.
       */}
       {(local.saved || owned) && pairAddressSaved ? <p className="mt-2 text-xs" data-pair-address-note>‘{V31_CLEAR_LOCAL_LABEL}’는 답만 지워요. 이 브라우저에 저장된 함께 보기 확인 주소까지 지우려면 ‘자동 저장 끄기’를 눌러 주세요.</p> : null}
-      <p className="mt-2 text-xs">자동 저장을 끄면 저장된 답도 지워져요. 지금 화면에서는 계속 답할 수 있어요.</p>
+      {storageBlocked ? null : <p className="mt-2 text-xs">자동 저장을 끄면 저장된 답도 지워져요. 지금 화면에서는 계속 답할 수 있어요.</p>}
       {/* 함께 보기를 만들어 본 적이 없는 첫 방문에는 아직 쓰지 않은 기능의 서버 연결 이야기를 하지 않는다. 이 브라우저나 이 탭에 확인 주소가 남아 있을 때만 말한다. */}
       {pairAddressSaved || pairTabAddress ? <>
         <p className="mt-2 text-xs">자동 저장을 꺼도 서버에 있는 함께 보기 연결은 그대로 남아요. 끝내려면 끄기 전에 두 사람 결과 화면에서 ‘연결 끝내기’를 눌러 주세요. 이미 껐다면 따로 복사해 둔 ‘나만 보관할 확인 주소’로 열어 끝낼 수 있어요.</p>
@@ -411,6 +420,7 @@ export default function WeddingCodeV31Client({ shareOrigin, partnerDraft = null,
     </details>
   </aside>;
 
+  // 확인 단추의 이름도 입구에 맞춘다: 소개에서는 지우기만 하고(처음 화면에 그대로 있다), 질문·결과에서는 지운 뒤 처음부터 다시 답하게 되므로 「지우고 다시 답하기」다.
   // 무엇이 지워지는지는 입구와 지금 보는 화면에 맞춘다. 이미 보낸 링크는 그대로 열리고, 받은 링크로 시작했다면 그 링크를 다시 열어 비교를 다시 볼 수 있다.
   // 「이 브라우저」는 본문에 한 번만 쓴다. 결과의 다시 답하기는 결과 화면에서만 열린다.
   const sentLinkNote = `${context.first ? "받은 링크를 다시 열어 답하면 비교를 다시 볼 수 있어요. " : ""}이미 보낸 링크는 그대로 열려요.`;
@@ -429,7 +439,7 @@ export default function WeddingCodeV31Client({ shareOrigin, partnerDraft = null,
       </section>
       {confirm === "restart" ? <V31ConfirmDialog title="처음부터 다시 답할까요?" body={restartConfirmBody} confirmLabel="지우고 다시 답하기" cancelLabel="그대로 두기"
         onConfirm={() => { setConfirm(null); confirmOpener.current = null; restart(); }} onCancel={cancelConfirm} /> : null}
-      {confirm === "clear" ? <V31ConfirmDialog title="저장된 답을 지울까요?" body={clearConfirmBody} confirmLabel="지우고 다시 답하기" cancelLabel="그대로 두기"
+      {confirm === "clear" ? <V31ConfirmDialog title="저장된 답을 지울까요?" body={clearConfirmBody} confirmLabel={screen === "intro" ? "지우기" : "지우고 다시 답하기"} cancelLabel="그대로 두기"
         onConfirm={() => { setConfirm(null); confirmOpener.current = null; restart(); }} onCancel={cancelConfirm} /> : null}
       {confirm === "off" ? <V31ConfirmDialog title="자동 저장을 끌까요?" body={offConfirmBody} confirmLabel="끄고 지우기" cancelLabel="그대로 두기"
         onConfirm={() => { const opener = confirmOpener.current; confirmOpener.current = null; setConfirm(null); toggleSaving(true); if (opener?.isConnected) opener.focus(); }} onCancel={cancelConfirm} /> : null}
@@ -491,13 +501,13 @@ export default function WeddingCodeV31Client({ shareOrigin, partnerDraft = null,
                 {local.status === "off" ? <p className={v31Body}>자동 저장이 꺼져 있어서 내 답은 이 브라우저에 저장되지 않아요. 나가면 지금 답은 사라져요.</p>
                   : local.status === "unavailable" ? <p className={v31Body}>이 브라우저에 저장할 수 없어서 내 답은 저장되지 않아요. 계속 답할 수 있지만, 나가면 지금 답은 사라질 수 있어요.</p>
                   : <p className={v31Body}>내 답은 이 브라우저에 자동으로 저장돼요. 마지막으로 저장한 날부터 {LOCAL_SAVE_DAYS}일 동안 이어 할 수 있어요. 카카오톡 같은 앱 안에서 열었다면 다음에도 같은 곳에서 열어야 해요. 다른 사람과 같이 쓰는 컴퓨터나 휴대폰이라면 시작하기 전에 아래 ‘자동 저장 설정’에서 꺼 주세요.</p>}
-                {context.first ? <p className={v31Body}>받은 링크로 답할 때는 내 답을 서버에 보관하지 않아요. 내 답은 내가 링크를 만들어 보낼 때만 상대에게 가요.</p>
+                {context.first ? <p className={v31Body}>받은 링크로 답할 때는 내 답을 서버에 보관하지 않아요.</p>
                   : <p className={v31Body}>결과에서 ‘상대 초대하고 함께 보기’나 ‘동의하고 두 사람 결과 보기’에 동의하면 내 답 전체를 서버에 보관하고, 초대로 연결된 상대에게 보여줘요. 동의하기 전에는 내 답을 서버에 보내지 않아요. 초대 링크를 먼저 사용한 사람이 상대가 돼요. 이름이나 계정으로는 확인하지 않아요. 초대 후 {PAIR_SESSION_RETENTION_DAYS}일 동안 볼 수 있고, 기간이 끝난 내용은 하루 안에 삭제해요. ‘연결 끝내기’를 누르면 두 사람의 공유 답을 바로 지우지만, 상대가 이미 읽었거나 따로 저장해 둔 내용은 되돌릴 수 없어요.</p>}
               </div>
             </details>
           </div>
           {context.first ? <p className={`mt-3 ${v31Body}`}>상대의 답은 이 브라우저에 저장하지 않아요. 내가 직접 답하거나 불러온 내 답만 저장해요. 다만 받은 링크 주소에는 상대의 답이 들어 있어서 브라우저 방문 기록에 남을 수 있어요. 나중에 상대와 비교하려면 받은 링크를 다시 열어 주세요.</p> : null}
-          {context.first && !context.received ? <p className={`mt-3 ${v31Body}`} data-intro-return-step>내 답은 내가 링크를 보내기 전에는 상대에게 가지 않아요. 내 답을 마치면 나오는 두 사람 결과 링크를 상대에게 다시 보내 주어야 상대도 결과를 볼 수 있어요.</p> : null}
+          {context.first && !context.received ? <p className={`mt-3 ${v31Body}`} data-intro-return-step>내 답을 마치면 나오는 두 사람 결과 링크를 상대에게 다시 보내 주어야 상대도 결과를 볼 수 있어요.</p> : null}
           {/* 묻지 않는 것의 목록은 시작 버튼 위 범위 줄에 한 번만 둔다. */}
           <details className={`mt-3 ${v31Body}`}>
             <summary className="flex min-h-11 cursor-pointer items-center underline underline-offset-4">무엇을 물어보나요?</summary>

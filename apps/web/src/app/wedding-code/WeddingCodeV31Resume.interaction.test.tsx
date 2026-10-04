@@ -301,6 +301,25 @@ describe("V31 same-browser resume", () => {
     expect(container.textContent).not.toContain("자동 저장을 껐어요. 나가면 지금 답은 사라져요.");
   });
 
+  it("확인 창의 확인 단추는 입구마다 이름이 다르다: 소개의 ‘이 브라우저의 답 지우기’는 「지우기」, 질문·결과에서는 「지우고 다시 답하기」", async () => {
+    const draft = createV31Draft(); draft.answers.G1 = 4;
+    seed(snapshot(draft, { flow: "core", index: getV31IndexForId("G1") }));
+    await render();
+    await button("이 브라우저의 답 지우기");
+    const labels = () => [...document.querySelectorAll('[role="alertdialog"] button')].map(item => item.textContent?.trim()).sort();
+    expect(labels()).toEqual(["그대로 두기", "지우기"]);
+    expect(labels()).not.toContain("지우고 다시 답하기");
+    await dialogButton("그대로 두기");
+    expect(readV31LocalProgress(window.localStorage).status).toBe("ready");
+    await button("이 브라우저의 답 지우기"); await dialogButton("지우기");
+    expect(readV31LocalProgress(window.localStorage).status).toBe("empty");
+    expect(container.textContent).not.toContain("이 브라우저에 남겨 둔 답");
+    // 질문 화면에서는 지운 뒤 처음부터 다시 답하게 되므로 이름도 그렇게 부른다.
+    await button("내 웨딩코드 시작하기"); await click(container.querySelector('input[value="5"]'));
+    await button("이 브라우저의 답 지우기");
+    expect(labels()).toEqual(["그대로 두기", "지우고 다시 답하기"]);
+  });
+
   it("deletion resets the current flow without resurrecting the removed answer", async () => {
     seedPairSession();
     const pair = window.localStorage.getItem(PAIR_SESSION_LOCAL_KEY);

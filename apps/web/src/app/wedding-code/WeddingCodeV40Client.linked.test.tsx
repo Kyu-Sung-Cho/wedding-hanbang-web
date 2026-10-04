@@ -384,9 +384,11 @@ describe("웨딩코드 4.0 클라이언트: 받은 링크로 열기", () => {
     expect(hasButtonWithText(view.container, V40_COPY.receive.answerButton)).toBe(false);
     expect(view.container.querySelector('[data-section-card="invite-conflict"]')).toBeNull();
     expect(view.container.innerHTML).not.toContain(encodeCode(bank, own.formBit, own.responses) ?? "");
-    // 해시는 읽은 즉시 지운다(기존 동작 그대로).
-    expect(window.location.hash).toBe("");
-    expect(window.location.search).toBe(`?v=${WEDDING_CODE_V40_VERSION}`);
+    // 이 안내가 떠 있는 동안은 해시를 지우지 않는다(내 답이라 새어 나갈 상대의 것이 없고, 새로고침해도 같은 안내가 다시 뜨게 한다). 받은 링크의 표시도 남기지 않는다.
+    expect(window.location.hash).toBe(hash);
+    expect(readLinkOpened(window.history.state)).toBeNull();
+    expect(text).not.toContain("보내 주세요");
+    expect(text).toContain("「상대에게 보내기」");
     // 이 안내에서는 아무것도 저장소에 쓰지 않았다.
     expect(readProgress(storage, bank, NOW).status).toBe("ready");
   });
@@ -399,6 +401,7 @@ describe("웨딩코드 4.0 클라이언트: 받은 링크로 열기", () => {
     const view = await open({ initial: { partner: decodedOf(own), both: null }, deps: { storage, now: () => NOW, random: randomFor(own) } });
     expect(screenName(view.container)).toBe("self-link");
     await pressText(view.container, V40_COPY.receive.selfLink.backButton);
+    expect(window.location.hash).toBe("");
     expect(screenName(view.container)).toBe("result");
     expect(view.container.querySelector('[data-screen="couple"]')).toBeNull();
     expect(shownCode(view.container)).toBe(buildResult(bank, own.formBit, own.responses).code);
@@ -411,9 +414,15 @@ describe("웨딩코드 4.0 클라이언트: 받은 링크로 열기", () => {
     const own = fixture("swua-example");
     const storage = new FakeStorage();
     seedProgress(storage, resultSnapshotOf(own), NOW - DAY);
+    const hash = placeLinkInAddress(decodedOf(own));
     const view = await open({ initial: { partner: decodedOf(own), both: null }, deps: { storage, now: () => NOW, random: randomFor(own) } });
     expect(screenName(view.container)).toBe("self-link");
+    expect(window.location.hash).toBe(hash);
     await pressText(view.container, V40_COPY.receive.selfLink.continueButton);
+    // 계속하면 다른 받은 링크처럼 해시를 지운다.
+    expect(window.location.hash).toBe("");
+    expect(window.location.search).toBe(`?v=${WEDDING_CODE_V40_VERSION}`);
+    expect(readLinkOpened(window.history.state)).toBe("partner");
     expect(screenName(view.container)).toBe("receiver");
     expect(view.container.querySelector('[data-section-card="invite-conflict"]')).not.toBeNull();
     await pressText(view.container, V40_COPY.intro.inviteConflict.keepMineButton);

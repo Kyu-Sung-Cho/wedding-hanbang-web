@@ -464,6 +464,20 @@ export function splitV31InsightsBySummary(insights: readonly V31Insight[], summa
   const onlySummary = (insight: V31Insight) => insight.evidence.length > 0 && insight.evidence.every((item) => summaryIds.includes(item.id));
   return { fresh: insights.filter((insight) => !onlySummary(insight)), summaryOnly: insights.filter(onlySummary) };
 }
+/**
+ * 결과 맨 위의 개수 안내. 세는 기준이 둘이라(ratedCount: 동의 정도를 고른 문장만, respondedCount: ‘아직 모르겠어요’·건너뜀·취향·선택 항목까지)
+ * 숫자만 나란히 쓰면 더해지지 않아 보였다(12개와 24개, 전부 ‘아직 모르겠어요’면 0개와 24개). 그래서 두 수의 차이를 말로 밝혀
+ * 「동의 정도를 고른 문장 + 그 밖의 답 = 답을 남긴 질문」으로 읽히게 쓴다. 그 밖의 답에는 취향·선택 항목에 고른 답과
+ * 문장에 남긴 ‘아직 모르겠어요’·‘해당하지 않아요’·‘지금 답하지 않을게요’가 함께 든다. mine 이면 두 사람 결과 안에서 내 쪽을 말한다.
+ */
+export function v31AnswerCountNote(profile: Pick<V31Profile, "ratedCount" | "respondedCount">, mine = false): string {
+  const who = mine ? "내가 " : "";
+  const { ratedCount: rated, respondedCount: responded } = profile;
+  if (responded === 0) return `${who}답을 남긴 질문이 아직 없어요.`;
+  const others = responded - rated;
+  if (others <= 0) return `${who}동의 정도를 고른 문장은 ${rated}개이고, ${who}답을 남긴 질문도 ${responded}개예요.`;
+  return `${who}동의 정도를 고른 문장은 ${rated}개예요. 여기에 취향·선택 항목에 고른 답과 ‘아직 모르겠어요’ 같은 답 ${others}개를 더하면 ${who}답을 남긴 질문은 ${responded}개예요.`;
+}
 export function buildV31Profile(input: V31Draft): V31Profile {
   const draft = normalizeV31Draft(input);
   const insights = buildInsights(draft);

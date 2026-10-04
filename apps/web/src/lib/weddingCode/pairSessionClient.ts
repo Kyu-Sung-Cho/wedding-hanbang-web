@@ -59,6 +59,17 @@ export function readPairSessionRecovery(roomId?: string): SavedPairSession | nul
   try { const saved = readSaved(window.sessionStorage, RECOVERY_KEY); return roomId === undefined || saved?.roomId === roomId ? saved : null; }
   catch { return null; }
 }
+/**
+ * 이 브라우저가 이 초대를 만든 방 주인인지 확인하고, 맞으면 방 주인의 확인 주소 기록을 돌려준다.
+ * 같은 방의 기록(localStorage 에 저장한 주소, 이 탭의 복구 기록)이 지금 연 초대의 키를 초대 키(invitation)로 갖고 있으면 그 사람이 만든 방이다.
+ * 초대로 참여한 사람의 기록에는 초대 키가 없으므로 방 주인으로 읽히지 않는다. 저장소를 읽을 수 없으면 null 이다.
+ */
+export function readOwnInviteRecord(roomId: string, inviteToken: string): SavedPairSession | null {
+  for (const saved of [readSavedPairSession(), readPairSessionRecovery(roomId)]) {
+    if (saved && saved.roomId === roomId && saved.mode === "member" && saved.invitation === inviteToken) return saved;
+  }
+  return null;
+}
 function writePairSessionRecovery(value: SavedPairSession): boolean {
   try { window.sessionStorage.setItem(RECOVERY_KEY, JSON.stringify(value)); return true; }
   catch { return false; }

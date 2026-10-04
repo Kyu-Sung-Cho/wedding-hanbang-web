@@ -58,5 +58,11 @@
     "target": "apps/web/src/app/wedding-code/WeddingCodeV31Client.tsx",
     "find": "이 브라우저에 남겨 둔 답이 있어요",
     "replace": "이 브라우저에 남겨 둔 진행이 있어요"
+  },
+  {
+    "name": "소개의 이 브라우저의 답 지우기 확인 단추가 질문·결과와 같은 이름이다",
+    "target": "apps/web/src/app/wedding-code/WeddingCodeV31Client.tsx",
+    "find": "confirmLabel={screen === \"intro\" ? \"지우기\" : \"지우고 다시 답하기\"}",
+    "replace": "confirmLabel=\"지우고 다시 답하기\""
   }
 ]

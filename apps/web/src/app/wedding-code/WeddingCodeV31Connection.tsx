@@ -1,11 +1,11 @@
 "use client";
 
-import { useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore, type MouseEvent, type ReactNode } from "react";
 import Link from "next/link";
 import Button from "@/components/ui/Button";
 import type { V31Draft } from "@/constants/weddingCodeV31";
 import { encodeV31 } from "@/lib/weddingCode/v31";
-import { PAIR_SESSION_CLOCK_HINT, PAIR_SESSION_CONSENT_VERSION, PAIR_SESSION_RETENTION_DAYS, createPairSessionKeys, requestPairSession, type PairSessionRequest } from "@/lib/weddingCode/pairSessionContract";
+import { PAIR_SESSION_CLOCK_HINT, PAIR_SESSION_CONSENT_VERSION, PAIR_SESSION_RATE_LIMITED_CODE, PAIR_SESSION_RETENTION_DAYS, createPairSessionKeys, requestPairSession, type PairSessionRequest } from "@/lib/weddingCode/pairSessionContract";
 import { forgetPairSession, pairSessionUrl, readPairSessionRecovery, readSavedPairSession, savePairSessionLink, savePairSessionRecovery, subscribePairSession } from "@/lib/weddingCode/pairSessionClient";
 import { v31Body, v31Surface, v31Title } from "./WeddingCodeV31Inputs";
 
@@ -15,6 +15,33 @@ import { v31Body, v31Surface, v31Title } from "./WeddingCodeV31Inputs";
  */
 const CONFIRMED_REJECTION_CODES: readonly string[] = ["CONFLICT", "CLOSED", "NOT_FOUND", "INVALID_REQUEST"];
 export function isConfirmedPairRejection(code: string): boolean { return CONFIRMED_REJECTION_CODES.includes(code); }
+/**
+ * 만들기 요청이 서버에서 처리되기 전에 거절됐다고 확정할 수 있는 코드. 위의 확정 거절에 더해, 출처 확인 실패(403), 너무 큰 요청(413), 요청 제한(429)은
+ * 서버가 방을 만들기 전에 막는 응답이다. 이 거절들에서는 「이미 만들어졌는지 확인하기」 링크가 가리킬 방이 없다.
+ * 참여 요청에는 쓰지 않는다. 참여 화면은 「확정 거절 = 이 초대로는 더 못 한다」를 전제로 안내하는데, 이 세 거절은 같은 화면에서 다시 시도하면 되는 거절이다.
+ */
+const CONFIRMED_CREATE_REJECTION_CODES: readonly string[] = [...CONFIRMED_REJECTION_CODES, "INVALID_ORIGIN", "TOO_LARGE", PAIR_SESSION_RATE_LIMITED_CODE];
+export function isConfirmedCreateRejection(code: string): boolean { return CONFIRMED_CREATE_REJECTION_CODES.includes(code); }
+
+/**
+ * 두 사람 연결 주소로 가는 링크. 방 화면(/wedding-code/together)은 주소의 # 뒤를 hashchange·popstate 로만 다시 읽는데, Next 의 Link 는
+ * 같은 경로에서 # 뒤만 바뀌는 이동에는 그 두 이벤트를 내지 않는다(주소창만 바뀌고 화면은 그대로 남는다).
+ * 그래서 이미 그 경로에 있을 때는 브라우저의 기본 # 이동으로 바꿔 hashchange 가 나게 한다. 다른 경로(웨딩코드 입구에서 방으로)는 Link 그대로 이동한다.
+ * 새 탭으로 열기, 보조 키 클릭, 가운데 클릭은 건드리지 않는다.
+ */
+export function PairSessionLink({ href, className, children }: { href: string; className?: string; children: ReactNode }) {
+  function openInPlace(event: MouseEvent<HTMLAnchorElement>) {
+    if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+    try {
+      const target = new URL(href, window.location.href);
+      const here = window.location;
+      if (target.origin !== here.origin || target.pathname !== here.pathname || target.search !== here.search || !target.hash) return;
+      event.preventDefault();
+      if (target.hash !== here.hash) here.hash = target.hash;
+    } catch { /* 주소를 해석하지 못하면 Link 의 기본 이동에 맡긴다. */ }
+  }
+  return <Link href={href} onClick={openInPlace} className={className}>{children}</Link>;
+}
 
 export function PairSessionConsent({ consent, ageConfirmed, disabled, onConsent, onAge, participant = false }: {
   consent: boolean; ageConfirmed: boolean; disabled: boolean;
@@ -52,11 +79,11 @@ export function WeddingCodeComparisonResume({ compact = false }: { compact?: boo
   return <aside className={compact ? "mt-4 border-t border-paper-outline pt-3" : `mx-4 mt-6 mb-4 max-w-[680px] sm:mx-auto ${v31Surface} p-4`} aria-label="연결한 비교 결과">
     {url ? <div>
     <p className={v31Body}>이 브라우저에서 함께 보기를 시작한 결과가 있어요.</p>
-    <Link href={url} className="mt-2 inline-flex min-h-11 items-center font-semibold text-[var(--hb-text-strong)] underline underline-offset-4">연결한 두 사람 결과 보기</Link>
+    <PairSessionLink href={url} className="mt-2 inline-flex min-h-11 items-center font-semibold text-[var(--hb-text-strong)] underline underline-offset-4">연결한 두 사람 결과 보기</PairSessionLink>
     </div> : null}
     {recoveryUrl ? <div className={url ? "mt-3 border-t border-paper-outline pt-3" : undefined}>
       <p className={v31Body}>이 탭에 함께 보기 요청을 확인하는 주소가 남아 있어요. 연결이 잘 됐는지 열어서 확인해 주세요.</p>
-      <Link href={recoveryUrl} className="mt-2 inline-flex min-h-11 items-center font-semibold text-[var(--hb-text-strong)] underline underline-offset-4">이 탭에서 요청한 함께 보기 확인</Link>
+      <PairSessionLink href={recoveryUrl} className="mt-2 inline-flex min-h-11 items-center font-semibold text-[var(--hb-text-strong)] underline underline-offset-4">이 탭에서 요청한 함께 보기 확인</PairSessionLink>
     </div> : null}
   </aside>;
 }
@@ -92,8 +119,9 @@ export default function WeddingCodeV31Connection({ draft }: { draft: V31Draft })
       if (!result.ok) {
         setServerFailed(true);
         const clockOff = result.code === "CREATE_EXPIRED";
-        // 확실히 거절된 요청은 방이 없다. 복구 링크와 임시 확인 주소를 치우고, 다음에는 새 키로 만든다.
-        if (clockOff || isConfirmedPairRejection(result.code)) { pending.current = null; setRecoveryUrl(""); forgetPairSession(input.roomId); }
+        // 확실히 거절된 요청은 방이 없다(시각 어긋남, 출처 확인 실패 403, 요청 제한 429 포함). 복구 링크와 임시 확인 주소를 치우고, 다음에는 새 키로 만든다.
+        // 네트워크 끊김·시간 초과·서버 불안정처럼 처리 여부를 모르는 실패만 복구 링크를 남긴다.
+        if (clockOff || isConfirmedCreateRejection(result.code)) { pending.current = null; setRecoveryUrl(""); forgetPairSession(input.roomId); }
         setError(clockOff && !result.error.includes(PAIR_SESSION_CLOCK_HINT) ? `${result.error} ${PAIR_SESSION_CLOCK_HINT}` : result.error);
         return;
       }
@@ -111,7 +139,7 @@ export default function WeddingCodeV31Connection({ draft }: { draft: V31Draft })
       <PairSessionConsent consent={consent} ageConfirmed={ageConfirmed} disabled={busy} onConsent={value => { setConsent(value); if (!serverFailed) setError(""); }} onAge={value => { setAgeConfirmed(value); if (!serverFailed) setError(""); }} />
       <p className="mt-3 text-xs leading-relaxed text-[var(--hb-text-body)]">자동 저장이 켜져 있으면 이 브라우저에 나만 보관할 확인 주소도 남겨요. 다른 사람과 같이 쓰는 컴퓨터나 휴대폰이라면 함께 보기를 끝낸 뒤 ‘자동 저장 끄기’를 눌러 지워 주세요.</p>
       <Button variant="primary" fullWidth disabled={busy} onClick={() => void create()} className="mt-4 whitespace-normal!">{busy ? "초대를 만들고 있어요…" : serverFailed ? "초대 다시 만들기" : "동의하고 초대 만들기"}</Button>
-      {error ? <div role="alert" className={`mt-3 ${v31Body}`}><p>{error}</p>{recoveryUrl ? <Link href={recoveryUrl} className="mt-2 inline-flex min-h-11 items-center underline">이미 만들어졌는지 내 초대 확인하기</Link> : null}</div> : null}
+      {error ? <div role="alert" className={`mt-3 ${v31Body}`}><p>{error}</p>{recoveryUrl ? <PairSessionLink href={recoveryUrl} className="mt-2 inline-flex min-h-11 items-center underline">이미 만들어졌는지 내 초대 확인하기</PairSessionLink> : null}</div> : null}
     </div>}
   </section>;
 }

@@ -7,6 +7,8 @@ export const PAIR_SESSION_CREATE_WINDOW_MS = 5 * 60 * 1000;
 export const PAIR_SESSION_REQUEST_TIMEOUT_MS = 15_000;
 /** 만들기 요청의 시각이 어긋났을 때 화면에 꼭 들어가는 안내. 서버 문구와 화면이 같은 문장을 쓴다. */
 export const PAIR_SESSION_CLOCK_HINT = "휴대폰 날짜와 시간이 맞는지 확인해 주세요.";
+/** 서버가 요청을 처리하기 전에 몰림으로 막았다는 뜻의 code(code 가 없는 429 응답에 붙인다). */
+export const PAIR_SESSION_RATE_LIMITED_CODE = "RATE_LIMITED";
 export type PairSessionRequest =
   | { action: "create"; roomId: string; ownerToken: string; inviteToken: string; answerCode: string; consentVersion: typeof PAIR_SESSION_CONSENT_VERSION; consent: true; ageConfirmed: true; issuedAt: number }
   | { action: "read" | "revoke"; roomId: string; token: string }
@@ -123,7 +125,8 @@ export async function requestPairSession(input: PairSessionRequest): Promise<Pai
         const code = value.code === "INVALID_RESPONSE" && response.status >= 500 ? "UNAVAILABLE" : value.code;
         return { ok: false, code, error: typeof value.error === "string" ? value.error : fallback };
       }
-      return { ok: false, code: "UNAVAILABLE", error: fallback };
+      // 요청 제한(429)은 서버가 요청을 처리하기 전에 막은 응답이다. 처리 여부를 모르는 503 과 달리 만들기 요청을 확정 거절로 읽을 수 있게 따로 이름을 붙인다.
+      return { ok: false, code: response.status === 429 ? PAIR_SESSION_RATE_LIMITED_CODE : "UNAVAILABLE", error: fallback };
     }
     const snapshot = isPairSessionRecord(value) && hasPairSessionKeys(value, ["snapshot"]) ? parsePairSessionSnapshot(value.snapshot) : null;
     if (snapshot && acknowledgesPairSessionRequest(input, snapshot)) return { ok: true, snapshot };

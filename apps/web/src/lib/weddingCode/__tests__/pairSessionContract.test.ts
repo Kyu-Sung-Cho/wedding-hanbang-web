@@ -114,7 +114,8 @@ describe("비공개 비교 세션의 입력·응답 경계", () => {
     ] as const) {
       vi.stubGlobal("fetch", vi.fn().mockResolvedValue(response));
       const result = await requestPairSession(create);
-      expect(result).toEqual({ ok: false, code: "UNAVAILABLE", error: message });
+      // 요청 제한(429)은 서버가 처리하기 전에 막은 응답이라 따로 이름을 붙이고(만들기 화면이 확정 거절로 읽는다), 처리 여부를 모르는 503·403 은 일시 오류로 둔다.
+      expect(result).toEqual({ ok: false, code: response.status === 429 ? "RATE_LIMITED" : "UNAVAILABLE", error: message });
       if (!result.ok) { expect(result.error).not.toMatch(/습니다|untrusted|[a-z_]{6,}/); }
     }
   });

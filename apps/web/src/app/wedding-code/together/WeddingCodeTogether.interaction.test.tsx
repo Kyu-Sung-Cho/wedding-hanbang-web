@@ -1,15 +1,18 @@
 // @vitest-environment jsdom
 
-import { act, useEffect, useState } from "react";
-import { createRoot, type Root } from "react-dom/client";
+import { act, useEffect, useState, type MouseEventHandler, type ReactNode } from "react";
+import { createRoot, hydrateRoot, type Root } from "react-dom/client";
+import { renderToString } from "react-dom/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { WEDDING_CODE_V31_TASTES, type V31Draft } from "@/constants/weddingCodeV31";
 import { createV31Draft, encodeV31 } from "@/lib/weddingCode/v31";
 import { requestPairSession, type PairSessionResult, type PairSessionSnapshot } from "@/lib/weddingCode/pairSessionContract";
-import { readPairSessionRecovery, readSavedPairSession } from "@/lib/weddingCode/pairSessionClient";
+import { LATE_RELOAD_HINT_TEXT, LATE_RELOAD_LINK_TEXT, NO_SCRIPT_HINT_TEXT } from "@/lib/browserStorageFallback";
+import { PAIR_SESSION_LOCAL_KEY, parsePairSessionHash, readPairSessionRecovery, readSavedPairSession } from "@/lib/weddingCode/pairSessionClient";
 import { writeV31LocalProgress } from "@/lib/weddingCode/v31LocalProgress";
 import type WeddingCodeV31Client from "../WeddingCodeV31Client";
 import type WeddingCodeV31Results from "../WeddingCodeV31Results";
+import { PairSessionLink as PairSessionAnchor } from "../WeddingCodeV31Connection";
 import WeddingCodeTogether from "./WeddingCodeTogether";
 
 type ClientProps = Parameters<typeof WeddingCodeV31Client>[0];
@@ -17,6 +20,11 @@ type ResultsProps = Parameters<typeof WeddingCodeV31Results>[0];
 const observed = vi.hoisted(() => ({ client: vi.fn<(props: ClientProps) => void>(), results: vi.fn<(props: ResultsProps) => void>(), unmount: vi.fn(), push: vi.fn() }));
 
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push: observed.push }) }));
+// 실제 Next 의 Link 는 같은 경로에서 # 뒤만 바뀌는 이동을 history.pushState 로만 처리해서 hashchange·popstate 를 내지 않는다. 그 동작을 그대로 흉내 낸다
+// (클릭 핸들러가 기본 동작을 막지 않았을 때만 가로챈다). jsdom 의 기본 링크 이동은 # 이동에 hashchange 를 내서 이 결함을 가려 버린다.
+vi.mock("next/link", () => ({ default: function Link({ href, onClick, className, children }: { href: string; onClick?: MouseEventHandler<HTMLAnchorElement>; className?: string; children?: ReactNode }) {
+  return <a href={href} className={className} onClick={event => { onClick?.(event); if (event.defaultPrevented) return; event.preventDefault(); window.history.pushState(null, "", href); }}>{children}</a>;
+} }));
 vi.mock("@/lib/weddingCode/pairSessionContract", async importOriginal => ({
   ...await importOriginal<typeof import("@/lib/weddingCode/pairSessionContract")>(),
   requestPairSession: vi.fn(),
@@ -293,13 +301,13 @@ describe("두 사람 연결의 접근 권한과 늦게 도착한 응답", () => 
     const fail = (code: string): PairSessionResult => ({ ok: false, code, error: "서버가 준 오류 문장이에요." });
     function notice() { return container.querySelector('[role="status"]')?.textContent ?? ""; }
 
-    it.each([["owner", OWNER], ["participant", OTHER]] as const)("%s 화면은 일시적 실패(연결 끊김, 시간 초과, 서버 불안정)에도 결과를 그대로 두고 안내 한 줄만 더한다", async (role, token) => {
+    it.each([["owner", OWNER], ["participant", OTHER]] as const)("%s 화면은 일시적 실패(연결 끊김, 시간 초과, 서버 불안정, 요청 몰림)에도 결과를 그대로 두고 안내 한 줄만 더한다", async (role, token) => {
       vi.mocked(requestPairSession).mockResolvedValueOnce({ ok: true, snapshot: ready(role) })
-        .mockResolvedValueOnce(fail("NETWORK_ERROR")).mockResolvedValueOnce(fail("TIMEOUT")).mockResolvedValueOnce(fail("UNAVAILABLE"))
+        .mockResolvedValueOnce(fail("NETWORK_ERROR")).mockResolvedValueOnce(fail("TIMEOUT")).mockResolvedValueOnce(fail("UNAVAILABLE")).mockResolvedValueOnce(fail("RATE_LIMITED"))
         .mockResolvedValue({ ok: true, snapshot: ready(role) });
       await render("access", token);
       const shown = result(); expect(shown).not.toBeNull();
-      for (let attempt = 0; attempt < 3; attempt += 1) {
+      for (let attempt = 0; attempt < 4; attempt += 1) {
         await poll();
         expect(result()).toBe(shown);
         expect(container.querySelector('[role="alert"]')).toBeNull();
@@ -333,7 +341,7 @@ describe("두 사람 연결의 접근 권한과 늦게 도착한 응답", () => 
       vi.mocked(requestPairSession).mockResolvedValue(fail("NETWORK_ERROR"));
       await render("access", OWNER);
       expect(container.querySelector('[role="alert"]')?.textContent).toContain("함께 보기 결과를 확인하지 못했어요");
-      expect(container.textContent).toContain("다시 확인하기");
+      expect(container.textContent).toContain("다시 시도하기");
     });
 
     it("연속 실패가 5번 쌓이면 오류 화면으로 넘어가고, 중간에 성공하면 횟수를 처음부터 센다", async () => {
@@ -351,7 +359,7 @@ describe("두 사람 연결의 접근 권한과 늦게 도착한 응답", () => 
       expect(result()).toBeNull();
       expect(container.querySelector('[role="alert"]')?.textContent).toContain("함께 보기 결과를 확인하지 못했어요");
       expect(notice()).toBe("");
-      await click("다시 확인하기");
+      await click("다시 시도하기");
       expect(result()).not.toBeNull(); expect(container.querySelector('[role="alert"]')).toBeNull();
     });
 
@@ -444,7 +452,7 @@ describe("두 사람 연결의 접근 권한과 늦게 도착한 응답", () => 
     const closedSnapshot = (): PairSessionSnapshot => ({ roomId: ROOM, state: "closed", role: "owner", expiresAt });
     const shownAlerts = () => [...container.querySelectorAll('[role="alert"]')].map(item => item.textContent);
 
-    it.each(["NETWORK_ERROR", "TIMEOUT", "UNAVAILABLE", "INVALID_RESPONSE"])("%s 로 끊겨도 방 본문을 그대로 두고 그 자리에서 다시 시도하게 하며, 다시 시도가 되면 끝난 화면이 된다", async code => {
+    it.each(["NETWORK_ERROR", "TIMEOUT", "UNAVAILABLE", "RATE_LIMITED", "INVALID_RESPONSE"])("%s 로 끊겨도 방 본문을 그대로 두고 그 자리에서 다시 시도하게 하며, 다시 시도가 되면 끝난 화면이 된다", async code => {
       vi.mocked(requestPairSession).mockResolvedValueOnce({ ok: true, snapshot: ready() }).mockResolvedValueOnce(fail(code))
         .mockResolvedValueOnce({ ok: true, snapshot: closedSnapshot() });
       await render("access", OWNER);
@@ -496,7 +504,7 @@ describe("두 사람 연결의 접근 권한과 늦게 도착한 응답", () => 
       await openRoom(roomAt(Date.now() - 7 * 86_400_000 - 1), mode, token);
       expect(requestPairSession).not.toHaveBeenCalled();
       expect(container.querySelector('[role="alert"]')?.textContent).toContain(mode === "invite" ? "만든 지 7일이 지나 끝났을 수 있어요. 초대한 분께 새 초대를 부탁해 주세요." : "만든 지 7일이 지나 끝났을 수 있어요. 새로 초대해 주세요.");
-      expect([...container.querySelectorAll("button")].map(item => item.textContent)).not.toContain("다시 확인하기");
+      expect([...container.querySelectorAll("button")].map(item => item.textContent)).not.toContain("다시 시도하기");
       expect(container.textContent).not.toContain("함께 보기 결과를 확인하지 못했어요");
       expect([...container.querySelectorAll("a")].some(link => link.getAttribute("href") === "/wedding-code" && link.textContent === "내 웨딩코드로 돌아가기")).toBe(true);
       await poll(); expect(requestPairSession).not.toHaveBeenCalled();
@@ -606,5 +614,210 @@ describe("두 사람 연결의 접근 권한과 늦게 도착한 응답", () => 
       expect(links()).toContain("이미 연결됐는지 내 결과 확인하기");
       expect(container.textContent).not.toContain("내 웨딩코드로 가기");
     });
+  });
+
+  describe("방 안의 안내 링크는 눌렀을 때 화면이 실제로 새 주소로 다시 열린다", () => {
+    // jsdom 은 링크 이동과 hashchange 를 각각 타이머로 늦춰 낸다.
+    async function settle() { await act(async () => { await vi.advanceTimersByTimeAsync(50); }); }
+    function link(label: string) {
+      const found = [...container.querySelectorAll<HTMLAnchorElement>("a")].find(item => item.textContent === label);
+      expect(found, label).toBeTruthy(); return found!;
+    }
+    async function press(label: string) { await act(async () => link(label).click()); await settle(); }
+    // 이 탭에는 복구 기록(sessionStorage)이 없고 이 브라우저(localStorage)에만 저장된 주소가 있는 경우다. 복구 기록이 있으면 첫 조회부터 그 주소로 열린다.
+    const plantSaved = (token: string) => window.localStorage.setItem(PAIR_SESSION_LOCAL_KEY, JSON.stringify({ roomId: ROOM, token, mode: "member", expiresAt }));
+
+    it("이미 참여한 초대 화면의 「연결한 두 사람 결과 보기」", async () => {
+      plantSaved(OTHER);
+      vi.mocked(requestPairSession).mockImplementation(async input => input.action === "read" && input.token === INVITE
+        ? { ok: true, snapshot: { ...waiting(), state: "ready" } } : { ok: true, snapshot: ready("participant") });
+      await render("invite", INVITE);
+      expect(container.textContent).toContain("이미 참여한 초대예요"); expect(result()).toBeNull();
+      await press("연결한 두 사람 결과 보기");
+      expect(window.location.hash).toBe(`#room=${ROOM}&access=${OTHER}`);
+      expect(result()).not.toBeNull(); expect(container.textContent).not.toContain("이미 참여한 초대예요");
+      expect(requestPairSession).toHaveBeenLastCalledWith({ action: "read", roomId: ROOM, token: OTHER });
+    });
+
+    it("참여 요청이 실패한 뒤의 「이미 연결됐는지 내 결과 확인하기」", async () => {
+      vi.mocked(requestPairSession).mockResolvedValueOnce({ ok: true, snapshot: waiting() })
+        .mockResolvedValueOnce({ ok: false, code: "NETWORK_ERROR", error: "연결이 끊겼어요." })
+        .mockResolvedValue({ ok: true, snapshot: ready("participant") });
+      await render("invite", INVITE); await click("내 결과 보기");
+      for (const checkbox of container.querySelectorAll<HTMLInputElement>('input[type="checkbox"]')) await act(async () => checkbox.click());
+      await click("동의하고 두 사람 결과 보기");
+      const join = vi.mocked(requestPairSession).mock.calls[1][0];
+      if (join.action !== "join") throw new Error("참여 요청이 필요해요.");
+      expect(result()).toBeNull();
+      await press("이미 연결됐는지 내 결과 확인하기");
+      expect(parsePairSessionHash(window.location.hash)).toEqual({ roomId: ROOM, token: join.participantToken, mode: "member" });
+      expect(result()).not.toBeNull(); expect(quiz()).toBeNull();
+      expect(requestPairSession).toHaveBeenLastCalledWith({ action: "read", roomId: ROOM, token: join.participantToken });
+    });
+
+    it("답을 고친 뒤 나오는 「이전에 보낸 요청이 연결됐는지 확인」", async () => {
+      vi.mocked(requestPairSession).mockResolvedValueOnce({ ok: true, snapshot: waiting() })
+        .mockResolvedValueOnce({ ok: false, code: "NETWORK_ERROR", error: "연결이 끊겼어요." })
+        .mockResolvedValue({ ok: true, snapshot: ready("participant") });
+      await render("invite", INVITE); await click("내 결과 보기");
+      for (const checkbox of container.querySelectorAll<HTMLInputElement>('input[type="checkbox"]')) await act(async () => checkbox.click());
+      await click("동의하고 두 사람 결과 보기");
+      const join = vi.mocked(requestPairSession).mock.calls[1][0];
+      if (join.action !== "join") throw new Error("참여 요청이 필요해요.");
+      await click("내 답 수정하기"); await click("문항 답하기"); await click("내 결과 보기");
+      expect(container.textContent).toContain("이전에 보낸 요청부터 확인해 주세요");
+      await press("이전에 보낸 요청이 연결됐는지 확인");
+      expect(parsePairSessionHash(window.location.hash)).toMatchObject({ token: join.participantToken, mode: "member" });
+      expect(result()).not.toBeNull(); expect(container.textContent).not.toContain("이전에 보낸 요청부터 확인해 주세요");
+    });
+
+    it("보조 키를 누른 클릭은 가로채지 않는다", async () => {
+      plantSaved(OTHER);
+      vi.mocked(requestPairSession).mockResolvedValue({ ok: true, snapshot: { ...waiting(), state: "ready" } });
+      await render("invite", INVITE);
+      const before = window.location.hash;
+      await act(async () => { link("연결한 두 사람 결과 보기").dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true, ctrlKey: true })); });
+      await settle();
+      // 우리 핸들러가 손대지 않아서 Link 의 기본 이동(여기서는 흉내 낸 pushState)이 일어난다. 화면은 hashchange 가 없으므로 그대로다.
+      expect(window.location.hash).not.toBe(before);
+      expect(container.textContent).toContain("이미 참여한 초대예요");
+    });
+
+    it("다른 경로로 가는 링크(웨딩코드 입구에서 방으로)는 가로채지 않고 Link 의 이동에 맡긴다", async () => {
+      window.history.replaceState(null, "", "/wedding-code#a=1");
+      const target = `/wedding-code/together#room=${ROOM}&access=${OTHER}`;
+      await act(async () => root.render(<PairSessionAnchor href={target}>방으로 가기</PairSessionAnchor>));
+      const anchor = container.querySelector("a")!;
+      const event = new MouseEvent("click", { bubbles: true, cancelable: true });
+      await act(async () => { anchor.dispatchEvent(event); });
+      // 우리 핸들러가 가로챘다면 같은 경로의 # 만 바뀌어 주소가 /wedding-code#room=… 이 된다. 맡겼다면 흉내 낸 Link 가 방 경로로 옮긴다.
+      expect(window.location.pathname).toBe("/wedding-code/together");
+      expect(window.location.hash).toBe(`#room=${ROOM}&access=${OTHER}`);
+    });
+  });
+
+  describe("내가 만든 초대 링크를 같은 브라우저에서 열었을 때", () => {
+    // 이 브라우저(localStorage)에만 방 주인 기록이 있고 이 탭에는 복구 기록(sessionStorage)이 없는 경우다: 다른 탭이나 앱에서 자기 초대 링크를 연 상황.
+    // 같은 탭에서 만든 직후라면 복구 기록으로 이미 방 주인 화면이 열린다.
+    const seed = (record: Record<string, unknown>) => window.localStorage.setItem(PAIR_SESSION_LOCAL_KEY, JSON.stringify({ ...record, expiresAt }));
+    const mine = () => seed({ roomId: ROOM, token: OWNER, mode: "member", invitation: INVITE });
+    const notice = () => container.querySelector('[aria-label="내가 만든 초대"]');
+    // jsdom 은 링크 이동과 hashchange 를 각각 타이머로 늦춰 낸다.
+    async function settle() { await act(async () => { await vi.advanceTimersByTimeAsync(50); }); }
+    function ownerAndInvite() {
+      vi.mocked(requestPairSession).mockImplementation(async input => input.action === "read" && input.token === OWNER
+        ? { ok: true, snapshot: { roomId: ROOM, state: "waiting", role: "owner", expiresAt, ownAnswerCode: encodeV31(own) } } : { ok: true, snapshot: waiting() });
+    }
+
+    it("참여 화면 대신 안내를 보이고, 참여 요청은 보내지 않는다", async () => {
+      mine(); ownerAndInvite();
+      await render("invite", INVITE);
+      expect(notice()).not.toBeNull(); expect(quiz()).toBeNull(); expect(observed.client).not.toHaveBeenCalled();
+      expect(notice()!.querySelector("h1")?.textContent).toBe("내가 만든 초대예요");
+      expect(notice()!.textContent).toContain("이 초대는 내가 만든 거라 상대가 열어야 해요. 상대에게 링크를 보내 주세요.");
+      expect(container.textContent).not.toContain("결혼 준비에 대한 각자의 생각을 나란히 보자는 초대가 왔어요");
+      expect(container.textContent).not.toContain("동의하고 두 사람 결과 보기");
+      expect(vi.mocked(requestPairSession).mock.calls.every(([input]) => input.action === "read")).toBe(true);
+    });
+
+    it("「내 비교 보기」는 방 주인 화면을 연다", async () => {
+      mine(); ownerAndInvite();
+      await render("invite", INVITE);
+      const mineLink = [...container.querySelectorAll<HTMLAnchorElement>("a")].find(item => item.textContent === "내 비교 보기")!;
+      expect(parsePairSessionHash(new URL(mineLink.href).hash)).toEqual({ roomId: ROOM, token: OWNER, mode: "member", invitation: INVITE });
+      await act(async () => mineLink.click()); await settle();
+      expect(window.location.hash).toBe(new URL(mineLink.href).hash);
+      expect(notice()).toBeNull();
+      expect(container.querySelector('[aria-label="두 사람 연결 관리"]')).not.toBeNull();
+      expect(result()).not.toBeNull();
+    });
+
+    it("보조 「그래도 이 링크로 참여하기」를 누르면 초대받은 사람 화면으로 간다", async () => {
+      mine(); ownerAndInvite();
+      await render("invite", INVITE);
+      expect([...container.querySelectorAll("button")].map(item => item.textContent)).toEqual(["그래도 이 링크로 참여하기"]);
+      await click("그래도 이 링크로 참여하기");
+      expect(notice()).toBeNull(); expect(quiz()).not.toBeNull();
+      expect(observed.client.mock.calls.at(-1)![0].pairInvite).toBe(true);
+    });
+
+    it.each([
+      ["초대로 참여한 사람의 기록(초대 키 없음)", () => seed({ roomId: ROOM, token: OTHER, mode: "member" })],
+      ["다른 방의 방 주인 기록", () => seed({ roomId: "22222222-2222-4222-8222-222222222222", token: OWNER, mode: "member", invitation: INVITE })],
+      ["같은 방이지만 다른 초대 키", () => seed({ roomId: ROOM, token: OWNER, mode: "member", invitation: "d".repeat(64) })],
+      ["기록 없음", () => undefined],
+    ])("%s 이면 안내 없이 초대받은 사람 화면이 나온다", async (_name, plant) => {
+      plant();
+      vi.mocked(requestPairSession).mockResolvedValue({ ok: true, snapshot: waiting() });
+      await render("invite", INVITE);
+      expect(notice()).toBeNull(); expect(quiz()).not.toBeNull();
+    });
+
+    it("저장소를 읽을 수 없으면 기존처럼 초대받은 사람 화면이 나온다", async () => {
+      mine();
+      vi.spyOn(window, "localStorage", "get").mockImplementation(() => { throw new DOMException("blocked", "SecurityError"); });
+      vi.spyOn(window, "sessionStorage", "get").mockImplementation(() => { throw new DOMException("blocked", "SecurityError"); });
+      vi.mocked(requestPairSession).mockResolvedValue({ ok: true, snapshot: waiting() });
+      await render("invite", INVITE);
+      expect(notice()).toBeNull(); expect(quiz()).not.toBeNull();
+    });
+
+    it("상대가 이미 참여한 뒤에는 이미 참여한 초대 화면이 그대로 나온다", async () => {
+      mine();
+      vi.mocked(requestPairSession).mockResolvedValue({ ok: true, snapshot: { ...waiting(), state: "ready" } });
+      await render("invite", INVITE);
+      expect(notice()).toBeNull(); expect(container.textContent).toContain("이미 참여한 초대예요");
+    });
+  });
+
+  describe("초대를 확인하지 못했을 때의 말", () => {
+    it("초대받은 사람에게는 결과가 아니라 초대를 말하고, 단추 이름은 안내의 「다시 시도」와 같다", async () => {
+      vi.mocked(requestPairSession).mockResolvedValueOnce({ ok: false, code: "NETWORK_ERROR", error: "연결이 끊겼어요. 같은 화면에서 다시 시도해 주세요." })
+        .mockResolvedValue({ ok: true, snapshot: waiting() });
+      await render("invite", INVITE);
+      const alert = container.querySelector('[role="alert"]')!;
+      expect(alert.querySelector("h1")?.textContent).toBe("초대를 확인하지 못했어요");
+      expect(alert.textContent).not.toContain("결과를 확인하지 못했어요");
+      expect(alert.textContent).toContain("다시 시도해 주세요");
+      expect([...alert.querySelectorAll("button")].map(item => item.textContent)).toEqual(["다시 시도하기"]);
+      await click("다시 시도하기");
+      expect(quiz()).not.toBeNull(); expect(container.querySelector('[role="alert"]')).toBeNull();
+    });
+  });
+});
+
+describe("서버 HTML 의 대기 상태", () => {
+  let container: HTMLDivElement;
+  let root: Root | null = null;
+  beforeEach(() => {
+    window.localStorage.clear(); window.sessionStorage.clear();
+    window.history.replaceState(null, "", "/wedding-code/together");
+    container = document.createElement("div"); document.body.appendChild(container);
+  });
+  afterEach(() => { act(() => root?.unmount()); root = null; container.remove(); vi.restoreAllMocks(); });
+
+  it("스크립트가 멈추거나 꺼져도 보이도록 12초 새로고침 줄(다시 불러오기 링크)과 noscript 줄이 서버 HTML 에 있다", () => {
+    const html = renderToString(<WeddingCodeTogether />);
+    expect(html).toContain("두 사람 연결을 확인하고 있어요");
+    expect(html).toContain('class="hb-late-hint');
+    expect(html).toContain(LATE_RELOAD_HINT_TEXT);
+    expect(html).toMatch(new RegExp(`<a href="" data-late-reload-link="" [^>]*>${LATE_RELOAD_LINK_TEXT}</a>`, "u"));
+    expect(html).toMatch(/<noscript>[\s\S]*<\/noscript>/u);
+    expect(html).toContain(NO_SCRIPT_HINT_TEXT);
+  });
+
+  it("서버 HTML 과 첫 클라이언트 그림이 같아 하이드레이션 경고가 없고, 주소를 읽은 뒤에는 안내가 사라진다", async () => {
+    const element = <WeddingCodeTogether />;
+    container.innerHTML = renderToString(element);
+    expect(container.querySelector("[data-late-reload-hint]")?.textContent).toBe(`${LATE_RELOAD_HINT_TEXT} ${LATE_RELOAD_LINK_TEXT}`);
+    expect(container.querySelector("noscript")).not.toBeNull();
+    const onRecoverableError = vi.fn();
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
+    await act(async () => { root = hydrateRoot(container, element, { onRecoverableError }); });
+    expect(onRecoverableError).not.toHaveBeenCalled();
+    expect(consoleError).not.toHaveBeenCalled();
+    expect(container.querySelector("[data-late-reload-hint]")).toBeNull();
+    expect(container.querySelector("noscript")).toBeNull();
+    expect(container.textContent).toContain("함께 보기 링크를 확인해 주세요");
   });
 });

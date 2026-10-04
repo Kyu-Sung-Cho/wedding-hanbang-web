@@ -40,5 +40,17 @@
     "target": "apps/web/src/app/wedding-code/WeddingCodeV31Client.tsx",
     "find": "문장은 한 페이지에 최대 3개씩, 취향과 그 밖의 질문은",
     "replace": "문장은 한 페이지에 3개씩, 취향과 그 밖의 질문은"
+  },
+  {
+    "name": "수정 화면의 읽어 주는 이름이 다시 「기본 질문 n번째」가 된다",
+    "target": "apps/web/src/app/wedding-code/WeddingCodeV31Client.tsx",
+    "find": ": editing || ordinal <= 0 ? \"웨딩코드 답 수정\"",
+    "replace": ": ordinal <= 0 ? \"웨딩코드 답 수정\""
+  },
+  {
+    "name": "저장소가 막힌 브라우저에서도 자동 저장 끄기 단추와 저장되는 것처럼 읽히는 설명이 나온다",
+    "target": "apps/web/src/app/wedding-code/WeddingCodeV31Client.tsx",
+    "find": "const storageBlocked = local.ready && local.status === \"unavailable\";",
+    "replace": "const storageBlocked = false;"
   }
 ]

@@ -6,12 +6,13 @@ import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "
 import Button from "@/components/ui/Button";
 import type { V31Draft } from "@/constants/weddingCodeV31";
 import { decodeV31, encodeV31, hasV31Content } from "@/lib/weddingCode/v31";
-import { createPairSessionKeys, getPairSessionIssuedAt, PAIR_SESSION_CONSENT_VERSION, PAIR_SESSION_RETENTION_DAYS, requestPairSession, type PairSessionRequest, type PairSessionSnapshot } from "@/lib/weddingCode/pairSessionContract";
-import { forgetPairSession, pairSessionUrl, parsePairSessionHash, readPairSessionRecovery, readSavedPairSession, savePairSessionLink, savePairSessionRecovery, type PairSessionLink } from "@/lib/weddingCode/pairSessionClient";
+import { createPairSessionKeys, getPairSessionIssuedAt, PAIR_SESSION_CONSENT_VERSION, PAIR_SESSION_RATE_LIMITED_CODE, PAIR_SESSION_RETENTION_DAYS, requestPairSession, type PairSessionRequest, type PairSessionSnapshot } from "@/lib/weddingCode/pairSessionContract";
+import { forgetPairSession, pairSessionUrl, parsePairSessionHash, readOwnInviteRecord, readPairSessionRecovery, readSavedPairSession, savePairSessionLink, savePairSessionRecovery, type PairSessionLink, type SavedPairSession } from "@/lib/weddingCode/pairSessionClient";
 import { hasV31ResumableAnswer, readV31LocalProgress } from "@/lib/weddingCode/v31LocalProgress";
 import WeddingCodeV31Client from "../WeddingCodeV31Client";
 import WeddingCodeV31Results from "../WeddingCodeV31Results";
-import { isConfirmedPairRejection, PairSessionConsent, WeddingCodeComparisonResume } from "../WeddingCodeV31Connection";
+import { isConfirmedPairRejection, PairSessionConsent, PairSessionLink as PairSessionAnchor, WeddingCodeComparisonResume } from "../WeddingCodeV31Connection";
+import LoadStallHint from "@/components/wedding-code/LoadStallHint";
 import { V31_SAVE_PREFERENCE_KEY } from "../useV31LocalProgress";
 import { v31Body, v31Surface, v31Title } from "../WeddingCodeV31Inputs";
 
@@ -22,7 +23,7 @@ import { v31Body, v31Surface, v31Title } from "../WeddingCodeV31Inputs";
 const MAX_QUIET_REFRESH_FAILURES = 5;
 /** 이 시간 안에 겹쳐 난 실패(탭 복귀·focus 이벤트가 연달아 만든 확인)는 한 번으로 센다. 15초 확인 주기보다 짧아서 주기마다 난 실패는 모두 센다. */
 const FAILURE_COUNT_WINDOW_MS = 10_000;
-const TRANSIENT_CODES: readonly string[] = ["NETWORK_ERROR", "TIMEOUT", "UNAVAILABLE"];
+const TRANSIENT_CODES: readonly string[] = ["NETWORK_ERROR", "TIMEOUT", "UNAVAILABLE", PAIR_SESSION_RATE_LIMITED_CODE];
 /** 연결 끝내기 요청이 처리됐는지 알 수 없는 실패. 방을 그대로 두고 그 자리에서 다시 시도하게 한다. */
 const REVOKE_RETRY_CODES: readonly string[] = [...TRANSIENT_CODES, "INVALID_RESPONSE"];
 const REVOKE_RETRY_MESSAGE = "연결 끝내기에 실패했어요. 다시 눌러 주세요.";
@@ -139,7 +140,7 @@ function JoinComparison({ draft, link, expiresAt, previousRequest, onRequestStar
   if (priorRequest) return <section className={`${v31Surface} mt-6 p-5 sm:p-7`} aria-label="이전 요청 확인">
     <h2 className={`mb-3 text-lg ${v31Title}`}>이전에 보낸 요청부터 확인해 주세요</h2>
     <p className={v31Body}>답을 고쳤더라도 이전 요청에는 고친 내용이 들어가지 않아요. 먼저 연결이 됐는지 확인하거나, 처음 동의했던 답 그대로 다시 보낼 수 있어요.</p>
-    <Link href={recoveryUrl} className="mt-3 inline-flex min-h-11 items-center font-semibold underline underline-offset-4">이전에 보낸 요청이 연결됐는지 확인</Link>
+    <PairSessionAnchor href={recoveryUrl} className="mt-3 inline-flex min-h-11 items-center font-semibold underline underline-offset-4">이전에 보낸 요청이 연결됐는지 확인</PairSessionAnchor>
     <Button variant="secondary" fullWidth disabled={busy} onClick={() => void join()} className="mt-3 whitespace-normal!">{busy ? "함께 볼 결과를 연결하고 있어요…" : "처음 동의했던 답으로 다시 보내기"}</Button>
     {error ? <p role="alert" className={`mt-3 ${v31Body}`}>{error}</p> : null}
   </section>;
@@ -153,15 +154,32 @@ function JoinComparison({ draft, link, expiresAt, previousRequest, onRequestStar
     <p className={`mb-3 ${v31Body}`}>여기서 동의하면 초대한 사람도 내 답 전체를 볼 수 있어요. 결과 링크를 다시 보내지 않아도 돼요.</p>
     <PairSessionConsent participant consent={consent} ageConfirmed={ageConfirmed} disabled={busy} onConsent={setConsent} onAge={setAgeConfirmed} />
     <Button variant="primary" fullWidth disabled={busy} onClick={() => void join()} className="mt-4 whitespace-normal!">{busy ? "함께 볼 결과를 연결하고 있어요…" : "동의하고 두 사람 결과 보기"}</Button>
-    {error ? <div role="alert" className={`mt-3 ${v31Body}`}><p>{error}</p>{recoveryUrl ? <Link className="mt-2 inline-flex min-h-11 items-center underline" href={recoveryUrl}>이미 연결됐는지 내 결과 확인하기</Link> : null}</div> : null}
+    {error ? <div role="alert" className={`mt-3 ${v31Body}`}><p>{error}</p>{recoveryUrl ? <PairSessionAnchor className="mt-2 inline-flex min-h-11 items-center underline" href={recoveryUrl}>이미 연결됐는지 내 결과 확인하기</PairSessionAnchor> : null}</div> : null}
     {rejectedGuide}
+  </section>;
+}
+
+/**
+ * 내가 만든 초대 링크를 같은 브라우저에서 열었을 때의 안내. 이 링크는 상대가 열어서 참여하는 링크라, 만든 사람이 여기서 참여하면
+ * 방 주인 기록이 참여자 기록으로 덮이고 진짜 상대는 이미 쓰인 초대(409)를 만난다. 먼저 내 비교 화면으로 보내고, 그래도 참여하는 길은 보조로 남긴다.
+ * 「내 비교 보기」는 절대 주소라 Button 이 일반 링크(<a>)로 그려서, 같은 경로의 # 이동에도 브라우저가 hashchange 를 낸다.
+ */
+function OwnInviteNotice({ record, onJoinAnyway }: { record: SavedPairSession; onJoinAnyway: () => void }) {
+  const myRoom = pairSessionUrl(window.location.origin, { roomId: record.roomId, token: record.token, mode: "member", ...(record.invitation ? { invitation: record.invitation } : {}) });
+  return <section className={`${v31Surface} mb-5 p-5`} aria-label="내가 만든 초대">
+    <h1 className={`text-2xl ${v31Title}`}>내가 만든 초대예요</h1>
+    <p className={`mt-3 ${v31Body}`}>이 초대는 내가 만든 거라 상대가 열어야 해요. 상대에게 링크를 보내 주세요.</p>
+    <Button href={myRoom} variant="primary" fullWidth className="mt-4 whitespace-normal!">내 비교 보기</Button>
+    <Button variant="ghost" fullWidth onClick={onJoinAnyway} className="mt-2 whitespace-normal!">그래도 이 링크로 참여하기</Button>
   </section>;
 }
 
 export default function WeddingCodeTogether() {
   const hash = useSyncExternalStore(subscribeHash, () => window.location.hash, () => null);
   const link = hash === null ? null : parsePairSessionHash(hash);
-  if (hash === null) return <p role="status" className={`p-6 ${v31Body}`}>두 사람 연결을 확인하고 있어요…</p>;
+  // 서버 HTML 과 첫 클라이언트 그림이 같은 대기 상태다. 이 화면의 스크립트가 오류 없이 멈추거나 꺼져 있으면 이 줄에서 멈추므로, 입구와 같은 12초 새로고침 줄과 noscript 줄을 둔다.
+  // 하이드레이션 뒤 주소를 읽으면 이 화면이 바뀌면서 안내도 함께 사라진다(상태도 효과도 없는 안내라 서버 HTML 과 첫 그림이 어긋나지 않는다).
+  if (hash === null) return <div className="p-6"><p role="status" className={v31Body}>두 사람 연결을 확인하고 있어요…</p><LoadStallHint className="mt-2 text-xs leading-relaxed text-[var(--hb-text-strong)]" /></div>;
   if (!link) return <main className="mx-auto max-w-[680px] p-6"><h1 className={`text-2xl ${v31Title}`}>함께 보기 링크를 확인해 주세요</h1><p className={`mt-3 ${v31Body}`}>주소가 중간에 잘렸거나 잘못된 링크예요. 초대한 사람에게 새 링크를 받아 보세요.</p><Link href="/wedding-code" className="mt-4 inline-flex min-h-11 items-center underline">웨딩코드로 돌아가기</Link></main>;
   // 같은 방이어도 주소의 접근 키가 바뀌면 이전 답과 요청 상태를 모두 버린다.
   return <TogetherSession key={hash} link={link} />;
@@ -191,6 +209,10 @@ function TogetherSession({ link }: { link: PairSessionLink }) {
   const joinStarted = useRef(false);
   const [joinRequest, setJoinRequest] = useState<JoinRequest | null>(null);
   const { roomId, token, mode, invitation } = link;
+  // 내가 만든 초대를 같은 브라우저에서 열었는지. TogetherSession 은 주소를 읽은 뒤에만 그려지므로(서버 HTML 은 위의 대기 상태) 저장소를 읽어도 서버 HTML 과 어긋나지 않는다.
+  // 저장소를 읽을 수 없으면 null 이라 기존처럼 초대받은 사람 화면이 나온다.
+  const [ownInvite] = useState<SavedPairSession | null>(() => mode === "invite" ? readOwnInviteRecord(roomId, token) : null);
+  const [joinAnyway, setJoinAnyway] = useState(false);
   const expiresAt = snapshot?.expiresAt;
   // 방 주소 앞 12자리가 만든 시각(ms)이다. 보관 기간(7일)이 지난 주소는 서버에 묻기 전에 알려 줄 수 있다.
   const [addressExpired] = useState(() => Date.now() - getPairSessionIssuedAt(roomId) > RETENTION_MS);
@@ -322,10 +344,12 @@ function TogetherSession({ link }: { link: PairSessionLink }) {
       {refreshNotice ? <p className={`rounded-lg border border-[var(--hb-hairline)] bg-[var(--hb-surface-page)] px-4 py-2 shadow-sm ${v31Body}`}>{refreshNotice}</p> : null}
     </div>
     {addressExpired ? <section role="alert"><h1 className={`text-2xl ${v31Title}`}>만든 지 7일이 지난 주소예요</h1><p className={`mt-3 ${v31Body}`}>{mode === "invite" ? "만든 지 7일이 지나 끝났을 수 있어요. 초대한 분께 새 초대를 부탁해 주세요." : "만든 지 7일이 지나 끝났을 수 있어요. 새로 초대해 주세요."}</p><Link href="/wedding-code" className="mt-4 inline-flex min-h-11 items-center underline">내 웨딩코드로 돌아가기</Link></section>
-      : error ? <section role="alert"><h1 className={`text-2xl ${v31Title}`}>함께 보기 결과를 확인하지 못했어요</h1><p className={`mt-3 ${v31Body}`}>{error}</p><Button variant="primary" className="mt-4" onClick={reload}>다시 확인하기</Button></section>
+      : error ? <section role="alert">
+        {/* 초대받은 사람은 아직 볼 결과가 없으므로 「결과」가 아니라 「초대」를 확인하지 못했다고 말한다. 서버 안내가 「다시 시도해 주세요」라 단추도 같은 말로 부른다. */}
+        <h1 className={`text-2xl ${v31Title}`}>{mode === "invite" ? "초대를 확인하지 못했어요" : "함께 보기 결과를 확인하지 못했어요"}</h1><p className={`mt-3 ${v31Body}`}>{error}</p><Button variant="primary" className="mt-4" onClick={reload}>다시 시도하기</Button></section>
         : !activeSnapshot ? <p role="status" className={v31Body}>두 사람 연결을 확인하고 있어요…</p>
           : activeSnapshot.state === "closed" || expired ? <section><h1 className={`text-2xl ${v31Title}`}>함께 보기가 끝났어요</h1><p className={`mt-3 ${v31Body}`}>연결을 끝냈다면 서버에 있던 두 사람의 공유 답은 바로 지워졌고, 볼 수 있는 기간이 지났다면 하루 안에 지워져요. 다시 함께 보려면 새로 초대해 주세요.</p><Link href="/wedding-code" className="mt-4 inline-flex min-h-11 items-center underline">내 웨딩코드로 돌아가기</Link></section>
-            : activeSnapshot.role === "invite" ? activeSnapshot.state === "ready" ? <section><h1 className={`text-2xl ${v31Title}`}>이미 참여한 초대예요</h1><p className={`mt-3 ${v31Body}`}>이 초대는 이미 쓰였어요. 내가 답한 초대라면 그때 쓴 브라우저에서 아래 ‘연결한 두 사람 결과 보기’로 열 수 있어요. 보이지 않으면 따로 복사해 둔 ‘나만 보관할 확인 주소’로 열어 주세요. 다른 사람이 먼저 쓴 초대이거나 확인 주소가 없다면 초대한 사람에게 새 초대를 요청해 주세요.</p><WeddingCodeComparisonResume /></section> : <>
+            : activeSnapshot.role === "invite" ? activeSnapshot.state === "ready" ? <section><h1 className={`text-2xl ${v31Title}`}>이미 참여한 초대예요</h1><p className={`mt-3 ${v31Body}`}>이 초대는 이미 쓰였어요. 내가 답한 초대라면 그때 쓴 브라우저에서 아래 ‘연결한 두 사람 결과 보기’로 열 수 있어요. 보이지 않으면 따로 복사해 둔 ‘나만 보관할 확인 주소’로 열어 주세요. 다른 사람이 먼저 쓴 초대이거나 확인 주소가 없다면 초대한 사람에게 새 초대를 요청해 주세요.</p><WeddingCodeComparisonResume /></section> : ownInvite && !joinAnyway ? <OwnInviteNotice record={ownInvite} onJoinAnyway={() => setJoinAnyway(true)} /> : <>
               <section className={`${v31Surface} mb-5 p-5`} aria-label="받은 초대 안내"><h2 className={`text-lg ${v31Title}`}>결혼 준비에 대한 각자의 생각을 나란히 보자는 초대가 왔어요</h2><p className={`mt-2 ${v31Body}`}>먼저 내 생각대로 답해 보세요. 내 결과를 확인한 뒤 공유에 동의하면 상대도 내 답 전체를 보고, 나도 상대 답을 볼 수 있어요. 아직 상대 답은 보여주지 않아요. 답하지 않거나 공유하지 않아도 괜찮아요.</p></section>
               {/* 상대 답은 동의 전까지 넘기지 않지만, 상대가 보낸 초대로 답하는 사람이라는 사실은 통계 값에 그대로 싣는다. */}
               <WeddingCodeV31Client embedded pairInvite shareOrigin={window.location.origin}

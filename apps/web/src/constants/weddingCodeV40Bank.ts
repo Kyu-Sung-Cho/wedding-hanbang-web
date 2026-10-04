@@ -11,7 +11,7 @@ import type { BankData } from "@/lib/weddingCode/v40/types";
 export const V40_BANK_IS_PLACEHOLDER: boolean = false;
 
 /** 원본 내용의 해시(placeholder 필드 제외). 생성 파일이 원본과 같은지 시험이 대조한다. */
-export const V40_BANK_SOURCE_SHA256 = "6f5c62c26669cdb7d6e0ae27b59ffad3f43024f1d585dc610ed87893a4de56ba";
+export const V40_BANK_SOURCE_SHA256 = "4fd5e180b10b478253fff2b3f3ff64a3d945202a843764e0b097e02ce448cdbf";
 
 /** 문항 은행 원본(질문 순서 68개). createBank(V40_BANK_DATA) 로 조회 구조를 만든다. */
 export const V40_BANK_DATA: BankData = {
@@ -543,7 +543,7 @@ export const V40_BANK_DATA: BankData = {
       fmt: "pair",
       kind: "moment",
       caption: "결혼식 날의 사진",
-      stem: "결혼하고 한 달쯤 지났어요. 결혼식 날 찍은 사진을 넘기다 멈추는 순간, 어느 쪽이 더 마음에 들어요?",
+      stem: "결혼하고 한 달쯤 지났어요. 결혼식 날 찍은 사진을 넘기다 멈추는 순간이에요. 식이 없으면 가까운 모임이나 촬영을 떠올려도 돼요. 어느 쪽이 더 마음에 들어요?",
       cards: [
         { pole: "back", text: "어른들 쪽 손님까지 한 상에 둘러앉아 웃는 사진에 뭉클하지만, 친구들 얼굴이 몇 안 돼 마음이 쓰이는 순간" },
         { pole: "front", text: "친구들이 우르르 모여 크게 웃는 사진에 뭉클하지만, 어른들 쪽 손님이 몇 안 돼 마음이 쓰이는 순간" },

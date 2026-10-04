@@ -212,6 +212,12 @@ function EvenBody({ axis, letter, quotes, selfLine, onReview, foldId, titleId }:
       <p className={bodyLine}>{meaningLine(back.letter)}</p>
       {/* 「코드에는 한 글자만 …」 문장에서 떨어뜨려 두 글자의 뜻 아래에 둔다(그 문장의 이유나 모순으로 읽히지 않게). */}
       <SelfLineRow line={selfLine} />
+      {/* 코드에 적은 글자와 직접 고른 쪽이 나란히 다른 글자로 보일 때만 이유를 한 줄 밝힌다(세기를 낮춘 주제는 거의 반반이 아니라서 제외). */}
+      {selfLine !== null && selfLine.letter !== letter && !lowered ? (
+        <p data-even-self-differs="" className={noteText}>
+          {V40_COPY.block.evenSelfDiffers}
+        </p>
+      ) : null}
       <div className="grid gap-4 sm:grid-cols-2">
         <QuoteGroup
           heading={evenSideAnswersHeading(front.letter)}

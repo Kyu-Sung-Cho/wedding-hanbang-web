@@ -3,7 +3,8 @@
 import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { act } from "react";
-import { createRoot, type Root } from "react-dom/client";
+import { createRoot, hydrateRoot, type Root } from "react-dom/client";
+import { renderToString } from "react-dom/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import LoungeWeddingCode from "@/components/app/preparation-style/LoungeWeddingCode";
 import {
@@ -11,6 +12,7 @@ import {
   type V31Draft,
 } from "@/constants/weddingCodeV31";
 import { captureWeddingCodeEvent } from "@/lib/analytics";
+import { resetV31IntroViewedForTest } from "@/lib/weddingCode/v31IntroAnalytics";
 import { WEDDING_CODE_FUNNEL_DISCLOSURE } from "@/lib/analyticsPrivacy";
 import { PAIR_SESSION_RETENTION_DAYS, requestPairSession } from "@/lib/weddingCode/pairSessionContract";
 import { createV31Draft, encodeV31, getV31PriorityOptions } from "@/lib/weddingCode/v31";
@@ -73,7 +75,7 @@ describe("웨딩코드 v3.1 시작 화면 문구", () => {
   let root: Root;
   beforeEach(() => {
     vi.useFakeTimers(); vi.setSystemTime(new Date("2026-10-01T12:00:00Z"));
-    vi.clearAllMocks(); vi.mocked(requestPairSession).mockReset();
+    vi.clearAllMocks(); resetV31IntroViewedForTest(); vi.mocked(requestPairSession).mockReset();
     vi.spyOn(window, "scrollTo").mockImplementation(() => {});
     vi.spyOn(document, "visibilityState", "get").mockReturnValue("visible");
     window.localStorage.clear(); window.sessionStorage.clear(); window.history.replaceState(null, "", "/wedding-code");
@@ -352,6 +354,10 @@ describe("웨딩코드 v3.1 시작 화면 문구", () => {
     expect(introText().match(/검사가 아니/g)).toHaveLength(1);
     expect(introText().match(/확인해 보지 못한/g)).toHaveLength(1);
     expect(introText().match(/성격|MBTI/g)).toHaveLength(1);
+    // 「내 답은 내가 링크를 보내기 전에는 상대에게 가지 않아요」는 한 화면에 한 번이다(카드가 말하고, 아래 돌려보내기 안내와 접힌 칸은 되풀이하지 않는다).
+    expect(introText().match(/링크를 보내기 전에는 상대에게 가지 않아요/g)).toHaveLength(1);
+    expect(introText().match(/링크를 만들어 보낼 때만 상대에게 가요/g)).toBeNull();
+    expect(container.querySelector("[data-intro-return-step]")?.textContent).toBe("내 답을 마치면 나오는 두 사람 결과 링크를 상대에게 다시 보내 주어야 상대도 결과를 볼 수 있어요.");
     // 받은 링크 맥락은 처음 그릴 때 정해지므로 새 화면으로 다시 그린다.
     await act(async () => root.unmount()); root = createRoot(container);
     await act(async () => root.render(<WeddingCodeV31Client shareOrigin="https://hanbang.ai" />));
@@ -363,6 +369,21 @@ describe("웨딩코드 v3.1 시작 화면 문구", () => {
     await act(async () => root.render(<WeddingCodeEntryClient shareOrigin="https://hanbang.ai" />));
     expect(introText()).toContain(note);
     expect(window.location.hash).toContain(`a=${code}`);
+  });
+
+  it("서버 HTML 을 이어받는 실제 입구에서 상대 링크로 열어도 소개 조회는 한 번만, 첫 전송부터 has_partner_link true 로 나간다(서버는 # 뒤를 못 봐서 첫 그림에 링크 문맥이 없다)", async () => {
+    const code = encodeV31(received());
+    const element = <WeddingCodeEntryClient shareOrigin="https://hanbang.ai" initialEntry={defaultWeddingCodeEntry()} />;
+    // 서버가 그린 소개: 주소에 # 뒤가 없다. 브라우저는 상대 링크 주소로 이 HTML 을 받아 이어받는다.
+    const html = renderToString(element);
+    await act(async () => root.unmount());
+    container.innerHTML = html;
+    window.history.replaceState(null, "", `/wedding-code#v=v3.1-preferences&a=${code}`);
+    await act(async () => { root = hydrateRoot(container, element); });
+    expect(introText()).toContain("상대의 답이 담긴 링크를 받았어요");
+    const intro = vi.mocked(captureWeddingCodeEvent).mock.calls.filter(([name]) => name === "wedding_code_intro_viewed");
+    expect(intro.map(([, properties]) => properties?.has_partner_link)).toEqual([true]);
+    expect(JSON.stringify(intro)).not.toContain(code);
   });
 
   it("부제와 카드는 고른 답을 정리해 보여준다는 말만 하고, 접힌 칸의 목록은 실제 문항과 맞는다", async () => {

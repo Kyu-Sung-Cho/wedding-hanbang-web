@@ -1694,7 +1694,8 @@ const ENGINE_FREEZE = [
   ["apps/web/src/lib/weddingCode/v40/bank.ts", "efe582c81685449918c05e74ee1122f0a71aa310afb3288a71c7c0debddca3d2"],
   // 2026-10-04 문항 정비: 은행 68문항의 문구를 모두 다시 써서 해시를 새 값으로 고쳤다. 판 태그(v4.0-tendency)는 올리지 않는다(극, 세기, 키, 개수, 순서는 그대로이고 V4 링크가 나간 적이 없다).
   // 2026-10-04 처음 읽는 눈 점검 1회차: 칸 나누기 질문 문구 네 개, 한 질문의 보기 문구 둘, 회상 질문 하나, 이야기 인용 하나를 다시 썼다(구조 필드 불변). 해시를 새 값으로 고쳤다.
-  ["apps/web/src/constants/weddingCodeV40Bank.ts", "6a61593eae38cdb7697b221a1d0b817c5b37819041c395a607c2d9904c0aebf5"],
+  // 2026-10-04 최종 점검 Q3: 「결혼식 날의 사진」 문항(scope.circle.2)의 앞말에 식이 없는 사람 안내 한 문장을 더했다(구조 필드 불변). 해시를 새 값으로 고쳤다.
+  ["apps/web/src/constants/weddingCodeV40Bank.ts", "6b45dd19a0ed645338724c787ca7106571f079ec6daf3a92f58d1fde371db973"],
   ["scripts/lib/wedding-code-v40-ref.mjs", "003a17b5d3260b8b850ab26bf88db23c2f0098de420a655a8d20d5abb6f14a62"],
 ];
 

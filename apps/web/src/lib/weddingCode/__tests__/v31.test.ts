@@ -6,7 +6,7 @@ import {
 } from "@/constants/weddingCodeV31";
 import { WEDDING_CODE_V30_QUESTIONS, WEDDING_CODE_V30_TASTES } from "@/constants/weddingCodeV30";
 import { createV30Draft, decodeV30, encodeV30 } from "../v30";
-import { V31_PRIORITY_NO_PREFERENCE_LABEL, V31_PRIORITY_SKIPPED_LABEL, V31_PRIORITY_UNDECIDED_LABEL, buildV31Profile, buildV31ShareUrl, compareV31, createV31Draft, decodeV31, encodeV31, getV31PriorityOptions, hasV31Content, normalizeV31Draft, v31ChoiceLabels, v31ResponseLabel } from "../v31";
+import { V31_PRIORITY_NO_PREFERENCE_LABEL, V31_PRIORITY_SKIPPED_LABEL, V31_PRIORITY_UNDECIDED_LABEL, buildV31Profile, buildV31ShareUrl, compareV31, createV31Draft, decodeV31, encodeV31, getV31PriorityOptions, hasV31Content, normalizeV31Draft, v31AnswerCountNote, v31ChoiceLabels, v31ResponseLabel } from "../v31";
 import { V31_CORE_RATING_IDS, V31_EXTRA_RATING_IDS, V31_LEGACY_ONLY_RATING_IDS } from "../v31Flow";
 
 function all(value: V31Response): V31Draft {
@@ -729,5 +729,40 @@ describe("웨딩코드 v3.1 공유와 구판 경계", () => {
     expect(decodeV31(params.get("b"))).toEqual(second);
     expect(buildV31ShareUrl({ origin: "https://hanbang.ai", first, second: all("skipped") })).toBeNull();
     for (const origin of ["javascript:alert(1)", "https://user:password@example.com", "https://hanbang.ai/path", "https://hanbang.ai/?answers=1", "https://hanbang.ai/#answers"]) expect(buildV31ShareUrl({ origin, first })).toBeNull();
+  });
+
+  describe("결과 맨 위 개수 안내(v31AnswerCountNote)는 두 기준이 서로 더해지게 쓴다", () => {
+    const sentence = (draft: V31Draft, mine = false) => v31AnswerCountNote(buildV31Profile(draft), mine);
+    function withChoices(draft: V31Draft) {
+      for (const taste of WEDDING_CODE_V31_TASTES) draft.tastes[taste.key] = answered([taste.options[0].value]);
+      draft.avoidances = { status: "no_preference" }; draft.spending = { status: "no_preference" };
+      return draft;
+    }
+    it("동의 정도를 고른 문장 + 그 밖의 답 = 답을 남긴 질문, 어떤 섞임에서도 성립한다", () => {
+      const cases: V31Draft[] = [];
+      for (const value of [1, 3, 5, "undecided", "not_applicable", "skipped"] as const) cases.push(withChoices(all(value)));
+      const mixed = withChoices(createV31Draft());
+      WEDDING_CODE_V31_QUESTIONS.forEach((question, index) => { mixed.answers[question.id] = (["undecided", 4, "skipped", 2, "not_applicable"] as const)[index % 5]; });
+      cases.push(mixed, createV31Draft(), all(4));
+      for (const draft of cases) {
+        const profile = buildV31Profile(draft);
+        const note = v31AnswerCountNote(profile);
+        const rated = Number(note.match(/동의 정도를 고른 문장은 ([0-9]+)개/)?.[1] ?? 0);
+        const others = Number(note.match(/같은 답 ([0-9]+)개를 더하면/)?.[1] ?? 0);
+        const responded = Number(note.match(/답을 남긴 질문(?:은|도) ([0-9]+)개/)?.[1] ?? 0);
+        expect([rated, responded], note).toEqual([profile.ratedCount, profile.respondedCount]);
+        if (profile.respondedCount > 0) expect(rated + others, note).toBe(responded);
+      }
+    });
+    it("전부 ‘아직 모르겠어요’이면 동의 정도를 고른 문장 0개에 나머지를 더해 전체가 된다", () => {
+      const note = sentence(withChoices(all("undecided")));
+      expect(note).toBe("동의 정도를 고른 문장은 0개예요. 여기에 취향·선택 항목에 고른 답과 ‘아직 모르겠어요’ 같은 답 " + buildV31Profile(withChoices(all("undecided"))).respondedCount + "개를 더하면 답을 남긴 질문은 " + buildV31Profile(withChoices(all("undecided"))).respondedCount + "개예요.");
+    });
+    it("아직 답이 없으면 0개와 전체 개수를 나란히 쓰지 않고, 두 사람 결과에서는 ‘내가’를 붙인다", () => {
+      expect(sentence(createV31Draft())).toBe("답을 남긴 질문이 아직 없어요.");
+      expect(sentence(createV31Draft(), true)).toBe("내가 답을 남긴 질문이 아직 없어요.");
+      const draft = withChoices(createV31Draft()); draft.answers.G1 = 4; draft.answers.G3 = "undecided";
+      expect(sentence(draft, true)).toBe("내가 동의 정도를 고른 문장은 1개예요. 여기에 취향·선택 항목에 고른 답과 ‘아직 모르겠어요’ 같은 답 9개를 더하면 내가 답을 남긴 질문은 10개예요.");
+    });
   });
 });

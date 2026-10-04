@@ -153,6 +153,39 @@ describe("본인 결과에서 두 사람 초대 만들기", () => {
     expect(readPairSessionRecovery(second.roomId)?.token).toBe(second.ownerToken);
   });
 
+  it.each([
+    ["출처 확인 실패(403)", () => new Response(JSON.stringify({ code: "INVALID_ORIGIN", error: "요청을 확인하지 못했어요. 웨딩코드 화면에서 다시 시도해 주세요." }), { status: 403 }), "요청을 확인하지 못했어요"],
+    ["요청 몰림(429, code 없음)", () => new Response(JSON.stringify({ error: "요청이 너무 많습니다. 잠시 후 다시 시도해주세요." }), { status: 429 }), "요청이 잠깐 몰렸어요"],
+    ["너무 큰 요청(413)", () => new Response(JSON.stringify({ code: "TOO_LARGE", error: "보내려는 내용이 너무 커서 처리하지 못했어요." }), { status: 413 }), "너무 커서 처리하지 못했어요"],
+  ])("서버가 방을 만들기 전에 막은 응답(%s)에는 복구 링크와 확인 주소 안내를 숨기고, 다시 만들 때는 새 방 키를 쓴다", async (_name, response, message) => {
+    await render(); await consent();
+    fetcher.mockResolvedValueOnce(response());
+    await button("동의하고 초대 만들기");
+    const first = request(0);
+    const alert = container.querySelector('[role="alert"]')!;
+    expect(alert.textContent).toContain(message);
+    // 방이 만들어지지 않았으니 「이미 만들어졌는지 확인하기」 링크도, 위쪽의 「요청을 확인하는 주소가 남아 있어요」 안내도 없다.
+    expect(alert.querySelector("a")).toBeNull();
+    expect(container.textContent).not.toContain("이미 만들어졌는지");
+    expect(container.textContent).not.toContain("확인하는 주소가 남아 있어요");
+    expect(readPairSessionRecovery(first.roomId)).toBeNull();
+    expect([...container.querySelectorAll("button")].map(item => item.textContent)).toContain("초대 다시 만들기");
+    await button("초대 다시 만들기");
+    const second = request(1);
+    expect(second.roomId).not.toBe(first.roomId);
+    expect(second.ownerToken).not.toBe(first.ownerToken);
+  });
+
+  it("처리 여부를 모르는 실패(서버 불안정 503, 연결 끊김)에는 복구 링크와 확인 주소 안내를 남긴다", async () => {
+    await render(); await consent();
+    fetcher.mockResolvedValueOnce(new Response(JSON.stringify({ code: "UNAVAILABLE", error: "함께 보기를 처리하지 못했어요." }), { status: 503 }));
+    await button("동의하고 초대 만들기");
+    const input = request(0);
+    expect(container.querySelector('[role="alert"] a')?.textContent).toBe("이미 만들어졌는지 내 초대 확인하기");
+    expect(container.textContent).toContain("확인하는 주소가 남아 있어요");
+    expect(readPairSessionRecovery(input.roomId)?.token).toBe(input.ownerToken);
+  });
+
   it("요청 중에는 동의 변경과 중복 생성을 막고 실패하면 재시도를 다시 허용한다", async () => {
     let resolve: (value: Response) => void = () => { throw new Error("요청이 시작되지 않았어요."); };
     fetcher.mockImplementationOnce(() => new Promise<Response>(done => { resolve = done; }));

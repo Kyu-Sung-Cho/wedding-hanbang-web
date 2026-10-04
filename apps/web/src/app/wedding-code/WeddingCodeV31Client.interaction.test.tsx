@@ -3,9 +3,10 @@
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { WEDDING_CODE_V31_AVOIDANCES, WEDDING_CODE_V31_QUESTIONS, WEDDING_CODE_V31_TASTES, type V31Draft } from "@/constants/weddingCodeV31";
+import { WEDDING_CODE_V31_AVOIDANCES, WEDDING_CODE_V31_QUESTIONS, WEDDING_CODE_V31_TASTES, WEDDING_CODE_V31_VERSION, type V31Draft } from "@/constants/weddingCodeV31";
 import { captureWeddingCodeEvent } from "@/lib/analytics";
-import { createV31Draft, decodeV31 } from "@/lib/weddingCode/v31";
+import { createV31Draft, decodeV31, encodeV31 } from "@/lib/weddingCode/v31";
+import { resetV31IntroViewedForTest } from "@/lib/weddingCode/v31IntroAnalytics";
 import WeddingCodeV31Client from "./WeddingCodeV31Client";
 import WeddingCodeV31Sharing from "./WeddingCodeV31Sharing";
 import { V31PriorityInput } from "./WeddingCodeV31Inputs";
@@ -21,7 +22,7 @@ describe("WeddingCodeV31Client", () => {
   let container: HTMLDivElement;
   let root: Root;
   beforeEach(() => {
-    vi.clearAllMocks(); window.localStorage.clear(); window.history.replaceState(null, "", "/wedding-code");
+    vi.clearAllMocks(); resetV31IntroViewedForTest(); window.localStorage.clear(); window.history.replaceState(null, "", "/wedding-code");
     vi.spyOn(window, "scrollTo").mockImplementation(() => {});
     container = document.createElement("div"); document.body.appendChild(container); root = createRoot(container);
   });
@@ -523,6 +524,13 @@ describe("WeddingCodeV31Client", () => {
       await next();
       expect(container.querySelector('[data-question="B1"]')).not.toBeNull();
       expect(savedStatus()).toContain("이 브라우저에 저장할 수 없어요");
+      // 저장소가 없으면 켜고 끌 저장도 없다: 끄기 단추를 두지 않고, 설명도 저장되는 것처럼 말하지 않는다.
+      const settings = container.querySelector('aside[aria-label="이 브라우저의 답 저장"] details');
+      expect(settings?.textContent).toContain("이 브라우저에는 저장할 수 없어요");
+      expect(settings?.textContent).not.toContain("30일 동안 같은 브라우저에서 이어 할 수 있어요");
+      expect(settings?.textContent).not.toContain("자동 저장을 끄면 저장된 답도 지워져요");
+      expect([...settings!.querySelectorAll("button")].map(item => item.textContent?.trim())).not.toContain("자동 저장 끄기");
+      expect([...settings!.querySelectorAll("button")].map(item => item.textContent?.trim())).not.toContain("자동 저장 켜기");
     } finally {
       setItem.mockRestore();
       if (original) Object.defineProperty(window, "localStorage", original); else Reflect.deleteProperty(window, "localStorage");
@@ -533,6 +541,9 @@ describe("WeddingCodeV31Client", () => {
   it("저장소가 정상이면 저장됐다고 말한다(막힌 브라우저 시험의 대조)", async () => {
     await renderClient(); await button("내 웨딩코드 시작하기"); await ratePage(5);
     expect(savedStatus()).toBe("이 브라우저에 저장됐어요. 나중에 이어 할 수 있어요.");
+    const settingsButtons = [...container.querySelectorAll('aside[aria-label="이 브라우저의 답 저장"] details button')].map(item => item.textContent?.trim());
+    expect(settingsButtons).toContain("자동 저장 끄기");
+    expect(container.querySelector('aside[aria-label="이 브라우저의 답 저장"] details')?.textContent).toContain("30일 동안 같은 브라우저에서 이어 할 수 있어요");
   });
 
   it("받은 링크로 답한 사람은 시작 화면, 두 사람 결과 머리, 공유 영역 맨 앞에서 상대에게 결과 링크를 다시 보내야 한다는 말을 듣고 머리의 단추로 보내는 곳을 연다", async () => {
@@ -1100,5 +1111,47 @@ describe("WeddingCodeV31Client", () => {
     await click(actionButton());
     expect(container.querySelector('[data-question="taste.photo"]')).not.toBeNull();
     expect(container.querySelector("[data-screen-notice]")).toBeNull();
+  });
+  it("수정 화면의 읽어 주는 이름은 눈에 보이는 「답 수정」과 같고, 결과에서 수정하러 온 화면을 「기본 질문 n번째」라 부르지 않는다", async () => {
+    await renderClient(); await button("내 웨딩코드 시작하기"); await finishFromHere();
+    expect(container.querySelector('[data-result="solo-v31"]')).not.toBeNull();
+    await button("내 답 수정하기");
+    expect(container.querySelector("[data-progress-text]")?.textContent).toBe("답 수정");
+    expect(container.querySelector('section[aria-label="웨딩코드 답 수정"]')).not.toBeNull();
+    expect(container.querySelector('section[aria-label*="번째"]')).toBeNull();
+  });
+
+  it("소개 조회는 한 페이지 로드에 한 번만 보내고, 하이드레이션 첫 그림에 링크 문맥이 없어도 주소의 상대 링크 표지로 첫 전송부터 true 를 싣는다", async () => {
+    const partner: V31Draft = { ...createV31Draft(), answers: { V1: 5 } };
+    const introCalls = () => vi.mocked(captureWeddingCodeEvent).mock.calls.filter(([name]) => name === "wedding_code_intro_viewed");
+    window.history.replaceState(null, "", `/wedding-code#v=v3.1-preferences&a=${encodeV31(partner)}`);
+    // 서버 화면과 하이드레이션 첫 그림은 링크 문맥(partnerDraft) 없이 그려진다. 입구가 # 뒤를 읽은 뒤 같은 소개를 새 문맥으로 다시 만든다.
+    await act(async () => root.render(<WeddingCodeV31Client key="hydration" shareOrigin="https://hanbang.ai" />));
+    await act(async () => root.render(<WeddingCodeV31Client key="linked" shareOrigin="https://hanbang.ai" partnerDraft={partner} />));
+    expect(introCalls()).toEqual([["wedding_code_intro_viewed", { version: WEDDING_CODE_V31_VERSION, scene_total: 24, has_partner_link: true, placement: "core" }]]);
+    // 보낸 값에는 주소나 답이 없다: 속성은 허용 목록의 네 개뿐이다.
+    expect(Object.keys(introCalls()[0][1] ?? {}).sort()).toEqual(["has_partner_link", "placement", "scene_total", "version"]);
+    const safe = sanitizeWeddingCodeFunnelCapture({ event: "wedding_code_intro_viewed", properties: introCalls()[0][1] ?? {} }, Date.parse("2026-09-27T00:00:00+09:00"));
+    expect(safe?.properties).toEqual(introCalls()[0][1]);
+    // 질문으로 갔다가 소개로 돌아와도 같은 페이지 로드에서는 다시 보내지 않는다.
+    await button("나도 답해보기");
+    await click(container.querySelector<HTMLButtonElement>('button[aria-label="이전 질문"]'));
+    expect(container.querySelector('section[aria-label="웨딩코드 소개"]')).not.toBeNull();
+    expect(introCalls()).toHaveLength(1);
+  });
+
+  it("링크 없는 방문의 소개 조회는 false 로 한 번 나가고, 다른 판(v4)의 링크 주소에서 먼저 그려진 소개는 보낸 것으로 치지 않는다", async () => {
+    const introCalls = () => vi.mocked(captureWeddingCodeEvent).mock.calls.filter(([name]) => name === "wedding_code_intro_viewed");
+    await renderClient();
+    await act(async () => root.render(<WeddingCodeV31Client key="again" shareOrigin="https://hanbang.ai" />));
+    expect(introCalls().map(([, properties]) => properties?.has_partner_link)).toEqual([false]);
+    // 같은 이벤트라도 v4 링크 주소에서 먼저 그려진 v3.1 소개는 v4 로 바뀌기 전의 화면이라 보내지도, 보낸 것으로 치지도 않는다.
+    resetV31IntroViewedForTest(); vi.mocked(captureWeddingCodeEvent).mockClear();
+    window.history.replaceState(null, "", "/wedding-code#v=v4.0-tendency&a=0000");
+    await act(async () => root.render(<WeddingCodeV31Client key="v4-link" shareOrigin="https://hanbang.ai" />));
+    expect(introCalls()).toHaveLength(0);
+    window.history.replaceState(null, "", "/wedding-code");
+    await act(async () => root.render(<WeddingCodeV31Client key="after-v4" shareOrigin="https://hanbang.ai" />));
+    expect(introCalls().map(([, properties]) => properties?.has_partner_link)).toEqual([false]);
   });
 });
