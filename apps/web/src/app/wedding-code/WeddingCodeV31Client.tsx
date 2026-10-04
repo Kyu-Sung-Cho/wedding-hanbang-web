@@ -397,7 +397,7 @@ export default function WeddingCodeV31Client({ shareOrigin, partnerDraft = null,
       <summary className="flex min-h-11 cursor-pointer items-center underline underline-offset-4">자동 저장 설정</summary>
       {storageBlocked ? <>
         <p>이 브라우저에는 저장할 수 없어요. 그래서 자동 저장을 켜거나 끌 수 없고, 답은 이 화면에만 남아요. 나가거나 새로고침하면 지금 답은 사라질 수 있어요.</p>
-        <p className="mt-2">시크릿 모드이거나 브라우저가 이 사이트의 데이터를 막고 있을 수 있어요. 상대의 답·공유 동의·메모는 어느 경우에도 저장하지 않아요.</p>
+        <p className="mt-2">시크릿 모드이거나 브라우저가 이 사이트의 데이터를 막고 있을 수 있어요. 이 브라우저에는 상대의 답·공유 동의·메모를 어느 경우에도 저장하지 않아요.</p>
       </> : <>
         <p>자동 저장은 이 브라우저에만 남겨요. 마지막으로 저장한 날부터 30일 동안 같은 브라우저에서 이어 할 수 있어요. 카카오톡 같은 앱 안에서 열었다면 다음에도 같은 곳에서 열어야 이어 할 수 있어요. 상대의 답·공유 동의·메모는 자동 저장하지 않아요.</p>
         <p className="mt-2">이 브라우저를 같이 쓰는 사람이 있다면(상대나 가족 포함) 자동 저장을 꺼 주세요. 저장된 답을 그 사람도 열 수 있어요. 시크릿 모드나 브라우저 데이터를 지운 뒤에는 이어 하지 못할 수 있어요.</p>
