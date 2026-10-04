@@ -3,9 +3,10 @@
  *
  * v3.1 진행 저장(v31LocalProgress)을 본떠 v4 용으로 새로 만들었다. v3.1 모듈은 가져오지 않는다(이전 판 진행 저장은 키 문자열로 원문만 읽고, 그 모양은 이 파일 안에서
  * 따로 풀어 본다. 두 풀이가 어긋나지 않는지는 storage.legacyProbe.test.ts 가 v3.1 이 실제로 쓴 값으로 잠근다).
- * 저장소는 인자로 받는 StorageLike 이고, 이 파일이 v4 에서 브라우저 저장소의 이름(window.localStorage)을 부르는 유일한 자리다(계약 문서 9.3절).
+ * 저장소는 인자로 받는 StorageLike 이고, 브라우저 저장소의 이름(window.localStorage)은 v3.1 과 함께 쓰는 lib/weddingCode/browserStorageHandle.ts 의
+ * realLocalStorage 한 함수 안에만 있다(계약 문서 9.3절). 이 파일에는 그 이름이 없다.
  * 클라이언트는 아래 browserStorage() 로 핸들을 받아 이 파일의 함수에 넘기기만 한다. 소스 가드(규칙 5)가 그 밖의 파일이 저장소 이름, 저장소 메서드, 저장 키를
- * 만지는 것을 막고, 이 파일의 시험이 저장소 이름이 browserStorage 안에만 있음을 확인한다.
+ * 만지는 것을 막고, 이 파일의 시험이 저장소 이름이 realLocalStorage 안에만 있음을 확인한다.
  * 저장소가 막히거나 가득 차거나 깨진 값을 줘도 던지지 않고 상태 이름(empty, invalid, expired, unavailable, conflict, off)으로 답한다.
  * 받은 링크의 상대 답과 두 사람 결과 화면의 답은 저장하지 않는다(호출자 몫: 본인 답만 넘긴다).
  * 저장하는 것은 폼 비트와 답(문항 68자)과 이어 할 자리뿐이고, 결과 기록에는 글자, 세기, 시각, 폼 비트만 남는다.
@@ -33,9 +34,15 @@ import type {
 } from "./types";
 import type { StorageModule } from "./contract";
 import { fromCodeChar, isResponseValueFor, responseAt, toCodeChar } from "./states";
+import { realLocalStorage } from "../browserStorageHandle";
 
 /** 진행 저장 봉투의 스키마 번호. */
 const PROGRESS_SCHEMA = 1;
+/**
+ * 저장한 뒤 기기 시계가 뒤로 가서(자동 시각 보정, 날짜를 고침) 저장 시각이 지금보다 미래로 보여도 이만큼까지는 멀쩡한 저장으로 읽는다(나이는 음수로 본다).
+ * 그보다 먼 미래는 읽지 않는다(저장 기간을 사실상 늘리는 값이다). v3.1 의 LOCAL_MAX_CLOCK_SKEW_MS 와 같은 값이고, 이전 판 진행 저장을 읽는 아래 탐침도 같은 값을 쓴다.
+ */
+const MAX_CLOCK_SKEW_MS = 24 * 60 * 60 * 1000;
 /** 결과 기록 봉투 길이 상한(항목 3건은 1000자 안팎이라 넉넉하게 둔다). */
 const MAX_HISTORY_LENGTH = 2048;
 /** 이전 판 진행 저장 원문의 길이 상한. v3.1 봉투 상한(MAX_ENVELOPE_LENGTH 2048)과 같은 값이다. 그보다 긴 원문은 v3.1 도 읽지 않는다. */
@@ -51,23 +58,18 @@ const HISTORY_AXIS_KEYS = ["letter", "band", "provisional"] as const;
 // ---------------------------------------------------------------------------
 
 /**
- * 이 브라우저의 저장소 핸들(계약 문서 9.3절). v4 에서 window.localStorage 라는 이름이 나오는 유일한 자리다.
+ * 이 브라우저의 저장소 핸들(계약 문서 9.3절). v4 가 저장소 핸들을 받는 유일한 자리다.
  * 서버 렌더링에는 window 가 없고, 개인정보 보호 모드나 앱 안 브라우저는 저장소에 닿는 것만으로 던지므로 그런 경우는 null 이다(던지지 않는다).
  * 저장소가 막힌 브라우저에서는 루트 레이아웃의 대체 스니펫(lib/browserStorageFallback.ts)이 window.localStorage 를 메모리 객체로 갈아 끼운다.
  * 그 객체는 쓰고 읽어도 탭을 닫으면 사라지므로 진짜 저장소가 아니다. 그걸 그대로 돌려주면 「저장했어요」라고 말하고 새로고침에 답을 잃는다.
- * 그래서 브라우저가 만든 진짜 Storage 만 돌려주고(Object.prototype.toString 이 [object Storage]), 아니면 null 로 답해 저장할 수 없다고 알린다.
+ * 그래서 브라우저가 만든 진짜 Storage 만 돌려주고, 아니면 null 로 답해 저장할 수 없다고 알린다.
+ * 판별과 저장소 이름(window.localStorage)은 v3.1 과 함께 쓰는 lib/weddingCode/browserStorageHandle.ts 의 realLocalStorage 한 함수 안에 있다.
+ * 이 파일에는 저장소 이름이 없고(소스 가드 규칙 5와 이 파일의 시험이 확인한다), 이 함수는 그 결과를 그대로 돌려준다.
  * 받은 핸들은 이 파일의 함수(readProgress, writeProgress, …)에 넘기기만 한다. 핸들에 getItem, setItem, removeItem 을 직접 부르거나 저장 키를 읽으면
  * 끄기의 지우기와 쓰기 뒤 읽어 확인하기를 건너뛰게 되어 소스 가드가 막는다.
  */
 export function browserStorage(): StorageLike | null {
-  if (typeof window === "undefined") return null;
-  try {
-    const handle = window.localStorage;
-    if (handle === null || handle === undefined) return null;
-    return Object.prototype.toString.call(handle) === "[object Storage]" ? handle : null;
-  } catch {
-    return null;
-  }
+  return realLocalStorage();
 }
 
 // ---------------------------------------------------------------------------
@@ -181,7 +183,8 @@ export function decodeProgressAnswers(bank: Bank, answers: string): Responses | 
 
 /**
  * 진행 저장 읽기(설계 6절 저장과 수정). empty(없음), invalid(형식 위반), expired(마지막 저장부터 30일 지남), unavailable(접근 실패), ready.
- * 봉투는 여덟 키가 정확히 있어야 하고 savedAt 이 지금보다 미래이면 invalid 다. 읽기만으로 저장 기간을 늘리지 않는다.
+ * 봉투는 여덟 키가 정확히 있어야 하고 savedAt 이 지금보다 하루(MAX_CLOCK_SKEW_MS)를 넘는 미래이면 invalid 다(기기 시계가 저장 뒤에 조금 뒤로 간 것까지는 멀쩡한 저장으로 읽는다).
+ * 그 한 가지 이유로만 읽지 못한 invalid 에는 clockAhead: true 가 붙는다(다른 곳은 다 멀쩡해서 시계가 원인일 때만 폰 날짜를 확인하라고 안내한다). 읽기만으로 저장 기간을 늘리지 않는다.
  * 읽기는 저장소에 아무것도 쓰지 않는다(처리방침: 읽어도 저장된 내용이 바뀌지 않는다. 두 사람 결과 화면이 「나」 표시를 위해 이 함수를 부른다).
  * 그래서 expired 여도 지우지 않는다. 기간이 지난 저장을 실제로 지우는 일은 purgeExpired 가 맡고, 시작 화면이 expired 를 보면 그것을 부른다.
  * invalid 도 지우지 않는다(시계가 어긋났거나 다른 판이 쓴 값일 수 있다: 호출자가 clearProgress 하거나 덮어쓴다).
@@ -199,7 +202,7 @@ export function readProgress(storage: StorageLike, bank: Bank, now: number = Dat
     if (!isRecord(value) || !hasExactKeys(value, PROGRESS_KEYS)) return { status: "invalid", raw };
     if (value.schema !== PROGRESS_SCHEMA || value.version !== WEDDING_CODE_V40_VERSION) return { status: "invalid", raw };
     const { savedAt, formBit, answers, screen, cursor, skippedReviewDone } = value;
-    if (!isTimestamp(savedAt) || savedAt > now) return { status: "invalid", raw };
+    if (!isTimestamp(savedAt)) return { status: "invalid", raw };
     if (formBit !== 0 && formBit !== 1) return { status: "invalid", raw };
     if (screen !== "questions" && screen !== "result") return { status: "invalid", raw };
     if (typeof cursor !== "number" || !Number.isInteger(cursor) || cursor < 0 || cursor >= bank.items.length) return { status: "invalid", raw };
@@ -207,6 +210,8 @@ export function readProgress(storage: StorageLike, bank: Bank, now: number = Dat
     const responses = decodeProgressAnswers(bank, answers);
     if (responses === null) return { status: "invalid", raw };
     if (screen === "result" && (answers.includes(V40_UNANSWERED_CHAR) || cursor !== 0)) return { status: "invalid", raw };
+    // 저장 시각이 하루를 넘는 미래: 기간을 늘리는 값이라 읽지 않는다. 다른 데는 다 멀쩡한 저장이므로 시계가 원인이라는 표시를 붙인다.
+    if (savedAt > now + MAX_CLOCK_SKEW_MS) return { status: "invalid", raw, clockAhead: true };
     if (now - savedAt >= V40_STORAGE.ttlMs) return { status: "expired", raw };
     return { status: "ready", raw, savedAt, snapshot: { formBit, responses, screen, cursor, skippedReviewDone } };
   } catch {
@@ -283,11 +288,11 @@ function parseHistoryAxis(value: unknown, index: number): HistoryAxis | null {
   return { letter: parsedLetter, band: parsedBand, provisional };
 }
 
-/** 기록 한 건을 엄격하게 읽어 새 객체로 옮긴다(모르는 키가 있으면 거절해 답이 딸려 들어올 수 없다). at 이 now 보다 미래이면 거절. */
+/** 기록 한 건을 엄격하게 읽어 새 객체로 옮긴다(모르는 키가 있으면 거절해 답이 딸려 들어올 수 없다). at 이 now 보다 하루(MAX_CLOCK_SKEW_MS)를 넘는 미래이면 거절. */
 function parseEntry(value: unknown, now: number): HistoryEntry | null {
   if (!isRecord(value) || !hasExactKeys(value, ENTRY_KEYS)) return null;
   const { at, formBit, axes } = value;
-  if (!isTimestamp(at) || at > now) return null;
+  if (!isTimestamp(at) || at > now + MAX_CLOCK_SKEW_MS) return null;
   if (formBit !== 0 && formBit !== 1) return null;
   if (!Array.isArray(axes) || axes.length !== V40_AXIS_KEYS.length) return null;
   const parsed = axes.map((axis, index) => parseHistoryAxis(axis, index));
@@ -485,7 +490,7 @@ function legacyV31AnswerSavedAt(raw: string, now: number): number | null {
     if (value.version !== LEGACY_V31_VERSION) return null;
     if (schema === 2 && !(typeof value.flow === "string" && LEGACY_V31_FLOWS.includes(value.flow))) return null;
     const { savedAt, index } = value;
-    if (!isTimestamp(savedAt) || savedAt > now || now - savedAt >= V40_STORAGE.ttlMs) return null;
+    if (!isTimestamp(savedAt) || savedAt > now + MAX_CLOCK_SKEW_MS || now - savedAt >= V40_STORAGE.ttlMs) return null;
     if (typeof index !== "number" || !Number.isInteger(index) || index < 0 || index >= LEGACY_V31_POSITION_COUNT) return null;
     if ((value.screen !== "questions" && value.screen !== "result") || typeof value.editing !== "boolean" || typeof value.needsPriorityReview !== "boolean") return null;
     return legacyV31CodeHasAnswer(value.answerCode) ? savedAt : null;

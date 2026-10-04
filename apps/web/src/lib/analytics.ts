@@ -90,7 +90,21 @@ export function captureWeddingCodeEvent(
 ) {
   // 고지한 적용일 전에는 posthog를 내려받지도 않는다.
   if (!isWeddingCodeFunnelAnalyticsEffective()) return;
+  // v4 링크를 연 첫 순간에는 서버가 주소의 # 뒤를 못 봐서 v3.1 화면이 먼저 그려지고, 그 화면의 조회 이벤트가 v4 로 바뀌기 전에 나간다.
+  // 주소에 v4 표지가 있는데 이벤트의 판이 v4 가 아니면 그 조회는 v4 링크 수신자의 것이 아니므로 보내지 않는다(시험 통계가 부풀지 않게).
+  if (typeof window !== "undefined" && eventContradictsV40LinkHash(window.location.hash, properties.version)) return;
   captureEvent(event, { ...properties });
+}
+
+/**
+ * v4 판 이름. WEDDING_CODE_V40_VERSION(constants/weddingCodeV40.ts)과 같은 값이다. 그 파일은 문구 자료가 커서 초기 번들에 실리는 이 파일이 가져오지 않는다
+ * (같은 값인지는 시험이 견준다).
+ */
+const V40_LINK_TAG = "v4.0-tendency";
+
+/** 주소의 해시에 v4 링크 표지가 있는데 이벤트의 판(version 속성)이 v4 가 아니면 true. 퍼센트 인코딩된 해시도 같은 글자가 그대로 들어 있어 잡힌다. */
+export function eventContradictsV40LinkHash(hash: string, version: unknown): boolean {
+  return typeof hash === "string" && hash.includes(V40_LINK_TAG) && version !== V40_LINK_TAG;
 }
 
 export function captureEvent(event: string, properties?: Record<string, unknown>) {

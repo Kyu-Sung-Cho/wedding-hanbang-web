@@ -174,15 +174,29 @@ describe("입구 ga, gb: 해시의 키", () => {
     const encoded = `#v=${V40}&a=${A}&ga=%31${GA.slice(1)}`;
     expect(parseWeddingCodeEntryHash(encoded)).toStrictEqual(parseWeddingCodeEntryHash(`#v=${V40}&a=${A}&ga=${GA}`));
     expect(parseWeddingCodeEntryHash(encoded)).toMatchObject({ kind: "v40", initial: { guess: { first: guessA } } });
-    for (const value of ["%EF%BC%91148056W", "%00148056W", `${GA}%0A`, "%31148056%57X", "%GG148056W"]) {
+    for (const value of ["%EF%BC%91148056W", "%00148056W", "%31148056%57X", "%GG148056W"]) {
       expect(parseWeddingCodeEntryHash(`#v=${V40}&a=${A}&ga=${value}`), value).toStrictEqual(V40_BROKEN);
     }
   });
 
-  it("소문자로 바꾼 검사 글자, 전각 글자, 앞뒤 공백이 붙은 g 는 거절한다", () => {
-    for (const value of [GA.toLowerCase(), "１148056W", ` ${GA}`, `${GA} `, `${GA}0`, GA.slice(1)]) {
+  it("소문자로 바꾼 검사 글자, 전각 글자, 앞에 공백이 붙은 g 는 거절한다", () => {
+    for (const value of [GA.toLowerCase(), "１148056W", ` ${GA}`, `${GA}0`, GA.slice(1)]) {
       expect(parseWeddingCodeEntryHash(`#v=${V40}&a=${A}&ga=${value}`), JSON.stringify(value)).toStrictEqual(V40_BROKEN);
     }
+  });
+
+  /**
+   * 2026-10-04 파운더 결정(감사 A46): 링크 끝에 붙은 문장부호, 공백, 조사는 한 번 걷어낸 결과가 정확히 같을 때만 읽는다. g 도 a, b 와 같다(8자 g 는 검사 글자로 끝난다).
+   * 걷어낼 수 없는 것(영문자나 숫자가 더 붙음, 앞의 글자)과 검사 글자가 틀린 g 는 그대로 거절한다.
+   */
+  it("g 끝에 붙은 공백과 문장부호는 한 번 걷어내고 읽는다(검사 글자와 길이는 그대로 요구한다)", () => {
+    const expected = parseWeddingCodeEntryHash(`#v=${V40}&a=${A}&ga=${GA}`);
+    expect(expected).toMatchObject({ kind: "v40", initial: { guess: { first: guessA } } });
+    for (const tail of [" ", ".", ")", "요", "!!", "?", "~", "-", "_"]) {
+      expect(parseWeddingCodeEntryHash(`#v=${V40}&a=${A}&ga=${GA}${tail}`), JSON.stringify(tail)).toStrictEqual(expected);
+    }
+    // 틀린 g 는 끝 글자를 걷어내도 체크섬이 맞지 않아 거절한다.
+    expect(parseWeddingCodeEntryHash(`#v=${V40}&a=${A}&ga=${GA.slice(0, -1)}X.`)).toStrictEqual(V40_BROKEN);
   });
 });
 

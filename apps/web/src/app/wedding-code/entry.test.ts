@@ -118,3 +118,59 @@ describe("새 웨딩코드 기본 진입", () => {
     }
   });
 });
+
+/**
+ * 링크 끝에 붙은 글자(2026-10-04 파운더 결정, 감사 A46, A47). 규칙과 v4 쪽 시험은 entry.v40.test.ts 의 「링크 끝에 붙은 글자」에 있다.
+ * v3.1 코드는 체크섬이 없고 마지막 칸이 숫자, 소문자, - 로 끝난다. 그래서 끝의 . 와 _ 도 걷어낸다(코드 안의 . 와 _ 는 칸 구분이라 끝에 올 수 없다).
+ * 끝이 - 인 코드에 - 가 더 붙는 것처럼 코드의 글자로 읽히는 것은 걷어낼 수 없어서 예전처럼 거절한다.
+ */
+describe("v3.1 링크 끝에 붙은 글자", () => {
+  const first = createV31Draft();
+  first.answers.B1 = 5;
+  first.avoidances = { status: "answered", values: ["crowded_space"] };
+  const second = createV31Draft();
+  second.answers.B1 = 2;
+  const a = encodeV31(first);
+  const b = encodeV31(second);
+  const hash = `#v=${WEDDING_CODE_V31_VERSION}&a=${a}`;
+  const pairHash = `${hash}&b=${b}`;
+
+  it("끝에 붙은 문장부호, 공백, 조사를 한 번 걷어내고 같은 링크로 읽는다", () => {
+    for (const tail of [".", ",", ")", "!", "?", "~", "/", " ", "\n", "요", "를", ".)", "..", "_", "。"]) {
+      expect(parseWeddingCodeEntryHash(`${hash}${tail}`), JSON.stringify(tail)).toEqual(parseWeddingCodeEntryHash(hash));
+      expect(parseWeddingCodeEntryHash(`${pairHash}${tail}`), JSON.stringify(tail)).toEqual(parseWeddingCodeEntryHash(pairHash));
+    }
+    expect(parseWeddingCodeEntryHash(`${hash}.`)).toEqual({ kind: "v31", initial: { partnerDraft: first, partnerCode: a, bothDrafts: null } });
+    // 읽은 링크의 코드는 걷어낸 값이라서, 되돌린 해시가 깨끗하다.
+    expect(weddingCodeEntryHash(parseWeddingCodeEntryHash(`${pairHash}.`)!)).toBe(pairHash);
+    // 판 이름 끝도 같다.
+    expect(parseWeddingCodeEntryHash(`#v=${WEDDING_CODE_V31_VERSION}.&a=${a}`)).toEqual(parseWeddingCodeEntryHash(hash));
+  });
+
+  it("코드로 읽히는 글자(소문자, 숫자, -)가 붙거나 걷어낸 결과가 코드 형식에 맞지 않으면 거절한다(일부만 읽지 않는다)", () => {
+    for (const tail of ["x", "0", "-", "p", "xyz"]) {
+      expect(parseWeddingCodeEntryHash(`${hash}${tail}`)?.kind, tail).toBe("error");
+    }
+    expect(parseWeddingCodeEntryHash(`${pairHash.slice(0, -2)}.`)?.kind).toBe("error");
+    expect(parseWeddingCodeEntryHash(`#v=${WEDDING_CODE_V31_VERSION}&a=${a}&b=broken.`)?.kind).toBe("error");
+    expect(parseWeddingCodeEntryHash(`#v=${WEDDING_CODE_V31_VERSION}&a=.`)?.kind).toBe("error");
+    // 판 이름 오타와 대소문자는 걷어낼 수 없다.
+    for (const version of ["v3.1-preference", "V3.1-PREFERENCES", "v3.1-preferencesx", ".v3.1-preferences"]) {
+      expect(parseWeddingCodeEntryHash(`#v=${version}&a=${a}`)?.kind, version).toBe("error");
+      expect(parseWeddingCodeEntryQuery({ v: version }).kind, version).toBe("error");
+    }
+  });
+
+  it("답 없는 시작 링크(?v=v3.1-preferences)도 끝에 붙은 글자를 걷어내고 연다. 쿼리의 답은 여전히 거절한다", () => {
+    for (const tail of [".", ")", ",", "요", " ", "/"]) {
+      expect(parseWeddingCodeEntryQuery({ v: `${WEDDING_CODE_V31_VERSION}${tail}` }).kind, JSON.stringify(tail)).toBe("v31");
+    }
+    expect(parseWeddingCodeEntryQuery({ v: `${WEDDING_CODE_V31_VERSION}.`, a }).kind).toBe("error");
+  });
+
+  it("# 뒤 전체가 퍼센트 인코딩되어 와도 읽고, 문서 안 이동 표시(#top)가 붙어도 읽는다", () => {
+    expect(parseWeddingCodeEntryHash(`#${encodeURIComponent(pairHash.slice(1))}`)).toEqual(parseWeddingCodeEntryHash(pairHash));
+    expect(parseWeddingCodeEntryHash(`${hash}#top`)).toEqual(parseWeddingCodeEntryHash(hash));
+    expect(parseWeddingCodeEntryHash("#top")).toBeNull();
+  });
+});

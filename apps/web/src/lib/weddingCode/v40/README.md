@@ -19,7 +19,7 @@ v3.1 웨딩코드 파일(`app/wedding-code/*`, `lib/weddingCode/*` 의 기존 �
 | `v40/value.ts`, `score.ts`, `gates.ts` | 문항 값, 축 집계와 결과, 위치 반복 검사 | 코어 |
 | `v40/codec.ts` | 링크 코드, 링크 만들기와 읽기 | 코어 |
 | `v40/flow.ts` | 화면 묶음과 순수 reducer | 코어 |
-| `v40/quote.ts`, `couple.ts`, `storage.ts` | 인용, 두 사람 비교, 이 브라우저 저장(브라우저 저장소의 이름을 부르는 유일한 파일, `browserStorage()`) | 코어 |
+| `v40/quote.ts`, `couple.ts`, `storage.ts` | 인용, 두 사람 비교, 이 브라우저 저장(`browserStorage()` 가 저장소 핸들을 받는 자리. 저장소 이름은 v3.1 과 함께 쓰는 `lib/weddingCode/browserStorageHandle.ts` 의 `realLocalStorage()` 한 곳에만 있다) | 코어 |
 | `v40/fixtures.ts` | 고정 표본 응답 12개(화면 빌더도 이것으로 화면을 그린다) | 코어 |
 | `docs/wedding-code/2026-09-29_v40_items.json`, `constants/weddingCodeV40Bank.ts` | 문항 68개 원천(JSON)과 그것에서 스크립트가 만든 **단일 생성 파일**(`V40_BANK_DATA`, 고치지 않는다). 주제별 `bank.<주제>.ts` 파일은 없다 | 문항 작성 |
 | `components/wedding-code/v40/{ItemFrame,PairInput,ReactInput,ChoiceInput,BestWorstInput,SplitInput}.tsx` | 입력 컴포넌트. `ItemView`와 `ViewAnswer`만 다룬다 | 입력 |
@@ -108,7 +108,7 @@ escape: `{ fmt: "escape", which: "unsure" | "na" }`.
   `T = sum(i = 0..68) ((i mod 60) + 1) x v(body[i])`, 체크섬 문자 = `알파벳[T mod 61]`.
   61 이 소수이고 가중치 1에서 60 이 61 로 나누어떨어지지 않으며 한 위치의 유효 문자 값이 61 로 나눈 나머지가 모두 다르다. 시제품으로 문자 한 개를 다른 유효 문자로 바꾼 261,200가지를 모두 거절함을 확인했다(체크섬 색인은 60 이하만 쓰임). 인접 교환도 유효한 경우 모두 거절됐다.
 - 디코드는 길이, 알파벳 밖 문자, 위치별 범위, 폼 비트 문자, 체크섬 중 하나라도 어긋나거나 상태 문자가 하나도 없으면 링크 전체를 거절한다. 한 사람의 답만 살리지 않고 기본값도 채우지 않는다.
-- 링크: `${origin}/wedding-code#v=v4.0-tendency&a=<70자>[&b=<70자>]`. 링크를 만드는 길은 `buildGatedShareUrl` 하나다(관문이 닫힌 사람의 답이면 null. 조립만 하는 `buildShareUrl` 은 공개하지 않는다). 질문만 보내기는 답이 없고(`buildQuestionOnlyUrl`), 기본 진입이 v3.1 인 동안은 `?v=v4.0-tendency` 를 붙인다.
+- 링크: `${origin}/wedding-code?v=v4.0-tendency#v=v4.0-tendency&a=<70자>[&b=<70자>]`. 링크를 만드는 길은 `buildGatedShareUrl` 하나다(관문이 닫힌 사람의 답이면 null. 조립만 하는 `buildShareUrl` 은 공개하지 않는다). 서버는 주소의 # 뒤를 보지 못해서 쿼리의 `?v=` 가 없으면 받는 사람의 첫 화면과 카드 미리보기가 기본 판(v3.1)으로 나간다(2026-10-04 감사 A68). 그래서 답이 든 링크도 질문만 보내기(`buildQuestionOnlyUrl`)처럼 기본 진입이 v3.1 인 동안은 `?v=v4.0-tendency` 를 붙이고, 기본 진입이 v4 가 되면 둘 다 `explicitVersion: false` 로 뺀다. 쿼리가 없는 옛 링크도 그대로 열린다(해시 읽기는 그대로다).
 - origin 규칙: 끝의 `/` 를 모두 뗀 뒤 빈 문자열(같은 사이트 상대 주소) 또는 `http(s)://호스트[:포트]` 한 덩어리만 쓴다. 문자열이 아니거나 다른 스킴(`javascript:` 등), `//host`, 경로, 질문, 조각, 공백, `@`, 역슬래시가 들었거나 255자를 넘으면 `buildGatedShareUrl` 은 null, `buildQuestionOnlyUrl` 은 상대 주소(`/wedding-code...`)를 낸다.
 - 은행 인자: `encodeCode`, `decodeCode`, `decodeShareParams`, `parseShareHash` 는 문항 id 와 형식만 읽으므로 `CodecBankView`(`Bank` 도 배치 골격 `V40_LAYOUT` 도 만족)를 받는다. 입구(`entry.ts`)는 문항 문구가 든 은행 없이 `{ items: V40_LAYOUT }` 로 받은 링크를 푼다.
 - 체크섬은 오타를 잡는 장치이지 위조를 막는 장치가 아니다. 한 글자 바꾸기와 이웃한 두 글자 맞바꾸기는 모두 잡지만 60칸 떨어진 두 자리의 맞바꾸기는 잡지 못한다(알려진 한계: 고치려면 검사 문자를 늘려야 하고 판을 올리는 변경이다).
@@ -245,7 +245,7 @@ escape: `{ fmt: "escape", which: "unsure" | "na" }`.
 | `CodecModule.parseShareHash`, `buildGatedShareUrl` | 주소의 해시 전체를 읽고(길이 512자 상한, 키 v, a, b), 링크는 관문까지 확인하는 `buildGatedShareUrl` 하나로만 만든다. `buildShareUrl` 은 공개하지 않는다 |
 | `CodecBankView` | 코드를 만들고 푸는 함수의 은행 인자. 입구가 형변환 없이 배치 골격을 넘긴다 |
 | origin 규칙 | 4절. 쓸 수 없는 origin 은 링크 null, 질문만 보내기는 상대 주소 |
-| `StorageModule.browserStorage` | 계약 문서 9.3절의 유일한 저장소 이름 자리. 임시 파일(`lib/weddingCode/browserStorageHandle.ts`)은 지웠고 소스 가드 규칙 5 가 v4 가 가져오는 이웃 파일까지 훑는다 |
+| `StorageModule.browserStorage` | 계약 문서 9.3절의 저장소 핸들 자리. 저장소 이름은 `lib/weddingCode/browserStorageHandle.ts` 의 `realLocalStorage()` 한 함수에만 있고(v3.1 도 같은 도우미를 쓴다, 진짜 `Storage` 가 아니면 null), `browserStorage()` 는 그 결과를 돌려준다. 소스 가드 규칙 5 가 그 도우미 파일과 v4 가 가져오는 이웃 파일까지 훑는다 |
 | `StorageModule.purgeExpired`, `PurgeResult` | 읽기는 아무것도 쓰지 않으므로 기간이 지난 저장은 이 함수가 지운다. 시작 화면이 `expired` 를 보면 부르고 두 사람 결과 화면은 부르지 않는다 |
 | 자동 저장이 꺼져 있을 때의 상태 | `writeProgress` 와 `appendHistory` 는 `off` 로 답한다(새 상태). `unavailable` 은 저장소가 막혔거나 쓴 값이 확인되지 않은 경우만이다. 모양 검사(`invalid`)가 먼저다 |
 | `readAutosavePreference` | v4 키의 on, off 가 이전 판 키보다 먼저다(이전 판에서 끈 사람도 v4 에서 다시 켤 수 있다) |
@@ -283,7 +283,7 @@ escape: `{ fmt: "escape", which: "unsure" | "na" }`.
 | `app/wedding-code/WeddingCodeV40Client.stage2.tsx` | 단계 상태를 모은 작은 훅과 순수 판단(단계를 열지, 마지막 질문 단추가 「다음」인지). 통계, 저장소, 링크 코덱을 가져오지 않는다 | |
 | `constants/weddingCodeV40Guess.ts` | **생성 파일**(고치지 않는다). 서로 짐작하기 여섯 장면과 화면 글. 원천 `docs/wedding-code/2026-10-01_v41_guess_set.json`을 `scripts/build-wedding-code-v41-guess.mjs`가 검사기(`scripts/wedding-code-v41-guess-lint.mjs`)에 통과시켜 허용한 필드만 내보낸다 | |
 
-- **포트 패턴.** 저장소 이름은 `storage.ts`의 `browserStorage()`(있다면 `browserSessionStorage()`도) 한 곳만 부른다. 새 저장은 `storage.ts`의 **일반 내보내기** `createExtraPort(handle, key, { honorAutosave })`(읽기, 쓰기, 지우기 세 함수를 가진 객체, `storageModule`의 열세 개 함수에는 넣지 않았다)가 만든 포트를 클라이언트가 글자 고르기 도우미에 넘기는 것으로 한다. 글자 고르기 키는 `V40_STORAGE.letterGuessKey`(`hanbang:wedding-code:v4:letter-guess`) 하나이고, 서로 짐작하기는 저장하지 않는다(메모리뿐). `writeAutosavePreference(off)`가 이 키를 함께 지우고 `clearProgress`, `clearHistory`, `purgeExpired`는 건드리지 않는다.
+- **포트 패턴.** 저장소 이름은 `browserStorageHandle.ts`의 `realLocalStorage()`(있다면 임시 저장소용 함수도) 한 곳만 부르고, 클라이언트는 `storage.ts`의 `browserStorage()` 로 핸들을 받는다. 새 저장은 `storage.ts`의 **일반 내보내기** `createExtraPort(handle, key, { honorAutosave })`(읽기, 쓰기, 지우기 세 함수를 가진 객체, `storageModule`의 열세 개 함수에는 넣지 않았다)가 만든 포트를 클라이언트가 글자 고르기 도우미에 넘기는 것으로 한다. 글자 고르기 키는 `V40_STORAGE.letterGuessKey`(`hanbang:wedding-code:v4:letter-guess`) 하나이고, 서로 짐작하기는 저장하지 않는다(메모리뿐). `writeAutosavePreference(off)`가 이 키를 함께 지우고 `clearProgress`, `clearHistory`, `purgeExpired`는 건드리지 않는다.
 - **링크 `ga`, `gb`.** `#v=v4.0-tendency&a=<70자>[&ga=<8자>][&b=<70자>[&gb=<8자>]]`. `g` 8자 = 세트 글자 + 장면 글자 여섯(3 x 내 고름 + 짐작, 문자 `0`에서 `8`) + 검사 글자(61 법, 위치 가중치 1에서 7). 70자 코드의 뜻, `codec.ts`, `V40_LINK_KEYS`는 그대로이고 `ga`, `gb`는 `guess/guessLink.ts`만 안다. 계약 문서 §8의 8.x와 §23.5가 정본이다.
 - **새 모듈 인터페이스 둘.** `GuessLinkModule`(`guess/guessContract.ts`), `LetterGuessModule`(`letterGuess/letterGuessContract.ts`)은 `contract.ts`가 타입으로 다시 내보내고 각 구현 파일 끝에서 `satisfies`로 검사한다.
 - **`deps.stages`.** 클라이언트 `deps`에 `stages?: { letterGuess?: boolean; pairGuess?: boolean }`가 있다. 주지 않으면 두 켬 상수(둘 다 켬, 어두운 입구 뒤에서만)를 읽고, 시험 도구(`WeddingCodeV40Client.testKit.tsx`)의 기본은 둘 다 꺼짐이라 기존 클라이언트 시험 다섯 파일이 한 줄도 바뀌지 않는다. `V40_LETTER_GUESS_ENABLED`, `V40_PAIR_GUESS_ENABLED`를 거짓으로 하면 화면만 사라지고 링크 해독은 그대로다.

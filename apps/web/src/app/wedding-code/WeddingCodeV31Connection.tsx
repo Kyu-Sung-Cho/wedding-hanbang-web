@@ -5,9 +5,16 @@ import Link from "next/link";
 import Button from "@/components/ui/Button";
 import type { V31Draft } from "@/constants/weddingCodeV31";
 import { encodeV31 } from "@/lib/weddingCode/v31";
-import { PAIR_SESSION_CONSENT_VERSION, PAIR_SESSION_RETENTION_DAYS, createPairSessionKeys, requestPairSession, type PairSessionRequest } from "@/lib/weddingCode/pairSessionContract";
-import { pairSessionUrl, readPairSessionRecovery, readSavedPairSession, savePairSessionLink, savePairSessionRecovery, subscribePairSession } from "@/lib/weddingCode/pairSessionClient";
+import { PAIR_SESSION_CLOCK_HINT, PAIR_SESSION_CONSENT_VERSION, PAIR_SESSION_RETENTION_DAYS, createPairSessionKeys, requestPairSession, type PairSessionRequest } from "@/lib/weddingCode/pairSessionContract";
+import { forgetPairSession, pairSessionUrl, readPairSessionRecovery, readSavedPairSession, savePairSessionLink, savePairSessionRecovery, subscribePairSession } from "@/lib/weddingCode/pairSessionClient";
 import { v31Body, v31Surface, v31Title } from "./WeddingCodeV31Inputs";
+
+/**
+ * 서버가 요청을 확실히 거절한 코드. 이 거절은 방이 만들어지거나 참여가 처리되지 않았다는 뜻이라,
+ * 「이미 처리됐는지 확인하기」 복구 링크가 쓸모없다. 네트워크 오류, 시간 초과, 응답 해석 실패는 처리됐을 수도 있어서 여기에 넣지 않는다.
+ */
+const CONFIRMED_REJECTION_CODES: readonly string[] = ["CONFLICT", "CLOSED", "NOT_FOUND", "INVALID_REQUEST"];
+export function isConfirmedPairRejection(code: string): boolean { return CONFIRMED_REJECTION_CODES.includes(code); }
 
 export function PairSessionConsent({ consent, ageConfirmed, disabled, onConsent, onAge, participant = false }: {
   consent: boolean; ageConfirmed: boolean; disabled: boolean;
@@ -61,13 +68,15 @@ export default function WeddingCodeV31Connection({ draft }: { draft: V31Draft })
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [recoveryUrl, setRecoveryUrl] = useState("");
+  // 서버에 요청을 보냈다가 실패했는가(체크가 빠져 낸 안내와 구분한다). 이때만 단추가 「초대 다시 만들기」가 되고, 체크를 바꿔도 오류를 지우지 않는다.
+  const [serverFailed, setServerFailed] = useState(false);
   const pending = useRef<Extract<PairSessionRequest, { action: "create" }> | null>(null);
   const active = useRef(true);
   useEffect(() => { active.current = true; return () => { active.current = false; }; }, []);
   async function create() {
     if (busy) return;
     if (!consent || !ageConfirmed) { setError("두 칸에 모두 체크하면 초대를 만들 수 있어요."); return; }
-    setBusy(true); setError("");
+    setBusy(true); setError(""); setServerFailed(false);
     try {
       if (!pending.current) {
         const keys = createPairSessionKeys();
@@ -80,10 +89,17 @@ export default function WeddingCodeV31Connection({ draft }: { draft: V31Draft })
       setRecoveryUrl(pairSessionUrl(window.location.origin, member));
       const result = await requestPairSession(input);
       if (!active.current) return;
-      if (!result.ok) { setError(result.error); if (result.code === "CREATE_EXPIRED") pending.current = null; return; }
+      if (!result.ok) {
+        setServerFailed(true);
+        const clockOff = result.code === "CREATE_EXPIRED";
+        // 확실히 거절된 요청은 방이 없다. 복구 링크와 임시 확인 주소를 치우고, 다음에는 새 키로 만든다.
+        if (clockOff || isConfirmedPairRejection(result.code)) { pending.current = null; setRecoveryUrl(""); forgetPairSession(input.roomId); }
+        setError(clockOff && !result.error.includes(PAIR_SESSION_CLOCK_HINT) ? `${result.error} ${PAIR_SESSION_CLOCK_HINT}` : result.error);
+        return;
+      }
       savePairSessionLink({ ...member, expiresAt: result.snapshot.expiresAt });
       window.location.assign(pairSessionUrl(window.location.origin, member));
-    } catch { if (active.current) setError("초대를 만들지 못했어요. 연결 상태를 확인하고 다시 시도해 주세요."); }
+    } catch { if (active.current) { setServerFailed(true); setError("초대를 만들지 못했어요. 연결 상태를 확인하고 다시 시도해 주세요."); } }
     finally { if (active.current) setBusy(false); }
   }
   return <section className={`${v31Surface} mt-6 p-5 sm:p-7`} aria-label="상대 초대하고 함께 보기">
@@ -92,9 +108,9 @@ export default function WeddingCodeV31Connection({ draft }: { draft: V31Draft })
     <WeddingCodeComparisonResume compact />
     {!expanded ? <Button variant="primary" fullWidth className="mt-4 whitespace-normal!" onClick={() => setExpanded(true)}>상대 초대하고 함께 보기</Button> : <div className="mt-4">
       {/* 체크가 빠져 낸 오류는 체크를 바꾸면 바로 지운다(서버에 보낸 적이 없는 오류라 두 칸을 채운 뒤에도 남아 있으면 틀린 말이 된다). */}
-      <PairSessionConsent consent={consent} ageConfirmed={ageConfirmed} disabled={busy} onConsent={value => { setConsent(value); if (!recoveryUrl) setError(""); }} onAge={value => { setAgeConfirmed(value); if (!recoveryUrl) setError(""); }} />
+      <PairSessionConsent consent={consent} ageConfirmed={ageConfirmed} disabled={busy} onConsent={value => { setConsent(value); if (!serverFailed) setError(""); }} onAge={value => { setAgeConfirmed(value); if (!serverFailed) setError(""); }} />
       <p className="mt-3 text-xs leading-relaxed text-[var(--hb-text-body)]">자동 저장이 켜져 있으면 이 브라우저에 나만 보관할 확인 주소도 남겨요. 다른 사람과 같이 쓰는 컴퓨터나 휴대폰이라면 함께 보기를 끝낸 뒤 ‘자동 저장 끄기’를 눌러 지워 주세요.</p>
-      <Button variant="primary" fullWidth disabled={busy} onClick={() => void create()} className="mt-4 whitespace-normal!">{busy ? "초대를 만들고 있어요…" : recoveryUrl ? "초대 다시 만들기" : "동의하고 초대 만들기"}</Button>
+      <Button variant="primary" fullWidth disabled={busy} onClick={() => void create()} className="mt-4 whitespace-normal!">{busy ? "초대를 만들고 있어요…" : serverFailed ? "초대 다시 만들기" : "동의하고 초대 만들기"}</Button>
       {error ? <div role="alert" className={`mt-3 ${v31Body}`}><p>{error}</p>{recoveryUrl ? <Link href={recoveryUrl} className="mt-2 inline-flex min-h-11 items-center underline">이미 만들어졌는지 내 초대 확인하기</Link> : null}</div> : null}
     </div>}
   </section>;

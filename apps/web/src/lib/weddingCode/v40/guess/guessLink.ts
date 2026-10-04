@@ -24,7 +24,7 @@
  */
 import { V40_LINK_KEYS, V40_STATE_ALPHABET, WEDDING_CODE_V40_VERSION } from "@/constants/weddingCodeV40";
 import type { Bank, CodecBankView } from "../types";
-import { MAX_SHARE_HASH_LENGTH, buildGatedShareUrl, decodeShareParams } from "../codec";
+import { MAX_SHARE_HASH_LENGTH, buildGatedShareUrl, decodeShareParams, type ShareUrlOptions } from "../codec";
 import { stateIndex } from "../states";
 import type { GuessLinkModule } from "./guessContract";
 import { V40_GUESS_SLOT_COUNT } from "./types";
@@ -197,17 +197,17 @@ const isPerson = (person: unknown): person is GuessedPerson => person !== null &
 
 /**
  * 짐작이 든 보내기 링크(계획 4.9): 기존 buildGatedShareUrl 의 관문과 origin 규칙 그대로 기본 링크를 만들고 그 사이에 ga, 끝에 gb 를 끼운다.
- * 정규 순서 v, a, ga, b, gb. 두 g 가 모두 없으면 buildGatedShareUrl 의 결과와 바이트까지 같다.
+ * 정규 순서 v, a, ga, b, gb. 두 g 가 모두 없으면 buildGatedShareUrl 의 결과와 바이트까지 같다. options(explicitVersion)는 buildGatedShareUrl 에 그대로 넘긴다(쿼리 `?v=` 를 붙일지).
  * 끼우는 자리를 문자열 검색으로 찾지 않는다: origin 이 https://h&a=x 처럼 유효하게 &a= 를 품을 수 있어서, 앞부분(single)을 접두어로 쓴다.
  * 관문이 닫힌 사람, 쓸 수 없는 origin, 만들 수 없는 g(고른 것이 하나도 없음 포함), 구조가 달라진 기본 링크는 null(조용히 틀린 링크를 내지 않는다).
  */
-export function buildGatedShareUrlWithGuess(bank: Bank, origin: string, first: GuessedPerson, second?: GuessedPerson): string | null {
+export function buildGatedShareUrlWithGuess(bank: Bank, origin: string, first: GuessedPerson, second?: GuessedPerson, options?: ShareUrlOptions): string | null {
   if (!isPerson(first)) return null;
   const hasSecond = second !== undefined && second !== null;
   if (hasSecond && !isPerson(second)) return null;
-  const single = buildGatedShareUrl(bank, origin, first.code);
+  const single = buildGatedShareUrl(bank, origin, first.code, undefined, options);
   if (single === null) return null;
-  const full = hasSecond ? buildGatedShareUrl(bank, origin, first.code, second.code) : single;
+  const full = hasSecond ? buildGatedShareUrl(bank, origin, first.code, second.code, options) : single;
   if (full === null || !full.startsWith(single)) return null;
   let firstPart = "";
   if (first.guess !== null && first.guess !== undefined) {

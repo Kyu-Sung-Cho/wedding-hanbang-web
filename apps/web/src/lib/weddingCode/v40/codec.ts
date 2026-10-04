@@ -15,6 +15,8 @@
  * 이 파일이 직접 가져오는 것은 상수, states, score 뿐이고(score 를 거쳐 value, present, gates 가 딸려 온다) 문구(bank, copy)와 화면은 가져오지 않는다.
  *
  * 링크를 만드는 길은 buildGatedShareUrl 하나다(공개하지 않는 조립 함수 assembleShareUrl 은 이 파일 안에서만 쓴다). 관문이 닫힌 응답에는 링크가 나가지 않는다.
+ * 답이 든 링크의 모양은 `${origin}/wedding-code?v=v4.0-tendency#v=v4.0-tendency&a=…[&b=…]` 이다(2026-10-04 감사 A68). 서버는 주소의 # 뒤를 보지 못하므로 쿼리에도 판 이름을 실어야
+ * 받는 사람의 첫 화면과 카드 미리보기가 v3.1 이 아니라 v4 로 나간다. 쿼리를 붙일지는 buildQuestionOnlyUrl 과 같은 explicitVersion 규칙을 따른다. 쿼리가 없는 옛 링크도 그대로 열린다.
  * origin 규칙: 끝의 / 를 모두 뗀 뒤 빈 문자열(같은 사이트 상대 주소)이거나 http(s)://호스트[:포트] 한 덩어리여야 한다. 그 밖(문자열이 아님, 다른 스킴, 프로토콜 상대,
  * 경로, 질문, 조각, 공백, 사용자 정보, 255자 초과)은 buildGatedShareUrl 이 null, buildQuestionOnlyUrl 이 같은 사이트 상대 주소로 답한다.
  */
@@ -129,19 +131,31 @@ function normalizeOrigin(origin: unknown): string | null {
   return ORIGIN_PATTERN.test(trimmed) ? trimmed : null;
 }
 
+/** 링크 만들기 선택 인자. explicitVersion 의 뜻은 buildQuestionOnlyUrl 과 같다(기본 true). */
+export type ShareUrlOptions = { readonly explicitVersion?: boolean };
+
 /**
- * 보내기 링크 조립(설계 8절): `${origin}/wedding-code#v=v4.0-tendency&a=${a}` 이고 second 가 있으면 `&b=${b}`.
+ * 판을 밝히는 쿼리. 주소의 # 뒤는 서버가 보지 못해서 쿼리에 판이 없으면 서버가 기본 판(v3.1)을 먼저 그린다(받는 사람이 다른 판 화면을 먼저 본다).
+ * 그래서 답이 든 링크도 `?v=v4.0-tendency` 를 앞에 붙인다. 기본 진입이 v4 로 바뀐 뒤에는 `explicitVersion: false` 로 뺀다(buildQuestionOnlyUrl 과 같은 규칙).
+ */
+function versionQuery(options?: ShareUrlOptions): string {
+  return options?.explicitVersion !== false ? `?${V40_LINK_KEYS.version}=${WEDDING_CODE_V40_VERSION}` : "";
+}
+
+/**
+ * 보내기 링크 조립(설계 8절): `${origin}/wedding-code?v=v4.0-tendency#v=v4.0-tendency&a=${a}` 이고 second 가 있으면 `&b=${b}`.
+ * 쿼리의 `?v=` 는 explicitVersion 이 false 일 때만 빠진다. 해시의 `v=` 는 언제나 있다(옛 링크는 쿼리가 없고 그대로 열린다).
  * 하나라도 encode 가 null 이거나 origin 이 쓸 수 없는 값이면 null. 링크에 글자, 세기, 결과를 싣지 않는다.
  * 관문은 이 함수가 보지 않는다. 그래서 공개하지 않고(export 없음) 관문까지 확인하는 buildGatedShareUrl 만 부른다.
  */
-function assembleShareUrl(bank: CodecBankView, origin: string, first: DecodedCode, second?: DecodedCode): string | null {
+function assembleShareUrl(bank: CodecBankView, origin: string, first: DecodedCode, second?: DecodedCode, options?: ShareUrlOptions): string | null {
   const prefix = normalizeOrigin(origin);
   if (prefix === null) return null;
   if (first === null || typeof first !== "object") return null;
   const a = encodeCode(bank, first.formBit, first.responses);
   if (a === null) return null;
   const { version: versionKey, first: firstKey, second: secondKey } = V40_LINK_KEYS;
-  const base = `${prefix}/wedding-code#${versionKey}=${WEDDING_CODE_V40_VERSION}&${firstKey}=${a}`;
+  const base = `${prefix}/wedding-code${versionQuery(options)}#${versionKey}=${WEDDING_CODE_V40_VERSION}&${firstKey}=${a}`;
   if (second === undefined || second === null) return base;
   const b = encodeCode(bank, second.formBit, second.responses);
   return b === null ? null : `${base}&${secondKey}=${b}`;
@@ -159,10 +173,10 @@ function canShareDecoded(bank: Bank, person: DecodedCode): boolean {
  * 설계는 관문이 닫힌 응답에 코드도 링크도 만들지 않는다고 하므로 화면은 링크를 만들 때 언제나 이 함수를 쓴다(두 사람 링크도 같다).
  * 채점이 필요해서 온전한 Bank 를 받는다. 그 밖의 어긋남(답이 빠짐, 폼 비트 오류, 쓸 수 없는 origin)도 던지지 않고 null 이다.
  */
-export function buildGatedShareUrl(bank: Bank, origin: string, first: DecodedCode, second?: DecodedCode): string | null {
+export function buildGatedShareUrl(bank: Bank, origin: string, first: DecodedCode, second?: DecodedCode, options?: ShareUrlOptions): string | null {
   if (!canShareDecoded(bank, first)) return null;
   if (second !== undefined && second !== null && !canShareDecoded(bank, second)) return null;
-  return assembleShareUrl(bank, origin, first, second);
+  return assembleShareUrl(bank, origin, first, second, options);
 }
 
 /**
@@ -170,10 +184,8 @@ export function buildGatedShareUrl(bank: Bank, origin: string, first: DecodedCod
  * (기본 진입이 아직 v3.1 인 동안), false 이면 `${origin}/wedding-code`(기본 진입을 v4 로 교체한 뒤).
  * origin 이 쓸 수 없는 값이면 같은 사이트 상대 주소(`/wedding-code...`)로 낸다(던지지 않고, 엉뚱한 호스트로 가는 링크를 만들지 않는다).
  */
-export function buildQuestionOnlyUrl(origin: string, options?: { readonly explicitVersion?: boolean }): string {
-  const explicitVersion = options?.explicitVersion !== false;
-  const base = `${normalizeOrigin(origin) ?? ""}/wedding-code`;
-  return explicitVersion ? `${base}?${V40_LINK_KEYS.version}=${WEDDING_CODE_V40_VERSION}` : base;
+export function buildQuestionOnlyUrl(origin: string, options?: ShareUrlOptions): string {
+  return `${normalizeOrigin(origin) ?? ""}/wedding-code${versionQuery(options)}`;
 }
 
 /**

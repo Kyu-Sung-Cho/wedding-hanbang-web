@@ -322,11 +322,12 @@ export interface CodecModule {
   /** body(69자) 의 체크섬 문자. body 에 알파벳, -, _ 밖의 문자가 있으면 RangeError. */
   checksumChar(body: string): string;
   /**
-   * 보내기 링크(유일한 링크 만들기): `${origin}/wedding-code#v=v4.0-tendency&a=${a}` 이고 second 가 있으면 `&b=${b}` (키 순서 v, a, b). origin 은 위 규칙을 따른다.
+   * 보내기 링크(유일한 링크 만들기): `${origin}/wedding-code?v=v4.0-tendency#v=v4.0-tendency&a=${a}` 이고 second 가 있으면 `&b=${b}` (해시의 키 순서 v, a, b). origin 은 위 규칙을 따른다.
+   * 쿼리의 `?v=` 는 서버가 처음부터 v4 화면을 그리게 하려는 것이다(주소의 # 뒤는 서버가 보지 못한다). options.explicitVersion 이 false(기본 진입을 v4 로 교체한 뒤)이면 쿼리가 빠진다. 옛 링크(쿼리 없음)도 그대로 열린다.
    * first 나 second 로 만든 결과(buildResult)의 관문이 닫혀 있으면(위치 반복 세 형식, 확정 글자 없음) null 이다(canShare 가 false 인 사람은 코드도 링크도 없다).
    * 하나라도 encode 가 null 이거나 origin 을 쓸 수 없으면 null. 링크에 글자, 세기, 결과를 싣지 않는다.
    */
-  buildGatedShareUrl(bank: Bank, origin: string, first: DecodedCode, second?: DecodedCode): string | null;
+  buildGatedShareUrl(bank: Bank, origin: string, first: DecodedCode, second?: DecodedCode, options?: { readonly explicitVersion?: boolean }): string | null;
   /**
    * 질문만 보내기 링크(답 없음). explicitVersion 이 true 이면 `${origin}/wedding-code?v=v4.0-tendency`(기본 진입이 아직 v3.1 인 동안),
    * false 이면 `${origin}/wedding-code`(기본 진입을 v4 로 교체한 뒤). 기본 true. 쓸 수 없는 origin 은 위 규칙대로 상대 주소가 된다.
@@ -454,9 +455,9 @@ export interface CoupleModule {
 /**
  * 규칙(v3.1 진행 저장을 복사해 v4 용으로 새로 만든다. v3.1 모듈은 가져오지 않는다):
  *  - 저장은 브라우저(localStorage)마다 따로다. 다른 브라우저나 다른 기기에는 없다. 화면 글은 「이 브라우저」라고 쓴다.
- *  - 브라우저 저장소의 이름(window.localStorage)을 부르는 유일한 자리가 이 파일의 browserStorage() 다. 나머지 파일은 그 핸들을 이 파일의 함수에 넘기기만 하고,
+ *  - 브라우저 저장소의 이름(window.localStorage)은 v3.1 과 함께 쓰는 lib/weddingCode/browserStorageHandle.ts 의 realLocalStorage() 한 곳에만 있고, 이 파일의 browserStorage() 가 그 결과를 돌려준다. 나머지 파일은 그 핸들을 이 파일의 함수에 넘기기만 하고,
  *    핸들에 getItem, setItem, removeItem 을 직접 부르거나 저장 키(V40_STORAGE 의 …Key)를 읽지 않는다(소스 가드 규칙 5).
- *  - 키는 V40_STORAGE. 기간은 30일: now - savedAt >= ttlMs 이면 expired, savedAt > now 이거나 안전한 정수가 아니면 invalid. 읽기만으로 기간을 늘리지 않는다.
+ *  - 키는 V40_STORAGE. 기간은 30일: now - savedAt >= ttlMs 이면 expired, savedAt 이 지금보다 하루를 넘는 미래이거나 안전한 정수가 아니면 invalid(기기 시계가 저장 뒤에 하루 안으로 뒤로 간 것은 멀쩡한 저장으로 읽는다). 읽기만으로 기간을 늘리지 않는다.
  *  - 읽기(readProgress, readHistory, probeLegacyV31Progress)는 저장소에 아무것도 쓰지 않는다. expired 와 invalid 도 지우지 않는다(두 사람 결과 화면이 「나」 표시에
  *    쓰려고 readProgress 를 부르기 때문이다). 기간이 지난 저장을 실제로 지우는 일은 purgeExpired 가 맡는다(시작 화면이 expired 를 보면 부르고, 두 사람 결과 화면은 부르지 않는다).
  *  - 봉투 JSON 은 ProgressEnvelope 의 여덟 키가 모두 있고 다른 키는 없어야 한다(아니면 invalid). 길이 maxEnvelopeLength 이하. version 이 v4.0-tendency.

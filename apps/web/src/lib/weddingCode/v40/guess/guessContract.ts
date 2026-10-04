@@ -24,5 +24,5 @@ export interface GuessLinkModule {
   /** 주소 해시 전체 -> 링크 수준 판정(키 v, a, ga, b, gb). */
   parseGuessedShareHash(bank: CodecBankView, hash: string | null | undefined): GuessedShareParse;
   /** 짐작이 든 보내기 링크. 만들 수 없으면 null. */
-  buildGatedShareUrlWithGuess(bank: Bank, origin: string, first: GuessedPerson, second?: GuessedPerson): string | null;
+  buildGatedShareUrlWithGuess(bank: Bank, origin: string, first: GuessedPerson, second?: GuessedPerson, options?: { readonly explicitVersion?: boolean }): string | null;
 }

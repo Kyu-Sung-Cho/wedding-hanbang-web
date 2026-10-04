@@ -21,6 +21,12 @@ import golden from "./entry.golden.json";
  * 「v 없는 답 없는 입구」와 「명시 v3.1(답 없음)」 두 가지만 달라야 한다(스펙 9절 5항).
  *
  * 표를 다시 뽑아 이 시험을 통과시키는 것은 회귀를 지우는 일이다. 옛 링크의 의미를 바꾸려면 판을 올리는 결정부터 한다.
+ *
+ * 2026-10-04 파운더 결정으로 표를 손본 곳은 이 둘뿐이다(감사 A46, 카오스 #top). 나머지 행은 한 줄도 바뀌지 않았다.
+ * (1) 「query 뒤 공백 버전」(v: "v3.1-preferences ")의 기대값이 오류에서 v3.1 빈 입구로 바뀌었다: 판 이름 끝의 공백, 문장부호, 조사를 한 번 걷어내고 이름이 정확히 같으면 그 판으로 연다
+ *     (entry.v40.test.ts 의 「링크 끝에 붙은 글자」가 새 규칙을 고정한다). 행은 지우지 않고 새 기대값으로 남겨 두어 규칙이 되돌려지면 이 표가 빨개진다. 앞 공백 행은 그대로 오류다.
+ * (2) 「hash 등호 없는 조각」(#justtext)은 오류에서 null(링크가 없는 해시)로 바뀌었다: =, & 가 없고 링크 키 이름으로 시작하지 않는 짧은 조각(32자 이하)은
+ *     #top 같은 문서 안 이동 표시라서 평소 입구를 연다. 「#a&b」처럼 링크 모양이면 그대로 오류다. 「hash 긴 해시 12000자」와 12001자 행은 원래대로 오류다(32자를 넘으면 링크 시도로 본다).
  */
 
 type GoldenInput = Record<string, string | string[] | undefined> | string;
@@ -58,7 +64,8 @@ function isBareEntry(row: GoldenRow): boolean {
 /** 이 행이 명시 v3.1(답 없음) 입구인가. */
 function isExplicitV31Entry(row: GoldenRow): boolean {
   if (row.mode !== "query" || typeof row.input === "string") return false;
-  return row.input.v === WEDDING_CODE_V31_VERSION && row.expected?.kind === "v31" && row.expected.hash === null;
+  // 판 이름 끝에 붙은 공백(「query 뒤 공백 버전」)도 걷어내고 같은 판으로 읽으므로 같은 입구다.
+  return typeof row.input.v === "string" && row.input.v.trimEnd() === WEDDING_CODE_V31_VERSION && row.expected?.kind === "v31" && row.expected.hash === null;
 }
 
 describe("entry.ts 골든 표", () => {
@@ -71,7 +78,7 @@ describe("entry.ts 골든 표", () => {
     expect(kinds.get("v20") ?? 0).toBeGreaterThanOrEqual(6);
     expect(kinds.get("legacy") ?? 0).toBeGreaterThanOrEqual(30);
     expect(kinds.get("error") ?? 0).toBeGreaterThanOrEqual(60);
-    expect(kinds.get("null") ?? 0).toBe(2);
+    expect(kinds.get("null") ?? 0).toBe(3);
     expect(new Set(rows.map((row) => row.label)).size).toBe(rows.length);
     expect(rows.some((row) => JSON.stringify(row).includes(WEDDING_CODE_V40_VERSION))).toBe(false);
   });
@@ -107,6 +114,7 @@ describe("entry.ts 골든 표", () => {
       "query 유입 경로 둘",
       "query v 없음, 알 수 없는 키",
       "query 답 없는 v3.1-preferences",
+      "query 뒤 공백 버전",
       "query 알 수 없는 키 배열",
       "query 값이 undefined 인 키(JSON 에서는 빈 객체)",
     ]);
@@ -138,23 +146,30 @@ describe("entry.ts 골든 표가 못 밝히는 두 경계", () => {
     }
   });
 
-  it("버전 이름의 앞뒤 공백은 이름이 옳아도 오류다(장면 판 여섯 개, v2.0, v3.0, v3.1)", () => {
+  it("버전 이름 앞의 공백은 이름이 옳아도 오류다(장면 판 여섯 개, v2.0, v3.0, v3.1). 끝의 공백은 2026-10-04 결정으로 걷어내고 같은 판으로 읽는다", () => {
     const names = ["v0.6-scene", "v0.8-code", "v0.9-code", "v1.0-code", "v1.1-code", "v1.2-code", "v2.0-agreement", "v3.0-preferences", "v3.1-preferences"];
     for (const options of optionsList) {
       for (const name of names) {
-        for (const spaced of [` ${name}`, `${name} `, `\t${name}`, `${name}\n`]) {
+        for (const spaced of [` ${name}`, `\t${name}`]) {
           expect(parseWeddingCodeEntryQuery({ v: spaced }, options), JSON.stringify(spaced)).toEqual({ kind: "error" });
           expect(parseWeddingCodeEntryQuery(new URLSearchParams({ v: spaced }), options), JSON.stringify(spaced)).toEqual({ kind: "error" });
+        }
+        // 끝의 공백은 링크 끝에 붙어 올 수 있는 글자라서 한 번 걷어낸다(앞 공백은 붙어 올 수 없다).
+        for (const spaced of [`${name} `, `${name}\n`]) {
+          expect(parseWeddingCodeEntryQuery({ v: spaced }, options), JSON.stringify(spaced)).toEqual(parseWeddingCodeEntryQuery({ v: name }, options));
+          expect(parseWeddingCodeEntryQuery(new URLSearchParams({ v: spaced }), options), JSON.stringify(spaced)).toEqual(parseWeddingCodeEntryQuery(new URLSearchParams({ v: name }), options));
         }
       }
       // 해시로 와도 같다. 표의 유효한 링크에서 이름에 공백만 더한다(달라진 것이 공백뿐임을 확인한다).
       const valid = rowByLabel("hash v1.2-code a");
       const hash = valid.input as string;
       expect(summarize(parseWeddingCodeEntryHash(hash, options))).toEqual(valid.expected);
-      for (const spaced of [hash.replace("v=v1.2-code", "v=%20v1.2-code"), hash.replace("v=v1.2-code", "v=v1.2-code%20")]) {
-        expect(spaced).not.toBe(hash);
-        expect(parseWeddingCodeEntryHash(spaced, options), spaced).toEqual({ kind: "error" });
-      }
+      const leading = hash.replace("v=v1.2-code", "v=%20v1.2-code");
+      expect(leading).not.toBe(hash);
+      expect(parseWeddingCodeEntryHash(leading, options), leading).toEqual({ kind: "error" });
+      const trailing = hash.replace("v=v1.2-code", "v=v1.2-code%20");
+      expect(trailing).not.toBe(hash);
+      expect(summarize(parseWeddingCodeEntryHash(trailing, options)), trailing).toEqual(valid.expected);
     }
   });
 });

@@ -130,3 +130,49 @@ describe("웨딩코드 진입 화면: v4.0-tendency 명시 진입(기본 판 v3.
     expect(html).toMatch(new RegExp(`role="status"[^>]*>${V40_COPY.common.loadingLabel}</`));
   });
 });
+
+/**
+ * 2026-10-04 감사(A21, A50, A68, A15): 판 이름은 입구(entry.ts)와 같은 읽기로 읽는다.
+ *  - 끝에 점이나 괄호가 붙은 v4 주소(?v=v4.0-tendency.)는 입구가 v4 로 여는 주소이므로 제목과 카드도 v4 것이다.
+ *  - 알 수 없는 판 이름(오타, 대소문자)은 열 수 없는 링크 안내가 뜨는 주소다. 폐기된 장면 판 제목(「결혼 준비 장면, 나라면?」)이 나가지 않고,
+ *    현재 기본 판의 제목을 쓰며, 색인하지 않는다.
+ */
+describe("웨딩코드 진입 화면: 판 이름의 끝 글자와 알 수 없는 판 이름", () => {
+  const OLD_SCENE_TITLE = "결혼 준비 장면, 나라면?";
+
+  it("끝에 글자가 붙은 v4 주소도 v4 제목, v4 카드, 색인 막기를 쓴다(입구가 v4 로 여는 주소와 같다)", async () => {
+    const exact = await generateMetadata({ searchParams: Promise.resolve({ v: V40 }) });
+    for (const tail of [".", ")", "/", " ", "요", ","]) {
+      const metadata = await generateMetadata({ searchParams: Promise.resolve({ v: `${V40}${tail}` }) });
+      expect(metadata, JSON.stringify(tail)).toEqual(exact);
+      const page = await WeddingCodePage({ searchParams: Promise.resolve({ v: `${V40}${tail}` }) });
+      expect(page.props.initialEntry, JSON.stringify(tail)).toEqual({ kind: "v40", initial: { partner: null, both: null } });
+    }
+  });
+
+  it("알 수 없는 판 이름은 폐기된 장면 판 제목을 쓰지 않고 현재 기본 판 제목으로 나가며 색인하지 않는다", async () => {
+    const bare = await generateMetadata({ searchParams: Promise.resolve({}) });
+    for (const v of ["V4.0-TENDENCY", "v4.0-tendency-x", "v4.0", "v4-tendency", "v9-unknown", "", " v4.0-tendency", "v4.0-tendencyx", "v3.1-preference"]) {
+      const metadata = await generateMetadata({ searchParams: Promise.resolve({ v }) });
+      expect(String(metadata.title), JSON.stringify(v)).not.toContain(OLD_SCENE_TITLE);
+      expect(metadata.title, JSON.stringify(v)).toBe(bare.title);
+      expect(metadata.description, JSON.stringify(v)).toBe(bare.description);
+      expect(metadata.robots, JSON.stringify(v)).toMatchObject({ index: false, follow: false });
+      expect(metadata.openGraph, JSON.stringify(v)).toMatchObject({ title: bare.title });
+      // 맨 주소는 그대로 색인한다(알 수 없는 판 이름 처리가 입구 색인 규칙을 건드리지 않는다).
+      expect(bare.robots).toMatchObject({ index: true, follow: true });
+    }
+    // 배열(반복된 v)도 알 수 없는 값이다.
+    const repeated = await generateMetadata({ searchParams: Promise.resolve({ v: [V40, V40] }) });
+    expect(String(repeated.title)).not.toContain(OLD_SCENE_TITLE);
+    expect(repeated.robots).toMatchObject({ index: false, follow: false });
+  });
+
+  it("알려진 판의 이름은 그대로 읽는다: 폐기된 장면 판(v1.2-code)의 제목과 색인은 예전 그대로다", async () => {
+    const scene = await generateMetadata({ searchParams: Promise.resolve({ v: "v1.2-code" }) });
+    expect(scene.title).toContain(OLD_SCENE_TITLE);
+    expect(scene.robots).toMatchObject({ index: true, follow: true });
+    const sceneWithTail = await generateMetadata({ searchParams: Promise.resolve({ v: "v1.2-code." }) });
+    expect(sceneWithTail).toEqual(scene);
+  });
+});

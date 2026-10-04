@@ -118,6 +118,24 @@ describe("두 사람 비교의 주소와 기기 저장", () => {
     getLocalStorage.mockRestore();
   });
 
+  it("저장소가 막혀 루트 스니펫이 메모리 객체로 바꿔 끼운 브라우저에서는 이 브라우저에 저장했다고 말하지 않는다", () => {
+    // 쓰고 읽어도 새로고침에 사라지는 객체라서 쓰기가 늘 성공해 보인다. 진짜 Storage 가 아니면 저장하지 않은 것으로 답해야 한다.
+    const data = new Map<string, string>();
+    const memory = { getItem: (key: string) => data.get(key) ?? null, setItem: (key: string, value: string) => void data.set(key, value), removeItem: (key: string) => void data.delete(key), clear: () => data.clear(), key: () => null, length: 0 };
+    const original = Object.getOwnPropertyDescriptor(window, "localStorage");
+    Object.defineProperty(window, "localStorage", { configurable: true, get: () => memory });
+    try {
+      expect(savePairSessionLink(saved)).toBe(false);
+      expect(data.size).toBe(0);
+      expect(readSavedPairSession()).toBeNull();
+      expect(clearSavedPairSessionLink()).toBe(false);
+      // 이 탭의 복구 주소(sessionStorage)는 이 변경과 상관없이 현재 탭에서 계속 쓴다.
+      expect(readPairSessionRecovery(roomId)).toEqual(saved);
+    } finally {
+      if (original) Object.defineProperty(window, "localStorage", original); else Reflect.deleteProperty(window, "localStorage");
+    }
+  });
+
   it("같은 탭과 다른 탭의 저장 변경을 알리고 구독 해제 후에는 알리지 않는다", () => {
     const listener = vi.fn(); const unsubscribe = subscribePairSession(listener);
     savePairSessionLink(saved); expect(listener).toHaveBeenCalledTimes(1);

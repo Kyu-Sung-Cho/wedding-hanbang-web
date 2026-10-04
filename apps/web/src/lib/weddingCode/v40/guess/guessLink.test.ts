@@ -408,10 +408,20 @@ describe("buildGatedShareUrlWithGuess", () => {
   });
 
   it("정규 순서 v, a, ga, b, gb 로 만들고 g 가 하나씩일 때도 주인 옆에 놓인다", () => {
-    expect(buildGatedShareUrlWithGuess(bank, ORIGIN, first(guessA))).toBe(`${ORIGIN}/wedding-code#v=${V}&a=${A}&ga=${GA}`);
-    expect(buildGatedShareUrlWithGuess(bank, ORIGIN, first(guessA), second(guessB))).toBe(`${ORIGIN}/wedding-code#v=${V}&a=${A}&ga=${GA}&b=${B}&gb=${GB}`);
-    expect(buildGatedShareUrlWithGuess(bank, ORIGIN, first(null), second(guessB))).toBe(`${ORIGIN}/wedding-code#v=${V}&a=${A}&b=${B}&gb=${GB}`);
-    expect(buildGatedShareUrlWithGuess(bank, ORIGIN, first(guessA), second(null))).toBe(`${ORIGIN}/wedding-code#v=${V}&a=${A}&ga=${GA}&b=${B}`);
+    expect(buildGatedShareUrlWithGuess(bank, ORIGIN, first(guessA))).toBe(`${ORIGIN}/wedding-code?v=${V}#v=${V}&a=${A}&ga=${GA}`);
+    expect(buildGatedShareUrlWithGuess(bank, ORIGIN, first(guessA), second(guessB))).toBe(`${ORIGIN}/wedding-code?v=${V}#v=${V}&a=${A}&ga=${GA}&b=${B}&gb=${GB}`);
+    expect(buildGatedShareUrlWithGuess(bank, ORIGIN, first(null), second(guessB))).toBe(`${ORIGIN}/wedding-code?v=${V}#v=${V}&a=${A}&b=${B}&gb=${GB}`);
+    expect(buildGatedShareUrlWithGuess(bank, ORIGIN, first(guessA), second(null))).toBe(`${ORIGIN}/wedding-code?v=${V}#v=${V}&a=${A}&ga=${GA}&b=${B}`);
+  });
+
+  it("기본 진입이 v4 로 바뀐 뒤(explicitVersion false)에는 쿼리가 빠지고 # 뒤는 그대로다", () => {
+    const options = { explicitVersion: false } as const;
+    const withQuery = buildGatedShareUrlWithGuess(bank, ORIGIN, first(guessA), second(guessB)) as string;
+    const withoutQuery = buildGatedShareUrlWithGuess(bank, ORIGIN, first(guessA), second(guessB), options) as string;
+    expect(withoutQuery).toBe(`${ORIGIN}/wedding-code#v=${V}&a=${A}&ga=${GA}&b=${B}&gb=${GB}`);
+    expect(withQuery.slice(withQuery.indexOf("#"))).toBe(withoutQuery.slice(withoutQuery.indexOf("#")));
+    expect(buildGatedShareUrlWithGuess(bank, ORIGIN, first(guessA), undefined, options)).toBe(`${ORIGIN}/wedding-code#v=${V}&a=${A}&ga=${GA}`);
+    expect(buildGatedShareUrlWithGuess(bank, ORIGIN, first(null), second(null), options)).toBe(buildGatedShareUrl(bank, ORIGIN, personOf(0), personOf(3), options));
   });
 
   it("만든 링크를 해시 읽기가 그대로 되읽는다(왕복)", () => {
@@ -427,8 +437,8 @@ describe("buildGatedShareUrlWithGuess", () => {
     const plain = buildGatedShareUrl(bank, origin, personOf(0), personOf(3));
     expect(plain).not.toBeNull();
     expect(buildGatedShareUrlWithGuess(bank, origin, first(null), second(null))).toBe(plain);
-    expect(buildGatedShareUrlWithGuess(bank, origin, first(guessA), second(guessB))).toBe(`${origin}/wedding-code#v=${V}&a=${A}&ga=${GA}&b=${B}&gb=${GB}`);
-    expect(buildGatedShareUrlWithGuess(bank, origin, first(guessA))).toBe(`${origin}/wedding-code#v=${V}&a=${A}&ga=${GA}`);
+    expect(buildGatedShareUrlWithGuess(bank, origin, first(guessA), second(guessB))).toBe(`${origin}/wedding-code?v=${V}#v=${V}&a=${A}&ga=${GA}&b=${B}&gb=${GB}`);
+    expect(buildGatedShareUrlWithGuess(bank, origin, first(guessA))).toBe(`${origin}/wedding-code?v=${V}#v=${V}&a=${A}&ga=${GA}`);
   });
 
   it("관문이 닫힌 사람과 쓸 수 없는 origin 은 null 이다", () => {
@@ -458,12 +468,13 @@ describe("buildGatedShareUrlWithGuess", () => {
     expect(buildGatedShareUrlWithGuess(bank, ORIGIN, first(guessA), null as unknown as GuessedPerson)).toBe(buildGatedShareUrlWithGuess(bank, ORIGIN, first(guessA)));
   });
 
-  it("가장 긴 정상 해시는 185자이고 주소 전체는 217자 안팎이다(상한 512 안쪽)", () => {
+  it("가장 긴 정상 해시는 185자이고 주소 전체는 233자 안팎이다(해시 상한 512 안쪽. 쿼리의 판 이름 16자가 더해져도 해시는 그대로다)", () => {
     const url = buildGatedShareUrlWithGuess(bank, ORIGIN, first(guessA), second(guessB)) as string;
     const hash = url.slice(url.indexOf("#") + 1);
     expect(hash).toHaveLength(15 + 3 + 70 + 4 + 8 + 3 + 70 + 4 + 8);
     expect(hash).toHaveLength(185);
     expect(hash.length).toBeLessThanOrEqual(MAX_SHARE_HASH_LENGTH);
-    expect(url).toHaveLength(`${ORIGIN}/wedding-code#`.length + 185);
+    expect(url).toHaveLength(`${ORIGIN}/wedding-code?v=${V}#`.length + 185);
+    expect(url).toHaveLength(233);
   });
 });

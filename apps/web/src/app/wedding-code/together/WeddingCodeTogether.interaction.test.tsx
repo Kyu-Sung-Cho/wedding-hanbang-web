@@ -7,6 +7,7 @@ import { WEDDING_CODE_V31_TASTES, type V31Draft } from "@/constants/weddingCodeV
 import { createV31Draft, encodeV31 } from "@/lib/weddingCode/v31";
 import { requestPairSession, type PairSessionResult, type PairSessionSnapshot } from "@/lib/weddingCode/pairSessionContract";
 import { readPairSessionRecovery, readSavedPairSession } from "@/lib/weddingCode/pairSessionClient";
+import { writeV31LocalProgress } from "@/lib/weddingCode/v31LocalProgress";
 import type WeddingCodeV31Client from "../WeddingCodeV31Client";
 import type WeddingCodeV31Results from "../WeddingCodeV31Results";
 import WeddingCodeTogether from "./WeddingCodeTogether";
@@ -264,7 +265,9 @@ describe("두 사람 연결의 접근 권한과 늦게 도착한 응답", () => 
   it.each([false, true])("참여 실패 뒤 답을 수정해도 최초 동의한 답과 접근 키로만 다시 시도한다 (탭 저장 차단 %s)", async blocked => {
     if (blocked) vi.spyOn(window, "sessionStorage", "get").mockImplementation(() => { throw new DOMException("blocked", "SecurityError"); });
     vi.mocked(requestPairSession).mockResolvedValueOnce({ ok: true, snapshot: waiting() })
-      .mockResolvedValue({ ok: false, code: blocked ? "NOT_FOUND" : "NETWORK_ERROR", error: "참여 결과를 확인하지 못했어요." });
+      // 확정 거절(NOT_FOUND 등)은 요청이 처리되지 않았다는 뜻이라 이전 요청을 다시 보내는 길을 닫는다(아래 확정 거절 시험).
+      // 이 시험은 처리 여부를 모르는 실패에서 같은 요청만 다시 보내는 규칙을 지키므로, 저장 차단 쪽도 불확실 실패(UNAVAILABLE)를 쓴다.
+      .mockResolvedValue({ ok: false, code: blocked ? "UNAVAILABLE" : "NETWORK_ERROR", error: "참여 결과를 확인하지 못했어요." });
     await render("invite", INVITE); await click("내 결과 보기");
     for (const checkbox of container.querySelectorAll<HTMLInputElement>('input[type="checkbox"]')) await act(async () => checkbox.click());
     await click("동의하고 두 사람 결과 보기");
@@ -284,5 +287,324 @@ describe("두 사람 연결의 접근 권한과 늦게 도착한 응답", () => 
     expect(readSavedPairSession()).toBeNull();
     expect(container.querySelector('[role="alert"]')?.textContent).toContain("참여 결과를 확인하지 못했어요");
     if (!blocked) expect(readPairSessionRecovery(ROOM)?.token).toBe(input.participantToken);
+  });
+
+  describe("이미 그려진 방은 한 번의 확인 실패로 사라지지 않는다", () => {
+    const fail = (code: string): PairSessionResult => ({ ok: false, code, error: "서버가 준 오류 문장이에요." });
+    function notice() { return container.querySelector('[role="status"]')?.textContent ?? ""; }
+
+    it.each([["owner", OWNER], ["participant", OTHER]] as const)("%s 화면은 일시적 실패(연결 끊김, 시간 초과, 서버 불안정)에도 결과를 그대로 두고 안내 한 줄만 더한다", async (role, token) => {
+      vi.mocked(requestPairSession).mockResolvedValueOnce({ ok: true, snapshot: ready(role) })
+        .mockResolvedValueOnce(fail("NETWORK_ERROR")).mockResolvedValueOnce(fail("TIMEOUT")).mockResolvedValueOnce(fail("UNAVAILABLE"))
+        .mockResolvedValue({ ok: true, snapshot: ready(role) });
+      await render("access", token);
+      const shown = result(); expect(shown).not.toBeNull();
+      for (let attempt = 0; attempt < 3; attempt += 1) {
+        await poll();
+        expect(result()).toBe(shown);
+        expect(container.querySelector('[role="alert"]')).toBeNull();
+        expect(container.textContent).not.toContain("함께 보기 결과를 확인하지 못했어요");
+        // 방 주인과 참여자에게는 쓰던 답이 아니라 이미 본 결과가 남는다.
+        expect(notice()).toContain("지금 보이는 결과는 그대로 두고");
+        expect(notice()).not.toContain("작성한 답");
+      }
+      await poll();
+      expect(result()).toBe(shown); expect(notice()).toBe("");
+    });
+
+    it("받아 둔 상태가 한 번이라도 그려졌으면 초대받은 사람도 같은 방식으로 지킨다", async () => {
+      vi.mocked(requestPairSession).mockResolvedValueOnce({ ok: true, snapshot: waiting() }).mockResolvedValueOnce(fail("UNAVAILABLE"));
+      await render("invite", INVITE); await poll();
+      expect(quiz()).not.toBeNull(); expect(notice()).toContain("작성한 답은 이 화면에 그대로 있고");
+    });
+
+    // INVALID_RESPONSE 는 200 인데 해석할 수 없는 본문일 때만 여기까지 온다. 서버가 5xx 와 함께 보낸 것은 클라이언트가 UNAVAILABLE 로 바꾼다(pairSessionContract 시험).
+    it.each(["NOT_FOUND", "CLOSED", "INVALID_RESPONSE"])("%s 같은 확정 오류는 안내가 아니라 기존처럼 오류 화면으로 바꾼다", async code => {
+      vi.mocked(requestPairSession).mockResolvedValueOnce({ ok: true, snapshot: ready() }).mockResolvedValueOnce(fail(code));
+      await render("access", OWNER); expect(result()).not.toBeNull();
+      await poll();
+      expect(result()).toBeNull();
+      expect(container.querySelector('[role="alert"]')?.textContent).toContain("함께 보기 결과를 확인하지 못했어요");
+      expect(container.textContent).toContain("서버가 준 오류 문장이에요.");
+      expect(notice()).toBe("");
+    });
+
+    it("처음 열 때의 실패는 그릴 방이 없으므로 기존 오류 화면이다", async () => {
+      vi.mocked(requestPairSession).mockResolvedValue(fail("NETWORK_ERROR"));
+      await render("access", OWNER);
+      expect(container.querySelector('[role="alert"]')?.textContent).toContain("함께 보기 결과를 확인하지 못했어요");
+      expect(container.textContent).toContain("다시 확인하기");
+    });
+
+    it("연속 실패가 5번 쌓이면 오류 화면으로 넘어가고, 중간에 성공하면 횟수를 처음부터 센다", async () => {
+      const mocked = vi.mocked(requestPairSession);
+      mocked.mockResolvedValueOnce({ ok: true, snapshot: ready() });
+      for (let i = 0; i < 4; i += 1) mocked.mockResolvedValueOnce(fail("UNAVAILABLE"));
+      mocked.mockResolvedValueOnce({ ok: true, snapshot: ready() });
+      for (let i = 0; i < 5; i += 1) mocked.mockResolvedValueOnce(fail("NETWORK_ERROR"));
+      mocked.mockResolvedValue({ ok: true, snapshot: ready() });
+      await render("access", OWNER);
+      for (let i = 0; i < 4; i += 1) { await poll(); expect(result()).not.toBeNull(); expect(notice()).toContain("지금 보이는 결과는 그대로 두고"); }
+      await poll(); expect(notice()).toBe(""); expect(result()).not.toBeNull();
+      for (let i = 0; i < 4; i += 1) { await poll(); expect(result()).not.toBeNull(); }
+      await poll();
+      expect(result()).toBeNull();
+      expect(container.querySelector('[role="alert"]')?.textContent).toContain("함께 보기 결과를 확인하지 못했어요");
+      expect(notice()).toBe("");
+      await click("다시 확인하기");
+      expect(result()).not.toBeNull(); expect(container.querySelector('[role="alert"]')).toBeNull();
+    });
+
+    it("초대받은 사람이 답을 쓰는 중이면 연속 실패가 몇 번 쌓여도 쓰던 답 화면을 두고 안내만 유지하며, 회복하면 안내가 사라진다", async () => {
+      const mocked = vi.mocked(requestPairSession);
+      mocked.mockResolvedValueOnce({ ok: true, snapshot: waiting() });
+      for (let i = 0; i < 8; i += 1) mocked.mockResolvedValueOnce(fail(i % 2 ? "TIMEOUT" : "NETWORK_ERROR"));
+      mocked.mockResolvedValue({ ok: true, snapshot: waiting() });
+      await render("invite", INVITE); await click("문항 답하기");
+      const answering = quiz();
+      for (let i = 0; i < 8; i += 1) {
+        await poll();
+        expect(quiz()).toBe(answering); expect(quiz()?.textContent).toContain("작성한 답 1개");
+        expect(container.querySelector('[role="alert"]')).toBeNull();
+        expect(container.textContent).not.toContain("함께 보기 결과를 확인하지 못했어요");
+        expect(notice()).toContain("작성한 답은 이 화면에 그대로 있고");
+      }
+      expect(observed.unmount).not.toHaveBeenCalled();
+      await poll();
+      expect(quiz()).toBe(answering); expect(notice()).toBe("");
+    });
+
+    it("방 주인에게는 상한이 그대로여서, 5번째 연속 실패에서 오류 화면이 된다", async () => {
+      const mocked = vi.mocked(requestPairSession);
+      mocked.mockResolvedValueOnce({ ok: true, snapshot: ready() });
+      for (let i = 0; i < 5; i += 1) mocked.mockResolvedValueOnce(fail("TIMEOUT"));
+      await render("access", OWNER);
+      for (let i = 0; i < 4; i += 1) { await poll(); expect(result()).not.toBeNull(); }
+      await poll(); expect(result()).toBeNull();
+      expect(container.querySelector('[role="alert"]')?.textContent).toContain("함께 보기 결과를 확인하지 못했어요");
+    });
+
+    it("짧은 시간에 겹친 focus·탭 복귀 실패는 한 번으로 세어서, 앱을 여러 번 오가도 오류 화면이 되지 않는다", async () => {
+      const mocked = vi.mocked(requestPairSession);
+      mocked.mockResolvedValueOnce({ ok: true, snapshot: ready() }).mockResolvedValue(fail("NETWORK_ERROR"));
+      await render("access", OWNER);
+      const shown = result();
+      for (let i = 0; i < 8; i += 1) await act(async () => { window.dispatchEvent(new Event("focus")); });
+      expect(mocked.mock.calls.length).toBeGreaterThan(5);
+      expect(result()).toBe(shown); expect(container.querySelector('[role="alert"]')).toBeNull();
+      expect(notice()).toContain("지금 보이는 결과는 그대로 두고");
+      // 시간을 두고 난 실패는 그대로 센다. 겹친 실패는 1번으로 셌으니 주기마다 난 3번 더 쌓여도 안내이고, 4번째에 오류 화면이다.
+      for (let i = 0; i < 3; i += 1) { await poll(); expect(result()).toBe(shown); }
+      await poll(); expect(result()).toBeNull();
+      expect(container.querySelector('[role="alert"]')?.textContent).toContain("함께 보기 결과를 확인하지 못했어요");
+    });
+
+    it("이미 참여한 초대 화면에는 보이는 결과가 없어서 지금 보이는 결과 말을 쓰지 않는다", async () => {
+      vi.mocked(requestPairSession).mockResolvedValueOnce({ ok: true, snapshot: { ...waiting(), state: "ready" } }).mockResolvedValueOnce(fail("UNAVAILABLE"));
+      await render("invite", INVITE); await poll();
+      expect(container.textContent).toContain("이미 참여한 초대예요");
+      expect(notice()).toContain("연결 상태를 새로 확인하지 못했어요");
+      expect(notice()).not.toContain("지금 보이는 결과");
+      expect(notice()).not.toContain("작성한 답");
+    });
+
+    it("안내는 늘 있는 접근성 live 영역 안에 있고, 내용 위에 겹치지 않는 흐름 안의 sticky 줄이다(맨 위 제목과 단추를 가리지 않는다)", async () => {
+      const frameHeight = vi.spyOn(HTMLElement.prototype, "offsetHeight", "get").mockReturnValue(80);
+      vi.mocked(requestPairSession).mockResolvedValueOnce({ ok: true, snapshot: ready() }).mockResolvedValueOnce(fail("NETWORK_ERROR")).mockResolvedValue({ ok: true, snapshot: ready() });
+      await render("access", OWNER);
+      const region = container.querySelector<HTMLElement>('main > [role="status"]')!;
+      expect(region.getAttribute("aria-live")).toBe("polite");
+      expect(region.textContent).toBe("");
+      // 안내가 없을 때는 자리를 차지하지 않는다.
+      expect(region.className).not.toContain("sticky");
+      await poll();
+      expect(container.querySelector('main > [role="status"]')).toBe(region);
+      expect(region.textContent).toContain("연결 상태를 새로 확인하지 못했어요");
+      // 안내가 있을 때: 스크롤해도 위에 남고(sticky top-0 z-20), 배경이 있고, 높이 0 틀 안에 절대 위치로 얹히지 않는다.
+      for (const token of ["sticky", "top-0", "z-20", "bg-[var(--color-ivory-50)]"]) expect(region.className, token).toContain(token);
+      expect(region.className).not.toMatch(/(^|\s)h-0(\s|$)/u);
+      const box = region.querySelector("p")!;
+      expect(box.className).not.toMatch(/(^|\s)(absolute|fixed)(\s|$)/u);
+      expect(box.className).not.toContain("inset-x-0");
+      // 안내가 떠 있는 동안: 스크롤 고정을 끄고(스크롤한 채로 안내가 끼어들어도 보던 내용이 안내 밑에 깔리지 않고 밀려 내려간다),
+      // 안내 높이만큼 스크롤 여백을 둔다(문항을 넘길 때의 scrollIntoView 가 새 문항의 맨 위를 안내 밑에 두지 않는다).
+      expect(container.querySelector("main")!.className).toContain("[overflow-anchor:none]");
+      expect(document.documentElement.style.scrollPaddingTop).toBe("80px");
+      await poll();
+      expect(container.querySelector('main > [role="status"]')).toBe(region); expect(region.textContent).toBe("");
+      expect(region.className).not.toContain("sticky");
+      expect(container.querySelector("main")!.className).not.toContain("overflow-anchor");
+      expect(document.documentElement.style.scrollPaddingTop).toBe("");
+      frameHeight.mockRestore();
+    });
+  });
+
+  describe("연결 끝내기 요청이 실패했을 때", () => {
+    const fail = (code: string, error = "서버가 준 오류 문장이에요."): PairSessionResult => ({ ok: false, code, error });
+    const closedSnapshot = (): PairSessionSnapshot => ({ roomId: ROOM, state: "closed", role: "owner", expiresAt });
+    const shownAlerts = () => [...container.querySelectorAll('[role="alert"]')].map(item => item.textContent);
+
+    it.each(["NETWORK_ERROR", "TIMEOUT", "UNAVAILABLE", "INVALID_RESPONSE"])("%s 로 끊겨도 방 본문을 그대로 두고 그 자리에서 다시 시도하게 하며, 다시 시도가 되면 끝난 화면이 된다", async code => {
+      vi.mocked(requestPairSession).mockResolvedValueOnce({ ok: true, snapshot: ready() }).mockResolvedValueOnce(fail(code))
+        .mockResolvedValueOnce({ ok: true, snapshot: closedSnapshot() });
+      await render("access", OWNER);
+      const shown = result();
+      await click("연결 끝내기"); await click("공유 답 지우고 연결 끝내기");
+      expect(vi.mocked(requestPairSession).mock.calls.at(-1)![0]).toEqual({ action: "revoke", roomId: ROOM, token: OWNER });
+      expect(result()).toBe(shown);
+      expect(container.querySelector('[aria-label="두 사람 연결 관리"]')).not.toBeNull();
+      expect(container.textContent).not.toContain("함께 보기 결과를 확인하지 못했어요");
+      expect(shownAlerts()).toEqual(["연결 끝내기에 실패했어요. 다시 눌러 주세요."]);
+      expect([...container.querySelectorAll("button")].some(button => button.textContent === "공유 답 지우고 연결 끝내기")).toBe(false);
+      await click("연결 끝내기 다시 시도");
+      expect(vi.mocked(requestPairSession).mock.calls.at(-1)![0]).toEqual({ action: "revoke", roomId: ROOM, token: OWNER });
+      expect(container.textContent).toContain("함께 보기가 끝났어요"); expect(result()).toBeNull(); expect(shownAlerts()).toEqual([]);
+    });
+
+    it("실패한 뒤 닫았다 다시 열면 이전 실패 문구는 남지 않고, 방은 계속 확인된다", async () => {
+      vi.mocked(requestPairSession).mockResolvedValueOnce({ ok: true, snapshot: ready() }).mockResolvedValueOnce(fail("NETWORK_ERROR")).mockResolvedValue({ ok: true, snapshot: ready() });
+      await render("access", OWNER);
+      await click("연결 끝내기"); await click("공유 답 지우고 연결 끝내기");
+      expect(shownAlerts()).toHaveLength(1);
+      await click("계속 함께 보기"); await click("연결 끝내기");
+      expect(shownAlerts()).toEqual([]);
+      expect([...container.querySelectorAll("button")].some(button => button.textContent === "공유 답 지우고 연결 끝내기")).toBe(true);
+      await poll(); expect(result()).not.toBeNull();
+    });
+
+    it.each(["CLOSED", "NOT_FOUND"])("%s 같은 확정 오류는 기존처럼 오류 화면이다", async code => {
+      vi.mocked(requestPairSession).mockResolvedValueOnce({ ok: true, snapshot: ready() }).mockResolvedValueOnce(fail(code));
+      await render("access", OWNER);
+      await click("연결 끝내기"); await click("공유 답 지우고 연결 끝내기");
+      expect(result()).toBeNull();
+      expect(container.querySelector('[role="alert"]')?.textContent).toContain("함께 보기 결과를 확인하지 못했어요");
+      expect(container.textContent).toContain("서버가 준 오류 문장이에요.");
+    });
+  });
+
+  describe("만든 지 7일이 지난 방 주소", () => {
+    function roomAt(ms: number): string {
+      const stamp = ms.toString(16).padStart(12, "0");
+      return `${stamp.slice(0, 8)}-${stamp.slice(8)}-4111-8111-111111111111`;
+    }
+    async function openRoom(room: string, mode: "access" | "invite", token: string) {
+      await act(async () => { window.history.replaceState(null, "", `/wedding-code/together#room=${room}&${mode}=${token}`); window.dispatchEvent(new Event("hashchange")); });
+      await act(async () => root.render(<WeddingCodeTogether />));
+    }
+
+    it.each([["access", OWNER], ["invite", INVITE]] as const)("%s 주소는 서버에 묻기 전에 만료 안내를 보이고 재시도 단추를 숨긴다", async (mode, token) => {
+      await openRoom(roomAt(Date.now() - 7 * 86_400_000 - 1), mode, token);
+      expect(requestPairSession).not.toHaveBeenCalled();
+      expect(container.querySelector('[role="alert"]')?.textContent).toContain(mode === "invite" ? "만든 지 7일이 지나 끝났을 수 있어요. 초대한 분께 새 초대를 부탁해 주세요." : "만든 지 7일이 지나 끝났을 수 있어요. 새로 초대해 주세요.");
+      expect([...container.querySelectorAll("button")].map(item => item.textContent)).not.toContain("다시 확인하기");
+      expect(container.textContent).not.toContain("함께 보기 결과를 확인하지 못했어요");
+      expect([...container.querySelectorAll("a")].some(link => link.getAttribute("href") === "/wedding-code" && link.textContent === "내 웨딩코드로 돌아가기")).toBe(true);
+      await poll(); expect(requestPairSession).not.toHaveBeenCalled();
+    });
+
+    it("방 주인·참여자 주소는 새로 초대하라고, 초대 링크로 연 사람에게는 초대한 분께 부탁하라고 말하며, 입구 링크는 하나만 둔다", async () => {
+      const homeLinks = () => [...container.querySelectorAll("a")].filter(link => link.getAttribute("href") === "/wedding-code");
+      await openRoom(roomAt(Date.now() - 7 * 86_400_000 - 1), "access", OWNER);
+      expect(container.querySelector('[role="alert"]')?.textContent).toContain("새로 초대해 주세요.");
+      expect(homeLinks().map(link => link.textContent)).toEqual(["내 웨딩코드로 돌아가기"]);
+      await openRoom(roomAt(Date.now() - 7 * 86_400_000 - 2), "invite", INVITE);
+      const text = container.querySelector('[role="alert"]')?.textContent ?? "";
+      expect(text).toContain("초대한 분께 새 초대를 부탁해 주세요.");
+      expect(text).not.toContain("새로 초대해 주세요");
+      expect(homeLinks().map(link => link.textContent)).toEqual(["내 웨딩코드로 돌아가기"]);
+    });
+
+    it("7일이 지나지 않은 주소는 평소처럼 서버에 확인한다", async () => {
+      const room = roomAt(Date.now() - 7 * 86_400_000 + 60_000);
+      vi.mocked(requestPairSession).mockResolvedValue({ ok: true, snapshot: { ...ready(), roomId: room } });
+      await openRoom(room, "access", OWNER);
+      expect(requestPairSession).toHaveBeenCalledTimes(1); expect(result()).not.toBeNull();
+    });
+  });
+
+  describe("서버가 참여를 확실히 거절했을 때", () => {
+    async function joinWith(rejected: PairSessionResult) {
+      vi.mocked(requestPairSession).mockResolvedValueOnce({ ok: true, snapshot: waiting() }).mockResolvedValueOnce(rejected);
+      await render("invite", INVITE); await click("내 결과 보기");
+      for (const checkbox of container.querySelectorAll<HTMLInputElement>('input[type="checkbox"]')) await act(async () => checkbox.click());
+      await click("동의하고 두 사람 결과 보기");
+      return vi.mocked(requestPairSession).mock.calls[1][0];
+    }
+    const links = () => [...container.querySelectorAll<HTMLAnchorElement>("a")].map(link => link.textContent);
+
+    it.each([["CONFLICT", "이미 다른 사람이 참여했어요."], ["CLOSED", "끝난 비교예요."], ["NOT_FOUND", "열 수 없는 비교예요."]])("%s 거절은 복구 링크를 숨기고 임시 확인 주소를 지우고 새 초대로 가는 길을 보여 준다", async (code, message) => {
+      const input = await joinWith({ ok: false, code, error: message });
+      if (input.action !== "join") throw new Error("참여 요청이 필요해요.");
+      expect(readPairSessionRecovery(ROOM)).toBeNull();
+      expect(links()).not.toContain("이미 연결됐는지 내 결과 확인하기");
+      expect(links()).not.toContain("이 탭에서 요청한 함께 보기 확인");
+      expect(container.textContent).not.toContain("확인하기");
+      expect(container.querySelector('[role="alert"]')?.textContent).toContain(message);
+      expect(container.textContent).toContain("내 웨딩코드로 가서 새 초대를 만들 수 있어요.");
+      expect(container.textContent).toContain("내 답은 이 화면에 그대로 있어요.");
+      const toStart = [...container.querySelectorAll<HTMLAnchorElement>("a")].find(link => link.textContent === "내 웨딩코드로 가기");
+      expect(toStart?.getAttribute("href")).toBe("/wedding-code");
+      // 이 초대로는 더 참여할 수 없으니 되풀이할 수 없는 동의 단추는 치운다.
+      expect(container.querySelectorAll('input[type="checkbox"]')).toHaveLength(0);
+      expect([...container.querySelectorAll("button")].map(item => item.textContent)).not.toContain("동의하고 두 사람 결과 보기");
+      expect(container.textContent).not.toContain("이전에 보낸 요청");
+      await poll(); expect(requestPairSession).toHaveBeenCalledTimes(2);
+      expect(readSavedPairSession()).toBeNull();
+    });
+
+    it("내 답이 이 브라우저에 저장돼 있으면 그대로 있다고 말한다", async () => {
+      expect(writeV31LocalProgress(window.localStorage, { draft: completeDraft(2), flow: "core", index: 0, screen: "result", editing: false, needsPriorityReview: false }, null).status).toBe("saved");
+      await joinWith({ ok: false, code: "CONFLICT", error: "이미 다른 사람이 참여했어요." });
+      expect(container.textContent).toContain("내 답은 이 브라우저에 그대로 있어요.");
+      expect(container.textContent).not.toContain("저장돼 있지 않아요");
+    });
+
+    it("저장이 없으면 화면을 나갈 때 사라질 수 있다고 숨기지 않고 알린다", async () => {
+      await joinWith({ ok: false, code: "CLOSED", error: "끝난 비교예요." });
+      expect(container.textContent).toContain("이 브라우저에는 저장돼 있지 않아서, 화면을 나가면 사라질 수 있어요.");
+      expect(container.textContent).not.toContain("내 답은 이 브라우저에 그대로 있어요.");
+    });
+
+    it("INVALID_REQUEST 거절도 복구 링크를 숨기지만 고쳐서 다시 보낼 수 있게 동의 칸은 남기고, 다시 보낼 때는 새 접근 키를 쓴다", async () => {
+      const first = await joinWith({ ok: false, code: "INVALID_REQUEST", error: "보낸 답이나 동의 항목에 문제가 있어요." });
+      if (first.action !== "join") throw new Error("참여 요청이 필요해요.");
+      expect(readPairSessionRecovery(ROOM)).toBeNull();
+      expect(links()).not.toContain("이미 연결됐는지 내 결과 확인하기");
+      expect(container.textContent).toContain("내 웨딩코드로 가서 새 초대를 만들 수 있어요.");
+      expect(container.querySelectorAll('input[type="checkbox"]')).toHaveLength(2);
+      vi.mocked(requestPairSession).mockResolvedValueOnce({ ok: false, code: "NETWORK_ERROR", error: "연결이 끊겼어요." });
+      await click("동의하고 두 사람 결과 보기");
+      expect(requestPairSession).toHaveBeenCalledTimes(3);
+      const second = vi.mocked(requestPairSession).mock.calls[2][0];
+      if (second.action !== "join") throw new Error("참여 요청이 필요해요.");
+      expect(second.participantToken).not.toBe(first.participantToken);
+    });
+
+    it("이전 요청을 다시 보내다 확정 거절을 받으면 그 요청을 버리고, 새로 보내려면 두 동의를 처음부터 다시 받는다", async () => {
+      vi.mocked(requestPairSession).mockResolvedValueOnce({ ok: true, snapshot: waiting() })
+        .mockResolvedValueOnce({ ok: false, code: "NETWORK_ERROR", error: "연결이 끊겼어요." })
+        .mockResolvedValueOnce({ ok: false, code: "INVALID_REQUEST", error: "보낸 답이나 동의 항목에 문제가 있어요." });
+      await render("invite", INVITE); await click("내 결과 보기");
+      for (const checkbox of container.querySelectorAll<HTMLInputElement>('input[type="checkbox"]')) await act(async () => checkbox.click());
+      await click("동의하고 두 사람 결과 보기");
+      await click("내 답 수정하기"); await click("문항 답하기"); await click("내 결과 보기");
+      expect(container.textContent).toContain("답을 고쳤더라도 이전 요청에는 고친 내용이 들어가지 않아요");
+      await click("처음 동의했던 답으로 다시 보내기");
+      expect(container.textContent).not.toContain("이전에 보낸 요청부터 확인해 주세요");
+      expect(readPairSessionRecovery(ROOM)).toBeNull();
+      const boxes = container.querySelectorAll<HTMLInputElement>('input[type="checkbox"]');
+      expect(boxes).toHaveLength(2); expect([...boxes].every(box => !box.checked)).toBe(true);
+      await click("동의하고 두 사람 결과 보기");
+      expect(requestPairSession).toHaveBeenCalledTimes(3);
+      expect(container.querySelector('[role="alert"]')?.textContent).toContain("만 14세 이상 확인과 공유 동의, 두 칸에 먼저 체크해 주세요.");
+    });
+
+    it("처리 여부를 모르는 실패(시간 초과)는 지금처럼 복구 링크와 임시 확인 주소를 남긴다", async () => {
+      const input = await joinWith({ ok: false, code: "TIMEOUT", error: "연결이 너무 오래 걸렸어요." });
+      if (input.action !== "join") throw new Error("참여 요청이 필요해요.");
+      expect(readPairSessionRecovery(ROOM)?.token).toBe(input.participantToken);
+      expect(links()).toContain("이미 연결됐는지 내 결과 확인하기");
+      expect(container.textContent).not.toContain("내 웨딩코드로 가기");
+    });
   });
 });

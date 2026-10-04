@@ -872,7 +872,8 @@ describe("문서의 최종 문구를 그대로 옮겼다", () => {
     );
     expect(V40_COPY.receive.scope).toBe("식을 올리지 않아도, 부모님이 안 계셔도, 재혼이어도, 아직 준비 전이어도 답할 수 있어요.");
     expect(V40_COPY.receive.answerButton).toBe("나도 답해 보기");
-    expect(V40_COPY.receive.reloadNote).toBe("이 화면을 새로고침하면 상대의 답이 화면에서 사라져요. 그럴 때는 받은 링크를 다시 열어 주세요.");
+    // 감사 B4, B18: 주소를 복사해 다른 브라우저로 옮기면 주소의 # 뒤가 없어서 상대의 답이 따라오지 않는다는 말을 기존 안내 뒤에 더했다.
+    expect(V40_COPY.receive.reloadNote).toBe("이 화면을 새로고침하면 상대의 답이 화면에서 사라져요. 그럴 때는 받은 링크를 다시 열어 주세요. 주소를 복사해 다른 브라우저로 옮기면 상대의 답이 따라오지 않아요. 대화방에서 받은 링크를 그 브라우저에서 다시 열어 주세요.");
     expect(V40_COPY.receive.noCompareNote).toBe("이번에는 답이 화면의 같은 위치에 몰렸거나 답할 수 있는 질문이 적어서 글자를 정하지 못했어요. 그래서 두 사람 결과를 만들 수 없어요. 처음부터 다시 답해 볼 수 있고, 받은 상대의 답은 그대로 남아 있어요.");
     expect(V40_COPY.receive.noCompareRestartButton).toBe(V40_COPY.manage.restart.button);
     // 두 사람 결과가 없는 화면은 「우리 둘의 웨딩코드」라는 결과 제목을 쓰지 않는다.
@@ -888,6 +889,7 @@ describe("문서의 최종 문구를 그대로 옮겼다", () => {
     expect(V40_COPY.question.receivedNote).toContain("상대가 보낸 링크로 열었어요");
     expect(V40_COPY.question.receivedNote).toContain("새로고침하면 상대의 답이 화면에서 사라져요");
     expect(V40_COPY.question.receivedNote).toContain("받은 링크를 다시 열어 주세요");
+    expect(V40_COPY.question.receivedNote).toContain("주소를 복사해 다른 브라우저로 옮기면 상대의 답이 따라오지 않아요. 대화방에서 받은 링크를 그 브라우저에서 다시 열어 주세요.");
     // 받는 사람 묶음에는 이 문장이 없다(그 묶음은 고지 문장이 있어서 질문 화면에 끌어오면 고지 수 규칙이 깨진다).
     expect("inProgressNote" in V40_COPY.receive).toBe(false);
     expect(V40_COPY.question.receivedNote).not.toContain(V40_NOT_VALIDATED_PHRASE);
@@ -923,7 +925,7 @@ describe("문서의 최종 문구를 그대로 옮겼다", () => {
     expect(V40_COPY.intro.inviteConflict.keepMineButton).toBe("저장된 답으로 계속하기");
     expect(V40_COPY.intro.inviteConflict.useLinkButton).toBe("받은 링크로 처음부터 하기");
     expect(V40_COPY.intro.legacy.body).toBe("질문이 바뀌어서 새 웨딩코드로 옮길 수는 없어요. 새 질문에 처음부터 답하면 돼요.");
-    expect(V40_COPY.error.brokenLink.body).toBe("링크가 중간에 잘렸거나 예전 웨딩코드에서 만든 링크일 수 있어요. 보낸 사람에게 링크를 다시 받아 보세요.");
+    expect(V40_COPY.error.brokenLink.body).toBe("링크가 중간에 잘렸거나 끝에 글자가 더 붙었을 수 있어요. 끝의 글자를 지우고 다시 열어 보거나, 보낸 사람에게 링크를 다시 받아 주세요.");
   });
 
   it("두 사람 결과", () => {

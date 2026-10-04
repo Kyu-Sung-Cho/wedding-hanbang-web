@@ -202,5 +202,23 @@
     "target": "scripts/tests/wedding-code-v40-source-guards.test.mjs",
     "find": "if (hit.line < from || hit.line > to) problems.push(",
     "replace": "if (false) problems.push("
+  },
+  {
+    "name": "규칙 5: v3.1 과 함께 쓰는 저장소 핸들 도우미 안에서 realLocalStorage 밖에 localStorage 이름을 더 부른다",
+    "target": "apps/web/src/lib/weddingCode/browserStorageHandle.ts",
+    "find": "export function requireRealLocalStorage",
+    "replace": "export function leakLocal(): unknown { return window.localStorage; }\n\nexport function requireRealLocalStorage"
+  },
+  {
+    "name": "규칙 5: v4 의 browserStorage() 가 진짜 Storage 판별(realLocalStorage)을 거치지 않고 localStorage 를 바로 돌려준다",
+    "target": "apps/web/src/lib/weddingCode/v40/storage.ts",
+    "find": "  return realLocalStorage();\n}",
+    "replace": "  return window.localStorage;\n}"
+  },
+  {
+    "name": "규칙 5(가드 쪽): browserStorage() 가 도우미를 부르는지 보는 검사를 끈다",
+    "target": "scripts/tests/wedding-code-v40-source-guards.test.mjs",
+    "find": "if (exported && !delegates) problems.push(",
+    "replace": "if (false) problems.push("
   }
 ]

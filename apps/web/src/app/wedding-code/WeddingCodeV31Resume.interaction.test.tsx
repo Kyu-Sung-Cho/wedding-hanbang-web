@@ -49,6 +49,8 @@ describe("V31 same-browser resume", () => {
     await act(async () => element.click());
   }
   async function button(text: string) { await click([...container.querySelectorAll("button")].find(item => item.textContent?.trim() === text)); }
+  /** 지우기 확인 창(문서 맨 끝에 그려지므로 container 밖이다)의 단추. */
+  async function dialogButton(text: string) { await click([...document.querySelectorAll('[role="alertdialog"] button')].find(item => item.textContent?.trim() === text)); }
   async function render(props: Partial<Parameters<typeof WeddingCodeV31Client>[0]> = {}) {
     await act(async () => root.render(<WeddingCodeV31Client shareOrigin="https://hanbang.ai" {...props} />));
   }
@@ -238,7 +240,19 @@ describe("V31 same-browser resume", () => {
     window.localStorage.setItem("unrelated", "keep");
     await render(); await button("내 웨딩코드 시작하기");
     await click(container.querySelector('input[value="5"]'));
+    // 끄면 저장된 답이 지워지므로 확인 창을 한 번 거친다. 그대로 두면 아무것도 바뀌지 않는다.
     await button("자동 저장 끄기");
+    expect(document.querySelector('[role="alertdialog"] h2')?.textContent).toBe("자동 저장을 끌까요?");
+    expect(document.querySelector('[role="alertdialog"] p')?.textContent).toBe("꺼 두면 지금 저장된 답이 지워지고 이후에는 저장되지 않아요.");
+    expect(window.localStorage.getItem(LOCAL_KEY)).not.toBeNull();
+    expect(window.localStorage.getItem(V31_SAVE_PREFERENCE_KEY)).toBeNull();
+    await dialogButton("그대로 두기");
+    expect(document.querySelector('[role="alertdialog"]')).toBeNull();
+    expect(window.localStorage.getItem(LOCAL_KEY)).not.toBeNull();
+    expect(window.localStorage.getItem(V31_SAVE_PREFERENCE_KEY)).toBeNull();
+    expect(container.querySelector('[aria-pressed="true"]')?.textContent).toBe("자동 저장 끄기");
+    await button("자동 저장 끄기"); await dialogButton("끄고 지우기");
+    expect(document.querySelector('[role="alertdialog"]')).toBeNull();
     expect(window.localStorage.getItem(LOCAL_KEY)).toBeNull();
     expect(window.localStorage.getItem("unrelated")).toBe("keep");
     expect(window.localStorage.getItem(V31_SAVE_PREFERENCE_KEY)).toBe("off");
@@ -257,6 +271,10 @@ describe("V31 same-browser resume", () => {
     await click(container.querySelector('input[value="5"]'));
     expect(container.textContent).toContain("자동 저장을 꺼도 서버에 있는 함께 보기 연결은 그대로 남아요. 끝내려면 끄기 전에 두 사람 결과 화면에서 ‘연결 끝내기’를 눌러 주세요. 이미 껐다면 따로 복사해 둔 ‘나만 보관할 확인 주소’로 열어 끝낼 수 있어요.");
     await button("자동 저장 끄기");
+    // 확인 주소도 함께 지워지므로 확인 창이 그 사실과 서버 연결이 남는다는 것을 미리 말한다.
+    expect(document.querySelector('[role="alertdialog"] p')?.textContent).toBe("꺼 두면 지금 저장된 답과 함께 보기 확인 주소가 지워지고 이후에는 저장되지 않아요. 서버의 함께 보기 연결은 그대로 남으니, 끝내려면 먼저 ‘연결 끝내기’를 눌러 주세요.");
+    expect(window.localStorage.getItem(PAIR_SESSION_LOCAL_KEY)).not.toBeNull();
+    await dialogButton("끄고 지우기");
     expect(window.localStorage.getItem(PAIR_SESSION_LOCAL_KEY)).toBeNull();
     expect(window.localStorage.getItem(LOCAL_KEY)).toBeNull();
     expect(readPairSessionRecovery(pair.roomId)).toEqual(pair);
@@ -277,7 +295,7 @@ describe("V31 same-browser resume", () => {
       if (this === window.localStorage && key === PAIR_SESSION_LOCAL_KEY) throw new DOMException("blocked", "SecurityError");
       remove.call(this, key);
     });
-    await button("자동 저장 끄기");
+    await button("자동 저장 끄기"); await dialogButton("끄고 지우기");
     expect(window.localStorage.getItem(PAIR_SESSION_LOCAL_KEY)).not.toBeNull();
     expect(container.textContent).toContain("저장 설정을 바꾸지 못했어요");
     expect(container.textContent).not.toContain("자동 저장을 껐어요. 나가면 지금 답은 사라져요.");
@@ -293,7 +311,7 @@ describe("V31 same-browser resume", () => {
     expect(note?.textContent).toBe("‘이 브라우저의 답 지우기’는 답만 지워요. 이 브라우저에 저장된 함께 보기 확인 주소까지 지우려면 ‘자동 저장 끄기’를 눌러 주세요.");
     expect(container.textContent).not.toContain("함께 보기 요청의 처리 여부를 확인할 주소");
     expect([...note!.previousElementSibling!.querySelectorAll("button")].map(item => item.textContent?.trim())).toEqual(["자동 저장 끄기", "이 브라우저의 답 지우기"]);
-    await button("이 브라우저의 답 지우기");
+    await button("이 브라우저의 답 지우기"); await dialogButton("지우고 다시 답하기");
     expect(window.localStorage.getItem(LOCAL_KEY)).toBeNull();
     expect(window.localStorage.getItem(PAIR_SESSION_LOCAL_KEY)).toBe(pair);
     expect(container.querySelector("[data-question]")).toBeNull();
@@ -305,7 +323,7 @@ describe("V31 same-browser resume", () => {
     expect(container.querySelector("[data-pair-address-note]")).toBeNull();
     await act(async () => { seedPairSession(); });
     expect(container.querySelector("[data-pair-address-note]")).not.toBeNull();
-    await button("자동 저장 끄기");
+    await button("자동 저장 끄기"); await dialogButton("끄고 지우기");
     expect(window.localStorage.getItem(PAIR_SESSION_LOCAL_KEY)).toBeNull();
     expect(container.querySelector("[data-pair-address-note]")).toBeNull();
   });
@@ -366,6 +384,19 @@ describe("V31 same-browser resume", () => {
     expect(window.localStorage.getItem(LOCAL_KEY)).toBe(raw);
   });
 
+  it("저장 시각이 하루를 넘는 미래라 읽지 못하면 폰 날짜와 시간을 확인하라고 알리고, 다른 이유로 못 읽을 때는 말하지 않는다", async () => {
+    const status = () => container.querySelector('aside[aria-label="이 브라우저의 답 저장"] [role="status"]')?.textContent?.trim();
+    const draft = createV31Draft(); draft.answers.V1 = 5;
+    seed(snapshot(draft), Date.now() + 2 * 86_400_000);
+    await render();
+    expect(status()).toBe("저장된 답을 읽을 수 없어요. 새로 답하면 다시 저장해요. 폰 날짜와 시간이 맞는지 확인해 보세요.");
+    expect(container.textContent).not.toContain("이 브라우저에 남겨 둔 답");
+    await act(async () => root.unmount()); root = createRoot(container);
+    window.localStorage.setItem(LOCAL_KEY, "{깨진 값");
+    await render();
+    expect(status()).toBe("저장된 답을 읽을 수 없어요. 새로 답하면 다시 저장해요.");
+  });
+
   it.each(["off", "deleted"])("does not restore cached answers when %s is discovered at the resume click", async kind => {
     const draft = createV31Draft(); draft.answers.V1 = 5;
     seed(snapshot(draft)); await render();
@@ -380,9 +411,12 @@ describe("V31 same-browser resume", () => {
     vi.spyOn(window, "localStorage", "get").mockImplementation(() => { throw new DOMException("blocked", "SecurityError"); });
     await render(); await button("내 웨딩코드 시작하기");
     await click(container.querySelector('input[value="5"]'));
-    await button("이 브라우저의 답 지우기");
+    await button("이 브라우저의 답 지우기"); await dialogButton("지우고 다시 답하기");
     expect(container.querySelector("[data-question]")).toBeNull();
-    expect(container.textContent).toContain("현재 화면은 새로 시작했지만, 브라우저에 저장된 답을 지우지 못했어요");
+    // 저장소가 처음부터 막힌 브라우저에는 저장된 답이 없으므로 「지우지 못했어요」라고 말하지 않는다(저장 줄은 「저장할 수 없어요」).
+    expect(container.querySelector("[data-screen-notice]")).toBeNull();
+    expect(container.textContent).not.toContain("지우지 못했어요");
+    expect(container.textContent).toContain("이 브라우저에 저장할 수 없어요");
     expect(container.textContent).not.toContain("이 브라우저에 남겨 둔 답");
     await button("내 웨딩코드 시작하기");
     expect(container.querySelector<HTMLInputElement>('input[value="5"]')?.checked).toBe(false);
@@ -393,7 +427,7 @@ describe("V31 same-browser resume", () => {
     seed(snapshot(draft)); await render(); await button("이어서 답하기");
     const raw = window.localStorage.getItem(LOCAL_KEY);
     vi.spyOn(Storage.prototype, "removeItem").mockImplementation(() => { throw new DOMException("blocked", "SecurityError"); });
-    await button("이 브라우저의 답 지우기");
+    await button("이 브라우저의 답 지우기"); await dialogButton("지우고 다시 답하기");
     expect(container.querySelector("[data-question]")).toBeNull();
     expect(container.textContent).toContain("현재 화면은 새로 시작했지만, 브라우저에 저장된 답을 지우지 못했어요");
     expect(container.textContent).not.toContain("이 브라우저에 남겨 둔 답");
@@ -407,7 +441,7 @@ describe("V31 same-browser resume", () => {
     await act(async () => root.render(<WeddingCodeEntryClient shareOrigin="https://hanbang.ai" />));
     await button("이어서 답하기");
     vi.spyOn(Storage.prototype, "removeItem").mockImplementation(() => { throw new DOMException("blocked", "SecurityError"); });
-    await button("이 브라우저의 답 지우기");
+    await button("이 브라우저의 답 지우기"); await dialogButton("지우고 다시 답하기");
     expect(window.location.hash).toBe("");
     expect(container.textContent).toContain("현재 화면은 새로 시작했지만, 브라우저에 저장된 답을 지우지 못했어요");
     // 새 Entry는 디스크에 실제 남은 답을 다시 읽는다. 삭제 성공으로 표시하지 않는다.
@@ -418,7 +452,7 @@ describe("V31 same-browser resume", () => {
       window.dispatchEvent(new Event("popstate"));
     });
     expect(container.textContent).not.toContain("상대의 답이 담긴 링크를 받았어요");
-    await button("저장된 답 지우고 새로 시작");
+    await button("저장된 답 지우고 새로 시작"); await dialogButton("지우고 새로 시작");
     expect(container.querySelector<HTMLInputElement>('input[value="2"]')?.checked).toBe(false);
   });
 
@@ -628,7 +662,7 @@ describe("V31 same-browser resume", () => {
     seed(snapshot(draft, { flow: "core", index: V31_CORE_INDEXES[0] }));
     await render();
     vi.spyOn(Storage.prototype, "removeItem").mockImplementation(() => { throw new DOMException("blocked", "SecurityError"); });
-    await button("저장된 답 지우고 새로 시작");
+    await button("저장된 답 지우고 새로 시작"); await dialogButton("지우고 새로 시작");
     expect(container.textContent).toContain("현재 화면은 새로 시작했지만, 브라우저에 저장된 답을 지우지 못했어요");
   });
 

@@ -177,7 +177,7 @@ interface SavedProgress {
   readonly raw: string;
 }
 
-type StorageIssue = "invalid" | "expired" | "unavailable";
+type StorageIssue = "invalid" | "invalidClock" | "expired" | "unavailable";
 
 interface BootReady {
   readonly status: "ready";
@@ -866,7 +866,8 @@ export function WeddingCodeV40Core({ shareOrigin, initial, resolved, embedded = 
         expectedRawRef.current = read.status === "expired" && purged.progress ? null : read.raw;
         if (read.status === "ready") saved = { snapshot: read.snapshot, savedAt: read.savedAt, raw: read.raw };
         else if (read.status === "expired") issue = purged.progress ? "expired" : null;
-        else if (read.status === "invalid" || read.status === "unavailable") issue = read.status;
+        else if (read.status === "invalid") issue = read.clockAhead === true ? "invalidClock" : "invalid";
+        else if (read.status === "unavailable") issue = "unavailable";
       }
       // 결과 전에 고른 글자(4.1 단계 2): 그 화면이 켜져 있을 때만 포트를 만든다(꺼져 있으면 저장소를 읽지도 쓰지도 않는다). 기간이 지난 것은 읽으며 지우고,
       // 이어 할 진행이 없는데 보관본만 남은 것(고아)과 읽을 수 없는 것은 지운다. 이어 할 진행이 있으면 이어 하기 때 결과 쪽일 때만 화면에 올린다.
@@ -1244,7 +1245,7 @@ export function WeddingCodeV40Core({ shareOrigin, initial, resolved, embedded = 
             buildUrl: () =>
               ownDecoded === null
                 ? null
-                : buildGatedShareUrlWithGuess(bank, shareOrigin, { code: partner, guess: partnerGuess }, { code: ownDecoded, guess: ownGuess }),
+                : buildGatedShareUrlWithGuess(bank, shareOrigin, { code: partner, guess: partnerGuess }, { code: ownDecoded, guess: ownGuess }, { explicitVersion: !weddingCodeDefaultsToV40() }),
             onSent: handleLinkSent,
             env: injected?.shareEnv,
             // 링크에 실리는 짐작에 맞는 한 줄: 둘 다 있으면 두 사람의 것, 내가 건너뛰어 받은 상대의 것만 다시 실리면 그것만 말한다.
@@ -1315,7 +1316,7 @@ export function WeddingCodeV40Core({ shareOrigin, initial, resolved, embedded = 
                 guessNote={stage.ownGuess === null ? undefined : V40_COPY.guess.shareInfo}
                 buildUrl={(option) =>
                   option === "withAnswers"
-                    ? buildGatedShareUrlWithGuess(bank, shareOrigin, { code: { formBit: flow.formBit, responses: flow.responses }, guess: stage.ownGuess })
+                    ? buildGatedShareUrlWithGuess(bank, shareOrigin, { code: { formBit: flow.formBit, responses: flow.responses }, guess: stage.ownGuess }, undefined, { explicitVersion: !weddingCodeDefaultsToV40() })
                     : buildQuestionOnlyUrl(shareOrigin, { explicitVersion: !weddingCodeDefaultsToV40() })
                 }
               />

@@ -85,6 +85,8 @@ const PATHS = {
   copy: join(WEB_SRC, "lib/weddingCode/v40/copy.ts"),
   codec: join(WEB_SRC, "lib/weddingCode/v40/codec.ts"),
   storage: join(WEB_SRC, "lib/weddingCode/v40/storage.ts"),
+  // v3.1 과 v4 가 함께 쓰는 저장소 핸들 도우미. 저장소 이름(window.localStorage)은 이 파일의 realLocalStorage 한 함수 안에만 있다.
+  storageHandle: join(WEB_SRC, "lib/weddingCode/browserStorageHandle.ts"),
   client: join(WEB_SRC, "app/wedding-code/WeddingCodeV40Client.tsx"),
   guessLink: join(WEB_SRC, "lib/weddingCode/v40/guess/guessLink.ts"),
   guessConstants: join(WEB_SRC, "constants/weddingCodeV40Guess.ts"),
@@ -838,24 +840,50 @@ function storageBypassHits(analysis) {
 }
 
 /**
- * storage.ts 자신의 검사(계약 문서 9.3절). 저장소 이름을 부를 수 있는 파일은 storage.ts 뿐이지만 그 안에서도 이름은 export function browserStorage 한 함수 안에
- * 한 번만 나와야 한다. 그 함수가 없으면 「클라이언트는 storage.ts 의 browserStorage() 로 핸들을 받는다」는 안내가 거짓이 되고,
+ * 저장소 핸들 도우미(lib/weddingCode/browserStorageHandle.ts)의 검사(계약 문서 9.3절). 저장소 이름은 v3.1 과 v4 가 함께 쓰는 이 파일의
+ * export function realLocalStorage 한 함수 안에 한 번만 나와야 한다. 그 함수가 없으면 「저장소 핸들은 이 함수 한 곳에서 받는다」는 안내가 거짓이 되고,
  * 함수 밖(모듈 최상위나 다른 함수)에 이름이 있으면 핸들이 바깥으로 새는 다른 길이 생긴다. 문제 문장의 목록을 돌려준다(없으면 빈 배열).
+ * (이 검사는 예전에 v4 의 storage.ts 안 browserStorage 함수를 보던 것을 판별이 이사한 자리로 옮긴 것이다. 강도는 그대로다.)
  */
-function storageHandleProblems(analysis) {
+const STORAGE_HANDLE_TARGET = { fn: "realLocalStorage", file: { group: "lib", base: "browserStorageHandle.ts", abs: PATHS.storageHandle }, where: "browserStorageHandle.ts" };
+function storageHandleProblems(analysis, target = STORAGE_HANDLE_TARGET) {
+  const sf = analysis.sf;
+  const problems = [];
+  const handle = sf.statements.find((statement) => ts.isFunctionDeclaration(statement) && statement.name && statement.name.text === target.fn) ?? null;
+  const exported = handle !== null && (handle.modifiers ?? []).some((modifier) => modifier.kind === ts.SyntaxKind.ExportKeyword);
+  if (!exported) problems.push(`${target.where} 에 export function ${target.fn}() 가 없다(웨딩코드가 저장소 핸들을 받을 유일한 자리)`);
+  const from = handle === null ? 0 : sf.getLineAndCharacterOfPosition(handle.getStart(sf)).line + 1;
+  const to = handle === null ? -1 : sf.getLineAndCharacterOfPosition(handle.getEnd()).line + 1;
+  const hits = apiHits(analysis, target.file).filter((hit) => hit.api === "storage");
+  const inside = hits.filter((hit) => hit.line >= from && hit.line <= to);
+  for (const hit of hits) {
+    if (hit.line < from || hit.line > to) problems.push(`${target.where}:${hit.line} ${hit.what} (저장소 이름은 ${target.fn} 함수 안에서만 부른다)`);
+  }
+  if (exported && inside.length !== 1) problems.push(`${target.fn} 함수 안에 저장소 이름이 ${inside.length}번 나온다(정확히 한 번, 한 저장소만)`);
+  return problems;
+}
+
+/**
+ * storage.ts(v4)의 검사: 저장소 이름은 하나도 없어야 하고(이름은 위 도우미 한 곳뿐), export function browserStorage() 가 그 도우미의 realLocalStorage() 를
+ * 불러 결과를 돌려줘야 한다. 이 함수가 없으면 「클라이언트는 storage.ts 의 browserStorage() 로 핸들을 받는다」는 안내가 거짓이 되고,
+ * 판별을 거치지 않는 다른 길로 핸들을 만들면 막힌 브라우저가 메모리 저장소를 진짜로 믿게 된다. 문제 문장의 목록을 돌려준다(없으면 빈 배열).
+ */
+function storageDelegationProblems(analysis) {
   const sf = analysis.sf;
   const problems = [];
   const handle = sf.statements.find((statement) => ts.isFunctionDeclaration(statement) && statement.name && statement.name.text === "browserStorage") ?? null;
   const exported = handle !== null && (handle.modifiers ?? []).some((modifier) => modifier.kind === ts.SyntaxKind.ExportKeyword);
   if (!exported) problems.push("storage.ts 에 export function browserStorage() 가 없다(클라이언트가 저장소 핸들을 받을 유일한 자리)");
-  const from = handle === null ? 0 : sf.getLineAndCharacterOfPosition(handle.getStart(sf)).line + 1;
-  const to = handle === null ? -1 : sf.getLineAndCharacterOfPosition(handle.getEnd()).line + 1;
-  const hits = apiHits(analysis, { group: "lib", base: "storage.ts", abs: PATHS.storage }).filter((hit) => hit.api === "storage");
-  const inside = hits.filter((hit) => hit.line >= from && hit.line <= to);
-  for (const hit of hits) {
-    if (hit.line < from || hit.line > to) problems.push(`storage.ts:${hit.line} ${hit.what} (저장소 이름은 browserStorage 함수 안에서만 부른다)`);
+  for (const hit of apiHits(analysis, { group: "lib", base: "storage.ts", abs: PATHS.storage }).filter((h) => h.api === "storage")) {
+    problems.push(`storage.ts:${hit.line} ${hit.what} (저장소 이름은 lib/weddingCode/browserStorageHandle.ts 의 realLocalStorage 한 곳에만 있다)`);
   }
-  if (exported && inside.length !== 1) problems.push(`browserStorage 함수 안에 저장소 이름이 ${inside.length}번 나온다(정확히 한 번, 한 저장소만)`);
+  let delegates = false;
+  const visit = (node) => {
+    if (ts.isCallExpression(node) && ts.isIdentifier(node.expression) && node.expression.text === "realLocalStorage") delegates = true;
+    ts.forEachChild(node, visit);
+  };
+  if (handle !== null) visit(handle);
+  if (exported && !delegates) problems.push("browserStorage() 가 realLocalStorage() 를 부르지 않는다(진짜 Storage 판별을 거치지 않는 핸들은 막힌 브라우저의 메모리 저장소를 진짜로 믿게 한다)");
   return problems;
 }
 
@@ -1656,7 +1684,8 @@ function clientEventReport(analysis) {
  */
 const ENGINE_FREEZE = [
   ["apps/web/src/lib/weddingCode/v40/flow.ts", "f30fc233f111f9a2f093f6b5779113cf51c8fe9579fdbdf6ec3c7593ce300b83"],
-  ["apps/web/src/lib/weddingCode/v40/codec.ts", "9f6bae5bd8b85a7e2806e403c499faa154ec5391f20bdcb5b8309b006a16c030"],
+  // 2026-10-04 감사 A68: 답이 든 링크에 쿼리 \`?v=v4.0-tendency\` 를 더했다(assembleShareUrl 과 선택 인자 explicitVersion 만 바뀌었다. 코드 글자, 체크섬, 해시 읽기는 그대로다). 해시를 새 값으로 고쳤다. 판 태그는 올리지 않는다(해시 부분은 그대로고 쿼리가 없는 옛 링크도 그대로 열린다).
+  ["apps/web/src/lib/weddingCode/v40/codec.ts", "71431e66e6106f09c10cf4aff8241d134ebe96a6bdaa0ce779572fc409191d95"],
   ["apps/web/src/lib/weddingCode/v40/score.ts", "03e756e9dc85356a26b8864346239ac5556ed0b125ba8fdf4c60863cf890aae4"],
   ["apps/web/src/lib/weddingCode/v40/gates.ts", "c130593b322e8d642151890866ef9344de649b1714faecdd30e9172694311596"],
   ["apps/web/src/lib/weddingCode/v40/value.ts", "11ae45166677b3af39f2a0b234f62cd4cd5513bf75f3810f1b23bd7ce12ccb80"],
@@ -1984,16 +2013,20 @@ test("규칙 5: 브라우저 저장소는 storage.ts 한 곳만 이름을 부르
   t.diagnostic(`v4 가 가져오는 wedding-code 이웃 파일 ${neighbors.length}개도 훑었다: ${neighbors.map((f) => f.rel).join(", ")}`);
   for (const file of neighbors) {
     const analysis = load(file);
-    for (const hit of apiHits(analysis, file)) {
-      if (hit.api === "storage") offenders.push(`${file.rel}:${hit.line} ${hit.what} (v4 가 가져오는 이웃 파일이다. 저장소 이름은 lib/weddingCode/v40/storage.ts 의 browserStorage() 만 부른다)`);
+    // 저장소 핸들 도우미는 저장소 이름이 realLocalStorage 한 함수 안에 한 번만 있는지를 아래에서 따로 본다(다른 이웃은 이름이 하나도 없어야 한다).
+    for (const hit of file.abs === PATHS.storageHandle ? [] : apiHits(analysis, file)) {
+      if (hit.api === "storage") offenders.push(`${file.rel}:${hit.line} ${hit.what} (v4 가 가져오는 이웃 파일이다. 저장소 이름은 lib/weddingCode/browserStorageHandle.ts 의 realLocalStorage() 만 부른다)`);
     }
     for (const hit of storageBypassHits(analysis)) offenders.push(`${file.rel}:${hit.line} ${hit.what} (v4 가 가져오는 이웃 파일)`);
   }
-  // storage.ts 자신: 이름은 export function browserStorage 한 함수 안에 한 번만.
+  // storage.ts 자신: 이름이 하나도 없고, browserStorage() 가 도우미의 realLocalStorage() 를 부른다.
   const storageFile = V40_FILES.find((f) => f.abs === PATHS.storage);
-  if (storageFile) for (const problem of storageHandleProblems(load(storageFile))) offenders.push(problem);
-  assertNone(offenders, "브라우저 저장소를 storage.ts 의 browserStorage() 밖에서 만졌다(끄기의 지우기를 건너뛰는 길이 된다):");
-  if (!existsSync(PATHS.storage)) t.diagnostic("(storage.ts 가 아직 없다. 생기면 그 파일의 browserStorage() 만 저장소 이름을 부를 수 있다)");
+  if (storageFile) for (const problem of storageDelegationProblems(load(storageFile))) offenders.push(problem);
+  // 저장소 핸들 도우미: 이름은 export function realLocalStorage 한 함수 안에 한 번만.
+  if (existsSync(PATHS.storageHandle)) for (const problem of storageHandleProblems(loadPath(PATHS.storageHandle))) offenders.push(problem);
+  else if (storageFile) offenders.push("lib/weddingCode/browserStorageHandle.ts 가 없다(v4 의 browserStorage() 가 의존하는 저장소 핸들 도우미)");
+  assertNone(offenders, "브라우저 저장소를 browserStorageHandle.ts 의 realLocalStorage() 밖에서 만졌다(끄기의 지우기를 건너뛰는 길이 된다):");
+  if (!existsSync(PATHS.storage)) t.diagnostic("(storage.ts 가 아직 없다. 생기면 그 파일의 browserStorage() 가 realLocalStorage() 를 불러 핸들을 받는다)");
 });
 
 test("규칙 6: 이용 통계 호출은 고지한 이벤트와 속성만 쓴다", (t) => {
@@ -2403,17 +2436,27 @@ test("검사기가 실제로 잡는다: 가져오기, 네트워크, 저장소, �
   assert.equal(bypass("const s = browserStorage(); const pref = readAutosavePreference(s); writeAutosavePreference(s, 'off'); const days = V40_STORAGE.ttlMs;"), 0, "storage.ts 의 함수를 부르거나 저장 기간을 읽는 것을 잡았다");
   assert.equal(bypass("const m = new Map(); m.set('a', 1); m.get('a');"), 0, "Map 의 set, get 을 잡았다");
 
-  // storage.ts 자신: 이름은 export function browserStorage 한 함수 안에 한 번만.
-  const handleProblems = (source) => storageHandleProblems(analyzeText(source, PATHS.storage));
-  const GOOD_HANDLE = "export function browserStorage() { if (typeof window === 'undefined') return null; try { return window.localStorage; } catch { return null; } }";
-  assert.deepEqual(handleProblems(GOOD_HANDLE), [], "올바른 browserStorage 를 문제로 읽었다");
+  // 저장소 핸들 도우미: 이름은 export function realLocalStorage 한 함수 안에 한 번만.
+  const handleProblems = (source) => storageHandleProblems(analyzeText(source, PATHS.storageHandle));
+  const GOOD_HANDLE = "export function realLocalStorage() { if (typeof window === 'undefined') return null; try { return window.localStorage; } catch { return null; } }";
+  assert.deepEqual(handleProblems(GOOD_HANDLE), [], "올바른 realLocalStorage 를 문제로 읽었다");
   assert.deepEqual(handleProblems(`${GOOD_HANDLE}\nexport function readX(s) { return s.getItem('k'); }`), [], "저장소 이름이 없는 다른 함수를 문제로 읽었다");
-  assert.equal(handleProblems("export function readX() { return 1; }").length, 1, "browserStorage 가 없는 storage.ts 를 못 잡았다");
-  assert.equal(handleProblems("function browserStorage() { return window.localStorage; }").length, 1, "export 가 없는 browserStorage 를 못 잡았다");
-  assert.equal(handleProblems(`${GOOD_HANDLE}\nexport function other() { return window.sessionStorage; }`).length, 1, "browserStorage 밖의 저장소 이름을 못 잡았다");
+  assert.equal(handleProblems("export function readX() { return 1; }").length, 1, "realLocalStorage 가 없는 도우미 파일을 못 잡았다");
+  assert.equal(handleProblems("function realLocalStorage() { return window.localStorage; }").length, 1, "export 가 없는 realLocalStorage 를 못 잡았다");
+  assert.equal(handleProblems(`${GOOD_HANDLE}\nexport function other() { return window.sessionStorage; }`).length, 1, "realLocalStorage 밖의 저장소 이름을 못 잡았다");
   assert.equal(handleProblems(`${GOOD_HANDLE}\nconst top = window.localStorage;`).length, 1, "모듈 최상위의 저장소 이름을 못 잡았다");
-  assert.equal(handleProblems("export function browserStorage() { return window.localStorage ?? window.sessionStorage; }").length, 1, "한 함수 안에서 저장소를 둘 부르는 것을 못 잡았다");
-  assert.equal(handleProblems("export function browserStorage() { return null; }").length, 1, "저장소 이름이 없는 browserStorage 를 못 잡았다");
+  assert.equal(handleProblems("export function realLocalStorage() { return window.localStorage ?? window.sessionStorage; }").length, 1, "한 함수 안에서 저장소를 둘 부르는 것을 못 잡았다");
+  assert.equal(handleProblems("export function realLocalStorage() { return null; }").length, 1, "저장소 이름이 없는 realLocalStorage 를 못 잡았다");
+  // storage.ts(v4): 이름이 하나도 없고 browserStorage() 가 realLocalStorage() 를 부른다.
+  const delegationProblems = (source) => storageDelegationProblems(analyzeText(source, PATHS.storage));
+  const GOOD_DELEGATE = "import { realLocalStorage } from '../browserStorageHandle'; export function browserStorage() { return realLocalStorage(); }";
+  assert.deepEqual(delegationProblems(GOOD_DELEGATE), [], "올바르게 도우미에 맡기는 browserStorage 를 문제로 읽었다");
+  assert.deepEqual(delegationProblems(`${GOOD_DELEGATE}\nexport function readX(s) { return s.getItem('k'); }`), [], "저장소 이름이 없는 다른 함수를 문제로 읽었다");
+  assert.equal(delegationProblems("export function readX() { return 1; }").length, 1, "browserStorage 가 없는 storage.ts 를 못 잡았다");
+  assert.equal(delegationProblems("function browserStorage() { return realLocalStorage(); }").length, 1, "export 가 없는 browserStorage 를 못 잡았다");
+  assert.ok(delegationProblems("export function browserStorage() { return window.localStorage; }").length >= 1, "도우미를 거치지 않고 localStorage 를 바로 부르는 browserStorage 를 못 잡았다");
+  assert.equal(delegationProblems(`${GOOD_DELEGATE}\nexport function other() { return window.sessionStorage; }`).length, 1, "storage.ts 안의 저장소 이름을 못 잡았다");
+  assert.equal(delegationProblems("export function browserStorage() { return null; }").length, 1, "도우미를 부르지 않는 browserStorage 를 못 잡았다");
 
   // 답이 서버로 가는 길: 쿼리, 계산된 이동 주소, searchParams 쓰기
   const qk = (source) => recs(source).flatMap((r) => queryKeyHits(r)).length;
@@ -2643,17 +2686,17 @@ test("검사기가 실제로 잡는다: 짐작 해시 키 ga, gb 와 짐작 코�
   assert.equal(sentryGateHits(["app/x.ts:1 @/lib/weddingCode/v40/guess/guessLink"], false).length, 1, "정제 없이 짐작 코덱을 여는 입구를 못 잡았다");
 });
 
-test("검사기가 실제로 잡는다: 저장소 이름은 browserStorage(localStorage) 한 함수 안에서만 부른다. 이 창의 임시 저장소(sessionStorage)는 이 단계에 없다", () => {
-  const problems = (source) => storageHandleProblems(analyzeText(source, PATHS.storage));
-  const GOOD = "export function browserStorage() { try { return window.localStorage; } catch { return null; } }";
-  assert.deepEqual(problems(GOOD), [], "지금의 browserStorage 하나뿐인 storage.ts 를 문제로 읽었다");
-  assert.ok(problems(GOOD.replace("window.localStorage", "window.localStorage ?? window.sessionStorage")).length >= 1, "browserStorage 안에서 저장소 이름을 둘 부르는 것을 못 잡았다");
+test("검사기가 실제로 잡는다: 저장소 이름은 realLocalStorage(localStorage) 한 함수 안에서만 부른다. 이 창의 임시 저장소(sessionStorage)는 이 단계에 없다", () => {
+  const problems = (source) => storageHandleProblems(analyzeText(source, PATHS.storageHandle));
+  const GOOD = "export function realLocalStorage() { try { return window.localStorage; } catch { return null; } }";
+  assert.deepEqual(problems(GOOD), [], "지금의 realLocalStorage 하나뿐인 도우미 파일을 문제로 읽었다");
+  assert.ok(problems(GOOD.replace("window.localStorage", "window.localStorage ?? window.sessionStorage")).length >= 1, "realLocalStorage 안에서 저장소 이름을 둘 부르는 것을 못 잡았다");
   assert.ok(problems(`${GOOD}
 export function browserSessionStorage() { return window.sessionStorage; }`).length >= 1, "이 단계에 없는 임시 저장소 함수(browserSessionStorage)를 못 잡았다: 선택 2부를 더하는 후속 PR 이 이 규칙을 함께 고친다");
   assert.ok(problems(`${GOOD}
 export const s = window.sessionStorage;`).length >= 1, "모듈 최상위의 sessionStorage 를 못 잡았다");
   assert.ok(problems(`${GOOD}
-export function readX() { return window.localStorage; }`).length >= 1, "browserStorage 밖에서 부르는 localStorage 를 못 잡았다");
+export function readX() { return window.localStorage; }`).length >= 1, "realLocalStorage 밖에서 부르는 localStorage 를 못 잡았다");
   // 글자 고르기 저장 키는 storage.ts 만 안다.
   const bypass = (source) => storageBypassHits(analyzeText(source, join(PATHS.components, "letterGuess", "Sample.tsx"))).length;
   assert.equal(bypass("const k = V40_STORAGE.letterGuessKey;"), 1, "글자 고르기 저장 키를 storage.ts 밖에서 읽는 것을 못 잡았다");

@@ -11,6 +11,7 @@ import WeddingCodeV31Sharing from "./WeddingCodeV31Sharing";
 import { V31PriorityInput } from "./WeddingCodeV31Inputs";
 import { V31_CORE_RATING_IDS, V31_EXTRA_RATING_IDS } from "@/lib/weddingCode/v31Flow";
 import { readV31LocalProgress } from "@/lib/weddingCode/v31LocalProgress";
+import { BROWSER_STORAGE_FALLBACK_SNIPPET } from "@/lib/browserStorageFallback";
 import { sanitizeWeddingCodeFunnelCapture } from "@/lib/analyticsPrivacy";
 
 vi.mock("@/lib/analytics", () => ({ captureWeddingCodeEvent: vi.fn() }));
@@ -286,13 +287,9 @@ describe("WeddingCodeV31Client", () => {
     const onRestart = vi.fn();
     await renderClient({ onRestart }); await button("내 웨딩코드 시작하기"); await finishFromHere();
     await button("처음부터 다시 답하기");
-    // 저장된 답과 결과를 모두 지우므로 한 번 되묻는다. 되묻는 동안에는 아무것도 지우지 않는다.
+    // 확인 한 단계: 지우는 호출은 「지우고 다시 답하기」를 누른 뒤에만 일어난다.
     expect(onRestart).not.toHaveBeenCalled();
-    expect(container.querySelector("[data-restart-confirm]")?.textContent).toContain("저장된 답과 결과가 모두 지워져요. 지우고 다시 답할까요?");
-    await button("그대로 두기");
-    expect(container.querySelector("[data-restart-confirm]")).toBeNull();
-    expect(onRestart).not.toHaveBeenCalled();
-    await button("처음부터 다시 답하기"); await button("지우고 다시 하기");
+    await dialogButton("지우고 다시 답하기");
     expect(onRestart).toHaveBeenCalledOnce();
     await button("내 웨딩코드 시작하기");
     expect(container.querySelector('input[type="radio"]:checked')).toBeNull();
@@ -349,6 +346,220 @@ describe("WeddingCodeV31Client", () => {
     expect(saved.status === "ready" && saved.snapshot.draft.answers.G2).toBe(4);
     await next();
     expect([...container.querySelectorAll("[data-question]")].map(item => item.getAttribute("data-question"))).toEqual(["B4", "D3", "T4"]);
+  });
+
+  /** 지우기 확인 창은 문서 맨 끝(container 밖)에 그려진다. */
+  function dialog() { return document.querySelector('[role="alertdialog"]'); }
+  async function dialogButton(label: string) { await click([...document.querySelectorAll('[role="alertdialog"] button')].find(item => item.textContent?.trim() === label) as HTMLElement | undefined); }
+  /** 실제 브라우저처럼 단추에 초점을 두고 누른다(취소하면 초점이 이 단추로 돌아오는지 보려면 필요하다). */
+  async function focusAndClick(label: string) {
+    const target = [...container.querySelectorAll("button")].find(item => item.textContent?.trim() === label);
+    expect(target).toBeTruthy(); target!.focus(); await click(target);
+    return target!;
+  }
+  const savedStatus = () => container.querySelector('aside[aria-label="이 브라우저의 답 저장"] [role="status"]')?.textContent?.trim();
+  const screenNotice = () => container.querySelector("[data-screen-notice]")?.textContent ?? null;
+  function pressEscape() { return act(async () => { document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true })); }); }
+
+  it("결과 맨 아래 「처음부터 다시 답하기」는 확인 창을 먼저 연다: 그대로 두기에 초점이 가고, Esc 와 그대로 두기는 아무것도 지우지 않고, 지우는 것은 확인 뒤에만 일어난다", async () => {
+    await renderClient(); await button("내 웨딩코드 시작하기"); await finishFromHere();
+    expect(container.querySelector('[data-result="solo-v31"]')).not.toBeNull();
+    const opener = await focusAndClick("처음부터 다시 답하기");
+    expect(dialog()).not.toBeNull();
+    expect(dialog()?.getAttribute("aria-modal")).toBe("true");
+    expect(dialog()?.getAttribute("aria-labelledby")).toBeTruthy();
+    expect(dialog()?.textContent).toContain("처음부터 다시 답할까요?");
+    expect(dialog()?.textContent).toContain("지금 고른 답과 이 결과가 이 브라우저에서 지워져요. 이미 보낸 링크는 그대로 열려요.");
+    expect(document.activeElement?.textContent?.trim()).toBe("그대로 두기");
+    // 확인 전에는 아무것도 지워지지 않았다.
+    expect(container.querySelector('[data-result="solo-v31"]')).not.toBeNull();
+    expect(readV31LocalProgress(window.localStorage).status).toBe("ready");
+    await pressEscape();
+    expect(dialog()).toBeNull();
+    expect(container.querySelector('[data-result="solo-v31"]')).not.toBeNull();
+    expect(readV31LocalProgress(window.localStorage).status).toBe("ready");
+    expect(document.activeElement).toBe(opener);
+    await focusAndClick("처음부터 다시 답하기"); await dialogButton("그대로 두기");
+    expect(dialog()).toBeNull();
+    expect(container.querySelector('[data-result="solo-v31"]')).not.toBeNull();
+    expect(readV31LocalProgress(window.localStorage).status).toBe("ready");
+    await focusAndClick("처음부터 다시 답하기"); await dialogButton("지우고 다시 답하기");
+    expect(dialog()).toBeNull();
+    expect(container.querySelector('[data-result]')).toBeNull();
+    expect(readV31LocalProgress(window.localStorage).status).toBe("empty");
+    expect([...container.querySelectorAll("button")].some(item => item.textContent?.trim() === "내 웨딩코드 시작하기")).toBe(true);
+  });
+
+  it("받은 링크로 답한 두 사람 결과의 확인 창은 받은 링크를 다시 열면 비교를 다시 볼 수 있다고 알린다", async () => {
+    const partner: V31Draft = { ...createV31Draft(), answers: { V1: 5 } };
+    await renderClient({ partnerDraft: partner }); await button("나도 답해보기"); await finishFromHere();
+    expect(container.querySelector('[data-result="couple-v31"]')).not.toBeNull();
+    await button("상대 답 없이 처음부터 다시 답하기");
+    expect(dialog()?.textContent).toContain("지금 고른 답과 이 결과가 이 브라우저에서 지워져요. 받은 링크를 다시 열어 답하면 비교를 다시 볼 수 있어요. 이미 보낸 링크는 그대로 열려요.");
+    await dialogButton("그대로 두기");
+    expect(container.querySelector('[data-result="couple-v31"]')).not.toBeNull();
+  });
+
+  it("소개의 「저장된 답 지우고 새로 시작」도 확인 뒤에만 지운다", async () => {
+    await renderClient(); await button("내 웨딩코드 시작하기"); await rating(5, "G1");
+    await act(async () => root.unmount()); root = createRoot(container); await renderClient();
+    expect(container.querySelector('section[aria-label="저장된 내 답 이어하기"]')).not.toBeNull();
+    await focusAndClick("저장된 답 지우고 새로 시작");
+    expect(dialog()?.textContent).toContain("저장된 답을 지우고 새로 시작할까요?");
+    expect(document.activeElement?.textContent?.trim()).toBe("그대로 두기");
+    await dialogButton("그대로 두기");
+    expect(dialog()).toBeNull();
+    // 취소하면 소개에 그대로 있고 저장된 답도 그대로다.
+    expect(container.querySelector('section[aria-label="저장된 내 답 이어하기"]')).not.toBeNull();
+    expect(container.querySelector("[data-question]")).toBeNull();
+    let stored = readV31LocalProgress(window.localStorage);
+    expect(stored.status === "ready" && stored.snapshot.draft.answers).toEqual({ G1: 5 });
+    await button("저장된 답 지우고 새로 시작"); await pressEscape();
+    expect(dialog()).toBeNull();
+    stored = readV31LocalProgress(window.localStorage);
+    expect(stored.status === "ready" && stored.snapshot.draft.answers).toEqual({ G1: 5 });
+    await button("저장된 답 지우고 새로 시작"); await dialogButton("지우고 새로 시작");
+    expect(container.querySelector("[data-question]")).not.toBeNull();
+    expect(container.querySelector<HTMLInputElement>('input[value="5"]:checked')).toBeNull();
+    stored = readV31LocalProgress(window.localStorage);
+    expect(stored.status === "ready" && stored.snapshot.draft.answers).toEqual({});
+  });
+
+  it("확인 창의 제목과 본문은 입구마다 그 단추와 맞고, 본문에 「이 브라우저」는 한 번만 나온다(결과 다시 답하기, 소개의 새로 시작, 저장 설정의 답 지우기)", async () => {
+    const count = (text: string) => text.split("이 브라우저").length - 1;
+    const dialogText = () => ({ title: dialog()?.querySelector("h2")?.textContent, body: dialog()?.querySelector("p")?.textContent ?? "" });
+    await renderClient(); await button("내 웨딩코드 시작하기"); await rating(5, "G1");
+    // 질문 화면의 저장 설정 단추
+    await button("이 브라우저의 답 지우기");
+    expect(dialogText().title).toBe("저장된 답을 지울까요?");
+    expect(dialogText().body).toBe("이 브라우저에 저장된 답과 지금 고른 답이 지워져요. 이미 보낸 링크는 그대로 열려요.");
+    expect(count(dialogText().body)).toBe(1);
+    await dialogButton("그대로 두기");
+    expect(readV31LocalProgress(window.localStorage).status).toBe("ready");
+    // 결과 맨 아래 단추: 이 단추가 확인 창을 연다는 것을 낭독기에도 알린다
+    await finishFromHere();
+    const restart = [...container.querySelectorAll("button")].find(item => item.textContent?.trim() === "처음부터 다시 답하기");
+    expect(restart?.getAttribute("aria-haspopup")).toBe("dialog");
+    expect([...container.querySelectorAll("button")].find(item => item.textContent?.trim() === "이 브라우저의 답 지우기")?.getAttribute("aria-haspopup")).toBe("dialog");
+    await click(restart);
+    expect(dialogText().title).toBe("처음부터 다시 답할까요?");
+    expect(count(dialogText().body)).toBe(1);
+    await dialogButton("그대로 두기");
+    await button("이 브라우저의 답 지우기");
+    expect(dialogText().title).toBe("저장된 답을 지울까요?");
+    expect(dialogText().body).toBe("이 브라우저에 저장된 답과 지금 보는 결과가 지워져요. 이미 보낸 링크는 그대로 열려요.");
+    await dialogButton("지우고 다시 답하기");
+    expect(readV31LocalProgress(window.localStorage).status).toBe("empty");
+    // 소개에서 저장된 답 지우고 새로 시작 / 이 브라우저의 답 지우기
+    await button("내 웨딩코드 시작하기"); await rating(5, "G1");
+    await act(async () => root.unmount()); root = createRoot(container); await renderClient();
+    await button("저장된 답 지우고 새로 시작");
+    expect(dialogText().title).toBe("저장된 답을 지우고 새로 시작할까요?");
+    expect(count(dialogText().body)).toBe(1);
+    await dialogButton("그대로 두기");
+    await button("이 브라우저의 답 지우기");
+    expect(dialogText().title).toBe("저장된 답을 지울까요?");
+    expect(dialogText().body).toBe("이 브라우저에 저장된 답이 지워져요. 이미 보낸 링크는 그대로 열려요.");
+    await dialogButton("그대로 두기");
+    expect(readV31LocalProgress(window.localStorage).status).toBe("ready");
+  });
+
+  it("받은 링크의 두 사람 결과에서 「나도 처음부터 답해 보기」는 내 저장 답이 없으니 확인 창 없이 바로 간다", async () => {
+    const partner: V31Draft = { ...createV31Draft(), answers: { V1: 5 } };
+    await act(async () => root.render(<WeddingCodeV31Client shareOrigin="https://hanbang.ai" bothDrafts={{ first: partner, second: partner }} />));
+    const target = [...container.querySelectorAll("button")].find(item => item.textContent?.trim() === "나도 처음부터 답해 보기");
+    expect(target).toBeTruthy();
+    expect(target?.hasAttribute("aria-haspopup")).toBe(false);
+    await click(target);
+    expect(dialog()).toBeNull();
+  });
+
+  it("지나간 화면의 안내는 이전 화살표와 소개로 돌아가기와 답을 채우는 것으로 지워진다", async () => {
+    const back = () => click(container.querySelector<HTMLButtonElement>('button[aria-label="이전 질문"]'));
+    await renderClient(); await button("내 웨딩코드 시작하기");
+    await next();
+    expect(screenNotice()).toContain("아직 답을 고르지 않은 문장이 있어요");
+    // 소개로 돌아가면 소개 맨 위에 남지 않는다.
+    await back();
+    expect(container.querySelector("[data-question]")).toBeNull();
+    expect(screenNotice()).toBeNull();
+    // 1페이지를 모두 답하고 2페이지에서 답 없이 다음을 눌렀다가 돌아오면 다 답한 1페이지에 남지 않는다.
+    await button("내 웨딩코드 시작하기"); await ratePage(5); await next();
+    await next();
+    expect(screenNotice()).toContain("아직 답을 고르지 않은 문장이 있어요");
+    await back();
+    expect(container.querySelector('[data-question="G1"]')).not.toBeNull();
+    expect(screenNotice()).toBeNull();
+    // 비어 있던 답을 채우면 그 자리에서 안내가 사라진다.
+    await next(); await next();
+    expect(screenNotice()).toContain("아직 답을 고르지 않은 문장이 있어요");
+    await ratePage(5);
+    expect(screenNotice()).toBeNull();
+  });
+
+  it("선택 질문에서 안내가 떠 있는 채 결과로 나가도 결과 맨 위에 남지 않는다", async () => {
+    await renderClient(); await button("내 웨딩코드 시작하기"); await finishFromHere();
+    await button("원하면 더 알아보기 (선택)");
+    await next();
+    expect(screenNotice()).not.toBeNull();
+    await button("여기까지만 답하고 결과 보기");
+    expect(container.querySelector('[data-result="solo-v31"]')).not.toBeNull();
+    expect(screenNotice()).toBeNull();
+  });
+
+  it("저장소가 막혀 루트 스니펫이 메모리 객체로 바꿔 끼운 브라우저에서는 이 브라우저에 저장됐다고 말하지 않는다", async () => {
+    const original = Object.getOwnPropertyDescriptor(window, "localStorage");
+    const originalSession = Object.getOwnPropertyDescriptor(window, "sessionStorage");
+    // 쓰기가 던지는 저장소(가득 참, 쿠키와 사이트 데이터 차단): 실제 스니펫이 메모리 객체로 갈아 끼운다.
+    const setItem = vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => { throw new DOMException("blocked", "SecurityError"); });
+    try {
+      new Function(BROWSER_STORAGE_FALLBACK_SNIPPET)();
+      expect(Object.prototype.toString.call(window.localStorage)).toBe("[object Object]");
+      setItem.mockRestore();
+      await renderClient();
+      await button("내 웨딩코드 시작하기"); await ratePage(5);
+      expect(savedStatus()).toBe("이 브라우저에 저장할 수 없어요. 계속 답할 수 있지만, 나가면 지금 답은 사라질 수 있어요.");
+      expect(container.textContent).not.toContain("이 브라우저에 저장됐어요");
+      await next();
+      expect(container.querySelector('[data-question="B1"]')).not.toBeNull();
+      expect(savedStatus()).toContain("이 브라우저에 저장할 수 없어요");
+    } finally {
+      setItem.mockRestore();
+      if (original) Object.defineProperty(window, "localStorage", original); else Reflect.deleteProperty(window, "localStorage");
+      if (originalSession) Object.defineProperty(window, "sessionStorage", originalSession); else Reflect.deleteProperty(window, "sessionStorage");
+    }
+  });
+
+  it("저장소가 정상이면 저장됐다고 말한다(막힌 브라우저 시험의 대조)", async () => {
+    await renderClient(); await button("내 웨딩코드 시작하기"); await ratePage(5);
+    expect(savedStatus()).toBe("이 브라우저에 저장됐어요. 나중에 이어 할 수 있어요.");
+  });
+
+  it("받은 링크로 답한 사람은 시작 화면, 두 사람 결과 머리, 공유 영역 맨 앞에서 상대에게 결과 링크를 다시 보내야 한다는 말을 듣고 머리의 단추로 보내는 곳을 연다", async () => {
+    const partner: V31Draft = { ...createV31Draft(), answers: { V1: 5 } };
+    await renderClient({ partnerDraft: partner });
+    expect(container.querySelector("[data-intro-return-step]")?.textContent).toContain("두 사람 결과 링크를 상대에게 다시 보내 주어야 상대도 결과를 볼 수 있어요");
+    await button("나도 답해보기"); await finishFromHere();
+    const notes = [...container.querySelectorAll("[data-return-step]")];
+    expect(notes).toHaveLength(2);
+    expect(container.querySelector("header [data-return-step]")?.textContent).toContain("링크를 보내 준 상대는 아직 이 결과를 볼 수 없어요");
+    expect(container.querySelector('[data-share-box="v31"] [data-return-step]')?.textContent).toContain("처음 링크를 보내 준 상대에게 두 사람 결과 링크를 다시 보내야 상대도 이 결과를 볼 수 있어요");
+    const direct = () => [...container.querySelectorAll<HTMLDetailsElement>('[data-share-box="v31"] details')].find(item => item.querySelector("summary")?.textContent?.trim() === "답을 링크에 담아 직접 보내기");
+    expect(direct()?.open).toBe(false);
+    await button("상대에게 보내는 곳으로 가기");
+    expect(direct()?.open).toBe(true);
+  });
+
+  it("혼자 하는 결과, 받아 본 두 사람 결과, 처음 시작 화면에는 돌려보내기 안내가 없다", async () => {
+    await renderClient();
+    expect(container.querySelector("[data-intro-return-step]")).toBeNull();
+    await button("내 웨딩코드 시작하기"); await finishFromHere();
+    expect(container.querySelector("[data-return-step]")).toBeNull();
+    await act(async () => root.unmount()); root = createRoot(container);
+    const first = { ...createV31Draft(), answers: { V1: 4 as const } };
+    const second = { ...createV31Draft(), answers: { V1: 5 as const } };
+    await renderClient({ bothDrafts: { first, second } });
+    expect(container.querySelector("[data-return-step]")).toBeNull();
   });
 
   it("상대 링크에서 모두 건너뛰어도 공통 취향을 만들거나 커플 공유를 열지 않는다", async () => {

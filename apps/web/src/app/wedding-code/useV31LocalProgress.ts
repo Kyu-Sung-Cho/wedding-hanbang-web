@@ -6,6 +6,7 @@ import {
   type V31LocalProgressSnapshot,
 } from "@/lib/weddingCode/v31LocalProgress";
 import { clearSavedPairSessionLink } from "@/lib/weddingCode/pairSessionClient";
+import { requireRealLocalStorage } from "@/lib/weddingCode/browserStorageHandle";
 
 export const V31_SAVE_PREFERENCE_KEY = "hanbang.wedding-code.v31.autosave";
 type SaveStatus = "idle" | "saved" | "off" | "unavailable" | "conflict" | "invalid" | "expired";
@@ -14,19 +15,10 @@ type LocalState = {
   enabled: boolean;
   status: SaveStatus;
   saved: V31LocalProgressSnapshot | null;
+  /** status 가 invalid 일 때만 뜻이 있다. 저장 시각이 지금보다 하루를 넘는 미래라서 읽지 못한 경우(폰 날짜와 시간을 확인하라는 안내의 근거). */
+  clockAhead: boolean;
 };
-const initialState: LocalState = { ready: false, enabled: true, status: "idle", saved: null };
-
-/**
- * 이 브라우저의 진짜 저장소만 쓴다. 쿠키와 사이트 데이터를 막은 브라우저나 앱 안 브라우저 중에는 저장소 자리에 메모리 대체물을 두어
- * 쓰기가 성공한 것처럼 받는 곳이 있다. 그러면 「이 브라우저에 저장됐어요」라고 말하고도 새로고침하면 사라진다. 진짜 Storage 가 아니면
- * 저장소가 없는 것으로 보고(던져서) 기존의 「저장할 수 없어요」 길로 보낸다.
- */
-function genuineLocalStorage(): Storage {
-  const handle = window.localStorage;
-  if (Object.prototype.toString.call(handle) !== "[object Storage]") throw new Error("localStorage is not a Storage");
-  return handle;
-}
+const initialState: LocalState = { ready: false, enabled: true, status: "idle", saved: null, clockAhead: false };
 
 function createProgressStore(active: boolean) {
   let state = initialState;
@@ -41,7 +33,8 @@ function createProgressStore(active: boolean) {
   function load() {
     if (!active) { publish({ ...initialState, ready: true }); return; }
     try {
-      storage = genuineLocalStorage();
+      // 저장소가 막혀 루트 스니펫이 메모리 객체로 갈아 끼운 브라우저는 진짜 저장소가 아니라서 던진다(아래 catch 가 unavailable 로 둔다).
+      storage = requireRealLocalStorage();
       const enabled = storage.getItem(V31_SAVE_PREFERENCE_KEY) !== "off";
       const read = readV31LocalProgress(storage);
       expectedRaw = read.raw;
@@ -50,10 +43,11 @@ function createProgressStore(active: boolean) {
         status: read.status === "unavailable" ? "unavailable" : !enabled ? "off"
           : read.status === "ready" || read.status === "empty" ? "idle" : read.status,
         saved: enabled && read.status === "ready" ? read.snapshot : null,
+        clockAhead: enabled && read.status === "invalid" && read.clockAhead === true,
       });
     } catch {
       storage = null;
-      publish({ ready: true, enabled: true, status: "unavailable", saved: null });
+      publish({ ready: true, enabled: true, status: "unavailable", saved: null, clockAhead: false });
     }
   }
   function onStorage(event: StorageEvent) {
@@ -83,7 +77,9 @@ function createProgressStore(active: boolean) {
   function clear() {
     if (!active) return true;
     if (!state.ready) load();
-    if (!storage || clearV31LocalProgress(storage).status !== "cleared") {
+    // 저장소가 처음부터 없는 브라우저(막힘, 메모리 대체 저장소)는 저장된 답이 있을 수 없다. 지울 것이 없으니 지우지 못했다고 알릴 일도 없다(저장 줄은 계속 「저장할 수 없어요」).
+    if (!storage) { owned = false; publish({ ...state, status: "unavailable", saved: null }); return true; }
+    if (clearV31LocalProgress(storage).status !== "cleared") {
       owned = false;
       publish({ ...state, status: "unavailable", saved: null }); return false;
     }
@@ -94,7 +90,7 @@ function createProgressStore(active: boolean) {
   function setEnabled(enabled: boolean) {
     if (!active) return false;
     try {
-      storage = genuineLocalStorage();
+      storage = requireRealLocalStorage();
       if (enabled) storage.removeItem(V31_SAVE_PREFERENCE_KEY);
       else storage.setItem(V31_SAVE_PREFERENCE_KEY, "off");
       if (!enabled && clearV31LocalProgress(storage).status !== "cleared") throw new Error("clear failed");

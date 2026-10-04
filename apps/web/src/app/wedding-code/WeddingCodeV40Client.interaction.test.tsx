@@ -292,6 +292,19 @@ describe("웨딩코드 4.0 클라이언트: 이 기기에 저장하고 이어 �
     expect(readProgress(storage, bank, NOW).status).toBe("ready");
   });
 
+  it("저장 시각이 하루를 넘는 미래라 읽지 못하면 폰 날짜와 시간을 확인하라고 덧붙이고, 다른 이유로 못 읽을 때는 덧붙이지 않는다", async () => {
+    const sample = fixture("swua-example");
+    const storage = new FakeStorage();
+    seedProgress(storage, partialSnapshotOf(sample, 5), NOW + 3 * DAY);
+    const view = await open({ deps: { storage, now: () => NOW, random: randomFor(sample) } });
+    expect(view.container.querySelector('[data-storage-notice="invalidClock"]')?.textContent).toBe(`${V40_COPY.storageNotice.invalid} 폰 날짜와 시간이 맞는지 확인해 보세요.`);
+    expect(view.container.querySelector('[data-storage-notice="invalid"]')).toBeNull();
+    const other = new FakeStorage();
+    other.data.set(V40_STORAGE.progressKey, "{깨진 값");
+    const view2 = await open({ deps: { storage: other, now: () => NOW, random: randomFor(sample) } });
+    expect(view2.container.querySelector('[data-storage-notice="invalid"]')?.textContent).toBe(V40_COPY.storageNotice.invalid);
+  });
+
   it("하던 답 카드의 처음부터 다시 하기는 저장된 답을 지우고 바로 시작하며 지난번 비교 기록은 남긴다", async () => {
     const sample = fixture("swua-example");
     const storage = new FakeStorage();

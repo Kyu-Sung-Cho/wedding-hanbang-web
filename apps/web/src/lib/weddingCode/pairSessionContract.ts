@@ -5,6 +5,8 @@ export const PAIR_SESSION_CONSENT_VERSION = "2026-09-23";
 export const PAIR_SESSION_RETENTION_DAYS = 7;
 export const PAIR_SESSION_CREATE_WINDOW_MS = 5 * 60 * 1000;
 export const PAIR_SESSION_REQUEST_TIMEOUT_MS = 15_000;
+/** 만들기 요청의 시각이 어긋났을 때 화면에 꼭 들어가는 안내. 서버 문구와 화면이 같은 문장을 쓴다. */
+export const PAIR_SESSION_CLOCK_HINT = "휴대폰 날짜와 시간이 맞는지 확인해 주세요.";
 export type PairSessionRequest =
   | { action: "create"; roomId: string; ownerToken: string; inviteToken: string; answerCode: string; consentVersion: typeof PAIR_SESSION_CONSENT_VERSION; consent: true; ageConfirmed: true; issuedAt: number }
   | { action: "read" | "revoke"; roomId: string; token: string }
@@ -110,16 +112,18 @@ export async function requestPairSession(input: PairSessionRequest): Promise<Pai
     });
     const value: unknown = await response.json();
     if (!response.ok) {
-      // 요청 제한 응답은 함께 보기 서버가 만든 것이 아니라 공용 제한기가 내린 합쇼체 문구라서(code 가 없다) 이 화면의 말투로 바꿔 보여 준다.
-      const record = isPairSessionRecord(value) ? value : null;
-      const rawCode = record?.code;
-      const rawError = record?.error;
-      const named = typeof rawCode === "string";
-      const text = typeof rawError === "string" ? rawError : null;
-      const error = !named && text !== null && response.status === 429 ? "요청이 잠깐 몰렸어요. 조금 뒤에 같은 화면에서 다시 시도해 주세요."
-        : !named && text !== null && response.status === 503 ? "지금은 확인하지 못했어요. 조금 뒤에 같은 화면에서 다시 시도해 주세요."
-          : text ?? "함께 보기 결과를 불러오지 못했어요. 잠시 후 다시 시도해 주세요.";
-      return { ok: false, code: typeof rawCode === "string" ? rawCode : "UNAVAILABLE", error };
+      // code 가 있는 응답만 이 경로가 직접 만든 문구다. code 가 없는 응답(요청 제한, 출처 확인)은 다른 라우트와 공유하는 문장이라
+      // 합니다체나 영어 식별자가 섞여 있을 수 있어서, 화면에는 상태 번호로 고른 해요체 문장만 쓴다.
+      const fallback = response.status === 429 ? "요청이 잠깐 몰렸어요. 조금 뒤에 같은 화면에서 다시 시도해 주세요."
+        : response.status === 503 ? "지금은 확인하지 못했어요. 조금 뒤에 같은 화면에서 다시 시도해 주세요."
+          : response.status === 403 ? "요청을 확인하지 못했어요. 웨딩코드 화면을 새로 열고 다시 시도해 주세요."
+            : "함께 보기 결과를 불러오지 못했어요. 잠시 후 다시 시도해 주세요.";
+      if (isPairSessionRecord(value) && typeof value.code === "string") {
+        // 서버가 5xx 와 함께 보낸 INVALID_RESPONSE 는 지금 확인이 안 된다는 일시 오류다. 200 인데 해석할 수 없는 본문(아래)만 확정 오류로 남는다.
+        const code = value.code === "INVALID_RESPONSE" && response.status >= 500 ? "UNAVAILABLE" : value.code;
+        return { ok: false, code, error: typeof value.error === "string" ? value.error : fallback };
+      }
+      return { ok: false, code: "UNAVAILABLE", error: fallback };
     }
     const snapshot = isPairSessionRecord(value) && hasPairSessionKeys(value, ["snapshot"]) ? parsePairSessionSnapshot(value.snapshot) : null;
     if (snapshot && acknowledgesPairSessionRequest(input, snapshot)) return { ok: true, snapshot };

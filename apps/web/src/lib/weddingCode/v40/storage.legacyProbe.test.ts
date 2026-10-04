@@ -258,9 +258,12 @@ describe("probeLegacyV31Progress 와 v3.1 읽기 규칙: 흐름, 스키마, 이�
 // ---------------------------------------------------------------------------
 
 describe("probeLegacyV31Progress 와 v3.1 읽기 규칙: 시각과 길이", () => {
-  it("저장 시각 경계: 미래는 읽지 않고, 지금과 29일 23시간 59분 59초 999 밀리초 뒤까지 읽고, 30일이 되는 순간 지난 것으로 본다", () => {
+  it("저장 시각 경계: 하루를 넘는 미래는 읽지 않고, 기기 시계가 하루 안으로 뒤로 간 것과 지금과 29일 23시간 59분 59초 999 밀리초 뒤까지 읽고, 30일이 되는 순간 지난 것으로 본다", () => {
     const storage = writtenByV31(snapshotOf(draftWith(variantsOf(0)[2])), NOW);
-    expect(expectAgree(storage, NOW - 1, "미래")).toEqual({ show: false, present: false });
+    // 두 쪽(v3.1 읽기와 v4 탐침)이 같은 경계를 쓴다(감사 6-2).
+    expect(expectAgree(storage, NOW - 1, "시계가 1밀리초 뒤로")).toEqual({ show: true, present: true });
+    expect(expectAgree(storage, NOW - DAY, "시계가 하루 뒤로")).toEqual({ show: true, present: true });
+    expect(expectAgree(storage, NOW - DAY - 1, "하루를 넘는 미래")).toEqual({ show: false, present: false });
     expect(expectAgree(storage, NOW, "지금")).toEqual({ show: true, present: true });
     expect(expectAgree(storage, NOW + DAY, "하루 뒤")).toEqual({ show: true, present: true });
     expect(expectAgree(storage, NOW + LOCAL_TTL_MS - 1, "30일 하나 전")).toEqual({ show: true, present: true });

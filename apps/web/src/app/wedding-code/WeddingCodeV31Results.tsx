@@ -1,7 +1,7 @@
 "use client";
 
 import { ArrowRight, Pencil, RotateCcw } from "lucide-react";
-import { useEffect, useId, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
+import { useId, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import Button from "@/components/ui/Button";
 import { WEDDING_CODE_V31_QUESTIONS, WEDDING_CODE_V31_TASTES, type V31Draft } from "@/constants/weddingCodeV31";
 import { buildV31Profile, compareV31, getV31PriorityOptions, hasV31Content, splitV31InsightsBySummary, v31ChoiceLabels, type V31Insight, type V31PairItem, type V31Profile } from "@/lib/weddingCode/v31";
@@ -292,12 +292,9 @@ export default function WeddingCodeV31Results({ draft, first, received, shareOri
 }) {
   const tabId = useId();
   const [activeTab, setActiveTab] = useState<ResultTab>("together");
-  // ‘처음부터 다시 답하기’는 저장된 답과 결과를 모두 지우므로 한 번 되묻는다(받은 링크의 읽기 전용 화면에는 이 단추가 없다).
-  const [confirmingRestart, setConfirmingRestart] = useState(false);
-  const restartConfirmRef = useRef<HTMLDivElement>(null);
-  useEffect(() => { if (confirmingRestart) restartConfirmRef.current?.focus(); }, [confirmingRestart]);
   const tabButtons = useRef<(HTMLButtonElement | null)[]>([]);
   const sharingRef = useRef<HTMLDivElement>(null);
+  const [shareOpenSignal, setShareOpenSignal] = useState(0);
   const profile = buildV31Profile(draft);
   const items = first ? compareV31(first, draft).filter(item => hasResponse(first, item.id) || hasResponse(draft, item.id)) : [];
   const pairChangeNotice = first ? [first, draft].map(item => buildV31StyleSummary(item).changeNotice).find(notice => notice !== null) ?? null : null;
@@ -307,6 +304,8 @@ export default function WeddingCodeV31Results({ draft, first, received, shareOri
     ? [{ id: "together", label: "나란히 보기" }, { id: "first", label: labels.first }, { id: "second", label: labels.second }]
     : [{ id: "together", label: "나란히 보기" }, { id: "second", label: "내 결과" }, { id: "first", label: "상대 결과" }];
   const ownActionsVisible = !first || activeTab !== "first";
+  // 링크를 보내 준 상대(먼저 답한 사람)는 이 사람이 두 사람 결과 링크를 다시 보내 주기 전에는 결과를 볼 수 없다. 보내는 곳은 결과 맨 아래라 헤더에서 먼저 알린다.
+  const returnStep = Boolean(first) && !received && !readOnly && sharingContent === undefined && hasV31Content(first!) && hasV31Content(draft);
   function handleTabKey(event: KeyboardEvent<HTMLButtonElement>, index: number) {
     const nextIndex = event.key === "ArrowRight" ? (index + 1) % tabs.length
       : event.key === "ArrowLeft" ? (index + tabs.length - 1) % tabs.length
@@ -323,9 +322,9 @@ export default function WeddingCodeV31Results({ draft, first, received, shareOri
       <p className={`mt-3 ${v31Body}`}>{first ? `함께 동의하거나 고른 내용부터, 서로 다르게 답한 것까지 나란히 봐요. ${received ? "문장 속 ‘나’와 ‘상대’는 답한 사람 기준이에요." : "문장 속 ‘나’와 ‘상대’는 그 문장에 답한 사람 입장에서 쓴 말이에요. 줄 앞에 붙은 ‘나’·‘상대’만 지금 보는 사람 기준이에요."} 같은 답도 이유는 다를 수 있으니, 각자 떠올린 장면을 이야기해 보세요.` : profile.hasContent ? editable ? "지금 직접 고른 취향과 답을 정리했어요." : "공유된 취향과 답을 정리했어요. 이 화면에서는 답을 수정할 수 없어요." : "‘아직 모르겠어요’, ‘해당하지 않아요’, ‘지금 답하지 않을게요’, ‘맞는 보기가 없어요’는 서로 다른 답이에요. 이 답만으로는 정리할 취향이 없어요. 원할 때 다시 답해도 괜찮아요."}</p>
       <p className="mt-3 text-xs leading-relaxed text-[var(--hb-text-muted)]">{received ? "받은 링크에 담긴 답이에요. 이름이나 본인 여부는 확인하지 않아요." : first ? `내가 동의 정도를 고른 문장은 ${profile.ratedCount}개예요. 취향과 선택 항목까지 합치면 내가 답을 남긴 질문은 ${profile.respondedCount}개예요.` : `동의 정도를 고른 문장은 ${profile.ratedCount}개예요. 취향과 선택 항목까지 합치면 답을 남긴 질문은 ${profile.respondedCount}개예요.`} 취향과 바람은 달라질 수 있어요. 새로 만든 질문이라 아직 많은 사람에게 확인해 보지 못했어요. 성격 진단이나 궁합 점수도 아니에요.</p>
       {!first && editable && profile.hasContent ? <Button variant="secondary" className="mt-4 whitespace-normal!" onClick={() => { sharingRef.current?.scrollIntoView({ block: "start" }); sharingRef.current?.focus({ preventScroll: true }); }}>상대와 함께 보는 방법 보러 가기</Button> : null}
-      {first && editable && sharingContent === undefined && hasV31Content(first) && hasV31Content(draft) ? <>
-        <p className={`mt-3 ${v31Body}`} data-share-return-step>링크를 보낸 사람은 아직 내 답을 볼 수 없어요. 서로 보려면 아래에서 두 사람 결과 링크를 만들어 그 사람에게 보내 주세요.</p>
-        <Button variant="secondary" className="mt-4 whitespace-normal!" onClick={() => { sharingRef.current?.scrollIntoView({ block: "start" }); sharingRef.current?.focus({ preventScroll: true }); }}>상대에게 보내는 곳으로 가기</Button>
+      {returnStep ? <>
+        <p className={`mt-3 ${v31Body}`} data-return-step>링크를 보내 준 상대는 아직 이 결과를 볼 수 없어요. 아래 ‘답을 링크에 담아 직접 보내기’에서 두 사람 결과 링크를 만들어 보내면 볼 수 있어요.</p>
+        <Button variant="secondary" className="mt-3 whitespace-normal!" onClick={() => { setShareOpenSignal(value => value + 1); sharingRef.current?.scrollIntoView?.({ block: "start" }); sharingRef.current?.focus({ preventScroll: true }); }}>상대에게 보내는 곳으로 가기</Button>
       </> : null}
     </header>
     {first ? <>
@@ -363,20 +362,12 @@ export default function WeddingCodeV31Results({ draft, first, received, shareOri
       <Button variant="secondary" fullWidth onClick={onMore} className="mt-4 whitespace-normal!">원하면 더 알아보기 (선택)</Button>
     </section> : null}
     <p className={`mt-6 rounded-lg bg-[var(--hb-surface-hover)] p-4 ${v31Body}`}>예약 전에는 추가 비용을 포함한 총액과 취소·변경 조건을 서면으로 확인해 주세요.</p>
-    <div ref={sharingRef} tabIndex={-1} className="scroll-mt-6 outline-none">{sharingContent !== undefined ? sharingContent : <WeddingCodeV31Sharing shareOrigin={shareOrigin} first={first ?? draft} second={first ? draft : undefined} received={received} />}</div>
+    <div ref={sharingRef} tabIndex={-1} className="scroll-mt-6 outline-none">{sharingContent !== undefined ? sharingContent : <WeddingCodeV31Sharing shareOrigin={shareOrigin} first={first ?? draft} second={first ? draft : undefined} received={received} openSignal={shareOpenSignal} />}</div>
     <div className="mt-5 grid gap-3 sm:grid-cols-2">
       {editable && ownActionsVisible ? <Button variant="secondary" onClick={() => onEdit()} className="whitespace-normal!"><Pencil aria-hidden="true" className="size-4 shrink-0" />{first ? "내가 방금 답한 내용 수정" : "내 답 수정하기"}</Button> : null}
-      {confirmingRestart ? null : <Button variant="ghost" onClick={readOnly || received ? onRestart : () => setConfirmingRestart(true)} className="whitespace-normal!"><RotateCcw aria-hidden="true" className="size-4 shrink-0" />{readOnly ? "내 웨딩코드로 돌아가기" : received ? "나도 처음부터 답해 보기" : first ? "상대 답 없이 처음부터 다시 답하기" : "처음부터 다시 답하기"}</Button>}
+      <Button variant="ghost" aria-haspopup={!readOnly && !received ? "dialog" : undefined} onClick={onRestart} className="whitespace-normal!"><RotateCcw aria-hidden="true" className="size-4 shrink-0" />{readOnly ? "내 웨딩코드로 돌아가기" : received ? "나도 처음부터 답해 보기" : first ? "상대 답 없이 처음부터 다시 답하기" : "처음부터 다시 답하기"}</Button>
     </div>
     {/* 받은 링크로 두 사람 결과를 본 사람이 처음부터 다시 하면 링크의 상대 답이 화면과 주소에서 빠진다. 누르기 전에 알린다. */}
-    {first && !received && !readOnly && !confirmingRestart ? <p className="mt-2 text-xs leading-relaxed text-[var(--hb-text-muted)]" data-restart-partner-note>받은 링크에 담긴 상대의 답은 화면에서 빠져요. 다시 비교하려면 받은 링크를 다시 열어 주세요.</p> : null}
-    {confirmingRestart ? <div ref={restartConfirmRef} tabIndex={-1} role="group" aria-label="처음부터 다시 답하기 확인" data-restart-confirm className={`${v31Surface} mt-5 p-5 outline-none`}>
-      <p className={`text-base ${v31Title}`}>저장된 답과 결과가 모두 지워져요. 지우고 다시 답할까요?</p>
-      {first ? <p className={`mt-2 ${v31Body}`}>받은 링크에 담긴 상대의 답도 화면에서 빠져요. 다시 비교하려면 받은 링크를 다시 열어 주세요.</p> : null}
-      <div className="mt-4 flex flex-col gap-2 sm:flex-row">
-        <Button variant="primary" onClick={onRestart} className="whitespace-normal!">지우고 다시 하기</Button>
-        <Button variant="secondary" onClick={() => setConfirmingRestart(false)} className="whitespace-normal!">그대로 두기</Button>
-      </div>
-    </div> : null}
+    {first && !received && !readOnly ? <p className="mt-2 text-xs leading-relaxed text-[var(--hb-text-muted)]" data-restart-partner-note>받은 링크에 담긴 상대의 답은 화면에서 빠져요. 다시 비교하려면 받은 링크를 다시 열어 주세요.</p> : null}
   </div>;
 }

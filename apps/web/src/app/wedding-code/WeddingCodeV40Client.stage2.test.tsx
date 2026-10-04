@@ -798,7 +798,7 @@ describe("서로 짐작하기: 받는 사람", () => {
     expect(view.container.querySelector("[data-send-guess-note]")?.textContent).toBe(V40_COPY.guess.coupleSendInfo);
     await sendCoupleLink(view.container);
     const gb = encodeGuessCode(mine);
-    expect(urlsOf(share)).toEqual([`${ORIGIN}/wedding-code#v=${V40}&a=${codeOf(partnerDecoded)}&ga=${GA}&b=${codeOf(ownDecoded)}&gb=${gb}`]);
+    expect(urlsOf(share)).toEqual([`${ORIGIN}/wedding-code?v=${V40}#v=${V40}&a=${codeOf(partnerDecoded)}&ga=${GA}&b=${codeOf(ownDecoded)}&gb=${gb}`]);
   }, LONG);
 
   it("세트 화면에서 「고른 것 없이 나갈게요」를 누르면 바로 두 사람 결과가 열리고, 돌려보내는 링크에는 상대의 ga 만 실린다. 짐작과 답 구역은 그리지 않는다", async () => {
@@ -812,7 +812,7 @@ describe("서로 짐작하기: 받는 사람", () => {
     expect(note).toBe(V40_COPY.guess.coupleSendPartnerInfo);
     expect(note).not.toBe(V40_COPY.guess.coupleSendInfo);
     await sendCoupleLink(view.container);
-    expect(urlsOf(share)).toEqual([`${ORIGIN}/wedding-code#v=${V40}&a=${codeOf(partnerDecoded)}&ga=${GA}&b=${codeOf(ownDecoded)}`]);
+    expect(urlsOf(share)).toEqual([`${ORIGIN}/wedding-code?v=${V40}#v=${V40}&a=${codeOf(partnerDecoded)}&ga=${GA}&b=${codeOf(ownDecoded)}`]);
   }, LONG);
 
   it("링크에 ga 가 없으면 받는 사람 화면에 그 줄이 없고 세트 화면도 열리지 않는다(글자 고르기만 열린다)", async () => {
