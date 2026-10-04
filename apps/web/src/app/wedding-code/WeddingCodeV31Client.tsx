@@ -3,6 +3,7 @@
 import { ArrowLeft, ArrowRight, Check, HeartHandshake, ListChecks, Paintbrush } from "lucide-react";
 import { useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 import Button from "@/components/ui/Button";
+import LoadStallHint from "@/components/wedding-code/LoadStallHint";
 import {
   WEDDING_CODE_V31_AVOIDANCES, WEDDING_CODE_V31_QUESTIONS, WEDDING_CODE_V31_SPENDING, WEDDING_CODE_V31_TASTES,
   WEDDING_CODE_V31_TOPICS, WEDDING_CODE_V31_VERSION,
@@ -12,6 +13,7 @@ import { captureWeddingCodeEvent } from "@/lib/analytics";
 import { createV31Draft, getV31PriorityOptions, normalizeV31Draft } from "@/lib/weddingCode/v31";
 import { V31ChoiceInput, V31PriorityInput, V31RatingInput, v31Body, v31EscapeFoldLabel, v31RatingGuide, v31Surface, v31Title } from "./WeddingCodeV31Inputs";
 import WeddingCodeV31Results from "./WeddingCodeV31Results";
+import V31ConfirmDialog from "./WeddingCodeV31Confirm";
 import { useV31LocalProgress } from "./useV31LocalProgress";
 import { LOCAL_TTL_MS, V31_CLEAR_LOCAL_LABEL, hasV31ResumableAnswer, type V31LocalProgressSnapshot } from "@/lib/weddingCode/v31LocalProgress";
 import {
@@ -104,6 +106,24 @@ export default function WeddingCodeV31Client({ shareOrigin, partnerDraft = null,
   const pairAddressSaved = useSyncExternalStore(storageActive ? subscribePairSession : noSubscription, storageActive ? hasSavedPairAddress : noPairAddress, noPairAddress);
   const [revision, setRevision] = useState(0);
   const [notice, setNotice] = useState(initialNotice);
+  // 알림은 그것을 낸 화면의 것이다. 아래 효과가 화면 키가 바뀔 때 지나간 화면의 알림(‘아직 답을 고르지 않은 문장이 있어요’ 등)을 지운다.
+  // 화면을 옮기면서 옮겨 간 화면에 알리려는 알림(돌아온 질문, 불러온 답, 저장 지우기 실패)은 announce 에 옮겨 갈 화면 키를 함께 적어 남긴다.
+  // 처음 알림(initialNotice)은 처음 화면의 것이다.
+  const noticeScreen = useRef(`${bothDrafts ? "result" : "intro"}:${V31_CORE_INDEXES[0]}`);
+  function announce(text: string, screenKey = focusKey) { noticeScreen.current = screenKey; setNotice(text); }
+  // 지우기 확인 창(결과의 처음부터 다시 답하기, 소개의 저장된 답 지우고 새로 시작, 저장 설정의 이 브라우저의 답 지우기와 자동 저장 끄기).
+  // 입구마다 제목이 그 단추의 이름과 맞다. 지우는 호출은 확인 뒤에만 일어난다.
+  const [confirm, setConfirm] = useState<"restart" | "start" | "clear" | "off" | null>(null);
+  const confirmOpener = useRef<HTMLElement | null>(null);
+  function askConfirm(kind: "restart" | "start" | "clear" | "off") {
+    confirmOpener.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    setConfirm(kind);
+  }
+  function cancelConfirm() {
+    setConfirm(null);
+    const opener = confirmOpener.current; confirmOpener.current = null;
+    if (opener?.isConnected) opener.focus();
+  }
   const question = index < coreCount ? WEDDING_CODE_V31_QUESTIONS[index] : null;
   const taste = index >= coreCount && index < avoidanceIndex ? WEDDING_CODE_V31_TASTES[index - coreCount] : null;
   const choice = taste ? draft.tastes[taste.key] : index === avoidanceIndex ? draft.avoidances : index === priorityIndex ? draft.priorities : draft.spending;
@@ -141,6 +161,11 @@ export default function WeddingCodeV31Client({ shareOrigin, partnerDraft = null,
     if (embedded) screenRef.current?.scrollIntoView?.({ block: "start", behavior: "instant" });
     else window.scrollTo({ top: 0, behavior: "instant" });
   }, [embedded, focusKey]);
+  // 지나간 화면의 알림을 지운다. 이전 화살표, 선택 질문 나가기, 답 입력이 알림을 하나씩 지우던 때는 새는 곳이 생겼다(소개, 수정, 결과 맨 위에 남았다).
+  // 페이지에 비어 있던 답을 다 채우면 ‘아직 답을 고르지 않은 문장이 있어요’도 더는 맞지 않아 함께 지운다.
+  useEffect(() => {
+    if (noticeScreen.current !== focusKey || (pageComplete && pageMissingNotices.includes(notice))) setNotice("");
+  }, [focusKey, notice, pageComplete]);
   useEffect(() => {
     if (screen === "result" && context.first) captureWeddingCodeEvent("wedding_code_comparison_viewed", { version: WEDDING_CODE_V31_VERSION, scene_total: totalQuestions });
   }, [context.first, screen, totalQuestions]);
@@ -167,7 +192,7 @@ export default function WeddingCodeV31Client({ shareOrigin, partnerDraft = null,
     const previousPriorities = nextDraft.priorities?.status === "answered" ? nextDraft.priorities.values : [];
     const nextPriorities = normalized.priorities?.status === "answered" ? normalized.priorities.values : [];
     if (previousPriorities.some(value => !nextPriorities.includes(value))) {
-      setNotice("앞의 답이 바뀌어 더 이상 맞지 않는 우선순위를 뺐어요.");
+      announce("앞의 답이 바뀌어 더 이상 맞지 않는 우선순위를 뺐어요.", `${extra.screen ?? screen}:${extra.index ?? index}`);
       extra.needsPriorityReview = true;
     }
     commit({ draft: normalized, ...extra });
@@ -200,25 +225,26 @@ export default function WeddingCodeV31Client({ shareOrigin, partnerDraft = null,
     const changes: Partial<Progress> = reviewDropped ? { ...requested, needsPriorityReview: false } : requested;
     if (reviewNeeded && (index !== priorityIndex || nextDraft.priorities === undefined)) {
       commit({ ...changes, draft: nextDraft, index: priorityIndex, editing: true });
-      setNotice("앞의 답이 바뀌어 전에 고른 우선순위를 다시 확인해 주세요. 꼭 지키고 싶은 것을 다시 고르거나, ‘아직 우선순위를 정하지 못했어요’를 골라 주세요.");
+      announce("앞의 답이 바뀌어 전에 고른 우선순위를 다시 확인해 주세요. 꼭 지키고 싶은 것을 다시 고르거나, ‘아직 우선순위를 정하지 못했어요’를 골라 주세요.", `${screen}:${priorityIndex}`);
       return;
     }
     if (reviewNeeded && nextDraft.priorities !== undefined) setNotice("");
     const missingIndex = getV31MissingIndex(nextDraft, flow === "full" ? "full" : "core");
-    if (missingIndex !== null) { commit({ ...changes, draft: nextDraft, index: missingIndex, editing: true }); setNotice(missingAnswerNotice); return; }
+    if (missingIndex !== null) { commit({ ...changes, draft: nextDraft, index: missingIndex, editing: true }); announce(missingAnswerNotice, `${screen}:${missingIndex}`); return; }
     // 결과 화면에는 우선순위를 다시 고를 칸이 없으니(보기가 없다), 다시 고르라는 말 없이 뺐다는 사실만 알린다.
-    if (reviewDropped) setNotice("앞의 답이 바뀌어 전에 고른 우선순위를 뺐어요.");
+    const resultIndex = flowIndexes.includes(index) ? index : flowIndexes[flowIndexes.length - 1];
+    if (reviewDropped) announce("앞의 답이 바뀌어 전에 고른 우선순위를 뺐어요.", `result:${resultIndex}`);
     else if (notice === missingAnswerNotice) setNotice("");
     // 결과 종류는 화면에 보이는 결과를 따른다. 함께 보기 초대로 답한 사람도 상대 답을 받기 전에는 혼자 결과를 본다.
     // 초대로 왔다는 사실은 시작·장면 이벤트의 has_partner_link 가 맡는다.
     if (!editing) captureWeddingCodeEvent("wedding_code_completed", { version: WEDDING_CODE_V31_VERSION, scene_total: totalQuestions, ...responseCounts(nextDraft, flowIndexes), result_kind: context.first ? "couple" : "solo", placement: flow });
-    commit({ ...changes, draft: nextDraft, index: flowIndexes.includes(index) ? index : flowIndexes[flowIndexes.length - 1], screen: "result", editing: false, needsPriorityReview: false });
+    commit({ ...changes, draft: nextDraft, index: resultIndex, screen: "result", editing: false, needsPriorityReview: false });
   }
   function next() {
     const missingIndex = getV31PageMissingIndex(draft, page.indexes);
     if (missingIndex !== null) {
       // 버튼은 누를 수 있게 두고(키보드로도 이유를 들을 수 있게), 비어 있는 곳으로 초점을 옮기며 이유를 알린다.
-      setNotice(ratingPage ? PAGE_MISSING_NOTICES.ratingPage : question ? PAGE_MISSING_NOTICES.rating : PAGE_MISSING_NOTICES.choice);
+      announce(ratingPage ? PAGE_MISSING_NOTICES.ratingPage : question ? PAGE_MISSING_NOTICES.rating : PAGE_MISSING_NOTICES.choice);
       const missingQuestion = WEDDING_CODE_V31_QUESTIONS[missingIndex];
       const target = missingQuestion ? screenRef.current?.querySelector<HTMLElement>(`[data-question="${missingQuestion.id}"]`) : screenRef.current;
       target?.focus({ preventScroll: true });
@@ -236,7 +262,7 @@ export default function WeddingCodeV31Client({ shareOrigin, partnerDraft = null,
     setNotice("");
   }
   function start() {
-    if (resumable && !local.store.clear()) setNotice(resetStorageFailureNotice);
+    if (resumable && !local.store.clear()) announce(resetStorageFailureNotice, `questions:${index}`);
     if (!started) captureWeddingCodeEvent("wedding_code_started", { version: WEDDING_CODE_V31_VERSION, scene_total: totalQuestions, has_partner_link: hasPartnerLink });
     setOwned(true);
     commit({ screen: "questions" }, true);
@@ -244,14 +270,14 @@ export default function WeddingCodeV31Client({ shareOrigin, partnerDraft = null,
   function resume(saved = local.store.restore()) {
     if (!saved) return;
     setOwned(true); setProgress(saved); setRevision(value => value + 1);
-    setNotice(saved.needsPriorityReview ? "앞의 답이 바뀌어 우선순위를 다시 확인해 주세요." : "저장된 내 답을 불러왔어요.");
+    announce(saved.needsPriorityReview ? "앞의 답이 바뀌어 우선순위를 다시 확인해 주세요." : "저장된 내 답을 불러왔어요.", `${saved.screen}:${saved.index}`);
   }
   function restart() {
     const cleared = local.store.clear();
     const restartNotice = cleared ? "" : resetStorageFailureNotice;
     // Entry의 key가 그대로여도 로컬 답과 받은 링크 맥락을 먼저 비운다.
     setProgress({ draft: createV31Draft(), index: V31_CORE_INDEXES[0], flow: "core", screen: "intro", editing: false, needsPriorityReview: false });
-    setContext({ first: null, received: false }); setOwned(false); setNotice(restartNotice); setRevision(value => value + 1);
+    setContext({ first: null, received: false }); setOwned(false); announce(restartNotice, `intro:${V31_CORE_INDEXES[0]}`); setRevision(value => value + 1);
     window.history.replaceState(null, "", window.location.pathname);
     captureWeddingCodeEvent("wedding_code_restarted", { version: WEDDING_CODE_V31_VERSION });
     onRestart?.(restartNotice);
@@ -286,10 +312,14 @@ export default function WeddingCodeV31Client({ shareOrigin, partnerDraft = null,
       <Button variant="secondary" fullWidth onClick={() => markTopicNotApplicable(topicKey)} className="mt-3 whitespace-normal!">이 주제는 계획에 없어요</Button>
     </details>;
   }
-  function toggleSaving() {
+  // 끄면 저장된 답(과 함께 보기 확인 주소)이 지워진다. 지울 것이 있을 때는 확인 창을 한 번 거친다. 켤 때와 지울 것이 없을 때는 바로 바꾼다.
+  const offLosesAnswers = local.saved !== null || local.status === "conflict";
+  const offLosesAddress = pairAddressSaved;
+  function toggleSaving(confirmed = false) {
     const enabled = !local.enabled;
+    if (!enabled && !confirmed && (offLosesAnswers || offLosesAddress)) { askConfirm("off"); return; }
     if (!local.store.setEnabled(enabled)) {
-      setNotice("저장 설정을 바꾸지 못했어요. 저장된 답을 지우려면 브라우저 설정에서 이 사이트의 데이터를 직접 지워 주세요.");
+      announce("저장 설정을 바꾸지 못했어요. 저장된 답을 지우려면 브라우저 설정에서 이 사이트의 데이터를 직접 지워 주세요.");
       return;
     }
     setNotice("");
@@ -303,13 +333,15 @@ export default function WeddingCodeV31Client({ shareOrigin, partnerDraft = null,
     : local.status === "unavailable" ? "이 브라우저에 저장할 수 없어요. 계속 답할 수 있지만, 나가면 지금 답은 사라질 수 있어요."
     : local.status === "conflict" ? "다른 탭에서 저장된 답이 바뀌었어요. 덮어쓰지 않도록 자동 저장을 멈췄어요."
     : local.status === "expired" ? "저장된 답의 이어하기 기간이 지났어요. 새로 답해 주세요."
-    : local.status === "invalid" ? "저장된 답을 읽을 수 없어요. 새로 답하면 다시 저장해요."
+    : local.status === "invalid" ? `저장된 답을 읽을 수 없어요. 새로 답하면 다시 저장해요.${local.clockAhead ? " 폰 날짜와 시간이 맞는지 확인해 보세요." : ""}`
     : "답하면 이 브라우저에 자동으로 저장돼요. 다른 사람과 같이 쓰는 컴퓨터나 휴대폰이라면 아래 ‘자동 저장 설정’에서 꺼 주세요.";
 
   const storageControls = context.received ? null : <aside aria-label="이 브라우저의 답 저장" className="mt-6 border-t border-[var(--hb-hairline)] pt-4">
     <p role="status" className={`text-xs leading-relaxed ${local.status === "unavailable" || local.status === "conflict" ? "text-[var(--hb-text-strong)]" : "text-[var(--hb-text-muted)]"}`}>{storageMessage}</p>
+    {/* 화면 조각이 못 내려와 "확인하고 있어요"가 계속 남는 경우를 위한 보강: 12초 뒤에야 보이는 새로고침 한 줄(서버 HTML 에서부터 CSS 로). 확인이 끝나면 함께 사라진다. */}
+    {!local.ready ? <LoadStallHint className="mt-2 text-xs leading-relaxed text-[var(--hb-text-strong)]" /> : null}
     {local.status === "conflict" ? <div className="mt-2 flex flex-wrap gap-2">
-      <Button variant="secondary" onClick={() => { const saved = local.store.reload(); if (saved) resume(saved); else setNotice("불러올 저장된 답이 없어요. 현재 답은 이 화면에 남아 있어요."); }}>저장된 답 불러오기</Button>
+      <Button variant="secondary" onClick={() => { const saved = local.store.reload(); if (saved) resume(saved); else announce("불러올 저장된 답이 없어요. 현재 답은 이 화면에 남아 있어요."); }}>저장된 답 불러오기</Button>
       {owned && screen !== "intro" ? <Button variant="secondary" onClick={() => local.store.takeOver({ ...progress, screen })}>이 화면의 답으로 저장하기</Button> : null}
     </div> : null}
     <details className={`mt-2 ${v31Body}`}>
@@ -317,8 +349,8 @@ export default function WeddingCodeV31Client({ shareOrigin, partnerDraft = null,
       <p>자동 저장은 이 브라우저에만 남겨요. 마지막으로 저장한 날부터 30일 동안 같은 브라우저에서 이어 할 수 있어요. 상대의 답·공유 동의·메모는 자동 저장하지 않아요.</p>
       <p className="mt-2">이 브라우저를 같이 쓰는 사람이 있다면(상대나 가족 포함) 자동 저장을 꺼 주세요. 저장된 답을 그 사람도 열 수 있어요. 시크릿 모드나 브라우저 데이터를 지운 뒤에는 이어 하지 못할 수 있어요.</p>
       <div className="mt-2 flex flex-wrap gap-2">
-        <Button variant="secondary" aria-pressed={local.enabled} disabled={!local.ready} onClick={toggleSaving}>{local.enabled ? "자동 저장 끄기" : "자동 저장 켜기"}</Button>
-        {local.saved || owned ? <Button variant="ghost" onClick={restart}>{V31_CLEAR_LOCAL_LABEL}</Button> : null}
+        <Button variant="secondary" aria-pressed={local.enabled} disabled={!local.ready} aria-haspopup={local.enabled && (offLosesAnswers || offLosesAddress) ? "dialog" : undefined} onClick={() => toggleSaving()}>{local.enabled ? "자동 저장 끄기" : "자동 저장 켜기"}</Button>
+        {local.saved || owned ? <Button variant="ghost" aria-haspopup="dialog" onClick={() => askConfirm("clear")}>{V31_CLEAR_LOCAL_LABEL}</Button> : null}
       </div>
       {/*
         답 지우기는 답만 지운다. 처리방침은 두 사본을 모두 ‘확인 주소’라 부르고, 저장 끄기는 이 브라우저에 저장된
@@ -331,6 +363,12 @@ export default function WeddingCodeV31Client({ shareOrigin, partnerDraft = null,
     </details>
   </aside>;
 
+  // 무엇이 지워지는지는 입구와 지금 보는 화면에 맞춘다. 이미 보낸 링크는 그대로 열리고, 받은 링크로 시작했다면 그 링크를 다시 열어 비교를 다시 볼 수 있다.
+  // 「이 브라우저」는 본문에 한 번만 쓴다. 결과의 다시 답하기는 결과 화면에서만 열린다.
+  const sentLinkNote = `${context.first ? "받은 링크를 다시 열어 답하면 비교를 다시 볼 수 있어요. " : ""}이미 보낸 링크는 그대로 열려요.`;
+  const restartConfirmBody = `지금 고른 답과 이 결과가 이 브라우저에서 지워져요. ${sentLinkNote}`;
+  const clearConfirmBody = `이 브라우저에 저장된 답${screen === "result" ? "과 지금 보는 결과가" : screen === "questions" ? "과 지금 고른 답이" : "이"} 지워져요. ${sentLinkNote}`;
+  const offConfirmBody = `꺼 두면 지금 저장된 ${offLosesAnswers && offLosesAddress ? "답과 함께 보기 확인 주소가 지워지고" : offLosesAddress ? "함께 보기 확인 주소가 지워지고" : "답이 지워지고"} 이후에는 저장되지 않아요.${offLosesAddress ? " 서버의 함께 보기 연결은 그대로 남으니, 끝내려면 먼저 ‘연결 끝내기’를 눌러 주세요." : ""}`;
   const Root = embedded ? "div" : "main";
   const shell = (children: ReactNode) => <Root className={embedded ? "px-4 pb-8 pt-5 sm:px-6" : "min-h-dvh bg-[var(--hb-surface-page)] px-4 pb-16 pt-5 sm:px-6"}>
     <div className="mx-auto max-w-2xl">
@@ -340,6 +378,14 @@ export default function WeddingCodeV31Client({ shareOrigin, partnerDraft = null,
         {children}
         {storageControls}
       </section>
+      {confirm === "restart" ? <V31ConfirmDialog title="처음부터 다시 답할까요?" body={restartConfirmBody} confirmLabel="지우고 다시 답하기" cancelLabel="그대로 두기"
+        onConfirm={() => { setConfirm(null); confirmOpener.current = null; restart(); }} onCancel={cancelConfirm} /> : null}
+      {confirm === "clear" ? <V31ConfirmDialog title="저장된 답을 지울까요?" body={clearConfirmBody} confirmLabel="지우고 다시 답하기" cancelLabel="그대로 두기"
+        onConfirm={() => { setConfirm(null); confirmOpener.current = null; restart(); }} onCancel={cancelConfirm} /> : null}
+      {confirm === "off" ? <V31ConfirmDialog title="자동 저장을 끌까요?" body={offConfirmBody} confirmLabel="끄고 지우기" cancelLabel="그대로 두기"
+        onConfirm={() => { const opener = confirmOpener.current; confirmOpener.current = null; setConfirm(null); toggleSaving(true); if (opener?.isConnected) opener.focus(); }} onCancel={cancelConfirm} /> : null}
+      {confirm === "start" ? <V31ConfirmDialog title="저장된 답을 지우고 새로 시작할까요?" body="이 브라우저에 저장된 답이 지워지고 처음부터 시작해요. 이미 보낸 링크는 그대로 열려요." confirmLabel="지우고 새로 시작" cancelLabel="그대로 두기"
+        onConfirm={() => { setConfirm(null); confirmOpener.current = null; start(); }} onCancel={cancelConfirm} /> : null}
     </div>
   </Root>;
 
@@ -380,6 +426,7 @@ export default function WeddingCodeV31Client({ shareOrigin, partnerDraft = null,
             </details>
           </div>
           {context.first ? <p className={`mt-3 ${v31Body}`}>상대의 답은 이 브라우저에 저장하지 않아요. 내가 직접 답하거나 불러온 내 답만 저장해요. 다만 받은 링크 주소에는 상대의 답이 들어 있어서 브라우저 방문 기록에 남을 수 있어요. 나중에 상대와 비교하려면 받은 링크를 다시 열어 주세요.</p> : null}
+          {context.first && !context.received ? <p className={`mt-3 ${v31Body}`} data-intro-return-step>내 답은 내가 링크를 보내기 전에는 상대에게 가지 않아요. 내 답을 마치면 나오는 두 사람 결과 링크를 상대에게 다시 보내 주어야 상대도 결과를 볼 수 있어요.</p> : null}
           {/* 묻지 않는 것의 목록은 시작 버튼 위 범위 줄에 한 번만 둔다. */}
           <details className={`mt-3 ${v31Body}`}>
             <summary className="flex min-h-11 cursor-pointer items-center underline underline-offset-4">무엇을 물어보나요?</summary>
@@ -399,10 +446,10 @@ export default function WeddingCodeV31Client({ shareOrigin, partnerDraft = null,
     <div className="mt-5" data-intro-scope>
       <p className={v31Body}>결혼식 모습과 둘이 준비하는 방식만 물어봐요. 신혼집, 혼수, 예단과 예물, 양쪽 집안이 비용을 어떻게 나눌지는 묻지 않아요. 형편이나 집안 사정이 이미 정해져 있어도, 여기서는 내가 바라는 대로 답해 주세요.</p>
     </div>
-    <Button variant={resumable ? "secondary" : "primary"} size="lg" fullWidth loading={!local.ready} onClick={start} className="mt-5 min-h-14! whitespace-normal!">{resumable ? "저장된 답 지우고 새로 시작" : started ? "이어서 답하기" : context.first ? "나도 답해보기" : "내 웨딩코드 시작하기"}<ArrowRight aria-hidden="true" className="size-4 shrink-0" /></Button>
+    <Button variant={resumable ? "secondary" : "primary"} size="lg" fullWidth loading={!local.ready} aria-haspopup={resumable ? "dialog" : undefined} onClick={resumable ? () => askConfirm("start") : start} className="mt-5 min-h-14! whitespace-normal!">{resumable ? "저장된 답 지우고 새로 시작" : started ? "이어서 답하기" : context.first ? "나도 답해보기" : "내 웨딩코드 시작하기"}<ArrowRight aria-hidden="true" className="size-4 shrink-0" /></Button>
   </>);
 
-  if (screen === "result") return shell(<WeddingCodeV31Results key={revision} draft={draft} first={context.first} received={context.received} shareOrigin={shareOrigin} onEdit={edit} onRestart={restart} onMore={!context.received && optionalRemaining > 0 ? more : undefined} optionalCount={optionalRemaining} sharingContent={renderResultActions?.(draft)} />);
+  if (screen === "result") return shell(<WeddingCodeV31Results key={revision} draft={draft} first={context.first} received={context.received} shareOrigin={shareOrigin} onEdit={edit} onRestart={context.received ? restart : () => askConfirm("restart")} onMore={!context.received && optionalRemaining > 0 ? more : undefined} optionalCount={optionalRemaining} sharingContent={renderResultActions?.(draft)} />);
 
   const topic = question ? WEDDING_CODE_V31_TOPICS.find(item => item.key === question.topic) : null;
   const title = question?.statement ?? taste?.question ?? (index === avoidanceIndex ? "이번 결혼식에서 피하고 싶은 것이 있나요?" : index === priorityIndex ? "이번 결혼식에서 특히 지키고 싶은 것은 무엇인가요?" : "다른 곳의 비용을 줄여서라도 더 쓰고 싶은 곳이 있나요?");

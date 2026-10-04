@@ -11,6 +11,7 @@ import {
   savedOnLine,
   type V40StorageMode,
 } from "@/lib/weddingCode/v40/copy";
+import LoadStallHint from "@/components/wedding-code/LoadStallHint";
 import { PreviousVersionCard } from "./PreviousVersionCard";
 import { StorageNotice } from "./NoticeScreens";
 import { ActionBar, PinBarSpacer, SectionCard, pinnedScreenRootClass } from "./SectionCard";
@@ -104,8 +105,8 @@ export interface IntroScreenProps {
   readonly legacy?: { readonly savedAt: number | null } | null;
   /** 이 브라우저에 v4 진행 저장이 있으면 하던 답 카드를 놓고 시작하기 대신 이어서 하기와 처음부터 다시 하기를 준다. */
   readonly resume?: IntroResume | null;
-  /** 저장소 문제: invalid = 저장된 답을 읽지 못함, expired = 30일이 지나 지움, unavailable = 이 브라우저에서 저장 불가. */
-  readonly storageIssue?: "invalid" | "expired" | "unavailable" | null;
+  /** 저장소 문제: invalid = 저장된 답을 읽지 못함, invalidClock = 저장 시각이 미래라 읽지 못함(폰 날짜 확인 안내가 붙는다), expired = 30일이 지나 지움, unavailable = 이 브라우저에서 저장 불가. */
+  readonly storageIssue?: "invalid" | "invalidClock" | "expired" | "unavailable" | null;
   readonly onStart: () => void;
 }
 
@@ -230,9 +231,13 @@ export function IntroScreen({
           <ActionBar embedded={embedded}>
             {/* 안내는 단추 위에 둔다: 사라질 때 아래에 붙은 단추가 따라 내려가 누르려던 자리를 벗어나지 않게 한다. */}
             {pending ? (
-              <p role="status" data-intro-pending="" className={cx(noteText, "mb-2 text-center")}>
-                {V40_COPY.common.loadingLabel}
-              </p>
+              <>
+                <p role="status" data-intro-pending="" className={cx(noteText, "mb-2 text-center")}>
+                  {V40_COPY.common.loadingLabel}
+                </p>
+                {/* 화면 조각이 못 내려와 이 줄이 계속 남는 경우를 위한 보강: 12초 뒤에야 보이는 새로고침 한 줄(서버 HTML 에서부터 CSS 로). 풀리면 이 줄과 함께 사라진다. */}
+                <LoadStallHint className={cx(fineText, "mb-2 text-center")} />
+              </>
             ) : null}
             {/* 대기 중에는 진짜 disabled 로 내보낸다. 서버가 그린 단추는 하이드레이션 전에 눌러도 받는 쪽이 없어 누른 것이 사라진다. */}
             <Button variant="primary" size="lg" fullWidth onClick={onStart} loading={pending}>

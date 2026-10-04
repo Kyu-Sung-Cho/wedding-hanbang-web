@@ -33,12 +33,18 @@ function CopyLink({ url, label, inputLabel, resultKind }: { url: string; label: 
   </div>;
 }
 
-export default function WeddingCodeV31Sharing({ shareOrigin, first, second, received = false }: {
+export default function WeddingCodeV31Sharing({ shareOrigin, first, second, received = false, openSignal = 0 }: {
   shareOrigin: string; first: V31Draft; second?: V31Draft; received?: boolean;
+  /** 값이 바뀔 때마다 ‘답을 링크에 담아 직접 보내기’ 칸을 연다(결과 머리의 ‘상대에게 보내는 곳으로 가기’ 단추). */
+  openSignal?: number;
 }) {
   const consentId = useId();
   const [consent, setConsent] = useState(false);
   const [partnerConsent, setPartnerConsent] = useState(false);
+  const [directOpen, setDirectOpen] = useState(false);
+  // 열기 신호가 바뀐 그 그리기에서 칸을 연다(효과 안에서 상태를 바꾸지 않는다).
+  const [seenSignal, setSeenSignal] = useState(openSignal);
+  if (openSignal !== seenSignal) { setSeenSignal(openSignal); if (openSignal > 0) setDirectOpen(true); }
   const genericUrl = new URL("/wedding-code", shareOrigin).toString();
   const canShare = !received && hasV31Content(first) && (!second || hasV31Content(second));
   const mayBuild = canShare && consent && (!second || partnerConsent);
@@ -48,9 +54,10 @@ export default function WeddingCodeV31Sharing({ shareOrigin, first, second, rece
     {canShare && !second ? <WeddingCodeV31Connection draft={first} /> : null}
     <section className={`${v31Surface} mt-6 p-5 sm:p-7`} aria-labelledby={`${consentId}-heading`} data-share-box="v31">
     <div className="flex items-center gap-2"><LinkIcon aria-hidden="true" className="size-5 text-[var(--hb-text-body)]" /><h2 id={`${consentId}-heading`} className={`text-lg ${v31Title}`}>같이 이야기하고 싶다면</h2></div>
+    {second && canShare ? <p className={`mt-3 font-semibold text-[var(--hb-text-strong)] ${v31Body}`} data-return-step>처음 링크를 보내 준 상대에게 두 사람 결과 링크를 다시 보내야 상대도 이 결과를 볼 수 있어요. 아래 ‘답을 링크에 담아 직접 보내기’에서 만들 수 있어요.</p> : null}
     <p className={`mt-3 ${v31Body}`}>답을 보내지 않고 웨딩코드만 권할 수도 있어요. 일반 시작 링크에는 답이 담기지 않고, 두 사람의 결과가 자동으로 연결되지 않아요.</p>
     <CopyLink url={genericUrl} label="답 없는 시작 링크 복사" inputLabel="웨딩코드 일반 시작 링크" />
-    {canShare ? <details className="mt-5 border-t border-[var(--hb-hairline)] pt-5">
+    {canShare ? <details open={directOpen} onToggle={event => setDirectOpen(event.currentTarget.open)} className="mt-5 border-t border-[var(--hb-hairline)] pt-5">
       <summary className={`flex min-h-11 cursor-pointer items-center text-sm underline underline-offset-4 ${v31Title}`}>답을 링크에 담아 직접 보내기</summary>
       <h3 className={`text-base ${v31Title}`}>{second ? "둘이 답한 결과 공유하기" : "내 답을 보내고 함께 비교하기"}</h3>
       <p className={`mt-2 ${v31Body}`}>

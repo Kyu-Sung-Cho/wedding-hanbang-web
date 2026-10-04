@@ -1,3 +1,4 @@
+import { requireRealLocalStorage } from "./browserStorageHandle";
 import { isPairSessionRecord, isPairSessionRoomId, isPairSessionToken } from "./pairSessionContract";
 
 export const PAIR_SESSION_LOCAL_KEY = "hanbang:wedding-code:comparison:v1";
@@ -46,8 +47,12 @@ function readSaved(storage: Storage, key: string): SavedPairSession | null {
   } catch { return null; }
 }
 
+/**
+ * 이 브라우저(localStorage)에 남긴 확인 주소만 읽는다. 저장소가 막혀 메모리 객체로 갈아 끼워진 브라우저에서는
+ * 쓰고 읽어도 새로고침에 사라지는 저장소를 믿고 「저장했어요」라고 말하지 않도록, 진짜 저장소가 아니면 없다고 답한다.
+ */
 export function readSavedPairSession(): SavedPairSession | null {
-  try { return window.localStorage.getItem(SAVE_PREFERENCE_KEY) === "off" ? null : readSaved(window.localStorage, PAIR_SESSION_LOCAL_KEY); }
+  try { const storage = requireRealLocalStorage(); return storage.getItem(SAVE_PREFERENCE_KEY) === "off" ? null : readSaved(storage, PAIR_SESSION_LOCAL_KEY); }
   catch { return null; }
 }
 export function readPairSessionRecovery(roomId?: string): SavedPairSession | null {
@@ -64,20 +69,22 @@ export function savePairSessionRecovery(value: SavedPairSession): void {
 export function savePairSessionLink(value: SavedPairSession): boolean {
   let changed = writePairSessionRecovery(value);
   try {
-    if (window.localStorage.getItem(SAVE_PREFERENCE_KEY) === "off") return false;
-    window.localStorage.setItem(PAIR_SESSION_LOCAL_KEY, JSON.stringify(value)); changed = true; return true;
+    // 메모리로 갈아 끼워진 저장소는 쓰기가 늘 성공해 보이므로 진짜 저장소일 때만 이 브라우저에 남겼다고 말한다(아니면 던져서 false).
+    const storage = requireRealLocalStorage();
+    if (storage.getItem(SAVE_PREFERENCE_KEY) === "off") return false;
+    storage.setItem(PAIR_SESSION_LOCAL_KEY, JSON.stringify(value)); changed = true; return true;
   } catch { return false; }
   finally { if (changed) window.dispatchEvent(new Event("wedding-code-comparison-change")); }
 }
 export function clearSavedPairSessionLink(): boolean {
   try {
-    window.localStorage.removeItem(PAIR_SESSION_LOCAL_KEY);
+    requireRealLocalStorage().removeItem(PAIR_SESSION_LOCAL_KEY);
     window.dispatchEvent(new Event("wedding-code-comparison-change"));
     return true;
   } catch { return false; }
 }
 export function forgetPairSession(roomId: string): void {
-  for (const [getStorage, key] of [[() => window.localStorage, PAIR_SESSION_LOCAL_KEY], [() => window.sessionStorage, RECOVERY_KEY]] as const) {
+  for (const [getStorage, key] of [[requireRealLocalStorage, PAIR_SESSION_LOCAL_KEY], [() => window.sessionStorage, RECOVERY_KEY]] as const) {
     try { const storage = getStorage(); if (readSaved(storage, key)?.roomId === roomId) storage.removeItem(key); } catch { /* 저장소 차단이 서버 연결 종료를 되돌리지 않는다. */ }
   }
   window.dispatchEvent(new Event("wedding-code-comparison-change"));

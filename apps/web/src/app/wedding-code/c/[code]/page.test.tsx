@@ -17,7 +17,8 @@ vi.mock("next/link", () => ({
 import { WEDDING_CODE_V06_AXES } from "@/constants/weddingCodeV06";
 import { parseWeddingCodeString, WEDDING_CODE_LETTERS } from "@/lib/weddingCode/profile/letters";
 import { V31_STYLE_DIMENSIONS } from "@/lib/weddingCode/v31StyleSummary";
-import WeddingCodeMeaningPage, { generateMetadata, generateStaticParams } from "./page";
+import WeddingCodeMeaningPage, * as pageModule from "./page";
+import { generateMetadata, previousEditionCodes } from "./page";
 
 const LOOKUP_LABELS = [
   ["비용·조건", "분위기·경험"],
@@ -53,7 +54,7 @@ describe("코드만 아는 사람을 위한 화면", () => {
    * 적었다(2026-09-26 감사).
    */
   it("이전 판 코드라는 사실과 지금 판으로 가는 안내를 화면에 적는다", async () => {
-    for (const { code } of generateStaticParams()) {
+    for (const { code } of previousEditionCodes()) {
       const root = document.createElement("div");
       root.innerHTML = await render(code);
       const meaning = root.querySelector("[data-code-meaning]")!;
@@ -142,7 +143,7 @@ describe("코드만 아는 사람을 위한 화면", () => {
   });
 
   it("모든 코드에서 문항 판과 실제 답을 추정하지 않고 결과 링크로 안내한다", async () => {
-    for (const { code } of generateStaticParams()) {
+    for (const { code } of previousEditionCodes()) {
       const root = document.createElement("div");
       root.innerHTML = await render(code);
       const meaning = root.querySelector("[data-code-meaning]")!;
@@ -171,7 +172,7 @@ describe("코드만 아는 사람을 위한 화면", () => {
    * 지금 판을 설명하지 않는다. 검색으로 들어온 사람이 옛 판 풀이를 지금 웨딩코드로 읽게 두지 않는다.
    */
   it("이전 판 화면이라 검색 색인을 막고, 판을 제목에 밝힌다", async () => {
-    for (const { code } of generateStaticParams()) {
+    for (const { code } of previousEditionCodes()) {
       const metadata = await generateMetadata({ params: Promise.resolve({ code }) });
       expect(metadata.robots, code).toMatchObject({ index: false });
       expect(metadata.title, code).toContain(`이전 판 웨딩코드 ${code}`);
@@ -213,8 +214,33 @@ describe("코드만 아는 사람을 위한 화면", () => {
     expect(html).toContain("사람마다 달라요");
   });
 
-  it("열여섯 조합을 모두 미리 만든다", () => {
-    const params = generateStaticParams();
+  /**
+   * 감사 A27, A49: /wedding-code/c/%25 와 /wedding-code/c/%FF 가 서버 오류(500)였다. 풀면 깨지는 퍼센트 부호가 decodeURIComponent 의 URIError 로 새어 나갔다.
+   * 깨진 주소는 없는 코드와 같이 찾을 수 없음으로 답하고(화면과 메타데이터 모두), 색인하지 않는다.
+   */
+  it("깨진 퍼센트 부호는 던지지 않고 없는 코드와 같이 찾을 수 없음으로 답한다", async () => {
+    for (const broken of ["%25", "%FF", "%", "VT%", "%E0%A4%A", "%C0%AF"]) {
+      await expect(render(broken), broken).rejects.toThrow("NEXT_NOT_FOUND");
+      const metadata = await generateMetadata({ params: Promise.resolve({ code: broken }) });
+      expect(metadata.robots, broken).toMatchObject({ index: false, follow: false });
+      expect(String(metadata.title), broken).not.toContain("글자 뜻");
+    }
+    // 정상적으로 인코딩된 코드는 그대로 열린다.
+    const html = await render("%56TUH");
+    expect(html).toContain('data-code-meaning="VTUH"');
+  });
+
+  /**
+   * generateStaticParams 를 내보내면 이 경로가 prerender manifest 에 올라 Next 가 요청 경로를 한 번 더 풀다가 %25 에서 500 을 낸다(page.tsx 의 설명).
+   * 이 시험이 그 이름이 돌아오는 것을 막는다. 열여섯 조합 목록은 previousEditionCodes 로 남아 있다.
+   */
+  it("generateStaticParams 와 dynamicParams 를 내보내지 않는다", () => {
+    expect(Object.keys(pageModule)).not.toContain("generateStaticParams");
+    expect(Object.keys(pageModule)).not.toContain("dynamicParams");
+  });
+
+  it("열여섯 조합이 모두 있다", () => {
+    const params = previousEditionCodes();
     expect(params).toHaveLength(16);
     expect(new Set(params.map((item) => item.code)).size).toBe(16);
     for (const { code } of params) {

@@ -27,6 +27,7 @@ describe("NoticeScreens", () => {
     it.each([
       ["unavailable", V40_COPY.storageNotice.unavailable],
       ["invalid", V40_COPY.storageNotice.invalid],
+      ["invalidClock", `${V40_COPY.storageNotice.invalid} 폰 날짜와 시간이 맞는지 확인해 보세요.`],
       ["expired", storageExpiredNote()],
       ["conflict", V40_COPY.storageNotice.conflict],
     ] as const)("%s 는 copy.ts 의 문구를 그대로 말한다", async (problem, expected) => {
@@ -65,7 +66,7 @@ describe("NoticeScreens", () => {
     });
 
     it("다른 문제에는 단추가 없다", async () => {
-      for (const problem of ["unavailable", "invalid", "expired"] as const) {
+      for (const problem of ["unavailable", "invalid", "invalidClock", "expired"] as const) {
         await harness.render(<StorageNotice problem={problem} onLoadSaved={vi.fn()} onKeepThis={vi.fn()} />);
         expect(buttons()).toHaveLength(0);
       }
@@ -80,7 +81,7 @@ describe("NoticeScreens", () => {
     });
 
     it("저장됐다고 말하는 글이 없다", async () => {
-      for (const problem of ["unavailable", "invalid", "expired", "conflict"] as const) {
+      for (const problem of ["unavailable", "invalid", "invalidClock", "expired", "conflict"] as const) {
         await harness.render(<StorageNotice problem={problem} />);
         expect(text()).not.toContain("저장했어요");
         expect(text()).not.toContain(V40_COPY.autosave.statusOn);

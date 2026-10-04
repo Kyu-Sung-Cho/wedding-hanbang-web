@@ -215,11 +215,38 @@ describe("readProgress", () => {
     expect(readProgress(progressStore(rawEnvelope({ savedAt: NOW - TTL - 5 * DAY })), bank, NOW).status).toBe("expired");
   });
 
-  it("저장 시각이 미래이거나 안전한 정수가 아니면 invalid 다", () => {
-    for (const savedAt of [NOW + 1, NOW + DAY, -1, 1.5, "1", null, Number.MAX_SAFE_INTEGER + 2, Number.NaN]) {
+  it("저장 시각이 하루를 넘는 미래이거나 안전한 정수가 아니면 invalid 다", () => {
+    for (const savedAt of [NOW + DAY + 1, NOW + 400 * DAY, -1, 1.5, "1", null, Number.MAX_SAFE_INTEGER + 2, Number.NaN]) {
       expect(readProgress(progressStore(rawEnvelope({ savedAt })), bank, NOW).status, String(savedAt)).toBe("invalid");
     }
     expect(readProgress(progressStore(rawEnvelope({ savedAt: NOW })), bank, NOW).status).toBe("ready");
+  });
+
+  it("시계가 원인으로 읽지 못한 invalid 에만 clockAhead 표시가 붙는다(폰 날짜를 확인하라는 안내의 근거)", () => {
+    for (const savedAt of [NOW + DAY + 1, NOW + 400 * DAY]) {
+      const raw = rawEnvelope({ savedAt });
+      expect(readProgress(progressStore(raw), bank, NOW), String(savedAt)).toEqual({ status: "invalid", raw, clockAhead: true });
+    }
+    // 시각이 아닌 다른 이유로 읽지 못하는 저장에는 붙지 않는다(시각이 미래여도 마찬가지다).
+    for (const patch of [{ version: "v0-other" }, { formBit: 2 }, { screen: "intro" }, { cursor: -1 }, { answers: "짧음" }, { savedAt: -1 }, { savedAt: "1" }]) {
+      const raw = rawEnvelope({ savedAt: NOW + 2 * DAY, ...patch });
+      const read = readProgress(progressStore(raw), bank, NOW);
+      expect(read, JSON.stringify(patch)).toEqual({ status: "invalid", raw });
+    }
+    const garbled = "not json";
+    expect(readProgress(progressStore(garbled), bank, NOW)).toEqual({ status: "invalid", raw: garbled });
+  });
+
+  it("기기 시계가 저장 뒤에 뒤로 가서 저장 시각이 하루 안의 미래로 보여도 멀쩡한 저장으로 읽고, 30일은 저장 시각부터 센다(감사 6-2)", () => {
+    // 자동 시각 보정이나 날짜 고침으로 시계가 1초, 1분, 1시간, 하루 뒤로 간 경우. 예전에는 이 모두 invalid 라서 하던 답을 이어 할 길이 없었다.
+    for (const back of [1, 60_000, 3_600_000, DAY]) {
+      const read = readProgress(progressStore(rawEnvelope({ savedAt: NOW + back })), bank, NOW);
+      expect(read.status, String(back)).toBe("ready");
+    }
+    // 나이는 음수로 본다: 시계가 따라잡아 저장 시각에서 30일이 되는 순간에야 지난 것으로 본다(기간을 늘리지도 줄이지도 않는다).
+    const raw = progressStore(rawEnvelope({ savedAt: NOW + DAY }));
+    expect(readProgress(raw, bank, NOW + DAY + TTL - 1).status).toBe("ready");
+    expect(readProgress(raw, bank, NOW + DAY + TTL).status).toBe("expired");
   });
 
   it("모양이 어긋난 봉투는 모두 invalid 다(던지지 않는다)", () => {
@@ -578,7 +605,7 @@ describe("readHistory와 appendHistory", () => {
   it("잘못된 기록은 invalid 이고 저장소를 쓰지 않는다", () => {
     const bads: [string, unknown][] = [
       ["답이 딸려 옴", { ...entry(NOW - DAY), responses: { "money.limit.1": "1" } }],
-      ["시각이 미래", entry(NOW + DAY)],
+      ["시각이 하루를 넘는 미래", entry(NOW + DAY + 1)],
       ["시각 소수", entry(1.5)],
       ["시각 음수", entry(-1)],
       ["폼 비트", entry(NOW - DAY, 2 as 0)],
@@ -616,7 +643,7 @@ describe("readHistory와 appendHistory", () => {
       ["건이 4개", JSON.stringify({ schema: 1, version: "v4.0-tendency", entries: [entry(NOW - DAY), entry(NOW - 2 * DAY), entry(NOW - 3 * DAY), entry(NOW - 4 * DAY)] })],
       ["최신이 뒤", JSON.stringify({ schema: 1, version: "v4.0-tendency", entries: [entry(NOW - 3 * DAY), entry(NOW - DAY)] })],
       ["건에 답이 있음", JSON.stringify({ schema: 1, version: "v4.0-tendency", entries: [{ ...entry(NOW - DAY), responses: {} }] })],
-      ["시각이 미래", JSON.stringify({ schema: 1, version: "v4.0-tendency", entries: [entry(NOW + DAY)] })],
+      ["시각이 하루를 넘는 미래", JSON.stringify({ schema: 1, version: "v4.0-tendency", entries: [entry(NOW + DAY + 1)] })],
       ["너무 김", `${good}${" ".repeat(3000)}`],
     ];
     for (const [name, raw] of cases) {
@@ -626,6 +653,22 @@ describe("readHistory와 appendHistory", () => {
       expect(appendHistory(storage, entry(NOW - 2 * DAY), NOW), name).toEqual({ status: "saved" });
       expect(readHistory(storage, NOW).entries, name).toEqual([entry(NOW - 2 * DAY)]);
     }
+  });
+
+  it("기기 시계가 뒤로 가도(기록 시각이 하루 안의 미래) 지난번 비교 기록을 버리지 않고, 시계가 뒤로 간 채 남긴 새 기록이 이전 기록을 지우지 않는다(감사 6-2)", () => {
+    const storage = new FakeStorage();
+    expect(appendHistory(storage, entry(NOW), NOW)).toEqual({ status: "saved" });
+    for (const back of [1000, 3_600_000, DAY]) {
+      const read = readHistory(storage, NOW - back);
+      expect(read.status, String(back)).toBe("ready");
+      expect(read.entries, String(back)).toEqual([entry(NOW)]);
+    }
+    // 시계가 1시간 뒤로 간 채 새 기록을 남겨도 이전 기록은 남고, 시각이 더 늦은 것이 앞이다.
+    expect(appendHistory(storage, entry(NOW - 3_600_000, 1), NOW - 3_600_000)).toEqual({ status: "saved" });
+    expect(readHistory(storage, NOW - 3_600_000).entries).toEqual([entry(NOW), entry(NOW - 3_600_000, 1)]);
+    expect(readHistory(storage, NOW + 1000).entries).toEqual([entry(NOW), entry(NOW - 3_600_000, 1)]);
+    // 하루를 넘게 뒤로 간 시계는 전과 같이 읽지 않는다(기간을 사실상 늘리는 값).
+    expect(readHistory(storage, NOW - DAY - 1).status).toBe("invalid");
   });
 
   it("쓰기 실패는 unavailable 이고 기존 기록을 남긴다", () => {
@@ -865,7 +908,7 @@ describe("자동 저장 선호", () => {
     const storage = new FakeStorage();
     writeAutosavePreference(storage, "off");
     expect(writeProgress(storage, bank, null as unknown as ProgressSnapshot, null, NOW)).toEqual({ status: "invalid" });
-    expect(appendHistory(storage, entry(NOW + DAY), NOW)).toEqual({ status: "invalid" });
+    expect(appendHistory(storage, entry(NOW + 2 * DAY), NOW)).toEqual({ status: "invalid" });
   });
 
   it("이전 판(v3.1)에서 끈 사람은 v4 에서도 끈 것으로 읽되, v4 에서 다시 켜면 켜진다", () => {
@@ -983,10 +1026,13 @@ describe("probeLegacyV31Progress", () => {
     }
   });
 
-  it("저장 시각 경계: 30일이 되는 순간 지나고, 지금까지는 읽고, 미래나 안전한 정수가 아니면 읽지 않는다", () => {
+  it("저장 시각 경계: 30일이 되는 순간 지나고, 지금과 하루 안의 미래까지는 읽고, 그보다 먼 미래나 안전한 정수가 아니면 읽지 않는다", () => {
     expect(probeLegacyV31Progress(legacy(v31Envelope({ savedAt: NOW - TTL + 1 })), NOW)).toEqual({ present: true, savedAt: NOW - TTL + 1 });
     expect(probeLegacyV31Progress(legacy(v31Envelope({ savedAt: NOW })), NOW)).toEqual({ present: true, savedAt: NOW });
-    for (const savedAt of [NOW - TTL, NOW - TTL - DAY, NOW + 1, -1, 1.5, "1", null, Number.MAX_SAFE_INTEGER + 1]) {
+    // 기기 시계가 저장 뒤에 뒤로 간 경우(v3.1 읽기와 같은 규칙, 감사 6-2)
+    expect(probeLegacyV31Progress(legacy(v31Envelope({ savedAt: NOW + 1 })), NOW)).toEqual({ present: true, savedAt: NOW + 1 });
+    expect(probeLegacyV31Progress(legacy(v31Envelope({ savedAt: NOW + DAY })), NOW)).toEqual({ present: true, savedAt: NOW + DAY });
+    for (const savedAt of [NOW - TTL, NOW - TTL - DAY, NOW + DAY + 1, -1, 1.5, "1", null, Number.MAX_SAFE_INTEGER + 1]) {
       expect(probeLegacyV31Progress(legacy(v31Envelope({ savedAt })), NOW), String(savedAt)).toEqual(NONE);
     }
     expect(probeLegacyV31Progress(legacy(v31Envelope()), Number.NaN)).toEqual(NONE);
@@ -1092,20 +1138,23 @@ describe("probeLegacyV31Progress", () => {
 describe("소스 경계", () => {
   const source = readFileSync(resolve(__dirname, "storage.ts"), "utf8");
 
-  it("가져오는 모듈은 v4 상수, v4 타입, v4 states 뿐이고 v3.1 모듈을 가져오지 않는다", () => {
+  it("가져오는 모듈은 v4 상수, v4 타입, v4 states, 저장소 핸들 도우미 뿐이고 v3.1 모듈을 가져오지 않는다", () => {
     const specs = [...source.matchAll(/from\s+["']([^"']+)["']/gu)].map((match) => match[1]);
     expect(specs.length).toBeGreaterThan(0);
-    for (const spec of specs) expect(["@/constants/weddingCodeV40", "./types", "./contract", "./states"], spec).toContain(spec);
+    // 저장소 핸들 도우미(lib/weddingCode/browserStorageHandle.ts)는 v3.1 과 v4 가 함께 쓰는 중립 파일이다(저장소 이름이 거기 한 곳에만 있다).
+    for (const spec of specs) expect(["@/constants/weddingCodeV40", "./types", "./contract", "./states", "../browserStorageHandle"], spec).toContain(spec);
     expect(source).not.toMatch(/import[^;]*(v31|V31)/u);
   });
 
   /**
-   * 계약 문서 9.3절: 브라우저 저장소의 이름을 부르는 유일한 자리는 storage.ts 의 browserStorage() 다. 소스 가드(규칙 5)가 다른 파일을 막고,
-   * 이 시험이 storage.ts 안에서도 그 한 함수 밖에는 이름이 없음을 확인한다. 주석은 문법 조각이 아니라서 세지 않고, 문자열 색인(window["localStorage"])도 센다.
+   * 계약 문서 9.3절: 브라우저 저장소의 이름을 부르는 유일한 자리는 lib/weddingCode/browserStorageHandle.ts 의 realLocalStorage() 다(v3.1 과 함께 쓴다).
+   * storage.ts 의 browserStorage() 는 그 결과를 그대로 돌려줄 뿐이라 이 파일에는 저장소 이름이 하나도 없다. 소스 가드(규칙 5)가 다른 파일을 막고,
+   * 이 시험이 두 파일 모두를 확인한다. 주석은 문법 조각이 아니라서 세지 않고, 문자열 색인(window["localStorage"])도 센다.
    */
-  it("저장소 이름(localStorage, sessionStorage, indexedDB)은 browserStorage 함수 안에 한 번만 나온다", () => {
+  const handleSource = readFileSync(resolve(__dirname, "../browserStorageHandle.ts"), "utf8");
+  function storageNameHits(text: string, fileName: string): { name: string; owner: string }[] {
     const names = new Set(["localStorage", "sessionStorage", "indexedDB"]);
-    const file = ts.createSourceFile("storage.ts", source, ts.ScriptTarget.Latest, true);
+    const file = ts.createSourceFile(fileName, text, ts.ScriptTarget.Latest, true);
     const hits: { name: string; owner: string }[] = [];
     const ownerOf = (node: ts.Node): string => {
       for (let parent: ts.Node | undefined = node.parent; parent; parent = parent.parent) {
@@ -1118,8 +1167,14 @@ describe("소스 경계", () => {
       ts.forEachChild(node, visit);
     };
     visit(file);
-    expect(hits).toEqual([{ name: "localStorage", owner: "browserStorage" }]);
+    return hits;
+  }
+
+  it("저장소 이름(localStorage, sessionStorage, indexedDB)은 storage.ts 에 없고 도우미의 realLocalStorage 함수 안에 한 번만 나온다", () => {
+    expect(storageNameHits(source, "storage.ts")).toEqual([]);
+    expect(storageNameHits(handleSource, "browserStorageHandle.ts")).toEqual([{ name: "localStorage", owner: "realLocalStorage" }]);
     expect(source).toMatch(/export function browserStorage\(\): StorageLike \| null/u);
+    expect(source).toMatch(/return realLocalStorage\(\)/u);
   });
 
   it("이전 판 키 문자열이 v3.1 소스의 값과 같다(소스 텍스트만 읽는다)", () => {

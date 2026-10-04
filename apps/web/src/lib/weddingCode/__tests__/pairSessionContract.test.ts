@@ -105,6 +105,36 @@ describe("비공개 비교 세션의 입력·응답 경계", () => {
     fetcher.mockRejectedValue(new Error("offline"));
     expect(await requestPairSession(create)).toMatchObject({ ok: false, code: "NETWORK_ERROR" });
   });
+  it("code 가 없는 공유 응답(요청 제한, 출처 확인)은 원문 대신 해요체 안내만 화면에 올린다", async () => {
+    const reply = (status: number, body: unknown) => ({ ok: false, status, json: async () => body });
+    for (const [response, message] of [
+      [reply(429, { error: "요청이 너무 많습니다. 잠시 후 다시 시도해주세요." }), "요청이 너무 많아요. 잠시 후 다시 시도해 주세요."],
+      [reply(503, { error: "요청 제한 확인에 실패했습니다. 잠시 후 다시 시도해주세요." }), "비교 결과를 불러오지 못했어요. 잠시 후 다시 시도해 주세요."],
+      [reply(403, { error: "untrusted_mutation_origin" }), "요청을 확인하지 못했어요. 웨딩코드 화면을 새로 열고 다시 시도해 주세요."],
+    ] as const) {
+      vi.stubGlobal("fetch", vi.fn().mockResolvedValue(response));
+      const result = await requestPairSession(create);
+      expect(result).toEqual({ ok: false, code: "UNAVAILABLE", error: message });
+      if (!result.ok) { expect(result.error).not.toMatch(/습니다|untrusted|[a-z_]{6,}/); }
+    }
+  });
+  it("code 가 있는 이 경로의 응답은 문구와 code 를 그대로 전한다", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: false, status: 409, json: async () => ({ code: "CONFLICT", error: "이미 다른 사람이 참여했어요." }) }));
+    expect(await requestPairSession(create)).toEqual({ ok: false, code: "CONFLICT", error: "이미 다른 사람이 참여했어요." });
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: false, status: 410, json: async () => ({ code: "CLOSED" }) }));
+    expect(await requestPairSession(create)).toEqual({ ok: false, code: "CLOSED", error: "비교 결과를 불러오지 못했어요. 잠시 후 다시 시도해 주세요." });
+  });
+  it("서버가 5xx 와 함께 보낸 INVALID_RESPONSE 는 일시 오류(UNAVAILABLE)로 바꾸고, 200 인데 해석할 수 없는 본문만 확정 오류로 남긴다", async () => {
+    const error = "처리가 끝났는지 확인하지 못했어요. 잠시 후 다시 확인해 주세요.";
+    for (const status of [500, 503]) {
+      vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: false, status, json: async () => ({ code: "INVALID_RESPONSE", error }) }));
+      expect(await requestPairSession(create)).toEqual({ ok: false, code: "UNAVAILABLE", error });
+    }
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true, status: 200, json: async () => ({ snapshot: { nope: 1 } }) }));
+    expect(await requestPairSession(create)).toEqual({ ok: false, code: "INVALID_RESPONSE", error });
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: false, status: 409, json: async () => ({ code: "CONFLICT", error: "이미 다른 사람이 참여했어요." }) }));
+    expect(await requestPairSession(create)).toMatchObject({ code: "CONFLICT" });
+  });
   it("응답이 멈추면 15초에 요청을 취소하고 같은 키로 재시도할 수 있게 안내한다", async () => {
     vi.useFakeTimers();
     let signal: AbortSignal | undefined;

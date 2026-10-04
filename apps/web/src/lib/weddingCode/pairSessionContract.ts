@@ -5,6 +5,8 @@ export const PAIR_SESSION_CONSENT_VERSION = "2026-09-23";
 export const PAIR_SESSION_RETENTION_DAYS = 7;
 export const PAIR_SESSION_CREATE_WINDOW_MS = 5 * 60 * 1000;
 export const PAIR_SESSION_REQUEST_TIMEOUT_MS = 15_000;
+/** 만들기 요청의 시각이 어긋났을 때 화면에 꼭 들어가는 안내. 서버 문구와 화면이 같은 문장을 쓴다. */
+export const PAIR_SESSION_CLOCK_HINT = "휴대폰 날짜와 시간이 맞는지 확인해 주세요.";
 export type PairSessionRequest =
   | { action: "create"; roomId: string; ownerToken: string; inviteToken: string; answerCode: string; consentVersion: typeof PAIR_SESSION_CONSENT_VERSION; consent: true; ageConfirmed: true; issuedAt: number }
   | { action: "read" | "revoke"; roomId: string; token: string }
@@ -109,8 +111,19 @@ export async function requestPairSession(input: PairSessionRequest): Promise<Pai
       method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(input), cache: "no-store", credentials: "same-origin", signal: controller.signal,
     });
     const value: unknown = await response.json();
-    if (!response.ok) return { ok: false, code: isPairSessionRecord(value) && typeof value.code === "string" ? value.code : "UNAVAILABLE",
-      error: isPairSessionRecord(value) && typeof value.error === "string" ? value.error : "비교 결과를 불러오지 못했어요. 잠시 후 다시 시도해 주세요." };
+    if (!response.ok) {
+      // code 가 있는 응답만 이 경로가 직접 만든 문구다. code 가 없는 응답(요청 제한, 출처 확인)은 다른 라우트와 공유하는 문장이라
+      // 합니다체나 영어 식별자가 섞여 있을 수 있어서, 화면에는 상태 번호로 고른 해요체 문장만 쓴다.
+      const fallback = response.status === 429 ? "요청이 너무 많아요. 잠시 후 다시 시도해 주세요."
+        : response.status === 403 ? "요청을 확인하지 못했어요. 웨딩코드 화면을 새로 열고 다시 시도해 주세요."
+          : "비교 결과를 불러오지 못했어요. 잠시 후 다시 시도해 주세요.";
+      if (isPairSessionRecord(value) && typeof value.code === "string") {
+        // 서버가 5xx 와 함께 보낸 INVALID_RESPONSE 는 지금 확인이 안 된다는 일시 오류다. 200 인데 해석할 수 없는 본문(아래)만 확정 오류로 남는다.
+        const code = value.code === "INVALID_RESPONSE" && response.status >= 500 ? "UNAVAILABLE" : value.code;
+        return { ok: false, code, error: typeof value.error === "string" ? value.error : fallback };
+      }
+      return { ok: false, code: "UNAVAILABLE", error: fallback };
+    }
     const snapshot = isPairSessionRecord(value) && hasPairSessionKeys(value, ["snapshot"]) ? parsePairSessionSnapshot(value.snapshot) : null;
     if (snapshot && acknowledgesPairSessionRequest(input, snapshot)) return { ok: true, snapshot };
     return { ok: false, code: "INVALID_RESPONSE", error: "처리가 끝났는지 확인하지 못했어요. 잠시 후 다시 확인해 주세요." };

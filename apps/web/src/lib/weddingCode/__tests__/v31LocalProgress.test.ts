@@ -162,7 +162,7 @@ describe("v3.1 본인 진행 저장과 복원", () => {
     const { storage } = memory();
     const patches: Record<string, unknown>[] = [
       { schema: 0 }, { schema: "1" }, { schema: 3 }, { version: "v3.0-preferences" }, { flow: "unknown" }, { flow: null },
-      { savedAt: NOW + 1 }, { savedAt: -1 }, { savedAt: 1.5 }, { savedAt: "yesterday" }, { savedAt: null },
+      { savedAt: -1 }, { savedAt: 1.5 }, { savedAt: "yesterday" }, { savedAt: null },
       { index: -1 }, { index: 34 }, { index: 0.5 }, { index: "2" }, { screen: "intro" },
       { editing: 0 }, { needsPriorityReview: "false" }, { partnerDraft: {} }, { consent: true }, { memo: "내 메모" },
       { account: "private" }, { answerCode: null }, { answerCode: "x".repeat(300) },
@@ -178,6 +178,29 @@ describe("v3.1 본인 진행 저장과 복원", () => {
     const incomplete = envelope(); delete incomplete.editing;
     storage.setItem(LOCAL_KEY, JSON.stringify(incomplete));
     expect(readV31LocalProgress(storage, NOW).status).toBe("invalid");
+  });
+
+  it("기기 시계가 저장 뒤에 뒤로 가서 저장 시각이 하루 안의 미래로 보여도 멀쩡한 저장으로 읽고, 만료는 저장 시각부터 센다(감사 6-2)", () => {
+    const { storage } = memory();
+    const raw = setEnvelope(storage, { savedAt: NOW });
+    const DAY = 24 * 60 * 60 * 1000;
+    for (const back of [1, 60_000, 3_600_000, DAY]) {
+      const read = readV31LocalProgress(storage, NOW - back);
+      expect(read.status, String(back)).toBe("ready");
+      expect(read.status === "ready" && read.savedAt).toBe(NOW);
+      expect(read.raw, String(back)).toBe(raw);
+    }
+    // 하루를 넘는 미래는 전과 같이 읽지 않는다. 저장 기간을 사실상 늘리는 값이다.
+    // 시계가 원인일 때만 clockAhead 표시가 붙는다(폰 날짜를 확인하라는 안내의 근거). 다른 이유로 읽지 못하는 저장에는 붙지 않는다.
+    expect(readV31LocalProgress(storage, NOW - DAY - 1)).toEqual({ status: "invalid", raw, clockAhead: true });
+    const badVersion = setEnvelope(storage, { savedAt: NOW, version: "v3.0-preferences" });
+    expect(readV31LocalProgress(storage, NOW - DAY - 1)).toEqual({ status: "invalid", raw: badVersion });
+    const badPosition = setEnvelope(storage, { savedAt: NOW, index: -1 });
+    expect(readV31LocalProgress(storage, NOW - DAY - 1)).toEqual({ status: "invalid", raw: badPosition });
+    setEnvelope(storage, { savedAt: NOW });
+    // 나이는 음수로 본다: 시계가 따라잡아 저장 시각에서 30일이 되는 순간에야 지난 것으로 본다.
+    expect(readV31LocalProgress(storage, NOW + LOCAL_TTL_MS - 1).status).toBe("ready");
+    expect(readV31LocalProgress(storage, NOW + LOCAL_TTL_MS).status).toBe("expired");
   });
 
   it("미등록 저장 필드와 원답에서 확인할 수 없는 우선순위를 조용히 보정하지 않는다", () => {

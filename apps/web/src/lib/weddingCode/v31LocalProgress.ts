@@ -9,6 +9,11 @@ import { V31_FULL_INDEXES, V31_PRIORITY_INDEX, getV31ResponseAt, getV31ScreenInd
 
 export const LOCAL_KEY = "hanbang:wedding-code:v3.1:progress";
 export const LOCAL_TTL_MS = 30 * 24 * 60 * 60 * 1000;
+/**
+ * 저장한 뒤 기기 시계가 뒤로 가서(자동 시각 보정, 날짜를 고침) 저장 시각이 지금보다 미래로 보여도 이만큼까지는 멀쩡한 저장으로 읽는다(나이는 음수로 본다).
+ * 그보다 먼 미래는 읽지 않는다. 저장 기간을 사실상 늘리는 값이라서다. 이 값을 넘으면 전과 같이 읽을 수 없는 저장(invalid)이다.
+ */
+export const LOCAL_MAX_CLOCK_SKEW_MS = 24 * 60 * 60 * 1000;
 export const LOCAL_SCHEMA = 2;
 /** 저장 기록과 현재 진행을 함께 지우는 버튼. 처리방침 제3조가 이 이름으로 부른다. */
 export const V31_CLEAR_LOCAL_LABEL = "이 브라우저의 답 지우기";
@@ -23,7 +28,9 @@ export type V31LocalProgressSnapshot = {
 };
 export type V31LocalProgressRead =
   | { status: "ready"; snapshot: V31LocalProgressSnapshot; savedAt: number; raw: string }
-  | { status: "empty" | "invalid" | "expired" | "unavailable"; raw: string | null };
+  | { status: "empty" | "invalid" | "expired" | "unavailable"; raw: string | null;
+      /** invalid 이면서 형식은 멀쩡한데 저장 시각만 지금보다 하루(LOCAL_MAX_CLOCK_SKEW_MS)를 넘는 미래일 때만 참. 폰 날짜와 시간을 확인하라는 안내의 근거다. */
+      clockAhead?: true };
 export type V31LocalProgressWrite = { status: "saved"; raw: string }
   | { status: "conflict" | "unavailable" | "invalid" };
 
@@ -81,7 +88,7 @@ export function readV31LocalProgress(storage: V31ProgressStorage, now = Date.now
     const value: unknown = JSON.parse(raw);
     if (!isRecord(value) || (value.schema !== 1 && value.schema !== LOCAL_SCHEMA)
       || !exactKeys(value, value.schema === 1 ? LEGACY_ENVELOPE_KEYS : ENVELOPE_KEYS)
-      || value.version !== WEDDING_CODE_V31_VERSION || !isTimestamp(value.savedAt) || value.savedAt > now
+      || value.version !== WEDDING_CODE_V31_VERSION || !isTimestamp(value.savedAt)
       || typeof value.answerCode !== "string") return { status: "invalid", raw };
     const draft = decodeV31Progress(value.answerCode);
     // 이전 인덱스는 34개 전체 순서다. 읽을 때만 흐름을 붙이고 저장 시각은 유지한다.
@@ -89,6 +96,8 @@ export function readV31LocalProgress(storage: V31ProgressStorage, now = Date.now
     if (!draft || !isV31Flow(flow)) return { status: "invalid", raw };
     const position = isLegacyExtraPriorityStep(value, flow) ? { ...value, editing: true } : value;
     if (!validPosition(position, draft, flow)) return { status: "invalid", raw };
+    // 저장 시각이 하루를 넘는 미래: 기간을 늘리는 값이라 읽지 않는다. 다른 데는 다 멀쩡한 저장이므로 시계가 원인이라는 표시를 붙인다.
+    if (value.savedAt > now + LOCAL_MAX_CLOCK_SKEW_MS) return { status: "invalid", raw, clockAhead: true };
     if (now - value.savedAt >= LOCAL_TTL_MS) return { status: "expired", raw };
     return {
       status: "ready", raw, savedAt: value.savedAt,

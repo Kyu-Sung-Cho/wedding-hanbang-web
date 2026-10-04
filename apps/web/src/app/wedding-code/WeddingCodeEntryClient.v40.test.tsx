@@ -170,9 +170,19 @@ describe("웨딩코드 입구: v4.0-tendency 를 늦게 불러오고 넘기는 �
     expect(probe()?.dataset.mode).toBe("partner");
     expect(probe()?.dataset.touched).toBe("true");
     expect(container.querySelector('[data-entry="v31"]')).toBeNull();
-    // 사용자가 실제로 새 # 뒤로 이동하면 붙잡고 있던 링크를 놓고 새 주소를 읽는다(알 수 없는 조각이라 열 수 없는 링크 안내가 뜬다).
+    // 사용자가 실제로 새 # 뒤로 이동하면 붙잡고 있던 링크를 놓고 새 주소를 읽는다.
+    // 링크 키(v, a, b, ga, gb)가 하나도 없는 조각(#somewhere-else, #top)은 링크가 아니라 문서 안 이동 표시라서(2026-10-04 결정) 오류가 아니라 평소 입구를 연다.
     await act(async () => {
       window.history.replaceState(null, "", "/wedding-code#somewhere-else");
+      window.dispatchEvent(new Event("hashchange"));
+    });
+    await flush();
+    expect(probe()).toBeNull();
+    expect(container.textContent).not.toContain("이 링크는 열 수 없어요");
+    expect(container.querySelector('[data-entry="v31"]')).not.toBeNull();
+    // 링크 키가 있는데 읽을 수 없는 조각으로 이동하면 열 수 없는 링크 안내가 뜬다(예전 그대로).
+    await act(async () => {
+      window.history.replaceState(null, "", "/wedding-code#v=bogus&a=x");
       window.dispatchEvent(new Event("hashchange"));
     });
     await flush();
@@ -298,6 +308,9 @@ describe("웨딩코드 입구: 읽을 수 없는 v4 링크", () => {
     const broken = V40_ENTRY_COPY.brokenLink;
     expect(container.querySelector("h1")?.textContent).toBe(broken.title);
     expect(container.textContent).toContain(broken.body);
+    // 2026-10-04: 원인(잘림, 끝에 붙은 글자)과 고치는 방법을 같이 말한다. 점, 괄호, 쉼표, 조사는 이제 자동으로 걷어내 열리므로 문구가 그것을 원인으로 들지 않는다.
+    expect(container.textContent).toContain("링크가 중간에 잘렸거나 끝에 글자가 더 붙었을 수 있어요. 끝의 글자를 지우고 다시 열어 보거나, 보낸 사람에게 링크를 다시 받아 주세요.");
+    expect(container.textContent).not.toContain("점이나 괄호");
     expect(container.textContent).not.toContain("이 링크는 열 수 없어요");
     expect(container.querySelectorAll("main")).toHaveLength(1);
     // 깨진 조각은 주소창에서 지워지지만 화면은 그대로 남고, 초점은 화면 이름(이 화면의 제목)을 가진 구역으로 간다.
@@ -349,6 +362,53 @@ describe("웨딩코드 입구: 읽을 수 없는 v4 링크", () => {
     expect(container.querySelector("h1")?.textContent).toBe(V40_ENTRY_COPY.brokenLink.title);
     expect(window.location.hash).toBe("");
     expect(window.location.href).not.toContain("1148056X");
+  });
+
+  it.each([
+    ["쿼리가 v4 이고 해시 키가 대문자인 링크", `/wedding-code?v=${V40}#V=${V40}&A=${A}`, { v: V40 }],
+    ["쿼리가 v4 이고 해시가 판 이름 없는 추적 값인 주소", `/wedding-code?v=${V40}#utm_source=kakao`, { v: V40 }],
+    ["쿼리 없이 통째로 인코딩하고 끝에 % 가 붙은 v4 링크", `/wedding-code#${encodeURIComponent(soloHash.slice(1))}%`, undefined],
+    ["쿼리 없이 판 이름과 코드가 대문자인 링크", `/wedding-code#V=${V40.toUpperCase()}&A=${A}`, undefined],
+  ])("%s: 깨진 v4 링크로 말하고 처음부터 시작하면 v4 빈 입구다(v3.1 소개로 가지 않는다)", async (_label, url, query) => {
+    window.history.replaceState(null, "", url);
+    root = createRoot(container);
+    await act(async () => root?.render(<WeddingCodeEntryClient shareOrigin="https://hanbang.ai" initialEntry={query ? parseWeddingCodeEntryQuery(query) : undefined} />));
+    await flush();
+    const broken = V40_ENTRY_COPY.brokenLink;
+    expect(container.querySelector("h1")?.textContent).toBe(broken.title);
+    expect(container.textContent).toContain(broken.body);
+    expect(container.textContent).not.toContain("이 링크는 열 수 없어요");
+    // 깨진 조각은 주소창에서 지워져도 화면은 그대로 남는다(붙잡은 링크).
+    expect(window.location.hash).toBe("");
+    expect(window.location.search).toBe(`?v=${V40}`);
+    expect(container.querySelector('[data-entry="v40"]')).toBeNull();
+    const button = [...container.querySelectorAll("button")].find((item) => item.textContent === broken.startButton);
+    expect(button).toBeDefined();
+    await act(async () => button?.click());
+    await flush();
+    expect(container.querySelector<HTMLElement>('[data-entry="v40"]')?.dataset.mode).toBe("empty");
+    expect(container.querySelector('[data-entry="v31"]')).toBeNull();
+    expect(window.location.hash).toBe("");
+    expect(window.location.search).toBe(`?v=${V40}`);
+  });
+
+  it.each([
+    ["쿼리 없이 판 이름 없는 추적 값", "/wedding-code#utm_source=kakao"],
+    ["쿼리가 v3.1 이고 판 이름 없는 추적 값", "/wedding-code?v=v3.1-preferences#utm_source=kakao"],
+    ["쿼리 없이 v3.1 의 대문자 키 링크", "/wedding-code#V=v3.1-preferences&A=broken"],
+  ])("%s: v4 맥락이 없으면 예전 오류 화면이고 처음부터 답하면 v3.1 이다", async (_label, url) => {
+    window.history.replaceState(null, "", url);
+    root = createRoot(container);
+    await act(async () => root?.render(<WeddingCodeEntryClient shareOrigin="https://hanbang.ai" />));
+    await flush();
+    expect(container.querySelector("h1")?.textContent).toBe("이 링크는 열 수 없어요");
+    expect(container.textContent).not.toContain(V40_ENTRY_COPY.brokenLink.body);
+    const button = [...container.querySelectorAll("button")].find((item) => item.textContent === "처음부터 답하기");
+    expect(button).toBeDefined();
+    await act(async () => button?.click());
+    await flush();
+    expect(container.querySelector('[data-entry="v31"]')).not.toBeNull();
+    expect(container.querySelector('[data-entry="v40"]')).toBeNull();
   });
 
   it("다른 판의 깨진 링크는 주소창을 건드리지 않는다(v4 가 아닌 판은 예전 그대로다)", async () => {

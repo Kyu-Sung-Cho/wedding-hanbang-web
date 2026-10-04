@@ -67,6 +67,14 @@ describe("POST /api/wedding-code/session", () => {
     }
     expect(mocks.rpc).not.toHaveBeenCalled();
   });
+  it("시각이 어긋난 만들기 요청의 안내는 휴대폰 날짜와 시간을 확인하라고 말한다", async () => {
+    const issuedAt = now + 6 * 60_000;
+    const stamp = issuedAt.toString(16).padStart(12, "0");
+    const body = await (await POST(request({ ...create, issuedAt, roomId: `${stamp.slice(0, 8)}-${stamp.slice(8)}-4111-8111-111111111111` }))).json();
+    expect(body.code).toBe("CREATE_EXPIRED");
+    expect(body.error).toContain("휴대폰 날짜와 시간이 맞는지 확인해 주세요.");
+    expect(body.error).not.toMatch(/습니다|서버/);
+  });
   it("삭제된 옛 방의 시각만 현재로 바꾸는 재생 요청을 저장소에 보내지 않는다", async () => {
     vi.setSystemTime(now + 8 * 86400000);
     const response = await POST(request({ ...create, issuedAt: Date.now() }));

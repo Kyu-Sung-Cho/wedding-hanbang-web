@@ -110,6 +110,11 @@ describe("웨딩코드 판별과 다시 시작", () => {
     window.history.replaceState(null, "", "/wedding-code#v=v3.0-preferences&a=broken");
     await mount();
     expect(container.textContent).toContain("이 링크는 열 수 없어요");
+    // 2026-10-04: 원인(잘림, 끝에 붙은 글자, 지원하지 않는 버전)과 고치는 방법을 같이 말한다. 점, 괄호, 쉼표, 조사는 이제 자동으로 걷어내 열리므로 문구가 그것을 원인으로 들지 않는다.
+    expect(container.textContent).toContain("링크가 중간에 잘렸거나, 끝에 글자가 더 붙었거나, 아직 지원하지 않는 버전일 수 있어요.");
+    expect(container.textContent).toContain("끝의 글자를 지우고 다시 열어 보거나, 보낸 사람에게 링크를 다시 받아 주세요.");
+    expect(container.textContent).toContain("처음부터 다시 답해도 돼요.");
+    expect(container.textContent).not.toContain("점이나 괄호");
     await restart();
     expect(window.location.hash).toBe("");
     expect(container.querySelector('[data-entry="v31"]')).not.toBeNull();

@@ -19,8 +19,8 @@ import { useScreenFocus } from "./useScreenFocus";
 /** 저장 상태 표시. saved = 마지막 저장이 성공, off = 자동 저장이 꺼짐, unavailable = 이 브라우저에서 저장 불가, conflict = 다른 창이 바꿔서 이 창의 저장을 멈춤. */
 export type SaveState = "saved" | "off" | "unavailable" | "conflict";
 
-/** 저장 문제 안내가 말하는 문제. invalid = 저장된 답을 읽지 못함, expired = 기간이 지나 지움(이 둘은 시작 화면에서만). */
-export type StorageProblem = "unavailable" | "conflict" | "invalid" | "expired";
+/** 저장 문제 안내가 말하는 문제. invalid = 저장된 답을 읽지 못함, invalidClock = 저장 시각이 미래라 읽지 못함, expired = 기간이 지나 지움(이 셋은 시작 화면에서만). */
+export type StorageProblem = "unavailable" | "conflict" | "invalid" | "invalidClock" | "expired";
 
 export interface StorageNoticeProps {
   readonly problem: StorageProblem;
@@ -45,6 +45,8 @@ function storageProblemText(problem: StorageProblem): string {
       return V40_COPY.storageNotice.conflict;
     case "invalid":
       return V40_COPY.storageNotice.invalid;
+    case "invalidClock":
+      return `${V40_COPY.storageNotice.invalid} ${V40_COPY.storageNotice.invalidClockHint}`;
     case "expired":
       return storageExpiredNote();
   }

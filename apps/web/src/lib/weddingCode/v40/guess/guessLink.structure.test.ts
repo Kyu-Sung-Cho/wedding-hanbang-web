@@ -68,11 +68,21 @@ describe("buildGatedShareUrlWithGuess: 기본 링크 구조가 어긋나면 만�
     base.mockReturnValueOnce(single).mockReturnValueOnce(`${single}&b=BBB`);
     buildGatedShareUrlWithGuess(bank, "https://h", first, second);
     expect(base).toHaveBeenCalledTimes(2);
-    expect(base.mock.calls[0]).toEqual([bank, "https://h", first.code]);
-    expect(base.mock.calls[1]).toEqual([bank, "https://h", first.code, second.code]);
+    // 선택 인자(options)는 주지 않았으면 undefined 로 그대로 넘어간다.
+    expect(base.mock.calls[0]).toEqual([bank, "https://h", first.code, undefined, undefined]);
+    expect(base.mock.calls[1]).toEqual([bank, "https://h", first.code, second.code, undefined]);
     base.mockClear();
     base.mockReturnValueOnce(single);
     buildGatedShareUrlWithGuess(bank, "https://h", first);
     expect(base).toHaveBeenCalledTimes(1);
+  });
+
+  it("링크 만들기 선택 인자(explicitVersion: 쿼리의 판 이름을 붙일지)는 한 사람 몫과 두 사람 몫 호출에 그대로 넘어간다", () => {
+    const single = "https://h/wedding-code#v=T&a=AAA";
+    const options = { explicitVersion: false } as const;
+    base.mockReturnValueOnce(single).mockReturnValueOnce(`${single}&b=BBB`);
+    buildGatedShareUrlWithGuess(bank, "https://h", first, second, options);
+    expect(base.mock.calls[0]).toEqual([bank, "https://h", first.code, undefined, options]);
+    expect(base.mock.calls[1]).toEqual([bank, "https://h", first.code, second.code, options]);
   });
 });

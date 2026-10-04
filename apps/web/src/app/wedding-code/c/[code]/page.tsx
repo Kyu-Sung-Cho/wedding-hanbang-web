@@ -62,7 +62,14 @@ const CODE_LOOKUP_TOPICS: Readonly<Record<WeddingCodeV06AxisKey, Readonly<{
 };
 
 function normalized(raw: string): string | null {
-  const value = decodeURIComponent(raw ?? "").trim();
+  // 깨진 퍼센트 부호(%25, %FF)는 decodeURIComponent 가 URIError 를 던진다. 던지게 두면 서버 오류(500)가 되므로, 읽을 수 없는 주소는 없는 코드와 같이 null 로 답한다(찾을 수 없음 화면).
+  let decoded: string;
+  try {
+    decoded = decodeURIComponent(raw ?? "");
+  } catch {
+    return null;
+  }
+  const value = decoded.trim();
   return parseWeddingCodeString(value) ? value : null;
 }
 
@@ -206,10 +213,16 @@ export default async function WeddingCodeMeaningPage({
   );
 }
 
-export const dynamicParams = true;
-
-/** 이전 판 열여섯 조합을 미리 만들어 둔다. 예전에 받은 링크는 계속 열리되, 검색 색인은 metadata 가 막는다. */
-export function generateStaticParams(): { code: string }[] {
+/**
+ * 이전 판 열여섯 조합. 예전에 받은 링크는 계속 열리되, 검색 색인은 metadata 가 막는다.
+ *
+ * Next 의 `generateStaticParams` 로 내보내지 않는다(일부러). 그 이름으로 내보내면 빌드가 열여섯 조합을 미리 만들면서 이 경로가 prerender manifest 에 오르고,
+ * 요청이 올 때마다 Next 가 요청 경로를 한 번 더 풀어 목록과 맞춰 본다. 그때 `/wedding-code/c/%25` 처럼 풀면 깨지는 퍼센트 부호가 서버 오류(500)를 낸다
+ * (Next 의 PrerenderManifestMatcher 안에서 던져서 이 파일의 코드는 아직 실행되기 전이다. 감사 A27, A49). 목록에 오른 경로만 그렇다.
+ * 요청마다 그려도 열여섯 장이 전부라 부담이 없다. 깨진 주소는 이 파일의 normalized 가 없는 코드와 같이 notFound 로 보낸다.
+ * 시험(page.test.tsx)이 이 파일이 generateStaticParams 를 내보내지 않는 것을 고정한다.
+ */
+export function previousEditionCodes(): { code: string }[] {
   const [a, b, c, d] = [
     WEDDING_CODE_LETTERS.decisionCriteria,
     WEDDING_CODE_LETTERS.preparationMode,

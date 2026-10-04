@@ -5,7 +5,7 @@ import { checkRateLimitPersistent, rateLimitKey } from "@/utils/rateLimit";
 import { isBodyTooLarge, readBoundedUtf8Text } from "@/utils/requestValidation";
 import { isTrustedMutationRequest } from "@/utils/trustedMutation";
 import {
-  PAIR_SESSION_CREATE_WINDOW_MS, acknowledgesPairSessionRequest, parsePairSessionRequest, parsePairSessionSnapshot,
+  PAIR_SESSION_CLOCK_HINT, PAIR_SESSION_CREATE_WINDOW_MS, acknowledgesPairSessionRequest, parsePairSessionRequest, parsePairSessionSnapshot,
   type PairSessionRequest,
 } from "./pairSessionContract";
 
@@ -49,7 +49,7 @@ export async function handlePairSessionRequest(request: Request): Promise<NextRe
     const input = parsePairSessionRequest(value);
     if (!input) return failure("INVALID_REQUEST", "보낸 답이나 동의 항목에 문제가 있어요. 화면에서 다시 확인해 주세요.", 400);
     if (input.action === "create" && Math.abs(Date.now() - input.issuedAt) > PAIR_SESSION_CREATE_WINDOW_MS) {
-      return failure("CREATE_EXPIRED", "초대를 만드는 데 시간이 너무 오래 걸렸어요. 처음부터 다시 만들어 주세요.", 400);
+      return failure("CREATE_EXPIRED", `초대를 만든 시각이 실제 시각과 5분 넘게 달라서 만들지 못했어요. ${PAIR_SESSION_CLOCK_HINT} 맞는데도 계속되면 처음부터 다시 만들어 주세요.`, 400);
     }
     const limited = await checkRateLimitPersistent(rateLimitKey(`wedding-code:pair-session:${input.action === "read" ? "read" : "write"}`, request),
       { maxRequests: input.action === "read" ? 120 : 15, windowMs: 60_000 }, { failClosed: true });

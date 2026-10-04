@@ -16,11 +16,13 @@ import { WeddingCodeComparisonResume } from "./WeddingCodeV31Connection";
 import {
   WEDDING_CODE_DEFAULT_VERSION,
   defaultWeddingCodeEntry,
+  mentionsWeddingCodeV40,
   parseWeddingCodeEntryHash,
   type WeddingCodeEntry,
   type WeddingCodeLegacyEntryInitial,
   type WeddingCodeRestartTarget,
   type WeddingCodeV20EntryInitial,
+  weddingCodeEntryInAddressContext,
   weddingCodeEntryKey,
   weddingCodeRestartEntry,
   weddingCodeRestartSearch,
@@ -84,7 +86,9 @@ function createLocationHashStore() {
     getSnapshot(): string {
       const live = window.location.hash;
       if (live === "") return held ?? "";
-      const parsed = live.includes(WEDDING_CODE_V40_VERSION) ? parseWeddingCodeEntryHash(live) : null;
+      // v4 판 이름이 해시에 있거나 주소의 쿼리에 있을 때만 읽는다(대소문자 무시). 쿼리가 v4 인 주소의 읽을 수 없는 해시도 v4 오류로 붙잡는다.
+      const mentionsV40 = mentionsWeddingCodeV40(live) || mentionsWeddingCodeV40(window.location.search);
+      const parsed = mentionsV40 ? weddingCodeEntryInAddressContext(parseWeddingCodeEntryHash(live), window.location.search) : null;
       held = parsed?.kind === "v40" || (parsed?.kind === "error" && parsed.version !== undefined) ? live : null;
       return live;
     },
@@ -126,7 +130,7 @@ function ErrorEntry({ onRestart, embedded, v40 }: { onRestart: () => void; embed
         <p className="mt-3 text-sm leading-7 text-[var(--hb-text-body)]">
           {v40
             ? broken.body
-            : "링크가 중간에 잘렸거나, 아직 지원하지 않는 버전이에요. 처음부터 다시 답하거나 보낸 사람에게 링크를 다시 받아 주세요."}
+            : "링크가 중간에 잘렸거나, 끝에 글자가 더 붙었거나, 아직 지원하지 않는 버전일 수 있어요. 끝의 글자를 지우고 다시 열어 보거나, 보낸 사람에게 링크를 다시 받아 주세요. 처음부터 다시 답해도 돼요."}
         </p>
         <Button
           variant="primary"
@@ -183,17 +187,22 @@ export default function WeddingCodeEntryClient({
   );
   // Server and first client render deliberately share the same entry. The URL fragment is applied
   // after hydration, so an old share link never flashes a fabricated result during hydration.
-  // Known data-quality caveat (recorded, not fixed here): while the default entry is v3.1, a v4 hash link first hydrates the
-  // v3.1 start screen (the server never sees the fragment), and the frozen v3.1 client's mount effect sends
-  // `wedding_code_intro_viewed` (version v3.1-preferences, has_partner_link false) before this entry swaps to v4. Every v4
-  // recipient therefore adds one v3.1 intro view. It cannot be stopped from here without editing v3.1 or the analytics module;
-  // account for it before comparing intro-to-completion rates across the v3.1 to v4 default swap.
+  // Fixed 2026-10-04 (audit A68, A34): while the default entry is v3.1, an OLD v4 hash link (no `?v=` in the query; the server never sees the
+  // fragment) still hydrates the v3.1 start screen first, and the frozen v3.1 client's mount effect used to send
+  // `wedding_code_intro_viewed` (version v3.1-preferences) before this entry swapped to v4, adding one v3.1 intro view per v4 recipient.
+  // Two changes: (1) new answer links are built as `/wedding-code?v=v4.0-tendency#v=…&a=…`, so the server renders v4 from the first byte;
+  // (2) captureWeddingCodeEvent (lib/analytics.ts) drops an event whose version is not v4 while the address fragment carries the v4 tag,
+  // so the old links no longer add the stray v3.1 view either. Links already sent without the query still flash the v3.1 start screen once.
   const [hashStore] = useState(createLocationHashStore);
   const hash = useSyncExternalStore<string | null>(hashStore.subscribe, hashStore.getSnapshot, getServerHash);
   const [restartTarget, setRestartTarget] = useState<WeddingCodeRestartTarget | null>(null);
   const [restartRevision, setRestartRevision] = useState(0);
   const [restartNotice, setRestartNotice] = useState("");
-  const hashEntry = useMemo(() => parseWeddingCodeEntryHash(hash ?? "", { defaultVersion }), [hash, defaultVersion]);
+  // 해시는 하이드레이션 뒤에만 읽는다(hash 가 null 인 동안 쿼리를 보지 않는다). 읽을 수 없는 해시는 주소의 쿼리에 v4 판 이름이 있으면 v4 오류로 말한다.
+  const hashEntry = useMemo(
+    () => weddingCodeEntryInAddressContext(parseWeddingCodeEntryHash(hash ?? "", { defaultVersion }), hash === null ? "" : window.location.search),
+    [hash, defaultVersion],
+  );
   const entry = hashEntry ?? (restartTarget ? weddingCodeRestartEntry(restartTarget, defaultVersion) : defaultEntry);
 
   // 다시 시작은 도착 판을 밝힌다: v3.1 화면은 v3.1 빈 입구로, v4 화면은 v4 빈 입구로, 그 밖의 판은 그때의 기본 판으로 간다.

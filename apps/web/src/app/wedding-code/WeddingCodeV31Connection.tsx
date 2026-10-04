@@ -5,9 +5,16 @@ import Link from "next/link";
 import Button from "@/components/ui/Button";
 import type { V31Draft } from "@/constants/weddingCodeV31";
 import { encodeV31 } from "@/lib/weddingCode/v31";
-import { PAIR_SESSION_CONSENT_VERSION, PAIR_SESSION_RETENTION_DAYS, createPairSessionKeys, requestPairSession, type PairSessionRequest } from "@/lib/weddingCode/pairSessionContract";
-import { pairSessionUrl, readPairSessionRecovery, readSavedPairSession, savePairSessionLink, savePairSessionRecovery, subscribePairSession } from "@/lib/weddingCode/pairSessionClient";
+import { PAIR_SESSION_CLOCK_HINT, PAIR_SESSION_CONSENT_VERSION, PAIR_SESSION_RETENTION_DAYS, createPairSessionKeys, requestPairSession, type PairSessionRequest } from "@/lib/weddingCode/pairSessionContract";
+import { forgetPairSession, pairSessionUrl, readPairSessionRecovery, readSavedPairSession, savePairSessionLink, savePairSessionRecovery, subscribePairSession } from "@/lib/weddingCode/pairSessionClient";
 import { v31Body, v31Surface, v31Title } from "./WeddingCodeV31Inputs";
+
+/**
+ * 서버가 요청을 확실히 거절한 코드. 이 거절은 방이 만들어지거나 참여가 처리되지 않았다는 뜻이라,
+ * 「이미 처리됐는지 확인하기」 복구 링크가 쓸모없다. 네트워크 오류, 시간 초과, 응답 해석 실패는 처리됐을 수도 있어서 여기에 넣지 않는다.
+ */
+const CONFIRMED_REJECTION_CODES: readonly string[] = ["CONFLICT", "CLOSED", "NOT_FOUND", "INVALID_REQUEST"];
+export function isConfirmedPairRejection(code: string): boolean { return CONFIRMED_REJECTION_CODES.includes(code); }
 
 export function PairSessionConsent({ consent, ageConfirmed, disabled, onConsent, onAge }: {
   consent: boolean; ageConfirmed: boolean; disabled: boolean;
@@ -77,7 +84,13 @@ export default function WeddingCodeV31Connection({ draft }: { draft: V31Draft })
       setRecoveryUrl(pairSessionUrl(window.location.origin, member));
       const result = await requestPairSession(input);
       if (!active.current) return;
-      if (!result.ok) { setError(result.error); if (result.code === "CREATE_EXPIRED") pending.current = null; return; }
+      if (!result.ok) {
+        const clockOff = result.code === "CREATE_EXPIRED";
+        // 확실히 거절된 요청은 방이 없다. 복구 링크와 임시 확인 주소를 치우고, 다음에는 새 키로 만든다.
+        if (clockOff || isConfirmedPairRejection(result.code)) { pending.current = null; setRecoveryUrl(""); forgetPairSession(input.roomId); }
+        setError(clockOff && !result.error.includes(PAIR_SESSION_CLOCK_HINT) ? `${result.error} ${PAIR_SESSION_CLOCK_HINT}` : result.error);
+        return;
+      }
       savePairSessionLink({ ...member, expiresAt: result.snapshot.expiresAt });
       window.location.assign(pairSessionUrl(window.location.origin, member));
     } catch { if (active.current) setError("초대를 만들지 못했어요. 연결 상태를 확인하고 다시 시도해 주세요."); }

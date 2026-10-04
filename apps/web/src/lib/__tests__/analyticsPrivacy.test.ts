@@ -137,7 +137,8 @@ describe("웨딩코드 흐름 이벤트는 답과 주소를 싣지 않는다", (
     }
   });
 
-  it("주소 속성은 쿼리와 # 를 통째로 잘라 경로만 남긴다", () => {
+  it("주소는 어느 키로도 나가지 않는다 — 답이 든 주소는 물론 경로만 남긴 주소도 싣지 않는다", () => {
+    // 2026-10-04 허용 목록으로 바꿨다. 예전에는 `$` 키를 통과시키고 주소만 경로로 줄였지만, 방침 제8조는 「답과 주소를 뺀」 이벤트라고 한다.
     const answerUrl = `https://hanbang.ai/wedding-code#v=v0.8-code&a=${ANSWER_CODE}`;
     const legacyUrl = `https://hanbang.ai/wedding-code?a=${ANSWER_CODE}`;
     const safe = sanitizeWeddingCodeFunnelCapture({
@@ -147,6 +148,7 @@ describe("웨딩코드 흐름 이벤트는 답과 주소를 싣지 않는다", (
         distinct_id: "0191e1a2-anon",
         $current_url: answerUrl,
         $pathname: "/wedding-code",
+        $host: "hanbang.ai",
         $referrer: legacyUrl,
         $set_once: { $initial_current_url: answerUrl, nested: [{ $initial_referrer: legacyUrl }] },
         $browser: "Chrome",
@@ -158,22 +160,77 @@ describe("웨딩코드 흐름 이벤트는 답과 주소를 싣지 않는다", (
     }, AFTER)!;
 
     expect(JSON.stringify(safe)).not.toContain(ANSWER_CODE);
-    expect(safe.properties!.$current_url).toBe("https://hanbang.ai/wedding-code");
-    expect(safe.properties!.$referrer).toBe("https://hanbang.ai/wedding-code");
-    expect(safe.properties!.$set_once).toEqual({
-      $initial_current_url: "https://hanbang.ai/wedding-code",
-      nested: [{ $initial_referrer: "https://hanbang.ai/wedding-code" }],
-    });
-    // 전송에 필요한 값과 셈은 그대로 둔다.
-    expect(safe.properties).toMatchObject({
+    expect(JSON.stringify(safe)).not.toContain("wedding-code");
+    for (const key of ["$current_url", "$pathname", "$host", "$referrer", "$set_once", "$browser"]) {
+      expect(safe.properties, key).not.toHaveProperty(key);
+    }
+    // 전송에 필요한 값과 방침에 적힌 셈은 그대로 둔다.
+    expect(safe.properties).toEqual({
       token: "phc_test",
       distinct_id: "0191e1a2-anon",
-      $browser: "Chrome",
       version: "v0.8-code",
       scene_total: 20,
       answered_count: 18,
       skipped_count: 2,
     });
+  });
+
+  /**
+   * 2026-10-03 감사 A31: 운영에서 `wedding_code_intro_viewed` 한 건에 방침 속성 말고 42개가 더 실려 나갔다. 아래 키는 그때 posthog-js 1.386.2 가
+   * 실제로 이벤트에 붙인 것을 그대로 옮긴 것이다(2026-10-04 실제 SDK 를 브라우저에서 돌려 센 결과도 같다).
+   * 허용 목록 밖 `$` 키(접속 환경·화면 크기·언어·시간대·유입 경로·SDK 내부값)는 값이 무엇이든 떨어지고, 전송에 필요한 셋과 방침 속성만 남는다.
+   */
+  it("SDK 가 붙이는 `$` 키는 허용 목록 밖이면 전부 떨어지고 허용 키만 남는다", () => {
+    const sdkAttached = {
+      $os: "Android", $browser: "Chrome", $device: "Android", $device_type: "Mobile",
+      $timezone: "Asia/Seoul", $timezone_offset: -540,
+      $current_url: "https://hanbang.ai/wedding-code", $host: "hanbang.ai", $pathname: "/wedding-code",
+      $raw_user_agent: "Mozilla/5.0 (Linux; Android 13; SM-S918N) KAKAOTALK 2511290",
+      $browser_version: 124, $browser_language: "ko-KR", $browser_language_prefix: "ko",
+      $screen_height: 844, $screen_width: 390, $viewport_height: 844, $viewport_width: 390,
+      $lib: "web", $lib_version: "1.386.2", $insert_id: "a3ghqyemhx8f5v59", $time: 1791036504.32,
+      $sdk_dist_channel: "npm", $initialization_time: "2026-10-03T14:08:24.308Z", $configured_session_timeout_ms: 1_800_000,
+      $device_id: "01a10218-38f5-7f9b-9343-d5dc78c68dcb", $sdk_debug_extensions_init_method: "synchronous",
+      $sdk_debug_extensions_init_time_ms: 1, $config_defaults: "unset",
+      $session_id: "01a10218-3900-74fe-9b91-7dd6b1b77458", $window_id: "01a10218-3900-74fe-9b91-7dd791f32de6",
+      $session_entry_referrer: "$direct", $session_entry_referring_domain: "$direct",
+      $session_entry_url: "https://hanbang.ai/wedding-code", $session_entry_host: "hanbang.ai",
+      $session_entry_pathname: "/wedding-code", $session_entry_utm_source: "kakao", $session_entry_utm_campaign: "friends",
+      utm_source: "kakao", $referring_domain: "m.kakao.com", $geoip_country_code: "KR", $recording_status: "disabled",
+      $sdk_debug_retry_queue_size: 0, $is_identified: false, $lib_rate_limit_remaining_tokens: 99,
+    };
+    const safe = sanitizeWeddingCodeFunnelCapture({
+      event: "wedding_code_intro_viewed",
+      properties: {
+        ...sdkAttached,
+        distinct_id: "01a10218-38f5-7f9b-9343-d5dc78c68dcb",
+        token: "phc_tK2rLgLoVa7kMX6W95PRADwPmYnnPzNwNVQkWKJ7PSNC",
+        $process_person_profile: false,
+        version: "v3.1-preferences", scene_total: 24, has_partner_link: false, placement: "core",
+      },
+    }, AFTER)!;
+
+    expect(Object.keys(safe.properties!).sort()).toEqual([
+      "$process_person_profile", "distinct_id", "has_partner_link", "placement", "scene_total", "token", "version",
+    ]);
+    // 남은 키는 전송에 꼭 필요한 셋과 방침 제3조의 속성뿐이다.
+    const allowed = new Set<string>([...WEDDING_CODE_FUNNEL_PROPERTIES, "token", "distinct_id", "$process_person_profile"]);
+    for (const key of Object.keys(safe.properties!)) expect(allowed.has(key), key).toBe(true);
+  });
+
+  it("허용한 SDK 키도 값이 주소·쿼리·공백이거나 모양이 다르면 버린다", () => {
+    const safe = sanitizeWeddingCodeFunnelCapture({
+      event: "wedding_code_started",
+      properties: {
+        token: `https://hanbang.ai/wedding-code#a=${ANSWER_CODE}`,
+        distinct_id: `01a1-uuid?a=${ANSWER_CODE}`,
+        $process_person_profile: "false",
+        version: "v3.1-preferences",
+      },
+    }, AFTER)!;
+
+    expect(safe.properties).toEqual({ version: "v3.1-preferences" });
+    expect(JSON.stringify(safe)).not.toContain(ANSWER_CODE);
   });
 
   it("SDK가 최상위에 붙인 개인 속성과 최초 응답 주소도 제거한다", () => {

@@ -257,6 +257,18 @@ const GB = "1401384H";
 const guessA = decodeGuessCode(GA) as GuessAnswers;
 const guessB = decodeGuessCode(GB) as GuessAnswers;
 
+/**
+ * 2026-10-04: 답이 든 링크는 `/wedding-code?v=v4.0-tendency#v=…` 로 나간다(받는 사람의 첫 화면이 v3.1 이 아니라 v4 이게 하려고 쿼리에도 판 이름을 싣는다, 감사 A68).
+ * 기준 계산기(scripts/lib/wedding-code-v41-guess-ref.mjs)는 쿼리가 없던 옛 모양을 내므로, 기대값은 기준 링크에서 `/wedding-code` 바로 뒤에 `?v=` 판 이름 하나만 더한 것이다.
+ * # 뒤(키 순서와 코드)는 기준 계산기와 글자 그대로 같아야 한다.
+ */
+const withVersionQuery = (link: string | null): string | null => {
+  if (link === null) return null;
+  const marker = "/wedding-code#";
+  expect(link.split(marker)).toHaveLength(2);
+  return link.replace(marker, `/wedding-code?v=${V}#`);
+};
+
 describe("M4 링크 조립", () => {
   it("고정 표본 쌍 x g 조합 넷 x origin 셋: TS 주소 = JS 주소이고 g 가 없으면 buildGatedShareUrl 과 같다", () => {
     let count = 0;
@@ -268,11 +280,11 @@ describe("M4 링크 조립", () => {
           const first: GuessedPerson = { code: personOf(index), guess: ga };
           const second: GuessedPerson = { code: personOf(index + 3), guess: gb };
           const ts = buildGatedShareUrlWithGuess(bank, origin, first, second);
-          expect(ts, `${index} ${origin}`).toBe(ref.buildShareUrlWithGuess(oracleBank, origin, first, second));
+          expect(ts, `${index} ${origin}`).toBe(withVersionQuery(ref.buildShareUrlWithGuess(oracleBank, origin, first, second)));
           expect(ts, `${index} ${origin}`).not.toBeNull();
           if (ga === null && gb === null) expect(ts).toBe(buildGatedShareUrl(bank, origin, first.code, second.code));
           const single = buildGatedShareUrlWithGuess(bank, origin, first);
-          expect(single).toBe(ref.buildShareUrlWithGuess(oracleBank, origin, first));
+          expect(single).toBe(withVersionQuery(ref.buildShareUrlWithGuess(oracleBank, origin, first)));
           if (ga === null) expect(single).toBe(buildGatedShareUrl(bank, origin, first.code));
           count += 2;
         }
@@ -295,8 +307,8 @@ describe("M4 링크 조립", () => {
     }
     const odd = "https://h&a=x";
     const both = [{ code: personOf(1), guess: guessA }, { code: personOf(5), guess: guessB }] as const;
-    expect(buildGatedShareUrlWithGuess(bank, odd, both[0], both[1])).toBe(ref.buildShareUrlWithGuess(oracleBank, odd, both[0], both[1]));
-    expect(buildGatedShareUrlWithGuess(bank, odd, both[0], both[1])).toBe(`${odd}/wedding-code#v=${V}&a=${codeOf(personOf(1))}&ga=${GA}&b=${codeOf(personOf(5))}&gb=${GB}`);
+    expect(buildGatedShareUrlWithGuess(bank, odd, both[0], both[1])).toBe(withVersionQuery(ref.buildShareUrlWithGuess(oracleBank, odd, both[0], both[1])));
+    expect(buildGatedShareUrlWithGuess(bank, odd, both[0], both[1])).toBe(`${odd}/wedding-code?v=${V}#v=${V}&a=${codeOf(personOf(1))}&ga=${GA}&b=${codeOf(personOf(5))}&gb=${GB}`);
   });
 
   it("만들 수 없는 g(고른 것이 없음)도 둘 다 null 이다", () => {

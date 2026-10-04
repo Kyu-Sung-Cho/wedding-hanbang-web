@@ -118,6 +118,41 @@ describe("본인 결과에서 두 사람 초대 만들기", () => {
     expect(readSavedPairSession()).toBeNull();
   });
 
+  it("시각이 어긋나 거절되면 휴대폰 날짜와 시간을 확인하라고 말하고, 쓸모없는 복구 링크와 임시 확인 주소를 치운다", async () => {
+    await render(); await consent(); await button("동의하고 초대 만들기");
+    const first = request(0);
+    expect(readPairSessionRecovery(first.roomId)).not.toBeNull();
+    fetcher.mockResolvedValueOnce(new Response(JSON.stringify({ code: "CREATE_EXPIRED", error: "초대를 만든 시각이 실제 시각과 5분 넘게 달라서 만들지 못했어요. 휴대폰 날짜와 시간이 맞는지 확인해 주세요." }), { status: 400 }));
+    await button("초대 다시 만들기");
+    const alert = container.querySelector('[role="alert"]')!;
+    expect(alert.textContent).toContain("휴대폰 날짜와 시간이 맞는지 확인해 주세요.");
+    expect(alert.querySelector("a")).toBeNull();
+    expect(container.textContent).not.toContain("이미 만들어졌는지");
+    expect(readPairSessionRecovery(first.roomId)).toBeNull();
+  });
+
+  it("서버 문구에 시계 안내가 빠져 있어도 화면은 같은 안내를 한 번 붙인다", async () => {
+    await render(); await consent();
+    fetcher.mockResolvedValueOnce(new Response(JSON.stringify({ code: "CREATE_EXPIRED", error: "새 초대를 만들어 주세요." }), { status: 400 }));
+    await button("동의하고 초대 만들기");
+    expect(container.querySelector('[role="alert"]')?.textContent).toBe("새 초대를 만들어 주세요. 휴대폰 날짜와 시간이 맞는지 확인해 주세요.");
+  });
+
+  it("확정 거절(INVALID_REQUEST)도 복구 링크를 숨기고 다음에는 새 방 키로 시도한다. 처리 여부를 모르는 실패는 링크를 남긴다", async () => {
+    await render(); await consent();
+    fetcher.mockResolvedValueOnce(new Response(JSON.stringify({ code: "INVALID_REQUEST", error: "보낸 답이나 동의 항목에 문제가 있어요." }), { status: 400 }));
+    await button("동의하고 초대 만들기");
+    const first = request(0);
+    expect(container.querySelector('[role="alert"]')?.textContent).toContain("보낸 답이나 동의 항목에 문제가 있어요.");
+    expect(container.querySelector('[role="alert"] a')).toBeNull();
+    expect(readPairSessionRecovery(first.roomId)).toBeNull();
+    await button("초대 다시 만들기");
+    const second = request(1);
+    expect(second.roomId).not.toBe(first.roomId);
+    expect(container.querySelector('[role="alert"] a')).not.toBeNull();
+    expect(readPairSessionRecovery(second.roomId)?.token).toBe(second.ownerToken);
+  });
+
   it("요청 중에는 동의 변경과 중복 생성을 막고 실패하면 재시도를 다시 허용한다", async () => {
     let resolve: (value: Response) => void = () => { throw new Error("요청이 시작되지 않았어요."); };
     fetcher.mockImplementationOnce(() => new Promise<Response>(done => { resolve = done; }));

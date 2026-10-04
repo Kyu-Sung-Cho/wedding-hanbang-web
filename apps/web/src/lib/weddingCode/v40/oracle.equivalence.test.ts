@@ -8,7 +8,7 @@
 import { describe, expect, it } from "vitest";
 import * as oracleModule from "../../../../../../scripts/lib/wedding-code-v40-ref.mjs";
 import { V40_BANK_DATA } from "@/constants/weddingCodeV40Bank";
-import { V40_STATE_ALPHABET } from "@/constants/weddingCodeV40";
+import { V40_STATE_ALPHABET, WEDDING_CODE_V40_VERSION } from "@/constants/weddingCodeV40";
 import type { Bank, DecodedCode, FormBit, Format, Item, ResponseValue, Responses, ViewAnswer } from "./types";
 import { WEDDING_CODE_V40_BANK } from "./bank";
 import { V40_LAYOUT } from "./layout";
@@ -690,10 +690,21 @@ describe("링크 코덱 대조", () => {
    * 「기준 계산기의 buildResult 가 코드를 내면(관문 열림) 기준 계산기의 링크, 아니면 null」이다. 관문 판정도 기준 계산기 쪽 것으로 세운다.
    */
   const oracleOpen = (person: DecodedCode): boolean => (ref.buildResult(oracleBank, person.formBit, person.responses) as { code: string | null }).code !== null;
+  /**
+   * 2026-10-04: 답이 든 링크는 `/wedding-code?v=v4.0-tendency#v=v4.0-tendency&a=…` 로 나간다(받는 사람의 첫 화면이 v3.1 이 아니라 v4 이게 하려고 쿼리에도 판 이름을 싣는다, 감사 A68).
+   * 기준 계산기(scripts/lib/wedding-code-v40-ref.mjs)는 쿼리가 없던 옛 모양을 내므로, 기대값은 기준 링크에서 `/wedding-code` 바로 뒤에 `?v=v4.0-tendency` 하나만 더한 것이다.
+   * # 뒤(코드와 키 순서)는 기준 계산기와 글자 그대로 같아야 하고, 이 변환이 바꾸는 것은 쿼리 하나뿐이다.
+   */
+  const withVersionQuery = (link: string | null): string | null => {
+    if (link === null) return null;
+    const marker = "/wedding-code#";
+    expect(link.split(marker)).toHaveLength(2);
+    return link.replace(marker, `/wedding-code?v=${WEDDING_CODE_V40_VERSION}#`);
+  };
   const expectedLink = (origin: string, first: DecodedCode, second?: DecodedCode): string | null => {
     if (!oracleOpen(first)) return null;
     if (second !== undefined && !oracleOpen(second)) return null;
-    return second === undefined ? ref.buildShareUrl(oracleBank, origin, first) : ref.buildShareUrl(oracleBank, origin, first, second);
+    return withVersionQuery(second === undefined ? ref.buildShareUrl(oracleBank, origin, first) : ref.buildShareUrl(oracleBank, origin, first, second));
   };
 
   it("보내기 링크(관문이 열린 응답만)와 질문만 보내기 링크가 같다", () => {

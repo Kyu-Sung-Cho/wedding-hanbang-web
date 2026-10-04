@@ -891,7 +891,12 @@ export interface ProgressEnvelope {
 
 export type ProgressRead =
   | { readonly status: "ready"; readonly snapshot: ProgressSnapshot; readonly savedAt: number; readonly raw: string }
-  | { readonly status: "empty" | "invalid" | "expired" | "unavailable"; readonly raw: string | null };
+  | {
+    readonly status: "empty" | "invalid" | "expired" | "unavailable";
+    readonly raw: string | null;
+    /** invalid 이면서 형식은 멀쩡한데 저장 시각만 지금보다 하루를 넘는 미래일 때만 참. 폰 날짜와 시간을 확인하라는 안내의 근거다. */
+    readonly clockAhead?: true;
+  };
 
 /**
  * 진행 저장 쓰기의 결과. saved = 쓰고 다시 읽어 확인함, conflict = 다른 탭이 그 사이 바꿨음, unavailable = 저장소가 막혔거나 쓴 값이 확인되지 않음,

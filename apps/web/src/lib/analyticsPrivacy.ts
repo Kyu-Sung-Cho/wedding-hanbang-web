@@ -305,21 +305,30 @@ export function isWeddingCodeFunnelEvent(event: unknown): event is WeddingCodeFu
   return typeof event === "string" && WEDDING_CODE_FUNNEL_EVENT_SET.has(event);
 }
 
-function stripLocationToPath(value: string): string {
-  const cut = value.search(/[?#]/);
-  return cut < 0 ? value : value.slice(0, cut);
-}
-
-function stripAllLocationQueries(value: unknown): unknown {
-  if (looksLikeLocationValue(value)) return stripLocationToPath(value);
-  if (Array.isArray(value)) return value.map(stripAllLocationQueries);
-  if (isPlainObject(value)) {
-    return Object.fromEntries(
-      Object.entries(value).map(([key, item]) => [key, stripAllLocationQueries(item)]),
-    );
-  }
-  return value;
-}
+/**
+ * 흐름 이벤트에 PostHog SDK 가 스스로 붙이는 키 중 **보내도 되는 것의 허용 목록**. 이 밖의 키는 값과 상관없이 전부 버린다.
+ *
+ * 예전에는 `$` 로 시작하는 키를 전부 통과시켜(주소만 경로로 줄임) 전체 User-Agent·시간대·화면과 뷰포트 크기·브라우저 언어·
+ * 기기 id·유입 도메인·utm 이 이벤트마다 같이 나갔다(2026-10-03 시스템 감사 A31, 운영에서 42개 초과). 방침 제3조 웨딩코드 문장은
+ * 이벤트 여덟 개와 속성 여덟 개(WEDDING_CODE_FUNNEL_DISCLOSURE)만 적고, 제8조는 「답과 주소를 뺀 흐름 이벤트(제3조에 적은 항목)만」
+ * 모은다고 한다. 그래서 주소($current_url·$host·$pathname·$referrer 류)와 접속 환경 정보($browser·$os·$device*·$raw_user_agent·
+ * $timezone·$screen_*·$viewport_*·$browser_language 류), 유입 경로($session_entry_*·utm_*·$referring_domain 류)는 방침 문장에 근거가
+ * 없어 남기지 않는다. 제1조의 「브라우저·OS 정보」는 서비스 전반의 자동 수집 항목이고 제8조가 이 이벤트의 범위를 제3조로 좁혀 두었다.
+ * landingAnalytics.ts 의 SDK_*_PROPERTIES 는 브라우저·화면·기기 값을 포함해서(랜딩 전용 허용 목록) 재사용하지 않는다.
+ *
+ * 남기는 세 키는 방침에 낱말로는 적혀 있지 않지만 전송에 기술적으로 필요하거나 수집을 줄이는 값이다(방침을 고치지 않고 둔 경계라서
+ * 작업 보고서에 파운더 결정 사항으로 올렸다):
+ * - token: 통계 수신처(제5조 PostHog 「서비스 이용 통계 분석」 위탁)가 프로젝트를 알아보는 값. 없으면 받아 주지 않는다.
+ * - distinct_id: 이벤트를 한 방문 안에서 잇는 임의 식별자(제3조 「몇 번째 장면까지 봤는지」·「끝까지 했는지」를 읽으려면 필요).
+ *   없으면 수신처가 거절한다. disable_persistence 라서 브라우저에 저장하지 않고 새로 읽으면 새로 만든다.
+ * - $session_id 는 남기지 않는다. disable_persistence 인 지금 설정에서는 새로 읽을 때마다 distinct_id 와 함께 새로 만들어져(2026-10-04
+ *   실측: 두 번 읽으면 두 쌍) distinct_id 와 같은 방문 묶음일 뿐이라서 수신처가 이벤트를 받는 데 필요하지 않고 방침에도 없다.
+ * - $process_person_profile: false 면 수신처가 사람 프로필을 만들지 않는다. 수집 항목이 아니라 수집을 줄이는 지시다.
+ */
+const WEDDING_CODE_FUNNEL_SDK_ID_KEYS = new Set<string>(["token", "distinct_id"]);
+const WEDDING_CODE_FUNNEL_SDK_FLAG_KEYS = new Set<string>(["$process_person_profile"]);
+/** 임의 id·프로젝트 키 모양(UUID, `phc_…`)만. 주소·쿼리·공백이 든 값은 통과하지 못한다. */
+const WEDDING_CODE_FUNNEL_SDK_ID_VALUE = /^[A-Za-z0-9_-]{1,128}$/;
 
 function isSafeFunnelValue(value: unknown): boolean {
   if (typeof value === "boolean") return true;
@@ -330,9 +339,9 @@ function isSafeFunnelValue(value: unknown): boolean {
 /**
  * 허용한 웨딩코드 흐름 이벤트를 보낼 수 있는 모양으로 바꾼다. 흐름 이벤트가 아니면 null.
  *
- * PostHog가 스스로 넣는 `$` 속성(token·distinct_id·브라우저 정보)은 전송에 필요해서
- * 남기되, 그 안의 주소는 경로만 남긴다. 첫 방문 주소가 한 겹 안쪽 `$set_once`에 실리므로
- * 중첩까지 훑는다.
+ * 허용 목록 두 개만 통과한다. 방침 제3조에 적힌 흐름 속성(WEDDING_CODE_FUNNEL_PROPERTIES, 값은 짧은 식별자·작은 정수·불리언)과,
+ * 전송에 필요한 SDK 키 셋(token·distinct_id·$process_person_profile, 위 주석). `$` 로 시작하는 나머지 키는 값이
+ * 무엇이든 버린다. 주소는 어느 키로도 나가지 않고, 첫 방문 주소가 실리는 `$set_once` 도 properties 밖 키와 함께 버려진다.
  */
 export function sanitizeWeddingCodeFunnelCapture<
   T extends { event?: string; properties?: Record<string, unknown> } | null,
@@ -341,14 +350,16 @@ export function sanitizeWeddingCodeFunnelCapture<
   if (!isWeddingCodeFunnelAnalyticsEffective(now)) return null;
   const properties: Record<string, unknown> = {};
   for (const [key, value] of Object.entries(capture.properties ?? {})) {
-    if (key.startsWith("$") || key === "token" || key === "distinct_id") {
-      properties[key] = stripAllLocationQueries(value);
+    if (WEDDING_CODE_FUNNEL_SDK_ID_KEYS.has(key)) {
+      if (typeof value === "string" && WEDDING_CODE_FUNNEL_SDK_ID_VALUE.test(value)) properties[key] = value;
+    } else if (WEDDING_CODE_FUNNEL_SDK_FLAG_KEYS.has(key)) {
+      if (typeof value === "boolean") properties[key] = value;
     } else if (WEDDING_CODE_FUNNEL_PROPERTY_KEYS.has(key) && isSafeFunnelValue(value)) {
       properties[key] = value;
     }
   }
   // SDK는 최초 방문 정보를 properties 밖의 $set_once에도 붙인다.
-  // 속성 안의 주소만 정리하면 답이 든 원래 주소가 그 자리로 빠져나간다.
+  // properties 안만 정리하면 답이 든 원래 주소가 그 자리로 빠져나가므로 최상위 키는 아래서 통째로 버린다.
   const safeCapture = { ...capture, properties };
   for (const key of Object.keys(safeCapture)) {
     if (!["event", "uuid", "timestamp", "properties"].includes(key)) {

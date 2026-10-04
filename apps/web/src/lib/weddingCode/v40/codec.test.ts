@@ -338,32 +338,52 @@ describe("링크 만들기", () => {
   const first: DecodedCode = { formBit: 0, responses: goldenResponses() };
   const second: DecodedCode = { formBit: 1, responses: mixedResponses() };
 
-  it("내 답과 함께 보내기: origin/wedding-code#v=v4.0-tendency&a=<70자>", () => {
+  it("내 답과 함께 보내기: origin/wedding-code?v=v4.0-tendency#v=v4.0-tendency&a=<70자>(쿼리의 판 이름은 서버가 처음부터 v4 화면을 그리게 한다)", () => {
     expect(WEDDING_CODE_V40_VERSION).toBe("v4.0-tendency");
-    expect(buildGatedShareUrl(bank, "https://hanbang.ai", first)).toBe(`https://hanbang.ai/wedding-code#v=v4.0-tendency&a=${GOLDEN_FORM0}`);
+    expect(buildGatedShareUrl(bank, "https://hanbang.ai", first)).toBe(`https://hanbang.ai/wedding-code?v=v4.0-tendency#v=v4.0-tendency&a=${GOLDEN_FORM0}`);
   });
 
   it("두 사람 결과 링크는 &b= 를 더하고 키 순서는 v, a, b", () => {
     const url = buildGatedShareUrl(bank, "https://hanbang.ai", first, second) as string;
-    expect(url).toBe(`https://hanbang.ai/wedding-code#v=v4.0-tendency&a=${GOLDEN_FORM0}&b=${GOLDEN_MIXED_FORM1}`);
-    expect(url.indexOf("v=")).toBeLessThan(url.indexOf("&a="));
-    expect(url.indexOf("&a=")).toBeLessThan(url.indexOf("&b="));
+    expect(url).toBe(`https://hanbang.ai/wedding-code?v=v4.0-tendency#v=v4.0-tendency&a=${GOLDEN_FORM0}&b=${GOLDEN_MIXED_FORM1}`);
+    const fragment = url.split("#")[1];
+    expect(fragment.indexOf("v=")).toBeLessThan(fragment.indexOf("&a="));
+    expect(fragment.indexOf("&a=")).toBeLessThan(fragment.indexOf("&b="));
   });
 
-  it("origin 끝의 / 는 모두 떼고 쿼리는 없다", () => {
-    const expected = `https://hanbang.ai/wedding-code#v=v4.0-tendency&a=${GOLDEN_FORM0}`;
+  it("origin 끝의 / 는 모두 떼고, 쿼리는 판 이름 하나뿐이다", () => {
+    const expected = `https://hanbang.ai/wedding-code?v=v4.0-tendency#v=v4.0-tendency&a=${GOLDEN_FORM0}`;
     expect(buildGatedShareUrl(bank, "https://hanbang.ai/", first)).toBe(expected);
     expect(buildGatedShareUrl(bank, "https://hanbang.ai////", first)).toBe(expected);
-    expect(buildGatedShareUrl(bank, "http://localhost:3000", first)).toBe(`http://localhost:3000/wedding-code#v=v4.0-tendency&a=${GOLDEN_FORM0}`);
+    expect(buildGatedShareUrl(bank, "http://localhost:3000", first)).toBe(`http://localhost:3000/wedding-code?v=v4.0-tendency#v=v4.0-tendency&a=${GOLDEN_FORM0}`);
     const url = buildGatedShareUrl(bank, "https://hanbang.ai", first) as string;
-    expect(url).not.toContain("?");
+    // 쿼리는 서버가 읽는 판 이름 하나뿐이고 답은 # 뒤에만 있다(서버는 # 뒤를 보지 못한다).
+    const [beforeHash, fragment] = url.split("#");
     expect(url.split("#")).toHaveLength(2);
+    expect(beforeHash.split("?")).toHaveLength(2);
+    expect(beforeHash.split("?")[1]).toBe("v=v4.0-tendency");
+    expect(fragment).not.toContain("?");
+  });
+
+  it("기본 진입이 v4 로 바뀐 뒤(explicitVersion false)에는 쿼리를 빼서 질문만 보내기 링크와 같은 규칙을 따른다. 옛 링크(쿼리 없음)의 해시는 그대로다", () => {
+    const withQuery = buildGatedShareUrl(bank, "https://hanbang.ai", first) as string;
+    const withoutQuery = buildGatedShareUrl(bank, "https://hanbang.ai", first, undefined, { explicitVersion: false }) as string;
+    expect(withoutQuery).toBe(`https://hanbang.ai/wedding-code#v=v4.0-tendency&a=${GOLDEN_FORM0}`);
+    expect(withQuery.split("#")[1]).toBe(withoutQuery.split("#")[1]);
+    expect(buildGatedShareUrl(bank, "https://hanbang.ai", first, undefined, { explicitVersion: true })).toBe(withQuery);
+    expect(buildGatedShareUrl(bank, "https://hanbang.ai", first, undefined, {})).toBe(withQuery);
+    const pair = buildGatedShareUrl(bank, "https://hanbang.ai", first, second, { explicitVersion: false }) as string;
+    expect(pair).toBe(`https://hanbang.ai/wedding-code#v=v4.0-tendency&a=${GOLDEN_FORM0}&b=${GOLDEN_MIXED_FORM1}`);
+    // 둘 다 같은 대표 주소로 열린다: 쿼리의 판 이름은 서버의 첫 화면과 카드 미리보기만 정한다.
+    expect(buildGatedShareUrl(bank, "", first)).toBe(`/wedding-code?v=v4.0-tendency#v=v4.0-tendency&a=${GOLDEN_FORM0}`);
   });
 
   it("링크에는 코드 문자열 외에 글자, 세기, 결과가 없다", () => {
     const url = buildGatedShareUrl(bank, "https://hanbang.ai", first, second) as string;
     const fragment = url.split("#")[1];
     expect(fragment.split("&").map((part) => part.split("=")[0])).toEqual(["v", "a", "b"]);
+    // 쿼리에도 답은 없다(판 이름뿐).
+    expect(url.split("#")[0]).not.toMatch(/[?&][ab]=/u);
   });
 
   it("어느 쪽이든 만들 수 없으면 null", () => {
@@ -420,10 +440,10 @@ describe("링크 만들기", () => {
   it("쓸 수 있는 origin: http, https, 포트, IPv6, 빈 문자열(같은 사이트 상대 주소)은 그대로 링크가 된다", () => {
     for (const origin of ["https://hanbang.ai", "http://localhost:3000", "https://www.hanbang.ai/", "http://[::1]:3000", "HTTPS://HANBANG.AI"]) {
       const url = buildGatedShareUrl(bank, origin, first);
-      expect(url, origin).toBe(`${origin.replace(/\/+$/u, "")}/wedding-code#v=v4.0-tendency&a=${GOLDEN_FORM0}`);
+      expect(url, origin).toBe(`${origin.replace(/\/+$/u, "")}/wedding-code?v=v4.0-tendency#v=v4.0-tendency&a=${GOLDEN_FORM0}`);
     }
-    expect(buildGatedShareUrl(bank, "", first)).toBe(`/wedding-code#v=v4.0-tendency&a=${GOLDEN_FORM0}`);
-    expect(buildGatedShareUrl(bank, "///", first)).toBe(`/wedding-code#v=v4.0-tendency&a=${GOLDEN_FORM0}`);
+    expect(buildGatedShareUrl(bank, "", first)).toBe(`/wedding-code?v=v4.0-tendency#v=v4.0-tendency&a=${GOLDEN_FORM0}`);
+    expect(buildGatedShareUrl(bank, "///", first)).toBe(`/wedding-code?v=v4.0-tendency#v=v4.0-tendency&a=${GOLDEN_FORM0}`);
   });
 
   it("질문만 보내기는 쓸 수 없는 origin 이면 던지지 않고 같은 사이트 상대 주소로 낸다(엉뚱한 호스트로 가지 않는다)", () => {
@@ -468,8 +488,8 @@ describe("buildGatedShareUrl: 관문이 닫힌 응답은 링크를 만들지 않
   it("열린 응답은 코드 두 개를 그대로 이은 링크다(혼자 보내기와 두 사람 링크)", () => {
     const a = encodeCode(bank, open.formBit, open.responses);
     const b = encodeCode(bank, partner.formBit, partner.responses);
-    expect(buildGatedShareUrl(bank, "https://hanbang.ai", open)).toBe(`https://hanbang.ai/wedding-code#v=v4.0-tendency&a=${a}`);
-    expect(buildGatedShareUrl(bank, "https://hanbang.ai", open, partner)).toBe(`https://hanbang.ai/wedding-code#v=v4.0-tendency&a=${a}&b=${b}`);
+    expect(buildGatedShareUrl(bank, "https://hanbang.ai", open)).toBe(`https://hanbang.ai/wedding-code?v=v4.0-tendency#v=v4.0-tendency&a=${a}`);
+    expect(buildGatedShareUrl(bank, "https://hanbang.ai", open, partner)).toBe(`https://hanbang.ai/wedding-code?v=v4.0-tendency#v=v4.0-tendency&a=${a}&b=${b}`);
     expect(buildGatedShareUrl(bank, "https://hanbang.ai", open)).toContain("#v=v4.0-tendency&a=");
   });
 
