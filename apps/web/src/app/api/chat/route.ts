@@ -123,6 +123,7 @@ import {
 } from "@/lib/ai/amoraToolPolicy";
 import {
   classifyAmoraQuestionScope,
+  buildAmoraOffDomainTerminal,
   hasAmoraSafetySignal,
   filterAmoraToolsByQuestionScope,
   type AmoraQuestionScopeClassification,
@@ -4438,7 +4439,11 @@ export async function POST(request: Request) {
             : null;
           // 대기열 항목을 건너뛴 턴도 모델 문장 대신 서버 안내로 답한다. 모델은 이 턴에 "반영할게요"
           // 라고 하거나 이미 없는 버튼을 가리킬 수 있다.
-          const canonicalTerminalText = typedCardAcceptanceText ?? queueSkipLeadText ?? serverTextWithoutCard;
+          // Buffered provider text cannot answer a clearly unrelated task even
+          // if the model ignores the scope instruction. W2/W5 and ambiguous
+          // wedding continuity never enter this high-confidence W4 terminal.
+          const canonicalTerminalText = buildAmoraOffDomainTerminal(questionScope)
+            ?? typedCardAcceptanceText ?? queueSkipLeadText ?? serverTextWithoutCard;
           // 현재 사용자가 완결된 금액 목록을 직접 확정했으면 모델의 누락·임의 분할보다
           // 원문을 우선한다. 여전히 같은 범위/도구 스키마/카드 확인 경계를 통과한다.
           const budgetAssessment = canonicalTerminalText === null && !isDemo && requestKind === "chat" && isDurableUserMessageBound

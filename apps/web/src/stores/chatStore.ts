@@ -2084,7 +2084,9 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
         couple_id: coupleId,
         sender_id: null,
         sender_role: "ai",
-        content: `민감한 안전 관련 내용이라 상대방에게 공유하지 않고 나만 상담으로 옮겼어요.${attachmentNotice}`,
+        content: visibility !== crisisPreflight.effectiveVisibility
+          ? `민감한 안전 관련 내용이라 상대방에게 공유하지 않고 나만 상담으로 옮겼어요.${attachmentNotice}`
+          : `민감한 안전 관련 내용이라 상대방에게 공유하지 않고 개인 상담에서 안내할게요.${attachmentNotice}`,
         metadata: {
           response_origin: "client_deterministic_safety_privacy_preflight",
           question_scope: "W2_high_risk_adjacent",
@@ -2625,7 +2627,9 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
             couple_id: coupleId,
             sender_id: null,
             sender_role: "ai",
-            content: `민감한 안전 관련 내용이라 상대방에게 공유하지 않고 나만 상담으로 옮겼어요.${attachmentNotice}`,
+            content: visibility !== serverVisibility
+              ? `민감한 안전 관련 내용이라 상대방에게 공유하지 않고 나만 상담으로 옮겼어요.${attachmentNotice}`
+              : `민감한 안전 관련 내용이라 상대방에게 공유하지 않고 개인 상담에서 안내할게요.${attachmentNotice}`,
             metadata: {
               response_origin: "client_deterministic_safety_privacy_preflight",
               question_scope: "W2_high_risk_adjacent",
