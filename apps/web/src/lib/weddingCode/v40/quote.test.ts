@@ -132,6 +132,7 @@ describe("pickQuotes: 기울어요 주제 (글자 쪽 답 최대 3개, 반대로
     expect(first).toEqual({
       itemId: "money.limit.1",
       caption: target.caption,
+      prompt: [target.stem],
       facet: "limit",
       format: "pair",
       value: -6,

@@ -4,6 +4,8 @@ import { WEDDING_CODE_V20_VERSION } from "@/constants/weddingCodeV20";
 import { WEDDING_CODE_V30_VERSION } from "@/constants/weddingCodeV30";
 import { WEDDING_CODE_V31_VERSION } from "@/constants/weddingCodeV31";
 import { WEDDING_CODE_V40_VERSION } from "@/constants/weddingCodeV40";
+import { WEDDING_CODE_V41_VERSION } from "@/constants/weddingCodeV41";
+import { WEDDING_CODE_V42_VERSION } from "@/constants/weddingCodeV42";
 import {
   isWeddingCodeResearchContributionOpen,
   isWeddingCodeResearchStorageActive,
@@ -21,7 +23,7 @@ import {
 type WeddingCodePageProps = { searchParams: Promise<WeddingCodeEntrySearchParams> };
 
 /**
- * v4.0-tendency 입구의 공유 카드 이미지. 폴더에 화면이 없고 카드 그림만 있다(`v40-card/opengraph-image.tsx`).
+ * v4.0·v4.1·v4.2 입구의 공통 공유 카드 이미지. 폴더에 화면이 없고 카드 그림만 있다(`v40-card/opengraph-image.tsx`).
  * 크기와 alt 는 그 파일의 `size`, `alt` 와 같은 값이어야 한다(`opengraph-image.test.tsx` 가 견준다).
  */
 const V40_CARD_IMAGE = {
@@ -40,7 +42,7 @@ const V40_CARD_IMAGE = {
  * 같은 폴더의 `opengraph-image.tsx` 가 붙인다(여기서 `images` 를 적으면 그 파일이 밀려난다).
  * 그 파일은 쿼리를 읽을 수 없어 판을 가리지 못하므로, v4 입구만 일부러 `images` 를 적어 v3.1 문장이 든 기본 카드를 밀어내고
  * v4 카드(`v40-card/opengraph-image.tsx`)를 붙인다. 다른 판은 `images` 키를 아예 적지 않아 지금과 같다.
- * 판이 `#` 뒤에 실린 v4 링크(`#v=v4.0-tendency&a=…`)는 서버가 판을 몰라 기본 카드가 나간다.
+ * 판이 `#` 뒤에 실린 링크는 서버가 판을 몰라 그때의 기본 판 카드를 쓴다.
  * 답은 `#` 뒤에 있어 서버가 못 읽으므로 카드에 답이 들어갈 길은 없다.
  *
  * `og:url` 은 일부러 적지 않는다. 비교 초대 링크(`/wedding-code#v=…&a=…`)도 서버에는 같은
@@ -48,7 +50,7 @@ const V40_CARD_IMAGE = {
  * 답이 빠진 채 열릴 수 있다. 없으면 붙여 넣은 주소를 그대로 쓴다. 검색용 대표 주소는
  * `alternates.canonical` 이 따로 맡는다.
  *
- * v4.0-tendency(`?v=v4.0-tendency`)는 새로 만든 질문이라 색인하지 않는다. 기본 진입이 v4 로 바뀐 뒤에도
+ * v4.0·v4.1·v4.2는 새로 만든 질문이라 색인하지 않는다. 기본 진입이 v4 로 바뀐 뒤에도
  * 재검사 통과 전까지 이 경로 전체가 색인 밖이다(계약 문서 13절).
  */
 export async function generateMetadata({ searchParams }: WeddingCodePageProps): Promise<Metadata> {
@@ -56,15 +58,19 @@ export async function generateMetadata({ searchParams }: WeddingCodePageProps): 
   // 쿼리에 실린 서로 짐작하기(ga, gb)도 답이 든 링크라 색인하지 않는다.
   const carriesAnswers = search.a !== undefined || search.b !== undefined || search.ga !== undefined || search.gb !== undefined;
   const defaultsToV40 = weddingCodeDefaultsToV40(WEDDING_CODE_DEFAULT_VERSION);
+  const defaultsToNew = WEDDING_CODE_DEFAULT_VERSION !== WEDDING_CODE_V31_VERSION;
   const bare = search.v === undefined && !carriesAnswers;
+  const isV41 = search.v === WEDDING_CODE_V41_VERSION || (bare && WEDDING_CODE_DEFAULT_VERSION === WEDDING_CODE_V41_VERSION);
+  const isV42 = search.v === WEDDING_CODE_V42_VERSION || (bare && WEDDING_CODE_DEFAULT_VERSION === WEDDING_CODE_V42_VERSION);
   const isV40 = search.v === WEDDING_CODE_V40_VERSION || (bare && defaultsToV40);
-  const isPreferences = !isV40 && (search.v === WEDDING_CODE_V31_VERSION || search.v === WEDDING_CODE_V30_VERSION || (bare && !defaultsToV40));
+  const isNew = isV40 || isV41 || isV42;
+  const isPreferences = !isNew && (search.v === WEDDING_CODE_V31_VERSION || search.v === WEDDING_CODE_V30_VERSION || (bare && WEDDING_CODE_DEFAULT_VERSION === WEDDING_CODE_V31_VERSION));
   const isV20 = search.v === WEDDING_CODE_V20_VERSION;
-  const title = isV40 ? `${V40_COPY.intro.title} | 웨딩코드 · 웨딩한방`
+  const title = isNew ? `${V40_COPY.intro.title} | 웨딩코드 · 웨딩한방`
     : isPreferences ? "내가 원하는 결혼식과 준비 방식 | 웨딩코드 · 웨딩한방"
     : isV20 ? "내 웨딩 준비 방식 알아보기 | 웨딩코드 · 웨딩한방"
     : "결혼 준비 장면, 나라면? | 웨딩코드 · 웨딩한방";
-  const description = isV40 ? V40_COPY.intro.lede
+  const description = isNew ? V40_COPY.intro.lede
     : isPreferences
     ? "결혼식 취향과 준비 방식, 꼭 지키고 싶은 것과 돈을 더 쓰고 싶은 곳을 함께 살펴봐요. 혼자서도 결과를 볼 수 있고, 둘 다 답하고 서로 공유하면 함께 원하는 것과 먼저 의논할 부분을 나란히 볼 수 있어요."
     : isV20
@@ -73,7 +79,7 @@ export async function generateMetadata({ searchParams }: WeddingCodePageProps): 
   return {
     title,
     description,
-    robots: carriesAnswers || isV40 || defaultsToV40
+    robots: carriesAnswers || isNew || defaultsToNew
       ? { index: false, follow: false }
       : { index: true, follow: true },
     referrer: "no-referrer",
@@ -84,9 +90,9 @@ export async function generateMetadata({ searchParams }: WeddingCodePageProps): 
       siteName: "웨딩한방",
       locale: "ko_KR",
       type: "website",
-      ...(isV40 ? { images: [V40_CARD_IMAGE] } : {}),
+      ...(isNew ? { images: [V40_CARD_IMAGE] } : {}),
     },
-    twitter: { card: "summary_large_image", title, description, ...(isV40 ? { images: [V40_CARD_IMAGE] } : {}) },
+    twitter: { card: "summary_large_image", title, description, ...(isNew ? { images: [V40_CARD_IMAGE] } : {}) },
   };
 }
 

@@ -133,6 +133,12 @@ describe("QuestionScreen", () => {
   const incompleteText = (id: string) =>
     itemEl(id).querySelector<HTMLElement>(`#q-${id.replace(/\./g, "-")}-incomplete`)?.textContent ?? "";
 
+  const withoutQuestionNumbers = () => {
+    const copy = harness.container.cloneNode(true) as HTMLElement;
+    copy.querySelectorAll("[data-question-number]").forEach((node) => node.remove());
+    return copy;
+  };
+
   describe("쪽 그리기", () => {
     it("첫 화면은 두 문항이고 문항마다 틀(그룹)과 입력이 있다", async () => {
       const state = startedState();
@@ -564,7 +570,7 @@ describe("QuestionScreen", () => {
   });
 
   describe("모든 질문 화면의 보이는 글자", () => {
-    it("번호, n/N, 선택지 번호, A/B, 가나 라벨이 없다(칸 나누기 입력의 칸 수 글자는 입력 시험 몫)", async () => {
+    it("각 문항에는 고정 질문 번호가 있고 선택지 번호와 A/B 라벨은 없다", async () => {
       for (const page of questionPages()) {
         await harness.render(
           <QuestionScreen
@@ -582,7 +588,10 @@ describe("QuestionScreen", () => {
           />,
         );
         // 칸 나누기 안내(「6칸을 나눠 놓아 주세요」)의 6은 나눠 놓을 칸 수를 말하는 상수라서(V40_SPLIT_TOTAL) 그 한 줄만 뺀다.
-        expect(visibleNumberProblems(harness.container, [V40_COPY.question.guides.split]), page.key).toEqual([]);
+        expect([...harness.container.querySelectorAll<HTMLElement>("[data-question-number]")].map((node) => Number(node.dataset.questionNumber))).toEqual(
+          page.itemIds.map((id) => bank.items.findIndex((item) => item.id === id) + 1),
+        );
+        expect(visibleNumberProblems(withoutQuestionNumbers(), [V40_COPY.question.guides.split]), page.key).toEqual([]);
       }
     });
 
@@ -1057,7 +1066,7 @@ describe("QuestionScreen", () => {
         />,
       );
       expect(frames()).toHaveLength(page.itemIds.length);
-      expect(visibleNumberProblems(harness.container)).toEqual([]);
+      expect(visibleNumberProblems(withoutQuestionNumbers())).toEqual([]);
     });
   });
 

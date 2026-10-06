@@ -1,3 +1,4 @@
+import { ChevronDown } from "lucide-react";
 import { axisInfo, type Axis } from "@/constants/weddingCodeV40";
 import {
   V40_COPY,
@@ -7,7 +8,7 @@ import {
   koreanDateLabel,
 } from "@/lib/weddingCode/v40/copy";
 import type { HistoryAxis, HistoryEntry, V40Result } from "@/lib/weddingCode/v40/types";
-import { cx, noteText } from "./styles";
+import { cx, focusRing, noteText } from "./styles";
 import { bodyLine, panel, sectionTitle } from "./resultStyles";
 
 export interface LastTimeCompareProps {
@@ -34,7 +35,7 @@ interface CompareRow {
  * 주제 하나의 꼬리표.
  * 한쪽이라도 글자를 못 정했거나 임시 글자였으면 비교에서 뺀다(excluded).
  * 두 번 모두 기울어요 이상이면 글자가 다를 때 달라졌어요, 같을 때 같은 글자예요.
- * 반반이에요가 낀 주제는 글자가 달라 보여도 달라졌다고 하지 않고 바뀌기 쉬운 주제라고만 적는다.
+ * 반반이에요가 낀 주제는 글자가 달라 보여도 변화로 해석하지 않고 그 사실만 적는다.
  */
 function tagOf(previous: HistoryAxis, current: HistoryAxis): Tag {
   if (previous.letter === null || current.letter === null || previous.provisional || current.provisional) return "excluded";
@@ -53,7 +54,7 @@ const TAG_TEXT: Readonly<Record<Tag, string>> = {
 /**
  * 지난번과 비교(이 기기에 기록이 있을 때만). 주제마다 지난번과 이번의 글자와 세기만 나란히 적는다. 답은 비교하지 않는다.
  * 첫 줄은 달라진 글자가 있는지 말하고, 달라진 주제는 「돈을 정할 때는 V에서 S로 바뀌었어요」처럼 한 줄씩 적는다.
- * 달라졌다고 볼 만한 것이 없으면 「글자가 같아요」라고 하지 않는다: 반반이에요가 낀 주제는 바뀌기 쉬워서 같다고 말할 수 없다.
+ * 달라졌다고 볼 만한 것이 없으면 「글자가 같아요」라고 하지 않는다: 반반이에요가 낀 주제는 비교 판단에서 빠진다.
  */
 export function LastTimeCompare({ result, previous, idPrefix = "wc40-history" }: LastTimeCompareProps) {
   if (!previous) return null;
@@ -83,37 +84,43 @@ export function LastTimeCompare({ result, previous, idPrefix = "wc40-history" }:
           </p>
         ))}
       </div>
-      <table className="w-full table-fixed border-collapse text-left">
-        <thead>
-          <tr className="text-xs font-medium text-[var(--hb-text-muted)]">
-            <th scope="col" className="w-[34%] py-1 pr-2 font-medium">
-              {V40_COPY.history.topicColumn}
-            </th>
-            <th scope="col" className="w-[33%] py-1 pr-2 font-medium">
-              {V40_COPY.history.previousColumn}
-            </th>
-            <th scope="col" className="w-[33%] py-1 font-medium">
-              {V40_COPY.history.currentColumn}
-            </th>
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((row) => (
-            <tr key={row.axis} data-history-row={row.axis} data-history-tag={row.tag} className="border-t border-[var(--hb-hairline)] align-top">
-              <th scope="row" className="break-keep py-2 pr-2 text-sm font-semibold leading-snug text-[var(--hb-text-strong)]">
-                {axisInfo(row.axis).title}
+      <details className="group border-t border-[var(--hb-hairline)] pt-2">
+        <summary className={cx("flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 rounded-lg text-sm font-semibold text-[var(--hb-text-strong)] [&::-webkit-details-marker]:hidden", focusRing)}>
+          주제별로 지난 답과 이번 답 보기
+          <ChevronDown aria-hidden="true" className="size-4 shrink-0 transition-transform motion-reduce:transition-none group-open:rotate-180" />
+        </summary>
+        <table className="mt-2 w-full table-fixed border-collapse text-left">
+          <thead>
+            <tr className="text-xs font-medium text-[var(--hb-text-muted)]">
+              <th scope="col" className="w-[34%] py-1 pr-2 font-medium">
+                {V40_COPY.history.topicColumn}
               </th>
-              <td className="break-keep py-2 pr-2 text-sm leading-snug text-[var(--hb-text-body)]">
-                {historyCell(row.previous.letter, row.previous.band, row.previous.provisional)}
-              </td>
-              <td className="break-keep py-2 text-sm leading-snug text-[var(--hb-text-body)]">
-                <span className="block">{historyCell(row.current.letter, row.current.band, row.current.provisional)}</span>
-                <span className="mt-1 block text-xs font-medium leading-snug text-[var(--hb-text-strong)]">{TAG_TEXT[row.tag]}</span>
-              </td>
+              <th scope="col" className="w-[33%] py-1 pr-2 font-medium">
+                {V40_COPY.history.previousColumn}
+              </th>
+              <th scope="col" className="w-[33%] py-1 font-medium">
+                {V40_COPY.history.currentColumn}
+              </th>
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {rows.map((row) => (
+              <tr key={row.axis} data-history-row={row.axis} data-history-tag={row.tag} className="border-t border-[var(--hb-hairline)] align-top">
+                <th scope="row" className="break-keep py-2 pr-2 text-sm font-semibold leading-snug text-[var(--hb-text-strong)]">
+                  {axisInfo(row.axis).title}
+                </th>
+                <td className="break-keep py-2 pr-2 text-sm leading-snug text-[var(--hb-text-body)]">
+                  {historyCell(row.previous.letter, row.previous.band, row.previous.provisional)}
+                </td>
+                <td className="break-keep py-2 text-sm leading-snug text-[var(--hb-text-body)]">
+                  <span className="block">{historyCell(row.current.letter, row.current.band, row.current.provisional)}</span>
+                  <span className="mt-1 block text-xs font-medium leading-snug text-[var(--hb-text-strong)]">{TAG_TEXT[row.tag]}</span>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </details>
       {hasUnstable ? <p className={noteText}>{V40_COPY.history.unstableNote}</p> : null}
       {hasExcluded ? <p className={noteText}>{V40_COPY.history.excludedNote}</p> : null}
     </section>

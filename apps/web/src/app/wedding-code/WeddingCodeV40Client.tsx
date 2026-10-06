@@ -24,6 +24,7 @@ import {
 } from "@/components/wedding-code/v40";
 import { CoupleGuessSection, GuessEntryCard, GuessSetFlow } from "@/components/wedding-code/v40/guess";
 import { LetterGuessClosedCard, LetterGuessLines, LetterGuessScreen } from "@/components/wedding-code/v40/letterGuess";
+import WeddingCodeBrand from "@/components/wedding-code/v40/WeddingCodeBrand";
 import { V40_COUNTS, WEDDING_CODE_V40_VERSION, type Axis } from "@/constants/weddingCodeV40";
 import { captureWeddingCodeEvent } from "@/lib/analytics";
 import { WEDDING_CODE_V40_BANK } from "@/lib/weddingCode/v40/bank";
@@ -56,21 +57,8 @@ import {
 import { present } from "@/lib/weddingCode/v40/present";
 import { pickQuotes } from "@/lib/weddingCode/v40/quote";
 import { buildResult, selfLine } from "@/lib/weddingCode/v40/score";
-import {
-  appendHistory,
-  browserStorage,
-  clearHistory,
-  clearProgress,
-  createExtraPort,
-  probeLegacyV31Progress,
-  purgeExpired,
-  readAutosavePreference,
-  readHistory,
-  readProgress,
-  writeAutosavePreference,
-  writeProgress,
-  type ExtraPort,
-} from "@/lib/weddingCode/v40/storage";
+import * as v40Storage from "@/lib/weddingCode/v40/storage";
+import type { ExtraPort } from "@/lib/weddingCode/v40/storage";
 import type {
   DecodedCode,
   FlowAction,
@@ -83,6 +71,7 @@ import type {
   V40Result,
   ViewAnswer,
   WeddingCodeV40ClientProps,
+  Bank,
 } from "@/lib/weddingCode/v40/types";
 
 import { weddingCodeDefaultsToV40, weddingCodeRestartSearch } from "./entry";
@@ -124,8 +113,19 @@ import { isStagePending, stageAfterLetter, stageOnResult, useStage2, type StageF
  * - deps.stages 로 켜고 끈다(기본은 각 기능의 켬 상수). 끄면 그 화면만 사라지고 꺼진 단계는 저장소도 링크도 건드리지 않는다.
  */
 
-const bank = WEDDING_CODE_V40_BANK;
-const reduce = createFlowReducer(bank);
+type StorageOps = Pick<typeof v40Storage,
+  "appendHistory" | "browserStorage" | "clearHistory" | "clearProgress" | "createExtraPort" |
+  "probeLegacyV31Progress" | "purgeExpired" | "readAutosavePreference" | "readHistory" |
+  "readProgress" | "writeAutosavePreference" | "writeProgress">;
+
+export interface WeddingCodeEdition {
+  readonly version: typeof WEDDING_CODE_V40_VERSION | "v4.1-depth" | "v4.2-depth";
+  readonly bank: Bank;
+  readonly storage: StorageOps;
+  readonly buildGatedShareUrlWithGuess: typeof buildGatedShareUrlWithGuess;
+  readonly buildQuestionOnlyUrl: typeof buildQuestionOnlyUrl;
+  readonly selfIntroDetail?: string;
+}
 
 // ---------------------------------------------------------------------------
 // 밖에서 바꿔 끼울 수 있는 것 (시험용)
@@ -158,7 +158,7 @@ export interface WeddingCodeV40ClientDeps {
  */
 const TURN_GUARD_MS = 300;
 
-export type WeddingCodeV40ClientCoreProps = WeddingCodeV40ClientProps & { readonly deps?: WeddingCodeV40ClientDeps };
+export type WeddingCodeV40ClientCoreProps = WeddingCodeV40ClientProps & { readonly deps?: WeddingCodeV40ClientDeps; readonly edition?: WeddingCodeEdition };
 
 // ---------------------------------------------------------------------------
 // 상태 모양
@@ -219,9 +219,9 @@ function isResultView(state: FlowState): boolean {
  * opened 를 주면 받은 링크를 열었다는 표시(partner, both) 하나를 이 탭의 브라우저 기록 칸에 남긴다: 새로고침한 화면이 무슨 일이 있었는지 말할 수 있게 하려는
  * 것이고 답은 담지 않는다(WeddingCodeV40Client.model.ts). null 이면 표시 없이 지운다(다시 시작).
  */
-function clearAddressTail(opened: LinkOpenedKind | null): void {
+function clearAddressTail(opened: LinkOpenedKind | null, version: WeddingCodeEdition["version"]): void {
   try {
-    window.history.replaceState(linkOpenedState(window.history.state, opened), "", `${window.location.pathname}${weddingCodeRestartSearch("v40")}`);
+    window.history.replaceState(linkOpenedState(window.history.state, opened), "", `${window.location.pathname}${weddingCodeRestartSearch(version === WEDDING_CODE_V40_VERSION ? "v40" : version === "v4.1-depth" ? "v41" : "v42")}`);
   } catch {
     // 주소를 못 바꾸는 환경이면 그대로 둔다.
   }
@@ -231,10 +231,10 @@ function clearAddressTail(opened: LinkOpenedKind | null): void {
  * 이번 시도가 남긴 지난번 비교 기록(가장 최근 건, 시각 attemptAt)을 고친 결과로 바꿔 쓴다. 기록에는 바꿔 쓰는 함수가 없어 비우고 오래된 것부터 다시 쌓는다
  * (그 사이에 실패하면 오래된 건을 잃을 수 있다. 최선 노력이고 드물다).
  */
-function replaceAttemptEntry(storage: StorageLike, entries: readonly HistoryEntry[], entry: HistoryEntry, attemptAt: number, at: number): void {
-  if (clearHistory(storage).status !== "cleared") return;
-  for (const older of entries.slice(1).reverse()) appendHistory(storage, older, at);
-  appendHistory(storage, { ...entry, at: attemptAt }, at);
+function replaceAttemptEntry(store: StorageOps, storage: StorageLike, entries: readonly HistoryEntry[], entry: HistoryEntry, attemptAt: number, at: number): void {
+  if (store.clearHistory(storage).status !== "cleared") return;
+  for (const older of entries.slice(1).reverse()) store.appendHistory(storage, older, at);
+  store.appendHistory(storage, { ...entry, at: attemptAt }, at);
 }
 
 /** 이 탭의 브라우저 기록 칸에 받은 링크를 열었다는 표시가 남아 있는가(새로고침해도 남는다). */
@@ -275,14 +275,14 @@ function ScreenSection({
         }}
         tabIndex={-1}
         data-screen={focusKey}
-        className={screenRootClass(embedded)}
+        className={screenRootClass(embedded, "result")}
       >
         {children}
       </div>
     );
   }
   return (
-    <section ref={ref} tabIndex={-1} aria-label={label} data-screen={focusKey} className={screenRootClass(embedded)}>
+    <section ref={ref} tabIndex={-1} aria-label={label} data-screen={focusKey} className={screenRootClass(embedded, "result")}>
       {children}
     </section>
   );
@@ -292,7 +292,13 @@ function ScreenSection({
 // 본체
 // ---------------------------------------------------------------------------
 
-export function WeddingCodeV40Core({ shareOrigin, initial, resolved, embedded = false, onRestart, initialNotice = "", deps }: WeddingCodeV40ClientCoreProps) {
+export function WeddingCodeV40Core({ shareOrigin, initial, resolved, embedded = false, onRestart, initialNotice = "", deps, edition }: WeddingCodeV40ClientCoreProps) {
+  const bank = edition?.bank ?? WEDDING_CODE_V40_BANK;
+  const reduce = useMemo(() => createFlowReducer(bank), [bank]);
+  const store = edition?.storage ?? v40Storage;
+  const version = edition?.version ?? WEDDING_CODE_V40_VERSION;
+  const shareWithGuess = edition?.buildGatedShareUrlWithGuess ?? buildGatedShareUrlWithGuess;
+  const questionOnlyUrl = edition?.buildQuestionOnlyUrl ?? buildQuestionOnlyUrl;
   const [injected] = useState(deps);
   const [initialFlow] = useState(() => initialFlowState(bank));
   const [flow, setFlow] = useState<FlowState>(initialFlow);
@@ -392,7 +398,7 @@ export function WeddingCodeV40Core({ shareOrigin, initial, resolved, embedded = 
     const snapshot = snapshotOf(bank, state);
     if (snapshot === null) return;
     const at = clock();
-    const write = writeProgress(current.storage, bank, snapshot, expectedRawRef.current, at);
+    const write = store.writeProgress(current.storage, bank, snapshot, expectedRawRef.current, at);
     if (write.status === "saved") {
       expectedRawRef.current = write.raw;
       setUnsaved(false);
@@ -416,7 +422,7 @@ export function WeddingCodeV40Core({ shareOrigin, initial, resolved, embedded = 
     if (current.status === "ready" && current.storage !== null) {
       const at = clock();
       const entry = historyEntryOf(result, at);
-      const entries = readHistory(current.storage, at).entries;
+      const entries = store.readHistory(current.storage, at).entries;
       // 이어 하기로 결과에 돌아왔는데 가장 최근 기록이 지금 결과와 같으면 그 기록이 이 시도의 것이다(새로고침하면서 이 화면은 남긴 시각을 잊었다).
       // 이어받아 두면 이어서 답을 고칠 때 이 시도의 기록을 바꿔 쓸 수 있고, 고치기 전 결과를 「지난번」이라며 견주지 않는다.
       if (arrival === "return" && attemptAtRef.current === null && entries[0] !== undefined && sameHistoryResult(entries[0], entry)) {
@@ -426,10 +432,10 @@ export function WeddingCodeV40Core({ shareOrigin, initial, resolved, embedded = 
       previous = plan.previous;
       if (result.code !== null && current.pref === "on") {
         if (plan.append) {
-          if (appendHistory(current.storage, entry, at).status === "saved") attemptAtRef.current = at;
+          if (store.appendHistory(current.storage, entry, at).status === "saved") attemptAtRef.current = at;
         } else if (plan.replace && attemptAtRef.current !== null) {
           // 답을 고쳐 결과가 달라졌다: 이번 시도의 기록을 고친 결과로 바꿔 쓴다.
-          replaceAttemptEntry(current.storage, entries, entry, attemptAtRef.current, at);
+          replaceAttemptEntry(store, current.storage, entries, entry, attemptAtRef.current, at);
         }
       }
     }
@@ -437,7 +443,7 @@ export function WeddingCodeV40Core({ shareOrigin, initial, resolved, embedded = 
     if (arrival === "fresh") {
       const counts = answerCounts(bank, state.responses);
       captureWeddingCodeEvent("wedding_code_completed", {
-        version: WEDDING_CODE_V40_VERSION,
+        version,
         scene_total: V40_COUNTS.screens,
         answered_count: counts.answered,
         skipped_count: counts.skipped,
@@ -459,12 +465,12 @@ export function WeddingCodeV40Core({ shareOrigin, initial, resolved, embedded = 
     const result = buildResult(bank, state.formBit, state.responses);
     if (result.code === null) return;
     const at = clock();
-    const entries = readHistory(current.storage, at).entries;
+    const entries = store.readHistory(current.storage, at).entries;
     const latest = entries[0];
     if (latest === undefined || latest.at !== attemptAt) return;
     const entry = historyEntryOf(result, at);
     if (sameHistoryResult(latest, entry)) return;
-    replaceAttemptEntry(current.storage, entries, entry, attemptAt, at);
+    replaceAttemptEntry(store, current.storage, entries, entry, attemptAt, at);
   };
 
   // -- 결과 앞의 단계 화면과 결과 전에 고른 글자의 보관본(4.1 단계 2) ------------------------
@@ -575,7 +581,7 @@ export function WeddingCodeV40Core({ shareOrigin, initial, resolved, embedded = 
     setNoticeText("");
     send({ type: "start", formBit: random() < 0.5 ? 0 : 1 });
     captureWeddingCodeEvent("wedding_code_started", {
-      version: WEDDING_CODE_V40_VERSION,
+      version,
       scene_total: V40_COUNTS.screens,
       has_partner_link: contextRef.current.partner !== null,
     });
@@ -608,19 +614,19 @@ export function WeddingCodeV40Core({ shareOrigin, initial, resolved, embedded = 
     if (current.status !== "ready") return;
     let issue = current.issue;
     if (current.storage !== null) {
-      const cleared = clearProgress(current.storage);
+      const cleared = store.clearProgress(current.storage);
       if (cleared.status === "cleared") expectedRawRef.current = null;
       else issue = "unavailable";
     }
     updateBoot({ saved: null, issue });
-    captureWeddingCodeEvent("wedding_code_restarted", { version: WEDDING_CODE_V40_VERSION });
+    captureWeddingCodeEvent("wedding_code_restarted", { version });
     handleStart();
   };
 
   const handleAutosaveChange = (next: AutosavePreference): void => {
     const current = bootRef.current;
     if (current.status !== "ready" || current.storage === null) return;
-    const written = writeAutosavePreference(current.storage, next);
+    const written = store.writeAutosavePreference(current.storage, next);
     if (written.status === "saved") {
       expectedRawRef.current = null;
       setAutosaveNote(next === "on" ? "turnedOn" : "turnedOff");
@@ -645,12 +651,12 @@ export function WeddingCodeV40Core({ shareOrigin, initial, resolved, embedded = 
     const current = bootRef.current;
     let message = "";
     if (current.status === "ready" && current.storage !== null && contextRef.current.both === null) {
-      if (clearProgress(current.storage).status !== "cleared") message = V40_COPY.manage.clear.failed;
+      if (store.clearProgress(current.storage).status !== "cleared") message = V40_COPY.manage.clear.failed;
     }
     // onRestart 가 주어지면 입구가 화면을 새로 만들고 resetLocally 를 거치지 않으므로 보관본은 여기서(onRestart 를 부르기 앞에서) 지운다.
     if (!wipeLetterStorage()) message = V40_COPY.manage.clear.failed;
     expectedRawRef.current = null;
-    captureWeddingCodeEvent("wedding_code_restarted", { version: WEDDING_CODE_V40_VERSION });
+    captureWeddingCodeEvent("wedding_code_restarted", { version });
     if (onRestart) {
       onRestart(message === "" ? undefined : message);
       return;
@@ -681,7 +687,7 @@ export function WeddingCodeV40Core({ shareOrigin, initial, resolved, embedded = 
     if (!keepPartner) {
       updateContext({ partner: null, both: null, guess: null });
       setLinkLost(null);
-      clearAddressTail(null);
+      clearAddressTail(null, version);
     }
   };
 
@@ -689,18 +695,18 @@ export function WeddingCodeV40Core({ shareOrigin, initial, resolved, embedded = 
   const handleRestartKeepingPartner = (): void => {
     const current = bootRef.current;
     const lettersCleared = wipeLetterStorage();
-    if ((current.status === "ready" && current.storage !== null && clearProgress(current.storage).status !== "cleared") || !lettersCleared) {
+    if ((current.status === "ready" && current.storage !== null && store.clearProgress(current.storage).status !== "cleared") || !lettersCleared) {
       resetLocally(V40_COPY.manage.clear.failed, true);
     } else {
       resetLocally("", true);
     }
-    captureWeddingCodeEvent("wedding_code_restarted", { version: WEDDING_CODE_V40_VERSION });
+    captureWeddingCodeEvent("wedding_code_restarted", { version });
   };
 
   const handleClearStorage = (): boolean => {
     const current = bootRef.current;
     if (current.status !== "ready" || current.storage === null) return false;
-    const cleared = clearProgress(current.storage).status === "cleared" && clearHistory(current.storage).status === "cleared";
+    const cleared = store.clearProgress(current.storage).status === "cleared" && store.clearHistory(current.storage).status === "cleared";
     // 결과 전에 고른 글자도 같이 지운다(저장소와 화면 둘 다). 셋 모두 지워졌을 때만 지웠다고 말한다.
     const lettersCleared = wipeLetterStorage();
     if (cleared) {
@@ -718,7 +724,7 @@ export function WeddingCodeV40Core({ shareOrigin, initial, resolved, embedded = 
   const handleLoadSaved = (): void => {
     const current = bootRef.current;
     if (current.status !== "ready" || current.storage === null) return;
-    const read = readProgress(current.storage, bank, clock());
+    const read = store.readProgress(current.storage, bank, clock());
     if (read.status === "ready") {
       const next = initialFlowState(bank, { pack: viewportPack(), snapshot: read.snapshot });
       flowRef.current = next;
@@ -743,7 +749,7 @@ export function WeddingCodeV40Core({ shareOrigin, initial, resolved, embedded = 
   const handleKeepThis = (): void => {
     const current = bootRef.current;
     if (current.status !== "ready" || current.storage === null) return;
-    expectedRawRef.current = readProgress(current.storage, bank, clock()).raw;
+    expectedRawRef.current = store.readProgress(current.storage, bank, clock()).raw;
     setSave(null);
     persist(flowRef.current);
   };
@@ -762,11 +768,11 @@ export function WeddingCodeV40Core({ shareOrigin, initial, resolved, embedded = 
   };
 
   const handleLinkSent = (event: ShareSentEvent): void => {
-    if (isRealClipboardCopy(event)) captureWeddingCodeEvent("wedding_code_share_copied", { version: WEDDING_CODE_V40_VERSION, placement: "link" });
+    if (isRealClipboardCopy(event)) captureWeddingCodeEvent("wedding_code_share_copied", { version, placement: "link" });
   };
 
   const handleOpenTaste = (): void => {
-    captureWeddingCodeEvent("wedding_code_taste_clicked", { version: WEDDING_CODE_V40_VERSION, placement: "result" });
+    captureWeddingCodeEvent("wedding_code_taste_clicked", { version, placement: "result" });
   };
 
   const handleStartOwn = (): void => {
@@ -838,10 +844,10 @@ export function WeddingCodeV40Core({ shareOrigin, initial, resolved, embedded = 
   useEffect(() => {
     if (!resolved || !settled || bootRef.current.status === "ready") return;
     const linked = contextRef.current;
-    if (linked.partner !== null || linked.both !== null) clearAddressTail(linked.both !== null ? "both" : "partner");
+    if (linked.partner !== null || linked.both !== null) clearAddressTail(linked.both !== null ? "both" : "partner", version);
     else setLinkLost(readOpenedMark());
     const at = clock();
-    const handle = injected?.storage !== undefined ? injected.storage : browserStorage();
+    const handle = injected?.storage !== undefined ? injected.storage : store.browserStorage();
     let next: BootReady;
     if (handle === null) {
       next = { status: "ready", storage: null, pref: "on", issue: "unavailable", saved: null, legacy: null, detected: null, letterPort: null };
@@ -849,20 +855,20 @@ export function WeddingCodeV40Core({ shareOrigin, initial, resolved, embedded = 
       // 두 사람 결과: 저장에 쓰지 않는다. 읽기만 되는 저장소로 「나」 표시만 알아본다.
       const readable = readOnlyStorage(handle);
       let detected: Perspective | null = null;
-      if (readAutosavePreference(readable) === "on") {
-        const read = readProgress(readable, bank, at);
+      if (store.readAutosavePreference(readable) === "on") {
+        const read = store.readProgress(readable, bank, at);
         if (read.status === "ready") detected = detectPerspective(bank, decodedFromSnapshot(read.snapshot), linked.both.first, linked.both.second);
       }
       next = { status: "ready", storage: handle, pref: "on", issue: null, saved: null, legacy: null, detected, letterPort: null };
     } else {
-      const pref = readAutosavePreference(handle);
-      const probe = probeLegacyV31Progress(handle, at);
+      const pref = store.readAutosavePreference(handle);
+      const probe = store.probeLegacyV31Progress(handle, at);
       let saved: SavedProgress | null = null;
       let issue: StorageIssue | null = null;
       if (pref === "on") {
-        const read = readProgress(handle, bank, at);
+        const read = store.readProgress(handle, bank, at);
         // 읽기는 아무것도 쓰지 않는다. 기간이 지난 저장(진행과 기록)은 여기서 실제로 지우고, 지웠을 때만 지웠다고 알린다.
-        const purged = purgeExpired(handle, bank, at);
+        const purged = store.purgeExpired(handle, bank, at);
         expectedRawRef.current = read.status === "expired" && purged.progress ? null : read.raw;
         if (read.status === "ready") saved = { snapshot: read.snapshot, savedAt: read.savedAt, raw: read.raw };
         else if (read.status === "expired") issue = purged.progress ? "expired" : null;
@@ -872,7 +878,7 @@ export function WeddingCodeV40Core({ shareOrigin, initial, resolved, embedded = 
       // 이어 할 진행이 없는데 보관본만 남은 것(고아)과 읽을 수 없는 것은 지운다. 이어 할 진행이 있으면 이어 하기 때 결과 쪽일 때만 화면에 올린다.
       let letterPort: ExtraPort | null = null;
       if (stages.letterGuess) {
-        letterPort = createExtraPort(handle, "letterGuess", { honorAutosave: true });
+        letterPort = store.createExtraPort(handle, "letterGuess", { honorAutosave: true });
         if (pref === "on") {
           const load = loadLetterGuess(letterPort, at);
           if (load.status === "invalid" || (load.status === "ready" && saved === null)) clearLetterGuess(letterPort);
@@ -912,27 +918,27 @@ export function WeddingCodeV40Core({ shareOrigin, initial, resolved, embedded = 
     });
     // page 는 itemsKey 로 정해진다.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [itemsKey, flow.formBit]);
+  }, [itemsKey, flow.formBit, bank]);
 
   const ownFinished = flow.started && isResultView(flow);
   const ownDecoded = useMemo<DecodedCode | null>(
     () => (ownFinished ? { formBit: flow.formBit, responses: flow.responses } : null),
     [ownFinished, flow.formBit, flow.responses],
   );
-  const ownResult = useMemo(() => (ownDecoded === null ? null : buildResult(bank, ownDecoded.formBit, ownDecoded.responses)), [ownDecoded]);
+  const ownResult = useMemo(() => (ownDecoded === null ? null : buildResult(bank, ownDecoded.formBit, ownDecoded.responses)), [bank, ownDecoded]);
   const quotes = useMemo(
     () => (ownDecoded === null || ownResult === null ? [] : ownResult.axes.map((axis) => pickQuotes(bank, ownDecoded.responses, axis))),
-    [ownDecoded, ownResult],
+    [bank, ownDecoded, ownResult],
   );
   const selfLines = useMemo(
     () => (ownDecoded === null || ownResult === null ? [] : ownResult.axes.map((axis) => selfLine(bank, ownDecoded.responses, axis))),
-    [ownDecoded, ownResult],
+    [bank, ownDecoded, ownResult],
   );
   const coupleResult = useMemo(() => {
     if (context.both !== null) return compareCouple(bank, context.both.first, context.both.second);
     if (context.partner !== null && ownDecoded !== null && ownResult !== null && ownResult.code !== null) return compareCouple(bank, context.partner, ownDecoded);
     return null;
-  }, [context.both, context.partner, ownDecoded, ownResult]);
+  }, [bank, context.both, context.partner, ownDecoded, ownResult]);
 
   // -- 이용 통계: 고지한 이벤트와 개수만 ---------------------------------------------------------
 
@@ -944,12 +950,12 @@ export function WeddingCodeV40Core({ shareOrigin, initial, resolved, embedded = 
     if (!showsIntro || introSentRef.current) return;
     introSentRef.current = true;
     captureWeddingCodeEvent("wedding_code_intro_viewed", {
-      version: WEDDING_CODE_V40_VERSION,
+      version,
       scene_total: V40_COUNTS.screens,
       has_partner_link: hasPartnerLink,
       placement: "intro",
     });
-  }, [showsIntro, hasPartnerLink]);
+  }, [showsIntro, hasPartnerLink, version]);
 
   const questionPage = boot.status === "ready" && flow.started && page?.kind === "questions" ? page : null;
   useEffect(() => {
@@ -960,19 +966,19 @@ export function WeddingCodeV40Core({ shareOrigin, initial, resolved, embedded = 
     if (lastSceneRef.current === key) return;
     lastSceneRef.current = key;
     captureWeddingCodeEvent("wedding_code_scene_reached", {
-      version: WEDDING_CODE_V40_VERSION,
+      version,
       scene_index: questionPage.screen + 1,
       scene_total: V40_COUNTS.screens,
       has_partner_link: hasPartnerLink,
       placement: placementOf(flow),
     });
-  }, [questionPage, flow, hasPartnerLink]);
+  }, [questionPage, flow, hasPartnerLink, version]);
 
   useEffect(() => {
     if (!showsCouple || comparisonSentRef.current) return;
     comparisonSentRef.current = true;
-    captureWeddingCodeEvent("wedding_code_comparison_viewed", { version: WEDDING_CODE_V40_VERSION, scene_total: V40_COUNTS.screens });
-  }, [showsCouple]);
+    captureWeddingCodeEvent("wedding_code_comparison_viewed", { version, scene_total: V40_COUNTS.screens });
+  }, [showsCouple, version]);
 
   // -- 나가기 경고: 지금 나가면 잃는 것이 있을 때만 --------------------------------------------------
 
@@ -1089,6 +1095,7 @@ export function WeddingCodeV40Core({ shareOrigin, initial, resolved, embedded = 
       <ScreenSection focusKey="couple" embedded={embedded}>
         <CoupleResult
           result={coupleResult}
+          reportSource={version === "v4.2-depth" ? { bank, first: context.both.first, second: context.both.second } : undefined}
           detectedPerspective={boot.detected}
           onStartOwn={handleStartOwn}
           embedded={embedded}
@@ -1187,7 +1194,7 @@ export function WeddingCodeV40Core({ shareOrigin, initial, resolved, embedded = 
   }
 
   if (page.kind === "selfIntro") {
-    return <SelfIntroCard segments={segments} embedded={embedded} onContinue={() => send({ type: "next" })} onBack={() => send({ type: "back" })} />;
+    return <SelfIntroCard segments={segments} embedded={embedded} detail={edition?.selfIntroDetail} onContinue={() => send({ type: "next" })} onBack={() => send({ type: "back" })} />;
   }
 
   if (page.kind !== "result" || ownResult === null) return null;
@@ -1235,6 +1242,7 @@ export function WeddingCodeV40Core({ shareOrigin, initial, resolved, embedded = 
       <ScreenSection focusKey="couple" embedded={embedded}>
         <CoupleResult
           result={coupleResult}
+          reportSource={version === "v4.2-depth" && ownDecoded !== null ? { bank, first: partner, second: ownDecoded } : undefined}
           detectedPerspective={null}
           initialPerspective="second"
           embedded={embedded}
@@ -1243,7 +1251,7 @@ export function WeddingCodeV40Core({ shareOrigin, initial, resolved, embedded = 
             buildUrl: () =>
               ownDecoded === null
                 ? null
-                : buildGatedShareUrlWithGuess(bank, shareOrigin, { code: partner, guess: partnerGuess }, { code: ownDecoded, guess: ownGuess }),
+                : shareWithGuess(bank, shareOrigin, { code: partner, guess: partnerGuess }, { code: ownDecoded, guess: ownGuess }),
             onSent: handleLinkSent,
             env: injected?.shareEnv,
             // 링크에 실리는 짐작에 맞는 한 줄: 둘 다 있으면 두 사람의 것, 내가 건너뛰어 받은 상대의 것만 다시 실리면 그것만 말한다.
@@ -1314,8 +1322,8 @@ export function WeddingCodeV40Core({ shareOrigin, initial, resolved, embedded = 
                 guessNote={stage.ownGuess === null ? undefined : V40_COPY.guess.shareInfo}
                 buildUrl={(option) =>
                   option === "withAnswers"
-                    ? buildGatedShareUrlWithGuess(bank, shareOrigin, { code: { formBit: flow.formBit, responses: flow.responses }, guess: stage.ownGuess })
-                    : buildQuestionOnlyUrl(shareOrigin, { explicitVersion: !weddingCodeDefaultsToV40() })
+                    ? shareWithGuess(bank, shareOrigin, { code: { formBit: flow.formBit, responses: flow.responses }, guess: stage.ownGuess })
+                    : questionOnlyUrl(shareOrigin, { explicitVersion: version !== WEDDING_CODE_V40_VERSION || !weddingCodeDefaultsToV40() })
                 }
               />
             </>
@@ -1351,7 +1359,8 @@ class WeddingCodeV40Boundary extends Component<{ readonly embedded: boolean; rea
 export function WeddingCodeV40ClientWithDeps(props: WeddingCodeV40ClientCoreProps) {
   const Root = props.embedded ? "div" : "main";
   return (
-    <Root data-wedding-code-v40="" data-embedded={props.embedded ? "true" : "false"}>
+    <Root data-wedding-code-version={props.edition?.version ?? WEDDING_CODE_V40_VERSION} data-wedding-code-v40={props.edition ? undefined : ""} data-embedded={props.embedded ? "true" : "false"} className="min-h-dvh bg-[var(--ivory-50)] selection:bg-[var(--hb-selected-bg)] selection:text-[var(--hb-text-strong)]">
+      {!props.embedded ? <WeddingCodeBrand /> : null}
       <WeddingCodeV40Boundary embedded={props.embedded === true}>
         <WeddingCodeV40Core {...props} />
       </WeddingCodeV40Boundary>

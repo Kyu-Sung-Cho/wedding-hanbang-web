@@ -4,7 +4,7 @@ import { click } from "@/components/wedding-code/v40/inputTestKit";
 import { V40_COUNTS, V40_STORAGE, WEDDING_CODE_V40_VERSION } from "@/constants/weddingCodeV40";
 import { captureWeddingCodeEvent } from "@/lib/analytics";
 import { encodeCode, parseShareHash } from "@/lib/weddingCode/v40/codec";
-import { V40_CLIENT_COPY, V40_COPY, V40_NOT_VALIDATED_PHRASE } from "@/lib/weddingCode/v40/copy";
+import { V40_CLIENT_COPY, V40_COPY, V40_COUPLE_SEND_EXTRA_COPY, V40_NOT_VALIDATED_PHRASE } from "@/lib/weddingCode/v40/copy";
 import { compareCouple } from "@/lib/weddingCode/v40/couple";
 import { pickQuotes } from "@/lib/weddingCode/v40/quote";
 import { buildResult } from "@/lib/weddingCode/v40/score";
@@ -496,7 +496,7 @@ describe("웨딩코드 4.0 클라이언트: 결과에서 상대에게 보내기"
     // 링크에 글자와 결과 문장이 없고, 공유 창 완료는 통계를 보내지 않는다.
     expect(payload.url).not.toMatch(/SWUA/u);
     expect(eventsNamed("wedding_code_share_copied")).toEqual([]);
-    expect(textOf(view.container)).toContain("공유 창으로 링크를 보냈어요.");
+    expect(textOf(view.container)).toContain(V40_COUPLE_SEND_EXTRA_COPY.sharedSheet);
   });
 
   it("클립보드에 실제로 복사했을 때만 share_copied 를 한 번 보내고, 속성에 답이나 링크가 없다", async () => {

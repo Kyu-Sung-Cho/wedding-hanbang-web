@@ -134,17 +134,17 @@ export function BestWorstInput({ view, value, onAnswer, idPrefix, incomplete = f
               className="m-0 min-w-0 border-0 p-0"
               data-group={kind}
             >
-              <legend className="mb-2 p-0 text-sm font-semibold text-[var(--hb-text-strong)]">
+              <legend className="mb-4 p-0 text-[17px] font-semibold text-[var(--hb-text-strong)]">
                 {kind === "best" ? view.bestLabel : view.worstLabel}
               </legend>
-              <div className="space-y-2">
+              <div className="space-y-3">
                 {view.cards.map((cardView, index) => {
                   const checked = chosen === index;
                   const taken = !checked && elsewhere === index;
                   const takenId = `${idPrefix}-${kind}-${index}-taken`;
                   return (
                     <div key={index}>
-                      <label className={cx(card, radioRow, CARD_FOCUS, checked && cardSelected)}>
+                      <label className={cx(card, radioRow, "px-5! py-4!", CARD_FOCUS, checked && cardSelected)}>
                         <input
                           id={`${idPrefix}-${kind}-${index}`}
                           type="radio"

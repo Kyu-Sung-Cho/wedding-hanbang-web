@@ -148,7 +148,7 @@ describe("쉬는 카드와 마지막 정리 카드", () => {
     it("쉬는 카드와 마지막 정리 카드의 뿌리는 화면 높이만큼 늘어나고 단추 줄 앞의 빈틈이 남는 높이를 먹는다", async () => {
       await renderRest();
       const rest = harness.container.querySelector("section")!;
-      expect(rest.className).toContain("min-h-dvh");
+      expect(rest.className).toContain("min-h-[calc(100dvh-5rem)]");
       expect(rest.className).toContain("flex-col");
       const spacer = rest.querySelector("[data-pin-bar-spacer]")!;
       expect(spacer.getAttribute("aria-hidden")).toBe("true");
@@ -156,7 +156,7 @@ describe("쉬는 카드와 마지막 정리 카드", () => {
       expect(isBefore(spacer, rest.querySelector("[data-action-bar]")!)).toBe(true);
       await harness.render(<SelfIntroCard onContinue={() => undefined} />);
       const wrapUp = harness.container.querySelector("section")!;
-      expect(wrapUp.className).toContain("min-h-dvh");
+      expect(wrapUp.className).toContain("min-h-[calc(100dvh-5rem)]");
       expect(wrapUp.querySelector("[data-pin-bar-spacer]")).not.toBeNull();
     });
 

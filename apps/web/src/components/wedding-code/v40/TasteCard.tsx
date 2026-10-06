@@ -1,5 +1,6 @@
 "use client";
 
+import { ArrowUpRight } from "lucide-react";
 import Button from "@/components/ui/Button";
 import { V40_COPY } from "@/lib/weddingCode/v40/copy";
 import { buttonFocusFix, cx, srOnly } from "./styles";
@@ -29,20 +30,23 @@ export interface TasteCardProps {
 export function TasteCard({ onOpen, href, idPrefix = "wc40-taste" }: TasteCardProps) {
   const titleId = `${idPrefix}-title`;
   return (
-    <section data-result-section="taste" aria-labelledby={titleId} className={cx(panel, "space-y-2")}>
-      <h2 id={titleId} className={sectionTitle}>
-        {V40_COPY.taste.title}
-      </h2>
-      <p className={bodyLine}>{V40_COPY.taste.body}</p>
+    <section data-result-section="taste" aria-labelledby={titleId} className={cx(panel, "flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between")}>
+      <div className="min-w-0 space-y-2">
+        <h2 id={titleId} className={sectionTitle}>
+          {V40_COPY.taste.title}
+        </h2>
+        <p className={cx(bodyLine, "max-w-lg break-keep")}>{V40_COPY.taste.body}</p>
+      </div>
       {href ? (
         // 링크는 next/link 가 그려서 화면에 들어오면 미리 불러온다(서버 요청). 이 화면은 요청이 없어야 하므로 미리 불러오기를 끈다.
         // 새 탭에서 열어 자동 저장을 끈 채로 보던 결과가 사라지지 않게 한다.
-        <Button variant="secondary" href={href} target="_blank" rel="noopener noreferrer" onClick={onOpen} className={buttonFocusFix} {...NO_PREFETCH}>
+        <Button variant="secondary" href={href} target="_blank" rel="noopener noreferrer" onClick={onOpen} className={cx(buttonFocusFix, "w-full shrink-0 sm:w-auto")} {...NO_PREFETCH}>
           {V40_COPY.taste.button}
+          <ArrowUpRight aria-hidden="true" className="size-4 shrink-0" />
           <span className={srOnly}> ({V40_COPY.taste.newTabHint})</span>
         </Button>
       ) : (
-        <Button variant="secondary" onClick={onOpen} className={buttonFocusFix}>
+        <Button variant="secondary" onClick={onOpen} className={cx(buttonFocusFix, "w-full shrink-0 sm:w-auto")}>
           {V40_COPY.taste.button}
         </Button>
       )}

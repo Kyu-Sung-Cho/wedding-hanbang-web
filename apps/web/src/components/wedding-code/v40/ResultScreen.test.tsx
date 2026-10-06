@@ -39,15 +39,15 @@ import {
   textOf,
 } from "./resultTestKit";
 
-/** 결과 화면에서 이 순서로 나와야 하는 구역(설계 7절 (1)~(11)). 없는 구역은 건너뛴다. */
+/** 결과 화면에서 실제 응답 요약과 뜻을 먼저 읽고, 상세 근거로 내려가는 순서. 없는 구역은 건너뛴다. */
 const SECTION_ORDER = [
   "header",
   "quality-hint",
   "code",
-  "legend",
   "collected",
-  "axis",
   "contrast",
+  "axis",
+  "legend",
   "quality",
   "history",
   "send",
@@ -110,7 +110,7 @@ describe.each(OPEN_NAMES)("혼자 보는 결과 (표본 %s)", (name) => {
   const { result, quotes } = resultCase(name);
   const entries = codeLineEntries(result);
 
-  it("구역이 설계 순서(1)~(11) 그대로 나온다", async () => {
+  it("코드와 내 답을 먼저 읽고 상세 근거와 공유로 내려간다", async () => {
     await renderScreen(name, { previous: historyOf(result, SEPT_29_NOON_KST), sendSlot: <p>보내기 자리</p> });
     const order = sectionOrder(harness.container);
     const expected = SECTION_ORDER.filter((section) => order.includes(section));
@@ -141,7 +141,7 @@ describe.each(OPEN_NAMES)("혼자 보는 결과 (표본 %s)", (name) => {
     for (const match of named) {
       const letter = match[1] as Letter;
       const after = flat.slice((match.index ?? 0) + 2);
-      const ok = after.startsWith(letterInfo(letter).name) || after.startsWith("쪽으로 ");
+      const ok = after.startsWith(letterInfo(letter).name) || after.startsWith("쪽") || after.startsWith("글자를");
       expect(ok, `${letter} 뒤: ${after.slice(0, 12)}`).toBe(true);
     }
     // 글자마다 이름이 서로 다르다
@@ -172,18 +172,32 @@ describe.each(OPEN_NAMES)("혼자 보는 결과 (표본 %s)", (name) => {
     expect(header?.querySelector("[data-result-notice]")?.textContent).toBe(V40_COPY.result.notice);
   });
 
-  it("글자는 V S W D U F H A 뿐이고 숫자 몇 대 몇, 점수, 퍼센트, 등급, 궁합 말이 없다", async () => {
+  it("고유 글자만 쓰고, 각 주제의 응답 비율은 실제 답한 문항을 분모로 보인다", async () => {
     await renderScreen(name, { previous: historyOf(result, SEPT_29_NOON_KST) });
     const text = textOf(harness.container);
     const capitals = standaloneCapitals(harness.container);
     for (const letter of capitals) expect(ALLOWED_LETTERS.has(letter), letter).toBe(true);
     // 표를 항상 펼쳐 두므로 여덟 글자가 모두 화면에 있다
     expect(new Set(capitals)).toEqual(new Set(V40_LETTER_LIST));
-    for (const word of ["%", "％", "퍼센트", "백분율", "점수", "등급", "궁합", "순위", "검증된", "과학적"]) {
+    for (const word of ["등급", "궁합", "순위", "검증된", "과학적"]) {
       expect(text, word).not.toContain(word);
     }
-    expect(text).not.toMatch(/\d+\s*\/\s*\d+/);
-    expect(text).not.toMatch(/\d+\s*(점|위|등)(?![가-힣])/);
+    expect(text).toContain("고른 방향의 분포예요");
+    expect(text).toContain("내면을 수치로 나타낸 값은 아니에요");
+    for (const axis of result.axes) {
+      const evidence = axisBlock(axis.axis).querySelector<HTMLElement>("[data-answer-distribution]");
+      expect(evidence).not.toBeNull();
+      if (axis.answered === 0) {
+        expect(evidence?.textContent).toContain("비율을 내지 않았어요");
+      } else {
+        expect(evidence?.textContent).toContain(`답한 ${axis.answered} / 16문항`);
+        [axis.frontCount, axis.backCount, axis.neutralCount].forEach((count, index) => {
+          const value = evidence!.querySelectorAll("dd")[index];
+          expect(value.firstElementChild?.textContent).toBe(`${Number((count / axis.answered * 100).toFixed(2))}%`);
+          expect(value.lastElementChild?.textContent).toBe(`${count}개 / ${axis.answered}문항`);
+        });
+      }
+    }
   });
 
   it("코드 줄의 글자와 표시는 결과와 같다", async () => {
@@ -326,6 +340,7 @@ describe("임시 글자, 글자를 못 정한 주제", () => {
     expect(textOf(harness.container.querySelector(`[data-legend-row="${axis.axis}"] [data-legend-mark]`)!)).toContain("임시");
     expect(textOf(axisBlock(axis.axis))).toContain(`${V40_COPY.block.provisionalBadge}`);
     expect(textOf(harness.container.querySelector('[data-result-section="quality"]')!)).toContain(V40_COPY.quality.provisional);
+    expect(harness.container.querySelector('[data-result-nickname]')).toBeNull();
   });
 
   it("글자를 못 정한 주제는 가운뎃점과 이유 문장, 다시 보기를 접지 않고 보이며 표에서 강조하지 않는다", async () => {
@@ -537,18 +552,18 @@ describe("라운지 안(embedded)", () => {
 describe("결과 앞의 선택 구역 슬롯 letterGuessSlot(4.1 단계 2)", () => {
   const slot = <p data-test-letter-guess-slot="">먼저 고른 글자 구역 자리에 놓은 시험용 글이에요.</p>;
 
-  it("슬롯을 주면 「답을 모아 보니」 바로 뒤, 주제 블록 앞의 letter-guess 상자 안에 그대로 놓는다", async () => {
+  it("슬롯을 주면 내 요약 뒤, 주제 블록 앞의 letter-guess 상자 안에 그대로 놓는다", async () => {
     await renderScreen(OPEN_NAMES[0], { letterGuessSlot: slot });
     const box = harness.container.querySelector<HTMLElement>('[data-result-section="letter-guess"]');
     expect(box).not.toBeNull();
     expect(box?.querySelector("[data-test-letter-guess-slot]")).not.toBeNull();
     expect(harness.container.querySelectorAll('[data-result-section="letter-guess"]')).toHaveLength(1);
-    const collected = harness.container.querySelector('[data-result-section="collected"]')!;
+    const legend = harness.container.querySelector('[data-result-section="legend"]')!;
     const axes = harness.container.querySelector("[data-axis-blocks]")!;
-    expect(isBefore(collected, box!)).toBe(true);
     expect(isBefore(box!, axes)).toBe(true);
+    expect(isBefore(axes, legend)).toBe(true);
     const order = sectionOrder(harness.container);
-    expect(order.indexOf("letter-guess")).toBe(order.indexOf("collected") + 1);
+    expect(order.indexOf("letter-guess") + 1).toBe(order.indexOf("axis"));
   });
 
   it("슬롯을 주지 않으면 상자도 구역도 없고 나머지 순서는 그대로다", async () => {

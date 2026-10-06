@@ -3,7 +3,7 @@ import { axisInfo, oppositeLetter, type Axis, type Letter, type StrengthBand } f
 import { V40_COPY, coupleTagNote, letterBandCell } from "@/lib/weddingCode/v40/copy";
 import type { CoupleAxisRow as CoupleAxisRowData, CoupleSideInfo, CoupleTag, Perspective } from "@/lib/weddingCode/v40/types";
 import { CoupleAxisRow, peopleInOrder } from "./CoupleAxisRow";
-import { createHarness, labelProblemsIn, type Harness } from "./inputTestKit";
+import { createHarness, type Harness } from "./inputTestKit";
 
 let harness: Harness;
 beforeEach(() => {
@@ -13,10 +13,15 @@ afterEach(async () => {
   await harness.unmount();
 });
 
-const side = (letter: Letter | null, shownBand: StrengthBand | null, provisional = false): CoupleSideInfo => ({ letter, shownBand, provisional });
+type BareSide = Pick<CoupleSideInfo, "letter" | "shownBand" | "provisional">;
+const side = (letter: Letter | null, shownBand: StrengthBand | null, provisional = false): BareSide => ({ letter, shownBand, provisional });
 
-function makeRow(axis: Axis, first: CoupleSideInfo, second: CoupleSideInfo, tag: CoupleTag, excluded = false): CoupleAxisRowData {
-  return { axis, first, second, tag, excluded };
+function makeRow(axis: Axis, first: BareSide, second: BareSide, tag: CoupleTag, excluded = false): CoupleAxisRowData {
+  const [one, two, three, four] = axisInfo(axis).facets;
+  const emptyFacet = (facet: typeof one) => ({ facet, answered: 0, frontCount: 0, backCount: 0, neutralCount: 0, counted: false });
+  const facets = [emptyFacet(one), emptyFacet(two), emptyFacet(three), emptyFacet(four)] as const;
+  const evidence = { answered: 0, frontCount: 0, backCount: 0, neutralCount: 0, facets };
+  return { axis, first: { ...first, ...evidence }, second: { ...second, ...evidence }, tag, excluded };
 }
 
 async function renderRow(row: CoupleAxisRowData, perspective: Perspective | null, showNote = true): Promise<HTMLElement> {
@@ -32,7 +37,8 @@ async function renderRow(row: CoupleAxisRowData, perspective: Perspective | null
 
 /** 줄의 사람 칸: [이름표, 글자 칸 글] 쌍. */
 function cellsOf(item: HTMLElement): Array<[string, string]> {
-  return [...item.querySelectorAll<HTMLElement>("div > div")].map((cell) => {
+  const peopleGrid = item.querySelector<HTMLElement>(":scope > div.grid");
+  return [...(peopleGrid?.children ?? [])].map((cell) => {
     const paragraphs = cell.querySelectorAll("p");
     return [paragraphs[0]?.textContent ?? "", paragraphs[1]?.textContent ?? ""] as [string, string];
   });
@@ -173,9 +179,10 @@ describe("CoupleAxisRow: 글자 칸", () => {
 });
 
 describe("CoupleAxisRow: 말씨", () => {
-  it("점수나 평가하는 말, 숫자, 번호 라벨이 없다", async () => {
+  it("응답이 없을 때 비율을 만들지 않고, 평가하는 말이나 번호 라벨도 없다", async () => {
     const item = await renderRow(makeRow("money", side("S", "lean"), side("V", "clear"), "different"), "first");
-    expect(item.textContent).not.toMatch(/궁합|잘 ?맞|안 ?맞|점수|등급|퍼센트|백분율|%|\d/u);
-    expect(labelProblemsIn(item).filter((problem) => !problem.includes("A/B"))).toEqual([]);
+    expect(item.textContent).toContain("남긴 답이 없어 선택 비율을 내지 않았어요");
+    expect(item.textContent).not.toMatch(/궁합|잘 ?맞|안 ?맞|관계 점수|등급|%/u);
+    expect(item.textContent).not.toMatch(/(?:^|\s)(?:Q\d+|[AB][.)])(?:\s|$)/u);
   });
 });

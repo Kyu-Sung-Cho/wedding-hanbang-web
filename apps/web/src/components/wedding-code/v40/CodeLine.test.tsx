@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { letterInfo } from "@/constants/weddingCodeV40";
 import { V40_COPY, codeLineAccessibleName, type CodeLineEntry } from "@/lib/weddingCode/v40/copy";
 import { CodeLine, codeLineEntries, isLoweredToEven } from "./CodeLine";
 import { createHarness, type Harness } from "./inputTestKit";
@@ -26,6 +27,30 @@ function cellOf(axis: string): HTMLElement {
 }
 
 describe("CodeLine", () => {
+  it("네 주제의 풀이 아래에 실제 답의 분포와 판정 이유가 연결된다", async () => {
+    const { result } = resultCase("swua-example");
+    await harness.render(<CodeLine entries={codeLineEntries(result)} axes={result.axes} />);
+    for (const axis of result.axes) {
+      const reading = harness.container.querySelector(`[data-code-reading-axis="${axis.axis}"]`)!;
+      const distribution = reading.querySelector('[data-answer-distribution]')!;
+      expect(distribution.textContent).toContain(`답한 ${axis.answered} / 16문항`);
+      expect(reading.querySelector('[data-axis-reading-reason]')).not.toBeNull();
+    }
+  });
+
+  it("코드 다음의 접근 가능한 풀이에서 각 글자의 영문 출처와 전체 뜻을 바로 읽을 수 있다", async () => {
+    await harness.render(<CodeLine entries={SWUA} />);
+    const list = harness.container.querySelector(`ul[aria-label="${V40_COPY.result.letterReadingLabel}"]`)!;
+    expect(list.closest('[role="img"]')).toBeNull();
+    expect(harness.container.querySelector('[role="img"]')!.compareDocumentPosition(list) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    for (const letter of ["S", "W", "U", "A"] as const) {
+      const definition = list.querySelector(`[data-letter-definition="${letter}"]`)!;
+      expect(definition.querySelector('[lang="en"]')?.textContent).toBe(letterInfo(letter).english);
+      expect(definition.querySelector('[data-letter-meaning]')?.textContent).toBe(letterInfo(letter).meaning);
+    }
+    expect(textOf(harness.container)).toContain(V40_COPY.result.letterReadingNote);
+  });
+
   it("큰 글자 네 개를 주제 순서로, 각 글자 위에 작은 주제 이름을 놓는다", async () => {
     await harness.render(<CodeLine entries={SWUA} />);
     const cells = [...harness.container.querySelectorAll("[data-code-axis]")];
@@ -72,6 +97,9 @@ describe("CodeLine", () => {
     const unset = SWUA.map((entry): CodeLineEntry => (entry.axis === "scope" ? { axis: "scope", letter: null, band: null, provisional: false } : entry));
     await harness.render(<CodeLine entries={unset} />);
     expect(cellOf("scope").querySelector("[data-code-letter-name]")?.textContent).toBe("");
+    const reading = harness.container.querySelector('[data-code-reading-axis="scope"]')!;
+    expect(reading.querySelector('[data-letter-definition]')).toBeNull();
+    expect(reading.textContent).toContain(V40_COPY.result.unsetLetterLabel);
   });
 
   it("힌트가 세기를 낮춰서 된 반반이 있으면 「크게 기울지 않았다」만 말하는 안내 대신 낮춘 경우도 말하는 안내를 쓴다", async () => {
@@ -107,6 +135,9 @@ describe("CodeLine", () => {
     expect(text).toContain(V40_COPY.result.evenMark);
     expect(text).toContain(V40_COPY.result.provisionalMark);
     expect(harness.container.querySelector('[role="img"]')!.getAttribute("aria-label")).toContain("임시 글자예요");
+    const reading = harness.container.querySelector('[data-code-reading-axis="support"]')!;
+    expect(reading.textContent).toContain("반반이에요");
+    expect(reading.textContent).toContain(V40_COPY.result.provisionalMark);
   });
 
   it("글자를 못 정한 주제는 가운뎃점과 그 사실을 적고 다른 표시는 붙이지 않는다", async () => {

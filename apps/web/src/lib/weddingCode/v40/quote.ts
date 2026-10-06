@@ -31,7 +31,10 @@ function candidatesOf(bank: Bank, responses: Responses, axis: AxisResult): Candi
     const text = answerText(item, raw);
     const label = answerLabel(item, raw);
     if (text === null || label === null) continue;
-    const quote: QuoteItem = { itemId: item.id, caption: item.caption, facet: item.facet, format: item.fmt, value, text, label };
+    const prompt = item.fmt === "react"
+      ? [item.stem, ...(item.quote ? [`${item.quote.speaker} · 「${item.quote.text}」`] : []), item.question]
+      : [item.stem];
+    const quote: QuoteItem = { itemId: item.id, caption: item.caption, prompt, facet: item.facet, format: item.fmt, value, text, label };
     list.push({ item, value, quote });
   }
   return list.sort((a, b) => Math.abs(b.value) - Math.abs(a.value));

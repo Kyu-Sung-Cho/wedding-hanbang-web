@@ -1,4 +1,5 @@
 import { V40_COPY, collectedSentence, type CodeLineEntry } from "@/lib/weddingCode/v40/copy";
+import { axisInfo } from "@/constants/weddingCodeV40";
 import { cx } from "./styles";
 import { bodyLine, sectionTitle } from "./resultStyles";
 
@@ -20,10 +21,11 @@ export function GatheredSentences({ entries, idPrefix = "wc40-collected" }: Gath
       <h2 id={titleId} className={sectionTitle}>
         {V40_COPY.collected.title}
       </h2>
-      <ul className={cx(bodyLine, "mt-2 space-y-1.5")}>
+      <ul className={cx(bodyLine, "mt-6 grid gap-x-12 gap-y-0 min-[760px]:grid-cols-2")}>
         {entries.map((entry) => (
-          <li key={entry.axis} data-collected-axis={entry.axis}>
-            {collectedSentence(entry.axis, entry.letter, entry.band, entry.lowered === true)}
+          <li key={entry.axis} className="border-t border-[var(--hb-hairline)] py-5 sm:py-6">
+            <span className="mb-2 block text-sm font-semibold text-[var(--hb-text-muted)]">{axisInfo(entry.axis).title}</span>
+            <span data-collected-axis={entry.axis} className="block max-w-[36rem] text-base font-medium leading-relaxed text-[var(--hb-text-strong)]">{collectedSentence(entry.axis, entry.letter, entry.band, entry.lowered === true)}</span>
           </li>
         ))}
       </ul>

@@ -3,7 +3,7 @@
 import { ChevronDown, ChevronUp } from "lucide-react";
 import { useState, type ReactNode } from "react";
 import Button from "@/components/ui/Button";
-import { axisInfo, letterInfo, type Letter, type StrengthBand } from "@/constants/weddingCodeV40";
+import { axisInfo, type Letter, type StrengthBand } from "@/constants/weddingCodeV40";
 import {
   V40_COPY,
   evenOneSidedLine,
@@ -19,6 +19,8 @@ import {
 } from "@/lib/weddingCode/v40/copy";
 import { QUOTE_LIMITS } from "@/lib/weddingCode/v40/quote";
 import type { Axis, AxisQuotes, AxisResult, QuoteItem, SelfLine } from "@/lib/weddingCode/v40/types";
+import { AxisAnswerEvidence } from "./AnswerEvidence";
+import { useWeddingCodeResultMetadata } from "./ResultEditionContext";
 import { isLoweredToEven } from "./CodeLine";
 import { buttonFocusFix, cx, noteText } from "./styles";
 import { bodyLine, bulletList, emphasisLine, panel, sectionTitle, subTitle } from "./resultStyles";
@@ -57,15 +59,23 @@ function QuoteGroup({
 }) {
   const shown = items.slice(0, limit);
   return (
-    <div data-quote-group>
+    <div data-quote-group className="min-w-0">
       <h3 className={subTitle}>{heading}</h3>
       {shown.length === 0 ? (
         <p className={cx(bodyLine, "mt-1")}>{empty}</p>
       ) : (
-        <ul className={cx(bulletList, "mt-1")}>
+        <ul className="mt-3 space-y-3 text-[15px] leading-relaxed text-[var(--hb-text-body)]">
           {shown.map((item) => (
-            <li key={item.itemId} data-quote-item={item.itemId}>
-              <span className="font-semibold text-[var(--hb-text-strong)]">{item.caption}</span>: {item.text}
+            <li key={item.itemId} className="border-l-2 border-[var(--hb-summary-line)] pl-4">
+              <span data-quote-item={item.itemId}><span className="font-semibold text-[var(--hb-text-strong)]">{item.caption}</span>: {item.text}</span>
+              {item.prompt ? (
+                <details className="mt-1">
+                  <summary className="min-h-11 cursor-pointer text-xs font-semibold text-[var(--hb-text-muted)]">이 답의 질문 상황 보기</summary>
+                  <div className="rounded-lg bg-[var(--hb-surface-hover)] p-3 text-sm leading-relaxed">
+                    {item.prompt.map((line, index) => <p key={index} className="break-keep">{line}</p>)}
+                  </div>
+                </details>
+              ) : null}
             </li>
           ))}
         </ul>
@@ -83,7 +93,7 @@ function Fold({ id, describedBy, children }: { readonly id: string; readonly des
   const [open, setOpen] = useState(false);
   const Chevron = open ? ChevronUp : ChevronDown;
   return (
-    <div className="border-t border-[var(--hb-hairline)] pt-3" data-fold>
+    <div className="border-t border-[var(--hb-hairline)] pt-5" data-fold>
       <Button
         variant="secondary"
         size="sm"
@@ -96,7 +106,7 @@ function Fold({ id, describedBy, children }: { readonly id: string; readonly des
         {open ? V40_COPY.block.lessToggle : V40_COPY.block.moreToggle}
         <Chevron aria-hidden="true" className="size-4 shrink-0" />
       </Button>
-      <div id={id} hidden={!open} className="mt-3 space-y-4">
+      <div id={id} hidden={!open} className="mt-5 space-y-5">
         {children}
       </div>
     </div>
@@ -147,28 +157,35 @@ function SettledBody({
   foldId,
   titleId,
 }: BodyProps & { readonly letter: Letter; readonly band: "clear" | "lean" }) {
+  const { letterInfo } = useWeddingCodeResultMetadata();
   const own = quotes.kind === "settled" ? quotes.own : [];
   const opposite = quotes.kind === "settled" ? quotes.opposite : [];
   const info = letterInfo(letter);
   return (
     <>
-      <p data-axis-heading className={emphasisLine}>
-        {letterHeading(letter, band, axis.provisional)}
-      </p>
-      <p className={bodyLine}>{meaningLine(letter)}</p>
-      <p className={bodyLine}>{oppositeMeaningLine(letter)}</p>
-      <p className={bodyLine}>{strengthSentence(axis.axis, letter, band)}</p>
-      <SelfLineRow line={selfLine} />
-      <QuoteGroup heading={V40_COPY.block.answersMineHeading} items={own} limit={QUOTE_LIMITS.own} empty={V40_COPY.block.noAnswersLine} />
-      <QuoteGroup
-        heading={V40_COPY.block.answersOppositeHeading}
-        items={opposite}
-        limit={QUOTE_LIMITS.opposite}
-        empty={V40_COPY.block.noOppositeLine}
-      />
+      <div className="space-y-3 border-b border-[var(--hb-hairline)] pb-6">
+        <p data-axis-heading className={emphasisLine}>
+          {letterHeading(letter, band, axis.provisional)}
+        </p>
+        <p className={bodyLine}>{meaningLine(letter)}</p>
+        <p className={bodyLine}>{oppositeMeaningLine(letter)}</p>
+        <p className={bodyLine}>{strengthSentence(axis.axis, letter, band)}</p>
+        <SelfLineRow line={selfLine} />
+      </div>
+      <AxisAnswerEvidence axis={axis} />
+      <div className="grid gap-6 border-t border-[var(--hb-hairline)] pt-6 md:grid-cols-2 lg:gap-10">
+        <QuoteGroup heading={V40_COPY.block.answersMineHeading} items={own} limit={QUOTE_LIMITS.own} empty={V40_COPY.block.noAnswersLine} />
+        <QuoteGroup
+          heading={V40_COPY.block.answersOppositeHeading}
+          items={opposite}
+          limit={QUOTE_LIMITS.opposite}
+          empty={V40_COPY.block.noOppositeLine}
+        />
+      </div>
       <Fold id={foldId} describedBy={titleId}>
         <div>
           <h3 className={subTitle}>{V40_COPY.block.appearancesHeading}</h3>
+          <p className={cx(noteText, "mt-1")}>{V40_COPY.block.appearancesNote}</p>
           <ul className={cx(bulletList, "mt-1")}>
             {info.appearances.map((line) => (
               <li key={line}>{line}</li>
@@ -188,6 +205,7 @@ function SettledBody({
  * 코드에 적은 글자는 제목 줄과 세기 문장에서 그대로 밝히되 「다른 날에는 반대 글자가 나올 수 있어요」를 함께 적는다.
  */
 function EvenBody({ axis, letter, quotes, selfLine, onReview, foldId, titleId }: BodyProps & { readonly letter: Letter }) {
+  const { letterInfo } = useWeddingCodeResultMetadata();
   const info = axisInfo(axis.axis);
   const front = letterInfo(info.front);
   const back = letterInfo(info.back);
@@ -199,20 +217,23 @@ function EvenBody({ axis, letter, quotes, selfLine, onReview, foldId, titleId }:
   const oneSidedLetter = frontQuotes.length > 0 ? front.letter : back.letter;
   return (
     <>
-      <p data-axis-heading className={emphasisLine}>
-        {letterHeading(letter, "even", axis.provisional)}
-      </p>
-      <p className={bodyLine}>{strengthSentence(axis.axis, letter, "even", lowered)}</p>
-      {oneSided ? (
-        <p data-even-one-sided="" className={bodyLine}>
-          {evenOneSidedLine(oneSidedLetter)}
+      <div className="space-y-3 border-b border-[var(--hb-hairline)] pb-6">
+        <p data-axis-heading className={emphasisLine}>
+          {letterHeading(letter, "even", axis.provisional)}
         </p>
-      ) : null}
-      <p className={bodyLine}>{meaningLine(front.letter)}</p>
-      <p className={bodyLine}>{meaningLine(back.letter)}</p>
-      {/* 「코드에는 한 글자만 …」 문장에서 떨어뜨려 두 글자의 뜻 아래에 둔다(그 문장의 이유나 모순으로 읽히지 않게). */}
-      <SelfLineRow line={selfLine} />
-      <div className="grid gap-4 sm:grid-cols-2">
+        <p className={bodyLine}>{strengthSentence(axis.axis, letter, "even", lowered)}</p>
+        {oneSided ? (
+          <p data-even-one-sided="" className={bodyLine}>
+            {evenOneSidedLine(oneSidedLetter)}
+          </p>
+        ) : null}
+        <p className={bodyLine}>{meaningLine(front.letter)}</p>
+        <p className={bodyLine}>{meaningLine(back.letter)}</p>
+        {/* 「코드에는 한 글자만 …」 문장에서 떨어뜨려 두 글자의 뜻 아래에 둔다(그 문장의 이유나 모순으로 읽히지 않게). */}
+        <SelfLineRow line={selfLine} />
+      </div>
+      <AxisAnswerEvidence axis={axis} />
+      <div className="grid gap-6 border-t border-[var(--hb-hairline)] pt-6 md:grid-cols-2 lg:gap-10">
         <QuoteGroup
           heading={evenSideAnswersHeading(front.letter)}
           items={frontQuotes}
@@ -259,7 +280,7 @@ function EvenBody({ axis, letter, quotes, selfLine, onReview, foldId, titleId }:
  * 내가 고른 답(글자 쪽 최대 세 줄)과 반대로 고른 답(최대 두 줄, 보여 줄 것이 없으면 그렇다고 적음).
  * 「더 보기」로 접히는 것: 이렇게 나타날 수 있어요, 둘이 이야기해 봐요, 이렇게 해 봐요, 이 주제 답 다시 보기.
  * 글자를 못 정한 주제는 이유를 되풀이하지 않고 다시 볼 수 있다는 말과 「이 주제 답 다시 보기」만 접지 않고 보인다.
- * 세기는 힌트를 반영한 shownBand 를 쓴다. 숫자, 점수, 막대, 색 등급을 쓰지 않는다.
+ * 세기는 힌트를 반영한 shownBand 를 쓴다. 방향별 선택 비율은 실제 응답 수를 분모로 따로 표시한다.
  */
 export function AxisBlock({ axis, quotes, selfLine = null, onReview, idPrefix = "wc40-block" }: AxisBlockProps) {
   const info = axisInfo(axis.axis);
@@ -275,6 +296,7 @@ export function AxisBlock({ axis, quotes, selfLine = null, onReview, idPrefix = 
     body = (
       <>
         <p className={bodyLine}>{axis.skipped > 0 ? V40_COPY.block.unusableNote : V40_COPY.block.unusableNoteNotApplicable}</p>
+        <AxisAnswerEvidence axis={axis} />
         <ReviewButton onClick={() => onReview(axis.axis)} describedBy={titleId} />
       </>
     );
@@ -296,7 +318,7 @@ export function AxisBlock({ axis, quotes, selfLine = null, onReview, idPrefix = 
       <h2 id={titleId} className={sectionTitle}>
         {info.title}
       </h2>
-      <div className="mt-2 space-y-3">{body}</div>
+      <div className="mt-5 space-y-6">{body}</div>
     </section>
   );
 }

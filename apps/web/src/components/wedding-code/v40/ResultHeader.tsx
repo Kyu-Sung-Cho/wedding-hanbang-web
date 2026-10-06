@@ -62,9 +62,9 @@ export function ResultHeader({ copyText, onCopyCode, headingLevel = 1, notice = 
   const status = state === "copied" ? V40_COPY.copyCode.copied : state === "failed" ? V40_COPY.copyCode.failed : "";
 
   return (
-    <header data-result-section="header">
-      <div className="flex items-start justify-between gap-3">
-        <Heading className="min-w-0 flex-1 break-keep text-xl font-semibold leading-snug text-[var(--hb-text-strong)]">
+    <header data-result-section="header" className="border-b border-[var(--hb-hairline)] pb-6 sm:pb-8">
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <Heading className="min-w-0 flex-1 break-keep text-3xl font-semibold leading-tight tracking-tight text-[var(--hb-text-strong)] sm:text-4xl">
           {V40_COPY.result.title}
         </Heading>
         {copyText !== null ? (
@@ -81,7 +81,7 @@ export function ResultHeader({ copyText, onCopyCode, headingLevel = 1, notice = 
           </Button>
         ) : null}
       </div>
-      <p data-result-notice className="mt-2 text-sm leading-relaxed text-[var(--hb-text-body)]">
+      <p data-result-notice className="mt-4 max-w-3xl text-sm leading-relaxed text-[var(--hb-text-body)] sm:text-[15px]">
         {notice}
       </p>
       {copyText !== null ? (

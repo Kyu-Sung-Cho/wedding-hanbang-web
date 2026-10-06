@@ -4,7 +4,7 @@ import { act, type ReactElement } from "react";
 import { createRoot, hydrateRoot, type Root } from "react-dom/client";
 import { renderToString } from "react-dom/server";
 import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from "vitest";
-import { WEDDING_CODE_V31_QUESTIONS, WEDDING_CODE_V31_TASTES, type V31Draft } from "@/constants/weddingCodeV31";
+import { WEDDING_CODE_V31_QUESTIONS, WEDDING_CODE_V31_TASTES, WEDDING_CODE_V31_VERSION, type V31Draft } from "@/constants/weddingCodeV31";
 import { captureWeddingCodeEvent } from "@/lib/analytics";
 import { createV31Draft } from "@/lib/weddingCode/v31";
 import { V31_CORE_INDEXES } from "@/lib/weddingCode/v31Flow";
@@ -173,7 +173,8 @@ describe("웨딩코드 v3.1 소개: 서버가 그린 버튼은 눌러도 되는 
     expect(writeV31LocalProgress(window.localStorage, snapshot(draft), null).status).toBe("saved");
     const raw = window.localStorage.getItem(LOCAL_KEY);
     // 입구를 거치면 저장소는 하이드레이션 뒤 주소(#)를 읽고 나서야 켜진다. 서버는 그 전 모습을 그린다.
-    const element = <WeddingCodeEntryClient shareOrigin="https://hanbang.ai" initialEntry={defaultWeddingCodeEntry()} />;
+    window.history.replaceState(null, "", `/wedding-code?v=${WEDDING_CODE_V31_VERSION}`);
+    const element = <WeddingCodeEntryClient shareOrigin="https://hanbang.ai" initialEntry={defaultWeddingCodeEntry(WEDDING_CODE_V31_VERSION)} />;
     paintServerHtml(element);
     expect(startButton()?.textContent?.trim()).toBe(START);
     expect(startButton()?.disabled).toBe(true);

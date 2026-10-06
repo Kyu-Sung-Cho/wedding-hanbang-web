@@ -1,10 +1,12 @@
 "use client";
 
-import { Send } from "lucide-react";
+import { ChevronDown, Send } from "lucide-react";
 import { useEffect, useId, useRef, useState, type ReactNode, type RefObject } from "react";
 import Button from "@/components/ui/Button";
 import { V40_COPY, V40_COUPLE_SEND_EXTRA_COPY } from "@/lib/weddingCode/v40/copy";
 import { browserShareEnv, sendLink, sentEventOf, type ShareEnv, type ShareOutcome, type ShareSentEvent } from "./shareActions";
+import { ShareJourney } from "./ShareJourney";
+import { panel, sectionTitle } from "./resultStyles";
 import { bodyText, buttonFocusFix, card, cardSelected, cx, focusRing, noteText, noticeBox } from "./styles";
 
 // ---------------------------------------------------------------------------
@@ -13,8 +15,8 @@ import { bodyText, buttonFocusFix, card, cardSelected, cx, focusRing, noteText, 
 
 /** 화면 제목(레벨 2)과 절 제목(레벨 3)의 모양. */
 const headingClass = {
-  2: "text-xl font-semibold leading-snug text-[var(--hb-text-strong)]",
-  3: "text-base font-semibold leading-snug text-[var(--hb-text-strong)]",
+  2: sectionTitle,
+  3: "text-lg font-semibold leading-snug tracking-tight text-[var(--hb-text-strong)] sm:text-xl",
 } as const;
 
 export function SectionHeading({ level, id, children }: { readonly level: 2 | 3; readonly id: string; readonly children: ReactNode }) {
@@ -27,7 +29,7 @@ export function SectionHeading({ level, id, children }: { readonly level: 2 | 3;
 }
 
 /** 링크를 보내려던 일의 지금 상태. idle 이면 안내 글이 비어 있다. */
-export type SendStatus = "idle" | "linkFailed" | "shared" | "copied" | "revealed";
+export type SendStatus = "idle" | "linkFailed" | "shared" | "copied" | "revealed" | "cancelled";
 
 /** 상태에 맞는 한 줄. 공유 창을 마친 것과 클립보드에 복사한 것은 다르게 말한다. */
 export function sendStatusText(status: SendStatus): string {
@@ -40,6 +42,8 @@ export function sendStatusText(status: SendStatus): string {
       return V40_COPY.send.copied;
     case "revealed":
       return V40_COPY.send.manualCopy;
+    case "cancelled":
+      return V40_COUPLE_SEND_EXTRA_COPY.cancelled;
     default:
       return "";
   }
@@ -55,6 +59,7 @@ export function useLinkSender(onSent: (event: ShareSentEvent) => void, env?: Sha
   const [revealedUrl, setRevealedUrl] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const busyRef = useRef(false);
+  const selectionRevision = useRef(0);
 
   const run = async (url: string | null, text: string): Promise<void> => {
     if (busyRef.current) return;
@@ -63,6 +68,7 @@ export function useLinkSender(onSent: (event: ShareSentEvent) => void, env?: Sha
       setStatus("linkFailed");
       return;
     }
+    const startedRevision = selectionRevision.current;
     busyRef.current = true;
     setBusy(true);
     setStatus("idle");
@@ -75,13 +81,16 @@ export function useLinkSender(onSent: (event: ShareSentEvent) => void, env?: Sha
     }
     busyRef.current = false;
     setBusy(false);
-    if (outcome.kind === "revealed") {
-      setRevealedUrl(url);
-      setStatus("revealed");
-    } else if (outcome.kind === "cancelled") {
-      setStatus("idle");
-    } else {
-      setStatus(outcome.kind);
+    // 보내는 동안 선택을 바꿨다면 옛 링크의 주소·안내를 새 선택 아래에 붙이지 않는다.
+    if (startedRevision === selectionRevision.current) {
+      if (outcome.kind === "revealed") {
+        setRevealedUrl(url);
+        setStatus("revealed");
+      } else if (outcome.kind === "cancelled") {
+        setStatus("cancelled");
+      } else {
+        setStatus(outcome.kind);
+      }
     }
     const event = sentEventOf(outcome);
     if (event !== null) onSent(event);
@@ -89,6 +98,7 @@ export function useLinkSender(onSent: (event: ShareSentEvent) => void, env?: Sha
 
   /** 보낼 내용이 바뀌었을 때(라디오를 바꿈) 이전 결과와 주소 칸을 치운다. */
   const reset = () => {
+    selectionRevision.current += 1;
     setStatus("idle");
     setRevealedUrl(null);
   };
@@ -100,7 +110,7 @@ const focusWithinRing =
   "has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-[var(--hb-focus-ring)] has-[:focus-visible]:ring-offset-2";
 
 const fieldClass = cx(
-  "mt-1 block w-full rounded-lg border border-paper-outline bg-[var(--hb-surface-raised)] px-3 py-2",
+  "mt-2 block w-full rounded-xl border border-paper-outline bg-[var(--hb-surface-raised)] px-4 py-3",
   "text-[16px] leading-relaxed text-[var(--hb-text-strong)]",
   focusRing,
 );
@@ -118,7 +128,7 @@ export function ConsentCheck({
   readonly children: ReactNode;
 }) {
   return (
-    <label className={cx(card, "flex min-h-11 cursor-pointer items-start gap-3 p-3", focusWithinRing)}>
+    <label className={cx("flex min-h-11 cursor-pointer items-start gap-3 rounded-xl border border-paper-outline bg-[var(--hb-surface-raised)] p-4", focusWithinRing)}>
       <input
         ref={inputRef}
         type="checkbox"
@@ -126,12 +136,12 @@ export function ConsentCheck({
         onChange={(event) => onChange(event.target.checked)}
         className="mt-0.5 size-5 shrink-0 accent-[var(--hb-action)]"
       />
-      <span className={cx(bodyText, "min-w-0")}>{children}</span>
+      <span className={cx(bodyText, "min-w-0 break-keep")}>{children}</span>
     </label>
   );
 }
 
-/** 고쳐 쓸 수 있는 보낼 말. 글자 크기 16픽셀이라 휴대폰이 확대하지 않는다. */
+/** 보낼 말은 먼저 읽고, 펼쳐서 고친다. 편집 글자 크기는 16픽셀이라 휴대폰이 확대하지 않는다. */
 export function MessageField({
   id,
   label,
@@ -144,12 +154,27 @@ export function MessageField({
   readonly onChange: (value: string) => void;
 }) {
   return (
-    <div>
-      <label htmlFor={id} className={cx(noteText, "font-medium")}>
-        {label}
-      </label>
-      <textarea id={id} rows={5} value={value} onChange={(event) => onChange(event.target.value)} className={cx(fieldClass, "resize-y")} />
-    </div>
+    <details data-send-message-editor="" className="group rounded-xl border border-[var(--hb-hairline)] bg-[var(--hb-surface-hover)]">
+      <summary className={cx("min-h-11 cursor-pointer list-none rounded-xl px-4 py-3 [&::-webkit-details-marker]:hidden", focusRing)}>
+        <span className="flex items-center justify-between gap-3">
+          <span className="text-sm font-semibold text-[var(--hb-text-strong)]">보낼 말</span>
+          <span className="flex shrink-0 items-center gap-1 text-xs font-semibold text-[var(--hb-text-muted)]">
+            <span className="group-open:hidden">수정하기</span>
+            <span className="hidden group-open:inline">접기</span>
+            <ChevronDown aria-hidden="true" className="size-4 transition-transform motion-reduce:transition-none group-open:rotate-180" />
+          </span>
+        </span>
+        <span className="mt-2 block whitespace-pre-line break-keep wrap-anywhere text-sm leading-relaxed text-[var(--hb-text-body)] group-open:hidden">
+          {value || "말 없이 링크만 보내요."}
+        </span>
+      </summary>
+      <div className="border-t border-[var(--hb-hairline)] px-4 pb-4 pt-3">
+        <label htmlFor={id} className={cx(noteText, "font-medium")}>
+          {label}
+        </label>
+        <textarea id={id} rows={4} value={value} onChange={(event) => onChange(event.target.value)} className={cx(fieldClass, "resize-y")} />
+      </div>
+    </details>
   );
 }
 
@@ -174,7 +199,7 @@ export function SendButton({
     <Button
       variant="primary"
       fullWidth
-      aria-disabled={blocked}
+      aria-disabled={blocked || busy}
       aria-busy={busy || undefined}
       aria-describedby={blocked ? reasonId : undefined}
       onClick={onClick}
@@ -306,6 +331,7 @@ export function ShareBlock({ buildUrl, onSent, env, idPrefix, headingLevel = 2, 
   };
 
   const send = () => {
+    if (sender.busy) return;
     if (blocked) {
       consentRef.current?.focus();
       return;
@@ -320,19 +346,26 @@ export function ShareBlock({ buildUrl, onSent, env, idPrefix, headingLevel = 2, 
   };
 
   return (
-    <section aria-labelledby={ids.title} className={cx(card, "p-4")}>
+    <section data-result-section="share" aria-labelledby={ids.title} className={panel}>
       <SectionHeading level={headingLevel} id={ids.title}>
         {V40_COPY.send.title}
       </SectionHeading>
+      <p className={cx(bodyText, "mt-2 break-keep")}>내 답을 함께 보내거나, 답 없이 질문만 보낼 수 있어요.</p>
 
-      <fieldset className="mt-3 min-w-0 border-0 p-0">
+      {option === "withAnswers" ? (
+        <div className="mt-5">
+          <ShareJourney label={V40_COPY.send.journeyLabel} steps={V40_COPY.send.journeySteps} />
+        </div>
+      ) : null}
+
+      <fieldset className="mt-5 min-w-0 border-0 p-0">
         <legend className={cx(noteText, "font-medium")}>{V40_COPY.send.groupLabel}</legend>
-        <div className="mt-2 space-y-2">
+        <div className="mt-3 grid gap-3 sm:grid-cols-2">
           {OPTIONS.map((entry) => {
             const selected = entry.value === option;
             const helpId = `${prefix}-${entry.value}-help`;
             return (
-              <label key={entry.value} className={cx(card, selected && cardSelected, "flex min-h-12 cursor-pointer items-start gap-3 p-3", focusWithinRing)}>
+              <label key={entry.value} className={cx(card, selected && cardSelected, "flex min-h-12 cursor-pointer items-start gap-3 p-4 transition-colors motion-reduce:transition-none", focusWithinRing)}>
                 <input
                   type="radio"
                   name={`${prefix}-option`}
@@ -342,9 +375,9 @@ export function ShareBlock({ buildUrl, onSent, env, idPrefix, headingLevel = 2, 
                   aria-describedby={helpId}
                   className="mt-0.5 size-5 shrink-0 accent-[var(--hb-action)]"
                 />
-                <span className="min-w-0">
+                <span className="min-w-0 break-keep">
                   <span className="block text-sm font-semibold text-[var(--hb-text-strong)]">{entry.label}</span>
-                  <span id={helpId} className={cx(noteText, "mt-0.5 block")}>
+                  <span id={helpId} className={cx(noteText, "mt-2 block")}>
                     {entry.help}
                   </span>
                 </span>
@@ -354,15 +387,7 @@ export function ShareBlock({ buildUrl, onSent, env, idPrefix, headingLevel = 2, 
         </div>
       </fieldset>
 
-      {option === "withAnswers" ? (
-        <div className="mt-3">
-          <ConsentCheck inputRef={consentRef} checked={consent} onChange={setConsent}>
-            {V40_COPY.send.consent}
-          </ConsentCheck>
-        </div>
-      ) : null}
-
-      <div className="mt-4">
+      <div className="mt-5">
         <MessageField
           id={ids.message}
           label={V40_COPY.send.messageLabel}
@@ -371,12 +396,20 @@ export function ShareBlock({ buildUrl, onSent, env, idPrefix, headingLevel = 2, 
         />
       </div>
 
-      <div className={cx(noteText, "mt-4 space-y-1")}>
+      <div className={cx(noteText, "mt-5 space-y-2 break-keep")}>
         <p>{V40_COPY.send.shareSheetInfo}</p>
         {option === "withAnswers" ? <p>{V40_COPY.send.withAnswersSensitiveInfo}</p> : null}
         {option === "withAnswers" ? <p>{V40_COPY.send.withAnswersLinkInfo}</p> : null}
         {option === "withAnswers" && guessNote ? <p data-send-guess-note="">{guessNote}</p> : null}
       </div>
+
+      {option === "withAnswers" ? (
+        <div className="mt-4">
+          <ConsentCheck inputRef={consentRef} checked={consent} onChange={setConsent}>
+            {V40_COPY.send.consent}
+          </ConsentCheck>
+        </div>
+      ) : null}
 
       <div className="mt-4">
         <SendButton label={V40_COPY.send.sendButton} blocked={blocked} busy={sender.busy} reasonId={ids.reason} onClick={send} />

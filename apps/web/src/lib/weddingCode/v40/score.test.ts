@@ -107,6 +107,10 @@ describe("손계산 예제 열두 개(돈 주제, 정수로 계산)", () => {
     expect(axis.facets.map((facet) => facet.answered)).toEqual([4, 4, 4, 4]);
     expect(axis.sum).toBe(-44);
     expect(axis.answered).toBe(16);
+    expect([axis.frontCount, axis.backCount, axis.neutralCount]).toEqual([4, 12, 0]);
+    expect(axis.facets.map((facet) => [facet.frontCount, facet.backCount, facet.neutralCount])).toEqual([
+      [0, 4, 0], [4, 0, 0], [0, 4, 0], [0, 4, 0],
+    ]);
     expect(axis.countedFacets).toBe(4);
     expect(axis.weighted).toBe(-132);
     expect(axis.s).toBeCloseTo(-132 / 288, 12);
@@ -992,7 +996,7 @@ describe("계약 묶음", () => {
     const result: V40Result = buildResult(bank, 0, strong(FRONT4));
     expect(Object.keys(result).sort()).toEqual(["axes", "code", "formBit", "gate", "notes", "rhythm"]);
     expect(Object.keys(result.axes[0]).sort()).toEqual(
-      ["answered", "axis", "band", "contrast", "countedFacets", "facets", "letter", "notApplicable", "provisional", "s", "shownBand", "side", "skipped", "sum", "tieLevel", "unusable", "weighted"].sort(),
+      ["answered", "axis", "backCount", "band", "contrast", "countedFacets", "facets", "frontCount", "letter", "neutralCount", "notApplicable", "provisional", "s", "shownBand", "side", "skipped", "sum", "tieLevel", "unusable", "weighted"].sort(),
     );
   });
 

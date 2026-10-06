@@ -11,9 +11,9 @@ import type { PreparationStyleSnapshot, PreparationStyleSavedResponse } from "@/
 import { WEDDING_CODE_V12_VERSION } from "@/constants/weddingCodeV12";
 import PreparationStyleHub from "./PreparationStyleHub";
 import PreparationStylePage from "@/app/(app)/preparation-style/page";
-import { createV31Draft } from "@/lib/weddingCode/v31";
-import { writeV31LocalProgress } from "@/lib/weddingCode/v31LocalProgress";
-import { getV31IndexForId } from "@/lib/weddingCode/v31Flow";
+import { WEDDING_CODE_V41_BANK } from "@/lib/weddingCode/v41/bank";
+import { writeProgress } from "@/lib/weddingCode/v41/storage";
+import { V40_FIXTURES } from "@/lib/weddingCode/v40/fixtures";
 
 vi.mock("@/lib/analytics", () => ({ captureWeddingCodeEvent: vi.fn() }));
 
@@ -56,6 +56,12 @@ describe("준비 스타일의 개인 저장과 두 사람 공유", () => {
     useAuthStore.setState({ user: null, profile: null, couple: null, partner: null, isInitialized: false, isDemo: false });
   });
   const render = async () => { await act(async () => root.render(<PreparationStyleHub />)); };
+  const waitForScreen = async (selector: string) => {
+    for (let attempt = 0; attempt < 40 && !container.querySelector(selector); attempt++) {
+      await act(async () => { await new Promise(resolve => setTimeout(resolve, 25)); });
+    }
+    expect(container.querySelector(selector)).not.toBeNull();
+  };
   const button = (text: string) => [...container.querySelectorAll<HTMLButtonElement>("button")].find(item => item.textContent === text)!;
   const click = async (text: string) => { expect(button(text), text).toBeDefined(); await act(async () => button(text).click()); };
   async function answerAll(startLabel = "내 답 고르기") {
@@ -69,38 +75,43 @@ describe("준비 스타일의 개인 저장과 두 사람 공유", () => {
   it("라운지 기본 주소는 공개 화면과 같은 최신 문항을 열고 구판 계정 API를 호출하지 않는다", async () => {
     const page = await PreparationStylePage({ searchParams: Promise.resolve({}) });
     await act(async () => root.render(<main>{page}</main>));
+    await waitForScreen('[data-screen="intro"]:not([data-pending])');
     expect(container.querySelector("[data-lounge-wedding-code]")).not.toBeNull();
-    expect(container.textContent).toContain("기본 14페이지");
-    expect(container.textContent).toContain("8개 선택 질문");
-    expect(container.textContent).toContain("고른 답과 웨딩코드는 답하는 동안 서버나 계정에 보내지 않아요");
-    expect(container.textContent).toContain("‘함께 보기’에 동의하면 내 답 전체를 서버에 보관하고");
+    expect(container.textContent).toContain("68");
+    expect(container.querySelector('[data-wedding-code-version="v4.1-depth"]')).not.toBeNull();
+    expect(container.textContent).toContain("이 웨딩코드의 답은 계정에 저장되지 않고, 아모라에게도 전해지지 않아요");
+    expect(container.textContent).not.toContain("내 답 전체를 서버에 보관하고");
     const privacyLink = container.querySelector<HTMLAnchorElement>('a[href="/privacy"][target="_blank"]');
     expect(privacyLink?.textContent).toBe("개인정보 처리방침");
     expect(container.querySelectorAll("main")).toHaveLength(1);
     expect(fetchMock).not.toHaveBeenCalled();
-    await click("내 웨딩코드 시작하기");
-    const questions = [...container.querySelectorAll("[data-question]")];
-    expect(questions.map(question => question.getAttribute("data-question"))).toEqual(["G1", "G3", "R4"]);
-    for (const question of questions) expect(question.querySelectorAll('input[type="radio"]')).toHaveLength(8);
-    const firstAnswer = container.querySelector<HTMLInputElement>('[data-question="G1"] input[type="radio"][value="5"]')!;
+    await click("시작하기");
+    const questions = [...container.querySelectorAll("[data-item]")];
+    expect(questions.map(question => question.getAttribute("data-item"))).toEqual(["process.search.1", "money.limit.1"]);
+    for (const question of questions) {
+      const item = WEDDING_CODE_V41_BANK.byId.get(question.getAttribute("data-item")!);
+      expect(question.textContent).toContain(item?.stem);
+    }
+    const firstAnswer = container.querySelector<HTMLButtonElement>('[data-item="process.search.1"] button[role="radio"]')!;
     await act(async () => firstAnswer.click());
-    expect(firstAnswer.checked).toBe(true);
-    expect(container.querySelector('[data-question="G3"] input:checked')).toBeNull();
-    expect(container.querySelector('[data-question="R4"] input:checked')).toBeNull();
+    expect(firstAnswer.getAttribute("aria-checked")).toBe("true");
+    expect(container.querySelector('[data-item="money.limit.1"] [aria-checked="true"]')).toBeNull();
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it("공개 웨딩코드에서 남긴 브라우저 답을 라운지에서도 같은 질문부터 이어 하며 계정으로 보내지 않는다", async () => {
-    const draft = createV31Draft();
-    draft.answers.G1 = 5;
-    expect(writeV31LocalProgress(window.localStorage, {
-      draft, index: getV31IndexForId("G3"), flow: "core", screen: "questions", editing: false, needsPriorityReview: false,
-    }, null).status).toBe("saved");
+    const itemId = "scope.timing.1";
+    const index = WEDDING_CODE_V41_BANK.codeIndexById.get(itemId)!;
+    const sample = V40_FIXTURES[0];
+    const responses = Object.fromEntries(WEDDING_CODE_V41_BANK.items.slice(0, index).map(item => [item.id, sample.responses[item.id]]));
+    expect(writeProgress(window.localStorage, WEDDING_CODE_V41_BANK, {
+      formBit: sample.formBit, responses, cursor: index, screen: "questions", skippedReviewDone: false,
+    }, null, Date.now()).status).toBe("saved");
     const page = await PreparationStylePage({ searchParams: Promise.resolve({}) });
     await act(async () => root.render(<main>{page}</main>));
-    expect(container.textContent).toContain("기본 질문 14페이지 중 1페이지부터 이어 할 수 있어요");
-    await click("이어서 답하기");
-    expect(container.querySelector('[data-question="G3"]')).not.toBeNull();
+    await waitForScreen('[data-section-card="resume"]');
+    await click("이어서 하기");
+    expect(container.querySelector(`[data-item="${itemId}"]`)?.textContent).toContain(WEDDING_CODE_V41_BANK.byId.get(itemId)?.stem);
     expect(fetchMock).not.toHaveBeenCalled();
   });
 

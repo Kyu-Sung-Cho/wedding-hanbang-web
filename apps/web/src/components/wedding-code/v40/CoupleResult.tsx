@@ -2,15 +2,23 @@
 
 import { useId, useState, type ReactNode } from "react";
 import Button from "@/components/ui/Button";
-import { V40_COPY, V40_COUPLE_SEND_EXTRA_COPY, legendRows, type LegendLetterRow } from "@/lib/weddingCode/v40/copy";
+import { FEATURE_SUMMARY_CLASS, SUMMARY_LABEL_CLASS } from "@/components/ui/featureSummaryStyles";
+import { V40_STRENGTH, axisInfo } from "@/constants/weddingCodeV40";
+import { V40_COPY, V40_COUPLE_SEND_EXTRA_COPY, legendRows, personName, type LegendLetterRow } from "@/lib/weddingCode/v40/copy";
 import type { CoupleAxisRow as CoupleAxisRowData, CoupleResult as CoupleResultData, Perspective } from "@/lib/weddingCode/v40/types";
-import { CoupleAxisRow } from "./CoupleAxisRow";
+import { CoupleAxisRow, peopleInOrder } from "./CoupleAxisRow";
 import { CouplePerspectiveSwitch } from "./CouplePerspectiveSwitch";
 import { CoupleTalkList } from "./CoupleTalkList";
+import { nicknameForCode } from "./nickname";
 import type { ShareEnv, ShareSentEvent } from "./shareActions";
 import { SectionHeading } from "./ShareBlock";
 import { bodyText, buttonFocusFix, cx, noteText } from "./styles";
 import { TwoPersonSendBlock } from "./TwoPersonSendBlock";
+import { LetterDefinition } from "./LetterDefinition";
+import { useWeddingCodeResultMetadata } from "./ResultEditionContext";
+import { AnswerDistribution } from "./AnswerEvidence";
+import { CouplePreparationReport } from "./CouplePreparationSection";
+import type { CoupleReportSource } from "./couplePreparationReport";
 
 /**
  * 라운지 안(embedded)에서 쓰일 때 화면 맨 아래에 남기는 여백. 앱 셸의 하단 탭 막대(모바일에서만 보이고 아래에 고정)가
@@ -36,6 +44,8 @@ export interface CoupleSendConfig {
 export interface CoupleResultProps {
   /** 코어의 compareCouple 결과. 이 화면은 이 값을 합치거나 점수로 바꾸지 않는다. */
   readonly result: CoupleResultData;
+  /** 실제 두 사람 결과에서만 받은 원응답. 주제별 선택 장면을 검증해 읽는 데 쓴다. */
+  readonly reportSource?: CoupleReportSource;
   /**
    * 이 기기에 저장된 본인 답이 링크의 a(first)나 b(second)와 같다고 부모가 알려 준 값(코어의 detectPerspective).
    * 맞는 것이 없으면 null이고, 그러면 누가 나인지 고르게 한다. 이 화면은 저장소를 읽지 않는다.
@@ -74,12 +84,14 @@ export interface CoupleResultProps {
 }
 
 function LegendLetter({ row }: { readonly row: LegendLetterRow }) {
+  const { letterInfo } = useWeddingCodeResultMetadata();
   return (
     <>
       <span className="block text-[13px] font-semibold text-[var(--hb-text-strong)]">
         <span className="text-base font-bold">{row.letter}</span> {row.name}
       </span>
-      <span className="block text-xs text-[var(--hb-text-muted)]">{row.english}</span>
+      <span lang="en" className="mt-1 block text-xs text-[var(--hb-text-muted)]">{row.english}</span>
+      <p className="mt-2 break-keep text-sm leading-relaxed text-[var(--hb-text-body)]">{letterInfo(row.letter).meaning}</p>
     </>
   );
 }
@@ -97,8 +109,8 @@ function CoupleLegend({ idPrefix, headingLevel }: { readonly idPrefix: string; r
         {legend.title}
       </SectionHeading>
       <p className={cx(noteText, "mt-1")}>{legend.note}</p>
-      <table aria-labelledby={titleId} className="mt-3 w-full table-fixed border-collapse text-left">
-        <thead>
+      <table aria-labelledby={titleId} className="mt-5 block w-full text-left sm:table sm:table-fixed sm:border-collapse">
+        <thead className="sr-only sm:table-header-group">
           <tr>
             <th scope="col" className="w-[30%] pb-2 pr-2 text-xs font-medium text-[var(--hb-text-muted)]">
               {legend.topicColumn}
@@ -111,16 +123,16 @@ function CoupleLegend({ idPrefix, headingLevel }: { readonly idPrefix: string; r
             </th>
           </tr>
         </thead>
-        <tbody>
+        <tbody className="block sm:table-row-group">
           {legendRows().map((row) => (
-            <tr key={row.axis} className="border-t border-[var(--hb-hairline)] align-top">
-              <th scope="row" className="py-2 pr-2 text-left text-[13px] font-semibold text-[var(--hb-text-strong)]">
+            <tr key={row.axis} className="grid grid-cols-1 gap-x-4 gap-y-3 border-t border-[var(--hb-hairline)] py-3 align-top min-[520px]:grid-cols-2 sm:table-row sm:py-0">
+              <th scope="row" className="pb-2 text-left text-sm font-semibold text-[var(--hb-text-strong)] min-[520px]:col-span-2 sm:table-cell sm:py-3 sm:pr-2">
                 {row.title}
               </th>
-              <td className="py-2 pr-2">
+              <td className="min-w-0 sm:py-3 sm:pr-2">
                 <LegendLetter row={row.front} />
               </td>
-              <td className="py-2">
+              <td className="min-w-0 sm:py-3">
                 <LegendLetter row={row.back} />
               </td>
             </tr>
@@ -156,7 +168,7 @@ function noteFlags(rows: readonly CoupleAxisRowData[]): readonly boolean[] {
 
 /**
  * 우리 둘의 웨딩코드(두 사람 결과). 링크 전용이라 서버 요청과 저장이 없고, 받은 데이터와 콜백만 다룬다.
- * 위에서 아래로: 제목과 고지(이 화면에서 한 번), 나 기준으로 보기, 글자 읽는 법 표(한 번), 주제별 나란히 보기(태그 셋뿐),
+ * 위에서 아래로: 제목과 고지(이 화면에서 한 번), 두 사람의 코드, 나 기준으로 보기, 준비 리포트, 대화 장면, 주제별 나란히 보기, 글자 읽는 법 표,
  * 먼저 이야기해 볼 질문(최대 셋), 이미 비슷하게 고른 질문(최대 셋), 이 결과를 상대에게도 보내기(주면).
  * 두 코드를 하나로 합치거나 점수로 바꾸지 않고, 같은 글자 개수도 세지 않는다. 글자를 못 정했거나 임시 글자인 주제는 비교에서 뺀다.
  * 누가 나인지 알면 나를 먼저 놓는다. 그래서 두 사람의 자리를 바꿔 넣고 기준도 바꾸면 화면이 똑같다.
@@ -164,6 +176,7 @@ function noteFlags(rows: readonly CoupleAxisRowData[]): readonly boolean[] {
  */
 export function CoupleResult({
   result,
+  reportSource,
   detectedPerspective,
   initialPerspective = null,
   onPerspectiveChange,
@@ -187,8 +200,27 @@ export function CoupleResult({
   const rowLevel = embedded ? 4 : 3;
   const sendRegionId = `${prefix}-send`;
   const [chosen, setChosen] = useState<Perspective | null>(initialPerspective);
+  const [talkStep, setTalkStep] = useState(0);
   const perspective: Perspective | null = chosen ?? detectedPerspective;
   const flags = noteFlags(result.axes);
+  const conversationItems = result.talk.length > 0 ? result.talk : result.similar;
+  const usingSimilar = result.talk.length === 0 && result.similar.length > 0;
+  const activeTalkIndex = Math.min(talkStep, Math.max(0, conversationItems.length - 1));
+  const activeTalk = conversationItems[activeTalkIndex];
+  const personCodes = peopleInOrder(perspective).map((person) => {
+    const code = result.axes.map((row) => row[person].letter ?? "·").join("");
+    const provisional = result.axes.some((row) => row[person].provisional);
+    const allExcluded = result.axes.every((row) => row.excluded);
+    const meanings = result.axes.map((row) => ({
+      axis: row.axis,
+      letter: row[person].letter,
+      band: row[person].shownBand,
+      provisional: row[person].provisional,
+      counts: row[person],
+      excluded: row.excluded,
+    }));
+    return { person, code, meanings, nickname: provisional || allExcluded ? null : nicknameForCode(code) };
+  });
 
   const choosePerspective = (next: Perspective) => {
     setChosen(next);
@@ -203,43 +235,140 @@ export function CoupleResult({
     region.scrollIntoView?.({ block: "start" });
   };
 
+  const jumpToAxes = () => {
+    const region = document.getElementById(`${prefix}-axes-region`);
+    if (region === null) return;
+    region.focus({ preventScroll: true });
+    region.scrollIntoView?.({ block: "start" });
+  };
+
+  const jumpToReport = () => {
+    const region = document.getElementById(`${prefix}-preparation-region`);
+    if (region === null) return;
+    region.focus({ preventScroll: true });
+    region.scrollIntoView?.({ block: "start" });
+  };
+
   return (
-    <section aria-labelledby={titleId} className={cx("space-y-8", embedded && V40_EMBEDDED_BOTTOM_SPACE)} data-embedded={embedded ? "true" : undefined}>
-      <header>
-        <Title id={titleId} tabIndex={-1} className="text-xl font-semibold leading-snug text-[var(--hb-text-strong)] focus:outline-none">
+    <section aria-labelledby={titleId} className={cx("space-y-10 sm:space-y-14", embedded && V40_EMBEDDED_BOTTOM_SPACE)} data-embedded={embedded ? "true" : undefined}>
+      <div className="space-y-6 sm:space-y-8">
+      <header className="border-b border-[var(--hb-hairline)] pb-6 sm:pb-8">
+        <Title id={titleId} tabIndex={-1} className="text-3xl font-semibold leading-tight tracking-tight text-[var(--hb-text-strong)] focus:outline-none sm:text-4xl">
           {V40_COPY.couple.title}
         </Title>
-        <p className={cx(bodyText, "mt-2")}>{V40_COPY.couple.notice}</p>
+        <p className={cx(bodyText, "mt-4 max-w-3xl sm:text-[15px]")}>{V40_COPY.couple.notice}</p>
         {note ? <div data-couple-note="" className={cx(noteText, "mt-2")}>{note}</div> : null}
         {send !== null ? (
-          <div data-couple-return-step="" className="mt-3 space-y-2">
+          <div data-couple-return-step="" className="mt-5 rounded-xl bg-[var(--hb-summary-surface)] p-4 sm:p-5">
             <p className={noteText}>{V40_COPY.couple.returnStepNote}</p>
-            <Button variant="secondary" size="sm" onClick={jumpToSend} className={buttonFocusFix}>
+            <Button variant="primary" size="sm" onClick={jumpToSend} className={cx(buttonFocusFix, "mt-3")}>
               {V40_COPY.couple.returnStepButton}
             </Button>
           </div>
         ) : null}
       </header>
 
+      <section aria-label="두 사람의 네 글자" data-couple-codes="">
+        <p className={cx(SUMMARY_LABEL_CLASS, "mb-4")}>각자의 준비 방식부터 읽어 볼까요?</p>
+        <p className={cx(noteText, "mb-5")}>{V40_COPY.result.letterReadingNote}</p>
+        <div className={cx(noteText, "mb-5 space-y-1")}><p>{V40_COPY.evidence.summaryNote}</p><p>{V40_COPY.evidence.precisionNote}</p></div>
+        <div className="mb-5 flex flex-wrap gap-2">
+        <Button variant="primary" size="sm" onClick={jumpToReport} className={buttonFocusFix}>
+          우리 둘의 준비 리포트 보기
+        </Button>
+        <Button variant="secondary" size="sm" onClick={jumpToAxes} className={buttonFocusFix}>
+          {V40_COUPLE_SEND_EXTRA_COPY.axesHeading}
+        </Button>
+        </div>
+        <div className="grid gap-4 min-[760px]:grid-cols-2 lg:gap-6">
+          {personCodes.map(({ person, code, meanings, nickname }) => (
+            <div key={person} data-couple-code={person} className={cx(FEATURE_SUMMARY_CLASS, "min-w-0 px-5 py-7 sm:px-7 sm:py-8")}>
+              <p className={SUMMARY_LABEL_CLASS}>{V40_COPY.couple.perspective.meLabel === personName(perspective, person) ? "내 웨딩코드" : `${personName(perspective, person)}의 웨딩코드`}</p>
+              <p className="mt-5 break-all text-[clamp(3rem,8vw,5rem)] font-semibold leading-none tracking-wide text-[var(--hb-text-strong)]">{code}</p>
+              <ul className="mt-7 grid gap-x-5 gap-y-0 text-sm text-[var(--hb-text-body)] min-[480px]:grid-cols-2" aria-label={`${personName(perspective, person)}의 글자 뜻`}>
+                {meanings.map(({ axis, letter, band, provisional, counts, excluded }) => (
+                  <li key={axis} className="min-w-0 break-keep border-t border-[var(--hb-summary-line)] py-3">
+                    <span className="mb-1 block text-xs text-[var(--hb-summary-label)]">{axisInfo(axis).topic}</span>
+                    {letter === null ? <p className="font-semibold text-[var(--hb-text-strong)]">{V40_COPY.legend.notSetLabel}</p> : <LetterDefinition letter={letter} />}
+                    {letter !== null && band !== null ? <span className="mt-2 block text-xs text-[var(--hb-text-muted)]">{V40_STRENGTH[band].label}{provisional ? " · 임시" : ""}</span> : null}
+                    <AnswerDistribution axis={axis} counts={counts} compact />
+                    {excluded ? <p className={cx(noteText, "mt-3")}>{V40_COPY.evidence.excludedComparisonNote}</p> : null}
+                  </li>
+                ))}
+              </ul>
+              {nickname ? <p className="mt-3 border-t border-[var(--hb-summary-line)] pt-4 text-sm text-[var(--hb-text-body)]">재미 별칭 · <b className="text-lg font-semibold text-[var(--hb-text-strong)]">{nickname}</b></p> : null}
+            </div>
+          ))}
+        </div>
+        <p className={cx(noteText, "mt-4")}>별칭은 놀이로 붙인 이름이에요. 여덟 글자의 뜻은 아래 표에서, 실제 선택 방향은 주제별 줄에서 더 살펴볼 수 있어요.</p>
+      </section>
+
       <CouplePerspectiveSwitch idPrefix={`${prefix}-perspective`} detected={detectedPerspective} value={perspective} onChange={choosePerspective} />
+      </div>
 
-      <CoupleLegend idPrefix={prefix} headingLevel={sectionLevel} />
+      <CouplePreparationReport result={result} source={reportSource} perspective={perspective} idPrefix={prefix} headingLevel={sectionLevel} />
 
-      <section aria-labelledby={axesTitleId} data-part="axes">
+      <section aria-labelledby={`${prefix}-first-conversation-title`} data-couple-first-conversation="" className="rounded-2xl border border-[var(--hb-hairline)] bg-[var(--hb-surface-raised)] p-5 [&_h2]:text-2xl [&_h3]:text-2xl sm:p-8 lg:p-10">
+        <SectionHeading level={sectionLevel} id={`${prefix}-first-conversation-title`}>대화를 시작할 장면</SectionHeading>
+        {activeTalk ? (
+          <>
+            {usingSimilar ? <p className={cx(noteText, "mt-2")}>먼저 이야기할 다른 답이 뽑히지 않아, 비슷하게 고른 답에서 대화를 시작해 볼게요.</p> : null}
+            <p className="mt-6 text-sm font-semibold text-[var(--hb-text-muted)]" aria-live="polite">{axisInfo(activeTalk.axis).title} · {activeTalk.caption}</p>
+            <div data-couple-talk-prompt="" className="mt-3 max-w-3xl space-y-2 text-lg font-medium leading-relaxed text-[var(--hb-text-strong)] sm:text-xl">
+              {activeTalk.prompt.map((line, index) => <p key={`${activeTalk.itemId}-${index}`} className="break-keep">{line}</p>)}
+            </div>
+            {activeTalk.prompt.some((line) => line.includes("상대")) || activeTalk.firstText.includes("상대") || activeTalk.secondText.includes("상대") ? (
+              <p className={cx(noteText, "mt-1")}>{V40_COPY.couple.viewpointNote}</p>
+            ) : null}
+            <div className="mt-7 grid gap-x-8 gap-y-2 md:grid-cols-2">
+              {peopleInOrder(perspective).map((person) => (
+                <div key={person} className="min-w-0 border-t border-[var(--hb-hairline)] py-4">
+                  <p className="text-xs font-semibold text-[var(--hb-text-muted)]">{personName(perspective, person)}의 선택</p>
+                  <p className="mt-2 break-keep text-base font-medium leading-relaxed text-[var(--hb-text-strong)]">{person === "first" ? activeTalk.firstText : activeTalk.secondText}</p>
+                </div>
+              ))}
+            </div>
+            <p className={cx(noteText, "mt-2")}>{V40_COPY.couple.talk.opening[activeTalk.axis]}</p>
+            <p className={cx(noteText, "mt-1")}>각자 왜 그 문장을 골랐는지, 상황이 바뀌면 언제 다른 쪽을 고를지도 물어보세요.</p>
+            <div className="mt-6 flex gap-2 border-t border-[var(--hb-hairline)] pt-5">
+              <Button variant="secondary" size="sm" disabled={activeTalkIndex === 0} onClick={() => setTalkStep(activeTalkIndex - 1)} className={buttonFocusFix}>이전 장면</Button>
+              <Button variant="secondary" size="sm" disabled={activeTalkIndex === conversationItems.length - 1} onClick={() => setTalkStep(activeTalkIndex + 1)} className={buttonFocusFix}>다음 장면</Button>
+            </div>
+            <p className={cx(noteText, "mt-2")} data-current-scene="" aria-live="polite">현재 장면 {activeTalkIndex + 1} / {conversationItems.length}</p>
+          </>
+        ) : (
+          <p className={cx(noteText, "mt-2")}>이번 응답에서 먼저 이야기할 질문이 뽑히지 않았어요. 주제별 장면을 아래에서 함께 살펴볼 수 있어요.</p>
+        )}
+      </section>
+
+      <section id={`${prefix}-axes-region`} tabIndex={-1} aria-labelledby={axesTitleId} data-part="axes" className="scroll-mt-6 focus:outline-none [&_h2]:text-2xl [&_h3]:text-2xl">
         <SectionHeading level={sectionLevel} id={axesTitleId}>
           {V40_COUPLE_SEND_EXTRA_COPY.axesHeading}
         </SectionHeading>
-        <ul role="list" className="mt-3 space-y-3">
+        <p className={cx(noteText, "mt-2")}>
+          같은 글자여도 장면 묶음별 선택은 다를 수 있어요. 각자의 묶음을 펼쳐 비교해 보세요.
+        </p>
+        <p className={cx(noteText, "mt-1")}>
+          각 비율은 그 사람이 이 주제에서 답한 문항 수를 분모로 센 선택 방향이에요. 반올림 때문에 합계가 조금 다를 수 있어요. 글자는 선택 강도와 묶음별 비중을 반영해 비율이 큰 쪽과 달라질 수 있어요. 글자가 바뀔 가능성이나 두 사람의 관계를 수치로 나타낸 값은 아니에요.
+        </p>
+        <ul role="list" className="mt-6 space-y-5">
           {result.axes.map((row, index) => (
             <CoupleAxisRow key={row.axis} row={row} perspective={perspective} showNote={flags[index]} idPrefix={prefix} headingLevel={rowLevel} />
           ))}
         </ul>
       </section>
 
+      <CoupleLegend idPrefix={prefix} headingLevel={sectionLevel} />
+
       {ownLetterGuessSlot}
 
-      <CoupleTalkList kind="talk" items={result.talk} perspective={perspective} idPrefix={prefix} headingLevel={sectionLevel} />
-      <CoupleTalkList kind="similar" items={result.similar} perspective={perspective} idPrefix={prefix} headingLevel={sectionLevel} />
+      <details className="rounded-xl border border-[var(--hb-hairline)] bg-[var(--hb-surface-raised)] p-4">
+        <summary className="min-h-11 cursor-pointer text-sm font-semibold text-[var(--hb-text-strong)]">다르게 고른 답과 비슷하게 고른 답 더 보기</summary>
+        <div className="mt-3 space-y-6">
+          <CoupleTalkList kind="talk" items={result.talk} perspective={perspective} idPrefix={prefix} headingLevel={sectionLevel} />
+          <CoupleTalkList kind="similar" items={result.similar} perspective={perspective} idPrefix={prefix} headingLevel={sectionLevel} />
+        </div>
+      </details>
 
       {guessSection?.(perspective)}
 

@@ -51,7 +51,7 @@ export type {
 // 1. 기본
 // ===========================================================================
 
-export type V40Version = typeof WEDDING_CODE_V40_VERSION;
+export type V40Version = typeof WEDDING_CODE_V40_VERSION | "v4.1-depth" | "v4.2-depth";
 
 /**
  * 문항 id. 채점 문항은 `<axis>.<facet>.<section+1>` (예: money.limit.1, support.give.4),
@@ -480,6 +480,10 @@ export interface FacetTally {
   readonly facet: FacetKey;
   /** 유효 답 수(0에서 4). */
   readonly answered: number;
+  /** 유효 답의 앞/뒤/중립 방향 개수. 합은 answered다. */
+  readonly frontCount: number;
+  readonly backCount: number;
+  readonly neutralCount: number;
   /** 유효 답의 문항 값 합(정수). */
   readonly sum: number;
   /** 답이 2개 이상이라 세는 측면인가. */
@@ -495,6 +499,10 @@ export interface FacetTally {
 export interface AxisScore {
   readonly axis: Axis;
   readonly answered: number;
+  /** 유효 답의 문항 값 부호별 개수. 셋의 합은 answered이며 심리 확률이 아니다. */
+  readonly frontCount: number;
+  readonly backCount: number;
+  readonly neutralCount: number;
   readonly skipped: number;
   readonly notApplicable: number;
   readonly facets: readonly [FacetTally, FacetTally, FacetTally, FacetTally];
@@ -622,6 +630,8 @@ export interface V40Result {
 export interface QuoteItem {
   readonly itemId: ItemId;
   readonly caption: string;
+  /** 원래 문항의 상황·인용·물음. 이전 시험용 인용에는 없을 수 있다. */
+  readonly prompt?: readonly string[];
   readonly facet: FacetKey;
   readonly format: ScoredFormat;
   /** 문항 값(정수, 0 이 아님). 화면에 내지 않는다. */
@@ -654,6 +664,12 @@ export interface CoupleSideInfo {
   readonly letter: Letter | null;
   readonly shownBand: StrengthBand | null;
   readonly provisional: boolean;
+  /** 개인 결과와 같은 축별 응답 방향 개수. 퍼센트 표시의 분모는 answered다. */
+  readonly answered: number;
+  readonly frontCount: number;
+  readonly backCount: number;
+  readonly neutralCount: number;
+  readonly facets: readonly Pick<FacetTally, "facet" | "answered" | "frontCount" | "backCount" | "neutralCount" | "counted">[];
 }
 
 export interface CoupleAxisRow {
@@ -674,6 +690,8 @@ export interface CoupleItemPair {
   readonly axis: Axis;
   readonly facet: FacetKey;
   readonly caption: string;
+  /** 질문 원문의 상황과, 있을 때 인용과 물음. 답의 맥락을 결과에서도 그대로 읽는다. */
+  readonly prompt: readonly string[];
   readonly firstValue: number;
   readonly secondValue: number;
   /** |firstValue - secondValue|. */

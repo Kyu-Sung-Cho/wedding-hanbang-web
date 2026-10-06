@@ -92,9 +92,9 @@ describe("웨딩코드 v3.1 시작 화면 문구", () => {
       await act(async () => root.render(<WeddingCodeTogether />));
       return;
     }
-    window.history.replaceState(null, "", "/wedding-code");
-    const initialEntry = defaultWeddingCodeEntry();
-    expect(initialEntry.kind, "기본 진입이 v3.1 이 아니면 이 소개를 쓰는 화면이 바뀐다").toBe("v31");
+    window.history.replaceState(null, "", `/wedding-code?v=${WEDDING_CODE_V31_VERSION}`);
+    const initialEntry = defaultWeddingCodeEntry(WEDDING_CODE_V31_VERSION);
+    expect(initialEntry.kind).toBe("v31");
     await act(async () => root.render(surface === "앱 라운지"
       ? <LoungeWeddingCode shareOrigin="https://hanbang.ai" initialEntry={initialEntry} />
       : <WeddingCodeEntryClient shareOrigin="https://hanbang.ai" initialEntry={initialEntry} />));
@@ -273,7 +273,7 @@ describe("웨딩코드 v3.1 시작 화면 문구", () => {
     expect(text).toContain(`내 답은 이 브라우저에 자동으로 저장돼요. 마지막으로 저장한 날부터 ${LOCAL_TTL_MS / 86_400_000}일 동안 이어 할 수 있어요.`);
     expect(text).toContain("공용 기기에서는 시작하기 전에 아래 ‘자동 저장 설정’에서 꺼 주세요.");
     // 처리방침의 v3.1 이어하기 항목도 같은 30일을 말한다. 방침 전체에서 찾으면 v4 항목의 같은 문장이 대신 통과시킨다.
-    expect(policyItem("기본 웨딩코드(v3.1) 이어하기:")).toContain("마지막으로 답이나 진행을 저장한 때부터 30일 동안");
+    expect(policyItem("이전 웨딩코드(v3.1) 이어하기:")).toContain("마지막으로 답이나 진행을 저장한 때부터 30일 동안");
     // 안내가 가리키는 ‘자동 저장 설정’이 실제로 소개 화면에 있다.
     expect([...intro()!.querySelectorAll("summary")].map(item => item.textContent)).toContain("자동 저장 설정");
   });

@@ -8,7 +8,7 @@ import type { ProgressSegment } from "@/lib/weddingCode/v40/types";
 import { StorageNotice, type SaveState } from "./NoticeScreens";
 import { ProgressBar } from "./ProgressBar";
 import { ActionBar, PinBarSpacer, pinnedScreenRootClass } from "./SectionCard";
-import { bodyText } from "./styles";
+import { bodyText, cx } from "./styles";
 import { useScreenFocus } from "./useScreenFocus";
 
 export interface RestCardProps {
@@ -67,19 +67,19 @@ export function RestCard({
       data-rest-after={after}
       className={pinnedScreenRootClass(embedded)}
     >
-      {segments ? <ProgressBar segments={segments} announcement={V40_COPY.progress.restAnnouncement} className="mb-8" /> : null}
-      <h1 id={titleId} className="text-2xl font-semibold leading-snug text-[var(--hb-text-strong)]">
+      {segments ? <ProgressBar segments={segments} announcement={V40_COPY.progress.restAnnouncement} className="mb-12" /> : null}
+      <h1 id={titleId} className="max-w-[620px] break-keep text-[clamp(2.25rem,5vw,3.5rem)] font-semibold leading-[1.2] tracking-[-0.05em] text-[var(--hb-text-strong)]">
         {copy.title}
       </h1>
 
       {saveState === "saved" ? (
-        <div data-rest-save="saved" className="mt-3">
-          <p className={bodyText}>{copy.saved}</p>
+        <div data-rest-save="saved" className="mt-6 max-w-[620px] border-t border-[var(--hb-hairline)] pt-5">
+          <p className={cx(bodyText, "text-[16px]! leading-[1.8]!")}>{copy.saved}</p>
         </div>
       ) : null}
       {saveState === "off" ? (
-        <div data-rest-save="off" className="mt-3 space-y-3">
-          <p className={bodyText}>{copy.autosaveOff}</p>
+        <div data-rest-save="off" className="mt-6 max-w-[620px] space-y-4 border-t border-[var(--hb-hairline)] pt-5">
+          <p className={cx(bodyText, "text-[16px]! leading-[1.8]!")}>{copy.autosaveOff}</p>
           {onTurnOnAutosave ? (
             <Button variant="secondary" size="md" onClick={onTurnOnAutosave}>
               {copy.turnOnAutosaveButton}
@@ -95,12 +95,12 @@ export function RestCard({
       <ActionBar embedded={embedded}>
         <div className="flex gap-3">
           {onBack ? (
-            <Button variant="secondary" size="lg" onClick={onBack}>
+            <Button variant="secondary" size="lg" onClick={onBack} className="min-h-14!">
               <ArrowLeft aria-hidden="true" className="size-4 shrink-0" />
               {V40_COPY.question.previousButton}
             </Button>
           ) : null}
-          <Button variant="primary" size="lg" onClick={onContinue} className="flex-1">
+          <Button variant="primary" size="lg" onClick={onContinue} className="min-h-14! flex-1">
             {copy.continueButton}
             <ArrowRight aria-hidden="true" className="size-4 shrink-0" />
           </Button>

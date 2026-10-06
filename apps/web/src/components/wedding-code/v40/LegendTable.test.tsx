@@ -27,7 +27,7 @@ function rowOf(axis: string): HTMLElement {
 }
 
 describe("LegendTable: 표시가 없는 표", () => {
-  it("네 줄, 글자 여덟 개가 한 번씩, 글자마다 이름과 작은 영어 낱말", async () => {
+  it("네 줄, 글자 여덟 개가 한 번씩, 글자마다 영어 이름과 풀어 쓴 뜻", async () => {
     await harness.render(<LegendTable />);
     expect(harness.container.querySelectorAll("[data-legend-row]")).toHaveLength(4);
     const cells = [...harness.container.querySelectorAll<HTMLElement>("[data-legend-letter]")];
@@ -37,6 +37,10 @@ describe("LegendTable: 표시가 없는 표", () => {
       const text = textOf(cell);
       expect(text).toContain(`${info.letter} ${info.name}`);
       expect(text).toContain(info.english);
+      expect(cell.querySelector("[data-legend-english]")?.textContent).toBe(info.english);
+      expect(cell.querySelector("[data-legend-meaning]")?.textContent).toBe(info.meaning);
+      expect(cell.querySelector("[data-legend-english]")?.className).toContain("text-xs");
+      expect(cell.querySelector("[data-legend-meaning]")?.className).toContain("text-sm");
     }
     expect([...harness.container.querySelectorAll("[data-legend-row]")].map((row) => row.querySelector('[role="rowheader"]')?.textContent)).toEqual([
       "돈을 정할 때",

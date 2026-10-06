@@ -34,6 +34,10 @@ vi.mock("./WeddingCodeV40Client", () => ({
   },
 }));
 
+vi.mock("./WeddingCodeV42Client", () => ({
+  default: ({ onRestart }: WeddingCodeV40ClientProps) => <section data-entry="v42"><button onClick={() => onRestart?.()}>restart</button></section>,
+}));
+
 vi.mock("./WeddingCodeV31Client", () => ({
   default: function V31Probe({ onRestart, embedded, initialNotice }: { onRestart: (message?: string) => void; embedded?: boolean; initialNotice?: string }) {
     return <section data-entry="v31" data-embedded={embedded} data-notice={initialNotice}>
@@ -105,7 +109,7 @@ describe("웨딩코드 입구: v4.0-tendency 를 늦게 불러오고 넘기는 �
   });
 
   it("v3.1 길로 들어온 방문자에게는 v4 화면을 불러오지 않는다", async () => {
-    await mount();
+    await mount({ initialEntry: parseWeddingCodeEntryQuery({ v: "v3.1-preferences" }) });
     expect(container.querySelector('[data-entry="v31"]')).not.toBeNull();
     expect(probe()).toBeNull();
     expect(container.querySelector('[role="status"]')).toBeNull();
@@ -244,7 +248,7 @@ describe("웨딩코드 입구: v4.0-tendency 를 늦게 불러오고 넘기는 �
     expect(probe()?.dataset.embedded).toBe("true");
   });
 
-  it("v3.1 이하 화면의 다시 시작은 v4 로 가지 않는다(기본 판 v3.1)", async () => {
+  it("v3.1 다시 시작은 그 판으로, 더 옛 판은 현재 기본판으로 간다", async () => {
     for (const [query, kind] of [["v3.1-preferences", "v31"], ["v3.0-preferences", "v30"], ["v2.0-agreement", "v20"]] as const) {
       window.history.replaceState(null, "", `/wedding-code?v=${query}`);
       await act(async () => root?.unmount());
@@ -252,9 +256,13 @@ describe("웨딩코드 입구: v4.0-tendency 를 늦게 불러오고 넘기는 �
       await mount({ initialEntry: parseWeddingCodeEntryQuery({ v: query }) });
       expect(container.querySelector(`[data-entry="${kind}"]`), kind).not.toBeNull();
       await click(/^restart$/);
-      expect(container.querySelector('[data-entry="v31"]'), kind).not.toBeNull();
-      expect(probe(), kind).toBeNull();
-      expect(window.location.search, kind).toBe("");
+      if (kind === "v31") {
+        expect(container.querySelector('[data-entry="v31"]')).not.toBeNull();
+        expect(window.location.search).toBe("?v=v3.1-preferences");
+      } else {
+        expect(container.querySelector('[data-entry="v42"]')).not.toBeNull();
+        expect(window.location.search).toBe("");
+      }
     }
   });
 
@@ -358,14 +366,14 @@ describe("웨딩코드 입구: 읽을 수 없는 v4 링크", () => {
     expect(window.location.hash).toBe("#v=v3.0-preferences&a=broken");
   });
 
-  it("다른 판의 깨진 링크는 예전 오류 화면 그대로이고 처음부터 답하면 v3.1 이다", async () => {
+  it("다른 판의 깨진 링크는 예전 오류 화면 그대로이고 처음부터 답하면 현재 기본판이다", async () => {
     window.history.replaceState(null, "", "/wedding-code#v=v3.0-preferences&a=broken");
     root = createRoot(container);
     await act(async () => root?.render(<WeddingCodeEntryClient shareOrigin="https://hanbang.ai" />));
     expect(container.querySelector("h1")?.textContent).toBe("이 링크는 열 수 없어요");
     const button = [...container.querySelectorAll("button")].find((item) => item.textContent === "처음부터 답하기");
     await act(async () => button?.click());
-    expect(container.querySelector('[data-entry="v31"]')).not.toBeNull();
+    expect(container.querySelector('[data-entry="v42"]')).not.toBeNull();
     expect(window.location.search).toBe("");
   });
 });

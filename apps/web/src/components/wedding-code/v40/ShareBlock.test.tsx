@@ -87,6 +87,15 @@ describe("ShareBlock: 처음 모양", () => {
     expect(sendButton()?.textContent).toContain(V40_COPY.send.sendButton);
   });
 
+  it("내 답 포함 초대에서는 세 단계 절차를 보여 주되 완료된 단계로 표시하지 않는다", async () => {
+    await renderBlock();
+    const journey = root().querySelector('[data-share-journey]');
+    expect(journey?.textContent).toContain(V40_COPY.send.journeyLabel);
+    expect([...journey!.querySelectorAll('li')].map((step) => step.textContent?.trim())).toEqual([...V40_COPY.send.journeySteps]);
+    expect(journey?.querySelector('[aria-current], [aria-checked], [data-complete]')).toBeNull();
+    expect(journey?.textContent).toContain("결과 링크 다시 받기");
+  });
+
   it("체크 전에는 단추가 aria-disabled 이고 disabled 속성이 없으며 이유 글이 단추를 설명한다", async () => {
     await renderBlock();
     const button = sendButton();
@@ -103,7 +112,7 @@ describe("ShareBlock: 처음 모양", () => {
     expect(describedByText(first)).toBe(V40_COPY.send.withAnswersHelp);
     expect(describedByText(second)).toBe(V40_COPY.send.questionsOnlyHelp);
     // 「그 결과 링크」는 무엇을 가리키는지 알 수 없었다.
-    expect(V40_COPY.send.withAnswersHelp).toContain("상대가 두 사람 결과 링크를 나에게 다시 보내 줘야");
+    expect(V40_COPY.send.withAnswersHelp).toContain("결과 링크를 다시 보내 줘야");
     expect(V40_COPY.send.withAnswersHelp).not.toContain("그 결과 링크");
     // 「자기 코드만 받아요」는 코드를 받는다는 어색한 말이었다.
     expect(V40_COPY.send.questionsOnlyHelp).not.toContain("코드");
@@ -227,7 +236,7 @@ describe("ShareBlock: 보낸 결과 네 갈래", () => {
     expect(address()?.value).toBe(URL_WITH);
   });
 
-  it("사람이 공유 창을 닫으면 cancelled: 사건도 안내도 주소 칸도 없다", async () => {
+  it("사람이 공유 창을 닫으면 cancelled: 취소 안내는 보이되 사건도 주소 칸도 없다", async () => {
     const share = vi.fn(async () => {
       throw new DOMException("닫았어요", "AbortError");
     });
@@ -237,7 +246,7 @@ describe("ShareBlock: 보낸 결과 네 갈래", () => {
     await press();
     expect(onSent).not.toHaveBeenCalled();
     expect(writeText).not.toHaveBeenCalled();
-    expect(statusText()).toBe("");
+    expect(statusText()).toBe(V40_COUPLE_SEND_EXTRA_COPY.cancelled);
     expect(address()).toBeNull();
     // 다시 누를 수 있다.
     await press();
@@ -269,6 +278,7 @@ describe("ShareBlock: 질문만 보내기와 보낼 말", () => {
     await click(radios()[1]);
     expect(radios().map((radio) => radio.checked)).toEqual([false, true]);
     expect(consent()).toBeNull();
+    expect(root().querySelector('[data-share-journey]')).toBeNull();
     expect(root().textContent).not.toContain(V40_COPY.send.consent);
     // 답이 없는 링크에는 되돌릴 수 없다거나 예전 링크가 남는다는 겁주는 말을 붙이지 않는다.
     expect(root().textContent).not.toContain(V40_COPY.send.withAnswersLinkInfo);
@@ -358,6 +368,29 @@ describe("ShareBlock: 질문만 보내기와 보낼 말", () => {
     await act(async () => finish());
     await flush();
     expect(onSent).toHaveBeenCalledTimes(1);
+    expect(sendButton()?.getAttribute("aria-busy")).toBeNull();
+  });
+
+  it.each(["shared", "copied", "revealed"] as const)("보내는 중 선택을 바꾸면 이전 링크의 %s 안내를 새 선택 아래에 붙이지 않는다", async (outcome) => {
+    let finishShare: () => void = () => undefined;
+    const denied = new DOMException("공유 창을 열 수 없어요", "NotAllowedError");
+    const share = vi.fn(() => new Promise<void>((resolve, reject) => {
+      finishShare = () => outcome === "shared" ? resolve() : reject(denied);
+    }));
+    const writeText = vi.fn(async () => {
+      if (outcome === "revealed") throw denied;
+    });
+    const { buildUrl, onSent } = await renderBlock({ share, writeText });
+    await checkConsent();
+    await click(sendButton());
+    await click(radios()[1]);
+    expect(textarea()?.value).toBe(V40_COPY.send.messageQuestionsOnly);
+    await act(async () => finishShare());
+    await flush();
+    expect(buildUrl).toHaveBeenCalledTimes(1);
+    expect(statusText()).toBe("");
+    expect(address()).toBeNull();
+    expect(onSent).toHaveBeenCalledWith({ kind: outcome, option: "withAnswers" });
     expect(sendButton()?.getAttribute("aria-busy")).toBeNull();
   });
 });

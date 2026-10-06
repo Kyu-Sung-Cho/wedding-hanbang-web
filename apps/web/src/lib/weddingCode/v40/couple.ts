@@ -38,7 +38,16 @@ const formBitOf = (decoded: DecodedCode): FormBit => (decoded.formBit === 1 ? 1 
 const settled = (axis: AxisResult): boolean => axis.shownBand === "clear" || axis.shownBand === "lean";
 
 function sideInfo(axis: AxisResult): CoupleSideInfo {
-  return { letter: axis.letter, shownBand: axis.shownBand, provisional: axis.provisional };
+  return {
+    letter: axis.letter,
+    shownBand: axis.shownBand,
+    provisional: axis.provisional,
+    answered: axis.answered,
+    frontCount: axis.frontCount,
+    backCount: axis.backCount,
+    neutralCount: axis.neutralCount,
+    facets: axis.facets.map(({ facet, answered, frontCount, backCount, neutralCount, counted }) => ({ facet, answered, frontCount, backCount, neutralCount, counted })),
+  };
 }
 
 /**
@@ -117,6 +126,9 @@ export function compareCouple(bank: Bank, first: DecodedCode, second: DecodedCod
       axis: item.axis,
       facet: item.facet,
       caption: item.caption,
+      prompt: item.fmt === "react"
+        ? [item.stem, ...(item.quote ? [`${item.quote.speaker} · 「${item.quote.text}」`] : []), item.question]
+        : [item.stem],
       firstValue: a,
       secondValue: b,
       gap,

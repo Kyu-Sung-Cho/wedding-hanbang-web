@@ -1,6 +1,7 @@
 "use client";
 
 import Button from "@/components/ui/Button";
+import { Info } from "lucide-react";
 import { V40_COPY } from "@/lib/weddingCode/v40/copy";
 import type { GateInfo, QualityNotes as QualityNotesData } from "@/lib/weddingCode/v40/types";
 import { buttonFocusFix, cx, noticeBox, noticeText } from "./styles";
@@ -59,11 +60,12 @@ export function QualityNotes({ notes, placement = "all", onReviewSkipped, idPref
   if (lines.length === 0) return null;
   const titleId = `${idPrefix}-title`;
   return (
-    <section data-result-section="quality" aria-labelledby={titleId} className={cx(panel, "space-y-2")}>
-      <h2 id={titleId} className={sectionTitle}>
+    <section data-result-section="quality" aria-labelledby={titleId} className={cx(panel, "space-y-3")}>
+      <h2 id={titleId} className={cx(sectionTitle, "flex items-start gap-2")}>
+        <Info aria-hidden="true" className="mt-0.5 size-5 shrink-0 text-[var(--hb-text-muted)]" />
         {V40_COPY.quality.title}
       </h2>
-      <ul className={cx(bodyLine, "space-y-1.5")}>
+      <ul className={cx(bodyLine, "space-y-3 break-keep")}>
         {lines.map((line) => (
           <li key={line.key} data-quality={line.key}>
             {line.text}
@@ -94,7 +96,7 @@ export function GateNotice({ gate, onReviewSkipped, idPrefix = "wc40-gate" }: Ga
   if (!gate.closed) return null;
   const titleId = `${idPrefix}-title`;
   return (
-    <section data-result-section="gate" data-gate-reason={gate.reason ?? undefined} aria-labelledby={titleId} className={cx(panel, "space-y-2")}>
+    <section data-result-section="gate" data-gate-reason={gate.reason ?? undefined} aria-labelledby={titleId} className={cx(panel, "space-y-3")}>
       <h2 id={titleId} className={sectionTitle}>
         {V40_COPY.gate.title}
       </h2>

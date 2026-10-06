@@ -172,7 +172,7 @@ describe("IntroScreen", () => {
     ] as const)("%s: 뿌리가 화면 높이만큼 늘어나고 단추 줄 바로 앞에 남는 높이를 먹는 빈틈이 있다", async (_label, pending) => {
       await harness.render(<Host pending={pending} />);
       const { root, spacer, bar } = pinned();
-      expect(root.className).toContain("min-h-dvh");
+      expect(root.className).toContain("min-h-[calc(100dvh-5rem)]");
       expect(root.className).toContain("flex-col");
       expect(spacer, "단추 줄 앞 빈틈").not.toBeNull();
       expect(spacer!.nextElementSibling, "빈틈은 단추 줄 바로 앞이다").toBe(bar);

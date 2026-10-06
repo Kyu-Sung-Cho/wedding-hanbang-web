@@ -395,9 +395,12 @@ export function demoteBand(band) {
 /** 한 주제의 집계. 측면 4개, 유효 답 12개 이상, 세는 측면 3개 이상이면 글자를 만든다. */
 export function scoreAxis(bank, responses, axis) {
   const items = bank.scoredByAxis[axis];
-  const facets = FACETS_OF[axis].map((facet) => ({ facet, answered: 0, sum: 0, counted: false }));
+  const facets = FACETS_OF[axis].map((facet) => ({ facet, answered: 0, frontCount: 0, backCount: 0, neutralCount: 0, sum: 0, counted: false }));
   const facetIndex = new Map(facets.map((f, i) => [f.facet, i]));
   let answered = 0;
+  let frontCount = 0;
+  let backCount = 0;
+  let neutralCount = 0;
   let skipped = 0;
   let notApplicable = 0;
   let sum = 0;
@@ -410,9 +413,15 @@ export function scoreAxis(bank, responses, axis) {
     const value = itemValue(item, raw);
     if (value === null) continue;
     answered += 1;
+    if (value > 0) frontCount += 1;
+    else if (value < 0) backCount += 1;
+    else neutralCount += 1;
     sum += value;
     const f = facets[facetIndex.get(item.facet)];
     f.answered += 1;
+    if (value > 0) f.frontCount += 1;
+    else if (value < 0) f.backCount += 1;
+    else f.neutralCount += 1;
     f.sum += value;
     if (item.fmt === "recall" || item.fmt === "instant") chooseSum += value;
     if (item.fmt === "react") reactSum += value;
@@ -421,7 +430,7 @@ export function scoreAxis(bank, responses, axis) {
   const counted = facets.filter((f) => f.counted);
   const countedFacets = counted.length;
   const unusable = countedFacets < MIN_COUNTED_FACETS || answered < MIN_VALID_ANSWERS;
-  const base = { axis, answered, skipped, notApplicable, facets, countedFacets, sum, unusable };
+  const base = { axis, answered, frontCount, backCount, neutralCount, skipped, notApplicable, facets, countedFacets, sum, unusable };
   if (unusable) {
     return { ...base, weighted: null, s: null, side: null, letter: null, tieLevel: null, provisional: false, band: null };
   }

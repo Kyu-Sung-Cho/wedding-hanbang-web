@@ -3,14 +3,15 @@
 // ## 무엇을 막나 (설계 9절 12항, 14절 (7))
 //
 //   1. 글자는 대문자 여덟 개(V S W D U F H A)뿐이다. 상태 글자(B M N ?)나 소문자 변형이 글자처럼 보이지 않는다.
-//   2. 화면 문구에 주장 낱말(검증된 정확 과학 진단 점수 등급 궁합 동물 캐릭터 스타일 MBTI 백분율)이 없다.
+//   2. 화면 문구에 근거 없는 주장 낱말(검증된 정확 과학 진단 점수 등급 궁합 스타일 MBTI)이 없다.
+//      2026-10-04 요청의 응답 방향 비율은 AnswerEvidence 한 파일에서만 허용한다.
 //   3. 줄표(긴 것, 짧은 것)와 「~인 답」이 없다.
 //   4. v4 는 v3.1(과 옛 판) 모듈을 가져오지 않고, v3.1 은 v4 를 가져오지 않는다.
 //   5. v4 는 네트워크 요청, 쿠키, 콘솔 호출을 하지 않고, 답이 서버로 갈 길(쿼리 문자열, 계산된 이동 주소, 오류 수집 SDK,
 //      통계 SDK)을 열지 않으며, 브라우저 저장소는 storage.ts **한 곳**만 이름을 부른다(클라이언트는 browserStorage() 로 받는다).
 //   6. 이용 통계 호출은 이미 고지한 이벤트와 속성만 쓴다(목록은 analyticsPrivacy.ts 를 검사 때 읽는다). 통계 함수는
 //      `@/lib/analytics` 의 captureWeddingCodeEvent, captureEvent 로만 부른다(하위 모듈, 다른 이름, 재수출은 막는다).
-//   7. 보이는 글자에 A/B, 가나다, 1. 2. 같은 라벨이나 번호가 없다. **부분 검사다**(아래 「한계」).
+//   7. 선택지에는 A/B, 가나다, 1. 2. 같은 라벨이나 번호가 없다. 질문 번호는 ItemFrame 의 명시된 한 곳만 허용한다.
 //   8. 판 이름표는 v4.0-tendency 이고 링크 상수(V40_LINK_KEYS)는 v, a, b 뿐이며, 해시에서 읽고 쓰는 키는 거기에 4.1 단계 2 의 ga, gb 를 더한 다섯이다(쿼리 키는 v 뿐).
 //   9. 「검증을 마친 심리검사가 아니」 고지는 시작, 받는 사람, 결과, 두 사람 결과 묶음에 정확히 한 번씩만 있다.
 //  10. v4 링크를 여는 앱 쪽 파일(v4 코덱, v4 짐작 코덱, v4 클라이언트를 가져오는 파일)이 생기면 Sentry 주소 꼬리 정제(#473)가 main 에 있어야 한다.
@@ -33,11 +34,12 @@
 //
 // 4.1 단계 2 규칙(11, 13, 15)은 **직접 가져오기 한 단계**만 본다: 새 폴더가 통계나 링크 코덱을 가져오는 다른 모듈을 거쳐 닿는 길은 못 본다(통계 쪽은 규칙 6 이
 // 모든 v4 소스에서 따로 보지만 링크 코덱 쪽은 사람이 읽어야 한다). 규칙 16 은 클라이언트 본체 한 파일의 호출 식만 센다: 통계를 부르는 다른 파일을 본체가 새로 가져오는 길은 규칙 6 이 이름으로 막는다.
-// 엔진 고정은 파일 내용 해시이고 기준 커밋 5ac9eda24 의 값을 옮겨 적은 표다. 이 가드와 표를 같은 사람이 썼다: 표의 해시가 맞는지는 `git show 5ac9eda24:<경로>` 로 다시 잴 수 있다.
+// 엔진 고정은 파일 내용 해시다. 대부분의 값은 기준 커밋 5ac9eda24 에서 왔고, score.ts 와 독립 기준 계산기는
+// 2026-10-04의 응답 방향 개수 필드를 더한 뒤 해시를 새로 고정했다. 채점 결정 동등성은 oracle.equivalence.test.ts 가 본다.
 //
 // 이 파일은 소스 글자를 훑는다. 실행 값은 못 본다. 규칙 7 은 리터럴 모양과 흔한 계산 모양(`{i + 1}`, `{i}/{n}`, `번째` 템플릿,
 // fromCharCode, "ABCD"[i], <ol>, list-decimal)만 잡는 **부분 검사**이고, 번호가 다른 함수를 거쳐 오면 못 본다. 규칙 5 의 이동 주소 검사도
-// 정적 모양만 본다. 그래서 클라이언트 PR 은 페르소나 브라우저 실행으로 「320x568, 390x844 에서 질문 영역에 앞자리 숫자, n/N, A/B 가 없다」와
+// 정적 모양만 본다. 그래서 클라이언트 PR 은 페르소나 브라우저 실행으로 「320x568, 390x844 에서 질문 번호만 보이고 선택지의 앞자리 숫자·A/B 가 없다」와
 // 「완주하는 동안 우리 도메인 밖과 API 로 가는 요청이 없다」를 단언해야 병합한다(계약 문서 15절). 이 가드가 초록불이라는 것은 그 실행 검사를 대신하지 않는다.
 //
 // ## 어떻게 읽나 — 정규식 주석 제거기가 아니다
@@ -511,7 +513,7 @@ const MBTI_WORD = /mbti|엠비티아이/iu;
 const ENGLISH_CLAIMS = /\b(?:validated|scientific(?:ally)?|diagnos\w*|accurate(?:ly)?|accuracy|compatib\w*|personality|horoscope|zodiac)\b/iu;
 const ENGLISH_CLAIMS_SHOWN = /\b(?:scores?|scoring|grades?|percent(?:age)?)\b/iu;
 
-function claimHits(rec, set) {
+function claimHits(rec, set, allowAnswerPercent = false) {
   const hits = [];
   const text = rec.text.normalize("NFC");
   if (MBTI_WORD.test(text)) hits.push("MBTI");
@@ -521,7 +523,7 @@ function claimHits(rec, set) {
   const stripped = text.split(NOT_VALIDATED_PHRASE).join("");
   for (const [id, re] of CLAIM_WORDS) if (re.test(stripped)) hits.push(id);
   if (set === "text") for (const [id, re] of CLAIM_WORDS_TEXT_ONLY) if (re.test(stripped)) hits.push(id);
-  if (PERCENT_WORDS.test(text) || PERCENT_SIGN.test(text)) hits.push("백분율");
+  if (!allowAnswerPercent && (PERCENT_WORDS.test(text) || PERCENT_SIGN.test(text))) hits.push("백분율");
   return hits;
 }
 
@@ -623,7 +625,7 @@ function labelTable(expr, depth = 0) {
 }
 
 /**
- * 계산해서 그리는 번호(파운더 노트 1: 질문 번호와 선택지 라벨이 화면에 없다). **부분 검사다**: 아래 모양만 본다.
+ * 계산해서 그리는 번호. 질문 번호는 ItemFrame 한 곳만 허용하고 선택지 라벨은 막는다. **부분 검사다**: 아래 모양만 본다.
  * `{i + 1}`, `{i}`(인덱스 이름), `{i}/{n}`, `{i}번째`, `${i}번째 질문`, `String.fromCharCode(…)`, `"ABCD"[i]`, 알파벳 순서 문자열, `<ol>`, list-decimal 계열.
  */
 function numberingHits(analysis) {
@@ -1558,7 +1560,7 @@ function errorMessageHits(analysis) {
  * 단어 규칙: 새 폴더의 화면 글과 생성 상수의 화면 글(V40_GUESS_TEXT)에 누가 맞혔는지(맞혔·틀렸·정답·오답·적중·득점·승패·등수·순위)와 점수, 비율(점수, 퍼센트, 백분율, % 기호)이 없고,
  * 문구 파일 둘과 V40_GUESS_TEXT 에는 개수 말(몇 개, 몇 가지, 여섯 가지, 개 중)과 숫자도 없다. 맞추다, 맞춰 같은 말은 일정을 맞춘다는 뜻으로도 쓰여서 걸지 않는다.
  * 장면 글(V40_GUESS_SET)은 화면 문구가 아니라 자료라서 이 규칙에서 뺀다(「정답이 없는」 같은 말이 장면 안에 자연스럽게 나올 수 있다).
- * 점수, 퍼센트, 백분율 기호는 규칙 2 가 v4 전체에서 이미 본다.
+ * 이 단계의 누가 맞혔는지와 비율은 여전히 금지한다. 일반 결과의 응답 방향 빈도는 AnswerEvidence 에만 허용한다.
  */
 const WHO_GUESSED_RIGHT_WORDS = /맞혔|맞혀|맞힌|맞히|틀렸|틀린|정답|오답|적중|득점|승패|등수|(?<!우선)순위|몇\s?점|점수|퍼센트|백분율|[%％﹪]/u;
 const COUNT_PHRASES = /몇\s?(?:개|가지|번|장면|주제)|(?:여섯|네|다섯|세)\s?가지|개\s?중|[0-9]/u;
@@ -1651,20 +1653,21 @@ function clientEventReport(analysis) {
 }
 
 /**
- * 엔진 열 개 파일은 4.1 단계 2 기준 커밋(5ac9eda24)의 내용과 한 글자도 다르지 않다(줄 끝 문자는 같게 읽는다). 글자 엔진, 배치, 채점, 동점 사슬, 관문, 은행, 70자 코드의 뜻과 기준 계산기다.
+ * 엔진 열 개 파일을 승인된 내용 해시로 고정한다(줄 끝 문자는 같게 읽는다). 2026-10-04에는 score.ts와 독립 기준 계산기에
+ * 응답 방향 개수 필드만 더했다. 글자, 세기, 동점 사슬, 관문, 은행, 70자 코드의 뜻은 그대로여야 하고 동등성 시험이 이를 대조한다.
  * 의도해서 바꿀 때(문항 뜻이 바뀌면 판 태그를 올린다, 설계 D8) 이 표의 해시를 새 값으로 고치고 이유를 PR 에 적는다. 조용히 바뀌는 길만 막는다.
  */
 const ENGINE_FREEZE = [
   ["apps/web/src/lib/weddingCode/v40/flow.ts", "f30fc233f111f9a2f093f6b5779113cf51c8fe9579fdbdf6ec3c7593ce300b83"],
   ["apps/web/src/lib/weddingCode/v40/codec.ts", "9f6bae5bd8b85a7e2806e403c499faa154ec5391f20bdcb5b8309b006a16c030"],
-  ["apps/web/src/lib/weddingCode/v40/score.ts", "03e756e9dc85356a26b8864346239ac5556ed0b125ba8fdf4c60863cf890aae4"],
+  ["apps/web/src/lib/weddingCode/v40/score.ts", "79f9b8376a737b643ea64e19148e9ff35dca93cd3863199d302a0872f7a861f4"],
   ["apps/web/src/lib/weddingCode/v40/gates.ts", "c130593b322e8d642151890866ef9344de649b1714faecdd30e9172694311596"],
   ["apps/web/src/lib/weddingCode/v40/value.ts", "11ae45166677b3af39f2a0b234f62cd4cd5513bf75f3810f1b23bd7ce12ccb80"],
   ["apps/web/src/lib/weddingCode/v40/states.ts", "8ddf7154bf03d6334cafdfefd2a5b9a0add561542610d8cca4278f9c00c8ced6"],
   ["apps/web/src/lib/weddingCode/v40/layout.ts", "182d744d747feb635467a6234e2280e5ad447e2258bbcd410b0bba91c27da03d"],
   ["apps/web/src/lib/weddingCode/v40/bank.ts", "efe582c81685449918c05e74ee1122f0a71aa310afb3288a71c7c0debddca3d2"],
   ["apps/web/src/constants/weddingCodeV40Bank.ts", "23b567abc754cccb35a652f0b08ec0f490fc3613b35c0d868a8e15cf7139aed4"],
-  ["scripts/lib/wedding-code-v40-ref.mjs", "003a17b5d3260b8b850ab26bf88db23c2f0098de420a655a8d20d5abb6f14a62"],
+  ["scripts/lib/wedding-code-v40-ref.mjs", "97e3e1ec125bed25c52f2af80650fcbddf9ac1d6ef5e86894a70b0b02f38ca40"],
 ];
 
 const textHash = (text) => createHash("sha256").update(text.replace(/\r\n/gu, "\n")).digest("hex");
@@ -1675,7 +1678,7 @@ function engineFreezeProblems(readText, table = ENGINE_FREEZE) {
   for (const [path, want] of table) {
     const text = readText(path);
     if (text === null) problems.push(`${path} 를 읽지 못했다(엔진 파일이 지워지거나 옮겨졌다)`);
-    else if (textHash(text) !== want) problems.push(`${path} 가 4.1 단계 2 기준(5ac9eda24)과 다르다(내용 해시 ${textHash(text).slice(0, 12)}…). 엔진은 이 단계에서 한 줄도 바뀌지 않는다`);
+    else if (textHash(text) !== want) problems.push(`${path} 가 승인된 기준과 다르다(내용 해시 ${textHash(text).slice(0, 12)}…). 엔진 변경은 채점 및 링크 계약을 다시 검토해야 한다`);
   }
   return problems;
 }
@@ -1873,7 +1876,7 @@ test("규칙 1: 상태 글자(B M N ?)와 소문자 변형이 글자처럼 보�
   assertNone(offenders, "글자 여덟 개 밖의 대문자, ?, 소문자가 글자처럼 보인다:");
 });
 
-test("규칙 2: 주장 낱말이 화면 문구, 상수, 문항 은행에 없다", (t) => {
+test("규칙 2: 주장 낱말이 화면 문구, 상수, 문항 은행에 없다(응답 방향 비율만 허용)", (t) => {
   const files = textFilesOf();
   if (files.length === 0 && !bankJsonExists) return t.skip("v4 소스가 없다");
   const offenders = [];
@@ -1881,7 +1884,8 @@ test("규칙 2: 주장 낱말이 화면 문구, 상수, 문항 은행에 없다"
   assertScanned(t, "규칙 2", records);
   for (const rec of records) {
     const set = isBankFile(rec.file) ? "bank" : "text";
-    for (const hit of claimHits(rec, set)) offenders.push(`${rec.file.rel}:${rec.line} [${hit}] ${rec.text.slice(0, 60)}`);
+    const answerPercent = rec.file.group === "components" && rec.file.base === "AnswerEvidence.tsx";
+    for (const hit of claimHits(rec, set, answerPercent)) offenders.push(`${rec.file.rel}:${rec.line} [${hit}] ${rec.text.slice(0, 60)}`);
   }
   if (bankJsonExists) {
     for (const rec of jsonStrings(bankJson())) {
@@ -1919,7 +1923,14 @@ test("규칙 4: v4 는 v3.1 모듈(과 옛 판 모듈)을 가져오지 않는다
   ];
   const offenders = [];
   for (const file of V40_FILES) {
-    for (const hit of importHits(load(file), patterns)) offenders.push(`${file.rel}:${hit.line} ${hit.what}`);
+    const analysis = load(file);
+    for (const hit of importHits(analysis, patterns)) {
+      // 공통 결과 화면은 새판 원문에 맞는 설명을 고를 때 판 상수 하나만 읽는다.
+      const editionConstantOnly = file.group === "components" && file.base === "ResultEditionContext.tsx"
+        && analysis.text.split("\n")[hit.line - 1]?.trim() === 'import { WEDDING_CODE_V42_VERSION } from "@/constants/weddingCodeV42";';
+      if (editionConstantOnly) continue;
+      offenders.push(`${file.rel}:${hit.line} ${hit.what}`);
+    }
   }
   assertNone(offenders, "v4 가 옛 판 모듈에 기대고 있다(진행 저장 키 문자열만 읽고 모듈은 가져오지 않는다):");
 });
@@ -2010,7 +2021,7 @@ test("규칙 6: 이용 통계 호출은 고지한 이벤트와 속성만 쓴다"
   if (calls === 0) t.diagnostic("(v4 소스에 통계 호출이 아직 없다)");
 });
 
-test("규칙 7: 보이는 글자에 A/B, 가나다, 번호 라벨이 없다", (t) => {
+test("규칙 7: 질문·대화 진행 번호만 표시하고 선택지의 A/B, 가나다, 번호 라벨은 없다", (t) => {
   const uiFiles = V40_FILES.filter((f) => f.group === "components" || f.group === "app");
   if (uiFiles.length === 0 && V40_FILES.length === 0) return t.skip("v4 소스가 없다");
   const offenders = [];
@@ -2022,7 +2033,20 @@ test("규칙 7: 보이는 글자에 A/B, 가나다, 번호 라벨이 없다", (t
       for (const hit of labelHits(rec, { components: true, bank: false, text: false })) offenders.push(`${file.rel}:${rec.line} [${hit}] ${rec.text.slice(0, 40)}`);
     }
     for (const hit of jsxNumberingHits(analysis)) offenders.push(`${file.rel}:${hit.line} [${hit.what}]`);
-    for (const hit of numberingHits(analysis)) offenders.push(`${file.rel}:${hit.line} [계산한 번호: ${hit.what}]`);
+    const numberedQuestion = file.group === "components" && file.base === "ItemFrame.tsx"
+      && analysis.text.includes("data-question-number={questionNumber}")
+      && analysis.text.includes("{V40_COPY.question.numberLabel} {questionNumber} / {totalQuestions}");
+    const badgeAt = numberedQuestion ? analysis.text.indexOf("{V40_COPY.question.numberLabel} {questionNumber} / {totalQuestions}") : -1;
+    const badgeLine = badgeAt < 0 ? -1 : analysis.text.slice(0, badgeAt).split("\n").length;
+    const conversationProgress = file.group === "components" && file.base === "CoupleResult.tsx"
+      && analysis.text.includes('data-current-scene="" aria-live="polite">현재 장면 {activeTalkIndex + 1} / {conversationItems.length}');
+    const conversationAt = conversationProgress ? analysis.text.indexOf('data-current-scene="" aria-live="polite">현재 장면 {activeTalkIndex + 1} / {conversationItems.length}') : -1;
+    const conversationLine = conversationAt < 0 ? -1 : analysis.text.slice(0, conversationAt).split("\n").length;
+    for (const hit of numberingHits(analysis)) {
+      if (hit.line === badgeLine && (hit.what === "{값}/{값}(n/N 진행 표시)" || hit.what === "인덱스처럼 보이는 값 questionNumber 을 그대로 그림")) continue;
+      if (hit.line === conversationLine && (hit.what === "{값}/{값}(n/N 진행 표시)" || hit.what === "식 + 숫자를 그대로 그림(번호 매기기 모양)")) continue;
+      offenders.push(`${file.rel}:${hit.line} [계산한 번호: ${hit.what}]`);
+    }
   }
   // 문구, 상수, 문항 은행: 앞에 붙은 라벨과 번호, 카드 옆 알파벳 라벨, 은행 제목의 번호.
   for (const file of V40_FILES.filter((f) => f.group === "lib" || f.group === "constants")) {
@@ -2042,7 +2066,7 @@ test("규칙 7: 보이는 글자에 A/B, 가나다, 번호 라벨이 없다", (t
     }
     for (const caption of bankCaptionsOfJson(data)) for (const hit of captionHits(caption)) offenders.push(`${rel(PATHS.bankJson)} ${caption.where} [${hit}] ${caption.text}`);
   }
-  assertNone(offenders, "질문 번호, 화면 번호, 선택지 번호, A/B 라벨은 화면에 없다(파운더 노트 1, 설계 6절 진행 표시). 이 검사는 부분 검사이고 실행 검사(페르소나 브라우저)가 병합 조건이다:");
+  assertNone(offenders, "ItemFrame 질문 번호·CoupleResult 대화 진행 번호 외에 선택지 번호, A/B 라벨이 보인다. 이 검사는 부분 검사이고 화면 검사도 필요하다:");
   if (uiFiles.length === 0) t.diagnostic("(화면 컴포넌트가 아직 없다. 생기면 자동으로 훑는다)");
 });
 
@@ -2238,7 +2262,7 @@ test("새 단계의 화면 글에는 누가 맞혔는지, 점수, 개수 말이 
   assertNone(offenders, "짐작한 쪽과 고른 쪽은 사실로 나란히 놓을 뿐이다. 누가 맞혔는지, 점수, 개수를 말하지 않는다(계약 문서 §23):");
 });
 
-test("엔진 열 개 파일은 4.1 단계 2 기준(5ac9eda24)과 한 글자도 다르지 않다", () => {
+test("엔진 열 개 파일은 승인된 기준 해시와 같다", () => {
   assert.equal(ENGINE_FREEZE.length, 10, "엔진 고정표가 열 개가 아니다");
   assert.equal(new Set(ENGINE_FREEZE.map(([path]) => path)).size, 10, "엔진 고정표에 같은 파일이 두 번 있다");
   assertNone(engineFreezeProblems(readRepoText), "글자 엔진, 배치, 채점, 동점 사슬, 관문, 은행, 70자 코드, 기준 계산기는 이 단계에서 한 줄도 바뀌지 않는다(바꾸려면 판 태그를 올릴지부터 정한다):");

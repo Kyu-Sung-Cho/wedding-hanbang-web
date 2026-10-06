@@ -4,6 +4,7 @@ import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { WEDDING_CODE_V31_VERSION } from "@/constants/weddingCodeV31";
 import { WEDDING_CODE_V40_VERSION } from "@/constants/weddingCodeV40";
 import { V40_ENTRY_COPY } from "@/lib/weddingCode/v40/copy";
 import WeddingCodeEntryClient from "./WeddingCodeEntryClient";
@@ -44,7 +45,7 @@ describe("웨딩코드 입구: v4 화면은 v4 를 여는 방문자만 불러온
 
   it("v3.1 입구는 v4 모듈을 요청하지 않고, v4 입구는 불러오는 동안 낭독용 글을 보이다가 불러온 뒤 바꾼다", async () => {
     root = createRoot(container);
-    await act(async () => root?.render(<WeddingCodeEntryClient shareOrigin="https://hanbang.ai" />));
+    await act(async () => root?.render(<WeddingCodeEntryClient shareOrigin="https://hanbang.ai" initialEntry={parseWeddingCodeEntryQuery({ v: WEDDING_CODE_V31_VERSION })} />));
     expect(container.querySelector('[data-entry="v31"]')).not.toBeNull();
     expect(chunk.requested).toBe(false);
     await act(async () => root?.unmount());

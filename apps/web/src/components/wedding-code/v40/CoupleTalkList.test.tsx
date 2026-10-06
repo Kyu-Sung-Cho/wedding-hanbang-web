@@ -18,7 +18,7 @@ const PAIR_ID = "money.limit.1";
 const SPLIT_ID = "money.moment.1";
 
 function pair(itemId: string, axis: CoupleItemPair["axis"], caption: string, firstText: string, secondText: string): CoupleItemPair {
-  return { itemId, axis, facet: "limit", caption, firstValue: 6, secondValue: -6, gap: 12, firstText, secondText };
+  return { itemId, axis, facet: "limit", caption, prompt: [caption], firstValue: 6, secondValue: -6, gap: 12, firstText, secondText };
 }
 
 const PAIR_ITEM = pair(PAIR_ID, "money", "첫 주말의 대화", "총액부터 정해요", "그날 모습부터 그려요");

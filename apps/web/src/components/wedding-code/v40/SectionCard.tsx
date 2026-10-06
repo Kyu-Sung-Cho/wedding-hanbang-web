@@ -18,9 +18,10 @@ import { card, cx } from "./styles";
  * 화면이 바뀔 때 초점을 받는 뿌리라서 초점 윤곽선은 없앤다(초점 자체는 낭독기가 화면 이름을 읽게 하려는 것이다).
  * 한국어 문장이 낱말 가운데서 줄이 바뀌지 않도록 낱말 단위 줄바꿈을 뿌리에서 물려준다(전역 규칙이 아주 긴 낱말은 그래도 자른다).
  */
-export function screenRootClass(embedded: boolean): string {
+export function screenRootClass(embedded: boolean, presentation: "reading" | "entry" | "result" = "reading"): string {
   return cx(
-    "mx-auto w-full max-w-[560px] scroll-mt-20 break-keep px-4 pt-5 outline-none sm:px-6 md:scroll-mt-28",
+    "mx-auto w-full scroll-mt-20 break-keep px-5 pt-6 outline-none sm:px-8 md:scroll-mt-28 md:pt-10",
+    presentation === "reading" ? "max-w-[720px]" : "max-w-[1080px]",
     // 라운지(embedded) 안에서는 하단 탭 뒤로 끝 줄이 숨지 않게 아래 여백을 더 둔다.
     embedded ? "pb-10" : "pb-6",
   );
@@ -31,8 +32,8 @@ export function screenRootClass(embedded: boolean): string {
  * 벗어나 엄지가 닿는 자리를 놓친다. 뿌리를 화면 높이만큼 세로로 늘려 단추 줄 앞의 빈틈(PinBarSpacer)이 남는 높이를 먹게 하면 단추 줄이 화면 아래에 붙는다.
  * 글이 화면보다 길면 아무 일도 없다(빈틈은 0). 라운지 안(embedded)은 바깥 화면이 높이를 정하므로 그대로 둔다.
  */
-export function pinnedScreenRootClass(embedded: boolean): string {
-  return cx(screenRootClass(embedded), !embedded && "flex min-h-dvh flex-col");
+export function pinnedScreenRootClass(embedded: boolean, presentation: "reading" | "entry" | "result" = "reading"): string {
+  return cx(screenRootClass(embedded, presentation), !embedded && "flex min-h-[calc(100dvh-5rem)] flex-col");
 }
 
 /** pinnedScreenRootClass 뿌리 안에서 단추 줄 바로 앞에 놓아 남는 높이를 먹는 빈틈. 라운지 안에서는 그리지 않는다. */

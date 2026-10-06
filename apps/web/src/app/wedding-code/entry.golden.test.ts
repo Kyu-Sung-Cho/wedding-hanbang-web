@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 
 import { WEDDING_CODE_V31_VERSION } from "@/constants/weddingCodeV31";
 import { WEDDING_CODE_V40_VERSION } from "@/constants/weddingCodeV40";
+import { WEDDING_CODE_V42_VERSION } from "@/constants/weddingCodeV42";
 import {
   WEDDING_CODE_DEFAULT_VERSION,
   parseWeddingCodeEntryHash,
@@ -17,7 +18,7 @@ import golden from "./entry.golden.json";
 /**
  * 골든 표: v4 를 더하기 전의 entry.ts 가 낸 결과를 그대로 적어 둔 표다(entry.golden.json, 136줄).
  * 모든 판(v0.6 부터 v3.1)의 링크, 깨진 링크, 해시와 쿼리, 반복된 키, 유입 경로 매개변수를 담는다.
- * 기본 진입이 v3.1 인 동안 새 파서는 이 표와 글자 그대로 같아야 하고, 기본 진입이 v4 로 바뀐 뒤에도
+ * v3.1 을 명시한 새 파서는 이 표와 글자 그대로 같아야 하고, 기본 진입이 v4 로 바뀐 뒤에도
  * 「v 없는 답 없는 입구」와 「명시 v3.1(답 없음)」 두 가지만 달라야 한다(스펙 9절 5항).
  *
  * 표를 다시 뽑아 이 시험을 통과시키는 것은 회귀를 지우는 일이다. 옛 링크의 의미를 바꾸려면 판을 올리는 결정부터 한다.
@@ -76,19 +77,18 @@ describe("entry.ts 골든 표", () => {
     expect(rows.some((row) => JSON.stringify(row).includes(WEDDING_CODE_V40_VERSION))).toBe(false);
   });
 
-  it("기본 진입은 v3.1 이다(어둡게 출시)", () => {
-    expect(WEDDING_CODE_DEFAULT_VERSION).toBe(WEDDING_CODE_V31_VERSION);
+  it("새 기본 진입은 v4.2 이다", () => {
+    expect(WEDDING_CODE_DEFAULT_VERSION).toBe(WEDDING_CODE_V42_VERSION);
   });
 
-  it.each(rows.map((row) => [row.label, row] as const))("%s: 기본 진입 v3.1 에서 옛 파서와 같다", (_label, row) => {
-    expect(summarize(parseRow(row))).toEqual(row.expected);
+  it.each(rows.map((row) => [row.label, row] as const))("%s: v3.1 을 명시하면 옛 파서와 같다", (_label, row) => {
     expect(summarize(parseRow(row, { defaultVersion: WEDDING_CODE_V31_VERSION }))).toEqual(row.expected);
   });
 
   it.each(rows.map((row) => [row.label, row] as const))("%s: 기본 진입이 v4 로 바뀌어도 두 가지 입구만 달라진다", (_label, row) => {
-    const actual = parseRow(row, { defaultVersion: WEDDING_CODE_V40_VERSION });
+    const actual = parseRow(row);
     if (isBareEntry(row)) {
-      expect(actual).toEqual({ kind: "v40", initial: { partner: null, both: null } });
+      expect(actual).toEqual({ kind: "v42", initial: { partner: null, both: null } });
       return;
     }
     if (isExplicitV31Entry(row)) {

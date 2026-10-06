@@ -13,6 +13,7 @@ import {
 import { AutosaveToggle, fineText, type AutosavePreference } from "./IntroScreen";
 import { StorageNotice } from "./NoticeScreens";
 import { ActionBar, SectionCard, screenRootClass } from "./SectionCard";
+import { ShareJourney } from "./ShareJourney";
 import { bodyText, cx, noteText } from "./styles";
 import { useScreenFocus } from "./useScreenFocus";
 
@@ -86,7 +87,7 @@ export function ReceiverScreen({
       tabIndex={-1}
       aria-labelledby={titleId}
       data-screen="receiver"
-      className={screenRootClass(embedded)}
+      className={screenRootClass(embedded, "entry")}
     >
       {embedded ? (
         <p data-embedded-note="" className={cx(noteText, "mb-4")}>
@@ -95,31 +96,38 @@ export function ReceiverScreen({
       ) : null}
       {unavailable ? <StorageNotice problem="unavailable" className="mb-4" /> : null}
 
-      <h1 id={titleId} className="break-keep text-[26px] font-semibold leading-snug text-[var(--hb-text-strong)] sm:text-3xl">
-        {copy.title}
-      </h1>
-      <p className={cx(bodyText, "mt-4 break-keep")}>{copy.lead}</p>
-      <p data-receive-own-note="" className={cx(bodyText, "mt-2 break-keep")}>
-        {copy.ownAnswersNote}
-      </p>
-      <p data-receive-return-step="" className={cx(bodyText, "mt-2 break-keep")}>
-        {copy.returnStepNote}
-      </p>
-      {guessNote ? (
-        <p data-receive-guess-note="" className={cx(bodyText, "mt-2 break-keep")}>
-          {guessNote}
-        </p>
-      ) : null}
-      <p data-receive-honesty="" className="mt-5 break-keep text-sm font-medium leading-relaxed text-[var(--hb-text-strong)]">
+      <div className="grid items-start gap-8 lg:grid-cols-[minmax(0,1.25fr)_minmax(290px,0.75fr)] lg:gap-14">
+        <div className="max-w-[660px] pt-5 lg:pt-10">
+          <h1 id={titleId} className="break-keep text-[clamp(2.25rem,4.4vw,4.25rem)] font-semibold leading-[1.18] tracking-[-0.055em] text-[var(--hb-text-strong)]">
+            {copy.title}
+          </h1>
+          <p className={cx(bodyText, "mt-6 break-keep text-[16px]! leading-[1.85]!")}>{copy.lead}</p>
+        </div>
+        <div className="space-y-0 lg:mt-8 lg:border-l lg:border-[var(--hb-hairline)] lg:pl-8">
+          <ShareJourney label={copy.journeyLabel} steps={copy.journeySteps} />
+          <p data-receive-own-note="" className={cx(bodyText, "break-keep py-5 lg:pt-0")}>
+            {copy.ownAnswersNote}
+          </p>
+          <p data-receive-return-step="" className={cx(bodyText, "break-keep border-t border-[var(--hb-hairline)] py-5 font-medium! text-[var(--hb-text-strong)]!")}>
+            {copy.returnStepNote}
+          </p>
+          {guessNote ? (
+            <p data-receive-guess-note="" className={cx(bodyText, "break-keep border-t border-[var(--hb-hairline)] py-5")}>
+              {guessNote}
+            </p>
+          ) : null}
+        </div>
+      </div>
+      <p data-receive-honesty="" className="mt-10 max-w-[660px] break-keep border-t border-[var(--hb-hairline)] pt-6 text-sm font-medium leading-relaxed text-[var(--hb-text-strong)]">
         {copy.notice}
       </p>
-      <p data-receive-storage="" className={cx(fineText, "mt-3")}>
+      <p data-receive-storage="" className={cx(fineText, "mt-3 max-w-[660px]")}>
         {receiveStorage(storageMode, V40_COUNTS.items)}
       </p>
-      <p data-receive-scope="" className={cx(fineText, "mt-3")}>
+      <p data-receive-scope="" className={cx(fineText, "mt-3 max-w-[660px]")}>
         {copy.scope}
       </p>
-      <p data-receive-reload="" className={cx(noteText, "mt-3 break-keep")}>
+      <p data-receive-reload="" className={cx(noteText, "mt-3 max-w-[660px] break-keep")}>
         {copy.reloadNote}
       </p>
 
@@ -128,7 +136,7 @@ export function ReceiverScreen({
       )}
 
       {saved ? (
-        <SectionCard title={conflict.title} dataCard="invite-conflict" className="mt-6">
+        <SectionCard title={conflict.title} dataCard="invite-conflict" className="mt-8 max-w-[660px]">
           <p>{conflict.body}</p>
           {savedOn ? <p className="text-[var(--hb-text-muted)]">{savedOn}</p> : null}
           <div className="flex flex-col gap-2 pt-1">
@@ -142,9 +150,11 @@ export function ReceiverScreen({
         </SectionCard>
       ) : (
         <ActionBar embedded={embedded}>
-          <Button variant="primary" size="lg" fullWidth onClick={onStart}>
-            {copy.answerButton}
-          </Button>
+          <div className="max-w-[660px]">
+            <Button variant="primary" size="lg" fullWidth onClick={onStart}>
+              {copy.answerButton}
+            </Button>
+          </div>
         </ActionBar>
       )}
     </section>

@@ -1,7 +1,11 @@
+"use client";
+
 import { Check } from "lucide-react";
+import type { LetterInfo } from "@/constants/weddingCodeV40";
 import { V40_COPY, legendRows, myLetterCell, type CodeLineEntry, type LegendLetterRow } from "@/lib/weddingCode/v40/copy";
 import type { Letter } from "@/lib/weddingCode/v40/types";
-import { cardSelected, cx, noteText, srOnly } from "./styles";
+import { useWeddingCodeResultMetadata } from "./ResultEditionContext";
+import { cx, noteText, srOnly } from "./styles";
 import { bodyLine, sectionTitle } from "./resultStyles";
 
 /** 표시 칸에 적는 것 하나. 혼자 보는 결과에서는 줄마다 하나, 두 사람 화면에서는 줄마다 둘이 될 수 있다. */
@@ -41,32 +45,34 @@ export interface LegendTableProps {
 const WITH_MARKS = "sm:grid-cols-[minmax(0,1.1fr)_minmax(0,1.2fr)_minmax(0,1.2fr)_minmax(0,1fr)]";
 const WITHOUT_MARKS = "sm:grid-cols-[minmax(0,1.1fr)_minmax(0,1.2fr)_minmax(0,1.2fr)]";
 
-function LetterCell({ row, mine }: { readonly row: LegendLetterRow; readonly mine: boolean }) {
+function LetterCell({ row, info, mine }: { readonly row: LegendLetterRow; readonly info: LetterInfo; readonly mine: boolean }) {
   return (
     <div
       role="cell"
       data-legend-letter={row.letter}
       data-mine={mine ? "true" : undefined}
-      className={cx("min-w-0 rounded-lg border border-[var(--hb-hairline)] px-3 py-2", mine && cardSelected)}
+      className={cx("min-w-0 border-l-2 px-3 py-2", mine ? "border-[var(--hb-selected-line)]! bg-[var(--hb-selected-bg)]" : "border-[var(--hb-hairline)]")}
     >
       <div className="flex items-baseline gap-1.5">
         <span className="text-xl font-bold leading-none text-[var(--hb-text-strong)]">{row.letter}</span>{" "}
-        <span className="min-w-0 break-keep text-sm font-semibold leading-snug text-[var(--hb-text-strong)]">{row.name}</span>
+        <span className="min-w-0 break-keep text-sm font-semibold leading-snug text-[var(--hb-text-strong)]">{info.name}</span>
         {mine ? <Check aria-hidden="true" className="ml-auto size-4 shrink-0 self-center text-[var(--hb-selected-text)]" /> : null}
       </div>
-      <span className="mt-0.5 block text-[11px] leading-tight tracking-wide text-[var(--hb-text-muted)]">{row.english}</span>
+      <span data-legend-english="" lang="en" className="mt-1 block text-xs leading-snug tracking-wide text-[var(--hb-text-muted)]">{info.english}</span>
+      <p data-legend-meaning="" className="mt-2 break-keep text-sm leading-relaxed text-[var(--hb-text-body)]">{info.meaning}</p>
       {mine ? <span className={srOnly}>{V40_COPY.legend.mineColumn}</span> : null}
     </div>
   );
 }
 
 /**
- * 글자 읽는 법 표(접히지 않는다): 줄마다 주제 이름 | 앞 글자와 이름 | 뒤 글자와 이름 | 내 글자와 세기, 글자마다 작은 영어 낱말.
+ * 글자 읽는 법 표(접히지 않는다): 줄마다 주제 이름 | 앞 글자와 이름·영어·뜻 | 뒤 글자와 이름·영어·뜻 | 내 글자와 세기.
  * 글자 여덟 개가 표에 정확히 한 번씩 나오고 한 글자는 이 표의 이름과 뜻 하나만 가진다. 상대 결과와 두 사람 화면도 같은 표를 쓴다.
  * 내 글자는 색이 아니라 굵은 테두리, 확인 표식, 「내 글자」 글로 표시한다. 좁은 화면에서는 줄이 세로로 쌓이고 머리글은 낭독기에만 읽힌다.
  * 표 아래에 세기 낱말 세 개를 풀어 쓴 줄이 있다. 숫자로 세기를 말하지 않는다.
  */
 export function LegendTable({ marks, markColumnLabel, showStrengthGuide = true, idPrefix = "wc40-legend" }: LegendTableProps) {
+  const { letterInfo } = useWeddingCodeResultMetadata();
   const rows = legendRows();
   const hasMarks = marks !== undefined;
   const titleId = `${idPrefix}-title`;
@@ -83,7 +89,7 @@ export function LegendTable({ marks, markColumnLabel, showStrengthGuide = true, 
           {V40_COPY.a11y.legendDescription}
         </p>
       ) : null}
-      <div role="table" aria-labelledby={titleId} aria-describedby={hasMarks ? descId : undefined} className="mt-3">
+      <div role="table" aria-labelledby={titleId} aria-describedby={hasMarks ? descId : undefined} className="mt-6 border-b border-[var(--hb-hairline)]">
         <div role="row" className={cx("sr-only sm:not-sr-only sm:mb-1 sm:grid sm:gap-2 sm:px-3", gridColumns)}>
           <div role="columnheader" className="text-xs font-medium text-[var(--hb-text-muted)]">
             {V40_COPY.legend.topicColumn}
@@ -100,7 +106,7 @@ export function LegendTable({ marks, markColumnLabel, showStrengthGuide = true, 
             </div>
           ) : null}
         </div>
-        <div className="space-y-2">
+        <div>
           {rows.map((row, index) => {
             const rowMarks = marks?.[index] ?? [];
             const mineLetters = new Set(rowMarks.flatMap((mark) => (mark.letter === null ? [] : [mark.letter])));
@@ -110,17 +116,17 @@ export function LegendTable({ marks, markColumnLabel, showStrengthGuide = true, 
                 role="row"
                 data-legend-row={row.axis}
                 className={cx(
-                  "grid grid-cols-2 gap-2 rounded-xl border border-paper-outline bg-[var(--hb-surface-raised)] p-3 sm:items-center",
+                  "grid grid-cols-1 gap-3 border-t border-[var(--hb-hairline)] py-4 min-[520px]:grid-cols-2 sm:items-start sm:gap-4",
                   gridColumns,
                 )}
               >
-                <div role="rowheader" className="col-span-2 text-sm font-semibold leading-snug text-[var(--hb-text-strong)] sm:col-span-1">
+                <div role="rowheader" className="text-base font-semibold leading-snug text-[var(--hb-text-strong)] min-[520px]:col-span-2 sm:col-span-1">
                   {row.title}
                 </div>
-                <LetterCell row={row.front} mine={mineLetters.has(row.front.letter)} />
-                <LetterCell row={row.back} mine={mineLetters.has(row.back.letter)} />
+                <LetterCell row={row.front} info={letterInfo(row.front.letter)} mine={mineLetters.has(row.front.letter)} />
+                <LetterCell row={row.back} info={letterInfo(row.back.letter)} mine={mineLetters.has(row.back.letter)} />
                 {hasMarks ? (
-                  <div role="cell" data-legend-mark className="col-span-2 space-y-0.5 text-sm font-medium leading-snug text-[var(--hb-text-strong)] sm:col-span-1">
+                  <div role="cell" data-legend-mark className="space-y-0.5 border-t border-[var(--hb-hairline)] pt-2 text-sm font-medium leading-snug text-[var(--hb-text-strong)] min-[520px]:col-span-2 sm:col-span-1 sm:border-t-0 sm:pt-0">
                     {rowMarks.map((mark) => (
                       <p key={`${mark.letter ?? "none"}-${mark.text}`}>{mark.text}</p>
                     ))}

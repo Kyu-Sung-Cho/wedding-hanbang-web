@@ -3,7 +3,7 @@
 import { useId, useState } from "react";
 import { V40_COPY, perspectiveChangedAnnouncement } from "@/lib/weddingCode/v40/copy";
 import type { Perspective } from "@/lib/weddingCode/v40/types";
-import { bodyText, card, cardSelected, cx, noteText, srOnly } from "./styles";
+import { bodyText, cx, noteText, srOnly } from "./styles";
 
 export interface CouplePerspectiveSwitchProps {
   /**
@@ -45,18 +45,18 @@ export function CouplePerspectiveSwitch({ detected, value, onChange, idPrefix }:
   const [announcement, setAnnouncement] = useState("");
 
   return (
-    <fieldset className="min-w-0 border-0 p-0">
+    <fieldset className="min-w-0 border-b border-[var(--hb-hairline)] pb-6">
       <legend className={cx(bodyText, "font-semibold text-[var(--hb-text-strong)]")}>{V40_COPY.couple.perspective.groupLabel}</legend>
       {note !== null ? (
         <p id={noteId} className={cx(noteText, "mt-1")}>
           {note}
         </p>
       ) : null}
-      <div className="mt-2 grid gap-2 sm:grid-cols-2">
+      <div className="mt-3 flex flex-wrap gap-2">
         {OPTIONS.map((entry) => {
           const selected = value === entry.value;
           return (
-            <label key={entry.value} className={cx(card, selected && cardSelected, "flex min-h-12 cursor-pointer items-center gap-3 px-3 py-2", focusWithinRing)}>
+            <label key={entry.value} className={cx("flex min-h-11 cursor-pointer items-center gap-3 rounded-lg border px-4 py-2", selected ? "border-[var(--hb-selected-line)] bg-[var(--hb-selected-bg)] font-semibold" : "border-[var(--hb-hairline)] bg-[var(--hb-surface-raised)]", focusWithinRing)}>
               <input
                 type="radio"
                 name={`${prefix}-perspective`}

@@ -9,7 +9,7 @@ import { bodyText, cx, focusRing, itemIds, noteText, noticeBox, noticeText, srOn
 
 // 다섯 칸 한 칸의 모양. 칸 전체(가로로 나눈 한 칸, 높이 48픽셀 이상)가 눌리는 자리이고 안의 동그라미는 표식이다.
 // 색만으로 알리지 않는다: 고른 칸은 채워지고 체크가 보이며 테두리가 굵어진다. 뜻은 낭독 이름(aria-label)이 말한다.
-const cellBase = `flex min-h-12 items-center justify-center rounded-lg ${focusRing}`;
+const cellBase = `flex min-h-14 items-center justify-center rounded-[8px] border border-paper-outline bg-[var(--hb-surface-raised)] transition-[background-color,border-color] duration-150 ${focusRing}`;
 const markBase =
   "flex size-8 items-center justify-center rounded-full border-2 border-paper-outline bg-[var(--hb-surface-raised)] text-[var(--hb-on-primary)]";
 const markChecked = "border-[var(--hb-action)]! bg-[var(--hb-action)]! shadow-[0_0_0_2px_var(--hb-selected-bg)]";
@@ -38,17 +38,17 @@ export function ReactInput({ view, value, onAnswer, idPrefix, incomplete = false
   return (
     <div>
       {view.quote ? (
-        <figure aria-labelledby={ids.speaker} className="rounded-xl bg-[var(--hb-surface-hover)] px-4 py-3">
-          <figcaption id={ids.speaker} className={noteText}>
+        <figure aria-labelledby={ids.speaker} className="border-l-2 border-[var(--hb-selected-line)] bg-[var(--hb-surface-hover)] px-5 py-4">
+          <figcaption id={ids.speaker} className={cx(noteText, "font-medium")}>
             <span className={srOnly}>{V40_INPUT_LOCAL_COPY.quoteSpeakerLabel}: </span>
             {view.quote.speaker}
           </figcaption>
-          <blockquote id={ids.quote} className={cx(bodyText, "mt-1 text-[var(--hb-text-strong)]")}>
+          <blockquote id={ids.quote} className={cx(bodyText, "mt-2 text-[16px]! leading-[1.7]! text-[var(--hb-text-strong)]")}>
             「{view.quote.text}」
           </blockquote>
         </figure>
       ) : null}
-      <p id={ids.question} className={cx(stemText, view.quote !== null && "mt-4")}>
+      <p id={ids.question} className={cx(stemText, view.quote !== null && "mt-6")}>
         {view.question}
       </p>
       <span id={ids.groupHelp} className={srOnly}>
@@ -59,9 +59,9 @@ export function ReactInput({ view, value, onAnswer, idPrefix, incomplete = false
         aria-labelledby={ids.question}
         aria-label={view.question}
         aria-describedby={view.quote !== null ? `${ids.speaker} ${ids.quote} ${ids.groupHelp}` : ids.groupHelp}
-        className="mt-3"
+        className="mt-5"
       >
-        <div className="grid grid-cols-5 gap-1">
+        <div className="grid grid-cols-5 gap-2">
           {cells.map((cell, index) => {
             const checked = index === checkedIndex;
             return (
@@ -75,7 +75,7 @@ export function ReactInput({ view, value, onAnswer, idPrefix, incomplete = false
                 ref={radio.ref(index)}
                 onClick={() => select(index)}
                 onKeyDown={(event) => radio.onKeyDown(event, index)}
-                className={cx(cellBase, "hover:bg-[var(--hb-surface-hover)]")}
+                className={cx(cellBase, checked ? "border-[var(--hb-selected-line)]! bg-[var(--hb-selected-bg)]!" : "hover:bg-[var(--hb-surface-hover)]")}
               >
                 <span aria-hidden="true" className={cx(markBase, checked && markChecked)}>
                   {checked ? <Check className="size-4" /> : null}
@@ -85,7 +85,7 @@ export function ReactInput({ view, value, onAnswer, idPrefix, incomplete = false
           })}
         </div>
         {/* 양끝 이름은 칸의 낭독 이름과 그룹 설명에 이미 들어 있어서 눈에만 보이게 한다. */}
-        <div aria-hidden="true" className="mt-1 flex justify-between gap-4">
+        <div aria-hidden="true" className="mt-3 flex justify-between gap-4">
           <span className={cx(bodyText, "max-w-[46%] text-left text-balance font-medium")}>{view.ends.left}</span>
           <span className={cx(bodyText, "max-w-[46%] text-right text-balance font-medium")}>{view.ends.right}</span>
         </div>

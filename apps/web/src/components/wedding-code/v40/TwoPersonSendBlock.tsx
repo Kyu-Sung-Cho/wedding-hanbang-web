@@ -12,7 +12,8 @@ import {
   SendStatusLine,
   useLinkSender,
 } from "./ShareBlock";
-import { bodyText, card, cx, noteText } from "./styles";
+import { bodyText, cx, noteText } from "./styles";
+import { panel } from "./resultStyles";
 
 export interface TwoPersonSendBlockProps {
   /**
@@ -68,6 +69,7 @@ export function TwoPersonSendBlock({ buildUrl, onSent, env, idPrefix, headingLev
   const blocked = !allAnswers || !firstPerson;
 
   const send = () => {
+    if (sender.busy) return;
     if (blocked) {
       // 비어 있는 첫 체크로 초점을 옮겨 무엇을 해야 하는지 보이게 한다.
       (allAnswers ? firstPersonRef : allAnswersRef).current?.focus();
@@ -87,23 +89,17 @@ export function TwoPersonSendBlock({ buildUrl, onSent, env, idPrefix, headingLev
       id={regionId}
       tabIndex={regionId === undefined ? undefined : -1}
       aria-labelledby={ids.title}
-      className={cx(card, "p-4", regionId !== undefined && "outline-none")}
+      data-result-section="couple-share"
+      className={cx(panel, regionId !== undefined && "outline-none")}
     >
       <SectionHeading level={headingLevel} id={ids.title}>
         {V40_COPY.coupleSend.title}
       </SectionHeading>
-      <p className={cx(bodyText, "mt-2")}>{V40_COPY.coupleSend.help}</p>
+      <p className={cx(bodyText, "mt-4 break-keep text-[16px]! font-medium! leading-[1.8]! text-[var(--hb-text-strong)]!")}>
+        {V40_COPY.coupleSend.help}
+      </p>
 
-      <div className="mt-3 space-y-2">
-        <ConsentCheck inputRef={allAnswersRef} checked={allAnswers} onChange={setAllAnswers}>
-          {V40_COPY.coupleSend.consentAllAnswers}
-        </ConsentCheck>
-        <ConsentCheck inputRef={firstPersonRef} checked={firstPerson} onChange={setFirstPerson}>
-          {V40_COPY.coupleSend.consentSelf}
-        </ConsentCheck>
-      </div>
-
-      <div className="mt-4">
+      <div className="mt-5">
         <MessageField
           id={ids.message}
           label={V40_COPY.coupleSend.messageLabel}
@@ -112,12 +108,21 @@ export function TwoPersonSendBlock({ buildUrl, onSent, env, idPrefix, headingLev
         />
       </div>
 
-      <div className={cx(noteText, "mt-4 space-y-1")}>
+      <div className={cx(noteText, "mt-5 space-y-2 break-keep")}>
         <p>{V40_COPY.coupleSend.sensitiveInfo}</p>
         <p>{V40_COPY.coupleSend.anyoneCanReadInfo}</p>
         {guessNote ? <p data-send-guess-note="">{guessNote}</p> : null}
         <p>{V40_COPY.coupleSend.oldLinksRemainInfo}</p>
         <p>{V40_COPY.send.shareSheetInfo}</p>
+      </div>
+
+      <div className="mt-4 space-y-2">
+        <ConsentCheck inputRef={allAnswersRef} checked={allAnswers} onChange={setAllAnswers}>
+          {V40_COPY.coupleSend.consentAllAnswers}
+        </ConsentCheck>
+        <ConsentCheck inputRef={firstPersonRef} checked={firstPerson} onChange={setFirstPerson}>
+          {V40_COPY.coupleSend.consentSelf}
+        </ConsentCheck>
       </div>
 
       <div className="mt-4">

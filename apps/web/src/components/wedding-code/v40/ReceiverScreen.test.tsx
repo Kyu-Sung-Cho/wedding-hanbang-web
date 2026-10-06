@@ -52,6 +52,15 @@ describe("ReceiverScreen", () => {
     expect(notValidatedCount(harness.container)).toBe(1);
   });
 
+  it("받은 뒤 할 일을 정적 세 단계로 보여 주고 마지막에 결과 링크 반환을 둔다", async () => {
+    await harness.render(<Host />);
+    const journey = harness.container.querySelector('[data-share-journey]');
+    expect(journey?.textContent).toContain(V40_COPY.receive.journeyLabel);
+    expect([...journey!.querySelectorAll('li')].map((step) => step.textContent?.trim())).toEqual([...V40_COPY.receive.journeySteps]);
+    expect(journey?.querySelector('[aria-current], [aria-checked], [data-complete]')).toBeNull();
+    expect(isBefore(journey!, buttonNamed(V40_COPY.receive.answerButton)!)).toBe(true);
+  });
+
   it("제목은 h1 하나이고 화면의 이름이다", async () => {
     await harness.render(<Host />);
     const headings = harness.container.querySelectorAll("h1");

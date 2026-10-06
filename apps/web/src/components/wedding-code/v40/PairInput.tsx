@@ -9,10 +9,10 @@ import { bodyText, card, cardSelected, cx, focusRing, itemIds, noticeBox, notice
 
 // 칸 하나(조금, 꽤, 아주)의 모양. 눌러서 카드와 세기를 함께 고른다.
 // 색만으로 알리지 않는다: 세기는 점 세 개(찬 점 수), 선택은 체크 표식과 채움으로 보이고, 뜻은 낭독 이름(aria-label)이 전부 말한다.
-const cellBase = `flex min-h-14 flex-col items-center justify-center gap-1 rounded-lg border px-1 py-2 text-sm font-semibold ${focusRing}`;
+const cellBase = `flex min-h-14 flex-col items-center justify-center gap-1 rounded-[8px] border px-1 py-2 text-sm font-semibold transition-[background-color,border-color,color] duration-150 ${focusRing}`;
 const cellIdle =
   "border-paper-outline bg-[var(--hb-surface-raised)] text-[var(--hb-text-strong)] hover:bg-[var(--hb-surface-hover)]";
-const cellChecked = "border-[var(--hb-action)]! bg-[var(--hb-action)]! text-[var(--hb-on-primary)]!";
+const cellChecked = "border-[var(--hb-selected-line)]! bg-[var(--hb-selected-bg)]! text-[var(--hb-selected-text)]! shadow-[inset_0_0_0_1px_var(--hb-selected-line)]";
 
 function StrengthDots({ level }: { readonly level: 1 | 2 | 3 }) {
   return (
@@ -57,17 +57,17 @@ export function PairInput({ view, value, onAnswer, idPrefix, incomplete = false 
 
   return (
     <div>
-      <div role="radiogroup" aria-labelledby={ids.stem} aria-label={view.caption} className="space-y-3">
+      <div role="radiogroup" aria-labelledby={ids.stem} aria-label={view.caption} className="space-y-4">
         {rows.map((cells, cardIndex) => {
           const cardChosen = checkedIndex !== null && ordered[checkedIndex].cardIndex === cardIndex;
           const cardText = view.cards[cardIndex]?.text ?? "";
           return (
-            <div key={cardIndex} className={cx(card, "p-4", cardChosen && cardSelected)}>
-              <p id={cardTextIds[cardIndex]} className={cx(bodyText, "text-[var(--hb-text-strong)]")}>
+            <div key={cardIndex} className={cx(card, "p-5 sm:p-6", cardChosen && cardSelected)}>
+              <p id={cardTextIds[cardIndex]} className={cx(bodyText, "text-[16px]! leading-[1.7]! text-[var(--hb-text-strong)]")}>
                 <span className={srOnly}>{V40_INPUT_LOCAL_COPY.pairCardNames[cardIndex]}. </span>
                 {cardText}
               </p>
-              <div className="mt-3 grid grid-cols-3 gap-2">
+              <div className="mt-5 grid grid-cols-3 gap-2.5">
                 {cells.map((cell) => {
                   const index = ordered.indexOf(cell);
                   const checked = index === checkedIndex;

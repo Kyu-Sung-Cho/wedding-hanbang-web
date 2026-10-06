@@ -82,7 +82,7 @@ describe("LastTimeCompare", () => {
     expect(textOf(harness.container)).not.toContain("글자가 같아요");
   });
 
-  it("반반이에요가 낀 주제는 글자가 달라도 달라졌다고 하지 않고 바뀌기 쉬운 주제라고만 적는다", async () => {
+  it("반반이에요가 낀 주제는 글자가 달라도 변화로 해석하지 않고 이번과 지난번의 세기만 적는다", async () => {
     const previous = entryWith([axisOf("S", "lean"), axisOf("W", "clear"), axisOf("U", "lean"), axisOf("H", "even")]);
     await harness.render(<LastTimeCompare result={swua()} previous={previous} />);
     const support = row("support");
@@ -129,7 +129,7 @@ describe("LastTimeCompare", () => {
     expect(textOf(harness.container)).toContain(V40_COPY.history.excludedNote);
   });
 
-  it("뺀 주제도 바뀌기 쉬운 주제도 없으면 그 두 안내 글은 나오지 않는다", async () => {
+  it("뺀 주제도 반반인 주제도 없으면 그 두 안내 글은 나오지 않는다", async () => {
     const { result } = resultCase("all-clear");
     await harness.render(<LastTimeCompare result={result} previous={historyOf(result, SEPT_29_NOON_KST)} />);
     expect([...harness.container.querySelectorAll("[data-history-row]")].map((node) => node.getAttribute("data-history-tag"))).toEqual([

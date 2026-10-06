@@ -71,13 +71,11 @@ async function render(searchParams: { v?: string; a?: string; b?: string }) {
 
 describe("웨딩코드 진입 화면", () => {
   /**
-   * 답은 fragment(`#`)에 있어서 검색엔진이 볼 수 없다. 그래서 **맨 주소는 색인해야**
-   * 「여러 예비부부가 쓰는 도구」가 될 길이 열린다. 반대로 과거 `?a=` 링크에는 누군가의
-   * 실제 응답이 query에 들어 있으므로 그 주소만 막는다.
+   * 새 기본판은 사람 검증 전이어서 맨 주소도 색인하지 않는다. 답이 든 query도 계속 막는다.
    */
-  it("입구는 색인하고 답이 실린 주소만 막는다", async () => {
+  it("새 기본 입구와 답이 실린 주소를 모두 색인하지 않는다", async () => {
     const clean = await generateMetadata({ searchParams: Promise.resolve({}) });
-    expect(clean.robots).toMatchObject({ index: true, follow: true });
+    expect(clean.robots).toMatchObject({ index: false, follow: false });
     expect(clean.alternates?.canonical).toBe("/wedding-code");
     expect(clean).toMatchObject({ referrer: "no-referrer" });
 
@@ -97,7 +95,7 @@ describe("웨딩코드 진입 화면", () => {
       expect(guarded.robots, JSON.stringify(carrying)).toMatchObject({ index: false, follow: false });
     }
     const clean = await generateMetadata({ searchParams: Promise.resolve({ utm_source: "landing" }) });
-    expect(clean.robots).toMatchObject({ index: true, follow: true });
+    expect(clean.robots).toMatchObject({ index: false, follow: false });
   });
 
   /**
@@ -130,15 +128,15 @@ describe("웨딩코드 진입 화면", () => {
     }
     // 카드를 넣었다고 답이 실린 주소의 색인 차단이 풀리면 안 된다.
     expect((await generateMetadata({ searchParams: Promise.resolve({ a: "AACB" }) })).robots).toMatchObject({ index: false, follow: false });
-    expect((await generateMetadata({ searchParams: Promise.resolve({}) })).robots).toMatchObject({ index: true, follow: true });
+    expect((await generateMetadata({ searchParams: Promise.resolve({}) })).robots).toMatchObject({ index: false, follow: false });
   });
 
   it("코드가 없으면 처음부터 답하는 화면이다", async () => {
     const page = await WeddingCodePage({ searchParams: Promise.resolve({}) });
-    expect(page.props.initialEntry).toEqual({ kind: "v31", initial: { partnerDraft: null, partnerCode: null, bothDrafts: null } });
+    expect(page.props.initialEntry).toEqual({ kind: "v42", initial: { partner: null, both: null } });
     const html = await render({});
     expect(html).not.toContain("16문장");
-    expect(html).toContain("시작하기");
+    expect(html).toContain("불러오는 중이에요");
     // 예전의 중단 안내가 남아 있으면 안 된다.
     expect(html).not.toContain("정식 검증을 준비하고 있어요");
     expect(html).not.toContain("답변을 받거나 저장하지 않습니다");
@@ -152,7 +150,7 @@ describe("웨딩코드 진입 화면", () => {
   });
 
   it("통합판은 전체 분량과 답의 저장·공유 경계를 시작 전에 밝힌다", async () => {
-    const html = await render({});
+    const html = await render({ v: WEDDING_CODE_V31_VERSION });
     const container = document.createElement("div");
     container.innerHTML = html;
     const text = container.textContent ?? "";
@@ -174,7 +172,7 @@ describe("웨딩코드 진입 화면", () => {
    * 몇 초 동안 첫 탭이 사라졌다(운영 실측). 그래서 서버 HTML 에서부터 누를 수 없는 단추로 내보내고, 글·제목·링크는 그대로 둔다.
    */
   it("서버 HTML 의 시작 버튼과 자동 저장 토글은 누를 수 없는 상태로 나오고, 글과 안내는 그대로 있다", async () => {
-    const html = await render({});
+    const html = await render({ v: WEDDING_CODE_V31_VERSION });
     expect(html).toMatch(/<button[^>]*\bdisabled=""[^>]*>내 웨딩코드 시작하기/);
     const container = document.createElement("div");
     container.innerHTML = html;
@@ -217,7 +215,7 @@ describe("웨딩코드 진입 화면", () => {
   });
 
   it("새 기본판의 metadata는 취향·준비 방식·직접 고른 우선순위를 설명한다", async () => {
-    for (const search of [{}, { v: WEDDING_CODE_V31_VERSION }, { v: WEDDING_CODE_V30_VERSION }]) {
+    for (const search of [{ v: WEDDING_CODE_V31_VERSION }, { v: WEDDING_CODE_V30_VERSION }]) {
       const metadata = await generateMetadata({ searchParams: Promise.resolve(search) });
       expect(metadata.title).toContain("원하는 결혼식과 준비 방식");
       expect(metadata.description).toContain("결혼식 취향과 준비 방식");
@@ -229,7 +227,7 @@ describe("웨딩코드 진입 화면", () => {
   });
 
   it("새 기본판의 검색·공유 설명은 두 사람이 나란히 보는 조건을 ‘둘 다 답하고 서로 공유하면’으로 말한다", async () => {
-    for (const search of [{}, { v: WEDDING_CODE_V31_VERSION }]) {
+    for (const search of [{ v: WEDDING_CODE_V31_VERSION }]) {
       const metadata = await generateMetadata({ searchParams: Promise.resolve(search) });
       const description = String(metadata.description);
       expect(description).toContain("혼자서도 결과를 볼 수 있고, 둘 다 답하고 서로 공유하면 함께 원하는 것과 먼저 의논할 부분을 나란히 볼 수 있어요.");

@@ -49,6 +49,10 @@ function literal(value, depth) {
 /** 검사를 통과한 원본에서 생성 파일의 본문을 만든다(순수 함수, 시험이 부른다). */
 export function generateBankModule(data, options = {}) {
   const sourceLabel = options.sourceLabel ?? "docs/wedding-code/2026-09-29_v40_items.json";
+  const bankPrefix = options.bankPrefix ?? "V40";
+  const versionSymbol = options.versionSymbol ?? "WEDDING_CODE_V40_VERSION";
+  const versionModule = options.versionModule ?? "@/constants/weddingCodeV40";
+  const generatorLabel = options.generatorLabel ?? "scripts/build-wedding-code-v40-bank.mjs";
   const items = data.items.map(({ placeholder, ...rest }) => {
     void placeholder;
     return rest;
@@ -59,23 +63,23 @@ export function generateBankModule(data, options = {}) {
     "/**",
     " * 자동 생성 파일이다. 고치지 않는다(do not edit).",
     ` * 원본: ${sourceLabel}`,
-    " * 생성기: scripts/build-wedding-code-v40-bank.mjs (검사기 scripts/wedding-code-v40-bank-lint.mjs 를 통과한 원본만 만든다)",
+    ` * 생성기: ${generatorLabel} (검사기 scripts/wedding-code-v40-bank-lint.mjs 를 통과한 원본만 만든다)`,
     " * 문구를 바꾸려면 원본 JSON 을 고치고 생성기를 다시 돌린다. 배치 필드와 극 배열은 lib/weddingCode/v40/layout.ts 와 같아야 한다.",
     " */",
-    'import { WEDDING_CODE_V40_VERSION } from "@/constants/weddingCodeV40";',
+    `import { ${versionSymbol} } from "${versionModule}";`,
     'import type { BankData } from "@/lib/weddingCode/v40/types";',
     "",
     "/** 원본이 자리표시 문구이면 true. 출시 관문은 이 값이 false 일 때만 열린다. */",
-    `export const V40_BANK_IS_PLACEHOLDER: boolean = ${isPlaceholder};`,
+    `export const ${bankPrefix}_BANK_IS_PLACEHOLDER: boolean = ${isPlaceholder};`,
     "",
     "/** 원본 내용의 해시(placeholder 필드 제외). 생성 파일이 원본과 같은지 시험이 대조한다. */",
-    `export const V40_BANK_SOURCE_SHA256 = "${sha}";`,
+    `export const ${bankPrefix}_BANK_SOURCE_SHA256 = "${sha}";`,
     "",
     "/** 문항 은행 원본(질문 순서 68개). createBank(V40_BANK_DATA) 로 조회 구조를 만든다. */",
-    `export const V40_BANK_DATA: BankData = ${literal({ version: "@@VERSION@@", items }, 0)};`,
+    `export const ${bankPrefix}_BANK_DATA: BankData = ${literal({ version: "@@VERSION@@", items }, 0)};`,
     "",
   ];
-  return lines.join("\n").replace('"@@VERSION@@"', "WEDDING_CODE_V40_VERSION");
+  return lines.join("\n").replace('"@@VERSION@@"', versionSymbol);
 }
 
 function parseArgs(argv) {

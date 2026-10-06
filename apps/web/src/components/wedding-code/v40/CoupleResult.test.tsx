@@ -12,7 +12,7 @@ import {
   perspectiveChangedAnnouncement,
 } from "@/lib/weddingCode/v40/copy";
 import { V40_FIXTURES } from "@/lib/weddingCode/v40/fixtures";
-import type { CoupleAxisRow, CoupleItemPair, CoupleResult as CoupleResultData, DecodedCode, Perspective } from "@/lib/weddingCode/v40/types";
+import type { CoupleAxisRow, CoupleItemPair, CoupleResult as CoupleResultData, CoupleSideInfo, DecodedCode, Perspective } from "@/lib/weddingCode/v40/types";
 import { CoupleResult, V40_EMBEDDED_BOTTOM_SPACE, type CoupleResultProps } from "./CoupleResult";
 import { click, createHarness, isBefore, type Harness } from "./inputTestKit";
 import type { ShareSentEvent } from "./shareActions";
@@ -31,6 +31,21 @@ const PARTNER = fixture("couple-partner");
 /** 실제 채점기가 만든 결과: 주제 네 줄이 다른 글자, 같은 글자, 다른 글자, 반반이에요이고 질문 목록이 각각 셋이다. */
 const COUPLE = compareCouple(bank, SWUA, PARTNER);
 
+it("다른 답이 뽑히지 않으면 실제로 비슷하게 고른 질문에서 대화를 시작한다", async () => {
+  const same = compareCouple(bank, SWUA, SWUA);
+  expect(same.talk).toHaveLength(0);
+  expect(same.similar.length).toBeGreaterThan(0);
+  await renderResult({ result: same });
+  const guide = root().querySelector('[data-couple-first-conversation]')!;
+  expect(guide.textContent).toContain("비슷하게 고른 답에서 대화를 시작해 볼게요");
+  expect(guide.textContent).toContain(same.similar[0].caption);
+  expect(guide.textContent).toContain(same.similar[0].firstText);
+  expect(guide.textContent).toContain(same.similar[0].secondText);
+  const next = [...guide.querySelectorAll("button")].find((button) => button.textContent === "다음 장면")!;
+  await click(next);
+  expect(guide.textContent).toContain(same.similar[1].caption);
+});
+
 function swapPair(item: CoupleItemPair): CoupleItemPair {
   return { ...item, firstValue: item.secondValue, secondValue: item.firstValue, firstText: item.secondText, secondText: item.firstText };
 }
@@ -41,15 +56,24 @@ function swapCouple(result: CoupleResultData): CoupleResultData {
   return { axes, talk: result.talk.map(swapPair), similar: result.similar.map(swapPair) };
 }
 
-const row = (axis: CoupleAxisRow["axis"], tag: CoupleAxisRow["tag"], first: CoupleAxisRow["first"], second: CoupleAxisRow["second"], excluded = false): CoupleAxisRow => ({
+type BareSide = Pick<CoupleSideInfo, "letter" | "shownBand" | "provisional">;
+const withNoAnswers = (axis: CoupleAxisRow["axis"], side: BareSide): CoupleSideInfo => ({
+  ...side,
+  answered: 0,
+  frontCount: 0,
+  backCount: 0,
+  neutralCount: 0,
+  facets: axisInfo(axis).facets.map((facet) => ({ facet, answered: 0, frontCount: 0, backCount: 0, neutralCount: 0, counted: false })),
+});
+const row = (axis: CoupleAxisRow["axis"], tag: CoupleAxisRow["tag"], first: BareSide, second: BareSide, excluded = false): CoupleAxisRow => ({
   axis,
   tag,
-  first,
-  second,
+  first: withNoAnswers(axis, first),
+  second: withNoAnswers(axis, second),
   excluded,
 });
 
-const FORBIDDEN = /궁합|잘 ?맞|안 ?맞|점수|등급|퍼센트|백분율|%|스타일|성격|진단|정확|과학|어울리/u;
+const OVERCLAIMS = /궁합|잘 ?맞|안 ?맞|등급|스타일|성격|진단|과학|어울리/u;
 
 let harness: Harness;
 beforeEach(() => {
@@ -74,8 +98,8 @@ const root = () => harness.container;
 const text = () => root().textContent ?? "";
 const countOf = (haystack: string, needle: string) => haystack.split(needle).length - 1;
 const axisItems = () => [...root().querySelectorAll<HTMLElement>('[data-part="axes"] li[data-axis]')];
-const personLabels = (item: HTMLElement) => [...item.querySelectorAll("div > div > p:first-child")].map((p) => p.textContent);
-const personCells = (item: HTMLElement) => [...item.querySelectorAll("div > div > p:nth-child(2)")].map((p) => p.textContent);
+const personLabels = (item: HTMLElement) => [...item.querySelectorAll("[data-couple-axis-person] > [data-person-label]")].map((p) => p.textContent);
+const personCells = (item: HTMLElement) => [...item.querySelectorAll("[data-couple-axis-person] > [data-person-letter-band]")].map((p) => p.textContent);
 const heading = (label: string) => [...root().querySelectorAll("h1, h2, h3")].find((h) => h.textContent === label) ?? null;
 const radios = () => [...root().querySelectorAll<HTMLInputElement>('input[type="radio"]')];
 
@@ -114,13 +138,16 @@ describe("CoupleResult: 구성과 순서", () => {
     expect(countOf(text(), V40_NOT_VALIDATED_PHRASE)).toBe(1);
   });
 
-  it("위에서 아래로: 제목, 나 기준, 글자 읽는 법, 주제별 나란히, 먼저 이야기해 볼 질문, 비슷하게 고른 질문, 보내기, 처음부터 해 보기", async () => {
+  it("위에서 아래로: 제목, 두 코드, 나 기준, 대화 장면, 주제별 근거, 글자표, 전체 질문, 보내기, 다시 해 보기", async () => {
     await renderResult({ send: { buildUrl: () => "https://example.test/x", onSent: () => undefined }, onStartOwn: () => undefined });
     const ordered = [
       root().querySelector("h1"),
+      root().querySelector("[data-couple-codes]"),
       root().querySelector("fieldset legend"),
-      heading(V40_COPY.legend.title),
+      heading("우리 둘의 준비 리포트"),
+      heading("대화를 시작할 장면"),
       heading(V40_COUPLE_SEND_EXTRA_COPY.axesHeading),
+      heading(V40_COPY.legend.title),
       heading(V40_COPY.couple.talk.title),
       heading(V40_COPY.couple.similar.title),
       heading(V40_COPY.coupleSend.title),
@@ -136,8 +163,8 @@ describe("CoupleResult: 구성과 순서", () => {
     await renderResult();
     expect(root().querySelectorAll("table")).toHaveLength(1);
     expect(countOf(text(), V40_COPY.legend.title)).toBe(1);
-    expect(root().querySelector("details")).toBeNull();
     const table = root().querySelector("table");
+    expect(table?.querySelector("details")).toBeNull();
     expect(table?.querySelectorAll("tbody tr")).toHaveLength(4);
     expect([...(table?.querySelectorAll("thead th") ?? [])].map((th) => th.textContent)).toEqual([
       V40_COPY.legend.topicColumn,
@@ -146,14 +173,58 @@ describe("CoupleResult: 구성과 순서", () => {
     ]);
   });
 
+  it("요약에서 주제별 비교로 이동하면 초점과 스크롤이 함께 옮겨간다", async () => {
+    await renderResult();
+    const region = root().querySelector<HTMLElement>('[data-part="axes"]')!;
+    const scroll = vi.fn();
+    region.scrollIntoView = scroll;
+    const button = [...root().querySelectorAll("button")].find((each) => each.textContent === V40_COUPLE_SEND_EXTRA_COPY.axesHeading)!;
+    await click(button);
+    expect(document.activeElement).toBe(region);
+    expect(scroll).toHaveBeenCalledWith({ block: "start" });
+  });
+
+  it("대화 장면을 넘기면 실제로 고른 두 문장과 질문이 함께 바뀐다", async () => {
+    await renderResult();
+    const guide = root().querySelector<HTMLElement>("[data-couple-first-conversation]")!;
+    expect(guide.textContent).toContain(COUPLE.talk[0].caption);
+    expect(guide.textContent).toContain(COUPLE.talk[0].firstText);
+    expect(guide.textContent).toContain(COUPLE.talk[0].secondText);
+    const next = [...guide.querySelectorAll("button")].find((button) => button.textContent === "다음 장면")!;
+    await click(next);
+    expect(guide.textContent).toContain(COUPLE.talk[1].caption);
+    expect(guide.textContent).toContain(COUPLE.talk[1].firstText);
+    expect(guide.textContent).toContain(COUPLE.talk[1].secondText);
+    expect(guide.textContent).not.toContain(COUPLE.talk[0].caption);
+  });
+
   it("글자 여덟 개가 표에 정확히 한 번씩 나오고 각 글자의 이름과 영어 낱말이 붙는다", async () => {
     await renderResult();
     const table = root().querySelector("table")?.textContent ?? "";
     for (const letter of V40_LETTER_LIST) {
       expect(countOf(table, legendLetterCell(letter)), letter).toBe(1);
       expect(countOf(table, letterInfo(letter).english), letter).toBe(1);
+      expect(table, letter).toContain(letterInfo(letter).meaning);
     }
     for (const axis of V40_AXIS_KEYS) expect(table).toContain(axisInfo(axis).title);
+  });
+
+  it("두 사람의 코드 바로 아래에서 각자 나온 글자의 영어 이름과 전체 뜻을 읽는다", async () => {
+    await renderResult({ detectedPerspective: "first" });
+    const before = ["first", "second"].map((person) => root().querySelector(`[data-couple-code="${person}"] ul`)!.textContent);
+    for (const person of ["first", "second"] as const) {
+      const profile = root().querySelector(`[data-couple-code="${person}"]`)!;
+      for (const axis of COUPLE.axes) {
+        const letter = axis[person].letter;
+        if (letter === null) continue;
+        const definition = profile.querySelector(`[data-letter-definition="${letter}"]`)!;
+        expect(definition.querySelector('[lang="en"]')?.textContent).toBe(letterInfo(letter).english);
+        expect(definition.querySelector('[data-letter-meaning]')?.textContent).toBe(letterInfo(letter).meaning);
+      }
+    }
+    await click(radios()[1]);
+    expect(root().querySelector('[data-couple-code="second"]')?.textContent).toContain("내 웨딩코드");
+    expect(["first", "second"].map((person) => root().querySelector(`[data-couple-code="${person}"] ul`)!.textContent)).toEqual(before);
   });
 
   it("두 사람 화면에는 「내 글자」 칸이 없고 세기 낱말 풀이 셋이 있다", async () => {
@@ -186,6 +257,35 @@ describe("CoupleResult: 주제별 나란히 보기", () => {
       ]);
       if (!data.excluded) expect(item.textContent).toContain(V40_COPY.couple.tagLabels[data.tag]);
     });
+  });
+
+  it("같은 글자여도 각자의 응답 분모와 네 장면 묶음 근거를 따로 보여 준다", async () => {
+    await renderResult();
+    const sameRows = COUPLE.axes.filter((data) => data.tag === "same" && !data.excluded);
+    expect(sameRows.length).toBeGreaterThan(0);
+    COUPLE.axes.forEach((data, index) => {
+      const cells = axisItems()[index].querySelectorAll<HTMLElement>(":scope > div.grid > div");
+      expect(cells).toHaveLength(2);
+      (["first", "second"] as const).forEach((person, personIndex) => {
+        const side = data[person];
+        const distribution = cells[personIndex].querySelector<HTMLElement>("[data-answer-distribution]");
+        if (side.answered === 0) {
+          expect(cells[personIndex].textContent).toContain("비율을 내지 않았어요");
+        } else {
+          const figures = distribution!.querySelectorAll("dd");
+          [side.frontCount, side.backCount, side.neutralCount].forEach((count, countIndex) => {
+            expect(figures[countIndex].firstElementChild?.textContent).toBe(`${Number((count / side.answered * 100).toFixed(2))}%`);
+            expect(figures[countIndex].lastElementChild?.textContent).toBe(`${count}개 / ${side.answered}문항`);
+          });
+        }
+        const facets = cells[personIndex].querySelectorAll("[data-facet-evidence]");
+        expect(facets).toHaveLength(4);
+        side.facets.forEach((facet, facetIndex) => {
+          expect(facets[facetIndex].textContent).toContain(`4문항 중 ${facet.answered}문항 답함`);
+        });
+      });
+    });
+    expect(text()).toContain("같은 글자여도 장면 묶음별 선택은 다를 수 있어요");
   });
 
   it("태그 낱말은 세 개뿐이고 화면에 나오는 것은 그 셋 중에서만이다", async () => {
@@ -247,18 +347,40 @@ describe("CoupleResult: 주제별 나란히 보기", () => {
     expect(provisionalItem?.dataset.tag).toBe("excluded");
   });
 
-  it("두 코드를 하나로 합치거나 같은 글자 개수를 세거나 점수로 바꾸지 않는다", async () => {
+  it("두 사람의 코드를 각각 보여 주고, 합산 평가나 같은 글자 개수를 만들지 않는다", async () => {
     await renderResult({ detectedPerspective: "first" });
     const chrome = text();
-    expect(chrome).not.toMatch(FORBIDDEN);
-    // 글자 네 개를 이어 붙인 코드가 화면에 없다.
-    expect(chrome).not.toMatch(/(?<![A-Za-z])[VSWDUFHA·]{4}(?![A-Za-z])/u);
+    expect(chrome).not.toMatch(OVERCLAIMS);
+    const codes = [...root().querySelectorAll<HTMLElement>("[data-couple-code]")];
+    expect(codes).toHaveLength(2);
+    for (const [index, person] of (["first", "second"] as const).entries()) {
+      const expected = COUPLE.axes.map((axisRow) => axisRow[person].letter ?? "·").join("");
+      expect(codes[index].textContent).toContain(expected);
+    }
     // 몇 개가 같다는 식의 셈이 없다.
     expect(chrome).not.toMatch(/\d+\s*(?:개|곳|가지)\s*(?:주제)?\s*(?:가|는)?\s*(?:같|다르)/u);
   });
 });
 
 describe("CoupleResult: 질문 목록", () => {
+  it("대화 카드에 원래 상황과 인용과 물음을 보여 주고 다음 장면에서 맥락도 바꾼다", async () => {
+    const original = bank.byId.get("process.search.1");
+    if (!original || original.fmt !== "react" || !original.quote) throw new Error("인용 있는 질문이 필요해요");
+    const next = bank.byId.get("money.limit.1");
+    if (!next) throw new Error("다음 질문이 필요해요");
+    const first: CoupleItemPair = { ...COUPLE.talk[0], itemId: original.id, caption: original.caption, prompt: [original.stem, `${original.quote.speaker} · 「${original.quote.text}」`, original.question] };
+    const second: CoupleItemPair = { ...COUPLE.talk[1], itemId: next.id, caption: next.caption, prompt: [next.stem] };
+    await renderResult({ result: { ...COUPLE, talk: [first, second] } });
+    const prompt = () => root().querySelector('[data-couple-talk-prompt]');
+    expect([...prompt()!.querySelectorAll("p")].map((line) => line.textContent)).toEqual(first.prompt);
+    expect(root().querySelector('[data-couple-first-conversation]')?.textContent).toContain(V40_COPY.couple.viewpointNote);
+    const nextButton = [...root().querySelectorAll("button")].find((button) => button.textContent === "다음 장면");
+    if (!nextButton) throw new Error("다음 장면 버튼이 필요해요");
+    await click(nextButton);
+    expect([...prompt()!.querySelectorAll("p")].map((line) => line.textContent)).toEqual(second.prompt);
+    expect(prompt()?.textContent).not.toContain(original.quote.text);
+  });
+
   it("먼저 이야기해 볼 질문과 이미 비슷하게 고른 질문이 결과의 항목 그대로 나온다", async () => {
     await renderResult({ detectedPerspective: "first" });
     const talk = root().querySelector('[data-list="talk"]');
@@ -447,19 +569,22 @@ describe("CoupleResult: 라운지 안(embedded)", () => {
 });
 
 describe("CoupleResult: 말씨와 서버 없음", () => {
-  it("평가하거나 주장하는 낱말이 없고 번호 라벨이 없다", async () => {
+  it("평가하거나 확정하는 말이 없고 번호 라벨이 없다", async () => {
     await renderResult({ detectedPerspective: "first", send: { buildUrl: () => null, onSent: () => undefined } });
     const chrome = text();
-    expect(chrome).not.toMatch(FORBIDDEN);
-    expect(chrome).not.toMatch(/\d\s*\/\s*\d/u);
+    expect(chrome).not.toMatch(OVERCLAIMS);
+    expect(chrome).toContain("두 사람의 관계를 수치로 나타낸 값은 아니에요");
     expect(chrome).not.toMatch(/번째/u);
     expect(chrome).not.toMatch(/(?:^|\s)[A-Z][.)]\s/u);
     expect(root().querySelector("ol")).toBeNull();
   });
 
-  it("질문 목록을 비우면 화면 어디에도 숫자와 백분율 기호가 없다", async () => {
+  it("질문 목록을 비워도 주제별 분모와 응답 비율은 남는다", async () => {
     await renderResult({ result: { ...COUPLE, talk: [], similar: [] }, detectedPerspective: "first" });
-    expect(text()).not.toMatch(/[\d%]/u);
+    expect(root().querySelectorAll("[data-couple-codes] [data-answer-distribution]")).toHaveLength(8);
+    expect(root().querySelectorAll('[data-part="axes"] [data-answer-distribution]')).toHaveLength(8);
+    expect(text()).toMatch(/\d+(?:\.\d+)?%/u);
+    expect(text()).toMatch(/\d+개 \/ \d+문항/u);
   });
 
   it("그리기와 보내기 전 과정에서 요청을 보내지 않고 이 기기의 저장소를 읽거나 쓰지 않는다", async () => {
@@ -494,8 +619,10 @@ describe("CoupleResult: 제목 수준(제목 다음에 한 단계씩만 내려�
       if (index > 0) expect(level, `${index}번째 제목`).toBeLessThanOrEqual(levels[index - 1] + 1);
     });
     expect([...root().querySelectorAll("h2")].map((node) => node.textContent)).toEqual([
-      V40_COPY.legend.title,
+      "우리 둘의 준비 리포트",
+      "대화를 시작할 장면",
       V40_COUPLE_SEND_EXTRA_COPY.axesHeading,
+      V40_COPY.legend.title,
       V40_COPY.couple.talk.title,
       V40_COPY.couple.similar.title,
       V40_COPY.coupleSend.title,
@@ -538,7 +665,7 @@ describe("CoupleResult: 링크를 보내 준 상대가 결과를 보려면 내�
 
   it("단추를 누르면 보내기 블록으로 초점과 스크롤이 옮겨 간다", async () => {
     await renderResult({ send });
-    const region = root().querySelector<HTMLElement>("section[tabindex='-1'][aria-labelledby]")!;
+    const region = root().querySelector<HTMLElement>("#t-couple-send")!;
     expect(region.querySelector("h2")?.textContent).toBe(V40_COPY.coupleSend.title);
     const scroll = vi.fn();
     region.scrollIntoView = scroll;

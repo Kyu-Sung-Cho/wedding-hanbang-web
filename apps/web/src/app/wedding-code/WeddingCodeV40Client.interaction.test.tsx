@@ -120,7 +120,8 @@ describe("웨딩코드 4.0 클라이언트: 시작", () => {
       const storage = new FakeStorage();
       const view = await open({ resolved: false, initial, deps: { storage, now: () => NOW } });
       expect(screenName(view.container)).toBe("loading");
-      expect(textOf(view.container)).toBe(V40_COPY.common.loadingLabel);
+      expect(textOf(view.container.querySelector("[data-v40-loading]")!)).toBe(V40_COPY.common.loadingLabel);
+      expect(view.container.querySelector('[data-screen="intro"]')).toBeNull();
       expect(view.container.querySelector("h1")).toBeNull();
       expect(hasButtonWithText(view.container, V40_COPY.intro.startButton)).toBe(false);
       expect(storage.log).toEqual([]);
@@ -148,11 +149,15 @@ describe("웨딩코드 4.0 클라이언트: 시작", () => {
     expect(textOf(view.container)).not.toContain(V40_COPY.error.brokenLink.notice);
   });
 
-  it("시작 화면과 첫 질문 화면에 번호와 A/B 라벨이 없다", async () => {
+  it("시작 화면에는 번호가 없고 첫 질문 화면에는 질문 번호만 있으며 A/B 라벨은 없다", async () => {
     const view = await open({ deps: { storage: new FakeStorage(), now: () => NOW } });
     expect(visibleNumberProblems(view.container as HTMLElement, [`${V40_COUNTS.items}개`, "30일"])).toEqual([]);
     await pressText(view.container, V40_COPY.intro.startButton);
-    expect(visibleNumberProblems(view.container as HTMLElement)).toEqual([]);
+    const numbered = [...view.container.querySelectorAll<HTMLElement>("[data-question-number]")];
+    expect(numbered.map((node) => node.textContent?.trim())).toEqual(["질문 1 / 68", "질문 2 / 68"]);
+    const withoutQuestionNumbers = view.container.cloneNode(true) as HTMLElement;
+    for (const number of withoutQuestionNumbers.querySelectorAll("[data-question-number]")) number.remove();
+    expect(visibleNumberProblems(withoutQuestionNumbers)).toEqual([]);
   });
 });
 

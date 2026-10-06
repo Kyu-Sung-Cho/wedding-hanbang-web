@@ -5,6 +5,8 @@ import { memo, useCallback, useEffect, useMemo, useRef, useState, useSyncExterna
 
 import Button from "@/components/ui/Button";
 import { WEDDING_CODE_V40_VERSION } from "@/constants/weddingCodeV40";
+import { WEDDING_CODE_V41_VERSION } from "@/constants/weddingCodeV41";
+import { WEDDING_CODE_V42_VERSION } from "@/constants/weddingCodeV42";
 import { V40_ENTRY_COPY } from "@/lib/weddingCode/v40/entryCopy";
 import type { WeddingCodeV40ClientProps } from "@/lib/weddingCode/v40/types";
 
@@ -48,6 +50,14 @@ const LazyWeddingCodeV40Client = dynamic<WeddingCodeV40ClientProps>(() => import
  * 그래서 이 경계에 넘기는 props 는 하이드레이션 전후로 같아야 한다(`resolved` 를 hash 로 바꾸어 넘기지 않는 까닭이다).
  */
 const WeddingCodeV40Client = memo(LazyWeddingCodeV40Client);
+const LazyWeddingCodeV41Client = dynamic<WeddingCodeV40ClientProps>(() => import("./WeddingCodeV41Client"), {
+  loading: () => <div role="status" className="mx-auto flex min-h-[60vh] w-full max-w-[680px] items-center justify-center px-5 text-sm text-[var(--hb-text-body)]">{V40_ENTRY_COPY.loadingLabel}</div>,
+});
+const WeddingCodeV41Client = memo(LazyWeddingCodeV41Client);
+const LazyWeddingCodeV42Client = dynamic<WeddingCodeV40ClientProps>(() => import("./WeddingCodeV42Client"), {
+  loading: () => <div role="status" className="mx-auto flex min-h-[60vh] w-full max-w-[680px] items-center justify-center px-5 text-sm text-[var(--hb-text-body)]">{V40_ENTRY_COPY.loadingLabel}</div>,
+});
+const WeddingCodeV42Client = memo(LazyWeddingCodeV42Client);
 
 /**
  * 주소의 # 뒤를 읽는 저장소. useSyncExternalStore 의 바깥 저장소로 쓴다.
@@ -84,8 +94,9 @@ function createLocationHashStore() {
     getSnapshot(): string {
       const live = window.location.hash;
       if (live === "") return held ?? "";
-      const parsed = live.includes(WEDDING_CODE_V40_VERSION) ? parseWeddingCodeEntryHash(live) : null;
-      held = parsed?.kind === "v40" || (parsed?.kind === "error" && parsed.version !== undefined) ? live : null;
+      // 판 이름이 퍼센트 인코딩돼 있어도 파서가 같은 판으로 읽으면 주소를 지운 뒤 붙잡는다.
+      const parsed = parseWeddingCodeEntryHash(live);
+      held = parsed?.kind === "v40" || parsed?.kind === "v41" || parsed?.kind === "v42" || (parsed?.kind === "error" && parsed.version !== undefined) ? live : null;
       return live;
     },
     /** 붙잡고 있던 링크를 놓고 다시 읽게 한다(다시 시작). */
@@ -98,7 +109,8 @@ function createLocationHashStore() {
 
 const getServerHash = (): string | null => null;
 
-function ErrorEntry({ onRestart, embedded, v40 }: { onRestart: () => void; embedded: boolean; v40: boolean }) {
+function ErrorEntry({ onRestart, embedded, version }: { onRestart: () => void; embedded: boolean; version?: typeof WEDDING_CODE_V40_VERSION | typeof WEDDING_CODE_V41_VERSION | typeof WEDDING_CODE_V42_VERSION }) {
+  const v40 = version !== undefined;
   const Root = embedded ? "div" : "main";
   const broken = V40_ENTRY_COPY.brokenLink;
   const rootRef = useRef<HTMLElement | null>(null);
@@ -111,8 +123,8 @@ function ErrorEntry({ onRestart, embedded, v40 }: { onRestart: () => void; embed
     const { pathname, search, hash } = window.location;
     // a, b 에 이미 있는 배려를 서로 짐작하기의 ga, gb 까지 늘린다(깨진 링크의 짐작 글자도 주소창과 이력에 남기지 않는다).
     if (hash === "" && !/[?&](?:a|b|ga|gb)=/.test(search)) return;
-    window.history.replaceState(window.history.state, "", `${pathname}?v=${WEDDING_CODE_V40_VERSION}`);
-  }, [v40]);
+    window.history.replaceState(window.history.state, "", `${pathname}?v=${version}`);
+  }, [v40, version]);
   return (
     <Root className={`mx-auto flex w-full max-w-[680px] items-center px-5 py-12${embedded ? "" : " min-h-[60vh]"}`}>
       <section
@@ -212,9 +224,19 @@ export default function WeddingCodeEntryClient({
   const restartDefault = useCallback((message?: string) => restart(message, "default"), [restart]);
   const restartV31 = useCallback((message?: string) => restart(message, "v31"), [restart]);
   const restartV40 = useCallback((message?: string) => restart(message, "v40"), [restart]);
+  const restartV41 = useCallback((message?: string) => restart(message, "v41"), [restart]);
+  const restartV42 = useCallback((message?: string) => restart(message, "v42"), [restart]);
 
   if (entry.kind === "error") {
-    return <ErrorEntry onRestart={entry.version ? restartV40 : restartDefault} embedded={embedded} v40={Boolean(entry.version)} />;
+    return <ErrorEntry onRestart={entry.version === WEDDING_CODE_V42_VERSION ? restartV42 : entry.version === WEDDING_CODE_V41_VERSION ? restartV41 : entry.version ? restartV40 : restartDefault} embedded={embedded} version={entry.version} />;
+  }
+  if (entry.kind === "v42") {
+    const received = entry.initial.partner !== null || entry.initial.both !== null;
+    return <WeddingCodeV42Client key={`v42:${weddingCodeEntryKey(entry)}:${restartRevision}`} shareOrigin={shareOrigin} initial={entry.initial} resolved embedded={embedded} onRestart={restartV42} initialNotice={received ? "" : restartNotice} />;
+  }
+  if (entry.kind === "v41") {
+    const received = entry.initial.partner !== null || entry.initial.both !== null;
+    return <WeddingCodeV41Client key={`v41:${weddingCodeEntryKey(entry)}:${restartRevision}`} shareOrigin={shareOrigin} initial={entry.initial} resolved embedded={embedded} onRestart={restartV41} initialNotice={received ? "" : restartNotice} />;
   }
   if (entry.kind === "v40") {
     const received = entry.initial.partner !== null || entry.initial.both !== null;
@@ -235,7 +257,7 @@ export default function WeddingCodeEntryClient({
   if (entry.kind === "v31") {
     return (
       <>
-      {entry.older ? <OlderVersionNotice onStartNew={restartV40} /> : null}
+      {entry.older ? <OlderVersionNotice onStartNew={restartDefault} /> : null}
       {hash !== null && !entry.initial.partnerDraft && !entry.initial.bothDrafts ? <WeddingCodeComparisonResume /> : null}
       <WeddingCodeV31Client
         embedded={embedded}

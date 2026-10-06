@@ -68,9 +68,9 @@ describe("privacy notice for WeddingCode research contributions", () => {
     vi.stubEnv("WEDDING_CODE_RESEARCH_RECEIPT_SECRET", secret);
     vi.stubEnv("WEDDING_CODE_RESEARCH_CONTRIBUTION_ENABLED", "false");
     const text = render();
-    const localNotice = text.slice(text.indexOf("기본 웨딩코드(v3.1) 이어하기:"), text.indexOf("지워 주세요.") + "지워 주세요.".length);
+    const localNotice = text.slice(text.indexOf("이전 웨딩코드(v3.1) 이어하기:"), text.indexOf("지워 주세요.") + "지워 주세요.".length);
 
-    expect(text.indexOf("기본 웨딩코드(v3.1) 이어하기:")).toBeGreaterThan(text.indexOf("로그인 없이 이용하는 공개 웨딩코드:"));
+    expect(text.indexOf("이전 웨딩코드(v3.1) 이어하기:")).toBeGreaterThan(text.indexOf("로그인 없이 이용하는 공개 웨딩코드:"));
     expect(localNotice).toContain("본인 답과 현재 단계·수정 상태를 같은 브라우저에 보관합니다");
     expect(localNotice).toContain(`마지막으로 답이나 진행을 저장한 때부터 ${LOCAL_TTL_MS / (24 * 60 * 60 * 1000)}일`);
     expect(localNotice).toContain("읽거나 재방문만 해서는 기간이 늘어나지 않습니다");
@@ -115,7 +115,7 @@ describe("privacy notice for WeddingCode research contributions", () => {
 const DAY_MS = 24 * 60 * 60 * 1000;
 /** 문단이 「최근 세 번」처럼 쓰는 우리말 수 낱말. V40_STORAGE.historyMax 로 찾는다. */
 const COUNT_WORDS = ["영", "한", "두", "세", "네", "다섯"] as const;
-const V4_LABEL = "새 웨딩코드(v4.0-tendency) 이어하기·링크 보내기:";
+const V4_LABEL = "웨딩코드(v4.0-tendency·v4.1-depth·v4.2-depth) 이어하기·링크 보내기:";
 const V4_CLOSING = "지워 주세요.";
 
 function v4Paragraph(text: string): string {
@@ -152,7 +152,7 @@ describe("privacy notice for the WeddingCode v4.0-tendency paragraph", () => {
     expect(keepWord, "V40_STORAGE.historyMax 가 바뀌었다. 방침의 「최근 ○ 번」을 고칠 것").toBeTruthy();
 
     // v3.1 문단은 그대로 남고 v4 문단은 그 뒤에 온다.
-    const v31Start = text.indexOf("기본 웨딩코드(v3.1) 이어하기:");
+    const v31Start = text.indexOf("이전 웨딩코드(v3.1) 이어하기:");
     expect(v31Start).toBeGreaterThan(-1);
     expect(text.indexOf(V4_CLOSING, v31Start)).toBeLessThan(text.indexOf(V4_LABEL));
 
@@ -173,10 +173,12 @@ describe("privacy notice for the WeddingCode v4.0-tendency paragraph", () => {
 
     // 끄기·지우기·다시 하기: 방침이 부르는 버튼 이름은 화면 버튼과 같은 상수다.
     expect(notice).toContain(
-      `자동저장은 처음에는 켜져 있고(이전 판에서 꺼 두었다면 꺼진 채로 시작합니다), ‘${V40_COPY.autosave.turnOffButton}’를 누르면 저장된 답과 지난번 비교 기록, 이전 판(v3.1)의 저장된 답을 지우고 이후 저장을 멈추며 꺼짐 설정만 브라우저에 남깁니다`,
+      `자동저장은 처음에는 켜져 있고(이전 판에서 꺼 두었다면 꺼진 채로 시작합니다), ‘${V40_COPY.autosave.turnOffButton}’를 누르면 현재 문항판에 저장된 답과 지난번 비교 기록을 지우고 이후 저장을 멈추며 꺼짐 설정만 브라우저에 남깁니다`,
     );
     expect(notice).toContain(`‘${V40_COPY.manage.clear.button}’는 저장된 답과 지난번 비교 기록을 함께 지우고`);
     expect(notice).toContain(`‘${V40_COPY.manage.restart.button}’는 저장된 답을 지우되 지난번 비교 기록은 남깁니다`);
+    expect(notice).toContain("각 문항판의 답과 기록은 판별로 나누어 보관하며 서로 옮기거나 합쳐 비교하지 않습니다");
+    expect(notice).toContain("v4.0에서 끄면 이전 판(v3.1)의 저장된 답도 지우며, v4.1과 v4.2에서는 다른 문항판의 답·기록을 읽거나 지우지 않습니다");
     expect(notice).toContain("공용 기기에서는 같은 브라우저를 쓰는 사람이 답을 볼 수 있으므로 자동저장을 끄거나 저장된 답을 지워 주세요");
 
     // 방침이 지우거나 남긴다고 말한 것은 화면이 사용자에게 말하는 것과 같아야 한다.
@@ -198,10 +200,10 @@ describe("privacy notice for the WeddingCode v4.0-tendency paragraph", () => {
     // 방침이 「나」 표시라고 말하는 그 기능이 화면 문구에 실제로 있다(없으면 방침이 없는 기능을 설명한다).
     expect(V40_COPY.couple.perspective.autoNote, "이 브라우저에 저장된 내 답으로 「나」를 표시한다는 화면 문구가 바뀌었다").toMatch(/이 브라우저에 저장된 내 답[^.]*「나」/);
 
-    // 두 곳의 링크 보내기 단추는 같은 이름이고, 방침은 그 이름과 두 라디오 이름을 그대로 부른다.
-    expect(V40_COPY.coupleSend.sendButton).toBe(V40_COPY.send.sendButton);
+    // 개인과 두 사람 결과의 서로 다른 보내기 단추를 방침에서도 그대로 부른다.
+    expect(V40_COPY.coupleSend.sendButton).toBe("두 사람 결과 링크 보내기");
     expect(notice).toContain(
-      `‘${V40_COPY.send.sendButton}’로 만드는 링크에는 ‘${V40_COPY.send.withAnswersOption}’를 고른 경우 본인의 답 전체가, 두 사람 결과 화면에서는 두 사람의 답 전체가 링크 주소의 # 뒤에 담깁니다`,
+      `‘${V40_COPY.send.sendButton}’에서 ‘${V40_COPY.send.withAnswersOption}’를 고른 경우 본인의 답 전체가, ‘${V40_COPY.coupleSend.sendButton}’에서는 두 사람의 답 전체가 링크 주소의 # 뒤에 담깁니다`,
     );
     expect(notice).toContain(
       "링크는 이 브라우저 안에서 만들어지고 # 뒤의 내용은 서버 요청에 포함되지 않지만, 링크를 가진 사람은 누구나 답을 읽고 다시 전달할 수 있고 이미 보낸 링크는 되돌릴 수 없으며 답을 고쳐 새 링크를 만들어도 예전 링크는 남습니다",
@@ -282,7 +284,7 @@ describe("privacy notice for the WeddingCode v4.0-tendency paragraph", () => {
     expect(notice.indexOf("지워 주세요.")).toBe(notice.length - "지워 주세요.".length);
 
     // 기존 문장은 한 글자도 바뀌지 않았다(이 단계는 끼우기만 한다).
-    expect(notice).toContain("‘링크 보내기’로 만드는 링크에는");
+    expect(notice).toContain("‘링크 보내기’에서 ‘내 답과 함께 보내기’를 고른 경우");
     expect(notice).toContain("이용 통계는 위 ‘로그인 없이 이용하는 공개 웨딩코드’에 적은 항목만 기록하며 이 판에서 새 항목을 더하지 않고, 고른 답·글자·세기·링크 주소는 통계에 넣지 않습니다");
   });
 

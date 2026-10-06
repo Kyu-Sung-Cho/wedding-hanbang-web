@@ -83,7 +83,7 @@ interface Leaf {
   readonly label: boolean;
 }
 
-const LABEL_KEY = /(label|title|heading|button|name|tag|toggle|option|caption|list|badge|mark|column)s?$/i;
+const LABEL_KEY = /(label|title|heading|button|name|tag|toggle|option|caption|list|badge|mark|column|step)s?$/i;
 
 /** V40_COPY 안의 문자열 잎을 모두 모은다. 라벨 키 아래는 모두 라벨이다. */
 function copyLeaves(value: unknown, path = "", label = false, out: Leaf[] = []): Leaf[] {
@@ -281,8 +281,12 @@ describe("웨딩코드 4.0 화면 문구", () => {
       expect(text, path).not.toMatch(/뜻은 아니에요/u);
       // 안 맞아요는 「제 상황과 안 맞아요」 단추 이름에만 남는다.
       expect(text.replace(V40_ESCAPES.notApplicable, ""), path).not.toMatch(/안 ?맞/u);
-      // 자리는 문서 부록 E 에서 쓰지 않는 말이다(축, 측면, 글자 위치를 모두 가리켜 헷갈린다). 같은 위치 반복 안내도 「위치」로 쓴다.
-      expect(text, path).not.toMatch(/자리/u);
+      // 글자 위치를 뜻하는 ‘자리’는 쓰지 않는다. 반올림 안내의 소수 자릿수는 위치와 관계없는 산술 용어다.
+      if (path === "evidence.precisionNote") {
+        expect(text).toContain("소수점 둘째 자리까지");
+      } else {
+        expect(text, path).not.toMatch(/자리/u);
+      }
     }
   });
 
@@ -791,8 +795,8 @@ describe("문서의 최종 문구를 그대로 옮겼다", () => {
     expect(historyLead("9월 29일", false)).not.toMatch(/달라진 글자는 없|달라졌다고 볼 만한 글자는 없/u);
     expect(historyLead("", true)).toBe("지난번과 달라진 글자가 있어요.");
     expect(V40_COPY.history.changedTag).toBe("달라졌어요");
-    expect(V40_COPY.history.unstableTag).toBe("바뀌기 쉬운 주제예요");
-    expect(V40_COPY.history.unstableNote).toBe("반반이에요가 낀 주제는 바뀌기 쉬워요.");
+    expect(V40_COPY.history.unstableTag).toBe("지난번이나 이번이 반반이에요");
+    expect(V40_COPY.history.unstableNote).toBe("지난번이나 이번이 반반이면 글자 변화로 해석하지 않아요.");
     expect(historyCell("S", "lean", false)).toBe("S 장면 먼저 · 기울어요");
     expect(historyCell("A", "even", true)).toBe("A 할 일 먼저 · 반반이에요 · 임시");
     expect(historyCell(null, null, false)).toBe("정하지 못했어요");
@@ -804,15 +808,15 @@ describe("문서의 최종 문구를 그대로 옮겼다", () => {
     expect(V40_COPY.send.withAnswersOption).toBe("내 답과 함께 보내기");
     expect(V40_COPY.send.questionsOnlyOption).toBe("질문만 보내기");
     expect(V40_COPY.send.withAnswersHelp).toBe(
-      "상대가 답을 마치면 상대 화면에 두 사람 결과가 열려요. 나도 함께 보려면 상대가 두 사람 결과 링크를 나에게 다시 보내 줘야 해요.",
+      "상대가 이 링크에서 답하면 두 사람 결과가 열려요. 내 화면에는 자동으로 나타나지 않으니, 상대가 두 사람 결과 링크를 다시 보내 줘야 나도 볼 수 있어요.",
     );
-    expect(V40_COPY.send.questionsOnlyHelp).toBe("내 답은 들어 있지 않아요. 상대는 질문에 답하고 자기 결과만 보게 돼요.");
+    expect(V40_COPY.send.questionsOnlyHelp).toBe("내 답은 들어 있지 않아요. 상대는 혼자 답하고 자기 결과만 봐요. 두 사람 비교는 만들어지지 않아요.");
     expect(V40_COPY.send.consent).toBe("링크를 받은 사람은 누구나 내 답을 읽을 수 있다는 걸 알아요. 상대에게만 보낼게요.");
     expect(V40_COPY.send.messageWithAnswers).toBe(
-      "웨딩코드 해 봤어요. 링크 열어서 답해 줘요. 다 하면 두 사람 결과 링크를 나한테도 보내 줘요. 그래야 같이 볼 수 있어요.",
+      "웨딩코드에 먼저 답해 봤어요. 이 링크에서 답하면 우리 결과가 나란히 보여요. 다 마치면 ‘두 사람 결과 링크 보내기’를 눌러 저에게도 보내 주세요.",
     );
-    expect(V40_COPY.send.messageQuestionsOnly).toBe("웨딩코드 해 봤어요. 링크 열어서 답해 봐요. 다 하면 서로 코드를 이야기해 봐요.");
-    expect(V40_COPY.send.copied).toBe("링크를 복사했어요. 대화창에 붙여 넣어 주세요.");
+    expect(V40_COPY.send.messageQuestionsOnly).toBe("같은 웨딩코드 질문에 각자 답해 볼까요? 이 링크에는 제 답이 없어요. 다 마치면 서로 결과를 보여 줘요.");
+    expect(V40_COPY.send.copied).toBe("링크를 복사했어요. 상대와의 대화창에 붙여 넣어 주세요.");
     // 마우스로 선택해 복사하는 화면에서도 맞는 말이다(「길게 눌러」는 휴대폰에서만 맞는다).
     expect(V40_COPY.send.manualCopy).toBe("아래 주소를 선택해서 복사해 주세요");
     expect(V40_COPY.send.manualCopy).not.toContain("길게 눌러");
@@ -835,11 +839,11 @@ describe("문서의 최종 문구를 그대로 옮겼다", () => {
       expect(message, message).not.toContain(V40_NOT_VALIDATED_PHRASE);
     }
     // 보내는 사람이 두 사람 결과를 보려면 상대가 결과 링크를 돌려보내야 한다는 사실이 세 곳에 모두 있다.
-    expect(V40_COPY.send.withAnswersHelp).toContain("상대가 두 사람 결과 링크를 나에게 다시 보내 줘야");
-    expect(V40_COPY.send.messageWithAnswers).toContain("두 사람 결과 링크를 나한테도 보내 줘요");
+    expect(V40_COPY.send.withAnswersHelp).toContain("두 사람 결과 링크를 다시 보내 줘야");
+    expect(V40_COPY.send.messageWithAnswers).toContain("‘두 사람 결과 링크 보내기’를 눌러 저에게도 보내 주세요");
     expect(V40_COPY.intro.title.length).toBeGreaterThan(0);
     expect(introBullets("on")[3]).toContain("두 사람 결과 링크를 다시 보내 주면");
-    expect(V40_COPY.coupleSend.help).toContain("이 링크를 보내야 상대도 두 사람 결과를 볼 수 있어요");
+    expect(V40_COPY.coupleSend.help).toContain("이 링크를 보내면 두 사람의 답을 나란히 볼 수 있어요");
   });
 
   it("링크를 보내는 말에는 가리키는 것이 불분명한 말과 어색한 말이 없다", () => {
@@ -942,9 +946,9 @@ describe("문서의 최종 문구를 그대로 옮겼다", () => {
     expect(V40_COPY.couple.startOwnNote).toBe("누르면 이 결과 화면은 닫혀요. 다시 보려면 받은 링크를 다시 열어 주세요.");
     expect(V40_COPY.couple.bothTopic).toBe("둘 다");
     expect(V40_COPY.couple.viewpointNote).toBe("질문에 나오는 「상대」는 각자 자기 곁의 사람이에요.");
-    expect(V40_COPY.coupleSend.title).toBe("이 결과를 상대에게도 보내기");
+    expect(V40_COPY.coupleSend.title).toBe("상대에게 두 사람 결과 보내기");
     // 두 사람의 답이 링크에 든다는 말은 바로 아래 체크 문장이 하므로 도움말은 되풀이하지 않는다.
-    expect(V40_COPY.coupleSend.help).toBe("이 링크를 보내야 상대도 두 사람 결과를 볼 수 있어요.");
+    expect(V40_COPY.coupleSend.help).toBe("상대에게는 결과가 자동으로 뜨지 않아요. 이 링크를 보내면 두 사람의 답을 나란히 볼 수 있어요.");
     expect(V40_COPY.coupleSend.help).not.toContain("들어 있어요");
     expect(V40_COPY.coupleSend.disabledReason).toBe("위 칸 두 개에 모두 체크하면 보낼 수 있어요.");
     expect(V40_COPY.coupleSend.message).toBe("우리 둘의 웨딩코드 결과예요. 링크를 열면 나란히 볼 수 있어요.");

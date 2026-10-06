@@ -4,6 +4,7 @@ import { ArrowLeft, ArrowRight } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import Button from "@/components/ui/Button";
 import { guideKeyOf, type GuideKey } from "@/constants/weddingCodeV40";
+import { V40_LAYOUT } from "@/lib/weddingCode/v40/layout";
 import { V40_COPY, formatGuideRepeatsStem } from "@/lib/weddingCode/v40/copy";
 import type {
   FlowNotice,
@@ -32,7 +33,7 @@ import { useScreenFocus } from "./useScreenFocus";
  *
  * - 답을 골라도 자동으로 넘어가지 않는다. 다음 단추로만 넘어간다. 다음 단추는 꺼져 있지 않다(덜 채웠으면 누를 때 안내한다).
  * - 형식 안내 한 줄은 쪽 데이터(page.guides)가 말하는 형식에만 그 형식의 첫 문항에 한 번 붙는다. 정하는 사람 주제의 첫 문항 위에는 어른 안내가 한 번 붙는다.
- * - 화면에는 질문 번호, 화면 번호, n/N, 선택지 번호, A/B 라벨이 없다. 진행은 막대 하나가 말한다.
+ * - 문항마다 전체 흐름에서의 질문 번호를 보여 준다. 선택지 번호와 A/B 라벨은 쓰지 않는다.
  * - 데이터와 콜백을 props 로 받을 뿐 저장소, 통계, 주소를 만지지 않는다. 문구는 모두 copy.ts 에서 온다.
  *
  * 덜 채운 문항 안내(FlowNotice incomplete): 각 입력이 자기 안내를 aria-live 영역에 그린다. 안내 글이 같으면 낭독기가 다시 읽지 않으므로,
@@ -94,6 +95,8 @@ function isScopeItemId(id: ItemId): boolean {
 function idPrefixOf(id: ItemId): string {
   return `q-${id.replace(/\./g, "-")}`;
 }
+
+const questionNumbers = new Map(V40_LAYOUT.map((slot, index) => [slot.id, index + 1]));
 
 /**
  * 덜 채운 문항에서 처음 초점을 받을 요소. 라디오(탭 자리가 있는 칸)를 먼저, 그다음 눌러 쓸 수 있는 단추를 찾는다.
@@ -235,7 +238,7 @@ export function QuestionScreen({
       {/* 눈에는 보이지 않는 쪽 제목. 질문 화면에는 제목이 없어서 낭독기와 제목 이동으로는 어느 쪽인지 알 수 없었다.
           라운지 안(embedded)에서는 바깥 화면이 h1 을 가지므로 h2 다. */}
       <PageHeading className={srOnly}>{V40_COPY.intro.brandLabel}</PageHeading>
-      <ProgressBar segments={segments} className="mb-6" />
+      <ProgressBar segments={segments} className="mb-8" />
 
       {/* 저장이 안 된다는 안내와 창끼리 어긋났다는 안내는 답이 사라질 수 있는 일이라 문항 위에 둔다(아래 끝에 두면 문항이 둘인 화면에서
           화면 밖이라 답하는 동안 보이지 않는다). 알림 영역은 저장 상태가 바뀌기 전에도 늘 문서에 두고 그 안의 글만 바꿔야 낭독기가 바뀐 글을 읽는다.
@@ -246,7 +249,7 @@ export function QuestionScreen({
       {saveState === "conflict" ? <StorageNotice problem="conflict" onLoadSaved={onLoadSaved} onKeepThis={onKeepThis} className="mb-5" /> : null}
 
       {editMode === "axis" ? (
-        <div data-edit-mode="axis" className="mb-5 space-y-2">
+        <div data-edit-mode="axis" className="mb-7 space-y-3 border-l-2 border-[var(--hb-selected-line)] pl-4">
           <p className={bodyText}>{V40_COPY.edit.axisLead}</p>
           {onLeaveEdit ? (
             <Button variant="secondary" size="md" onClick={onLeaveEdit}>
@@ -256,7 +259,7 @@ export function QuestionScreen({
         </div>
       ) : null}
       {editMode === "skipped" ? (
-        <div data-edit-mode="skipped" className="mb-5 space-y-2">
+        <div data-edit-mode="skipped" className="mb-7 space-y-3 border-l-2 border-[var(--hb-selected-line)] pl-4">
           <h2 className="text-base font-semibold leading-snug text-[var(--hb-text-strong)]">{V40_COPY.edit.skippedReviewTitle}</h2>
           <p className={bodyText}>{V40_COPY.edit.skippedReviewLead}</p>
           {onLeaveEdit ? (
@@ -267,7 +270,7 @@ export function QuestionScreen({
         </div>
       ) : null}
       {receivedNote ? (
-        <p data-received-note="" className={cx(noteText, "mb-5")}>
+        <p data-received-note="" className={cx(noteText, "mb-7 border-l-2 border-[var(--hb-hairline)] pl-4")}>
           {V40_COPY.question.receivedNote}
         </p>
       ) : null}
@@ -286,14 +289,14 @@ export function QuestionScreen({
               }}
               tabIndex={-1}
               data-item={id}
-              className={cx("outline-none", scrollMargin, index > 0 && "mt-8 border-t border-[var(--hb-hairline)] pt-8")}
+              className={cx("outline-none", scrollMargin, index > 0 && "mt-12 border-t border-[var(--hb-hairline)] pt-10")}
             >
               {elderId === id ? (
                 <p data-elder-hint="" className={cx(noteText, "mb-2")}>
                   {V40_COPY.question.elderHint}
                 </p>
               ) : null}
-              <ItemFrame view={view} value={value} onAnswer={(answer) => onAnswer(id, answer)} idPrefix={idPrefix} hint={hint}>
+              <ItemFrame view={view} questionNumber={questionNumbers.get(id)} totalQuestions={V40_LAYOUT.length} value={value} onAnswer={(answer) => onAnswer(id, answer)} idPrefix={idPrefix} hint={hint}>
                 {renderInput(view, value, idPrefix, incomplete, (answer) => onAnswer(id, answer))}
               </ItemFrame>
             </div>
@@ -319,12 +322,12 @@ export function QuestionScreen({
       <ActionBar embedded={embedded}>
         <div className="flex gap-3">
           {canGoBack ? (
-            <Button variant="secondary" size="lg" onClick={onBack} data-nav="previous">
+            <Button variant="secondary" size="lg" onClick={onBack} data-nav="previous" className="min-h-14!">
               <ArrowLeft aria-hidden="true" className="size-4 shrink-0" />
               {V40_COPY.question.previousButton}
             </Button>
           ) : null}
-          <Button variant="primary" size="lg" onClick={handleNext} data-nav="next" className="flex-1">
+          <Button variant="primary" size="lg" onClick={handleNext} data-nav="next" className="min-h-14! flex-1">
             {nextIsResult ? V40_COPY.question.resultButton : V40_COPY.question.nextButton}
             <ArrowRight aria-hidden="true" className="size-4 shrink-0" />
           </Button>

@@ -88,14 +88,14 @@ describe("웨딩코드 공유 카드 이미지", () => {
     const { text } = await drawCard();
     expect(text).toContain("둘 다 답하고 서로 공유하면 두 사람의 답을 나란히 볼 수 있어요");
     expect(text).not.toContain("상대도 답하면");
-    const page = await WeddingCodePage({ searchParams: Promise.resolve({}) });
+    const page = await WeddingCodePage({ searchParams: Promise.resolve({ v: WEDDING_CODE_V31_VERSION }) });
     expect(renderToStaticMarkup(page)).toContain("둘 다 답하고 서로 공유하면 두 사람의 답을 나란히 볼 수 있어요");
   }, 60_000);
 
   it("카드가 약속하는 「로그인 없이」는 시작 화면도 그대로 말한다", async () => {
     const { text } = await drawCard();
     expect(text).toContain("로그인 없이");
-    const page = await WeddingCodePage({ searchParams: Promise.resolve({}) });
+    const page = await WeddingCodePage({ searchParams: Promise.resolve({ v: WEDDING_CODE_V31_VERSION }) });
     const html = renderToStaticMarkup(page);
     expect(html).toContain("로그인 없이 시작");
   }, 60_000);
@@ -108,7 +108,7 @@ describe("웨딩코드 공유 카드 이미지", () => {
    */
   it("입구는 이 파일을 카드 이미지로 쓰고(v4 입구만 빼고), 함께 보기 초대 링크는 같은 주소를 가리킨다", async () => {
     // v1.2-code 는 장면 판의 이름이다(`generateMetadata` 의 마지막 갈래).
-    const others = [{}, { v: "3.1" }, { a: "AACB" }, { v: WEDDING_CODE_V31_VERSION }, { v: WEDDING_CODE_V30_VERSION }, { v: WEDDING_CODE_V20_VERSION }, { v: "v1.2-code" }];
+    const others = [{ v: "3.1" }, { a: "AACB" }, { v: WEDDING_CODE_V31_VERSION }, { v: WEDDING_CODE_V30_VERSION }, { v: WEDDING_CODE_V20_VERSION }, { v: "v1.2-code" }];
     for (const search of others) {
       const metadata = await generateMetadata({ searchParams: Promise.resolve(search) });
       expect(metadata.openGraph, JSON.stringify(search)).toBeDefined();

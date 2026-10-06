@@ -2,9 +2,10 @@
 
 import { useEffect, useId, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { ChevronDown, RotateCcw, Trash2 } from "lucide-react";
 import Button from "@/components/ui/Button";
 import { V40_COPY } from "@/lib/weddingCode/v40/copy";
-import { buttonFocusFix, cx, noteText } from "./styles";
+import { buttonFocusFix, cx, focusRing, noteText } from "./styles";
 import { bodyLine, sectionTitle } from "./resultStyles";
 
 export interface ConfirmDialogProps {
@@ -85,7 +86,7 @@ export function ConfirmDialog({ title, body, confirmLabel, cancelLabel, onConfir
         aria-modal="true"
         aria-labelledby={titleId}
         aria-describedby={bodyId}
-        className="w-full max-w-sm rounded-xl border border-paper-outline bg-[var(--hb-surface-raised)] p-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] shadow-[var(--shadow-raised)]"
+        className="max-h-[calc(100dvh-2rem)] w-full max-w-md overflow-y-auto rounded-2xl border border-paper-outline bg-[var(--hb-surface-raised)] p-6 pb-[max(1.5rem,env(safe-area-inset-bottom))] shadow-[var(--shadow-overlay)]"
       >
         <h2 id={titleId} className={sectionTitle}>
           {title}
@@ -173,30 +174,38 @@ export function RestartBlock({ onRestart, onClearStorage }: RestartBlockProps) {
 
   return (
     <section data-result-section="manage" className="border-t border-[var(--hb-hairline)] pt-6">
-      <div className="flex flex-col gap-2 sm:flex-row">
-        <Button
-          ref={restartButton}
-          variant="secondary"
-          aria-haspopup="dialog"
-          onClick={() => setDialog("restart")}
-          className={buttonFocusFix}
-        >
-          {V40_COPY.manage.restart.button}
-        </Button>
-        <Button
-          ref={clearButton}
-          variant="ghost"
-          aria-haspopup="dialog"
-          loading={clearState === "pending"}
-          onClick={() => {
-            setClearState("idle");
-            setDialog("clear");
-          }}
-          className={buttonFocusFix}
-        >
-          {V40_COPY.manage.clear.button}
-        </Button>
-      </div>
+      <details className="group">
+        <summary className={cx("flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 rounded-lg text-sm font-semibold text-[var(--hb-text-body)] [&::-webkit-details-marker]:hidden", focusRing)}>
+          다시 하기와 저장 관리
+          <ChevronDown aria-hidden="true" className="size-4 shrink-0 transition-transform motion-reduce:transition-none group-open:rotate-180" />
+        </summary>
+        <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+          <Button
+            ref={restartButton}
+            variant="secondary"
+            aria-haspopup="dialog"
+            onClick={() => setDialog("restart")}
+            className={buttonFocusFix}
+          >
+            <RotateCcw aria-hidden="true" className="size-4 shrink-0" />
+            {V40_COPY.manage.restart.button}
+          </Button>
+          <Button
+            ref={clearButton}
+            variant="ghost"
+            aria-haspopup="dialog"
+            loading={clearState === "pending"}
+            onClick={() => {
+              setClearState("idle");
+              setDialog("clear");
+            }}
+            className={buttonFocusFix}
+          >
+            <Trash2 aria-hidden="true" className="size-4 shrink-0" />
+            {V40_COPY.manage.clear.button}
+          </Button>
+        </div>
+      </details>
       <p role="status" aria-live="polite" aria-atomic="true" data-clear-status={clearState} className={cx(noteText, clearMessage !== "" && "mt-3")}>
         {clearMessage}
       </p>

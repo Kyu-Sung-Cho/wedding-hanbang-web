@@ -20,15 +20,15 @@ export function SelfContrast({ axes, idPrefix = "wc40-contrast" }: SelfContrastP
   if (items.length === 0) return null;
   const titleId = `${idPrefix}-title`;
   return (
-    <section data-result-section="contrast" aria-labelledby={titleId}>
+    <section data-result-section="contrast" aria-labelledby={titleId} className={panel}>
       <h2 id={titleId} className={sectionTitle}>
         {V40_COPY.block.selfChoiceHeading}
       </h2>
-      <ul className="mt-2 space-y-3">
+      <ul className="mt-2 divide-y divide-[var(--hb-hairline)]">
         {items.map((contrast) => (
-          <li key={contrast.axis} data-contrast-axis={contrast.axis} className={cx(panel, "space-y-1")}>
+          <li key={contrast.axis} data-contrast-axis={contrast.axis} className="space-y-2 py-4 first:pt-2 last:pb-0">
             <p className={subTitle}>{axisInfo(contrast.axis).title}</p>
-            <p className={bodyLine}>{selfContrastSentence(contrast)}</p>
+            <p className={cx(bodyLine, "break-keep")}>{selfContrastSentence(contrast)}</p>
           </li>
         ))}
       </ul>

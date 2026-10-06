@@ -8,6 +8,7 @@ import { WEDDING_CODE_V12_VERSION } from "@/constants/weddingCodeV12";
 import { WEDDING_CODE_V30_VERSION } from "@/constants/weddingCodeV30";
 import { WEDDING_CODE_V31_VERSION } from "@/constants/weddingCodeV31";
 import { V40_NA_CHAR, V40_SKIP_CHAR, V40_STATE_ALPHABET, WEDDING_CODE_V40_VERSION } from "@/constants/weddingCodeV40";
+import { WEDDING_CODE_V42_VERSION } from "@/constants/weddingCodeV42";
 import { createV31Draft, encodeV31 } from "@/lib/weddingCode/v31";
 import { WEDDING_CODE_V40_BANK } from "@/lib/weddingCode/v40/bank";
 import { checksumChar, decodeCode, encodeCode } from "@/lib/weddingCode/v40/codec";
@@ -17,7 +18,7 @@ import { V40_ENTRY_COPY } from "@/lib/weddingCode/v40/entryCopy";
 import { V40_FIXTURES, fixtureByName } from "@/lib/weddingCode/v40/fixtures";
 import {
   EMPTY_V40_ENTRY,
-  EMPTY_WEDDING_CODE_ENTRY,
+  EMPTY_V42_ENTRY,
   OLDER_V31_ENTRY,
   WEDDING_CODE_DEFAULT_VERSION,
   defaultWeddingCodeEntry,
@@ -49,20 +50,19 @@ const pairHash = `${soloHash}&b=${B}`;
 const V40_BROKEN = { kind: "error", version: V40 } as const;
 const GENERIC_ERROR = { kind: "error" } as const;
 
-describe("웨딩코드 4.0 진입: 기본 판과 어둡게 출시", () => {
-  it("기본 진입은 v3.1 이고, 상수 하나가 그것을 정한다", () => {
-    expect(WEDDING_CODE_DEFAULT_VERSION).toBe(V31);
+describe("웨딩코드 4.0 진입: 정확 버전 보존", () => {
+  it("기본 진입은 v4.2 이고, 명시된 v4.0 입구는 남는다", () => {
+    expect(WEDDING_CODE_DEFAULT_VERSION).toBe(WEDDING_CODE_V42_VERSION);
     expect(weddingCodeDefaultsToV40()).toBe(false);
     expect(weddingCodeDefaultsToV40(V40)).toBe(true);
-    expect(defaultWeddingCodeEntry()).toBe(EMPTY_WEDDING_CODE_ENTRY);
+    expect(defaultWeddingCodeEntry()).toBe(EMPTY_V42_ENTRY);
     expect(defaultWeddingCodeEntry(V40)).toBe(EMPTY_V40_ENTRY);
   });
 
-  it("v 없는 맨 주소는 v3.1, v4 는 명시 진입으로만 열린다", () => {
-    expect(parseWeddingCodeEntryQuery({}).kind).toBe("v31");
-    expect(parseWeddingCodeEntryQuery({ utm_source: "landing" }).kind).toBe("v31");
-    expect(parseWeddingCodeEntryQuery({ v: V31 })).toEqual(EMPTY_WEDDING_CODE_ENTRY);
-    expect(parseWeddingCodeEntryQuery({ v: V31 })).not.toHaveProperty("older");
+  it("v 없는 맨 주소는 v4.2, v4.0과 v3.1은 명시 진입으로 남는다", () => {
+    expect(parseWeddingCodeEntryQuery({}).kind).toBe("v42");
+    expect(parseWeddingCodeEntryQuery({ utm_source: "landing" }).kind).toBe("v42");
+    expect(parseWeddingCodeEntryQuery({ v: V31 })).toEqual(OLDER_V31_ENTRY);
     expect(parseWeddingCodeEntryQuery({ v: V40 })).toEqual({ kind: "v40", initial: { partner: null, both: null } });
   });
 });
@@ -243,12 +243,12 @@ describe("웨딩코드 4.0 진입: 기본 진입을 v4 로 바꿨을 때(상수 
 });
 
 describe("웨딩코드 4.0 진입: 다시 시작의 도착 판", () => {
-  it("도착 판마다 입구와 주소의 쿼리가 정해져 있다(기본 판이 v3.1 인 동안)", () => {
-    expect(weddingCodeRestartEntry("default")).toBe(EMPTY_WEDDING_CODE_ENTRY);
-    expect(weddingCodeRestartEntry("v31")).toBe(EMPTY_WEDDING_CODE_ENTRY);
+  it("도착 판마다 입구와 주소의 쿼리가 정해져 있다(기본 판이 v4.2 인 동안)", () => {
+    expect(weddingCodeRestartEntry("default")).toBe(EMPTY_V42_ENTRY);
+    expect(weddingCodeRestartEntry("v31")).toBe(OLDER_V31_ENTRY);
     expect(weddingCodeRestartEntry("v40")).toBe(EMPTY_V40_ENTRY);
     expect(weddingCodeRestartSearch("default")).toBe("");
-    expect(weddingCodeRestartSearch("v31")).toBe("");
+    expect(weddingCodeRestartSearch("v31")).toBe(`?v=${V31}`);
     expect(weddingCodeRestartSearch("v40")).toBe(`?v=${V40}`);
   });
 
@@ -283,7 +283,7 @@ describe("웨딩코드 4.0 진입: v4 문구와 화면이 v3.1 길로 들어오�
     expect(imports.sort()).toEqual([
       "@/constants/weddingCodeV40",
       "@/lib/weddingCode/v40/codec",
-      // 4.1 단계 2: 서로 짐작하기의 링크 코덱 하나(상수, states, codec, 타입만 가져오는 파일. 문구와 세트 자료와 화면은 가져오지 않는다: entry.guess.test.ts 가 이어서 확인한다).
+      // 4.2 단계 2: 서로 짐작하기의 링크 코덱 하나(상수, states, codec, 타입만 가져오는 파일. 문구와 세트 자료와 화면은 가져오지 않는다: entry.guess.test.ts 가 이어서 확인한다).
       "@/lib/weddingCode/v40/guess/guessLink",
       "@/lib/weddingCode/v40/layout",
       "@/lib/weddingCode/v40/types",

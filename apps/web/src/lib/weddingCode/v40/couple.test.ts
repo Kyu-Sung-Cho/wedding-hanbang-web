@@ -144,6 +144,9 @@ function referenceLists(first: DecodedCode, second: DecodedCode, options: { read
       axis: target.axis,
       facet: target.facet,
       caption: target.caption,
+      prompt: target.fmt === "react"
+        ? [target.stem, ...(target.quote ? [`${target.quote.speaker} · 「${target.quote.text}」`] : []), target.question]
+        : [target.stem],
       firstValue: a,
       secondValue: b,
       gap: Math.abs(a - b),
@@ -173,6 +176,19 @@ function referenceLists(first: DecodedCode, second: DecodedCode, options: { read
 // ---------------------------------------------------------------------------
 
 describe("compareCouple: 주제 태그", () => {
+  it("비교 질문의 상황과 인용과 물음을 은행 원문으로 남긴다", () => {
+    const first = person(respondSettled({ "process.search.1": 6, "money.limit.1": 6 }));
+    const second = person(respondSettled({ "process.search.1": -6, "money.limit.1": -6 }));
+    const result = compareCouple(bank, first, second);
+    const reactive = result.talk.find((pair) => pair.itemId === "process.search.1");
+    const pairing = result.talk.find((pair) => pair.itemId === "money.limit.1");
+    const reactItem = bank.byId.get("process.search.1");
+    const pairItem = bank.byId.get("money.limit.1");
+    if (!reactItem || reactItem.fmt !== "react" || !reactItem.quote || !pairItem) throw new Error("원문 질문이 필요해요");
+    expect(reactive?.prompt).toEqual([reactItem.stem, `${reactItem.quote.speaker} · 「${reactItem.quote.text}」`, reactItem.question]);
+    expect(pairing?.prompt).toEqual([pairItem.stem]);
+  });
+
   it("swua-example 와 couple-partner: 돈과 정하는 사람은 다른 글자, 준비는 같은 글자, 지친 날은 둘 다 반반이라 같다도 다르다도 말하지 않는다", () => {
     const result = compareCouple(bank, fixture("swua-example"), fixture("couple-partner"));
     expect(result.axes.map((row) => [row.axis, row.first.letter, row.second.letter, row.tag, row.excluded])).toEqual([
@@ -217,7 +233,7 @@ describe("compareCouple: 주제 태그", () => {
     const unusable = compareCouple(bank, fixture("swua-example"), fixture("unusable-axis"));
     const scope = unusable.axes[2];
     expect(scope).toMatchObject({ axis: "scope", excluded: true, tag: "even" });
-    expect(scope.second).toEqual({ letter: null, shownBand: null, provisional: false });
+    expect(scope.second).toMatchObject({ letter: null, shownBand: null, provisional: false, answered: 10, frontCount: 8, backCount: 2, neutralCount: 0 });
     expect(scope.first.letter).toBe("U");
     const provisional = compareCouple(bank, fixture("provisional-tie"), fixture("swua-example"));
     const support = provisional.axes[3];
@@ -400,10 +416,10 @@ describe("compareCouple: 문항 단위 비교의 기준값", () => {
     expect(Object.keys(result).sort()).toEqual(["axes", "similar", "talk"]);
     for (const row of result.axes) {
       expect(Object.keys(row).sort()).toEqual(["axis", "excluded", "first", "second", "tag"]);
-      expect(Object.keys(row.first).sort()).toEqual(["letter", "provisional", "shownBand"]);
+      expect(Object.keys(row.first).sort()).toEqual(["answered", "backCount", "facets", "frontCount", "letter", "neutralCount", "provisional", "shownBand"]);
     }
     for (const pair of [...result.talk, ...result.similar]) {
-      expect(Object.keys(pair).sort()).toEqual(["axis", "caption", "facet", "firstText", "firstValue", "gap", "itemId", "secondText", "secondValue"]);
+      expect(Object.keys(pair).sort()).toEqual(["axis", "caption", "facet", "firstText", "firstValue", "gap", "itemId", "prompt", "secondText", "secondValue"]);
     }
     expect(JSON.stringify(result)).not.toMatch(/total|score|match|sum/iu);
   });

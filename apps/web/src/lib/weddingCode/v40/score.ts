@@ -52,9 +52,12 @@ function signSide(value: number): Side | null {
 /** 한 주제의 집계(설계 5절 축 점수, 글자, 동점, 세기). 채점 문항 16개를 질문 순서로 본다. */
 function scoreAxis(bank: Bank, responses: Responses, axis: Axis): AxisScore {
   const info = axisInfo(axis);
-  const tallies = info.facets.map((facet) => ({ facet, answered: 0, sum: 0, counted: false }));
+  const tallies = info.facets.map((facet) => ({ facet, answered: 0, frontCount: 0, backCount: 0, neutralCount: 0, sum: 0, counted: false }));
   const facetSlot = new Map(info.facets.map((facet, index) => [facet, index]));
   let answered = 0;
+  let frontCount = 0;
+  let backCount = 0;
+  let neutralCount = 0;
   let skipped = 0;
   let notApplicable = 0;
   let sum = 0;
@@ -67,10 +70,16 @@ function scoreAxis(bank: Bank, responses: Responses, axis: Axis): AxisScore {
     const value = itemValue(item, raw);
     if (value === null) continue;
     answered += 1;
+    if (value > 0) frontCount += 1;
+    else if (value < 0) backCount += 1;
+    else neutralCount += 1;
     sum += value;
     const slot = facetSlot.get(item.facet);
     if (slot !== undefined) {
       tallies[slot].answered += 1;
+      if (value > 0) tallies[slot].frontCount += 1;
+      else if (value < 0) tallies[slot].backCount += 1;
+      else tallies[slot].neutralCount += 1;
       tallies[slot].sum += value;
     }
     if (item.fmt === "recall" || item.fmt === "instant") chooseSum += value;
@@ -81,7 +90,7 @@ function scoreAxis(bank: Bank, responses: Responses, axis: Axis): AxisScore {
   const counted = facets.filter((tally) => tally.counted);
   const countedFacets = counted.length;
   const unusable = countedFacets < V40_COUNTS.minCountedFacets || answered < V40_COUNTS.minValidAnswers;
-  const base = { axis, answered, skipped, notApplicable, facets, countedFacets, sum, unusable };
+  const base = { axis, answered, frontCount, backCount, neutralCount, skipped, notApplicable, facets, countedFacets, sum, unusable };
   if (unusable) {
     return { ...base, weighted: null, s: null, side: null, letter: null, tieLevel: null, provisional: false, band: null };
   }

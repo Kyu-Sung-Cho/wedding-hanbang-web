@@ -45,9 +45,9 @@ export function ProgressBar({ segments, announcement, className }: ProgressBarPr
       aria-valuenow={doneAll}
       aria-valuetext={valueText}
       data-progress=""
-      className={className}
+      className={cx("border-b border-[var(--hb-hairline)] pb-5", className)}
     >
-      <div className="flex items-center gap-1">
+      <div className="flex items-center gap-1.5">
         {segments.map((segment) => (
           <div
             key={segment.index}
@@ -55,7 +55,7 @@ export function ProgressBar({ segments, announcement, className }: ProgressBarPr
             data-current={segment.current ? "" : undefined}
             style={segmentStyle(segment.total)}
             className={cx(
-              "min-w-3 overflow-hidden rounded-full border border-paper-outline bg-[var(--hb-hairline)]",
+              "min-w-3 overflow-hidden rounded-full border border-paper-outline bg-[var(--hb-surface-raised)]",
               segment.current ? "h-2" : "h-1.5",
             )}
           >
@@ -68,7 +68,7 @@ export function ProgressBar({ segments, announcement, className }: ProgressBarPr
         ))}
       </div>
       {/* 이름 줄. 마지막 칸(마지막 정리)은 너비가 16px 남짓이라 이름이 칸 밖으로 넘친다. 칸 안에 넣지 않고 줄 오른쪽 끝에 한 번만 붙인다(가로 스크롤 방지). */}
-      <div className="relative mt-1.5 flex min-h-4 gap-1 text-xs font-medium leading-4 text-[var(--hb-text-strong)]">
+      <div className="relative mt-2.5 flex min-h-4 gap-1.5 text-[13px] font-semibold leading-4 text-[var(--hb-text-strong)]">
         {segments.map((segment) => (
           <div key={segment.index} style={segmentStyle(segment.total)} className="min-w-3">
             {segment.current && segment.index !== segments.length - 1 ? (

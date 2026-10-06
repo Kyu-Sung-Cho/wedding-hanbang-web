@@ -134,8 +134,8 @@ export function SplitInput({ view, value, onAnswer, idPrefix, incomplete = false
           const cannotAdd = remaining <= 0;
           const blockedHere = activeBlock !== null && activeBlock.index === index ? activeBlock : null;
           return (
-            <li key={index} className={cx(card, "px-4 py-3", count > 0 && cardSelected)}>
-              <p className="break-keep text-sm leading-relaxed text-[var(--hb-text-strong)]">{entry.text}</p>
+            <li key={index} className={cx(card, "px-5 py-5", count > 0 && cardSelected)}>
+              <p className="break-keep text-[16px] leading-[1.7] text-[var(--hb-text-strong)]">{entry.text}</p>
               {/* 좁은 화면에서 칸 표시와 단추가 한 줄에 안 들어가면 칸 표시가 위로 접힌다. */}
               <div className="mt-3 flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
                 {/* 놓은 칸을 눈으로 보는 줄. 뜻은 옆의 글자(몇 칸)가 전하므로 낭독에서는 뺀다. */}

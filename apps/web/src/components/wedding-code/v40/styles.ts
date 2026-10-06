@@ -52,7 +52,7 @@ export const cardSelected =
   "border-[var(--hb-selected-line)]! bg-[var(--hb-selected-bg)]! shadow-[inset_0_0_0_1px_var(--hb-selected-line)]";
 
 /** 카드 한 장 전체가 라디오인 줄(고르기, 가장·가장 아닌 것의 카드). 앞의 표식과 글을 가로로 놓는다. card 와 함께 쓴다. */
-export const radioRow = `flex w-full min-h-12 items-start gap-3 px-4 py-3 text-left text-sm leading-relaxed text-[var(--hb-text-strong)] ${focusRing}`;
+export const radioRow = `flex w-full min-h-14 items-start gap-3 px-4 py-4 text-left text-[15px] leading-relaxed text-[var(--hb-text-strong)] motion-safe:transition-colors ${focusRing}`;
 
 /** 라디오 줄 앞의 동그란 표식(고르지 않은 모양). 안쪽에 표식 아이콘을 넣는 자리다. */
 export const radioMark =
@@ -67,9 +67,9 @@ export const radioMarkSelected = "border-[var(--hb-action)]! bg-[var(--hb-action
 /** 문항 제목(작은 캡션). 번호와 주제 이름은 없다. */
 export const captionText = "text-xs font-medium text-[var(--hb-text-muted)]";
 /** 앞말(문항의 상황이나 물음). 줄바꿈은 줄 길이를 고르게 맞춘다(마지막 줄에 낱말 하나만 남는 것을 막는다). 지원하지 않는 브라우저에서는 그냥 쓰인다. */
-export const stemText = "text-[15px] font-semibold leading-relaxed text-balance text-[var(--hb-text-strong)]";
+export const stemText = "text-lg font-semibold leading-relaxed tracking-tight text-balance text-[var(--hb-text-strong)] sm:text-xl";
 /** 카드와 보기 안의 글. */
-export const bodyText = "text-sm leading-relaxed text-[var(--hb-text-body)]";
+export const bodyText = "text-[15px] leading-relaxed text-[var(--hb-text-body)]";
 /** 형식 안내 한 줄과 넘기기 뒤 안내. */
 export const noteText = "text-[13px] leading-relaxed text-[var(--hb-text-muted)]";
 /** 다음을 눌렀는데 답이 없을 때처럼 눈에 띄어야 하는 한 줄(색이 아니라 굵기와 글로 알린다). */

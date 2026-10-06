@@ -1,0 +1,1767 @@
+{
+  "version": "v4.1-depth",
+  "placeholder": false,
+  "note": "v4.1-depth 고정 문항 원본. v4.0 링크와 저장 상태에는 적용하지 않습니다. 인지면접 전 문안 후보이며 결과는 응답 요약입니다.",
+  "items": [
+    {
+      "id": "process.search.1",
+      "axis": "process",
+      "facet": "search",
+      "section": 0,
+      "screen": 0,
+      "key": 1,
+      "fmt": "react",
+      "kind": "action",
+      "caption": "주말 둘러보기 제안",
+      "stem": "결혼 준비로 둘러볼 곳이 세 군데 남았을 때 상대가 말해요.",
+      "quote": {
+        "speaker": "상대",
+        "text": "이번 주말에 세 곳을 같이 둘러보자. 같은 걸 보고 이야기하면 좋겠어."
+      },
+      "question": "그때 내 마음은?",
+      "ends": {
+        "left": "나눠 보고 이야기하고 싶어요",
+        "right": "세 곳을 같이 보고 싶어요"
+      },
+      "highPole": "front",
+      "recap": "상대가 세 곳을 같이 보자고 하면"
+    },
+    {
+      "id": "money.limit.1",
+      "axis": "money",
+      "facet": "limit",
+      "section": 0,
+      "screen": 0,
+      "key": 1,
+      "fmt": "pair",
+      "kind": "method",
+      "caption": "첫 주말의 대화",
+      "stem": "결혼 준비 첫 주말, 장소 사진과 견적 파일이 함께 왔어요. 둘이 볼 시간이 짧다면 무엇을 메모할까요?",
+      "cards": [
+        {
+          "pole": "front",
+          "text": "식 뒤에도 남길 금액을 적고 가능한 구성을 찾아요. 장소는 나중에 살펴요."
+        },
+        {
+          "pole": "back",
+          "text": "둘 다 눈길 간 사진을 골라 원하는 하루를 말해요. 계산은 나중에 해요."
+        }
+      ]
+    },
+    {
+      "id": "process.owner.1",
+      "axis": "process",
+      "facet": "owner",
+      "section": 0,
+      "screen": 1,
+      "key": -1,
+      "fmt": "pair",
+      "kind": "method",
+      "caption": "일이 쌓인 주말",
+      "stem": "챙길 일이 한꺼번에 밀린 주말이에요. 둘이 어떻게 시작하면 편할까요?",
+      "cards": [
+        {
+          "pole": "back",
+          "text": "일감과 마감을 나눠 각자 시작해요. 막히면 도움을 청해야 해요."
+        },
+        {
+          "pole": "front",
+          "text": "같이 순서를 정하고 첫 일부터 풀어요. 함께 앉을 시간을 맞춰야 해요."
+        }
+      ]
+    },
+    {
+      "id": "money.check.1",
+      "axis": "money",
+      "facet": "check",
+      "section": 0,
+      "screen": 1,
+      "key": 1,
+      "fmt": "react",
+      "kind": "action",
+      "caption": "상담 뒤 견적",
+      "stem": "업체 상담을 마치고 나오는 길, 상대가 말해요.",
+      "quote": {
+        "speaker": "상대",
+        "text": "공간은 정말 좋았지? 견적은 메일로 왔어. 오늘은 여기까지만 볼까?"
+      },
+      "question": "그때 내 마음은?",
+      "ends": {
+        "left": "오늘 본 느낌을 나누고 싶어요",
+        "right": "남은 조건을 확인하고 싶어요"
+      },
+      "highPole": "front",
+      "recap": "상담 뒤 견적 메일이 왔다고 하면"
+    },
+    {
+      "id": "support.vent.1",
+      "axis": "support",
+      "facet": "vent",
+      "section": 0,
+      "screen": 2,
+      "key": -1,
+      "fmt": "split",
+      "caption": "집에 돌아온 저녁",
+      "stem": "내일 일정이 빽빽한 저녁, 상대에게 오늘 힘들었다고 말했어요. 반가운 반응에 여섯 칸을 나눠 주세요.",
+      "entries": [
+        {
+          "pole": "back",
+          "text": "내일 해야 할 일 중 한 가지를 함께 골라 덜어 주기"
+        },
+        {
+          "pole": "front",
+          "text": "오늘 있었던 일을 더 말할 수 있게 옆에서 듣기"
+        },
+        {
+          "pole": "neutral",
+          "text": "함께 쉬면서 다른 생각을 잠깐 하기"
+        }
+      ]
+    },
+    {
+      "id": "scope.final.1",
+      "axis": "scope",
+      "facet": "final",
+      "section": 0,
+      "screen": 3,
+      "key": 1,
+      "fmt": "pair",
+      "kind": "method",
+      "caption": "날짜가 갈린 주말",
+      "stem": "둘이 원하는 날짜와 가까운 가족이 가능한 날짜가 달라요. 어느 방식으로 정하고 싶어요?",
+      "cards": [
+        {
+          "pole": "front",
+          "text": "둘이 고른 날짜를 지켜요. 가족과는 자리를 따로 마련해야 해요."
+        },
+        {
+          "pole": "back",
+          "text": "가족이 모일 수 있는 날짜로 옮겨요. 둘이 원했던 날짜는 놓아야 해요."
+        }
+      ]
+    },
+    {
+      "id": "support.give.1",
+      "axis": "support",
+      "facet": "give",
+      "section": 0,
+      "screen": 3,
+      "key": 1,
+      "fmt": "react",
+      "kind": "action",
+      "caption": "지친 얼굴의 상대",
+      "stem": "상대가 유난히 지쳐 보여서 무슨 일이냐고 물었더니 이렇게 말해요.",
+      "quote": {
+        "speaker": "상대",
+        "text": "휴, 오늘 진짜 힘들었어."
+      },
+      "question": "그때 내 마음은?",
+      "ends": {
+        "left": "할 일을 먼저 덜고 싶어요",
+        "right": "힘든 얘기를 먼저 듣고 싶어요"
+      },
+      "highPole": "front",
+      "recap": "상대가 한숨을 쉬며 오늘 진짜 힘들었다고 하면"
+    },
+    {
+      "id": "scope.circle.1",
+      "axis": "scope",
+      "facet": "circle",
+      "section": 0,
+      "screen": 4,
+      "key": 1,
+      "fmt": "bestworst",
+      "caption": "명단 적는 밤",
+      "stem": "결혼 소식을 전할 사람을 적는 밤이에요. 가장 나 같은 방식과 아닌 방식을 골라 주세요.",
+      "cards": [
+        {
+          "pole": "front",
+          "text": "둘이 자주 만나는 사람부터 적고 가족 명단은 나중에 받아요"
+        },
+        {
+          "pole": "back",
+          "text": "가족이 챙기는 사람을 먼저 듣고 둘의 명단을 더해요"
+        },
+        {
+          "pole": "back",
+          "text": "가족이 보내 준 명단을 기준으로 인원을 다시 맞춰요"
+        },
+        {
+          "pole": "front",
+          "text": "초대할 수 있는 인원을 먼저 정하고 둘의 명단을 채워요"
+        }
+      ]
+    },
+    {
+      "id": "support.fight.1",
+      "axis": "support",
+      "facet": "fight",
+      "section": 0,
+      "screen": 5,
+      "key": -1,
+      "fmt": "pair",
+      "kind": "method",
+      "caption": "다투고 난 저녁",
+      "stem": "결혼 준비로 다투고 각자 마음을 가라앉힌 뒤예요. 다시 이야기한다면 무엇부터 꺼내고 싶어요?",
+      "cards": [
+        {
+          "pole": "back",
+          "text": "엇갈린 일을 짚고 다음 방법을 정해요. 서운함을 달랠 시간은 나중이에요."
+        },
+        {
+          "pole": "front",
+          "text": "서로 어떤 마음이 들었는지 들어요. 같은 일이 없게 정리하는 건 나중이에요."
+        }
+      ]
+    },
+    {
+      "id": "scope.timing.1",
+      "axis": "scope",
+      "facet": "timing",
+      "section": 0,
+      "screen": 5,
+      "key": -1,
+      "fmt": "recall",
+      "caption": "가족에게 전한 때",
+      "stem": "최근 둘이 함께 정한 결혼 준비 한 가지를 떠올려 보세요. 가족에게는 어느 시점에 이야기했어요?",
+      "options": [
+        {
+          "text": "둘이 후보를 좁힌 뒤 가족에게 이야기했어요.",
+          "pole": "front",
+          "strength": "weak"
+        },
+        {
+          "text": "무엇을 고를지 고민할 때부터 가족과 이야기했어요.",
+          "pole": "back",
+          "strength": "strong"
+        },
+        {
+          "text": "후보를 비교하는 동안 가족의 의견도 들었어요.",
+          "pole": "back",
+          "strength": "weak"
+        },
+        {
+          "text": "둘이 모두 정한 뒤 가족에게 결과를 알렸어요.",
+          "pole": "front",
+          "strength": "strong"
+        }
+      ]
+    },
+    {
+      "id": "process.report.1",
+      "axis": "process",
+      "facet": "report",
+      "section": 0,
+      "screen": 6,
+      "key": -1,
+      "fmt": "bestworst",
+      "caption": "일이 절반쯤 됐을 때",
+      "stem": "상대와 나눠 맡은 준비 중 내 몫이 절반쯤 진행됐어요. 어느 것이 가장 나 같고 어느 것이 가장 나 같지 않아요?",
+      "cards": [
+        {
+          "pole": "back",
+          "text": "모두 마친 뒤 정리한 완성본을 보내요"
+        },
+        {
+          "pole": "front",
+          "text": "큰 단계가 끝날 때마다 지금까지 한 일을 보내요"
+        },
+        {
+          "pole": "front",
+          "text": "덜 다듬은 초안을 먼저 보내 의견을 물어요"
+        },
+        {
+          "pole": "back",
+          "text": "기한이 가까워질 때까지 알리지 않고 결정한 내용만 짧게 전해요"
+        }
+      ]
+    },
+    {
+      "id": "money.worth.1",
+      "axis": "money",
+      "facet": "worth",
+      "section": 0,
+      "screen": 7,
+      "key": -1,
+      "fmt": "instant",
+      "caption": "식사를 권할 때",
+      "stem": "결혼을 알리는 식사의 메뉴를 고르는 날이에요. 손님 식사를 한 단계 올릴 수도 있어요. 나는 보통…",
+      "options": [
+        {
+          "text": "기본 메뉴에 마음에 드는 요리 하나만 더해요.",
+          "pole": "front",
+          "strength": "weak"
+        },
+        {
+          "text": "다른 항목을 줄여서 식사를 한 단계 올려요.",
+          "pole": "back",
+          "strength": "strong"
+        },
+        {
+          "text": "식사만 한 단계 올리고 다른 항목을 다시 계산해요.",
+          "pole": "back",
+          "strength": "weak"
+        },
+        {
+          "text": "기본 메뉴를 고르고 차액은 식 뒤 생활에 남겨요.",
+          "pole": "front",
+          "strength": "strong"
+        }
+      ]
+    },
+    {
+      "id": "support.recover.1",
+      "axis": "support",
+      "facet": "recover",
+      "section": 0,
+      "screen": 7,
+      "key": 1,
+      "fmt": "recall",
+      "caption": "녹초가 된 날",
+      "stem": "가장 최근에 녹초가 됐던 날을 떠올려 보세요. 지친 뒤 처음으로 한 행동은 무엇이었어요?",
+      "options": [
+        {
+          "text": "해야 할 일을 적어 두고 다음 순서를 정했어요.",
+          "pole": "back",
+          "strength": "weak"
+        },
+        {
+          "text": "속상했던 마음을 누군가에게 길게 이야기했어요.",
+          "pole": "front",
+          "strength": "strong"
+        },
+        {
+          "text": "힘들었다는 말을 짧게라도 꺼냈어요.",
+          "pole": "front",
+          "strength": "weak"
+        },
+        {
+          "text": "밀린 일 하나를 마무리했어요.",
+          "pole": "back",
+          "strength": "strong"
+        }
+      ]
+    },
+    {
+      "id": "money.moment.1",
+      "axis": "money",
+      "facet": "moment",
+      "section": 0,
+      "screen": 8,
+      "key": 1,
+      "fmt": "split",
+      "caption": "혜택이 걸린 날",
+      "stem": "마음에 든 장소가 오늘까지 혜택을 제안했어요. 총액, 추가금, 취소 조건은 서면으로 확인했어요. 이제 여섯 칸의 시간을 어떻게 쓰고 싶어요?",
+      "entries": [
+        {
+          "pole": "front",
+          "text": "혜택을 놓칠 수도 있지만 다른 후보와 남을 비용을 다시 비교하기"
+        },
+        {
+          "pole": "back",
+          "text": "오늘 결정하기 전에 이곳에서 만들고 싶은 장면을 둘이 다시 그려 보기"
+        },
+        {
+          "pole": "neutral",
+          "text": "오늘 결정이 필요한 이유와 혜택이 끝난 뒤 금액을 다시 묻기"
+        }
+      ]
+    },
+    {
+      "id": "process.detail.1",
+      "axis": "process",
+      "facet": "detail",
+      "section": 0,
+      "screen": 9,
+      "key": -1,
+      "fmt": "instant",
+      "caption": "준비 물건 고르기",
+      "stem": "한 사람이 결혼 준비 물건을 맡아 후보 세 가지를 골라 왔어요. 나는 보통…",
+      "options": [
+        {
+          "text": "후보 셋을 함께 보고 마지막 하나만 같이 골라요.",
+          "pole": "front",
+          "strength": "weak"
+        },
+        {
+          "text": "맡은 사람이 고른 것을 그대로 받아요.",
+          "pole": "back",
+          "strength": "strong"
+        },
+        {
+          "text": "고른 것을 본 뒤 걸리는 점만 따로 말해요.",
+          "pole": "back",
+          "strength": "weak"
+        },
+        {
+          "text": "색과 놓을 자리까지 둘이 하나씩 정해요.",
+          "pole": "front",
+          "strength": "strong"
+        }
+      ]
+    },
+    {
+      "id": "scope.form.1",
+      "axis": "scope",
+      "facet": "form",
+      "section": 0,
+      "screen": 9,
+      "key": -1,
+      "fmt": "react",
+      "kind": "action",
+      "caption": "어른께 먼저 인사",
+      "stem": "결혼 준비를 이야기하다가 상대가 말해요.",
+      "quote": {
+        "speaker": "상대",
+        "text": "우리 집안은 큰일을 정하기 전에 어른들께 먼저 인사드려 왔어. 이번에도 그러고 싶어."
+      },
+      "question": "그때 내 마음은?",
+      "ends": {
+        "left": "둘이 안을 만든 뒤 인사드리고 싶어요",
+        "right": "안을 정하기 전에 인사드리고 싶어요"
+      },
+      "highPole": "back",
+      "recap": "상대가 먼저 인사드리자고 하면"
+    },
+    {
+      "id": "money.moment.2",
+      "axis": "money",
+      "facet": "moment",
+      "section": 1,
+      "screen": 10,
+      "key": -1,
+      "fmt": "pair",
+      "kind": "moment",
+      "caption": "준비를 마친 뒤의 순간",
+      "stem": "두 장소 모두 조건을 확인하고 이번 주에 하나를 정했어요. 어느 결정 순간이 더 마음에 남아요?",
+      "cards": [
+        {
+          "pole": "back",
+          "text": "사진과 방문 기억을 펼쳐 그날의 흐름이 그려지는 곳을 골랐어요"
+        },
+        {
+          "pole": "front",
+          "text": "견적과 남길 돈을 나란히 보고 지출선에 맞는 곳을 골랐어요"
+        }
+      ]
+    },
+    {
+      "id": "process.owner.2",
+      "axis": "process",
+      "facet": "owner",
+      "section": 1,
+      "screen": 10,
+      "key": -1,
+      "fmt": "react",
+      "kind": "story",
+      "caption": "선배의 준비 방식",
+      "stem": "결혼을 준비한 선배가 말해요.",
+      "quote": {
+        "speaker": "선배",
+        "text": "우린 따로 담당을 정하지 않았어. 막히는 일이 생기면 같이 붙어서 정했지."
+      },
+      "question": "내가 그 방식이라면?",
+      "ends": {
+        "left": "막힌 일을 같이 풀고 싶어요",
+        "right": "각자 맡아 이어 가고 싶어요"
+      },
+      "highPole": "back",
+      "recap": "선배가 일을 나누지 않았다고 하면"
+    },
+    {
+      "id": "money.worth.2",
+      "axis": "money",
+      "facet": "worth",
+      "section": 1,
+      "screen": 11,
+      "key": -1,
+      "fmt": "bestworst",
+      "caption": "뜻밖에 남은 돈",
+      "stem": "예상보다 비용이 덜 들었어요. 남은 돈을 쓸 곳에서 가장 나 같은 것과 아닌 것을 골라 주세요.",
+      "cards": [
+        {
+          "pole": "back",
+          "text": "꽃이나 조명에 보태 그날의 분위기를 바꿔요"
+        },
+        {
+          "pole": "front",
+          "text": "남은 돈을 결혼식 뒤 생활비로 옮겨 둬요"
+        },
+        {
+          "pole": "front",
+          "text": "빠진 항목을 채우고 남은 금액은 예비비로 둬요"
+        },
+        {
+          "pole": "back",
+          "text": "음악이나 작은 이벤트를 하나 더 준비해요"
+        }
+      ]
+    },
+    {
+      "id": "support.give.2",
+      "axis": "support",
+      "facet": "give",
+      "section": 1,
+      "screen": 12,
+      "key": -1,
+      "fmt": "recall",
+      "caption": "지쳐 보이던 사람",
+      "stem": "가장 최근에 친구나 가족이 시험 준비나 야근으로 지쳐 보였던 때를 떠올려 보세요. 그때 나는 무엇을 했어요?",
+      "options": [
+        {
+          "text": "잠깐 안부를 묻고 그 사람 이야기를 들어 줬어요.",
+          "pole": "front",
+          "strength": "weak"
+        },
+        {
+          "text": "그 사람이 맡은 일 하나를 내가 대신 했어요.",
+          "pole": "back",
+          "strength": "strong"
+        },
+        {
+          "text": "지금 가장 버거운 일이 뭔지 묻고 해결 방법을 같이 찾았어요.",
+          "pole": "back",
+          "strength": "weak"
+        },
+        {
+          "text": "곁에 앉아 그 사람이 이야기를 꺼낼 때까지 기다렸어요.",
+          "pole": "front",
+          "strength": "strong"
+        }
+      ]
+    },
+    {
+      "id": "money.limit.2",
+      "axis": "money",
+      "facet": "limit",
+      "section": 1,
+      "screen": 12,
+      "key": 1,
+      "fmt": "react",
+      "kind": "story",
+      "caption": "동료가 들려준 예산",
+      "stem": "동료가 결혼 준비 때 돈을 정한 방식을 들려줘요.",
+      "quote": {
+        "speaker": "동료",
+        "text": "원하던 것부터 정했어. 다 고른 뒤에야 전체 금액을 확인했지."
+      },
+      "question": "형편이 넉넉하든 빠듯하든, 내가 그 입장이라면?",
+      "ends": {
+        "left": "무엇을 골랐는지가 먼저 떠올라요",
+        "right": "얼마가 남는지가 먼저 떠올라요"
+      },
+      "highPole": "front",
+      "recap": "동료가 전체 금액을 나중에 봤다면"
+    },
+    {
+      "id": "process.detail.2",
+      "axis": "process",
+      "facet": "detail",
+      "section": 1,
+      "screen": 13,
+      "key": 1,
+      "fmt": "split",
+      "caption": "준비 일정표",
+      "stem": "결혼 준비 일정표를 만드는 이번 주예요. 쓸 수 있는 힘 여섯 칸을 나눠 놓아 주세요.",
+      "entries": [
+        {
+          "pole": "front",
+          "text": "둘이 시간을 맞춰 앉아 일정표를 한 줄씩 함께 채우기"
+        },
+        {
+          "pole": "back",
+          "text": "맡은 사람이 만든 일정표에서 중요한 날짜만 함께 확인하기"
+        },
+        {
+          "pole": "neutral",
+          "text": "일정표는 잠시 미루고 더 급한 일을 처리하기"
+        }
+      ]
+    },
+    {
+      "id": "scope.final.2",
+      "axis": "scope",
+      "facet": "final",
+      "section": 1,
+      "screen": 14,
+      "key": 1,
+      "fmt": "react",
+      "kind": "story",
+      "caption": "건배사 맡길 사람",
+      "stem": "친구가 결혼을 알린 가족 모임 이야기를 들려줘요.",
+      "quote": {
+        "speaker": "친구",
+        "text": "우리가 고른 분께 건배사를 부탁했어. 가족은 다른 분을 생각하고 계셨더라."
+      },
+      "question": "내가 그 입장이라면?",
+      "ends": {
+        "left": "가족 뜻을 다시 듣고 싶어요",
+        "right": "우리 선택의 이유를 설명하고 싶어요"
+      },
+      "highPole": "front",
+      "recap": "친구가 건배사를 정한 뒤 다른 의견을 들었다면"
+    },
+    {
+      "id": "support.vent.2",
+      "axis": "support",
+      "facet": "vent",
+      "section": 1,
+      "screen": 14,
+      "key": -1,
+      "fmt": "pair",
+      "kind": "moment",
+      "caption": "힘든 시기의 한 장면",
+      "stem": "바쁜 준비 기간이 지나고 나면 어느 순간을 더 떠올릴 것 같아요?",
+      "cards": [
+        {
+          "pole": "back",
+          "text": "상대가 내일 할 일 하나를 대신 맡아 줬어요. 그날 나눈 말은 짧았어요."
+        },
+        {
+          "pole": "front",
+          "text": "상대가 그날 있었던 일을 끝까지 들어 줬어요. 다음 일정은 남아 있었어요."
+        }
+      ]
+    },
+    {
+      "id": "scope.timing.2",
+      "axis": "scope",
+      "facet": "timing",
+      "section": 1,
+      "screen": 15,
+      "key": 1,
+      "fmt": "split",
+      "caption": "소식 전하는 첫 달",
+      "stem": "결혼하기로 마음을 모은 첫 달이에요. 여섯 칸의 시간을 어디에 나누어 쓰고 싶어요?",
+      "entries": [
+        {
+          "pole": "front",
+          "text": "둘이 큰 그림을 정리한 뒤 가족에게 이야기하기"
+        },
+        {
+          "pole": "back",
+          "text": "가족에게 먼저 소식을 전하고 큰 그림 잡기"
+        },
+        {
+          "pole": "neutral",
+          "text": "준비와 별개로 밀린 일과 쉬는 시간 챙기기"
+        }
+      ]
+    },
+    {
+      "id": "money.check.2",
+      "axis": "money",
+      "facet": "check",
+      "section": 1,
+      "screen": 16,
+      "key": -1,
+      "fmt": "recall",
+      "caption": "업체를 고르기 전에",
+      "stem": "결혼 준비로 업체를 찾아본 적이 있다면, 고르기 전에 무엇을 확인했어요? 그런 일이 없으면 그대로 표시해 주세요.",
+      "options": [
+        {
+          "text": "받은 견적서에서 몇 가지 항목을 읽고 질문했어요.",
+          "pole": "front",
+          "strength": "weak"
+        },
+        {
+          "text": "기본 조건을 확인한 뒤 직접 가 본 느낌으로 골랐어요.",
+          "pole": "back",
+          "strength": "strong"
+        },
+        {
+          "text": "기본 조건을 확인한 뒤 사진과 후기로 분위기를 골랐어요.",
+          "pole": "back",
+          "strength": "weak"
+        },
+        {
+          "text": "추가금과 취소 조건을 적어 다른 곳의 견적과 비교했어요.",
+          "pole": "front",
+          "strength": "strong"
+        }
+      ]
+    },
+    {
+      "id": "support.fight.2",
+      "axis": "support",
+      "facet": "fight",
+      "section": 1,
+      "screen": 16,
+      "key": 1,
+      "fmt": "react",
+      "kind": "story",
+      "caption": "친구 커플의 화해",
+      "stem": "크게 다투고 화해한 친구 커플의 이야기예요.",
+      "quote": {
+        "speaker": "친구",
+        "text": "우린 일단 서로 괜찮은지부터 물었어. 어긋난 일정 이야기는 다음 날 했지."
+      },
+      "question": "내가 그 입장이라면?",
+      "ends": {
+        "left": "어긋난 일을 먼저 짚고 싶어요",
+        "right": "서로의 마음부터 듣고 싶어요"
+      },
+      "highPole": "front",
+      "recap": "친구가 마음을 먼저 살폈다고 하면"
+    },
+    {
+      "id": "scope.form.2",
+      "axis": "scope",
+      "facet": "form",
+      "section": 1,
+      "screen": 17,
+      "key": -1,
+      "fmt": "instant",
+      "caption": "그날의 큰 틀",
+      "stem": "가족과 함께하는 식사의 진행표 초안이 왔어요. 인사 순서와 말 한마디를 손본다면 나는 보통…",
+      "options": [
+        {
+          "text": "둘이 편한 인사 순서로 바꾸고 익숙한 문구는 남겨요.",
+          "pole": "front",
+          "strength": "weak"
+        },
+        {
+          "text": "가족이 쓰던 진행 순서와 문구를 그대로 남겨요.",
+          "pole": "back",
+          "strength": "strong"
+        },
+        {
+          "text": "익숙한 진행 순서는 남기고 둘의 인사말만 새로 써요.",
+          "pole": "back",
+          "strength": "weak"
+        },
+        {
+          "text": "둘이 원하는 인사 순서와 문구로 새 초안을 만들어요.",
+          "pole": "front",
+          "strength": "strong"
+        }
+      ]
+    },
+    {
+      "id": "process.report.2",
+      "axis": "process",
+      "facet": "report",
+      "section": 1,
+      "screen": 17,
+      "key": 1,
+      "fmt": "pair",
+      "kind": "moment",
+      "caption": "준비를 마친 뒤",
+      "stem": "준비가 끝나고 나면 어느 순간을 더 떠올릴 것 같아요?",
+      "cards": [
+        {
+          "pole": "front",
+          "text": "매일 알아본 일을 짧게 전해 들었어요. 저녁 일부를 준비 이야기에 썼어요."
+        },
+        {
+          "pole": "back",
+          "text": "완성된 자료를 한 번에 받아 봤어요. 그전까지 과정은 묻지 않았어요."
+        }
+      ]
+    },
+    {
+      "id": "support.recover.2",
+      "axis": "support",
+      "facet": "recover",
+      "section": 1,
+      "screen": 18,
+      "key": 1,
+      "fmt": "bestworst",
+      "caption": "일요일 저녁의 나",
+      "stem": "긴 일정을 마치고 혼자 남은 일요일 저녁이에요. 어느 쪽이 가장 나 같고, 어느 쪽이 가장 나 같지 않아요?",
+      "cards": [
+        {
+          "pole": "front",
+          "text": "속상했던 순간들을 노트에 하나씩 길게 적어 내려가요"
+        },
+        {
+          "pole": "back",
+          "text": "쌓인 빨래와 설거지를 끝내고 나서야 자리에 앉아요"
+        },
+        {
+          "pole": "back",
+          "text": "월요일에 할 일을 종이에 적고 목록을 접어 둬요"
+        },
+        {
+          "pole": "front",
+          "text": "오늘 있었던 일을 혼잣말로 소리 내어 다 꺼내 놓아요"
+        }
+      ]
+    },
+    {
+      "id": "process.search.2",
+      "axis": "process",
+      "facet": "search",
+      "section": 1,
+      "screen": 19,
+      "key": 1,
+      "fmt": "instant",
+      "caption": "맡길 곳 후보",
+      "stem": "결혼 준비를 맡길 곳의 후보를 골라야 해요. 나는 보통…",
+      "options": [
+        {
+          "text": "한 사람이 후보를 좁혀 오면 함께 마지막 하나를 골라요.",
+          "pole": "back",
+          "strength": "weak"
+        },
+        {
+          "text": "검색부터 상담 예약까지 둘이 한 화면에서 해요.",
+          "pole": "front",
+          "strength": "strong"
+        },
+        {
+          "text": "각자 찾아본 뒤 후보를 모아 함께 골라요.",
+          "pole": "front",
+          "strength": "weak"
+        },
+        {
+          "text": "한 사람이 알아보고 고른 곳을 그대로 받아요.",
+          "pole": "back",
+          "strength": "strong"
+        }
+      ]
+    },
+    {
+      "id": "scope.circle.2",
+      "axis": "scope",
+      "facet": "circle",
+      "section": 1,
+      "screen": 19,
+      "key": -1,
+      "fmt": "pair",
+      "kind": "moment",
+      "caption": "명단 초안의 밤",
+      "stem": "결혼 소식을 전할 명단을 만든 뒤예요. 어느 밤이 더 마음에 남을 것 같아요?",
+      "cards": [
+        {
+          "pole": "back",
+          "text": "가족이 챙긴 이름으로 초안을 만들었어요. 빈자리는 나중에 채웠어요."
+        },
+        {
+          "pole": "front",
+          "text": "둘이 전하고 싶은 이름으로 초안을 만들었어요. 빈자리는 나중에 채웠어요."
+        }
+      ]
+    },
+    {
+      "id": "process.report.3",
+      "axis": "process",
+      "facet": "report",
+      "section": 2,
+      "screen": 20,
+      "key": -1,
+      "fmt": "react",
+      "kind": "action",
+      "caption": "챙겨 주는 상대",
+      "stem": "결혼 준비에 필요한 서류나 예약을 챙기는 상대가 말해요.",
+      "quote": {
+        "speaker": "상대",
+        "text": "그건 내가 챙길게. 다 모이면 한 번에 알려 줄 테니까 그때까지 맡겨 줘."
+      },
+      "question": "그때 내 마음은?",
+      "ends": {
+        "left": "중간 과정도 알고 싶어요",
+        "right": "끝날 때까지 맡기고 싶어요"
+      },
+      "highPole": "back",
+      "recap": "상대가 서류나 예약을 다 모은 뒤에 한 번에 알려 주겠다고 하면"
+    },
+    {
+      "id": "money.worth.3",
+      "axis": "money",
+      "facet": "worth",
+      "section": 2,
+      "screen": 20,
+      "key": -1,
+      "fmt": "pair",
+      "kind": "method",
+      "caption": "줄여야 한다면",
+      "stem": "견적 합계가 둘이 정한 예산을 조금 넘었어요. 어느 쪽을 먼저 바꾸고 싶어요?",
+      "cards": [
+        {
+          "pole": "back",
+          "text": "그날 쓸 항목을 지키고 이후 몇 달 지출 계획을 조정해요"
+        },
+        {
+          "pole": "front",
+          "text": "이후 지출 계획을 지키고 그날 쓸 항목 일부를 바꿔요"
+        }
+      ]
+    },
+    {
+      "id": "process.detail.3",
+      "axis": "process",
+      "facet": "detail",
+      "section": 2,
+      "screen": 21,
+      "key": 1,
+      "fmt": "pair",
+      "kind": "method",
+      "caption": "진행표 작은 선택",
+      "stem": "업체가 보낸 진행표에는 작은 선택이 여러 개 남았어요. 둘이 쓸 수 있는 시간은 한 시간이에요.",
+      "cards": [
+        {
+          "pole": "front",
+          "text": "한 시간 동안 같이 화면을 보며 항목마다 표시해요. 다른 일은 내일 봐요."
+        },
+        {
+          "pole": "back",
+          "text": "둘이 바꾸면 안 될 두 항목만 정하고 나머지는 맡겨요. 결과는 내일 확인해요."
+        }
+      ]
+    },
+    {
+      "id": "money.moment.3",
+      "axis": "money",
+      "facet": "moment",
+      "section": 2,
+      "screen": 21,
+      "key": -1,
+      "fmt": "react",
+      "kind": "action",
+      "caption": "두 장소 중 한 곳",
+      "stem": "두 장소의 조건을 문서로 확인하고 상담을 마쳤어요. 상대가 말해요.",
+      "quote": {
+        "speaker": "상대",
+        "text": "이번 주에 한 곳을 정해야 해. 두 곳 다 괜찮은데, 마지막으로 뭘 더 볼까?"
+      },
+      "question": "그때 내 마음은?",
+      "ends": {
+        "left": "남길 금액을 다시 맞춰 보고 싶어요",
+        "right": "그날 모습을 다시 그려 보고 싶어요"
+      },
+      "highPole": "back",
+      "recap": "조건을 확인하고 한 곳을 고른다면"
+    },
+    {
+      "id": "support.give.3",
+      "axis": "support",
+      "facet": "give",
+      "section": 2,
+      "screen": 22,
+      "key": 1,
+      "fmt": "split",
+      "caption": "며칠째 지친 아침",
+      "stem": "상대가 며칠째 지쳐 보여요. 오늘 남은 힘 여섯 칸을 어디에 쓰고 싶어요?",
+      "entries": [
+        {
+          "pole": "front",
+          "text": "상대가 힘든 이야기를 꺼내면 옆에서 듣기"
+        },
+        {
+          "pole": "back",
+          "text": "상대가 미뤄 둔 예약 전화 하나를 대신 걸기"
+        },
+        {
+          "pole": "neutral",
+          "text": "상대가 혼자 쉴 수 있게 조용히 자리 비켜 주기"
+        }
+      ]
+    },
+    {
+      "id": "scope.timing.3",
+      "axis": "scope",
+      "facet": "timing",
+      "section": 2,
+      "screen": 23,
+      "key": -1,
+      "fmt": "pair",
+      "kind": "method",
+      "caption": "후보가 두 곳일 때",
+      "stem": "결혼 소식을 알릴 식당 후보가 두 곳이에요. 자리와 이동 시간은 둘 다 괜찮아요. 첫 연락은 어떻게 할까요?",
+      "cards": [
+        {
+          "pole": "back",
+          "text": "후보 둘을 가까운 어른께 보여 편한 동선을 물어요. 연락은 답을 들은 뒤 해요."
+        },
+        {
+          "pole": "front",
+          "text": "둘이 한 곳을 고르고 예약 가능 시간을 물어요. 가족에겐 그 뒤 위치를 알려요."
+        }
+      ]
+    },
+    {
+      "id": "support.vent.3",
+      "axis": "support",
+      "facet": "vent",
+      "section": 2,
+      "screen": 23,
+      "key": -1,
+      "fmt": "react",
+      "kind": "action",
+      "caption": "지쳐서 앉은 카페",
+      "stem": "주말 내내 준비 일정을 돌고 나온 카페에서 너무 지쳤다고 했더니 상대가 말해요.",
+      "quote": {
+        "speaker": "상대",
+        "text": "남은 건 내가 알아볼게. 오늘은 더 하지 않아도 돼."
+      },
+      "question": "그때 내 마음은?",
+      "ends": {
+        "left": "힘들었던 얘기를 더 하고 싶어요",
+        "right": "눈앞의 일을 덜고 쉬고 싶어요"
+      },
+      "highPole": "back",
+      "recap": "상대가 도와주겠다고 하면"
+    },
+    {
+      "id": "scope.form.3",
+      "axis": "scope",
+      "facet": "form",
+      "section": 2,
+      "screen": 24,
+      "key": -1,
+      "fmt": "bestworst",
+      "caption": "자리에 넣을 것",
+      "stem": "결혼을 알리는 자리에 한 가지를 더 넣을 수 있어요. 가장 나 같은 선택과 아닌 선택을 골라 주세요.",
+      "cards": [
+        {
+          "pole": "back",
+          "text": "가족도 함께 아는 익숙한 노래를 골라 틀어요"
+        },
+        {
+          "pole": "front",
+          "text": "둘이 좋아하는 곡을 골라 사람들과 함께 들어요"
+        },
+        {
+          "pole": "front",
+          "text": "둘이 모은 사진을 자리 한가운데 놓아요"
+        },
+        {
+          "pole": "back",
+          "text": "가족 한 분이 짧게 인사할 시간을 만들어요"
+        }
+      ]
+    },
+    {
+      "id": "support.recover.3",
+      "axis": "support",
+      "facet": "recover",
+      "section": 2,
+      "screen": 25,
+      "key": 1,
+      "fmt": "pair",
+      "kind": "method",
+      "caption": "비어 있는 오후",
+      "stem": "일주일 내내 분주하다가 빈 오후가 생겼어요. 지친 나를 돌보려면 어느 쪽이 가까워요?",
+      "cards": [
+        {
+          "pole": "front",
+          "text": "좋아하는 음악을 틀고 지금 마음을 글로 적어요. 할 일은 내일 다시 봐요."
+        },
+        {
+          "pole": "back",
+          "text": "책상과 서랍을 정리하고 남은 일을 하나 끝내요. 마음은 나중에 돌아봐요."
+        }
+      ]
+    },
+    {
+      "id": "scope.final.3",
+      "axis": "scope",
+      "facet": "final",
+      "section": 2,
+      "screen": 25,
+      "key": 1,
+      "fmt": "instant",
+      "caption": "가족의 다른 의견",
+      "stem": "둘이 정한 일을 나중에 들은 가족이 다른 의견을 말해요. 나는 보통…",
+      "options": [
+        {
+          "text": "가족이 바라는 점을 듣고 우리 안을 일부 고쳐요.",
+          "pole": "back",
+          "strength": "weak"
+        },
+        {
+          "text": "둘이 정한 안을 유지하고 시간을 두고 다시 말해요.",
+          "pole": "front",
+          "strength": "strong"
+        },
+        {
+          "text": "안을 유지하되 설명할 자리를 따로 만들어요.",
+          "pole": "front",
+          "strength": "weak"
+        },
+        {
+          "text": "가족이 제안한 안으로 바꿔 다시 정해요.",
+          "pole": "back",
+          "strength": "strong"
+        }
+      ]
+    },
+    {
+      "id": "process.search.3",
+      "axis": "process",
+      "facet": "search",
+      "section": 2,
+      "screen": 26,
+      "key": 1,
+      "fmt": "bestworst",
+      "caption": "둘러보러 가는 날",
+      "stem": "결혼 준비로 여러 곳을 둘러보러 가는 날이에요. 어느 장면이 가장 나 같고 어느 장면이 가장 나 같지 않아요?",
+      "cards": [
+        {
+          "pole": "front",
+          "text": "여러 곳의 첫 방문을 둘이 함께 다녀와요"
+        },
+        {
+          "pole": "back",
+          "text": "한 사람이 먼저 다녀와 사진과 메모로 공유해요"
+        },
+        {
+          "pole": "back",
+          "text": "취향을 아는 한 사람이 후보를 추려 와요"
+        },
+        {
+          "pole": "front",
+          "text": "후보 사진을 둘이 펼쳐 놓고 함께 추려요"
+        }
+      ]
+    },
+    {
+      "id": "money.limit.3",
+      "axis": "money",
+      "facet": "limit",
+      "section": 2,
+      "screen": 27,
+      "key": 1,
+      "fmt": "recall",
+      "caption": "예산을 정한 순서",
+      "stem": "결혼 준비에 쓸 금액을 실제로 정한 적이 있다면, 무엇부터 정했어요? 그런 일이 없으면 그대로 표시해 주세요.",
+      "options": [
+        {
+          "text": "하고 싶은 항목을 적고 금액과 번갈아 맞춰 봤어요.",
+          "pole": "back",
+          "strength": "weak"
+        },
+        {
+          "text": "쓸 수 있는 총액을 먼저 정하고 그 안에서 항목을 골랐어요.",
+          "pole": "front",
+          "strength": "strong"
+        },
+        {
+          "text": "대략의 범위를 정하고 후보를 보며 맞춰 봤어요.",
+          "pole": "front",
+          "strength": "weak"
+        },
+        {
+          "text": "꼭 넣고 싶은 항목을 먼저 고르고 뒤에 총액을 맞췄어요.",
+          "pole": "back",
+          "strength": "strong"
+        }
+      ]
+    },
+    {
+      "id": "support.fight.3",
+      "axis": "support",
+      "facet": "fight",
+      "section": 2,
+      "screen": 27,
+      "key": -1,
+      "fmt": "instant",
+      "caption": "엇갈린 약속",
+      "stem": "서로 약속 장소를 다르게 알아서 기다리다 다퉜어요. 조금 진정한 뒤 나는 보통…",
+      "options": [
+        {
+          "text": "먼저 괜찮은지 묻고 장소 이야기는 뒤에 해요.",
+          "pole": "front",
+          "strength": "weak"
+        },
+        {
+          "text": "엇갈린 연락부터 살피고 다음 약속 방법을 정해요.",
+          "pole": "back",
+          "strength": "strong"
+        },
+        {
+          "text": "연락이 엇갈린 점을 짧게 짚고 서로 괜찮은지 물어요.",
+          "pole": "back",
+          "strength": "weak"
+        },
+        {
+          "text": "서운했던 마음을 먼저 듣고 내 마음도 말해요.",
+          "pole": "front",
+          "strength": "strong"
+        }
+      ]
+    },
+    {
+      "id": "money.check.3",
+      "axis": "money",
+      "facet": "check",
+      "section": 2,
+      "screen": 28,
+      "key": -1,
+      "fmt": "split",
+      "caption": "계약 앞둔 시간",
+      "stem": "업체 계약을 며칠 앞두고 있어요. 제한된 확인 시간 여섯 칸을 어디에 쓰고 싶어요?",
+      "entries": [
+        {
+          "pole": "back",
+          "text": "현장에 다시 가서 동선과 분위기를 살피기"
+        },
+        {
+          "pole": "front",
+          "text": "추가금과 취소 조건을 계약서에서 대조하기"
+        },
+        {
+          "pole": "neutral",
+          "text": "계약 이야기는 잠시 접고 머리 식히기"
+        }
+      ]
+    },
+    {
+      "id": "process.owner.3",
+      "axis": "process",
+      "facet": "owner",
+      "section": 2,
+      "screen": 29,
+      "key": 1,
+      "fmt": "recall",
+      "caption": "막힌 내 준비",
+      "stem": "결혼 준비에서 내 몫이 막힌 적이 있다면 그때 무엇을 했어요? 그런 일이 없으면 그대로 표시해 주세요.",
+      "options": [
+        {
+          "text": "먼저 혼자 알아보고 더 막히면 도움을 청했어요.",
+          "pole": "back",
+          "strength": "weak"
+        },
+        {
+          "text": "막힌 지점을 바로 공유하고 같이 풀었어요.",
+          "pole": "front",
+          "strength": "strong"
+        },
+        {
+          "text": "짧게 의견을 구하고 함께 다음 방법을 골랐어요.",
+          "pole": "front",
+          "strength": "weak"
+        },
+        {
+          "text": "내가 맡은 일이니 혼자 끝까지 풀고 결과만 알렸어요.",
+          "pole": "back",
+          "strength": "strong"
+        }
+      ]
+    },
+    {
+      "id": "scope.circle.3",
+      "axis": "scope",
+      "facet": "circle",
+      "section": 2,
+      "screen": 29,
+      "key": 1,
+      "fmt": "react",
+      "kind": "action",
+      "caption": "자리가 거의 찼을 때",
+      "stem": "결혼 소식을 전할 사람을 적는데 자리 수가 거의 찼어요. 상대가 말해요.",
+      "quote": {
+        "speaker": "상대",
+        "text": "우리 명단을 거의 채웠네. 가족도 꼭 알릴 분이 있는지 물어볼까?"
+      },
+      "question": "그때 내 마음은?",
+      "ends": {
+        "left": "가족 명단을 먼저 받아 보고 싶어요",
+        "right": "둘의 초안을 먼저 다듬고 싶어요"
+      },
+      "highPole": "front",
+      "recap": "상대가 가족 명단을 물어보자고 하면"
+    },
+    {
+      "id": "money.check.4",
+      "axis": "money",
+      "facet": "check",
+      "section": 3,
+      "screen": 30,
+      "key": 1,
+      "fmt": "pair",
+      "kind": "friends",
+      "caption": "친구 커플의 선택",
+      "stem": "친구 두 커플이 업체를 고른 이야기를 들었어요. 둘 다 기본 취소 조건은 확인했대요. 더 끌리는 쪽을 골라 주세요.",
+      "cards": [
+        {
+          "pole": "front",
+          "text": "한 커플은 총액과 추가금을 여러 곳과 견줬어요. 방문 일정은 한 곳으로 줄였어요."
+        },
+        {
+          "pole": "back",
+          "text": "다른 커플은 현장에서 하루 동선을 살폈어요. 금액 비교는 그다음에 했어요."
+        }
+      ]
+    },
+    {
+      "id": "process.detail.4",
+      "axis": "process",
+      "facet": "detail",
+      "section": 3,
+      "screen": 30,
+      "key": 1,
+      "fmt": "react",
+      "kind": "story",
+      "caption": "친구의 소식 글",
+      "stem": "결혼 소식을 알리는 글을 만든 친구가 말해요.",
+      "quote": {
+        "speaker": "친구",
+        "text": "문구는 한 명이 써 오고 나는 확인만 했어. 금방 끝났는데, 읽어 보니 처음 보는 표현이 하나 있더라."
+      },
+      "question": "내가 그 입장이라면?",
+      "ends": {
+        "left": "문구 선택을 맡기고 싶어요",
+        "right": "문구를 같이 고르고 싶어요"
+      },
+      "highPole": "front",
+      "recap": "친구가 문구는 한 명이 써 오고 자기는 확인만 했다는 얘기를 들으면"
+    },
+    {
+      "id": "money.limit.4",
+      "axis": "money",
+      "facet": "limit",
+      "section": 3,
+      "screen": 31,
+      "key": 1,
+      "fmt": "bestworst",
+      "caption": "견적서가 온 저녁",
+      "stem": "여러 업체의 견적서가 한꺼번에 왔어요. 가장 나 같은 시작과 아닌 시작을 골라 주세요.",
+      "cards": [
+        {
+          "pole": "front",
+          "text": "쓸 수 있는 총액을 먼저 적고 견적 합계를 옆에 놓아요"
+        },
+        {
+          "pole": "back",
+          "text": "가장 끌리는 곳을 표시하고 다른 항목을 조정해요"
+        },
+        {
+          "pole": "back",
+          "text": "사진을 펼쳐 그날의 모습을 그린 뒤 견적을 열어요"
+        },
+        {
+          "pole": "front",
+          "text": "견적마다 줄일 수 있는 항목에 표시해요"
+        }
+      ]
+    },
+    {
+      "id": "support.vent.4",
+      "axis": "support",
+      "facet": "vent",
+      "section": 3,
+      "screen": 32,
+      "key": 1,
+      "fmt": "instant",
+      "caption": "말이 끝나기 전",
+      "stem": "힘든 얘기를 하는 도중에 상대가 벌써 해결 방법을 꺼내기 시작해요. 나는 보통…",
+      "options": [
+        {
+          "text": "일단 끝까지 들어 보고 쓸 만한 건 바로 메모해 둬요.",
+          "pole": "back",
+          "strength": "weak"
+        },
+        {
+          "text": "「고마워, 근데 조금만 더 들어 줘」 하고 하던 말을 이어 가요.",
+          "pole": "front",
+          "strength": "strong"
+        },
+        {
+          "text": "방법은 고맙다고 하고 하던 얘기를 마저 한 뒤 다시 물어봐요.",
+          "pole": "front",
+          "strength": "weak"
+        },
+        {
+          "text": "「그거 좋다」 하고 바로 같이 따져 보며 오늘 할 일로 정해요.",
+          "pole": "back",
+          "strength": "strong"
+        }
+      ]
+    },
+    {
+      "id": "money.worth.4",
+      "axis": "money",
+      "facet": "worth",
+      "section": 3,
+      "screen": 32,
+      "key": -1,
+      "fmt": "react",
+      "kind": "story",
+      "caption": "친구의 앨범",
+      "stem": "몇 해 전에 결혼한 친구가 앨범을 넘기며 말해요.",
+      "quote": {
+        "speaker": "친구",
+        "text": "예산표를 맞추며 사진 패키지와 그 뒤 생활비 사이에서 골라야 했어."
+      },
+      "question": "내가 그 입장이라면 뭐가 더 남을 것 같아요?",
+      "ends": {
+        "left": "남길 돈이 먼저 떠올라요",
+        "right": "남길 사진이 먼저 떠올라요"
+      },
+      "highPole": "back",
+      "recap": "친구가 사진과 생활비 사이에서 골랐다면"
+    },
+    {
+      "id": "process.owner.4",
+      "axis": "process",
+      "facet": "owner",
+      "section": 3,
+      "screen": 33,
+      "key": -1,
+      "fmt": "split",
+      "caption": "꼬인 예약",
+      "stem": "내가 맡은 업체 예약이 꼬였어요. 업체 답은 늦고 날짜는 겹쳐요. 이번 주 힘을 어디에 쓸지 여섯 칸을 나눠 놓아 주세요. 한 곳에 몰아도 괜찮아요.",
+      "entries": [
+        {
+          "pole": "back",
+          "text": "업체 답이 올 때까지 내가 맡은 예약을 혼자 다시 맞추기"
+        },
+        {
+          "pole": "front",
+          "text": "예약이 꼬인 상황을 상대에게 말하고 날짜를 함께 다시 맞추기"
+        },
+        {
+          "pole": "neutral",
+          "text": "잘 아는 사람에게 가능한 날짜를 물어보기"
+        }
+      ]
+    },
+    {
+      "id": "scope.timing.4",
+      "axis": "scope",
+      "facet": "timing",
+      "section": 3,
+      "screen": 34,
+      "key": -1,
+      "fmt": "react",
+      "kind": "story",
+      "caption": "친구의 첫 식사 자리",
+      "stem": "친구가 어른들과의 첫 식사 자리를 이야기해요.",
+      "quote": {
+        "speaker": "친구",
+        "text": "식당 후보를 고르기 전에 가족이 편한 곳을 물었어. 둘이 생각한 곳과는 다르더라."
+      },
+      "question": "내가 그 입장이라면?",
+      "ends": {
+        "left": "둘이 후보를 정한 뒤 알리고 싶어요",
+        "right": "후보를 정하기 전에 묻고 싶어요"
+      },
+      "highPole": "back",
+      "recap": "친구가 식당을 정하기 전에 가족에게 물었다면"
+    },
+    {
+      "id": "support.give.4",
+      "axis": "support",
+      "facet": "give",
+      "section": 3,
+      "screen": 34,
+      "key": 1,
+      "fmt": "pair",
+      "kind": "friends",
+      "caption": "두 커플의 지친 날",
+      "stem": "친구 두 커플에게 비슷한 날이 있었어요. 한 사람이 달력을 넘기다 이번 주는 좀 벅차다고 해요. 어느 반응에 가까워요?",
+      "cards": [
+        {
+          "pole": "front",
+          "text": "한 커플은 함께 걸으며 오늘 있었던 일을 들어요. 급한 일은 내일 봐요."
+        },
+        {
+          "pole": "back",
+          "text": "다른 커플은 미뤄 둔 예약 전화를 대신 걸어요. 산책은 내일 하기로 해요."
+        }
+      ]
+    },
+    {
+      "id": "scope.final.4",
+      "axis": "scope",
+      "facet": "final",
+      "section": 3,
+      "screen": 35,
+      "key": -1,
+      "fmt": "split",
+      "caption": "메뉴가 갈린 주",
+      "stem": "결혼을 알리는 식사 메뉴를 두고 가족 바람과 우리 뜻이 갈린다면, 이번 주 힘 여섯 칸을 어디에 쓸지 나눠 놓아 주세요. 한 곳에 몰아도 괜찮아요.",
+      "entries": [
+        {
+          "pole": "back",
+          "text": "가족이 익숙한 메뉴를 듣고 식사 구성을 다시 살피기"
+        },
+        {
+          "pole": "front",
+          "text": "둘이 고른 메뉴를 두고 가족에게 이유를 설명하기"
+        },
+        {
+          "pole": "neutral",
+          "text": "메뉴 이야기는 잠시 미루고 다른 준비부터 하기"
+        }
+      ]
+    },
+    {
+      "id": "money.moment.4",
+      "axis": "money",
+      "facet": "moment",
+      "section": 3,
+      "screen": 36,
+      "key": 1,
+      "fmt": "instant",
+      "caption": "두 벌 중 한 벌",
+      "stem": "옷 두 벌이 마음에 들어요. 둘 다 정한 금액 안이고 취소 조건도 확인했어요. 오늘 하나를 고른다면 나는 보통…",
+      "options": [
+        {
+          "text": "한 번 더 입어 보고 식날 모습이 그려지는 옷을 골라요.",
+          "pole": "back",
+          "strength": "weak"
+        },
+        {
+          "text": "수선과 보관 비용까지 적어 더 여유가 남는 옷을 골라요.",
+          "pole": "front",
+          "strength": "strong"
+        },
+        {
+          "text": "두 벌의 최종 금액을 보고 남길 돈을 생각해 골라요.",
+          "pole": "front",
+          "strength": "weak"
+        },
+        {
+          "text": "그날 함께 남길 사진을 펼쳐 놓고 어울리는 옷을 골라요.",
+          "pole": "back",
+          "strength": "strong"
+        }
+      ]
+    },
+    {
+      "id": "support.recover.4",
+      "axis": "support",
+      "facet": "recover",
+      "section": 3,
+      "screen": 36,
+      "key": -1,
+      "fmt": "react",
+      "kind": "story",
+      "caption": "선배의 회복 이야기",
+      "stem": "결혼한 지 몇 해 된 선배가 준비하던 시절을 떠올리며 말해요.",
+      "quote": {
+        "speaker": "선배",
+        "text": "지칠 때면 먼저 할 일 하나를 마쳤어. 그날 기분은 나중에 이야기했지."
+      },
+      "question": "내가 그 입장이라면?",
+      "ends": {
+        "left": "힘들었던 얘기를 먼저 꺼내고 싶어요",
+        "right": "남은 일 하나를 먼저 끝내고 싶어요"
+      },
+      "highPole": "back",
+      "recap": "선배가 할 일을 먼저 마쳤다고 하면"
+    },
+    {
+      "id": "scope.circle.4",
+      "axis": "scope",
+      "facet": "circle",
+      "section": 3,
+      "screen": 37,
+      "key": 1,
+      "fmt": "recall",
+      "caption": "결혼 소식 명단",
+      "stem": "결혼 소식을 전할 사람을 실제로 적어 본 적이 있다면, 명단을 어떻게 만들었어요? 그런 일이 없으면 그대로 표시해 주세요.",
+      "options": [
+        {
+          "text": "가족이 챙긴 명단에 내가 부를 사람을 더했어요.",
+          "pole": "back",
+          "strength": "weak"
+        },
+        {
+          "text": "둘과 가까운 사람만 먼저 적고 초대 범위를 정했어요.",
+          "pole": "front",
+          "strength": "strong"
+        },
+        {
+          "text": "둘이 명단을 먼저 적고 가족에게도 보여 드렸어요.",
+          "pole": "front",
+          "strength": "weak"
+        },
+        {
+          "text": "가족이 알리고 싶은 사람부터 듣고 명단을 채웠어요.",
+          "pole": "back",
+          "strength": "strong"
+        }
+      ]
+    },
+    {
+      "id": "process.search.4",
+      "axis": "process",
+      "facet": "search",
+      "section": 3,
+      "screen": 37,
+      "key": -1,
+      "fmt": "pair",
+      "kind": "friends",
+      "caption": "두 커플의 장소",
+      "stem": "결혼 준비 장소를 알아본 친구 두 커플 이야기예요. 나라면 어느 방식을 따라 하고 싶어요?",
+      "cards": [
+        {
+          "pole": "back",
+          "text": "한 사람이 후보를 추려 와 마지막에 같이 골랐어요. 먼저 둘러보는 몫은 한 사람에게 갔어요."
+        },
+        {
+          "pole": "front",
+          "text": "두 사람이 각자 후보를 모아 함께 좁혔어요. 서로 시간을 맞춰 다시 봐야 했어요."
+        }
+      ]
+    },
+    {
+      "id": "support.fight.4",
+      "axis": "support",
+      "facet": "fight",
+      "section": 3,
+      "screen": 38,
+      "key": -1,
+      "fmt": "bestworst",
+      "caption": "다음 날 집을 나서며",
+      "stem": "크게 다툰 다음 날 아침이에요. 짧은 메시지 중 가장 나 같은 것과 아닌 것을 골라 주세요.",
+      "cards": [
+        {
+          "pole": "back",
+          "text": "어제 엇갈린 일이 무엇인지 짧게 정리해 보내요"
+        },
+        {
+          "pole": "front",
+          "text": "어제 서운했던 마음을 한 문장으로 적어 보내요"
+        },
+        {
+          "pole": "front",
+          "text": "지금 마음은 좀 어떤지 묻는 한 줄을 보내요"
+        },
+        {
+          "pole": "back",
+          "text": "저녁에 다시 이야기할 주제를 적어 보내요"
+        }
+      ]
+    },
+    {
+      "id": "process.report.4",
+      "axis": "process",
+      "facet": "report",
+      "section": 3,
+      "screen": 39,
+      "key": -1,
+      "fmt": "recall",
+      "caption": "맡은 일 알리기",
+      "stem": "최근 결혼 준비에서 맡은 일이 있다면, 진행 상황을 어떻게 전했어요? 그런 일이 없으면 그대로 표시해 주세요.",
+      "options": [
+        {
+          "text": "큰 단계가 끝날 때마다 메시지로 진행 상황을 알렸어요.",
+          "pole": "front",
+          "strength": "weak"
+        },
+        {
+          "text": "중간에는 알리지 않고 다 끝난 뒤 정리한 완성본을 넘겼어요.",
+          "pole": "back",
+          "strength": "strong"
+        },
+        {
+          "text": "기한이 가까워졌을 때 지금까지 한 것을 정리해서 알렸어요.",
+          "pole": "back",
+          "strength": "weak"
+        },
+        {
+          "text": "거의 매일 그날 한 일과 남은 일을 적어서 보냈어요.",
+          "pole": "front",
+          "strength": "strong"
+        }
+      ]
+    },
+    {
+      "id": "scope.form.4",
+      "axis": "scope",
+      "facet": "form",
+      "section": 3,
+      "screen": 39,
+      "key": 1,
+      "fmt": "pair",
+      "kind": "friends",
+      "caption": "두 커플의 옷",
+      "stem": "식이든 혼인신고 날이든, 옷을 고른 친구 두 커플 이야기예요. 어느 쪽을 따라 하고 싶어요?",
+      "cards": [
+        {
+          "pole": "front",
+          "text": "한 커플은 둘이 어울린다고 느끼는 옷을 골랐어요. 가족에게 선택 이유를 말해야 해요."
+        },
+        {
+          "pole": "back",
+          "text": "다른 커플은 집안에서 익숙한 옷을 골랐어요. 원하던 다른 한 벌은 접어야 해요."
+        }
+      ]
+    },
+    {
+      "id": "self.money",
+      "axis": "money",
+      "section": 4,
+      "screen": 40,
+      "key": 1,
+      "fmt": "self",
+      "caption": "직접 고른 쪽",
+      "stem": "스스로는 어느 쪽에 더 가깝다고 생각해요?",
+      "cards": [
+        {
+          "pole": "front",
+          "text": "돈이 걸린 일은 쓸 수 있는 총액을 먼저 보고 시작해요"
+        },
+        {
+          "pole": "back",
+          "text": "돈이 걸린 일은 남기고 싶은 장면을 먼저 그려 봐요"
+        }
+      ]
+    },
+    {
+      "id": "self.process",
+      "axis": "process",
+      "section": 4,
+      "screen": 40,
+      "key": -1,
+      "fmt": "self",
+      "caption": "직접 고른 쪽",
+      "stem": "스스로는 어느 쪽에 더 가깝다고 생각해요?",
+      "cards": [
+        {
+          "pole": "back",
+          "text": "준비는 맡을 일을 나눈 뒤 각자 마무리해서 맞춰 봐요"
+        },
+        {
+          "pole": "front",
+          "text": "준비는 찾아보는 일부터 고르는 일까지 함께해요"
+        }
+      ]
+    },
+    {
+      "id": "self.scope",
+      "axis": "scope",
+      "section": 4,
+      "screen": 41,
+      "key": -1,
+      "fmt": "self",
+      "caption": "직접 고른 쪽",
+      "stem": "가족과의 사이가 어떻든 스스로는 어느 쪽에 더 가깝다고 생각해요?",
+      "cards": [
+        {
+          "pole": "back",
+          "text": "결혼 준비를 정하기 전 가족 의견을 먼저 들어요"
+        },
+        {
+          "pole": "front",
+          "text": "결혼 준비는 둘이 먼저 정하고 가족에게 알려요"
+        }
+      ]
+    },
+    {
+      "id": "self.support",
+      "axis": "support",
+      "section": 4,
+      "screen": 41,
+      "key": 1,
+      "fmt": "self",
+      "caption": "직접 고른 쪽",
+      "stem": "스스로는 어느 쪽에 더 가깝다고 생각해요?",
+      "cards": [
+        {
+          "pole": "front",
+          "text": "둘 중 누가 지친 날이면 마주 앉아 이야기를 먼저 들어요"
+        },
+        {
+          "pole": "back",
+          "text": "둘 중 누가 지친 날이면 남은 일 하나를 먼저 덜어요"
+        }
+      ]
+    }
+  ]
+}

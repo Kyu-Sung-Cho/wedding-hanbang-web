@@ -2,7 +2,7 @@
 
 import { useId, useRef, useState } from "react";
 import Button from "@/components/ui/Button";
-import { V40_COUNTS } from "@/constants/weddingCodeV40";
+import { V40_COUNTS, V40_LETTERS } from "@/constants/weddingCodeV40";
 import {
   V40_COPY,
   autosaveTurnOffWarning,
@@ -50,7 +50,7 @@ export function AutosaveToggle({ autosave, onChange, note = null, warning = null
   const on = autosave === "on";
   const showWarning = on && warning !== null && warning !== "";
   return (
-    <div data-autosave-toggle="" data-autosave={autosave} className="mt-6">
+    <div data-autosave-toggle="" data-autosave={autosave} className="mt-8 max-w-[660px] border-t border-[var(--hb-hairline)] pt-6">
       <Button
         variant="secondary"
         size="md"
@@ -60,11 +60,11 @@ export function AutosaveToggle({ autosave, onChange, note = null, warning = null
         {on ? V40_COPY.autosave.turnOffButton : V40_COPY.autosave.turnOnButton}
       </Button>
       {showWarning ? (
-        <p id={warningId} data-autosave-warning="" className={cx(noteText, "mt-2")}>
+        <p id={warningId} data-autosave-warning="" className={cx(noteText, "mt-3")}>
           {warning}
         </p>
       ) : null}
-      <div role="status" aria-live="polite" className="mt-2 space-y-1">
+      <div role="status" aria-live="polite" className="mt-3 space-y-1">
         <p data-autosave-status="" className={noteText}>
           {on ? V40_COPY.autosave.statusOn : V40_COPY.autosave.statusOff}
         </p>
@@ -73,6 +73,36 @@ export function AutosaveToggle({ autosave, onChange, note = null, warning = null
             {note === "turnedOn" ? V40_COPY.autosave.turnedOnNote : V40_COPY.autosave.turnedOffNote}
           </p>
         ) : null}
+      </div>
+    </div>
+  );
+}
+
+/** 네 축의 실제 글자 정의를 조판한 제품 견본. 결과를 미리 정하거나 한 유형의 예시로 제시하지 않는다. */
+function CodeSpecimen() {
+  const pairs = [
+    V40_LETTERS.slice(0, 2),
+    V40_LETTERS.slice(2, 4),
+    V40_LETTERS.slice(4, 6),
+    V40_LETTERS.slice(6, 8),
+  ];
+  return (
+    <div aria-hidden="true" className="overflow-hidden rounded-2xl border border-[var(--hb-hairline)] bg-[var(--hb-surface-raised)]">
+      <div className="border-b border-[var(--hb-hairline)] bg-[var(--ivory-warm)] px-4 py-2 text-[12px] font-medium text-[var(--hb-text-body)] lg:px-7 lg:py-4 lg:text-[13px]">
+        {V40_COPY.intro.specimenLabel}
+      </div>
+      <div className="grid grid-cols-4 divide-x divide-[var(--hb-hairline)] lg:block lg:divide-x-0 lg:divide-y lg:px-7">
+        {pairs.map((pair) => (
+          <div key={pair[0].axis} className="flex items-center justify-center gap-1 py-3 lg:grid lg:grid-cols-2 lg:gap-5 lg:py-5">
+            {pair.map((letter, index) => (
+              <div key={letter.letter} className={cx(index === 1 && "lg:border-l lg:border-[var(--hb-hairline)] lg:pl-5")}>
+                <span className="block text-[27px] font-semibold leading-none tracking-[-0.03em] text-[var(--hb-text-strong)] lg:text-[54px]">
+                  {letter.letter}
+                </span>
+              </div>
+            ))}
+          </div>
+        ))}
       </div>
     </div>
   );
@@ -156,7 +186,7 @@ export function IntroScreen({
       data-pending={pending ? "" : undefined}
       // 소개 글이 화면보다 짧은 동안(대기 화면)과 긴 뒤(저장소를 읽은 화면)에 시작 단추가 같은 자리, 곧 화면 아래에 있게 한다.
       // 짧은 동안 단추가 글 바로 밑에 떠 있다가 풀리는 순간 화면 아래로 내려가면, 풀리기를 기다려 누르려던 손가락이 자리를 놓친다.
-      className={pinnedScreenRootClass(embedded)}
+      className={pinnedScreenRootClass(embedded, "entry")}
     >
       {notice ? (
         <p role="status" data-intro-notice="" className={cx(noticeBox, noticeText, "mb-4")}>
@@ -171,7 +201,7 @@ export function IntroScreen({
       {storageIssue !== null ? <StorageNotice problem={storageIssue} className="mb-4" /> : null}
       {legacy ? <PreviousVersionCard savedAt={legacy.savedAt} className="mb-4" /> : null}
       {resume ? (
-        <SectionCard title={copy.resume.title} dataCard="resume" className="mb-4">
+        <SectionCard title={copy.resume.title} dataCard="resume" className="mb-8 max-w-[660px]">
           <p>{copy.resume.body}</p>
           {resumeSavedOn ? <p className="text-[var(--hb-text-muted)]">{resumeSavedOn}</p> : null}
           <div className="flex flex-col gap-2 pt-1">
@@ -185,23 +215,28 @@ export function IntroScreen({
         </SectionCard>
       ) : null}
 
-      <p className="text-xs font-semibold tracking-wide text-[var(--hb-text-muted)]">{copy.brandLabel}</p>
-      <h1 id={titleId} className="mt-3 break-keep text-[26px] font-semibold leading-snug text-[var(--hb-text-strong)] sm:text-3xl">
-        {copy.title}
-      </h1>
-      <p className={cx(bodyText, "mt-4 break-keep")}>{copy.lede}</p>
-      <ul role="list" className="mt-5 list-disc space-y-2 pl-5 text-sm leading-relaxed text-[var(--hb-text-body)] marker:text-[var(--hb-text-muted)]">
-        {bullets.map((line) => (
-          <li key={line} className="break-keep">
-            {line}
-          </li>
-        ))}
-      </ul>
+      <div className="grid items-start gap-8 lg:grid-cols-[minmax(0,1.24fr)_minmax(320px,0.76fr)] lg:gap-14">
+        <div className="max-w-[660px] pt-3 lg:pt-10">
+          <p className="text-[14px] font-medium text-[var(--hb-text-muted)]">{copy.brandLabel}</p>
+          <h1 id={titleId} className="mt-5 break-keep text-[clamp(2.25rem,4.4vw,4.25rem)] font-semibold leading-[1.18] tracking-[-0.055em] text-[var(--hb-text-strong)]">
+            {copy.title}
+          </h1>
+          <p className={cx(bodyText, "mt-6 max-w-[600px] break-keep text-[16px]! leading-[1.85]!")}>{copy.lede}</p>
+          <ul role="list" className="mt-7 grid gap-3 border-t border-[var(--hb-hairline)] pt-6 text-[14px] leading-[1.7] text-[var(--hb-text-body)] sm:grid-cols-2">
+            {bullets.map((line) => (
+              <li key={line} className="break-keep border-l-2 border-[var(--hb-hairline)] pl-3">
+                {line}
+              </li>
+            ))}
+          </ul>
+        </div>
+        <div className="mx-auto w-full max-w-[420px] lg:pt-4"><CodeSpecimen /></div>
+      </div>
 
-      <p data-intro-honesty="" className="mt-6 break-keep text-sm font-medium leading-relaxed text-[var(--hb-text-strong)]">
+      <p data-intro-honesty="" className="mt-10 max-w-[660px] break-keep border-t border-[var(--hb-hairline)] pt-6 text-sm font-medium leading-relaxed text-[var(--hb-text-strong)]">
         {copy.notice}
       </p>
-      <p data-intro-storage="" className={cx(fineText, "mt-3")}>
+      <p data-intro-storage="" className={cx(fineText, "mt-3 max-w-[660px]")}>
         {storage.before}
         <a
           href="/privacy"
@@ -214,7 +249,7 @@ export function IntroScreen({
         </a>
         {storage.after}
       </p>
-      <p data-intro-scope="" className={cx(fineText, "mt-3")}>
+      <p data-intro-scope="" className={cx(fineText, "mt-3 max-w-[660px]")}>
         {copy.scope}
       </p>
 
@@ -228,16 +263,18 @@ export function IntroScreen({
           {/* 소개 글이 화면보다 짧으면 남는 높이를 이 빈틈이 먹어 단추 줄이 화면 아래에 붙는다(저장소를 읽어 글이 길어진 뒤와 같은 자리). */}
           <PinBarSpacer embedded={embedded} />
           <ActionBar embedded={embedded}>
-            {/* 안내는 단추 위에 둔다: 사라질 때 아래에 붙은 단추가 따라 내려가 누르려던 자리를 벗어나지 않게 한다. */}
-            {pending ? (
-              <p role="status" data-intro-pending="" className={cx(noteText, "mb-2 text-center")}>
-                {V40_COPY.common.loadingLabel}
-              </p>
-            ) : null}
-            {/* 대기 중에는 진짜 disabled 로 내보낸다. 서버가 그린 단추는 하이드레이션 전에 눌러도 받는 쪽이 없어 누른 것이 사라진다. */}
-            <Button variant="primary" size="lg" fullWidth onClick={onStart} loading={pending}>
-              {copy.startButton}
-            </Button>
+            <div className="max-w-[660px]">
+              {/* 안내는 단추 위에 둔다: 사라질 때 아래에 붙은 단추가 따라 내려가 누르려던 자리를 벗어나지 않게 한다. */}
+              {pending ? (
+                <p role="status" data-intro-pending="" className={cx(noteText, "mb-2 text-center")}>
+                  {V40_COPY.common.loadingLabel}
+                </p>
+              ) : null}
+              {/* 대기 중에는 진짜 disabled 로 내보낸다. 서버가 그린 단추는 하이드레이션 전에 눌러도 받는 쪽이 없어 누른 것이 사라진다. */}
+              <Button variant="primary" size="lg" fullWidth onClick={onStart} loading={pending}>
+                {copy.startButton}
+              </Button>
+            </div>
           </ActionBar>
         </>
       )}

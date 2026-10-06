@@ -36,7 +36,7 @@ export function ChoiceInput({ view, value, onAnswer, idPrefix, incomplete = fals
 
   return (
     <div>
-      <div role="radiogroup" aria-labelledby={ids.stem} aria-label={view.caption} className="flex flex-col gap-2">
+      <div role="radiogroup" aria-labelledby={ids.stem} aria-label={view.caption} className="flex flex-col gap-3">
         {rowTexts.map((text, index) => {
           const checked = index === checkedIndex;
           const none = index === noneIndex;
@@ -50,7 +50,7 @@ export function ChoiceInput({ view, value, onAnswer, idPrefix, incomplete = fals
               ref={radio.ref(index)}
               onClick={() => select(index)}
               onKeyDown={(event) => radio.onKeyDown(event, index)}
-              className={cx(card, radioRow, "hover:bg-[var(--hb-surface-hover)]", none && "mt-2 border-dashed", checked && cardSelected)}
+              className={cx(card, radioRow, "min-h-16! px-5! py-4! hover:bg-[var(--hb-surface-hover)]", none && "mt-2 border-dashed", checked && cardSelected)}
             >
               <span aria-hidden="true" className={cx(radioMark, checked && radioMarkSelected)}>
                 {checked ? <Check className="size-3.5" /> : null}

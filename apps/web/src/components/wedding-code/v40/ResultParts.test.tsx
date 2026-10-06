@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { V40_LETTERS, V40_SUFFIX } from "@/constants/weddingCodeV40";
+import { V40_LETTERS, V40_SUFFIX, axisInfo } from "@/constants/weddingCodeV40";
 import { V40_COPY, selfContrastSentence, type CodeLineEntry } from "@/lib/weddingCode/v40/copy";
 import type { GateInfo, QualityNotes as QualityNotesData } from "@/lib/weddingCode/v40/types";
 import { GatheredSentences } from "./GatheredSentences";
@@ -39,7 +39,9 @@ describe("GatheredSentences", () => {
     ];
     await harness.render(<GatheredSentences entries={entries} />);
     expect(harness.container.querySelector("h2")?.textContent).toBe(V40_COPY.collected.title);
-    const lines = [...harness.container.querySelectorAll("li")].map((node) => node.textContent);
+    const cards = [...harness.container.querySelectorAll("li")];
+    expect(cards.map((card) => card.firstElementChild?.textContent)).toEqual(entries.map((entry) => axisInfo(entry.axis).title));
+    const lines = cards.map((card) => card.querySelector("[data-collected-axis]")?.textContent);
     expect(lines).toEqual([
       "돈은 남을 장면부터 그려 보는 쪽으로 답했어요.",
       "준비는 같이 하기와 나눠 하기 어느 쪽으로도 크게 기울지 않았어요.",

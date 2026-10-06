@@ -94,7 +94,7 @@ describe("TwoPersonSendBlock: 처음 모양", () => {
 
   it("도움말이 이 링크를 보내야 상대도 두 사람 결과를 볼 수 있다고 말한다", async () => {
     await renderBlock();
-    expect(V40_COPY.coupleSend.help).toContain("이 링크를 보내야 상대도 두 사람 결과를 볼 수 있어요");
+    expect(V40_COPY.coupleSend.help).toContain("이 링크를 보내면 두 사람의 답을 나란히 볼 수 있어요");
     expect(root().textContent).toContain(V40_COPY.coupleSend.help);
   });
 
@@ -195,7 +195,7 @@ describe("TwoPersonSendBlock: 보낸 결과 네 갈래", () => {
     expect(document.activeElement).toBe(address());
   });
 
-  it("공유 창을 닫으면 cancelled: 사건도 주소 칸도 없다", async () => {
+  it("공유 창을 닫으면 cancelled: 취소 안내는 보이되 사건도 주소 칸도 없다", async () => {
     const share = vi.fn(async () => {
       throw new DOMException("닫았어요", "AbortError");
     });
@@ -203,7 +203,7 @@ describe("TwoPersonSendBlock: 보낸 결과 네 갈래", () => {
     await checkBoth();
     await press();
     expect(onSent).not.toHaveBeenCalled();
-    expect(statusText()).toBe("");
+    expect(statusText()).toBe(V40_COUPLE_SEND_EXTRA_COPY.cancelled);
     expect(address()).toBeNull();
   });
 

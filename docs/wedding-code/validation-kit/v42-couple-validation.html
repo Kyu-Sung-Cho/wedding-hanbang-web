@@ -1,0 +1,300 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'none'; img-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
+  <title>웨딩코드 v4.2 · 익명 커플 관찰 워크시트</title>
+  <style>
+    :root { color-scheme: light; --ink:#2D2C2B; --muted:#655F60; --paper:#FFF; --ivory:#F8F6F3; --line:#D6CECA; --accent:#825F71; --summary:#EEE5DA; }
+    * { box-sizing:border-box; }
+    body { margin:0; background:var(--ivory); color:var(--ink); font-family:Pretendard,system-ui,-apple-system,"Segoe UI",sans-serif; font-size:16px; line-height:1.65; }
+    main { max-width:1080px; margin:auto; padding:40px 24px 80px; }
+    h1,h2,h3,p { margin:0 0 12px; } h1 { font-size:clamp(26px,4vw,38px); line-height:1.3; } h2 { font-size:23px; line-height:1.4; } h3 { font-size:18px; }
+    section, .card { background:var(--paper); border:1px solid var(--line); border-radius:16px; padding:24px; margin:24px 0; }
+    header { margin-bottom:28px; } .eyebrow { color:var(--accent); font-size:14px; font-weight:700; }
+    .notice { background:var(--summary); padding:18px 20px; border-radius:12px; margin:18px 0; }
+    .small { font-size:14px; color:var(--muted); } .status { font-weight:700; margin-top:12px; } .grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:18px; }
+    .three { grid-template-columns:repeat(3,minmax(0,1fr)); } .full { grid-column:1/-1; }
+    label,legend { display:block; font-weight:600; font-size:14px; margin-bottom:6px; }
+    input,select,textarea,button { font:inherit; } input:not([type=checkbox]),select,textarea { width:100%; border:1px solid #B9ADB3; border-radius:8px; background:var(--paper); color:var(--ink); padding:10px 12px; min-height:46px; }
+    textarea { resize:vertical; min-height:84px; } input[type=checkbox] { width:20px; height:20px; margin:2px 8px 0 0; flex:none; accent-color:var(--accent); }
+    .check { display:flex; align-items:flex-start; gap:4px; font-size:15px; font-weight:400; margin:14px 0; }
+    button { border:1px solid var(--accent); border-radius:9px; background:var(--accent); color:white; padding:11px 16px; min-height:46px; cursor:pointer; font-weight:600; }
+    button.secondary { color:var(--accent); background:var(--paper); } button:disabled { cursor:not-allowed; opacity:.5; }
+    button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible,summary:focus-visible { outline:3px solid #805E70; outline-offset:3px; }
+    .buttons { display:flex; flex-wrap:wrap; gap:12px; margin-top:16px; } fieldset { border:0; padding:0; margin:0; min-width:0; } fieldset:disabled { opacity:.7; }
+    details { border-top:1px solid var(--line); padding:16px 0; } summary { cursor:pointer; font-weight:600; min-height:44px; padding:8px 0; } details[open]>summary { margin-bottom:14px; }
+    .item-card { border:1px solid var(--line); border-radius:12px; padding:20px; margin-top:18px; } .item-title { display:flex; justify-content:space-between; flex-wrap:wrap; gap:12px; }
+    .source { padding:16px; background:var(--ivory); border-radius:8px; margin:12px 0 16px; } .source p:last-child { margin-bottom:0; } ol,ul { padding-left:24px; } .source li { margin-bottom:7px; }
+    .person { border-top:1px solid var(--line); padding-top:15px; margin-top:18px; } .probe { margin:20px 0; }
+    .pill { display:inline-block; font-size:13px; border:1px solid var(--line); border-radius:99px; padding:3px 10px; margin:4px 5px 4px 0; }
+    .print-only { display:none; } #message { min-height:24px; color:var(--accent); font-weight:600; }
+    @media(max-width:650px) { main { padding:24px 16px 50px; } section,.card { padding:20px 16px; } .grid,.three { grid-template-columns:1fr; } .full { grid-column:auto; } .item-card { padding:16px; } }
+    @media print { body { background:white; font-size:11pt; } main { max-width:none; padding:0; } .no-print,#worksheet { display:none !important; } #print-report { display:block; } #print-report pre { white-space:pre-wrap; overflow-wrap:anywhere; font:10pt/1.5 system-ui,sans-serif; } section { border:0; padding:0; } }
+  </style>
+</head>
+<body>
+<main>
+  <header>
+    <p class="eyebrow">웨딩코드 v4.2-depth · 진행자용</p>
+    <h1>두 사람이 읽은 뜻을 확인하는<br>익명 관찰 워크시트</h1>
+    <p>질문·결과·초대 흐름의 이해와 대화 유용성을 관찰합니다. 사람의 답과 개인 사연은 기록하지 않습니다.</p>
+    <div class="notice"><strong>이 키트 작성 시점 · 실제 커플 확인 0건 / UNVALIDATED</strong><br>이 워크시트의 완료는 사용성 관찰 기록의 완료입니다. 심리 측정 타당성·G3·출시 승인과 별개입니다.</div>
+  </header>
+  <div id="worksheet">
+    <section aria-labelledby="consent-title">
+      <h2 id="consent-title">1. 시작과 각자의 동의</h2>
+      <p>각자에게 목적과 범위를 설명하고 직접 확인하세요. 거절·철회에는 이유가 필요하지 않습니다. 관찰 동의가 취소되면 현재 탭의 관찰 메모를 비웁니다.</p>
+      <details><summary>시작할 때 읽을 설명</summary><p>오늘은 성격이나 관계를 평가하는 자리가 아니라, 웨딩코드의 문장과 화면을 이해하기 쉬운지 살펴보는 자리입니다. 정답은 없습니다. 어떤 답을 골랐는지와 개인 사연은 기록하지 않습니다. 이름·연락처·실제 답·결과 코드·공유 주소도 받지 않습니다. 이해가 어려웠던 위치와 사용 과정만 익명으로 메모합니다. 질문을 건너뛰거나 언제든 멈출 수 있고, 이유를 설명하지 않아도 됩니다. 파일로 남기기와 인쇄는 따로 동의를 확인합니다.</p></details>
+      <div class="grid three">
+        <div><label for="kind">세션 종류</label><select id="kind"><option value="">선택 전</option><option value="dry-run">도구 리허설 · 사람 관찰 아님</option><option value="human-observation">실제 커플 사용성 관찰</option></select></div>
+        <div><label for="session-id">임의 세션 ID</label><input id="session-id" maxlength="24" placeholder="예: S-001" autocomplete="off" spellcheck="false"><p class="small">영문·숫자·하이픈만. 신원·날짜·연락처에서 만들지 마세요.</p></div>
+        <div><label for="version-checked">제품 화면 판 확인</label><select id="version-checked"><option value="">확인 전</option><option value="v4.2-depth">v4.2-depth 원문 확인</option><option value="different">다른 판 / 확인 불가</option></select></div>
+      </div>
+      <div class="grid" id="consent-people"></div>
+      <label class="check"><input id="explained" type="checkbox">두 사람 각각에게 목적·기록 범위·거절/철회·별도 출력 동의를 설명하고 각자 의사를 확인했습니다. 리허설이면 모의 확인입니다.</label>
+      <p class="small">JSON·인쇄 동의가 없으면 탭에서만 살펴볼 수 있습니다. 이미 출력한 파일·종이는 탭이 지울 수 없으므로 진행자가 별도로 회수·삭제해야 합니다.</p>
+      <p id="consent-state" class="status" role="status"></p>
+    </section>
+    <section aria-labelledby="plan-title">
+      <h2 id="plan-title">2. 관찰할 문항을 먼저 고르기</h2>
+      <p>전수 확인이 아니면 관찰한 문항만 근거로 남깁니다. 한 자리에서 68개 모두를 자세히 설명하게 요구하지 마세요.</p>
+      <label for="item-picker">v4.2 공개 문항</label><select id="item-picker"></select>
+      <div class="buttons"><button id="add-item" type="button" class="secondary">관찰 계획에 추가</button></div>
+      <p class="small">내장 원문에는 공개 상황·보기만 있습니다. 화면에서 보기 순서는 달라질 수 있습니다. 문장 자체를 대조하며, 선택한 보기·점수·코드·링크는 적지 않습니다.</p>
+      <p id="plan-count" class="small"></p>
+    </section>
+    <fieldset id="observation-work" disabled>
+      <section aria-labelledby="items-title">
+        <h2 id="items-title">3. 문항을 자기 말로 설명하기</h2>
+        <p>설명을 돕기 전 각자에게 상황과 모든 보기의 뜻을 물으세요. “왜 그 답을 골랐나요?” 대신 문장의 이해를 확인합니다. 결과 예측 질문은 최초 읽기 이후에만 묻습니다.</p>
+        <p class="small">개인 사연·선택값 없이 뜻이나 혼동 지점만 기록하세요. 설명 후 이해와 처음 이해를 구분합니다.</p>
+        <div id="item-records"></div>
+      </section>
+      <section aria-labelledby="results-title">
+      <h2 id="results-title">4. 결과 원문·비율·대화 이해</h2>
+      <p>실제로 본 화면인지 별도 예시인지 구분합니다. 안 보인 상태를 이해 성공으로 세지 않습니다. 실제 글자·퍼센트·답을 옮기지 않습니다.</p>
+      <p class="small">아래는 진행자의 판단 기준입니다. 먼저 “어떤 뜻으로 읽혔나요?”라고 묻고 들으세요. 참가자에게 기준을 알려준 뒤의 이해는 ‘설명 후’로 기록합니다. 질문을 처음 읽기 전에 이 워크시트를 보여주지 않습니다.</p>
+        <div id="result-records"></div>
+      </section>
+      <section aria-labelledby="flow-title">
+      <h2 id="flow-title">5. 초대와 반환 흐름</h2>
+      <p>화면에서 찾은 것과 실제 실행한 것을 구분하세요. 실제 발송을 요구하지 않습니다. 주소·메시지·수신자 정보는 적지 않습니다.</p>
+      <p class="small">먼저 “지금 누구에게 무엇을 보내려고 하나요? 다음에는 무엇이 일어날까요?”라고 묻습니다. 아래 판단 기준을 읽어준 뒤의 이해는 처음 이해로 합치지 않습니다.</p>
+        <div id="flow-records"></div>
+      </section>
+      <section aria-labelledby="end-title">
+        <h2 id="end-title">6. 부담·종료·실패 기록</h2>
+        <div id="ending-records" class="grid"></div>
+        <details><summary>실패와 수정 과제</summary><p class="small">문항 ID나 화면 위치와 관찰한 오해만 남기세요. 사람의 성격·관계 원인을 추정하지 않습니다. 문제가 없다고 단정하기보다 관찰 범위를 확인합니다.</p><div id="issues"></div><button id="add-issue" type="button" class="secondary">실패/수정 과제 추가</button></details>
+        <label class="check"><input id="finish" type="checkbox">계획한 관찰을 마치고 기록 범위·미확인 항목·도움 제공·실패/수정 과제를 검토했습니다.</label>
+      </section>
+    </fieldset>
+    <section aria-labelledby="output-title">
+      <h2 id="output-title">7. 기록 상태와 명시적 출력</h2>
+      <p id="record-state" class="status" role="status"></p>
+      <p id="coverage" class="small"></p>
+      <p class="small">문항 이해 실패가 있어도 관찰 기록은 완료될 수 있습니다. 완료를 이해 성공·심리 타당성·G3·출시 통과로 표시하지 않습니다. 부분 관찰도 내보낼 수 있지만 미완료 상태를 유지합니다.</p>
+      <label class="check"><input id="privacy-review" type="checkbox" disabled>진행자가 모든 메모를 직접 읽었고, 실명·연락처·개인 사연·실제 답·결과 코드·공유 주소가 없음을 확인했습니다.</label>
+      <div class="buttons"><button id="download" type="button" disabled>익명 기록 JSON 다운로드</button><button id="print" type="button" class="secondary" disabled>동의된 기록 인쇄</button><button id="reset" type="button" class="secondary">현재 기록 비우기</button></div>
+      <p id="output-state" class="small"></p><p id="message" role="status" aria-live="polite"></p>
+      <p class="small">탭 메모리만 사용합니다. 새로고침·닫기로 입력이 사라집니다. 다운로드/인쇄는 이 버튼을 눌렀을 때만 실행합니다. 출력물의 보관·삭제는 진행자가 관리합니다.</p>
+    </section>
+  </div>
+  <section id="print-report" class="print-only"><h2>웨딩코드 v4.2 익명 사용성 관찰</h2><p>UNVALIDATED · 심리 측정 타당성/G3/출시 승인 아님</p><pre id="print-content"></pre></section>
+</main>
+<script id="public-items" type="application/json">[{"id":"process.search.1","caption":"주말 둘러보기 제안","stem":"결혼 준비로 둘러볼 곳이 세 군데 남았을 때 상대가 말해요.","formatLabel":"반응의 위치 선택","options":["각자 보고 사진으로 얘기하고 싶어요","함께 돌며 바로 얘기하고 싶어요"],"quote":{"speaker":"상대","text":"이번 주말에 세 곳을 볼 수 있을 것 같아. 우리 어떻게 움직일까?"},"question":"나라면 어떻게 둘러보고 싶어요?"},{"id":"money.limit.1","caption":"첫 주말의 메모","stem":"장소 사진과 견적 파일을 함께 받은 첫 주말이에요. 둘이 메모 첫 장을 만든다면 어디에 먼저 표시할까요?","formatLabel":"두 보기 중 선택","options":["쓸 수 있는 총액을 맨 위에 적고 사진은 그 아래에 놓아요.","눈길이 간 사진을 맨 위에 놓고 견적은 그 아래에 적어요."]},{"id":"process.owner.1","caption":"일이 쌓인 주말","stem":"챙길 일이 한꺼번에 밀린 주말이에요. 둘이 어떻게 시작하면 좋을까요?","formatLabel":"두 보기 중 선택","options":["할 일과 마감을 나눠 각자 시작해요. 막히면 서로 알려야 해요.","둘이 순서를 정하고 첫 일부터 같이 해요. 함께 앉을 시간을 맞춰야 해요."]},{"id":"money.check.1","caption":"상담 뒤 견적","stem":"상담을 마쳤어요. 기본 계약·취소 조건은 확인했고 사진과 견적 메일을 받았어요. 상대가 말해요.","formatLabel":"반응의 위치 선택","options":["오늘 본 사진과 동선이에요","견적의 총액과 추가금이에요"],"quote":{"speaker":"상대","text":"집에 가서 사진이랑 견적을 같이 보자. 뭐부터 펼칠까?"},"question":"먼저 펼쳐 보고 싶은 건?"},{"id":"support.vent.1","caption":"준비가 겹친 저녁","stem":"결혼 준비와 다른 일이 겹친 저녁, 상대에게 오늘 힘들었다고 말했어요. 지금 상대가 해 주면 고마울 일에 여섯 칸을 나눠 주세요.","formatLabel":"여섯 칸 나누기","options":["내일 준비할 일 한 가지를 물어보고 맡아 주기","오늘 무엇이 힘들었는지 물으며 이야기 들어 주기","준비 이야기를 멈추고 함께 쉬기"]},{"id":"scope.final.1","caption":"날짜를 정하는 자리","stem":"결혼을 기념할 날짜가 토요일과 일요일로 남았어요. 두 날짜 모두 장소와 가족 참석이 가능해요. 어떻게 정하고 싶어요?","formatLabel":"두 보기 중 선택","options":["둘이 두 날짜를 놓고 골라요. 가족에게는 결정한 뒤 알려요.","가족과 두 날짜를 놓고 골라요. 둘의 선호도 함께 말해요."]},{"id":"support.give.1","caption":"준비 연락에 지친 상대","stem":"결혼 준비 연락을 마친 상대가 의자에 앉으며 말해요.","formatLabel":"반응의 위치 선택","options":["남은 연락을 맡고 싶어요","무슨 일이었는지 듣고 싶어요"],"quote":{"speaker":"상대","text":"오늘 연락이 계속 와서 진짜 지쳤어."},"question":"그때 내 마음은?"},{"id":"scope.circle.1","caption":"명단 적는 밤","stem":"결혼 소식을 전할 사람의 명단을 처음 적는 밤이에요. 가장 나 같은 방식과 아닌 방식을 골라 주세요.","formatLabel":"가장 나 같은/아닌 보기","options":["둘이 자주 연락하는 사람부터 적고 가족의 이름은 나중에 받아요","가족이 떠올린 사람도 초안을 만들 때 함께 적어요","명단을 만들기 전에 가족이 꼭 알리고 싶은 사람부터 들어요","둘이 전할 사람의 범위를 먼저 정하고 그 안에서 명단을 채워요"]},{"id":"support.fight.1","caption":"다투고 난 저녁","stem":"결혼 준비로 다투고 잠깐 쉬었다가 다시 마주 앉았어요. 무엇부터 이야기하고 싶어요?","formatLabel":"두 보기 중 선택","options":["엇갈린 일을 확인하고 다음 연락 방식을 정해요.","서로 왜 속상했는지 한 사람씩 차례로 이야기해요."]},{"id":"scope.timing.1","caption":"가족에게 전한 때","stem":"최근 이사·진학·직장처럼 큰 결정을 한 때를 떠올려 보세요. 가족에게는 언제 의견을 물었거나 결과를 알렸어요?","formatLabel":"과거 경험 떠올리기","options":["내가 후보를 좁힌 뒤 가족에게 이야기했어요.","무엇을 고를지 고민할 때부터 가족과 이야기했어요.","후보를 비교하는 동안 가족 의견도 들었어요.","내가 다 정한 뒤 가족에게 결과를 알렸어요."]},{"id":"process.report.1","caption":"일이 절반쯤 됐을 때","stem":"상대와 나눠 맡은 준비 중 내 몫이 절반쯤 진행됐어요. 어느 것이 가장 나 같고 어느 것이 가장 나 같지 않아요?","formatLabel":"가장 나 같은/아닌 보기","options":["모두 마친 뒤 정리한 완성본을 보내요","큰 단계가 끝날 때마다 지금까지 한 일을 보내요","덜 다듬은 초안을 먼저 보내 의견을 물어요","내 몫의 선택은 내가 진행하고 결정된 내용만 간단히 알려요"]},{"id":"money.worth.1","caption":"꽃 장식 추가안","stem":"꽃 장식 기본안과 추가안이 있어요. 둘 다 예산 안이고 계약 조건도 확인했어요. 하나를 고르기 전 나는 보통…","formatLabel":"지금 가까운 반응","options":["추가금을 먼저 보고 두 안의 사진도 비교해요.","그날 모습이 가장 잘 그려지는 안을 골라요.","두 안의 사진부터 보고 남길 돈도 확인해요.","식 뒤 여유가 더 남는 안을 기준으로 골라요."]},{"id":"support.recover.1","caption":"지쳤던 하루","stem":"일·공부·집안일이 겹쳐 지쳤던 최근 하루를 떠올려 보세요. 그때 가장 먼저 한 행동은 무엇이었어요?","formatLabel":"과거 경험 떠올리기","options":["남은 일 한 가지를 먼저 골라 뒀어요.","해야 할 일은 잠시 두고 왜 힘든지 먼저 말했어요.","힘들었다는 말부터 짧게 꺼냈어요.","힘든 얘기는 잠시 두고 남은 일부터 처리했어요."]},{"id":"money.moment.1","caption":"혜택이 걸린 날","stem":"두 장소 중 한 곳의 혜택이 오늘 끝나요. 두 곳의 총액, 추가금, 취소 조건은 확인했고 둘 다 예산 안이에요. 남은 여섯 칸을 어디에 쓸까요?","formatLabel":"여섯 칸 나누기","options":["두 곳의 최종 지출과 남길 돈을 나란히 적기","두 곳에서 보낼 하루의 동선과 분위기를 그려 보기","둘이 아직 궁금한 점을 하나씩 묻기"]},{"id":"process.detail.1","caption":"청첩장 디자인","stem":"청첩장 디자인을 맡은 사람이 후보 세 가지를 추려 왔어요. 나는 보통…","formatLabel":"지금 가까운 반응","options":["세 가지 디자인을 본 뒤 마지막 하나는 둘이 골라요.","최종 디자인도 맡은 사람이 고르게 해요.","맡은 사람이 고른 디자인에서 바꿀 점만 말해요.","글자와 색 배치까지 둘이 함께 골라요."]},{"id":"scope.form.1","caption":"인사 순서를 정할 때","stem":"결혼 소식을 전할 식사에서 인사 순서를 정하려고 상대가 말해요.","formatLabel":"반응의 위치 선택","options":["둘이 초안부터 만들고 싶어요","가족과 초안부터 보고 싶어요"],"quote":{"speaker":"상대","text":"인사 순서는 아직 못 정했네. 가족도 초안부터 함께 볼까?"},"question":"그때 내 마음은?"},{"id":"money.moment.2","caption":"촬영을 고른 순간","stem":"촬영 업체 두 곳 모두 조건을 확인했고 예산 안이에요. 이번 주 한 곳을 골랐다면, 어느 마지막 확인이 더 나 같아요?","formatLabel":"두 보기 중 선택","options":["샘플 사진을 다시 보며 그날이 어떻게 남을지 그려 보고 골랐어요","두 견적을 펼쳐 식 뒤 쓸 돈에 여유가 남는 곳으로 골랐어요"]},{"id":"process.owner.2","caption":"선배의 준비 방식","stem":"결혼을 준비한 선배가 말해요.","formatLabel":"반응의 위치 선택","options":["시간을 맞춰 함께 살펴보고 싶어요","나눠 맡고 결과로 맞춰 보고 싶어요"],"quote":{"speaker":"선배","text":"우린 담당을 나누기보다 둘 다 시간이 나는 밤에 같이 했어. 그래서 그 시간은 비워 놔야 했지."},"question":"내가 그 방식이라면?"},{"id":"money.worth.2","caption":"촬영 추가 구성","stem":"촬영 업체에서 기본안과 추가안 샘플을 보내 왔어요. 둘 다 예산 안이고 계약 조건도 확인했어요. 무엇을 먼저 볼지 가장 나 같은 것과 아닌 것을 골라 주세요.","formatLabel":"가장 나 같은/아닌 보기","options":["샘플을 보며 그날 남길 장면을 그려요","추가금과 식 뒤 남길 돈을 먼저 적어요","두 구성의 최종 금액을 나란히 먼저 적어요","어느 순간을 더 기록할지 먼저 골라요"]},{"id":"support.give.2","caption":"지쳐 보이던 사람","stem":"최근 친구나 가족이 여러 일을 챙기느라 지쳐 보였던 때를 떠올려 보세요. 내가 먼저 한 일은 무엇이었어요? 그런 일이 없으면 그대로 표시해 주세요.","formatLabel":"과거 경험 떠올리기","options":["어떤 일이 힘들었는지 먼저 물었어요.","힘든 이야기는 잠시 두고, 덜어 줄 일부터 골랐어요.","어떤 일을 덜면 좋을지 먼저 물었어요.","남은 일은 잠시 두고, 힘든 얘기를 먼저 들었어요."]},{"id":"money.limit.2","caption":"첫 장소 상담에서","stem":"동료가 첫 장소 상담에서 있었던 일을 들려줘요.","formatLabel":"반응의 위치 선택","options":["원하는 하루의 모습을 말해요","쓸 수 있는 전체 금액을 말해요"],"quote":{"speaker":"동료","text":"상담사가 처음에 무엇이 제일 궁금한지 묻더라."},"question":"내가 그 자리에 있었다면?"},{"id":"process.detail.2","caption":"준비 일정표","stem":"결혼 준비 일정표를 만드는 이번 주예요. 쓸 수 있는 힘 여섯 칸을 나눠 놓아 주세요.","formatLabel":"여섯 칸 나누기","options":["둘이 시간을 맞춰 앉아 일정표를 한 줄씩 함께 채우기","맡은 사람이 만든 일정표에서 중요한 날짜만 함께 확인하기","일정표에 넣을 확정 날짜를 먼저 확인하기"]},{"id":"scope.final.2","caption":"인사 부탁할 사람","stem":"친구가 결혼을 알리는 식사에서 누가 짧게 인사할지 고른 이야기를 들려줘요.","formatLabel":"반응의 위치 선택","options":["가족과 다시 고르고 싶어요","둘의 기준으로 다시 고르고 싶어요"],"quote":{"speaker":"친구","text":"둘이 부탁할 사람을 골랐는데, 가족이 다른 분을 생각하고 계시더라."},"question":"내가 그 입장이라면?"},{"id":"support.vent.2","caption":"힘들다고 말한 저녁","stem":"결혼 준비가 겹친 저녁, 내가 힘들다고 말했어요. 지금 먼저 바라게 되는 장면은 어느 쪽인가요?","formatLabel":"두 보기 중 선택","options":["상대가 내일 확인할 일 하나를 맡겠다고 해요.","상대가 오늘 무엇이 힘들었는지 묻고 이야기를 들어요."]},{"id":"scope.timing.2","caption":"방향을 잡는 첫 달","stem":"결혼을 알릴 방식과 시기를 아직 정하지 않은 첫 달이에요. 여섯 칸의 시간을 어디에 나누어 쓰고 싶어요?","formatLabel":"여섯 칸 나누기","options":["둘이 소식을 전할 방식과 시기 정리하기","가족이 바라는 소식 전달 방식과 시기 듣기","결정을 잠시 미루고 쉴 시간 챙기기"]},{"id":"money.check.2","caption":"묵을 곳을 고를 때","stem":"최근 묵을 곳을 고른 적이 있다면, 총액·추가금·취소 조건을 확인한 뒤 마지막에 어떻게 골랐어요? 없었다면 그대로 표시해 주세요.","formatLabel":"과거 경험 떠올리기","options":["최종 금액부터 보고 공간 사진도 확인했어요.","하루를 보낼 모습이 더 잘 그려지는 곳을 골랐어요.","공간 사진부터 보고 최종 금액도 확인했어요.","최종 금액과 남길 돈을 기준으로 골랐어요."]},{"id":"support.fight.2","caption":"친구 커플의 일정 다툼","stem":"결혼 준비 일정 때문에 다퉜던 친구 커플의 이야기예요.","formatLabel":"반응의 위치 선택","options":["엇갈린 일정부터 확인하고 싶어요","각자 왜 속상했는지 먼저 듣고 싶어요"],"quote":{"speaker":"친구","text":"우린 일단 서로 괜찮은지부터 물었어. 어긋난 일정은 다음 날 다시 봤지."},"question":"내가 그 입장이라면?"},{"id":"scope.form.2","caption":"식사 자리 진행표","stem":"결혼을 알리는 식사의 인사 순서와 말을 정할 차례예요. 가족도 함께할 수 있고 아직 초안은 없어요. 나는 보통…","formatLabel":"지금 가까운 반응","options":["둘이 인사 순서 초안을 쓴 뒤 가족에게 고칠 곳을 물어요.","가족과 함께 인사 순서와 말의 초안을 처음부터 적어요.","가족이 생각하는 순서를 먼저 듣고 둘이 인사말을 적어요.","둘이 인사 순서와 말을 정한 뒤 가족에게 결과를 전해요."]},{"id":"process.report.2","caption":"준비를 마친 뒤","stem":"준비가 끝나고 나면 어느 순간을 더 떠올릴 것 같아요?","formatLabel":"두 보기 중 선택","options":["준비 중 바뀐 내용을 그때그때 주고받았어요. 둘이 시간을 내야 했어요.","맡긴 일이 끝난 뒤 정리한 자료를 한 번에 봤어요. 중간 과정은 묻지 않았어요."]},{"id":"support.recover.2","caption":"혼자 남은 한 시간","stem":"결혼 준비로 답해야 할 메시지 하나가 남은 일요일 저녁이에요. 혼자 한 시간이 생겼다면 가장 나 같은 첫 행동과 아닌 행동은 무엇인가요?","formatLabel":"가장 나 같은/아닌 보기","options":["오늘 벅찼던 일을 한 줄 적어요","남은 준비 메시지에 먼저 답해요","답장할 내용을 종이에 적어 둬요","가까운 사람에게 오늘 지친 이유를 말해요"]},{"id":"process.search.2","caption":"맡길 곳 후보","stem":"준비를 맡길 업체 하나를 고르는 중이에요. 나는 보통…","formatLabel":"지금 가까운 반응","options":["한 사람이 후보를 좁혀 오면 마지막 업체는 함께 골라요.","처음 검색부터 업체에 물어볼 내용까지 둘이 함께 준비해요.","처음 후보는 둘이 찾고 이후 문의는 한 사람이 해요.","찾아보고 고르는 일까지 한 사람에게 맡겨요."]},{"id":"scope.circle.2","caption":"명단의 첫 줄","stem":"결혼 소식을 전할 사람의 명단을 이제 만들어요. 어느 시작이 더 편한가요?","formatLabel":"두 보기 중 선택","options":["가족이 떠올린 사람부터 받아 명단 첫 줄에 적어요.","둘이 떠올린 사람부터 모아 명단 첫 줄에 적어요."]},{"id":"process.report.3","caption":"상담을 맡은 상대","stem":"혼자 다녀올 업체 상담 일정을 잡는 상대가 말해요.","formatLabel":"반응의 위치 선택","options":["답이 온 내용을 중간에도 듣고 싶어요","날짜가 정해진 뒤 듣고 싶어요"],"quote":{"speaker":"상대","text":"이번 주에 연락해 볼게. 내가 갈 날짜가 정해지면 알려 줄게."},"question":"그때 내 마음은?"},{"id":"money.worth.3","caption":"조명 한 단계","stem":"식장 조명 기본안과 추가안 중 고르려고 해요. 두 안 모두 예산 안이고 계약 조건을 확인했어요. 둘이 무엇부터 다시 볼까요?","formatLabel":"두 보기 중 선택","options":["식장 사진을 보며 조명을 더했을 때 그날 분위기를 먼저 살펴요","두 안의 최종 금액과 식 뒤 남길 돈을 먼저 나란히 놓아요"]},{"id":"process.detail.3","caption":"진행표 작은 선택","stem":"식 당일 진행표에 작은 선택이 여러 개 남았어요. 둘이 쓸 수 있는 시간은 한 시간이에요.","formatLabel":"두 보기 중 선택","options":["한 시간 동안 둘이 진행표를 보며 항목마다 표시해요. 다른 일은 내일 봐요.","꼭 지킬 항목만 둘이 정하고 나머지는 상대가 골라요. 나는 내일 확인해요."]},{"id":"money.moment.3","caption":"두 장소 중 한 곳","stem":"두 장소 모두 예산 안이고 계약 조건도 서면으로 확인했어요. 상대가 말해요.","formatLabel":"반응의 위치 선택","options":["남길 돈을 다시 비교하고 싶어요","그날 하루를 다시 그려 보고 싶어요"],"quote":{"speaker":"상대","text":"이번 주에 한 곳을 정해야 해. 두 곳 다 괜찮은데, 마지막으로 뭘 더 볼까?"},"question":"그때 내 마음은?"},{"id":"support.give.3","caption":"연락이 벅찬 아침","stem":"상대가 「이번 주 준비 연락이 벅차」라고 말해요. 오늘 내가 쓸 수 있는 힘 여섯 칸을 어디에 나누고 싶어요?","formatLabel":"여섯 칸 나누기","options":["어떤 연락이 부담스러운지 묻고 이야기 듣기","상대에게 물어본 뒤 확인 연락 한 통 맡기","준비를 잠시 멈추고 각자 쉴 시간 남기기"]},{"id":"scope.timing.3","caption":"후보가 두 곳일 때","stem":"결혼 소식을 알릴 식당 후보가 두 곳이에요. 두 곳 모두 인원과 이동에 무리가 없어요. 첫 연락은 어떻게 할까요?","formatLabel":"두 보기 중 선택","options":["후보 둘을 가족에게 보여 주고 더 편한 곳을 물은 뒤 식당에 연락해요.","둘이 한 곳을 고른 뒤 식당에 가능 시간을 묻고 가족에게 알려요."]},{"id":"support.vent.3","caption":"지쳐서 앉은 카페","stem":"주말 내내 결혼 준비로 돌아다니다 카페에서 너무 지쳤다고 했더니 상대가 말해요.","formatLabel":"반응의 위치 선택","options":["힘든 얘기부터 들어 줬으면 해요","남은 연락부터 맡아 줬으면 해요"],"quote":{"speaker":"상대","text":"오늘 많이 지쳤지. 내가 지금 뭘 먼저 해 주면 좋을까?"},"question":"그때 내 마음은?"},{"id":"scope.form.3","caption":"인사말을 만들 때","stem":"결혼을 알리는 식사 자리의 짧은 인사말을 만들려 해요. 가장 나 같은 방식과 아닌 방식을 골라 주세요.","formatLabel":"가장 나 같은/아닌 보기","options":["가족이 넣고 싶은 말을 먼저 듣고 초안을 써요","둘이 하고 싶은 말을 먼저 모아 초안을 써요","둘이 인사말을 다듬은 뒤 가족에게 읽어 줘요","가족과 한자리에 앉아 인사말을 함께 다듬어요"]},{"id":"support.recover.3","caption":"급하지 않은 답장","stem":"주말 준비를 마치고 빈 오후가 생겼어요. 답해야 할 준비 메시지가 하나 있지만 급하지는 않아요. 무엇부터 하면 마음이 가벼울 것 같아요?","formatLabel":"두 보기 중 선택","options":["오늘 무엇이 버거웠는지 짧게 적어요. 메시지는 그 뒤에 답해요.","남은 메시지에 먼저 답해요. 지친 마음은 그 뒤에 돌아봐요."]},{"id":"scope.final.3","caption":"장소를 바꾸자는 말","stem":"식사 장소 두 곳을 둘이 골라 뒀어요. 가족도 두 곳 모두 올 수 있지만 어디가 좋을지 의견이 달라요. 오늘 결정한다면 나는 보통…","formatLabel":"지금 가까운 반응","options":["가족이 더 편한 쪽을 듣고 둘이 정할 때 반영해요.","둘이 고른 곳으로 확정하고 가족에게 알려요.","둘이 더 끌리는 곳을 기준으로 가족 의견을 들어요.","가족과 둘 다 참여해 어느 곳으로 갈지 정해요."]},{"id":"process.search.3","caption":"후보 찾는 한 주","stem":"결혼 준비로 방문할 곳을 찾아보고 둘러보는 주예요. 어느 장면이 가장 나 같고 어느 장면이 가장 나 같지 않아요?","formatLabel":"가장 나 같은/아닌 보기","options":["여러 곳의 첫 방문을 둘이 함께 다녀와요","한 사람이 먼저 다녀와 사진과 메모로 공유해요","한 사람이 방문할 후보를 골라 와요","후보 사진을 둘이 펼쳐 놓고 함께 추려요"]},{"id":"money.limit.3","caption":"큰 구매를 할 때","stem":"최근 비교적 큰돈이 드는 물건을 살 때 얼마까지 쓸지 정한 적이 있다면, 무엇부터 정했어요? 없었다면 그대로 표시해 주세요.","formatLabel":"과거 경험 떠올리기","options":["끌리는 물건부터 찾아보고 금액 범위도 맞춰 봤어요.","가격 한도를 먼저 정하고 그 안에서 물건을 골랐어요.","대략의 금액 범위를 먼저 잡고 물건을 보며 조정했어요.","꼭 원하는 물건을 먼저 정하고 뒤에 쓸 금액을 맞췄어요."]},{"id":"support.fight.3","caption":"엇갈린 약속","stem":"서로 약속 장소를 다르게 알아서 기다리다 다퉜어요. 조금 진정한 뒤 나는 보통 먼저…","formatLabel":"지금 가까운 반응","options":["서로 괜찮은지 먼저 물어봐요.","서운함은 뒤에 나누고 장소 확인 방법부터 정해요.","서로 받은 연락부터 확인해요.","엇갈린 일은 뒤에 보고 서운함부터 들어요."]},{"id":"money.check.3","caption":"계약 앞둔 시간","stem":"계약까지 시간은 넉넉하고, 두 업체의 총액·추가금·취소 조건을 읽었어요. 마지막 확인에 쓸 여섯 칸을 어디에 둘까요?","formatLabel":"여섯 칸 나누기","options":["현장을 다시 보며 하루 동선과 분위기 비교하기","두 곳의 최종 금액과 추가금을 나란히 적기","둘이 아직 궁금한 점을 하나씩 정리하기"]},{"id":"process.owner.3","caption":"막힌 내 몫","stem":"최근 상대와 나눠 맡은 일에서 내 몫이 막힌 적이 있다면 그때 무엇을 했어요? 없었다면 그대로 표시해 주세요.","formatLabel":"과거 경험 떠올리기","options":["상대에게 막힌 점을 알리고 다음 방법은 내가 골랐어요.","막힌 부분을 곧바로 함께 살펴보고 방법도 같이 골랐어요.","상대 의견을 잠깐 듣고 다음 방법은 내가 골랐어요.","내 몫은 내가 다른 방법으로 다시 해 봤어요."]},{"id":"scope.circle.3","caption":"명단을 시작할 때","stem":"결혼 소식을 전할 사람의 명단 초안을 막 만들려는데 상대가 말해요.","formatLabel":"반응의 위치 선택","options":["가족 의견부터 듣고 싶어요","우리가 부를 사람부터 적고 싶어요"],"quote":{"speaker":"상대","text":"우리 둘 다 떠오르는 사람이 있네. 가족에게도 누구에게 전하고 싶은지 먼저 물어볼까?"},"question":"그때 내 마음은?"},{"id":"money.check.4","caption":"친구 커플의 선택","stem":"친구 두 커플이 업체를 고른 이야기를 들었어요. 둘 다 총액·추가금·취소 조건을 확인했고 예산 안에서 골랐대요. 더 가까운 쪽을 골라 주세요.","formatLabel":"두 보기 중 선택","options":["한 커플은 최종 금액과 추가금을 나란히 적고 골랐어요.","다른 커플은 현장 동선을 다시 걸어 보고 골랐어요."]},{"id":"process.detail.4","caption":"친구의 소식 글","stem":"결혼 소식을 알리는 글을 만든 친구가 말해요.","formatLabel":"반응의 위치 선택","options":["문구 선택을 맡기고 싶어요","문구를 같이 고르고 싶어요"],"quote":{"speaker":"친구","text":"소식 글은 한 명이 초안을 썼고, 다른 한 명은 보내기 전에 읽었어."},"question":"내가 그 입장이라면?"},{"id":"money.limit.4","caption":"견적서가 온 저녁","stem":"사진과 견적이 한꺼번에 왔어요. 기본 조건을 읽고 첫 장을 만든다면 가장 나 같은 시작과 아닌 시작을 골라 주세요.","formatLabel":"가장 나 같은/아닌 보기","options":["쓸 수 있는 총액을 먼저 적고 견적 합계와 대어 봐요","눈길이 간 장소 사진을 표시하고 견적을 붙여요","원하는 하루의 장면을 한 줄 적고 후보를 묶어요","항목별 허용 금액을 먼저 나눠 봐요"]},{"id":"support.vent.4","caption":"말이 끝나기 전","stem":"결혼 준비로 힘든 이야기를 하는 도중 상대가 내 말이 끝나기 전에 해결 방법을 꺼내요. 나는 보통 먼저…","formatLabel":"지금 가까운 반응","options":["내 말을 잠깐 멈추고 그 방법이 가능한지만 물어봐요.","「고마워, 근데 내 얘기를 조금만 더 들어 줘」 하고 말을 이어요.","고맙다고 한 뒤 이야기를 마저 하고 방법을 물어요.","그 방법을 오늘 해 볼 수 있을지 바로 같이 정해요."]},{"id":"money.worth.4","caption":"친구의 음악","stem":"결혼 준비를 마친 친구가 식날 음악 추가안에 대해 이야기해요.","formatLabel":"반응의 위치 선택","options":["추가금과 식 뒤 남길 돈을 먼저 봐요","그날의 음악을 먼저 그려 봐요"],"quote":{"speaker":"친구","text":"기본 연주와 추가 연주 중에서 골랐어. 둘 다 예산 안이었고 계약 조건도 확인했지."},"question":"내가 그 자리에 있었다면 무엇을 먼저 살펴볼까요?"},{"id":"process.owner.4","caption":"꼬인 예약","stem":"내가 맡은 업체 예약이 꼬였어요. 업체 답은 늦고 날짜는 겹쳐요. 이번 주 힘을 어디에 쓸지 여섯 칸을 나눠 놓아 주세요. 한 곳에 몰아도 괜찮아요.","formatLabel":"여섯 칸 나누기","options":["업체 회신에 맞춰 내가 예약 날짜를 다시 잡기","겹친 예약 날짜를 상대와 함께 다시 맞추기","업체에 답을 언제 받을 수 있는지 문의하기"]},{"id":"scope.timing.4","caption":"친구의 식당 후보","stem":"친구가 결혼 소식을 전할 식사 자리를 이야기해요.","formatLabel":"반응의 위치 선택","options":["둘이 먼저 고르고 싶어요","가족 의견도 듣고 고르고 싶어요"],"quote":{"speaker":"친구","text":"식당 두 곳 다 우리와 가족이 가기 편했어. 우린 한 곳이 끌렸지만 아직 결정하지 않았지."},"question":"내가 그 입장이라면?"},{"id":"support.give.4","caption":"두 커플의 벅찬 저녁","stem":"친구 두 커플이 결혼 준비 연락과 다른 일이 겹쳐 지친 저녁을 보냈어요. 한 사람이 「이번 주는 벅차」라고 말한 뒤, 어느 반응이 나와 더 가까워요?","formatLabel":"두 보기 중 선택","options":["한 커플은 준비를 멈추고 무엇이 힘든지 먼저 들어요.","다른 커플은 맡아도 되는지 묻고 확인 연락 하나를 대신 해요."]},{"id":"scope.final.4","caption":"메뉴가 갈린 주","stem":"식사 메뉴 두 가지를 두고 둘과 가족의 선호가 달라요. 모두 먹을 수 있고 비용도 비슷해요. 이번 주 힘 여섯 칸을 어디에 쓰고 싶어요?","formatLabel":"여섯 칸 나누기","options":["가족에게 두 메뉴 중 바라는 쪽과 이유를 묻고 함께 결정하기","둘이 두 메뉴 중 하나를 정한 뒤 가족에게 선택 이유 전하기","메뉴 결정은 다음 주로 미루고 다른 준비하기"]},{"id":"money.moment.4","caption":"두 벌 중 한 벌","stem":"옷 두 벌이 마음에 들어요. 둘 다 예산 안이고 추가 비용과 취소 조건도 확인했어요. 오늘 하나를 고른다면 나는 보통…","formatLabel":"지금 가까운 반응","options":["입은 모습부터 보고 두 벌의 최종 금액도 비교해요.","추가 비용을 합쳐 식 뒤 여유가 더 남는 옷을 골라요.","두 벌의 최종 금액부터 보고 입은 모습도 다시 봐요.","입은 모습을 살피고 그날 더 어울릴 옷을 골라요."]},{"id":"support.recover.4","caption":"친구가 지쳤던 날","stem":"친구가 결혼 준비 연락이 밀려 지쳤던 날을 돌아보며 말해요.","formatLabel":"반응의 위치 선택","options":["왜 지쳤는지 먼저 말하고 싶어요","답장 한 통부터 하고 싶어요"],"quote":{"speaker":"친구","text":"그날 답장 한 통부터 끝냈어. 왜 지쳤는지는 저녁에 이야기했지."},"question":"내가 그 입장이라면?"},{"id":"scope.circle.4","caption":"지난 모임 명단","stem":"최근 생일·집들이처럼 사람을 초대한 적이 있다면, 명단을 누구와 어떻게 만들었어요? 그런 일이 없으면 그대로 표시해 주세요.","formatLabel":"과거 경험 떠올리기","options":["가족이 떠올린 사람도 명단에 더했어요.","내가 초대할 범위를 정하고 그 안에서 명단을 만들었어요.","내 명단을 먼저 적고 가족에게도 보여 줬어요.","가족과 함께 앉아 초대할 사람을 처음부터 골랐어요."]},{"id":"process.search.4","caption":"두 커플의 장소","stem":"식사 장소 후보를 찾은 친구 두 커플 이야기예요. 나라면 어느 방식을 따라 하고 싶어요?","formatLabel":"두 보기 중 선택","options":["한 사람이 후보를 추려 와 마지막에 같이 골랐어요. 다른 사람은 그때 확인했어요.","시간을 맞춰 둘이 후보를 함께 찾아 좁혔어요. 저녁 시간을 함께 썼어요."]},{"id":"support.fight.4","caption":"다툰 다음 날 첫 문자","stem":"결혼 준비 일을 나누다 말이 엇갈려 다툰 다음 날 아침이에요. 첫 메시지로 가장 나 같은 것과 아닌 것을 골라 주세요.","formatLabel":"가장 나 같은/아닌 보기","options":["어제 정한 일부터 다시 볼까요","어제 그 말은 조금 서운했어요","지금 마음이 어떤지 궁금해요","저녁에 남은 일 하나를 정해요"]},{"id":"process.report.4","caption":"맡은 일 알리기","stem":"최근 상대와 나눠 맡은 일이 있었다면, 내 몫을 진행하며 언제 알렸어요? 없었다면 그대로 표시해 주세요.","formatLabel":"과거 경험 떠올리기","options":["큰 단계가 끝날 때마다 간단히 알리고 내 일을 계속했어요.","내 몫을 모두 마친 뒤 정리한 결과만 한 번 전했어요.","상대 결정이 필요할 때만 내용을 묶어 전했어요.","진행 중 달라진 내용을 그때그때 알려 함께 맞췄어요."]},{"id":"scope.form.4","caption":"두 커플의 옷 고르기","stem":"결혼을 기념하는 날 입을 옷을 고른 친구 두 커플 이야기예요. 두 커플 모두 편하고 예산에 맞는 옷 두 벌을 후보로 남겼어요. 어느 쪽을 따라 하고 싶어요?","formatLabel":"두 보기 중 선택","options":["한 커플은 둘이 후보 두 벌을 입어 보고 한 벌을 정한 뒤 가족에게 사진을 보여 줬어요.","다른 커플은 둘이 후보 두 벌을 입어 보고 가족과 사진을 보며 한 벌을 골랐어요."]},{"id":"self.money","caption":"직접 고른 쪽","stem":"돈이 걸린 선택에서, 나는 보통 무엇을 먼저 살펴보나요?","formatLabel":"마지막 직접 선택","options":["쓸 수 있는 전체 비용과 계약 조건부터 살펴봐요","그날 남기고 싶은 장면과 경험부터 그려 봐요"]},{"id":"self.process","caption":"직접 고른 쪽","stem":"함께 준비할 일이 생기면, 나는 보통 어느 방식이 편한가요?","formatLabel":"마지막 직접 선택","options":["각자 맡은 부분을 준비하고 필요한 때 맞춰 봐요","찾아보고 고르는 과정을 둘이 함께 맞춰 봐요"]},{"id":"self.scope","caption":"직접 고른 쪽","stem":"결혼 준비의 중요한 선택, 누구와 먼저 의논하고 싶어요?","formatLabel":"마지막 직접 선택","options":["가족 의견을 들은 뒤 둘의 안을 정해요","둘의 안을 먼저 정하고 가족에게 전해요"]},{"id":"self.support","caption":"직접 고른 쪽","stem":"준비가 버거운 날, 나는 무엇부터 나누고 싶어요?","formatLabel":"마지막 직접 선택","options":["힘든 마음을 서로 말하고 들어 주는 게 먼저예요","남은 일에서 무엇을 덜지 정하는 게 먼저예요"]}]</script>
+<script>
+(() => {
+  'use strict';
+  const VERSION = 'v4.2-depth';
+  const KIT_VERSION = 'v42-couple-observation-kit.1';
+  const people = ['A', 'B'];
+  const items = JSON.parse(document.getElementById('public-items').textContent);
+  const sourceOptions = [['not_seen','확인 전'],['actual','실제 제품 화면'],['example','판이 표시된 별도 예시']];
+  const understandingOptions = [['not_observed','관찰 안 함'],['understood','도움 없이 뜻을 설명함'],['helped','설명 후 뜻을 설명함'],['misunderstood','다르게 이해함 / 혼동함'],['not_shown','해당 상태가 화면에 안 나옴']];
+  const itemUnderstandingOptions = understandingOptions.filter(([key]) => key !== 'not_shown');
+  const riskOptions = [['not_observed','관찰 안 함'],['none_observed','이번 관찰에서 발견 안 됨'],['concern','정답감/예측/평가 우려가 나타남'],['unclear','판단하기 어려움']];
+  const transferOptions = [['not_observed','관찰 안 함'],['past_only','과거 경험 자체로 읽음'],['connected','웨딩 상황에도 연결해 읽음'],['hard_to_transfer','웨딩 상황에 옮기기 어려움'],['not_applicable','과거/일상 전이 질문이 아님'],['unclear','뜻/전제 확인이 더 필요함']];
+  const resultProbes = [
+    ['letter','글자 뜻','“이 글자는 어떤 준비 기준을 뜻하나요?” 짧은 이름과 전체 정의를 연결하는지 확인합니다.'],
+    ['percentage','비율과 분모','“비율은 무엇의 비율인가요?” 유효 문항 수를 분모로 센 응답 방향 개수이며 성격 확률·정확도·신뢰도가 아님을 구분합니다.'],
+    ['weighted','비율과 글자가 다른 경우','응답 개수 비율과 선택 강도·장면 묶음 비중의 글자 계산이 같은 것이 아님을 설명할 수 있는지 확인합니다.'],
+    ['zero','한쪽으로 기울지 않은 답','합산 방향이 0인 응답 요약을 완벽한 중간·모름·좋은 정답이라고 단정하지 않는지 확인합니다.'],
+    ['one_answer','답 하나인 장면 묶음','묶음 평균 제외와 일부 동점 정리 참여를 구분하는지 확인합니다. 해당 설명을 못 봤으면 화면에 안 나옴입니다.'],
+    ['evidence','근거의 원문과 관점','“이 근거는 어느 질문의 어떤 뜻과 연결되나요?” 원문 뜻·나/상대 관점이 연결되는지만 기록합니다. 실제 답·글자는 옮기지 않습니다.'],
+    ['even','반반','고른 채점 범위를 반드시 응답 개수 50:50 또는 고정 성격이라고 읽지 않는지 확인합니다.'],
+    ['provisional','임시','응답 상태 때문에 임시인 표시를 확정 성향으로 읽지 않는지 확인합니다.'],
+    ['undetermined','미정·비교 제외','없는 글자를 반대 유형·낮은 궁합으로 만들거나 제외 주제를 확정 비교하지 않는지 확인합니다.'],
+    ['same_different','같음과 다름','같은 글자=이미 합의, 다른 글자=부적합 또는 궁합 판정으로 읽지 않는지 확인합니다.'],
+    ['role','역할 제안','제안이 아직 선택·합의·저장된 역할이 아님을 알고 자기 상황에 맞게 거절/수정할 수 있는지 확인합니다.'],
+    ['dialogue','실제 대화에 쓸 기준','각자 먼저 맞출 기준을 말할 수 있는지 확인합니다. “좋아 보여요”와 실제 대화에 사용함을 구분하고 개인 기준 내용은 적지 않습니다.'],
+    ['nickname','재미 별명','형용사+동물 이름이 응답 요약을 기억하기 위한 별명이며 별도 성격/능력 판정이 아님을 구분합니다.']
+  ];
+  const flowProbes = [
+    ['invite','질문만 / 내 답 포함','누구의 무엇이 보내지는지, 질문만 보내면 자동 비교가 생기지 않음을 설명할 수 있는가?'],
+    ['scope','답 포함 동의와 공개 범위','동의 전 버튼 상태·답 공개 범위·이미 보낸 링크 회수 불가를 발견하는가?'],
+    ['recipient_result','상대의 답 완료와 결과','상대가 자기 답을 마친 뒤 두 사람 결과를 보게 됨을 이해하는가?'],
+    ['return','처음 보낸 사람에게 반환','상대가 두 사람 결과 링크를 다시 보내야 처음 보낸 사람도 볼 수 있음을 이해하고 행동을 찾는가?'],
+    ['share_states','공유/복사/취소의 뜻','공유 창 전달·복사·취소를 실제 상대 수신·서버 연결 확인으로 오해하지 않는가?'],
+    ['storage','저장 끄기와 링크','저장 끄기·새로고침·탭 이동이 이미 보낸 링크의 공개 범위를 바꾸지는 않음을 이해하는가?']
+  ];
+  const flowOptions = [['not_observed','관찰 안 함'],['found','화면에서 도움 없이 찾고 설명함'],['helped','도움 후 찾고 설명함'],['failed','찾지 못함 / 다르게 이해함'],['not_attempted','이 세션에서 확인하지 않음']];
+  const executionOptions = [['not_recorded','확인 전'],['screen_only','화면 설명만 확인함 · 실제 실행 아님'],['not_executed','실제 동작은 실행하지 않음'],['executed_no_receipt','자발적으로 실행함 · 실제 수신 확인 아님'],['recipient_confirmed','수신자가 직접 수신을 확인함']];
+  let serial = 0;
+  function blankPerson() { return {scenario:'not_observed',options:'not_observed',scenarioRestatement:'',optionsRestatement:'',answerPressure:'not_observed',predictability:'not_observed',transfer:'not_observed',skipUnderstanding:'not_observed',strengthUnderstanding:'not_observed',note:''}; }
+  function blankProbe() { return {source:'not_seen',status:'not_observed',note:''}; }
+  function blankObservation() {
+    return {plannedItems:[],results:Object.fromEntries(resultProbes.map(([key]) => [key,Object.fromEntries(people.map(p => [p,blankProbe()]))])),flow:Object.fromEntries(flowProbes.map(([key]) => [key,Object.fromEntries(people.map(p => [p,{status:'not_observed',execution:'not_recorded',note:''}]))])),ending:Object.fromEntries(people.map(p => [p,{state:'not_recorded',burden:'not_recorded',context:'not_recorded',note:''}])),issues:[],finish:false,privacyReviewed:false};
+  }
+  let state = {kind:'',sessionId:'',versionChecked:'',explained:false,consent:Object.fromEntries(people.map(p => [p,{anonymousId:'',observation:'pending',output:'pending'}])),observation:blankObservation()};
+  const $ = id => document.getElementById(id);
+  const el = (tag,text,className) => { const n=document.createElement(tag); if(text !== undefined)n.textContent=text; if(className)n.className=className; return n; };
+  function selectField(parent,label,options,value,change,id) {
+    const wrap=el('div'); const input=el('select'); input.id=id || `field-${++serial}`;
+    const title=el('label',label); title.htmlFor=input.id;
+    options.forEach(([key,text]) => { const option=el('option',text); option.value=key; input.append(option); }); input.value=value;
+    input.addEventListener('change',() => { change(input.value); changed(); }); wrap.append(title,input); parent.append(wrap); return input;
+  }
+  function textField(parent,label,value,change,id,maxLength=600) {
+    const wrap=el('div'); const input=el('textarea'); input.id=id || `field-${++serial}`; input.maxLength=maxLength; input.value=value;
+    input.placeholder='뜻의 재설명/혼동 지점만 · 신원/실제 답 제외';
+    const title=el('label',label); title.htmlFor=input.id; input.addEventListener('input',() => { change(input.value); changed(); }); wrap.append(title,input); parent.append(wrap); return input;
+  }
+  function agreed() { return state.explained && people.every(p => state.consent[p].observation==='agreed'); }
+  function validIds() { const pattern=/^[A-Za-z][A-Za-z0-9-]{1,23}$/; return pattern.test(state.sessionId) && people.every(p => pattern.test(state.consent[p].anonymousId)) && state.consent.A.anonymousId !== state.consent.B.anonymousId; }
+  function canObserve() { return agreed() && state.kind!=='' && state.versionChecked===VERSION && validIds(); }
+  function canOutput() { return canObserve() && people.every(p => state.consent[p].output==='agreed') && state.observation.privacyReviewed; }
+  function isKnown(value) { return value!=='not_observed' && value!=='not_recorded'; }
+  function itemComplete(record) { return people.every(p => ['scenario','options','answerPressure','predictability','transfer','skipUnderstanding','strengthUnderstanding'].every(key => isKnown(record.people[p][key])) && record.people[p].scenarioRestatement.trim()!=='' && record.people[p].optionsRestatement.trim()!==''); }
+  function resultComplete(probe) { return people.every(p => probe[p].status==='not_shown' || (isKnown(probe[p].status) && probe[p].source!=='not_seen')); }
+  function issueComplete(issue) { return issue.location.trim()!=='' && issue.observed.trim()!=='' && issue.action.trim()!=='' && issue.severity!=='' && issue.state!==''; }
+  function concerns() {
+    const o=state.observation;
+    return o.issues.length>0 || o.plannedItems.some(r => people.some(p => {const v=r.people[p]; return ['misunderstood','helped'].includes(v.scenario) || ['misunderstood','helped'].includes(v.options) || [v.answerPressure,v.predictability].some(risk=>['concern','unclear'].includes(risk)) || ['hard_to_transfer','unclear'].includes(v.transfer) || ['misunderstood','helped'].includes(v.skipUnderstanding) || ['misunderstood','helped'].includes(v.strengthUnderstanding);})) || resultProbes.some(([key]) => people.some(p => ['helped','misunderstood'].includes(o.results[key][p].status))) || flowProbes.some(([key]) => people.some(p => ['helped','failed'].includes(o.flow[key][p].status))) || people.some(p => ['high','stop'].includes(o.ending[p].burden));
+  }
+  function recordStatus() {
+    if (people.some(p => ['declined','withdrawn'].includes(state.consent[p].observation))) return {key:'consent_removed',text:'동의 거절·철회 / 관찰 내용 제거 · 출력 불가'};
+    if (!canObserve()) return {key:'awaiting_consent',text:'준비 중 / 동의·익명 ID·판 확인 대기'};
+    const o=state.observation;
+    if (people.some(p => o.ending[p].state==='stopped')) return {key:'stopped',text:'중도 종료 / 기록 미완료'};
+    const complete=o.finish && o.plannedItems.length>0 && o.plannedItems.every(itemComplete) && resultProbes.every(([key]) => resultComplete(o.results[key])) && flowProbes.every(([key]) => people.every(p => isKnown(o.flow[key][p].status) && isKnown(o.flow[key][p].execution))) && people.every(p => o.ending[p].state==='completed' && isKnown(o.ending[p].burden) && isKnown(o.ending[p].context)) && o.issues.every(issueComplete) && (!concerns() || o.issues.length>0);
+    if (!complete) return {key:o.finish?'incomplete':'in_progress',text:o.finish?'기록 미완료 / 미확인 항목이 남아 있음':'관찰 중 / 검증 통과 아님'};
+    return concerns()?{key:'record_complete_revision_needed',text:'관찰 기록 완료 / 수정 필요 · 검증 통과 아님'}:{key:'record_complete_no_issue_observed',text:'관찰 기록 완료 / 이번 범위에서 문제 미발견 · 검증 통과 아님'};
+  }
+  function update() {
+    $('observation-work').disabled=!canObserve(); $('privacy-review').disabled=!canObserve();
+    $('download').disabled=!canOutput(); $('print').disabled=!canOutput();
+    $('consent-state').textContent=canObserve()?'양쪽 관찰 동의 확인 · 관찰 입력 가능':'양쪽 동의와 설명 확인, 익명 ID, v4.2 판 확인 후 관찰 입력 가능';
+    $('record-state').textContent=(state.kind==='dry-run'?'도구 리허설 · ':'')+recordStatus().text;
+    const o=state.observation;
+    const observations=o.plannedItems.reduce((n,r)=>n+people.filter(p => isKnown(r.people[p].scenario) && isKnown(r.people[p].options)).length,0);
+    const rs=resultProbes.reduce((n,[key])=>n+people.filter(p => o.results[key][p].status!=='not_observed' && o.results[key][p].status!=='not_shown' && o.results[key][p].source!=='not_seen').length,0);
+    const unseen=resultProbes.reduce((n,[key])=>n+people.filter(p => o.results[key][p].status==='not_shown').length,0);
+    const fs=flowProbes.reduce((n,[key])=>n+people.filter(p => !['not_observed','not_attempted'].includes(o.flow[key][p].status)).length,0);
+    $('coverage').textContent=`계획 문항 ${o.plannedItems.length}/68 · 상황/보기 관찰 ${observations}/${o.plannedItems.length*2}명-문항 · 결과 확인 ${rs}/${resultProbes.length*2}명-항목 (화면 안 나옴 ${unseen}) · 흐름 확인 ${fs}/${flowProbes.length*2}명-항목. 안 본 문항·상태·흐름은 성공 근거가 아닙니다.`;
+    $('plan-count').textContent=`관찰 계획 ${o.plannedItems.length}개. 미관찰 문항 ${items.length-o.plannedItems.length}개는 전체 이해 성공으로 합치지 않습니다.`;
+    $('output-state').textContent=canOutput()?'양쪽 출력 동의와 진행자 내용 검토 확인 · 버튼을 눌러 출력 가능':'출력 잠금: 양쪽 관찰/출력 동의, 익명 ID, 판 확인, 진행자 메모 검토가 필요합니다.';
+  }
+  function changed() { state.observation.privacyReviewed=false; $('privacy-review').checked=false; $('print-content').textContent=''; update(); }
+  function resetConsent() { state.explained=false;$('explained').checked=false;people.forEach(p=>{state.consent[p].observation='pending';state.consent[p].output='pending';$(`observe-${p}`).value='pending';$(`output-${p}`).value='pending';}); }
+  function clearObservations(message) { state.observation=blankObservation(); $('finish').checked=false; $('privacy-review').checked=false; $('print-content').textContent=''; renderObservation(); $('message').textContent=message; update(); }
+  function renderConsent() {
+    people.forEach(p => {
+      const box=el('div','', 'person'); box.append(el('h3',`참여자 ${p} · 각자 확인`));
+      const label=el('label',`${p} 임의 ID`); label.htmlFor=`participant-${p}`; const input=el('input'); input.id=`participant-${p}`; input.maxLength=24; input.autocomplete='off'; input.placeholder=`예: ${p}-001`; input.addEventListener('input',() => {state.consent[p].anonymousId=input.value.trim();resetConsent();clearObservations('참여자 ID 변경으로 관찰 메모와 동의 확인을 비웠습니다. 서로 다른 참여자 기록을 합치지 않습니다.');changed();}); box.append(label,input);
+      selectField(box,'참여 및 익명 관찰 메모 동의',[['pending','아직 확인 안 함'],['agreed','각자 동의함'],['declined','거절함'],['withdrawn','철회함']],state.consent[p].observation,value => {state.consent[p].observation=value; if(value!=='agreed')clearObservations('관찰 동의가 없거나 취소되어 현재 탭의 관찰 내용을 제거했습니다.');},`observe-${p}`);
+      selectField(box,'JSON 다운로드·인쇄 보관 동의',[['pending','아직 확인 안 함'],['agreed','별도로 동의함'],['declined','동의하지 않음'],['withdrawn','보관 동의 철회함']],state.consent[p].output,value => {state.consent[p].output=value;},`output-${p}`);
+      $('consent-people').append(box);
+    });
+  }
+  function renderSource(parent,item) {
+    const source=el('div','', 'source'); source.append(el('p',item.stem));
+    if(item.quote)source.append(el('p',`${item.quote.speaker}: “${item.quote.text}”`));
+    if(item.question)source.append(el('p',item.question));
+    const list=el('ol'); item.options.forEach(text => list.append(el('li',text))); source.append(list);
+    source.append(el('p',`형식: ${item.formatLabel} · 공개 문장 대조용, 답 선택 기록 아님`,'small')); parent.append(source);
+  }
+  function renderItems() {
+    $('item-records').replaceChildren();
+    state.observation.plannedItems.forEach(record => {
+      const item=items.find(i=>i.id===record.itemId); const card=el('div','', 'item-card'); const top=el('div','', 'item-title'); top.append(el('h3',`${item.id} · ${item.caption}`)); const remove=el('button','계획에서 제거','secondary'); remove.type='button'; remove.addEventListener('click',()=>{state.observation.plannedItems=state.observation.plannedItems.filter(r=>r!==record);renderItems();changed();});top.append(remove);card.append(top);renderSource(card,item);
+      people.forEach(p => {
+        const detail=el('details'); detail.open=true; detail.append(el('summary',`${p} · 상황과 보기의 뜻`)); const v=record.people[p]; const fields=el('div','', 'grid');
+        selectField(fields,'상황/누구의 행동 이해',itemUnderstandingOptions,v.scenario,value=>v.scenario=value,`${item.id}-${p}-scenario`);
+        selectField(fields,'모든 보기의 뜻 이해',itemUnderstandingOptions,v.options,value=>v.options=value,`${item.id}-${p}-options`);
+        textField(fields,'상황의 뜻 재진술 · 개인 경험 제외',v.scenarioRestatement,value=>v.scenarioRestatement=value,`${item.id}-${p}-scenario-note`);
+        textField(fields,'보기들의 뜻 재진술 · 고른 답 제외',v.optionsRestatement,value=>v.optionsRestatement=value,`${item.id}-${p}-options-note`);
+        selectField(fields,'정답·좋은 사람/커플이라는 압력',riskOptions,v.answerPressure,value=>v.answerPressure=value,`${item.id}-${p}-pressure`);
+        selectField(fields,'결과를 예상해 답을 맞추려는 행동',riskOptions,v.predictability,value=>v.predictability=value,`${item.id}-${p}-predictability`);
+        selectField(fields,'과거/일상 → 웨딩 상황 읽기',transferOptions,v.transfer,value=>v.transfer=value,`${item.id}-${p}-transfer`);
+        selectField(fields,'경험 없음/해당 안 됨/건너뛰기 이해',itemUnderstandingOptions,v.skipUnderstanding,value=>v.skipUnderstanding=value,`${item.id}-${p}-skip`);
+        selectField(fields,'보기 차이·강도/반응·배분 방식 이해',[...itemUnderstandingOptions,['not_applicable','별도 강도/배분 확인 해당 없음']],v.strengthUnderstanding,value=>v.strengthUnderstanding=value,`${item.id}-${p}-strength`);
+        textField(fields,'혼동·설명 제공 위치 · 실제 답/선택 이유 제외',v.note,value=>v.note=value,`${item.id}-${p}-note`);
+        detail.append(fields);card.append(detail);
+      }); $('item-records').append(card);
+    });
+    if(!state.observation.plannedItems.length)$('item-records').append(el('p','2번에서 관찰 문항을 추가하세요.','small'));
+  }
+  function renderResults() {
+    $('result-records').replaceChildren();
+    resultProbes.forEach(([key,title,prompt]) => {
+      const detail=el('details'); detail.append(el('summary',title),el('p',prompt)); const grid=el('div','', 'grid');
+      people.forEach(p => { const v=state.observation.results[key][p]; const box=el('div','', 'person'); box.append(el('h3',`${p} · 직접 설명`));
+        selectField(box,'확인한 화면',sourceOptions,v.source,value=>v.source=value,`result-${key}-${p}-source`);
+        selectField(box,'이해 관찰 상태',understandingOptions,v.status,value=>v.status=value,`result-${key}-${p}-status`);
+        textField(box,'뜻/혼동의 관찰 요약 · 개인 결과 제외',v.note,value=>v.note=value,`result-${key}-${p}-note`); grid.append(box);
+      });detail.append(grid);$('result-records').append(detail);
+    });
+  }
+  function renderFlow() {
+    $('flow-records').replaceChildren();
+    flowProbes.forEach(([key,title,prompt]) => {
+      const detail=el('details');detail.append(el('summary',title),el('p',prompt));const grid=el('div','', 'grid');
+      people.forEach(p=>{const v=state.observation.flow[key][p];const box=el('div','', 'person');box.append(el('h3',p));selectField(box,'이해/찾기 상태',flowOptions,v.status,value=>v.status=value,`flow-${key}-${p}-status`);selectField(box,'실제 실행·수신 관찰 · 이해 성공과 별개',executionOptions,v.execution,value=>v.execution=value,`flow-${key}-${p}-execution`);textField(box,'막힌 위치/필요한 설명 · 주소/수신자 제외',v.note,value=>v.note=value,`flow-${key}-${p}-note`);grid.append(box);});detail.append(grid);$('flow-records').append(detail);
+    });
+  }
+  function renderEnding() {
+    $('ending-records').replaceChildren();
+    people.forEach(p=>{const v=state.observation.ending[p];const box=el('div','', 'person');box.append(el('h3',`${p} · 부담과 종료`));
+      selectField(box,'진행 상태',[['not_recorded','확인 전'],['completed','이 세션의 관찰을 마침'],['paused','잠시 멈춤'],['stopped','중도 종료']],v.state,value=>v.state=value,`ending-${p}-state`);
+      selectField(box,'참여자가 말한 부담',[['not_recorded','확인 전'],['none','부담을 말하지 않음'],['manageable','진행 가능한 부담'],['high','큰 부담/반복/피로를 말함'],['stop','부담 때문에 중단'],['not_disclosed','말하지 않음/기록 원하지 않음']],v.burden,value=>v.burden=value,`ending-${p}-burden`);
+      selectField(box,'부담을 확인한 범위',[['not_recorded','확인 전'],['product_only','제품 사용만'],['observation_included','재진술/관찰 대화 포함'],['cannot_separate','분리하기 어려움']],v.context,value=>v.context=value,`ending-${p}-context`);
+      textField(box,'부담/중단 위치 · 개인 사유를 요구하지 않음',v.note,value=>v.note=value,`ending-${p}-note`);$('ending-records').append(box);
+    });
+  }
+  function renderIssues() {
+    $('issues').replaceChildren();state.observation.issues.forEach((v,index)=>{const box=el('div','', 'item-card');box.append(el('h3',`실패/수정 과제 ${index+1}`));const grid=el('div','', 'grid');
+      textField(grid,'위치 · 문항 ID/화면 이름',v.location,value=>v.location=value,`issue-${index}-location`,150);
+      selectField(grid,'문제 종류',[['','선택 전'],['trust_scope','신뢰·동의·공개 범위/궁합/진단/역할 확정 오해'],['meaning','뜻·보기·근거·퍼센트 이해 문제'],['friction','찾기·흐름·반복·부담 문제']],v.severity,value=>v.severity=value,`issue-${index}-severity`);
+      textField(grid,'직접 관찰한 현상 · 신원/실제 답 제외',v.observed,value=>v.observed=value,`issue-${index}-observed`);
+      textField(grid,'수정할 대상과 확인할 행동',v.action,value=>v.action=value,`issue-${index}-action`);
+      selectField(grid,'수정 과제 상태',[['','선택 전'],['open','미수정/검토 필요'],['changed_not_reobserved','수정됨 · 사람 재관찰 전'],['reobserved','별도 관찰 기록에서 다시 확인 · 자동 통과 아님'],['deferred','보류 · 미해결']],v.state,value=>v.state=value,`issue-${index}-state`);
+      box.append(grid);const remove=el('button','이 과제 제거','secondary');remove.type='button';remove.addEventListener('click',()=>{state.observation.issues.splice(index,1);renderIssues();changed();});box.append(remove);$('issues').append(box);});
+  }
+  function renderObservation() {renderItems();renderResults();renderFlow();renderEnding();renderIssues();}
+  function snapshot() {
+    return {kitVersion:KIT_VERSION,instrumentVersion:VERSION,sessionKind:state.kind,sessionId:state.sessionId,screenVersionChecked:state.versionChecked,validationStatus:'UNVALIDATED',scientificValidity:'not_assessed',researchGateG3:'not_assessed',releaseApproval:'not_assessed',consentExplanationConfirmed:state.explained,participants:structuredClone(state.consent),recordStatus:recordStatus().key,observation:structuredClone(state.observation),limitations:['익명 사용성 관찰 기록이며 응답/점수/코드/관계 평가는 기록하지 않음','도구 리허설은 실제 사람 관찰로 합치지 않음','미관찰 문항·상태·흐름은 이해 성공 근거가 아님','기록 완료는 G3·심리 측정 타당성·공개 출시 승인이 아님']};
+  }
+  function outputGuard() {if(!canOutput()){$('message').textContent='출력 조건이 충족되지 않아 파일/인쇄를 실행하지 않았습니다.';return false;}return true;}
+  $('kind').addEventListener('change',event=>{if(state.kind!==event.target.value){state.kind=event.target.value;resetConsent();clearObservations('세션 종류 변경으로 관찰 메모와 동의 확인을 비웠습니다. 리허설 동의를 실제 동의로 옮기지 않습니다.');}});
+  $('session-id').addEventListener('input',event=>{state.sessionId=event.target.value.trim();resetConsent();clearObservations('세션 ID 변경으로 관찰 메모와 동의 확인을 비웠습니다. 서로 다른 세션을 합치지 않습니다.');changed();});
+  $('version-checked').addEventListener('change',event=>{state.versionChecked=event.target.value;clearObservations('대상 판 확인이 변경되어 관찰 메모를 비웠습니다.');changed();});
+  $('explained').addEventListener('change',event=>{state.explained=event.target.checked;if(!state.explained)clearObservations('동의 설명 확인이 취소되어 관찰 내용을 제거했습니다.');changed();});
+  $('finish').addEventListener('change',event=>{state.observation.finish=event.target.checked;changed();});
+  $('privacy-review').addEventListener('change',event=>{state.observation.privacyReviewed=canObserve() && event.target.checked;update();});
+  items.forEach(item=>{const option=el('option',`${item.id} · ${item.caption}`);option.value=item.id;$('item-picker').append(option);});
+  $('add-item').addEventListener('click',()=>{const id=$('item-picker').value;if(state.observation.plannedItems.some(r=>r.itemId===id)){$('message').textContent='이미 계획에 있는 문항입니다.';return;}state.observation.plannedItems.push({itemId:id,people:Object.fromEntries(people.map(p=>[p,blankPerson()]))});renderItems();changed();});
+  $('add-issue').addEventListener('click',()=>{if(!canObserve())return;state.observation.issues.push({location:'',severity:'',observed:'',action:'',state:''});renderIssues();changed();});
+  $('download').addEventListener('click',()=>{if(!outputGuard())return;const blob=new Blob([JSON.stringify(snapshot(),null,2)],{type:'application/json;charset=utf-8'});const url=URL.createObjectURL(blob);const anchor=el('a');anchor.href=url;anchor.download=`wc-v42-observation-${state.sessionId}.json`;document.body.append(anchor);anchor.click();anchor.remove();URL.revokeObjectURL(url);$('message').textContent='다운로드 동작을 실행했습니다. 파일 확인·보관·삭제는 진행자가 관리합니다.';});
+  let printAuthorized=false;
+  $('print').addEventListener('click',()=>{if(!outputGuard())return;printAuthorized=true;$('print-content').textContent=JSON.stringify(snapshot(),null,2);window.print();printAuthorized=false;$('print-content').textContent='';$('message').textContent='인쇄 창을 요청했습니다. 실제 인쇄/보관 완료는 자동 확인하지 않습니다.';});
+  window.addEventListener('beforeprint',()=>{if(!printAuthorized || !canOutput())$('print-content').textContent='워크시트의 인쇄 버튼에서 양쪽 동의와 진행자 검토를 확인한 기록만 출력합니다. 현재 내용은 출력하지 않았습니다.';});
+  window.addEventListener('afterprint',()=>{printAuthorized=false;$('print-content').textContent='';});
+  $('reset').addEventListener('click',()=>{if(!window.confirm('현재 탭의 익명 ID·동의·관찰 메모를 모두 비울까요? 이미 출력한 파일/종이는 별도로 삭제해야 합니다.'))return;state={kind:'',sessionId:'',versionChecked:'',explained:false,consent:Object.fromEntries(people.map(p=>[p,{anonymousId:'',observation:'pending',output:'pending'}])),observation:blankObservation()};['kind','session-id','version-checked'].forEach(id=>$(id).value='');$('explained').checked=false;people.forEach(p=>{ $(`participant-${p}`).value='';$(`observe-${p}`).value='pending';$(`output-${p}`).value='pending';});clearObservations('현재 탭의 모든 입력을 비웠습니다. 이미 출력한 파일/종이는 진행자가 별도로 관리합니다.');});
+  renderConsent();renderObservation();update();
+})();
+</script>
+</body>
+</html>

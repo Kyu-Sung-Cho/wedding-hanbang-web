@@ -1,0 +1,84 @@
+{
+  "items": [
+    {
+      "id": "self.money",
+      "axis": "money",
+      "section": 4,
+      "screen": 40,
+      "key": 1,
+      "fmt": "self",
+      "caption": "직접 고른 쪽",
+      "stem": "돈이 걸린 선택에서, 나는 보통 무엇을 먼저 살펴보나요?",
+      "cards": [
+        {
+          "pole": "front",
+          "text": "쓸 수 있는 전체 비용과 계약 조건부터 살펴봐요"
+        },
+        {
+          "pole": "back",
+          "text": "그날 남기고 싶은 장면과 경험부터 그려 봐요"
+        }
+      ]
+    },
+    {
+      "id": "self.process",
+      "axis": "process",
+      "section": 4,
+      "screen": 40,
+      "key": -1,
+      "fmt": "self",
+      "caption": "직접 고른 쪽",
+      "stem": "함께 준비할 일이 생기면, 나는 보통 어느 방식이 편한가요?",
+      "cards": [
+        {
+          "pole": "back",
+          "text": "각자 맡은 부분을 준비하고 필요한 때 맞춰 봐요"
+        },
+        {
+          "pole": "front",
+          "text": "찾아보고 고르는 과정을 둘이 함께 맞춰 봐요"
+        }
+      ]
+    },
+    {
+      "id": "self.scope",
+      "axis": "scope",
+      "section": 4,
+      "screen": 41,
+      "key": -1,
+      "fmt": "self",
+      "caption": "직접 고른 쪽",
+      "stem": "결혼 준비의 중요한 선택, 누구와 먼저 의논하고 싶어요?",
+      "cards": [
+        {
+          "pole": "back",
+          "text": "가족 의견을 들은 뒤 둘의 안을 정해요"
+        },
+        {
+          "pole": "front",
+          "text": "둘의 안을 먼저 정하고 가족에게 전해요"
+        }
+      ]
+    },
+    {
+      "id": "self.support",
+      "axis": "support",
+      "section": 4,
+      "screen": 41,
+      "key": 1,
+      "fmt": "self",
+      "caption": "직접 고른 쪽",
+      "stem": "준비가 버거운 날, 나는 무엇부터 나누고 싶어요?",
+      "cards": [
+        {
+          "pole": "front",
+          "text": "힘든 마음을 서로 말하고 들어 주는 게 먼저예요"
+        },
+        {
+          "pole": "back",
+          "text": "남은 일에서 무엇을 덜지 정하는 게 먼저예요"
+        }
+      ]
+    }
+  ]
+}

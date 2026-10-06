@@ -82,7 +82,7 @@ const PROMISES_TESTED_BELOW = [
   "읽어도 보관 기간이 늘거나 저장된 내용이 바뀌지 않습니다",
   "폼 비트를 최근 세 번까지 함께 보관하며",
   "이 기록에는 답을 넣지 않고",
-  "이전 판(v3.1)의 저장된 답을 지우고",
+  "이전 판(v3.1)의 저장된 답도 지우며",
   "꺼짐 설정만 브라우저에 남깁니다",
   "이후 저장을 멈추며",
   // 4.1 단계 2(결과 전 글자 고르기)가 더한 약속. 아래 「먼저 고른 글자」 시험이 실제 storage.ts 와 letterGuess 모듈로 확인한다.
@@ -94,7 +94,7 @@ const PROMISES_TESTED_BELOW = [
 describe("처리방침 v4 문단이 저장에 관해 하는 약속", () => {
   it("이 파일이 확인하는 약속이 방침에 그대로 적혀 있다", () => {
     const text = renderToStaticMarkup(createElement(PrivacyPage)).replace(/<[^>]+>/g, " ").replace(/\s+/g, " ");
-    const start = text.indexOf("새 웨딩코드(v4.0-tendency) 이어하기·링크 보내기:");
+    const start = text.indexOf("웨딩코드(v4.0-tendency·v4.1-depth·v4.2-depth) 이어하기·링크 보내기:");
     expect(start, "v4 문단을 못 찾았다. 이 검사가 헛돈다").toBeGreaterThan(-1);
     const paragraph = text.slice(start, text.indexOf("지워 주세요.", start) + "지워 주세요.".length);
     for (const promise of PROMISES_TESTED_BELOW) {

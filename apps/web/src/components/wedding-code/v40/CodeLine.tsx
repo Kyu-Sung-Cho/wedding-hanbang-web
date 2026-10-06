@@ -1,8 +1,11 @@
-import { V40_UNSET_LETTER_MARK, letterInfo } from "@/constants/weddingCodeV40";
+import { V40_STRENGTH, V40_UNSET_LETTER_MARK, letterInfo } from "@/constants/weddingCodeV40";
 import { V40_COPY, codeLineAccessibleName, type CodeLineEntry } from "@/lib/weddingCode/v40/copy";
 import type { AxisResult, V40Result } from "@/lib/weddingCode/v40/types";
 import { noteText } from "./styles";
 import { pill } from "./resultStyles";
+import { LetterDefinition } from "./LetterDefinition";
+import { AnswerDistribution } from "./AnswerEvidence";
+import { AxisReadingReason } from "./AxisReadingReason";
 
 /**
  * 힌트(위치 반복, 건너뜀)가 이 주제의 세기를 기울어요에서 반반이에요로 낮췄는가.
@@ -31,6 +34,8 @@ export function codeLineEntries(result: V40Result): readonly CodeLineEntry[] {
 export interface CodeLineProps {
   /** 주제 순서 네 개(돈, 준비, 정하는 사람, 지쳤을 때). */
   readonly entries: readonly CodeLineEntry[];
+  /** 실제 응답 분포와 판정 이유. 코드 요약만 있는 화면은 생략할 수 있다. */
+  readonly axes?: readonly AxisResult[];
 }
 
 /**
@@ -40,47 +45,46 @@ export interface CodeLineProps {
  * 임시 글자는 「반반」과 「임시」 표시를 함께 달고, 글자를 못 정한 주제는 가운뎃점과 그 사실을 적는다.
  * 반반이에요 글자가 하나라도 있으면 줄 아래에 한 줄 안내가 붙는다. 뜻은 색이 아니라 글과 모양으로 전한다.
  */
-export function CodeLine({ entries }: CodeLineProps) {
+export function CodeLine({ entries, axes }: CodeLineProps) {
   const hasEven = entries.some((entry) => entry.letter !== null && entry.band === "even");
   const hasLowered = entries.some((entry) => entry.lowered === true);
   // 글자 아래 표시(반반, 임시, 정하지 못했어요)가 하나도 없으면 그 줄의 높이를 남겨 두지 않는다(글자 밑이 텅 비어 코드 줄이 끝나지 않은 것처럼 보였다).
-  const hasMarks = entries.some((entry) => entry.letter === null || entry.band === "even" || entry.provisional);
   return (
     <section data-result-section="code">
       <div
         role="img"
         aria-label={codeLineAccessibleName(entries)}
-        className="mx-auto grid max-w-md grid-cols-4 gap-1"
+        className="grid grid-cols-4 gap-0"
       >
         {entries.map((entry) => (
           <div
             key={entry.axis}
             data-code-axis={entry.axis}
-            className="flex min-w-0 flex-col items-center gap-1 text-center"
+            className="flex min-w-0 flex-col items-center gap-2 border-l border-[var(--hb-summary-line)] px-1 text-center first:border-l-0 sm:gap-3 sm:px-4"
           >
-            <span className="flex min-h-8 items-end justify-center break-keep text-xs font-medium leading-tight text-[var(--hb-text-muted)]">
+            <span className="flex min-h-8 items-end justify-center break-keep text-xs font-semibold leading-tight text-[var(--hb-summary-label)] sm:text-sm">
               {V40_COPY.result.topicLabels[entry.axis]}
             </span>
             <span
               data-code-letter={entry.letter ?? V40_UNSET_LETTER_MARK}
-              className="text-5xl font-bold leading-none text-[var(--hb-text-strong)]"
+              className="text-[clamp(3rem,10vw,6.5rem)] font-semibold leading-none tracking-tight text-[var(--hb-text-strong)]"
             >
               {entry.letter ?? V40_UNSET_LETTER_MARK}
             </span>
             <span
               data-code-letter-name=""
-              className="flex min-h-8 items-start justify-center break-keep text-xs font-semibold leading-tight text-[var(--hb-text-body)]"
+              className="flex min-h-8 items-start justify-center break-keep text-xs font-semibold leading-tight text-[var(--hb-text-body)] sm:text-base"
             >
               {entry.letter === null ? null : letterInfo(entry.letter).name}
             </span>
-            <span className={hasMarks ? "flex min-h-10 flex-col items-center gap-1" : "flex flex-col items-center gap-1"}>
+            <span className="flex min-h-8 flex-col items-center gap-1">
               {entry.letter === null ? (
                 <span className="break-keep text-[11px] leading-tight text-[var(--hb-text-muted)]">
                   {V40_COPY.result.unsetLetterLabel}
                 </span>
               ) : (
                 <>
-                  {entry.band === "even" ? <span className={pill}>{V40_COPY.result.evenMark}</span> : null}
+                    {entry.band !== null ? <span className={pill}>{entry.band === "even" ? V40_COPY.result.evenMark : V40_STRENGTH[entry.band].label}</span> : null}
                   {entry.provisional ? <span className={pill}>{V40_COPY.result.provisionalMark}</span> : null}
                 </>
               )}
@@ -91,6 +95,30 @@ export function CodeLine({ entries }: CodeLineProps) {
       {hasEven ? (
         <p className={`${noteText} mt-3 text-center`}>{hasLowered ? V40_COPY.result.evenCodeNoteLowered : V40_COPY.result.evenCodeNote}</p>
       ) : null}
+      <p className={`${noteText} mt-7`}>{V40_COPY.result.letterReadingNote}</p>
+      {axes ? <div className={`${noteText} mt-3 space-y-1`}><p>{V40_COPY.evidence.summaryNote}</p><p>{V40_COPY.evidence.precisionNote}</p></div> : null}
+      <ul aria-label={V40_COPY.result.letterReadingLabel} className="mt-4 grid gap-x-8 sm:grid-cols-2">
+        {entries.map((entry) => {
+          const answerAxis = axes?.find((axis) => axis.axis === entry.axis);
+          return (
+          <li key={entry.axis} data-code-reading-axis={entry.axis} className="min-w-0 border-t border-[var(--hb-summary-line)] py-4">
+            <p className="mb-2 text-xs text-[var(--hb-summary-label)]">{V40_COPY.result.topicLabels[entry.axis]}</p>
+            {entry.letter === null ? (
+              <p className={noteText}>{V40_COPY.result.unsetLetterLabel}</p>
+            ) : (
+              <>
+                <LetterDefinition letter={entry.letter} />
+                <p className="mt-2 text-xs text-[var(--hb-text-muted)]">
+                  {entry.band !== null ? V40_STRENGTH[entry.band].label : null}
+                  {entry.provisional ? ` · ${V40_COPY.result.provisionalMark}` : ""}
+                </p>
+              </>
+            )}
+            {answerAxis ? <><AnswerDistribution axis={entry.axis} counts={answerAxis} compact /><AxisReadingReason axis={answerAxis} /></> : null}
+          </li>
+          );
+        })}
+      </ul>
     </section>
   );
 }

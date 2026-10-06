@@ -3,7 +3,8 @@
 import { V40_COPY, coupleTagNote, letterBandCell, personName } from "@/lib/weddingCode/v40/copy";
 import { axisInfo } from "@/constants/weddingCodeV40";
 import type { CoupleAxisRow as CoupleAxisRowData, CoupleSideInfo, Perspective } from "@/lib/weddingCode/v40/types";
-import { bodyText, captionText, card, cx, noteText } from "./styles";
+import { AnswerDistribution, CoupleFacetContrast, FacetBreakdown } from "./AnswerEvidence";
+import { bodyText, captionText, cx, noteText } from "./styles";
 
 /**
  * 두 사람을 화면에 놓는 순서. 누가 나인지 알면(first 또는 second) 나를 먼저, 상대를 다음에 놓는다.
@@ -28,22 +29,31 @@ export interface CoupleAxisRowProps {
   readonly headingLevel?: 3 | 4;
 }
 
-function PersonCell({ label, side }: { readonly label: string; readonly side: CoupleSideInfo }) {
+function PersonCell({ label, side, axis }: { readonly label: string; readonly side: CoupleSideInfo; readonly axis: CoupleAxisRowData["axis"] }) {
   const text = letterBandCell(side.letter, side.shownBand, side.provisional);
   const letter = side.letter;
   return (
-    <div className="min-w-0 rounded-lg bg-[var(--hb-surface-hover)] px-3 py-2">
-      <p className={captionText}>{label}</p>
-      <p className={cx(bodyText, "mt-1 break-keep font-medium text-[var(--hb-text-strong)]")}>
+    <div data-couple-axis-person="" className="min-w-0 border-t border-[var(--hb-hairline)] py-4">
+      <p data-person-label="" className={captionText}>{label}</p>
+      <p data-person-letter-band="" className={cx(bodyText, "mt-1 break-keep font-medium text-[var(--hb-text-strong)]")}>
         {letter !== null ? (
           <>
-            <span className="text-xl font-bold">{letter}</span>
+          <span className="mr-1 text-2xl font-semibold">{letter}</span>
             {text.slice(letter.length)}
           </>
         ) : (
           text
         )}
       </p>
+      <AnswerDistribution axis={axis} counts={side} compact />
+      {side.facets ? (
+        <details className="mt-3 border-t border-[var(--hb-hairline)] pt-2">
+          <summary className="min-h-11 cursor-pointer text-xs font-semibold text-[var(--hb-text-strong)]">
+            이 사람의 장면 묶음별 답 보기
+          </summary>
+          <FacetBreakdown axis={axis} facets={side.facets} compact />
+        </details>
+      ) : null}
     </div>
   );
 }
@@ -60,13 +70,13 @@ export function CoupleAxisRow({ row, perspective, showNote, idPrefix, headingLev
   const people = peopleInOrder(perspective);
   const noteVisible = row.excluded || row.tag === "different" || showNote;
   return (
-    <li className={cx(card, "list-none p-4")} data-axis={row.axis} data-tag={row.excluded ? "excluded" : row.tag}>
-      <Heading id={titleId} className="text-sm font-semibold text-[var(--hb-text-strong)]">
+    <li className="list-none rounded-2xl border border-[var(--hb-hairline)] bg-[var(--hb-surface-raised)] p-5 sm:p-7" data-axis={row.axis} data-tag={row.excluded ? "excluded" : row.tag}>
+      <Heading id={titleId} className="text-xl font-semibold leading-snug text-[var(--hb-text-strong)]">
         {axisInfo(row.axis).title}
       </Heading>
-      <div className="mt-2 grid grid-cols-1 gap-2 min-[375px]:grid-cols-2">
+      <div className="mt-5 grid grid-cols-1 gap-x-8 min-[720px]:grid-cols-2">
         {people.map((person) => (
-          <PersonCell key={person} label={personName(perspective, person)} side={row[person]} />
+          <PersonCell key={person} label={personName(perspective, person)} side={row[person]} axis={row.axis} />
         ))}
       </div>
       {row.excluded ? null : (
@@ -81,6 +91,7 @@ export function CoupleAxisRow({ row, perspective, showNote, idPrefix, headingLev
         </p>
       )}
       {noteVisible ? <p className={cx(noteText, "mt-2")}>{coupleTagNote(row.axis, row.tag, row.excluded)}</p> : null}
+      <CoupleFacetContrast row={row} perspective={perspective} />
     </li>
   );
 }

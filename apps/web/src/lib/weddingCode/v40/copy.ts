@@ -110,6 +110,11 @@ const UNSET_MARK = "·";
 // ---------------------------------------------------------------------------
 
 export const V40_COPY = {
+  brand: {
+    homeLabel: "웨딩한방 홈",
+    title: "웨딩한방",
+    editionLabel: "웨딩코드",
+  },
   // 공통 --------------------------------------------------------------------
   common: {
     /** 입구가 v4 화면을 불러오는 동안 쓰는 글과 같은 값(entryCopy.ts 한 곳에서 가져온다). */
@@ -119,6 +124,7 @@ export const V40_COPY = {
   // 시작 화면 ----------------------------------------------------------------
   intro: {
     brandLabel: "웨딩한방 · 웨딩코드",
+    specimenLabel: "네 주제, 여덟 글자",
     title: "결혼을 준비할 때, 나는 어느 쪽으로 기울까요?",
     /** 네 주제를 나열한 첫 문장은 명사구 나열이라 끝맺음 검사에서 빠진다(copy.test.ts 의 SENTENCE_ENDING_EXEMPT). */
     lede: "돈을 정할 때, 준비를 굴릴 때, 함께 정하는 사람, 지쳤을 때. 결혼을 준비하며 자주 만나는 이 네 가지를 여러 방식으로 물어봐요. 답을 모으면 네 글자 코드가 나와요.",
@@ -201,6 +207,7 @@ export const V40_COPY = {
 
   // 질문 화면 ----------------------------------------------------------------
   question: {
+    numberLabel: "질문",
     nextButton: "다음",
     previousButton: "이전",
     resultButton: "결과 보기",
@@ -290,6 +297,8 @@ export const V40_COPY = {
     notice: NOTICE_STANDARD,
     /** 코드 줄에서 각 글자 위에 붙는 작은 주제 이름(돈, 준비, 정하는 사람, 지쳤을 때). */
     topicLabels: topicLabelsFromAxes(),
+    letterReadingLabel: "네 글자를 풀어 읽으면",
+    letterReadingNote: "영문 단어의 첫 글자를 따왔어요. 왼쪽부터 돈 → 준비 과정 → 함께 정할 사람 → 지친 날의 도움 순서예요. 아래는 글자 자체의 뜻이며, 이번 답의 기울기는 함께 붙인 표시로 읽어요.",
     evenMark: V40_EVEN_MARK,
     /** 반반이에요 글자가 하나라도 있을 때 코드 줄 아래에 한 줄. */
     evenCodeNote: V40_EVEN_CODE_NOTE,
@@ -300,13 +309,31 @@ export const V40_COPY = {
   },
 
   // 글자 읽는 법(접히지 않는 표) ---------------------------------------------------
+  evidence: {
+    distributionLabel: "선택 비율",
+    tilesNote: "한 칸은 고른 답 하나예요.",
+    neutralLabel: "한쪽으로 기울지 않은 답",
+    precisionNote: "비율은 소수점 둘째 자리까지 표시하며, 반올림으로 표시 비율의 합계가 조금 달라질 수 있어요.",
+    summaryNote: "이 비율은 답한 질문에서 고른 방향의 분포예요. 글자는 선택 강도와 장면별 비중을, 옆의 세기 표시는 응답 상태도 반영해 정해요. 사람의 내면을 수치로 나타낸 값은 아니에요.",
+    noAnswers: "남긴 답이 없어 선택 비율을 내지 않았어요.",
+    excludedFacetLabel: "묶음 평균 계산에서 제외",
+    excludedFacetNote: "답이 두 개 미만인 장면은 묶음 평균에 넣지 않아요. 이 장면의 답도 동점일 때 고르기·반응 답을 비교하는 기준에는 쓰일 수 있어요.",
+    reasonLabel: "이 글자가 나온 이유",
+    unsetReason: "답의 수나 장면별 응답이 부족해 이번에는 글자를 정하지 않았어요. 비율은 남긴 답의 방향만 보여 줘요.",
+    demotedReason: "응답 상태 힌트가 있어 글자는 유지하고 표시 세기를 한 단계 낮췄어요. 위 선택 비율은 바뀌지 않아요.",
+    evenReason: "계산에서 한쪽으로 뚜렷하게 모인 정도는 아니어서 반반으로 표시했어요. 이 표시는 답을 반씩 골랐는지와 별개예요.",
+    excludedComparisonNote: "이번 응답에서는 이 주제의 글자를 두 사람 비교에서 뺐어요. 비율은 각자 남긴 답만 보여 줘요.",
+    professionalReportLabel: "주제별 응답 분석",
+    professionalReportNote: "각 주제에서 실제로 고른 방향, 장면별 차이, 글자를 정한 계산을 이어서 살펴보세요.",
+  },
+
   legend: {
     title: "글자 읽는 법",
     topicColumn: "주제",
     frontColumn: "앞 글자",
     backColumn: "뒤 글자",
     mineColumn: V40_LABELS.myLetter,
-    note: "글자 하나에는 뜻이 하나뿐이에요. 나도 상대도 같은 표로 읽어요.",
+    note: "한 글자에는 한 가지 뜻이 있어요. 같은 주제의 두 글자는 무엇을 먼저 두는지가 달라요. 나와 상대 모두 같은 뜻으로 읽어요.",
     notSetLabel: "정하지 못했어요",
     /**
      * 세기 낱말을 풀어 쓴 한 줄씩(선택). 각 줄은 세기 낱말로 시작한다. 숫자로 세기를 말하지 않는다.
@@ -341,6 +368,7 @@ export const V40_COPY = {
     moreToggle: V40_LABELS.moreToggle,
     lessToggle: "접기",
     appearancesHeading: V40_LABELS.appearances,
+    appearancesNote: "아래는 이 글자를 설명하는 예시예요. 이번에 실제로 고른 답은 위에서 확인해 주세요.",
     /** 반반이에요 주제에서 두 글자의 모습을 함께 보여 줄 때 한 줄. 어느 쪽으로도 기울지 않았다는 이유는 세기 문장이 이미 말해서 되풀이하지 않는다. */
     evenAppearancesNote: "두 글자 모두 이런 모습으로 나타날 수 있어요.",
     reviewAxisButton: V40_LABELS.reviewAxis,
@@ -410,26 +438,28 @@ export const V40_COPY = {
     previousColumn: "지난번",
     currentColumn: "이번",
     changedTag: "달라졌어요",
-    unstableTag: "바뀌기 쉬운 주제예요",
+    unstableTag: "지난번이나 이번이 반반이에요",
     sameTag: "같은 글자예요",
     excludedTag: "비교에서 뺐어요",
     /** 반반이에요가 낀 주제가 있을 때 표 아래에 한 줄. */
-    unstableNote: "반반이에요가 낀 주제는 바뀌기 쉬워요.",
+    unstableNote: "지난번이나 이번이 반반이면 글자 변화로 해석하지 않아요.",
     /** 화면 빌더가 실제로 그 주제를 비교에서 뺄 때만 excludedTag 와 함께 쓴다(문서 7절은 두 사람 결과에서만 뺀다고 정했다). 빼지 않으면 이 두 문구를 쓰지 않는다. */
     excludedNote: "글자를 정하지 못했거나 임시 글자였던 주제는 비교에서 뺐어요.",
   },
 
   // 상대에게 보내기 --------------------------------------------------------------
   send: {
-    title: "상대에게 보내기",
-    groupLabel: "무엇을 보낼까요?",
+    title: "함께 비교하려면",
+    journeyLabel: "함께 보는 순서",
+    journeySteps: ["내 답 링크 전하기", "상대가 자기 답하기", "결과 링크 다시 받기"],
+    groupLabel: "어떤 링크를 보낼까요?",
     withAnswersOption: "내 답과 함께 보내기",
     /** 「그 결과 링크」는 무엇을 가리키는지 알 수 없었다. 두 사람 결과 링크라고 밝힌다. */
     withAnswersHelp:
-      "상대가 답을 마치면 상대 화면에 두 사람 결과가 열려요. 나도 함께 보려면 상대가 두 사람 결과 링크를 나에게 다시 보내 줘야 해요.",
+      "상대가 이 링크에서 답하면 두 사람 결과가 열려요. 내 화면에는 자동으로 나타나지 않으니, 상대가 두 사람 결과 링크를 다시 보내 줘야 나도 볼 수 있어요.",
     questionsOnlyOption: "질문만 보내기",
     /** 코드는 「받는」 것이 아니라 결과를 보는 것이다. */
-    questionsOnlyHelp: "내 답은 들어 있지 않아요. 상대는 질문에 답하고 자기 결과만 보게 돼요.",
+    questionsOnlyHelp: "내 답은 들어 있지 않아요. 상대는 혼자 답하고 자기 결과만 봐요. 두 사람 비교는 만들어지지 않아요.",
     /** 체크 문장(내 답과 함께 보내기에서만). 켜기 전에는 링크 단추가 aria-disabled 이다. */
     consent: "링크를 받은 사람은 누구나 내 답을 읽을 수 있다는 걸 알아요. 상대에게만 보낼게요.",
     sendButton: "링크 보내기",
@@ -437,8 +467,8 @@ export const V40_COPY = {
     messageLabel: "보낼 말 (고쳐 쓸 수 있어요)",
     /** 보낼 말 미리 보기. 내 글자는 넣지 않고 고지 문장도 넣지 않는다. */
     messageWithAnswers:
-      "웨딩코드 해 봤어요. 링크 열어서 답해 줘요. 다 하면 두 사람 결과 링크를 나한테도 보내 줘요. 그래야 같이 볼 수 있어요.",
-    messageQuestionsOnly: "웨딩코드 해 봤어요. 링크 열어서 답해 봐요. 다 하면 서로 코드를 이야기해 봐요.",
+      "웨딩코드에 먼저 답해 봤어요. 이 링크에서 답하면 우리 결과가 나란히 보여요. 다 마치면 ‘두 사람 결과 링크 보내기’를 눌러 저에게도 보내 주세요.",
+    messageQuestionsOnly: "같은 웨딩코드 질문에 각자 답해 볼까요? 이 링크에는 제 답이 없어요. 다 마치면 서로 결과를 보여 줘요.",
     shareSheetInfo: "휴대폰에서는 공유 창이 열려요. 열리지 않으면 주소를 복사할 수 있게 보여 줘요.",
     /**
      * 내 답과 함께 보내기가 골라져 있을 때만 보인다. 「누구나 읽을 수 있다」는 말은 체크 문장(consent)이 이미 한다.
@@ -451,7 +481,7 @@ export const V40_COPY = {
      */
     withAnswersSensitiveInfo: "가족, 돈, 다툰 뒤와 지쳤을 때에 관한 답도 그대로 읽혀요.",
     /** 클립보드 복사에 성공했을 때. */
-    copied: "링크를 복사했어요. 대화창에 붙여 넣어 주세요.",
+    copied: "링크를 복사했어요. 상대와의 대화창에 붙여 넣어 주세요.",
     /** 공유 창이 없거나 복사가 안 될 때(실패가 아니라 중립 안내). 「길게 눌러」는 휴대폰에서만 맞는 말이라 쓰지 않는다. */
     manualCopy: "아래 주소를 선택해서 복사해 주세요",
     addressLabel: "링크 주소",
@@ -504,6 +534,8 @@ export const V40_COPY = {
   // 받는 사람 화면 ---------------------------------------------------------------
   receive: {
     title: "상대가 웨딩코드를 보냈어요",
+    journeyLabel: "이 링크로 함께 보는 순서",
+    journeySteps: ["내 답하기", "두 사람 결과 보기", "결과 링크 상대에게 돌려보내기"],
     lead: "먼저 내 답을 마치면 두 사람 결과를 나란히 볼 수 있어요. 링크 안에는 상대의 답이 들어 있어요. 내가 마치기 전에는 화면에 나오지 않게 해 뒀어요.",
     /** 정직한 고지. 이 화면에서 한 번. */
     notice: "새로 만든 질문이라 아직 여러 사람에게 확인해 보지 못했고 검증을 마친 심리검사가 아니에요.",
@@ -522,7 +554,7 @@ export const V40_COPY = {
      * 받는 사람이 꼭 알아야 하는 다음 걸음. 보낸 사람은 이 사람이 두 사람 결과 링크를 다시 보내 주기 전에는 두 사람 결과를 볼 수 없다.
      * 이 말이 보내는 쪽의 보낼 말과 두 사람 결과 화면 맨 아래에만 있으면 받는 사람은 답을 다 마친 뒤 긴 결과를 내려가서야 알게 된다.
      */
-    returnStepNote: "내 답을 마치면 나오는 두 사람 결과 링크를 상대에게 다시 보내야 상대도 그 결과를 볼 수 있어요.",
+    returnStepNote: "상대 화면은 자동으로 바뀌지 않아요. 완료 후 두 사람 결과 링크를 다시 전해 주세요.",
   },
 
   // 두 사람 결과 ------------------------------------------------------------------
@@ -579,7 +611,7 @@ export const V40_COPY = {
      * 내 답을 마쳐 두 사람 결과가 열린 화면(상대에게 다시 보내는 블록이 있는 화면)의 위쪽 안내와 그 블록으로 가는 단추.
      * 링크를 보내 준 상대는 이 사람이 두 사람 결과 링크를 다시 보내기 전에는 결과를 볼 수 없는데, 보내는 블록은 결과 맨 아래에 있다.
      */
-    returnStepNote: "링크를 보내 준 상대는 아직 이 결과를 볼 수 없어요. 아래에서 링크를 보내면 볼 수 있어요.",
+    returnStepNote: "두 사람 결과가 열렸어요. 초대해 준 상대도 볼 수 있도록 결과 링크를 돌려보내 주세요.",
     returnStepButton: "상대에게 보내는 곳으로 가기",
     /** 누르면 지금 보던 두 사람 결과 화면이 닫힌다. 단추 이름이 그것을 숨기지 않게 아래 안내가 함께 있다. */
     startOwnButton: "내 웨딩코드 해 보기",
@@ -592,9 +624,9 @@ export const V40_COPY = {
   // 이 묶음은 내가 이 화면에서 내 답을 마치고 두 사람 결과가 열린 경우에만 보인다. 이미 두 사람 답이 든 링크(a 와 b)를 그대로 연 화면에는
   // 보이지 않는다(그 사람에게는 「이걸 보내야 상대도 볼 수 있어요」가 거짓이다).
   coupleSend: {
-    title: "이 결과를 상대에게도 보내기",
+    title: "상대에게 두 사람 결과 보내기",
     /** 두 사람의 답이 링크에 든다는 말은 바로 아래 체크 문장이 하므로 여기서는 되풀이하지 않는다. */
-    help: "이 링크를 보내야 상대도 두 사람 결과를 볼 수 있어요.",
+    help: "상대에게는 결과가 자동으로 뜨지 않아요. 이 링크를 보내면 두 사람의 답을 나란히 볼 수 있어요.",
     consentAllAnswers: "이 링크에 두 사람의 답이 모두 들어 있다는 걸 알아요.",
     /**
      * 이 화면의 사람은 다른 사람의 동의를 알 수 없어서 「먼저 답한 사람도 동의했어요」를 체크로 받지 않는다(받은 링크의 상대는
@@ -604,7 +636,7 @@ export const V40_COPY = {
     sensitiveInfo: "가족, 돈, 다툰 뒤와 지쳤을 때에 관한 답도 그대로 읽혀요.",
     anyoneCanReadInfo: "링크를 가진 누구나 읽고 다시 전달할 수 있고, 이미 보낸 링크는 되돌릴 수 없어요.",
     oldLinksRemainInfo: "답을 고쳐 새 링크를 만들어도 예전 링크는 남아요.",
-    sendButton: "링크 보내기",
+    sendButton: "두 사람 결과 링크 보내기",
     disabledReason: "위 칸 두 개에 모두 체크하면 보낼 수 있어요.",
     messageLabel: "보낼 말 (고쳐 쓸 수 있어요)",
     message: "우리 둘의 웨딩코드 결과예요. 링크를 열면 나란히 볼 수 있어요.",
@@ -664,19 +696,19 @@ export type V40Copy = typeof V40_COPY;
  *   사정을 말한다. 두 상태에서는 저장한다는 말도 저장 기간도 나오지 않는다.
  */
 export const V40_COPY_SCREENS = {
-  intro: ["intro", "autosave", "storageNotice", "error", "common", "a11y"],
-  receive: ["receive", "guess", "autosave", "storageNotice", "error", "common", "a11y"],
-  question: ["question", "inputs", "progress", "leave", "edit", "storageNotice", "common", "a11y"],
-  rest: ["rest", "progress", "autosave", "storageNotice", "common", "a11y"],
-  wrapUp: ["wrapUp", "progress", "common", "a11y"],
+  intro: ["brand", "intro", "autosave", "storageNotice", "error", "common", "a11y"],
+  receive: ["brand", "receive", "guess", "autosave", "storageNotice", "error", "common", "a11y"],
+  question: ["brand", "question", "inputs", "progress", "leave", "edit", "storageNotice", "common", "a11y"],
+  rest: ["brand", "rest", "progress", "autosave", "storageNotice", "common", "a11y"],
+  wrapUp: ["brand", "wrapUp", "progress", "common", "a11y"],
   result: [
-    "result", "legend", "collected", "block", "quality", "gate", "history", "send", "copyCode", "taste", "manage",
+    "brand", "result", "evidence", "legend", "collected", "block", "quality", "gate", "history", "send", "copyCode", "taste", "manage",
     "autosave", "storageNotice", "progress", "guess", "letterGuess", "common", "a11y",
   ],
-  couple: ["couple", "legend", "coupleSend", "guess", "letterGuess", "common", "a11y"],
+  couple: ["brand", "couple", "evidence", "legend", "coupleSend", "guess", "letterGuess", "common", "a11y"],
   // 4.1 단계 2: 클라이언트가 결과 앞뒤에 얹는 단계 화면 둘. 고지 문장은 두 화면 모두 없다(화면당 한 번 규칙은 시작, 받는 사람, 결과, 두 사람 결과가 이미 맡는다).
-  letterGuess: ["letterGuess", "common", "a11y"],
-  pairGuess: ["guess", "common", "a11y"],
+  letterGuess: ["brand", "letterGuess", "common", "a11y"],
+  pairGuess: ["brand", "guess", "common", "a11y"],
 } as const satisfies Readonly<Record<string, readonly (keyof typeof V40_COPY)[]>>;
 
 export type V40CopyScreen = keyof typeof V40_COPY_SCREENS;
@@ -1210,8 +1242,9 @@ export function coupleTagNote(axis: Axis, tag: "same" | "different" | "even", ex
 export const V40_COUPLE_SEND_EXTRA_COPY = {
   /** 두 사람 결과: 주제별 나란히 보기 목록의 제목. */
   axesHeading: "주제별로 나란히 보기",
-  /** 링크 보내기: 공유 창을 끝까지 마쳤을 때 한 줄. 클립보드에 복사한 것이 아니라서 send.copied 와 다르게 말한다. */
-  sharedSheet: "공유 창으로 링크를 보냈어요.",
+  /** 공유 앱의 실제 메시지 전송과 수신 여부는 브라우저가 확인할 수 없다. */
+  sharedSheet: "공유 창에 링크를 넘겼어요. 실제 전송은 공유 앱에서 확인해 주세요.",
+  cancelled: "공유를 취소했어요. 다시 시도할 수 있어요.",
 } as const;
 
 // ===========================================================================
