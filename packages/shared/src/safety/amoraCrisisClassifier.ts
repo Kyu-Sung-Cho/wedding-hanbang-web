@@ -1,3 +1,7 @@
+import {
+  assessBoundSafetyContext, assessContextualAmoraSafety, assessResolvedHistoricalIdeation,
+  isBotDirectedIdeationQuestion, isQuotedSafetyReferenceOnly, scopedSafetyDisclosureCandidates,
+} from "./amoraContextualSafety";
 // Browser, native, and server must classify the same canonical disclosure.
 export type AmoraCrisisKind =
   | "self_harm"
@@ -46,6 +50,8 @@ export interface AmoraSafetyEvent {
 }
 
 export interface AmoraSafetyAssessment {
+  /** Explicitly bound discourse context; legacy cues cannot revive excluded events. */
+  contextBoundaryResolved?: true;
   resolution:
     | "immediate_crisis"
     | "non_immediate_safety"
@@ -367,7 +373,7 @@ const ATTEMPT_NEGATION_PATTERN =
 const ATTEMPT_HYPOTHETICAL_PATTERN =
   /(?:먹|삼키|복용|마시|마셨|피우|피웠|피워(?:놓)?|점화|켜|뛰어내리|몸을?\s*던지).{0,12}(?:면|다면|경우)/;
 const NEGATED_INTERPERSONAL_EVENT_PATTERN =
-  /(?:(?:협박|위협|때리|폭행|감금|가둬|가뒀|가둔|가두|죽일\s*거|죽인대|죽인다는|목을?\s*조르|칼|흉기).{0,20}(?:한|했던|하고\s*있는|들고\s*있는|라는|다는)?\s*(?:건|게|것은)\s*아니|(?:협박|위협|때리|폭행|감금|가두|목을?\s*조르)지\s*않)/;
+  /(?:(?:협박|위협|때리|폭행|감금|가둬|가뒀|가둔|가두|죽일\s*거|죽인대|죽인다는|목을?\s*조르|칼|흉기).{0,20}(?:한|했던|하고\s*있는|들고\s*있는|라는|다는)?\s*(?:건|게|것은)\s*아니|(?:협박|위협|때리|폭행|감금|가두|목을?\s*조르)지(?:는|도)?\s*않)/;
 const EXPLICIT_SAFETY_CLAUSE_BOUNDARY_SOURCE = "[\\n.!?;]+";
 const SAFETY_CLAUSE_BOUNDARY_PATTERN = new RegExp(
   `(?:${EXPLICIT_SAFETY_CLAUSE_BOUNDARY_SOURCE}|하지만|그런데|근데|지만|(?<=[았었였했겠])는데|(?<=[았었였했])고(?=\\s*(?:나는|내가|나도|저는|제가|저도|${KNOWN_OTHER_PATTERN.source}(?:가|이|는|은|도))\\s)|,\\s*(?=(?:나는|내가|나도|저는|제가|저도|${KNOWN_OTHER_PATTERN.source}(?:가|이|는|은|도)|지금|현재|방금|오늘)\\s))`,
@@ -1958,6 +1964,8 @@ function closedSelfHarmIdeationAssessment(): AmoraSafetyAssessment {
 }
 
 export function assessAmoraSafetyText(value: string): AmoraSafetyAssessment {
+  const resolvedHistory = assessResolvedHistoricalIdeation(normalizeAmoraSafetyText(value));
+  if (resolvedHistory) return resolvedHistory;
   const base = assessAmoraSafetyTextBase(value);
   // `inconclusive` 는 본문이 끝까지 내려가 **아무 갈래에도 안 걸렸다**는 뜻이다.
   // 그 밖의 판정은 본문이 뭔가를 보고 내린 결론이므로 손대지 않는다.
@@ -1969,6 +1977,31 @@ export function assessAmoraSafetyText(value: string): AmoraSafetyAssessment {
   return isClosedSelfHarmIdeationOrMeansStatement(value)
     ? closedSelfHarmIdeationAssessment()
     : base;
+}
+
+/** Resolve contextual scope without changing the existing closed-rule assessment. */
+export function assessAmoraContextualSafetyText(value: string): AmoraSafetyAssessment | null {
+  const normalized = normalizeAmoraSafetyText(value);
+  if (isBotDirectedIdeationQuestion(normalized) || isQuotedSafetyReferenceOnly(normalized)) {
+    return { resolution: "no_safety_signal", kind: null, responseDirection: null, events: [], contextBoundaryResolved: true };
+  }
+  const boundContext = assessBoundSafetyContext(normalized);
+  if (boundContext?.resolution === "no_safety_signal") return boundContext;
+  const base = assessAmoraSafetyText(value);
+  // Preserve compound danger and actor assignments already established.
+  if (base.resolution === "immediate_crisis" && !boundContext?.contextBoundaryResolved) return null;
+  const scoped = scopedSafetyDisclosureCandidates(normalized).map((clause) => {
+    const established = assessAmoraSafetyTextBase(clause);
+    return established.resolution === "inconclusive"
+      ? assessContextualAmoraSafety(clause) : established;
+  }).filter((item): item is AmoraSafetyAssessment => item !== null);
+  const immediate = combineImmediateClauseAssessments(boundContext?.resolution === "immediate_crisis"
+    ? [...scoped, boundContext] : scoped);
+  if (immediate) return immediate;
+  const privateDisclosure = scoped.find((item) => item.resolution === "non_immediate_safety");
+  if (privateDisclosure) return privateDisclosure;
+  if (boundContext) return boundContext;
+  return base.resolution === "inconclusive" ? assessContextualAmoraSafety(normalized) : null;
 }
 
 /**

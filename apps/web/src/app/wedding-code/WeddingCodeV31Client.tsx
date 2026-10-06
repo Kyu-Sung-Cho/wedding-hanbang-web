@@ -402,7 +402,7 @@ export default function WeddingCodeV31Client({ shareOrigin, partnerDraft = null,
     <Button variant={resumable ? "secondary" : "primary"} size="lg" fullWidth loading={!local.ready} onClick={start} className="mt-5 min-h-14! whitespace-normal!">{resumable ? "저장된 답 지우고 새로 시작" : started ? "이어서 답하기" : context.first ? "나도 답해보기" : "내 웨딩코드 시작하기"}<ArrowRight aria-hidden="true" className="size-4 shrink-0" /></Button>
   </>);
 
-  if (screen === "result") return shell(<WeddingCodeV31Results key={revision} draft={draft} first={context.first} received={context.received} shareOrigin={shareOrigin} onEdit={edit} onRestart={restart} onMore={!context.received && optionalRemaining > 0 ? more : undefined} optionalCount={optionalRemaining} sharingContent={renderResultActions?.(draft)} />);
+  if (screen === "result") return shell(<WeddingCodeV31Results key={revision} draft={draft} first={context.first} received={context.received} shareOrigin={shareOrigin} onEdit={edit} onRestart={restart} restartClearsSavedAnswers={storageActive} onMore={!context.received && optionalRemaining > 0 ? more : undefined} optionalCount={optionalRemaining} sharingContent={renderResultActions?.(draft)} />);
 
   const topic = question ? WEDDING_CODE_V31_TOPICS.find(item => item.key === question.topic) : null;
   const title = question?.statement ?? taste?.question ?? (index === avoidanceIndex ? "이번 결혼식에서 피하고 싶은 것이 있나요?" : index === priorityIndex ? "이번 결혼식에서 특히 지키고 싶은 것은 무엇인가요?" : "다른 곳의 비용을 줄여서라도 더 쓰고 싶은 곳이 있나요?");
