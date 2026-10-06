@@ -17,8 +17,8 @@ const draft = (rating: 1 | 5): V30Draft => ({
 });
 
 describe("새 웨딩코드 기본 진입", () => {
-  it("맨 주소와 답이 없는 새 버전 주소는 취향 통합판을 연다", () => {
-    expect(parseWeddingCodeEntryQuery({}).kind).toBe("v42");
+  it("맨 주소는 현재 기본판을, 답이 없는 명시 주소는 해당 판을 연다", () => {
+    expect(parseWeddingCodeEntryQuery({}).kind).toBe("v43");
     expect(parseWeddingCodeEntryQuery({ v: WEDDING_CODE_V31_VERSION }).kind).toBe("v31");
     expect(parseWeddingCodeEntryQuery({ v: "v3.0-preferences" }).kind).toBe("v30");
   });
@@ -81,7 +81,7 @@ describe("새 웨딩코드 기본 진입", () => {
   it("오래된 query 링크와 유입 경로 매개변수는 기존 의미를 유지한다", () => {
     const result = parseWeddingCodeEntryQuery({ v: "v2.0-agreement", a: "5---------------", utm_source: "invite" });
     expect(result.kind).toBe("v20");
-    expect(parseWeddingCodeEntryQuery({ utm_source: "landing" }).kind).toBe("v42");
+    expect(parseWeddingCodeEntryQuery({ utm_source: "landing" }).kind).toBe("v43");
   });
 
   it("v31의 회피 기준과 새 식순 답을 새 판으로만 복원한다", () => {
