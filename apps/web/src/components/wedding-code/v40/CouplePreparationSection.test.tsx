@@ -38,8 +38,8 @@ describe("실제 두 사람 답을 읽는 준비 리포트", () => {
         expect(region.querySelector(`[data-preparation-person="${person}"]`)?.textContent).toContain(String(row.evidence[person].answered));
       }
       if (row.evidence.scene) {
-        expect(region.querySelector('[data-preparation-scene]')?.textContent).toContain(row.evidence.scene.firstText);
-        expect(region.querySelector('[data-preparation-scene]')?.textContent).toContain(row.evidence.scene.secondText);
+        expect(region.querySelector('[data-scene-person="first"] p:last-child')?.textContent).toBe(row.evidence.scene.firstText);
+        expect(region.querySelector('[data-scene-person="second"] p:last-child')?.textContent).toBe(row.evidence.scene.secondText);
       }
       expect(region.textContent).not.toMatch(/궁합|성격|진단|정확도|결혼 성공/u);
     }
@@ -53,6 +53,7 @@ describe("실제 두 사람 답을 읽는 준비 리포트", () => {
     await click([...root().querySelectorAll("button")].find((button) => button.textContent === axisInfo(row.axis).title));
     const tasks = ["first", "second"].map((person) => root().querySelector(`[data-role-candidate="${person}"] p`)?.textContent);
     const answers = ["first", "second"].map((person) => root().querySelector(`[data-scene-person="${person}"] p:last-child`)?.textContent);
+    expect(answers).toEqual([row.evidence.scene!.firstText, row.evidence.scene!.secondText]);
     await harness.render(<CouplePreparationReport result={result} source={source} perspective="second" idPrefix="proof" headingLevel={2} />);
     expect(root().querySelector('[data-role-candidate]')?.getAttribute("data-role-candidate")).toBe("second");
     expect(root().querySelector('[data-role-candidate="second"]')?.textContent).toContain("나에게 제안하는 일");
