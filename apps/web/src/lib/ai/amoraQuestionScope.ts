@@ -1326,3 +1326,12 @@ export function hasAmoraSafetySignal(
   }
   return false;
 }
+
+/** High-confidence off-domain turns have a server-owned terminal, not a model instruction alone. */
+export function buildAmoraOffDomainTerminal(
+  classification: AmoraQuestionScopeClassification,
+): string | null {
+  if (classification.scope !== "W4_out_of_scope" || classification.confidence !== "high"
+    || classification.needsClarification) return null;
+  return "저는 결혼 준비를 돕는 아모라예요. 이 질문은 제가 도와드리는 범위와 조금 달라요. 대신 웨딩 예산을 계산하거나 준비 일정을 정리하는 건 함께 도와드릴 수 있어요.";
+}

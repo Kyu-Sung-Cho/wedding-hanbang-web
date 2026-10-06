@@ -1,7 +1,31 @@
 // @vitest-environment node
 import { expect, it } from "vitest";
 import { planAmoraCrisisDelivery } from "@hanbang/shared/amora-crisis-delivery";
-import { classifyAmoraQuestionScope, filterAmoraToolsByQuestionScope } from "../amoraQuestionScope";
+import { buildAmoraOffDomainTerminal, classifyAmoraQuestionScope, filterAmoraToolsByQuestionScope } from "../amoraQuestionScope";
+
+it.each([
+  "Python 리스트를 정렬하는 방법을 알려줘",
+  "JavaScript 코드를 작성해줘",
+])("clear programming task has a deterministic wedding redirect: %s", userText => {
+  const scope = classifyAmoraQuestionScope({ userText, hasApprovedWeddingAction: true, hasWeddingClarificationContinuity: true });
+  expect(buildAmoraOffDomainTerminal(scope)).toContain("결혼 준비");
+});
+
+it.each([
+  "웨딩 예산 5000만원에서 식대 2000만원을 빼면 얼마야?",
+  "결혼식 일정 캘린더에 등록하는 방법을 알려줘",
+  "청첩장 QR 코드를 만드는 방법은?",
+  "Python 질문인데 남편이 죽인다고 협박해요",
+  "Python 질문인데 자살 생각이 자꾸 나요",
+])("off-domain terminal preserves wedding calculations, technology and safety: %s", userText => {
+  const scope = classifyAmoraQuestionScope({ userText });
+  expect(scope.scope).not.toBe("W4_out_of_scope");
+  expect(buildAmoraOffDomainTerminal(scope)).toBeNull();
+});
+
+it("ambiguous missing wedding context remains eligible for clarification", () => {
+  expect(buildAmoraOffDomainTerminal({ scope: "W4_out_of_scope", confidence: "low", needsClarification: true, allowsLongTermMemory: false })).toBeNull();
+});
 
 it.each([
   "남은 할 일은? 신랑이 죽인다고 협박해요",

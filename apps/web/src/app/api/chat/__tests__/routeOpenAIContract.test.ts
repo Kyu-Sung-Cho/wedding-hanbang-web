@@ -6434,6 +6434,28 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
     expect(mocks.provider).not.toHaveBeenCalled();
   });
 
+  it.each(["shared", "bride_private"] as const)("replaces off-domain Python output before stream and persistence: %s", async visibility => {
+    const userText = "Python 리스트를 정렬하는 방법을 알려줘";
+    setSensitiveStoredProviderContext(userText);
+    mocks.canonicalRows[0].visibility = visibility;
+    mocks.provider.mockImplementationOnce(async ({ onText }) => {
+      onText?.("리스트는 a.sort()로 정렬하세요.");
+      return providerResult({ fullText: "리스트는 a.sort()로 정렬하세요." });
+    });
+    const response = await POST(request({ messages: [{ role: "user", content: userText }], visibility }));
+    const body = await response.text();
+    expect(response.status).toBe(200);
+    expect(body).toContain("결혼 준비를 돕는 아모라");
+    expect(body).not.toContain("a.sort()");
+    expect(mocks.provider).toHaveBeenCalledTimes(1);
+    expect(mocks.provider.mock.calls[0][0].tools).toEqual([]);
+    expect(mocks.executeTool).not.toHaveBeenCalled();
+    expect(mocks.enqueueMemory).not.toHaveBeenCalled();
+    expect(mocks.atomicResponses).toHaveLength(1);
+    expect(mocks.atomicResponses[0].content).toContain("결혼 준비를 돕는 아모라");
+    expect(mocks.atomicResponses[0].content).not.toContain("a.sort()");
+  });
+
   it("keeps a confirmed action on the full fail-closed context path even with a mixed W2 question", async () => {
     const actionId = "11111111-1111-4111-8111-111111111111";
     const userText = "응, 예산 적용해줘. 그리고 임신 중인데 이 약 먹어도 돼?";
