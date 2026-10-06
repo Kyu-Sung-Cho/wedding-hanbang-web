@@ -820,10 +820,11 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
    * 읽기만 한다 — 켜고 끄는 판정도, 저장 경로도 여기서 건드리지 않는다. 못 읽으면
    * 아무 말도 하지 않는다: 틀린 상태를 말하느니 침묵이 낫다.
    */
-  const [memoryEnabledByVisibility, setMemoryEnabledByVisibility] =
-    useState<Record<string, boolean> | null>(null);
+  const [memoryStatus, setMemoryStatus] =
+    useState<{runtimeEnabled:boolean;settings:Record<string,boolean>} | null>(null);
 
   useEffect(() => {
+    setMemoryStatus(null);
     if (isDemo || !coupleId) return;
     let cancelled = false;
     void (async () => {
@@ -831,16 +832,17 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
         const response = await fetch("/api/amora/memory", { cache: "no-store" });
         if (!response.ok) return;
         const payload = await response.json() as {
+          runtimeEnabled?: unknown;
           settings?: { visibility?: unknown; enabled?: unknown }[];
         };
-        if (cancelled || !Array.isArray(payload?.settings)) return;
+        if (cancelled || typeof payload?.runtimeEnabled!=="boolean" || !Array.isArray(payload?.settings)) return;
         const next: Record<string, boolean> = {};
         for (const setting of payload.settings) {
           if (typeof setting?.visibility === "string" && typeof setting?.enabled === "boolean") {
             next[setting.visibility] = setting.enabled;
           }
         }
-        setMemoryEnabledByVisibility(next);
+        setMemoryStatus({runtimeEnabled:payload.runtimeEnabled,settings:next});
       } catch {
         // 못 읽으면 상태 줄을 그리지 않는다.
       }
@@ -850,10 +852,10 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
 
   // 탭마다 기억 범위가 다르다 — 함께 대화는 공유 기억, 나만 상담은 내 비공개 기억.
   const activeMemoryEnabled = (() => {
-    if (!memoryEnabledByVisibility) return null;
+    if (!memoryStatus) return null;
     const visibility = isPrivate ? myPrivateVisibility : "shared";
     if (!visibility) return null;
-    const enabled = memoryEnabledByVisibility[visibility];
+    const enabled = memoryStatus.settings[visibility];
     return typeof enabled === "boolean" ? enabled : null;
   })();
 
@@ -3382,7 +3384,9 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
             data-testid="amora-memory-status"
             className="mb-2 px-3 py-2 rounded-[6px] bg-[var(--hb-surface-hover)] text-[12.5px] leading-relaxed text-[var(--hb-text-muted)]"
           >
-            {activeMemoryEnabled ? (
+            {memoryStatus?.runtimeEnabled===false ? (
+              <span>새 기억 저장은 아직 준비 중이에요{" · "}<a href={weddingPath("/settings/amora-memory")} className="underline text-[var(--hb-accent-hover)]">기억 설정 확인</a></span>
+            ) : activeMemoryEnabled ? (
               <span>이 탭의 대화는 장기 기억으로 정리돼요</span>
             ) : (
               <span>

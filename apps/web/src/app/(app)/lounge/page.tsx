@@ -1,4 +1,5 @@
 "use client";
+import {formatCalendarDate} from "@/lib/utils/weddingDate";
 
 import Link from "next/link";
 import {
@@ -106,21 +107,10 @@ const DEMO_DIGEST: CohortDigest = {
 };
 
 function formatDate(value: string | null | undefined) {
-  if (!value) return "날짜 미정";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "날짜 미정";
-  return date.toLocaleDateString("ko-KR", { month: "long", day: "numeric", weekday: "short" });
+  return formatCalendarDate(value,{month:"long",day:"numeric",weekday:"short"})??"날짜 미정";
 }
-
 function formatFullDate(value: string | null | undefined) {
-  if (!value) return "날짜 미정";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "날짜 미정";
-  return date.toLocaleDateString("ko-KR", {
-    year: "numeric",
-    month: "long",
-    day: "numeric",
-  });
+  return formatCalendarDate(value,{year:"numeric",month:"long",day:"numeric"})??"날짜 미정";
 }
 
 function getDdayLabel(dday: number | null) {

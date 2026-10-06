@@ -26,3 +26,7 @@ describe("weddingDate", () => {
     expect(formatWeddingDate("2027-05-15")).toBe("2027년 5월 15일 토요일");
   });
 });
+
+import {formatCalendarDate} from "./weddingDate";
+it.each(["2027-02-20","2028-02-29","0099-02-20"])("calendar display preserves valid stored date %s",value=>{const parts=value.split("-").map(Number);expect(formatCalendarDate(value,{year:"numeric",month:"numeric",day:"numeric"})).toBe(parts[0]+". "+parts[1]+". "+parts[2]+".");});
+it.each([null,undefined,"2027-02-29","2027-02-20T00:00:00Z","not-a-date"])("calendar display refuses noncanonical date %s",value=>{expect(formatCalendarDate(value,{month:"long",day:"numeric"})).toBeNull();});

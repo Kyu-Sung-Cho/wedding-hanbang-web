@@ -335,4 +335,5 @@ describe("memory settings scope and account boundaries", () => {
     });
     expect(reads).toBe(2);
   });
+  it("runtime unavailable empty state and disabled activation agree without writes",async()=>{read=async()=>{const data=await memoryResponse().json();return Response.json({...data,runtimeEnabled:false,memories:[],profiles:[]});};await render();expect(container.textContent).toContain("새 기억 저장은 아직 준비 중이에요");expect(container.textContent).not.toContain("기억을 켜고 대화하면");expect(findButton("내 공유 기억 동의")?.disabled).toBe(true);expect(container.textContent).toContain("대화와 직접 저장한 일정·예산은 그대로 사용할 수 있어요");expect(writes).toEqual([]);});
 });
