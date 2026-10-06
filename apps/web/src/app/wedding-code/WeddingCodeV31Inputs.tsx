@@ -8,6 +8,7 @@ import {
   WEDDING_CODE_V31_OPTIONS,
   type V31Choice, type V31Option, type V31Response, type V31TasteKey,
 } from "@/constants/weddingCodeV31";
+import { v31TasteNoPreferenceLabel } from "@/lib/weddingCode/v31DisplayCopy";
 import { V31_PRIORITY_NO_PREFERENCE_LABEL, V31_PRIORITY_UNDECIDED_LABEL } from "@/lib/weddingCode/v31";
 
 export const v31Surface = "rounded-xl border border-[var(--hb-hairline)] bg-[var(--hb-surface-raised)]";
@@ -21,7 +22,7 @@ const escapeOptions = [
 ] as const;
 
 /** 가운데 답과 반대쪽 답을 고르는 법. 평정 흐름의 첫 화면에서만 보여준다. */
-export const v31RatingGuide = "가운데 ‘어느 쪽도 아니에요’는 어느 쪽에도 가깝지 않을 때 골라요. 원하지 않는 내용이면 ‘그렇지 않은 편이에요’ 쪽으로 골라요.";
+export const v31RatingGuide = "가운데 답은 이 문장에 동의하지도 반대하지도 않을 때 골라요. 아직 생각이 정해지지 않았다면 ‘아직 모르겠어요’는 별도로 골라요.";
 export const v31EscapeFoldLabel = "답하기 어려워요";
 
 export function V31RatingInput({ value, onChange, showGuide = false, compact = false, questionLabel }: {
@@ -114,7 +115,7 @@ export function V31ChoiceInput({ value, options, max, onChange, tasteKey, kind =
   }
   const statuses: { value: Exclude<V31Choice["status"], "answered">; label: string }[] = [
     { value: "undecided", label: kind === "priorities" ? V31_PRIORITY_UNDECIDED_LABEL : "아직 모르겠어요" },
-    { value: "no_preference", label: kind === "spending" ? "더 쓰고 싶은 곳은 지금 없어요" : kind === "avoidances" ? "따로 피하고 싶은 것은 없어요" : kind === "priorities" ? V31_PRIORITY_NO_PREFERENCE_LABEL : "어느 쪽도 괜찮아요" },
+    { value: "no_preference", label: kind === "spending" ? "더 쓰고 싶은 곳은 지금 없어요" : kind === "avoidances" ? "따로 피하고 싶은 것은 없어요" : kind === "priorities" ? V31_PRIORITY_NO_PREFERENCE_LABEL : v31TasteNoPreferenceLabel(tasteKey) },
     { value: "no_match", label: "맞는 보기가 없어요" },
     { value: "not_applicable", label: "이번 계획에는 없어요" },
     { value: "skipped", label: "지금 답하지 않을게요" },

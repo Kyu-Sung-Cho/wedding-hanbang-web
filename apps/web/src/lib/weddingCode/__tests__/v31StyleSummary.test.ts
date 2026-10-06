@@ -273,10 +273,10 @@ describe("v3.1 아슬한 글자 (한쪽 글자의 한 칸 차이)", () => {
       const table = RATINGS.map(first => RATINGS.map(second => isV31StyleLetterBorderline(definition.key, first, second) ? 1 : 0));
       expect(table, definition.key).toEqual(BORDERLINE_TABLE);
       expect(table.flat().filter(Boolean)).toHaveLength(2);
-      // 안내가 말하는 사실(한 답은 정확히 ‘그런 편이에요’, 다른 답은 정확히 ‘어느 쪽도 아니에요’)과 판정이 같다.
+      // 안내가 말하는 사실(한 답은 정확히 ‘그런 편이에요’, 다른 답은 정확히 ‘동의하지도 반대하지도 않아요’)과 판정이 같다.
       for (const first of RATINGS) for (const second of RATINGS) {
         const labels = [first, second].map(value => WEDDING_CODE_V31_OPTIONS.find(option => option.value === value)!.label).sort();
-        const fact = labels.join("|") === ["그런 편이에요", "어느 쪽도 아니에요"].sort().join("|");
+        const fact = labels.join("|") === ["그런 편이에요", "동의하지도 반대하지도 않아요"].sort().join("|");
         expect(isV31StyleLetterBorderline(definition.key, first, second), `${definition.key} ${first}/${second}`).toBe(fact);
       }
       // 두 칸은 각각 첫 문장·둘째 문장 쪽 한쪽 글자다.
@@ -356,7 +356,7 @@ describe("v3.1 아슬한 글자 (한쪽 글자의 한 칸 차이)", () => {
     const shaky = buildV31StyleSummary(paired(4, 3));
     expect(shaky.code).toBe("KTFL");
     expect(shaky.borderlineCount).toBe(4);
-    expect(shaky.borderlineNotice).toBe("네 글자 모두 두 문장의 답이 ‘그런 편이에요’와 ‘어느 쪽도 아니에요’로 한 칸 차이예요.");
+    expect(shaky.borderlineNotice).toBe("네 글자 모두 두 문장의 답이 ‘그런 편이에요’와 ‘동의하지도 반대하지도 않아요’로 한 칸 차이예요.");
     const mixed = createV31Draft();
     mixed.answers = { B1: 5, B3: 5, T1: 4, T2: 3, F1: 3, F2: 4, H1: 3, H2: 3 };
     const mixedSummary = buildV31StyleSummary(mixed);
@@ -364,7 +364,7 @@ describe("v3.1 아슬한 글자 (한쪽 글자의 한 칸 차이)", () => {
     expect(mixedSummary.dimensions.map(item => item.borderline)).toEqual([false, true, true, false]);
     expect(mixedSummary.borderlineCount).toBe(2);
     // 어느 글자인지 주제 이름으로 적는다. 밑줄처럼 눈으로만 보이는 표시를 가리키지 않는다.
-    expect(mixedSummary.borderlineNotice).toBe("‘일 나누기’, ‘가족과 상의’ 글자는 두 문장의 답이 ‘그런 편이에요’와 ‘어느 쪽도 아니에요’로 한 칸 차이예요.");
+    expect(mixedSummary.borderlineNotice).toBe("‘일 나누기’, ‘가족과 상의’ 글자는 두 문장의 답이 ‘그런 편이에요’와 ‘동의하지도 반대하지도 않아요’로 한 칸 차이예요.");
     expect(mixedSummary.changeNotice).toBe(V31_STYLE_CHANGE_NOTICE);
     const partial = paired(5, 5);
     partial.answers.B1 = "undecided";
@@ -522,9 +522,9 @@ describe("v3.1 요약 문장이 실제 글자와 맞는다 (2026-09-27)", () => 
       // 실제로 고른 두 보기 이름을 ‘’ 안에 인용한다. 인용 밖에는 판정 고지처럼 읽히는 「아니에요」가 없다.
       for (const value of [4, 3]) expect(notice, summary.code).toContain(`‘${WEDDING_CODE_V31_OPTIONS.find(option => option.value === value)!.label}’`);
       expect(notice!.replace(/‘[^’]*’/g, ""), summary.code).not.toMatch(/아니에요|아니라/);
-      if (borderline.length === 4) expect(notice).toBe("네 글자 모두 두 문장의 답이 ‘그런 편이에요’와 ‘어느 쪽도 아니에요’로 한 칸 차이예요.");
+      if (borderline.length === 4) expect(notice).toBe("네 글자 모두 두 문장의 답이 ‘그런 편이에요’와 ‘동의하지도 반대하지도 않아요’로 한 칸 차이예요.");
       else {
-        expect(notice, summary.code).toBe(`${quoted(summary, borderline.map(item => item.key))} 글자는 두 문장의 답이 ‘그런 편이에요’와 ‘어느 쪽도 아니에요’로 한 칸 차이예요.`);
+        expect(notice, summary.code).toBe(`${quoted(summary, borderline.map(item => item.key))} 글자는 두 문장의 답이 ‘그런 편이에요’와 ‘동의하지도 반대하지도 않아요’로 한 칸 차이예요.`);
         // 안내에 적힌 주제는 아슬한 글자뿐이다.
         for (const item of summary.dimensions) expect(notice!.includes(`‘${item.topicName}’`), `${summary.code} ${item.key}`).toBe(item.borderline);
       }
