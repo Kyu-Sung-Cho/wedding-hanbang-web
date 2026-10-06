@@ -24,3 +24,13 @@ export function formatWeddingDate(value: unknown): string | null {
   if (!isValidScheduleYmd(value)) return null;
   return koreanDateInKst(kstMidnightFromYmd(value));
 }
+
+/** Display calendar components in a neutral UTC zone; neither viewer nor historical offsets may move them. */
+export function formatCalendarDate(
+  value: unknown,
+  options: Intl.DateTimeFormatOptions,
+): string | null {
+  if (!isValidScheduleYmd(value)) return null;
+  return new Intl.DateTimeFormat("ko-KR", { ...options, timeZone: "UTC" })
+    .format(new Date(`${value}T00:00:00Z`));
+}

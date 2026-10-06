@@ -21,6 +21,7 @@ import ProfileAvatar from "@/components/ui/ProfileAvatar";
 import Logo, { LogoMark } from "@/components/ui/Logo";
 import { stripWeddingBasePath, weddingLinkProps } from "@/lib/weddingPaths";
 import { SHOW_SIGNED_IN_COMMUNITY } from "@/lib/features/signedInCommunity";
+import {formatCalendarDate} from "@/lib/utils/weddingDate";
 import { useAuthStore } from "@/stores/authStore";
 
 type SidebarMenuItem = {
@@ -59,13 +60,9 @@ export default function Sidebar({ isOpen, onClose, amoraWorkspace = false, plann
   const plannerOverview = htmlDesign && ["/checklist", "/budget", "/schedule", "/lounge", "/preparation-style"].includes(currentPath);
   const { profile, journey, signOut } = useAuthStore();
   const userName = profile?.name ?? "예비부부";
-  const weddingDateStr = journey?.wedding_date
-    ? new Date(journey.wedding_date).toLocaleDateString("ko-KR", {
-        year: "numeric",
-        month: "2-digit",
-        day: "2-digit",
-      })
-    : "결혼식 날짜 미정";
+  const weddingDateStr = formatCalendarDate(journey?.wedding_date,{
+    year:"numeric",month:"2-digit",day:"2-digit",
+  })??"결혼식 날짜 미정";
 
   return (
     <>

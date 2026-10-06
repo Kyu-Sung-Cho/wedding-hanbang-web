@@ -159,4 +159,12 @@ describe("라운지의 저장값 요약과 조회 실패 구분", () => {
     expect(container.textContent).toContain("요약 확인 완료");
     expect(container.querySelector('[role="alert"]')).toBeNull();
   });
+  it("preserves February 20 in summary and upcoming schedule",async()=>{
+    const event:ScheduleEvent={id:"same-date",title:"Calendar date regression",date:"2027-02-20",time:"14:00",createdAt:"2026-09-01T00:00:00Z",updatedAt:"2026-09-01T00:00:00Z"};
+    const journey=makeJourney({wedding_date:"2027-02-20"});Object.assign(journey.progress,{__events:[event]});await render(journey);
+    const summary=container.querySelector('section[aria-label="현재 준비 현황"]')!;
+    const upcoming=[...container.querySelectorAll("section")].find(section=>section.querySelector("h2")?.textContent==="다가오는 일정")!;
+    expect(summary.textContent).toContain("2월 20일");expect(summary.textContent).toMatch(/2월 20일.*토/);expect(upcoming.textContent).toContain("2월 20일");expect(upcoming.textContent).toMatch(/2월 20일.*토/);expect(container.textContent).not.toContain("2월 19일");expect(useAuthStore.getState().journey).toEqual(journey);
+  });
+
 });

@@ -411,7 +411,7 @@ function MemorySettingsContent({ ownerKey }: { ownerKey: string | null }) {
         <>
           {data && !data.runtimeEnabled && (
             <p role="status" className="mb-4 rounded-[6px] border border-[#E2D3C8] bg-[var(--hb-surface-page)] px-4 py-3 text-sm leading-relaxed text-[var(--hb-text-strong)]">
-              기억 엔진을 운영 환경에 안전하게 연결하는 중이에요. 지금은 기존 기억을 확인·수정·삭제할 수 있고, 새로 켜기는 최종 점검 후 열려요.
+              새 기억 저장은 아직 준비 중이에요. 기존 기억은 확인·수정·삭제할 수 있고, 기억 사용 동의는 철회할 수 있어요.
             </p>
           )}
           <section className="mb-5 rounded-[6px] bg-white p-5 shadow-[var(--shadow-raised)] sm:p-6">
@@ -424,7 +424,9 @@ function MemorySettingsContent({ ownerKey }: { ownerKey: string | null }) {
                   </h2>
                 </div>
                 <p className="mt-1 text-sm font-light leading-relaxed text-[var(--hb-text-muted)]">
-                  {activeVisibility === "shared"
+                  {!data?.runtimeEnabled
+                    ? "새 기억 저장은 아직 준비 중이에요. 동의 설정과 기존 기억을 확인할 수 있어요."
+                    : activeVisibility === "shared"
                     ? setting?.enabled
                       ? "공유 기억 상태 · 켜짐. 두 분이 각각 동의했고 함께 보고 활용해요."
                       : setting?.consentedByMe
@@ -505,7 +507,7 @@ function MemorySettingsContent({ ownerKey }: { ownerKey: string | null }) {
               <div className="px-6 py-12 text-center">
                 <BrainCircuit className="mx-auto h-8 w-8 text-[var(--hb-text-muted)]" />
                 <p className="mt-3 text-sm font-medium text-[var(--hb-text-body)]">아직 정리된 기억이 없어요</p>
-                <p className="mt-1 text-xs leading-relaxed text-[var(--hb-text-muted)]">기억을 켜고 대화하면, 직접 확정한 내용만 천천히 쌓여요.</p>
+                <p className="mt-1 text-xs leading-relaxed text-[var(--hb-text-muted)]">{!data?.runtimeEnabled ? "대화와 직접 저장한 일정·예산은 그대로 사용할 수 있어요. 새 기억 저장은 아직 준비 중이에요." : "기억을 켜고 대화하면, 직접 확정한 내용만 천천히 쌓여요."}</p>
               </div>
             ) : (
               <div className="divide-y divide-[#F0ECE9]">
