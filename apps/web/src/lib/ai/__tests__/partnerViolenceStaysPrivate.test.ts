@@ -1,4 +1,7 @@
 // @vitest-environment node
+// 2026-10-05: KNOWN_MISS is retained as the historical QA corpus. Its 19
+// delivery assertions are now normal tests: contextual routing holds disclosures.
+// The original closed-rule/differential assertions remain unchanged.
 
 /**
  * 닫힌 어휘로 된 친밀한 관계 폭력·위협·통제 서술은 공유 레인에 남지 않는다 (2026-09-26).
@@ -520,7 +523,7 @@ describe("(iii) 고백이 아닌 문장 — 서면 틀린다", () => {
 describe("(v) 알고 남긴 값 — 누출 기록(KNOWN_MISS)은 정상이 아니다", () => {
   // 바라는 동작을 단언한다: 실제 고백은 공유 레인에 남지 않는다. 오늘은 이 단언이 실패한다 —
   // 그래서 `it.fails` 다. 누가 이 문장을 잡으면 빨개진다. 그때 `CAUGHT`·`ALREADY_IMMEDIATE` 로 옮길 것.
-  it.fails.each(KNOWN_MISS)("누출: %s — %s (공유 레인에 남지 않아야 한다)", (text) => {
+  it.each(KNOWN_MISS)("누출: %s — %s (공유 레인에 남지 않아야 한다)", (text) => {
     expect(outcomes(HEAD, text).server.disposition).not.toBe("continue");
   });
 

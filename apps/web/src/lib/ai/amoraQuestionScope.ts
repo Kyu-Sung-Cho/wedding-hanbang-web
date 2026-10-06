@@ -3,7 +3,7 @@ import {
   classifyAmoraCrisis,
   normalizeAmoraSafetyText,
 } from "@/lib/ai/amoraCrisisSafety";
-import { assessAmoraSafetyText } from "@/lib/ai/amoraCrisisClassifier";
+import { assessAmoraSafetyText, assessAmoraContextualSafetyText } from "@/lib/ai/amoraCrisisClassifier";
 import { hasCoerciveControlSignal } from "@hanbang/shared";
 import { isClosedPartnerViolenceStatement } from "@hanbang/shared/partner-violence-closed-vocabulary";
 import { hasExplicitPersonalActionDraftRequest } from "./amoraPersonalActionConversation";
@@ -787,7 +787,8 @@ export function classifyAmoraQuestionScope({
   hasWeddingClarificationContinuity = false,
 }: ClassifyAmoraQuestionScopeInput): AmoraQuestionScopeClassification {
   const normalizedText = normalizeAmoraSafetyText(userText);
-  const structuredSafetyAssessment = assessAmoraSafetyText(normalizedText);
+  const structuredSafetyAssessment = assessAmoraContextualSafetyText(normalizedText)
+    ?? assessAmoraSafetyText(normalizedText);
   if (
     structuredSafetyAssessment.resolution === "immediate_crisis"
     || classifyAmoraCrisis(normalizedText)
@@ -799,7 +800,8 @@ export function classifyAmoraQuestionScope({
       needsClarification: false,
     };
   }
-  if (structuredSafetyAssessment.resolution === "non_immediate_safety") {
+  if (structuredSafetyAssessment.resolution === "non_immediate_safety"
+    || assessAmoraContextualSafetyText(normalizedText)?.resolution === "non_immediate_safety") {
     return {
       scope: "W2_high_risk_adjacent",
       // **이 줄이 없어서 안전 판정이 절반만 닿았다.**
@@ -821,6 +823,7 @@ export function classifyAmoraQuestionScope({
   // confirmation or an approved wedding action must not launder a newly added
   // medical, legal, financial, or otherwise out-of-scope question into W0.
   const safetyHighRisk =
+    !structuredSafetyAssessment.contextBoundaryResolved && (
     HIGH_RISK_SAFETY_PATTERN.test(normalizedText)
     || HIGH_RISK_SAFETY_CONCRETE_PATTERN.test(normalizedText)
     || HIGH_RISK_HYPOTHETICAL_SAFETY_PATTERN.test(normalizedText)
@@ -840,7 +843,7 @@ export function classifyAmoraQuestionScope({
     || (
       structuredSafetyAssessment.resolution === "inconclusive"
       && isClosedPartnerViolenceStatement(normalizedText)
-    );
+    ));
   const domainHighRisk =
     HIGH_RISK_DOMAIN_PATTERN.test(normalizedText)
     || HIGH_RISK_DOMAIN_CONCRETE_PATTERN.test(normalizedText);

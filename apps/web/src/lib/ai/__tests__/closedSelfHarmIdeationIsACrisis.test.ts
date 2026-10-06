@@ -1,4 +1,7 @@
 // @vitest-environment node
+// 2026-10-05: KNOWN_MISS is retained as the historical QA corpus. Its 13
+// delivery assertions are now normal tests: contextual routing holds disclosures.
+// The closed-rule differential assertions below remain unchanged.
 
 /**
  * `자살 생각이 자꾸 나`·`요즘 자살 생각해`·`수면제 모아뒀어` 는 위기다 (2026-09-26).
@@ -469,7 +472,7 @@ describe("(v) 체크리스트 답 — 규칙의 낱말만으로 조립한 짐 �
 describe("(vi) 알고 남긴 값 — 누출 기록(KNOWN_MISS)은 정상이 아니다", () => {
   // 바라는 동작을 단언한다: 실제 고백은 공유 레인에 남지 않는다. 오늘은 이 단언이 실패한다 —
   // 그래서 `it.fails` 다. 누가 이 문장을 잡으면 빨개진다. 그때 `NEWLY_CAUGHT`·`ALREADY_HELD_BY_MAIN` 으로 옮길 것.
-  it.fails.each(KNOWN_MISS)("누출: %s — %s (공유 레인에 남지 않아야 한다)", (text) => {
+  it.each(KNOWN_MISS)("누출: %s — %s (공유 레인에 남지 않아야 한다)", (text) => {
     const server = planAmoraCrisisDelivery({
       userText: text,
       requestedVisibility: "shared",

@@ -3,7 +3,7 @@ import {
   classifyAmoraCrisis,
   type AmoraCrisisClassification,
 } from "./amoraCrisisSafety";
-import { assessAmoraSafetyText } from "./amoraCrisisClassifier";
+import { assessAmoraSafetyText, assessAmoraContextualSafetyText } from "./amoraCrisisClassifier";
 import { isClosedPartnerViolenceStatement } from "./partnerViolenceClosedVocabulary";
 
 export type AmoraCrisisDeliveryVisibility =
@@ -42,7 +42,7 @@ export type AmoraCrisisDeliveryPreflight =
     };
 
 const NON_IMMEDIATE_PARTNER_HOLD_RESPONSE = [
-  "폭력·위협·통제와 관련된 민감한 안전 내용이라 상대방에게 바로 보내지 않았어요.",
+  "자해·폭력·위협·통제와 관련된 민감한 안전 내용이라 상대방에게 바로 보내지 않았어요.",
   "나만 상담에서 상황과 원하는 도움을 먼저 정리해 주세요. 지금 안전하지 않다면 안전한 곳으로 이동하고 경찰 112 또는 소방 119에 바로 연락해 주세요.",
 ].join("\n\n");
 
@@ -87,7 +87,8 @@ export function planAmoraCrisisDelivery(input: {
     };
   }
 
-  const assessment = assessAmoraSafetyText(input.userText);
+  const assessment = assessAmoraContextualSafetyText(input.userText)
+    ?? assessAmoraSafetyText(input.userText);
   // 2026-09-26: 닫힌 어휘로 된 친밀한 관계 폭력·위협·통제 서술(`남편이 때려요`·`밀쳐서 멍들었어`·
   // `파혼하면 죽인대`·`친구 못 만나게 해`). 두 판정이 **아무것도 못 찾았고**(위기 분류 null ·
   // 구조 판정 inconclusive) 호출자 신호도 없을 때만 본다 — 운영 판정은 그대로 두고 더하기만 한다.
