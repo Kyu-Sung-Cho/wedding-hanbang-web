@@ -2910,6 +2910,37 @@ describe("Amora crisis reload recovery", () => {
     expect(useChatStore.getState().artifactVisibility).toBe("shared");
   });
 
+  it("does not claim a lane move for safety guidance already in private mode", async () => {
+    const content = "남편이 휴대폰을 검사해요";
+    mockIngestFetch.mockResolvedValueOnce(persistedIngestResponse(durableUserRow({ content, visibility: "bride_private" }), {
+      effectiveVisibility: "bride_private", safetyPrivacyRedirected: false,
+    }));
+    mockFetch.mockResolvedValueOnce(completedChatResponse("개인 상담 안전 안내"));
+    await useChatStore.getState().sendMessage({ content, senderId: TEST_USER_UUID, senderRole: "bride",
+      coupleId: TEST_COUPLE_UUID, senderName: "테스터", weddingContext: {} as WeddingContext,
+      target: "ai", visibility: "bride_private", clientRequestId: TEST_CLIENT_REQUEST_UUID });
+    const card = useChatStore.getState().messages.find(message => message.metadata?.response_origin === "client_deterministic_safety_privacy_preflight");
+    expect(card?.content).toContain("개인 상담에서 안내");
+    expect(card?.content).not.toContain("옮겼어요");
+    expect(card?.visibility).toBe("bride_private");
+    expect(card?.metadata?.raw_disclosure_shared).toBe(false);
+  });
+
+  it("does not claim a move when server safety marks an already private message", async () => {
+    const content = "예식장 계약금 환불 질문";
+    mockIngestFetch.mockResolvedValueOnce(persistedIngestResponse(durableUserRow({ content, visibility: "bride_private" }), {
+      effectiveVisibility: "bride_private", safetyPrivacyRedirected: true,
+    }));
+    mockFetch.mockResolvedValueOnce(completedChatResponse("개인 상담에서 안전하게 안내할게요"));
+    await useChatStore.getState().sendMessage({ content, senderId: TEST_USER_UUID, senderRole: "bride",
+      coupleId: TEST_COUPLE_UUID, senderName: "테스터", weddingContext: {} as WeddingContext,
+      target: "ai", visibility: "bride_private", clientRequestId: TEST_CLIENT_REQUEST_UUID });
+    const card = useChatStore.getState().messages.find(message => message.metadata?.response_origin === "client_deterministic_safety_privacy_preflight");
+    expect(card?.content).toContain("개인 상담에서 안내");
+    expect(card?.content).not.toContain("옮겼어요");
+    expect(card?.visibility).toBe("bride_private");
+  });
+
   it("honors a server safety fallback without calling the provider or copying raw text", async () => {
     const rawText = "웨딩 체크리스트를 알려줘";
     mockIngestFetch.mockResolvedValueOnce(new Response(JSON.stringify({

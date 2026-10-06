@@ -40,7 +40,7 @@ describe("schedule execution field presentation", () => {
 
   beforeEach(() => {
     vi.useFakeTimers();
-    vi.setSystemTime(new Date("2026-07-01T00:00:00.000Z"));
+    vi.setSystemTime(new Date("2026-07-01T12:00:00.000Z"));
     container = document.createElement("div");
     document.body.appendChild(container);
     root = createRoot(container);
@@ -138,4 +138,5 @@ describe("schedule execution field presentation", () => {
     });
     expect(onCancelEvent).toHaveBeenCalledTimes(1);
   });
+  it("timeline keeps the same stored February 20 date as lounge and sidebar",async()=>{const event={...EVENT,date:"2027-02-20"};await act(async()=>root.render(<TimelineView progress={{}} events={[event]} onToggleChecklistItem={vi.fn()}/>));expect(container.textContent).toContain("2027-02-20");expect(container.textContent).not.toContain("2027-02-19");expect(event.date).toBe("2027-02-20");});
 });

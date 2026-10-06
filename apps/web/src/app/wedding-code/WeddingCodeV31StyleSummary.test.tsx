@@ -41,8 +41,8 @@ describe("웨딩코드 v3.1 네 글자 요약 화면", () => {
     const notice = summary.querySelector("[data-borderline-notice]")!;
     const code = summary.querySelector("[data-code]")!;
     // 「밑줄 친 2개」처럼 눈으로만 알 수 있는 말 대신 주제 이름과 사실(실제로 고른 두 보기, 한 칸 차이)을 적는다.
-    expect(notice.textContent).toBe("‘일 나누기’, ‘가족과 상의’ 글자는 두 문장의 답이 ‘그런 편이에요’와 ‘어느 쪽도 아니에요’로 한 칸 차이예요.");
-    expect(summary.querySelector("[data-code-notice]")?.textContent).toBe("‘일 나누기’, ‘가족과 상의’ 글자는 두 문장의 답이 ‘그런 편이에요’와 ‘어느 쪽도 아니에요’로 한 칸 차이예요. 다시 답하면 글자가 달라질 수 있어요.");
+    expect(notice.textContent).toBe("‘일 나누기’, ‘가족과 상의’ 글자는 두 문장의 답이 ‘그런 편이에요’와 ‘동의하지도 반대하지도 않아요’로 한 칸 차이예요.");
+    expect(summary.querySelector("[data-code-notice]")?.textContent).toBe("‘일 나누기’, ‘가족과 상의’ 글자는 두 문장의 답이 ‘그런 편이에요’와 ‘동의하지도 반대하지도 않아요’로 한 칸 차이예요. 다시 답하면 글자가 달라질 수 있어요.");
     expect(notice.compareDocumentPosition(code) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     // 안내가 적은 주제 이름은 실제로 표시한 줄과 같다.
     const tagged = [...summary.querySelectorAll("[data-summary-topic]")].filter(row => row.querySelector("[data-borderline-tag]"));
@@ -73,12 +73,12 @@ describe("웨딩코드 v3.1 네 글자 요약 화면", () => {
     // 4 대 4 는 B 라 아슬하지 않다(예전 기준에서는 네 글자 모두 아슬했다).
     expect(render(paired(4, 4)).getAttribute("data-borderline-count")).toBe("0");
     const shaky = render(paired(4, 3));
-    expect(shaky.querySelector("[data-borderline-notice]")?.textContent).toBe("네 글자 모두 두 문장의 답이 ‘그런 편이에요’와 ‘어느 쪽도 아니에요’로 한 칸 차이예요.");
+    expect(shaky.querySelector("[data-borderline-notice]")?.textContent).toBe("네 글자 모두 두 문장의 답이 ‘그런 편이에요’와 ‘동의하지도 반대하지도 않아요’로 한 칸 차이예요.");
     expect(shaky.querySelectorAll("[data-borderline-tag]")).toHaveLength(4);
     expect(render(createV31Draft()).querySelector("[data-code-notice]")).toBeNull();
   });
 
-  it("아슬 표시와 안내는 두 답이 ‘그런 편이에요’와 ‘어느 쪽도 아니에요’인 칸에만 붙고, 한 칸 차이인 B·M·N 칸에는 같은 말이 없다", () => {
+  it("아슬 표시와 안내는 두 답이 ‘그런 편이에요’와 ‘동의하지도 반대하지도 않아요’인 칸에만 붙고, 한 칸 차이인 B·M·N 칸에는 같은 말이 없다", () => {
     const agree = WEDDING_CODE_V31_OPTIONS.find(option => option.value === 4)!.label;
     const neutral = WEDDING_CODE_V31_OPTIONS.find(option => option.value === 3)!.label;
     // 표시는 두 보기 이름을 줄여 인용한다. 보기 이름이 바뀌면 여기서 빨개진다.
@@ -90,7 +90,7 @@ describe("웨딩코드 v3.1 네 글자 요약 화면", () => {
     for (const definition of V31_STYLE_DIMENSIONS) for (const a of ratings) for (const b of ratings) {
       const summary = render(draftOf({ ...paired(5, 5).answers, [definition.first.id]: a, [definition.second.id]: b }));
       const name = `${definition.key} ${a}/${b}`;
-      // 안내와 표시가 말하는 사실을 답에서 바로 계산한다: 한 답은 정확히 ‘그런 편이에요’, 다른 답은 정확히 ‘어느 쪽도 아니에요’.
+      // 안내와 표시가 말하는 사실을 답에서 바로 계산한다: 한 답은 정확히 ‘그런 편이에요’, 다른 답은 정확히 ‘동의하지도 반대하지도 않아요’.
       const fact = (a === 4 && b === 3) || (a === 3 && b === 4);
       const tagged = [...summary.querySelectorAll("[data-summary-topic]")].filter(row => row.querySelector("[data-borderline-tag]"));
       expect(tagged.map(row => row.getAttribute("data-summary-topic")), name).toEqual(fact ? [definition.key] : []);

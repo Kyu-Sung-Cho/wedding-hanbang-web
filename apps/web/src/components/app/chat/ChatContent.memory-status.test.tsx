@@ -146,7 +146,7 @@ describe("채팅 상단에서 기억 상태를 읽는다", () => {
 
   function answerMemoryWith(
     answer:
-      | { kind: "ok"; settings: MemorySettingRow[] }
+      | { kind: "ok"; settings: MemorySettingRow[]; runtimeEnabled?:unknown }
       | { kind: "error" }
       | { kind: "offline" },
   ) {
@@ -166,7 +166,7 @@ describe("채팅 상단에서 기억 상태를 읽는다", () => {
       return {
         ok: true,
         status: 200,
-        json: async () => ({ runtimeEnabled: true, settings: answer.settings, memories: [], profiles: [] }),
+        json: async () => ({ runtimeEnabled: answer.runtimeEnabled===undefined?true:answer.runtimeEnabled, settings: answer.settings, memories: [], profiles: [] }),
       } as unknown as Response;
     }));
   }
@@ -274,4 +274,6 @@ describe("채팅 상단에서 기억 상태를 읽는다", () => {
 
     expect(statusNode()?.textContent).toBe("지금은 장기 기억을 저장하지 않아요 · 설정에서 켜기");
   });
+  it.each([true,false])("runtime disabled does not promise storing or activation even when consent enabled=%s",async enabled=>{answerMemoryWith({kind:"ok",runtimeEnabled:false,settings:[{visibility:"shared",enabled}]});await render();expect(statusNode()?.textContent).toContain("새 기억 저장은 아직 준비 중이에요");expect(statusNode()?.textContent).not.toContain("설정에서 켜기");expect(statusNode()?.textContent).not.toContain("장기 기억으로 정리돼요");expect(statusNode()?.querySelector("a")?.textContent).toBe("기억 설정 확인");});
+  it.each([null,"true",0])("unknown runtime availability %s never promises activation",async runtimeEnabled=>{answerMemoryWith({kind:"ok",runtimeEnabled,settings:[{visibility:"shared",enabled:true}]});await render();expect(statusNode()).toBeNull();});
 });

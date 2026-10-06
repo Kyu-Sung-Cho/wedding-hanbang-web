@@ -110,10 +110,10 @@ describe("짧은 웨딩코드 결과의 미노출 문항", () => {
         expect(summary.querySelector("[data-style-name], [data-name-source]")).toBeNull();
       }
       expect(summaries[0].querySelector("[data-borderline-notice]")).toBeNull();
-      expect(summaries[1].querySelector("[data-borderline-notice]")?.textContent).toBe("‘예산’ 글자는 두 문장의 답이 ‘그런 편이에요’와 ‘어느 쪽도 아니에요’로 한 칸 차이예요.");
-      expect(summaries[1].querySelector('[data-summary-topic="budget"] [data-borderline-tag]')?.textContent).toBe("‘그런 편’과 ‘어느 쪽도’로 갈렸어요");
+      expect(summaries[1].querySelector("[data-borderline-notice]")?.textContent).toBe("‘예산’ 글자는 두 문장의 답이 ‘그런 편이에요’와 ‘동의하지도 반대하지도 않아요’로 한 칸 차이예요.");
+      expect(summaries[1].querySelector('[data-summary-topic="budget"] [data-borderline-tag]')?.textContent).toBe("‘그런 편’과 ‘동의하지도 반대하지도’로 갈렸어요");
       expect(view.textContent).not.toContain("스타일");
-      // 안내가 인용한 보기 이름(‘어느 쪽도 아니에요’)은 판정 고지로 세지 않는다. 고지는 머리글 한 번뿐이다.
+      // 안내가 인용한 보기 이름(‘동의하지도 반대하지도 않아요’)은 판정 고지로 세지 않는다. 고지는 머리글 한 번뿐이다.
       expect(judgmentNotices(view)).toEqual([expect.stringContaining("성격 진단이나 궁합 점수는 아니에요.")]);
     }
     // 혼자 결과는 카드 안에서 코드보다 먼저 한 번 말한다.
@@ -436,7 +436,7 @@ describe("개인 결과는 고른 답을 되풀이하지 않고 고지를 한 �
 });
 
 /**
- * 화면에 보이는 글(접힌 details 의 안쪽은 뺀다). 사용자가 고른 보기 이름(‘어느 쪽도 아니에요’ 같은 답)과
+ * 화면에 보이는 글(접힌 details 의 안쪽은 뺀다). 사용자가 고른 보기 이름(‘동의하지도 반대하지도 않아요’ 같은 답)과
  * ‘…’ 인용 안은 판정 고지가 아니므로 뺀다.
  */
 function visibleSentences(root: Element): string[] {
@@ -564,7 +564,7 @@ describe("2026-09-27 결과 검토 뒤 고친 것", () => {
     expect(view.querySelector('[data-pair-kind="shared_request"]')).not.toBeNull();
     expect(view.querySelector('[data-pair-kind="partial_overlap"]')).not.toBeNull();
     const panel = view.querySelector('[role="tabpanel"]')!;
-    const titles = [...panel.querySelectorAll("h2")].map(item => item.textContent).filter(title => !title?.endsWith("웨딩코드"));
+    const titles = [...panel.querySelectorAll("h2")].map(item => item.textContent).filter(title => !title?.endsWith("웨딩코드") && ![...panel.querySelectorAll("[data-v31-character-summary] h2")].some(node => node.textContent === title));
     expect(titles.slice(0, 2)).toEqual(["함께 동의하거나 고른 내용", "먼저 이야기해 볼 차이"]);
     expect(titles.indexOf("둘 다 바라는 도움")).toBeGreaterThan(1);
     expect(titles.indexOf("일부만 겹치게 고른 것")).toBeGreaterThan(1);

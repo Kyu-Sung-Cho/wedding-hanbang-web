@@ -7,6 +7,7 @@ import {
 const KOREAN_SYLLABLE_PATTERN = /[가-힣]/;
 import {
   assessAmoraSafetyText,
+  assessAmoraContextualSafetyText,
   normalizeAmoraSafetyText,
   type AmoraCrisisKind,
 } from "./amoraCrisisClassifier";
@@ -364,7 +365,7 @@ export function classifyAmoraCrisis(
   userText: string,
 ): AmoraCrisisClassification | null {
   const text = normalizeAmoraSafetyText(userText);
-  const structuredAssessment = assessAmoraSafetyText(text);
+  const structuredAssessment = assessAmoraContextualSafetyText(text) ?? assessAmoraSafetyText(text);
   if (
     structuredAssessment.resolution === "immediate_crisis"
     && structuredAssessment.kind
@@ -516,5 +517,9 @@ export function classifyAmoraCrisis(
   if (selfHarm) return at("self_harm");
   if (thirdPartySelfHarm) return at("third_party_self_harm");
   if (interpersonalDanger) return at("interpersonal_danger");
+  const contextual = assessAmoraContextualSafetyText(text);
+  if (contextual?.resolution === "immediate_crisis" && contextual.kind) {
+    return { kind: contextual.kind };
+  }
   return null;
 }

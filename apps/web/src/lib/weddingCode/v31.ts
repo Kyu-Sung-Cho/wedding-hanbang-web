@@ -1,3 +1,4 @@
+import { v31TasteNoPreferenceLabel } from "./v31DisplayCopy";
 import {
   WEDDING_CODE_V31_AVOIDANCES,
   WEDDING_CODE_V31_OPTIONS,
@@ -69,7 +70,7 @@ const STATUS_LABELS = {
   undecided: "아직 모르겠어요",
   not_applicable: "이번 계획에는 없어요",
   skipped: "지금 답하지 않을게요",
-  no_preference: "어느 쪽도 괜찮아요",
+  no_preference: "특별히 선호하는 보기는 없어요",
   no_match: "맞는 보기가 없어요",
 } as const;
 const QUESTION_IDS = WEDDING_CODE_V31_QUESTIONS.map((question) => question.id);
@@ -165,6 +166,8 @@ export function v31ChoiceLabels(choice: V31Choice | undefined, options: readonly
     if (options.length === WEDDING_CODE_V31_AVOIDANCES.length && options.every((option) => WEDDING_CODE_V31_AVOIDANCES.some((avoidance) => avoidance.value === option.value))) return ["따로 피하고 싶은 것은 없어요"];
     if (options.length === WEDDING_CODE_V31_SPENDING.length && options.every((option) => WEDDING_CODE_V31_SPENDING.some((spending) => spending.value === option.value))) return ["더 쓰고 싶은 곳은 지금 없어요"];
     if (priorityContext) return [V31_PRIORITY_NO_PREFERENCE_LABEL];
+    const taste = WEDDING_CODE_V31_TASTES.find(item => item.options.length === options.length && item.options.every(option => options.some(entry => entry.value === option.value)));
+    if (taste) return [v31TasteNoPreferenceLabel(taste.key)];
   }
   if (priorityContext && choice.status === "skipped") return [V31_PRIORITY_SKIPPED_LABEL];
   if (priorityContext && choice.status === "undecided") return [V31_PRIORITY_UNDECIDED_LABEL];

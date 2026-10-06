@@ -1,4 +1,6 @@
 import { describe, expect, it } from "vitest";
+// 2026-10-05: the historical chat isolation leak is a normal passing assertion;
+// contextual safety routing now handles the distress extension in ordinary chat.
 import { findCoerciveControlSignals } from "@hanbang/shared";
 import { classifyAmoraQuestionScope, hasAmoraSafetySignal } from "@/lib/ai/amoraQuestionScope";
 
@@ -85,7 +87,7 @@ describe("누출 기록 — 일반 대화에서 놓치는 강압 통제 고백(�
     expect(mediationScope(LEAK)).toBe("W2_high_risk_adjacent");
   });
 
-  it.fails("일반 대화에서도 안전 신호가 서야 한다(아직 공유 레인에 남는다)", () => {
+  it("일반 대화에서도 안전 신호가 서야 한다(아직 공유 레인에 남는다)", () => {
     expect(hasAmoraSafetySignal(LEAK, "chat")).toBe(true);
   });
 });

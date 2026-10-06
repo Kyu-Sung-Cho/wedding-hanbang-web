@@ -3,9 +3,9 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import Sidebar from "./Sidebar";
 
-const mocks = vi.hoisted(() => ({ pathname: "/wedding/chat", signOut: vi.fn() }));
+const mocks = vi.hoisted(() => ({ pathname: "/wedding/chat", signOut: vi.fn(),journey:null as {wedding_date:string}|null }));
 vi.mock("next/navigation", () => ({ usePathname: () => mocks.pathname }));
-vi.mock("@/stores/authStore", () => ({ useAuthStore: () => ({ profile: null, journey: null, signOut: mocks.signOut }) }));
+vi.mock("@/stores/authStore", () => ({ useAuthStore: () => ({ profile: null, journey: mocks.journey, signOut: mocks.signOut }) }));
 
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -14,7 +14,7 @@ describe("Amora sidebar entry", () => {
   let root: Root;
   const close = vi.fn();
   beforeEach(() => {
-    close.mockReset(); mocks.signOut.mockReset();
+    close.mockReset(); mocks.signOut.mockReset();mocks.journey=null;
     container = document.createElement("div"); document.body.appendChild(container); root = createRoot(container);
   });
   afterEach(async () => { await act(async () => root.unmount()); container.remove(); });
@@ -79,4 +79,5 @@ describe("Amora sidebar entry", () => {
     await act(async () => root.render(<Sidebar isOpen onClose={close} />));
     expect(container.querySelector('[data-tutorial-target="service-nav-amora"]')?.getAttribute("aria-current")).toBeNull();
   });
+  it("preserves calendar wedding date in sidebar",async()=>{mocks.pathname="/wedding/lounge";mocks.journey={wedding_date:"2027-02-20"};await act(async()=>root.render(<Sidebar isOpen onClose={close}/>));expect(container.textContent).toContain("2027. 02. 20.");expect(container.textContent).not.toContain("02. 19.");expect(mocks.journey.wedding_date).toBe("2027-02-20");});
 });

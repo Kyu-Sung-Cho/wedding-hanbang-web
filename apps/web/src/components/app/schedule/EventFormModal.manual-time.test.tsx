@@ -115,4 +115,5 @@ describe("EventFormModal manual time submission", () => {
     expect(container.textContent).not.toContain("internal RPC");
   });
 
+  it("edit form retains the stored February 20 calendar date without saving",async()=>{const event={...EVENT,date:"2027-02-20"};const onSave=vi.fn();await act(async()=>root.render(<EventFormModal isOpen mode="edit" event={event} defaultDate={null} onSave={onSave} onClose={vi.fn()}/>));expect(container.querySelector<HTMLInputElement>('input[type="date"]')?.value).toBe("2027-02-20");expect(onSave).not.toHaveBeenCalled();});
 });

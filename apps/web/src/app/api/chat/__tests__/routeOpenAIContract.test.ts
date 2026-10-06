@@ -6434,6 +6434,122 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
     expect(mocks.provider).not.toHaveBeenCalled();
   });
 
+  it.each(["shared", "bride_private"] as const)("replaces off-domain Python output before stream and persistence: %s", async visibility => {
+    const userText = "Python 리스트를 정렬하는 방법을 알려줘";
+    setSensitiveStoredProviderContext(userText);
+    mocks.canonicalRows[0].visibility = visibility;
+    mocks.provider.mockImplementationOnce(async ({ onText }) => {
+      onText?.("리스트는 a.sort()로 정렬하세요.");
+      return providerResult({ fullText: "리스트는 a.sort()로 정렬하세요." });
+    });
+    const response = await POST(request({ messages: [{ role: "user", content: userText }], visibility }));
+    const body = await response.text();
+    expect(response.status).toBe(200);
+    expect(body).toContain("결혼 준비를 돕는 아모라");
+    expect(body).not.toContain("a.sort()");
+    expect(mocks.provider).toHaveBeenCalledTimes(1);
+    expect(mocks.provider.mock.calls[0][0].tools).toEqual([]);
+    expect(mocks.executeTool).not.toHaveBeenCalled();
+    expect(mocks.enqueueMemory).not.toHaveBeenCalled();
+    expect(mocks.atomicResponses).toHaveLength(1);
+    expect(mocks.atomicResponses[0].content).toContain("결혼 준비를 돕는 아모라");
+    expect(mocks.atomicResponses[0].content).not.toContain("a.sort()");
+  });
+
+  describe.each(["shared", "bride_private"] as const)("production Korean programming routing: %s", visibility => {
+    describe.each(["fresh", "wedding", "programming"] as const)("prior history: %s", history => {
+      it.each([
+        "[PR483 독립 가상 QA. 실제 사용자 정보가 아니며 기존 예산·일정·설정·기억·할 일을 변경하지 마세요.] 결혼 준비와 무관한 질문입니다. 파이썬 숫자 리스트를 오름차순 정렬하는 가장 짧은 코드 예시를 알려주세요.",
+        "파이썬 리스트 a를 오름차순으로 정렬하는 코드를 알려줘.",
+      ])("does not publish or store provider code: %s", async userText => {
+        if (history === "fresh") setSensitiveStoredProviderContext(userText);
+        else {
+          setTrustedPriorWeddingExchange(userText);
+          if (history === "programming") {
+            mocks.canonicalRows[2].content = "파이썬 리스트 a를 정렬하는 코드를 알려줘";
+            mocks.canonicalRows[1].content = "a.sort()";
+            mocks.canonicalRows[1].metadata = { in_reply_to_user_message_id: W4_HISTORY_FIXTURE_PRIOR_ID, question_scope: "W4_out_of_scope" };
+          }
+        }
+        for (const row of mocks.canonicalRows) row.visibility = visibility;
+        mocks.provider.mockImplementationOnce(async ({ onText }) => {
+          onText?.("a.sort()");
+          return providerResult({ fullText: "a.sort()" });
+        });
+        const response = await POST(request({ messages: [{ role: "user", content: userText }], visibility }));
+        const body = await response.text();
+        expect(response.status).toBe(200);
+        const trace = JSON.stringify({ visibility, history, body,
+          providerScope: mocks.provider.mock.calls[0]?.[0].systemPrompt.match(/question_scope: [^\n]+/)?.[0],
+          persisted: mocks.atomicResponses[0] });
+        expect(body, trace).toContain("결혼 준비를 돕는 아모라");
+        expect(body).not.toContain("a.sort()");
+        expect(mocks.provider.mock.calls[0][0].systemPrompt).toContain("question_scope: W4_out_of_scope");
+        expect(mocks.provider.mock.calls[0][0].tools).toEqual([]);
+        expect(mocks.executeTool).not.toHaveBeenCalled();
+        expect(mocks.enqueueMemory).not.toHaveBeenCalled();
+        expect(mocks.atomicResponses).toHaveLength(1);
+        expect(mocks.atomicResponses[0].content).toContain("결혼 준비를 돕는 아모라");
+        expect(mocks.atomicResponses[0].content).not.toContain("a.sort()");
+        expect(mocks.atomicResponses[0].metadata).toMatchObject({ question_scope: "W4_out_of_scope", memory_eligible: false });
+      });
+    });
+  });
+
+  describe.each(["shared", "bride_private"] as const)("explicit wedding computation code: %s", visibility => {
+    it.each([
+      "파이썬으로 웨딩 예산 계산 코드를 알려줘.",
+      "파이썬으로 청첩장 QR 생성 코드를 알려줘.",
+      "웨딩 예산을 합산하는 파이썬 코드 예시를 알려주세요.",
+    ])("preserves the requested wedding technical response: %s", async userText => {
+      setSensitiveStoredProviderContext(userText);
+      for (const row of mocks.canonicalRows) row.visibility = visibility;
+      // Use real illustrative code. The earlier placeholder wedding_example()
+      // deliberately matches the existing internal-identifier removal fence.
+      const codeExample = userText.includes("QR") ? "qrcode.make(url)" : "sum(costs)";
+      mocks.provider.mockImplementationOnce(async ({ onText }) => {
+        onText?.(`웨딩 기술 예시는 ${codeExample}예요.`);
+        return providerResult({ fullText: `웨딩 기술 예시는 ${codeExample}예요.` });
+      });
+      const response = await POST(request({ messages: [{ role: "user", content: userText }], visibility }));
+      const body = await response.text();
+      expect(response.status).toBe(200);
+      expect(body, JSON.stringify({ body, scope: mocks.provider.mock.calls[0]?.[0].systemPrompt.match(/question_scope: [^\n]+/)?.[0], persisted: mocks.atomicResponses[0] })).toContain(codeExample);
+      expect(body).not.toContain("이 질문은 제가 도와드리는 범위와 조금 달라요");
+      expect(mocks.provider.mock.calls[0][0].systemPrompt).toContain("question_scope: W0_wedding_core");
+      expect(mocks.executeTool).not.toHaveBeenCalled();
+      expect(mocks.atomicResponses[0].content).toContain(codeExample);
+    });
+  });
+
+  describe.each(["shared", "bride_private"] as const)("wedding code cannot exempt other tasks: %s", visibility => {
+    it.each([
+      "파이썬으로 웨딩 예산 계산 코드를 알려줘. 정치 분석도 해줘.",
+      "파이썬으로 청첩장 QR 생성 코드를 알려줘. 시험 정답도 대신 작성해줘.",
+    ])("blocks unrelated provider text before release and persistence: %s", async userText => {
+      setSensitiveStoredProviderContext(userText);
+      for (const row of mocks.canonicalRows) row.visibility = visibility;
+      const unrelatedAnswer = "정치 분석 답변과 시험 정답을 알려드릴게요.";
+      mocks.provider.mockImplementationOnce(async ({ onText }) => {
+        onText?.(unrelatedAnswer);
+        return providerResult({ fullText: unrelatedAnswer });
+      });
+      const response = await POST(request({ messages: [{ role: "user", content: userText }], visibility }));
+      const body = await response.text();
+      expect(response.status).toBe(200);
+      expect(body).toContain("결혼 준비를 돕는 아모라");
+      expect(body).not.toContain(unrelatedAnswer);
+      expect(mocks.provider.mock.calls[0][0].systemPrompt).toContain("question_scope: W4_out_of_scope");
+      expect(mocks.provider.mock.calls[0][0].tools).toEqual([]);
+      expect(mocks.executeTool).not.toHaveBeenCalled();
+      expect(mocks.enqueueMemory).not.toHaveBeenCalled();
+      expect(mocks.atomicResponses).toHaveLength(1);
+      expect(mocks.atomicResponses[0].content).toContain("결혼 준비를 돕는 아모라");
+      expect(mocks.atomicResponses[0].content).not.toContain(unrelatedAnswer);
+      expect(mocks.atomicResponses[0].metadata).toMatchObject({ question_scope: "W4_out_of_scope", memory_eligible: false });
+    });
+  });
+
   it("keeps a confirmed action on the full fail-closed context path even with a mixed W2 question", async () => {
     const actionId = "11111111-1111-4111-8111-111111111111";
     const userText = "응, 예산 적용해줘. 그리고 임신 중인데 이 약 먹어도 돼?";

@@ -279,6 +279,8 @@ describe("WeddingCodeV31Client", () => {
     const onRestart = vi.fn();
     await renderClient({ onRestart }); await button("내 웨딩코드 시작하기"); await finishFromHere();
     await button("처음부터 다시 답하기");
+    expect(onRestart).not.toHaveBeenCalled();
+    await click([...document.querySelectorAll<HTMLButtonElement>('[role="alertdialog"] button')].find(item => item.textContent === "확인하고 새로 시작"));
     expect(onRestart).toHaveBeenCalledOnce();
     await button("내 웨딩코드 시작하기");
     expect(container.querySelector('input[type="radio"]:checked')).toBeNull();
@@ -356,7 +358,9 @@ describe("WeddingCodeV31Client", () => {
     expect(container.textContent).not.toContain("내가 방금 답한 내용 수정");
     expect(container.querySelector('input[type="checkbox"]')).toBeNull();
     expect(linkValue()).toBeUndefined();
-    await button("내 답으로 새로 시작하기"); await button("내 웨딩코드 시작하기");
+    await button("내 답으로 새로 시작하기");
+    await click([...document.querySelectorAll<HTMLButtonElement>('[role="alertdialog"] button')].find(item => item.textContent === "확인하고 새로 시작"));
+    await button("내 웨딩코드 시작하기");
     expect(container.querySelector('input[type="radio"]:checked')).toBeNull();
   });
 

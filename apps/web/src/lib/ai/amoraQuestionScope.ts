@@ -3,7 +3,7 @@ import {
   classifyAmoraCrisis,
   normalizeAmoraSafetyText,
 } from "@/lib/ai/amoraCrisisSafety";
-import { assessAmoraSafetyText } from "@/lib/ai/amoraCrisisClassifier";
+import { assessAmoraSafetyText, assessAmoraContextualSafetyText } from "@/lib/ai/amoraCrisisClassifier";
 import { hasCoerciveControlSignal } from "@hanbang/shared";
 import { isClosedPartnerViolenceStatement } from "@hanbang/shared/partner-violence-closed-vocabulary";
 import { hasExplicitPersonalActionDraftRequest } from "./amoraPersonalActionConversation";
@@ -69,8 +69,40 @@ const NON_WEDDING_INVESTMENT_PATTERN =
 // 써줘" 가 같이 걸린다(`amoraIdentityAndOffDomain.test.ts` 가 그 결정을 고정한다). 더한
 // 것은 결혼 문장에 나올 수 없는 결합형뿐이고, `코드로 만들` 은 뺐다 — "청첩장 QR 코드로
 // 만들어줘" 가 걸린다.
-const OUT_OF_SCOPE_TASK_PATTERN =
-  /코딩|프로그래밍|TypeScript|JavaScript|Python|파이썬\s*스크립트|(?:스크립트|매크로)(?:으로|로)?\s*자동화|코드(?:를|로)?\s*(?:대신\s*)?(?:짜|작성|구현|자동화)|버그를?\s*(?:고쳐|수정)|정치\s*분석|시험\s*(?:답|정답)|숙제|과제\s*(?:대신|작성)/iu;
+const OUT_OF_SCOPE_PROGRAMMING_TASK_PATTERN =
+  /코딩|프로그래밍|TypeScript|JavaScript|Python|파이썬\s*스크립트|(?:스크립트|매크로)(?:으로|로)?\s*자동화|코드(?:를|로)?\s*(?:대신\s*)?(?:짜|작성|구현|자동화)|버그를?\s*(?:고쳐|수정)/iu;
+const OUT_OF_SCOPE_TASK_PATTERN = /정치\s*분석|시험\s*(?:답|정답)|숙제|과제\s*(?:대신|작성)/iu;
+
+/** A language mention is insufficient: bind it to a directly requested code artifact. */
+function programmingCodeRequestClauses(text: string): string[] {
+  const unquoted = normalizeAmoraSafetyText(text)
+    .replace(/"[^"\n]*"|“[^”\n]*”|'[^'\n]*'|‘[^’\n]*’/g, " ");
+  return unquoted.split(/(?:[!?;\n]+|\.(?=\s|$))/u).filter(clause => {
+    const language = /(?:파이썬|자바스크립트|타입스크립트|Python|JavaScript|TypeScript)/iu.test(clause);
+    const codeRequest = /코드(?:\s*(?:예시|예제|샘플))?(?:를|을|로|는|도)?\s*(?:(?:좀|짧게|간단히|한\s*줄로)\s*)*(?:알려(?:줘|주세요|줄래|줄\s*수\s*있(?:어|어요))|보여(?:줘|주세요)|짜(?:줘|주세요)|작성해(?:줘|주세요)|구현해(?:줘|주세요)|만들어(?:줘|주세요))\s*$/u.test(clause.trim());
+    return language && codeRequest;
+  });
+}
+
+export function isExplicitAmoraProgrammingCodeRequest(text: string): boolean {
+  return programmingCodeRequestClauses(text).some(clause => !hasWeddingProgrammingPurpose(clause));
+}
+
+function isWeddingProgrammingCodeRequest(text: string): boolean {
+  const clauses = programmingCodeRequestClauses(text);
+  return clauses.length > 0 && clauses.every(hasWeddingProgrammingPurpose);
+}
+
+/** Bind the requested computation to a wedding artifact, not a nearby topic mention. */
+function hasWeddingProgrammingPurpose(clause: string): boolean {
+  const purposes = [...clause.matchAll(/(?:웨딩|결혼(?:식)?|예식)\s*예산(?:을|를)?\s*(?:계산|합산|집계|배분)|청첩장(?:의|에\s*쓸|에\s*넣을)?\s*QR\s*(?:코드\s*)?(?:생성|만들)|(?:웨딩|결혼(?:식)?|예식)\s*일정(?:을|를)?\s*(?:계산|정리|생성)/giu)];
+  const latest = purposes.at(-1);
+  if (!latest) return false;
+  // An abandoned earlier purpose cannot negate a later affirmative QR/budget
+  // request, nor can an abandoned wedding task license unrelated code.
+  const predicate = clause.slice((latest.index ?? 0) + latest[0].length);
+  return !/(?:무관|관련(?:이|은)?\s*없|아니|않|필요\s*없|말고|대신)/u.test(predicate);
+}
 // 고위험은 두 가지가 섞여 있었다. 법률·의료·금융은 **아모라가 판단할 자격이 없는**
 // 영역이고, 폭력·통제·자해는 **이 대화를 합의안으로 끌고 가면 안 되는** 신호다.
 // 한 통에 담으면 계약금 환불로 다투는 커플이 안전 사안과 같은 취급을 받는다 —
@@ -787,7 +819,8 @@ export function classifyAmoraQuestionScope({
   hasWeddingClarificationContinuity = false,
 }: ClassifyAmoraQuestionScopeInput): AmoraQuestionScopeClassification {
   const normalizedText = normalizeAmoraSafetyText(userText);
-  const structuredSafetyAssessment = assessAmoraSafetyText(normalizedText);
+  const structuredSafetyAssessment = assessAmoraContextualSafetyText(normalizedText)
+    ?? assessAmoraSafetyText(normalizedText);
   if (
     structuredSafetyAssessment.resolution === "immediate_crisis"
     || classifyAmoraCrisis(normalizedText)
@@ -799,7 +832,8 @@ export function classifyAmoraQuestionScope({
       needsClarification: false,
     };
   }
-  if (structuredSafetyAssessment.resolution === "non_immediate_safety") {
+  if (structuredSafetyAssessment.resolution === "non_immediate_safety"
+    || assessAmoraContextualSafetyText(normalizedText)?.resolution === "non_immediate_safety") {
     return {
       scope: "W2_high_risk_adjacent",
       // **이 줄이 없어서 안전 판정이 절반만 닿았다.**
@@ -821,6 +855,7 @@ export function classifyAmoraQuestionScope({
   // confirmation or an approved wedding action must not launder a newly added
   // medical, legal, financial, or otherwise out-of-scope question into W0.
   const safetyHighRisk =
+    !structuredSafetyAssessment.contextBoundaryResolved && (
     HIGH_RISK_SAFETY_PATTERN.test(normalizedText)
     || HIGH_RISK_SAFETY_CONCRETE_PATTERN.test(normalizedText)
     || HIGH_RISK_HYPOTHETICAL_SAFETY_PATTERN.test(normalizedText)
@@ -840,7 +875,7 @@ export function classifyAmoraQuestionScope({
     || (
       structuredSafetyAssessment.resolution === "inconclusive"
       && isClosedPartnerViolenceStatement(normalizedText)
-    );
+    ));
   const domainHighRisk =
     HIGH_RISK_DOMAIN_PATTERN.test(normalizedText)
     || HIGH_RISK_DOMAIN_CONCRETE_PATTERN.test(normalizedText);
@@ -855,7 +890,10 @@ export function classifyAmoraQuestionScope({
       needsClarification: false,
     };
   }
-  if (OUT_OF_SCOPE_TASK_PATTERN.test(normalizedText)) {
+  if (OUT_OF_SCOPE_TASK_PATTERN.test(normalizedText)
+    || (OUT_OF_SCOPE_PROGRAMMING_TASK_PATTERN.test(normalizedText)
+    && !isWeddingProgrammingCodeRequest(normalizedText))
+    || isExplicitAmoraProgrammingCodeRequest(normalizedText)) {
     return {
       scope: "W4_out_of_scope",
       allowsLongTermMemory: false,
@@ -1322,4 +1360,13 @@ export function hasAmoraSafetySignal(
     return true;
   }
   return false;
+}
+
+/** High-confidence off-domain turns have a server-owned terminal, not a model instruction alone. */
+export function buildAmoraOffDomainTerminal(
+  classification: AmoraQuestionScopeClassification,
+): string | null {
+  if (classification.scope !== "W4_out_of_scope" || classification.confidence !== "high"
+    || classification.needsClarification) return null;
+  return "저는 결혼 준비를 돕는 아모라예요. 이 질문은 제가 도와드리는 범위와 조금 달라요. 대신 웨딩 예산을 계산하거나 준비 일정을 정리하는 건 함께 도와드릴 수 있어요.";
 }

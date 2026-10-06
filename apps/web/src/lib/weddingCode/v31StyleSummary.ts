@@ -128,7 +128,7 @@ const BORDERLINE_NEUTRAL_LABEL = WEDDING_CODE_V31_OPTIONS.find(option => option.
  * (5 대 4 의 B, 2 대 3 의 M, 1 대 2 의 N)도 칠한 칸으로 보이는 같은 성질이라, 표시 없는 줄은 한 칸 차이가 아니라고 읽힌다.
  * 그래서 아슬한 칸에서만 참인 사실(두 답이 ‘그런 편이에요’와 ‘어느 쪽도 아니에요’)을 줄여 적는다.
  */
-export const V31_STYLE_BORDERLINE_TAG = "‘그런 편’과 ‘어느 쪽도’로 갈렸어요" as const;
+export const V31_STYLE_BORDERLINE_TAG = "‘그런 편’과 ‘동의하지도 반대하지도’로 갈렸어요" as const;
 
 export function getV31Rating(response: V31Response | undefined): V31Rating | null {
   return typeof response === "number" && Number.isInteger(response) && response >= 1 && response <= 5
