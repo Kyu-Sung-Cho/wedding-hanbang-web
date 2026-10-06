@@ -161,8 +161,8 @@ describe("단계 2 문구: 화면 묶음", () => {
   it("새 번들 둘은 트랙의 문구 파일이 낸 그대로이고, 매핑된 화면은 계획대로다", () => {
     expect(V40_COPY.guess).toBe(V40_GUESS_COPY);
     expect(V40_COPY.letterGuess).toBe(V40_LETTER_GUESS_COPY);
-    expect(V40_COPY_SCREENS.letterGuess).toEqual(["letterGuess", "common", "a11y"]);
-    expect(V40_COPY_SCREENS.pairGuess).toEqual(["guess", "common", "a11y"]);
+    expect(V40_COPY_SCREENS.letterGuess).toEqual(["brand", "letterGuess", "common", "a11y"]);
+    expect(V40_COPY_SCREENS.pairGuess).toEqual(["brand", "guess", "common", "a11y"]);
     for (const screen of ["receive", "result", "couple"] as const) expect(V40_COPY_SCREENS[screen]).toContain("guess");
     for (const screen of ["result", "couple"] as const) expect(V40_COPY_SCREENS[screen]).toContain("letterGuess");
     // 질문, 쉬는 카드, 마지막 정리, 시작 화면에는 새 문구가 없다.

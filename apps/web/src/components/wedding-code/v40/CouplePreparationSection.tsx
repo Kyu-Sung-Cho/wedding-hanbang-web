@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import Button from "@/components/ui/Button";
 import { axisInfo } from "@/constants/weddingCodeV40";
 import { personName, V40_COPY } from "@/lib/weddingCode/v40/copy";
 import type { Axis, CoupleResult, Perspective } from "@/lib/weddingCode/v40/types";
@@ -55,9 +56,9 @@ export function CouplePreparationReport({ result, source, perspective, idPrefix,
       <p className={cx(noteText, "mt-3 max-w-3xl")}>이번 답에서 먼저 고른 기준을 준비에 어떻게 써 볼지 살펴봐요. 역할은 시도해 볼 제안이에요. 실제로 맡을 일과 순서는 둘이 정해 주세요.</p>
       <div role="group" aria-label="리포트에서 살펴볼 주제" className="mt-6 grid grid-cols-2 gap-2 md:grid-cols-4">
         {report.rows.map((each) => (
-          <button key={each.axis} type="button" aria-pressed={each.axis === row.axis} aria-controls={`${idPrefix}-preparation-content`} onClick={() => setActiveAxis(each.axis)} className={cx(buttonFocusFix, "min-h-12 rounded-xl border px-3 py-3 text-sm font-semibold transition-colors", each.axis === row.axis ? "border-[var(--hb-summary-line)] bg-[var(--hb-summary-surface)] text-[var(--hb-summary-ink)]" : "border-[var(--hb-hairline)] bg-[var(--hb-surface-raised)] text-[var(--hb-text-body)] hover:bg-[var(--hb-surface-hover)]")}>
+          <Button key={each.axis} variant="secondary" size="lg" aria-pressed={each.axis === row.axis} aria-controls={`${idPrefix}-preparation-content`} onClick={() => setActiveAxis(each.axis)} className={cx(buttonFocusFix, "rounded-xl! whitespace-normal! px-3! py-3 text-sm!", each.axis === row.axis ? "border-[var(--hb-summary-line)]! bg-[var(--hb-summary-surface)]! text-[var(--hb-summary-ink)]! hover:bg-[var(--hb-summary-surface)]!" : "text-[var(--hb-text-body)]!")}>
             {axisInfo(each.axis).title}
-          </button>
+          </Button>
         ))}
       </div>
       <article id={`${idPrefix}-preparation-content`} aria-labelledby={topicId} data-preparation-axis={row.axis} data-preparation-state={row.state} className="mt-5 overflow-hidden rounded-2xl border border-[var(--hb-hairline)] bg-[var(--hb-surface-raised)]">
