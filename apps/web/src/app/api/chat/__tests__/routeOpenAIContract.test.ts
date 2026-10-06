@@ -6522,6 +6522,34 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
     });
   });
 
+  describe.each(["shared", "bride_private"] as const)("wedding code cannot exempt other tasks: %s", visibility => {
+    it.each([
+      "파이썬으로 웨딩 예산 계산 코드를 알려줘. 정치 분석도 해줘.",
+      "파이썬으로 청첩장 QR 생성 코드를 알려줘. 시험 정답도 대신 작성해줘.",
+    ])("blocks unrelated provider text before release and persistence: %s", async userText => {
+      setSensitiveStoredProviderContext(userText);
+      for (const row of mocks.canonicalRows) row.visibility = visibility;
+      const unrelatedAnswer = "정치 분석 답변과 시험 정답을 알려드릴게요.";
+      mocks.provider.mockImplementationOnce(async ({ onText }) => {
+        onText?.(unrelatedAnswer);
+        return providerResult({ fullText: unrelatedAnswer });
+      });
+      const response = await POST(request({ messages: [{ role: "user", content: userText }], visibility }));
+      const body = await response.text();
+      expect(response.status).toBe(200);
+      expect(body).toContain("결혼 준비를 돕는 아모라");
+      expect(body).not.toContain(unrelatedAnswer);
+      expect(mocks.provider.mock.calls[0][0].systemPrompt).toContain("question_scope: W4_out_of_scope");
+      expect(mocks.provider.mock.calls[0][0].tools).toEqual([]);
+      expect(mocks.executeTool).not.toHaveBeenCalled();
+      expect(mocks.enqueueMemory).not.toHaveBeenCalled();
+      expect(mocks.atomicResponses).toHaveLength(1);
+      expect(mocks.atomicResponses[0].content).toContain("결혼 준비를 돕는 아모라");
+      expect(mocks.atomicResponses[0].content).not.toContain(unrelatedAnswer);
+      expect(mocks.atomicResponses[0].metadata).toMatchObject({ question_scope: "W4_out_of_scope", memory_eligible: false });
+    });
+  });
+
   it("keeps a confirmed action on the full fail-closed context path even with a mixed W2 question", async () => {
     const actionId = "11111111-1111-4111-8111-111111111111";
     const userText = "응, 예산 적용해줘. 그리고 임신 중인데 이 약 먹어도 돼?";

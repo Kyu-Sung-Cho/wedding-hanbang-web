@@ -24,6 +24,9 @@ it.each([
   "웨딩 예산 계산은 필요 없고 파이썬 숫자 리스트 정렬 코드를 알려줘.",
   "웨딩 예산 계산 코드를 알려줘. 결혼 준비와 무관하게 파이썬 숫자 리스트 정렬 코드를 알려줘.",
   "청첩장 QR 생성이 아니라 파이썬 숫자 리스트 정렬 코드를 알려줘.",
+  "파이썬으로 웨딩 예산 계산 코드를 알려줘. 정치 분석도 해줘.",
+  "파이썬으로 청첩장 QR 생성 코드를 알려줘. 시험 정답도 대신 작성해줘.",
+  "파이썬으로 웨딩 예산 계산 코드를 알려줘. 파이썬 숫자 배열을 정렬하는 코드도 알려줘.",
 ])("clear programming task has a deterministic wedding redirect: %s", userText => {
   const scope = classifyAmoraQuestionScope({ userText, hasApprovedWeddingAction: true, hasWeddingClarificationContinuity: true });
   expect(buildAmoraOffDomainTerminal(scope)).toContain("결혼 준비");
