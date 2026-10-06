@@ -124,6 +124,7 @@ import {
 import {
   classifyAmoraQuestionScope,
   buildAmoraOffDomainTerminal,
+  isExplicitAmoraProgrammingCodeRequest,
   hasAmoraSafetySignal,
   filterAmoraToolsByQuestionScope,
   type AmoraQuestionScopeClassification,
@@ -1568,6 +1569,7 @@ export async function POST(request: Request) {
     requestKind === "chat"
     && !isDemo
     && preliminaryQuestionScope?.scope === "W4_out_of_scope"
+    && !isExplicitAmoraProgrammingCodeRequest(earlyCrisisUserText ?? "")
     && earlyCrisisUserText !== null
     // 완료·해제 표현이 없으면 DB 조회조차 하지 않는다(대부분의 턴은 질의 0회).
     && AMORA_CHECKLIST_STATE_VERB.test(earlyCrisisUserText)
@@ -3416,6 +3418,7 @@ export async function POST(request: Request) {
   const questionScope =
     checklistScopeRescue !== null
     && classifiedQuestionScope.scope === "W4_out_of_scope"
+    && !isExplicitAmoraProgrammingCodeRequest(lastUserText)
       ? checklistScopeRescue
       : classifiedQuestionScope;
   /**
