@@ -1,4 +1,5 @@
 import { MetadataRoute } from "next";
+import { WEDDING_CODE_V31_VERSION } from "@/constants/weddingCodeV31";
 import { MANNERS_PARTS } from "@/lib/manners/data";
 import { isPriceCatalogBuildPlaceholderEnvironment } from "@/lib/price/buildCatalog";
 import { PRICE_CATEGORIES } from "@/lib/price/catalog";
@@ -15,6 +16,7 @@ import {
   type VendorIdentityCandidateCache,
   type VendorIdentityRow,
 } from "@/lib/vendors/publicVendorPriceData";
+import { WEDDING_CODE_DEFAULT_VERSION } from "./wedding-code/entry";
 
 const BASE_URL = "https://hanbang.ai";
 
@@ -124,13 +126,12 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       changeFrequency: "monthly",
       priority: 0.8,
     },
-    // 답이 없는 맨 주소만 싣는다. 답은 `#` 뒤에 실려 색인 대상이 아니고,
-    // 페이지도 맨 주소에만 `index`를 준다(`wedding-code/page.tsx`).
-    {
+    // 기본 판이 v4인 동안은 맨 주소도 noindex라 사이트맵에서 뺀다. 구판 입구와 답 링크는 계속 열린다.
+    ...(WEDDING_CODE_DEFAULT_VERSION === WEDDING_CODE_V31_VERSION ? [{
       url: `${BASE_URL}/wedding-code`,
-      changeFrequency: "monthly",
+      changeFrequency: "monthly" as const,
       priority: 0.9,
-    },
+    }] : []),
     // `/manners`가 아니라 `/wedding/manners`를 싣는다. weddingAppRoutes에 들어간
     // 뒤로 `/manners`는 `/wedding/manners`로 리다이렉트되므로, 리다이렉트 원본을
     // 사이트맵에 실으면 색인이 한 단계 낭비된다.

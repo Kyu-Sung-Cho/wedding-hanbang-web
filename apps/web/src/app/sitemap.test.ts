@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { canonicalPublishedVendorSlugSha256 } from "@/lib/price/staticVendorSlugs";
+import type { WeddingCodeDefaultVersion } from "./wedding-code/entry";
 
 type PublicVendorRow = {
   id: string;
@@ -10,6 +11,7 @@ type PublicVendorRow = {
 };
 
 const mocks = vi.hoisted(() => ({
+  weddingCodeDefaultVersion: "v4.2-depth" as WeddingCodeDefaultVersion,
   vendorRows: [] as Array<{
     official_price_id: string;
     vendor_slug: string;
@@ -29,6 +31,10 @@ const mocks = vi.hoisted(() => ({
   identityRanges: vi.fn(),
   failIdentityPageStartingAt: null as number | null,
   publicIdentityCount: undefined as number | null | undefined,
+}));
+
+vi.mock("./wedding-code/entry", () => ({
+  get WEDDING_CODE_DEFAULT_VERSION() { return mocks.weddingCodeDefaultVersion; },
 }));
 
 vi.mock("@/lib/supabase/public", () => ({
@@ -114,6 +120,7 @@ import sitemap from "./sitemap";
 
 describe("vendor sitemap", () => {
   beforeEach(() => {
+    mocks.weddingCodeDefaultVersion = "v4.2-depth";
     mocks.vendorRows = [];
     mocks.failVendorPageStartingAt = null;
     mocks.vendorRanges.mockClear();
@@ -153,13 +160,28 @@ describe("vendor sitemap", () => {
     expect(mocks.vendorRanges).not.toHaveBeenCalled();
   });
 
-  it("lists the answer-free WeddingCode entry and never an answer-carrying link", async () => {
-    vi.stubEnv("CI", "true");
+  it.each(["v4.0-tendency", "v4.1-depth", "v4.2-depth"] as const)("excludes the unvalidated %s default entry in both sitemap environments", async (version) => {
+    mocks.weddingCodeDefaultVersion = version;
 
-    const urls = (await sitemap()).map(({ url }) => url);
+    for (const ci of ["true", "false"]) {
+      vi.stubEnv("CI", ci);
+      const urls = (await sitemap()).map(({ url }) => url);
 
-    expect(urls).toContain("https://hanbang.ai/wedding-code");
-    expect(urls.some((url) => /wedding-code.*[?#]/.test(url))).toBe(false);
+      expect(urls).not.toContain("https://hanbang.ai/wedding-code");
+      expect(urls.some((url) => /wedding-code.*[?#]/.test(url))).toBe(false);
+    }
+  });
+
+  it("lists only the answer-free WeddingCode entry when the default returns to v3.1", async () => {
+    mocks.weddingCodeDefaultVersion = "v3.1-preferences";
+
+    for (const ci of ["true", "false"]) {
+      vi.stubEnv("CI", ci);
+      const urls = (await sitemap()).map(({ url }) => url);
+
+      expect(urls).toContain("https://hanbang.ai/wedding-code");
+      expect(urls.some((url) => /wedding-code.*[?#]/.test(url))).toBe(false);
+    }
   });
 
   it("omits unknown static modification dates instead of claiming the build time", async () => {
