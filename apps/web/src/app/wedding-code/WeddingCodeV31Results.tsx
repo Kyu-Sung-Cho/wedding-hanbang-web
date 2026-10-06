@@ -9,7 +9,7 @@ import { V31_STYLE_DIMENSIONS, buildV31StyleSummary } from "@/lib/weddingCode/v3
 import { v31Body, v31Surface, v31Title } from "./WeddingCodeV31Inputs";
 import WeddingCodeV31Sharing from "./WeddingCodeV31Sharing";
 import WeddingCodeV31StyleSummary from "./WeddingCodeV31StyleSummary";
-import { V31PersonalCharacterGuide, V31CoupleCharacterGuide } from "@/components/wedding-code/V31CharacterGuide";
+import { V31CharacterSummary, V31PersonalCharacterGuide, V31CoupleCharacterGuide } from "@/components/wedding-code/V31CharacterGuide";
 import V31ConfirmDialog from "./WeddingCodeV31Confirm";
 
 type EditHandler = (id?: string) => void;
@@ -320,9 +320,8 @@ export default function WeddingCodeV31Results({ draft, first, received, shareOri
     <header className="mb-6">
       <p className="text-xs font-semibold text-[var(--hb-success)]">웨딩코드 · {first ? "두 사람의 결과" : "내 결과"}</p>
       <h1 className={`mt-3 text-3xl leading-snug ${v31Title}`}>{first ? "우리, 어디부터 맞춰볼까요?" : profile.hasContent ? "내가 바라는 결혼식과 준비 방식" : "이번에 남긴 답을 살펴봐요"}</h1>
-      <p className={`mt-3 ${v31Body}`}>{first ? "함께 동의하거나 고른 내용부터, 서로 다르게 답한 것까지 나란히 봐요. 같은 답도 이유는 다를 수 있으니, 각자 떠올린 장면을 이야기해 보세요." : profile.hasContent ? editable ? "지금 직접 고른 취향과 답을 정리했어요." : "공유된 취향과 답을 정리했어요. 이 화면에서는 답을 수정할 수 없어요." : "모름·계획 없음·답하지 않음·맞는 보기 없음은 서로 다른 답이에요. 이 답들로 구체적인 취향을 만들지는 않았어요. 원할 때 다시 답해도 괜찮아요."}</p>
       <p className="mt-3 text-xs leading-relaxed text-[var(--hb-text-muted)]">{received ? "받은 링크에 담긴 답이에요. 이름이나 본인 여부는 확인하지 않아요." : `답을 남긴 질문은 ${profile.respondedCount}개예요. 동의 정도를 고른 문장은 ${profile.ratedCount}개예요.`} 취향과 바람은 달라질 수 있어요. 성격 진단이나 궁합 점수는 아니에요.</p>
-      {!first && editable && profile.hasContent ? <Button variant="secondary" className="mt-4 whitespace-normal!" onClick={() => { sharingRef.current?.scrollIntoView({ block: "start" }); sharingRef.current?.focus({ preventScroll: true }); }}>상대와 함께 보는 방법</Button> : null}
+
     </header>
     {first ? <>
       <div role="tablist" aria-label="두 사람 결과 보기" className="mb-5 grid grid-cols-3 gap-1 rounded-xl border border-paper-outline bg-[var(--hb-surface-hover)] p-1">
@@ -336,6 +335,14 @@ export default function WeddingCodeV31Results({ draft, first, received, shareOri
       <div key={activeTab} role="tabpanel" id={`${tabId}-panel`} aria-labelledby={`${tabId}-tab-${activeTab}`} tabIndex={0}
         className="rounded-lg focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[var(--hb-focus-ring)]">
         {activeTab === "together" ? <>
+    <p className={`mb-3 ${v31Body}`}>예산·분담·가족·도움의 8개 답의 별칭이에요. 전체 취향은 각자의 프로필에서 봐요. 탐색 캐릭터는 유형을 확정하지 않은 답과 함께 보는 표시예요.</p>
+    <div className="grid grid-cols-2 items-start gap-3" aria-label="각자의 답과 캐릭터">
+      <V31CharacterSummary draft={first} label={labels.first} compact />
+      <V31CharacterSummary draft={draft} label={labels.second} compact />
+    </div>
+      {/* Detailed context lives below the first character experience. */}
+      <p className={`mt-3 ${v31Body}`}>{first ? "함께 동의하거나 고른 내용부터, 서로 다르게 답한 것까지 나란히 봐요. 같은 답도 이유는 다를 수 있으니, 각자 떠올린 장면을 이야기해 보세요." : profile.hasContent ? editable ? "지금 직접 고른 취향과 답을 정리했어요." : "공유된 취향과 답을 정리했어요. 이 화면에서는 답을 수정할 수 없어요." : "모름·계획 없음·답하지 않음·맞는 보기 없음은 서로 다른 답이에요. 이 답들로 구체적인 취향을 만들지는 않았어요. 원할 때 다시 답해도 괜찮아요."}</p>
+
     <section aria-label="두 사람의 웨딩코드 요약" className="mb-5">
       {/* 두 코드에 공통인 「다시 답하면 글자가 달라질 수 있어요.」는 카드마다 되풀이하지 않고 여기서 코드보다 먼저 한 번만 말한다. */}
       <p className={`mb-4 ${v31Body}`}>{pairChangeNotice ? <><span data-change-notice>{pairChangeNotice}</span> 코드만 보지 말고 각자 고른 답과 아래 이야기할 거리도 같이 봐요.</> : "각자 고른 답과 아래 이야기할 거리를 같이 봐요."}</p>
@@ -348,12 +355,15 @@ export default function WeddingCodeV31Results({ draft, first, received, shareOri
       <V31CoupleCharacterGuide first={first} second={draft} labels={labels} />
         </> : <>
           <p className={`mb-4 ${v31Body}`}>{received ? `${labels[activeTab]}의 답을 정리했어요. 누가 본인인지는 확인하지 않으며, 이곳에서 답을 수정할 수는 없어요.` : activeTab === "second" ? readOnly ? "내가 공유한 답이에요. 이 화면에서는 답을 수정할 수 없어요." : "내가 직접 답한 내용이에요. 생각과 다른 부분은 답을 수정할 수 있어요." : "상대가 공유한 답이에요. 상대의 답을 대신 수정할 수는 없어요."}</p>
+          <V31CharacterSummary draft={activeTab === "first" ? first : draft} label={labels[activeTab]} />
           <WeddingCodeV31StyleSummary draft={activeTab === "first" ? first : draft} label={labels[activeTab]} onEdit={activeTab === "second" ? editable : undefined} />
           <V31PersonalCharacterGuide draft={activeTab === "first" ? first : draft} label={labels[activeTab]} />
           <PersonalProfile draft={activeTab === "first" ? first : draft} onEdit={activeTab === "second" ? editable : undefined} personLabel={!received && activeTab === "second" ? undefined : labels[activeTab]} nested />
         </>}
       </div>
-    </> : <><WeddingCodeV31StyleSummary draft={draft} onEdit={editable} /><V31PersonalCharacterGuide draft={draft} /><PersonalProfile draft={draft} onEdit={editable} /></>}
+    </> : <><V31CharacterSummary draft={draft} />      {/* Detailed context lives below the first character experience. */}
+      <p className={`mt-3 ${v31Body}`}>{first ? "함께 동의하거나 고른 내용부터, 서로 다르게 답한 것까지 나란히 봐요. 같은 답도 이유는 다를 수 있으니, 각자 떠올린 장면을 이야기해 보세요." : profile.hasContent ? editable ? "지금 직접 고른 취향과 답을 정리했어요." : "공유된 취향과 답을 정리했어요. 이 화면에서는 답을 수정할 수 없어요." : "모름·계획 없음·답하지 않음·맞는 보기 없음은 서로 다른 답이에요. 이 답들로 구체적인 취향을 만들지는 않았어요. 원할 때 다시 답해도 괜찮아요."}</p>
+      {!first && editable && profile.hasContent ? <Button variant="secondary" className="mt-4 whitespace-normal!" onClick={() => { sharingRef.current?.scrollIntoView({ block: "start" }); sharingRef.current?.focus({ preventScroll: true }); }}>상대와 함께 보는 방법</Button> : null}<WeddingCodeV31StyleSummary draft={draft} onEdit={editable} /><V31PersonalCharacterGuide draft={draft} /><PersonalProfile draft={draft} onEdit={editable} /></>}
     {!received && !readOnly && ownActionsVisible && onMore && optionalCount > 0 ? <section className={`${v31Surface} mt-5 p-5 sm:p-7`} aria-label="선택 질문">
       <h2 className={`text-lg ${v31Title}`}>궁금한 부분이 더 있다면</h2>
       <p className={`mt-2 ${v31Body}`}>꽃 장식이나 세부 준비 방식까지 더 살펴볼 수 있어요. 남은 {optionalCount}개를 전부 답할 필요는 없고, 언제든 결과로 돌아올 수 있어요.</p>

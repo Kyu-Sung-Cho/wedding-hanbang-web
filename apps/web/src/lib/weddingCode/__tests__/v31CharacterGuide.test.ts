@@ -6,6 +6,65 @@ import { V31_CHARACTERS, v31Character, v31CoupleGuide, v31ExploreQuestion, v31Pe
 import type { V31Draft } from "@/constants/weddingCodeV31";
 import { WEDDING_CODE_V40_VERSION } from "@/constants/weddingCodeV40";
 
+function mixedNative() {
+  const draft = native("KTFL");
+  Object.assign(draft.answers, { B1: 3, B3: 3, T1: 5, T2: 5, F1: "undecided", F2: 5, H1: 1, H2: 1 });
+  return draft;
+}
+describe("response-specific coordination with actual speaker direction", () => {
+  const samples = [
+    { name: "same-direction", first: () => native("KTFL"), second: () => { const value = native("KTFL"); value.answers.B1 = 4; value.answers.B3 = 2; return value; }, budget: "same-direction", support: "same-direction" },
+    { name: "contrasting", first: () => native("KTFL"), second: () => native("RDCA"), budget: "different-directions", support: "different-directions" },
+    { name: "MB?N", first: mixedNative, second: () => native("KTFL"), budget: "mixed", support: "neither" },
+  ];
+  for (const sample of samples) {
+    it.each([false, true])(`${sample.name} preserves voices when reversed %s`, reverse => {
+      const left = sample.first(); const right = sample.second(); const before = [encodeV31(left), encodeV31(right)];
+      const baseline = v31CoupleGuide(left, right); const result = reverse ? v31CoupleGuide(right, left) : baseline;
+      expect(result[0].coordination?.state).toBe(sample.budget); expect(result[3].coordination?.state).toBe(sample.support);
+      for (const index of [0, 3]) {
+        const row = result[index]; const original = baseline[index];
+        expect(row.coordination?.firstSay).toBe(reverse ? original.coordination?.secondSay : original.coordination?.firstSay);
+        expect(row.coordination?.secondSay).toBe(reverse ? original.coordination?.firstSay : original.coordination?.secondSay);
+        expect(row.coordination?.agreement).toBe(original.coordination?.agreement);
+        for (const item of row.first.items) expect(item.response).toBe((reverse ? right : left).answers[item.id]);
+        for (const item of row.second.items) expect(item.response).toBe((reverse ? left : right).answers[item.id]);
+      }
+      if (sample.name === "same-direction") {
+        expect(result[0].observation).toContain("성격의 강약으로 해석하지 않아요");
+        expect(result[0].coordination?.agreement).toContain("포함·추가 비용");
+        expect(result[0].coordination?.agreement).not.toContain("새 상한선");
+      } else if (sample.name === "contrasting") {
+        expect(baseline[0].coordination?.firstSay).toContain("예산 안의 선택");
+        expect(baseline[0].coordination?.secondSay).toContain("금액 차이");
+        expect(baseline[3].coordination?.firstSay).toContain("먼저 이야기를 들어줄래");
+        expect(baseline[3].coordination?.secondSay).toContain("맡아줄 수 있는 일 하나");
+        expect(result[3].observation).toContain("능력의 차이는 아니에요");
+      } else {
+        expect(baseline[3].coordination?.firstSay).toContain("둘 중 하나를 고르라고 하지 않아도 돼");
+        expect(result[3].coordination?.agreement).toContain("어떤 도움도 바로 실행하지 않기로");
+      }
+      expect([encodeV31(left), encodeV31(right)]).toEqual(before);
+    });
+  }
+  it("separates both, neither, middle and missing without forcing a character", () => {
+    for (const [first, second, state] of [[5, 5, "both"], [1, 1, "neither"], [3, 3, "mixed"], ["undecided", 5, "pending"]] as const) {
+      const draft = native("KTFL"); draft.answers.H1 = first; draft.answers.H2 = second;
+      const result = v31CoupleGuide(draft, native("KTFL"))[3];
+      expect(result.coordination?.state).toBe(state); expect(v31Character(draft)).toBeNull();
+      if (state === "both") expect(result.coordination?.firstSay).toContain("두 도움 모두 필요할 수 있어");
+      if (state === "pending") { expect(result.supported).toBe(false); expect(result.action).toBeNull(); expect(result.coordination?.firstSay).toContain("아직 어떤 도움이 필요한지 정하지 않았어"); }
+    }
+    const neither = native("KTFL"); neither.answers.H1 = 1; neither.answers.H2 = 1;
+    expect(v31ExploreQuestion(buildV31StyleSummary(neither).dimensions[3])).toContain("둘 중 하나를 고를 필요는 없어요");
+    const outsidePlan = native("KTFL"); outsidePlan.answers.H1 = "not_applicable"; outsidePlan.answers.H2 = "not_applicable";
+    const notInPlan = v31CoupleGuide(outsidePlan, outsidePlan)[3];
+    expect(notInPlan.supported).toBe(false); expect(notInPlan.action).toBeNull();
+    expect(notInPlan.coordination?.agreement).toContain("지금은 이 대화를 건너뛰고");
+    expect(notInPlan.coordination?.firstSay).toContain("이번 준비에는 해당하지 않아");
+  });
+});
+
 function native(code: string): V31Draft {
   const draft = createV31Draft();
   V31_STYLE_DIMENSIONS.forEach((axis, index) => {
@@ -30,6 +89,7 @@ describe("native v3.1 response-grounded character guides", () => {
       const a = native(first); const b = native(second);
       const before = [encodeV31(a), encodeV31(b)];
       const guides = v31CoupleGuide(a, b);
+      const reversed = v31CoupleGuide(b, a);
       expect(guides).toHaveLength(4);
       for (const guide of guides) {
         expect(guide.supported).toBe(true);
@@ -37,6 +97,12 @@ describe("native v3.1 response-grounded character guides", () => {
         for (const item of guide.first.items) expect(item.response).toBe(a.answers[item.id]);
         for (const item of guide.second.items) expect(item.response).toBe(b.answers[item.id]);
         expect(guide).not.toHaveProperty("score");
+        if (guide.coordination) {
+          const other = reversed.find(row => row.key === guide.key)!;
+          expect(guide.coordination.firstSay).toBe(other.coordination?.secondSay);
+          expect(guide.coordination.secondSay).toBe(other.coordination?.firstSay);
+          expect(guide.coordination.agreement).toBe(other.coordination?.agreement);
+        }
       }
       expect([encodeV31(a), encodeV31(b)]).toEqual(before);
     },
@@ -69,7 +135,7 @@ describe("native v3.1 response-grounded character guides", () => {
     expect(v31Character(draft)).toBeNull();
     for (const axis of buildV31StyleSummary(draft).dimensions) {
       expect(v31PersonalGuide(axis)).toBeNull();
-      expect(v31ExploreQuestion(axis)).toContain("아직");
+      expect(v31ExploreQuestion(axis)).toContain(axis.key === "support" ? "둘 중 하나를 고를 필요는 없어요" : "아직");
     }
     expect(v31ExploreQuestion(buildV31StyleSummary(draft).dimensions[2])).toContain("가족");
   });
@@ -85,7 +151,7 @@ describe("native v3.1 response-grounded character guides", () => {
     const a = native("KTFL"); const b = native("KTFL"); b.answers.B3 = 2;
     expect(buildV31StyleSummary(a).code).toBe(buildV31StyleSummary(b).code);
     const budget = v31CoupleGuide(a, b)[0];
-    expect(budget.observation).toContain("다르게 답한");
+    expect(budget.observation).toContain("둘 다 처음 정한 전체 예산");
     expect(budget.first.items[1].response).toBe(1);
     expect(budget.second.items[1].response).toBe(2);
   });
