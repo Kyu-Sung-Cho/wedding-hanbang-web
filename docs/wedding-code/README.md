@@ -12,7 +12,7 @@
 - [실제 커플 관찰 준비물](./2026-10-06_v42_couple_validation_kit.md): 익명 관찰 워크시트와 사용 절차. 도구의 합성 상태 검사와 실제 사람 검증은 구분하며, 실제 커플 확인은 여전히 0건이다.
 - 구판 보존: `?v=v4.1-depth`, `?v=v4.0-tendency` 및 해당 답 포함 링크는 원래 문항판으로 열린다. 새판은 링크 본문 표식·저장 키·봉투 version이 별도라 구판 답을 새 문항의 답으로 바꾸지 않는다.
 
-아래 v4.1 기본 진입 설명은 2026-10-04 당시 기록이며, 현재 작업 브랜치에서는 위 v4.2 상태가 우선한다. 최종 실행 검증은 [v4.2 구현·화면 검수 기록](./2026-10-06_v42_implementation_verification.md)에서 별도로 확인한다.
+아래 v4.1 및 v3.1 기본 진입·색인 설명은 해당 작성 시점의 기록이다. 현재 작업 브랜치에서는 위 v4.2 상태가 우선한다. 구현 검증은 [v4.2 구현·화면 검수 기록](./2026-10-06_v42_implementation_verification.md), 이번 PR·검사·운영 재현·배포 상태는 [웹 배포 기록](./2026-10-06_v42_web_release.md)에서 별도로 확인한다.
 
 ## 웨딩코드 v4.1-depth 작업 브랜치: 2026-10-04
 
@@ -144,7 +144,7 @@
   없는 코드는 뜻을 지어내지 않고 404로 보내며 `noindex`를 붙인다.
   2026-09-27부터 이 화면은 맨 위에 ‘이전 판 웨딩코드’라고 적고, 지금 판과 글자 풀이가 다르다고 알린다. 있는 코드도
   `noindex, follow`이고 canonical 을 두지 않는다. 지금 판 결과 화면은 이 경로로 링크하지 않는다.
-- **색인과 공유는 별도 경계다.** 맨 `/wedding-code`는 `index, follow`, 과거 `?a=`·`?b=`
+- **당시 v3.1의 색인과 공유 경계다.** v3.1이 기본이던 당시 맨 `/wedding-code`는 `index, follow`, 과거 `?a=`·`?b=`
   응답 링크는 `noindex, nofollow`다. 새 답은 서버 요청·referrer에 포함되지 않는 fragment(`#`)에
   싣는다. fragment는 암호화나 접근 제어가 아니며 전체 링크를 받은 사람은 답을 읽을 수 있다.
   새 `/wedding-code/taste`는 `noindex, nofollow`와 `no-referrer`를 사용한다.
@@ -276,7 +276,7 @@
 - 위 로컬 경로는 React memory state만 사용하고 전역 analytics/UTM·외부 CSP를 차단한다. Candidate 5/6 모두 Production·Preview route,
   API, DB, analytics, browser storage, 점수·유형·overlap에 연결하면 안 된다.
 - 공개 `/wedding-code`는 Candidate 6.3 측정 코드와 별개다. `v0.6-scene`·`v0.8-code`·`v0.9-code`·`v1.0-code`·`v1.1-code`는 과거 공유 링크
-  호환용이다. 현재 새 기본 진입은 `v3.1-preferences`다. 버전 없는 답 링크는 v0.6으로만 해석하며,
+  호환용이다. v3.1이 기본이던 당시 새 기본 진입은 `v3.1-preferences`였다. 버전 없는 답 링크는 v0.6으로만 해석하며,
   알 수 없는 버전을 현재 문항으로 바꾸어 읽지 않는다.
 - 구판 공개 장면 도구의 응답은 DB나 브라우저 저장소에 저장하지 않는다. 기본 v3.1의 새 본인 브라우저 보관은 위 현재 계약에서 별도로 정한다. 새 링크는 답 코드를
   URL fragment(`#`)에 넣어 서버 요청과 referrer에서 제외하고, 이 경로의 페이지뷰·세션

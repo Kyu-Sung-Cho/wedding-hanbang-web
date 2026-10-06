@@ -64,6 +64,7 @@
   `docs/operations/VENDOR_DISCLOSURE_PRODUCTION_BUILD_FENCE.md`
 - 모바일: `docs/MOBILE_APP_MASTERPLAN_2026-06-30.md`
 - WeddingCode: `docs/wedding-code/README.md`
+- WeddingCode v4.2 웹 배포 준비·검수·운영 관문: `docs/wedding-code/2026-10-06_v42_web_release.md`
 
 날짜가 오래된 감사·세션·릴리스 문서는 역사적 증거일 수 있습니다. 실제 완료 여부는
 현재 릴리스 문서, Git HEAD, 테스트 결과, GitHub checks와 배포 receipt를 함께 확인해
