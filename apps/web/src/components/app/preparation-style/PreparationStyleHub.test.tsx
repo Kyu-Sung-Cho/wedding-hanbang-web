@@ -13,8 +13,8 @@ import PreparationStyleHub from "./PreparationStyleHub";
 import PreparationStylePage from "@/app/(app)/preparation-style/page";
 import { WEDDING_CODE_V41_BANK } from "@/lib/weddingCode/v41/bank";
 import { V41_STORAGE, writeProgress as writeV41Progress } from "@/lib/weddingCode/v41/storage";
-import { WEDDING_CODE_V42_BANK } from "@/lib/weddingCode/v42/bank";
-import { V42_STORAGE, writeProgress } from "@/lib/weddingCode/v42/storage";
+import { WEDDING_CODE_V43_BANK } from "@/lib/weddingCode/v43/bank";
+import { V43_STORAGE, writeProgress } from "@/lib/weddingCode/v43/storage";
 import { V40_FIXTURES } from "@/lib/weddingCode/v40/fixtures";
 
 vi.mock("@/lib/analytics", () => ({ captureWeddingCodeEvent: vi.fn() }));
@@ -81,7 +81,7 @@ describe("준비 스타일의 개인 저장과 두 사람 공유", () => {
     await waitForScreen('[data-screen="intro"]:not([data-pending])');
     expect(container.querySelector("[data-lounge-wedding-code]")).not.toBeNull();
     expect(container.textContent).toContain("68");
-    expect(container.querySelector('[data-wedding-code-version="v4.2-depth"]')).not.toBeNull();
+    expect(container.querySelector('[data-wedding-code-version="v4.3-depth"]')).not.toBeNull();
     expect(container.querySelector('[data-wedding-code-version="v4.1-depth"]')).toBeNull();
     expect(container.textContent).toContain("이 웨딩코드의 답은 계정에 저장되지 않고, 아모라에게도 전해지지 않아요");
     expect(container.textContent).not.toContain("내 답 전체를 서버에 보관하고");
@@ -93,7 +93,7 @@ describe("준비 스타일의 개인 저장과 두 사람 공유", () => {
     const questions = [...container.querySelectorAll("[data-item]")];
     expect(questions.map(question => question.getAttribute("data-item"))).toEqual(["process.search.1", "money.limit.1"]);
     for (const question of questions) {
-      const item = WEDDING_CODE_V42_BANK.byId.get(question.getAttribute("data-item")!);
+      const item = WEDDING_CODE_V43_BANK.byId.get(question.getAttribute("data-item")!);
       expect(question.textContent).toContain(item?.stem);
     }
     const firstAnswer = container.querySelector<HTMLButtonElement>('[data-item="process.search.1"] button[role="radio"]')!;
@@ -105,26 +105,26 @@ describe("준비 스타일의 개인 저장과 두 사람 공유", () => {
 
   it("공개 웨딩코드에서 남긴 브라우저 답을 라운지에서도 같은 질문부터 이어 하며 계정으로 보내지 않는다", async () => {
     const itemId = "scope.timing.1";
-    const index = WEDDING_CODE_V42_BANK.codeIndexById.get(itemId)!;
+    const index = WEDDING_CODE_V43_BANK.codeIndexById.get(itemId)!;
     const sample = V40_FIXTURES[0];
-    const responses = Object.fromEntries(WEDDING_CODE_V42_BANK.items.slice(0, index).map(item => [item.id, sample.responses[item.id]]));
+    const responses = Object.fromEntries(WEDDING_CODE_V43_BANK.items.slice(0, index).map(item => [item.id, sample.responses[item.id]]));
     expect(writeV41Progress(window.localStorage, WEDDING_CODE_V41_BANK, {
       formBit: sample.formBit, responses: {}, cursor: 0, screen: "questions", skippedReviewDone: false,
     }, null, Date.now()).status).toBe("saved");
     const previousRaw = window.localStorage.getItem(V41_STORAGE.progressKey);
     expect(previousRaw).not.toBeNull();
-    expect(writeProgress(window.localStorage, WEDDING_CODE_V42_BANK, {
+    expect(writeProgress(window.localStorage, WEDDING_CODE_V43_BANK, {
       formBit: sample.formBit, responses, cursor: index, screen: "questions", skippedReviewDone: false,
     }, null, Date.now()).status).toBe("saved");
-    const currentRaw = window.localStorage.getItem(V42_STORAGE.progressKey);
+    const currentRaw = window.localStorage.getItem(V43_STORAGE.progressKey);
     expect(currentRaw).not.toBeNull();
-    expect(JSON.parse(currentRaw!).version).toBe("v4.2-depth");
+    expect(JSON.parse(currentRaw!).version).toBe("v4.3-depth");
     const page = await PreparationStylePage({ searchParams: Promise.resolve({}) });
     await act(async () => root.render(<main>{page}</main>));
     await waitForScreen('[data-section-card="resume"]');
     await click("이어서 하기");
-    expect(container.querySelector('[data-wedding-code-version="v4.2-depth"]')).not.toBeNull();
-    expect(container.querySelector(`[data-item="${itemId}"]`)?.textContent).toContain(WEDDING_CODE_V42_BANK.byId.get(itemId)?.stem);
+    expect(container.querySelector('[data-wedding-code-version="v4.3-depth"]')).not.toBeNull();
+    expect(container.querySelector(`[data-item="${itemId}"]`)?.textContent).toContain(WEDDING_CODE_V43_BANK.byId.get(itemId)?.stem);
     expect(window.localStorage.getItem(V41_STORAGE.progressKey)).toBe(previousRaw);
     expect(fetchMock).not.toHaveBeenCalled();
   });

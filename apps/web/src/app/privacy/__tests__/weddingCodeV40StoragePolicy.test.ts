@@ -94,7 +94,7 @@ const PROMISES_TESTED_BELOW = [
 describe("처리방침 v4 문단이 저장에 관해 하는 약속", () => {
   it("이 파일이 확인하는 약속이 방침에 그대로 적혀 있다", () => {
     const text = renderToStaticMarkup(createElement(PrivacyPage)).replace(/<[^>]+>/g, " ").replace(/\s+/g, " ");
-    const start = text.indexOf("웨딩코드(v4.0-tendency·v4.1-depth·v4.2-depth) 이어하기·링크 보내기:");
+    const start = text.indexOf("웨딩코드(v4.0-tendency·v4.1-depth·v4.2-depth·v4.3-depth) 이어하기·링크 보내기:");
     expect(start, "v4 문단을 못 찾았다. 이 검사가 헛돈다").toBeGreaterThan(-1);
     const paragraph = text.slice(start, text.indexOf("지워 주세요.", start) + "지워 주세요.".length);
     for (const promise of PROMISES_TESTED_BELOW) {

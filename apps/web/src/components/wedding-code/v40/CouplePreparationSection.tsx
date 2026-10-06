@@ -9,6 +9,7 @@ import { AnswerDistribution } from "./AnswerEvidence";
 import { peopleInOrder } from "./CoupleAxisRow";
 import { buildCouplePreparationReport, type CoupleReportSource } from "./couplePreparationReport";
 import { SectionHeading } from "./ShareBlock";
+import { useWeddingCodeResultVersion } from "./ResultEditionContext";
 import { buttonFocusFix, cx, noteText } from "./styles";
 
 export interface CouplePreparationReportProps {
@@ -34,7 +35,8 @@ const EXCLUSION_NOTE = {
 
 /** 제안과 원응답을 함께 읽는다. 담당을 확정하거나 의사결정을 저장하지 않는다. */
 export function CouplePreparationReport({ result, source, perspective, idPrefix, headingLevel }: CouplePreparationReportProps) {
-  const report = useMemo(() => buildCouplePreparationReport(result, source), [result, source]);
+  const version = useWeddingCodeResultVersion();
+  const report = useMemo(() => buildCouplePreparationReport(result, source, version), [result, source, version]);
   const [activeAxis, setActiveAxis] = useState<Axis>("money");
   const row = report.rows.find((each) => each.axis === activeAxis) ?? report.rows[0];
   const topic = axisInfo(row.axis);

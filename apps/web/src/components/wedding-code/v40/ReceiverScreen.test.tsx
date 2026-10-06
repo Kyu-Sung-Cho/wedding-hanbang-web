@@ -56,7 +56,7 @@ describe("ReceiverScreen", () => {
     await harness.render(<Host />);
     const journey = harness.container.querySelector('[data-share-journey]');
     expect(journey?.textContent).toContain(V40_COPY.receive.journeyLabel);
-    expect([...journey!.querySelectorAll('li')].map((step) => step.textContent?.trim())).toEqual([...V40_COPY.receive.journeySteps]);
+    expect([...journey!.querySelectorAll('li')].map((step) => step.querySelector('[data-step-description]')?.textContent?.trim())).toEqual([...V40_COPY.receive.journeySteps]);
     expect(journey?.querySelector('[aria-current], [aria-checked], [data-complete]')).toBeNull();
     expect(isBefore(journey!, buttonNamed(V40_COPY.receive.answerButton)!)).toBe(true);
   });
@@ -148,9 +148,13 @@ describe("ReceiverScreen", () => {
     expect(isBefore(buttonNamed(V40_COPY.autosave.turnOffButton)!, buttonNamed(V40_COPY.receive.answerButton)!)).toBe(true);
   });
 
-  it("번호, n/N, A/B 가 없고 숫자는 질문 수와 저장 기간뿐이다", async () => {
+  it("질문 수·저장 기간·절차 번호 외에 숫자와 A/B 보기 라벨을 넣지 않는다", async () => {
     await harness.render(<Host />);
-    expect(visibleLabelProblems(harness.container, allowedNumberPhrases())).toEqual([]);
+    const prose = harness.container.cloneNode(true);
+    if (!(prose instanceof HTMLElement)) throw new Error("검토할 문구가 없어요");
+    expect([...prose.querySelectorAll('[data-step-number]')].map((number) => number.textContent)).toEqual(["1", "2", "3"]);
+    prose.querySelectorAll('[data-share-journey] [data-step-number]').forEach((number) => number.remove());
+    expect(visibleLabelProblems(prose, allowedNumberPhrases())).toEqual([]);
   });
 
   it("줄표가 없다(주장으로 쓰지 않는 말은 startFlowScreens.hygiene.test.tsx 가 화면 전체에서 본다)", async () => {

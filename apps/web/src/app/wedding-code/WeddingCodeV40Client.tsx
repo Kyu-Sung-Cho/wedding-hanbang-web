@@ -119,7 +119,7 @@ type StorageOps = Pick<typeof v40Storage,
   "readProgress" | "writeAutosavePreference" | "writeProgress">;
 
 export interface WeddingCodeEdition {
-  readonly version: typeof WEDDING_CODE_V40_VERSION | "v4.1-depth" | "v4.2-depth";
+  readonly version: typeof WEDDING_CODE_V40_VERSION | "v4.1-depth" | "v4.2-depth" | "v4.3-depth";
   readonly bank: Bank;
   readonly storage: StorageOps;
   readonly buildGatedShareUrlWithGuess: typeof buildGatedShareUrlWithGuess;
@@ -221,7 +221,7 @@ function isResultView(state: FlowState): boolean {
  */
 function clearAddressTail(opened: LinkOpenedKind | null, version: WeddingCodeEdition["version"]): void {
   try {
-    window.history.replaceState(linkOpenedState(window.history.state, opened), "", `${window.location.pathname}${weddingCodeRestartSearch(version === WEDDING_CODE_V40_VERSION ? "v40" : version === "v4.1-depth" ? "v41" : "v42")}`);
+    window.history.replaceState(linkOpenedState(window.history.state, opened), "", `${window.location.pathname}${weddingCodeRestartSearch(version === WEDDING_CODE_V40_VERSION ? "v40" : version === "v4.1-depth" ? "v41" : version === "v4.3-depth" ? "v43" : "v42")}`);
   } catch {
     // 주소를 못 바꾸는 환경이면 그대로 둔다.
   }
@@ -1095,7 +1095,7 @@ export function WeddingCodeV40Core({ shareOrigin, initial, resolved, embedded = 
       <ScreenSection focusKey="couple" embedded={embedded}>
         <CoupleResult
           result={coupleResult}
-          reportSource={version === "v4.2-depth" ? { bank, first: context.both.first, second: context.both.second } : undefined}
+          reportSource={version === "v4.2-depth" || version === "v4.3-depth" ? { bank, first: context.both.first, second: context.both.second } : undefined}
           detectedPerspective={boot.detected}
           onStartOwn={handleStartOwn}
           embedded={embedded}
@@ -1242,7 +1242,7 @@ export function WeddingCodeV40Core({ shareOrigin, initial, resolved, embedded = 
       <ScreenSection focusKey="couple" embedded={embedded}>
         <CoupleResult
           result={coupleResult}
-          reportSource={version === "v4.2-depth" && ownDecoded !== null ? { bank, first: partner, second: ownDecoded } : undefined}
+          reportSource={(version === "v4.2-depth" || version === "v4.3-depth") && ownDecoded !== null ? { bank, first: partner, second: ownDecoded } : undefined}
           detectedPerspective={null}
           initialPerspective="second"
           embedded={embedded}

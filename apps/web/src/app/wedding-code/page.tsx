@@ -6,6 +6,7 @@ import { WEDDING_CODE_V31_VERSION } from "@/constants/weddingCodeV31";
 import { WEDDING_CODE_V40_VERSION } from "@/constants/weddingCodeV40";
 import { WEDDING_CODE_V41_VERSION } from "@/constants/weddingCodeV41";
 import { WEDDING_CODE_V42_VERSION } from "@/constants/weddingCodeV42";
+import { WEDDING_CODE_V43_VERSION } from "@/constants/weddingCodeV43";
 import {
   isWeddingCodeResearchContributionOpen,
   isWeddingCodeResearchStorageActive,
@@ -62,8 +63,9 @@ export async function generateMetadata({ searchParams }: WeddingCodePageProps): 
   const bare = search.v === undefined && !carriesAnswers;
   const isV41 = search.v === WEDDING_CODE_V41_VERSION || (bare && WEDDING_CODE_DEFAULT_VERSION === WEDDING_CODE_V41_VERSION);
   const isV42 = search.v === WEDDING_CODE_V42_VERSION || (bare && WEDDING_CODE_DEFAULT_VERSION === WEDDING_CODE_V42_VERSION);
+  const isV43 = search.v === WEDDING_CODE_V43_VERSION || (bare && WEDDING_CODE_DEFAULT_VERSION === WEDDING_CODE_V43_VERSION);
   const isV40 = search.v === WEDDING_CODE_V40_VERSION || (bare && defaultsToV40);
-  const isNew = isV40 || isV41 || isV42;
+  const isNew = isV40 || isV41 || isV42 || isV43;
   const isPreferences = !isNew && (search.v === WEDDING_CODE_V31_VERSION || search.v === WEDDING_CODE_V30_VERSION || (bare && WEDDING_CODE_DEFAULT_VERSION === WEDDING_CODE_V31_VERSION));
   const isV20 = search.v === WEDDING_CODE_V20_VERSION;
   const title = isNew ? `${V40_COPY.intro.title} | 웨딩코드 · 웨딩한방`

@@ -1927,7 +1927,10 @@ test("규칙 4: v4 는 v3.1 모듈(과 옛 판 모듈)을 가져오지 않는다
     for (const hit of importHits(analysis, patterns)) {
       // 공통 결과 화면은 새판 원문에 맞는 설명을 고를 때 판 상수 하나만 읽는다.
       const editionConstantOnly = file.group === "components" && file.base === "ResultEditionContext.tsx"
-        && analysis.text.split("\n")[hit.line - 1]?.trim() === 'import { WEDDING_CODE_V42_VERSION } from "@/constants/weddingCodeV42";';
+        && [
+          'import { WEDDING_CODE_V42_VERSION } from "@/constants/weddingCodeV42";',
+          'import { WEDDING_CODE_V43_VERSION } from "@/constants/weddingCodeV43";',
+        ].includes(analysis.text.split("\n")[hit.line - 1]?.trim());
       if (editionConstantOnly) continue;
       offenders.push(`${file.rel}:${hit.line} ${hit.what}`);
     }
@@ -2021,7 +2024,7 @@ test("규칙 6: 이용 통계 호출은 고지한 이벤트와 속성만 쓴다"
   if (calls === 0) t.diagnostic("(v4 소스에 통계 호출이 아직 없다)");
 });
 
-test("규칙 7: 질문·대화 진행 번호만 표시하고 선택지의 A/B, 가나다, 번호 라벨은 없다", (t) => {
+test("규칙 7: 질문·대화·공유 절차 번호만 표시하고 선택지의 A/B, 가나다, 번호 라벨은 없다", (t) => {
   const uiFiles = V40_FILES.filter((f) => f.group === "components" || f.group === "app");
   if (uiFiles.length === 0 && V40_FILES.length === 0) return t.skip("v4 소스가 없다");
   const offenders = [];
@@ -2042,9 +2045,18 @@ test("규칙 7: 질문·대화 진행 번호만 표시하고 선택지의 A/B, �
       && analysis.text.includes('data-current-scene="" aria-live="polite">현재 장면 {activeTalkIndex + 1} / {conversationItems.length}');
     const conversationAt = conversationProgress ? analysis.text.indexOf('data-current-scene="" aria-live="polite">현재 장면 {activeTalkIndex + 1} / {conversationItems.length}') : -1;
     const conversationLine = conversationAt < 0 ? -1 : analysis.text.slice(0, conversationAt).split("\n").length;
+    const journeyNumbering = file.group === "components" && file.base === "ShareJourney.tsx"
+      && analysis.text.includes('<span data-step-number="" aria-hidden="true"')
+      && analysis.text.includes('{index + 1}</span>');
+    const journeyAt = journeyNumbering ? analysis.text.indexOf('<span data-step-number="" aria-hidden="true"') : -1;
+    const journeyLine = journeyAt < 0 ? -1 : analysis.text.slice(0, journeyAt).split("\n").length;
+    const journeyListAt = journeyNumbering ? analysis.text.indexOf('<ol role="list" className="mt-3 grid grid-cols-3') : -1;
+    const journeyListLine = journeyListAt < 0 ? -1 : analysis.text.slice(0, journeyListAt).split("\n").length;
     for (const hit of numberingHits(analysis)) {
       if (hit.line === badgeLine && (hit.what === "{값}/{값}(n/N 진행 표시)" || hit.what === "인덱스처럼 보이는 값 questionNumber 을 그대로 그림")) continue;
       if (hit.line === conversationLine && (hit.what === "{값}/{값}(n/N 진행 표시)" || hit.what === "식 + 숫자를 그대로 그림(번호 매기기 모양)")) continue;
+      if (hit.line === journeyLine && hit.what === "식 + 숫자를 그대로 그림(번호 매기기 모양)") continue;
+      if (hit.line === journeyListLine && hit.what === "<ol> 은 브라우저가 번호를 매긴다") continue;
       offenders.push(`${file.rel}:${hit.line} [계산한 번호: ${hit.what}]`);
     }
   }
@@ -2066,7 +2078,7 @@ test("규칙 7: 질문·대화 진행 번호만 표시하고 선택지의 A/B, �
     }
     for (const caption of bankCaptionsOfJson(data)) for (const hit of captionHits(caption)) offenders.push(`${rel(PATHS.bankJson)} ${caption.where} [${hit}] ${caption.text}`);
   }
-  assertNone(offenders, "ItemFrame 질문 번호·CoupleResult 대화 진행 번호 외에 선택지 번호, A/B 라벨이 보인다. 이 검사는 부분 검사이고 화면 검사도 필요하다:");
+  assertNone(offenders, "ItemFrame 질문 번호·CoupleResult 대화 진행 번호·ShareJourney 절차 번호 외에 선택지 번호, A/B 라벨이 보인다. 이 검사는 부분 검사이고 화면 검사도 필요하다:");
   if (uiFiles.length === 0) t.diagnostic("(화면 컴포넌트가 아직 없다. 생기면 자동으로 훑는다)");
 });
 

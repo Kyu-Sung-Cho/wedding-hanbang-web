@@ -1,6 +1,6 @@
 "use client";
 
-import { useId, useState, type ReactNode } from "react";
+import { useId, useMemo, useState, type ReactNode } from "react";
 import Button from "@/components/ui/Button";
 import { FEATURE_SUMMARY_CLASS, SUMMARY_LABEL_CLASS } from "@/components/ui/featureSummaryStyles";
 import { V40_STRENGTH, axisInfo } from "@/constants/weddingCodeV40";
@@ -15,10 +15,11 @@ import { SectionHeading } from "./ShareBlock";
 import { bodyText, buttonFocusFix, cx, noteText } from "./styles";
 import { TwoPersonSendBlock } from "./TwoPersonSendBlock";
 import { LetterDefinition } from "./LetterDefinition";
-import { useWeddingCodeResultMetadata } from "./ResultEditionContext";
+import { useWeddingCodeResultMetadata, useWeddingCodeResultVersion } from "./ResultEditionContext";
 import { AnswerDistribution } from "./AnswerEvidence";
+import { AxisReadingReason } from "./AxisReadingReason";
 import { CouplePreparationReport } from "./CouplePreparationSection";
-import type { CoupleReportSource } from "./couplePreparationReport";
+import { buildVerifiedCoupleIndividualResults, type CoupleReportSource } from "./couplePreparationReport";
 
 /**
  * 라운지 안(embedded)에서 쓰일 때 화면 맨 아래에 남기는 여백. 앱 셸의 하단 탭 막대(모바일에서만 보이고 아래에 고정)가
@@ -44,7 +45,7 @@ export interface CoupleSendConfig {
 export interface CoupleResultProps {
   /** 코어의 compareCouple 결과. 이 화면은 이 값을 합치거나 점수로 바꾸지 않는다. */
   readonly result: CoupleResultData;
-  /** 실제 두 사람 결과에서만 받은 원응답. 주제별 선택 장면을 검증해 읽는 데 쓴다. */
+  /** 실제 두 사람 결과에서 받은 원응답. 선택 장면과 각자의 개인 판정 이유를 검증해 읽는다. */
   readonly reportSource?: CoupleReportSource;
   /**
    * 이 기기에 저장된 본인 답이 링크의 a(first)나 b(second)와 같다고 부모가 알려 준 값(코어의 detectPerspective).
@@ -203,6 +204,8 @@ export function CoupleResult({
   const [talkStep, setTalkStep] = useState(0);
   const perspective: Perspective | null = chosen ?? detectedPerspective;
   const flags = noteFlags(result.axes);
+  const version = useWeddingCodeResultVersion();
+  const individualResults = useMemo(() => buildVerifiedCoupleIndividualResults(result, reportSource, version), [result, reportSource, version]);
   const conversationItems = result.talk.length > 0 ? result.talk : result.similar;
   const usingSimilar = result.talk.length === 0 && result.similar.length > 0;
   const activeTalkIndex = Math.min(talkStep, Math.max(0, conversationItems.length - 1));
@@ -218,6 +221,7 @@ export function CoupleResult({
       provisional: row[person].provisional,
       counts: row[person],
       excluded: row.excluded,
+      reasonAxis: individualResults?.[person].axes.find((axis) => axis.axis === row.axis) ?? null,
     }));
     return { person, code, meanings, nickname: provisional || allExcluded ? null : nicknameForCode(code) };
   });
@@ -272,6 +276,7 @@ export function CoupleResult({
         <p className={cx(SUMMARY_LABEL_CLASS, "mb-4")}>각자의 준비 방식부터 읽어 볼까요?</p>
         <p className={cx(noteText, "mb-5")}>{V40_COPY.result.letterReadingNote}</p>
         <div className={cx(noteText, "mb-5 space-y-1")}><p>{V40_COPY.evidence.summaryNote}</p><p>{V40_COPY.evidence.precisionNote}</p></div>
+        {individualResults === null ? <p data-couple-reasons-unavailable="" className={cx(noteText, "mb-5")}>각자의 원응답을 확인하지 못해 글자가 나온 계산 이유는 표시하지 않았어요.</p> : null}
         <div className="mb-5 flex flex-wrap gap-2">
         <Button variant="primary" size="sm" onClick={jumpToReport} className={buttonFocusFix}>
           우리 둘의 준비 리포트 보기
@@ -286,12 +291,13 @@ export function CoupleResult({
               <p className={SUMMARY_LABEL_CLASS}>{V40_COPY.couple.perspective.meLabel === personName(perspective, person) ? "내 웨딩코드" : `${personName(perspective, person)}의 웨딩코드`}</p>
               <p className="mt-5 break-all text-[clamp(3rem,8vw,5rem)] font-semibold leading-none tracking-wide text-[var(--hb-text-strong)]">{code}</p>
               <ul className="mt-7 grid gap-x-5 gap-y-0 text-sm text-[var(--hb-text-body)] min-[480px]:grid-cols-2" aria-label={`${personName(perspective, person)}의 글자 뜻`}>
-                {meanings.map(({ axis, letter, band, provisional, counts, excluded }) => (
+                {meanings.map(({ axis, letter, band, provisional, counts, excluded, reasonAxis }) => (
                   <li key={axis} className="min-w-0 break-keep border-t border-[var(--hb-summary-line)] py-3">
                     <span className="mb-1 block text-xs text-[var(--hb-summary-label)]">{axisInfo(axis).topic}</span>
                     {letter === null ? <p className="font-semibold text-[var(--hb-text-strong)]">{V40_COPY.legend.notSetLabel}</p> : <LetterDefinition letter={letter} />}
                     {letter !== null && band !== null ? <span className="mt-2 block text-xs text-[var(--hb-text-muted)]">{V40_STRENGTH[band].label}{provisional ? " · 임시" : ""}</span> : null}
                     <AnswerDistribution axis={axis} counts={counts} compact />
+                    {reasonAxis ? <AxisReadingReason axis={reasonAxis} /> : null}
                     {excluded ? <p className={cx(noteText, "mt-3")}>{V40_COPY.evidence.excludedComparisonNote}</p> : null}
                   </li>
                 ))}

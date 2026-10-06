@@ -2,12 +2,13 @@ import { axisInfo, type Axis } from "@/constants/weddingCodeV40";
 import { encodeCode } from "@/lib/weddingCode/v40/codec";
 import { compareCouple } from "@/lib/weddingCode/v40/couple";
 import { answerText } from "@/lib/weddingCode/v40/present";
+import { buildResult } from "@/lib/weddingCode/v40/score";
 import { splitCountsOf, stateIndex } from "@/lib/weddingCode/v40/states";
 import { itemValue } from "@/lib/weddingCode/v40/value";
-import type { Bank, CoupleAxisRow, CoupleItemPair, CoupleResult, DecodedCode, Perspective, ScoredItem } from "@/lib/weddingCode/v40/types";
+import type { Bank, CoupleAxisRow, CoupleItemPair, CoupleResult, DecodedCode, Perspective, ScoredItem, V40Result } from "@/lib/weddingCode/v40/types";
 
-/** 공용 v40 화면 폴더는 새 판 모듈을 가져오지 않는다. source는 현재 승인된 v4.2 원문만 받는다. */
-const REPORT_SOURCE_VERSION: Bank["version"] = "v4.2-depth";
+/** 공용 v40 화면 폴더는 새 판 모듈을 가져오지 않는다. 원응답 판은 화면의 판과도 일치해야 한다. */
+const REPORT_SOURCE_VERSIONS = ["v4.2-depth", "v4.3-depth"] as readonly string[];
 
 export interface CoupleReportSource {
   readonly bank: Bank;
@@ -133,15 +134,28 @@ function countsOf(side: CoupleAxisRow["first"]): CoupleReportCounts {
   };
 }
 
-function sourceIsVerified(result: CoupleResult, source: CoupleReportSource): boolean {
+function sourceIsVerified(result: CoupleResult, source: CoupleReportSource, expectedVersion: string): boolean {
   try {
     // bank는 같은 실행 흐름의 신뢰된 부모가 넘긴다. 객체 동일성에 기대지 않고 판·응답 완전성·결과 재계산을 대조한다.
-    if (source.bank.version !== REPORT_SOURCE_VERSION || source.bank.items.length !== 68) return false;
+    if (source.bank.version !== expectedVersion || !REPORT_SOURCE_VERSIONS.includes(source.bank.version) || source.bank.items.length !== 68) return false;
     if (encodeCode(source.bank, source.first.formBit, source.first.responses) === null) return false;
     if (encodeCode(source.bank, source.second.formBit, source.second.responses) === null) return false;
     return JSON.stringify(compareCouple(source.bank, source.first, source.second)) === JSON.stringify(result);
   } catch {
     return false;
+  }
+}
+
+/** 전달된 두 사람 결과와 원응답이 일치할 때만 기존 개인 판정 이유를 다시 읽는다. */
+export function buildVerifiedCoupleIndividualResults(result: CoupleResult, source?: CoupleReportSource, expectedVersion = "v4.2-depth"): Readonly<Record<Perspective, V40Result>> | null {
+  if (source === undefined || !sourceIsVerified(result, source, expectedVersion)) return null;
+  try {
+    return {
+      first: buildResult(source.bank, source.first.formBit, source.first.responses),
+      second: buildResult(source.bank, source.second.formBit, source.second.responses),
+    };
+  } catch {
+    return null;
   }
 }
 
@@ -298,8 +312,8 @@ function rowFor(row: CoupleAxisRow, result: CoupleResult, sourceStatus: CouplePr
 }
 
 /** 현재 응답과 실제 원문에 한정한 네 주제 준비 제안. 점수·궁합·확정 담당을 만들지 않는다. */
-export function buildCouplePreparationReport(result: CoupleResult, source?: CoupleReportSource): CouplePreparationReport {
-  const sourceStatus: CouplePreparationReport["sourceStatus"] = source === undefined ? "absent" : sourceIsVerified(result, source) ? "verified" : "rejected";
+export function buildCouplePreparationReport(result: CoupleResult, source?: CoupleReportSource, expectedVersion = "v4.2-depth"): CouplePreparationReport {
+  const sourceStatus: CouplePreparationReport["sourceStatus"] = source === undefined ? "absent" : sourceIsVerified(result, source, expectedVersion) ? "verified" : "rejected";
   const rows: CouplePreparationReport["rows"] = [
     rowFor(result.axes[0], result, sourceStatus, source),
     rowFor(result.axes[1], result, sourceStatus, source),

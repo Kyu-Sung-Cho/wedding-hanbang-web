@@ -10,6 +10,11 @@ import { encodeCode } from "@/lib/weddingCode/v42/codec";
 import { V42_STORAGE, writeProgress } from "@/lib/weddingCode/v42/storage";
 import { V40_COPY } from "@/lib/weddingCode/v40/copy";
 import WeddingCodeV42Client from "./WeddingCodeV42Client";
+import { WEDDING_CODE_V43_BANK } from "@/lib/weddingCode/v43/bank";
+import { WEDDING_CODE_V43_VERSION } from "@/constants/weddingCodeV43";
+import * as v43Storage from "@/lib/weddingCode/v43/storage";
+import { encodeCode as encodeV43Code } from "@/lib/weddingCode/v43/codec";
+import CandidateV43Client from "./WeddingCodeV43Client";
 
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -112,5 +117,70 @@ describe("v4.2 클라이언트 실제 질문 경로", () => {
     await click(previous);
     expect(harness.container.querySelector('[data-screen="self-intro"]')?.textContent).toContain(V42_SELF_INTRO_DETAIL);
     expect(harness.container.querySelector('[data-screen="self-intro"]')?.textContent).toContain("앞선 계산 기준으로도 글자가 갈리지 않을 때만");
+  });
+});
+
+describe("v4.3 클라이언트는 v4.2 진행과 새 문항 인용을 섞지 않는다", () => {
+  let harness: Harness | null = null;
+  beforeEach(() => {
+    window.history.replaceState(null, "", `/wedding-code?v=${WEDDING_CODE_V43_VERSION}`);
+    window.localStorage.clear();
+  });
+  afterEach(async () => {
+    await harness?.unmount();
+    harness = null;
+    window.localStorage.clear();
+  });
+
+  it("v4.2 진행만 있으면 새 질문을 시작하고, v4.3 진행을 불러올 때는 수정된 원문만 보인다", async () => {
+    const sample = V40_FIXTURES[0];
+    const previous = { formBit: sample.formBit, responses: {}, screen: "questions" as const, cursor: 0, skippedReviewDone: false };
+    expect(writeProgress(window.localStorage, WEDDING_CODE_V42_BANK, previous, null, Date.now()).status).toBe("saved");
+    const previousRaw = window.localStorage.getItem(V42_STORAGE.progressKey);
+    harness = createHarness();
+    await harness.render(<CandidateV43Client shareOrigin="https://hanbang.ai" initial={{ partner: null, both: null }} resolved />);
+    expect(harness.container.querySelector('[data-section-card="resume"]')).toBeNull();
+    expect(harness.container.querySelector(`[data-wedding-code-version="${WEDDING_CODE_V43_VERSION}"]`)).not.toBeNull();
+    await harness.unmount();
+    harness = null;
+
+    const id = "process.detail.1";
+    const index = WEDDING_CODE_V43_BANK.codeIndexById.get(id);
+    if (index === undefined) throw new Error("v4.3 item missing");
+    const responses = Object.fromEntries(WEDDING_CODE_V43_BANK.items.slice(0, index).map((item) => [item.id, sample.responses[item.id]]));
+    expect(v43Storage.writeProgress(window.localStorage, WEDDING_CODE_V43_BANK, { ...previous, responses, cursor: index }, null, Date.now()).status).toBe("saved");
+    harness = createHarness();
+    await harness.render(<CandidateV43Client shareOrigin="https://hanbang.ai" initial={{ partner: null, both: null }} resolved />);
+    await click([...harness.container.querySelectorAll("button")].find((button) => button.textContent === "이어서 하기"));
+    const question = harness.container.querySelector(`[data-item="${id}"]`);
+    expect(question).not.toBeNull();
+    expect(question?.textContent).toContain(WEDDING_CODE_V43_BANK.byId.get(id)?.stem);
+    expect(question?.textContent).not.toContain(WEDDING_CODE_V42_BANK.byId.get(id)?.stem);
+    expect(window.localStorage.getItem(V42_STORAGE.progressKey)).toBe(previousRaw);
+  });
+
+  it("받은 비교 화면은 v4.3 입구를 남기며 어느 판에도 링크 속 답을 저장하지 않는다", async () => {
+    const first = V40_FIXTURES.find((sample) => sample.name === "swua-example")!;
+    const second = V40_FIXTURES.find((sample) => sample.name === "couple-partner")!;
+    const a = encodeV43Code(WEDDING_CODE_V43_BANK, first.formBit, first.responses);
+    const b = encodeV43Code(WEDDING_CODE_V43_BANK, second.formBit, second.responses);
+    if (!a || !b) throw new Error("v4.3 fixture code missing");
+    window.history.replaceState(null, "", `/wedding-code#v=${WEDDING_CODE_V43_VERSION}&a=${a}&b=${b}`);
+    harness = createHarness();
+    await harness.render(<CandidateV43Client shareOrigin="https://hanbang.ai" initial={{ partner: null, both: { first: { formBit: first.formBit, responses: first.responses }, second: { formBit: second.formBit, responses: second.responses } } }} resolved />);
+    expect(window.location.hash).toBe("");
+    expect(window.location.search).toBe(`?v=${WEDDING_CODE_V43_VERSION}`);
+    expect(harness.container.querySelector('[data-couple-codes]')).not.toBeNull();
+    const report = harness.container.querySelector('[data-couple-preparation]');
+    expect(report).not.toBeNull();
+    for (const axis of V40_AXIS_KEYS) {
+      await click([...report!.querySelectorAll("button")].find((button) => button.textContent === axisInfo(axis).title));
+      const scene = report!.querySelector('[data-preparation-scene]');
+      expect(scene).not.toBeNull();
+      expect(scene?.textContent).toContain(WEDDING_CODE_V43_BANK.byId.get(scene!.getAttribute("data-preparation-scene")!)?.stem);
+    }
+    for (const key of [V42_STORAGE.progressKey, V42_STORAGE.historyKey, v43Storage.V43_STORAGE.progressKey, v43Storage.V43_STORAGE.historyKey]) {
+      expect(window.localStorage.getItem(key)).toBeNull();
+    }
   });
 });

@@ -115,7 +115,7 @@ describe("privacy notice for WeddingCode research contributions", () => {
 const DAY_MS = 24 * 60 * 60 * 1000;
 /** 문단이 「최근 세 번」처럼 쓰는 우리말 수 낱말. V40_STORAGE.historyMax 로 찾는다. */
 const COUNT_WORDS = ["영", "한", "두", "세", "네", "다섯"] as const;
-const V4_LABEL = "웨딩코드(v4.0-tendency·v4.1-depth·v4.2-depth) 이어하기·링크 보내기:";
+const V4_LABEL = "웨딩코드(v4.0-tendency·v4.1-depth·v4.2-depth·v4.3-depth) 이어하기·링크 보내기:";
 const V4_CLOSING = "지워 주세요.";
 
 function v4Paragraph(text: string): string {
@@ -178,7 +178,7 @@ describe("privacy notice for the WeddingCode v4.0-tendency paragraph", () => {
     expect(notice).toContain(`‘${V40_COPY.manage.clear.button}’는 저장된 답과 지난번 비교 기록을 함께 지우고`);
     expect(notice).toContain(`‘${V40_COPY.manage.restart.button}’는 저장된 답을 지우되 지난번 비교 기록은 남깁니다`);
     expect(notice).toContain("각 문항판의 답과 기록은 판별로 나누어 보관하며 서로 옮기거나 합쳐 비교하지 않습니다");
-    expect(notice).toContain("v4.0에서 끄면 이전 판(v3.1)의 저장된 답도 지우며, v4.1과 v4.2에서는 다른 문항판의 답·기록을 읽거나 지우지 않습니다");
+    expect(notice).toContain("v4.0에서 끄면 이전 판(v3.1)의 저장된 답도 지우며, v4.1·v4.2·v4.3에서는 다른 문항판의 답·기록을 읽거나 지우지 않습니다");
     expect(notice).toContain("공용 기기에서는 같은 브라우저를 쓰는 사람이 답을 볼 수 있으므로 자동저장을 끄거나 저장된 답을 지워 주세요");
 
     // 방침이 지우거나 남긴다고 말한 것은 화면이 사용자에게 말하는 것과 같아야 한다.
@@ -284,13 +284,13 @@ describe("privacy notice for the WeddingCode v4.0-tendency paragraph", () => {
     expect(notice.indexOf("지워 주세요.")).toBe(notice.length - "지워 주세요.".length);
 
     // 기존 문장은 한 글자도 바뀌지 않았다(이 단계는 끼우기만 한다).
-    expect(notice).toContain("‘링크 보내기’에서 ‘내 답과 함께 보내기’를 고른 경우");
+    expect(notice).toContain("‘파트너 초대 링크 보내기’에서 ‘파트너와 비교하기’를 고른 경우");
     expect(notice).toContain("이용 통계는 위 ‘로그인 없이 이용하는 공개 웨딩코드’에 적은 항목만 기록하며 이 판에서 새 항목을 더하지 않고, 고른 답·글자·세기·링크 주소는 통계에 넣지 않습니다");
   });
 
   it.each(["", SECRET])("4.1 단계 2: 방침이 말하는 것을 화면도 같은 말로 한다 (%#)", () => {
     // 방침이 「링크에 담긴다」 「이 브라우저에 저장하지 않는다」고 말한 기능이 화면 문구에 실제로 있다(없으면 방침이 없는 기능을 설명한다).
-    expect(V40_GUESS_COPY.entry.body, "진입 카드가 짐작이 링크에 들어간다고 말하지 않는다").toMatch(/내 답과 함께 보내기[^.]*링크에 들어가요/);
+    expect(V40_GUESS_COPY.entry.body, "진입 카드가 짐작이 링크에 들어간다고 말하지 않는다").toMatch(/파트너와 비교하기[^.]*링크에 들어가요/);
     expect(V40_GUESS_COPY.entry.body, "진입 카드가 저장하지 않는다고 말하지 않는다").toMatch(/이 브라우저에는 저장하지 않아요/);
     expect(V40_GUESS_COPY.shareInfo, "보내기 직전 안내가 링크에 짐작이 들어간다고 말하지 않는다").toMatch(/링크에 들어가요/);
     expect(V40_LETTER_GUESS_COPY.screen.storageOn, "글자 고르기 화면이 이 브라우저에만 남는다고 말하지 않는다").toMatch(/이 브라우저에만 남아요/);

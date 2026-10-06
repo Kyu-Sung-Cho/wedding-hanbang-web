@@ -7,6 +7,7 @@ import Button from "@/components/ui/Button";
 import { WEDDING_CODE_V40_VERSION } from "@/constants/weddingCodeV40";
 import { WEDDING_CODE_V41_VERSION } from "@/constants/weddingCodeV41";
 import { WEDDING_CODE_V42_VERSION } from "@/constants/weddingCodeV42";
+import { WEDDING_CODE_V43_VERSION } from "@/constants/weddingCodeV43";
 import { V40_ENTRY_COPY } from "@/lib/weddingCode/v40/entryCopy";
 import type { WeddingCodeV40ClientProps } from "@/lib/weddingCode/v40/types";
 
@@ -58,6 +59,10 @@ const LazyWeddingCodeV42Client = dynamic<WeddingCodeV40ClientProps>(() => import
   loading: () => <div role="status" className="mx-auto flex min-h-[60vh] w-full max-w-[680px] items-center justify-center px-5 text-sm text-[var(--hb-text-body)]">{V40_ENTRY_COPY.loadingLabel}</div>,
 });
 const WeddingCodeV42Client = memo(LazyWeddingCodeV42Client);
+const LazyWeddingCodeV43Client = dynamic<WeddingCodeV40ClientProps>(() => import("./WeddingCodeV43Client"), {
+  loading: () => <div role="status" className="mx-auto flex min-h-[60vh] w-full max-w-[680px] items-center justify-center px-5 text-sm text-[var(--hb-text-body)]">{V40_ENTRY_COPY.loadingLabel}</div>,
+});
+const WeddingCodeV43Client = memo(LazyWeddingCodeV43Client);
 
 /**
  * 주소의 # 뒤를 읽는 저장소. useSyncExternalStore 의 바깥 저장소로 쓴다.
@@ -96,7 +101,7 @@ function createLocationHashStore() {
       if (live === "") return held ?? "";
       // 판 이름이 퍼센트 인코딩돼 있어도 파서가 같은 판으로 읽으면 주소를 지운 뒤 붙잡는다.
       const parsed = parseWeddingCodeEntryHash(live);
-      held = parsed?.kind === "v40" || parsed?.kind === "v41" || parsed?.kind === "v42" || (parsed?.kind === "error" && parsed.version !== undefined) ? live : null;
+      held = parsed?.kind === "v40" || parsed?.kind === "v41" || parsed?.kind === "v42" || parsed?.kind === "v43" || (parsed?.kind === "error" && parsed.version !== undefined) ? live : null;
       return live;
     },
     /** 붙잡고 있던 링크를 놓고 다시 읽게 한다(다시 시작). */
@@ -109,7 +114,7 @@ function createLocationHashStore() {
 
 const getServerHash = (): string | null => null;
 
-function ErrorEntry({ onRestart, embedded, version }: { onRestart: () => void; embedded: boolean; version?: typeof WEDDING_CODE_V40_VERSION | typeof WEDDING_CODE_V41_VERSION | typeof WEDDING_CODE_V42_VERSION }) {
+function ErrorEntry({ onRestart, embedded, version }: { onRestart: () => void; embedded: boolean; version?: typeof WEDDING_CODE_V40_VERSION | typeof WEDDING_CODE_V41_VERSION | typeof WEDDING_CODE_V42_VERSION | typeof WEDDING_CODE_V43_VERSION }) {
   const v40 = version !== undefined;
   const Root = embedded ? "div" : "main";
   const broken = V40_ENTRY_COPY.brokenLink;
@@ -226,9 +231,14 @@ export default function WeddingCodeEntryClient({
   const restartV40 = useCallback((message?: string) => restart(message, "v40"), [restart]);
   const restartV41 = useCallback((message?: string) => restart(message, "v41"), [restart]);
   const restartV42 = useCallback((message?: string) => restart(message, "v42"), [restart]);
+  const restartV43 = useCallback((message?: string) => restart(message, "v43"), [restart]);
 
   if (entry.kind === "error") {
-    return <ErrorEntry onRestart={entry.version === WEDDING_CODE_V42_VERSION ? restartV42 : entry.version === WEDDING_CODE_V41_VERSION ? restartV41 : entry.version ? restartV40 : restartDefault} embedded={embedded} version={entry.version} />;
+    return <ErrorEntry onRestart={entry.version === WEDDING_CODE_V43_VERSION ? restartV43 : entry.version === WEDDING_CODE_V42_VERSION ? restartV42 : entry.version === WEDDING_CODE_V41_VERSION ? restartV41 : entry.version ? restartV40 : restartDefault} embedded={embedded} version={entry.version} />;
+  }
+  if (entry.kind === "v43") {
+    const received = entry.initial.partner !== null || entry.initial.both !== null;
+    return <WeddingCodeV43Client key={`v43:${weddingCodeEntryKey(entry)}:${restartRevision}`} shareOrigin={shareOrigin} initial={entry.initial} resolved embedded={embedded} onRestart={restartV43} initialNotice={received ? "" : restartNotice} />;
   }
   if (entry.kind === "v42") {
     const received = entry.initial.partner !== null || entry.initial.both !== null;

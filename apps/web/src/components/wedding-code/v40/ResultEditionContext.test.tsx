@@ -27,9 +27,9 @@ describe("문항판에 따른 결과 근거의 범위", () => {
     expect(textOf(harness.container)).not.toContain("더 낼 만한 이유");
   });
 
-  it("v4.2는 같은 코드에도 새 문항의 판단 근거와 예시를 적용한다", async () => {
+  it.each(["v4.2-depth", "v4.3-depth"])("%s는 새 문항의 판단 근거와 예시를 적용한다", async (version) => {
     const { result, quotes } = resultCase("swua-example");
-    await harness.render(<WeddingCodeResultEditionProvider version="v4.2-depth"><AxisBlock axis={result.axes[0]} quotes={quotes[0]} onReview={vi.fn()} /></WeddingCodeResultEditionProvider>);
+    await harness.render(<WeddingCodeResultEditionProvider version={version}><AxisBlock axis={result.axes[0]} quotes={quotes[0]} onReview={vi.fn()} /></WeddingCodeResultEditionProvider>);
     expect(textOf(harness.container)).toContain("더 낼 만한 이유");
     expect(textOf(harness.container)).toContain("비교할 근거");
     expect(textOf(harness.container)).not.toContain("쓰는 곳");
@@ -39,8 +39,8 @@ describe("문항판에 따른 결과 근거의 범위", () => {
     expect(textOf(harness.container)).not.toContain("남는 돈은 사진이나 꽃");
   });
 
-  it("v4.2 장면 대화도 가족 의견을 모으는 순서와 지친 날의 첫 행동을 따른다", async () => {
-    await harness.render(<WeddingCodeResultEditionProvider version="v4.2-depth"><FacetTalkProbe /></WeddingCodeResultEditionProvider>);
+  it.each(["v4.2-depth", "v4.3-depth"])("%s 장면 대화는 가족 의견을 모으는 순서와 지친 날의 첫 행동을 따른다", async (version) => {
+    await harness.render(<WeddingCodeResultEditionProvider version={version}><FacetTalkProbe /></WeddingCodeResultEditionProvider>);
     expect(textOf(harness.container)).toContain("둘의 초안을 먼저 만들지, 가족 의견부터 모을지");
     expect(textOf(harness.container)).toContain("마음을 먼저 돌아볼지, 남은 일의 부담부터 덜지");
     expect(textOf(harness.container)).not.toContain("익숙한 방식");

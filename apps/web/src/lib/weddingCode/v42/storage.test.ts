@@ -5,6 +5,8 @@ import type { HistoryEntry, StorageLike } from "../v40/types";
 import { V41_STORAGE } from "../v41/storage";
 import { WEDDING_CODE_V42_BANK } from "./bank";
 import { V42_STORAGE, appendHistory, clearHistory, clearProgress, createExtraPort, readAutosavePreference, readHistory, readProgress, writeAutosavePreference, writeProgress } from "./storage";
+import { WEDDING_CODE_V43_BANK as candidateV43Bank } from "../v43/bank";
+import * as candidateV43Storage from "../v43/storage";
 
 class MemoryStorage implements StorageLike {
   data = new Map<string, string>();
@@ -100,5 +102,63 @@ describe("v4.2 저장 분리", () => {
     expect(readAutosavePreference(memory)).toBe("on");
     memory.setItem(V42_STORAGE.autosaveKey, "invalid-existing-preference");
     expect(readAutosavePreference(memory)).toBe("on");
+  });
+});
+
+describe("v4.3은 v4.2의 진행·기록·글자 예상을 읽거나 지우지 않는다", () => {
+  it("새 진행은 새 키·봉투에만 쓰고 v4.2의 실제 진행과 기록을 보존한다", () => {
+    const memory = new MemoryStorage();
+    const snapshot = { formBit: 0 as const, responses: {}, screen: "questions" as const, cursor: 0, skippedReviewDone: false };
+    expect(writeProgress(memory, WEDDING_CODE_V42_BANK, snapshot, null, 1000).status).toBe("saved");
+    const earlierResult: HistoryEntry = {
+      at: 1000, formBit: 0,
+      axes: [
+        { letter: "V", band: "lean", provisional: false },
+        { letter: "W", band: "lean", provisional: false },
+        { letter: "U", band: "lean", provisional: false },
+        { letter: "H", band: "lean", provisional: false },
+      ],
+    };
+    expect(appendHistory(memory, earlierResult, 1000).status).toBe("saved");
+    const previousHistoryRaw = memory.getItem(V42_STORAGE.historyKey);
+    memory.setItem(V42_STORAGE.letterGuessKey, "v42-letter-must-remain");
+    const previousRaw = memory.getItem(V42_STORAGE.progressKey);
+    expect(candidateV43Storage.readProgress(memory, candidateV43Bank, 1001).status).toBe("empty");
+    expect(candidateV43Storage.readHistory(memory, 1001).status).toBe("empty");
+    expect(candidateV43Storage.writeProgress(memory, candidateV43Bank, snapshot, null, 1001).status).toBe("saved");
+    expect(JSON.parse(memory.getItem("hanbang:wedding-code:v4.3:progress") ?? "null")?.version).toBe("v4.3-depth");
+    expect(candidateV43Storage.appendHistory(memory, earlierResult, 1001).status).toBe("saved");
+    expect(JSON.parse(memory.getItem("hanbang:wedding-code:v4.3:history") ?? "null")?.version).toBe("v4.3-depth");
+    const port = candidateV43Storage.createExtraPort(memory, "letterGuess", { honorAutosave: true });
+    expect(port.read()).toEqual({ ok: true, raw: null });
+    const engineEnvelope = JSON.stringify({ schema: 1, version: "v4.0-tendency", savedAt: 1000, formBit: 0, guess: "V---" });
+    expect(port.write(engineEnvelope)).toBe("saved");
+    expect(JSON.parse(memory.getItem("hanbang:wedding-code:v4.3:letter-guess") ?? "null")?.version).toBe("v4.3-depth");
+    expect(port.read()).toEqual({ ok: true, raw: engineEnvelope });
+    expect(port.remove()).toBe(true);
+    expect(candidateV43Storage.clearProgress(memory).status).toBe("cleared");
+    expect(candidateV43Storage.clearHistory(memory).status).toBe("cleared");
+    expect(memory.getItem(V42_STORAGE.progressKey)).toBe(previousRaw);
+    expect(memory.getItem(V42_STORAGE.historyKey)).toBe(previousHistoryRaw);
+    expect(memory.getItem(V42_STORAGE.letterGuessKey)).toBe("v42-letter-must-remain");
+  });
+
+  it("새 키에 복사된 v4.2 봉투도 새 문항의 답으로 읽지 않는다", () => {
+    const memory = new MemoryStorage();
+    const snapshot = { formBit: 0 as const, responses: {}, screen: "questions" as const, cursor: 0, skippedReviewDone: false };
+    expect(writeProgress(memory, WEDDING_CODE_V42_BANK, snapshot, null, 1000).status).toBe("saved");
+    memory.setItem("hanbang:wedding-code:v4.3:progress", memory.getItem(V42_STORAGE.progressKey)!);
+    memory.removeItem(V42_STORAGE.progressKey);
+    expect(candidateV43Storage.readProgress(memory, candidateV43Bank, 1001).status).toBe("invalid");
+  });
+
+  it("v4.2 자동 저장 끄기는 새 판 첫 선호에 반영하고 v4.3의 명시적 켜기를 덮지 않는다", () => {
+    const memory = new MemoryStorage();
+    memory.setItem(V42_STORAGE.autosaveKey, "off");
+    expect(candidateV43Storage.readAutosavePreference(memory)).toBe("off");
+    expect(candidateV43Storage.writeAutosavePreference(memory, "on").status).toBe("saved");
+    expect(memory.getItem("hanbang.wedding-code.v4.3.autosave")).toBe("on");
+    expect(memory.getItem(V42_STORAGE.autosaveKey)).toBe("off");
+    expect(candidateV43Storage.readAutosavePreference(memory)).toBe("on");
   });
 });

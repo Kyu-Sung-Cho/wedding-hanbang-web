@@ -10,6 +10,7 @@ import { WEDDING_CODE_V30_VERSION } from "@/constants/weddingCodeV30";
 import { WEDDING_CODE_V31_VERSION } from "@/constants/weddingCodeV31";
 import { WEDDING_CODE_V40_VERSION } from "@/constants/weddingCodeV40";
 import { WEDDING_CODE_V42_VERSION } from "@/constants/weddingCodeV42";
+import { WEDDING_CODE_V43_VERSION } from "@/constants/weddingCodeV43";
 import { WEDDING_CODE_V40_BANK } from "@/lib/weddingCode/v40/bank";
 import { encodeCode } from "@/lib/weddingCode/v40/codec";
 import { V40_COPY } from "@/lib/weddingCode/v40/copy";
@@ -28,7 +29,7 @@ const READABLE_CODE = (() => {
 const BANNED_IN_DESCRIPTION = /모든 성향|완벽|정확히|MBTI|16개 문장|32개 문장만/;
 const CLAIMS = /검증된|정확|과학|진단|점수|등급|궁합|유형|스타일|퍼센트|%/;
 
-describe("웨딩코드 진입 화면: v4.0-tendency 명시 진입(기본 판 v4.2)", () => {
+describe("웨딩코드 진입 화면: v4.0-tendency 명시 진입(기본 판 v4.3)", () => {
   it("v4 입구의 제목과 설명은 웨딩코드를 말하고 주장 낱말을 쓰지 않는다", async () => {
     const metadata = await generateMetadata({ searchParams: Promise.resolve({ v: V40 }) });
     expect(String(metadata.title)).toContain("웨딩코드");
@@ -91,11 +92,13 @@ describe("웨딩코드 진입 화면: v4.0-tendency 명시 진입(기본 판 v4.
     expect(noImages(scene)).toEqual([false, false]);
   });
 
-  it("맨 주소는 v4.2 이고 ?v=v4.0-tendency 는 기존 v4 입구를 넘긴다", async () => {
+  it("맨 주소는 v4.3 이고 명시 v4.2와 v4.0은 기존 입구를 넘긴다", async () => {
     const bare = await WeddingCodePage({ searchParams: Promise.resolve({}) });
-    expect(bare.props.initialEntry).toEqual({ kind: "v42", initial: { partner: null, both: null } });
-    const current = await WeddingCodePage({ searchParams: Promise.resolve({ v: WEDDING_CODE_V42_VERSION }) });
+    expect(bare.props.initialEntry).toEqual({ kind: "v43", initial: { partner: null, both: null } });
+    const current = await WeddingCodePage({ searchParams: Promise.resolve({ v: WEDDING_CODE_V43_VERSION }) });
     expect(current.props.initialEntry).toEqual(bare.props.initialEntry);
+    const previous = await WeddingCodePage({ searchParams: Promise.resolve({ v: WEDDING_CODE_V42_VERSION }) });
+    expect(previous.props.initialEntry).toEqual({ kind: "v42", initial: { partner: null, both: null } });
     const v4 = await WeddingCodePage({ searchParams: Promise.resolve({ v: V40 }) });
     expect(v4.props.initialEntry).toEqual({ kind: "v40", initial: { partner: null, both: null } });
     expect(v4.props.researchContributionOpen).toBe(bare.props.researchContributionOpen);

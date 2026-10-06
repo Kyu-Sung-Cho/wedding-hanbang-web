@@ -650,7 +650,7 @@ describe("서로 짐작하기: 보내는 사람의 결과 카드", () => {
     // 「질문만 보내기」를 고르면 짐작이 든다는 줄이 사라지고 링크에도 들어가지 않는다.
     await click(withGuess.container.querySelectorAll<HTMLInputElement>('input[type="radio"]')[1]);
     expect(withGuess.container.querySelector("[data-send-guess-note]")).toBeNull();
-    await pressText(withGuess.container, V40_COPY.send.sendButton);
+    await pressText(withGuess.container, V40_COPY.send.questionsOnlyButton);
     await settle(0);
     expect(urlsOf(second)).toEqual([buildQuestionOnlyUrl(ORIGIN, { explicitVersion: true })]);
     expect(urlsOf(second)[0]).not.toContain("ga=");

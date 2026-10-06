@@ -4,11 +4,13 @@ import { compareCouple } from "@/lib/weddingCode/v40/couple";
 import { buildFixtures } from "@/lib/weddingCode/v40/fixtures";
 import type { DecodedCode } from "@/lib/weddingCode/v40/types";
 import { axisInfo } from "@/constants/weddingCodeV40";
-import { CouplePreparationReport } from "./CouplePreparationSection";
+import { CouplePreparationReport as BaseCouplePreparationReport, type CouplePreparationReportProps } from "./CouplePreparationSection";
+import { WeddingCodeResultEditionProvider } from "./ResultEditionContext";
 import { buildCouplePreparationReport } from "./couplePreparationReport";
 import { click, createHarness, type Harness } from "./inputTestKit";
 
 const bank = WEDDING_CODE_V42_BANK;
+const CouplePreparationReport = (props: CouplePreparationReportProps) => <WeddingCodeResultEditionProvider version={bank.version}><BaseCouplePreparationReport {...props} /></WeddingCodeResultEditionProvider>;
 const fixtures = buildFixtures(bank);
 function decoded(name: string): DecodedCode {
   const found = fixtures.find((entry) => entry.name === name);
@@ -26,7 +28,7 @@ const root = () => harness.container;
 
 describe("실제 두 사람 답을 읽는 준비 리포트", () => {
   it("모든 주제에서 제안과 실제 선택지, 각자 응답 분모를 함께 확인한다", async () => {
-    const report = buildCouplePreparationReport(result, source);
+    const report = buildCouplePreparationReport(result, source, bank.version);
     await harness.render(<CouplePreparationReport result={result} source={source} perspective="first" idPrefix="proof" headingLevel={2} />);
     for (const row of report.rows) {
       await click([...root().querySelectorAll("button")].find((button) => button.textContent === axisInfo(row.axis).title));
@@ -46,7 +48,7 @@ describe("실제 두 사람 답을 읽는 준비 리포트", () => {
   });
 
   it("나 기준을 바꿔도 제안 대상과 그 사람이 선택한 원문은 바뀌지 않는다", async () => {
-    const report = buildCouplePreparationReport(result, source);
+    const report = buildCouplePreparationReport(result, source, bank.version);
     const row = report.rows.find((each) => each.roleSuggestion?.frontCandidate != null && each.evidence.scene != null)!;
     expect(row).toBeDefined();
     await harness.render(<CouplePreparationReport result={result} source={source} perspective="first" idPrefix="proof" headingLevel={2} />);
@@ -88,7 +90,7 @@ describe("실제 두 사람 답을 읽는 준비 리포트", () => {
   ] as const)("%s에서는 보류 사유를 구별해서 알려 준다", async (name, reason, explanation) => {
     const sample = decoded(name);
     const compared = compareCouple(bank, sample, first);
-    const model = buildCouplePreparationReport(compared, { bank, first: sample, second: first });
+    const model = buildCouplePreparationReport(compared, { bank, first: sample, second: first }, bank.version);
     const row = model.rows.find((each) => each.exclusionReason === reason)!;
     expect(row).toBeDefined();
     await harness.render(<CouplePreparationReport result={compared} source={{ bank, first: sample, second: first }} perspective={null} idPrefix="proof" headingLevel={2} />);

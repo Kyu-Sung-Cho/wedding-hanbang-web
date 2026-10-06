@@ -39,7 +39,7 @@ describe("GuessEntryCard", () => {
     it("본문은 링크에 무엇이 들어가는지, 읽을 수 있는 사람, 상대도 했을 때, 이 브라우저에 저장하지 않는다는 것을 말한다", async () => {
       await mount();
       const text = harness.container.textContent ?? "";
-      expect(text).toContain("내 답과 함께 보내기");
+      expect(text).toContain("파트너와 비교하기");
       expect(text).toContain("링크를 가진 사람은 읽을 수 있고");
       // 나란히 놓이는 것은 짐작이 다른 장면뿐이다(결정하는 자리에서 모든 장면이 놓인다고 말하지 않는다).
       expect(text).toContain("두 사람 결과에 짐작이 다른 장면이 나란히 놓여요");

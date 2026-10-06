@@ -133,7 +133,7 @@ describe("웨딩코드 진입 화면", () => {
 
   it("코드가 없으면 처음부터 답하는 화면이다", async () => {
     const page = await WeddingCodePage({ searchParams: Promise.resolve({}) });
-    expect(page.props.initialEntry).toEqual({ kind: "v42", initial: { partner: null, both: null } });
+    expect(page.props.initialEntry).toEqual({ kind: "v43", initial: { partner: null, both: null } });
     const html = await render({});
     expect(html).not.toContain("16문장");
     expect(html).toContain("불러오는 중이에요");

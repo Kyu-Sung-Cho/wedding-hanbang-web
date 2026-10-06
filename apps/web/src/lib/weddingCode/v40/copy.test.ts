@@ -805,10 +805,10 @@ describe("문서의 최종 문구를 그대로 옮겼다", () => {
   });
 
   it("보내기 블록과 보낼 말", () => {
-    expect(V40_COPY.send.withAnswersOption).toBe("내 답과 함께 보내기");
-    expect(V40_COPY.send.questionsOnlyOption).toBe("질문만 보내기");
+    expect(V40_COPY.send.withAnswersOption).toBe("파트너와 비교하기");
+    expect(V40_COPY.send.questionsOnlyOption).toBe("테스트 질문만 보내기");
     expect(V40_COPY.send.withAnswersHelp).toBe(
-      "상대가 이 링크에서 답하면 두 사람 결과가 열려요. 내 화면에는 자동으로 나타나지 않으니, 상대가 두 사람 결과 링크를 다시 보내 줘야 나도 볼 수 있어요.",
+      "내 답이 포함된 초대 링크예요. 상대가 이 링크에서 답하면 두 사람 결과가 열려요. 내 화면에는 자동으로 나타나지 않으니, 상대가 두 사람 결과 링크를 다시 보내 줘야 나도 볼 수 있어요.",
     );
     expect(V40_COPY.send.questionsOnlyHelp).toBe("내 답은 들어 있지 않아요. 상대는 혼자 답하고 자기 결과만 봐요. 두 사람 비교는 만들어지지 않아요.");
     expect(V40_COPY.send.consent).toBe("링크를 받은 사람은 누구나 내 답을 읽을 수 있다는 걸 알아요. 상대에게만 보낼게요.");

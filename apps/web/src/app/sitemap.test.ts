@@ -160,7 +160,7 @@ describe("vendor sitemap", () => {
     expect(mocks.vendorRanges).not.toHaveBeenCalled();
   });
 
-  it.each(["v4.0-tendency", "v4.1-depth", "v4.2-depth"] as const)("excludes the unvalidated %s default entry in both sitemap environments", async (version) => {
+  it.each(["v4.0-tendency", "v4.1-depth", "v4.2-depth", "v4.3-depth"] as const)("excludes the unvalidated %s default entry in both sitemap environments", async (version) => {
     mocks.weddingCodeDefaultVersion = version;
 
     for (const ci of ["true", "false"]) {

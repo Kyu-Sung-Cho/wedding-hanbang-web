@@ -37,6 +37,9 @@ vi.mock("./WeddingCodeV40Client", () => ({
 vi.mock("./WeddingCodeV42Client", () => ({
   default: ({ onRestart }: WeddingCodeV40ClientProps) => <section data-entry="v42"><button onClick={() => onRestart?.()}>restart</button></section>,
 }));
+vi.mock("./WeddingCodeV43Client", () => ({
+  default: ({ onRestart }: WeddingCodeV40ClientProps) => <section data-entry="v43"><button onClick={() => onRestart?.()}>restart</button></section>,
+}));
 
 vi.mock("./WeddingCodeV31Client", () => ({
   default: function V31Probe({ onRestart, embedded, initialNotice }: { onRestart: (message?: string) => void; embedded?: boolean; initialNotice?: string }) {
@@ -260,7 +263,7 @@ describe("웨딩코드 입구: v4.0-tendency 를 늦게 불러오고 넘기는 �
         expect(container.querySelector('[data-entry="v31"]')).not.toBeNull();
         expect(window.location.search).toBe("?v=v3.1-preferences");
       } else {
-        expect(container.querySelector('[data-entry="v42"]')).not.toBeNull();
+        expect(container.querySelector('[data-entry="v43"]')).not.toBeNull();
         expect(window.location.search).toBe("");
       }
     }
@@ -373,7 +376,7 @@ describe("웨딩코드 입구: 읽을 수 없는 v4 링크", () => {
     expect(container.querySelector("h1")?.textContent).toBe("이 링크는 열 수 없어요");
     const button = [...container.querySelectorAll("button")].find((item) => item.textContent === "처음부터 답하기");
     await act(async () => button?.click());
-    expect(container.querySelector('[data-entry="v42"]')).not.toBeNull();
+    expect(container.querySelector('[data-entry="v43"]')).not.toBeNull();
     expect(window.location.search).toBe("");
   });
 });

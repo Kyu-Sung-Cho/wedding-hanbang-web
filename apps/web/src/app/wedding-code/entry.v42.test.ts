@@ -11,6 +11,8 @@ import { WEDDING_CODE_V42_BANK } from "@/lib/weddingCode/v42/bank";
 import { WEDDING_CODE_V41_BANK } from "@/lib/weddingCode/v41/bank";
 import { encodeCode as encodePrevious, encodeGuessCode as encodePreviousGuess } from "@/lib/weddingCode/v41/codec";
 import { encodeCode, encodeGuessCode } from "@/lib/weddingCode/v42/codec";
+import { WEDDING_CODE_V43_BANK } from "@/lib/weddingCode/v43/bank";
+import { encodeCode as encodeCurrent, encodeGuessCode as encodeCurrentGuess } from "@/lib/weddingCode/v43/codec";
 import { parseWeddingCodeEntryHash, parseWeddingCodeEntryQuery, weddingCodeEntryHash, weddingCodeRestartSearch } from "./entry";
 
 const first = fixtureByName("swua-example");
@@ -24,6 +26,11 @@ if (!oldA || !previousA || !newA || !newB) throw new Error("fixture code missing
 const guess: GuessAnswers = { set: "1", slots: [{ self: 0, guess: 1 }, { self: null, guess: null }, { self: null, guess: null }, { self: null, guess: null }, { self: null, guess: null }, { self: null, guess: null }] };
 
 describe("v4.2 진입 exact-version", () => {
+  it("새 기본판은 미팅 수정 문항판이고 기존 v4.2 질문만 링크는 기존 판을 보존한다", () => {
+    expect(parseWeddingCodeEntryQuery({})).toEqual({ kind: "v43", initial: { partner: null, both: null } });
+    expect(parseWeddingCodeEntryQuery({ v: "v4.3-depth" })).toEqual({ kind: "v43", initial: { partner: null, both: null } });
+    expect(parseWeddingCodeEntryQuery({ v: WEDDING_CODE_V42_VERSION })?.kind).toBe("v42");
+  });
   it("질문만 링크와 재시작 주소는 v4.2에 고정된다", () => {
     expect(parseWeddingCodeEntryQuery({ v: WEDDING_CODE_V42_VERSION })).toEqual({ kind: "v42", initial: { partner: null, both: null } });
     expect(weddingCodeRestartSearch("v42")).toBe(`?v=${WEDDING_CODE_V42_VERSION}`);
@@ -70,5 +77,23 @@ describe("v4.2 진입 exact-version", () => {
     expect(parseWeddingCodeEntryHash(`#v=${WEDDING_CODE_V42_VERSION}&a=${newA}&a=${newA}`)).toEqual({ kind: "error", version: WEDDING_CODE_V42_VERSION });
     expect(parseWeddingCodeEntryQuery({ v: [WEDDING_CODE_V42_VERSION, WEDDING_CODE_V42_VERSION] })).toEqual({ kind: "error", version: WEDDING_CODE_V42_VERSION });
     expect(parseWeddingCodeEntryHash(`#v=${WEDDING_CODE_V42_VERSION}&a=${newA}&unexpected=value`)).toEqual({ kind: "error", version: WEDDING_CODE_V42_VERSION });
+  });
+});
+
+describe("v4.3 입구의 답·판 경계", () => {
+  it("수정판 두 사람 답과 짐작은 왕복하고 v4.2와 섞이면 전체 거절한다", () => {
+    const a = encodeCurrent(WEDDING_CODE_V43_BANK, first.formBit, first.responses);
+    const b = encodeCurrent(WEDDING_CODE_V43_BANK, second.formBit, second.responses);
+    const ga = encodeCurrentGuess(guess);
+    const hash = `#v=v4.3-depth&a=${a}&b=${b}&ga=${ga}`;
+    const entry = parseWeddingCodeEntryHash(hash);
+    expect(entry?.kind).toBe("v43");
+    expect(entry && weddingCodeEntryHash(entry)).toBe(`#v=v4.3-depth&a=${a}&ga=${ga}&b=${b}`);
+    expect(parseWeddingCodeEntryHash(`#v=v4.3-depth&a=${newA}&b=${b}`)).toEqual({ kind: "error", version: "v4.3-depth" });
+    expect(parseWeddingCodeEntryHash(`#v=v4.2-depth&a=${a}`)).toEqual({ kind: "error", version: "v4.2-depth" });
+    expect(parseWeddingCodeEntryHash(`#v=v4.3-depth&a=${a}&ga=${encodeGuessCode(guess)}`)).toEqual({ kind: "error", version: "v4.3-depth" });
+    expect(parseWeddingCodeEntryQuery({ v: "v4.3-depth", a: a ?? "" })).toEqual({ kind: "error", version: "v4.3-depth" });
+    expect(parseWeddingCodeEntryQuery({ v: ["v4.3-depth", "v4.3-depth"] })).toEqual({ kind: "error", version: "v4.3-depth" });
+    expect(weddingCodeRestartSearch("v43")).toBe("?v=v4.3-depth");
   });
 });

@@ -50,7 +50,7 @@ const address = () => root().querySelector<HTMLInputElement>("input[readonly]");
 const status = () => root().querySelector<HTMLElement>('[role="status"]');
 const statusText = () => status()?.textContent?.trim() ?? "";
 const sendButton = () =>
-  [...root().querySelectorAll<HTMLButtonElement>("button")].find((button) => button.textContent?.includes(V40_COPY.send.sendButton)) ?? null;
+  [...root().querySelectorAll<HTMLButtonElement>("button")].find((button) => [V40_COPY.send.sendButton, V40_COPY.send.questionsOnlyButton].some(label => button.textContent?.includes(label))) ?? null;
 
 async function typeInto(element: HTMLTextAreaElement, value: string): Promise<void> {
   await act(async () => {
@@ -70,6 +70,32 @@ async function press(): Promise<void> {
 }
 
 describe("ShareBlock: 처음 모양", () => {
+  it("비교 초대와 질문만 전달의 실행 이름을 구별하고 답 포함 동의는 초대에만 요구한다", async () => {
+    const share = vi.fn(async () => undefined);
+    const { buildUrl } = await renderBlock({ share });
+    const action = () => root().querySelector<HTMLButtonElement>('button');
+    expect(action()?.textContent).toBe("파트너 초대 링크 보내기");
+    expect(action()?.getAttribute("aria-disabled")).toBe("true");
+    await click(action());
+    expect(buildUrl).not.toHaveBeenCalled();
+    await click(radios()[1]);
+    expect(action()?.textContent).toBe("질문 링크 보내기");
+    expect(consent()).toBeNull();
+    expect(action()?.getAttribute("aria-disabled")).toBe("false");
+    await click(action());
+    await flush();
+    expect(buildUrl).toHaveBeenCalledWith("questionsOnly");
+    expect(share).toHaveBeenCalledWith(expect.objectContaining({ url: URL_ONLY }));
+  });
+
+  it("비교 초대 절차에는 보이는 순서 번호가 있고 완료 표시는 없다", async () => {
+    await renderBlock();
+    const steps = [...root().querySelectorAll('[data-share-journey] ol li')];
+    expect(steps).toHaveLength(3);
+    expect(steps.map((step) => step.querySelector('[data-step-number]')?.textContent)).toEqual(["1", "2", "3"]);
+    expect(root().querySelector('[data-share-journey] [aria-current], [data-share-journey] [data-complete]')).toBeNull();
+  });
+
   it("제목, 라디오 둘(첫째가 골라짐), 체크, 보낼 말, 링크 단추 하나", async () => {
     await renderBlock();
     expect(root().querySelector("h2")?.textContent).toBe(V40_COPY.send.title);
@@ -91,7 +117,7 @@ describe("ShareBlock: 처음 모양", () => {
     await renderBlock();
     const journey = root().querySelector('[data-share-journey]');
     expect(journey?.textContent).toContain(V40_COPY.send.journeyLabel);
-    expect([...journey!.querySelectorAll('li')].map((step) => step.textContent?.trim())).toEqual([...V40_COPY.send.journeySteps]);
+    expect([...journey!.querySelectorAll('li')].map((step) => step.querySelector('[data-step-description]')?.textContent?.trim())).toEqual([...V40_COPY.send.journeySteps]);
     expect(journey?.querySelector('[aria-current], [aria-checked], [data-complete]')).toBeNull();
     expect(journey?.textContent).toContain("결과 링크 다시 받기");
   });
@@ -427,9 +453,12 @@ describe("ShareBlock: 말씨와 라벨", () => {
     expect(text).not.toContain(V40_NOT_VALIDATED_PHRASE);
   });
 
-  it("번호나 A/B 라벨이 보이는 글자와 라벨에 없다", async () => {
+  it("절차 번호 이외에는 숫자나 A/B 보기 라벨을 넣지 않는다", async () => {
     await renderBlock({});
-    expect(labelProblemsIn(root())).toEqual([]);
+    const prose = root().cloneNode(true);
+    if (!(prose instanceof HTMLElement)) throw new Error("검토할 문구가 없어요");
+    prose.querySelectorAll('[data-share-journey] [data-step-number]').forEach((number) => number.remove());
+    expect(labelProblemsIn(prose)).toEqual([]);
   });
 
   it("제목 레벨을 바꿀 수 있다", async () => {

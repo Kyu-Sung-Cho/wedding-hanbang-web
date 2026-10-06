@@ -34,6 +34,11 @@ vi.mock("./WeddingCodeV42Client", () => ({
     return <section data-entry="v42" data-embedded={embedded}><button onClick={onRestart}>restart</button></section>;
   },
 }));
+vi.mock("./WeddingCodeV43Client", () => ({
+  default: function V43Probe({ onRestart, embedded }: { onRestart: () => void; embedded?: boolean }) {
+    return <section data-entry="v43" data-embedded={embedded}><button onClick={onRestart}>restart</button></section>;
+  },
+}));
 
 vi.mock("./WeddingCodeV30Client", () => ({
   default: function V30Probe({ partnerDraft, bothDrafts, onRestart, embedded }: {
@@ -97,7 +102,7 @@ describe("웨딩코드 판별과 다시 시작", () => {
     await act(async () => root?.render(<WeddingCodeEntryClient embedded shareOrigin="https://hanbang.ai" initialEntry={parseWeddingCodeEntryQuery({ v: version })} />));
     expect(container.querySelector(`[data-entry="${kind}"]`)?.getAttribute("data-embedded")).toBe("true");
     await restart();
-    expect(container.querySelector(`[data-entry="${kind === "v31" ? "v31" : "v42"}"]`)?.getAttribute("data-embedded")).toBe("true");
+    expect(container.querySelector(`[data-entry="${kind === "v31" ? "v31" : "v43"}"]`)?.getAttribute("data-embedded")).toBe("true");
     expect(window.location.pathname).toBe("/wedding/preparation-style");
   });
 
@@ -108,7 +113,7 @@ describe("웨딩코드 판별과 다시 시작", () => {
     expect(container.querySelectorAll("main")).toHaveLength(1);
     expect(container.textContent).toContain("이 링크는 열 수 없어요");
     await restart();
-    expect(container.querySelector('[data-entry="v42"]')?.getAttribute("data-embedded")).toBe("true");
+    expect(container.querySelector('[data-entry="v43"]')?.getAttribute("data-embedded")).toBe("true");
     expect(window.location.pathname).toBe("/wedding/preparation-style");
   });
 
@@ -118,7 +123,7 @@ describe("웨딩코드 판별과 다시 시작", () => {
     expect(container.textContent).toContain("이 링크는 열 수 없어요");
     await restart();
     expect(window.location.hash).toBe("");
-    expect(container.querySelector('[data-entry="v42"]')).not.toBeNull();
+    expect(container.querySelector('[data-entry="v43"]')).not.toBeNull();
   });
 
   it("명시된 v20 query 입구에서 다시 시작하면 새 통합판으로 돌아간다", async () => {
@@ -128,10 +133,10 @@ describe("웨딩코드 판별과 다시 시작", () => {
     expect(container.querySelector('[data-entry="v20"]')).not.toBeNull();
     await restart();
     expect(window.location.search).toBe("");
-    expect(container.querySelector('[data-entry="v42"]')).not.toBeNull();
+    expect(container.querySelector('[data-entry="v43"]')).not.toBeNull();
   });
 
-  it("v3.1 이전 판 안내에서 새 웨딩코드를 누르면 현재 기본판 v4.2로 간다", async () => {
+  it("v3.1 이전 판 안내에서 새 웨딩코드를 누르면 현재 기본판 v4.3으로 간다", async () => {
     window.history.replaceState(null, "", `/wedding-code?v=${WEDDING_CODE_V31_VERSION}`);
     root = createRoot(container);
     await act(async () => root?.render(<WeddingCodeEntryClient shareOrigin="https://hanbang.ai" initialEntry={parseWeddingCodeEntryQuery({ v: WEDDING_CODE_V31_VERSION })} />));
@@ -139,7 +144,7 @@ describe("웨딩코드 판별과 다시 시작", () => {
     expect(startNew).not.toBeNull();
     await act(async () => startNew?.click());
     expect(window.location.search).toBe("");
-    expect(container.querySelector('[data-entry="v42"]')).not.toBeNull();
+    expect(container.querySelector('[data-entry="v43"]')).not.toBeNull();
   });
 
   it("두 번째 응답만 바뀌어도 이전 결과의 편집 state를 넘기지 않는다", async () => {
@@ -159,7 +164,7 @@ describe("웨딩코드 판별과 다시 시작", () => {
     window.history.replaceState(null, "", `/wedding-code${firstHash}`);
     const element = <WeddingCodeEntryClient shareOrigin="https://hanbang.ai" />;
     container.innerHTML = renderToString(element);
-    expect(container.querySelector('[data-entry="v42"]')).not.toBeNull();
+    expect(container.querySelector('[data-entry="v43"]')).not.toBeNull();
     const onRecoverableError = vi.fn();
     await act(async () => { root = hydrateRoot(container, element, { onRecoverableError }); });
     expect(onRecoverableError).not.toHaveBeenCalled();

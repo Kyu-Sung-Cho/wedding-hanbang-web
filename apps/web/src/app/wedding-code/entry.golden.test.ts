@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 
 import { WEDDING_CODE_V31_VERSION } from "@/constants/weddingCodeV31";
 import { WEDDING_CODE_V40_VERSION } from "@/constants/weddingCodeV40";
-import { WEDDING_CODE_V42_VERSION } from "@/constants/weddingCodeV42";
+import { WEDDING_CODE_V43_VERSION } from "@/constants/weddingCodeV43";
 import {
   WEDDING_CODE_DEFAULT_VERSION,
   parseWeddingCodeEntryHash,
@@ -77,8 +77,8 @@ describe("entry.ts 골든 표", () => {
     expect(rows.some((row) => JSON.stringify(row).includes(WEDDING_CODE_V40_VERSION))).toBe(false);
   });
 
-  it("새 기본 진입은 v4.2 이다", () => {
-    expect(WEDDING_CODE_DEFAULT_VERSION).toBe(WEDDING_CODE_V42_VERSION);
+  it("새 기본 진입은 v4.3 이다", () => {
+    expect(WEDDING_CODE_DEFAULT_VERSION).toBe(WEDDING_CODE_V43_VERSION);
   });
 
   it.each(rows.map((row) => [row.label, row] as const))("%s: v3.1 을 명시하면 옛 파서와 같다", (_label, row) => {
@@ -88,7 +88,7 @@ describe("entry.ts 골든 표", () => {
   it.each(rows.map((row) => [row.label, row] as const))("%s: 기본 진입이 v4 로 바뀌어도 두 가지 입구만 달라진다", (_label, row) => {
     const actual = parseRow(row);
     if (isBareEntry(row)) {
-      expect(actual).toEqual({ kind: "v42", initial: { partner: null, both: null } });
+      expect(actual).toEqual({ kind: "v43", initial: { partner: null, both: null } });
       return;
     }
     if (isExplicitV31Entry(row)) {

@@ -19,6 +19,9 @@ vi.mock("./WeddingCodeV40Client", () => ({
 vi.mock("./WeddingCodeV42Client", () => ({
   default: () => <section data-entry="v42" />,
 }));
+vi.mock("./WeddingCodeV43Client", () => ({
+  default: () => <section data-entry="v43" />,
+}));
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
 const fixture = fixtureByName("swua-example");
@@ -43,7 +46,7 @@ describe("v4.1 입구와 늦게 불러오는 화면", () => {
     root = createRoot(container);
     await act(async () => root?.render(<WeddingCodeEntryClient shareOrigin="https://hanbang.ai" initialEntry={initialEntry} />));
     await act(async () => { await vi.dynamicImportSettled(); });
-    expect(container.querySelector('[data-entry="v41"], [data-entry="v42"]')).not.toBeNull();
+    expect(container.querySelector('[data-entry="v41"], [data-entry="v43"]')).not.toBeNull();
   };
 
   it("답 없는 명시 URL에서 v4.1 화면을 불러온다", async () => {
@@ -54,7 +57,7 @@ describe("v4.1 입구와 늦게 불러오는 화면", () => {
 
   it("맨 주소는 새 판을 불러오고 명시 v4.1은 따로 열린다", async () => {
     await render();
-    expect(container.querySelector('[data-entry="v42"]')).not.toBeNull();
+    expect(container.querySelector('[data-entry="v43"]')).not.toBeNull();
     expect(container.querySelector('[data-entry="v41"]')).toBeNull();
     expect(window.location.search).toBe("");
   });

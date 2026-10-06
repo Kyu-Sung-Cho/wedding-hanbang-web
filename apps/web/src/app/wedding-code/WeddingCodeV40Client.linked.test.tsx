@@ -528,7 +528,7 @@ describe("웨딩코드 4.0 클라이언트: 결과에서 상대에게 보내기"
     const { view } = await openResult(share);
     const radios = [...view.container.querySelectorAll<HTMLInputElement>('input[type="radio"][name$="-option"]')];
     await click(radios[1]);
-    await pressText(view.container, V40_COPY.send.sendButton);
+    await pressText(view.container, V40_COPY.send.questionsOnlyButton);
     await settle(0);
     expect(share.written).toHaveLength(1);
     const url = share.written[0].split("\n").pop() ?? "";

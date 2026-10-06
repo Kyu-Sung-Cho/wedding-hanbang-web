@@ -3,6 +3,7 @@
 import { createContext, useContext, type ReactNode } from "react";
 import { WEDDING_CODE_V40_VERSION, facetInfo, letterInfo, type FacetInfo, type FacetKey, type Letter, type LetterInfo } from "@/constants/weddingCodeV40";
 import { WEDDING_CODE_V42_VERSION } from "@/constants/weddingCodeV42";
+import { WEDDING_CODE_V43_VERSION } from "@/constants/weddingCodeV43";
 
 const ResultEdition = createContext<string>(WEDDING_CODE_V40_VERSION);
 
@@ -94,6 +95,11 @@ export function WeddingCodeResultEditionProvider({ version, children }: { readon
   return <ResultEdition.Provider value={version}>{children}</ResultEdition.Provider>;
 }
 
+export function useWeddingCodeResultVersion(): string {
+  return useContext(ResultEdition);
+}
+
 export function useWeddingCodeResultMetadata() {
-  return useContext(ResultEdition) === WEDDING_CODE_V42_VERSION ? V42_METADATA : BASE_METADATA;
+  const version = useWeddingCodeResultVersion();
+  return version === WEDDING_CODE_V42_VERSION || version === WEDDING_CODE_V43_VERSION ? V42_METADATA : BASE_METADATA;
 }

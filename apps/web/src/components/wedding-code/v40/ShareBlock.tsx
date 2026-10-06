@@ -412,7 +412,7 @@ export function ShareBlock({ buildUrl, onSent, env, idPrefix, headingLevel = 2, 
       ) : null}
 
       <div className="mt-4">
-        <SendButton label={V40_COPY.send.sendButton} blocked={blocked} busy={sender.busy} reasonId={ids.reason} onClick={send} />
+        <SendButton label={option === "withAnswers" ? V40_COPY.send.sendButton : V40_COPY.send.questionsOnlyButton} blocked={blocked} busy={sender.busy} reasonId={ids.reason} onClick={send} />
         {blocked ? (
           <p id={ids.reason} className={cx(noteText, "mt-2")}>
             {V40_COPY.send.disabledReason}

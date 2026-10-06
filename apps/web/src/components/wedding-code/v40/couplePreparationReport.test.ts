@@ -1,13 +1,15 @@
 import { describe, expect, it } from "vitest";
 import { V40_STATE_COUNTS } from "@/constants/weddingCodeV40";
 import { WEDDING_CODE_V42_BANK } from "@/lib/weddingCode/v42/bank";
+import { WEDDING_CODE_V43_BANK } from "@/lib/weddingCode/v43/bank";
 import { compareCouple } from "@/lib/weddingCode/v40/couple";
 import { fixtureByName, V40_FIXTURES } from "@/lib/weddingCode/v40/fixtures";
 import { answerText } from "@/lib/weddingCode/v40/present";
+import { buildResult } from "@/lib/weddingCode/v40/score";
 import { stateChar } from "@/lib/weddingCode/v40/states";
 import { itemValue, stateValue } from "@/lib/weddingCode/v40/value";
 import type { Axis, CoupleResult, DecodedCode } from "@/lib/weddingCode/v40/types";
-import { buildCouplePreparationReport, type CoupleReportSource } from "./couplePreparationReport";
+import { buildCouplePreparationReport, buildVerifiedCoupleIndividualResults, type CoupleReportSource } from "./couplePreparationReport";
 
 const bank = WEDDING_CODE_V42_BANK;
 
@@ -23,7 +25,7 @@ function source(first: DecodedCode, second: DecodedCode): CoupleReportSource {
 
 function prepared(first: DecodedCode, second: DecodedCode) {
   const result = compareCouple(bank, first, second);
-  return { result, report: buildCouplePreparationReport(result, source(first, second)) };
+  return { result, report: buildCouplePreparationReport(result, source(first, second), bank.version) };
 }
 
 function rowAt(result: CoupleResult, axis: Axis) {
@@ -214,7 +216,7 @@ describe("실제 v4.2 답에 근거한 커플 준비 리포트", () => {
   it("원문 source가 없으면 상위 목록의 실제 장면만 쓰고 네 주제 모두 사례를 지어내지 않는다", () => {
     const same = fixture("all-clear");
     const comparison = compareCouple(bank, same, same);
-    const report = buildCouplePreparationReport(comparison);
+    const report = buildCouplePreparationReport(comparison, undefined, bank.version);
     expect(report.sourceStatus).toBe("absent");
     for (const row of report.rows) {
       const listed = comparison.talk.find((pair) => pair.axis === row.axis) ?? comparison.similar.find((pair) => pair.axis === row.axis);
@@ -226,10 +228,10 @@ describe("실제 v4.2 답에 근거한 커플 준비 리포트", () => {
   it("검증한 source에서는 상위 셋에 없는 축도 실제 둘의 유효 답에서 한 장면을 찾는다", () => {
     const same = fixture("all-clear");
     const comparison = compareCouple(bank, same, same);
-    const absent = buildCouplePreparationReport(comparison).rows.find((row) => row.evidence.scene === null && !row.state.includes("excluded"));
+    const absent = buildCouplePreparationReport(comparison, undefined, bank.version).rows.find((row) => row.evidence.scene === null && !row.state.includes("excluded"));
     expect(absent).toBeDefined();
     if (absent === undefined) return;
-    const report = buildCouplePreparationReport(comparison, source(same, same));
+    const report = buildCouplePreparationReport(comparison, source(same, same), bank.version);
     const scene = report.rows.find((row) => row.axis === absent.axis)?.evidence.scene;
     expect(scene?.kind).toBe("other");
     const item = scene === null || scene === undefined ? undefined : bank.byId.get(scene.itemId);
@@ -256,7 +258,7 @@ describe("실제 v4.2 답에 근거한 커플 준비 리포트", () => {
 
   it("미정·임시·관문 제외는 실제 응답 수만 남기고 비교 장면과 담당자 제안을 보류한다", () => {
     const empty: DecodedCode = { formBit: 0, responses: {} };
-    const unset = buildCouplePreparationReport(compareCouple(bank, empty, first));
+    const unset = buildCouplePreparationReport(compareCouple(bank, empty, first), undefined, bank.version);
     expect(unset.rows.every((row) => row.state === "excluded" && row.exclusionReason === "unset" && row.roleSuggestion === null && row.evidence.scene === null)).toBe(true);
     const provisional = prepared(fixture("provisional-tie"), first).report;
     expect(provisional.rows.some((row) => row.exclusionReason === "provisional" && row.roleSuggestion === null && row.evidence.scene === null)).toBe(true);
@@ -276,7 +278,7 @@ describe("실제 v4.2 답에 근거한 커플 준비 리포트", () => {
       source(second, first),
     ];
     for (const candidate of candidates) {
-      const report = buildCouplePreparationReport(result, candidate);
+      const report = buildCouplePreparationReport(result, candidate, bank.version);
       expect(report.sourceStatus).toBe("rejected");
       expect(report.rows.every((row) => row.roleSuggestion === null && row.evidence.scene === null)).toBe(true);
     }
@@ -285,8 +287,45 @@ describe("실제 v4.2 답에 근거한 커플 준비 리포트", () => {
   it("동일 객체가 아니어도 부모가 넘긴 v4.2 판과 완전한 답·재계산 결과가 같으면 원문 source로 인정한다", () => {
     const { result } = prepared(first, second);
     const equivalentBank = { ...bank, items: [...bank.items] };
-    const report = buildCouplePreparationReport(result, { bank: equivalentBank, first, second });
+    const report = buildCouplePreparationReport(result, { bank: equivalentBank, first, second }, bank.version);
     expect(report.sourceStatus).toBe("verified");
     expect(report.rows.some((row) => row.evidence.scene !== null)).toBe(true);
+  });
+});
+
+describe("커플 원응답은 실제 화면의 문항판과 일치해야 한다", () => {
+  const first = fixture("swua-example");
+  const second = fixture("couple-partner");
+  const depthBank = WEDDING_CODE_V43_BANK;
+
+  it("실제 v4.3 은행과 원응답은 준비 장면과 기존 개인 채점 이유를 읽는다", () => {
+    const compared = compareCouple(depthBank, first, second);
+    const depthSource = { bank: depthBank, first, second };
+    const report = buildCouplePreparationReport(compared, depthSource, depthBank.version);
+    expect(report.sourceStatus).toBe("verified");
+    expect(report.rows.some((row) => row.evidence.scene !== null)).toBe(true);
+    expect(buildVerifiedCoupleIndividualResults(compared, depthSource, depthBank.version)).toEqual({
+      first: buildResult(depthBank, first.formBit, first.responses),
+      second: buildResult(depthBank, second.formBit, second.responses),
+    });
+    for (const row of report.rows) {
+      if (row.exclusionReason !== null || row.evidence.scene === null) continue;
+      const scene = row.evidence.scene;
+      const item = depthBank.byId.get(scene.itemId)!;
+      expect(scene.caption).toBe(item.caption);
+      expect(scene.firstText).toBe(answerText(item, first.responses[item.id]));
+      expect(scene.secondText).toBe(answerText(item, second.responses[item.id]));
+    }
+  });
+
+  it.each([["v4.2", bank], ["v4.3", depthBank]] as const)("%s의 판 태그만 바꿔 계산 결과가 같아도 화면 판이 다르면 원응답·역할·이유를 거절한다", (_label, actualBank) => {
+    const compared = compareCouple(actualBank, first, second);
+    const otherVersion = actualBank.version === "v4.2-depth" ? "v4.3-depth" : "v4.2-depth";
+    const relabeledSource: CoupleReportSource = { bank: { ...actualBank, version: otherVersion }, first, second };
+    expect(compareCouple(relabeledSource.bank, first, second)).toEqual(compared);
+    const report = buildCouplePreparationReport(compared, relabeledSource, actualBank.version);
+    expect(report.sourceStatus).toBe("rejected");
+    expect(report.rows.every((row) => row.evidence.scene === null && row.roleSuggestion === null)).toBe(true);
+    expect(buildVerifiedCoupleIndividualResults(compared, relabeledSource, actualBank.version)).toBeNull();
   });
 });

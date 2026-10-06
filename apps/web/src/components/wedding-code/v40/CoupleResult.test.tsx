@@ -1,7 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { V40_AXIS_KEYS, V40_LETTER_LIST, axisInfo, letterInfo } from "@/constants/weddingCodeV40";
 import { WEDDING_CODE_V40_BANK } from "@/lib/weddingCode/v40/bank";
+import { WEDDING_CODE_V42_BANK } from "@/lib/weddingCode/v42/bank";
+import { WEDDING_CODE_V43_BANK } from "@/lib/weddingCode/v43/bank";
 import { compareCouple } from "@/lib/weddingCode/v40/couple";
+import { buildResult } from "@/lib/weddingCode/v40/score";
 import {
   V40_COPY,
   V40_COUPLE_SEND_EXTRA_COPY,
@@ -14,6 +17,9 @@ import {
 import { V40_FIXTURES } from "@/lib/weddingCode/v40/fixtures";
 import type { CoupleAxisRow, CoupleItemPair, CoupleResult as CoupleResultData, CoupleSideInfo, DecodedCode, Perspective } from "@/lib/weddingCode/v40/types";
 import { CoupleResult, V40_EMBEDDED_BOTTOM_SPACE, type CoupleResultProps } from "./CoupleResult";
+import { axisReadingReasons } from "./AxisReadingReason";
+import { WeddingCodeResultEditionProvider } from "./ResultEditionContext";
+import type { CoupleReportSource } from "./couplePreparationReport";
 import { click, createHarness, isBefore, type Harness } from "./inputTestKit";
 import type { ShareSentEvent } from "./shareActions";
 
@@ -89,8 +95,8 @@ afterEach(async () => {
 
 type Overrides = Partial<CoupleResultProps>;
 
-async function renderResult(overrides: Overrides = {}): Promise<HTMLElement> {
-  await harness.render(<CoupleResult result={COUPLE} detectedPerspective={null} idPrefix="t-couple" {...overrides} />);
+async function renderResult(overrides: Overrides = {}, version = "v4.0-tendency"): Promise<HTMLElement> {
+  await harness.render(<WeddingCodeResultEditionProvider version={version}><CoupleResult result={COUPLE} detectedPerspective={null} idPrefix="t-couple" {...overrides} /></WeddingCodeResultEditionProvider>);
   return harness.container;
 }
 
@@ -102,6 +108,124 @@ const personLabels = (item: HTMLElement) => [...item.querySelectorAll("[data-cou
 const personCells = (item: HTMLElement) => [...item.querySelectorAll("[data-couple-axis-person] > [data-person-letter-band]")].map((p) => p.textContent);
 const heading = (label: string) => [...root().querySelectorAll("h1, h2, h3")].find((h) => h.textContent === label) ?? null;
 const radios = () => [...root().querySelectorAll<HTMLInputElement>('input[type="radio"]')];
+
+describe("CoupleResult: 원응답으로 확인한 각자의 글자 판정 이유", () => {
+  const depthBank = WEDDING_CODE_V42_BANK;
+  const compared = compareCouple(depthBank, SWUA, PARTNER);
+  const reportSource = { bank: depthBank, first: SWUA, second: PARTNER };
+  const individual = {
+    first: buildResult(depthBank, SWUA.formBit, SWUA.responses),
+    second: buildResult(depthBank, PARTNER.formBit, PARTNER.responses),
+  };
+  const profileReasons = (person: Perspective) => individual[person].axes.map((axis) => {
+    const explanation = root().querySelector(`[data-couple-code="${person}"] [data-axis-reading-reason="${axis.axis}"]`);
+    expect(explanation, `${person}/${axis.axis}의 실제 판정 이유`).not.toBeNull();
+    return [...explanation!.querySelectorAll("p")].slice(1).map((line) => line.textContent);
+  });
+
+  it("두 사람의 원응답에서 계산한 이유가 해당 사람의 글자·비율 바로 아래에 붙고 관점 전환으로 바뀌지 않는다", async () => {
+    expect(axisReadingReasons(individual.first.axes[0])).not.toEqual(axisReadingReasons(individual.second.axes[0]));
+    await renderResult({ result: compared, reportSource, detectedPerspective: "first" }, "v4.2-depth");
+    for (const person of ["first", "second"] as const) {
+      expect(profileReasons(person)).toEqual(individual[person].axes.map(axisReadingReasons));
+    }
+    const firstReasons = profileReasons("first");
+    const secondReasons = profileReasons("second");
+    await click(radios()[1]);
+    expect(root().querySelector('[data-couple-code="second"]')?.textContent).toContain("내 웨딩코드");
+    expect(profileReasons("first")).toEqual(firstReasons);
+    expect(profileReasons("second")).toEqual(secondReasons);
+    expect(root().querySelector('[data-couple-reasons-unavailable]')).toBeNull();
+  });
+
+  it("두 사람 입력 순서를 바꿔도 각자의 원응답에 해당하는 이유가 따라간다", async () => {
+    await renderResult({ result: compared, reportSource, detectedPerspective: "first" }, "v4.2-depth");
+    const original = [profileReasons("first"), profileReasons("second")];
+    await renderResult({
+      result: compareCouple(depthBank, PARTNER, SWUA),
+      reportSource: { bank: depthBank, first: PARTNER, second: SWUA },
+      detectedPerspective: "second",
+    }, "v4.2-depth");
+    const actual = (["second", "first"] as const).map((person) => [...root().querySelectorAll(`[data-couple-code="${person}"] [data-axis-reading-reason]`)].map((explanation) => [...explanation.querySelectorAll("p")].slice(1).map((line) => line.textContent)));
+    expect(actual).toEqual(original);
+  });
+
+  it("원응답이 없거나 결과와 사람 순서·판이 어긋나면 계산 이유를 만들지 않고 확인할 수 없음을 알린다", async () => {
+    const incomplete: DecodedCode = { ...SWUA, responses: { ...SWUA.responses } };
+    delete (incomplete.responses as Record<string, string>)[depthBank.items[0].id];
+    const candidates = [
+      undefined,
+      { bank: depthBank, first: PARTNER, second: SWUA },
+      { bank: { ...depthBank, version: "v4.1-depth" as const }, first: SWUA, second: PARTNER },
+      { bank: depthBank, first: incomplete, second: PARTNER },
+    ];
+    for (const candidate of candidates) {
+      await renderResult({ result: compared, reportSource: candidate }, "v4.2-depth");
+      expect(root().querySelector('[data-axis-reading-reason]')).toBeNull();
+      expect(root().querySelector('[data-couple-reasons-unavailable]')?.textContent).toContain("원응답을 확인하지 못해");
+      expect(root().querySelectorAll('[data-couple-code] [data-answer-distribution]')).toHaveLength(8);
+    }
+    const forged: CoupleResultData = { ...compared, axes: compared.axes.map((row) => row.axis === "money" ? { ...row, first: { ...row.first, frontCount: row.first.frontCount + 1 } } : row) as unknown as CoupleResultData["axes"] };
+    await renderResult({ result: forged, reportSource }, "v4.2-depth");
+    expect(root().querySelector('[data-axis-reading-reason]')).toBeNull();
+    expect(root().querySelector('[data-couple-reasons-unavailable]')?.textContent).toContain("원응답을 확인하지 못해");
+  });
+
+  it.each(["unusable-axis", "provisional-tie", "rhythm-gate"])("%s에서도 각자의 실제 판정 설명만 읽고 비교 제외는 유지한다", async (name) => {
+    const special = fixture(name);
+    const specialResult = compareCouple(depthBank, special, PARTNER);
+    const specialIndividual = buildResult(depthBank, special.formBit, special.responses);
+    await renderResult({ result: specialResult, reportSource: { bank: depthBank, first: special, second: PARTNER } }, "v4.2-depth");
+    for (const axis of specialIndividual.axes) {
+      const explanation = root().querySelector(`[data-couple-code="first"] [data-axis-reading-reason="${axis.axis}"]`);
+      expect(explanation).not.toBeNull();
+      expect([...explanation!.querySelectorAll("p")].slice(1).map((line) => line.textContent)).toEqual(axisReadingReasons(axis));
+    }
+    expect(axisItems().map((item) => item.dataset.tag)).toEqual(specialResult.axes.map((row) => row.excluded ? "excluded" : row.tag));
+    const excluded = specialResult.axes.find((row) => row.excluded)!;
+    expect(excluded).toBeDefined();
+    await click([...root().querySelectorAll("button")].find((button) => button.textContent === axisInfo(excluded.axis).title));
+    expect(root().querySelector('[data-role-candidate]')).toBeNull();
+    expect(root().querySelector('[data-couple-codes]')?.textContent).not.toMatch(/정확도|궁합|성격|진단/u);
+  });
+});
+
+describe("CoupleResult: v4.3 원응답과 실제 화면 판 연결", () => {
+  const depthBank = WEDDING_CODE_V43_BANK;
+
+  it("실제 v4.3 문항판에서도 각자 계산한 이유와 실제 준비 장면을 읽는다", async () => {
+    const compared = compareCouple(depthBank, SWUA, PARTNER);
+    const reportSource = { bank: depthBank, first: SWUA, second: PARTNER };
+    await renderResult({ result: compared, reportSource, detectedPerspective: "first" }, depthBank.version);
+    for (const person of ["first", "second"] as const) {
+      const decoded = person === "first" ? SWUA : PARTNER;
+      const actual = buildResult(depthBank, decoded.formBit, decoded.responses);
+      for (const axis of actual.axes) {
+        const explanation = root().querySelector(`[data-couple-code="${person}"] [data-axis-reading-reason="${axis.axis}"]`);
+        expect(explanation).not.toBeNull();
+        expect([...explanation!.querySelectorAll("p")].slice(1).map((line) => line.textContent)).toEqual(axisReadingReasons(axis));
+      }
+    }
+    expect(root().querySelector('[data-couple-reasons-unavailable]')).toBeNull();
+    expect(root().querySelector('[data-preparation-scene]')).not.toBeNull();
+    const before = ["first", "second"].map((person) => root().querySelector(`[data-couple-code="${person}"] ul`)!.textContent);
+    await click(radios()[1]);
+    expect(["first", "second"].map((person) => root().querySelector(`[data-couple-code="${person}"] ul`)!.textContent)).toEqual(before);
+  });
+
+  it.each([["v4.2", WEDDING_CODE_V42_BANK], ["v4.3", depthBank]] as const)("%s 화면에서는 source 판을 다른 판으로 바꿔 동일 결과를 넘겨도 이유·원문·역할을 닫는다", async (_label, actualBank) => {
+    const compared = compareCouple(actualBank, SWUA, PARTNER);
+    const otherVersion = actualBank.version === "v4.2-depth" ? "v4.3-depth" : "v4.2-depth";
+    const relabeledSource: CoupleReportSource = { bank: { ...actualBank, version: otherVersion }, first: SWUA, second: PARTNER };
+    expect(compareCouple(relabeledSource.bank, SWUA, PARTNER)).toEqual(compared);
+    await renderResult({ result: compared, reportSource: relabeledSource }, actualBank.version);
+    expect(root().querySelector('[data-axis-reading-reason]')).toBeNull();
+    expect(root().querySelector('[data-couple-reasons-unavailable]')).not.toBeNull();
+    expect(root().querySelector('[data-preparation-scene]')).toBeNull();
+    expect(root().querySelector('[data-role-candidate]')).toBeNull();
+    expect(root().querySelector('[data-couple-preparation]')?.textContent).toContain("받은 링크를 다시 열어 주세요");
+  });
+});
 
 describe("CoupleResult: 구성과 순서", () => {
   it("제목 「우리 둘의 웨딩코드」와 고지가 맨 위에 있고 고지는 이 화면에서 한 번뿐이다", async () => {

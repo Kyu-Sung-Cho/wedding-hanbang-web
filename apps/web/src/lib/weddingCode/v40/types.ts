@@ -51,7 +51,7 @@ export type {
 // 1. 기본
 // ===========================================================================
 
-export type V40Version = typeof WEDDING_CODE_V40_VERSION | "v4.1-depth" | "v4.2-depth";
+export type V40Version = typeof WEDDING_CODE_V40_VERSION | "v4.1-depth" | "v4.2-depth" | "v4.3-depth";
 
 /**
  * 문항 id. 채점 문항은 `<axis>.<facet>.<section+1>` (예: money.limit.1, support.give.4),
