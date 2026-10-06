@@ -73,14 +73,32 @@ const OUT_OF_SCOPE_TASK_PATTERN =
   /코딩|프로그래밍|TypeScript|JavaScript|Python|파이썬\s*스크립트|(?:스크립트|매크로)(?:으로|로)?\s*자동화|코드(?:를|로)?\s*(?:대신\s*)?(?:짜|작성|구현|자동화)|버그를?\s*(?:고쳐|수정)|정치\s*분석|시험\s*(?:답|정답)|숙제|과제\s*(?:대신|작성)/iu;
 
 /** A language mention is insufficient: bind it to a directly requested code artifact. */
-export function isExplicitAmoraProgrammingCodeRequest(text: string): boolean {
+function programmingCodeRequestClauses(text: string): string[] {
   const unquoted = normalizeAmoraSafetyText(text)
     .replace(/"[^"\n]*"|“[^”\n]*”|'[^'\n]*'|‘[^’\n]*’/g, " ");
-  return unquoted.split(/(?:[!?;\n]+|\.(?=\s|$))/u).some(clause => {
+  return unquoted.split(/(?:[!?;\n]+|\.(?=\s|$))/u).filter(clause => {
     const language = /(?:파이썬|자바스크립트|타입스크립트|Python|JavaScript|TypeScript)/iu.test(clause);
     const codeRequest = /코드(?:\s*(?:예시|예제|샘플))?(?:를|을|로|는)?\s*(?:(?:좀|짧게|간단히|한\s*줄로)\s*)*(?:알려(?:줘|주세요|줄래|줄\s*수\s*있(?:어|어요))|보여(?:줘|주세요)|짜(?:줘|주세요)|작성해(?:줘|주세요)|구현해(?:줘|주세요)|만들어(?:줘|주세요))\s*$/u.test(clause.trim());
     return language && codeRequest;
   });
+}
+
+export function isExplicitAmoraProgrammingCodeRequest(text: string): boolean {
+  return programmingCodeRequestClauses(text).some(clause => !hasWeddingProgrammingPurpose(clause));
+}
+
+function isWeddingProgrammingCodeRequest(text: string): boolean {
+  const clauses = programmingCodeRequestClauses(text);
+  return clauses.length > 0 && clauses.every(hasWeddingProgrammingPurpose);
+}
+
+/** Bind the requested computation to a wedding artifact, not a nearby topic mention. */
+function hasWeddingProgrammingPurpose(clause: string): boolean {
+  if (/(?:결혼|웨딩|예식|청첩장)[^.!?\n]{0,24}(?:무관|관련(?:이|은)?\s*없|아니)/u.test(clause)
+    || /(?:계산|합산|집계|배분|생성|정리)[^.!?\n]{0,16}(?:아니|않|필요\s*없|말고|대신)/u.test(clause)) return false;
+  return /(?:웨딩|결혼(?:식)?|예식)\s*예산(?:을|를)?\s*(?:계산|합산|집계|배분)/u.test(clause)
+    || /청첩장(?:의|에\s*쓸|에\s*넣을)?\s*QR\s*(?:코드\s*)?(?:생성|만들)/iu.test(clause)
+    || /(?:웨딩|결혼(?:식)?|예식)\s*일정(?:을|를)?\s*(?:계산|정리|생성)/u.test(clause);
 }
 // 고위험은 두 가지가 섞여 있었다. 법률·의료·금융은 **아모라가 판단할 자격이 없는**
 // 영역이고, 폭력·통제·자해는 **이 대화를 합의안으로 끌고 가면 안 되는** 신호다.
@@ -869,7 +887,8 @@ export function classifyAmoraQuestionScope({
       needsClarification: false,
     };
   }
-  if (OUT_OF_SCOPE_TASK_PATTERN.test(normalizedText)
+  if ((OUT_OF_SCOPE_TASK_PATTERN.test(normalizedText)
+    && !isWeddingProgrammingCodeRequest(normalizedText))
     || isExplicitAmoraProgrammingCodeRequest(normalizedText)) {
     return {
       scope: "W4_out_of_scope",

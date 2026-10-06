@@ -6496,6 +6496,32 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
     });
   });
 
+  describe.each(["shared", "bride_private"] as const)("explicit wedding computation code: %s", visibility => {
+    it.each([
+      "파이썬으로 웨딩 예산 계산 코드를 알려줘.",
+      "파이썬으로 청첩장 QR 생성 코드를 알려줘.",
+      "웨딩 예산을 합산하는 파이썬 코드 예시를 알려주세요.",
+    ])("preserves the requested wedding technical response: %s", async userText => {
+      setSensitiveStoredProviderContext(userText);
+      for (const row of mocks.canonicalRows) row.visibility = visibility;
+      // Use real illustrative code. The earlier placeholder wedding_example()
+      // deliberately matches the existing internal-identifier removal fence.
+      const codeExample = userText.includes("QR") ? "qrcode.make(url)" : "sum(costs)";
+      mocks.provider.mockImplementationOnce(async ({ onText }) => {
+        onText?.(`웨딩 기술 예시는 ${codeExample}예요.`);
+        return providerResult({ fullText: `웨딩 기술 예시는 ${codeExample}예요.` });
+      });
+      const response = await POST(request({ messages: [{ role: "user", content: userText }], visibility }));
+      const body = await response.text();
+      expect(response.status).toBe(200);
+      expect(body, JSON.stringify({ body, scope: mocks.provider.mock.calls[0]?.[0].systemPrompt.match(/question_scope: [^\n]+/)?.[0], persisted: mocks.atomicResponses[0] })).toContain(codeExample);
+      expect(body).not.toContain("이 질문은 제가 도와드리는 범위와 조금 달라요");
+      expect(mocks.provider.mock.calls[0][0].systemPrompt).toContain("question_scope: W0_wedding_core");
+      expect(mocks.executeTool).not.toHaveBeenCalled();
+      expect(mocks.atomicResponses[0].content).toContain(codeExample);
+    });
+  });
+
   it("keeps a confirmed action on the full fail-closed context path even with a mixed W2 question", async () => {
     const actionId = "11111111-1111-4111-8111-111111111111";
     const userText = "응, 예산 적용해줘. 그리고 임신 중인데 이 약 먹어도 돼?";
