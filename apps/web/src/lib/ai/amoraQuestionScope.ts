@@ -94,11 +94,13 @@ function isWeddingProgrammingCodeRequest(text: string): boolean {
 
 /** Bind the requested computation to a wedding artifact, not a nearby topic mention. */
 function hasWeddingProgrammingPurpose(clause: string): boolean {
-  if (/(?:결혼|웨딩|예식|청첩장)[^.!?\n]{0,24}(?:무관|관련(?:이|은)?\s*없|아니)/u.test(clause)
-    || /(?:계산|합산|집계|배분|생성|정리)[^.!?\n]{0,16}(?:아니|않|필요\s*없|말고|대신)/u.test(clause)) return false;
-  return /(?:웨딩|결혼(?:식)?|예식)\s*예산(?:을|를)?\s*(?:계산|합산|집계|배분)/u.test(clause)
-    || /청첩장(?:의|에\s*쓸|에\s*넣을)?\s*QR\s*(?:코드\s*)?(?:생성|만들)/iu.test(clause)
-    || /(?:웨딩|결혼(?:식)?|예식)\s*일정(?:을|를)?\s*(?:계산|정리|생성)/u.test(clause);
+  const purposes = [...clause.matchAll(/(?:웨딩|결혼(?:식)?|예식)\s*예산(?:을|를)?\s*(?:계산|합산|집계|배분)|청첩장(?:의|에\s*쓸|에\s*넣을)?\s*QR\s*(?:코드\s*)?(?:생성|만들)|(?:웨딩|결혼(?:식)?|예식)\s*일정(?:을|를)?\s*(?:계산|정리|생성)/giu)];
+  const latest = purposes.at(-1);
+  if (!latest) return false;
+  // An abandoned earlier purpose cannot negate a later affirmative QR/budget
+  // request, nor can an abandoned wedding task license unrelated code.
+  const predicate = clause.slice((latest.index ?? 0) + latest[0].length);
+  return !/(?:무관|관련(?:이|은)?\s*없|아니|않|필요\s*없|말고|대신)/u.test(predicate);
 }
 // 고위험은 두 가지가 섞여 있었다. 법률·의료·금융은 **아모라가 판단할 자격이 없는**
 // 영역이고, 폭력·통제·자해는 **이 대화를 합의안으로 끌고 가면 안 되는** 신호다.

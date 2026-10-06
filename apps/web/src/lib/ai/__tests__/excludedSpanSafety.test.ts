@@ -41,6 +41,7 @@ it.each([
   "파이썬으로 청첩장 QR 생성 코드를 알려줘.",
   "웨딩 예산을 합산하는 파이썬 코드 예시를 알려주세요.",
   "Python으로 웨딩 예산 계산 코드를 알려줘.",
+  "파이썬으로 웨딩 예산 계산은 말고 청첩장 QR 생성 코드를 알려줘.",
   "Python 질문인데 남편이 죽인다고 협박해요",
   "Python 질문인데 자살 생각이 자꾸 나요",
 ])("off-domain terminal preserves wedding calculations, technology and safety: %s", userText => {
