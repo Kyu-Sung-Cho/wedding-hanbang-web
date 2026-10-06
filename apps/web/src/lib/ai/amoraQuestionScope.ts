@@ -71,6 +71,17 @@ const NON_WEDDING_INVESTMENT_PATTERN =
 // 만들어줘" 가 걸린다.
 const OUT_OF_SCOPE_TASK_PATTERN =
   /코딩|프로그래밍|TypeScript|JavaScript|Python|파이썬\s*스크립트|(?:스크립트|매크로)(?:으로|로)?\s*자동화|코드(?:를|로)?\s*(?:대신\s*)?(?:짜|작성|구현|자동화)|버그를?\s*(?:고쳐|수정)|정치\s*분석|시험\s*(?:답|정답)|숙제|과제\s*(?:대신|작성)/iu;
+
+/** A language mention is insufficient: bind it to a directly requested code artifact. */
+export function isExplicitAmoraProgrammingCodeRequest(text: string): boolean {
+  const unquoted = normalizeAmoraSafetyText(text)
+    .replace(/"[^"\n]*"|“[^”\n]*”|'[^'\n]*'|‘[^’\n]*’/g, " ");
+  return unquoted.split(/(?:[!?;\n]+|\.(?=\s|$))/u).some(clause => {
+    const language = /(?:파이썬|자바스크립트|타입스크립트|Python|JavaScript|TypeScript)/iu.test(clause);
+    const codeRequest = /코드(?:\s*(?:예시|예제|샘플))?(?:를|을|로|는)?\s*(?:(?:좀|짧게|간단히|한\s*줄로)\s*)*(?:알려(?:줘|주세요|줄래|줄\s*수\s*있(?:어|어요))|보여(?:줘|주세요)|짜(?:줘|주세요)|작성해(?:줘|주세요)|구현해(?:줘|주세요)|만들어(?:줘|주세요))\s*$/u.test(clause.trim());
+    return language && codeRequest;
+  });
+}
 // 고위험은 두 가지가 섞여 있었다. 법률·의료·금융은 **아모라가 판단할 자격이 없는**
 // 영역이고, 폭력·통제·자해는 **이 대화를 합의안으로 끌고 가면 안 되는** 신호다.
 // 한 통에 담으면 계약금 환불로 다투는 커플이 안전 사안과 같은 취급을 받는다 —
@@ -858,7 +869,8 @@ export function classifyAmoraQuestionScope({
       needsClarification: false,
     };
   }
-  if (OUT_OF_SCOPE_TASK_PATTERN.test(normalizedText)) {
+  if (OUT_OF_SCOPE_TASK_PATTERN.test(normalizedText)
+    || isExplicitAmoraProgrammingCodeRequest(normalizedText)) {
     return {
       scope: "W4_out_of_scope",
       allowsLongTermMemory: false,
