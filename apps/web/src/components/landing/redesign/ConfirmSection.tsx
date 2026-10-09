@@ -1,4 +1,5 @@
-import { CalendarDays, ClipboardList, Wallet } from "lucide-react";
+import Link from "next/link";
+import { CalendarDays, ClipboardList, ListChecks, Wallet } from "lucide-react";
 import AmoraAvatar from "@/components/ui/AmoraAvatar";
 
 import { landingContent } from "./landingContent";
@@ -13,9 +14,9 @@ import { band, bodyText, eyebrowText, noteText, sectionTitle, shell, TitleLines 
  *
  * 아모라가 이해한 것을 **먼저 보여주고**, 사람이 누르기 전에는 아무것도 바뀌지 않는다.
  * 그래서 카드 안에 세 가지가 함께 있어야 한다: 무엇으로 이해했는지(칩+문장),
- * 무엇을 고를 수 있는지(버튼 셋), 그리고 **아직 아무 일도 안 일어났다는 사실**.
+ * 무엇을 고를 수 있는지(저장·취소), 그리고 **아직 아무 일도 안 일어났다는 사실**.
  *
- * ## 버튼 셋은 그림이다
+ * ## 저장·취소 버튼은 그림이다
  *
  * 이 화면에서 누를 수 있는 것은 아무것도 없다(계정이 있어야 아모라를 쓴다). 그래서
  * `aria-hidden` 으로 묶는다 — 안 그러면 스크린리더가 진짜 승인 버튼으로 읽어
@@ -26,7 +27,7 @@ import { band, bodyText, eyebrowText, noteText, sectionTitle, shell, TitleLines 
  */
 export default function ConfirmSection() {
   const { confirm } = landingContent;
-  const toolIcons = [Wallet, ClipboardList, CalendarDays];
+  const toolIcons = [Wallet, ClipboardList, CalendarDays, ListChecks];
 
   return (
     <section id="confirm" className={`${band} bg-[var(--color-ivory-50)]`} aria-labelledby="confirm-title">
@@ -38,27 +39,21 @@ export default function ConfirmSection() {
         </p>
 
         <h2 id="confirm-title" className={`${sectionTitle} max-w-[300px] lg:max-w-none`}>
-          <TitleLines value={confirm.title} mobileLastWord />
+          <TitleLines value={confirm.title} />
         </h2>
 
         <p className={`mt-[14px] max-w-[600px] lg:mt-4 ${bodyText}`}>{confirm.lede}</p>
 
-        <ul className="mt-[22px] grid gap-[10px] lg:mt-[46px] lg:grid-cols-3 lg:gap-[18px]">
-          {confirm.tools.map((tool, index) => {
+        <ul className="mt-6 grid gap-3 lg:mt-9 lg:grid-cols-2 lg:gap-4">
+          {confirm.management.map((tool, index) => {
             const Icon = toolIcons[index] ?? ClipboardList;
             return (
-              <li
-                key={tool.title}
-                className="flex items-center gap-[13px] rounded-[13px] border border-[var(--color-paper-edge)] bg-[var(--color-paper-card)] p-4 lg:block lg:rounded-[14px] lg:p-[22px]"
-              >
-                <span aria-hidden className="flex size-[38px] shrink-0 items-center justify-center rounded-[10px] bg-[var(--color-ivory-warm)] text-[var(--color-rose-700)] lg:mb-[14px]">
-                  <Icon className="size-5" strokeWidth={1.7} />
-                </span>
-                <div>
-                  <p className="text-[14px] font-semibold text-[var(--color-paper-ink)] lg:text-[15px]">
-                    {tool.title}
-                  </p>
-                  <p className={`mt-[3px] lg:mt-[6px] ${noteText}`}>{tool.body}</p>
+              <li key={tool.title} className="flex items-start gap-4 rounded-[13px] border border-[var(--color-paper-edge)] bg-[var(--color-paper-card)] p-5">
+                <span aria-hidden="true" className="flex size-10 shrink-0 items-center justify-center rounded-[10px] bg-[var(--color-ivory-warm)] text-[var(--color-rose-700)]"><Icon className="size-5" strokeWidth={1.7} /></span>
+                <div className="min-w-0">
+                  <h3 className="text-[16px] font-semibold">{tool.title}</h3>
+                  <p className="mt-1 text-[14px] leading-[1.7] text-[var(--color-paper-ink-soft)]">{tool.body}</p>
+                  <Link href={tool.href} prefetch={false} className="mt-2 inline-flex min-h-11 items-center rounded-[6px] text-[14px] font-semibold text-[var(--color-paper-pen)] underline underline-offset-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-paper-pen)] focus-visible:ring-offset-2">{tool.action}</Link>
                 </div>
               </li>
             );
@@ -110,9 +105,6 @@ export default function ConfirmSection() {
               {confirm.sample.confirm}
             </span>
             <span className="inline-flex min-h-11 items-center justify-center rounded-[10px] border border-[var(--color-paper-edge)] px-4 text-[13px] font-semibold text-[var(--color-paper-ink-soft)] lg:rounded-[9px] lg:px-5 lg:text-[13.5px]">
-              {confirm.sample.edit}
-            </span>
-            <span className="col-span-2 inline-flex min-h-11 items-center justify-center rounded-[10px] border border-[var(--color-paper-edge)] px-4 text-[13px] font-semibold text-[var(--color-paper-ink-soft)] lg:rounded-[9px] lg:px-5 lg:text-[13.5px]">
               {confirm.sample.later}
             </span>
           </div>
@@ -120,12 +112,10 @@ export default function ConfirmSection() {
           <p className="mt-5 text-[14px] font-medium leading-[1.7] text-[var(--color-paper-ink)] lg:text-[15px]">
             {confirm.sample.contract}
           </p>
-          <p className={`mt-2 ${noteText}`}>확인을 누르기 전까지 예산 화면은 그대로예요.</p>
           <p className={`mt-2 ${noteText}`}>{confirm.sampleNote}</p>
         </div>
 
-        <p className={`mt-[22px] max-w-[700px] lg:mt-7 ${noteText}`}>{confirm.body}</p>
-        <p className={`mt-2 max-w-[60ch] ${noteText}`}>{confirm.body2}</p>
+        <p className={`mt-[22px] max-w-[700px] lg:mt-7 ${noteText}`}>{confirm.body2}</p>
         <p className={`mt-2 max-w-[60ch] ${noteText}`}>{confirm.note}</p>
       </div>
     </section>

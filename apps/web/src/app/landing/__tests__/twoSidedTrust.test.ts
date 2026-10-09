@@ -107,7 +107,6 @@ const hero = rendered(`${REDESIGN}/TransformationHero.tsx`);
 const content = rendered(CONTENT_PATH);
 const boundariesSection = rendered(`${REDESIGN}/BoundariesSection.tsx`);
 const availableNowSection = rendered(`${REDESIGN}/AvailableNowSection.tsx`);
-const communitySection = rendered(`${REDESIGN}/CommunitySection.tsx`);
 const confirmSection = rendered(`${REDESIGN}/ConfirmSection.tsx`);
 const closing = rendered(`${REDESIGN}/ClosingAction.tsx`);
 const footer = rendered(`${REDESIGN}/LandingFooter.tsx`);
@@ -217,12 +216,16 @@ const FORBIDDEN: ReadonlyArray<readonly [RegExp, string]> = [
     /(?:서비스|웨딩한방|모든\s*기능|전\s*기능|전부|평생|계속)[^.\n]{0,8}(?:무료|공짜)/u,
     "서비스가 통째로 무료라고 말한다 — 비용은 아직 정해지지 않았다",
   ],
-  [/무료(?:입니다|예요|에요|로\s*제공)/u, "무료라고 단정한다"],
+  [/((?:항상|평생|영구|무제한)[^.\n]{0,6}(?:무료|공짜)|(?:무료|공짜)[^.\n]{0,6}(?:항상|평생|영구|무제한))/u, "영구·무제한 무료라고 단정한다"],
 
   // 없는 사회적 증거. 랜딩은 이용자 수를 말할 근거가 없다.
   [
-    /\d[\d,]*\s*(?:만\s*)?(?:쌍|명|커플|가정|부부|가입자|이용자)/u,
+    /\d[\d,]*\s*(?:만\s*)?(?:쌍|커플|가정|부부|가입자|이용자)/u,
     "이용자 수를 숫자로 말한다 — 근거가 없다",
+  ],
+  [
+    /(?:이용자|가입자|사용자|예비부부|커플)[^.\n]{0,12}\d[\d,]*\s*(?:만\s*)?명|\d[\d,]*\s*(?:만\s*)?명(?:의)?\s*(?:이용자|가입자|사용자|예비부부|커플)/u,
+    "두 어순의 이용자 수를 명 단위로 말한다 — 근거가 없다",
   ],
   [
     /(?:이미|벌써|현재|지금까지)[^.\n]{0,12}(?:\d[\d,]*|수많은|많은|여러|수천|수만)[^.\n]{0,8}(?:쌍|명|커플|부부|사람|팀)/u,
@@ -269,6 +272,29 @@ const FORBIDDEN: ReadonlyArray<readonly [RegExp, string]> = [
 const VENDOR_COUNT =
   /\d[\d,]*\s*(?:곳|군데|개사|개소)|(?:업체|업소|예식장|웨딩홀|스튜디오|매장|제휴사)[^.\n]{0,14}\d[\d,]*\s*(?:개|건|사|팀)|\d[\d,]*\s*(?:개|건|사|팀)[^.\n]{0,14}(?:업체|업소|예식장|웨딩홀|스튜디오|매장|제휴사)/gu;
 
+describe("없는 이용자 수 사회적 증거 검사", () => {
+  it.each([
+    "이용자 1,000명이 사용해요",
+    "1,000명의 이용자가 사용해요",
+    "가입자 2만 명이 함께해요",
+    "2만 명의 가입자가 함께해요",
+    "사용자 500명이 준비하고 있어요",
+    "500 명의 사용자가 준비하고 있어요",
+    "예비부부 700명이 이용해요",
+    "700명의 예비부부가 이용해요",
+  ])("이용자 수 주장 두 어순을 모두 거부한다: %s", (claim) => {
+    expect(FORBIDDEN.some(([pattern]) => pattern.test(claim)), claim).toBe(true);
+  });
+
+  it.each([
+    "내년 가을쯤 결혼하고 싶어. 하객은 100명 정도야. 뭐부터 해야 해?",
+    "하객 1,000명이 올 수 있는 식장을 찾고 싶어요",
+    "하객 100명 기준으로 확인할 항목을 정리해 주세요",
+  ])("개인이 말한 하객 수를 이용자 수 주장으로 오인하지 않는다: %s", (example) => {
+    expect(FORBIDDEN.some(([pattern]) => pattern.test(example)), example).toBe(false);
+  });
+});
+
 describe("landing two-sided trust contract", () => {
   it("leads with the concrete couple loop, then makes its trust evidence verifiable", () => {
     // 첫 화면이 파는 것. 옛 판의 후크("둘의 기준이 다른 걸 몰라서예요")가 정본 시안의
@@ -278,15 +304,11 @@ describe("landing two-sided trust contract", () => {
     // 파일 전체가 아니라 `hero` 블록에서 찾는다. 전체를 보던 동안 이 문장들을
     // `footer.tagline` 으로 옮겨도 통과했다(2026-08-27 변형).
     //
-    // 2026-09-03 시안으로 후크가 한 번 더 옮겨 갔다("결혼 준비 노트, 같이 정리해요" →
-    // "결혼 준비, 뭐부터 할지보다 우리 둘이 뭘 원하는지부터"). 2026-10-01 에 다시
-    // "결혼식까지 몇 달 남았는데 지금 뭐부터 하면 될까요?" 로 옮겼다. 문장은 바뀌어도
-    // 여기서 재는 것은 같다: 첫 화면이 **처음 온 사람이 겪는 장면**(뭐부터 해야 할지
-    // 모르는 순간)을 말하는가.
+    // 첫 화면은 무엇부터 할지 모르는 순간을 말하고, 질문을 둘의 결정으로 이어 준다.
     const heroCopy = contentBlock("hero", "amoraNote");
-    expect(heroCopy).toMatch(/결혼식까지 몇 달 남았는데[\s\S]*지금 뭐부터 하면 될까요/u);
-    expect(heroCopy).toMatch(/예산[^"\n]*준비[^"\n]*순서/u);
-    expect(heroCopy).toMatch(/AI[^"\n]*아모라[\s\S]*직접 확인한 내용은 예산·할 일·일정/u);
+    expect(heroCopy).toMatch(/결혼 준비, 뭐부터 할까요\?[\s\S]*아모라와 하나씩 정해요\./u);
+    expect(heroCopy).toMatch(/AI 동반자 아모라와 고민을 정리하고[^"\n]*직접 확인해 기록/u);
+    expect(heroCopy).toMatch(/두 사람의 예산·일정·할 일/u);
     expectWired("hero.body");
     expectWired("hero.note");
     // 2026-08-29: 옛 컴포넌트는 줄바꿈·색 강조 때문에 H1 글자를 손으로 적었고, 그래서
@@ -303,14 +325,13 @@ describe("landing two-sided trust contract", () => {
     const amoraNoteCopy = contentBlock("amoraNote", "noSide");
     const boundariesCopy = contentBlock("boundaries", "closing");
     const footerCopy = contentBlock("footer", "headerNav");
-    expect(amoraNoteCopy).toContain("AI 생성 답변");
-    expect(amoraNoteCopy).toContain("AI는 틀리거나 놓칠 수 있어요");
-    expect(amoraNoteCopy).toContain("계약 금액·취소 조건·중요 날짜는 원문과 업체 안내를");
-    expect(boundariesCopy).toContain("AI가 만든 답변임을 표시해요");
-    expect(boundariesCopy).toContain("AI는 틀리거나 놓칠 수 있어요");
-    expect(footerCopy).toContain("아모라 답변은 AI가 만든 내용이며");
+    expect(amoraNoteCopy).toContain("아모라 · AI 생성");
+    expect(boundariesCopy).toContain("아모라의 답변은 AI가 작성해요");
+    expect(boundariesCopy).toContain("AI 답변에는 오류가 있을 수 있어요");
+    expect(boundariesCopy).toContain("계약 금액·취소 조건·중요 날짜는 원문과 업체 안내를");
     // 카피에 있는 것만으로는 부족하다 — 그리는 `<p>` 를 지워도 통과하던 자리다.
     expectWired("amoraNote.note");
+    expectWired("amoraNote.chat.amoraLabel");
     expectWired("footer.notice");
     // 경계 항목은 배열이라 키 하나를 짚을 수 없다. 목록 자체를 그리는지로 본다 —
     // `[].map` 으로 바꿔 카드를 통째로 없애던 우회가 실제로 있었다.
@@ -323,26 +344,25 @@ describe("landing two-sided trust contract", () => {
     const confirmCopy = contentBlock("confirm", "availableNow");
     // 2026-09-03 시안이 같은 뜻을 두 줄로 풀어 썼다("결정은 둘이. 아모라는 정리." →
     // "결정은 둘이 합니다. / 아모라는 그 앞까지만 도와요.").
-    expect(boundariesCopy).toContain("결정은 직접,");
-    expect(boundariesCopy).toContain("아모라는 준비를 돕습니다.");
+    expect(boundariesCopy).toContain("아모라는 준비를 돕고,");
+    expect(boundariesCopy).toContain("결정은 두 사람이 해요.");
     expectWired("boundaries.title");
-    expect(confirmCopy).toContain("확인한 것만 남아요.");
-    expect(confirmCopy).toContain("한 번에 한 가지 변경을 제안하고");
-    expect(confirmCopy).toContain("확인한 것만 준비 기록에 반영해요");
+    expect(confirmCopy).toContain("저장 전에 바뀔 내용과 저장 위치를 직접 확인하면 예산·할 일·일정에 남길 수 있어요");
+    expect(confirmCopy).toContain("저장을 확인하기 전에는 기록이 바뀌지 않아요");
     // 옛 카피의 "확인 버튼을 누르기 전까지 예산·할 일·일정에 반영되지 않아요." 는
     // 확인 카드 안의 한 줄로 옮겨졌다. 컴포넌트가 손으로 적으므로 거기서 찾는다.
     expect(confirmSection, "확인 전에는 화면이 그대로라는 문장이 사라졌다")
-      .toContain("확인을 누르기 전까지 예산 화면은 그대로예요.");
-    expectWired("confirm.body");
+      .toContain("{confirm.sample.contract}");
+    expectWired("confirm.lede");
     expectWired("confirm.body2");
     expectWired("confirm.note");
 
     // 업체 편이 아니라는 증거. 옛 `notForVendors` 의 "업체에서 돈을 받지 않아요."·
     // "소개비를 받고 순서를 바꾸는 일도 없어요." 가 경계 항목 둘로 옮겨졌다.
     expect(boundariesCopy).toContain("업체에 점수·등급·순위를 매기지 않아요");
-    expect(boundariesCopy).toContain("현재 광고 상품을 운영하지 않아요.");
-    expect(boundariesCopy).toContain("계약서 해석이나 유불리 판단을 하지 않아요");
-    expect(boundariesCopy).toContain("업체 계약 신청·예약·결제를 중개하지 않습니다.");
+    expect(boundariesCopy).toContain("광고 상품은 운영하지 않아요.");
+    expect(boundariesCopy).toContain("계약 조건을 해석하거나 유불리를 판단하지 않아요");
+    expect(boundariesCopy).toContain("업체 계약 신청·예약·결제를 중개하지 않아요.");
 
     // 샘플에는 샘플이라고 적는다 — 옛 "기능 예시 · 이 화면에서는 실제로 저장되지
     // 않아요". 지금은 아모라 노트 카드가 **카드 안에서** 그 일을 하고(캡처돼도 떨어져
@@ -353,32 +373,31 @@ describe("landing two-sided trust contract", () => {
     // 배선은 `landingDisclosuresAreOnScreen.test.ts` 가 지는 계약이다 — 그 목록에
     // 이 키를 넣어야 한다. 여기서 배선까지 물으면 이 파일이 남의 계약을 대신 지는 게
     // 되고, 옛 판이 지던 것보다 넓어진다.
-    expect(amoraNoteCopy).toContain("기능 예시");
-    expect(amoraNoteCopy).toContain("이 화면에서는 실제로 저장되지 않아요.");
+    expect(amoraNoteCopy).toContain("기능을 설명하는 예시 대화예요");
+    expect(amoraNoteCopy).toContain("이 화면에서는 대화하거나 저장할 수 없어요.");
     expect(confirmCopy).toContain(
-      "이름·금액은 기능을 보여주기 위한 샘플이고",
+      "금액은 예시이며",
     );
-    expect(confirmCopy).toContain("실제 이용 현황이 아니에요.");
+    expect(confirmCopy).toContain("이 화면에서는 저장할 수 없어요.");
 
     // 개인정보 — 로그인 없이 선택한 내용은 남기지 않는다(옛 `privateLane.note`).
     const availableNowCopy = contentBlock("availableNow", "community");
-    expect(availableNowCopy).toContain("로그인 없이 선택한 내용은 저장하지 않아요");
+    expect(availableNowCopy).toContain("가입 없이 선택한 내용은 저장하지 않아요");
 
     // 궁합·점수 금지(CLAUDE.md: WeddingCode 는 검증된 궁합 검사가 아니다).
     // 옛 `scenes.note` 가 스무 장면 카드의 작은 글씨로 내려왔다.
-    expect(availableNowCopy).toContain("점수도 궁합도 매기지 않아요");
+    expect(availableNowCopy).toContain("심리 진단이나 궁합 검사가 아니에요");
 
     // 가격 근거는 푸터 고지 한 줄에 모였다. 하나라도 빠지면 출처 없는 수치가 된다.
     // 이 여섯 줄은 **푸터 고지 블록에서** 찾는다. 파일 전체를 보던 동안, 이 문장들을
     // 주석 처리하기만 해도 열두 단언이 전부 통과했다(2026-08-27 변형).
     expect(footerCopy).toContain("한국소비자원 참가격");
     expect(footerCopy).toContain("2025년 11월 공시 기준");
-    expect(footerCopy).toContain("2026.08.08 화면 집계 확인");
-    expect(footerCopy).toContain("취소·환불 규정 원문은 업체가 쓴 문장 그대로예요.");
-    expect(footerCopy).toContain("공시된 가격은 기본 조건 기준이라 실제 계약가와 다를 수 있고");
-    expect(footerCopy).toContain("예약·결제·계약은 업체와 직접 진행합니다.");
+    expect(footerCopy).toContain("업체가 공개한 취소·환불 규정은 원문으로 제공해요.");
+    expect(footerCopy).toContain("공시 가격은 기본 조건 기준이라 실제 계약가와 다를 수 있어요.");
+    expect(footerCopy).toContain("예약·결제·계약은 업체와 직접 진행해 주세요.");
 
-    expect(availableNowCopy).toContain("값이 적정한지는 판정하지 않고");
+    expect(availableNowCopy).toContain("가격의 적정 여부는 평가하지 않아요");
 
     // 문의 창구는 푸터에 남는다 — 옛 "서비스·업체 정보 문의" 자리.
     // 주소를 여기 적지 않는다. 옛 주소는 메일을 받지 않았는데 여덟 군데가 박아 둔 탓에
@@ -393,17 +412,18 @@ describe("landing two-sided trust contract", () => {
     // 커뮤니티는 읽는 것만 로그인 없이 열린다 — 글쓰기는 계정이 필요하다고 먼저 말한다.
     // (옛 `notDoing` 의 "AI가 단 답변은 사람 답변과 구분해서 보여줘요" 는 커뮤니티
     //  **안쪽** 화면의 계약이라 랜딩 카피에서 빠졌다. 랜딩은 이제 커뮤니티를 소개만 한다.)
-    const communityCopy = contentBlock("community", "photoBand");
-    expect(communityCopy).toContain("로그인 없이 읽을 수 있어요. 글을 쓰려면 계정이 필요해요.");
-    expectWired("community.note");
-    expect(communitySection, "커뮤니티 섹션이 카피 제목을 안 읽는다")
-      .toMatch(/community\.title/u);
+    expect(landing, "커뮤니티 섹션이 랜딩에 다시 노출됐다")
+      .not.toContain("<CommunitySection");
+    expect(contentBlock("community", "photoBand"), "커뮤니티가 공개 랜딩의 현재 축으로 설정됐다")
+      .toContain("visible: false");
+    expect(renderedSections(), "커뮤니티가 실제 랜딩 섹션으로 렌더된다")
+      .not.toContain("CommunitySection");
 
     // 반영 전에 무엇이 반영될지 먼저 보여준다 — 옛 "준비 기록에 반영할 변경을 먼저
     // 보여줘요"가 확인 카드의 라벨로 바뀌었다.
     // 2026-09-03: 카드가 "제안 한 건" 에서 "이해한 것 세 줄" 로 바뀌면서 라벨도 바뀌었다.
     // 지키는 것은 같다 — 눌리기 전에는 아무 일도 안 일어났다고 카드가 스스로 말한다.
-    expect(confirmCopy).toContain("아직 반영 전");
+    expect(confirmCopy).toContain("저장 전");
     expectWired("confirm.sample.state");
     expectWired("confirm.sample.contract");
     expect(content).not.toContain("무엇을 저장하고 공유할지 먼저 보여줘요");
@@ -553,11 +573,12 @@ describe("landing two-sided trust contract", () => {
     // 헤더가 렌더하는 단위로 보면 링크는 살아 있으므로 헤더+메뉴를 합쳐서 본다.
     // **데스크톱 헤더에 가입·로그인 링크가 아예 없는 것**은 이 파일이 아니라
     // `landingSignupIsOpen.test.ts`가 지는 계약이다.
-    expect(`${header}\n${mobileMenu}`).toContain('href="/login"');
+    expect(contentBlock("headerAuth")).toContain('href: "/login?redirect=%2Fwedding%2Fchat"');
+    expect(header).toContain("href={headerAuth.logIn.href}");
     expect(
       mobileMenu,
       "/login 링크의 보이는 글자가 '로그인'이 아니다",
-    ).toMatch(/href="\/login"[\s\S]{0,600}>\s*로그인\s*<\/Link>/u);
+    ).toMatch(/href=\{headerAuth\.logIn\.href\}[\s\S]{0,600}>\s*로그인\s*<\/Link>/u);
 
     // 마무리 CTA — 계정이 있는 사람만 로그인으로 보낸다.
     //
@@ -569,8 +590,8 @@ describe("landing two-sided trust contract", () => {
     const closingKeys = [...closingCopy.matchAll(/^\s{4}(primary|secondary|tertiary):/gmu)].map(
       (match) => match[1],
     );
-    expect(closingKeys.length, "마무리 CTA를 못 찾았다 — 정규식이 낡았다")
-      .toBeGreaterThanOrEqual(2);
+    expect(closingKeys, "마무리가 하나의 아모라 시작 행동을 제공하지 않는다")
+      .toEqual(["primary"]);
     for (const key of closingKeys) {
       expect(closing, `마무리에서 closing.${key} 버튼이 사라졌다`)
         .toContain(`href={closing.${key}.href}`);
@@ -581,10 +602,8 @@ describe("landing two-sided trust contract", () => {
     // 로그인으로 보내는 마무리 링크는 **계정이 있는 사람에게만** 말을 건다.
     // 조건 없이 "로그인하고 시작하기"가 되면 가입이 열려 있는데도 계정 없는 사람이
     // 막힌 것으로 읽는다.
-    const loginCta = closingCopy.match(/label: "([^"]*)", href: "\/login"/u);
-    expect(loginCta?.[1], "마무리에 /login 으로 가는 CTA가 없다").toBeDefined();
-    expect(loginCta![1], "로그인 CTA가 계정이 있는 사람용이라고 말하지 않는다")
-      .toMatch(/계정이\s*(?:있다면|있으면|있는)/u);
+    expect(closingCopy).toContain('primary: { label: "아모라와 준비 시작하기", href: "/wedding/chat" }');
+    expect(closingCopy).toContain("아모라와 예산·할 일·일정 관리에는 가입이 필요해요");
 
     // 없어진 단언: `const amoraStartHref = "/start-here"`와 CTA 라벨 "아모라와
     // 시작하기". 로그인 없이 아모라를 시작할 수 없게 된 뒤(#245) 랜딩에서 아모라로
@@ -598,9 +617,8 @@ describe("landing two-sided trust contract", () => {
 
     // 출처. 옛 "자료 출처 · 한국소비자원 참가격"이 푸터 고지 한 줄과 공시 카드로 갈렸고,
     // 우리가 옮겨 적었을 뿐이라는 것까지 말한다.
-    expect(footerCopy).toContain("가격 출처 · 한국소비자원 참가격");
-    expect(availableNowCopy).toContain("한국소비자원이 공개한 자료예요.");
-    expect(availableNowCopy).toContain("업체가 공시한 기본 금액과 취소하면 무는 돈을 원문 그대로");
+    expect(footerCopy).toContain("가격 출처: 한국소비자원 참가격");
+    expect(availableNowCopy).toContain("한국소비자원 참가격에 공시된 기본 가격과 취소 위약금 원문");
 
     // 공시 카드가 실제로 렌더되고 원문으로 간다. 카피만 있고 길이 없으면 열람 약속이
     // 거짓이 된다. 옛 판은 `NotForVendorsSection` 의 곁블록이 그 일을 했다.
@@ -624,15 +642,15 @@ describe("landing two-sided trust contract", () => {
     // 광고는 광고와 섞지 않는다. 옛 "소개비를 받고 순서를 바꾸는 일도 없어요."·
     // "광고·협찬 글에는 출처 표시가 붙고" 가, 광고 상품이 아예 없다는 더 강한 문장으로
     // 합쳐졌다. 광고 상품을 시작하면 **표시 약속을 다시 적어야 한다.**
-    expect(boundariesCopy).toContain("현재 광고 상품을 운영하지 않아요.");
-    expect(boundariesCopy).toContain("공시된 문장을 요약하지도 않습니다.");
+    expect(boundariesCopy).toContain("광고 상품은 운영하지 않아요.");
+    expect(boundariesCopy).toContain("공시 가격과 규정은 요약하지 않고 원문으로 제공해요.");
 
     // 한계. 공시가는 기본 조건 기준이고, 공시한 업체만 실려 지역 편차가 크다.
     // 지역 편차 문장을 빼면 사용자가 "우리 지역엔 없네"를 우리 잘못으로 읽는다.
-    expect(footerCopy).toContain("공시된 가격은 기본 조건 기준이라 실제 계약가와 다를 수 있고");
-    expect(footerCopy).toContain("공시한 업체만 싣기 때문에");
-    expect(footerCopy).toContain("지역별로 수가 크게 달라요");
-    expect(availableNowCopy).toContain("값이 적정한지는 판정하지 않고, 요약하지도 않아요");
+    expect(footerCopy).toContain("공시 가격은 기본 조건 기준이라 실제 계약가와 다를 수 있어요");
+    expect(footerCopy).toContain("가격을 공시한 업체만 제공하므로");
+    expect(footerCopy).toContain("지역별 등록 업체 수가 달라요");
+    expect(availableNowCopy).toContain("가격과 규정은 요약하지 않고 원문으로 제공하며, 가격의 적정 여부는 평가하지 않아요");
 
     // 출처는 한국소비자원 하나뿐이다 — 제휴사 가격표는 없다(업체 제휴 0건).
     expect(content).not.toContain("제휴사별 최저 기본가");
@@ -695,7 +713,7 @@ describe("landing two-sided trust contract", () => {
     const amora = "(?:아모라|체험|상담|대화)";
     const noLoginAmora = new RegExp(
       `${gate}[^.\\n]{0,14}${negation}[^.\\n]{0,24}${amora}`
-        + `|${amora}[^.\\n]{0,24}${gate}[^.\\n]{0,14}${negation}`,
+        + `|${amora}(?![^.\\n]{0,24}가입 후, 웨딩코드는 가입 없이)[^.\\n]{0,24}${gate}[^.\\n]{0,14}${negation}`,
       "u",
     );
     const hit = renderedCopy.match(noLoginAmora);
@@ -716,25 +734,26 @@ describe("landing two-sided trust contract", () => {
     const confirmCopy = contentBlock("confirm", "availableNow");
     const footerCopy = contentBlock("footer", "headerNav");
 
-    // 2026-09-03 시안 문장으로 바뀌었다. 뜻은 같다 — 가입 전에 열려 있는 것들.
-    expect(availableNowCopy).toContain("가입 전에 그냥 써보세요");
-    expect(availableNowCopy).toMatch(/title: "가입 전에[^"\n]*"/u);
-    expect(availableNowCopy).toContain("도 로그인 없이 열려 있어요.");
+    // 계정 없이 열리는 도구와 첫 행동을 함께 말한다.
+    expect(availableNowCopy).toContain("가입 없이 먼저 써 보세요");
+    expect(availableNowCopy).toContain('href: "/wedding/community/quote-check"');
+    expect(availableNowCopy).toContain('href: "/wedding-code"');
     expectWired("availableNow.eyebrow");
     expectWired("availableNow.title");
-    expectWired("availableNow.footTail");
     // 첫 화면에서도 조건을 먼저 말한다 — 여기까지 안 내려온 사람이 훨씬 많다.
     const heroCopy = contentBlock("hero", "amoraNote");
-    expect(heroCopy).toContain("계정을 만들고 웹에서 시작해요.");
-    expect(closingCopy).toContain("로그인·결제 없이 열려요.");
+    expect(heroCopy).toContain("아모라는 로그인 후 이용해요. 웨딩코드는 가입 없이 해볼 수 있어요");
+    expect(closingCopy).toContain("무료 도구는 가입 없이 이용할 수 있어요");
 
     // 계정을 만들면 무엇이 열리는지. 옛 판은 ⑦ 섹션이 한 줄로 적었고, 지금은 확인
     // 섹션의 눈썹("계정을 만들면")과 본문이 그 일을 한다.
     // 2026-09-03: 눈썹이 "계정을 만들면" → "대화로 끝나지 않게" 로 바뀌었다. 계정 이야기를
     // 꺼내는 자리는 그대로 이 섹션이고, 그 말은 고지 문장이 진다.
-    expect(confirmCopy).toContain("계정을 만들어도 지금은 결제를 요청하지 않아요");
-    expect(confirmCopy).toContain("예산·할 일·일정");
-    expect(closingCopy).toContain("예산·할 일·일정을 남기려면 계정이 필요해요.");
+    expect(confirmCopy).toContain("지금은 결제를 요청하지 않아요");
+    for (const destination of ['title: "예산"', 'title: "할 일"', 'title: "일정"']) {
+      expect(confirmCopy).toContain(destination);
+    }
+    expect(closingCopy).toContain("아모라와 예산·할 일·일정 관리에는 가입이 필요해요.");
     expectWired("closing.note");
 
     // 2026-08-06 파운더 결정: 로그인 없는 아모라 이용에 한도를 걸 예정이라 랜딩은
@@ -745,7 +764,7 @@ describe("landing two-sided trust contract", () => {
     // `indexOf` 가 -1 이면 `slice(-1)` 이 마지막 한 글자를 주므로 **경계가 사라져도
     // 영원히 참**이었다. 못 찾으면 던지는 `contentBlock`/`between` 으로 바꾼다.
     const openHrefs = hrefsIn(availableNowCopy);
-    expect(openHrefs.length, "로그인 없이 되는 목록이 비었다").toBeGreaterThanOrEqual(5);
+    expect(openHrefs.length, "로그인 없이 되는 목록이 비었다").toBe(4);
     for (const href of openHrefs) {
       expect(href, "로그인 없이 되는 목록이 아모라로 보낸다").not.toMatch(/amora|chat/iu);
       expect(href, "로그인 없이 되는 목록이 로그인 벽으로 보낸다").not.toMatch(/^\/login/u);
@@ -759,8 +778,8 @@ describe("landing two-sided trust contract", () => {
     // 실패를 냈다.
     const footerOpen = between(
       footerCopy,
-      'heading: "로그인 없이"',
-      'heading: "계정이 필요한 것"',
+      'heading: "가입 없이 이용"',
+      'heading: "가입 후 이용"',
       "footer.columns 로그인 없이",
     );
     const footerOpenHrefs = hrefsIn(footerOpen);
@@ -774,11 +793,13 @@ describe("landing two-sided trust contract", () => {
     // 랜딩이 계정으로 가는 길을 푸터에서 잃는다.
     const footerAccount = between(
       footerCopy,
-      'heading: "계정이 필요한 것"',
+      'heading: "가입 후 이용"',
       'heading: "정책·문의"',
       "footer.columns 계정이 필요한 것",
     );
-    expect(hrefsIn(footerAccount)).toContain("/login?mode=signup");
+    expect(hrefsIn(footerAccount)).toEqual([
+      "/wedding/chat", "/wedding/chat/board", "/wedding/budget", "/wedding/checklist", "/wedding/schedule",
+    ]);
     // 그 링크들을 푸터가 실제로 그린다. 옛 판은 `footerLinks.open`·`.beta`·`.policy`
     // 세 키를 확인했는데, 지금은 열 자체가 카피 배열이라 **목록을 그리는지**로 본다.
     // (`.beta` 는 2026-08-29 파운더 결정으로 없앴다 — 아래 "베타" 가드가 되살아나는 것을 막는다.)
@@ -788,12 +809,12 @@ describe("landing two-sided trust contract", () => {
 
     // 비용은 미정이라고 적는다. **베타를 안 하기로 한 뒤에도 이 고지는 참이라 남는다**
     // (CLAUDE.md 2026-08-29: "없어지는 것은 틀이지 고지가 아니다").
-    expect(confirmCopy).toContain("향후 이용 비용은 아직 정해지지 않았");
+    expect(confirmCopy).toContain("향후 이용 비용은 아직 정해지지 않았고");
 
     // 가입해도 결제되지 않는다는 약속. 두 자리에 다 있어야 한다 — 확인 섹션에서
     // 계정을 말하는 자리와, 마지막으로 누르기 직전의 마무리.
-    expect(confirmCopy).toContain("계정을 만들어도 지금은 결제를 요청하지 않아요.");
-    expect(closingCopy).toContain("계정을 만들어도 지금은 결제를 요청하지 않아요.");
+    expect(confirmCopy).toContain("지금은 결제를 요청하지 않아요.");
+    expect(closingCopy).toContain("가입이 필요해요.");
 
     // "무료 한도"는 커플별 한도를 가리키는 말인데 그 스위치는 프로덕션에서 강제로
     // 꺼져 있다(check-amora-production-env.mjs:64 coupleQuotaDisabled).

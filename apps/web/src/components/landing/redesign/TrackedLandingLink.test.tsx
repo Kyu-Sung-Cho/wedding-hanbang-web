@@ -14,6 +14,7 @@ vi.mock("@/lib/analytics", () => ({ captureEvent: mocks.captureEvent }));
 import TrackedLandingLink from "./TrackedLandingLink";
 import LandingHeader from "./LandingHeader";
 import AvailableNowSection from "./AvailableNowSection";
+import TransformationHero from "./TransformationHero";
 
 describe("TrackedLandingLink", () => {
   let container: HTMLDivElement;
@@ -56,12 +57,12 @@ describe("TrackedLandingLink", () => {
     );
   });
 
-  it("distinguishes WeddingCode desktop, mobile, and tool-card clicks from signup", async () => {
+  it("distinguishes hero and tool-card WeddingCode clicks from desktop and mobile Amora entry", async () => {
     await act(async () => {
-      root.render(<><LandingHeader /><AvailableNowSection /></>);
+      root.render(<><LandingHeader /><TransformationHero /><AvailableNowSection /></>);
     });
     const links = [...container.querySelectorAll('a[href="/wedding-code"]')];
-    expect(links).toHaveLength(3);
+    expect(links).toHaveLength(2);
     for (const link of links) {
       link.addEventListener("click", (event) => event.preventDefault());
       await act(async () => {
@@ -69,17 +70,25 @@ describe("TrackedLandingLink", () => {
       });
     }
     expect(mocks.captureEvent.mock.calls).toEqual([
-      ["landing_cta_click", { source: "landing_header_wedding_code" }],
-      ["landing_cta_click", { source: "landing_mobile_wedding_code" }],
+      ["landing_cta_click", { source: "landing_hero_secondary" }],
       ["landing_cta_click", { source: "landing_now_wedding_code" }],
     ]);
-    const signup = container.querySelector('a[href="/login?mode=signup"]');
-    expect(signup).not.toBeNull();
-    signup?.addEventListener("click", (event) => event.preventDefault());
-    await act(async () => {
-      signup?.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
-    });
-    expect(mocks.captureEvent).toHaveBeenLastCalledWith("landing_cta_click", { source: "landing_header" });
+    const amoraEntries = [...container.querySelectorAll('a[href="/wedding/chat"]')];
+    expect(amoraEntries).toHaveLength(3);
+    const amoraSources = ["landing_header", "landing_header", "landing_hero_primary"];
+    for (const [index, entry] of amoraEntries.entries()) {
+      expect(entry.textContent).toMatch(/아모라.*시작하기/u);
+      entry.addEventListener("click", (event) => event.preventDefault());
+      await act(async () => {
+        entry.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
+      });
+      expect(mocks.captureEvent).toHaveBeenLastCalledWith("landing_cta_click", { source: amoraSources[index] });
+    }
+    expect(mocks.captureEvent.mock.calls.slice(2)).toEqual([
+      ["landing_cta_click", { source: "landing_header" }],
+      ["landing_cta_click", { source: "landing_header" }],
+      ["landing_cta_click", { source: "landing_hero_primary" }],
+    ]);
   });
 
   it("counts every available-now card under its own destination without an Amora or hero start", async () => {

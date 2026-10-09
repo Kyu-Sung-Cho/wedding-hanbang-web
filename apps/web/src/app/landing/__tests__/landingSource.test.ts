@@ -134,7 +134,7 @@ describe("실제 랜딩 소스", () => {
     // 누가 카피에서 그 고지를 지우고 주석만 남기면, 주석을 안 벗기는 가드는 전부
     // 초록불이 된다. 제거기가 진짜로 이 상황을 가르는지 원문으로 확인한다.
     const MARKER = "예시·AI 한계·공유 범위·비용 고지는 각 문장이 가리키는 표면에 둔다";
-    const NOTICE = "점수도 궁합도 매기지 않아요";
+    const NOTICE = "심리 진단이나 궁합 검사가 아니에요";
 
     const raw = source(CONTENT_PATH);
     expect(
@@ -159,9 +159,9 @@ describe("실제 랜딩 소스", () => {
     const clean = rendered(CONTENT_PATH);
     const MUST_SURVIVE = [
       // AI 고지 (`noSide.note` · `notForVendors.aiNotice` → `boundaries.items[2]`)
-      "AI가 만든 답변임을 표시해요",
+      "아모라의 답변은 AI가 작성해요",
       // 개인정보·저장 고지 (`privateLane.note` → `availableNow.cards[0].note`)
-      "로그인 없이 선택한 내용은 저장하지 않아요",
+      "가입 없이 선택한 내용은 저장하지 않아요",
       // 업체 편 아님 (`notForVendors` → `boundaries.items[0]`)
       "업체에 점수·등급·순위를 매기지 않아요",
       // 가격 출처·기준일 (→ `footer.notice`)

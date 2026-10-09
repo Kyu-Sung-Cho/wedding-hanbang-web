@@ -21,12 +21,21 @@ describe("처음 방문한 사람이 보는 준비 흐름", () => {
     const doc = new DOMParser().parseFromString(renderToStaticMarkup(createElement(LandingPage)), "text/html");
     const amora = doc.querySelector("#amora")?.textContent ?? "";
     expect(amora).not.toMatch(/시기랑 예산을 그대로 이어받아|식장은 아직 안 봐도/u);
-    expect(amora).toMatch(/준비 시기를 바탕으로/u);
+    expect(amora).toContain("드레스 피팅비가 안 보여");
+    expect(amora).toMatch(/피팅비가 견적에 포함됐는지[^.]*1회 비용과 결제 시점/u);
+    expect(amora).toContain("확인할 내용");
+    expect(amora).not.toMatch(/피팅비는\s*[\d,]+\s*원/u);
+    expect(amora).toContain("견적서는 사진·PDF로 올려 질문하세요");
+    expect(amora).toContain("포함된 항목이나 추가 비용");
+    expect(amora).toContain("아모라 · AI 생성");
+    expect(amora).toContain("기능을 설명하는 예시 대화예요");
     const discussion = doc.querySelector("#noside")?.textContent ?? "";
     expect(discussion).not.toMatch(/두 분 다[^.]*후회 안 할/u);
-    expect(discussion).toMatch(/사진에 쓰고 싶은 예산[\s\S]*신혼집에 남겨둘 금액/u);
+    expect(discussion).toMatch(/식장과 사진에 각각 얼마까지 쓸 수 있는지/u);
+    expect(discussion).toContain("아모라 · AI 생성");
+    expect(discussion).toContain("실제 이용자의 대화가 아니에요");
     const quoteTool = doc.querySelector('#now a[href="/wedding/community/quote-check"]')?.textContent ?? "";
-    expect(quoteTool).toMatch(/분야별 항목을 하나씩 확인/u);
+    expect(quoteTool).toMatch(/항목별로 포함 여부와 이용 계획/u);
     expect(quoteTool).toContain("업체에 물어볼 질문");
     expect(quoteTool).not.toMatch(/견적서[^.]*짚어주|자동[^.]*분석/u);
   });
@@ -35,25 +44,90 @@ describe("처음 방문한 사람이 보는 준비 흐름", () => {
     const doc = heroDocument();
     const copy = doc.body.textContent ?? "";
     expect(copy).toMatch(/AI[\s\S]*아모라/u);
-    expect(copy).toMatch(/확인한[\s\S]*예산·할 일·일정/u);
+    expect(copy).toMatch(/예산·일정·할 일[\s\S]*직접 확인해 기록/u);
     const titleLines = [...doc.querySelectorAll("h1 > span")].map((line) => line.textContent);
-    expect(titleLines).toEqual(["결혼식까지 몇 달 남았는데", "지금 뭐부터 하면 될까요?"]);
-    expect(doc.querySelector(".landing-tape")?.textContent).toBe("둘이 하는 결혼 준비, 아모라와");
-    expect(doc.querySelector('a[href="/login?mode=signup"]')?.textContent).toContain("아모라");
+    expect(titleLines).toEqual(["결혼 준비, 뭐부터 할까요?", "아모라와 하나씩 정해요."]);
+    expect(doc.querySelector(".landing-tape")?.textContent).toBe("결혼 준비 동반자, 아모라");
+    expect(copy).toContain("내가 원하는 결혼식부터");
+    expect(copy).toContain("필요한 계획을 직접 확인해 기록하세요");
+    expect(doc.querySelector('a[href="/wedding/chat"]')?.textContent).toContain("아모라");
     const weddingCode = doc.querySelector('a[href="/wedding-code"]');
-    expect(weddingCode?.textContent).toContain("웨딩코드");
+    expect(weddingCode?.textContent).toBe(landingContent.hero.secondary.label);
     const page = new DOMParser().parseFromString(renderToStaticMarkup(createElement(LandingPage)), "text/html");
     expect(page.querySelector('header a[href="#amora"]')?.textContent).toContain("아모라");
   });
 
-  it("원본 순서로 준비 고민·대화·의견 차이를 보여준 뒤 확인과 기록을 설명한다", () => {
+  it("첫 화면 예시는 미정인 첫 질문부터 시작하며 실제 대화나 저장으로 오해되지 않는다", () => {
+    const preview = heroDocument().querySelector("figure");
+    expect(preview).toBeTruthy();
+    const copy = preview?.textContent ?? "";
+    expect(copy).toContain("하객은 100명 정도야");
+    expect(copy).toContain("아모라의 답변 · AI 생성");
+    expect(copy).toContain("예산 범위부터 잡아 봐요");
+    expect(copy).toContain("아직 미정");
+    expect(copy).toContain("기능을 설명하는 예시예요");
+    expect(copy).toContain("AI 답변에는 오류가 있을 수 있어요");
+    expect(copy).not.toContain("배정 예산");
+    expect(copy).toContain("이 화면에서는 대화하거나 저장할 수 없어요");
+    expect(copy).not.toMatch(/D-\d+|\d+%|\d+건/u);
+  });
+
+  it("중복 첫 행동 섹션 없이 공개 도구 네 개의 계정 조건을 보여 준다", () => {
+    const doc = new DOMParser().parseFromString(renderToStaticMarkup(createElement(LandingPage)), "text/html");
+    expect(doc.querySelector("#reasons")).toBeNull();
+    const tools = [...doc.querySelectorAll("#now a[href]")].filter((link) =>
+      ["/wedding/community/quote-check", "/wedding-code", "/price", "/wedding/manners"].includes(link.getAttribute("href") ?? ""));
+    expect(tools.map((link) => link.getAttribute("href"))).toEqual([
+      "/wedding/community/quote-check", "/wedding-code", "/price", "/wedding/manners",
+    ]);
+    expect(doc.querySelector("#now")?.textContent).toContain("가입 없이 먼저 써 보세요");
+  });
+
+  it("아모라 가치와 두 사람의 우선순위 뒤에 실제 관리 도구를 설명한다", () => {
     const doc = new DOMParser().parseFromString(renderToStaticMarkup(createElement(LandingPage)), "text/html");
     const ids = [...doc.querySelectorAll("main > section")].map((section) => section.id);
-    expect(ids.slice(0, 5)).toEqual(["", "reasons", "amora", "noside", "confirm"]);
+    expect(ids.slice(0, 4)).toEqual(["", "amora", "noside", "confirm"]);
     const confirmation = doc.querySelector("#confirm")?.textContent ?? "";
-    expect(confirmation).toContain("아직 반영 전");
-    expect(confirmation).toContain("예산 화면 → 예식장");
-    expect(confirmation).toMatch(/한 분이 확인[\s\S]*알림/u);
+    expect(confirmation).toContain("저장 전");
+    expect(confirmation).toContain("예산 → 결혼식장");
+    expect(confirmation).toMatch(/한 명이 저장[\s\S]*변경 알림/u);
+  });
+
+  it("실제 관리 도구 네 개를 열 수 있고 확인 전 제안은 기록을 바꾸지 않는다", () => {
+    const doc = new DOMParser().parseFromString(renderToStaticMarkup(createElement(LandingPage)), "text/html");
+    const confirm = doc.querySelector("#confirm");
+    const cards = [...(confirm?.querySelectorAll(":scope > div > ul > li") ?? [])];
+    expect(cards).toHaveLength(4);
+    expect(cards.map((card) => card.querySelector("a")?.getAttribute("href"))).toEqual([
+      "/wedding/budget", "/wedding/checklist", "/wedding/schedule", "/wedding/chat/board",
+    ]);
+    for (const [index, card] of cards.entries()) {
+      const tool = landingContent.confirm.management[index];
+      const copy = card.textContent ?? "";
+      expect(copy).toContain(tool.title);
+      expect(copy).toContain(tool.body);
+      expect(card.querySelector("a")?.textContent).toBe(tool.action);
+      expect(card.querySelector("a")?.className).toContain("min-h-11");
+      expect(card.querySelector("a")?.className).toContain("focus-visible:ring-2");
+    }
+    expect(confirm?.textContent).toContain("저장을 확인하기 전에는 기록이 바뀌지 않아요");
+    expect(confirm?.textContent).toContain("파트너와 연결한 뒤에는 두 사람 중 한 명이 저장하면 공동 기록에 반영돼요");
+    expect(confirm?.textContent).toContain("파트너도 앱에서 변경 알림을 볼 수 있어요");
+    expect(confirm?.querySelector("button")).toBeNull();
+  });
+
+  it("가입 후 아모라 시작 절차를 세 단계로 안내하고 첫 행동과 끝 행동이 같다", () => {
+    const doc = new DOMParser().parseFromString(renderToStaticMarkup(createElement(LandingPage)), "text/html");
+    const steps = [...doc.querySelectorAll('ol[aria-label="아모라 시작 순서"] > li')]
+      .map((step) => step.textContent?.replace(/^0[1-3]/u, "").trim());
+    expect(steps).toEqual([
+      "가입하고 시작 설정하기",
+      "아모라에게 지금 고민 말하기",
+      "필요한 제안만 확인해 저장하기",
+    ]);
+    const signupLinks = [...doc.querySelectorAll('a[href="/wedding/chat"]')];
+    expect(signupLinks.some((link) => link.textContent?.includes(landingContent.hero.primary.label))).toBe(true);
+    expect(signupLinks.some((link) => link.textContent?.includes(landingContent.closing.primary.label))).toBe(true);
   });
 
   it("개인 상담 비노출 고지는 개인 카드에만 붙고 공유 카드는 함께 보임을 설명한다", () => {
@@ -61,11 +135,10 @@ describe("처음 방문한 사람이 보는 준비 흐름", () => {
     const lanes = [...doc.querySelectorAll("#amora li")];
     const shared = lanes.find((lane) => lane.textContent?.includes("함께 보는 대화"));
     const personal = lanes.find((lane) => lane.textContent?.includes("나만 보는 상담"));
-    expect(shared?.textContent).toContain("둘 다 볼 수 있어요");
+    expect(shared?.textContent).toContain("같은 대화방에서 이야기할 수 있어요");
     expect(shared?.textContent).not.toContain("배우자 화면에는 표시하지 않아요");
-    expect(personal?.textContent).toContain("개인 상담의 대화 내용은");
-    expect(personal?.textContent).toContain("서비스에서 처리·저장될 수 있어요");
-    expect(personal?.textContent).toContain("배우자 화면에는 표시하지 않아요");
+    expect(personal?.textContent).toContain("개인 상담도 서비스에서 처리·저장돼요");
+    expect(personal?.textContent).toContain("파트너에게 표시되지 않아요");
   });
 });
 
@@ -344,12 +417,6 @@ function expectVisible(file: string, text: string, marker: string): void {
   }
 }
 
-function windowAround(text: string, marker: string, before = 500, after = 260): string {
-  const at = text.indexOf(marker);
-  expect(at, `소스에서 계약 표식을 찾지 못함: ${marker}`).toBeGreaterThanOrEqual(0);
-  return text.slice(Math.max(0, at - before), at + marker.length + after);
-}
-
 /**
  * `landingContent` 최상위 블록 이름을 파일 순서대로.
  *
@@ -394,14 +461,15 @@ describe("landing hero product experience contract", () => {
     // 2026-09-03 시안(`(웨딩한방) 랜딩페이지 디자인 예시.pdf`)으로 본문이 바뀌었다.
     // 옛 문장은 우리가 무엇을 **펼쳐 주는지**(공시 원문)를 말했고, 새 문장은 우리가
     // 무엇을 **같이 정하는지**를 말한다. 계약은 그대로다 — 첫 화면이 제품을 설명한다.
-    expect(heroCopy).toMatch(/AI[^"\n]*아모라[\s\S]*직접 확인한 내용은 예산·할 일·일정/u);
+    expect(heroCopy).toMatch(/AI 동반자 아모라와 고민을 정리하고[^"\n]*직접 확인해 기록/u);
+    expect(confirmCopy).toContain("파트너와 연결한 뒤에는");
 
     // 산출물을 **개수가 아니라 이름으로** 말한다. 이전 문구는 "세 가지"라고만 해서
     // 그 셋이 무엇인지 랜딩 어디에도 없었다. 스무 장면은 2026-08-29 개편에서
     // 히어로 후크 자리를 내주고 "지금 되는 것" 카드 02 로 내려갔다 —
     // **도구가 내려가도 산출물을 이름으로 말하는 계약은 따라간다.**
-    expect(availableNowCatalogue).toContain("원하는 결혼식 취향과 준비 방식");
-    expect(availableNowCatalogue).toContain("상대도 답하면 함께 원하는 것과 먼저 의논할 부분을 비교할 수 있어요");
+    expect(availableNowCatalogue).toContain("결혼식 취향과 준비 방식");
+    expect(availableNowCatalogue).toContain("파트너도 답하면 같은 생각과 다른 생각을 비교할 수 있어요");
     // 어형·표기를 넓힌다. "세 가지"만 막던 시절에는 "3가지"로 바꾸면 통과했다.
     expect(heroCopy, "첫 화면이 산출물을 개수로만 말하면 안 된다").not.toMatch(
       /(?:세|3|셋)\s*가지/u,
@@ -415,14 +483,13 @@ describe("landing hero product experience contract", () => {
     // 아모라 카드와 경계 섹션과 푸터가 같은 것을 한 번 더 말한다. 네 자리를 다 본다 —
     // 한 자리만 보면 나머지가 조용히 사라진다.
     expect(heroCopy, "첫 화면이 아모라를 AI라고 말하지 않는다").toMatch(/AI[^"\n]*아모라/u);
-    expect(block("amoraNote")).toContain("AI 생성 답변");
-    expect(block("amoraNote")).toContain("AI는 틀리거나 놓칠 수 있어요");
-    expect(block("boundaries")).toContain("AI가 만든 답변임을 표시해요");
-    expect(block("footer")).toContain("아모라 답변은 AI가 만든 내용이며 참고용이에요");
+    expect(block("amoraNote")).toContain("아모라 · AI 생성");
+    expect(block("boundaries")).toContain("아모라의 답변은 AI가 작성해요");
+    expect(block("boundaries")).toContain("AI 답변에는 오류가 있을 수 있어요");
 
     // 목적지를 구체적으로 말하되 사용자 확인을 생략한 자동 저장 약속이 되지 않는다.
     expect(toolNamesIn(heroCopy)).toEqual(["예산", "할 일", "일정"]);
-    expect(heroCopy).toMatch(/직접 확인한 내용은 예산·할 일·일정/u);
+    expect(confirmCopy).toContain("저장을 확인하기 전에는 기록이 바뀌지 않아요");
     for (const tool of ["예산", "할 일", "일정", "제안", "반영"]) {
       expect(confirmCopy, `확인 섹션이 ${tool}을 말하지 않는다`).toContain(tool);
     }
@@ -436,7 +503,7 @@ describe("landing hero product experience contract", () => {
     // 물어보기" 는 **내가 시안을 잘못 읽은 것**이고, 시안은 버튼 밑에 "결제 없이 계정
     // 생성" 이라고 적어 첫 행동이 가입임을 분명히 한다. **둘이 같아야 한다**는 계약은
     // 그대로다.
-    const primaryCta = 'primary: { label: "아모라와 준비 시작하기", href: "/login?mode=signup" }';
+    const primaryCta = 'primary: { label: "아모라와 준비 시작하기", href: "/wedding/chat" }';
     expect(heroCopy).toContain(primaryCta);
     expect(block("closing")).toContain(primaryCta);
 
@@ -463,8 +530,7 @@ describe("landing hero product experience contract", () => {
 
     // 첫 화면의 조건을 CTA 옆에서 말한다. 시안 문장("결제 없이 계정 생성")이 첫 버튼의
     // 조건을 지고, 뒤 문장이 로그인 없이 열린 쪽의 조건을 진다.
-    expect(heroCopy).toContain("계정을 만들고 웹에서 시작해요");
-    expect(heroCopy).toContain("지금은 결제를 요청하지 않아요");
+    expect(heroCopy).toContain("아모라는 로그인 후 이용해요. 웨딩코드는 가입 없이 해볼 수 있어요");
 
     // **뒤에 붙여 뒤집는 것**도 막는다. 계약 문장을 그대로 두고 그 뒤에
     // "다만 결과를 보려면 가입해야 해요"를 붙이면 있어야 할 문장 검사는 전부
@@ -478,30 +544,32 @@ describe("landing hero product experience contract", () => {
     // 계산에만 쓰고 서버로 보내지 않아요" 가 지키던 것이다 — **도구만 옮기고 고지를
     // 두고 오면 안 된다.** 지금은 카드마다 자기 몫을 진다.
     expect(availableNowCatalogue, "견적 저장 고지가 사라졌다").toContain(
-      "로그인 없이 선택한 내용은 저장하지 않아요",
+      "가입 없이 선택한 내용은 저장하지 않아요",
     );
-    expect(availableNowCatalogue, "기기 안 계산 고지가 사라졌다").toContain(
-      "답은 기기 안에서 계산해요",
+    expect(availableNowCatalogue, "웨딩코드 공유 링크 고지가 사라졌다").toContain(
+      "함께 보기에 동의하면 답이 서버에 보관·공유돼요",
     );
-    // 궁합·점수 금지(CLAUDE.md 요구 고지)는 옛 `scenes.note` → 같은 카드로 왔다.
-    expect(availableNowCatalogue, "점수·궁합 금지 고지가 사라졌다").toContain(
-      "점수도 궁합도 매기지 않아요",
+    expect(availableNowCatalogue, "궁합·심리 진단 금지 고지가 사라졌다").toContain(
+      "심리 진단이나 궁합 검사가 아니에요",
     );
 
     // AI 처리·저장 고지도 사라지지 않는다. 옛 히어로 폼 아래 → `privateLane.note` →
     // 지금은 아모라 카드가 진다. 비로그인 아모라 체험이 2026-08-27에 닫혀
     // "대화 내용은 서비스에서 처리·저장될 수 있어요" 라고 말할 대화가 이 화면에는
     // 없어졌고, 대신 **이 화면의 대화가 샘플이며 저장되지 않는다**고 말한다.
-    expect(block("amoraNote")).toContain("이 화면에서는 실제로 저장되지 않아요");
+    expect(block("amoraNote")).toContain("이 화면에서는 대화하거나 저장할 수 없어요");
 
     // CTA는 어느 폭에서도 숨지 않는다 — 자기 className 도, 감싼 래퍼도.
     expectVisible("TransformationHero.tsx", hero, "hero.primary.href");
     // CTA 아래 안내도 마찬가지고, CTA와 떨어지면 안 된다.
     expectVisible("TransformationHero.tsx", hero, "hero.note");
-    expect(
-      windowAround(hero, "hero.primary.href", 200, 1400),
-      "CTA 아래 안내가 CTA와 떨어지면 안 된다",
-    ).toContain("hero.note");
+    const heroDoc = heroDocument();
+    const primary = heroDoc.querySelector('a[href="/wedding/chat"]');
+    const note = [...heroDoc.querySelectorAll("p")].find((paragraph) =>
+      paragraph.textContent?.includes("아모라는 로그인 후 이용해요. 웨딩코드는 가입 없이 해볼 수 있어요"),
+    );
+    expect(primary?.parentElement?.nextElementSibling, "CTA 아래 안내가 CTA와 떨어지면 안 된다")
+      .toBe(note);
   });
 
   it("shows one concrete proposal and marks it unapplied without a live AI call", () => {
@@ -509,8 +577,8 @@ describe("landing hero product experience contract", () => {
 
     // 제안은 한 번에 하나다. 옛 히어로 데모의 "각각 별도 제안과 확인이 필요해요"가
     // 지키던 것을 지금은 확인 섹션 본문이 진다.
-    expect(confirmCopy).toContain("한 번에 한 가지 변경을 제안하고");
-    expect(confirmCopy).toContain("확인한 것만 준비 기록에 반영해요");
+    expect(confirmCopy).toContain("저장 전에 바뀔 내용과 저장 위치를 직접 확인하면 예산·할 일·일정에 남길 수 있어요");
+    expect(confirmCopy).toContain("저장을 확인하기 전에는 기록이 바뀌지 않아요");
     expect(content, "여러 건을 한꺼번에 찾은 것처럼 말하지 않는다").not.toMatch(
       /(?:세|3|셋|여러)\s*가지를? 찾았어요/u,
     );
@@ -545,18 +613,18 @@ describe("landing hero product experience contract", () => {
     // 2026-08-29: 카피 정본에서 "확인 버튼을 누르기 전까지 예산·할 일·일정에
     // 반영되지 않아요" 라는 **문장**이 없어졌다. 그 뜻은 두 자리로 쪼개져 살아 있다 —
     // 제안 라벨(`아직 반영 전`)과 카드 아래 한 줄. 둘 다 검사한다.
-    expect(confirmCopy, "제안이 아직 반영 전이라고 말하지 않는다").toContain("아직 반영 전");
-    expect(confirmSection).toContain("확인을 누르기 전까지 예산 화면은 그대로예요");
+    expect(confirmCopy, "제안이 아직 저장 전이라고 말하지 않는다").toContain("저장 전");
+    expect(confirmSection).toContain("{confirm.sample.contract}");
 
     // 예시라는 것도 말한다(옛 "기능 예시 · 이 화면에서는 실제로 저장되지 않아요").
     // 카피 정본이 두 줄로 이어 붙이므로 이어 붙인 문장으로 찾으면 못 찾는다 —
     // 조각으로 나눠 찾는다.
-    expect(confirmCopy).toContain("이름·금액은 기능을 보여주기 위한 샘플이고");
-    expect(confirmCopy).toContain("실제 이용 현황이 아니에요");
+    expect(confirmCopy).toContain("기능을 설명하는 예시예요");
+    expect(confirmCopy).toContain("이 화면에서는 저장할 수 없어요");
     // 옛 OneRoomSection 의 데모 고지가 지던 자리는 이제 아모라 카드다.
     // 그리고 그 카드는 고지를 **카드 안에서** 그린다(바깥 작은 글씨로 빼면 카드만
     // 캡처됐을 때 사실이 떨어져 나간다).
-    expect(block("amoraNote")).toContain("기능을 보여주기 위한 샘플이고");
+    expect(block("amoraNote")).toContain("기능을 설명하는 예시 대화예요");
     expect(amoraNoteSection).toContain("amoraNote.note");
 
     // 확인·나중에는 눌리는 버튼이 아니라 그림이다. 진짜 버튼처럼 읽히면
@@ -763,7 +831,7 @@ describe("landing hero product experience contract", () => {
     // 첫 문단은 "무엇이 문제고 우리가 무엇을 하는지"만 말한다.
     // 2026-09-03 시안: 문제는 "기록이 흩어진 것"에서 "둘의 답이 갈리는 것"으로 옮겼다.
     // 갈리는 것 셋을 먼저 이름으로 대고(예산·하객·부모님 의견) 그것부터 정한다고 말한다.
-    expect(heroCopy).toMatch(/예산[^"\n]*준비[^"\n]*순서/u);
+    expect(heroCopy).toMatch(/내가 원하는 결혼식부터 두 사람의 예산·일정·할 일까지/u);
     expect(heroCopy, "산출물을 개수로만 말하면 안 된다").not.toMatch(/(?:세|3|셋)\s*가지/u);
 
     // ## 베타는 개념 자체가 없어졌다 — 그래서 요구가 아니라 금지로 뒤집는다
@@ -793,10 +861,9 @@ describe("landing hero product experience contract", () => {
     // 계정을 만들어도 지금은 결제를 요청하지 않아요" 는 베타라서가 아니라 오늘 참이라
     // 남는다(CLAUDE.md 2026-08-29). 그 고지가 지금 사는 자리가 확인 섹션이다.
     // 카피 정본이 두 줄로 이어 붙이므로 조각으로 찾는다.
+    expect(confirmCopy).toContain("지금은 결제를 요청하지 않아요");
     expect(confirmCopy).toContain("향후 이용 비용은 아직 정해지지 않았고");
-    expect(confirmCopy).toContain("계정을 만들어도 지금은 결제를 요청하지 않아요");
-    // 마무리도 같은 말을 한 번 더 한다 — 여기까지 읽고 계정을 만드는 사람이 본다.
-    expect(block("closing")).toContain("계정을 만들어도 지금은 결제를 요청하지 않아요");
+    expect(block("closing")).toContain("아모라와 예산·할 일·일정 관리에는 가입이 필요해요");
 
     // 히어로 안에서도 설명이 CTA 앞에 온다.
     //
@@ -819,7 +886,7 @@ describe("landing hero product experience contract", () => {
     expect(doc.querySelectorAll("h1")).toHaveLength(1);
     expect(heading?.textContent?.replace(/\s/gu, ""))
       .toBe(landingContent.hero.title.replace(/\s/gu, ""));
-    const primary = doc.querySelector<HTMLAnchorElement>('a[href="/login?mode=signup"]');
+    const primary = doc.querySelector<HTMLAnchorElement>('a[href="/wedding/chat"]');
     const secondary = doc.querySelector<HTMLAnchorElement>('a[href="/wedding-code"]');
     const preview = doc.querySelector("figure");
     expect(preview).toBeTruthy();
@@ -862,7 +929,9 @@ describe("landing hero product experience contract", () => {
         expect(heading.closest("section")?.getAttribute("aria-labelledby")).toBe(heading.id);
         expect(heading.classList.contains("landing-display")).toBe(true);
         const size = headingSizeAt(heading, viewport);
-        expect(size, heading.textContent ?? "").toBeGreaterThanOrEqual(21);
+        expect(size, heading.textContent ?? "").toBeGreaterThanOrEqual(
+          heading.id === "preparation-record-title" ? 19 : 21,
+        );
         expect(size, heading.textContent ?? "").toBeLessThanOrEqual(heroSize);
       }
     }
@@ -974,17 +1043,17 @@ describe("landing hero product experience contract", () => {
     expect("grid items-center lg:grid-cols-[minmax(0,1fr)_minmax(0,0.95fr)]")
       .not.toMatch(UNPREFIXED_COLUMNS);
 
-    // 2026-09-08 원본 HTML 복원: 준비 고민 → 대화 → 의견 차이 → 확인.
+    // 준비 결과와 확인 계약을 먼저 보여준 다음 대화와 의견 차이를 설명한다.
     // 주석으로 꺼 놓은 섹션은 세지 않고 실제 JSX 순서를 검사한다.
     const heroAt = sectionIndex("TransformationHero");
     expect(sectionIndex("AmoraNoteSection")).toBeGreaterThan(heroAt);
     expect(
       renderedSectionNames.slice(heroAt + 1, heroAt + 5),
-      "준비 고민과 두 사람의 대화 장면을 보여준 다음 확인 경계를 설명한다",
-    ).toEqual(["BlockedReasonsSection", "AmoraNoteSection", "NoSideSection", "ConfirmSection"]);
+      "확인 경계를 먼저 보여준 다음 대화와 두 사람의 의견 차이를 설명한다",
+    ).toEqual(["AmoraNoteSection", "NoSideSection", "ConfirmSection", "AvailableNowSection"]);
   });
 
-  it("shows the two-person evidence on mobile, because the H1 promises it", () => {
+  it("shows the shared-record evidence on mobile", () => {
     // 이전 계약은 대화 컬럼을 `hidden ... md:block`으로 숨겨 히어로를 짧게 유지했다.
     // 그런데 H1이 "둘이 말하면"이라 두 사람이 말하는 장면이 모바일에서 사라지면
     // 첫 화면의 약속과 증거가 어긋난다. H1이 "결혼 준비 노트, **같이** 정리해요"로
@@ -1013,9 +1082,8 @@ describe("landing hero product experience contract", () => {
     // 카드로 바뀐 것은 개편이고, "두 사람이 같이 쓰는 기록"이라는 계약은 그대로다.
     const confirmCopy = block("confirm");
     for (const line of [
-      "둘이 말한 것",
-      "파트너를 연결하면 한 분이 확인했을 때 바로 반영되고",
-      "함께 쓰는 계획이 변경됐어요",
+      "파트너와 연결한 뒤에는 두 사람 중 한 명이 저장하면 공동 기록에 반영돼요",
+      "파트너도 앱에서 변경 알림을 볼 수 있어요",
     ]) {
       expect(confirmCopy, `두 사람 장면에서 ${line}이 빠졌다`).toContain(line);
     }
@@ -1044,11 +1112,13 @@ describe("landing hero product experience contract", () => {
 
   it("구체적인 기록 목적지를 말할 때 승인 경계가 같은 문장에 있다", () => {
     const doc = heroDocument();
-    const paragraphs = [...doc.querySelectorAll("p")].map((paragraph) => paragraph.textContent ?? "");
-    const outcomes = paragraphs.filter((text) => toolNamesIn(text).length > 1);
-    expect(outcomes).toHaveLength(1);
-    expect(outcomes[0]).toMatch(/직접 확인한[^.]*예산·할 일·일정/u);
-    expect(outcomes[0]).not.toMatch(/자동으로|알아서 저장|확인 없이/u);
+    const outcome = doc.querySelector("#hero-title + p")?.textContent ?? "";
+    expect(toolNamesIn(outcome)).toEqual(["예산", "할 일", "일정"]);
+    expect(outcome).toMatch(/예산·일정·할 일[\s\S]*직접 확인해 기록/u);
+    const budgetExample = landingContent.hero.preview.scenes.find((scene) => scene.id === "budget");
+    expect(budgetExample?.proposalStatus).toBe("저장 전");
+    expect(budgetExample?.proposalNote).toContain("직접 확인하고 저장해야 예산에 반영돼요");
+    expect(outcome).not.toMatch(/자동으로|알아서 저장|확인 없이/u);
   });
 
   it("keeps the source helper in charge — no private comment stripper comes back", () => {

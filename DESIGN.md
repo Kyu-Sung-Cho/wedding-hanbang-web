@@ -323,11 +323,18 @@
   and radii (9, 10, 11, 13, 14, 15, 18px; 4/5px for bubble tails) are allowed
   within this landing only.
   Mobile sections use 44px vertical padding; desktop sections use 92px.
+  The launch FAQ uses 44px/64px padding and native disclosures to keep the answers
+  compact; its links and focus rings follow the same landing rules.
   Landing surfaces use existing ivory-50 and ivory-warm; small-print contrast,
   sample disclosures, working links and privacy boundaries remain required.
-  The 2026-09-08 correction restores the supplied hero headline (two desktop lines,
-  three mobile lines) and section sequence: preparation questions, Amora dialogue,
-  different preferences, confirmed records, public tools, community, boundaries.
+  The 2026-10-09 launch direction supersedes the earlier headline and section order:
+  Amora value and one primary entry, illustrative question/confirmation/shared-record
+  scenes, dialogue and privacy lanes, different priorities, four preparation tools,
+  public tools including the current WeddingCode, native FAQ, boundaries and one
+  closing action. Keep the existing notebook assets, fonts and color roles. The
+  hero wraps naturally on small screens; no forced comma break is needed.
+  Amora entry links to `/wedding/chat`, allowing the existing authentication and
+  onboarding gates to preserve that destination. Examples perform no AI call or save.
   Keep truthful AI, sample, saving and sharing disclosures even when they add height
   to the reference. Do not publish its placeholder user counts or photo instructions.
   A direct visit to `/` opens `/landing` regardless of sign-in state; explicit login

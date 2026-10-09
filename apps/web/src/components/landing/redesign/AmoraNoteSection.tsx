@@ -1,4 +1,4 @@
-import { LockKeyhole, Users } from "lucide-react";
+import { FileText, LockKeyhole, Users } from "lucide-react";
 import AmoraAvatar from "@/components/ui/AmoraAvatar";
 
 import { landingContent } from "./landingContent";
@@ -42,6 +42,13 @@ export default function AmoraNoteSection() {
           </h2>
 
           <p className={`mt-[14px] lg:mt-4 ${bodyText}`}>{amoraNote.body}</p>
+          <div className="mt-5 flex items-start gap-3 border-t border-[var(--color-paper-edge)] pt-5">
+            <FileText aria-hidden="true" className="mt-0.5 size-5 shrink-0 text-[var(--color-rose-700)]" />
+            <div>
+              <p className="text-[14px] font-semibold leading-[1.6] text-[var(--color-paper-ink)]">{amoraNote.attachment.title}</p>
+              <p className={`mt-1 ${noteText}`}>{amoraNote.attachment.body}</p>
+            </div>
+          </div>
         </div>
 
         <div className="min-w-0 rounded-[16px] border border-[var(--color-paper-edge)] bg-[var(--color-paper-card)] p-[18px] shadow-raised lg:col-start-2 lg:row-span-2 lg:row-start-1 lg:self-center lg:rounded-[18px] lg:p-6">
@@ -60,21 +67,18 @@ export default function AmoraNoteSection() {
             {amoraNote.chat.amora}
           </p>
 
-          {/* 칩은 **그림이다.** 누를 수 있는 것처럼 보이지만 이 화면에서는 아무 일도
-              일어나지 않는다(비로그인 아모라 체험이 닫혀 있다). 보조기기가 진짜
-              버튼으로 읽지 않도록 aria-hidden 으로 묶는다. */}
-          <div aria-hidden className="mt-[13px] flex gap-2 lg:mt-4 lg:gap-[9px]">
+          <div className="mt-[13px] flex flex-wrap items-center gap-2 lg:mt-4">
+            <span className="text-[12px] font-medium text-[var(--color-paper-ink-soft)]">확인할 내용</span>
             {amoraNote.chat.chips.map((chip) => (
               <span
                 key={chip}
-                className="inline-flex min-h-11 flex-1 items-center justify-center rounded-full border-[1.5px] border-[var(--color-paper-ink)] px-4 text-[13.5px] font-semibold text-[var(--color-paper-ink)] lg:flex-none lg:px-5"
+                className="rounded-[6px] bg-[var(--color-ivory-warm)] px-2 py-1 text-[12px] font-medium text-[var(--color-paper-ink)]"
               >
                 {chip}
               </span>
             ))}
           </div>
 
-          <p className={`mt-[14px] lg:mt-4 ${noteText}`}>{amoraNote.chat.caption}</p>
           <p className={`mt-4 ${noteText}`}>{amoraNote.note}</p>
         </div>
 

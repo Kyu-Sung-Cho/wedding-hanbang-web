@@ -158,7 +158,6 @@ describe("랜딩 랜드마크", () => {
       "TransformationHero",
       "AmoraNoteSection",
       "ConfirmSection",
-      "CommunitySection",
       "AvailableNowSection",
       "BoundariesSection",
       "ClosingAction",

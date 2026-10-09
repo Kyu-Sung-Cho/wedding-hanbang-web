@@ -1,5 +1,3 @@
-import Link from "next/link";
-
 import TrackedLandingLink from "./TrackedLandingLink";
 
 import { landingContent } from "./landingContent";
@@ -52,7 +50,7 @@ export default function AvailableNowSection() {
   return (
     <section
       id="now"
-      className={`${band} border-t border-[var(--color-paper-edge)] bg-[var(--color-ivory-warm)] !pb-0`}
+      className={`${band} border-t border-[var(--color-paper-edge)] bg-[var(--color-ivory-warm)]`}
       aria-labelledby="now-title"
     >
       <div className={shell}>
@@ -79,7 +77,7 @@ export default function AvailableNowSection() {
                 <span className="block text-[14.5px] font-semibold leading-[1.45] text-[var(--color-paper-ink)] lg:text-[15.5px]">
                   {card.title}
                 </span>
-                <span className="mt-[5px] block text-[12.5px] leading-[1.65] text-[var(--color-paper-ink-soft)] lg:mt-2 lg:text-[13px]">
+                <span className="mt-[5px] block text-[14px] leading-[1.6] text-[var(--color-paper-ink-soft)] lg:mt-2 lg:text-[13px] lg:leading-[1.65]">
                   {card.body}
                 </span>
                 <span className={`mt-[10px] block lg:mt-4 ${noteText}`}>{card.note}</span>
@@ -88,25 +86,6 @@ export default function AvailableNowSection() {
           ))}
         </div>
 
-        <p className={`mt-4 lg:mt-[22px] ${noteText}`}>
-          {availableNow.footLead}
-          {availableNow.footLinks.map((link, index) => (
-            <span key={link.href}>
-              {index > 0 ? "과 " : ""}
-              <Link
-                href={link.href}
-                className="landing-pen font-medium text-[var(--color-paper-ink)] focus-visible:rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-paper-pen)] focus-visible:ring-offset-2"
-              >
-                {link.label}
-              </Link>
-              {/* ⚠️ 여기 `{index === 0 ? " " : ""}` 가 있었다. 링크 뒤에 공백을 넣으면
-                  다음 조각 "과 " 가 앞말에서 떨어져 **"원문 과 커뮤니티 도"** 로 나갔다
-                  (2026-08-29 라이브 실측). 한국어 조사는 앞말에 붙는다 — 조각을 이어
-                  붙이는 자리에서는 조사 쪽에 공백을 두지 않는다. */}
-            </span>
-          ))}
-          {availableNow.footTail}
-        </p>
       </div>
     </section>
   );

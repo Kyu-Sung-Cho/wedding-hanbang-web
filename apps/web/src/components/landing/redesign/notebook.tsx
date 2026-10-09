@@ -83,7 +83,7 @@ export const quoteText =
 export const bodyText =
   "text-[14px] leading-[1.76] text-[var(--color-paper-ink-soft)] lg:text-[16px] lg:leading-[1.78]";
 
-export const noteText = "text-[12.5px] leading-[1.65] text-[var(--color-paper-ink-faint)] lg:text-[13px]";
+export const noteText = "text-[14px] leading-[1.6] text-[var(--color-paper-ink-soft)] lg:text-[13px] lg:leading-[1.65] lg:text-[var(--color-paper-ink-faint)]";
 
 /**
  * 섹션 눈썹 — **한 격식.**

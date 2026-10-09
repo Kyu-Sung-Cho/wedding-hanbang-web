@@ -109,7 +109,7 @@ describe("hero image performance budget", () => {
     // 카드 문구는 반드시 페이지와 같은 출처에서 온다 — 하드코딩하면 다시 갈라진다.
     expect(card).toContain("landingContent");
     expect(card).toContain("landingContent.hero.title");
-    expect(card).toContain("landingContent.hero.body");
+    expect(card).toContain("landingContent.hero.shareDescription");
 
     // page.tsx가 images를 명시하면 파일 규약이 덮여 옛 카드가 되살아난다.
     const page = readFileSync(resolve(appRoot, "src/app/landing/page.tsx"), "utf8");

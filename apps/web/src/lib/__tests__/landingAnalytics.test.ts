@@ -126,11 +126,11 @@ describe("landing measurements across delayed analytics initialization", () => {
     const analytics = await import("../analytics");
     analytics.captureEvent("landing_cta_click", { source: "synthetic-private" });
     analytics.captureEvent("landing_cta_click", {
-      source: "landing_mobile_wedding_code", answers: "synthetic-answer", $unsafe: "synthetic-private",
+      source: "landing_hero_secondary", answers: "synthetic-answer", $unsafe: "synthetic-private",
     });
     await settle();
     expect(sink.sent).toHaveLength(1);
-    expect(sink.sent[0].properties.source).toBe("landing_mobile_wedding_code");
+    expect(sink.sent[0].properties.source).toBe("landing_hero_secondary");
     expect(JSON.stringify(sink.sent)).not.toContain("synthetic-answer");
     expect(JSON.stringify(sink.sent)).not.toContain("synthetic-private");
   });

@@ -58,7 +58,7 @@ const availableNowBlock = contentBlock("availableNow", "community");
 
 /** 카드 배열의 시작·끝. 카드와 그 바깥(이끄는 문장·꼬리 문장)을 갈라 본다. */
 const CARDS_OPEN = "cards: [";
-const CARDS_CLOSE = "footLead:";
+const CARDS_CLOSE = "    ],";
 const cardsStart = availableNowBlock.indexOf(CARDS_OPEN);
 const cardsEnd = availableNowBlock.indexOf(CARDS_CLOSE, cardsStart);
 
@@ -136,7 +136,7 @@ describe("landing available-now section", () => {
     expect(cardsEnd, `availableNow 에서 카드 배열의 끝("${CARDS_CLOSE}")을 찾지 못했다`)
       .toBeGreaterThan(cardsStart);
 
-    // 카드의 링크 + 꼬리 문장의 링크. 둘 다 "로그인 없이 열린다" 고 약속하는 자리다.
+    // 카드의 링크는 모두 로그인 없이 열리는 경로여야 한다.
     const hrefs = [...availableNowBlock.matchAll(/href:\s*"([^"]+)"/gu)].map((m) => m[1]);
     expect(hrefs.length, "availableNow 항목이 없다").toBeGreaterThanOrEqual(4);
 
@@ -171,7 +171,7 @@ describe("landing available-now section", () => {
         // "정답이 아니라 흔한 관행이에요 · 지역·집안마다 다릅니다" 로 같은 일을
         // 하는데 낱말이 목록에 없어 검사에 걸렸다. 지키는 것은 **낱말이 아니라
         // "이 카드가 무엇을 판정하지 않는지 먼저 말하는가"** 다.
-        /저장|기록|서버|기기|출처|자료|공시|기준|점수|등급|판정|정답|관행|한도|무료/u
+        /저장|기록|서버|기기|출처|자료|공시|기준|점수|등급|판정|평가|검사|정답|관행|한도|무료/u
           .test(note),
         `이용 전에 알아야 할 사실이 없는 카드가 있다: "${note}"`,
       ).toBe(true);
@@ -214,7 +214,7 @@ describe("landing available-now section", () => {
     const cardHrefs = cardChunks.map(
       (chunk: string) => /href:\s*"([^"]+)"/u.exec(chunk)?.[1] ?? "",
     );
-    for (const href of ["/wedding/community/quote-check", "/wedding-code", "/price"]) {
+    for (const href of ["/wedding/community/quote-check", "/wedding-code", "/price", "/wedding/manners"]) {
       expect(
         cardHrefs,
         `"${href}" 로 가는 카드가 없어졌다 — 옮겨 온 고지가 가리킬 곳이 없다`,
@@ -222,10 +222,9 @@ describe("landing available-now section", () => {
     }
 
     // ② 웨딩코드 — 점수·궁합으로 판정하지 않는다(CLAUDE.md 필수 고지).
-    expect(availableNowBlock, "점수를 매기지 않는다는 고지가 없다").toMatch(/점수/u);
-    expect(availableNowBlock, "궁합을 매기지 않는다는 고지가 없다").toMatch(/궁합/u);
-    expect(availableNowBlock, "낱말만 있고 '매기지 않는다'고 말하지 않는다")
-      .toMatch(/(점수|궁합)[^"]*(매기지|하지)\s*않/u);
+    const weddingCode = landingContent.availableNow.cards.find(card => card.href === "/wedding-code");
+    expect(weddingCode?.note, "웨딩코드 카드에 비진단 고지가 없다")
+      .toContain("심리 진단이나 궁합 검사가 아니에요");
 
     // ③ 견적 점검 — 로그인 없이 넣은 견적을 저장하지 않는다.
     expect(availableNowBlock, "넣은 견적을 저장하지 않는다는 고지가 없다")
@@ -268,9 +267,9 @@ describe("landing available-now section", () => {
   it("describes the integrated preferences instead of advertising a partial flow count", () => {
     const weddingCode = landingContent.availableNow.cards.find(card => card.href === "/wedding-code");
     expect(weddingCode?.body).toContain("결혼식 취향과 준비 방식");
-    expect(weddingCode?.body).toContain("꼭 지키고 싶은 것과 돈을 더 쓰고 싶은 곳");
-    expect(weddingCode?.body).toContain("혼자 내 결과");
-    expect(weddingCode?.body).toContain("상대도 답하면");
+    expect(weddingCode?.body).toContain("돈을 더 쓰고 싶은 곳");
+    expect(weddingCode?.body).toContain("파트너도 답하면");
+    expect(weddingCode?.body).toContain("같은 생각과 다른 생각을 비교할 수 있어요");
     expect(weddingCode?.body).not.toMatch(/(?:16|32)\s*(?:개\s*)?(?:문장|문항)(?:만|으로 끝)/u);
     expect(content, "옛 장면 수 표현이 랜딩에 남아 있다")
       .not.toMatch(/(?:열두|열여섯|스무|스물네|\d+)\s*장면/u);
@@ -367,41 +366,10 @@ describe("landing available-now section", () => {
       "본문이 개수를 손으로 적었다 — availableNow.length 에서 세야 한다",
     ).toBeNull();
   });
-  it("조각을 이어 붙인 꼬리 문장에 조사가 앞말에서 떨어지지 않는다", () => {
-    // 2026-08-29 라이브 실측: 화면에 이렇게 나가고 있었다.
-    //
-    //   "여기에 공시 가격·위약금 원문 과 커뮤니티 도 로그인 없이 열려 있어요."
-    //
-    // 한국어 조사 `과`·`도`가 앞말에서 떨어져 오탈자로 읽힌다. 원인은 조각 셋을 이어
-    // 붙이는 자리에 공백이 두 번 들어간 것이다 — 링크 뒤 `{index === 0 ? " " : ""}`
-    // 와 `footTail` 의 앞 공백.
-    //
-    // **어떤 검사도 이걸 못 잡았다.** 기존 검사는 조각(`footLead`·`footLinks`·
-    // `footTail`)을 따로따로만 봤고, 조각은 하나하나 멀쩡했다. 그래서 여기서는
-    // 컴포넌트가 조립하는 방식 그대로 이어 붙여서 **완성된 문장**을 본다.
-    const { footLead, footLinks, footTail } = landingContent.availableNow;
-    const assembled =
-      footLead
-      + footLinks.map((link, i) => (i > 0 ? "과 " : "") + link.label).join("")
-      + footTail;
-
-    // 조립기가 컴포넌트와 어긋나면 이 검사는 아무것도 안 지킨다. 그래서 컴포넌트가
-    // 여전히 같은 방식으로 잇는지 먼저 본다 — 링크 뒤에 공백을 다시 넣으면 여기서 운다.
-    const section = rendered("src/components/landing/redesign/AvailableNowSection.tsx");
-    expect(section, "꼬리말이 정본 조각을 쓰지 않는다").toContain("availableNow.footLinks.map(");
-    expect(
-      /\{\s*index === 0 \?\s*" "/u.test(section),
-      "링크 뒤에 공백을 다시 넣었다 — 다음 조각의 조사가 앞말에서 떨어진다",
-    ).toBe(false);
-
-    for (const particle of ["과", "와", "도", "은", "는", "이", "가"]) {
-      expect(
-        assembled,
-        `조사 "${particle}" 가 앞말에서 떨어졌다: ${assembled}`,
-      ).not.toContain(` ${particle} `);
-    }
-    // 문장이 실제로 조립됐는지도 본다 — 조각이 비면 위 루프는 공짜로 통과한다.
-    expect(assembled.length, "꼬리 문장이 비었다").toBeGreaterThan(20);
-    expect(assembled, "무료 표면을 다시 못 박는 문장이 사라졌다").toContain("로그인 없이 열려 있어요");
+  it("가입 없이 열리는 네 도구만 카드로 안내한다", () => {
+    expect(cardChunks).toHaveLength(4);
+    const hrefs = cardChunks.map(chunk => /href:\s*"([^"]+)"/u.exec(chunk)?.[1]);
+    expect(hrefs).toEqual(["/wedding/community/quote-check", "/wedding-code", "/price", "/wedding/manners"]);
+    expect(section).not.toContain("availableNow.footLinks");
   });
 });
