@@ -248,9 +248,9 @@ describe("에러 경계가 이 통로를 실제로 쓴다", () => {
     expect(source).toContain("attachClientErrorSink");
     // init 이 끝난 뒤에 붙어야 한다. 그 전에 붙이면 클라이언트 없이 capture 가 나간다.
     const initAt = source.indexOf("mod.init(");
-    const attachAt = source.indexOf("attachClientErrorSink(");
+    const attachAt = source.indexOf("attachSentryErrorSink(mod);");
     expect(initAt, "mod.init 을 못 찾았다").toBeGreaterThan(0);
-    expect(attachAt, "attachClientErrorSink 가 init 보다 먼저다").toBeGreaterThan(initAt);
+    expect(attachAt, "attachSentryErrorSink 호출이 init 보다 먼저다").toBeGreaterThan(initAt);
   });
 });
 

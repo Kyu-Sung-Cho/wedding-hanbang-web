@@ -29,6 +29,11 @@
 /** 사본이 여럿이어도 하나를 가리키도록 window 에 박는 키. */
 const SINK_KEY = "__hanbangClientErrorSink";
 
+/** 깨진 화면에서도 import 없이 보호 경로만 판정한다. */
+function isWeddingCodeLikertPath(pathname: string | null | undefined): boolean {
+  return Boolean(pathname && (pathname === "/wedding-code-next" || pathname.startsWith("/wedding-code-next/")));
+}
+
 /**
  * 담아 둘 수 있는 최대 개수. `instrumentation-client.ts` 의 버퍼와 같은 값이다 —
  * 상한을 두는 이유는 SDK 로드가 실패했을 때 오류 객체를 무한정 붙들지 않기 위해서다.
@@ -70,10 +75,22 @@ function sink(): ErrorSink | null {
   if (typeof window === "undefined") return null;
   const holder = window as unknown as Record<string, ErrorSink | undefined>;
   const existing = holder[SINK_KEY];
+  if (isWeddingCodeLikertPath(window.location?.pathname)) {
+    if (existing) existing.buffered.length = 0;
+    return null;
+  }
   if (existing) return existing;
   const created: ErrorSink = { capture: null, buffered: [] };
   holder[SINK_KEY] = created;
   return created;
+}
+
+/** 보호 경로로 이동할 때 기존 버퍼만 비우며 새 오류 보관소는 만들지 않는다. */
+export function clearBufferedClientErrors(): void {
+  if (typeof window === "undefined") return;
+  const holder = window as unknown as Record<string, ErrorSink | undefined>;
+  const current = holder[SINK_KEY];
+  if (current) current.buffered.length = 0;
 }
 
 /**
