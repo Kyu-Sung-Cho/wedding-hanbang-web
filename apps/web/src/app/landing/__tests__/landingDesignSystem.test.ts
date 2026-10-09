@@ -290,7 +290,7 @@ describe("landing design system", () => {
     for (const id of ["hero-title", "closing-title"]) {
       const section = doc.getElementById(id)?.closest("section");
       expect(section, id).toBeTruthy();
-      const primary = section?.querySelector<HTMLAnchorElement>('a[href="/login?mode=signup"]');
+      const primary = section?.querySelector<HTMLAnchorElement>('a[href="/wedding/chat"]');
       expect(primary?.textContent?.trim()).toBe(landingContent.hero.primary.label);
       expect(primary?.getAttribute("tabindex")).not.toBe("-1");
       expect(primary?.getAttribute("aria-disabled")).not.toBe("true");
@@ -301,7 +301,7 @@ describe("landing design system", () => {
     expect(confirm).toBeTruthy();
     expect(confirm?.textContent).toContain(landingContent.confirm.sample.state);
     expect(confirm?.querySelectorAll("button,input,select,textarea")).toHaveLength(0);
-    for (const label of [landingContent.confirm.sample.confirm, landingContent.confirm.sample.edit,
+    for (const label of [landingContent.confirm.sample.confirm,
       landingContent.confirm.sample.later]) {
       const control = [...confirm!.querySelectorAll("span")].find((span) => span.textContent === label);
       expect(control?.closest('[aria-hidden="true"]'), label).toBeTruthy();
@@ -342,10 +342,8 @@ describe("landing design system", () => {
     expect(sections.length).toBeGreaterThan(4);
     for (const section of sections) {
       for (const edge of ["pt", "pb"]) {
-        // 무료 도구·커뮤니티는 한 띠로 이어지고, 다크 띠의 중간 여백도 줄인다.
-        const joinedPadding = section.id === "now" && edge === "pb" ? [0, 0]
-          : section.id === "community" && edge === "pt" ? [34, 34]
-          : section.id === "trust" && edge === "pb" ? [32, 52] : [44, 92];
+        const joinedPadding = section.id === "trust" && edge === "pb" ? [32, 52]
+          : section.id === "faq" ? [44, 64] : [44, 92];
         expect(spaceAt(section, edge, 320), section.getAttribute("aria-labelledby") ?? "")
           .toBe(joinedPadding[0]);
         expect(spaceAt(section, edge, 1440)).toBe(joinedPadding[1]);
@@ -403,8 +401,9 @@ describe("landing design system", () => {
 
   it("renders section labels and keeps small-copy colours readable", () => {
     const doc = landingDocument();
-    const labels = Object.values(landingContent)
-      .flatMap((block) => "eyebrow" in block && typeof block.eyebrow === "string"
+    const labels = Object.entries(landingContent)
+      .filter(([key]) => key !== "blockedReasons" && key !== "community")
+      .flatMap(([, block]) => "eyebrow" in block && typeof block.eyebrow === "string"
         ? [block.eyebrow] : []);
     expect(labels.length).toBeGreaterThan(3);
     for (const label of labels) {
@@ -511,9 +510,13 @@ describe("landing design system", () => {
       // 바로 위 타입 검사가 같은 값을 "빚"으로 부르고 있었다 — 가드 둘이 서로 다른
       // 값을 요구하면 어느 쪽을 맞춰도 다른 쪽이 깨진다. 스케일에 있는 값으로 통일.
       const onInk = c.includes("--color-paper-on-ink");
-      const missing = (onInk
-        ? ["underline", "text-[14px]", "text-[var(--color-paper-on-ink-faint)]"]
-        : ["landing-pen", "text-[16px]", "text-[var(--color-paper-ink)]"]
+      // 히어로의 두 번째 길은 가입 CTA보다 낮은 위계의 단독 링크다.
+      // 읽을 수 있는 크기·색과 44px 대상은 유지한다.
+      const missing = (file === "TransformationHero.tsx" || file === "ConfirmSection.tsx"
+        ? ["min-h-11", "text-[14px]", "text-[var(--color-paper-pen)]", "focus-visible:ring-2"]
+        : onInk
+          ? ["underline", "text-[14px]", "text-[var(--color-paper-on-ink-faint)]"]
+          : ["landing-pen", "text-[16px]", "text-[var(--color-paper-ink)]"]
       ).filter((token: string) => !c.includes(token));
       if (missing.length > 0) offenders.push(`${file}: ${missing.join(", ")} 없음`);
     }
@@ -551,9 +554,11 @@ describe("landing design system", () => {
       // 실루엣이 **하나**인 것은 그대로다 — 지면(종이/잉크)만 다르고 물체는 같다.
       "font-medium min-h-11": [
         "BoundariesSection.tsx",
-        "ClosingAction.tsx",
         "CommunitySection.tsx",
+        "TransformationHero.tsx",
       ],
+      // 관리 카드 안의 목적지 링크는 해당 도구를 여는 행동으로 44px과 포커스를 유지한다.
+      "font-semibold min-h-11": ["ConfirmSection.tsx"],
     });
   });
 
@@ -632,7 +637,7 @@ describe("landing design system", () => {
     const closingBlock = contentBlock("closing", "footer");
     const note = /\bnote:\s*([\s\S]*)$/u.exec(closingBlock)?.[1] ?? "";
     expect(note, "마무리 조건 문단을 못 찾았다 — landingContent 구조가 바뀌었다").not.toBe("");
-    for (const phrase of ["로그인·결제 없이 열려요", "계정이 필요해요", "결제를 요청하지 않아요"]) {
+    for (const phrase of ["무료 도구는 가입 없이 이용할 수 있어요", "아모라와 예산·할 일·일정 관리에는 가입이 필요해요"]) {
       expect(note.includes(phrase), `마무리 조건에서 "${phrase}"가 사라졌다`).toBe(true);
     }
 
@@ -641,22 +646,14 @@ describe("landing design system", () => {
     expect(closing, "조건 문단을 그리는 <p> 가 없다").toMatch(/<p[^>]*>\{closing\.note\}<\/p>/u);
   });
 
-  it("keeps sentence links inline without enlarging the paragraph line box", () => {
+  it("keeps the four free-tool links keyboard accessible", () => {
     const doc = landingDocument();
-    let sentenceLinks = 0;
-    for (const paragraph of doc.querySelectorAll("p")) {
-      const links = [...paragraph.querySelectorAll("a")];
-      if (links.length === 0) continue;
-      const withoutLinks = paragraph.cloneNode(true) as Element;
-      withoutLinks.querySelectorAll("a").forEach((link) => link.remove());
-      if (!withoutLinks.textContent?.trim()) continue;
-      for (const link of links) {
-        sentenceLinks += 1;
-        expect(spaceAt(link, "min-h", 320), link.textContent ?? "").toBeLessThan(44);
-        expect(link.className).toMatch(/focus-visible:(?:ring|outline)/u);
-      }
+    const links = [...doc.querySelectorAll("#now a")];
+    expect(links).toHaveLength(4);
+    for (const link of links) {
+      expect(spaceAt(link, "min-h", 320), link.textContent ?? "").toBeGreaterThanOrEqual(44);
+      expect(link.className).toMatch(/focus-visible:(?:ring|outline)/u);
     }
-    expect(sentenceLinks).toBeGreaterThan(0);
   });
 
   it("keeps structural borders to the named paper tokens", () => {
@@ -761,7 +758,7 @@ describe("landing design system", () => {
     for (const phrase of [
       "한국소비자원", // 출처
       "2025년 11월 공시 기준", // 기준일
-      "값이 적정한지는 판정하지 않고", // CLAUDE.md — 품질·적정성을 판정하지 않는다
+      "가격의 적정 여부는 평가하지 않아요", // 품질·적정성을 판정하지 않는다
     ]) {
       expect(priceCard.includes(phrase), `공시 가격 카드에서 "${phrase}"가 사라졌다`).toBe(true);
     }
@@ -771,9 +768,9 @@ describe("landing design system", () => {
     // (`LandingFooter.tsx` 머리말에 같은 이유가 적혀 있다).
     const footerBlock = contentBlock("footer");
     for (const phrase of [
-      "한국소비자원 참가격 · 2025년 11월 공시 기준",
-      "지역별로 수가 크게 달라요",
-      "업체가 쓴 문장 그대로예요",
+      "가격 출처: 한국소비자원 참가격, 2025년 11월 공시 기준",
+      "지역별 등록 업체 수가 달라요",
+      "취소·환불 규정은 원문으로 제공해요",
     ]) {
       expect(footerBlock.includes(phrase), `푸터 고지에서 "${phrase}"가 사라졌다`).toBe(true);
     }

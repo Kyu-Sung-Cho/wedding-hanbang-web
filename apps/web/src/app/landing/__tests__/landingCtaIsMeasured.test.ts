@@ -29,7 +29,7 @@ import { everyLandingComponent, rendered } from "./landingSource";
  * 시끄러워진다. 시끄러운 검사는 결국 꺼진다. 지켜야 하는 것은 둘뿐이다 —
  * 1차 행동(`/wedding-code`)과 계정 전환(`/login?mode=signup`).
  */
-const FUNNEL_HREFS = ["/wedding-code", "/login?mode=signup"];
+const FUNNEL_HREFS = ["/wedding-code", "/wedding/chat", "/login?mode=signup"];
 
 describe("랜딩 행동 버튼은 계측된다", () => {
   it("퍼널 목적지로 보내는 링크를 <Link> 로 직접 그리지 않는다", () => {
@@ -53,8 +53,8 @@ describe("랜딩 행동 버튼은 계측된다", () => {
     // 대신 **그 값을 그리는 컴포넌트가 계측 컴포넌트를 쓰는지**를 본다.
     for (const [file, key] of [
       ["TransformationHero.tsx", "hero.primary.href"],
+      ["TransformationHero.tsx", "hero.secondary.href"],
       ["ClosingAction.tsx", "closing.primary.href"],
-      ["ClosingAction.tsx", "closing.secondary.href"],
     ] as const) {
       const source = everyLandingComponent().find(([f]) => f === file)?.[1] ?? "";
       const at = source.indexOf(key);

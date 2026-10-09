@@ -40,7 +40,7 @@ export default function NoSideSection() {
               <div key={turn.who} className="mt-[13px] first:mt-0 lg:mt-4">
                 <p className={`mb-[6px] flex items-center gap-[6px] text-[11px] lg:mb-[7px] lg:gap-[7px] lg:text-[11.5px] ${isAmora ? "font-semibold text-[var(--color-rose-700)]" : "text-[var(--color-paper-ink-faint)]"}`}>
                   {isAmora ? <AmoraAvatar sizeClassName="size-6" /> : null}
-                  {turn.who}
+                  {turn.who}{isAmora ? " · AI 생성" : ""}
                 </p>
                 <p className={`rounded-[13px] px-[14px] py-3 text-[13.5px] leading-[1.7] text-[var(--color-paper-ink)] lg:rounded-[15px] lg:px-[17px] lg:py-[14px] lg:text-[14.5px] ${
                   isAmora

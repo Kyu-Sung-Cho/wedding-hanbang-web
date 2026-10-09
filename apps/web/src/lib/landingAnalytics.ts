@@ -8,10 +8,6 @@ export const LANDING_CTA_SOURCES = [
   "landing_community_cta",
   "landing_now_card",
   "landing_closing_primary",
-  "landing_closing_signup",
-  "landing_closing_login",
-  "landing_header_wedding_code",
-  "landing_mobile_wedding_code",
   "landing_now_wedding_code",
 ] as const;
 export type LandingCtaSource = (typeof LANDING_CTA_SOURCES)[number];

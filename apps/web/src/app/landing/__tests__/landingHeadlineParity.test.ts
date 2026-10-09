@@ -227,6 +227,7 @@ const CONTENT_ORDER = [
   "availableNow",
   "community",
   "photoBand",
+  "faq",
   "boundaries",
   "closing",
   "footer",
@@ -336,11 +337,11 @@ const PAIRS: ReadonlyArray<readonly [string, string]> = [
   ["NoSideSection", "noSide"],
   ["ConfirmSection", "confirm"],
   ["AvailableNowSection", "availableNow"],
-  ["CommunitySection", "community"],
   ["BoundariesSection", "boundaries"],
   ["ClosingAction", "closing"],
   // 화면에 h2 가 있고 정본에 title 이 있다 — 자리 설명이지만 대조는 똑같이 한다.
   ["PhotoBandSection", "photoBand"],
+  ["LandingFaqSection", "faq"],
 ];
 
 /** h1 을 그리는 섹션 — 아래 마지막 케이스가 따로 대조한다. */
