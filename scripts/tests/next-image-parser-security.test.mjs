@@ -173,15 +173,15 @@ test("production optimizer terminates for malformed JXL and still optimizes ordi
 });
 
 test("Next stays exact and its detector remains the reviewed validate-only bundle", () => {
-  assert.equal(webRequire("next/package.json").version, "16.3.4");
+  assert.equal(webRequire("next/package.json").version, "16.3.8");
   assert.equal(createHash("sha256").update(readFileSync(detectorEntry)).digest("hex"),
     "09523f849d97f24a7956274f789d55ad78b34d2b987561bbf760c84fc84e0348");
   const workspace = readFileSync(new URL("../../pnpm-workspace.yaml", import.meta.url), "utf8");
-  assert.match(workspace, /next@16\.3\.4:\s+patches\/next@16\.3\.4\.patch/);
+  assert.match(workspace, /next@16\.3\.8:\s+patches\/next@16\.3\.8\.patch/);
   // 다른 패키지 image-size의 Metro용 패치를 vendored 사본 패치로 대체하지 않는다.
   assert.match(workspace, /image-size@1\.2\.1:\s+patches\/image-size@1\.2\.1\.patch/);
   assert.ok(installedEntry.includes("next"), "must use the web-resolved Next parser");
-  const patch = readFileSync(new URL("../../patches/next@16.3.4.patch", import.meta.url), "utf8");
+  const patch = readFileSync(new URL("../../patches/next@16.3.8.patch", import.meta.url), "utf8");
   const patchedBundle = patch.split(/\r?\n/).find(line => line.startsWith("+(()=>"));
   assert.ok(patchedBundle, "the pinned patch must contain the vendored parser");
   assert.equal(readFileSync(installedEntry, "utf8").trimEnd(), patchedBundle.slice(1),
