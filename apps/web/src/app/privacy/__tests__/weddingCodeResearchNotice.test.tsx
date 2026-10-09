@@ -53,7 +53,7 @@ describe("privacy notice for WeddingCode research contributions", () => {
     const text = render();
     expect(text).not.toContain("답 보태기");
     expect(text).toContain("웨딩코드: 답은 기기 안에서 계산하며 세션 녹화를 하지 않습니다");
-    expect(text).toContain("아래 ‘함께 보기’에 별도로 동의한 경우에만 해당 기능에 필요한 답을 서버에 저장합니다");
+    expect(text).toContain("아래 이전 v3.1 판의 ‘함께 보기’에 별도로 동의한 경우에만 해당 기능에 필요한 답을 서버에 저장합니다");
   });
 
   it.each(["", SECRET])("연구 저장소와 독립적으로 두 사람 공유 동의·만료·철회·확인 주소의 권한을 안내한다 (%#)", (secret) => {
@@ -71,9 +71,9 @@ describe("privacy notice for WeddingCode research contributions", () => {
     vi.stubEnv("WEDDING_CODE_RESEARCH_RECEIPT_SECRET", secret);
     vi.stubEnv("WEDDING_CODE_RESEARCH_CONTRIBUTION_ENABLED", "false");
     const text = render();
-    const localNotice = text.slice(text.indexOf("기본 웨딩코드(v3.1) 이어하기:"), text.indexOf("지워 주세요.") + "지워 주세요.".length);
+    const localNotice = text.slice(text.indexOf("이전 웨딩코드(v3.1) 이어하기:"), text.indexOf("지워 주세요.") + "지워 주세요.".length);
 
-    expect(text.indexOf("기본 웨딩코드(v3.1) 이어하기:")).toBeGreaterThan(text.indexOf("로그인 없이 이용하는 공개 웨딩코드:"));
+    expect(text.indexOf("이전 웨딩코드(v3.1) 이어하기:")).toBeGreaterThan(text.indexOf("로그인 없이 이용하는 공개 웨딩코드:"));
     expect(localNotice).toContain("본인 답과 현재 단계·수정 상태를 같은 브라우저에 보관합니다");
     expect(localNotice).toContain(`마지막으로 답이나 진행을 저장한 때부터 ${LOCAL_TTL_MS / (24 * 60 * 60 * 1000)}일`);
     expect(localNotice).toContain("읽거나 재방문만 해서는 기간이 늘어나지 않습니다");
@@ -93,7 +93,7 @@ describe("privacy notice for WeddingCode research contributions", () => {
     const text = render();
     const dateLabel = kstDateLabel(WEDDING_CODE_RESEARCH_CONTRIBUTION_EFFECTIVE_AT);
 
-    expect(text).toContain("아래 ‘함께 보기’ 또는 답 보태기에 별도로 동의한 경우에만 해당 기능에 필요한 답을 서버에 저장합니다");
+    expect(text).toContain("아래 이전 v3.1 판의 ‘함께 보기’ 또는 답 보태기에 별도로 동의한 경우에만 해당 기능에 필요한 답을 서버에 저장합니다");
     // 제1조 항목, 제3조 보관, 부칙 — 세 곳 모두 같은 적용일
     expect(text).toContain(`웨딩코드 답 보태기에 동의한 경우(${dateLabel.replace(/부터$/, "")}부터, 선택)`);
     expect(text).toContain(`웨딩코드 답 보태기(선택, ${dateLabel})`);
@@ -155,7 +155,7 @@ describe("privacy notice for the WeddingCode v4.0-tendency paragraph", () => {
     expect(keepWord, "V40_STORAGE.historyMax 가 바뀌었다. 방침의 「최근 ○ 번」을 고칠 것").toBeTruthy();
 
     // v3.1 문단은 그대로 남고 v4 문단은 그 뒤에 온다.
-    const v31Start = text.indexOf("기본 웨딩코드(v3.1) 이어하기:");
+    const v31Start = text.indexOf("이전 웨딩코드(v3.1) 이어하기:");
     expect(v31Start).toBeGreaterThan(-1);
     expect(text.indexOf(V4_CLOSING, v31Start)).toBeLessThan(text.indexOf(V4_LABEL));
 

@@ -1,22 +1,32 @@
 {
   "schema": "wedding-code-likert-release-manifest/v1",
-  "baseCommit": "e3856b40bb7ac6555a80968b8f2ee902a6ca3781",
+  "baseCommit": "14546f6226978face7d251340d6e8f36f1e4d0c3",
   "measurement": "likert-preferences-alpha.1",
   "bank": "preferences-20261008-r2",
   "expression": "likert-letters-alpha.3",
   "scope": "Exact Git index bytes of all release-changed files, excluding this manifest to avoid a self hash. This is distinct from Windows working-tree byte hashes and the original handoff manifest.",
-  "sourceManifestSha256": "231a5c46d88296dddbd6020cc2b1782fbfd3bad300eba379cb330a9752606b03",
-  "fileCount": 59,
+  "sourceManifestSha256": "0d982ec42db46ed66a856a52e4e6600aad5f444887b0cc97f356ba8615d33414",
+  "fileCount": 62,
   "files": [
     {
+      "path": "apps/web/src/app/landing/__tests__/landingHeroExperience.test.ts",
+      "bytes": 63956,
+      "sha256": "80b1c066950e5a69459a342012852f82b1482a81c70e000869f63310bef825ff"
+    },
+    {
+      "path": "apps/web/src/app/landing/__tests__/landingOutcomeEvidence.test.ts",
+      "bytes": 44144,
+      "sha256": "9e7d17938aa13117b1d094a36c1da5bed5b08534f0bf912b2aa259dffa0080a6"
+    },
+    {
       "path": "apps/web/src/app/privacy/__tests__/weddingCodeResearchNotice.test.tsx",
-      "bytes": 25985,
-      "sha256": "03ed2f399b0a7c0137919cee6da73fa8d46089a28b15761a780e5c40aa848a6c"
+      "bytes": 26023,
+      "sha256": "ec61a2342229161f33c94ea00419a6e337afdc80ed6e81da98658d4c10c0af29"
     },
     {
       "path": "apps/web/src/app/privacy/page.tsx",
-      "bytes": 50350,
-      "sha256": "0e2aa9c8c44edc79cfdd9ce511df660e622c8dab427e15d23d8b3badd9f7e1a6"
+      "bytes": 50407,
+      "sha256": "7ebdf0b32e1790d1b8d9dd817e989d3cc5cad58e74c87a07967b9ff2492d17ee"
     },
     {
       "path": "apps/web/src/app/sitemap.test.ts",
@@ -46,7 +56,7 @@
     {
       "path": "apps/web/src/app/wedding-code/WeddingCodeV31Intro.copy.test.tsx",
       "bytes": 32826,
-      "sha256": "f9a6abf5805968e23eb16cf78265017b853bb9917ef75b35d22cc0942ed8d97b"
+      "sha256": "a45de2cba0309276681556b7b02aa95c96a75da1094d67a0265fac8800ec9a3d"
     },
     {
       "path": "apps/web/src/app/wedding-code/likert-card/opengraph-image.tsx",
@@ -92,6 +102,11 @@
       "path": "apps/web/src/components/analytics/AnalyticsProvider.tsx",
       "bytes": 1805,
       "sha256": "4952ec3509ce253e1c8b4e3f970df3351d996e3b6ad8660f1119c3798c7fd84d"
+    },
+    {
+      "path": "apps/web/src/components/landing/redesign/landingContent.ts",
+      "bytes": 17404,
+      "sha256": "8f39a4acc66d7c50835ca159c2d99aee08c80dcaa638529d58847a58826cfbef"
     },
     {
       "path": "apps/web/src/components/wedding-code/v40/IntroScreen.test.tsx",
@@ -170,8 +185,8 @@
     },
     {
       "path": "apps/web/src/lib/__tests__/landingAnalytics.test.ts",
-      "bytes": 10128,
-      "sha256": "fc0dfb745a9f6c6496bb6c4dc3ba1c231be577894330994a4809601b6ae69805"
+      "bytes": 10118,
+      "sha256": "0563ae5a496477e5f5892b3beef973a72cac414d70fcccb3462f54b12586ebff"
     },
     {
       "path": "apps/web/src/lib/__tests__/weddingCodeLikertAnalytics.test.ts",
@@ -295,8 +310,8 @@
     },
     {
       "path": "docs/wedding-code/2026-10-09_likert_release_contract.md",
-      "bytes": 6997,
-      "sha256": "237c4a92b87fb6bba5365e5e868d067e7efd7ad50d8e1e0b270191ea4065239b"
+      "bytes": 8159,
+      "sha256": "187249cb291afca8115538f8c4a96446d599ccbd1c03cd22655ebff84d8fff78"
     },
     {
       "path": "docs/wedding-code/README.md",

@@ -8,6 +8,8 @@
 
 측정 `likert-preferences-alpha.1`, 문항 `preferences-20261008-r2`, 표현 `likert-letters-alpha.3`. 원래 25파일 manifest `cb040a9c51a07917ec6f54f2e7acea38fe5d99ae952d8442dd87765ade8ea266`는 2026-10-08 인수본의 증거다. 최종 통합본의 해시나 Git commit SHA가 아니다. 문항·계산을 유지한 표현 수정과 이후 통합 변경에는 새로운 파일 manifest가 필요하다.
 
+중간 후보 `a7f25c89833a403ddaa981a2f0e0459692068960`에서 정상 production build와 필수 pre-push 9개 작업이 통과했다(웹 22,256건, 모바일 1,397건, 공유 134건). 이후 main의 랜딩 PR #489(`14546f6226978face7d251340d6e8f36f1e4d0c3`)을 충돌 없이 통합했다. 새 랜딩 화면은 보존하며 기본 웨딩코드의 서버 공유 문장만 30문항의 로컬 링크 방식으로 정정한다. 방침의 기존 서버 공유·이어하기는 이전 v3.1 판으로 범위를 명시하고 보관 기간·동의·철회 기능은 유지한다. 이후 manifest 기준은 이 새 main이며, a7의 성공을 새 통합본 전체 검사 성공으로 사용하지 않는다.
+
 ## 반영 범위
 
 - 기본 `/wedding-code`는 30문항·12장면 개편본으로 열린다. 명시적 구판 쿼리나 fragment는 기존 parser·문항·계산으로 읽는다. `/wedding-code-next` 링크도 유지한다.
@@ -37,5 +39,7 @@
 ## 배포 및 복구
 
 이전 정상 production은 source `f1cf5f0e30e830e2586f64a74b1a206294867077`, deployment `dpl_2s7MnWHwvGG4LL9i1p1fTiK25rW7`, artifact `https://wedding-hanbang-5wc7d42ng-hanbang.vercel.app`다. Vercel 화면에서 Ready/Production/hanbang.ai를 확인했다.
+
+검증 중 운영은 랜딩 main `14546f6226978face7d251340d6e8f36f1e4d0c3`으로 전진했다. 현재 복구 기준은 deployment `dpl_BRvPutzhiQ7Lciw3GpFjKkMQUksd`, artifact `https://wedding-hanbang-f1fq3c7v5-hanbang.vercel.app`다. 정확한 Source SHA·Ready·Production·Current·hanbang.ai 연결은 Vercel 화면에서, HTTP 200·DB up·commit `14546f622697`은 운영 health에서 확인했다. 이전 f1/e385 기록은 역사 기록으로 보존한다.
 
 정상 GitHub PR·필수 Code Quality 검사·Vercel 배포 절차를 사용한다. DB migration, 데이터 삭제, 권한/자격증명 변경, 유료 서비스 추가는 없다. 회귀 시 기본 진입 전환만 되돌리고 새 fragment reader와 개인정보 경계는 유지하는 revert를 우선한다. 전체 PR revert/이전 artifact 복귀는 새 공유 링크를 읽지 못하므로 그 영향을 먼저 평가한다. 성공 배포 식별자·정확한 SHA·운영 확인은 후속 릴리스 증거에 기록한다.
