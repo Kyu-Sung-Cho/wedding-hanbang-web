@@ -109,7 +109,7 @@ describe("IntroScreen", () => {
       expect(bulletsText()).not.toContain("저장돼요");
       expect(storageText()).toContain("자동 저장이 꺼져 있어서 답은 저장되지 않고");
       expect(storageText()).not.toMatch(/일 동안 저장돼요|최근 .* 남아요/u);
-      expect(storageText()).toContain("이용 통계만 남겨요");
+      expect(storageText()).toContain("이용 통계를 기록하지 않아요");
       // 단추를 눌러 켜면 저장 문구가 도로 켜진 상태의 문구가 된다.
       await click(buttonNamed(V40_COPY.autosave.turnOnButton)!);
       expect(storageText()).toContain("이 브라우저에만");
@@ -121,7 +121,7 @@ describe("IntroScreen", () => {
       expect(bulletsText()).not.toContain("저장돼요");
       expect(storageText()).not.toMatch(/일 동안|저장돼요|최근 .* 남아요/u);
       expect(storageText()).toContain("답은 웨딩한방에 보내지 않아요");
-      expect(storageText()).toContain("이용 통계만 남겨요");
+      expect(storageText()).toContain("이용 통계를 기록하지 않아요");
       expect(harness.container.querySelector('a[href="/privacy"]')).not.toBeNull();
     });
 
@@ -470,7 +470,7 @@ describe("IntroScreen", () => {
         expect(text()).not.toContain("이 브라우저에만");
         expect(text()).not.toMatch(/일 동안|공용 기기/u);
         expect(storageText()).toContain("답은 웨딩한방에 보내지 않아요");
-        expect(storageText()).toContain("이용 통계만 남겨요");
+        expect(storageText()).toContain("이용 통계를 기록하지 않아요");
       }
     });
 

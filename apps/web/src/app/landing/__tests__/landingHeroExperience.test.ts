@@ -547,8 +547,9 @@ describe("landing hero product experience contract", () => {
       "가입 없이 선택한 내용은 저장하지 않아요",
     );
     expect(availableNowCatalogue, "웨딩코드 공유 링크 고지가 사라졌다").toContain(
-      "함께 보기에 동의하면 답이 서버에 보관·공유돼요",
+      "함께 보기에 동의하면 답 전체가 담긴 링크를 직접 전달해요",
     );
+    expect(availableNowCatalogue).toContain("답은 서버에 저장하지 않으며 전달한 링크는 회수할 수 없어요");
     expect(availableNowCatalogue, "궁합·심리 진단 금지 고지가 사라졌다").toContain(
       "심리 진단이나 궁합 검사가 아니에요",
     );

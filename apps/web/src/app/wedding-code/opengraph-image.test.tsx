@@ -29,11 +29,16 @@ import { WEDDING_CODE_V20_VERSION } from "@/constants/weddingCodeV20";
 import { WEDDING_CODE_V30_VERSION } from "@/constants/weddingCodeV30";
 import { WEDDING_CODE_V31_VERSION } from "@/constants/weddingCodeV31";
 import { WEDDING_CODE_V40_VERSION } from "@/constants/weddingCodeV40";
+import { ITEMS } from "@/lib/weddingCode/likert/bank";
+import { buildShareUrl, createSnapshot, readShareFragment } from "@/lib/weddingCode/likert/io";
+import { MEASUREMENT_VERSION, type Answers } from "@/lib/weddingCode/likert/types";
 import { V40_COPY } from "@/lib/weddingCode/v40/copy";
+import LikertOpenGraphImage, { alt as likertAlt, contentType as likertContentType, size as likertSize } from "./likert-card/opengraph-image";
 import OpenGraphImage, { alt, contentType, size } from "./opengraph-image";
 import WeddingCodePage, { generateMetadata } from "./page";
 import { metadata as togetherMetadata } from "./together/page";
 import { metadata as tasteMetadata } from "./taste/page";
+import { metadata as aliasMetadata } from "../wedding-code-next/page";
 import V40OpenGraphImage, { alt as v40Alt, contentType as v40ContentType, size as v40Size } from "./v40-card/opengraph-image";
 
 function pngSize(bytes: Uint8Array) {
@@ -88,14 +93,14 @@ describe("웨딩코드 공유 카드 이미지", () => {
     const { text } = await drawCard();
     expect(text).toContain("둘 다 답하고 서로 공유하면 두 사람의 답을 나란히 볼 수 있어요");
     expect(text).not.toContain("상대도 답하면");
-    const page = await WeddingCodePage({ searchParams: Promise.resolve({}) });
+    const page = await WeddingCodePage({ searchParams: Promise.resolve({ v: WEDDING_CODE_V31_VERSION }) });
     expect(renderToStaticMarkup(page)).toContain("둘 다 답하고 서로 공유하면 두 사람의 답을 나란히 볼 수 있어요");
   }, 60_000);
 
   it("카드가 약속하는 「로그인 없이」는 시작 화면도 그대로 말한다", async () => {
     const { text } = await drawCard();
     expect(text).toContain("로그인 없이");
-    const page = await WeddingCodePage({ searchParams: Promise.resolve({}) });
+    const page = await WeddingCodePage({ searchParams: Promise.resolve({ v: WEDDING_CODE_V31_VERSION }) });
     const html = renderToStaticMarkup(page);
     expect(html).toContain("로그인 없이 시작");
   }, 60_000);
@@ -103,12 +108,12 @@ describe("웨딩코드 공유 카드 이미지", () => {
   /**
    * Next 는 같은 폴더의 `opengraph-image` 를 **그 단계 metadata 에 `openGraph.images` 키가 없을
    * 때만** 붙인다. 입구 metadata 가 `images` 를 적으면 이 카드가 조용히 빠진다.
-   * 그래서 v4.0-tendency 입구만 일부러 `images` 를 적고(아래 「웨딩코드 v4.0-tendency 공유 카드」), 다른 판은 키를 아예 적지 않는다.
+   * 새 기본 입구와 명시 v4 입구는 전용 images를 적고, 다른 구판은 키를 아예 적지 않는다.
    * 하위 경로는 openGraph 를 스스로 정하는 순간 부모 이미지를 잃으므로 주소를 직접 적는다.
    */
-  it("입구는 이 파일을 카드 이미지로 쓰고(v4 입구만 빼고), 함께 보기 초대 링크는 같은 주소를 가리킨다", async () => {
+  it("v4 외 구판 입구는 이 파일을 카드 이미지로 쓰고, 함께 보기 초대 링크는 같은 주소를 가리킨다", async () => {
     // v1.2-code 는 장면 판의 이름이다(`generateMetadata` 의 마지막 갈래).
-    const others = [{}, { v: "3.1" }, { a: "AACB" }, { v: WEDDING_CODE_V31_VERSION }, { v: WEDDING_CODE_V30_VERSION }, { v: WEDDING_CODE_V20_VERSION }, { v: "v1.2-code" }];
+    const others = [{ v: "3.1" }, { a: "AACB" }, { v: WEDDING_CODE_V31_VERSION }, { v: WEDDING_CODE_V30_VERSION }, { v: WEDDING_CODE_V20_VERSION }, { v: "v1.2-code" }];
     for (const search of others) {
       const metadata = await generateMetadata({ searchParams: Promise.resolve(search) });
       expect(metadata.openGraph, JSON.stringify(search)).toBeDefined();
@@ -278,13 +283,13 @@ describe("웨딩코드 v4.0-tendency 공유 카드", () => {
   });
 
   /**
-   * 틀(`ogCard.tsx`)을 두 카드가 함께 쓴다. 기본 카드의 글이 틀을 나누며 달라지지 않았는지, 두 카드 파일이 색이나 배치를 다시
+   * 틀(`ogCard.tsx`)을 모든 카드가 함께 쓴다. 기존 카드의 글이 틀을 나누며 달라지지 않았는지, 카드 파일이 색이나 배치를 다시
    * 따로 갖지 않는지(그러면 한쪽만 고쳐져 두 카드가 어긋난다)를 본다.
    */
-  it("기본 카드의 글은 틀을 나눈 뒤에도 그대로이고, 두 카드 파일은 색과 배치를 따로 갖지 않는다", async () => {
+  it("기존 카드의 글은 그대로이고, 모든 카드 파일은 색과 배치를 따로 갖지 않는다", async () => {
     const { text } = await drawCard();
     expect(text).toBe(["한", "웨딩한방", "웨딩코드", "내가 원하는 결혼식과 준비 방식을 살펴봐요", "둘 다 답하고 서로 공유하면 두 사람의 답을 나란히 볼 수 있어요", "로그인 없이 시작해요", "hanbang.ai"].join(" "));
-    for (const file of ["src/app/wedding-code/opengraph-image.tsx", "src/app/wedding-code/v40-card/opengraph-image.tsx"]) {
+    for (const file of ["src/app/wedding-code/opengraph-image.tsx", "src/app/wedding-code/v40-card/opengraph-image.tsx", "src/app/wedding-code/likert-card/opengraph-image.tsx"]) {
       const source = read(file);
       expect(source, `${file}: 색은 ogCard.tsx 한 곳에만 둔다`).not.toMatch(/#[0-9A-Fa-f]{6}\b/);
       expect(source, `${file}: 배치(style)는 ogCard.tsx 한 곳에만 둔다`).not.toContain("style={{");
@@ -292,4 +297,80 @@ describe("웨딩코드 v4.0-tendency 공유 카드", () => {
     }
     expect(read("src/app/wedding-code/ogCard.tsx")).toMatch(/#FDFCF7/);
   }, 60_000);
+});
+
+describe("30문항 기본 입구의 일반 공유 카드", () => {
+  it("기존 틀과 한글 글꼴로 PNG를 그리고, 답과 개인 결과 없이 수동 전달 조건을 말한다", async () => {
+    const { response, bytes, text } = await drawCard(LikertOpenGraphImage);
+    expect(likertSize).toEqual({ width: 1200, height: 630 });
+    expect(likertContentType).toBe("image/png");
+    expect(response.headers.get("content-type")).toContain("image/png");
+    expect([...bytes.slice(0, 8)]).toEqual([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+    expect(pngSize(bytes)).toEqual(likertSize);
+    const fonts = captured[0].options.fonts as Array<{ data: ArrayBuffer | Buffer }>;
+    expect(fonts).toHaveLength(1);
+    expect(fonts[0].data.byteLength).toBeGreaterThan(100_000);
+    expect(text).toBe([
+      "한", "웨딩한방", "웨딩코드", "결혼을 준비하는", "나의 언어를 찾아요",
+      "둘 다 답한 뒤 두 사람 결과 링크를 직접 돌려주면 나란히 볼 수 있어요",
+      "로그인 없이 시작해요", "hanbang.ai",
+    ].join(" "));
+    expect(likertAlt).toBe("웨딩코드, 결혼을 준비하는 나의 언어를 찾아요");
+    for (const source of [text, likertAlt]) {
+      const latin = (source.match(/[A-Za-z?]+/g) ?? []).filter(run => run !== "hanbang" && run !== "ai");
+      expect(latin, source).toEqual([]);
+      for (const banned of ["성격", "궁합", "유형", "점수", "등급", "예측", "검증", "정확", "과학", "진단", "동물", "캐릭터", "상대도 답하면", "자동"]) {
+        expect(source, banned).not.toContain(banned);
+      }
+      expect(source).not.toMatch(/[0-9%]/);
+      expect(source).not.toContain(V40_COPY.intro.title);
+    }
+  }, 60_000);
+
+  it("맨 주소·유입 쿼리·명시 새 판은 전용 이미지를 쓰고, 비교에 두 사람 응답과 링크 전달이 필요하다고 말한다", async () => {
+    const expectedImage = { url: "/wedding-code/likert-card/opengraph-image", type: likertContentType, ...likertSize, alt: likertAlt };
+    expect(existsSync(resolve(process.cwd(), "src/app/wedding-code/likert-card/opengraph-image.tsx"))).toBe(true);
+    expect(existsSync(resolve(process.cwd(), "src/app/wedding-code/likert-card/page.tsx"))).toBe(false);
+    for (const search of [{}, { utm_source: "kakao" }, { v: MEASUREMENT_VERSION }]) {
+      const metadata = await generateMetadata({ searchParams: Promise.resolve(search) });
+      expect(metadata.openGraph?.images, JSON.stringify(search)).toEqual([expectedImage]);
+      expect(metadata.twitter?.images, JSON.stringify(search)).toEqual([expectedImage]);
+      expect(metadata.robots).toMatchObject({ index: false, follow: false, nocache: true });
+      expect(metadata.referrer).toBe("no-referrer");
+      expect(metadata.alternates?.canonical).toBe("/wedding-code");
+      expect(String(metadata.title)).toContain("나의 결혼 준비 언어");
+      expect(metadata.description).toContain("30개의 문장");
+      expect(metadata.description).toContain("둘 다 답하고 두 사람 결과 링크를 서로 전달하면");
+      expect(Object.prototype.hasOwnProperty.call(metadata.openGraph, "url")).toBe(false);
+      expect(JSON.stringify([metadata.openGraph, metadata.twitter])).not.toMatch(/v40-card|나는 어느 쪽|landing|아모라/);
+    }
+  });
+
+  it("직접 돌려줄 두 사람 링크는 원답을 fragment에 유지하고, 서버의 일반 카드에는 답을 넣지 않는다", async () => {
+    const firstAnswers: Answers = Object.fromEntries(ITEMS.map(item => [item.id, { status: "rated", value: 3 }]));
+    const secondAnswers: Answers = { ...firstAnswers, [ITEMS[0].id]: { status: "rated", value: 5 } };
+    const first = createSnapshot(firstAnswers);
+    const second = createSnapshot(secondAnswers);
+    const url = new URL(buildShareUrl("https://hanbang.ai", first, second)!);
+    expect(url.pathname).toBe("/wedding-code");
+    expect(url.search).toBe("");
+    expect(url.hash).toMatch(/^#wc-likert=/);
+    expect(readShareFragment(url.hash)).toMatchObject({ kind: "couple", first: { answers: firstAnswers }, second: { answers: secondAnswers } });
+    const metadata = await generateMetadata({ searchParams: Promise.resolve({}) });
+    const serialized = JSON.stringify([metadata.openGraph, metadata.twitter]);
+    expect(serialized).not.toContain(url.hash.slice(1));
+    expect(serialized).not.toMatch(/likert\.money|createdAt|"answers"/);
+    expect(Object.prototype.hasOwnProperty.call(metadata.openGraph, "url")).toBe(false);
+    expect(metadata.description).toContain("두 사람 결과 링크를 서로 전달하면");
+  });
+
+  it("이전 후보 주소도 새 일반 카드를 쓰고 원답 fragment가 빠질 og:url을 물려받지 않는다", () => {
+    expect(aliasMetadata.robots).toMatchObject({ index: false, follow: false });
+    expect(aliasMetadata.referrer).toBe("no-referrer");
+    expect(aliasMetadata.openGraph?.images).toEqual([{ url: "/wedding-code/likert-card/opengraph-image", ...likertSize, alt: likertAlt }]);
+    expect(aliasMetadata.twitter?.images).toEqual(aliasMetadata.openGraph?.images);
+    expect(aliasMetadata.description).toContain("두 사람 결과 링크를 직접 돌려주면");
+    expect(Object.prototype.hasOwnProperty.call(aliasMetadata.openGraph, "url")).toBe(false);
+    expect(JSON.stringify([aliasMetadata.openGraph, aliasMetadata.twitter])).not.toMatch(/landing|아모라|v40-card/);
+  });
 });

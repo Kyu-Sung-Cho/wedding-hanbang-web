@@ -366,16 +366,16 @@ export default function WeddingCodeV31Client({ shareOrigin, partnerDraft = null,
           <p className={`mt-2 ${v31Body}`}>{V31_CORE_RATING_IDS.length}개 문장에 다섯 단계로 답하고, {WEDDING_CODE_V31_TASTES.length}가지 취향과 피하고 싶은 것, 다른 곳의 비용을 줄여서라도 더 쓰고 싶은 곳을 골라요. 마지막 ‘꼭 지키고 싶은 것’ 페이지는 고를 것이 없으면 건너뛰어요.</p>
           <p className={`mt-2 ${v31Body}`}>아직 모르거나 이번 계획에 없는 내용은 ‘아직 모르겠어요’ 같은 보기로 따로 표시해도 괜찮아요. 네 글자를 정하는 문장을 이렇게 표시하면 그 글자는 ‘?’로 남아요.</p>
           {/*
-            개인정보 안내는 보이는 한 줄과 접힌 ‘자세히’ 두 겹이다. 한 줄이 사람들이 먼저 묻는 두 사실(답은 서버에 보내지 않는다, 이용 통계에는 답이 없다)과
+            개인정보 안내는 보이는 한 줄과 접힌 ‘자세히’ 두 겹이다. 한 줄이 사람들이 먼저 묻는 두 사실(답은 서버에 보내지 않는다, 공개 화면에서는 이용 통계를 기록하지 않는다)과
             처리방침 링크를 맡고, 접힌 칸은 옛 세 문단을 그대로 담는다(링크는 소개 안에 하나만 둔다). 시험이 data-intro-privacy 로 두 겹을 함께 본다.
           */}
           <div className="mt-3" data-intro-privacy>
-            <p className={v31Body}><span className="font-semibold text-[var(--hb-text-strong)]">답하는 동안 고른 답은 서버에 보내지 않고, 화면 개선을 위해서는 답을 뺀 이용 통계만 기록해요.</span> 자세한 내용은{" "}<a href="/privacy" target="_blank" rel="noopener noreferrer" className="py-2 font-semibold text-[var(--hb-text-strong)] underline underline-offset-4">개인정보 처리방침</a>에서 볼 수 있어요.</p>
+            <p className={v31Body}><span className="font-semibold text-[var(--hb-text-strong)]">답하는 동안 고른 답은 서버에 보내지 않고, 로그인 없이 이용하는 공개 웨딩코드에서는 이용 통계를 기록하지 않아요.</span> 자세한 내용은{" "}<a href="/privacy" target="_blank" rel="noopener noreferrer" className="py-2 font-semibold text-[var(--hb-text-strong)] underline underline-offset-4">개인정보 처리방침</a>에서 볼 수 있어요.</p>
             <details className={`mt-1 ${v31Body}`}>
               {/* 보이는 글자는 ‘자세히’ 그대로 두고, 낭독기 목록에서 무엇을 여는지 알리는 이름만 그 글자로 시작해 덧붙인다. */}
               <summary aria-label="자세히, 개인정보 안내" className="flex min-h-11 cursor-pointer items-center underline underline-offset-4">자세히</summary>
               <div className="space-y-2">
-                <p className={v31Body}>고른 답과 웨딩코드는 답하는 동안 서버나 계정에 보내지 않아요. 화면 개선을 위해 첫 화면을 열었는지, 몇 번째 장면까지 봤는지, 끝까지 했는지, 답한 장면과 건너뛴 장면의 수 같은 이용 통계만 기록하고, 이 통계에 고른 답·웨딩코드·공유 링크 주소는 넣지 않아요.</p>
+                <p className={v31Body}>고른 답과 웨딩코드는 답하는 동안 서버나 계정에 보내지 않아요. 로그인 없이 이용하는 공개 웨딩코드에서는 페이지 조회와 흐름 이벤트를 기록하지 않고, 브라우저 오류·성능 이벤트도 수집 서비스로 보내지 않아요. 고른 답·웨딩코드·공유 링크 주소도 통계에 넣지 않아요.</p>
                 <p className={v31Body}>내 답은 이 브라우저에 자동으로 저장돼요. 마지막으로 저장한 날부터 {LOCAL_SAVE_DAYS}일 동안 이어 할 수 있어요. 공용 기기에서는 시작하기 전에 아래 ‘자동 저장 설정’에서 꺼 주세요.</p>
                 <p className={v31Body}>결과에서 ‘함께 보기’에 동의하면 내 답 전체를 서버에 보관하고, 초대로 연결된 상대에게 보여줘요. 초대 링크를 먼저 사용한 사람이 상대가 돼요. 이름이나 계정으로는 확인하지 않아요. 초대 후 {PAIR_SESSION_RETENTION_DAYS}일 동안 볼 수 있고, 만료된 내용은 하루 안에 삭제해요. ‘연결 끝내기’를 누르면 두 사람의 공유 답을 바로 지우지만, 상대가 이미 읽거나 따로 보관한 내용은 회수할 수 없어요.</p>
               </div>

@@ -583,8 +583,9 @@ describe("landing product outcome evidence", () => {
       "심리 진단이나 궁합 검사가 아니에요",
     );
     expect(weddingCode?.note, "공유 링크에 답이 담긴다는 경고가 사라졌다").toContain(
-      "함께 보기에 동의하면 답이 서버에 보관·공유돼요",
+      "함께 보기에 동의하면 답 전체가 담긴 링크를 직접 전달해요",
     );
+    expect(weddingCode?.note).toContain("답은 서버에 저장하지 않으며 전달한 링크는 회수할 수 없어요");
 
     // ② 견적 점검 — 옛 `privateLane.note` 의 저장 고지가 여기로도 왔다.
     //    로그인 없이 넣은 견적을 저장하지 않는다는 것은 오늘 참이고, 값의 적정성을

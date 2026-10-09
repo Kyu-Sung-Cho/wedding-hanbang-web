@@ -11,6 +11,7 @@
 const ANALYTICS_SUPPRESSED_PATH_PREFIXES = [
   "/internal/wedding-code-research",
   "/wedding-code",
+  "/wedding-code-next",
   "/preparation-style",
   "/wedding/preparation-style",
   "/invite",
@@ -30,6 +31,13 @@ const PRIVATE_HANDOFF_QUERY_KEYS = new Set(["wcTasteChat", "wcTasteReview", "wcA
 const MAX_NESTED_LOCATION_QUERY_DEPTH = 8;
 
 type SearchParamsReader = Pick<URLSearchParams, "get">;
+
+export function isWeddingCodeLikertPath(pathname: string | null | undefined): boolean {
+  // 기본 입구와 구판 링크도 같은 무전송 경계로 보호한다.
+  return Boolean(pathname && ["/wedding-code", "/wedding-code-next"].some(
+    prefix => pathname === prefix || pathname.startsWith(`${prefix}/`),
+  ));
+}
 
 export function isAnalyticsSuppressedPath(pathname: string | null | undefined): boolean {
   if (!pathname) return false;
@@ -170,6 +178,45 @@ function pathnameFromLocationValue(value: unknown): string | null {
   } catch {
     return null;
   }
+}
+
+/** 이동 뒤 남은 초기 방문 속성에도 새판의 답 주소가 있으면 전송을 막는다. */
+function nestedCaptureTouchesLikertPath(capture: unknown): boolean {
+  const pending: unknown[] = [capture];
+  const visited = new WeakSet<object>();
+  const visitedLocations = new Set<string>();
+  while (pending.length > 0) {
+    const value = pending.pop();
+    const pathname = pathnameFromLocationValue(value);
+    if (isWeddingCodeLikertPath(pathname)) return true;
+    if (pathname && typeof value === "string" && !visitedLocations.has(value)) {
+      visitedLocations.add(value);
+      // 로그인 redirect 같은 주소 안의 주소도 검사한다. 실제 이동 주소는 고치지 않는다.
+      const location = new URL(value, "https://hanbang.invalid");
+      for (const nested of location.searchParams.values()) {
+        if (looksLikeLocationValue(nested)) pending.push(nested);
+      }
+    }
+    if (!Array.isArray(value) && !isPlainObject(value)) continue;
+    if (visited.has(value)) continue;
+    visited.add(value);
+    for (const nested of Object.values(value)) pending.push(nested);
+  }
+  return false;
+}
+
+export function analyticsCaptureTouchesLikertPath(
+  capture: AnalyticsCapture,
+  currentPathname?: string | null,
+): boolean {
+  return valueTouchesWeddingCodeLikertPath(capture, currentPathname);
+}
+
+export function valueTouchesWeddingCodeLikertPath(
+  value: unknown,
+  currentPathname?: string | null,
+): boolean {
+  return isWeddingCodeLikertPath(currentPathname) || nestedCaptureTouchesLikertPath(value);
 }
 
 /**
@@ -369,6 +416,7 @@ export function analyticsCaptureTouchesSuppressedPath(
 ): boolean {
   if (isAnalyticsSuppressedPath(currentPathname)) return true;
   if (!capture?.properties) return false;
+  if (analyticsCaptureTouchesLikertPath(capture, currentPathname)) return true;
 
   for (const value of Object.values(capture.properties)) {
     const pathname = pathnameFromLocationValue(value);

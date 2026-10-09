@@ -11,6 +11,7 @@ import {
 import { V40_STORAGE, V40_STRENGTH, WEDDING_CODE_V40_VERSION } from "@/constants/weddingCodeV40";
 import {
   WEDDING_CODE_FUNNEL_ANALYTICS_EFFECTIVE_AT,
+  analyticsCaptureTouchesLikertPath,
   sanitizeWeddingCodeFunnelCapture,
 } from "@/lib/analyticsPrivacy";
 import { LOCAL_TTL_MS, V31_CLEAR_LOCAL_LABEL } from "@/lib/weddingCode/v31LocalProgress";
@@ -18,6 +19,8 @@ import { V40_COPY } from "@/lib/weddingCode/v40/copy";
 import { V40_GUESS_COPY } from "@/lib/weddingCode/v40/guess/guessCopy";
 import { V40_LETTER_GUESS_COPY } from "@/lib/weddingCode/v40/letterGuess/letterGuessCopy";
 import { PAIR_SESSION_RETENTION_DAYS } from "@/lib/weddingCode/pairSessionContract";
+import { LIKERT_RETENTION_MS } from "@/lib/weddingCode/likert/io";
+import { MEASUREMENT_VERSION } from "@/lib/weddingCode/likert/types";
 import PrivacyPage from "../page";
 
 const SECRET = "test-secret-that-is-at-least-thirty-two-chars";
@@ -50,7 +53,7 @@ describe("privacy notice for WeddingCode research contributions", () => {
     const text = render();
     expect(text).not.toContain("답 보태기");
     expect(text).toContain("웨딩코드: 답은 기기 안에서 계산하며 세션 녹화를 하지 않습니다");
-    expect(text).toContain("아래 ‘함께 보기’에 별도로 동의한 경우에만 해당 기능에 필요한 답을 서버에 저장합니다");
+    expect(text).toContain("아래 이전 v3.1 판의 ‘함께 보기’에 별도로 동의한 경우에만 해당 기능에 필요한 답을 서버에 저장합니다");
   });
 
   it.each(["", SECRET])("연구 저장소와 독립적으로 두 사람 공유 동의·만료·철회·확인 주소의 권한을 안내한다 (%#)", (secret) => {
@@ -68,9 +71,9 @@ describe("privacy notice for WeddingCode research contributions", () => {
     vi.stubEnv("WEDDING_CODE_RESEARCH_RECEIPT_SECRET", secret);
     vi.stubEnv("WEDDING_CODE_RESEARCH_CONTRIBUTION_ENABLED", "false");
     const text = render();
-    const localNotice = text.slice(text.indexOf("기본 웨딩코드(v3.1) 이어하기:"), text.indexOf("지워 주세요.") + "지워 주세요.".length);
+    const localNotice = text.slice(text.indexOf("이전 웨딩코드(v3.1) 이어하기:"), text.indexOf("지워 주세요.") + "지워 주세요.".length);
 
-    expect(text.indexOf("기본 웨딩코드(v3.1) 이어하기:")).toBeGreaterThan(text.indexOf("로그인 없이 이용하는 공개 웨딩코드:"));
+    expect(text.indexOf("이전 웨딩코드(v3.1) 이어하기:")).toBeGreaterThan(text.indexOf("로그인 없이 이용하는 공개 웨딩코드:"));
     expect(localNotice).toContain("본인 답과 현재 단계·수정 상태를 같은 브라우저에 보관합니다");
     expect(localNotice).toContain(`마지막으로 답이나 진행을 저장한 때부터 ${LOCAL_TTL_MS / (24 * 60 * 60 * 1000)}일`);
     expect(localNotice).toContain("읽거나 재방문만 해서는 기간이 늘어나지 않습니다");
@@ -90,7 +93,7 @@ describe("privacy notice for WeddingCode research contributions", () => {
     const text = render();
     const dateLabel = kstDateLabel(WEDDING_CODE_RESEARCH_CONTRIBUTION_EFFECTIVE_AT);
 
-    expect(text).toContain("아래 ‘함께 보기’ 또는 답 보태기에 별도로 동의한 경우에만 해당 기능에 필요한 답을 서버에 저장합니다");
+    expect(text).toContain("아래 이전 v3.1 판의 ‘함께 보기’ 또는 답 보태기에 별도로 동의한 경우에만 해당 기능에 필요한 답을 서버에 저장합니다");
     // 제1조 항목, 제3조 보관, 부칙 — 세 곳 모두 같은 적용일
     expect(text).toContain(`웨딩코드 답 보태기에 동의한 경우(${dateLabel.replace(/부터$/, "")}부터, 선택)`);
     expect(text).toContain(`웨딩코드 답 보태기(선택, ${dateLabel})`);
@@ -152,7 +155,7 @@ describe("privacy notice for the WeddingCode v4.0-tendency paragraph", () => {
     expect(keepWord, "V40_STORAGE.historyMax 가 바뀌었다. 방침의 「최근 ○ 번」을 고칠 것").toBeTruthy();
 
     // v3.1 문단은 그대로 남고 v4 문단은 그 뒤에 온다.
-    const v31Start = text.indexOf("기본 웨딩코드(v3.1) 이어하기:");
+    const v31Start = text.indexOf("이전 웨딩코드(v3.1) 이어하기:");
     expect(v31Start).toBeGreaterThan(-1);
     expect(text.indexOf(V4_CLOSING, v31Start)).toBeLessThan(text.indexOf(V4_LABEL));
 
@@ -209,14 +212,14 @@ describe("privacy notice for the WeddingCode v4.0-tendency paragraph", () => {
     expect(notice).toContain(`‘${V40_COPY.send.questionsOnlyOption}’ 링크에는 답이 들어 있지 않습니다`);
   });
 
-  it.each(["", SECRET])("이용 통계는 이미 고지한 항목뿐이라고 말하고, 그 말이 통계 정리기와 어긋나지 않는다 (%#)", (secret) => {
+  it.each(["", SECRET])("현재 구판 화면도 통계를 중단하며 기존 속성 정리기는 보존한다 (%#)", (secret) => {
     const text = renderWithoutResearch(secret);
     const notice = v4Paragraph(text);
 
     // 가리키는 문장이 실제로 있다. (항목별 고지는 analyticsPrivacy.test.ts 가 그 문장 안에서 센다.)
     expect(text).toContain("로그인 없이 이용하는 공개 웨딩코드:");
     expect(notice).toContain(
-      "이용 통계는 위 ‘로그인 없이 이용하는 공개 웨딩코드’에 적은 항목만 기록하며 이 판에서 새 항목을 더하지 않고, 고른 답·글자·세기·링크 주소는 통계에 넣지 않습니다",
+      "이 판의 이용 통계는 현재 기록하지 않으며, 고른 답·글자·세기·링크 주소는 통계에 넣지 않습니다",
     );
 
     // 말한 대로 정리기는 고지한 속성만 통과시킨다: v4 판 이름은 지나가고, 글자·세기·링크 주소는 실수로 실려도 떨어진다.
@@ -236,6 +239,7 @@ describe("privacy notice for the WeddingCode v4.0-tendency paragraph", () => {
       now,
     );
     expect(sent?.properties).toEqual({ version: WEDDING_CODE_V40_VERSION, placement: "result", result_kind: "solo" });
+    expect(analyticsCaptureTouchesLikertPath(sent, "/wedding-code")).toBe(true);
   });
 
   it.each(["", SECRET])("# 뒤가 오류 수집 도구로 나가지 않는다는 말은 정제 수정이 운영에서 확인되기 전에는 쓰지 않는다 (%#)", (secret) => {
@@ -283,7 +287,7 @@ describe("privacy notice for the WeddingCode v4.0-tendency paragraph", () => {
 
     // 기존 문장은 한 글자도 바뀌지 않았다(이 단계는 끼우기만 한다).
     expect(notice).toContain("‘링크 보내기’로 만드는 링크에는");
-    expect(notice).toContain("이용 통계는 위 ‘로그인 없이 이용하는 공개 웨딩코드’에 적은 항목만 기록하며 이 판에서 새 항목을 더하지 않고, 고른 답·글자·세기·링크 주소는 통계에 넣지 않습니다");
+    expect(notice).toContain("이 판의 이용 통계는 현재 기록하지 않으며, 고른 답·글자·세기·링크 주소는 통계에 넣지 않습니다");
   });
 
   it.each(["", SECRET])("4.1 단계 2: 방침이 말하는 것을 화면도 같은 말로 한다 (%#)", () => {
@@ -300,5 +304,26 @@ describe("privacy notice for the WeddingCode v4.0-tendency paragraph", () => {
     // 만들지 않은 기능을 방침이 설명하면 거짓이다. 후속 PR 이 2부를 더할 때 이 단언을 문장과 함께 바꾼다.
     const notice = v4Paragraph(renderWithoutResearch(secret));
     expect(notice).not.toMatch(/내 답 나란히 놓기|겹쳐 놓은 답|세션 저장소|임시 저장소/);
+  });
+});
+
+describe("30문항 개편본의 브라우저 보관과 무전송 안내", () => {
+  it("실제 보관 기간과 제공하는 제어, 받은 링크와 구판 기록의 범위를 알린다", () => {
+    const text = render();
+    const start = text.indexOf(`30문항 웨딩코드 개편본(${MEASUREMENT_VERSION})`);
+    const end = text.indexOf("공용 기기에서는 자동저장을 끄거나 이 개편본의 저장과 현재 답을 지워 주세요.", start);
+    expect(start).toBeGreaterThan(-1);
+    expect(end).toBeGreaterThan(start);
+    const notice = text.slice(start, end);
+    expect(notice).toContain(`${LIKERT_RETENTION_MS / (24 * 60 * 60 * 1000)}일 동안 이어하기에 사용`);
+    expect(notice).toContain("읽거나 다시 방문하는 것만으로 기간을 늘리지 않습니다");
+    expect(notice).toContain("저장된 기록은 사용자가 지우거나 새 답으로 덮어쓰기 전까지 브라우저 저장소에 남을 수 있습니다");
+    expect(notice).toContain("이 브라우저에 내 답 자동 저장");
+    expect(notice).toContain("이 개편본의 저장과 현재 답 지우기");
+    expect(notice).toContain("기존 판의 답은 지우지 않습니다");
+    expect(notice).toContain("초대와 두 사람 링크로 받은 답은 화면에만 두고 브라우저에 저장하지 않습니다");
+    expect(notice).toContain("이미 전달한 링크는 회수되지 않으며");
+    expect(text).toContain("현재 공개 웨딩코드와 기존 판의 링크 화면에서는 페이지 조회와 흐름 이벤트를 기록하지 않습니다");
+    expect(text).toContain("브라우저 오류·성능 이벤트도 수집 서비스로 전송하지 않습니다");
   });
 });

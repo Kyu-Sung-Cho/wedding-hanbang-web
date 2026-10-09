@@ -6,9 +6,11 @@
 // 그 전에 들어온 이벤트는 이 프라미스를 기다렸다가 순서대로 보낸다.
 // 로더가 한 곳에 있어야 초기화 전에 capture가 새는 일이 없다.
 import {
+  analyticsCaptureTouchesLikertPath,
   analyticsCaptureTouchesSuppressedPath,
   isWeddingCodeFunnelAnalyticsEffective,
   isWeddingCodeFunnelEvent,
+  isWeddingCodeLikertPath,
   sanitizeWeddingCodeFunnelCapture,
   stripAnalyticsUrlFragments,
   type WeddingCodeFunnelEvent,
@@ -26,6 +28,10 @@ const POSTHOG_KEY = process.env.NEXT_PUBLIC_POSTHOG_KEY;
 
 let clientPromise: Promise<PostHogModule | null> | null = null;
 
+function isLikertAnalyticsPage(): boolean {
+  return typeof window !== "undefined" && isWeddingCodeLikertPath(window.location?.pathname);
+}
+
 function whenIdle(run: () => void) {
   const idle = (window as unknown as {
     requestIdleCallback?: (cb: () => void, opts?: { timeout: number }) => void;
@@ -36,12 +42,22 @@ function whenIdle(run: () => void) {
 
 /** 유휴 시점에 posthog-js를 내려받아 1회 초기화한다. 키가 없으면 null. */
 export function loadPostHog(): Promise<PostHogModule | null> {
-  if (typeof window === "undefined" || !POSTHOG_KEY) return Promise.resolve(null);
+  if (typeof window === "undefined" || !POSTHOG_KEY || isLikertAnalyticsPage()) return Promise.resolve(null);
   if (clientPromise) return clientPromise;
   clientPromise = new Promise<PostHogModule | null>((resolve) => {
     whenIdle(() => {
+      if (isLikertAnalyticsPage()) {
+        clientPromise = null;
+        resolve(null);
+        return;
+      }
       void import("posthog-js")
         .then(({ default: posthog }) => {
+          if (isLikertAnalyticsPage()) {
+            clientPromise = null;
+            resolve(null);
+            return;
+          }
           posthog.init(POSTHOG_KEY, {
             api_host: process.env.NEXT_PUBLIC_POSTHOG_HOST || "https://us.i.posthog.com",
             capture_pageview: false, // App Router 라우트 전환은 Provider에서 수동 캡처
@@ -61,9 +77,11 @@ export function loadPostHog(): Promise<PostHogModule | null> {
             // 프래그먼트를 잘라낸다. `capture_pageleave`가 켜져 있어 posthog-js가
             // `$current_url`에 `location.href`를 스스로 넣는데, 커플 초대 코드가
             // 바로 그 `#` 뒤에 실려 다닌다.
-            // 이동 전 랜딩 관측과 고지일 이후 웨딩코드 흐름만 별도 허용 목록으로 정리한다.
+            // 웨딩코드 주소를 먼저 차단하고 다른 화면의 기존 허용 목록을 적용한다.
             before_send: (capture) => (
-              isLandingAnalyticsCapture(capture)
+              analyticsCaptureTouchesLikertPath(capture, window.location.pathname)
+                ? null
+                : isLandingAnalyticsCapture(capture)
                 ? sanitizeLandingAnalyticsCapture(capture)
                 : isWeddingCodeFunnelEvent(capture?.event)
                   ? sanitizeWeddingCodeFunnelCapture(capture)
