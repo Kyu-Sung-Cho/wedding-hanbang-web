@@ -5,7 +5,7 @@
   "bank": "preferences-20261008-r2",
   "expression": "likert-letters-alpha.3",
   "scope": "Exact Git index bytes of all release-changed files, excluding this manifest to avoid a self hash. This is distinct from Windows working-tree byte hashes and the original handoff manifest.",
-  "sourceManifestSha256": "b6d443d84bc63ef24f5ca1ec7f58d1798e01174dcf542c141d5384891367d323",
+  "sourceManifestSha256": "231a5c46d88296dddbd6020cc2b1782fbfd3bad300eba379cb330a9752606b03",
   "fileCount": 59,
   "files": [
     {
@@ -110,8 +110,8 @@
     },
     {
       "path": "apps/web/src/components/weddingCodeLikert/CoupleReport.tsx",
-      "bytes": 16117,
-      "sha256": "f117d54a3a1867393cdc1360123416637cafc6edf6ec40c4cbd64467f6f1cfef"
+      "bytes": 16156,
+      "sha256": "628ad309229e4cd55005049541f100e5d26c082f544b69f82bfa3c62fced7c61"
     },
     {
       "path": "apps/web/src/components/weddingCodeLikert/IntroPanel.tsx",
@@ -120,8 +120,8 @@
     },
     {
       "path": "apps/web/src/components/weddingCodeLikert/PersonalReport.tsx",
-      "bytes": 15183,
-      "sha256": "06d639b059934ac3a1fd4903240805773858615bbda720dd11db82d7e17b60f1"
+      "bytes": 15222,
+      "sha256": "c8ccb4f8b6e6ac63df09fc80cf3824b9548fa93f0d0e9de45a956ca99e615ef4"
     },
     {
       "path": "apps/web/src/components/weddingCodeLikert/QuestionPanel.tsx",

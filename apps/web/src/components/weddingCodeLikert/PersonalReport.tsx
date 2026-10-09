@@ -109,7 +109,7 @@ export function ProfileHero({ result, label = "나의 결혼 준비 코드", com
           <p className={`break-words font-semibold leading-none tracking-[0.08em] text-[var(--hb-text-strong)] ${compact ? "text-4xl" : "text-4xl sm:text-6xl"}`} aria-label={`준비 코드 ${displayedCode.split("").join(" ")}`}>
             {displayedCode}
           </p>
-          <TitleTag className={`mt-3 break-words font-semibold leading-snug ${compact ? "text-xl" : "text-xl sm:text-3xl"}`}>
+          <TitleTag className={`mt-3 break-words font-semibold leading-snug ${compact ? "text-xl" : "text-xl outline-none sm:text-3xl"}`}>
             {result.character?.name ?? "장면마다 마음이 다를 수 있어요"}
           </TitleTag>
         </div>
@@ -184,7 +184,7 @@ export function PersonalReport({ result, onEdit, onShare, onCompare }: PersonalR
       </section>
 
       <section id="personal-support" className="scroll-mt-6 border-t border-[var(--hb-hairline)] py-9" aria-labelledby="personal-support-heading">
-        <h2 id="personal-support-heading" tabIndex={-1} className="text-xl font-semibold sm:text-2xl">대화·도움·휴식, 장면별로</h2>
+        <h2 id="personal-support-heading" tabIndex={-1} className="text-xl font-semibold outline-none sm:text-2xl">대화·도움·휴식, 장면별로</h2>
         <p className="mt-3 text-sm leading-7 text-[var(--hb-text-body)]">내가 받고 싶은 도움을 상대에게 말해 보세요. 상대가 제공할 수 있는 범위는 대화로 함께 확인해요.</p>
         <div className="mt-6 divide-y divide-[var(--hb-hairline)]">
           {result.supportScenes.map((scene) => {
@@ -206,7 +206,7 @@ export function PersonalReport({ result, onEdit, onShare, onCompare }: PersonalR
       </section>
 
       <section id="personal-evidence" className="scroll-mt-6 border-t border-[var(--hb-hairline)] py-9" aria-labelledby="personal-evidence-heading">
-        <h2 id="personal-evidence-heading" tabIndex={-1} className="text-xl font-semibold sm:text-2xl">결과를 만든 질문과 원답</h2>
+        <h2 id="personal-evidence-heading" tabIndex={-1} className="text-xl font-semibold outline-none sm:text-2xl">결과를 만든 질문과 원답</h2>
         <p className="mt-3 text-sm leading-7 text-[var(--hb-text-body)]">잘 모르겠어요·해당하지 않아요·건너뜀은 1~5 응답과 구분해 남겼어요.</p>
         <div className="mt-5 divide-y divide-[var(--hb-hairline)]">
           {result.domains.map((profile) => (

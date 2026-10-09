@@ -105,7 +105,7 @@ export function CoupleReport({ result, onBack }: CoupleReportProps) {
     <div className="mx-auto w-full max-w-6xl px-4 pb-16 pt-6 text-[var(--hb-text-strong)] sm:px-8 sm:pt-10">
       <header className="pb-8">
         <p className="text-xs font-semibold text-[var(--hb-text-strong)]">함께 보는 결혼 준비 코드</p>
-        <h1 className="mt-3 text-2xl font-semibold leading-snug sm:text-4xl">둘의 마음을 장면별로 살펴봐요</h1>
+        <h1 className="mt-3 text-2xl font-semibold leading-snug outline-none sm:text-4xl">둘의 마음을 장면별로 살펴봐요</h1>
         <p className="mt-4 max-w-3xl text-sm leading-7 text-[var(--hb-text-body)]">각자 답한 내용을 나란히 놓았어요. 먼저 원하는 것을 확인하고, 지금 함께할 수 있는 범위를 이야기해 보세요.</p>
         <nav className="mt-5 flex flex-wrap gap-3" aria-label="함께 보는 결과 이동">
           <Button variant="secondary" type="button" onClick={() => scrollToReportSection("couple-topics")} className={actionClass}>네 주제 살펴보기</Button>
@@ -126,7 +126,7 @@ export function CoupleReport({ result, onBack }: CoupleReportProps) {
       </section>
 
       <section id="couple-topics" className="scroll-mt-6 pt-10" aria-labelledby="couple-topics-heading">
-        <h2 id="couple-topics-heading" tabIndex={-1} className="text-xl font-semibold sm:text-2xl">네 주제를 한눈에</h2>
+        <h2 id="couple-topics-heading" tabIndex={-1} className="text-xl font-semibold outline-none sm:text-2xl">네 주제를 한눈에</h2>
         <p className="mt-3 text-sm leading-7 text-[var(--hb-text-body)]">먼저 각자의 응답을 읽고, 더 이야기할 주제를 골라 주세요.</p>
         <div className="mt-6 divide-y divide-[var(--hb-hairline)] border-y border-[var(--hb-hairline)]">
           {DOMAIN_DEFINITIONS.map((domain, index) => (
@@ -146,7 +146,7 @@ export function CoupleReport({ result, onBack }: CoupleReportProps) {
 
       <section id="couple-conversation" className="scroll-mt-6 pt-10" aria-labelledby="couple-conversation-heading">
         <p className="text-xs font-semibold text-[var(--hb-text-strong)]">지금 살펴보는 주제 · {selectedTitle}</p>
-        <h2 id="couple-conversation-heading" tabIndex={-1} className="mt-3 text-xl font-semibold sm:text-2xl">이 장면에서 나눌 첫 대화</h2>
+        <h2 id="couple-conversation-heading" tabIndex={-1} className="mt-3 text-xl font-semibold outline-none sm:text-2xl">이 장면에서 나눌 첫 대화</h2>
         {scene ? (
           <>
             <label htmlFor="couple-scene" className="mt-5 block text-sm font-semibold">이야기할 장면</label>
