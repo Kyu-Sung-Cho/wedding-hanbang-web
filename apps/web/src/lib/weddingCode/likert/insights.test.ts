@@ -38,6 +38,42 @@ describe("원답으로 읽는 장면별 준비 포인트", () => {
     expect(insight(a, "money")).toContain("식사에 더 쓸 예산");
     expect(insight(b, "money")).toContain("예식장에 더 쓸 예산");
   });
+  it("shows the third scene's different raw answers even when codes and support ratios stay equal", () => {
+    const a = { ...cjol(), "likert.support.compare.L.v1": rated(4), "likert.support.contact.A.v1": rated(4) };
+    const b = { ...a, "likert.support.contact.L.v1": rated(4), "likert.support.contact.A.v1": rated(5) };
+    const first = buildResult(a);
+    const second = buildResult(b);
+    expect(first.code).toBe("CJOL");
+    expect(second.code).toBe("CJOL");
+    expect(first.domains[3].primary).toBe("L");
+    expect(second.domains[3].primary).toBe("L");
+    expect(first.domains[3].facets.map(facet => facet.ratio)).toEqual(second.domains[3].facets.map(facet => facet.ratio));
+    expect(first.domains[3].facets.find(facet => facet.facet === "L")?.ratio).toEqual({ numerator: 3, denominator: 3, percent: 100 });
+    expect(first.domains[3].facets.find(facet => facet.facet === "A")?.ratio).toEqual({ numerator: 1, denominator: 3, percent: 100 / 3 });
+    expect(first.sceneReadings.find(scene => scene.sceneId === "likert.support.contact.v1")?.entries.map(entry => entry.answer)).toEqual([rated(5), rated(4), rated(1), rated(1)]);
+    expect(second.sceneReadings.find(scene => scene.sceneId === "likert.support.contact.v1")?.entries.map(entry => entry.answer)).toEqual([rated(4), rated(5), rated(1), rated(1)]);
+    const firstText = insight(a, "support");
+    const secondText = insight(b, "support");
+    expect(firstText).not.toBe(secondText);
+    expect(firstText).toContain("업체 연락으로 지친 직후 — 내 이야기 경청 5(매우 그렇다) · 업체 답변 메모 정리 4(그렇다)");
+    expect(secondText).toContain("업체 연락으로 지친 직후 — 내 이야기 경청 4(그렇다) · 업체 답변 메모 정리 5(매우 그렇다)");
+    for (const text of [firstText, secondText]) {
+      expect(text.indexOf("홀 투어를 마친 직후")).toBeGreaterThanOrEqual(0);
+      expect(text.indexOf("후보 비교를 마친 직후")).toBeGreaterThan(text.indexOf("홀 투어를 마친 직후"));
+      expect(text.indexOf("업체 연락으로 지친 직후")).toBeGreaterThan(text.indexOf("후보 비교를 마친 직후"));
+    }
+    expect(first.insights).toHaveLength(8);
+    expect(second.insights).toHaveLength(8);
+  });
+  it("keeps both later scene titles when the second and third scenes have identical raw answers", () => {
+    const answers = { ...cjol(), "likert.support.compare.L.v1": rated(4), "likert.support.contact.L.v1": rated(4) };
+    const result = buildResult(answers);
+    expect(result.supportScenes[1].entries.map(entry => entry.answer)).toEqual(result.supportScenes[2].entries.map(entry => entry.answer));
+    const text = insight(answers, "support");
+    expect(text).toContain("후보 비교를 마친 직후 — 내 이야기 경청 4(그렇다) · 후보 비교표 정리 1(전혀 그렇지 않다)");
+    expect(text).toContain("업체 연락으로 지친 직후 — 내 이야기 경청 4(그렇다) · 업체 답변 메모 정리 1(전혀 그렇지 않다)");
+    expect(text.indexOf("업체 연락으로 지친 직후")).toBeGreaterThan(text.indexOf("후보 비교를 마친 직후"));
+  });
   it("preserves independent both-high ratings without converting their sum to 100 or forcing a character", () => {
     const answers = all(rated(5));
     const result = buildResult(answers);

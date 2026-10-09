@@ -556,6 +556,9 @@ function compareItem(item: Item, firstAnswers: Answers, secondAnswers: Answers):
     meaning = "한 사람의 보통이라는 중간 응답과 다른 사람의 응답을 함께 남겼어요.";
     prompt = "보통이라고 답한 뜻과 상대가 고른 응답의 이유를 각각 확인해볼까요?";
   }
+  if (item.domain === "support" && item.facet === "L" && isEndorsed(first.value) && isEndorsed(second.value)) {
+    prompt = "둘 다 경청 도움을 원했어요. 누가 먼저 이야기하고, 지금 서로 들어줄 수 있는 범위는 어디까지일까요?";
+  }
   return { item, first, second, relation, strength, summary: `${raw}. ${meaning}`, prompt: comparisonPrompt(item, prompt) };
 }
 

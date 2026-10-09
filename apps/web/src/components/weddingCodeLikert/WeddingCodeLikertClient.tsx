@@ -125,6 +125,8 @@ export default function WeddingCodeLikertClient() {
 
   const result = useMemo(() => buildResult(draft.answers), [draft.answers]);
   const couple = useMemo(() => pair ? buildComparison(pair.first.answers, pair.second.answers) : null, [pair]);
+  // 새 두 원답에서는 선택을 초기화한다. 같은 내용의 key는 화면에 출력하지 않는다.
+  const coupleKey = useMemo(() => pair ? JSON.stringify([pair.first, pair.second]) : undefined, [pair]);
   const count = answeredCount(draft.answers);
   const inviter = shared.kind === "invite" ? shared.first : undefined;
   const resumable = active ? draft : saved;
@@ -259,7 +261,7 @@ export default function WeddingCodeLikertClient() {
 
       {draft.screen === "compare" && couple ? <section ref={comparisonRef} data-testid="wc-comparison">
         {linkNotice ? <p className="mx-auto max-w-6xl px-5 pt-6 text-sm leading-7 text-[var(--hb-text-body)] sm:px-8" role="status" data-testid="wc-expression-correction">{linkNotice}</p> : null}
-        <CoupleReport result={couple} onBack={() => update({ screen: isComplete(draft.answers) ? "result" : "intro" })} />
+        <CoupleReport key={coupleKey} result={couple} onBack={() => update({ screen: isComplete(draft.answers) ? "result" : "intro" })} />
       </section> : null}
     </>}
     {loaded ? <section className="mx-auto max-w-4xl border-t border-[var(--hb-summary-line)] px-5 py-7 text-sm text-[var(--hb-text-body)] sm:px-8" aria-label="이 브라우저의 답 저장">

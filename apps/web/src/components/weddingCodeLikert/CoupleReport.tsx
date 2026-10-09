@@ -75,8 +75,29 @@ function ComparisonEvidence({ comparison }: { comparison: ItemComparison }) {
   );
 }
 
+function hasNumericPair(comparison: ItemComparison): boolean {
+  return comparison.first?.status === "rated" && comparison.second?.status === "rated";
+}
+
+function bothNotApplicable(comparison: ItemComparison): boolean {
+  return comparison.first?.status === "not_applicable" && comparison.second?.status === "not_applicable";
+}
+
+function sharedListeningRequest(comparison: ItemComparison): boolean {
+  return comparison.item.domain === "support" && comparison.item.facet === "L"
+    && comparison.first?.status === "rated" && comparison.first.value >= 4
+    && comparison.second?.status === "rated" && comparison.second.value >= 4;
+}
+
+function initialDomain(items: ItemComparison[]): Domain {
+  // 같은 문항의 수치 응답을 먼저 보되, 주제와 장면의 원래 순서는 유지한다.
+  return DOMAIN_DEFINITIONS.find(domain => items.some(entry => entry.item.domain === domain.id && hasNumericPair(entry)))?.id
+    ?? DOMAIN_DEFINITIONS.find(domain => items.some(entry => entry.item.domain === domain.id && !bothNotApplicable(entry)))?.id
+    ?? DOMAIN_DEFINITIONS[0].id;
+}
+
 export function CoupleReport({ result, onBack }: CoupleReportProps) {
-  const [selectedDomain, setSelectedDomain] = useState<Domain>("money");
+  const [selectedDomain, setSelectedDomain] = useState<Domain>(() => initialDomain(result.items));
   const [selectedSceneId, setSelectedSceneId] = useState("");
   const selectedItems = result.items.filter((entry) => entry.item.domain === selectedDomain);
   const scenes = [...new Map(selectedItems.map((entry) => [entry.item.sceneId, {
@@ -84,11 +105,19 @@ export function CoupleReport({ result, onBack }: CoupleReportProps) {
     title: entry.item.sceneTitle,
     context: entry.item.context,
   }])).values()];
-  const scene = scenes.find((entry) => entry.id === selectedSceneId) ?? scenes[0];
+  const initialScene = scenes.find(scene => selectedItems.some(entry => entry.item.sceneId === scene.id && hasNumericPair(entry)))
+    ?? scenes.find(scene => selectedItems.some(entry => entry.item.sceneId === scene.id && !bothNotApplicable(entry)))
+    ?? scenes[0];
+  const scene = scenes.find((entry) => entry.id === selectedSceneId) ?? initialScene;
   const sceneItems = scene ? selectedItems.filter((entry) => entry.item.sceneId === scene.id) : [];
+  const hasSceneComparison = sceneItems.some(hasNumericPair);
+  const sceneNotApplicable = sceneItems.length > 0 && sceneItems.every(bothNotApplicable);
   const sceneConversations = result.conversations.filter(entry => entry.sceneId === scene?.id);
   const differentOrUnknown = sceneConversations.filter(entry => entry.relation !== "same");
-  const conversationTopics = differentOrUnknown.length > 0 ? differentOrUnknown : sceneConversations;
+  const conversationTopics = differentOrUnknown.length > 0
+    ? sceneConversations.filter(topic => topic.relation !== "same"
+      || sceneItems.some(comparison => comparison.item.id === topic.itemId && sharedListeningRequest(comparison)))
+    : sceneConversations;
   const sceneReading = result.sceneReadings.find(entry => entry.sceneId === scene?.id);
   const firstSupport = result.first.supportScenes.find(entry => entry.sceneId === scene?.id);
   const secondSupport = result.second.supportScenes.find(entry => entry.sceneId === scene?.id);
@@ -163,7 +192,11 @@ export function CoupleReport({ result, onBack }: CoupleReportProps) {
                 <div className="min-w-0"><h3 className="text-sm font-semibold">{secondLabel}의 읽기와 부탁</h3><SceneReadingEvidence reading={sceneReading.second} /></div>
               </div>
             </div>}
-            <p className="mt-5 text-sm leading-7 text-[var(--hb-text-body)]">{differentOrUnknown.length > 0 ? "같은 장면에서 다르게 답했거나 아직 확인할 응답을 모았어요. 지금 이야기할 내용은 두 사람이 골라 주세요." : "이 장면에서는 같은 칸으로 답했어요. 떠올린 이유와 원하는 행동도 같은지 확인해 보세요."}</p>
+            <p className="mt-5 text-sm leading-7 text-[var(--hb-text-body)]">{sceneNotApplicable
+              ? "두 사람 모두 이 장면의 문장을 해당 없음으로 답했어요. 비교할 수치 응답은 없어요. 다른 장면을 선택하거나 상황이 달라지면 답을 다시 확인해 보세요."
+              : !hasSceneComparison
+                ? "이 장면에는 두 사람이 같은 문장에 모두 1~5로 답한 응답이 아직 없어요. 모름·해당 없음·건너뜀과 각자의 원답을 먼저 확인해 보세요."
+                : differentOrUnknown.length > 0 ? "같은 장면에서 다르게 답했거나 아직 확인할 응답을 모았어요. 지금 이야기할 내용은 두 사람이 골라 주세요." : "이 장면에서는 같은 칸으로 답했어요. 떠올린 이유와 원하는 행동도 같은지 확인해 보세요."}</p>
             <ol aria-label="이 장면에서 함께 확인할 응답" className="mt-4 divide-y divide-[var(--hb-hairline)] border-y border-[var(--hb-hairline)]">
               {conversationTopics.map(topic => {
                 const comparison = sceneItems.find(entry => entry.item.id === topic.itemId);

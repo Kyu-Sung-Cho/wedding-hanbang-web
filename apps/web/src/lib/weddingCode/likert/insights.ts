@@ -57,7 +57,7 @@ export function buildDomainInsights(profile: DomainProfile): string[] {
     const first = complete[0];
     const different = first ? complete.find(scene => signature(scene.entries) !== signature(first.entries)) : undefined;
     if (first && different) {
-      observation = `장면마다 답이 달랐어요. ${fact(first)} / ${fact(different)}.${scope}`;
+      observation = `장면마다 답이 달랐어요. ${complete.map(fact).join(" / ")}.${scope}`;
     } else if (first && complete.length === scenes.length) {
       observation = `${complete.length}개 장면에서 응답 조합이 같았어요. ${fact(first)}.`;
       question = "같은 칸을 골랐어도 장면마다 떠올린 이유가 같았나요?";

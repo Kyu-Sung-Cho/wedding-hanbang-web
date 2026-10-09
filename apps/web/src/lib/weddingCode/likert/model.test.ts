@@ -219,6 +219,37 @@ describe("Likert ordinal response summaries", () => {
     expect(result.items[0].second).toEqual(rated(3));
   });
 
+  it.each([[4, 4], [5, 5], [4, 5], [5, 4]] as const)("L%s/%s 응답은 서로 경청할 순서와 지금 가능한 범위를 묻는다", (firstValue, secondValue) => {
+    const item = ITEMS.find(entry => entry.facet === "L");
+    if (!item) throw new Error("Missing listening item");
+    const first = rated(firstValue);
+    const second = rated(secondValue);
+    const result = buildComparison({ [item.id]: first }, { [item.id]: second });
+    const comparison = result.items.find(entry => entry.item.id === item.id);
+    const conversation = result.conversations.find(entry => entry.itemId === item.id);
+    expect(comparison).toMatchObject({ first, second });
+    expect(conversation?.text).toContain("둘 다 경청 도움을 원했어요");
+    expect(conversation?.text).toContain("누가 먼저 이야기하고");
+    expect(conversation?.text).toContain("지금 서로 들어줄 수 있는 범위");
+    expect(conversation?.text).not.toMatch(/들어줄 수 있어요|관계 만족|사이가 좋|갈등이 없/);
+  });
+
+  it("낮은 동의·중립·미확인 상태로 두 사람의 경청 욕구를 만들어내지 않는다", () => {
+    const item = ITEMS.find(entry => entry.facet === "L");
+    if (!item) throw new Error("Missing listening item");
+    const answers: (Answer | undefined)[] = [rated(1), rated(2), rated(3),
+      { status: "unknown" }, { status: "not_applicable" }, { status: "skipped" }, undefined];
+    for (const answer of answers) {
+      const own: Answers = answer ? { [item.id]: answer } : {};
+      for (const other of [own, { [item.id]: rated(5) }]) {
+        const result = buildComparison(own, other);
+        const conversation = result.conversations.find(entry => entry.itemId === item.id);
+        expect(conversation?.text).not.toContain("둘 다 경청 도움을 원했어요");
+        expect(conversation?.first).toEqual(answer ?? null);
+      }
+    }
+  });
+
   it("resolves all sixteen codes through the static catalog without a fallback", () => {
     expect(CHARACTERS).toHaveLength(16);
     for (const character of CHARACTERS) {

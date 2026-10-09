@@ -119,4 +119,111 @@ describe("원답과 공개 결과의 의미", () => {
     expect(discussion?.textContent).toContain("1 · 전혀 그렇지 않다");
     expect(discussion?.textContent).toContain("동의한 이유와 동의하지 않은 이유");
   });
+
+  it("둘 다 비해당인 홀 장면 대신 응답한 촬영 장면을 열고, 홀 원답은 직접 선택해 볼 수 있다", async () => {
+    const first = all({ status: "not_applicable" });
+    const second = all({ status: "not_applicable" });
+    first["likert.money.photo.C.v1"] = { status: "rated", value: 5 };
+    first["likert.money.photo.E.v1"] = { status: "rated", value: 1 };
+    second["likert.money.photo.C.v1"] = { status: "rated", value: 1 };
+    second["likert.money.photo.E.v1"] = { status: "rated", value: 5 };
+    const result = buildComparison(first, second);
+    const original = JSON.stringify({ first, second, result });
+    const rendered = createHarness();
+    try {
+      await rendered.render(<CoupleReport result={result} onBack={noop} />);
+      const select = rendered.container.querySelector<HTMLSelectElement>("#couple-scene");
+      if (!select) throw new Error("장면 선택 요소가 없어요");
+      expect(select.value).toBe("likert.money.photo.v1");
+      expect([...select.options].map(option => option.value)).toEqual([
+        "likert.money.venue.v1", "likert.money.photo.v1", "likert.money.meal.v1",
+      ]);
+      const discussion = rendered.container.querySelector('[aria-label="이 장면에서 함께 확인할 응답"]');
+      expect(discussion?.textContent).toContain("5 · 매우 그렇다");
+      expect(discussion?.textContent).toContain("1 · 전혀 그렇지 않다");
+      await act(async () => { select.value = "likert.money.venue.v1"; select.dispatchEvent(new Event("change", { bubbles: true })); });
+      expect(select.value).toBe("likert.money.venue.v1");
+      const venue = rendered.container.querySelector("#couple-conversation");
+      expect(venue?.textContent).toContain("두 사람 모두 이 장면의 문장을 해당 없음으로 답했어요");
+      expect(venue?.textContent).toContain("비교할 수치 응답은 없어요");
+      expect(venue?.querySelector('[aria-label="이 장면에서 함께 확인할 응답"]')?.textContent).toContain("해당하지 않아요");
+      for (const item of ITEMS.filter(entry => entry.sceneId === "likert.money.venue.v1")) {
+        expect(venue?.textContent).toContain(item.text);
+      }
+      expect(JSON.stringify({ first, second, result })).toBe(original);
+    } finally { await rendered.unmount(); }
+  });
+
+  it("지출이 모두 비해당이면 준비 주제의 중립 3도 수치 응답으로 열고 더 큰 차이를 우선하지 않는다", async () => {
+    const first = all({ status: "not_applicable" });
+    const second = all({ status: "not_applicable" });
+    first["likert.process.photo.J.v1"] = { status: "rated", value: 3 };
+    second["likert.process.photo.J.v1"] = { status: "rated", value: 3 };
+    first["likert.family.guests.O.v1"] = { status: "rated", value: 5 };
+    second["likert.family.guests.O.v1"] = { status: "rated", value: 1 };
+    const rendered = createHarness();
+    try {
+      await rendered.render(<CoupleReport result={buildComparison(first, second)} onBack={noop} />);
+      const topic = [...rendered.container.querySelectorAll('button[aria-pressed="true"]')];
+      expect(topic).toHaveLength(1);
+      expect(topic[0]?.textContent).toContain("준비 작업의 출발점");
+      expect(rendered.container.querySelector<HTMLSelectElement>("#couple-scene")?.value).toBe("likert.process.photo.v1");
+      const discussion = rendered.container.querySelector("#couple-conversation");
+      expect(discussion?.textContent).toContain("3 · 보통이다");
+      expect(discussion?.textContent).not.toContain("같은 문장에 모두 1~5로 답한 응답이 아직 없어요");
+      await click([...rendered.container.querySelectorAll("button")].find(button => button.textContent?.includes("지출의 우선순위")));
+      expect(rendered.container.querySelector<HTMLSelectElement>("#couple-scene")?.value).toBe("likert.money.venue.v1");
+      expect(rendered.container.querySelector("#couple-conversation")?.textContent).toContain("비교할 수치 응답은 없어요");
+    } finally { await rendered.unmount(); }
+  });
+
+  it("수치 쌍이 없어도 모름이 남은 장면은 모두 비해당인 장면보다 먼저 확인한다", async () => {
+    const first = all({ status: "not_applicable" });
+    const second = all({ status: "not_applicable" });
+    first["likert.money.photo.C.v1"] = { status: "unknown" };
+    const rendered = createHarness();
+    try {
+      await rendered.render(<CoupleReport result={buildComparison(first, second)} onBack={noop} />);
+      expect(rendered.container.querySelector<HTMLSelectElement>("#couple-scene")?.value).toBe("likert.money.photo.v1");
+      const discussion = rendered.container.querySelector("#couple-conversation");
+      expect(discussion?.textContent).toContain("같은 문장에 모두 1~5로 답한 응답이 아직 없어요");
+      expect(discussion?.textContent).toContain("잘 모르겠어요");
+      expect(discussion?.textContent).toContain("해당하지 않아요");
+    } finally { await rendered.unmount(); }
+  });
+
+  it("모든 장면이 둘 다 비해당이면 원래 순서로 열되 수치 비교가 없음을 알린다", async () => {
+    const rendered = createHarness();
+    try {
+      const answers = all({ status: "not_applicable" });
+      await rendered.render(<CoupleReport result={buildComparison(answers, answers)} onBack={noop} />);
+      expect(rendered.container.querySelector<HTMLSelectElement>("#couple-scene")?.value).toBe("likert.money.venue.v1");
+      expect([...rendered.container.querySelectorAll('button[aria-pressed="true"]')][0]?.textContent).toContain("지출의 우선순위");
+      const discussion = rendered.container.querySelector("#couple-conversation");
+      expect(discussion?.textContent).toContain("두 사람 모두 이 장면의 문장을 해당 없음으로 답했어요");
+      expect(discussion?.textContent).toContain("비교할 수치 응답은 없어요");
+      expect(discussion?.textContent).not.toContain("같은 칸으로 답했어요");
+      expect(discussion?.querySelectorAll("option")).toHaveLength(3);
+    } finally { await rendered.unmount(); }
+  });
+
+  it.each([4, 5] as const)("동일 L%s의 공동 경청 질문이 실무 도움 차이와 비수치 휴식 응답에 가려지지 않는다", async (value) => {
+    const first = all({ status: "not_applicable" });
+    const second = all({ status: "not_applicable" });
+    first["likert.support.tour.L.v1"] = { status: "rated", value };
+    second["likert.support.tour.L.v1"] = { status: "rated", value };
+    first["likert.support.tour.A.v1"] = { status: "rated", value: 5 };
+    second["likert.support.tour.A.v1"] = { status: "rated", value: 1 };
+    const rendered = createHarness();
+    try {
+      await rendered.render(<CoupleReport result={buildComparison(first, second)} onBack={noop} />);
+      expect(rendered.container.querySelector<HTMLSelectElement>("#couple-scene")?.value).toBe("likert.support.tour.v1");
+      const discussion = rendered.container.querySelector('[aria-label="이 장면에서 함께 확인할 응답"]');
+      expect(discussion?.textContent).toContain("둘 다 경청 도움을 원했어요");
+      expect(discussion?.textContent).toContain("누가 먼저 이야기하고");
+      expect(discussion?.textContent).toContain("지금 서로 들어줄 수 있는 범위");
+      expect(discussion?.textContent).toContain("동의한 이유와 동의하지 않은 이유");
+      expect(discussion?.textContent).toContain("해당하지 않아요");
+    } finally { await rendered.unmount(); }
+  });
 });
