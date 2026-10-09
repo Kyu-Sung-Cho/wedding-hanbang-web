@@ -211,24 +211,29 @@ describe("웨딩코드 흐름 이벤트는 답과 주소를 싣지 않는다", (
     expect(safe.properties).toEqual({ result_kind: "solo", has_partner_link: true });
   });
 
-  it("초기화 코드가 억제 판정보다 먼저 이 정리를 거친다", () => {
+  it("웨딩코드 무전송 경계가 모든 허용 목록보다 먼저 적용된다", () => {
     const analyticsClient = readFileSync(path.join(srcRoot, "lib/analytics.ts"), "utf8");
     const beforeSend = analyticsClient.slice(analyticsClient.indexOf("before_send"));
     expect(beforeSend.indexOf("sanitizeWeddingCodeFunnelCapture(capture)"))
       .toBeGreaterThan(-1);
     expect(beforeSend.indexOf("sanitizeWeddingCodeFunnelCapture(capture)"))
       .toBeLessThan(beforeSend.indexOf("analyticsCaptureTouchesSuppressedPath(capture"));
-    // 페이지뷰 억제는 그대로다 — 경로를 목록에서 빼는 방식으로 열지 않는다.
+    expect(beforeSend.indexOf("analyticsCaptureTouchesLikertPath(capture"))
+      .toBeLessThan(beforeSend.indexOf("sanitizeWeddingCodeFunnelCapture(capture)"));
+    expect(beforeSend.indexOf("analyticsCaptureTouchesLikertPath(capture"))
+      .toBeLessThan(beforeSend.indexOf("sanitizeLandingAnalyticsCapture(capture)"));
     expect(isAnalyticsSuppressedPath("/wedding-code")).toBe(true);
   });
 
-  it("고지한 적용일이 처리방침과 화면 안내에 같은 날짜로 적혀 있다", () => {
+  it("과거 적용일 안내를 보존하고 현재 공개 웨딩코드의 통계 중단을 고지한다", () => {
     const effective = new Date(WEDDING_CODE_FUNNEL_ANALYTICS_EFFECTIVE_AT);
     const kst = new Date(effective.getTime() + 9 * 60 * 60 * 1000);
     const label = `${kst.getUTCFullYear()}년 ${kst.getUTCMonth() + 1}월 ${kst.getUTCDate()}일부터`;
     const privacy = readFileSync(path.join(srcRoot, "app/privacy/page.tsx"), "utf8");
     const client = readFileSync(path.join(srcRoot, "app/wedding-code/WeddingCodeV06Client.tsx"), "utf8");
-    expect(privacy.split(label).length - 1).toBeGreaterThanOrEqual(3);
+    expect(privacy).toContain(label);
+    expect(privacy).toContain("현재 공개 웨딩코드와 기존 판의 링크 화면에서는 페이지 조회와 흐름 이벤트를 기록하지 않습니다");
+    expect(privacy).toContain("브라우저 오류·성능 이벤트도 수집 서비스로 전송하지 않습니다");
     expect(client).toContain(label);
   });
 

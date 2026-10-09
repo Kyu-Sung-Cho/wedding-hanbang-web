@@ -11,7 +11,7 @@ import {
   type V31Draft,
 } from "@/constants/weddingCodeV31";
 import { captureWeddingCodeEvent } from "@/lib/analytics";
-import { WEDDING_CODE_FUNNEL_DISCLOSURE } from "@/lib/analyticsPrivacy";
+import { analyticsCaptureTouchesLikertPath } from "@/lib/analyticsPrivacy";
 import { PAIR_SESSION_RETENTION_DAYS, requestPairSession } from "@/lib/weddingCode/pairSessionContract";
 import { createV31Draft, encodeV31, getV31PriorityOptions } from "@/lib/weddingCode/v31";
 import { V31_CORE_RATING_IDS, V31_EXTRA_INDEXES } from "@/lib/weddingCode/v31Flow";
@@ -153,11 +153,10 @@ describe("웨딩코드 v3.1 시작 화면 문구", () => {
     const startButton = [...intro()!.querySelectorAll("button")].find(item => item.textContent?.trim() === "내 웨딩코드 시작하기");
     expect(startButton, "시작 버튼").toBeDefined();
     expect(block.compareDocumentPosition(startButton!) & Node.DOCUMENT_POSITION_FOLLOWING, "개인정보 안내가 시작 버튼보다 앞에 있다").toBeTruthy();
-    // 사람들이 먼저 묻는 두 사실(답은 서버에 보내지 않는다, 이용 통계에는 답이 없다)이 굵은 글씨 한 줄 안에 같이 있다.
+    // 답의 전송 범위와 공개 화면의 이용 통계 차단이 굵은 한 줄 안에 같이 있다.
     const emphasis = line!.querySelector<HTMLElement>("span.font-semibold")?.textContent;
-    // 처리방침 제3조는 「화면 개선을 위해 다음만 서비스 이용 통계로 기록합니다」라고 목적을 한정한다. 한 줄도 목적을 빼고 「이용 통계만」이라고 하면 접속 로그 같은 다른 기록이 없다는 말로 읽힌다.
-    expect(emphasis).toBe("답하는 동안 고른 답은 서버에 보내지 않고, 화면 개선을 위해서는 답을 뺀 이용 통계만 기록해요.");
-    expect(source("src/app/privacy/page.tsx")).toContain("화면 개선을 위해 다음만 서비스 이용 통계로 기록합니다");
+    expect(emphasis).toBe("답하는 동안 고른 답은 서버에 보내지 않고, 로그인 없이 이용하는 공개 웨딩코드에서는 이용 통계를 기록하지 않아요.");
+    expect(source("src/app/privacy/page.tsx")).toContain("현재 공개 웨딩코드와 기존 판의 링크 화면에서는 페이지 조회와 흐름 이벤트를 기록하지 않습니다");
     // 처리방침 링크도 이 한 줄 안에 있어 접힌 칸을 열지 않아도 닿는다.
     expect(line!.querySelectorAll('a[href="/privacy"]')).toHaveLength(1);
     expect(line!.textContent).toContain("자세한 내용은 개인정보 처리방침에서 볼 수 있어요.");
@@ -169,10 +168,10 @@ describe("웨딩코드 v3.1 시작 화면 문구", () => {
     expect(fold!.querySelectorAll(":scope > div > p")).toHaveLength(3);
     expect(fold!.querySelector("a")).toBeNull();
     const folded = fold!.textContent ?? "";
-    const funnel = WEDDING_CODE_FUNNEL_DISCLOSURE;
     for (const sentence of [
       "고른 답과 웨딩코드는 답하는 동안 서버나 계정에 보내지 않아요.",
-      `화면 개선을 위해 ${[funnel.wedding_code_intro_viewed, funnel.wedding_code_scene_reached, funnel.wedding_code_completed, funnel.answered_count].join(", ")} 같은 이용 통계만 기록하고, 이 통계에 고른 답·웨딩코드·공유 링크 주소는 넣지 않아요.`,
+      "로그인 없이 이용하는 공개 웨딩코드에서는 페이지 조회와 흐름 이벤트를 기록하지 않고, 브라우저 오류·성능 이벤트도 수집 서비스로 보내지 않아요.",
+      "고른 답·웨딩코드·공유 링크 주소도 통계에 넣지 않아요.",
       `내 답은 이 브라우저에 자동으로 저장돼요. 마지막으로 저장한 날부터 ${LOCAL_TTL_MS / 86_400_000}일 동안 이어 할 수 있어요.`,
       "공용 기기에서는 시작하기 전에 아래 ‘자동 저장 설정’에서 꺼 주세요.",
       "결과에서 ‘함께 보기’에 동의하면 내 답 전체를 서버에 보관하고, 초대로 연결된 상대에게 보여줘요.",
@@ -209,29 +208,28 @@ describe("웨딩코드 v3.1 시작 화면 문구", () => {
     expect(lede!.compareDocumentPosition(startButton) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
-  it.each(SURFACES)("%s: 고른 답·웨딩코드는 서버로 가지 않는다고 하고, 이용 통계는 처리방침과 같은 말로 밝힌다", async surface => {
+  it.each(SURFACES)("%s: 고른 답·웨딩코드의 전송 범위와 공개 화면의 무수집 안내가 처리방침과 같다", async surface => {
     await show(surface);
     const text = privacyBlock()?.textContent ?? "";
     expect(text).toContain("고른 답과 웨딩코드는 답하는 동안 서버나 계정에 보내지 않아요.");
-    const funnel = WEDDING_CODE_FUNNEL_DISCLOSURE;
-    // 화면 → 이용 통계 표(analyticsPrivacy.ts) → 처리방침 제3조 가 같은 어구로 이어진다.
-    // 답과 가장 가까운 항목은 답한 수·건너뛴 수(끝까지 했을 때 함께 간다)라서 빼지 않고 처리방침의 말 그대로 적는다.
-    expect(funnel.skipped_count, "답한 수와 건너뛴 수는 방침에서 한 어구로 묶여 있다").toBe(funnel.answered_count);
-    const phrases = [funnel.wedding_code_intro_viewed, funnel.wedding_code_scene_reached, funnel.wedding_code_completed, funnel.answered_count];
-    expect(text).toContain(`화면 개선을 위해 ${phrases.join(", ")} 같은 이용 통계만 기록하고, 이 통계에 고른 답·웨딩코드·공유 링크 주소는 넣지 않아요.`);
+    expect(text).toContain("로그인 없이 이용하는 공개 웨딩코드에서는 페이지 조회와 흐름 이벤트를 기록하지 않고, 브라우저 오류·성능 이벤트도 수집 서비스로 보내지 않아요.");
+    expect(text).toContain("고른 답·웨딩코드·공유 링크 주소도 통계에 넣지 않아요.");
     const policy = source("src/app/privacy/page.tsx");
-    for (const phrase of phrases) expect(policy, phrase).toContain(phrase);
-    expect(policy).toContain("화면 개선을 위해 다음만 서비스 이용 통계로 기록합니다");
+    expect(policy).toContain("현재 공개 웨딩코드와 기존 판의 링크 화면에서는 페이지 조회와 흐름 이벤트를 기록하지 않습니다");
+    expect(policy).toContain("브라우저 오류·성능 이벤트도 수집 서비스로 전송하지 않습니다");
     expect(policy).toContain("고른 답·웨딩코드·공유 링크 주소는 이 통계에 넣지 않습니다");
+    expect(text).not.toContain("이용 통계만 기록");
   });
 
-  it("이용 통계는 소개를 연 순간부터 나가고, 보내는 값에 답 본문이 없다(그래서 ‘서버에 보내지 않아요’는 답과 코드에만 한 말이다)", async () => {
+  it("구판의 이벤트 호출은 답을 담지 않고, 공개 주소의 실제 통계 경계에서 차단된다", async () => {
     await show("웹 입구");
     const calls = vi.mocked(captureWeddingCodeEvent).mock.calls;
     expect(calls.map(([name]) => name)).toContain("wedding_code_intro_viewed");
     const [, properties] = calls.find(([name]) => name === "wedding_code_intro_viewed")!;
     expect(Object.keys(properties ?? {}).sort()).toEqual(["has_partner_link", "placement", "scene_total", "version"]);
     expect(properties).toMatchObject({ version: WEDDING_CODE_V31_VERSION, has_partner_link: false });
+    // 위 호출은 모형으로 수신한 값이다. 실제 전송 허용 여부는 별도의 런타임 경계로 확인한다.
+    expect(analyticsCaptureTouchesLikertPath({ properties }, window.location.pathname)).toBe(true);
   });
 
   it.each(SURFACES)("%s: 함께 보기 보관 안내는 동의 화면·처리방침과 같은 사실만 말한다", async surface => {

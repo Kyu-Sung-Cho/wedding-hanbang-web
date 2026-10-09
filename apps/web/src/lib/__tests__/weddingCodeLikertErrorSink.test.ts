@@ -25,8 +25,8 @@ function fakeWindow(pathname: string) {
 }
 
 describe("actual unmocked Likert client error sink", () => {
-  it("does not create a raw window sink on direct Likert error reporting or attachment", () => {
-    const page = fakeWindow("/wedding-code-next");
+  it.each(["/wedding-code", "/wedding-code/together", "/wedding-code-next", "/wedding-code-next/result"])("does not create a raw window sink on direct error reporting or attachment on %s", pathname => {
+    const page = fakeWindow(pathname);
     const capture = vi.fn();
     reportClientError(new Error("synthetic Likert boundary error"));
     expect("__hanbangClientErrorSink" in page.value).toBe(false);
@@ -38,7 +38,7 @@ describe("actual unmocked Likert client error sink", () => {
   it("clears an existing buffer when a new error is reported on Likert", () => {
     const page = fakeWindow("/landing");
     reportClientError(new Error("synthetic pending ordinary error"));
-    page.value.location.pathname = "/wedding-code-next/result";
+    page.value.location.pathname = "/wedding-code/result";
     reportClientError(new Error("synthetic Likert boundary error"));
     page.value.location.pathname = "/landing";
     const capture = vi.fn();
@@ -49,7 +49,7 @@ describe("actual unmocked Likert client error sink", () => {
   it("does not flush an existing buffer when the sink attaches on Likert", () => {
     const page = fakeWindow("/landing");
     reportClientError(new Error("synthetic pending ordinary error"));
-    page.value.location.pathname = "/wedding-code-next";
+    page.value.location.pathname = "/wedding-code";
     const capture = vi.fn();
     attachClientErrorSink(capture);
     expect(capture).not.toHaveBeenCalled();
@@ -62,7 +62,7 @@ describe("actual unmocked Likert client error sink", () => {
     const page = fakeWindow("/landing");
     await import("../../instrumentation-client");
     page.runIdle();
-    page.value.location.pathname = "/wedding-code-next";
+    page.value.location.pathname = "/wedding-code";
     reportClientError(new Error("synthetic in-flight Likert error"));
     await vi.waitFor(() => expect(page.value.removeEventListener).toHaveBeenCalledTimes(2));
     expect(sdk.init).not.toHaveBeenCalled();
@@ -72,7 +72,7 @@ describe("actual unmocked Likert client error sink", () => {
     expect(capture).not.toHaveBeenCalled();
   });
 
-  it.each(["/landing", "/wedding-code", "/wedding-code-next-copy"])("preserves ordinary buffering and attachment on %s", pathname => {
+  it.each(["/landing", "/budget", "/wedding-code-copy", "/wedding-code-next-copy"])("preserves ordinary buffering and attachment on %s", pathname => {
     fakeWindow(pathname);
     const error = Object.assign(new Error("synthetic ordinary boundary error"), { digest: "synthetic" });
     const capture = vi.fn();

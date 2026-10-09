@@ -47,6 +47,18 @@ function touchesLikertPath(value: unknown): boolean {
   );
 }
 
+function weddingCodeSafeTransport(
+  mod: SentryModule,
+  options: Parameters<SentryModule["makeFetchTransport"]>[0],
+): ReturnType<SentryModule["makeFetchTransport"]> {
+  const transport = mod.makeFetchTransport(options);
+  return {
+    // session·client_report 봉투는 beforeSend를 거치지 않아 마지막 전송 경계에서도 막는다.
+    send: envelope => touchesLikertPath(envelope) ? Promise.resolve({}) : transport.send(envelope),
+    flush: timeout => transport.flush(timeout),
+  };
+}
+
 function isLikertDestination(value: unknown): boolean {
   if (typeof value !== "string" || (!value.startsWith("/") && !/^https?:\/\//i.test(value))) return false;
   try {
@@ -129,6 +141,7 @@ function scheduleSentryInitialization(allowLeavingLikert = false) {
           enabled: true,
           environment: resolveEnvironment(),
           tracesSampleRate: 0.1,
+          transport: (options: Parameters<SentryModule["makeFetchTransport"]>[0]) => weddingCodeSafeTransport(mod, options),
           // 브라우저에서 잡히는 오류에는 사용자가 입력한 문장이 그대로 실릴 수 있다.
           // 서버·edge와 같은 규칙으로 나가기 전에 지운다.
           beforeSend: (event) => touchesLikertPath(event) ? null : sanitizeSentryEvent(event as never) as typeof event,

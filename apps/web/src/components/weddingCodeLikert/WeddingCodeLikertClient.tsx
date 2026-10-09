@@ -1,11 +1,12 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import Button from "@/components/ui/Button";
 import { ITEMS } from "@/lib/weddingCode/likert/bank";
 import { buildComparison, buildResult } from "@/lib/weddingCode/likert/model";
 import {
   answeredCount, buildShareUrl, createDraft, createSnapshot, isComplete,
-  loadDraft, readShareFragment, saveDraft, type SharedState,
+  clearLikertDraft, loadDraft, readLikertAutosave, readShareFragment, saveDraft, setLikertAutosave, type SharedState,
 } from "@/lib/weddingCode/likert/io";
 import { EXPRESSION_VERSION, MEASUREMENT_VERSION, type Answer, type Draft, type Snapshot } from "@/lib/weddingCode/likert/types";
 import IntroPanel from "./IntroPanel";
@@ -21,6 +22,8 @@ export default function WeddingCodeLikertClient() {
   const [loaded, setLoaded] = useState(false);
   const [active, setActive] = useState(false);
   const [canStore, setCanStore] = useState(true);
+  const [autosave, setAutosave] = useState(false);
+  const [storageStatus, setStorageStatus] = useState("");
   const [notice, setNotice] = useState("");
   const [expressionNotice, setExpressionNotice] = useState("");
   const [shared, setShared] = useState<SharedState>({ kind: "none" });
@@ -31,13 +34,16 @@ export default function WeddingCodeLikertClient() {
   const shareRef = useRef<HTMLDivElement>(null);
   const resultRef = useRef<HTMLElement>(null);
   const comparisonRef = useRef<HTMLElement>(null);
+  const draftChanged = useRef(false);
 
   useEffect(() => {
     // Restore browser-owned data after the first client paint, with cancellation on unmount.
     const frame = window.requestAnimationFrame(() => {
     try {
+      const enabled = readLikertAutosave(window.localStorage);
+      setAutosave(enabled);
       const restored = loadDraft(window.localStorage);
-      setSaved(restored.draft);
+      setSaved(enabled ? restored.draft : null);
       setNotice(restored.notice);
       setExpressionNotice(restored.expressionNotice ?? "");
       if (!restored.draft && restored.notice) setCanStore(false);
@@ -59,7 +65,8 @@ export default function WeddingCodeLikertClient() {
 
   useEffect(() => {
     if (!loaded || !active) return;
-    if (!canStore) return;
+    if (!canStore || !autosave) return;
+    if (!draftChanged.current) return;
     let failureFrame: number | undefined;
     const reportFailure = (message: string) => {
       failureFrame = window.requestAnimationFrame(() => { setCanStore(false); setNotice(message); });
@@ -67,11 +74,12 @@ export default function WeddingCodeLikertClient() {
     try {
       const receipt = saveDraft(window.localStorage, draft);
       if (!receipt.saved) reportFailure(receipt.notice);
+      else draftChanged.current = false;
     } catch {
       reportFailure("브라우저에 저장하지 못했어요. 지금 탭에서는 계속 풀 수 있어요.");
     }
     return () => { if (failureFrame !== undefined) window.cancelAnimationFrame(failureFrame); };
-  }, [active, canStore, draft, loaded]);
+  }, [active, autosave, canStore, draft, loaded]);
 
   useEffect(() => {
     if (!sharing) return;
@@ -121,9 +129,11 @@ export default function WeddingCodeLikertClient() {
   const linkNotice = "notice" in shared ? shared.notice ?? "" : "";
 
   function update(change: Partial<Draft>) {
+    draftChanged.current = true;
     setDraft(previous => ({ ...previous, ...change, updatedAt: new Date().toISOString() }));
   }
   function start() {
+    draftChanged.current = true;
     setSharing(false);
     setPair(null);
     setPairOrigin(null);
@@ -134,13 +144,15 @@ export default function WeddingCodeLikertClient() {
   }
   function resume() {
     if (!resumable) return;
-    setDraft({ ...resumable, screen: isComplete(resumable.answers) ? "result" : "questions", updatedAt: new Date().toISOString() });
+    draftChanged.current = false;
+    setDraft({ ...resumable, screen: isComplete(resumable.answers) ? "result" : "questions" });
     setActive(true);
     setSharing(false);
   }
   function answer(value: Answer) {
     const item = ITEMS[draft.cursor];
     if (!item) return;
+    draftChanged.current = true;
     const previous = draft.answers[item.id];
     const changed = previous?.status !== value.status
       || (previous?.status === "rated" && value.status === "rated" && previous.value !== value.value);
@@ -162,17 +174,48 @@ export default function WeddingCodeLikertClient() {
     else update({ screen: "intro" });
   }
 
+  function toggleAutosave(enabled: boolean) {
+    setAutosave(enabled);
+    if (enabled) draftChanged.current = true;
+    if (!enabled) setSaved(null);
+    let success = false;
+    try { success = setLikertAutosave(window.localStorage, enabled); } catch { /* 저장소 접근 자체가 막힐 수 있다. */ }
+    setCanStore(success);
+    setStorageStatus(success ? enabled ? "이 개편본의 자동 저장을 켰어요." : "이 개편본의 저장된 답을 지우고 자동 저장을 껐어요. 현재 화면의 답은 남아 있어요."
+      : "브라우저 저장 설정을 확인하지 못했어요. 자동 저장을 멈췄어요. 공용 기기라면 브라우저의 사이트 데이터도 확인해 주세요.");
+  }
+
+  function clearOwnDraft() {
+    let success = false;
+    try { success = clearLikertDraft(window.localStorage); } catch { /* 저장소 접근 자체가 막힐 수 있다. */ }
+    if (!success) {
+      setCanStore(false);
+      setStorageStatus("저장된 답을 지우지 못했어요. 자동 저장을 멈췄어요. 브라우저의 사이트 데이터 설정에서 확인해 주세요.");
+      return;
+    }
+    setSaved(null);
+    draftChanged.current = false;
+    setActive(false);
+    setDraft(createDraft());
+    setSharing(false);
+    if (pairOrigin !== "link") { setPair(null); setPairOrigin(null); }
+    setCanStore(true);
+    setNotice("");
+    setExpressionNotice("");
+    setStorageStatus("이 개편본의 저장과 현재 답을 지웠어요. 받은 링크에 담긴 답과 이미 전달한 링크는 그대로예요.");
+  }
+
   return <main className="min-h-screen bg-[var(--ivory-50)] text-[var(--noir-900)]"
     data-wedding-code-version={MEASUREMENT_VERSION} data-expression-version={EXPRESSION_VERSION}>
     <header className="border-b border-[var(--ivory-200)] bg-[var(--ivory-50)]">
       <div className="mx-auto flex min-h-20 max-w-6xl items-center justify-between gap-4 px-5 sm:px-8">
-        <button type="button" className="min-h-11 rounded-xl text-left focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[var(--hb-primary)]"
+        <Button variant="ghost" type="button" className="min-h-11 flex-col items-start! gap-0! whitespace-normal! rounded-xl px-0! text-left focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[var(--hb-primary)]"
           onClick={() => update({ screen: "intro" })} aria-label="웨딩코드 시작 화면으로">
           <span className="block text-lg font-bold tracking-tight">WeddingCode<span className="ml-1 text-[var(--hb-primary)]">.</span></span>
           <span className="block text-[11px] tracking-[0.14em] text-[var(--taupe-500)]">나와 우리의 준비</span>
-        </button>
-        {draft.screen === "questions" ? <button type="button" onClick={() => update({ screen: "intro" })}
-          className="min-h-11 rounded-xl px-3 text-sm text-[var(--taupe-500)] hover:bg-[var(--ivory-100)] focus-visible:outline-2 focus-visible:outline-[var(--hb-primary)]">잠깐 쉬기</button>
+        </Button>
+        {draft.screen === "questions" ? <Button variant="ghost" type="button" onClick={() => update({ screen: "intro" })}
+          className="min-h-11 whitespace-normal! rounded-xl px-3 text-sm text-[var(--taupe-500)] hover:bg-[var(--ivory-100)] focus-visible:outline-2 focus-visible:outline-[var(--hb-primary)]">잠깐 쉬기</Button>
           : <span className="text-xs text-[var(--taupe-500)]">웨딩한방</span>}
       </div>
     </header>
@@ -182,8 +225,8 @@ export default function WeddingCodeLikertClient() {
         <IntroPanel onStart={start} onResume={resumable ? resume : undefined}
           savedAnswered={resumable ? answeredCount(resumable.answers) : undefined} total={ITEMS.length}
           invite={Boolean(inviter)} storageNotice={[notice, expressionNotice, linkNotice].filter(Boolean).join(" ")} />
-        {pair ? <div className="mx-auto max-w-3xl px-5 pb-12"><button type="button" onClick={() => update({ screen: "compare" })}
-          className="min-h-12 w-full rounded-2xl border border-[var(--hb-primary)] px-5 py-3 text-sm font-semibold text-[var(--hb-primary)]">링크에 담긴 두 사람 결과 다시 보기</button></div> : null}
+        {pair ? <div className="mx-auto max-w-3xl px-5 pb-12"><Button variant="ghost" type="button" onClick={() => update({ screen: "compare" })}
+          className="min-h-12 w-full whitespace-normal! rounded-2xl border border-[var(--hb-primary)] px-5 py-3 text-sm font-semibold text-[var(--hb-primary)]">링크에 담긴 두 사람 결과 다시 보기</Button></div> : null}
       </div> : null}
 
       {draft.screen === "questions" && ITEMS[draft.cursor] ? <section data-testid="wc-question">
@@ -191,8 +234,8 @@ export default function WeddingCodeLikertClient() {
           index={draft.cursor} total={ITEMS.length} answered={count} onAnswer={answer}
           onBack={back} onNext={next} onPause={() => update({ screen: "intro" })}
           canNext={Boolean(draft.answers[ITEMS[draft.cursor].id])} />
-        {isComplete(draft.answers) ? <div className="mx-auto max-w-3xl px-5 pb-8 text-center"><button type="button"
-          onClick={() => update({ screen: "result" })} className="min-h-11 rounded-xl px-4 text-sm font-medium text-[var(--hb-primary)] underline underline-offset-4">고친 답으로 결과 돌아가기</button></div> : null}
+        {isComplete(draft.answers) ? <div className="mx-auto max-w-3xl px-5 pb-8 text-center"><Button variant="ghost" type="button"
+          onClick={() => update({ screen: "result" })} className="min-h-11 whitespace-normal! rounded-xl px-4 text-sm font-medium text-[var(--hb-primary)] underline underline-offset-4">고친 답으로 결과 돌아가기</Button></div> : null}
         {notice && !canStore ? <p className="mx-auto max-w-3xl px-5 pb-6 text-sm text-[var(--taupe-500)]" role="status">{notice}</p> : null}
       </section> : null}
 
@@ -212,6 +255,14 @@ export default function WeddingCodeLikertClient() {
         <CoupleReport result={couple} onBack={() => update({ screen: isComplete(draft.answers) ? "result" : "intro" })} />
       </section> : null}
     </>}
+    {loaded ? <section className="mx-auto max-w-4xl border-t border-[var(--hb-summary-line)] px-5 py-7 text-sm text-[var(--hb-text-body)] sm:px-8" aria-label="이 브라우저의 답 저장">
+      <label className="flex min-h-11 cursor-pointer items-center gap-3"><input type="checkbox" checked={autosave}
+        onChange={event => toggleAutosave(event.target.checked)} className="size-5 accent-[var(--hb-primary)]" />이 브라우저에 내 답 자동 저장</label>
+      <p className="mt-2 text-xs leading-6">본인 답과 진행 위치를 마지막 저장부터 30일 동안 이어서 볼 수 있어요. 재방문이나 이어서 보기만 해서는 기간을 늘리지 않아요. 서버·계정에 저장하지 않으며, 상대 답은 저장하지 않아요. 끄면 이 개편본의 저장된 답을 지우고 현재 화면의 답은 유지해요.</p>
+      <Button variant="ghost" onClick={clearOwnDraft} className="mt-2 whitespace-normal! text-left underline underline-offset-4">이 개편본의 저장과 현재 답 지우기</Button>
+      {storageStatus ? <p className="mt-2 text-xs leading-6" role="status">{storageStatus}</p> : null}
+      <a href="/privacy" className="mt-2 inline-flex min-h-11 items-center text-xs underline underline-offset-4">개인정보 처리 안내</a>
+    </section> : null}
     <footer className="mx-auto max-w-6xl px-5 py-8 text-center text-xs leading-6 text-[var(--taupe-500)]">
       내 답에서 시작하는 결혼 준비 대화 · 웨딩한방
     </footer>
@@ -252,6 +303,11 @@ function SharingPanel({ answers, inviter, onReady, onCompare }: {
     <p className="mt-3 text-sm leading-7 text-[var(--hb-summary-ink)]">{inviter
       ? "받은 답과 내 답을 나란히 볼 링크를 만들어요. 먼저 답한 사람에게 직접 돌려줄 수 있어요."
       : "내 답이 담긴 초대 링크를 만들어요. 상대가 자신의 답을 풀고 두 사람 링크를 돌려주면 함께 볼 수 있어요."}</p>
+    <ol className="mt-4 space-y-2 text-sm leading-7 text-[var(--hb-summary-ink)]">
+      {(inviter ? ["1. 내 답까지 마치고 두 사람 링크를 만들어요.", "2. 여기서 두 사람의 답을 바로 나란히 볼 수 있어요.", "3. 먼저 답한 사람에게 링크를 직접 돌려줘요."]
+        : ["1. 내 답이 담긴 초대 링크를 만들어 직접 보내요.", "2. 상대가 링크를 열고 자기 답을 남겨요.", "3. 상대가 두 사람 결과 링크를 돌려주면 함께 읽어요."]).map(step => <li key={step}>{step}</li>)}
+    </ol>
+    <p className="mt-2 text-xs leading-6 text-[var(--hb-summary-label)]">로그인이나 초대 코드 입력은 필요 없어요. 답이나 결과가 상대에게 자동으로 도착하지는 않아요.</p>
     <p className="mt-4 text-sm leading-7 text-[var(--hb-summary-ink)]">링크를 받은 사람은 고른 답과 모름·해당 없음·건너뛴 상태를 볼 수 있어요. 답은 서버에 보내지 않으며, 전달한 링크는 회수할 수 없어요.</p>
     <div className="mt-5 space-y-2">
       <label className="flex min-h-12 cursor-pointer items-start gap-3 rounded-xl p-2 text-sm leading-6"><input type="checkbox" className="mt-1 size-5 shrink-0 accent-[var(--hb-primary)]"
@@ -260,17 +316,17 @@ function SharingPanel({ answers, inviter, onReady, onCompare }: {
         checked={linkConsent} onChange={event => { setLinkConsent(event.target.checked); setUrl(""); }} />{inviter ? "두 사람의 답을 담은 링크이며 전달 후 회수할 수 없다는 것을 확인했어요." : "상대가 자기 답을 마친 뒤 두 사람 링크를 돌려줘야 함께 볼 수 있다는 것을 확인했어요."}</label>
     </div>
     {!complete ? <p className="mt-3 text-sm" role="status">남은 질문은 모름·해당 없음으로도 답할 수 있어요. 응답 상태를 모두 확인하면 링크를 만들 수 있어요.</p> : null}
-    <button type="button" onClick={generate} disabled={!answerConsent || !linkConsent || !complete}
-      className="mt-5 min-h-12 w-full rounded-2xl bg-[var(--hb-primary)] px-5 py-3 text-sm font-semibold text-white transition hover:bg-[var(--hb-primary-hover)] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[var(--hb-primary)] disabled:cursor-not-allowed disabled:opacity-40">
+    <Button variant="primary" type="button" onClick={generate} disabled={!answerConsent || !linkConsent || !complete}
+      className="mt-5 min-h-12 w-full whitespace-normal! rounded-2xl bg-[var(--hb-primary)] px-5 py-3 text-sm font-semibold text-white transition hover:bg-[var(--hb-primary-hover)] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[var(--hb-primary)] disabled:cursor-not-allowed disabled:opacity-40">
       {inviter ? "두 사람 링크 만들기" : "내 답 담은 초대 링크 만들기"}
-    </button>
+    </Button>
     {url ? <div className="mt-5 space-y-3">
       <label htmlFor="likert-share-url" className="block text-sm font-semibold">직접 전달할 링크</label>
       <textarea id="likert-share-url" readOnly value={url} onFocus={event => event.currentTarget.select()}
         className="min-h-24 w-full resize-y rounded-xl border border-[var(--hb-summary-line)] bg-[var(--ivory-50)] p-3 text-xs leading-6 focus:outline-2 focus:outline-[var(--hb-primary)]" />
       <div className="flex flex-col gap-3 sm:flex-row">
-        <button type="button" onClick={copy} className="min-h-12 flex-1 rounded-xl border border-[var(--hb-primary)] px-4 py-3 text-sm font-semibold text-[var(--hb-primary)]">링크 복사</button>
-        {inviter ? <button type="button" onClick={onCompare} className="min-h-12 flex-1 rounded-xl bg-[var(--hb-primary)] px-4 py-3 text-sm font-semibold text-white">지금 두 사람 답 함께 보기</button> : null}
+        <Button variant="ghost" type="button" onClick={copy} className="min-h-12 flex-1 whitespace-normal! rounded-xl border border-[var(--hb-primary)] px-4 py-3 text-sm font-semibold text-[var(--hb-primary)]">링크 복사</Button>
+        {inviter ? <Button variant="primary" type="button" onClick={onCompare} className="min-h-12 flex-1 whitespace-normal! rounded-xl bg-[var(--hb-primary)] px-4 py-3 text-sm font-semibold text-white">지금 두 사람 답 함께 보기</Button> : null}
       </div>
     </div> : null}
     <p className="mt-4 min-h-6 text-sm leading-6 text-[var(--hb-summary-ink)]" role="status" aria-live="polite">{notice}</p>

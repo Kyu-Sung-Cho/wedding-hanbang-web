@@ -72,26 +72,27 @@ describe("웨딩코드 진입 화면: v4.0-tendency 명시 진입(기본 판 v3.
       Object.prototype.hasOwnProperty.call(metadata.twitter, "images"),
     ];
     const clean = await generateMetadata({ searchParams: Promise.resolve({}) });
-    expect(clean.robots).toMatchObject({ index: true, follow: true });
-    expect(clean.title).toContain("원하는 결혼식과 준비 방식");
-    expect(noImages(clean)).toEqual([false, false]);
+    expect(clean.robots).toMatchObject({ index: false, follow: false });
+    expect(clean.title).toContain("나의 결혼 준비 언어");
+    expect(noImages(clean)).toEqual([true, true]);
     for (const version of [WEDDING_CODE_V31_VERSION, WEDDING_CODE_V30_VERSION]) {
       const metadata = await generateMetadata({ searchParams: Promise.resolve({ v: version }) });
       expect(metadata.title).toContain("원하는 결혼식과 준비 방식");
-      expect(metadata.robots).toMatchObject({ index: true, follow: true });
+      expect(metadata.robots).toMatchObject({ index: false, follow: false });
       expect(noImages(metadata), version).toEqual([false, false]);
     }
     const v20 = await generateMetadata({ searchParams: Promise.resolve({ v: WEDDING_CODE_V20_VERSION }) });
     expect(v20.title).toContain("내 웨딩 준비 방식");
-    expect(v20.robots).toMatchObject({ index: true, follow: true });
+    expect(v20.robots).toMatchObject({ index: false, follow: false });
     expect(noImages(v20)).toEqual([false, false]);
     const scene = await generateMetadata({ searchParams: Promise.resolve({ v: "v1.2-code" }) });
     expect(scene.title).toContain("결혼 준비 장면");
     expect(noImages(scene)).toEqual([false, false]);
   });
 
-  it("맨 주소는 v3.1 이고 ?v=v4.0-tendency 만 빈 v4 입구를 넘긴다", async () => {
+  it("맨 주소는 새 개편본이며 명시 v4는 구판 입구를 넘긴다", async () => {
     const bare = await WeddingCodePage({ searchParams: Promise.resolve({}) });
+    expect(bare.props.queryIsLegacy).toBe(false);
     expect(bare.props.initialEntry).toEqual({ kind: "v31", initial: { partnerDraft: null, partnerCode: null, bothDrafts: null } });
     const v4 = await WeddingCodePage({ searchParams: Promise.resolve({ v: V40 }) });
     expect(v4.props.initialEntry).toEqual({ kind: "v40", initial: { partner: null, both: null } });

@@ -1,0 +1,297 @@
+{
+  "schema": "wedding-code-likert-release-manifest/v1",
+  "baseCommit": "f1cf5f0e30e830e2586f64a74b1a206294867077",
+  "measurement": "likert-preferences-alpha.1",
+  "bank": "preferences-20261008-r2",
+  "expression": "likert-letters-alpha.3",
+  "scope": "Exact Git index bytes of all release-changed files, excluding this manifest to avoid a self hash. This is distinct from Windows working-tree byte hashes and the original handoff manifest.",
+  "sourceManifestSha256": "08bc431bbd118897ceadac5c4cda3310664134900d3bccde30928aea2e3d7507",
+  "fileCount": 57,
+  "files": [
+    {
+      "path": "apps/web/src/app/privacy/__tests__/weddingCodeResearchNotice.test.tsx",
+      "bytes": 25985,
+      "sha256": "03ed2f399b0a7c0137919cee6da73fa8d46089a28b15761a780e5c40aa848a6c"
+    },
+    {
+      "path": "apps/web/src/app/privacy/page.tsx",
+      "bytes": 50350,
+      "sha256": "0e2aa9c8c44edc79cfdd9ce511df660e622c8dab427e15d23d8b3badd9f7e1a6"
+    },
+    {
+      "path": "apps/web/src/app/sitemap.test.ts",
+      "bytes": 16704,
+      "sha256": "6125bad7666be386a8f1b8b732be9eca92a615f6b056ed218fec52b76004bb31"
+    },
+    {
+      "path": "apps/web/src/app/sitemap.ts",
+      "bytes": 10329,
+      "sha256": "e250481ca89d36a55a04ea040db5e9b33ddb6c1fb0ffb0baa8db09d8a9149fcd"
+    },
+    {
+      "path": "apps/web/src/app/wedding-code-next/page.tsx",
+      "bytes": 1472,
+      "sha256": "db540386184d862a86ad533c1c4d11c83a6d4bdfabbf64a2070e56386a847548"
+    },
+    {
+      "path": "apps/web/src/app/wedding-code/WeddingCodeReleaseClient.tsx",
+      "bytes": 1884,
+      "sha256": "aaa5c73d29c4361cca75b79683e2c4c812338c236123b3bb434f07f6bbc3e3f3"
+    },
+    {
+      "path": "apps/web/src/app/wedding-code/WeddingCodeV31Client.tsx",
+      "bytes": 44685,
+      "sha256": "355f2136eb9c58cb5f3f12e98ba4ebb4cbc858ff5a4e64008028f62d9036a310"
+    },
+    {
+      "path": "apps/web/src/app/wedding-code/WeddingCodeV31Intro.copy.test.tsx",
+      "bytes": 32826,
+      "sha256": "f9a6abf5805968e23eb16cf78265017b853bb9917ef75b35d22cc0942ed8d97b"
+    },
+    {
+      "path": "apps/web/src/app/wedding-code/likert-card/opengraph-image.tsx",
+      "bytes": 1270,
+      "sha256": "db5d6e1d74af219c32c90087e27c89ae249e6e9ca10347b442db050238f07f24"
+    },
+    {
+      "path": "apps/web/src/app/wedding-code/opengraph-image.test.tsx",
+      "bytes": 25040,
+      "sha256": "1aeb99329fd1e6bc7a92c62157068e52efa6d5e09e0b93dbbfa9f10362a2aa69"
+    },
+    {
+      "path": "apps/web/src/app/wedding-code/page.defaultV40.test.tsx",
+      "bytes": 5830,
+      "sha256": "f8faa495c492098176dfca89d32a76fc141a84c9a28fe941774d2e970d585ff4"
+    },
+    {
+      "path": "apps/web/src/app/wedding-code/page.test.tsx",
+      "bytes": 30211,
+      "sha256": "c05583f558f9e7e2596e6cbd1de9ea772c6eacb8c435e27360edbbc86930c34a"
+    },
+    {
+      "path": "apps/web/src/app/wedding-code/page.tsx",
+      "bytes": 6890,
+      "sha256": "0f21a635bb6fe3744a2bdb218d00113b7c922a8e158bf00c6ea7d1d75c3444fc"
+    },
+    {
+      "path": "apps/web/src/app/wedding-code/page.v40.test.tsx",
+      "bytes": 8546,
+      "sha256": "3a309a030e2e2ed86cbee38c67c6eb512289c11e93c91b3a4f06145be22af092"
+    },
+    {
+      "path": "apps/web/src/app/wedding-code/releaseEntry.test.ts",
+      "bytes": 1472,
+      "sha256": "0be46bacc2640f5a2be5f3273318d189a4f59f49de8b9405d739673a88b1d690"
+    },
+    {
+      "path": "apps/web/src/app/wedding-code/releaseEntry.ts",
+      "bytes": 821,
+      "sha256": "095462bc37e66a135c0bb0f8d931e34dd114a54403b7fd25cb95026815028643"
+    },
+    {
+      "path": "apps/web/src/components/analytics/AnalyticsProvider.tsx",
+      "bytes": 1805,
+      "sha256": "4952ec3509ce253e1c8b4e3f970df3351d996e3b6ad8660f1119c3798c7fd84d"
+    },
+    {
+      "path": "apps/web/src/components/wedding-code/v40/IntroScreen.test.tsx",
+      "bytes": 33459,
+      "sha256": "fb1916c477dba7faf871e98a299ed287d4d8a9253e6f9262ed078965779bd770"
+    },
+    {
+      "path": "apps/web/src/components/wedding-code/v40/ReceiverScreen.test.tsx",
+      "bytes": 13267,
+      "sha256": "236bec9b44e88559e1dee93e0e7b81f778fb23952d064b32fec6417c405c6319"
+    },
+    {
+      "path": "apps/web/src/components/weddingCodeLikert/CharacterPortrait.tsx",
+      "bytes": 23039,
+      "sha256": "ce13614bf14bb308e78328914ce18f13a29aa7c83de450e9b14645a1f331b708"
+    },
+    {
+      "path": "apps/web/src/components/weddingCodeLikert/CoupleReport.tsx",
+      "bytes": 16135,
+      "sha256": "62a7e07531b4d6982347de8ecef709d2b042cee5b505ddf0cbf57f4a7674dfa2"
+    },
+    {
+      "path": "apps/web/src/components/weddingCodeLikert/IntroPanel.tsx",
+      "bytes": 6942,
+      "sha256": "0ce8bce0be82cf8fff67654ead39a29c15c1931f593163f229e7a3e52e807e2b"
+    },
+    {
+      "path": "apps/web/src/components/weddingCodeLikert/PersonalReport.tsx",
+      "bytes": 15183,
+      "sha256": "06d639b059934ac3a1fd4903240805773858615bbda720dd11db82d7e17b60f1"
+    },
+    {
+      "path": "apps/web/src/components/weddingCodeLikert/QuestionPanel.tsx",
+      "bytes": 11208,
+      "sha256": "6961fc8fbcc6d49930b656fe2bdd979b38aab0a983c98704cd04c494a633355c"
+    },
+    {
+      "path": "apps/web/src/components/weddingCodeLikert/ReportEvidence.tsx",
+      "bytes": 7854,
+      "sha256": "a9ee009639dbd1d5216d43b3fb4aa47a4ada53c72de1473755a907b472806667"
+    },
+    {
+      "path": "apps/web/src/components/weddingCodeLikert/WeddingCodeLikertClient.tsx",
+      "bytes": 21604,
+      "sha256": "3c11e7bc97d92e3cc76baa7760c429e480435e80a8a3a19c9ae710c2f464449b"
+    },
+    {
+      "path": "apps/web/src/components/weddingCodeLikert/reportMeaning.test.tsx",
+      "bytes": 8252,
+      "sha256": "ebec6852d6dc90a7b7504453a0e4b523e5a7905a10449d0eedc252a7887c63fb"
+    },
+    {
+      "path": "apps/web/src/components/weddingCodeNext/WeddingCodeNextClient.tsx",
+      "bytes": 200,
+      "sha256": "48bca941a5d224ffda7e164658fe47e47f00a7c2c82823cb0df27f5fed321772"
+    },
+    {
+      "path": "apps/web/src/instrumentation-client.ts",
+      "bytes": 7730,
+      "sha256": "4a651d940737d158466ce9e04e7d29b8b4f07b5c2b2697e563ee1fef2f3ecabe"
+    },
+    {
+      "path": "apps/web/src/lib/__tests__/analyticsPrivacy.test.ts",
+      "bytes": 20579,
+      "sha256": "5301cd8fd2fe90bba47e0709327784991e0d2e7ab7151eda219894991e2de074"
+    },
+    {
+      "path": "apps/web/src/lib/__tests__/analyticsSdkStorage.test.ts",
+      "bytes": 6394,
+      "sha256": "b2fa9d819efae7cfb35764dff4723fdde895a5aaa370bf0088c8782ff83d9989"
+    },
+    {
+      "path": "apps/web/src/lib/__tests__/weddingCodeLikertAnalytics.test.ts",
+      "bytes": 4878,
+      "sha256": "bd9386834c8a90d7987b01d6ba77557373b61113bb254cdfdd8965d9188bb317"
+    },
+    {
+      "path": "apps/web/src/lib/__tests__/weddingCodeLikertAnalyticsProvider.test.ts",
+      "bytes": 4811,
+      "sha256": "c89498e2ef1ebcdd6fa592df22203023e6a23681a65f1d03e4d49f2e825215ba"
+    },
+    {
+      "path": "apps/web/src/lib/__tests__/weddingCodeLikertErrorSink.test.ts",
+      "bytes": 3682,
+      "sha256": "025750c934482cf3370bb7d0308d9b4229e5f60922e6c0c2fff705545a83e3d4"
+    },
+    {
+      "path": "apps/web/src/lib/__tests__/weddingCodeLikertInstrumentation.test.ts",
+      "bytes": 14985,
+      "sha256": "1d02646dc88e33b9f6bca18d579ba0b5e7916f197e3cab2117b2c474862a7842"
+    },
+    {
+      "path": "apps/web/src/lib/__tests__/weddingCodeLikertPrivacy.test.ts",
+      "bytes": 4086,
+      "sha256": "c87aa76fb6e1ffcaa890c8114bdcece2dd8419c92703431e041403455e99f09d"
+    },
+    {
+      "path": "apps/web/src/lib/analytics.ts",
+      "bytes": 6536,
+      "sha256": "450468911af90f70a5694940d43b6f2b28ceab4588b6141e4e38f4267581ab0f"
+    },
+    {
+      "path": "apps/web/src/lib/analyticsPrivacy.ts",
+      "bytes": 18706,
+      "sha256": "53a1645f2f920d6d233dbf7235d45c35550ea86a0806335291fa65d0090bdf97"
+    },
+    {
+      "path": "apps/web/src/lib/observability/__tests__/brokenScreensReachMonitoring.test.ts",
+      "bytes": 15313,
+      "sha256": "df4e44d9dae1c942a5269b1d81a270e5abf4be279b52353777a170f649f7e095"
+    },
+    {
+      "path": "apps/web/src/lib/observability/clientErrorReport.ts",
+      "bytes": 6030,
+      "sha256": "9cbf33807fc3650b4d0708a07bb655b3cabe3176fc3df3935b496701fe2057cd"
+    },
+    {
+      "path": "apps/web/src/lib/observability/clientMonitoringPathCommit.ts",
+      "bytes": 832,
+      "sha256": "976a05f037ecd99e356b7dac6171f580536e484de999b148d567fd6d6f598254"
+    },
+    {
+      "path": "apps/web/src/lib/weddingCode/likert/README.md",
+      "bytes": 6397,
+      "sha256": "775ed0600ce2ceae33e0d44eea5b37bc2dcdc2b0c142cc81dee669f847e752b8"
+    },
+    {
+      "path": "apps/web/src/lib/weddingCode/likert/bank.ts",
+      "bytes": 18802,
+      "sha256": "08391aa281e2554eb43240491eacd2bc36df26c773d91322713b45240bd25dd8"
+    },
+    {
+      "path": "apps/web/src/lib/weddingCode/likert/characters.ts",
+      "bytes": 5814,
+      "sha256": "e003e259e9e2cd8a4e2d197efebaa52c96ba00e83daf5d40052f3ad83a78ff10"
+    },
+    {
+      "path": "apps/web/src/lib/weddingCode/likert/io.test.ts",
+      "bytes": 19912,
+      "sha256": "701fd535e10bd89349fe98147f5902a111c86fe5e9b4481b0568b3a3a627e5e3"
+    },
+    {
+      "path": "apps/web/src/lib/weddingCode/likert/io.ts",
+      "bytes": 12991,
+      "sha256": "a8f46c1c0d1ea608d90f12da4b6d9ebf9a5ec39ffe21b9ed7335eb16761cfa5e"
+    },
+    {
+      "path": "apps/web/src/lib/weddingCode/likert/model.test.ts",
+      "bytes": 30673,
+      "sha256": "bc817f99e57dbce48851e7f3697f04041e884893889b6a3bd417cacffb6129e7"
+    },
+    {
+      "path": "apps/web/src/lib/weddingCode/likert/model.ts",
+      "bytes": 31613,
+      "sha256": "b92eebb2af1af007f562fba154165e3bae3bd0d42389aac8fef6f900e7a02022"
+    },
+    {
+      "path": "apps/web/src/lib/weddingCode/likert/types.ts",
+      "bytes": 4347,
+      "sha256": "5664c7639b3d401de2a62c1c28bfeb65b306b0aea5a689389e0d540ffd80b4ce"
+    },
+    {
+      "path": "apps/web/src/lib/weddingCode/v40/copy.test.ts",
+      "bytes": 87919,
+      "sha256": "f490fa453fb6e7d64a340c42fd8c49efe24335cf4740d2568d1ba68d9658d946"
+    },
+    {
+      "path": "apps/web/src/lib/weddingCode/v40/copy.ts",
+      "bytes": 84711,
+      "sha256": "3d0f86ed526358c27f2021ab36545e1ee3b604aea1fda5e04c5dce9383d5e66f"
+    },
+    {
+      "path": "docs/wedding-code/2026-10-08_likert_item_contract.md",
+      "bytes": 15989,
+      "sha256": "2877a2b40234d86c0fbb0fc8191ea4fd999605f06657b4ef732f0e51722b1eea"
+    },
+    {
+      "path": "docs/wedding-code/2026-10-09_depth_next_steps.md",
+      "bytes": 24355,
+      "sha256": "098c24bb53cc67cdb6b565fc82ccc1e95d9aaf6ba58304db76378fc521261e7a"
+    },
+    {
+      "path": "docs/wedding-code/2026-10-09_item_meaning_audit.md",
+      "bytes": 31192,
+      "sha256": "e608a1c13e3109e0d9cfbe01b796e9f610d69a8ae1cf4f38bc32aa832f2949e6"
+    },
+    {
+      "path": "docs/wedding-code/2026-10-09_likert_depth_handoff.md",
+      "bytes": 10432,
+      "sha256": "cabb7f43e239afa45b91eba773f3c5f16c6de8c6fbbfa5c7ba5cbeb45e451184"
+    },
+    {
+      "path": "docs/wedding-code/2026-10-09_likert_release_contract.md",
+      "bytes": 5773,
+      "sha256": "19842c816c4e4a279563ce0e4dc363ba1ea3d0d9c0d789a6caf58adc8e37dbcb"
+    },
+    {
+      "path": "docs/wedding-code/README.md",
+      "bytes": 45469,
+      "sha256": "600b49be66ae86b2bef176e679f7a942e7974d5ce5cf6b48fb214a419c596e72"
+    }
+  ]
+}

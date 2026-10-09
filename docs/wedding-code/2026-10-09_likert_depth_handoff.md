@@ -1,5 +1,7 @@
 # WeddingCode Likert 심화 구현·검수 인계
 
+> 이 문서는 `cc3669f4b354c7ce89239b3ee8ac840da5a5f4c5`의 별도 로컬 심화 작업 이력이다. 이후 최신 운영 main에서 인수한 기본 진입·전체 전송 경계·저장 제어의 현재 계약은 [통합·릴리스 계약](./2026-10-09_likert_release_contract.md)을 따른다. 아래 검증 수치나 이전 기본 진입은 새 통합본의 완료 증명이 아니다.
+
 작성일: 2026-10-09. 상태: **LOCAL PROTOTYPE / UNVALIDATED / NOT DEPLOYED**.
 
 ## 이어받은 대상

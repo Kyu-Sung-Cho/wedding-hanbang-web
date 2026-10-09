@@ -153,12 +153,13 @@ describe("vendor sitemap", () => {
     expect(mocks.vendorRanges).not.toHaveBeenCalled();
   });
 
-  it("lists the answer-free WeddingCode entry and never an answer-carrying link", async () => {
+  it("excludes unvalidated WeddingCode entries and all answer-carrying links", async () => {
     vi.stubEnv("CI", "true");
 
     const urls = (await sitemap()).map(({ url }) => url);
 
-    expect(urls).toContain("https://hanbang.ai/wedding-code");
+    expect(urls).not.toContain("https://hanbang.ai/wedding-code");
+    expect(urls).not.toContain("https://hanbang.ai/wedding-code-next");
     expect(urls.some((url) => /wedding-code.*[?#]/.test(url))).toBe(false);
   });
 

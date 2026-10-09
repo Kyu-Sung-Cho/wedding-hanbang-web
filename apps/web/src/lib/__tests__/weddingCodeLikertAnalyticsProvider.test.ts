@@ -3,7 +3,7 @@ import { act, createElement } from "react";
 import { createRoot } from "react-dom/client";
 import { afterEach, expect, it, vi } from "vitest";
 
-const navigation = vi.hoisted(() => ({ pathname: "/wedding-code-next" }));
+const navigation = vi.hoisted(() => ({ pathname: "/wedding-code" }));
 const posthog = vi.hoisted(() => ({ init: vi.fn(), capture: vi.fn() }));
 const sentry = vi.hoisted(() => ({ init: vi.fn(), captureException: vi.fn(), captureRouterTransitionStart: vi.fn() }));
 vi.mock("next/navigation", () => ({
@@ -18,10 +18,10 @@ afterEach(() => {
   vi.unstubAllEnvs();
   vi.clearAllMocks();
   vi.resetModules();
-  navigation.pathname = "/wedding-code-next";
+  navigation.pathname = "/wedding-code";
 });
 
-it.each(["/wedding-code-next", "/landing"])(
+it.each(["/wedding-code", "/wedding-code-next", "/landing"])(
   "recovers Sentry after idle runs before the ordinary pathname commit from %s without a PostHog key",
   async initialPath => {
     vi.stubEnv("NEXT_PUBLIC_POSTHOG_KEY", "");
@@ -41,8 +41,8 @@ it.each(["/wedding-code-next", "/landing"])(
     try {
       await act(async () => { root.render(createElement(Provider)); });
       expect(schedule).toHaveBeenCalledTimes(initialIdleCount);
-      navigation.pathname = "/wedding-code-next";
-      window.history.replaceState({}, "", "/wedding-code-next#wc-likert=synthetic");
+      navigation.pathname = "/wedding-code";
+      window.history.replaceState({}, "", "/wedding-code#wc-likert=synthetic");
       await act(async () => { root.render(createElement(Provider)); });
       if (initialIdleCount) idle?.();
       expect(sentry.init).not.toHaveBeenCalled();
@@ -67,13 +67,14 @@ it.each(["/wedding-code-next", "/landing"])(
   },
 );
 
-it("keeps the actual provider quiet on Likert and resumes ordinary pageviews", async () => {
+it.each(["/wedding-code", "/wedding-code/together", "/wedding-code-next"])("keeps the actual provider quiet on %s and resumes ordinary pageviews", async pathname => {
   vi.stubEnv("NEXT_PUBLIC_POSTHOG_KEY", "synthetic-no-network");
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
   let idle: (() => void) | undefined;
   const schedule = vi.fn((run: () => void) => { idle = run; });
   Object.defineProperty(window, "requestIdleCallback", { configurable: true, value: schedule });
-  window.history.replaceState({}, "", "/wedding-code-next#wc-likert=synthetic");
+  navigation.pathname = pathname;
+  window.history.replaceState({}, "", `${pathname}#wc-likert=synthetic`);
   const Provider = (await import("../../components/analytics/AnalyticsProvider")).default;
   const container = document.createElement("div");
   document.body.append(container);

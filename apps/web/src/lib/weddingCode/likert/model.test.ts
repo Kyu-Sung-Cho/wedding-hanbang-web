@@ -355,6 +355,90 @@ describe("Likert ordinal response summaries", () => {
 });
 
 describe("Likert report evidence boundaries", () => {
+  it("links every scene reading to its unchanged original questions and answers", () => {
+    const answers: Answers = Object.fromEntries(ITEMS.map(item => [item.id, rated(4)]));
+    const before = JSON.stringify(answers);
+    const result = buildResult(answers);
+    expect(result.sceneReadings).toHaveLength(12);
+    expect(result.sceneReadings.flatMap(reading => reading.entries).map(entry => entry.item.id)).toEqual(ITEMS.map(item => item.id));
+    for (const reading of result.sceneReadings) {
+      expect(reading.entries.every(entry => entry.item.sceneId === reading.sceneId && entry.answer?.status === "rated" && entry.answer.value === 4)).toBe(true);
+      expect(reading.observation).toContain("4 · 그렇다");
+      expect(reading.possibleReading).not.toBeNull();
+      expect(reading.selfCheck).not.toBe("");
+      expect(reading.partnerRequest).toContain(reading.title);
+    }
+    expect(JSON.stringify(answers)).toBe(before);
+  });
+
+  it("keeps requests unset for neutral, low and unavailable scene responses", () => {
+    for (const answer of [rated(1), rated(2), rated(3), { status: "unknown" }, { status: "not_applicable" }, { status: "skipped" }] satisfies Answer[]) {
+      const answers: Answers = Object.fromEntries(ITEMS.map(item => [item.id, answer]));
+      for (const reading of buildResult(answers).sceneReadings) expect(reading.partnerRequest).toBeNull();
+    }
+    for (const reading of buildResult({}).sceneReadings) {
+      expect(reading.possibleReading).toBeNull();
+      expect(reading.partnerRequest).toBeNull();
+      expect(reading.observation).toContain("아직 답하지 않았어요");
+    }
+  });
+
+  it("produces different scene readings for the strict same-CJOL listening and organizing counterexample", () => {
+    const first: Answers = Object.fromEntries(ITEMS.map(item => [item.id, rated(["C", "J", "O", "L"].includes(item.facet) ? 5 : 1)]));
+    const second: Answers = { ...first,
+      "likert.support.contact.L.v1": rated(1),
+      "likert.support.contact.A.v1": rated(5),
+      "likert.support.contact.alone-rest.v1": rated(5),
+    };
+    const result = buildComparison(first, second);
+    expect(result.first.code).toBe("CJOL");
+    expect(result.second.code).toBe("CJOL");
+    expect(result.first.character?.name).toBe("세심한 수달");
+    expect(result.second.character?.name).toBe("세심한 수달");
+    const support = result.sceneReadings.filter(reading => reading.first.domain === "support");
+    expect(support).toHaveLength(3);
+    for (const reading of support) {
+      expect(reading.first.partnerRequest).toContain("내 이야기 경청");
+      expect(reading.first.partnerRequest).not.toMatch(/메모 정리|잠시 혼자/);
+    }
+    for (const reading of support.slice(0, 2)) expect(reading.second.partnerRequest).toContain("내 이야기 경청");
+    const contact = support[2];
+    expect(contact.observation).toContain("다른 칸 3개");
+    expect(contact.second.observation).toContain("내 이야기 경청: 1 · 전혀 그렇지 않다");
+    expect(contact.second.partnerRequest).toContain("업체 답변 메모 정리");
+    expect(contact.second.partnerRequest).toContain("잠시 혼자 쉴 시간");
+    expect(contact.second.partnerRequest).not.toContain("내 이야기 경청");
+    expect(contact.second.possibleReading).not.toMatch(/회피|거절|관계|거리 두|감정|고민|위로/);
+    expect(contact.second.entries.map(entry => entry.answer)).toEqual([rated(1), rated(5), rated(1), rated(5)]);
+  });
+
+  it("makes money requests scene-specific even when the code is unchanged", () => {
+    const first: Answers = Object.fromEntries(ITEMS.map(item => [item.id, rated(["C", "J", "O", "L"].includes(item.facet) ? 5 : 1)]));
+    const second: Answers = { ...first, "likert.money.venue.C.v1": rated(1), "likert.money.venue.E.v1": rated(5) };
+    const result = buildComparison(first, second);
+    expect(result.first.code).toBe(result.second.code);
+    const venue = result.sceneReadings.find(reading => reading.sceneId === "likert.money.venue.v1");
+    expect(venue?.first.partnerRequest).toContain("좌석 편의 보강");
+    expect(venue?.first.partnerRequest).not.toContain("조명");
+    expect(venue?.second.partnerRequest).toContain("원했던 조명 연출 추가");
+    expect(venue?.second.partnerRequest).not.toContain("좌석");
+    expect(venue?.first.selfCheck).toContain("실제 추가 비용");
+  });
+
+  it("keeps T acceptance and L listening within the actual item meaning in scene readings", () => {
+    const result = buildResult(independentQaCounterexample());
+    for (const reading of result.sceneReadings.filter(reading => reading.domain === "process")) {
+      expect(reading.possibleReading).toContain("분담 수용");
+      expect(reading.partnerRequest).toContain("받아들일 수 있어");
+      expect(reading.partnerRequest).toContain("누가 후보를 추릴지는 따로");
+      expect([reading.possibleReading, reading.selfCheck, reading.partnerRequest].join(" ")).not.toMatch(roleExpansion);
+    }
+    for (const reading of result.sceneReadings.filter(reading => reading.domain === "support")) {
+      expect(reading.partnerRequest).toContain("내 이야기 경청");
+      expect([reading.possibleReading, reading.selfCheck, reading.partnerRequest].join(" ")).not.toMatch(/감정|고민|위로|해결/);
+    }
+  });
+
   it("creates no support request from absent, unknown, non-applicable or skipped answers", () => {
     const cases = [
       { answer: undefined, count: "unanswered" },

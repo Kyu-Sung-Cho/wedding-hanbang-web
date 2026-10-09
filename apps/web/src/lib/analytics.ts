@@ -77,7 +77,7 @@ export function loadPostHog(): Promise<PostHogModule | null> {
             // 프래그먼트를 잘라낸다. `capture_pageleave`가 켜져 있어 posthog-js가
             // `$current_url`에 `location.href`를 스스로 넣는데, 커플 초대 코드가
             // 바로 그 `#` 뒤에 실려 다닌다.
-            // 이동 전 랜딩 관측과 고지일 이후 웨딩코드 흐름만 별도 허용 목록으로 정리한다.
+            // 웨딩코드 주소를 먼저 차단하고 다른 화면의 기존 허용 목록을 적용한다.
             before_send: (capture) => (
               analyticsCaptureTouchesLikertPath(capture, window.location.pathname)
                 ? null

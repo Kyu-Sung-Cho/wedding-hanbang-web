@@ -34,9 +34,9 @@ async function actualBeforeSend(pathname: string) {
 }
 
 describe("Likert boundary before actual analytics allowlists", () => {
-  it("does not schedule or initialize PostHog when the actual loader is called on Likert", async () => {
+  it.each(["/wedding-code", "/wedding-code/together", "/wedding-code-next"])("does not schedule or initialize PostHog on %s", async pathname => {
     const requestIdleCallback = vi.fn();
-    vi.stubGlobal("window", { location: { pathname: "/wedding-code-next", origin: "https://hanbang.ai" }, requestIdleCallback });
+    vi.stubGlobal("window", { location: { pathname, origin: "https://hanbang.ai" }, requestIdleCallback });
     vi.stubEnv("NEXT_PUBLIC_POSTHOG_KEY", "synthetic-no-network");
     const analyticsModule = await import("../analytics");
     const loaded = analyticsModule.loadPostHog();
@@ -54,7 +54,7 @@ describe("Likert boundary before actual analytics allowlists", () => {
     const analyticsModule = await import("../analytics");
     const pending = analyticsModule.loadPostHog();
     if (stage === "during import") idle?.();
-    page.location.pathname = "/wedding-code-next";
+    page.location.pathname = "/wedding-code";
     if (stage === "before idle") idle?.();
     expect(await pending).toBeNull();
     expect(posthog.init).not.toHaveBeenCalled();
@@ -66,26 +66,32 @@ describe("Likert boundary before actual analytics allowlists", () => {
     expect(posthog.init).toHaveBeenCalledTimes(1);
   });
 
-  it.each(["/wedding-code-next", "/wedding-code-next/result"])("drops a legacy funnel event on %s", async pathname => {
+  it.each(["/wedding-code", "/wedding-code/result", "/wedding-code/together", "/wedding-code-next", "/wedding-code-next/result"])("drops a legacy funnel event on %s", async pathname => {
     const { beforeSend } = await actualBeforeSend(pathname);
     expect(beforeSend({ event: "wedding_code_started", properties: { version: "v4.4-depth", scene_total: 68 } })).toBeNull();
     expect(posthog.capture).not.toHaveBeenCalled();
   });
 
-  it("drops delayed allowlisted events that still contain a nested Likert answer URL", async () => {
+  it.each(["/wedding-code", "/wedding-code-next"])("drops delayed allowlisted events with a nested %s answer URL", async pathname => {
     const { beforeSend } = await actualBeforeSend("/landing");
     const capture = { event: "wedding_code_started", properties: {
-      version: "v4.4-depth", $set_once: { $initial_current_url: "https://hanbang.ai/wedding-code-next#wc-likert=synthetic" },
+      version: "v4.4-depth", $set_once: { $initial_current_url: `https://hanbang.ai${pathname}#wc-likert=synthetic` },
     } };
     expect(beforeSend(capture)).toBeNull();
   });
 
-  it.each(["/wedding-code", "/wedding-code/result", "/landing", "/wedding-code-next-copy"])("keeps the existing authorized v4 funnel sanitizer on %s", async pathname => {
+  it.each(["/landing", "/budget", "/wedding-code-copy", "/wedding-code-next-copy"])("keeps the existing sanitizer on ordinary route %s", async pathname => {
     const { beforeSend } = await actualBeforeSend(pathname);
     const sent = beforeSend({ event: "wedding_code_started", properties: {
       version: "v4.4-depth", scene_total: 68, answers: "synthetic-private-answer",
     } });
     expect(sent).not.toBeNull();
     expect(sent?.properties).toEqual({ version: "v4.4-depth", scene_total: 68 });
+  });
+
+  it("blocks a delayed landing exception when its URL embeds a WeddingCode query answer", async () => {
+    const { beforeSend } = await actualBeforeSend("/budget");
+    const redirect = `/login?${new URLSearchParams({ redirect: "/wedding-code?v=v4.0-tendency&a=synthetic-private-answer" })}`;
+    expect(beforeSend({ event: "landing_cta_click", properties: { $current_url: redirect, source: "landing_hero_secondary" } })).toBeNull();
   });
 });

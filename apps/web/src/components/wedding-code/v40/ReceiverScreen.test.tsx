@@ -76,13 +76,13 @@ describe("ReceiverScreen", () => {
     expect(harness.container.querySelectorAll("table, [role='table']")).toHaveLength(0);
   });
 
-  it("질문 수와 저장 기간, 상대 답은 이 기기에 저장하지 않는다는 것, 이용 통계만 남긴다는 것을 말한다", async () => {
+  it("질문 수와 저장 기간, 상대 답은 이 기기에 저장하지 않는다는 것, 이용 통계를 기록하지 않는다는 것을 말한다", async () => {
     await harness.render(<Host />);
     const storage = harness.container.querySelector("[data-receive-storage]")!.textContent!;
     expect(storage).toBe(receiveStorage("on", V40_COUNTS.items));
     expect(storage).toContain(`${V40_COUNTS.items}개`);
     expect(storage).toContain("상대의 답을 이 브라우저에 저장하지 않아요");
-    expect(storage).toContain("이용 통계만 남겨요");
+    expect(storage).toContain("이용 통계를 기록하지 않아요");
     // 앱 안 브라우저(카카오톡 등)는 저장소가 따로라서 다음에도 같은 곳에서 열어야 이어 할 수 있다.
     expect(storage).toContain("카카오톡 같은 앱 안에서 열었다면 다음에도 같은 곳에서 열어야 이어서 할 수 있어요");
   });
@@ -101,7 +101,7 @@ describe("ReceiverScreen", () => {
       expect(storageText()).toContain("자동 저장이 꺼져 있어서 내 답은 저장되지 않고");
       expect(storageText()).not.toMatch(/일 동안 저장돼요/u);
       expect(storageText()).toContain("상대의 답을 이 브라우저에 저장하지 않아요");
-      expect(storageText()).toContain("이용 통계만 남겨요");
+      expect(storageText()).toContain("이용 통계를 기록하지 않아요");
       await click(buttonNamed(V40_COPY.autosave.turnOnButton));
       expect(storageText()).toBe(receiveStorage("on", V40_COUNTS.items));
     });

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { ITEMS } from "./bank";
-import { answeredCount, buildShareUrl, createDraft, createSnapshot, EXPRESSION_CORRECTION_NOTICE, isComplete, loadDraft, parseDraft, readShareFragment, saveDraft } from "./io";
+import { answeredCount, buildShareUrl, clearLikertDraft, createDraft, createSnapshot, EXPRESSION_CORRECTION_NOTICE, isComplete, LIKERT_AUTOSAVE_KEY, LIKERT_RETENTION_MS, loadDraft, parseDraft, readLikertAutosave, readShareFragment, saveDraft, setLikertAutosave } from "./io";
 import { BANK_REVISION, EXPRESSION_VERSION, MEASUREMENT_VERSION, STORAGE_KEY, type Answer, type Answers, type Draft } from "./types";
 
 function all(answer: Answer): Answers {
@@ -10,7 +10,8 @@ function memory() {
   const values = new Map<string, string>([["hanbang:legacy:answers", "preserve-me"]]);
   const writes: string[] = [];
   return { values, writes, getItem: (key: string) => values.get(key) ?? null,
-    setItem: (key: string, value: string) => { writes.push(key); values.set(key, value); } };
+    setItem: (key: string, value: string) => { writes.push(key); values.set(key, value); },
+    removeItem: (key: string) => { values.delete(key); } };
 }
 function changeLinkVersion(url: string, change: Record<string, string | undefined>): string {
   const encoded = new URL(url).hash.split("=")[1];
@@ -278,5 +279,52 @@ describe("isolated Likert IO", () => {
         expect(storage.writes).toEqual([]);
       }
     }
+  });
+});
+
+
+describe("Likert browser-owned retention and controls", () => {
+  it("excludes expired and future records without rewriting original bytes", () => {
+    const storage = memory();
+    const draft = { ...createDraft(), updatedAt: "2026-10-08T12:00:00.000Z" };
+    const raw = JSON.stringify(draft);
+    storage.values.set(STORAGE_KEY, raw);
+    const savedAt = Date.parse(draft.updatedAt);
+    expect(loadDraft(storage, savedAt + LIKERT_RETENTION_MS - 1).draft).toEqual(draft);
+    expect(loadDraft(storage, savedAt + LIKERT_RETENTION_MS).draft).toBeNull();
+    expect(loadDraft(storage, savedAt - 1).draft).toBeNull();
+    expect(storage.values.get(STORAGE_KEY)).toBe(raw);
+    expect(storage.writes).toEqual([]);
+  });
+  it("honors previous browser opt-out without changing previous editions", () => {
+    const storage = memory();
+    storage.values.set("hanbang.wedding-code.v31.autosave", "off");
+    expect(readLikertAutosave(storage)).toBe(false);
+    expect(setLikertAutosave(storage, true)).toBe(true);
+    expect(readLikertAutosave(storage)).toBe(true);
+    expect(storage.values.get("hanbang.wedding-code.v31.autosave")).toBe("off");
+  });
+  it("turns off and deletes only its own draft, leaving shared and legacy data intact", () => {
+    const storage = memory();
+    storage.values.set(STORAGE_KEY, JSON.stringify(createDraft()));
+    storage.values.set("hanbang:wedding-code:comparison:v1", "original-pair");
+    expect(setLikertAutosave(storage, false)).toBe(true);
+    expect(storage.values.get(LIKERT_AUTOSAVE_KEY)).toBe("off");
+    expect(storage.values.has(STORAGE_KEY)).toBe(false);
+    expect(storage.values.get("hanbang:legacy:answers")).toBe("preserve-me");
+    expect(storage.values.get("hanbang:wedding-code:comparison:v1")).toBe("original-pair");
+    expect(clearLikertDraft(storage)).toBe(true);
+  });
+  it("reports storage deletion and preference write failures", () => {
+    const denied = { getItem: () => "still-stored", setItem: () => { throw new Error("denied"); }, removeItem: () => { throw new Error("denied"); } };
+    expect(clearLikertDraft(denied)).toBe(false);
+    expect(setLikertAutosave(denied, false)).toBe(false);
+    expect(readLikertAutosave({ getItem: () => { throw new Error("denied"); } })).toBe(false);
+  });
+  it("creates canonical new links while decoding old alias fragments unchanged", () => {
+    const snapshot = createSnapshot(all({ status: "rated", value: 3 }));
+    const url = buildShareUrl("https://hanbang.ai", snapshot)!;
+    expect(new URL(url).pathname).toBe("/wedding-code");
+    expect(readShareFragment(new URL(url.replace('/wedding-code#', '/wedding-code-next#')).hash)).toEqual(readShareFragment(new URL(url).hash));
   });
 });

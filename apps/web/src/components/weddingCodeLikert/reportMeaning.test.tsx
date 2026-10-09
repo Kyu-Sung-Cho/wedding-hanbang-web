@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
+import { act } from "react";
+import { click, createHarness } from "@/components/wedding-code/v40/inputTestKit";
 import { ITEMS } from "@/lib/weddingCode/likert/bank";
 import { buildComparison, buildResult } from "@/lib/weddingCode/likert/model";
 import { CHARACTERS } from "@/lib/weddingCode/likert/characters";
@@ -18,6 +20,49 @@ function view(html: string): HTMLDivElement {
 }
 
 describe("원답과 공개 결과의 의미", () => {
+  it("같은 CJOL의 장면별 부탁 차이가 개인 화면과 선택한 커플 장면에 연결된다", async () => {
+    const first: Answers = Object.fromEntries(ITEMS.map(item => [item.id, { status: "rated", value: ["C", "J", "O", "L"].includes(item.facet) ? 5 : 1 }]));
+    const second: Answers = { ...first,
+      "likert.support.contact.L.v1": { status: "rated", value: 1 },
+      "likert.support.contact.A.v1": { status: "rated", value: 5 },
+      "likert.support.contact.alone-rest.v1": { status: "rated", value: 5 },
+    };
+    for (const [answers, listens] of [[first, true], [second, false]] as const) {
+      const result = buildResult(answers);
+      expect(result.character?.name).toBe("세심한 수달");
+      const content = view(renderToStaticMarkup(<PersonalReport result={result} onEdit={noop} onShare={noop} />));
+      const contact = content.querySelector('#personal-support [data-scene-reading="likert.support.contact.v1"]');
+      const request = contact?.querySelector("blockquote")?.textContent;
+      expect(contact?.textContent).toContain("관찰한 응답");
+      expect(contact?.textContent).toContain("이렇게 읽어 볼 수 있어요");
+      expect(contact?.textContent).toContain("이 읽기를 만든 질문과 내 응답");
+      expect(contact?.textContent).toContain("내가 확인해 볼 점");
+      expect(request?.includes("내 이야기 경청")).toBe(listens);
+      expect(request?.includes("업체 답변 메모 정리")).toBe(!listens);
+      expect(request?.includes("잠시 혼자 쉴 시간")).toBe(!listens);
+      expect(contact?.textContent).not.toMatch(/회피|감정 상담|위로/);
+    }
+    const rendered = createHarness();
+    try {
+      await rendered.render(<CoupleReport result={buildComparison(first, second)} onBack={noop} />);
+      await click([...rendered.container.querySelectorAll("button")].find(button => button.textContent?.includes("대화와 실무 도움")));
+      const select = rendered.container.querySelector<HTMLSelectElement>("#couple-scene");
+      if (!select) throw new Error("장면 선택 요소가 없어요");
+      await act(async () => { select.value = "likert.support.contact.v1"; select.dispatchEvent(new Event("change", { bubbles: true })); });
+      const contact = rendered.container.querySelector('[data-couple-scene-reading="likert.support.contact.v1"]');
+      expect(contact?.textContent).toContain("다른 칸 3개");
+      const requests = contact?.querySelectorAll("blockquote");
+      expect(requests).toHaveLength(2);
+      expect(requests?.[0]?.textContent).toContain("내 이야기 경청");
+      expect(requests?.[0]?.textContent).not.toContain("메모 정리");
+      expect(requests?.[1]?.textContent).toContain("업체 답변 메모 정리");
+      expect(requests?.[1]?.textContent).toContain("잠시 혼자 쉴 시간");
+      expect(requests?.[1]?.textContent).not.toContain("내 이야기 경청");
+      expect(contact?.textContent).toContain("업체 연락을 마친 지금은 상대가 내 이야기를 들어 줬으면 좋겠다.");
+      expect(contact?.textContent).toContain("업체 연락을 마친 지금은 상대가 업체 답변 메모를 정리해 줬으면 좋겠다.");
+    } finally { await rendered.unmount(); }
+  });
+
   it("캐릭터 설명이 바라는 응답을 실제 수행이나 도움 수령으로 바꾸지 않는다", () => {
     expect(CHARACTERS.every(character => character.tagline.includes("대표 표"))).toBe(true);
     expect(CHARACTERS.some(character => character.tagline.includes("도움을 받는 장면"))).toBe(false);

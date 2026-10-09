@@ -124,13 +124,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       changeFrequency: "monthly",
       priority: 0.8,
     },
-    // 답이 없는 맨 주소만 싣는다. 답은 `#` 뒤에 실려 색인 대상이 아니고,
-    // 페이지도 맨 주소에만 `index`를 준다(`wedding-code/page.tsx`).
-    {
-      url: `${BASE_URL}/wedding-code`,
-      changeFrequency: "monthly",
-      priority: 0.9,
-    },
+    // 웨딩코드 개편본은 사람 검증 전이며 답 링크와 함께 색인 밖으로 둔다.
     // `/manners`가 아니라 `/wedding/manners`를 싣는다. weddingAppRoutes에 들어간
     // 뒤로 `/manners`는 `/wedding/manners`로 리다이렉트되므로, 리다이렉트 원본을
     // 사이트맵에 실으면 색인이 한 단계 낭비된다.

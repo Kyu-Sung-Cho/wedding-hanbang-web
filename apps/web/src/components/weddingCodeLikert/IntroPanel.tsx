@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import Button from "@/components/ui/Button";
 
 export interface IntroPanelProps {
   onStart: () => void;
@@ -12,7 +13,7 @@ export interface IntroPanelProps {
 }
 
 const focusStyle =
-  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--hb-focus-ring)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--ivory-50)]";
+  "whitespace-normal! focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--hb-focus-ring)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--ivory-50)]";
 
 export function IntroPanel({
   onStart,
@@ -60,7 +61,7 @@ export function IntroPanel({
           <div className="mt-8 flex flex-col gap-3 sm:max-w-md">
             {onResume ? (
               <>
-                <button
+                <Button variant="primary"
                   type="button"
                   onClick={onResume}
                   className={`min-h-14 rounded-xl bg-[var(--hb-primary)] px-6 py-4 text-base font-semibold text-[var(--hb-on-primary)] transition-colors hover:bg-[var(--hb-primary-hover)] motion-reduce:transition-none ${focusStyle}`}
@@ -69,23 +70,23 @@ export function IntroPanel({
                   <span className="ml-2 text-sm font-normal tabular-nums">
                     {savedCount}/{total}
                   </span>
-                </button>
-                <button
+                </Button>
+                <Button variant="ghost"
                   type="button"
                   onClick={onStart}
                   className={`min-h-11 rounded-xl px-6 py-3 text-sm font-medium text-[var(--hb-text-body)] underline decoration-[var(--taupe-500)] underline-offset-4 hover:bg-[var(--ivory-100)] ${focusStyle}`}
                 >
                   처음부터 새로 답하기
-                </button>
+                </Button>
               </>
             ) : (
-              <button
+              <Button variant="primary"
                 type="button"
                 onClick={onStart}
                 className={`min-h-14 rounded-xl bg-[var(--hb-primary)] px-6 py-4 text-base font-semibold text-[var(--hb-on-primary)] transition-colors hover:bg-[var(--hb-primary-hover)] motion-reduce:transition-none ${focusStyle}`}
               >
                 {invite ? "내 답 남기기" : "나의 준비 언어 찾기"}
-              </button>
+              </Button>
             )}
             <p className="text-center text-xs leading-6 text-[var(--hb-text-body)]">
               {total}개의 짧은 문장 · 한 문장씩 · 답은 다시 바꿀 수 있어요

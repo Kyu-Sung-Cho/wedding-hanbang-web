@@ -33,7 +33,10 @@ const MAX_NESTED_LOCATION_QUERY_DEPTH = 8;
 type SearchParamsReader = Pick<URLSearchParams, "get">;
 
 export function isWeddingCodeLikertPath(pathname: string | null | undefined): boolean {
-  return Boolean(pathname && (pathname === "/wedding-code-next" || pathname.startsWith("/wedding-code-next/")));
+  // 기본 입구와 구판 링크도 같은 무전송 경계로 보호한다.
+  return Boolean(pathname && ["/wedding-code", "/wedding-code-next"].some(
+    prefix => pathname === prefix || pathname.startsWith(`${prefix}/`),
+  ));
 }
 
 export function isAnalyticsSuppressedPath(pathname: string | null | undefined): boolean {
@@ -181,10 +184,19 @@ function pathnameFromLocationValue(value: unknown): string | null {
 function nestedCaptureTouchesLikertPath(capture: unknown): boolean {
   const pending: unknown[] = [capture];
   const visited = new WeakSet<object>();
+  const visitedLocations = new Set<string>();
   while (pending.length > 0) {
     const value = pending.pop();
     const pathname = pathnameFromLocationValue(value);
     if (isWeddingCodeLikertPath(pathname)) return true;
+    if (pathname && typeof value === "string" && !visitedLocations.has(value)) {
+      visitedLocations.add(value);
+      // 로그인 redirect 같은 주소 안의 주소도 검사한다. 실제 이동 주소는 고치지 않는다.
+      const location = new URL(value, "https://hanbang.invalid");
+      for (const nested of location.searchParams.values()) {
+        if (looksLikeLocationValue(nested)) pending.push(nested);
+      }
+    }
     if (!Array.isArray(value) && !isPlainObject(value)) continue;
     if (visited.has(value)) continue;
     visited.add(value);

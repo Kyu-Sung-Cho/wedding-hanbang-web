@@ -76,7 +76,7 @@ describe("actual analytics SDK storage boundary", () => {
     window.history.replaceState({}, "", "/");
   });
 
-  it("keeps delayed landing events while preventing answer storage and flag requests", async () => {
+  it("cancels loading on WeddingCode, recovers ordinary events and prevents answer storage and flag requests", async () => {
     const legacy = JSON.stringify({
       distinct_id: "synthetic-old-browser",
       $initial_person_info: { u: `${window.location.origin}/wedding-code#a=${SYNTHETIC_LEGACY}`, r: "$direct" },
@@ -95,16 +95,28 @@ describe("actual analytics SDK storage boundary", () => {
     window.history.replaceState({}, "", `/wedding-code#a=${SYNTHETIC_ANSWER}&b=${SYNTHETIC_PARTNER}`);
     expect(idle).toBeTypeOf("function");
     idle?.();
-    expect(await analytics.loadPostHog()).toBe(sdk);
-    destroySession = () => sdk.sessionManager?.destroy();
+    expect(await analytics.loadPostHog()).toBeNull();
     analytics.captureWeddingCodeEvent("wedding_code_started", { version: "v1.2-code" });
+    await Promise.resolve();
+    expect(captured).toEqual([]);
+
+    window.history.replaceState({}, "", "/landing");
+    analytics.capturePageview({ $current_url: window.location.href });
+    analytics.captureEvent("landing_cta_click", { source: "landing_hero_secondary" });
+    const recovered = analytics.loadPostHog();
+    idle?.();
+    expect(await recovered).toBe(sdk);
+    destroySession = () => sdk.sessionManager?.destroy();
     await Promise.resolve();
 
     expect(captured.map(({ event }) => event)).toEqual([
-      "$pageview", "landing_cta_click", "wedding_code_started",
+      "$pageview", "landing_cta_click",
     ]);
     expect(captured[0].properties.$current_url).toBe(`${window.location.origin}/landing`);
     expect(captured[1].properties.source).toBe("landing_hero_secondary");
+    window.history.replaceState({}, "", `/wedding-code#a=${SYNTHETIC_ANSWER}&b=${SYNTHETIC_PARTNER}`);
+    sdk.capture("wedding_code_started", { version: "v1.2-code" });
+    expect(captured).toHaveLength(2);
     expect(sdk.sessionManager).toBeDefined();
     const firstSession = sdk.sessionManager?.checkAndGetSessionAndWindowId().sessionId;
     expect(firstSession).toBeTruthy();

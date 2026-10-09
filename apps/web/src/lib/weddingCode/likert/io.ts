@@ -6,6 +6,8 @@ import {
 
 const MAX_PAYLOAD_LENGTH = 24_000;
 const SHARE_KEY = "wc-likert";
+export const LIKERT_AUTOSAVE_KEY = `${STORAGE_KEY}:autosave`;
+export const LIKERT_RETENTION_MS = 30 * 24 * 60 * 60 * 1000;
 // 같은 문항판의 원답을 유지하고 이전 표현판의 설명만 메모리에서 보정한다.
 const LEGACY_EXPRESSION_VERSION = "likert-letters-alpha.1";
 const PREVIOUS_EXPRESSION_VERSION = "likert-letters-alpha.2";
@@ -20,6 +22,32 @@ function expressionCorrectionNotice(value: unknown): string | undefined {
   return undefined;
 }
 type StoragePort = Pick<Storage, "getItem" | "setItem">;
+type MutableStoragePort = StoragePort & Pick<Storage, "removeItem">;
+
+export function readLikertAutosave(storage: Pick<Storage, "getItem">): boolean {
+  try {
+    const own = storage.getItem(LIKERT_AUTOSAVE_KEY);
+    if (own === "on" || own === "off") return own === "on";
+    return storage.getItem("hanbang.wedding-code.v4.autosave") !== "off"
+      && storage.getItem("hanbang.wedding-code.v31.autosave") !== "off";
+  } catch { return false; }
+}
+
+export function clearLikertDraft(storage: MutableStoragePort): boolean {
+  try {
+    storage.removeItem(STORAGE_KEY);
+    return storage.getItem(STORAGE_KEY) === null;
+  } catch { return false; }
+}
+
+export function setLikertAutosave(storage: MutableStoragePort, enabled: boolean): boolean {
+  try {
+    // 꺼짐 설정을 먼저 확인해 두면 답 삭제가 실패해도 이후 자동 저장은 재개하지 않는다.
+    storage.setItem(LIKERT_AUTOSAVE_KEY, enabled ? "on" : "off");
+    const persisted = storage.getItem(LIKERT_AUTOSAVE_KEY) === (enabled ? "on" : "off");
+    return enabled ? persisted : clearLikertDraft(storage) && persisted;
+  } catch { return false; }
+}
 type CompactAnswer = Rating | "u" | "n" | "s";
 interface PackedSnapshot { at: string; values: CompactAnswer[] }
 interface PackedLink {
@@ -101,12 +129,15 @@ export function parseDraft(raw: string): Draft | null {
   } catch { return null; }
 }
 
-export function loadDraft(storage: StoragePort): { draft: Draft | null; notice: string; expressionNotice?: string } {
+export function loadDraft(storage: StoragePort, now = Date.now()): { draft: Draft | null; notice: string; expressionNotice?: string } {
   try {
     const raw = storage.getItem(STORAGE_KEY);
     if (!raw) return { draft: null, notice: "" };
     const draft = parseDraft(raw);
     if (!draft) return { draft: null, notice: "저장된 답의 판을 확인하지 못했어요. 기존 기록은 그대로 두고 새 답을 시작할 수 있어요." };
+    const age = now - Date.parse(draft.updatedAt);
+    if (!Number.isFinite(now) || age < 0 || age >= LIKERT_RETENTION_MS) return { draft: null,
+      notice: "저장된 답의 이용 기간은 마지막 저장부터 30일이에요. 기간이나 저장 시각을 확인하지 못한 기록은 불러오지 않아요. 아래에서 이 개편본의 저장을 지울 수 있어요." };
     const source: unknown = JSON.parse(raw);
     const expressionNotice = isRecord(source) ? expressionCorrectionNotice(source.expressionVersion) : undefined;
     return { draft, notice: "이 브라우저에 남긴 답을 이어서 볼 수 있어요.",
@@ -197,7 +228,7 @@ export function buildShareUrl(origin: string, first: Snapshot, second?: Snapshot
     };
     const encoded = encodeBase64Url(JSON.stringify(payload));
     if (encoded.length > MAX_PAYLOAD_LENGTH) return null;
-    return `${base.origin}/wedding-code-next#${SHARE_KEY}=${encoded}`;
+    return `${base.origin}/wedding-code#${SHARE_KEY}=${encoded}`;
   } catch { return null; }
 }
 

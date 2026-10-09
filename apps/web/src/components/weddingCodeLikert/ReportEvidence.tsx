@@ -1,5 +1,30 @@
-import type { DomainProfile, FacetProfile, SupportSceneProfile } from "@/lib/weddingCode/likert/model";
-import { LETTER_DEFINITIONS, type Domain, type Facet } from "@/lib/weddingCode/likert/types";
+import type { DomainProfile, FacetProfile, PersonalSceneReading, SupportSceneProfile } from "@/lib/weddingCode/likert/model";
+import { LETTER_DEFINITIONS, SCALE, type Answer, type Domain, type Facet } from "@/lib/weddingCode/likert/types";
+
+export function responseLabel(answer: Answer | null | undefined): string {
+  if (!answer) return "아직 응답하지 않음";
+  if (answer.status === "rated") return `${answer.value} · ${SCALE.find(option => option.value === answer.value)?.label ?? ""}`;
+  if (answer.status === "unknown") return "잘 모르겠어요";
+  if (answer.status === "not_applicable") return "해당하지 않아요";
+  return "건너뜀";
+}
+
+export function SceneReadingEvidence({ reading }: { reading: PersonalSceneReading }) {
+  return (
+    <div className="mt-4 space-y-4 text-sm leading-7" data-scene-reading={reading.sceneId}>
+      <div><p className="font-semibold">관찰한 응답</p><p className="mt-1 text-[var(--hb-text-body)]">{reading.observation}</p></div>
+      {reading.possibleReading && <div><p className="font-semibold">이렇게 읽어 볼 수 있어요</p><p className="mt-1 text-[var(--hb-text-body)]">{reading.possibleReading}</p><p className="mt-1 text-xs leading-6 text-[var(--hb-text-muted)]">이 문항의 조건에서 읽어 보는 설명이에요. 내가 떠올린 이유와 맞는지 직접 확인해 주세요.</p></div>}
+      <div>
+        <p className="font-semibold">이 읽기를 만든 질문과 내 응답</p>
+        <dl className="mt-2 divide-y divide-[var(--hb-hairline)]">
+          {reading.entries.map(({ item, answer }) => <div key={item.id} className="py-3 first:pt-0 last:pb-0"><dt className="text-[var(--hb-text-body)]">{item.text}</dt><dd className="mt-1 font-semibold">{responseLabel(answer)}</dd></div>)}
+        </dl>
+      </div>
+      <div><p className="font-semibold">내가 확인해 볼 점</p><p className="mt-1 text-[var(--hb-text-body)]">{reading.selfCheck}</p></div>
+      {reading.partnerRequest && <div><p className="font-semibold">상대에게 부탁할 말</p><blockquote className="mt-2 border-l-2 border-[var(--hb-primary)] pl-4 text-[var(--hb-text-body)]">{reading.partnerRequest}</blockquote><p className="mt-2 text-xs leading-6 text-[var(--hb-text-muted)]">실제로 동의한 문장에서 만든 요청 초안이에요. 현재 조건과 상대가 가능한 범위는 함께 확인해요.</p></div>}
+    </div>
+  );
+}
 
 export function facetName(facet: Facet): string {
   if (facet === "together_rest") return "함께 쉬기";
@@ -30,7 +55,7 @@ const selfChecks: Record<Domain, string> = {
   support: "오늘의 피로와 남은 일이 달라지면 어떤 도움을 먼저 부탁하고 싶나요? 듣고 싶은 반응과 정리할 일을 직접 설명해 보세요.",
 };
 
-export function DomainEvidence({ profile }: { profile: DomainProfile }) {
+export function DomainEvidence({ profile, readings = [] }: { profile: DomainProfile; readings?: PersonalSceneReading[] }) {
   return (
     <div className="mt-5">
       <p className="text-sm font-semibold text-[var(--hb-text-strong)]">내가 확인해 볼 점</p>
@@ -38,7 +63,9 @@ export function DomainEvidence({ profile }: { profile: DomainProfile }) {
       <details className="mt-3">
         <summary className="flex min-h-11 cursor-pointer items-center text-sm font-medium text-[var(--hb-text-strong)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--hb-focus-ring)]">장면별로 이 글자가 나온 이유 보기</summary>
         <div className="mt-3 divide-y divide-[var(--hb-hairline)]">
-          {profile.scenes.map(scene => (
+          {profile.scenes.map(scene => {
+            const reading = readings.find(entry => entry.sceneId === scene.sceneId);
+            return (
             <article key={scene.sceneId} className="py-4 first:pt-0">
               <h4 className="text-sm font-semibold">{scene.title}</h4>
               <p className="mt-2 text-sm leading-7 text-[var(--hb-text-body)]">{scene.summary}</p>
@@ -47,8 +74,10 @@ export function DomainEvidence({ profile }: { profile: DomainProfile }) {
                   : scene.winner ? `이 장면은 ${scene.winner} 대표 표 한 개에 포함됐어요.`
                     : "이 장면은 어느 글자에도 대표 표를 더하지 않았어요. 두 원답은 그대로 남겼어요."}
               </p>
+              {reading && <SceneReadingEvidence reading={reading} />}
             </article>
-          ))}
+            );
+          })}
         </div>
       </details>
     </div>

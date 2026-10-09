@@ -99,6 +99,26 @@ export interface PartnerRequest {
   note: string;
 }
 
+export interface PersonalSceneReading {
+  sceneId: string;
+  title: string;
+  domain: Domain;
+  context: string;
+  entries: ItemResponse[];
+  observation: string;
+  possibleReading: string | null;
+  selfCheck: string;
+  partnerRequest: string | null;
+}
+
+export interface CoupleSceneReading {
+  sceneId: string;
+  observation: string;
+  possibleReading: string | null;
+  first: PersonalSceneReading;
+  second: PersonalSceneReading;
+}
+
 export interface PersonalResult {
   measurementVersion: string;
   expressionVersion: string;
@@ -112,6 +132,7 @@ export interface PersonalResult {
   candidateCharacters: Character[];
   domains: DomainProfile[];
   supportScenes: SupportSceneProfile[];
+  sceneReadings: PersonalSceneReading[];
   insights: string[];
   requests: PartnerRequest[];
 }
@@ -141,6 +162,7 @@ export interface CoupleResult {
   second: PersonalResult;
   items: ItemComparison[];
   conversations: ConversationPrompt[];
+  sceneReadings: CoupleSceneReading[];
 }
 
 type RatedAnswer = Extract<Answer, { status: "rated" }>;
@@ -390,6 +412,80 @@ function domainInsights(profile: DomainProfile): string[] {
   return [`활용 · ${profile.title}: ${facts}${advice[profile.domain][0]}`, `함께 확인 · ${profile.title}: ${advice[profile.domain][1]}`];
 }
 
+// 문항에 실제로 제시된 행동만 요청 초안에 연결한다. 응답 강도로 실행 순서를 정하지 않는다.
+const sceneActions: Readonly<Record<string, Partial<Record<Facet, string>>>> = {
+  "likert.money.venue.v1": { C: "좌석 편의 보강", E: "원했던 조명 연출 추가" },
+  "likert.money.photo.v1": { C: "기본 앨범의 인화 품질 보강", E: "원했던 추가 촬영 장면" },
+  "likert.money.meal.v1": { C: "기본 메뉴에 음식 한 가지 추가", E: "원했던 음식 제공 연출" },
+  "likert.process.photo.v1": { J: "촬영 업체의 작업물 직접 비교", T: TEAM_SHORTLISTING_ACCEPTANCE },
+  "likert.process.venue.v1": { J: "예식장 자료 직접 비교", T: TEAM_SHORTLISTING_ACCEPTANCE },
+  "likert.process.order.v1": { J: "식순 구성 직접 비교", T: TEAM_SHORTLISTING_ACCEPTANCE },
+  "likert.family.guests.v1": { O: "초대 범위에 관한 가족의 생각 확인", U: "초대 범위에 관한 둘의 기준 정리" },
+  "likert.family.order.v1": { O: "예식 순서에 관한 가족의 생각 확인", U: "예식 순서에 관한 둘의 기준 정리" },
+  "likert.family.photo.v1": { O: "가족사진 구성에 관한 가족의 생각 확인", U: "가족사진 구성에 관한 둘의 기준 정리" },
+  "likert.support.tour.v1": { L: "내 이야기 경청", A: "홀 투어 메모 정리", together_rest: "함께 잠깐 쉬기", alone_rest: "잠시 혼자 쉴 시간" },
+  "likert.support.compare.v1": { L: "내 이야기 경청", A: "후보 비교표 정리", together_rest: "함께 잠깐 쉬기", alone_rest: "잠시 혼자 쉴 시간" },
+  "likert.support.contact.v1": { L: "내 이야기 경청", A: "업체 답변 메모 정리", together_rest: "함께 잠깐 쉬기", alone_rest: "잠시 혼자 쉴 시간" },
+};
+
+function buildSceneReading(items: Item[], answers: Answers): PersonalSceneReading | null {
+  const anchor = items[0];
+  if (!anchor) return null;
+  const entries = items.map(item => responseFor(item, answers));
+  const endorsed = entries.filter(entry => isRated(entry.answer) && isEndorsed(entry.answer.value));
+  const ratedCount = entries.filter(entry => isRated(entry.answer)).length;
+  const middleCount = entries.filter(entry => isRated(entry.answer) && entry.answer.value === 3).length;
+  const actions = sceneActions[anchor.sceneId] ?? {};
+  const actionFor = (entry: ItemResponse) => actions[entry.item.facet] ?? facetLabel(entry.item.facet);
+  const endorsedActions = endorsed.map(actionFor).join(" · ");
+  const has = (facet: Facet) => endorsed.some(entry => entry.item.facet === facet);
+  const observation = entries.map(entry => `${actionFor(entry)}: ${answerLabel(entry.answer)}`).join(" / ");
+  let possibleReading: string | null = null;
+  let selfCheck = `‘${anchor.sceneTitle}’의 전제가 지금 내 상황에도 해당하나요? 모름·비해당·건너뜀·미응답으로 남긴 이유와 확인할 내용을 직접 말해 보세요.`;
+  let partnerRequest: string | null = null;
+
+  if (endorsed.length === 0 && ratedCount > 0) {
+    possibleReading = middleCount > 0
+      ? "보통이라는 응답이 있어요. 이 응답만으로 어느 행동을 원한다고 정하지 않고, 떠올린 조건을 확인해 볼 수 있어요."
+      : "답한 문장에 4·5로 동의한 응답이 없어요. 제시된 행동 외에 필요한 내용이 있는지 직접 확인해 볼 수 있어요.";
+    selfCheck = `‘${anchor.sceneTitle}’에서 ${middleCount > 0 ? "보통이라고 답한 뜻" : "동의가 낮았던 이유"}은 무엇인가요? 지금 원하거나 받아들일 수 있는 다른 방법이 있나요?`;
+  } else if (endorsed.length > 0) {
+    if (anchor.domain === "money") {
+      possibleReading = endorsed.length === 2
+        ? `이 조건에서는 ${endorsedActions} 모두 추가 예산을 쓸 대상일 수 있어요. 실제 비용과 가능한 배분은 따로 정해 볼 수 있어요.`
+        : `이 조건에서 동의한 ${endorsedActions} 옵션을 검토해 볼 수 있어요. 실제 옵션의 내용과 추가 비용이 기대한 변화와 맞는지 확인해 보세요.`;
+      selfCheck = `${endorsedActions}에서 어떤 차이를 기대했나요? 기본 구성이나 실제 추가 비용이 달라지면 답도 달라질까요?`;
+      partnerRequest = `‘${anchor.sceneTitle}’에서는 ${endorsedActions}에 예산을 쓰고 싶다는 문장에 동의했어. 이 옵션의 실제 구성과 추가 비용을 같이 확인하고 배정할 금액을 정해 보자.`;
+    } else if (anchor.domain === "process") {
+      possibleReading = has("J") && has("T")
+        ? `${actions.J} 기회와 기준 안의 초기 후보 분담 수용이 함께 있어요. 직접 볼 자료와 후보 공유 방법을 같이 정해 볼 수 있어요.`
+        : has("J")
+          ? `${actions.J} 기회를 마련하는 것이 이번 준비의 출발점이 될 수 있어요.`
+          : "합의한 기준 아래 한 사람이 초기 후보를 추려 공유하는 방식은 이번에 의논할 수 있는 안이에요. 누가 후보를 추릴지는 별도로 정해요.";
+      selfCheck = has("J") && has("T")
+        ? `나도 ${actions.J}를 하면서 후보 분담을 받아들이려면 어떤 자료와 공유 방법이 필요한가요? 누가 초기 후보를 추릴지는 따로 상의해 보세요.`
+        : has("J")
+          ? `${actions.J}를 할 때 보고 싶은 자료는 무엇인가요? 후보 분담 문장의 다른 응답은 어떤 뜻이었나요?`
+          : "한 사람이 초기 후보를 추려 공유해도 괜찮다고 생각한 조건은 무엇인가요? 비교 기준과 공유할 자료, 수행자를 각각 확인해 보세요.";
+      partnerRequest = has("J") && has("T")
+        ? `‘${anchor.sceneTitle}’에서는 나도 ${actions.J}를 하고 싶고, 합의한 기준 안의 초기 후보 분담도 받아들일 수 있어. 내가 볼 자료와 공유 방법을 정하고 누가 후보를 추릴지는 따로 상의하자.`
+        : has("J")
+          ? `‘${anchor.sceneTitle}’에서는 나도 ${actions.J}를 할 기회를 마련해 줬으면 해. 어떤 자료를 같이 볼지 정하자.`
+          : `‘${anchor.sceneTitle}’에서는 합의한 기준 안에서 한 사람이 초기 후보를 추려 공유하는 방식을 받아들일 수 있어. 비교 기준과 공유 방법을 확인하고 누가 후보를 추릴지는 따로 상의하자.`;
+    } else if (anchor.domain === "family") {
+      possibleReading = `이번 가족 대화의 준비 메모에 ${endorsedActions} 내용을 담아 볼 수 있어요. 실제 대화 시점과 최종 결정은 따로 상의해요.`;
+      selfCheck = `${endorsedActions}에서 구체적으로 확인하거나 정리하고 싶은 내용은 무엇인가요? 각 문장에 답한 이유를 한 가지씩 말해 보세요.`;
+      partnerRequest = `‘${anchor.sceneTitle}’에서는 이렇게 준비하고 싶다고 답했어: ${endorsedActions}. 이 내용으로 준비할 메모를 같이 만들고, 대화 시점과 최종 결정은 따로 상의하자.`;
+    } else {
+      possibleReading = `이 장면의 처음 몇 분에는 ‘${endorsedActions}’ 도움을 받고 싶다는 응답으로 읽어 볼 수 있어요. 지금의 피로와 남은 일이 달라지면 요청도 달라질 수 있어요.`;
+      selfCheck = `동의한 도움(${endorsedActions})을 어떤 방식으로 받고 싶나요? ${has("L") ? "내 이야기에서 무엇을 전하고 어떤 반응을 듣고 싶은가요? " : ""}${has("alone_rest") ? "혼자 쉴 시간은 어느 정도면 좋을까요? " : ""}지금의 조건과 서로 가능한 범위를 확인해 보세요.`;
+      partnerRequest = `‘${anchor.sceneTitle}’의 처음 몇 분에는 받고 싶은 도움으로 다음 내용에 동의했어: ${endorsedActions}. 지금 이 도움을 부탁해도 될까?${endorsed.length > 1 ? " 여러 방식에 동의했다면 어떤 방식부터 해 볼지 함께 정하자." : ""}`;
+    }
+    if (ratedCount < entries.length) possibleReading += " 나머지 문장의 미확인 상태도 함께 확인해 주세요.";
+  }
+  return { sceneId: anchor.sceneId, title: anchor.sceneTitle, domain: anchor.domain, context: anchor.context, entries, observation, possibleReading, selfCheck, partnerRequest };
+}
+
 export function buildResult(answers: Answers): PersonalResult {
   const entries = ITEMS.map((item) => responseFor(item, answers));
   const domains = DOMAIN_DEFINITIONS.map((definition) => buildDomain(definition, answers));
@@ -419,6 +515,10 @@ export function buildResult(answers: Answers): PersonalResult {
     candidateCharacters,
     domains,
     supportScenes,
+    sceneReadings: groupByScene(ITEMS).flatMap(items => {
+      const reading = buildSceneReading(items, answers);
+      return reading ? [reading] : [];
+    }),
     insights: domains.flatMap(domainInsights),
     requests: supportScenes.flatMap((scene) => scene.request === null ? [] : [{
       sceneId: scene.sceneId,
@@ -472,9 +572,11 @@ function compareItem(item: Item, firstAnswers: Answers, secondAnswers: Answers):
 
 export function buildComparison(first: Answers, second: Answers): CoupleResult {
   const items = ITEMS.map((item) => compareItem(item, first, second));
+  const firstResult = buildResult(first);
+  const secondResult = buildResult(second);
   return {
-    first: buildResult(first),
-    second: buildResult(second),
+    first: firstResult,
+    second: secondResult,
     items,
     conversations: items.map((item) => ({
       itemId: item.item.id,
@@ -485,5 +587,22 @@ export function buildComparison(first: Answers, second: Answers): CoupleResult {
       second: item.second,
       text: item.prompt,
     })),
+    sceneReadings: firstResult.sceneReadings.flatMap(firstReading => {
+      const secondReading = secondResult.sceneReadings.find(reading => reading.sceneId === firstReading.sceneId);
+      if (!secondReading) return [];
+      const comparisons = items.filter(item => item.item.sceneId === firstReading.sceneId);
+      const same = comparisons.filter(item => item.relation === "same").length;
+      const unavailable = comparisons.filter(item => item.relation === "unavailable").length;
+      const different = comparisons.length - same - unavailable;
+      return [{
+        sceneId: firstReading.sceneId,
+        observation: `같은 문장에 같은 칸 ${same}개 · 다른 칸 ${different}개 · 수치 응답 비교 불가 ${unavailable}개.`,
+        possibleReading: same + different === 0 ? null : different > 0
+          ? "이 장면에서 각자 고른 응답이 달라요. 아래 원문과 답을 보고 각자 원하는 행동이나 받아들일 조건을 말해 볼 수 있어요."
+          : "같은 칸으로 답한 문장이 있어요. 각자 떠올린 조건과 실제 원하는 행동도 같은지 확인해 볼 수 있어요.",
+        first: firstReading,
+        second: secondReading,
+      }];
+    }),
   };
 }

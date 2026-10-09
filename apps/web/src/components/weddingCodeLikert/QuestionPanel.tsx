@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useId, useRef, useState, type KeyboardEvent } from "react";
+import Button from "@/components/ui/Button";
 import { DOMAIN_DEFINITIONS, SCALE, type Answer, type Item } from "@/lib/weddingCode/likert/types";
 
 export interface QuestionPanelProps {
@@ -17,7 +18,7 @@ export interface QuestionPanelProps {
 }
 
 const focusStyle =
-  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--hb-focus-ring)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--ivory-50)]";
+  "whitespace-normal! focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--hb-focus-ring)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--ivory-50)]";
 
 const otherAnswers = [
   { status: "unknown", label: "아직 모르겠어요" },
@@ -93,13 +94,13 @@ function QuestionView({
         <p className="text-sm font-semibold tabular-nums">
           질문 {index + 1} <span className="font-normal text-[var(--hb-text-body)]">/ {total}</span>
         </p>
-        <button
+        <Button variant="ghost"
           type="button"
           onClick={onPause}
           className={`min-h-11 rounded-lg px-3 py-2 text-sm font-medium text-[var(--hb-text-body)] underline underline-offset-4 hover:bg-[var(--ivory-100)] ${focusStyle}`}
         >
           잠시 멈추기
-        </button>
+        </Button>
       </div>
       <progress
         value={completed}
@@ -139,14 +140,14 @@ function QuestionView({
         {SCALE.map((option, position) => {
           const selected = answer?.status === "rated" && answer.value === option.value;
           return (
-            <button
+            <Button variant={selected ? "primary" : "secondary"}
               key={option.value}
               ref={(element) => { ratingRefs.current[position] = element; }}
               type="button"
               aria-pressed={selected}
               onClick={() => choose({ status: "rated", value: option.value })}
               onKeyDown={(event) => moveRatingFocus(event, position)}
-              className={`flex min-h-14 items-center gap-4 rounded-xl border px-5 py-3 text-left transition-colors motion-reduce:transition-none sm:min-h-28 sm:flex-col sm:justify-center sm:gap-2 sm:px-2 sm:py-4 sm:text-center ${focusStyle} ${selected
+              className={`flex min-h-14 items-center justify-start gap-4 rounded-xl border px-5 py-3 text-left transition-colors motion-reduce:transition-none sm:min-h-28 sm:flex-col sm:justify-center sm:gap-2 sm:px-2 sm:py-4 sm:text-center ${focusStyle} ${selected
                 ? "border-[var(--hb-primary)] bg-[var(--hb-primary)] text-[var(--hb-on-primary)]"
                 : "border-[var(--taupe-500)] bg-[var(--hb-surface-raised)] text-[var(--hb-text-strong)] hover:bg-[var(--hb-surface-hover)]"}`}
             >
@@ -156,7 +157,7 @@ function QuestionView({
               <span className="text-sm font-medium leading-6 [word-break:keep-all]">
                 {option.label}
               </span>
-            </button>
+            </Button>
           );
         })}
       </div>
@@ -167,7 +168,7 @@ function QuestionView({
       <div className="mt-5 border-t border-[var(--hb-hairline)] pt-3">
         <div role="group" aria-label="숫자로 답하기 어려운 경우" className="grid gap-1 sm:grid-cols-3 sm:gap-2">
           {otherAnswers.map((option) => (
-            <button
+            <Button variant="ghost"
               key={option.status}
               type="button"
               aria-pressed={answer?.status === option.status}
@@ -177,9 +178,9 @@ function QuestionView({
                 : "text-[var(--hb-text-body)] hover:bg-[var(--ivory-100)]"}`}
             >
               {option.label}
-            </button>
+            </Button>
           ))}
-          <button
+          <Button variant="ghost"
             ref={skipRef}
             type="button"
             aria-pressed={answer?.status === "skipped"}
@@ -190,7 +191,7 @@ function QuestionView({
               : "text-[var(--hb-text-body)] hover:bg-[var(--ivory-100)]"}`}
           >
             이 문항 건너뛰기
-          </button>
+          </Button>
         </div>
         {confirmSkip && (
           <div role="group" aria-label="건너뛰기 확인" className="mt-3 border-l-2 border-[var(--hb-primary)] pl-4">
@@ -199,7 +200,7 @@ function QuestionView({
               나중에 돌아와 바꿀 수 있어요.
             </p>
             <div className="mt-2 flex flex-wrap gap-2">
-              <button
+              <Button variant="primary"
                 autoFocus
                 type="button"
                 onClick={() => {
@@ -209,8 +210,8 @@ function QuestionView({
                 className={`min-h-11 rounded-lg bg-[var(--hb-primary)] px-4 py-2.5 text-sm font-semibold text-[var(--hb-on-primary)] hover:bg-[var(--hb-primary-hover)] ${focusStyle}`}
               >
                 건너뛰기 확인
-              </button>
-              <button
+              </Button>
+              <Button variant="ghost"
                 type="button"
                 onClick={() => {
                   setConfirmSkip(false);
@@ -219,7 +220,7 @@ function QuestionView({
                 className={`min-h-11 rounded-lg px-4 py-2.5 text-sm font-medium hover:bg-[var(--ivory-100)] ${focusStyle}`}
               >
                 다시 답하기
-              </button>
+              </Button>
             </div>
           </div>
         )}
@@ -229,21 +230,21 @@ function QuestionView({
         {selectedLabel ? `선택한 답: ${selectedLabel}` : "내 답을 고른 뒤 다음으로 넘어가세요."}
       </p>
       <div className="mt-3 flex items-center gap-3">
-        <button
+        <Button variant="ghost"
           type="button"
           onClick={onBack}
           className={`min-h-12 rounded-xl px-5 py-3 text-sm font-semibold text-[var(--hb-text-body)] hover:bg-[var(--ivory-100)] ${focusStyle}`}
         >
           이전
-        </button>
-        <button
+        </Button>
+        <Button variant="primary"
           type="button"
           onClick={onNext}
           disabled={!nextEnabled || confirmSkip}
           className={`min-h-12 flex-1 rounded-xl bg-[var(--hb-primary)] px-6 py-3 text-base font-semibold text-[var(--hb-on-primary)] transition-colors hover:bg-[var(--hb-primary-hover)] disabled:cursor-not-allowed disabled:bg-[var(--ivory-200)] disabled:text-[var(--taupe-500)] motion-reduce:transition-none ${focusStyle}`}
         >
           {index + 1 === total ? "답 정리하기" : "다음"}
-        </button>
+        </Button>
       </div>
     </section>
   );

@@ -31,7 +31,9 @@ const SINK_KEY = "__hanbangClientErrorSink";
 
 /** 깨진 화면에서도 import 없이 보호 경로만 판정한다. */
 function isWeddingCodeLikertPath(pathname: string | null | undefined): boolean {
-  return Boolean(pathname && (pathname === "/wedding-code-next" || pathname.startsWith("/wedding-code-next/")));
+  return Boolean(pathname && ["/wedding-code", "/wedding-code-next"].some(
+    prefix => pathname === prefix || pathname.startsWith(`${prefix}/`),
+  ));
 }
 
 /**

@@ -36,7 +36,7 @@ describe("웨딩코드 진입 화면: 기본 진입을 v4 로 바꾼 뒤", () =>
   it("맨 주소의 메타데이터는 v4 이고, 색인 밖이다(재검사 통과 전까지 경로 전체가 noindex)", async () => {
     for (const search of [{}, { utm_source: "landing" }, { v: WEDDING_CODE_V40_VERSION }]) {
       const metadata = await generateMetadata({ searchParams: Promise.resolve(search) });
-      expect(String(metadata.title), JSON.stringify(search)).toBe(V40_TITLE);
+      expect(String(metadata.title), JSON.stringify(search)).toBe(search.v === WEDDING_CODE_V40_VERSION ? V40_TITLE : "나의 결혼 준비 언어 | 웨딩코드 · 웨딩한방");
       expect(metadata.robots, JSON.stringify(search)).toMatchObject({ index: false, follow: false });
       // 제목이 v4 인 주소는 카드 그림도 v4 카드다(제목은 v4 인데 그림이 v3.1 문장이던 어긋남을 막는다).
       const v4Card = { url: "/wedding-code/v40-card/opengraph-image", type: "image/png", width: 1200, height: 630, alt: `웨딩코드, ${V40_COPY.intro.title}` };

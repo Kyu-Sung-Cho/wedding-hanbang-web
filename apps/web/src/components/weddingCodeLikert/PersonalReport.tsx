@@ -1,11 +1,12 @@
 "use client";
 
 import type { DomainProfile, ItemResponse, PersonalResult } from "@/lib/weddingCode/likert/model";
-import { LETTER_DEFINITIONS, SCALE, type Answer, type Letter } from "@/lib/weddingCode/likert/types";
+import Button from "@/components/ui/Button";
+import { LETTER_DEFINITIONS, type Answer, type Letter } from "@/lib/weddingCode/likert/types";
 import { CharacterPortrait } from "./CharacterPortrait";
-import { DomainEvidence, EndorsementRatio, RatioExplanation, SupportReading } from "./ReportEvidence";
+import { DomainEvidence, EndorsementRatio, RatioExplanation, responseLabel, SceneReadingEvidence, SupportReading } from "./ReportEvidence";
 
-const actionClass = "inline-flex min-h-11 items-center justify-center rounded-xl px-5 py-3 text-sm font-semibold transition-colors focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[var(--hb-focus-ring)]";
+const actionClass = "inline-flex min-h-11 items-center justify-center whitespace-normal! rounded-xl px-5 py-3 text-sm font-semibold transition-colors focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[var(--hb-focus-ring)]";
 const mutedActionClass = `${actionClass} border border-[var(--hb-primary)] bg-white text-[var(--hb-text-strong)] hover:bg-[var(--ivory-100)]`;
 
 export interface PersonalReportProps {
@@ -24,13 +25,7 @@ export function scrollToReportSection(sectionId: "personal-support" | "personal-
 }
 
 export function answerLabel(answer: Answer | null | undefined): string {
-  if (!answer) return "아직 응답하지 않음";
-  if (answer.status === "rated") {
-    return `${answer.value} · ${SCALE.find((option) => option.value === answer.value)?.label ?? ""}`;
-  }
-  if (answer.status === "unknown") return "잘 모르겠어요";
-  if (answer.status === "not_applicable") return "해당하지 않아요";
-  return "건너뜀";
+  return responseLabel(answer);
 }
 
 export function domainResponses(profile: DomainProfile): ItemResponse[] {
@@ -158,11 +153,11 @@ export function PersonalReport({ result, onEdit, onShare, onCompare }: PersonalR
           <ProfileHero result={result} />
         </div>
         <nav className="mt-5 flex flex-wrap gap-3" aria-label="결과에서 할 수 있는 일">
-          <button type="button" onClick={onShare} className={`${actionClass} bg-[var(--hb-primary)] text-white hover:bg-[var(--hb-primary-hover)]`}>결과 공유하기</button>
-          {onCompare && <button type="button" onClick={onCompare} className={mutedActionClass}>둘의 응답 비교하기</button>}
-          <button type="button" onClick={onEdit} className={mutedActionClass}>내 응답 수정하기</button>
-          <button type="button" onClick={() => scrollToReportSection("personal-support")} className={mutedActionClass}>도움·휴식 살펴보기</button>
-          <button type="button" onClick={() => scrollToReportSection("personal-evidence")} className={mutedActionClass}>원답 확인하기</button>
+          <Button variant="primary" type="button" onClick={onShare} className={`${actionClass} bg-[var(--hb-primary)] text-white hover:bg-[var(--hb-primary-hover)]`}>결과 공유하기</Button>
+          {onCompare && <Button variant="secondary" type="button" onClick={onCompare} className={mutedActionClass}>둘의 응답 비교하기</Button>}
+          <Button variant="secondary" type="button" onClick={onEdit} className={mutedActionClass}>내 응답 수정하기</Button>
+          <Button variant="secondary" type="button" onClick={() => scrollToReportSection("personal-support")} className={mutedActionClass}>도움·휴식 살펴보기</Button>
+          <Button variant="secondary" type="button" onClick={() => scrollToReportSection("personal-evidence")} className={mutedActionClass}>원답 확인하기</Button>
         </nav>
       </header>
 
@@ -173,7 +168,7 @@ export function PersonalReport({ result, onEdit, onShare, onCompare }: PersonalR
           {result.domains.map((profile) => (
             <article key={profile.domain} className="py-7">
               <DomainReading profile={profile} />
-              <DomainEvidence profile={profile} />
+              <DomainEvidence profile={profile} readings={profile.domain === "support" ? [] : result.sceneReadings.filter(reading => reading.domain === profile.domain)} />
             </article>
           ))}
         </div>
@@ -193,14 +188,13 @@ export function PersonalReport({ result, onEdit, onShare, onCompare }: PersonalR
         <p className="mt-3 text-sm leading-7 text-[var(--hb-text-body)]">내가 받고 싶은 도움을 상대에게 말해 보세요. 상대가 제공할 수 있는 범위는 대화로 함께 확인해요.</p>
         <div className="mt-6 divide-y divide-[var(--hb-hairline)]">
           {result.supportScenes.map((scene) => {
-            const request = result.requests.find((entry) => entry.sceneId === scene.sceneId);
+            const reading = result.sceneReadings.find(entry => entry.sceneId === scene.sceneId);
             return (
               <article key={scene.sceneId} className="py-6 first:pt-0">
                 <h3 className="font-semibold">{scene.title}</h3>
                 <p className="mt-2 text-sm leading-7 text-[var(--hb-text-muted)]">{scene.context}</p>
                 <SupportReading scene={scene} />
-                {request && <blockquote className="mt-4 border-l-2 border-[var(--hb-primary)] pl-4 text-sm leading-7">{request.request}</blockquote>}
-                {request?.note && <p className="mt-3 text-xs leading-6 text-[var(--hb-text-muted)]">{request.note}</p>}
+                {reading && <SceneReadingEvidence reading={reading} />}
                 <details className="mt-3">
                   <summary className="flex min-h-11 cursor-pointer items-center text-sm font-medium text-[var(--hb-text-strong)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--hb-focus-ring)]">이 장면의 질문과 내 응답 보기</summary>
                   <div className="mt-3"><ResponseEvidence entries={scene.entries} /></div>

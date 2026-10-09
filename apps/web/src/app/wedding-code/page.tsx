@@ -10,7 +10,8 @@ import {
 } from "@/lib/weddingCode/contribution/server";
 import { V40_COPY } from "@/lib/weddingCode/v40/copy";
 
-import WeddingCodeEntryClient from "./WeddingCodeEntryClient";
+import WeddingCodeReleaseClient from "./WeddingCodeReleaseClient";
+import { isLegacyWeddingCodeQuery } from "./releaseEntry";
 import {
   WEDDING_CODE_DEFAULT_VERSION,
   parseWeddingCodeEntryQuery,
@@ -32,27 +33,41 @@ const V40_CARD_IMAGE = {
   alt: `웨딩코드, ${V40_COPY.intro.title}`,
 };
 
+/** 30문항 기본 입구의 카드. 값은 likert-card/opengraph-image.tsx의 계약과 같다. */
+const LIKERT_CARD_IMAGE = {
+  url: "/wedding-code/likert-card/opengraph-image",
+  type: "image/png",
+  width: 1200,
+  height: 630,
+  alt: "웨딩코드, 결혼을 준비하는 나의 언어를 찾아요",
+};
+
 /**
- * 응답이 없는 입구만 색인한다. 새 응답은 클라이언트의 fragment에서만 복원한다.
+ * 기본 입구는 30문항 개편본이다. 명시 구판과 이전 답 쿼리는 원래 판의 설명을 유지한다.
+ * 모든 입구는 색인하지 않는다. 새 응답은 클라이언트의 fragment에서만 복원한다.
  *
- * 공유 카드(openGraph·twitter)는 이 화면의 제목·설명을 그대로 쓴다. 여기서 정하지 않으면
- * 루트 layout 의 카드(아모라 문구, `og:url=/landing`)를 통째로 물려받는다. 카드 이미지는
- * 같은 폴더의 `opengraph-image.tsx` 가 붙인다(여기서 `images` 를 적으면 그 파일이 밀려난다).
- * 그 파일은 쿼리를 읽을 수 없어 판을 가리지 못하므로, v4 입구만 일부러 `images` 를 적어 v3.1 문장이 든 기본 카드를 밀어내고
- * v4 카드(`v40-card/opengraph-image.tsx`)를 붙인다. 다른 판은 `images` 키를 아예 적지 않아 지금과 같다.
- * 판이 `#` 뒤에 실린 v4 링크(`#v=v4.0-tendency&a=…`)는 서버가 판을 몰라 기본 카드가 나간다.
- * 답은 `#` 뒤에 있어 서버가 못 읽으므로 카드에 답이 들어갈 길은 없다.
+ * 공유 카드(openGraph·twitter)는 이 화면의 제목·설명을 쓴다. 새 입구는 likert-card,
+ * 명시 v4 입구는 v40-card를 images에 지정한다. 나머지 구판은 images 키를 적지 않아
+ * 기존 opengraph-image.tsx 카드를 유지한다. 파일 규약 이미지는 쿼리를 읽을 수 없어
+ * 이 구분을 metadata가 맡는다. 서버는 fragment를 볼 수 없으므로 fragment만 있는 구판 링크도
+ * 새 일반 카드가 나온다. 카드에는 어느 판의 원답이나 개인 결과도 담지 않는다.
  *
  * `og:url` 은 일부러 적지 않는다. 비교 초대 링크(`/wedding-code#v=…&a=…`)도 서버에는 같은
  * `/wedding-code` 로 보여서, `og:url` 을 적으면 카드를 누를 때 그 주소를 따라가는 앱에서 `#` 뒤
  * 답이 빠진 채 열릴 수 있다. 없으면 붙여 넣은 주소를 그대로 쓴다. 검색용 대표 주소는
  * `alternates.canonical` 이 따로 맡는다.
  *
- * v4.0-tendency(`?v=v4.0-tendency`)는 새로 만든 질문이라 색인하지 않는다. 기본 진입이 v4 로 바뀐 뒤에도
- * 재검사 통과 전까지 이 경로 전체가 색인 밖이다(계약 문서 13절).
  */
 export async function generateMetadata({ searchParams }: WeddingCodePageProps): Promise<Metadata> {
   const search = await searchParams;
+  if (!isLegacyWeddingCodeQuery(search)) {
+    const title = "나의 결혼 준비 언어 | 웨딩코드 · 웨딩한방";
+    const description = "30개의 문장으로 지출·준비·가족·도움의 기준을 살펴봐요. 각 글자의 뜻과 실제 답의 비율을 확인해요. 혼자서도 결과를 볼 수 있고, 둘 다 답하고 두 사람 결과 링크를 서로 전달하면 각자의 답을 나란히 읽을 수 있어요. 로그인 없이 시작해요.";
+    return { title, description, robots: { index: false, follow: false, nocache: true }, referrer: "no-referrer",
+      alternates: { canonical: "/wedding-code" },
+      openGraph: { title, description, siteName: "웨딩한방", locale: "ko_KR", type: "website", images: [LIKERT_CARD_IMAGE] },
+      twitter: { card: "summary_large_image", title, description, images: [LIKERT_CARD_IMAGE] } };
+  }
   // 쿼리에 실린 서로 짐작하기(ga, gb)도 답이 든 링크라 색인하지 않는다.
   const carriesAnswers = search.a !== undefined || search.b !== undefined || search.ga !== undefined || search.gb !== undefined;
   const defaultsToV40 = weddingCodeDefaultsToV40(WEDDING_CODE_DEFAULT_VERSION);
@@ -73,9 +88,7 @@ export async function generateMetadata({ searchParams }: WeddingCodePageProps): 
   return {
     title,
     description,
-    robots: carriesAnswers || isV40 || defaultsToV40
-      ? { index: false, follow: false }
-      : { index: true, follow: true },
+    robots: { index: false, follow: false },
     referrer: "no-referrer",
     alternates: { canonical: "/wedding-code" },
     openGraph: {
@@ -97,9 +110,11 @@ function shareOrigin(): string {
 }
 
 export default async function WeddingCodePage({ searchParams }: WeddingCodePageProps) {
-  const initialEntry = parseWeddingCodeEntryQuery(await searchParams, { defaultVersion: WEDDING_CODE_DEFAULT_VERSION });
+  const search = await searchParams;
+  const initialEntry = parseWeddingCodeEntryQuery(search, { defaultVersion: WEDDING_CODE_DEFAULT_VERSION });
   return (
-    <WeddingCodeEntryClient
+    <WeddingCodeReleaseClient
+      queryIsLegacy={isLegacyWeddingCodeQuery(search)}
       shareOrigin={shareOrigin()}
       initialEntry={initialEntry}
       researchContributionOpen={isWeddingCodeResearchContributionOpen()}

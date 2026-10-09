@@ -1,14 +1,15 @@
 "use client";
 
 import { useState } from "react";
+import Button from "@/components/ui/Button";
 import type { CoupleResult, DomainProfile, ItemComparison, PersonalResult } from "@/lib/weddingCode/likert/model";
 import { DOMAIN_DEFINITIONS, LETTER_DEFINITIONS, type Domain } from "@/lib/weddingCode/likert/types";
 import { answerLabel, DomainReading, ProfileHero, scrollToReportSection } from "./PersonalReport";
-import { EndorsementRatio, RatioExplanation, SupportReading } from "./ReportEvidence";
+import { EndorsementRatio, RatioExplanation, SceneReadingEvidence, SupportReading } from "./ReportEvidence";
 
 const firstLabel = "먼저 답한 사람";
 const secondLabel = "초대받아 답한 사람";
-const actionClass = "inline-flex min-h-11 items-center justify-center rounded-xl border border-[var(--hb-primary)] bg-white px-5 py-3 text-sm font-semibold text-[var(--hb-text-strong)] transition-colors hover:bg-[var(--ivory-100)] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[var(--hb-focus-ring)]";
+const actionClass = "inline-flex min-h-11 items-center justify-center whitespace-normal! rounded-xl border border-[var(--hb-primary)] bg-white px-5 py-3 text-sm font-semibold text-[var(--hb-text-strong)] transition-colors hover:bg-[var(--ivory-100)] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[var(--hb-focus-ring)]";
 
 export interface CoupleReportProps {
   result: CoupleResult;
@@ -88,8 +89,7 @@ export function CoupleReport({ result, onBack }: CoupleReportProps) {
   const sceneConversations = result.conversations.filter(entry => entry.sceneId === scene?.id);
   const differentOrUnknown = sceneConversations.filter(entry => entry.relation !== "same");
   const conversationTopics = differentOrUnknown.length > 0 ? differentOrUnknown : sceneConversations;
-  const firstRequest = result.first.requests.find((entry) => entry.sceneId === scene?.id);
-  const secondRequest = result.second.requests.find((entry) => entry.sceneId === scene?.id);
+  const sceneReading = result.sceneReadings.find(entry => entry.sceneId === scene?.id);
   const firstSupport = result.first.supportScenes.find(entry => entry.sceneId === scene?.id);
   const secondSupport = result.second.supportScenes.find(entry => entry.sceneId === scene?.id);
   const firstProfile = result.first.domains.find((entry) => entry.domain === selectedDomain);
@@ -108,9 +108,9 @@ export function CoupleReport({ result, onBack }: CoupleReportProps) {
         <h1 className="mt-3 text-2xl font-semibold leading-snug sm:text-4xl">둘의 마음을 장면별로 살펴봐요</h1>
         <p className="mt-4 max-w-3xl text-sm leading-7 text-[var(--hb-text-body)]">각자 답한 내용을 나란히 놓았어요. 먼저 원하는 것을 확인하고, 지금 함께할 수 있는 범위를 이야기해 보세요.</p>
         <nav className="mt-5 flex flex-wrap gap-3" aria-label="함께 보는 결과 이동">
-          <button type="button" onClick={() => scrollToReportSection("couple-topics")} className={actionClass}>네 주제 살펴보기</button>
-          <button type="button" onClick={() => scrollToReportSection("couple-conversation")} className={actionClass}>첫 대화 시작하기</button>
-          <button type="button" onClick={onBack} className={actionClass}>이전 화면으로</button>
+          <Button variant="secondary" type="button" onClick={() => scrollToReportSection("couple-topics")} className={actionClass}>네 주제 살펴보기</Button>
+          <Button variant="secondary" type="button" onClick={() => scrollToReportSection("couple-conversation")} className={actionClass}>첫 대화 시작하기</Button>
+          <Button variant="secondary" type="button" onClick={onBack} className={actionClass}>이전 화면으로</Button>
         </nav>
       </header>
 
@@ -131,10 +131,10 @@ export function CoupleReport({ result, onBack }: CoupleReportProps) {
         <div className="mt-6 divide-y divide-[var(--hb-hairline)] border-y border-[var(--hb-hairline)]">
           {DOMAIN_DEFINITIONS.map((domain, index) => (
             <article key={domain.id} className="py-6">
-              <button type="button" aria-pressed={selectedDomain === domain.id} onClick={() => chooseDomain(domain.id)} className={`flex min-h-11 w-full items-center justify-between gap-3 rounded-xl px-3 py-2 text-left focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[var(--hb-focus-ring)] ${selectedDomain === domain.id ? "bg-[var(--hb-selected-bg)] text-[var(--hb-selected-text)]" : "hover:bg-[var(--hb-surface-hover)]"}`}>
+              <Button variant="ghost" type="button" aria-pressed={selectedDomain === domain.id} onClick={() => chooseDomain(domain.id)} className={`flex min-h-11 w-full items-center justify-between whitespace-normal! gap-3 rounded-xl px-3 py-2 text-left focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[var(--hb-focus-ring)] ${selectedDomain === domain.id ? "bg-[var(--hb-selected-bg)] text-[var(--hb-selected-text)]" : "hover:bg-[var(--hb-surface-hover)]"}`}>
                 <span className="min-w-0 text-base font-semibold"><span className="mr-3 text-xs tabular-nums">0{index + 1}</span>{domain.name}</span>
                 <span className="shrink-0 text-xs font-medium">{selectedDomain === domain.id ? "선택됨" : "살펴보기"}</span>
-              </button>
+              </Button>
               <div className="mt-4 grid gap-4 px-3 sm:grid-cols-2 sm:gap-8">
                 <TopicSummary profile={result.first.domains.find((entry) => entry.domain === domain.id)} label={firstLabel} />
                 <TopicSummary profile={result.second.domains.find((entry) => entry.domain === domain.id)} label={secondLabel} />
@@ -154,6 +154,15 @@ export function CoupleReport({ result, onBack }: CoupleReportProps) {
               {scenes.map((entry) => <option key={entry.id} value={entry.id}>{entry.title}</option>)}
             </select>
             <p className="mt-4 max-w-4xl text-sm leading-7 text-[var(--hb-text-body)]">{scene.context}</p>
+            {sceneReading && <div className="mt-5" data-couple-scene-reading={sceneReading.sceneId}>
+              <p className="text-sm font-semibold">이 장면에서 관찰한 차이</p>
+              <p className="mt-2 text-sm leading-7 text-[var(--hb-text-body)]">{sceneReading.observation}</p>
+              {sceneReading.possibleReading && <p className="mt-2 text-sm leading-7 text-[var(--hb-text-body)]">{sceneReading.possibleReading}</p>}
+              <div className="mt-5 grid gap-7 sm:grid-cols-2 sm:gap-8">
+                <div className="min-w-0"><h3 className="text-sm font-semibold">{firstLabel}의 읽기와 부탁</h3><SceneReadingEvidence reading={sceneReading.first} /></div>
+                <div className="min-w-0"><h3 className="text-sm font-semibold">{secondLabel}의 읽기와 부탁</h3><SceneReadingEvidence reading={sceneReading.second} /></div>
+              </div>
+            </div>}
             <p className="mt-5 text-sm leading-7 text-[var(--hb-text-body)]">{differentOrUnknown.length > 0 ? "같은 장면에서 다르게 답했거나 아직 확인할 응답을 모았어요. 지금 이야기할 내용은 두 사람이 골라 주세요." : "이 장면에서는 같은 칸으로 답했어요. 떠올린 이유와 원하는 행동도 같은지 확인해 보세요."}</p>
             <ol aria-label="이 장면에서 함께 확인할 응답" className="mt-4 divide-y divide-[var(--hb-hairline)] border-y border-[var(--hb-hairline)]">
               {conversationTopics.map(topic => {
@@ -173,12 +182,10 @@ export function CoupleReport({ result, onBack }: CoupleReportProps) {
                 <div className="min-w-0">
                   <h3 className="text-sm font-semibold text-[var(--hb-text-strong)]">{firstLabel}의 요청</h3>
                   {firstSupport && <SupportReading scene={firstSupport} />}
-                  {firstRequest && <blockquote className="mt-2 text-sm leading-7">{firstRequest.request}</blockquote>}
                 </div>
                 <div className="min-w-0">
                   <h3 className="text-sm font-semibold text-[var(--hb-text-strong)]">{secondLabel}의 요청</h3>
                   {secondSupport && <SupportReading scene={secondSupport} />}
-                  {secondRequest && <blockquote className="mt-2 text-sm leading-7">{secondRequest.request}</blockquote>}
                 </div>
               </div>
             )}
