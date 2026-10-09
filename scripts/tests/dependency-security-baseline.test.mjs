@@ -21,17 +21,17 @@ test("dependency security floors and compatibility patches stay pinned", async (
     readFile(new URL("patches/image-size@1.2.1.patch", root), "utf8"),
   ]);
 
-  assert.equal(webPackage.dependencies.next, "16.3.4");
-  assert.equal(webPackage.devDependencies["eslint-config-next"], "16.3.4");
-  assert.equal(webPackage.dependencies.sharp, "0.35.4");
-  assert.equal(rootPackage.devDependencies.sharp, "0.35.4");
+  assert.equal(webPackage.dependencies.next, "16.3.8");
+  assert.equal(webPackage.devDependencies["eslint-config-next"], "16.3.8");
+  assert.equal(webPackage.dependencies.sharp, "0.35.5");
+  assert.equal(rootPackage.devDependencies.sharp, "0.35.5");
   assert.equal(webPackage.devDependencies.vitest, "4.1.11");
 
   for (const requiredOverride of [
     'postcss: "8.5.23"',
-    '"shell-quote@<=1.8.4": "1.9.0"',
-    '"undici@<6.28.0": "6.28.0"',
-    '"undici@>=7.0.0 <7.29.0": "7.29.0"',
+    '"shell-quote@<1.11.0": "1.11.0"',
+    '"undici@<6.28.1": "6.28.1"',
+    '"undici@>=7.0.0 <7.29.1": "7.29.1"',
     '"tar@<=7.5.20": "7.5.21"',
     '"dompurify@<=3.4.12": "3.4.13"',
     // 아래 셋은 오버라이드가 **수정판 바로 한 단계 아래에 박혀** 경보가 열려 있던 것들이다.
@@ -39,15 +39,15 @@ test("dependency security floors and compatibility patches stay pinned", async (
     '"js-yaml@>=3.0.0 <3.15.2": "3.15.2"',
     '"js-yaml@>=4.0.0 <4.3.2": "4.3.2"',
     '"nanoid@<3.3.18": "3.3.18"',
-    'brace-expansion: "5.0.9"',
-    'fast-uri: "3.1.6"',
+    'brace-expansion: "5.0.11"',
+    'fast-uri: "3.1.7"',
     'browserslist: "4.28.7"',
     '"@humanfs/node": "0.16.8"',
     'fflate: "0.4.9"',
     '"@xmldom/xmldom": "0.8.15"',
     'postcss-selector-parser: "6.1.3"',
     'decode-uri-component: "0.5.0"',
-    'sharp: "0.35.4"',
+    'sharp: "0.35.5"',
   ]) {
     assert.match(
       workspace,
@@ -60,7 +60,7 @@ test("dependency security floors and compatibility patches stay pinned", async (
     workspace,
     /minimatch@3\.1\.5:\s+patches\/minimatch@3\.1\.5\.patch/,
   );
-  // 0.35.4는 import/require용 types export를 제공하므로 옛 호환 패치가 필요 없다.
+  // 0.35.5는 import/require용 types export를 제공하므로 옛 호환 패치가 필요 없다.
   assert.doesNotMatch(workspace, /sharp@0\.35\.0/);
   assert.match(
     minimatchPatch,
@@ -82,10 +82,10 @@ test("September advisory fixes are resolved in the lockfile, not only requested 
     .filter(line => /^  \S.*:$/.test(line))
     .map(line => line.trim().slice(0, -1).replace(/^'|'$/g, ""));
   for (const [name, version] of [
-    ["next", "16.3.4"],
-    ["eslint-config-next", "16.3.4"],
-    ["sharp", "0.35.4"],
-    ["fast-uri", "3.1.6"],
+    ["next", "16.3.8"],
+    ["eslint-config-next", "16.3.8"],
+    ["sharp", "0.35.5"],
+    ["fast-uri", "3.1.7"],
     ["browserslist", "4.28.7"],
     ["@humanfs/node", "0.16.8"],
     ["fflate", "0.4.9"],
