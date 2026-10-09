@@ -5,6 +5,7 @@ import { AMORA_ACTION_CLASS } from "@/components/ui/amoraActionStyles";
 
 import { StartDemoButton } from "@/components/demo/StartDemoButton";
 import { isPublicDemoTrialEnabled } from "@/lib/demoTrial";
+import { weddingPath } from "@/lib/weddingPaths";
 import HiddenInsideMobileApp from "@/components/common/HiddenInsideMobileApp";
 
 // 가격을 확인한 직후가 "그래서 뭐부터 하지?"가 가장 커지는 순간이다.
@@ -17,11 +18,11 @@ export function PriceAmoraBridge() {
   // 문구까지 갈랐는데 이 파일만 빠졌다.
   //
   // 문구와 버튼을 같은 조건으로 묶는다. 닫혀 있으면 체험을 약속하지 않고
-  // 갈 수 있는 곳(가입)을 준다 — 이 자리의 존재 이유가 "다음 한 걸음"이기 때문이다.
+  // 갈 수 있는 곳(아모라)을 준다 — 이 자리의 존재 이유가 "다음 한 걸음"이기 때문이다.
   const demoOpen = isPublicDemoTrialEnabled();
 
-  // 앱 웹뷰에서는 이 안내를 통째로 내린다. 앱 사용자는 이미 가입했고, 「아모라와 시작하기」는
-  // 회원가입(`/login?mode=signup`)으로 간다. 아모라는 앱의 아래 탭에 있다.
+  // 앱 웹뷰에서는 이 안내를 통째로 내린다. 아모라는 앱의 아래 탭에 있다.
+  // 웹에서는 보호된 채팅 경로가 로그인·동의·시작 설정을 거쳐 원래 목적지로 이어 준다.
   return (
     <HiddenInsideMobileApp>
     <section
@@ -47,12 +48,12 @@ export function PriceAmoraBridge() {
       ) : (
         <>
           <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-[var(--hb-text-strong)]/70">
-            아모라와 이야기하려면 로그인이 필요해요.
-            계정을 만들면 지금 본 가격을 기준으로 무엇부터 정할지 함께 정리하고,
-            확인한 것만 예산·할 일·일정에 남겨요.
+            아모라는 로그인 후 이용해요.
+            궁금한 가격이나 지금 고민을 이야기하고,
+            예산·할 일·일정은 내용을 직접 확인해 기록하세요.
           </p>
           <Link
-            href="/login?mode=signup"
+            href={weddingPath("/chat")}
             prefetch={false}
             className={`${AMORA_ACTION_CLASS} mt-5`}
           >

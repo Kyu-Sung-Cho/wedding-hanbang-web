@@ -53,7 +53,8 @@ describe("체험이 닫혀 있으면 체험을 약속하지 않는다", () => {
     // 이 자리의 존재 이유가 다음 한 걸음이다.
     const closed = source.slice(source.indexOf(") : ("));
     expect(closed).toContain("아모라와 시작하기");
-    expect(closed).toContain('href="/login?mode=signup"');
+    expect(closed).toContain('href={weddingPath("/chat")}');
+    expect(closed).not.toContain('href="/login?mode=signup"');
     // 닫힌 가지에서 체험을 약속하면 같은 사고가 되풀이된다.
     expect(closed).not.toContain("로그인 전에는");
     expect(closed).not.toContain("체험을 바로 열 수 있어요");

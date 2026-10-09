@@ -1,6 +1,6 @@
 {
   "schema": "wedding-code-likert-release-manifest/v1",
-  "baseCommit": "52d4dac2dd01529687b27483328b7d05c54d3f22",
+  "baseCommit": "160c2d7811e606b8717fa54c2dc1150039981dcb",
   "measurement": "likert-preferences-alpha.1",
   "bank": "preferences-20261008-r2",
   "expression": "likert-letters-alpha.4",

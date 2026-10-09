@@ -27,8 +27,8 @@ const NONCE = "5b0c9d8e-7f6a-4b5c-9d8e-7f6a5b4c3d2e";
  *   - 예절 안내의 아래 메뉴 다섯(라운지·아모라·체크리스트·일정·예산)과 모바일 머리의 「홈」
  *     (2026-09-17 85e45aead 부터 `/wedding/lounge`)은 전부 로그인 필요 경로다. 앱에는 자기
  *     아래 탭과 머리가 이미 있어 메뉴가 두 겹으로 쌓였다.
- *   - 공시가의 「아모라와 시작하기」는 회원가입(`/login?mode=signup`)으로 간다. 이미 가입한
- *     앱 사용자에게 가입을 권한다.
+ *   - 공시가의 「아모라와 시작하기」는 웹의 보호된 채팅 경로로 간다. 앱의 세션을
+ *     넘기지 않는 웹뷰에서는 이미 가입한 앱 사용자에게 다시 웹 로그인을 요구한다.
  *
  * 브라우저 방문자에게는 **아무것도 달라지지 않아야 한다.** 판정은 앱이 문서보다 먼저 심는
  * 표식(`useInsideMobileApp`)으로만 하고, 서버 렌더는 언제나 브라우저 모양이다.
@@ -127,13 +127,14 @@ describe("예절 안내 · 앱 웹뷰", () => {
 });
 
 describe("공시가 · 브라우저 방문자", () => {
-  it("공개 머리·바닥글과 아모라 안내(가입)가 그대로 있다", () => {
+  it("공개 머리·바닥글과 원래 목적지를 유지하는 아모라 진입이 있다", () => {
     const container = mount(<PriceLayout><PriceAmoraBridge /></PriceLayout>);
     expect(container.querySelector('header a[aria-label="웨딩한방 홈으로 이동"]')).not.toBeNull();
     expect(container.querySelector('header nav[aria-label="주요 메뉴"]')).not.toBeNull();
     expect(container.querySelector("footer")).not.toBeNull();
     expect(container.querySelector('section[aria-label="아모라 안내"]')).not.toBeNull();
-    expect(container.querySelector('a[href="/login?mode=signup"]')?.textContent).toContain("아모라와 시작하기");
+    expect(container.querySelector('section[aria-label="아모라 안내"] a[href="/wedding/chat"]')?.textContent).toContain("아모라와 시작하기");
+    expect(container.querySelector('a[href="/login?mode=signup"]')).toBeNull();
   });
 });
 
@@ -149,6 +150,7 @@ describe("공시가 · 앱 웹뷰", () => {
     expect(container.querySelector("header")).toBeNull();
     expect(container.querySelector("footer")).toBeNull();
     expect(container.querySelector('section[aria-label="아모라 안내"]')).toBeNull();
+    expect(container.querySelector('a[href="/wedding/chat"]')).toBeNull();
     expect(container.querySelector('a[href="/login?mode=signup"]')).toBeNull();
     expect(container.textContent).not.toContain("아모라와 시작하기");
     expect(container.querySelector("[data-price-body]")?.textContent).toBe("가격 본문");
