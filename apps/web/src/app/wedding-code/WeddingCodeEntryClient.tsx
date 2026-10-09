@@ -64,11 +64,14 @@ const WeddingCodeV40Client = memo(LazyWeddingCodeV40Client);
  */
 function createLocationHashStore() {
   let held: string | null = null;
+  let pathname: string | null = null;
+  let snapshot = "";
   const listeners = new Set<() => void>();
   return {
     subscribe(onStoreChange: () => void) {
       listeners.add(onStoreChange);
       const onNavigate = () => {
+        if (window.location.pathname !== pathname) return;
         if (held !== null && window.location.hash === "") return;
         held = null;
         onStoreChange();
@@ -82,11 +85,17 @@ function createLocationHashStore() {
       };
     },
     getSnapshot(): string {
+      pathname ??= window.location.pathname;
+      if (window.location.pathname !== pathname) return snapshot;
       const live = window.location.hash;
-      if (live === "") return held ?? "";
+      if (live === "") {
+        snapshot = held ?? "";
+        return snapshot;
+      }
       const parsed = live.includes(WEDDING_CODE_V40_VERSION) ? parseWeddingCodeEntryHash(live) : null;
       held = parsed?.kind === "v40" || (parsed?.kind === "error" && parsed.version !== undefined) ? live : null;
-      return live;
+      snapshot = live;
+      return snapshot;
     },
     /** 붙잡고 있던 링크를 놓고 다시 읽게 한다(다시 시작). */
     release() {

@@ -125,10 +125,13 @@ describe("랜딩 랜드마크", () => {
   it("본문 바로가기가 <main> 을 가리킨다", () => {
     // 키보드 첫 Tab 이 닿는 곳이다. 가리키는 id 가 없으면 아무 데도 안 간다.
     const page = rendered("src/app/landing/page.tsx");
-    expect(page).toContain('href="#main-content"');
+    const skip = rendered("src/components/landing/redesign/LandingSkipLink.tsx");
+    expect(skip).toContain('href="#main-content"');
     expect(page).toContain('id="main-content"');
+    expect(page).toContain('tabIndex={-1}');
+    expect(page).toContain('<LandingSkipLink />');
     // 링크가 먼저 와야 Tab 순서에서 첫 번째가 된다.
-    expect(page.indexOf('href="#main-content"')).toBeLessThan(page.indexOf("<LandingHeader"));
+    expect(page.indexOf('<LandingSkipLink />')).toBeLessThan(page.indexOf("<LandingHeader"));
   });
 
   it("섹션 앵커가 실제로 렌더되는 섹션을 가리킨다", () => {

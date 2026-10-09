@@ -36,8 +36,10 @@ export default function WeddingCodeLikertClient() {
   const resultRef = useRef<HTMLElement>(null);
   const comparisonRef = useRef<HTMLElement>(null);
   const draftChanged = useRef(false);
+  const ownerPathname = useRef<string | null>(null);
 
   useEffect(() => {
+    ownerPathname.current ??= window.location.pathname;
     // Restore browser-owned data after the first client paint, with cancellation on unmount.
     const frame = window.requestAnimationFrame(() => {
     try {
@@ -101,7 +103,9 @@ export default function WeddingCodeLikertClient() {
 
   useEffect(() => {
     if (!loaded) return;
+    const pathname = ownerPathname.current;
     const receiveLink = () => {
+      if (window.location.pathname !== pathname) return;
       const incoming = readShareFragment(window.location.hash);
       // A new fragment can arrive in an existing tab. Keep this tab's own draft
       // separate from the incoming snapshots, including when storage is unavailable.

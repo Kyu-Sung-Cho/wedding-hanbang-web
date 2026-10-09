@@ -2,7 +2,7 @@ import { act } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { click, createHarness, type Harness } from "@/components/wedding-code/v40/inputTestKit";
 import { ITEMS } from "@/lib/weddingCode/likert/bank";
-import { buildShareUrl, createDraft, createSnapshot, readShareFragment } from "@/lib/weddingCode/likert/io";
+import { buildShareUrl, createDraft, createSnapshot, parseDraft, readShareFragment } from "@/lib/weddingCode/likert/io";
 import { STORAGE_KEY, type Answer, type Answers } from "@/lib/weddingCode/likert/types";
 import WeddingCodeLikertClient from "./WeddingCodeLikertClient";
 
@@ -55,6 +55,89 @@ afterEach(async () => {
 });
 
 describe("받은 두 사람 링크의 같은 탭 전환", () => {
+  it.each(["목차", "다른 두 사람 링크"])("외부 경로의 %s 해시와 재렌더는 현재 원답과 수동 선택을 보존한다", async fragmentKind => {
+    const stored = storedOwnDraft();
+    const first = all({ status: "not_applicable" });
+    const second = all({ status: "not_applicable" });
+    first["likert.money.venue.C.v1"] = { status: "rated", value: 5 };
+    second["likert.money.venue.C.v1"] = { status: "rated", value: 1 };
+    const oldUrl = pairUrl(first, second);
+    const oldPair = readShareFragment(new URL(oldUrl).hash);
+    await open(oldUrl);
+    await click([...harness.container.querySelectorAll("button")].find(button => button.textContent?.includes("가족과 협의할 기준")));
+    const select = harness.container.querySelector<HTMLSelectElement>("#couple-scene");
+    if (!select) throw new Error("장면 선택 요소가 없어요");
+    await act(async () => { select.value = "likert.family.photo.v1"; select.dispatchEvent(new Event("change", { bubbles: true })); });
+    const originalReport = harness.container.querySelector('[data-testid="wc-comparison"]');
+    const originalText = originalReport?.textContent;
+
+    const newFirst = all({ status: "not_applicable" });
+    const newSecond = all({ status: "not_applicable" });
+    newFirst["likert.family.guests.O.v1"] = { status: "rated", value: 5 };
+    newSecond["likert.family.guests.O.v1"] = { status: "rated", value: 1 };
+    const newUrl = pairUrl(newFirst, newSecond);
+    const fragment = fragmentKind === "목차" ? "#features" : new URL(newUrl).hash;
+    await receive(`/privacy${fragment}`);
+    await harness.render(<WeddingCodeLikertClient />);
+    await frames();
+    expect(harness.container.querySelector('[data-testid="wc-comparison"]')).toBe(originalReport);
+    expect(originalReport?.textContent).toBe(originalText);
+    expect(selectedTopic()).toContain("가족과 협의할 기준");
+    expect(selectedScene()).toBe("likert.family.photo.v1");
+    expect(window.localStorage.getItem(STORAGE_KEY)).toBe(stored);
+
+    await receive(newUrl);
+    expect(selectedTopic()).toContain("가족과 협의할 기준");
+    expect(selectedScene()).toBe("likert.family.guests.v1");
+    expect(harness.container.querySelector('[aria-label="이 장면에서 함께 확인할 응답"]')?.textContent).toContain("5 · 매우 그렇다");
+    expect(window.localStorage.getItem(STORAGE_KEY)).toBe(stored);
+    expect(readShareFragment(new URL(oldUrl).hash)).toEqual(oldPair);
+  });
+
+  it("진행 중인 본인 답은 외부 해시로 중단되지 않고 복귀 뒤 새 두 사람 링크와 따로 이어진다", async () => {
+    await open("/wedding-code");
+    await click([...harness.container.querySelectorAll("button")].find(button => button.textContent?.includes("나의 준비 언어 찾기")));
+    await click([...harness.container.querySelectorAll("button")].find(button => button.textContent?.includes("매우 그렇다")));
+    await frames();
+    const ownRaw = window.localStorage.getItem(STORAGE_KEY);
+    expect(ownRaw).not.toBeNull();
+    expect(parseDraft(ownRaw!)?.answers[ITEMS[0].id]).toEqual({ status: "rated", value: 5 });
+    const question = harness.container.querySelector('[data-testid="wc-question"]');
+    const questionText = question?.textContent;
+    const first = all({ status: "not_applicable" });
+    const second = all({ status: "not_applicable" });
+    first["likert.family.guests.O.v1"] = { status: "rated", value: 5 };
+    second["likert.family.guests.O.v1"] = { status: "rated", value: 1 };
+    const newUrl = pairUrl(first, second);
+
+    await receive(`/${new URL(newUrl).hash}`);
+    await harness.render(<WeddingCodeLikertClient />);
+    await frames();
+    expect(harness.container.querySelector('[data-testid="wc-question"]')).toBe(question);
+    expect(question?.textContent).toBe(questionText);
+    expect([...harness.container.querySelectorAll("button")].find(button => button.textContent?.includes("매우 그렇다"))?.getAttribute("aria-pressed")).toBe("true");
+    expect(window.localStorage.getItem(STORAGE_KEY)).toBe(ownRaw);
+
+    // 외부 경로에서 재등록되더라도 최초 응답 화면의 경로를 소유해야 한다.
+    await click([...harness.container.querySelectorAll("button")].find(button => button.textContent?.trim() === "4그렇다"));
+    await frames();
+    await receive(`/privacy${new URL(newUrl).hash}`);
+    const editedRaw = window.localStorage.getItem(STORAGE_KEY);
+    expect(harness.container.querySelector('[data-testid="wc-question"]')).toBe(question);
+    expect(parseDraft(editedRaw!)?.answers[ITEMS[0].id]).toEqual({ status: "rated", value: 4 });
+    expect(selectedScene()).toBeUndefined();
+
+    await receive(newUrl);
+    expect(selectedScene()).toBe("likert.family.guests.v1");
+    expect(window.localStorage.getItem(STORAGE_KEY)).toBe(editedRaw);
+    await click([...harness.container.querySelectorAll("button")].find(button => button.textContent?.includes("이전 화면으로")));
+    await click([...harness.container.querySelectorAll("button")].find(button => button.textContent?.includes("이어서 답하기")));
+    await frames();
+    expect(harness.container.querySelector('[data-testid="wc-question"]')).not.toBeNull();
+    expect([...harness.container.querySelectorAll("button")].find(button => button.textContent?.trim() === "4그렇다")?.getAttribute("aria-pressed")).toBe("true");
+    expect(parseDraft(window.localStorage.getItem(STORAGE_KEY)!)?.answers).toEqual({ [ITEMS[0].id]: { status: "rated", value: 4 } });
+  });
+
   it("같은 생성 시각의 새 원답 링크는 이전 지출 선택을 가족 장면으로 초기화한다", async () => {
     const stored = storedOwnDraft();
     const first = all({ status: "not_applicable" });

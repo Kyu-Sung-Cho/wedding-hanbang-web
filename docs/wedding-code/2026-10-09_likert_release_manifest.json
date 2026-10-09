@@ -5,8 +5,8 @@
   "bank": "preferences-20261008-r2",
   "expression": "likert-letters-alpha.4",
   "scope": "Exact Git index bytes of all release-changed files, excluding this manifest to avoid a self hash. This is distinct from Windows working-tree byte hashes and the original handoff manifest.",
-  "sourceManifestSha256": "480f87dca53f4f1d6ff554c09b7d2b12db6282d87823785aaaa2eb6016895a38",
-  "fileCount": 67,
+  "sourceManifestSha256": "043617f8aa5b1da04340e2788675c5dd704f3d890fba942342b3e791e83d4fe3",
+  "fileCount": 74,
   "files": [
     {
       "path": "apps/web/src/app/landing/__tests__/landingHeroExperience.test.ts",
@@ -14,9 +14,19 @@
       "sha256": "d3e06c6f77a2ee4fb20d870e3c04c89516c2271f9153a6753248aad626ea2d5e"
     },
     {
+      "path": "apps/web/src/app/landing/__tests__/landingLandmarks.test.ts",
+      "bytes": 10429,
+      "sha256": "558abf54acae81e58209cb5fcb1069cd285deb4b87198128c90966099661c93f"
+    },
+    {
       "path": "apps/web/src/app/landing/__tests__/landingOutcomeEvidence.test.ts",
       "bytes": 44138,
       "sha256": "3ae4c6c22efb9fb92047cbb7eb99376ee42bf21b424c0b752b9e802c9832d18d"
+    },
+    {
+      "path": "apps/web/src/app/landing/page.tsx",
+      "bytes": 4183,
+      "sha256": "5dce31aee65501527c0cd70f2ee3aca93e99147d8150bca3ecc2ccdf875feb11"
     },
     {
       "path": "apps/web/src/app/privacy/__tests__/weddingCodeResearchNotice.test.tsx",
@@ -44,9 +54,24 @@
       "sha256": "db540386184d862a86ad533c1c4d11c83a6d4bdfabbf64a2070e56386a847548"
     },
     {
+      "path": "apps/web/src/app/wedding-code/WeddingCodeEntryClient.interaction.test.tsx",
+      "bytes": 15237,
+      "sha256": "77033e5a0f37a2f67d11d72ecde6d8a739f9b7b61ca2b7902920475e1d64cd1a"
+    },
+    {
+      "path": "apps/web/src/app/wedding-code/WeddingCodeEntryClient.tsx",
+      "bytes": 15715,
+      "sha256": "37dbda6b02e732c8ea206e1c47f58b12b7d5ff1feb1d4fb77993c2d97d83205a"
+    },
+    {
+      "path": "apps/web/src/app/wedding-code/WeddingCodeReleaseClient.navigation.test.tsx",
+      "bytes": 5970,
+      "sha256": "b1fa5d99f4e5cedaf26d14349cd4ec5d56eb580a3d7291c0b426156b2fddfd12"
+    },
+    {
       "path": "apps/web/src/app/wedding-code/WeddingCodeReleaseClient.tsx",
-      "bytes": 1884,
-      "sha256": "aaa5c73d29c4361cca75b79683e2c4c812338c236123b3bb434f07f6bbc3e3f3"
+      "bytes": 2202,
+      "sha256": "536b261c9ff228dc562d886bb63617f4b98e6d63dc6c1d420f78cb5f653f0f1f"
     },
     {
       "path": "apps/web/src/app/wedding-code/WeddingCodeV31Client.tsx",
@@ -104,6 +129,16 @@
       "sha256": "4952ec3509ce253e1c8b4e3f970df3351d996e3b6ad8660f1119c3798c7fd84d"
     },
     {
+      "path": "apps/web/src/components/landing/redesign/LandingSkipLink.test.tsx",
+      "bytes": 1976,
+      "sha256": "594c41aeeacd421f24561cb88bba1965490ea75c60d2bbab698faa1fafadf63f"
+    },
+    {
+      "path": "apps/web/src/components/landing/redesign/LandingSkipLink.tsx",
+      "bytes": 642,
+      "sha256": "3931865ba94570761b6f833f9edc2b708bb3af11fba7e8224dc7b5cc2759bf19"
+    },
+    {
       "path": "apps/web/src/components/landing/redesign/landingContent.ts",
       "bytes": 17319,
       "sha256": "805756b9556fd0e72b604699b056ff87703956b3ad884f16d1da285b00ff6ad4"
@@ -150,8 +185,8 @@
     },
     {
       "path": "apps/web/src/components/weddingCodeLikert/WeddingCodeLikertClient.tsx",
-      "bytes": 22410,
-      "sha256": "bf859bbe67aab97650e7aef414287f50335bcff8545ef5d86302ab10b00d1d15"
+      "bytes": 22620,
+      "sha256": "bde77dd573cb062abc1da63563b1fafb328720c3a89c98ce01fa5d74c62cebce"
     },
     {
       "path": "apps/web/src/components/weddingCodeLikert/reportMeaning.test.tsx",
@@ -160,8 +195,8 @@
     },
     {
       "path": "apps/web/src/components/weddingCodeLikert/shareInteraction.test.tsx",
-      "bytes": 7303,
-      "sha256": "b1bf5027d7a8e8552e9d11bcc8ad976df0879ab41c4e1283c9a47a669b17a129"
+      "bytes": 12854,
+      "sha256": "89ca9f8c5a29042011c5d5cfeff0db4e9c1d3ea5eeb6aba56582b2fa3d74083e"
     },
     {
       "path": "apps/web/src/components/weddingCodeLikert/storageInteraction.test.tsx",
@@ -335,8 +370,8 @@
     },
     {
       "path": "docs/wedding-code/2026-10-10_alpha4_scene_visibility_patch_contract.md",
-      "bytes": 6185,
-      "sha256": "e58dd484e4307dabf2298a17615b1268972ce05c026de7324805cad3063f4bbe"
+      "bytes": 8382,
+      "sha256": "1f64cf0f7f15396876d0bf6ecc8e76735f63a0484797a6d0363fa1fe75ae797a"
     },
     {
       "path": "docs/wedding-code/README.md",

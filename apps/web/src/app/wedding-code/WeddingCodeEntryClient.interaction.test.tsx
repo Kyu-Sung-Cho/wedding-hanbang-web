@@ -10,8 +10,24 @@ import { createV30Draft, encodeV30 } from "@/lib/weddingCode/v30";
 import { WEDDING_CODE_V31_VERSION, type V31Draft } from "@/constants/weddingCodeV31";
 import { createV31Draft, encodeV31 } from "@/lib/weddingCode/v31";
 import { CURRENT_WEDDING_CODE_SCENE_CONFIG } from "@/lib/weddingCode/scene/config";
+import { WEDDING_CODE_V40_VERSION } from "@/constants/weddingCodeV40";
+import { WEDDING_CODE_V40_BANK } from "@/lib/weddingCode/v40/bank";
+import { encodeCode } from "@/lib/weddingCode/v40/codec";
+import { fixtureByName } from "@/lib/weddingCode/v40/fixtures";
+import type { WeddingCodeV40ClientProps } from "@/lib/weddingCode/v40/types";
 import WeddingCodeEntryClient from "./WeddingCodeEntryClient";
 import { parseWeddingCodeEntryQuery } from "./entry";
+
+vi.mock("./WeddingCodeV40Client", () => ({
+  default: function V40Probe({ initial, embedded }: WeddingCodeV40ClientProps) {
+    const [touched, setTouched] = useState(false);
+    return <section data-entry="v40" data-touched={touched} data-embedded={embedded}>
+      <output>{JSON.stringify(initial)}</output>
+      <button onClick={() => setTouched(true)}>local edit</button>
+      <button onClick={() => window.history.replaceState(null, "", window.location.pathname)}>clear received address</button>
+    </section>;
+  },
+}));
 
 vi.mock("./WeddingCodeV31Client", () => ({
   default: function V31Probe({ partnerDraft, bothDrafts, onRestart, embedded }: {
@@ -137,6 +153,88 @@ describe("웨딩코드 판별과 다시 시작", () => {
     });
     expect(container.querySelector("section")?.getAttribute("data-touched")).toBe("false");
     expect(container.querySelector("output")?.textContent).toBe(JSON.stringify({ partnerDraft: null, bothDrafts: { first, second } }));
+  });
+
+  it.each([
+    ["/wedding-code", false, "hashchange"],
+    ["/wedding-code", false, "popstate"],
+    ["/wedding/preparation-style", true, "hashchange"],
+    ["/wedding/preparation-style", true, "popstate"],
+  ] as const)("%s 경로(embedded=%s)의 구판 원답은 외부 %s와 재렌더에 교체되지 않는다", async (ownerPath, embedded, event) => {
+    window.history.replaceState(null, "", `${ownerPath}${firstHash}&b=${encodeV30(first)}`);
+    root = createRoot(container);
+    const element = () => <WeddingCodeEntryClient embedded={embedded} shareOrigin="https://hanbang.ai" />;
+    await act(async () => root?.render(element()));
+    await act(async () => container.querySelector<HTMLButtonElement>("button")?.click());
+    const original = container.querySelector('[data-entry="v30"]');
+    const originalAnswers = container.querySelector("output")?.textContent;
+    expect(original?.getAttribute("data-touched")).toBe("true");
+
+    await act(async () => {
+      window.history.replaceState(null, "", "/#features");
+      window.dispatchEvent(new Event(event));
+    });
+    await act(async () => root?.render(element()));
+    expect(container.querySelector('[data-entry="v30"]')).toBe(original);
+    expect(original?.getAttribute("data-touched")).toBe("true");
+    expect(original?.getAttribute("data-embedded")).toBe(String(embedded));
+    expect(container.querySelector("output")?.textContent).toBe(originalAnswers);
+    expect(container.textContent).not.toContain("이 링크는 열 수 없어요");
+
+    await act(async () => {
+      window.history.replaceState(null, "", `${ownerPath}${firstHash}&b=${encodeV30(second)}`);
+      window.dispatchEvent(new Event(event));
+    });
+    expect(container.querySelector('[data-entry="v30"]')?.getAttribute("data-touched")).toBe("false");
+    expect(container.querySelector("output")?.textContent).toBe(JSON.stringify({ partnerDraft: null, bothDrafts: { first, second } }));
+  });
+
+  it.each(["hashchange", "popstate"] as const)("주소를 비운 v4 원답은 외부 경로의 %s를 무시하고 소유 경로의 새 응답만 받는다", async event => {
+    const fixture = fixtureByName("swua-example");
+    const partner = fixtureByName("couple-partner");
+    if (!fixture || !partner) throw new Error("v4 fixture missing");
+    const a = encodeCode(WEDDING_CODE_V40_BANK, fixture.formBit, fixture.responses);
+    const b = encodeCode(WEDDING_CODE_V40_BANK, partner.formBit, partner.responses);
+    if (!a || !b) throw new Error("v4 fixture cannot be encoded");
+    const hash = `#v=${WEDDING_CODE_V40_VERSION}&a=${a}`;
+    window.history.replaceState(null, "", `/wedding-code${hash}`);
+    await mount();
+    await act(async () => { await new Promise(resolve => setTimeout(resolve, 0)); });
+    await act(async () => container.querySelector<HTMLButtonElement>("button")?.click());
+    const clear = [...container.querySelectorAll("button")].find(button => button.textContent === "clear received address");
+    expect(clear).toBeDefined();
+    await act(async () => clear?.click());
+    expect(window.location.hash).toBe("");
+    const original = container.querySelector('[data-entry="v40"]');
+    const originalAnswers = container.querySelector("output")?.textContent;
+    expect(original?.getAttribute("data-touched")).toBe("true");
+
+    await act(async () => {
+      window.history.replaceState(null, "", `/privacy${firstHash}`);
+      window.dispatchEvent(new Event(event));
+    });
+    await act(async () => root?.render(<WeddingCodeEntryClient shareOrigin="https://hanbang.ai" />));
+    expect(container.querySelector('[data-entry="v40"]')).toBe(original);
+    expect(original?.getAttribute("data-touched")).toBe("true");
+    expect(container.querySelector("output")?.textContent).toBe(originalAnswers);
+
+    await act(async () => {
+      window.history.replaceState(null, "", "/wedding-code");
+      window.dispatchEvent(new Event(event));
+    });
+    await act(async () => root?.render(<WeddingCodeEntryClient shareOrigin="https://hanbang.ai" />));
+    expect(container.querySelector('[data-entry="v40"]')).toBe(original);
+    expect(container.querySelector("output")?.textContent).toBe(originalAnswers);
+    await act(async () => {
+      window.history.replaceState(null, "", `/wedding-code${hash}&b=${b}`);
+      window.dispatchEvent(new Event(event));
+    });
+    await act(async () => { await new Promise(resolve => setTimeout(resolve, 0)); });
+    expect(container.querySelector('[data-entry="v40"]')?.getAttribute("data-touched")).toBe("false");
+    const newAnswers: WeddingCodeV40ClientProps["initial"] = JSON.parse(container.querySelector("output")?.textContent ?? "null");
+    expect(newAnswers.partner).toBeNull();
+    expect(newAnswers.both).not.toBeNull();
+    expect(container.querySelector("output")?.textContent).not.toBe(originalAnswers);
   });
 
   it("SSR은 답을 지어내지 않고 hydration 뒤에 fragment를 적용한다", async () => {

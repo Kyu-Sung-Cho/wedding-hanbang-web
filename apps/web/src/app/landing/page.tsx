@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import LandingSkipLink from "@/components/landing/redesign/LandingSkipLink";
 
 import AvailableNowSection from "@/components/landing/redesign/AvailableNowSection";
 import LandingFaqSection from "@/components/landing/redesign/LandingFaqSection";
@@ -62,12 +63,7 @@ export default function LandingPage() {
     // 한다(정본 시안도 `.bq-layer { overflow: hidden }` 으로 레이어에만 걸었고
     // 래퍼에는 없다). 여기에 다시 넣지 마라 — 헤더가 조용히 죽는다.
     <div className="landing-root relative min-h-screen bg-[var(--color-paper-sheet)] text-[var(--color-paper-ink)]">
-      <a
-        href="#main-content"
-        className="fixed left-4 top-4 z-[100] -translate-y-24 rounded-[6px] bg-[var(--color-paper-card)] px-5 py-3 text-[14px] font-semibold text-[var(--color-paper-ink)] shadow-raised transition-transform duration-200 motion-reduce:transition-none focus:translate-y-0 focus:outline-none focus:ring-2 focus:ring-[var(--color-paper-pen)] focus:ring-offset-2"
-      >
-        본문 바로가기
-      </a>
+      <LandingSkipLink />
       {/* 여백의 꽃. 페이지 전체에 걸친다 — 시안 배치 그대로. */}
       <LandingBloomLayer />
       <LandingHeader />
