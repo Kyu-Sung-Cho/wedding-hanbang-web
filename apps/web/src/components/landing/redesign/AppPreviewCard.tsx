@@ -1,6 +1,7 @@
 "use client";
 
 import { useId, useState } from "react";
+import Button from "@/components/ui/Button";
 
 import { landingContent } from "./landingContent";
 import PreparationRecordPreview from "./PreparationRecordPreview";
@@ -32,20 +33,19 @@ export default function AppPreviewCard() {
 
       <div className="lg:px-[22px] lg:pb-[14px]">
         <p className="mb-2 text-[12px] text-[var(--color-paper-ink-soft)]">{preview.selectorLabel}</p>
-        <div role="group" aria-label={preview.selectorLabel} className="mb-4 grid grid-cols-3 gap-2">
+        <div role="group" aria-label={preview.selectorLabel} className="mb-4 grid grid-cols-3 gap-2 [--hb-action:var(--color-paper-ink)] [--hb-action-hover:var(--color-paper-ink-soft)] [--hb-on-primary:var(--color-paper-on-ink)] [--hb-hairline:var(--color-paper-outline)] [--hb-surface-raised:var(--color-paper-card)] [--hb-text-strong:var(--color-paper-ink)] [--hb-surface-hover:var(--color-paper-tint)] [--hb-focus-ring:var(--color-paper-pen)]">
           {preview.scenes.map((item) => (
-            <button
+            <Button
               key={item.id}
               type="button"
+              variant={item.id === selectedId ? "primary" : "secondary"}
               aria-pressed={item.id === selectedId}
               aria-controls={panelId}
               onClick={() => setSelectedId(item.id)}
-              className={`min-h-11 rounded-[8px] border px-2 text-[13px] font-semibold transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-paper-pen)] focus-visible:ring-offset-2 motion-reduce:transition-none ${item.id === selectedId
-                ? "border-[var(--color-paper-ink)] bg-[var(--color-paper-ink)] text-[var(--color-paper-on-ink)]"
-                : "border-[var(--color-paper-outline)] bg-[var(--color-paper-card)] text-[var(--color-paper-ink)] hover:bg-[var(--color-paper-tint)]"}`}
+              className="rounded-[8px]! px-2! text-[13px]! whitespace-normal! motion-reduce:transition-none"
             >
               {item.label}
-            </button>
+            </Button>
           ))}
         </div>
 
