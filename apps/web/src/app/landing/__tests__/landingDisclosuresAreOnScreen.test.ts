@@ -115,7 +115,7 @@ const DISCLOSURES: ReadonlyArray<{
     key: "hero.note",
     owner: "TransformationHero.tsx",
     why: "아모라 시작 버튼의 로그인 조건과 웨딩코드의 가입 없는 진입을 안내한다. 현재 결제 없음·향후 비용 미정은 confirm.note에서 검사한다",
-    phrases: ["아모라는 로그인 후 이용해요. 웨딩코드는 가입 없이 이용해요"],
+    phrases: ["아모라는 로그인 후 이용해요. 웨딩코드는 가입 없이 해 볼 수 있어요"],
   },
   {
     key: "amoraNote.note",
@@ -169,7 +169,7 @@ const DISCLOSURES: ReadonlyArray<{
       "이용 방법·비용이 아직 정해지지 않았고 지금은 결제를 요청하지 않는다는 고지. "
       + "2026-08-29 파운더 결정으로 '계정 베타' 라는 **틀**은 화면에서 걷어냈지만, "
       + "이 고지는 베타라서가 아니라 오늘 참이라 남았다(CLAUDE.md)",
-    phrases: ["지금은 결제를 요청하지 않아요", "향후 이용 비용은 아직 정해지지 않았고"],
+    phrases: ["현재 무료로 이용할 수 있어요", "향후 요금은 아직 정해지지 않았어요"],
   },
   {
     key: "closing.note",

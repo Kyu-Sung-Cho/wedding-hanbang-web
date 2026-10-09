@@ -47,9 +47,9 @@ describe("처음 방문한 사람이 보는 준비 흐름", () => {
     expect(copy).toMatch(/예산·일정·할 일[\s\S]*직접 확인해 기록/u);
     const titleLines = [...doc.querySelectorAll("h1 > span")].map((line) => line.textContent);
     expect(titleLines).toEqual(["결혼 준비, 뭐부터 할까요?", "아모라와 하나씩 정해요."]);
-    expect(doc.querySelector(".landing-tape")?.textContent).toBe("결혼 준비 동반자, 아모라");
+    expect(doc.querySelector(".landing-tape")?.textContent).toBe("둘이 준비하는 결혼, 아모라와 함께");
     expect(copy).toContain("내가 원하는 결혼식부터");
-    expect(copy).toContain("필요한 계획을 직접 확인해 기록하세요");
+    expect(copy).toContain("저장할 내용은 직접 확인해 기록해요");
     expect(doc.querySelector('a[href="/wedding/chat"]')?.textContent).toContain("아모라");
     const weddingCode = doc.querySelector('a[href="/wedding-code"]');
     expect(weddingCode?.textContent).toBe(landingContent.hero.secondary.label);
@@ -461,15 +461,15 @@ describe("landing hero product experience contract", () => {
     // 2026-09-03 시안(`(웨딩한방) 랜딩페이지 디자인 예시.pdf`)으로 본문이 바뀌었다.
     // 옛 문장은 우리가 무엇을 **펼쳐 주는지**(공시 원문)를 말했고, 새 문장은 우리가
     // 무엇을 **같이 정하는지**를 말한다. 계약은 그대로다 — 첫 화면이 제품을 설명한다.
-    expect(heroCopy).toMatch(/AI 동반자 아모라와 지금 고민을 정리하고[^"\n]*직접 확인해 기록/u);
+    expect(heroCopy).toMatch(/AI 동반자 아모라와[^"\n]*지금 고민을 정리하고[^"\n]*직접 확인해 기록/u);
     expect(confirmCopy).toContain("파트너와 연결한 뒤에는");
 
     // 산출물을 **개수가 아니라 이름으로** 말한다. 이전 문구는 "세 가지"라고만 해서
     // 그 셋이 무엇인지 랜딩 어디에도 없었다. 스무 장면은 2026-08-29 개편에서
     // 히어로 후크 자리를 내주고 "지금 되는 것" 카드 02 로 내려갔다 —
     // **도구가 내려가도 산출물을 이름으로 말하는 계약은 따라간다.**
-    expect(availableNowCatalogue).toContain("결혼식 취향과 준비 방식");
-    expect(availableNowCatalogue).toContain("파트너도 답하면 같은 생각과 다른 생각을 비교할 수 있어요");
+    expect(availableNowCatalogue).toContain("지출·준비·가족·도움");
+    expect(availableNowCatalogue).toContain("파트너도 답하고 결과 링크를 서로 전달하면, 같은 답과 다른 답을 나란히 볼 수 있어요");
     // 어형·표기를 넓힌다. "세 가지"만 막던 시절에는 "3가지"로 바꾸면 통과했다.
     expect(heroCopy, "첫 화면이 산출물을 개수로만 말하면 안 된다").not.toMatch(
       /(?:세|3|셋)\s*가지/u,
@@ -530,7 +530,7 @@ describe("landing hero product experience contract", () => {
 
     // 첫 화면 CTA 옆에서 아모라의 로그인 조건과 가입 없이 열리는 웨딩코드를 말한다.
     // 현재 결제 없음·향후 비용 미정은 confirm.note의 기존 검사로 계속 지킨다.
-    expect(heroCopy).toContain("아모라는 로그인 후 이용해요. 웨딩코드는 가입 없이 이용해요");
+    expect(heroCopy).toContain("아모라는 로그인 후 이용해요. 웨딩코드는 가입 없이 해 볼 수 있어요");
 
     // **뒤에 붙여 뒤집는 것**도 막는다. 계약 문장을 그대로 두고 그 뒤에
     // "다만 결과를 보려면 가입해야 해요"를 붙이면 있어야 할 문장 검사는 전부
@@ -567,7 +567,7 @@ describe("landing hero product experience contract", () => {
     const heroDoc = heroDocument();
     const primary = heroDoc.querySelector('a[href="/wedding/chat"]');
     const note = [...heroDoc.querySelectorAll("p")].find((paragraph) =>
-      paragraph.textContent?.includes("아모라는 로그인 후 이용해요. 웨딩코드는 가입 없이 이용해요"),
+      paragraph.textContent?.includes("아모라는 로그인 후 이용해요. 웨딩코드는 가입 없이 해 볼 수 있어요"),
     );
     expect(primary?.parentElement?.nextElementSibling, "CTA 아래 안내가 CTA와 떨어지면 안 된다")
       .toBe(note);
@@ -861,8 +861,8 @@ describe("landing hero product experience contract", () => {
     // 계정을 만들어도 지금은 결제를 요청하지 않아요" 는 베타라서가 아니라 오늘 참이라
     // 남는다(CLAUDE.md 2026-08-29). 그 고지가 지금 사는 자리가 확인 섹션이다.
     // 카피 정본이 두 줄로 이어 붙이므로 조각으로 찾는다.
-    expect(confirmCopy).toContain("지금은 결제를 요청하지 않아요");
-    expect(confirmCopy).toContain("향후 이용 비용은 아직 정해지지 않았고");
+    expect(confirmCopy).toContain("현재 무료로 이용할 수 있어요");
+    expect(confirmCopy).toContain("향후 요금은 아직 정해지지 않았어요");
     expect(block("closing")).toContain("아모라와 예산·할 일·일정 관리에는 가입이 필요해요");
 
     // 히어로 안에서도 설명이 CTA 앞에 온다.
