@@ -4,6 +4,8 @@
 
 2026-10-09에 운영 main `f1cf5f0e30e830e2586f64a74b1a206294867077`에서 별도 브랜치 `codex/wedding-code-likert-release-20261009`를 만들고 최신 로컬 후보의 변경만 인수했다. 원본 dirty checkout과 이전 68문항 PR #486은 변경하지 않았다. 이 문서는 구현 계약이며 배포 완료 증명이 아니다. production build·필수 CI·실제 외부 전송 경계·운영 도메인 검증이 닫히기 전에는 배포 완료로 보고하지 않는다.
 
+검증 중 main에 보안 의존성 PR #487이 병합되어 `e3856b40bb7ac6555a80968b8f2ee902a6ca3781`을 충돌 없이 통합했다. Next 16.3.8·Sharp 0.35.5와 보안 override·이미지 파서 패치를 그대로 보존했다. 설치는 이 릴리스 작업소의 잠금파일을 따르며 원본/공유 개발환경 복구와 구별한다. 이후 manifest는 이 최신 main 대비 릴리스 변경을 기록한다. c8c9의 정상 빌드와 pre-push 통과는 이전 의존성 기준의 증거이며, 중단한 전체 verify-change는 통과로 보지 않는다. 통합 후 최종 commit·런타임에 대한 새 빌드·전체 관문·필수 CI가 필요하다.
+
 측정 `likert-preferences-alpha.1`, 문항 `preferences-20261008-r2`, 표현 `likert-letters-alpha.3`. 원래 25파일 manifest `cb040a9c51a07917ec6f54f2e7acea38fe5d99ae952d8442dd87765ade8ea266`는 2026-10-08 인수본의 증거다. 최종 통합본의 해시나 Git commit SHA가 아니다. 문항·계산을 유지한 표현 수정과 이후 통합 변경에는 새로운 파일 manifest가 필요하다.
 
 ## 반영 범위
