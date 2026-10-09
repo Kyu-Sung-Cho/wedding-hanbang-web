@@ -60,6 +60,7 @@ function landingSurfaces(): Array<[string, string]> {
 
 const HEADER_PATH = "src/components/landing/redesign/LandingHeader.tsx";
 const MOBILE_MENU_PATH = "src/components/landing/redesign/MobileLandingMenu.tsx";
+const ACCOUNT_ACTIONS_PATH = "src/components/landing/redesign/LandingAccountActions.tsx";
 const CLOSING_PATH = "src/components/landing/redesign/ClosingAction.tsx";
 const CONFIRM_PATH = "src/components/landing/redesign/ConfirmSection.tsx";
 
@@ -104,23 +105,26 @@ describe("가입은 열려 있고, 랜딩이 그렇게 말한다", () => {
     expect(signUpEntry, "headerAuth.signUp 이 아모라로 보내지 않는다").toMatch(AMORA_HREF);
     expect(signUpEntry, "headerAuth.signUp 에 라벨이 없다").toMatch(/label:\s*"[^"\s][^"]*"/u);
 
-    // 카피만 고치고 화면이 딴 데를 가리키면 계약이 통과해 버린다. 헤더가 그 값을
-    // 실제로 렌더하는지 같이 본다.
+    // 2026-10-10: 계정 링크는 로그인 상태를 확인하는 공통 컴포넌트로 옮겼다.
+    // 헤더·모바일 양쪽이 그 컴포넌트를 렌더하고, 비로그인 분기는 정본을 써야 한다.
     const header = rendered(HEADER_PATH);
-    expect(header, "헤더가 카피의 가입 행선지를 쓰지 않는다").toContain("headerAuth.signUp.href");
-    expect(header, "헤더가 카피의 가입 라벨을 쓰지 않는다").toContain("headerAuth.signUp.label");
+    expect(header, "헤더가 데스크톱 계정 행동을 렌더하지 않는다")
+      .toContain('<LandingAccountActions variant="desktop" />');
 
-    // 좁은 화면에는 헤더 버튼이 숨고 메뉴만 남는다(`lg:` 분기). 여기서 가입이 빠지면
-    // 모바일 방문자에게는 가입 경로가 0개가 된다. 모바일 메뉴는 `headerNav`(본문 앵커)
-    // 만 받으므로 가입 링크를 스스로 들고 있어야 한다.
+    // 모바일 메뉴에도 같은 계정 행동이 있어야 한다. 항목을 누른 뒤 메뉴를 닫는
+    // 연결까지 함께 확인한다.
     const mobile = rendered(MOBILE_MENU_PATH);
-    const mobileLink = /href=\{headerAuth\.signUp\.href\}[\s\S]*?>([\s\S]*?)<\/TrackedLandingLink>/u.exec(mobile);
-    expect(mobileLink, "모바일 메뉴에 아모라 진입 링크가 없다").not.toBeNull();
-    // 라벨을 글자로 고정하지 않는다. 비어 있지만 않으면 된다 — 카피로 옮겨
-    // `{...label}` 이 되어도 통과하고, 지워지면 잡힌다.
-    const mobileLabel = (mobileLink?.[1] ?? "").trim();
-    expect(mobileLabel, "모바일 시작 링크가 정본 라벨을 쓰지 않는다").toContain("headerAuth.signUp.label");
-    expect(mobileLabel, "모바일 가입 라벨이 다시 대기열 말투다")
+    expect(mobile, "모바일 메뉴가 공통 계정 행동과 닫기 동작을 렌더하지 않는다")
+      .toContain('<LandingAccountActions variant="mobile" onNavigate={closeMenu} />');
+    const actions = rendered(ACCOUNT_ACTIONS_PATH);
+    expect(actions, "계정 행동이 정본 카피를 읽지 않는다").toContain('from "./landingContent"');
+    const startLink = /href=\{headerAuth\.signUp\.href\}[\s\S]*?>([\s\S]*?)<\/TrackedLandingLink>/u.exec(actions);
+    expect(startLink, "공통 계정 행동에 아모라 진입 링크가 없다").not.toBeNull();
+    expect((startLink?.[1] ?? "").trim(), "시작 링크에 상태별 라벨이 렌더되지 않는다")
+      .toBe("{primaryLabel}");
+    expect(actions, "비로그인 시작 링크가 정본 라벨을 쓰지 않는다")
+      .toMatch(/status === "signed_out" \? headerAuth\.signUp\.label :/u);
+    expect(signUpEntry, "가입 라벨이 다시 대기열 말투다")
       .not.toMatch(/베타|신청|대기/u);
   });
 

@@ -1,9 +1,8 @@
 import { hasWebSignupConsentAccess } from "@/lib/auth/signupConsentAccess";
 import { Suspense } from "react";
 import Link from "next/link";
-import { redirect } from "next/navigation";
-import { SIGNUP_CONSENT_PATH } from "@hanbang/shared";
 import { Mail, ShieldCheck } from "lucide-react";
+import ConsentReturnGate from "@/components/auth/ConsentReturnGate";
 import CommunityNav from "@/components/community/CommunityNav";
 import CommunityAuthInitializer from "@/components/community/CommunityAuthInitializer";
 import CommunityAmoraLauncher from "@/components/community/CommunityAmoraLauncher";
@@ -54,7 +53,9 @@ export default async function CommunityLayout({
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (user && !hasWebSignupConsentAccess(user)) {
-    redirect(SIGNUP_CONSENT_PATH);
+    // layout은 원래 주소를 알 수 없다. 브라우저에서 복귀 주소만 읽되,
+    // 동의 전에는 커뮤니티 내용이나 초기화 컴포넌트를 렌더하지 않는다.
+    return <ConsentReturnGate />;
   }
 
   const weddingCourtEnabled = isWeddingCourtEnabled();

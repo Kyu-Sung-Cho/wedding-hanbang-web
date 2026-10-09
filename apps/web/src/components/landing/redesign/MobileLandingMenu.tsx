@@ -4,7 +4,7 @@ import Link from "next/link";
 import { Menu, X } from "lucide-react";
 import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 import TrackedLandingLink from "./TrackedLandingLink";
-import { headerAuth } from "./landingContent";
+import LandingAccountActions from "./LandingAccountActions";
 
 type MobileLandingMenuProps = {
   items: ReadonlyArray<{
@@ -93,22 +93,7 @@ export default function MobileLandingMenu({ items }: MobileLandingMenuProps) {
             {item.label}
           </TrackedLandingLink>
         ))}
-        <TrackedLandingLink
-          href={headerAuth.signUp.href}
-          source="landing_header"
-          prefetch={false}
-          onClickCapture={closeMenu}
-          className={`flex min-h-11 items-center border-t border-[var(--color-paper-divider)] px-4 py-3 text-[14px] font-semibold text-[var(--color-paper-ink-soft)] transition-colors duration-200 hover:bg-[var(--color-paper-sheet)] hover:text-[var(--color-paper-ink)] motion-reduce:transition-none ${focusRing}`}
-        >
-          {headerAuth.signUp.label}
-        </TrackedLandingLink>
-        <Link
-          href={headerAuth.logIn.href}
-          onClick={closeMenu}
-          className={`flex min-h-11 items-center border-t border-[var(--color-paper-divider)] px-4 py-3 text-[14px] font-semibold text-[var(--color-paper-ink-soft)] transition-colors duration-200 hover:bg-[var(--color-paper-sheet)] hover:text-[var(--color-paper-ink)] motion-reduce:transition-none ${focusRing}`}
-        >
-          로그인
-        </Link>
+        <LandingAccountActions variant="mobile" onNavigate={closeMenu} />
       </nav>
     </details>
   );

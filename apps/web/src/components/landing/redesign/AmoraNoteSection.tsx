@@ -52,14 +52,14 @@ export default function AmoraNoteSection() {
         </div>
 
         <div className="min-w-0 rounded-[16px] border border-[var(--color-paper-edge)] bg-[var(--color-paper-card)] p-[18px] shadow-raised lg:col-start-2 lg:row-span-2 lg:row-start-1 lg:self-center lg:rounded-[18px] lg:p-6">
-          <p className="mb-[6px] text-[11px] text-[var(--color-paper-ink-faint)] lg:mb-[7px] lg:text-[11.5px]">
+          <p className="mb-[6px] text-[12px] text-[var(--color-paper-ink-faint)] lg:mb-[7px]">
             {amoraNote.chat.meLabel}
           </p>
           <p className="rounded-[13px] rounded-br-[4px] bg-[var(--color-surface-low)] px-[14px] py-3 text-[13.5px] leading-[1.7] text-[var(--color-paper-ink)] lg:rounded-[15px] lg:rounded-br-[5px] lg:px-[17px] lg:py-[14px] lg:text-[14.5px]">
             {amoraNote.chat.me}
           </p>
 
-          <p className="mb-[7px] mt-[13px] flex items-center gap-[6px] text-[11.5px] font-semibold text-[var(--color-rose-700)] lg:mb-2 lg:mt-4 lg:gap-[7px] lg:text-[12px]">
+          <p className="mb-[7px] mt-[13px] flex items-center gap-[6px] text-[12px] font-semibold text-[var(--color-rose-700)] lg:mb-2 lg:mt-4 lg:gap-[7px]">
             <AmoraAvatar sizeClassName="size-6" />
             <span>{amoraNote.chat.amoraLabel}</span>
           </p>

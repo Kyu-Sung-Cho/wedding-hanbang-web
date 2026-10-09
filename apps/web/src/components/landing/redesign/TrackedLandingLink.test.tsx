@@ -1,4 +1,4 @@
-import { act } from "react";
+import { act, type ReactNode } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -10,6 +10,12 @@ import { START_HERE_DATE_HANDOFF_KEY } from "@/lib/marketing/startHereDateHandof
 const mocks = vi.hoisted(() => ({ captureEvent: vi.fn() }));
 
 vi.mock("@/lib/analytics", () => ({ captureEvent: mocks.captureEvent }));
+// 세션 확인 전 SSR의 중립 라벨과 로그인 변화는 LandingSession.test.tsx가 검사한다.
+// 이 파일은 확인된 비로그인 CTA를 눌렀을 때의 계측을 검사한다.
+vi.mock("./LandingSession", () => ({
+  default: ({ children }: { children: ReactNode }) => children,
+  useLandingSession: () => "signed_out",
+}));
 
 import TrackedLandingLink from "./TrackedLandingLink";
 import LandingHeader from "./LandingHeader";
@@ -57,7 +63,7 @@ describe("TrackedLandingLink", () => {
     );
   });
 
-  it("distinguishes hero and tool-card WeddingCode clicks from desktop and mobile Amora entry", async () => {
+  it("distinguishes hero and tool-card WeddingCode clicks from verified signed-out desktop and mobile Amora entry", async () => {
     await act(async () => {
       root.render(<><LandingHeader /><TransformationHero /><AvailableNowSection /></>);
     });
