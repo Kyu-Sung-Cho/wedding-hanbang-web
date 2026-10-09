@@ -471,6 +471,7 @@ export default function LoginPage() {
                   <div>
                     <input
                       type="text"
+                      aria-label="이름"
                       value={name}
                       onChange={(e) => { setName(e.target.value); setError(""); }}
                       onBlur={() => setTouched((t) => ({ ...t, name: true }))}
@@ -486,6 +487,7 @@ export default function LoginPage() {
                 )}
                 <input
                   type="email"
+                  aria-label="이메일"
                   value={email}
                   onChange={(e) => { setEmail(e.target.value); setError(""); }}
                   onBlur={() => setTouched((t) => ({ ...t, email: true }))}
@@ -497,6 +499,7 @@ export default function LoginPage() {
                 {mode !== "forgot" && <div className="relative">
                   <input
                     type={showPassword ? "text" : "password"}
+                    aria-label="비밀번호"
                     value={password}
                     onChange={(e) => { setPassword(e.target.value); setError(""); }}
                     onBlur={() => setTouched((t) => ({ ...t, password: true }))}
@@ -549,6 +552,7 @@ export default function LoginPage() {
                     <div className="relative">
                       <input
                         type={showPasswordConfirm ? "text" : "password"}
+                        aria-label="비밀번호 확인"
                         value={passwordConfirm}
                         onChange={(e) => { setPasswordConfirm(e.target.value); setError(""); }}
                         onBlur={() => setTouched((t) => ({ ...t, passwordConfirm: true }))}
