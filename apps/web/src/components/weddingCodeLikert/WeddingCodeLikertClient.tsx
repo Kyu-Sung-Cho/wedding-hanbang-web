@@ -22,6 +22,7 @@ export default function WeddingCodeLikertClient() {
   const [loaded, setLoaded] = useState(false);
   const [active, setActive] = useState(false);
   const [canStore, setCanStore] = useState(true);
+  const [protectedDraft, setProtectedDraft] = useState(false);
   const [autosave, setAutosave] = useState(false);
   const [storageStatus, setStorageStatus] = useState("");
   const [notice, setNotice] = useState("");
@@ -46,9 +47,10 @@ export default function WeddingCodeLikertClient() {
       setSaved(enabled ? restored.draft : null);
       setNotice(restored.notice);
       setExpressionNotice(restored.expressionNotice ?? "");
-      if (!restored.draft && restored.notice) setCanStore(false);
+      if (!restored.draft && restored.notice) setProtectedDraft(true);
     } catch {
       setCanStore(false);
+      setProtectedDraft(true);
       setNotice("이 브라우저에서는 답을 저장하기 어려워요. 지금 탭에서는 계속 풀 수 있어요.");
     }
     const link = readShareFragment(window.location.hash);
@@ -65,7 +67,7 @@ export default function WeddingCodeLikertClient() {
 
   useEffect(() => {
     if (!loaded || !active) return;
-    if (!canStore || !autosave) return;
+    if (!canStore || !autosave || protectedDraft) return;
     if (!draftChanged.current) return;
     let failureFrame: number | undefined;
     const reportFailure = (message: string) => {
@@ -79,7 +81,7 @@ export default function WeddingCodeLikertClient() {
       reportFailure("브라우저에 저장하지 못했어요. 지금 탭에서는 계속 풀 수 있어요.");
     }
     return () => { if (failureFrame !== undefined) window.cancelAnimationFrame(failureFrame); };
-  }, [active, autosave, canStore, draft, loaded]);
+  }, [active, autosave, canStore, draft, loaded, protectedDraft]);
 
   useEffect(() => {
     if (!sharing) return;
@@ -181,7 +183,11 @@ export default function WeddingCodeLikertClient() {
     let success = false;
     try { success = setLikertAutosave(window.localStorage, enabled); } catch { /* 저장소 접근 자체가 막힐 수 있다. */ }
     setCanStore(success);
-    setStorageStatus(success ? enabled ? "이 개편본의 자동 저장을 켰어요." : "이 개편본의 저장된 답을 지우고 자동 저장을 껐어요. 현재 화면의 답은 남아 있어요."
+    // 설정 켜기는 원본 보호를 해제하지 않는다. 실제 삭제가 확인된 때만 새 답을 저장한다.
+    if (success && !enabled) { setProtectedDraft(false); setNotice(""); }
+    setStorageStatus(success ? enabled ? protectedDraft
+      ? "자동 저장 설정은 켰지만, 확인하지 못한 기존 기록은 덮어쓰지 않아요. 아래에서 이 개편본의 저장과 현재 답을 지운 뒤 새 답을 저장할 수 있어요."
+      : "이 개편본의 자동 저장을 켰어요." : "이 개편본의 저장된 답을 지우고 자동 저장을 껐어요. 현재 화면의 답은 남아 있어요."
       : "브라우저 저장 설정을 확인하지 못했어요. 자동 저장을 멈췄어요. 공용 기기라면 브라우저의 사이트 데이터도 확인해 주세요.");
   }
 
@@ -200,6 +206,7 @@ export default function WeddingCodeLikertClient() {
     setSharing(false);
     if (pairOrigin !== "link") { setPair(null); setPairOrigin(null); }
     setCanStore(true);
+    setProtectedDraft(false);
     setNotice("");
     setExpressionNotice("");
     setStorageStatus("이 개편본의 저장과 현재 답을 지웠어요. 받은 링크에 담긴 답과 이미 전달한 링크는 그대로예요.");
@@ -236,7 +243,7 @@ export default function WeddingCodeLikertClient() {
           canNext={Boolean(draft.answers[ITEMS[draft.cursor].id])} />
         {isComplete(draft.answers) ? <div className="mx-auto max-w-3xl px-5 pb-8 text-center"><Button variant="ghost" type="button"
           onClick={() => update({ screen: "result" })} className="min-h-11 whitespace-normal! rounded-xl px-4 text-sm font-medium text-[var(--hb-primary)] underline underline-offset-4">고친 답으로 결과 돌아가기</Button></div> : null}
-        {notice && !canStore ? <p className="mx-auto max-w-3xl px-5 pb-6 text-sm text-[var(--taupe-500)]" role="status">{notice}</p> : null}
+        {notice && (!canStore || protectedDraft) ? <p className="mx-auto max-w-3xl px-5 pb-6 text-sm text-[var(--taupe-500)]" role="status">{notice}</p> : null}
       </section> : null}
 
       {draft.screen === "result" ? <section ref={resultRef} data-testid="wc-result">

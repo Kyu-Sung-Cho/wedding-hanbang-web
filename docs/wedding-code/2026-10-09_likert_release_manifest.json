@@ -5,8 +5,8 @@
   "bank": "preferences-20261008-r2",
   "expression": "likert-letters-alpha.3",
   "scope": "Exact Git index bytes of all release-changed files, excluding this manifest to avoid a self hash. This is distinct from Windows working-tree byte hashes and the original handoff manifest.",
-  "sourceManifestSha256": "08bc431bbd118897ceadac5c4cda3310664134900d3bccde30928aea2e3d7507",
-  "fileCount": 57,
+  "sourceManifestSha256": "cdc907a56a84b534fef92bdbcea2eb08273e5be9feb0bea6906463ebc13a8e27",
+  "fileCount": 58,
   "files": [
     {
       "path": "apps/web/src/app/privacy/__tests__/weddingCodeResearchNotice.test.tsx",
@@ -135,13 +135,18 @@
     },
     {
       "path": "apps/web/src/components/weddingCodeLikert/WeddingCodeLikertClient.tsx",
-      "bytes": 21604,
-      "sha256": "3c11e7bc97d92e3cc76baa7760c429e480435e80a8a3a19c9ae710c2f464449b"
+      "bytes": 22215,
+      "sha256": "be41e63cad727eebabf7208f96a9ee3d1a92af6935a780a0c3ae84c13ea057b0"
     },
     {
       "path": "apps/web/src/components/weddingCodeLikert/reportMeaning.test.tsx",
       "bytes": 8252,
       "sha256": "ebec6852d6dc90a7b7504453a0e4b523e5a7905a10449d0eedc252a7887c63fb"
+    },
+    {
+      "path": "apps/web/src/components/weddingCodeLikert/storageInteraction.test.tsx",
+      "bytes": 6202,
+      "sha256": "b2e70e5bed72654923c9cacd904d9ca4705ea3c579c2d55b0d7749ab4fcb9f7c"
     },
     {
       "path": "apps/web/src/components/weddingCodeNext/WeddingCodeNextClient.tsx",
@@ -285,8 +290,8 @@
     },
     {
       "path": "docs/wedding-code/2026-10-09_likert_release_contract.md",
-      "bytes": 5773,
-      "sha256": "19842c816c4e4a279563ce0e4dc363ba1ea3d0d9c0d789a6caf58adc8e37dbcb"
+      "bytes": 6328,
+      "sha256": "cb6a896d6b554687915f61e1f46f4dd72e20a22ccad872d968857e4c8f390622"
     },
     {
       "path": "docs/wedding-code/README.md",
