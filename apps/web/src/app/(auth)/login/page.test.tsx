@@ -120,6 +120,62 @@ describe("login return journey", () => {
     expect(container.textContent).toContain("이메일로 로그인");
   });
 
+  it.each([
+    ["login", ["이메일", "비밀번호"]],
+    ["signup", ["이름", "이메일", "비밀번호", "비밀번호 확인"]],
+    ["forgot", ["이메일"]],
+  ] as const)("names every rendered %s form input explicitly", async (mode, names) => {
+    window.history.replaceState(
+      {},
+      "",
+      `/login?mode=${mode}&redirect=%2Fwedding%2Fchat`,
+    );
+    await act(async () => root.render(<LoginPage />));
+
+    // placeholder에 의존하지 않고 실제 렌더된 입력마다 명시적 이름을 제공한다.
+    const inputs = [...container.querySelectorAll<HTMLInputElement>(
+      'form input[type="text"], form input[type="email"], form input[type="password"]',
+    )];
+    expect(inputs.map((input) => input.getAttribute("aria-label"))).toEqual(names);
+    expect(window.location.search).toBe(`?mode=${mode}&redirect=%2Fwedding%2Fchat`);
+    expect(mocks.signInWithOAuth).not.toHaveBeenCalled();
+    expect(mocks.replace).not.toHaveBeenCalled();
+  });
+
+  it.each(["login", "signup"] as const)(
+    "keeps %s password input names when revealing and hiding their values",
+    async (mode) => {
+      window.history.replaceState({}, "", `/login?mode=${mode}`);
+      vi.stubGlobal("fetch", vi.fn());
+      await act(async () => root.render(<LoginPage />));
+
+      const names = mode === "signup" ? ["비밀번호", "비밀번호 확인"] : ["비밀번호"];
+      for (const name of names) {
+        const input = container.querySelector<HTMLInputElement>(`input[aria-label="${name}"]`);
+        const showButton = container.querySelector(`button[aria-label="${name} 표시"]`);
+        expect(input).not.toBeNull();
+        expect(input?.type).toBe("password");
+        expect(showButton).not.toBeNull();
+        await act(async () => {
+          showButton!.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+        });
+        expect(input?.type).toBe("text");
+        expect(input?.getAttribute("aria-label")).toBe(name);
+
+        const hideButton = container.querySelector(`button[aria-label="${name} 숨기기"]`);
+        expect(hideButton).not.toBeNull();
+        await act(async () => {
+          hideButton!.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+        });
+        expect(input?.type).toBe("password");
+        expect(input?.getAttribute("aria-label")).toBe(name);
+      }
+      expect(fetch).not.toHaveBeenCalled();
+      expect(mocks.signInWithOAuth).not.toHaveBeenCalled();
+      expect(mocks.replace).not.toHaveBeenCalled();
+    },
+  );
+
   it("gives every password visibility control an accessible name", async () => {
     await act(async () => root.render(<LoginPage />));
 
