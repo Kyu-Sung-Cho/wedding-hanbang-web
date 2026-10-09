@@ -104,7 +104,7 @@ export function CoupleReport({ result, onBack }: CoupleReportProps) {
   return (
     <div className="mx-auto w-full max-w-6xl px-4 pb-16 pt-6 text-[var(--hb-text-strong)] sm:px-8 sm:pt-10">
       <header className="pb-8">
-        <p className="text-xs font-semibold tracking-[0.12em] text-[var(--hb-text-strong)]">함께 보는 결혼 준비 코드</p>
+        <p className="text-xs font-semibold text-[var(--hb-text-strong)]">함께 보는 결혼 준비 코드</p>
         <h1 className="mt-3 text-2xl font-semibold leading-snug sm:text-4xl">둘의 마음을 장면별로 살펴봐요</h1>
         <p className="mt-4 max-w-3xl text-sm leading-7 text-[var(--hb-text-body)]">각자 답한 내용을 나란히 놓았어요. 먼저 원하는 것을 확인하고, 지금 함께할 수 있는 범위를 이야기해 보세요.</p>
         <nav className="mt-5 flex flex-wrap gap-3" aria-label="함께 보는 결과 이동">

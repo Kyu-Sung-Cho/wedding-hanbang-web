@@ -5,8 +5,8 @@
   "bank": "preferences-20261008-r2",
   "expression": "likert-letters-alpha.3",
   "scope": "Exact Git index bytes of all release-changed files, excluding this manifest to avoid a self hash. This is distinct from Windows working-tree byte hashes and the original handoff manifest.",
-  "sourceManifestSha256": "cdc907a56a84b534fef92bdbcea2eb08273e5be9feb0bea6906463ebc13a8e27",
-  "fileCount": 58,
+  "sourceManifestSha256": "4b468b39802b860ee9c3677b35eaf70cd53389d423ecbdc9ef33ab2c5e713d23",
+  "fileCount": 59,
   "files": [
     {
       "path": "apps/web/src/app/privacy/__tests__/weddingCodeResearchNotice.test.tsx",
@@ -60,8 +60,8 @@
     },
     {
       "path": "apps/web/src/app/wedding-code/page.defaultV40.test.tsx",
-      "bytes": 5830,
-      "sha256": "f8faa495c492098176dfca89d32a76fc141a84c9a28fe941774d2e970d585ff4"
+      "bytes": 6118,
+      "sha256": "772e8a542853f62ae8016852b713f1a052153d79f6910e5e7ef7b636f2d2a6c2"
     },
     {
       "path": "apps/web/src/app/wedding-code/page.test.tsx",
@@ -110,13 +110,13 @@
     },
     {
       "path": "apps/web/src/components/weddingCodeLikert/CoupleReport.tsx",
-      "bytes": 16135,
-      "sha256": "62a7e07531b4d6982347de8ecef709d2b042cee5b505ddf0cbf57f4a7674dfa2"
+      "bytes": 16117,
+      "sha256": "f117d54a3a1867393cdc1360123416637cafc6edf6ec40c4cbd64467f6f1cfef"
     },
     {
       "path": "apps/web/src/components/weddingCodeLikert/IntroPanel.tsx",
-      "bytes": 6942,
-      "sha256": "0ce8bce0be82cf8fff67654ead39a29c15c1931f593163f229e7a3e52e807e2b"
+      "bytes": 6924,
+      "sha256": "0a745aa112a61a598b498173abfb673e075f1768e3ff71b06136d1928beea660"
     },
     {
       "path": "apps/web/src/components/weddingCodeLikert/PersonalReport.tsx",
@@ -135,8 +135,8 @@
     },
     {
       "path": "apps/web/src/components/weddingCodeLikert/WeddingCodeLikertClient.tsx",
-      "bytes": 22215,
-      "sha256": "be41e63cad727eebabf7208f96a9ee3d1a92af6935a780a0c3ae84c13ea057b0"
+      "bytes": 22181,
+      "sha256": "40534e8e2cf6088dfdc3c8cffe91f189ccbca9bcb0364d7ed83a20d7e8fa3fc7"
     },
     {
       "path": "apps/web/src/components/weddingCodeLikert/reportMeaning.test.tsx",
@@ -167,6 +167,11 @@
       "path": "apps/web/src/lib/__tests__/analyticsSdkStorage.test.ts",
       "bytes": 6394,
       "sha256": "b2fa9d819efae7cfb35764dff4723fdde895a5aaa370bf0088c8782ff83d9989"
+    },
+    {
+      "path": "apps/web/src/lib/__tests__/landingAnalytics.test.ts",
+      "bytes": 10128,
+      "sha256": "fc0dfb745a9f6c6496bb6c4dc3ba1c231be577894330994a4809601b6ae69805"
     },
     {
       "path": "apps/web/src/lib/__tests__/weddingCodeLikertAnalytics.test.ts",

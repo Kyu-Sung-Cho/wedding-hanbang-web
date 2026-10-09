@@ -32,16 +32,17 @@ const READABLE_V40_CODE = (() => {
   return code;
 })();
 
-describe("웨딩코드 진입 화면: 기본 진입을 v4 로 바꾼 뒤", () => {
-  it("맨 주소의 메타데이터는 v4 이고, 색인 밖이다(재검사 통과 전까지 경로 전체가 noindex)", async () => {
+describe("웨딩코드 진입 화면: 이전 기본 상수가 v4여도 새 입구와 구판을 구분한다", () => {
+  it("맨 주소는 새 제목·카드, 명시 v4는 구판 제목·카드를 쓰고 모두 색인 밖이다", async () => {
     for (const search of [{}, { utm_source: "landing" }, { v: WEDDING_CODE_V40_VERSION }]) {
       const metadata = await generateMetadata({ searchParams: Promise.resolve(search) });
       expect(String(metadata.title), JSON.stringify(search)).toBe(search.v === WEDDING_CODE_V40_VERSION ? V40_TITLE : "나의 결혼 준비 언어 | 웨딩코드 · 웨딩한방");
       expect(metadata.robots, JSON.stringify(search)).toMatchObject({ index: false, follow: false });
-      // 제목이 v4 인 주소는 카드 그림도 v4 카드다(제목은 v4 인데 그림이 v3.1 문장이던 어긋남을 막는다).
       const v4Card = { url: "/wedding-code/v40-card/opengraph-image", type: "image/png", width: 1200, height: 630, alt: `웨딩코드, ${V40_COPY.intro.title}` };
-      expect(metadata.openGraph?.images, JSON.stringify(search)).toEqual([v4Card]);
-      expect(metadata.twitter?.images, JSON.stringify(search)).toEqual([v4Card]);
+      const likertCard = { url: "/wedding-code/likert-card/opengraph-image", type: "image/png", width: 1200, height: 630, alt: "웨딩코드, 결혼을 준비하는 나의 언어를 찾아요" };
+      const expectedCard = search.v === WEDDING_CODE_V40_VERSION ? v4Card : likertCard;
+      expect(metadata.openGraph?.images, JSON.stringify(search)).toEqual([expectedCard]);
+      expect(metadata.twitter?.images, JSON.stringify(search)).toEqual([expectedCard]);
     }
   });
 
@@ -62,11 +63,13 @@ describe("웨딩코드 진입 화면: 기본 진입을 v4 로 바꾼 뒤", () =>
     expect(noImages(v20)).toEqual([false, false]);
   });
 
-  it("맨 주소는 v4 빈 입구, 명시 v3.1(답 없음)은 이전 판 안내가 붙은 v3.1 입구를 넘긴다", async () => {
+  it("맨 주소는 새 클라이언트로, 명시 v3.1(답 없음)은 이전 판 안내가 붙은 구판으로 넘긴다", async () => {
     const bare = await WeddingCodePage({ searchParams: Promise.resolve({}) });
     expect(bare.props.initialEntry).toEqual({ kind: "v40", initial: { partner: null, both: null } });
+    expect(bare.props.queryIsLegacy).toBe(false);
     const older = await WeddingCodePage({ searchParams: Promise.resolve({ v: WEDDING_CODE_V31_VERSION }) });
     expect(older.props.initialEntry).toMatchObject({ kind: "v31", older: true });
+    expect(older.props.queryIsLegacy).toBe(true);
     const v30 = await WeddingCodePage({ searchParams: Promise.resolve({ v: WEDDING_CODE_V30_VERSION }) });
     expect(v30.props.initialEntry.kind).toBe("v30");
   });

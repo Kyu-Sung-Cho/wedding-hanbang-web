@@ -219,7 +219,7 @@ export default function WeddingCodeLikertClient() {
         <Button variant="ghost" type="button" className="min-h-11 flex-col items-start! gap-0! whitespace-normal! rounded-xl px-0! text-left focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[var(--hb-primary)]"
           onClick={() => update({ screen: "intro" })} aria-label="웨딩코드 시작 화면으로">
           <span className="block text-lg font-bold tracking-tight">WeddingCode<span className="ml-1 text-[var(--hb-primary)]">.</span></span>
-          <span className="block text-[11px] tracking-[0.14em] text-[var(--taupe-500)]">나와 우리의 준비</span>
+          <span className="block text-[11px] text-[var(--taupe-500)]">나와 우리의 준비</span>
         </Button>
         {draft.screen === "questions" ? <Button variant="ghost" type="button" onClick={() => update({ screen: "intro" })}
           className="min-h-11 whitespace-normal! rounded-xl px-3 text-sm text-[var(--taupe-500)] hover:bg-[var(--ivory-100)] focus-visible:outline-2 focus-visible:outline-[var(--hb-primary)]">잠깐 쉬기</Button>
@@ -305,7 +305,7 @@ function SharingPanel({ answers, inviter, onReady, onCompare }: {
   }
 
   return <section className="rounded-3xl border border-[var(--hb-summary-line)] bg-[var(--hb-summary-surface)] p-6 sm:p-8" aria-labelledby="likert-share-title">
-    <p className="text-xs font-semibold tracking-widest text-[var(--hb-summary-label)]">함께 보기</p>
+    <p className="text-xs font-semibold text-[var(--hb-summary-label)]">함께 보기</p>
     <h2 id="likert-share-title" className="mt-3 text-2xl font-bold tracking-tight">{inviter ? "내 답도 담아 두 사람 함께 보기" : "각자의 답으로 더 가까운 대화"}</h2>
     <p className="mt-3 text-sm leading-7 text-[var(--hb-summary-ink)]">{inviter
       ? "받은 답과 내 답을 나란히 볼 링크를 만들어요. 먼저 답한 사람에게 직접 돌려줄 수 있어요."

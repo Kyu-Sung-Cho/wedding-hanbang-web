@@ -100,7 +100,7 @@ export function IntroPanel({
         </div>
 
         <aside className="border-t border-[var(--hb-summary-line)] bg-[var(--hb-summary-surface)] px-6 py-7 text-[var(--hb-summary-ink)] sm:px-8 sm:py-8 lg:mt-2" aria-label="결과에서 읽는 네 가지 주제">
-          <p className="text-xs font-semibold tracking-[0.14em] text-[var(--hb-summary-label)]">
+          <p className="text-xs font-semibold text-[var(--hb-summary-label)]">
             네 글자에 담는 준비 이야기
           </p>
           <ol className="mt-6 divide-y divide-[var(--hb-summary-line)]">
