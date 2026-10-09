@@ -244,7 +244,7 @@ export default function WeddingCodeLikertClient() {
           onBack={back} onNext={next} onPause={() => update({ screen: "intro" })}
           canNext={Boolean(draft.answers[ITEMS[draft.cursor].id])} />
         {isComplete(draft.answers) ? <div className="mx-auto max-w-3xl px-5 pb-8 text-center"><Button variant="ghost" type="button"
-          onClick={() => update({ screen: "result" })} className="min-h-11 whitespace-normal! rounded-xl px-4 text-sm font-medium text-[var(--hb-primary)] underline underline-offset-4">고친 답으로 결과 돌아가기</Button></div> : null}
+          onClick={() => update({ screen: "result" })} className="min-h-11 whitespace-normal! rounded-xl px-4 text-sm font-medium text-[var(--hb-primary)] underline underline-offset-4">현재 답으로 결과 보기</Button></div> : null}
         {notice && (!canStore || protectedDraft) ? <p className="mx-auto max-w-3xl px-5 pb-6 text-sm text-[var(--taupe-500)]" role="status">{notice}</p> : null}
       </section> : null}
 

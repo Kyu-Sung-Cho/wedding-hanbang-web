@@ -5,7 +5,7 @@
   "bank": "preferences-20261008-r2",
   "expression": "likert-letters-alpha.4",
   "scope": "Exact Git index bytes of all release-changed files, excluding this manifest to avoid a self hash. This is distinct from Windows working-tree byte hashes and the original handoff manifest.",
-  "sourceManifestSha256": "bf71c37a61dc41faae8bce420a910edf65d6f78138cbec231b3e09ac23ab09e2",
+  "sourceManifestSha256": "0ca04c9c8f99acc2f8ae47c634a009f4e1a7ca08cd137edc7e964270422a0db8",
   "fileCount": 67,
   "files": [
     {
@@ -150,8 +150,8 @@
     },
     {
       "path": "apps/web/src/components/weddingCodeLikert/WeddingCodeLikertClient.tsx",
-      "bytes": 22416,
-      "sha256": "a69e20238a17d49b1de833b7489cf8205789207c9acfe3c13d287b3c5d89eb0c"
+      "bytes": 22410,
+      "sha256": "bf859bbe67aab97650e7aef414287f50335bcff8545ef5d86302ab10b00d1d15"
     },
     {
       "path": "apps/web/src/components/weddingCodeLikert/reportMeaning.test.tsx",
@@ -335,8 +335,8 @@
     },
     {
       "path": "docs/wedding-code/2026-10-10_alpha4_scene_visibility_patch_contract.md",
-      "bytes": 5556,
-      "sha256": "841fd2fd5085a58e1936ccd6dc472db4e8dbd689f938a651eaebcf578896a1ce"
+      "bytes": 6185,
+      "sha256": "e58dd484e4307dabf2298a17615b1268972ce05c026de7324805cad3063f4bbe"
     },
     {
       "path": "docs/wedding-code/README.md",
