@@ -1,11 +1,11 @@
 {
   "schema": "wedding-code-likert-release-manifest/v1",
-  "baseCommit": "14546f6226978face7d251340d6e8f36f1e4d0c3",
+  "baseCommit": "53b2e4d39be7faea4361f4598b0eb62e8a492fca",
   "measurement": "likert-preferences-alpha.1",
   "bank": "preferences-20261008-r2",
   "expression": "likert-letters-alpha.3",
   "scope": "Exact Git index bytes of all release-changed files, excluding this manifest to avoid a self hash. This is distinct from Windows working-tree byte hashes and the original handoff manifest.",
-  "sourceManifestSha256": "0d982ec42db46ed66a856a52e4e6600aad5f444887b0cc97f356ba8615d33414",
+  "sourceManifestSha256": "7bd110e7feb57e33a347ccb36f4e48c52b24d005044148ed6a598c1d8bfaff00",
   "fileCount": 62,
   "files": [
     {
@@ -310,8 +310,8 @@
     },
     {
       "path": "docs/wedding-code/2026-10-09_likert_release_contract.md",
-      "bytes": 8159,
-      "sha256": "187249cb291afca8115538f8c4a96446d599ccbd1c03cd22655ebff84d8fff78"
+      "bytes": 9677,
+      "sha256": "86c50d989b57e8694526ed81565d2b203d837c04978b8079c13ba046dd38a078"
     },
     {
       "path": "docs/wedding-code/README.md",

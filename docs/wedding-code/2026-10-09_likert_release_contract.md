@@ -10,6 +10,10 @@
 
 중간 후보 `a7f25c89833a403ddaa981a2f0e0459692068960`에서 정상 production build와 필수 pre-push 9개 작업이 통과했다(웹 22,256건, 모바일 1,397건, 공유 134건). 이후 main의 랜딩 PR #489(`14546f6226978face7d251340d6e8f36f1e4d0c3`)을 충돌 없이 통합했다. 새 랜딩 화면은 보존하며 기본 웨딩코드의 서버 공유 문장만 30문항의 로컬 링크 방식으로 정정한다. 방침의 기존 서버 공유·이어하기는 이전 v3.1 판으로 범위를 명시하고 보관 기간·동의·철회 기능은 유지한다. 이후 manifest 기준은 이 새 main이며, a7의 성공을 새 통합본 전체 검사 성공으로 사용하지 않는다.
 
+후속 후보 `0f7b709ec9978c64db369f7e0b49616e4bf1fb4b`에서 정상 build·pre-push·정본 verify-change·필수 CI가 통과했다. 정본 검증은 웹 1,241파일·22,277건과 저장소 1,572건을 포함한다. 정확한 Source의 Ready Preview에서 합성 답의 개인/파트너 결과·재개·수정·재공유·구판 호환도 확인했다. 실제 viewport는 desktop 1280px이며 이전 로컬 320/375px 관찰을 이 hosted 모바일 검증으로 대체하지 않는다. 실제 SDK outbound·최종 hosted 375px·운영 전환은 여전히 미완료다.
+
+그 뒤 main의 로그인 접근성 PR #490(`53b2e4d39be7faea4361f4598b0eb62e8a492fca`)도 충돌 없이 통합했다. 로그인 입력 네 곳의 접근성 이름과 관련 테스트 두 파일을 보존했으며 웨딩코드의 문항·계산·표현·저장·개인정보 경계는 바꾸지 않았다. 최신 manifest 기준은 이 main이다. 0f의 성공은 그 SHA에 고정한 증거로 보존하고, 이 최신 통합 후보의 새 검사·빌드·필수 CI와 구분한다.
+
 ## 반영 범위
 
 - 기본 `/wedding-code`는 30문항·12장면 개편본으로 열린다. 명시적 구판 쿼리나 fragment는 기존 parser·문항·계산으로 읽는다. `/wedding-code-next` 링크도 유지한다.
@@ -40,6 +44,8 @@
 
 이전 정상 production은 source `f1cf5f0e30e830e2586f64a74b1a206294867077`, deployment `dpl_2s7MnWHwvGG4LL9i1p1fTiK25rW7`, artifact `https://wedding-hanbang-5wc7d42ng-hanbang.vercel.app`다. Vercel 화면에서 Ready/Production/hanbang.ai를 확인했다.
 
-검증 중 운영은 랜딩 main `14546f6226978face7d251340d6e8f36f1e4d0c3`으로 전진했다. 현재 복구 기준은 deployment `dpl_BRvPutzhiQ7Lciw3GpFjKkMQUksd`, artifact `https://wedding-hanbang-f1fq3c7v5-hanbang.vercel.app`다. 정확한 Source SHA·Ready·Production·Current·hanbang.ai 연결은 Vercel 화면에서, HTTP 200·DB up·commit `14546f622697`은 운영 health에서 확인했다. 이전 f1/e385 기록은 역사 기록으로 보존한다.
+검증 중 운영은 랜딩 main `14546f6226978face7d251340d6e8f36f1e4d0c3`으로 전진했다. 당시 복구 기준은 deployment `dpl_BRvPutzhiQ7Lciw3GpFjKkMQUksd`, artifact `https://wedding-hanbang-f1fq3c7v5-hanbang.vercel.app`다. 정확한 Source SHA·Ready·Production·Current·hanbang.ai 연결은 Vercel 화면에서, HTTP 200·DB up·commit `14546f622697`은 운영 health에서 확인했다.
+
+현재 복구 기준은 main `53b2e4d39be7faea4361f4598b0eb62e8a492fca`, deployment `dpl_BVshcyLKBfHJ1gQYvyh3NVLZQgeg`, artifact `https://wedding-hanbang-8p75ll55k-hanbang.vercel.app`다. 정확한 Source·Ready·Production·Current·hanbang.ai 연결을 Vercel 화면에서, HTTP 200·DB up·commit `53b2e4d39be7`을 운영 health에서 확인했다. 이는 기존 웨딩코드를 제공하는 정상 운영이며 새 30문항 배포 완료가 아니다. 이전 f1/e385/145 기록은 역사 기록으로 보존한다.
 
 정상 GitHub PR·필수 Code Quality 검사·Vercel 배포 절차를 사용한다. DB migration, 데이터 삭제, 권한/자격증명 변경, 유료 서비스 추가는 없다. 회귀 시 기본 진입 전환만 되돌리고 새 fragment reader와 개인정보 경계는 유지하는 revert를 우선한다. 전체 PR revert/이전 artifact 복귀는 새 공유 링크를 읽지 못하므로 그 영향을 먼저 평가한다. 성공 배포 식별자·정확한 SHA·운영 확인은 후속 릴리스 증거에 기록한다.
