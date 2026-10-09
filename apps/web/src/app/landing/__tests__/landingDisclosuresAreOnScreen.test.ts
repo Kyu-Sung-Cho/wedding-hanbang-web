@@ -114,8 +114,8 @@ const DISCLOSURES: ReadonlyArray<{
   {
     key: "hero.note",
     owner: "TransformationHero.tsx",
-    why: "아모라 시작 버튼의 계정 필요·웹 진입·현재 결제 없음 안내. 가격 원문·출처는 해당 도구 카드와 footer.notice에서 검사한다",
-    phrases: ["지금은 결제를 요청하지 않아요", "아모라는 로그인 후 이용해요. 웨딩코드는 가입 없이 해볼 수 있어요"],
+    why: "아모라 시작 버튼의 로그인 조건과 웨딩코드의 가입 없는 진입을 안내한다. 현재 결제 없음·향후 비용 미정은 confirm.note에서 검사한다",
+    phrases: ["아모라는 로그인 후 이용해요. 웨딩코드는 가입 없이 이용해요"],
   },
   {
     key: "amoraNote.note",

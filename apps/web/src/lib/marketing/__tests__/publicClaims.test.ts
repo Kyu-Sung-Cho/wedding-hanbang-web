@@ -376,7 +376,8 @@ describe("public marketing claim boundary", () => {
       "광고 상품은 운영하지 않아요",
     );
 
-    const noContractReading = boundaryItem("계약 조건을 해석");
+    // 2026-10-10 승인 카피: 대신 해석·판단하지 않는다는 경계와 중개 금지는 그대로다.
+    const noContractReading = boundaryItem("계약 조건을 대신 해석하거나 판단하지 않아요");
     expect(noContractReading.note, "중개하지 않는다는 고지가 사라졌다").toContain(
       "중개하지 않아요",
     );

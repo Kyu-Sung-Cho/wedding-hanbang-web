@@ -12,14 +12,14 @@ export default function TransformationHero() {
 
   return (
   <section
-    className="relative overflow-hidden pb-[34px] pt-6 lg:pb-[76px] lg:pt-20"
+    className="relative overflow-hidden pb-[34px] pt-4 lg:pb-[76px] lg:pt-20"
     aria-labelledby="hero-title"
   >
     {/* 꽃은 여기서 그리지 않는다. 정본 시안은 다섯 자리에 놓고, 그 배치는
         페이지 전체를 덮는 `LandingBloomLayer` 가 진다. */}
-    <div className={`${shell} relative grid items-start gap-[30px] lg:grid-cols-2 lg:gap-16`}>
+    <div className={`${shell} relative grid items-start gap-[18px] lg:grid-cols-2 lg:gap-16`}>
       <div>
-        <p className="mb-4 lg:mb-6">
+        <p className="mb-3 lg:mb-6">
           <span className="landing-tape landing-hand">{hero.tape}</span>
         </p>
 
@@ -49,9 +49,9 @@ export default function TransformationHero() {
           })}
         </h1>
 
-        <p className="mt-[14px] max-w-[470px] text-[15px] leading-[1.74] text-[var(--color-paper-ink-soft)] lg:mt-[18px] lg:text-[17.5px] lg:leading-[1.76]">{hero.body}</p>
+        <p className="mt-3 max-w-[470px] text-[15px] leading-[1.7] text-[var(--color-paper-ink-soft)] lg:mt-[18px] lg:text-[17.5px] lg:leading-[1.76]">{hero.body}</p>
 
-        <div className="mt-[22px] flex flex-col items-stretch gap-1 lg:mt-8 lg:items-start lg:gap-2">
+        <div className="mt-[18px] flex flex-col items-stretch gap-1 lg:mt-8 lg:items-start lg:gap-2">
             <TrackedLandingLink
               source="landing_hero_primary"
               href={hero.primary.href}

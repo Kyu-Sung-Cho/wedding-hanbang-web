@@ -406,7 +406,7 @@ describe("landing product outcome evidence", () => {
     );
     // 2026-08-18 파운더 결정으로 계약 해석·판정을 전부 걷어냈다(contractShield 삭제).
     expect(block.boundaries, "계약 해석을 하지 않는다는 계약이 사라졌다").toContain(
-      "계약 조건을 해석하거나 유불리를 판단하지 않아요",
+      "계약 조건을 대신 해석하거나 판단하지 않아요",
     );
     expect(block.boundaries, "중개하지 않는다는 문장이 사라졌다").toContain(
       "업체 계약 신청·예약·결제를 중개하지 않아요",
