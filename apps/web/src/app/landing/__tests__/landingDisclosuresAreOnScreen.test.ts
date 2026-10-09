@@ -74,7 +74,8 @@ const NEXT_BLOCK: Readonly<Record<string, string | undefined>> = {
   confirm: "availableNow",
   availableNow: "community",
   community: "photoBand",
-  photoBand: "boundaries",
+  photoBand: "faq",
+  faq: "boundaries",
   boundaries: "closing",
   closing: "footer",
   // 마지막 블록. 경계를 주지 않으면 파일 끝까지 본다.
@@ -114,7 +115,7 @@ const DISCLOSURES: ReadonlyArray<{
     key: "hero.note",
     owner: "TransformationHero.tsx",
     why: "아모라 시작 버튼의 계정 필요·웹 진입·현재 결제 없음 안내. 가격 원문·출처는 해당 도구 카드와 footer.notice에서 검사한다",
-    phrases: ["계정을 만들고 웹에서 시작해요", "지금은 결제를 요청하지 않아요"],
+    phrases: ["지금은 결제를 요청하지 않아요", "아모라는 로그인 후 이용해요. 웨딩코드는 가입 없이 해볼 수 있어요"],
   },
   {
     key: "amoraNote.note",
@@ -125,7 +126,7 @@ const DISCLOSURES: ReadonlyArray<{
       + "`privateLane.note`(대화 저장 고지)가 여기로 합쳐졌다",
     // 카드 **안**에 있어야 한다 — 바깥 작은 글씨로 빼면 카드만 캡처됐을 때 떨어져
     // 나간다(`AmoraNoteSection.tsx` 머리말).
-    phrases: ["AI 생성", "샘플", "저장되지 않아요", "AI는 틀리거나 놓칠 수 있어요"],
+    phrases: ["기능을 설명하는 예시 대화예요", "이 화면에서는 대화하거나 저장할 수 없어요"],
   },
   // ⚠️ 2026-08-29에 되살린 섹션들의 고지가 여기 넷 있었다. 섹션이 없어졌을 때 이
   // 표에서 함께 빠졌는데, 섹션만 돌아오고 표가 안 돌아오면 그 문장들은 아무 검사도
@@ -148,10 +149,8 @@ const DISCLOSURES: ReadonlyArray<{
       "아모라가 말하는 카드의 AI 기본법 고지 + 지어낸 커플 대화가 실제 이용 현황처럼 "
       + "읽히지 않게 하는 샘플 표식(없어진 `oneRoom.note` 의 몫)",
     phrases: [
-      "AI가 만든 내용이에요",
-      "AI는 틀리거나 놓칠 수 있어요",
-      "기능을 보여주기 위한 샘플",
-      "실제 이용 현황이 아니에요",
+      "기능을 설명하는 예시 대화예요",
+      "실제 이용자의 대화가 아니에요",
     ],
   },
   {
@@ -161,7 +160,7 @@ const DISCLOSURES: ReadonlyArray<{
       "대화가 서비스에서 처리·저장될 수 있다는 개인정보 고지. 없어진 "
       + "`privateLane.note` 를 **글자 그대로** 이어받았다 — '나만 보는 자리' 를 파는 "
       + "카드 바로 아래라 저장 사실을 같은 자리에서 말한다",
-    phrases: ["개인 상담의 대화 내용은", "처리·저장될 수 있어요", "연결된 배우자 화면에는 표시하지 않아요"],
+    phrases: ["개인 상담도", "처리·저장돼요"],
   },
   {
     key: "confirm.note",
@@ -170,13 +169,13 @@ const DISCLOSURES: ReadonlyArray<{
       "이용 방법·비용이 아직 정해지지 않았고 지금은 결제를 요청하지 않는다는 고지. "
       + "2026-08-29 파운더 결정으로 '계정 베타' 라는 **틀**은 화면에서 걷어냈지만, "
       + "이 고지는 베타라서가 아니라 오늘 참이라 남았다(CLAUDE.md)",
-    phrases: ["아직 정해지지 않았", "결제를 요청하지 않아요"],
+    phrases: ["지금은 결제를 요청하지 않아요", "향후 이용 비용은 아직 정해지지 않았고"],
   },
   {
     key: "closing.note",
     owner: "ClosingAction.tsx",
     why: "무엇이 로그인 없이 열리는지 · 계정을 만들어도 결제를 요청하지 않는다는 고지",
-    phrases: ["로그인·결제 없이 열려요", "결제를 요청하지 않아요"],
+    phrases: ["무료 도구는 가입 없이 이용할 수 있어요", "아모라와 예산·할 일·일정 관리에는 가입이 필요해요"],
   },
   {
     key: "footer.notice",
@@ -187,9 +186,8 @@ const DISCLOSURES: ReadonlyArray<{
     phrases: [
       "한국소비자원 참가격",
       "공시 기준",
-      "지역별로 수가 크게 달라요",
+      "지역별 등록 업체 수가 달라요",
       "예약·결제·계약은 업체와 직접",
-      "AI가 만든 내용",
     ],
   },
 ];
@@ -216,7 +214,7 @@ const ITEM_DISCLOSURES: ReadonlyArray<{
     array: "availableNow.cards",
     field: "note",
     owner: "AvailableNowSection.tsx",
-    phrase: "점수도 궁합도 매기지 않아요",
+    phrase: "심리 진단이나 궁합 검사가 아니에요",
     why:
       "CLAUDE.md 금지 대응 — WeddingCode 는 검증된 궁합 검사가 아니다. 없어진 "
       + "`scenes.note` 가 지고 있던 고지가 스무 장면 카드로 내려왔다. 지우면 화면이 "
@@ -226,7 +224,7 @@ const ITEM_DISCLOSURES: ReadonlyArray<{
     array: "availableNow.cards",
     field: "note",
     owner: "AvailableNowSection.tsx",
-    phrase: "로그인 없이 선택한 내용은 저장하지 않아요",
+    phrase: "가입 없이 선택한 내용은 저장하지 않아요",
     why:
       "개인정보 고지 — 없어진 `privateLane.note` 의 저장 고지가 견적 카드로 옮겨졌다. "
       + "견적서에는 이름·금액이 들어 있어 저장 여부가 사용자에게 제일 먼저 궁금한 것이다. "
@@ -248,7 +246,7 @@ const ITEM_DISCLOSURES: ReadonlyArray<{
     array: "availableNow.cards",
     field: "note",
     owner: "AvailableNowSection.tsx",
-    phrase: "값이 적정한지는 판정하지 않",
+    phrase: "가격의 적정 여부는 평가하지 않아요",
     why: "CLAUDE.md — 가격의 적정성·품질을 점수·등급·'최고' 로 판정하지 않는다",
   },
   {
@@ -264,14 +262,14 @@ const ITEM_DISCLOSURES: ReadonlyArray<{
     array: "boundaries.items",
     field: "note",
     owner: "BoundariesSection.tsx",
-    phrase: "광고 상품을 운영하지 않아요",
+    phrase: "광고 상품은 운영하지 않아요",
     why: "같은 자리 — 돈 받고 순위를 팔지 않는다는 고지(옛 `notForVendors`)",
   },
   {
     array: "boundaries.items",
     field: "note",
     owner: "BoundariesSection.tsx",
-    phrase: "중개하지 않습니다",
+    phrase: "중개하지 않아요",
     why:
       "거래층 보류 고지(CLAUDE.md — 업체 계약 신청·예약·결제를 중개하지 않는다). "
       + "전자상거래법 지위 판정 전까지 화면이 중개처럼 보이면 안 된다",
@@ -280,14 +278,14 @@ const ITEM_DISCLOSURES: ReadonlyArray<{
     array: "boundaries.items",
     field: "title",
     owner: "BoundariesSection.tsx",
-    phrase: "AI가 만든 답변임을 표시해요",
+    phrase: "아모라의 답변은 AI가 작성해요",
     why: "AI 기본법 고지 — 없어진 `notForVendors.aiNotice` 가 여기로 왔다",
   },
   {
     array: "boundaries.items",
     field: "note",
     owner: "BoundariesSection.tsx",
-    phrase: "AI는 틀리거나 놓칠 수 있어요",
+    phrase: "AI 답변에는 오류가 있을 수 있어요",
     why: "같은 자리 — AI 한계 고지. `/ai-policy` 가 같은 것을 공개하고 있어 어긋나면 안 된다",
   },
 ];

@@ -55,9 +55,8 @@ export default async function OpenGraphImage() {
   // H1은 화면에서 두 덩어리로 끊긴다. 카드에서도 같은 자리에서 끊어 같은 문장으로 읽히게 한다.
   // 정본이 줄바꿈을 갖고 있으므로 그걸 그대로 쓴다 — 여기서 다시 나누면 두 곳이 갈린다.
   const [lead, tail] = landingContent.hero.title.split(BREAK);
-  // 본문 두 문장을 다 넣으면 1200px에서 두 줄로 넘쳐 "요."만 남는 고아 줄이 생긴다.
-  // 첫 문장이 "무엇을 넣으면 무엇이 나오는지"를 이미 말하므로 거기까지만 쓴다.
-  const lede = `${landingContent.hero.body.split(". ")[0]}.`;
+  // 공유 카드에도 서비스의 도움을 한 문장으로 설명한다. 화면 본문의 질문만 떼어 쓰지 않는다.
+  const lede = landingContent.hero.shareDescription;
 
   return new ImageResponse(
     (
@@ -107,7 +106,7 @@ export default async function OpenGraphImage() {
         </div>
 
         <div style={{ display: "flex", justifyContent: "space-between", color: PAPER.inkFaint, fontSize: 23 }}>
-          <div style={{ display: "flex" }}>확인한 내용만 준비 기록에</div>
+          <div style={{ display: "flex" }}>둘이 함께하는 결혼 준비</div>
           <div style={{ display: "flex" }}>hanbang.ai</div>
         </div>
       </div>

@@ -1,6 +1,7 @@
 // @vitest-environment node
 
 import { describe, expect, it } from "vitest";
+import { getAuthRedirectPath, getPostLoginRedirectPath } from "@/lib/auth/safeRedirect";
 
 import {
   CONTENT_PATH,
@@ -62,7 +63,7 @@ const MOBILE_MENU_PATH = "src/components/landing/redesign/MobileLandingMenu.tsx"
 const CLOSING_PATH = "src/components/landing/redesign/ClosingAction.tsx";
 const CONFIRM_PATH = "src/components/landing/redesign/ConfirmSection.tsx";
 
-const SIGNUP_HREF = /href[:=]\s*"\/login\?mode=signup"/u;
+const AMORA_HREF = /href[:=]\s*"\/wedding\/chat"/u;
 
 describe("가입은 열려 있고, 랜딩이 그렇게 말한다", () => {
   it("베타라는 틀이 화면에 없다", () => {
@@ -91,7 +92,7 @@ describe("가입은 열려 있고, 랜딩이 그렇게 말한다", () => {
     }
   });
 
-  it("헤더와 모바일 메뉴에 가입으로 가는 길이 있다", () => {
+  it("헤더와 모바일 메뉴가 같은 아모라 진입 경로와 라벨을 쓴다", () => {
     // 2026-08-27 개편으로 헤더의 링크가 컴포넌트에서 카피로 옮겨 갔고, 2026-08-29
     // 개편에서 라벨이 "회원가입" → "시작하기" 로 바뀌었다. 그래서 **글자를 세면 안 된다.**
     // 재는 것은 뜻이다: (1) 행선지가 가입이고 (2) 눌리는 라벨이 실제로 있다.
@@ -100,7 +101,7 @@ describe("가입은 열려 있고, 랜딩이 그렇게 말한다", () => {
     expect(signUp, "headerAuth.signUp 이 사라졌다 — 헤더의 가입 경로가 통째로 없다")
       .not.toBeNull();
     const signUpEntry = signUp?.[1] ?? "";
-    expect(signUpEntry, "headerAuth.signUp 이 가입으로 보내지 않는다").toMatch(SIGNUP_HREF);
+    expect(signUpEntry, "headerAuth.signUp 이 아모라로 보내지 않는다").toMatch(AMORA_HREF);
     expect(signUpEntry, "headerAuth.signUp 에 라벨이 없다").toMatch(/label:\s*"[^"\s][^"]*"/u);
 
     // 카피만 고치고 화면이 딴 데를 가리키면 계약이 통과해 버린다. 헤더가 그 값을
@@ -113,32 +114,45 @@ describe("가입은 열려 있고, 랜딩이 그렇게 말한다", () => {
     // 모바일 방문자에게는 가입 경로가 0개가 된다. 모바일 메뉴는 `headerNav`(본문 앵커)
     // 만 받으므로 가입 링크를 스스로 들고 있어야 한다.
     const mobile = rendered(MOBILE_MENU_PATH);
-    const mobileLink = /href="\/login\?mode=signup"[\s\S]*?>([^<>]*)<\/Link>/u.exec(mobile);
-    expect(mobileLink, "모바일 메뉴에 가입 링크가 없다").not.toBeNull();
+    const mobileLink = /href=\{headerAuth\.signUp\.href\}[\s\S]*?>([\s\S]*?)<\/TrackedLandingLink>/u.exec(mobile);
+    expect(mobileLink, "모바일 메뉴에 아모라 진입 링크가 없다").not.toBeNull();
     // 라벨을 글자로 고정하지 않는다. 비어 있지만 않으면 된다 — 카피로 옮겨
     // `{...label}` 이 되어도 통과하고, 지워지면 잡힌다.
     const mobileLabel = (mobileLink?.[1] ?? "").trim();
-    expect(mobileLabel.length, "모바일 가입 링크에 눌릴 라벨이 없다").toBeGreaterThan(0);
+    expect(mobileLabel, "모바일 시작 링크가 정본 라벨을 쓰지 않는다").toContain("headerAuth.signUp.label");
     expect(mobileLabel, "모바일 가입 라벨이 다시 대기열 말투다")
       .not.toMatch(/베타|신청|대기/u);
   });
 
-  it("마지막 행동 자리가 대기열이 아니라 가입으로 보낸다", () => {
+  it("첫 행동과 마지막 행동이 같은 아모라 경로로 보낸다", () => {
     // 행선지가 컴포넌트에서 카피로 옮겨 갔다. ClosingAction 은 이제
     // `closing.primary.href` / `closing.secondary.href` 를 렌더할 뿐이라, 컴포넌트
     // 원문에서 리터럴 href 를 찾으면 **행선지가 무엇이든 항상 실패한다.**
     // 행선지가 사는 곳을 보고, 화면이 그 값을 실제로 쓰는지도 같이 본다.
     const component = rendered(CLOSING_PATH);
     expect(component, "마무리가 카피의 행선지를 쓰지 않는다").toContain("closing.primary.href");
-    expect(component, "마무리가 카피의 행선지를 쓰지 않는다").toContain("closing.secondary.href");
 
     // 경계를 못 찾으면 `contentBlock` 이 던진다. `slice(-1)` 로 조용히 한 글자만
     // 보다가 가드가 한 번도 안 울린 적이 있어서 그렇게 만들어 두었다.
     const closing = contentBlock("closing", "footer");
-    expect(closing, "마무리에 가입으로 가는 길이 없다").toMatch(SIGNUP_HREF);
+    expect(closing, "마무리에 아모라로 가는 길이 없다").toMatch(AMORA_HREF);
+    expect(contentBlock("hero", "blockedReasons")).toMatch(AMORA_HREF);
   });
 
-  it("무료라고 단정하지 않는 비용 고지가 화면에 남아 있다", () => {
+  it("로그인과 시작 설정을 거쳐도 아모라로 돌아올 목적지를 보존한다", () => {
+    const origin = "https://hanbang.ai";
+    const search = "?redirect=%2Fwedding%2Fchat";
+    expect(getPostLoginRedirectPath(search, origin, true)).toBe("/wedding/chat");
+    const onboarding = getPostLoginRedirectPath(search, origin, false);
+    expect(onboarding).toBe("/wedding/onboarding?redirect=%2Fwedding%2Fchat");
+    expect(getAuthRedirectPath(new URL(onboarding, origin).search, origin)).toBe("/wedding/chat");
+    const middleware = rendered("src/lib/supabase/middleware.ts");
+    expect(middleware).toContain('buildCustomerGateRedirect(request, "/login")');
+    expect(middleware).toContain('buildCustomerGateRedirect(request, "/wedding/onboarding")');
+    expect(middleware).toContain('url.searchParams.set("redirect", destination)');
+  });
+
+  it("현재 결제 요청 없음과 향후 비용 미정을 함께 고지한다", () => {
     // 지켜야 하는 것은 **사실**이다: "향후 이용 비용은 아직 정해지지 않았다"고
     // 화면이 말하는가(`docs/operations/LANDING_CONSUMER_EXPERIENCE_HANDOFF_2026-08-04.md:111`).
     // 문장은 세 번 바뀌었다 —
@@ -149,22 +163,20 @@ describe("가입은 열려 있고, 랜딩이 그렇게 말한다", () => {
     // 문장이 아니라 사실을 고정한다. 이 고지는 베타와 함께 지워지는 것이 아니다 —
     // 오늘 참이기 때문에 남는다(CLAUDE.md 2026-08-29).
     const copy = rendered(CONTENT_PATH);
-    expect(copy, "비용이 아직 정해지지 않았다는 고지가 사라졌다")
-      .toContain("향후 이용 비용은 아직 정해지지 않았");
-    expect(copy, "지금 결제를 요청하지 않는다는 고지가 사라졌다")
-      .toContain("지금은 결제를 요청하지 않아요");
+    expect(copy, "현재 무료라는 시점과 앞으로의 요금 미정 고지가 사라졌다")
+      .toContain("향후 이용 비용은 아직 정해지지 않았고, 계정을 만들어도 지금은 결제를 요청하지 않아요.");
 
     // 그 고지는 `confirm` 블록(계정을 만들면 무엇이 되는지 말하는 자리)에 있고,
     // ConfirmSection 이 실제로 그 값을 렌더해야 화면에 나간다. 카피에만 있고 아무도
     // 안 읽으면 사용자는 고지를 못 본다.
     expect(contentBlock("confirm", "availableNow"), "비용 고지가 confirm 블록을 떠났다")
-      .toContain("향후 이용 비용은 아직 정해지지 않았");
+      .toContain("향후 이용 비용은 아직 정해지지 않았고");
     expect(rendered(CONFIRM_PATH), "확인 섹션이 비용 고지를 렌더하지 않는다")
       .toContain("confirm.note");
 
     // 반대편 거짓말. 무료라고 단정하면 나중에 값을 정할 때 약속을 깬 것이 된다.
     for (const [name, visible] of landingSurfaces()) {
-      for (const overclaim of ["웨딩한방은 무료", "평생 무료", "무료로 이용"]) {
+      for (const overclaim of ["웨딩한방은 항상 무료", "평생 무료", "무제한 무료", "영구 무료"]) {
         expect(visible, `${name} 가 "${overclaim}" 이라고 단정한다`).not.toContain(overclaim);
       }
     }

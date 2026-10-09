@@ -4,6 +4,7 @@ import Link from "next/link";
 import { Menu, X } from "lucide-react";
 import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 import TrackedLandingLink from "./TrackedLandingLink";
+import { headerAuth } from "./landingContent";
 
 type MobileLandingMenuProps = {
   items: ReadonlyArray<{
@@ -76,7 +77,7 @@ export default function MobileLandingMenu({ items }: MobileLandingMenuProps) {
         // 화면에서 x=211이라 224px 패널이 왼쪽으로 13px 밀려나 메뉴 글자가 잘렸다
         // (실측 -13..211). 360px 이상은 여유가 있어 그대로 두고, 그 아래에서만
         // 뷰포트에 붙여 항상 화면 안에 들어오게 한다.
-        className="fixed inset-x-3 top-16 flex flex-col rounded-[6px] border border-[var(--color-paper-edge)] bg-[var(--color-paper-card)] p-2 shadow-overlay min-[360px]:absolute min-[360px]:inset-x-auto min-[360px]:right-0 min-[360px]:top-12 min-[360px]:w-56"
+        className="fixed inset-x-3 top-16 flex max-h-[calc(100dvh-90px)] flex-col overflow-y-auto overscroll-contain rounded-[6px] border border-[var(--color-paper-edge)] bg-[var(--color-paper-card)] p-2 shadow-overlay min-[360px]:absolute min-[360px]:inset-x-auto min-[360px]:right-0 min-[360px]:top-12 min-[360px]:w-56"
       >
         {items.map((item) => item.href.startsWith("#") ? (
           <Link
@@ -88,19 +89,21 @@ export default function MobileLandingMenu({ items }: MobileLandingMenuProps) {
             {item.label}
           </Link>
         ) : (
-          <TrackedLandingLink key={item.href} href={item.href} source={item.href === "/wedding-code" ? "landing_mobile_wedding_code" : "landing_header"} onClickCapture={closeMenu} className={navigationLinkClassName}>
+          <TrackedLandingLink key={item.href} href={item.href} source="landing_header" onClickCapture={closeMenu} className={navigationLinkClassName}>
             {item.label}
           </TrackedLandingLink>
         ))}
-        <Link
-          href="/login?mode=signup"
-          onClick={closeMenu}
+        <TrackedLandingLink
+          href={headerAuth.signUp.href}
+          source="landing_header"
+          prefetch={false}
+          onClickCapture={closeMenu}
           className={`flex min-h-11 items-center border-t border-[var(--color-paper-divider)] px-4 py-3 text-[14px] font-semibold text-[var(--color-paper-ink-soft)] transition-colors duration-200 hover:bg-[var(--color-paper-sheet)] hover:text-[var(--color-paper-ink)] motion-reduce:transition-none ${focusRing}`}
         >
-          회원가입
-        </Link>
+          {headerAuth.signUp.label}
+        </TrackedLandingLink>
         <Link
-          href="/login"
+          href={headerAuth.logIn.href}
           onClick={closeMenu}
           className={`flex min-h-11 items-center border-t border-[var(--color-paper-divider)] px-4 py-3 text-[14px] font-semibold text-[var(--color-paper-ink-soft)] transition-colors duration-200 hover:bg-[var(--color-paper-sheet)] hover:text-[var(--color-paper-ink)] motion-reduce:transition-none ${focusRing}`}
         >

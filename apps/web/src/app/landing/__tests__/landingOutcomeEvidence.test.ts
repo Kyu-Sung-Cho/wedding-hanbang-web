@@ -213,7 +213,7 @@ const CONTRACT_REVERSALS: ReadonlyArray<readonly [RegExp, string]> = [
     "비로그인 아모라 — #245로 닫혔다. 정본 시안의 첫 버튼('가입 없이 물어보기')이 이 갈래다",
   ],
   [
-    /아모라[^.]{0,25}(가입|로그인|계정)[^.]{0,25}(없이|않아도|않고)/u,
+    /아모라(?![^.]{0,25}가입 후, 웨딩코드는 가입 없이)[^.]{0,25}(가입|로그인|계정)[^.]{0,25}(없이|않아도|않고)/u,
     "비로그인 아모라 — 어순만 바꾼 같은 약속",
   ],
   [
@@ -250,59 +250,54 @@ describe("landing product outcome evidence", () => {
     // 2026-08-29: 시안 문장이 "…, 눌러서 확인한 것만 준비 기록에 반영해요." 로 바뀌었다.
     // 옛 단언은 "확인한 **변경**만" 이었다. 낱말이 아니라 계약("확인한 것만 반영")을
     // 재도록 두 조각으로 나눠 묻는다.
-    expect(block.confirm).toContain("예산·할 일·일정 중 한 번에 한 가지 변경을 제안하고");
-    expect(block.confirm).toContain("확인한 것만 준비 기록에 반영해요");
-    // 제목 자체가 계약이다. "아모라가 바꾸지 않아요 / 확인한 것만 남아요".
-    expect(block.confirm, "아모라가 스스로 바꾸지 않는다는 제목이 사라졌다").toContain(
-      "아모라가 바꾸지 않아요.",
-    );
+    expect(block.confirm).toContain("저장 전에 바뀔 내용과 저장 위치를 직접 확인하면 예산·할 일·일정에 남길 수 있어요");
+    expect(block.confirm).toContain("저장을 확인하기 전에는 기록이 바뀌지 않아요");
 
     // 목적지 셋. 옛 랜딩은 "우리 예산 / 우리 할 일 / 우리 일정" 카드 셋으로 보여줬고
     // 지금은 한 문장 안에서 셋을 함께 부른다. 어느 쪽이든 셋 다 이름이 불려야
     // 사용자가 확인 버튼이 무엇을 건드리는지 안다.
-    expect(block.confirm, "변경이 도착하는 곳 셋의 이름이 사라졌다").toContain("예산·할 일·일정");
+    expect(landingContent.confirm.tools.map((tool) => tool.title), "변경이 도착하는 곳 셋의 이름이 사라졌다")
+      .toEqual(["예산", "할 일", "일정"]);
 
     // 2026-08-23 파운더 결정(두 사람 승인 폐지)의 **현재 사실**. 한 사람이 확인하면
     // 반영되고 상대에게 알림이 간다. 알림 문구는 CLAUDE.md 가 정한 그것이다.
-    expect(block.confirm, "파트너 알림이 사라졌다 — 폐지된 것은 두 번째 승인이지 알림이 아니다").toContain(
-      "함께 쓰는 계획이 변경됐어요",
+    expect(block.confirm, "한 사람의 저장이 공동 기록에 반영된다는 설명이 사라졌다").toContain(
+      "두 사람 중 한 명이 저장하면 공동 기록에 반영돼요",
     );
+    expect(block.confirm, "파트너 알림이 사라졌다").toContain("파트너도 앱에서 변경 알림을 볼 수 있어요");
 
     // 2026-08-29 파운더 결정: 베타 틀은 없애되 **이 고지는 남긴다.** 베타라서가 아니라
     // 오늘 참이라서다 — 이용 방법과 비용이 아직 정해지지 않았고 결제를 요청하지 않는다.
-    expect(block.confirm, "가격 미정·결제 없음 고지가 사라졌다").toContain(
-      "향후 이용 비용은 아직 정해지지 않았고",
+    expect(block.confirm, "현재 무료라는 시점과 향후 요금 미정 고지가 사라졌다").toContain(
+      "향후 이용 비용은 아직 정해지지 않았고, 계정을 만들어도 지금은 결제를 요청하지 않아요.",
     );
-    expect(block.confirm).toContain("계정을 만들어도 지금은 결제를 요청하지 않아요");
 
     // 반영될 것이 화면에 그대로 보인다. 2026-09-03 시안으로 카드가 "제안 한 건(금액)"
     // 에서 **"아모라가 이렇게 이해했어요" 세 줄**로 바뀌었다 — 값이 아니라 상태(확정·
     // 미정·다음)를 보여 준다. 지키는 것은 같다: 무엇이 반영될지가 눌리기 전에 보인다.
-    expect(block.confirm).toContain("예식장 예산을 1,000만 원으로 변경");
-    expect(block.confirm).toContain("아직 반영 전");
+    expect(block.confirm).toContain("결혼식장 예산을 1,000만 원으로 설정");
+    expect(block.confirm).toContain("저장 전");
 
     // "아직 반영 전"이라는 말과 [확인]·[나중에] 두 버튼이 함께 있어야, 확인 전에는
     // 아무 일도 일어나지 않는다는 약속이 글이 아니라 그림으로도 보인다. 옛
     // `PreparationResult`의 "제안마다 따로 확인"이 여기로 옮겨 왔다.
     // (2026-08-29: 시안이 쉼표를 가운뎃점으로 바꿨다. 표기가 아니라 뜻을 재도록
     //  "아모라의 제안"과 "아직 반영 전"을 따로 묻는다.)
-    expect(block.confirm).toContain("아모라가 이렇게 이해했어요");
-    expect(block.confirm).toContain("아직 반영 전");
+    expect(block.confirm).toContain("저장할 내용을 확인해 주세요");
+    expect(block.confirm).toContain("저장 전");
     // 2026-09-03 시안이 버튼을 둘에서 셋으로 바꿨다("맞아요"·"수정하기"·"지금은 저장 안 함").
     // 고를 수 있는 길이 늘어난 것이고, **아무것도 안 하는 길**이 여전히 있다는 것이 계약이다.
-    expect(block.confirm).toContain('confirm: "맞아요"');
-    expect(block.confirm).toContain('later: "지금은 저장 안 함"');
+    expect(block.confirm).toContain('confirm: "확인하고 저장"');
+    expect(block.confirm).toContain('later: "저장하지 않기"');
     // 옛 카피의 "확인 버튼을 누르기 전까지 예산·할 일·일정에 반영되지 않아요" 는
     // 컴포넌트가 직접 든 이 한 줄로 옮겨졌다. 카드 **안에** 있어야 그림과 붙는다.
-    expect(componentSource("ConfirmSection.tsx")).toContain(
-      "확인을 누르기 전까지 예산 화면은 그대로예요.",
-    );
+    expectRendersCopy("ConfirmSection.tsx", "confirm.sample.contract");
 
     // 위 문장들이 **화면에 꽂혀 있는가**. 카피만 보던 시절에는 이 <p> 들을 지워도
     // 통과했다. 샘플 카드 조각까지 하나씩 센다 — [확인]·[나중에] 중 하나만 지우면
     // "확인 전에는 그대로"라는 그림이 무너진다.
     for (const expression of [
-      "confirm.body",
+      "confirm.lede",
       "confirm.body2",
       "confirm.note",
       // 2026-09-03 시안으로 카드가 "제안 한 건(금액)" 에서 **"이해한 것 세 줄"** 로
@@ -313,15 +308,17 @@ describe("landing product outcome evidence", () => {
       "confirm.sample.cardTitle",
       "confirm.sample.contract",
       "confirm.sample.confirm",
-      "confirm.sample.edit",
       "confirm.sample.later",
     ]) {
       expectRendersCopy("ConfirmSection.tsx", expression);
     }
     expect(componentSource("ConfirmSection.tsx"), "이해한 것 세 줄을 정본 배열에서 돌지 않는다")
       .toContain("confirm.sample.rows.map(");
-    expect(componentSource("ConfirmSection.tsx"), "도구 카드 셋을 정본 배열에서 돌지 않는다")
-      .toContain("confirm.tools.map(");
+    expect(landingContent.confirm.management.map((tool) => tool.href)).toEqual([
+      "/wedding/budget", "/wedding/checklist", "/wedding/schedule", "/wedding/chat/board",
+    ]);
+    expect(componentSource("ConfirmSection.tsx"), "관리 도구 네 개를 정본 배열에서 돌지 않는다")
+      .toContain("confirm.management.map(");
 
     // 이 카드는 **지어낸 금액**("우리 총예산은 3,000만 원으로 정했어" · "총예산 3,000만원")을
     // 보여 준다. 실제 이용 현황으로 읽히면 안 되고, 그래서 카피에 `sampleNote` 가 있다.
@@ -334,7 +331,7 @@ describe("landing product outcome evidence", () => {
     // 화면에 있다. 고치는 곳은 컴포넌트다 — 카드 안 마지막 <p> 로 한 줄 내면 된다.
     // 이 단언을 지우면 그 순간 화면이 샘플을 실제처럼 보여 주게 된다.
     expect(block.confirm, "샘플 고지 문장이 카피에서 사라졌다").toContain(
-      "실제 이용 현황이 아니에요",
+      "금액은 예시이며, 이 화면에서는 저장할 수 없어요",
     );
     expectRendersCopy("ConfirmSection.tsx", "confirm.sampleNote");
 
@@ -361,24 +358,24 @@ describe("landing product outcome evidence", () => {
     // AI 기본법 고지. 옛 문장은 "아모라 답변은 AI가 만든 내용이에요" 였고 그 말은
     // 지금 푸터 고지가 든다(아래 푸터 검사). 소개 자리는 시안 문구를 쓴다.
     expect(block.amoraNote, "아모라 소개 자리에서 AI 고지가 사라졌다").toContain(
-      "AI 생성 답변",
+      "아모라 · AI 생성",
     );
-    expect(block.amoraNote, "AI가 틀릴 수 있다는 말이 사라졌다").toMatch(
-      /AI는 틀리거나 놓칠 수 있어요/u,
+    expect(block.boundaries, "AI가 틀릴 수 있다는 말이 사라졌다").toContain(
+      "AI 답변에는 오류가 있을 수 있어요",
     );
     // 틀릴 수 있다고만 하고 끝내면 사용자가 무엇을 해야 하는지 모른다. 옛 카피와 같이
     // **다시 확인할 대상**을 이름으로 부른다.
-    expect(block.amoraNote, "무엇을 다시 확인해야 하는지가 사라졌다").toContain(
+    expect(block.boundaries, "무엇을 다시 확인해야 하는지가 사라졌다").toContain(
       "계약 금액·취소 조건·중요 날짜는 원문과 업체 안내를 다시 확인해 주세요",
     );
 
     // 옛 `PrivateLaneSection.note` 의 저장 고지가 여기로 왔다. 이 카드의 대화는
     // 지어낸 것이고 **이 화면에서는 저장되지 않는다** — 그 둘을 카드 안에서 말한다.
     expect(block.amoraNote, "샘플 고지가 사라졌다 — 실제 이용 현황으로 읽힌다").toContain(
-      "기능을 보여주기 위한 샘플이고",
+      "기능을 설명하는 예시 대화예요",
     );
     expect(block.amoraNote, "이 화면에서 저장되지 않는다는 고지가 사라졌다").toContain(
-      "이 화면에서는 실제로 저장되지 않아요",
+      "이 화면에서는 대화하거나 저장할 수 없어요",
     );
 
     expectRendersCopy("AmoraNoteSection.tsx", "amoraNote.note");
@@ -400,23 +397,23 @@ describe("landing product outcome evidence", () => {
       "업체에 점수·등급·순위를 매기지 않아요",
     );
     expect(block.boundaries, "공시 문장을 요약하지 않는다는 계약이 사라졌다").toContain(
-      "공시된 문장을 요약하지도 않습니다",
+      "공시 가격과 규정은 요약하지 않고 원문으로 제공해요",
     );
     // 옛 커뮤니티 카드의 "광고·협찬 글에는 출처 표시가 붙고" 가 여기로 왔다.
     // 오늘 사실은 더 강하다 — 광고 상품 자체를 운영하지 않는다.
     expect(block.boundaries, "광고에 대한 입장이 사라졌다").toContain(
-      "현재 광고 상품을 운영하지 않아요",
+      "광고 상품은 운영하지 않아요",
     );
     // 2026-08-18 파운더 결정으로 계약 해석·판정을 전부 걷어냈다(contractShield 삭제).
     expect(block.boundaries, "계약 해석을 하지 않는다는 계약이 사라졌다").toContain(
-      "계약서 해석이나 유불리 판단을 하지 않아요",
+      "계약 조건을 해석하거나 유불리를 판단하지 않아요",
     );
     expect(block.boundaries, "중개하지 않는다는 문장이 사라졌다").toContain(
-      "예약·결제를 중개하지 않습니다",
+      "업체 계약 신청·예약·결제를 중개하지 않아요",
     );
     // AI 고지 — 옛 커뮤니티 카드의 "AI가 단 답변은 사람 답변과 구분해서 보여줘요" 자리.
     expect(block.boundaries, "AI 표시 약속이 사라졌다").toContain(
-      "AI가 만든 답변임을 표시해요",
+      "아모라의 답변은 AI가 작성해요",
     );
 
     for (const expression of ["item.title", "item.note", "boundaries.title"]) {
@@ -433,24 +430,18 @@ describe("landing product outcome evidence", () => {
   });
 
   it("keeps the editorial story in the intended order", () => {
-    // 2026-09-08 첨부 HTML의 순서를 복원한다. 준비 고민 → 대화 → 의견 차이 → 확인,
-    // 그 뒤에 직접 쓸 도구·커뮤니티·기능 한계를 설명한다.
+    // 현재 흐름: 공동 준비 결과 → 확인과 저장 → 아모라 대화 → 의견 차이 → 공개 도구.
     //
     // `landing.indexOf("<X />")` 로 묻던 시절에는 주석으로 꺼 놓은 섹션이 렌더된
     // 것으로 잡혔다. `renderedSections()` 는 주석을 벗기고 <main> 안만 센다.
     const order = [
-      // 2026-09-03 시안으로 목록이 갈렸다. `ScenesSection`·`OneRoomSection`·
-      // `PrivateLaneSection` 이 없어지고 `BlockedReasonsSection`·`PhotoBandSection` 이
-      // 들어왔다. **없어진 셋의 내용은 사라지지 않았다** — 어디로 갔는지는
-      // `app/landing/page.tsx` 머리말이 이름으로 적어 둔다.
       "TransformationHero",
-      "BlockedReasonsSection",
       "AmoraNoteSection",
       "NoSideSection",
       "ConfirmSection",
       "AvailableNowSection",
-      "CommunitySection",
       "PhotoBandSection",
+      "LandingFaqSection",
       "BoundariesSection",
       "ClosingAction",
     ];
@@ -476,14 +467,12 @@ describe("landing product outcome evidence", () => {
       );
     }
 
-    // 둘은 특히 못 박아 둔다.
-    // ① 아모라가 확인보다 먼저 와야 한다. 무엇을 확인하는지 모르는 채로 "확인한 것만
-    //    남아요" 를 먼저 읽으면 아무 말도 아니다.
+    // 공동 준비 기록 예시가 히어로에 있으므로, 확인 계약을 바로 뒤에 설명한다.
     expect(
       sections.indexOf("ConfirmSection"),
-      "확인 섹션이 아모라 소개보다 앞으로 갔다 — 무엇을 확인하는지 모른 채 읽는다",
-    ).toBeGreaterThan(sections.indexOf("AmoraNoteSection"));
-    // ② 부가 도구(⑤)가 제품 계약의 축(아모라·확인·커뮤니티)보다 앞서면 안 된다.
+      "아모라 가치와 우선순위 뒤에 관리와 확인 계약이 이어지지 않는다",
+    ).toBe(sections.indexOf("NoSideSection") + 1);
+    // 부가 도구가 제품 계약의 축보다 앞서면 안 된다.
     //    2026-08-28에 실제로 공시 위약금 비교가 메인 자리를 차지했고 파운더가
     //    "메인 기능을 소개해야지" 로 바로잡았다.
     // 2026-09-03: 시안이 무료 도구를 커뮤니티 **앞**에 둔다. 막으려던 것은 부가 도구가
@@ -568,69 +557,14 @@ describe("landing product outcome evidence", () => {
     }
   });
 
-  it("describes the community as it actually is, and only promises what exists", () => {
-    // 이 계약은 원래 "커뮤니티는 아직 운영 공개 전"을 강제했다. 커뮤니티는 이미 열려
-    // 있고 로그인 없이 읽히므로(라이브 확인) 지키는 대상을 현재 사실로 옮겼었다.
-    // 2026-08-27에는 카드 한 장으로 줄었다가, 2026-08-29 시안 복원에서 **제품 계약의
-    // 둘째 축**으로 전용 섹션이 됐다(CLAUDE.md: "비슷한 시기에 준비하는 사람들의
-    // 기록을 함께 보며"). 계약은 그대로다 — 실재하는 것만 현재형으로 약속한다.
-    expectRenderedOnLanding("CommunitySection.tsx");
-    expectReadsCanonicalCopy("CommunitySection.tsx", "community");
-
-    // 로그인 없이 읽힌다는 것은 라이브 실측으로 참이다. 글쓰기에는 계정이 필요하다 —
-    // 그 경계를 같이 적지 않으면 처음 온 사람이 링크를 눌렀다가 벽을 만난다.
-    expect(block.community, "로그인 없이 읽힌다는 현재 사실이 사라졌다").toContain(
-      "로그인 없이 읽을 수 있어요",
-    );
-    expect(block.community, "글쓰기에 계정이 필요하다는 경계가 사라졌다").toContain(
-      "글을 쓰려면 계정이 필요해요",
-    );
-
-    // 이 축의 실체는 **동기방**이다. "커뮤니티가 있어요" 만으로는 일반 게시판과
-    // 구분되지 않는다. 분기 이름이 실제로 화면에 나와야 한다
-    // (`app/(community)/community/cohort` 가 정말 그렇게 나뉜다).
-    expect(block.community, "동기방이 무엇인지가 사라졌다").toContain("분기별로 동기방이 나뉘어 있어요");
-    expect(
-      landingContent.community.cohorts.length,
-      "분기 목록이 비었다 — 동기방이 말뿐이 된다",
-    ).toBeGreaterThanOrEqual(4);
-    // 2026-09-03: 주제 목록(`topics`)이 시안에서 없어지고 그 자리를 분기방 목록이
-    // 대신한다. 무엇이 오가는지는 본문 한 줄이 말한다(바로 위 단언).
-
-    // 커뮤니티로 가는 길. 라벨과 목적지 둘 다 정본에서 온다.
-    // 커뮤니티 홈의 정본 경로는 `/wedding` 이다 — `next.config.ts` 의 리라이트가
-    // `/wedding` 을 `/community` 로 보내고, 제품 코드(사이드바·카드·내비)가 전부
-    // 그 형태를 쓴다. `/wedding/community` 도 리라이트에 걸려 열리기는 하지만
-    // 한 곳도 그렇게 쓰지 않고, `mvpDirection.test.ts` 는 `/wedding` 을 못박는다.
-    // 2026-08-29 에 내가 이 파일에만 `/wedding/community` 를 적어 두 가드가 서로
-    // 다른 경로를 요구했다.
-    expect(landingContent.community.cta.href, "커뮤니티 링크가 커뮤니티로 가지 않는다").toBe(
-      "/wedding",
-    );
-    expect(landingContent.community.cta.label).toBe("커뮤니티 둘러보기");
-
-    // 카피에 있는가 + 화면이 그 값을 쓰는가.
-    for (const expression of [
-      "community.body",
-      "community.note",
-      "community.cta.label",
-      "community.cohortTag",
-    ]) {
-      expectRendersCopy("CommunitySection.tsx", expression);
-    }
-    const section = componentSource("CommunitySection.tsx");
-    expect(section, "분기 목록을 정본 배열에서 돌지 않는다").toContain("community.cohorts.map(");
-    expect(section, "커뮤니티 링크가 정본 href 를 쓰지 않는다").toContain(
-      "href={community.cta.href}",
-    );
-
-    // 닫혔다고 말하지 않는다 / 없는 것을 있다고 하지 않는다("업계 종사자" 배지는
-    // 운영 최근 글이 거의 전부 `legacy_unverified` 라 앞세우면 거짓이 된다).
-    // 둘 다 `CONTRACT_REVERSALS` 가 랜딩 전체에서 막는다.
-    //
-    // 없어진 단언: 옛 커뮤니티 카드의 "광고·협찬 글에는 출처 표시가 붙고" ·
-    // "AI가 단 답변은 사람 답변과 구분해서 보여줘요" 는 BoundariesSection 으로
-    // 옮겨졌고, 위 boundaries 검사가 그 자리에서 진다.
+  it("does not promote the dormant community on the landing page", () => {
+    expect(landingContent.community.visible).toBe(false);
+    expect(sections).not.toContain("CommunitySection");
+    const page = rendered("src/app/landing/page.tsx");
+    expect(page).not.toContain("<CommunitySection");
+    expect(footerColumns.flatMap((column) => column.links).map((link) => link.href))
+      .not.toContain("/wedding");
+    expect(headerNav.map((link) => link.href)).not.toContain("/wedding");
   });
 
   it("keeps what works without an account honest about its limits", () => {
@@ -646,10 +580,10 @@ describe("landing product outcome evidence", () => {
     const weddingCode = nowCard("/wedding-code");
     expect(weddingCode, "웨딩코드 카드(/wedding-code)가 사라졌다").toBeDefined();
     expect(weddingCode?.note, "점수·궁합 금지 고지가 웨딩코드 카드에서 사라졌다").toContain(
-      "점수도 궁합도 매기지 않아요",
+      "심리 진단이나 궁합 검사가 아니에요",
     );
     expect(weddingCode?.note, "공유 링크에 답이 담긴다는 경고가 사라졌다").toContain(
-      "함께 볼 사람에게만 보내세요",
+      "함께 보기에 동의하면 답이 서버에 보관·공유돼요",
     );
 
     // ② 견적 점검 — 옛 `privateLane.note` 의 저장 고지가 여기로도 왔다.
@@ -658,10 +592,10 @@ describe("landing product outcome evidence", () => {
     const quoteCheck = nowCard("/wedding/community/quote-check");
     expect(quoteCheck, "견적 점검 카드가 사라졌다").toBeDefined();
     expect(quoteCheck?.note, "비로그인 견적을 저장하지 않는다는 고지가 사라졌다").toContain(
-      "로그인 없이 선택한 내용은 저장하지 않아요",
+      "가입 없이 선택한 내용은 저장하지 않아요",
     );
     expect(quoteCheck?.note, "적정성을 판정하지 않는다는 계약이 사라졌다").toContain(
-      "값이 적정한지는 판정하지 않아요",
+      "가격의 적정 여부는 평가하지 않아요",
     );
 
     // ③ 공시 가격 — 옛 PriceCompareSection 이 통째로 진 자리다. 파운더가 "부가 기능"
@@ -670,10 +604,10 @@ describe("landing product outcome evidence", () => {
     const price = nowCard("/price");
     expect(price, "공시 가격 카드(/price)가 사라졌다").toBeDefined();
     expect(price?.body, "공시 자료의 출처가 카드에서 사라졌다").toContain("한국소비자원");
-    expect(price?.body, "원문 그대로 본다는 약속이 사라졌다").toContain("원문 그대로");
+    expect(price?.body, "원문을 볼 수 있다는 약속이 사라졌다").toContain("원문을 확인할 수 있어요");
     expect(price?.note, "공시 기준 시점이 카드에서 사라졌다").toMatch(/2025년 11월/u);
     expect(price?.note, "판정·요약 금지가 카드에서 사라졌다").toContain(
-      "값이 적정한지는 판정하지 않고, 요약하지도 않아요",
+      "가격과 규정은 요약하지 않고 원문으로 제공하며, 가격의 적정 여부는 평가하지 않아요",
     );
 
     // 카드의 조각이 다 화면에 꽂혀 있어야 한다. note 를 그리는 <span> 을 지우면
@@ -702,12 +636,9 @@ describe("landing product outcome evidence", () => {
     // 카드 아래 한 줄이 "로그인 없이 열린다"고 말하는 대상은 **오늘 정말 그런 것**
     // 뿐이어야 한다. 시안은 여기에 "아모라 대화도 로그인 없이" 를 적었는데 그 경로는
     // 2026-08-27에 닫혔다. (문장 자체는 `CONTRACT_REVERSALS` 가 막는다.)
-    for (const link of landingContent.availableNow.footLinks as ReadonlyArray<CopyLink>) {
-      expect(
-        ["/price", "/wedding", "/wedding/manners", "/wedding-code"],
-        `"${link.label}" 는 로그인 없이 열리는 곳이 아니다`,
-      ).toContain(link.href);
-    }
+    expect(landingContent.availableNow.cards.map((card) => card.href)).toEqual([
+      "/wedding/community/quote-check", "/wedding-code", "/price", "/wedding/manners",
+    ]);
   });
 
   it("keeps the price source and its limits in the footer notice", () => {
@@ -717,16 +648,14 @@ describe("landing product outcome evidence", () => {
 
     expect(block.footer, "가격 출처가 푸터 고지에서 사라졌다").toContain("한국소비자원 참가격");
     expect(block.footer, "공시 기준 시점이 사라졌다").toMatch(/2025년 11월/u);
-    expect(block.footer, "확인 시점이 사라졌다").toMatch(/화면 집계 확인/u);
     expect(block.footer, "표시 금액의 한계 설명이 사라졌다").toContain(
-      "실제 계약가와 다를 수 있고",
+      "실제 계약가와 다를 수 있어요",
     );
     // 지역 편차를 안 적으면 사용자가 "우리 지역엔 없네"를 우리 잘못으로 읽는다.
-    expect(block.footer, "지역 편차 문장이 사라졌다").toContain("지역별로 수가 크게 달라요");
+    expect(block.footer, "지역 편차 문장이 사라졌다").toContain("지역별 등록 업체 수가 달라요");
     expect(block.footer, "예약·결제·계약의 주체가 사라졌다").toContain(
-      "예약·결제·계약은 업체와 직접 진행합니다",
+      "예약·결제·계약은 업체와 직접 진행해 주세요",
     );
-    expect(block.footer, "푸터의 AI 고지가 사라졌다").toContain("아모라 답변은 AI가 만든 내용이며");
 
     expectRendersCopy("LandingFooter.tsx", "footer.notice");
     expectRendersCopy("LandingFooter.tsx", "footer.tagline");

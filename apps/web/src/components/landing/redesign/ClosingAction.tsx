@@ -33,34 +33,27 @@ export default function ClosingAction() {
           <TitleLines value={closing.title} />
         </h2>
 
+        <p className="mx-auto mt-4 max-w-[600px] text-[15px] leading-[1.75] text-[var(--color-paper-on-ink-soft)] lg:text-[17px]">{closing.body}</p>
+        <ol aria-label="아모라 시작 순서" className="mx-auto mt-7 grid max-w-[860px] gap-3 text-left lg:grid-cols-3 lg:gap-6">
+          {closing.steps.map((step, index) => (
+            <li key={step} className="flex items-start gap-3 border-t border-[var(--color-paper-on-ink-rule)] pt-3 text-[14px] leading-[1.7] text-[var(--color-paper-on-ink-soft)]">
+              <span aria-hidden="true" className="text-[var(--color-paper-on-ink-faint)]">0{index + 1}</span>
+              <span>{step}</span>
+            </li>
+          ))}
+        </ol>
+
         <div className="mt-[30px] flex flex-col items-stretch justify-center gap-3 lg:flex-row lg:items-center lg:gap-[18px]">
           <TrackedLandingLink
             source="landing_closing_primary"
             href={closing.primary.href}
-            className="inline-flex min-h-[54px] items-center justify-center rounded-[11px] bg-[var(--color-paper-on-ink)] px-7 text-[16px] font-semibold text-[var(--color-paper-ink)] transition-colors duration-200 hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-paper-on-ink)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--color-paper-ink)] motion-reduce:transition-none lg:rounded-[9px]"
+            prefetch={false}
+            className="inline-flex min-h-[54px] items-center justify-center rounded-[11px] bg-[var(--color-paper-on-ink)] px-7 py-3 text-center text-[16px] font-semibold text-[var(--color-paper-ink)] transition-colors duration-200 hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-paper-on-ink)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--color-paper-ink)] motion-reduce:transition-none lg:rounded-[9px]"
           >
             {closing.primary.label}
           </TrackedLandingLink>
-          {/* 시안에서 둘째 행동은 테두리 버튼이 아니라 글자 링크다 — 어두운 바탕에서
-              버튼 둘을 나란히 두면 무엇을 먼저 눌러야 하는지가 흐려진다. */}
-          <TrackedLandingLink
-            source="landing_closing_signup"
-            href={closing.secondary.href}
-            className="inline-flex min-h-11 items-center justify-center px-2 text-[16px] font-medium text-[var(--color-paper-on-ink-soft)] transition-colors duration-200 hover:text-[var(--color-paper-on-ink)] motion-reduce:transition-none"
-          >
-            {closing.secondary.label}
-          </TrackedLandingLink>
         </div>
 
-        <p className="mt-6">
-          <TrackedLandingLink
-            source="landing_closing_login"
-            href={closing.tertiary.href}
-            className="inline-flex min-h-11 items-center text-[14px] font-medium text-[var(--color-paper-on-ink-faint)] underline underline-offset-4 transition-colors duration-200 hover:text-[var(--color-paper-on-ink)] motion-reduce:transition-none"
-          >
-            {closing.tertiary.label}
-          </TrackedLandingLink>
-        </p>
 
         {/* `{closing.note}` 를 **한 줄로** 적는다 — `landingDesignSystem.test.ts` 가
             `<p …>{closing.note}</p>` 라는 모양으로 조건 문단의 존재를 판정한다. */}

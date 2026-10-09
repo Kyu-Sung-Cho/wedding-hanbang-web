@@ -223,8 +223,8 @@ describe("랜딩은 수 대신 출처를 남긴다", () => {
       const footerCopy = contentBlock("footer", "headerNav");
     expect(footerCopy).toContain("한국소비자원 참가격");
     expect(footerCopy, "공시 기준 시점이 없다").toMatch(/\d{4}년 \d{1,2}월 공시 기준/u);
-    expect(footerCopy, "화면 집계 확인 시점이 없다")
-      .toMatch(/\d{4}\.\d{2}\.\d{2} 화면 집계 확인/u);
+    expect(footerCopy, "공시 가격이 기본 조건 기준이라는 한계가 없다")
+      .toContain("공시 가격은 기본 조건 기준이라 실제 계약가와 다를 수 있어요");
 
     // 카피에 남아 있어도 그리지 않으면 방문자는 근거를 못 본다.
     expect(

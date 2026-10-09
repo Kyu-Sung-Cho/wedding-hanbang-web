@@ -29,7 +29,7 @@ export default function LandingHeader() {
           웨딩한방
         </Link>
 
-        <nav className="hidden items-center gap-[38px] lg:flex" aria-label="랜딩페이지 주요 메뉴">
+        <nav className="hidden items-center gap-6 lg:flex" aria-label="랜딩페이지 주요 메뉴">
           {headerNav.map((item) => item.href.startsWith("#") ? (
             <Link
               key={item.href}
@@ -39,7 +39,7 @@ export default function LandingHeader() {
               {item.label}
             </Link>
           ) : (
-            <TrackedLandingLink key={item.href} href={item.href} source={item.href === "/wedding-code" ? "landing_header_wedding_code" : "landing_header"} className={navigationLinkClassName}>
+            <TrackedLandingLink key={item.href} href={item.href} source="landing_header" className={navigationLinkClassName}>
               {item.label}
             </TrackedLandingLink>
           ))}
@@ -60,6 +60,7 @@ export default function LandingHeader() {
               있었는데, 시안에 없는 행동이고 카피 정본을 읽지도 않았다. */}
           <TrackedLandingLink
             href={headerAuth.signUp.href}
+            prefetch={false}
             source="landing_header"
             className={`hidden min-h-11 items-center rounded-[8px] bg-[var(--hb-action)] px-[26px] text-[15px] font-semibold text-[var(--color-paper-card)] transition-colors duration-200 hover:bg-[var(--hb-action-hover)] motion-reduce:transition-none sm:inline-flex ${focusRing}`}
           >

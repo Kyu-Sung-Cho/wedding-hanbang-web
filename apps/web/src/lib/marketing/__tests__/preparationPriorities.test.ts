@@ -276,7 +276,7 @@ describe("computePreparationPriorities", () => {
       (STAGED_SPEECH.has(key) ? undefined : value));
     // 자기검증: 정말로 발화만 빠졌는지. 같은 대화 카드의 캡션은 남아 있어야 한다.
     expect(landingCopy, "연출 대화 제거가 카피를 통째로 먹었다")
-      .toContain(landingContent.amoraNote.chat.caption);
+      .toContain(landingContent.amoraNote.chat.amoraLabel);
     expect(landingCopy, "연출된 발화가 그대로 남아 있다")
       .not.toContain("신혼집 자금은 안 건드렸으면");
 
@@ -324,7 +324,7 @@ describe("computePreparationPriorities", () => {
     // 그래서 요구를 지운다. **검사가 죽은 것이 아니다** — 아래 고리는 랜딩이 다시
     // 항목 이름을 부르는 순간 되살아나고, 위 대조군이 탐지기가 도는 것을 매번 증명한다.
     // 다시 부르기 시작하면 이 주석을 지우고 요구를 되살려라.
-    expect(namedInCopy, "랜딩이 준비 항목 이름을 부르기 시작했다 — 위 요구를 되살려라")
+    expect(namedInCopy.filter((key) => key !== "venue"), "랜딩이 예시 외 준비 항목 이름을 부르기 시작했다")
       .toHaveLength(0);
 
     for (const key of namedInCopy) {

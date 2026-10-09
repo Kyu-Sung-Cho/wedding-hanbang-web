@@ -77,7 +77,7 @@ export default function BoundariesSection() {
             <p className="mt-4">
               <Link
                 href={boundaries.policyLink.href}
-                className="inline-flex min-h-11 items-center text-[14px] font-medium text-[var(--color-paper-on-ink-faint)] underline underline-offset-4 transition-colors duration-200 hover:text-[var(--color-paper-on-ink)] motion-reduce:transition-none"
+                className="inline-flex min-h-11 items-center rounded-[6px] text-[14px] font-medium text-[var(--color-paper-on-ink-faint)] underline underline-offset-4 transition-colors duration-200 hover:text-[var(--color-paper-on-ink)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-paper-on-ink)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--color-paper-ink)] motion-reduce:transition-none"
               >
                 {boundaries.policyLink.label}
               </Link>

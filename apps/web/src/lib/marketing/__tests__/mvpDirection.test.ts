@@ -111,7 +111,7 @@ describe("web MVP product direction", () => {
     // "우리 둘이 뭘 원하는지부터"). 제품을 무엇이라 소개하는지는 여전히 히어로가 정한다.
     const heroBlock = contentBlock("hero", "amoraNote");
     expect(heroBlock, "제품 소개 문장이 히어로 밖으로 나갔다")
-      .toMatch(/AI[^"\n]*아모라[\s\S]*직접 확인한 내용은 예산·할 일·일정/u);
+      .toMatch(/예산·일정·할 일[^"\n]*AI 동반자 아모라와 고민을 정리하고[^"\n]*직접 확인해 기록/u);
     // 아모라를 무엇이라고 부르는지도 히어로가 정한다(옛 `aiRole`이 지던 몫의 앞쪽).
     //
     // 같은 시안이 테이프 이름표를 "둘이 하는 결혼 준비, 아모라와"로 바꿔 이름표에서
@@ -125,9 +125,11 @@ describe("web MVP product direction", () => {
       .toMatch(/AI[^"\n]*아모라/u);
     // 그리고 아모라가 **처음 말하는 자리**에서 AI라는 것을 밝힌다(뒤쪽 몫).
     expect(contentBlock("amoraNote", "noSide"), "AI 고지가 아모라 소개 자리에 없다")
-      .toMatch(/AI 생성 답변/u);
+      .toMatch(/아모라 · AI 생성/u);
     // 도구 세 이름은 "확인한 것만 남는다"를 말하는 자리에서 불린다.
-    expect(contentBlock("confirm", "availableNow")).toContain("예산·할 일·일정");
+    for (const destination of ['title: "예산"', 'title: "할 일"', 'title: "일정"']) {
+      expect(contentBlock("confirm", "availableNow")).toContain(destination);
+    }
 
     // 히어로가 카피를 자기 안에 하드코딩하지 않고 정본에서 읽는다.
     expect(hero).toContain("const { hero } = landingContent;");
@@ -144,12 +146,12 @@ describe("web MVP product direction", () => {
     expect(ogCard, "공유 카드가 H1 정본을 읽지 않는다")
       .toContain("landingContent.hero.title.split(");
     expect(ogCard, "공유 카드가 본문 정본을 읽지 않는다")
-      .toContain("landingContent.hero.body.split(");
+      .toContain("landingContent.hero.shareDescription");
     for (const line of landingContent.hero.title.split("\n")) {
       expect(ogCard, `공유 카드가 H1을 하드코딩했다: "${line}"`).not.toContain(line);
     }
     expect(ogCard, "공유 카드가 히어로 본문을 하드코딩했다")
-      .not.toContain(landingContent.hero.body.split(". ")[0]);
+      .not.toContain(landingContent.hero.shareDescription);
 
     expect(communityPage).toContain("웨딩한방 — 결혼 준비를 아모라와 정리하세요");
     expect(community).toContain(PRODUCT_DEFINITION.replace("서비스입니다.", "서비스예요."));
@@ -212,7 +214,9 @@ describe("web MVP product direction", () => {
     expect(amoraSection, "함께 보는 자리와 나만 보는 자리가 같은 화면에 없다")
       .toContain("amoraNote.lanes.map");
     expect(contentBlock("amoraNote", "noSide"), "나만 보는 자리의 저장 고지가 사라졌다")
-      .toContain("연결된 배우자 화면에는 표시하지 않아요");
+      .toContain("상담 내용은 파트너에게 표시되지 않아요");
+    expect(contentBlock("amoraNote", "noSide"), "개인 상담의 서비스 저장 고지가 사라졌다")
+      .toContain("개인 상담도 서비스에서 처리·저장돼요");
 
     expect(community).toContain('data-community-home-order="search-first"');
     expect(searchHubRender).toBeGreaterThanOrEqual(0);
@@ -261,14 +265,17 @@ describe("web MVP product direction", () => {
     // 보이므로 내비까지 자리를 쓰지 않는다.
     for (const [label, href] of [
       ["아모라", "#amora"],
-      ["둘의 준비", "#confirm"],
-      ["무료 도구", "#now"],
-      ["커뮤니티", "#community"],
+      ["둘의 우선순위", "#noside"],
+      ["준비 관리", "#confirm"],
+      ["먼저 써보기", "#now"],
+      ["자주 묻는 질문", "#faq"],
     ]) {
       expect(landingNav).toContain(`label: "${label}", href: "${href}"`);
       // 개편 전에는 본문에 없는 앵커를 가리키는 항목이 실제로 있었다(눌러도 아무
       // 일이 없다). 라벨만 대조하면 그 상태가 그대로 통과하므로 목적지도 본다.
-      expect(sectionIds, `${href}를 받는 섹션이 본문에 없다`).toContain(href.slice(1));
+      if (href.startsWith("#")) {
+        expect(sectionIds, `${href}를 받는 섹션이 본문에 없다`).toContain(href.slice(1));
+      }
     }
 
     // 푸터는 링크를 **로그인 없이 / 계정 베타 / 정책** 셋으로 나눈다. 옛 구조는
@@ -278,10 +285,10 @@ describe("web MVP product direction", () => {
     // 묶음 이름이 데이터에 있으므로 그 이름으로 잘라 읽는다.
     const group = (heading: string) =>
       blockBetween(landingProductLinks, `heading: "${heading}"`, "],");
-    const landingOpenLinks = group("로그인 없이");
+    const landingOpenLinks = group("가입 없이 이용");
     // ⚠️ 묶음 이름이 "계정 베타" 였다. **2026-08-29 파운더 결정으로 베타를 하지
     // 않는다** — 계정은 그냥 만드는 것이다. 이름을 되돌리지 마라.
-    const landingAccountLinks = group("계정이 필요한 것");
+    const landingAccountLinks = group("가입 후 이용");
     expect(landingProductLinks, "베타 틀이 푸터로 돌아왔다").not.toContain("베타");
     // 컴포넌트가 묶음을 정본에서 만들어 낸다(이름을 따로 적지 않는다).
     expect(landingFooter, "푸터가 묶음 이름을 정본에서 읽지 않는다")
@@ -294,13 +301,23 @@ describe("web MVP product direction", () => {
     // 두 줄이 모두 `/login`으로 간다. 이름을 살려 두면 카피에 없는 링크를
     // 요구하는 셈이라 조용히 통과시킬 방법이 없다. 아모라 진입점을 푸터에
     // 되살릴지는 제품 결정이므로 여기서 대신 정하지 않고, 보고서에 남긴다.
-    expect(landingAccountLinks).toContain('label: "예산·할 일·일정"');
+    for (const [label, href] of [
+      ["아모라", "/wedding/chat"],
+      ["결정 보드", "/wedding/chat/board"],
+      ["예산", "/wedding/budget"],
+      ["체크리스트", "/wedding/checklist"],
+      ["일정", "/wedding/schedule"],
+    ]) {
+      expect(landingAccountLinks).toContain(`label: "${label}", href: "${href}"`);
+    }
     // 이 두 줄은 커뮤니티를 랜딩 안쪽 설명 띠(#community-bridge)로 보내고 "운영 공개
     // 전"이라고 달아 두는 상태를 고정했다. 그건 사실이 아니었다 — 커뮤니티는 이미
     // 열려 있고 로그인 없이 읽힌다(hanbang.ai/community 200 확인). 열려 있는 것을
     // 닫혔다고 말하면 들어올 사람을 돌려보낸다. 실제 화면으로 보내는 쪽이 맞다.
     // `weddingPath()`가 돌려주는 값이 곧 `/wedding`이라 목적지는 그대로다.
-    expect(landingOpenLinks).toContain('label: "커뮤니티", href: "/wedding"');
+    expect(landingOpenLinks).toContain('label: "웨딩코드", href: "/wedding-code"');
+    expect(landingOpenLinks).toContain('label: "견적 질문 만들기", href: "/wedding/community/quote-check"');
+    expect(landingProductLinks).not.toContain('href: "/wedding"');
     expect(landingProductLinks).not.toContain('href: "#community-bridge"');
 
     for (const label of ["아모라", "예산"]) {

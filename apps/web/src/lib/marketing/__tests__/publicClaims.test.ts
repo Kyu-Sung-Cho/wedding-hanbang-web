@@ -250,20 +250,21 @@ describe("public marketing claim boundary", () => {
     //
     // 문장은 2026-08-28 개편에서 다듬어졌다("확인한 변경만" → "확인한 것만").
     // 지는 계약은 그대로다: 확인한 것만 반영되고, 확인 전에는 아무것도 안 바뀐다.
-    expect(landingContent.confirm.body, "확인 계약 문장이 confirm.body 에 없다").toContain(
-      "확인한 것만 준비 기록에 반영",
+    expect(landingContent.confirm.lede, "확인 계약 문장이 confirm.lede 에 없다").toContain(
+      "저장 전에 바뀔 내용과 저장 위치를 직접 확인하면 예산·할 일·일정에 남길 수 있어요",
     );
+    expect(landingContent.confirm.sample.contract).toContain("저장을 확인하기 전에는 기록이 바뀌지 않아요");
 
     // 두 사람 승인은 2026-08-23에 폐지됐다. 남은 계약은 "한 사람이 확인하면 반영되고
     // 상대에게 알림이 간다"다 — 알림 쪽을 빼면 상대 몰래 바뀌는 제품이 된다.
     expect(landingContent.confirm.body2, "파트너 알림 문장이 confirm.body2 에 없다").toContain(
-      "알림이 가요",
+      "앱에서 변경 알림을 볼 수 있어요",
     );
 
     // 카피에만 있고 화면에서 빠진 상태를 통과시키지 않는다 — 정본 파일 하나가
     // 대신 답한다. 그 문장을 지는 섹션이 실제로 그 값을 그리는지 따로 본다.
     const confirmSection = rendered("src/components/landing/redesign/ConfirmSection.tsx");
-    expect(confirmSection).toContain("{confirm.body}");
+    expect(confirmSection).toContain("{confirm.lede}");
     expect(confirmSection).toContain("{confirm.body2}");
     expect(confirmSection).toContain("{confirm.note}");
 
@@ -271,14 +272,14 @@ describe("public marketing claim boundary", () => {
     // 개편에서 그 말은 ConfirmSection의 샘플 카드 안으로 옮겨졌고, 카피가 아니라
     // **컴포넌트가 직접** 들고 있다. 카피에서 못 찾는다고 지우면 계약이 약해진다.
     expect(confirmSection, "확인 전 미반영 고지가 확인 샘플 카드에 없다").toContain(
-      "확인을 누르기 전까지",
+      "{confirm.sample.contract}",
     );
     // 샘플 제안이 "아직 반영 전"이라고 카드 안에서 말한다. 이 라벨이 없으면 샘플
     // 카드가 이미 일어난 일처럼 읽힌다.
     // 2026-09-03 시안으로 카드가 "제안 한 건" 에서 "이해한 것 세 줄" 로 바뀌면서
     // 라벨 이름이 `proposeLabel` → `state` 가 됐다. **지키는 것은 그대로다.**
     expect(landingContent.confirm.sample.state, "미반영 라벨이 샘플에서 사라졌다").toContain(
-      "아직 반영 전",
+      "저장 전",
     );
 
     // 있어야 할 것만 보면 **뒤에 뒤집는 문장을 붙이는 변형**을 못 막는다. 확인 계약을
@@ -313,17 +314,19 @@ describe("public marketing claim boundary", () => {
     // 카드만 캡처돼도 고지가 같이 잡히도록 카드 **안**에 있는 것이 중요하다.
     const note = landingContent.amoraNote.note;
 
-    expect(note, "AI 생성물 고지가 아모라 카드에 없다").toContain("AI 생성 답변");
-    expect(note, "AI 오류 가능성 고지가 아모라 카드에 없다").toContain(
-      "AI는 틀리거나 놓칠 수 있어요",
-    );
-    expect(note, "샘플 표시가 아모라 카드에 없다").toContain("샘플");
+    expect(landingContent.amoraNote.chat.amoraLabel, "AI 생성물 고지가 아모라 화자에 없다")
+      .toContain("AI 생성");
+    expect(landingContent.boundaries.items[2].note, "AI 오류 가능성 고지가 없다")
+      .toContain("AI 답변에는 오류가 있을 수 있어요");
+    expect(note, "예시 표시가 아모라 카드에 없다").toContain("예시 대화");
     // privateLane.note 가 지던 저장 고지의 랜딩 몫. 이 화면의 대화는 시연이라 저장되지
     // 않는다 — 비로그인 아모라 체험이 2026-08-27에 닫혔기 때문이다.
-    expect(note, "저장 고지가 아모라 카드에 없다").toContain("저장되지 않아요");
+    expect(note, "저장 고지가 아모라 카드에 없다").toContain("저장할 수 없어요");
 
     const amoraSection = rendered("src/components/landing/redesign/AmoraNoteSection.tsx");
     expect(amoraSection, "아모라 카드가 자기 고지를 그리지 않는다").toContain("{amoraNote.note}");
+    expect(amoraSection, "아모라 카드가 AI 생성 화자 표시를 그리지 않는다")
+      .toContain("{amoraNote.chat.amoraLabel}");
   });
 
   it("keeps the score/compatibility, storage, and price-source notes on the tool cards", () => {
@@ -336,27 +339,27 @@ describe("public marketing claim boundary", () => {
     // 랜딩에서 기능을 찾을 때 쓰는 제품명으로 찾고, 기존 고지 계약은 유지한다.
     const weddingCode = cardTitled("웨딩코드");
     expect(weddingCode.note, "점수·궁합 금지 고지가 웨딩코드 카드에 없다").toContain(
-      "점수도 궁합도 매기지 않아요",
+      "심리 진단이나 궁합 검사가 아니에요",
     );
 
     // 로그인 없이 넣은 견적을 저장하지 않는다는 개인정보 고지.
-    const quoteCheck = cardTitled("견적에서 빠진 항목");
+    const quoteCheck = cardTitled("업체에 무엇을 물어봐야 할까요?");
     expect(quoteCheck.note, "견적 미저장 고지가 견적 카드에 없다").toContain("저장하지 않아요");
     expect(quoteCheck.note, "적정성 판정 안 한다는 고지가 견적 카드에 없다").toContain(
-      "적정한지는 판정하지 않아요",
+      "가격의 적정 여부는 평가하지 않아요",
     );
 
     // 가격은 한국소비자원 참가격이다. 출처와 기준일을 안 적으면 우리가 잰 값처럼 읽힌다.
-    const price = cardTitled("공시 가격·위약금");
+    const price = cardTitled("업체 가격과 취소·환불 조건");
     expect(price.body, "가격 출처가 공시가 카드에 없다").toContain("한국소비자원");
     expect(price.note, "공시 기준일이 공시가 카드에 없다").toContain("공시 기준");
     expect(price.note, "적정성 판정 안 한다는 고지가 공시가 카드에 없다").toContain(
-      "적정한지는 판정하지 않",
+      "가격의 적정 여부는 평가하지 않아요",
     );
 
     // 예절 가이드는 "정답"이 아니다 — 관행이라는 단서를 빼면 규범을 파는 화면이 된다.
-    const manners = cardTitled("결혼 예절 가이드");
-    expect(manners.note, "관행 단서가 예절 카드에 없다").toContain("정답이 아니라");
+    const manners = cardTitled("상견례·예단");
+    expect(manners.note, "관행 단서가 예절 카드에 없다").toContain("관행은 지역과 가족마다 달라요");
 
     // 카피에만 있고 화면에서 빠지는 것을 막는다.
     const nowSection = rendered("src/components/landing/redesign/AvailableNowSection.tsx");
@@ -370,23 +373,23 @@ describe("public marketing claim boundary", () => {
     // 계약을 해석하지 않고, 예약·결제를 중개하지 않는다.
     const noRanking = boundaryItem("점수·등급·순위");
     expect(noRanking.note, "광고 상품 없음 고지가 사라졌다").toContain(
-      "광고 상품을 운영하지 않아요",
+      "광고 상품은 운영하지 않아요",
     );
 
-    const noContractReading = boundaryItem("계약서 해석");
+    const noContractReading = boundaryItem("계약 조건을 해석");
     expect(noContractReading.note, "중개하지 않는다는 고지가 사라졌다").toContain(
-      "중개하지 않습니다",
+      "중개하지 않아요",
     );
 
     // 옛 `notForVendors.aiNotice` 의 몫. AI 기본법 고지가 여기 산다.
-    const aiNotice = boundaryItem("AI가 만든 답변");
+    const aiNotice = boundaryItem("아모라의 답변은 AI가 작성해요");
     expect(aiNotice.note, "AI 오류 가능성 고지가 경계 섹션에 없다").toContain(
-      "AI는 틀리거나 놓칠 수 있어요",
+      "AI 답변에는 오류가 있을 수 있어요",
     );
 
     // 법률·의료·금융 판단을 하지 않는다는 것도 같은 묶음이다.
     expect(boundaryItem("법률·의료·금융").note, "공식 창구 안내가 사라졌다").toContain(
-      "공식 창구",
+      "관련 기관",
     );
 
     const boundariesSection = rendered("src/components/landing/redesign/BoundariesSection.tsx");
@@ -428,8 +431,7 @@ describe("public marketing claim boundary", () => {
     const notice = landingContent.footer.notice;
     expect(notice, "가격 출처가 푸터에 없다").toContain("한국소비자원 참가격");
     expect(notice, "공시 기준일이 푸터에 없다").toContain("2025년 11월 공시 기준");
-    expect(notice, "지역 편차 단서가 푸터에서 사라졌다").toContain("지역별로 수가 크게 달라요");
-    expect(notice, "AI 참고용 고지가 푸터에 없다").toContain("AI가 만든 내용이며 참고용");
+    expect(notice, "지역 편차 단서가 푸터에서 사라졌다").toContain("지역별 등록 업체 수가 달라요");
     expect(landingFooter, "푸터 고지가 화면에 안 나간다").toContain("{footer.notice}");
   });
 
@@ -442,14 +444,11 @@ describe("public marketing claim boundary", () => {
     // 없어진 것은 틀이지 고지가 아니다 — "향후 이용 비용은 아직 정해지지 않았고,
     // 계정을 만들어도 지금은 결제를 요청하지 않아요"는 베타라서가 아니라 오늘 그래서
     // 참이다. 그래서 방향을 뒤집는다: 고지는 **있어야** 하고, 베타 틀은 **없어야** 한다.
-    expect(landingContent.confirm.note, "가격 미정 고지가 사라졌다").toContain(
-      "향후 이용 비용은 아직 정해지지 않았고",
+    expect(landingContent.confirm.note, "현재 무료라는 시점과 요금 미정 고지가 사라졌다").toContain(
+      "향후 이용 비용은 아직 정해지지 않았고, 계정을 만들어도 지금은 결제를 요청하지 않아요.",
     );
-    expect(landingContent.confirm.note, "결제 미요청 고지가 사라졌다").toContain(
-      "지금은 결제를 요청하지 않아요",
-    );
-    expect(landingContent.closing.note, "마무리에서 결제 미요청 고지가 사라졌다").toContain(
-      "지금은 결제를 요청하지 않아요",
+    expect(landingContent.closing.note, "가입 조건 고지가 마무리에서 사라졌다").toContain(
+      "아모라와 예산·할 일·일정 관리에는 가입이 필요해요",
     );
 
     const RETIRED_BETA_FRAMES: Array<[RegExp, string]> = [

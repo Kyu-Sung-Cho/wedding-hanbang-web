@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { WEDDING_CODE_V31_QUESTIONS, WEDDING_CODE_V31_OPTIONS, WEDDING_CODE_V31_TASTES } from "@/constants/weddingCodeV31";
+import { WEDDING_CODE_V31_QUESTIONS, WEDDING_CODE_V31_OPTIONS, WEDDING_CODE_V31_TASTES, WEDDING_CODE_V31_VERSION } from "@/constants/weddingCodeV31";
+import { WEDDING_CODE_DEFAULT_VERSION } from "@/app/wedding-code/entry";
 
 import { CONTENT_PATH, everyLandingComponent, rendered } from "./landingSource";
 
@@ -61,6 +62,16 @@ function landingSurface(): Array<[string, string]> {
 }
 
 describe("랜딩이 웨딩코드에 대해 말하는 것은 라이브다", () => {
+  it("새 방문자는 현재 v3.1로 들어가고 연구판과 검증되지 않은 결과를 홍보하지 않는다", () => {
+    expect(WEDDING_CODE_DEFAULT_VERSION).toBe(WEDDING_CODE_V31_VERSION);
+    for (const [file, surface] of landingSurface()) {
+      expect(surface, `${file}: 현재 홍보할 수 없는 연구판을 노출한다`)
+        .not.toMatch(/v4\.0-tendency/u);
+      expect(surface, `${file}: 사람 검증 없는 결과 주장을 추가했다`)
+        .not.toMatch(/과학적으로\s*검증|검증된\s*심리|결혼\s*(?:성공|실패)\s*(?:률|예측)|궁합\s*(?:점수|확률)|성격\s*(?:유형|진단)|희귀도|정확도/u);
+    }
+  });
+
   it("랜딩이 말하는 문장 수가 새 질문판과 같다", () => {
     // 수를 명시한다면 새 기본판의 실제 문장 수와 같아야 한다.
     const wrong: string[] = [];
@@ -135,9 +146,20 @@ describe("랜딩이 웨딩코드에 대해 말하는 것은 라이브다", () =>
     const liveTexts = new Set(live.map((entry: { text: string }) => entry.text));
     const fabricated: string[] = [];
     for (const [file, source] of surface) {
-      for (const m of source.matchAll(/\b(?:scene|question)\s*:\s*"([^"]{8,})"/gu)) {
-        if (!liveTexts.has(m[1])) {
-          fabricated.push(`${file}: "${m[1]}"`);
+      for (const m of source.matchAll(/\b(scene|question)\s*:\s*"([^"]{8,})"/gu)) {
+        // FAQ의 질문은 웨딩코드 문항 견본이 아니다. 실제 FAQ 배열과 summary 배선이
+        // 확인된 범위만 구분하며, 같은 파일 밖의 question/scene은 계속 검사한다.
+        if (file === "LandingFaqSection.tsx" && m[1] === "question") {
+          const start = source.indexOf("const faqItems: readonly FaqItem[] = [");
+          const end = source.indexOf("\n];", start);
+          expect(start, "FAQ 배열의 시작 경계를 못 찾았다").toBeGreaterThanOrEqual(0);
+          expect(end, "FAQ 배열의 끝 경계를 못 찾았다").toBeGreaterThan(start);
+          expect(source).toContain("faqItems.map(");
+          expect(source).toContain("{item.question}");
+          if (m.index >= start && m.index < end) continue;
+        }
+        if (!liveTexts.has(m[2])) {
+          fabricated.push(`${file}: "${m[2]}"`);
         }
       }
     }

@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 
 import AvailableNowSection from "@/components/landing/redesign/AvailableNowSection";
+import LandingFaqSection from "@/components/landing/redesign/LandingFaqSection";
 import ClosingAction from "@/components/landing/redesign/ClosingAction";
 import ConfirmSection from "@/components/landing/redesign/ConfirmSection";
 import LandingFooter from "@/components/landing/redesign/LandingFooter";
@@ -8,9 +9,7 @@ import LandingHeader from "@/components/landing/redesign/LandingHeader";
 import AmoraNoteSection from "@/components/landing/redesign/AmoraNoteSection";
 import LandingBloomLayer from "@/components/landing/redesign/LandingBloomLayer";
 import BoundariesSection from "@/components/landing/redesign/BoundariesSection";
-import CommunitySection from "@/components/landing/redesign/CommunitySection";
 import NoSideSection from "@/components/landing/redesign/NoSideSection";
-import BlockedReasonsSection from "@/components/landing/redesign/BlockedReasonsSection";
 import PhotoBandSection from "@/components/landing/redesign/PhotoBandSection";
 import TransformationHero from "@/components/landing/redesign/TransformationHero";
 
@@ -22,12 +21,11 @@ export function generateMetadata(): Metadata {
   // `components/community/__tests__/landingFunnelInstrumentation.test.ts` 의 추출기
   // (`generateMetadata … const title = "…"`)가 못 읽어 제목을 빈 문자열로 보고,
   // 루트 폴백과의 동일성 검사가 조용히 무의미해진다. 실제로 그렇게 됐었다.
-  // 2026-09-03 시안으로 후크가 바뀌면서 같이 옮겼다. 제목은 히어로 테이프 이름표와
-  // 같은 말이다 — 검색 결과에서 보는 한 줄과 첫 화면 맨 위 한 줄이 어긋나지 않게.
+  // 검색 제목은 서비스명과 준비 목적을 설명하고, 공유 이미지의 문구는 H1 정본을 따른다.
   const title = "웨딩한방 | 결혼 준비 동반자, 아모라";
   const description =
-    "결혼 준비 AI 아모라와 예산부터 준비 순서까지 이야기해요. 직접 확인한 내용은 예산·할 일·일정에 남길 수 있어요. "
-    + "파트너를 연결하면 함께 쓰는 계획의 변경 알림을 받고, 비슷한 시기에 결혼하는 사람들의 기록도 볼 수 있어요.";
+    "결혼 준비, 뭐부터 할까요? 아모라와 고민을 정리하고, 직접 확인한 예산·할 일·일정을 파트너와 함께 관리하세요. "
+    + "견적 질문 만들기와 웨딩코드는 가입 없이 시작할 수 있어요.";
 
   return {
     title,
@@ -74,15 +72,14 @@ export default function LandingPage() {
       <LandingBloomLayer />
       <LandingHeader />
       <main id="main-content" tabIndex={-1}>
-        {/* 팀 HTML 순서: 준비 고민 → 대화 → 의견 차이 → 확인한 기록. */}
+        {/* 함께 챙길 결과물 → 확인과 저장 → 질문과 공유 범위 → 두 사람의 기준. */}
         <TransformationHero />
-        <BlockedReasonsSection />
         <AmoraNoteSection />
         <NoSideSection />
         <ConfirmSection />
         <AvailableNowSection />
-        <CommunitySection />
         <PhotoBandSection />
+        <LandingFaqSection />
         <BoundariesSection />
         <ClosingAction />
       </main>

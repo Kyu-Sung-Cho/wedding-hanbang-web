@@ -248,11 +248,11 @@ describe("landing first visit clarity", () => {
     // **히어로 블록 안에서** 찾는다 — 파일 전체로 물으면 이 문장을 footer.tagline 으로
     // 옮겨도 통과한다(2026-08-28 변형으로 확인).
     expect(heroBlock, "결혼 준비의 아픈 자리를 말하는 문장이 히어로에 없다")
-      .toMatch(/예산[^"\n]*준비[^"\n]*순서/u);
+      .toMatch(/AI 동반자 아모라와 고민을 정리하고[^"\n]*직접 확인해 기록/u);
     // 아픔만 말하고 끝내지 않는다 — 우리가 무엇을 대신 해주는지가 같은 문장 안에 있어야
     // 한다. 앞 절만 남기면 "정리 안 되죠?" 라고 묻고 마는 화면이 된다.
     expect(heroBlock, "우리가 무엇을 해주는지가 히어로에서 사라졌다")
-      .toMatch(/AI[^"\n]*아모라[\s\S]*직접 확인한 내용은 예산·할 일·일정/u);
+      .toMatch(/두 사람의 예산·일정·할 일/u);
     // 카피에 남아 있어도 그리는 자리가 없으면 화면은 빈다.
     expect(hero, "히어로가 hero.body 를 그리지 않는다 — 카피만 남고 화면은 빈다")
       .toContain("{hero.body}");
@@ -261,16 +261,16 @@ describe("landing first visit clarity", () => {
     // 2026-08-29 전에는 히어로 본문과 `scenes` 블록이 이걸 겸했고, 지금은 "지금 되는 것"
     // 02 카드가 진다. 카드에서 사라지면 그 카드가 무엇을 주는지 다시 빈칸이 된다.
     expect(nowCards, "혼자 얻는 결과와 둘이 비교할 내용이 '지금 되는 것' 카드에서 사라졌다")
-      .toContain("혼자 내 결과를 보고, 상대도 답하면 함께 원하는 것과 먼저 의논할 부분을 비교할 수 있어요.");
+      .toContain("파트너도 답하면 같은 생각과 다른 생각을 비교할 수 있어요.");
     expect(nowCards).toContain("결혼식 취향과 준비 방식");
     // CLAUDE.md 필수 고지 — WeddingCode 는 검증된 궁합 검사가 아니다. 옛 `scenes.note` 가
     // 지고 있었고 그 섹션이 없어지면서 이 카드로 옮겨왔다. **같은 카드 안**이어야 한다:
     // 나란히 보여준다는 문장과 떨어지면 화면이 점수를 약속하는 것처럼 읽힌다.
     expect(nowCards, "점수·궁합을 매기지 않는다는 고지가 스무 장면 카드에서 사라졌다")
-      .toContain("점수도 궁합도 매기지 않아요");
+      .toContain("심리 진단이나 궁합 검사가 아니에요");
     // 견적 카드도 같은 규칙 — 넣으면 무엇이 나오는지 말한다.
     expect(nowCards, "견적을 넣으면 무엇이 나오는지가 '지금 되는 것' 카드에서 사라졌다")
-      .toMatch(/분야별 항목을 하나씩 확인[\s\S]*업체에 물어볼 질문/u);
+      .toMatch(/항목별로 포함 여부와 이용 계획을 고르면[\s\S]*업체에 물어볼 질문/u);
     // 산출물을 개수로만 말하지 않는다. 이전 문구("지금 볼 세 가지가 나와요")는
     // 그 셋이 무엇인지 랜딩 어디에도 없어서 입력은 분명한데 출력이 빈칸이었다.
     // 표기를 하나만 막으면 "세 가지"를 "3가지"로 바꿔 그대로 되살릴 수 있다 —
@@ -324,24 +324,24 @@ describe("landing first visit clarity", () => {
     expect(hero, "히어로가 이름표를 그리지 않는다").toContain("{hero.tape}");
     expect(sections, "아모라를 보여주는 섹션이 렌더되지 않는다").toContain("AmoraNoteSection");
     expect(sections, "확인 계약 섹션이 렌더되지 않는다").toContain("ConfirmSection");
-    // 계정을 요구하는 섹션(`confirm`)보다 아모라가 먼저다.
+    // 첫 화면의 결과 예시 바로 뒤에 확인 경계가 오고, 그다음 아모라를 설명한다.
     expect(
-      sections.indexOf("AmoraNoteSection"),
-      "계정을 요구하는 섹션보다 아모라 소개가 먼저여야 한다",
-    ).toBeLessThan(sections.indexOf("ConfirmSection"));
+      sections.indexOf("ConfirmSection"),
+      "아모라 가치와 우선순위 뒤에 실제 관리와 확인 경계를 설명한다",
+    ).toBeGreaterThan(sections.indexOf("NoSideSection"));
     // 2026-09-03: 시안이 눈썹을 "계정을 만들면" → "대화로 끝나지 않게" 로 바꿨다.
     // **계정 이야기를 꺼내는 자리는 그대로 확인 섹션**이고, 그 말은 눈썹이 아니라
     // 고지 문장이 진다. 눈썹 글자에 묶지 말고 그 사실로 잰다.
     expect(confirmBlock, "계정을 요구하는 자리가 확인 섹션이 아니게 됐다")
-      .toContain("계정을 만들어도 지금은 결제를 요청하지 않아요");
+      .toContain("향후 이용 비용은 아직 정해지지 않았고, 계정을 만들어도 지금은 결제를 요청하지 않아요");
 
     // 샘플·저장 고지. 옛 `privateLane.note` 가 지고 있었고, 그 섹션이 없어지면서
     // **아모라가 처음 말하는 카드 안으로** 옮겨왔다. 바깥 작은 글씨로 빼면 카드만
     // 캡처됐을 때 그 사실이 떨어져 나간다 — 그래서 자리를 블록 안으로 못 박는다.
     expect(amoraBlock, "이 화면의 대화가 샘플이라는 고지가 사라졌다")
-      .toContain("기능을 보여주기 위한 샘플이고");
+      .toContain("기능을 설명하는 예시 대화예요");
     expect(amoraBlock, "이 화면에서 저장되지 않는다는 고지가 사라졌다")
-      .toContain("이 화면에서는 실제로 저장되지 않아요");
+      .toContain("이 화면에서는 대화하거나 저장할 수 없어요");
     expect(amora, "아모라 카드가 고지를 그리지 않는다").toContain("{amoraNote.note}");
 
     // 계정을 만들면 무엇이 달라지는지 — 아모라가 제안하고, 사람이 확인해야 반영된다.
@@ -349,24 +349,24 @@ describe("landing first visit clarity", () => {
     // 2026-08-27에 주어가 "계정 베타에서는"으로 바뀌었다가, 2026-08-29 파운더 결정으로
     // 베타라는 틀이 없어졌다(아래 `BETA_FRAMING` 이 되살아나는 것을 막는다).
     // 남은 것은 계약 자체다 — 한 번에 한 가지, 확인한 것만.
-    expect(confirmBlock, "한 번에 한 가지만 제안한다는 계약이 사라졌다")
-      .toContain("예산·할 일·일정 중 한 번에 한 가지 변경을 제안하고");
-    expect(confirmBlock, "확인한 것만 반영된다는 계약이 사라졌다")
-      .toContain("눌러서 확인한 것만 준비 기록에 반영해요");
+    expect(confirmBlock, "저장할 변경 내용과 위치를 먼저 보여주지 않는다")
+      .toContain("저장 전에 바뀔 내용과 저장 위치를 직접 확인하면 예산·할 일·일정에 남길 수 있어요");
+    expect(confirmBlock, "확인 전에는 기록을 바꾸지 않는다는 계약이 사라졌다")
+      .toContain("저장을 확인하기 전에는 기록이 바뀌지 않아요");
     // 2026-09-03 시안으로 카드가 "제안 한 건" 에서 "이해한 것 세 줄" 로 바뀌었다.
     // 지키는 것은 같다 — **누가 내놓은 것인지**와 **아직 아무 일도 안 일어났다**는 것.
-    expect(confirmBlock, "제안하는 쪽이 아모라라는 것이 화면에서 사라졌다")
-      .toContain("아모라가 이렇게 이해했어요");
+    expect(confirmBlock, "사용자에게 저장할 내용을 확인하도록 안내하지 않는다")
+      .toContain("저장할 내용을 확인해 주세요");
     expect(confirmBlock, "아직 반영 전이라는 것이 화면에서 사라졌다")
-      .toContain("아직 반영 전");
+      .toContain("저장 전");
     // 베타는 없어졌지만 이 고지는 **사실이라 남는다**(CLAUDE.md 2026-08-29).
     // 틀을 걷어내면서 같이 지워지기 가장 쉬운 문장이라 따로 못 박는다.
     expect(confirmBlock, "비용·결제 고지가 베타 틀과 함께 지워졌다")
-      .toContain("향후 이용 비용은 아직 정해지지 않았고, ");
+      .toContain("지금은 결제를 요청하지 않아요");
     expect(confirmBlock, "결제를 요청하지 않는다는 고지가 사라졌다")
       .toContain("계정을 만들어도 지금은 결제를 요청하지 않아요.");
     // 정본에 남아 있어도 그리지 않으면 화면에는 없다.
-    expect(confirm, "확인 섹션이 confirm.body 를 그리지 않는다").toContain("{confirm.body}");
+    expect(confirm, "확인 섹션이 변경 전 설명을 그리지 않는다").toContain("{confirm.lede}");
     expect(confirm, "‘아직 반영 전’ 라벨을 그리는 자리가 없다")
       .toContain("{confirm.sample.state}");
 
@@ -399,6 +399,18 @@ describe("landing first visit clarity", () => {
       [confirmBlock, confirm, "confirm", "ConfirmSection"],
     ] as const) {
       for (const key of keysOf(block)) {
+        if (alias === "confirm" && (key === "records" || key === "tools")) {
+          const recordPreview = rendered("src/components/landing/redesign/PreparationRecordPreview.tsx");
+          const appPreview = rendered("src/components/landing/redesign/AppPreviewCard.tsx");
+          expect(recordPreview).toContain("landingContent.confirm");
+          for (const field of ["records.title", "records.note", "records.sharedNote"]) {
+            expect(recordPreview, `공동 준비 기록의 ${field} 고지가 렌더되지 않는다`).toContain(field);
+          }
+          expect(recordPreview).toContain("const { tools, records } = landingContent.confirm");
+          expect(recordPreview).toContain("tools.map(");
+          expect(appPreview).toContain("<PreparationRecordPreview />");
+          continue;
+        }
         // 낱말 경계를 붙인다. `confirm.body` 를 그냥 `toContain` 으로 물으면
         // `{confirm.body2}` 가 대신 대답해서, body 를 그리는 `<p>` 를 지워도 통과한다.
         const drawn = new RegExp(`\\b${alias}\\.${key}\\b`, "u").test(componentSource);
@@ -463,8 +475,7 @@ describe("landing first visit clarity", () => {
     const amoraBlock = contentBlock("amoraNote", "noSide");
     const amora = rendered(AMORA_NOTE);
 
-    // 2026-09-08 사용자 요청: 첨부 HTML의 준비 고민 → 대화 → 의견 차이 → 확인 순서를
-    // 복원한다. 확인 경계의 내용은 유지하되 대화 직후에 붙어야 한다는 이전 배치는 폐기한다.
+    // 첫 화면의 공동 준비 기록 다음에 확인 계약을 붙이고, 아모라 대화와 의견 차이를 설명한다.
     // 목록은 `page.tsx` 원문이 아니라 `renderedSections()` 에서 온다. 원문에서 세면
     // 주석으로 꺼 놓은 섹션이 렌더된 것으로 잡혀 아래 단언들이 전부 빈 통과였다.
     const sections = renderedSections();
@@ -473,30 +484,25 @@ describe("landing first visit clarity", () => {
     expect(sections, "확인 계약 섹션이 렌더되지 않는다").toContain("ConfirmSection");
     expect(sections).toContain("NoSideSection");
     expect(sections.indexOf("NoSideSection")).toBe(sections.indexOf("AmoraNoteSection") + 1);
+    expect(sections.indexOf("AmoraNoteSection")).toBe(sections.indexOf("TransformationHero") + 1);
     expect(sections.indexOf("ConfirmSection")).toBe(sections.indexOf("NoSideSection") + 1);
 
-    // 알아볼 장면이 계정 요구보다 먼저다 — 옛 "문제를 비춘 뒤에 결과" 규칙이 서 있던
-    // 자리다. 지금 그 장면은 아모라가 실제로 답하는 노트 카드다.
+    // 결과 예시와 확인 경계가 아모라 소개보다 먼저다.
     expect(
-      sections.indexOf("AmoraNoteSection"),
-      "계정을 요구하기 전에 알아볼 장면을 보여줘야 한다",
-    ).toBeLessThan(sections.indexOf("ConfirmSection"));
+      sections.indexOf("ConfirmSection"),
+      "아모라를 이해한 다음 공동 기록의 확인 경계를 보여준다",
+    ).toBeGreaterThan(sections.indexOf("AmoraNoteSection"));
 
     // 원본 HTML 순서다. 공시 가격·위약금은 `availableNow` 카드 안에 남는다.
     // 목록을 통째로 대조하므로 끼워 넣기·빼기·자리 바꾸기가 전부 여기서 걸린다.
     expect(sections).toEqual([
-      // 2026-09-03 시안으로 목록이 갈렸다. `ScenesSection`·`OneRoomSection`·
-      // `PrivateLaneSection` 이 없어지고 `BlockedReasonsSection`·`PhotoBandSection` 이
-      // 들어왔다. **없어진 셋의 내용은 사라지지 않았다** — 어디로 갔는지는
-      // `app/landing/page.tsx` 머리말이 이름으로 적어 둔다.
       "TransformationHero",
-      "BlockedReasonsSection",
       "AmoraNoteSection",
       "NoSideSection",
       "ConfirmSection",
       "AvailableNowSection",
-      "CommunitySection",
       "PhotoBandSection",
+      "LandingFaqSection",
       "BoundariesSection",
       "ClosingAction",
     ]);
