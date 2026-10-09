@@ -48,9 +48,9 @@ export function PriceAmoraBridge() {
       ) : (
         <>
           <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-[var(--hb-text-strong)]/70">
-            아모라와 이야기하려면 로그인이 필요해요.
-            계정을 만들면 지금 본 가격을 기준으로 무엇부터 정할지 함께 정리하고,
-            확인한 것만 예산·할 일·일정에 남겨요.
+            아모라는 로그인 후 이용해요.
+            궁금한 가격이나 지금 고민을 이야기하고,
+            예산·할 일·일정은 내용을 직접 확인해 기록하세요.
           </p>
           <Link
             href={weddingPath("/chat")}

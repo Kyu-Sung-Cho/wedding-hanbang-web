@@ -37,8 +37,10 @@ describe("public price hub follow-through", () => {
 
     expect(amoraEntry?.getAttribute("href")).toBe("/wedding/chat");
     expect(page.querySelector('a[href="/login?mode=signup"]')).toBeNull();
-    expect(page.textContent).toContain("아모라와 이야기하려면 로그인이 필요해요.");
-    expect(page.textContent).toContain("확인한 것만 예산·할 일·일정에 남겨요.");
+    expect(page.textContent).toContain("아모라는 로그인 후 이용해요.");
+    expect(page.textContent).toContain("내용을 직접 확인해 기록하세요.");
+    expect(page.textContent).not.toContain("계정을 만들면");
+    expect(page.textContent).not.toContain("지금 본 가격을 기준으로");
   });
 
   it("offers quote questions without an unsupported completion-time promise", async () => {
