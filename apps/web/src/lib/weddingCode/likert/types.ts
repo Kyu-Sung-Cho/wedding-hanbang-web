@@ -1,6 +1,6 @@
 export const MEASUREMENT_VERSION = "likert-preferences-alpha.1" as const;
 export const BANK_REVISION = "preferences-20261008-r2" as const;
-export const EXPRESSION_VERSION = "likert-letters-alpha.3" as const;
+export const EXPRESSION_VERSION = "likert-letters-alpha.4" as const;
 export const STORAGE_KEY = "hanbang:wedding-code:likert-alpha.1:draft" as const;
 
 export type Domain = "money" | "process" | "family" | "support";

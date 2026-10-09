@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { ITEMS } from "./bank";
-import { answeredCount, buildShareUrl, clearLikertDraft, createDraft, createSnapshot, EXPRESSION_CORRECTION_NOTICE, isComplete, LIKERT_AUTOSAVE_KEY, LIKERT_RETENTION_MS, loadDraft, parseDraft, readLikertAutosave, readShareFragment, saveDraft, setLikertAutosave } from "./io";
+import { answeredCount, buildShareUrl, clearLikertDraft, createDraft, createSnapshot, EXPRESSION_ALPHA3_UPDATE_NOTICE, EXPRESSION_CORRECTION_NOTICE, isComplete, LIKERT_AUTOSAVE_KEY, LIKERT_RETENTION_MS, loadDraft, parseDraft, readLikertAutosave, readShareFragment, saveDraft, setLikertAutosave } from "./io";
 import { BANK_REVISION, EXPRESSION_VERSION, MEASUREMENT_VERSION, STORAGE_KEY, type Answer, type Answers, type Draft } from "./types";
 
 function all(answer: Answer): Answers {
@@ -132,7 +132,7 @@ describe("isolated Likert IO", () => {
       }
     }
   });
-  it("generates an alpha.3 pair from an alpha.1 invitation with original snapshot order and dates", () => {
+  it("generates a current pair from an alpha.1 invitation with original snapshot order and dates", () => {
     const invited = createSnapshot(all({ status: "rated", value: 5 }));
     const oldHash = changeLinkVersion(buildShareUrl("http://127.0.0.1:43917", invited)!, { expression: "likert-letters-alpha.1" });
     const restored = readShareFragment(oldHash);
@@ -145,10 +145,10 @@ describe("isolated Likert IO", () => {
       expect(paired.first).toEqual(invited);
       expect(paired.second).toEqual(own);
       expect(paired.notice).toBeUndefined();
-      expect(paired.first.expressionVersion).toBe("likert-letters-alpha.3");
+      expect(paired.first.expressionVersion).toBe(EXPRESSION_VERSION);
     }
   });
-  it("reads an alpha.2 draft as alpha.3 without changing its answers, cursor, date or stored bytes", () => {
+  it("reads an alpha.2 draft without changing its answers, cursor, date or stored bytes", () => {
     const storage = memory();
     const answers: Answers = {
       [ITEMS[0].id]: { status: "rated", value: 3 },
@@ -163,7 +163,7 @@ describe("isolated Likert IO", () => {
     const original = JSON.stringify(previous);
     storage.values.set(STORAGE_KEY, original);
     const restored = loadDraft(storage);
-    expect(restored.draft).toEqual({ ...previous, expressionVersion: "likert-letters-alpha.3" });
+    expect(restored.draft).toEqual({ ...previous, expressionVersion: EXPRESSION_VERSION });
     expect(restored.expressionNotice).toContain("L");
     expect(restored.expressionNotice).toContain("장면");
     expect(restored.expressionNotice).toContain("원답");
@@ -187,11 +187,11 @@ describe("isolated Likert IO", () => {
       const restored = readShareFragment(changeLinkVersion(current, { expression: "likert-letters-alpha.2" }));
       expect(restored.kind).toBe(includeSecond ? "couple" : "invite");
       if (restored.kind !== "invite" && restored.kind !== "couple") throw new Error("Compatible alpha.2 answers were lost");
-      expect(restored.first).toEqual({ ...first, expressionVersion: "likert-letters-alpha.3" });
+      expect(restored.first).toEqual({ ...first, expressionVersion: EXPRESSION_VERSION });
       expect(restored.notice).toContain("L");
       expect(restored.notice).toContain("장면");
       expect(restored.notice).not.toContain("T 결과");
-      if (restored.kind === "couple") expect(restored.second).toEqual({ ...second, expressionVersion: "likert-letters-alpha.3" });
+      if (restored.kind === "couple") expect(restored.second).toEqual({ ...second, expressionVersion: EXPRESSION_VERSION });
       const regenerated = buildShareUrl("http://127.0.0.1:43917", restored.first,
         restored.kind === "couple" ? restored.second : undefined)!;
       const reread = readShareFragment(new URL(regenerated).hash);
@@ -203,9 +203,9 @@ describe("isolated Likert IO", () => {
       }
     }
   });
-  it("does not add a correction notice to current alpha.3 drafts or links", () => {
+  it("does not add a correction notice to current drafts or links", () => {
     const storage = memory();
-    const current = { ...createDraft(), expressionVersion: "likert-letters-alpha.3" };
+    const current = { ...createDraft(), expressionVersion: EXPRESSION_VERSION };
     const original = JSON.stringify(current);
     storage.values.set(STORAGE_KEY, original);
     expect(loadDraft(storage).draft).toEqual(current);
@@ -213,21 +213,48 @@ describe("isolated Likert IO", () => {
     expect(storage.writes).toEqual([]);
     expect(storage.values.get(STORAGE_KEY)).toBe(original);
     const url = buildShareUrl("http://127.0.0.1:43917", createSnapshot(all({ status: "unknown" })))!;
-    const linked = readShareFragment(changeLinkVersion(url, { expression: "likert-letters-alpha.3" }));
+    const linked = readShareFragment(changeLinkVersion(url, { expression: EXPRESSION_VERSION }));
     expect(linked.kind).toBe("invite");
     if (linked.kind === "invite") expect(linked.notice).toBeUndefined();
+  });
+  it("reads alpha.3 drafts and both share forms with unchanged raw values and a display-only notice", () => {
+    const storage = memory();
+    const answers = all({ status: "rated", value: 3 });
+    answers[ITEMS[0].id] = { status: "unknown" };
+    answers[ITEMS[1].id] = { status: "not_applicable" };
+    answers[ITEMS[2].id] = { status: "skipped" };
+    const previous = { ...createDraft(), answers, expressionVersion: "likert-letters-alpha.3", cursor: 18, screen: "questions" };
+    const raw = JSON.stringify(previous);
+    storage.values.set(STORAGE_KEY, raw);
+    const restored = loadDraft(storage);
+    expect(restored.draft).toEqual({ ...previous, expressionVersion: EXPRESSION_VERSION });
+    expect(restored.expressionNotice).toBe(EXPRESSION_ALPHA3_UPDATE_NOTICE);
+    expect(restored.expressionNotice).not.toMatch(/T 결과|L 결과/);
+    expect(storage.values.get(STORAGE_KEY)).toBe(raw);
+    expect(storage.writes).toEqual([]);
+    const first = createSnapshot(answers);
+    const second = createSnapshot(all({ status: "rated", value: 1 }));
+    for (const pair of [false, true]) {
+      const url = buildShareUrl("https://hanbang.ai", first, pair ? second : undefined)!;
+      const parsed = readShareFragment(changeLinkVersion(url, { expression: "likert-letters-alpha.3" }));
+      expect(parsed.kind).toBe(pair ? "couple" : "invite");
+      if (parsed.kind !== "invite" && parsed.kind !== "couple") throw new Error("Alpha.3 responses were lost");
+      expect(parsed.first).toEqual(first);
+      expect(parsed.notice).toBe(EXPRESSION_ALPHA3_UPDATE_NOTICE);
+      if (parsed.kind === "couple") expect(parsed.second).toEqual(second);
+    }
   });
   it("does not extend wording compatibility to other banks, measurements or future expressions", () => {
     const currentUrl = buildShareUrl("http://127.0.0.1:43917", createSnapshot(all({ status: "rated", value: 3 })))!;
     for (const change of [
-      { expression: "likert-letters-alpha.4" },
+      { expression: "likert-letters-alpha.5" },
       { expression: "likert-letters-alpha.1", revision: "preferences-20261008-r1" },
       { expression: "likert-letters-alpha.1", version: "likert-preferences-alpha.0" },
       { expression: "likert-letters-alpha.2", revision: "preferences-20261008-r1" },
       { expression: "likert-letters-alpha.2", version: "likert-preferences-alpha.0" },
     ]) expect(readShareFragment(changeLinkVersion(currentUrl, change)).kind).toBe("unsupported");
     for (const change of [
-      { expressionVersion: "likert-letters-alpha.4" },
+      { expressionVersion: "likert-letters-alpha.5" },
       { expressionVersion: "likert-letters-alpha.1", revision: "preferences-20261008-r1" },
       { expressionVersion: "likert-letters-alpha.1", version: "likert-preferences-alpha.0" },
       { expressionVersion: "likert-letters-alpha.2", revision: "preferences-20261008-r1" },
@@ -243,7 +270,7 @@ describe("isolated Likert IO", () => {
   });
   it("rejects non-string screen values without rewriting alpha.1, alpha.2 or current stored answers", () => {
     const invalidScreens = [["intro"], ["questions"], ["result"], ["compare"], [], ["intro", "result"], {}, { value: "intro" }, null, true, false, 0, "", "unknown-screen"];
-    for (const expressionVersion of ["likert-letters-alpha.1", "likert-letters-alpha.2", EXPRESSION_VERSION]) {
+    for (const expressionVersion of ["likert-letters-alpha.1", "likert-letters-alpha.2", "likert-letters-alpha.3", EXPRESSION_VERSION]) {
       for (const screen of invalidScreens) {
         const storage = memory();
         const malformed = { ...createDraft(), expressionVersion, answers: all({ status: "rated", value: 3 }), screen };
@@ -260,7 +287,7 @@ describe("isolated Likert IO", () => {
   });
   it("retains all four valid string screens and both previous expressions without read writes", () => {
     const answers = all({ status: "rated", value: 3 });
-    for (const expressionVersion of ["likert-letters-alpha.1", "likert-letters-alpha.2", EXPRESSION_VERSION]) {
+    for (const expressionVersion of ["likert-letters-alpha.1", "likert-letters-alpha.2", "likert-letters-alpha.3", EXPRESSION_VERSION]) {
       for (const screen of ["intro", "questions", "result", "compare"] as const) {
         const storage = memory();
         const original = JSON.stringify({ ...createDraft(), expressionVersion, answers, cursor: 7, screen });
@@ -274,7 +301,8 @@ describe("isolated Likert IO", () => {
         else if (expressionVersion === "likert-letters-alpha.2") {
           expect(restored.expressionNotice).toContain("L");
           expect(restored.expressionNotice).toContain("장면");
-        } else expect(restored.expressionNotice).toBeUndefined();
+        } else if (expressionVersion === "likert-letters-alpha.3") expect(restored.expressionNotice).toBe(EXPRESSION_ALPHA3_UPDATE_NOTICE);
+        else expect(restored.expressionNotice).toBeUndefined();
         expect(storage.values.get(STORAGE_KEY)).toBe(original);
         expect(storage.writes).toEqual([]);
       }

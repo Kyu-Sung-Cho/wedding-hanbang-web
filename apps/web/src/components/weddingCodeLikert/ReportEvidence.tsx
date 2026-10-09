@@ -14,12 +14,12 @@ export function SceneReadingEvidence({ reading }: { reading: PersonalSceneReadin
     <div className="mt-4 space-y-4 text-sm leading-7" data-scene-reading={reading.sceneId}>
       <div><p className="font-semibold">관찰한 응답</p><p className="mt-1 text-[var(--hb-text-body)]">{reading.observation}</p></div>
       {reading.possibleReading && <div><p className="font-semibold">이렇게 읽어 볼 수 있어요</p><p className="mt-1 text-[var(--hb-text-body)]">{reading.possibleReading}</p><p className="mt-1 text-xs leading-6 text-[var(--hb-text-muted)]">이 문항의 조건에서 읽어 보는 설명이에요. 내가 떠올린 이유와 맞는지 직접 확인해 주세요.</p></div>}
-      <div>
-        <p className="font-semibold">이 읽기를 만든 질문과 내 응답</p>
+      <details>
+        <summary className="flex min-h-11 cursor-pointer items-center font-semibold focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--hb-focus-ring)]">이 읽기를 만든 질문과 내 응답</summary>
         <dl className="mt-2 divide-y divide-[var(--hb-hairline)]">
           {reading.entries.map(({ item, answer }) => <div key={item.id} className="py-3 first:pt-0 last:pb-0"><dt className="text-[var(--hb-text-body)]">{item.text}</dt><dd className="mt-1 font-semibold">{responseLabel(answer)}</dd></div>)}
         </dl>
-      </div>
+      </details>
       <div><p className="font-semibold">내가 확인해 볼 점</p><p className="mt-1 text-[var(--hb-text-body)]">{reading.selfCheck}</p></div>
       {reading.partnerRequest && <div><p className="font-semibold">상대에게 부탁할 말</p><blockquote className="mt-2 border-l-2 border-[var(--hb-primary)] pl-4 text-[var(--hb-text-body)]">{reading.partnerRequest}</blockquote><p className="mt-2 text-xs leading-6 text-[var(--hb-text-muted)]">실제로 동의한 문장에서 만든 요청 초안이에요. 현재 조건과 상대가 가능한 범위는 함께 확인해요.</p></div>}
     </div>

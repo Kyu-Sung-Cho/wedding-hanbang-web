@@ -11,14 +11,17 @@ export const LIKERT_RETENTION_MS = 30 * 24 * 60 * 60 * 1000;
 // 같은 문항판의 원답을 유지하고 이전 표현판의 설명만 메모리에서 보정한다.
 const LEGACY_EXPRESSION_VERSION = "likert-letters-alpha.1";
 const PREVIOUS_EXPRESSION_VERSION = "likert-letters-alpha.2";
+const ALPHA3_EXPRESSION_VERSION = "likert-letters-alpha.3";
 export const EXPRESSION_CORRECTION_NOTICE = "원답은 그대로 유지했어요. T 결과 설명을 ‘합의한 기준 아래 후보 분담을 받아들임’으로, L 결과 설명을 ‘내 이야기를 들어주는 도움을 받고 싶은 마음’으로 고쳤어요. 장면별 도움·쉬기 설명도 문항의 뜻에 맞게 고쳤어요. 누가 후보를 추릴지는 따로 상의해 주세요.";
 export const EXPRESSION_ALPHA2_CORRECTION_NOTICE = "원답은 그대로 유지했어요. L 결과 설명을 ‘내 이야기를 들어주는 도움을 받고 싶은 마음’으로 고쳤어요. 장면별 도움·쉬기 설명도 문항의 뜻에 맞게 고쳤어요.";
+export const EXPRESSION_ALPHA3_UPDATE_NOTICE = "문항과 원답, 비율과 글자를 정하는 계산은 그대로예요. 결과 문장을 짧게 다듬고 장면별 답의 차이를 더 구체적으로 보여줘요.";
 const isCompatibleExpression = (value: unknown) =>
-  value === EXPRESSION_VERSION || value === PREVIOUS_EXPRESSION_VERSION || value === LEGACY_EXPRESSION_VERSION;
+  value === EXPRESSION_VERSION || value === ALPHA3_EXPRESSION_VERSION || value === PREVIOUS_EXPRESSION_VERSION || value === LEGACY_EXPRESSION_VERSION;
 
 function expressionCorrectionNotice(value: unknown): string | undefined {
   if (value === LEGACY_EXPRESSION_VERSION) return EXPRESSION_CORRECTION_NOTICE;
   if (value === PREVIOUS_EXPRESSION_VERSION) return EXPRESSION_ALPHA2_CORRECTION_NOTICE;
+  if (value === ALPHA3_EXPRESSION_VERSION) return EXPRESSION_ALPHA3_UPDATE_NOTICE;
   return undefined;
 }
 type StoragePort = Pick<Storage, "getItem" | "setItem">;

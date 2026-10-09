@@ -114,7 +114,7 @@ export function ProfileHero({ result, label = "나의 결혼 준비 코드", com
           </TitleTag>
         </div>
       </div>
-      {result.character && <p className="mt-5 break-words text-sm leading-7 text-[var(--hb-text-body)]">{result.character.tagline}</p>}
+      {result.character && <p className="mt-5 break-words text-sm leading-7 text-[var(--hb-text-body)]">이번 답에 붙인 놀이 이름이에요. 같은 {result.character.animal}이어도 장면마다 부탁은 달라질 수 있어요.</p>}
       {!result.character && (
         <p className="mt-5 text-sm leading-7 text-[var(--hb-text-body)]">정해지지 않은 글자는 ?로 남겼어요. 아래에서 양쪽을 함께 원한 장면과 아직 확인할 장면을 볼 수 있어요.</p>
       )}
@@ -175,7 +175,7 @@ export function PersonalReport({ result, onEdit, onShare, onCompare }: PersonalR
       </section>
 
       <section className="border-t border-[var(--hb-hairline)] py-9" aria-labelledby="personal-insights">
-        <h2 id="personal-insights" className="text-xl font-semibold sm:text-2xl">준비할 때 이렇게 써 볼 수 있어요</h2>
+        <h2 id="personal-insights" className="text-xl font-semibold sm:text-2xl">이번 답에서 발견한 준비 포인트</h2>
         <ul className="mt-5 space-y-4 text-sm leading-7 text-[var(--hb-text-body)]">
           {result.insights.map((insight, index) => (
             <li key={`${index}-${insight}`} className="flex gap-3"><span className="shrink-0 font-semibold tabular-nums text-[var(--hb-text-strong)]">{String(index + 1).padStart(2, "0")}</span><span className="min-w-0 break-words">{insight}</span></li>
@@ -195,10 +195,10 @@ export function PersonalReport({ result, onEdit, onShare, onCompare }: PersonalR
                 <p className="mt-2 text-sm leading-7 text-[var(--hb-text-muted)]">{scene.context}</p>
                 <SupportReading scene={scene} />
                 {reading && <SceneReadingEvidence reading={reading} />}
-                <details className="mt-3">
+                {!reading && <details className="mt-3">
                   <summary className="flex min-h-11 cursor-pointer items-center text-sm font-medium text-[var(--hb-text-strong)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--hb-focus-ring)]">이 장면의 질문과 내 응답 보기</summary>
                   <div className="mt-3"><ResponseEvidence entries={scene.entries} /></div>
-                </details>
+                </details>}
               </article>
             );
           })}

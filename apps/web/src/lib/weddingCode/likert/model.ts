@@ -1,5 +1,6 @@
 import { ITEMS } from "./bank";
 import { CHARACTERS, getCharacter } from "./characters";
+import { buildDomainInsights } from "./insights";
 import {
   DOMAIN_DEFINITIONS,
   EXPRESSION_VERSION,
@@ -400,18 +401,6 @@ function buildSupportScenes(answers: Answers): SupportSceneProfile[] {
   });
 }
 
-function domainInsights(profile: DomainProfile): string[] {
-  const endorsed = profile.facets.filter((facet) => facet.endorsedCount > 0).map((facet) => `${facet.label} ${facet.endorsedCount}장면`).join(" · ");
-  const facts = endorsed ? `동의한 원답: ${endorsed}. ` : "각 문장의 중간·낮은 동의와 응답 상태를 함께 보세요. ";
-  const advice: Record<Domain, readonly [string, string]> = {
-    money: ["동의한 항목을 실제 견적에 표시하고, 기본 보강과 추가 경험에 배분할 금액을 함께 정해요.", "실제로 쓸 금액과 예산 한도는 별도로 확인해요."],
-    process: [`직접 자료를 보고 싶은 정도와 ${TEAM_SHORTLISTING_ACCEPTANCE} 응답을 각각 확인해요.`, "이번 장면의 비교 기준과 공유 방법을 확인하고, 누가 초기 후보를 추릴지는 두 사람이 별도로 정해요."],
-    family: ["가족에게 확인할 내용과 우리 둘의 선호를 정리할 내용을 초안 준비 메모에 남겨요.", "의견을 확인하는 시점, 실제 실행 순서와 최종 결정은 각각 상의해요."],
-    support: ["동의한 도움과 쉬는 방식을 구체적인 말로 전달해요.", "지금 받고 싶은 도움, 서로 가능한 방식과 실행 순서를 대화로 정해요."],
-  };
-  return [`활용 · ${profile.title}: ${facts}${advice[profile.domain][0]}`, `함께 확인 · ${profile.title}: ${advice[profile.domain][1]}`];
-}
-
 // 문항에 실제로 제시된 행동만 요청 초안에 연결한다. 응답 강도로 실행 순서를 정하지 않는다.
 const sceneActions: Readonly<Record<string, Partial<Record<Facet, string>>>> = {
   "likert.money.venue.v1": { C: "좌석 편의 보강", E: "원했던 조명 연출 추가" },
@@ -455,7 +444,7 @@ function buildSceneReading(items: Item[], answers: Answers): PersonalSceneReadin
         ? `이 조건에서는 ${endorsedActions} 모두 추가 예산을 쓸 대상일 수 있어요. 실제 비용과 가능한 배분은 따로 정해 볼 수 있어요.`
         : `이 조건에서 동의한 ${endorsedActions} 옵션을 검토해 볼 수 있어요. 실제 옵션의 내용과 추가 비용이 기대한 변화와 맞는지 확인해 보세요.`;
       selfCheck = `${endorsedActions}에서 어떤 차이를 기대했나요? 기본 구성이나 실제 추가 비용이 달라지면 답도 달라질까요?`;
-      partnerRequest = `‘${anchor.sceneTitle}’에서는 ${endorsedActions}에 예산을 쓰고 싶다는 문장에 동의했어. 이 옵션의 실제 구성과 추가 비용을 같이 확인하고 배정할 금액을 정해 보자.`;
+      partnerRequest = `‘${anchor.sceneTitle}’에서는 ${endorsedActions}에 더 쓰고 싶어. 실제 구성과 추가 비용을 같이 보고 배정할 금액을 정해 보자.`;
     } else if (anchor.domain === "process") {
       possibleReading = has("J") && has("T")
         ? `${actions.J} 기회와 기준 안의 초기 후보 분담 수용이 함께 있어요. 직접 볼 자료와 후보 공유 방법을 같이 정해 볼 수 있어요.`
@@ -475,11 +464,11 @@ function buildSceneReading(items: Item[], answers: Answers): PersonalSceneReadin
     } else if (anchor.domain === "family") {
       possibleReading = `이번 가족 대화의 준비 메모에 ${endorsedActions} 내용을 담아 볼 수 있어요. 실제 대화 시점과 최종 결정은 따로 상의해요.`;
       selfCheck = `${endorsedActions}에서 구체적으로 확인하거나 정리하고 싶은 내용은 무엇인가요? 각 문장에 답한 이유를 한 가지씩 말해 보세요.`;
-      partnerRequest = `‘${anchor.sceneTitle}’에서는 이렇게 준비하고 싶다고 답했어: ${endorsedActions}. 이 내용으로 준비할 메모를 같이 만들고, 대화 시점과 최종 결정은 따로 상의하자.`;
+      partnerRequest = `‘${anchor.sceneTitle}’에서는 ${endorsedActions} 내용을 준비하고 싶어. 메모를 같이 만들고 대화 시점과 최종 결정은 따로 상의하자.`;
     } else {
       possibleReading = `이 장면의 처음 몇 분에는 ‘${endorsedActions}’ 도움을 받고 싶다는 응답으로 읽어 볼 수 있어요. 지금의 피로와 남은 일이 달라지면 요청도 달라질 수 있어요.`;
       selfCheck = `동의한 도움(${endorsedActions})을 어떤 방식으로 받고 싶나요? ${has("L") ? "내 이야기에서 무엇을 전하고 어떤 반응을 듣고 싶은가요? " : ""}${has("alone_rest") ? "혼자 쉴 시간은 어느 정도면 좋을까요? " : ""}지금의 조건과 서로 가능한 범위를 확인해 보세요.`;
-      partnerRequest = `‘${anchor.sceneTitle}’의 처음 몇 분에는 받고 싶은 도움으로 다음 내용에 동의했어: ${endorsedActions}. 지금 이 도움을 부탁해도 될까?${endorsed.length > 1 ? " 여러 방식에 동의했다면 어떤 방식부터 해 볼지 함께 정하자." : ""}`;
+      partnerRequest = `‘${anchor.sceneTitle}’의 처음 몇 분에는 ${endorsedActions} 도움을 받고 싶어. ${endorsed.length > 1 ? "지금 가능한 도움과 어떤 방식부터 해 볼지 함께 정할까?" : "지금 이 도움을 부탁해도 될까?"}`;
     }
     if (ratedCount < entries.length) possibleReading += " 나머지 문장의 미확인 상태도 함께 확인해 주세요.";
   }
@@ -519,7 +508,7 @@ export function buildResult(answers: Answers): PersonalResult {
       const reading = buildSceneReading(items, answers);
       return reading ? [reading] : [];
     }),
-    insights: domains.flatMap(domainInsights),
+    insights: domains.flatMap(buildDomainInsights),
     requests: supportScenes.flatMap((scene) => scene.request === null ? [] : [{
       sceneId: scene.sceneId,
       title: scene.title,
