@@ -121,7 +121,7 @@ describe("처음 방문한 사람이 보는 준비 흐름", () => {
     const steps = [...doc.querySelectorAll('ol[aria-label="아모라 시작 순서"] > li')]
       .map((step) => step.textContent?.replace(/^0[1-3]/u, "").trim());
     expect(steps).toEqual([
-      "가입하고 시작 설정하기",
+      "준비 공간 열기",
       "아모라에게 지금 고민 말하기",
       "필요한 제안만 확인해 저장하기",
     ]);
@@ -461,7 +461,7 @@ describe("landing hero product experience contract", () => {
     // 2026-09-03 시안(`(웨딩한방) 랜딩페이지 디자인 예시.pdf`)으로 본문이 바뀌었다.
     // 옛 문장은 우리가 무엇을 **펼쳐 주는지**(공시 원문)를 말했고, 새 문장은 우리가
     // 무엇을 **같이 정하는지**를 말한다. 계약은 그대로다 — 첫 화면이 제품을 설명한다.
-    expect(heroCopy).toMatch(/AI 동반자 아모라와 고민을 정리하고[^"\n]*직접 확인해 기록/u);
+    expect(heroCopy).toMatch(/AI 동반자 아모라와 지금 고민을 정리하고[^"\n]*직접 확인해 기록/u);
     expect(confirmCopy).toContain("파트너와 연결한 뒤에는");
 
     // 산출물을 **개수가 아니라 이름으로** 말한다. 이전 문구는 "세 가지"라고만 해서
@@ -528,9 +528,9 @@ describe("landing hero product experience contract", () => {
     expect(heroCopy).toContain('href: "/wedding-code"');
     expect(hero).toContain("hero.primary.href");
 
-    // 첫 화면의 조건을 CTA 옆에서 말한다. 시안 문장("결제 없이 계정 생성")이 첫 버튼의
-    // 조건을 지고, 뒤 문장이 로그인 없이 열린 쪽의 조건을 진다.
-    expect(heroCopy).toContain("아모라는 로그인 후 이용해요. 웨딩코드는 가입 없이 해볼 수 있어요");
+    // 첫 화면 CTA 옆에서 아모라의 로그인 조건과 가입 없이 열리는 웨딩코드를 말한다.
+    // 현재 결제 없음·향후 비용 미정은 confirm.note의 기존 검사로 계속 지킨다.
+    expect(heroCopy).toContain("아모라는 로그인 후 이용해요. 웨딩코드는 가입 없이 이용해요");
 
     // **뒤에 붙여 뒤집는 것**도 막는다. 계약 문장을 그대로 두고 그 뒤에
     // "다만 결과를 보려면 가입해야 해요"를 붙이면 있어야 할 문장 검사는 전부
@@ -567,7 +567,7 @@ describe("landing hero product experience contract", () => {
     const heroDoc = heroDocument();
     const primary = heroDoc.querySelector('a[href="/wedding/chat"]');
     const note = [...heroDoc.querySelectorAll("p")].find((paragraph) =>
-      paragraph.textContent?.includes("아모라는 로그인 후 이용해요. 웨딩코드는 가입 없이 해볼 수 있어요"),
+      paragraph.textContent?.includes("아모라는 로그인 후 이용해요. 웨딩코드는 가입 없이 이용해요"),
     );
     expect(primary?.parentElement?.nextElementSibling, "CTA 아래 안내가 CTA와 떨어지면 안 된다")
       .toBe(note);
@@ -829,10 +829,9 @@ describe("landing hero product experience contract", () => {
     const heroCopy = block("hero");
     const confirmCopy = block("confirm");
 
-    // 첫 문단은 "무엇이 문제고 우리가 무엇을 하는지"만 말한다.
-    // 2026-09-03 시안: 문제는 "기록이 흩어진 것"에서 "둘의 답이 갈리는 것"으로 옮겼다.
-    // 갈리는 것 셋을 먼저 이름으로 대고(예산·하객·부모님 의견) 그것부터 정한다고 말한다.
-    expect(heroCopy).toMatch(/내가 원하는 결혼식부터 두 사람의 예산·일정·할 일까지/u);
+    // 2026-10-10 검토 카피: 원하는 결혼식부터 예산·일정·할 일까지 이름으로 말한다.
+    // '두 사람의'를 덜어도 실제 관리 항목과 직접 확인해 기록하는 조건은 그대로 지킨다.
+    expect(heroCopy).toMatch(/내가 원하는 결혼식부터 예산·일정·할 일까지/u);
     expect(heroCopy, "산출물을 개수로만 말하면 안 된다").not.toMatch(/(?:세|3|셋)\s*가지/u);
 
     // ## 베타는 개념 자체가 없어졌다 — 그래서 요구가 아니라 금지로 뒤집는다

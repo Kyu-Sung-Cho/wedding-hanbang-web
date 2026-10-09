@@ -469,6 +469,26 @@
 
 ## Decisions Log
 
+### Landing first visit completion (2026-10-10)
+
+- Keep the approved warm notebook palette, self-hosted fonts and Amora first
+  hierarchy. Preserve the existing headline and one main action to
+  `/wedding/chat`; WeddingCode remains an optional way to explore priorities.
+- On narrow screens, reduce the space before the product example and remove
+  the redundant scene selector instruction. Keep the selector accessible by
+  its group label, touch targets at least 44px, and example labels at least 12px.
+  The first response should be visible at a 375px by 812px viewport.
+- Show concrete questions and outcomes: a budget range as a venue comparison
+  criterion, a question to ask about fitting fees, and each person's photo or
+  travel requirement before discussing the budget. Mark every dialogue and
+  record as an example and preserve AI, saving and sharing disclosures.
+- Verify account status in a small client boundary. Before verification, the
+  header says “아모라 열기”; members see “아모라 이어가기”. Keep the landing
+  static and let the protected destination enforce auth, consent and onboarding.
+- The opening step is “준비 공간 열기” for both new and returning visitors.
+  Explain login beside the main action and keep the current payment and future
+  pricing notice in the preparation section and FAQ.
+
 ### Profile initials (2026-09-13)
 
 - User avatar initials use the first grapheme consistently across settings,

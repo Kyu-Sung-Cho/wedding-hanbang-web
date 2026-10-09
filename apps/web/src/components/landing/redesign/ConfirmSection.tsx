@@ -83,7 +83,7 @@ export default function ConfirmSection() {
                     : "flex items-start gap-[11px] border-t border-[var(--color-paper-edge)] py-[11px] lg:gap-[14px] lg:py-[13px]"
                 }
               >
-                <span className={`inline-flex min-w-[46px] shrink-0 justify-center whitespace-nowrap rounded-full px-[9px] py-[3px] text-[10.5px] font-bold lg:min-w-[52px] lg:px-[10px] lg:py-1 lg:text-[11px] ${
+                <span className={`inline-flex min-w-[46px] shrink-0 justify-center whitespace-nowrap rounded-full px-[9px] py-[3px] text-[12px] font-bold lg:min-w-[52px] lg:px-[10px] lg:py-1 ${
                   index === 0
                     ? "bg-[var(--color-sage-pale)] text-[var(--color-paper-ink)]"
                     : index === 1

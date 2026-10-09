@@ -1,22 +1,22 @@
 {
   "schema": "wedding-code-likert-release-manifest/v1",
-  "baseCommit": "53b2e4d39be7faea4361f4598b0eb62e8a492fca",
+  "baseCommit": "52d4dac2dd01529687b27483328b7d05c54d3f22",
   "measurement": "likert-preferences-alpha.1",
   "bank": "preferences-20261008-r2",
   "expression": "likert-letters-alpha.4",
   "scope": "Exact Git index bytes of all release-changed files, excluding this manifest to avoid a self hash. This is distinct from Windows working-tree byte hashes and the original handoff manifest.",
-  "sourceManifestSha256": "0ca04c9c8f99acc2f8ae47c634a009f4e1a7ca08cd137edc7e964270422a0db8",
+  "sourceManifestSha256": "480f87dca53f4f1d6ff554c09b7d2b12db6282d87823785aaaa2eb6016895a38",
   "fileCount": 67,
   "files": [
     {
       "path": "apps/web/src/app/landing/__tests__/landingHeroExperience.test.ts",
-      "bytes": 63956,
-      "sha256": "80b1c066950e5a69459a342012852f82b1482a81c70e000869f63310bef825ff"
+      "bytes": 63841,
+      "sha256": "d3e06c6f77a2ee4fb20d870e3c04c89516c2271f9153a6753248aad626ea2d5e"
     },
     {
       "path": "apps/web/src/app/landing/__tests__/landingOutcomeEvidence.test.ts",
-      "bytes": 44144,
-      "sha256": "9e7d17938aa13117b1d094a36c1da5bed5b08534f0bf912b2aa259dffa0080a6"
+      "bytes": 44138,
+      "sha256": "3ae4c6c22efb9fb92047cbb7eb99376ee42bf21b424c0b752b9e802c9832d18d"
     },
     {
       "path": "apps/web/src/app/privacy/__tests__/weddingCodeResearchNotice.test.tsx",
@@ -105,8 +105,8 @@
     },
     {
       "path": "apps/web/src/components/landing/redesign/landingContent.ts",
-      "bytes": 17404,
-      "sha256": "8f39a4acc66d7c50835ca159c2d99aee08c80dcaa638529d58847a58826cfbef"
+      "bytes": 17319,
+      "sha256": "805756b9556fd0e72b604699b056ff87703956b3ad884f16d1da285b00ff6ad4"
     },
     {
       "path": "apps/web/src/components/wedding-code/v40/IntroScreen.test.tsx",

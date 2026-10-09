@@ -26,14 +26,13 @@ export default function AppPreviewCard() {
         <p className="text-[13px] font-semibold text-[var(--color-paper-ink)] lg:text-[14px]">
           {preview.appName}
         </p>
-        <p className="shrink-0 rounded-full bg-[var(--color-sage-pale)]/60 px-[9px] py-1 text-[10.5px] font-semibold text-[var(--color-noir-900)] lg:text-[11px]">
+        <p className="shrink-0 rounded-full bg-[var(--color-sage-pale)]/60 px-[9px] py-1 text-[12px] font-semibold text-[var(--color-noir-900)]">
           {preview.badge}
         </p>
       </div>
 
       <div className="lg:px-[22px] lg:pb-[14px]">
-        <p className="mb-2 text-[12px] text-[var(--color-paper-ink-soft)]">{preview.selectorLabel}</p>
-        <div role="group" aria-label={preview.selectorLabel} className="mb-4 grid grid-cols-3 gap-2 [--hb-action:var(--color-paper-ink)] [--hb-action-hover:var(--color-paper-ink-soft)] [--hb-on-primary:var(--color-paper-on-ink)] [--hb-hairline:var(--color-paper-outline)] [--hb-surface-raised:var(--color-paper-card)] [--hb-text-strong:var(--color-paper-ink)] [--hb-surface-hover:var(--color-paper-tint)] [--hb-focus-ring:var(--color-paper-pen)]">
+        <div role="group" aria-label={preview.selectorLabel} className="mb-3 grid grid-cols-3 gap-2 [--hb-action:var(--color-paper-ink)] [--hb-action-hover:var(--color-paper-ink-soft)] [--hb-on-primary:var(--color-paper-on-ink)] [--hb-hairline:var(--color-paper-outline)] [--hb-surface-raised:var(--color-paper-card)] [--hb-text-strong:var(--color-paper-ink)] [--hb-surface-hover:var(--color-paper-tint)] [--hb-focus-ring:var(--color-paper-pen)]">
           {preview.scenes.map((item) => (
             <Button
               key={item.id}
@@ -51,11 +50,11 @@ export default function AppPreviewCard() {
 
         <div id={panelId} aria-live="polite" aria-atomic="true">
           {scene.id === "together" ? <PreparationRecordPreview /> : <>
-          <div className="rounded-[12px] bg-[var(--color-paper-ink)] px-[17px] py-[15px] lg:rounded-[14px] lg:px-5 lg:py-[18px]">
+          <div className="rounded-[12px] bg-[var(--color-paper-ink)] px-[15px] py-3 lg:rounded-[14px] lg:px-5 lg:py-[18px]">
             <p className="text-[12px] font-medium text-[var(--color-paper-on-ink-faint)]">
               {preview.questionLabel}
             </p>
-            <p className="landing-display mt-1 text-[21px] leading-[1.4] text-[var(--color-paper-on-ink)] lg:text-[25px]">
+            <p className="landing-display mt-1 text-[18px] leading-[1.45] text-[var(--color-paper-on-ink)] lg:text-[25px]">
               {scene.userPrompt}
             </p>
           </div>
@@ -67,11 +66,11 @@ export default function AppPreviewCard() {
 
           <div className="mt-[10px] rounded-[11px] border border-[var(--color-paper-edge)] bg-[var(--color-sage-pale)]/60 px-[13px] py-[13px] lg:mt-3 lg:rounded-[12px] lg:px-[15px]">
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <p className="text-[11px] font-semibold text-[var(--color-paper-ink-soft)]">{scene.proposalLabel}</p>
-              <span className="rounded-full border border-[var(--color-paper-edge)] px-2 py-0.5 text-[11px] font-semibold text-[var(--color-paper-ink)]">{scene.proposalStatus}</span>
+              <p className="text-[12px] font-semibold text-[var(--color-paper-ink-soft)]">{scene.proposalLabel}</p>
+              <span className="rounded-full border border-[var(--color-paper-edge)] px-2 py-0.5 text-[12px] font-semibold text-[var(--color-paper-ink)]">{scene.proposalStatus}</span>
             </div>
             <p className="mt-2 text-[13px] font-semibold leading-[1.5] text-[var(--color-paper-ink)] lg:text-[14px]">
-              <span className="mr-2 rounded-[6px] bg-[var(--color-paper-card)] px-[6px] py-[3px] text-[11px] text-[var(--color-paper-ink-soft)]">{scene.proposalKind}</span>
+              <span className="mr-2 rounded-[6px] bg-[var(--color-paper-card)] px-[6px] py-[3px] text-[12px] text-[var(--color-paper-ink-soft)]">{scene.proposalKind}</span>
               {scene.proposal}
             </p>
             <p className="mt-2 text-[14px] leading-[1.6] text-[var(--color-paper-ink-soft)] lg:text-[13px]">{scene.proposalNote}</p>

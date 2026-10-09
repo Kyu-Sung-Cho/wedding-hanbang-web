@@ -103,6 +103,7 @@ const REDESIGN = "src/components/landing/redesign";
 const landing = rendered("src/app/landing/page.tsx");
 const header = rendered(`${REDESIGN}/LandingHeader.tsx`);
 const mobileMenu = rendered(`${REDESIGN}/MobileLandingMenu.tsx`);
+const accountActions = rendered(`${REDESIGN}/LandingAccountActions.tsx`);
 const hero = rendered(`${REDESIGN}/TransformationHero.tsx`);
 const content = rendered(CONTENT_PATH);
 const boundariesSection = rendered(`${REDESIGN}/BoundariesSection.tsx`);
@@ -307,8 +308,8 @@ describe("landing two-sided trust contract", () => {
     // 첫 화면은 무엇부터 할지 모르는 순간을 말하고, 질문을 둘의 결정으로 이어 준다.
     const heroCopy = contentBlock("hero", "amoraNote");
     expect(heroCopy).toMatch(/결혼 준비, 뭐부터 할까요\?[\s\S]*아모라와 하나씩 정해요\./u);
-    expect(heroCopy).toMatch(/AI 동반자 아모라와 고민을 정리하고[^"\n]*직접 확인해 기록/u);
-    expect(heroCopy).toMatch(/두 사람의 예산·일정·할 일/u);
+    expect(heroCopy).toMatch(/AI 동반자 아모라와 지금 고민을 정리하고[^"\n]*직접 확인해 기록/u);
+    expect(heroCopy).toMatch(/내가 원하는 결혼식부터 예산·일정·할 일까지/u);
     expectWired("hero.body");
     expectWired("hero.note");
     // 2026-08-29: 옛 컴포넌트는 줄바꿈·색 강조 때문에 H1 글자를 손으로 적었고, 그래서
@@ -361,7 +362,7 @@ describe("landing two-sided trust contract", () => {
     // "소개비를 받고 순서를 바꾸는 일도 없어요." 가 경계 항목 둘로 옮겨졌다.
     expect(boundariesCopy).toContain("업체에 점수·등급·순위를 매기지 않아요");
     expect(boundariesCopy).toContain("광고 상품은 운영하지 않아요.");
-    expect(boundariesCopy).toContain("계약 조건을 해석하거나 유불리를 판단하지 않아요");
+    expect(boundariesCopy).toContain("계약 조건을 대신 해석하거나 판단하지 않아요");
     expect(boundariesCopy).toContain("업체 계약 신청·예약·결제를 중개하지 않아요.");
 
     // 샘플에는 샘플이라고 적는다 — 옛 "기능 예시 · 이 화면에서는 실제로 저장되지
@@ -551,16 +552,26 @@ describe("landing two-sided trust contract", () => {
 
     // 헤더 CTA. 2026-08-28 이전 헤더는 "스무 장면 답해보기" 를 **하드코딩**하고 있었다 —
     // 카피 정본을 읽지도 않아서 카피를 고쳐도 헤더만 옛말을 했다. 라벨을 다시 박는 대신
-    // **헤더가 자기 문구를 발명하지 않는지**를 잰다: 헤더에 손으로 적힌 목적지는 로고뿐이다.
+    // **헤더가 자기 문구를 발명하지 않는지**를 잰다. 2026-10-10에 계정 링크를
+    // LandingAccountActions로 옮겼으므로 양쪽 렌더 연결과 그 컴포넌트의 정본 사용을 본다.
+    expect(header).toContain('<LandingAccountActions variant="desktop" />');
+    expect(mobileMenu).toContain('<LandingAccountActions variant="mobile" onNavigate={closeMenu} />');
+    expect(accountActions).toContain('from "./landingContent"');
     for (const key of ["signUp", "logIn"]) {
-      expect(header, `헤더가 headerAuth.${key} 를 안 쓴다`)
+      expect(accountActions, `계정 행동이 headerAuth.${key} 를 안 쓴다`)
         .toContain(`href={headerAuth.${key}.href}`);
-      expect(header, `헤더 headerAuth.${key} 버튼의 글자가 사라졌다`)
-        .toContain(`{headerAuth.${key}.label}`);
     }
+    expect(accountActions, "비로그인 시작 버튼이 정본 라벨을 쓰지 않는다")
+      .toMatch(/status === "signed_out" \? headerAuth\.signUp\.label :/u);
+    expect(accountActions, "상태별 시작 버튼의 글자가 사라졌다").toContain("{primaryLabel}");
+    expect(accountActions, "로그인 버튼의 정본 글자가 사라졌다").toContain("{headerAuth.logIn.label}");
     expect(
       header.match(/href="(?!\/landing")[^"]*"/gu) ?? [],
       "헤더가 카피 정본을 안 읽고 목적지를 손으로 적었다",
+    ).toEqual([]);
+    expect(
+      accountActions.match(/href="[^"]*"/gu) ?? [],
+      "계정 행동이 카피 정본을 안 읽고 목적지를 손으로 적었다",
     ).toEqual([]);
     const authHrefs = hrefsIn(contentBlock("headerAuth"));
     expect(authHrefs.length, "헤더 행동 목적지를 못 찾았다").toBeGreaterThanOrEqual(2);
@@ -568,17 +579,17 @@ describe("landing two-sided trust contract", () => {
       expect(href, "헤더 행동이 아무 데도 가지 않는다").toMatch(/^\/[a-z0-9-]/u);
     }
 
-    // 로그인 진입점. 옛 헤더는 데스크톱에도 "로그인" 링크를 들고 있었고, 새 헤더는
-    // 그 링크를 카피에서 읽는다(`headerAuth.logIn`). 모바일 메뉴는 손으로 적는다.
-    // 헤더가 렌더하는 단위로 보면 링크는 살아 있으므로 헤더+메뉴를 합쳐서 본다.
-    // **데스크톱 헤더에 가입·로그인 링크가 아예 없는 것**은 이 파일이 아니라
-    // `landingSignupIsOpen.test.ts`가 지는 계약이다.
+    // 로그인 진입점은 공통 계정 행동에 있다. 비로그인 상태의 링크가 정본 목적지와
+    // '로그인' 라벨을 실제 Link 자식으로 렌더하는지 확인한다.
     expect(contentBlock("headerAuth")).toContain('href: "/login?redirect=%2Fwedding%2Fchat"');
-    expect(header).toContain("href={headerAuth.logIn.href}");
+    const logIn = /logIn:\s*\{([^}]*)\}/u.exec(contentBlock("headerAuth"));
+    expect(logIn, "headerAuth.logIn 이 사라졌다").not.toBeNull();
+    expect(logIn?.[1] ?? "", "로그인 정본 라벨이 바뀌었다").toContain('label: "로그인"');
+    expect(accountActions).toContain('const login = status === "signed_out" ? (');
     expect(
-      mobileMenu,
+      accountActions,
       "/login 링크의 보이는 글자가 '로그인'이 아니다",
-    ).toMatch(/href=\{headerAuth\.logIn\.href\}[\s\S]{0,600}>\s*로그인\s*<\/Link>/u);
+    ).toMatch(/href=\{headerAuth\.logIn\.href\}[\s\S]{0,600}>\s*\{headerAuth\.logIn\.label\}\s*<\/Link>/u);
 
     // 마무리 CTA — 계정이 있는 사람만 로그인으로 보낸다.
     //
@@ -742,7 +753,7 @@ describe("landing two-sided trust contract", () => {
     expectWired("availableNow.title");
     // 첫 화면에서도 조건을 먼저 말한다 — 여기까지 안 내려온 사람이 훨씬 많다.
     const heroCopy = contentBlock("hero", "amoraNote");
-    expect(heroCopy).toContain("아모라는 로그인 후 이용해요. 웨딩코드는 가입 없이 해볼 수 있어요");
+    expect(heroCopy).toContain("아모라는 로그인 후 이용해요. 웨딩코드는 가입 없이 이용해요");
     expect(closingCopy).toContain("무료 도구는 가입 없이 이용할 수 있어요");
 
     // 계정을 만들면 무엇이 열리는지. 옛 판은 ⑦ 섹션이 한 줄로 적었고, 지금은 확인
