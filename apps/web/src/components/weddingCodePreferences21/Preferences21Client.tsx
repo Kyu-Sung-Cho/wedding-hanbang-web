@@ -140,6 +140,8 @@ export default function Preferences21Client() {
     : screen === "result" && invitation
       ? comparePreferences21Responses({ versions: VERSIONS, answers }, { versions: comparisonVersions(invitation), answers: invitation.answers }) : null;
 
+  const focusComparison = () => document.getElementById("p21-comparison-heading")?.focus();
+
   return <main className="min-h-screen bg-[var(--ivory-50)] font-[family-name:var(--font-pretendard)] text-[var(--hb-text-strong)]" data-wedding-code-version={VERSIONS.questionnaireVersion}>
     <div className="mx-auto max-w-5xl px-5 py-8 sm:px-8 sm:py-12">
       <div ref={anchor} tabIndex={-1} className="outline-none">
@@ -148,6 +150,7 @@ export default function Preferences21Client() {
           <a href="/wedding-code" className={`inline-flex items-center justify-center font-semibold text-[var(--hb-text-body)] hover:bg-[var(--hb-surface-hover)] ${ACTION} ${FOCUS}`}>기존 30문항 · 캐릭터 결과</a>
         </nav>
       </div>
+      {safeComparison?.status === "ready" && <Button className={`mb-6 ${ACTION}`} onClick={focusComparison}>두 사람 답 비교하기</Button>}
       {linkNotice && <section className={`mb-6 ${PANEL}`} aria-label="받은 링크 안내"><p className={TEXT}>{linkNotice}</p>{shared && <p className={`mt-2 ${TEXT}`}>링크에 적힌 답을 읽는 자료예요. 이 링크를 만든 사람의 신원이나 각 답의 작성자·동의 여부를 앱이 인증한 것은 아니에요. 두 사람이 직접 확인해 주세요.</p>}<Button className={`mt-3 ${ACTION}`} onClick={clearReceived}>받은 링크 닫기</Button></section>}
       {shared?.kind === "summary" && <section className={`mb-6 ${PANEL}`}>
         <p className="text-xs font-semibold tracking-widest">SHARED PREPARATION NOTES</p>
@@ -175,7 +178,7 @@ export default function Preferences21Client() {
       </>}
       {screen === "result" && <div className="space-y-6"><PreferenceReport report={report} onEdit={edit} /><PreferenceSharing key={revision} answers={answers} invitation={invitation} /></div>}
       {safeComparison && <section className={`mt-6 ${PANEL}`} data-testid="p21-comparison">
-        <h2 className="text-2xl font-semibold">같은 문항에 고른 두 사람의 답</h2><p className={`mt-3 ${TEXT}`}>{safeComparison.notice}</p>
+        <h2 id="p21-comparison-heading" tabIndex={-1} className={`text-2xl font-semibold ${FOCUS}`}>같은 문항에 고른 두 사람의 답</h2><p className={`mt-3 ${TEXT}`}>{safeComparison.notice}</p>
         {safeComparison.status === "ready" && <>
           <p className={`mt-3 ${TEXT}`}>{shared?.kind === "partner-return" ? "왼쪽은 최초 초대의 답, 오른쪽은 돌아온 답이에요. 이 링크가 누구의 기기에서 열렸는지는 알 수 없으며, 내 개인 답으로 저장하지 않아요." : "왼쪽은 이번에 내가 고른 답, 오른쪽은 초대 링크의 답이에요."}</p>
           <p className={`mt-2 ${TEXT}`}>같은 1–5 답 {safeComparison.sameNumeric}문항 · 다른 1–5 답 {safeComparison.differentNumeric}문항. 모름·해당 없음·답하지 않음·미응답은 숫자로 비교하지 않아요. 궁합이나 우열 점수가 아니에요.</p>

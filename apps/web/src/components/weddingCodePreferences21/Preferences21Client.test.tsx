@@ -315,3 +315,129 @@ describe("받은 링크와 기존 저장의 경계", () => {
     expect(harness.container.querySelector('a[href="/wedding-code"]')?.textContent).toContain("기존 30문항");
   });
 });
+
+
+describe("비교 구간으로 이동하면서 원답과 링크를 보존한다", () => {
+  function comparisonButtons(): HTMLButtonElement[] {
+    return [...harness.container.querySelectorAll<HTMLButtonElement>("button")]
+      .filter((entry) => entry.textContent?.trim() === "두 사람 답 비교하기");
+  }
+
+  function comparisonDetail(id: ItemId): HTMLDetailsElement {
+    const comparison = harness.container.querySelector('[data-testid="p21-comparison"]');
+    const detail = [...(comparison?.querySelectorAll<HTMLDetailsElement>("details") ?? [])]
+      .find((entry) => entry.querySelector("summary")?.textContent?.startsWith(Number(id.slice(1)) + ". "));
+    if (!detail) throw new Error("비교 원답이 없어요: " + id);
+    return detail;
+  }
+
+  function returnedFragment(first: Answers = answerSet(5), second: Answers = answerSet(1)): string {
+    const fragment = fragmentOrThrow(createPreferences21ShareFragment({ kind: "partner-invitation", answers: first, consent: true }));
+    const invitation = parsePreferences21ShareFragment(fragment);
+    if (invitation.status !== "ready" || invitation.payload.kind !== "partner-invitation") throw new Error("검증용 초대가 없어요");
+    return fragmentOrThrow(createPreferences21ReturnFragment(invitation.payload, second, { consent: true }));
+  }
+
+  it("초대와 내 결과의 비교로 초점을 옮겨도 Q18/Q19 원답·본인 저장·공개 동의·주소를 바꾸지 않는다", async () => {
+    const own = answerSet(3); own.Q18 = 1; own.Q19 = 5;
+    const partner = answerSet(5); partner.Q18 = 5; partner.Q19 = 1;
+    const original = seed(own, 20);
+    window.localStorage.setItem(original30Key, "previous-30-answer-record");
+    window.localStorage.setItem(original30AutosaveKey, "on");
+    const fragment = fragmentOrThrow(createPreferences21ShareFragment({ kind: "partner-invitation", answers: partner, consent: true }));
+    window.history.replaceState({ source: "comparison-focus-proof" }, "", "/wedding-code/preferences21" + fragment);
+    await open();
+    expect(comparisonButtons()).toHaveLength(0);
+    await click(button("저장한 내 답 이어보기 · 21/21"));
+    expect(comparisonButtons()).toHaveLength(1);
+    const jump = button("두 사람 답 비교하기");
+    const heading = harness.container.querySelector<HTMLHeadingElement>("h2#p21-comparison-heading");
+    const personalHeading = harness.container.querySelector("#p21-report-heading");
+    expect(heading).not.toBeNull();
+    expect(heading?.tabIndex).toBe(-1);
+    expect(harness.container.querySelectorAll("#p21-comparison-heading")).toHaveLength(1);
+    if (!personalHeading) throw new Error("본인 결과 제목이 없어요");
+    expect(jump.compareDocumentPosition(personalHeading) & Node.DOCUMENT_POSITION_FOLLOWING).not.toBe(0);
+    expect(comparisonDetail("Q18").querySelector("summary")?.textContent).toContain("전혀 맞지 않아요 / 아주 잘 맞아요");
+    expect(comparisonDetail("Q19").querySelector("summary")?.textContent).toContain("아주 잘 맞아요 / 전혀 맞지 않아요");
+    const before = { href: window.location.href, hash: window.location.hash, length: window.history.length, state: window.history.state, consent: previewConsent().checked };
+    jump.focus();
+    expect(document.activeElement).toBe(jump);
+    await click(jump);
+    expect(document.activeElement).toBe(heading);
+    expect(window.location.href).toBe(before.href);
+    expect(window.location.hash).toBe(before.hash);
+    expect(window.history.length).toBe(before.length);
+    expect(window.history.state).toEqual(before.state);
+    expect(window.localStorage.getItem(PREFERENCES21_STORAGE_KEY)).toBe(original);
+    expect(window.localStorage.getItem(PREFERENCES21_AUTOSAVE_KEY)).toBe("on");
+    expect(window.localStorage.getItem(original30Key)).toBe("previous-30-answer-record");
+    expect(window.localStorage.getItem(original30AutosaveKey)).toBe("on");
+    expect(previewConsent().checked).toBe(before.consent);
+    expect(sharing().querySelector("#p21-share-url")).toBeNull();
+    expect(detailFor("Q18").textContent).toContain("내 답 · 전혀 맞지 않아요");
+    expect(detailFor("Q19").textContent).toContain("내 답 · 아주 잘 맞아요");
+    expect(comparisonDetail("Q18").querySelector("summary")?.textContent).toContain("전혀 맞지 않아요 / 아주 잘 맞아요");
+    expect(comparisonDetail("Q19").querySelector("summary")?.textContent).toContain("아주 잘 맞아요 / 전혀 맞지 않아요");
+  });
+
+  it("반환 비교의 상단 버튼은 원 초대/돌아온 답의 방향과 별도 본인 저장을 보존하고 링크를 닫으면 사라진다", async () => {
+    const own = answerSet(2);
+    const original = seed(own, 20);
+    window.localStorage.setItem(original30Key, "previous-30-answer-record");
+    window.localStorage.setItem(original30AutosaveKey, "on");
+    const first = answerSet(5); first.Q19 = 1;
+    const second = answerSet(1); second.Q19 = 5;
+    window.history.replaceState({ source: "return-focus-proof" }, "", "/wedding-code/preferences21" + returnedFragment(first, second));
+    await open();
+    expect(comparisonButtons()).toHaveLength(1);
+    const jump = button("두 사람 답 비교하기");
+    const heading = harness.container.querySelector<HTMLHeadingElement>("h2#p21-comparison-heading");
+    const introHeading = harness.container.querySelector("#p21-intro-heading");
+    expect(heading).not.toBeNull();
+    if (!introHeading) throw new Error("개인 시작 제목이 없어요");
+    expect(jump.compareDocumentPosition(introHeading) & Node.DOCUMENT_POSITION_FOLLOWING).not.toBe(0);
+    const before = { href: window.location.href, hash: window.location.hash, length: window.history.length, state: window.history.state };
+    jump.focus();
+    expect(document.activeElement).toBe(jump);
+    await click(jump);
+    expect(document.activeElement).toBe(heading);
+    expect(comparisonDetail("Q18").querySelector("summary")?.textContent).toContain("아주 잘 맞아요 / 전혀 맞지 않아요");
+    expect(comparisonDetail("Q19").querySelector("summary")?.textContent).toContain("전혀 맞지 않아요 / 아주 잘 맞아요");
+    expect(window.location.href).toBe(before.href);
+    expect(window.location.hash).toBe(before.hash);
+    expect(window.history.length).toBe(before.length);
+    expect(window.history.state).toEqual(before.state);
+    expect(window.localStorage.getItem(PREFERENCES21_STORAGE_KEY)).toBe(original);
+    expect(window.localStorage.getItem(PREFERENCES21_AUTOSAVE_KEY)).toBe("on");
+    expect(window.localStorage.getItem(original30Key)).toBe("previous-30-answer-record");
+    expect(window.localStorage.getItem(original30AutosaveKey)).toBe("on");
+    await click(button("받은 링크 닫기"));
+    expect(comparisonButtons()).toHaveLength(0);
+    expect(harness.container.querySelector("#p21-comparison-heading")).toBeNull();
+    expect(window.localStorage.getItem(PREFERENCES21_STORAGE_KEY)).toBe(original);
+  });
+
+  it.each([
+    ["링크 없음", (): string => ""],
+    ["친구 요약", (): string => fragmentOrThrow(createPreferences21ShareFragment({ kind: "summary", answers: answerSet(5) }))],
+    ["내 결과가 없는 초대", (): string => fragmentOrThrow(createPreferences21ShareFragment({ kind: "partner-invitation", answers: answerSet(5), consent: true }))],
+    ["잘못된 링크", (): string => returnedFragment().slice(0, returnedFragment().indexOf("=") + 1) + "{broken"],
+    ["다른 표시판", (): string => mismatchedDisplayVersion(returnedFragment())],
+    ["만료된 반환", (): string => { const fragment = returnedFragment(); vi.setSystemTime(now + 31 * 24 * 60 * 60 * 1000); return fragment; }],
+  ] as const)("%s에는 비교 이동 버튼을 보여주지 않고 주소와 본인 저장을 보존한다", async (_name, makeFragment) => {
+    const original = stored(answerSet(2), 20);
+    window.localStorage.setItem(PREFERENCES21_STORAGE_KEY, original);
+    const fragment = makeFragment();
+    window.history.replaceState({ source: "no-comparison-focus-proof" }, "", "/wedding-code/preferences21" + fragment);
+    const before = { href: window.location.href, hash: window.location.hash, length: window.history.length, state: window.history.state };
+    await open();
+    expect(comparisonButtons()).toHaveLength(0);
+    expect(harness.container.querySelector("#p21-comparison-heading")).toBeNull();
+    expect(window.location.href).toBe(before.href);
+    expect(window.location.hash).toBe(before.hash);
+    expect(window.history.length).toBe(before.length);
+    expect(window.history.state).toEqual(before.state);
+    expect(window.localStorage.getItem(PREFERENCES21_STORAGE_KEY)).toBe(original);
+  });
+});

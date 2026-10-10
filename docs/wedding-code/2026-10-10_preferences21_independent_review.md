@@ -311,3 +311,34 @@ SDK full 원본: `official-chrome-ordinary-settled-bounded-outbound-full-2026-10
 - `independent-44fd-same-document-diagnostic-result-audit.json`: `e3653c74e97598058164f01a5d27caa2bde78835ce77bab3c870419f0fe4969c`.
 - `independent-44fd-full-result-audit.json`: `2c18bb769b304fc77a21d58020b25f5a15fadfa018c52a907712ce28ecbd3430`.
 - `final-owned-normal-gates-receipt.json`: `190b6ee114da1b26bd3c7b68c4c9e6bee42e7d3370f0204290ff738abde80de9`.
+
+
+### 2026-10-11 KST · 첫 운영 완료와 비교 접근 개선의 로컬 검증
+
+앞의 준비·미실행·실패 기록은 각 시점의 이력으로 보존한다. 이 절은 첫 운영 완료 뒤 실제 문제를 재현하고 검증한 두 번째 후보의 **문서 고정 시점** 상태다. 이후 hook·CI·merge·운영 상태는 최종 후보의 별도 영수증/PR에서 확인한다.
+
+첫 배포는 PR #494의 정상 필수 CI(8개 작업과 필수 aggregate), Preview 흐름 확인, 정상 merge를 거쳤다. 운영 merge는 `143449c84fd4c7910a7883348301c2377a8e502e`, Vercel 배포는 `dpl_2a92cBvUncC3kVeQFYSf4P7pSdrE`다. 실제 UI에서 READY/Production/main/hanbang.ai 결속을 확인했고, [새 21문항](https://hanbang.ai/wedding-code/preferences21)과 [기존 30문항](https://hanbang.ai/wedding-code)의 원래 진입을 운영에서 확인했다. 전체 Git tree가 검증 후보34683과 동일하며 CI run은 `38070008675`다. workflow_dispatch 전용 production-readiness/quality-gate는 정상 SKIPPED였으며 PASS로 세지 않았다.
+
+첫 운영에서 합성 A/B로 21개 원문·척도, 중단5→새로고침→문항6재개, Q18수정/복원과 Q19불변, 1–5/모름/비해당/건너뜀 구분, 본인 자동 저장, 원답 초대와 반환, 두 사람14같음/2다름, 기존30→새21복귀를 실제 확인했다. 최초 clipboard 읽기714와 생성 반환주소1662의 불일치는 원인 UNVERIFIED로 보존했다. 별도 실제 native paste가1662로 생성 field와 동일함을 확인한 후 올바른 반환주소-r1을 열어 A/B 방향과 원답을 검증한 흐름만 PASS다. OS 메신저 실제 발송·실제 사람 두 기기 테스트는 실행하지 않았다.
+
+첫 운영의 actual 44fd SDK full은 root session19567 exit0, 54/54흐름·6/6 실제 PostHog/Sentry 양성 대조·49전송 기록·32asset·오류0·pending0·abort/소유 browser정리 PASS다. raw SHA는 `dbb064e1d18b037525bc8f5cbf657f91f41638d76b93c8950ef9737366e0e3bc`이며 독립 r2 영수증은 `36be11cdea88d1db20a564733587774b6ae2ec5db98e262202092c77de17b57c`다. 첫 r1 reader의 옛 public 파일 핀 오류만 FAIL로 보존하고, 새 공개 파일 df7163의 실제 값3개 재hash·SDK initializer 자산·시각·외부 배포 결속을 엄격 검증한 r2로 닫았다. 이 유한 application-context 전송 시도 검사에서 보호 데이터는 없었다. provider ingestion, 서버/edge 내부, Chrome background traffic, 모든 미래 queue 소진 또는 remote/local asset byte동일성의 증거가 아니다.
+
+실제 첫 운영390×844/doc375/scrollY0에서 비교 제목 top7482.171875이고 상단 이동 버튼이 없는 문제를 JSON/JPG로 재현했다. 가설은 유효한 비교가 있을 때 상단 ‘두 사람 답 비교하기’ native Button에서 기존 h2로 focus를 이동하면 탐색 부담을 줄일 수 있다는 것이다. Client와 검사만 수정했고, h2 id/tabIndex를 추가했다. 문항·순서·상황·척도·해석·레터/캐릭터·세 버전·원답·동의·소유·저장·공유 fragment/history 계약 변경0이다. 결과 사용성 개선이며 응답 해석이나 검증된 성향축 추가가 아니다.
+
+| 두 번째 후보의 실제 로컬 범위 | 결과와 출처 |
+| --- | --- |
+| Client 정상/반례 | 최종 검사24 PASS → 저장충돌1 AssertionError RED → focus누락2 AssertionError RED → source/test SHA 정확 복원. 표준 canonical의 다른22항목·원7/ac98 ledger 불변. `cycle2-client-guard-r1-receipt.json` |
+| 영향 회귀 | 8파일/107검사 PASS, root 즉시 완료 chunk9b8dce/exit0. `cycle2-related-tests-r1.log` |
+| 타입 | 초기 TS7024 FAIL을 보존. 새6개 factory의 반환형 `(): string`만 명시한 최종 바이트로 root chunk e24e72/exit0 PASS. `cycle2-typecheck-r2.log` |
+| 린트 | root session34706/exit0, 오류0·기존 경고23. `cycle2-lint.log` |
+| 정상 production build | default Turbopack/기존 build명령, root session95057/exit0, 2026-10-10T17:50:24.155Z 종료, build산출물4 SHA 확인. `cycle2-real-sdk-owned-build-process-receipt.json` |
+| 저장소 검사 | root session46362/exit0, 1572 PASS/fail0/570200.792ms. `cycle2-test-repo.log`. 합성 PG 및 고객/원격 데이터 변경0 |
+| 실제 native UI | 390×844에서 상단 link→Tab→비교button→Enter→h2focus→다음Tab Q01 summary 확인. 기존 smooth-scroll 중 즉시 offscreen1074관찰은 보존하고 종료 뒤 top410–434로 viewport안 제목을 확인했다. 본인B+초대A에서도 top409–433/본인 report·양쪽21·동의2/autosave checkbox·저장UI·URL/hash 동일. 구30 native복귀/새21저장21재개/비교link없을때button0 확인 |
+| 직접 관측/자동 계약 구분 | 브라우저 DOM 범위에서 raw localStorage와 history.length/state를 읽지 않았다. 직접 관측은 UNVERIFIED이며 native UI·URL/hash·표시답·checkbox만 PASS다. raw 저장/소유/동의/history 계약은 최종24개 DOM 검사와2개 실제 반례의 별도 PASS. `cycle2-local-browser-and-contract-receipt.json` |
+| 독립 검수 | 적용후 최종 두SHA/원문·판·구30불변/정상24·2반례·복원·다른22 canonical, native 이동/양쪽21원답/own UI/동의·저장표시 보존을 읽기검수. `independent-cycle2-local-source-review-r1.json`, `independent-cycle2-local-native-evidence-review.json`, `independent-cycle2-local-own-native-appendix.json` |
+
+최종 Client SHA는 `08d7a2e9399075b13c0cbe7e39b3b83bad851542661376b436129f0b4eee0828`, 검사 SHA는 `2bff818dfb23703149c9db8ad205b2da1c1b4e67f834ac0893add84616a5dc15`다. 실제 결과 입력 `cycle2-release-required-fields.ACTUAL-r2.json`은 final read-only reader에서 READY를 확인했다. 원 PREPARED/r1과 초기 실패를 유지하고 최종 r2 reader SHA `6a06eb206a0c9d506a0fb5acd8212161af23586e74ffa0c52f7ce7bcff46c4b0`로 실제 읽기 exit0 재확인했다.
+
+이 문서 고정 시점에는 **두 번째 정상 pre-push 전체 workspace·원격 CI·Preview·merge·운영 SDK/배포가 아직 미실행**이다. 첫 운영/옛 local full을 두 번째 운영 PASS로 재사용하지 않는다. 이번25 inventory의 역사 base6be를 유지해 실제 파일 SHA를 다시 발급하고, 새 candidate/manifest/build/SDK/merge/배포 결속은 별도 실제 영수증/PR에 고정한다. 즉시 rollback 기준은 첫 정상 운영143449/dpl2a92이며 그 이전6be/dpl6nmm도 보존한다. DB/migration/기존답 재배치/데이터 삭제/권한 변경0이다.
+
+사람·전문가 참여0명, 타당도 미검증, 새21의 네 글자/16캐릭터/가중치/절단점 미확정, native200%zoom·물리 기기 테스트 미검증은 유지한다. 다음 사이클은 준비한 팀 이해도 질문지로 문항을 자기 말로 설명하고 장면·응답이유·결과가 도움이 되는 대화인지 확인하는 것이다. 실제 사람 응답이 없으므로 문항 의미를 임의 변경하거나 캐릭터를 확정하지 않는다. 공유 환경의 과거50연결 완전복구도 UNVERIFIED이며 전용 checkout 복구와 구분한다.

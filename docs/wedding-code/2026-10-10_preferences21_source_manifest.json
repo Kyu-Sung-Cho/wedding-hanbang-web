@@ -1,12 +1,12 @@
 {
   "schema": "wedding-code-preferences21-source-manifest/v1",
-  "frozenAt": "2026-10-10T16:36:39.850Z",
+  "frozenAt": "2026-10-10T18:04:15.106Z",
   "baseCommit": "6be93825a26815ef59a25f4fce867583ca796e6d",
   "questionnaireVersion": "preferences21-20261010-r1",
   "interpretationVersion": "preferences21-reading-alpha.1",
   "displayVersion": "preferences21-report-alpha.1",
   "fileCount": 25,
-  "canonicalContentSha256": "8d2afba2d4937dcac767199e9801dc398898e9ce62015bfd54af1f595c698adb",
+  "canonicalContentSha256": "ec90eea223b5cd8912fbc88a11ca1878e3e95c809ada801b76a065159cba220f",
   "files": [
     {
       "path": "apps/web/src/app/wedding-code/preferences21/page.tsx",
@@ -35,13 +35,13 @@
     },
     {
       "path": "apps/web/src/components/weddingCodePreferences21/Preferences21Client.test.tsx",
-      "bytes": 18511,
-      "sha256": "fa27193f3f17b96b80861cb002fbc373c9541f1ee5abd0c8c01c354d467e6cee"
+      "bytes": 27229,
+      "sha256": "2bff818dfb23703149c9db8ad205b2da1c1b4e67f834ac0893add84616a5dc15"
     },
     {
       "path": "apps/web/src/components/weddingCodePreferences21/Preferences21Client.tsx",
-      "bytes": 17234,
-      "sha256": "a9c70f93485d67f0a48b722eb80fb917c8351b964bd6daf691497210c794e7cd"
+      "bytes": 17526,
+      "sha256": "08d7a2e9399075b13c0cbe7e39b3b83bad851542661376b436129f0b4eee0828"
     },
     {
       "path": "apps/web/src/components/weddingCodePreferences21/reportMeaning.test.tsx",
@@ -120,13 +120,13 @@
     },
     {
       "path": "docs/wedding-code/2026-10-10_preferences21_independent_review.md",
-      "bytes": 31874,
-      "sha256": "2b3859fd5dd3ecf0ca85928afb5c0bf7c0b1cf088bb3aa8fd0d6ec8cfa4eaa78"
+      "bytes": 38958,
+      "sha256": "e00800794baa63d261567c700ad50dda65cfff0c93d979994a60b3772c9ecffe"
     },
     {
       "path": "docs/wedding-code/2026-10-10_preferences21_release_and_validation.md",
-      "bytes": 23287,
-      "sha256": "b8cd3971828134189484c69c262508bd0a057f802316628aff49d8f776cf3b2b"
+      "bytes": 30371,
+      "sha256": "bb9393de0fb137b5ff8856c822cff631178e894e32586ddf295f7e294e0eab4c"
     },
     {
       "path": "turbo.json",
