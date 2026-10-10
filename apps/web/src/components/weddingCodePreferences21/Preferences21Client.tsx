@@ -145,7 +145,7 @@ export default function Preferences21Client() {
       <div ref={anchor} tabIndex={-1} className="outline-none">
         <nav aria-label="웨딩코드" className="mb-8 flex flex-wrap items-center justify-between gap-3 text-sm">
           <Button href="/" variant="ghost" className={ACTION}>웨딩한방</Button>
-          <Button href="/wedding-code" variant="ghost" className={ACTION}>기존 30문항 · 캐릭터 결과</Button>
+          <a href="/wedding-code" className={`inline-flex items-center justify-center font-semibold text-[var(--hb-text-body)] hover:bg-[var(--hb-surface-hover)] ${ACTION} ${FOCUS}`}>기존 30문항 · 캐릭터 결과</a>
         </nav>
       </div>
       {linkNotice && <section className={`mb-6 ${PANEL}`} aria-label="받은 링크 안내"><p className={TEXT}>{linkNotice}</p>{shared && <p className={`mt-2 ${TEXT}`}>링크에 적힌 답을 읽는 자료예요. 이 링크를 만든 사람의 신원이나 각 답의 작성자·동의 여부를 앱이 인증한 것은 아니에요. 두 사람이 직접 확인해 주세요.</p>}<Button className={`mt-3 ${ACTION}`} onClick={clearReceived}>받은 링크 닫기</Button></section>}
