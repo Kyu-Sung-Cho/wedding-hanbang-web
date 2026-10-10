@@ -1,12 +1,12 @@
 {
   "schema": "wedding-code-preferences21-source-manifest/v1",
-  "frozenAt": "2026-10-10T15:09:35.553Z",
+  "frozenAt": "2026-10-10T16:36:39.850Z",
   "baseCommit": "6be93825a26815ef59a25f4fce867583ca796e6d",
   "questionnaireVersion": "preferences21-20261010-r1",
   "interpretationVersion": "preferences21-reading-alpha.1",
   "displayVersion": "preferences21-report-alpha.1",
   "fileCount": 25,
-  "canonicalContentSha256": "a42eaa5d3f74b7f63b463804e1cd5e745e3fc2f31fb174a8cc1a898639d22983",
+  "canonicalContentSha256": "8d2afba2d4937dcac767199e9801dc398898e9ce62015bfd54af1f595c698adb",
   "files": [
     {
       "path": "apps/web/src/app/wedding-code/preferences21/page.tsx",
@@ -120,13 +120,13 @@
     },
     {
       "path": "docs/wedding-code/2026-10-10_preferences21_independent_review.md",
-      "bytes": 24316,
-      "sha256": "9fd79b3ea3200fe3ed5573688478220456d1c672494b13df59c817ce8de8deaf"
+      "bytes": 31874,
+      "sha256": "2b3859fd5dd3ecf0ca85928afb5c0bf7c0b1cf088bb3aa8fd0d6ec8cfa4eaa78"
     },
     {
       "path": "docs/wedding-code/2026-10-10_preferences21_release_and_validation.md",
-      "bytes": 12432,
-      "sha256": "3f95a08bb2a354847d368429c5e3eb0733a56fd8319444efc5079892d7a718df"
+      "bytes": 23287,
+      "sha256": "b8cd3971828134189484c69c262508bd0a057f802316628aff49d8f776cf3b2b"
     },
     {
       "path": "turbo.json",

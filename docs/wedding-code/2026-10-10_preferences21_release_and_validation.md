@@ -36,8 +36,12 @@
 1. 이 문장을 본인 말로 다시 설명해 주세요.
 2. 어떤 장면과 조건을 떠올렸나요? 안내에 적힌 조건과 다른 부분이 있었나요?
 3. 어렵거나 두 가지 뜻으로 읽힌 표현이 있었나요?
-4. 이 선택지를 고른 이유는 무엇인가요? ‘반반’과 ‘아직 모르겠어요’ 중 고르기 어려웠나요?
-5. 결과의 어느 설명이 답을 잘 담았고, 어느 설명은 맞지 않았나요? 파트너에게 그대로 말할 수 있는 부탁이 있었나요?
+4. 이 선택지를 고른 이유는 무엇인가요? ‘반반’과 ‘아직 모르겠어요’는 각각 어떤 뜻으로 이해했나요? 두 선택지를 구분하기 어려운 문항이 있었나요?
+5. 결과의 어느 설명이 답을 잘 담았고, 어느 설명은 맞지 않았나요? 이 결과만으로 알 수 있는 것과 알 수 없는 것은 무엇인가요? 답보다 넓게 해석된 부분이 있었다면 알려 주세요. 파트너에게 그대로 말할 수 있는 부탁이 있었나요?
+필요하면 아래 두 가지를 추가로 확인한다.
+
+6. 지금 답은 원하는 방식, 현실적인 시간·역할 제약 때문에 가능한 방식 중 어디에 가까웠나요? 둘을 구분하기 어려운 문항이 있었나요? 구체적인 금액이나 가족 사정은 말하지 않아도 됩니다.
+7. 비교 화면에서 어느 답이 본인 답이고 어느 답이 파트너 답인지 설명해 주세요. 같은 답과 다른 답은 무엇을 뜻한다고 읽었나요? 실제로 함께 본 경험이 있다면 도움이 되거나 부담스러웠던 부분이 있었나요? 경험이 없으면 미실행으로 기록합니다.
 
 우선 관찰할 문항: Q02/Q03의 예산 집중과 재배분 구분, Q05/Q06의 시작 시점과 선행 탐색, Q07/Q08의 ‘편하다’와 실제 원하는 결정권 구분, Q13/Q14의 가족 의견 시점, Q18/Q19의 다른 도움 조건, Q20/Q21의 첫 휴식과 동시 동의. 실제 참여가 없으면 결과는 미실행으로 남긴다.
 
@@ -77,3 +81,52 @@
 ## 현재 증거의 한계
 
 독립 문항·순서·상황·척도 대조, 결정적 모델과 저장·공유·비교·메모 검사, 실제 React 흐름 검사는 각각 별도의 영수증으로 남긴다. 이전 30문항의 SDK 전송 검사는 PostHog 정상 페이지 양성 대조가 관찰되지 않아 실패했다. 이 결과를 새 판의 통과로 가져오지 않는다. 실제 새 SDK·브라우저·전체 관문·운영 배포 결과는 이후 실제 실행 기록과 최종 manifest에 고정한다.
+
+## 최종 후보 ac98 — 확인된 증거와 대기 관문
+
+아래는 제품 소스 HEAD `ac98ba1b0fa412c4097daaca47a09cc383560418`에 대한 기록이다. 최초 HEAD의 전체 통과, 현재 소스의 좁은 재검사, 현재 완료한 전체 관문을 구분한다. 문서 갱신은 제품 의미·문항 버전·원답을 변경하지 않는다. 이 문서와 독립 검토 문서는 source manifest 대상이므로 실제 결과를 채워 적용한 뒤 manifest를 다시 고정해야 한다.
+
+| 범위 | 직접 확인한 결과 | 영수증 또는 로그 |
+| --- | --- | --- |
+| 최초 HEAD `585348db900d6bffa2d4ed170cd9fb799733fabd` | 웹 typecheck·lint·test, test:repo PASS. 웹 1,256파일 / 22,466검사, 새 판 7파일 / 94검사 | `first-head-verification-receipt.json`; 현재 ac98의 전체 관문을 대체하지 않음 |
+| 문서 갱신 전 ac98 바이트 | manifest 25파일의 SHA256·크기 대조, 불일치 0 | `independent-ac98-source-binding-audit.json`; 적용 후 최종 바이트는 별도 source manifest에서 확인 |
+| 현재 production-mode build | 2026-10-10 15:10:55.763 UTC 종료 코드 0. build 산출물 4개 SHA 일치 | `real-sdk-owned-build-process-receipt.json`, `production-build-owned-recovery.log`; 로컬 합성 서버 환경이며 운영 배포 증거가 아님 |
+| 현재 Client guard 재증명 | 정상 16검사 PASS → 저장 충돌 반례 1검사 AssertionError RED → 제품·검사 SHA 정확 복원 | `final-client-guard-ac98-ledger.json`; 실제 root session 26690 종료 코드 0. 표준 ledger의 다른 22항목과 원 7개 ledger는 불변 |
+| 의존성 백업 위치 보존 | 110,168파일 / 4,731연결 / 1,589,378,169바이트 전체 내용·연결·동일성 보존, 원 위치 없음 | `dependency-archive-relocation-effects.json`; 전용 `node_modules` 아래로 보존 이동, 삭제·제품·검사 수정 없음 |
+| 이전 전체 웹 검사 | **FAIL**: `categoryKeyMirrors.test.ts`가 백업의 옛 경로를 읽어 ENOENT. 1suite 실패 / 1,255파일 성공 / 22,463검사 성공 | `full-web-before-archive-failed.log`; 실패 원본을 유지하고 전체 PASS로 집계하지 않음 |
+| 백업 보존 이동 뒤 영향 검사 | 해당 파일 1개 / 3검사 PASS | `category-mirror-after-archive.log`; 전체 workspace 통과를 대체하지 않음 |
+| 현재 test:repo | 1,572검사 PASS / fail 0 / 680,297.864ms. root가 2026-10-10 16:03:23 UTC session 59718 종료 코드 0 확인 | `final-owned-test-repo.log`; 전체 Turbo 웹·모바일 검사의 결과와 구분 |
+| 현재 정상 whole Turbo `typecheck lint test` | 종료 코드 0, 9/9 tasks 성공, 8 cached, 28m43.151s. 웹은 fresh 1,256파일 / 22,466검사 PASS, 모바일 1,397검사 PASS | root session 24285 / `final-owned-normal-gates-receipt.json`. cached 8개는 같은 소스의 직전 정상 실행이며 최초 HEAD의 cache를 새 실행으로 부르지 않음 |
+| 현재 실제 SDK fresh full | 2026-10-10 16:28:22.043 UTC 종료 코드 0. 54/54 흐름·6/6 실제 SDK 양성 대조 PASS, 51개 전송 기록·32개 asset. 보호 데이터 없음, interception 오류 0, pending 0, abort/정리 완료, source/build/SDK 바이트 동일 | root session 72151; `official-chrome-ordinary-settled-bounded-outbound-full-2026-10-10T16-28-22.043Z-e338cdc9f009/result.json`, SHA `26fb83576cc8638e1c9d239b19a0e0f1fe139d0f62b0c8ac62a3f9e093e46e3d` |
+| 필수 원격 CI·첫 운영 배포 | 이 기록 시점에는 미실행. 로컬 필수 관문 통과 뒤 정상 PR·필수 CI·Preview 확인·merge·Vercel 운영 배포로 진행 | 실제 PR/배포 영수증에서 후보·merge SHA·Ready·hanbang.ai·운영 흐름을 별도로 고정 |
+
+파일명만 쓴 위 영수증은 `.verification/preferences21-20261010/`에 있다. 로컬 성공과 원격·운영 대기 상태를 구분한다. 확정 SHA256:
+
+- 최초 HEAD 영수증: `5d038855a27d3a72e31172223ba81b5351fc29f94c7bb4dbe4113af45451f10e`.
+- 검증한 ac98의 문서 갱신 전 manifest 파일: `e966852c0c17a0c59bf8da59e68bd11cbcfe055aeb6ed30749e3bd43e8c3be5c`; 25파일 canonical 내용: `a42eaa5d3f74b7f63b463804e1cd5e745e3fc2f31fb174a8cc1a898639d22983`. 이 문서 적용 후 마지막에 발급한 별도 `2026-10-10_preferences21_source_manifest.json`에서 최종 값을 확인한다. 자기 참조를 피하기 위해 그 hash를 이 문서에 다시 넣지 않는다.
+- build 영수증: `033461aa060a82ed9df01f2b80dcdc133fa38a7bcc67cd6bce139a1ce8aaded5`; build 로그: `85400e2fe30455549909926cfb4d7527e08819adab246194ea6e60f1e3742fb8`.
+- Client guard 영수증: `c03025972703bfc199ff49ab82a1c61dc7c63006fdcb5e04e8218c7a11f345c3`; 정상 로그: `8fa81f203bf8587a672770709c82ec018f1b2b6b643b4c4324e35768e951b4b4`; 반례 로그: `e347f41c87d6ed4f821bdc0fd489a76501bcb4ab9152ed2ae9b1cda123f059bd`.
+- 현재 Client 소스: `a9c70f93485d67f0a48b722eb80fb917c8351b964bd6daf691497210c794e7cd`; Client 검사: `fa27193f3f17b96b80861cb002fbc373c9541f1ee5abd0c8c01c354d467e6cee`; 원 7개 guard ledger: `c5b882cd6804bb644457f72bddb437b4283efddbf44b10ae2ec50417897747c8`.
+- 백업 이동 영수증: `0006662ba61cc91196793624d999f06dc111d2feb1d46b18398acb413a6e76ca`; 이전 전체 웹 실패 로그: `e6aa6acd5bc6d7c6ed113ad99116e904b2476a8ba2e14927043d2396844cbda6`; 이동 뒤 영향 검사 로그: `5c738378db73b559b462561a3055fa01501ac9b0f4abcad4b2b915ff753d8249`.
+- 현재 test:repo 로그: `7766aef90e889feaf0e46f8a77f2c292bdb4af11ebf5f9196742255ece599cf4`.
+- 현재 정상 전체 관문 영수증: `190b6ee114da1b26bd3c7b68c4c9e6bee42e7d3370f0204290ff738abde80de9`; 전체 로그: `1e0cff1dc6e4c783963cc11d36d34e8312baa4ec240a875869329a030e88bede`; 웹 snapshot: `6f1a98c00fb38f73cf28bd390d9b218d987ec05823ee5e1e41f0167282f3dda5`; 모바일 snapshot: `df24621d4639e063791968cf76af0914442fde745cc382464d16ee043ad95f0b`.
+
+### 아직 확인하지 못한 항목과 보존한 실패
+
+전문가·사람 이해도 검증 참여자는 0명이며 질문지는 미실행이다. 문항별 실제 답 → 허용 설명 → 결과 근거의 추적은 구현·자동 검사로 확인한 범위다. 사람의 이해도·타당도, 중요도·확신도, 검증된 네 글자·16캐릭터를 입증하지 않는다. 새 21문항의 가중치·절단점·레터·캐릭터 연결은 미확정이다.
+
+실제 브라우저의 200% native zoom은 미검증이다. 320px reflow와 키보드 이동 기록은 서로 다른 조건의 증거다. 이전 PR의 Preview에서 인증 환경 제약을 관찰했다는 담당자 보고 이력이 있으나 정확한 관찰 영수증을 이번 판의 통과·실패로 재사용하지 않는다. 현재 21문항 Preview는 아직 생성되지 않았고 인증·화면 검수도 미실행이다. 필요할 때 보호 해제·개인 인증 쿠키 내보내기 없이 정상 기존 브라우저에서 검수할 예정이다. 공개 SDK 값으로 만든 로컬 production-mode 환경과 실제 운영 확인은 별도 증거로 남긴다.
+
+SDK 원본 helper `.verification/production-wedding-code-outbound.mjs`의 SHA는 `00c02c38f05ff6ea17b23ae5179df6a4e81d2110af344082c484e0673c52b4e3`다. 원본의 실패를 보존하며 새 helper의 통과로 고쳐 적지 않는다. `official-chrome-current-landing-outbound-full-2026-10-10T14-47-15.635Z-0167c7542d8d/result.json`은 failed, SHA `0eb5fdfddb1498a1e01b04a51223c40c10b898f222781f30d70790555777c6cb`이고, `official-chrome-click-diagnostic-outbound-full-2026-10-10T15-21-16.589Z-1b1fe7d54f14/result.json`도 failed, SHA `7e6e8b32a432cff362a4f1ffb035247d647f61bdbe870d0a27fd54750ee3e501`다. 일반 양성 대조와 보호 경계 전체 조건을 실제로 충족한 새 영수증이 필요하며, provider ingestion이나 운영 서버·edge 로그 검증을 대신하지 않는다.
+
+### 첫 운영 뒤 비교 접근 개선 — 준비만 완료
+
+`cycle2-comparison-focus-prepared.patch`와 해당 manifest·검사·guard 반례 준비안은 ignored 파일에만 있다. 제품에 적용하지 않았고, 준비한 8개 DOM 검사·2개 guard 반례·native Enter 검수도 실행하지 않았다. 현재 로컬 관찰의 390px 비교 접근 불편은 첫 운영 배포에서 같은 흐름·위치로 재현한 뒤 판단한다. 필요할 때 공통 상단의 ‘두 사람 답 비교하기’ 버튼이 기존 비교 제목에 focus를 옮기도록 하는 최소안이다. 원답·공유 fragment/history·문항 의미·판·동의를 변경하지 않는다. 실제 운영 재현, 독립 검토, 회귀 검사, native Enter·제목 viewport·다음 Tab 확인과 두 번째 배포는 모두 별도 미완료 단계다.
+
+
+
+### 실제 SDK 최종 관문과 주장 범위
+
+최종 helper SHA는 `44fdf4dff918f10b42eb370e1c88f86e94f7bc0646f07ca7a8cca0ede3e55e38`다. 통합 담당자의 공식 Chrome 합성 profile 실행 결과를 독립 담당자가 51개 전송 기록과 각 case 조건으로 다시 계산했다. 독립 full 감사 SHA는 `2c18bb769b304fc77a21d58020b25f5a15fadfa018c52a907712ce28ecbd3430`다. 일반 페이지에서는 실제 PostHog·Sentry 양성 대조가 발생했고, 해당 앱 context에서 포착한 외부 전송·API·write 시도는 수신 전에 차단했다. 정상 같은 origin 문서·asset GET/HEAD만 읽었으며 redirect follow는 허용하지 않았다. provider ingestion이나 hosted 서버·edge 로그 검증의 증거가 아니다.
+
+자연 재현 id53의 SDK start는 실제 일반 /landing 관측 이후였다. SDK의 trim된 end timestamp로 물리적 span 종료를 단정하지 않고, 이전 id317의 귀속은 미확정으로 보존한다. 기존 실패·원 hook의 false를 소급 변경하지 않는다. 새 검사는 일반 귀환 뒤 31초 passive 관찰, 2초 quiet/pending0, 최종 읽기까지 45초 제한과 변경 직전 동기 version 확인을 AND한다. 모든 미래 SDK 큐가 비었다는 보장이 아니며 이후 보호 Sentry 전송은 계속 실패 조건이다. SDK 설정·sampling·UA·인증·보호 조건을 바꾸지 않았다.

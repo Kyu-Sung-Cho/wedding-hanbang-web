@@ -1,6 +1,6 @@
 # 21문항 첫 공개: 독립 검수 기록
 
-상태: 구현 중 독립 감사 / 최종 소스·실제 UI·SDK·배포 검수 대기 / 출시 승인 아님.
+상태: ac98 제품 바이트의 로컬 필수 관문 독립 검수 통과 / 필수 원격 CI·첫 운영·운영 후 개선 대기. 아래 초기 판정은 이력이며 마지막 현재 판정을 함께 읽는다.
 
 검수자는 문항·모델·화면·저장·공유 구현 작성에 참여하지 않는다. 수정 범위는 이 문서와
 ignored `.verification/preferences21-20261010/`의 읽기 감사 산출물이다. 브라우저·SDK
@@ -25,6 +25,8 @@ prepare hook를 실행했다. 이 부수 효과와 확인 한계는 아래에 �
 AI 검토는 사람 인지면접·전문가 검토·타당도 검증으로 세지 않는다.
 
 ## 요구사항에 따른 출시 판정
+
+아래는 최초 독립 읽기 시점의 기록이며 현재 판정은 마지막 ac98 절을 따른다.
 
 첫 공개는 `/wedding-code/preferences21`에서 새 21문항과 실제 응답 근거 요약을
 제공하는 별도 경험이어야 한다. 기존 `/wedding-code`의 30문항·16캐릭터는 자신의
@@ -268,3 +270,44 @@ history.replaceState/popstate case는 합성 경로 경계 보조 검사임을 �
 그 동작을 같은 활성 SDK 문맥에 추가하고 각 단계의 transport·보호 관측을 AND해야
 한다는 검수 의견을 통합 담당에게 전달했다. 현재 제한된 scope나 baseline의 성공을
 전체 개인정보 PASS로 바꾸지 않는다.
+
+
+## 최종 후보 ac98: 독립 현재 판정
+
+이 절은 위의 구현 중·SDK 후보 검토 이력 이후의 판정이다. 제품 소스 HEAD는 `ac98ba1b0fa412c4097daaca47a09cc383560418`다. 검수자는 제품·문항·점수·화면·SDK helper 작성에 참여하지 않았다. 직접 작성한 읽기 감사와 순수 반례를 실행했으며, 통합 담당자가 실행한 브라우저·패키지·SDK 결과는 원본 영수증과 현재 파일 SHA를 대조했다. 이를 검수자 자신의 브라우저 실행이나 사람 참여로 합산하지 않는다.
+
+### 확인한 관문
+
+| 범위 | 이번에 확인한 결과 | 증거의 한계 |
+| --- | --- | --- |
+| 사용자 정본·결정적 설명 | 독립 정본 11개, 모델·계약 113개, 실제 Report 정적 render 10개 PASS. 해당 소스 바이트가 현재 후보와 같음 | 합성·정적 검사이며 사람 이해도 검증 아님 |
+| 실제 UI | 통합 담당자의 21문항·결과·원답 비교·편집 동의 초기화·새로고침 저장 중단·off 상태 이어보기·공유·미전송 아모라 캡처와 실제 DOM을 읽음. 375/390/768/1280/320px 폭 기록 및 native 교차 판 이동 수정 확인 | 물리 기기·200% native zoom 미검증. 대비 계산은 기록된 표본만의 확인 |
+| 의미 있는 guard | 최초 7개 AssertionError RED·복원 이력과 현재 모델·계약 소스 일치. Client의 native 경계 이동 수정 뒤 정상16 PASS → 저장 충돌 반례 RED → 정확 복원 | 현재 Client 반례는 root session26690 실행 결과의 독립 읽기이며, 새 7개 전체 재실행으로 세지 않음 |
+| 정상 전체 관문 | 실제 root exit0: Turbo9/9,8cache; fresh웹1,256파일·22,466검사, 모바일1,397검사. 저장소1,572검사 PASS | 캐시8개·fresh웹·별도 저장소 명령을 구분. 이전 ENOENT FAIL과 백업 보존 이동은 별도 이력 유지 |
+| production-mode build | 15:10:55.763 UTC exit0, 소스·build4개 바이트 고정 | 공개 SDK 값과 합성 환경을 사용하는 로컬 build이며 hosted 배포 증거 아님 |
+| 실제 SDK 양성 대조 및 전체 경계 | immutable44fd의 baseline1/1, 진단2controls/4cases, full6controls/54cases 모두 PASS. 전 대조에서 실제 PostHog·Sentry 전송 시도를 관측. 전체 본문·provider·원답/보호 위치 차단·awaited abort·pending0·interception0·owned Chrome 정리·전후 source/build/SDK 바인딩 조건 확인 | 모든 수집 시도는 전송 전에 차단. provider ingestion·운영 서버/edge 로그 검증 아님 |
+
+SDK full 원본: `official-chrome-ordinary-settled-bounded-outbound-full-2026-10-10T16-28-22.043Z-e338cdc9f009/result.json`, SHA256 `26fb83576cc8638e1c9d239b19a0e0f1fe139d0f62b0c8ac62a3f9e093e46e3d`. helper SHA256은 `44fdf4dff918f10b42eb370e1c88f86e94f7bc0646f07ca7a8cca0ede3e55e38`다. 실제 root session72151의 tools.write_stdin 종료 코드0 확인과 파일 판정 PASS를 구분해 확인했다. 51개 기록의 final queue 판정과 보호 case별 Sentry0/허용 PostHog 수, delayed Sentry0, 본문 및 전송 완료 조건을 독립 감사에서 다시 계산했다. 12개 핵심 판정 구간·기존 네 합성 지연 주입·Sentry zero는 이전 helper와 byte 동일함을 확인했다. 작성자 순수 회귀30개를 검수자가 실제 재실행했고, 독립 반례10개도 PASS했다. 31초 수동 관찰 +2초 요청 quiet/pending0 +45초 전체 제한 안의 최종 문서 witness와 동기 current-version 검사를 모두 AND한다. 늦은 평가 성공·timeout 후 reject·새 handler/version·잘못된 문서·오류는 주입 전에 실패한다. 늦게 도착한 일반 요청도 global 판정에 남으며 후속 delayed Sentry 요청을 면제하지 않는다.
+
+### 원 실패와 주장 범위
+
+원00c·349·571·58f·e09·830·6a62 및 자연 재현의 실패를 새 PASS로 소급하지 않는다. frozen CTA 판정은 이벤트 이름만으로 예외를 만들지 않고 실제 trusted capture/bubble, 정확한 출처 DOM·source·문서·origin, 원 payload의 UUID·시각, 현재 판/phase, configured provider/token 및 깨끗한 본문과 abort 완료를 요구한다. 이전 true도 이 AND를 통과해야 한다. 실제 관측한 초기 protectedStarted snapshot race를 최종 고정 증거로 검증하며 원 hook false는 그대로 남긴다.
+
+자연 반복의 id53은 일반 /landing navigation에서 생성됐다는 실제 SDK start·경로·origin 증거가 있다. trim된 envelope end는 물리적인 span 종료 시점을 입증하지 않는다. 이전 id317의 귀속은 UNVERIFIED로 유지한다. 31+2/45 관측은 모든 미래 SDK queue가 비었다는 보장이 아니다. SDK sampling·defaults·UA·navigator·인증·보호 설정은 바꾸지 않았고, 원 zero·provider·본문·전송 경계 조건은 유지하고 고정 증거 AND를 강화했다. 공식 설치 Chrome의 전용 합성 profile·loopback CDP·소유 PID만 사용한 root 실행이며 사람의 로그인 profile·쿠키를 읽지 않았다.
+
+실제 사람·전문가 검증 참여자는0명이다. 새21 네 글자·16캐릭터·가중치·절단점은 미확정이고, 기존30의 판·캐릭터·응답을 재해석하지 않는다. 공유 fragment는 암호화/신원 인증/회수 보장이 아니며, 아모라는 선택한 본인 근거만 있는 편집 가능한 미전송 메모다.
+
+### 진행 가능한 범위와 아직 남은 단계
+
+현재 제품 바이트의 로컬 출시 전 관문은 독립 검수에서 통과했다. 이 후보와 제품 바이트가 같은 문서 전용 최종 커밋은 새 manifest·delta 바인딩을 확인한 뒤 정상 push·PR·필수 원격 CI·정상 merge·배포 흐름을 진행할 수 있다. 필수 원격 검사, Vercel Production Ready/별칭, 첫 운영 흐름은 아직 완료로 판정하지 않는다. 기존 hook·보호·검사 우회를 허용하는 판정이 아니다.
+
+첫 운영의 비교 접근 문제는 아직 로컬 관측이다. 실제 운영390px에서 재현한 뒤 상단 명시 버튼→기존 비교 제목 focus라는 최소 개선 후보를 판단한다. ignored 준비안은 제품 적용·회귀·guard·native Enter·두 번째 배포 모두 미실행이다. 원답·동의·저장·fragment/history가 유지되는 실제 증거로 다음 사이클을 닫아야 한다.
+
+독립 읽기 증거는 모두 `.verification/preferences21-20261010/`에 있다. 이 문서 적용 후 source manifest를 마지막에 다시 고정한다. 아래는 적용 전 ac98 증거 SHA이며 자기 자신을 포함한 최종 manifest의 SHA로 재사용하지 않는다.
+
+- `independent-ac98-source-binding-audit.json`: `1a6317f30b0aa5ce6af325b591ba06a0dafb8e37eebc23754a40aef2f32544e7`.
+- `independent-ordinary-settled-bounded-audit.json`: `03db49c54d0c69ca3b18b1d86b3d808952170c5a8598f204a133cc40145522e7`.
+- `independent-44fd-ordinary-baseline-result-audit.json`: `215742bc94e2c763ca4b15785ede1443e1ddd6541ae268dcad1794e90ec0387c`.
+- `independent-44fd-same-document-diagnostic-result-audit.json`: `e3653c74e97598058164f01a5d27caa2bde78835ce77bab3c870419f0fe4969c`.
+- `independent-44fd-full-result-audit.json`: `2c18bb769b304fc77a21d58020b25f5a15fadfa018c52a907712ce28ecbd3430`.
+- `final-owned-normal-gates-receipt.json`: `190b6ee114da1b26bd3c7b68c4c9e6bee42e7d3370f0204290ff738abde80de9`.
