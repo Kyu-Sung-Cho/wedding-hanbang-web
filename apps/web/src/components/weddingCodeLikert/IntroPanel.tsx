@@ -37,6 +37,10 @@ export function IntroPanel({
       <p className="text-xs font-semibold tracking-[0.18em] text-[var(--hb-text-body)]">
         WEDDING CODE
       </p>
+      <div className="mt-4 rounded-xl border border-[var(--hb-hairline)] bg-[var(--hb-surface-raised)] p-4">
+        <p className="text-sm leading-6 text-[var(--hb-text-body)]">새 21문항 판에서는 문항별 실제 답을 근거로 준비 방식과 파트너에게 부탁할 말을 살펴봐요. 기존 30문항 답·레터·캐릭터는 이 판에서 그대로 볼 수 있어요.</p>
+        <Button href="/wedding-code/preferences21" className={`mt-3 min-h-12 ${focusStyle}`}>새 21문항 · 내 답으로 읽는 결과</Button>
+      </div>
 
       <div className="mt-7 grid gap-10 lg:grid-cols-[1.25fr_0.8fr] lg:items-start lg:gap-16">
         <div>
