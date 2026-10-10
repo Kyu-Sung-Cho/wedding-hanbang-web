@@ -1,12 +1,12 @@
 {
   "schema": "wedding-code-preferences21-source-manifest/v1",
-  "frozenAt": "2026-10-10T14:19:22.686Z",
+  "frozenAt": "2026-10-10T14:28:39.929Z",
   "baseCommit": "6be93825a26815ef59a25f4fce867583ca796e6d",
   "questionnaireVersion": "preferences21-20261010-r1",
   "interpretationVersion": "preferences21-reading-alpha.1",
   "displayVersion": "preferences21-report-alpha.1",
-  "fileCount": 24,
-  "canonicalContentSha256": "b272d08d0d361e9e05888049a6dd47f19f8c075a1cc5f31631476625f4e3cf4e",
+  "fileCount": 25,
+  "canonicalContentSha256": "570db9926e8c3b7811d7a2e7c5c2b27fb35efab0a68af1040f69df60c245410b",
   "files": [
     {
       "path": "apps/web/src/app/wedding-code/preferences21/page.tsx",
@@ -125,8 +125,13 @@
     },
     {
       "path": "docs/wedding-code/2026-10-10_preferences21_release_and_validation.md",
-      "bytes": 8934,
-      "sha256": "c806f5eb8af0d811181d7305f26f0bf7f8412b9f8cd89dd946cc61854021a239"
+      "bytes": 10294,
+      "sha256": "9d6cea91803c342d580d85df41711e1387873182c970d7c476ae5f075d0fceb9"
+    },
+    {
+      "path": "turbo.json",
+      "bytes": 6166,
+      "sha256": "1a039a46e15cdbe879f686ca03a022f6b7f933fb62b80ebbcde0d093d1e4181a"
     }
   ],
   "scope": "Changed source and audit documents; this manifest itself is excluded to avoid a self hash. Git commit/build/SDK/deployment receipts are bound separately. No historical result is reused as a new pass."

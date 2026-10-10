@@ -6,6 +6,13 @@
     "**/.env"
   ],
   "globalEnv": [
+    "CI",
+    "PNPM_CONFIG_CI",
+    "PNPM_CONFIG_VERIFY_DEPS_BEFORE_RUN",
+    "PNPM_CONFIG_OFFLINE",
+    "npm_config_offline",
+    "npm_config_yes",
+    "npm_config_ignore_scripts",
     "NODE_ENV",
     "VERCEL",
     "VERCEL_URL",

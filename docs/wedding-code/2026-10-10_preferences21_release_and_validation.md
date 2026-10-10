@@ -60,6 +60,14 @@
 - 실제 SDK 검사는 일반 페이지에서 PostHog와 Sentry 두 POST 본문을 관찰하고 모두 전송 전에 abort했다. 다만 검수용 브라우저 context 종료 시 진행 중이던 같은 origin GET fetch가 오류를 내어 전체 검사는 실패했다. 이를 개인정보 검사 통과라고 보고하지 않으며, interception 오류 0개와 실제 abort 완료 조건을 유지한 채 검수 도구의 종료 순서를 수정하고 재실행한다.
 - 팀/전문가 타당성 참여 인원은 여전히 0명이다. 운영 공개와 타당성 검증을 혼동하지 않는다.
 
+## 검사 실행 환경 사고와 보호 수정
+
+최종 workspace 관문을 실행할 때 Turbo strict 환경이 `PNPM_CONFIG_*` 보호 변수를 하위 pnpm에 전달하지 않았다. 하위 pnpm이 자동 설치를 시도했고 관문은 실패했다. 이후 담당자가 보호 환경 없이 실행한 도움말 명령도 설치를 시작해 즉시 중단했다. 이를 정상 검사나 통과로 집계하지 않는다.
+
+사고 전 13:15 UTC의 AFTER-only 목록에 있던 전용 작업 폴더 junction 107개 중 실제 target이 존재하는 106개를 원래 위치·원래 target으로 복구했다. `async-limiter` 원래 target 1개는 없어 복구하지 않았으며, 삭제·다른 target 대체·공유 metadata 수정은 하지 않았다. 전체 사고 전 구조 및 과거 공유 50개 복구가 입증됐다는 뜻은 아니다. 이후 실제 bare Playwright resolver와 `pnpm exec`의 `CI=true`, package CI=false, dependency check=error, offline=true를 확인했다.
+
+`turbo.json`에는 위 검사 보호 변수 7개를 `globalEnv`로 명시한다. strict 필터를 유지하고 값도 task hash에 포함해 하위 명령의 자동 설치를 차단한다. hook·검사·오류 조건을 생략하지 않는다. 정확한 최종 전체 workspace 관문은 이 보호 수정과 필요한 전용 실행 환경 복구 뒤 다시 수행한다.
+
 ## 현재 증거의 한계
 
 독립 문항·순서·상황·척도 대조, 결정적 모델과 저장·공유·비교·메모 검사, 실제 React 흐름 검사는 각각 별도의 영수증으로 남긴다. 이전 30문항의 SDK 전송 검사는 PostHog 정상 페이지 양성 대조가 관찰되지 않아 실패했다. 이 결과를 새 판의 통과로 가져오지 않는다. 실제 새 SDK·브라우저·전체 관문·운영 배포 결과는 이후 실제 실행 기록과 최종 manifest에 고정한다.
