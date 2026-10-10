@@ -8,7 +8,7 @@ export const metadata = {
   // `src/app/landing/page.tsx`의 title과 **글자까지 같아야** 한다.
   // `components/community/__tests__/landingFunnelInstrumentation.test.ts`(정본)와
   // `app/landing/__tests__/landingTitleParity.test.ts`가 함께 검사한다.
-  title: "웨딩한방 | 결혼 준비 동반자, 아모라",
+  title: "웨딩한방 | 둘이 함께하는 결혼 준비",
   // 검색 결과의 금액·조건 확정이나 외부 예약을 약속하지 않고 실제 준비 기능을 설명한다.
   description:
     "결혼 준비, 뭐부터 할까요? 아모라와 고민을 정리하고, 직접 확인한 예산·할 일·일정을 파트너와 함께 관리하세요. "

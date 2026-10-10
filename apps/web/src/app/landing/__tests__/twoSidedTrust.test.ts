@@ -308,7 +308,7 @@ describe("landing two-sided trust contract", () => {
     // 첫 화면은 무엇부터 할지 모르는 순간을 말하고, 질문을 둘의 결정으로 이어 준다.
     const heroCopy = contentBlock("hero", "amoraNote");
     expect(heroCopy).toMatch(/결혼 준비, 뭐부터 할까요\?[\s\S]*아모라와 하나씩 정해요\./u);
-    expect(heroCopy).toMatch(/AI 동반자 아모라와 지금 고민을 정리하고[^"\n]*직접 확인해 기록/u);
+    expect(heroCopy).toMatch(/AI 동반자 아모라와[^"\n]*지금 고민을 정리하고[^"\n]*직접 확인해 기록/u);
     expect(heroCopy).toMatch(/내가 원하는 결혼식부터 예산·일정·할 일까지/u);
     expectWired("hero.body");
     expectWired("hero.note");
@@ -753,14 +753,14 @@ describe("landing two-sided trust contract", () => {
     expectWired("availableNow.title");
     // 첫 화면에서도 조건을 먼저 말한다 — 여기까지 안 내려온 사람이 훨씬 많다.
     const heroCopy = contentBlock("hero", "amoraNote");
-    expect(heroCopy).toContain("아모라는 로그인 후 이용해요. 웨딩코드는 가입 없이 이용해요");
+    expect(heroCopy).toContain("아모라는 로그인 후 이용해요. 웨딩코드는 가입 없이 해 볼 수 있어요");
     expect(closingCopy).toContain("무료 도구는 가입 없이 이용할 수 있어요");
 
     // 계정을 만들면 무엇이 열리는지. 옛 판은 ⑦ 섹션이 한 줄로 적었고, 지금은 확인
     // 섹션의 눈썹("계정을 만들면")과 본문이 그 일을 한다.
     // 2026-09-03: 눈썹이 "계정을 만들면" → "대화로 끝나지 않게" 로 바뀌었다. 계정 이야기를
     // 꺼내는 자리는 그대로 이 섹션이고, 그 말은 고지 문장이 진다.
-    expect(confirmCopy).toContain("지금은 결제를 요청하지 않아요");
+    expect(confirmCopy).toContain("현재 무료로 이용할 수 있어요");
     for (const destination of ['title: "예산"', 'title: "할 일"', 'title: "일정"']) {
       expect(confirmCopy).toContain(destination);
     }
@@ -820,11 +820,11 @@ describe("landing two-sided trust contract", () => {
 
     // 비용은 미정이라고 적는다. **베타를 안 하기로 한 뒤에도 이 고지는 참이라 남는다**
     // (CLAUDE.md 2026-08-29: "없어지는 것은 틀이지 고지가 아니다").
-    expect(confirmCopy).toContain("향후 이용 비용은 아직 정해지지 않았고");
+    expect(confirmCopy).toContain("향후 요금은 아직 정해지지 않았어요");
 
     // 가입해도 결제되지 않는다는 약속. 두 자리에 다 있어야 한다 — 확인 섹션에서
     // 계정을 말하는 자리와, 마지막으로 누르기 직전의 마무리.
-    expect(confirmCopy).toContain("지금은 결제를 요청하지 않아요.");
+    expect(confirmCopy).toContain("현재 무료로 이용할 수 있어요.");
     expect(closingCopy).toContain("가입이 필요해요.");
 
     // "무료 한도"는 커플별 한도를 가리키는 말인데 그 스위치는 프로덕션에서 강제로

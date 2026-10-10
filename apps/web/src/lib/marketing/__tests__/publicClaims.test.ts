@@ -446,7 +446,7 @@ describe("public marketing claim boundary", () => {
     // 계정을 만들어도 지금은 결제를 요청하지 않아요"는 베타라서가 아니라 오늘 그래서
     // 참이다. 그래서 방향을 뒤집는다: 고지는 **있어야** 하고, 베타 틀은 **없어야** 한다.
     expect(landingContent.confirm.note, "현재 무료라는 시점과 요금 미정 고지가 사라졌다").toContain(
-      "향후 이용 비용은 아직 정해지지 않았고, 계정을 만들어도 지금은 결제를 요청하지 않아요.",
+      "현재 무료로 이용할 수 있어요. 향후 요금은 아직 정해지지 않았어요.",
     );
     expect(landingContent.closing.note, "가입 조건 고지가 마무리에서 사라졌다").toContain(
       "아모라와 예산·할 일·일정 관리에는 가입이 필요해요",

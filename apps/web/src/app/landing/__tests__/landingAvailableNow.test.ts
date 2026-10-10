@@ -266,10 +266,10 @@ describe("landing available-now section", () => {
 
   it("describes the integrated preferences instead of advertising a partial flow count", () => {
     const weddingCode = landingContent.availableNow.cards.find(card => card.href === "/wedding-code");
-    expect(weddingCode?.body).toContain("결혼식 취향과 준비 방식");
-    expect(weddingCode?.body).toContain("돈을 더 쓰고 싶은 곳");
-    expect(weddingCode?.body).toContain("파트너도 답하면");
-    expect(weddingCode?.body).toContain("같은 생각과 다른 생각을 비교할 수 있어요");
+    expect(weddingCode?.body).toContain("지출·준비·가족·도움");
+    expect(weddingCode?.body).toContain("결과 링크를 서로 전달하면");
+    expect(weddingCode?.body).toContain("파트너도 답하고");
+    expect(weddingCode?.body).toContain("같은 답과 다른 답을 나란히 볼 수 있어요");
     expect(weddingCode?.body).not.toMatch(/(?:16|32)\s*(?:개\s*)?(?:문장|문항)(?:만|으로 끝)/u);
     expect(content, "옛 장면 수 표현이 랜딩에 남아 있다")
       .not.toMatch(/(?:열두|열여섯|스무|스물네|\d+)\s*장면/u);
