@@ -66,7 +66,13 @@
 
 사고 전 13:15 UTC의 AFTER-only 목록에 있던 전용 작업 폴더 junction 107개 중 실제 target이 존재하는 106개를 원래 위치·원래 target으로 복구했다. `async-limiter` 원래 target 1개는 없어 복구하지 않았으며, 삭제·다른 target 대체·공유 metadata 수정은 하지 않았다. 전체 사고 전 구조 및 과거 공유 50개 복구가 입증됐다는 뜻은 아니다. 이후 실제 bare Playwright resolver와 `pnpm exec`의 `CI=true`, package CI=false, dependency check=error, offline=true를 확인했다.
 
-`turbo.json`에는 위 검사 보호 변수 7개를 `globalEnv`로 명시한다. strict 필터를 유지하고 값도 task hash에 포함해 하위 명령의 자동 설치를 차단한다. hook·검사·오류 조건을 생략하지 않는다. 정확한 최종 전체 workspace 관문은 이 보호 수정과 필요한 전용 실행 환경 복구 뒤 다시 수행한다.
+`turbo.json`에는 위 검사 보호 변수 7개와 전용 store·virtual store·cache·linker·global virtual store 설정 5개를 `globalEnv`로 명시한다. strict 필터를 유지하고 값도 task hash에 포함해 하위 명령에 동일한 보호 환경과 전용 경로를 전달한다. hook·검사·오류 조건을 생략하지 않는다. 실제 하위 명령의 오류 차단과 최종 전체 workspace 관문은 전용 실행 환경 복구 뒤 별도로 검증한다.
+
+2026-10-10 14:54 UTC 전용 캐시 seed 복사는 종료 코드 0으로 끝났다. 공유 pnpm store의 117,090개 파일 / 7,661,912,834바이트와 SQLite index를 새 전용 폴더에 hardlink 없이 복사하고, 각 내용과 공유 원본의 metadata·전체 내용·DB/WAL/SHM을 재검증했다. 선택한 원 checkout 파일도 이 복사 작업 전후에 동일했다. `pnpm-owned-recovery-seed-effects.json`은 네 비교 항목을 모두 true로 기록하며, 전체 내용 journal SHA는 `c454e8f7320ed2c325bde2434f08a8a6227f21331cb39c9cc14318729eb3af64`다. 이는 복사 작업의 무변경 증거이며, 전체 과거 상태 복구나 설치 완료 증거가 아니다.
+
+전용 node_modules 5개 폴더의 110,168파일 / 4,731연결 / 1,589,378,169바이트를 삭제 없이 백업하고 전체 내용·연결을 비교해 15:02 UTC 종료 코드 0으로 확인했다. 이후 정상 `corepack pnpm install`을 frozen lockfile·offline·ignore scripts·frozen store·integrity on·copy·isolated 설정으로 실행했다. store·virtual store·cache는 모두 전용 작업 폴더 안의 고정 경로다. 1,349패키지를 설치했고 다운로드는 0건, 종료 코드는 0이다. installer가 생성한 metadata는 isolated / global virtual store=false이며, 설치 뒤 공유 원본 117,090개 파일을 다시 전수 해시해 내용·metadata·DB와 선택한 원 checkout 파일의 동일성을 확인했다.
+
+`owned-dependency-guard-probe-effects.json`의 실제 세 실행도 통과했다. 정상 corepack pnpm exec는 종료 코드 0이고, 의도적인 linker 불일치는 부모 명령과 Turbo strict의 실제 웹 하위 명령에서 모두 `ERR_PNPM_VERIFY_DEPS_BEFORE_RUN`으로 설치 전에 종료했다. 세 실행에서 설치 출력은 없었고 전후 metadata는 동일했다. 직접 Turbo 실행은 하위 오류 차단을 시험한 진단이며, 정상 전체 코드 관문을 대신하지 않는다. 과거 공유 50개 연결의 완전 복구는 여전히 입증하지 못했다.
 
 ## 현재 증거의 한계
 
