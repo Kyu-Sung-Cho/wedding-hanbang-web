@@ -156,7 +156,7 @@ describe("가입은 열려 있고, 랜딩이 그렇게 말한다", () => {
     expect(middleware).toContain('url.searchParams.set("redirect", destination)');
   });
 
-  it("현재 결제 요청 없음과 향후 비용 미정을 함께 고지한다", () => {
+  it("현재 무료 이용과 향후 요금 미정을 함께 고지한다", () => {
     // 지켜야 하는 것은 **사실**이다: "향후 이용 비용은 아직 정해지지 않았다"고
     // 화면이 말하는가(`docs/operations/LANDING_CONSUMER_EXPERIENCE_HANDOFF_2026-08-04.md:111`).
     // 문장은 세 번 바뀌었다 —
@@ -168,13 +168,13 @@ describe("가입은 열려 있고, 랜딩이 그렇게 말한다", () => {
     // 오늘 참이기 때문에 남는다(CLAUDE.md 2026-08-29).
     const copy = rendered(CONTENT_PATH);
     expect(copy, "현재 무료라는 시점과 앞으로의 요금 미정 고지가 사라졌다")
-      .toContain("향후 이용 비용은 아직 정해지지 않았고, 계정을 만들어도 지금은 결제를 요청하지 않아요.");
+      .toContain("현재 무료로 이용할 수 있어요. 향후 요금은 아직 정해지지 않았어요.");
 
     // 그 고지는 `confirm` 블록(계정을 만들면 무엇이 되는지 말하는 자리)에 있고,
     // ConfirmSection 이 실제로 그 값을 렌더해야 화면에 나간다. 카피에만 있고 아무도
     // 안 읽으면 사용자는 고지를 못 본다.
     expect(contentBlock("confirm", "availableNow"), "비용 고지가 confirm 블록을 떠났다")
-      .toContain("향후 이용 비용은 아직 정해지지 않았고");
+      .toContain("향후 요금은 아직 정해지지 않았어요");
     expect(rendered(CONFIRM_PATH), "확인 섹션이 비용 고지를 렌더하지 않는다")
       .toContain("confirm.note");
 
