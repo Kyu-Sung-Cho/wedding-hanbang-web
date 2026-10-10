@@ -1,0 +1,133 @@
+{
+  "schema": "wedding-code-preferences21-source-manifest/v1",
+  "frozenAt": "2026-10-10T13:33:39.983Z",
+  "baseCommit": "7a4fb2ea0cc2003a48e9529b25bf1bb67629bf95",
+  "questionnaireVersion": "preferences21-20261010-r1",
+  "interpretationVersion": "preferences21-reading-alpha.1",
+  "displayVersion": "preferences21-report-alpha.1",
+  "fileCount": 24,
+  "canonicalContentSha256": "71e999595da59a57ee5a4c5b4dbdcbefd3c31fd8748680fed3fe5d39da4826b1",
+  "files": [
+    {
+      "path": "apps/web/src/app/wedding-code/preferences21/page.tsx",
+      "bytes": 832,
+      "sha256": "1e95be3ba69ef5397ef0f2b169bc039807756e59714d06822ddb290f70339884"
+    },
+    {
+      "path": "apps/web/src/components/weddingCodeLikert/IntroPanel.tsx",
+      "bytes": 7473,
+      "sha256": "4da2c2759e3319180549962c6e5f80647bf5ae9b33df99aa30a56df256e5bded"
+    },
+    {
+      "path": "apps/web/src/components/weddingCodePreferences21/PreferenceQuestion.tsx",
+      "bytes": 4357,
+      "sha256": "9905566f4e87d0ad48418aeb109c7b369438b618bb70319acf01fc5e1a28717e"
+    },
+    {
+      "path": "apps/web/src/components/weddingCodePreferences21/PreferenceReport.tsx",
+      "bytes": 5749,
+      "sha256": "7eb01b138a1bd42305fd12794112d8437ba38dc00cbb7cffa65a26b2c474067b"
+    },
+    {
+      "path": "apps/web/src/components/weddingCodePreferences21/PreferenceSharing.tsx",
+      "bytes": 8863,
+      "sha256": "91df7a2fdf3e83af3f910ce1f2d70e9f4715aed6f0fe504b9411792ec8dc7b49"
+    },
+    {
+      "path": "apps/web/src/components/weddingCodePreferences21/Preferences21Client.test.tsx",
+      "bytes": 18511,
+      "sha256": "fa27193f3f17b96b80861cb002fbc373c9541f1ee5abd0c8c01c354d467e6cee"
+    },
+    {
+      "path": "apps/web/src/components/weddingCodePreferences21/Preferences21Client.tsx",
+      "bytes": 17130,
+      "sha256": "65f76855ede8e6c879630b6df5dbf55edb1642fef83028950e6efe294edd13d6"
+    },
+    {
+      "path": "apps/web/src/components/weddingCodePreferences21/reportMeaning.test.tsx",
+      "bytes": 5678,
+      "sha256": "7698c6e60fc80ded564b7311143baf5188a6f2c8d09085b488877f721780511f"
+    },
+    {
+      "path": "apps/web/src/components/weddingCodePreferences21/styles.ts",
+      "bytes": 451,
+      "sha256": "581342e8b2b733fea3dd807c06b165db4a3a86db33b97bc4dcdd1871d143f451"
+    },
+    {
+      "path": "apps/web/src/lib/weddingCode/preferences21/README.md",
+      "bytes": 12914,
+      "sha256": "da971b7d5c095e446f503427b157e7a714f1c7c5d18e2adf7bc2ecc8847bee77"
+    },
+    {
+      "path": "apps/web/src/lib/weddingCode/preferences21/amora.test.ts",
+      "bytes": 2513,
+      "sha256": "4aa253f74b821d1b1cc8d8d1beeecf6a95df4044c087cc7eb3dec810574a67e8"
+    },
+    {
+      "path": "apps/web/src/lib/weddingCode/preferences21/amora.ts",
+      "bytes": 2229,
+      "sha256": "4d4fea935d8dac8ef8b646e8d0a354aae9a607f8fe634198b40470bc480d3044"
+    },
+    {
+      "path": "apps/web/src/lib/weddingCode/preferences21/bank.ts",
+      "bytes": 7985,
+      "sha256": "f42cd68f27049fe05ecebb62d136d2869b630d549fed7c5123460482f299e78f"
+    },
+    {
+      "path": "apps/web/src/lib/weddingCode/preferences21/compare.test.ts",
+      "bytes": 4606,
+      "sha256": "05687b7fd59397ff72100f8272555242ca7a8397dc24778a4e0fc749b96ef463"
+    },
+    {
+      "path": "apps/web/src/lib/weddingCode/preferences21/compare.ts",
+      "bytes": 9886,
+      "sha256": "8e287db01ba8ffe5cc106f429ad995052a5479d4183365fb2e3f539b05705bf0"
+    },
+    {
+      "path": "apps/web/src/lib/weddingCode/preferences21/model.test.ts",
+      "bytes": 15249,
+      "sha256": "dda02057604d392f280aab93600ce92373fa88b284a5c01f47b733f708e1c29e"
+    },
+    {
+      "path": "apps/web/src/lib/weddingCode/preferences21/report.ts",
+      "bytes": 32152,
+      "sha256": "6c5e0d71e35f98d0bfe503ea7d5727fbc3ac4b8873b1058e6c2f9e9457961cb6"
+    },
+    {
+      "path": "apps/web/src/lib/weddingCode/preferences21/share.test.ts",
+      "bytes": 8380,
+      "sha256": "c92cf24ee9be66867ea3d9907f349b9d75a3d167536791f9983b6f8e13f5293d"
+    },
+    {
+      "path": "apps/web/src/lib/weddingCode/preferences21/share.ts",
+      "bytes": 11531,
+      "sha256": "c6b3c178775923d9c295226e5834580665d08894379af2a205a05e99d64f1e9c"
+    },
+    {
+      "path": "apps/web/src/lib/weddingCode/preferences21/storage.test.ts",
+      "bytes": 8474,
+      "sha256": "5e014bcb5ff4b793aa15ed6f02ed6ef94b8f4916d5ba23dc06516f9b998a90b3"
+    },
+    {
+      "path": "apps/web/src/lib/weddingCode/preferences21/storage.ts",
+      "bytes": 12978,
+      "sha256": "90aa164504e2850414dc0da9782a69a08fadddb4cf3e77d3acfad8b568b88b1b"
+    },
+    {
+      "path": "apps/web/src/lib/weddingCode/preferences21/types.ts",
+      "bytes": 3376,
+      "sha256": "f26b83c0c80439b0bc650a1d17196a0e6aeeebb75d67ab0c21faf7b762b714a8"
+    },
+    {
+      "path": "docs/wedding-code/2026-10-10_preferences21_independent_review.md",
+      "bytes": 24316,
+      "sha256": "9fd79b3ea3200fe3ed5573688478220456d1c672494b13df59c817ce8de8deaf"
+    },
+    {
+      "path": "docs/wedding-code/2026-10-10_preferences21_release_and_validation.md",
+      "bytes": 6278,
+      "sha256": "c1ac6f2f39dbd005a0c9822f13bbc83d93c91c0d562c578d64fffd528bc0474a"
+    }
+  ],
+  "scope": "Changed source and audit documents; this manifest itself is excluded to avoid a self hash. Git commit/build/SDK/deployment receipts are bound separately. No historical result is reused as a new pass."
+}

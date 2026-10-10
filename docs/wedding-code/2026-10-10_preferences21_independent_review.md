@@ -244,3 +244,27 @@ Q18/Q19, Q20/Q21의 두 문장을 각각 읽게 한다. 두 문장에 같은 답
 이 표는 새 네 축·캐릭터 규칙이 검증됐다는 주장이 아니다. 새 글자의 의미와 실제
 문항 근거를 먼저 제안하고, 양쪽 동의·양쪽 낮음·누락 경계에서 설명 가능한지 독립
 검수한 뒤 사람 이해도 증거와 함께 다음 사이클의 채택 여부를 결정한다.
+
+## 별도 SDK helper 사전 읽기 감사
+
+`.verification/preferences21-20261010/independent-outbound-helper-read-audit.json`은
+새 helper `e71a594c0f373ceb83b91e9ff14526312f07c935a1bc066d049ecd1dc1e685b3`와
+generator·case fragment를 직접 읽은 감사다. 이 감사에서 브라우저·SDK는 실행하지 않았다.
+
+원본00c02와 strict 실패7fbc의 동일 SHA를 확인했다. 새 helper는 공식 `headless:false`
+옵션 외의 launch defaults, UA, navigator, SDK 설정·sampling을 바꾸지 않는다.
+fresh context에서 외부/API/write/WS를 막고 모든 redirect를 읽기 전에 차단한다.
+실제 ordinary PostHog pageview UUID·시각과 Sentry event-id 봉투를 요구하며,
+full 판정은 기존 네 대조와 새21 전후 두 대조를 포함한 여섯 대조의 AND다.
+소스·build 전후 고정과 실제 공개 SDK asset·destination도 요구한다.
+
+`ordinary-baseline`의 성공은 정상 headed 환경의 두 ordinary SDK 전송 시도 양성대조다.
+WeddingCode scope나 새21 출시 개인정보 통과가 아니다. 원본에서 이어받은 별칭
+history.replaceState/popstate case는 합성 경로 경계 보조 검사임을 명시하며 실제
+별칭 이동으로 세지 않는다. 새21 실제 공개 링크·Back/Forward 검사는 별도로 존재한다.
+
+현재 helper의 새21 active SDK 흐름은 시작·받은 비교 fragment·닫기·이력이다.
+질문·결과·수정·중단/이어보기·저장·아모라 선택 초안까지 실제 실행했다고 말하려면
+그 동작을 같은 활성 SDK 문맥에 추가하고 각 단계의 transport·보호 관측을 AND해야
+한다는 검수 의견을 통합 담당에게 전달했다. 현재 제한된 scope나 baseline의 성공을
+전체 개인정보 PASS로 바꾸지 않는다.
