@@ -1,3 +1,5 @@
+import { getAmoraUnclosedReferenceDepth, readAmoraReferenceAt } from "@hanbang/shared/amora-reference-links";
+
 /** Native 본문용 제한된 Markdown. 사용자 원문과 실행 도구에는 적용하지 않는다. */
 export function parseAmoraMessageBody(content) {
   const lines = content.replace(/\r\n/g, "\n").split("\n");
@@ -17,12 +19,24 @@ export function parseAmoraMessageBody(content) {
       blocks.push({ type: "code", text: body.join("\n") });
       continue;
     }
+    let referenceDepth = getAmoraUnclosedReferenceDepth(line);
+    if (referenceDepth > 0) {
+      const paragraph = [line];
+      index += 1;
+      while (index < lines.length && referenceDepth > 0) {
+        paragraph.push(lines[index]);
+        referenceDepth = getAmoraUnclosedReferenceDepth(lines[index++], referenceDepth);
+      }
+      blocks.push({ type: "paragraph", text: paragraph.join("\n") });
+      continue;
+    }
     const headers = tableCells(line);
     const divider = tableCells(lines[index + 1] ?? "");
     if (headers && divider && headers.length === divider.length && divider.every((cell) => /^:?-{3,}:?$/u.test(cell))) {
       index += 2;
       const rows = [];
       while (index < lines.length) {
+        if (getAmoraUnclosedReferenceDepth(lines[index]) > 0) break;
         const row = tableCells(lines[index]);
         if (!row || row.length !== headers.length) break;
         rows.push(row);
@@ -35,7 +49,10 @@ export function parseAmoraMessageBody(content) {
     if (heading) { blocks.push({ type: "heading", text: heading[1] }); index += 1; continue; }
     if (/^ {0,3}>/u.test(line)) {
       const quote = [];
-      while (index < lines.length && /^ {0,3}>/u.test(lines[index])) quote.push(lines[index++].replace(/^ {0,3}> ?/u, ""));
+      while (index < lines.length && /^ {0,3}>/u.test(lines[index])) {
+        if (quote.length > 0 && getAmoraUnclosedReferenceDepth(lines[index]) > 0) break;
+        quote.push(lines[index++].replace(/^ {0,3}> ?/u, ""));
+      }
       blocks.push({ type: "quote", text: quote.join("\n") });
       continue;
     }
@@ -45,6 +62,7 @@ export function parseAmoraMessageBody(content) {
     const paragraph = [line];
     index += 1;
     while (index < lines.length && lines[index].trim()
+      && getAmoraUnclosedReferenceDepth(lines[index]) === 0
       && !/^ {0,3}(?:>|#{1,6}\s|[-+*]\s|\d{1,9}[.)]\s|`{3,}|~{3,})/u.test(lines[index])
       && !(tableCells(lines[index]) && tableCells(lines[index + 1] ?? "")?.every((cell) => /^:?-{3,}:?$/u.test(cell)))) {
       paragraph.push(lines[index++]);
@@ -61,6 +79,12 @@ function tableCells(line) {
   for (let index = 0; index < line.length; index += 1) {
     const char = line[index];
     if (char === "\\" && index + 1 < line.length) { cell += char + line[++index]; continue; }
+    const reference = !code ? readAmoraReferenceAt(line, index) : null;
+    if (reference) {
+      cell += line.slice(index, index + reference.length);
+      index += reference.length - 1;
+      continue;
+    }
     if (char === "`") {
       let marker = char;
       while (line[index + 1] === "`") marker += line[++index];
@@ -86,20 +110,31 @@ export function parseAmoraInline(text) {
     else parts.push({ type: "text", text: value });
   };
   for (let index = 0; index < text.length;) {
+    // 인용문은 한 문자열로 들어온다. 미닫힌 코드 펜스도 EOF까지 예시로만 남긴다.
+    const fence = index === 0 || text[index - 1] === "\n"
+      ? text.slice(index).match(/^ {0,3}(`{3,}|~{3,})([^\n]*)(?:\n|$)/u) : null;
+    if (fence && !(fence[1][0] === "`" && fence[2].includes("`"))) {
+      let end = index + fence[0].length;
+      while (end < text.length) {
+        const newline = text.indexOf("\n", end);
+        const next = newline < 0 ? text.length : newline + 1;
+        const closing = text.slice(end, newline < 0 ? text.length : newline).match(/^ {0,3}(`{3,}|~{3,})\s*$/u)?.[1];
+        end = next;
+        if (closing && closing[0] === fence[1][0] && closing.length >= fence[1].length) break;
+      }
+      parts.push({ type: "code", text: text.slice(index, end) });
+      index = end; continue;
+    }
     const char = text[index];
     if (char === "\\" && /[\\`*_[\]{}()#+.!|>~-]/u.test(text[index + 1] ?? "")) {
       append(text[index + 1]); index += 2; continue;
     }
-    if (char === "[" && text[index - 1] !== "!") {
-      const link = text.slice(index).match(/^\[([^\]\n]+)\]\(([^)\s]+)\)/u);
-      if (link) {
-        try {
-          const url = new globalThis.URL(link[2]);
-          if (url.protocol === "https:" && !url.username && !url.password) {
-            parts.push({ type: "link", text: link[1], href: link[2] }); index += link[0].length; continue;
-          }
-        } catch { /* 잘못된 주소는 실행하지 않고 원문으로 남긴다. */ }
-      }
+    const reference = readAmoraReferenceAt(text, index);
+    if (reference) {
+      if (reference.type === "link") parts.push({ type: "link", text: reference.text, href: reference.href });
+      else append(reference.text);
+      index += reference.length;
+      continue;
     }
     if (char === "`" || char === "*" || char === "_") {
       let marker = char;
