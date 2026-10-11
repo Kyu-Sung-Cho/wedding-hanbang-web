@@ -45,16 +45,26 @@ GitHub와 Vercel을 통해 hanbang.ai까지 배포한다.
 - 추가 검수로 quote/list 블록 분리, oversized label, 연쇄 불완전 링크,
   중간 빈 줄, nested 이미지 label의 표 구분 문자, 모바일 URL의 표 구분 문자
   경계를 재현했다. 각 실패 입력을 먼저 RED로 확인하고 GREEN으로 닫았다.
+- 독립 검수에서 모바일 인용문의 미닫힌 code fence를 추가 재현했다.
+  backtick/tilde·짧은 닫힘·EOF는 예시로 남기고 정상 닫힘 뒤의 자료만 눌리도록
+  모바일 파서 15줄과 실제 컴포넌트 행동 테스트 34줄을 추가했다.
 - 최종 관련 검증: 웹 123 PASS(링크 36 + 프롬프트 구성 87),
-  shared 7 + 모바일 21 = 28 PASS. 세 패키지 타입 검사·변경 파일 ESLint PASS.
-- 새 테스트의 행동 감지 검증 4/4 PASS: credential 허용, 외부 rel 제거,
-  출처 프롬프트 형식 제거, 모바일 링크 토큰 제거를 각각 심으면 검사가 실패한다.
+  shared 7 + 모바일 24 = 31 PASS. 세 패키지 타입 검사 PASS.
+  전체 모바일 1,417 PASS/0 fail, 전체 모바일 ESLint PASS.
+- 새 테스트의 행동 감지 검증 5/5 PASS: credential 허용, 외부 rel 제거,
+  출처 프롬프트 형식 제거, 모바일 링크 토큰 제거, quoted fence 분기 무효화를
+  각각 심으면 검사가 실패한다.
   provided prove-guard 스크립트가 원본 bytes/md5 복구를 확인했다.
 - 공통 저장소 검사 1,572 PASS/0 fail. ingest 858 PASS/4 skip/0 fail.
   공통 DB 검사는 로컬 합성 fixture이며 기존 운영 DB 실행 증거가 아니다.
 - 초기 전체 Turbo 실행은 후보 수정으로 무효화되어 중단했다. PASS로 세지 않는다.
 - 수정 전 진단 웹 build·Expo all export는 성공했으나 최종 증거로 승계하지 않는다.
-- 최종 코드의 전체 typecheck·lint·test, 정상 웹 build, Expo all export: 진행 중.
+- 웹 변경 파일 ESLint PASS. 웹 build는 33874d5 후보에서 PASS(175 pages,
+  연구 route absent, artifact 3,101 files clean). 이후 모바일 2파일과 이 문서만
+  변경했고 shared/web/prompt bytes는 동일하다. build 후 독립 web tsc도 PASS.
+- 전체 패키지 typecheck·lint·test normal pre-push gate는 진행 중.
+- 모바일 fence 보완 전 Expo export는 진단 결과로만 남긴다.
+  보완된 코드의 Expo web/iOS/Android export는 재실행 대상이다.
 - PR의 필수 CI·exact-head Preview·merge SHA·Production build·별칭·운영 smoke:
   아직 확인하지 않았으며 배포 완료로 보고하지 않는다.
 
@@ -63,7 +73,7 @@ GitHub와 Vercel을 통해 hanbang.ai까지 배포한다.
 - shared parser: `3c8e22ab865ab8eedfed7a3401ef9ebb21aab6197ed29149c3d6aef0d792a831`
 - web renderer: `0973ce56a7738d53f70988d88d6fb113b457a995fc3ed4b16cc96f1ba4ab33aa`
 - source prompt: `ff52ff37ebcb1c81f4fb76e584461531feecdb2bff3f4aa1dcd221a309825fa9`
-- mobile parser: `7e4bbf6568cb01a6549f2ea45fb322c9809db63ad84b86cb4d0491578a90d968`
+- mobile parser: `0f236eb3fffce983cca04e592632961312d454cfe86e866833bd5af6c26a4e8e`
 
 ## 배포 및 복구 계약
 

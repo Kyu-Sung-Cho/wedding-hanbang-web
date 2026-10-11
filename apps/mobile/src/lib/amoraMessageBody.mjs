@@ -110,6 +110,21 @@ export function parseAmoraInline(text) {
     else parts.push({ type: "text", text: value });
   };
   for (let index = 0; index < text.length;) {
+    // 인용문은 한 문자열로 들어온다. 미닫힌 코드 펜스도 EOF까지 예시로만 남긴다.
+    const fence = index === 0 || text[index - 1] === "\n"
+      ? text.slice(index).match(/^ {0,3}(`{3,}|~{3,})([^\n]*)(?:\n|$)/u) : null;
+    if (fence && !(fence[1][0] === "`" && fence[2].includes("`"))) {
+      let end = index + fence[0].length;
+      while (end < text.length) {
+        const newline = text.indexOf("\n", end);
+        const next = newline < 0 ? text.length : newline + 1;
+        const closing = text.slice(end, newline < 0 ? text.length : newline).match(/^ {0,3}(`{3,}|~{3,})\s*$/u)?.[1];
+        end = next;
+        if (closing && closing[0] === fence[1][0] && closing.length >= fence[1].length) break;
+      }
+      parts.push({ type: "code", text: text.slice(index, end) });
+      index = end; continue;
+    }
     const char = text[index];
     if (char === "\\" && /[\\`*_[\]{}()#+.!|>~-]/u.test(text[index + 1] ?? "")) {
       append(text[index + 1]); index += 2; continue;

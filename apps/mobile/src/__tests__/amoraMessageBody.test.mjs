@@ -125,6 +125,40 @@ test("native unsafe addresses, remote images and code examples never become pres
   }
 });
 
+test("native an unfinished quoted code fence keeps its example address visible but never pressable", () => {
+  const source = "> ```\n> https://example.com/example-only";
+  const { nodes, visible } = renderBody(source);
+  assert.equal(visible, "```\nhttps://example.com/example-only");
+  assert.ok(nodes.every((node) => !node.props.onPress), "an unfinished code example is not a recommendation");
+});
+
+test("native quoted code fences stay inert through EOF or a too-short closing marker", () => {
+  for (const source of [
+    "> ~~~\n> https://example.com/example-only",
+    "> ````\n> ```\n> https://example.com/example-only",
+    "> ~~~~\n> ~~~\n> https://example.com/example-only",
+    "> ```text\n> ~~~\n> https://example.com/example-only",
+  ]) {
+    const { nodes, visible } = renderBody(source);
+    assert.equal(visible, source.replace(/^> ?/gmu, ""));
+    assert.ok(nodes.every((node) => !node.props.onPress), "code remains inert until a matching fence closes");
+  }
+});
+
+test("native a completed quoted code example preserves the following real reference", async () => {
+  for (const fence of ["```", "~~~", "````"]) {
+    const opened = [];
+    const example = `${fence}\nhttps://example.com/example-only\n${fence}`;
+    const source = `${example}\n[실제 자료](https://example.com/source)`.replace(/^/gmu, "> ");
+    const { nodes, visible } = renderBody(source, { openURL: async (href) => { opened.push(href); } });
+    const links = nodes.filter((node) => node.props.accessibilityRole === "link");
+    assert.ok(visible.includes(example), "the full code example remains visible");
+    assert.equal(links.length, 1, "only the actual reference after the closing fence is clickable");
+    await links[0].props.onPress();
+    assert.deepEqual(opened, ["https://example.com/source"]);
+  }
+});
+
 test("native malformed, unfinished or multiline references remain entirely visible and inert", () => {
   for (const source of [
     "[자료](https://example.com/source",
