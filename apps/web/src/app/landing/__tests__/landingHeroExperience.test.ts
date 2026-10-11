@@ -46,15 +46,27 @@ describe("처음 방문한 사람이 보는 준비 흐름", () => {
     expect(copy).toMatch(/AI[\s\S]*아모라/u);
     expect(copy).toMatch(/예산·일정·할 일[\s\S]*직접 확인해 기록/u);
     const titleLines = [...doc.querySelectorAll("h1 > span")].map((line) => line.textContent);
-    expect(titleLines).toEqual(["결혼 준비, 뭐부터 할까요?", "아모라와 하나씩 정해요."]);
-    expect(doc.querySelector(".landing-tape")?.textContent).toBe("둘이 준비하는 결혼, 아모라와 함께");
-    expect(copy).toContain("내가 원하는 결혼식부터");
-    expect(copy).toContain("저장할 내용은 직접 확인해 기록해요");
+    expect(titleLines).toEqual(["결혼 준비, 검색할수록", "고민만 늘어난다면."]);
+    expect(doc.querySelector(".landing-tape")?.textContent).toBe("우리 결혼 준비, 아모라와 함께");
+    expect(copy).toContain("우리 예산으로 어떤 결혼식을 할지");
+    expect(copy).toContain("직접 확인해 기록하고");
+    expect(copy).toContain("파트너를 연결해 함께 봐요");
     expect(doc.querySelector('a[href="/wedding/chat"]')?.textContent).toContain("아모라");
     const weddingCode = doc.querySelector('a[href="/wedding-code"]');
     expect(weddingCode?.textContent).toBe(landingContent.hero.secondary.label);
     const page = new DOMParser().parseFromString(renderToStaticMarkup(createElement(LandingPage)), "text/html");
     expect(page.querySelector('header a[href="#amora"]')?.textContent).toContain("아모라");
+  });
+
+  it("첫 행동 옆에서 로그인·시작 설정과 현재 무료·향후 요금 미정을 함께 알린다", () => {
+    const doc = heroDocument();
+    const primary = doc.querySelector('a[href="/wedding/chat"]');
+    const notice = primary?.nextElementSibling;
+    expect(notice?.tagName).toBe("P");
+    expect(notice?.textContent).toContain("아모라는 로그인과 시작 설정 후 이용해요");
+    expect(notice?.textContent).toContain("현재 무료이며, 향후 요금은 아직 정해지지 않았어요");
+    expect(notice?.textContent).toContain("웨딩코드는 가입 없이 해 볼 수 있어요");
+    expect(notice?.nextElementSibling?.getAttribute("href")).toBe("/wedding-code");
   });
 
   it("첫 화면 예시는 미정인 첫 질문부터 시작하며 실제 대화나 저장으로 오해되지 않는다", () => {
@@ -461,7 +473,7 @@ describe("landing hero product experience contract", () => {
     // 2026-09-03 시안(`(웨딩한방) 랜딩페이지 디자인 예시.pdf`)으로 본문이 바뀌었다.
     // 옛 문장은 우리가 무엇을 **펼쳐 주는지**(공시 원문)를 말했고, 새 문장은 우리가
     // 무엇을 **같이 정하는지**를 말한다. 계약은 그대로다 — 첫 화면이 제품을 설명한다.
-    expect(heroCopy).toMatch(/AI 동반자 아모라와[^"\n]*지금 고민을 정리하고[^"\n]*직접 확인해 기록/u);
+    expect(heroCopy).toMatch(/AI 동반자 아모라와[^"\n]*지금 고민을 정리해요[^"\n]*직접 확인해 기록/u);
     expect(confirmCopy).toContain("파트너와 연결한 뒤에는");
 
     // 산출물을 **개수가 아니라 이름으로** 말한다. 이전 문구는 "세 가지"라고만 해서
@@ -529,8 +541,10 @@ describe("landing hero product experience contract", () => {
     expect(hero).toContain("hero.primary.href");
 
     // 첫 화면 CTA 옆에서 아모라의 로그인 조건과 가입 없이 열리는 웨딩코드를 말한다.
-    // 현재 결제 없음·향후 비용 미정은 confirm.note의 기존 검사로 계속 지킨다.
-    expect(heroCopy).toContain("아모라는 로그인 후 이용해요. 웨딩코드는 가입 없이 해 볼 수 있어요");
+    // 로그인·설정, 비용 조건과 가입 없이 열리는 도구를 첫 CTA 곁에서 모두 알린다.
+    expect(heroCopy).toContain("아모라는 로그인과 시작 설정 후 이용해요");
+    expect(heroCopy).toContain("현재 무료이며, 향후 요금은 아직 정해지지 않았어요");
+    expect(heroCopy).toContain("웨딩코드는 가입 없이 해 볼 수 있어요");
 
     // **뒤에 붙여 뒤집는 것**도 막는다. 계약 문장을 그대로 두고 그 뒤에
     // "다만 결과를 보려면 가입해야 해요"를 붙이면 있어야 할 문장 검사는 전부
@@ -567,9 +581,10 @@ describe("landing hero product experience contract", () => {
     const heroDoc = heroDocument();
     const primary = heroDoc.querySelector('a[href="/wedding/chat"]');
     const note = [...heroDoc.querySelectorAll("p")].find((paragraph) =>
-      paragraph.textContent?.includes("아모라는 로그인 후 이용해요. 웨딩코드는 가입 없이 해 볼 수 있어요"),
+      paragraph.textContent === landingContent.hero.note,
     );
-    expect(primary?.parentElement?.nextElementSibling, "CTA 아래 안내가 CTA와 떨어지면 안 된다")
+    expect(note, "CTA 곁의 이용 조건 문단이 없다").toBeDefined();
+    expect(primary?.nextElementSibling, "CTA 아래 안내가 CTA와 떨어지면 안 된다")
       .toBe(note);
   });
 
@@ -829,9 +844,8 @@ describe("landing hero product experience contract", () => {
     const heroCopy = block("hero");
     const confirmCopy = block("confirm");
 
-    // 2026-10-10 검토 카피: 원하는 결혼식부터 예산·일정·할 일까지 이름으로 말한다.
-    // '두 사람의'를 덜어도 실제 관리 항목과 직접 확인해 기록하는 조건은 그대로 지킨다.
-    expect(heroCopy).toMatch(/내가 원하는 결혼식부터 예산·일정·할 일까지/u);
+    // 소비자의 선택 고민에서 구체적인 준비 기록과 공유 조건으로 이어진다.
+    expect(heroCopy).toMatch(/우리 예산으로 어떤 결혼식을 할지[^"\n]*예산·일정·할 일[^"\n]*직접 확인해 기록[^"\n]*파트너를 연결해 함께/u);
     expect(heroCopy, "산출물을 개수로만 말하면 안 된다").not.toMatch(/(?:세|3|셋)\s*가지/u);
 
     // ## 베타는 개념 자체가 없어졌다 — 그래서 요구가 아니라 금지로 뒤집는다

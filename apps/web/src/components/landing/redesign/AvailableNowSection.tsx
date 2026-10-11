@@ -68,20 +68,20 @@ export default function AvailableNowSection() {
               key={card.no}
               source={card.href === "/wedding-code" ? "landing_now_wedding_code" : "landing_now_card"}
               href={card.href}
-              className="flex min-h-11 items-center gap-[14px] rounded-[14px] border border-[var(--color-paper-edge)] bg-[var(--color-paper-card)] px-[18px] py-4 transition-colors duration-200 hover:border-[var(--color-paper-ink)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-paper-pen)] focus-visible:ring-offset-2 motion-reduce:transition-none lg:block lg:rounded-[16px] lg:px-[22px] lg:py-[26px]"
+              className="block min-h-11 rounded-[14px] border border-[var(--color-paper-edge)] bg-[var(--color-paper-card)] px-[18px] py-4 transition-colors duration-200 hover:border-[var(--color-paper-ink)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-paper-pen)] focus-visible:ring-offset-2 motion-reduce:transition-none lg:rounded-[16px] lg:px-[22px] lg:py-[26px]"
             >
-              <span className="block w-16 shrink-0 lg:mb-4 lg:w-[90px]">
-                <ToolIllustration href={card.href} />
-              </span>
-              <span className="min-w-0">
+              <span className="flex items-center gap-3 lg:block">
+                <span className="block w-11 shrink-0 lg:mb-4 lg:w-[90px]">
+                  <ToolIllustration href={card.href} />
+                </span>
                 <span className="block text-[14.5px] font-semibold leading-[1.45] text-[var(--color-paper-ink)] lg:text-[15.5px]">
                   {card.title}
                 </span>
-                <span className="mt-[5px] block text-[14px] leading-[1.6] text-[var(--color-paper-ink-soft)] lg:mt-2 lg:text-[13px] lg:leading-[1.65]">
-                  {card.body}
-                </span>
-                <span className={`mt-[10px] block lg:mt-4 ${noteText}`}>{card.note}</span>
               </span>
+              <span className="mt-3 block text-[14px] leading-[1.6] text-[var(--color-paper-ink-soft)] lg:mt-2 lg:text-[13px] lg:leading-[1.65]">
+                {card.body}
+              </span>
+              <span className={`mt-[10px] block lg:mt-4 ${noteText}`}>{card.note}</span>
             </TrackedLandingLink>
           ))}
         </div>

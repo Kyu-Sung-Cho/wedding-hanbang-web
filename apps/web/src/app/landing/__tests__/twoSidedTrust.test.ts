@@ -307,9 +307,9 @@ describe("landing two-sided trust contract", () => {
     //
     // 첫 화면은 무엇부터 할지 모르는 순간을 말하고, 질문을 둘의 결정으로 이어 준다.
     const heroCopy = contentBlock("hero", "amoraNote");
-    expect(heroCopy).toMatch(/결혼 준비, 뭐부터 할까요\?[\s\S]*아모라와 하나씩 정해요\./u);
-    expect(heroCopy).toMatch(/AI 동반자 아모라와[^"\n]*지금 고민을 정리하고[^"\n]*직접 확인해 기록/u);
-    expect(heroCopy).toMatch(/내가 원하는 결혼식부터 예산·일정·할 일까지/u);
+    expect(heroCopy).toMatch(/결혼 준비, 검색할수록[\s\S]*고민만 늘어난다면\./u);
+    expect(heroCopy).toMatch(/AI 동반자 아모라와[^"\n]*지금 고민을 정리해요[^"\n]*직접 확인해 기록/u);
+    expect(heroCopy).toMatch(/우리 예산으로 어떤 결혼식을 할지[^"\n]*예산·일정·할 일[^"\n]*파트너를 연결해 함께/u);
     expectWired("hero.body");
     expectWired("hero.note");
     // 2026-08-29: 옛 컴포넌트는 줄바꿈·색 강조 때문에 H1 글자를 손으로 적었고, 그래서
@@ -753,7 +753,9 @@ describe("landing two-sided trust contract", () => {
     expectWired("availableNow.title");
     // 첫 화면에서도 조건을 먼저 말한다 — 여기까지 안 내려온 사람이 훨씬 많다.
     const heroCopy = contentBlock("hero", "amoraNote");
-    expect(heroCopy).toContain("아모라는 로그인 후 이용해요. 웨딩코드는 가입 없이 해 볼 수 있어요");
+    expect(heroCopy).toContain("아모라는 로그인과 시작 설정 후 이용해요");
+    expect(heroCopy).toContain("현재 무료이며, 향후 요금은 아직 정해지지 않았어요");
+    expect(heroCopy).toContain("웨딩코드는 가입 없이 해 볼 수 있어요");
     expect(closingCopy).toContain("무료 도구는 가입 없이 이용할 수 있어요");
 
     // 계정을 만들면 무엇이 열리는지. 옛 판은 ⑦ 섹션이 한 줄로 적었고, 지금은 확인
