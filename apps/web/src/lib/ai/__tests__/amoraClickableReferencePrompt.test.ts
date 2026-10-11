@@ -19,6 +19,38 @@ const context: WeddingPlannerPromptContext = {
 };
 
 describe("아모라가 안내하는 읽을 곳의 링크 계약", () => {
+  it.each([
+    { persistenceMode: "durable", conversationLane: "private", maxChars: 48_000 },
+    { persistenceMode: "durable", conversationLane: "shared", maxChars: 48_000 },
+    { persistenceMode: "durable", conversationLane: "private", maxChars: 25_000 },
+    { persistenceMode: "durable", conversationLane: "shared", maxChars: 25_000 },
+    { persistenceMode: "demo", conversationLane: "shared", maxChars: 25_000 },
+  ] as const)(
+    "$persistenceMode/$conversationLane/$maxChars 자료 위치 질문에 실제 제품 링크와 범위가 남는다",
+    options => {
+      const prompt = buildAmoraSystemPrompt(context, {
+        ...options,
+        requestKind: "chat",
+        enabledToolNames: [],
+        questionScope: classifyAmoraQuestionScope({
+          userText: "참가격 공시 가격과 위약금 자료는 우리 서비스에서 어디서 볼 수 있어? 업체 추천 없이 바로 열 수 있는 링크로 알려줘.",
+          requestKind: "chat",
+        }),
+      });
+
+      const citation = prompt.split("## 출처 표기 (Source Citation) — 사용자 신뢰의 핵심")[1]
+        ?.split("\n## ")[0] ?? "";
+      expect(citation.includes("[공시 가격·위약금](https://hanbang.ai/price)")).toBe(true);
+      expect(citation.includes("[결혼 예절 가이드](https://hanbang.ai/wedding/manners)")).toBe(true);
+      expect(citation.includes("공시 가격과 위약금·환불 조건 원문을 찾는 시작점")).toBe(true);
+      expect(citation.includes("공시된 원문이 있는 경우")).toBe(true);
+      expect(citation.includes("자료 위치를 묻는 질문에는 해당 링크를 그대로 사용")).toBe(true);
+      expect(citation.includes("지금 본문을 읽거나 조건을 검증했다는 뜻은 아닙니다")).toBe(true);
+      expect(prompt.includes("공시 가격 목록(hanbang.ai/price)")).toBe(false);
+      expect(prompt.length).toBeLessThanOrEqual(options.maxChars);
+    },
+  );
+
   it("최종 답변에 조회 도구가 없어도 이름뿐 아니라 클릭 가능한 출처를 안내한다", () => {
     const prompt = buildAmoraSystemPrompt(context, {
       requestKind: "chat",
