@@ -42,9 +42,21 @@ Source Citation에 가격·위약금 안내의 시작점, 카테고리→업체�
 
 - 다섯 shared/private/demo 및 48k/25k 실제 최종 프롬프트 사례를 먼저 RED로 재현:
   5fail/7pass. 수정 후 같은12개 PASS.
-- 링크·프롬프트 조립·길이 절단·도구 필터 관련6files/87tests PASS.
-- 보호 카탈로그에서 가격 URL만 빼고 legacy 안내는 남기는 mutant를 검사1/1이 잡았다.
-  provided prove-guard가 원본 bytes/md5 복구를 확인했다.
+- 최초 관련6files/87tests PASS만으로 운영 배포하지 않았다. 최초 후보373의 정상
+  전체 pre-push는1258files/22514tests 중22508pass/6fail로 푸시를 막았다.
+  긴 shared-profile 실제 POST는 필수 문맥48k 상한 예외로 모델 호출 전에 실패했고,
+  0결정 행동 카드 무절단 및 네 날짜250자 여유 검사5개도 실패했다.
+- 원인: 보호 출처 섹션+434자와 legacy HTTPS 전환+11자, 총445자 증가.
+  cap·기존 테스트·개인화 보호를 바꾸지 않고 출처 예시·중복 표현을 압축했다.
+  기존 숫자 원문/기준일/지역/구성, 첫 인라인 출처, 미확인 견적, 사용자 값·계산,
+  성수기 한계, 무발명·관행·모호한 금액 금지와 두 제품 링크를 모두 유지한다.
+  최종 prompt 소스는 기존 main대비 정규화된 전체 문자수 증가0이다.
+- 두 새 보호 예산 검사는 먼저2FAIL/12filtered를 확인했다. 이는 전체14개 PASS가
+  아니다. 최종 관련8files/737tests PASS: 링크14·행동15·실제POST604·기존prompt65와
+  조립/절단/도구 계약39. 기존 실패6건은 같은 검사 문턱에서 통과한다.
+- 최종 보호 경로 누락·예시 수치 창작 금지 누락·출처 길이 증가 mutant3/3을 잡았다.
+  provided prove-guard가 각 원본 bytes/md5 복구를 확인했다.
+- 최종 prompt SHA256: `5340d9a8bd4c326701a57016dc29759bead471d1f70de3392ed3a4e789c4398c`.
 - `git diff --check` PASS.
 - 정상 pre-push·새 PR 필수 CI·exact-head Preview·운영 병합·Production Ready·
   로그인된 실제 자연질문/클릭/새로고침 검증은 뒤이어 수행한다. 아직 PASS로 세지 않는다.

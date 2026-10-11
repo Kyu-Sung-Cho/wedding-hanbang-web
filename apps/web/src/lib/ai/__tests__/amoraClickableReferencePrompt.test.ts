@@ -19,6 +19,34 @@ const context: WeddingPlannerPromptContext = {
 };
 
 describe("아모라가 안내하는 읽을 곳의 링크 계약", () => {
+  it.each([48_000, 25_000])("제품 링크와 출처 경계가 기존 필수 문맥 예산 안에 함께 남는다 — %i", maxChars => {
+    const prompt = buildAmoraSystemPrompt(context, {
+      requestKind: "chat",
+      persistenceMode: "durable",
+      conversationLane: "shared",
+      enabledToolNames: [],
+      maxChars,
+    });
+    const heading = "## 출처 표기 (Source Citation) — 사용자 신뢰의 핵심";
+    const citation = prompt.slice(prompt.indexOf(heading)).split("\n## ")[0];
+
+    // 기존 실제 POST의 긴 맞춤 정보와 행동 카드 250자 여유를 함께 보존하는 예산이다.
+    expect(citation.length).toBeLessThanOrEqual(1_027);
+    for (const rule of [
+      "원문 URL·기준일·지역·구성 범위가 함께 확인된 데이터만 사용",
+      "숫자 바로 앞·뒤 1줄",
+      "같은 출처는 답변마다 첫 인용에만",
+      "개별 견적의 적정성·최종 비용을 보증하지 마세요",
+      "수치·평균·통계·출처·원문·기준일 창작 금지",
+      "근거 없는 관행·모호한 금액 금지",
+      "예시 수치를 만들지 마세요",
+      "사용자 값은 제공값임을 밝히세요",
+      "제공값의 단순 계산(계산임 명시)",
+      "링크 제공은 본문 사실 검증과 다르며",
+    ]) expect(citation.includes(rule), rule).toBe(true);
+    expect(prompt.length).toBeLessThanOrEqual(maxChars);
+  });
+
   it.each([
     { persistenceMode: "durable", conversationLane: "private", maxChars: 48_000 },
     { persistenceMode: "durable", conversationLane: "shared", maxChars: 48_000 },
@@ -42,10 +70,13 @@ describe("아모라가 안내하는 읽을 곳의 링크 계약", () => {
         ?.split("\n## ")[0] ?? "";
       expect(citation.includes("[공시 가격·위약금](https://hanbang.ai/price)")).toBe(true);
       expect(citation.includes("[결혼 예절 가이드](https://hanbang.ai/wedding/manners)")).toBe(true);
-      expect(citation.includes("공시 가격과 위약금·환불 조건 원문을 찾는 시작점")).toBe(true);
+      expect(citation.includes("공시 원문을 찾는 시작점")).toBe(true);
+      expect(citation.includes("카테고리→업체→‘계약 전 확인 · 위약금과 환불’")).toBe(true);
       expect(citation.includes("공시된 원문이 있는 경우")).toBe(true);
-      expect(citation.includes("자료 위치를 묻는 질문에는 해당 링크를 그대로 사용")).toBe(true);
-      expect(citation.includes("지금 본문을 읽거나 조건을 검증했다는 뜻은 아닙니다")).toBe(true);
+      expect(citation.includes("자료 위치 질문에는 위 링크를 사용하세요")).toBe(true);
+      expect(citation.includes("링크 제공은 본문 사실 검증과 다르며")).toBe(true);
+      expect(citation.includes("계약 효력·환불 가능성 판정 금지")).toBe(true);
+      expect(citation.includes("무관한 링크·업체·장소 추천 금지")).toBe(true);
       expect(prompt.includes("공시 가격 목록(hanbang.ai/price)")).toBe(false);
       expect(prompt.length).toBeLessThanOrEqual(options.maxChars);
     },
