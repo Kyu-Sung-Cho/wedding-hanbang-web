@@ -3,3 +3,4 @@ export type AmoraReferenceToken =
   | { type: "text"; text: string; length: number };
 export function getSafeAmoraReferenceHref(raw: unknown): string | null;
 export function readAmoraReferenceAt(text: string, index: number): AmoraReferenceToken | null;
+export function getAmoraUnclosedReferenceDepth(text: string, initialDepth?: number): number;

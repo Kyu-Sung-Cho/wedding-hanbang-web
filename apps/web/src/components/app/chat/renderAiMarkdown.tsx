@@ -1,6 +1,6 @@
 import type * as React from "react";
 import { Check } from "lucide-react";
-import { readAmoraReferenceAt } from "@hanbang/shared/amora-reference-links";
+import { getAmoraUnclosedReferenceDepth, readAmoraReferenceAt } from "@hanbang/shared/amora-reference-links";
 
 // 링크를 먼저 해석해야 [**자료 이름**](URL)도 하나의 링크로 남는다.
 function renderInlineMd(text: string, prefix: string, links = true, depth = 0): React.ReactNode {
@@ -66,7 +66,7 @@ function parseTableRow(line: string): string[] | null {
     const char = body[index];
     if (char === "\\" && index + 1 < body.length) { cell += char + body[++index]; continue; }
     const reference = !code ? readAmoraReferenceAt(body, index) : null;
-    if (reference?.type === "link") {
+    if (reference) {
       cell += body.slice(index, index + reference.length);
       index += reference.length - 1; continue;
     }
@@ -81,36 +81,6 @@ function parseTableRow(line: string): string[] | null {
   }
   cells.push(cell.trim());
   return cells;
-}
-
-function remainingReferenceDepth(text: string, depth: number): number {
-  for (const char of text) {
-    if (char === "(") depth += 1;
-    else if (char === ")" && --depth === 0) return 0;
-  }
-  return depth;
-}
-
-function unclosedReferenceDepth(line: string): number {
-  for (let index = 0; index < line.length; index += 1) {
-    if (line[index] === "`") {
-      const marker = line.slice(index).match(/^`+/u)?.[0] ?? "`";
-      const end = line.indexOf(marker, index + marker.length);
-      if (end >= index + marker.length) { index = end + marker.length - 1; continue; }
-    }
-    if (line[index] !== "[" && line[index] !== "!") continue;
-    const reference = readAmoraReferenceAt(line, index);
-    if (!reference) continue;
-    if (reference.type === "text") {
-      const destination = reference.text.indexOf("](");
-      if (destination >= 0) {
-        const depth = remainingReferenceDepth(reference.text.slice(destination + 2), 1);
-        if (depth > 0) return depth;
-      }
-    }
-    index += reference.length - 1;
-  }
-  return 0;
 }
 
 // separator row 여부 ("|---|---|" 또는 "|:---|---:|" 등)
@@ -132,13 +102,12 @@ export function renderAiMarkdown(text: string): React.ReactNode {
     const trimmed = line.trim();
 
     // 잘못된 여러 줄 링크를 줄별로 나눈 뒤 내부 URL만 활성화하지 않는다.
-    if (!trimmed) inertReferenceDepth = 0;
     const initialDepth = !inertReferenceDepth && !/^(`{3,}|~{3,})/u.test(trimmed)
-      ? unclosedReferenceDepth(line) : 0;
-    if (inertReferenceDepth || (initialDepth > 0 && i + 1 < lines.length && lines[i + 1].trim())) {
+      ? getAmoraUnclosedReferenceDepth(line) : 0;
+    if (inertReferenceDepth || initialDepth > 0) {
       const firstLine = inertReferenceDepth === 0;
-      inertReferenceDepth = inertReferenceDepth ? remainingReferenceDepth(line, inertReferenceDepth) : initialDepth;
-      blocks.push(<div key={i} className="leading-relaxed">{firstLine ? renderInlineMd(line, `inert-${i}`) : line}</div>);
+      inertReferenceDepth = inertReferenceDepth ? getAmoraUnclosedReferenceDepth(line, inertReferenceDepth) : initialDepth;
+      blocks.push(<div key={i} className={trimmed ? "leading-relaxed" : "h-2"}>{firstLine ? renderInlineMd(line, `inert-${i}`) : line}</div>);
       i++; continue;
     }
 
@@ -149,6 +118,7 @@ export function renderAiMarkdown(text: string): React.ReactNode {
       const dataRows: string[][] = [];
       let j = i + 2;
       while (j < lines.length) {
+        if (getAmoraUnclosedReferenceDepth(lines[j]) > 0) break;
         const row = parseTableRow(lines[j]);
         if (!row) break;
         dataRows.push(row);
@@ -266,9 +236,21 @@ export function renderAiMarkdown(text: string): React.ReactNode {
     // 프롬프트로 서식을 금지하는 방식은 쓰지 않는다 — 모델이 지키지 않으면 그대로
     // 재발하고, 실제로 넉 달간 재발했다. 렌더러가 받아 주는 쪽이 결정적이다.
     if (/^>\s?/.test(trimmed)) {
-      const quoted: string[] = [];
+      const quoted: Array<{ text: string; inert: boolean }> = [];
+      let quoteFence: string | null = null;
       while (i < lines.length && /^>\s?/.test(lines[i].trim())) {
-        quoted.push(lines[i].trim().replace(/^>\s?/, ""));
+        const quote = lines[i].trim().replace(/^>\s?/, "");
+        const fence = inertReferenceDepth === 0 ? quote.trim().match(/^(`{3,}|~{3,})/u)?.[1] : undefined;
+        const code = quoteFence !== null || fence !== undefined;
+        if (quoteFence) {
+          const end = quote.trim().match(/^(`{3,}|~{3,})\s*$/u)?.[1];
+          if (end && end[0] === quoteFence[0] && end.length >= quoteFence.length) quoteFence = null;
+        } else if (fence) quoteFence = fence;
+        const inert = code || inertReferenceDepth > 0;
+        if (!code) inertReferenceDepth = inertReferenceDepth > 0
+          ? getAmoraUnclosedReferenceDepth(quote, inertReferenceDepth)
+          : getAmoraUnclosedReferenceDepth(quote);
+        quoted.push({ text: quote, inert });
         i++;
       }
       blocks.push(
@@ -278,7 +260,7 @@ export function renderAiMarkdown(text: string): React.ReactNode {
         >
           {quoted.map((q, qi) => (
             <div key={qi} className="leading-relaxed">
-              {q === "" ? <span className="block h-2" /> : renderInlineMd(q, `q-${i}-${qi}`)}
+              {q.text === "" ? <span className="block h-2" /> : q.inert ? q.text : renderInlineMd(q.text, `q-${i}-${qi}`)}
             </div>
           ))}
         </div>

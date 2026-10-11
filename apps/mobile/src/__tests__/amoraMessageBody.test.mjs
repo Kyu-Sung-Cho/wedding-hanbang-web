@@ -156,6 +156,109 @@ test("native encoded internal execution paths remain inert even on app-host alia
   }
 });
 
+test("native malformed references stay inert across list block boundaries without hiding a later valid reference", async () => {
+  for (const introduction of ["", "첫 안내\n", "> 첫 안내\n> "]) {
+    const opened = [];
+    const malformed = "[자료](\n- https://example.com/partial\n)";
+    const { nodes, visible } = renderBody(`${introduction}${malformed}\n\n[다음 자료](https://example.com/next)`, {
+      openURL: async (href) => { opened.push(href); },
+    });
+    const links = nodes.filter((node) => node.props.accessibilityRole === "link");
+    assert.equal(links.length, 1);
+    assert.ok(visible.includes(malformed), "unsupported syntax keeps all original characters");
+    await links[0].props.onPress();
+    assert.deepEqual(opened, ["https://example.com/next"]);
+  }
+});
+
+test("native malformed table references remain inert when their destination continues in a list", async () => {
+  const malformed = "| [자료]( | 메모 |\n- https://example.com/partial\n)";
+  const opened = [];
+  const { nodes, visible } = renderBody(`| 자료 | 내용 |\n|---|---|\n${malformed}\n\n[다음 자료](https://example.com/next)`, {
+    openURL: async (href) => { opened.push(href); },
+  });
+  const links = nodes.filter((node) => node.props.accessibilityRole === "link");
+  assert.equal(links.length, 1);
+  assert.ok(visible.includes(malformed));
+  await links[0].props.onPress();
+  assert.deepEqual(opened, ["https://example.com/next"]);
+});
+
+test("native blank lines inside malformed references never revive a partial destination", async () => {
+  for (const malformed of [
+    "[자료](\n\nhttps://example.com/partial\n)",
+    "> [자료](\n\n> https://example.com/partial\n> )",
+  ]) {
+    const opened = [];
+    const { nodes, visible } = renderBody(`${malformed}\n\n[정상](https://example.com/next)`, {
+      openURL: async (href) => { opened.push(href); },
+    });
+    const links = nodes.filter((node) => node.props.accessibilityRole === "link");
+    assert.equal(links.length, 1);
+    assert.ok(visible.includes(malformed));
+    await links[0].props.onPress();
+    assert.deepEqual(opened, ["https://example.com/next"]);
+  }
+});
+
+test("native chained malformed references remain inert across plain and quoted list boundaries", async () => {
+  for (const malformed of [
+    "[첫](\n) [다음](\n- https://example.com/second\n)",
+    "> [첫](\n> ) [다음](\n> - https://example.com/second\n> )",
+  ]) {
+    const opened = [];
+    const { nodes, visible } = renderBody(`${malformed}\n\n[정상](https://example.com/next)`, {
+      openURL: async (href) => { opened.push(href); },
+    });
+    const links = nodes.filter((node) => node.props.accessibilityRole === "link");
+    assert.equal(links.length, 1);
+    assert.ok(visible.includes(malformed));
+    await links[0].props.onPress();
+    assert.deepEqual(opened, ["https://example.com/next"]);
+  }
+});
+
+test("native oversized reference and image labels stay visible without hiding adjacent valid references", async () => {
+  for (const prefix of ["", "!"]) {
+    const source = `${prefix}[${"a".repeat(2100)}](https://example.com/image.png)`;
+    const opened = [];
+    const { nodes, visible } = renderBody(`[앞](https://example.com/before) ${source} [뒤](https://example.com/next)`, {
+      openURL: async (href) => { opened.push(href); },
+    });
+    const links = nodes.filter((node) => node.props.accessibilityRole === "link");
+    assert.equal(links.length, 2);
+    assert.ok(visible.includes(source));
+    for (const link of links) await link.props.onPress();
+    assert.deepEqual(opened, ["https://example.com/before", "https://example.com/next"]);
+  }
+});
+
+test("native table references keep URL pipes inside one cell and open the exact destination", async () => {
+  const source = "[원문](https://example.com/info?q=a|b)";
+  const content = `| 자료 | 내용 |\n|---|---|\n| ${source} | 메모 |`;
+  const blocks = parseAmoraMessageBody(content);
+  assert.deepEqual(blocks[0].rows, [[source, "메모"]]);
+  const opened = [];
+  const { nodes } = renderBody(content, { openURL: async (href) => { opened.push(href); } });
+  const links = nodes.filter((node) => node.props.accessibilityRole === "link");
+  assert.equal(links.length, 1);
+  await links[0].props.onPress();
+  assert.deepEqual(opened, ["https://example.com/info?q=a|b"]);
+});
+
+test("native table image labels containing pipes stay whole and inert", () => {
+  for (const source of [
+    "![사진|설명](https://example.com/image.png)",
+    "![자료 [사진]|설명](https://example.com/image.png)",
+  ]) {
+    const content = `| 자료 | 내용 |\n|---|---|\n| ${source} | 메모 |`;
+    assert.deepEqual(parseAmoraMessageBody(content)[0].rows, [[source, "메모"]]);
+    const { nodes, visible } = renderBody(content);
+    assert.ok(visible.includes(source));
+    assert.ok(nodes.every((node) => !node.props.onPress));
+  }
+});
+
 test("native blank reference names fall back to one visible clickable source address", async () => {
   for (const label of ["", "   "]) {
     const opened = [];

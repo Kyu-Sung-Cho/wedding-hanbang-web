@@ -42,9 +42,28 @@ GitHub와 Vercel을 통해 hanbang.ai까지 배포한다.
 - 수정 후 동일한 31개 모두 통과, 실패 0 (GREEN).
 - `git diff --check` PASS. d.mts CRLF 변환 안내는 오류가 아니다.
 - 독립 검수가 main 기준 12개 구현/테스트 파일의 이전 작업 혼입 부재를 확인했다.
-- 전체 typecheck·lint·test, 정상 웹 build, Expo all export: 진행 중.
+- 추가 검수로 quote/list 블록 분리, oversized label, 연쇄 불완전 링크,
+  중간 빈 줄, nested 이미지 label의 표 구분 문자, 모바일 URL의 표 구분 문자
+  경계를 재현했다. 각 실패 입력을 먼저 RED로 확인하고 GREEN으로 닫았다.
+- 최종 관련 검증: 웹 123 PASS(링크 36 + 프롬프트 구성 87),
+  shared 7 + 모바일 21 = 28 PASS. 세 패키지 타입 검사·변경 파일 ESLint PASS.
+- 새 테스트의 행동 감지 검증 4/4 PASS: credential 허용, 외부 rel 제거,
+  출처 프롬프트 형식 제거, 모바일 링크 토큰 제거를 각각 심으면 검사가 실패한다.
+  provided prove-guard 스크립트가 원본 bytes/md5 복구를 확인했다.
+- 공통 저장소 검사 1,572 PASS/0 fail. ingest 858 PASS/4 skip/0 fail.
+  공통 DB 검사는 로컬 합성 fixture이며 기존 운영 DB 실행 증거가 아니다.
+- 초기 전체 Turbo 실행은 후보 수정으로 무효화되어 중단했다. PASS로 세지 않는다.
+- 수정 전 진단 웹 build·Expo all export는 성공했으나 최종 증거로 승계하지 않는다.
+- 최종 코드의 전체 typecheck·lint·test, 정상 웹 build, Expo all export: 진행 중.
 - PR의 필수 CI·exact-head Preview·merge SHA·Production build·별칭·운영 smoke:
   아직 확인하지 않았으며 배포 완료로 보고하지 않는다.
+
+최종 코드 고정 시점의 SHA256:
+
+- shared parser: `3c8e22ab865ab8eedfed7a3401ef9ebb21aab6197ed29149c3d6aef0d792a831`
+- web renderer: `0973ce56a7738d53f70988d88d6fb113b457a995fc3ed4b16cc96f1ba4ab33aa`
+- source prompt: `ff52ff37ebcb1c81f4fb76e584461531feecdb2bff3f4aa1dcd221a309825fa9`
+- mobile parser: `7e4bbf6568cb01a6549f2ea45fb322c9809db63ad84b86cb4d0491578a90d968`
 
 ## 배포 및 복구 계약
 

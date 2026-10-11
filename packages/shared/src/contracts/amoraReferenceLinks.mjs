@@ -1,4 +1,8 @@
 /** 출처 URL의 존재·신뢰성을 보증하지 않는다. 클릭할 수 있는 주소 형식만 검사한다. */
+const MAX_REFERENCE_LABEL_CHARS = 2048;
+const MAX_REFERENCE_DESTINATION_CHARS = 8192;
+const MAX_REFERENCE_SCAN_CHARS = 12000;
+
 export function getSafeAmoraReferenceHref(raw) {
   if (typeof raw !== "string" || !raw || /[\s\\<>"`\u0000-\u001f\u007f\p{Cf}]/u.test(raw)
     || /%(?:0[0-9a-f]|1[0-9a-f]|7f|5c)/iu.test(raw)
@@ -43,14 +47,15 @@ export function readAmoraReferenceAt(text, index) {
   }
   const image = first === "!";
   const labelStart = index + (image ? 2 : 1);
-  const labelOffset = text.slice(labelStart, labelStart + 2049).indexOf("](");
+  const inert = () => ({ type: "text", text: text.slice(index), length: text.length - index });
+  const labelOffset = text.slice(labelStart, labelStart + MAX_REFERENCE_SCAN_CHARS + 2).indexOf("](");
   const labelEnd = labelOffset < 0 ? -1 : labelStart + labelOffset;
-  if (labelEnd < labelStart || labelEnd - labelStart > 2048) return null;
-  const unsupportedLabel = /[\[\]\n]/u.test(text.slice(labelStart, labelEnd));
+  if (labelEnd < labelStart) return image || text.length - labelStart > MAX_REFERENCE_LABEL_CHARS ? inert() : null;
+  const unsupportedLabel = labelEnd - labelStart > MAX_REFERENCE_LABEL_CHARS
+    || /[\[\]\n]/u.test(text.slice(labelStart, labelEnd));
   let depth = 1;
   let end = labelEnd + 2;
-  const inert = () => ({ type: "text", text: text.slice(index), length: text.length - index });
-  for (; end < text.length && end - labelEnd <= 8192; end += 1) {
+  for (; end < text.length && end - labelEnd <= MAX_REFERENCE_DESTINATION_CHARS; end += 1) {
     if (text[end] === "\n") return inert();
     if (text[end] === "(") depth += 1;
     else if (text[end] === ")" && --depth === 0) break;
@@ -61,4 +66,37 @@ export function readAmoraReferenceAt(text, index) {
   return href
     ? { type: "link", text: text.slice(labelStart, labelEnd).trim() || href, href, length: source.length }
     : { type: "text", text: source, length: source.length };
+}
+
+/** 여러 줄의 불완전 참조를 본문 블록으로 나누기 전에 닫는 괄호까지 추적한다. */
+export function getAmoraUnclosedReferenceDepth(text, initialDepth = 0) {
+  let depth = initialDepth;
+  for (let index = 0; index < text.length; index += 1) {
+    if (depth > 0) {
+      if (text[index] === "(") depth += 1;
+      else if (text[index] === ")") depth -= 1;
+      continue;
+    }
+    if (text[index] === "\\") { index += 1; continue; }
+    if (text[index] === "`") {
+      let marker = "`";
+      while (text[index + marker.length] === "`") marker += "`";
+      const end = text.indexOf(marker, index + marker.length);
+      index = end >= index + marker.length ? end + marker.length - 1 : index + marker.length - 1;
+      continue;
+    }
+    if (text[index] !== "[" && text[index] !== "!") continue;
+    const reference = readAmoraReferenceAt(text, index);
+    if (!reference) continue;
+    if (reference.type === "text") {
+      const destination = reference.text.indexOf("](");
+      if (destination >= 0) {
+        depth = 1;
+        index += destination + 1;
+        continue;
+      }
+    }
+    index += reference.length - 1;
+  }
+  return depth;
 }
