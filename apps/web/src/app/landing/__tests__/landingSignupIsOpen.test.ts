@@ -62,7 +62,6 @@ const HEADER_PATH = "src/components/landing/redesign/LandingHeader.tsx";
 const MOBILE_MENU_PATH = "src/components/landing/redesign/MobileLandingMenu.tsx";
 const ACCOUNT_ACTIONS_PATH = "src/components/landing/redesign/LandingAccountActions.tsx";
 const CLOSING_PATH = "src/components/landing/redesign/ClosingAction.tsx";
-const CONFIRM_PATH = "src/components/landing/redesign/ConfirmSection.tsx";
 
 const AMORA_HREF = /href[:=]\s*"\/wedding\/chat"/u;
 
@@ -168,15 +167,13 @@ describe("가입은 열려 있고, 랜딩이 그렇게 말한다", () => {
     // 오늘 참이기 때문에 남는다(CLAUDE.md 2026-08-29).
     const copy = rendered(CONTENT_PATH);
     expect(copy, "현재 무료라는 시점과 앞으로의 요금 미정 고지가 사라졌다")
-      .toContain("현재 무료로 이용할 수 있어요. 향후 요금은 아직 정해지지 않았어요.");
+      .toContain("현재 무료이며, 향후 요금은 아직 정해지지 않았어요.");
 
-    // 그 고지는 `confirm` 블록(계정을 만들면 무엇이 되는지 말하는 자리)에 있고,
-    // ConfirmSection 이 실제로 그 값을 렌더해야 화면에 나간다. 카피에만 있고 아무도
-    // 안 읽으면 사용자는 고지를 못 본다.
-    expect(contentBlock("confirm", "availableNow"), "비용 고지가 confirm 블록을 떠났다")
+    // 팀 수정표 #46: 비용 고지는 첫 CTA 옆에 유지하고 중간 저장 설명의 반복을 줄인다.
+    expect(contentBlock("hero", "blockedReasons"), "비용 고지가 첫 CTA 옆에서 사라졌다")
       .toContain("향후 요금은 아직 정해지지 않았어요");
-    expect(rendered(CONFIRM_PATH), "확인 섹션이 비용 고지를 렌더하지 않는다")
-      .toContain("confirm.note");
+    expect(rendered("src/components/landing/redesign/TransformationHero.tsx"), "첫 CTA 옆에 비용 고지가 그려지지 않는다")
+      .toContain("hero.note");
 
     // 반대편 거짓말. 무료라고 단정하면 나중에 값을 정할 때 약속을 깬 것이 된다.
     for (const [name, visible] of landingSurfaces()) {

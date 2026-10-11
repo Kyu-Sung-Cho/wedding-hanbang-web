@@ -250,7 +250,7 @@ describe("landing product outcome evidence", () => {
     // 2026-08-29: 시안 문장이 "…, 눌러서 확인한 것만 준비 기록에 반영해요." 로 바뀌었다.
     // 옛 단언은 "확인한 **변경**만" 이었다. 낱말이 아니라 계약("확인한 것만 반영")을
     // 재도록 두 조각으로 나눠 묻는다.
-    expect(block.confirm).toContain("저장 전에 바뀔 내용과 저장 위치를 직접 확인하면 예산·할 일·일정에 남길 수 있어요");
+    expect(block.confirm).toContain("저장 전에 내용과 저장 위치를 보여줘요. 다르면 다시 말하거나 저장하지 않아도 돼요");
     expect(block.confirm).toContain("저장을 확인하기 전에는 기록이 바뀌지 않아요");
 
     // 목적지 셋. 옛 랜딩은 "우리 예산 / 우리 할 일 / 우리 일정" 카드 셋으로 보여줬고
@@ -266,11 +266,10 @@ describe("landing product outcome evidence", () => {
     );
     expect(block.confirm, "파트너 알림이 사라졌다").toContain("파트너도 앱에서 변경 알림을 볼 수 있어요");
 
-    // 2026-08-29 파운더 결정: 베타 틀은 없애되 **이 고지는 남긴다.** 베타라서가 아니라
-    // 오늘 참이라서다 — 이용 방법과 비용이 아직 정해지지 않았고 결제를 요청하지 않는다.
-    expect(block.confirm, "현재 무료라는 시점과 향후 요금 미정 고지가 사라졌다").toContain(
-      "현재 무료로 이용할 수 있어요. 향후 요금은 아직 정해지지 않았어요.",
-    );
+    // 팀 수정표 #46: 비용 고지는 첫 CTA에서 검증하고 저장 기능의 진입 조건을 확인한다.
+    expect(landingContent.hero.note, "현재 비용과 향후 요금 미정 고지가 사라졌다")
+      .toContain("현재 무료이며, 향후 요금은 아직 정해지지 않았어요");
+    expect(block.confirm).toContain("준비 기록은 로그인과 시작 설정을 마친 뒤 남길 수 있어요");
 
     // 반영될 것이 화면에 그대로 보인다. 2026-09-03 시안으로 카드가 "제안 한 건(금액)"
     // 에서 **"아모라가 이렇게 이해했어요" 세 줄**로 바뀌었다 — 값이 아니라 상태(확정·
@@ -406,7 +405,7 @@ describe("landing product outcome evidence", () => {
     );
     // 2026-08-18 파운더 결정으로 계약 해석·판정을 전부 걷어냈다(contractShield 삭제).
     expect(block.boundaries, "계약 해석을 하지 않는다는 계약이 사라졌다").toContain(
-      "계약 조건을 대신 해석하거나 판단하지 않아요",
+      "계약 조건을 해석하거나 어느 쪽이 유리한지 판단하지 않아요",
     );
     expect(block.boundaries, "중개하지 않는다는 문장이 사라졌다").toContain(
       "업체 계약 신청·예약·결제를 중개하지 않아요",
@@ -583,9 +582,9 @@ describe("landing product outcome evidence", () => {
       "심리 진단이나 궁합 검사가 아니에요",
     );
     expect(weddingCode?.note, "공유 링크에 답이 담긴다는 경고가 사라졌다").toContain(
-      "함께 보기에 동의하면 답 전체가 담긴 링크를 직접 전달해요",
+      "동의 후 답 전체가 담긴 링크를 직접 보내세요",
     );
-    expect(weddingCode?.note).toContain("답은 서버에 저장하지 않으며 전달한 링크는 회수할 수 없어요");
+    expect(weddingCode?.note).toContain("함께 보려면 동의 후 답 전체가 담긴 링크를 직접 보내세요. 보낸 링크는 회수할 수 없어요. 지금 시작하는 웨딩코드는 답을 서버에 보내지 않아요. 이전 웨딩코드의 서버 공유는 별도 동의 후 답을 보관해요. 해당 화면의 보관·삭제 안내를 확인해 주세요");
 
     // ② 견적 점검 — 옛 `privateLane.note` 의 저장 고지가 여기로도 왔다.
     //    로그인 없이 넣은 견적을 저장하지 않는다는 것은 오늘 참이고, 값의 적정성을
@@ -608,7 +607,7 @@ describe("landing product outcome evidence", () => {
     expect(price?.body, "원문을 볼 수 있다는 약속이 사라졌다").toContain("원문을 확인할 수 있어요");
     expect(price?.note, "공시 기준 시점이 카드에서 사라졌다").toMatch(/2025년 11월/u);
     expect(price?.note, "판정·요약 금지가 카드에서 사라졌다").toContain(
-      "가격과 규정은 요약하지 않고 원문으로 제공하며, 가격의 적정 여부는 평가하지 않아요",
+      "가격의 적정 여부는 평가하지 않아요",
     );
 
     // 카드의 조각이 다 화면에 꽂혀 있어야 한다. note 를 그리는 <span> 을 지우면

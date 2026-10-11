@@ -491,7 +491,7 @@
 
 ### Landing consumer hook Preview (2026-10-11)
 
-- The consumer headline is “결혼 준비의 첫 질문부터, 함께 챙기는 계획까지.”
+- The consumer headline is “결혼 준비, 지금 뭐부터 해야 할까요?”
   Explain the concrete questions and the confirmed budget, schedule and tasks
   that remain afterwards. Partner sharing still requires connection.
 - The first illustrative answer gives venue consultation questions about meal
@@ -501,6 +501,22 @@
   and all AI, example, authentication, pricing, saving and privacy disclosures.
   Publishing a Preview does not establish consumer conversion improvement or
   production release readiness.
+- Follow the October 6 team copy review by using complete, specific sentences
+  instead of noun slogans. Say “저장할 내용을 확인” for the saving step, keep
+  “나만 상담” consistent with the product label, and separate the advertising
+  notice from the public-price explanation. The default WeddingCode uses
+  consented direct answer links without sending answers to the server. Older
+  versions also offer a separate consented server sharing session. State each
+  scope explicitly, including the limits on recalling a delivered direct link.
+- Current pricing and the undecided future price remain beside the first CTA
+  and in the FAQ. The preparation section explains login and setup requirements
+  instead of repeating the same pricing notice.
+- The lounge image is a first-party production screenshot captured on October
+  11 at 375 × 520 pixels. It shows the state before adding a date or preparation
+  records. Names, conversations and private entered amounts are outside the
+  captured area. Label it as an actual captured screen, separately from the
+  two illustrative AI conversations. The small notification badge is interface
+  state, not a customer count or a service claim.
 
 ### Profile initials (2026-09-13)
 

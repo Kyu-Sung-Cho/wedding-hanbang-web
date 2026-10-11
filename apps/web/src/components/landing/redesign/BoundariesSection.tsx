@@ -18,8 +18,7 @@ import { band, noteTextOnInk, sectionTitleOnInk, shell, TitleLines } from "./not
  *
  * ## 필수 고지가 여기 산다
  *
- * 세 번째 항목("AI가 만든 답변임을 표시해요")이 AI 기본법 고지를 진다. 모델 이름까지
- * 적는다 — `/ai-policy` 가 같은 것을 공개하고 있어 두 곳이 어긋나면 안 된다.
+ * AI 생성·오류 가능성은 여기서 알리고, 모델 정보는 `/ai-policy`에서 확인한다.
  *
  * ## 2026-09-03: 다크 밴드
  *
@@ -73,6 +72,8 @@ export default function BoundariesSection() {
               </li>
             ))}
           </ul>
+
+            <p className={`mt-4 ${noteTextOnInk}`}>{boundaries.advertisingNote}</p>
 
             <p className="mt-4">
               <Link
