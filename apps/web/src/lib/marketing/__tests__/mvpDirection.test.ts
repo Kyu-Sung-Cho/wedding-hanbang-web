@@ -112,7 +112,7 @@ describe("web MVP product direction", () => {
     const heroBlock = contentBlock("hero", "amoraNote");
     // 첫 화면에서 AI 안내 → 실제 관리 항목 → 직접 확인·기록 조건을 지킨다.
     expect(heroBlock, "제품 소개 문장이 히어로 밖으로 나갔다")
-      .toMatch(/AI 동반자 아모라와[^"\n]*지금 고민을 정리해요[^"\n]*예산·일정·할 일[^"\n]*직접 확인해 기록/u);
+      .toMatch(/AI 동반자 아모라와[^"\n]*정리해요[^"\n]*예산·일정·할 일[^"\n]*직접 확인해 기록/u);
     // 아모라를 무엇이라고 부르는지도 히어로가 정한다(옛 `aiRole`이 지던 몫의 앞쪽).
     //
     // 같은 시안이 테이프 이름표를 "둘이 하는 결혼 준비, 아모라와"로 바꿔 이름표에서

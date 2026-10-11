@@ -489,6 +489,19 @@
   Explain login beside the main action and keep the current payment and future
   pricing notice in the preparation section and FAQ.
 
+### Landing consumer hook Preview (2026-10-11)
+
+- The consumer headline is “결혼 준비의 첫 질문부터, 함께 챙기는 계획까지.”
+  Explain the concrete questions and the confirmed budget, schedule and tasks
+  that remain afterwards. Partner sharing still requires connection.
+- The first illustrative answer gives venue consultation questions about meal
+  prices, minimum attendance, venue inclusions and additional charges. It is
+  guidance to ask the vendor, not a price estimate or a saved preparation record.
+- Keep the approved notebook geometry, type sizes, palette, primary Amora entry
+  and all AI, example, authentication, pricing, saving and privacy disclosures.
+  Publishing a Preview does not establish consumer conversion improvement or
+  production release readiness.
+
 ### Profile initials (2026-09-13)
 
 - User avatar initials use the first grapheme consistently across settings,

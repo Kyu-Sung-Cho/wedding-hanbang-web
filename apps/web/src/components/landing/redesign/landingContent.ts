@@ -10,21 +10,21 @@ import { CONTACT } from "@/lib/constants/contact";
 export const landingContent = {
   hero: {
 
-    tape: "우리 결혼 준비, 아모라와 함께",
+    tape: "결혼 준비 동반자 아모라",
 
-    title: "결혼 준비, 검색할수록\n고민만 늘어난다면.",
+    title: "결혼 준비의 첫 질문부터,\n함께 챙기는 계획까지.",
 
-    body: "우리 예산으로 어떤 결혼식을 할지, AI 동반자 아모라와 지금 고민을 정리해요. 정한 예산·일정·할 일은 직접 확인해 기록하고, 파트너를 연결해 함께 봐요.",
-    shareDescription: "우리 예산으로 어떤 결혼식을 할지, 아모라와 지금 고민을 정리해요. 정한 예산·일정·할 일은 직접 확인해 기록하고, 파트너를 연결해 함께 봐요.",
+    body: "견적에서 뭘 더 확인할지, 우리 예산을 어디에 쓸지 AI 동반자 아모라와 정리해요. 정한 예산·일정·할 일은 직접 확인해 기록하고, 파트너를 연결해 함께 봐요.",
+    shareDescription: "견적에서 뭘 더 확인할지, 우리 예산을 어디에 쓸지 아모라와 정리해요. 정한 예산·일정·할 일은 직접 확인해 기록하고, 파트너를 연결해 함께 봐요.",
 
-    titleAccent: "고민만 늘어난다면.",
+    titleAccent: "함께 챙기는 계획까지.",
     primary: { label: "아모라와 준비 시작하기", href: "/wedding/chat" },
     secondary: { label: "웨딩코드로 내 생각 살펴보기", href: "/wedding-code" },
 
     note: "아모라는 로그인과 시작 설정 후 이용해요. 현재 무료이며, 향후 요금은 아직 정해지지 않았어요. 웨딩코드는 가입 없이 해 볼 수 있어요.",
 
     preview: {
-      appName: "대화에서 우리 준비 기록까지",
+      appName: "내 질문이 준비 계획이 되는 과정",
       badge: "기능 예시",
       selectorLabel: "어떻게 쓰는지 눌러 보세요",
       defaultSceneId: "starting",
@@ -34,13 +34,13 @@ export const landingContent = {
         {
           id: "starting",
           label: "첫 질문",
-          userPrompt: "내년 가을에 결혼하려고 해. 하객은 100명 정도야. 뭐부터 해야 해?",
-          answer: "먼저 두 분의 예산 범위부터 잡아 봐요. 이 예산과 하객 수를 기준으로 식장을 비교할 수 있어요.",
-          proposalLabel: "03 · 먼저 할 일",
-          proposalStatus: "아직 미정",
-          proposalKind: "준비 시작",
-          proposal: "두 사람이 쓸 수 있는 예산 범위 정하기",
-          proposalNote: "아직 정한 게 없어도, 지금 상황부터 이야기할 수 있어요.",
+          userPrompt: "하객은 100명 정도야. 식장 견적에서 뭘 확인할까?",
+          answer: "하객 100명 기준 식대와 최소 보증 인원을 물어보세요. 대관료에 포함된 항목과 추가 비용도 확인하면, 우리 예산으로 무엇을 비교할지 정리할 수 있어요.",
+          proposalLabel: "03 · 먼저 확인할 일",
+          proposalStatus: "상담 전",
+          proposalKind: "상담 질문",
+          proposal: "식대 · 보증 인원 · 대관료 · 추가 비용",
+          proposalNote: "‘무엇이 포함되고, 별도 비용은 얼마인가요?’를 업체에 물어보세요.",
         },
         {
           id: "budget",
@@ -78,7 +78,7 @@ export const landingContent = {
 
   amoraNote: {
     eyebrow: "첫 질문도, 준비하다 생긴 고민도",
-    title: "‘뭐부터 하지?’부터\n‘이 견적서, 뭘 확인하지?’까지.",
+    title: "받은 견적서,\n업체에 뭘 더 물어볼까요?",
     body:
       "궁금한 걸 아모라에게 물어보세요. 말해 준 상황과 저장된 예산·일정을 바탕으로 다음에 확인할 내용과 할 일을 제안해요.",
     attachment: {
@@ -145,7 +145,7 @@ export const landingContent = {
 
   confirm: {
     eyebrow: "정한 내용을 다시 찾아 헤매지 않도록",
-    title: "‘얼마로 정했지? 언제였지?’\n둘이 같은 준비 기록을 봐요.",
+    title: "정한 예산·일정·할 일,\n직접 확인해 남겨요.",
     lede:
       "정한 내용을 아모라에게 말해 주세요. 저장 전에 바뀔 내용과 저장 위치를 직접 확인하면 예산·할 일·일정에 남길 수 있어요. "
       + "제안이 다르면 다시 말하거나, 저장하지 않을 수도 있어요.",
@@ -298,9 +298,9 @@ export const landingContent = {
 
   closing: {
 
-    title: "오늘 검색하다 남은 질문,\n아모라에게 꺼내 보세요.",
+    title: "궁금한 건 아모라에게,\n정한 건 우리 기록에.",
     primary: { label: "아모라와 준비 시작하기", href: "/wedding/chat" },
-    body: "예산부터 정할지, 받은 견적에 뭘 더 물어볼지. 아직 정한 게 없어도, 지금 상황부터 이야기할 수 있어요.",
+    body: "혼자 먼저 시작하고, 파트너는 나중에 연결해도 돼요. 예산도 날짜도 아직이라면, 지금 상황부터 이야기해 보세요.",
     steps: ["준비 공간 열기", "아모라에게 지금 고민 말하기", "필요한 제안만 확인해 저장하기"],
 
 

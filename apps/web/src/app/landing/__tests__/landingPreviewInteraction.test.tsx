@@ -55,8 +55,8 @@ describe("landing Amora example selector", () => {
         expect(note).toContain("AI 답변에는 오류가 있을 수 있어요");
       };
 
-      // 첫 방문자는 기록 결과보다 먼저, 미정인 상황에서 질문하는 흐름을 본다.
-      verifyScene(0, ["하객은 100명 정도야", "아모라의 답변 · AI 생성", "예산 범위부터 잡아 봐요", "아직 미정"]);
+      // 첫 방문자는 기록 결과보다 먼저, 질문에서 상담 준비로 이어지는 예시를 본다.
+      verifyScene(0, ["하객은 100명 정도야", "아모라의 답변 · AI 생성", "하객 100명 기준 식대", "최소 보증 인원", "상담 전"]);
       expect(panel?.textContent).not.toContain("배정 예산");
 
       await act(async () => buttons[2].click());
@@ -69,7 +69,7 @@ describe("landing Amora example selector", () => {
       expect(panel?.textContent).not.toContain("아모라의 답변 · AI 생성");
 
       await act(async () => buttons[0].click());
-      verifyScene(0, ["하객은 100명 정도야", "아모라의 답변 · AI 생성", "예산 범위부터 잡아 봐요", "아직 미정"]);
+      verifyScene(0, ["하객은 100명 정도야", "아모라의 답변 · AI 생성", "하객 100명 기준 식대", "최소 보증 인원", "상담 전"]);
       expect(panel?.textContent).not.toContain("배정 예산");
 
       await act(async () => buttons[1].click());

@@ -307,9 +307,9 @@ describe("landing two-sided trust contract", () => {
     //
     // 첫 화면은 무엇부터 할지 모르는 순간을 말하고, 질문을 둘의 결정으로 이어 준다.
     const heroCopy = contentBlock("hero", "amoraNote");
-    expect(heroCopy).toMatch(/결혼 준비, 검색할수록[\s\S]*고민만 늘어난다면\./u);
-    expect(heroCopy).toMatch(/AI 동반자 아모라와[^"\n]*지금 고민을 정리해요[^"\n]*직접 확인해 기록/u);
-    expect(heroCopy).toMatch(/우리 예산으로 어떤 결혼식을 할지[^"\n]*예산·일정·할 일[^"\n]*파트너를 연결해 함께/u);
+    expect(heroCopy).toMatch(/결혼 준비의 첫 질문부터,[\s\S]*함께 챙기는 계획까지\./u);
+    expect(heroCopy).toMatch(/AI 동반자 아모라와[^"\n]*정리해요[^"\n]*직접 확인해 기록/u);
+    expect(heroCopy).toMatch(/견적에서 뭘 더 확인할지[^"\n]*우리 예산을 어디에 쓸지[^"\n]*예산·일정·할 일[^"\n]*파트너를 연결해 함께/u);
     expectWired("hero.body");
     expectWired("hero.note");
     // 2026-08-29: 옛 컴포넌트는 줄바꿈·색 강조 때문에 H1 글자를 손으로 적었고, 그래서
