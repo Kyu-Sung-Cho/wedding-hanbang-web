@@ -1,29 +1,116 @@
 import type * as React from "react";
 import { Check } from "lucide-react";
+import { readAmoraReferenceAt } from "@hanbang/shared/amora-reference-links";
 
-// 인라인 마크다운: **bold**
-function renderInlineMd(text: string, prefix: string): React.ReactNode {
-  const parts = text.split(/(\*\*[^*\n]+\*\*)/g);
-  return parts.map((part, i) => {
-    if (part.startsWith("**") && part.endsWith("**") && part.length > 4) {
-      return (
-        <strong key={`${prefix}-${i}`} className="font-semibold text-[var(--hb-text-strong)]">
-          {part.slice(2, -2)}
-        </strong>
-      );
+// 링크를 먼저 해석해야 [**자료 이름**](URL)도 하나의 링크로 남는다.
+function renderInlineMd(text: string, prefix: string, links = true, depth = 0): React.ReactNode {
+  if (depth > 8 || text.length > 12_000) return text;
+  const parts: React.ReactNode[] = [];
+  let plain = "";
+  const flush = () => {
+    if (plain) parts.push(<span key={`${prefix}-${parts.length}`}>{plain}</span>);
+    plain = "";
+  };
+  for (let index = 0; index < text.length;) {
+    if (text[index] === "\\" && /[\\`*_[\]{}()#+.!|>~-]/u.test(text[index + 1] ?? "")) {
+      plain += text[index + 1]; index += 2; continue;
     }
-    return <span key={`${prefix}-${i}`}>{part}</span>;
-  });
+    const reference = links ? readAmoraReferenceAt(text, index) : null;
+    if (!reference) {
+      if (text[index] === "`") {
+        const marker = text.slice(index).match(/^`+/u)?.[0] ?? "`";
+        const end = text.indexOf(marker, index + marker.length);
+        if (end > index + marker.length) {
+          flush();
+          parts.push(<code key={`${prefix}-${parts.length}`}>{text.slice(index + marker.length, end)}</code>);
+          index = end + marker.length; continue;
+        }
+      }
+      if (text.startsWith("**", index)) {
+        const end = text.indexOf("**", index + 2);
+        if (end > index + 2) {
+          flush();
+          parts.push(<strong key={`${prefix}-${parts.length}`} className="font-semibold text-[var(--hb-text-strong)]">
+            {renderInlineMd(text.slice(index + 2, end), `${prefix}-${parts.length}-strong`, links, depth + 1)}
+          </strong>);
+          index = end + 2; continue;
+        }
+      }
+      plain += text[index++]; continue;
+    }
+    if (reference.type === "text") plain += reference.text;
+    else {
+      flush();
+      const external = !reference.href.startsWith("/");
+      parts.push(<a key={`${prefix}-${parts.length}`} href={reference.href}
+        target={external ? "_blank" : undefined} rel={external ? "noopener noreferrer" : undefined}
+        className="break-words font-medium text-[var(--hb-accent-hover)] underline decoration-current underline-offset-2 focus-visible:outline-2 focus-visible:outline-offset-2">
+        {renderInlineMd(reference.text, `${prefix}-${parts.length}-label`, false, depth + 1)}
+      </a>);
+    }
+    index += reference.length;
+  }
+  flush();
+  return parts;
 }
 
 // markdown table row 파싱 — "| a | b | c |" → ["a", "b", "c"]
 function parseTableRow(line: string): string[] | null {
   const trimmed = line.trim();
   if (!trimmed.startsWith("|") || !trimmed.endsWith("|")) return null;
-  return trimmed
-    .slice(1, -1)
-    .split("|")
-    .map((c) => c.trim());
+  const body = trimmed.slice(1, -1);
+  const cells: string[] = [];
+  let cell = "";
+  let code = "";
+  for (let index = 0; index < body.length; index += 1) {
+    const char = body[index];
+    if (char === "\\" && index + 1 < body.length) { cell += char + body[++index]; continue; }
+    const reference = !code ? readAmoraReferenceAt(body, index) : null;
+    if (reference?.type === "link") {
+      cell += body.slice(index, index + reference.length);
+      index += reference.length - 1; continue;
+    }
+    if (char === "`") {
+      let marker = char;
+      while (body[index + 1] === "`") marker += body[++index];
+      if (!code) code = marker;
+      else if (code === marker) code = "";
+      cell += marker;
+    } else if (char === "|" && !code) { cells.push(cell.trim()); cell = ""; }
+    else cell += char;
+  }
+  cells.push(cell.trim());
+  return cells;
+}
+
+function remainingReferenceDepth(text: string, depth: number): number {
+  for (const char of text) {
+    if (char === "(") depth += 1;
+    else if (char === ")" && --depth === 0) return 0;
+  }
+  return depth;
+}
+
+function unclosedReferenceDepth(line: string): number {
+  for (let index = 0; index < line.length; index += 1) {
+    if (line[index] === "`") {
+      const marker = line.slice(index).match(/^`+/u)?.[0] ?? "`";
+      const end = line.indexOf(marker, index + marker.length);
+      if (end >= index + marker.length) { index = end + marker.length - 1; continue; }
+    }
+    if (line[index] !== "[" && line[index] !== "!") continue;
+    const reference = readAmoraReferenceAt(line, index);
+    if (!reference) continue;
+    if (reference.type === "text") {
+      const destination = reference.text.indexOf("](");
+      if (destination >= 0) {
+        const depth = remainingReferenceDepth(reference.text.slice(destination + 2), 1);
+        if (depth > 0) return depth;
+      }
+    }
+    index += reference.length - 1;
+  }
+  return 0;
 }
 
 // separator row 여부 ("|---|---|" 또는 "|:---|---:|" 등)
@@ -39,9 +126,21 @@ export function renderAiMarkdown(text: string): React.ReactNode {
   const blocks: React.ReactNode[] = [];
 
   let i = 0;
+  let inertReferenceDepth = 0;
   while (i < lines.length) {
     const line = lines[i];
     const trimmed = line.trim();
+
+    // 잘못된 여러 줄 링크를 줄별로 나눈 뒤 내부 URL만 활성화하지 않는다.
+    if (!trimmed) inertReferenceDepth = 0;
+    const initialDepth = !inertReferenceDepth && !/^(`{3,}|~{3,})/u.test(trimmed)
+      ? unclosedReferenceDepth(line) : 0;
+    if (inertReferenceDepth || (initialDepth > 0 && i + 1 < lines.length && lines[i + 1].trim())) {
+      const firstLine = inertReferenceDepth === 0;
+      inertReferenceDepth = inertReferenceDepth ? remainingReferenceDepth(line, inertReferenceDepth) : initialDepth;
+      blocks.push(<div key={i} className="leading-relaxed">{firstLine ? renderInlineMd(line, `inert-${i}`) : line}</div>);
+      i++; continue;
+    }
 
     // 테이블 감지 — 현재 줄이 table row이고 다음 줄이 separator 이면 표.
     const headerCells = parseTableRow(line);
@@ -192,11 +291,14 @@ export function renderAiMarkdown(text: string): React.ReactNode {
       i++;
       continue;
     }
-    // 코드펜스 (```) — 안쪽은 서식을 적용하지 않고 그대로 보여 준다.
-    if (/^```/.test(trimmed)) {
+    // 코드펜스는 여는 표식과 같은 종류·길이 이상일 때만 닫는다.
+    const fence = trimmed.match(/^(`{3,}|~{3,})/u)?.[1];
+    if (fence) {
       const code: string[] = [];
       i++;
-      while (i < lines.length && !/^```/.test(lines[i].trim())) {
+      while (i < lines.length) {
+        const end = lines[i].trim().match(/^(`{3,}|~{3,})\s*$/u)?.[1];
+        if (end && end[0] === fence[0] && end.length >= fence.length) break;
         code.push(lines[i]);
         i++;
       }
@@ -227,4 +329,3 @@ export function renderAiMarkdown(text: string): React.ReactNode {
   }
   return blocks;
 }
-

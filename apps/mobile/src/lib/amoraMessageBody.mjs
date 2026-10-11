@@ -1,3 +1,5 @@
+import { readAmoraReferenceAt } from "@hanbang/shared/amora-reference-links";
+
 /** Native 본문용 제한된 Markdown. 사용자 원문과 실행 도구에는 적용하지 않는다. */
 export function parseAmoraMessageBody(content) {
   const lines = content.replace(/\r\n/g, "\n").split("\n");
@@ -90,16 +92,12 @@ export function parseAmoraInline(text) {
     if (char === "\\" && /[\\`*_[\]{}()#+.!|>~-]/u.test(text[index + 1] ?? "")) {
       append(text[index + 1]); index += 2; continue;
     }
-    if (char === "[" && text[index - 1] !== "!") {
-      const link = text.slice(index).match(/^\[([^\]\n]+)\]\(([^)\s]+)\)/u);
-      if (link) {
-        try {
-          const url = new globalThis.URL(link[2]);
-          if (url.protocol === "https:" && !url.username && !url.password) {
-            parts.push({ type: "link", text: link[1], href: link[2] }); index += link[0].length; continue;
-          }
-        } catch { /* 잘못된 주소는 실행하지 않고 원문으로 남긴다. */ }
-      }
+    const reference = readAmoraReferenceAt(text, index);
+    if (reference) {
+      if (reference.type === "link") parts.push({ type: "link", text: reference.text, href: reference.href });
+      else append(reference.text);
+      index += reference.length;
+      continue;
     }
     if (char === "`" || char === "*" || char === "_") {
       let marker = char;
