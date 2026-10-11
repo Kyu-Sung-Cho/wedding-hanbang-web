@@ -2,7 +2,7 @@
 
 기준일: 2026-10-11 (Asia/Seoul)
 
-상태: LOCAL CANDIDATE / REMOTE CI·PREVIEW·PRODUCTION 미검증.
+상태: LOCAL GATES PASS / REMOTE CI·PREVIEW·PRODUCTION 미검증.
 사용자 요청: 자료·사이트 이름만 알려주지 말고 바로 열 수 있는 링크로 안내하고,
 GitHub와 Vercel을 통해 hanbang.ai까지 배포한다.
 
@@ -62,9 +62,19 @@ GitHub와 Vercel을 통해 hanbang.ai까지 배포한다.
 - 웹 변경 파일 ESLint PASS. 웹 build는 33874d5 후보에서 PASS(175 pages,
   연구 route absent, artifact 3,101 files clean). 이후 모바일 2파일과 이 문서만
   변경했고 shared/web/prompt bytes는 동일하다. build 후 독립 web tsc도 PASS.
-- 전체 패키지 typecheck·lint·test normal pre-push gate는 진행 중.
+- 정상 pre-push의 typecheck·lint·test 9/9 tasks PASS(exit 0).
+  전체 웹 1,258 files / 22,509 tests PASS, shared 141 PASS.
+  hook의 모바일 1,414 PASS 이후 native fence 테스트 3개가 추가되었고,
+  최종 모바일 1,417 PASS·typecheck·lint를 별도 확인했다.
+  최종 문서 push에서 변경된 native 패키지 gate도 정상 재실행한다.
+  웹 ESLint의 기존 23 warnings/0 errors는 새 링크 파일 경고가 아니다.
+- 정상 push 후 remote 브랜치 SHA `374dc977911bd25cb2ddc75e167cddb3561f1069` 확인.
+  GitHub가 default branch의 기존 dependency alerts 11개(5 high/4 moderate/2 low)를
+  안내했다. 의존성을 변경한 릴리스가 아니며 기존 보안 경고를 해소했다고 주장하지 않는다.
 - 모바일 fence 보완 전 Expo export는 진단 결과로만 남긴다.
-  보완된 코드의 Expo web/iOS/Android export는 재실행 대상이다.
+  최종 코드 `374dc9779`의 Expo web/iOS/Android export는 PASS(exit 0,
+  2026-10-11T12:15:46.399Z~12:18:16.016Z). 최종 parser hash도 동일하다.
+  실제 EAS·스토어·설치 기기 업데이트를 수행하거나 검증한 것은 아니다.
 - PR의 필수 CI·exact-head Preview·merge SHA·Production build·별칭·운영 smoke:
   아직 확인하지 않았으며 배포 완료로 보고하지 않는다.
 
