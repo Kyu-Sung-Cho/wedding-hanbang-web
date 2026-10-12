@@ -35,9 +35,10 @@ B에는 함수 overload/기존 모바일 호환, 정식 DB 컨트롤러·manifes
 |---|---|---|
 | 안전 영향 범위 | 19파일 / 1,957 PASS / 0 FAIL / 0 SKIP | 실제 route·공유 lane·위기 경계·초안 hook 포함 |
 | 독립 안전 corpus | 66문장 × 4 공유 조건 + 경계 24문장, 2회 기대값 일치 | 별도 진단, 공식 test 수와 합산하지 않음 |
-| 장소 1차 영향 범위 | 19파일 / 332 PASS / 0 FAIL / 0 SKIP | 이후 독립 corpus의 4개 추가 변형은 각각 RED→GREEN으로 수정; 최종 통합에서 재실행 필요 |
+| 장소 최종 영향 범위 | 19파일 / 338 PASS / 0 FAIL / 0 SKIP | 추가 거절·간접 질문도 RED→GREEN; 독립 기존 36문장과 추가 12문장 각각 2회 기대값 일치 |
 | 메모 영향 범위 | 4파일 / 127 PASS / 0 FAIL / 0 SKIP | 버전 없는 수정 거절·raw 비교·삭제 확인·저장 답변 연결 |
 | 초안 최종 영향 범위 | 5파일 / 247 PASS / 0 FAIL / 0 SKIP | 실제 auth store·conversation/panel remount·잘못된 journey·로그아웃 late pagehide |
+| 초안 독립 검토 | 회귀 120 PASS, 별도 race·identity 진단 13 PASS | 정상 journey null↔same 때 stale 인증 응답은 계속 거절되는지 확인; 위 247개와 중복 합산 금지 |
 | 공유 패키지 전체 | 141 PASS / exit 0 | 안전 수정 후 |
 | 모바일 전체 | 1,419 PASS / exit 0 | 안전 수정 후; 실제 설치 앱·업데이트 검증을 대신하지 않음 |
 
