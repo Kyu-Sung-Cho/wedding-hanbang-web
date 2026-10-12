@@ -7,6 +7,7 @@ import { z } from "zod";
 import { getAmoraVisibleText } from "@hanbang/shared/amora-visible-text";
 
 import Button from "@/components/ui/Button";
+import AmoraSheetFrame from "@/components/app/chat/AmoraSheetFrame";
 import { renderAiMarkdown } from "@/components/app/chat/renderAiMarkdown";
 import { weddingLinkProps } from "@/lib/weddingPaths";
 import { useAuthStore } from "@/stores/authStore";
@@ -62,6 +63,10 @@ function ScopedSavedNotesContent({ scope, embedded }: { scope: string; embedded:
   const [memoDraft, setMemoDraft] = useState("");
   const [memoConflict, setMemoConflict] = useState<MemoConflict | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [deleteSnapshot, setDeleteSnapshot] = useState<SavedNote | null>(null);
+  const [deleteNeedsRead, setDeleteNeedsRead] = useState(false);
+  const [deleteRechecked, setDeleteRechecked] = useState(false);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [loadingMore, setLoadingMore] = useState(false);
   /** 저장·삭제가 거절된 이유. 불러오기 실패와 달리 목록은 그대로 두고 위에 띄운다. */
@@ -174,14 +179,15 @@ function ScopedSavedNotesContent({ scope, embedded }: { scope: string; embedded:
 
   const removeNote = useCallback(async (id: string) => {
     const generation = lifecycle.current;
-    if (pending.current || readPending.current || !stillCurrent(generation) || !notes.find(note => note.id === id)?.savedByMe) return;
+    if (deletingId !== id || deleteNeedsRead || deleteSnapshot?.id !== id || !deleteSnapshot.savedByMe || pending.current || readPending.current || !stillCurrent(generation)) return;
     pending.current = true;
     setBusyId(id);
+    setActionError(null);
     try {
       const response = await fetch("/api/amora/notes", {
         method: "DELETE",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id }),
+        body: JSON.stringify({ id, expectedMemo: deleteSnapshot.memo }),
       });
       const receipt = await response.clone().json().catch(() => null) as { deleted?: unknown; id?: unknown } | null;
       if (!stillCurrent(generation)) return;
@@ -189,9 +195,14 @@ function ScopedSavedNotesContent({ scope, embedded }: { scope: string; embedded:
         setNotes((current) => current.filter((note) => note.id !== id));
         window.dispatchEvent(new Event("amora-saved-notes-changed"));
         if (editingId === id) { setEditingId(null); setMemoDraft(""); setMemoConflict(null); }
+        setDeletingId(null);
+        setDeleteSnapshot(null);
         setActionError(null);
       } else {
-        setActionError(await readError(response, "저장한 답변을 지우지 못했어요."));
+        const error = await readError(response, "저장한 답변을 지우지 못했어요.");
+        if (!stillCurrent(generation)) return;
+        if (response.status === 409) setDeleteNeedsRead(true);
+        setActionError(error);
       }
     } catch {
       if (stillCurrent(generation)) setActionError("삭제 여부를 확인하지 못했어요. 다시 시도해 주세요.");
@@ -199,7 +210,32 @@ function ScopedSavedNotesContent({ scope, embedded }: { scope: string; embedded:
       pending.current = false;
       if (stillCurrent(generation)) setBusyId(null);
     }
-  }, [editingId, notes, stillCurrent]);
+  }, [deleteNeedsRead, deleteSnapshot, deletingId, editingId, stillCurrent]);
+
+  const deletingNote = deleteSnapshot?.id === deletingId && deleteSnapshot.savedByMe ? deleteSnapshot : null;
+  const closeDelete = () => { if (!pending.current && !readPending.current) { setDeletingId(null); setDeleteSnapshot(null); } };
+  const recheckDelete = async () => {
+    const generation = lifecycle.current;
+    if (!deletingNote || !deleteNeedsRead || pending.current || readPending.current || !stillCurrent(generation)) return;
+    readPending.current = true; setBusyId(deletingNote.id);
+    try {
+      if (!notePageCursors.current.has(deletingNote.id)) throw new Error("unknown_page");
+      const cursor = notePageCursors.current.get(deletingNote.id);
+      const response = await fetch(`/api/amora/notes${cursor ? `?cursor=${encodeURIComponent(cursor)}` : ""}`, { cache: "no-store" });
+      if (!response.ok) throw new Error("read_failed");
+      const body = notesSchema.parse(await response.json());
+      const matches = body.notes.filter(note => note.id === deletingNote.id && note.savedByMe);
+      if (matches.length !== 1) throw new Error("note_not_verified");
+      if (!stillCurrent(generation)) return;
+      setDeleteSnapshot({ ...matches[0] });
+      setNotes(current => current.map(note => note.id === deletingNote.id ? matches[0] : note));
+      setDeleteNeedsRead(false); setDeleteRechecked(true); setActionError(null);
+    } catch {
+      if (stillCurrent(generation)) setActionError("최신 저장본을 확인하지 못했어요. 삭제하지 않았어요. 다시 확인해 주세요.");
+    } finally {
+      if (stillCurrent(generation)) { readPending.current = false; setBusyId(null); }
+    }
+  };
 
   return (
     <div className={embedded ? "w-full min-w-0 max-w-3xl py-3" : "mx-auto w-full max-w-3xl px-5 py-8 sm:px-8 sm:py-10"}>
@@ -281,7 +317,14 @@ function ScopedSavedNotesContent({ scope, embedded }: { scope: string; embedded:
                 </p>
                 {note.savedByMe && <button
                   type="button"
-                  onClick={() => void removeNote(note.id)}
+                  onClick={() => {
+                    if (pending.current || readPending.current || !stillCurrent(lifecycle.current)) return;
+                    setDeletingId(note.id);
+                    setDeleteSnapshot({ ...note });
+                    setDeleteNeedsRead(false);
+                    setDeleteRechecked(false);
+                    setActionError(null);
+                  }}
                   disabled={busyId !== null || loadingMore}
                   className="inline-flex min-h-11 shrink-0 items-center gap-1 rounded-[6px] px-2 text-sm whitespace-nowrap text-[var(--hb-text-muted)] hover:text-rose-700 disabled:opacity-40"
                   aria-label="저장 지우기"
@@ -364,6 +407,30 @@ function ScopedSavedNotesContent({ scope, embedded }: { scope: string; embedded:
         <p>{notes.length}개를 불러왔어요. 이전 답변도 이어서 볼 수 있어요.</p>
         <button type="button" disabled={status === "loading" || loadingMore || busyId !== null || editingId !== null} onClick={() => void load(nextCursor)} className="mt-2 min-h-11 rounded-[6px] border border-[#E8E0D8] px-4 font-semibold text-rose-700 disabled:opacity-40">{loadingMore ? "불러오는 중…" : "이전 답변 더 보기"}</button>
       </div>}
+      {deletingNote && <AmoraSheetFrame
+        title="저장한 답변을 지울까요?"
+        description="이 저장본과 저장된 메모는 영구 삭제되며 되돌릴 수 없어요. 원래 대화는 이 작업으로 삭제하지 않아요."
+        disabled={busyId !== null || loadingMore || deleteNeedsRead}
+        busy={busyId !== null}
+        applyLabel="저장본과 메모 지우기"
+        notice={deleteRechecked ? "최신 저장본을 다시 불러왔어요. 아래 내용을 확인한 뒤 삭제 여부를 새로 정해 주세요." : editingId === deletingNote.id ? "삭제하면 작성 중인 메모도 함께 닫혀요. 취소하면 작성한 내용은 그대로 남아요." : null}
+        error={actionError}
+        onConfirm={() => void removeNote(deletingNote.id)}
+        onClose={closeDelete}
+        onDefer={closeDelete}
+      >
+        <div className="mb-4 space-y-3 text-sm leading-6">
+          <p className="font-semibold">지울 저장본</p>
+          <div className="min-w-0 break-words whitespace-pre-line">
+            {deletingNote.sourceIsAi === true ? renderAiMarkdown(getAmoraVisibleText(deletingNote.content)) : deletingNote.content}
+          </div>
+          {deletingNote.memo !== null && <>
+            <p className="font-semibold">함께 지울 저장된 메모</p>
+            <p className="break-words whitespace-pre-wrap">{deletingNote.memo}</p>
+          </>}
+          {deleteNeedsRead && <Button type="button" variant="secondary" disabled={busyId !== null} onClick={() => void recheckDelete()}>삭제할 저장본 다시 확인</Button>}
+        </div>
+      </AmoraSheetFrame>}
     </div>
   );
 }

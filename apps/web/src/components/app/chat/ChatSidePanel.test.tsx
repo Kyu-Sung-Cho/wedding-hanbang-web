@@ -1231,6 +1231,40 @@ describe("ChatSidePanel attachment sending", () => {
       .toBe("개인 상담 초안");
   });
 
+  it.each(["shared", "private"])("recovers an unsent %s text after panel remount without sending it", async lane => {
+    const findButton = (label: string) => Array.from(container.querySelectorAll<HTMLButtonElement>("button"))
+      .find(button => button.textContent?.includes(label));
+    const composer = () => container.querySelector<HTMLInputElement>('input[aria-label="메시지 입력"]');
+    if (lane === "private") await act(async () => findButton("나만 (상담)")?.click());
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set?.call(composer(), `${lane} 미전송 초안`);
+      composer()?.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    await act(async () => root.unmount());
+    root = createRoot(container);
+    await act(async () => root.render(<ChatSidePanel isOpen onClose={vi.fn()} />));
+    if (lane === "private") await act(async () => findButton("나만 (상담)")?.click());
+    expect(composer()?.value).toBe(`${lane} 미전송 초안`);
+    expect(mocks.sendMessage).not.toHaveBeenCalled();
+    expect(container.textContent).toContain("전송·공유되지는 않으며");
+  });
+  it("does not recover a partial text-only request while an attachment is still being read", async () => {
+    vi.spyOn(FileReader.prototype, "readAsDataURL").mockImplementation(() => {});
+    await act(async () => {
+      const input = container.querySelector<HTMLInputElement>('input[aria-label="메시지 입력"]');
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set?.call(input, "파일 내용도 함께 확인해줘");
+      input?.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    const fileInput = container.querySelector<HTMLInputElement>('input[type="file"]');
+    Object.defineProperty(fileInput, "files", { configurable: true, value: [new File(["draft"], "contract.pdf", { type: "application/pdf" })] });
+    await act(async () => fileInput?.dispatchEvent(new Event("change", { bubbles: true })));
+    expect(sessionStorage.getItem("hanbang:amora-text-drafts:v1:panel")).toBeNull();
+    await act(async () => root.unmount()); root = createRoot(container);
+    await act(async () => root.render(<ChatSidePanel isOpen onClose={vi.fn()} />));
+    expect(container.querySelector<HTMLInputElement>('input[aria-label="메시지 입력"]')?.value).toBe("");
+    expect(mocks.sendMessage).not.toHaveBeenCalled();
+  });
+
   it("keeps shared drafts inside the recipient where they were written", async () => {
     const findButton = (label: string) => Array.from(
       container.querySelectorAll<HTMLButtonElement>("button"),

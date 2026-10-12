@@ -48,6 +48,12 @@ function resetStore() {
 }
 
 describe("useAuthStore", () => {
+  it("purges both tab-local composer recovery copies when auth is reset", () => {
+    const keys = ["hanbang:amora-text-drafts:v1:conversation", "hanbang:amora-text-drafts:v1:panel"];
+    for (const key of keys) sessionStorage.setItem(key, "outgoing-private-draft");
+    useAuthStore.getState().reset();
+    for (const key of keys) expect(sessionStorage.getItem(key)).toBeNull();
+  });
   beforeEach(() => {
     resetStore();
     sessionStorage.clear();

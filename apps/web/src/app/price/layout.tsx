@@ -3,7 +3,6 @@ import Link from "next/link";
 import Logo from "@/components/ui/Logo";
 import HiddenInsideMobileApp from "@/components/common/HiddenInsideMobileApp";
 import { CONTACT } from "@/lib/constants/contact";
-import { weddingLinkProps } from "@/lib/weddingPaths";
 
 // 공시 가격 표면은 검색 유입이 가장 많은 입구인데도 루트 레이아웃만 써서
 // 로고·이동 경로·정책 링크가 하나도 없었다(2026-07-25 모바일 실측). 이미 무거운
@@ -34,7 +33,7 @@ export default function PriceLayout({ children }: { children: React.ReactNode })
       <header className="border-b border-[var(--hb-primary)]/10 bg-[var(--hb-surface-page)]">
         <div className="mx-auto flex w-full max-w-[1320px] flex-wrap items-center justify-between gap-x-6 gap-y-2 px-4 py-3 sm:px-6 lg:px-8">
           <Link
-            {...weddingLinkProps()}
+            href="/landing"
             prefetch={false}
             className="inline-flex shrink-0 items-center"
             aria-label="웨딩한방 홈으로 이동"
@@ -58,7 +57,7 @@ export default function PriceLayout({ children }: { children: React.ReactNode })
       <footer className="mt-12 bg-[var(--hb-primary)] text-white">
         <div className="mx-auto grid w-full max-w-[1320px] gap-8 px-4 py-9 sm:grid-cols-2 sm:px-6 lg:grid-cols-4 lg:px-8">
           <div className="sm:col-span-2 lg:col-span-1">
-            <Link {...weddingLinkProps()} prefetch={false} className="inline-flex items-center" aria-label="웨딩한방 홈으로 이동">
+            <Link href="/landing" prefetch={false} className="inline-flex items-center" aria-label="웨딩한방 홈으로 이동">
               <Logo size="sm" variant="white" />
             </Link>
             <p className="mt-3 text-[13px] font-medium leading-6 text-[var(--hb-on-primary)]">

@@ -367,19 +367,19 @@ export async function PATCH(req: Request) {
     const memo = optionalMemo(body.memo);
     if (memo instanceof NextResponse) return memo;
 
-    const hasExpectedMemo = Object.prototype.hasOwnProperty.call(body, "expectedMemo");
-    const validatedExpectedMemo = hasExpectedMemo ? optionalMemo(body.expectedMemo) : null;
-    if (validatedExpectedMemo instanceof NextResponse) return validatedExpectedMemo;
+    if (!Object.prototype.hasOwnProperty.call(body, "expectedMemo")
+        || !(body.expectedMemo === null || (typeof body.expectedMemo === "string" && body.expectedMemo.length <= MAX_MEMO_LENGTH))) {
+      return mobileBridgeJson({ error: "현재 메모를 다시 불러온 뒤 확인해 주세요.", code: "SAVED_NOTE_VERSION_REQUIRED" }, { status: 400, headers: RESPONSE_HEADERS });
+    }
     // CAS는 원래 저장값 그대로 비교한다. 과거 메모의 공백을 정규화하면 현재값과
     // 같아도 충돌로 오판하므로 새 메모 정리 규칙과 비교값을 분리한다.
     const expectedMemo = typeof body.expectedMemo === "string" ? body.expectedMemo : null;
-    if (expectedMemo !== null && expectedMemo.length > MAX_MEMO_LENGTH) return mobileBridgeJson({ error: "기존 메모를 다시 불러와 주세요." }, { status: 400, headers: RESPONSE_HEADERS });
 
     let query = supabase
       .from("amora_saved_notes")
       .update({ memo })
       .eq("id", body.id);
-    if (hasExpectedMemo) query = expectedMemo === null ? query.is("memo", null) : query.eq("memo", expectedMemo);
+    query = expectedMemo === null ? query.is("memo", null) : query.eq("memo", expectedMemo);
     const { data, error } = await query.select("id, memo").maybeSingle();
     if (error) {
       return mobileBridgeJson(
@@ -389,8 +389,8 @@ export async function PATCH(req: Request) {
     }
     if (!data) {
       return mobileBridgeJson(
-        { error: hasExpectedMemo ? "다른 변경과 겹쳤어요. 현재 메모를 다시 불러온 뒤 확인해 주세요." : "저장 항목을 찾을 수 없습니다." },
-        { status: hasExpectedMemo ? 409 : 404, headers: RESPONSE_HEADERS },
+        { error: "다른 변경과 겹쳤어요. 현재 메모를 다시 불러온 뒤 확인해 주세요." },
+        { status: 409, headers: RESPONSE_HEADERS },
       );
     }
     if (!isUuid(data.id) || data.id !== body.id || data.memo !== memo) return noteUnavailable();
@@ -431,14 +431,21 @@ export async function DELETE(req: Request) {
       );
     }
 
+    if (!Object.prototype.hasOwnProperty.call(body, "expectedMemo")
+        || !(body.expectedMemo === null || (typeof body.expectedMemo === "string" && body.expectedMemo.length <= MAX_MEMO_LENGTH))) {
+      return mobileBridgeJson({ error: "삭제할 저장본과 메모를 다시 확인해 주세요." }, { status: 400, headers: RESPONSE_HEADERS });
+    }
+    const expectedMemo = body.expectedMemo;
     const coupleId = await resolveCoupleId(supabase, user.id);
     if (coupleId instanceof NextResponse) return coupleId;
     if (!coupleId) return mobileBridgeJson({ error: "현재 커플의 저장만 취소할 수 있어요." }, { status: 403, headers: RESPONSE_HEADERS });
-    const { data: deleted, error } = await supabase
+    let deleteQuery = supabase
       .from("amora_saved_notes")
       .delete()
-      .eq("id", body.id).eq("couple_id", coupleId).eq("saved_by", user.id)
-      .select("id").maybeSingle();
+      .eq("id", body.id).eq("couple_id", coupleId).eq("saved_by", user.id);
+    // 조회-삭제 사이가 아니라 DELETE 자체의 조건으로 승인한 메모를 비교한다.
+    deleteQuery = expectedMemo === null ? deleteQuery.is("memo", null) : deleteQuery.eq("memo", expectedMemo);
+    const { data: deleted, error } = await deleteQuery.select("id").maybeSingle();
     if (error) {
       return mobileBridgeJson(
         { error: "삭제하지 못했습니다." },
@@ -447,9 +454,11 @@ export async function DELETE(req: Request) {
     }
     if (!deleted) {
       const { data: existing, error: existingError } = await supabase.from("amora_saved_notes")
-        .select("id").eq("id", body.id).eq("couple_id", coupleId).maybeSingle();
+        .select("id, saved_by").eq("id", body.id).eq("couple_id", coupleId).maybeSingle();
       if (existingError) return noteUnavailable();
-      if (existing) return mobileBridgeJson({ error: "파트너가 저장한 내용은 취소할 수 없어요." }, { status: 403, headers: RESPONSE_HEADERS });
+      if (existing) return existing.saved_by === user.id
+        ? mobileBridgeJson({ error: "저장된 메모가 바뀌었어요. 최신 저장본을 다시 확인한 뒤 삭제해 주세요.", code: "SAVED_NOTE_CHANGED" }, { status: 409, headers: RESPONSE_HEADERS })
+        : mobileBridgeJson({ error: "파트너가 저장한 내용은 취소할 수 없어요." }, { status: 403, headers: RESPONSE_HEADERS });
     } else if (deleted.id !== body.id) return noteUnavailable();
     // 이미 없어도 원하는 상태이므로 성공으로 답한다(재시도 안전).
     return mobileBridgeJson({ deleted: true, id: body.id }, { headers: RESPONSE_HEADERS });

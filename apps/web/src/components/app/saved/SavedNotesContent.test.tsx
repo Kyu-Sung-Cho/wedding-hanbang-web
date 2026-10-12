@@ -31,6 +31,10 @@ describe("저장함의 실제 영수증과 편집 범위", () => {
     const found = Array.from(container.querySelectorAll("button")).find(value => value.textContent === text);
     expect(found).toBeDefined(); return found!;
   }
+  function confirmDelete() {
+    const found = document.body.querySelector<HTMLButtonElement>('[role="dialog"] [data-amora-confirm]');
+    expect(found).not.toBeNull(); return found!;
+  }
   async function edit() {
     await act(async () => button("기존 메모").click());
     const field = container.querySelector("textarea")!;
@@ -116,9 +120,11 @@ describe("저장함의 실제 영수증과 편집 범위", () => {
       .mockResolvedValueOnce(response({ deleted: true, id: note.id }));
     await render();
     await act(async () => button("지우기").click());
+    expect(fetch).toHaveBeenCalledTimes(1);
+    await act(async () => confirmDelete().click());
     expect(container.textContent).toContain(note.content);
     expect(container.querySelector('[role="alert"]')).not.toBeNull();
-    await act(async () => button("지우기").click());
+    await act(async () => confirmDelete().click());
     expect(container.textContent).not.toContain(note.content);
     expect(container.textContent).toContain("아직 저장한 답변이 없어요");
   });
@@ -154,6 +160,7 @@ describe("저장함의 실제 영수증과 편집 범위", () => {
       .mockResolvedValueOnce(response({ notes: [{ ...note, content: "남아 있는 합성 이야기" }], next_cursor: null }));
     await render(); await edit();
     await act(async () => button("지우기").click());
+    await act(async () => confirmDelete().click());
     expect(container.querySelector("textarea")).toBeNull();
     expect(button("이전 답변 더 보기").disabled).toBe(false);
     expect(button("새로고침").disabled).toBe(false);

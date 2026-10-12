@@ -12,9 +12,6 @@ vi.mock("@/lib/supabase/server", () => ({
 vi.mock("@supabase/supabase-js", () => ({
   createClient: createAdminClientSpy,
 }));
-vi.mock("@/utils/trustedMutation", () => ({
-  isTrustedMutationRequest: vi.fn(() => true),
-}));
 
 import { POST } from "../route";
 
@@ -108,7 +105,7 @@ function mockAdminClient(inserts: unknown[]) {
 function feedbackRequest(messageId: string, correction: string) {
   return new Request("http://localhost/api/chat/feedback", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", Origin: "http://localhost" },
     body: JSON.stringify({ messageId, rating: "bad", correction }),
   });
 }
@@ -116,15 +113,153 @@ function feedbackRequest(messageId: string, correction: string) {
 function feedbackRequestFromBody(body: unknown) {
   return new Request("http://localhost/api/chat/feedback", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", Origin: "http://localhost" },
     body: JSON.stringify(body),
   });
+}
+
+function streamedFeedbackRequest(body: ReadableStream<Uint8Array>, extraHeaders: Record<string, string> = {}) {
+  const init: RequestInit & { duplex: "half" } = {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Origin: "http://localhost", ...extraHeaders },
+    body,
+    duplex: "half",
+  };
+  return new Request("http://localhost/api/chat/feedback", init);
 }
 
 describe("POST /api/chat/feedback", () => {
   beforeEach(() => {
     createClientFromRequestSpy.mockReset();
     createAdminClientSpy.mockReset();
+  });
+
+  it("cancels an oversized chunked body before reading its tail or touching feedback records", async () => {
+    const requestClient = mockRequestClient({ data: null, error: null });
+    let pullCount = 0;
+    let cancelled = false;
+    const stream = new ReadableStream<Uint8Array>({
+      pull(controller) {
+        pullCount += 1;
+        if (pullCount === 1) controller.enqueue(new Uint8Array(131_155));
+        else throw new Error("OVERSIZED_FEEDBACK_TAIL_MUST_NOT_BE_READ");
+      },
+      cancel() { cancelled = true; },
+    }, { highWaterMark: 0 });
+    const init: RequestInit & { duplex: "half" } = {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Origin: "http://localhost" },
+      body: stream,
+      duplex: "half",
+    };
+
+    const response = await POST(new Request("http://localhost/api/chat/feedback", init));
+
+    expect(response.status).toBe(413);
+    expect(pullCount).toBe(1);
+    expect(cancelled).toBe(true);
+    expect(requestClient.from).not.toHaveBeenCalled();
+    expect(createAdminClientSpy).not.toHaveBeenCalled();
+  });
+
+  it.each([undefined, "1", "16384"])("counts actual UTF-8 bytes despite Content-Length %s", async (contentLength) => {
+    const requestClient = mockRequestClient({ data: null, error: null });
+    const bytes = new TextEncoder().encode(JSON.stringify({ messageId: MESSAGE_A, rating: "bad", correction: "가".repeat(44_000) }));
+    let readBytes = 0;
+    let cancelled = false;
+    const stream = new ReadableStream<Uint8Array>({
+      pull(controller) {
+        if (readBytes >= 20_480) throw new Error("FEEDBACK_TAIL_MUST_NOT_BE_READ");
+        const next = readBytes + 4_096;
+        controller.enqueue(bytes.slice(readBytes, next));
+        readBytes = next;
+      },
+      cancel() { cancelled = true; },
+    }, { highWaterMark: 0 });
+
+    const response = await POST(streamedFeedbackRequest(stream, contentLength === undefined ? {} : { "Content-Length": contentLength }));
+
+    expect(response.status).toBe(413);
+    expect(readBytes).toBe(20_480);
+    expect(cancelled).toBe(true);
+    expect(requestClient.from).not.toHaveBeenCalled();
+    expect(createAdminClientSpy).not.toHaveBeenCalled();
+  });
+
+  it("rejects an oversized declared body before authentication", async () => {
+    const request = feedbackRequest(MESSAGE_A, "확인");
+    request.headers.set("Content-Length", "16385");
+
+    expect((await POST(request)).status).toBe(413);
+    expect(createClientFromRequestSpy).not.toHaveBeenCalled();
+    expect(createAdminClientSpy).not.toHaveBeenCalled();
+  });
+
+  it("preserves a maximum-length Unicode correction even when JSON escapes every character", async () => {
+    mockRequestClient({ data: { sender_type: "ai", visibility: "shared", content: "공유 답변" }, error: null });
+    const inserts: unknown[] = [];
+    mockAdminClient(inserts);
+    const json = `{"messageId":"${MESSAGE_A}","rating":"bad","correction":"${"\\uac00".repeat(2_000)}","category":"correction"}`;
+
+    const response = await POST(new Request("http://localhost/api/chat/feedback", {
+      method: "POST", headers: { "Content-Type": "application/json", Origin: "http://localhost" }, body: json,
+    }));
+
+    expect(response.status).toBe(200);
+    expect(inserts).toEqual([expect.objectContaining({ correction: "가".repeat(2_000) })]);
+  });
+
+  it("preserves Unicode characters split across request chunks", async () => {
+    mockRequestClient({ data: { sender_type: "ai", visibility: "shared", content: "공유 답변" }, error: null });
+    const inserts: unknown[] = [];
+    mockAdminClient(inserts);
+    const bytes = new TextEncoder().encode(JSON.stringify({ messageId: MESSAGE_A, rating: "bad", correction: "가😀설명" }));
+    const stream = new ReadableStream<Uint8Array>({
+      start(controller) {
+        for (const byte of bytes) controller.enqueue(new Uint8Array([byte]));
+        controller.close();
+      },
+    });
+
+    expect((await POST(streamedFeedbackRequest(stream))).status).toBe(200);
+    expect(inserts).toEqual([expect.objectContaining({ correction: "가😀설명" })]);
+  });
+
+  it.each(["invalid UTF-8", "stream read failure"])("returns bounded generic recovery for %s without database access", async (failure) => {
+    const requestClient = mockRequestClient({ data: null, error: null });
+    const stream = new ReadableStream<Uint8Array>({
+      start(controller) {
+        if (failure === "stream read failure") controller.error(new Error("PRIVATE_FEEDBACK_READ_DIAGNOSTIC"));
+        else { controller.enqueue(new Uint8Array([0xc3, 0x28])); controller.close(); }
+      },
+    });
+
+    const response = await POST(streamedFeedbackRequest(stream));
+
+    expect(response.status).toBe(400);
+    expect(JSON.stringify(await response.json())).not.toContain("PRIVATE_FEEDBACK_READ_DIAGNOSTIC");
+    expect(requestClient.from).not.toHaveBeenCalled();
+    expect(createAdminClientSpy).not.toHaveBeenCalled();
+  });
+
+  it("rejects an unauthenticated body without reading it", async () => {
+    createClientFromRequestSpy.mockResolvedValue({ auth: { getUser: async () => ({ data: { user: null } }) } });
+    let read = false;
+    const stream = new ReadableStream<Uint8Array>({ pull() { read = true; throw new Error("UNAUTHENTICATED_BODY_MUST_NOT_BE_READ"); } }, { highWaterMark: 0 });
+
+    expect((await POST(streamedFeedbackRequest(stream))).status).toBe(401);
+    expect(read).toBe(false);
+    expect(createAdminClientSpy).not.toHaveBeenCalled();
+  });
+
+  it("preserves the mutation-origin rejection before reading a request body", async () => {
+    let read = false;
+    const stream = new ReadableStream<Uint8Array>({ pull() { read = true; throw new Error("UNTRUSTED_BODY_MUST_NOT_BE_READ"); } }, { highWaterMark: 0 });
+
+    expect((await POST(streamedFeedbackRequest(stream, { Origin: "https://evil.invalid" }))).status).toBe(403);
+    expect(read).toBe(false);
+    expect(createClientFromRequestSpy).not.toHaveBeenCalled();
+    expect(createAdminClientSpy).not.toHaveBeenCalled();
   });
 
   it.each([[19, 200], [20, 429]])(
@@ -168,6 +303,56 @@ describe("POST /api/chat/feedback", () => {
     }
   );
 
+  it.each([
+    ["database count error", { count: null, error: { message: "PRIVATE_COUNT_DIAGNOSTIC" } }],
+    ["count error despite a numeric result", { count: 0, error: { message: "PRIVATE_COUNT_DIAGNOSTIC" } }],
+    ["null count", { count: null, error: null }],
+    ["missing count", { error: null }],
+    ["non-finite count", { count: Number.NaN, error: null }],
+    ["negative count", { count: -1, error: null }],
+    ["fractional count", { count: 0.5, error: null }],
+  ])("fails closed with retry guidance for %s before message access or writing feedback", async (_label, countResult) => {
+    const requestClient = mockRequestClient({ data: { sender_type: "ai", visibility: "shared", content: "공유 답변" }, error: null });
+    const inserts: unknown[] = [];
+    let queryCount = 0;
+    const admin = {
+      from: vi.fn(() => {
+        queryCount += 1;
+        return queryCount === 1
+          ? new FakeQuery(countResult)
+          : new FakeQuery({ data: { id: "must-not-insert" }, error: null }, payload => inserts.push(payload));
+      }),
+    };
+    createAdminClientSpy.mockReturnValue(admin);
+
+    const response = await POST(feedbackRequest(MESSAGE_A, "사용자가 승인한 피드백"));
+
+    expect(response.status).toBe(503);
+    expect(response.headers.get("retry-after")).toBe("60");
+    const body = await response.json();
+    expect(body.error).toContain("다시");
+    expect(JSON.stringify(body)).not.toContain("PRIVATE_COUNT_DIAGNOSTIC");
+    expect(requestClient.from).not.toHaveBeenCalled();
+    expect(admin.from).toHaveBeenCalledTimes(1);
+    expect(inserts).toEqual([]);
+  });
+
+  it("returns retry guidance when the rate-count query throws without touching message data", async () => {
+    const requestClient = mockRequestClient({ data: null, error: null });
+    const admin = {
+      from: vi.fn(() => new FakeQuery(() => { throw new Error("PRIVATE_COUNT_EXCEPTION"); })),
+    };
+    createAdminClientSpy.mockReturnValue(admin);
+
+    const response = await POST(feedbackRequest(MESSAGE_A, "다시 확인해 주세요"));
+
+    expect(response.status).toBe(503);
+    expect(response.headers.get("retry-after")).toBe("60");
+    expect(JSON.stringify(await response.json())).not.toContain("PRIVATE_COUNT_EXCEPTION");
+    expect(requestClient.from).not.toHaveBeenCalled();
+    expect(admin.from).toHaveBeenCalledTimes(1);
+  });
+
   it("rejects a non-UUID message ID before creating an admin client", async () => {
     mockRequestClient({ data: null, error: null });
 
@@ -184,7 +369,7 @@ describe("POST /api/chat/feedback", () => {
     const requestClient = mockRequestClient({ data: null, error: null });
     const request = new Request("http://localhost/api/chat/feedback", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", Origin: "http://localhost" },
       body: "{not-json",
     });
 

@@ -20,12 +20,29 @@ const ISOLATION = /(?:친구들?|가족|아무도|엄마)(?:을|를|랑|도)?\s*
 const DISCLOSURE_EXTENSION = /(?:어떡|도와|무서|답답|속상|그래서|때려서|[?🙏\uE001])/u;
 const NEW_VIOLENCE_RELATION = /(?:말\s*안\s*들으면|연락\s*안\s*받으면|때린다고\s*했|(?:애|아이|강아지|벽)(?:를|을)?\s*때려|술\s*먹으면\s*맞|와이프한테\s*맞아요|싸우다가\s*다쳤)/;
 const EXPLICIT_PARTNER_SUBJECT = new RegExp(`(?:^|\\s)(${PARTNER.source}(?:이|가|은|는)\\s*[^.!\\n]*)$`);
-const DANGER_EVIDENCE = /(?:자살|자해|죽|목숨|유서|약|칼|흉기|폭행|폭력|때(?:리|려|렸|린|릴)|맞|던지|던져|던졌|위협|협박|감금|스토킹)/;
+const DANGER_EVIDENCE = /(?:자살|자해|죽|목숨|유서|약|칼|흉기|폭행|폭력|발길질|주먹|손목|때(?:리|려|렸|린|릴)|맞|던지|던져|던졌|위협|협박|감금|스토킹)/;
+// 사람을 향한 동작과 완결된 서술을 함께 확인한다. 공을 차는 행동이나
+// 부정·가정·인용을 단어 하나만으로 폭력 고백으로 승격하지 않는다.
+const DIRECT_KICK_EVENT = new RegExp(`^${PARTNER.source}(?:이|가|은|는)\\s*(?:저한테|나한테|저에게|나에게|제게|내게|나를|저를|날|절)\\s*발길질(?:을)?\\s*(?:했(?:어|어요|습니다|는데|고)|해(?:요|서)?|하고\\s*있(?:어|어요))\\s*$`);
+const DIRECT_PUNCH_OBJECT = `(?:(?:내|제|저의|나의)\\s*)?(?:얼굴|뺨|머리|몸|배|가슴|등|턱)(?:을|를)`;
+const DIRECT_PUNCH_EVENT = new RegExp(`^${PARTNER.source}(?:이|가|은|는)\\s*(?:${DIRECT_PUNCH_OBJECT}\\s*주먹으로|주먹으로\\s*${DIRECT_PUNCH_OBJECT})\\s*(?:쳤(?:어|어요|습니다|는데)|가격했(?:어|어요|습니다|는데)|쳐(?:요)?|치고\\s*있(?:어|어요))\\s*$`);
+const DIRECT_WRIST_RESTRAINT_EVENT = new RegExp(`^${PARTNER.source}(?:이|가|은|는)\\s*(?:(?:내|제|저의|나의)\\s*)?손목(?:을)?\\s*(?:꽉\\s*)?잡(?:고|아서)\\s*(?:나가지\\s*못하게|못\\s*나가게)\\s*(?:해(?:요)?|했(?:어|어요|습니다|는데)|하고\\s*있(?:어|어요))\\s*$`);
+const DIRECT_REPORTED_LETHAL_THREAT_EVENT = new RegExp(`^${PARTNER.source}(?:이|가|은|는)\\s*(?:(?:나를|저를|날|절)\\s*)?(?:죽여\\s*버린대|죽인대|죽이겠대)(?:요)?\\s*$`);
 const BOUND_EVENT_DENIAL = /(?:협박|위협|폭행|때리)[^.!?\n]{0,14}(?:적\s*없(?:어|어요|다)|지(?:는|도)?\s*않(?:아|아요|았어요|는다)|(?:건|게|것은)\s*아니(?:에요|야|다|라고)?)\s*$/;
+const BOUND_REPORTED_THREAT_DENIAL = new RegExp(`^${PARTNER.source}(?:이|가|은|는)\\s*(?:(?:나를|저를|날|절|나한테|저한테)\\s*)?(?:죽인다고|죽이겠다고|죽여\\s*버린다고|죽여\\s*버리겠다고|때린다고|때리겠다고)\\s*(?:말)?한\\s*적(?:은|이|도)?\\s*(?:전혀\\s*)?없(?:어|어요|다|습니다)\\s*$`);
+const THIRD_PARTY_KICK_EVENT = new RegExp(`^(?:친구|지인|동생)(?:가|이|은|는)\\s*${PARTNER.source}(?:에게|한테)\\s*발길질(?:을)?\\s*당했(?:어|어요|습니다|고|는데|다고\\s*해(?:요)?)\\s*$`);
+const THIRD_PARTY_THREAT_EVENT = new RegExp(`^((?:친구|지인|동생))의\\s*${PARTNER.source}(?:이|가|은|는)\\s*\\1(?:을|를)\\s*(?:죽여\\s*버린대|죽인대|죽이겠대)(?:요)?\\s*$`);
+const HYPOTHETICAL_REPORTED_THREAT = new RegExp(`^(?:만약|가령)\\s*(?:(?:친구|지인|동생)의\\s*)?${PARTNER.source}(?:이|가|은|는)\\s*(?:친구를|지인을|동생을|저를|나를|날|절)\\s*(?:죽인다고|죽이겠다고|죽여\\s*버린다고)\\s*(?:한다면|하면)\\s*어떻게\\s*해야\\s*(?:하나요|해요|할까요)\\s*[?？]?$`);
 const ORDINARY_OBJECT_ACTION = new RegExp(`^${PARTNER.source}(?:이|가|은|는)\\s*(?:북|드럼|피아노|공|키보드|계산기\\s*버튼)(?:을|를)\\s*(?:(?:계속|세게|열심히)\\s*)*때(?:려(?:요)?|렸(?:어|어요|습니다)|리(?:고\\s*있(?:어|어요)|는\\s*중(?:이에요)?|고|나요|죠|습니다))\\s*[?？]?$`);
 
 function projectCurrentTimeAdjuncts(text: string): string {
   return text.replace(/(^|\s)(?:지금|현재|방금|오늘)(?:은|는|도)?(?=\s|$)/g, "$1");
+}
+
+function projectEventDisclosureTail(text: string): string {
+  // 사건 뒤의 명시적인 도움·두려움만 분리한다. 인용·가정·부정 꼬리는
+  // 그대로 남겨 전체 사건 문법이 거절하도록 한다.
+  return text.replace(/\s+(?:(?:지금|현재)\s*)?(?:(?:너무|정말|진짜)\s*)?(?:무서워(?:요)?|도와(?:줘|주세요)|어떻게\s*해야\s*(?:해(?:요)?|할까요))\s*[?？]?$/u, "");
 }
 
 function withoutQuotedText(text: string): string {
@@ -42,7 +59,7 @@ export function isQuotedSafetyReferenceOnly(text: string): boolean {
 
 /** One discourse boundary policy for actor questions and human disclosures. */
 function safetyDiscourseClauses(text: string): string[] {
-  return text.split(/(?:[.!;\n]+|(?<=[?？])\s*|하지만|그런데|근데|\s+그리고\s+|(?:게|것이)\s*아니라\s*|(?<=는데|지만)\s*)/u)
+  return text.split(/(?:[.!;\n]+|(?<=[?？])\s*|하지만|그런데|근데|\s+그리고\s+|(?:게|것이)\s*아니라\s*|(?<=는데|지만)\s*|(?<=했고|쳤고)\s+)/u)
     .map((clause) => clause.trim()).filter(Boolean);
 }
 
@@ -60,12 +77,18 @@ function hasAffirmedPartnerEvent(clause: string, realWorldSourceComparison = fal
   // Two adjacent nominative subjects are not an established causal/event
   // relationship ("친구가 남편이 ..."). Do not silently assign that person's
   // incomplete report to this couple; it needs its own relational evidence.
-  if (/(?:^|\s)[가-힣]+(?:가|이|은|는)\s*(?:(?:우리|제|내)\s*)?$/.test(prefix)) return false;
+  // 연결 어미의 '가'는 주격 조사가 아니다. '준비하다가 신랑이 ...'처럼
+  // 사건의 배경이 붙어도 뒤의 명시적 행위자·피해자 관계를 보존한다.
+  if (/(?:^|\s)[가-힣]+(?:가|이|은|는)\s*(?:(?:우리|제|내)\s*)?$/.test(prefix)
+    && !/(?:다가|니까|면서|기에)\s*$/.test(prefix)) return false;
   // Current-time adjuncts qualify the event, not its actor or polarity. Remove
   // only standalone present-time tokens for grammar matching, wherever they
   // occur in the bound event. The original clause retains its time evidence.
-  const eventGrammar = projectCurrentTimeAdjuncts(statement);
-  return isClosedPartnerViolenceStatement(eventGrammar);
+  const eventGrammar = projectCurrentTimeAdjuncts(projectEventDisclosureTail(statement));
+  return isClosedPartnerViolenceStatement(eventGrammar)
+    || DIRECT_KICK_EVENT.test(eventGrammar) || DIRECT_PUNCH_EVENT.test(eventGrammar)
+    || DIRECT_WRIST_RESTRAINT_EVENT.test(eventGrammar)
+    || DIRECT_REPORTED_LETHAL_THREAT_EVENT.test(eventGrammar);
 }
 
 /** A question addressed solely to the assistant is not a human disclosure. */
@@ -88,17 +111,24 @@ export function assessBoundSafetyContext(text: string): AmoraSafetyAssessment | 
   let unresolved = false;
   const threats: AmoraSafetyAssessment[] = [];
   let ideationReferent = false;
+  let adjacentOwnIdeation = false;
   let uncertainHumanReferent = false;
   let adjacentPartner: string | null = null;
   for (const clause of safetyDiscourseClauses(text)) {
     const humanReference = /^(?:(?:나는|난|저는|전|내가|제가|나도|저도)\s*)?(?:(?:지금|현재|오늘)(?:은|는)?\s*)?(?:그런|그|같은)\s*(?:생각|충동)(?:이|은|도)?/.exec(clause);
+    const implicitHumanReference = adjacentOwnIdeation
+      ? /^(?:(?:나는|난|저는|전)\s*)?(?:지금|현재|오늘|이제)(?:은|는|도)?\s*(?=(?:자꾸\s*|계속\s*|또\s*|다시\s*)*(?:나(?:요|서|는|\s|$)|들|있|없|아니|하지\s*않|안\s*해))/.exec(clause)
+      : null;
+    adjacentOwnIdeation = !META.test(clause)
+      && /^(?:(?:나는|난|저는|전|내가|제가)\s*)?(?:자살|자해)\s*(?:생각|충동)(?:이|은|을|도)?/.test(clause);
     const uncertainHumanReference = /^(?:나도|저도)\s*(?:그래|그렇|같)/.test(clause);
-    if (ideationReferent && (humanReference || uncertainHumanReference)) {
-      const predicate = humanReference ? clause.slice(humanReference[0].length) : clause;
+    if (ideationReferent && (humanReference || implicitHumanReference || uncertainHumanReference)) {
+      const reference = humanReference ?? implicitHumanReference;
+      const predicate = reference ? clause.slice(reference[0].length) : clause;
       if (DENIAL.test(clause) || /(?:없|아니|하지\s*않|안\s*해)/.test(predicate)) { excluded = true; continue; }
       // A human reference to the preceding ideation cannot disappear merely
       // because its words are not repeated. Unknown intent stays private too.
-      const affirmed = /^(?:자꾸\s*|계속\s*)*(?:있|들|나|해)/.test(predicate.trim());
+      const affirmed = /^(?:자꾸\s*|계속\s*|또\s*|다시\s*)*(?:있|들|나|해)/.test(predicate.trim());
       const uncertain = /(?:모르|확신|애매|있는지|인지)/.test(predicate) || uncertainHumanReference;
       uncertainHumanReferent ||= uncertain;
       threats.push(assessment("self_harm_intent", affirmed && !uncertain && !HISTORY.test(clause), HISTORY.test(clause)));
@@ -110,6 +140,21 @@ export function assessBoundSafetyContext(text: string): AmoraSafetyAssessment | 
     if (!DANGER_EVIDENCE.test(clause)) continue;
     if (isBotDirectedIdeationQuestion(clause) || isQuotedSafetyReferenceOnly(clause)) {
       excluded = true;
+      continue;
+    }
+    if (HYPOTHETICAL_REPORTED_THREAT.test(clause)) {
+      excluded = true;
+      continue;
+    }
+    if (!META.test(clause) && !DENIAL.test(clause) && !HISTORY.test(clause)
+      && !/(?:만약|가정|가령)/.test(clause)
+      && (THIRD_PARTY_KICK_EVENT.test(projectEventDisclosureTail(clause))
+        || THIRD_PARTY_THREAT_EVENT.test(projectEventDisclosureTail(clause)))) {
+      const event = assessment(THIRD_PARTY_THREAT_EVENT.test(projectEventDisclosureTail(clause))
+        ? "lethal_threat" : "physical_violence", false, false);
+      threats.push({ ...event, responseDirection: "third_party", events: event.events.map(item => ({
+        ...item, target: "known_other", direction: "third_party",
+      })) });
       continue;
     }
     let statement = clause.match(EXPLICIT_PARTNER_SUBJECT)?.[1];
@@ -125,8 +170,9 @@ export function assessBoundSafetyContext(text: string): AmoraSafetyAssessment | 
       excluded = true;
       continue;
     }
-    const event = statement == null ? null : projectCurrentTimeAdjuncts(statement);
-    if (event && /협박|위협/.test(event) && BOUND_EVENT_DENIAL.test(event)) {
+    const event = statement == null ? null : projectCurrentTimeAdjuncts(projectEventDisclosureTail(statement));
+    if (event && ((/협박|위협/.test(event) && BOUND_EVENT_DENIAL.test(event))
+      || BOUND_REPORTED_THREAT_DENIAL.test(event))) {
       excluded = true;
       continue;
     }
@@ -141,8 +187,8 @@ export function assessBoundSafetyContext(text: string): AmoraSafetyAssessment | 
     // quotation here: stripping it would discard the dangerous content.
     // Korean reported present speech uses 죽인다고 as well as 죽이겠다고.
     // Both require the bound human actor and an affirmative threat predicate.
-    const dangerousSpeech = /(?:죽(?:이|인|일|여)|때(?:리|릴|려))/.test(statement ?? "");
-    const reportedThreat = /(?:죽(?:이|인|일|여)|때(?:리|릴|려))[^.!?\n]{0,24}(?:다고|라고)[^.!?\n]{0,16}협박(?:해|하|했)/.test(statement ?? "");
+    const dangerousSpeech = /(?:죽(?:이|인|일|여|었)|때(?:리|릴|려))/.test(statement ?? "");
+    const reportedThreat = /(?:죽(?:이|인|일|여|었)|때(?:리|릴|려))[^.!?\n]{0,24}(?:다고|라고)[^.!?\n]{0,16}협박(?:해|하|했)/.test(statement ?? "");
     const quotedThreat = statement != null && withoutQuotedText(statement) !== statement
       && dangerousSpeech && /협박(?:해|하|했)/.test(withoutQuotedText(statement));
     if (statement && !DENIAL.test(clause) && !HISTORY.test(clause)
@@ -152,7 +198,12 @@ export function assessBoundSafetyContext(text: string): AmoraSafetyAssessment | 
     }
     const comparison = /(?:처럼|듯이|듯)\s/.test(clause);
     if (hasAffirmedPartnerEvent(clause, comparison)) {
-      threats.push(assessment("physical_violence", false, false));
+      const lethalThreat = DIRECT_REPORTED_LETHAL_THREAT_EVENT.test(event ?? "");
+      threats.push(assessment(lethalThreat ? "lethal_threat"
+        : DIRECT_WRIST_RESTRAINT_EVENT.test(event ?? "") ? "coercive_control" : "physical_violence",
+      // 전언만으로 지금 실행 중이라고 단정하지 않는다. 공유는 막되
+      // 이미 성립한 즉시 위기 판정을 제외한 이 갈래는 비공개 확인으로 보낸다.
+      false, false));
       continue;
     }
     if (event && !META.test(clause) && !DENIAL.test(clause) && !HISTORY.test(clause)

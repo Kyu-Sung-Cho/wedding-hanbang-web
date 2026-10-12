@@ -1,6 +1,7 @@
 "use client";
 
 import { create } from "zustand";
+import { clearAmoraTextDraftRecovery } from "@/lib/chat/textDraftRecoveryStorage";
 import { PlanChangeError } from "@/lib/journey/planChangeError";
 import { createClient } from "@/lib/supabase/client";
 import { CHECKLIST_MAP } from "@/constants/checklists";
@@ -736,6 +737,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 
   reset: () => {
+    clearAmoraTextDraftRecovery();
     authInitializeSequence += 1;
     journeyWriteSequence += 1;
     useCommunityStore.getState().reset();
@@ -755,13 +757,23 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 // 직접 setState로 저장하는 설정과, 같은 계정으로 돌아오는 연결 전환도 누락하지 않는다.
 useAuthStore.subscribe((current, previous) => {
   if (current.profile !== previous.profile) profileWriteSequence += 1;
-  if (current.user?.id !== previous.user?.id
+  const draftOwnerChanged = current.user?.id !== previous.user?.id
     || current.isDemo !== previous.isDemo
     || current.profile?.id !== previous.profile?.id
     || current.profile?.couple_id !== previous.profile?.couple_id
     || current.profile?.role !== previous.profile?.role
-    || current.couple?.id !== previous.couple?.id
-    || current.journey?.couple_id !== previous.journey?.couple_id) {
+    || current.couple?.id !== previous.couple?.id;
+  if (draftOwnerChanged || current.journey?.couple_id !== previous.journey?.couple_id) {
     authBindingSequence += 1;
+    // 인증 응답 fence는 유지한다. 같은 소유자의 준비 정보가 잠시 누락됐다
+    // 돌아온 것은 로그아웃이 아니므로, 유효한 초안 writer를 종료하지 않는다.
+    const sameVerifiedDraftOwner = !draftOwnerChanged && !current.isDemo
+      && Boolean(current.user?.id) && current.profile?.id === current.user?.id
+      && previous.profile?.id === previous.user?.id && Boolean(current.profile?.role)
+      && Boolean(current.profile?.couple_id) && current.profile?.couple_id === current.couple?.id
+      && previous.profile?.couple_id === previous.couple?.id
+      && (!current.journey || current.journey.couple_id === current.profile?.couple_id)
+      && (!previous.journey || previous.journey.couple_id === previous.profile?.couple_id);
+    if ((previous.user?.id || previous.profile?.id) && !sameVerifiedDraftOwner) clearAmoraTextDraftRecovery();
   }
 });

@@ -4,7 +4,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { createClientFromRequest } from "@/lib/supabase/server";
 import { isTrustedMutationRequest } from "@/utils/trustedMutation";
 import { checkRateLimitPersistent, rateLimitKey } from "@/utils/rateLimit";
-import { isBodyTooLarge } from "@/utils/requestValidation";
+import { isBodyTooLarge, readBoundedUtf8Text } from "@/utils/requestValidation";
 
 const MAX_PATHS = 10;
 const MAX_REQUEST_BODY_BYTES = 2 * 1024;
@@ -146,13 +146,16 @@ export async function POST(request: Request) {
     );
     if (limited) return limited;
 
-    const rawBody = await request.text();
-    if (Buffer.byteLength(rawBody, "utf8") > MAX_REQUEST_BODY_BYTES) {
-      return NextResponse.json({ error: "요청 데이터가 너무 큽니다." }, { status: 413 });
+    const rawBody = await readBoundedUtf8Text(request, MAX_REQUEST_BODY_BYTES);
+    if (!rawBody.ok) {
+      return NextResponse.json(
+        { error: rawBody.reason === "too_large" ? "요청 데이터가 너무 큽니다." : "요청 본문이 올바르지 않습니다." },
+        { status: rawBody.reason === "too_large" ? 413 : 400 },
+      );
     }
     const body: unknown = (() => {
       try {
-        return JSON.parse(rawBody) as unknown;
+        return JSON.parse(rawBody.text) as unknown;
       } catch {
         return null;
       }

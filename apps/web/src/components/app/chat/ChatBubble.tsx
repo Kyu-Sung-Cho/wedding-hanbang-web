@@ -317,7 +317,7 @@ export function SaveNoteButton({ messageId, content, coupleId }: { messageId: st
 }
 
 function MessageSaveNoteButton({ messageId, content, coupleId, scope }: { messageId: string; content: string; coupleId: string; scope: number }) {
-  const [status, setStatus] = useState<"idle" | "saving" | "saved" | "deleting" | "error">("idle");
+  const [status, setStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
   const entry = useSavedNoteStore(state => state.entries[messageId]);
   const savedNote = entry?.note;
   const [reviewOpen, setReviewOpen] = useState(false);
@@ -326,16 +326,12 @@ function MessageSaveNoteButton({ messageId, content, coupleId, scope }: { messag
   const saveInFlight = useRef(false);
   const savedLinkRef = useRef<HTMLAnchorElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
-  const focusAfterDelete = useRef(false);
 
   useEffect(() => observeSavedNote(messageId, coupleId), [messageId, coupleId]);
 
   useEffect(() => {
     if (status === "saved") savedLinkRef.current?.focus();
   }, [status]);
-  useEffect(() => {
-    if (!savedNote && focusAfterDelete.current) { focusAfterDelete.current = false; triggerRef.current?.focus(); }
-  }, [savedNote]);
 
   const handleSave = useCallback(async (memo: string) => {
     if (!reviewOpen || saveInFlight.current || !isSavedNoteScopeCurrent(scope) || memo.length > 500) return;
@@ -382,23 +378,6 @@ function MessageSaveNoteButton({ messageId, content, coupleId, scope }: { messag
     }
   }, [messageId, reviewOpen, scope]);
 
-  const handleUnsave = async () => {
-    if (!savedNote?.savedByMe || saveInFlight.current || !isSavedNoteScopeCurrent(scope)) return;
-    saveInFlight.current = true; setStatus("deleting"); setSaveError(null);
-    try {
-      const response = await fetch("/api/amora/notes", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: savedNote.id }) });
-      const payload: unknown = await response.json().catch(() => null);
-      if (!isSavedNoteScopeCurrent(scope)) return;
-      if (!response.ok || !payload || typeof payload !== "object" || !("deleted" in payload) || payload.deleted !== true || !("id" in payload) || payload.id !== savedNote.id) {
-        setSaveError("저장 취소를 확인하지 못했어요. 잠시 후 다시 시도해 주세요."); setStatus("error"); return;
-      }
-      focusAfterDelete.current = true;
-      setSavedNoteIdentity(scope, messageId, null); setUnappliedMemo(null); setStatus("idle");
-    } catch {
-      if (isSavedNoteScopeCurrent(scope)) { setSaveError("저장 취소를 확인하지 못했어요. 잠시 후 다시 시도해 주세요."); setStatus("error"); }
-    } finally { saveInFlight.current = false; }
-  };
-
   const closeReview = () => {
     if (!saveInFlight.current) setReviewOpen(false);
   };
@@ -420,7 +399,10 @@ function MessageSaveNoteButton({ messageId, content, coupleId, scope }: { messag
         <BookmarkCheck className="w-4 h-4" />
         <span>저장한 답변 · 보러가기</span>
       </Link>
-      {savedNote.savedByMe && <Button variant="ghost" type="button" aria-label="내 저장 취소" disabled={status === "deleting"} onClick={() => void handleUnsave()} className="mt-1 min-h-11 px-0! py-0! font-normal! text-sm! text-[var(--hb-text-muted)]! hover:bg-transparent! hover:text-rose-700! disabled:opacity-40!">{status === "deleting" ? "취소 중…" : "내 저장 취소"}</Button>}
+      {savedNote.savedByMe && <>
+        <Link {...weddingLinkProps("/chat/board?view=saved")} className="mt-1 inline-flex min-h-11 items-center text-sm text-[var(--hb-text-muted)] underline underline-offset-4">저장본과 메모 확인·삭제</Link>
+        <p className="text-sm leading-6 text-[var(--hb-text-muted)]">삭제하면 저장본과 메모가 영구 삭제돼요. 원래 대화는 이 작업으로 삭제하지 않아요.</p>
+      </>}
       {entry?.status === "error" && <Button variant="ghost" type="button" onClick={() => refreshSavedNote(messageId)} className="min-h-11 px-0! py-0! font-normal! text-sm! text-[var(--hb-text-muted)]! hover:bg-transparent!">저장 상태 다시 확인</Button>}
       </div>
     );

@@ -6,6 +6,7 @@
 import Link from "next/link";
 import { accountDeletionIntakeSentence } from "@/lib/account/deletionIntake";
 import { CONTACT } from "@/lib/constants/contact";
+import { AMORA_TEXT_DRAFT_RECOVERY_TTL_MS } from "@/lib/chat/textDraftRecoveryStorage";
 
 import { businessInfoRows, readBusinessInfo } from "@/lib/legal/businessInfo";
 import {
@@ -361,6 +362,7 @@ export default function PrivacyPage() {
             <h2 className="font-serif-kr text-[18px] font-medium text-[var(--hb-text-strong)] mb-3">제8조 (쿠키 및 추적기술)</h2>
             <ol className="list-decimal pl-5 space-y-2">
               <li>운영자는 로그인 유지와 보안 등 서비스에 필요한 쿠키를 사용합니다.</li>
+              <li>아모라 미전송 초안 복구(2026년 10월 12일 추가 안내): 미전송 텍스트와 재시도 식별자, 계정·커플·역할·파트너 식별정보와 변경 시각을 현재 탭의 임시 저장소(sessionStorage)에 보관합니다. 마지막으로 초안을 변경한 때부터 {AMORA_TEXT_DRAFT_RECOVERY_TTL_MS / 60_000}분 이내에 같은 계정의 대화 입력란에서 복구하며, 기한이 지난 초안은 불러오지 않지만 다시 읽거나 입력을 바꾸기 전까지 임시 저장소에 남아 있을 수 있습니다. 입력란을 비우거나 전송하면 해당 초안을 지우고, 로그아웃 또는 계정·커플·역할 전환 시 보관된 초안을 지웁니다. 안전 상담으로 분류된 글, 첨부 파일이나 별도 기능의 전달 맥락이 있는 초안은 보관하지 않습니다. 이 복구 기능으로 자동 전송·파트너 공유·서버 기억 저장은 하지 않습니다. 공용 기기에서는 입력란을 비우고 로그아웃하거나 브라우저 설정에서 이 사이트 데이터를 지울 수 있습니다.</li>
               <li>이용 통계 기능이 설정된 경우에는 자동 화면 수집과 세션 녹화를 끄고, 정해진 화면 이동·기능 사용 이벤트만 수집합니다. 현재 공개 웨딩코드와 기존 판의 링크 화면에서는 페이지 조회와 흐름 이벤트를 기록하지 않습니다. 브라우저 오류·성능 이벤트도 수집 서비스로 전송하지 않습니다. 내부 연구 화면에서는 이용 통계를 실행하지 않습니다.</li>
               <li>회원은 브라우저 설정에서 쿠키 저장을 거부할 수 있습니다. 로그인 유지에 필요한 쿠키까지 막으면 일부 기능을 사용할 수 없습니다.</li>
             </ol>
