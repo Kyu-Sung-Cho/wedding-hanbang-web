@@ -9,14 +9,17 @@ function expectProtectedDelivery(text: string): void {
   expect(scope.allowsLongTermMemory).toBe(false);
   for (const senderRole of ["bride", "groom"] as const) {
     for (const target of ["ai", "partner"] as const) {
-      const result = planAmoraCrisisDelivery({
-        userText: text, requestedVisibility: "shared", senderRole, target,
-        externalSafetySignal: hasAmoraSafetySignal(text),
-      });
-      expect(result.disposition).not.toBe("continue");
-      expect(result.effectiveVisibility).toBe(`${senderRole}_private`);
-      expect(result.safetyPrivacyRedirected).toBe(true);
-      if (target === "partner") expect(result.partnerDeliveryHeld).toBe(true);
+      // 웹 신호를 주입하지 않는 공유·모바일 호출도 자체 안전 판정을 통과해야 한다.
+      for (const externalSafetySignal of [undefined, hasAmoraSafetySignal(text)]) {
+        const result = planAmoraCrisisDelivery({
+          userText: text, requestedVisibility: "shared", senderRole, target,
+          externalSafetySignal,
+        });
+        expect(result.disposition).not.toBe("continue");
+        expect(result.effectiveVisibility).toBe(`${senderRole}_private`);
+        expect(result.safetyPrivacyRedirected).toBe(true);
+        if (target === "partner") expect(result.partnerDeliveryHeld).toBe(true);
+      }
     }
   }
 }
@@ -135,11 +138,13 @@ describe("폭력 어휘를 빌린 비사건 표현의 경계", () => {
     "만약 친구의 남편이 친구를 죽여버린다고 한다면 어떻게 해야 하나요?",
   ])("사람 대상 고백이 아닌 표현을 공유 위기로 오판하지 않는다: %s", (text) => {
     expect(hasAmoraSafetySignal(text)).toBe(false);
-    const result = planAmoraCrisisDelivery({
-      userText: text, requestedVisibility: "shared", senderRole: "bride", target: "ai",
-      externalSafetySignal: hasAmoraSafetySignal(text),
-    });
-    expect(result.disposition).toBe("continue");
-    expect(result.safetyPrivacyRedirected).toBe(false);
+    for (const externalSafetySignal of [undefined, hasAmoraSafetySignal(text)]) {
+      const result = planAmoraCrisisDelivery({
+        userText: text, requestedVisibility: "shared", senderRole: "bride", target: "ai",
+        externalSafetySignal,
+      });
+      expect(result.disposition).toBe("continue");
+      expect(result.safetyPrivacyRedirected).toBe(false);
+    }
   });
 });
