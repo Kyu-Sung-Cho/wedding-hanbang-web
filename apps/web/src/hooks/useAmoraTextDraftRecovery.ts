@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, type Dispatch, type SetStateAction } from "react";
 import { hasAmoraSafetySignal } from "@/lib/ai/amoraQuestionScope";
-import { AMORA_TEXT_DRAFT_KEYS, getAmoraTextDraftRecoveryEpoch } from "@/lib/chat/textDraftRecoveryStorage";
+import { AMORA_TEXT_DRAFT_KEYS, AMORA_TEXT_DRAFT_RECOVERY_TTL_MS as TTL_MS, getAmoraTextDraftRecoveryEpoch } from "@/lib/chat/textDraftRecoveryStorage";
 
 const LANES = ["shared_ai", "shared_partner", "private_ai"] as const;
 type Lane = typeof LANES[number];
@@ -16,7 +16,6 @@ interface TextDraft {
   preparation?: unknown;
   tasteHandoffNonce?: string;
 }
-const TTL_MS = 30 * 60 * 1000;
 const MAX_LENGTH = 10_000;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 function record(value: unknown): value is Record<string, unknown> {

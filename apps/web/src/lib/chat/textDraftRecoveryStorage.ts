@@ -3,6 +3,8 @@ export const AMORA_TEXT_DRAFT_KEYS = {
   panel: "hanbang:amora-text-drafts:v1:panel",
 } as const;
 
+export const AMORA_TEXT_DRAFT_RECOVERY_TTL_MS = 30 * 60 * 1000;
+
 let recoveryEpoch = 0;
 
 export function getAmoraTextDraftRecoveryEpoch() {
