@@ -303,6 +303,37 @@ describe("ChatContent composer draft lanes", () => {
     document.body.replaceChildren();
   });
 
+  it("recovers unsent text in its own lane after a remount without sending", async () => {
+    const typeText = async (text: string) => act(async () => {
+      const textarea = container.querySelector("textarea");
+      Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value")?.set?.call(textarea, text);
+      textarea?.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    await typeText("함께 보는 미전송 초안");
+    const privateButton = () => Array.from(container.querySelectorAll("button")).find(button => button.textContent?.includes("나만 (상담)"));
+    await act(async () => privateButton()?.click());
+    await typeText("나만 보는 미전송 초안");
+    await act(async () => root.unmount());
+    root = createRoot(container);
+    await act(async () => root.render(<ChatContent />));
+    await act(async () => privateButton()?.click());
+    expect(container.querySelector<HTMLTextAreaElement>("textarea")?.value).toBe("나만 보는 미전송 초안");
+    const shared = Array.from(container.querySelectorAll("button")).find(button => button.textContent?.includes("함께 대화"));
+    await act(async () => shared?.click());
+    expect(container.querySelector<HTMLTextAreaElement>("textarea")?.value).toBe("함께 보는 미전송 초안");
+    expect(mocks.sendMessage).not.toHaveBeenCalled();
+  });
+
+  it("does not expose community publishing from a shared answer while discovery is hidden", async () => {
+    const base = { couple_id: "couple-1", visibility: "shared" as const, metadata: {}, created_at: new Date().toISOString() };
+    mocks.messages = [
+      { ...base, id: "human-question", sender_id: "user-1", sender_role: "bride", content: "상견례 대화 주제를 알려줘" },
+      { ...base, id: "ai-answer", sender_id: null, sender_role: "ai", content: "가벼운 일상 이야기부터 나눠 보세요." },
+    ];
+    await act(async () => root.render(<ChatContent />));
+    expect(container.querySelector('button[aria-label*="커뮤니티에"]')).toBeNull();
+  });
+
   const tasteDraft = () => ({ ...createEmptyWeddingTasteDraft(), mood: { status: "answered" as const, values: ["natural" as const] } });
   const queueTaste = () => {
     const href = prepareWeddingTasteChat(tasteDraft())!.href;

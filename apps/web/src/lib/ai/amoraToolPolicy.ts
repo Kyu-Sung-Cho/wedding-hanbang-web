@@ -1,6 +1,8 @@
 import { CATEGORY_CHECKLISTS } from "@/constants/checklists";
 import type { AiToolDefinition } from "@/lib/ai/toolDefinition";
 import type { SpecialistType } from "@/types/moat.types";
+import { hasAmoraSharedTaskProposalRequest } from "./amoraSharedTaskIntent";
+import { isMutatingTool } from "./mutationTools";
 
 const BASE_READ_TOOLS = [
   "get_wedding_info",
@@ -773,6 +775,12 @@ function pendingProposalToolNames({
   // 그 낱말 하나다.
   // 출처가 우리가 아닌 말은 어떤 경로에서도 카드가 되면 안 된다.
   if (isNotOurDecision(userText)) return selected;
+  // '아직 저장하지 말고 제안/미리보기만'은 실행이나 다른 계획 변경이
+  // 아니다. 해당 제품 객체의 추가 확인 카드만 준비하고 승인 경계는 유지한다.
+  if (hasAmoraSharedTaskProposalRequest(userText)) {
+    selected.add("add_amora_action");
+    return selected;
+  }
   // 값이 덜 정해진 말은 보통 카드를 안 내지만, 서버가 배분·일정 전문 경로로 보낸
   // 턴에서는 그것이 **정상이고 방아쇠**다. `NON_EXECUTABLE_RESTORE` 도 같은 성격이라
   // (`좋을까|어떨|추천해`) 함께 예외를 받는다 — 남 이야기 쪽은 위 가드가 이미 잡는다.
@@ -918,5 +926,7 @@ export function selectAmoraTools({
   if (ACTION_UPDATE_WRITE.test(userText)) selected.add("update_amora_action");
   if (VENUE_WRITE.test(userText)) selected.add("update_venue");
 
-  return availableTools.filter((tool) => selected.has(tool.name));
+  const sharedTaskProposalOnly = hasAmoraSharedTaskProposalRequest(userText);
+  return availableTools.filter((tool) => selected.has(tool.name)
+    && (!sharedTaskProposalOnly || !isMutatingTool(tool.name)));
 }

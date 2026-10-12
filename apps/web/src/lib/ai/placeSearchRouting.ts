@@ -22,6 +22,12 @@ const PLACE_CONTEXT_RE = new RegExp(
 // 지워, 같은 문장에 별도로 부탁한 "공덕에 모실 식당 찾아줘"는 그대로 남긴다.
 const PLACE_MEANING_CONTEXT_RE =
   /(?:어떤|무슨)\s*(?:자리|장소|곳)(?:인지|인가|인\s*(?:거|것|건)|야)|(?:자리|장소|곳)(?:의|은|는|이|가|란)?\s*(?:(?:어떤|무슨)\s*)?(?:의미|뜻|개념|역할|차이)(?=(?:[은는이가을를]|만|도|인(?:지|가)|에\s*대해)|\s*(?:[?!.,]|$|알려|설명|궁금|뭐|무엇))/gu;
+// '식당 메뉴/비용을 알려줘'의 목적어는 가게 목록이 아니다. 장소 종류가
+// 하위 정보의 수식어로 쓰인 구절만 제거해 별도로 요청한 가게는 보존한다.
+const PLACE_SUBTOPIC_CONTEXT_RE = new RegExp(
+  `(?:${VENUE_KIND_RE.source})(?:집)?(?:의)?\\s*(?:메뉴|비용|가격)(?=[은는이가을를만도\\s?!.,]|$)`,
+  "giu",
+);
 const GENERIC_PLACE_NOUN_RE = /^(?:자리|장소|곳)$/u;
 /**
  * 사람은 가게 종류를 대지 않는다.
@@ -64,19 +70,36 @@ const SOFT_ASK_RE =
   // 맨 "추천" 도 부탁이다 — "상견례 하기 좋은 한정식 추천" 이 어형 때문에 막혔다.
   /(알려\s*줘|알려\s*주세요|어디|좋을까|괜찮은\s*(?:곳|데)|있을까|없을까|어때|부탁|보여\s*줘|리스트|목록|추천)/i;
 const LOCATION_RE =
-  /(내\s*근처|우리\s*동네|서울|부산|대구|인천|광주|대전|울산|세종|제주|강남|홍대|건대|신촌|잠실|판교|분당|수원|일산|여의도|성수|청담|압구정|연남|[가-힣0-9]{1,12}(?:시|군|구|동|읍|면|역|로|길)(?=\s|에서|근처|주변|쪽|에|$))/i;
+  /(내\s*근처|우리\s*동네|서울|부산|대구|인천|광주|대전|울산|세종|제주|강남|홍대|건대|신촌|잠실|판교|분당|수원|일산|여의도|성수|청담|압구정|연남|공덕|[가-힣0-9]{1,12}(?:시|군|구|동|읍|면|역|로|길)(?=\s|에서|근처|주변|쪽|에|$))/i;
 const SEARCH_ACTION_RE =
   /(찾아\s*줘|찾아\s*주세요|찾아\s*봐|찾아\s*달라|검색해\s*줘|검색해\s*주세요|검색해\s*봐|추천해\s*줘|추천해\s*주세요|추천해\s*봐|추천\s*해줘|추천해\s*달라|추천\s*좀|골라\s*줘|알아봐\s*줘|어디가\s*(?:좋아|괜찮아)|어디\s*(?:있어|있나요))/i;
 const POLITE_SEARCH_ACTION_RE =
-  /(?:찾아|검색해)\s*(?:줄\s*수\s*있(?:어요?|나요|을까요?)|주실\s*수\s*있(?:나요|을까요?)|줄래요?|주시겠어요)(?=$|[\s?!.。])(?!\s*(?:라고|라는|라며))/iu;
+  /(?:찾아|검색해|추천해)\s*(?:줄\s*수\s*있(?:어요?|나요|을까요?)|주실\s*수\s*있(?:나요|을까요?)|줄래요?|주시겠어요)(?=$|[\s?!.。])(?!\s*(?:라고|라는|라며))/iu;
+const REPORTED_SEARCH_PREDICATE = "(?:했(?:어|어요|는데|다)?|말했(?:어|어요|는데|다)?|하셨(?:어|어요|는데|다)?|부탁(?:했|하셨)(?:어|어요|는데|다)?|물었(?:어|어요|는데|다)?)";
+const REPORTED_SEARCH_ACTION_RE = new RegExp(
+  `${SEARCH_ACTION_RE.source}\\s*(?:고|라고|라며|라는)\\s*${REPORTED_SEARCH_PREDICATE}|(?:찾아|추천해|추천\\s*해|검색해|알아봐)\\s*(?:달래(?:요)?(?=$|[\\s.!?])|달라\\s*하셨(?:어|어요|는데|다)?|줄래(?:요)?\\s*(?:라고|라며|라는)\\s*${REPORTED_SEARCH_PREDICATE}|줄\\s*수\\s*있냐고\\s*${REPORTED_SEARCH_PREDICATE})|어디\\s*있냐고\\s*${REPORTED_SEARCH_PREDICATE}`,
+  "iu",
+);
 
 function removeQuotedSearchQuestions(text: string): string {
   // 상호명 인용은 보존하되, 검색 부탁 자체를 인용한 문장을 현재 요청으로 읽지 않는다.
-  return text.replace(/“[^”]*”|‘[^’]*’|"[^"\n]*"|'[^'\n]*'|`[^`\n]*`/gu,
-    quote => POLITE_SEARCH_ACTION_RE.test(quote.slice(1, -1)) ? " " : quote);
+  const withoutQuotes = text.replace(/“[^”]*”|‘[^’]*’|"[^"\n]*"|'[^'\n]*'|`[^`\n]*`/gu,
+    quote => POLITE_SEARCH_ACTION_RE.test(quote.slice(1, -1))
+      || SEARCH_ACTION_RE.test(quote.slice(1, -1)) ? " " : quote);
+  // 따옴표 없이 전달한 명령도 현재 사용자의 명령이 아니다. 전달한 구절만
+  // 제거하고 뒤에 별도로 요청한 장소 검색은 남긴다.
+  return withoutQuotes.replace(/[^.!?]+/gu, clause => {
+    // 앞의 직접 부탁을 뒤에 시작된 별도 화자의 전언으로 함께 지우지 않는다.
+    // 쉼표만으로 나누면 한 전언 안의 요청 목록을 실제 부탁으로 오판한다.
+    return clause.split(/(?:,\s*|(?:그리고|하지만|그런데|대신)\s+)(?=(?:엄마|아빠|부모님|어머니|아버지|친구|신랑|신부|남편|아내|상대방)(?:이|가|은|는)\s)/u)
+      .map(part => {
+        const reported = REPORTED_SEARCH_ACTION_RE.exec(part);
+        return reported === null ? part : part.slice(reported.index + reported[0].length);
+      }).join(" ");
+  });
 }
 const NEGATED_SEARCH_RE =
-  /(찾지\s*마|검색하지\s*마|추천하지\s*마|알아보지\s*마|찾을\s*필요\s*(?:없어|없습니다))/i;
+  /(찾지\s*(?:마|말)|검색하지\s*(?:마|말)|추천하지\s*(?:마|말)|알아보지\s*(?:마|말)|(?:추천|검색)(?:은|는)?\s*하지\s*(?:마|말)|(?:추천|검색)(?:은|는|을|를)?\s*(?:말고|됐고|됐어|원(?:하지|치)\s*않)|추천(?:은|는|을|를)?\s*(?:받고\s*싶지\s*않|받기\s*싫)|(?:(?:추천|검색)해|찾아)\s*달라는\s*(?:게|건|것(?:은|이)?)\s*아니|(?:추천|검색)(?:은|는)?\s*안\s*해도\s*(?:돼|되|괜찮)|(?:추천|검색|찾[기을]?)(?:은|는|이|가)?\s*(?:할\s*)?필요(?:가|는|도)?\s*없|(?:물어본|요청한|부탁한)\s*(?:게|건|것(?:은|이)?)\s*아니)/i;
 
 /**
  * 동네 이름은 목록으로 관리할 수 없다.
@@ -127,23 +150,34 @@ function mentionsSomewhere(normalized: string): boolean {
  * 앞단에서 막으면 사용자는 제품이 못 하는 것으로 받아들이지만, 뒤에서 거르면
  * 잘못 섞인 것만 사라진다.
  */
-export function isPlaceSearchCandidate(userText: string): boolean {
+function requestedPlaceText(userText: string): string {
   const normalized = userText.normalize("NFKC").replace(/\s+/g, " ").trim();
-  if (!normalized || NEGATED_SEARCH_RE.test(normalized)) return false;
-  const requestedPlaces = removeQuotedSearchQuestions(normalized)
+  if (!normalized) return "";
+  const clauses = removeQuotedSearchQuestions(normalized)
+    .split(/(?:[.!?]+|(?<=말고)\s+|하지만|그런데|대신)/u)
+    .map(clause => clause.trim()).filter(Boolean);
+  // 대상 없는 '아니, 검색하지 마'는 앞의 부탁을 취소한다. 특정 식당을
+  // 거절한 구절은 그 구절만 빼서 별도로 부탁한 다른 곳을 보존한다.
+  if (clauses.some(clause => NEGATED_SEARCH_RE.test(clause) && !mentionsSomewhereToEat(clause))) return "";
+  return clauses.filter(clause => !NEGATED_SEARCH_RE.test(clause)).join(". ")
     .replace(PLACE_CONTEXT_RE, " ")
-    .replace(PLACE_MEANING_CONTEXT_RE, " ");
+    .replace(PLACE_MEANING_CONTEXT_RE, " ")
+    .replace(PLACE_SUBTOPIC_CONTEXT_RE, " ");
+}
+
+export function isPlaceSearchCandidate(userText: string): boolean {
+  const requestedPlaces = requestedPlaceText(userText);
   if (!mentionsSomewhereToEat(requestedPlaces)) return false;
   return SEARCH_ACTION_RE.test(requestedPlaces) || SOFT_ASK_RE.test(requestedPlaces)
     || POLITE_SEARCH_ACTION_RE.test(requestedPlaces);
 }
 
 export function isExplicitPlaceSearchIntent(userText: string): boolean {
-  const normalized = userText.normalize("NFKC").replace(/\s+/g, " ").trim();
-  if (!normalized || NEGATED_SEARCH_RE.test(normalized)) return false;
+  const requestedPlaces = requestedPlaceText(userText);
+  if (!requestedPlaces) return false;
   // 강제는 "줄지" 판정 위에 **지역이 있는가** 만 얹는다. 두 판정이 갈라지면
   // 도구는 있는데 안 부르거나, 강제하는데 도구가 없는 상태가 생긴다.
-  return isPlaceSearchCandidate(normalized) && mentionsSomewhere(normalized);
+  return isPlaceSearchCandidate(userText) && mentionsSomewhere(requestedPlaces);
 }
 
 export function getAvailableChatTools(options: {

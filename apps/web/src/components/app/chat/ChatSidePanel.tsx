@@ -52,6 +52,7 @@ import {
 import { weddingPath } from "@/lib/weddingPaths";
 import { AMORA_DEMO_SUGGESTIONS, AMORA_DEMO_WELCOME } from "@/lib/chat/amoraDemoCopy";
 import { useAmoraPersonalization } from "@/hooks/useAmoraPersonalization";
+import { useAmoraTextDraftRecovery } from "@/hooks/useAmoraTextDraftRecovery";
 import type { AmoraQuickStartOption } from "@/lib/amora/personalization";
 import { shouldOfferMediation } from "@/lib/chat/mediationOffer";
 import { deduplicateToolResults } from "./toolResultDeduplication";
@@ -368,6 +369,12 @@ export default function ChatSidePanel({
     setIsDragging(false);
     if (fileInputRef.current) fileInputRef.current.value = "";
   }, [composerSessionKey]);
+
+  useAmoraTextDraftRecovery({
+    surface: "panel", owner: profile?.id && coupleId && senderRole ? composerSessionKey : null,
+    partnerId: linkedPartnerId, enabled: authInitialized && !authLoading && !isDemo,
+    drafts: composerDrafts, setDrafts: setComposerDrafts, pendingAttachmentReads: pendingFileReads,
+  });
 
   useEffect(() => {
     const previousLinkedPartnerId = linkedPartnerIdRef.current;
@@ -1914,6 +1921,7 @@ export default function ChatSidePanel({
                 </div>
               )}
 
+              {!isDemo && laneReady && <p className="mb-1.5 text-xs leading-relaxed text-[var(--hb-text-muted)]">미전송 글은 이 탭에서 30분 이내에 복구할 수 있어요. 전송·공유되지는 않으며, 첨부·안전 상담 등 일부 내용은 보관하지 않아요.</p>}
               <div className="bg-white rounded-[6px] border border-black/[0.06] shadow-[var(--shadow-raised)] flex items-center gap-1.5 p-1.5">
                 {/* 첨부파일 버튼 */}
                 <button

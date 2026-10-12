@@ -9039,6 +9039,32 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
   });
 
   it.each([
+    '우리 결혼 준비 공유 할 일에 추가할 항목의 확인 카드를 보여줘. 제목은 "[QA] 결혼 준비 연결 시험", 설명은 "합성 기능 시험용", 상태 미완료, 날짜와 업체 없음이야. 기존 항목은 바꾸지 말고 아직 저장하지 마.',
+    '제목은 "[QA] 결혼 준비 연결 시험", 설명은 "합성 기능 시험용"인 공유 할 일 하나를 제안해줘. 날짜와 업체는 넣지 말고, 먼저 저장할 문구와 상태의 미리보기만 보여줘. 내가 승인하기 전에는 저장하지 마.',
+  ])("emits a real approval card for one explicitly titled undated task, not an unavailable-feature denial: %s", async text => {
+    const actual = await vi.importActual<typeof import("@/lib/ai/tools")>("@/lib/ai/tools");
+    const definition = actual.WEDDING_TOOLS.find(candidate => candidate.name === "add_amora_action")!;
+    const added = !mocks.safeTools.some(candidate => candidate.name === definition.name);
+    if (added) (mocks.safeTools as AiToolDefinition[]).push(definition);
+    try {
+      mocks.canonicalRows[0] = { ...mocks.canonicalRows[0], content: text };
+      mocks.canonicalRows.splice(1);
+      const before = structuredClone(mocks.journeyRow);
+      mocks.provider.mockResolvedValueOnce(providerResult({ fullText: "현재 연결된 기능으로는 실제 공유 할 일을 추가할 수 없습니다." }));
+      const response = await POST(request({ messages: [{ role: "user", content: text }] }));
+      expect(response.status).toBe(200);
+      const body = await response.text();
+      const saved = mocks.atomicResponses.at(-1)!;
+      expect(saved.metadata.pending_amora_action).toMatchObject({ tool: "add_amora_action", input: { title: "[QA] 결혼 준비 연결 시험", description: "합성 기능 시험용" } });
+      expect(saved.metadata.pending_amora_action).not.toHaveProperty("input.due_date");
+      expect(body).toContain('"pending_amora_action"');
+      expect(saved.content).not.toContain("추가할 수 없습니다");
+      expect(mocks.executeTool).not.toHaveBeenCalled();
+      expect(mocks.journeyRow).toEqual(before);
+    } finally { if (added) mocks.safeTools.pop(); }
+  });
+
+  it.each([
     { count: 2, markers: 0, syntax: "original" },
     { count: 3, markers: 0, syntax: "original" },
     { count: 4, markers: 1, syntax: "original" },

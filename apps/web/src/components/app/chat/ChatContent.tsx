@@ -77,6 +77,8 @@ import {
 } from "@/lib/chat/demoHandoff";
 import { requestProactiveCare } from "@/lib/care/requestProactiveCare";
 import { useAmoraPersonalization } from "@/hooks/useAmoraPersonalization";
+import { useAmoraTextDraftRecovery } from "@/hooks/useAmoraTextDraftRecovery";
+import { SHOW_SIGNED_IN_COMMUNITY } from "@/lib/features/signedInCommunity";
 import type { AmoraQuickStartOption } from "@/lib/amora/personalization";
 import {
   assessSelfReportedConflictOffer,
@@ -891,6 +893,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
     setPendingSend(null);
   }, [authInitialized, authLoading, composerIdentity, coupleId, profile?.id, senderRole, stopSharedTyping]);
 
+
   // 이전 범위·계정의 늦은 동의 요청 응답이 새 확인 화면을 닫지 않게 한다.
   useEffect(() => {
     setClearStep("closed");
@@ -1020,6 +1023,12 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
   // 바로 여는 체험은 현재 탭, 가입을 거치는 흐름은 같은 브라우저 저장소에서
   // 유효한 초안만 읽으며 URL에는 날짜를 남기지 않는다.
   const searchParams = useSearchParams();
+  useAmoraTextDraftRecovery({
+    surface: "conversation", owner: profile?.id && coupleId && senderRole ? composerIdentity : null,
+    partnerId: linkedPartnerId, enabled: authInitialized && !authLoading && !isDemo,
+    privateHandoffPending: searchParams.has(WEDDING_TASTE_CHAT_PARAM),
+    drafts: composerDrafts, setDrafts: setComposerDrafts,
+  });
   const router = useRouter();
   const preparationRouterRef = useRef(router);
   preparationRouterRef.current = router;
@@ -2479,6 +2488,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
   }, [messages]);
 
   const openCommunityDraft = useCallback((aiMessage: ChatMessage, userMessage: ChatMessage) => {
+    if (!SHOW_SIGNED_IN_COMMUNITY) return;
     const privacyMode: CommunityDraftPrivacyMode =
       aiMessage.visibility === "shared" && userMessage.visibility === "shared"
         ? "shared"
@@ -2497,7 +2507,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
   }, []);
 
   const submitCommunityDraft = useCallback(async () => {
-    if (!communityDraft || communityPosting) return;
+    if (!SHOW_SIGNED_IN_COMMUNITY || !communityDraft || communityPosting) return;
     const sensitiveLabels = detectSensitiveText(`${communityDraft.title}\n${communityDraft.content}`);
     if (sensitiveLabels.length > 0) {
       setCommunityPostError(`먼저 ${sensitiveLabels.join(", ")} 표현을 지워주세요.`);
@@ -3530,6 +3540,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
               msg.visibility === myPrivateVisibility &&
               previousHumanMessage?.visibility === myPrivateVisibility;
             const canConsiderCommunityFallback =
+              SHOW_SIGNED_IN_COMMUNITY &&
               isCommunityFallbackEligible &&
               !isDemo &&
               msg.sender_role === "ai" &&
@@ -4116,6 +4127,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
           </div>
         )}
 
+        {!isDemo && laneReady && <p className="mb-1.5 text-xs leading-relaxed text-[var(--hb-text-muted)]">미전송 글은 이 탭에서 30분 이내에 복구할 수 있어요. 전송·공유되지는 않으며, 첨부·안전 상담 등 일부 내용은 보관하지 않아요.</p>}
         <div className={`bg-white rounded-[6px] shadow-[var(--shadow-raised)] flex items-center gap-1 sm:gap-2 p-1.5 sm:p-2.5 transition-colors ${
           messageTarget === "partner"
             ? "ring-1 ring-[#D99C9C]/30"

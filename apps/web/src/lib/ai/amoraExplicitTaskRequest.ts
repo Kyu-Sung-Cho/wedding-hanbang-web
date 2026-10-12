@@ -22,12 +22,68 @@ export type ExplicitTaskRequestAssessment =
   | { kind: "needs_clarification"; text: string };
 
 export function assessExplicitTaskRequest(text: string, modelText = ""): ExplicitTaskRequestAssessment | null {
-  if (!STRUCTURED_REQUEST.test(text.trim())) return null;
+  if (!STRUCTURED_REQUEST.test(text.trim())) return assessSingleLabeledTask(text, modelText);
   const actions = parseSupportedTaskList(text, modelText);
   return actions ? { kind: "ready", actions } : {
     kind: "needs_clarification",
     text: "할 일 목록의 항목·날짜와 담당·공유·추가 여부 조건을 함께 확정하지 못했어요. 조건을 생략한 확인 카드는 만들지 않았어요. 항목별 내용을 다시 확인해주세요.",
   };
+}
+
+/** 사용자가 필드를 직접 쓴 단일 항목은 날짜를 만들어 내지 않고 같은 승인 큐로 보낸다. */
+function assessSingleLabeledTask(text: string, modelText: string): ExplicitTaskRequestAssessment | null {
+  const quote = /"[^"\r\n]*"|“[^”\r\n]*”|‘[^’\r\n]*’|'[^'\r\n]*'/gu;
+  const unquoted = text.replace(quote, "인용값");
+  if (!/(?:공유|함께\s*보는)\s*할\s*일/u.test(unquoted)
+    || !/제목(?:은|[:：])/u.test(unquoted)
+    || !/(?:추가|등록|저장|제안|미리보기|확인\s*카드)/u.test(unquoted)
+    || /^\s*(?:예시|가정|친구|회사|업무|["“‘'])/u.test(text)) return null;
+  const clarify: ExplicitTaskRequestAssessment = { kind: "needs_clarification", text: "할 일의 제목·설명과 공유·날짜 조건을 함께 확인하지 못했어요. 조건을 생략해서 저장하지 않았어요. 한 항목의 내용을 다시 확인해주세요." };
+  if (text.length > 10000 || modelText.length > 40000 || /[\p{Cf}\p{Zl}\p{Zp}]|[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/u.test(text)) return clarify;
+  const labeled = (label: string) => [...text.matchAll(new RegExp(`(?:${label})(?:은|는|[:：])\\s*("[^"\\r\\n]*"|“[^”\\r\\n]*”|‘[^’\\r\\n]*’|'[^'\\r\\n]*')`, "gu"))];
+  const titles = labeled("제목"), descriptions = labeled("설명|내용");
+  if (titles.length !== 1 || descriptions.length > 1) return clarify;
+  const title = titles[0][1].slice(1, -1).trim();
+  const description = descriptions[0]?.[1].slice(1, -1).trim();
+  if (!title || title.length > 120 || (description !== undefined && (!description || description.length > 500))) return clarify;
+  // 원문의 남은 절 전체를 읽는다. 담당·시각·취소·추가 조건을 버린 부분 카드는 발급하지 않는다.
+  let rest = text.trim().replace(/^\[합성[^\]\r\n]{0,40}QA\]\s*/u, "");
+  rest = rest.replace(titles[0][0], "TITLE");
+  if (descriptions[0]) rest = rest.replace(descriptions[0][0], "DESCRIPTION");
+  const clauses = rest.split(/[,.。!?\r\n]/u).map(part => part.trim()).filter(Boolean);
+  const allowed = [
+    /^(?:우리\s*(?:결혼\s*준비\s*)?)?(?:공유|함께\s*보는)\s*할\s*일에\s*추가할\s*항목의\s*확인\s*카드를\s*보여(?:줘|주세요)$/u,
+    /^TITLE$/u,
+    /^DESCRIPTION$/u,
+    /^DESCRIPTION인\s*(?:공유|함께\s*보는)\s*할\s*일\s*하나를\s*제안해(?:줘|주세요)$/u,
+    /^(?:우리\s*(?:결혼\s*준비\s*)?)?(?:공유|함께\s*보는)\s*할\s*일에\s*TITLE(?:을|를)?\s*(?:추가|등록|저장)해(?:줘|주세요)$/u,
+    /^(?:상태(?:는)?\s*)?미완료(?:\s*상태)?$/u,
+    /^(?:날짜와\s*업체|날짜|예정일)(?:는)?\s*없음(?:이야|이에요)?$/u,
+    /^날짜와\s*업체는\s*넣지\s*말고$/u,
+    /^먼저\s*저장할\s*문구와\s*상태의\s*미리보기만\s*보여(?:줘|주세요)$/u,
+    /^(?:내가\s*)?승인하기\s*전에는\s*저장하지\s*마$/u,
+    /^기존\s*(?:다른\s*)?항목은\s*바꾸지\s*말고\s*아직\s*저장하지\s*마$/u,
+    /^기존\s*(?:다른\s*)?항목은\s*바꾸지\s*마$/u,
+    /^이\s*시험\s*항목\s*하나만\s*실제\s*추가하는\s*데\s*동의하며\s*기존\s*항목은\s*바꾸지\s*마$/u,
+  ];
+  if (!clauses.length || clauses.some(clause => !allowed.some(pattern => pattern.test(clause)))) return clarify;
+  const input = { title, ...(description !== undefined ? { description } : {}) };
+  // 모델 표식이 다른 항목·추가 조건을 주장했다면 이를 조용히 버리지 않는다.
+  let invalidModel = false;
+  let modelTagCount = 0;
+  const remainder = modelText.replace(/\[pending_action\]([\s\S]*?)\[\/pending_action\]/gu, (_tag, payload: string) => {
+    modelTagCount += 1;
+    try {
+      const value: unknown = JSON.parse(payload);
+      if (!record(value) || Object.keys(value).sort().join(",") !== "input,tool"
+        || value.tool !== "add_amora_action" || !record(value.input)
+        || Object.keys(value.input).sort().join(",") !== Object.keys(input).sort().join(",")
+        || value.input.title !== title || value.input.description !== description) invalidModel = true;
+    } catch { invalidModel = true; }
+    return "";
+  });
+  if (invalidModel || modelTagCount > 1 || /pending[\s_-]*action|"(?:tool|input)"\s*:/iu.test(remainder)) return clarify;
+  return { kind: "ready", actions: [{ tool: "add_amora_action", input }] };
 }
 
 /** 기존 호출자는 ready 목록만 받는다. route는 assessment로 거절과 무관한 요청을 구분한다. */

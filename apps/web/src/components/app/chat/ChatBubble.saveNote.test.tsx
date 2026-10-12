@@ -235,16 +235,16 @@ describe("공유 답변을 저장함에 담기", () => {
   });
 
   const index = (savedByMe = true) => new Response(JSON.stringify({ userId: USER, coupleId: message.couple_id, savedNotes: [{ id: NOTE, messageId: message.id, savedByMe }] }));
-  it("대화 재진입 때 저장 상태를 읽고 내가 저장한 답변만 취소한다", async () => {
+  it("대화에서는 삭제하지 않고 저장본과 메모를 확인할 보드로 연결한다", async () => {
     changeAccount(USER);
     vi.mocked(fetch).mockResolvedValueOnce(index()).mockResolvedValueOnce(new Response(JSON.stringify({ deleted: true, id: NOTE })));
     await render();
     expect(container.textContent).toContain("저장한 답변 · 보러가기");
-    const cancel = container.querySelector<HTMLButtonElement>('[aria-label="내 저장 취소"]');
-    expect(cancel).not.toBeNull();
-    await act(async () => cancel!.click());
-    expect(fetch).toHaveBeenLastCalledWith("/api/amora/notes", expect.objectContaining({ method: "DELETE", body: JSON.stringify({ id: NOTE }) }));
-    expect(container.querySelector('button[title="나중에 다시 보기"]')).not.toBeNull();
+    expect(container.querySelector('button[aria-label="내 저장 취소"]')).toBeNull();
+    const review = Array.from(container.querySelectorAll("a")).find(link => link.textContent === "저장본과 메모 확인·삭제");
+    expect(review?.getAttribute("href")).toBe("/wedding/chat/board?view=saved");
+    expect(container.textContent).toContain("영구 삭제");
+    expect(fetch).toHaveBeenCalledTimes(1);
   });
   it("파트너가 저장한 답변은 표시하되 취소 버튼을 제공하지 않는다", async () => {
     changeAccount(USER); vi.mocked(fetch).mockResolvedValueOnce(index(false)); await render();
@@ -284,7 +284,7 @@ describe("공유 답변을 저장함에 담기", () => {
     await act(async () => window.dispatchEvent(new Event("focus")));
     const dialog = await open(); await act(async () => save(dialog).click());
     await act(async () => finish(emptyIndex()));
-    expect(container.querySelector('[aria-label="내 저장 취소"]')).not.toBeNull();
+    expect(container.textContent).toContain("저장본과 메모 확인·삭제");
   });
   it("계정 전환 후 늦은 저장 영수증은 돌아온 계정에도 적용하지 않는다", async () => {
     let finish!: (response: Response) => void;
@@ -296,31 +296,25 @@ describe("공유 답변을 저장함에 담기", () => {
     await act(async () => finish(new Response(JSON.stringify({ saved: true, id: NOTE, memoApplied: true, savedByMe: true }))));
     expect(container.textContent).not.toContain("저장한 답변 · 보러가기");
   });
-  it("계정 전환 후 늦은 취소 응답이 새로 읽은 파트너 저장을 지우지 않는다", async () => {
-    let finish!: (response: Response) => void;
-    let mine = true;
+  it("계정 전환 후 새로 읽은 파트너 저장에는 내 삭제 경로를 제공하지 않는다", async () => {
     changeAccount(USER);
-    vi.mocked(fetch).mockImplementation(async (_url, init) => init?.method === "DELETE"
-      ? new Promise(resolve => { finish = resolve; }) : index(mine));
+    vi.mocked(fetch).mockResolvedValueOnce(index());
     await render();
-    await act(async () => container.querySelector<HTMLButtonElement>('[aria-label="내 저장 취소"]')!.click());
-    mine = false;
+    expect(container.textContent).toContain("저장본과 메모 확인·삭제");
+    vi.mocked(fetch).mockResolvedValueOnce(index(false));
     await act(async () => { changeAccount(null); changeAccount(USER); });
-    await act(async () => finish(new Response(JSON.stringify({ deleted: true, id: NOTE }))));
     expect(container.textContent).toContain("파트너가 저장");
-    expect(container.querySelector('[aria-label="내 저장 취소"]')).toBeNull();
+    expect(container.textContent).not.toContain("저장본과 메모 확인·삭제");
+    expect(vi.mocked(fetch).mock.calls.some(([, init]) => init?.method === "DELETE")).toBe(false);
   });
-  it("취소 중 중복 전송을 막고 HTTP200의 실패 영수증에는 저장을 남긴다", async () => {
-    let finish!: (response: Response) => void;
-    changeAccount(USER); vi.mocked(fetch).mockResolvedValueOnce(index()).mockReturnValueOnce(new Promise(resolve => { finish = resolve; }));
+  it("삭제 안내를 반복해서 확인해도 대화 화면은 DELETE를 보내지 않는다", async () => {
+    changeAccount(USER); vi.mocked(fetch).mockResolvedValueOnce(index());
     await render();
-    const cancel = container.querySelector<HTMLButtonElement>('[aria-label="내 저장 취소"]')!;
-    await act(async () => { cancel.click(); cancel.click(); });
-    expect(cancel.disabled).toBe(true); expect(fetch).toHaveBeenCalledTimes(2);
-    await act(async () => finish(new Response(JSON.stringify({ deleted: false, id: NOTE }))));
+    const link = Array.from(container.querySelectorAll("a")).find(link => link.textContent === "저장본과 메모 확인·삭제")!;
+    link.addEventListener("click", event => event.preventDefault());
+    await act(async () => { link.click(); link.click(); });
+    expect(fetch).toHaveBeenCalledTimes(1);
     expect(container.textContent).toContain("저장한 답변 · 보러가기");
-    expect(container.querySelector('[role="alert"]')?.textContent).toContain("저장 취소를 확인하지 못했어요");
-    expect(cancel.disabled).toBe(false);
   });
   it("처음 저장 상태를 확인하는 동안 중복 저장 시트를 열지 않는다", async () => {
     let finish!: (response: Response) => void;

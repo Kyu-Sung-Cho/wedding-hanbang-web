@@ -2,12 +2,14 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { createClientFromRequest } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
 import { isTrustedMutationRequest } from "@/utils/trustedMutation";
+import { isBodyTooLarge, readBoundedUtf8Text } from "@/utils/requestValidation";
 import { log } from "@/utils/log";
 
 export const dynamic = "force-dynamic";
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const MAX_CORRECTION_LENGTH = 2_000;
+const MAX_REQUEST_BODY_BYTES = 16 * 1024;
 const FEEDBACK_BODY_KEYS = new Set(["messageId", "rating", "correction", "category"]);
 const FEEDBACK_CATEGORIES = new Set([
   "correction",
@@ -68,19 +70,26 @@ function getServiceClient() {
 }
 
 // 레이트 리밋: 시간당 20회
-async function checkRateLimit(userId: string): Promise<boolean> {
-  const admin = getServiceClient();
-  const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+async function checkRateLimit(userId: string): Promise<"allowed" | "limited" | "unavailable"> {
+  try {
+    const admin = getServiceClient();
+    const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
 
-  const { count } = await admin
-    .from("chat_feedback")
-    .select("id", { count: "exact", head: true })
-    .eq("user_id", userId)
-    // 대화에 연결되지 않은 자동 신호는 사용자가 직접 남기는 피드백 한도를 소모하지 않는다.
-    .not("message_id", "is", null)
-    .gte("created_at", oneHourAgo);
+    const { count, error } = await admin
+      .from("chat_feedback")
+      .select("id", { count: "exact", head: true })
+      .eq("user_id", userId)
+      // 대화에 연결되지 않은 자동 신호는 사용자가 직접 남기는 피드백 한도를 소모하지 않는다.
+      .not("message_id", "is", null)
+      .gte("created_at", oneHourAgo);
 
-  return (count ?? 0) < 20;
+    if (error || count === null || !Number.isSafeInteger(count) || count < 0) {
+      return "unavailable";
+    }
+    return count < 20 ? "allowed" : "limited";
+  } catch {
+    return "unavailable";
+  }
 }
 
 /**
@@ -92,6 +101,9 @@ export async function POST(request: Request) {
     if (!isTrustedMutationRequest(request)) {
       return NextResponse.json({ error: "잘못된 요청 출처입니다." }, { status: 403 });
     }
+    if (isBodyTooLarge(request, MAX_REQUEST_BODY_BYTES)) {
+      return NextResponse.json({ error: "요청 데이터가 너무 큽니다." }, { status: 413 });
+    }
     // 인증 체크
     const supabase = await createClientFromRequest(request);
     const {
@@ -102,9 +114,16 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "인증이 필요합니다." }, { status: 401 });
     }
 
+    const boundedBody = await readBoundedUtf8Text(request, MAX_REQUEST_BODY_BYTES);
+    if (!boundedBody.ok) {
+      return NextResponse.json(
+        { error: boundedBody.reason === "too_large" ? "요청 데이터가 너무 큽니다." : "요청 본문이 올바르지 않습니다." },
+        { status: boundedBody.reason === "too_large" ? 413 : 400 },
+      );
+    }
     let rawBody: unknown;
     try {
-      rawBody = await request.json();
+      rawBody = JSON.parse(boundedBody.text) as unknown;
     } catch {
       return NextResponse.json({ error: "요청 본문이 올바르지 않습니다." }, { status: 400 });
     }
@@ -119,8 +138,14 @@ export async function POST(request: Request) {
     const { messageId, rating, correction, category } = body;
 
     // 레이트 리밋 체크
-    const withinLimit = await checkRateLimit(user.id);
-    if (!withinLimit) {
+    const rateLimitStatus = await checkRateLimit(user.id);
+    if (rateLimitStatus === "unavailable") {
+      return NextResponse.json(
+        { error: "피드백 요청을 확인하지 못했습니다. 잠시 후 다시 시도해 주세요." },
+        { status: 503, headers: { "Retry-After": "60" } },
+      );
+    }
+    if (rateLimitStatus === "limited") {
       return NextResponse.json(
         { error: "피드백 제한을 초과했습니다. 1시간에 최대 20회까지 가능합니다." },
         { status: 429 }

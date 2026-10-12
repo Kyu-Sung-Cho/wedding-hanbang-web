@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const { createClientFromRequestSpy, createServiceClientSpy, persistentLimitSpy } = vi.hoisted(() => ({
   createClientFromRequestSpy: vi.fn(),
   createServiceClientSpy: vi.fn(),
-  persistentLimitSpy: vi.fn(async () => null),
+  persistentLimitSpy: vi.fn(async (): Promise<Response | null> => null),
 }));
 
 vi.mock("@/lib/supabase/server", () => ({
@@ -59,6 +59,16 @@ function requestFor(body: unknown) {
   });
 }
 
+function streamedRequest(body: ReadableStream<Uint8Array>, extraHeaders: Record<string, string> = {}) {
+  const init: RequestInit & { duplex: "half" } = {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Origin: "http://localhost", ...extraHeaders },
+    body,
+    duplex: "half",
+  };
+  return new Request("http://localhost/api/chat/image-urls", init);
+}
+
 function mockVisibleMessage(result: MessageResult) {
   const query = new MessageQuery(result);
   const requestClient = {
@@ -112,6 +122,144 @@ describe("POST /api/chat/image-urls", () => {
 
     expect(response.status).toBe(413);
     expect(createClientFromRequestSpy).not.toHaveBeenCalled();
+    expect(createServiceClientSpy).not.toHaveBeenCalled();
+  });
+
+  it("cancels an oversized chunked body before reading its tail or looking up attachments", async () => {
+    const { requestClient } = mockVisibleMessage({ data: null, error: null });
+    let pullCount = 0;
+    let cancelled = false;
+    const stream = new ReadableStream<Uint8Array>({
+      pull(controller) {
+        pullCount += 1;
+        if (pullCount === 1) controller.enqueue(new Uint8Array(131_137));
+        else throw new Error("OVERSIZED_IMAGE_URL_TAIL_MUST_NOT_BE_READ");
+      },
+      cancel() { cancelled = true; },
+    }, { highWaterMark: 0 });
+    const init: RequestInit & { duplex: "half" } = {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Origin: "http://localhost" },
+      body: stream,
+      duplex: "half",
+    };
+
+    const response = await POST(new Request("http://localhost/api/chat/image-urls", init));
+
+    expect(response.status).toBe(413);
+    expect(pullCount).toBe(1);
+    expect(cancelled).toBe(true);
+    expect(requestClient.from).not.toHaveBeenCalled();
+    expect(createServiceClientSpy).not.toHaveBeenCalled();
+  });
+
+  it.each([undefined, "1", "2048"])("counts actual bytes despite Content-Length %s", async (contentLength) => {
+    const { requestClient } = mockVisibleMessage({ data: null, error: null });
+    let pullCount = 0;
+    let cancelled = false;
+    const stream = new ReadableStream<Uint8Array>({
+      pull(controller) {
+        pullCount += 1;
+        if (pullCount <= 2) controller.enqueue(new Uint8Array(1_024));
+        else if (pullCount === 3) controller.enqueue(new Uint8Array([1]));
+        else throw new Error("IMAGE_URL_TAIL_MUST_NOT_BE_READ");
+      },
+      cancel() { cancelled = true; },
+    }, { highWaterMark: 0 });
+
+    const response = await POST(streamedRequest(stream, contentLength === undefined ? {} : { "Content-Length": contentLength }));
+
+    expect(response.status).toBe(413);
+    expect(pullCount).toBe(3);
+    expect(cancelled).toBe(true);
+    expect(requestClient.from).not.toHaveBeenCalled();
+    expect(createServiceClientSpy).not.toHaveBeenCalled();
+  });
+
+  it.each([[2_048, 404], [2_049, 413]])("keeps the exact %i-byte boundary", async (byteLength, expectedStatus) => {
+    const { requestClient } = mockVisibleMessage({ data: null, error: null });
+    const json = JSON.stringify({ messageId: SHARED_MESSAGE_ID });
+    const body = json + " ".repeat(byteLength - new TextEncoder().encode(json).byteLength);
+
+    const response = await POST(new Request("http://localhost/api/chat/image-urls", {
+      method: "POST", headers: { "Content-Type": "application/json", Origin: "http://localhost" }, body,
+    }));
+
+    expect(response.status).toBe(expectedStatus);
+    expect(requestClient.from).toHaveBeenCalledTimes(expectedStatus === 404 ? 1 : 0);
+    expect(createServiceClientSpy).not.toHaveBeenCalled();
+  });
+
+  it("preserves valid escaped JSON split across single-byte chunks", async () => {
+    const { query } = mockVisibleMessage({
+      data: { id: SHARED_MESSAGE_ID, couple_id: COUPLE_ID, sender_id: USER_ID, visibility: "shared", metadata: {} },
+      error: null,
+    });
+    const json = `{"messageId":"${SHARED_MESSAGE_ID.replaceAll("4", "\\u0034")}"}`;
+    const bytes = new TextEncoder().encode(json);
+    const stream = new ReadableStream<Uint8Array>({
+      start(controller) {
+        for (const byte of bytes) controller.enqueue(new Uint8Array([byte]));
+        controller.close();
+      },
+    });
+
+    const response = await POST(streamedRequest(stream));
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ urls: [] });
+    expect(query.filters).toEqual([["id", SHARED_MESSAGE_ID]]);
+    expect(createServiceClientSpy).not.toHaveBeenCalled();
+  });
+
+  it.each(["invalid UTF-8", "stream read failure"])("returns a generic recovery for %s before reading attachment records", async (failure) => {
+    const { requestClient } = mockVisibleMessage({ data: null, error: null });
+    const stream = new ReadableStream<Uint8Array>({
+      start(controller) {
+        if (failure === "stream read failure") controller.error(new Error("PRIVATE_IMAGE_READ_DIAGNOSTIC"));
+        else { controller.enqueue(new Uint8Array([0xc3, 0x28])); controller.close(); }
+      },
+    });
+
+    const response = await POST(streamedRequest(stream));
+
+    expect(response.status).toBe(400);
+    expect(JSON.stringify(await response.json())).not.toContain("PRIVATE_IMAGE_READ_DIAGNOSTIC");
+    expect(requestClient.from).not.toHaveBeenCalled();
+    expect(createServiceClientSpy).not.toHaveBeenCalled();
+  });
+
+  it("rejects an unauthenticated request without reading the body or running the limiter", async () => {
+    createClientFromRequestSpy.mockResolvedValue({ auth: { getUser: async () => ({ data: { user: null } }) } });
+    let read = false;
+    const stream = new ReadableStream<Uint8Array>({ pull() { read = true; throw new Error("UNAUTHENTICATED_BODY_MUST_NOT_BE_READ"); } }, { highWaterMark: 0 });
+
+    expect((await POST(streamedRequest(stream))).status).toBe(401);
+    expect(read).toBe(false);
+    expect(persistentLimitSpy).not.toHaveBeenCalled();
+    expect(createServiceClientSpy).not.toHaveBeenCalled();
+  });
+
+  it("preserves the persistent rate limit before reading a body or looking up attachments", async () => {
+    const { requestClient } = mockVisibleMessage({ data: null, error: null });
+    persistentLimitSpy.mockResolvedValue(new Response(JSON.stringify({ error: "요청이 너무 많습니다." }), { status: 429 }));
+    let read = false;
+    const stream = new ReadableStream<Uint8Array>({ pull() { read = true; throw new Error("RATE_LIMITED_BODY_MUST_NOT_BE_READ"); } }, { highWaterMark: 0 });
+
+    expect((await POST(streamedRequest(stream))).status).toBe(429);
+    expect(read).toBe(false);
+    expect(requestClient.from).not.toHaveBeenCalled();
+    expect(createServiceClientSpy).not.toHaveBeenCalled();
+  });
+
+  it("rejects a cross-site origin before authentication or reading its body", async () => {
+    let read = false;
+    const stream = new ReadableStream<Uint8Array>({ pull() { read = true; throw new Error("UNTRUSTED_BODY_MUST_NOT_BE_READ"); } }, { highWaterMark: 0 });
+
+    expect((await POST(streamedRequest(stream, { Origin: "https://evil.invalid" }))).status).toBe(403);
+    expect(read).toBe(false);
+    expect(createClientFromRequestSpy).not.toHaveBeenCalled();
+    expect(persistentLimitSpy).not.toHaveBeenCalled();
     expect(createServiceClientSpy).not.toHaveBeenCalled();
   });
 

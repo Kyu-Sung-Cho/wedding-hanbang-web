@@ -7,6 +7,7 @@ import { assessAmoraSafetyText, assessAmoraContextualSafetyText } from "@/lib/ai
 import { hasCoerciveControlSignal } from "@hanbang/shared";
 import { isClosedPartnerViolenceStatement } from "@hanbang/shared/partner-violence-closed-vocabulary";
 import { hasExplicitPersonalActionDraftRequest } from "./amoraPersonalActionConversation";
+import { hasExplicitAmoraSharedTaskRequest } from "./amoraSharedTaskIntent";
 
 export type AmoraQuestionScope =
   | "W0_wedding_core"
@@ -1104,6 +1105,14 @@ export function classifyAmoraQuestionScope({
       allowsLongTermMemory: false,
       confidence: "high",
       needsClarification: false,
+    };
+  }
+  // 공유 할 일은 이 제품 목록의 이름이다. 새 표기는 기존 안전·다른 분야
+  // 판정 이후에만 연결하고, 사용자가 확정하지 않은 준비 사실로 기억하지 않는다.
+  if (hasExplicitAmoraSharedTaskRequest(userText)) {
+    return {
+      scope: "W0_wedding_core", allowsLongTermMemory: false,
+      confidence: "high", needsClarification: false,
     };
   }
   // 개인 할 일 초안은 제품 동작이다. 결혼 명사가 없어도 현재의 명시적 초안

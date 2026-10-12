@@ -71,7 +71,7 @@ vi.mock("@/lib/supabase/server", () => ({ createClientFromRequest: async () => (
       select: (columns?: string, options?: { head?: boolean }) => { apiFixture.projections.push(`${table}:${columns}`); if (options?.head) operation = "count"; return query; },
       eq: (column: string, value: string) => { filters.set(column, value); if (operation === "update" && column === "memo") apiFixture.memoFilter = value; return query; },
       in: (column: string, values: string[]) => { included = { column, values }; return query; },
-      is: (column: string, value: null) => { if (operation === "update" && column === "memo") apiFixture.memoFilter = value; return query; }, order: () => query,
+      is: (column: string, value: null) => { filters.set(column, value); if (operation === "update" && column === "memo") apiFixture.memoFilter = value; return query; }, order: () => query,
       limit: (value: number) => { limit = value; return query; },
       or: (filter: string) => {
         const match = /^created_at\.lt\.([^,]+),and\(created_at\.eq\.[^,]+,id\.lt\.([0-9a-f-]+)\)$/.exec(filter);
@@ -92,7 +92,7 @@ vi.mock("@/lib/supabase/server", () => ({ createClientFromRequest: async () => (
         if (operation === "delete") {
           const row = apiFixture.existing;
           if (apiFixture.writeError) return { data: null, error: apiFixture.writeError };
-          if (row && (!filters.has("saved_by") || filters.get("saved_by") === row.saved_by)) {
+          if (row && (!filters.has("saved_by") || filters.get("saved_by") === row.saved_by) && (!filters.has("memo") || filters.get("memo") === row.memo)) {
             apiFixture.existing = null; return { data: { id: row.id }, error: null };
           }
           return { data: null, error: null };
@@ -192,8 +192,23 @@ describe("saved note HTTP receipts and retries", () => {
 
   it("returns the updated note identity and the stored memo", async () => {
     apiFixture.inserted = noteRow("updated memo");
-    const response = await PATCH(noteRequest("PATCH", { id: NOTE_ID, memo: "updated memo" }));
+    const response = await PATCH(noteRequest("PATCH", { id: NOTE_ID, memo: "updated memo", expectedMemo: null }));
     expect(await response.json()).toMatchObject({ updated: true, id: NOTE_ID, memo: "updated memo" });
+  });
+
+  it("refuses a versionless memo update without writing over a newer memo", async () => {
+    apiFixture.currentMemo = "newer memo";
+    apiFixture.inserted = noteRow("stale edit");
+    const response = await PATCH(noteRequest("PATCH", { id: NOTE_ID, memo: "stale edit" }));
+    expect(response.status).toBe(400);
+    expect(await response.json()).not.toHaveProperty("updated", true);
+    expect(apiFixture.input).toBeNull();
+  });
+
+  it.each([7, true, {}, [], "x".repeat(501)])("rejects an invalid memo version without writing: %j", async expectedMemo => {
+    const response = await PATCH(noteRequest("PATCH", { id: NOTE_ID, memo: "updated", expectedMemo }));
+    expect(response.status).toBe(400);
+    expect(apiFixture.input).toBeNull();
   });
 
   it.each([null, "original memo"])("binds a memo update to the exact previously read value %j", async (expectedMemo) => {
@@ -210,14 +225,39 @@ describe("saved note HTTP receipts and retries", () => {
     expect(apiFixture.memoFilter).toBe(" original memo ");
   });
 
+  it.each([null, "old memo", " old memo "])("does not delete a changed memo from stale approval: %j", async expectedMemo => {
+    apiFixture.existing = noteRow("new memo");
+    const response = await DELETE(noteRequest("DELETE", { id: NOTE_ID, expectedMemo }));
+    expect(response.status).toBe(409);
+    expect(apiFixture.existing?.memo).toBe("new memo");
+    expect(await response.json()).toMatchObject({ code: "SAVED_NOTE_CHANGED" });
+  });
+
   it("keeps delete idempotent and returns the requested identity", async () => {
-    const response = await DELETE(noteRequest("DELETE", { id: NOTE_ID }));
+    const response = await DELETE(noteRequest("DELETE", { id: NOTE_ID, expectedMemo: null }));
     expect(await response.json()).toEqual({ deleted: true, id: NOTE_ID });
+  });
+
+  it.each([{}, { expectedMemo: 7 }, { expectedMemo: "x".repeat(501) }])("fails a missing or invalid delete approval closed: %j", async extra => {
+    apiFixture.existing = noteRow("keep memo");
+    const response = await DELETE(noteRequest("DELETE", { id: NOTE_ID, ...extra }));
+    expect(response.status).toBe(400);
+    expect(apiFixture.existing?.memo).toBe("keep memo");
+    expect(apiFixture.existingReads).toBe(0);
+  });
+
+  it.each([null, "exact memo", " exact memo ", "   "])("deletes only the exactly approved memo including null and whitespace: %j", async expectedMemo => {
+    apiFixture.existing = noteRow(expectedMemo);
+    const response = await DELETE(noteRequest("DELETE", { id: NOTE_ID, expectedMemo }));
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ deleted: true, id: NOTE_ID });
+    expect(apiFixture.existing).toBeNull();
+    expect(apiFixture.existingReads).toBe(0);
   });
 
   it("does not delete a partner's note or report it as removed", async () => {
     apiFixture.existing = { ...noteRow(), saved_by: "50000000-0000-4000-8000-000000000099" };
-    const response = await DELETE(noteRequest("DELETE", { id: NOTE_ID }));
+    const response = await DELETE(noteRequest("DELETE", { id: NOTE_ID, expectedMemo: null }));
     expect(response.status).toBe(403);
     expect(apiFixture.existing?.id).toBe(NOTE_ID);
     expect(await response.json()).not.toHaveProperty("deleted", true);
@@ -579,6 +619,13 @@ describe("saved note database source boundary", () => {
     expect((await db.query<{memo: string}>("SELECT memo FROM amora_saved_notes")).rows[0].memo).toBe("newer");
     await asMember("DELETE FROM amora_saved_notes WHERE id = $1", [receipt.note.id]);
     expect((await db.query("SELECT id FROM amora_saved_notes")).rows).toEqual([]);
+  });
+  it("keeps a newer memo when an approved null delete races a shared edit, then requires new exact approval", async () => {
+    const {receipt} = await save();
+    await asMember("UPDATE amora_saved_notes SET memo = 'new memo' WHERE id = $1", [receipt.note.id]);
+    expect((await asMember("DELETE FROM amora_saved_notes WHERE id = $1 AND memo IS NULL RETURNING id", [receipt.note.id])).rows).toHaveLength(0);
+    expect((await db.query<{memo:string}>("SELECT memo FROM amora_saved_notes WHERE id=$1", [receipt.note.id])).rows[0].memo).toBe("new memo");
+    expect((await asMember("DELETE FROM amora_saved_notes WHERE id = $1 AND memo = $2 RETURNING id", [receipt.note.id, "new memo"])).rows).toHaveLength(1);
   });
   it("keeps source identity immutable and denies non-member and anonymous writes", async () => {
     const {receipt} = await save();
