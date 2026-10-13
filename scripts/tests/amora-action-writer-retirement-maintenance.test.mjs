@@ -1,3 +1,4 @@
+import "./fixtures/amora-maintenance-ci-native-bootstrap.mjs";
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {setTimeout as delay} from 'node:timers/promises';

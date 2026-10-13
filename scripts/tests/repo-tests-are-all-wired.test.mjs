@@ -189,3 +189,118 @@ test("실제 CLI도 짧은 명령으로 모드를 선택하고 혼합·비밀 �
     }
   } finally { f.close(); }
 });
+
+test("Linux CI native 연결은 두 잡의 maintenance worker 하나에만 해당한다", async () => {
+  const { selectAmoraMaintenanceCiNativeBinding, MAINTENANCE_CI_TEST_ENTRY } =
+    await import("./fixtures/amora-maintenance-ci-native-bootstrap.mjs");
+  const snapshot = { platform: "linux", entry: MAINTENANCE_CI_TEST_ENTRY, context: "child-v8",
+    githubActions: "true", runnerOs: "Linux", githubJob: "vendor_disclosure_quality",
+    requestedBin: "/usr/lib/postgresql/17/bin", existingSyntheticBin: undefined };
+  assert.equal(selectAmoraMaintenanceCiNativeBinding(snapshot).required, true);
+  assert.equal(selectAmoraMaintenanceCiNativeBinding({ ...snapshot, githubJob: "static_release_contracts" }).required, true);
+  for (const changed of [{ platform: "win32" }, { entry: resolve(repoRoot, "scripts/tests/other.test.mjs") },
+    { githubActions: undefined, runnerOs: undefined, githubJob: undefined, requestedBin: undefined }])
+    assert.equal(selectAmoraMaintenanceCiNativeBinding({ ...snapshot, ...changed }).required, false);
+});
+
+test("maintenance CI 요청의 잘못된 scope·custombin과 PG17이 아닌 도구 metadata는 거절한다", async () => {
+  const { selectAmoraMaintenanceCiNativeBinding, validateAmoraMaintenanceCiNativeMetadata, MAINTENANCE_CI_TEST_ENTRY } =
+    await import("./fixtures/amora-maintenance-ci-native-bootstrap.mjs");
+  const snapshot = { platform: "linux", entry: MAINTENANCE_CI_TEST_ENTRY, context: "child-v8",
+    githubActions: "true", runnerOs: "Linux", githubJob: "vendor_disclosure_quality",
+    requestedBin: "/usr/lib/postgresql/17/bin", existingSyntheticBin: undefined };
+  for (const changed of [{ context: undefined }, { githubActions: "false" }, { runnerOs: "Windows" },
+    { githubJob: "web_tests" }, { requestedBin: undefined }, { requestedBin: "/tmp/untrusted" },
+    { existingSyntheticBin: "/usr/lib/postgresql/17/bin" }])
+    assert.throws(() => selectAmoraMaintenanceCiNativeBinding({ ...snapshot, ...changed }), /CI_CONTEXT_INVALID/);
+  const records = ["initdb", "postgres", "pg_ctl", "pg_dump", "pg_restore"].map(name => ({
+    name, path: `/usr/lib/postgresql/17/bin/${name}`, realPath: `/usr/lib/postgresql/17/bin/${name}`,
+    regular: true, symlink: false, uid: 0, mode: 0o100755, size: 1024, sha256: "a".repeat(64),
+    versionOutput: `${name} (PostgreSQL) 17.11 (Ubuntu 17.11-1.pgdg24.04+2)\n`,
+  }));
+  assert.equal(validateAmoraMaintenanceCiNativeMetadata(records).releaseAuthorized, false);
+  for (const edit of [r => r.pop(), r => { r[0].regular = false; }, r => { r[0].symlink = true; },
+    r => { r[0].uid = 1000; }, r => { r[0].mode = 0o100777; },
+    r => { r[0].path = "/tmp/initdb"; }, r => { r[0].sha256 = ["a".repeat(64)]; },
+    r => { r[0].versionOutput = "initdb (PostgreSQL) 16.15\n"; },
+    r => { r[0].versionOutput = "initdb (PostgreSQL) 17.10\n"; }]) {
+    const invalid = structuredClone(records); edit(invalid);
+    assert.throws(() => validateAmoraMaintenanceCiNativeMetadata(invalid), /CI_TOOLCHAIN_INVALID/);
+  }
+});
+
+test("CI는 두 필요한 잡에만 signed PG17을 설치하고 task bin은 해당 검사 step에만 제공한다", () => {
+  const workflow = readFileSync(resolve(repoRoot, ".github/workflows/ci.yml"), "utf8");
+  const jobBody = name => {
+    const start = workflow.indexOf(`\n  ${name}:\n`); assert.notEqual(start, -1);
+    const rest = workflow.slice(start + 1), next = rest.slice(1).search(/^  [a-z0-9_]+:/m);
+    return next < 0 ? rest : rest.slice(0, next + 1);
+  };
+  for (const name of ["vendor_disclosure_quality", "static_release_contracts"]) {
+    const job = jobBody(name);
+    assert.match(job, /^    runs-on: ubuntu-24\.04$/m);
+    assert.match(job, /Signed-By: \/usr\/share\/postgresql-common\/pgdg\/apt\.postgresql\.org\.asc/);
+    assert.match(job, /https:\/\/apt\.postgresql\.org\/pub\/repos\/apt/);
+    assert.match(job, /Suites: noble-pgdg/);
+    assert.match(job, /install[^\n]*postgresql-17 postgresql-client-17/);
+    assert.match(job, /create_main_cluster = false/);
+    const verifyFalse = 'test "$(cat /etc/postgresql-common/createcluster.conf)" = \'create_main_cluster = false\'';
+    const beforeFalse = job.indexOf(verifyFalse), install17 = job.indexOf("sudo apt-get install -y --no-install-recommends postgresql-17 postgresql-client-17");
+    assert.ok(beforeFalse > 0 && install17 > beforeFalse && job.lastIndexOf(verifyFalse) > install17);
+    assert.match(job, /https:\/\/www\.postgresql\.org\/media\/keys\/ACCC4CF8\.asc/);
+    assert.match(job, /sudo apt-get update/);
+    assert.match(job, /test ! -e \/etc\/postgresql\/17\/main/);
+    assert.match(job, /test ! -e \/var\/lib\/postgresql\/17\/main/);
+    assert.match(job, /env:\n          HANBANG_MAINTENANCE_NATIVE_PG_BIN: \/usr\/lib\/postgresql\/17\/bin\n        run: pnpm (?:test:repo|supabase:release:test)/);
+    assert.doesNotMatch(job, /trusted=yes|allow-unauthenticated|AllowInsecureRepositories|apt(?:-get)? upgrade|systemctl start/);
+  }
+  assert.equal((workflow.match(/HANBANG_MAINTENANCE_NATIVE_PG_BIN:/g) ?? []).length, 2);
+  assert.equal((workflow.match(/name: Install scoped maintenance PostgreSQL 17/g) ?? []).length, 2);
+  assert.doesNotMatch(workflow, /^\s*(?:export\s+)?HANBANG_SYNTHETIC_PG_BIN\s*[:=]/m);
+  for (const name of ["web_quality", "web_tests", "mobile_quality", "main_install_cache"])
+    assert.doesNotMatch(jobBody(name), /HANBANG_MAINTENANCE_NATIVE_PG_BIN|Install scoped maintenance PostgreSQL/);
+});
+
+test("maintenance의 첫 import만 worker-local native 환경을 준비하고 원래 필수 다섯 검사를 보존한다", () => {
+  const source = readFileSync(resolve(testsDir, "amora-action-writer-retirement-maintenance.test.mjs"), "utf8");
+  const firstImport = 'import "./fixtures/amora-maintenance-ci-native-bootstrap.mjs";';
+  assert.equal(source.split(/\r?\n/)[0], firstImport);
+  assert.equal(source.split(firstImport).length - 1, 1);
+  assert.equal((source.match(/\btest\(/g) ?? []).length, 5);
+  assert.doesNotMatch(source, /\bskip\s*:/);
+});
+
+test("실제 Node 두 worker에서 비대상 import는 custom 환경을 건드리지 않고 부모·형제 환경은 독립이다", () => {
+  const f = ownedFixture(), bootstrap = new URL("./fixtures/amora-maintenance-ci-native-bootstrap.mjs", import.meta.url).href;
+  const keys = ["HANBANG_MAINTENANCE_NATIVE_PG_BIN", "HANBANG_SYNTHETIC_PG_BIN", "GITHUB_ACTIONS", "RUNNER_OS", "GITHUB_JOB"];
+  const original = keys.map(key => process.env[key]);
+  const marker = "SYNTHETIC_BOOTSTRAP_SCOPE_VALUE_MUST_NOT_ECHO";
+  const worker = join(f.root, "scripts/tests/bootstrap-scope.test.mjs"), sibling = join(f.root, "scripts/tests/bootstrap-sibling.test.mjs");
+  try {
+    writeFileSync(worker, `import test from 'node:test'; import assert from 'node:assert/strict';
+      import { amoraMaintenanceCiNativeBootstrap as result } from ${JSON.stringify(bootstrap)};
+      test('actual non-target import stays inert',()=>{
+        assert.ok(process.argv.length===2 && process.env.NODE_TEST_CONTEXT==='child-v8');
+        assert.ok(result.status==='not-applicable' && result.mutatedEnvironment===false && result.releaseAuthorized===false);
+        assert.ok(process.env.HANBANG_MAINTENANCE_NATIVE_PG_BIN===${JSON.stringify(marker)});
+        assert.ok(process.env.HANBANG_SYNTHETIC_PG_BIN===${JSON.stringify(marker)});
+        process.env.HANBANG_SYNTHETIC_PG_BIN='worker-local-change-only';
+      });\n`);
+    writeFileSync(sibling, `import test from 'node:test'; import assert from 'node:assert/strict';
+      test('actual sibling has independent inherited environment',()=>{
+        assert.ok(process.argv.length===2 && process.env.NODE_TEST_CONTEXT==='child-v8');
+        assert.ok(process.env.HANBANG_SYNTHETIC_PG_BIN===${JSON.stringify(marker)});
+      });\n`);
+    const env = { ...process.env, GITHUB_ACTIONS: "true", RUNNER_OS: "Linux", GITHUB_JOB: "vendor_disclosure_quality",
+      HANBANG_MAINTENANCE_NATIVE_PG_BIN: marker, HANBANG_SYNTHETIC_PG_BIN: marker };
+    delete env.NODE_TEST_CONTEXT;
+    const actual = spawnSync(process.execPath, ["--test", "--test-concurrency=2", worker, sibling], {
+      cwd: f.root, env, encoding: "utf8", timeout: 10_000, windowsHide: true,
+    });
+    assert.equal(actual.status, 0, actual.error?.code);
+    assert.match(actual.stdout, /actual non-target import stays inert/);
+    assert.match(actual.stdout, /actual sibling has independent inherited environment/);
+    assert.doesNotMatch(actual.stdout + actual.stderr, new RegExp(marker));
+    assert.deepEqual(keys.map(key => process.env[key]), original);
+  } finally { f.close(); }
+});
