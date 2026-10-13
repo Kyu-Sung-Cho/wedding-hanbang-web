@@ -79,4 +79,37 @@ describe("createClientFromRequest authorization precedence", () => {
     expect(options.global).toBeUndefined();
     expect(options.cookies.getAll()).toEqual(cookieRows);
   });
+  it("opts into the request's bounded transport without replacing Bearer identity", async () => {
+    const boundedFetch = vi.fn();
+    await createClientFromRequest(new Request("https://hanbang.example/api/amora/actions/act_qa", {
+      headers: { authorization: "Bearer access.token-value" },
+    }), { fetch: boundedFetch });
+    const options = mocks.createServerClient.mock.calls[0][2];
+    expect(options.global.headers.Authorization).toBe("Bearer access.token-value");
+    expect(options.global.fetch).toBe(boundedFetch);
+    expect(mocks.cookies).not.toHaveBeenCalled();
+  });
+  it("still refuses an invalid header's cookie fallback with an opt-in transport", async () => {
+    const boundedFetch = vi.fn();
+    await createClientFromRequest(new Request("https://hanbang.example/api/amora/actions/act_qa", {
+      headers: { authorization: "Basic invalid", cookie: "sb-session=ambient-cookie" },
+    }), { fetch: boundedFetch });
+    const options = mocks.createServerClient.mock.calls[0][2];
+    expect(options.global.fetch).toBe(boundedFetch);
+    expect(options.global.headers).toBeUndefined();
+    expect(options.cookies.getAll()).toEqual([]);
+    expect(mocks.cookies).not.toHaveBeenCalled();
+  });
+  it("retains read/write cookie behavior when a cookie client opts into bounded fetch", async () => {
+    const rows = [{ name: "sb-session", value: "synthetic-cookie" }];
+    const set = vi.fn(); mocks.cookies.mockResolvedValue({ getAll: () => rows, set });
+    const boundedFetch = vi.fn();
+    await createClientFromRequest(new Request("https://hanbang.example/api/amora/actions/act_qa"), { fetch: boundedFetch });
+    const options = mocks.createServerClient.mock.calls[0][2];
+    expect(options.global.fetch).toBe(boundedFetch);
+    expect(options.global.headers).toBeUndefined();
+    expect(options.cookies.getAll()).toEqual(rows);
+    options.cookies.setAll([{ name: "sb-session", value: "next-synthetic-cookie", options: { path: "/" } }]);
+    expect(set).toHaveBeenCalledWith("sb-session", "next-synthetic-cookie", { path: "/" });
+  });
 });

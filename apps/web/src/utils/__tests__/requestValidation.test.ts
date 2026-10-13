@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
   cleanOptionalKoreanMobile,
   readBoundedUtf8Text,
@@ -157,5 +157,38 @@ describe("readBoundedUtf8Text", () => {
     const request = new Request("https://hanbang.ai/test", { method: "POST", body: "x" });
 
     await expect(readBoundedUtf8Text(request, 0)).resolves.toEqual({ ok: false, reason: "too_large" });
+  });
+  it("does not acquire a body reader for an already aborted opt-in lifetime", async () => {
+    const owner = new AbortController(); owner.abort();
+    let read = false;
+    const body = new ReadableStream<Uint8Array>({ pull() { read = true; } }, { highWaterMark: 0 });
+    await expect(readBoundedUtf8Text(streamedRequest(body), 8, owner.signal)).resolves.toEqual({ ok: false, reason: "read_error" });
+    expect(read).toBe(false); expect(body.locked).toBe(false);
+  });
+  it("ends a pending opt-in read without waiting for an uncooperative cancel promise", async () => {
+    const owner = new AbortController(); let cancelled = 0;
+    const body = new ReadableStream<Uint8Array>({ cancel() { cancelled += 1; return new Promise<void>(() => {}); } }, { highWaterMark: 0 });
+    const pending = readBoundedUtf8Text(streamedRequest(body), 8, owner.signal);
+    owner.abort();
+    await expect(pending).resolves.toEqual({ ok: false, reason: "read_error" });
+    expect(cancelled).toBe(1); expect(body.locked).toBe(false);
+  });
+  it("keeps the byte limit fail-closed with a signal even when oversized-body cancellation never ends", async () => {
+    const owner = new AbortController();
+    const body = new ReadableStream<Uint8Array>({
+      pull(controller) { controller.enqueue(new Uint8Array(9)); },
+      cancel() { return new Promise<void>(() => {}); },
+    }, { highWaterMark: 0 });
+    await expect(readBoundedUtf8Text(streamedRequest(body), 8, owner.signal)).resolves.toEqual({ ok: false, reason: "too_large" });
+    expect(body.locked).toBe(false);
+  });
+  it("removes its opt-in abort listener after a valid UTF-8 read", async () => {
+    const owner = new AbortController(); const remove = vi.spyOn(owner.signal, "removeEventListener");
+    const text = "안녕😀";
+    const request = new Request("https://hanbang.ai/test", { method: "POST", body: text });
+    await expect(readBoundedUtf8Text(request, 64, owner.signal)).resolves.toEqual({ ok: true, text });
+    expect(request.body?.locked).toBe(false);
+    expect(remove).toHaveBeenCalledWith("abort", expect.any(Function));
+    remove.mockRestore();
   });
 });

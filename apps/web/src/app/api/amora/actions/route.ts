@@ -27,9 +27,11 @@ import {
   cleanOptionalText,
   isBodyTooLarge,
   isRecord,
+  readBoundedUtf8Text,
 } from "@/utils/requestValidation";
 import { isTrustedMutationRequest } from "@/utils/trustedMutation";
 import { log } from "@/utils/log";
+import { AMORA_ACTION_OUTCOME_UNCONFIRMED, AmoraActionDeadlineError, amoraActionDeadlineFetch, createAmoraActionDeadline } from "@/lib/amora/actionDeadline";
 
 export const dynamic = "force-dynamic";
 
@@ -98,18 +100,19 @@ function parseStatusParam(request: Request): AmoraActionStatus | "all" {
 }
 
 export async function GET(request: Request) {
+  const deadline = createAmoraActionDeadline(undefined, request.signal);
   try {
-    const supabase = await createClientFromRequest(request);
+    const supabase = await deadline.run(() => createClientFromRequest(request, { fetch: amoraActionDeadlineFetch(deadline) }));
     const {
       data: { user },
-    } = await supabase.auth.getUser();
+    } = await deadline.run(() => supabase.auth.getUser());
 
     if (!user) {
       return NextResponse.json({ error: "인증이 필요합니다." }, { status: 401 });
     }
 
     const client = supabase;
-    const lookup = await getCoupleIdForUser(client, user.id);
+    const lookup = await deadline.run(() => getCoupleIdForUser(client, user.id));
     if (!lookup.ok) {
       return coupleLookupFailed();
     }
@@ -121,9 +124,9 @@ export async function GET(request: Request) {
     const params = new URL(request.url).searchParams;
     const limit = cleanIntegerInRange(params.get("limit"), 1, 80) ?? 40;
     const status = parseStatusParam(request);
-    const legacyActions = await getLegacyActions(client, coupleId);
+    const legacyActions = await deadline.run(() => getLegacyActions(client, coupleId));
 
-    const snapshot = await readAmoraActionPage(client, coupleId, legacyActions, status, limit, params.get("cursor"));
+    const snapshot = await deadline.run(() => readAmoraActionPage(client, coupleId, legacyActions, status, limit, params.get("cursor")));
     const actions = snapshot.actions;
     return NextResponse.json({
       actions,
@@ -134,13 +137,18 @@ export async function GET(request: Request) {
       next_cursor: snapshot.nextCursor,
     });
   } catch (error) {
+    if (error instanceof AmoraActionDeadlineError) return NextResponse.json({ error: "준비 상황을 불러오지 못했어요. 잠시 후 다시 시도해 주세요.", code: "AMORA_ACTION_UNAVAILABLE" }, { status: 503 });
     if (error instanceof InvalidAmoraActionCursorError) return NextResponse.json({ error: "페이지 정보가 바뀌었어요. 처음부터 다시 불러와 주세요." }, { status: 400 });
     log.error("amora actions get failed:", error);
     return NextResponse.json({ error: "아모라 행동을 불러오지 못했습니다." }, { status: 500 });
+  } finally {
+    deadline.dispose();
   }
 }
 
 export async function POST(request: Request) {
+  const deadline = createAmoraActionDeadline(undefined, request.signal);
+  let writeMayHaveStarted = false;
   try {
     if (!isTrustedMutationRequest(request)) {
       return NextResponse.json({ error: "잘못된 요청 출처입니다." }, { status: 403 });
@@ -149,16 +157,22 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "요청 데이터가 너무 큽니다." }, { status: 413 });
     }
 
-    const supabase = await createClientFromRequest(request);
+    const supabase = await deadline.run(() => createClientFromRequest(request, { fetch: amoraActionDeadlineFetch(deadline) }));
     const {
       data: { user },
-    } = await supabase.auth.getUser();
+    } = await deadline.run(() => supabase.auth.getUser());
 
     if (!user) {
       return NextResponse.json({ error: "인증이 필요합니다." }, { status: 401 });
     }
 
-    const body = await request.json();
+    const boundedBody = await deadline.run(() => readBoundedUtf8Text(request, MAX_BODY_BYTES, deadline.signal));
+    if (!boundedBody.ok) return NextResponse.json({ error: boundedBody.reason === "too_large"
+      ? "요청 데이터가 너무 큽니다." : "요청 내용을 읽지 못했어요. 내용을 다시 확인해 주세요." },
+    { status: boundedBody.reason === "too_large" ? 413 : 400 });
+    let body: unknown;
+    try { body = JSON.parse(boundedBody.text); }
+    catch { return NextResponse.json({ error: "잘못된 요청입니다." }, { status: 400 }); }
     if (!isRecord(body)) {
       return NextResponse.json({ error: "잘못된 요청입니다." }, { status: 400 });
     }
@@ -183,7 +197,7 @@ export async function POST(request: Request) {
     if (!link.ok) return NextResponse.json({ error: "준비 기록의 링크가 올바르지 않습니다.", code: "AMORA_ACTION_INVALID_INPUT" }, { status: 400 });
 
     const client = supabase;
-    const lookup = await getCoupleIdForUser(client, user.id);
+    const lookup = await deadline.run(() => getCoupleIdForUser(client, user.id));
     if (!lookup.ok) {
       return coupleLookupFailed();
     }
@@ -211,14 +225,17 @@ export async function POST(request: Request) {
     });
 
     try {
-      const saved = await mutateOwnAmoraActionRecord(supabase, coupleId, action.id, "create", action);
+      const saved = await deadline.run(() => {
+        writeMayHaveStarted = true;
+        return mutateOwnAmoraActionRecord(supabase, coupleId, action.id, "create", action);
+      });
       if (!saved) throw new Error("Amora action create returned no receipt");
       return NextResponse.json({ action: saved, ...(requestId ? { requestId, replayed: false } : {}) }, { status: 201 });
     } catch (error) {
       if (!requestId || !isRecord(error) || error.code !== "23505") throw error;
       // PK 충돌만 조회한다. 현재 인증/RLS와 생성자 경계를 유지하며 기존 행을 고치지 않는다.
-      const { data: existing, error: readError } = await supabase.from("amora_actions").select("*")
-        .eq("id", action.id).eq("couple_id", coupleId).eq("created_by", user.id).maybeSingle();
+      const { data: existing, error: readError } = await deadline.run(() => supabase.from("amora_actions").select("*")
+        .eq("id", action.id).eq("couple_id", coupleId).eq("created_by", user.id).maybeSingle());
       if (readError) throw readError;
       if (!matchesManualActionCreateRow(existing, action, user.id, coupleId)) {
         return NextResponse.json({ error: "기존 저장 내용이 달라졌어요. 목록을 확인해 주세요.", code: "AMORA_ACTION_CREATE_CONFLICT" }, { status: 409 });
@@ -226,6 +243,10 @@ export async function POST(request: Request) {
       return NextResponse.json({ action: rowToAmoraAction(existing as AmoraAction), requestId, replayed: true });
     }
   } catch (error) {
+    if (error instanceof AmoraActionDeadlineError) return NextResponse.json({ error: writeMayHaveStarted
+      ? "저장 응답을 확인하지 못했어요. 같은 요청이나 현재 목록을 직접 확인해 주세요. 이미 저장됐을 수 있어요."
+      : "준비 상황을 불러오지 못했어요. 잠시 후 다시 시도해 주세요.",
+    code: writeMayHaveStarted ? AMORA_ACTION_OUTCOME_UNCONFIRMED : "AMORA_ACTION_UNAVAILABLE" }, { status: 503 });
     const failure = getManualAmoraActionFailure(error);
     if (failure) return NextResponse.json({ error: failure.error, code: failure.code }, { status: failure.status });
     if (isAmoraActionStorageUnavailable(error)) {
@@ -236,5 +257,7 @@ export async function POST(request: Request) {
     }
     log.error("amora actions create failed:", error);
     return NextResponse.json({ error: "아모라 행동을 저장하지 못했습니다." }, { status: 500 });
+  } finally {
+    deadline.dispose();
   }
 }

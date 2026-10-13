@@ -54,6 +54,7 @@ export type BoundedUtf8TextResult =
 export async function readBoundedUtf8Text(
   request: Request,
   maxBytes: number,
+  signal?: AbortSignal,
 ): Promise<BoundedUtf8TextResult> {
   if (!Number.isSafeInteger(maxBytes) || maxBytes < 0) {
     return { ok: false, reason: "read_error" };
@@ -61,21 +62,44 @@ export async function readBoundedUtf8Text(
   if (isBodyTooLarge(request, maxBytes)) {
     return { ok: false, reason: "too_large" };
   }
+  if (signal?.aborted) return { ok: false, reason: "read_error" };
   if (!request.body) return { ok: true, text: "" };
 
   const reader = request.body.getReader();
   const chunks: Uint8Array[] = [];
   let totalBytes = 0;
+  let cancellationRequested = false;
+  const cancelWithoutWaiting = (reason: string) => {
+    if (cancellationRequested) return;
+    cancellationRequested = true;
+    try { void reader.cancel(reason).catch(() => undefined); }
+    catch { /* 취소 자체가 실패해도 본문 읽기를 다시 시작하지 않는다. */ }
+  };
+  let rejectAbort: ((error: Error) => void) | undefined;
+  const aborted = signal ? new Promise<never>((_resolve, reject) => { rejectAbort = reject; }) : undefined;
+  void aborted?.catch(() => undefined);
+  const onAbort = () => {
+    cancelWithoutWaiting("request body lifetime ended");
+    rejectAbort?.(new Error("request body lifetime ended"));
+  };
+  signal?.addEventListener("abort", onAbort, { once: true });
+  if (signal?.aborted) onAbort();
   try {
     while (true) {
-      const { done, value } = await reader.read();
+      if (signal?.aborted) throw new Error("request body lifetime ended");
+      const read = reader.read();
+      const { done, value } = await (aborted ? Promise.race([read, aborted]) : read);
+      if (signal?.aborted) throw new Error("request body lifetime ended");
       if (done) break;
       totalBytes += value.byteLength;
       if (totalBytes > maxBytes) {
-        try {
-          await reader.cancel("request body exceeds the configured limit");
-        } catch {
-          // Cancellation is best effort; the response still fails closed.
+        if (signal) cancelWithoutWaiting("request body exceeds the configured limit");
+        else {
+          try {
+            await reader.cancel("request body exceeds the configured limit");
+          } catch {
+            // Cancellation is best effort; the response still fails closed.
+          }
         }
         return { ok: false, reason: "too_large" };
       }
@@ -93,13 +117,17 @@ export async function readBoundedUtf8Text(
       text: new TextDecoder("utf-8", { fatal: true }).decode(bytes),
     };
   } catch {
-    try {
-      await reader.cancel("request body could not be read");
-    } catch {
-      // Cancellation is best effort; callers receive a generic read failure.
+    if (signal) cancelWithoutWaiting("request body could not be read");
+    else {
+      try {
+        await reader.cancel("request body could not be read");
+      } catch {
+        // Cancellation is best effort; callers receive a generic read failure.
+      }
     }
     return { ok: false, reason: "read_error" };
   } finally {
+    signal?.removeEventListener("abort", onAbort);
     reader.releaseLock();
   }
 }

@@ -184,11 +184,11 @@ test("qa:merged가 qa:local의 검사 목록을 그대로 쓴다", async () => {
   }
 });
 
-test("공유 QA 목록은 CI와 같은 아모라 v2 계약을 실제 검사하고 배포 인가로 표시하지 않는다", async () => {
+test("공유 QA 목록은 CI와 같은 현재 아모라 writer retirement 계약을 검사하고 배포 인가로 표시하지 않는다", async () => {
   const { checks } = await import("../verify-local.mjs");
   const fences = checks.filter(check => check.name === "supabase release fence");
   assert.equal(fences.length, 1);
-  assert.deepEqual(fences[0].args, ["pnpm", "supabase:release:fence", "--amora-action-view-v2"]);
+  assert.deepEqual(fences[0].args, ["pnpm", "supabase:release:fence", "--amora-action-writer-retirement"]);
   const { readFileSync } = await import("node:fs");
   const pkg = JSON.parse(readFileSync(path.join(repoRoot, "package.json"), "utf8"));
   assert.equal(pkg.scripts["supabase:release:fence"], "node ./scripts/supabase-release-fence.mjs");
@@ -197,7 +197,7 @@ test("공유 QA 목록은 CI와 같은 아모라 v2 계약을 실제 검사하�
   });
   assert.equal(result.error, undefined);
   assert.equal(result.status, 0, `${result.stdout}${result.stderr}`);
-  assert.match(result.stdout, /Amora action view v2 local contract verified \(241 exact SQL files; 229 historical operating ledger rows;/);
+  assert.match(result.stdout, /Amora action writer retirement local contract verified \(242 exact SQL files; operating history 230 -> 231;/);
   assert.match(result.stdout, /runtime evidence not verified; deployment not authorized; no remote writes/);
 });
 

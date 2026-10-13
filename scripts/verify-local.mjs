@@ -105,7 +105,7 @@ export const checks = [
   {
     kind: "check",
     name: "supabase release fence",
-    args: ["pnpm", "supabase:release:fence", "--amora-action-view-v2"],
+    args: ["pnpm", "supabase:release:fence", "--amora-action-writer-retirement"],
   },
 ];
 

@@ -209,7 +209,8 @@ describe("preparation actions open-tab synchronization", () => {
     await act(async () => {
       oldRead.resolve(response([action]));
       window.dispatchEvent(new Event("focus"));
-      await vi.advanceTimersByTimeAsync(30_000);
+      // 저장의 15초 상한 전에 이전 poll과 focus가 진행 중 변경을 덮어쓰지 않는지 검사한다.
+      await vi.advanceTimersByTimeAsync(5_000);
     });
     expect(fetchMock).toHaveBeenCalledTimes(3);
     const done: AmoraActionItem = { ...action, status: "done", updatedAt: "2026-09-10T00:00:00.000001Z", viewVersion: "2026-09-10T00:00:00.000001Z" };
