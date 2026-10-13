@@ -233,11 +233,43 @@ test('wrong identity, stale observations, ledger drift and existing ACL changes 
   }
 });
 
-test('the default source guard rejects this dirty checkout at its actual HEAD before any remote query', async()=>{
+test('the default source guard checks clean identity and each dirty state in an owned Git fixture', async()=>{
   const {assertAmoraActionViewV2Source}=await import('../lib/amora-action-view-v2-release.mjs');
-  const head=execFileSync('git',['-C',repoRoot,'rev-parse','HEAD'],{encoding:'utf8',windowsHide:true}).trim();
-  assert.throws(()=>assertAmoraActionViewV2Source(repoRoot,head),
-    error=>error.code==='AMORA_VIEW_V2_SOURCE_NOT_CLEAN_EXACT_COMMIT');
+  const owned=mkdtempSync(join(tmpdir(),'amora-view-v2-test-'));
+  const git=argv=>execFileSync('git',['-C',owned,...argv],
+    {encoding:'utf8',windowsHide:true,stdio:['ignore','pipe','pipe']}).trim();
+  const origin='https://github.com/Kyu-Sung-Cho/wedding-hanbang-web.git';
+  try {
+    git(['init']);
+    git(['remote','add','origin',origin]);
+    writeFileSync(join(owned,'synthetic.txt'),'SYNTHETIC SOURCE\n');
+    git(['add','synthetic.txt']);
+    git(['-c','user.name=Synthetic Test','-c','user.email=synthetic@example.invalid',
+      'commit','-m','synthetic source guard fixture']);
+    const head=git(['rev-parse','HEAD']);
+    assert.deepEqual(assertAmoraActionViewV2Source(owned,head),{commit:head,origin,clean:true});
+    assert.throws(()=>assertAmoraActionViewV2Source(owned,'a'.repeat(40)),
+      error=>error.code==='AMORA_VIEW_V2_SOURCE_NOT_CLEAN_EXACT_COMMIT');
+
+    git(['remote','set-url','origin','https://example.invalid/untrusted.git']);
+    assert.throws(()=>assertAmoraActionViewV2Source(owned,head),
+      error=>error.code==='AMORA_VIEW_V2_ORIGIN_CHANGED');
+    git(['remote','set-url','origin',origin]);
+
+    writeFileSync(join(owned,'untracked.txt'),'SYNTHETIC UNTRACKED\n');
+    assert.throws(()=>assertAmoraActionViewV2Source(owned,head),
+      error=>error.code==='AMORA_VIEW_V2_SOURCE_NOT_CLEAN_EXACT_COMMIT');
+    rmSync(join(owned,'untracked.txt'));
+    writeFileSync(join(owned,'synthetic.txt'),'SYNTHETIC MODIFIED\n');
+    assert.throws(()=>assertAmoraActionViewV2Source(owned,head),
+      error=>error.code==='AMORA_VIEW_V2_SOURCE_NOT_CLEAN_EXACT_COMMIT');
+    git(['add','synthetic.txt']);
+    assert.throws(()=>assertAmoraActionViewV2Source(owned,head),
+      error=>error.code==='AMORA_VIEW_V2_SOURCE_NOT_CLEAN_EXACT_COMMIT');
+  } finally {
+    assert.equal(owned.startsWith(join(tmpdir(),'amora-view-v2-test-')),true);
+    rmSync(owned,{recursive:true,force:true});
+  }
 });
 
 test('a real inspection receipt is exclusive, outside Git and preserves existing bytes on a second open', async()=>{
