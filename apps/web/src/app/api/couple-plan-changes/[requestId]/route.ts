@@ -156,6 +156,12 @@ function serviceErrorText(error: unknown) {
 
 function serviceErrorResponse(error: unknown) {
   const text = serviceErrorText(error);
+  if (/AMORA_ACTION_RESERVED_PLAN_WRITER_RETIRED/i.test(text)) {
+    return privateResponse({
+      error: "공유 할 일은 결정 보드에서 현재 기록을 확인한 뒤 수정해 주세요.",
+      code: "AMORA_ACTION_VIEW_REQUIRED",
+    }, 400);
+  }
   if (/COUPLE_PLAN_CHANGE_(?:NOT_FOUND|JOURNEY_NOT_FOUND)/i.test(text)) {
     return privateResponse(
       {

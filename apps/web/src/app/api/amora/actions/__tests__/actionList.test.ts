@@ -91,6 +91,19 @@ describe("Amora action list", () => {
       actions: [{ id: "act_0" }], count: 1, open_count: 1, source: "table",
     });
   });
+  it("keeps actual raw canonical and legacy view versions separate from display fallback dates", async () => {
+    const canonicalToken = "2026-10-12T00:00:00.123456Z";
+    const legacyToken = "2026-10-12T09:00:00.123456+09:00";
+    fixture.actions = [{ ...action(0, "open"), updated_at: canonicalToken }];
+    fixture.legacy = [{ ...action(1, "open"), createdAt: "2026-01-02T00:00:00Z", updatedAt: legacyToken },
+      { ...action(2, "open"), createdAt: "2026-01-03T00:00:00Z", viewVersion: canonicalToken }];
+    const response = await GET(new Request("https://hanbang.ai/api/amora/actions?status=all"));
+    expect(response.status).toBe(200);
+    const body = await response.json();
+    expect(body.actions.find((value: { id: string }) => value.id === "act_0").viewVersion).toBe(canonicalToken);
+    expect(body.actions.find((value: { id: string }) => value.id === "act_1").viewVersion).toBe(legacyToken);
+    expect(body.actions.find((value: { id: string }) => value.id === "act_2").viewVersion).toBeNull();
+  });
 
   it("counts all unfinished actions while keeping the requested display limit", async () => {
     fixture.actions = Array.from({ length: 85 }, (_, index) => action(index, "open"));

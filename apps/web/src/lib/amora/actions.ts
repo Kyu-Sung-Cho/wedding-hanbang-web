@@ -4,6 +4,8 @@ import type {
   AmoraActionStatus,
   ProgressItem,
 } from "@/types/database.types";
+import { compareChatTimestamps } from "@hanbang/shared";
+import { isSafeAmoraActionHref } from "./actionHref";
 
 export type { AmoraActionPriority, AmoraActionSource, AmoraActionStatus };
 
@@ -19,6 +21,8 @@ export interface AmoraActionItem {
   href?: string;
   createdAt: string;
   updatedAt: string;
+  /** 실제 저장소의 수정 시각 원문. 없거나 불량이면 편집 승인용 버전이 아니다. */
+  viewVersion?: string | null;
   completedAt?: string;
 }
 
@@ -26,6 +30,19 @@ export type ProgressWithAmoraActions = Record<string, ProgressItem | unknown>;
 
 const ACTIONS_KEY = "__amora_actions";
 export const MAX_ACTIONS = 80;
+
+/** 화면이 받은 PostgreSQL 원문 버전이다. trim/Date 재발급으로 정밀도를 바꾸지 않는다. */
+export function isAmoraActionViewVersion(value: unknown): value is string {
+  if (typeof value !== "string") return false;
+  const parts = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.\d{1,6})?(?:Z|([+-])(\d{2}):(\d{2}))$/.exec(value);
+  if (!parts) return false;
+  const year = Number(parts[1]); const month = Number(parts[2]); const day = Number(parts[3]);
+  const days = [31, year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0) ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+  return year > 0 && month >= 1 && month <= 12 && day >= 1 && day <= days[month - 1]
+    && Number(parts[4]) <= 23 && Number(parts[5]) <= 59 && Number(parts[6]) <= 59
+    && (!parts[7] || (Number(parts[8]) <= 15 && Number(parts[9]) <= 59))
+    && compareChatTimestamps(value, value) === 0;
+}
 
 function isAction(value: unknown): value is AmoraActionItem {
   if (!value || typeof value !== "object") return false;
@@ -41,6 +58,9 @@ export function normalizeAmoraAction(item: AmoraActionItem): AmoraActionItem {
     source: item.source ?? "chat",
     createdAt: item.createdAt ?? new Date().toISOString(),
     updatedAt: item.updatedAt ?? new Date().toISOString(),
+    href: isSafeAmoraActionHref(item.href) ? item.href : undefined,
+    viewVersion: item.viewVersion === null || (item.href != null && !isSafeAmoraActionHref(item.href)) ? null
+      : isAmoraActionViewVersion(item.updatedAt) ? item.updatedAt : null,
   };
 }
 
@@ -76,7 +96,10 @@ export function createAmoraActionId() {
 
 export function getAmoraActions(progress: ProgressWithAmoraActions | null | undefined): AmoraActionItem[] {
   const raw = (progress?.[ACTIONS_KEY] as unknown[] | undefined) ?? [];
-  return sortAmoraActions(raw.filter(isAction).map(normalizeAmoraAction));
+  // 옛 JSON의 임의 viewVersion alias는 신뢰하지 않는다. 저장된 updatedAt만 사용한다.
+  return sortAmoraActions(raw.filter(isAction).map(item => normalizeAmoraAction({ ...item,
+    viewVersion: item.viewVersion === null ? null : isAmoraActionViewVersion(item.updatedAt) ? item.updatedAt : null,
+  })));
 }
 
 export function getOpenAmoraActions(progress: ProgressWithAmoraActions | null | undefined): AmoraActionItem[] {

@@ -67,3 +67,12 @@ test("test:repo 가 없는 파일을 부르지 않는다", () => {
   const ghosts = [...wiredFiles()].filter((f) => !onDisk.has(f));
   assert.deepEqual(ghosts, [], `test:repo 가 없는 파일을 부릅니다: ${ghosts.join(", ")}`);
 });
+
+test("DB 검증의 동시 실행 제한은 파일명 앞의 실제 Node 옵션으로 전달한다", () => {
+  const pkg = JSON.parse(readFileSync(resolve(repoRoot, "package.json"), "utf8"));
+  assert.ok(pkg.scripts["test:repo"].startsWith("pnpm test:ingest && node --test --test-concurrency=2 "));
+  assert.ok(pkg.scripts["supabase:release:test"].startsWith("node --test --test-concurrency=2 "));
+  for (const name of ["test:repo", "supabase:release:test"]) {
+    assert.equal(pkg.scripts[name].match(/--test-concurrency=/g)?.length, 1);
+  }
+});

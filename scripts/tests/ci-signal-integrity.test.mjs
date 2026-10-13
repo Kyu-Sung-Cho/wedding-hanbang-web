@@ -469,6 +469,18 @@ test("신호 잡은 코드 품질 잡 전부를 실제 조건문에서 확인한
   }
 });
 
+test("필수 신호 잡도 다른 품질 잡과 같은 checkout 증거를 남기고 인증정보를 보존하지 않는다", () => {
+  const signal = jobs.get(SIGNAL_JOB);
+  const checkout = /^\s*uses:\s*(actions\/checkout@[a-f0-9]{40})\b/m;
+  const reference = checkout.exec(jobs.get("web_quality"))?.[1];
+  assert.ok(reference, "기준 품질 잡의 고정 checkout 액션을 찾지 못했다");
+  assert.equal(checkout.exec(signal)?.[1], reference,
+    "필수 신호 잡의 실제 checkout이 없으면 운영 admission이 검사된 소스를 검증할 수 없다");
+  assert.match(signal, /^\s*persist-credentials:\s*false\s*$/m);
+  assert.doesNotMatch(signal, /^\s*ref:\s*/m,
+    "신호 잡만 다른 ref를 checkout하면 같은 실행의 코드 검사 증거가 섞인다");
+});
+
 test("신호 잡은 의도적 차단에 오염되지 않는다", () => {
   const signal = jobs.get(SIGNAL_JOB);
   assert.ok(

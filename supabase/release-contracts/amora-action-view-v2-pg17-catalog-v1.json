@@ -1,0 +1,288 @@
+{
+  "version": 1,
+  "kind": "synthetic-pg17-amora-action-view-v2-target-catalog",
+  "candidateSha256": "e31372d192a0215d4ddf280a99abb628e7a8f732ebc02cb0b7e55fed1373730d",
+  "serverVersion": "17.10",
+  "baseline": {
+    "functions": [
+      {
+        "acl": [
+          [
+            "authenticated",
+            "postgres",
+            "EXECUTE",
+            false
+          ],
+          [
+            "postgres",
+            "postgres",
+            "EXECUTE",
+            false
+          ]
+        ],
+        "owner": "postgres",
+        "config": [
+          "search_path=\"\"",
+          "lock_timeout=5s",
+          "statement_timeout=15s"
+        ],
+        "result": "jsonb",
+        "strict": false,
+        "bodyMd5": "3419a2b1b8f52cf5d34144bc9ddf61bc",
+        "identity": "public.mutate_own_amora_action(uuid,text,text,jsonb)",
+        "language": "plpgsql",
+        "parallel": "u",
+        "volatility": "v",
+        "securityDefiner": true
+      },
+      {
+        "acl": [
+          [
+            "authenticated",
+            "postgres",
+            "EXECUTE",
+            false
+          ],
+          [
+            "postgres",
+            "postgres",
+            "EXECUTE",
+            false
+          ]
+        ],
+        "owner": "postgres",
+        "config": [
+          "search_path=\"\"",
+          "lock_timeout=5s",
+          "statement_timeout=15s"
+        ],
+        "result": "jsonb",
+        "strict": false,
+        "bodyMd5": "ede95d70f5c0cbaaa9825698ec5c702e",
+        "identity": "public.update_own_legacy_amora_action(uuid,uuid,text,bigint,jsonb)",
+        "language": "plpgsql",
+        "parallel": "u",
+        "volatility": "v",
+        "securityDefiner": true
+      },
+      {
+        "acl": [
+          [
+            "postgres",
+            "postgres",
+            "EXECUTE",
+            false
+          ]
+        ],
+        "owner": "postgres",
+        "config": [
+          "search_path=\"\""
+        ],
+        "result": "void",
+        "strict": false,
+        "bodyMd5": "71ca67578fdfac39cdd688e626471721",
+        "identity": "public.lock_own_amora_action_couple(uuid)",
+        "language": "plpgsql",
+        "parallel": "u",
+        "volatility": "v",
+        "securityDefiner": true
+      },
+      {
+        "acl": [
+          [
+            "postgres",
+            "postgres",
+            "EXECUTE",
+            false
+          ]
+        ],
+        "owner": "postgres",
+        "config": [
+          "search_path=\"\""
+        ],
+        "result": "void",
+        "strict": false,
+        "bodyMd5": "8a77fcc7ac689408de7085c3db631a41",
+        "identity": "public.validate_manual_amora_action_values(jsonb,boolean)",
+        "language": "plpgsql",
+        "parallel": "u",
+        "volatility": "v",
+        "securityDefiner": false
+      }
+    ],
+    "timestampTriggers": [
+      [
+        "set_amora_actions_updated_at",
+        "O",
+        "CREATE TRIGGER set_amora_actions_updated_at BEFORE UPDATE ON amora_actions FOR EACH ROW EXECUTE FUNCTION update_updated_at_column()"
+      ]
+    ]
+  },
+  "applied": {
+    "functions": [
+      {
+        "acl": [
+          [
+            "authenticated",
+            "postgres",
+            "EXECUTE",
+            false
+          ],
+          [
+            "postgres",
+            "postgres",
+            "EXECUTE",
+            false
+          ]
+        ],
+        "owner": "postgres",
+        "config": [
+          "search_path=\"\"",
+          "lock_timeout=5s",
+          "statement_timeout=15s"
+        ],
+        "result": "jsonb",
+        "strict": false,
+        "bodyMd5": "3419a2b1b8f52cf5d34144bc9ddf61bc",
+        "identity": "public.mutate_own_amora_action(uuid,text,text,jsonb)",
+        "language": "plpgsql",
+        "parallel": "u",
+        "volatility": "v",
+        "securityDefiner": true
+      },
+      {
+        "acl": [
+          [
+            "authenticated",
+            "postgres",
+            "EXECUTE",
+            false
+          ],
+          [
+            "postgres",
+            "postgres",
+            "EXECUTE",
+            false
+          ]
+        ],
+        "owner": "postgres",
+        "config": [
+          "search_path=\"\"",
+          "lock_timeout=5s",
+          "statement_timeout=15s"
+        ],
+        "result": "jsonb",
+        "strict": false,
+        "bodyMd5": "a7a55ad708319a4713ea97671e8c04bf",
+        "identity": "public.patch_own_amora_action_view_v2(uuid,text,text,jsonb)",
+        "language": "plpgsql",
+        "parallel": "u",
+        "volatility": "v",
+        "securityDefiner": true
+      },
+      {
+        "acl": [
+          [
+            "authenticated",
+            "postgres",
+            "EXECUTE",
+            false
+          ],
+          [
+            "postgres",
+            "postgres",
+            "EXECUTE",
+            false
+          ]
+        ],
+        "owner": "postgres",
+        "config": [
+          "search_path=\"\"",
+          "lock_timeout=5s",
+          "statement_timeout=15s"
+        ],
+        "result": "jsonb",
+        "strict": false,
+        "bodyMd5": "ede95d70f5c0cbaaa9825698ec5c702e",
+        "identity": "public.update_own_legacy_amora_action(uuid,uuid,text,bigint,jsonb)",
+        "language": "plpgsql",
+        "parallel": "u",
+        "volatility": "v",
+        "securityDefiner": true
+      },
+      {
+        "acl": [
+          [
+            "postgres",
+            "postgres",
+            "EXECUTE",
+            false
+          ]
+        ],
+        "owner": "postgres",
+        "config": [
+          "search_path=\"\""
+        ],
+        "result": "trigger",
+        "strict": false,
+        "bodyMd5": "42ac89e8b8e9b6cc0b54d99c528ac33d",
+        "identity": "public.advance_amora_action_view_token_v2()",
+        "language": "plpgsql",
+        "parallel": "u",
+        "volatility": "v",
+        "securityDefiner": false
+      },
+      {
+        "acl": [
+          [
+            "postgres",
+            "postgres",
+            "EXECUTE",
+            false
+          ]
+        ],
+        "owner": "postgres",
+        "config": [
+          "search_path=\"\""
+        ],
+        "result": "void",
+        "strict": false,
+        "bodyMd5": "71ca67578fdfac39cdd688e626471721",
+        "identity": "public.lock_own_amora_action_couple(uuid)",
+        "language": "plpgsql",
+        "parallel": "u",
+        "volatility": "v",
+        "securityDefiner": true
+      },
+      {
+        "acl": [
+          [
+            "postgres",
+            "postgres",
+            "EXECUTE",
+            false
+          ]
+        ],
+        "owner": "postgres",
+        "config": [
+          "search_path=\"\""
+        ],
+        "result": "void",
+        "strict": false,
+        "bodyMd5": "8a77fcc7ac689408de7085c3db631a41",
+        "identity": "public.validate_manual_amora_action_values(jsonb,boolean)",
+        "language": "plpgsql",
+        "parallel": "u",
+        "volatility": "v",
+        "securityDefiner": false
+      }
+    ],
+    "timestampTriggers": [
+      [
+        "set_amora_actions_updated_at",
+        "O",
+        "CREATE TRIGGER set_amora_actions_updated_at BEFORE UPDATE ON amora_actions FOR EACH ROW EXECUTE FUNCTION advance_amora_action_view_token_v2()"
+      ]
+    ]
+  }
+}

@@ -78,14 +78,12 @@ function clientFixture() {
       };
     },
     rpc: async (name: string, values: Record<string, unknown>) => {
-      if (name !== "update_own_legacy_amora_action") throw new Error("Unconditional array replacement is forbidden");
+      if (name !== "patch_own_amora_action_view_v2") throw new Error("Unconditional array replacement is forbidden");
       state.updateCalls += 1;
-      state.filters = { id: values.p_journey_id, couple_id: values.p_couple_id, state_revision: values.p_expected_revision };
+      state.filters = { id: values.p_action_id, couple_id: values.p_couple_id, updated_at: values.p_expected_updated_at };
       return {
-        data: state.updateError ? null : {
-          progress: { __amora_actions: [{ ...journeyRow().progress.__amora_actions[0], status: "done" }] },
-          state_revision: 1,
-        },
+        data: state.updateError ? null : { id: ACTION_ID, couple_id: COUPLE_ID, title: "청첩장 문구 확정하기", status: "done", priority: "medium", source: "chat",
+          created_at: "2026-08-01T00:00:00.000Z", updated_at: "2026-08-01T00:00:00.000001Z", completed_at: "2026-08-01T00:00:00.000001Z" },
         error: state.updateError,
       };
     },
@@ -98,15 +96,6 @@ vi.mock("@/lib/supabase/server", () => ({
 
 vi.mock("@sentry/nextjs", () => ({ captureException: vi.fn() }));
 
-vi.mock("@/lib/amora/actionRepository", async (importOriginal) => ({
-  ...await importOriginal<typeof import("@/lib/amora/actionRepository")>(),
-  mutateOwnAmoraActionRecord: async () => {
-    const error = new Error("relation \"amora_actions\" does not exist");
-    (error as { code?: string }).code = "42P01";
-    throw error;
-  },
-}));
-
 async function patchDone() {
   const { PATCH } = await import("../route");
   return PATCH(
@@ -116,7 +105,7 @@ async function patchDone() {
         authorization: "Bearer test-token",
         "content-type": "application/json",
       },
-      body: JSON.stringify({ status: "done" }),
+      body: JSON.stringify({ status: "done", expectedUpdatedAt: "2026-08-01T00:00:00.000Z", expectedOwnerId: USER_ID, expectedCoupleId: COUPLE_ID }),
     }),
     { params: Promise.resolve({ id: ACTION_ID }) },
   );
@@ -146,13 +135,12 @@ describe("아모라 행동 저장", () => {
         body: `${marker}: synthetic invalid JSON`,
       }), { params: Promise.resolve({ id: ACTION_ID }) });
 
-      expect(response.status).toBe(500);
+      expect(response.status).toBe(400);
       expect(state.updateCalls).toBe(0);
       expect(await response.json()).not.toHaveProperty("action");
       const output = consoleError.mock.calls.flat().map((value) => value instanceof Error
         ? `${value.name}: ${value.message}\n${value.stack ?? ""}` : String(value)).join("\n");
-      expect(output).toContain("api/amora/actions/[id]");
-      expect(output).toContain("SyntaxError");
+      expect(consoleError).not.toHaveBeenCalled();
       expect(output).not.toContain(marker);
     } finally {
       consoleError.mockRestore();
@@ -164,7 +152,7 @@ describe("아모라 행동 저장", () => {
     const response = await patchDone();
     expect(response.status).toBe(200);
     expect(state.updateCalls).toBe(1);
-    expect(state.filters).toEqual({ id: "journey-1", couple_id: COUPLE_ID, state_revision: 0 });
+    expect(state.filters).toEqual({ id: ACTION_ID, couple_id: COUPLE_ID, updated_at: "2026-08-01T00:00:00.000Z" });
   });
 
   it("조건부 저장이 실패하면 성공이라고 말하지 않는다", async () => {
@@ -188,7 +176,7 @@ describe("아모라 행동 저장", () => {
     await patchDone();
 
     expect(state.updateCalls).toBe(1);
-    expect(state.filters.state_revision).toBe(0);
+    expect(state.filters.updated_at).toBe("2026-08-01T00:00:00.000Z");
   });
 
   it("저장 실패를 '찾지 못했습니다'로 바꾸지 않는다", async () => {

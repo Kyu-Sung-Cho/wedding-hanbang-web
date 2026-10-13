@@ -28,6 +28,7 @@ import { loadWeddingCodeSceneVersionReleasePlan } from "./wedding-code-research-
 import { loadWeddingCodeSceneV10ReleasePlan } from "./wedding-code-research-scene-v10-release-contract.mjs";
 import { loadWeddingCodePairSessionConflictReleasePlan } from "./wedding-code-pair-session-conflict-release-contract.mjs";
 import { loadDeletionAuditNullabilityReleasePlan } from "./account-deletion-audit-nullability-release-contract.mjs";
+import { loadAmoraActionViewV2Plan } from "./amora-action-view-v2-release-contract.mjs";
 import { loadWeddingCodePairSessionReleasePlan } from "./wedding-code-pair-session-release-contract.mjs";
 import { loadPreparationStyleReleasePlan } from "./preparation-style-release-contract.mjs";
 import { loadProfileWeddingRolesReleasePlan } from "./profile-wedding-roles-release-contract.mjs";
@@ -1095,7 +1096,7 @@ export function validateSuccessorReleaseContract({
   manifestRelativePath = SUCCESSOR_RELEASE_MANIFEST_RELATIVE_PATH,
   followup = null,
 }) {
-  if (followup !== null && !["amora-budget-decision-hotfix", "amora-explicit-budget-hotfix", "chat-feedback-nullability", "profile-wedding-roles", "profile-avatar", "account-deletion-customer-data", "amora-not-applicable-status", "wedding-code-research-contributions", "wedding-code-research-scene-v09", "wedding-code-research-scene-v10", "preparation-style", "wedding-code-pair-session", "wedding-code-pair-session-conflict", "account-deletion-audit-nullability"].includes(followup)) {
+  if (followup !== null && !["amora-budget-decision-hotfix", "amora-explicit-budget-hotfix", "chat-feedback-nullability", "profile-wedding-roles", "profile-avatar", "account-deletion-customer-data", "amora-not-applicable-status", "wedding-code-research-contributions", "wedding-code-research-scene-v09", "wedding-code-research-scene-v10", "preparation-style", "wedding-code-pair-session", "wedding-code-pair-session-conflict", "account-deletion-audit-nullability", "amora-action-view-v2"].includes(followup)) {
     invalid("FOLLOWUP_RELEASE_INVALID", "only explicitly registered followups are supported");
   }
   if (followup !== null && manifestRelativePath !== SUCCESSOR_RELEASE_MANIFEST_RELATIVE_PATH) {
@@ -1172,6 +1173,24 @@ export function validateSuccessorReleaseContract({
   // 구 manifest의 내용·선행 핀·순서는 그대로 검사한다. 후속 SQL은 호출자가
   // 이름 목록을 넘기는 대신 전용 loader의 전체 디렉터리·원문 검증을 통과해야 한다.
   const expectedDirectoryFiles = [...expectedFiles];
+  if (followup === "amora-action-view-v2") {
+    let actions;
+    try { actions = loadAmoraActionViewV2Plan(root); }
+    catch { invalid("FOLLOWUP_RELEASE_INVALID", "the exact additive Amora action view v2 successor could not be verified"); }
+    const followups = actions.reviewedMigrations.filter(migration => migration.file.slice(0, 14) > previousVersion);
+    if (actions.contract.projectRef !== manifest.projectRef || actions.migrationCount !== 241
+        || actions.predecessorMigrationCount !== 240 || followups.length !== 15
+        || followups.at(-1).file !== actions.migration.file)
+      invalid("FOLLOWUP_RELEASE_INVALID", "Amora action view v2 must preserve all fourteen predecessors and add exactly one reviewed migration");
+    let previousFollowupVersion = previousVersion;
+    for (const migration of followups) {
+      const version = verifyMigration(root, migration, "Amora action view v2 followup");
+      if (version <= previousFollowupVersion || expectedDirectoryFiles.includes(migration.file))
+        invalid("FOLLOWUP_RELEASE_INVALID", "Amora action view v2 successor migration order changed");
+      previousFollowupVersion = version;
+      expectedDirectoryFiles.push(migration.file);
+    }
+  }
   if (followup === "amora-budget-decision-hotfix") {
     let budgetRelease;
     try {

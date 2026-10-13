@@ -10,7 +10,7 @@ import { useAmoraPreparationActions } from "./useAmoraPreparationActions";
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 const action: AmoraActionItem = {
   id: "act_a", title: "첫 조회", status: "open", source: "chat", priority: "medium",
-  createdAt: "2026-09-10T00:00:00Z", updatedAt: "2026-09-10T00:00:00Z",
+  createdAt: "2026-09-10T00:00:00Z", updatedAt: "2026-09-10T00:00:00Z", viewVersion: "2026-09-10T00:00:00Z",
 };
 function owner(user = "user-a", couple = "couple-a") {
   const profile: Profile = {
@@ -108,7 +108,7 @@ describe("preparation action auth ownership with the real Zustand store", () => 
     const pending = deferred<Response>();
     fetchMock.mockReturnValueOnce(pending.promise);
     let updating!: Promise<boolean>;
-    await act(async () => { updating = latest.update(action.id, { status: "done" }); });
+    await act(async () => { updating = latest.update(action.id, { status: "done" }, { version: action.viewVersion, ownerScope: latest.ownerScope }); });
     const fresh = { ...action, title: "현재 서버 정본" };
     fetchMock.mockResolvedValueOnce(response([fresh]));
     await act(async () => {
@@ -134,5 +134,44 @@ describe("preparation action auth ownership with the real Zustand store", () => 
     await act(async () => pending.resolve(response([fresh])));
     expect(latest.actions).toEqual([fresh]);
     expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("rejects a carried edit intent after a batched owner A-B-A transition", async () => {
+    fetchMock.mockResolvedValueOnce(response([action]));
+    await act(async () => root.render(<Harness />));
+    const oldUpdate = latest.update;
+    const oldView = { version: action.viewVersion, ownerScope: latest.ownerScope };
+    fetchMock.mockResolvedValueOnce(response([action]));
+    await act(async () => {
+      useAuthStore.setState(owner("user-b", "couple-b"));
+      useAuthStore.setState(owner());
+    });
+    fetchMock.mockResolvedValueOnce(Response.json({ action: { ...action, title: "전환 전 승인",
+      updatedAt: "2026-09-10T00:00:00.000001Z", viewVersion: "2026-09-10T00:00:00.000001Z" } }));
+    await act(async () => { expect(await oldUpdate(action.id, { title: "전환 전 승인" }, oldView)).toBe(false); });
+    expect(fetchMock.mock.calls.map(call => call[1]?.method ?? "GET")).toEqual(["GET", "GET"]);
+    expect(latest.ownerScope).not.toBe(oldView.ownerScope);
+    expect(latest.actions[0]?.title).toBe(action.title);
+  });
+
+  it("aborts a recovery read and ignores its late result on an owner transition", async () => {
+    fetchMock.mockResolvedValueOnce(response([action]));
+    await act(async () => root.render(<Harness />));
+    const recovery = deferred<Response>();
+    fetchMock.mockResolvedValueOnce(Response.json({ code: "AMORA_ACTION_CONFLICT" }, { status: 409 }));
+    fetchMock.mockReturnValueOnce(recovery.promise);
+    let updating!: Promise<boolean>;
+    await act(async () => { updating = latest.update(action.id, { title: "이전 작성 내용" }, { version: action.viewVersion, ownerScope: latest.ownerScope }); });
+    const options = z.object({ signal: z.instanceof(AbortSignal) }).parse(fetchMock.mock.calls[2][1]);
+    fetchMock.mockResolvedValueOnce(response([]));
+    await act(async () => {
+      useAuthStore.setState(owner("user-b", "couple-b"));
+      recovery.resolve(Response.json({ action: { ...action, title: "이전 준비 공간 조회" } }));
+    });
+    expect(options.signal.aborted).toBe(true);
+    expect(await updating).toBe(false);
+    expect(latest.actions).toEqual([]);
+    expect(latest.updateIssues).toEqual({});
+    expect(latest.updateError).toBeNull();
   });
 });

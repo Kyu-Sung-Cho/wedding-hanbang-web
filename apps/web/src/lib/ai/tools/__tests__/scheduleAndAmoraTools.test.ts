@@ -422,7 +422,7 @@ describe("amoraActionTools", () => {
     expect(result.displayMessage).not.toContain("없습니다");
   });
 
-  it("updates an older open card even when 81 newer completed cards exist", async () => {
+  it("retires direct unversioned updates even when the older open card exists behind 81 completed cards", async () => {
     const target = {
       id: "act_old", couple_id: "couple-1", title: "Old unfinished card", status: "open",
       priority: "medium", source: "chat", created_at: "2026-01-01", updated_at: "2026-01-01",
@@ -437,7 +437,9 @@ describe("amoraActionTools", () => {
       ],
     });
     const result = await executeUpdateAmoraAction({ action_id: "act_old", status: "done" }, createContext({}));
-    expect(result).toMatchObject({ success: true, toolOutput: { action: { id: "act_old", status: "done" } } });
+    expect(result).toMatchObject({ success: false, toolOutput: { error_code: "AMORA_ACTION_NON_ATOMIC_MUTATION_RETIRED" } });
+    expect(result.toolOutput).not.toHaveProperty("action");
+    expect(createAdminClient).not.toHaveBeenCalled();
   });
 
   it("does not fall back to a stale legacy card when the canonical lookup fails", async () => {
@@ -446,7 +448,8 @@ describe("amoraActionTools", () => {
     });
     const ctx = createContext({ __amora_actions: [{ id: "act_1", title: "Old copy", status: "open" }] });
     const result = await executeUpdateAmoraAction({ action_id: "act_1", status: "done" }, ctx);
-    expect(result).toMatchObject({ success: false, toolOutput: { error: "action_read_failed" } });
+    expect(result).toMatchObject({ success: false, toolOutput: { error_code: "AMORA_ACTION_NON_ATOMIC_MUTATION_RETIRED" } });
+    expect(createAdminClient).not.toHaveBeenCalled();
     expect(ctx.weddingContext.progress).toMatchObject({ __amora_actions: [{ status: "open" }] });
   });
 
@@ -461,6 +464,7 @@ describe("amoraActionTools", () => {
     const ctx = createContext({ __amora_actions: [target] });
     const result = await executeUpdateAmoraAction({ action_id: "act_1", status: "done" }, ctx);
     expect(result.success).toBe(false);
+    expect(createAdminClient).not.toHaveBeenCalled();
     expect(ctx.weddingContext.progress).toMatchObject({ __amora_actions: [{ status: "open" }] });
   });
 
@@ -525,7 +529,7 @@ describe("amoraActionTools", () => {
     });
   });
 
-  it("updates legacy actions when storage is unavailable", async () => {
+  it("does not update legacy actions or invent success when the old storage path is unavailable", async () => {
     mockAdminClient({
       amora_actions: [
         { maybeSingleResult: { data: null, error: { code: "42P01", message: "relation missing" } } },
@@ -551,13 +555,11 @@ describe("amoraActionTools", () => {
       ctx
     );
 
-    expect(result.success).toBe(true);
-    expect(result.toolOutput.action).toMatchObject({
-      id: "act_1",
-      status: "done",
-    });
+    expect(result.success).toBe(false);
+    expect(result.toolOutput).toEqual({ error_code: "AMORA_ACTION_NON_ATOMIC_MUTATION_RETIRED" });
+    expect(createAdminClient).not.toHaveBeenCalled();
     expect(ctx.weddingContext.progress).toMatchObject({
-      __amora_actions: [expect.objectContaining({ id: "act_1", status: "done" })],
+      __amora_actions: [expect.objectContaining({ id: "act_1", status: "open" })],
     });
   });
 });

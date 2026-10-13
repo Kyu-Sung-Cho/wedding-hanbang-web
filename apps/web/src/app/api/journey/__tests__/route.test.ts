@@ -124,6 +124,55 @@ describe("/api/journey PATCH couple plan-change contract", () => {
     });
   });
 
+  it("rejects a shared action patch before constructing a privileged plan writer", async () => {
+    const response = await PATCH(request({
+      expected_revision: 7,
+      progress_patch: { __amora_actions: [{ id: "synthetic-action", title: "합성 초안", status: "open" }] },
+    }));
+
+    expect(response.status).toBe(400);
+    expect(response.headers.get("cache-control")).toContain("no-store");
+    await expect(response.json()).resolves.toMatchObject({
+      code: "AMORA_ACTION_VIEW_REQUIRED",
+      error: expect.stringContaining("결정 보드"),
+    });
+    expect(mocks.rpc).not.toHaveBeenCalled();
+    expect(createAdminClient).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    { progress_remove_keys: ["__amora_actions"] },
+    { progress: { __amora_actions: [{ id: "synthetic-action", status: "done" }] } },
+    { progress: {} },
+  ])("rejects reserved action replacement or removal without any privileged write: %j", async (updates) => {
+    mocks.currentJourney = {
+      progress: { __amora_actions: [{ id: "synthetic-action", status: "open" }] },
+      state_revision: 7,
+    };
+    const response = await PATCH(request({ expected_revision: 7, ...updates }));
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toMatchObject({ code: "AMORA_ACTION_VIEW_REQUIRED" });
+    expect(mocks.rpc).not.toHaveBeenCalled();
+    expect(createAdminClient).not.toHaveBeenCalled();
+  });
+
+  it("preserves unchanged reserved actions while normal progress still uses its canonical writer", async () => {
+    const actions = [{ id: "synthetic-action", title: "합성 기록", status: "open" }];
+    mocks.currentJourney = {
+      progress: { __amora_actions: actions, custom: { note: "이전 메모" } },
+      state_revision: 7,
+    };
+    const response = await PATCH(request({
+      expected_revision: 7,
+      progress: { __amora_actions: actions, custom: { note: "새 메모" } },
+    }));
+    expect(response.status).toBe(200);
+    expect(mocks.rpc).toHaveBeenCalledWith("submit_couple_plan_change", expect.objectContaining({
+      p_changes: { progress_patch: { custom: { note: "새 메모" } }, progress_remove_keys: [] },
+    }));
+    expect(mocks.rpc).toHaveBeenCalledTimes(1);
+  });
+
   it("submits one normalized, revision-fenced budget change through the service RPC", async () => {
     const response = await PATCH(request());
 

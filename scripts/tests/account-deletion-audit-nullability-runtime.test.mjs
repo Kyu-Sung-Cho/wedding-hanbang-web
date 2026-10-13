@@ -6,8 +6,11 @@ import { join, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
 import { appendDeletionAuditReceipt, buildDeletionAuditMutationSql, buildDeletionAuditObservationSql, parseDeletionAuditReleaseArgs,
   runDeletionAuditNullabilityRelease, validateDeletionAuditObservation } from '../lib/account-deletion-audit-nullability-release.mjs';
+import {createDeletionAuditHistoricalRepository} from './fixtures/account-deletion-audit-historical-repository.mjs';
 
 const root = resolve(import.meta.dirname, '../..');
+const historical=createDeletionAuditHistoricalRepository(root);
+test.after(historical.cleanup);
 const version = '20260928073546';
 const sql = readFileSync(join(root, `supabase/migrations/${version}_account_deletion_anonymous_audit.sql`), 'utf8');
 const instant = new Date('2026-09-28T05:00:00Z');
@@ -29,7 +32,7 @@ function fixture({ mode = 'apply', observations = [before(), before(), after()],
   const calls = [], events = [];
   let reads = 0, closed = false, sourceChecks = 0;
   return { calls, events, get closed() { return closed; }, get sourceChecks() { return sourceChecks; },
-    run: () => runDeletionAuditNullabilityRelease({ repoRoot: root, argv: args(mode), now: now ?? (() => instant),
+    run: () => runDeletionAuditNullabilityRelease({ repoRoot: historical.root, argv: args(mode), now: now ?? (() => instant),
       assertSource: () => { sourceChecks += 1; onSource?.(sourceChecks); },
       receiptFactory: () => ({ append: event => { onRecord?.(event); events.push(event); }, close: () => { closed = true; } }),
       query: async query => {

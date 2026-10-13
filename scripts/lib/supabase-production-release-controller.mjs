@@ -2618,6 +2618,11 @@ export async function runProductionRelease({
   now = () => new Date(),
 } = {}) {
   const repoRoot = resolve(requestedRepoRoot ?? process.cwd());
+  if ((argv ?? []).includes("--amora-action-view-v2")) {
+    assertSafeExecutionEnvironment(process.env);
+    const { runAmoraActionViewV2Release } = await import("./amora-action-view-v2-release.mjs");
+    return runAmoraActionViewV2Release({ repoRoot, argv, now });
+  }
   if ((argv ?? []).includes("--legacy-fitting-acl")) {
     assertSafeExecutionEnvironment(process.env);
     const { runLegacyFittingAclRelease } = await import("./legacy-fitting-acl-release.mjs");

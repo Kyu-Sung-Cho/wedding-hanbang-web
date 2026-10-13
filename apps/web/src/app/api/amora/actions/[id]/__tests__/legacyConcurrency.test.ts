@@ -6,6 +6,7 @@ import { PGlite } from "@electric-sql/pglite";
 import { createClient } from "@supabase/supabase-js";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import type { AmoraActionItem } from "@/lib/amora/actions";
+import { compareChatTimestamps } from "@hanbang/shared";
 
 const USER_ID = "22222222-2222-4222-8222-222222222222";
 const COUPLE_ID = "11111111-1111-4111-8111-111111111111";
@@ -31,10 +32,7 @@ let rpcWrites = 0;
 let queryError = false;
 let profileError = false;
 let saveError = false;
-let returnedRevision: number | null | undefined;
-let omitRevision = false;
 let beforeWrite: (() => Promise<void>) | null = null;
-let firstReadBarrier: (() => Promise<void>) | null = null;
 
 function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
@@ -50,9 +48,10 @@ async function localPostgrest(input: RequestInfo | URL, init?: RequestInit): Pro
     const profile = await db.query("SELECT couple_id FROM profiles WHERE id = $1", [USER_ID]);
     return json(profile.rows[0]);
   }
-  if (table === "mutate_own_amora_action" || table === "update_own_legacy_amora_action") {
+  if (table === "mutate_own_amora_action" || table === "update_own_legacy_amora_action" || table === "patch_own_amora_action_view_v2") {
     const body = await request.json();
-    if (table === "mutate_own_amora_action" && mocks.repositoryError) return json(mocks.repositoryError, 500);
+    if ((table === "mutate_own_amora_action" || table === "patch_own_amora_action_view_v2") && mocks.repositoryError) return json(mocks.repositoryError, 500);
+    if (queryError && table === "patch_own_amora_action_view_v2") return json({ code: "XX000", message: "private read error" }, 500);
     const canonical = table === "mutate_own_amora_action";
     const exists = canonical ? (await db.query("SELECT id FROM amora_actions WHERE id = $1", [body.p_action_id])).rows.length > 0 : false;
     if (!canonical) writes += 1;
@@ -62,7 +61,9 @@ async function localPostgrest(input: RequestInfo | URL, init?: RequestInit): Pro
       const result = await db.transaction(async (tx) => {
         await tx.exec("SET LOCAL ROLE authenticated");
         await tx.query("SELECT set_config('request.jwt.claim.sub', $1, true)", [USER_ID]);
-        return canonical
+        return table === "patch_own_amora_action_view_v2"
+          ? tx.query<{ value: unknown }>("SELECT public.patch_own_amora_action_view_v2($1,$2,$3,$4::jsonb) AS value", [body.p_couple_id, body.p_action_id, body.p_expected_updated_at, JSON.stringify(body.p_values)])
+          : canonical
           ? tx.query<{ value: unknown }>("SELECT public.mutate_own_amora_action($1,$2,$3,$4::jsonb) AS value", [body.p_couple_id, body.p_action_id, body.p_operation, JSON.stringify(body.p_values)])
           : tx.query<{ value: unknown }>("SELECT public.update_own_legacy_amora_action($1,$2,$3,$4,$5::jsonb) AS value", [body.p_couple_id, body.p_journey_id, body.p_action_id, body.p_expected_revision, JSON.stringify(body.p_values)]);
       });
@@ -84,9 +85,10 @@ async function localPostgrest(input: RequestInfo | URL, init?: RequestInit): Pro
     expect(url.searchParams.get("couple_id")).toBe(`eq.${COUPLE_ID}`);
     const replayId = url.searchParams.get("id");
     if (replayId?.startsWith("eq.")) {
-      expect(url.searchParams.get("created_by")).toBe(`eq.${USER_ID}`);
+      const creator = url.searchParams.get("created_by");
+      if (creator !== null) expect(creator).toBe(`eq.${USER_ID}`);
       if (queryError) return json({ code: "XX000", message: "private replay read error" }, 500);
-      const result = await rpcAs("authenticated", "SELECT to_jsonb(a) AS value FROM amora_actions a WHERE id=$1 AND couple_id=$2 AND created_by=$3", [replayId.slice(3), COUPLE_ID, USER_ID]);
+      const result = await rpcAs("authenticated", `SELECT to_jsonb(a) AS value FROM amora_actions a WHERE id=$1 AND couple_id=$2${creator ? " AND created_by=$3" : ""}`, creator ? [replayId.slice(3), COUPLE_ID, USER_ID] : [replayId.slice(3), COUPLE_ID]);
       return json(result.rows[0]?.value ?? null);
     }
     const values: unknown[] = [COUPLE_ID];
@@ -118,9 +120,6 @@ async function localPostgrest(input: RequestInfo | URL, init?: RequestInit): Pro
     reads += 1;
     if (queryError) return json({ message: "private read error", code: "XX000" }, 500);
     const result = await db.query<Record<string, unknown>>("SELECT * FROM wedding_journeys WHERE couple_id = $1", [COUPLE_ID]);
-    if (firstReadBarrier) await firstReadBarrier();
-    if (returnedRevision !== undefined) result.rows.forEach((row) => { row.state_revision = returnedRevision; });
-    if (omitRevision) result.rows.forEach((row) => { delete row.state_revision; });
     return json(result.rows);
   }
   expect(request.method).toBe("PATCH");
@@ -141,9 +140,12 @@ async function stored() {
   return result.rows[0];
 }
 async function patch(id: string, updates: Record<string, unknown> = { status: "done" }) {
+  // 테스트 사용자가 현재 화면에서 얻는 원문 token이다. route는 이 값을 조회/발급하지 않는다.
+  const canonical = await db.query<{ token: string }>("SELECT to_jsonb(updated_at) #>> '{}' AS token FROM amora_actions WHERE id=$1", [id]);
+  const expectedUpdatedAt = canonical.rows[0]?.token ?? action(id).updatedAt;
   const { PATCH } = await import("../route");
   return PATCH(new Request(`https://hanbang.ai/api/amora/actions/${id}`, {
-    method: "PATCH", headers: { authorization: "Bearer test-token", "content-type": "application/json" }, body: JSON.stringify(updates),
+    method: "PATCH", headers: { authorization: "Bearer test-token", "content-type": "application/json" }, body: JSON.stringify({ expectedUpdatedAt, expectedOwnerId: USER_ID, expectedCoupleId: COUPLE_ID, ...updates }),
   }), { params: Promise.resolve({ id }) });
 }
 
@@ -187,7 +189,10 @@ beforeAll(async () => {
   await db.exec("CREATE TRIGGER trg_advance_wedding_journey_state_revision BEFORE INSERT OR UPDATE ON wedding_journeys FOR EACH ROW EXECUTE FUNCTION public.advance_wedding_journey_state_revision()");
   await db.exec(readFileSync(path.resolve(process.cwd(), "../../supabase/migrations/20260615101000_fix_amora_action_status_timestamps.sql"), "utf8"));
   await db.exec("CREATE TRIGGER set_amora_actions_status_timestamps BEFORE INSERT OR UPDATE ON amora_actions FOR EACH ROW EXECUTE FUNCTION public.set_amora_action_status_timestamps()");
+  await db.exec("CREATE FUNCTION public.action_original_test_token() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN NEW.updated_at := clock_timestamp(); RETURN NEW; END $$; CREATE TRIGGER set_amora_actions_updated_at BEFORE UPDATE ON amora_actions FOR EACH ROW EXECUTE FUNCTION public.action_original_test_token()");
   await db.exec(readFileSync(path.resolve(process.cwd(), "../../supabase/migrations/20260906074227_amora_manual_actions_actor_boundary.sql"), "utf8"));
+  // 미적용 운영 migration이 아니라 같은 트리의 독립 후보 bytes를 로컬 PostgreSQL에 실행한다.
+  await db.exec(readFileSync(path.resolve(process.cwd(), "../../supabase/release-candidates/amora-action-view-v2/patch_own_amora_action_view_v2.sql"), "utf8"));
   const privacy = readFileSync(path.resolve(process.cwd(), "../../supabase/migrations/20260716114000_current_couple_membership_privacy_fence.sql"), "utf8");
   for (const name of ["is_current_couple_member", "is_couple_member"]) {
     const original = privacy.match(new RegExp(`CREATE OR REPLACE FUNCTION public\\.${name}\\([\\s\\S]*?GRANT EXECUTE ON FUNCTION public\\.${name}\\([\\s\\S]*?;`))?.[0];
@@ -208,7 +213,7 @@ afterAll(async () => { await db.close(); });
 beforeEach(async () => {
   reads = 0; writes = 0; rpcWrites = 0; queryError = false; saveError = false;
   profileError = false;
-  returnedRevision = undefined; omitRevision = false; beforeWrite = null; firstReadBarrier = null; mocks.repositoryError = null;
+  beforeWrite = null; mocks.repositoryError = null;
   await db.exec("TRUNCATE wedding_journeys, amora_actions");
   await db.exec("TRUNCATE profiles, couples");
   await db.query("INSERT INTO profiles VALUES ($1,$2,'bride')", [USER_ID, COUPLE_ID]);
@@ -252,19 +257,57 @@ describe("legacy action updates preserve concurrent preparation changes", () => 
     expect(await response.json()).not.toHaveProperty("action");
     expect((await stored()).progress.__amora_actions[0].status).toBe("open");
   });
-  it("keeps both changes when two requests read the same original action array", async () => {
-    let release!: () => void;
-    const gate = new Promise<void>((resolve) => { release = resolve; });
-    let arrived = 0;
-    firstReadBarrier = async () => { arrived += 1; if (arrived === 2) release(); if (arrived <= 2) await gate; };
+  it("keeps edits to two cards from the same original view without replacing the array", async () => {
     const responses = await Promise.all([patch(ACTION_A), patch(ACTION_B)]);
     expect(responses.map((response) => response.status)).toEqual([200, 200]);
     expect((await stored()).progress.__amora_actions.map((item) => item.status)).toEqual(["done", "done"]);
-    expect(reads).toBe(3);
+    expect(reads).toBe(0);
     expect(rpcWrites).toBe(0);
   });
+  it.each(["canonical", "legacy"])("returns one winner and one conflict for two edits of the same %s view", async storage => {
+    const token = "2030-08-01T00:00:00.123456Z";
+    if (storage === "canonical") await db.query("INSERT INTO amora_actions(id,couple_id,title,updated_at) VALUES ($1,$2,'합성 원본',$3::timestamptz)", [ACTION_A, COUPLE_ID, token]);
+    else await db.query("UPDATE wedding_journeys SET progress=jsonb_set(progress,'{__amora_actions,0,updatedAt}',to_jsonb($1::text))", [token]);
+    const responses = await Promise.all([patch(ACTION_A, { title: "첫 합성 변경", expectedUpdatedAt: token }), patch(ACTION_A, { title: "다른 합성 변경", expectedUpdatedAt: token })]);
+    expect(responses.map(response => response.status).sort()).toEqual([200, 409]);
+    const winner = await responses.find(response => response.status === 200)!.json();
+    expect(compareChatTimestamps(winner.action.viewVersion, "2030-08-01T00:00:00.123457Z")).toBe(0);
+    const current = storage === "canonical" ? (await db.query<{ title: string }>("SELECT title FROM amora_actions WHERE id=$1", [ACTION_A])).rows[0]
+      : (await stored()).progress.__amora_actions[0];
+    expect(current.title).toBe(winner.action.title);
+    expect(reads).toBe(0);
+  });
+  it("uses canonical authority rather than modifying a stale legacy card with the same ID", async () => {
+    const before = await stored();
+    await db.query("INSERT INTO amora_actions(id,couple_id,title,updated_at) VALUES ($1,$2,'합성 정본','2026-08-01T00:00:00.000001Z')", [ACTION_A, COUPLE_ID]);
+    const response = await patch(ACTION_A, { status: "done", expectedUpdatedAt: action(ACTION_A).updatedAt });
+    expect(response.status).toBe(409);
+    expect(await response.json()).not.toHaveProperty("action");
+    expect(await stored()).toEqual(before);
+    expect((await db.query("SELECT title,status FROM amora_actions WHERE id=$1", [ACTION_A])).rows).toEqual([{ title: "합성 정본", status: "open" }]);
+    expect(reads).toBe(0); expect(writes).toBe(1);
+  });
+  it("reads the exact current SQL version of one card for explicit recovery", async () => {
+    await db.query("INSERT INTO amora_actions(id,couple_id,title,updated_at) VALUES ($1,$2,'합성 정본','2030-08-01T00:00:00.123456Z')", [ACTION_A, COUPLE_ID]);
+    const { GET } = await import("../route");
+    const result = await GET(new Request(`https://hanbang.ai/api/amora/actions/${ACTION_A}`), { params: Promise.resolve({ id: ACTION_A }) });
+    expect(result.status).toBe(200);
+    const view = await result.json();
+    const raw = await db.query<{ token: string }>("SELECT to_jsonb(updated_at) #>> '{}' AS token FROM amora_actions WHERE id=$1", [ACTION_A]);
+    expect(view.action.viewVersion).toBe(raw.rows[0].token);
+    expect(compareChatTimestamps(view.action.viewVersion, "2030-08-01T00:00:00.123456Z")).toBe(0);
+    expect(result.headers.get("cache-control")).toContain("no-store");
+    expect((await patch(ACTION_A, { status: "done", expectedUpdatedAt: view.action.viewVersion })).status).toBe(200);
+  });
+  it("does not disclose a foreign-couple card through single-card recovery", async () => {
+    await db.exec("UPDATE wedding_journeys SET progress='{}'");
+    await db.query("INSERT INTO amora_actions(id,couple_id,title) VALUES ($1,$2,'PRIVATE_FOREIGN_CARD')", [ACTION_A, JOURNEY_ID]);
+    const { GET } = await import("../route");
+    const result = await GET(new Request(`https://hanbang.ai/api/amora/actions/${ACTION_A}`), { params: Promise.resolve({ id: ACTION_A }) });
+    expect(result.status).toBe(404); expect(JSON.stringify(await result.json())).not.toContain("PRIVATE_FOREIGN_CARD");
+  });
 
-  it("re-reads changed checklist, schedule, and budget fields before retrying", async () => {
+  it("atomically preserves checklist, schedule, and budget changes without a replacement-token retry", async () => {
     beforeWrite = async () => {
       beforeWrite = null;
       await db.query("UPDATE wedding_journeys SET progress = progress || $1::jsonb, total_budget = 200 WHERE id = $2", [JSON.stringify({ venue: { checklist: [{ id: "venue_01", done: true }] }, __events: [{ id: "event_b" }] }), JOURNEY_ID]);
@@ -275,32 +318,34 @@ describe("legacy action updates preserve concurrent preparation changes", () => 
     expect(row.progress.__events).toEqual([{ id: "event_b" }]);
     expect(row.total_budget).toBe(200);
     expect(row.progress.__amora_actions.map((item) => item.status)).toEqual(["done", "open"]);
-    expect(reads).toBe(2);
-    expect(writes).toBe(2);
+    expect(reads).toBe(0);
+    expect(writes).toBe(1);
   });
 
-  it("stops after three conflicts with 409 and never pretends the action was saved", async () => {
-    beforeWrite = async () => { await db.exec("UPDATE wedding_journeys SET total_budget = total_budget + 1"); };
+  it("rejects the old card version with 409 after another writer changes that same card", async () => {
+    beforeWrite = async () => { beforeWrite = null; await db.query("UPDATE wedding_journeys SET progress=jsonb_set(progress,'{__amora_actions,0,updatedAt}',to_jsonb('2026-08-01T00:00:00.000001Z'::text)) WHERE id=$1", [JOURNEY_ID]); };
     const response = await patch(ACTION_A);
     expect(response.status).toBe(409);
     expect(await response.json()).toEqual({ error: expect.stringContaining("최신 기록을 불러온 뒤"), code: "AMORA_ACTION_CONFLICT" });
-    expect(reads).toBe(3);
-    expect(writes).toBe(3);
+    expect(reads).toBe(0);
+    expect(writes).toBe(1);
     expect((await stored()).progress.__amora_actions.every((item) => item.status === "open")).toBe(true);
-    expect((await stored()).total_budget).toBe(103);
+    expect((await stored()).total_budget).toBe(100);
   });
 
-  it.each([null, -1, Number.MAX_SAFE_INTEGER, 0.5])("fails closed before writes for invalid revision %s", async (revision) => {
-    returnedRevision = revision;
+  it.each([-1, Number.MAX_SAFE_INTEGER])("fails closed for a stored invalid revision %s", async (revision) => {
+    await db.exec("ALTER TABLE wedding_journeys DISABLE TRIGGER trg_advance_wedding_journey_state_revision");
+    try { await db.query("UPDATE wedding_journeys SET state_revision=$1", [revision]); }
+    finally { await db.exec("ALTER TABLE wedding_journeys ENABLE TRIGGER trg_advance_wedding_journey_state_revision"); }
     expect((await patch(ACTION_A)).status).toBe(503);
-    expect(writes).toBe(0);
+    expect(writes).toBe(1);
     expect(rpcWrites).toBe(0);
   });
 
-  it("does not use an unconditional fallback when the revision is unavailable", async () => {
-    omitRevision = true;
+  it("does not use an unconditional fallback when the legacy action token is unavailable", async () => {
+    await db.exec("UPDATE wedding_journeys SET progress=progress #- '{__amora_actions,0,updatedAt}'");
     expect((await patch(ACTION_A)).status).toBe(503);
-    expect(writes).toBe(0);
+    expect(writes).toBe(1);
     expect(rpcWrites).toBe(0);
   });
 
@@ -317,8 +362,7 @@ describe("legacy action updates preserve concurrent preparation changes", () => 
     expect((await stored()).progress.__amora_actions[0].status).toBe("open");
   });
 
-  it("supports absent canonical storage while preserving every other raw array entry", async () => {
-    mocks.repositoryError = { code: "42P01", message: 'relation "amora_actions" does not exist' };
+  it("preserves every unrelated raw array entry in a legacy-only checked edit", async () => {
     const originals: unknown[] = Array.from({ length: 90 }, (_, index) => action(`act_${index}`));
     originals.splice(2, 0, { legacy_note: "keep this unknown entry" });
     await db.query("UPDATE wedding_journeys SET progress = jsonb_set(progress, '{__amora_actions}', $1::jsonb) WHERE id = $2", [JSON.stringify(originals), JOURNEY_ID]);
@@ -329,7 +373,7 @@ describe("legacy action updates preserve concurrent preparation changes", () => 
     expect(after[90]).toMatchObject({ id: "act_89", categoryKey: "makeup", status: "open" });
   });
 
-  it("returns 404 if the action disappears while the conflicting write is retried", async () => {
+  it("returns 404 if the action disappears before the single checked write", async () => {
     beforeWrite = async () => {
       beforeWrite = null;
       await db.query("UPDATE wedding_journeys SET progress = jsonb_set(progress, '{__amora_actions}', $1::jsonb) WHERE id = $2", [JSON.stringify([action(ACTION_B)]), JOURNEY_ID]);
