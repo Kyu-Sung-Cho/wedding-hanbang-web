@@ -215,8 +215,6 @@ test('warmed prepared old W1/W2 drain before exact three-object removal while fr
       // 음성만: actual 이전 query lifetime을 caller cohort에서 누락하면 독립 inventory가 잡는다.
       const truncated=structuredClone(cohort);truncated.members=truncated.members.filter(m=>m.pid!==pids[0]);
       assert.throws(()=>assertAmoraWriterMaintenanceDrained(initial,truncated,base),/LATE_COHORT/);
-      await assert.rejects(ddl.query(buildAmoraWriterMaintenanceUninstallSql({repoRoot:f.sourceRoot,...base,postLedgerMd5:ledger.md5,cohort:truncated})),/LATE_COHORT/);
-      await ddl.query('ROLLBACK');
       await assert.rejects(ddl.query(uninstall),/DRAIN_REQUIRED/);await ddl.query('ROLLBACK');
       assert.deepEqual(await rowDigests(observer),rowsBefore);
       // 같은 warmed backend/statement의 cutoff 이후 재입장은 새 body다. 진행 중인 구 W1/W2와 구분한다.
@@ -226,6 +224,9 @@ test('warmed prepared old W1/W2 drain before exact three-object removal while fr
       for(const result of results.slice(0,2))assert.equal(result.error?.message,AMORA_WRITER_MAINTENANCE_ERROR);
       assert.equal(results[2].error?.message,'AMORA_ACTION_UNVERSIONED_UPDATE_RETIRED');
       assert.equal(results.every(r=>r.error?.code==='55000'),true);
+      // 순수 소스 검증 비용으로 구 RPC의 고정 5초를 소진하지 않는다. 실제 누락 guard는 자기 rollback 전 검증한다.
+      await assert.rejects(ddl.query(buildAmoraWriterMaintenanceUninstallSql({repoRoot:f.sourceRoot,...base,postLedgerMd5:ledger.md5,cohort:truncated})),/LATE_COHORT/);
+      await ddl.query('ROLLBACK');
       await assert.rejects(ddl.query(uninstall),/DRAIN_REQUIRED/);await ddl.query('ROLLBACK');
       for(const writer of [w1,w2,w3])await writer.query('ROLLBACK');
       const drained=await observe(cutoff);
