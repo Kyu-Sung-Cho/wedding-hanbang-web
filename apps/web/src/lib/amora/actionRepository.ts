@@ -1,8 +1,11 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { compareChatTimestamps } from "@hanbang/shared";
 import type { AmoraAction } from "@/types/database.types";
+import { isRecord } from "@/utils/requestValidation";
+import { InvalidAmoraActionHrefError, isSafeAmoraActionHref, parseAmoraActionHref } from "./actionHref";
 import {
   MAX_ACTIONS,
+  isAmoraActionViewVersion,
   mergeAmoraActions,
   normalizeAmoraAction,
   sortAmoraActions,
@@ -69,6 +72,8 @@ export function amoraActionToRow(
   action: AmoraActionItem,
   createdBy?: string | null
 ): Omit<AmoraAction, "dismissed_at"> {
+  const link = parseAmoraActionHref(action.href);
+  if (!link.ok) throw new InvalidAmoraActionHrefError();
   return {
     id: action.id,
     couple_id: coupleId,
@@ -79,7 +84,7 @@ export function amoraActionToRow(
     priority: action.priority,
     status: action.status,
     source: action.source,
-    href: action.href && action.href.startsWith("/") ? action.href.slice(0, 180) : null,
+    href: link.href,
     metadata: {},
     created_by: createdBy ?? null,
     created_at: action.createdAt,
@@ -369,13 +374,92 @@ export function amoraActionUpdatesToPayload(updates: AmoraActionUpdate): Record<
   if (updates.status !== undefined) payload.status = updates.status;
   if (updates.source !== undefined) payload.source = updates.source;
   if (updates.href !== undefined) {
-    payload.href = updates.href.startsWith("/") ? updates.href.slice(0, 180) : null;
+    const link = parseAmoraActionHref(updates.href);
+    if (!link.ok) throw new InvalidAmoraActionHrefError();
+    payload.href = link.href;
   }
 
   return payload;
 }
 
 /** 수동 API 전용. AI 승인/감사 경로의 admin helper는 위에 그대로 둔다. */
+export async function patchOwnAmoraActionView(
+  client: SupabaseClient,
+  coupleId: string,
+  actionId: string,
+  expectedUpdatedAt: string,
+  updates: AmoraActionUpdate,
+): Promise<AmoraActionItem | null> {
+  const payload = amoraActionUpdatesToPayload(updates);
+  const { data, error } = await client.rpc("patch_own_amora_action_view_v2", {
+    p_couple_id: coupleId, p_action_id: actionId, p_expected_updated_at: expectedUpdatedAt,
+    p_values: payload,
+  });
+  if (error) throw error;
+  if (data === null) return null;
+  const action = checkedAmoraActionViewReceipt(data, coupleId, actionId, expectedUpdatedAt);
+  if (!isRecord(data) || Object.entries(payload).some(([key, value]) => data[key] !== value)) {
+    throw new AmoraActionStorageUnavailableError("Amora action checked receipt does not match the approved change");
+  }
+  return action;
+}
+
+function checkedAmoraActionViewReceipt(data: unknown, coupleId: string, actionId: string, expectedUpdatedAt: string | null): AmoraActionItem {
+  const unavailable = () => new AmoraActionStorageUnavailableError("Amora action checked receipt is unavailable");
+  if (!isRecord(data) || data.id !== actionId || data.couple_id !== coupleId
+    || typeof data.title !== "string" || !data.title.trim() || [...data.title].length > 120) throw unavailable();
+  const version = isAmoraActionViewVersion(data.updated_at) ? data.updated_at : null;
+  if (expectedUpdatedAt !== null && (!version || compareChatTimestamps(version, expectedUpdatedAt) !== 1)) throw unavailable();
+  const priority = data.priority; const status = data.status; const source = data.source;
+  if ((priority !== "high" && priority !== "medium" && priority !== "low")
+    || (status !== "open" && status !== "done" && status !== "dismissed")
+    || (source !== "chat" && source !== "quote" && source !== "schedule" && source !== "budget" && source !== "guardrail" && source !== "manual")) throw unavailable();
+  for (const [field, limit] of [["description", 500], ["due_date", 40], ["category_key", 80], ["href", 180]] as const) {
+    const value = data[field];
+    if (value != null && (typeof value !== "string" || [...value].length > limit)) throw unavailable();
+  }
+  const safeHref = data.href == null || isSafeAmoraActionHref(data.href);
+  if (expectedUpdatedAt !== null && !safeHref) throw unavailable();
+  for (const field of ["created_at", "completed_at", "dismissed_at"] as const) {
+    if (data[field] != null && !isAmoraActionViewVersion(data[field])) throw unavailable();
+  }
+  return {
+    id: actionId, title: data.title, priority, status, source,
+    description: typeof data.description === "string" ? data.description : undefined,
+    dueDate: typeof data.due_date === "string" ? data.due_date : undefined,
+    categoryKey: typeof data.category_key === "string" ? data.category_key : undefined,
+    href: safeHref && typeof data.href === "string" ? data.href : undefined,
+    // 시각 없는 옛 JSON은 GET과 같은 정렬 표식만 쓴다. updatedAt은 절대 발급하지 않는다.
+    createdAt: typeof data.created_at === "string" ? data.created_at : "1970-01-01T00:00:00.000Z",
+    updatedAt: version ?? "1970-01-01T00:00:00.000Z",
+    viewVersion: safeHref ? version : null,
+    completedAt: typeof data.completed_at === "string" ? data.completed_at : undefined,
+  };
+}
+
+/** 충돌 회복용 한 건 조회다. canonical 장애를 legacy 부재/정상으로 바꾸지 않는다. */
+export async function getOwnAmoraActionView(client: SupabaseClient, coupleId: string, actionId: string): Promise<AmoraActionItem | null> {
+  const canonical = await client.from(TABLE)
+    .select("id,couple_id,title,description,due_date,category_key,priority,status,source,href,created_at,updated_at,completed_at,dismissed_at")
+    .eq("couple_id", coupleId).eq("id", actionId).maybeSingle();
+  if (canonical.error) throw canonical.error;
+  if (canonical.data !== null) return checkedAmoraActionViewReceipt(canonical.data, coupleId, actionId, null);
+  const journey = await client.from("wedding_journeys").select("progress").eq("couple_id", coupleId).maybeSingle();
+  if (journey.error) throw journey.error;
+  if (journey.data === null) return null;
+  if (!isRecord(journey.data) || !isRecord(journey.data.progress)) throw new AmoraActionStorageUnavailableError();
+  const raw = journey.data.progress.__amora_actions;
+  if (raw === undefined) return null;
+  if (!Array.isArray(raw)) throw new AmoraActionStorageUnavailableError();
+  const matches = raw.filter(value => isRecord(value) && String(value.id) === actionId);
+  if (matches.length === 0) return null;
+  if (matches.length !== 1 || !isRecord(matches[0])) throw new AmoraActionStorageUnavailableError();
+  const item = matches[0];
+  return checkedAmoraActionViewReceipt({ id: item.id, couple_id: coupleId, title: item.title, description: item.description,
+    priority: item.priority, status: item.status, source: item.source, href: item.href, due_date: item.dueDate, category_key: item.categoryKey,
+    created_at: item.createdAt, updated_at: item.updatedAt, completed_at: item.completedAt, dismissed_at: item.dismissedAt }, coupleId, actionId, null);
+}
+
 export async function mutateOwnAmoraActionRecord(
   client: SupabaseClient,
   coupleId: string,
@@ -394,7 +478,9 @@ export async function mutateOwnAmoraActionRecord(
 export function getManualAmoraActionFailure(error: unknown): { status: number; code: string; error: string } | null {
   const code = error && typeof error === "object" && "code" in error ? error.code : null;
   if (code === "42501") return { status: 403, code: "AMORA_ACTION_SCOPE_DENIED", error: "현재 연결된 커플의 준비 기록만 변경할 수 있어요. 화면을 새로 열어 주세요." };
-  if (code === "PGRST202" || code === "42883" || code === "55000") return { status: 503, code: "AMORA_ACTION_UNAVAILABLE", error: "준비 기록의 저장 상태를 확인하지 못했어요. 잠시 후 다시 시도해 주세요." };
+  if (code === "40001") return { status: 409, code: "AMORA_ACTION_CONFLICT", error: "다른 변경과 겹쳐 저장하지 못했어요. 최신 기록을 불러온 뒤 변경 내용을 다시 확인해 주세요." };
+  if (isAmoraActionStorageUnavailable(error) || code === "PGRST202" || code === "42883" || code === "55000"
+    || code === "55P03" || code === "40P01" || code === "57014") return { status: 503, code: "AMORA_ACTION_UNAVAILABLE", error: "준비 기록의 저장 상태를 확인하지 못했어요. 잠시 후 다시 시도해 주세요." };
   if (code === "22023") return { status: 400, code: "AMORA_ACTION_INVALID_INPUT", error: "변경할 내용을 확인한 뒤 다시 시도해 주세요." };
   return null;
 }

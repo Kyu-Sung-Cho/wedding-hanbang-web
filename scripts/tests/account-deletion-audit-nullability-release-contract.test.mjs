@@ -8,6 +8,7 @@ import { DELETION_AUDIT_CONTRACT_FILE, DELETION_AUDIT_SCHEMA_CHANGE, DELETION_AU
 import { loadWeddingCodePairSessionConflictReleasePlan } from '../lib/wedding-code-pair-session-conflict-release-contract.mjs';
 import { createWeddingCodePairSessionHistoricalRepository } from './fixtures/wedding-code-pair-session-historical-repository.mjs';
 import { digest } from '../lib/current-baseline-release-contract.mjs';
+import {createDeletionAuditHistoricalRepository} from './fixtures/account-deletion-audit-historical-repository.mjs';
 
 const root = resolve(import.meta.dirname, '../..');
 const code = expected => error => error?.code === expected;
@@ -28,8 +29,10 @@ function fixture(t) {
   return { ...result, files, contract, predecessor };
 }
 
-test('240 exact SQL lane preserves 239 pins and authorizes no operation by static success', () => {
-  const plan = loadDeletionAuditNullabilityReleasePlan(root);
+test('240 exact SQL lane preserves 239 pins and authorizes no operation by static success', t => {
+  const historical=createDeletionAuditHistoricalRepository(root);
+  t.after(historical.cleanup);
+  const plan = loadDeletionAuditNullabilityReleasePlan(historical.root);
   assert.equal(plan.migrationCount, 240);
   assert.equal(plan.followupMigrations.length, 14);
   assert.deepEqual(plan.followupMigrations.at(-1), {
@@ -41,10 +44,13 @@ test('240 exact SQL lane preserves 239 pins and authorizes no operation by stati
   assert.equal(plan.contract.scope.target.default, null);
   for (const key of ['runtimeEvidenceVerified', 'releaseAuthorized', 'remoteWritesPerformed']) assert.equal(plan[key], false);
   assert.throws(() => loadWeddingCodePairSessionConflictReleasePlan(root), code('NEW_MIGRATION_NOT_REVIEWED'));
+  assert.throws(() => loadDeletionAuditNullabilityReleasePlan(root), code('NEW_MIGRATION_NOT_REVIEWED'));
 });
 
-test('new contract, runtime and SQL are pinned canonical LF bytes', () => {
-  const plan = loadDeletionAuditNullabilityReleasePlan(root);
+test('new contract, runtime and SQL are pinned canonical LF bytes', t => {
+  const historical=createDeletionAuditHistoricalRepository(root);
+  t.after(historical.cleanup);
+  const plan = loadDeletionAuditNullabilityReleasePlan(historical.root);
   for (const [file, sha] of [[DELETION_AUDIT_CONTRACT_FILE, plan.contractSha256],
     [plan.contract.runtime.file, plan.contract.runtime.sha256],
     [`supabase/migrations/${plan.contract.migrations[0].file}`, plan.migrationSha256]]) {
@@ -91,9 +97,11 @@ test('the unchanged 239 predecessor still accepts only its original directory', 
   assert.throws(() => loadDeletionAuditNullabilityReleasePlan(f.root), code('NEW_MIGRATION_NOT_REVIEWED'));
 });
 
-test('registered static CLI rejects operational, mixed and unknown flags without remote flow', () => {
-  const run = args => spawnSync(process.execPath, [join(root, 'scripts/supabase-release-fence.mjs'), ...args], {
-    cwd: root, encoding: 'utf8', windowsHide: true, timeout: 60_000,
+test('registered static CLI rejects operational, mixed and unknown flags without remote flow', t => {
+  const historical=createDeletionAuditHistoricalRepository(root);
+  t.after(historical.cleanup);
+  const run = args => spawnSync(process.execPath, [join(historical.root, 'scripts/supabase-release-fence.mjs'), ...args], {
+    cwd: historical.root, encoding: 'utf8', windowsHide: true, timeout: 60_000,
   });
   const valid = run([mode]);
   assert.equal(valid.status, 0, valid.stderr);

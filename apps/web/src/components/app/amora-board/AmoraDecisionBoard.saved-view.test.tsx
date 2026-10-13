@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
   auth: { isInitialized: true, isDemo: false, user: { id: "user-a" }, profile: { id: "user-a", couple_id: "couple-a" } },
   decisions: { records: [], loading: false, loadingMore: false, error: null, nextCursor: null, available: true, isDemo: false, refresh: vi.fn(), loadMore: vi.fn() },
-  actions: { actions: [{ id: "task-a", title: "서면 견적 확인", status: "open", source: "manual" }], loading: false, loadingMore: false,
+  actions: { actions: [{ id: "task-a", title: "서면 견적 확인", status: "open", source: "manual", viewVersion: "2026-10-12T00:00:00.123456Z" }], loading: false, loadingMore: false,
     error: null, count: 1, truncated: false, nextCursor: null, isDemo: false, updatingIds: new Set<string>(),
     creating: false, createLocked: false, canCreate: false, ownerScope: "owner-a", refresh: vi.fn(), update: vi.fn(), loadMore: vi.fn() },
 }));

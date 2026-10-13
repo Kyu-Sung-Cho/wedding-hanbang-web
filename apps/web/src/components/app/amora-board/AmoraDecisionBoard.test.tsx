@@ -10,7 +10,7 @@ const mocks = vi.hoisted(() => ({
   data: {
     actions: [] as AmoraActionItem[], loading: false, error: null as string | null,
     count: 0, open_count: 0, truncated: false, isDemo: false, creating: false, createLocked: false,
-    updateError: null as string | null, updatingIds: new Set<string>(),
+    updateError: null as string | null, updatingIds: new Set<string>(), ownerScope: "board-owner",
     refresh: vi.fn(), update: vi.fn(), loadMore: vi.fn(), nextCursor: null as string | null, loadingMore: false,
   },
 }));
@@ -21,7 +21,7 @@ import AmoraDecisionBoard from "./AmoraDecisionBoard";
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 const action: AmoraActionItem = {
   id: "act_test", title: "출장 추가 비용 확인", description: "업체에 서면으로 물어보기", status: "open", source: "chat", priority: "medium",
-  createdAt: "2026-09-01T00:00:00Z", updatedAt: "2026-09-01T00:00:00Z",
+  createdAt: "2026-09-01T00:00:00Z", updatedAt: "2026-09-01T00:00:00Z", viewVersion: "2026-09-01T00:00:00Z",
 };
 
 describe("AmoraDecisionBoard", () => {
@@ -568,19 +568,19 @@ describe("AmoraDecisionBoard", () => {
     expect(Array.from(select.options).filter((option) => option.value).map((option) => option.value)).toEqual(CATEGORY_CHECKLISTS.map((category) => category.key));
     await act(async () => { select.value = "makeup"; select.dispatchEvent(new Event("change", { bubbles: true })); });
     await act(async () => container.querySelector("form")!.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true })));
-    expect(mocks.data.update).toHaveBeenLastCalledWith(action.id, { category_key: "makeup" });
+    expect(mocks.data.update).toHaveBeenLastCalledWith(action.id, { category_key: "makeup" }, { version: action.viewVersion, ownerScope: "board-owner" });
     const clickText = async (text: string) => {
       const control = Array.from(container.querySelectorAll<HTMLButtonElement>("article button")).find((node) => node.textContent === text)!;
       await act(async () => control.click());
     };
     await clickText("완료로 표시");
-    expect(mocks.data.update).toHaveBeenLastCalledWith(action.id, { status: "done" });
+    expect(mocks.data.update).toHaveBeenLastCalledWith(action.id, { status: "done" }, { version: action.viewVersion, ownerScope: "board-owner" });
     await clickText("보류·숨김");
-    expect(mocks.data.update).toHaveBeenLastCalledWith(action.id, { status: "dismissed" });
+    expect(mocks.data.update).toHaveBeenLastCalledWith(action.id, { status: "dismissed" }, { version: action.viewVersion, ownerScope: "board-owner" });
     mocks.data.actions = [{ ...action, status: "dismissed" }];
     await act(async () => root.render(<AmoraDecisionBoard />));
     await clickText("다시 꺼내기");
-    expect(mocks.data.update).toHaveBeenLastCalledWith(action.id, { status: "open" });
+    expect(mocks.data.update).toHaveBeenLastCalledWith(action.id, { status: "open" }, { version: action.viewVersion, ownerScope: "board-owner" });
   });
 
   it("keeps provenance modest, safe category links real, and unsafe legacy hrefs inert", async () => {
@@ -608,7 +608,7 @@ describe("AmoraDecisionBoard", () => {
     });
     mocks.data.update.mockResolvedValueOnce(false);
     await act(async () => container.querySelector('article form')!.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true })));
-    expect(mocks.data.update).toHaveBeenLastCalledWith(action.id, { description: "새 확인 내용" });
+    expect(mocks.data.update).toHaveBeenLastCalledWith(action.id, { description: "새 확인 내용" }, { version: action.viewVersion, ownerScope: "board-owner" });
     expect(description.value).toBe("새 확인 내용"); expect(date.value).toBe("양가 일정 맞춘 뒤");
     await act(async () => {
       Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value")!.set!.call(description, "");
@@ -617,7 +617,7 @@ describe("AmoraDecisionBoard", () => {
       date.dispatchEvent(new Event("input", { bubbles: true }));
     });
     await act(async () => container.querySelector('article form')!.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true })));
-    expect(mocks.data.update).toHaveBeenLastCalledWith(action.id, { description: "", due_date: "" });
+    expect(mocks.data.update).toHaveBeenLastCalledWith(action.id, { description: "", due_date: "" }, { version: action.viewVersion, ownerScope: "board-owner" });
     expect(container.querySelector('article textarea')).toBeNull();
   });
 
@@ -642,7 +642,7 @@ describe("AmoraDecisionBoard", () => {
     const form = container.querySelector("article form")!;
     mocks.data.update.mockResolvedValueOnce(false);
     await act(async () => form.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true })));
-    expect(mocks.data.update).toHaveBeenLastCalledWith(action.id, { title: "실제 수정 제목", category_key: "makeup" });
+    expect(mocks.data.update).toHaveBeenLastCalledWith(action.id, { title: "실제 수정 제목", category_key: "makeup" }, { version: action.viewVersion, ownerScope: "board-owner" });
     expect(container.querySelector("article input")).toBe(input); expect(input.value).toBe("  실제 수정 제목  ");
     await act(async () => form.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true })));
     expect(container.querySelector("article input")).toBeNull();
@@ -661,7 +661,7 @@ describe("AmoraDecisionBoard", () => {
     mocks.data.actions = [{ ...action, categoryKey: "venue", description: "상대가 새로 적은 설명", dueDate: "다음 달 중" }];
     await act(async () => root.render(<AmoraDecisionBoard />));
     await act(async () => container.querySelector('article form')!.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true })));
-    expect(mocks.data.update).toHaveBeenLastCalledWith(action.id, { title: "새 제목" });
+    expect(mocks.data.update).toHaveBeenLastCalledWith(action.id, { title: "새 제목" }, { version: action.viewVersion, ownerScope: "board-owner" });
   });
 
   it("allows title-only editing without shortening oversized legacy plan fields", async () => {
@@ -676,7 +676,7 @@ describe("AmoraDecisionBoard", () => {
     const save = container.querySelector<HTMLButtonElement>('article button[type="submit"]')!;
     expect(save.disabled).toBe(false);
     await act(async () => container.querySelector('article form')!.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true })));
-    expect(mocks.data.update).toHaveBeenLastCalledWith(action.id, { title: "새 제목" });
+    expect(mocks.data.update).toHaveBeenLastCalledWith(action.id, { title: "새 제목" }, { version: action.viewVersion, ownerScope: "board-owner" });
   });
 
   it("loads older records through the real cursor control and exposes the saved-answer view", async () => {

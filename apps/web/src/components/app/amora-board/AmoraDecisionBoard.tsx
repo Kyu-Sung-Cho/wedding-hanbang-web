@@ -8,10 +8,10 @@ import Button from "@/components/ui/Button";
 import AmoraMark from "@/components/ui/AmoraMark";
 import { AMORA_ACTION_CLASS } from "@/components/ui/amoraActionStyles";
 import { FEATURE_SUMMARY_CLASS } from "@/components/ui/featureSummaryStyles";
-import { useAmoraPreparationActions, type AmoraPreparationActionUpdate } from "@/hooks/useAmoraPreparationActions";
+import { useAmoraPreparationActions, type AmoraPreparationActionUpdate, type AmoraPreparationActionView, type AmoraPreparationActionUpdateIssue } from "@/hooks/useAmoraPreparationActions";
 import CreatePreparationAction from "./CreatePreparationAction";
 import AmoraActionPlanFields from "./AmoraActionPlanFields";
-import type { AmoraActionItem, AmoraActionStatus } from "@/lib/amora/actions";
+import { isAmoraActionViewVersion, type AmoraActionItem, type AmoraActionStatus } from "@/lib/amora/actions";
 import { arrangePreparationDecisions, DECISION_COLUMNS, filterPreparationActions, preparationActionHref, preparationCategory, preparationDate, PREPARATION_COLUMNS, PREPARATION_SOURCES, type ArrangedPreparationDecision, type DecisionColumn } from "@/lib/amora/preparationBoard";
 import { PREPARATION_DECISION_CATEGORIES, preparationDecisionCategory } from "@/lib/amora/preparationDecisionCategory";
 import { weddingPath } from "@/lib/weddingPaths";
@@ -237,27 +237,63 @@ function DecisionRecords({ data, searchId, query, onQueryChange, mobileSearchOpe
   </section>;
 }
 
-function PreparationCard({ action, busy, update, changeStatus }: {
+type PreparationActionEditor = {
+  original: AmoraActionItem;
+  viewed: AmoraPreparationActionView;
+  title: string;
+  category: string;
+  description: string;
+  dueDate: string;
+  intendedStatus?: AmoraActionStatus;
+  mode?: "category";
+  reviewedIssue?: AmoraPreparationActionUpdateIssue;
+};
+
+function actionEditor(action: AmoraActionItem, ownerScope: string): PreparationActionEditor {
+  return { original: { ...action }, viewed: { version: action.viewVersion, ownerScope }, title: action.title,
+    category: action.categoryKey ?? "", description: action.description ?? "", dueDate: action.dueDate ?? "" };
+}
+
+function hasReviewedActionAuthority(editor: PreparationActionEditor, issue: AmoraPreparationActionUpdateIssue | undefined, ownerScope: string) {
+  return !!issue && issue.availability === "current" && editor.reviewedIssue === issue
+    && editor.viewed.ownerScope === ownerScope && issue.latest?.id === editor.original.id
+    && isAmoraActionViewVersion(issue.latest.viewVersion)
+    && issue.latest.viewVersion === editor.viewed.version;
+}
+
+function ActionReview({ label, title, category, description, dueDate, status }: { label: string; title: string; category: string; description: string; dueDate: string; status: AmoraActionStatus }) {
+  return <div aria-label={label} className="min-w-0 space-y-1 border-t border-[var(--amora-line)] pt-2 text-[12px] leading-relaxed break-words whitespace-pre-wrap">
+    <h4 className="font-semibold text-[var(--amora-ink)]">{label}</h4>
+    <p>제목: {title}</p><p>분야: {preparationCategory(category)?.label ?? (category || "미지정")}</p>
+    <p>설명: {description || "미입력"}</p><p>예정일: {dueDate || "미입력"}</p>
+    <p>상태: {PREPARATION_COLUMNS.find(column => column.status === status)?.label}</p>
+  </div>;
+}
+
+function PreparationCard({ action, busy, editable, ownerScope, editor, issue, inspect, openEditor, changeEditor, closeEditor, update, changeStatus }: {
   action: AmoraActionItem;
   busy: boolean;
-  update: (id: string, updates: AmoraPreparationActionUpdate) => Promise<boolean>;
+  editable: boolean;
+  ownerScope: string;
+  editor?: PreparationActionEditor;
+  issue?: AmoraPreparationActionUpdateIssue;
+  inspect?: () => void;
+  openEditor(action: AmoraActionItem, origin: HTMLElement, category?: string): void;
+  changeEditor(editor: Partial<PreparationActionEditor>): void;
+  closeEditor(origin: HTMLElement): void;
+  update: (id: string, updates: AmoraPreparationActionUpdate, viewed: AmoraPreparationActionView, original?: AmoraActionItem) => Promise<boolean>;
   changeStatus(action: AmoraActionItem, status: AmoraActionStatus, origin: HTMLButtonElement): void;
 }) {
-  const [categoryChoice, setCategoryChoice] = useState("");
-  const [editing, setEditing] = useState(false);
-  const [titleDraft, setTitleDraft] = useState("");
-  const [categoryDraft, setCategoryDraft] = useState("");
-  const [descriptionDraft, setDescriptionDraft] = useState("");
-  const [dueDateDraft, setDueDateDraft] = useState("");
-  const [originalPlan, setOriginalPlan] = useState({ description: "", dueDate: "" });
-  const titleInputRef = useRef<HTMLInputElement>(null);
-  const editButtonRef = useRef<HTMLButtonElement>(null);
-  const finishEditFocus = useRef<(() => boolean) | null>(null);
-  const focusIntent = useFocusIntent();
-  useLayoutEffect(() => {
-    const finish = finishEditFocus.current; finishEditFocus.current = null;
-    if (finish?.()) (editing ? titleInputRef.current : editButtonRef.current)?.focus();
-  }, [editing]);
+  const categoryChoice = editor?.mode === "category" ? editor.category : "";
+  const editing = !!editor && editor.mode !== "category";
+  const titleDraft = editor?.title ?? "";
+  const categoryDraft = editor?.category ?? "";
+  const descriptionDraft = editor?.description ?? "";
+  const dueDateDraft = editor?.dueDate ?? "";
+  const original = editor?.original ?? action;
+  const reviewRequired = !!issue && editor?.reviewedIssue !== issue;
+  const current = issue?.availability === "current" ? issue.latest : undefined;
+  const canReview = !!current && current.id === action.id && isAmoraActionViewVersion(current.viewVersion);
   const selectId = useId();
   const titleId = useId();
   const editCategoryId = useId();
@@ -265,8 +301,9 @@ function PreparationCard({ action, busy, update, changeStatus }: {
   const date = preparationDate(action.updatedAt);
   const href = preparationActionHref(action.href);
   const disabled = busy;
-  const validPlanDraft = (descriptionDraft === originalPlan.description || descriptionDraft.length <= 500)
-    && (dueDateDraft === originalPlan.dueDate || dueDateDraft.length <= 40);
+  const writeDisabled = disabled || !editable;
+  const validPlanDraft = (descriptionDraft === (original.description ?? "") || descriptionDraft.length <= 500)
+    && (dueDateDraft === (original.dueDate ?? "") || dueDateDraft.length <= 40);
   return (
     <article data-preparation-action={action.id} aria-label={action.title} aria-busy={busy} className={`min-w-0 rounded-[14px] border bg-[var(--amora-surface)] px-4 py-4 lg:px-[17px] ${category ? "border-[var(--amora-line)]" : "border-[var(--amora-rose)]"} ${action.status === "dismissed" ? "border-dashed" : ""}`}>
       <div className="mb-2 flex items-start justify-between gap-2">
@@ -277,51 +314,63 @@ function PreparationCard({ action, busy, update, changeStatus }: {
       </div>
       <div className="mb-[9px] flex items-start justify-between gap-2">
         <h3 className="min-w-0 break-words text-[14.5px] leading-[1.5] font-semibold text-[var(--amora-ink)]">{action.title}</h3>
-        {!editing && <Button ref={editButtonRef} type="button" variant="icon" label={`${action.title} 수정`} disabled={disabled} onClick={event => {
-          finishEditFocus.current = focusIntent(event.currentTarget);
-          setTitleDraft(action.title); setCategoryDraft(action.categoryKey ?? ""); setEditing(true);
-          const plan = { description: action.description ?? "", dueDate: action.dueDate ?? "" };
-          setOriginalPlan(plan); setDescriptionDraft(plan.description); setDueDateDraft(plan.dueDate);
-        }} className={`-mt-2 min-h-11 min-w-11 shrink-0 rounded-lg! text-[var(--amora-accent)]! disabled:opacity-40! ${focus}`}><Pencil aria-hidden="true" className="h-3.5 w-3.5" /></Button>}
+        {!editing && <Button data-action-edit-button type="button" variant="icon" label={`${action.title} 수정`} disabled={writeDisabled || !!editor} onClick={event => openEditor(action, event.currentTarget)} className={`-mt-2 min-h-11 min-w-11 shrink-0 rounded-lg! text-[var(--amora-accent)]! disabled:opacity-40! ${focus}`}><Pencil aria-hidden="true" className="h-3.5 w-3.5" /></Button>}
       </div>
       {editing && <form className="mb-3 space-y-2 rounded-[9px] bg-[var(--amora-warm)] p-3" onSubmit={async event => {
         event.preventDefault();
-        if (disabled || !titleDraft.trim() || titleDraft.length > 120 || !validPlanDraft) return;
+        if (!editor || writeDisabled || reviewRequired || !titleDraft.trim() || titleDraft.length > 120 || !validPlanDraft) return;
         const updates: AmoraPreparationActionUpdate = {};
-        if (titleDraft.trim() !== action.title) updates.title = titleDraft.trim();
-        if (categoryDraft !== (action.categoryKey ?? "")) updates.category_key = categoryDraft;
-        if (descriptionDraft !== originalPlan.description) updates.description = descriptionDraft;
-        if (dueDateDraft !== originalPlan.dueDate) updates.due_date = dueDateDraft;
-        const finish = focusIntent(event.currentTarget.contains(document.activeElement) && document.activeElement instanceof HTMLElement ? document.activeElement : null);
-        if (Object.keys(updates).length === 0 || await update(action.id, updates)) {
-          finishEditFocus.current = finish; setEditing(false);
-        } else finish();
+        if (titleDraft.trim() !== original.title) updates.title = titleDraft.trim();
+        if (categoryDraft !== (original.categoryKey ?? "")) updates.category_key = categoryDraft;
+        if (descriptionDraft !== (original.description ?? "")) updates.description = descriptionDraft;
+        if (dueDateDraft !== (original.dueDate ?? "")) updates.due_date = dueDateDraft;
+        if (editor.intendedStatus !== undefined && editor.intendedStatus !== original.status) updates.status = editor.intendedStatus;
+        if (Object.keys(updates).length === 0) closeEditor(event.currentTarget);
+        else await update(action.id, updates, editor.viewed, original);
       }}>
         <label htmlFor={titleId} className="block text-[12px]">할 일 제목</label>
-        <input ref={titleInputRef} id={titleId} value={titleDraft} onChange={event => setTitleDraft(event.target.value)} maxLength={120} disabled={disabled} className={`min-h-11 w-full rounded-[9px] border border-[var(--color-paper-outline)] bg-[var(--amora-surface)] px-3 text-[13px] ${focus}`} />
+        <input data-action-edit-title id={titleId} value={titleDraft} onChange={event => editor && changeEditor({ title: event.target.value })} maxLength={120} disabled={disabled} className={`min-h-11 w-full rounded-[9px] border border-[var(--color-paper-outline)] bg-[var(--amora-surface)] px-3 text-[13px] ${focus}`} />
         <label htmlFor={editCategoryId} className="block text-[12px]">분야</label>
-        <select id={editCategoryId} value={categoryDraft} onChange={event => setCategoryDraft(event.target.value)} disabled={disabled} className={`min-h-11 w-full rounded-[9px] border border-[var(--color-paper-outline)] bg-[var(--amora-surface)] px-2 text-[12px] ${focus}`}>
+        <select id={editCategoryId} value={categoryDraft} onChange={event => editor && changeEditor({ category: event.target.value })} disabled={disabled} className={`min-h-11 w-full rounded-[9px] border border-[var(--color-paper-outline)] bg-[var(--amora-surface)] px-2 text-[12px] ${focus}`}>
           <option value="">분야 미지정</option>
-          {!category && action.categoryKey && <option value={action.categoryKey}>기존 분야 유지</option>}
+          {categoryDraft && !preparationCategory(categoryDraft) && <option value={categoryDraft}>기존 분야 유지</option>}
           {CATEGORY_CHECKLISTS.map(item => <option key={item.key} value={item.key}>{item.label}</option>)}
         </select>
-        <AmoraActionPlanFields description={descriptionDraft} dueDate={dueDateDraft} onDescriptionChange={setDescriptionDraft} onDueDateChange={setDueDateDraft} disabled={disabled} />
+        <AmoraActionPlanFields description={descriptionDraft} dueDate={dueDateDraft} onDescriptionChange={value => editor && changeEditor({ description: value })} onDueDateChange={value => editor && changeEditor({ dueDate: value })} disabled={disabled} />
         <p className="text-[12px] leading-relaxed text-[var(--amora-muted)]">함께 준비하는 사람에게도 보이는 기록이에요.</p>
+        <Button type="button" disabled={disabled || !inspect} className={sharedOutlineButton} onClick={inspect}>현재 기록 다시 확인</Button>
+        {reviewRequired && <div role="alert" className="space-y-2 rounded-[9px] border border-[var(--amora-line)] p-3">
+          <p className="text-[12px] leading-relaxed">{issue?.kind === "conflict" ? "다른 변경이 먼저 저장됐어요. 초안을 자동으로 덮어쓰지 않았어요." : issue?.kind === "uncertain" ? "저장 응답을 확인하지 못했어요. 아래 내용이 같아도 이번 요청이 저장됐다는 뜻은 아니에요." : "현재 저장 내용과 초안을 따로 확인해요. 저장 기준을 다시 확인한 뒤 변경할 수 있어요."}</p>
+          {current ? <ActionReview label="현재 저장된 할 일" title={current.title} category={current.categoryKey ?? ""} description={current.description ?? ""} dueDate={current.dueDate ?? ""} status={current.status} />
+            : <p className="text-[12px] leading-relaxed">{issue?.availability === "missing" ? "현재 준비 공간에서 이 기록을 찾지 못했어요. 새 할 일로 자동 생성하지 않아요." : "현재 저장 내용을 아직 확인하지 못했어요. 새로고침 후 기록을 확인해 주세요."}</p>}
+          <ActionReview label="내 수정 초안" title={titleDraft} category={categoryDraft} description={descriptionDraft} dueDate={dueDateDraft} status={editor?.intendedStatus ?? original.status} />
+          <p className="text-[12px] leading-relaxed">직접 바꾼 항목은 초안에 남기고, 건드리지 않은 항목은 현재 내용으로 맞춘 뒤 다시 저장할 수 있어요.</p>
+          <Button type="button" disabled={disabled || !canReview} className={sharedOutlineButton} onClick={() => {
+            if (!editor || !current || !canReview) return;
+            changeEditor({ ...editor, original: { ...current }, viewed: { version: current.viewVersion, ownerScope: editor.viewed.ownerScope },
+              title: titleDraft !== original.title ? titleDraft : current.title,
+              category: categoryDraft !== (original.categoryKey ?? "") ? categoryDraft : (current.categoryKey ?? ""),
+              description: descriptionDraft !== (original.description ?? "") ? descriptionDraft : (current.description ?? ""),
+              dueDate: dueDateDraft !== (original.dueDate ?? "") ? dueDateDraft : (current.dueDate ?? ""), reviewedIssue: issue });
+          }}>현재 내용 기준으로 초안 다시 확인</Button>
+        </div>}
         <div className="flex flex-wrap gap-2">
-          <Button type="submit" variant="primary" disabled={disabled || !titleDraft.trim() || titleDraft.length > 120 || !validPlanDraft} className={`${button} ${sharedButtonShape} bg-[var(--amora-action)]! text-white! hover:bg-[var(--amora-action-hover)]!`}>수정 저장</Button>
-          <Button type="button" disabled={disabled} onClick={event => { finishEditFocus.current = focusIntent(event.currentTarget); setEditing(false); }} className={sharedOutlineButton}>취소</Button>
+          <Button type="submit" variant="primary" disabled={writeDisabled || reviewRequired || !titleDraft.trim() || titleDraft.length > 120 || !validPlanDraft} className={`${button} ${sharedButtonShape} bg-[var(--amora-action)]! text-white! hover:bg-[var(--amora-action-hover)]!`}>수정 저장</Button>
+          <Button type="button" disabled={disabled} onClick={event => closeEditor(event.currentTarget)} className={sharedOutlineButton}>취소</Button>
         </div>
       </form>}
+      {!editable && <p role="note" className="mb-3 text-[12px] leading-relaxed text-[var(--amora-muted)]">수정에 필요한 저장 버전을 확인하지 못했어요. 내용은 읽을 수 있지만 변경은 잠시 막아 두었어요. 새로고침 후 다시 확인해 주세요.</p>}
       {action.description && <p className="mb-[10px] rounded-[9px] bg-[var(--amora-warm)] px-[11px] py-[9px] text-[12.5px] leading-[1.55] break-words whitespace-pre-wrap text-[var(--amora-muted)]">{action.description}</p>}
-      {!category && !editing && (
-        <form className="mb-3" onSubmit={(event) => { event.preventDefault(); if (categoryChoice) void update(action.id, { category_key: categoryChoice }); }}>
+      {(!category || editor?.mode === "category") && !editing && (
+        <form className="mb-3" onSubmit={(event) => { event.preventDefault(); if (!writeDisabled && categoryChoice) void update(action.id, { category_key: categoryChoice }, editor?.viewed ?? { version: action.viewVersion, ownerScope }, original); }}>
           <label htmlFor={selectId} className="mb-2 block text-[12px] font-semibold text-[var(--amora-rose-deep)]">어느 분야에 넣을까요?</label>
           <div className="flex flex-wrap gap-2">
-            <select id={selectId} value={categoryChoice} onChange={(event) => setCategoryChoice(event.target.value)} disabled={disabled} className={`min-h-11 min-w-0 flex-1 rounded-[9px] border border-[var(--color-paper-outline)] bg-[var(--amora-surface)] px-2 text-[12px] text-[var(--amora-soft)] ${focus}`}>
+            <select data-action-category-choice id={selectId} value={categoryChoice} onChange={(event) => editor ? changeEditor({ category: event.target.value }) : openEditor(action, event.currentTarget, event.target.value)} disabled={writeDisabled} className={`min-h-11 min-w-0 flex-1 rounded-[9px] border border-[var(--color-paper-outline)] bg-[var(--amora-surface)] px-2 text-[12px] text-[var(--amora-soft)] ${focus}`}>
               <option value="">21개 분야에서 선택</option>
               {CATEGORY_CHECKLISTS.map((item) => <option key={item.key} value={item.key}>{item.label}</option>)}
             </select>
-            <button type="submit" disabled={disabled || !categoryChoice} className={outlineButton}>저장</button>
+            <button type="submit" disabled={writeDisabled || !categoryChoice} className={outlineButton}>저장</button>
+            {editor?.mode === "category" && <Button type="button" disabled={busy} onClick={event => closeEditor(event.currentTarget)} className={sharedOutlineButton}>분야 선택 취소</Button>}
           </div>
         </form>
       )}
@@ -330,13 +379,13 @@ function PreparationCard({ action, busy, update, changeStatus }: {
       <div className="flex flex-wrap items-center gap-2">
         {action.status === "open" ? (
           <>
-            <button type="button" disabled={disabled} onClick={event => changeStatus(action, "done", event.currentTarget)} className={`${button} bg-[var(--amora-action)] text-white hover:bg-[var(--amora-action-hover)]`}><Check aria-hidden="true" className="h-3.5 w-3.5" />완료로 표시</button>
-            <button type="button" disabled={disabled} onClick={event => changeStatus(action, "dismissed", event.currentTarget)} className={outlineButton}>보류·숨김</button>
+            <button type="button" disabled={writeDisabled || !!editor} onClick={event => changeStatus(action, "done", event.currentTarget)} className={`${button} bg-[var(--amora-action)] text-white hover:bg-[var(--amora-action-hover)]`}><Check aria-hidden="true" className="h-3.5 w-3.5" />완료로 표시</button>
+            <button type="button" disabled={writeDisabled || !!editor} onClick={event => changeStatus(action, "dismissed", event.currentTarget)} className={outlineButton}>보류·숨김</button>
           </>
         ) : (
           <>
             <span className={`rounded-full px-[9px] py-1 text-[12px] font-semibold text-[var(--amora-soft)] ${action.status === "done" ? "bg-[var(--amora-sage-pale)]" : "bg-[var(--amora-low)]"}`}>{action.status === "done" ? "완료한 할 일" : "숨겨 둔 할 일"}</span>
-            <button type="button" disabled={disabled} onClick={event => changeStatus(action, "open", event.currentTarget)} className={outlineButton}>{action.status === "done" ? "다시 진행" : "다시 꺼내기"}</button>
+            <button type="button" disabled={writeDisabled || !!editor} onClick={event => changeStatus(action, "open", event.currentTarget)} className={outlineButton}>{action.status === "done" ? "다시 진행" : "다시 꺼내기"}</button>
           </>
         )}
         {busy && <span role="status" className="text-[12px] text-[var(--amora-muted)]">저장 중…</span>}
@@ -348,7 +397,7 @@ function PreparationCard({ action, busy, update, changeStatus }: {
 
 export default function AmoraDecisionBoard() {
   const decisions = useDecisionBoard();
-  const { actions, loading, loadingMore, error, count, truncated, nextCursor, loadMore, refresh, update, updatingIds, updateError, isDemo, create, cancelCreate, createLocked, creating, canCreate, ownerScope } = useAmoraPreparationActions();
+  const { actions, loading, loadingMore, error, count, truncated, nextCursor, loadMore, refresh, update, inspectUpdate, updatingIds, updateError, updateIssues = {}, isDemo, create, cancelCreate, createLocked, creating, canCreate, ownerScope } = useAmoraPreparationActions();
   const location = useSyncExternalStore(subscribeBoardLocation, boardLocation, serverBoardLocation);
   const requestedView = new URLSearchParams(location.split("?")[1] ?? "").get("view");
   const [selectedBoard, setSelectedBoard] = useState<BoardView | null>(null);
@@ -375,10 +424,62 @@ export default function AmoraDecisionBoard() {
   const statusFocus = useRef<(() => boolean) | null>(null);
   const editFallbackFocus = useRef<(() => boolean) | null>(null);
   const [editCompletion, setEditCompletion] = useState<{ id: string; sequence: number } | null>(null);
+  const [editorState, setEditorState] = useState<{ scope: string; items: Record<string, PreparationActionEditor> }>({ scope: ownerScope, items: {} });
+  if (editorState.scope !== ownerScope) setEditorState({ scope: ownerScope, items: {} });
+  const editors = editorState.scope === ownerScope ? editorState.items : {};
+  const currentOwnerScope = useRef(ownerScope);
+  const editorFocus = useRef<{ id: string; scope: string; target: "title" | "edit" | "category"; finish: () => boolean } | null>(null);
   const focusIntent = useFocusIntent();
   const mounted = useRef(false);
   const [announcement, setAnnouncement] = useState({ message: "", sequence: 0 });
   useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
+  useLayoutEffect(() => {
+    if (currentOwnerScope.current !== ownerScope) {
+      statusFocus.current?.(); statusFocus.current = null;
+      editFallbackFocus.current?.(); editFallbackFocus.current = null;
+    }
+    currentOwnerScope.current = ownerScope;
+    if (editorFocus.current && editorFocus.current.scope !== ownerScope) {
+      editorFocus.current.finish(); editorFocus.current = null;
+    }
+  }, [ownerScope]);
+  useLayoutEffect(() => {
+    const request = editorFocus.current; editorFocus.current = null;
+    if (!request?.finish() || request.scope !== ownerScope || board !== "tasks") return;
+    const card = Array.from(taskPanelRef.current?.querySelectorAll<HTMLElement>("[data-preparation-action]") ?? [])
+      .find(item => item.dataset.preparationAction === request.id);
+    const target = card?.querySelector<HTMLElement>(request.target === "title" ? "[data-action-edit-title]" : request.target === "category" ? "[data-action-category-choice]" : "[data-action-edit-button]");
+    if (target) target.focus(); else focusTaskStatus(taskPanelRef.current, activeStatus);
+  }, [editorState, board, activeStatus, ownerScope]);
+  const openEditor = (action: AmoraActionItem, origin: HTMLElement, category?: string) => {
+    editorFocus.current?.finish();
+    editorFocus.current = { id: action.id, scope: ownerScope, target: category === undefined ? "title" : "category", finish: focusIntent(origin) };
+    const draft = actionEditor(action, ownerScope);
+    setEditorState(previous => ({ scope: ownerScope, items: { ...(previous.scope === ownerScope ? previous.items : {}), [action.id]: category === undefined ? draft : { ...draft, category, mode: "category" } } }));
+  };
+  const changeEditor = (id: string, patch: Partial<PreparationActionEditor>) => {
+    if (patch.viewed && patch.viewed.ownerScope !== ownerScope) return;
+    setEditorState(previous => previous.scope === ownerScope && previous.items[id] ? { ...previous, items: { ...previous.items, [id]: { ...previous.items[id], ...patch } } } : previous);
+  };
+  const removeEditor = (id: string) => setEditorState(previous => {
+    if (previous.scope !== ownerScope) return previous;
+    const next = { ...previous.items }; delete next[id]; return { ...previous, items: next };
+  });
+  const closeEditor = (id: string, origin: HTMLElement) => {
+    const active = origin.contains(document.activeElement) && document.activeElement instanceof HTMLElement ? document.activeElement : origin;
+    editorFocus.current?.finish(); editorFocus.current = { id, scope: ownerScope, target: "edit", finish: focusIntent(active) }; removeEditor(id);
+  };
+  const retainAttempt = (action: AmoraActionItem, updates: AmoraPreparationActionUpdate, viewed: AmoraPreparationActionView) => {
+    if (!mounted.current || currentOwnerScope.current !== viewed.ownerScope) return;
+    setEditorState(previous => {
+      if (previous.scope !== viewed.ownerScope || previous.items[action.id]) return previous;
+      const draft = actionEditor(action, viewed.ownerScope);
+      return { ...previous, items: { ...previous.items, [action.id]: { ...draft, viewed,
+        title: updates.title ?? draft.title, category: updates.category_key ?? draft.category,
+        description: updates.description ?? draft.description, dueDate: updates.due_date ?? draft.dueDate,
+        intendedStatus: updates.status } } };
+    });
+  };
   useLayoutEffect(() => {
     const finish = statusFocus.current; statusFocus.current = null;
     if (!finish?.() || board !== "tasks") return;
@@ -391,26 +492,48 @@ export default function AmoraDecisionBoard() {
       .some(card => card.dataset.preparationAction === editCompletion.id);
     if (!remaining) focusTaskStatus(taskPanelRef.current, activeStatus);
   }, [editCompletion, activeStatus, board]);
-  const updateCard = async (id: string, updates: AmoraPreparationActionUpdate) => {
+  const updateCard = async (id: string, updates: AmoraPreparationActionUpdate, viewed: AmoraPreparationActionView, original?: AmoraActionItem) => {
     const active = document.activeElement;
     const finish = focusIntent(active instanceof HTMLElement && active.closest<HTMLElement>("[data-preparation-action]")?.dataset.preparationAction === id ? active : null);
-    const saved = await update(id, updates);
-    if (saved && mounted.current) {
+    const saved = await update(id, updates, viewed);
+    if (saved && mounted.current && currentOwnerScope.current === viewed.ownerScope) {
+      if (editors[id]) {
+        editorFocus.current?.finish(); editorFocus.current = { id, scope: viewed.ownerScope, target: "edit", finish };
+        removeEditor(id);
+      }
       editFallbackFocus.current?.(); editFallbackFocus.current = finish;
       setEditCompletion(previous => ({ id, sequence: (previous?.sequence ?? 0) + 1 }));
-    } else finish();
+    } else {
+      finish();
+      if (currentOwnerScope.current === viewed.ownerScope && mounted.current) {
+        if (editors[id]?.mode === "category") changeEditor(id, { mode: undefined });
+        else if (original) retainAttempt(original, updates, viewed);
+      }
+    }
     return saved;
   };
   const changeStatus = async (action: AmoraActionItem, status: AmoraActionStatus, origin: HTMLButtonElement) => {
     const finish = focusIntent(origin);
-    if (await update(action.id, { status }) && mounted.current) {
+    const viewed = { version: action.viewVersion, ownerScope };
+    if (await update(action.id, { status }, viewed) && mounted.current && currentOwnerScope.current === viewed.ownerScope) {
       statusFocus.current?.(); statusFocus.current = finish;
       const result = status === "done" ? "완료로 표시했어요." : status === "dismissed" ? "보류·숨김으로 옮겼어요." : "진행 중으로 다시 꺼냈어요.";
       setAnnouncement(previous => ({ message: `${action.title} — ${result}`, sequence: previous.sequence + 1 }));
-    } else finish();
+    } else {
+      if (mounted.current && currentOwnerScope.current === viewed.ownerScope) {
+        editorFocus.current?.finish(); editorFocus.current = { id: action.id, scope: viewed.ownerScope, target: "title", finish };
+        retainAttempt(action, { status }, viewed);
+      } else finish();
+    }
   };
   const [category, setCategory] = useState("all");
   const [query, setQuery] = useState("");
+  const [uiOwnerScope, setUiOwnerScope] = useState(ownerScope);
+  if (uiOwnerScope !== ownerScope) {
+    setUiOwnerScope(ownerScope); setCategory("all"); setQuery(""); setDecisionQuery("");
+    setActiveStatus("open"); setMobileSearchOpen(false); setEditCompletion(null);
+    setAnnouncement(previous => ({ message: "", sequence: previous.sequence + 1 }));
+  }
   const decisionSearchId = `${decisionPanelId}-search`;
   const taskSearchId = `${taskPanelId}-search`;
   const activeQuery = board === "decisions" ? decisionQuery : query;
@@ -489,13 +612,18 @@ export default function AmoraDecisionBoard() {
       {error && <div role="alert" className="mb-4 rounded-[9px] border border-[var(--amora-rose)] bg-[var(--amora-warm)] p-4 text-[13px]"><p>{error}</p>{actions.length > 0 && <p className="mt-1 text-[12px]">마지막으로 불러온 기록이에요. 최신 상태를 다시 확인해 주세요.</p>}<button type="button" onClick={() => void refresh()} disabled={loading} className={`${outlineButton} mt-2`}>다시 불러오기</button></div>}
       {updateError && <p role="alert" className="mb-4 rounded-[9px] bg-[var(--amora-rose-pale)] p-3 text-[13px] text-[var(--amora-rose-deep)]">{updateError}</p>}
       {loading && <p role="status" className="py-5 text-center text-[13px] text-[var(--amora-muted)]">준비 기록을 불러오는 중…</p>}
+      {Object.keys(editors).length > 0 && <section aria-label="수정 중인 할 일" className="mb-5 space-y-3">
+        <h2 className="text-[14px] font-semibold text-[var(--amora-ink)]">수정 중인 할 일</h2>
+        <p className="text-[12px] leading-relaxed text-[var(--amora-muted)]">필터나 저장된 상태가 바뀌어도 초안은 이 화면에서 유지해요. 브라우저를 새로고침하거나 다른 페이지로 이동하면 사라져요.</p>
+        {Object.entries(editors).map(([id, editor]) => <PreparationCard key={`${ownerScope}:${id}`} action={actions.find(item => item.id === id) ?? editor.original} editable={isDemo || isAmoraActionViewVersion((actions.find(item => item.id === id) ?? editor.original).viewVersion) || hasReviewedActionAuthority(editor, updateIssues[id], ownerScope)} ownerScope={ownerScope} editor={editor} issue={updateIssues[id]} inspect={!isDemo && inspectUpdate ? () => { void inspectUpdate(id); } : undefined} openEditor={openEditor} changeEditor={next => changeEditor(id, next)} closeEditor={origin => closeEditor(id, origin)} busy={creating || updatingIds.has(id)} update={updateCard} changeStatus={(item, nextStatus, origin) => void changeStatus(item, nextStatus, origin)} />)}
+      </section>}
       {!loading && !error && actions.length === 0 ? createLocked ? <p className="py-5 text-center text-[13px] text-[var(--amora-muted)]">저장 여부는 목록을 새로고쳐 확인해 주세요.</p> : <div className="rounded-[14px] border border-dashed border-[var(--amora-line)] bg-[var(--amora-surface)] px-5 py-10 text-center"><h2 className="amora-display text-[19px] text-[var(--amora-ink)]">아직 저장된 할 일이 없어요</h2><p className="mt-2 text-[13px] text-[var(--amora-muted)]">아모라와 준비할 일을 정리하고, 제안 카드에서 직접 추가해 보세요.</p><Link href={weddingPath("/chat")} className={`${AMORA_ACTION_CLASS} mt-4`}><AmoraMark size={20} />아모라와 이야기하기</Link></div> : actions.length > 0 && (
         <div className="grid min-w-0 gap-5 lg:grid-cols-3">
           {PREPARATION_COLUMNS.map((column) => {
-            const columnActions = filtered.filter((action) => action.status === column.status);
+            const columnActions = filtered.filter((action) => action.status === column.status && !editors[action.id]);
             return <section key={column.status} aria-label={`${column.label} 할 일`} className={`min-w-0 ${activeStatus === column.status ? "block" : "hidden lg:block"}`}>
-              <div className="lg:mb-[14px]"><h2 data-task-column={column.status} tabIndex={-1} className={`sr-only items-center gap-2 text-[14.5px] font-semibold text-[var(--amora-ink)] lg:not-sr-only lg:flex ${focus}`}><span aria-hidden="true" className={`h-[9px] w-[9px] rounded-full ${column.dot}`} />{column.label}<span className="text-[12px] font-normal text-[var(--amora-muted)]">{columnActions.length}</span></h2><p className="mt-1 hidden pl-[17px] text-[12px] leading-[1.5] text-[var(--amora-muted)] lg:block">{column.rule}</p></div>
-              <div className="space-y-[10px] lg:space-y-3">{columnActions.length ? columnActions.map((action) => <PreparationCard key={action.id} action={action} busy={creating || updatingIds.has(action.id)} update={updateCard} changeStatus={(item, nextStatus, origin) => void changeStatus(item, nextStatus, origin)} />) : <p className="rounded-[14px] border border-dashed border-[var(--amora-line)] p-5 text-center text-[12px] leading-relaxed text-[var(--amora-muted)]">{query || category !== "all" ? "이 조건에 맞는 카드가 없어요." : "이 상태의 할 일이 없어요."}</p>}</div>
+              <div className="lg:mb-[14px]"><h2 data-task-column={column.status} tabIndex={-1} className={`sr-only items-center gap-2 text-[14.5px] font-semibold text-[var(--amora-ink)] lg:not-sr-only lg:flex ${focus}`}><span aria-hidden="true" className={`h-[9px] w-[9px] rounded-full ${column.dot}`} />{column.label}<span className="text-[12px] font-normal text-[var(--amora-muted)]">{statusCount(column.status)}</span></h2><p className="mt-1 hidden pl-[17px] text-[12px] leading-[1.5] text-[var(--amora-muted)] lg:block">{column.rule}</p></div>
+              <div className="space-y-[10px] lg:space-y-3">{columnActions.length ? columnActions.map((action) => <PreparationCard key={`${ownerScope}:${action.id}`} action={action} editable={isDemo || isAmoraActionViewVersion(action.viewVersion)} ownerScope={ownerScope} inspect={!isDemo && inspectUpdate ? () => { void inspectUpdate(action.id); } : undefined} openEditor={openEditor} changeEditor={next => changeEditor(action.id, next)} closeEditor={origin => closeEditor(action.id, origin)} busy={creating || updatingIds.has(action.id)} update={updateCard} changeStatus={(item, nextStatus, origin) => void changeStatus(item, nextStatus, origin)} />) : <p className="rounded-[14px] border border-dashed border-[var(--amora-line)] p-5 text-center text-[12px] leading-relaxed text-[var(--amora-muted)]">{filtered.some(action => action.status === column.status && !!editors[action.id]) ? "수정 중인 카드는 위에서 확인해 주세요." : query || category !== "all" ? "이 조건에 맞는 카드가 없어요." : "이 상태의 할 일이 없어요."}</p>}</div>
             </section>;
           })}
         </div>

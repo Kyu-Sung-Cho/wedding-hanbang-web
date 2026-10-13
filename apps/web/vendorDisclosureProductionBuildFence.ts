@@ -17,6 +17,7 @@ import { WEDDING_CODE_SCENE_V10_CONTRACT_FILE } from "../../scripts/lib/wedding-
 import { PREPARATION_STYLE_CONTRACT_FILE } from "../../scripts/lib/preparation-style-release-contract.mjs";
 import { WEDDING_CODE_PAIR_SESSION_CONFLICT_CONTRACT_FILE } from "../../scripts/lib/wedding-code-pair-session-conflict-release-contract.mjs";
 import { DELETION_AUDIT_CONTRACT_FILE } from "../../scripts/lib/account-deletion-audit-nullability-release-contract.mjs";
+import { AMORA_VIEW_V2_CONTRACT_FILE } from "../../scripts/lib/amora-action-view-v2-release-contract.mjs";
 import { WEDDING_CODE_PAIR_SESSION_CONTRACT_FILE } from "../../scripts/lib/wedding-code-pair-session-release-contract.mjs";
 import { PROFILE_WEDDING_ROLES_CONTRACT_FILE } from "../../scripts/lib/profile-wedding-roles-release-contract.mjs";
 import { CHAT_FEEDBACK_CONTRACT_FILE } from "../../scripts/lib/chat-feedback-nullability-release-contract.mjs";
@@ -82,7 +83,9 @@ export function assertVendorDisclosureProductionBuild({
     // 구 경로로 재시도하지 않으며, 계약이 없는 과거 checkout은 기존 검사를 유지한다.
     releaseContract = validateSuccessorReleaseContract({
       repoRoot,
-      followup: existsSync(join(repoRoot, DELETION_AUDIT_CONTRACT_FILE))
+      followup: existsSync(join(repoRoot, AMORA_VIEW_V2_CONTRACT_FILE))
+        ? "amora-action-view-v2"
+        : existsSync(join(repoRoot, DELETION_AUDIT_CONTRACT_FILE))
         ? "account-deletion-audit-nullability"
         : existsSync(join(repoRoot, WEDDING_CODE_PAIR_SESSION_CONFLICT_CONTRACT_FILE))
         ? "wedding-code-pair-session-conflict"

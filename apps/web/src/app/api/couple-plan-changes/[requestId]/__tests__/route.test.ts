@@ -106,6 +106,21 @@ describe("/api/couple-plan-changes/[requestId]", () => {
     mocks.rpc.mockResolvedValue({ data: result("pending_partner"), error: null });
   });
 
+  it("does not present a retired pending action writer as a retryable storage outage", async () => {
+    mocks.rpc.mockResolvedValueOnce({
+      data: null,
+      error: { code: "55000", message: "AMORA_ACTION_RESERVED_PLAN_WRITER_RETIRED", details: "SYNTHETIC private SQL detail" },
+    });
+    const response = await POST(mutationRequest("POST"), context());
+    expect(response.status).toBe(400);
+    expect(response.headers.get("cache-control")).toContain("no-store");
+    const body = await response.json();
+    expect(body).toMatchObject({ code: "AMORA_ACTION_VIEW_REQUIRED", error: expect.stringContaining("결정 보드") });
+    expect(body).not.toHaveProperty("journey");
+    expect(JSON.stringify(body)).not.toContain("SYNTHETIC private SQL detail");
+    expect(mocks.rpc).toHaveBeenCalledTimes(1);
+  });
+
   it("gets the request status using only the authenticated couple scope", async () => {
     const response = await GET(
       new Request(`http://localhost/api/couple-plan-changes/${REQUEST_ID}`),

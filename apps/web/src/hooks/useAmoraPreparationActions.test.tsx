@@ -26,11 +26,17 @@ import { useAmoraPreparationActions } from "./useAmoraPreparationActions";
 const action: AmoraActionItem = {
   id: "act_test", title: "추가 비용 확인", status: "open", source: "chat", priority: "medium",
   createdAt: "2026-09-01T00:00:00Z", updatedAt: "2026-09-01T00:00:00Z",
+  viewVersion: "2026-09-01T00:00:00Z",
 };
 function response(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
 }
 let latest: ReturnType<typeof useAmoraPreparationActions>;
+function viewed(id: string) {
+  const loaded = latest.actions.find(item => item.id === id);
+  if (!loaded) throw new Error(`test did not load action view: ${id}`);
+  return { version: loaded.viewVersion, ownerScope: latest.ownerScope };
+}
 function Harness() {
   const result = useAmoraPreparationActions();
   useEffect(() => { latest = result; }, [result]);
@@ -64,19 +70,25 @@ describe("useAmoraPreparationActions", () => {
     await act(async () => root.render(<Harness />));
     expect(latest.error).toBeNull();
     expect(latest.actions[0]).toMatchObject({ description: undefined, dueDate: undefined });
-    fetchMock.mockResolvedValueOnce(response({ action: { ...action, description: null, dueDate: null } }));
-    await act(async () => { expect(await latest.update(action.id, { description: "", due_date: "" })).toBe(true); });
-    expect(JSON.parse(fetchMock.mock.calls[1][1].body)).toEqual({ description: "", due_date: "" });
+    fetchMock.mockResolvedValueOnce(response({ action: { ...action, description: null, dueDate: null,
+      updatedAt: "2026-09-01T00:00:00.000001Z", viewVersion: "2026-09-01T00:00:00.000001Z" } }));
+    await act(async () => { expect(await latest.update(action.id, { description: "", due_date: "" }, viewed(action.id))).toBe(true); });
+    expect(JSON.parse(fetchMock.mock.calls[1][1].body)).toEqual({ description: "", due_date: "", expectedUpdatedAt: action.viewVersion, expectedOwnerId: "user-a", expectedCoupleId: "couple-a" });
   });
 
   it("validates plan field receipts using the server sanitizer and rejects a stale value", async () => {
     fetchMock.mockResolvedValueOnce(response({ actions: [action], count: 1, open_count: 1 }));
     await act(async () => root.render(<Harness />));
-    fetchMock.mockResolvedValueOnce(response({ action: { ...action, description: "전화로 견적 확인", dueDate: "다음 주 중" } }));
-    await act(async () => { expect(await latest.update(action.id, { description: " 전화로\n 견적 확인 ", due_date: " 다음 주 중 " })).toBe(true); });
-    fetchMock.mockResolvedValueOnce(response({ action: { ...action, description: "옛 설명", dueDate: "다음 주 중" } }));
-    await act(async () => { expect(await latest.update(action.id, { description: "새 설명" })).toBe(false); });
+    const confirmed = { ...action, description: "전화로 견적 확인", dueDate: "다음 주 중", updatedAt: "2026-09-01T00:00:00.000001Z", viewVersion: "2026-09-01T00:00:00.000001Z" };
+    fetchMock.mockResolvedValueOnce(response({ action: confirmed }));
+    await act(async () => { expect(await latest.update(action.id, { description: " 전화로\n 견적 확인 ", due_date: " 다음 주 중 " }, viewed(action.id))).toBe(true); });
+    fetchMock.mockResolvedValueOnce(response({ action: { ...confirmed, description: "옛 설명", updatedAt: "2026-09-01T00:00:00.000002Z", viewVersion: "2026-09-01T00:00:00.000002Z" } }));
+    fetchMock.mockResolvedValueOnce(response({ action: confirmed }));
+    await act(async () => { expect(await latest.update(action.id, { description: "새 설명" }, viewed(action.id))).toBe(false); });
     expect(latest.actions[0].description).toBe("전화로 견적 확인");
+    expect(latest.updateIssues[action.id]).toMatchObject({ kind: "uncertain", availability: "current", latest: confirmed });
+    expect(fetchMock.mock.calls[3][0]).toBe(`/api/amora/actions/${action.id}`);
+    expect(fetchMock.mock.calls[3][1]).toMatchObject({ cache: "no-store", credentials: "same-origin" });
   });
 
   it("creates a shared manual task with owner pins only after a matching server receipt", async () => {
@@ -158,7 +170,7 @@ describe("useAmoraPreparationActions", () => {
     fetchMock.mockImplementationOnce(() => new Promise<Response>(resolve => { finishPost = resolve; }));
     let createPromise!: Promise<boolean>;
     await act(async () => { createPromise = latest.create({ title: "새 항목" }); });
-    await act(async () => { expect(await latest.update(action.id, { title: "동시 수정" })).toBe(false); });
+    await act(async () => { expect(await latest.update(action.id, { title: "동시 수정" }, viewed(action.id))).toBe(false); });
     expect(fetchMock.mock.calls.map(call => call[1]?.method ?? "GET")).toEqual(["GET", "POST"]);
     const requestId = JSON.parse(fetchMock.mock.calls[1][1].body).requestId;
     const saved = { ...action, id: "act_created", title: "새 항목", source: "manual" };
@@ -166,7 +178,7 @@ describe("useAmoraPreparationActions", () => {
     fetchMock.mockImplementationOnce(() => new Promise<Response>(resolve => { finishGet = resolve; }));
     await act(async () => finishPost(response({ action: saved, requestId, replayed: false }, 201)));
     expect(latest.creating).toBe(true);
-    await act(async () => { expect(await latest.update(action.id, { status: "done" })).toBe(false); });
+    await act(async () => { expect(await latest.update(action.id, { status: "done" }, viewed(action.id))).toBe(false); });
     expect(fetchMock.mock.calls.map(call => call[1]?.method ?? "GET")).toEqual(["GET", "POST", "GET"]);
     await act(async () => { finishGet(response({ actions: [saved, action], count: 2, open_count: 2 })); expect(await createPromise).toBe(true); });
     expect(latest.actions.map(item => item.id)).toEqual([saved.id, action.id]);
@@ -203,16 +215,18 @@ describe("useAmoraPreparationActions", () => {
     let resolvePatch!: (value: Response) => void;
     fetchMock.mockImplementationOnce(() => new Promise<Response>((resolve) => { resolvePatch = resolve; }));
     let pending!: Promise<boolean>;
-    await act(async () => { pending = latest.update(action.id, { status: "done" }); });
+    await act(async () => { pending = latest.update(action.id, { status: "done" }, viewed(action.id)); });
     expect(latest.actions[0].status).toBe("open");
     expect(latest.updatingIds.has(action.id)).toBe(true);
-    await act(async () => { expect(await latest.update(action.id, { status: "dismissed" })).toBe(false); });
-    const done = { ...action, status: "done" };
+    await act(async () => { expect(await latest.update(action.id, { status: "dismissed" }, viewed(action.id))).toBe(false); });
+    const done = { ...action, status: "done", updatedAt: "2026-09-01T00:00:00.000001Z", viewVersion: "2026-09-01T00:00:00.000001Z" };
     await act(async () => { resolvePatch(response({ action: done })); expect(await pending).toBe(true); });
     expect(latest.actions[0].status).toBe("done");
-    expect(fetchMock.mock.calls[1]).toEqual([`/api/amora/actions/${action.id}`, expect.objectContaining({ method: "PATCH", body: JSON.stringify({ status: "done" }) })]);
-    fetchMock.mockResolvedValueOnce(response({ action }));
-    await act(async () => { expect(await latest.update(action.id, { status: "open" })).toBe(true); });
+    expect(fetchMock.mock.calls[1]).toEqual([`/api/amora/actions/${action.id}`, expect.objectContaining({ method: "PATCH", body: JSON.stringify({ status: "done", expectedUpdatedAt: action.viewVersion, expectedOwnerId: "user-a", expectedCoupleId: "couple-a" }) })]);
+    const reopened = { ...action, updatedAt: "2026-09-01T00:00:00.000002Z", viewVersion: "2026-09-01T00:00:00.000002Z" };
+    fetchMock.mockResolvedValueOnce(response({ action: reopened }));
+    await act(async () => { expect(await latest.update(action.id, { status: "open" }, viewed(action.id))).toBe(true); });
+    expect(JSON.parse(fetchMock.mock.calls[2][1].body)).toMatchObject({ expectedUpdatedAt: done.viewVersion, expectedOwnerId: "user-a", expectedCoupleId: "couple-a" });
     expect(latest.actions[0].status).toBe("open");
   });
 
@@ -220,11 +234,14 @@ describe("useAmoraPreparationActions", () => {
     fetchMock.mockResolvedValueOnce(response({ actions: [action], count: 1, open_count: 1 }));
     await act(async () => root.render(<Harness />));
     fetchMock.mockResolvedValueOnce(response({ error: "database detail" }, 500));
-    await act(async () => { expect(await latest.update(action.id, { category_key: "makeup" })).toBe(false); });
+    fetchMock.mockResolvedValueOnce(response({ error: "recovery unknown" }, 503));
+    await act(async () => { expect(await latest.update(action.id, { category_key: "makeup" }, viewed(action.id))).toBe(false); });
     expect(latest.actions).toEqual([action]);
     expect(latest.updateError).toContain("저장하지 못");
     expect(latest.updateError).not.toContain("database detail");
     expect(latest.updatingIds.size).toBe(0);
+    expect(latest.updateIssues[action.id]).toEqual({ kind: "uncertain", availability: "unknown" });
+    expect(fetchMock.mock.calls.map(call => call[1]?.method ?? "GET")).toEqual(["GET", "PATCH", "GET"]);
   });
 
   it("rejects malformed success responses instead of presenting zero cards", async () => {
@@ -256,14 +273,14 @@ describe("useAmoraPreparationActions", () => {
     let resolvePatch!: (value: Response) => void;
     fetchMock.mockImplementationOnce(() => new Promise<Response>((resolve) => { resolvePatch = resolve; }));
     let pending!: Promise<boolean>;
-    await act(async () => { pending = latest.update(action.id, { status: "done" }); });
+    await act(async () => { pending = latest.update(action.id, { status: "done" }, viewed(action.id)); });
     mocks.auth.profile = { id: "user-a", couple_id: "couple-b" };
     fetchMock.mockResolvedValueOnce(response({ actions: [], count: 0, open_count: 0 }));
     await act(async () => root.render(<Harness />));
     mocks.auth.profile = { id: "user-a", couple_id: "couple-a" };
     fetchMock.mockResolvedValueOnce(response({ actions: [action], count: 1, open_count: 1 }));
     await act(async () => root.render(<Harness />));
-    await act(async () => { resolvePatch(response({ action: { ...action, status: "done" } })); expect(await pending).toBe(false); });
+    await act(async () => { resolvePatch(response({ action: { ...action, status: "done", updatedAt: "2026-09-01T00:00:00.000001Z", viewVersion: "2026-09-01T00:00:00.000001Z" } })); expect(await pending).toBe(false); });
     expect(latest.actions).toEqual([action]);
     expect(latest.updatingIds.size).toBe(0);
   });
@@ -277,8 +294,9 @@ describe("useAmoraPreparationActions", () => {
     expect(fetchMock).toHaveBeenLastCalledWith("/api/amora/actions?status=all&limit=80&cursor=cursor%2B%2F%3D", expect.anything());
     expect(latest.actions.map(value => value.id)).toEqual([action.id, older.id]);
     expect(latest.nextCursor).toBeNull(); expect(latest.truncated).toBe(false);
-    fetchMock.mockResolvedValueOnce(response({ action: { ...older, title: "수정된 이전 준비", categoryKey: "venue" } }));
-    await act(async () => { expect(await latest.update(older.id, { title: "수정된 이전 준비", category_key: "venue" })).toBe(true); });
+    fetchMock.mockResolvedValueOnce(response({ action: { ...older, title: "수정된 이전 준비", categoryKey: "venue",
+      updatedAt: "2026-09-01T00:00:00.000001Z", viewVersion: "2026-09-01T00:00:00.000001Z" } }));
+    await act(async () => { expect(await latest.update(older.id, { title: "수정된 이전 준비", category_key: "venue" }, viewed(older.id))).toBe(true); });
     expect(latest.actions).toHaveLength(2);
     expect(latest.actions[1].title).toBe("수정된 이전 준비");
     expect(fetchMock).toHaveBeenCalledTimes(3);
@@ -287,10 +305,13 @@ describe("useAmoraPreparationActions", () => {
   it("rejects an unchanged status receipt even when the action ID matches", async () => {
     fetchMock.mockResolvedValueOnce(response({ actions: [action], count: 1, open_count: 1 }));
     await act(async () => root.render(<Harness />));
+    fetchMock.mockResolvedValueOnce(response({ action: { ...action, updatedAt: "2026-09-01T00:00:00.000001Z", viewVersion: "2026-09-01T00:00:00.000001Z" } }));
     fetchMock.mockResolvedValueOnce(response({ action }));
-    await act(async () => { expect(await latest.update(action.id, { status: "done" })).toBe(false); });
+    await act(async () => { expect(await latest.update(action.id, { status: "done" }, viewed(action.id))).toBe(false); });
     expect(latest.actions[0].status).toBe("open");
     expect(latest.updateError).toContain("결과를 확인할 수 없어요");
+    expect(latest.updateIssues[action.id]).toMatchObject({ kind: "uncertain", availability: "current", latest: action });
+    expect(fetchMock.mock.calls.map(call => call[1]?.method ?? "GET")).toEqual(["GET", "PATCH", "GET"]);
   });
 
   it("keeps the next cursor on a page failure, prevents duplicate loads and recovers", async () => {
@@ -333,7 +354,7 @@ describe("useAmoraPreparationActions", () => {
     expect(latest.actions.filter((item) => item.status === "done").length).toBeGreaterThanOrEqual(2);
     expect(latest.actions.filter((item) => item.status === "dismissed").length).toBeGreaterThanOrEqual(2);
     expect(latest.isDemo).toBe(true);
-    await act(async () => { expect(await latest.update(action.id, { status: "done" })).toBe(true); await latest.refresh(); });
+    await act(async () => { expect(await latest.update(action.id, { status: "done" }, viewed(action.id))).toBe(true); await latest.refresh(); });
     expect(latest.actions.find((item) => item.id === action.id)?.status).toBe("done");
     expect(fetchMock).not.toHaveBeenCalled();
   });

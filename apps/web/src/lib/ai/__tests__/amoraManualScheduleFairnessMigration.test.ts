@@ -4353,6 +4353,42 @@ describe("W12 fixture current SQL contract", () => {
     }
   }
 
+  async function installRetirementCandidate(db: PGlite) {
+    await resetPersona(db);
+    for (const name of [
+      "20260615100000_create_amora_actions.sql",
+      "20260615101000_fix_amora_action_status_timestamps.sql",
+      "20260906074227_amora_manual_actions_actor_boundary.sql",
+      "20260611160000_journey_progress_atomic_merge.sql",
+      "20260716100000_journey_progress_atomic_item_patch.sql",
+    ]) await db.exec(migration(name));
+    for (const path of [
+      "amora-action-view-v2/patch_own_amora_action_view_v2.sql",
+      "amora-action-writer-cutover-v1/cutover_writer_retirement_identity_v1.sql",
+      "amora-action-writer-retirement-v1/retirement_service_writers_v1.sql",
+      "amora-action-writer-retirement-v1/retirement_reserved_plan_writers_v1.sql",
+      "amora-action-writer-retirement-v1/retirement_direct_journey_guard_v1.sql",
+    ]) await db.exec(readFileSync(resolve(process.cwd(), "../../supabase/release-candidates", path), "utf8"));
+    await setServiceRole(db);
+  }
+
+  async function installWitnessedJourneyBodies(db: PGlite) {
+    await resetPersona(db);
+    for (const [file, name] of [
+      ["20260802170000_amora_shared_action_roster_binding.sql", "advance_wedding_journey_state_revision"],
+      ["20260827090000_move_card_can_name_what_it_moves.sql", "capture_amora_shared_schedule_delta"],
+      ["20260910160514_amora_shared_budget_decision_receipts.sql", "capture_amora_shared_budget_delta"],
+    ]) {
+      const definition = migration(file).match(new RegExp(`CREATE (?:OR REPLACE )?FUNCTION public\\.${name}\\([\\s\\S]*?\\$function\\$;`))?.[0];
+      if (!definition) throw new Error(`Witnessed production trigger missing: ${name}`);
+      await db.exec(definition);
+      await db.exec(`ALTER FUNCTION public.${name}() OWNER TO postgres; REVOKE ALL ON FUNCTION public.${name}() FROM PUBLIC,anon,authenticated,service_role;`);
+    }
+    await db.exec(`CREATE TRIGGER trg_capture_amora_shared_budget_delta AFTER UPDATE ON public.wedding_journeys
+      FOR EACH ROW EXECUTE FUNCTION public.capture_amora_shared_budget_delta();`);
+    await setServiceRole(db);
+  }
+
   const checklist = [{ id: "w12-local-check", label: "합성 체크 확인", done: true }];
   const scheduleEvent = {
     id: "70000000-0000-4000-8000-000000000001",
@@ -4462,6 +4498,230 @@ describe("W12 fixture current SQL contract", () => {
     });
   }
 
+  it("retirement: repo current submit wrapper rejects reserved action replacement before changing plan or audit rows", async () => {
+    const db = await createCurrentDatabase();
+    try {
+      await installRetirementCandidate(db);
+      const before = await readFixtureState(db);
+      await expect(submit(db, {
+        revision: before.journey.state_revision,
+        changes: { progress_patch: { __amora_actions: [{
+          id: "SYNTHETIC-UNVERSIONED-ACTION", title: "SYNTHETIC-WRAPPER-BYPASS", status: "done",
+          updatedAt: "2020-01-01T00:00:00.123456Z",
+        }] } }, surface: "/dashboard", summary: "합성 예약키 변경 반례",
+      })).rejects.toMatchObject({ code: "55000" });
+      expect(await readFixtureState(db)).toEqual(before);
+    } finally {
+      await resetPersona(db).catch(() => undefined);
+      await db.close();
+    }
+  }, 120_000);
+
+  it("retirement: direct service journey UPDATE cannot replace reserved actions outside the verified action writer", async () => {
+    const db = await createCurrentDatabase();
+    try {
+      await installRetirementCandidate(db);
+      const before = await readFixtureState(db);
+      await expect(db.query("UPDATE public.wedding_journeys SET progress=jsonb_set(progress,'{__amora_actions}',$1::jsonb,true) WHERE couple_id=$2", [JSON.stringify([{
+        id: "SYNTHETIC-RAW-UPDATE", title: "SYNTHETIC-UNVERSIONED", updatedAt: "2020-01-01T00:00:00.123456Z",
+      }]), COUPLE_ID])).rejects.toMatchObject({ code: "42501" });
+      expect(await readFixtureState(db)).toEqual(before);
+    } finally {
+      await resetPersona(db).catch(() => undefined);
+      await db.close();
+    }
+  }, 120_000);
+
+  it("retirement: direct service journey INSERT cannot introduce action records in a future journey", async () => {
+    const db = await createCurrentDatabase();
+    try {
+      await installRetirementCandidate(db);
+      await db.query("DELETE FROM public.wedding_journeys WHERE couple_id=$1", [SOLO_COUPLE_ID]);
+      await expect(db.query("INSERT INTO public.wedding_journeys(couple_id,progress) VALUES($1,$2::jsonb)", [SOLO_COUPLE_ID,JSON.stringify({__amora_actions:[{
+        id: "SYNTHETIC-FUTURE-PHANTOM", title: "SYNTHETIC-RAW-INSERT", updatedAt: "2020-01-01T00:00:00.123456Z",
+      }]})])).rejects.toMatchObject({ code: "42501" });
+      expect((await db.query("SELECT id FROM public.wedding_journeys WHERE couple_id=$1", [SOLO_COUPLE_ID])).rows).toEqual([]);
+    } finally {
+      await resetPersona(db).catch(() => undefined);
+      await db.close();
+    }
+  }, 120_000);
+
+  it("retirement: canonical and legacy v2 succeed alongside actual current journey revision budget and schedule fences", async () => {
+    const db = await createCurrentDatabase();
+    const token = "2026-01-01T00:00:00.123456Z";
+    const rawLegacy = { id: "retirement_full_legacy", title: "SYNTHETIC-LEGACY", description: "SYNTHETIC-ORIGINAL",
+      priority: "medium", status: "open", source: "manual", createdAt: token, updatedAt: token,
+      unknown: { preserved: ["SYNTHETIC", 17] } };
+    try {
+      await installWitnessedJourneyBodies(db);
+      await installRetirementCandidate(db);
+      await resetPersona(db);
+      await db.query("UPDATE public.wedding_journeys SET progress=jsonb_set(progress,'{__amora_actions}',$1::jsonb,true) WHERE couple_id=$2", [JSON.stringify([rawLegacy,{ ...rawLegacy,id:"retirement_other_kept" }]),COUPLE_ID]);
+      const before = await readFixtureState(db);
+      await db.exec("SET ROLE authenticated");
+      await db.query("SELECT set_config('request.jwt.claim.role','authenticated',false),set_config('request.jwt.claim.sub',$1,false)", [BRIDE_ID]);
+      const create = await db.query<{ value: { id: string; updated_at: string; created_by: string } }>(
+        "SELECT public.mutate_own_amora_action($1,$2,'create',$3::jsonb) AS value", [COUPLE_ID,"retirement_full_canonical",JSON.stringify({title:"SYNTHETIC-CANONICAL",source:"manual"})]);
+      const saved = await db.query<{ value: Record<string, unknown> }>("SELECT public.patch_own_amora_action_view_v2($1,$2,$3,$4::jsonb) AS value", [COUPLE_ID,create.rows[0].value.id,create.rows[0].value.updated_at,JSON.stringify({description:"SYNTHETIC-CANONICAL-REVIEWED",status:"done"})]);
+      expect(saved.rows[0].value).toMatchObject({id:create.rows[0].value.id,description:"SYNTHETIC-CANONICAL-REVIEWED",status:"done",source:"manual",created_by:BRIDE_ID});
+      expect(saved.rows[0].value.completed_at).toEqual(expect.any(String));
+      expect(saved.rows[0].value.updated_at).not.toBe(create.rows[0].value.updated_at);
+      await db.query("SELECT set_config('request.jwt.claim.sub',$1,false)", [GROOM_ID]);
+      const legacy = await db.query<{ value: { updated_at: string; description: string; source: string } }>(
+        "SELECT public.patch_own_amora_action_view_v2($1,$2,$3,$4::jsonb) AS value",[COUPLE_ID,rawLegacy.id,token,JSON.stringify({description:"SYNTHETIC-LEGACY-REVIEWED"})]);
+      expect(legacy.rows[0].value.source).toBe("manual");
+      await setServiceRole(db);
+      const after = await readFixtureState(db);
+      expect(after.journey.state_revision).toBe(before.journey.state_revision+1);
+      const progress = after.journey.progress as Record<string, unknown>;
+      expect(progress.__amora_actions).toEqual([
+        {...rawLegacy,description:"SYNTHETIC-LEGACY-REVIEWED",updatedAt:legacy.rows[0].value.updated_at},
+        {...rawLegacy,id:"retirement_other_kept"},
+      ]);
+      expect(after.journey.total_budget).toBe(before.journey.total_budget);
+      expect(after.requests).toBe(before.requests);
+      expect(after.decisions).toBe(before.decisions);
+      expect(after.notifications).toBe(before.notifications);
+      await db.exec("SET ROLE authenticated");
+      await db.query("SELECT set_config('request.jwt.claim.role','authenticated',false),set_config('request.jwt.claim.sub',$1,false)", [BRIDE_ID]);
+      await expect(db.query("SELECT public.patch_own_amora_action_view_v2($1,$2,$3,$4::jsonb)",[COUPLE_ID,rawLegacy.id,token,JSON.stringify({status:"done"})])).rejects.toMatchObject({code:"40001"});
+      await setServiceRole(db);
+      expect(await readFixtureState(db)).toEqual(after);
+    } finally {
+      await resetPersona(db).catch(() => undefined);
+      await db.close();
+    }
+  }, 120_000);
+
+  it("retirement: current fixture plan and journey bodies match witnessed live read-only MD5 baseline", async () => {
+    const db = await createCurrentDatabase();
+    try {
+      await installWitnessedJourneyBodies(db);
+      const expected = {
+        normalize_couple_plan_changes: "706476cf0b9fb4972137cbd5669bf1e2",
+        apply_couple_plan_change_locked: "0936548c6c7be1885a9d4f6e845d2a3d",
+        enforce_couple_plan_change_write_boundary: "a7adea14a47829f6b283952640691dae",
+        advance_wedding_journey_state_revision: "16facd1736910df702ae86620c9e9a46",
+        capture_amora_shared_budget_delta: "5a8580ec8fc9aadc0486baed9752281a",
+        capture_amora_shared_schedule_delta: "a60e1e54508d964603c561e6a3857dfa",
+        capture_amora_shared_schedule_cancel_restore_delta: "f646b87909ae2482e1d97f9b9aef54ab",
+      };
+      const rows = await db.query<{ name: string; hash: string }>("SELECT proname AS name,md5(prosrc) AS hash FROM pg_proc WHERE pronamespace='public'::regnamespace AND proname=ANY($1::text[])", [Object.keys(expected)]);
+      expect(Object.fromEntries(rows.rows.map(row => [row.name,row.hash]))).toEqual(expected);
+    } finally {
+      await resetPersona(db).catch(() => undefined);
+      await db.close();
+    }
+  }, 120_000);
+
+  it("retirement: current INSERT fence preserves onboarding empty progress and does not weaken its existing empty-array rejection", async () => {
+    const db = await createCurrentDatabase();
+    try {
+      await installWitnessedJourneyBodies(db);
+      await installRetirementCandidate(db);
+      await db.query("DELETE FROM public.wedding_journeys WHERE couple_id=$1", [SOLO_COUPLE_ID]);
+      await db.query("INSERT INTO public.wedding_journeys(couple_id,wedding_date,venue,total_budget,progress) VALUES($1,null,null,0,'{}')", [SOLO_COUPLE_ID]);
+      expect((await db.query("SELECT progress,state_revision FROM public.wedding_journeys WHERE couple_id=$1", [SOLO_COUPLE_ID])).rows[0]).toEqual({progress:{},state_revision:0});
+      await db.query("DELETE FROM public.wedding_journeys WHERE couple_id=$1", [SOLO_COUPLE_ID]);
+      await expect(db.query("INSERT INTO public.wedding_journeys(couple_id,progress) VALUES($1,'{\"__amora_actions\":[]}')", [SOLO_COUPLE_ID])).rejects.toMatchObject({code:"42501"});
+    } finally { await resetPersona(db).catch(() => undefined); await db.close(); }
+  }, 120_000);
+
+  it("retirement: existing authenticated and anon DML permissions remain denied rather than inheriting service-only guard authority", async () => {
+    const db = await createCurrentDatabase();
+    try {
+      await installWitnessedJourneyBodies(db);
+      await installRetirementCandidate(db);
+      const before = await readFixtureState(db);
+      for (const role of ["authenticated", "anon"]) {
+        await resetPersona(db);
+        await db.exec(`SET ROLE ${role}`);
+        await db.query("SELECT set_config('request.jwt.claim.role',$1,false),set_config('request.jwt.claim.sub',$2,false)",[role,BRIDE_ID]);
+        await expect(db.query("UPDATE public.wedding_journeys SET progress='{}' WHERE couple_id=$1",[COUPLE_ID])).rejects.toMatchObject({code:"42501"});
+        await expect(db.query("INSERT INTO public.wedding_journeys(couple_id,progress) VALUES($1,'{}')",[SOLO_COUPLE_ID])).rejects.toMatchObject({code:"42501"});
+      }
+      await resetPersona(db); await setServiceRole(db);
+      expect(await readFixtureState(db)).toEqual(before);
+    } finally { await resetPersona(db).catch(() => undefined); await db.close(); }
+  }, 120_000);
+
+  it("retirement: actual reset RPC still detaches only its actor without changing partner journey/action data", async () => {
+    const db = await createCurrentDatabase();
+    try {
+      await installWitnessedJourneyBodies(db);
+      await installRetirementCandidate(db);
+      await resetPersona(db);
+      await db.exec(`ALTER TABLE public.couples ADD COLUMN updated_at timestamptz DEFAULT now();
+        ALTER TABLE public.profiles ADD COLUMN onboarding_completed boolean DEFAULT true,ADD COLUMN onboarding_step integer DEFAULT 5,
+        ADD COLUMN shared_chat_cleared_at timestamptz,ADD COLUMN private_chat_cleared_at timestamptz,ADD COLUMN updated_at timestamptz DEFAULT now();`);
+      await db.exec(`BEGIN;\n${migration("20260714164500_expand_atomic_couple_reset.sql")}\nCOMMIT;`);
+      await db.exec("SET ROLE authenticated");
+      await db.query("SELECT set_config('request.jwt.claim.role','authenticated',false),set_config('request.jwt.claim.sub',$1,false)",[BRIDE_ID]);
+      await db.query("SELECT public.mutate_own_amora_action($1,$2,'create',$3::jsonb)",[COUPLE_ID,"retirement_reset_kept",JSON.stringify({title:"SYNTHETIC-PARTNER-KEPT"})]);
+      await resetPersona(db); await setServiceRole(db);
+      const before = await readFixtureState(db);
+      const actionsBefore = (await db.query("SELECT to_jsonb(action) AS value FROM public.amora_actions action ORDER BY id")).rows;
+      await resetPersona(db); await db.exec("SET ROLE authenticated");
+      await db.query("SELECT set_config('request.jwt.claim.role','authenticated',false),set_config('request.jwt.claim.sub',$1,false)",[BRIDE_ID]);
+      expect((await db.query<{value:{success:boolean;previous_couple_id:string}}>("SELECT public.reset_current_couple_membership() AS value")).rows[0].value).toEqual({success:true,previous_couple_id:COUPLE_ID});
+      await db.query("SELECT public.reset_current_couple_membership()");
+      await resetPersona(db); await setServiceRole(db);
+      expect(await readFixtureState(db)).toEqual(before);
+      expect((await db.query("SELECT to_jsonb(action) AS value FROM public.amora_actions action ORDER BY id")).rows).toEqual(actionsBefore);
+      expect((await db.query("SELECT bride_id,groom_id FROM public.couples WHERE id=$1",[COUPLE_ID])).rows[0]).toEqual({bride_id:null,groom_id:GROOM_ID});
+      expect((await db.query("SELECT couple_id,onboarding_completed,onboarding_step FROM public.profiles WHERE id=$1",[BRIDE_ID])).rows[0]).toEqual({couple_id:null,onboarding_completed:false,onboarding_step:1});
+    } finally { await resetPersona(db).catch(() => undefined); await db.close(); }
+  }, 120_000);
+
+  it("retirement: real Auth FK cleanup can clear action author after account deletion despite service UPDATE retirement", async () => {
+    const db = await createCurrentDatabase();
+    try {
+      await installWitnessedJourneyBodies(db);
+      await installRetirementCandidate(db);
+      await resetPersona(db); await db.exec("SET ROLE authenticated");
+      await db.query("SELECT set_config('request.jwt.claim.role','authenticated',false),set_config('request.jwt.claim.sub',$1,false)",[BRIDE_ID]);
+      await db.query("SELECT public.mutate_own_amora_action($1,$2,'create',$3::jsonb)",[COUPLE_ID,"retirement_delete_author",JSON.stringify({title:"SYNTHETIC-AUTH-DELETE",source:"manual"})]);
+      await resetPersona(db);
+      // Auth 관리 주체의 삭제에 따른 실제 FK 동작만 로컬에서 검증한다. 운영 앱 권한은 바꾸지 않는다.
+      await db.exec("GRANT SELECT,DELETE ON auth.users TO service_role");
+      await setServiceRole(db);
+      const before = await readFixtureState(db);
+      await db.query("DELETE FROM auth.users WHERE id=$1",[BRIDE_ID]);
+      expect(await readFixtureState(db)).toEqual(before);
+      expect((await db.query("SELECT created_by,title,source FROM public.amora_actions WHERE id=$1",["retirement_delete_author"])).rows[0]).toEqual({created_by:null,title:"SYNTHETIC-AUTH-DELETE",source:"manual"});
+      expect((await db.query("SELECT id FROM public.profiles WHERE id=$1",[BRIDE_ID])).rows).toEqual([]);
+    } finally { await resetPersona(db).catch(() => undefined); await db.close(); }
+  }, 120_000);
+
+  it("retirement: historical two-person pending cannot apply reserved action changes through accept after input retirement", async () => {
+    const db = await createDatabase({ coupleTotalBudget: 0 });
+    try {
+      // 당시 public submit 원문으로 유효한 과거 pending을 만든다. 현재 mixed-delta
+      // wrapper를 가짜 승인 row나 GUC로 우회한 fixture를 만들지 않는다.
+      const oldSubmit = planChangeSql.match(/CREATE OR REPLACE FUNCTION public\.submit_couple_plan_change\([\s\S]*?\$function\$;/)?.[0];
+      if (!oldSubmit) throw new Error("Historical public submit definition missing");
+      await db.exec(oldSubmit);
+      await setServiceRole(db);
+      const pending = await submit(db, {
+        changes: { progress_patch: { __amora_actions: { budget: 10_000 } } },
+        surface: "/budget", summary: "합성 과거 예약키 승인 대기",
+      });
+      expect(pending.status).toBe("pending_partner");
+      // Aug23의 one-person fence는 구 2/2 pending을 이미 40001로 닫는다.
+      // 이 회귀는 그 이전 실제 fence에서도 입력 retirement 후 옛 request가 쓰지 못함을 검증한다.
+      await installRetirementCandidate(db);
+      const before = await readFixtureState(db);
+      const requestBefore = (await db.query("SELECT to_jsonb(request) AS value FROM public.couple_plan_change_requests request WHERE id=$1", [pending.requestId])).rows[0];
+      await expect(accept(db, pending.requestId)).rejects.toMatchObject({ code: "55000" });
+      expect(await readFixtureState(db)).toEqual(before);
+      expect((await db.query("SELECT to_jsonb(request) AS value FROM public.couple_plan_change_requests request WHERE id=$1", [pending.requestId])).rows[0]).toEqual(requestBefore);
+    } finally {
+      await resetPersona(db).catch(() => undefined);
+      await db.close();
+    }
+  }, 120_000);
+
   it("rejects the legacy mixed fixture without changing data or audit rows", async () => {
     const db = await createCurrentDatabase();
     try {
@@ -4480,9 +4740,11 @@ describe("W12 fixture current SQL contract", () => {
     }
   }, 120_000);
 
-  it("applies three independent patches using fresh revisions and replays without duplicates", async () => {
+  it("retirement: preserves three independent normal patches using fresh revisions and completed replays without duplicates", async () => {
     const db = await createCurrentDatabase();
     try {
+      await installWitnessedJourneyBodies(db);
+      await installRetirementCandidate(db);
       const completed: Array<{ patch: FixturePatch; requestId: string; revision: number }> = [];
       const expectedGreeting = {
         category: "greeting", budget: 10_000, spent: 0,

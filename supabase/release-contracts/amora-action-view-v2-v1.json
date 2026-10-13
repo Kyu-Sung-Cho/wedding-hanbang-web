@@ -1,0 +1,58 @@
+{
+  "version": 1,
+  "kind": "amora-action-view-v2-draft-additive",
+  "release": "amora-action-view-v2-20261012",
+  "status": "draft-local-rehearsal-not-authorized",
+  "projectRef": "slrtobkksjmxgzatjyqb",
+  "systemIdentifier": "7581440907192989109",
+  "predecessor": {
+    "file": "supabase/release-contracts/account-deletion-audit-nullability-v1.json",
+    "sha256": "ad50817b53ee069e99b8dcd5b8b5856b5c9691a32d5dd1ff15daccb5a1c4d73a"
+  },
+  "predecessorLoader": {
+    "file": "scripts/lib/account-deletion-audit-nullability-release-contract.mjs",
+    "sha256": "0434dc864d0b3c2a9e254648239fdb4f115e0890bc91a30816cec6f5f86c607e"
+  },
+  "reviewedPredecessorMigrationCount": 240,
+  "candidate": {
+    "file": "supabase/release-candidates/amora-action-view-v2/patch_own_amora_action_view_v2.sql",
+    "sha256": "e31372d192a0215d4ddf280a99abb628e7a8f732ebc02cb0b7e55fed1373730d"
+  },
+  "migrations": [
+    {
+      "file": "20261012002000_amora_action_view_v2.sql",
+      "sha256": "d8dc07b1e3543bc4530ea9dd3ecd616d4108b7f8739663a4e0237168e9ddc7f3"
+    }
+  ],
+  "candidateProvenance": "first-comment-only-all-remaining-bytes-identical",
+  "operatingLedger": {
+    "baseline": {
+      "file": "supabase/release-contracts/amora-budget-decision-effective-baseline-20260911.json",
+      "sha256": "527b8429377a9f13f16f8dfcf64f66d8fd73a3ea4c9588cc2cd498364932db4a"
+    },
+    "reviewedFollowupCount": 14,
+    "expectedRowCount": 229,
+    "historicalNullStatementsCount": 64
+  },
+  "catalogFixture": {
+    "file": "supabase/release-contracts/amora-action-view-v2-pg17-catalog-v1.json",
+    "sha256": "6eea8aa27b30487adfe4d51314e0155881233a5a991109a52f5bdb1a40a34227"
+  },
+  "scope": {
+    "newFunctions": [
+      "public.advance_amora_action_view_token_v2()",
+      "public.patch_own_amora_action_view_v2(uuid,text,text,jsonb)"
+    ],
+    "replacedTrigger": "public.amora_actions:set_amora_actions_updated_at",
+    "dataRows": "unchanged",
+    "existingFunctions": "unchanged",
+    "existingTableAclRls": "unchanged",
+    "auth": "unchanged",
+    "storage": "unchanged",
+    "oldWriterRetirement": "not-included",
+    "hold241242": "preserved-not-applied",
+    "rollback": "rollback-before-commit-forward-fix-after-commit"
+  },
+  "productionApplyImplemented": false,
+  "runtimeEvidenceVerified": false
+}

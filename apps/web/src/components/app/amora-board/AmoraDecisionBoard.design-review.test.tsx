@@ -7,14 +7,14 @@ import { parsePreparationDecisions, type PreparationDecision } from "@/lib/amora
 
 const mocks = vi.hoisted(() => ({
   decisions: { records: [] as PreparationDecision[], loading: false, loadingMore: false, error: null, nextCursor: null, available: true, isDemo: false, refresh: vi.fn(), loadMore: vi.fn() },
-  actions: { actions: [] as AmoraActionItem[], loading: false, loadingMore: false, error: null, count: 1, truncated: false, nextCursor: null, isDemo: false, updateError: null, updatingIds: new Set<string>(), update: vi.fn(), refresh: vi.fn(), loadMore: vi.fn() },
+  actions: { actions: [] as AmoraActionItem[], loading: false, loadingMore: false, error: null, count: 1, truncated: false, nextCursor: null, isDemo: false, ownerScope: "board-owner", updateError: null, updatingIds: new Set<string>(), update: vi.fn(), refresh: vi.fn(), loadMore: vi.fn() },
 }));
 vi.mock("./useDecisionBoard", () => ({ useDecisionBoard: () => mocks.decisions }));
 vi.mock("@/hooks/useAmoraPreparationActions", () => ({ useAmoraPreparationActions: () => mocks.actions }));
 import AmoraDecisionBoard from "./AmoraDecisionBoard";
 
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
-const task: AmoraActionItem = { id: "task-focus", title: "출장 비용 확인", categoryKey: "makeup", status: "open", priority: "medium", source: "chat", createdAt: "2026-09-08T00:00:00Z", updatedAt: "2026-09-08T00:00:00Z" };
+const task: AmoraActionItem = { id: "task-focus", title: "출장 비용 확인", categoryKey: "makeup", status: "open", priority: "medium", source: "chat", createdAt: "2026-09-08T00:00:00Z", updatedAt: "2026-09-08T00:00:00Z", viewVersion: "2026-09-08T00:00:00Z" };
 
 describe("decision board URL and post-action focus", () => {
   let root: Root;
@@ -97,7 +97,7 @@ describe("decision board URL and post-action focus", () => {
     await render(); await click("공유 할 일"); await click(`${task.title} 수정`); expect(document.activeElement).toBe(titleInput());
     await click("취소"); expect(document.activeElement).toBe(button(`${task.title} 수정`));
     await click(`${task.title} 수정`); await fillTitle("서면 견적 확인"); await click("수정 저장");
-    expect(mocks.actions.update).toHaveBeenCalledWith(task.id, { title: "서면 견적 확인" }); expect(document.activeElement).toBe(button("서면 견적 확인 수정"));
+    expect(mocks.actions.update).toHaveBeenCalledWith(task.id, { title: "서면 견적 확인" }, { version: task.viewVersion, ownerScope: "board-owner" }); expect(document.activeElement).toBe(button("서면 견적 확인 수정"));
   });
 
   it("keeps a failed edit open and does not announce success", async () => {
@@ -107,14 +107,14 @@ describe("decision board URL and post-action focus", () => {
 
   it("announces a successful status change and focuses the current task status control", async () => {
     await render(); await click("공유 할 일"); await click("완료로 표시");
-    expect(mocks.actions.update).toHaveBeenCalledWith(task.id, { status: "done" }); expect(announcement()).toContain("완료"); expect(announcement()).toContain(task.title);
+    expect(mocks.actions.update).toHaveBeenCalledWith(task.id, { status: "done" }, { version: task.viewVersion, ownerScope: "board-owner" }); expect(announcement()).toContain("완료"); expect(announcement()).toContain(task.title);
     expect(document.activeElement).toBe(panel().querySelector('[aria-label="할 일 상태"] button[aria-pressed="true"]'));
     await act(async () => root.render(<AmoraDecisionBoard />)); expect(mocks.actions.update).toHaveBeenCalledTimes(1);
   });
 
-  it("does not announce success or redirect focus when a status write fails", async () => {
+  it("does not announce success and focuses the retained recovery draft when a status write fails", async () => {
     mocks.actions.update.mockResolvedValue(false); await render(); await click("공유 할 일"); await click("보류·숨김");
-    expect(announcement()).toBe(""); expect(document.activeElement).toBe(button("보류·숨김")); expect(mocks.actions.actions[0].status).toBe("open");
+    expect(announcement()).toBe(""); expect(document.activeElement).toBe(titleInput()); expect(mocks.actions.actions[0].status).toBe("open");
   });
 
   it("does not steal focus when the user moves away during a successful status write", async () => {
@@ -145,7 +145,7 @@ describe("decision board URL and post-action focus", () => {
 
   it("returns focus to the current status when the category filter removes a saved card", async () => {
     await editFilteredCategory(); await click("수정 저장");
-    expect(mocks.actions.update).toHaveBeenCalledWith(task.id, { category_key: "venue" }); expect(panel().querySelector("article")).toBeNull();
+    expect(mocks.actions.update).toHaveBeenCalledWith(task.id, { category_key: "venue" }, { version: task.viewVersion, ownerScope: "board-owner" }); expect(panel().querySelector("article")).toBeNull();
     expect(document.activeElement).toBe(panel().querySelector('[aria-label="할 일 상태"] button[aria-pressed="true"]'));
   });
 

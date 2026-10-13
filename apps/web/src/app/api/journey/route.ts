@@ -593,6 +593,12 @@ function serviceErrorText(error: unknown) {
 
 function serviceErrorResponse(error: unknown) {
   const text = serviceErrorText(error);
+  if (/AMORA_ACTION_RESERVED_PLAN_WRITER_RETIRED/i.test(text)) {
+    return privateResponse({
+      error: "공유 할 일은 결정 보드에서 현재 기록을 확인한 뒤 수정해 주세요.",
+      code: "AMORA_ACTION_VIEW_REQUIRED",
+    }, 400);
+  }
   if (/COUPLE_PLAN_CHANGE_(?:NOT_FOUND|JOURNEY_NOT_FOUND)/i.test(text)) {
     return privateResponse(
       {
@@ -823,8 +829,24 @@ export async function PATCH(request: Request) {
         );
       }
 
+      const rawProgress = isRecord(rawBody) && isRecord(rawBody.progress)
+        ? rawBody.progress
+        : null;
+      // 기존 할 일은 정리된 문자열이 아닌 원본으로 비교하며, 같은 값은 일반 변경에 넣지 않는다.
+      if (
+        !rawProgress
+        || hasOwn(rawProgress, "__amora_actions") !== hasOwn(currentJourney.progress, "__amora_actions")
+        || !jsonValuesEqual(rawProgress.__amora_actions, currentJourney.progress.__amora_actions)
+      ) {
+        return privateResponse({
+          error: "공유 할 일은 결정 보드에서 현재 기록을 확인한 뒤 수정해 주세요.",
+          code: "AMORA_ACTION_VIEW_REQUIRED",
+        }, 400);
+      }
+
       const progressPatch: Record<string, unknown> = {};
       for (const [key, value] of Object.entries(nextProgress)) {
+        if (key === "__amora_actions") continue;
         if (!jsonValuesEqual(value, currentJourney.progress[key])) {
           progressPatch[key] = value;
         }
@@ -856,6 +878,17 @@ export async function PATCH(request: Request) {
       }
       rpcChanges.progress_patch = progressPatch;
       rpcChanges.progress_remove_keys = progressRemoveKeys;
+    }
+
+    // 전체 진행 데이터의 변하지 않은 할 일은 보존하되, 변경은 raw 버전 CAS 경로로만 받는다.
+    if (
+      (isRecord(rpcChanges.progress_patch) && hasOwn(rpcChanges.progress_patch, "__amora_actions"))
+      || (Array.isArray(rpcChanges.progress_remove_keys) && rpcChanges.progress_remove_keys.includes("__amora_actions"))
+    ) {
+      return privateResponse({
+        error: "공유 할 일은 결정 보드에서 현재 기록을 확인한 뒤 수정해 주세요.",
+        code: "AMORA_ACTION_VIEW_REQUIRED",
+      }, 400);
     }
 
     const { data, error } = await createAdminClient().rpc(

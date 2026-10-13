@@ -10,6 +10,7 @@ import {
   rowToAmoraAction,
 } from "@/lib/amora/actionRepository";
 import { manualActionIdForRequest, matchesManualActionCreateRow, parseManualActionRequestId } from "@/lib/amora/manualActionCreate";
+import { parseAmoraActionHref } from "@/lib/amora/actionHref";
 import type { AmoraAction } from "@/types/database.types";
 import {
   createAmoraActionId,
@@ -88,12 +89,6 @@ async function getLegacyActions(client: SupabaseClient, coupleId: string) {
   return getAmoraActions({ ...progress, __amora_actions: raw.map((item) => isRecord(item)
     ? { ...item, createdAt: typeof item.createdAt === "string" ? item.createdAt : "1970-01-01T00:00:00.000Z" }
     : item) });
-}
-
-function cleanHref(raw: unknown): string | undefined {
-  if (typeof raw !== "string") return undefined;
-  const value = raw.trim().slice(0, 180);
-  return value.startsWith("/") && !value.startsWith("//") ? value : undefined;
 }
 
 function parseStatusParam(request: Request): AmoraActionStatus | "all" {
@@ -184,6 +179,8 @@ export async function POST(request: Request) {
     if (!title) {
       return NextResponse.json({ error: "제목이 필요합니다." }, { status: 400 });
     }
+    const link = parseAmoraActionHref(body.href);
+    if (!link.ok) return NextResponse.json({ error: "준비 기록의 링크가 올바르지 않습니다.", code: "AMORA_ACTION_INVALID_INPUT" }, { status: 400 });
 
     const client = supabase;
     const lookup = await getCoupleIdForUser(client, user.id);
@@ -208,7 +205,7 @@ export async function POST(request: Request) {
       priority: (cleanOptionalEnum(body.priority, PRIORITY_VALUES) as AmoraActionPriority | null) ?? "medium",
       status: (cleanOptionalEnum(body.status, STATUS_VALUES) as AmoraActionStatus | null) ?? "open",
       source: (cleanOptionalEnum(body.source, SOURCE_VALUES) as AmoraActionSource | null) ?? "manual",
-      href: cleanHref(body.href),
+      href: link.href ?? undefined,
       createdAt: now,
       updatedAt: now,
     });

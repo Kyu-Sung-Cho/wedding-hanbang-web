@@ -20,6 +20,7 @@ Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 const action: AmoraActionItem = {
   id: "act_shared", title: "업체 전화", status: "open", source: "manual", priority: "medium",
   createdAt: "2026-09-10T00:00:00Z", updatedAt: "2026-09-10T00:00:00Z",
+  viewVersion: "2026-09-10T00:00:00Z",
 };
 function response(actions: AmoraActionItem[], nextCursor: string | null = null, count = actions.length) {
   return Response.json({ actions, count, open_count: actions.filter(item => item.status === "open").length, next_cursor: nextCursor });
@@ -103,7 +104,8 @@ describe("preparation actions open-tab synchronization", () => {
     expect(fetchMock).toHaveBeenCalledTimes(2);
     expect(snapshot().loading).toBe(false);
     expect(snapshot().actions).toEqual([action]);
-    const changed: AmoraActionItem = { ...action, status: "done", description: "견적 확인 완료", dueDate: "2026-09-12" };
+    const changed: AmoraActionItem = { ...action, status: "done", description: "견적 확인 완료", dueDate: "2026-09-12",
+      updatedAt: "2026-09-10T00:00:00.000001Z", viewVersion: "2026-09-10T00:00:00.000001Z" };
     await act(async () => pending.resolve(response([changed])));
     expect(snapshot().actions).toEqual([changed]);
     expect(snapshot().open_count).toBe(0);
@@ -200,14 +202,17 @@ describe("preparation actions open-tab synchronization", () => {
     const patch = deferred<Response>();
     fetchMock.mockReturnValueOnce(patch.promise);
     let updating!: Promise<boolean>;
-    await act(async () => { updating = snapshot().update(action.id, { status: "done" }); });
+    const viewed = snapshot().actions.find(item => item.id === action.id);
+    if (!viewed) throw new Error("test did not load the mutation view");
+    await act(async () => { updating = snapshot().update(action.id, { status: "done" }, { version: viewed.viewVersion, ownerScope: snapshot().ownerScope }); });
+    expect(JSON.parse(fetchMock.mock.calls[2][1].body)).toEqual({ status: "done", expectedUpdatedAt: viewed.viewVersion, expectedOwnerId: "user-a", expectedCoupleId: "couple-a" });
     await act(async () => {
       oldRead.resolve(response([action]));
       window.dispatchEvent(new Event("focus"));
       await vi.advanceTimersByTimeAsync(30_000);
     });
     expect(fetchMock).toHaveBeenCalledTimes(3);
-    const done: AmoraActionItem = { ...action, status: "done" };
+    const done: AmoraActionItem = { ...action, status: "done", updatedAt: "2026-09-10T00:00:00.000001Z", viewVersion: "2026-09-10T00:00:00.000001Z" };
     await act(async () => { patch.resolve(Response.json({ action: done })); expect(await updating).toBe(true); });
     expect(snapshot().actions).toEqual([done]);
     fetchMock.mockResolvedValueOnce(response([done]));
@@ -222,8 +227,8 @@ describe("preparation actions open-tab synchronization", () => {
     await mount();
     fetchMock.mockResolvedValueOnce(response([older], null, 2));
     await act(async () => snapshot().loadMore());
-    const changed = { ...action, title: "새 제목" };
-    const olderChanged = { ...older, description: "다른 탭에서 수정" };
+    const changed = { ...action, title: "새 제목", updatedAt: "2026-09-10T00:00:00.000001Z", viewVersion: "2026-09-10T00:00:00.000001Z" };
+    const olderChanged = { ...older, description: "다른 탭에서 수정", updatedAt: "2026-09-10T00:00:00.000001Z", viewVersion: "2026-09-10T00:00:00.000001Z" };
     fetchMock.mockResolvedValueOnce(response([changed], "new-old", 2));
     const secondPage = deferred<Response>();
     fetchMock.mockReturnValueOnce(secondPage.promise);
@@ -243,7 +248,7 @@ describe("preparation actions open-tab synchronization", () => {
     await mount();
     fetchMock.mockResolvedValueOnce(response([older], null, 2));
     await act(async () => snapshot().loadMore());
-    fetchMock.mockResolvedValueOnce(response([{ ...action, title: "partial" }], "old", 2));
+    fetchMock.mockResolvedValueOnce(response([{ ...action, title: "partial", updatedAt: "2026-09-10T00:00:00.000001Z", viewVersion: "2026-09-10T00:00:00.000001Z" }], "old", 2));
     fetchMock.mockResolvedValueOnce(new Response("unavailable", { status: 503 }));
     await act(async () => window.dispatchEvent(new Event("focus")));
     expect(fetchMock).toHaveBeenCalledTimes(4);

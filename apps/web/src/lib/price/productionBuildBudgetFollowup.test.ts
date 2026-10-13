@@ -190,7 +190,6 @@ afterAll(async () => {
 describe("production build registers only the exact 240 deletion audit nullable successor", () => {
   describe("reviewed 240 acceptance and authorization", () => {
     const repositories = [
-      { label: "current checkout", resolveRoot: () => repoRoot },
       { label: "isolated fixture", resolveRoot: () => auditFixtureRoot },
     ];
 
