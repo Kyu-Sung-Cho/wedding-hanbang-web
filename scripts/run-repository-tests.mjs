@@ -45,20 +45,29 @@ export function parseRepositoryTestMode(argv) {
   return argv[0].slice(2);
 }
 
-export function buildRepositoryTestInvocation(options) {
+/** CLI가 다시 정렬하지 않는 전체 API 목록이다. 원본 manifest는 바꾸지 않는다. */
+export function buildRepositoryTestSchedule(options) {
   if (!exact(options, ["repoRoot", "mode"]) || !["repo", "supabase"].includes(options.mode))
     fail("REPOSITORY_TEST_MODE_INVALID");
   const manifest = loadRepositoryTestManifest({ repoRoot: options.repoRoot });
+  const files = manifest.modes[options.mode].map(file => resolve(options.repoRoot, file)).sort();
+  const runtime = resolve(options.repoRoot, "scripts/tests/amora-action-view-v2-runtime.test.mjs");
+  return Object.freeze([...files.filter(file => file !== runtime), ...files.filter(file => file === runtime)]);
+}
+
+export function buildRepositoryTestInvocation(options) {
+  if (!exact(options, ["repoRoot", "mode"]) || !["repo", "supabase"].includes(options.mode))
+    fail("REPOSITORY_TEST_MODE_INVALID");
+  loadRepositoryTestManifest({ repoRoot: options.repoRoot });
   return Object.freeze({ command: process.execPath, cwd: resolve(options.repoRoot), shell: false,
-    args: Object.freeze(["--test", `--test-concurrency=${manifest.concurrency}`, ...manifest.modes[options.mode]]) });
+    args: Object.freeze([resolve(options.repoRoot, "scripts/repository-test-worker.mjs"), `--${options.mode}`]) });
 }
 
 /** Windows cmd 문자열을 만들지 않고 같은 Node에 전체 argv를 한 번 전달한다. */
 export async function runRepositoryTests(options) {
   const invocation = buildRepositoryTestInvocation(options);
-  const environment = { ...process.env };
+  const environment = Object.fromEntries(Object.entries(process.env).filter(([name]) => name.toUpperCase() !== "NODE_TEST_CONTEXT"));
   // node:test 안에서 호출된 실제 자식도 재귀 생략으로 가짜 0을 반환하지 않게 한다.
-  delete environment.NODE_TEST_CONTEXT;
   return new Promise((done, reject) => {
     const child = spawn(invocation.command, invocation.args, {
       cwd: invocation.cwd, shell: invocation.shell, stdio: "inherit", windowsHide: true, env: environment,
@@ -71,7 +80,7 @@ export async function runRepositoryTests(options) {
     process.on("SIGINT", interrupt);
     process.on("SIGTERM", terminate);
     child.once("error", error => { clean(); reject(error); });
-    child.once("close", code => { clean(); done(code ?? 1); });
+    child.once("close", (code, signal) => { clean(); done(signal || !Number.isInteger(code) ? 1 : code); });
   });
 }
 
