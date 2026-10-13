@@ -596,7 +596,7 @@ BEFORE INSERT OR UPDATE ON public.wedding_journeys
 FOR EACH ROW EXECUTE FUNCTION public.guard_amora_reserved_journey_direct_dml_retirement_v1();
 
 
--- Frozen companion supabase/release-candidates/amora-action-writer-retirement-v1/transport_conflict_response_v1.sql SHA256 63512f8bdaafa2fee69006cf75365c9556ca0fb898b81bfaa36d21582fdf75ee
+-- Frozen companion supabase/release-candidates/amora-action-writer-retirement-v1/transport_conflict_response_v1.sql SHA256 fecd2ad16a1f2e8613cb61010a6eb066e28be34c6112059e239caaca33f6eb0b
 -- B2 로컬 후보: 이미 릴리스된 B1 원문은 수정하지 않는다.
 -- logical stale 두 곳만 HTTP409로 반환하며 실제 serialization/nested55000은 번역하지 않는다.
 SET LOCAL lock_timeout = '5s';

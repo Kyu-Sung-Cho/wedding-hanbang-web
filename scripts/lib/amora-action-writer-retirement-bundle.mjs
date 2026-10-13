@@ -3,7 +3,7 @@ import {lstatSync,readFileSync,realpathSync} from 'node:fs';
 import {isAbsolute,join,relative,sep} from 'node:path';
 
 export const AMORA_WRITER_RETIREMENT_FILE='20261013003000_amora_action_writer_retirement_v1.sql';
-export const AMORA_WRITER_RETIREMENT_SHA='9ef6042ce666c054a2e887197bd8fb41be211d9a854731bb90d9d48dc399b649';
+export const AMORA_WRITER_RETIREMENT_SHA='38960c66ebd228844346951d001801e3b9af26f750e8a279e07c0d5910ac438c';
 export const AMORA_WRITER_RETIREMENT_COMPANIONS=Object.freeze([
   ['supabase/release-candidates/amora-action-writer-cutover-v1/cutover_writer_retirement_identity_v1.sql',
     '25b78629def538a85e13848df70f5e9142df8469f5ee75aa1096dfb1183ef2ca'],
@@ -14,7 +14,7 @@ export const AMORA_WRITER_RETIREMENT_COMPANIONS=Object.freeze([
   ['supabase/release-candidates/amora-action-writer-retirement-v1/retirement_direct_journey_guard_v1.sql',
     '3b98d9c86e1092fa5e1cd10561cfc1d25cb30e405dfc144320e9e717ddc9103c'],
   ['supabase/release-candidates/amora-action-writer-retirement-v1/transport_conflict_response_v1.sql',
-    '63512f8bdaafa2fee69006cf75365c9556ca0fb898b81bfaa36d21582fdf75ee'],
+    'fecd2ad16a1f2e8613cb61010a6eb066e28be34c6112059e239caaca33f6eb0b'],
 ].map(pin=>Object.freeze(pin)));
 const PREFIX='-- 정식 마이그레이션 검수 후보: Amora old writer retirement + identity boundary + non-retrying conflict transport. 운영에 적용되거나 승인된 릴리스가 아니다.\nBEGIN;\n';
 const digest=bytes=>createHash('sha256').update(bytes).digest('hex');

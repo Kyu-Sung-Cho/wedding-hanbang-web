@@ -471,4 +471,3 @@ BEGIN
 END;
 $function$;
 COMMIT;
-

@@ -48,7 +48,7 @@ test('fresh fixed final-B1 static source241 plus exactly one combined source242 
     assert.equal(plan.contract.newGuardFunctionCount,2);
     assert.equal(plan.staticPredecessorSha256,'b53ee9b572d222364d6fde4876781124f710848617b6e16da18a07eeb12d81e3');
     assert.equal(plan.generatedPredecessorSource.commit,'dfdd87eaf724baa938a1c0bd459afe0d022c1c4b');
-    assert.equal(plan.migration.sha256,'9ef6042ce666c054a2e887197bd8fb41be211d9a854731bb90d9d48dc399b649');
+    assert.equal(plan.migration.sha256,'38960c66ebd228844346951d001801e3b9af26f750e8a279e07c0d5910ac438c');
     assert.equal(plan.migration.bytes,46366);
     for(const key of ['releaseAuthorized','runtimeEvidenceVerified','b1OperationalPostverifyVerified','sourceCiVerified','remoteWritesPerformed'])assert.equal(plan[key],false);
     assert.equal(Object.isFrozen(plan.expectedBefore230[0]),true);
