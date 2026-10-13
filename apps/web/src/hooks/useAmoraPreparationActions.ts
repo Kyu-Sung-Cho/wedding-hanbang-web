@@ -218,6 +218,8 @@ export function useAmoraPreparationActions() {
 
   const readCurrentAction = useCallback(async (id: string, current: () => boolean): Promise<Pick<AmoraPreparationActionUpdateIssue, "availability" | "latest">> => {
     if (!current()) return { availability: "unknown" };
+    const readScope = scopeFor(useAuthStore.getState());
+    const readGeneration = lifecycle.current;
     const recovery = new AbortController();
     recoveryControllers.current.add(recovery);
     const deadline = createAmoraActionDeadline(SYNC_TIMEOUT_MS, recovery.signal);
@@ -230,6 +232,27 @@ export function useAmoraPreparationActions() {
       if (!response.ok) return { availability: "unknown" };
       const payload = z.object({ action: actionSchema }).parse(await deadline.run(() => response.json()));
       if (!current() || payload.action.id !== id) return { availability: "unknown" };
+      const latest = payload.action;
+      const recoveredVersion = latest.viewVersion;
+      // 현재 표시만 갱신한다. 조회 결과가 이번 수정의 저장 성공을 증명하지는 않는다.
+      if (isAmoraActionViewVersion(recoveredVersion)) setState(previous => {
+        if (!current() || recovery.signal.aborted || readGeneration !== lifecycle.current
+          || !readScope || scopeFor(useAuthStore.getState()) !== readScope || previous.scope !== readScope) return previous;
+        const listed = previous.actions.find(action => action.id === id);
+        if (!listed || !isAmoraActionViewVersion(listed.viewVersion)
+          || compareChatTimestamps(recoveredVersion, listed.viewVersion) !== 1) return previous;
+        const actions = previous.actions.map(action => action.id === id ? latest : action);
+        const loadedOpen = actions.filter(action => action.status === "open").length;
+        // 부분 목록은 최신 전체 집계로 보장하지 않고, 표시한 카드와 모순되지 않는 범위로 제한한다.
+        const lower = Math.min(previous.count, loadedOpen);
+        const upper = Math.max(lower, previous.count - (actions.length - loadedOpen));
+        return {
+          ...previous,
+          actions,
+          open_count: Math.max(lower, Math.min(upper,
+            previous.open_count + Number(latest.status === "open") - Number(listed.status === "open"))),
+        };
+      });
       return { availability: "current", latest: payload.action };
     } catch { return { availability: "unknown" }; }
     finally { deadline.dispose(); recoveryControllers.current.delete(recovery); }

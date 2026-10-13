@@ -117,6 +117,34 @@ describe("shared action board viewed approval and draft recovery", () => {
     expect(container.textContent).toContain("내가 확인한 범위");
   });
 
+  it.each(["no-op submit", "cancel"])("keeps the validated newer card visible after explicit review and %s without another PATCH", async close => {
+    fetchMock.mockResolvedValueOnce(snapshot([action])); await render();
+    await click(`${action.title} 수정`);
+    const current = { ...action, title: "서로 확인한 현재 제목", description: "현재 저장된 메모", categoryKey: "makeup",
+      updatedAt: nextVersion, viewVersion: nextVersion };
+    await fill(draftTitle(), current.title);
+    fetchMock.mockResolvedValueOnce(response({ code: "AMORA_ACTION_CONFLICT" }, 409));
+    fetchMock.mockResolvedValueOnce(response({ action: current })); await click("수정 저장");
+    expect(draftTitle().value).toBe(current.title);
+    expect(container.querySelector('[aria-label="현재 저장된 할 일"]')?.textContent).toContain(current.title);
+    expect(button("수정 저장").disabled).toBe(true);
+    expect(fetchMock.mock.calls.map(call => call[1]?.method ?? "GET")).toEqual(["GET", "PATCH", "GET"]);
+    expect(JSON.parse(fetchMock.mock.calls[1][1].body)).toEqual({ title: current.title, expectedUpdatedAt: version,
+      expectedOwnerId: mocks.auth.user.id, expectedCoupleId: mocks.auth.profile.couple_id });
+    await click("현재 내용 기준으로 초안 다시 확인");
+    expect(draftTitle().value).toBe(current.title);
+    expect(container.querySelector<HTMLTextAreaElement>("article textarea")?.value).toBe(current.description);
+    await click(close === "no-op submit" ? "수정 저장" : "취소");
+    expect(draftTitle()).toBeNull();
+    const card = container.querySelector(`[data-preparation-action="${action.id}"]`);
+    expect(card?.querySelector("h3")?.textContent).toBe(current.title);
+    expect(card?.textContent).toContain(current.description);
+    expect(card?.getAttribute("aria-label")).toBe(current.title);
+    expect(card?.querySelector("time")?.getAttribute("dateTime")).toBe(nextVersion);
+    expect(container.querySelector('[data-board-announcement]')?.textContent).toBe("");
+    expect(fetchMock.mock.calls.map(call => call[1]?.method ?? "GET")).toEqual(["GET", "PATCH", "GET"]);
+  });
+
   it("keeps a real card without an authoritative view version read-only despite a valid display date", async () => {
     fetchMock.mockResolvedValueOnce(snapshot([{ ...action, viewVersion: undefined }])); await render();
     expect(button(`${action.title} 수정`).disabled).toBe(true);
@@ -170,6 +198,12 @@ describe("shared action board viewed approval and draft recovery", () => {
     expect(button("수정 저장").disabled).toBe(true);
     expect(container.querySelector('[data-board-announcement]')?.textContent).toBe("");
     expect(fetchMock.mock.calls.filter(call => call[1]?.method === "PATCH")).toHaveLength(1);
+    await click("현재 내용 기준으로 초안 다시 확인");
+    await click("수정 저장");
+    expect(draftTitle()).toBeNull();
+    expect(container.querySelector(`[data-preparation-action="${action.id}"] h3`)?.textContent).toBe(current.title);
+    expect(container.querySelector('[data-board-announcement]')?.textContent).toBe("");
+    expect(fetchMock.mock.calls.map(call => call[1]?.method ?? "GET")).toEqual(["GET", "PATCH", "GET"]);
   });
 
   it("requires a new review after a second concurrent change while keeping the dirty draft", async () => {

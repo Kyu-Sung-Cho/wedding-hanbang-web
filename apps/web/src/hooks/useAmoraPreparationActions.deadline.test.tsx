@@ -62,11 +62,11 @@ describe("bounded preparation action saves with the real owner store", () => {
     expect(latest.updatingIds.size).toBe(0);
     expect(await updating).toBe(false);
     expect(latest.updateIssues[action.id]).toMatchObject({ kind: "uncertain", availability: "current", latest: current });
-    expect(latest.actions[0]?.description).toBe(action.description);
+    expect(latest.actions[0]?.description).toBe(current.description);
     expect(fetchMock.mock.calls.map(call => call[1]?.method ?? "GET")).toEqual(["GET", "PATCH", "GET"]);
     expect(fetchMock.mock.calls[1][1].signal.aborted).toBe(true);
     await act(async () => pending.resolve(Response.json({ action: { ...current, description: "내 초안" } })));
-    expect(latest.actions[0]?.description).toBe(action.description);
+    expect(latest.actions[0]?.description).toBe(current.description);
     expect(latest.updateIssues[action.id]?.kind).toBe("uncertain");
   });
   it("keeps the server's unconfirmed outcome uncertain even when the recovery value equals the draft", async () => {
@@ -77,7 +77,7 @@ describe("bounded preparation action saves with the real owner store", () => {
       expect(await latest.update(action.id, { description: "내 초안" }, { version, ownerScope: latest.ownerScope })).toBe(false);
     });
     expect(latest.updateIssues[action.id]?.kind).toBe("uncertain");
-    expect(latest.actions[0]?.description).toBe(action.description);
+    expect(latest.actions[0]?.description).toBe("내 초안");
     expect(fetchMock.mock.calls.map(call => call[1]?.method ?? "GET")).toEqual(["GET", "PATCH", "GET"]);
   });
   it("also releases pending when the independent recovery body ignores its 10s abort", async () => {
@@ -163,7 +163,7 @@ describe("bounded preparation action saves with the real owner store", () => {
     expect(latest.updatingIds.size).toBe(0); expect(await updating).toBe(false);
     expect(latest.updateIssues[action.id]?.kind).toBe("uncertain");
     await act(async () => body.resolve({ action: { ...current, description: "내 초안" } }));
-    expect(latest.actions[0]?.description).toBe(action.description);
+    expect(latest.actions[0]?.description).toBe(current.description);
   });
   it.each(["owner", "unmount"])("immediately aborts a pending mutation on %s and ignores its late receipt", async reason => {
     await mount();
@@ -187,6 +187,6 @@ describe("bounded preparation action saves with the real owner store", () => {
     fetchMock.mockResolvedValueOnce(Response.json({ action: current }));
     await act(async () => { expect(await latest.update(action.id, { description: "내 초안" }, { version, ownerScope: latest.ownerScope })).toBe(false); });
     expect(latest.updateIssues[action.id]?.kind).toBe("unavailable");
-    expect(latest.actions[0]?.description).toBe(action.description);
+    expect(latest.actions[0]?.description).toBe(current.description);
   });
 });
