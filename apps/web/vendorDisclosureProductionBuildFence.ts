@@ -18,6 +18,9 @@ import { PREPARATION_STYLE_CONTRACT_FILE } from "../../scripts/lib/preparation-s
 import { WEDDING_CODE_PAIR_SESSION_CONFLICT_CONTRACT_FILE } from "../../scripts/lib/wedding-code-pair-session-conflict-release-contract.mjs";
 import { DELETION_AUDIT_CONTRACT_FILE } from "../../scripts/lib/account-deletion-audit-nullability-release-contract.mjs";
 import { AMORA_VIEW_V2_CONTRACT_FILE } from "../../scripts/lib/amora-action-view-v2-release-contract.mjs";
+import { AMORA_WRITER_RETIREMENT_FILE } from "../../scripts/lib/amora-action-writer-retirement-bundle.mjs";
+import { STATIC_PREDECESSOR_PIN } from "../../scripts/lib/amora-action-writer-retirement-release-contract.mjs";
+import { validateAmoraWriterRetirementBuildContract } from "../../scripts/lib/amora-action-writer-retirement-build-contract.mjs";
 import { WEDDING_CODE_PAIR_SESSION_CONTRACT_FILE } from "../../scripts/lib/wedding-code-pair-session-release-contract.mjs";
 import { PROFILE_WEDDING_ROLES_CONTRACT_FILE } from "../../scripts/lib/profile-wedding-roles-release-contract.mjs";
 import { CHAT_FEEDBACK_CONTRACT_FILE } from "../../scripts/lib/chat-feedback-nullability-release-contract.mjs";
@@ -62,11 +65,11 @@ function blocked(code: string, message: string): never {
 /**
  * Interim production-only fence.
  *
- * The repository's shared successor validator is the only source of truth for
- * the static predecessor and migration contract. Passing that static contract
- * is necessary, but it is not deployment authorization. Production opens only
- * when that validator returns a pinned controller-ready contract and the owner
- * separately pins the exact release manifest hash.
+ * Historical checkouts retain their shared successor validator. The registered
+ * writer-retirement successor uses its independent strict242 static validator;
+ * a failed newest contract never falls back. Static success is not DB release
+ * authorization. The existing owner manifest hash and paused controller-ready
+ * policy below remain unchanged.
  */
 export function assertVendorDisclosureProductionBuild({
   repoRoot,
@@ -81,7 +84,12 @@ export function assertVendorDisclosureProductionBuild({
   try {
     // 등록된 후속 계약이 있으면 그 exact SQL까지 검사한다. 검증 실패 후
     // 구 경로로 재시도하지 않으며, 계약이 없는 과거 checkout은 기존 검사를 유지한다.
-    releaseContract = validateSuccessorReleaseContract({
+    const writerRetirementRegistered = existsSync(
+      join(repoRoot, "supabase/migrations", AMORA_WRITER_RETIREMENT_FILE),
+    ) || existsSync(join(repoRoot, STATIC_PREDECESSOR_PIN.file));
+    releaseContract = writerRetirementRegistered
+      ? validateAmoraWriterRetirementBuildContract({ repoRoot })
+      : validateSuccessorReleaseContract({
       repoRoot,
       followup: existsSync(join(repoRoot, AMORA_VIEW_V2_CONTRACT_FILE))
         ? "amora-action-view-v2"

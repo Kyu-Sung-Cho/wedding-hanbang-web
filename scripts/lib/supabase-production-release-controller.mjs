@@ -79,6 +79,56 @@ function blocked(code, message) {
   throw new ReleaseBlockedError(code, message);
 }
 
+/** 새 default release 결과만 요약한다. JSON Boolean은 VERIFIED/ROLLBACK 발급 증거가 아니다. */
+export async function formatAmoraWriterRetirementCliResult({ result, repoRoot }) {
+  if (result && typeof result === "object" && !Array.isArray(result)) {
+    if (result.format === "amora-writer-retirement-issued-cold-postverified-v1") {
+      const { assertAmoraWriterRetirementIssuedPostCommitVerification, disposeAmoraWriterRetirementPostCommitVerification } =
+        await import("./amora-action-writer-retirement-post-commit-verifier.mjs");
+      const binding = { proof: result, repoRoot: resolve(repoRoot), expectedCommit: result.sourceCommit };
+      try {
+        await assertAmoraWriterRetirementIssuedPostCommitVerification(binding);
+        // 안전한 완료 metadata만 기록한다. 이 출력은 후속 실행의 capability나 원본 payload가 아니다.
+        const metadata = {
+          format: "amora-writer-retirement-postverify-audit-metadata-v1",
+          sourceCommit: result.sourceCommit, archiveSourceCommit: result.archiveSourceCommit,
+          bundleSha256: result.bundleSha256, archiveArtifactSha256: result.archiveArtifactSha256,
+          archiveApplyJournalSha256: result.archiveApplyJournalSha256,
+          archiveOriginalCapturedAt: result.archiveOriginalCapturedAt, archiveOriginalDeadline: result.archiveOriginalDeadline,
+          ledgerCount: result.ledgerCount, cutoff: result.actualServerCutoff, cohortMemberCount: result.cohortMemberCount,
+          firstObservationSha256: result.firstObservationSha256, finalObservationSha256: result.finalObservationSha256,
+          drainObservationSha256: result.drainObservationSha256,
+          nativeCompletedAt: result.nativeCompletedAt, nativeCaptureDeadline: result.nativeCaptureDeadline,
+          verifiedAt: result.verifiedAt, deadline: result.deadline,
+          sqlReadOnly: true, remoteSqlMutationsPerformed: false, serializedOutputIsAuthority: false,
+        };
+        return "SUPABASE_PRODUCTION_RELEASE_VERIFIED: amora-writer-retirement-committed231-readonly-postverified-drained-own3-absent\n"
+          + JSON.stringify(metadata) + "\n";
+      } finally {
+        await disposeAmoraWriterRetirementPostCommitVerification(binding);
+      }
+    }
+    if (result.format === "amora-writer-retirement-issued-complete-operating-v1") {
+      const { assertAmoraWriterRetirementIssuedComplete } = await import("./amora-action-writer-retirement-runtime.mjs");
+      await assertAmoraWriterRetirementIssuedComplete(result);
+      return "SUPABASE_PRODUCTION_RELEASE_VERIFIED: amora-writer-retirement-operating231-drained-own3-removed\n";
+    }
+    if (result.format === "amora-writer-retirement-issued-operational-rollback-v1") {
+      const { assertAmoraWriterRetirementOperationalRollback } = await import("./amora-action-writer-retirement-operational-rehearsal.mjs");
+      await assertAmoraWriterRetirementOperationalRollback({
+        proof: result, repoRoot: resolve(repoRoot), expectedCommit: result.sourceCommit,
+      });
+      return "SUPABASE_PRODUCTION_RELEASE_ROLLED_BACK: amora-writer-retirement-original7-operating230-not-authorized\n";
+    }
+    if (result.status === "inspected-operating230-unapplied-not-authorized"
+        && result.releaseAuthorized === false && result.remoteWritesPerformed === false
+        && result.transportReadOnlyFlag === true && result.sqlReadOnly === true) {
+      return "SUPABASE_PRODUCTION_RELEASE_READ_ONLY: amora-writer-retirement-inspection-not-applied-not-authorized\n";
+    }
+  }
+  blocked("AMORA_WRITER_CLI_RESULT_INVALID", "writer-retirement returned an unsupported or unissued outcome");
+}
+
 async function selectReleaseManifest(repoRoot) {
   const path = join(repoRoot, SUCCESSOR_RELEASE_MANIFEST_RELATIVE_PATH);
   if (existsSync(path)) {
@@ -2611,12 +2661,24 @@ async function runPostPushResume({
   }
 }
 
-export async function runProductionRelease({
-  repoRoot: requestedRepoRoot,
-  argv,
-  runCommand = defaultRunCommand,
-  now = () => new Date(),
-} = {}) {
+export async function runProductionRelease(input = {}) {
+  const writerArgv = Object.getOwnPropertyDescriptor(input ?? {}, "argv")?.value;
+  if (Array.isArray(writerArgv) && Array.prototype.includes.call(writerArgv, "--amora-action-writer-retirement")) {
+    const descriptors = Object.getOwnPropertyDescriptors(input);
+    if (Reflect.ownKeys(input).some(key => key !== "repoRoot" && key !== "argv")
+        || Object.values(descriptors).some(descriptor => !Object.hasOwn(descriptor, "value"))) {
+      blocked("AMORA_WRITER_DISPATCH_OVERRIDE_FORBIDDEN", "writer-retirement uses only its default release boundary");
+    }
+    const repoRoot = resolve(descriptors.repoRoot?.value ?? process.cwd());
+    const { runAmoraWriterRetirementRelease } = await import("./amora-action-writer-retirement-release.mjs");
+    return runAmoraWriterRetirementRelease({ repoRoot, argv: writerArgv });
+  }
+  const {
+    repoRoot: requestedRepoRoot,
+    argv,
+    runCommand = defaultRunCommand,
+    now = () => new Date(),
+  } = input;
   const repoRoot = resolve(requestedRepoRoot ?? process.cwd());
   if ((argv ?? []).includes("--amora-action-view-v2")) {
     assertSafeExecutionEnvironment(process.env);

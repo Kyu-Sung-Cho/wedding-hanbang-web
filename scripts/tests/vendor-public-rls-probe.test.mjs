@@ -1468,10 +1468,9 @@ test("CI keeps production blocked after the dedicated staging probe is approved"
   assert.match(readinessJob, /\n\s+exit 1\s*$/m);
   assert.match(finalGateJob, dispatchOnly);
   assert.match(finalGateJob, /needs: \[[^\]]*production_readiness[^\]]*\]/);
-  assert.match(
-    packageJson.scripts["supabase:release:test"],
-    /vendor-public-rls-probe\.test\.mjs/,
-  );
+  assert.equal(packageJson.scripts["supabase:release:test"], "node ./scripts/run-repository-tests.mjs --supabase");
+  const { loadRepositoryTestManifest } = await import("../run-repository-tests.mjs");
+  assert.ok(loadRepositoryTestManifest().modes.supabase.includes("./scripts/tests/vendor-public-rls-probe.test.mjs"));
   assert.deepEqual(
     {
       status: stagingContract.status,

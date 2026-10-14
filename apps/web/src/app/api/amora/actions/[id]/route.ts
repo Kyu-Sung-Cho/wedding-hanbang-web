@@ -18,6 +18,7 @@ import {
   readBoundedUtf8Text,
 } from "@/utils/requestValidation";
 import { isTrustedMutationRequest } from "@/utils/trustedMutation";
+import { AMORA_ACTION_OUTCOME_UNCONFIRMED, AmoraActionDeadlineError, amoraActionDeadlineFetch, createAmoraActionDeadline } from "@/lib/amora/actionDeadline";
 
 export const dynamic = "force-dynamic";
 
@@ -43,23 +44,27 @@ async function getCoupleIdForUser(client: SupabaseClient, userId: string) {
 
 export async function GET(request: Request, context: { params: Promise<{ id: string }> }) {
   const reply = (body: unknown, status = 200) => NextResponse.json(body, { status, headers: { "Cache-Control": "private, no-store" } });
+  const deadline = createAmoraActionDeadline(undefined, request.signal);
   try {
-    const { id } = await context.params;
+    const { id } = await deadline.run(() => context.params);
     if (!SAFE_ACTION_ID_RE.test(id)) return reply({ error: "잘못된 행동 ID입니다." }, 400);
-    const client = await createClientFromRequest(request);
-    const { data: { user } } = await client.auth.getUser();
+    const client = await deadline.run(() => createClientFromRequest(request, { fetch: amoraActionDeadlineFetch(deadline) }));
+    const { data: { user } } = await deadline.run(() => client.auth.getUser());
     if (!user) return reply({ error: "인증이 필요합니다." }, 401);
-    const coupleId = await getCoupleIdForUser(client, user.id);
+    const coupleId = await deadline.run(() => getCoupleIdForUser(client, user.id));
     if (!coupleId) return reply({ error: "커플 정보가 없습니다." }, 404);
-    const action = await getOwnAmoraActionView(client, coupleId, id);
+    const action = await deadline.run(() => getOwnAmoraActionView(client, coupleId, id));
     if (!action) return reply({ error: "아모라 행동을 찾지 못했습니다." }, 404);
     return reply({ action });
   } catch (error) {
+    if (error instanceof AmoraActionDeadlineError) return reply({ error: "준비 기록을 불러오지 못했어요. 잠시 후 다시 시도해 주세요.", code: "AMORA_ACTION_UNAVAILABLE" }, 503);
     const failure = getManualAmoraActionFailure(error);
     if (failure) return reply({ error: failure.error, code: failure.code }, failure.status);
     if (error instanceof ActionProfileUnavailableError) return reply({ error: "준비 기록을 불러오지 못했어요. 잠시 후 다시 시도해 주세요.", code: "AMORA_ACTION_UNAVAILABLE" }, 503);
     log.error("api/amora/actions/[id] read", error);
     return reply({ error: "아모라 행동을 불러오지 못했습니다." }, 500);
+  } finally {
+    deadline.dispose();
   }
 }
 
@@ -67,6 +72,8 @@ export async function PATCH(
   request: Request,
   context: { params: Promise<{ id: string }> }
 ) {
+  const deadline = createAmoraActionDeadline(undefined, request.signal);
+  let writeMayHaveStarted = false;
   try {
     if (!isTrustedMutationRequest(request)) {
       return NextResponse.json({ error: "잘못된 요청 출처입니다." }, { status: 403 });
@@ -75,21 +82,21 @@ export async function PATCH(
       return NextResponse.json({ error: "요청 데이터가 너무 큽니다." }, { status: 413 });
     }
 
-    const { id } = await context.params;
+    const { id } = await deadline.run(() => context.params);
     if (!SAFE_ACTION_ID_RE.test(id)) {
       return NextResponse.json({ error: "잘못된 행동 ID입니다." }, { status: 400 });
     }
 
-    const supabase = await createClientFromRequest(request);
+    const supabase = await deadline.run(() => createClientFromRequest(request, { fetch: amoraActionDeadlineFetch(deadline) }));
     const {
       data: { user },
-    } = await supabase.auth.getUser();
+    } = await deadline.run(() => supabase.auth.getUser());
 
     if (!user) {
       return NextResponse.json({ error: "인증이 필요합니다." }, { status: 401 });
     }
 
-    const boundedBody = await readBoundedUtf8Text(request, MAX_BODY_BYTES);
+    const boundedBody = await deadline.run(() => readBoundedUtf8Text(request, MAX_BODY_BYTES, deadline.signal));
     if (!boundedBody.ok) {
       return NextResponse.json({ error: boundedBody.reason === "too_large"
         ? "요청 데이터가 너무 큽니다." : "요청 내용을 읽지 못했어요. 내용을 다시 확인해 주세요." },
@@ -111,6 +118,7 @@ export async function PATCH(
     if (!isAmoraActionViewVersion(body.expectedUpdatedAt)) {
       return NextResponse.json({ error: "최신 기록을 불러온 뒤 변경 내용을 다시 확인해 주세요.", code: "AMORA_ACTION_VERSION_REQUIRED" }, { status: 428 });
     }
+    const expectedUpdatedAt = body.expectedUpdatedAt;
     // 형식 오류를 빈 문자열로 바꾸면 저장된 설명 등이 의도치 않게 지워질 수 있다.
     for (const field of ["description", "due_date", "category_key"] as const) {
       if (body[field] !== undefined && body[field] !== null && typeof body[field] !== "string") {
@@ -148,7 +156,7 @@ export async function PATCH(
     }
 
     const client = supabase;
-    const coupleId = await getCoupleIdForUser(client, user.id);
+    const coupleId = await deadline.run(() => getCoupleIdForUser(client, user.id));
     if (!coupleId) {
       return NextResponse.json({ error: "커플 정보가 없습니다." }, { status: 404 });
     }
@@ -158,7 +166,10 @@ export async function PATCH(
 
     // 저장소 선택과 버전 검사는 같은 DB 트랜잭션에서 끝낸다. 서버가 최신 token을
     // 대신 읽어 붙이거나 구 무버전 writer로 우회하지 않는다.
-    const action = await patchOwnAmoraActionView(client, coupleId, id, body.expectedUpdatedAt, updates);
+    const action = await deadline.run(() => {
+      writeMayHaveStarted = true;
+      return patchOwnAmoraActionView(client, coupleId, id, expectedUpdatedAt, updates);
+    });
 
     if (!action) {
       return NextResponse.json({ error: "아모라 행동을 찾지 못했습니다." }, { status: 404 });
@@ -166,6 +177,12 @@ export async function PATCH(
 
     return NextResponse.json({ action });
   } catch (error) {
+    if (error instanceof AmoraActionDeadlineError) {
+      return NextResponse.json({ error: writeMayHaveStarted
+        ? "저장 응답을 확인하지 못했어요. 작성한 내용은 유지하고 현재 기록을 다시 확인해 주세요."
+        : "준비 기록의 저장 상태를 확인하지 못했어요. 잠시 후 다시 시도해 주세요.",
+      code: writeMayHaveStarted ? AMORA_ACTION_OUTCOME_UNCONFIRMED : "AMORA_ACTION_UNAVAILABLE" }, { status: 503 });
+    }
     const failure = getManualAmoraActionFailure(error);
     if (failure) return NextResponse.json({ error: failure.error, code: failure.code }, { status: failure.status });
     if (error instanceof ActionProfileUnavailableError) {
@@ -173,5 +190,7 @@ export async function PATCH(
     }
     log.error("api/amora/actions/[id]", error);
     return NextResponse.json({ error: "아모라 행동을 수정하지 못했습니다." }, { status: 500 });
+  } finally {
+    deadline.dispose();
   }
 }

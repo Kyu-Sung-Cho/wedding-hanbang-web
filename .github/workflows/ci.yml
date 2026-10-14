@@ -242,7 +242,7 @@ jobs:
   vendor_disclosure_quality:
     name: Vendor Disclosure Quality
     if: ${{ github.event_name != 'push' }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
 
     steps:
@@ -268,13 +268,42 @@ jobs:
       - name: Ingest typecheck
         run: pnpm ingest:typecheck
 
+      - name: Install scoped maintenance PostgreSQL 17
+        run: |
+          set -euo pipefail
+          sudo apt-get install -y --no-install-recommends postgresql-common curl ca-certificates
+          sudo install -d /usr/share/postgresql-common/pgdg
+          sudo curl --fail --silent --show-error --max-time 60 --proto '=https' \
+            -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc \
+            https://www.postgresql.org/media/keys/ACCC4CF8.asc
+          printf '%s\n' 'Types: deb' 'URIs: https://apt.postgresql.org/pub/repos/apt' \
+            'Suites: noble-pgdg' 'Components: main' \
+            'Signed-By: /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc' \
+            | sudo tee /etc/apt/sources.list.d/amora-maintenance-pgdg.sources >/dev/null
+          # CI VM only. Fixtures create their own loopback temp clusters, never a system main cluster.
+          printf '%s\n' 'create_main_cluster = false' \
+            | sudo tee /etc/postgresql-common/createcluster.conf >/dev/null
+          test "$(cat /etc/postgresql-common/createcluster.conf)" = 'create_main_cluster = false'
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends postgresql-17 postgresql-client-17
+          test "$(cat /etc/postgresql-common/createcluster.conf)" = 'create_main_cluster = false'
+          test ! -e /etc/postgresql/17/main
+          test ! -e /var/lib/postgresql/17/main
+          for tool in initdb postgres pg_ctl pg_dump pg_restore; do
+            test -f "/usr/lib/postgresql/17/bin/$tool"
+            test -x "/usr/lib/postgresql/17/bin/$tool"
+            "/usr/lib/postgresql/17/bin/$tool" --version | grep -Eq '\(PostgreSQL\) 17\.[0-9]+'
+          done
+
       - name: Repository tests (includes ingest)
+        env:
+          HANBANG_MAINTENANCE_NATIVE_PG_BIN: /usr/lib/postgresql/17/bin
         run: pnpm test:repo
 
   static_release_contracts:
     name: Static Release Contracts (Non-Deploy)
     if: ${{ github.event_name != 'push' }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
 
     steps:
@@ -307,9 +336,38 @@ jobs:
           ./scripts/tests/wedding-code-research-safety.test.mjs
 
       - name: Verify local manifest and migration pins (no deploy)
-        run: pnpm supabase:release:fence --amora-action-view-v2
+        run: pnpm supabase:release:fence --amora-action-writer-retirement
+
+      - name: Install scoped maintenance PostgreSQL 17
+        run: |
+          set -euo pipefail
+          sudo apt-get install -y --no-install-recommends postgresql-common curl ca-certificates
+          sudo install -d /usr/share/postgresql-common/pgdg
+          sudo curl --fail --silent --show-error --max-time 60 --proto '=https' \
+            -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc \
+            https://www.postgresql.org/media/keys/ACCC4CF8.asc
+          printf '%s\n' 'Types: deb' 'URIs: https://apt.postgresql.org/pub/repos/apt' \
+            'Suites: noble-pgdg' 'Components: main' \
+            'Signed-By: /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc' \
+            | sudo tee /etc/apt/sources.list.d/amora-maintenance-pgdg.sources >/dev/null
+          # CI VM only. Fixtures create their own loopback temp clusters, never a system main cluster.
+          printf '%s\n' 'create_main_cluster = false' \
+            | sudo tee /etc/postgresql-common/createcluster.conf >/dev/null
+          test "$(cat /etc/postgresql-common/createcluster.conf)" = 'create_main_cluster = false'
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends postgresql-17 postgresql-client-17
+          test "$(cat /etc/postgresql-common/createcluster.conf)" = 'create_main_cluster = false'
+          test ! -e /etc/postgresql/17/main
+          test ! -e /var/lib/postgresql/17/main
+          for tool in initdb postgres pg_ctl pg_dump pg_restore; do
+            test -f "/usr/lib/postgresql/17/bin/$tool"
+            test -x "/usr/lib/postgresql/17/bin/$tool"
+            "/usr/lib/postgresql/17/bin/$tool" --version | grep -Eq '\(PostgreSQL\) 17\.[0-9]+'
+          done
 
       - name: Test fail-closed release controllers (no hosted evidence)
+        env:
+          HANBANG_MAINTENANCE_NATIVE_PG_BIN: /usr/lib/postgresql/17/bin
         run: pnpm supabase:release:test
 
   # 무조건 실패하는 두 잡(production_readiness, ci)은 수동 실행(workflow_dispatch)

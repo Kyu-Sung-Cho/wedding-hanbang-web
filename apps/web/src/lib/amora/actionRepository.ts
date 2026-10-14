@@ -478,7 +478,7 @@ export async function mutateOwnAmoraActionRecord(
 export function getManualAmoraActionFailure(error: unknown): { status: number; code: string; error: string } | null {
   const code = error && typeof error === "object" && "code" in error ? error.code : null;
   if (code === "42501") return { status: 403, code: "AMORA_ACTION_SCOPE_DENIED", error: "현재 연결된 커플의 준비 기록만 변경할 수 있어요. 화면을 새로 열어 주세요." };
-  if (code === "40001") return { status: 409, code: "AMORA_ACTION_CONFLICT", error: "다른 변경과 겹쳐 저장하지 못했어요. 최신 기록을 불러온 뒤 변경 내용을 다시 확인해 주세요." };
+  if (code === "PT409" || code === "40001") return { status: 409, code: "AMORA_ACTION_CONFLICT", error: "다른 변경과 겹쳐 저장하지 못했어요. 최신 기록을 불러온 뒤 변경 내용을 다시 확인해 주세요." };
   if (isAmoraActionStorageUnavailable(error) || code === "PGRST202" || code === "42883" || code === "55000"
     || code === "55P03" || code === "40P01" || code === "57014") return { status: 503, code: "AMORA_ACTION_UNAVAILABLE", error: "준비 기록의 저장 상태를 확인하지 못했어요. 잠시 후 다시 시도해 주세요." };
   if (code === "22023") return { status: 400, code: "AMORA_ACTION_INVALID_INPUT", error: "변경할 내용을 확인한 뒤 다시 시도해 주세요." };

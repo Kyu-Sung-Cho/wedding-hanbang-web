@@ -97,6 +97,136 @@ describe("shared action approval uses the viewed raw version", () => {
     expect(latest).toHaveProperty(`updateIssues.${action.id}.latest.title`, current.title);
   });
 
+  it.each([
+    { listedStatus: "open", newerStatus: "done", initialOpen: 1, pageOpen: 0 },
+    { listedStatus: "done", newerStatus: "open", initialOpen: 1, pageOpen: 2 },
+  ])("bounds the display count when a newer page count coexists with an older retained card (%j)", async row => {
+    const listed = { ...action, status: row.listedStatus };
+    const currentVersion = "2026-10-12T00:00:00.123457Z";
+    const current = { ...action, status: row.newerStatus, updatedAt: currentVersion, viewVersion: currentVersion };
+    const second = { ...action, id: "act_view_page_two", title: "다른 페이지의 할 일", status: row.newerStatus };
+    fetchMock.mockResolvedValueOnce(response({ actions: [listed], count: 2, open_count: row.initialOpen, next_cursor: "page-two" }));
+    await act(async () => root.render(<Harness />));
+    fetchMock.mockResolvedValueOnce(response({ actions: [second], count: 2, open_count: row.pageOpen }));
+    await act(async () => latest.loadMore());
+    expect(latest.actions.find(item => item.id === action.id)?.status).toBe(row.listedStatus);
+    expect(latest.open_count).toBe(row.pageOpen);
+    fetchMock.mockResolvedValueOnce(response({ action: current }));
+    await act(async () => { expect(await latest.inspectUpdate(action.id)).toBe(true); });
+    expect(latest.actions.find(item => item.id === action.id)?.status).toBe(row.newerStatus);
+    expect(latest.actions.find(item => item.id === action.id)?.viewVersion).toBe(currentVersion);
+    expect(latest.open_count).toBe(row.pageOpen);
+    expect(latest.count).toBe(2);
+    expect(latest.actions.map(item => item.id)).toEqual([action.id, second.id]);
+    expect(latest.nextCursor).toBeNull();
+    expect(fetchMock.mock.calls.map(call => call[1]?.method ?? "GET")).toEqual(["GET", "GET", "GET"]);
+    expect(fetchMock.mock.calls[1][0]).toBe("/api/amora/actions?status=all&limit=80&cursor=page-two");
+    expect(fetchMock.mock.calls[2][0]).toBe(`/api/amora/actions/${action.id}`);
+    fetchMock.mockResolvedValueOnce(response({ action: current }));
+    await act(async () => { expect(await latest.inspectUpdate(action.id)).toBe(true); });
+    expect(latest.open_count).toBe(row.pageOpen);
+    expect(latest.count).toBe(2);
+    expect(fetchMock.mock.calls.filter(call => call[1]?.method === "PATCH")).toHaveLength(0);
+  });
+
+  it("updates a newer microsecond read once and applies only its retained-card status difference", async () => {
+    fetchMock.mockResolvedValueOnce(response({ actions: [action], count: 1, open_count: 1 }));
+    await act(async () => root.render(<Harness />));
+    const doneVersion = "2026-10-12T00:00:00.123457Z";
+    const done = { ...action, title: "현재 완료 기록", status: "done", updatedAt: doneVersion, viewVersion: doneVersion };
+    fetchMock.mockResolvedValueOnce(response({ action: done }));
+    await act(async () => { expect(await latest.inspectUpdate(action.id)).toBe(true); });
+    expect(latest.actions[0]).toMatchObject(done); expect(latest.open_count).toBe(0);
+    fetchMock.mockResolvedValueOnce(response({ action: { ...done, title: "같은 버전의 다른 표시" } }));
+    await act(async () => { expect(await latest.inspectUpdate(action.id)).toBe(true); });
+    expect(latest.actions[0]?.title).toBe(done.title); expect(latest.open_count).toBe(0);
+    const openVersion = "2026-10-12T00:00:00.123458Z";
+    fetchMock.mockResolvedValueOnce(response({ action: { ...done, status: "open", updatedAt: openVersion, viewVersion: openVersion } }));
+    await act(async () => { expect(await latest.inspectUpdate(action.id)).toBe(true); });
+    expect(latest.actions[0]?.viewVersion).toBe(openVersion); expect(latest.open_count).toBe(1);
+    expect(latest.count).toBe(1); expect(latest.actions).toHaveLength(1);
+    expect(fetchMock.mock.calls.map(call => call[1]?.method ?? "GET")).toEqual(["GET", "GET", "GET", "GET"]);
+  });
+
+  it.each([
+    { kind: "full", count: 3, pageOpen: 1, expectedOpen: 1 },
+    { kind: "partial lower", count: 4, pageOpen: 1, expectedOpen: 1 },
+    { kind: "partial upper", count: 4, pageOpen: 4, expectedOpen: 3 },
+  ])("keeps a mixed-age read count consistent with the displayed open and closed cards (%j)", async row => {
+    const upper = row.kind === "partial upper";
+    const listed = { ...action, status: upper ? "done" : "open" };
+    const otherOpen = { ...action, id: "act_view_visible_open", title: "화면에 남아 있는 진행 항목", status: "open" };
+    const otherDone = { ...action, id: "act_view_visible_done", title: "화면에 남아 있는 완료 항목", status: "done" };
+    const first = row.kind === "full" ? [listed] : upper ? [listed, otherDone] : [listed, otherOpen];
+    const second = row.kind === "full" ? [otherOpen, otherDone] : upper ? [otherOpen] : [otherDone];
+    fetchMock.mockResolvedValueOnce(response({ actions: first, count: row.count, open_count: 2, next_cursor: "mixed-age" }));
+    await act(async () => root.render(<Harness />));
+    fetchMock.mockResolvedValueOnce(response({ actions: second, count: row.count, open_count: row.pageOpen }));
+    await act(async () => latest.loadMore());
+    expect(latest.actions.find(item => item.id === action.id)?.status).toBe(listed.status);
+    expect(latest.open_count).toBe(row.pageOpen);
+    const currentVersion = "2026-10-12T00:00:00.123457Z";
+    fetchMock.mockResolvedValueOnce(response({ action: { ...listed, status: upper ? "open" : "done", updatedAt: currentVersion, viewVersion: currentVersion } }));
+    await act(async () => { expect(await latest.inspectUpdate(action.id)).toBe(true); });
+    expect(latest.actions.find(item => item.id === action.id)?.viewVersion).toBe(currentVersion);
+    expect(latest.open_count).toBe(row.expectedOpen);
+    const displayedOpen = latest.actions.filter(item => item.status === "open").length;
+    const displayedClosed = latest.actions.length - displayedOpen;
+    expect(latest.open_count).toBeGreaterThanOrEqual(displayedOpen);
+    expect(latest.open_count).toBeLessThanOrEqual(latest.count - displayedClosed);
+    expect(latest.count).toBe(row.count); expect(latest.actions).toHaveLength(3);
+    expect(fetchMock.mock.calls.map(call => call[1]?.method ?? "GET")).toEqual(["GET", "GET", "GET"]);
+  });
+
+  it.each([
+    "2026-10-12T00:00:00.123455Z", version, "2026-10-12T09:00:00.123456+09:00",
+  ])("does not replace the canonical card with an older or equal-instant single read (%s)", async readVersion => {
+    fetchMock.mockResolvedValueOnce(response({ actions: [action], count: 1, open_count: 1 }));
+    await act(async () => root.render(<Harness />));
+    fetchMock.mockResolvedValueOnce(response({ action: { ...action, title: "되돌리지 않을 표시", status: "done", updatedAt: readVersion, viewVersion: readVersion } }));
+    await act(async () => { expect(await latest.inspectUpdate(action.id)).toBe(true); });
+    expect(latest.actions[0]).toMatchObject(action); expect(latest.open_count).toBe(1);
+    expect(latest.count).toBe(1); expect(latest.updateIssues[action.id]?.availability).toBe("current");
+    expect(fetchMock.mock.calls.filter(call => call[1]?.method === "PATCH")).toHaveLength(0);
+  });
+
+  it("does not promote a nonversioned listed card after a valid newer single read", async () => {
+    fetchMock.mockResolvedValueOnce(response({ actions: [{ ...action, viewVersion: null }], count: 1, open_count: 1 }));
+    await act(async () => root.render(<Harness />));
+    const currentVersion = "2026-10-12T00:00:00.123457Z";
+    fetchMock.mockResolvedValueOnce(response({ action: { ...action, title: "별도로 확인한 내용", updatedAt: currentVersion, viewVersion: currentVersion } }));
+    await act(async () => { expect(await latest.inspectUpdate(action.id)).toBe(true); });
+    expect(latest.actions[0]?.title).toBe(action.title); expect(latest.actions[0]?.viewVersion).toBeNull();
+    expect(latest.updateIssues[action.id]?.latest?.viewVersion).toBe(currentVersion);
+    expect(latest.open_count).toBe(1); expect(latest.count).toBe(1);
+    expect(fetchMock.mock.calls.filter(call => call[1]?.method === "PATCH")).toHaveLength(0);
+  });
+
+  it.each([undefined, null, "not-a-version"])("does not update canonical display from a nonversioned single read (%s)", async viewVersion => {
+    fetchMock.mockResolvedValueOnce(response({ actions: [action], count: 1, open_count: 1 }));
+    await act(async () => root.render(<Harness />));
+    fetchMock.mockResolvedValueOnce(response({ action: { ...action, title: "승격하지 않을 조회", status: "done",
+      updatedAt: "2026-10-12T00:00:00.123457Z", viewVersion } }));
+    await act(async () => { expect(await latest.inspectUpdate(action.id)).toBe(true); });
+    expect(latest.actions[0]).toMatchObject(action); expect(latest.open_count).toBe(1);
+    expect(latest.count).toBe(1); expect(latest.actions).toHaveLength(1);
+    expect(latest.updateIssues[action.id]?.latest?.viewVersion).toBeNull();
+    expect(fetchMock.mock.calls.filter(call => call[1]?.method === "PATCH")).toHaveLength(0);
+  });
+
+  it("does not replace or insert a different-id single read", async () => {
+    fetchMock.mockResolvedValueOnce(response({ actions: [action], count: 1, open_count: 1 }));
+    await act(async () => root.render(<Harness />));
+    const currentVersion = "2026-10-12T00:00:00.123457Z";
+    fetchMock.mockResolvedValueOnce(response({ action: { ...action, id: "wrong_read_id", title: "다른 기록",
+      updatedAt: currentVersion, viewVersion: currentVersion } }));
+    await act(async () => { expect(await latest.inspectUpdate(action.id)).toBe(false); });
+    expect(latest.actions).toHaveLength(1); expect(latest.actions[0]).toMatchObject(action);
+    expect(latest.updateIssues[action.id]?.availability).toBe("unknown");
+    expect(latest.updateIssues[action.id]?.latest).toBeUndefined();
+    expect(latest.count).toBe(1); expect(latest.open_count).toBe(1);
+  });
+
   it("does not treat a matching read after response loss as our successful write", async () => {
     fetchMock.mockResolvedValueOnce(response({ actions: [action], count: 1, open_count: 1 }));
     await act(async () => root.render(<Harness />));
@@ -108,7 +238,8 @@ describe("shared action approval uses the viewed raw version", () => {
     });
     expect(latest).toHaveProperty(`updateIssues.${action.id}.kind`, "uncertain");
     expect(latest).toHaveProperty(`updateIssues.${action.id}.latest.title`, "내 작성 내용");
-    expect(latest.actions[0]?.title).toBe(action.title);
+    // 조회한 최신 내용은 표시하되 이번 요청의 저장 성공으로 승격하지 않는다.
+    expect(latest.actions[0]?.title).toBe(current.title);
     expect(fetchMock.mock.calls.map(call => call[1]?.method ?? "GET")).toEqual(["GET", "PATCH", "GET"]);
   });
 
@@ -160,6 +291,7 @@ describe("shared action approval uses the viewed raw version", () => {
     await act(async () => latest.inspectUpdate(action.id));
     expect(fetchMock.mock.calls.map(call => call[1]?.method ?? "GET")).toEqual(["GET", "GET", "GET"]);
     expect(latest).toHaveProperty(`updateIssues.${action.id}.availability`, "current");
+    expect(latest.actions).toEqual([]); expect(latest.count).toBe(81); expect(latest.open_count).toBe(81);
     fetchMock.mockResolvedValueOnce(response({ action: { ...action, title: "확인 후 수정", updatedAt: "2026-10-12T00:00:00.123458Z", viewVersion: "2026-10-12T00:00:00.123458Z" } }));
     await act(async () => {
       expect(await latest.update(action.id, { title: "확인 후 수정" }, { version: currentVersion, ownerScope: latest.ownerScope })).toBe(true);
