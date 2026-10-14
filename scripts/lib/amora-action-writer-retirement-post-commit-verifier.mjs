@@ -114,7 +114,7 @@ export function createAmoraWriterRetirementCommittedCohort(raw,input){
   requireRelease(Date.parse(input.cutoff)<=Date.parse(inventory.observedAt)+10_000,'AMORA_WRITER_POST_CUTOFF_INVALID');
   const proof=freeze({format:'amora-writer-retirement-cold-post-cohort-content-v1',systemIdentifier:inventory.systemIdentifier,
     cutoff:input.cutoff,observedAt:inventory.observedAt,inventorySha256:inventory.observationSha256,
-    members:inventory.writerRows.filter(row=>row.pid!==inventory.observerPid&&beforeCutoff(row,input.cutoff))
+    members:inventory.writerRows.filter(row=>beforeCutoff(row,input.cutoff))
       .map(row=>({pid:row.pid,backendStart:row.backendStart})),executionProvenanceVerified:false,drainVerified:false,releaseAuthorized:false});
   cohorts.set(proof,{system:inventory.systemIdentifier,native:input.expectedNativeSystemIdentifier});return proof;
 }

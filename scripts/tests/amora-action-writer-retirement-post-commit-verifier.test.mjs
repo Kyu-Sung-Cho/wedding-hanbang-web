@@ -20,6 +20,12 @@ const inventory=()=>{
       cron:{version:null,useBackgroundWorkers:null,jobTable:false}},inventory:{rows:[observer,
         {...observer,pid:101,application:'owned-synthetic-old-call',queryStart:earlier,xactStart:earlier,targetRelationLocks:1}]}};
 };
+const nextReadOnlyObservation=(raw,observerPid=raw.observerPid)=>{
+  const current=structuredClone(raw),later=new Date(Math.max(Date.now(),Date.parse(raw.observedAt)+1)).toISOString();
+  current.observedAt=later;current.observerPid=observerPid;
+  Object.assign(current.inventory.rows.find(row=>row.pid===observerPid),{state:'active',xactStart:later,queryStart:later});
+  return current;
+};
 
 test('cold committed-state observer is fixed READ ONLY and observes the plain catalog, original230 raw ledger and absent maintenance slots',async()=>{
   const source=createAmoraWriterRetirementSourceRepository();
@@ -118,17 +124,30 @@ test('owned PG17 cold after231 validates exact actual applied7/ACL and unchanged
     } finally {await f.close();source.close();}
   });
 
+test('cold observer handoff retains the first reader in the cohort and accepts it only after natural idle drain',async()=>{
+  const module=await import('../lib/amora-action-writer-retirement-post-commit-verifier.mjs');
+  const raw=inventory(),cutoff=raw.observedAt,options={expectedNativeSystemIdentifier:nativeSystem};
+  const cohort=module.createAmoraWriterRetirementCommittedCohort(raw,{cutoff,...options});
+  const current=nextReadOnlyObservation(raw,101);
+  Object.assign(current.inventory.rows[0],{state:'idle',xactStart:null,targetRelationLocks:0});
+  const proof=module.assertAmoraWriterRetirementCommittedDrained(current,cohort,options);
+  assert.equal(proof.releaseAuthorized,false);
+  assert.equal(proof.executionProvenanceVerified,false);
+  assert.equal(proof.cohortCount,2);
+  assert.deepEqual(cohort.members,raw.inventory.rows.map(row=>({pid:row.pid,backendStart:row.backendStart})));
+});
+
 test('cold read-only cohort preserves old client lifetime and requires observed natural drain, never an absent-fence shortcut',async()=>{
   const module=await import('../lib/amora-action-writer-retirement-post-commit-verifier.mjs');
   const raw=inventory(),cutoff=raw.observedAt,options={expectedNativeSystemIdentifier:nativeSystem};
   const initiallyLocked=structuredClone(raw);initiallyLocked.inventory.rows[0].advisoryLocks=1;
   assert.throws(()=>module.createAmoraWriterRetirementCommittedCohort(initiallyLocked,{cutoff,...options}),/DRAIN_REQUIRED/);
   const cohort=module.createAmoraWriterRetirementCommittedCohort(raw,{cutoff,...options});
-  assert.equal(cohort.members.length,1);
+  assert.equal(cohort.members.length,2);
   assert.equal(cohort.releaseAuthorized,false);
   assert.equal(cohort.drainVerified,false);
   assert.throws(()=>module.assertAmoraWriterRetirementCommittedDrained(raw,cohort,options),/DRAIN_REQUIRED/);
-  const idle=structuredClone(raw);Object.assign(idle.inventory.rows[1],{state:'idle',xactStart:null,targetRelationLocks:0});
+  const idle=nextReadOnlyObservation(raw);Object.assign(idle.inventory.rows[1],{state:'idle',xactStart:null,targetRelationLocks:0});
   const proof=module.assertAmoraWriterRetirementCommittedDrained(idle,cohort,options);
   assert.equal(proof.releaseAuthorized,false);assert.equal(proof.executionProvenanceVerified,false);
   const late=structuredClone(idle);late.inventory.rows.push({...late.inventory.rows[1],pid:102});
@@ -136,12 +155,55 @@ test('cold read-only cohort preserves old client lifetime and requires observed 
   assert.throws(()=>module.assertAmoraWriterRetirementCommittedDrained(idle,structuredClone(cohort),options),/COHORT_NOT_ISSUED/);
 });
 
+for(const boundary of ['old transaction','advisory lock','blocker'])test(`cold observer 100 must keep its fresh read-only transaction and session guards (${boundary})`,async()=>{
+  const module=await import('../lib/amora-action-writer-retirement-post-commit-verifier.mjs');
+  const raw=inventory(),cutoff=raw.observedAt,options={expectedNativeSystemIdentifier:nativeSystem};
+  const cohort=module.createAmoraWriterRetirementCommittedCohort(raw,{cutoff,...options});
+  const current=nextReadOnlyObservation(raw);
+  Object.assign(current.inventory.rows[1],{state:'idle',xactStart:null,targetRelationLocks:0});
+  assert.equal(module.assertAmoraWriterRetirementCommittedDrained(current,cohort,options).cohortCount,2);
+  const observer=current.inventory.rows[0];
+  if(boundary==='old transaction')observer.xactStart=cutoff;
+  if(boundary==='advisory lock')observer.advisoryLocks=1;
+  if(boundary==='blocker')observer.blockers=[101];
+  assert.throws(()=>module.assertAmoraWriterRetirementCommittedDrained(current,cohort,options),/DRAIN_REQUIRED/);
+});
+
+for(const boundary of ['active','target lock','advisory lock','blocker'])test(`cold observer handoff does not excuse the first observer's undrained state (${boundary})`,async()=>{
+  const module=await import('../lib/amora-action-writer-retirement-post-commit-verifier.mjs');
+  const raw=inventory(),cutoff=raw.observedAt,options={expectedNativeSystemIdentifier:nativeSystem};
+  const cohort=module.createAmoraWriterRetirementCommittedCohort(raw,{cutoff,...options});
+  const current=nextReadOnlyObservation(raw,101),originalObserver=current.inventory.rows[0];
+  Object.assign(originalObserver,{state:'idle',xactStart:null,targetRelationLocks:0});
+  assert.equal(module.assertAmoraWriterRetirementCommittedDrained(current,cohort,options).cohortCount,2);
+  if(boundary==='active'){originalObserver.state='active';originalObserver.xactStart=current.observedAt;}
+  if(boundary==='target lock')originalObserver.targetRelationLocks=1;
+  if(boundary==='advisory lock')originalObserver.advisoryLocks=1;
+  if(boundary==='blocker')originalObserver.blockers=[101];
+  assert.throws(()=>module.assertAmoraWriterRetirementCommittedDrained(current,cohort,options),/DRAIN_REQUIRED/);
+});
+
+test('cold observer handoff still rejects unknown old clients and mismatched old lifetimes while accepting a strictly newer lifetime',async()=>{
+  const module=await import('../lib/amora-action-writer-retirement-post-commit-verifier.mjs');
+  const raw=inventory(),cutoff=raw.observedAt,options={expectedNativeSystemIdentifier:nativeSystem};
+  const cohort=module.createAmoraWriterRetirementCommittedCohort(raw,{cutoff,...options});
+  const current=nextReadOnlyObservation(raw,101);
+  Object.assign(current.inventory.rows[0],{state:'idle',xactStart:null,targetRelationLocks:0});
+  const late=structuredClone(current);late.inventory.rows.push({...late.inventory.rows[0],pid:102});
+  assert.throws(()=>module.assertAmoraWriterRetirementCommittedDrained(late,cohort,options),/LATE_COHORT/);
+  const oldLifetime=structuredClone(current);
+  oldLifetime.inventory.rows[1].backendStart=new Date(Date.parse(cutoff)-3000).toISOString();
+  assert.throws(()=>module.assertAmoraWriterRetirementCommittedDrained(oldLifetime,cohort,options),/BACKEND_LIFETIME_UNKNOWN/);
+  const newLifetime=structuredClone(current);
+  newLifetime.inventory.rows[1].backendStart=current.observedAt;
+  assert.equal(module.assertAmoraWriterRetirementCommittedDrained(newLifetime,cohort,options).cohortCount,2);
+});
+
 test('a pooled observer cannot hide a pre-cutoff member session advisory lock or old transaction',async()=>{
   const module=await import('../lib/amora-action-writer-retirement-post-commit-verifier.mjs');
   const raw=inventory(),cutoff=raw.observedAt,options={expectedNativeSystemIdentifier:nativeSystem};
   const cohort=module.createAmoraWriterRetirementCommittedCohort(raw,{cutoff,...options});
-  const reused=structuredClone(raw);
-  reused.observerPid=101;
+  const reused=nextReadOnlyObservation(raw,101);
   reused.inventory.rows=reused.inventory.rows.filter(row=>row.pid===101);
   Object.assign(reused.inventory.rows[0],{state:'active',queryStart:new Date().toISOString(),
     xactStart:new Date().toISOString(),targetRelationLocks:1,advisoryLocks:1});
@@ -188,7 +250,7 @@ test('unknown activity, old transactions, locks, PID-lifetime reuse and expired 
   const module=await import('../lib/amora-action-writer-retirement-post-commit-verifier.mjs');
   const raw=inventory(),options={expectedNativeSystemIdentifier:nativeSystem};
   const cohort=module.createAmoraWriterRetirementCommittedCohort(raw,{cutoff:raw.observedAt,...options});
-  const idle=structuredClone(raw);Object.assign(idle.inventory.rows[1],{state:'idle',xactStart:null,targetRelationLocks:0});
+  const idle=nextReadOnlyObservation(raw);Object.assign(idle.inventory.rows[1],{state:'idle',xactStart:null,targetRelationLocks:0});
   for(const edit of [value=>{value.statsVisible=false;},value=>{value.inventory.rows[1].state=null;},
     value=>{value.inventory.rows[1].xactStart=raw.observedAt;},value=>{value.inventory.rows[1].advisoryLocks=1;},
     value=>{value.inventory.rows[1].targetRelationLocks=1;},value=>{value.inventory.rows[1].blockers=[100];},
