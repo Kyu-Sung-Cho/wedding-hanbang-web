@@ -82,6 +82,32 @@ function blocked(code, message) {
 /** 새 default release 결과만 요약한다. JSON Boolean은 VERIFIED/ROLLBACK 발급 증거가 아니다. */
 export async function formatAmoraWriterRetirementCliResult({ result, repoRoot }) {
   if (result && typeof result === "object" && !Array.isArray(result)) {
+    if (result.format === "amora-writer-retirement-issued-cold-postverified-v1") {
+      const { assertAmoraWriterRetirementIssuedPostCommitVerification, disposeAmoraWriterRetirementPostCommitVerification } =
+        await import("./amora-action-writer-retirement-post-commit-verifier.mjs");
+      const binding = { proof: result, repoRoot: resolve(repoRoot), expectedCommit: result.sourceCommit };
+      try {
+        await assertAmoraWriterRetirementIssuedPostCommitVerification(binding);
+        // 안전한 완료 metadata만 기록한다. 이 출력은 후속 실행의 capability나 원본 payload가 아니다.
+        const metadata = {
+          format: "amora-writer-retirement-postverify-audit-metadata-v1",
+          sourceCommit: result.sourceCommit, archiveSourceCommit: result.archiveSourceCommit,
+          bundleSha256: result.bundleSha256, archiveArtifactSha256: result.archiveArtifactSha256,
+          archiveApplyJournalSha256: result.archiveApplyJournalSha256,
+          archiveOriginalCapturedAt: result.archiveOriginalCapturedAt, archiveOriginalDeadline: result.archiveOriginalDeadline,
+          ledgerCount: result.ledgerCount, cutoff: result.actualServerCutoff, cohortMemberCount: result.cohortMemberCount,
+          firstObservationSha256: result.firstObservationSha256, finalObservationSha256: result.finalObservationSha256,
+          drainObservationSha256: result.drainObservationSha256,
+          nativeCompletedAt: result.nativeCompletedAt, nativeCaptureDeadline: result.nativeCaptureDeadline,
+          verifiedAt: result.verifiedAt, deadline: result.deadline,
+          sqlReadOnly: true, remoteSqlMutationsPerformed: false, serializedOutputIsAuthority: false,
+        };
+        return "SUPABASE_PRODUCTION_RELEASE_VERIFIED: amora-writer-retirement-committed231-readonly-postverified-drained-own3-absent\n"
+          + JSON.stringify(metadata) + "\n";
+      } finally {
+        await disposeAmoraWriterRetirementPostCommitVerification(binding);
+      }
+    }
     if (result.format === "amora-writer-retirement-issued-complete-operating-v1") {
       const { assertAmoraWriterRetirementIssuedComplete } = await import("./amora-action-writer-retirement-runtime.mjs");
       await assertAmoraWriterRetirementIssuedComplete(result);

@@ -9,19 +9,26 @@ import {runAmoraWriterRetirementApply} from './amora-action-writer-retirement-ru
 
 const PROJECT='slrtobkksjmxgzatjyqb',RELEASE='amora-action-writer-retirement-transport-20261013';
 const ORIGIN='https://github.com/Kyu-Sung-Cho/wedding-hanbang-web.git';
+const ARCHIVE_COMMIT='68f9d94a3263ef922f2aabbde7541fb85b37853e';
 export function parseAmoraWriterRetirementArgs(argv){
   requireRelease(Array.isArray(argv)&&argv.every(arg=>typeof arg==='string'),'AMORA_WRITER_CLI_ARGUMENT_INVALID');
   const value={};
   for(const arg of argv){
     if(arg===AMORA_WRITER_RETIREMENT_MODE){requireRelease(!Object.hasOwn(value,'selected'),'AMORA_WRITER_CLI_ARGUMENT_DUPLICATE');value.selected=true;continue;}
-    if(['--inspect','--rehearse','--apply'].includes(arg)){
+    if(['--inspect','--rehearse','--apply','--verify-committed'].includes(arg)){
       requireRelease(!Object.hasOwn(value,'mode'),'AMORA_WRITER_CLI_ARGUMENT_DUPLICATE');value.mode=arg.slice(2);continue;
     }
-    const match=/^--(expected-commit|project-ref|confirm-production)=(.+)$/.exec(arg);
+    const match=/^--(expected-commit|project-ref|confirm-production|recovery-id|archive-commit|artifact-sha256)=(.+)$/.exec(arg);
     requireRelease(match&&!Object.hasOwn(value,match[1]),'AMORA_WRITER_CLI_ARGUMENT_INVALID');value[match[1]]=match[2];
   }
-  requireRelease(value.selected===true&&['inspect','rehearse','apply'].includes(value.mode)
+  requireRelease(value.selected===true&&['inspect','rehearse','apply','verify-committed'].includes(value.mode)
     &&/^[a-f0-9]{40}$/.test(value['expected-commit']??'')&&value['project-ref']===PROJECT,'AMORA_WRITER_CLI_ARGUMENT_INVALID');
+  const archiveKeys=['recovery-id','archive-commit','artifact-sha256'];
+  if(value.mode==='verify-committed')requireRelease(
+    /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(value['recovery-id']??'')
+    &&value['archive-commit']===ARCHIVE_COMMIT&&/^[a-f0-9]{64}$/.test(value['artifact-sha256']??''),
+    'AMORA_WRITER_CLI_ARGUMENT_INVALID');
+  else requireRelease(archiveKeys.every(key=>!Object.hasOwn(value,key)),'AMORA_WRITER_CLI_ARGUMENT_INVALID');
   if(value.mode==='inspect')requireRelease(!Object.hasOwn(value,'confirm-production'),'AMORA_WRITER_CLI_ARGUMENT_INVALID');
   else requireRelease(value['confirm-production']===`${RELEASE}:${PROJECT}:${value.mode}:${value['expected-commit']}`,
     'AMORA_WRITER_CLI_CONFIRMATION_REQUIRED');
@@ -58,6 +65,12 @@ export async function runAmoraWriterRetirementRelease(input){
   loadAmoraWriterRetirementPlan({repoRoot,mode:AMORA_WRITER_RETIREMENT_MODE});safeEnvironment();
   if(options.mode==='apply')return runAmoraWriterRetirementApply({repoRoot,expectedCommit,operatorConfirmation:options['confirm-production']});
   if(options.mode==='rehearse')return runAmoraWriterRetirementOperationalRehearsal({repoRoot,expectedCommit,operatorConfirmation:options['confirm-production']});
+  if(options.mode==='verify-committed'){
+    const {runAmoraWriterRetirementPostCommitVerification}=await import('./amora-action-writer-retirement-post-commit-verifier.mjs');
+    return runAmoraWriterRetirementPostCommitVerification({repoRoot,expectedCommit,
+      operatorConfirmation:options['confirm-production'],recoveryId:options['recovery-id'],
+      archiveSourceCommit:options['archive-commit'],expectedArtifactSha256:options['artifact-sha256']});
+  }
   const source=await actualInspectionSource(repoRoot,expectedCommit),sql=buildAmoraWriterRetirementObservationSql({repoRoot,phase:'before'});
   const token=process.env.SUPABASE_ACCESS_TOKEN;
   requireRelease(typeof token==='string'&&/^sbp_(?:oauth_)?[a-f0-9]{40}$/.test(token),'AMORA_WRITER_CLI_CREDENTIAL_UNAVAILABLE');

@@ -89,7 +89,7 @@ export async function collectAmoraWriterRetirementAdmission(options) {
   const {repoRoot,expectedCommit,operatorConfirmation,runCommand,environment=process.env}=options;
   requireRelease(runCommand!==undefined||!Object.hasOwn(options,'environment'),
     'AMORA_WRITER_RETIREMENT_ADMISSION_ENVIRONMENT_OVERRIDE_FORBIDDEN');
-  requireRelease(['rehearse','apply'].some(mode=>operatorConfirmation===
+  requireRelease(['rehearse','apply','verify-committed'].some(mode=>operatorConfirmation===
     `amora-action-writer-retirement-transport-20261013:slrtobkksjmxgzatjyqb:${mode}:${expectedCommit}`),
     'AMORA_WRITER_RETIREMENT_ADMISSION_SCOPED_CONFIRMATION_REQUIRED');
   environmentSafe(environment);

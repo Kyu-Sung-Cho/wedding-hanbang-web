@@ -129,3 +129,31 @@ test('issued proof assertion rechecks current environment after its last awaited
     } finally {if(previous===undefined)delete process.env[key];else process.env[key]=previous;}
   });
 });
+
+test('fresh post-only source CI admission is scoped to verification and still cannot authorize operational writes',async()=>{
+  await withIsolatedSyntheticGitEnvironment(async()=>{
+    const boundary=syntheticBoundary();
+    const postConfirmation=`amora-action-writer-retirement-transport-20261013:slrtobkksjmxgzatjyqb:verify-committed:${expectedCommit}`;
+    const proof=await collectAmoraWriterRetirementAdmission({repoRoot,expectedCommit,operatorConfirmation:postConfirmation,
+      environment:{},runCommand:boundary.runCommand});
+    assert.equal(proof.operatorConfirmation,postConfirmation);
+    assert.equal(proof.dbReleaseAuthorized,false);
+    assert.equal(proof.operationalEvidenceVerified,false);
+    await assert.rejects(assertAmoraWriterRetirementAdmission({proof,repoRoot,expectedCommit}),
+      error=>error.code==='AMORA_WRITER_RETIREMENT_ADMISSION_OPERATIONAL_SOURCE_REQUIRED');
+    await assertAmoraWriterRetirementAdmission({proof,repoRoot,expectedCommit,forOperationalUse:false});
+    const {runAmoraWriterRetirementRehearsalWithAdmission}=await import('../lib/amora-action-writer-retirement-operational-rehearsal.mjs');
+    await assert.rejects(runAmoraWriterRetirementRehearsalWithAdmission({repoRoot,expectedCommit,admission:proof,
+      operatorConfirmation:`amora-action-writer-retirement-transport-20261013:slrtobkksjmxgzatjyqb:apply:${expectedCommit}`}),
+      error=>error.code==='AMORA_WRITER_REHEARSAL_ARGUMENT_INVALID');
+    await assert.rejects(assertAmoraWriterRetirementAdmission({proof:structuredClone(proof),repoRoot,expectedCommit,forOperationalUse:false}),
+      error=>error.code==='AMORA_WRITER_RETIREMENT_ADMISSION_NOT_ISSUED');
+    const actualNow=Date.now;
+    try{
+      // 과거 apply의 120초 인가를 갱신하지 않는다. 새 읽기 전용 단계도 같은 만료 경계를 갖는다.
+      Date.now=()=>Date.parse(proof.observedAt)+120_000;
+      await assert.rejects(assertAmoraWriterRetirementAdmission({proof,repoRoot,expectedCommit,forOperationalUse:false}),
+        error=>error.code==='AMORA_WRITER_RETIREMENT_ADMISSION_EXPIRED_OR_CHANGED');
+    }finally{Date.now=actualNow;}
+  });
+});

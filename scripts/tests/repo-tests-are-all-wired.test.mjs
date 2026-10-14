@@ -23,6 +23,7 @@ import { readdirSync, readFileSync, mkdtempSync, mkdirSync, writeFileSync, rmSyn
 import { resolve, join, relative, sep } from "node:path";
 import { tmpdir } from "node:os";
 import { spawnSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import test from "node:test";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { loadRepositoryTestManifest } from "../run-repository-tests.mjs";
@@ -90,9 +91,18 @@ test("두 명시 목록은 원래 전체 검사와 릴리스 검사를 빠짐없
   const { loadRepositoryTestManifest } = await import("../run-repository-tests.mjs");
   const manifest = loadRepositoryTestManifest({ repoRoot });
   assert.equal(manifest.concurrency, 2);
-  assert.equal(manifest.modes.repo.length, 148);
-  assert.equal(manifest.modes.supabase.length, 104);
+  assert.equal(manifest.modes.repo.length, 151);
+  assert.equal(manifest.modes.supabase.length, 107);
+  const added = ["archived-original", "archived-native", "post-commit-verifier"].map(name =>
+    `scripts/tests/amora-action-writer-retirement-${name}.test.mjs`);
+  const originalPins = { repo: "0471d88aaf3c76d6b914c8dde287e237dd4a291d64cc242090a47601a9c3845d",
+    supabase: "db84cce8ee3e195cb256879adaf406b34b6614946a811ba6353e888df615f014" };
   for (const mode of ["repo", "supabase"]) {
+    const files = manifest.modes[mode].map(file => file.startsWith("./") ? file.slice(2) : file);
+    assert.ok(added.every(file => files.includes(file)), "세 사후 검증 회귀도 양쪽 정상 명령에서 실행해야 한다");
+    const original = files.filter(file => !added.includes(file));
+    assert.equal(createHash("sha256").update(JSON.stringify(original)).digest("hex"), originalPins[mode],
+      "기존148/104 파일을 추가 회귀 때문에 생략·교체·재정렬하지 않는다");
     for (const name of ["transport-native", "transport-identity-native", "transport-plan-native"]) {
       assert.ok(manifest.modes[mode].includes(`./supabase/release-candidates/amora-action-writer-retirement-v1/${name}.test.mjs`));
     }

@@ -46,6 +46,19 @@ test('CLI cannot print VERIFIED or ROLLED_BACK from serialized final/rollback pr
     error=>error.code==='AMORA_WRITER_REHEARSAL_NOT_ISSUED');
 });
 
+test('CLI cannot print postverified success from cold JSON, archive claims or an old complete format',async()=>{
+  const {formatAmoraWriterRetirementCliResult}=await import('../lib/supabase-production-release-controller.mjs');
+  await assert.rejects(()=>formatAmoraWriterRetirementCliResult({repoRoot,result:{
+    format:'amora-writer-retirement-issued-cold-postverified-v1',sourceCommit:'a'.repeat(40),
+    archiveSourceCommit:'68f9d94a3263ef922f2aabbde7541fb85b37853e',releaseAuthorized:true,
+    ledgerCount:231,own3Absent:true,actualCohortDrainedVerified:true,remoteSqlMutationsPerformed:false}}),
+    error=>error.code==='AMORA_WRITER_POST_COMPLETE_NOT_ISSUED');
+  await assert.rejects(()=>formatAmoraWriterRetirementCliResult({repoRoot,result:{
+    format:'amora-writer-retirement-issued-archived-original7-v1',releaseAuthorized:true,
+    privateHistoricalContentVerified:true,originalAuthorityExpired:true}}),
+    error=>error.code==='AMORA_WRITER_CLI_RESULT_INVALID');
+});
+
 test('actual CLI refuses malformed or mixed new flags without sends, success output or secret echo',()=>{
   const script=fileURLToPath(new URL('../supabase-production-release.mjs',import.meta.url));
   const secret='SYNTHETIC-DO-NOT-ECHO';

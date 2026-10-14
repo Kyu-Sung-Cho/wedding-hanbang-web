@@ -453,6 +453,22 @@ export function validateAmoraWriterRetirementPrivilegesObservation(observed,valu
     lane:value.expectedNativeSystemIdentifier===null?'production-catalog-content-only':'owned-native-catalog-content-only'});
 }
 
+/** 현재 after 카탈로그만 검사한다. 과거 before의 시각을 바꾸거나 보존/수집 증거를 발급하지 않는다. */
+export function validateAmoraWriterRetirementCurrentAfterPrivileges(observed,value) {
+  keys(value,['repoRoot','expectedNativeSystemIdentifier'],'AMORA_WRITER_RETIREMENT_PRIVILEGES_OPTIONS_INVALID');
+  requireValue(typeof value.repoRoot==='string','AMORA_WRITER_RETIREMENT_PRIVILEGES_OPTIONS_INVALID');
+  validateCatalog(observed,{...value,phase:'after'});
+  validateBypasses(observed,'after');
+  return Object.freeze({format:FORMAT,phase:'after',status:'current-after-catalog-content-only',
+    observedAt:observed.observedAt,systemIdentifier:observed.systemIdentifier,
+    sourceSha256:observed.sourceSha256,observationSha256:digest(stable(observed)),
+    preservedPrivilegeSurfaceSha256:digest(stable(preserved(observed))),
+    executionProvenanceVerified:false,privateRecoveryVerified:false,fullSchemaVerified:false,
+    ledgerVerified:false,releaseAuthorized:false,remoteWritesPerformed:false,
+    scope:'target-functions-triggers-table-column-role-default-privileges-only',
+    lane:value.expectedNativeSystemIdentifier===null?'production-catalog-content-only':'owned-native-catalog-content-only'});
+}
+
 
 const TARGET7=Object.freeze(['public.mutate_own_amora_action(uuid,text,text,jsonb)','public.update_own_legacy_amora_action(uuid,uuid,text,bigint,jsonb)','public.apply_journey_progress_patch(uuid,jsonb,text[])','public.apply_journey_progress_item_patch(uuid,text,jsonb)','public.normalize_couple_plan_changes(jsonb)','public.apply_couple_plan_change_locked(uuid,uuid)','public.patch_own_amora_action_view_v2(uuid,text,text,jsonb)']);
 
