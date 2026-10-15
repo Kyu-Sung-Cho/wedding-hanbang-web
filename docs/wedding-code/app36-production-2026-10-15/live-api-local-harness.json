@@ -1,0 +1,129 @@
+{
+  "scope": "live public API synthetic smoke; no browser automation or human validity claim",
+  "base": "http://127.0.0.1:49908",
+  "startedAt": "2026-10-15T08:18:37.150Z",
+  "mode": "live",
+  "tests": [
+    {
+      "name": "all five uniform submissions preserve all 36 actual answers and server expiry",
+      "status": "pass"
+    },
+    {
+      "name": "supported adjective animal and missing response submissions",
+      "status": "pass"
+    },
+    {
+      "name": "existing waiting owner joins partner invitation atomically",
+      "status": "pass"
+    },
+    {
+      "name": "first couple report is ready with actual evidence in both directions",
+      "status": "pass"
+    },
+    {
+      "name": "second uniform couple connects and compares in both directions",
+      "status": "pass"
+    },
+    {
+      "name": "third participant full invitation and unknown invitation preserve own waiting invite",
+      "status": "pass"
+    },
+    {
+      "name": "separate result with same owner key cannot self pair",
+      "status": "pass"
+    },
+    {
+      "name": "invite alone and incorrect owner credentials cannot read private comparison",
+      "status": "pass"
+    },
+    {
+      "name": "named and missing couple preserves adjective animal name and missing evidence",
+      "status": "pass"
+    },
+    {
+      "name": "name withdrawal leaves evidence unchanged and seven day expiry unchanged",
+      "status": "pass"
+    },
+    {
+      "name": "shared item intersection excludes unshared criteria and all private notes",
+      "status": "pass"
+    },
+    {
+      "name": "comparison withdrawal removes names and shared evidence in both directions",
+      "status": "pass"
+    },
+    {
+      "name": "submission replay cannot change answers or extend expiry",
+      "status": "pass"
+    },
+    {
+      "name": "delete disconnects partner and delayed submit replay stays deleted",
+      "status": "pass"
+    }
+  ],
+  "failures": [],
+  "requestCounts": {
+    "submit:200": 8,
+    "pair:200": 9,
+    "invite:200": 4,
+    "report:200": 14,
+    "pair:409": 2,
+    "pair:404": 1,
+    "report:403": 4,
+    "sharing:200": 4,
+    "delete:200": 9,
+    "report:410": 1,
+    "submit:410": 1
+  },
+  "createdSyntheticResponses": 7,
+  "cleanup": [
+    {
+      "label": "uniform_1",
+      "status": "deleted",
+      "httpStatus": 200
+    },
+    {
+      "label": "uniform_2",
+      "status": "deleted",
+      "httpStatus": 200
+    },
+    {
+      "label": "uniform_3",
+      "status": "deleted",
+      "httpStatus": 200
+    },
+    {
+      "label": "uniform_4",
+      "status": "deleted",
+      "httpStatus": 200
+    },
+    {
+      "label": "uniform_5",
+      "status": "deleted",
+      "httpStatus": 200
+    },
+    {
+      "label": "supported_budget_planning",
+      "status": "deleted",
+      "httpStatus": 200
+    },
+    {
+      "label": "partial_missing",
+      "status": "deleted",
+      "httpStatus": 200
+    }
+  ],
+  "rawAnswersRecorded": false,
+  "privateCredentialsRecorded": false,
+  "spoofedHeaders": false,
+  "rateLimitBypass": false,
+  "limitations": [
+    "Browser rendering is tested separately.",
+    "Seven-day expiry is checked from server-issued timestamps; this live run does not advance the production clock.",
+    "Deletion removes payload and links immediately; minimal retry tombstones remain until the original expiry."
+  ],
+  "privateReceiptCreated": true,
+  "assertions": 1239,
+  "completedAt": "2026-10-15T08:18:37.316Z",
+  "status": "pass"
+}

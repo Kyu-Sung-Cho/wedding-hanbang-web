@@ -9,8 +9,8 @@ export function isLegacyWeddingCodeQuery(search: WeddingCodeEntrySearchParams): 
   return search.v !== undefined && search.v !== MEASUREMENT_VERSION;
 }
 
-export function weddingCodeReleaseTarget(queryIsLegacy: boolean, hash: string): "legacy" | "likert" {
+export function weddingCodeReleaseTarget(queryIsLegacy: boolean, hash: string, explicitLikert = false): "legacy" | "likert" | "36" {
   if (queryIsLegacy) return "legacy";
-  if (!hash || hash === "#") return "likert";
+  if (!hash || hash === "#") return explicitLikert ? "likert" : "36";
   return new URLSearchParams(hash.replace(/^#/, "")).has("wc-likert") ? "likert" : "legacy";
 }

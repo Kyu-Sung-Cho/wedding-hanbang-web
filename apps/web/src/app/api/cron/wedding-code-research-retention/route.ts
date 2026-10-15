@@ -12,10 +12,10 @@ const NO_STORE_HEADERS = { "Cache-Control": "no-store" };
 /** DB 레인이 아직 적용되지 않아 함수가 없을 때 PostgREST·PostgreSQL이 내는 코드. */
 const FUNCTION_MISSING = new Set(["PGRST202", "42883"]);
 
-function record(status: string, purged: number | null) {
+function record(status: string, purged: number | null, lane = "research") {
   try {
     console.log(JSON.stringify({
-      event: "wedding_code_research_retention_run",
+      event: lane === "36" ? "wedding_code36_retention_run" : "wedding_code_research_retention_run",
       version: 1,
       occurredAt: new Date().toISOString(),
       status,
@@ -26,27 +26,12 @@ function record(status: string, purged: number | null) {
   }
 }
 
-/**
- * 웨딩코드 답 보태기의 보관기간(60일) 파기와 지운 삭제 코드로 남은 행 정리.
- *
- * ## 왜 `ai-log-retention` 에 얹지 않고 따로 두나
- *
- * 처음에는 거기 세 번째 단계로 얹었다가 2026-09-16 적대 검토에서 잡혔다. 그 작업은
- * `AI_LOG_RETENTION_CRON_ENABLED` 로 켜고 끄는 **다른 약속**이고, 앞 단계가 실패하면
- * 뒤 단계를 건너뛴다. 60일 약속이 무관한 스위치와 무관한 실패에 묶이면 안 된다.
- *
- * 켜는 조건은 수집 플래그가 아니라 **저장소를 지키는 스위치**(비밀값)다. 새 답을 받지
- * 않게 된 뒤에도 이미 받은 답은 60일 안에 지워져야 하기 때문이다.
- */
-export async function GET(request: Request) {
-  const expected = process.env.CRON_SECRET;
-  if (!expected || request.headers.get("authorization") !== `Bearer ${expected}`) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401, headers: NO_STORE_HEADERS });
-  }
+type PurgeResult = { status: "disabled" | "not_applied" | "completed" | "failed"; purged?: number };
 
+async function purgeResearch(): Promise<PurgeResult> {
   if (!isWeddingCodeResearchStorageActive()) {
     record("disabled", null);
-    return NextResponse.json({ ok: true, enabled: false, status: "disabled" }, { headers: NO_STORE_HEADERS });
+    return { status: "disabled" };
   }
 
   try {
@@ -55,20 +40,53 @@ export async function GET(request: Request) {
       // 비밀값을 DB 레인보다 먼저 넣은 경우. 지울 행도 있을 수 없다.
       record("not_applied", null);
       log.warn("[cron wedding-code research retention] purge function missing", { code: error.code });
-      return NextResponse.json({ ok: true, enabled: true, status: "not_applied" }, { headers: NO_STORE_HEADERS });
+      return { status: "not_applied" };
     }
     if (error || typeof data !== "number" || !Number.isSafeInteger(data) || data < 0) {
       record("failed", null);
       log.error("[cron wedding-code research retention] purge failed", { code: error?.code ?? "malformed" });
-      return NextResponse.json({ error: "WeddingCode research retention failed" }, { status: 500, headers: NO_STORE_HEADERS });
+      return { status: "failed" };
     }
     record("completed", data);
-    return NextResponse.json({ ok: true, enabled: true, status: "completed", purged: data }, { headers: NO_STORE_HEADERS });
+    return { status: "completed", purged: data };
   } catch (error) {
     record("failed", null);
     log.error("[cron wedding-code research retention] purge threw", {
       name: error instanceof Error ? error.name : "unknown",
     });
-    return NextResponse.json({ error: "WeddingCode research retention failed" }, { status: 500, headers: NO_STORE_HEADERS });
+    return { status: "failed" };
   }
+}
+
+async function purge36(): Promise<PurgeResult> {
+  try {
+    const { data, error } = await createAdminClient().rpc("wc36_purge_expired");
+    const count = data !== null && typeof data === "object" && !Array.isArray(data) ? data.deleted_count : undefined;
+    if (error || typeof count !== "number" || !Number.isSafeInteger(count) || count < 0) {
+      record("failed", null, "36");
+      log.error("[cron wedding-code36 retention] purge failed", { code: error?.code ?? "malformed" });
+      return { status: "failed" };
+    }
+    record("completed", count, "36");
+    return { status: "completed", purged: count };
+  } catch (error) {
+    record("failed", null, "36");
+    log.error("[cron wedding-code36 retention] purge threw", { name: error instanceof Error ? error.name : "unknown" });
+    return { status: "failed" };
+  }
+}
+
+/** 두 파기 작업은 서로의 수집 스위치나 실패와 무관하게 실행한다. */
+export async function GET(request: Request) {
+  const expected = process.env.CRON_SECRET;
+  if (!expected || request.headers.get("authorization") !== `Bearer ${expected}`) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401, headers: NO_STORE_HEADERS });
+  }
+  const research = await purgeResearch();
+  const weddingCode36 = await purge36();
+  if (research.status === "failed" || weddingCode36.status === "failed") {
+    const error = research.status === "failed" ? "WeddingCode research retention failed" : "WeddingCode 36 retention failed";
+    return NextResponse.json({ error, research, weddingCode36 }, { status: 500, headers: NO_STORE_HEADERS });
+  }
+  return NextResponse.json({ ok: true, enabled: research.status !== "disabled", ...research, weddingCode36 }, { headers: NO_STORE_HEADERS });
 }

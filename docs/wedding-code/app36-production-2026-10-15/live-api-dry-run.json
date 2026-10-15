@@ -1,0 +1,37 @@
+{
+  "scope": "live public API synthetic smoke; no browser automation or human validity claim",
+  "base": "https://hanbang.ai",
+  "startedAt": "2026-10-15T08:15:56.461Z",
+  "mode": "dry_run",
+  "tests": [],
+  "failures": [],
+  "requestCounts": {},
+  "createdSyntheticResponses": 0,
+  "cleanup": [],
+  "rawAnswersRecorded": false,
+  "privateCredentialsRecorded": false,
+  "spoofedHeaders": false,
+  "rateLimitBypass": false,
+  "limitations": [
+    "Browser rendering is tested separately.",
+    "Seven-day expiry is checked from server-issued timestamps; this live run does not advance the production clock.",
+    "Deletion removes payload and links immediately; minimal retry tombstones remain until the original expiry."
+  ],
+  "plannedSyntheticResponses": 7,
+  "plannedChecks": [
+    "five_uniform_submissions",
+    "named_and_missing",
+    "waiting_owner_join",
+    "both_directions",
+    "third_full_self_unknown",
+    "private_invite_boundary",
+    "scope_and_name_withdrawal",
+    "comparison_withdrawal",
+    "delete_and_submit_replay",
+    "finally_delete_only_cleanup"
+  ],
+  "privateReceiptCreated": false,
+  "assertions": 2,
+  "completedAt": "2026-10-15T08:15:56.461Z",
+  "status": "not_run"
+}

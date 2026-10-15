@@ -1,0 +1,58 @@
+{
+  "version": 1,
+  "kind": "wedding-code36-isolated-additive-release",
+  "release": "wedding-code36-20261015",
+  "status": "requires-scoped-runtime-evidence",
+  "productionApplyImplemented": true,
+  "runtimeEvidenceVerified": false,
+  "projectRef": "slrtobkksjmxgzatjyqb",
+  "systemIdentifier": "7581440907192989109",
+  "baseCommit": "56e564b0f2653a22f40ca1c07f1eb8e75f9d7fd1",
+  "migrationVersion": "20261015070000",
+  "existingData": "unchanged",
+  "newRows": "none",
+  "scope": {
+    "newTables": [
+      "public.wedding_code36_responses",
+      "public.wedding_code36_pairs"
+    ],
+    "newFunctions": [
+      "public.wc36_submit",
+      "public.wc36_pair",
+      "public.wc36_read_report",
+      "public.wc36_invite_status",
+      "public.wc36_update_sharing",
+      "public.wc36_delete",
+      "public.wc36_purge_expired"
+    ],
+    "existingFunctions": "unchanged",
+    "existingTables": "unchanged",
+    "auth": "unchanged",
+    "storage": "unchanged",
+    "cron": "unchanged"
+  },
+  "backup": "fresh-remote-target-absence-and-preserved-catalog-ledger-digests-no-customer-data-export",
+  "rollback": "previous-web-deployment-preserve-new-objects-and-existing-customer-data",
+  "artifacts": [
+    {
+      "file": "supabase/migrations/20261015070000_wedding_code36_private_pairing.sql",
+      "sha256": "80fdb56216ef7f5350f0eff26fe75056e5fa9b5bf227951b923b61dcbbbbf56e"
+    },
+    {
+      "file": "supabase/release-contracts/wedding-code36-pg-catalog-v1.json",
+      "sha256": "73e4115bb304f046f05333c2f6b26bd88a0c71f0d7f5b02e6cdafb3b454fa2be"
+    },
+    {
+      "file": "scripts/wedding-code36-release.mjs",
+      "sha256": "a1c88246cc5e51fce0437554dec8ed273137fe00993125f8fb6d60bbbc88f905"
+    },
+    {
+      "file": "scripts/wedding-code36-release-catalog.mjs",
+      "sha256": "3931487b62c05be1530bb3181e10de1386e547385c6687fcbbc88e72654694a5"
+    },
+    {
+      "file": "scripts/wedding-code36-release-prepare.mjs",
+      "sha256": "787ceb4f64bcc60726166bd662400699d4d749b539efe679b835136122f9a019"
+    }
+  ]
+}

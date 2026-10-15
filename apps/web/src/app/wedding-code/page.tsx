@@ -9,6 +9,7 @@ import {
   isWeddingCodeResearchStorageActive,
 } from "@/lib/weddingCode/contribution/server";
 import { V40_COPY } from "@/lib/weddingCode/v40/copy";
+import { MEASUREMENT_VERSION } from "@/lib/weddingCode/likert/types";
 
 import WeddingCodeReleaseClient from "./WeddingCodeReleaseClient";
 import { isLegacyWeddingCodeQuery } from "./releaseEntry";
@@ -43,10 +44,10 @@ const LIKERT_CARD_IMAGE = {
 };
 
 /**
- * 기본 입구는 30문항 개편본이다. 명시 구판과 이전 답 쿼리는 원래 판의 설명을 유지한다.
- * 모든 입구는 색인하지 않는다. 새 응답은 클라이언트의 fragment에서만 복원한다.
+ * 기본 입구는 36문항이다. 명시한 30문항 판과 그 fragment는 별도로 유지한다. 명시 구판과 이전 답 쿼리는 원래 판의 설명을 유지한다.
+ * 모든 입구는 색인하지 않는다. 기존 fragment 응답은 클라이언트에서만 복원한다. 36문항은 별도 저장 동의 후 서버에 보관한다.
  *
- * 공유 카드(openGraph·twitter)는 이 화면의 제목·설명을 쓴다. 새 입구는 likert-card,
+ * 공유 카드(openGraph·twitter)는 이 화면의 제목·설명을 쓴다. 36문항 입구는 r6-card, 명시한 30문항 판은 likert-card,
  * 명시 v4 입구는 v40-card를 images에 지정한다. 나머지 구판은 images 키를 적지 않아
  * 기존 opengraph-image.tsx 카드를 유지한다. 파일 규약 이미지는 쿼리를 읽을 수 없어
  * 이 구분을 metadata가 맡는다. 서버는 fragment를 볼 수 없으므로 fragment만 있는 구판 링크도
@@ -61,12 +62,16 @@ const LIKERT_CARD_IMAGE = {
 export async function generateMetadata({ searchParams }: WeddingCodePageProps): Promise<Metadata> {
   const search = await searchParams;
   if (!isLegacyWeddingCodeQuery(search)) {
-    const title = "나의 결혼 준비 언어 | 웨딩코드 · 웨딩한방";
-    const description = "30개의 문장으로 지출·준비·가족·도움의 기준을 살펴봐요. 각 글자의 뜻과 실제 답의 비율을 확인해요. 혼자서도 결과를 볼 수 있고, 둘 다 답하고 두 사람 결과 링크를 서로 전달하면 각자의 답을 나란히 읽을 수 있어요. 로그인 없이 시작해요.";
+    const oldLikert = search.v === MEASUREMENT_VERSION;
+    const title = oldLikert ? "나의 결혼 준비 언어 | 웨딩코드 · 웨딩한방" : "우리의 결혼 준비 방식 | 웨딩코드 · 웨딩한방";
+    const description = oldLikert
+      ? "30개의 문장으로 지출·준비·가족·도움의 기준을 살펴봐요. 각 글자의 뜻과 실제 답의 비율을 확인해요. 혼자서도 결과를 볼 수 있고, 둘 다 답하고 두 사람 결과 링크를 서로 전달하면 각자의 답을 나란히 읽을 수 있어요. 로그인 없이 시작해요."
+      : "36개의 결혼 준비 장면에 답하고 내 준비 기준을 살펴봐요. 이름과 함께 답을 풀어 보고, 파트너와 서로 공유한 내용으로 이야기할 장면을 찾아요. 지금의 답을 정리하는 참고용 테스트예요.";
+    const card = oldLikert ? LIKERT_CARD_IMAGE : { ...LIKERT_CARD_IMAGE, url: "/wedding-code/r6-card/opengraph-image", alt: "웨딩코드, 우리의 결혼 준비 방식" };
     return { title, description, robots: { index: false, follow: false, nocache: true }, referrer: "no-referrer",
       alternates: { canonical: "/wedding-code" },
-      openGraph: { title, description, siteName: "웨딩한방", locale: "ko_KR", type: "website", images: [LIKERT_CARD_IMAGE] },
-      twitter: { card: "summary_large_image", title, description, images: [LIKERT_CARD_IMAGE] } };
+      openGraph: { title, description, siteName: "웨딩한방", locale: "ko_KR", type: "website", images: [card] },
+      twitter: { card: "summary_large_image", title, description, images: [card] } };
   }
   // 쿼리에 실린 서로 짐작하기(ga, gb)도 답이 든 링크라 색인하지 않는다.
   const carriesAnswers = search.a !== undefined || search.b !== undefined || search.ga !== undefined || search.gb !== undefined;
@@ -115,6 +120,7 @@ export default async function WeddingCodePage({ searchParams }: WeddingCodePageP
   return (
     <WeddingCodeReleaseClient
       queryIsLegacy={isLegacyWeddingCodeQuery(search)}
+      explicitLikert={search.v === MEASUREMENT_VERSION}
       shareOrigin={shareOrigin()}
       initialEntry={initialEntry}
       researchContributionOpen={isWeddingCodeResearchContributionOpen()}

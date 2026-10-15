@@ -1,0 +1,110 @@
+{
+  "version": "wcr36-results-r7-2026-10-15",
+  "status": "design_candidate_before_human_validation",
+  "questionnaire_version": "wcr36-r6-2026-10-15",
+  "source_bank": "bank.json",
+  "score_scale": "1_to_5_mean_of_three_complete_items",
+  "item_weight": 1,
+  "round_for_display_decimals": 1,
+  "total_score": null,
+  "states": {
+    "H": "세 문항 모두 4 또는 5: 세 장면에서 동의",
+    "L": "세 문항 모두 1 또는 2: 세 장면에서 낮은 동의, 반대 선호는 미확인",
+    "X": "1/2와 4/5가 함께 있음: 장면별 응답 차이",
+    "U": "세 답이 완결되고 H/L/X가 아닌 응답. 적어도 한 문항이3점이며 다른 문항의 동의 정도는 원값으로 확인한다.",
+    "M": "한 개 이상 미응답: 평균/대표 별명 보류"
+  },
+  "adjective_block": [
+    "B",
+    "M",
+    "V",
+    "G",
+    "F"
+  ],
+  "animal_block": [
+    "P",
+    "J",
+    "D",
+    "S"
+  ],
+  "adjective_candidates": {
+    "B": "단단한",
+    "M": "뜻깊은",
+    "V": "조화로운",
+    "G": "하객 중심의",
+    "F": "우리다운"
+  },
+  "animal_candidates": {
+    "P": "비버",
+    "J": "펭귄",
+    "D": "고양이",
+    "S": "공작"
+  },
+  "alias_rules": {
+    "block_requires_all_items_complete": true,
+    "any_mixed_criterion_withholds_block_alias": true,
+    "all_criteria_H_withholds_block_alias": true,
+    "winner_is_unique_highest_sum_over_all_block_criteria": true,
+    "winner_requires_state_H": true,
+    "minimum_sum_gap_to_runner_up": 2,
+    "threshold_basis": "검증 전 편집 운영 가정. 표준오차·통계적 유의·실제 중요도 차이의 근거가 아니다.",
+    "full_alias_requires_both_components": true,
+    "fallback": "완료한 9개 응답 프로필과 지지 기준 태그. 부분 별명/비슷한 후보/상황 차이/추가 응답 필요를 이유와 함께 표시하며 반대 유형을 생성하지 않는다."
+  },
+  "single_notes": "N1–N9는 장면별 원응답 메모. 평균, 가중합, 공개 유형 결정에서 제외.",
+  "couple_rules": {
+    "matched_questionnaire_and_fingerprint_required": true,
+    "mutual_couple_comparison_consent_required": true,
+    "compare_matching_item_ids_only": true,
+    "mutual_item_share_permission_required": true,
+    "mutual_alias_share_permission_required": true,
+    "N8_N9_default_share": false,
+    "minimum_item_gap_for_discussion": 2,
+    "item_gap_basis": "2점 이상 차이는 대화 후보를 찾는 편집 기준이며 위험 예측이나 불일치 진단이 아니다.",
+    "missing_mixed_override_aggregate_copy": true,
+    "missing_reasons_private": true,
+    "couple_compatibility_score": null,
+    "type_pair_prediction": false,
+    "joint_decision_requires_explicit_confirmation": true
+  },
+  "forbidden": [
+    "낮은 동의에서 반대 선호 자동 추론",
+    "평균 최고를 실제 중요도 1순위로 단정",
+    "동물로 성격·능력·사랑·통제욕 추론",
+    "진단·궁합·결혼 성공/갈등 예측",
+    "지지·회복 메모의 기본 공개",
+    "설문 응답을 실제 합의나 공유 동의로 기록",
+    "타입 희귀도·정확도·신뢰도 수치 생성"
+  ],
+  "rebound_from": "wcr36-results-r6-2026-10-13",
+  "context_is_required": true,
+  "previous_response_data_comparable": false,
+  "rebind_status": "same_intended_mapping_candidate_not_empirically_equated",
+  "copy_revision": "새 문항의 같은 계산 후보에 일상적인 실제 결과 카피를 연결했다. 사람 검증 전이다.",
+  "thresholds_empirically_validated": false,
+  "all_respondents_forced_into_twenty_aliases": false,
+  "source_questionnaire_fingerprint": "982e2623c147bd7bbeefd2f7e1a6fb7ec27cbbd28e60bb62a0c002c148735f16",
+  "alias_sharing_notice": "별명은 여러 답에서 나온 준비 선호를 간접적으로 보여줄 수 있다. 원문 숫자 공유와 별도로 이 범위를 설명하고 선택받는다.",
+  "presentation_rules": {
+    "name_always_first": true,
+    "display_order": [
+      "name",
+      "summary",
+      "good_points",
+      "cautions",
+      "conversation",
+      "profile",
+      "notes"
+    ],
+    "technical_code_in_primary_display": false,
+    "supported_alias_selection_unchanged": true,
+    "fallback_name": "아직 미정인 수달",
+    "fallback_kind": "response_state_character",
+    "fallback_scope": "대표 준비 선호가 한 가지 이름으로 정리되지 않은 결과의 안내 캐릭터. 신중함·균형·유연함·차분함을 측정한 이름이 아니다.",
+    "same_answer_is_valid_input": true,
+    "middle_only_is_not_balance_or_flexibility": true,
+    "no_answer_is_not_middle": true,
+    "same_pair_answers_do_not_imply_same_reason_or_plan": true,
+    "all_missing_produces_no_preference_claim": true
+  }
+}
