@@ -1,0 +1,96 @@
+{
+  "scope": "isolated in-memory PGlite actual SQL; no production connection",
+  "productionConnections": 0,
+  "migrationFile": "C:\\Users\\kcho1\\.codex\\worktrees\\wedding-code36-production\\wedding\\supabase\\migrations\\20261015070000_wedding_code36_private_pairing.sql",
+  "migrationSha256": "80fdb56216ef7f5350f0eff26fe75056e5fa9b5bf227951b923b61dcbbbbf56e",
+  "assertions": 343,
+  "groups": [
+    {
+      "name": "fresh individual, waiting invite and private report",
+      "status": "pass"
+    },
+    {
+      "name": "two existing waiting invites can join without losing either private answer",
+      "status": "pass"
+    },
+    {
+      "name": "unknown target preserves the old empty invite",
+      "status": "pass"
+    },
+    {
+      "name": "full target preserves the old empty invite",
+      "status": "pass"
+    },
+    {
+      "name": "same owner secret cannot join a second personal result, empty invite survives",
+      "status": "pass"
+    },
+    {
+      "name": "wrong owner key never changes a pair",
+      "status": "pass"
+    },
+    {
+      "name": "established pair is immutable across other, unknown and self invite attempts",
+      "status": "pass"
+    },
+    {
+      "name": "retry submit can join from an existing empty invite and keeps saved answers",
+      "status": "pass"
+    },
+    {
+      "name": "SQL failure rolls back empty invite removal and attempted join atomically",
+      "status": "pass"
+    },
+    {
+      "name": "many interleaved sequential pair orders preserve one pair membership",
+      "status": "pass"
+    },
+    {
+      "name": "server controls exact seven day lifetime and sharing cannot extend it",
+      "status": "pass"
+    },
+    {
+      "name": "delete immediately removes own payload and pair but preserves partner payload",
+      "status": "pass"
+    },
+    {
+      "name": "deleting the partner also disconnects without erasing the inviting owner",
+      "status": "pass"
+    },
+    {
+      "name": "deleted tombstone blocks delayed submit, pairing, report and sharing retries",
+      "status": "pass"
+    },
+    {
+      "name": "expiry cuts all access before purge and does not silently renew a result",
+      "status": "pass"
+    },
+    {
+      "name": "expired target never destroys an unrelated valid waiting invite",
+      "status": "pass"
+    },
+    {
+      "name": "expired invite does not lose a newly saved personal result or poison retries",
+      "status": "pass"
+    },
+    {
+      "name": "purge removes expired results and tombstones, preserves all live private results",
+      "status": "pass"
+    },
+    {
+      "name": "all seven RPCs deny public, anonymous and authenticated execution",
+      "status": "pass"
+    },
+    {
+      "name": "missing required questionnaire metadata fails the table check",
+      "status": "pass"
+    }
+  ],
+  "failures": [],
+  "limitations": [
+    "One PGlite session cannot prove multi-session PostgreSQL blocking, races, lock timeouts or throughput."
+  ],
+  "postgresVersion": "PostgreSQL 18.6 (PGlite 0.5.9) on wasm32-unknown-emscripten, compiled by emcc (Emscripten gcc/clang-like replacement + linker emulating GNU ld) 3.1.74 (1092ec30a3fb1d46b1782ff1b4db5094d3d06ae5), 32-bit",
+  "status": "pass",
+  "completedAt": "2026-10-15T08:11:33.808Z"
+}

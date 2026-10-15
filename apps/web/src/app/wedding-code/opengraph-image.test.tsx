@@ -331,7 +331,7 @@ describe("30문항 기본 입구의 일반 공유 카드", () => {
     const expectedImage = { url: "/wedding-code/likert-card/opengraph-image", type: likertContentType, ...likertSize, alt: likertAlt };
     expect(existsSync(resolve(process.cwd(), "src/app/wedding-code/likert-card/opengraph-image.tsx"))).toBe(true);
     expect(existsSync(resolve(process.cwd(), "src/app/wedding-code/likert-card/page.tsx"))).toBe(false);
-    for (const search of [{}, { utm_source: "kakao" }, { v: MEASUREMENT_VERSION }]) {
+    for (const search of [{ v: MEASUREMENT_VERSION }, { v: MEASUREMENT_VERSION, utm_source: "kakao" }]) {
       const metadata = await generateMetadata({ searchParams: Promise.resolve(search) });
       expect(metadata.openGraph?.images, JSON.stringify(search)).toEqual([expectedImage]);
       expect(metadata.twitter?.images, JSON.stringify(search)).toEqual([expectedImage]);
@@ -361,7 +361,7 @@ describe("30문항 기본 입구의 일반 공유 카드", () => {
     expect(serialized).not.toContain(url.hash.slice(1));
     expect(serialized).not.toMatch(/likert\.money|createdAt|"answers"/);
     expect(Object.prototype.hasOwnProperty.call(metadata.openGraph, "url")).toBe(false);
-    expect(metadata.description).toContain("두 사람 결과 링크를 서로 전달하면");
+    expect(metadata.description).toContain("서로 공유한 내용");
   });
 
   it("이전 후보 주소도 새 일반 카드를 쓰고 원답 fragment가 빠질 og:url을 물려받지 않는다", () => {

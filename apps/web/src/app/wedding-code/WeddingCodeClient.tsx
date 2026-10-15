@@ -1,485 +1,194 @@
 "use client";
 
-// CANDIDATE4_RETIRED: unreachable legacy UI; do not reconnect or reuse for Candidate 5.
-// 웨딩코드 v0.5 폼 — 16개 상황형 질문을 한 화면 한 질문으로 진행한다.
-// 결과 화면에서 v0.5 score/report를 참고용으로 보여주며, 사람이나 관계를 단정하지 않는다.
+// CANDIDATE4_RETIRED: 이 경로의 예전 Candidate 4 구현은 폐기했다.
+// 현재 파일은 별도 r6 36문항 진입이며, 폐기한 계산·연구 수집을 다시 사용하지 않는다.
 
-import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
+import Button from "@/components/ui/Button";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, ArrowRight, Check, Clock3, Loader2, MessageCircle, UsersRound } from "lucide-react";
+import { ArrowLeft, ArrowRight, Check, Loader2 } from "lucide-react";
+import { DEFAULT_SHARE_IDS, INSTRUCTIONS, ITEMS, NOTES, SCALE } from "@/constants/weddingCode36";
+import { createSubmission, validateSubmission } from "@/lib/weddingCode36";
+import { isRecord, isUuid } from "@/utils/requestValidation";
 import {
-  WC_NO_RIGHT_ANSWER, WC_CONSENT_LABEL,
-  WC_STAGES, WC_ANSWERING_MODES, WC_QUOTE_STATUSES, WC_PARENT_INVOLVEMENTS, WC_CONCERNS,
-  WC_SCALE_LABELS, WC_FEEDBACK_ITEMS, WC_CTA_ITEMS, WC_FREE_TEXT_ITEMS,
-} from "@/constants/weddingCodeForm";
-import {
-  WEDDING_CODE_V05_QUESTIONS,
-  WEDDING_CODE_V05_VERSION,
-  type WeddingCodeV05Question,
-} from "@/constants/weddingCodeV05";
-import { readStoredUtm } from "@/utils/utm";
-import { captureEvent } from "@/lib/analytics";
-import { WC_RESULT_STORAGE_KEY, type WcResultBackup } from "./result/ResultClient";
+  clearDraft36, clearPending36, parseResult36, readDraft36, readPending36, readResult36,
+  storeDraft36, storePending36, storeResult36, type Pending36, type Result36,
+} from "./storage36";
 
-type Step = "intro" | "context" | "questions" | "feedback" | "cta" | "freetext";
-
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
-type FlowQuestion = WeddingCodeV05Question;
-
-const WC_V05_INTRO_TITLE = "웨딩코드 3분 테스트";
-const WC_V05_INTRO_BODY = `결혼 준비를 하다 보면 예산, 취향, 가족 조율, 역할 분담, 서로에게 필요한 말의 순서가 한꺼번에 섞입니다.
-
-웨딩코드는 16개의 실제 상황에서 내가 중요하게 보는 것을 정리하고, 상대와 더 편하게 이야기할 지점을 보여주는 참고 도구예요. 사람을 평가하거나 두 사람의 앞날을 단정하지 않습니다.`;
-
-const card = "rounded-[6px] border border-[var(--hb-hairline)] bg-white/90 shadow-[var(--shadow-raised)]";
-const primaryBtn =
-  "inline-flex min-h-12 items-center justify-center gap-2 rounded-[6px] bg-[var(--hb-primary)] px-7 text-[14px] font-semibold text-white shadow-[var(--shadow-raised)] transition-colors hover:bg-[#2d4642] disabled:opacity-40 disabled:cursor-not-allowed";
-const ghostBtn =
-  "inline-flex min-h-11 items-center justify-center gap-1.5 rounded-[6px] border border-[var(--hb-hairline)] bg-white px-5 text-[13px] font-semibold text-[#6d625a] transition-colors hover:bg-[#f7f3ec]";
-
-const INTRO_POINTS = [
-  { icon: Clock3, label: "3분", body: "16개 장면" },
-  { icon: MessageCircle, label: "대화", body: "질문 카드" },
-  { icon: UsersRound, label: "커플", body: "비교 리포트" },
+export const wc36Primary = "inline-flex min-h-12 items-center justify-center gap-2 rounded-lg bg-[#8F6662] px-6 py-3 text-sm font-semibold text-white transition-colors hover:bg-[#7D5753] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#8F6662] disabled:cursor-not-allowed disabled:opacity-40";
+export const wc36Secondary = "inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-[#E2DED2] bg-white px-4 py-2 text-sm font-medium text-[#5A4742] hover:bg-[#F8F4EA] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#8F6662] disabled:opacity-40";
+const REASONS = [
+  ["not_applicable", "나에게 해당하지 않아요"], ["cannot_imagine", "상황이 잘 떠오르지 않아요"],
+  ["constraint_not_separable", "현실 사정과 원하는 방식을 나누기 어려워요"], ["prefer_not_to_answer", "답하고 싶지 않아요"],
 ] as const;
+type InviteState = "none" | "loading" | "waiting" | "full" | "not_found" | "invalid" | "error";
 
 export default function WeddingCodeClient() {
   const router = useRouter();
-  const [step, setStep] = useState<Step>("intro");
+  const [ready, setReady] = useState(false);
+  const [step, setStep] = useState<"intro" | "questions" | "review">("intro");
+  const [answers, setAnswers] = useState<Record<string, number | null>>({});
+  const [missingReasons, setMissingReasons] = useState<Record<string, string>>({});
+  const [index, setIndex] = useState(0);
   const [consent, setConsent] = useState(false);
-  const [startedAt, setStartedAt] = useState<number | null>(null);
-
-  // 파트너 유입 페어링 토큰 (?ct=) — 형식만 확인, 엄격 검증은 서버
-  const [ctToken, setCtToken] = useState<string | null>(null);
-  useEffect(() => {
-    const ct = new URLSearchParams(window.location.search).get("ct");
-    if (ct && UUID_RE.test(ct)) setCtToken(ct);
-  }, []);
-
-  // 참여자 컨텍스트
-  const [stage, setStage] = useState("");
-  const [mode, setMode] = useState("");
-  const [quoteStatus, setQuoteStatus] = useState("");
-  const [parentInvolvement, setParentInvolvement] = useState("");
-  const [concerns, setConcerns] = useState<string[]>([]);
-  const [concernOther, setConcernOther] = useState("");
-
-  // 문항
-  const [answers, setAnswers] = useState<Record<string, string>>({});
-  const [skipped, setSkipped] = useState<Record<string, boolean>>({});
-  const [qIndex, setQIndex] = useState(0);
-
-  // 피드백·CTA·자유 텍스트
-  const [feedback, setFeedback] = useState<Record<string, number>>({});
-  const [cta, setCta] = useState<Record<string, number>>({});
-  const [freeText, setFreeText] = useState<Record<string, string>>({});
-
-  const [submitting, setSubmitting] = useState(false);
+  const [compare, setCompare] = useState(false);
+  const [shareAlias, setShareAlias] = useState(false);
+  const [shareNotes, setShareNotes] = useState<string[]>([]);
+  const [inviteToken, setInviteToken] = useState<string | null>(null);
+  const [inviteState, setInviteState] = useState<InviteState>("none");
+  const [previous, setPrevious] = useState<Result36 | null>(null);
+  const [pending, setPending] = useState<Pending36 | null>(null);
+  const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const sending = useRef(false);
+  const questionHeading = useRef<HTMLHeadingElement>(null);
 
-  const flow: FlowQuestion[] = useMemo(() => [...WEDDING_CODE_V05_QUESTIONS], []);
+  useEffect(() => {
+    const raw = new URLSearchParams(window.location.search).get("ct");
+    const token = isUuid(raw) ? raw.toLowerCase() : null;
+    setInviteToken(token); setInviteState(raw ? (token ? "loading" : "invalid") : "none");
+    setPrevious(readResult36());
+    const draft = readDraft36(token);
+    const savedPending = readPending36(token);
+    if (draft) {
+      setAnswers(draft.answers); setMissingReasons(draft.missingReasons); setIndex(draft.index);
+      setStep(draft.step); setCompare(draft.compare); setShareAlias(draft.shareAlias); setShareNotes(draft.shareNotes);
+    }
+    if (savedPending) {
+      setPending(savedPending); setAnswers(savedPending.submission.answers);
+      setMissingReasons(savedPending.submission.missing_reasons); setStep("review");
+      setCompare(savedPending.submission.allow_couple_comparison); setShareAlias(savedPending.submission.share_alias);
+      setShareNotes(savedPending.submission.share_item_ids.filter((id) => NOTES.some((n) => n.id === id)));
+    }
+    setReady(true);
+    if (!token) return;
+    const controller = new AbortController();
+    fetch(`/api/wedding-code/v36/invite?token=${encodeURIComponent(token)}`, { signal: controller.signal, cache: "no-store" })
+      .then(async (response) => {
+        const body: unknown = await response.json();
+        if (!response.ok || !isRecord(body) || !["waiting", "full", "not_found"].includes(String(body.status))) throw new Error();
+        setInviteState(body.status as "waiting" | "full" | "not_found");
+      }).catch(() => { if (!controller.signal.aborted) setInviteState("error"); });
+    return () => controller.abort();
+  }, []);
+  useEffect(() => {
+    if (ready) storeDraft36(inviteToken, { answers, missingReasons, index, step, compare, shareAlias, shareNotes });
+  }, [ready, inviteToken, answers, missingReasons, index, step, compare, shareAlias, shareNotes]);
+  useEffect(() => { if (step === "questions") questionHeading.current?.focus(); }, [step, index]);
 
-  const current = flow[qIndex];
-  const contextAnswerCount = [stage, mode, quoteStatus, parentInvolvement].filter(Boolean).length;
-  const contextMissingCount = 4 - contextAnswerCount;
-  const contextComplete = contextMissingCount === 0;
-
-  function toggleConcern(c: string) {
-    setConcerns((prev) => (prev.includes(c) ? prev.filter((x) => x !== c) : [...prev, c]));
+  function choose(value: number | null, reason?: string) {
+    const id = ITEMS[index].id;
+    setAnswers((old) => ({ ...old, [id]: value }));
+    setMissingReasons((old) => { const next = { ...old }; delete next[id]; if (reason) next[id] = reason; return next; });
   }
-
-  function selectOption(q: FlowQuestion, value: string) {
-    setAnswers((prev) => ({ ...prev, [q.key]: value }));
-    setSkipped((prev) => ({ ...prev, [q.key]: false }));
-    window.setTimeout(() => advance(), 160);
+  function personalOnly() {
+    setInviteToken(null); setInviteState("none"); window.history.replaceState(null, "", "/wedding-code");
   }
-
-  function advance() {
-    if (qIndex + 1 < flow.length) setQIndex(qIndex + 1);
-    else setStep("feedback");
-  }
-
-  async function submit() {
-    if (submitting) return;
-    setSubmitting(true);
-    setError(null);
+  async function joinPrevious() {
+    if (!previous || !inviteToken || sending.current) return;
+    sending.current = true; setBusy(true); setError(null);
     try {
-      const utm = readStoredUtm();
-      const params = new URLSearchParams(window.location.search);
-      const res = await fetch("/api/wedding-code/response", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          consent: true,
-          participant_stage: stage,
-          answering_mode: mode,
-          quote_status: quoteStatus,
-          parent_involvement: parentInvolvement,
-          biggest_concern: concerns,
-          biggest_concern_other: concerns.includes("기타") ? concernOther : undefined,
-          answers,
-          stage_flags: {},
-          feedback,
-          cta_interest: cta,
-          free_text: freeText,
-          duration_ms: startedAt ? Date.now() - startedAt : undefined,
-          utm_source: utm?.source ?? params.get("utm_source") ?? undefined,
-          utm_medium: utm?.medium ?? params.get("utm_medium") ?? undefined,
-          utm_campaign: utm?.campaign ?? params.get("utm_campaign") ?? undefined,
-          utm_content: params.get("utm_content") ?? undefined,
-          couple_token: ctToken ?? undefined,
-        }),
+      const response = await fetch("/api/wedding-code/v36/pair", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ response_id: previous.id, access_token: previous.accessToken, invite_token: inviteToken }),
       });
-      const data = (await res.json().catch(() => ({}))) as {
-        success?: boolean; error?: string; id?: string | null; paired?: boolean; coupleToken?: string | null;
-      };
-      if (!res.ok || !data.success) {
-        setError(data.error ?? "저장에 실패했어요. 잠시 후 다시 시도해주세요.");
-        return;
+      const data: unknown = await response.json();
+      if (!response.ok || !isRecord(data) || data.pairingStatus !== "paired" || data.coupleToken !== inviteToken) {
+        throw new Error(isRecord(data) && typeof data.error === "string" ? data.error : "초대에 연결하지 못했어요. 링크를 다시 확인해 주세요.");
       }
-      captureEvent("wedding_code_completed", { stage, quote_status: quoteStatus });
-      if (data.paired) captureEvent("wc_invite_pair_completed", {});
-
-      // 결과 화면용 백업 (새로고침 대비) → /wedding-code/result 이동
-      const resultBackup: WcResultBackup = {
-        answers,
-        skipped,
-        version: WEDDING_CODE_V05_VERSION,
-        responseId: data.id ?? null,
-        paired: data.paired === true,
-        coupleToken: data.coupleToken ?? null,
-        savedAt: new Date().toISOString(),
+      storeResult36({ ...previous, coupleToken: data.coupleToken, pairingStatus: data.pairingStatus as "waiting" | "paired" });
+      router.push(`/wedding-code/result?v=36&rid=${previous.id}`);
+    } catch (e) { setError(e instanceof Error ? e.message : "연결하지 못했어요."); }
+    finally { sending.current = false; setBusy(false); }
+  }
+  async function submit() {
+    if (!consent || sending.current) return;
+    sending.current = true; setBusy(true); setError(null);
+    try {
+      // 응답을 받지 못한 재시도는 같은 키와 같은 원문으로 저장 여부부터 확인한다.
+      const attempt = pending ?? {
+        submissionId: crypto.randomUUID(), accessToken: crypto.randomUUID(), inviteToken,
+        submission: createSubmission(answers, { comparison: compare, shareIds: [...DEFAULT_SHARE_IDS, ...shareNotes], shareAlias }),
       };
-      try {
-        // localStorage — 카톡 인앱 종료 후 재방문에도 결과 복원 (재응시 시 덮어쓰기 허용)
-        window.localStorage.setItem(WC_RESULT_STORAGE_KEY, JSON.stringify(resultBackup));
-      } catch { /* storage 불가 시에도 이동 — 결과 화면이 폼으로 안내 */ }
-      router.push("/wedding-code/result");
-    } catch {
-      setError("네트워크 오류가 발생했어요. 잠시 후 다시 시도해주세요.");
-    } finally {
-      setSubmitting(false);
+      attempt.submission = validateSubmission({ ...attempt.submission, missing_reasons: pending ? attempt.submission.missing_reasons : missingReasons });
+      storePending36(attempt); setPending(attempt);
+      const response = await fetch("/api/wedding-code/v36/response", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...attempt.submission, consent: true, submission_id: attempt.submissionId,
+          access_token: attempt.accessToken, invite_token: attempt.inviteToken ?? undefined }),
+      });
+      const data: unknown = await response.json();
+      if (!response.ok || !isRecord(data) || data.success !== true) {
+        throw new Error(isRecord(data) && typeof data.error === "string" ? data.error : "저장에 실패했어요. 같은 답으로 다시 확인할 수 있어요.");
+      }
+      const record = parseResult36({ ...data, accessToken: attempt.accessToken, savedAt: new Date().toISOString() });
+      if (!record) throw new Error("저장 결과를 확인하지 못했어요. 같은 답으로 다시 확인해 주세요.");
+      storeResult36(record); clearPending36(attempt.inviteToken); clearDraft36(attempt.inviteToken);
+      router.replace(`/wedding-code/result?v=36&rid=${record.id}`);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "연결이 잠시 끊겼어요. 같은 답으로 다시 확인해 주세요.");
+      sending.current = false; setBusy(false);
     }
   }
+  const current = ITEMS[index];
+  const hasAnswer = Object.hasOwn(answers, current.id);
+  const answeredCount = Object.values(answers).filter((v) => v !== null).length;
+  const skippedCount = Object.values(answers).filter((v) => v === null).length;
+  const inviteBlocked = ["loading", "full", "not_found", "invalid", "error"].includes(inviteState);
+  const ownInvite = previous?.coupleToken === inviteToken && inviteToken !== null;
 
-  const answeredCount = flow.filter((q) => answers[q.key]).length;
-
-  return (
-    <div className="min-h-screen bg-[var(--hb-surface-page)] px-4 py-7 sm:py-12">
-      <div className="mx-auto w-full max-w-[620px]">
-        {/* 헤더 */}
-        <p className="mb-2 text-center text-[11px] font-semibold uppercase tracking-[0.18em] text-[var(--hb-accent-hover)]">
-          WEDDINGCODE V0.5
-        </p>
-        <h1 className="mb-6 text-center text-[25px] font-semibold leading-[1.25] text-[var(--hb-text-strong)] sm:text-[30px]">
-          {WC_V05_INTRO_TITLE}
-        </h1>
-
-        {/* 진행 바 (문항 단계에서만) */}
-        {step === "questions" && flow.length > 0 && (
-          <div className="mb-5">
-            <div className="h-1.5 w-full overflow-hidden rounded-full bg-[#efe6d7]">
-              <div
-                className="h-full rounded-full bg-[var(--hb-primary)] transition-all duration-300"
-                style={{ width: `${Math.round((answeredCount / flow.length) * 100)}%` }}
-              />
-            </div>
-            {/* 번호는 현재 위치 기준 — 뒤로가기로 재방문해도 보고 있는 문항과 일치 */}
-            <p className="mt-1.5 text-right text-[12px] font-medium text-[var(--hb-text-muted)]">
-              {qIndex + 1} / {flow.length}
-            </p>
-          </div>
-        )}
-
-        {/* ── 인트로 + 동의 ── */}
-        {step === "intro" && (
-          <div className={`${card} overflow-hidden`}>
-            <div className="p-5 sm:p-8">
-              <p className="text-[12px] font-semibold text-[var(--hb-accent-hover)]">중요하게 보는 것을 정리해요</p>
-              <p className="mt-3 whitespace-pre-line text-[14px] font-medium leading-[1.75] text-[var(--hb-text-body)]">
-                {WC_V05_INTRO_BODY}
-              </p>
-            </div>
-            <div className="grid grid-cols-3 divide-x divide-[var(--hb-hairline)] border-y border-[var(--hb-hairline)] bg-[var(--hb-surface-page)]">
-              {INTRO_POINTS.map((point) => (
-                <div key={point.label} className="min-w-0 px-3 py-3 text-center sm:px-5 sm:py-4">
-                  <point.icon className="mx-auto h-4 w-4 text-[var(--hb-text-strong)]" />
-                  <div>
-                    <p className="mt-1.5 text-[12px] font-semibold text-[var(--hb-text-strong)]">{point.label}</p>
-                    <p className="mt-0.5 truncate text-[11px] font-medium leading-relaxed text-[#6d625a]">{point.body}</p>
-                  </div>
-                </div>
-              ))}
-            </div>
-            <div className="p-5 sm:p-8">
-            <label className="flex cursor-pointer items-start gap-2.5 rounded-[6px] border border-[var(--hb-hairline)] bg-[var(--hb-surface-page)] px-4 py-3.5 select-none">
-              <input
-                type="checkbox"
-                checked={consent}
-                onChange={(e) => setConsent(e.target.checked)}
-                className="mt-0.5 h-4 w-4 accent-[var(--hb-text-strong)]"
-              />
-              <span className="text-[13px] font-medium leading-relaxed text-[var(--hb-text-body)]">{WC_CONSENT_LABEL}</span>
-            </label>
-            <button
-              onClick={() => {
-                if (!consent) return;
-                setStartedAt(Date.now());
-                captureEvent("wedding_code_started", {});
-                setStep("context");
-              }}
-              disabled={!consent}
-              className={`${primaryBtn} mt-5 w-full`}
-            >
-              시작하기 <ArrowRight className="h-4 w-4" />
-            </button>
-            </div>
-          </div>
-        )}
-
-        {/* ── 참여자 컨텍스트 ── */}
-        {step === "context" && (
-          <div className={`${card} p-6 sm:p-8`}>
-            <div className="mb-6 rounded-[6px] bg-[#EEF4F1] px-4 py-3">
-              <div className="flex items-center justify-between gap-3">
-                <p className="text-[12px] font-semibold text-[var(--hb-text-strong)]">기본 상황 {contextAnswerCount} / 4</p>
-                <p className="text-[11px] font-semibold text-[#6d625a]">
-                  {contextComplete ? "질문으로 넘어갈 수 있어요" : `${contextMissingCount}개 더 선택`}
-                </p>
-              </div>
-              <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-white">
-                <div
-                  className="h-full rounded-full bg-[var(--hb-primary)] transition-all"
-                  style={{ width: `${(contextAnswerCount / 4) * 100}%` }}
-                />
-              </div>
-            </div>
-            <ContextSelect label="지금 결혼 준비 단계는 어디에 가장 가깝나요?" options={WC_STAGES} value={stage} onChange={setStage} />
-            <ContextSelect label="답변은 혼자 하고 있나요, 상대와 함께 하고 있나요?" options={WC_ANSWERING_MODES} value={mode} onChange={setMode} />
-            <ContextSelect label="업체 견적을 받아본 적이 있나요?" options={WC_QUOTE_STATUSES} value={quoteStatus} onChange={setQuoteStatus} />
-            <ContextSelect label="부모님 또는 가족이 결혼 준비 결정에 어느 정도 관여하고 있나요?" options={WC_PARENT_INVOLVEMENTS} value={parentInvolvement} onChange={setParentInvolvement} />
-
-            <p className="mb-2 mt-6 text-[14px] font-semibold text-[var(--hb-text-strong)]">
-              지금 가장 큰 결혼 준비 고민은 무엇인가요? <span className="font-medium text-[var(--hb-text-muted)]">(복수 선택)</span>
-            </p>
-            <div className="flex flex-wrap gap-2">
-              {WC_CONCERNS.map((c) => (
-                <button
-                  key={c}
-                  onClick={() => toggleConcern(c)}
-                  className={`rounded-[6px] border px-3.5 py-2 text-[13px] font-medium transition-colors ${
-                    concerns.includes(c)
-                      ? "border-[var(--hb-primary)] bg-[var(--hb-primary)] text-white"
-                      : "border-[var(--hb-hairline)] bg-white text-[var(--hb-text-body)] hover:border-[#b68a3a]"
-                  }`}
-                >
-                  {c}
-                </button>
-              ))}
-            </div>
-            {concerns.includes("기타") && (
-              <input
-                type="text"
-                value={concernOther}
-                onChange={(e) => setConcernOther(e.target.value)}
-                placeholder="기타 고민을 적어주세요"
-                className="mt-3 w-full rounded-[6px] border border-[var(--hb-hairline)] bg-[var(--hb-surface-page)] px-4 py-3 text-[14px] text-[var(--hb-text-strong)] outline-none focus:border-[var(--hb-primary)]"
-              />
-            )}
-
-            <button
-              onClick={() => contextComplete && setStep("questions")}
-              disabled={!contextComplete}
-              className={`${primaryBtn} mt-6 w-full`}
-            >
-              {contextComplete ? "질문 시작" : `${contextMissingCount}개 더 선택하면 시작`} <ArrowRight className="h-4 w-4" />
-            </button>
-            <p className="mt-3 text-center text-[12px] font-medium text-[var(--hb-text-muted)]">{WC_NO_RIGHT_ANSWER}</p>
-          </div>
-        )}
-
-        {/* ── 문항 (한 화면 한 질문) ── */}
-        {step === "questions" && current && (
-          <div className={`${card} p-6 sm:p-8`}>
-            <div className="mb-3 flex items-center justify-between gap-3">
-              <p className="text-[12px] font-semibold text-[var(--hb-accent-hover)]">{current.title}</p>
-              <p className="rounded-full bg-[#EEF4F1] px-2.5 py-1 text-[11px] font-semibold text-[var(--hb-text-strong)]">
-                {qIndex + 1} / {flow.length}
-              </p>
-            </div>
-            <p className="text-[19px] font-semibold leading-[1.5] text-[var(--hb-text-strong)] sm:text-[21px]">
-              {current.question}
-            </p>
-            <div className="mt-5 flex flex-col gap-2.5">
-              {current.options.map((opt) => (
-                <button
-                  key={opt.value}
-                  onClick={() => selectOption(current, opt.value)}
-                  className={`flex items-start gap-3 rounded-[6px] border px-4 py-3.5 text-left text-[14px] font-medium leading-[1.6] transition-colors ${
-                    answers[current.key] === opt.value
-                      ? "border-[var(--hb-primary)] bg-[#EEF4F1] text-[var(--hb-text-strong)]"
-                      : "border-[var(--hb-hairline)] bg-white text-[var(--hb-text-body)] hover:border-[var(--hb-primary)]/50 hover:bg-[var(--hb-surface-page)]"
-                  }`}
-                >
-                  <span className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border ${
-                    answers[current.key] === opt.value ? "border-[var(--hb-primary)] bg-[var(--hb-primary)] text-white" : "border-[#d8c9ad] bg-[var(--hb-surface-page)]"
-                  }`}>
-                    {answers[current.key] === opt.value && <Check className="h-3 w-3" />}
-                  </span>
-                  <span>{opt.label}</span>
-                </button>
-              ))}
-            </div>
-            <div className="mt-5 flex items-center justify-between">
-              <button
-                onClick={() => (qIndex > 0 ? setQIndex(qIndex - 1) : setStep("context"))}
-                className={ghostBtn}
-              >
-                <ArrowLeft className="h-3.5 w-3.5" /> 이전
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* ── 피드백 척도 ── */}
-        {step === "feedback" && (
-          <ScaleScreen
-            title="테스트는 어떠셨나요?"
-            items={WC_FEEDBACK_ITEMS}
-            values={feedback}
-            onChange={(k, v) => setFeedback((p) => ({ ...p, [k]: v }))}
-            onBack={() => setStep("questions")}
-            onNext={() => setStep("cta")}
-          />
-        )}
-
-        {/* ── CTA 관심 ── */}
-        {step === "cta" && (
-          <ScaleScreen
-            title="이런 게 있다면 써보고 싶나요?"
-            items={WC_CTA_ITEMS}
-            values={cta}
-            onChange={(k, v) => setCta((p) => ({ ...p, [k]: v }))}
-            onBack={() => setStep("feedback")}
-            onNext={() => setStep("freetext")}
-          />
-        )}
-
-        {/* ── 자유 텍스트 + 제출 ── */}
-        {step === "freetext" && (
-          <div className={`${card} p-6 sm:p-8`}>
-            <h2 className="mb-4 text-[20px] font-semibold text-[var(--hb-text-strong)]">마지막으로, 자유롭게 남겨주세요</h2>
-            {WC_FREE_TEXT_ITEMS.map((item) => (
-              <div key={item.key} className="mb-4">
-                <p className="mb-1.5 text-[13px] font-semibold text-[var(--hb-text-body)]">
-                  {item.label} <span className="font-medium text-[var(--hb-text-muted)]">(선택)</span>
-                </p>
-                <textarea
-                  value={freeText[item.key] ?? ""}
-                  onChange={(e) => setFreeText((p) => ({ ...p, [item.key]: e.target.value }))}
-                  rows={2}
-                  maxLength={1000}
-                  className="w-full resize-none rounded-[6px] border border-[var(--hb-hairline)] bg-[var(--hb-surface-page)] px-4 py-3 text-[14px] leading-relaxed text-[var(--hb-text-strong)] outline-none focus:border-[var(--hb-primary)]"
-                />
-              </div>
-            ))}
-            {error && <p className="mb-3 text-[13px] font-semibold text-danger-700">{error}</p>}
-            <div className="flex items-center justify-between gap-3">
-              <button onClick={() => setStep("cta")} className={ghostBtn}>
-                <ArrowLeft className="h-3.5 w-3.5" /> 이전
-              </button>
-              <button onClick={submit} disabled={submitting} className={`${primaryBtn} flex-1`}>
-                {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
-                {submitting ? "제출 중..." : "제출하기"}
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* 제출 성공 시 /wedding-code/result 로 이동 — 완료 화면은 결과 화면이 대체 */}
-      </div>
-    </div>
-  );
-}
-
-function ContextSelect({
-  label, options, value, onChange,
-}: {
-  label: string;
-  options: readonly { value: string; label: string }[];
-  value: string;
-  onChange: (v: string) => void;
-}) {
-  return (
-    <div className="mb-5">
-      <p className="mb-2 text-[14px] font-semibold text-[var(--hb-text-strong)]">{label}</p>
-      <div className="flex flex-wrap gap-2">
-        {options.map((opt) => (
-          <button
-            key={opt.value}
-            onClick={() => onChange(opt.value)}
-            aria-pressed={value === opt.value}
-            className={`inline-flex min-h-10 items-center gap-1.5 rounded-[6px] border px-3.5 py-2 text-[13px] font-medium transition-colors ${
-              value === opt.value
-                ? "border-[var(--hb-primary)] bg-[var(--hb-primary)] text-white"
-                : "border-[var(--hb-hairline)] bg-white text-[var(--hb-text-body)] hover:border-[#b68a3a]"
-            }`}
-          >
-            {value === opt.value && <Check className="h-3.5 w-3.5" />}
-            {opt.label}
-          </button>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function ScaleScreen({
-  title, items, values, onChange, onBack, onNext,
-}: {
-  title: string;
-  items: readonly { key: string; label: string }[];
-  values: Record<string, number>;
-  onChange: (key: string, value: number) => void;
-  onBack: () => void;
-  onNext: () => void;
-}) {
-  return (
-    <div className={`${card} p-6 sm:p-8`}>
-      <h2 className="mb-1 text-[20px] font-semibold text-[var(--hb-text-strong)]">{title}</h2>
-      <p className="mb-5 text-[12px] font-medium text-[var(--hb-text-muted)]">
-        1 = {WC_SCALE_LABELS[0]} · 5 = {WC_SCALE_LABELS[4]} (선택 사항)
-      </p>
-      {items.map((item) => (
-        <div key={item.key} className="mb-4">
-          <p className="mb-2 text-[13px] font-semibold leading-relaxed text-[var(--hb-text-body)]">{item.label}</p>
-          <div className="flex gap-1.5">
-            {[1, 2, 3, 4, 5].map((n) => (
-              <button
-                key={n}
-                onClick={() => onChange(item.key, n)}
-                aria-label={`${item.label} — ${n}점 (${WC_SCALE_LABELS[n - 1]})`}
-                className={`h-10 flex-1 rounded-[6px] border text-[14px] font-semibold transition-colors ${
-                  values[item.key] === n
-                    ? "border-[var(--hb-primary)] bg-[var(--hb-primary)] text-white"
-                    : "border-[var(--hb-hairline)] bg-white text-[#6d625a] hover:border-[var(--hb-primary)]/50"
-                }`}
-              >
-                {n}
-              </button>
-            ))}
-          </div>
-        </div>
-      ))}
-      <div className="mt-5 flex items-center justify-between gap-3">
-        <button onClick={onBack} className={ghostBtn}>
-          <ArrowLeft className="h-3.5 w-3.5" /> 이전
-        </button>
-        <button onClick={onNext} className={`${primaryBtn} flex-1`}>
-          다음 <ArrowRight className="h-4 w-4" />
-        </button>
-      </div>
-    </div>
-  );
+  return <main className="min-h-screen bg-[#FDFCF7] px-5 py-8 text-[#3A2A27] sm:py-12"><div className="mx-auto max-w-xl">
+    <Link href="/wedding-code" className="text-xs font-semibold tracking-[0.15em] text-[#8F6662]">WEDDING CODE</Link>
+    <h1 className="mt-3 text-2xl font-semibold">우리의 결혼 준비 방식</h1>
+    {!ready ? <p className="mt-8" role="status">저장된 답을 확인하고 있어요.</p> : <>
+      {step === "intro" && <section className="mt-8 space-y-6">
+        <p className="text-base leading-8 text-[#5A4742]">식장을 고를 때, 가족과 의견이 다를 때, 준비할 일을 나눌 때.<br />36개의 장면으로 내가 원하는 방식을 알아봐요.</p>
+        <div className="space-y-3 border-y border-[#E2DED2] py-5 text-sm leading-7 text-[#5A4742]">{INSTRUCTIONS.map((text) => <p key={text}>{text}</p>)}</div>
+        <p className="text-xs leading-6 text-[#6E5A54]">지금의 답을 정리하는 참고용 테스트예요. 사람을 진단하거나 두 사람의 앞날을 예측하지 않아요.</p>
+        {inviteState !== "none" && <div className="rounded-lg border border-[#DEC9BA] bg-[#F3E7DB] p-4 text-sm leading-7" role="status">
+          {inviteState === "loading" ? "초대 링크를 확인하고 있어요." : inviteState === "waiting" ?
+            ownInvite ? "이 브라우저에는 초대한 사람의 결과가 있어요. 파트너는 자신의 브라우저에서 링크를 열면 돼요." : "파트너가 보낸 초대예요. 답한 뒤 서로 공유에 동의한 내용으로 비교할 수 있어요." :
+            inviteState === "full" ? "이 초대에는 이미 두 결과가 연결돼 있어요." : inviteState === "error" ? "초대 상태를 확인하지 못했어요. 잠시 후 다시 열어 주세요." : "사용할 수 있는 36문항 초대가 아니에요. 링크를 다시 확인해 주세요."}
+          {inviteBlocked && inviteState !== "loading" && <div className="mt-3 flex flex-wrap gap-3"><Button type="button" variant="secondary" size="md" onClick={personalOnly} className={wc36Secondary}>개인 테스트로 진행</Button>
+</div>}
+        </div>}
+        {previous && <div className="flex flex-wrap gap-3"><Link href={`/wedding-code/result?v=36&rid=${previous.id}`} className={wc36Secondary}>내 결과 다시 보기</Link>
+          {inviteState === "waiting" && !ownInvite && previous.pairingStatus !== "paired" && <Button type="button" variant="secondary" size="md" disabled={busy} onClick={joinPrevious} className={wc36Secondary}>이전에 답한 결과로 연결</Button>}</div>}
+        <Button type="button" variant="primary" size="lg" disabled={inviteBlocked || busy} onClick={() => setStep("questions")} className={`${wc36Primary} w-full`}>{ownInvite ? "다른 사람으로 새로 답하기" : "36문항 시작하기"}<ArrowRight size={17} aria-hidden="true" /></Button>
+        {ownInvite && <p className="text-xs leading-6 text-[#6E5A54]">같은 기기를 함께 쓰는 경우에만 새로 답해 주세요. 이 테스트는 서로 다른 사람인지 인증하지 않아요.</p>}
+      </section>}
+      {step === "questions" && <section className="mt-7" aria-label="테스트 문항">
+        <div className="mb-6 flex items-center justify-between text-xs text-[#6E5A54]"><span>현재 문항</span><span>{index + 1} / 36</span></div>
+        <progress aria-label="문항 진행" max={36} value={index + 1} className="mb-7 h-1.5 w-full accent-[#8F6662]" />
+        <p className="rounded-lg bg-[#F8F4EA] px-5 py-4 text-sm leading-7 text-[#5A4742]">{current.context}</p>
+        <h2 ref={questionHeading} tabIndex={-1} className="mt-6 text-xl font-semibold leading-8 outline-none">{index + 1}. {current.statement}</h2>
+        <fieldset className="mt-6 space-y-2.5"><legend className="sr-only">이 문장에 얼마나 동의하나요?</legend>
+          {SCALE.map((option) => <label key={option.value} className={`flex min-h-14 cursor-pointer items-center gap-4 rounded-lg border px-4 py-3 text-sm transition-colors ${answers[current.id] === option.value ? "border-[#8F6662] bg-[#EADDD8]" : "border-[#E2DED2] bg-white hover:bg-[#F8F4EA]"}`}>
+            <input type="radio" name={current.id} value={option.value} checked={answers[current.id] === option.value} onChange={() => choose(option.value)} className="h-4 w-4 accent-[#8F6662]" /><span>{option.label}</span>
+            {answers[current.id] === option.value && <Check size={16} className="ml-auto text-[#8F6662]" aria-hidden="true" />}</label>)}
+        </fieldset>
+        <details className="mt-5 text-sm text-[#6E5A54]" open={hasAnswer && answers[current.id] === null}><summary className="cursor-pointer py-2">답하기 어려워요 · 건너뛰기</summary>
+          <fieldset className="mt-2 space-y-2"><legend className="sr-only">건너뛰는 이유</legend>{REASONS.map(([reason, label]) => <label key={reason} className="flex cursor-pointer items-start gap-3 rounded-lg border border-[#E2DED2] p-3 leading-6">
+            <input type="radio" name={`skip-${current.id}`} checked={answers[current.id] === null && missingReasons[current.id] === reason} onChange={() => choose(null, reason)} className="mt-1 h-4 w-4 shrink-0 accent-[#8F6662]" />{label}</label>)}</fieldset>
+          <p className="mt-3 text-xs leading-6">건너뛴 답은 중간 점수로 넣지 않아요. 이유는 파트너에게 공유하지 않아요.</p>
+        </details>
+        <div className="mt-8 flex justify-between gap-4"><Button type="button" variant="secondary" size="md" className={wc36Secondary} onClick={() => index > 0 ? setIndex(index - 1) : setStep("intro")}><ArrowLeft size={16} aria-hidden="true" />이전</Button>
+          <Button type="button" variant="primary" size="lg" className={wc36Primary} disabled={!hasAnswer} onClick={() => index < 35 ? setIndex(index + 1) : setStep("review")}>{index < 35 ? "다음" : "답변 확인"}<ArrowRight size={16} aria-hidden="true" /></Button></div>
+      </section>}
+      {step === "review" && <section className="mt-8 space-y-6">
+        <h2 className="text-xl font-semibold">답을 모두 확인했어요</h2><p className="text-sm leading-7 text-[#5A4742]">답한 문항 {answeredCount}개 · 건너뛴 문항 {skippedCount}개<br />빈 답은 그대로 두고 결과를 정리해요.</p>
+        {pending && <p className="rounded-lg bg-[#F3E7DB] p-4 text-sm leading-7" role="status">저장 여부를 확인할 답이 있어요. 다시 제출해도 같은 답을 중복 저장하지 않아요. 먼저 저장 결과를 확인해 주세요.</p>}
+        <fieldset disabled={!!pending || busy} className="space-y-5 border-y border-[#E2DED2] py-6 disabled:opacity-60"><legend className="sr-only">커플 공유 설정</legend>
+          <label className="flex cursor-pointer items-start gap-3 text-sm leading-7"><input type="checkbox" checked={compare} onChange={(e) => setCompare(e.target.checked)} className="mt-1.5 h-4 w-4 shrink-0 accent-[#8F6662]" /><span>커플 비교에서 내가 공유한 답을 비교하는 데 동의해요.<span className="block text-xs text-[#6E5A54]">준비 기준 27문항을 공유해요. 서로 동의한 문항만 비교하며, 아래 장면 메모는 따로 골라야 공유돼요.</span></span></label>
+          <label className="flex cursor-pointer items-start gap-3 text-sm leading-7"><input type="checkbox" checked={shareAlias} onChange={(e) => setShareAlias(e.target.checked)} className="mt-1.5 h-4 w-4 shrink-0 accent-[#8F6662]" /><span>커플 비교에서 내 결과 이름도 공유해요.<span className="block text-xs text-[#6E5A54]">이름에서 몇 가지 준비 선호를 유추할 수 있어요. 두 사람 모두 허용할 때만 이름을 보여줘요.</span></span></label>
+          <details><summary className="cursor-pointer text-sm">장면 메모 공유 선택 · 선택 사항</summary><div className="mt-3 space-y-3">{NOTES.map((note) => <label key={note.id} className="flex cursor-pointer items-center gap-3 text-sm"><input type="checkbox" checked={shareNotes.includes(note.id)} onChange={(e) => setShareNotes((old) => e.target.checked ? [...old, note.id] : old.filter((id) => id !== note.id))} className="h-4 w-4 accent-[#8F6662]" />{note.label}</label>)}</div></details>
+        </fieldset>
+        <label className="flex cursor-pointer items-start gap-3 text-sm leading-7"><input type="checkbox" checked={consent} onChange={(e) => setConsent(e.target.checked)} className="mt-1.5 h-4 w-4 shrink-0 accent-[#8F6662]" /><span>만 14세 이상이며 결과 제공을 위한 답변 저장에 동의해요.<span className="block text-xs text-[#6E5A54]">이름·연락처는 묻지 않아요. 서버의 답은 7일 뒤 조회가 끝나고 하루 안에 삭제돼요. 결과 화면에서 먼저 삭제할 수도 있어요. 내 답과 접근 권한은 이 브라우저에도 보관되므로 공용 기기에서는 사용 후 지워 주세요. <Link href="/privacy" className="underline">개인정보 처리방침</Link></span></span></label>
+        <div className="flex flex-wrap justify-between gap-3">{!pending && <Button type="button" variant="secondary" size="md" disabled={busy} onClick={() => { setIndex(35); setStep("questions"); }} className={wc36Secondary}>답 다시 보기</Button>}
+          <Button type="button" variant="primary" size="lg" disabled={!consent || busy} onClick={submit} className={wc36Primary}>{busy && <Loader2 size={17} className="animate-spin" aria-hidden="true" />}{pending ? "저장 결과 다시 확인" : "내 결과 보기"}</Button></div>
+      </section>}
+      {error && <p role="alert" className="mt-6 rounded-lg border border-[#D8B8B2] bg-[#FFF7F5] p-4 text-sm leading-7 text-[#7D4540]">{error}</p>}
+    </>}
+  </div></main>;
 }

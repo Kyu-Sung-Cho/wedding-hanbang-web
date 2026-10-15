@@ -4,6 +4,7 @@ import { createHash } from "node:crypto";
 import { mkdir, mkdtemp, readFile, rm, unlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
+import { createRequire } from "node:module";
 import { afterEach, describe, expect, it } from "vitest";
 
 import {
@@ -29,6 +30,8 @@ const MANIFEST_FILE =
   "supabase/release-manifests/vendor-disclosure-v2-20260718.json";
 
 const roots: string[] = [];
+const createPredecessorRepository: (sourceRoot: string) => { root: string; close: () => void } =
+  createRequire(import.meta.url)("../../../../../scripts/tests/fixtures/wedding-code36-predecessor-repository.mjs").createWeddingCode36PredecessorRepository;
 
 afterEach(async () => {
   await Promise.all(
@@ -394,19 +397,21 @@ async function writeManifest(fixture: Fixture) {
 }
 
 describe("vendor disclosure production build fence", () => {
-  it("validates the registered explicit-budget SQL before requiring the existing owner signature", () => {
-    const repoRoot = resolve(process.cwd(), "../..");
-    expectBlockedWithCode(
-      () => assertProduction(repoRoot),
-      VENDOR_DISCLOSURE_EXTERNAL_AUTHORIZATION_NOT_IMPLEMENTED,
-    );
-    expect(() => assertVendorDisclosureProductionBuild({
-      repoRoot,
-      environment: {
-        VERCEL_ENV: "production",
-        VENDOR_DISCLOSURE_PRODUCTION_AUTHORIZATION: expectedProductionAuthorizationSha256(repoRoot),
-      },
-    })).not.toThrow();
+  it("validates the immutable 242 predecessor before requiring its owner signature", () => {
+    const fixture = createPredecessorRepository(resolve(process.cwd(), "../.."));
+    try {
+      expectBlockedWithCode(
+        () => assertProduction(fixture.root),
+        VENDOR_DISCLOSURE_EXTERNAL_AUTHORIZATION_NOT_IMPLEMENTED,
+      );
+      expect(() => assertVendorDisclosureProductionBuild({
+        repoRoot: fixture.root,
+        environment: {
+          VERCEL_ENV: "production",
+          VENDOR_DISCLOSURE_PRODUCTION_AUTHORIZATION: expectedProductionAuthorizationSha256(fixture.root),
+        },
+      })).not.toThrow();
+    } finally { fixture.close(); }
   }, 120_000);
 
   it("does not fall back to an older release when a registered explicit-budget contract is invalid", async () => {

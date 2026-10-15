@@ -1,0 +1,66 @@
+{
+  "version": 1,
+  "kind": "wedding-code36-isolated-additive-release",
+  "release": "wedding-code36-20261015",
+  "status": "requires-scoped-runtime-evidence",
+  "productionApplyImplemented": true,
+  "runtimeEvidenceVerified": false,
+  "projectRef": "slrtobkksjmxgzatjyqb",
+  "systemIdentifier": "7581440907192989109",
+  "baseCommit": "56e564b0f2653a22f40ca1c07f1eb8e75f9d7fd1",
+  "migrationVersion": "20261015070000",
+  "existingData": "unchanged",
+  "newRows": "none",
+  "scope": {
+    "newTables": [
+      "public.wedding_code36_responses",
+      "public.wedding_code36_pairs"
+    ],
+    "newFunctions": [
+      "public.wc36_submit",
+      "public.wc36_pair",
+      "public.wc36_read_report",
+      "public.wc36_invite_status",
+      "public.wc36_update_sharing",
+      "public.wc36_delete",
+      "public.wc36_purge_expired"
+    ],
+    "existingFunctions": "unchanged",
+    "existingTables": "unchanged",
+    "auth": "unchanged",
+    "storage": "unchanged",
+    "cron": "unchanged"
+  },
+  "backup": "fresh-remote-target-absence-and-preserved-catalog-ledger-digests-no-customer-data-export",
+  "rollback": "previous-web-deployment-preserve-new-objects-and-existing-customer-data",
+  "artifacts": [
+    {
+      "file": "supabase/migrations/20261015070000_wedding_code36_private_pairing.sql",
+      "sha256": "80fdb56216ef7f5350f0eff26fe75056e5fa9b5bf227951b923b61dcbbbbf56e"
+    },
+    {
+      "file": "supabase/release-contracts/wedding-code36-pg-catalog-v1.json",
+      "sha256": "73e4115bb304f046f05333c2f6b26bd88a0c71f0d7f5b02e6cdafb3b454fa2be"
+    },
+    {
+      "file": "scripts/wedding-code36-release.mjs",
+      "sha256": "abbaa5e26ee28dd4957911bb244c60ab8aaa546fa65a0ce48e234682f67d258f"
+    },
+    {
+      "file": "scripts/wedding-code36-release-catalog.mjs",
+      "sha256": "43369d49917fe01fa83949aec10fefbf95881120715f44509bd67c0661432034"
+    },
+    {
+      "file": "scripts/wedding-code36-release-prepare.mjs",
+      "sha256": "787ceb4f64bcc60726166bd662400699d4d749b539efe679b835136122f9a019"
+    },
+    {
+      "file": "scripts/wedding-code36-release-build-contract.mjs",
+      "sha256": "2c2b555d9b9df39d887593b1952aae12ac24a5ad0ee59a167a6ac3e498a1380a"
+    },
+    {
+      "file": "supabase/release-contracts/wedding-code36-predecessor-build-inputs-v1.json",
+      "sha256": "3e4440945037b64bdfde1b83bc809b0dc08fb17bdf0f472422165e286873de0e"
+    }
+  ]
+}

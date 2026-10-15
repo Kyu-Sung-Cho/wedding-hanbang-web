@@ -1,0 +1,45 @@
+{
+  "scope": "public API synthetic smoke; no browser automation or human validity claim",
+  "base": "http://127.0.0.1:54065",
+  "targetKind": "local",
+  "startedAt": "2026-10-15T08:19:32.423Z",
+  "mode": "live",
+  "tests": [
+    {
+      "name": "all five uniform submissions preserve all 36 actual answers and server expiry",
+      "status": "fail",
+      "code": "private_no_store"
+    }
+  ],
+  "failures": [
+    {
+      "name": "all five uniform submissions preserve all 36 actual answers and server expiry",
+      "code": "private_no_store"
+    }
+  ],
+  "requestCounts": {
+    "submit:200": 1,
+    "delete:200": 1
+  },
+  "createdSyntheticResponses": 0,
+  "cleanup": [
+    {
+      "label": "uniform_1",
+      "status": "deleted",
+      "httpStatus": 200
+    }
+  ],
+  "rawAnswersRecorded": false,
+  "privateCredentialsRecorded": false,
+  "spoofedHeaders": false,
+  "rateLimitBypass": false,
+  "limitations": [
+    "Browser rendering is tested separately.",
+    "Seven-day expiry is checked from server-issued timestamps; this live run does not advance the production clock.",
+    "Deletion removes payload and links immediately; minimal retry tombstones remain until the original expiry."
+  ],
+  "privateReceiptCreated": true,
+  "assertions": 6,
+  "completedAt": "2026-10-15T08:19:32.457Z",
+  "status": "fail"
+}

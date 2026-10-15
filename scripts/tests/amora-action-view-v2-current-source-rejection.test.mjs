@@ -8,6 +8,8 @@ import {fileURLToPath} from 'node:url';
 import {loadAmoraActionViewV2Plan} from '../lib/amora-action-view-v2-release-contract.mjs';
 import {runAmoraActionViewV2Release} from '../lib/amora-action-view-v2-release.mjs';
 import {AMORA_WRITER_RETIREMENT_FILE,AMORA_WRITER_RETIREMENT_SHA,buildAmoraWriterRetirementBundle} from '../lib/amora-action-writer-retirement-bundle.mjs';
+import {loadAmoraWriterRetirementPlan,AMORA_WRITER_RETIREMENT_MODE} from '../lib/amora-action-writer-retirement-release-contract.mjs';
+import {checkLocalOnly} from '../wedding-code36-release.mjs';
 const root=fileURLToPath(new URL('../../',import.meta.url));
 const commit='dfdd87eaf724baa938a1c0bd459afe0d022c1c4b';
 const sha=bytes=>createHash('sha256').update(bytes).digest('hex');
@@ -18,13 +20,17 @@ const unchanged={
  'scripts/lib/amora-action-view-v2-release.mjs':'83bea3ff6576085a3d99341ddc7abcd87b9b3e322faeecf56613c90610458d73',
 };
 
-test('actual current source242 preserves old B1 pins and the old public loader rejects the exact new five-companion migration',()=>{
- assert.equal(readdirSync(join(root,'supabase/migrations')).filter(file=>/\.sql$/i.test(file)).length,242);
+test('actual source243 preserves historical B1 and B2 pins while only the new WeddingCode lane accepts its extra migration',()=>{
+ assert.equal(readdirSync(join(root,'supabase/migrations')).filter(file=>/\.sql$/i.test(file)).length,243);
  for(const [file,pin] of Object.entries(unchanged))assert.equal(sha(readFileSync(join(root,file))),pin);
  const formal=readFileSync(join(root,'supabase/migrations',AMORA_WRITER_RETIREMENT_FILE));
  assert.equal(sha(formal),AMORA_WRITER_RETIREMENT_SHA);
  assert.equal(formal.toString('utf8'),buildAmoraWriterRetirementBundle(root).sql);
  assert.throws(()=>loadAmoraActionViewV2Plan(root),error=>error.code==='AMORA_VIEW_V2_NEW_MIGRATION_NOT_REVIEWED');
+ assert.throws(()=>loadAmoraWriterRetirementPlan({repoRoot:root,mode:AMORA_WRITER_RETIREMENT_MODE}),/AMORA_WRITER_RETIREMENT_NEW_MIGRATION_NOT_REVIEWED/);
+ const current=checkLocalOnly(root);
+ assert.equal(current.remoteWritesPerformed,false);assert.equal(current.deploymentAuthorized,false);
+ assert.ok(current.preservedPredecessorFiles>100);
 });
 
 test('old actual default and offline B1 inspect/rehearse/apply lanes refuse current242 before transport, admission commands or private receipts',async()=>{

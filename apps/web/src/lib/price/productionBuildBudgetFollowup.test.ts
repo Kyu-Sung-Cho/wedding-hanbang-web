@@ -2,6 +2,7 @@
 
 import { copyFile, readFile, rm, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
+import { createRequire } from "node:module";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { z } from "zod";
 
@@ -40,6 +41,9 @@ import { DELETION_AUDIT_CONTRACT_FILE, loadDeletionAuditNullabilityReleasePlan }
 import { createWeddingCodePairSessionConflictHistoricalRepository } from "../../../../../scripts/tests/fixtures/wedding-code-pair-session-conflict-historical-repository.mjs";
 
 const repoRoot = resolve(import.meta.dirname, "../../../../..");
+const createPredecessorRepository: (sourceRoot: string) => { root: string; close: () => void } =
+  createRequire(import.meta.url)("../../../../../scripts/tests/fixtures/wedding-code36-predecessor-repository.mjs").createWeddingCode36PredecessorRepository;
+let predecessorFixture: ReturnType<typeof createPredecessorRepository>;
 const followup = "amora-budget-decision-hotfix";
 const budgetContract = "supabase/release-contracts/amora-budget-decision-hotfix-v1.json";
 const budgetSql = "supabase/migrations/20260910160514_amora_shared_budget_decision_receipts.sql";
@@ -113,6 +117,7 @@ function production(root: string, authorization = expectedProductionAuthorizatio
 }
 
 beforeAll(async () => {
+  predecessorFixture = createPredecessorRepository(repoRoot);
   // 과거 M3 허용 범위는 고정 M4 원문으로 검증한다. 새 SQL을 빼서 과거
   // checkout처럼 꾸미거나 구 loader의 허용 범위를 넓히지 않는다.
   const historical = createBudgetDecisionHistoricalRepository(repoRoot);
@@ -172,6 +177,7 @@ beforeAll(async () => {
 }, 300_000);
 
 afterAll(async () => {
+  predecessorFixture?.close();
   cleanupFixture?.();
   cleanupFeedbackFixture?.();
   cleanupRoleFixture?.();
@@ -566,8 +572,8 @@ describe("production build registers only the exact feedback-nullability success
 });
 
 describe("production build explicitly registers the pinned budget followup", () => {
-  it("accepts the actual checkout in production only with the exact owner authorization", () => {
-    expect(() => production(repoRoot)).not.toThrow();
+  it("accepts the immutable 242 predecessor only with its exact owner authorization", () => {
+    expect(() => production(predecessorFixture.root)).not.toThrow();
   });
 
   it("retains default drift rejection while the explicit static followup succeeds", () => {
@@ -590,7 +596,7 @@ describe("production build explicitly registers the pinned budget followup", () 
     ["0".repeat(64), VENDOR_DISCLOSURE_EXTERNAL_AUTHORIZATION_INVALID],
   ])("still rejects absent or wrong owner authorization (%s)", (authorization, code) => {
     expect(() => assertVendorDisclosureProductionBuild({
-      repoRoot,
+      repoRoot: predecessorFixture.root,
       environment: { VERCEL_ENV: "production", VENDOR_DISCLOSURE_PRODUCTION_AUTHORIZATION: authorization },
     })).toThrow(code);
   });

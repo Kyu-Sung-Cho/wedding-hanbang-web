@@ -27,7 +27,9 @@ function createFixture() {
 }
 
 test('strict242 build registration preserves blocked vendor state and issues no operational authorization',()=>{
-  const result=validateAmoraWriterRetirementBuildContract({repoRoot});
+  const fixture=createFixture();
+  try {
+  const result=validateAmoraWriterRetirementBuildContract({repoRoot:fixture.root});
   assert.equal(result.migrationCount,242);
   assert.equal(result.expectedBeforeRowCount,230);
   assert.equal(result.expectedAfterRowCount,231);
@@ -37,7 +39,9 @@ test('strict242 build registration preserves blocked vendor state and issues no 
   for(const key of ['releaseAuthorized','runtimeEvidenceVerified','b1OperationalPostverifyVerified','sourceCiVerified','remoteWritesPerformed'])
     assert.equal(result[key],false);
   assert.equal(result.vendorManifestSha256,AMORA_WRITER_RETIREMENT_VENDOR_MANIFEST.sha256);
-  assert.throws(()=>loadAmoraActionViewV2Plan(repoRoot),/AMORA_VIEW_V2_NEW_MIGRATION_NOT_REVIEWED/);
+  assert.throws(()=>loadAmoraActionViewV2Plan(fixture.root),/AMORA_VIEW_V2_NEW_MIGRATION_NOT_REVIEWED/);
+  assert.throws(()=>validateAmoraWriterRetirementBuildContract({repoRoot}),/AMORA_WRITER_RETIREMENT_NEW_MIGRATION_NOT_REVIEWED/);
+  } finally {fixture.close();}
 });
 
 for(const file of [STATIC_PREDECESSOR_PIN.file,`supabase/migrations/${AMORA_WRITER_RETIREMENT_FILE}`,

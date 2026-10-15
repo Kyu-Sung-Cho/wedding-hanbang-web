@@ -5,6 +5,7 @@ import WeddingCodeLikertClient from "@/components/weddingCodeLikert/WeddingCodeL
 import type { WeddingCodeEntry } from "./entry";
 import LegacyEntry from "./WeddingCodeEntryClient";
 import { weddingCodeReleaseTarget } from "./releaseEntry";
+import WeddingCodeClient from "./WeddingCodeClient";
 
 const serverHash = () => null;
 
@@ -38,8 +39,9 @@ function createHashStore() {
   };
 }
 
-export default function WeddingCodeReleaseClient({ queryIsLegacy, ...legacyProps }: {
+export default function WeddingCodeReleaseClient({ queryIsLegacy, explicitLikert = false, ...legacyProps }: {
   queryIsLegacy: boolean;
+  explicitLikert?: boolean;
   shareOrigin: string;
   initialEntry: WeddingCodeEntry;
   researchContributionOpen: boolean;
@@ -48,6 +50,7 @@ export default function WeddingCodeReleaseClient({ queryIsLegacy, ...legacyProps
   const store = useMemo(() => createHashStore(), []);
   const hash = useSyncExternalStore(store.subscribe, store.getSnapshot, serverHash);
   if (hash === null && !queryIsLegacy) return <main className="flex min-h-[60vh] items-center justify-center bg-[var(--ivory-50)] px-5 text-sm text-[var(--hb-text-body)]" role="status">웨딩코드를 불러오고 있어요.</main>;
-  return weddingCodeReleaseTarget(queryIsLegacy, hash ?? "") === "legacy"
-    ? <LegacyEntry {...legacyProps} /> : <WeddingCodeLikertClient />;
+  const target = weddingCodeReleaseTarget(queryIsLegacy, hash ?? "", explicitLikert);
+  if (target === "legacy") return <LegacyEntry {...legacyProps} />;
+  return target === "likert" ? <WeddingCodeLikertClient /> : <WeddingCodeClient />;
 }

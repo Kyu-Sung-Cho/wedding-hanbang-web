@@ -36,10 +36,10 @@ describe("웨딩코드 진입 화면: 이전 기본 상수가 v4여도 새 입�
   it("맨 주소는 새 제목·카드, 명시 v4는 구판 제목·카드를 쓰고 모두 색인 밖이다", async () => {
     for (const search of [{}, { utm_source: "landing" }, { v: WEDDING_CODE_V40_VERSION }]) {
       const metadata = await generateMetadata({ searchParams: Promise.resolve(search) });
-      expect(String(metadata.title), JSON.stringify(search)).toBe(search.v === WEDDING_CODE_V40_VERSION ? V40_TITLE : "나의 결혼 준비 언어 | 웨딩코드 · 웨딩한방");
+      expect(String(metadata.title), JSON.stringify(search)).toBe(search.v === WEDDING_CODE_V40_VERSION ? V40_TITLE : "우리의 결혼 준비 방식 | 웨딩코드 · 웨딩한방");
       expect(metadata.robots, JSON.stringify(search)).toMatchObject({ index: false, follow: false });
       const v4Card = { url: "/wedding-code/v40-card/opengraph-image", type: "image/png", width: 1200, height: 630, alt: `웨딩코드, ${V40_COPY.intro.title}` };
-      const likertCard = { url: "/wedding-code/likert-card/opengraph-image", type: "image/png", width: 1200, height: 630, alt: "웨딩코드, 결혼을 준비하는 나의 언어를 찾아요" };
+      const likertCard = { url: "/wedding-code/r6-card/opengraph-image", type: "image/png", width: 1200, height: 630, alt: "웨딩코드, 우리의 결혼 준비 방식" };
       const expectedCard = search.v === WEDDING_CODE_V40_VERSION ? v4Card : likertCard;
       expect(metadata.openGraph?.images, JSON.stringify(search)).toEqual([expectedCard]);
       expect(metadata.twitter?.images, JSON.stringify(search)).toEqual([expectedCard]);

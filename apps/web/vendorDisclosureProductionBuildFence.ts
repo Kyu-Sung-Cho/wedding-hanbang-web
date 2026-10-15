@@ -24,6 +24,7 @@ import { validateAmoraWriterRetirementBuildContract } from "../../scripts/lib/am
 import { WEDDING_CODE_PAIR_SESSION_CONTRACT_FILE } from "../../scripts/lib/wedding-code-pair-session-release-contract.mjs";
 import { PROFILE_WEDDING_ROLES_CONTRACT_FILE } from "../../scripts/lib/profile-wedding-roles-release-contract.mjs";
 import { CHAT_FEEDBACK_CONTRACT_FILE } from "../../scripts/lib/chat-feedback-nullability-release-contract.mjs";
+import { WEDDING_CODE36_BUILD_MARKERS, validateWeddingCode36ProductionBuildContract } from "../../scripts/wedding-code36-release-build-contract.mjs";
 
 export const VENDOR_DISCLOSURE_STATIC_CONTRACT_INVALID =
   "VENDOR_DISCLOSURE_STATIC_RELEASE_CONTRACT_INVALID";
@@ -67,6 +68,7 @@ function blocked(code: string, message: string): never {
  *
  * Historical checkouts retain their shared successor validator. The registered
  * writer-retirement successor uses its independent strict242 static validator;
+ * the registered 36-question successor verifies its exact243 source separately.
  * a failed newest contract never falls back. Static success is not DB release
  * authorization. The existing owner manifest hash and paused controller-ready
  * policy below remain unchanged.
@@ -87,7 +89,10 @@ export function assertVendorDisclosureProductionBuild({
     const writerRetirementRegistered = existsSync(
       join(repoRoot, "supabase/migrations", AMORA_WRITER_RETIREMENT_FILE),
     ) || existsSync(join(repoRoot, STATIC_PREDECESSOR_PIN.file));
-    releaseContract = writerRetirementRegistered
+    const weddingCode36Registered = WEDDING_CODE36_BUILD_MARKERS.some((file: string) => existsSync(join(repoRoot, file)));
+    releaseContract = weddingCode36Registered
+      ? validateWeddingCode36ProductionBuildContract({ repoRoot })
+      : writerRetirementRegistered
       ? validateAmoraWriterRetirementBuildContract({ repoRoot })
       : validateSuccessorReleaseContract({
       repoRoot,

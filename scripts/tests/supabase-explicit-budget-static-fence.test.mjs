@@ -34,14 +34,17 @@ test('explicit-budget mode validates only its exact historical checkout without 
   assert.match(output(currentResult), /NEW_MIGRATION_NOT_REVIEWED/);
 });
 
-test('the actual CI local-fence command selects a working non-deploy contract', () => {
+test('the actual CI local-fence command selects the pinned non-deploy WeddingCode contract', () => {
   const workflow = readFileSync(join(root, '.github/workflows/ci.yml'), 'utf8');
-  const commands = [...workflow.matchAll(/^\s+run: pnpm supabase:release:fence([^\r\n]*)$/gm)];
+  const commands = [...workflow.matchAll(/^\s+run: node scripts\/wedding-code36-release\.mjs([^\r\n]*)$/gm)];
   assert.equal(commands.length, 1);
   const args = commands[0][1].trim().split(/\s+/).filter(Boolean);
-  const result = run(root, args);
+  assert.deepEqual(args, ['--check-only', '--expected-commit=${{', 'github.sha', '}}']);
+  const result = spawnSync(process.execPath, ['scripts/wedding-code36-release.mjs', '--check-only'], {
+    cwd: root, encoding: 'utf8', windowsHide: true, timeout: 30000,
+  });
   assert.equal(result.status, 0, output(result));
-  assert.deepEqual(args, ['--amora-action-writer-retirement']);
+  assert.match(output(result), /WEDDING_CODE36_LOCAL_VERIFIED: predecessor_files=\d+; remote_writes=false; deployment_authorized=false/);
 });
 
 test('explicit static mode rejects remote, duplicate and unknown arguments before any legacy flow', async t => {

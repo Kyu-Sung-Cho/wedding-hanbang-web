@@ -2,12 +2,17 @@ import { describe, expect, it } from "vitest";
 import { MEASUREMENT_VERSION } from "@/lib/weddingCode/likert/types";
 import { isLegacyWeddingCodeQuery, weddingCodeReleaseTarget } from "./releaseEntry";
 
-describe("30문항 기본 진입과 원래 링크의 판 보존", () => {
+describe("36문항 기본 진입과 원래 링크의 판 보존", () => {
   it("맨 주소와 유입 매개변수는 새 개편본으로 연다", () => {
-    for (const query of [{}, { utm_source: "team" }, { v: MEASUREMENT_VERSION }]) {
+    for (const query of [{}, { utm_source: "team" }, { ct: "invite" }, { v: MEASUREMENT_VERSION }]) {
       expect(isLegacyWeddingCodeQuery(query)).toBe(false);
-      expect(weddingCodeReleaseTarget(false, "")).toBe("likert");
+      expect(weddingCodeReleaseTarget(false, "", query.v === MEASUREMENT_VERSION)).toBe(query.v === MEASUREMENT_VERSION ? "likert" : "36");
     }
+  });
+  it("기존 30문항을 명시한 주소와 해시는 36문항으로 변환하지 않는다", () => {
+    expect(weddingCodeReleaseTarget(false, "", true)).toBe("likert");
+    expect(weddingCodeReleaseTarget(false, "#wc-likert=existing")).toBe("likert");
+    expect(weddingCodeReleaseTarget(false, "#", false)).toBe("36");
   });
   it("명시 구판·모르는 판·이전 답 쿼리는 원래 파서로 보낸다", () => {
     for (const query of [{ v: "v3.1-preferences" }, { v: "v4.0-tendency" }, { v: "future" }, { v: [MEASUREMENT_VERSION, "v3.1-preferences"] }, { a: "old-answer" }, { gb: "old-guess" }]) {

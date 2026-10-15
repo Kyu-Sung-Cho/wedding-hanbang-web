@@ -73,7 +73,7 @@ describe("웨딩코드 진입 화면: v4.0-tendency 명시 진입(기본 판 v3.
     ];
     const clean = await generateMetadata({ searchParams: Promise.resolve({}) });
     expect(clean.robots).toMatchObject({ index: false, follow: false });
-    expect(clean.title).toContain("나의 결혼 준비 언어");
+    expect(clean.title).toContain("우리의 결혼 준비 방식");
     expect(noImages(clean)).toEqual([true, true]);
     for (const version of [WEDDING_CODE_V31_VERSION, WEDDING_CODE_V30_VERSION]) {
       const metadata = await generateMetadata({ searchParams: Promise.resolve({ v: version }) });

@@ -184,21 +184,20 @@ test("qa:merged가 qa:local의 검사 목록을 그대로 쓴다", async () => {
   }
 });
 
-test("공유 QA 목록은 CI와 같은 현재 아모라 writer retirement 계약을 검사하고 배포 인가로 표시하지 않는다", async () => {
+test("공유 QA 목록은 CI와 같은 현재 WeddingCode 정적 계약을 검사하고 배포 인가로 표시하지 않는다", async () => {
   const { checks } = await import("../verify-local.mjs");
   const fences = checks.filter(check => check.name === "supabase release fence");
   assert.equal(fences.length, 1);
-  assert.deepEqual(fences[0].args, ["pnpm", "supabase:release:fence", "--amora-action-writer-retirement"]);
+  assert.deepEqual(fences[0].args, ["pnpm", "exec", "node", "scripts/wedding-code36-release.mjs", "--check-only"]);
   const { readFileSync } = await import("node:fs");
   const pkg = JSON.parse(readFileSync(path.join(repoRoot, "package.json"), "utf8"));
   assert.equal(pkg.scripts["supabase:release:fence"], "node ./scripts/supabase-release-fence.mjs");
-  const result = spawnSync(process.execPath, ["scripts/supabase-release-fence.mjs", ...fences[0].args.slice(2)], {
+  const result = spawnSync(process.execPath, fences[0].args.slice(3), {
     cwd: repoRoot, encoding: "utf8", windowsHide: true, timeout: 30_000,
   });
   assert.equal(result.error, undefined);
   assert.equal(result.status, 0, `${result.stdout}${result.stderr}`);
-  assert.match(result.stdout, /Amora action writer retirement local contract verified \(242 exact SQL files; operating history 230 -> 231;/);
-  assert.match(result.stdout, /runtime evidence not verified; deployment not authorized; no remote writes/);
+  assert.match(result.stdout, /WEDDING_CODE36_LOCAL_VERIFIED: predecessor_files=\d+; remote_writes=false; deployment_authorized=false/);
 });
 
 /** 저장소 수준 검사를 빼먹으면 배포 펜스·인계 계약·훅 배선이 검사되지 않는다. */
@@ -243,7 +242,7 @@ test("ingest 타입체크가 포함돼 있다", async () => {
   );
   assert.match(verify, /"ingest:typecheck"/, "ingest 타입체크가 빠지면 그 코드는 아무도 안 본다");
   assert.match(verify, /"test:repo"/, "저장소 스크립트 테스트가 빠지면 배포 펜스가 검사되지 않는다");
-  assert.match(verify, /"supabase:release:fence"/, "릴리스 펜스는 어디선가 반드시 돌아야 한다");
+  assert.match(verify, /"scripts\/wedding-code36-release\.mjs", "--check-only"/, "현재 정적 릴리스 펜스는 반드시 돌아야 한다");
 
   // 두 곳이 같은 검사를 돌리면 qa:merged가 그만큼 느려지고, 목록이 조용히 어긋난다.
   assert.doesNotMatch(

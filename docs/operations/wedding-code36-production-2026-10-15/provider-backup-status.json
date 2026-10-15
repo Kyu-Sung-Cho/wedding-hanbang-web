@@ -1,0 +1,67 @@
+{
+  "format": "wedding-code36-provider-backup-status-v1",
+  "recorded_at_utc": "2026-10-15 08:21:24 UTC",
+  "project_ref": "slrtobkksjmxgzatjyqb",
+  "source": {
+    "method": "GET",
+    "endpoint": "https://api.supabase.com/v1/projects/slrtobkksjmxgzatjyqb/database/backups"
+  },
+  "status": "provider_metadata_confirmed",
+  "pitr_enabled": false,
+  "physical_backup_count": 7,
+  "latest_backup": {
+    "inserted_at_utc": "2026-10-14T20:14:02.583Z",
+    "inserted_at_kst": "2026-10-15T05:14:02.583+09:00",
+    "status": "COMPLETED",
+    "physical": true
+  },
+  "backups": [
+    {
+      "inserted_at_utc": "2026-10-14T20:14:02.583Z",
+      "status": "COMPLETED",
+      "physical": true
+    },
+    {
+      "inserted_at_utc": "2026-10-13T20:13:41.918Z",
+      "status": "COMPLETED",
+      "physical": true
+    },
+    {
+      "inserted_at_utc": "2026-10-12T20:14:03.79Z",
+      "status": "COMPLETED",
+      "physical": true
+    },
+    {
+      "inserted_at_utc": "2026-10-11T20:14:18.149Z",
+      "status": "COMPLETED",
+      "physical": true
+    },
+    {
+      "inserted_at_utc": "2026-10-10T20:14:12.602Z",
+      "status": "COMPLETED",
+      "physical": true
+    },
+    {
+      "inserted_at_utc": "2026-10-09T20:15:02.909Z",
+      "status": "COMPLETED",
+      "physical": true
+    },
+    {
+      "inserted_at_utc": "2026-10-08T20:13:42.701Z",
+      "status": "COMPLETED",
+      "physical": true
+    }
+  ],
+  "remote_reads_performed": 1,
+  "database_writes_performed": 0,
+  "restore_operations_performed": 0,
+  "customer_rows_read": 0,
+  "credentials_recorded": false,
+  "backup_ids_recorded": false,
+  "limitations": [
+    "제공자 API가 완료된 물리 백업을 보고하는 사실만 확인했다.",
+    "백업 다운로드, 복원 실행, 복원 후 무결성 검사는 수행하지 않았다.",
+    "PITR은 비활성 상태다. 임의 시점 복구 가능 또는 무손실 복구를 주장하지 않는다."
+  ]
+}
+

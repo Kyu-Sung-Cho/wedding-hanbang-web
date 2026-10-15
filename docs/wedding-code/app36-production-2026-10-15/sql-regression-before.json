@@ -1,0 +1,85 @@
+{
+  "scope": "isolated in-memory PGlite actual SQL; no production connection",
+  "productionConnections": 0,
+  "migrationFile": "C:\\Users\\kcho1\\Desktop\\workspace\\hanbang\\wedding\\supabase\\migrations\\20261015070000_wedding_code36_private_pairing.sql",
+  "migrationSha256": "a9574a31510a3a09fab088585dcf5591b7a1283ae46c8598d33e96ca34339782",
+  "assertions": 28,
+  "groups": [
+    {
+      "name": "fresh individual, waiting invite and private report",
+      "status": "pass"
+    },
+    {
+      "name": "two existing waiting invites can join without losing either private answer",
+      "status": "fail"
+    },
+    {
+      "name": "unknown target preserves the old empty invite",
+      "status": "fail"
+    },
+    {
+      "name": "full target preserves the old empty invite",
+      "status": "fail"
+    },
+    {
+      "name": "same owner secret cannot join a second personal result, empty invite survives",
+      "status": "fail"
+    },
+    {
+      "name": "wrong owner key never changes a pair",
+      "status": "pass"
+    },
+    {
+      "name": "established pair is immutable across other, unknown and self invite attempts",
+      "status": "pass"
+    },
+    {
+      "name": "retry submit can join from an existing empty invite and keeps saved answers",
+      "status": "fail"
+    },
+    {
+      "name": "SQL failure rolls back empty invite removal and attempted join atomically",
+      "status": "fail"
+    },
+    {
+      "name": "many interleaved sequential pair orders preserve one pair membership",
+      "status": "fail"
+    }
+  ],
+  "failures": [
+    {
+      "name": "two existing waiting invites can join without losing either private answer",
+      "error": "Expected values to be strictly deep-equal:\n+ actual - expected\n\n+ 'waiting'\n- 'paired'\n"
+    },
+    {
+      "name": "unknown target preserves the old empty invite",
+      "error": "Expected values to be strictly deep-equal:\n+ actual - expected\n\n  {\n+   invite_token: '96a0e4ac-ecb4-4df5-a8fd-1cc9cd8763f6',\n+   pairing_status: 'waiting'\n-   error: 'invite_not_found'\n  }\n"
+    },
+    {
+      "name": "full target preserves the old empty invite",
+      "error": "Expected values to be strictly deep-equal:\n+ actual - expected\n\n  {\n+   invite_token: '26db9ea2-e064-480a-b0b8-c261b0f5d924',\n+   pairing_status: 'waiting'\n-   invite_token: null,\n-   pairing_status: 'full'\n  }\n"
+    },
+    {
+      "name": "same owner secret cannot join a second personal result, empty invite survives",
+      "error": "Expected values to be strictly deep-equal:\n+ actual - expected\n\n  {\n+   invite_token: '317bae40-ebbc-41b2-aa2f-dd0b64029ada',\n+   pairing_status: 'waiting'\n-   error: 'self_pair'\n  }\n"
+    },
+    {
+      "name": "retry submit can join from an existing empty invite and keeps saved answers",
+      "error": "Expected values to be strictly deep-equal:\n+ actual - expected\n\n+ 'waiting'\n- 'paired'\n"
+    },
+    {
+      "name": "SQL failure rolls back empty invite removal and attempted join atomically",
+      "error": "The expression evaluated to a falsy value:\n\n  assert.ok(actual, label)\n"
+    },
+    {
+      "name": "many interleaved sequential pair orders preserve one pair membership",
+      "error": "Expected values to be strictly deep-equal:\n+ actual - expected\n\n+ 'waiting'\n- 'paired'\n"
+    }
+  ],
+  "limitations": [
+    "One PGlite session cannot prove multi-session PostgreSQL blocking, races, lock timeouts or throughput."
+  ],
+  "postgresVersion": "PostgreSQL 18.6 (PGlite 0.5.9) on wasm32-unknown-emscripten, compiled by emcc (Emscripten gcc/clang-like replacement + linker emulating GNU ld) 3.1.74 (1092ec30a3fb1d46b1782ff1b4db5094d3d06ae5), 32-bit",
+  "status": "fail",
+  "completedAt": "2026-10-15T08:09:00.292Z"
+}

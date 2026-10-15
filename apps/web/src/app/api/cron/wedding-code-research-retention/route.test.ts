@@ -12,6 +12,10 @@ vi.mock("@/utils/log", () => ({ log: { error: mocks.logError, warn: vi.fn(), inf
 import { GET } from "./route";
 
 const SECRET = "test-secret-that-is-at-least-thirty-two-chars";
+const COMPLETE36 = { status: "completed", purged: 2 };
+function rpcWithResearch(result: { data: unknown; error: unknown }) {
+  return vi.fn().mockImplementation(async (name: string) => name === "wc36_purge_expired" ? { data: { deleted_count: 2 }, error: null } : result);
+}
 
 function request(secret = "cron-secret") {
   return new Request("https://example.test/api/cron/wedding-code-research-retention", {
@@ -26,6 +30,8 @@ function request(secret = "cron-secret") {
 describe("GET /api/cron/wedding-code-research-retention", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mocks.createAdminClient.mockReset();
+    mocks.createAdminClient.mockReturnValue({ rpc: rpcWithResearch({ data: 0, error: null }) });
     vi.spyOn(console, "log").mockImplementation(() => {});
     vi.stubEnv("CRON_SECRET", "cron-secret");
     vi.stubEnv("WEDDING_CODE_RESEARCH_RECEIPT_SECRET", SECRET);
@@ -46,29 +52,30 @@ describe("GET /api/cron/wedding-code-research-retention", () => {
   });
 
   it("수집이 닫혀 있고 AI 로그 파기가 꺼져 있어도, 비밀값이 있으면 매일 지운다", async () => {
-    const rpc = vi.fn().mockResolvedValue({ data: 3, error: null });
+    const rpc = rpcWithResearch({ data: 3, error: null });
     mocks.createAdminClient.mockReturnValue({ rpc });
 
     const response = await GET(request());
 
     expect(response.status).toBe(200);
     expect(response.headers.get("Cache-Control")).toBe("no-store");
-    await expect(response.json()).resolves.toEqual({ ok: true, enabled: true, status: "completed", purged: 3 });
-    expect(rpc).toHaveBeenCalledExactlyOnceWith("purge_expired_wedding_code_research_contributions");
+    await expect(response.json()).resolves.toEqual({ ok: true, enabled: true, status: "completed", purged: 3, weddingCode36: COMPLETE36 });
+    expect(rpc.mock.calls.map(([name]) => name)).toEqual(["purge_expired_wedding_code_research_contributions", "wc36_purge_expired"]);
   });
 
-  it("비밀값이 없으면 저장소가 없는 것으로 보고 클라이언트도 만들지 않는다", async () => {
+  it("연구 비밀값이 없어도 36문항 보관기한 정리는 독립적으로 실행한다", async () => {
     vi.stubEnv("WEDDING_CODE_RESEARCH_RECEIPT_SECRET", "");
     const response = await GET(request());
-    await expect(response.json()).resolves.toEqual({ ok: true, enabled: false, status: "disabled" });
-    expect(mocks.createAdminClient).not.toHaveBeenCalled();
+    await expect(response.json()).resolves.toEqual({ ok: true, enabled: false, status: "disabled", weddingCode36: COMPLETE36 });
+    expect(mocks.createAdminClient).toHaveBeenCalledTimes(1);
+    expect(mocks.createAdminClient.mock.results[0].value.rpc).toHaveBeenCalledExactlyOnceWith("wc36_purge_expired");
   });
 
   it.each(["PGRST202", "42883"])("DB 레인 적용 전(함수 없음 %s)이면 실패가 아니라 미적용으로 답한다", async (code) => {
-    mocks.createAdminClient.mockReturnValue({ rpc: vi.fn().mockResolvedValue({ data: null, error: { code, message: "function missing" } }) });
+    mocks.createAdminClient.mockReturnValue({ rpc: rpcWithResearch({ data: null, error: { code, message: "function missing" } }) });
     const response = await GET(request());
     expect(response.status).toBe(200);
-    await expect(response.json()).resolves.toEqual({ ok: true, enabled: true, status: "not_applied" });
+    await expect(response.json()).resolves.toEqual({ ok: true, enabled: true, status: "not_applied", weddingCode36: COMPLETE36 });
   });
 
   it("DB 오류·이상한 개수·예외는 원문 없이 500 으로 알린다", async () => {
@@ -81,13 +88,47 @@ describe("GET /api/cron/wedding-code-research-retention", () => {
       const response = await GET(request());
       expect(response.status).toBe(500);
       const body = JSON.stringify(await response.json());
-      expect(body).toBe('{"error":"WeddingCode research retention failed"}');
+      expect(JSON.parse(body)).toMatchObject({ error: "WeddingCode research retention failed", research: { status: "failed" }, weddingCode36: COMPLETE36 });
       expect(body).not.toContain("private database detail");
     }
     mocks.createAdminClient.mockImplementationOnce(() => { throw new Error("SUPABASE_SERVICE_ROLE_KEY=private"); });
     const thrown = await GET(request());
     expect(thrown.status).toBe(500);
     expect(JSON.stringify(mocks.logError.mock.calls)).not.toContain("private");
+  });
+
+  it("연구 정리 실패도 새 36문항 정리를 막지 않는다", async () => {
+    const rpc = rpcWithResearch({ data: null, error: { code: "57014" } });
+    mocks.createAdminClient.mockReturnValue({ rpc });
+    const response = await GET(request());
+    expect(response.status).toBe(500);
+    expect(rpc.mock.calls.map(([name]) => name)).toEqual(["purge_expired_wedding_code_research_contributions", "wc36_purge_expired"]);
+    expect(await response.json()).toMatchObject({ weddingCode36: COMPLETE36 });
+  });
+
+  it.each([
+    { data: null, error: { code: "PGRST202", message: "private missing function" } },
+    { data: { deleted_count: -1 }, error: null },
+    { data: { deleted_count: "2" }, error: null },
+    { data: 2, error: null },
+  ])("36문항 파기가 실패하거나 반환 개수가 잘못되면 성공으로 감추지 않는다: %j", async result => {
+    const rpc = vi.fn().mockImplementation(async (name: string) => name === "wc36_purge_expired" ? result : { data: 3, error: null });
+    mocks.createAdminClient.mockReturnValue({ rpc });
+    const response = await GET(request());
+    expect(response.status).toBe(500);
+    const body = await response.json();
+    expect(body).toMatchObject({ error: "WeddingCode 36 retention failed", research: { status: "completed", purged: 3 }, weddingCode36: { status: "failed" } });
+    expect(JSON.stringify(body)).not.toContain("private");
+  });
+
+  it("연구 저장소를 켜지 않고 만료 36문항 0건 정리도 성공한다", async () => {
+    vi.stubEnv("WEDDING_CODE_RESEARCH_RECEIPT_SECRET", "");
+    const rpc = vi.fn().mockResolvedValue({ data: { deleted_count: 0 }, error: null });
+    mocks.createAdminClient.mockReturnValue({ rpc });
+    const response = await GET(request());
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ ok: true, enabled: false, status: "disabled", weddingCode36: { status: "completed", purged: 0 } });
+    expect(rpc).toHaveBeenCalledExactlyOnceWith("wc36_purge_expired");
   });
 
   it("매일 한 번 도는 Vercel 스케줄이 등록돼 있다", () => {

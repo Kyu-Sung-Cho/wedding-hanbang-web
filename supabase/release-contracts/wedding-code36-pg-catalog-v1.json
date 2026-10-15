@@ -1,0 +1,552 @@
+{
+  "format": "wedding-code36-catalog-fixture-v1",
+  "generatedWith": {
+    "runtime": "PGlite",
+    "postgres": "PostgreSQL 18.6 (PGlite 0.5.9) on wasm32-unknown-emscripten, compiled by emcc (Emscripten gcc/clang-like replacement + linker emulating GNU ld) 3.1.74 (1092ec30a3fb1d46b1782ff1b4db5094d3d06ae5), 32-bit",
+    "productionEquivalent": false
+  },
+  "migrationSha256": "80fdb56216ef7f5350f0eff26fe75056e5fa9b5bf227951b923b61dcbbbbf56e",
+  "catalog": {
+    "functions": [
+      {
+        "acl": [
+          [
+            "postgres",
+            "postgres",
+            "EXECUTE",
+            false
+          ],
+          [
+            "service_role",
+            "postgres",
+            "EXECUTE",
+            false
+          ]
+        ],
+        "args": "",
+        "body": "\nDECLARE v_deleted BIGINT;\nBEGIN\n  PERFORM pg_advisory_xact_lock(hashtextextended('wc36-pair-graph',0));\n  -- 참여자 쪽 만료도 연결을 끊는다. 상대의 개인 응답은 지우지 않는다.\n  DELETE FROM public.wedding_code36_pairs c USING public.wedding_code36_responses r\n    WHERE r.expires_at<=now() AND (c.owner_response_id=r.id OR c.partner_response_id=r.id);\n  DELETE FROM public.wedding_code36_responses WHERE expires_at<=now();\n  GET DIAGNOSTICS v_deleted=ROW_COUNT;\n  RETURN jsonb_build_object('deleted_count',v_deleted);\nEND; ",
+        "kind": "f",
+        "name": "wc36_purge_expired",
+        "owner": "postgres",
+        "config": [
+          "search_path=public, pg_temp"
+        ],
+        "result": "jsonb",
+        "strict": false,
+        "language": "plpgsql",
+        "parallel": "u",
+        "definition": "CREATE OR REPLACE FUNCTION public.wc36_purge_expired()\n RETURNS jsonb\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'public', 'pg_temp'\nAS $function$\nDECLARE v_deleted BIGINT;\nBEGIN\n  PERFORM pg_advisory_xact_lock(hashtextextended('wc36-pair-graph',0));\n  -- 참여자 쪽 만료도 연결을 끊는다. 상대의 개인 응답은 지우지 않는다.\n  DELETE FROM public.wedding_code36_pairs c USING public.wedding_code36_responses r\n    WHERE r.expires_at<=now() AND (c.owner_response_id=r.id OR c.partner_response_id=r.id);\n  DELETE FROM public.wedding_code36_responses WHERE expires_at<=now();\n  GET DIAGNOSTICS v_deleted=ROW_COUNT;\n  RETURN jsonb_build_object('deleted_count',v_deleted);\nEND; $function$\n",
+        "volatility": "v",
+        "securityDefiner": true
+      },
+      {
+        "acl": [
+          [
+            "postgres",
+            "postgres",
+            "EXECUTE",
+            false
+          ],
+          [
+            "service_role",
+            "postgres",
+            "EXECUTE",
+            false
+          ]
+        ],
+        "args": "uuid",
+        "body": "\n  SELECT jsonb_build_object('status',COALESCE((SELECT CASE WHEN c.partner_response_id IS NULL THEN 'waiting' ELSE 'full' END\n    FROM public.wedding_code36_pairs c JOIN public.wedding_code36_responses owner ON owner.id=c.owner_response_id\n    LEFT JOIN public.wedding_code36_responses partner ON partner.id=c.partner_response_id\n    WHERE c.invite_token=p_invite_token AND owner.expires_at>now() AND owner.deleted_at IS NULL\n      AND (c.partner_response_id IS NULL OR (partner.expires_at>now() AND partner.deleted_at IS NULL))),'not_found'));\n",
+        "kind": "f",
+        "name": "wc36_invite_status",
+        "owner": "postgres",
+        "config": [
+          "search_path=public, pg_temp"
+        ],
+        "result": "jsonb",
+        "strict": false,
+        "language": "sql",
+        "parallel": "u",
+        "definition": "CREATE OR REPLACE FUNCTION public.wc36_invite_status(p_invite_token uuid)\n RETURNS jsonb\n LANGUAGE sql\n SECURITY DEFINER\n SET search_path TO 'public', 'pg_temp'\nAS $function$\n  SELECT jsonb_build_object('status',COALESCE((SELECT CASE WHEN c.partner_response_id IS NULL THEN 'waiting' ELSE 'full' END\n    FROM public.wedding_code36_pairs c JOIN public.wedding_code36_responses owner ON owner.id=c.owner_response_id\n    LEFT JOIN public.wedding_code36_responses partner ON partner.id=c.partner_response_id\n    WHERE c.invite_token=p_invite_token AND owner.expires_at>now() AND owner.deleted_at IS NULL\n      AND (c.partner_response_id IS NULL OR (partner.expires_at>now() AND partner.deleted_at IS NULL))),'not_found'));\n$function$\n",
+        "volatility": "v",
+        "securityDefiner": true
+      },
+      {
+        "acl": [
+          [
+            "postgres",
+            "postgres",
+            "EXECUTE",
+            false
+          ],
+          [
+            "service_role",
+            "postgres",
+            "EXECUTE",
+            false
+          ]
+        ],
+        "args": "uuid, text",
+        "body": "\nDECLARE v_response public.wedding_code36_responses%ROWTYPE;\nBEGIN\n  PERFORM pg_advisory_xact_lock(hashtextextended('wc36-pair-graph',0));\n  PERFORM pg_advisory_xact_lock(hashtextextended('wc36-response:' || p_response_id::TEXT,0));\n  SELECT * INTO v_response FROM public.wedding_code36_responses r\n    WHERE r.id=p_response_id AND r.access_hash=p_access_hash FOR UPDATE;\n  IF NOT FOUND THEN RETURN jsonb_build_object('error','unauthorized'); END IF;\n  IF v_response.expires_at<=now() THEN RETURN jsonb_build_object('error','expired'); END IF;\n  DELETE FROM public.wedding_code36_pairs WHERE owner_response_id=p_response_id OR partner_response_id=p_response_id;\n  -- 원래 만료일까지 최소 재시도 표지만 남긴다. 응답 본문은 즉시 삭제한다.\n  UPDATE public.wedding_code36_responses SET submission=NULL,deleted_at=COALESCE(deleted_at,now()) WHERE id=p_response_id;\n  RETURN jsonb_build_object('deleted',true);\nEND; ",
+        "kind": "f",
+        "name": "wc36_delete",
+        "owner": "postgres",
+        "config": [
+          "search_path=public, pg_temp"
+        ],
+        "result": "jsonb",
+        "strict": false,
+        "language": "plpgsql",
+        "parallel": "u",
+        "definition": "CREATE OR REPLACE FUNCTION public.wc36_delete(p_response_id uuid, p_access_hash text)\n RETURNS jsonb\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'public', 'pg_temp'\nAS $function$\nDECLARE v_response public.wedding_code36_responses%ROWTYPE;\nBEGIN\n  PERFORM pg_advisory_xact_lock(hashtextextended('wc36-pair-graph',0));\n  PERFORM pg_advisory_xact_lock(hashtextextended('wc36-response:' || p_response_id::TEXT,0));\n  SELECT * INTO v_response FROM public.wedding_code36_responses r\n    WHERE r.id=p_response_id AND r.access_hash=p_access_hash FOR UPDATE;\n  IF NOT FOUND THEN RETURN jsonb_build_object('error','unauthorized'); END IF;\n  IF v_response.expires_at<=now() THEN RETURN jsonb_build_object('error','expired'); END IF;\n  DELETE FROM public.wedding_code36_pairs WHERE owner_response_id=p_response_id OR partner_response_id=p_response_id;\n  -- 원래 만료일까지 최소 재시도 표지만 남긴다. 응답 본문은 즉시 삭제한다.\n  UPDATE public.wedding_code36_responses SET submission=NULL,deleted_at=COALESCE(deleted_at,now()) WHERE id=p_response_id;\n  RETURN jsonb_build_object('deleted',true);\nEND; $function$\n",
+        "volatility": "v",
+        "securityDefiner": true
+      },
+      {
+        "acl": [
+          [
+            "postgres",
+            "postgres",
+            "EXECUTE",
+            false
+          ],
+          [
+            "service_role",
+            "postgres",
+            "EXECUTE",
+            false
+          ]
+        ],
+        "args": "uuid, text",
+        "body": "\nDECLARE\n  v_response public.wedding_code36_responses%ROWTYPE;\n  v_pair public.wedding_code36_pairs%ROWTYPE;\n  v_partner JSONB;\nBEGIN\n  SELECT * INTO v_response FROM public.wedding_code36_responses r WHERE r.id=p_response_id AND r.access_hash=p_access_hash;\n  IF NOT FOUND THEN RETURN jsonb_build_object('error','unauthorized'); END IF;\n  IF v_response.expires_at<=now() THEN RETURN jsonb_build_object('error','expired'); END IF;\n  IF v_response.deleted_at IS NOT NULL THEN RETURN jsonb_build_object('error','deleted'); END IF;\n  SELECT * INTO v_pair FROM public.wedding_code36_pairs c WHERE c.owner_response_id=p_response_id OR c.partner_response_id=p_response_id;\n  IF NOT FOUND THEN RETURN jsonb_build_object('status','unpaired'); END IF;\n  IF v_pair.partner_response_id IS NULL THEN RETURN jsonb_build_object('status','waiting','invite_token',v_pair.invite_token); END IF;\n  IF EXISTS (SELECT 1 FROM public.wedding_code36_responses r\n    WHERE r.id IN (v_pair.owner_response_id,v_pair.partner_response_id)\n      AND (r.expires_at<=now() OR r.deleted_at IS NOT NULL)) THEN\n    RETURN jsonb_build_object('error','expired');\n  END IF;\n  SELECT r.submission INTO v_partner FROM public.wedding_code36_responses r\n    WHERE r.id=CASE WHEN v_pair.owner_response_id=p_response_id THEN v_pair.partner_response_id ELSE v_pair.owner_response_id END;\n  RETURN jsonb_build_object('status','ready','own_submission',v_response.submission,'partner_submission',v_partner);\nEND; ",
+        "kind": "f",
+        "name": "wc36_read_report",
+        "owner": "postgres",
+        "config": [
+          "search_path=public, pg_temp"
+        ],
+        "result": "jsonb",
+        "strict": false,
+        "language": "plpgsql",
+        "parallel": "u",
+        "definition": "CREATE OR REPLACE FUNCTION public.wc36_read_report(p_response_id uuid, p_access_hash text)\n RETURNS jsonb\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'public', 'pg_temp'\nAS $function$\nDECLARE\n  v_response public.wedding_code36_responses%ROWTYPE;\n  v_pair public.wedding_code36_pairs%ROWTYPE;\n  v_partner JSONB;\nBEGIN\n  SELECT * INTO v_response FROM public.wedding_code36_responses r WHERE r.id=p_response_id AND r.access_hash=p_access_hash;\n  IF NOT FOUND THEN RETURN jsonb_build_object('error','unauthorized'); END IF;\n  IF v_response.expires_at<=now() THEN RETURN jsonb_build_object('error','expired'); END IF;\n  IF v_response.deleted_at IS NOT NULL THEN RETURN jsonb_build_object('error','deleted'); END IF;\n  SELECT * INTO v_pair FROM public.wedding_code36_pairs c WHERE c.owner_response_id=p_response_id OR c.partner_response_id=p_response_id;\n  IF NOT FOUND THEN RETURN jsonb_build_object('status','unpaired'); END IF;\n  IF v_pair.partner_response_id IS NULL THEN RETURN jsonb_build_object('status','waiting','invite_token',v_pair.invite_token); END IF;\n  IF EXISTS (SELECT 1 FROM public.wedding_code36_responses r\n    WHERE r.id IN (v_pair.owner_response_id,v_pair.partner_response_id)\n      AND (r.expires_at<=now() OR r.deleted_at IS NOT NULL)) THEN\n    RETURN jsonb_build_object('error','expired');\n  END IF;\n  SELECT r.submission INTO v_partner FROM public.wedding_code36_responses r\n    WHERE r.id=CASE WHEN v_pair.owner_response_id=p_response_id THEN v_pair.partner_response_id ELSE v_pair.owner_response_id END;\n  RETURN jsonb_build_object('status','ready','own_submission',v_response.submission,'partner_submission',v_partner);\nEND; $function$\n",
+        "volatility": "v",
+        "securityDefiner": true
+      },
+      {
+        "acl": [
+          [
+            "postgres",
+            "postgres",
+            "EXECUTE",
+            false
+          ],
+          [
+            "service_role",
+            "postgres",
+            "EXECUTE",
+            false
+          ]
+        ],
+        "args": "uuid, text, jsonb",
+        "body": "\nDECLARE v_response public.wedding_code36_responses%ROWTYPE;\nBEGIN\n  IF jsonb_typeof(p_settings) IS DISTINCT FROM 'object'\n    OR jsonb_typeof(p_settings->'allow_couple_comparison') IS DISTINCT FROM 'boolean'\n    OR jsonb_typeof(p_settings->'share_alias') IS DISTINCT FROM 'boolean'\n    OR jsonb_typeof(p_settings->'share_item_ids') IS DISTINCT FROM 'array' THEN\n    RETURN jsonb_build_object('error','invalid_sharing');\n  END IF;\n  SELECT * INTO v_response FROM public.wedding_code36_responses r\n    WHERE r.id=p_response_id AND r.access_hash=p_access_hash FOR UPDATE;\n  IF NOT FOUND THEN RETURN jsonb_build_object('error','unauthorized'); END IF;\n  IF v_response.expires_at<=now() THEN RETURN jsonb_build_object('error','expired'); END IF;\n  IF v_response.deleted_at IS NOT NULL THEN RETURN jsonb_build_object('error','deleted'); END IF;\n  UPDATE public.wedding_code36_responses r SET submission = r.submission || jsonb_build_object(\n    'allow_couple_comparison',p_settings->'allow_couple_comparison',\n    'share_item_ids',p_settings->'share_item_ids','share_alias',p_settings->'share_alias'\n  ) WHERE r.id=p_response_id RETURNING * INTO v_response;\n  RETURN jsonb_build_object('submission',v_response.submission,'expires_at',v_response.expires_at);\nEND; ",
+        "kind": "f",
+        "name": "wc36_update_sharing",
+        "owner": "postgres",
+        "config": [
+          "search_path=public, pg_temp"
+        ],
+        "result": "jsonb",
+        "strict": false,
+        "language": "plpgsql",
+        "parallel": "u",
+        "definition": "CREATE OR REPLACE FUNCTION public.wc36_update_sharing(p_response_id uuid, p_access_hash text, p_settings jsonb)\n RETURNS jsonb\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'public', 'pg_temp'\nAS $function$\nDECLARE v_response public.wedding_code36_responses%ROWTYPE;\nBEGIN\n  IF jsonb_typeof(p_settings) IS DISTINCT FROM 'object'\n    OR jsonb_typeof(p_settings->'allow_couple_comparison') IS DISTINCT FROM 'boolean'\n    OR jsonb_typeof(p_settings->'share_alias') IS DISTINCT FROM 'boolean'\n    OR jsonb_typeof(p_settings->'share_item_ids') IS DISTINCT FROM 'array' THEN\n    RETURN jsonb_build_object('error','invalid_sharing');\n  END IF;\n  SELECT * INTO v_response FROM public.wedding_code36_responses r\n    WHERE r.id=p_response_id AND r.access_hash=p_access_hash FOR UPDATE;\n  IF NOT FOUND THEN RETURN jsonb_build_object('error','unauthorized'); END IF;\n  IF v_response.expires_at<=now() THEN RETURN jsonb_build_object('error','expired'); END IF;\n  IF v_response.deleted_at IS NOT NULL THEN RETURN jsonb_build_object('error','deleted'); END IF;\n  UPDATE public.wedding_code36_responses r SET submission = r.submission || jsonb_build_object(\n    'allow_couple_comparison',p_settings->'allow_couple_comparison',\n    'share_item_ids',p_settings->'share_item_ids','share_alias',p_settings->'share_alias'\n  ) WHERE r.id=p_response_id RETURNING * INTO v_response;\n  RETURN jsonb_build_object('submission',v_response.submission,'expires_at',v_response.expires_at);\nEND; $function$\n",
+        "volatility": "v",
+        "securityDefiner": true
+      },
+      {
+        "acl": [
+          [
+            "postgres",
+            "postgres",
+            "EXECUTE",
+            false
+          ],
+          [
+            "service_role",
+            "postgres",
+            "EXECUTE",
+            false
+          ]
+        ],
+        "args": "uuid, text, jsonb, uuid",
+        "body": "\nDECLARE\n  v_response public.wedding_code36_responses%ROWTYPE;\n  v_pair JSONB;\n  v_recovered BOOLEAN := FALSE;\nBEGIN\n  IF p_submission_id IS NULL OR p_access_hash IS NULL OR p_access_hash !~ '^[0-9a-f]{64}$'\n    OR p_submission IS NULL OR jsonb_typeof(p_submission) IS DISTINCT FROM 'object'\n    OR p_submission->>'questionnaire_version' IS DISTINCT FROM 'wcr36-r6-2026-10-15'\n    OR p_submission->>'questionnaire_fingerprint' IS DISTINCT FROM '982e2623c147bd7bbeefd2f7e1a6fb7ec27cbbd28e60bb62a0c002c148735f16' THEN\n    RETURN jsonb_build_object('error','invalid_submission');\n  END IF;\n  PERFORM pg_advisory_xact_lock(hashtextextended('wc36-submission:' || p_submission_id::TEXT, 0));\n  SELECT * INTO v_response FROM public.wedding_code36_responses r WHERE r.submission_id=p_submission_id;\n  IF FOUND THEN\n    IF v_response.access_hash <> p_access_hash THEN RETURN jsonb_build_object('error','unauthorized'); END IF;\n    IF v_response.expires_at<=now() THEN RETURN jsonb_build_object('error','expired'); END IF;\n    IF v_response.deleted_at IS NOT NULL THEN RETURN jsonb_build_object('error','deleted'); END IF;\n    v_recovered := TRUE;\n  ELSE\n    INSERT INTO public.wedding_code36_responses(submission_id,access_hash,submission)\n      VALUES(p_submission_id,p_access_hash,p_submission) RETURNING * INTO v_response;\n  END IF;\n  IF p_invite_token IS NOT NULL OR EXISTS (SELECT 1 FROM public.wedding_code36_pairs c WHERE c.owner_response_id=v_response.id OR c.partner_response_id=v_response.id) THEN\n    v_pair := public.wc36_pair(v_response.id,p_access_hash,p_invite_token);\n    -- 개인 저장 성공과 초대 참여 실패는 분리한다. 잘못된 초대로도 저장된\n    -- 본인 결과의 ID를 잃거나 같은 제출키 재시도가 영구 실패하지 않는다.\n    IF v_pair->>'error' IN ('invite_not_found','self_pair','expired') THEN\n      v_pair := jsonb_build_object('pairing_status','unpaired','invite_token',NULL,\n        'pairing_error',CASE WHEN v_pair->>'error'='expired' THEN 'invite_expired' ELSE v_pair->>'error' END);\n    END IF;\n  ELSE\n    v_pair := jsonb_build_object('pairing_status','unpaired','invite_token',NULL);\n  END IF;\n  RETURN jsonb_build_object('response_id',v_response.id,'submission',v_response.submission,'expires_at',v_response.expires_at,'recovered',v_recovered) || v_pair;\nEND; ",
+        "kind": "f",
+        "name": "wc36_submit",
+        "owner": "postgres",
+        "config": [
+          "search_path=public, pg_temp"
+        ],
+        "result": "jsonb",
+        "strict": false,
+        "language": "plpgsql",
+        "parallel": "u",
+        "definition": "CREATE OR REPLACE FUNCTION public.wc36_submit(p_submission_id uuid, p_access_hash text, p_submission jsonb, p_invite_token uuid DEFAULT NULL::uuid)\n RETURNS jsonb\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'public', 'pg_temp'\nAS $function$\nDECLARE\n  v_response public.wedding_code36_responses%ROWTYPE;\n  v_pair JSONB;\n  v_recovered BOOLEAN := FALSE;\nBEGIN\n  IF p_submission_id IS NULL OR p_access_hash IS NULL OR p_access_hash !~ '^[0-9a-f]{64}$'\n    OR p_submission IS NULL OR jsonb_typeof(p_submission) IS DISTINCT FROM 'object'\n    OR p_submission->>'questionnaire_version' IS DISTINCT FROM 'wcr36-r6-2026-10-15'\n    OR p_submission->>'questionnaire_fingerprint' IS DISTINCT FROM '982e2623c147bd7bbeefd2f7e1a6fb7ec27cbbd28e60bb62a0c002c148735f16' THEN\n    RETURN jsonb_build_object('error','invalid_submission');\n  END IF;\n  PERFORM pg_advisory_xact_lock(hashtextextended('wc36-submission:' || p_submission_id::TEXT, 0));\n  SELECT * INTO v_response FROM public.wedding_code36_responses r WHERE r.submission_id=p_submission_id;\n  IF FOUND THEN\n    IF v_response.access_hash <> p_access_hash THEN RETURN jsonb_build_object('error','unauthorized'); END IF;\n    IF v_response.expires_at<=now() THEN RETURN jsonb_build_object('error','expired'); END IF;\n    IF v_response.deleted_at IS NOT NULL THEN RETURN jsonb_build_object('error','deleted'); END IF;\n    v_recovered := TRUE;\n  ELSE\n    INSERT INTO public.wedding_code36_responses(submission_id,access_hash,submission)\n      VALUES(p_submission_id,p_access_hash,p_submission) RETURNING * INTO v_response;\n  END IF;\n  IF p_invite_token IS NOT NULL OR EXISTS (SELECT 1 FROM public.wedding_code36_pairs c WHERE c.owner_response_id=v_response.id OR c.partner_response_id=v_response.id) THEN\n    v_pair := public.wc36_pair(v_response.id,p_access_hash,p_invite_token);\n    -- 개인 저장 성공과 초대 참여 실패는 분리한다. 잘못된 초대로도 저장된\n    -- 본인 결과의 ID를 잃거나 같은 제출키 재시도가 영구 실패하지 않는다.\n    IF v_pair->>'error' IN ('invite_not_found','self_pair','expired') THEN\n      v_pair := jsonb_build_object('pairing_status','unpaired','invite_token',NULL,\n        'pairing_error',CASE WHEN v_pair->>'error'='expired' THEN 'invite_expired' ELSE v_pair->>'error' END);\n    END IF;\n  ELSE\n    v_pair := jsonb_build_object('pairing_status','unpaired','invite_token',NULL);\n  END IF;\n  RETURN jsonb_build_object('response_id',v_response.id,'submission',v_response.submission,'expires_at',v_response.expires_at,'recovered',v_recovered) || v_pair;\nEND; $function$\n",
+        "volatility": "v",
+        "securityDefiner": true
+      },
+      {
+        "acl": [
+          [
+            "postgres",
+            "postgres",
+            "EXECUTE",
+            false
+          ],
+          [
+            "service_role",
+            "postgres",
+            "EXECUTE",
+            false
+          ]
+        ],
+        "args": "uuid, text, uuid",
+        "body": "\nDECLARE\n  v_pair public.wedding_code36_pairs%ROWTYPE;\n  v_existing public.wedding_code36_pairs%ROWTYPE;\n  v_response public.wedding_code36_responses%ROWTYPE;\nBEGIN\n  -- 빈 초대 이동과 반대 방향의 동시 참여도 하나의 그래프 변경으로 직렬화한다.\n  -- 요청별 잠금만으로는 소유자/참여자 두 열을 가로지르는 중복 소속을 막지 못한다.\n  PERFORM pg_advisory_xact_lock(hashtextextended('wc36-pair-graph', 0));\n  -- 응답 단위 잠금은 두 초대에 동시에 참여하는 요청도 직렬화한다.\n  PERFORM pg_advisory_xact_lock(hashtextextended('wc36-response:' || p_response_id::TEXT, 0));\n  SELECT * INTO v_response FROM public.wedding_code36_responses r WHERE r.id=p_response_id AND r.access_hash=p_access_hash;\n  IF NOT FOUND THEN\n    RETURN jsonb_build_object('error','unauthorized');\n  END IF;\n  IF v_response.expires_at<=now() THEN RETURN jsonb_build_object('error','expired'); END IF;\n  IF v_response.deleted_at IS NOT NULL THEN RETURN jsonb_build_object('error','deleted'); END IF;\n  SELECT * INTO v_existing FROM public.wedding_code36_pairs c\n    WHERE c.owner_response_id=p_response_id OR c.partner_response_id=p_response_id FOR UPDATE;\n  IF FOUND THEN\n    IF EXISTS (SELECT 1 FROM public.wedding_code36_responses r\n      WHERE r.id IN (v_existing.owner_response_id,v_existing.partner_response_id)\n        AND (r.expires_at<=now() OR r.deleted_at IS NOT NULL)) THEN\n      RETURN jsonb_build_object('error','expired');\n    END IF;\n    -- 이미 두 결과가 연결됐거나 같은 초대를 재확인하는 경우는 그대로 돌려준다.\n    IF v_existing.partner_response_id IS NOT NULL OR p_invite_token IS NULL OR p_invite_token=v_existing.invite_token THEN\n      RETURN jsonb_build_object('pairing_status',CASE WHEN v_existing.partner_response_id IS NULL THEN 'waiting' ELSE 'paired' END,'invite_token',v_existing.invite_token);\n    END IF;\n  END IF;\n  IF p_invite_token IS NULL THEN\n    INSERT INTO public.wedding_code36_pairs(owner_response_id) VALUES(p_response_id) RETURNING * INTO v_pair;\n    RETURN jsonb_build_object('pairing_status','waiting','invite_token',v_pair.invite_token);\n  END IF;\n  SELECT * INTO v_pair FROM public.wedding_code36_pairs c WHERE c.invite_token=p_invite_token FOR UPDATE;\n  IF NOT FOUND THEN RETURN jsonb_build_object('error','invite_not_found'); END IF;\n  IF EXISTS (SELECT 1 FROM public.wedding_code36_responses r\n    WHERE r.id IN (v_pair.owner_response_id,v_pair.partner_response_id)\n      AND (r.expires_at<=now() OR r.deleted_at IS NOT NULL)) THEN\n    RETURN jsonb_build_object('error','expired');\n  END IF;\n  IF v_pair.owner_response_id=p_response_id OR EXISTS (SELECT 1 FROM public.wedding_code36_responses r WHERE r.id=v_pair.owner_response_id AND r.access_hash=p_access_hash) THEN RETURN jsonb_build_object('error','self_pair'); END IF;\n  IF v_pair.partner_response_id IS NOT NULL THEN RETURN jsonb_build_object('pairing_status','full','invite_token',NULL); END IF;\n  -- 대상 확인이 끝난 뒤에만 내 빈 초대를 닫는다. 실패한 참여는 기존 링크를 보존한다.\n  DELETE FROM public.wedding_code36_pairs\n    WHERE owner_response_id=p_response_id AND partner_response_id IS NULL;\n  UPDATE public.wedding_code36_pairs SET partner_response_id=p_response_id WHERE invite_token=p_invite_token;\n  RETURN jsonb_build_object('pairing_status','paired','invite_token',p_invite_token);\nEND; ",
+        "kind": "f",
+        "name": "wc36_pair",
+        "owner": "postgres",
+        "config": [
+          "search_path=public, pg_temp"
+        ],
+        "result": "jsonb",
+        "strict": false,
+        "language": "plpgsql",
+        "parallel": "u",
+        "definition": "CREATE OR REPLACE FUNCTION public.wc36_pair(p_response_id uuid, p_access_hash text, p_invite_token uuid DEFAULT NULL::uuid)\n RETURNS jsonb\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'public', 'pg_temp'\nAS $function$\nDECLARE\n  v_pair public.wedding_code36_pairs%ROWTYPE;\n  v_existing public.wedding_code36_pairs%ROWTYPE;\n  v_response public.wedding_code36_responses%ROWTYPE;\nBEGIN\n  -- 빈 초대 이동과 반대 방향의 동시 참여도 하나의 그래프 변경으로 직렬화한다.\n  -- 요청별 잠금만으로는 소유자/참여자 두 열을 가로지르는 중복 소속을 막지 못한다.\n  PERFORM pg_advisory_xact_lock(hashtextextended('wc36-pair-graph', 0));\n  -- 응답 단위 잠금은 두 초대에 동시에 참여하는 요청도 직렬화한다.\n  PERFORM pg_advisory_xact_lock(hashtextextended('wc36-response:' || p_response_id::TEXT, 0));\n  SELECT * INTO v_response FROM public.wedding_code36_responses r WHERE r.id=p_response_id AND r.access_hash=p_access_hash;\n  IF NOT FOUND THEN\n    RETURN jsonb_build_object('error','unauthorized');\n  END IF;\n  IF v_response.expires_at<=now() THEN RETURN jsonb_build_object('error','expired'); END IF;\n  IF v_response.deleted_at IS NOT NULL THEN RETURN jsonb_build_object('error','deleted'); END IF;\n  SELECT * INTO v_existing FROM public.wedding_code36_pairs c\n    WHERE c.owner_response_id=p_response_id OR c.partner_response_id=p_response_id FOR UPDATE;\n  IF FOUND THEN\n    IF EXISTS (SELECT 1 FROM public.wedding_code36_responses r\n      WHERE r.id IN (v_existing.owner_response_id,v_existing.partner_response_id)\n        AND (r.expires_at<=now() OR r.deleted_at IS NOT NULL)) THEN\n      RETURN jsonb_build_object('error','expired');\n    END IF;\n    -- 이미 두 결과가 연결됐거나 같은 초대를 재확인하는 경우는 그대로 돌려준다.\n    IF v_existing.partner_response_id IS NOT NULL OR p_invite_token IS NULL OR p_invite_token=v_existing.invite_token THEN\n      RETURN jsonb_build_object('pairing_status',CASE WHEN v_existing.partner_response_id IS NULL THEN 'waiting' ELSE 'paired' END,'invite_token',v_existing.invite_token);\n    END IF;\n  END IF;\n  IF p_invite_token IS NULL THEN\n    INSERT INTO public.wedding_code36_pairs(owner_response_id) VALUES(p_response_id) RETURNING * INTO v_pair;\n    RETURN jsonb_build_object('pairing_status','waiting','invite_token',v_pair.invite_token);\n  END IF;\n  SELECT * INTO v_pair FROM public.wedding_code36_pairs c WHERE c.invite_token=p_invite_token FOR UPDATE;\n  IF NOT FOUND THEN RETURN jsonb_build_object('error','invite_not_found'); END IF;\n  IF EXISTS (SELECT 1 FROM public.wedding_code36_responses r\n    WHERE r.id IN (v_pair.owner_response_id,v_pair.partner_response_id)\n      AND (r.expires_at<=now() OR r.deleted_at IS NOT NULL)) THEN\n    RETURN jsonb_build_object('error','expired');\n  END IF;\n  IF v_pair.owner_response_id=p_response_id OR EXISTS (SELECT 1 FROM public.wedding_code36_responses r WHERE r.id=v_pair.owner_response_id AND r.access_hash=p_access_hash) THEN RETURN jsonb_build_object('error','self_pair'); END IF;\n  IF v_pair.partner_response_id IS NOT NULL THEN RETURN jsonb_build_object('pairing_status','full','invite_token',NULL); END IF;\n  -- 대상 확인이 끝난 뒤에만 내 빈 초대를 닫는다. 실패한 참여는 기존 링크를 보존한다.\n  DELETE FROM public.wedding_code36_pairs\n    WHERE owner_response_id=p_response_id AND partner_response_id IS NULL;\n  UPDATE public.wedding_code36_pairs SET partner_response_id=p_response_id WHERE invite_token=p_invite_token;\n  RETURN jsonb_build_object('pairing_status','paired','invite_token',p_invite_token);\nEND; $function$\n",
+        "volatility": "v",
+        "securityDefiner": true
+      }
+    ],
+    "relations": [
+      {
+        "acl": [
+          [
+            "postgres",
+            "postgres",
+            "DELETE",
+            false
+          ],
+          [
+            "postgres",
+            "postgres",
+            "INSERT",
+            false
+          ],
+          [
+            "postgres",
+            "postgres",
+            "MAINTAIN",
+            false
+          ],
+          [
+            "postgres",
+            "postgres",
+            "REFERENCES",
+            false
+          ],
+          [
+            "postgres",
+            "postgres",
+            "SELECT",
+            false
+          ],
+          [
+            "postgres",
+            "postgres",
+            "TRIGGER",
+            false
+          ],
+          [
+            "postgres",
+            "postgres",
+            "TRUNCATE",
+            false
+          ],
+          [
+            "postgres",
+            "postgres",
+            "UPDATE",
+            false
+          ]
+        ],
+        "rls": true,
+        "kind": "r",
+        "name": "public.wedding_code36_pairs",
+        "owner": "postgres",
+        "columns": [
+          [
+            "created_at",
+            "timestamp with time zone",
+            true,
+            "",
+            "",
+            "now()",
+            []
+          ],
+          [
+            "invite_token",
+            "uuid",
+            true,
+            "",
+            "",
+            "gen_random_uuid()",
+            []
+          ],
+          [
+            "owner_response_id",
+            "uuid",
+            true,
+            "",
+            "",
+            null,
+            []
+          ],
+          [
+            "partner_response_id",
+            "uuid",
+            false,
+            "",
+            "",
+            null,
+            []
+          ]
+        ],
+        "indexes": [
+          [
+            "CREATE UNIQUE INDEX wedding_code36_pairs_owner_response_id_key ON public.wedding_code36_pairs USING btree (owner_response_id)",
+            true,
+            true
+          ],
+          [
+            "CREATE UNIQUE INDEX wedding_code36_pairs_partner_response_id_key ON public.wedding_code36_pairs USING btree (partner_response_id)",
+            true,
+            true
+          ],
+          [
+            "CREATE UNIQUE INDEX wedding_code36_pairs_pkey ON public.wedding_code36_pairs USING btree (invite_token)",
+            true,
+            true
+          ]
+        ],
+        "forceRls": false,
+        "policies": [],
+        "triggers": [],
+        "constraints": [
+          [
+            "wedding_code36_pairs_check",
+            "c",
+            true,
+            "CHECK (owner_response_id IS DISTINCT FROM partner_response_id)"
+          ],
+          [
+            "wedding_code36_pairs_owner_response_id_fkey",
+            "f",
+            true,
+            "FOREIGN KEY (owner_response_id) REFERENCES wedding_code36_responses(id) ON DELETE CASCADE"
+          ],
+          [
+            "wedding_code36_pairs_owner_response_id_key",
+            "u",
+            true,
+            "UNIQUE (owner_response_id)"
+          ],
+          [
+            "wedding_code36_pairs_partner_response_id_fkey",
+            "f",
+            true,
+            "FOREIGN KEY (partner_response_id) REFERENCES wedding_code36_responses(id) ON DELETE SET NULL"
+          ],
+          [
+            "wedding_code36_pairs_partner_response_id_key",
+            "u",
+            true,
+            "UNIQUE (partner_response_id)"
+          ],
+          [
+            "wedding_code36_pairs_pkey",
+            "p",
+            true,
+            "PRIMARY KEY (invite_token)"
+          ]
+        ]
+      },
+      {
+        "acl": [
+          [
+            "postgres",
+            "postgres",
+            "DELETE",
+            false
+          ],
+          [
+            "postgres",
+            "postgres",
+            "INSERT",
+            false
+          ],
+          [
+            "postgres",
+            "postgres",
+            "MAINTAIN",
+            false
+          ],
+          [
+            "postgres",
+            "postgres",
+            "REFERENCES",
+            false
+          ],
+          [
+            "postgres",
+            "postgres",
+            "SELECT",
+            false
+          ],
+          [
+            "postgres",
+            "postgres",
+            "TRIGGER",
+            false
+          ],
+          [
+            "postgres",
+            "postgres",
+            "TRUNCATE",
+            false
+          ],
+          [
+            "postgres",
+            "postgres",
+            "UPDATE",
+            false
+          ]
+        ],
+        "rls": true,
+        "kind": "r",
+        "name": "public.wedding_code36_responses",
+        "owner": "postgres",
+        "columns": [
+          [
+            "access_hash",
+            "text",
+            true,
+            "",
+            "",
+            null,
+            []
+          ],
+          [
+            "created_at",
+            "timestamp with time zone",
+            true,
+            "",
+            "",
+            "now()",
+            []
+          ],
+          [
+            "deleted_at",
+            "timestamp with time zone",
+            false,
+            "",
+            "",
+            null,
+            []
+          ],
+          [
+            "expires_at",
+            "timestamp with time zone",
+            true,
+            "",
+            "",
+            "(now() + '7 days'::interval)",
+            []
+          ],
+          [
+            "id",
+            "uuid",
+            true,
+            "",
+            "",
+            "gen_random_uuid()",
+            []
+          ],
+          [
+            "submission",
+            "jsonb",
+            false,
+            "",
+            "",
+            null,
+            []
+          ],
+          [
+            "submission_id",
+            "uuid",
+            true,
+            "",
+            "",
+            null,
+            []
+          ]
+        ],
+        "indexes": [
+          [
+            "CREATE UNIQUE INDEX wedding_code36_responses_pkey ON public.wedding_code36_responses USING btree (id)",
+            true,
+            true
+          ],
+          [
+            "CREATE UNIQUE INDEX wedding_code36_responses_submission_id_key ON public.wedding_code36_responses USING btree (submission_id)",
+            true,
+            true
+          ]
+        ],
+        "forceRls": false,
+        "policies": [],
+        "triggers": [],
+        "constraints": [
+          [
+            "wedding_code36_responses_access_hash_check",
+            "c",
+            true,
+            "CHECK (access_hash ~ '^[0-9a-f]{64}$'::text)"
+          ],
+          [
+            "wedding_code36_responses_check",
+            "c",
+            true,
+            "CHECK (expires_at = (created_at + '7 days'::interval))"
+          ],
+          [
+            "wedding_code36_responses_check1",
+            "c",
+            true,
+            "CHECK (deleted_at IS NOT NULL AND submission IS NULL OR deleted_at IS NULL AND NOT jsonb_typeof(submission) IS DISTINCT FROM 'object'::text AND NOT (submission ->> 'questionnaire_version'::text) IS DISTINCT FROM 'wcr36-r6-2026-10-15'::text AND NOT (submission ->> 'questionnaire_fingerprint'::text) IS DISTINCT FROM '982e2623c147bd7bbeefd2f7e1a6fb7ec27cbbd28e60bb62a0c002c148735f16'::text)"
+          ],
+          [
+            "wedding_code36_responses_pkey",
+            "p",
+            true,
+            "PRIMARY KEY (id)"
+          ],
+          [
+            "wedding_code36_responses_submission_id_key",
+            "u",
+            true,
+            "UNIQUE (submission_id)"
+          ]
+        ]
+      }
+    ]
+  }
+}
