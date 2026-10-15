@@ -52,16 +52,20 @@ async function check(name,fn){
 }
 async function request(operation,method,path,body,token,onPayload){
   const headers={};if(body!==undefined)headers['Content-Type']='application/json';
+  // Exercise the site's same-origin JSON flow; Origin is never an owner credential
+  // or an exception to the production CSRF gate. The gate remains unchanged.
+  if(!['GET','HEAD','OPTIONS'].includes(method.toUpperCase()))headers.Origin=base.origin;
   if(token)headers['x-wedding-code-access-token']=token;
   let response,payload;
   try {response=await fetch(new URL(path,base),{method,headers,body:body===undefined?undefined:JSON.stringify(body),redirect:'error',signal:AbortSignal.timeout(30_000)});payload=await response.json();}
   catch {throw new QaFailure('http_transport_or_json');}
   if(onPayload)onPayload(response.status,payload);
   const key=`${operation}:${response.status}`;report.requestCounts[key]=(report.requestCounts[key]??0)+1;
+  ensure(response.status!==429,'normal_rate_limit_reached');
+  ensure(!(response.status===403&&payload?.error==='untrusted_mutation_origin'),'untrusted_mutation_origin');
   const cache=response.headers.get('cache-control')?.toLowerCase()??'';
   ensure(cache.includes('private')&&cache.includes('no-store'),'private_no_store');
   ensure((response.headers.get('vary')??'').toLowerCase().includes('x-wedding-code-access-token'),'private_vary');
-  ensure(response.status!==429,'normal_rate_limit_reached');
   return {status:response.status,body:payload,date:response.headers.get('date')};
 }
 const credentials=person=>({response_id:person.id,access_token:person.accessToken});
