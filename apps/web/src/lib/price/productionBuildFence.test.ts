@@ -414,14 +414,6 @@ describe("vendor disclosure production build fence", () => {
     } finally { fixture.close(); }
   }, 120_000);
 
-  it("rejects the current 243 migration checkout through the old production fence", () => {
-    const repoRoot = resolve(process.cwd(), "../..");
-    expectBlockedWithCode(() => assertVendorDisclosureProductionBuild({
-      repoRoot,
-      environment: { VERCEL_ENV: "production", VENDOR_DISCLOSURE_PRODUCTION_AUTHORIZATION: expectedProductionAuthorizationSha256(repoRoot) },
-    }), VENDOR_DISCLOSURE_STATIC_CONTRACT_INVALID);
-  });
-
   it("does not fall back to an older release when a registered explicit-budget contract is invalid", async () => {
     const fixture = await createBlockedFixture();
     const directory = join(fixture.repoRoot, "supabase/release-contracts");

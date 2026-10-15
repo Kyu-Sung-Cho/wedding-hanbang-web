@@ -91,11 +91,11 @@ test("두 명시 목록은 원래 전체 검사와 릴리스 검사를 빠짐없
   const { loadRepositoryTestManifest } = await import("../run-repository-tests.mjs");
   const manifest = loadRepositoryTestManifest({ repoRoot });
   assert.equal(manifest.concurrency, 2);
-  assert.equal(manifest.modes.repo.length, 152);
-  assert.equal(manifest.modes.supabase.length, 108);
+  assert.equal(manifest.modes.repo.length, 153);
+  assert.equal(manifest.modes.supabase.length, 109);
   const added = ["archived-original", "archived-native", "post-commit-verifier"].map(name =>
     `scripts/tests/amora-action-writer-retirement-${name}.test.mjs`);
-  const weddingCodeAdded = ["scripts/tests/wedding-code36-release.test.mjs"];
+  const weddingCodeAdded = ["scripts/tests/wedding-code36-release.test.mjs", "scripts/tests/wedding-code36-release-build-contract.test.mjs"];
   const originalPins = { repo: "0471d88aaf3c76d6b914c8dde287e237dd4a291d64cc242090a47601a9c3845d",
     supabase: "db84cce8ee3e195cb256879adaf406b34b6614946a811ba6353e888df615f014" };
   for (const mode of ["repo", "supabase"]) {

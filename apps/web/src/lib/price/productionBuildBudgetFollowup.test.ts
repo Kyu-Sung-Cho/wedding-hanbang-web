@@ -576,10 +576,6 @@ describe("production build explicitly registers the pinned budget followup", () 
     expect(() => production(predecessorFixture.root)).not.toThrow();
   });
 
-  it("keeps the old production lane closed to the current 243 migration checkout", () => {
-    expect(() => production(repoRoot)).toThrow(VENDOR_DISCLOSURE_STATIC_CONTRACT_INVALID);
-  });
-
   it("retains default drift rejection while the explicit static followup succeeds", () => {
     expect(() => validateSuccessorReleaseContract({ repoRoot }))
       .toThrowError(expect.objectContaining({ code: "MIGRATION_SET_DRIFT" }));

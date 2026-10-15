@@ -15,7 +15,9 @@ export const FIXTURE = 'supabase/release-contracts/wedding-code36-pg-catalog-v1.
 const RUNTIME = 'scripts/wedding-code36-release.mjs';
 const CATALOG = 'scripts/wedding-code36-release-catalog.mjs';
 const PREPARE = 'scripts/wedding-code36-release-prepare.mjs';
-export const PINNED_FILES = [MIGRATION, FIXTURE, RUNTIME, CATALOG, PREPARE];
+const BUILD_CONTRACT = 'scripts/wedding-code36-release-build-contract.mjs';
+const PREDECESSOR_SNAPSHOT = 'supabase/release-contracts/wedding-code36-predecessor-build-inputs-v1.json';
+export const PINNED_FILES = [MIGRATION, FIXTURE, RUNTIME, CATALOG, PREPARE, BUILD_CONTRACT, PREDECESSOR_SNAPSHOT];
 const SHA = /^[a-f0-9]{64}$/u;
 const MD5 = /^[a-f0-9]{32}$/u;
 const GIT_SHA = /^[a-f0-9]{40}$/u;
@@ -112,6 +114,8 @@ export function validateSourceChanges(changed, { staticOnly = false } = {}) {
     || file.startsWith('apps/web/src/lib/weddingCode36/') || file.startsWith('apps/web/src/lib/weddingCode36Server/')
     || file === 'apps/web/src/constants/weddingCode36.ts'
     || ['apps/web/src/lib/price/productionBuildBudgetFollowup.test.ts',
+      'apps/web/vendorDisclosureProductionBuildFence.ts',
+      'apps/web/src/lib/price/productionBuildWeddingCode36.test.ts',
       'apps/web/src/lib/price/productionBuildDeletionFollowup.test.ts',
       'apps/web/src/lib/price/productionBuildFence.test.ts',
       'apps/web/src/lib/price/productionBuildAmoraActionViewV2.test.ts',
@@ -311,7 +315,7 @@ export async function runRelease({ repoRoot, argv, now = () => new Date(), query
   } finally { receipt.close(); }
 }
 
-if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+async function main() {
   try {
     const args = process.argv.slice(2);
     if (args.includes('--check-only')) {
@@ -328,3 +332,7 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
     process.exitCode = 1;
   }
 }
+
+// Next's synchronous config loader must be able to require the static contract.
+// CLI async work still owns its network/receipt handles and catches all failures.
+if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) void main();

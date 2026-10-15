@@ -53,7 +53,4 @@ describe("production accepts only the explicit 232 expand successor", () => {
     expect(() => assertVendorDisclosureProductionBuild({ repoRoot: predecessorFixture.root, environment: { VERCEL_ENV: "production", VENDOR_DISCLOSURE_PRODUCTION_AUTHORIZATION: authorization } }))
       .toThrow(authorization === undefined ? VENDOR_DISCLOSURE_EXTERNAL_AUTHORIZATION_NOT_IMPLEMENTED : VENDOR_DISCLOSURE_EXTERNAL_AUTHORIZATION_INVALID);
   });
-  it("rejects the current 243 migration checkout through the old production lane", () => {
-    expect(() => production(repoRoot)).toThrow(VENDOR_DISCLOSURE_STATIC_CONTRACT_INVALID);
-  });
 });

@@ -1,6 +1,8 @@
-# WeddingCode 36문항 운영 반영 준비
+# WeddingCode 36문항 운영 반영 기록
 
-상태: **PREPARATION ONLY — 배포·DB 적용·운영 검증 완료 영수증이 아님**
+상태: **새 DB 범위 적용·사후 검증 완료 / 웹 운영 배포·실제 화면 검사는 대기 중**
+
+운영 DB의 새 객체는 source `d8bde548193cbba50deba1c2576af6562e616b0e`에서 적용했다. transaction rehearsal rollback, 실제 적용, 별도 read-only verify가 성공했다. ledger는 231→232이며 기존 catalog와 이전 ledger digest가 유지됐다. SQL SHA-256은 `80fdb56216ef7f5350f0eff26fe75056e5fa9b5bf227951b923b61dcbbbbf56e`다. 원격 익명 접근 세 경로도 모두 권한 거절됐다. 비밀값이 없는 실행 영수증은 operator의 Git 외부 private 경로에 보관한다. 이것으로 웹 배포나 운영 사용자 흐름 검증이 완료됐다고 주장하지 않는다.
 
 사용자는 2026-10-15 대화에서 수정된 36문항을 운영 사이트에 반영하고 커플 연결과 결과를 검사하도록 명시적으로 요청했다. 이 문서는 그 요청의 좁은 릴리스 범위를 정리한다. 다른 기능의 미해결 출시 조건을 닫았다고 주장하지 않는다.
 
@@ -63,7 +65,13 @@ GitHub main 보호는 관리자에게도 적용된다. `strict=true`이며 필�
 - [ ] 적용 직전 source·SQL hash·ledger를 재확인하고, deadline/동시 실행 방지를 건다. 결과가 모호하면 자동 재시도하지 않고 읽기 전용 재관측으로 판정한다.
 - [ ] 적용 후 새 객체·권한·함수 원문·ledger 한 건 증가 및 나머지 catalog 불변을 확인한다. 적용 파일명만 ledger에 있는 것으로 성공 판정하지 않는다.
 
-새 scoped lane은 `scripts/wedding-code36-release.mjs`, 고정 manifest는 `supabase/release-contracts/wedding-code36-v1.json`이다. 로컬 static gate `node scripts/wedding-code36-release.mjs --check-only`는 새 원문 hash와 운영 base의 기존 388개 migration·release-contract·controller 파일 보존을 검사하며 외부 credential이나 원격 호출을 사용하지 않는다. CI는 exact checkout SHA를 추가로 확인한다. controller 오프라인 단위 검사 12개가 통과했다. 이 문서 작성 시점에는 운영 적용 영수증이 없으며, 운영 관측·적용은 담당 실행자가 완료 후 기록한다.
+새 scoped lane은 `scripts/wedding-code36-release.mjs`, 고정 manifest는 `supabase/release-contracts/wedding-code36-v1.json`이다. 로컬 static gate `node scripts/wedding-code36-release.mjs --check-only`는 새 원문 hash와 운영 base의 기존 388개 migration·release-contract·controller 파일 보존을 검사하며 외부 credential이나 원격 호출을 사용하지 않는다. CI는 exact checkout SHA를 추가로 확인한다. 적용 후 앱이나 검사만 바뀌면 재적용하지 않고 SQL·catalog 원문 불변과 기존 catalog·ledger 연속성을 읽기 전용으로 확인한다.
+
+### 운영 빌드의 새 판 등록
+
+기존 strict242 validator는 현재 243개 SQL을 거절하는 동작을 유지한다. 새 판의 운영 빌드는 `scripts/wedding-code36-release-build-contract.mjs`로 별도 검증한다. base Git 원문의 388개 기존 파일을 고정한 snapshot과 새 7개 artifact, 검토된 SQL·catalog hash, 정확한 243개 SQL 목록, 기존 blocked vendor manifest chain을 확인한다. 이 검사는 빌더에서 Git 이력을 요구하지 않는다. 새 판 표식이 남아 있는데 증거가 빠지거나 손상되면 과거 판으로 fallback하지 않는다. 기존 owner manifest 승인과 runtime 쓰기 관문은 유지하며 hosted 증거나 다른 기능의 출시 조건을 통과한 것으로 표시하지 않는다.
+
+계약·controller·repository wiring 66개, 운영 빌드 진입점의 공유 승인·누락·downgrade 차단 6개 검사가 통과했다. 동기 Next 설정 로더의 실제 import도 검사했다. 로컬 `VERCEL_ENV=production` Next 실행은 설정 로드·최적화 컴파일·TypeScript를 통과했으나, 의도한 가짜 Supabase 주소로 업체 목록을 가져올 수 없어 페이지 생성 단계에서 중단됐다. 전체 실제 운영 환경 검사는 Vercel production 빌드와 도메인 확인으로 별도 마감한다. 로컬 결과를 실제 Vercel 환경 증거로 대신하지 않는다.
 
 운영 실행 시 source commit과 receipt 파일명을 고정한다. 다음은 실행자가 credential을 기존 승인된 비밀 전달 경로로 메모리에 넣은 뒤 사용하는 명령 형식이다. receipt는 Git 밖의 기존 보호 디렉터리에 새 이름으로 기록한다. 출력에는 secret이 없다.
 

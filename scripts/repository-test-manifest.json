@@ -154,7 +154,8 @@
       "./scripts/tests/amora-action-writer-retirement-archived-original.test.mjs",
       "./scripts/tests/amora-action-writer-retirement-archived-native.test.mjs",
       "./scripts/tests/amora-action-writer-retirement-post-commit-verifier.test.mjs",
-      "./scripts/tests/wedding-code36-release.test.mjs"
+      "./scripts/tests/wedding-code36-release.test.mjs",
+      "./scripts/tests/wedding-code36-release-build-contract.test.mjs"
     ],
     "supabase": [
       "./scripts/tests/amora-db-current-baseline-restore.test.mjs",
@@ -264,7 +265,8 @@
       "./scripts/tests/amora-action-writer-retirement-archived-original.test.mjs",
       "./scripts/tests/amora-action-writer-retirement-archived-native.test.mjs",
       "./scripts/tests/amora-action-writer-retirement-post-commit-verifier.test.mjs",
-      "./scripts/tests/wedding-code36-release.test.mjs"
+      "./scripts/tests/wedding-code36-release.test.mjs",
+      "./scripts/tests/wedding-code36-release-build-contract.test.mjs"
     ]
   }
 }

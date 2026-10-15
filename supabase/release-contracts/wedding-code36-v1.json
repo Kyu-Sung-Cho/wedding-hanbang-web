@@ -44,7 +44,7 @@
     },
     {
       "file": "scripts/wedding-code36-release.mjs",
-      "sha256": "9995a08539ddb3a1c5c9147d98d164d82e4105a396d00f31694253c6c02b6c2d"
+      "sha256": "abbaa5e26ee28dd4957911bb244c60ab8aaa546fa65a0ce48e234682f67d258f"
     },
     {
       "file": "scripts/wedding-code36-release-catalog.mjs",
@@ -53,6 +53,14 @@
     {
       "file": "scripts/wedding-code36-release-prepare.mjs",
       "sha256": "787ceb4f64bcc60726166bd662400699d4d749b539efe679b835136122f9a019"
+    },
+    {
+      "file": "scripts/wedding-code36-release-build-contract.mjs",
+      "sha256": "2c2b555d9b9df39d887593b1952aae12ac24a5ad0ee59a167a6ac3e498a1380a"
+    },
+    {
+      "file": "supabase/release-contracts/wedding-code36-predecessor-build-inputs-v1.json",
+      "sha256": "3e4440945037b64bdfde1b83bc809b0dc08fb17bdf0f472422165e286873de0e"
     }
   ]
 }

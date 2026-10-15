@@ -97,10 +97,9 @@ describe("exact 241 additive v2 production-build registration, not DB release au
     expect(() => production(source242Fixture.root)).not.toThrow();
   }, 120_000);
 
-  it("keeps both old build validators closed to the current 243 checkout", () => {
+  it("keeps the predecessor validator closed to the current 243 checkout", () => {
     expect(() => validateAmoraWriterRetirementBuildContract({ repoRoot: sourceRoot }))
       .toThrow("AMORA_WRITER_RETIREMENT_NEW_MIGRATION_NOT_REVIEWED");
-    expect(() => production(sourceRoot)).toThrow(VENDOR_DISCLOSURE_STATIC_CONTRACT_INVALID);
   });
 
   it.each([STATIC_PREDECESSOR_PIN.file, `supabase/migrations/${AMORA_WRITER_RETIREMENT_FILE}`])(
