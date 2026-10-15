@@ -160,7 +160,7 @@ export function checkLocalOnly(repoRoot, expectedCommit) {
 export function validateObservation(observed, plan, now = new Date()) {
   requireValue(observed?.format === 'wedding-code36-catalog-v1' && observed.identityReady === true && observed.readOnly === true
     && observed.systemIdentifier === SYSTEM_IDENTIFIER && /^17\./u.test(observed.serverVersion ?? '')
-    && observed.database === 'postgres' && observed.currentUser === 'postgres'
+    && observed.database === 'postgres' && observed.currentUser === 'supabase_read_only_user'
     && [observed.preservedCatalogSha, observed.ledgerSha, observed.ledgerWithoutTargetSha].every(v => MD5.test(v ?? ''))
     && Number.isSafeInteger(observed.ledgerCount) && observed.ledgerCount > 0 && /^\d{14}$/u.test(observed.ledgerHead ?? ''),
   'WC36_OBSERVATION_INVALID');

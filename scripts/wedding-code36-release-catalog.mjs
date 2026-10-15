@@ -65,17 +65,25 @@ export function ledgerDigestSql(excludeTarget = false) {
 }
 const ledgerRowSql = `(SELECT jsonb_build_object('version',version,'name',name,'statementCount',cardinality(statements),'sqlMd5',md5(statements[1]))
  FROM supabase_migrations.schema_migrations WHERE version=${literal(MIGRATION_VERSION)})`;
-const targetIdentitySql = `(SELECT system_identifier::text FROM pg_control_system())=${literal(SYSTEM_IDENTIFIER)}
- AND current_database()='postgres' AND current_user='postgres'
+const databaseIdentitySql = `(SELECT system_identifier::text FROM pg_control_system())=${literal(SYSTEM_IDENTIFIER)}
+ AND current_database()='postgres'
  AND current_setting('server_version_num')::integer BETWEEN 170000 AND 179999
- AND (SELECT count(*) FROM pg_roles WHERE rolname IN ('anon','authenticated','service_role'))=3
+ AND (SELECT count(*) FROM pg_roles WHERE rolname IN ('anon','authenticated','service_role'))=3`;
+const targetIdentitySql = `${databaseIdentitySql} AND current_user='postgres'
  AND has_schema_privilege(current_user,'public','CREATE')
  AND has_table_privilege(current_user,'supabase_migrations.schema_migrations','INSERT')
  AND has_table_privilege(current_user,'supabase_migrations.schema_migrations','SELECT')`;
+// Management API의 read_only:true는 전용 최소권한 역할로 실행된다.
+// 관측 역할을 쓰기 역할로 오인하지 않으며, mutation의 postgres guard는 별도로 유지한다.
+const observationIdentitySql = `${databaseIdentitySql} AND current_user='supabase_read_only_user'
+ AND has_schema_privilege(current_user,'public','USAGE')
+ AND has_table_privilege(current_user,'supabase_migrations.schema_migrations','SELECT')
+ AND NOT has_table_privilege(current_user,'supabase_migrations.schema_migrations','INSERT')
+ AND NOT has_schema_privilege(current_user,'public','CREATE')`;
 
 export function buildObservationSql() {
   return `BEGIN READ ONLY; SET LOCAL statement_timeout='30s'; SET LOCAL search_path=pg_catalog,public;
- SELECT jsonb_build_object('format','wedding-code36-catalog-v1','identityReady',(${targetIdentitySql}),
+ SELECT jsonb_build_object('format','wedding-code36-catalog-v1','identityReady',(${observationIdentitySql}),
  'systemIdentifier',(SELECT system_identifier::text FROM pg_control_system()),'serverVersion',current_setting('server_version'),
  'database',current_database(),'currentUser',current_user,'readOnly',current_setting('transaction_read_only')='on',
  'observedAt',clock_timestamp(),'catalog',${targetCatalogSql()},'preservedCatalogSha',${preservedCatalogSql()},

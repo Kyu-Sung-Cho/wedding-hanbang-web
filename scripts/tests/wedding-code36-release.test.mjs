@@ -30,7 +30,7 @@ function repoFixture() {
 }
 function observation(plan, applied = false) {
   return { format: 'wedding-code36-catalog-v1', identityReady: true, readOnly: true,
-    systemIdentifier: SYSTEM_IDENTIFIER, serverVersion: '17.6', database: 'postgres', currentUser: 'postgres',
+    systemIdentifier: SYSTEM_IDENTIFIER, serverVersion: '17.6', database: 'postgres', currentUser: 'supabase_read_only_user',
     observedAt: now.toISOString(), catalog: applied ? plan.catalog : { relations: [], functions: [] },
     preservedCatalogSha: hash('1'), ledgerSha: hash(applied ? '3' : '2'), ledgerWithoutTargetSha: hash('2'),
     ledgerCount: applied ? 250 : 249, ledgerHead: applied ? MIGRATION_VERSION : '20261013000000',
@@ -109,6 +109,7 @@ test('stale observation, wrong system, nonempty unledgered objects and mismatche
     for (const value of [
       { ...base, observedAt: new Date(now.getTime() - 120001).toISOString() },
       { ...base, systemIdentifier: 'wrong' }, { ...base, serverVersion: '18.6' },
+      { ...base, currentUser: 'postgres' }, { ...base, currentUser: 'anon' },
       { ...base, catalog: { ...base.catalog, relations: [{ name: 'public.wedding_code36_responses' }] } },
       { ...observation(plan, true), migration: { ...observation(plan, true).migration, sqlMd5: hash('9') } },
     ]) assert.throws(() => validateObservation(value, plan, now));
@@ -124,6 +125,8 @@ test('apply rehearses and proves rollback before the single durable transaction 
     assert.ok(h.calls[1].sql.endsWith('ROLLBACK;')); assert.ok(h.calls[3].sql.endsWith('COMMIT;'));
     assert.match(h.calls[3].sql, /LOCK TABLE supabase_migrations\.schema_migrations/u);
     assert.match(h.calls[3].sql, /WC36_BASELINE_DRIFT/u); assert.match(h.calls[3].sql, /WC36_AFTER_DRIFT/u);
+    assert.match(h.calls[3].sql, /current_user='postgres'/u);
+    assert.match(h.calls[3].sql, /has_table_privilege\(current_user,'supabase_migrations\.schema_migrations','INSERT'\)/u);
     assert.equal(h.records.at(-1).status, 'applied-and-postverified');
     assert.ok(h.records.findIndex(r => r.status === 'apply-outcome-unverified') < h.records.findIndex(r => r.status === 'applied-and-postverified'));
   } finally { repo.close(); }
@@ -187,5 +190,7 @@ test('SQL envelope guards cannot accept nested transaction statements or fabrica
   assert.throws(() => buildMutationSql({ sql: 'SELECT 1;', before: {}, catalog: {}, deadline: now.toISOString(), rehearsal: true }));
   const sql = buildObservationSql();
   assert.ok(sql.startsWith('BEGIN READ ONLY;')); assert.match(sql, /pg_control_system/u);
+  assert.match(sql, /current_user='supabase_read_only_user'/u);
+  assert.match(sql, /NOT has_table_privilege\(current_user,'supabase_migrations\.schema_migrations','INSERT'\)/u);
   assert.doesNotMatch(sql, /SELECT \* FROM public\.profiles/u);
 });

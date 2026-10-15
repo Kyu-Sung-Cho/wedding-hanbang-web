@@ -44,11 +44,11 @@
     },
     {
       "file": "scripts/wedding-code36-release.mjs",
-      "sha256": "a1c88246cc5e51fce0437554dec8ed273137fe00993125f8fb6d60bbbc88f905"
+      "sha256": "f9b37dedea96f7af235e38c45a174775e1b14cf1b240f404e5425bdeb0d319e0"
     },
     {
       "file": "scripts/wedding-code36-release-catalog.mjs",
-      "sha256": "3931487b62c05be1530bb3181e10de1386e547385c6687fcbbc88e72654694a5"
+      "sha256": "510d38ed0860cc516dda5bbc8b3b9229117534ede64c2d7a3b2600b08c7c67ba"
     },
     {
       "file": "scripts/wedding-code36-release-prepare.mjs",
