@@ -1,13 +1,14 @@
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import { dirname, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import test from 'node:test';
 import { BASE_COMMIT, FIXTURE, loadPlan, MANIFEST, MIGRATION, parseArgs, PINNED_FILES, RELEASE,
   runRelease, validateObservation, validateSourceChanges } from '../wedding-code36-release.mjs';
-import { buildMutationSql, buildObservationSql, MIGRATION_VERSION, PROJECT_REF, SYSTEM_IDENTIFIER,
+import { aggregate, buildMutationSql, buildObservationSql, MIGRATION_VERSION, PROJECT_REF, SYSTEM_IDENTIFIER,
   unwrapMigration } from '../wedding-code36-release-catalog.mjs';
 import { prepareManifest } from '../wedding-code36-release-prepare.mjs';
 
@@ -64,6 +65,27 @@ test('unrelated future application changes may run the static gate while runtime
   assert.doesNotThrow(() => validateSourceChanges(future, { staticOnly: true }));
   assert.throws(() => validateSourceChanges(future), /WC36_SOURCE_SCOPE_DRIFT/u);
   assert.doesNotThrow(() => validateSourceChanges(['apps/web/src/constants/weddingCode36.ts']));
+});
+
+test('canonical SQL aggregation preserves column metadata while removing the observed locale ordering difference', async () => {
+  const webRequire = createRequire(resolve(sourceRoot, 'apps/web/package.json'));
+  const { PGlite } = await import(pathToFileURL(webRequire.resolve('@electric-sql/pglite')).href);
+  const db = new PGlite();
+  try {
+    const expected = JSON.parse(readFileSync(resolve(sourceRoot, FIXTURE), 'utf8')).catalog.relations
+      .find(r => r.name === 'public.wedding_code36_responses').columns;
+    // 실제 PG17 관측의 차이는 이 두 열의 배열 순서뿐이었다. 원문·권한·열 값은 동일했다.
+    const actual = structuredClone(expected);
+    const a = actual.findIndex(row => row[0] === 'submission'), b = actual.findIndex(row => row[0] === 'submission_id');
+    [actual[a], actual[b]] = [actual[b], actual[a]];
+    assert.notDeepEqual(actual, expected);
+    const sql = `SELECT ${aggregate('SELECT value AS v FROM jsonb_array_elements($1::jsonb)')} AS columns`;
+    const normalized = await db.query(sql, [JSON.stringify(actual)]);
+    assert.deepEqual(normalized.rows[0].columns, expected);
+    actual.find(row => row[0] === 'submission')[2] = true;
+    const changedConstraint = await db.query(sql, [JSON.stringify(actual)]);
+    assert.notDeepEqual(changedConstraint.rows[0].columns, expected);
+  } finally { await db.close(); }
 });
 
 test('manifest pins exactly reviewed SQL, runtime, catalog, fixture and local preparation source', () => {

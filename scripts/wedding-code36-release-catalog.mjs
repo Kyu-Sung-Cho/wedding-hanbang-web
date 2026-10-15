@@ -7,7 +7,8 @@ export const FUNCTIONS = ['wc36_submit', 'wc36_pair', 'wc36_read_report', 'wc36_
   'wc36_update_sharing', 'wc36_delete', 'wc36_purge_expired'];
 const literal = value => `'${String(value).replaceAll("'", "''")}'`;
 const names = values => values.map(literal).join(',');
-const aggregate = query => `(SELECT COALESCE(jsonb_agg(v ORDER BY v::text),'[]'::jsonb) FROM (${query}) q(v))`;
+// JSON 행의 순서는 DB 기본 locale 대신 bytewise C collation으로 고정한다.
+export const aggregate = query => `(SELECT COALESCE(jsonb_agg(v ORDER BY v::text COLLATE "C"),'[]'::jsonb) FROM (${query}) q(v))`;
 const acl = (expression, kind) => aggregate(`SELECT jsonb_build_array(
  CASE WHEN a.grantee=0 THEN 'PUBLIC' ELSE pg_get_userbyid(a.grantee) END,
  pg_get_userbyid(a.grantor),a.privilege_type,a.is_grantable)

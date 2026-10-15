@@ -1,6 +1,7 @@
 // @vitest-environment node
 import { copyFileSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
+import { createRequire } from "node:module";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createDeletionAuditHistoricalRepository } from "../../../../../scripts/tests/fixtures/account-deletion-audit-historical-repository.mjs";
 import { createAmoraActionViewV2HistoricalRepository } from "../../../../../scripts/tests/fixtures/amora-action-view-v2-history-repository.mjs";
@@ -8,7 +9,6 @@ import { AMORA_VIEW_V2_CONTRACT_FILE, loadAmoraActionViewV2Plan } from "../../..
 import { validateAmoraWriterRetirementBuildContract } from "../../../../../scripts/lib/amora-action-writer-retirement-build-contract.mjs";
 import { AMORA_WRITER_RETIREMENT_FILE } from "../../../../../scripts/lib/amora-action-writer-retirement-bundle.mjs";
 import { STATIC_PREDECESSOR_PIN } from "../../../../../scripts/lib/amora-action-writer-retirement-release-contract.mjs";
-import { createAmoraWriterRetirementSourceRepository } from "../../../../../scripts/tests/fixtures/amora-action-writer-retirement-source-repository.mjs";
 import { loadDeletionAuditNullabilityReleasePlan } from "../../../../../scripts/lib/account-deletion-audit-nullability-release-contract.mjs";
 import { validateSuccessorReleaseContract } from "../../../../../scripts/lib/supabase-successor-release-contract.mjs";
 import { assertVendorDisclosureProductionBuild, expectedProductionAuthorizationSha256,
@@ -16,9 +16,11 @@ import { assertVendorDisclosureProductionBuild, expectedProductionAuthorizationS
   VENDOR_DISCLOSURE_STATIC_CONTRACT_INVALID } from "../../../vendorDisclosureProductionBuildFence";
 
 const sourceRoot = resolve(import.meta.dirname, "../../../../..");
+const createPredecessorRepository: (sourceRoot: string) => { root: string; close: () => void } =
+  createRequire(import.meta.url)("../../../../../scripts/tests/fixtures/wedding-code36-predecessor-repository.mjs").createWeddingCode36PredecessorRepository;
 let fixture: ReturnType<typeof createDeletionAuditHistoricalRepository>;
 let source241Fixture: ReturnType<typeof createAmoraActionViewV2HistoricalRepository>;
-let source242Fixture: ReturnType<typeof createAmoraWriterRetirementSourceRepository>;
+let source242Fixture: ReturnType<typeof createPredecessorRepository>;
 const pins = [AMORA_VIEW_V2_CONTRACT_FILE,
   "supabase/migrations/20261012002000_amora_action_view_v2.sql",
   "supabase/release-candidates/amora-action-view-v2/patch_own_amora_action_view_v2.sql",
@@ -29,14 +31,9 @@ const production = (root: string, authorization = expectedProductionAuthorizatio
     environment: { VERCEL_ENV: "production", VENDOR_DISCLOSURE_PRODUCTION_AUTHORIZATION: authorization } });
 
 beforeAll(() => {
-  // 고정 dfdd 241의 원문 fixture다. 현재 242에서 SQL을 제외해 운영 검증을 우회하지 않는다.
+  // 고정 241·242 원문 fixture다. 현재 243에서 SQL을 제외해 운영 검증을 우회하지 않는다.
   source241Fixture = createAmoraActionViewV2HistoricalRepository(sourceRoot);
-  source242Fixture = createAmoraWriterRetirementSourceRepository();
-  for (const file of ["vendor-disclosure-v2-20260718.json", "amora-engine-v2-20260716.json", "amora-openai-20260714.json"]) {
-    const relativePath = `supabase/release-manifests/${file}`;
-    mkdirSync(dirname(join(source242Fixture.root, relativePath)), { recursive: true });
-    copyFileSync(join(sourceRoot, relativePath), join(source242Fixture.root, relativePath));
-  }
+  source242Fixture = createPredecessorRepository(sourceRoot);
   fixture = createDeletionAuditHistoricalRepository(sourceRoot);
   for (const file of pins) {
     mkdirSync(dirname(join(fixture.root, file)), { recursive: true });
@@ -89,16 +86,22 @@ describe("exact 241 additive v2 production-build registration, not DB release au
     }, 120_000,
   );
 
-  it("does not authorize current242 through the old loader and uses the independent strict build contract", () => {
-    expect(() => loadAmoraActionViewV2Plan(sourceRoot))
+  it("does not authorize immutable242 through the old loader and uses the independent strict build contract", () => {
+    expect(() => loadAmoraActionViewV2Plan(source242Fixture.root))
       .toThrowError(expect.objectContaining({ code: "AMORA_VIEW_V2_NEW_MIGRATION_NOT_REVIEWED" }));
-    const current = validateAmoraWriterRetirementBuildContract({ repoRoot: sourceRoot });
+    const current = validateAmoraWriterRetirementBuildContract({ repoRoot: source242Fixture.root });
     expect(current.migrationCount).toBe(242);
     expect(current.controllerReady).toBe(false);
     expect(current.deploymentBlocked).toBe(true);
     expect(current.releaseAuthorized).toBe(false);
-    expect(() => production(sourceRoot)).not.toThrow();
+    expect(() => production(source242Fixture.root)).not.toThrow();
   }, 120_000);
+
+  it("keeps both old build validators closed to the current 243 checkout", () => {
+    expect(() => validateAmoraWriterRetirementBuildContract({ repoRoot: sourceRoot }))
+      .toThrowError(expect.objectContaining({ code: "AMORA_WRITER_RETIREMENT_NEW_MIGRATION_NOT_REVIEWED" }));
+    expect(() => production(sourceRoot)).toThrow(VENDOR_DISCLOSURE_STATIC_CONTRACT_INVALID);
+  });
 
   it.each([STATIC_PREDECESSOR_PIN.file, `supabase/migrations/${AMORA_WRITER_RETIREMENT_FILE}`])(
     "requires the newest contract when either registration marker remains, without old fallback: %s", file => {

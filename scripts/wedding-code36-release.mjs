@@ -111,6 +111,11 @@ export function validateSourceChanges(changed, { staticOnly = false } = {}) {
     || file.startsWith('apps/web/src/app/api/wedding-code/v36/')
     || file.startsWith('apps/web/src/lib/weddingCode36/') || file.startsWith('apps/web/src/lib/weddingCode36Server/')
     || file === 'apps/web/src/constants/weddingCode36.ts'
+    || ['apps/web/src/lib/price/productionBuildBudgetFollowup.test.ts',
+      'apps/web/src/lib/price/productionBuildDeletionFollowup.test.ts',
+      'apps/web/src/lib/price/productionBuildFence.test.ts',
+      'apps/web/src/lib/price/productionBuildAmoraActionViewV2.test.ts',
+      'apps/web/src/lib/marketing/__tests__/publicClaims.test.ts'].includes(file)
     || file.startsWith('apps/web/src/app/api/cron/wedding-code-research-retention/')
     || file === 'apps/web/src/app/privacy/page.tsx' || file === 'PRINCIPLES.md'
     || file === 'docs/wedding-code/README.md' || file === '.github/workflows/ci.yml'
@@ -122,7 +127,11 @@ export function validateSourceChanges(changed, { staticOnly = false } = {}) {
       'scripts/tests/amora-action-writer-retirement-contract.test.mjs',
       'scripts/tests/amora-action-writer-retirement-static-fence.test.mjs',
       'scripts/tests/supabase-explicit-budget-static-fence.test.mjs',
-      'scripts/tests/fixtures/wedding-code36-predecessor-repository.mjs'].includes(file)
+      'scripts/tests/fixtures/wedding-code36-predecessor-repository.mjs',
+      'scripts/tests/ci-signal-integrity.test.mjs',
+      'scripts/tests/qa-merged-preflight.test.mjs',
+      'scripts/tests/repo-tests-are-all-wired.test.mjs',
+      'scripts/verify-local.mjs'].includes(file)
     || /^scripts\/(?:tests\/)?wedding-code36-release[^/]*\.mjs$/u.test(file)
     || /^supabase\/release-contracts\/wedding-code36-[^/]*\.json$/u.test(file)
     || file === MIGRATION || file.startsWith('docs/wedding-code/results36-2026-10-15/')
