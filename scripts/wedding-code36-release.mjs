@@ -113,6 +113,7 @@ export function validateSourceChanges(changed, { staticOnly = false } = {}) {
     || file.startsWith('apps/web/src/app/api/wedding-code/v36/')
     || file.startsWith('apps/web/src/lib/weddingCode36/') || file.startsWith('apps/web/src/lib/weddingCode36Server/')
     || file === 'apps/web/src/constants/weddingCode36.ts'
+    || ['apps/web/src/proxy.ts', 'apps/web/src/proxy.test.ts'].includes(file)
     || ['apps/web/src/lib/price/productionBuildBudgetFollowup.test.ts',
       'apps/web/vendorDisclosureProductionBuildFence.ts',
       'apps/web/src/lib/price/productionBuildWeddingCode36.test.ts',

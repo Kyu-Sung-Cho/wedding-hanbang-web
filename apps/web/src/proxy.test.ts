@@ -63,6 +63,42 @@ describe("proxy WeddingCode capability-token containment", () => {
     expect(middlewareMock.updateSession).toHaveBeenCalledOnce();
     expect(middlewareMock.updateSession).toHaveBeenCalledWith(request);
   });
+
+  it("lets the 36-question saved result reach its result page instead of the retired redirect", async () => {
+    const request = new NextRequest("https://hanbang.ai/wedding-code/result?v=36&rid=11111111-1111-4111-8111-111111111111");
+    const response = await proxy(request);
+    expect(response.headers.get("location")).toBeNull();
+    expect(middlewareMock.updateSession).toHaveBeenCalledWith(request);
+  });
+
+  it("recovers a saved result URL redirected by the previous proxy without losing the owner lookup id", async () => {
+    const response = await proxy(new NextRequest("https://hanbang.ai/wedding-code?v=36&rid=11111111-1111-4111-8111-111111111111&ct=obsolete&utm_source=recovery"));
+    expect(response.status).toBe(307);
+    expect(response.headers.get("location")).toBe("https://hanbang.ai/wedding-code/result?v=36&rid=11111111-1111-4111-8111-111111111111&utm_source=recovery");
+    expect(middlewareMock.updateSession).not.toHaveBeenCalled();
+  });
+
+  it("preserves a 36-question join-only UUID and campaign data for invite validation", async () => {
+    const request = new NextRequest("https://hanbang.ai/wedding-code?ct=22222222-2222-4222-8222-222222222222&utm_source=partner");
+    const response = await proxy(request);
+    expect(response.headers.get("location")).toBeNull();
+    expect(middlewareMock.updateSession).toHaveBeenCalledWith(request);
+  });
+
+  it("removes an unrelated capability from the new result without redirecting to the old entry", async () => {
+    const response = await proxy(new NextRequest("https://hanbang.ai/wedding-code/result?v=36&rid=11111111-1111-4111-8111-111111111111&ct=old-secret"));
+    expect(response.headers.get("location")).toBe("https://hanbang.ai/wedding-code/result?v=36&rid=11111111-1111-4111-8111-111111111111");
+    expect(middlewareMock.updateSession).not.toHaveBeenCalled();
+  });
+
+  it.each(["v=v3.1", "a=legacy-answer", "ct=not-a-uuid"])("keeps old or malformed invite cleanup: %s", extra => {
+    const query = extra.startsWith("ct=") ? extra : `ct=22222222-2222-4222-8222-222222222222&${extra}`;
+    return proxy(new NextRequest(`https://hanbang.ai/wedding-code?${query}`)).then(response => {
+      expect(response.status).toBe(307);
+      expect(response.headers.get("location")).not.toContain("ct=");
+      expect(middlewareMock.updateSession).not.toHaveBeenCalled();
+    });
+  });
 });
 
 describe("proxy preview stub write fence", () => {

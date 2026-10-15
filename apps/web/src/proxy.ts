@@ -4,6 +4,8 @@ import { isPreviewStubMode } from "@/lib/previewStub";
 import { updateSession } from "@/lib/supabase/middleware";
 import { isTrustedMutationRequest } from "@/utils/trustedMutation";
 
+const WEDDING_CODE36_UUID = /^[a-f0-9]{8}-[a-f0-9]{4}-[1-5][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i;
+
 const PUBLIC_NON_AMBIENT_MUTATION_PATHS = new Set([
   // Native signup and password recovery have no ambient cookie or Bearer yet.
   // Both routes enforce their own bounded Turnstile proof before any write.
@@ -340,10 +342,30 @@ export async function proxy(request: NextRequest) {
     );
   }
 
+  // 이미 저장했지만 이전 프록시가 잘못 돌려보낸 결과 주소도 본인 결과 경로로 복구한다.
+  if (request.nextUrl.pathname === "/wedding-code" && request.nextUrl.searchParams.get("v") === "36"
+    && WEDDING_CODE36_UUID.test(request.nextUrl.searchParams.get("rid") ?? "")) {
+    const url = request.nextUrl.clone();
+    url.pathname = "/wedding-code/result";
+    url.searchParams.delete("ct");
+    return NextResponse.redirect(url);
+  }
+  const weddingCodeResult = request.nextUrl.pathname === "/wedding-code/result";
+  const currentWeddingCodeResult = weddingCodeResult && request.nextUrl.searchParams.get("v") === "36";
+  const currentWeddingCodeInvite = request.nextUrl.pathname === "/wedding-code"
+    && !request.nextUrl.searchParams.has("v")
+    && !["a", "b", "ga", "gb"].some((key) => request.nextUrl.searchParams.has(key))
+    && WEDDING_CODE36_UUID.test(request.nextUrl.searchParams.get("ct") ?? "");
+  // 새 판은 본인 브라우저의 별도 접근키로 결과를 읽는다. 초대 UUID는 참가만 허용한다.
+  // 구판 주소 정리는 유지하되 새 결과와 유효한 새 초대가 그 정리에 잡히지 않게 한다.
+  if (currentWeddingCodeResult && request.nextUrl.searchParams.has("ct")) {
+    const url = request.nextUrl.clone();
+    url.searchParams.delete("ct");
+    return NextResponse.redirect(url);
+  }
   if (
-    request.nextUrl.pathname === "/wedding-code/result" ||
-    (request.nextUrl.pathname === "/wedding-code" &&
-      request.nextUrl.searchParams.has("ct"))
+    (weddingCodeResult && !currentWeddingCodeResult) ||
+    (request.nextUrl.pathname === "/wedding-code" && request.nextUrl.searchParams.has("ct") && !currentWeddingCodeInvite)
   ) {
     const url = request.nextUrl.clone();
     url.pathname = "/wedding-code";
