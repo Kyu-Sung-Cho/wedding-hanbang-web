@@ -64,8 +64,10 @@ test('owned exact241 source is not accepted as strict242 and its original strict
   } finally {f.close();}
 });
 
-test('current normal source242 is accepted only by the new combined lane, not the immutable strict241 lane',()=>{
-  assert.equal(load(repoRoot).migrationCount,242);
+test('owned historical source242 remains accepted while both old lanes reject the current additional migration',()=>{
+  const fixture=sourceFixture();
+  try {assert.equal(load(fixture.root).migrationCount,242);}finally {fixture.close();}
+  assert.throws(()=>load(repoRoot),/AMORA_WRITER_RETIREMENT_NEW_MIGRATION_NOT_REVIEWED/);
   assert.throws(()=>loadAmoraActionViewV2Plan(repoRoot),error=>error.message==='AMORA_VIEW_V2_NEW_MIGRATION_NOT_REVIEWED');
 });
 

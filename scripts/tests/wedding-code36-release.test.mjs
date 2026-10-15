@@ -6,7 +6,7 @@ import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import test from 'node:test';
 import { BASE_COMMIT, FIXTURE, loadPlan, MANIFEST, MIGRATION, parseArgs, PINNED_FILES, RELEASE,
-  runRelease, validateObservation } from '../wedding-code36-release.mjs';
+  runRelease, validateObservation, validateSourceChanges } from '../wedding-code36-release.mjs';
 import { buildMutationSql, buildObservationSql, MIGRATION_VERSION, PROJECT_REF, SYSTEM_IDENTIFIER,
   unwrapMigration } from '../wedding-code36-release-catalog.mjs';
 import { prepareManifest } from '../wedding-code36-release-prepare.mjs';
@@ -57,6 +57,13 @@ test('arguments bind mode, production project, exact source and explicit confirm
     argv('apply').map(s => s.replace(`--expected-commit=${commit}`, '--expected-commit=main')),
     [...argv('inspect'), '--baseline-receipt=/tmp/not-allowed'], argv('verify')];
   for (const args of bad) assert.throws(() => parseArgs(args));
+});
+
+test('unrelated future application changes may run the static gate while runtime release scope stays narrow', () => {
+  const future = ['apps/web/src/app/(app)/chat/page.tsx', 'apps/mobile/app/index.tsx'];
+  assert.doesNotThrow(() => validateSourceChanges(future, { staticOnly: true }));
+  assert.throws(() => validateSourceChanges(future), /WC36_SOURCE_SCOPE_DRIFT/u);
+  assert.doesNotThrow(() => validateSourceChanges(['apps/web/src/constants/weddingCode36.ts']));
 });
 
 test('manifest pins exactly reviewed SQL, runtime, catalog, fixture and local preparation source', () => {

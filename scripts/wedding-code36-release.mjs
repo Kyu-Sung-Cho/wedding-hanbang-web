@@ -102,7 +102,36 @@ export function loadPlan(repoRoot) {
     sqlSha256: digest(contents.get(MIGRATION)), fixtureSha256: digest(contents.get(FIXTURE)) };
 }
 
-export function assertSource(repoRoot, expectedCommit) {
+export function validateSourceChanges(changed, { staticOnly = false } = {}) {
+  requireValue(Array.isArray(changed) && changed.every(file => typeof file === 'string') && typeof staticOnly === 'boolean',
+    'WC36_SOURCE_SCOPE_ARGUMENT_INVALID');
+  // CI는 다른 앱 변경도 검사한다. 실제 운영 적용만 승인된 36문항 변경 범위를 요구한다.
+  if (staticOnly) return;
+  const inScope = file => file.startsWith('apps/web/src/app/wedding-code/')
+    || file.startsWith('apps/web/src/app/api/wedding-code/v36/')
+    || file.startsWith('apps/web/src/lib/weddingCode36/') || file.startsWith('apps/web/src/lib/weddingCode36Server/')
+    || file === 'apps/web/src/constants/weddingCode36.ts'
+    || file.startsWith('apps/web/src/app/api/cron/wedding-code-research-retention/')
+    || file === 'apps/web/src/app/privacy/page.tsx' || file === 'PRINCIPLES.md'
+    || file === 'docs/wedding-code/README.md' || file === '.github/workflows/ci.yml'
+    || file === 'scripts/repository-test-manifest.json' || file === 'scripts/qa-wedding-code36-live.mjs'
+    || file === 'scripts/tests/wedding-code36-sql-regression.mjs'
+    || ['scripts/tests/amora-action-view-v2-current-source-rejection.test.mjs',
+      'scripts/tests/amora-action-writer-retirement-admission.test.mjs',
+      'scripts/tests/amora-action-writer-retirement-build-contract.test.mjs',
+      'scripts/tests/amora-action-writer-retirement-contract.test.mjs',
+      'scripts/tests/amora-action-writer-retirement-static-fence.test.mjs',
+      'scripts/tests/supabase-explicit-budget-static-fence.test.mjs',
+      'scripts/tests/fixtures/wedding-code36-predecessor-repository.mjs'].includes(file)
+    || /^scripts\/(?:tests\/)?wedding-code36-release[^/]*\.mjs$/u.test(file)
+    || /^supabase\/release-contracts\/wedding-code36-[^/]*\.json$/u.test(file)
+    || file === MIGRATION || file.startsWith('docs/wedding-code/results36-2026-10-15/')
+    || file.startsWith('docs/wedding-code/app36-production-2026-10-15/')
+    || file.startsWith('docs/operations/wedding-code36-production-2026-10-15/');
+  requireValue(changed.length > 0 && changed.every(inScope), 'WC36_SOURCE_SCOPE_DRIFT');
+}
+
+export function assertSource(repoRoot, expectedCommit, { staticOnly = false } = {}) {
   const git = args => execFileSync('git', ['--no-replace-objects', '-C', repoRoot, ...args], {
     encoding: 'utf8', windowsHide: true, timeout: 15_000, stdio: ['ignore', 'pipe', 'pipe'],
     env: { ...process.env, GIT_NO_LAZY_FETCH: '1', GIT_TERMINAL_PROMPT: '0' },
@@ -114,21 +143,7 @@ export function assertSource(repoRoot, expectedCommit) {
   'WC36_ORIGIN_MISMATCH');
   try { git(['merge-base', '--is-ancestor', BASE_COMMIT, expectedCommit]); } catch { fail('WC36_BASE_COMMIT_NOT_ANCESTOR'); }
   const changed = git(['diff', '--name-only', BASE_COMMIT, expectedCommit]).split(/\r?\n/u).filter(Boolean);
-  const inScope = file => file.startsWith('apps/web/src/app/wedding-code/')
-    || file.startsWith('apps/web/src/app/api/wedding-code/v36/')
-    || file.startsWith('apps/web/src/lib/weddingCode36/') || file.startsWith('apps/web/src/lib/weddingCode36Server/')
-    || file === 'apps/web/src/constants/weddingCode36.ts'
-    || file.startsWith('apps/web/src/app/api/cron/wedding-code-research-retention/')
-    || file === 'apps/web/src/app/privacy/page.tsx' || file === 'PRINCIPLES.md'
-    || file === 'docs/wedding-code/README.md' || file === '.github/workflows/ci.yml'
-    || file === 'scripts/repository-test-manifest.json' || file === 'scripts/qa-wedding-code36-live.mjs'
-    || file === 'scripts/tests/wedding-code36-sql-regression.mjs'
-    || /^scripts\/(?:tests\/)?wedding-code36-release[^/]*\.mjs$/u.test(file)
-    || /^supabase\/release-contracts\/wedding-code36-[^/]*\.json$/u.test(file)
-    || file === MIGRATION || file.startsWith('docs/wedding-code/results36-2026-10-15/')
-    || file.startsWith('docs/wedding-code/app36-production-2026-10-15/')
-    || file.startsWith('docs/operations/wedding-code36-production-2026-10-15/');
-  requireValue(changed.length > 0 && changed.every(inScope), 'WC36_SOURCE_SCOPE_DRIFT');
+  validateSourceChanges(changed, { staticOnly });
 }
 
 // 이전 lane의 원문 핀을 수정하지 않고, 실제 운영 base의 모든 기존 release 파일을 보존한다.
@@ -151,7 +166,8 @@ export function checkLocalOnly(repoRoot, expectedCommit) {
   same(readdirSync(resolve(repoRoot, 'supabase/migrations')).filter(name => /\.sql$/iu.test(name)).sort(), expectedSql,
     'WC36_UNREVIEWED_MIGRATION');
   if (expectedCommit !== undefined) {
-    requireValue(GIT_SHA.test(expectedCommit), 'WC36_LOCAL_SOURCE_ARGUMENT_INVALID'); assertSource(repoRoot, expectedCommit);
+    requireValue(GIT_SHA.test(expectedCommit), 'WC36_LOCAL_SOURCE_ARGUMENT_INVALID');
+    assertSource(repoRoot, expectedCommit, { staticOnly: true });
   }
   return { status: 'local-manifest-and-predecessor-pins-verified', sqlSha256: plan.sqlSha256,
     preservedPredecessorFiles: old.length, remoteWritesPerformed: false, deploymentAuthorized: false };

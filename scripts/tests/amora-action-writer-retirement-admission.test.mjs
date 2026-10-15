@@ -2,8 +2,12 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {fileURLToPath} from 'node:url';
 import {collectAmoraWriterRetirementAdmission,assertAmoraWriterRetirementAdmission} from '../lib/amora-action-writer-retirement-admission.mjs';
+import {createWeddingCode36PredecessorRepository} from './fixtures/wedding-code36-predecessor-repository.mjs';
 
-const repoRoot=fileURLToPath(new URL('../../',import.meta.url));
+const actualRoot=fileURLToPath(new URL('../../',import.meta.url));
+const historical=createWeddingCode36PredecessorRepository(actualRoot);
+test.after(()=>historical.close());
+const repoRoot=historical.root;
 const expectedCommit='dfdd87eaf724baa938a1c0bd459afe0d022c1c4b';
 const confirmation=`amora-action-writer-retirement-transport-20261013:slrtobkksjmxgzatjyqb:rehearse:${expectedCommit}`;
 
