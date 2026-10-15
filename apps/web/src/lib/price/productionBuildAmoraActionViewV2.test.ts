@@ -99,7 +99,7 @@ describe("exact 241 additive v2 production-build registration, not DB release au
 
   it("keeps both old build validators closed to the current 243 checkout", () => {
     expect(() => validateAmoraWriterRetirementBuildContract({ repoRoot: sourceRoot }))
-      .toThrowError(expect.objectContaining({ code: "AMORA_WRITER_RETIREMENT_NEW_MIGRATION_NOT_REVIEWED" }));
+      .toThrow("AMORA_WRITER_RETIREMENT_NEW_MIGRATION_NOT_REVIEWED");
     expect(() => production(sourceRoot)).toThrow(VENDOR_DISCLOSURE_STATIC_CONTRACT_INVALID);
   });
 
