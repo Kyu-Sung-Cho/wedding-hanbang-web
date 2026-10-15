@@ -13,7 +13,7 @@ afterEach(() => {
 });
 
 describe("landing Amora example selector", () => {
-  it("switches three illustrative situations without AI requests or record writes", async () => {
+  it("switches AI examples and the actual initial lounge screen without requests or record writes", async () => {
     vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
     const fetchCall = vi.fn();
     vi.stubGlobal("fetch", fetchCall);
@@ -31,7 +31,7 @@ describe("landing Amora example selector", () => {
       expect(controls?.getAttribute("aria-label")).toBe("어떻게 쓰는지 눌러 보세요");
       const buttons = [...(controls?.querySelectorAll("button") ?? [])];
       expect(buttons.map((button) => button.textContent)).toEqual([
-        "첫 질문", "저장 전 확인", "함께 챙기기",
+        "첫 질문", "저장 전 확인", "라운지 첫 화면",
       ]);
       const panel = host.querySelector('[aria-live="polite"][aria-atomic="true"]');
       expect(panel).toBeTruthy();
@@ -50,26 +50,35 @@ describe("landing Amora example selector", () => {
         const copy = panel?.textContent ?? "";
         for (const phrase of evidence) expect(copy).toContain(phrase);
         const note = host.querySelector("figcaption")?.textContent ?? "";
-        expect(note).toContain("기능을 설명하는 예시예요");
-        expect(note).toContain("이 화면에서는 대화하거나 저장할 수 없어요");
-        expect(note).toContain("AI 답변에는 오류가 있을 수 있어요");
+        if (selected === 2) {
+          expect(note).toContain("실제 웨딩라운지를 캡처했어요");
+          expect(note).toContain("준비 기록은 이 화면에서 바꿀 수 없어요");
+          expect(note).not.toContain("AI 답변");
+        } else {
+          expect(note).toContain("기능을 설명하는 예시예요");
+          expect(note).toContain("이 화면에서는 대화하거나 저장할 수 없어요");
+          expect(note).toContain("AI 답변에는 오류가 있을 수 있어요");
+        }
       };
 
-      // 첫 방문자는 기록 결과보다 먼저, 미정인 상황에서 질문하는 흐름을 본다.
-      verifyScene(0, ["하객은 100명 정도야", "아모라의 답변 · AI 생성", "예산 범위부터 잡아 봐요", "아직 미정"]);
+      // 첫 방문자는 기록 결과보다 먼저, 질문에서 상담 준비로 이어지는 예시를 본다.
+      verifyScene(0, ["하객은 100명 정도야", "아모라의 답변 · AI 생성", "하객 100명을 기준으로 식대", "최소 보증 인원", "상담 전"]);
       expect(panel?.textContent).not.toContain("배정 예산");
 
       await act(async () => buttons[2].click());
-      verifyScene(2, ["확인한 계획이 이렇게 남아요", "각 항목을 직접 확인해 저장한 뒤의 예시예요", "파트너를 연결하면"]);
-      const records = [...(panel?.querySelectorAll("li") ?? [])].map((record) => record.textContent ?? "");
-      expect(records).toHaveLength(3);
-      expect(records[0]).toContain("배정 예산결혼식장1,000만 원");
-      expect(records[1]).toContain("할 일식장 상담 질문 정리미완료");
-      expect(records[2]).toContain("등록 일정드레스 투어2027.03.12");
+      verifyScene(2, ["웨딩라운지에서 준비 현황을 확인해요", "준비 내용을 입력하기 전의 실제 서비스 화면이에요"]);
+      const loungeImage = panel?.querySelector("img");
+      expect(loungeImage).toBeTruthy();
+      expect(decodeURIComponent(loungeImage?.getAttribute("src") ?? "")).toContain("/images/landing-lounge-mobile.jpg");
+      expect(loungeImage?.getAttribute("alt")).toContain("예식일과 다음 일정은 미정");
+      expect(loungeImage?.getAttribute("alt")).toContain("체크리스트 진행·예산 배정·기록 지출은 아직 없는 상태");
+      expect(loungeImage?.getAttribute("width")).toBe("375");
+      expect(loungeImage?.getAttribute("height")).toBe("520");
+      expect(panel?.textContent).not.toContain("1,000만 원");
       expect(panel?.textContent).not.toContain("아모라의 답변 · AI 생성");
 
       await act(async () => buttons[0].click());
-      verifyScene(0, ["하객은 100명 정도야", "아모라의 답변 · AI 생성", "예산 범위부터 잡아 봐요", "아직 미정"]);
+      verifyScene(0, ["하객은 100명 정도야", "아모라의 답변 · AI 생성", "하객 100명을 기준으로 식대", "최소 보증 인원", "상담 전"]);
       expect(panel?.textContent).not.toContain("배정 예산");
 
       await act(async () => buttons[1].click());
@@ -77,7 +86,7 @@ describe("landing Amora example selector", () => {
       expect(panel?.textContent).not.toContain("하객은 100명 정도야");
 
       await act(async () => buttons[2].click());
-      verifyScene(2, ["확인한 계획이 이렇게 남아요", "실제 이용자의 준비 현황은 아니에요", "변경 알림도 앱에서 확인"]);
+      verifyScene(2, ["웨딩라운지에서 준비 현황을 확인해요", "준비 내용을 입력하기 전의 실제 서비스 화면이에요"]);
       expect(panel?.textContent).not.toContain("저장 전");
       expect(fetchCall).not.toHaveBeenCalled();
       expect(saveRecord).not.toHaveBeenCalled();

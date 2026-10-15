@@ -307,9 +307,9 @@ describe("landing two-sided trust contract", () => {
     //
     // 첫 화면은 무엇부터 할지 모르는 순간을 말하고, 질문을 둘의 결정으로 이어 준다.
     const heroCopy = contentBlock("hero", "amoraNote");
-    expect(heroCopy).toMatch(/결혼 준비, 뭐부터 할까요\?[\s\S]*아모라와 하나씩 정해요\./u);
-    expect(heroCopy).toMatch(/AI 동반자 아모라와[^"\n]*지금 고민을 정리하고[^"\n]*직접 확인해 기록/u);
-    expect(heroCopy).toMatch(/내가 원하는 결혼식부터 예산·일정·할 일까지/u);
+    expect(heroCopy).toMatch(/결혼 준비,[\s\S]*지금 뭐부터 해야 할까요\?/u);
+    expect(heroCopy).toMatch(/AI 동반자 아모라에게[^"\n]*물어보세요[^"\n]*내용을 확인하고 저장하면/u);
+    expect(heroCopy).toMatch(/견적서에서 뭘 확인할지[^"\n]*우리 예산을 어디에 쓸지[^"\n]*내용을 확인하고 저장하면[^"\n]*예산·할 일·일정[^"\n]*파트너를 연결하면 같은 준비 기록/u);
     expectWired("hero.body");
     expectWired("hero.note");
     // 2026-08-29: 옛 컴포넌트는 줄바꿈·색 강조 때문에 H1 글자를 손으로 적었고, 그래서
@@ -348,7 +348,7 @@ describe("landing two-sided trust contract", () => {
     expect(boundariesCopy).toContain("아모라는 준비를 돕고,");
     expect(boundariesCopy).toContain("결정은 두 사람이 해요.");
     expectWired("boundaries.title");
-    expect(confirmCopy).toContain("저장 전에 바뀔 내용과 저장 위치를 직접 확인하면 예산·할 일·일정에 남길 수 있어요");
+    expect(confirmCopy).toContain("저장 전에 내용과 저장 위치를 보여줘요. 다르면 다시 말하거나 저장하지 않아도 돼요");
     expect(confirmCopy).toContain("저장을 확인하기 전에는 기록이 바뀌지 않아요");
     // 옛 카피의 "확인 버튼을 누르기 전까지 예산·할 일·일정에 반영되지 않아요." 는
     // 확인 카드 안의 한 줄로 옮겨졌다. 컴포넌트가 손으로 적으므로 거기서 찾는다.
@@ -362,7 +362,7 @@ describe("landing two-sided trust contract", () => {
     // "소개비를 받고 순서를 바꾸는 일도 없어요." 가 경계 항목 둘로 옮겨졌다.
     expect(boundariesCopy).toContain("업체에 점수·등급·순위를 매기지 않아요");
     expect(boundariesCopy).toContain("광고 상품은 운영하지 않아요.");
-    expect(boundariesCopy).toContain("계약 조건을 대신 해석하거나 판단하지 않아요");
+    expect(boundariesCopy).toContain("계약 조건을 해석하거나 어느 쪽이 유리한지 판단하지 않아요");
     expect(boundariesCopy).toContain("업체 계약 신청·예약·결제를 중개하지 않아요.");
 
     // 샘플에는 샘플이라고 적는다 — 옛 "기능 예시 · 이 화면에서는 실제로 저장되지
@@ -661,7 +661,7 @@ describe("landing two-sided trust contract", () => {
     expect(footerCopy).toContain("공시 가격은 기본 조건 기준이라 실제 계약가와 다를 수 있어요");
     expect(footerCopy).toContain("가격을 공시한 업체만 제공하므로");
     expect(footerCopy).toContain("지역별 등록 업체 수가 달라요");
-    expect(availableNowCopy).toContain("가격과 규정은 요약하지 않고 원문으로 제공하며, 가격의 적정 여부는 평가하지 않아요");
+    expect(availableNowCopy).toContain("가격의 적정 여부는 평가하지 않아요");
 
     // 출처는 한국소비자원 하나뿐이다 — 제휴사 가격표는 없다(업체 제휴 0건).
     expect(content).not.toContain("제휴사별 최저 기본가");
@@ -753,14 +753,16 @@ describe("landing two-sided trust contract", () => {
     expectWired("availableNow.title");
     // 첫 화면에서도 조건을 먼저 말한다 — 여기까지 안 내려온 사람이 훨씬 많다.
     const heroCopy = contentBlock("hero", "amoraNote");
-    expect(heroCopy).toContain("아모라는 로그인 후 이용해요. 웨딩코드는 가입 없이 해 볼 수 있어요");
+    expect(heroCopy).toContain("로그인과 시작 설정을 마치면 아모라를 이용할 수 있어요");
+    expect(heroCopy).toContain("현재 무료이며, 향후 요금은 아직 정해지지 않았어요");
+    expect(heroCopy).toContain("웨딩코드는 가입 없이 해 볼 수 있어요");
     expect(closingCopy).toContain("무료 도구는 가입 없이 이용할 수 있어요");
 
     // 계정을 만들면 무엇이 열리는지. 옛 판은 ⑦ 섹션이 한 줄로 적었고, 지금은 확인
     // 섹션의 눈썹("계정을 만들면")과 본문이 그 일을 한다.
     // 2026-09-03: 눈썹이 "계정을 만들면" → "대화로 끝나지 않게" 로 바뀌었다. 계정 이야기를
     // 꺼내는 자리는 그대로 이 섹션이고, 그 말은 고지 문장이 진다.
-    expect(confirmCopy).toContain("현재 무료로 이용할 수 있어요");
+    expect(confirmCopy).toContain("준비 기록은 로그인과 시작 설정을 마친 뒤 남길 수 있어요");
     for (const destination of ['title: "예산"', 'title: "할 일"', 'title: "일정"']) {
       expect(confirmCopy).toContain(destination);
     }
@@ -820,11 +822,11 @@ describe("landing two-sided trust contract", () => {
 
     // 비용은 미정이라고 적는다. **베타를 안 하기로 한 뒤에도 이 고지는 참이라 남는다**
     // (CLAUDE.md 2026-08-29: "없어지는 것은 틀이지 고지가 아니다").
-    expect(confirmCopy).toContain("향후 요금은 아직 정해지지 않았어요");
+    expect(contentBlock("hero", "amoraNote")).toContain("향후 요금은 아직 정해지지 않았어요");
 
     // 가입해도 결제되지 않는다는 약속. 두 자리에 다 있어야 한다 — 확인 섹션에서
     // 계정을 말하는 자리와, 마지막으로 누르기 직전의 마무리.
-    expect(confirmCopy).toContain("현재 무료로 이용할 수 있어요.");
+    expect(contentBlock("hero", "amoraNote")).toContain("현재 무료이며, 향후 요금은 아직 정해지지 않았어요.");
     expect(closingCopy).toContain("가입이 필요해요.");
 
     // "무료 한도"는 커플별 한도를 가리키는 말인데 그 스위치는 프로덕션에서 강제로

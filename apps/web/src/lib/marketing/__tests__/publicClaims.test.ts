@@ -250,8 +250,11 @@ describe("public marketing claim boundary", () => {
     //
     // 문장은 2026-08-28 개편에서 다듬어졌다("확인한 변경만" → "확인한 것만").
     // 지는 계약은 그대로다: 확인한 것만 반영되고, 확인 전에는 아무것도 안 바뀐다.
-    expect(landingContent.confirm.lede, "확인 계약 문장이 confirm.lede 에 없다").toContain(
-      "저장 전에 바뀔 내용과 저장 위치를 직접 확인하면 예산·할 일·일정에 남길 수 있어요",
+    expect(landingContent.confirm.lede, "저장 전 내용과 위치 안내가 confirm.lede 에 없다").toContain(
+      "저장 전에 내용과 저장 위치를 보여줘요",
+    );
+    expect(landingContent.confirm.lede, "저장하지 않을 선택 안내가 사라졌다").toContain(
+      "다르면 다시 말하거나 저장하지 않아도 돼요",
     );
     expect(landingContent.confirm.sample.contract).toContain("저장을 확인하기 전에는 기록이 바뀌지 않아요");
 
@@ -368,16 +371,19 @@ describe("public marketing claim boundary", () => {
   });
 
   it("keeps the not-on-the-vendor-side evidence in the boundaries section", () => {
-    // 옛 `notForVendors` 섹션이 지던 것 전부가 `boundaries.items` 로 옮겨졌다.
+    // 업체 경계 항목과 광고 안내는 같은 섹션에서 각각 표시한다.
     // 업체 편이 아니라는 **증거**라서 없애면 안 된다: 점수를 안 매기고, 광고를 안 받고,
     // 계약을 해석하지 않고, 예약·결제를 중개하지 않는다.
     const noRanking = boundaryItem("점수·등급·순위");
-    expect(noRanking.note, "광고 상품 없음 고지가 사라졌다").toContain(
-      "광고 상품은 운영하지 않아요",
+    expect(noRanking.note, "공시 원문 제공 고지가 사라졌다").toContain(
+      "공시 가격과 규정은 요약하지 않고 원문으로 제공해요",
+    );
+    expect(landingContent.boundaries.advertisingNote, "광고 상품 없음 고지가 사라졌다").toContain(
+      "현재 광고 상품은 운영하지 않아요",
     );
 
-    // 2026-10-10 승인 카피: 대신 해석·판단하지 않는다는 경계와 중개 금지는 그대로다.
-    const noContractReading = boundaryItem("계약 조건을 대신 해석하거나 판단하지 않아요");
+    // 계약 해석·판단과 중개 금지 범위를 각각 확인한다.
+    const noContractReading = boundaryItem("계약 조건을 해석하거나 어느 쪽이 유리한지 판단하지 않아요");
     expect(noContractReading.note, "중개하지 않는다는 고지가 사라졌다").toContain(
       "중개하지 않아요",
     );
@@ -396,6 +402,7 @@ describe("public marketing claim boundary", () => {
     const boundariesSection = rendered("src/components/landing/redesign/BoundariesSection.tsx");
     expect(boundariesSection, "경계 항목 제목이 화면에 안 나간다").toContain("{item.title}");
     expect(boundariesSection, "경계 항목 고지가 화면에 안 나간다").toContain("{item.note}");
+    expect(boundariesSection, "광고 상품 안내가 화면에 안 나간다").toContain("{boundaries.advertisingNote}");
   });
 
   it("keeps policy links real and the price source notice in the footer", () => {
@@ -445,9 +452,16 @@ describe("public marketing claim boundary", () => {
     // 없어진 것은 틀이지 고지가 아니다 — "향후 이용 비용은 아직 정해지지 않았고,
     // 계정을 만들어도 지금은 결제를 요청하지 않아요"는 베타라서가 아니라 오늘 그래서
     // 참이다. 그래서 방향을 뒤집는다: 고지는 **있어야** 하고, 베타 틀은 **없어야** 한다.
-    expect(landingContent.confirm.note, "현재 무료라는 시점과 요금 미정 고지가 사라졌다").toContain(
+    expect(landingContent.hero.note, "주요 행동 옆의 현재 무료·요금 미정 고지가 사라졌다").toContain(
+      "현재 무료이며, 향후 요금은 아직 정해지지 않았어요.",
+    );
+    const heroSection = rendered("src/components/landing/redesign/TransformationHero.tsx");
+    expect(heroSection, "주요 행동 옆 이용 안내가 화면에 안 나간다").toContain("{hero.note}");
+    const faqSection = rendered("src/components/landing/redesign/LandingFaqSection.tsx");
+    expect(faqSection, "FAQ의 현재 무료·요금 미정 고지가 사라졌다").toContain(
       "현재 무료로 이용할 수 있어요. 향후 요금은 아직 정해지지 않았어요.",
     );
+    expect(faqSection, "FAQ 답변이 화면에 안 나간다").toContain("{item.answer}");
     expect(landingContent.closing.note, "가입 조건 고지가 마무리에서 사라졌다").toContain(
       "아모라와 예산·할 일·일정 관리에는 가입이 필요해요",
     );

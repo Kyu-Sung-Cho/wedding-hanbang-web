@@ -51,7 +51,7 @@ export default function TransformationHero() {
 
         <p className="mt-3 max-w-[470px] text-[15px] leading-[1.7] text-[var(--color-paper-ink-soft)] lg:mt-[18px] lg:text-[17.5px] lg:leading-[1.76]">{hero.body}</p>
 
-        <div className="mt-[18px] flex flex-col items-stretch gap-1 lg:mt-8 lg:items-start lg:gap-2">
+        <div className="mt-[18px] flex flex-col items-stretch gap-2 lg:mt-8 lg:items-start lg:gap-3">
             <TrackedLandingLink
               source="landing_hero_primary"
               href={hero.primary.href}
@@ -60,6 +60,7 @@ export default function TransformationHero() {
             >
               {hero.primary.label}
             </TrackedLandingLink>
+            <p className={`relative max-w-[470px] lg:text-left ${noteText}`}>{hero.note}</p>
             <TrackedLandingLink
               source="landing_hero_secondary"
               href={hero.secondary.href}
@@ -70,7 +71,6 @@ export default function TransformationHero() {
             </TrackedLandingLink>
           </div>
 
-          <p className={`relative mt-2 max-w-[470px] lg:text-left ${noteText}`}>{hero.note}</p>
         </div>
 
         {/* 앱 화면 미리보기. 좁은 화면에서는 첫 행동(버튼·안내문) 뒤로 내려간다 —

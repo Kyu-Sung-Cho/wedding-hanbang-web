@@ -167,9 +167,10 @@ function keysOf(block: string): readonly string[] {
  * 키가 정본에서 통째로 사라지면(=고지 삭제) 아래 마지막 반복문이 운다.
  */
 const NOT_RENDERED_YET: ReadonlyArray<readonly [string, string]> = [
-  // 2026-08-29: `confirm.sampleNote` 가 여기 있었다. 이 검사가 "카피에만 있고 화면엔
-  // 없다" 고 알려 줘서 `ConfirmSection` 이 그리도록 고쳤다. 목록이 비었다는 것은
-  // **모든 정본 키가 화면에 닿는다**는 뜻이다.
+  // 팀 수정표 #11: 저장 후 가상 기록 그림을 실제 입력 전 라운지 캡처로 교체했다.
+  // 옛 그림과 그 카피는 보존하지만 현재 노출되는 화면으로 간주하지 않는다.
+  ["confirm", "tools"],
+  ["confirm", "records"],
 ];
 
 /**
@@ -248,11 +249,11 @@ describe("landing first visit clarity", () => {
     // **히어로 블록 안에서** 찾는다 — 파일 전체로 물으면 이 문장을 footer.tagline 으로
     // 옮겨도 통과한다(2026-08-28 변형으로 확인).
     expect(heroBlock, "결혼 준비의 아픈 자리를 말하는 문장이 히어로에 없다")
-      .toMatch(/AI 동반자 아모라와[^"\n]*지금 고민을 정리하고[^"\n]*직접 확인해 기록/u);
+      .toMatch(/AI 동반자 아모라에게[^"\n]*물어보세요[^"\n]*내용을 확인하고 저장하면/u);
     // 아픔만 말하고 끝내지 않는다 — 우리가 무엇을 대신 해주는지가 같은 문장 안에 있어야
     // 한다. 앞 절만 남기면 "정리 안 되죠?" 라고 묻고 마는 화면이 된다.
     expect(heroBlock, "우리가 무엇을 해주는지가 히어로에서 사라졌다")
-      .toMatch(/내가 원하는 결혼식부터 예산·일정·할 일까지/u);
+      .toMatch(/견적서에서 뭘 확인할지[^"\n]*우리 예산을 어디에 쓸지[^"\n]*내용을 확인하고 저장하면[^"\n]*예산·할 일·일정[^"\n]*파트너를 연결하면 같은 준비 기록/u);
     // 카피에 남아 있어도 그리는 자리가 없으면 화면은 빈다.
     expect(hero, "히어로가 hero.body 를 그리지 않는다 — 카피만 남고 화면은 빈다")
       .toContain("{hero.body}");
@@ -261,7 +262,7 @@ describe("landing first visit clarity", () => {
     // 2026-08-29 전에는 히어로 본문과 `scenes` 블록이 이걸 겸했고, 지금은 "지금 되는 것"
     // 02 카드가 진다. 카드에서 사라지면 그 카드가 무엇을 주는지 다시 빈칸이 된다.
     expect(nowCards, "혼자 얻는 결과와 둘이 비교할 내용이 '지금 되는 것' 카드에서 사라졌다")
-      .toContain("파트너도 답하고 결과 링크를 서로 전달하면, 같은 답과 다른 답을 나란히 볼 수 있어요.");
+      .toContain("파트너에게 내 답 링크를 보내고, 파트너도 답한 뒤 결과 링크를 돌려주면 같은 답과 다른 답을 나란히 볼 수 있어요.");
     expect(nowCards).toContain("지출·준비·가족·도움");
     // CLAUDE.md 필수 고지 — WeddingCode 는 검증된 궁합 검사가 아니다. 옛 `scenes.note` 가
     // 지고 있었고 그 섹션이 없어지면서 이 카드로 옮겨왔다. **같은 카드 안**이어야 한다:
@@ -332,8 +333,8 @@ describe("landing first visit clarity", () => {
     // 2026-09-03: 시안이 눈썹을 "계정을 만들면" → "대화로 끝나지 않게" 로 바꿨다.
     // **계정 이야기를 꺼내는 자리는 그대로 확인 섹션**이고, 그 말은 눈썹이 아니라
     // 고지 문장이 진다. 눈썹 글자에 묶지 말고 그 사실로 잰다.
-    expect(confirmBlock, "계정을 요구하는 자리가 확인 섹션이 아니게 됐다")
-      .toContain("현재 무료로 이용할 수 있어요. 향후 요금은 아직 정해지지 않았어요");
+    expect(confirmBlock, "기록 저장의 진입 조건이 사라졌다")
+      .toContain("준비 기록은 로그인과 시작 설정을 마친 뒤 남길 수 있어요");
 
     // 샘플·저장 고지. 옛 `privateLane.note` 가 지고 있었고, 그 섹션이 없어지면서
     // **아모라가 처음 말하는 카드 안으로** 옮겨왔다. 바깥 작은 글씨로 빼면 카드만
@@ -350,7 +351,7 @@ describe("landing first visit clarity", () => {
     // 베타라는 틀이 없어졌다(아래 `BETA_FRAMING` 이 되살아나는 것을 막는다).
     // 남은 것은 계약 자체다 — 한 번에 한 가지, 확인한 것만.
     expect(confirmBlock, "저장할 변경 내용과 위치를 먼저 보여주지 않는다")
-      .toContain("저장 전에 바뀔 내용과 저장 위치를 직접 확인하면 예산·할 일·일정에 남길 수 있어요");
+      .toContain("저장 전에 내용과 저장 위치를 보여줘요. 다르면 다시 말하거나 저장하지 않아도 돼요");
     expect(confirmBlock, "확인 전에는 기록을 바꾸지 않는다는 계약이 사라졌다")
       .toContain("저장을 확인하기 전에는 기록이 바뀌지 않아요");
     // 2026-09-03 시안으로 카드가 "제안 한 건" 에서 "이해한 것 세 줄" 로 바뀌었다.
@@ -361,10 +362,10 @@ describe("landing first visit clarity", () => {
       .toContain("저장 전");
     // 베타는 없어졌지만 이 고지는 **사실이라 남는다**(CLAUDE.md 2026-08-29).
     // 틀을 걷어내면서 같이 지워지기 가장 쉬운 문장이라 따로 못 박는다.
-    expect(confirmBlock, "비용·결제 고지가 베타 틀과 함께 지워졌다")
-      .toContain("현재 무료로 이용할 수 있어요");
-    expect(confirmBlock, "결제를 요청하지 않는다는 고지가 사라졌다")
-      .toContain("현재 무료로 이용할 수 있어요.");
+    expect(heroBlock, "현재 비용 고지가 베타 틀과 함께 지워졌다")
+      .toContain("현재 무료이며");
+    expect(heroBlock, "향후 요금 미정 고지가 사라졌다")
+      .toContain("향후 요금은 아직 정해지지 않았어요");
     // 정본에 남아 있어도 그리지 않으면 화면에는 없다.
     expect(confirm, "확인 섹션이 변경 전 설명을 그리지 않는다").toContain("{confirm.lede}");
     expect(confirm, "‘아직 반영 전’ 라벨을 그리는 자리가 없다")
@@ -399,18 +400,6 @@ describe("landing first visit clarity", () => {
       [confirmBlock, confirm, "confirm", "ConfirmSection"],
     ] as const) {
       for (const key of keysOf(block)) {
-        if (alias === "confirm" && (key === "records" || key === "tools")) {
-          const recordPreview = rendered("src/components/landing/redesign/PreparationRecordPreview.tsx");
-          const appPreview = rendered("src/components/landing/redesign/AppPreviewCard.tsx");
-          expect(recordPreview).toContain("landingContent.confirm");
-          for (const field of ["records.title", "records.note", "records.sharedNote"]) {
-            expect(recordPreview, `공동 준비 기록의 ${field} 고지가 렌더되지 않는다`).toContain(field);
-          }
-          expect(recordPreview).toContain("const { tools, records } = landingContent.confirm");
-          expect(recordPreview).toContain("tools.map(");
-          expect(appPreview).toContain("<PreparationRecordPreview />");
-          continue;
-        }
         // 낱말 경계를 붙인다. `confirm.body` 를 그냥 `toContain` 으로 물으면
         // `{confirm.body2}` 가 대신 대답해서, body 를 그리는 `<p>` 를 지워도 통과한다.
         const drawn = new RegExp(`\\b${alias}\\.${key}\\b`, "u").test(componentSource);

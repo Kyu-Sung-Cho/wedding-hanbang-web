@@ -1,10 +1,10 @@
 "use client";
 
 import { useId, useState } from "react";
+import Image from "next/image";
 import Button from "@/components/ui/Button";
 
 import { landingContent } from "./landingContent";
-import PreparationRecordPreview from "./PreparationRecordPreview";
 
 type PreviewSceneId = typeof landingContent.hero.preview.scenes[number]["id"];
 
@@ -49,7 +49,13 @@ export default function AppPreviewCard() {
         </div>
 
         <div id={panelId} aria-live="polite" aria-atomic="true">
-          {scene.id === "together" ? <PreparationRecordPreview /> : <>
+          {scene.id === "together" ? <div>
+            <h2 className="text-[15px] font-semibold leading-[1.5] text-[var(--color-paper-ink)]">{preview.lounge.title}</h2>
+            <div className="mx-auto mt-3 w-full max-w-[375px]">
+              <Image src={preview.lounge.src} width={375} height={520} unoptimized alt={preview.lounge.alt} className="h-auto w-full rounded-[10px] border border-[var(--color-paper-edge)]" />
+            </div>
+            <p className="mt-3 text-[14px] leading-[1.6] text-[var(--color-paper-ink-soft)]">{preview.lounge.caption}</p>
+          </div> : <>
           <div className="rounded-[12px] bg-[var(--color-paper-ink)] px-[15px] py-3 lg:rounded-[14px] lg:px-5 lg:py-[18px]">
             <p className="text-[12px] font-medium text-[var(--color-paper-on-ink-faint)]">
               {preview.questionLabel}
@@ -80,7 +86,7 @@ export default function AppPreviewCard() {
 
       </div>
       <figcaption className="mt-[14px] border-t border-[var(--color-paper-edge)] pt-3 text-[14px] leading-[1.6] text-[var(--color-paper-ink-soft)] lg:mx-[22px] lg:mb-[22px] lg:mt-0 lg:text-[12px] lg:text-[var(--color-paper-ink-faint)]">
-        {preview.note}
+        {scene.id === "together" ? preview.lounge.note : preview.note}
       </figcaption>
     </figure>
   );
