@@ -83,7 +83,7 @@ export default function WeddingCodeClient() {
     setMissingReasons((old) => { const next = { ...old }; delete next[id]; if (reason) next[id] = reason; return next; });
   }
   function personalOnly() {
-    setInviteToken(null); setInviteState("none"); window.history.replaceState(null, "", "/wedding-code");
+    setInviteToken(null); setInviteState("none"); window.history.replaceState(null, "", "/wedding-code?v=36");
   }
   async function joinPrevious() {
     if (!previous || !inviteToken || sending.current) return;
@@ -139,7 +139,7 @@ export default function WeddingCodeClient() {
   const ownInvite = previous?.coupleToken === inviteToken && inviteToken !== null;
 
   return <main className="min-h-screen bg-[#FDFCF7] px-5 py-8 text-[#3A2A27] sm:py-12"><div className="mx-auto max-w-xl">
-    <Link href="/wedding-code" className="text-xs font-semibold tracking-[0.15em] text-[#8F6662]">WEDDING CODE</Link>
+    <Link href="/wedding-code?v=36" className="text-xs font-semibold tracking-[0.15em] text-[#8F6662]">WEDDING CODE</Link>
     <h1 className="mt-3 text-2xl font-semibold">우리의 결혼 준비 방식</h1>
     {!ready ? <p className="mt-8" role="status">저장된 답을 확인하고 있어요.</p> : <>
       {step === "intro" && <section className="mt-8 space-y-6">

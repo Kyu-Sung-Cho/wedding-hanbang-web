@@ -294,6 +294,8 @@ rollback을 먼저 적는다. 확인하지 못한 항목은 `UNVERIFIED` 또는 
   결혼 성공/이혼 예측이라고 말하지 않는다.
 - 문항마다 construct, 근거 수준, 대안 해석, 위치 편향, 폐기 기준을 추적한다.
 - 질문·선택지·점수·결과 문구 변경은 문서의 exact-version과 함께 검증한다.
+  64문항 판(wc64)의 exact-version은 `wc64-r1-2026-10-16`이고 정본은
+  `docs/wedding-code/2026-10-16_wc64_report_contract.md`다.
 - 연구 수집 API가 닫혀 있으면 UI만 열거나 데이터를 우회 저장하지 않는다.
 - v4 파일럿(v4.0-tendency)은 (a) 기존 연구 보태기 경로를 v4 판으로 확장하거나(만 19세 이상, 동의, 60일
   삭제, 삭제 코드, `docs/wedding-code/README.md` §4 게이트와 별도 Production 재개 PR을 따름)

@@ -15,6 +15,7 @@ import { V40_COPY } from "@/lib/weddingCode/v40/copy";
 import { fixtureByName } from "@/lib/weddingCode/v40/fixtures";
 import { parseWeddingCodeEntryHash } from "./entry";
 import WeddingCodePage, { generateMetadata } from "./page";
+import { WEDDING_CODE_BARE_TARGET } from "./releaseEntry";
 
 const V40 = WEDDING_CODE_V40_VERSION;
 /** 해시로 오면 읽히는 진짜 코드. 깨진 코드("AACB")로만 시험하면 query 를 읽든 말든 오류라서 「query 의 답을 읽지 않는다」를 밝히지 못한다. */
@@ -73,8 +74,13 @@ describe("웨딩코드 진입 화면: v4.0-tendency 명시 진입(기본 판 v3.
     ];
     const clean = await generateMetadata({ searchParams: Promise.resolve({}) });
     expect(clean.robots).toMatchObject({ index: false, follow: false });
-    expect(clean.title).toContain("우리의 결혼 준비 방식");
+    // 맨 주소의 제목은 스위치 상수가 정한 판을 따른다. 36문항 제목은 명시 주소 ?v=36 이 그대로 쓴다.
+    expect(clean.title).toContain(WEDDING_CODE_BARE_TARGET === "wc64" ? "우리의 결혼 준비 성향" : "우리의 결혼 준비 방식");
     expect(noImages(clean)).toEqual([true, true]);
+    const explicit36 = await generateMetadata({ searchParams: Promise.resolve({ v: "36" }) });
+    expect(explicit36.title).toContain("우리의 결혼 준비 방식");
+    expect(explicit36.robots).toMatchObject({ index: false, follow: false });
+    expect(noImages(explicit36)).toEqual([true, true]);
     for (const version of [WEDDING_CODE_V31_VERSION, WEDDING_CODE_V30_VERSION]) {
       const metadata = await generateMetadata({ searchParams: Promise.resolve({ v: version }) });
       expect(metadata.title).toContain("원하는 결혼식과 준비 방식");

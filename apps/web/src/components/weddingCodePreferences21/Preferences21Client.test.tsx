@@ -312,6 +312,8 @@ describe("받은 링크와 기존 저장의 경계", () => {
     expect(window.localStorage.getItem(PREFERENCES21_STORAGE_KEY)).toBeNull();
     expect(window.localStorage.getItem(original30Key)).toBe("previous-30-answer-record");
     expect(window.localStorage.getItem(original30AutosaveKey)).toBe("on");
-    expect(harness.container.querySelector('a[href="/wedding-code"]')?.textContent).toContain("기존 30문항");
+    // 맨 주소는 64문항을 열므로 30문항 링크는 30문항 판을 직접 가리킨다
+    expect(harness.container.querySelector('a[href="/wedding-code?v=likert-preferences-alpha.1"]')?.textContent).toContain("기존 30문항");
+    expect(harness.container.querySelector('a[href="/wedding-code"]')).toBeNull();
   });
 });

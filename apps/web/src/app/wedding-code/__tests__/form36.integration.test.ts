@@ -144,7 +144,7 @@ describe("36문항 실제 양식의 입력·복구·저장 경계", () => {
     expect(container.textContent).toContain("사용할 수 있는 36문항 초대가 아니에요");
     expect(fetcher).not.toHaveBeenCalled();
     await act(async () => { button("개인 테스트로 진행").click(); });
-    expect(window.location.search).toBe("");
+    expect(window.location.search).toBe("?v=36");
     expect(button("36문항 시작하기").disabled).toBe(false);
     await act(async () => { button("36문항 시작하기").click(); });
     expect(container.querySelector("h2")?.textContent).toContain(ITEMS[0].statement);
@@ -158,7 +158,7 @@ describe("36문항 실제 양식의 입력·복구·저장 경계", () => {
     expect(button("36문항 시작하기").disabled).toBe(true);
     await act(async () => { button("개인 테스트로 진행").click(); });
     expect(button("36문항 시작하기").disabled).toBe(false);
-    expect(window.location.search).toBe("");
+    expect(window.location.search).toBe("?v=36");
     expect(fetcher).toHaveBeenCalledTimes(1);
   });
 

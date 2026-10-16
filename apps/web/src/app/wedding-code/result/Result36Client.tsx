@@ -172,13 +172,13 @@ export default function WeddingCode36ResultClient() {
       const body: unknown = await response.json();
       if (!response.ok || !isRecord(body) || body.deleted !== true) throw new Error(isRecord(body) && typeof body.error === "string" ? body.error : "삭제하지 못했어요. 다시 확인해 주세요.");
       clearResult36(source.id); setRecord(null); setInvite(null); setCouple(null);
-      window.location.replace("/wedding-code?deleted=1");
+      window.location.replace("/wedding-code?v=36&deleted=1");
     } catch (e) { setError(e instanceof Error ? e.message : "삭제하지 못했어요."); }
     finally { mutating.current = false; setDeleting(false); }
   }
 
   if (record === "loading") return <p className="p-8 text-sm" role="status">내 결과를 불러오고 있어요.</p>;
-  if (!source || !result || !story) return <main className="min-h-screen bg-[#FDFCF7] px-5 py-16 text-[#3A2A27]"><div className="mx-auto max-w-xl space-y-6"><h1 className="text-2xl font-semibold">이 브라우저에 결과가 없어요</h1><p className="text-sm leading-7">테스트한 브라우저에서 결과를 열어 주세요. 결과 주소만으로는 내 답이나 커플 비교를 볼 수 없어요.</p><Link href="/wedding-code" className={wc36Primary}>36문항 테스트하기</Link></div></main>;
+  if (!source || !result || !story) return <main className="min-h-screen bg-[#FDFCF7] px-5 py-16 text-[#3A2A27]"><div className="mx-auto max-w-xl space-y-6"><h1 className="text-2xl font-semibold">이 브라우저에 결과가 없어요</h1><p className="text-sm leading-7">테스트한 브라우저에서 결과를 열어 주세요. 결과 주소만으로는 내 답이나 커플 비교를 볼 수 없어요.</p><Link href="/wedding-code?v=36" className={wc36Primary}>36문항 테스트하기</Link></div></main>;
 
   const sharedCards = couple?.status === "ready" ? couple.report.body.core_cards : [];
   const discussedPairs = sharedCards.flatMap(card => card.evidence.filter(e => e.discussion_candidate));
@@ -186,7 +186,7 @@ export default function WeddingCode36ResultClient() {
 
   return <main className="min-h-screen bg-[#FDFCF7] px-5 py-6 text-[#3A2A27] sm:py-10"><div className="mx-auto max-w-4xl">
     <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#E2DED2] pb-5">
-      <Link href="/wedding-code" className="text-xs font-semibold tracking-[0.18em] text-[#7D5753]">WEDDING CODE</Link>
+      <Link href="/wedding-code?v=36" className="text-xs font-semibold tracking-[0.18em] text-[#7D5753]">WEDDING CODE</Link>
       <p className="text-xs text-[#6E5A54]">나의 결혼 준비 방식</p>
     </div>
     <header className="py-8 sm:py-12">
@@ -278,6 +278,6 @@ export default function WeddingCode36ResultClient() {
       {!deleteConfirm ? <Button type="button" variant="secondary" size="md" className={`${wc36Secondary} mt-4`} onClick={() => setDeleteConfirm(true)}>내 결과 삭제하기</Button> : <div className="mt-4 space-y-3"><p className="text-sm leading-7">내 답과 이 브라우저의 결과를 지우고 커플 연결을 끝낼까요? 삭제한 답은 되돌릴 수 없어요.</p><div className="flex gap-3"><Button type="button" variant="primary" size="lg" disabled={deleting || saving || pairBusy} className={wc36Primary} onClick={deleteResult}>{deleting ? "삭제 중…" : "삭제하고 연결 끝내기"}</Button><Button type="button" variant="secondary" size="md" disabled={deleting} className={wc36Secondary} onClick={() => setDeleteConfirm(false)}>취소</Button></div></div>}
       <details className="mt-5"><summary className="cursor-pointer text-xs text-[#6E5A54]">서버 결과 기한이 끝났거나 브라우저 사본만 지우려면</summary><p className="mt-3 text-xs leading-6 text-[#6E5A54]">이 동작은 이 브라우저의 내 결과와 접근 권한만 지워요. 서버 결과는 지우지 않으므로 먼저 위의 결과 삭제를 이용해 주세요. 접근 권한을 지우면 서버 결과는 원래 기한까지 남고 다시 열 수 없을 수 있어요.</p>{!forgetConfirm ? <Button type="button" variant="secondary" size="md" className={`${wc36Secondary} mt-3`} onClick={() => setForgetConfirm(true)}>이 브라우저 사본만 지우기</Button> : <div className="mt-3 flex flex-wrap gap-3"><Button type="button" variant="secondary" size="md" disabled={deleting || saving || pairBusy} className={wc36Secondary} onClick={() => { clearResult36(source.id); latestRequest.current += 1; setCouple(null); setInvite(null); setRecord(null); }}>브라우저 사본과 접근 권한 지우기</Button><Button type="button" variant="secondary" size="md" className={wc36Secondary} onClick={() => setForgetConfirm(false)}>취소</Button></div>}</details>
     </section>
-    <footer className="border-t border-[#E2DED2] py-7"><p className="mb-5 text-xs leading-6 text-[#6E5A54]">이 결과는 지금 답한 결혼 준비 장면을 정리한 참고 자료예요. 성격 진단이나 관계 예측이 아니며, 실제 이용자를 통한 측정 타당성 검증은 아직 진행 전이에요.</p><Link href="/wedding-code" className={wc36Secondary}>테스트 처음부터 보기</Link></footer>
+    <footer className="border-t border-[#E2DED2] py-7"><p className="mb-5 text-xs leading-6 text-[#6E5A54]">이 결과는 지금 답한 결혼 준비 장면을 정리한 참고 자료예요. 성격 진단이나 관계 예측이 아니며, 실제 이용자를 통한 측정 타당성 검증은 아직 진행 전이에요.</p><Link href="/wedding-code?v=36" className={wc36Secondary}>테스트 처음부터 보기</Link></footer>
   </div></main>;
 }

@@ -9,10 +9,9 @@ import {
   isWeddingCodeResearchStorageActive,
 } from "@/lib/weddingCode/contribution/server";
 import { V40_COPY } from "@/lib/weddingCode/v40/copy";
-import { MEASUREMENT_VERSION } from "@/lib/weddingCode/likert/types";
 
 import WeddingCodeReleaseClient from "./WeddingCodeReleaseClient";
-import { isLegacyWeddingCodeQuery } from "./releaseEntry";
+import { WEDDING_CODE_BARE_TARGET, isLegacyWeddingCodeQuery, weddingCodeExplicitTarget } from "./releaseEntry";
 import {
   WEDDING_CODE_DEFAULT_VERSION,
   parseWeddingCodeEntryQuery,
@@ -43,11 +42,19 @@ const LIKERT_CARD_IMAGE = {
   alt: "웨딩코드, 결혼을 준비하는 나의 언어를 찾아요",
 };
 
+/** 64문항(wc64) 입구의 카드. 값은 wc64-card/opengraph-image.tsx의 계약과 같다. 카드에는 답이나 개인 결과를 담지 않는다. */
+const WC64_CARD_IMAGE = {
+  ...LIKERT_CARD_IMAGE,
+  url: "/wedding-code/wc64-card/opengraph-image",
+  alt: "웨딩코드, 우리의 결혼 준비 성향",
+};
+
 /**
- * 기본 입구는 36문항이다. 명시한 30문항 판과 그 fragment는 별도로 유지한다. 명시 구판과 이전 답 쿼리는 원래 판의 설명을 유지한다.
+ * 맨 주소가 여는 판은 `releaseEntry.ts` 의 `WEDDING_CODE_BARE_TARGET` 한 곳이 정한다(지금은 64문항이고 `?v=64` 로도 연다).
+ * 36문항은 `?v=36` 과 초대 `?ct=` 로 연다. 64문항은 브라우저 안에서만 계산하고 저장해 서버에 답을 보내지 않는다. 명시한 30문항 판과 그 fragment는 별도로 유지한다. 명시 구판과 이전 답 쿼리는 원래 판의 설명을 유지한다.
  * 모든 입구는 색인하지 않는다. 기존 fragment 응답은 클라이언트에서만 복원한다. 36문항은 별도 저장 동의 후 서버에 보관한다.
  *
- * 공유 카드(openGraph·twitter)는 이 화면의 제목·설명을 쓴다. 36문항 입구는 r6-card, 명시한 30문항 판은 likert-card,
+ * 공유 카드(openGraph·twitter)는 이 화면의 제목·설명을 쓴다. 64문항 입구는 wc64-card, 36문항 입구는 r6-card, 명시한 30문항 판은 likert-card,
  * 명시 v4 입구는 v40-card를 images에 지정한다. 나머지 구판은 images 키를 적지 않아
  * 기존 opengraph-image.tsx 카드를 유지한다. 파일 규약 이미지는 쿼리를 읽을 수 없어
  * 이 구분을 metadata가 맡는다. 서버는 fragment를 볼 수 없으므로 fragment만 있는 구판 링크도
@@ -62,7 +69,16 @@ const LIKERT_CARD_IMAGE = {
 export async function generateMetadata({ searchParams }: WeddingCodePageProps): Promise<Metadata> {
   const search = await searchParams;
   if (!isLegacyWeddingCodeQuery(search)) {
-    const oldLikert = search.v === MEASUREMENT_VERSION;
+    const target = weddingCodeExplicitTarget(search) ?? WEDDING_CODE_BARE_TARGET;
+    if (target === "wc64") {
+      const title = "우리의 결혼 준비 성향 | 웨딩코드 · 웨딩한방";
+      const description = "웨딩을 얼마나 아는지와 결혼 준비 성향을 네 글자와 비율로 정리해 봐요. 답은 이 브라우저에만 남아요.";
+      return { title, description, robots: { index: false, follow: false, nocache: true }, referrer: "no-referrer",
+        alternates: { canonical: "/wedding-code" },
+        openGraph: { title, description, siteName: "웨딩한방", locale: "ko_KR", type: "website", images: [WC64_CARD_IMAGE] },
+        twitter: { card: "summary_large_image", title, description, images: [WC64_CARD_IMAGE] } };
+    }
+    const oldLikert = target === "likert";
     const title = oldLikert ? "나의 결혼 준비 언어 | 웨딩코드 · 웨딩한방" : "우리의 결혼 준비 방식 | 웨딩코드 · 웨딩한방";
     const description = oldLikert
       ? "30개의 문장으로 지출·준비·가족·도움의 기준을 살펴봐요. 각 글자의 뜻과 실제 답의 비율을 확인해요. 혼자서도 결과를 볼 수 있고, 둘 다 답하고 두 사람 결과 링크를 서로 전달하면 각자의 답을 나란히 읽을 수 있어요. 로그인 없이 시작해요."
@@ -120,7 +136,7 @@ export default async function WeddingCodePage({ searchParams }: WeddingCodePageP
   return (
     <WeddingCodeReleaseClient
       queryIsLegacy={isLegacyWeddingCodeQuery(search)}
-      explicitLikert={search.v === MEASUREMENT_VERSION}
+      explicitTarget={weddingCodeExplicitTarget(search)}
       shareOrigin={shareOrigin()}
       initialEntry={initialEntry}
       researchContributionOpen={isWeddingCodeResearchContributionOpen()}

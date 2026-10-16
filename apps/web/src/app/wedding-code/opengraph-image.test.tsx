@@ -40,6 +40,9 @@ import { metadata as togetherMetadata } from "./together/page";
 import { metadata as tasteMetadata } from "./taste/page";
 import { metadata as aliasMetadata } from "../wedding-code-next/page";
 import V40OpenGraphImage, { alt as v40Alt, contentType as v40ContentType, size as v40Size } from "./v40-card/opengraph-image";
+import Wc64OpenGraphImage, { alt as wc64Alt, contentType as wc64ContentType, size as wc64Size } from "./wc64-card/opengraph-image";
+import { WEDDING_CODE_BARE_TARGET } from "./releaseEntry";
+import { WC64_QUERY_VALUE } from "@/lib/weddingCode/wc64/types";
 
 function pngSize(bytes: Uint8Array) {
   const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
@@ -356,12 +359,16 @@ describe("30문항 기본 입구의 일반 공유 카드", () => {
     expect(url.search).toBe("");
     expect(url.hash).toMatch(/^#wc-likert=/);
     expect(readShareFragment(url.hash)).toMatchObject({ kind: "couple", first: { answers: firstAnswers }, second: { answers: secondAnswers } });
-    const metadata = await generateMetadata({ searchParams: Promise.resolve({}) });
-    const serialized = JSON.stringify([metadata.openGraph, metadata.twitter]);
-    expect(serialized).not.toContain(url.hash.slice(1));
-    expect(serialized).not.toMatch(/likert\.money|createdAt|"answers"/);
-    expect(Object.prototype.hasOwnProperty.call(metadata.openGraph, "url")).toBe(false);
-    expect(metadata.description).toContain("서로 공유한 내용");
+    for (const search of [{}, { v: "36" }]) {
+      const metadata = await generateMetadata({ searchParams: Promise.resolve(search) });
+      const serialized = JSON.stringify([metadata.openGraph, metadata.twitter]);
+      expect(serialized, JSON.stringify(search)).not.toContain(url.hash.slice(1));
+      expect(serialized, JSON.stringify(search)).not.toMatch(/likert\.money|createdAt|"answers"/);
+      expect(Object.prototype.hasOwnProperty.call(metadata.openGraph, "url"), JSON.stringify(search)).toBe(false);
+    }
+    // 36문항 설명(서로 공유한 내용)은 맨 주소가 아니라 36문항 명시 주소가 쓴다.
+    const explicit36 = await generateMetadata({ searchParams: Promise.resolve({ v: "36" }) });
+    expect(explicit36.description).toContain("서로 공유한 내용");
   });
 
   it("이전 후보 주소도 새 일반 카드를 쓰고 원답 fragment가 빠질 og:url을 물려받지 않는다", () => {
@@ -372,5 +379,82 @@ describe("30문항 기본 입구의 일반 공유 카드", () => {
     expect(aliasMetadata.description).toContain("두 사람 결과 링크를 직접 돌려주면");
     expect(Object.prototype.hasOwnProperty.call(aliasMetadata.openGraph, "url")).toBe(false);
     expect(JSON.stringify([aliasMetadata.openGraph, aliasMetadata.twitter])).not.toMatch(/landing|아모라|v40-card/);
+  });
+});
+
+/**
+ * 64문항(wc64) 입구의 카드. 맨 주소(스위치 `WEDDING_CODE_BARE_TARGET` 이 "wc64" 일 때)와 `?v=64` 가 쓴다.
+ * 답은 이 브라우저에만 있으므로 카드에는 답, 네 글자 예시, 비율 숫자가 없다. 문항 수 64 하나만 숫자로 적는다.
+ */
+describe("웨딩코드 64문항 공유 카드", () => {
+  const WEB_ROOT = process.cwd();
+  const BANNED_ON_CARD = [
+    "MBTI", "엠비티아이", "검증", "정확", "과학", "진단", "궁합", "당신은", "예측", "확률", "속마음", "무의식", "상위",
+    "성격", "점수", "등급", "동물", "캐릭터", "베타", "—", "–",
+  ];
+
+  it("1200×630 PNG 로 실제로 그려지고 한글 글꼴을 싣는다", async () => {
+    const { response, bytes } = await drawCard(Wc64OpenGraphImage);
+    expect(wc64Size).toEqual({ width: 1200, height: 630 });
+    expect(wc64ContentType).toBe("image/png");
+    expect(response.headers.get("content-type")).toContain("image/png");
+    expect([...bytes.slice(0, 8)]).toEqual([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+    expect(pngSize(bytes)).toEqual({ width: 1200, height: 630 });
+    const fonts = captured[0].options.fonts as Array<{ data: ArrayBuffer | Buffer }>;
+    expect(fonts).toHaveLength(1);
+    expect(fonts[0].data.byteLength).toBeGreaterThan(100_000);
+  }, 60_000);
+
+  it("카드의 글은 웨딩코드, 64문항, 네 글자와 비율로 보는 결혼 준비 성향뿐이고 금지어와 답이 없다", async () => {
+    const { text } = await drawCard(Wc64OpenGraphImage);
+    expect(text).toBe([
+      "한", "웨딩한방", "웨딩코드", "네 글자와 비율로 보는", "결혼 준비 성향",
+      "64문항에 답하고, 답은 이 브라우저에만 남아요", "로그인 없이 시작해요", "hanbang.ai",
+    ].join(" "));
+    expect(wc64Alt).toBe("웨딩코드, 우리의 결혼 준비 성향");
+    for (const source of [text, wc64Alt]) {
+      const latin = (source.match(/[A-Za-z?]+/g) ?? []).filter(run => run !== "hanbang" && run !== "ai");
+      expect(latin, source).toEqual([]);
+      for (const banned of BANNED_ON_CARD) expect(source, banned).not.toContain(banned);
+      expect(source).not.toContain("%");
+      expect(source.match(/\d+/g) ?? [], source).toEqual(source === text ? ["64"] : []);
+      // 카드는 두 사람 비교를 약속하지 않는다.
+      expect(source).not.toMatch(/나란히|비교|둘 다|서로 공유|상대/);
+    }
+  }, 60_000);
+
+  it("카드 파일은 공용 틀만 쓰고 색과 배치를 따로 갖지 않는다", () => {
+    const source = readFileSync(resolve(WEB_ROOT, "src/app/wedding-code/wc64-card/opengraph-image.tsx"), "utf8");
+    expect(source).not.toMatch(/#[0-9A-Fa-f]{6}\b/);
+    expect(source).not.toContain("style={{");
+    expect(source).toContain("weddingCodeCard(");
+  });
+
+  it("64문항 입구만 이 카드를 openGraph 와 twitter 에 적고, 폴더에 화면은 없다", async () => {
+    const expectedImage = { url: "/wedding-code/wc64-card/opengraph-image", type: wc64ContentType, ...wc64Size, alt: wc64Alt };
+    expect(existsSync(resolve(WEB_ROOT, "src/app/wedding-code/wc64-card/opengraph-image.tsx"))).toBe(true);
+    expect(existsSync(resolve(WEB_ROOT, "src/app/wedding-code/wc64-card/page.tsx"))).toBe(false);
+    const wc64Searches: Array<Record<string, string>> = [{ v: WC64_QUERY_VALUE }, { v: WC64_QUERY_VALUE, utm_source: "kakao" }];
+    if (WEDDING_CODE_BARE_TARGET === "wc64") wc64Searches.push({}, { utm_source: "landing" });
+    for (const search of wc64Searches) {
+      const label = JSON.stringify(search);
+      const metadata = await generateMetadata({ searchParams: Promise.resolve(search) });
+      expect(metadata.openGraph?.images, label).toEqual([expectedImage]);
+      expect(metadata.twitter?.images, label).toEqual([expectedImage]);
+      expect(String(metadata.title), label).toBe("우리의 결혼 준비 성향 | 웨딩코드 · 웨딩한방");
+      expect(metadata.description, label).toBe("웨딩을 얼마나 아는지와 결혼 준비 성향을 네 글자와 비율로 정리해 봐요. 답은 이 브라우저에만 남아요.");
+      expect(metadata.robots, label).toMatchObject({ index: false, follow: false, nocache: true });
+      expect(metadata.referrer, label).toBe("no-referrer");
+      expect(metadata.alternates?.canonical, label).toBe("/wedding-code");
+      expect(metadata.openGraph, label).toMatchObject({ title: metadata.title, description: metadata.description, siteName: "웨딩한방", locale: "ko_KR", type: "website" });
+      expect(metadata.twitter, label).toMatchObject({ card: "summary_large_image", title: metadata.title, description: metadata.description });
+      expect(Object.prototype.hasOwnProperty.call(metadata.openGraph, "url"), label).toBe(false);
+      for (const banned of BANNED_ON_CARD) expect(JSON.stringify(metadata), `${label} ${banned}`).not.toContain(banned);
+    }
+    // 36문항·30문항·구판 입구는 이 카드를 적지 않는다.
+    for (const search of [{ v: "36" }, { ct: "invite" }, { v: MEASUREMENT_VERSION }, { v: WEDDING_CODE_V40_VERSION }, { v: WEDDING_CODE_V31_VERSION }, { a: "AACB" }]) {
+      const metadata = await generateMetadata({ searchParams: Promise.resolve(search) });
+      expect(JSON.stringify([metadata.openGraph, metadata.twitter]), JSON.stringify(search)).not.toContain("wc64-card");
+    }
   });
 });

@@ -20,6 +20,7 @@ import { V40_COPY } from "@/lib/weddingCode/v40/copy";
 import { fixtureByName } from "@/lib/weddingCode/v40/fixtures";
 import { parseWeddingCodeEntryHash } from "./entry";
 import WeddingCodePage, { generateMetadata } from "./page";
+import { WEDDING_CODE_BARE_TARGET } from "./releaseEntry";
 
 const V40_TITLE = `${V40_COPY.intro.title} | 웨딩코드 · 웨딩한방`;
 
@@ -33,14 +34,24 @@ const READABLE_V40_CODE = (() => {
 })();
 
 describe("웨딩코드 진입 화면: 이전 기본 상수가 v4여도 새 입구와 구판을 구분한다", () => {
-  it("맨 주소는 새 제목·카드, 명시 v4는 구판 제목·카드를 쓰고 모두 색인 밖이다", async () => {
-    for (const search of [{}, { utm_source: "landing" }, { v: WEDDING_CODE_V40_VERSION }]) {
+  it("맨 주소와 명시 36·64는 새 제목·카드, 명시 v4는 구판 제목·카드를 쓰고 모두 색인 밖이다", async () => {
+    const v4Card = { url: "/wedding-code/v40-card/opengraph-image", type: "image/png", width: 1200, height: 630, alt: `웨딩코드, ${V40_COPY.intro.title}` };
+    const r6Card = { url: "/wedding-code/r6-card/opengraph-image", type: "image/png", width: 1200, height: 630, alt: "웨딩코드, 우리의 결혼 준비 방식" };
+    const wc64Card = { url: "/wedding-code/wc64-card/opengraph-image", type: "image/png", width: 1200, height: 630, alt: "웨딩코드, 우리의 결혼 준비 성향" };
+    const r6Title = "우리의 결혼 준비 방식 | 웨딩코드 · 웨딩한방";
+    const wc64Title = "우리의 결혼 준비 성향 | 웨딩코드 · 웨딩한방";
+    const bare = WEDDING_CODE_BARE_TARGET === "wc64" ? { title: wc64Title, card: wc64Card } : { title: r6Title, card: r6Card };
+    const cases: Array<[Record<string, string>, { title: string; card: typeof v4Card }]> = [
+      [{}, bare], [{ utm_source: "landing" }, bare],
+      [{ v: "36" }, { title: r6Title, card: r6Card }], [{ ct: "invite" }, { title: r6Title, card: r6Card }],
+      [{ v: "64" }, { title: wc64Title, card: wc64Card }],
+      [{ v: WEDDING_CODE_V40_VERSION }, { title: V40_TITLE, card: v4Card }],
+    ];
+    for (const [search, expected] of cases) {
       const metadata = await generateMetadata({ searchParams: Promise.resolve(search) });
-      expect(String(metadata.title), JSON.stringify(search)).toBe(search.v === WEDDING_CODE_V40_VERSION ? V40_TITLE : "우리의 결혼 준비 방식 | 웨딩코드 · 웨딩한방");
+      expect(String(metadata.title), JSON.stringify(search)).toBe(expected.title);
       expect(metadata.robots, JSON.stringify(search)).toMatchObject({ index: false, follow: false });
-      const v4Card = { url: "/wedding-code/v40-card/opengraph-image", type: "image/png", width: 1200, height: 630, alt: `웨딩코드, ${V40_COPY.intro.title}` };
-      const likertCard = { url: "/wedding-code/r6-card/opengraph-image", type: "image/png", width: 1200, height: 630, alt: "웨딩코드, 우리의 결혼 준비 방식" };
-      const expectedCard = search.v === WEDDING_CODE_V40_VERSION ? v4Card : likertCard;
+      const expectedCard = expected.card;
       expect(metadata.openGraph?.images, JSON.stringify(search)).toEqual([expectedCard]);
       expect(metadata.twitter?.images, JSON.stringify(search)).toEqual([expectedCard]);
     }
