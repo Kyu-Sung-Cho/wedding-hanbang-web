@@ -66,10 +66,13 @@ describe("준비 스타일의 개인 저장과 두 사람 공유", () => {
     }
   }
 
-  it("라운지 기본 주소는 공개 화면과 같은 최신 문항을 열고 구판 계정 API를 호출하지 않는다", async () => {
+  it("라운지 기본 주소는 v3.1 문항을 열고 구판 계정 API를 호출하지 않는다", async () => {
     const page = await PreparationStylePage({ searchParams: Promise.resolve({}) });
     await act(async () => root.render(<main>{page}</main>));
     expect(container.querySelector("[data-lounge-wedding-code]")).not.toBeNull();
+    // 라운지는 v3.1 키만 읽는다. 맨 /wedding-code(36·64문항)에 남긴 답을 이어 본다고 말하지 않는다.
+    expect(container.textContent).not.toContain("공개 웨딩코드에서 이 브라우저에 남긴 답");
+    expect(container.textContent).not.toMatch(/이어 볼 수 있/);
     expect(container.textContent).toContain("기본 14페이지");
     expect(container.textContent).toContain("8개 선택 질문");
     expect(container.textContent).toContain("고른 답과 웨딩코드는 답하는 동안 서버나 계정에 보내지 않아요");
@@ -90,7 +93,7 @@ describe("준비 스타일의 개인 저장과 두 사람 공유", () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it("공개 웨딩코드에서 남긴 브라우저 답을 라운지에서도 같은 질문부터 이어 하며 계정으로 보내지 않는다", async () => {
+  it("v3.1 키에 남긴 브라우저 답을 라운지에서 같은 질문부터 이어 하며 계정으로 보내지 않는다", async () => {
     const draft = createV31Draft();
     draft.answers.G1 = 5;
     expect(writeV31LocalProgress(window.localStorage, {
@@ -126,6 +129,8 @@ describe("준비 스타일의 개인 저장과 두 사람 공유", () => {
     await click("답과 공유 허가 삭제");
     expect(fetchMock.mock.calls[1][1]?.method).toBe("DELETE");
     expect(container.textContent).toContain("계정에 저장한 이전 답이 없어요");
+    expect(container.textContent).not.toContain("공개 웨딩코드에서 이 브라우저에 남긴 답");
+    expect(container.textContent).not.toMatch(/이어 볼 수 있/);
     expect(button("내 답 고르기")).toBeUndefined();
     expect(container.querySelector('a[href="/wedding/preparation-style"]')?.textContent).toContain("최신 웨딩코드");
   });

@@ -181,7 +181,6 @@ function BoundStyleHub({ binding, demo, partnerName, previousOnly }: { binding: 
         <PersonalStyleResults personal={personal} showTools={false} />
       </> : loading ? <Loading /> : previousOnly && !demo && !snapshot ? null : !mine && previousOnly ? <section className={`${panel} p-6 sm:p-8`}>
         <h2 className="text-[var(--hb-text-strong)]">계정에 저장한 이전 답이 없어요</h2>
-        <p className="mt-3 text-sm leading-7 text-[var(--hb-text-body)]">공개 웨딩코드에서 이 브라우저에 남긴 답은 최신 웨딩코드에서 이어 볼 수 있어요.</p>
         <Link {...weddingLinkProps("/preparation-style")} className="mt-4 inline-flex min-h-11 items-center gap-2 text-sm font-semibold text-[var(--hb-primary)]">최신 웨딩코드 열기<ArrowRight className="size-4" aria-hidden="true" /></Link>
       </section> : !mine ? <section className={`${panel} p-6 sm:p-8`}>
         <h2 className="text-[var(--hb-text-strong)]">먼저 내 생각부터 골라 보세요</h2>

@@ -236,8 +236,8 @@
   {
     "name": "화면에 안 보이는 라운지 쪽 소스에 옛 24개 문구가 되돌아온다",
     "target": "apps/web/src/components/app/preparation-style/LoungeWeddingCode.tsx",
-    "find": "공개 웨딩코드에서 이 브라우저에 남긴 답도 여기서 이어 볼 수 있어요.",
-    "replace": "공개 웨딩코드에서 이 브라우저에 남긴 답도 여기서 이어 볼 수 있어요. 기본 24개 질문이에요."
+    "find": "이전에 계정에 저장한 답 보기",
+    "replace": "이전에 계정에 저장한 답 보기 기본 24개 질문이에요"
   },
   {
     "name": "소개 본문에 긴 줄표가 들어간다",

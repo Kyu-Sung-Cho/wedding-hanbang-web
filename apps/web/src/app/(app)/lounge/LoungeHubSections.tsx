@@ -101,7 +101,7 @@ export function LoungeReferencePanels({ categoryKey, allocated }: { categoryKey:
       <p className="mt-2 text-[11.5px] leading-[1.75] text-[var(--amora-soft)]">처음이라 낯선 순서와 확인할 내용을 가이드에서 살펴보세요.</p>
       <Link {...weddingLinkProps(guide ? `/manners/${guide.slug}` : "/manners")} className={`mt-1 inline-flex min-h-11 items-center gap-1.5 text-[11px] font-semibold ${focus}`}>가이드 읽기<ArrowRight size={12} aria-hidden="true" /></Link>
     </section>
-    {/* 라운지에서도 공개 화면과 같은 웨딩코드 문항·결과로 이어 준다. */}
+    {/* 라운지 웨딩코드는 v3.1 판을 연다(맨 /wedding-code 의 판과 다르고 저장 키도 따로다). */}
     <section className="rounded-[16px] border border-[var(--amora-line)] bg-white p-[18px]" data-lounge-preparation-style="">
       <p className="inline-flex items-center gap-1.5 text-[10px] text-[var(--amora-muted)]"><Split size={13} aria-hidden="true" />고른 답으로 이야기하기</p>
       <h2 className="mt-2 text-[14px] font-semibold">웨딩코드</h2>
