@@ -350,6 +350,41 @@ describe("ChatContent composer draft lanes", () => {
     await act(async () => root.render(<ChatContent />));
     await act(async () => { await new Promise(resolve => window.setTimeout(resolve, 10)); });
   };
+  it("keeps the chosen private scope in the URL and follows back navigation without sending drafts", async () => {
+    const originalUrl = window.location.href;
+    window.history.replaceState(null, "", "/wedding/chat?scope=shared&keep=1#anchor");
+    try {
+      mocks.queryScope = "shared";
+      await renderAndSettle();
+      await act(async () => buttonWith("나만 (상담)").click());
+      expect(mocks.push).toHaveBeenCalledWith("/wedding/chat?scope=private&keep=1#anchor", { scroll: false });
+      mocks.queryScope = "private";
+      await renderAndSettle();
+      expect(buttonWith("나만 (상담)").getAttribute("aria-pressed")).toBe("true");
+      mocks.queryScope = "shared";
+      await renderAndSettle();
+      expect(buttonWith("함께 대화").getAttribute("aria-pressed")).toBe("true");
+      expect(mocks.sendMessage).not.toHaveBeenCalled();
+    } finally {
+      window.history.replaceState(null, "", originalUrl);
+    }
+  });
+  it("sends the latest scope navigation when returning before the first navigation completes", async () => {
+    const originalUrl = window.location.href;
+    window.history.replaceState(null, "", "/wedding/chat?scope=shared");
+    try {
+      mocks.queryScope = "shared";
+      await renderAndSettle();
+      await act(async () => buttonWith("나만 (상담)").click());
+      // The route still reports shared while Next is completing the first push.
+      await act(async () => buttonWith("함께 대화").click());
+      expect(mocks.push.mock.calls.map(([destination]) => destination)).toEqual([
+        "/wedding/chat?scope=private", "/wedding/chat?scope=shared",
+      ]);
+      expect(buttonWith("함께 대화").getAttribute("aria-pressed")).toBe("true");
+      expect(mocks.sendMessage).not.toHaveBeenCalled();
+    } finally { window.history.replaceState(null, "", originalUrl); }
+  });
   const openSharedClearRequest = async () => {
     if (!mocks.messages.length) { mocks.messages = history("shared", 1); await renderAndSettle(); }
     await act(async () => container.querySelector<HTMLButtonElement>('button[aria-label="대화 화면 정리"]')!.click());
@@ -719,7 +754,9 @@ describe("ChatContent composer draft lanes", () => {
     expect(container.querySelector('button[aria-label="정보 패널 · 대화 정리와 준비 현황"]')).not.toBeNull();
     expect(container.querySelector('a[aria-label="AI 정책"]')).not.toBeNull();
     expect(mocks.sendMessage).not.toHaveBeenCalled();
-    expect(mocks.push).not.toHaveBeenCalled();
+    expect(mocks.push.mock.calls.map(([destination]) => destination)).toEqual([
+      "/?scope=private", "/?scope=shared", "/?scope=private",
+    ]);
   });
 
   it.each(["streaming", "sending"] as const)("locks header scope and board navigation during %s without losing the draft", async kind => {
