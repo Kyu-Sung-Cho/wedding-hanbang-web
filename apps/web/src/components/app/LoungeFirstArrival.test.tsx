@@ -183,7 +183,9 @@ describe("빈 이유 한 줄", () => {
     const view = buildLoungeFirstArrival(makeInput());
     const html = renderToStaticMarkup(<LoungeFirstArrivalEmptyNote view={view!} />);
 
-    expect(html).toContain("두 분이 확인한 것만 쌓여요");
+    expect(html).toContain("확인한 것만 쌓여요");
+    // 한 사람이 확인하면 바로 쌓이므로 두 사람 확인을 조건으로 말하지 않는다.
+    expect(html).not.toContain("두 분이");
   });
 });
 

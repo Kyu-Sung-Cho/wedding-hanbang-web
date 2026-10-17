@@ -350,6 +350,22 @@ describe("라운지 첫 도착", () => {
     expect(full.invite).not.toBeNull();
   });
 
+  it("emptyNote 는 두 사람 확인을 말하지 않는다", () => {
+    // 2026-08-23 부터 한 사람이 확인하면 바로 반영된다. 혼자 쓰는 사람에게
+    // "두 분이 확인한 것만" 이라고 하면 파트너가 올 때까지 안 쌓이는 것처럼 읽힌다.
+    for (const partnerLinked of [true, false, undefined]) {
+      const view = buildLoungeFirstRunView({
+        weddingDate: "2026-12-20",
+        partnerLinked,
+        now: NOW,
+      });
+      expect(view.emptyNote).toBe(
+        "예산·체크리스트·일정은 확인한 것만 쌓여요. 그래서 지금은 비어 있어요.",
+      );
+      expect(view.emptyNote).not.toContain("두 분");
+    }
+  });
+
   it("미정 날짜나 빈 취향으로는 안내를 만들지 않고 초대는 유지한다", () => {
     const view = buildLoungeFirstRunView({
       weddingDate: "미정",

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
   ACCOUNT_DELETION_EMAIL_REQUEST_LABEL,
   ACCOUNT_DELETION_INTAKE_CLOSED_NOTICE,
@@ -45,6 +45,7 @@ import type {
   GuestCount,
 } from "@/types/onboarding.types";
 import { weddingLinkProps } from "@/lib/weddingPaths";
+import { formatLoungeWon } from "@/lib/amora/loungeSummary";
 import { CONTACT } from "@/lib/constants/contact";
 import TodayOnePreferenceControl from "@/components/app/TodayOnePreferenceControl";
 import InviteCodePanel from "@/components/invite/InviteCodePanel";
@@ -87,6 +88,9 @@ const fadeIn = {
   initial: { opacity: 0, y: 20 },
   animate: { opacity: 1, y: 0 },
 };
+
+/** 이 화면에서 한 칸씩 고치는 네 항목. 연필 버튼 id(settings-edit-*)의 접미사다. */
+type EditField = "name" | "date" | "venue" | "budget";
 
 /** 재발급이 실패했을 때. 코드가 사라진 이유를 말하고 다음 행동을 준다. */
 const REGENERATE_FAILED =
@@ -135,10 +139,40 @@ export default function SettingsPage() {
   const [nameError, setNameError] = useState("");
   const [dateInput, setDateInput] = useState("");
   const [budgetInput, setBudgetInput] = useState("");
+  const [budgetError, setBudgetError] = useState("");
   const [venueInput, setVenueInput] = useState("");
   const [saving, setSaving] = useState(false);
   const [journeyNotice, setJourneyNotice] = useState("");
   const [journeyError, setJourneyError] = useState("");
+
+  // 저장·취소하면 누른 버튼이 통째로 사라진다. 포커스를 열었던 연필 버튼으로 돌려준다.
+  const restoreFocusTo = useRef<EditField | null>(null);
+  const closeEditor = (field: EditField) => {
+    restoreFocusTo.current = field;
+    if (field === "name") {
+      setEditingName(false);
+      setNameError("");
+    } else if (field === "date") {
+      setEditingDate(false);
+    } else if (field === "venue") {
+      setEditingVenue(false);
+    } else {
+      setEditingBudget(false);
+      setBudgetError("");
+    }
+  };
+  useEffect(() => {
+    const field = restoreFocusTo.current;
+    restoreFocusTo.current = null;
+    if (!field) return;
+    // 그 사이 같은 칸이 다시 열렸다면 연필 버튼이 없으니 돌려줄 곳도 없다.
+    const stillEditing = { name: editingName, date: editingDate, venue: editingVenue, budget: editingBudget }[field];
+    if (stillEditing) return;
+    // 저장하는 동안 사용자가 다른 곳으로 옮겼다면 포커스를 빼앗지 않는다.
+    const active = document.activeElement;
+    if (active && active !== document.body) return;
+    document.getElementById(`settings-edit-${field}`)?.focus();
+  }, [editingName, editingDate, editingVenue, editingBudget]);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deleteConfirmText, setDeleteConfirmText] = useState("");
   const [deleting, setDeleting] = useState(false);
@@ -197,13 +231,25 @@ export default function SettingsPage() {
   const [revokingLegacyCareConsent, setRevokingLegacyCareConsent] = useState(false);
   const [legacyCareConsentError, setLegacyCareConsentError] = useState("");
 
+  // 인증 스토어는 창 포커스마다 couple/partner 를 같은 내용의 새 객체로 갈아끼운다.
+  // 객체를 deps 에 두면 그때마다 코드를 지우고 다시 불러 초대 카드가 깜빡이므로,
+  // 이 효과가 읽는 원시값만 본다. 합류·봉인·커플 교체는 이 값들로 그대로 잡힌다.
+  const hasCouple = Boolean(couple);
+  const coupleId = couple?.id ?? null;
+  const brideId = couple?.bride_id ?? null;
+  const groomId = couple?.groom_id ?? null;
+  const hasPartner = Boolean(partner);
+  const membershipSealedAt = couple?.membership_sealed_at;
+  const demoInviteCode = couple?.invite_code ?? "WH-DEMO01";
+  const demoFullyLinked = Boolean(brideId && groomId);
+
   useEffect(() => {
     const context = {
-      partnerPresent: Boolean(partner),
-      membershipSealedAt: couple?.membership_sealed_at,
+      partnerPresent: hasPartner,
+      membershipSealedAt,
     };
 
-    if (!couple) {
+    if (!hasCouple) {
       // **판정을 끝냈다고 표시한다.** 예전에는 여기서 그냥 나가서
       // `connectionLookup` 이 첫 값인 "loading" 으로 남았고, 준비 공간이 없는
       // 계정은 이 카드가 **영원히 "연결 상태를 불러오는 중이에요"** 였다
@@ -216,9 +262,9 @@ export default function SettingsPage() {
 
     if (isDemo) {
       setCoupleConnection(resolveCoupleConnectionState({
-        inviteCode: couple.invite_code ?? "WH-DEMO01",
-        isFullyLinked: Boolean(couple.bride_id && couple.groom_id),
-        isMembershipSealed: Boolean(couple.membership_sealed_at),
+        inviteCode: demoInviteCode,
+        isFullyLinked: demoFullyLinked,
+        isMembershipSealed: Boolean(membershipSealedAt),
         inviteCodeExpiresAt: null,
         inviteCodeReissued: false,
       }, context));
@@ -253,7 +299,7 @@ export default function SettingsPage() {
       cancelled = true;
       controller.abort();
     };
-  }, [couple, isDemo, partner, connectionRetryNonce]);
+  }, [hasCouple, coupleId, brideId, groomId, hasPartner, membershipSealedAt, demoInviteCode, demoFullyLinked, isDemo, connectionRetryNonce]);
 
   const phase = coupleConnection.phase;
   const coupleCode = coupleConnection.inviteCode;
@@ -326,7 +372,10 @@ export default function SettingsPage() {
 
   // 이름 저장
   const saveName = async () => {
-    if (!nameInput.trim()) return;
+    if (!nameInput.trim()) {
+      setNameError("이름을 입력해 주세요.");
+      return;
+    }
     setSaving(true);
     setNameError("");
     try {
@@ -347,7 +396,7 @@ export default function SettingsPage() {
         useAuthStore.setState({ profile: data.profile });
         useCommunityStore.getState().applyOwnNickname(data.profile.id, data.profile.name);
       }
-      setEditingName(false);
+      closeEditor("name");
     } catch {
       setNameError("이름 저장 중 오류가 발생했습니다.");
     } finally {
@@ -367,7 +416,7 @@ export default function SettingsPage() {
           ? `${result.summary} 상대방에게 확인 요청을 보냈어요. 두 분 확인 전에는 반영되지 않습니다.`
           : "결혼일을 저장했어요.",
       );
-      setEditingDate(false);
+      closeEditor("date");
     } catch (error) {
       setJourneyError(
         error instanceof Error
@@ -381,8 +430,13 @@ export default function SettingsPage() {
 
   // 예산 저장
   const saveBudget = async () => {
-    const value = parseInt(budgetInput) * 10000;
-    if (isNaN(value) || value <= 0) return;
+    // 예산 화면(BudgetContent handleTotalBudgetSave)과 같은 규칙: 소수 만원을 받고 원 단위로 반올림한다.
+    const value = Math.round(parseFloat(budgetInput) * 10000);
+    if (!Number.isSafeInteger(value) || value <= 0) {
+      setBudgetError("0보다 큰 금액을 넣어주세요.");
+      return;
+    }
+    setBudgetError("");
     setSaving(true);
     setJourneyError("");
     setJourneyNotice("");
@@ -393,7 +447,7 @@ export default function SettingsPage() {
           ? `${result.summary} 상대방에게 확인 요청을 보냈어요. 두 분 확인 전에는 반영되지 않습니다.`
           : "총예산을 저장했어요.",
       );
-      setEditingBudget(false);
+      closeEditor("budget");
     } catch (error) {
       setJourneyError(
         error instanceof Error
@@ -417,7 +471,7 @@ export default function SettingsPage() {
           ? `${result.summary} 상대방에게 확인 요청을 보냈어요. 두 분 확인 전에는 반영되지 않습니다.`
           : "대표 식장을 저장했어요.",
       );
-      setEditingVenue(false);
+      closeEditor("venue");
     } catch (error) {
       setJourneyError(
         error instanceof Error
@@ -591,9 +645,7 @@ export default function SettingsPage() {
     ? `${weddingDate.getFullYear()}년 ${weddingDate.getMonth() + 1}월 ${weddingDate.getDate()}일`
     : "날짜 미정";
   const totalBudget = journey?.total_budget ?? 0;
-  const budgetStr = totalBudget > 0
-    ? `₩${(totalBudget / 10000).toLocaleString()}만원`
-    : "미설정";
+  const budgetStr = totalBudget > 0 ? formatLoungeWon(totalBudget) : "미설정";
   const venue = journey?.venue ?? null;
   const venueStr = venue && venue.trim().length > 0 ? venue : "미정";
 
@@ -636,6 +688,7 @@ export default function SettingsPage() {
                 <div className="flex items-center gap-2">
                   <input
                     type="text"
+                    aria-label="이름"
                     value={nameInput}
                     onChange={(e) => {
                       setNameInput(e.target.value);
@@ -645,14 +698,14 @@ export default function SettingsPage() {
                     className="px-3 py-2 rounded-[6px] bg-[var(--hb-surface-hover)] text-lg text-[var(--hb-text-strong)] outline-none focus:ring-2 ring-[rgba(54,83,78,0.30)] w-[170px]"
                     autoFocus
                   />
-                  <button onClick={saveName} disabled={saving} className="tap-area shrink-0 w-9 h-9 rounded-[6px] bg-[#2E7D5A] flex items-center justify-center text-white">
+                  <button onClick={saveName} disabled={saving} aria-label="이름 저장" className="tap-area shrink-0 w-9 h-9 rounded-[6px] bg-[#2E7D5A] flex items-center justify-center text-white">
                     <Save className="w-5 h-5" />
                   </button>
-                  <button onClick={() => { setEditingName(false); setNameError(""); }} className="tap-area shrink-0 w-9 h-9 rounded-[6px] bg-[var(--hb-surface-hover)] flex items-center justify-center text-[var(--hb-text-body)]">
+                  <button onClick={() => closeEditor("name")} aria-label="이름 수정 취소" className="tap-area shrink-0 w-9 h-9 rounded-[6px] bg-[var(--hb-surface-hover)] flex items-center justify-center text-[var(--hb-text-body)]">
                     <X className="w-5 h-5" />
                   </button>
                 </div>
-                {nameError && <p className="mt-2 text-sm text-[#9A3F3F]">{nameError}</p>}
+                {nameError && <p role="alert" className="mt-2 text-sm text-[#9A3F3F]">{nameError}</p>}
               </div>
             ) : (
               <div className="flex items-center gap-2">
@@ -663,6 +716,8 @@ export default function SettingsPage() {
                   </span>
                 )}
                 <button
+                  id="settings-edit-name"
+                  aria-label="이름 수정"
                   onClick={() => { setNameInput(userName); setNameError(""); setEditingName(true); }}
                   className="tap-area shrink-0 w-7 h-7 rounded-[6px] flex items-center justify-center text-[var(--hb-text-muted)] hover:text-[var(--hb-accent-hover)] bg-[#f3e9df] transition-colors"
                 >
@@ -690,16 +745,17 @@ export default function SettingsPage() {
                 <div className="flex items-center gap-1.5 mt-1">
                   <input
                     type="date"
+                    aria-label="결혼 예정일"
                     value={dateInput}
                     min={new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Seoul" }).format(new Date())}
                     onChange={(e) => setDateInput(e.target.value)}
                     className="px-2.5 py-1.5 rounded-[6px] bg-white text-base text-[var(--hb-text-strong)] outline-none focus:ring-2 ring-[rgba(54,83,78,0.30)]"
                     autoFocus
                   />
-                  <button onClick={saveDate} disabled={saving} className="tap-area shrink-0 w-7 h-7 rounded-[6px] bg-[#2E7D5A] flex items-center justify-center text-white">
+                  <button onClick={saveDate} disabled={saving} aria-label="결혼 예정일 저장" className="tap-area shrink-0 w-7 h-7 rounded-[6px] bg-[#2E7D5A] flex items-center justify-center text-white">
                     <Save className="w-4 h-4" />
                   </button>
-                  <button onClick={() => setEditingDate(false)} className="tap-area shrink-0 w-7 h-7 rounded-[6px] bg-white flex items-center justify-center text-[var(--hb-text-body)]">
+                  <button onClick={() => closeEditor("date")} aria-label="결혼 예정일 수정 취소" className="tap-area shrink-0 w-7 h-7 rounded-[6px] bg-white flex items-center justify-center text-[var(--hb-text-body)]">
                     <X className="w-4 h-4" />
                   </button>
                 </div>
@@ -707,6 +763,8 @@ export default function SettingsPage() {
                 <div className="flex items-center gap-1.5">
                   <p className="text-[17px] font-medium text-[var(--hb-text-strong)]">{dateStr}</p>
                   <button
+                    id="settings-edit-date"
+                    aria-label="결혼 예정일 수정"
                     onClick={() => { setDateInput(journey?.wedding_date ?? ""); setEditingDate(true); }}
                     className="tap-area shrink-0 w-6 h-6 rounded-[6px] flex items-center justify-center text-[var(--hb-text-muted)] hover:text-[var(--hb-accent-hover)] transition-colors"
                   >
@@ -726,6 +784,7 @@ export default function SettingsPage() {
                 <div className="flex items-center gap-1.5 mt-1">
                   <input
                     type="text"
+                    aria-label="결혼식장"
                     value={venueInput}
                     onChange={(e) => setVenueInput(e.target.value)}
                     onKeyDown={(e) => e.key === "Enter" && saveVenue()}
@@ -733,10 +792,10 @@ export default function SettingsPage() {
                     className="min-w-0 flex-1 px-2.5 py-1.5 rounded-[6px] bg-white text-base text-[var(--hb-text-strong)] outline-none focus:ring-2 ring-[rgba(54,83,78,0.30)] placeholder:text-[var(--hb-text-muted)]"
                     autoFocus
                   />
-                  <button onClick={saveVenue} disabled={saving} className="tap-area w-7 h-7 shrink-0 rounded-[6px] bg-[#2E7D5A] flex items-center justify-center text-white">
+                  <button onClick={saveVenue} disabled={saving} aria-label="결혼식장 저장" className="tap-area w-7 h-7 shrink-0 rounded-[6px] bg-[#2E7D5A] flex items-center justify-center text-white">
                     <Save className="w-4 h-4" />
                   </button>
-                  <button onClick={() => setEditingVenue(false)} className="tap-area w-7 h-7 shrink-0 rounded-[6px] bg-white flex items-center justify-center text-[var(--hb-text-body)]">
+                  <button onClick={() => closeEditor("venue")} aria-label="결혼식장 수정 취소" className="tap-area w-7 h-7 shrink-0 rounded-[6px] bg-white flex items-center justify-center text-[var(--hb-text-body)]">
                     <X className="w-4 h-4" />
                   </button>
                 </div>
@@ -744,6 +803,8 @@ export default function SettingsPage() {
                 <div className="flex items-center gap-1.5">
                   <p className="text-[17px] font-medium text-[var(--hb-text-strong)] truncate">{venueStr}</p>
                   <button
+                    id="settings-edit-venue"
+                    aria-label="결혼식장 수정"
                     onClick={() => { setVenueInput(venue ?? ""); setEditingVenue(true); }}
                     className="tap-area w-6 h-6 shrink-0 rounded-[6px] flex items-center justify-center text-[var(--hb-text-muted)] hover:text-[var(--hb-accent-hover)] transition-colors"
                   >
@@ -760,30 +821,41 @@ export default function SettingsPage() {
             <div className="flex-1 min-w-0">
               <p className="text-sm text-[var(--hb-text-muted)]">설정 예산</p>
               {editingBudget ? (
-                <div className="flex items-center gap-1.5 mt-1">
-                  <div className="flex items-center">
-                    <input
-                      type="number"
-                      value={budgetInput}
-                      onChange={(e) => setBudgetInput(e.target.value)}
-                      onKeyDown={(e) => e.key === "Enter" && saveBudget()}
-                      className="w-[90px] px-2.5 py-1.5 rounded-[6px] bg-white text-base text-[var(--hb-text-strong)] outline-none focus:ring-2 ring-[rgba(54,83,78,0.30)] text-right"
-                      autoFocus
-                    />
-                    <span className="text-sm text-[var(--hb-text-muted)] ml-1">만원</span>
+                <div>
+                  <div className="flex items-center gap-1.5 mt-1">
+                    <div className="flex items-center">
+                      <input
+                        type="number"
+                        aria-label="설정 예산(만원 단위)"
+                        min="0.0001"
+                        step="0.0001"
+                        value={budgetInput}
+                        onChange={(e) => {
+                          setBudgetInput(e.target.value);
+                          setBudgetError("");
+                        }}
+                        onKeyDown={(e) => e.key === "Enter" && saveBudget()}
+                        className="w-[90px] px-2.5 py-1.5 rounded-[6px] bg-white text-base text-[var(--hb-text-strong)] outline-none focus:ring-2 ring-[rgba(54,83,78,0.30)] text-right"
+                        autoFocus
+                      />
+                      <span className="text-sm text-[var(--hb-text-muted)] ml-1">만원</span>
+                    </div>
+                    <button onClick={saveBudget} disabled={saving} aria-label="설정 예산 저장" className="tap-area shrink-0 w-7 h-7 rounded-[6px] bg-[#2E7D5A] flex items-center justify-center text-white">
+                      <Save className="w-4 h-4" />
+                    </button>
+                    <button onClick={() => closeEditor("budget")} aria-label="설정 예산 수정 취소" className="tap-area shrink-0 w-7 h-7 rounded-[6px] bg-white flex items-center justify-center text-[var(--hb-text-body)]">
+                      <X className="w-4 h-4" />
+                    </button>
                   </div>
-                  <button onClick={saveBudget} disabled={saving} className="tap-area shrink-0 w-7 h-7 rounded-[6px] bg-[#2E7D5A] flex items-center justify-center text-white">
-                    <Save className="w-4 h-4" />
-                  </button>
-                  <button onClick={() => setEditingBudget(false)} className="tap-area shrink-0 w-7 h-7 rounded-[6px] bg-white flex items-center justify-center text-[var(--hb-text-body)]">
-                    <X className="w-4 h-4" />
-                  </button>
+                  {budgetError && <p role="alert" className="mt-2 text-xs leading-relaxed text-[#9A3F3F]">{budgetError}</p>}
                 </div>
               ) : (
                 <div className="flex items-center gap-1.5">
                   <p className="text-[17px] font-medium text-[var(--hb-text-strong)]">{budgetStr}</p>
                   <button
-                    onClick={() => { setBudgetInput(String(totalBudget / 10000)); setEditingBudget(true); }}
+                    id="settings-edit-budget"
+                    aria-label="설정 예산 수정"
+                    onClick={() => { setBudgetInput(totalBudget > 0 ? String(totalBudget / 10000) : ""); setBudgetError(""); setEditingBudget(true); }}
                     className="tap-area shrink-0 w-6 h-6 rounded-[6px] flex items-center justify-center text-[var(--hb-text-muted)] hover:text-[var(--hb-accent-hover)] transition-colors"
                   >
                     <Pencil className="w-3.5 h-3.5" />
@@ -1113,7 +1185,7 @@ export default function SettingsPage() {
                 aria-checked={notifications[item.key]}
                 onClick={() => toggleNotification(item.key)}
                 className={`tap-area relative h-7 w-12 shrink-0 rounded-full transition-colors ${
-                  notifications[item.key] ? "bg-gradient-to-br from-[#795252] to-[#946a6a]" : "bg-[#B5ADA3]/30"
+                  notifications[item.key] ? "bg-gradient-to-br from-[#795252] to-[#946a6a]" : "bg-paper-outline"
                 }`}
               >
                 <div

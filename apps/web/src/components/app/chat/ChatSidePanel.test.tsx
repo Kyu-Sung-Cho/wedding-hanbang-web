@@ -326,6 +326,17 @@ describe("ChatSidePanel attachment sending", () => {
     }));
   });
 
+  it("메시지 입력칸이 키보드 초점을 받으면 둘레에 초점 표시가 생기는 클래스를 갖는다", () => {
+    const input = container.querySelector<HTMLInputElement>('input[aria-label="메시지 입력"]');
+    expect(input).not.toBeNull();
+    const tokens = (input?.parentElement?.className ?? "").split(/\s+/);
+    expect(tokens).toEqual(expect.arrayContaining([
+      "has-[input:focus-visible]:outline-2",
+      "has-[input:focus-visible]:-outline-offset-2",
+      "has-[input:focus-visible]:outline-[var(--hb-focus-ring)]",
+    ]));
+  });
+
   it("submits only once when the send control fires twice before React rerenders", async () => {
     let finishSend: (() => void) | undefined;
     mocks.sendMessage.mockImplementationOnce(() => new Promise((resolve) => {

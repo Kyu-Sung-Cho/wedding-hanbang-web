@@ -249,7 +249,7 @@ export default function InviteCodePanel({
             <strong className="font-semibold">{partnerJoinPurgeTotal}개</strong>가 지워져요.
             상대가 함께하기 전의 짐작을 그대로 물려받지 않기 위해서예요.{" "}
             <span className="text-[var(--hb-text-muted)]">
-              두 분이 확인한 예산·일정과 지금까지 주고받은 대화는 그대로 남아요.
+              확인한 예산·일정과 지금까지 주고받은 대화는 그대로 남아요.
             </span>
           </p>
         )}

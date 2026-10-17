@@ -6,6 +6,7 @@ import { ArrowRight, Building2, Check, ChevronRight, HeartHandshake, ListChecks,
 import { useAmoraPreparationActions } from "@/hooks/useAmoraPreparationActions";
 import { buildAmoraMissionModel, type AmoraMissionCard, type MissionGroup } from "@/lib/amora/missions";
 import { weddingLinkProps } from "@/lib/weddingPaths";
+import { directionParticle } from "@/lib/korean/particles";
 import { useAuthStore } from "@/stores/authStore";
 import CategoryChecklistModal from "@/components/app/schedule/CategoryChecklistModal";
 import Button from "@/components/ui/Button";
@@ -97,7 +98,7 @@ function MissionStage({ group, recommendation, onOpen, onRecommended, onClose }:
           {group.categories.map(category => <li key={category.key} className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 py-2">
             <div className="min-w-0 flex-1">
               <p className="text-[13px] font-semibold leading-5">{category.label}</p>
-              <p className="mt-0.5 text-[11.5px] leading-5 text-[var(--amora-muted)]">{category.declared ? `분야를 ${CATEGORY_STATUS[category.status]}로 표시` : CATEGORY_STATUS[category.status]}{category.status !== "not_applicable" && !category.declared ? ` · ${category.done} / ${category.total}개 체크` : ""}</p>
+              <p className="mt-0.5 text-[11.5px] leading-5 text-[var(--amora-muted)]">{category.declared ? `분야를 ${CATEGORY_STATUS[category.status]}${directionParticle(CATEGORY_STATUS[category.status])} 표시` : CATEGORY_STATUS[category.status]}{category.status !== "not_applicable" && !category.declared ? ` · ${category.done} / ${category.total}개 체크` : ""}</p>
             </div>
             <Button variant="secondary" type="button" aria-label={`${category.label} 체크리스트 열기`} onClick={() => onOpen(category.key)} className={`shrink-0 !whitespace-normal !rounded-lg !border-[var(--amora-line)] !bg-transparent !px-3 !text-[12px] !text-[var(--amora-accent)] hover:!bg-transparent ${BUTTON_FOCUS}`}>{category.status === "not_applicable" ? "다시 살펴보기" : category.status === "completed" ? "확인·수정" : "열기"}</Button>
           </li>)}

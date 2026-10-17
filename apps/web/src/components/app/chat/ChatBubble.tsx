@@ -246,7 +246,7 @@ export function AiFeedbackRow({
             onChange={(e) => setCorrection(e.target.value)}
             onKeyDown={(e) => { if (e.key === "Enter") handleBadSubmit(); }}
             placeholder="예: 더 짧게, 덜 딱딱하게"
-            className="flex-1 text-base px-3 py-2 rounded-[6px] border border-[#E8E0D8] bg-[#FAF8F5] text-[var(--hb-text-strong)] placeholder-[#B5ADA3] focus:outline-none focus:border-[#C4967E]/40"
+            className="flex-1 text-base px-3 py-2 rounded-[6px] border border-[#E8E0D8] bg-[#FAF8F5] text-[var(--hb-text-strong)] placeholder:text-[var(--hb-text-muted)] focus:outline-none focus:border-[#C4967E]/40"
             autoFocus
             disabled={isSubmitting}
           />

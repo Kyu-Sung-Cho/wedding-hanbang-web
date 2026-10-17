@@ -444,7 +444,7 @@ function MemorySettingsContent({ ownerKey }: { ownerKey: string | null }) {
                 onClick={() => void toggleMemory()}
                 className="relative h-11 w-14 flex-shrink-0 rounded-full transition-opacity focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8F6662] focus-visible:ring-offset-2 disabled:opacity-50"
               >
-                <span className={`absolute inset-x-1 top-2 h-7 rounded-full transition-colors ${setting?.consentedByMe ? "bg-[#2E7D5A]" : "bg-[#D8D1CC]"}`} />
+                <span className={`absolute inset-x-1 top-2 h-7 rounded-full transition-colors ${setting?.consentedByMe ? "bg-[#2E7D5A]" : "bg-paper-outline"}`} />
                 <span className={`absolute left-0 top-2.5 h-6 w-6 rounded-full bg-white shadow-sm transition-transform ${setting?.consentedByMe ? "translate-x-7" : "translate-x-1.5"}`} />
               </button>
             </div>

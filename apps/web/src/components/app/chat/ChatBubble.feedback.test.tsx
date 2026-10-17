@@ -47,6 +47,9 @@ describe("Amora message feedback", () => {
 
     const input = container.querySelector<HTMLInputElement>("input");
     expect(input?.placeholder).toBe("예: 더 짧게, 덜 딱딱하게");
+    // 안내 예시 글자는 옅은 #B5ADA3(2.1:1)이 아니라 앱 공용 muted 색으로 읽혀야 한다.
+    expect(input?.className).toContain("placeholder:text-[var(--hb-text-muted)]");
+    expect(input?.className).not.toContain("B5ADA3");
     expect(container.textContent).toContain(
       "이 의견과 해당 공유 답변은 품질 확인용 기록에 저장돼요.",
     );

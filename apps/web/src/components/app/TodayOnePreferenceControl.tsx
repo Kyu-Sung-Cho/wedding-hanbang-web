@@ -242,7 +242,7 @@ export default function TodayOnePreferenceControl() {
           disabled={saving !== null}
           onClick={() => void update(preference.enabled ? "disable" : "enable")}
           className={`relative mt-1 h-7 w-12 shrink-0 rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--hb-primary)] disabled:cursor-wait disabled:opacity-60 ${
-            preference.enabled ? "bg-[var(--hb-primary)]" : "bg-[#B5ADA3]/30"
+            preference.enabled ? "bg-[var(--hb-primary)]" : "bg-paper-outline"
           }`}
         >
           <span

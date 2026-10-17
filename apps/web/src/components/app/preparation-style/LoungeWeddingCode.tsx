@@ -11,7 +11,7 @@ export default function LoungeWeddingCode({ shareOrigin, initialEntry }: {
   return <div data-lounge-wedding-code="">
     <div className="mx-auto max-w-2xl px-4 pt-5 sm:px-6">
       <Link {...weddingLinkProps("/lounge")} className="inline-flex min-h-11 items-center gap-2 text-sm font-semibold text-[var(--hb-primary)]">
-        <ArrowLeft className="size-4" aria-hidden="true" />웨딩라운지로
+        <ArrowLeft className="size-4" aria-hidden="true" />웨딩 라운지로
       </Link>
       <p className="mt-2 text-sm leading-6 text-[var(--hb-text-body)]">공개 웨딩코드에서 이 브라우저에 남긴 답도 여기서 이어 볼 수 있어요.</p>
     </div>
