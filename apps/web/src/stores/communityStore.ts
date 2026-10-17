@@ -101,6 +101,7 @@ interface CommunityState {
 }
 
 const LIMIT = 20;
+let postDetailRequestSequence = 0;
 
 // SWR 캐시 — sessionStorage 기반.
 // fresh window 안엔 네트워크 skip, 그 후엔 stale-while-revalidate.
@@ -338,10 +339,12 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
   },
 
   fetchPostDetail: async (id) => {
+    const requestSequence = ++postDetailRequestSequence;
     const viewerSnapshot = captureViewerSnapshot(get());
     set((state) => ({
       postLoading: true,
       currentPost: null,
+      errorMessage: null,
       ...(state.commentsPostId !== id
         ? { comments: [], commentsPostId: null, commentsLoading: false }
         : {}),
@@ -350,10 +353,10 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
       const res = await fetch(`/api/community/posts/${id}`);
       if (!res.ok) throw new Error();
       const post = await res.json();
-      if (!isViewerSnapshotCurrent(get, viewerSnapshot)) return;
+      if (requestSequence !== postDetailRequestSequence || !isViewerSnapshotCurrent(get, viewerSnapshot)) return;
       set({ currentPost: post, postLoading: false });
     } catch {
-      if (!isViewerSnapshotCurrent(get, viewerSnapshot)) return;
+      if (requestSequence !== postDetailRequestSequence || !isViewerSnapshotCurrent(get, viewerSnapshot)) return;
       set({ postLoading: false, errorMessage: "게시글 상세를 불러오지 못했습니다." });
     }
   },

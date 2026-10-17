@@ -226,6 +226,35 @@ describe("useCommunityStore feed cache", () => {
     });
   });
 
+  it("keeps a confirmed retry when an older detail GET succeeds later in the same viewer epoch", async () => {
+    let resolveOld: ((value: unknown) => void) | undefined;
+    const latest = { ...post("detail-1", "2026-10-18T00:00:00Z"), title: "NEW_CONFIRMED" };
+    mockFetch.mockReturnValueOnce(new Promise(resolve => { resolveOld = resolve; }))
+      .mockResolvedValueOnce({ ok: true, json: async () => latest });
+    useCommunityStore.getState().bindViewer("user-b");
+    const pendingOld = useCommunityStore.getState().fetchPostDetail("detail-1");
+    await useCommunityStore.getState().fetchPostDetail("detail-1");
+    resolveOld?.({ ok: true, json: async () => ({ ...latest, title: "OLD_LATE" }) });
+    await pendingOld;
+    expect(useCommunityStore.getState().currentPost?.title).toBe("NEW_CONFIRMED");
+    expect(useCommunityStore.getState().postLoading).toBe(false);
+    expect(useCommunityStore.getState().errorMessage).toBeNull();
+  });
+
+  it("ignores an old detail failure after a newer successful retry", async () => {
+    let rejectOld: ((reason: Error) => void) | undefined;
+    const latest = { ...post("detail-1", "2026-10-18T00:00:00Z"), title: "NEW_CONFIRMED" };
+    mockFetch.mockReturnValueOnce(new Promise((_resolve, reject) => { rejectOld = reject; }))
+      .mockResolvedValueOnce({ ok: true, json: async () => latest });
+    useCommunityStore.getState().bindViewer("user-b");
+    const pendingOld = useCommunityStore.getState().fetchPostDetail("detail-1");
+    await useCommunityStore.getState().fetchPostDetail("detail-1");
+    rejectOld?.(new Error("late failed request"));
+    await pendingOld;
+    expect(useCommunityStore.getState().currentPost?.title).toBe("NEW_CONFIRMED");
+    expect(useCommunityStore.getState().errorMessage).toBeNull();
+  });
+
   it("revalidates latest feed even when a fresh cached feed exists", async () => {
     const cachedPost = post("cached-old", "2026-06-15T00:00:00.000Z");
     const networkPost = post("network-new", "2026-06-16T00:00:00.000Z");
