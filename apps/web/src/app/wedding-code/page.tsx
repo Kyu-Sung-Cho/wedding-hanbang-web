@@ -72,7 +72,7 @@ export async function generateMetadata({ searchParams }: WeddingCodePageProps): 
     const target = weddingCodeExplicitTarget(search) ?? WEDDING_CODE_BARE_TARGET;
     if (target === "wc64") {
       const title = "우리의 결혼 준비 성향 | 웨딩코드 · 웨딩한방";
-      const description = "웨딩을 얼마나 아는지와 결혼 준비 성향을 네 글자와 비율로 정리해 봐요. 답은 이 브라우저에만 남아요.";
+      const description = "웨딩을 얼마나 아는지와 결혼 준비 성향을 네 글자와 %로 정리해 봐요. 답은 이 브라우저에만 남아요.";
       return { title, description, robots: { index: false, follow: false, nocache: true }, referrer: "no-referrer",
         alternates: { canonical: "/wedding-code" },
         openGraph: { title, description, siteName: "웨딩한방", locale: "ko_KR", type: "website", images: [WC64_CARD_IMAGE] },

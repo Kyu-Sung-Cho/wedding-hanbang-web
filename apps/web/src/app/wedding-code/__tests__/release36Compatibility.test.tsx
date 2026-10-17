@@ -12,7 +12,7 @@ vi.mock("@/lib/weddingCode/contribution/server", () => ({ isWeddingCodeResearchC
 
 import WeddingCodePage, { generateMetadata } from "../page";
 
-const WC64_DESCRIPTION = "웨딩을 얼마나 아는지와 결혼 준비 성향을 네 글자와 비율로 정리해 봐요. 답은 이 브라우저에만 남아요.";
+const WC64_DESCRIPTION = "웨딩을 얼마나 아는지와 결혼 준비 성향을 네 글자와 %로 정리해 봐요. 답은 이 브라우저에만 남아요.";
 
 async function expect36Entry(search: WeddingCodeEntrySearchParams, explicitTarget: "36" | null) {
   const metadata = await generateMetadata({ searchParams: Promise.resolve(search) });

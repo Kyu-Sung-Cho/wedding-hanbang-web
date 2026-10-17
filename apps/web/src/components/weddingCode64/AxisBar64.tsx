@@ -8,7 +8,7 @@ export interface AxisBar64Props {
   pctX: number;
   /** 다시 계산한 앞 글자 쪽 %의 10%~90% 폭 */
   band?: readonly [number, number] | null;
-  /** 막대를 읽어 줄 이름(예: "D 미리 매듭짓는 쪽 69%, O 열어 두고 살피는 쪽 31%") */
+  /** 막대를 읽어 줄 이름(예: "D 미리 매듭짓는 쪽 69%, O 열어 두고 살피는 쪽 31%"). 띠가 있으면 띠 범위도 여기에 넣는다. */
   label: string;
   /** 양 끝 이름 줄. 없으면 막대만 그린다. */
   left?: ReactNode;
@@ -35,7 +35,8 @@ export default function AxisBar64({ pctX, band, label, left, right, className }:
       <div role="img" aria-label={label} className="relative h-[22px]" data-pct-x={pctX}>
         <span aria-hidden="true" className="absolute inset-x-0 top-[9px] h-1 rounded bg-[var(--hb-surface-hover)]" />
         {bandStyle && (
-          <span aria-hidden="true" data-band="true" className="absolute top-[5px] h-3 rounded-md bg-[rgba(143,102,98,0.18)]" style={bandStyle} />
+          // 띠 범위는 글과 aria-label 이 숫자로 알린다. 그래서 띠는 3:1 까지 진하게 하지 않고(점이 묻힌다) 가장자리만 보이게 둔다.
+          <span aria-hidden="true" data-band="true" className="absolute top-[5px] h-3 rounded-md border border-[rgba(143,102,98,0.5)] bg-[rgba(143,102,98,0.3)]" style={bandStyle} />
         )}
         <span aria-hidden="true" data-fill="true" className="absolute top-[9px] h-1 rounded bg-[var(--hb-primary)]" style={fill} />
         <span aria-hidden="true" className="absolute left-1/2 top-1 h-3.5 w-px bg-[var(--hb-text-muted)] opacity-50" />

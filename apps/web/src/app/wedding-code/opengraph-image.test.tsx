@@ -43,6 +43,7 @@ import V40OpenGraphImage, { alt as v40Alt, contentType as v40ContentType, size a
 import Wc64OpenGraphImage, { alt as wc64Alt, contentType as wc64ContentType, size as wc64Size } from "./wc64-card/opengraph-image";
 import { WEDDING_CODE_BARE_TARGET } from "./releaseEntry";
 import { WC64_QUERY_VALUE } from "@/lib/weddingCode/wc64/types";
+import { WC64_BANK } from "@/lib/weddingCode/wc64/bank";
 
 function pngSize(bytes: Uint8Array) {
   const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
@@ -405,12 +406,21 @@ describe("웨딩코드 64문항 공유 카드", () => {
     expect(fonts[0].data.byteLength).toBeGreaterThan(100_000);
   }, 60_000);
 
-  it("카드의 글은 웨딩코드, 64문항, 네 글자와 비율로 보는 결혼 준비 성향뿐이고 금지어와 답이 없다", async () => {
+  it("카드의 글은 웨딩코드, 64문항, 네 글자와 이름으로 보는 결혼 준비 성향뿐이고 금지어와 답이 없다", async () => {
     const { text } = await drawCard(Wc64OpenGraphImage);
+    // 2026-10-17 파운더 결정: 결과 화면의 메인은 네 글자에 붙인 이름이라 카드도 글자만 말하지 않는다
     expect(text).toBe([
-      "한", "웨딩한방", "웨딩코드", "네 글자와 비율로 보는", "결혼 준비 성향",
+      "한", "웨딩한방", "웨딩코드", "네 글자와 이름으로 보는", "결혼 준비 성향",
       "64문항에 답하고, 답은 이 브라우저에만 남아요", "로그인 없이 시작해요", "hanbang.ai",
     ].join(" "));
+    // 이름을 말해도 어느 결과의 이름(형용사·동물)도 예로 싣지 않는다
+    const names = [...Object.values(WC64_BANK.types).map(t => t.name), ...Object.values(WC64_BANK.no_ceremony_names)];
+    expect(names).toHaveLength(20);
+    for (const n of names) {
+      // 동물 이름만으로는 한 글자(양)도 있어 다른 낱말에 걸릴 수 있으므로, 이름 전체와 형용사로 본다
+      expect(text, n.animal).not.toContain(`${n.adjective} ${n.animal}`);
+      expect(text, n.adjective).not.toContain(n.adjective);
+    }
     expect(wc64Alt).toBe("웨딩코드, 우리의 결혼 준비 성향");
     for (const source of [text, wc64Alt]) {
       const latin = (source.match(/[A-Za-z?]+/g) ?? []).filter(run => run !== "hanbang" && run !== "ai");
@@ -442,7 +452,7 @@ describe("웨딩코드 64문항 공유 카드", () => {
       expect(metadata.openGraph?.images, label).toEqual([expectedImage]);
       expect(metadata.twitter?.images, label).toEqual([expectedImage]);
       expect(String(metadata.title), label).toBe("우리의 결혼 준비 성향 | 웨딩코드 · 웨딩한방");
-      expect(metadata.description, label).toBe("웨딩을 얼마나 아는지와 결혼 준비 성향을 네 글자와 비율로 정리해 봐요. 답은 이 브라우저에만 남아요.");
+      expect(metadata.description, label).toBe("웨딩을 얼마나 아는지와 결혼 준비 성향을 네 글자와 %로 정리해 봐요. 답은 이 브라우저에만 남아요.");
       expect(metadata.robots, label).toMatchObject({ index: false, follow: false, nocache: true });
       expect(metadata.referrer, label).toBe("no-referrer");
       expect(metadata.alternates?.canonical, label).toBe("/wedding-code");

@@ -93,6 +93,26 @@ describe("wc64 이어 하기 저장", () => {
     expect(writeWc64Draft(s, draft())).toBe(true);
   });
 
+  it("저장소에 더 나중에 답한 기록이 있으면 옛 기록으로 덮지 않는다(다른 탭이 더 답한 경우, 재판정 blocker)", () => {
+    const s = new MemoryStorage();
+    const now = T0 + 60_000;
+    const newer = draft({ answers: { "PLAN-A1": 4, K1: 2, K2: 5, K3: 1 }, updatedAt: new Date(T0 + 30_000).toISOString() });
+    expect(writeWc64Draft(s, newer, now)).toBe(true);
+    // 이 탭이 들고 있던 옛 기록(시각이 더 이르다)은 쓰지 않는다
+    expect(writeWc64Draft(s, draft(), now)).toBe(false);
+    expect(readWc64Draft(s, now)).toEqual({ ...newer, skipped: {} });
+    // 같은 시각(같은 탭에서 자리만 옮긴 기록)과 더 늦은 시각은 쓴다
+    expect(writeWc64Draft(s, { ...newer, cursor: 9 }, now)).toBe(true);
+    expect(readWc64Draft(s, now)?.cursor).toBe(9);
+    const later = draft({ updatedAt: new Date(T0 + 40_000).toISOString() });
+    expect(writeWc64Draft(s, later, now)).toBe(true);
+    expect(readWc64Draft(s, now)?.updatedAt).toBe(later.updatedAt);
+    // 견주는 기록은 읽을 수 있는 기록뿐이다: 30일 지난 기록과 미래 시각 기록은 막지 않는다
+    s.setItem(WC64_STORAGE_KEY, JSON.stringify({ ...draft(), updatedAt: new Date(now + 3_600_000).toISOString() }));
+    expect(writeWc64Draft(s, draft(), now)).toBe(true);
+    expect(writeWc64Draft(s, draft(), T0 + WC64_RETENTION_MS + 1)).toBe(true);
+  });
+
   it("답 지우기는 기록을 없앤다", () => {
     const s = new MemoryStorage();
     writeWc64Draft(s, draft());

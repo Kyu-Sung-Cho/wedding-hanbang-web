@@ -7,6 +7,10 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import PrivacyPage from "../page";
 import { WC64_ITEMS } from "@/lib/weddingCode/wc64/bank";
+import { STORAGE_KEY as LIKERT_STORAGE_KEY } from "@/lib/weddingCode/likert/types";
+import { PAIR_SESSION_LOCAL_KEY } from "@/lib/weddingCode/pairSessionClient";
+import { PREFERENCES21_STORAGE_KEY } from "@/lib/weddingCode/preferences21/storage";
+import { LOCAL_KEY as V31_LOCAL_KEY } from "@/lib/weddingCode/v31LocalProgress";
 import {
   clearWc64Draft,
   createWc64Draft,
@@ -35,18 +39,27 @@ const NOW = Date.UTC(2026, 9, 16, 3, 0, 0);
 const LABEL = `64문항 웨딩코드(${WC64_VERSION}) 이어하기·답 코드:`;
 const CLOSING = "공용 기기에서는 자동저장을 끄거나 이 브라우저의 답을 지워 주세요.";
 
+/** 64문항 지우기가 다른 판 기록을 '있는지만' 본다는 약속(2026-10-17 상품 심사 M3). 아래 저장 키 시험이 화면 소스와 대조한다. */
+const OTHER_RECORDS_PROMISE = "이 브라우저에 이전 웨딩코드(36문항·v3.1) 기록이 있는지만 확인하고, 있으면 그대로 남아 있다고 알려 드리며 그 기록은 바꾸지 않습니다";
+
 /** 아래 시험이 확인하는 약속. 방침에서 사라지면 첫 시험이 빨개진다. */
 const PROMISES = [
+  OTHER_RECORDS_PROMISE,
   "고른 답과 식 계획 답은 이 브라우저에만 보관하고 서버로 보내지 않습니다",
-  "마지막으로 저장한 때부터 30일 동안만 불러오며",
-  "읽거나 다시 방문하는 것만으로 기간을 늘리지 않습니다",
+  // 저장 시각은 답·식 계획을 고르거나 묶음을 넘길 때만 새로 찍는다(WeddingCode64Client 의 update stamp, flow.test.tsx 가 화면으로 본다)
+  "마지막으로 답이나 식 계획을 고른 때부터 30일 동안만 불러오며",
+  "다시 읽거나 문장 사이를 옮기거나 다시 방문하는 것만으로는 기간을 늘리지 않습니다",
   "기한이 지난 기록은 불러오지 않지만 지우거나 새 답으로 덮어쓰기 전까지 브라우저 저장소에 남을 수 있습니다",
   "자동저장은 처음에는 켜져 있고",
-  "‘이 브라우저에 내 답 자동 저장’을 끄거나 ‘답 지우기’ 또는 ‘이 브라우저의 답 지우기’를 누르면 저장된 답을 바로 지웁니다",
+  "‘이 브라우저에 내 답 자동 저장’을 끄면 저장된 답을 바로 지웁니다",
   "끈 뒤에는 저장하지 않고 꺼짐 설정만 브라우저에 남깁니다",
+  "‘이 브라우저의 64문항 답 지우기’와 결과 화면의 ‘처음부터 다시 하기’는 답이 있으면 확인 창에서 한 번 더 묻고, 확인을 누르면 저장된 답을 지웁니다",
+  "이 두 버튼과 자동저장 끄기는 64문항 답만 지우고 이 브라우저에 저장된 다른 판 웨딩코드의 답은 지우지 않으며",
+  "이어 할 기록이 있을 때 ‘새로 시작’을 확인하고 식 계획을 다시 고르면 저장된 답이 새 답으로 바뀝니다",
   "계정·아모라·연구·이용 통계로 보내지 않으며 주소에도 담지 않습니다",
   "결과 화면의 답 코드에는 본인의 답과 식 계획 답이 담기고, 직접 복사해 보낸 경우에만 받은 사람이 볼 수 있습니다",
   "상대에게 받은 답 코드는 화면에만 두고 이 브라우저에 저장하지 않습니다",
+  "로그인한 웹 라운지에서 답해도 계정에 저장하지 않고 이 브라우저에 보관하므로, 로그아웃해도 남고 같은 브라우저에서 다른 계정으로 로그인한 사람도 볼 수 있습니다",
 ] as const;
 
 function wc64Paragraph(): string {
@@ -150,12 +163,33 @@ describe("방침의 저장 약속이 io.ts 에서 참이다", () => {
     expect(storage.keys()).toEqual([WC64_AUTOSAVE_KEY]);
   });
 
-  it("‘답 지우기’와 ‘이 브라우저의 답 지우기’가 부르는 clearWc64Draft 는 저장된 답을 지운다", () => {
+  it("지우기 버튼들이 부르는 clearWc64Draft 는 저장된 답을 지운다", () => {
     const storage = new FakeStorage();
     expect(writeWc64Draft(storage, draftAt(NOW))).toBe(true);
     expect(clearWc64Draft(storage)).toBe(true);
     expect(storage.data.has(WC64_STORAGE_KEY)).toBe(false);
     expect(readWc64Draft(storage, NOW)).toBeNull();
+  });
+
+  // 방침의 「64문항 답만 지우고 … 다른 판 웨딩코드의 답은 지우지 않으며」(2026-10-17 상품 심사 M3).
+  // 예전 버튼 이름은 ‘이 브라우저의 답 모두 지우기’였는데 v3.1 진행 기록이 남았다. 지우는 범위를 넓히거나 좁히면 방침부터 고칠 것.
+  it("지우기와 자동저장 끄기는 64문항 키만 지우고 다른 판 키는 그대로 둔다", () => {
+    const others = [V31_LOCAL_KEY, LIKERT_STORAGE_KEY, PREFERENCES21_STORAGE_KEY, PAIR_SESSION_LOCAL_KEY];
+    expect(new Set(others).size).toBe(others.length);
+    for (const key of others) expect(key.startsWith(WC64_STORAGE_KEY), key).toBe(false);
+    const seed = () => {
+      const storage = new FakeStorage();
+      for (const key of others) storage.data.set(key, `{"from":"${key}"}`);
+      expect(writeWc64Draft(storage, draftAt(NOW))).toBe(true);
+      return storage;
+    };
+    const cleared = seed();
+    expect(clearWc64Draft(cleared)).toBe(true);
+    expect(cleared.keys()).toEqual([...others].sort());
+    const off = seed();
+    expect(setWc64Autosave(off, false)).toBe(true);
+    expect(off.keys()).toEqual([...others, WC64_AUTOSAVE_KEY].sort());
+    for (const key of others) expect(off.data.get(key)).toBe(`{"from":"${key}"}`);
   });
 });
 
@@ -230,12 +264,81 @@ describe("wc64 소스에는 서버·이용 통계·주소로 가는 길이 없�
     }
   });
 
-  it("브라우저 저장 키는 방침이 말한 이 판의 키뿐이다", () => {
+  // 방침의 「로그아웃해도 남고 같은 브라우저에서 다른 계정으로 로그인한 사람도 볼 수 있습니다」(PR #505 감사 L1·DEC-11).
+  // 키에 계정 id 가 없고, 이 판의 기록을 지우는 곳은 io.ts 와 화면의 지우기·자동 저장 끄기(WeddingCode64Client)뿐이다.
+  // 로그아웃이나 계정 전환에서 지우거나 계정별 키로 바꾸면 이 시험이 빨개진다. 그때는 방침 문장부터 고칠 것.
+  it("이 판의 저장 기록은 계정과 묶이지 않고 로그아웃이 지우지 않는다", () => {
+    expect(WC64_STORAGE_KEY).not.toMatch(/user|account|profile|couple|\$\{/i);
+    const owners = sourceFiles(WEB_SRC)
+      .filter(file => /WC64_STORAGE_KEY|WC64_AUTOSAVE_KEY|clearWc64Draft|setWc64Autosave|wedding-code:wc64/.test(stripComments(readFileSync(file, "utf8"))))
+      .map(file => path.relative(WEB_SRC, file).split(path.sep).join("/"))
+      .sort();
+    expect(owners).toEqual([
+      "components/weddingCode64/WeddingCode64Client.tsx",
+      "lib/weddingCode/wc64/io.ts",
+      "lib/weddingCode/wc64/types.ts",
+    ]);
+    const auth = stripComments(readFileSync(path.join(WEB_SRC, "stores/authStore.ts"), "utf8"));
+    expect(auth).not.toMatch(/wedding-code|weddingCode|wc64|localStorage\.clear|sessionStorage\.clear/i);
+  });
+
+  // 2026-10-17 상품 심사 M3 뒤: 64문항 지우기가 다른 판 기록이 남는다고 알리려고 Intro64 가 v3.1·36문항 키가 있는지만 본다.
+  // 그래서 다른 판 키는 방침이 말한 것(있는지만 확인)만 허용하고, 그 키를 둔 파일은 저장소에 쓰거나 지우지 못한다.
+  it("브라우저 저장 키는 이 판의 키이거나, 방침이 '있는지만 확인'한다고 밝힌 다른 판 키뿐이다", () => {
+    const checkedOnly = new Set<string>([V31_LOCAL_KEY, "wc36:latest", "wc36:draft:individual"]);
     for (const file of files) {
+      const where = path.relative(WEB_SRC, file);
       const source = stripComments(readFileSync(file, "utf8"));
-      for (const match of source.matchAll(/["'`](hanbang:[^"'`$]*)/g)) {
-        expect(match[1].startsWith(WC64_STORAGE_KEY), `${path.relative(WEB_SRC, file)} 의 저장 키 ${match[1]}`).toBe(true);
+      for (const match of source.matchAll(/["'`]((?:hanbang|wc36):[^"'`$]*)/g)) {
+        const key = match[1];
+        if (key.startsWith(WC64_STORAGE_KEY)) continue;
+        expect(checkedOnly.has(key), `${where} 의 저장 키 ${key}`).toBe(true);
+        expect(source, `${where} 가 다른 판 키(${key})를 두고 저장소에 쓰거나 지운다`).not.toMatch(/\.setItem\s*\(|\.removeItem\s*\(|\.clear\s*\(\s*\)/);
+        expect(wc64Paragraph(), `${where} 가 다른 판 키를 보는데 방침이 밝히지 않는다`).toContain(OTHER_RECORDS_PROMISE);
       }
     }
+  });
+});
+
+/* ---------------- 방침이 부르는 버튼 이름과 확인 창이 화면과 같은가 (2026-10-16 감사 FIX-3 뒤) ---------------- */
+
+function escapeRegExp(text: string): string {
+  return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+describe("방침의 지우기 문장이 화면과 같다", () => {
+  const uiFiles = sourceFiles(WC64_UI);
+  /** 화면 소스에서 `export const 이름 = "글자"` 로 둔 버튼 글자. JSX 의 `{이름}` 을 그 글자로 바꿔 읽는다. */
+  const labels = new Map<string, string>();
+  for (const file of uiFiles) {
+    for (const m of stripComments(readFileSync(file, "utf8")).matchAll(/export const (WC64_[A-Z0-9_]+) = "([^"]+)";/g)) labels.set(m[1], m[2]);
+  }
+  const resolved = (source: string) => source.replace(/\{(WC64_[A-Z0-9_]+)\}/g, (all, id: string) => labels.get(id) ?? all);
+  const uiSource = (name: string) => resolved(stripComments(readFileSync(path.join(WC64_UI, name), "utf8")));
+
+  // 예전 방침은 화면에 없는 ‘답 지우기’를 부르고, 확인 창이 생긴 뒤에도 ‘바로 지웁니다’라고 적었다.
+  it("방침이 ‘ ’로 부르는 이름은 모두 wc64 화면의 버튼이나 체크 글자다", () => {
+    const names = [...wc64Paragraph().matchAll(/‘([^’]+)’/g)].map(m => m[1]);
+    expect(names, "버튼 이름을 하나도 못 찾았다. 이 검사가 헛돈다").toEqual(expect.arrayContaining([
+      "이 브라우저에 내 답 자동 저장",
+      "이 브라우저의 64문항 답 지우기",
+      "처음부터 다시 하기",
+      "새로 시작",
+    ]));
+    const ui = uiFiles.map(file => resolved(stripComments(readFileSync(file, "utf8")))).join("\n");
+    for (const name of names) {
+      expect(ui, `방침의 ‘${name}’ 가 화면 글자에 없다`).toMatch(new RegExp(`>\\s*${escapeRegExp(name)}\\s*<`));
+    }
+  });
+
+  it("지우기 버튼(시작·질문 화면, 결과 화면)과 처음부터 다시 하기·새로 시작은 확인 창(ask)을 거친다", () => {
+    const client = uiSource("WeddingCode64Client.tsx");
+    expect(client).toMatch(/onClick=\{\(\) => ask\("clear"\)\}[^<]*>\s*이 브라우저의 64문항 답 지우기\s*</);
+    expect(client).toMatch(/onRestart=\{\(\) => ask\("restart"\)\}/);
+    expect(client).toMatch(/onClearAnswers=\{\(\) => ask\("clear"\)\}/);
+    expect(client).toMatch(/onStart=\{\(\) => ask\("start"\)\}/);
+    const report = uiSource("Report64.tsx");
+    expect(report).toMatch(/onClick=\{onRestart\}[^<]*>\s*처음부터 다시 하기\s*</);
+    expect(report).toMatch(/onClick=\{onClearAnswers\}[^<]*>\s*이 브라우저의 64문항 답 지우기\s*</);
   });
 });

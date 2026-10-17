@@ -9,6 +9,8 @@ import {
   isCoupleInviteCode,
   normalizeCoupleInviteCode,
 } from "@hanbang/shared";
+// 클립보드가 막힌 환경의 execCommand 대비까지 든 복사 함수. 웨딩코드 64문항 비교 화면과 같이 쓴다.
+import { copyText } from "@/lib/clipboard";
 
 /**
  * 초대 코드를 "보낼 수 있는 것"으로 만드는 화면 조각.
@@ -125,33 +127,6 @@ const VARIANT_STYLES: Record<
     actionRow: "justify-start",
   },
 };
-
-/**
- * 클립보드가 막힌 환경(비보안 컨텍스트, 일부 인앱 브라우저)에서도 복사가 되게 한다.
- * 온보딩 모달이 갖고 있던 execCommand 폴백을 여기로 합쳤다 — 화면마다 폴백이
- * 있거나 없으면 "어떤 화면에서는 복사가 된다"는 재현 안 되는 제보가 남는다.
- */
-async function copyText(value: string): Promise<boolean> {
-  try {
-    await navigator.clipboard.writeText(value);
-    return true;
-  } catch {
-    try {
-      const textArea = document.createElement("textarea");
-      textArea.value = value;
-      textArea.setAttribute("readonly", "");
-      textArea.style.position = "fixed";
-      textArea.style.opacity = "0";
-      document.body.appendChild(textArea);
-      textArea.select();
-      const copied = document.execCommand("copy");
-      document.body.removeChild(textArea);
-      return copied;
-    } catch {
-      return false;
-    }
-  }
-}
 
 export default function InviteCodePanel({
   code,

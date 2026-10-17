@@ -77,12 +77,19 @@ export function readWc64Draft(storage: Pick<Storage, "getItem">, now: number = D
   } catch { return null; }
 }
 
-/** 자동 저장이 켜져 있을 때만 쓴다. 꺼져 있거나 형식이 어긋나거나 저장소가 막히면 false. */
-export function writeWc64Draft(storage: Pick<Storage, "getItem" | "setItem">, draft: Wc64Draft): boolean {
+/**
+ * 자동 저장이 켜져 있을 때만 쓴다. 꺼져 있거나 형식이 어긋나거나 저장소가 막히면 false.
+ * 저장소에 든 기록이 이 기록보다 나중에 답한 것이면(updatedAt 이 더 늦으면) 쓰지 않고 false 다. 다른 탭에서 더 답한 기록을
+ * 이 탭이 들고 있던 옛 기록으로 덮지 않게 한다(재판정 blocker: 탭 B 가 이어 하기를 누르자 탭 A 의 30/64 가 10/64 로 돌아갔다).
+ * 같은 탭의 자리 옮기기는 시각이 같아서(update 의 stamp) 그대로 쓴다. 견주는 기록은 readWc64Draft 가 읽는 것(30일 안, 미래 시각 아님)만이다.
+ */
+export function writeWc64Draft(storage: Pick<Storage, "getItem" | "setItem">, draft: Wc64Draft, now: number = Date.now()): boolean {
   try {
     if (!readWc64Autosave(storage)) return false;
     const normalized = parseWc64Draft(JSON.stringify(draft));
     if (!normalized) return false;
+    const current = readWc64Draft(storage, now);
+    if (current && Date.parse(current.updatedAt) > Date.parse(normalized.updatedAt)) return false;
     storage.setItem(WC64_STORAGE_KEY, JSON.stringify(normalized));
     return true;
   } catch { return false; }

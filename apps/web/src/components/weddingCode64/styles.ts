@@ -6,6 +6,13 @@
 export const wc64Page = "min-h-screen overflow-x-hidden bg-[#FDFCF7] px-5 py-8 text-[#3A2A27] [word-break:keep-all] [overflow-wrap:anywhere] sm:py-12";
 /** 가운데 기둥 */
 export const wc64Column = "mx-auto w-full min-w-0 max-w-xl";
+/**
+ * 라운지 안에 넣을 때의 바깥 틀: 앱 껍데기가 바탕과 높이를 맡으므로 바탕색과 min-h-screen 이 없다.
+ * 여백은 v3.1 라운지(embedded)와 같고, 화면이 바뀌어 이 틀로 스크롤할 때 위 고정 머리줄에 가리지 않게 scroll-mt 를 둔다.
+ */
+export const wc64EmbeddedPage = "scroll-mt-20 overflow-x-hidden px-4 pb-8 pt-5 text-[#3A2A27] [word-break:keep-all] [overflow-wrap:anywhere] sm:px-6 md:scroll-mt-28";
+/** 라운지 안의 가운데 기둥 */
+export const wc64EmbeddedColumn = "mx-auto w-full min-w-0 max-w-2xl";
 export const wc64Eyebrow = "text-xs font-semibold tracking-[0.15em] text-[#8F6662]";
 export const wc64Title = "text-2xl font-semibold leading-9 outline-none";
 export const wc64Body = "text-base leading-8 text-[#5A4742]";
