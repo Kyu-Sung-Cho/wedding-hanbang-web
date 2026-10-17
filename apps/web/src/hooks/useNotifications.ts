@@ -10,6 +10,7 @@ import {
 
 import { NOTIFICATION_TEMPLATES } from "@/constants/notifications";
 import { createClient } from "@/lib/supabase/client";
+import { daysUntilWedding } from "@/lib/utils/weddingDate";
 import { useAuthStore } from "@/stores/authStore";
 import type { ProgressItem } from "@/types/database.types";
 
@@ -149,7 +150,7 @@ export function useNotificationPrefs() {
 }
 
 export function useNotifications(
-  weddingDate: Date | null,
+  weddingDate: string | null | undefined,
   progress: Record<string, ProgressItem>,
   prefs: NotificationPrefs,
 ) {
@@ -343,14 +344,13 @@ export function useNotifications(
     }
   }, [isDemo, isInitialized, refreshPartnerNotifications, userId]);
 
-  const localNotifications = useMemo<ComputedNotification[]>(() => {
-    if (!weddingDate) return [];
+  // 상단바 D-day 알약과 같은 도우미로 센다(예식일·오늘을 둘 다 한국 자정으로 맞춘다).
+  // 손으로 `new Date("YYYY-MM-DD")` 와 지금의 차를 올림하면 한국 0~9시에 하루가 크게 나왔다.
+  // 렌더마다 다시 계산하므로 날짜가 바뀐 뒤 다시 그려질 때 알약과 같이 움직인다.
+  const dday = daysUntilWedding(weddingDate);
 
-    const today = new Date();
-    const dday = Math.ceil(
-      (weddingDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24),
-    );
-    if (dday <= 0) return [];
+  const localNotifications = useMemo<ComputedNotification[]>(() => {
+    if (dday === null || dday <= 0) return [];
 
     return NOTIFICATION_TEMPLATES
       .filter((template) => {
@@ -378,7 +378,7 @@ export function useNotifications(
         const order = { high: 0, medium: 1, low: 2 };
         return order[left.priority] - order[right.priority];
       });
-  }, [dismissedIds, prefs, progress, weddingDate]);
+  }, [dday, dismissedIds, prefs, progress]);
 
   const partnerNotifications = useMemo<ComputedNotification[]>(
     () => {

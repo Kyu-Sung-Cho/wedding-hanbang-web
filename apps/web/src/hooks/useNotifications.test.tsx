@@ -62,6 +62,11 @@ const PREFS_OFF: NotificationPrefs = {
   budget: false,
 };
 
+const PREFS_ON: NotificationPrefs = {
+  schedule: true,
+  budget: true,
+};
+
 describe("parseNotificationPrefs", () => {
   it("keeps valid choices and ignores retired or malformed fields", () => {
     expect(parseNotificationPrefs({
@@ -108,10 +113,12 @@ function captureLatest(value: ReturnType<typeof useNotifications>) {
 
 function Harness({
   weddingDate = null,
+  prefs = PREFS_OFF,
 }: {
-  weddingDate?: Date | null;
+  weddingDate?: string | null;
+  prefs?: NotificationPrefs;
 }) {
-  const value = useNotifications(weddingDate, {}, PREFS_OFF);
+  const value = useNotifications(weddingDate, {}, prefs);
   useEffect(() => {
     captureLatest(value);
   }, [value]);
@@ -419,5 +426,89 @@ describe("useNotifications partner activity", () => {
       await new Promise((resolve) => window.setTimeout(resolve, 0));
     });
     expect(mocks.refreshJourney).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe("useNotifications local reminders count days in KST", () => {
+  let root: Root;
+  let container: HTMLDivElement;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.refreshJourney.mockResolvedValue(true);
+    mocks.channel.on.mockReturnValue(mocks.channel);
+    mocks.channel.subscribe.mockReturnValue(mocks.channel);
+    mocks.channelFactory.mockReturnValue(mocks.channel);
+    mocks.authState.user = {
+      id: "40000000-0000-4000-8000-000000000001",
+      email: "user@example.com",
+    };
+    mocks.authState.isDemo = false;
+    mocks.authState.isInitialized = true;
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(
+      JSON.stringify({ ownerId: mocks.authState.user?.id ?? null, notifications: [] }),
+      { status: 200, headers: { "content-type": "application/json" } },
+    )));
+    localStorage.clear();
+    container = document.createElement("div");
+    document.body.appendChild(container);
+    root = createRoot(container);
+    latest = undefined;
+  });
+
+  afterEach(async () => {
+    await act(async () => root.unmount());
+    document.body.replaceChildren();
+    vi.unstubAllGlobals();
+    vi.useRealTimers();
+  });
+
+  // Date 만 옮긴다. 타이머를 가짜로 만들면 act 안의 setTimeout 대기가 멈춘다.
+  async function renderAt(now: string, weddingDate: string | null) {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date(now));
+    await act(async () => {
+      root.render(<Harness weddingDate={weddingDate} prefs={PREFS_ON} />);
+      await new Promise((resolve) => window.setTimeout(resolve, 0));
+    });
+    return (latest?.notifications ?? []).filter((notification) => notification.type !== "partner");
+  }
+
+  it("shows no reminders on the wedding morning before 9am KST, when the header says D-day", async () => {
+    // 2026-10-15 07:00 KST. 예식 당일이다. 손으로 센 옛 계산은 이때 하루가 남았다고 봐서
+    // 템플릿 15개가 전부 새 알림으로 떴다.
+    const reminders = await renderAt("2026-10-14T22:00:00Z", "2026-10-15");
+    expect(reminders).toEqual([]);
+  });
+
+  it("starts the 30-day reminders on the real 30th day even in the small hours", async () => {
+    // 2026-10-15 03:00 KST 에서 2026-11-14 까지는 정확히 30일이다. 옛 계산은 31일로 봐서 9시간 늦게 띄웠다.
+    const reminders = await renderAt("2026-10-14T18:00:00Z", "2026-11-14");
+    const ids = reminders.map((reminder) => reminder.id);
+    expect(ids).toContain("n_final_check");
+    expect(ids).toContain("n_guest_final");
+  });
+
+  it("gives the same answer at midday, and holds the 30-day reminders back one day earlier", async () => {
+    const midday = await renderAt("2026-10-15T03:00:00Z", "2026-11-14");
+    expect(midday.map((reminder) => reminder.id)).toContain("n_final_check");
+
+    await act(async () => root.unmount());
+    root = createRoot(container);
+    const dayBefore = await renderAt("2026-10-14T03:00:00Z", "2026-11-14");
+    expect(dayBefore.map((reminder) => reminder.id)).not.toContain("n_final_check");
+    expect(dayBefore.map((reminder) => reminder.id)).toContain("n_gift_start");
+  });
+
+  it("shows no reminders after the wedding date has passed", async () => {
+    expect(await renderAt("2026-10-15T03:00:00Z", "2026-10-14")).toEqual([]);
+  });
+
+  it("shows no reminders for a date it cannot read instead of every template", async () => {
+    // 옛 코드는 NaN 비교가 전부 거짓이라 템플릿이 하나도 걸러지지 않았다.
+    expect(await renderAt("2026-10-15T03:00:00Z", "not-a-date")).toEqual([]);
+    await act(async () => root.unmount());
+    root = createRoot(container);
+    expect(await renderAt("2026-10-15T03:00:00Z", null)).toEqual([]);
   });
 });

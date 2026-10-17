@@ -29,6 +29,10 @@ import { todayKstMidnight } from "@/lib/utils/kstDate";
  * 쓰고 있었다. **두 화면만 자기 계산을 들고 있었다.** 그래서 값이 맞는지보다
  * "그 두 화면이 도우미를 쓰는가"를 함께 잠근다 — 다음에 누가 또 손으로 계산하면
  * 같은 시간대에 같은 방식으로 틀린다.
+ *
+ * 알림 훅(`useNotifications.ts`)이 같은 손계산을 마지막으로 들고 있었다. 상단바 알약은
+ * D-day 인데 종 아이콘에는 "남은 준비 확인하기" 같은 알림이 새로 뜨는 식으로 같은 화면의
+ * 두 곳이 서로 다른 날짜를 말했다. 그래서 지금은 세 곳을 잠근다.
  */
 
 const REPO_ROOT = resolve(__dirname, "..", "..", "..", "..", "..", "..");
@@ -37,6 +41,7 @@ const WEB = join(REPO_ROOT, "apps", "web", "src");
 const SURFACES = [
   join(WEB, "components", "app", "TopNav.tsx"),
   join(WEB, "components", "app", "schedule", "ScheduleContent.tsx"),
+  join(WEB, "hooks", "useNotifications.ts"),
 ];
 
 const short = (p: string) => p.split(/[\\/]/).slice(-1)[0];
@@ -93,7 +98,7 @@ describe("새벽에도 D-day 가 하루 어긋나지 않는다", () => {
   });
 });
 
-describe("두 화면이 손으로 계산하지 않는다", () => {
+describe("세 곳이 손으로 계산하지 않는다", () => {
   it.each(SURFACES.map((f) => [short(f), f]))("%s 가 도우미를 쓴다", (_n, file) => {
     expect(read(file)).toContain("daysUntilWedding");
   });
