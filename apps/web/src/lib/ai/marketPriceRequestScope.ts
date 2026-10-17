@@ -6,9 +6,9 @@ type MarketPriceCategory = typeof MARKET_PRICE_CATEGORY_KEYS[number];
 const UNSUPPORTED_TARGET = /신\s*혼\s*여\s*행|허니문|예물|결혼\s*반지|웨딩\s*링|가전(?:\s*제품)?|가구|생활\s*용품|혼수|신혼\s*집|한복|예단|청첩장|초대장|답례품|본식\s*(?:스냅|영상)|\bhoneymoon\b|\b(?:home\s+)?appliances?\b|\bfurniture\b|\bwedding\s+rings?\b|\bjewel(?:ry|lery)\b|\bhousing\b/iu;
 const SUPPORTED_TARGETS: ReadonlyArray<readonly [MarketPriceCategory, RegExp]> = [
   ["hall", /웨딩\s*홀|예식\s*장|결혼\s*식장|식장|\b(?:wedding\s+)?hall\b|\bvenue\b/giu],
-  ["studio", /스\s*튜\s*디\s*오|웨딩\s*(?:사진\s*)?촬영|웨딩\s*사진|\bstudio\b/giu],
-  ["dress", /드\s*레\s*스|\bdresses?\b/giu],
-  ["makeup", /메\s*이\s*크\s*업|\bmake[\s-]*up\b/giu],
+  ["studio", /스\s*튜\s*디\s*오|스\s*드\s*메|웨딩\s*(?:사진\s*)?촬영|웨딩\s*사진|\bstudio\b/giu],
+  ["dress", /드\s*레\s*스|스\s*드\s*메|\bdresses?\b/giu],
+  ["makeup", /메\s*이\s*크\s*업|스\s*드\s*메|\bmake[\s-]*up\b/giu],
 ];
 const EXCLUDED_AFTER = /^\s*(?:의\s*)?(?:(?:공시(?:\s*가격)?|가격|비용|자료|통계|견적|분야)(?:은|는|을|를|이|가)?\s*){0,2}(?:은|는|을|를|이|가)?\s*(?:말고|말구|제외|빼고|아닌|아니라|아니고|필요\s*없|조회(?:는)?\s*하지\s*마|찾지\s*마)/u;
 const EXCLUDED_BEFORE = /(?:\b(?:not|no|except|excluding|without|instead\s+of)(?:\s+(?:the|a|an|any|wedding))*|제외할|빼려는|필요\s*없는)\s*$/iu;

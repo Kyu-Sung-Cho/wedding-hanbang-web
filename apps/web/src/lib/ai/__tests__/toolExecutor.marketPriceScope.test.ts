@@ -80,6 +80,33 @@ describe("official-price dispatch binds an explicitly unsupported request before
     const result = await ask("서울 스튜디오 공시 가격과 표본 수를 확인해줘", "hall");
     expect(result.success).toBe(false); expect(mocks.createAdminClient).not.toHaveBeenCalled();
   });
+  it.each(["studio", "dress", "makeup"])("binds the SDM alias to its supported %s category", async category => {
+    for (const text of ["스드메 공시 가격을 알려줘", "신혼여행 말고 스드메 공시 가격만 알려줘"]) {
+      const result = await ask(text, category);
+      expect(result.success).toBe(true); expect(mocks.eq).toHaveBeenCalledWith("price_category", category);
+      expect(offered(text)).toEqual(["get_market_price"]);
+    }
+  });
+  it.each(["스드메 공시 가격을 알려줘", "신혼여행 말고 스드메 공시 가격만 알려줘"])("does not replace the SDM alias with hall: %s", async text => {
+    const result = await ask(text, "hall");
+    expect(result.success).toBe(false); expect(mocks.createAdminClient).not.toHaveBeenCalled();
+  });
+  it.each(["studio", "dress", "makeup"])("excludes all SDM categories together, including %s", async category => {
+    const text = "스드메 말고 신혼여행 가격만 알려줘";
+    const result = await ask(text, category);
+    expect(result.success).toBe(false); expect(mocks.from).not.toHaveBeenCalled(); expect(offered(text)).toEqual([]);
+  });
+  it("does not open a price lookup for an excluded SDM alias without a replacement", async () => {
+    const text = "스드메 공시 가격은 빼고";
+    const result = await ask(text, "studio");
+    expect(result.success).toBe(false); expect(mocks.from).not.toHaveBeenCalled(); expect(offered(text)).toEqual([]);
+  });
+  it("preserves an explicit switch from SDM to hall", async () => {
+    const text = "스드메 말고 웨딩홀 공시 가격을 알려줘";
+    const result = await ask(text, "hall");
+    expect(result.success).toBe(true); expect(mocks.eq).toHaveBeenCalledWith("price_category", "hall");
+    expect(offered(text)).toEqual(["get_market_price"]);
+  });
   it("does not promote an excluded supported category when no replacement target was named", async () => {
     const result = await ask("스튜디오는 빼고", "studio");
     expect(result.success).toBe(false); expect(mocks.from).not.toHaveBeenCalled(); expect(offered("스튜디오 가격은 빼고")).toEqual([]);
