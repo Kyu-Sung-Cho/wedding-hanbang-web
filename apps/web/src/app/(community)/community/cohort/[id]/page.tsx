@@ -2204,7 +2204,7 @@ function CohortPopularPosts({ roomId }: { roomId: string }) {
   return (
     <div>
       <div className="mb-4 flex items-center justify-between gap-3">
-        <h3 className="font-serif-kr text-[var(--hb-text-strong)]">동기들이 많이 본 글</h3>
+        <h3 className="font-serif-kr text-[var(--hb-text-strong)]">커뮤니티 인기 글</h3>
         <Link href={weddingPath("/community?sort=hot")} className="text-[12px] font-semibold text-[var(--hb-text-strong)]">
           더보기
         </Link>

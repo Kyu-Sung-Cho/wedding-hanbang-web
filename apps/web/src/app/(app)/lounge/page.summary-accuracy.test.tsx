@@ -141,6 +141,24 @@ describe("라운지의 저장값 요약과 조회 실패 구분", () => {
     expect(fetchMock.mock.calls.every(([, init]) => !init?.method || init.method === "GET")).toBe(true);
   });
 
+  it("개인 보관 자료는 공개 인기 순위가 아닌 북마크 최신 목록에서 불러온다", async () => {
+    communityExposure.enabled = true;
+    fetchMock.mockImplementation(async (input: string) => {
+      const url = new URL(input, "http://localhost");
+      return Response.json(url.pathname === "/api/community/posts" ? {
+        posts: url.searchParams.get("sort") === "new" && url.searchParams.get("bookmarked") === "true" ? [{
+          id: "qa-saved-private", title: "QA 개인 보관 자료", content: "QA 저장한 내용", comment_count: 0, bookmark_count: 1,
+          ad_disclosure: "sponsored", sponsorship_detail: "QA 촬영권 제공",
+        }] : [],
+      } : { room: null });
+    });
+    await render();
+    expect(container.querySelector('a[href="/wedding/community/post/qa-saved-private"]')?.textContent ?? "").toContain("QA 개인 보관 자료");
+    expect(container.querySelector('[aria-label="광고 표시: 협찬 포함"]')).not.toBeNull();
+    expect(container.textContent).toContain("받은 혜택: QA 촬영권 제공");
+    expect(fetchMock.mock.calls.every(([, init]) => !init?.method || init.method === "GET")).toBe(true);
+  });
+
   it("동기방 연결 조회가 성공하고 요약만 실패하면 연결을 지우지 않고 요약 재시도를 제공한다", async () => {
     communityExposure.enabled = true;
     let failDigest = true;

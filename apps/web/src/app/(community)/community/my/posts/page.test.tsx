@@ -1,4 +1,4 @@
-import { act } from "react";
+import { act, type ComponentType } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -26,21 +26,25 @@ vi.mock("@supabase/ssr", () => ({
 vi.mock("@/components/community/Avatar", () => ({
   default: () => <div>avatar</div>,
 }));
+vi.mock("@/components/community/PostCard", () => ({
+  default: ({ post }: { post: { id: string; title: string } }) => <a href={`/wedding/community/post/${post.id}`}>{post.title}</a>,
+}));
 
 import MyPostsPage from "./page";
+import MyBookmarksPage from "../bookmarks/page";
 import { useAuthStore } from "@/stores/authStore";
 import { useCommunityStore } from "@/stores/communityStore";
 
 const mountedRoots: Array<{ root: Root; container: HTMLDivElement }> = [];
 
-async function renderPage() {
+async function renderPage(Page: ComponentType = MyPostsPage) {
   const container = document.createElement("div");
   document.body.appendChild(container);
   const root = createRoot(container);
   mountedRoots.push({ root, container });
 
   await act(async () => {
-    root.render(<MyPostsPage />);
+    root.render(<Page />);
   });
   await act(async () => {
     await new Promise((resolve) => window.setTimeout(resolve, 100));
@@ -149,7 +153,7 @@ describe("my question status", () => {
     const container = await renderPage();
 
     expect(fetch).toHaveBeenCalledWith(
-      "/api/community/posts?author_id=author-1&limit=100",
+      "/api/community/posts?author_id=author-1&sort=my_posts&limit=100",
       expect.objectContaining({ signal: expect.any(AbortSignal) }),
     );
     expect(fetch).toHaveBeenCalledWith(
@@ -168,6 +172,41 @@ describe("my question status", () => {
         'a[href="/wedding/community/post/post-2#comments"]',
       )?.textContent,
     ).toContain("답변 1");
+  });
+
+  it("loads the author-only feed so saved drafts remain available outside the public ranking", async () => {
+    const fallback = fetch;
+    vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = new URL(String(input), "http://localhost");
+      if (url.pathname === "/api/community/posts") {
+        return Response.json({ posts: url.searchParams.get("sort") === "my_posts" ? [{
+          id: "qa-saved-draft", author_id: "author-1", category: "free", visibility: "draft",
+          title: "QA 이어서 작성할 초안", created_at: "2026-10-18T00:00:00Z",
+        }] : [] });
+      }
+      return fallback(input, init);
+    }));
+    const container = await renderPage();
+    await act(async () => [...container.querySelectorAll("button")]
+      .find((button) => button.textContent?.includes("임시저장"))?.click());
+    expect(container.textContent).toContain("QA 이어서 작성할 초안");
+    expect(container.querySelector('a[href="/wedding/community/post/qa-saved-draft"]')).not.toBeNull();
+  });
+
+  it("keeps the personal bookmark collection outside the public ranking", async () => {
+    const fallback = fetch;
+    vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = new URL(String(input), "http://localhost");
+      if (url.pathname === "/api/community/posts") return Response.json({
+        posts: url.searchParams.get("bookmarked") === "true" && url.searchParams.get("sort") === "new" ? [{
+          id: "qa-private-bookmark", author_id: "author-1", category: "free", visibility: "draft", title: "QA 내가 보관한 초안",
+        }] : [],
+      });
+      return fallback(input, init);
+    }));
+    const container = await renderPage(MyBookmarksPage);
+    expect(container.textContent).toContain("QA 내가 보관한 초안");
+    expect(container.querySelector('a[href="/wedding/community/post/qa-private-bookmark"]')).not.toBeNull();
   });
 
   it("bootstraps a fresh uninitialized session through the verified user lookup", async () => {

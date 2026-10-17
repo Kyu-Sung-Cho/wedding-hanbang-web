@@ -256,6 +256,11 @@ export async function GET(req: NextRequest) {
         .eq("under_review", PUBLIC_COMMUNITY_POST_QUERY_FILTERS.underReview);
     }
 
+    // 본인에게 읽기 권한이 있는 초안·검토 중 글도 커뮤니티 인기 순위에는 넣지 않는다.
+    if (sort === "hot" || sort === "top") {
+      query = query.in("visibility", ["public", "members"]).eq("under_review", false);
+    }
+
     // 인기·추천 순위에는 광고와 협찬을 섞지 않는다. 최신순에서는 투명한 배지와
     // 대가 내용을 붙여 열람할 수 있지만, 반응 점수로 노출을 증폭시키지는 않는다.
     if (sort === "top" || sort === "hot" || sort === "unanswered" || sort === "resolved") {

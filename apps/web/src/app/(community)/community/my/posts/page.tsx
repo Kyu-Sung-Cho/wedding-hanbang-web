@@ -125,7 +125,7 @@ function MyPostsContent({ expectedUserId, bootstrapAllowed, privacyEpoch }: {
     if (!userId || !sessionIsCurrent()) return;
     let cancelled = false;
     const controller = new AbortController();
-    fetch(`/api/community/posts?author_id=${userId}&limit=100`, { signal: controller.signal })
+    fetch(`/api/community/posts?author_id=${userId}&sort=my_posts&limit=100`, { signal: controller.signal })
       .then(async (response) => {
         if (!response.ok) throw new Error(response.status === 401
           ? "로그인이 만료됐어요. 다시 로그인한 뒤 내 글을 확인해 주세요."

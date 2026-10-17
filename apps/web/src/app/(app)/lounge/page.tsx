@@ -18,6 +18,7 @@ import {
   Users,
 } from "lucide-react";
 import AmoraMark from "@/components/ui/AmoraMark";
+import AdDisclosureBadge from "@/components/community/AdDisclosureBadge";
 import { AMORA_ACTION_CLASS } from "@/components/ui/amoraActionStyles";
 import { FEATURE_SUMMARY_CLASS, SUMMARY_LABEL_CLASS, SUMMARY_VALUE_CLASS } from "@/components/ui/featureSummaryStyles";
 import DailyAmoraFocusBridge from "@/components/app/DailyAmoraFocusBridge";
@@ -298,7 +299,7 @@ export default function LoungePage() {
     }
 
     setSavedLoading(true);
-    fetch("/api/community/posts?bookmarked=true&limit=3", { cache: "no-store" })
+    fetch("/api/community/posts?bookmarked=true&sort=new&limit=3", { cache: "no-store" })
       .then((res) => (res.ok ? res.json() : Promise.reject()))
       .then((data: { posts?: PostWithAuthor[] }) => {
         if (!cancelled) setSavedPosts((data.posts ?? []).slice(0, 3));
@@ -648,6 +649,9 @@ function SavedPostsPanel({ posts, loading, error, onRetry }: { posts: PostWithAu
           posts.map((post) => (
             <Link key={post.id} {...weddingLinkProps(`/community/post/${post.id}`)} className="block rounded-2xl border border-[var(--amora-line)] bg-[var(--amora-bg)] p-3.5 hover:bg-white">
               <p className="line-clamp-1 text-[14px] font-semibold text-[var(--amora-ink)]">{post.title}</p>
+              {(post.ad_disclosure === "sponsored" || post.ad_disclosure === "ad") && (
+                <div className="mt-1.5"><AdDisclosureBadge adDisclosure={post.ad_disclosure} sponsorshipDetail={post.sponsorship_detail} /></div>
+              )}
               <p className="mt-1 line-clamp-2 text-[12px] font-medium leading-[1.55] text-[var(--amora-soft)]">{stripHtml(post.content)}</p>
               <p className="mt-2 text-[11px] font-semibold text-[var(--amora-rose-deep)]">
                 댓글 {post.comment_count} · 저장 {post.bookmark_count}
