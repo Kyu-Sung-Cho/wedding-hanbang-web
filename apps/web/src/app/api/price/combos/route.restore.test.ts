@@ -1,11 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const mocks = vi.hoisted(() => ({ ownerClient: vi.fn(), publicClient: vi.fn(), profile: vi.fn(), admin: vi.fn(), limit: vi.fn(), rateKey: vi.fn() }));
+const mocks = vi.hoisted(() => ({ ownerClient: vi.fn(), publicClient: vi.fn(), profile: vi.fn(), admin: vi.fn(), limit: vi.fn(), rateKey: vi.fn(), logError: vi.fn() }));
 vi.mock("@/lib/supabase/server", () => ({ createClientFromRequest: mocks.ownerClient }));
 vi.mock("@/lib/supabase/admin", () => ({ createAdminClient: mocks.admin }));
 vi.mock("@/utils/rateLimit", () => ({ checkRateLimit: mocks.limit, rateLimitKey: mocks.rateKey }));
 vi.mock("@/lib/supabase/public", () => ({ createPublicClient: mocks.publicClient }));
 vi.mock("@/lib/vendors/publicVendorPriceData", () => ({ loadPublicVendorPriceProfile: mocks.profile }));
+vi.mock("@/utils/log", () => ({ log: { error: mocks.logError } }));
 import { GET, POST } from "./route";
 
 const COMBO = "50000000-0000-4000-8000-000000000001";
@@ -76,6 +77,7 @@ describe("owner saved combo restore", () => {
   it("distinguishes a failed public lookup from a changed/closed offer", async () => {
     mocks.profile.mockRejectedValueOnce(new Error("synthetic options unavailable"));
     expect((await POST(request())).status).toBe(503);
+    expect(mocks.logError.mock.calls).toEqual([["api/price/combos:restore"]]);
     mocks.profile.mockResolvedValueOnce({ ...profile(), prices: [] });
     const changed = await (await POST(request())).json();
     expect(changed.restore.restoredCategories).toEqual([]);
@@ -87,6 +89,7 @@ describe("owner saved combo restore", () => {
     owner = "actor-b"; saved = null;
     expect((await POST(request())).status).toBe(404);
     expect(mocks.publicClient).not.toHaveBeenCalled();
+    expect(mocks.logError).not.toHaveBeenCalled();
   });
   it("returns a private bounded 503 if the saved-owner lookup itself throws", async () => {
     const client = await mocks.ownerClient();
@@ -96,6 +99,7 @@ describe("owner saved combo restore", () => {
     expect(response.headers.get("cache-control")).toContain("no-store");
     expect(response.headers.get("x-hanbang-response-bytes")).toMatch(/^\d+$/);
     expect(mocks.publicClient).not.toHaveBeenCalled();
+    expect(mocks.logError.mock.calls).toEqual([["api/price/combos:restore"]]);
   });
   it("restores all three saved categories independent of the active browser category and a cheapest-only shortlist", async () => {
     const DRESS = "10000000-0000-4000-8000-000000000002";

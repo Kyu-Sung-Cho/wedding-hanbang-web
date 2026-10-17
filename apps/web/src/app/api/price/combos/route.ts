@@ -93,6 +93,7 @@ async function restoreOwnerCombo(supabase: Awaited<ReturnType<typeof createClien
     const catalog = await loadSavedComboRestoreCatalog(createPublicClient(), parsed.combo);
     return mobileBridgeJson({ sourceComboId: parsed.combo.id, restore: restoreSavedComboAgainstCatalog(parsed.combo, catalog) });
   } catch {
+    log.error("api/price/combos:restore");
     return mobileBridgeJson({ error: "현재 공개 가격을 확인하지 못했어요. 잠시 후 다시 불러와 주세요." }, { status: 503 });
   }
 }
