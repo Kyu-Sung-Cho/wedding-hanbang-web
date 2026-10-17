@@ -468,8 +468,8 @@ describe("landing hero product experience contract", () => {
     // 그 셋이 무엇인지 랜딩 어디에도 없었다. 스무 장면은 2026-08-29 개편에서
     // 히어로 후크 자리를 내주고 "지금 되는 것" 카드 02 로 내려갔다 —
     // **도구가 내려가도 산출물을 이름으로 말하는 계약은 따라간다.**
-    expect(availableNowCatalogue).toContain("지출·준비·가족·도움");
-    expect(availableNowCatalogue).toContain("파트너도 답하고 결과 링크를 서로 전달하면, 같은 답과 다른 답을 나란히 볼 수 있어요");
+    expect(availableNowCatalogue).toContain("결혼식과 준비에 대한 내 기준");
+    expect(availableNowCatalogue).toContain("두 사람이 함께 보기에 동의하면, 각자 허용한 답에서 같은 점과 다른 점을 나란히 볼 수 있어요");
     // 어형·표기를 넓힌다. "세 가지"만 막던 시절에는 "3가지"로 바꾸면 통과했다.
     expect(heroCopy, "첫 화면이 산출물을 개수로만 말하면 안 된다").not.toMatch(
       /(?:세|3|셋)\s*가지/u,
@@ -546,10 +546,12 @@ describe("landing hero product experience contract", () => {
     expect(availableNowCatalogue, "견적 저장 고지가 사라졌다").toContain(
       "가입 없이 선택한 내용은 저장하지 않아요",
     );
-    expect(availableNowCatalogue, "웨딩코드 공유 링크 고지가 사라졌다").toContain(
-      "함께 보기에 동의하면 답 전체가 담긴 링크를 직접 전달해요",
+    expect(availableNowCatalogue, "웨딩코드 비교 동의 범위가 사라졌다").toContain(
+      "두 사람이 함께 보기에 동의하면, 각자 허용한 답",
     );
-    expect(availableNowCatalogue).toContain("답은 서버에 저장하지 않으며 전달한 링크는 회수할 수 없어요");
+    expect(availableNowCatalogue).toContain("별도 저장 동의 후 답을 7일간 서버에 보관");
+    expect(availableNowCatalogue).toContain("이후 24시간 안에 삭제");
+    expect(availableNowCatalogue).toContain("본인 답과 비교 연결은 결과 화면에서 삭제");
     expect(availableNowCatalogue, "궁합·심리 진단 금지 고지가 사라졌다").toContain(
       "심리 진단이나 궁합 검사가 아니에요",
     );

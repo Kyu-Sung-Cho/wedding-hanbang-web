@@ -264,12 +264,12 @@ describe("landing available-now section", () => {
     }
   });
 
-  it("describes the integrated preferences instead of advertising a partial flow count", () => {
+  it("describes the current questionnaire and the mutual comparison consent", () => {
     const weddingCode = landingContent.availableNow.cards.find(card => card.href === "/wedding-code");
-    expect(weddingCode?.body).toContain("지출·준비·가족·도움");
-    expect(weddingCode?.body).toContain("결과 링크를 서로 전달하면");
-    expect(weddingCode?.body).toContain("파트너도 답하고");
-    expect(weddingCode?.body).toContain("같은 답과 다른 답을 나란히 볼 수 있어요");
+    expect(weddingCode?.body).toContain("36문항");
+    expect(weddingCode?.body).toContain("결혼식과 준비에 대한 내 기준");
+    expect(weddingCode?.body).toContain("두 사람이 함께 보기에 동의하면");
+    expect(weddingCode?.body).toContain("각자 허용한 답에서 같은 점과 다른 점을 나란히 볼 수 있어요");
     expect(weddingCode?.body).not.toMatch(/(?:16|32)\s*(?:개\s*)?(?:문장|문항)(?:만|으로 끝)/u);
     expect(content, "옛 장면 수 표현이 랜딩에 남아 있다")
       .not.toMatch(/(?:열두|열여섯|스무|스물네|\d+)\s*장면/u);
