@@ -1,6 +1,6 @@
 ﻿"use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
@@ -24,8 +24,8 @@ import {
   RotateCcw,
   MessageCircle,
 } from "lucide-react";
-import { createBrowserClient } from "@supabase/ssr";
 import { useCommunityStore } from "@/stores/communityStore";
+import { useAuthStore } from "@/stores/authStore";
 import { CATEGORY_MAP } from "@/constants/communityCategories";
 import { timeAgo } from "@/utils/timeAgo";
 import { sanitizeHtml } from "@/utils/sanitize";
@@ -42,6 +42,7 @@ import SlideCarousel from "@/components/community/SlideCarousel";
 import { useCommentsRealtime } from "@/hooks/useCommentsRealtime";
 import { communityCategoryFeedPath, communityPostPath } from "@/lib/community/routes";
 import type { PublicCommunityPostDetail } from "@/lib/community/publicPostDetail";
+import { canReadCommunityPost } from "@/lib/community/publicPostRules";
 import { weddingPath } from "@/lib/weddingPaths";
 import type {
   PollWithOptions,
@@ -217,25 +218,53 @@ export default function PostDetailClient({
   postId: requestedPostId,
   initialPost,
 }: PostDetailClientProps) {
+  const { viewerId, privacyEpoch, incrementView } = useCommunityStore();
+  useEffect(() => {
+    if (requestedPostId) incrementView(requestedPostId);
+  }, [requestedPostId, incrementView]);
+
+  // 조회 시작 뒤 인증이 확정되면 이전 응답은 store에서 폐기된다. 새 경계로
+  // 다시 조회하고, 이전 계정의 화면 상태와 익명 SSR fallback도 함께 버린다.
+  return (
+    <ViewerPostDetail
+      key={`${requestedPostId}:${viewerId ?? "guest"}:${privacyEpoch}`}
+      postId={requestedPostId}
+      viewerId={viewerId}
+      initialPost={viewerId === null && privacyEpoch === 0 ? initialPost : null}
+    />
+  );
+}
+
+function ViewerPostDetail({
+  postId,
+  viewerId,
+  initialPost,
+}: PostDetailClientProps & { viewerId: string | null }) {
   const router = useRouter();
-  const postId = requestedPostId;
 
   const {
     currentPost: hydratedPost,
     fetchPostDetail,
-    incrementView,
     votePost,
     toggleBookmark,
     updatePost,
     deletePost,
   } = useCommunityStore();
-  const post =
+  const candidate =
     hydratedPost?.id === postId ? hydratedPost : initialPost ?? null;
+  const isAdmin = useAuthStore(state => Boolean(viewerId)
+    && state.user?.id === viewerId && state.profile?.id === viewerId
+    && state.profile?.is_admin === true);
+  const post = candidate && candidate.id === postId
+    && canReadCommunityPost(candidate, { userId: viewerId, isAdmin })
+    ? candidate : null;
+  const user = useMemo(() => viewerId ? { id: viewerId } : null, [viewerId]);
 
   // 댓글 리얼타임 구독
   useCommentsRealtime(postId);
 
-  const [user, setUser] = useState<{ id: string } | null>(null);
+  const [loadFinished, setLoadFinished] = useState(false);
+  const [loadAttempt, setLoadAttempt] = useState(0);
   const [shareToast, setShareToast] = useState(false);
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
 
@@ -265,24 +294,26 @@ export default function PostDetailClient({
   const [relatedPosts, setRelatedPosts] = useState<PostWithAuthor[]>([]);
   const [popularPosts, setPopularPosts] = useState<PostWithAuthor[]>([]);
 
-  // 유저 상태 확인
+  // 늦은 요청은 store의 viewer/epoch fence가 거른다. 요청이 끝나지 않아도
+  // 빈 화면을 계속 두지 않고 같은 경계에서 직접 다시 시도할 수 있게 한다.
   useEffect(() => {
-    const supabase = createBrowserClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-    );
-    supabase.auth.getUser().then(({ data }) => {
-      setUser(data.user ? { id: data.user.id } : null);
-    });
-  }, []);
-
-  // 글 불러오기 + 조회수 증가
-  useEffect(() => {
-    if (postId) {
-      fetchPostDetail(postId);
-      incrementView(postId);
-    }
-  }, [postId, fetchPostDetail, incrementView]);
+    let cancelled = false;
+    setLoadFinished(false);
+    const timer = window.setTimeout(() => {
+      if (!cancelled) setLoadFinished(true);
+    }, 15_000);
+    const finish = () => {
+      if (!cancelled) {
+        window.clearTimeout(timer);
+        setLoadFinished(true);
+      }
+    };
+    void Promise.resolve(fetchPostDetail(postId)).then(finish, finish);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [postId, fetchPostDetail, loadAttempt]);
 
   useEffect(() => {
     if (!post?.id || !post.category) return;
@@ -478,7 +509,24 @@ export default function PostDetailClient({
   );
 
   if (!post) {
-    return <div className="min-h-screen bg-[#FAFAF8]" aria-busy="true" />;
+    return (
+      <div className="min-h-screen bg-[#FAFAF8]">
+        <div className="mx-auto w-full max-w-[760px] px-4 py-14 sm:px-6">
+          {loadFinished ? (
+            <div role="alert">
+              <h1 className="font-serif-kr text-[var(--hb-text-strong)]">글을 불러오지 못했어요</h1>
+              <p className="mt-3 text-[14px] leading-[1.8] text-[var(--hb-text-body)]">지워졌거나 현재 계정으로 볼 수 없는 글일 수 있어요. 로그인 상태와 연결을 확인한 뒤 다시 시도해 주세요.</p>
+              <button type="button" onClick={() => setLoadAttempt(attempt => attempt + 1)} className="hb-focus-ring mt-6 inline-flex min-h-11 items-center gap-2 rounded-[6px] border border-[var(--color-paper-outline)] bg-white px-5 py-2.5 text-[13.5px] font-semibold text-[var(--hb-text-strong)] transition-colors hover:border-[#8F5150]/45">
+                <RotateCcw className="h-4 w-4" aria-hidden />다시 불러오기
+              </button>
+            </div>
+          ) : (
+            <p role="status" aria-busy="true" className="flex items-center gap-2 text-[14px] text-[var(--hb-text-muted)]"><Loader2 className="h-4 w-4 animate-spin" aria-hidden />글을 불러오는 중...</p>
+          )}
+          <Link href={weddingPath()} prefetch={false} className="hb-focus-ring mt-6 inline-flex min-h-11 items-center text-[13.5px] font-semibold text-[var(--hb-text-strong)] underline underline-offset-4">커뮤니티로 돌아가기</Link>
+        </div>
+      </div>
+    );
   }
 
   // 멤버전용 & 비로그인

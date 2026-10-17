@@ -97,6 +97,13 @@ type EditField = "name" | "date" | "venue" | "budget";
 const REGENERATE_FAILED =
   "초대 코드를 다시 만들지 못했어요. 연결 상태를 다시 불러오는 중이에요 — 잠시 뒤 화면을 확인해 주세요.";
 
+function preferenceOwnerKey(state: Pick<ReturnType<typeof useAuthStore.getState>, "user" | "profile" | "couple" | "journey" | "isDemo">) {
+  return JSON.stringify([
+    state.isDemo, state.user?.id, state.profile?.id, state.profile?.couple_id,
+    state.couple?.id, state.journey?.id, state.journey?.couple_id,
+  ]);
+}
+
 export default function SettingsPage() {
   const {
     user,
@@ -229,6 +236,7 @@ export default function SettingsPage() {
   const [resetWeddingError, setResetWeddingError] = useState("");
   const [draftPrefs, setDraftPrefs] = useState<WeddingPreferenceState>({});
   const [preferenceSaving, setPreferenceSaving] = useState(false);
+  const preferenceRequest = useRef<object | null>(null);
   const [revokingLegacyCareConsent, setRevokingLegacyCareConsent] = useState(false);
   const [legacyCareConsentError, setLegacyCareConsentError] = useState("");
 
@@ -499,16 +507,47 @@ export default function SettingsPage() {
     setDraftPrefs(prefs ?? {});
   }, [prefs]);
 
+  const preferenceOwner = preferenceOwnerKey({ user, profile, couple, journey, isDemo });
+  useEffect(() => {
+    let owner = preferenceOwnerKey(useAuthStore.getState());
+    // 같은 계정으로 다시 돌아와도 이전 요청을 재사용하지 않는다.
+    const unsubscribe = useAuthStore.subscribe((state) => {
+      const nextOwner = preferenceOwnerKey(state);
+      if (nextOwner === owner) return;
+      owner = nextOwner;
+      preferenceRequest.current = null;
+      setPreferenceSaving(false);
+      const confirmedPrefs = (state.journey?.progress as Record<string, unknown> | undefined)
+        ?.__preferences as WeddingPreferenceState | undefined;
+      setDraftPrefs(confirmedPrefs ?? {});
+      setJourneyError("");
+      setJourneyNotice("");
+    });
+    return () => {
+      unsubscribe();
+      preferenceRequest.current = null;
+    };
+  }, []);
+
+  const restoreConfirmedPreferences = () => {
+    const progress = useAuthStore.getState().journey?.progress as Record<string, unknown> | undefined;
+    setDraftPrefs((progress?.__preferences as WeddingPreferenceState | undefined) ?? {});
+  };
+
   const updatePreferences = async (
-    partial: Partial<{
-      weddingStyle: WeddingStyle | null;
-      priorities: PriorityItem[];
-      budgetTendency: BudgetTendency | null;
-      guestCount: GuestCount | null;
-    }>
+    select: (confirmed: WeddingPreferenceState) => WeddingPreferenceState,
   ) => {
-    const currentProgress = (journey?.progress ?? {}) as Record<string, unknown>;
-    const nextPrefs = { ...draftPrefs, ...partial };
+    // disabled 렌더 전 같은 이벤트 묶음에서 들어오는 클릭도 차단한다.
+    const currentState = useAuthStore.getState();
+    if (preferenceRequest.current || preferenceOwner !== preferenceOwnerKey(currentState)) return;
+    const request = {};
+    preferenceRequest.current = request;
+    const isCurrentRequest = () => preferenceRequest.current === request
+      && preferenceOwner === preferenceOwnerKey(useAuthStore.getState());
+    // 다른 화면·공유 갱신 뒤 아직 이전 handler가 남아 있어도 최신 정본에 합친다.
+    const currentProgress = (currentState.journey?.progress ?? {}) as Record<string, unknown>;
+    const confirmedPrefs = (currentProgress.__preferences as WeddingPreferenceState | undefined) ?? {};
+    const nextPrefs = { ...confirmedPrefs, ...select(confirmedPrefs) };
     setDraftPrefs(nextPrefs);
     setPreferenceSaving(true);
     setJourneyError("");
@@ -517,28 +556,34 @@ export default function SettingsPage() {
       const result = await updateJourney({
         progress: { ...currentProgress, __preferences: nextPrefs } as never,
       });
+      if (!isCurrentRequest()) return;
       if (result.status === "pending_partner") {
-        setDraftPrefs(prefs ?? {});
+        restoreConfirmedPreferences();
         setJourneyNotice(
           `${result.summary} 상대방에게 확인 요청을 보냈어요. 두 분 확인 전에는 반영되지 않습니다.`,
         );
       }
     } catch (error) {
-      setDraftPrefs(prefs ?? {});
+      if (!isCurrentRequest()) return;
+      restoreConfirmedPreferences();
       setJourneyError(
         error instanceof Error
           ? error.message
           : "웨딩 선호도를 저장하지 못했습니다.",
       );
     } finally {
-      setPreferenceSaving(false);
+      if (preferenceRequest.current === request) {
+        preferenceRequest.current = null;
+        setPreferenceSaving(false);
+      }
     }
   };
 
   const togglePriority = async (value: PriorityItem) => {
-    const cur = draftPrefs.priorities ?? [];
-    const next = cur.includes(value) ? cur.filter((p) => p !== value) : [...cur, value];
-    await updatePreferences({ priorities: next });
+    await updatePreferences((confirmed) => {
+      const current = confirmed.priorities ?? [];
+      return { priorities: current.includes(value) ? current.filter((p) => p !== value) : [...current, value] };
+    });
   };
 
   const DELETE_REASONS = [
@@ -908,8 +953,11 @@ export default function SettingsPage() {
                   <button
                     key={opt.value}
                     aria-pressed={selected}
-                    onClick={() => updatePreferences({ weddingStyle: selected ? null : opt.value })}
-                    className={`px-4 py-2 rounded-[6px] text-sm font-medium transition-all ${
+                    disabled={preferenceSaving}
+                    onClick={() => updatePreferences((confirmed) => ({
+                      weddingStyle: confirmed.weddingStyle === opt.value ? null : opt.value,
+                    }))}
+                    className={`px-4 py-2 rounded-[6px] text-sm font-medium transition-all disabled:cursor-wait disabled:opacity-50 ${
                       selected
                         ? "bg-[var(--hb-primary)] text-white shadow-sm"
                         : "bg-[var(--hb-surface-hover)] text-[var(--hb-text-body)] hover:bg-[#EFEAE6]"
@@ -932,8 +980,9 @@ export default function SettingsPage() {
                   <button
                     key={opt.value}
                     aria-pressed={selected}
+                    disabled={preferenceSaving}
                     onClick={() => togglePriority(opt.value)}
-                    className={`px-4 py-2 rounded-[6px] text-sm font-medium transition-all ${
+                    className={`px-4 py-2 rounded-[6px] text-sm font-medium transition-all disabled:cursor-wait disabled:opacity-50 ${
                       selected
                         ? "bg-[var(--hb-primary)] text-white shadow-sm"
                         : "bg-[var(--hb-surface-hover)] text-[var(--hb-text-body)] hover:bg-[#EFEAE6]"
@@ -956,8 +1005,11 @@ export default function SettingsPage() {
                   <button
                     key={opt.value}
                     aria-pressed={selected}
-                    onClick={() => updatePreferences({ budgetTendency: selected ? null : opt.value })}
-                    className={`px-4 py-2 rounded-[6px] text-sm font-medium transition-all ${
+                    disabled={preferenceSaving}
+                    onClick={() => updatePreferences((confirmed) => ({
+                      budgetTendency: confirmed.budgetTendency === opt.value ? null : opt.value,
+                    }))}
+                    className={`px-4 py-2 rounded-[6px] text-sm font-medium transition-all disabled:cursor-wait disabled:opacity-50 ${
                       selected
                         ? "bg-[var(--hb-primary)] text-white shadow-sm"
                         : "bg-[var(--hb-surface-hover)] text-[var(--hb-text-body)] hover:bg-[#EFEAE6]"
@@ -980,8 +1032,11 @@ export default function SettingsPage() {
                   <button
                     key={opt.value}
                     aria-pressed={selected}
-                    onClick={() => updatePreferences({ guestCount: selected ? null : opt.value })}
-                    className={`px-4 py-2 rounded-[6px] text-sm font-medium transition-all ${
+                    disabled={preferenceSaving}
+                    onClick={() => updatePreferences((confirmed) => ({
+                      guestCount: confirmed.guestCount === opt.value ? null : opt.value,
+                    }))}
+                    className={`px-4 py-2 rounded-[6px] text-sm font-medium transition-all disabled:cursor-wait disabled:opacity-50 ${
                       selected
                         ? "bg-[var(--hb-primary)] text-white shadow-sm"
                         : "bg-[var(--hb-surface-hover)] text-[var(--hb-text-body)] hover:bg-[#EFEAE6]"

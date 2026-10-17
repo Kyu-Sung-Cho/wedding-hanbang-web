@@ -86,6 +86,8 @@ vi.mock("@supabase/ssr", () => ({
 
 vi.mock("@/stores/communityStore", () => ({
   useCommunityStore: () => ({
+    viewerId: mocks.userId,
+    privacyEpoch: 0,
     currentPost: mocks.post,
     postLoading: false,
     fetchPostDetail: mocks.fetchPostDetail,

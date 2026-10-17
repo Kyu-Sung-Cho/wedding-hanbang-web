@@ -13377,7 +13377,8 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
           expect(modelConfig.chooseAmoraChatModelRole).toHaveBeenCalledWith(expect.objectContaining({ userText: currentUser }));
           expect(providerArgs?.modelRole).toBe("primary");
           const toolNames = providerArgs?.tools?.map((tool: { name: string }) => tool.name) ?? [];
-          if (isSeparation) expect(toolNames).toEqual(["get_market_price"]);
+          // 상태 요약은 primary를 유지하되 미지원 항목에 다른 분야 가격 도구를 붙이지 않는다.
+          if (isSeparation) expect(toolNames).toEqual([]);
           else expect(toolNames).toEqual(expect.arrayContaining(["get_wedding_info", "get_budget_summary", "get_schedule_summary", "get_amora_actions"]));
           if (!withHistory && !isSeparation) expect([...toolNames].sort()).toEqual([
             "analyze_quote", "get_amora_actions", "get_budget_summary", "get_market_price", "get_schedule_events",

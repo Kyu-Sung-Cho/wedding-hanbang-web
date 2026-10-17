@@ -3,6 +3,7 @@ import type { AiToolDefinition } from "@/lib/ai/toolDefinition";
 import type { SpecialistType } from "@/types/moat.types";
 import { hasAmoraSharedTaskProposalRequest } from "./amoraSharedTaskIntent";
 import { isMutatingTool } from "./mutationTools";
+import { assessMarketPriceRequestScope } from "./marketPriceRequestScope";
 
 const BASE_READ_TOOLS = [
   "get_wedding_info",
@@ -927,6 +928,8 @@ export function selectAmoraTools({
   if (VENUE_WRITE.test(userText)) selected.add("update_venue");
 
   const sharedTaskProposalOnly = hasAmoraSharedTaskProposalRequest(userText);
+  const priceScope = assessMarketPriceRequestScope(userText);
+  if (priceScope.hadExplicitTarget && priceScope.requestedSupportedCategories.size === 0) selected.delete("get_market_price");
   return availableTools.filter((tool) => selected.has(tool.name)
     && (!sharedTaskProposalOnly || !isMutatingTool(tool.name)));
 }

@@ -232,7 +232,7 @@ function CohortPageInner({ roomId }: { roomId: string }) {
         <RoomHeader room={room} />
 
         <div className="mt-5 grid gap-4 md:grid-cols-[minmax(0,1fr)_280px] lg:grid-cols-[minmax(0,1fr)_300px] xl:grid-cols-[minmax(0,1fr)_320px] xl:gap-5">
-          <main className="min-w-0">
+          <section aria-label="동기방 대화와 준비 기록" className="min-w-0">
             <section className="overflow-hidden rounded-[6px] border border-[var(--hb-hairline)] bg-white/88 shadow-[var(--shadow-overlay)]">
               <div className="border-b border-[var(--hb-hairline)] bg-white/70 px-3 py-3 sm:px-4">
                 <div className="grid grid-cols-3 gap-2 rounded-full bg-[var(--hb-surface-hover)] p-1">
@@ -271,7 +271,7 @@ function CohortPageInner({ roomId }: { roomId: string }) {
                 {tab === "timeline" && <TimelineTab roomId={roomId} enabled={isSignedIn} toastFn={toast} />}
               </div>
             </section>
-          </main>
+          </section>
 
           <CohortSidePanel
             room={room}

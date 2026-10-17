@@ -4,7 +4,7 @@ import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { PriceVendor } from "@/lib/price/catalog";
+import type { PriceOffer, PriceVendor } from "@/lib/price/catalog";
 import { track } from "@/lib/analytics/track";
 
 import { PriceVendorCard } from "./PriceVendorCard";
@@ -13,6 +13,21 @@ import { PriceVendorCard } from "./PriceVendorCard";
   .IS_REACT_ACT_ENVIRONMENT = true;
 
 vi.mock("@/lib/analytics/track", () => ({ track: vi.fn() }));
+
+function disclosureOffer(overrides: Partial<PriceOffer> = {}): PriceOffer {
+  return {
+    id: "qa-offer", agencyId: null, agencyName: "업체 직접 공시",
+    minimumKrw: 57_000, maximumKrw: 57_000,
+    priceNote: null, baseSpec: null, options: [], ...overrides,
+  };
+}
+
+function disclosureVendor(category: PriceVendor["category"], offers: PriceOffer[]): PriceVendor {
+  return {
+    id: "qa-vendor", slug: "qa-vendor", name: "QA 공시 업체", aliases: [],
+    category, regionCode: "seoul_etc", offers,
+  };
+}
 
 describe("PriceVendorCard", () => {
   let root: Root;
@@ -28,6 +43,115 @@ describe("PriceVendorCard", () => {
   afterEach(async () => {
     await act(async () => root.unmount());
     document.body.replaceChildren();
+  });
+
+  it("keeps meal and venue rental prices separate instead of presenting them as one hall price range", async () => {
+    const vendor: PriceVendor = {
+      id: "hall-mixed-units",
+      slug: "hall-mixed-units",
+      name: "QA 항목별 공시 예식장",
+      aliases: [],
+      category: "hall",
+      regionCode: "seoul_etc",
+      offers: [
+        {
+          id: "hall-food",
+          itemName: "뷔페 식대",
+          agencyId: null,
+          agencyName: "업체 직접 공시",
+          minimumKrw: 57_000,
+          maximumKrw: 57_000,
+          priceNote: "1인 기준",
+          baseSpec: null,
+          options: [],
+        },
+        {
+          id: "hall-rental",
+          itemName: "대관료",
+          agencyId: null,
+          agencyName: "업체 직접 공시",
+          minimumKrw: 3_300_000,
+          maximumKrw: 3_300_000,
+          priceNote: "예식 1회 기준",
+          baseSpec: null,
+          options: [],
+        },
+      ],
+    };
+    await act(async () => root.render(
+      <PriceVendorCard vendor={vendor} isWishlisted={false} onToggleWishlist={() => {}} />,
+    ));
+    const summary = container.querySelector('[aria-label="QA 항목별 공시 예식장 공시 가격 요약"]');
+    expect(summary?.textContent).toContain("항목별 공시 확인");
+    expect(summary?.textContent).not.toContain("5.7~330만원");
+    const breakdown = container.querySelector<HTMLDetailsElement>('details[data-price-breakdown="true"]');
+    expect(breakdown).not.toBeNull();
+    await act(async () => { if (breakdown) breakdown.open = true; });
+    expect(breakdown?.textContent).toContain("뷔페 식대");
+    expect(breakdown?.textContent).toContain("5.7만원");
+    expect(breakdown?.textContent).toContain("1인 기준");
+    expect(breakdown?.textContent).toContain("대관료");
+    expect(breakdown?.textContent).toContain("330만원");
+    expect(breakdown?.textContent).toContain("예식 1회 기준");
+  });
+
+  it("does not merge hall units in the agency comparison either", async () => {
+    const vendor = disclosureVendor("hall", [
+      disclosureOffer({ id: "food", agencyId: "agency-1", agencyName: "대행사 A", itemName: "식대" }),
+      disclosureOffer({ id: "rental", agencyId: "agency-2", agencyName: "대행사 B", itemName: "대관료", minimumKrw: 3_300_000, maximumKrw: 3_300_000 }),
+    ]);
+    await act(async () => root.render(
+      <PriceVendorCard vendor={vendor} isWishlisted={false} onToggleWishlist={() => {}} />,
+    ));
+    const agency = container.querySelector('[aria-label="QA 공시 업체 대행사별 공시가"]');
+    expect(agency?.textContent).toContain("항목별 공시 확인");
+    expect(agency?.textContent).toContain("대행사 2곳");
+    expect(agency?.textContent).toContain("식대");
+    expect(agency?.textContent).toContain("대관료");
+    expect(agency?.textContent).toContain("5.7만원");
+    expect(agency?.textContent).toContain("330만원");
+    expect(container.textContent).not.toContain("5.7~330만원");
+  });
+
+  it.each([{ offers: [] }, { offers: [disclosureOffer({ minimumKrw: null, maximumKrw: null })] }])(
+    "keeps an unpriced hall unknown instead of claiming an item price: %j", async ({ offers }) => {
+      await act(async () => root.render(
+        <PriceVendorCard vendor={disclosureVendor("hall", offers)} isWishlisted={false} onToggleWishlist={() => {}} />,
+      ));
+      const summary = container.querySelector('[aria-label="QA 공시 업체 공시 가격 요약"]');
+      expect(summary?.textContent).toContain("가격 확인 필요");
+      expect(summary?.textContent).not.toContain("항목별 공시 확인");
+    },
+  );
+
+  it("preserves an option-only hall disclosure and its source text", async () => {
+    const vendor = disclosureVendor("hall", [disclosureOffer({
+      minimumKrw: null, maximumKrw: null,
+      options: [{ id: "option", name: "QA 선택 옵션", minimumKrw: 100_000, maximumKrw: 100_000,
+        unit: "1회", condition: "선택 시", rawText: "QA 선택 옵션 10만원", isEffectivelyMandatory: false }],
+    })]);
+    await act(async () => root.render(
+      <PriceVendorCard vendor={vendor} isWishlisted={false} onToggleWishlist={() => {}} />,
+    ));
+    const summary = container.querySelector('[aria-label="QA 공시 업체 공시 가격 요약"]');
+    expect(summary?.textContent).toContain("추가금 1개 공시");
+    expect(summary?.textContent).not.toContain("항목별 공시 확인");
+    expect(container.textContent).toContain("QA 선택 옵션 10만원");
+    expect(container.textContent).toContain("선택 시");
+  });
+
+  it.each([
+    { category: "studio", minimumKrw: 1_000_000, maximumKrw: 2_000_000, expected: "100~200만원" },
+    { category: "dress", minimumKrw: null, maximumKrw: 1_000_000, expected: "최대 100만원" },
+    { category: "makeup", minimumKrw: 1_000_000, maximumKrw: null, expected: "100만원부터" },
+  ] as const)("preserves the normal $category price direction", async ({ category, minimumKrw, maximumKrw, expected }) => {
+    await act(async () => root.render(
+      <PriceVendorCard vendor={disclosureVendor(category, [disclosureOffer({ minimumKrw, maximumKrw })])}
+        isWishlisted={false} onToggleWishlist={() => {}} />,
+    ));
+    const summary = container.querySelector('[aria-label="QA 공시 업체 공시 가격 요약"]');
+    expect(summary?.textContent).toContain(expected);
+    expect(summary?.textContent).not.toContain("항목별 공시 확인");
   });
 
   it("renders every offer when one agency disclosed multiple items", async () => {
@@ -454,7 +578,7 @@ describe("PriceVendorCard", () => {
     expect(container.querySelector('[data-card-actions="true"]')?.className).toContain("mt-auto");
   });
 
-  it("preserves an upper-bound-only price in the compact summary", async () => {
+  it("preserves a hall upper bound in its item without guessing the unspecified unit", async () => {
     const vendor: PriceVendor = {
       id: "vendor-upper-bound",
       slug: "vendor-upper-bound",
@@ -481,7 +605,9 @@ describe("PriceVendorCard", () => {
     });
 
     const summary = container.querySelector('[role="group"][aria-label="상한가 공시 업체 공시 가격 요약"]');
-    expect(summary?.textContent).toContain("최대 100만원");
+    expect(summary?.textContent).toContain("항목별 공시 확인");
+    expect(summary?.textContent).not.toContain("1인");
+    expect(container.querySelector('details[data-price-breakdown="true"]')?.textContent).toContain("최대 100만원");
   });
 
   it("separates agency prices from a direct disclosure while summarizing both paths", async () => {
