@@ -514,11 +514,14 @@ export function PriceExplorer({
     setRestoreConfirming(false);
     const controller = new AbortController();
     restoreRequest.current = controller;
+    const sourceComboId = latestSavedCombo.id;
     const startedOwnerId = useAuthStore.getState().user?.id ?? null;
     const originalSelections = comboStore.getState().selections;
     setRestoring(true);
     try {
-      const response = await mobileAuthenticatedFetch(`/api/price/combos?restore=${encodeURIComponent(latestSavedCombo.id)}`, {
+      const response = await mobileAuthenticatedFetch("/api/price/combos", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ operation: "restore", comboId: sourceComboId }),
         cache: "no-store", signal: controller.signal,
       });
       if (controller.signal.aborted || (useAuthStore.getState().user?.id ?? null) !== startedOwnerId) return;
@@ -530,7 +533,7 @@ export function PriceExplorer({
         setFeedback("현재 공개 가격을 확인하지 못했어요. 기존 조합은 유지했어요. 잠시 후 다시 불러와 주세요.");
         return;
       }
-      const restored = parseSavedComboRestorePayload(await response.json());
+      const restored = parseSavedComboRestorePayload(await response.json(), sourceComboId);
       if (controller.signal.aborted || (useAuthStore.getState().user?.id ?? null) !== startedOwnerId) return;
       if (!restored) throw new Error("INVALID_RESTORE_RESPONSE");
       if (comboStore.getState().selections !== originalSelections) {

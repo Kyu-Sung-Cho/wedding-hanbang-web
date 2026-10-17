@@ -6,7 +6,6 @@ const RESPONSE_TIMEOUT_MS = 15_000;
 const MAX_REQUEST_BODY_BYTES = 64 * 1024;
 const MAX_RESPONSE_BODY_BYTES = 256 * 1024;
 const NONCE_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-const COMBO_RESTORE_PATH_PATTERN = /^\/api\/price\/combos\?restore=[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 const ALLOWED_METHODS = new Map<string, ReadonlySet<string>>([
   ["/api/favorites", new Set(["GET", "POST", "DELETE"])],
@@ -54,8 +53,7 @@ function normalizeBridgeRequest(input: RequestInfo | URL, init: RequestInit) {
 
   const method = (init.method ?? "GET").toUpperCase();
   const methods = ALLOWED_METHODS.get(input);
-  const isComboRestore = method === "GET" && COMBO_RESTORE_PATH_PATTERN.test(input);
-  if (!methods?.has(method) && !isComboRestore) {
+  if (!methods?.has(method)) {
     throw new Error("Mobile authenticated API bridge request is not allowed");
   }
 

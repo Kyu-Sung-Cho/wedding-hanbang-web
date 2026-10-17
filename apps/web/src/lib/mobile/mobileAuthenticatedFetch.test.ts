@@ -24,21 +24,20 @@ afterEach(() => {
 });
 
 describe("mobileAuthenticatedFetch", () => {
-  it("allows only a single UUID saved-combo restore query through GET", async () => {
+  it("restores through the original exact-path POST bridge without expanding its path or header contract", async () => {
+    const body = JSON.stringify({ operation: "restore", comboId: "11111111-1111-4111-8111-111111111111" });
     window[MOBILE_WEB_API_NONCE_PROPERTY] = BRIDGE_NONCE;
     window.ReactNativeWebView = { postMessage: vi.fn((raw: string) => {
       const request = JSON.parse(raw);
+      expect(request).toMatchObject({ path: "/api/price/combos", method: "POST", headers: { "content-type": "application/json" }, body });
       queueMicrotask(() => window.dispatchEvent(new CustomEvent("hanbang-mobile-api-response", { detail: {
         protocol: MOBILE_WEB_API_PROTOCOL, nonce: request.nonce, id: request.id,
         status: 200, contentType: "application/json", body: "{}",
       } })));
     }) };
-    const path = "/api/price/combos?restore=11111111-1111-4111-8111-111111111111";
-    expect((await mobileAuthenticatedFetch(path)).status).toBe(200);
-    for (const invalid of [path + "&extra=1", path + "&restore=11111111-1111-4111-8111-111111111111", "/api/price/combos?restore=bad", path + "#fragment"]) {
-      await expect(mobileAuthenticatedFetch(invalid)).rejects.toThrow("not allowed");
-    }
-    await expect(mobileAuthenticatedFetch(path, { method: "POST", body: "{}" })).rejects.toThrow("not allowed");
+    expect((await mobileAuthenticatedFetch("/api/price/combos", { method: "POST", headers: { "Content-Type": "application/json" }, body })).status).toBe(200);
+    await expect(mobileAuthenticatedFetch("/api/price/combos?restore=11111111-1111-4111-8111-111111111111")).rejects.toThrow("not allowed");
+    await expect(mobileAuthenticatedFetch("/api/price/combos", { headers: { "x-restore": "true" } })).rejects.toThrow("not allowed");
     expect(window.ReactNativeWebView.postMessage).toHaveBeenCalledTimes(1);
   });
   it("delegates ordinary browser requests to fetch", async () => {

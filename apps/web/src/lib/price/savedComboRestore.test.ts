@@ -5,6 +5,7 @@ import {
   parseLatestSavedComboPayload,
   restoreSavedComboAgainstCatalog,
   parseSavedComboRestorePayload,
+  parseSavedComboRestoreRequest,
 } from "./savedComboRestore";
 
 const catalog: PriceCatalog = {
@@ -68,13 +69,23 @@ function payload(overrides: Record<string, unknown> = {}) {
 }
 
 describe("saved combo restore", () => {
+  it("accepts only the strict read operation and binds its response to the requested saved id", () => {
+    const comboId = "50000000-0000-4000-8000-000000000001";
+    expect(parseSavedComboRestoreRequest({ operation: "restore", comboId })).toEqual({ comboId });
+    for (const body of [{ operation: "restore", comboId, selections: {} }, { operation: "restore", comboId, extra: 1 }, { operation: "restore" }, { operation: "save", comboId }]) {
+      expect(parseSavedComboRestoreRequest(body)).toBeNull();
+    }
+    const response = { sourceComboId: comboId, restore: { selections: { studio: null, dress: null, makeup: null }, restoredCategories: [], skippedCategories: ["studio"] } };
+    expect(parseSavedComboRestorePayload(response, comboId)).not.toBeNull();
+    expect(parseSavedComboRestorePayload(response, "50000000-0000-4000-8000-000000000002")).toBeNull();
+  });
   it("rejects inconsistent restore metadata instead of replacing a cart with unknown data", () => {
     expect(parseSavedComboRestorePayload({ restore: { selections: { studio: null, dress: null, makeup: null },
-      restoredCategories: ["studio"], skippedCategories: [] } })).toBeNull();
+      restoredCategories: ["studio"], skippedCategories: [] } }, "combo-1")).toBeNull();
     expect(parseSavedComboRestorePayload({ restore: { selections: { studio: null, dress: null, makeup: null },
-      restoredCategories: [], skippedCategories: ["hall"] } })).toBeNull();
+      restoredCategories: [], skippedCategories: ["hall"] } }, "combo-1")).toBeNull();
     expect(parseSavedComboRestorePayload({ restore: { selections: { studio: null, dress: null, makeup: null },
-      restoredCategories: [], skippedCategories: ["studio", "studio"] } })).toBeNull();
+      restoredCategories: [], skippedCategories: ["studio", "studio"] } }, "combo-1")).toBeNull();
   });
 
   it("finds a matching offer with the selected options when same-price offers have different contents", () => {

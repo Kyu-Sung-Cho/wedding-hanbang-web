@@ -11,7 +11,6 @@ export const MOBILE_WEB_API_REQUEST_TIMEOUT_MS = 15_000;
 
 const REQUEST_ID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const NONCE_PATTERN = REQUEST_ID_PATTERN;
-const COMBO_RESTORE_PATH_PATTERN = /^\/api\/price\/combos\?restore=[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 // JSON escaping can make a valid 64 KiB request body several times larger than
 // its decoded UTF-8 body. Bound the envelope independently before JSON.parse.
 const MAX_MESSAGE_BYTES = (MAX_MOBILE_WEB_API_REQUEST_BODY_BYTES * 6) + (8 * 1024);
@@ -91,10 +90,9 @@ export function parseMobileWebApiRequest(raw, expectedNonce, expectedDocumentUrl
     || requestDocumentUrl !== canonicalDocumentUrl(expectedDocumentUrl)
   ) return null;
   if (typeof value.id !== "string" || !REQUEST_ID_PATTERN.test(value.id)) return null;
-  if (typeof value.path !== "string") return null;
+  if (typeof value.path !== "string" || !ALLOWED_OPERATIONS.has(value.path)) return null;
   const method = typeof value.method === "string" ? value.method.toUpperCase() : "";
-  const isComboRestore = method === "GET" && COMBO_RESTORE_PATH_PATTERN.test(value.path);
-  if (!ALLOWED_OPERATIONS.get(value.path)?.has(method) && !isComboRestore) return null;
+  if (!ALLOWED_OPERATIONS.get(value.path)?.has(method)) return null;
   const headers = parseHeaders(value.headers);
   if (headers === null) return null;
   const body = value.body === undefined || value.body === null ? undefined : value.body;

@@ -229,9 +229,9 @@ describe("PriceExplorer", () => {
   });
 
   it("offers an explicit, current-catalog-validated restore for the latest saved combo", async () => {
-    const fetchMock = vi.fn((input: string | URL | Request) => Promise.resolve(
-      String(input).includes("?restore=")
-        ? jsonResponse({ restore: {
+    const fetchMock = vi.fn((input: string | URL | Request, init?: RequestInit) => Promise.resolve(
+      String(input) === "/api/price/combos" && init?.method === "POST"
+        ? jsonResponse({ sourceComboId: "combo-latest", restore: {
             selections: { studio: { vendorId: firstVendor.id, vendorSlug: firstVendor.slug, vendorName: firstVendor.name,
               agencyId: "agency-a", agencyName: "대행사 A", baseKrw: 1_000_000, selectedOptions: [], customKrw: null }, dress: null, makeup: null },
             restoredCategories: ["studio"], skippedCategories: [],
@@ -280,7 +280,10 @@ describe("PriceExplorer", () => {
       .toContain(firstVendor.name);
     expect(container.querySelector('[role="status"]')?.textContent)
       .toContain("현재 공시 정보로 확인해 불러왔어요");
-    expect(fetchMock.mock.calls.some(([input]) => String(input).includes("/api/price/combos?restore=combo-latest"))).toBe(true);
+    expect(fetchMock).toHaveBeenCalledWith("/api/price/combos", expect.objectContaining({
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ operation: "restore", comboId: "combo-latest" }),
+    }));
 
     const restoreAgainButton = Array.from(container.querySelectorAll<HTMLButtonElement>("button"))
       .find((button) => button.textContent?.includes("최근 저장 조합 불러오기"));
@@ -310,9 +313,9 @@ describe("PriceExplorer", () => {
   });
 
   it("restores selected options using owner-validated current detail data when the browser catalog is slim", async () => {
-    vi.stubGlobal("fetch", vi.fn(async (input: string | URL | Request) => {
+    vi.stubGlobal("fetch", vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
       if (String(input).includes("/api/favorites")) return jsonResponse({ vendorIds: [] });
-      if (String(input).includes("?restore=")) return jsonResponse({ restore: {
+      if (String(input) === "/api/price/combos" && init?.method === "POST") return jsonResponse({ sourceComboId: "combo-options", restore: {
         selections: { studio: { vendorId: firstVendor.id, vendorSlug: firstVendor.slug, vendorName: firstVendor.name,
           agencyId: "agency-a", agencyName: "대행사 A", baseKrw: 1_000_000,
           selectedOptions: [{ name: "QA 앨범", krw: 33_000 }], customKrw: 900_000 }, dress: null, makeup: null },
@@ -336,9 +339,9 @@ describe("PriceExplorer", () => {
     const selection = { vendorId: secondVendor.id, vendorSlug: secondVendor.slug, vendorName: secondVendor.name,
       agencyId: "agency-a", agencyName: "대행사 A", baseKrw: 1_000_000, selectedOptions: [], customKrw: null };
     sessionStorage.setItem("hanbang-price-combo-v1", JSON.stringify({ selections: { studio: selection, dress: null, makeup: null } }));
-    vi.stubGlobal("fetch", vi.fn(async (input: string | URL | Request) => {
+    vi.stubGlobal("fetch", vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
       if (String(input).includes("/api/favorites")) return jsonResponse({ vendorIds: [] });
-      if (String(input).includes("?restore=")) return jsonResponse({ error: "QA synthetic denial" }, status);
+      if (String(input) === "/api/price/combos" && init?.method === "POST") return jsonResponse({ error: "QA synthetic denial" }, status);
       return jsonResponse({ combos: [{ id: "combo-failed", name: "QA 저장 조합", created_at: "2026-10-17T00:00:00Z",
         selections: { studio: { vendor_id: firstVendor.id, agency_id: "agency-a", base_krw: 1_000_000,
           selected_options: [], custom_krw: null }, dress: null, makeup: null } }] });
@@ -352,13 +355,35 @@ describe("PriceExplorer", () => {
     if (status !== 401) expect(container.textContent).toContain("기존 조합은 유지했어요");
   });
 
+  it("keeps the current cart when a restore response identifies another saved record", async () => {
+    const selection = { vendorId: secondVendor.id, vendorSlug: secondVendor.slug, vendorName: secondVendor.name,
+      agencyId: "agency-a", agencyName: "대행사 A", baseKrw: 1_000_000, selectedOptions: [], customKrw: null };
+    sessionStorage.setItem("hanbang-price-combo-v1", JSON.stringify({ selections: { studio: selection, dress: null, makeup: null } }));
+    vi.stubGlobal("fetch", vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
+      if (String(input).includes("/api/favorites")) return jsonResponse({ vendorIds: [] });
+      if (init?.method === "POST") return jsonResponse({ sourceComboId: "unexpected-record", restore: {
+        selections: { studio: { ...selection, vendorId: firstVendor.id, vendorName: firstVendor.name }, dress: null, makeup: null },
+        restoredCategories: ["studio"], skippedCategories: [],
+      } });
+      return jsonResponse({ combos: [{ id: "requested-record", name: "QA 저장 조합", created_at: "2026-10-17T00:00:00Z",
+        selections: { studio: { vendor_id: firstVendor.id, agency_id: "agency-a", base_krw: 1_000_000,
+          selected_options: [], custom_krw: null }, dress: null, makeup: null } }] });
+    }));
+    await act(async () => { root.render(<PriceExplorer catalog={catalog} category="studio" />); await flushAsyncWork(); });
+    const button = (text: string) => Array.from(container.querySelectorAll<HTMLButtonElement>("button")).find((item) => item.textContent === text);
+    await act(async () => { button("최근 저장 조합 불러오기")?.click(); await flushAsyncWork(); });
+    await act(async () => { button("바꾸기")?.click(); await flushAsyncWork(); });
+    expect(JSON.parse(sessionStorage.getItem("hanbang-price-combo-v1") ?? "{}").selections.studio).toEqual(selection);
+    expect(container.textContent).toContain("기존 조합은 유지했어요");
+  });
+
   it("discards a late previous-owner restore and lets the new owner start a fresh restore", async () => {
     useAuthStore.setState({ user: { id: "actor-a", email: "qa-a@example.invalid" } });
     let resolveOld!: (response: Response) => void;
     const oldResponse = new Promise<Response>((resolve) => { resolveOld = resolve; });
-    vi.stubGlobal("fetch", vi.fn(async (input: string | URL | Request) => {
+    vi.stubGlobal("fetch", vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
       if (String(input).includes("/api/favorites")) return jsonResponse({ vendorIds: [] });
-      if (String(input).includes("?restore=")) return oldResponse;
+      if (String(input) === "/api/price/combos" && init?.method === "POST") return oldResponse;
       const actor = useAuthStore.getState().user?.id;
       return jsonResponse({ combos: [{ id: `combo-${actor}`, name: `QA ${actor}`, created_at: "2026-10-17T00:00:00Z",
         selections: { studio: { vendor_id: firstVendor.id, agency_id: "agency-a", base_krw: 1_000_000,
@@ -376,7 +401,7 @@ describe("PriceExplorer", () => {
     expect(restoreButton()?.disabled).toBe(false);
     expect(container.textContent).toContain("QA actor-b");
     await act(async () => {
-      resolveOld(jsonResponse({ restore: {
+      resolveOld(jsonResponse({ sourceComboId: "combo-actor-a", restore: {
         selections: { studio: { vendorId: firstVendor.id, vendorSlug: firstVendor.slug, vendorName: firstVendor.name,
           agencyId: "agency-a", agencyName: "대행사 A", baseKrw: 1_000_000, selectedOptions: [], customKrw: null }, dress: null, makeup: null },
         restoredCategories: ["studio"], skippedCategories: [],

@@ -1,10 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const mocks = vi.hoisted(() => ({ ownerClient: vi.fn(), publicClient: vi.fn(), profile: vi.fn() }));
+const mocks = vi.hoisted(() => ({ ownerClient: vi.fn(), publicClient: vi.fn(), profile: vi.fn(), admin: vi.fn(), limit: vi.fn(), rateKey: vi.fn() }));
 vi.mock("@/lib/supabase/server", () => ({ createClientFromRequest: mocks.ownerClient }));
+vi.mock("@/lib/supabase/admin", () => ({ createAdminClient: mocks.admin }));
+vi.mock("@/utils/rateLimit", () => ({ checkRateLimit: mocks.limit, rateLimitKey: mocks.rateKey }));
 vi.mock("@/lib/supabase/public", () => ({ createPublicClient: mocks.publicClient }));
 vi.mock("@/lib/vendors/publicVendorPriceData", () => ({ loadPublicVendorPriceProfile: mocks.profile }));
-import { GET } from "./route";
+import { GET, POST } from "./route";
 
 const COMBO = "50000000-0000-4000-8000-000000000001";
 const VENDOR = "10000000-0000-4000-8000-000000000001";
@@ -29,6 +31,7 @@ function profile() {
 
 beforeEach(() => {
   vi.clearAllMocks(); ownerFilters.length = 0; owner = "actor-a";
+  mocks.limit.mockReturnValue(null); mocks.rateKey.mockImplementation((prefix: string) => prefix);
   publicRows = [{ id: VENDOR, slug: "qa-studio" }];
   saved = { id: COMBO, name: "QA 조합", created_at: "2026-10-17T00:00:00Z", selections: {
     studio: { vendor_id: VENDOR, agency_id: AGENCY, base_krw: 1_850_000, selected_options: [], custom_krw: null },
@@ -44,7 +47,12 @@ beforeEach(() => {
   mocks.profile.mockImplementation(async () => profile());
 });
 
-function request() { return new Request(`https://hanbang.ai/api/price/combos?restore=${COMBO}`); }
+function request(body: unknown = { operation: "restore", comboId: COMBO }, headers: HeadersInit = {}) {
+  return new Request("https://hanbang.ai/api/price/combos", {
+    method: "POST", headers: { "content-type": "application/json", "sec-fetch-site": "same-origin", ...headers },
+    body: JSON.stringify(body),
+  });
+}
 
 describe("owner saved combo restore", () => {
   it.each([[null, false, 1_850_000], [null, true, 1_883_000], [1_000_000, false, 1_000_000], [1_000_000, true, 1_033_000]])(
@@ -52,9 +60,10 @@ describe("owner saved combo restore", () => {
       const selections = saved!.selections as { studio: { custom_krw: number | null; selected_options: Array<{ name: string; krw: number }> } };
       selections.studio.custom_krw = custom as number | null;
       selections.studio.selected_options = withOptions ? [{ name: "앨범", krw: 33_000 }] : [];
-      const response = await GET(request());
+      const response = await POST(request());
       expect(response.status).toBe(200);
       const body = await response.json();
+      expect(body.sourceComboId).toBe(COMBO);
       expect(body.restore?.restoredCategories).toEqual(["studio"]);
       const selection = body.restore.selections.studio;
       expect((selection.customKrw ?? selection.baseKrw) + selection.selectedOptions.reduce((sum: number, option: { krw: number }) => sum + option.krw, 0)).toBe(expected);
@@ -66,23 +75,23 @@ describe("owner saved combo restore", () => {
   );
   it("distinguishes a failed public lookup from a changed/closed offer", async () => {
     mocks.profile.mockRejectedValueOnce(new Error("synthetic options unavailable"));
-    expect((await GET(request())).status).toBe(503);
+    expect((await POST(request())).status).toBe(503);
     mocks.profile.mockResolvedValueOnce({ ...profile(), prices: [] });
-    const changed = await (await GET(request())).json();
+    const changed = await (await POST(request())).json();
     expect(changed.restore.restoredCategories).toEqual([]);
     expect(changed.restore.skippedCategories).toEqual(["studio"]);
   });
   it("does not load public data for an unauthenticated or inaccessible saved row", async () => {
     owner = null;
-    expect((await GET(request())).status).toBe(401);
+    expect((await POST(request())).status).toBe(401);
     owner = "actor-b"; saved = null;
-    expect((await GET(request())).status).toBe(404);
+    expect((await POST(request())).status).toBe(404);
     expect(mocks.publicClient).not.toHaveBeenCalled();
   });
   it("returns a private bounded 503 if the saved-owner lookup itself throws", async () => {
     const client = await mocks.ownerClient();
     client.from("combos").maybeSingle.mockRejectedValueOnce(new Error("synthetic owner lookup unavailable"));
-    const response = await GET(request());
+    const response = await POST(request());
     expect(response.status).toBe(503);
     expect(response.headers.get("cache-control")).toContain("no-store");
     expect(response.headers.get("x-hanbang-response-bytes")).toMatch(/^\d+$/);
@@ -105,15 +114,50 @@ describe("owner saved combo restore", () => {
       }
       return result;
     });
-    const body = await (await GET(request())).json();
+    const body = await (await POST(request())).json();
     expect(body.restore.restoredCategories).toEqual(["studio", "dress", "makeup"]);
     expect(body.restore.selections.dress.baseKrw).toBe(2_300_000);
     expect(body.restore.selections.dress.selectedOptions).toHaveLength(1);
     expect(mocks.profile).toHaveBeenCalledTimes(3);
   });
-  it.each([`&restore=${COMBO}`, "&extra=1"])("rejects an ambiguous restore query %s", async (suffix) => {
-    const response = await GET(new Request(request().url + suffix));
-    expect(response.status).toBe(400);
+  it.each([
+    { operation: "restore", comboId: COMBO, selections: {} },
+    { operation: "restore", comboId: COMBO, extra: true },
+    { operation: "restore", comboId: "bad" },
+    { operation: "unknown", comboId: COMBO },
+    { operation: "restore" },
+  ])("rejects invalid or mixed restore payloads %j", async (body) => {
+    expect((await POST(request(body))).status).toBe(400);
+    expect(mocks.publicClient).not.toHaveBeenCalled();
+    expect(ownerFilters).toEqual([]);
+  });
+  it("retains the cross-origin gate before any owner lookup", async () => {
+    const response = await POST(request(undefined, { origin: "https://untrusted.invalid", "sec-fetch-site": "cross-site" }));
+    expect(response.status).toBe(403);
+    expect(mocks.ownerClient).not.toHaveBeenCalled();
+  });
+  it("is a repeatable read without a save idempotency key or save RPC", async () => {
+    expect((await POST(request())).status).toBe(200);
+    expect((await POST(request())).status).toBe(200);
+    expect(mocks.profile).toHaveBeenCalledTimes(2);
+    expect(mocks.admin).not.toHaveBeenCalled();
+    expect(mocks.rateKey).toHaveBeenCalledWith("price-combos:restore", expect.any(Request), "actor-a");
+    expect(ownerFilters.filter(([field]) => field === "idempotency_key")).toEqual([]);
+  });
+  it("retains a private bounded rate-limit response before any saved catalog lookup", async () => {
+    mocks.limit.mockReturnValue(new Response("{}", { status: 429, headers: { "retry-after": "60" } }));
+    const response = await POST(request());
+    expect(response.status).toBe(429);
+    expect(response.headers.get("retry-after")).toBe("60");
+    expect(response.headers.get("cache-control")).toContain("no-store");
+    expect(ownerFilters).toEqual([]);
+    expect(mocks.publicClient).not.toHaveBeenCalled();
+    expect(mocks.admin).not.toHaveBeenCalled();
+  });
+  it("leaves the original list GET free of public-detail lookups", async () => {
+    const response = await GET(new Request("https://hanbang.ai/api/price/combos"));
+    expect(response.status).toBe(200);
+    expect((await response.json()).combos).toHaveLength(1);
     expect(mocks.publicClient).not.toHaveBeenCalled();
   });
 });
