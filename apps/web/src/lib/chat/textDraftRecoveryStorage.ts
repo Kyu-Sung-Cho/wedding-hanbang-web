@@ -4,6 +4,7 @@ export const AMORA_TEXT_DRAFT_KEYS = {
 } as const;
 
 export const AMORA_TEXT_DRAFT_RECOVERY_TTL_MS = 30 * 60 * 1000;
+export const AMORA_COMPOSER_EXPAND_KEY = "hanbang:amora-composer-expand:v1";
 
 let recoveryEpoch = 0;
 
@@ -14,7 +15,7 @@ export function getAmoraTextDraftRecoveryEpoch() {
 export function clearAmoraTextDraftRecovery() {
   recoveryEpoch += 1;
   if (typeof window === "undefined") return;
-  for (const key of Object.values(AMORA_TEXT_DRAFT_KEYS)) {
+  for (const key of [...Object.values(AMORA_TEXT_DRAFT_KEYS), AMORA_COMPOSER_EXPAND_KEY]) {
     try { window.sessionStorage.removeItem(key); } catch { /* 차단된 저장소 때문에 로그아웃을 멈추지 않는다. */ }
   }
 }

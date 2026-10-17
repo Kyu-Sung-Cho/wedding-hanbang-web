@@ -53,6 +53,8 @@ import { weddingPath } from "@/lib/weddingPaths";
 import { AMORA_DEMO_SUGGESTIONS, AMORA_DEMO_WELCOME } from "@/lib/chat/amoraDemoCopy";
 import { useAmoraPersonalization } from "@/hooks/useAmoraPersonalization";
 import { useAmoraTextDraftRecovery } from "@/hooks/useAmoraTextDraftRecovery";
+import { getComposerExpandActor, prepareComposerExpand } from "@/lib/chat/composerExpandHandoff";
+import { getAmoraTextDraftRecoveryEpoch } from "@/lib/chat/textDraftRecoveryStorage";
 import type { AmoraQuickStartOption } from "@/lib/amora/personalization";
 import { shouldOfferMediation } from "@/lib/chat/mediationOffer";
 import { deduplicateToolResults } from "./toolResultDeduplication";
@@ -208,6 +210,7 @@ export default function ChatSidePanel({
     }));
   }, []);
   const [showClearConfirm, setShowClearConfirm] = useState(false);
+  const [expandNotice, setExpandNotice] = useState<string | null>(null);
   const [nowMs, setNowMs] = useState(0);
   // 치운 카드는 **누른 순간의 메시지 id** 로 기억한다(전체 화면·앱과 같다). `actionId` 로
   // 기억하면 서버가 같은 제안을 새 답변에 다시 붙여도(route.ts 의 캐리포워드) 계속 숨어,
@@ -273,6 +276,7 @@ export default function ChatSidePanel({
     senderRole ?? "no-role",
   ].join(":");
   const composerSessionKeyRef = useRef(composerSessionKey);
+  const composerRecoveryEpochRef = useRef(getAmoraTextDraftRecoveryEpoch());
   const linkedPartnerIdRef = useRef(linkedPartnerId);
   const partnerComposerEpochRef = useRef(0);
   /**
@@ -349,6 +353,8 @@ export default function ChatSidePanel({
   useEffect(() => {
     if (composerSessionKeyRef.current === composerSessionKey) return;
     composerSessionKeyRef.current = composerSessionKey;
+    composerRecoveryEpochRef.current = getAmoraTextDraftRecoveryEpoch();
+    setExpandNotice(null);
     composerSessionGenerationRef.current += 1;
     greetingRequested.current = false;
     submitInFlightRef.current = false;
@@ -1354,8 +1360,24 @@ export default function ChatSidePanel({
   }, [messages]);
 
   const handleExpand = () => {
+    if (!isDemo) {
+      const actor = getComposerExpandActor();
+      const handoff = actor && actor.actorId === profile?.id && actor.coupleId === coupleId
+        && composerSessionKeyRef.current === composerSessionKey && !submitInFlightRef.current
+        && !isSending && !isStreaming
+        ? prepareComposerExpand(activeComposerLane, {
+          ...composerDrafts[activeComposerLane], pendingAttachmentReads: pendingFileReadsRef.current[activeComposerLane],
+        }, composerRecoveryEpochRef.current) : null;
+      if (!handoff) {
+        setExpandNotice("작성 중인 내용은 작은 상담창에 그대로 있어요. 첨부 처리나 전송을 마친 뒤 다시 확대해 주세요. 안전 관련 내용은 이 창에서 이어가 주세요.");
+        return;
+      }
+      onClose();
+      router.push(weddingPath(handoff.href));
+      return;
+    }
     onClose();
-    router.push(weddingPath("/chat"));
+    router.push(weddingPath("/chat?scope=shared"));
   };
 
   const handleClearChat = async () => {
@@ -1466,6 +1488,7 @@ export default function ChatSidePanel({
           </div>
         </div>
 
+        {expandNotice && <p role="alert" className="mx-3 my-2 rounded-lg border border-[var(--hb-hairline)] p-3 text-sm leading-relaxed">{expandNotice}</p>}
         {showEmpty ? (
           <div className="flex-1 flex items-center justify-center p-6">
             <div className="text-center">

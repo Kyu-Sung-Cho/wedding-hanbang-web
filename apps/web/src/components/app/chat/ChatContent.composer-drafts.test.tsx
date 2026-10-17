@@ -5,6 +5,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { amoraLaneStorageKey } from "@hanbang/shared/amora-lane-choice";
 
 import ChatContent from "./ChatContent";
+import ChatSidePanel from "./ChatSidePanel";
+import { AMORA_COMPOSER_EXPAND_PARAM, AMORA_COMPOSER_EXPAND_TTL_MS, prepareComposerExpand } from "@/lib/chat/composerExpandHandoff";
+import { AMORA_COMPOSER_EXPAND_KEY, AMORA_TEXT_DRAFT_KEYS, clearAmoraTextDraftRecovery, getAmoraTextDraftRecoveryEpoch } from "@/lib/chat/textDraftRecoveryStorage";
 import { AmoraNavigationTargetContext } from "@/components/app/amora/AmoraNavigationContext";
 import type { ChatMessage } from "@/types/database.types";
 import { buildWeddingTasteAmoraText, createEmptyWeddingTasteDraft } from "@/lib/weddingCode/taste";
@@ -66,6 +69,7 @@ const mocks = vi.hoisted(() => ({
   queryPrefill: null as string | null,
   queryScope: null as string | null,
   tasteNonces: [] as string[],
+  expandNonces: [] as string[],
   preparationSources: [] as string[],
   resolvePreparation: vi.fn(),
   startHereHandoffId: null as string | null,
@@ -90,6 +94,7 @@ vi.mock("next/navigation", () => ({
     if (mocks.queryPrefill) params.set("prefill", mocks.queryPrefill);
     if (mocks.queryScope) params.set("scope", mocks.queryScope);
     mocks.tasteNonces.forEach(nonce => params.append("wcTasteChat", nonce));
+    mocks.expandNonces.forEach(nonce => params.append(AMORA_COMPOSER_EXPAND_PARAM, nonce));
     mocks.preparationSources.forEach(source => params.append("amoraSource", source));
     if (mocks.startHereHandoffId) {
       params.set("startHereHandoff", mocks.startHereHandoffId);
@@ -119,7 +124,7 @@ vi.mock("@/stores/authStore", () => ({
     isLoading: false,
   }), { getState: () => ({
     user: { id: mocks.profileId }, profile: { id: mocks.profileId, couple_id: mocks.coupleId, role: mocks.profileRole },
-    couple: { id: mocks.coupleId, bride_id: mocks.profileRole === "bride" ? mocks.profileId : "user-2", groom_id: mocks.profileRole === "groom" ? mocks.profileId : "user-2" },
+    couple: { id: mocks.coupleId, bride_id: mocks.profileRole === "bride" ? mocks.profileId : mocks.partnerLinked ? "user-2" : null, groom_id: mocks.profileRole === "groom" ? mocks.profileId : mocks.partnerLinked ? "user-2" : null },
     isDemo: mocks.isDemo, isInitialized: true, isLoading: false,
   }) }),
 }));
@@ -269,6 +274,7 @@ describe("ChatContent composer draft lanes", () => {
     mocks.queryPrefill = null;
     mocks.queryScope = null;
     mocks.tasteNonces = [];
+    mocks.expandNonces = [];
     mocks.preparationSources = [];
     mocks.resolvePreparation.mockReset().mockResolvedValue({
       text: "결혼식장 · 견적 확인 준비를 도와주세요.",
@@ -353,6 +359,180 @@ describe("ChatContent composer draft lanes", () => {
     await act(async () => root.render(<ChatContent />));
     await act(async () => { await new Promise(resolve => window.setTimeout(resolve, 10)); });
   };
+  const typeExpandComposer = async (text: string) => act(async () => {
+    const control = container.querySelector("textarea, input[type='text']");
+    const prototype = control instanceof HTMLTextAreaElement ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;
+    Object.getOwnPropertyDescriptor(prototype, "value")?.set?.call(control, text);
+    control?.dispatchEvent(new Event("input", { bubbles: true }));
+  });
+  const queueExpand = (text = "작은 창의 가상 미전송", lane: "private_ai" | "shared_ai" | "shared_partner" = "private_ai") => {
+    const result = prepareComposerExpand(lane, { input: text, attachments: [], retryClientRequestId: null }, getAmoraTextDraftRecoveryEpoch())!;
+    const params = new URL(result.href, "https://example.invalid").searchParams;
+    mocks.queryScope = params.get("scope"); mocks.expandNonces = params.getAll(AMORA_COMPOSER_EXPAND_PARAM);
+    return result;
+  };
+  it.each(["private_ai", "shared_ai", "shared_partner"] as const)("keeps the actual panel %s draft and exact recipient when expanding without sending", async lane => {
+    await act(async () => root.unmount()); root = createRoot(container);
+    await act(async () => root.render(<ChatSidePanel isOpen onClose={vi.fn()} />));
+    if (lane === "private_ai") await act(async () => buttonWith("나만 (상담)").click());
+    if (lane === "shared_partner") await act(async () => buttonWith("상대방에게").click());
+    const text = `가상 확대 초안 ${lane}`;
+    await typeExpandComposer(text);
+    await act(async () => container.querySelector<HTMLButtonElement>('button[aria-label="아모라 상담 전체 화면으로 보기"]')!.click());
+    const destination = mocks.push.mock.lastCall?.[0];
+    const params = new URL(destination, "https://example.invalid").searchParams;
+    mocks.queryScope = params.get("scope"); mocks.expandNonces = params.getAll(AMORA_COMPOSER_EXPAND_PARAM);
+    await act(async () => root.unmount()); root = createRoot(container);
+    mocks.requestInitialGreeting.mockClear();
+    await renderAndSettle();
+    expect(container.querySelector<HTMLTextAreaElement>("textarea")?.value).toBe(text);
+    expect(destination).toMatch(/^\/wedding\/chat\?scope=/);
+    expect(destination).not.toContain(text);
+    expect(mocks.expandNonces).toHaveLength(1);
+    expect(buttonWith(lane === "private_ai" ? "나만 (상담)" : "함께 대화").getAttribute("aria-pressed")).toBe("true");
+    if (lane !== "private_ai") expect(buttonWith(lane === "shared_partner" ? "상대방에게" : "아모라에게").getAttribute("aria-pressed")).toBe("true");
+    expect(sessionStorage.getItem(AMORA_COMPOSER_EXPAND_KEY)).toBeNull();
+    expect(mocks.sendMessage).not.toHaveBeenCalled();
+    expect(mocks.requestInitialGreeting).not.toHaveBeenCalled();
+  });
+  it("waits for conversation cache recovery and lets the user keep the existing private draft with Escape", async () => {
+    await act(async () => root.unmount()); root = createRoot(container);
+    sessionStorage.setItem(AMORA_TEXT_DRAFT_KEYS.conversation, JSON.stringify({ version: 1, owner: "user-1:couple-1:bride", partnerId: "user-2", savedAt: Date.now(),
+      lanes: { private_ai: { input: "기존 전체 화면 초안", retryClientRequestId: null, savedAt: Date.now() } } }));
+    queueExpand();
+    await renderAndSettle();
+    expect(container.querySelector<HTMLTextAreaElement>("textarea")?.value).toBe("기존 전체 화면 초안");
+    expect(container.querySelector('[role="dialog"]')?.textContent).toContain("어떤 초안");
+    await act(async () => document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true })));
+    expect(container.querySelector('[role="dialog"]')).toBeNull();
+    expect(container.querySelector<HTMLTextAreaElement>("textarea")?.value).toBe("기존 전체 화면 초안");
+    expect(mocks.sendMessage).not.toHaveBeenCalled();
+  });
+  it("keeps an existing conversation draft when the expanded panel is empty", async () => {
+    await act(async () => buttonWith("나만 (상담)").click()); await typeExpandComposer("유지할 개인 초안");
+    queueExpand(""); await renderAndSettle();
+    expect(container.querySelector<HTMLTextAreaElement>("textarea")?.value).toBe("유지할 개인 초안");
+    expect(container.querySelector('[role="dialog"]')).toBeNull();
+    expect(sessionStorage.getItem(AMORA_COMPOSER_EXPAND_KEY)).toBeNull();
+  });
+  it("consumes a new expansion once under StrictMode without clearing or sending its text", async () => {
+    await act(async () => root.unmount()); root = createRoot(container); queueExpand("StrictMode 가상 초안");
+    mocks.requestInitialGreeting.mockClear();
+    await act(async () => root.render(<StrictMode><ChatContent /></StrictMode>));
+    expect(container.querySelector<HTMLTextAreaElement>("textarea")?.value).toBe("StrictMode 가상 초안");
+    expect(sessionStorage.getItem(AMORA_COMPOSER_EXPAND_KEY)).toBeNull();
+    expect(mocks.sendMessage).not.toHaveBeenCalled(); expect(mocks.requestInitialGreeting).not.toHaveBeenCalled();
+  });
+  it("does not replace an identical existing text with a different retry identity without a choice", async () => {
+    await act(async () => root.unmount()); root = createRoot(container);
+    const retryClientRequestId = "5edabc29-3af6-4287-9583-7a152f584313";
+    sessionStorage.setItem(AMORA_TEXT_DRAFT_KEYS.conversation, JSON.stringify({ version: 1, owner: "user-1:couple-1:bride", partnerId: "user-2", savedAt: Date.now(),
+      lanes: { private_ai: { input: "같은 가상 문장", retryClientRequestId, savedAt: Date.now() } } }));
+    queueExpand("같은 가상 문장"); await renderAndSettle();
+    expect(container.querySelector('[role="dialog"]')?.textContent).toContain("어떤 초안");
+    await act(async () => buttonWith("기존 초안 유지").click());
+    expect(JSON.parse(sessionStorage.getItem(AMORA_TEXT_DRAFT_KEYS.conversation)!).lanes.private_ai.retryClientRequestId).toBe(retryClientRequestId);
+    expect(mocks.sendMessage).not.toHaveBeenCalled();
+  });
+  it("keeps the pure-text retry identity and private destination until the user explicitly sends", async () => {
+    const clientRequestId = "5edabc29-3af6-4287-9583-7a152f584313";
+    const result = prepareComposerExpand("private_ai", { input: "가상 결과 미확인 초안", attachments: [], retryClientRequestId: clientRequestId }, getAmoraTextDraftRecoveryEpoch())!;
+    mocks.queryScope = "private"; mocks.expandNonces = [result.nonce]; await renderAndSettle();
+    expect(mocks.sendMessage).not.toHaveBeenCalled();
+    await act(async () => container.querySelector<HTMLButtonElement>('button[aria-label="나만의 아모라 상담 메시지 보내기"]')!.click());
+    expect(mocks.sendMessage).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ content: "가상 결과 미확인 초안", clientRequestId,
+      visibility: "bride_private", target: "ai", senderId: "user-1", coupleId: "couple-1" }));
+  });
+  it.each(["safety", "storage", "account", "logout-aba"])("keeps the source panel draft when expansion is blocked by %s", async boundary => {
+    await act(async () => root.unmount()); root = createRoot(container);
+    await act(async () => root.render(<ChatSidePanel isOpen onClose={vi.fn()} />));
+    await act(async () => buttonWith("나만 (상담)").click());
+    const text = boundary === "safety" ? "죽고 싶어" : "원래 작은 창에 남길 가상 초안";
+    await typeExpandComposer(text); mocks.push.mockClear();
+    if (boundary === "storage") vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => { throw new Error("blocked"); });
+    if (boundary === "account") mocks.profileId = "other-user";
+    if (boundary === "logout-aba") clearAmoraTextDraftRecovery();
+    await act(async () => container.querySelector<HTMLButtonElement>('button[aria-label="아모라 상담 전체 화면으로 보기"]')!.click());
+    expect(mocks.push).not.toHaveBeenCalled();
+    expect(container.querySelector<HTMLInputElement>("input[type='text']")?.value).toBe(boundary === "account" ? "" : text);
+    if (boundary !== "account") expect(container.querySelector('[role="alert"]')?.textContent).toContain("작은 상담창에 그대로");
+    expect(mocks.sendMessage).not.toHaveBeenCalled();
+  });
+  it("replaces an existing draft only on explicit choice and preserves other lane drafts", async () => {
+    await typeExpandComposer("함께 대화 기존 초안");
+    await act(async () => buttonWith("나만 (상담)").click());
+    await typeExpandComposer("기존 개인 초안"); queueExpand("새 개인 초안");
+    await renderAndSettle();
+    expect(container.querySelector<HTMLTextAreaElement>("textarea")?.value).toBe("기존 개인 초안");
+    await act(async () => buttonWith("작은 상담창 초안 사용").click());
+    expect(container.querySelector<HTMLTextAreaElement>("textarea")?.value).toBe("새 개인 초안");
+    await act(async () => buttonWith("함께 대화").click());
+    expect(container.querySelector<HTMLTextAreaElement>("textarea")?.value).toBe("함께 대화 기존 초안");
+    expect(mocks.sendMessage).not.toHaveBeenCalled();
+  });
+  it("restores the existing destination when one-shot storage deletion fails after explicit replacement", async () => {
+    await act(async () => buttonWith("나만 (상담)").click()); await typeExpandComposer("실패해도 남길 기존 초안");
+    queueExpand("교체할 가상 초안"); await renderAndSettle();
+    vi.spyOn(Storage.prototype, "removeItem").mockImplementation(() => { throw new Error("blocked"); });
+    await act(async () => buttonWith("작은 상담창 초안 사용").click());
+    expect(container.querySelector<HTMLTextAreaElement>("textarea")?.value).toBe("실패해도 남길 기존 초안");
+    expect(container.textContent).toContain("이어오지 않았어요");
+    expect(mocks.sendMessage).not.toHaveBeenCalled();
+  });
+  it("keeps newer typing instead of rolling back over it when one-shot deletion fails", async () => {
+    await act(async () => buttonWith("나만 (상담)").click()); await typeExpandComposer("기존 개인 초안");
+    queueExpand("교체할 가상 초안"); await renderAndSettle();
+    vi.spyOn(Storage.prototype, "removeItem").mockImplementation(key => {
+      if (key === AMORA_COMPOSER_EXPAND_KEY) {
+        const textarea = container.querySelector("textarea");
+        Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value")?.set?.call(textarea, "가장 최근 타이핑");
+        textarea?.dispatchEvent(new Event("input", { bubbles: true }));
+      }
+      throw new Error("blocked");
+    });
+    await act(async () => buttonWith("작은 상담창 초안 사용").click());
+    expect(container.querySelector<HTMLTextAreaElement>("textarea")?.value).toBe("가장 최근 타이핑");
+    expect(mocks.sendMessage).not.toHaveBeenCalled();
+  });
+  it.each(["logout-aba", "expiry", "partner"])("refuses a delayed replacement after %s changes", async boundary => {
+    await act(async () => buttonWith("나만 (상담)").click()); await typeExpandComposer("보존할 기존 초안");
+    if (boundary === "partner") {
+      await act(async () => buttonWith("함께 대화").click());
+      await act(async () => buttonWith("상대방에게").click()); await typeExpandComposer("보존할 상대방 초안");
+    }
+    queueExpand("교체 금지", boundary === "partner" ? "shared_partner" : "private_ai");
+    await renderAndSettle();
+    const approve = buttonWith("작은 상담창 초안 사용"); expect(approve).toBeDefined();
+    if (boundary === "logout-aba") clearAmoraTextDraftRecovery();
+    if (boundary === "expiry") vi.spyOn(Date, "now").mockReturnValue(Date.now() + AMORA_COMPOSER_EXPAND_TTL_MS);
+    if (boundary === "partner") mocks.partnerLinked = false;
+    await act(async () => approve.click());
+    expect(container.querySelector<HTMLTextAreaElement>("textarea")?.value).not.toBe("교체 금지");
+    expect(mocks.sendMessage).not.toHaveBeenCalled();
+  });
+  it("does not overwrite typing queued in the same tick as replacement approval", async () => {
+    await act(async () => buttonWith("나만 (상담)").click()); await typeExpandComposer("기존 개인 초안");
+    queueExpand("교체 금지"); await renderAndSettle();
+    await act(async () => {
+      const textarea = container.querySelector("textarea");
+      Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value")?.set?.call(textarea, "방금 입력한 문장");
+      textarea?.dispatchEvent(new Event("input", { bubbles: true }));
+      buttonWith("작은 상담창 초안 사용").click();
+    });
+    expect(container.querySelector<HTMLTextAreaElement>("textarea")?.value).toBe("방금 입력한 문장");
+    expect(container.textContent).toContain("덮어쓰지 않았어요");
+  });
+  it.each(["duplicate", "public-prefill", "wrong-scope", "other-account"])("rejects an expanded private draft with %s without publishing or sending it", async kind => {
+    queueExpand("공유 금지 개인 원문");
+    if (kind === "duplicate") mocks.expandNonces.push(mocks.expandNonces[0]);
+    if (kind === "public-prefill") mocks.queryPrefill = "공유에 자동 삽입 금지";
+    if (kind === "wrong-scope") mocks.queryScope = "shared";
+    if (kind === "other-account") mocks.profileId = "other-user";
+    await renderAndSettle();
+    expect(container.querySelector<HTMLTextAreaElement>("textarea")?.value).toBe("");
+    expect(container.textContent).not.toContain("공유 금지 개인 원문");
+    expect(mocks.sendMessage).not.toHaveBeenCalled();
+  });
   it("keeps the chosen private scope in the URL and follows back navigation without sending drafts", async () => {
     const originalUrl = window.location.href;
     window.history.replaceState(null, "", "/wedding/chat?scope=shared&keep=1#anchor");
