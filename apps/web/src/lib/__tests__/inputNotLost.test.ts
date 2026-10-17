@@ -1,10 +1,16 @@
-// @vitest-environment node
+// @vitest-environment jsdom
 
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { describe, expect, it } from "vitest";
+import { act, createElement } from "react";
+import { createRoot, type Root } from "react-dom/client";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { CATEGORY_CHECKLISTS } from "@hanbang/shared/constants";
+import BudgetContent from "@/components/app/budget/BudgetContent";
+import { formatWeddingBudgetCeiling } from "@/lib/weddingBudget";
+import { useAuthStore } from "@/stores/authStore";
+import type { WeddingJourney } from "@/types/database.types";
 
 /**
  * **누른 것이 사라지거나 두 번 들어가지 않는지** 본다.
@@ -25,34 +31,60 @@ function read(path: string): string {
 }
 
 describe("총 예산 저장이 조용히 끝나지 않는다", () => {
-  const budget = read(web("components", "app", "budget", "BudgetContent.tsx"));
+  let container: HTMLDivElement;
+  let root: Root;
+  let original: ReturnType<typeof useAuthStore.getState>;
+  const updateJourney = vi.fn<ReturnType<typeof useAuthStore.getState>["updateJourney"]>();
+  const journey: WeddingJourney = {
+    id: "synthetic-input-journey", couple_id: "synthetic-input-couple",
+    wedding_date: null, venue: null, total_budget: 33_000_001, progress: {},
+    state_revision: 1, created_at: "2026-10-17T00:00:00Z", updated_at: "2026-10-17T00:00:00Z",
+  };
 
-  it("검사가 실제로 파일을 읽는다", () => {
-    expect(budget.length).toBeGreaterThan(5000);
-    expect(budget).toContain("handleTotalBudgetSave");
+  beforeEach(() => {
+    Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
+    original = useAuthStore.getState();
+    useAuthStore.setState({ journey, isDemo: true, updateJourney });
+    updateJourney.mockResolvedValue({ status: "applied", journey });
+    container = document.createElement("div"); document.body.appendChild(container);
+    root = createRoot(container);
+  });
+  afterEach(async () => {
+    await act(async () => root.unmount());
+    useAuthStore.setState(original); container.remove(); vi.clearAllMocks();
+    Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: false });
   });
 
-  it("조건에 안 맞으면 이유를 말한다", () => {
-    // 예전에는 `if (!isNaN(num) && num > 0)` 조건이 거짓이면 **함수가 아무것도
-    // 안 했다.** 닫히지도, 저장되지도, 말해주지도 않아 버튼이 죽은 것처럼 보였다.
-    const fn = budget.slice(
-      budget.indexOf("const handleTotalBudgetSave"),
-      budget.indexOf("return (", budget.indexOf("const handleTotalBudgetSave")),
-    );
-    expect(fn.length, "저장 함수를 못 찾았다").toBeGreaterThan(100);
-    // **빈 문자열을 세우는 것과 이유를 말하는 것은 다르다.** 첫 판은 함수 이름만
-    // 봤는데, 성공 경로의 `setTotalBudgetError("")` 가 통과시켰다(변형 시험이 잡음).
-    expect(fn, "거절 갈래가 사람에게 할 말을 세우지 않는다")
-      .toMatch(/setTotalBudgetError\(\s*"[^"]{10,}"\s*\)/);
-    // 거절 갈래가 조기 반환해야 한다 — 안 그러면 잘못된 값이 저장된다.
-    const guardAt = fn.indexOf("isNaN(num) || num <= 0");
-    const saveAt = fn.indexOf("saveJourney(");
-    expect(guardAt, "0 이하를 거르는 가드가 없다").toBeGreaterThan(-1);
-    expect(guardAt, "가드가 저장보다 뒤에 있다").toBeLessThan(saveAt);
+  async function submit(value: string) {
+    await act(async () => root.render(createElement(BudgetContent)));
+    await act(async () => container.querySelector<HTMLButtonElement>('button[aria-label="총 예산 수정"]')?.click());
+    const input = container.querySelector<HTMLInputElement>('input[aria-label="총 예산 (만원)"]');
+    expect(input, "총 예산 편집기가 열리지 않았다").not.toBeNull();
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(input, value);
+      input!.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    await act(async () => container.querySelector<HTMLButtonElement>('button[title="총 예산 저장"]')?.click());
+    return input!;
+  }
+
+  it.each(["", "0", "-1", "100000.0001", "3300.12345"])("조건에 안 맞는 %s 입력은 이유를 보여주고 입력과 편집기를 유지한다", async (value) => {
+    const input = await submit(value);
+    const alert = container.querySelector('[role="alert"]');
+    expect(alert?.textContent?.trim().length, "거절 이유가 화면에 없다").toBeGreaterThan(10);
+    expect(alert?.textContent).toContain(formatWeddingBudgetCeiling());
+    expect(alert?.textContent).toContain("만원");
+    expect(updateJourney, "잘못된 금액이 저장됐다").not.toHaveBeenCalled();
+    expect(container.contains(input), "거절 뒤 편집기가 닫혔다").toBe(true);
+    expect(input.value, "거절 뒤 입력을 잃었다").toBe(value);
   });
 
-  it("그 이유를 화면에 그린다", () => {
-    expect(budget).toContain("{totalBudgetError}");
+  it("정상 소수 입력은 원 단위로 정확히 저장한 뒤 편집기를 닫는다", async () => {
+    const input = await submit("3300.1234");
+    expect(updateJourney).toHaveBeenCalledExactlyOnceWith({ total_budget: 33_001_234 });
+    expect(container.querySelector('[role="alert"]')).toBeNull();
+    expect(container.contains(input)).toBe(false);
+    expect(container.querySelector('button[aria-label="총 예산 수정"]')).not.toBeNull();
   });
 });
 

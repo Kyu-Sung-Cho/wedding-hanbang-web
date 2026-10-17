@@ -46,6 +46,7 @@ import type {
 } from "@/types/onboarding.types";
 import { weddingLinkProps } from "@/lib/weddingPaths";
 import { CONTACT } from "@/lib/constants/contact";
+import { formatWeddingBudgetCeiling, parseWeddingBudgetManwonInput } from "@/lib/weddingBudget";
 import TodayOnePreferenceControl from "@/components/app/TodayOnePreferenceControl";
 import InviteCodePanel from "@/components/invite/InviteCodePanel";
 import { ACCOUNT_DELETION_FACTS } from "@hanbang/shared/constants";
@@ -133,6 +134,7 @@ export default function SettingsPage() {
   const [editingVenue, setEditingVenue] = useState(false);
   const [nameInput, setNameInput] = useState("");
   const [nameError, setNameError] = useState("");
+  const [budgetError, setBudgetError] = useState("");
   const [dateInput, setDateInput] = useState("");
   const [budgetInput, setBudgetInput] = useState("");
   const [venueInput, setVenueInput] = useState("");
@@ -326,7 +328,10 @@ export default function SettingsPage() {
 
   // 이름 저장
   const saveName = async () => {
-    if (!nameInput.trim()) return;
+    if (!nameInput.trim()) {
+      setNameError("이름을 입력해 주세요.");
+      return;
+    }
     setSaving(true);
     setNameError("");
     try {
@@ -381,8 +386,12 @@ export default function SettingsPage() {
 
   // 예산 저장
   const saveBudget = async () => {
-    const value = parseInt(budgetInput) * 10000;
-    if (isNaN(value) || value <= 0) return;
+    const value = parseWeddingBudgetManwonInput(budgetInput);
+    if (value === null) {
+      setBudgetError(`0보다 크고 ${formatWeddingBudgetCeiling()} 이하인 금액을 만원 단위로 입력해 주세요. 소수점 아래 네 자리까지 입력할 수 있어요.`);
+      return;
+    }
+    setBudgetError("");
     setSaving(true);
     setJourneyError("");
     setJourneyNotice("");
@@ -592,7 +601,7 @@ export default function SettingsPage() {
     : "날짜 미정";
   const totalBudget = journey?.total_budget ?? 0;
   const budgetStr = totalBudget > 0
-    ? `₩${(totalBudget / 10000).toLocaleString()}만원`
+    ? `${(totalBudget / 10000).toLocaleString("ko-KR", { maximumFractionDigits: 4 })}만원`
     : "미설정";
   const venue = journey?.venue ?? null;
   const venueStr = venue && venue.trim().length > 0 ? venue : "미정";
@@ -601,7 +610,7 @@ export default function SettingsPage() {
   const partnerRole = partner?.confirmed_role === "bride" ? "신부" : partner?.confirmed_role === "groom" ? "신랑" : "";
 
   return (
-    <div className="max-w-[700px] mx-auto bg-[#FAFAF8]">
+    <div className="max-w-[700px] mx-auto bg-[var(--hb-surface-page)]">
       {/* 페이지 제목 */}
       <h1 className="font-serif-kr text-[var(--hb-text-strong)] mb-6 animate-fade-in">설정</h1>
 
@@ -626,7 +635,7 @@ export default function SettingsPage() {
       <motion.div
         {...fadeIn}
         transition={{ duration: 0.5 }}
-        className="bg-white rounded-[6px] shadow-[var(--shadow-raised)] p-5 sm:p-8 mb-6"
+        className="bg-white rounded-[6px] border border-[var(--hb-hairline)] p-5 sm:p-8 mb-6"
       >
         <div className="flex flex-wrap items-center gap-4 mb-3">
           <ProfileAvatar name={profile?.name} label={userName} avatarUrl={profile?.avatar_url} size={80} />
@@ -636,6 +645,9 @@ export default function SettingsPage() {
                 <div className="flex items-center gap-2">
                   <input
                     type="text"
+                    aria-label="이름"
+                    aria-invalid={Boolean(nameError)}
+                    aria-describedby={nameError ? "settings-name-error" : undefined}
                     value={nameInput}
                     onChange={(e) => {
                       setNameInput(e.target.value);
@@ -645,14 +657,14 @@ export default function SettingsPage() {
                     className="px-3 py-2 rounded-[6px] bg-[var(--hb-surface-hover)] text-lg text-[var(--hb-text-strong)] outline-none focus:ring-2 ring-[rgba(54,83,78,0.30)] w-[170px]"
                     autoFocus
                   />
-                  <button onClick={saveName} disabled={saving} className="tap-area shrink-0 w-9 h-9 rounded-[6px] bg-[#2E7D5A] flex items-center justify-center text-white">
+                  <button type="button" aria-label="이름 저장" onClick={saveName} disabled={saving} className="tap-area shrink-0 w-9 h-9 rounded-[6px] bg-[#2E7D5A] flex items-center justify-center text-white">
                     <Save className="w-5 h-5" />
                   </button>
-                  <button onClick={() => { setEditingName(false); setNameError(""); }} className="tap-area shrink-0 w-9 h-9 rounded-[6px] bg-[var(--hb-surface-hover)] flex items-center justify-center text-[var(--hb-text-body)]">
+                  <button type="button" aria-label="이름 수정 취소" onClick={() => { setEditingName(false); setNameError(""); }} className="tap-area shrink-0 w-9 h-9 rounded-[6px] bg-[var(--hb-surface-hover)] flex items-center justify-center text-[var(--hb-text-body)]">
                     <X className="w-5 h-5" />
                   </button>
                 </div>
-                {nameError && <p className="mt-2 text-sm text-[#9A3F3F]">{nameError}</p>}
+                {nameError && <p id="settings-name-error" role="alert" className="mt-2 text-sm text-[#9A3F3F]">{nameError}</p>}
               </div>
             ) : (
               <div className="flex items-center gap-2">
@@ -663,6 +675,7 @@ export default function SettingsPage() {
                   </span>
                 )}
                 <button
+                  aria-label="이름 수정"
                   onClick={() => { setNameInput(userName); setNameError(""); setEditingName(true); }}
                   className="tap-area shrink-0 w-7 h-7 rounded-[6px] flex items-center justify-center text-[var(--hb-text-muted)] hover:text-[var(--hb-accent-hover)] bg-[#f3e9df] transition-colors"
                 >
@@ -690,16 +703,17 @@ export default function SettingsPage() {
                 <div className="flex items-center gap-1.5 mt-1">
                   <input
                     type="date"
+                    aria-label="결혼 예정일"
                     value={dateInput}
                     min={new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Seoul" }).format(new Date())}
                     onChange={(e) => setDateInput(e.target.value)}
                     className="px-2.5 py-1.5 rounded-[6px] bg-white text-base text-[var(--hb-text-strong)] outline-none focus:ring-2 ring-[rgba(54,83,78,0.30)]"
                     autoFocus
                   />
-                  <button onClick={saveDate} disabled={saving} className="tap-area shrink-0 w-7 h-7 rounded-[6px] bg-[#2E7D5A] flex items-center justify-center text-white">
+                  <button type="button" aria-label="결혼 예정일 저장" onClick={saveDate} disabled={saving} className="tap-area shrink-0 w-7 h-7 rounded-[6px] bg-[#2E7D5A] flex items-center justify-center text-white">
                     <Save className="w-4 h-4" />
                   </button>
-                  <button onClick={() => setEditingDate(false)} className="tap-area shrink-0 w-7 h-7 rounded-[6px] bg-white flex items-center justify-center text-[var(--hb-text-body)]">
+                  <button type="button" aria-label="결혼 예정일 수정 취소" onClick={() => setEditingDate(false)} className="tap-area shrink-0 w-7 h-7 rounded-[6px] bg-white flex items-center justify-center text-[var(--hb-text-body)]">
                     <X className="w-4 h-4" />
                   </button>
                 </div>
@@ -707,6 +721,7 @@ export default function SettingsPage() {
                 <div className="flex items-center gap-1.5">
                   <p className="text-[17px] font-medium text-[var(--hb-text-strong)]">{dateStr}</p>
                   <button
+                    aria-label="결혼 예정일 수정"
                     onClick={() => { setDateInput(journey?.wedding_date ?? ""); setEditingDate(true); }}
                     className="tap-area shrink-0 w-6 h-6 rounded-[6px] flex items-center justify-center text-[var(--hb-text-muted)] hover:text-[var(--hb-accent-hover)] transition-colors"
                   >
@@ -726,6 +741,7 @@ export default function SettingsPage() {
                 <div className="flex items-center gap-1.5 mt-1">
                   <input
                     type="text"
+                    aria-label="결혼식장"
                     value={venueInput}
                     onChange={(e) => setVenueInput(e.target.value)}
                     onKeyDown={(e) => e.key === "Enter" && saveVenue()}
@@ -733,10 +749,10 @@ export default function SettingsPage() {
                     className="min-w-0 flex-1 px-2.5 py-1.5 rounded-[6px] bg-white text-base text-[var(--hb-text-strong)] outline-none focus:ring-2 ring-[rgba(54,83,78,0.30)] placeholder:text-[var(--hb-text-muted)]"
                     autoFocus
                   />
-                  <button onClick={saveVenue} disabled={saving} className="tap-area w-7 h-7 shrink-0 rounded-[6px] bg-[#2E7D5A] flex items-center justify-center text-white">
+                  <button type="button" aria-label="결혼식장 저장" onClick={saveVenue} disabled={saving} className="tap-area w-7 h-7 shrink-0 rounded-[6px] bg-[#2E7D5A] flex items-center justify-center text-white">
                     <Save className="w-4 h-4" />
                   </button>
-                  <button onClick={() => setEditingVenue(false)} className="tap-area w-7 h-7 shrink-0 rounded-[6px] bg-white flex items-center justify-center text-[var(--hb-text-body)]">
+                  <button type="button" aria-label="결혼식장 수정 취소" onClick={() => setEditingVenue(false)} className="tap-area w-7 h-7 shrink-0 rounded-[6px] bg-white flex items-center justify-center text-[var(--hb-text-body)]">
                     <X className="w-4 h-4" />
                   </button>
                 </div>
@@ -744,6 +760,7 @@ export default function SettingsPage() {
                 <div className="flex items-center gap-1.5">
                   <p className="text-[17px] font-medium text-[var(--hb-text-strong)] truncate">{venueStr}</p>
                   <button
+                    aria-label="결혼식장 수정"
                     onClick={() => { setVenueInput(venue ?? ""); setEditingVenue(true); }}
                     className="tap-area w-6 h-6 shrink-0 rounded-[6px] flex items-center justify-center text-[var(--hb-text-muted)] hover:text-[var(--hb-accent-hover)] transition-colors"
                   >
@@ -760,30 +777,38 @@ export default function SettingsPage() {
             <div className="flex-1 min-w-0">
               <p className="text-sm text-[var(--hb-text-muted)]">설정 예산</p>
               {editingBudget ? (
+                <div>
                 <div className="flex items-center gap-1.5 mt-1">
                   <div className="flex items-center">
                     <input
-                      type="number"
+                      type="text"
+                      inputMode="decimal"
+                      aria-label="총 예산 (만원)"
+                      aria-invalid={Boolean(budgetError)}
+                      aria-describedby={budgetError ? "settings-budget-error" : undefined}
                       value={budgetInput}
-                      onChange={(e) => setBudgetInput(e.target.value)}
+                      onChange={(e) => { setBudgetInput(e.target.value); setBudgetError(""); }}
                       onKeyDown={(e) => e.key === "Enter" && saveBudget()}
                       className="w-[90px] px-2.5 py-1.5 rounded-[6px] bg-white text-base text-[var(--hb-text-strong)] outline-none focus:ring-2 ring-[rgba(54,83,78,0.30)] text-right"
                       autoFocus
                     />
                     <span className="text-sm text-[var(--hb-text-muted)] ml-1">만원</span>
                   </div>
-                  <button onClick={saveBudget} disabled={saving} className="tap-area shrink-0 w-7 h-7 rounded-[6px] bg-[#2E7D5A] flex items-center justify-center text-white">
+                  <button type="button" aria-label="총 예산 저장" onClick={saveBudget} disabled={saving} className="tap-area shrink-0 w-7 h-7 rounded-[6px] bg-[#2E7D5A] flex items-center justify-center text-white">
                     <Save className="w-4 h-4" />
                   </button>
-                  <button onClick={() => setEditingBudget(false)} className="tap-area shrink-0 w-7 h-7 rounded-[6px] bg-white flex items-center justify-center text-[var(--hb-text-body)]">
+                  <button type="button" aria-label="총 예산 수정 취소" onClick={() => { setEditingBudget(false); setBudgetError(""); }} className="tap-area shrink-0 w-7 h-7 rounded-[6px] bg-white flex items-center justify-center text-[var(--hb-text-body)]">
                     <X className="w-4 h-4" />
                   </button>
+                </div>
+                {budgetError && <p id="settings-budget-error" role="alert" className="mt-2 text-sm text-[#9A3F3F]">{budgetError}</p>}
                 </div>
               ) : (
                 <div className="flex items-center gap-1.5">
                   <p className="text-[17px] font-medium text-[var(--hb-text-strong)]">{budgetStr}</p>
                   <button
-                    onClick={() => { setBudgetInput(String(totalBudget / 10000)); setEditingBudget(true); }}
+                    aria-label="총 예산 수정"
+                    onClick={() => { setBudgetInput(String(totalBudget / 10000)); setBudgetError(""); setEditingBudget(true); }}
                     className="tap-area shrink-0 w-6 h-6 rounded-[6px] flex items-center justify-center text-[var(--hb-text-muted)] hover:text-[var(--hb-accent-hover)] transition-colors"
                   >
                     <Pencil className="w-3.5 h-3.5" />
@@ -801,7 +826,7 @@ export default function SettingsPage() {
       <motion.div
         {...fadeIn}
         transition={{ duration: 0.5, delay: 0.03 }}
-        className="bg-white rounded-[6px] shadow-[var(--shadow-raised)] p-8 mb-6"
+        className="bg-white rounded-[6px] border border-[var(--hb-hairline)] p-8 mb-6"
       >
         <div className="flex items-center gap-3 mb-5">
           <div className="w-11 h-11 shrink-0 rounded-[6px] bg-gradient-to-br from-[var(--hb-primary)] to-[var(--hb-primary-hover)] flex items-center justify-center shadow-[var(--shadow-raised)]">
@@ -832,6 +857,7 @@ export default function SettingsPage() {
                 return (
                   <button
                     key={opt.value}
+                    aria-pressed={selected}
                     onClick={() => updatePreferences({ weddingStyle: selected ? null : opt.value })}
                     className={`px-4 py-2 rounded-[6px] text-sm font-medium transition-all ${
                       selected
@@ -855,6 +881,7 @@ export default function SettingsPage() {
                 return (
                   <button
                     key={opt.value}
+                    aria-pressed={selected}
                     onClick={() => togglePriority(opt.value)}
                     className={`px-4 py-2 rounded-[6px] text-sm font-medium transition-all ${
                       selected
@@ -878,6 +905,7 @@ export default function SettingsPage() {
                 return (
                   <button
                     key={opt.value}
+                    aria-pressed={selected}
                     onClick={() => updatePreferences({ budgetTendency: selected ? null : opt.value })}
                     className={`px-4 py-2 rounded-[6px] text-sm font-medium transition-all ${
                       selected
@@ -901,6 +929,7 @@ export default function SettingsPage() {
                 return (
                   <button
                     key={opt.value}
+                    aria-pressed={selected}
                     onClick={() => updatePreferences({ guestCount: selected ? null : opt.value })}
                     className={`px-4 py-2 rounded-[6px] text-sm font-medium transition-all ${
                       selected
@@ -921,7 +950,7 @@ export default function SettingsPage() {
       <motion.div
         {...fadeIn}
         transition={{ duration: 0.5, delay: 0.05 }}
-        className="bg-white rounded-[6px] shadow-[var(--shadow-raised)] p-8 mb-6"
+        className="bg-white rounded-[6px] border border-[var(--hb-hairline)] p-8 mb-6"
       >
         <div className="flex items-center gap-3 mb-5">
           <div className="w-11 h-11 shrink-0 rounded-[6px] bg-gradient-to-br from-[#795252] to-[#946a6a] flex items-center justify-center shadow-[var(--shadow-raised)]">
@@ -1084,7 +1113,7 @@ export default function SettingsPage() {
       <motion.div
         {...fadeIn}
         transition={{ duration: 0.5, delay: 0.1 }}
-        className="bg-white rounded-[6px] shadow-[var(--shadow-raised)] p-8 mb-6"
+        className="bg-white rounded-[6px] border border-[var(--hb-hairline)] p-8 mb-6"
       >
         <div className="flex items-center gap-3 mb-5">
           <div className="w-11 h-11 shrink-0 rounded-[6px] bg-gradient-to-br from-noir-800 to-[var(--hb-success)] flex items-center justify-center shadow-[var(--shadow-raised)]">
@@ -1155,7 +1184,7 @@ export default function SettingsPage() {
       <motion.div
         {...fadeIn}
         transition={{ duration: 0.5, delay: 0.12 }}
-        className="mb-6 overflow-hidden rounded-[6px] bg-white shadow-[var(--shadow-raised)]"
+        className="mb-6 overflow-hidden rounded-[6px] border border-[var(--hb-hairline)] bg-white"
       >
         <Link
           {...weddingLinkProps("/settings/amora-style")}
@@ -1182,7 +1211,7 @@ export default function SettingsPage() {
       <motion.div
         {...fadeIn}
         transition={{ duration: 0.5, delay: 0.13 }}
-        className="mb-6 overflow-hidden rounded-[6px] bg-white shadow-[var(--shadow-raised)]"
+        className="mb-6 overflow-hidden rounded-[6px] border border-[var(--hb-hairline)] bg-white"
       >
         <Link
           {...weddingLinkProps("/settings/amora-memory")}
@@ -1209,7 +1238,7 @@ export default function SettingsPage() {
       <motion.div
         {...fadeIn}
         transition={{ duration: 0.5, delay: 0.15 }}
-        className="bg-white rounded-[6px] shadow-[var(--shadow-raised)] overflow-hidden mb-6"
+        className="bg-white rounded-[6px] border border-[var(--hb-hairline)] overflow-hidden mb-6"
       >
         {[
           { label: "이용약관", href: "/terms" },

@@ -120,7 +120,7 @@ function AmoraStyleSettingsContent({ ownerId, accountLabel }: { ownerId: string 
   }
 
   return (
-    <main className="mx-auto min-h-screen w-full max-w-3xl px-4 pb-24 pt-6 sm:px-6 sm:pt-10">
+    <div className="mx-auto min-h-screen w-full max-w-3xl px-4 pb-24 pt-6 sm:px-6 sm:pt-10">
       <div className="mb-7 flex items-center gap-3">
         <Link
           {...weddingLinkProps("/settings")}
@@ -336,6 +336,6 @@ function AmoraStyleSettingsContent({ ownerId, accountLabel }: { ownerId: string 
           )}
         </>
       )}
-    </main>
+    </div>
   );
 }

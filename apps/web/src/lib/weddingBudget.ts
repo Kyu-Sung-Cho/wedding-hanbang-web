@@ -7,6 +7,16 @@ export function isValidWeddingWonAmount(value: unknown): value is number {
     && (value as number) <= MAX_WEDDING_BUDGET_WON;
 }
 
+/** 만원 입력의 소수 네 자리는 원 단위다. 부동소수점 곱셈이나 절삭 없이 읽는다. */
+export function parseWeddingBudgetManwonInput(input: string): number | null {
+  const normalized = input.trim();
+  if (normalized.length > 32
+    || !/^(?:\d+|\d{1,3}(?:,\d{3})+)(?:\.\d{1,4})?$/.test(normalized)) return null;
+  const [whole, fraction = ""] = normalized.replaceAll(",", "").split(".");
+  const won = Number(whole) * 10_000 + Number(fraction.padEnd(4, "0"));
+  return isValidWeddingWonAmount(won) && won > 0 ? won : null;
+}
+
 /**
  * 상한을 사람이 읽는 말로. **문구를 손으로 적지 말고 이걸 쓴다.**
  *
