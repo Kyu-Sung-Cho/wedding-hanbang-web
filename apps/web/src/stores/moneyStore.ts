@@ -1,7 +1,7 @@
 "use client";
 
-// 축의금 관리 스토어 (구 invitationStore에서 분리 — 청첩장 기능 제거 후 독립)
 import { create } from "zustand";
+import { useAuthStore } from "@/stores/authStore";
 import type { CongratulatoryMoney } from "@/types/money.types";
 
 interface MoneyStoreState {
@@ -9,7 +9,6 @@ interface MoneyStoreState {
   moneyLoading: boolean;
   moneyLocalMode: boolean;
   error: string | null;
-
   loadMoney: (coupleId: string) => Promise<void>;
   addMoney: (data: Omit<CongratulatoryMoney, "id" | "couple_id" | "created_at" | "updated_at">) => Promise<void>;
   updateMoney: (id: string, data: Partial<CongratulatoryMoney>) => Promise<void>;
@@ -18,9 +17,45 @@ interface MoneyStoreState {
 }
 
 const DEMO_COUPLE_ID = "demo-couple";
+let ownerGeneration = 0;
+let loadSequence = 0;
 
-function isAuthFailure(res: Response) {
-  return res.status === 401 || res.status === 403;
+function ownerKey() {
+  const { user, couple, isDemo } = useAuthStore.getState();
+  return JSON.stringify([user?.id ?? null, couple?.id ?? null, isDemo]);
+}
+
+function captureOwner(requestedCoupleId?: string) {
+  const { user, couple, isDemo } = useAuthStore.getState();
+  const demo = isDemo && couple?.id === DEMO_COUPLE_ID;
+  if (!couple?.id || (!user && !demo)) {
+    throw new Error("로그인과 준비 공간 연결을 확인해 주세요.");
+  }
+  if ((requestedCoupleId && requestedCoupleId !== couple.id)
+    || (couple.id === DEMO_COUPLE_ID && !demo)) {
+    throw new Error("현재 계정의 준비 공간에서 다시 시도해 주세요.");
+  }
+  const key = ownerKey();
+  const generation = ownerGeneration;
+  return {
+    demo, coupleId: couple.id,
+    isCurrent: () => generation === ownerGeneration && key === ownerKey(),
+  };
+}
+
+function requireCurrent(owner: ReturnType<typeof captureOwner>) {
+  if (!owner.isCurrent()) {
+    throw new Error("계정이나 준비 공간 연결이 바뀌었어요. 현재 계정에서 내역을 다시 확인해 주세요.");
+  }
+}
+
+async function requestError(res: Response, fallback: string): Promise<Error> {
+  if (res.status === 401) return new Error("로그인이 만료됐어요. 다시 로그인한 뒤 시도해 주세요.");
+  if (res.status === 403) return new Error("이 준비 공간의 축의금에 접근할 수 없어요. 계정과 연결 상태를 확인해 주세요.");
+  const body: unknown = await res.json().catch(() => null);
+  const message = body && typeof body === "object" && "error" in body
+    && typeof body.error === "string" ? body.error : fallback;
+  return new Error(message);
 }
 
 function createLocalMoney(
@@ -28,158 +63,99 @@ function createLocalMoney(
 ): CongratulatoryMoney {
   const now = new Date().toISOString();
   return {
-    id: `local-money-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-    couple_id: DEMO_COUPLE_ID,
-    guest_name: data.guest_name,
-    amount: data.amount,
-    side: data.side,
-    relation: data.relation ?? null,
-    method: data.method,
-    memo: data.memo ?? null,
-    received_at: data.received_at,
-    created_at: now,
-    updated_at: now,
+    ...data, id: `local-money-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    couple_id: DEMO_COUPLE_ID, created_at: now, updated_at: now,
   };
 }
 
-export const useMoneyStore = create<MoneyStoreState>((set, get) => ({
-  moneyList: [],
-  moneyLoading: false,
-  moneyLocalMode: false,
-  error: null,
+export const useMoneyStore = create<MoneyStoreState>((set) => ({
+  moneyList: [], moneyLoading: false, moneyLocalMode: false, error: null,
 
   loadMoney: async (coupleId) => {
-    set({ moneyLoading: true });
+    const owner = captureOwner(coupleId);
+    const sequence = ++loadSequence;
+    const isCurrent = () => owner.isCurrent() && sequence === loadSequence;
+    set({ moneyLoading: true, moneyLocalMode: owner.demo, error: null });
     try {
-      if (coupleId === DEMO_COUPLE_ID) {
+      if (owner.demo) {
         set({ moneyList: [], moneyLocalMode: true });
         return;
       }
-
-      const res = await fetch(`/api/money?coupleId=${coupleId}`);
-      if (isAuthFailure(res)) {
-        set({ moneyList: [], moneyLocalMode: true });
-        return;
-      }
-      if (!res.ok) throw new Error("축의금 로딩 실패");
-      const data = await res.json();
-      set({ moneyList: data.moneyList, moneyLocalMode: false });
+      const res = await fetch(`/api/money?coupleId=${encodeURIComponent(coupleId)}`);
+      if (!isCurrent()) return;
+      if (!res.ok) throw await requestError(res, "축의금을 불러오지 못했어요. 다시 시도해 주세요.");
+      const data: { moneyList: CongratulatoryMoney[] } = await res.json();
+      if (isCurrent()) set({ moneyList: data.moneyList, moneyLocalMode: false });
     } catch (err) {
-      console.error("축의금 로딩 에러:", err);
-      set({ error: "축의금을 불러오지 못했습니다." });
+      if (!isCurrent()) return;
+      const failure = err instanceof Error ? err : new Error("축의금을 불러오지 못했어요.");
+      set({ moneyList: [], moneyLocalMode: false, error: failure.message });
+      throw failure;
     } finally {
-      set({ moneyLoading: false });
+      if (isCurrent()) set({ moneyLoading: false });
     }
   },
 
   addMoney: async (data) => {
-    if (get().moneyLocalMode) {
-      const localMoney = createLocalMoney(data);
-      set((s) => ({ moneyList: [localMoney, ...s.moneyList] }));
+    const owner = captureOwner();
+    if (owner.demo) {
+      set((state) => ({ moneyList: [createLocalMoney(data), ...state.moneyList], moneyLocalMode: true }));
       return;
     }
-
-    try {
-      const res = await fetch("/api/money", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(data),
-      });
-      if (isAuthFailure(res)) {
-        const localMoney = createLocalMoney(data);
-        set((s) => ({ moneyList: [localMoney, ...s.moneyList], moneyLocalMode: true }));
-        return;
-      }
-      if (!res.ok) {
-        // 서버는 "금액을 0~1억원 사이 숫자로 입력해주세요." 같은 한국어 안내를 주는데
-        // 예전엔 전부 버려지고 폼만 비워져, 사용자는 저장된 줄 알았다.
-        const body = await res.json().catch(() => null) as { error?: string } | null;
-        throw new Error(body?.error ?? "축의금을 저장하지 못했어요. 연결을 확인하고 다시 시도해 주세요.");
-      }
-      const result = await res.json();
-      set((s) => ({ moneyList: [result.money, ...s.moneyList] }));
-    } catch (err) {
-      console.error("축의금 추가 에러:", err);
-      throw err instanceof Error
-        ? err
-        : new Error("축의금을 저장하지 못했어요. 잠시 후 다시 시도해 주세요.");
-    }
+    const res = await fetch("/api/money", {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(data),
+    });
+    requireCurrent(owner);
+    if (!res.ok) throw await requestError(res, "축의금을 저장하지 못했어요. 다시 시도해 주세요.");
+    const result: { money: CongratulatoryMoney } = await res.json();
+    requireCurrent(owner);
+    set((state) => ({ moneyList: [result.money, ...state.moneyList] }));
   },
 
   updateMoney: async (id, data) => {
-    if (get().moneyLocalMode) {
-      set((s) => ({
-        moneyList: s.moneyList.map((m) =>
-          m.id === id ? { ...m, ...data, updated_at: new Date().toISOString() } : m
-        ),
+    const owner = captureOwner();
+    if (owner.demo) {
+      set((state) => ({
+        moneyList: state.moneyList.map((money) => money.id === id
+          ? { ...money, ...data, updated_at: new Date().toISOString() } : money),
       }));
       return;
     }
-
-    try {
-      const res = await fetch(`/api/money/${id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(data),
-      });
-      if (isAuthFailure(res)) {
-        set((s) => ({
-          moneyList: s.moneyList.map((m) =>
-            m.id === id ? { ...m, ...data, updated_at: new Date().toISOString() } : m
-          ),
-          moneyLocalMode: true,
-        }));
-        return;
-      }
-      if (!res.ok) {
-        // 삼키면 화면의 저장 실패 안내가 실행되지 않아, 사용자는 금액을 고치고
-        // 저장을 눌렀는데 아무 일도 없는 이유를 모른다(addMoney와 같은 처방).
-        const body = await res.json().catch(() => null) as { error?: string } | null;
-        throw new Error(body?.error ?? "축의금을 수정하지 못했어요. 연결을 확인하고 다시 시도해 주세요.");
-      }
-      const result = await res.json();
-      set((s) => ({
-        moneyList: s.moneyList.map((m) => (m.id === id ? result.money : m)),
-      }));
-    } catch (err) {
-      console.error("축의금 수정 에러:", err);
-      throw err instanceof Error
-        ? err
-        : new Error("축의금을 수정하지 못했어요. 잠시 후 다시 시도해 주세요.");
-    }
+    const res = await fetch(`/api/money/${encodeURIComponent(id)}`, {
+      method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(data),
+    });
+    requireCurrent(owner);
+    if (!res.ok) throw await requestError(res, "축의금을 수정하지 못했어요. 다시 시도해 주세요.");
+    const result: { money: CongratulatoryMoney } = await res.json();
+    requireCurrent(owner);
+    set((state) => ({ moneyList: state.moneyList.map((money) => money.id === id ? result.money : money) }));
   },
 
   deleteMoney: async (id) => {
-    if (get().moneyLocalMode) {
-      set((s) => ({ moneyList: s.moneyList.filter((m) => m.id !== id) }));
+    const owner = captureOwner();
+    if (owner.demo) {
+      set((state) => ({ moneyList: state.moneyList.filter((money) => money.id !== id) }));
       return;
     }
-
-    try {
-      const res = await fetch(`/api/money/${id}`, { method: "DELETE" });
-      if (isAuthFailure(res)) {
-        set((s) => ({ moneyList: s.moneyList.filter((m) => m.id !== id), moneyLocalMode: true }));
-        return;
-      }
-      if (!res.ok) {
-        const body = await res.json().catch(() => null) as { error?: string } | null;
-        throw new Error(body?.error ?? "축의금을 삭제하지 못했어요. 연결을 확인하고 다시 시도해 주세요.");
-      }
-      set((s) => ({ moneyList: s.moneyList.filter((m) => m.id !== id) }));
-    } catch (err) {
-      console.error("축의금 삭제 에러:", err);
-      throw err instanceof Error
-        ? err
-        : new Error("축의금을 삭제하지 못했어요. 잠시 후 다시 시도해 주세요.");
-    }
+    const res = await fetch(`/api/money/${encodeURIComponent(id)}`, { method: "DELETE" });
+    requireCurrent(owner);
+    if (!res.ok) throw await requestError(res, "축의금을 삭제하지 못했어요. 다시 시도해 주세요.");
+    set((state) => ({ moneyList: state.moneyList.filter((money) => money.id !== id) }));
   },
 
   reset: () => {
-    set({
-      moneyList: [],
-      moneyLoading: false,
-      moneyLocalMode: false,
-      error: null,
-    });
+    // 로그아웃/계정 교체 전에 시작한 요청은 reset 뒤 상태를 되살릴 수 없다.
+    ownerGeneration += 1;
+    loadSequence += 1;
+    set({ moneyList: [], moneyLoading: false, moneyLocalMode: false, error: null });
   },
 }));
+
+// 같은 커플의 파트너로 계정을 바꿀 때도 이전 사용자의 상태를 먼저 비운다.
+useAuthStore.subscribe((current, previous) => {
+  if (current.user?.id !== previous.user?.id
+    || current.couple?.id !== previous.couple?.id
+    || current.isDemo !== previous.isDemo) {
+    useMoneyStore.getState().reset();
+  }
+});
