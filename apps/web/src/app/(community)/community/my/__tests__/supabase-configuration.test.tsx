@@ -29,9 +29,10 @@ vi.mock("@/components/community/Avatar", () => ({
   default: () => <div>avatar</div>,
 }));
 
-vi.mock("@/stores/authStore", () => ({
-  useAuthStore: () => null,
-}));
+vi.mock("@/stores/authStore", () => {
+  const state = { user: null, profile: null, isInitialized: false, isDemo: false };
+  return { useAuthStore: Object.assign((selector: (value: typeof state) => unknown) => selector(state), { getState: () => state }) };
+});
 
 import MyBookmarksPage from "../bookmarks/page";
 import MyPostsPage from "../posts/page";
