@@ -88,7 +88,7 @@ function parseSelection(value: unknown): ComboSelection | null | undefined {
   };
 }
 
-function parseSelections(value: unknown): ComboSelections | null {
+export function parseComboSelections(value: unknown): ComboSelections | null {
   if (!isRecord(value)) return null;
   const studio = parseSelection(value.studio);
   const dress = parseSelection(value.dress);
@@ -137,7 +137,7 @@ export function createPriceComboStore(
         const raw = activeStorage.getItem(PRICE_COMBO_STORAGE_KEY);
         if (!raw) return;
         const parsed = JSON.parse(raw) as unknown;
-        const selections = isRecord(parsed) ? parseSelections(parsed.selections) : null;
+        const selections = isRecord(parsed) ? parseComboSelections(parsed.selections) : null;
         if (!selections) {
           activeStorage.removeItem(PRICE_COMBO_STORAGE_KEY);
           return;

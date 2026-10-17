@@ -1,5 +1,6 @@
 import { comparableOffers } from "./catalog";
 import type { PriceOffer, PriceVendor } from "./catalog";
+import { isWeddingBudgetOffer } from "./budgetOfferEligibility";
 
 type BudgetCategory = "studio" | "dress" | "makeup";
 
@@ -45,6 +46,7 @@ function choices(
     // 구성)은 그 값에 살 수 있는 상품이 아니라서 후보에서 뺀다 — 안 빼면 루미디아가
     // 실제 150만인데 "1벌당 30만" 추가금으로 최저가 드레스로 추천된다.
     const offer = comparableOffers(vendor)
+      .filter((candidate) => isWeddingBudgetOffer(vendor, candidate))
       .filter(({ agencyId, minimumKrw }) => minimumKrw !== null
         && (allowedAgencyIds.size === 0 || (agencyId !== null && allowedAgencyIds.has(agencyId))))
       .sort(compareOffers)[0];

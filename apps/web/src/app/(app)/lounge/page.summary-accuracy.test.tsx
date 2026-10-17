@@ -63,10 +63,10 @@ describe("라운지의 저장값 요약과 조회 실패 구분", () => {
     const weddingCode = container.querySelector('[data-lounge-preparation-style]')!;
     expect(weddingCode.querySelector("h2")?.textContent).toBe("웨딩코드");
     expect(weddingCode.querySelector('a[href="/wedding/preparation-style"]')?.textContent).toBe("웨딩코드 보기");
-    // 기본 흐름은 동의·취향 23문항 뒤에 우선순위 한 화면을 더 묻는다(v31Flow V31_CORE_SCREEN_INDEXES).
-    expect(weddingCode.textContent).toContain("기본 24문항으로 결과를 보고, 궁금하면 8문항을 더 답할 수 있어요.");
-    expect(weddingCode.textContent).toContain("이 브라우저에 저장한 답");
-    expect(weddingCode.textContent).toContain("내 답이 담긴 링크");
+    expect(weddingCode.textContent).toContain("36문항");
+    expect(weddingCode.textContent).toContain("이 브라우저");
+    expect(weddingCode.textContent).toContain("7일");
+    expect(weddingCode.textContent).toContain("두 사람이 허용한 답");
     expect(container.querySelector('a[href="/wedding/community/quote-check"]')).not.toBeNull();
   });
 
@@ -138,6 +138,24 @@ describe("라운지의 저장값 요약과 조회 실패 구분", () => {
     expect(details.textContent).toContain("아직 저장한 글이 없어요");
     expect(details.textContent).toContain("동기방이 아직 연결되지 않았어요");
     expect(fetchMock.mock.calls).toHaveLength(4);
+    expect(fetchMock.mock.calls.every(([, init]) => !init?.method || init.method === "GET")).toBe(true);
+  });
+
+  it("개인 보관 자료는 공개 인기 순위가 아닌 북마크 최신 목록에서 불러온다", async () => {
+    communityExposure.enabled = true;
+    fetchMock.mockImplementation(async (input: string) => {
+      const url = new URL(input, "http://localhost");
+      return Response.json(url.pathname === "/api/community/posts" ? {
+        posts: url.searchParams.get("sort") === "new" && url.searchParams.get("bookmarked") === "true" ? [{
+          id: "qa-saved-private", title: "QA 개인 보관 자료", content: "QA 저장한 내용", comment_count: 0, bookmark_count: 1,
+          ad_disclosure: "sponsored", sponsorship_detail: "QA 촬영권 제공",
+        }] : [],
+      } : { room: null });
+    });
+    await render();
+    expect(container.querySelector('a[href="/wedding/community/post/qa-saved-private"]')?.textContent ?? "").toContain("QA 개인 보관 자료");
+    expect(container.querySelector('[aria-label="광고 표시: 협찬 포함"]')).not.toBeNull();
+    expect(container.textContent).toContain("받은 혜택: QA 촬영권 제공");
     expect(fetchMock.mock.calls.every(([, init]) => !init?.method || init.method === "GET")).toBe(true);
   });
 

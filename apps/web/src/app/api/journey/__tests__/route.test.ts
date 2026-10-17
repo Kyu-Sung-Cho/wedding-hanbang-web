@@ -513,6 +513,74 @@ describe("/api/journey PATCH couple plan-change contract", () => {
     );
   });
 
+  it("classifies the actual first budget-delete stage as budget when zero amounts/payer disappear and status stays unchanged", async () => {
+    mocks.currentJourney = { state_revision: 7, progress: { custom_qa: {
+      category: "custom_qa", label: "QA 예산", status: "not_started", budget: 0, spent: 0, payer: "both_parents",
+    } } };
+    const response = await PATCH(request({ expected_revision: 7, progress_patch: {
+      custom_qa: { category: "custom_qa", label: "QA 예산", status: "not_started" },
+    }, progress_remove_keys: [] }));
+    expect(response.status).toBe(200);
+    expect(mocks.rpc).toHaveBeenCalledWith("submit_couple_plan_change", expect.objectContaining({ p_surface: "/budget" }));
+    await expect(response.json()).resolves.toMatchObject({ surface: "/budget" });
+  });
+
+  it("counts removed budget fields but not a preserved checklist as a schedule change", async () => {
+    const checklist = [{ id: "venue-qa", label: "QA 확인", done: false }];
+    mocks.currentJourney = { state_revision: 7, progress: { venue: {
+      category: "venue", status: "not_started", checklist, budget: 0, spent: 0,
+    } } };
+    const response = await PATCH(request({ expected_revision: 7, progress_patch: {
+      venue: { category: "venue", status: "not_started", checklist },
+    }, progress_remove_keys: [] }));
+    expect(response.status).toBe(200);
+    expect(mocks.rpc).toHaveBeenCalledWith("submit_couple_plan_change", expect.objectContaining({ p_surface: "/budget" }));
+  });
+
+  it("uses the deleted item before-image for a budget remove key", async () => {
+    mocks.currentJourney = { state_revision: 7, progress: { custom_qa: { category: "custom_qa", label: "QA", budget: 0, spent: 0 } } };
+    const response = await PATCH(request({ expected_revision: 7, progress_remove_keys: ["custom_qa"] }));
+    expect(response.status).toBe(200);
+    expect(mocks.rpc).toHaveBeenCalledWith("submit_couple_plan_change", expect.objectContaining({ p_surface: "/budget" }));
+  });
+
+  it.each([[100_000, "/schedule"], [200_000, "/dashboard"]])("ignores unchanged budget fields while classifying a real status change (budget=%s)", async (budget, surface) => {
+    mocks.currentJourney = { state_revision: 7, progress: { venue: { category: "venue", status: "not_started", budget: 100_000 } } };
+    const response = await PATCH(request({ expected_revision: 7, progress_patch: {
+      venue: { category: "venue", status: "in_progress", budget },
+    } }));
+    expect(response.status).toBe(200);
+    expect(mocks.rpc).toHaveBeenCalledWith("submit_couple_plan_change", expect.objectContaining({ p_surface: surface }));
+  });
+
+  it("fails closed if the current progress cannot be read for a patch classification", async () => {
+    mocks.currentJourneyError = { message: "synthetic unavailable" };
+    const response = await PATCH(request({ expected_revision: 7, progress_patch: { venue: { budget: 100_000 } } }));
+    expect(response.status).toBe(503);
+    expect(mocks.rpc).not.toHaveBeenCalled();
+  });
+
+  it("keeps an older expected revision for the existing RPC stale/conflict path", async () => {
+    mocks.currentJourney = { progress: { venue: { budget: 100_000 } }, state_revision: 8 };
+    mocks.rpc.mockResolvedValueOnce({ data: { requestId: REQUEST_ID, status: "stale", requiredCount: 2, acceptedCount: 0, journey: null }, error: null });
+    const response = await PATCH(request({ expected_revision: 7, progress_patch: { venue: { budget: 200_000 } } }));
+    expect(response.status).toBe(409);
+    await expect(response.json()).resolves.toMatchObject({ code: "PLAN_CHANGE_STALE" });
+    expect(mocks.rpc).toHaveBeenCalledWith("submit_couple_plan_change", expect.objectContaining({ p_expected_revision: 7, p_couple_id: COUPLE_ID }));
+    const currentRead = mocks.authFrom.mock.results.find((_, index) => mocks.authFrom.mock.calls[index][0] === "wedding_journeys")?.value;
+    expect(currentRead.eq).toHaveBeenCalledWith("couple_id", COUPLE_ID);
+  });
+
+  it("preserves a committed RPC receipt on lost-response retry even when current progress already matches the patch", async () => {
+    const patch = { custom_qa: { category: "custom_qa", label: "QA", status: "not_started" } };
+    mocks.currentJourney = { progress: patch, state_revision: 8 };
+    mocks.rpc.mockResolvedValueOnce({ data: { requestId: REQUEST_ID, status: "applied", requiredCount: 1, acceptedCount: 1, summary: "QA 예산 삭제", surface: "/budget", journey: journey(8) }, error: null });
+    const response = await PATCH(request({ expected_revision: 7, progress_patch: patch, progress_remove_keys: [] }));
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({ requestId: REQUEST_ID, surface: "/budget" });
+    expect(mocks.rpc).toHaveBeenCalledWith("submit_couple_plan_change", expect.objectContaining({ p_expected_revision: 7, p_changes: { progress_patch: patch, progress_remove_keys: [] } }));
+  });
+
   it("returns the database-exact spent summary without an optimistic journey while partner approval is pending", async () => {
     mocks.rpc.mockResolvedValueOnce({
       data: {

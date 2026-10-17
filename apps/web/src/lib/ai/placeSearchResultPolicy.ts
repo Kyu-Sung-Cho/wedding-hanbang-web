@@ -1,5 +1,5 @@
 import type { ToolExecutionResult } from "@/types/database.types";
-import { readPlaceSearchFacts } from "@hanbang/shared/place-search-presentation";
+import { formatPlaceSearchDate, readPlaceSearchFacts } from "@hanbang/shared/place-search-presentation";
 
 export const EPHEMERAL_PLACE_SEARCH_TOOL = "search_nearby_places";
 const PRIVATE_SCHEDULE_MUTATION_TOOLS = new Set([
@@ -247,7 +247,7 @@ export function getPersistableToolResults(
  *
  * - `resultCount` : 우리가 센 카드 개수 (0곳과 5곳을 구분하게)
  * - `effectiveQuery` : 서버가 실제로 네이버에 보낸 질의 (모델이 준 말 + 우리 보정)
- * - `searchedAt` : 우리 시계의 조회 시각
+ * - `searchedAt` : 카드와 같은 한국 시각(시간대를 명시, 원본 UTC는 클라이언트에 유지)
  *
  * 업체명·주소·설명·URL 같은 **제공자 텍스트는 계속 넣지 않는다** — 인젝션 경계는
  * 그대로다. 그래서 위 세 칸은 `toolOutput` 에서 형이 맞을 때만 옮겨 담는다.
@@ -267,6 +267,9 @@ export function getModelSafeToolOutput(result: ToolExecutionResult): Record<stri
   // (스테이징에서 그 조합을 한 번 봤다. 출처는 변형 증명이 서빙 중인 트리를 잠깐 고친
   // 측정 오염이었지만, 실행기가 따로 실어 보내는 개수를 믿는 계약 자체가 구멍이었다.)
   const resultCount = places.length;
+  const searchedAtKst = typeof output.searchedAt === "string"
+    ? formatPlaceSearchDate(output.searchedAt)
+    : null;
   return {
     success: result.success,
     status: result.success ? "rendered_in_client" : "unavailable",
@@ -275,8 +278,8 @@ export function getModelSafeToolOutput(result: ToolExecutionResult): Record<stri
     ...(typeof output.effectiveQuery === "string" && output.effectiveQuery
       ? { effectiveQuery: output.effectiveQuery }
       : {}),
-    ...(typeof output.searchedAt === "string" && output.searchedAt
-      ? { searchedAt: output.searchedAt }
+    ...(searchedAtKst
+      ? { searchedAt: `${searchedAtKst} (KST, UTC+09:00)` }
       : {}),
   };
 }

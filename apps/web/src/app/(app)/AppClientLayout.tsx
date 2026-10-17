@@ -229,6 +229,7 @@ export default function AppClientLayout({
   const isChecklistPage = appPathname === "/checklist";
   const isBudgetPage = appPathname === "/budget";
   const isSchedulePage = appPathname === "/schedule";
+  const isSettingsPage = appPathname === "/settings" || appPathname.startsWith("/settings/");
   const isPlanningPage = isChecklistPage || isBudgetPage || isSchedulePage;
   const isLoungePage = appPathname === "/lounge";
   const isPreparationStylePage = appPathname === "/preparation-style";
@@ -275,7 +276,7 @@ export default function AppClientLayout({
   return (
     <AmoraNavigationTargetContext.Provider value={amoraNavigationTarget}>
     <div
-      className={`${analyticsSuppressed ? "ph-no-capture " : ""}${isAmoraPage || isLoungeWorkspace ? "amora-workspace " : isPlanningPage ? "planning-workspace " : ""}${
+      className={`${analyticsSuppressed ? "ph-no-capture " : ""}${isAmoraPage || isLoungeWorkspace ? "amora-workspace " : isPlanningPage || isSettingsPage ? "planning-workspace " : ""}${
         isChatPage
           // iOS 사파리는 100vh가 주소창 높이를 포함해 입력창이 화면 밖으로 밀린다 → dvh
           ? "hanbang-service-theme h-[100dvh] overflow-hidden bg-[var(--hb-surface-page)]"
@@ -285,7 +286,7 @@ export default function AppClientLayout({
       <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
       {/* 사이드바 너비는 어느 화면에서나 같다(`sidebarStyles.ts`). 본문 여백도 하나다. */}
       <div className={isChatPage ? `flex h-[100dvh] flex-col ${SIDEBAR_OFFSET_CLASS}` : hasHtmlDesign ? `pb-[calc(74px+env(safe-area-inset-bottom))] ${SIDEBAR_OFFSET_CLASS} md:pb-0` : SIDEBAR_OFFSET_CLASS}>
-        <TopNav onMenuToggle={() => setSidebarOpen(true)} amoraWorkspace={isAmoraPage} planningWorkspace={isPlanningPage} loungeWorkspace={isLoungeWorkspace} amoraNavigationRef={setAmoraNavigationTarget} />
+        <TopNav onMenuToggle={() => setSidebarOpen(true)} amoraWorkspace={isAmoraPage} planningWorkspace={isPlanningPage} loungeWorkspace={isLoungeWorkspace} compactChrome={isSettingsPage} amoraNavigationRef={setAmoraNavigationTarget} />
         {banner}
         {isChatPage ? (
           <main className="flex min-h-0 flex-1 flex-col overflow-hidden">{children}</main>

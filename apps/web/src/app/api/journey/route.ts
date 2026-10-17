@@ -290,29 +290,41 @@ function deriveSummary(changes: Record<string, unknown>) {
 
 function deriveSurface(
   changes: Record<string, unknown>,
+  previousProgress: Record<string, unknown> = {},
 ): ParsedPatch["surface"] {
-  const progressChange = hasOwn(changes, "progress")
+  const nextProgress = isRecord(changes.progress)
     ? changes.progress
-    : changes.progress_patch;
-  const containsProgressField = (
-    value: unknown,
+    : { ...previousProgress, ...(isRecord(changes.progress_patch) ? changes.progress_patch : {}) };
+  if (Array.isArray(changes.progress_remove_keys)) {
+    for (const key of changes.progress_remove_keys) {
+      if (typeof key === "string") delete nextProgress[key];
+    }
+  }
+  const containsChangedField = (
+    before: unknown,
+    after: unknown,
     fields: ReadonlySet<string>,
   ): boolean => {
-    if (Array.isArray(value)) {
-      return value.some((item) => containsProgressField(item, fields));
+    if (jsonValuesEqual(before, after)) return false;
+    if (Array.isArray(before) || Array.isArray(after)) {
+      const beforeItems = Array.isArray(before) ? before : [];
+      const afterItems = Array.isArray(after) ? after : [];
+      return Array.from({ length: Math.max(beforeItems.length, afterItems.length) })
+        .some((_, index) => containsChangedField(beforeItems[index], afterItems[index], fields));
     }
-    if (!isRecord(value)) return false;
-    return Object.entries(value).some(
-      ([key, item]) => fields.has(key)
-        || containsProgressField(item, fields),
-    );
+    const beforeRecord = isRecord(before) ? before : {};
+    const afterRecord = isRecord(after) ? after : {};
+    return [...new Set([...Object.keys(beforeRecord), ...Object.keys(afterRecord)])].some((key) => (
+      (fields.has(key) && !jsonValuesEqual(beforeRecord[key], afterRecord[key]))
+      || containsChangedField(beforeRecord[key], afterRecord[key], fields)
+    ));
   };
   const touchesBudget =
     hasOwn(changes, "total_budget")
-    || containsProgressField(progressChange, BUDGET_PROGRESS_FIELDS);
+    || containsChangedField(previousProgress, nextProgress, BUDGET_PROGRESS_FIELDS);
   const touchesSchedule =
     hasOwn(changes, "wedding_date")
-    || containsProgressField(progressChange, SCHEDULE_PROGRESS_FIELDS);
+    || containsChangedField(previousProgress, nextProgress, SCHEDULE_PROGRESS_FIELDS);
   if (touchesBudget && !touchesSchedule) return "/budget";
   if (touchesSchedule && !touchesBudget) return "/schedule";
   return "/dashboard";
@@ -804,12 +816,8 @@ export async function PATCH(request: Request) {
     // 확인 뒤 연결이 바뀌어도 RPC가 폼의 원래 커플 멤버십을 검증하도록 고정한다.
     const coupleId = parsed.value.expectedCoupleId;
     let rpcChanges = parsed.value.changes;
-    if (hasOwn(rpcChanges, "progress")) {
-      const nextProgress = rpcChanges.progress;
-      if (!isRecord(nextProgress)) {
-        return privateResponse({ error: "진행 데이터 형식이 올바르지 않습니다." }, 400);
-      }
-
+    let currentProgress: Record<string, unknown> = {};
+    if (["progress", "progress_patch", "progress_remove_keys"].some((key) => hasOwn(rpcChanges, key))) {
       const { data: currentJourney, error: currentJourneyError } = await supabase
         .from("wedding_journeys")
         .select("progress,state_revision")
@@ -828,6 +836,15 @@ export async function PATCH(request: Request) {
           503,
         );
       }
+      // 분류에도 서버의 전 상태를 사용한다. revision 충돌 판정은 기존 RPC CAS가
+      // 맡으며, 읽기와 RPC 사이 변경이 있으면 같은 경로에서 stale로 끝난다.
+      currentProgress = currentJourney.progress;
+    }
+    if (hasOwn(rpcChanges, "progress")) {
+      const nextProgress = rpcChanges.progress;
+      if (!isRecord(nextProgress)) {
+        return privateResponse({ error: "진행 데이터 형식이 올바르지 않습니다." }, 400);
+      }
 
       const rawProgress = isRecord(rawBody) && isRecord(rawBody.progress)
         ? rawBody.progress
@@ -835,8 +852,8 @@ export async function PATCH(request: Request) {
       // 기존 할 일은 정리된 문자열이 아닌 원본으로 비교하며, 같은 값은 일반 변경에 넣지 않는다.
       if (
         !rawProgress
-        || hasOwn(rawProgress, "__amora_actions") !== hasOwn(currentJourney.progress, "__amora_actions")
-        || !jsonValuesEqual(rawProgress.__amora_actions, currentJourney.progress.__amora_actions)
+        || hasOwn(rawProgress, "__amora_actions") !== hasOwn(currentProgress, "__amora_actions")
+        || !jsonValuesEqual(rawProgress.__amora_actions, currentProgress.__amora_actions)
       ) {
         return privateResponse({
           error: "공유 할 일은 결정 보드에서 현재 기록을 확인한 뒤 수정해 주세요.",
@@ -847,11 +864,11 @@ export async function PATCH(request: Request) {
       const progressPatch: Record<string, unknown> = {};
       for (const [key, value] of Object.entries(nextProgress)) {
         if (key === "__amora_actions") continue;
-        if (!jsonValuesEqual(value, currentJourney.progress[key])) {
+        if (!jsonValuesEqual(value, currentProgress[key])) {
           progressPatch[key] = value;
         }
       }
-      const progressRemoveKeys = Object.keys(currentJourney.progress)
+      const progressRemoveKeys = Object.keys(currentProgress)
         .filter((key) => !hasOwn(nextProgress, key));
       if (
         progressRemoveKeys.length > MAX_PROGRESS_REMOVE_KEYS
@@ -890,6 +907,8 @@ export async function PATCH(request: Request) {
         code: "AMORA_ACTION_VIEW_REQUIRED",
       }, 400);
     }
+
+    parsed.value.surface = deriveSurface(rpcChanges, currentProgress);
 
     const { data, error } = await createAdminClient().rpc(
       "submit_couple_plan_change",

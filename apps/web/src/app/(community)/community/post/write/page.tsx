@@ -43,6 +43,7 @@ import type {
   CommunityCategory,
   PostVisibility,
   CreatePostInput,
+  UpdatePostInput,
   CreatePollInput,
   AdDisclosure,
   PriceData,
@@ -745,7 +746,21 @@ function PostWriteContent() {
 
     try {
       if (isEditMode && editId) {
-        const success = await updatePost(editId, input);
+        // PATCH는 생성 전용 category/poll 등을 받지 않는다. 비운 선택 필드도
+        // null로 보내 기존 협찬 설명·가격 정보가 수정 후 남지 않게 한다.
+        const updateInput: UpdatePostInput = {
+          title: input.title,
+          content: input.content,
+          visibility: input.visibility,
+          images: input.images,
+          slides: input.slides,
+          tags: input.tags,
+          vendor_tags: input.vendor_tags,
+          ad_disclosure: input.ad_disclosure,
+          sponsorship_detail: adDisclosure === "sponsored" ? sponsorshipDetail.trim() : null,
+          price_data: input.price_data ?? null,
+        };
+        const success = await updatePost(editId, updateInput);
         if (!success) {
           const storeErr = useCommunityStore.getState().errorMessage;
           throw new Error(storeErr || "수정에 실패했습니다.");
@@ -1220,6 +1235,9 @@ function PostWriteContent() {
                       key={cat.key}
                       type="button"
                       onClick={() => setCategory(cat.key)}
+                      disabled={isEditMode}
+                      aria-pressed={isSelected}
+                      aria-describedby={isEditMode ? "edit-category-help" : undefined}
                       className={`flex min-w-0 items-center gap-2 px-3 py-2.5 text-sm font-medium rounded-[6px] border transition-all ${
                         isSelected
                           ? "border-[var(--hb-primary)] bg-[var(--hb-primary)] text-white shadow-sm"
@@ -1232,6 +1250,11 @@ function PostWriteContent() {
                   );
                 })}
               </div>
+              {isEditMode && (
+                <p id="edit-category-help" className="mt-2 text-xs text-[var(--hb-text-muted)]">
+                  수정할 때는 카테고리를 바꿀 수 없어요. 제목·내용·공개 범위는 수정할 수 있어요.
+                </p>
+              )}
             </section>
             )}
 

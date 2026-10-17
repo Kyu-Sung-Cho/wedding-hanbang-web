@@ -961,18 +961,18 @@ export const WEDDING_TOOLS: AiToolDefinition[] = [
           description: "조회할 항목. hall=결혼식장, studio=웨딩 사진 촬영, dress=드레스, makeup=헤어·메이크업. 공시 자료가 있는 항목은 이 넷뿐입니다.",
         },
         region: {
-          type: "string",
+          type: ["string", "null"],
           enum: [
-            "seoul_gangnam3", "seoul_etc", "gyeonggi", "incheon", "gangwon",
+            "seoul", "seoul_gangnam3", "seoul_etc", "gyeonggi", "incheon", "gangwon",
             "chungcheong", "daejeon", "jeolla", "gwangju", "gyeongsang",
-            "daegu", "busan", "ulsan", "jeju",
+            "daegu", "busan", "ulsan", "jeju", null,
           ],
-          description: "사용자가 지역을 말했을 때만 넣습니다. 말하지 않았으면 반드시 비워서 전국 공시가 전체를 봅니다 — 임의로 좁히면 금액이 배로 달라집니다(200명 식대 전국 1,280만 vs 강남권 2,300만). seoul_gangnam3=서울 강남·서초·송파, seoul_etc=그 외 서울.",
+          description: "사용자가 지역을 말했을 때만 넣습니다. 말하지 않았으면 반드시 비워서 전국 공시가 전체를 봅니다 — 임의로 좁히면 금액이 배로 달라집니다(200명 식대 전국 1,280만 vs 강남권 2,300만). 서울 전체 또는 서울이라고만 말했으면 seoul을 사용합니다. seoul=서울 강남·서초·송파와 그 외 서울의 합집합, seoul_gangnam3=서울 강남·서초·송파만, seoul_etc=그 외 서울만.",
         },
         itemType: {
-          type: "string",
-          enum: ["대관료", "식대", "옵션", "장식비"],
-          description: "category=hall 일 때만 씁니다. 식대는 1인당 금액이고 대관료는 건당이라 단위가 다릅니다. 비우면 네 항목을 각각 나눠서 돌려주니, 사용자가 한 항목만 물었을 때만 지정하세요.",
+          type: ["string", "null"],
+          enum: ["대관료", "식대", "옵션", "장식비", null],
+          description: "category=hall 일 때만 씁니다. 다른 카테고리에서는 생략하거나 null로 둡니다. 식대는 1인당 금액이고 대관료는 건당이라 단위가 다릅니다. 비우면 네 항목을 각각 나눠서 돌려주니, 사용자가 한 항목만 물었을 때만 지정하세요.",
         },
       },
       required: ["category"],
@@ -1028,7 +1028,7 @@ export const WEDDING_TOOLS: AiToolDefinition[] = [
       // 2026-09-03: 짧게 쓰라는 안내는 `query` 설명이 예시까지 들어 그대로 하고 있어
       // 여기서 겹치던 한 문장(91자)을 빼고, 그 자리에 모델이 결과에 대해 **말해도 되는
       // 값**과 두 지역 규약을 넣었다(이 설명 179자 → 220자, 순증 +41자).
-      "네이버 지역 검색으로 식당·카페 같은 일반 장소를 찾습니다. 결과는 카드로 나가고 도구 결과에는 개수·검색어·조회 시각만 옵니다 — 곳 수와 기준 시각은 그 값으로만 말하고 카드에 없는 것은 확인 질문으로 넘기세요. 지역이 둘이면 '대전이나 청주 한정식'처럼 한 번에 넣으세요 — 서버가 지역별로 나눠 찾습니다. 웨딩 사진 촬영·드레스·헤어·메이크업 업체가 아닌 일반 장소 검색에만 사용하세요.",
+      "네이버 지역 검색으로 식당·카페 같은 일반 장소를 찾습니다. 결과는 카드로 나가고 도구 결과에는 개수·검색어·조회 시각만 옵니다. 조회 시각은 카드와 같은 한국 시각(KST, UTC+09:00)이므로 다시 변환하지 마세요. 곳 수와 기준 시각은 그 값으로만 말하고 카드에 없는 것은 확인 질문으로 넘기세요. 지역이 둘이면 '대전이나 청주 한정식'처럼 한 번에 넣으세요 — 서버가 지역별로 나눠 찾습니다. 웨딩 사진 촬영·드레스·헤어·메이크업 업체가 아닌 일반 장소 검색에만 사용하세요.",
     input_schema: {
       type: "object" as const,
       properties: {

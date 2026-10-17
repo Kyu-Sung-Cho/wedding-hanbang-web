@@ -2,6 +2,7 @@ import { asksWhereToStart } from "@/lib/marketing/preparationPriorities";
 import { resolveAmoraPreparationSource } from "@/lib/amora/preparationHandoff";
 import { createClientFromRequest } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { readChatActorDisplayRole } from "@/lib/ai/chatActorDisplayRole";
 import { buildFirstHelloContextTurn } from "@/lib/ai/firstHelloContext";
 import { compareChatTimestamps, normalizePreparationStatus } from "@hanbang/shared";
 import { getAmoraVisibleText, stripAmoraInternalArtifacts } from "@hanbang/shared/amora-visible-text";
@@ -3938,6 +3939,9 @@ export async function POST(request: Request) {
     oldestFirstRows: canonicalRows,
     providerMessages,
   });
+  const senderConfirmedRole = !isDemo && allowsStoredProviderContext && actorId
+    ? await readChatActorDisplayRole(getServiceClient(), actorId)
+    : "unavailable";
   const promptContext = {
     // 준비 순서 목록은 시작점을 묻는 턴에만 싣는다 — 프롬프트 상한에 여유가 없다.
     startingPointAsked: asksWhereToStart(lastUserText),
@@ -3953,6 +3957,7 @@ export async function POST(request: Request) {
     // 프롬프트의 접두어 규칙이 런타임과 같은 문자열을 쓰게 한다.
     neutralMemberPresentation: usesNeutralMemberPresentation,
     senderName: safeSenderName,
+    senderConfirmedRole,
     // Legacy booking rows are outside the current web MVP and are not sent
     // to the model merely because they still exist in the database.
     bookings: [],

@@ -568,8 +568,14 @@ export default function ScheduleScreen() {
     let identity: { ownerId: string; coupleId: string } | null = null;
 
     try {
-      const { data: { user } } = await supabase.auth.getUser();
+      const { data: { user }, error: userError } = await supabase.auth.getUser();
       if (scheduleLoadSequenceRef.current !== loadSequence) return null;
+
+      if (userError) {
+        scheduleSessionFenceRef.setOwner(null);
+        clearIdentityBoundState(null);
+        throw userError;
+      }
 
       if (!user) {
         scheduleSessionFenceRef.setOwner(null);
@@ -583,12 +589,13 @@ export default function ScheduleScreen() {
         setProfileId(user.id);
       }
 
-      const { data: profile } = await supabase
+      const { data: profile, error: profileError } = await supabase
         .from("profiles")
         .select("couple_id")
         .eq("id", user.id)
         .single();
       if (scheduleLoadSequenceRef.current !== loadSequence) return null;
+      if (profileError) throw profileError;
 
       if (!profile?.couple_id) {
         scheduleSessionFenceRef.clearCouple(user.id);

@@ -18,31 +18,34 @@ export async function GET(req: NextRequest) {
     }
 
     // 프로필에서 couple_id 가져오기
-    const { data: profile } = await supabase
+    const { data: profile, error: profileError } = await supabase
       .from("profiles")
       .select("couple_id")
       .eq("id", user.id)
       .single();
+    if (profileError) throw profileError;
 
     if (!profile?.couple_id) {
       return NextResponse.json({ bookings: [] });
     }
 
-    const { data: bookingRows } = await supabase
+    const { data: bookingRows, error: bookingsError } = await supabase
       .from("vendor_bookings")
       .select("*")
       .eq("couple_id", profile.couple_id)
       .order("booking_date", { ascending: false });
+    if (bookingsError) throw bookingsError;
 
     // 업체명 가져오기
     const vendorIds = [...new Set((bookingRows ?? []).map((b) => b.vendor_id))];
-    const { data: vendors } = vendorIds.length > 0
+    const { data: vendors, error: vendorsError } = vendorIds.length > 0
       ? await createAdminClient()
           .from("vendors")
           .select("id, name")
           .in("id", vendorIds)
           .eq("status", "approved")
-      : { data: [] };
+      : { data: [], error: null };
+    if (vendorsError) throw vendorsError;
 
     const vendorMap = Object.fromEntries((vendors ?? []).map((v) => [v.id, v.name]));
 

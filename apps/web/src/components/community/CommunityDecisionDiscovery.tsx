@@ -48,7 +48,7 @@ const CONTRACT_PHASE_LABELS: Record<CommunityDecisionFeedItem["contractPhase"], 
 
 const STATE_LABELS: Record<CommunityDecisionFeedItem["state"], string> = {
   open: "답변 기다리는 중",
-  answered: "사람 답변 도착",
+  answered: "답변 도착",
   resolved: "결정 정리됨",
   followup_scheduled: "결과를 기다리는 중",
   completed: "결과가 돌아옴",
@@ -401,7 +401,7 @@ export default function CommunityDecisionDiscovery({
         <div className="flex flex-col gap-3 px-4 py-3 sm:flex-row sm:items-end sm:justify-between sm:px-5">
           <div className="min-w-0">
             <p className="text-[11px] font-semibold text-[var(--hb-accent-hover)]">
-              사람의 실제 경험
+              회원이 남긴 질문과 기록
             </p>
             <h2
               id="community-decision-discovery-title"

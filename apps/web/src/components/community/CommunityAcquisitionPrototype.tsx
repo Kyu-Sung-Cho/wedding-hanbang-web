@@ -34,7 +34,7 @@ const variants: Array<{
 }> = [
   { id: "decision", shortLabel: "A", label: "결정 검색엔진" },
   { id: "stories", shortLabel: "B", label: "결정 매거진" },
-  { id: "clinic", shortLabel: "C", label: "사람 답변 클리닉" },
+  { id: "clinic", shortLabel: "C", label: "질문·답변 클리닉" },
 ];
 
 const categoryLabels: Record<string, string> = {
@@ -106,7 +106,7 @@ function toDecisionCase(post: PostWithAuthor): DecisionCase {
   return {
     id: post.id,
     title: post.title,
-    excerpt: excerpt || "본문에서 실제 경험과 확인 포인트를 살펴보세요.",
+    excerpt: excerpt || "본문에서 작성 내용과 확인할 조건을 살펴보세요.",
     category: categoryLabels[post.category] ?? "결혼 준비",
     author: post.author?.nickname || "커뮤니티 멤버",
     comments: post.comment_count,
@@ -129,7 +129,7 @@ function TrustLine() {
   return (
     <div className="flex flex-wrap gap-x-5 gap-y-2 font-sans text-[12px] font-medium text-[#5f6c68]">
       <span className="inline-flex items-center gap-1.5">
-        <Users className="h-3.5 w-3.5 text-[#8F6662]" /> 사람의 경험을 먼저
+        <Users className="h-3.5 w-3.5 text-[#8F6662]" /> 작성 출처와 조건을 먼저
       </span>
       <span className="inline-flex items-center gap-1.5">
         <ShieldCheck className="h-3.5 w-3.5 text-[#8F6662]" /> 광고·운영자 글은 명확히 표시
@@ -464,7 +464,7 @@ function ClinicVariant({ cases }: { cases: DecisionCase[] }) {
           <div className="mx-auto grid w-full max-w-[1320px] gap-10 px-4 py-14 sm:px-6 sm:py-20 lg:grid-cols-[minmax(0,1.1fr)_minmax(360px,0.65fr)] lg:items-center lg:px-8 lg:py-24">
             <div>
               <p className="inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-2 font-sans text-[11px] font-bold text-[#e3cec7]">
-                <span className="h-2 w-2 rounded-full bg-[#d9a79c]" /> 사람 답변 클리닉
+                <span className="h-2 w-2 rounded-full bg-[#d9a79c]" /> 질문·답변 클리닉
               </p>
               <div role="heading" aria-level={1} className="mt-6 max-w-[780px] break-keep font-serif text-[44px] font-medium leading-[1.12] tracking-[-0.04em] sm:text-[62px] lg:text-[72px]">
                 지금 막힌 한 가지,

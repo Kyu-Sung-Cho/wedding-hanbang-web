@@ -39,9 +39,10 @@ describe("BookingsPage Seoul date rollover", () => {
   beforeEach(() => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-08-02T14:59:59.500Z"));
-    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({
-      json: vi.fn().mockResolvedValue({ bookings: [SAME_DAY_BOOKING] }),
-    }));
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(
+      JSON.stringify({ bookings: [SAME_DAY_BOOKING] }),
+      { status: 200, headers: { "Content-Type": "application/json" } },
+    )));
     container = document.createElement("div");
     document.body.appendChild(container);
     root = createRoot(container);
@@ -70,5 +71,6 @@ describe("BookingsPage Seoul date rollover", () => {
 
     expect(container.textContent).not.toContain("다가오는 요청 기록");
     expect(container.textContent).toContain("지난·취소 기록");
+    expect(fetch).toHaveBeenCalledTimes(1);
   });
 });

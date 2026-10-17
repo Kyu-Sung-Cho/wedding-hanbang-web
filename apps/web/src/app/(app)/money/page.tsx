@@ -6,6 +6,7 @@ import { useMoneyStore } from "@/stores/moneyStore";
 import type { Side, Relation, MoneyMethod, CongratulatoryMoney } from "@/types/money.types";
 import { todayYmdInKst } from "@hanbang/shared/utils";
 import { FEATURE_SUMMARY_CLASS, SUMMARY_LABEL_CLASS } from "@/components/ui/featureSummaryStyles";
+import { buildMoneyCsv } from "@/lib/money/csv";
 import {
   Plus, Search, Download, Wallet,
   Edit3, Trash2, X, Check,
@@ -19,8 +20,16 @@ const METHODS: { key: MoneyMethod; label: string }[] = [
 ];
 
 export default function MoneyPage() {
+  const owner = useAuthStore((state) => JSON.stringify([
+    state.user?.id ?? null, state.couple?.id ?? null, state.isDemo,
+  ]));
+  // 같은 커플의 다른 계정이어도 미전송 폼·확인창을 넘겨주지 않는다.
+  return <MoneyContent key={owner} />;
+}
+
+function MoneyContent() {
   const { couple } = useAuthStore();
-  const { moneyList, moneyLoading, loadMoney, addMoney, updateMoney, deleteMoney } = useMoneyStore();
+  const { moneyList, moneyLoading, error: loadError, loadMoney, addMoney, updateMoney, deleteMoney } = useMoneyStore();
   const [showForm, setShowForm] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
@@ -43,7 +52,7 @@ export default function MoneyPage() {
   });
 
   useEffect(() => {
-    if (couple?.id) loadMoney(couple.id);
+    if (couple?.id) void loadMoney(couple.id).catch(() => undefined);
   }, [couple?.id, loadMoney]);
 
   // 필터링된 목록
@@ -66,9 +75,10 @@ export default function MoneyPage() {
     const total = moneyList.reduce((s, m) => s + m.amount, 0);
     const groomTotal = moneyList.filter((m) => m.side === "groom").reduce((s, m) => s + m.amount, 0);
     const brideTotal = moneyList.filter((m) => m.side === "bride").reduce((s, m) => s + m.amount, 0);
+    const jointTotal = moneyList.filter((m) => m.side === "both").reduce((s, m) => s + m.amount, 0);
     const count = moneyList.length;
     const avg = count > 0 ? Math.round(total / count) : 0;
-    return { total, groomTotal, brideTotal, count, avg };
+    return { total, groomTotal, brideTotal, jointTotal, count, avg };
   }, [moneyList]);
 
   const resetForm = () => {
@@ -152,11 +162,7 @@ export default function MoneyPage() {
 
   // CSV 다운로드
   const handleExportCSV = () => {
-    const header = "이름,금액,신랑/신부,관계,수단,메모,날짜\n";
-    const rows = moneyList.map((m) =>
-      [m.guest_name, m.amount, m.side === "groom" ? "신랑" : m.side === "bride" ? "신부" : "공통", m.relation ?? "", m.method, m.memo ?? "", m.received_at].join(",")
-    ).join("\n");
-    const blob = new Blob(["\uFEFF" + header + rows], { type: "text/csv;charset=utf-8" });
+    const blob = new Blob([buildMoneyCsv(moneyList)], { type: "text/csv;charset=utf-8" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
@@ -238,9 +244,12 @@ export default function MoneyPage() {
           </p>
         </div>
         <div className="min-w-0">
-          <p className={`${SUMMARY_LABEL_CLASS} mb-2`}>신랑 / 신부</p>
+          <p className={`${SUMMARY_LABEL_CLASS} mb-2`}>{stats.jointTotal !== 0 ? "신랑 / 신부 / 공동" : "신랑 / 신부"}</p>
           <p className="text-sm text-[var(--hb-summary-label,#624A3C)] mt-1">신랑 <span className="font-medium text-[var(--hb-summary-ink,#382F2B)]">{formatMoney(stats.groomTotal)}</span></p>
           <p className="text-sm text-[var(--hb-summary-label,#624A3C)] mt-0.5">신부 <span className="font-medium text-[var(--hb-summary-ink,#382F2B)]">{formatMoney(stats.brideTotal)}</span></p>
+          {stats.jointTotal !== 0 && (
+            <p className="text-sm text-[var(--hb-summary-label,#624A3C)] mt-0.5">공동 <span className="font-medium text-[var(--hb-summary-ink,#382F2B)]">{formatMoney(stats.jointTotal)}</span></p>
+          )}
         </div>
       </div>
       </section>
@@ -252,13 +261,14 @@ export default function MoneyPage() {
             <h2 className="font-serif-kr text-[var(--hb-text-strong)]">
               {editId ? "축의금 수정" : "축의금 추가"}
             </h2>
-            <button onClick={resetForm} className="text-[var(--hb-text-muted)] hover:text-[var(--hb-accent-hover)]">
+            <button onClick={resetForm} aria-label="축의금 폼 닫기" className="text-[var(--hb-text-muted)] hover:text-[var(--hb-accent-hover)]">
               <X className="w-6 h-6" />
             </button>
           </div>
           <div className="grid grid-cols-2 gap-3">
             <input
               type="text"
+              aria-label="하객 이름"
               value={form.guest_name}
               onChange={(e) => setForm({ ...form, guest_name: e.target.value })}
               placeholder="이름"
@@ -266,6 +276,7 @@ export default function MoneyPage() {
             />
             <input
               type="number"
+              aria-label="축의금 금액 (원)"
               value={form.amount}
               onChange={(e) => setForm({ ...form, amount: e.target.value })}
               placeholder="금액"
@@ -285,6 +296,7 @@ export default function MoneyPage() {
               ))}
             </div>
             <select
+              aria-label="관계"
               value={form.relation}
               onChange={(e) => setForm({ ...form, relation: e.target.value })}
               className="px-4 py-3 rounded-[6px] bg-[var(--hb-surface-hover)] text-base text-[var(--hb-text-strong)] focus:outline-none focus:ring-2 ring-[rgba(54,83,78,0.30)]"
@@ -307,6 +319,7 @@ export default function MoneyPage() {
             </div>
             <input
               type="date"
+              aria-label="받은 날짜"
               value={form.received_at}
               onChange={(e) => setForm({ ...form, received_at: e.target.value })}
               className="px-4 py-3 rounded-[6px] bg-[var(--hb-surface-hover)] text-base text-[var(--hb-text-strong)] focus:outline-none focus:ring-2 ring-[rgba(54,83,78,0.30)]"
@@ -314,6 +327,7 @@ export default function MoneyPage() {
           </div>
           <input
             type="text"
+            aria-label="메모"
             value={form.memo}
             onChange={(e) => setForm({ ...form, memo: e.target.value })}
             placeholder="메모 (선택)"
@@ -370,6 +384,20 @@ export default function MoneyPage() {
       {moneyLoading ? (
         <div className="flex items-center justify-center py-20">
           <div className="w-8 h-8 border-2 border-[var(--hb-hairline)] border-t-transparent rounded-full animate-spin" />
+        </div>
+      ) : loadError ? (
+        <div role="alert" className="rounded-[6px] bg-[#FCEDEA] p-6 text-sm leading-6 text-[#8A3D2E]">
+          <p>{loadError}</p>
+          <button
+            aria-label="축의금 다시 불러오기"
+            onClick={() => {
+              if (couple?.id) void loadMoney(couple.id).catch(() => undefined);
+            }}
+            className="mt-3 font-medium underline underline-offset-4"
+          >
+            다시 불러오기
+          </button>
+          <a href="/login" className="ml-4 font-medium underline underline-offset-4">로그인 확인</a>
         </div>
       ) : filtered.length === 0 ? (
         <div className="text-center py-20 bg-white rounded-[6px] shadow-[var(--shadow-raised)]">

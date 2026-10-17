@@ -24,7 +24,8 @@ const REASONS = [
 ] as const;
 type InviteState = "none" | "loading" | "waiting" | "full" | "not_found" | "invalid" | "error";
 
-export default function WeddingCodeClient() {
+export default function WeddingCodeClient({ embedded = false }: { embedded?: boolean } = {}) {
+  const Root = embedded ? "div" : "main";
   const router = useRouter();
   const [ready, setReady] = useState(false);
   const [step, setStep] = useState<"intro" | "questions" | "review">("intro");
@@ -138,7 +139,7 @@ export default function WeddingCodeClient() {
   const inviteBlocked = ["loading", "full", "not_found", "invalid", "error"].includes(inviteState);
   const ownInvite = previous?.coupleToken === inviteToken && inviteToken !== null;
 
-  return <main className="min-h-screen bg-[#FDFCF7] px-5 py-8 text-[#3A2A27] sm:py-12"><div className="mx-auto max-w-xl">
+  return <Root className="min-h-screen bg-[#FDFCF7] px-5 py-8 text-[#3A2A27] sm:py-12"><div className="mx-auto max-w-xl">
     <Link href="/wedding-code" className="text-xs font-semibold tracking-[0.15em] text-[#8F6662]">WEDDING CODE</Link>
     <h1 className="mt-3 text-2xl font-semibold">우리의 결혼 준비 방식</h1>
     {!ready ? <p className="mt-8" role="status">저장된 답을 확인하고 있어요.</p> : <>
@@ -190,5 +191,5 @@ export default function WeddingCodeClient() {
       </section>}
       {error && <p role="alert" className="mt-6 rounded-lg border border-[#D8B8B2] bg-[#FFF7F5] p-4 text-sm leading-7 text-[#7D4540]">{error}</p>}
     </>}
-  </div></main>;
+  </div></Root>;
 }

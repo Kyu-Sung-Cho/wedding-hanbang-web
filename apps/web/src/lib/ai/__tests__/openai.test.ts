@@ -4,6 +4,7 @@ import OpenAI, {
   APIUserAbortError,
 } from "openai";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { WEDDING_TOOLS } from "../tools";
 import {
   buildMultimodalContent,
   chatWithToolsStream as rawChatWithToolsStream,
@@ -124,6 +125,49 @@ describe("OpenAI Responses adapter", () => {
     else process.env.AMORA_OPENAI_ENABLED = originalEnabled;
     if (originalApiKey === undefined) delete process.env.OPENAI_API_KEY;
     else process.env.OPENAI_API_KEY = originalApiKey;
+  });
+
+  it.each([
+    { region: "seoul", parseError: undefined },
+    { region: "seoul_gangnam3", parseError: undefined },
+    { region: "seoul_etc", parseError: undefined },
+    { region: "서울", parseError: "schema_validation" },
+  ] as const)("validates the explicit official-price region $region without coercing unknown input", async ({ region, parseError }) => {
+    const tool = WEDDING_TOOLS.find((entry) => entry.name === "get_market_price")!;
+    const { client } = fakeClient([{ type: "response.completed", response: completedResponse([{
+      id: "fc_seoul_price", type: "function_call", status: "completed", call_id: "call_seoul_price",
+      name: tool.name, arguments: JSON.stringify({ category: "studio", region }),
+    }], "") }]);
+    const result = await chatWithToolsStream({
+      systemPrompt: "공시 가격은 조회 결과의 지역과 표본을 구분합니다.",
+      input: "서울 전체 스튜디오의 공시 가격을 확인해줘.", tools: [tool], beforeGeneration: () => {}, client,
+    });
+    expect(result.toolCalls).toEqual([{
+      callId: "call_seoul_price", name: "get_market_price",
+      input: { category: "studio", region }, parseError,
+    }]);
+  });
+
+  it.each([
+    { input: { category: "studio", region: "seoul_gangnam3", itemType: null }, valid: true },
+    { input: { category: "studio", region: "seoul", itemType: null }, valid: true },
+    { input: { category: "studio", region: null, itemType: null }, valid: true },
+    { input: { category: null, region: "seoul", itemType: null }, valid: false },
+    { input: { region: "seoul", itemType: null }, valid: false },
+    { input: { category: "studio", region: 1, itemType: null }, valid: false },
+    { input: { category: "studio", region: "seoul", itemType: [] }, valid: false },
+  ])("allows optional null without weakening required category or field types: $input", async ({ input, valid }) => {
+    const tool = WEDDING_TOOLS.find((entry) => entry.name === "get_market_price")!;
+    const { client } = fakeClient([{ type: "response.completed", response: completedResponse([{
+      id: "fc_optional_price", type: "function_call", status: "completed", call_id: "call_optional_price",
+      name: tool.name, arguments: JSON.stringify(input),
+    }], "") }]);
+    const result = await chatWithToolsStream({
+      systemPrompt: "공시 가격은 요청한 범위만 조회합니다.", input: "공시 가격을 확인해줘.",
+      tools: [tool], beforeGeneration: () => {}, client,
+    });
+    expect(result.toolCalls[0]).toMatchObject({ name: "get_market_price", input });
+    expect(result.toolCalls[0]?.parseError).toBe(valid ? undefined : "schema_validation");
   });
 
   it("never lets an injected client bypass the production kill switch", async () => {

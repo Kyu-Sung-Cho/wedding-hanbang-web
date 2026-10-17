@@ -156,6 +156,12 @@
   existing action tokens. Search ranks exact guide titles before title/body matches,
   retaining preparation order when no query is entered.
 
+- **Service frame consistency (2026-10-17 QA):** Settings uses the compact service
+  header and 220px sidebar. Its existing content padding, editing flows and embedded
+  assistant remain; static section cards use the shared hairline while dialogs keep
+  their overlay elevation. The public manners sidebar keeps WeddingCode in the same
+  position and follows the signed-in sidebar's community visibility gate.
+
 - **Warm interactions (2026-09-11):** The user requested warmer selected/clicked
   controls after reviewing the HTML-aligned screens. Selected navigation, filters,
   tabs and calendar dates use Dusty Mauve pale (`rose.pale`) with `rose[700]` text

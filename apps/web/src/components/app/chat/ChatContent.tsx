@@ -491,6 +491,7 @@ function getCommunityAskCue(
 }
 
 export default function ChatContent({ embedded = false }: ChatContentProps = {}) {
+  const router = useRouter();
   const navigationTarget = useAmoraNavigationTarget();
   const { profile, couple, journey, partner, isDemo, isInitialized: authInitialized, isLoading: authLoading } = useAuthStore();
   const amoraPersonalization = useAmoraPersonalization(
@@ -961,7 +962,13 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
     if (!handleScopeChange(nextScope)) return;
     // 체험은 늘 '함께'로 열리므로 적어 둘 이유가 없다.
     if (!isDemo) rememberAmoraLane(profile?.id, nextScope);
-  }, [handleScopeChange, isDemo, profile?.id]);
+    if (!embedded) {
+      const destination = new URL(window.location.href);
+      // 앞선 전환이 아직 주소에 반영되기 전 되돌아 눌러도 최신 선택이 이긴다.
+      destination.searchParams.set("scope", nextScope);
+      router.push(`${destination.pathname}${destination.search}${destination.hash}`, { scroll: false });
+    }
+  }, [embedded, handleScopeChange, isDemo, profile?.id, router]);
 
   useEffect(() => {
     if (!isDemo || activeTab !== "private") return;
@@ -1030,7 +1037,6 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
     privateHandoffPending: searchParams.has(WEDDING_TASTE_CHAT_PARAM),
     drafts: composerDrafts, setDrafts: setComposerDrafts,
   });
-  const router = useRouter();
   const preparationRouterRef = useRef(router);
   preparationRouterRef.current = router;
   const preparationValues = searchParams.getAll(AMORA_PREPARATION_SOURCE_PARAM);
@@ -3440,16 +3446,6 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
             >
               <X className="h-3.5 w-3.5" aria-hidden="true" />
             </Button>
-          </div>
-        )}
-
-        {/* Private 탭 안내 (탭 들어가면 항상 보임) */}
-        {activeTab === "private" && (
-          <div className="mb-2 px-3 py-2.5 rounded-[6px] bg-[#5a6147]/8 border border-[#5a6147]/20 flex items-start gap-2 text-[12.5px] text-[#5a6147] leading-relaxed">
-            <Lock className="w-3.5 h-3.5 flex-shrink-0 mt-[2px]" />
-            <span>
-              비공개 상담 — 이 탭의 대화는 <strong>서비스에 저장되지만 상대방에게는 보이지 않아요</strong>. 아모라와 1:1로 이야기할 수 있어요.
-            </span>
           </div>
         )}
 

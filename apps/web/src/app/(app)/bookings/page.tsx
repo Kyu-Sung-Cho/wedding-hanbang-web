@@ -38,21 +38,31 @@ export default function BookingsPage() {
   const [bookings, setBookings] = useState<BookingWithExtra[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [loadVersion, setLoadVersion] = useState(0);
   const [classificationTime, setClassificationTime] = useState(() => new Date());
 
   useEffect(() => {
+    let active = true;
     fetch("/api/bookings/mine")
-      .then((r) => r.json())
+      .then(async (response) => {
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || "예약 요청 기록을 불러오지 못했어요. 다시 시도해 주세요.");
+        return data;
+      })
       .then((data) => {
+        if (!active) return;
         if (data.error) {
           setError(data.error);
         } else {
           setBookings(data.bookings ?? []);
         }
       })
-      .catch(() => setError("예약 요청 기록을 불러오는데 실패했습니다."))
-      .finally(() => setLoading(false));
-  }, []);
+      .catch((failure) => {
+        if (active) setError(failure instanceof Error ? failure.message : "예약 요청 기록을 불러오지 못했어요.");
+      })
+      .finally(() => { if (active) setLoading(false); });
+    return () => { active = false; };
+  }, [loadVersion]);
 
   useEffect(() => scheduleSeoulDateRollover(setClassificationTime), []);
 
@@ -66,9 +76,20 @@ export default function BookingsPage() {
 
   if (error) {
     return (
-      <div className="max-w-[700px] mx-auto text-center py-20">
+      <div role="alert" className="max-w-[700px] mx-auto text-center py-20">
         <AlertCircle className="w-10 h-10 text-danger-700 mx-auto mb-3" />
         <p className="text-base text-[var(--hb-text-body)]">{error}</p>
+        <button
+          aria-label="예약 요청 기록 다시 불러오기"
+          onClick={() => {
+            setError(null);
+            setLoading(true);
+            setLoadVersion((version) => version + 1);
+          }}
+          className="mt-4 text-sm font-medium underline underline-offset-4"
+        >
+          다시 불러오기
+        </button>
       </div>
     );
   }

@@ -42,7 +42,7 @@ export interface ChecklistGroup {
 
 export const CHECKLIST_GROUPS: Record<string, readonly ChecklistGroup[]> = {
   greeting: [
-    { title: "01 · 만나뵙기 전에", itemIds: ["greeting_01", "greeting_02", "greeting_03"] },
+    { title: "01 · 만나 뵙기 전에", itemIds: ["greeting_01", "greeting_02", "greeting_03"] },
     { title: "02 · 찾아뵐 때", itemIds: ["greeting_04"] },
     { title: "03 · 다녀와서", itemIds: ["greeting_05"] },
   ],
