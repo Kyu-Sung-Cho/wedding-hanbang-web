@@ -679,10 +679,10 @@ export default function CohortChatScreen() {
 
   /* ── 스크린 탭 ── */
 
-  const SCREEN_TABS: { key: ScreenTab; label: string; icon: typeof MessageSquare }[] = [
+  const SCREEN_TABS: { key: ScreenTab; label: string; icon: typeof MessageSquare; disabled?: boolean }[] = [
     { key: "chat", label: "채팅", icon: MessageSquare },
-    { key: "info", label: "정보판", icon: Info },
-    { key: "timeline", label: "타임라인", icon: Clock },
+    { key: "info", label: "정보판", icon: Info, disabled: true },
+    { key: "timeline", label: "타임라인", icon: Clock, disabled: true },
   ];
 
   if (accessState === "checking" || (loading && accessState !== "member")) {
@@ -786,6 +786,10 @@ export default function CohortChatScreen() {
               key={tab.key}
               style={[styles.screenTab, active && styles.screenTabActive]}
               onPress={() => setActiveTab(tab.key)}
+              disabled={tab.disabled}
+              accessibilityRole="tab"
+              accessibilityLabel={`${tab.label}${tab.disabled ? ", 준비 중" : ""}`}
+              accessibilityState={{ selected: active, disabled: Boolean(tab.disabled) }}
             >
               <Icon
                 size={16}
@@ -798,6 +802,7 @@ export default function CohortChatScreen() {
                 ]}
               >
                 {tab.label}
+                {tab.disabled && <Text style={styles.screenTabUnavailableText}>{"\n"}준비 중</Text>}
               </Text>
               {active && <View style={styles.screenTabIndicator} />}
             </Pressable>
@@ -1044,6 +1049,7 @@ const styles = StyleSheet.create({
   screenTabActive: {},
   screenTabText: { fontSize: 14, color: colors.paper.inkFaint },
   screenTabTextActive: { color: colors.noir[800], fontWeight: "600" },
+  screenTabUnavailableText: { fontSize: 12, color: colors.paper.inkFaint },
   screenTabIndicator: {
     position: "absolute",
     bottom: 0,
