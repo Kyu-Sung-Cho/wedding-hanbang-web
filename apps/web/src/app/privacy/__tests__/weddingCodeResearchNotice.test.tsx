@@ -29,6 +29,15 @@ function render(): string {
   return renderToStaticMarkup(<PrivacyPage />).replace(/<[^>]+>/g, " ").replace(/\s+/g, " ");
 }
 
+/** `label` 로 시작하는 방침 항목(li) 하나의 글. 항목 경계를 보려고 태그를 지우기 전의 마크업에서 자른다. */
+function policyItemText(label: string): string {
+  const html = renderToStaticMarkup(<PrivacyPage />);
+  const start = html.indexOf(`<li>${label}`);
+  expect(start, `「${label}」 항목을 못 찾았다. 이 검사가 헛돈다`).toBeGreaterThan(-1);
+  const end = html.indexOf("</li>", start);
+  return html.slice(start, end).replace(/<[^>]+>/g, " ").replace(/\s+/g, " ");
+}
+
 function kstDateLabel(iso: string): string {
   const kst = new Date(Date.parse(iso) + 9 * 60 * 60 * 1000);
   return `${kst.getUTCFullYear()}년 ${kst.getUTCMonth() + 1}월 ${kst.getUTCDate()}일부터`;
@@ -323,7 +332,26 @@ describe("30문항 개편본의 브라우저 보관과 무전송 안내", () => 
     expect(notice).toContain("기존 판의 답은 지우지 않습니다");
     expect(notice).toContain("초대와 두 사람 링크로 받은 답은 화면에만 두고 브라우저에 저장하지 않습니다");
     expect(notice).toContain("이미 전달한 링크는 회수되지 않으며");
-    expect(text).toContain("현재 공개 웨딩코드와 기존 판의 링크 화면에서는 페이지 조회와 흐름 이벤트를 기록하지 않습니다");
-    expect(text).toContain("브라우저 오류·성능 이벤트도 수집 서비스로 전송하지 않습니다");
+    // 제3조 공개 웨딩코드 항목·제3조 라운지 항목과 제8조가 같은 말을 한다. 한 곳만 고치면 조항끼리 서로 다른 말을 한다.
+    // 셋째 문장: 떠나는 이동이 확정되기 전에 시작한 목적지 이동 기록은 나간다(instrumentation-client.ts isDestinationNavigation).
+    const count = (sentence: string) => text.split(sentence).length - 1;
+    for (const sentence of [
+      "웨딩코드 화면에 머무는 동안 생긴 브라우저 오류와 누른 곳의 기록, 화면 속도를 잰 기록도 수집 서비스로 보내지 않습니다.",
+      "웨딩코드 화면에서 다른 화면으로 넘어가는 동안에는 새 화면을 불러온 기록(요청한 주소의 경로, 걸린 시간, 화면이 멈춘 시간)이 전송될 수 있으며, 여기에는 고른 답과 문항 정보가 들어가지 않습니다.",
+    ]) expect(count(sentence), sentence).toBe(3);
+    // 제8조는 두 화면을 한 문장으로 말한다.
+    expect(count("로그인한 웹 라운지의 웨딩코드 화면(‘이전에 계정에 저장한 답 보기’ 포함)과 공개 웨딩코드·기존 판 링크 화면에서는 페이지 조회와 흐름 이벤트를 기록하지 않습니다.")).toBe(1);
+    // 제3조는 라운지를 「로그인 없이 이용하는 공개 웨딩코드」 항목 밖, 자기 항목에 둔다(PR #505 감사 L4). 로그인한 사람이 건너뛰지 않게.
+    const publicItem = policyItemText("로그인 없이 이용하는 공개 웨딩코드:");
+    const loungeItem = policyItemText("로그인한 웹 라운지의 웨딩코드:");
+    expect(publicItem).toContain("공개 웨딩코드·기존 판 링크 화면에서는 페이지 조회와 흐름 이벤트를 기록하지 않습니다.");
+    expect(publicItem).not.toContain("라운지");
+    expect(loungeItem).toContain("웨딩코드 화면(‘이전에 계정에 저장한 답 보기’ 포함)에서는 페이지 조회와 흐름 이벤트를 기록하지 않습니다.");
+    // 로그인·첫 정보 입력 화면의 이용 통계는 쿼리 안의 라운지 주소를 막지 않는다(analyticsPrivacy.ts queryLocationTouchesLikertPath).
+    // 제3조 라운지 항목과 제8조에 같은 문장이 있다.
+    const redirectSentence = "로그인하지 않은 채 라운지 웨딩코드 주소를 열면 로그인 화면이나 첫 정보 입력 화면의 주소에 돌아갈 화면의 경로가 붙고, 그 화면의 이용 통계에는 이 경로가 남을 수 있습니다.";
+    expect(loungeItem).toContain(redirectSentence);
+    expect(count(redirectSentence)).toBe(2);
+    expect(text).not.toContain("성능 이벤트도 수집 서비스로 전송하지 않습니다");
   });
 });

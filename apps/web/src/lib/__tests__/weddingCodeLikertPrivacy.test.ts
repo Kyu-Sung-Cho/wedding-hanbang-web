@@ -16,6 +16,61 @@ describe("Likert answer-link analytics privacy", () => {
     }
   });
 
+  // 로그인한 웹 라운지 웨딩코드(2026-10-16 wc64 이전). 브라우저 주소와 내부 라우트 둘 다, 하위 경로까지.
+  it("suppresses the signed-in lounge WeddingCode routes, including the previous-answers view", () => {
+    for (const pathname of ["/preparation-style", "/preparation-style/", "/wedding/preparation-style", "/wedding/preparation-style/", "/wedding/preparation-style/result"]) {
+      expect(isWeddingCodeLikertPath(pathname)).toBe(true);
+      expect(isAnalyticsSuppressedPath(pathname)).toBe(true);
+      expect(isAnalyticsSuppressedLocation(pathname, new URLSearchParams("view=previous"))).toBe(true);
+    }
+    for (const location of [
+      "https://hanbang.ai/wedding/preparation-style?view=previous",
+      "/wedding/preparation-style#synthetic",
+      "/preparation-style?view=previous",
+    ]) {
+      expect(analyticsCaptureTouchesLikertPath({ properties: { $current_url: location } }, "/landing")).toBe(true);
+    }
+  });
+
+  // 감사 L7(FIX-18). 로그아웃 상태로 라운지를 열면 미들웨어가 로그인·온보딩 주소의 `?redirect=` 에 라운지 주소를 싣는다.
+  // 그 화면의 이벤트는 라운지 이벤트가 아니고 redirect 값에는 답이 없으니 버리지 않는다. 공개 답 링크 경로는 쿼리 안이어도 막는다.
+  it("keeps login and onboarding events whose redirect points at the lounge, but still drops public answer-link redirects", () => {
+    const at = (gate: string, redirect: string) => `${gate}?${new URLSearchParams({ redirect })}`;
+    for (const location of [
+      at("/login", "/wedding/preparation-style"),
+      at("/login", "/wedding/preparation-style?view=previous"),
+      at("/wedding/onboarding", "/wedding/preparation-style"),
+      `https://hanbang.ai${at("/wedding/onboarding", "/preparation-style?v=v3.1-preferences")}`,
+      at("/wedding/onboarding", at("/login", "/wedding/preparation-style?view=previous")),
+    ]) {
+      const gatePath = new URL(location, "https://hanbang.invalid").pathname;
+      expect(analyticsCaptureTouchesLikertPath({ properties: { $current_url: location } }, gatePath), location).toBe(false);
+      expect(analyticsCaptureTouchesSuppressedPath({ properties: { $current_url: location } }, gatePath), location).toBe(false);
+    }
+    for (const location of [
+      at("/login", "/wedding-code-next/result"),
+      at("/login", "/wedding-code?v=36"),
+      at("/wedding/onboarding", "/wedding-code"),
+      // 라운지 주소라도 판·화면 이름 밖의 쿼리(초대 코드, 옛 답)가 붙으면 계속 막는다.
+      at("/login", "/wedding/preparation-style?ct=synthetic-invite"),
+      at("/login", "/preparation-style?v=v3.1-preferences&a=synthetic-answer"),
+    ]) {
+      expect(analyticsCaptureTouchesLikertPath({ properties: { $current_url: location } }, "/login"), location).toBe(true);
+    }
+    // 라운지 화면에서 생긴 이벤트와 속성에 라운지 주소가 직접 든 이벤트는 그대로 막는다.
+    expect(analyticsCaptureTouchesLikertPath({ properties: { $current_url: "/wedding/preparation-style" } }, "/login")).toBe(true);
+    expect(analyticsCaptureTouchesLikertPath({ properties: {} }, "/wedding/preparation-style")).toBe(true);
+  });
+
+  it("does not treat routes that only start with the lounge path as the lounge", () => {
+    for (const pathname of ["/preparation-style-copy", "/wedding/preparation-style-copy", "/wedding/preparation-styles", "/wedding", "/wedding/budget"]) {
+      expect(isWeddingCodeLikertPath(pathname)).toBe(false);
+    }
+    for (const location of ["/preparation-style-copy?view=previous", "https://hanbang.ai/wedding/preparation-style-copy#synthetic"]) {
+      expect(analyticsCaptureTouchesLikertPath({ properties: { $current_url: location } }, "/landing")).toBe(false);
+    }
+  });
+
   it("keeps route boundaries exact and preserves existing suppressed routes", () => {
     for (const pathname of ["/wedding-code-copy", "/wedding-codeish", "/wedding-code-next-copy", "/wedding-code-nextish", "/landing", null]) {
       expect(isAnalyticsSuppressedPath(pathname)).toBe(false);

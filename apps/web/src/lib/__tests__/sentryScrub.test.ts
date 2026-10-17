@@ -5,9 +5,11 @@ import { describe, expect, it } from "vitest";
 import {
   sanitizeSentryBreadcrumb,
   sanitizeSentryEvent,
+  sanitizeSentrySpan,
   sanitizeSentryTransaction,
   type ScrubbableBreadcrumb,
   type ScrubbableEvent,
+  type ScrubbableSpan,
   type ScrubbableTransaction,
 } from "@hanbang/shared";
 
@@ -146,6 +148,184 @@ describe("shared Sentry scrubber", () => {
     expect(event.contexts).toEqual({ culture: { locale: "ko-KR" }, react: { version: "19" } });
   });
 
+  // 선택자 칸(lcp.element·cls.source.*)이 아닌 문맥 문자열에도 요소 묘사가 섞일 수 있다. 그 안의 aria-label 값은 지운다.
+  it("blanks aria-label values inside other context strings that are not addresses", () => {
+    const event = sanitizeSentryEvent<ScrubbableEvent>({ contexts: { react: { componentStack: 'button[aria-label="D 미리 매듭짓는 쪽 69%"]' } } });
+
+    expect(JSON.stringify(event)).not.toContain("69%");
+    expect((event.contexts as { react: { componentStack: string } }).react.componentStack).toMatch(/^button\[aria-label=/u);
+  });
+
+  // 브라우저 SDK 의 INP·LCP·CLS span 은 이름과 data 에 눌린 요소의 선택자를 싣고, 선택자에는 aria-label 값이
+  // 그대로 붙는다. 웨딩코드 wc64 막대의 aria-label 은 본인이 고른 답의 비율이다.
+  it("removes user text from aria-label values in span names and span data", () => {
+    const span = sanitizeSentrySpan<ScrubbableSpan>({
+      op: "ui.interaction.click",
+      description: 'body > div > button[aria-label="D 미리 매듭짓는 쪽 69%"]',
+      data: {
+        "sentry.op": "ui.interaction.click",
+        "lcp.element": 'div.bar[aria-label="D 미리 매듭짓는 쪽 69%"]',
+        "cls.source.1": 'img[alt="예비신부수민"]',
+        "inp.value": 120,
+        "url.full": "https://hanbang.ai/wedding/preparation-style?view=previous#synthetic",
+      },
+    });
+
+    expect(span).not.toBeNull();
+    expect(JSON.stringify(span)).not.toMatch(/69%|미리 매듭|예비신부수민|view=previous|#synthetic/u);
+    expect(span.description).toBe("body > div > button");
+    const data = span.data as Record<string, unknown>;
+    expect(data["lcp.element"]).toBe("div");
+    expect(data["cls.source.1"]).toBe("img");
+    expect(data["inp.value"]).toBe(120);
+    expect(data["sentry.op"]).toBe("ui.interaction.click");
+    expect(data["url.full"]).toBe("https://hanbang.ai/wedding/preparation-style");
+    expect(span.op).toBe("ui.interaction.click");
+  });
+
+  // INP·CLS·LCP span 이름은 요소 선택자다(browser-utils 10.66 `htmlTreeAsString`). id·class 에 문항 번호와 고른
+  // 상태가 실리므로 모든 화면에서 태그 이름만 남긴다. op 와 측정값은 남아야 어느 화면이 느렸는지 안다.
+  it.each([
+    ["ui.interaction.click", "h2#wc64-stmt-PLAN-A1.selected", "h2"],
+    ["ui.interaction.press", 'body > div.lounge > button#wc64-opt-SYNTHETIC-3.is-on[type="button"][aria-label="SYNTHETIC-LABEL > x"]', "body > div > button"],
+    ["ui.webvital.cls", "main > section#wc64-result.SYNTHETIC-CLASS > p.bar", "main > section > p"],
+    ["ui.webvital.lcp", 'div.flex.[&>svg]:w-4 > img#hero-SYNTHETIC[alt="SYNTHETIC-ALT"]', "div > img"],
+    ["ui.webvital.lcp", "Largest contentful paint", "Largest contentful paint"],
+    ["ui.webvital.cls", "Layout shift", "Layout shift"],
+    ["ui.interaction.click", "<unknown>", "<unknown>"],
+    ["ui.interaction.click", "#SYNTHETIC-ONLY-ID.SYNTHETIC-ONLY-CLASS", "[redacted]"],
+    // 속성값 안의 `"]` 때문에 남은 낱말 조각을 태그로 읽지 않는다.
+    ["ui.interaction.click", 'div > button[aria-label="a"] > SYNTHETIC-WORD"]', "div > button"],
+  ])("keeps only tag names in a %s span name (%s)", (op, description, expected) => {
+    const span = sanitizeSentrySpan<ScrubbableSpan>({
+      op,
+      description,
+      start_timestamp: 1_790_000_000.5,
+      data: { "sentry.op": op, "sentry.exclusive_time": 120, "inp.value": 88 },
+      measurements: { inp: { value: 88, unit: "millisecond" } },
+    });
+
+    expect(span.description).toBe(expected);
+    expect(span.description).not.toMatch(/SYNTHETIC|wc64|selected|lounge|#|\./u);
+    expect(span.op).toBe(op);
+    expect(span.start_timestamp).toBe(1_790_000_000.5);
+    expect(span.data).toEqual({ "sentry.op": op, "sentry.exclusive_time": 120, "inp.value": 88 });
+    expect(span.measurements).toEqual({ inp: { value: 88, unit: "millisecond" } });
+  });
+
+  it("reads the op from span data when the top-level op is missing, and leaves other spans' names alone", () => {
+    expect(sanitizeSentrySpan<ScrubbableSpan>({ description: "h2#wc64-stmt-PLAN-A1.selected", data: { "sentry.op": "ui.interaction.click" } }).description).toBe("h2");
+    expect(sanitizeSentrySpan<ScrubbableSpan>({ op: "http.client", description: "GET /api/budget", data: {} }).description).toBe("GET /api/budget");
+    expect(sanitizeSentrySpan<ScrubbableSpan>({ op: "navigation", description: "/wedding/[slug]" }).description).toBe("/wedding/[slug]");
+  });
+
+  // 절대 주소만 꼬리를 떼면 span data 에 상대 경로로 실린 초대 코드(`#` 뒤)와 쿼리가 그대로 나간다.
+  it("removes the ? and # tail of relative paths in span data and event contexts", () => {
+    const span = sanitizeSentrySpan<ScrubbableSpan>({
+      description: "body > button",
+      data: {
+        "url.path": "/invite#SYNTHETIC-INVITE-CODE",
+        "http.target": "/x?y#z",
+        nested: ["/wedding-code?a=SYNTHETIC-ANSWER#k=SYNTHETIC-KEY"],
+        "sentry.op": "ui.interaction.click",
+      },
+    });
+    const data = span.data as Record<string, unknown>;
+
+    expect(data["url.path"]).toBe("/invite");
+    expect(data["http.target"]).toBe("/x");
+    expect(data.nested).toEqual(["/wedding-code"]);
+    expect(data["sentry.op"]).toBe("ui.interaction.click");
+    expect(JSON.stringify(span)).not.toMatch(/SYNTHETIC|\?y|#z/u);
+
+    const event = sanitizeSentryEvent<ScrubbableEvent>({ contexts: { origin: { to: "/invite#SYNTHETIC-INVITE-CODE" } } });
+    expect(event.contexts).toEqual({ origin: { to: "/invite" } });
+  });
+
+  it("removes aria-label values from the LCP and CLS selectors a transaction carries in its trace context", () => {
+    const event = PAGELOAD_TRANSACTION();
+    const trace = (event.contexts as { trace: { data: Record<string, unknown> } }).trace;
+    trace.data["lcp.element"] = 'div[aria-label="D 미리 매듭짓는 쪽 69%"]';
+    trace.data["cls.source.1"] = 'button[title="SYNTHETIC-TITLE"] > span';
+    const cleaned = sanitizeSentryTransaction(event);
+    const data = (cleaned.contexts as { trace: { data: Record<string, unknown> } }).trace.data;
+
+    expect(JSON.stringify(cleaned)).not.toMatch(/69%|SYNTHETIC-TITLE/u);
+    expect(data["lcp.element"]).toBe("div");
+    expect(data["cls.source.1"]).toBe("button > span");
+    expect(data["lcp.renderTime"]).toBe(1640);
+  });
+
+  // 기본 설정(`_experiments` 없음)에서는 LCP·CLS 가 따로 선 span 이 아니라 pageload 의 trace data 에 실린다
+  // (browser-utils 10.66 `browserMetrics.js` `lcp.element`·`cls.source.N`). id·class 에 문항 번호와 고른 상태가 있으므로
+  // 모든 화면에서 태그 이름만 남긴다. span streaming 의 `browser.web_vital.` 접두 칸도 같다.
+  it("keeps only tag names in the LCP and CLS selectors of a transaction's trace context", () => {
+    const event = PAGELOAD_TRANSACTION();
+    const trace = (event.contexts as { trace: { data: Record<string, unknown> } }).trace;
+    trace.data["lcp.element"] = "main > h2#wc64-stmt-PLAN-A1.selected";
+    trace.data["cls.source.1"] = "main > section#wc64-result.SYNTHETIC-CLASS > p.bar";
+    trace.data["cls.source.2"] = "div#SYNTHETIC-ONLY-ID";
+    trace.data["browser.web_vital.lcp.element"] = "main > h2#wc64-stmt-PLAN-A2.selected";
+    trace.data["browser.web_vital.cls.source.1"] = "ul > li#wc64-opt-SYNTHETIC.is-on";
+    const cleaned = sanitizeSentryTransaction(event);
+    const data = (cleaned.contexts as { trace: { data: Record<string, unknown> } }).trace.data;
+
+    expect(data["lcp.element"]).toBe("main > h2");
+    expect(data["cls.source.1"]).toBe("main > section > p");
+    expect(data["cls.source.2"]).toBe("div");
+    expect(data["browser.web_vital.lcp.element"]).toBe("main > h2");
+    expect(data["browser.web_vital.cls.source.1"]).toBe("ul > li");
+    expect(JSON.stringify(cleaned)).not.toMatch(/wc64|SYNTHETIC|selected|is-on/u);
+    expect(data["lcp.renderTime"]).toBe(1640);
+    expect(data["url.path"]).toBe("/wedding-code");
+  });
+
+  // browser-utils 10.66 은 선택자 옆에 LCP 요소의 id 속성 원문도 싣는다(`browserMetrics.js`·`lcp.js` 의 `lcp.id`,
+  // `webVitalSpans.js` 의 `browser.web_vital.lcp.id`). wc64 의 문항 제목 id 가 그대로 나가므로 칸째로 버린다.
+  it("drops the LCP element id the SDK puts next to the selector, in trace context and in span data", () => {
+    const event = PAGELOAD_TRANSACTION();
+    const trace = (event.contexts as { trace: { data: Record<string, unknown> } }).trace;
+    trace.data["lcp.id"] = "wc64-stmt-PLAN-A1";
+    trace.data["browser.web_vital.lcp.id"] = "wc64-stmt-PLAN-A2";
+    const cleaned = sanitizeSentryTransaction(event);
+    const data = (cleaned.contexts as { trace: { data: Record<string, unknown> } }).trace.data;
+
+    expect(data).not.toHaveProperty("lcp.id");
+    expect(data).not.toHaveProperty("browser.web_vital.lcp.id");
+    expect(JSON.stringify(cleaned)).not.toContain("wc64-stmt");
+    // 옆 칸은 그대로다. 어느 화면이 느렸는지는 남는다.
+    expect(data["lcp.renderTime"]).toBe(1640);
+    expect(data["url.path"]).toBe("/wedding-code");
+
+    const span = sanitizeSentrySpan<ScrubbableSpan>({
+      op: "ui.webvital.lcp",
+      description: "Largest contentful paint",
+      data: { "sentry.op": "ui.webvital.lcp", "lcp.id": "wc64-stmt-PLAN-A1", "browser.web_vital.lcp.id": "wc64-stmt-PLAN-A2", "lcp.size": 9000 },
+    });
+    expect(span.data).not.toHaveProperty("lcp.id");
+    expect(span.data).not.toHaveProperty("browser.web_vital.lcp.id");
+    expect((span.data as Record<string, unknown>)["lcp.size"]).toBe(9000);
+  });
+
+  it("keeps only tag names in selector data of a standalone span and in interaction child span names", () => {
+    const span = sanitizeSentrySpan<ScrubbableSpan>({
+      op: "ui.webvital.lcp",
+      description: "Largest contentful paint",
+      data: { "sentry.op": "ui.webvital.lcp", "lcp.element": "main > h2#wc64-stmt-PLAN-A1.selected", "lcp.size": 9000 },
+    });
+    expect((span.data as Record<string, unknown>)["lcp.element"]).toBe("main > h2");
+    expect((span.data as Record<string, unknown>)["lcp.size"]).toBe(9000);
+
+    const event = sanitizeSentryTransaction<ScrubbableTransaction>({
+      spans: [
+        { op: "ui.interaction.click", description: "main > button#wc64-opt-PLAN-A1-5.is-on", data: {} } as never,
+        { op: "http.client", description: "GET /api/budget", data: {} } as never,
+      ],
+    });
+    expect(event.spans?.[0].description).toBe("main > button");
+    expect(event.spans?.[1].description).toBe("GET /api/budget");
+  });
+
   it("does not throw on the empty shapes a real SDK can hand it", () => {
     for (const shape of [{}, { breadcrumbs: [] }, { exception: {} }, { spans: [] }]) {
       expect(() => sanitizeSentryEvent(shape as ScrubbableTransaction)).not.toThrow();
@@ -170,6 +350,12 @@ describe("every web Sentry entry point installs the scrubber", () => {
     const server = read("web/sentry.server.config.ts");
     expect(server).toMatch(/beforeBreadcrumb/u);
     expect(server).toMatch(/sanitizeSentryBreadcrumb/u);
+  });
+
+  it("filters browser spans too, which skip beforeSend and beforeSendTransaction", () => {
+    const client = read("web/src/instrumentation-client.ts");
+    expect(client).toMatch(/beforeSendSpan:/u);
+    expect(client).toMatch(/sanitizeSentrySpan\(/u);
   });
 
   it("keeps mobile on the same shared rule instead of a private copy", () => {

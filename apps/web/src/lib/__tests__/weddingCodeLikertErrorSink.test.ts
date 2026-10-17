@@ -1,4 +1,8 @@
+import { readFileSync } from "node:fs";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { isWeddingCodeLikertPath } from "../analyticsPrivacy";
 import { attachClientErrorSink, reportClientError, resetClientErrorSinkForTest } from "../observability/clientErrorReport";
 
 const sdk = vi.hoisted(() => ({ init: vi.fn(), captureException: vi.fn(), captureRouterTransitionStart: vi.fn() }));
@@ -25,7 +29,7 @@ function fakeWindow(pathname: string) {
 }
 
 describe("actual unmocked Likert client error sink", () => {
-  it.each(["/wedding-code", "/wedding-code/together", "/wedding-code-next", "/wedding-code-next/result"])("does not create a raw window sink on direct error reporting or attachment on %s", pathname => {
+  it.each(["/wedding-code", "/wedding-code/together", "/wedding-code-next", "/wedding-code-next/result", "/preparation-style", "/wedding/preparation-style"])("does not create a raw window sink on direct error reporting or attachment on %s", pathname => {
     const page = fakeWindow(pathname);
     const capture = vi.fn();
     reportClientError(new Error("synthetic Likert boundary error"));
@@ -72,7 +76,36 @@ describe("actual unmocked Likert client error sink", () => {
     expect(capture).not.toHaveBeenCalled();
   });
 
-  it.each(["/landing", "/budget", "/wedding-code-copy", "/wedding-code-next-copy"])("preserves ordinary buffering and attachment on %s", pathname => {
+  // 에러 경계 쪽 목록은 import 없이 쓰려고 `analyticsPrivacy.ts` 목록을 베껴 둔 것이다. 한쪽에만 경로를 더하면
+  // 다른 쪽이 그 화면의 오류를 담아 두거나 버린다. 두 파일의 목록을 읽어 합친 표로 두 판정을 나란히 돌린다.
+  it("keeps the boundary copy of the protected path list identical to analyticsPrivacy", () => {
+    const prefixesIn = (relative: string) => {
+      const source = readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), relative), "utf8");
+      const body = source.match(/function isWeddingCodeLikertPath\([\s\S]*?\n\}/u)?.[0] ?? "";
+      const list = body.match(/\[((?:\s*"[^"]+"\s*,?)+)\]\.some\(/u)?.[1] ?? "";
+      return [...list.matchAll(/"([^"]+)"/gu)].map(match => match[1]).sort();
+    };
+    const analytics = prefixesIn("../analyticsPrivacy.ts");
+    const boundary = prefixesIn("../observability/clientErrorReport.ts");
+    expect(analytics.length).toBeGreaterThan(0);
+    expect(boundary).toEqual(analytics);
+
+    const table = new Set<string>(["/", "/landing", "/budget", "/wedding", "/wedding/budget", "/invite", "/login"]);
+    for (const prefix of new Set([...analytics, ...boundary])) {
+      for (const pathname of [prefix, `${prefix}/`, `${prefix}/result`, `${prefix}-copy`, `${prefix}s`, prefix.toUpperCase()]) table.add(pathname);
+    }
+    for (const pathname of table) {
+      resetClientErrorSinkForTest();
+      const page = fakeWindow(pathname);
+      const capture = vi.fn();
+      reportClientError(new Error("synthetic boundary error"));
+      attachClientErrorSink(capture);
+      const boundaryProtects = !("__hanbangClientErrorSink" in page.value) && capture.mock.calls.length === 0;
+      expect(boundaryProtects, pathname).toBe(isWeddingCodeLikertPath(pathname));
+    }
+  });
+
+  it.each(["/landing", "/budget", "/wedding-code-copy", "/wedding-code-next-copy", "/preparation-style-copy", "/wedding/preparation-style-copy"])("preserves ordinary buffering and attachment on %s", pathname => {
     fakeWindow(pathname);
     const error = Object.assign(new Error("synthetic ordinary boundary error"), { digest: "synthetic" });
     const capture = vi.fn();

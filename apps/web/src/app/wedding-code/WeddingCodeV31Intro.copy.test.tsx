@@ -27,12 +27,13 @@ import WeddingCodeTogether from "./together/WeddingCodeTogether";
 /**
  * 웨딩코드 v3.1 시작 화면의 문구 시험.
  *
- * 같은 소개가 세 화면에 나온다: 웹 입구(/wedding-code), 앱 라운지(/preparation-style), 초대 화면(/wedding-code/together).
- * 문구의 정본은 WeddingCodeV31Client 한 곳이다. 이 시험은 세 화면을 실제로 그려서 (1) 글이 같은지, (2) 화면이 하는 말이
- * 코드·동의 화면·처리방침이 하는 말과 같은지, (3) 고친 거짓·오해 문장이 되돌아오지 않는지 본다.
+ * 같은 소개가 세 화면에 나온다: 웹 입구(/wedding-code?v=v3.1-preferences), 앱 라운지(/preparation-style?v=v3.1-preferences),
+ * 초대 화면(/wedding-code/together). 두 입구의 맨 주소는 2026-10-16부터 64문항(wc64)을 열므로, 여기서는 v3.1 을 고른
+ * 주소(라운지는 queryIsLegacy)로 그린다. 문구의 정본은 WeddingCodeV31Client 한 곳이다. 이 시험은 세 화면을 실제로 그려서
+ * (1) 글이 같은지, (2) 화면이 하는 말이 코드·동의 화면·처리방침이 하는 말과 같은지, (3) 고친 거짓·오해 문장이 되돌아오지
+ * 않는지 본다.
  *
- * 기본 진입 판이 v4 로 바뀌면 웹 입구와 라운지는 v4 소개로 가고 초대 화면만 이 소개를 계속 쓴다. 그때는 아래
- * 첫 시험이 빨개지니, 어느 화면이 이 글을 쓰는지부터 다시 정한다.
+ * v3.1 쿼리가 열던 판이 바뀌면 아래 첫 시험이 빨개지니, 어느 화면이 이 글을 쓰는지부터 다시 정한다.
  */
 vi.mock("@/lib/analytics", async importOriginal => ({
   ...await importOriginal<typeof import("@/lib/analytics")>(),
@@ -96,7 +97,7 @@ describe("웨딩코드 v3.1 시작 화면 문구", () => {
     const initialEntry = defaultWeddingCodeEntry();
     expect(initialEntry.kind, "기본 진입이 v3.1 이 아니면 이 소개를 쓰는 화면이 바뀐다").toBe("v31");
     await act(async () => root.render(surface === "앱 라운지"
-      ? <LoungeWeddingCode shareOrigin="https://hanbang.ai" initialEntry={initialEntry} />
+      ? <LoungeWeddingCode shareOrigin="https://hanbang.ai" initialEntry={initialEntry} queryIsLegacy />
       : <WeddingCodeEntryClient shareOrigin="https://hanbang.ai" initialEntry={initialEntry} />));
   }
   const intro = () => container.querySelector<HTMLElement>(INTRO);
@@ -156,7 +157,7 @@ describe("웨딩코드 v3.1 시작 화면 문구", () => {
     // 답의 전송 범위와 공개 화면의 이용 통계 차단이 굵은 한 줄 안에 같이 있다.
     const emphasis = line!.querySelector<HTMLElement>("span.font-semibold")?.textContent;
     expect(emphasis).toBe("답하는 동안 고른 답은 서버에 보내지 않고, 로그인 없이 이용하는 공개 웨딩코드에서는 이용 통계를 기록하지 않아요.");
-    expect(source("src/app/privacy/page.tsx")).toContain("현재 공개 웨딩코드와 기존 판의 링크 화면에서는 페이지 조회와 흐름 이벤트를 기록하지 않습니다");
+    expect(source("src/app/privacy/page.tsx")).toContain("공개 웨딩코드·기존 판 링크 화면에서는 페이지 조회와 흐름 이벤트를 기록하지 않습니다");
     // 처리방침 링크도 이 한 줄 안에 있어 접힌 칸을 열지 않아도 닿는다.
     expect(line!.querySelectorAll('a[href="/privacy"]')).toHaveLength(1);
     expect(line!.textContent).toContain("자세한 내용은 개인정보 처리방침에서 볼 수 있어요.");
@@ -170,7 +171,8 @@ describe("웨딩코드 v3.1 시작 화면 문구", () => {
     const folded = fold!.textContent ?? "";
     for (const sentence of [
       "고른 답과 웨딩코드는 답하는 동안 서버나 계정에 보내지 않아요.",
-      "로그인 없이 이용하는 공개 웨딩코드에서는 페이지 조회와 흐름 이벤트를 기록하지 않고, 브라우저 오류·성능 이벤트도 수집 서비스로 보내지 않아요.",
+      "로그인 없이 이용하는 공개 웨딩코드에서는 페이지 조회와 흐름 이벤트를 기록하지 않고, 웨딩코드 화면에 머무는 동안 생긴 브라우저 오류와 누른 곳의 기록, 화면 속도를 잰 기록도 수집 서비스로 보내지 않아요.",
+      "다른 화면으로 넘어갈 때는 새 화면을 불러온 기록이 전송될 수 있지만 고른 답과 문항 정보는 들어가지 않아요.",
       "고른 답·웨딩코드·공유 링크 주소도 통계에 넣지 않아요.",
       `내 답은 이 브라우저에 자동으로 저장돼요. 마지막으로 저장한 날부터 ${LOCAL_TTL_MS / 86_400_000}일 동안 이어 할 수 있어요.`,
       "공용 기기에서는 시작하기 전에 아래 ‘자동 저장 설정’에서 꺼 주세요.",
@@ -212,12 +214,28 @@ describe("웨딩코드 v3.1 시작 화면 문구", () => {
     await show(surface);
     const text = privacyBlock()?.textContent ?? "";
     expect(text).toContain("고른 답과 웨딩코드는 답하는 동안 서버나 계정에 보내지 않아요.");
-    expect(text).toContain("로그인 없이 이용하는 공개 웨딩코드에서는 페이지 조회와 흐름 이벤트를 기록하지 않고, 브라우저 오류·성능 이벤트도 수집 서비스로 보내지 않아요.");
+    expect(text).toContain("로그인 없이 이용하는 공개 웨딩코드에서는 페이지 조회와 흐름 이벤트를 기록하지 않고,");
     expect(text).toContain("고른 답·웨딩코드·공유 링크 주소도 통계에 넣지 않아요.");
     const policy = source("src/app/privacy/page.tsx");
-    expect(policy).toContain("현재 공개 웨딩코드와 기존 판의 링크 화면에서는 페이지 조회와 흐름 이벤트를 기록하지 않습니다");
-    expect(policy).toContain("브라우저 오류·성능 이벤트도 수집 서비스로 전송하지 않습니다");
+    expect(policy).toContain("공개 웨딩코드·기존 판 링크 화면에서는 페이지 조회와 흐름 이벤트를 기록하지 않습니다");
     expect(policy).toContain("고른 답·웨딩코드·공유 링크 주소는 이 통계에 넣지 않습니다");
+    // 범위가 같은지 본다. 보내지 않는 것은 두 곳 모두 '웨딩코드 화면에 머무는 동안' 생긴 것으로 한정하고(말끝만 다르다),
+    // 다른 화면으로 넘어갈 때 나갈 수 있는 기록과 거기에 들지 않는 것도 두 곳이 같이 밝힌다.
+    const stayScope = "웨딩코드 화면에 머무는 동안 생긴 브라우저 오류와 누른 곳의 기록, 화면 속도를 잰 기록도 수집 서비스로 보내지 않";
+    // 처리방침을 읽는 사람은 처리방침 화면에 있어 '이 화면'이 무엇인지 몰랐고 '누른 요소·화면 측정'은 개발 용어였다(2026-10-17 점검)
+    for (const old of ["이 화면에 머무는 동안", "누른 요소", "화면 측정 기록"]) {
+      expect(text, old).not.toContain(old);
+      expect(policy, old).not.toContain(old);
+    }
+    expect(text).toContain(`${stayScope}아요.`);
+    expect(policy).toContain(`${stayScope}습니다.`);
+    expect(text).toContain("다른 화면으로 넘어갈 때는 새 화면을 불러온 기록이 전송될 수 있지만 고른 답과 문항 정보는 들어가지 않아요.");
+    expect(policy).toContain("다른 화면으로 넘어가는 동안에는 새 화면을 불러온 기록(요청한 주소의 경로, 걸린 시간, 화면이 멈춘 시간)이 전송될 수 있으며, 여기에는 고른 답과 문항 정보가 들어가지 않습니다.");
+    // 옛 문장은 머무는 동안과 넘어가는 동안을 가리지 않고 성능 기록 전부를 보내지 않는다고 말했다. 두 곳 어디에도 돌아오지 않는다.
+    for (const broad of ["브라우저 오류·성능 이벤트도", "성능 이벤트도 수집 서비스로"]) {
+      expect(text, broad).not.toContain(broad);
+      expect(policy, broad).not.toContain(broad);
+    }
     expect(text).not.toContain("이용 통계만 기록");
   });
 

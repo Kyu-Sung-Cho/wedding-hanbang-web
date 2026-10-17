@@ -232,8 +232,8 @@ describe("웨딩코드 흐름 이벤트는 답과 주소를 싣지 않는다", (
     const privacy = readFileSync(path.join(srcRoot, "app/privacy/page.tsx"), "utf8");
     const client = readFileSync(path.join(srcRoot, "app/wedding-code/WeddingCodeV06Client.tsx"), "utf8");
     expect(privacy).toContain(label);
-    expect(privacy).toContain("현재 공개 웨딩코드와 기존 판의 링크 화면에서는 페이지 조회와 흐름 이벤트를 기록하지 않습니다");
-    expect(privacy).toContain("브라우저 오류·성능 이벤트도 수집 서비스로 전송하지 않습니다");
+    expect(privacy).toContain("공개 웨딩코드·기존 판 링크 화면에서는 페이지 조회와 흐름 이벤트를 기록하지 않습니다");
+    expect(privacy).toContain("웨딩코드 화면에 머무는 동안 생긴 브라우저 오류와 누른 곳의 기록, 화면 속도를 잰 기록도 수집 서비스로 보내지 않습니다");
     expect(client).toContain(label);
   });
 

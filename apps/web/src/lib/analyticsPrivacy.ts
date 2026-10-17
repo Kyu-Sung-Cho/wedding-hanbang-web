@@ -32,9 +32,28 @@ const MAX_NESTED_LOCATION_QUERY_DEPTH = 8;
 
 type SearchParamsReader = Pick<URLSearchParams, "get">;
 
+/**
+ * 쿼리 안의 주소를 가를 때 쓰는 두 갈래. 둘을 합치면 아래 `isWeddingCodeLikertPath` 의 목록과 같아야 한다
+ * (그 목록은 `observability/clientErrorReport.ts` 복제본과 글자 그대로 대조되므로 펼친 꼴로 둔다).
+ * 공개 웨딩코드 입구와 구판 링크: 답이 주소(`#`, 과거 링크는 `?a=`)에 실린다.
+ */
+const WEDDING_CODE_ANSWER_LINK_PATHS = ["/wedding-code", "/wedding-code-next"] as const;
+/** 로그인한 웹 라운지 웨딩코드. 브라우저 주소 `/wedding/preparation-style` 과 라우트 `/preparation-style`. */
+const WEDDING_CODE_LOUNGE_PATHS = ["/preparation-style", "/wedding/preparation-style"] as const;
+/**
+ * 다른 주소의 쿼리 값(로그인·온보딩 `?redirect=`) 안에 든 라운지 주소가 가져도 되는 쿼리 키.
+ * 판 이름(`v`)과 화면 이름(`view`)뿐이다. 그 밖의 키(초대 `ct`, 옛 답 `a` 등)가 붙어 있으면 막는다.
+ */
+const LOUNGE_NESTED_SAFE_QUERY_KEYS = new Set(["v", "view"]);
+
+function matchesPathPrefix(pathname: string | null | undefined, prefixes: readonly string[]): boolean {
+  return Boolean(pathname && prefixes.some(prefix => pathname === prefix || pathname.startsWith(`${prefix}/`)));
+}
+
 export function isWeddingCodeLikertPath(pathname: string | null | undefined): boolean {
-  // 기본 입구와 구판 링크도 같은 무전송 경계로 보호한다.
-  return Boolean(pathname && ["/wedding-code", "/wedding-code-next"].some(
+  // 기본 입구와 구판 링크, 로그인한 웹 라운지 웨딩코드도 같은 무전송 경계로 보호한다.
+  // 라운지는 `/wedding/preparation-style`(라우트 `/preparation-style`)이고 `?view=previous` 화면도 함께 꺼진다.
+  return Boolean(pathname && ["/wedding-code", "/wedding-code-next", "/preparation-style", "/wedding/preparation-style"].some(
     prefix => pathname === prefix || pathname.startsWith(`${prefix}/`),
   ));
 }
@@ -180,27 +199,50 @@ function pathnameFromLocationValue(value: unknown): string | null {
   }
 }
 
+/**
+ * 다른 주소의 쿼리 값으로 들어온 주소가 보호 경로를 건드리는가.
+ *
+ * 공개 답 링크 경로(`/wedding-code`, `/wedding-code-next`)는 쿼리 안에 있어도 막는다. 답이 그 주소에 실려 다닌다.
+ * 라운지 경로는 쿼리 안에 있으면 막지 않는다. 로그인하지 않은 사람이 라운지를 열면 미들웨어가
+ * `/login?redirect=/wedding/preparation-style` 와 `/wedding/onboarding?redirect=…` 를 만드는데, 이것까지 막으면
+ * 로그인·온보딩 화면의 이벤트가 통째로 빠진다. wc64 는 답을 주소에 싣지 않는다. 다만 판 이름(`v`)·화면 이름(`view`)
+ * 밖의 쿼리 키(초대 `ct`, 옛 답 `a` 등)가 붙은 라운지 주소는 계속 막는다.
+ * 라운지 화면 자체의 이벤트는 현재 경로(`valueTouchesWeddingCodeLikertPath`)와 속성에 직접 든 주소로 막는다.
+ */
+function queryLocationTouchesLikertPath(value: string, pathname: string): boolean {
+  if (matchesPathPrefix(pathname, WEDDING_CODE_ANSWER_LINK_PATHS)) return true;
+  if (!matchesPathPrefix(pathname, WEDDING_CODE_LOUNGE_PATHS)) return false;
+  const location = new URL(value, "https://hanbang.invalid");
+  for (const key of location.searchParams.keys()) {
+    if (!LOUNGE_NESTED_SAFE_QUERY_KEYS.has(key)) return true;
+  }
+  return false;
+}
+
 /** 이동 뒤 남은 초기 방문 속성에도 새판의 답 주소가 있으면 전송을 막는다. */
 function nestedCaptureTouchesLikertPath(capture: unknown): boolean {
-  const pending: unknown[] = [capture];
+  // inQuery: 다른 주소의 쿼리 값에서 꺼낸 주소인가. 속성에 직접 든 주소는 라운지까지 막고, 쿼리 안의 주소는 좁게 본다.
+  const pending: Array<{ value: unknown; inQuery: boolean }> = [{ value: capture, inQuery: false }];
   const visited = new WeakSet<object>();
   const visitedLocations = new Set<string>();
   while (pending.length > 0) {
-    const value = pending.pop();
+    const { value, inQuery } = pending.pop()!;
     const pathname = pathnameFromLocationValue(value);
-    if (isWeddingCodeLikertPath(pathname)) return true;
+    if (inQuery
+      ? pathname !== null && typeof value === "string" && queryLocationTouchesLikertPath(value, pathname)
+      : isWeddingCodeLikertPath(pathname)) return true;
     if (pathname && typeof value === "string" && !visitedLocations.has(value)) {
       visitedLocations.add(value);
       // 로그인 redirect 같은 주소 안의 주소도 검사한다. 실제 이동 주소는 고치지 않는다.
       const location = new URL(value, "https://hanbang.invalid");
       for (const nested of location.searchParams.values()) {
-        if (looksLikeLocationValue(nested)) pending.push(nested);
+        if (looksLikeLocationValue(nested)) pending.push({ value: nested, inQuery: true });
       }
     }
     if (!Array.isArray(value) && !isPlainObject(value)) continue;
     if (visited.has(value)) continue;
     visited.add(value);
-    for (const nested of Object.values(value)) pending.push(nested);
+    for (const nested of Object.values(value)) pending.push({ value: nested, inQuery: false });
   }
   return false;
 }

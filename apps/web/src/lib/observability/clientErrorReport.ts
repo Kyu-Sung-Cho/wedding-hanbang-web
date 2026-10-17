@@ -29,9 +29,12 @@
 /** 사본이 여럿이어도 하나를 가리키도록 window 에 박는 키. */
 const SINK_KEY = "__hanbangClientErrorSink";
 
-/** 깨진 화면에서도 import 없이 보호 경로만 판정한다. */
+/**
+ * 깨진 화면에서도 import 없이 보호 경로만 판정한다.
+ * `lib/analyticsPrivacy.ts` 의 같은 이름 목록과 똑같이 둔다(라운지 웨딩코드 두 경로 포함).
+ */
 function isWeddingCodeLikertPath(pathname: string | null | undefined): boolean {
-  return Boolean(pathname && ["/wedding-code", "/wedding-code-next"].some(
+  return Boolean(pathname && ["/wedding-code", "/wedding-code-next", "/preparation-style", "/wedding/preparation-style"].some(
     prefix => pathname === prefix || pathname.startsWith(`${prefix}/`),
   ));
 }
