@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
+import parse from "html-react-parser";
 import {
   Bookmark,
   Share2,
@@ -644,10 +645,9 @@ export default function PostDetailClient({
                     {/* 블러 처리된 미리보기 */}
                     <div
                       className="ugc-text text-base text-[var(--hb-text-strong)] leading-relaxed whitespace-pre-wrap blur-sm select-none pointer-events-none max-h-40 overflow-hidden"
-                      dangerouslySetInnerHTML={{
-                        __html: sanitizeHtml(post.content.slice(0, 300)),
-                      }}
-                    />
+                    >
+                      {parse(sanitizeHtml(post.content.slice(0, 300)))}
+                    </div>
                     {/* 로그인 유도 오버레이 */}
                     <div className="absolute inset-0 flex flex-col items-center justify-center bg-gradient-to-t from-white via-white/90 to-transparent">
                       <Lock className="w-8 h-8 text-[var(--hb-text-muted)] mb-2" />
@@ -668,10 +668,9 @@ export default function PostDetailClient({
                 ) : (
                   <div
                     className="community-post-content ugc-text text-[15px] text-[var(--hb-text-strong)] leading-[1.75] whitespace-pre-wrap break-words"
-                    dangerouslySetInnerHTML={{
-                      __html: sanitizeHtml(post.content),
-                    }}
-                  />
+                  >
+                    {parse(sanitizeHtml(post.content))}
+                  </div>
                 )}
               </div>
 

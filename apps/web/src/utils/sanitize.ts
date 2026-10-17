@@ -1,7 +1,7 @@
-// Shared HTML sanitizer for browser and server runtimes.
-// Keep this dependency-free so API GET routes do not load jsdom in Vercel.
+import sanitize from "sanitize-html";
 
-const ALLOWED_TAGS = new Set([
+// 서버 저장과 브라우저 표시가 같은 파서·허용목록을 쓴다. 서버에 DOM/jsdom은 필요 없다.
+const ALLOWED_TAGS = [
   "p",
   "br",
   "strong",
@@ -23,19 +23,42 @@ const ALLOWED_TAGS = new Set([
   "h4",
   "span",
   "div",
-]);
+];
 
-const VOID_TAGS = new Set(["br", "img"]);
-const ALLOWED_ATTR = new Set(["href", "src", "alt", "title", "target", "rel"]);
-const SAFE_URL_RE = /^(?:(?:https?|mailto|tel):|\/(?!\/)|#)/i;
+const SAFE_URL_RE = /^(?:(?:https?|mailto|tel):|\/(?![/\\])|#)/i;
 
-function escapeAttr(value: string): string {
-  return value
-    .replace(/&/g, "&amp;")
-    .replace(/"/g, "&quot;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;");
-}
+const HTML_OPTIONS: sanitize.IOptions = {
+  allowedTags: ALLOWED_TAGS,
+  allowedAttributes: {
+    "*": ["title"],
+    a: ["href", "target", "rel"],
+    img: ["src", "alt"],
+  },
+  allowedSchemes: ["http", "https", "mailto", "tel"],
+  allowedSchemesByTag: { img: ["http", "https"] },
+  allowProtocolRelative: false,
+  // 과도하게 중첩한 글이 React 변환의 호출 스택을 고갈시키지 않게 한다.
+  nestingLimit: 32,
+  // 다른 namespace의 내용을 HTML로 다시 해석하지 않는다.
+  nonTextTags: [
+    "script", "style", "textarea", "option", "iframe", "object", "embed",
+    "form", "input", "svg", "math", "template",
+  ],
+  parseStyleAttributes: false,
+  transformTags: {
+    "*": (tagName, attributes) => {
+      const attribs = { ...attributes };
+      // 파서가 엔티티를 해독한 뒤 URL 정책을 적용한다. 태그/속성 해석은 정규식으로 하지 않는다.
+      for (const name of ["href", "src"]) {
+        if (attribs[name] !== undefined && !SAFE_URL_RE.test(attribs[name])) {
+          delete attribs[name];
+        }
+      }
+      if (tagName === "a") attribs.rel = "noopener noreferrer";
+      return { tagName, attribs };
+    },
+  },
+};
 
 function stripDangerousBlocks(input: string): string {
   return input
@@ -44,45 +67,8 @@ function stripDangerousBlocks(input: string): string {
     .replace(/<\s*(script|style|iframe|object|embed|form|input)\b[^>]*\/?>/gi, "");
 }
 
-function sanitizeAttributes(tagName: string, rawAttrs: string): string {
-  const attrs: string[] = [];
-  const attrRe = /([a-zA-Z_:][-a-zA-Z0-9_:.]*)\s*=\s*("([^"]*)"|'([^']*)'|([^\s"'=<>`]+))/g;
-  let match: RegExpExecArray | null;
-
-  while ((match = attrRe.exec(rawAttrs))) {
-    const name = match[1].toLowerCase();
-    if (!ALLOWED_ATTR.has(name)) continue;
-
-    const value = match[3] ?? match[4] ?? match[5] ?? "";
-    if ((name === "href" || name === "src") && !SAFE_URL_RE.test(value)) continue;
-    if (tagName !== "a" && (name === "href" || name === "target" || name === "rel")) continue;
-    if (tagName !== "img" && name === "src") continue;
-
-    attrs.push(`${name}="${escapeAttr(value)}"`);
-  }
-
-  if (tagName === "a") {
-    const relIndex = attrs.findIndex((attr) => attr.startsWith("rel="));
-    if (relIndex >= 0) attrs.splice(relIndex, 1);
-    attrs.push('rel="noopener noreferrer"');
-  }
-
-  return attrs.length ? ` ${attrs.join(" ")}` : "";
-}
-
 export function sanitizeHtml(dirty: string): string {
-  const withoutBlocks = stripDangerousBlocks(dirty ?? "");
-
-  return withoutBlocks.replace(/<\/?([a-zA-Z][a-zA-Z0-9:-]*)\b([^>]*)>/g, (full, rawTag, rawAttrs) => {
-    const tagName = String(rawTag).toLowerCase();
-    if (!ALLOWED_TAGS.has(tagName)) return "";
-
-    const isClosing = /^<\s*\//.test(full);
-    if (isClosing) return VOID_TAGS.has(tagName) ? "" : `</${tagName}>`;
-
-    const attrs = sanitizeAttributes(tagName, String(rawAttrs ?? ""));
-    return VOID_TAGS.has(tagName) ? `<${tagName}${attrs}>` : `<${tagName}${attrs}>`;
-  });
+  return sanitize(dirty ?? "", HTML_OPTIONS);
 }
 
 export function sanitizeText(dirty: string): string {

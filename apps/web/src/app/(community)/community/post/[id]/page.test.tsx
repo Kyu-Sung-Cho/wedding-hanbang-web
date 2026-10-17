@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import { URL as NodeURL } from "node:url";
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { renderToStaticMarkup } from "react-dom/server";
@@ -207,6 +209,121 @@ async function renderPage() {
 
   return container;
 }
+
+function expectSafePostBody(body: Element) {
+  expect(body.querySelector("script, style, iframe, object, embed, form, input, svg, math")).toBeNull();
+
+  for (const element of body.querySelectorAll("*")) {
+    for (const attribute of element.attributes) {
+      expect(attribute.name.toLowerCase().startsWith("on")).toBe(false);
+    }
+
+    for (const name of ["href", "src"]) {
+      const value = element.getAttribute(name);
+      if (value !== null) {
+        expect(["https:", "http:", "mailto:", "tel:"]).toContain(
+          new URL(value, "https://community.example.test").protocol,
+        );
+      }
+    }
+  }
+}
+
+describe("community post body security", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.post = question();
+    mocks.userId = "11111111-1111-4111-8111-111111111111";
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => ({
+        ok: true,
+        json: async () => ({ posts: [] }),
+      })),
+    );
+  });
+
+  afterEach(async () => {
+    await act(async () => {
+      for (const { root } of mountedRoots.splice(0)) root.unmount();
+    });
+    document.body.replaceChildren();
+    vi.unstubAllGlobals();
+  });
+
+  const storedAttacks = [
+    {
+      name: "the historical malformed stored image",
+      content: "<<foo>img src=x onerror=alert(1)>",
+    },
+    {
+      name: "an image with an event handler",
+      content: '<img src="/x" onerror="alert(1)">',
+    },
+    {
+      name: "an entity-encoded script link",
+      content: '<a href="java&#x73;cript:alert(1)">링크</a>',
+    },
+    {
+      name: "SVG content with an event handler and script link",
+      content: '<svg onload="alert(1)"><a href="javascript:alert(1)">링크</a><foreignObject><p onclick="alert(1)">본문</p></foreignObject></svg>',
+    },
+    {
+      name: "MathML content with an embedded image event handler",
+      content: '<math><mtext><img src="/x" onerror="alert(1)"></mtext><annotation-xml encoding="text/html"><svg onload="alert(1)"></svg></annotation-xml></math>',
+    },
+  ];
+
+  for (const mode of ["full body", "members-only preview"] as const) {
+    it.each(storedAttacks)(`safely renders ${mode} for $name`, async ({ content }) => {
+      const isPreview = mode === "members-only preview";
+      mocks.userId = isPreview ? null : "11111111-1111-4111-8111-111111111111";
+      mocks.post = question({ content, visibility: isPreview ? "members" : "public" });
+
+      const container = await renderPage();
+      const body = container.querySelector(".ugc-text");
+
+      expect(body).not.toBeNull();
+      if (body === null) throw new Error("The post body was not rendered");
+      expectSafePostBody(body);
+      expect(container.textContent?.includes("회원 전용 게시글입니다")).toBe(isPreview);
+    });
+
+    it(`preserves normal post formatting in ${mode}`, async () => {
+      const isPreview = mode === "members-only preview";
+      mocks.userId = isPreview ? null : "11111111-1111-4111-8111-111111111111";
+      const content = '<p>첫 줄\n다음 줄 <strong>강조</strong><br>마지막 줄</p><ul><li>항목</li></ul><a href="/docs" target="_blank">자료</a><figure><img src="/images/post.jpg" alt="견적 사진"><figcaption>사진 설명</figcaption></figure>';
+      expect(content.length).toBeLessThan(300);
+      mocks.post = question({ content, visibility: isPreview ? "members" : "public" });
+
+      const container = await renderPage();
+      const body = container.querySelector(".ugc-text");
+
+      expect(body).not.toBeNull();
+      if (body === null) throw new Error("The post body was not rendered");
+      expect(body.querySelector("p")?.textContent).toBe("첫 줄\n다음 줄 강조마지막 줄");
+      expect(body.querySelector("p strong")?.textContent).toBe("강조");
+      expect(body.querySelector("p br")).not.toBeNull();
+      expect(body.querySelector("ul li")?.textContent).toBe("항목");
+      expect(body.querySelector("a")?.textContent).toBe("자료");
+      expect(body.querySelector("a")?.getAttribute("href")).toBe("/docs");
+      expect(body.querySelector("a")?.getAttribute("target")).toBe("_blank");
+      expect(body.querySelector("a")?.getAttribute("rel")?.split(/\s+/)).toEqual(
+        expect.arrayContaining(["noopener", "noreferrer"]),
+      );
+      expect(body.querySelector("figure img")?.getAttribute("src")).toBe("/images/post.jpg");
+      expect(body.querySelector("figure img")?.getAttribute("alt")).toBe("견적 사진");
+      expect(body.querySelector("figure figcaption")?.textContent).toBe("사진 설명");
+      expectSafePostBody(body);
+    });
+  }
+
+  it("keeps raw HTML injection out of both PostDetailClient body branches", () => {
+    const source = readFileSync(new NodeURL("./PostDetailClient.tsx", import.meta.url), "utf8");
+
+    expect(source).not.toMatch(/dangerouslySetInnerHTML\s*=/);
+  });
+});
 
 describe("question resolution control", () => {
   beforeEach(() => {
