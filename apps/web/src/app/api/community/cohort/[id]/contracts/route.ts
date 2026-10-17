@@ -6,6 +6,72 @@ import { checkCommunityWriteAccess } from "@/lib/community/writeAccess";
 import type { CohortContractCategory } from "@/types/community.types";
 import { isTrustedMutationRequest } from "@/utils/trustedMutation";
 
+const MAX_STATS_ROWS = 10_000;
+const MIN_PARTICIPANTS = 5;
+class IncompleteContractStatsError extends Error {}
+
+interface ContractStatRow {
+  category: string;
+  user_id: string;
+  base_price: number;
+  extra_price: number | null;
+}
+
+function isContractStatRow(row: unknown): row is ContractStatRow {
+  return typeof row === "object" && row !== null
+    && "category" in row && typeof row.category === "string"
+    && "user_id" in row && typeof row.user_id === "string"
+    && "base_price" in row && typeof row.base_price === "number" && Number.isSafeInteger(row.base_price)
+    && "extra_price" in row && (row.extra_price === null
+      || (typeof row.extra_price === "number" && Number.isSafeInteger(row.extra_price)));
+}
+
+// PostgreSQL ROUND은 음수의 .5도 0에서 먼 쪽으로 반올림한다.
+const sqlRound = (value: number) => value < 0 ? -Math.round(-value) : Math.round(value);
+
+async function readContractStats(admin: ReturnType<typeof createAdminClient>, roomId: string) {
+  // 사람 수와 평균을 같은 statement의 행 집합에서 계산한다. 별도 집계 뷰나
+  // 여러 페이지의 snapshot을 섞으면 그 사이 변경된 표본으로 공개할 수 있다.
+  const { data, error, count } = await admin
+    .from("cohort_contracts")
+    .select("category, user_id, base_price, extra_price", { count: "exact" })
+    .eq("room_id", roomId)
+    .limit(MAX_STATS_ROWS);
+  if (error || !Array.isArray(data) || count === null || !Number.isSafeInteger(count)
+    || count < 0 || count > MAX_STATS_ROWS || data.length !== count) {
+    throw new IncompleteContractStatsError("계약 통계의 전체 표본을 확인하지 못했습니다.");
+  }
+  const groups = new Map<string, {
+    users: Set<string>; rows: number; base: number; extra: number; extraRows: number; total: number;
+  }>();
+  for (const row of data) {
+    if (!isContractStatRow(row)) throw new IncompleteContractStatsError("계약 통계 형식이 올바르지 않습니다.");
+    const group = groups.get(row.category) ?? {
+      users: new Set<string>(), rows: 0, base: 0, extra: 0, extraRows: 0, total: 0,
+    };
+    group.users.add(row.user_id);
+    group.rows += 1;
+    group.base += row.base_price;
+    group.total += row.base_price + (row.extra_price ?? 0);
+    if (row.extra_price !== null) { group.extra += row.extra_price; group.extraRows += 1; }
+    if (![group.base, group.extra, group.total].every(Number.isSafeInteger)) {
+      throw new IncompleteContractStatsError("계약 통계 금액 범위를 확인하지 못했습니다.");
+    }
+    groups.set(row.category, group);
+  }
+  return [...groups].map(([category, group]) => {
+    const safeMetadata = { room_id: roomId, category, sample_size: group.users.size };
+    if (group.users.size < MIN_PARTICIPANTS) return safeMetadata;
+    // 평균은 기존처럼 계약 행 가중이며, 추가금 AVG의 null만 제외한다.
+    return {
+      ...safeMetadata,
+      avg_base_price: sqlRound(group.base / group.rows),
+      avg_extra_price: group.extraRows ? sqlRound(group.extra / group.extraRows) : null,
+      avg_total: sqlRound(group.total / group.rows),
+    };
+  });
+}
+
 async function assertMember(
   supabase: Awaited<ReturnType<typeof createClientFromRequest>>,
   roomId: string,
@@ -21,7 +87,7 @@ async function assertMember(
   return !!data;
 }
 
-// GET: 계약 목록 + 카테고리별 집계 (cohort_stats view)
+// GET: 계약 목록 + 카테고리별 5명 이상 익명 집계
 export async function GET(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -80,17 +146,7 @@ export async function GET(
         return rest;
       });
 
-    const MIN_SAMPLE = 5;
-    const { data: rawStats } = await admin
-      .from("cohort_stats")
-      .select("*")
-      .eq("room_id", roomId);
-
-    const stats = (rawStats ?? []).map((stat) =>
-      (stat.sample_size ?? 0) >= MIN_SAMPLE
-        ? stat
-        : { room_id: stat.room_id, category: stat.category, sample_size: stat.sample_size }
-    );
+    const stats = await readContractStats(admin, roomId);
 
     return NextResponse.json({
       contracts,
@@ -98,6 +154,12 @@ export async function GET(
       stats,
     });
   } catch (err) {
+    if (err instanceof IncompleteContractStatsError) {
+      return NextResponse.json(
+        { error: "계약 통계의 전체 표본을 확인하지 못했어요. 잠시 후 다시 시도해 주세요." },
+        { status: 503 },
+      );
+    }
     log.error("api/community/cohort/[id]/contracts", err);
     console.error("Contracts GET error:", err);
     return NextResponse.json(
