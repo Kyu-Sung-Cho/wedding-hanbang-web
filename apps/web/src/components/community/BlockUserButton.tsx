@@ -6,6 +6,7 @@ import { Ban, Check, Loader2, X } from "lucide-react";
 
 import { weddingPath } from "@/lib/weddingPaths";
 import { useCommunityStore } from "@/stores/communityStore";
+import { useAccessibleModal } from "@/hooks/useAccessibleModal";
 
 type BlockUserButtonProps = {
   userId: string;
@@ -24,6 +25,12 @@ export default function BlockUserButton({
   const [submitting, setSubmitting] = useState(false);
   const [completed, setCompleted] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const dialogRef = useAccessibleModal({
+    open,
+    onClose: () => { if (!submitting) setOpen(false); },
+    closeOnEscape: !submitting,
+    respectExistingScrollLock: true,
+  });
 
   function openDialog() {
     setError(null);
@@ -91,6 +98,8 @@ export default function BlockUserButton({
           onClick={() => !submitting && setOpen(false)}
         >
           <div
+            ref={dialogRef}
+            tabIndex={-1}
             role="dialog"
             aria-modal="true"
             aria-labelledby={`block-user-title-${userId}`}

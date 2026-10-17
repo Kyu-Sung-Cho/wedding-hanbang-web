@@ -20,8 +20,8 @@ describe("community consumer-value boundary", () => {
     const landing = source("src/components/community/CommunityLandingClient.tsx");
 
     expect(landing).toContain("계약하기 전에,");
-    expect(landing).toContain("내 상황과 가까운 해결 경험부터 찾아보세요");
-    expect(landing).toContain("사람이 직접 남긴 답변 확인");
+    expect(landing).toContain("내 상황과 가까운 질문과 기록부터 찾아보세요");
+    expect(landing).toContain("답변과 작성 출처 확인");
     expect(landing).not.toContain("최근 글 중 답변을 기다리는 고민");
   });
 
@@ -40,7 +40,7 @@ describe("community consumer-value boundary", () => {
   it("frames search and sorting around decisions and helpfulness", () => {
     const landing = source("src/components/community/CommunityLandingClient.tsx");
 
-    expect(landing).toContain("내 상황과 가까운 해결 경험부터 찾아보세요");
+    expect(landing).toContain("내 상황과 가까운 질문과 기록부터 찾아보세요");
     expect(landing).toContain('top: "도움된순"');
     expect(landing).toContain("도움돼요 기준");
   });
@@ -108,7 +108,7 @@ describe("community consumer-value boundary", () => {
     expect(commentSection.match(/id="comments"/g) ?? []).toHaveLength(0);
   });
 
-  it("keeps a decision record in the order question, human answers, then Amora action", () => {
+  it("keeps a decision record in the order question, answers, then Amora action", () => {
     const detail = source(
       "src/app/(community)/community/post/[id]/PostDetailClient.tsx",
     );

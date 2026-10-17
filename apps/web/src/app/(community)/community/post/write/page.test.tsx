@@ -9,6 +9,7 @@ const mocks = vi.hoisted(() => ({
   routerReplace: vi.fn(),
   routerBack: vi.fn(),
   authUserId: null as string | null,
+  updatePost: vi.fn(),
 }));
 
 vi.mock("next/navigation", () => ({
@@ -33,7 +34,7 @@ vi.mock("@supabase/ssr", () => ({
 vi.mock("@/stores/communityStore", () => ({
   useCommunityStore: () => ({
     createPost: vi.fn(),
-    updatePost: vi.fn(),
+    updatePost: mocks.updatePost,
   }),
 }));
 
@@ -86,10 +87,56 @@ describe("community write login return", () => {
   });
 
   afterEach(async () => {
+    vi.unstubAllGlobals();
     await act(async () => {
       for (const { root } of mountedRoots.splice(0)) root.unmount();
     });
     document.body.replaceChildren();
+  });
+
+  it.each(["draft", "members"])("submits an explicit PATCH payload for a %s post without creation-only fields", async (visibility) => {
+    mocks.authUserId = "user-a";
+    mocks.updatePost.mockResolvedValue(true);
+    useAuthStore.setState({ user: { id: "user-a", email: "qa-a@example.invalid" }, isInitialized: true });
+    window.history.replaceState({}, "", "/community/post/write?edit=qa-post");
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      id: "qa-post", author_id: "user-a", category: "free", title: "QA 수정 전",
+      content: "합성 수정 본문입니다.", visibility, images: [], tags: [],
+      vendor_tags: [], ad_disclosure: "general",
+    }), { status: 200, headers: { "content-type": "application/json" } })));
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    const root = createRoot(container);
+    mountedRoots.push({ root, container });
+    await act(async () => {
+      root.render(<PostWritePage />);
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+    const categoryButtons = Array.from(container.querySelectorAll<HTMLButtonElement>("button"))
+      .filter((button) => button.parentElement?.className.includes("sm:grid-cols-2"));
+    expect(categoryButtons.length).toBeGreaterThan(1);
+    expect(categoryButtons.every((button) => button.disabled)).toBe(true);
+    expect(container.textContent).toContain("수정할 때는 카테고리를 바꿀 수 없어요");
+    const titleInput = container.querySelector<HTMLInputElement>('input[maxlength="200"]')!;
+    const contentInput = container.querySelector<HTMLTextAreaElement>("textarea")!;
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(titleInput, "QA 수정 후");
+      titleInput.dispatchEvent(new Event("input", { bubbles: true }));
+      Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value")!.set!.call(contentInput, "합성 수정 후 본문입니다.");
+      contentInput.dispatchEvent(new Event("input", { bubbles: true }));
+      Array.from(container.querySelectorAll<HTMLButtonElement>("button")).find((button) => button.textContent === "회원 공개")?.click();
+    });
+    const submit = Array.from(container.querySelectorAll<HTMLButtonElement>("button"))
+      .find((button) => button.textContent?.includes("수정하기"));
+    await act(async () => { submit?.click(); await Promise.resolve(); });
+    expect(mocks.updatePost).toHaveBeenCalledTimes(1);
+    const payload = mocks.updatePost.mock.calls[0][1];
+    expect(payload).toMatchObject({ title: "QA 수정 후", content: "합성 수정 후 본문입니다.", visibility: "members" });
+    expect(payload).not.toHaveProperty("category");
+    expect(payload).not.toHaveProperty("poll");
+    expect(payload).not.toHaveProperty("rating");
+    expect(payload.sponsorship_detail).toBeNull();
+    expect(payload.price_data).toBeNull();
   });
 
   it("lets a guest review the question and preserves it through login at publish", async () => {

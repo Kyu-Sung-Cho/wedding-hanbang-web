@@ -52,6 +52,8 @@ export default function PostCard({ post }: PostCardProps) {
   const { votePost, toggleBookmark } = useCommunityStore();
   const { profile } = useAuthStore();
   const isLoggedIn = !!profile;
+  const isDraft = post.visibility === "draft";
+  const isOwnDraft = isDraft && profile?.id === post.author_id;
 
   // 낙관적 UI — 좋아요/북마크/공유
   const [optimisticVote, setOptimisticVote] = useState<1 | null | undefined>(undefined);
@@ -209,6 +211,11 @@ export default function PostCard({ post }: PostCardProps) {
           <div>
             <div className="flex items-center justify-between mb-3">
               <div className="flex items-center gap-2 sm:space-x-3 flex-wrap">
+                {isDraft && (
+                  <span className="rounded-[6px] border border-[var(--hb-hairline)] bg-[var(--hb-surface-page)] px-2.5 py-1 text-xs font-semibold text-[var(--hb-text-body)]">
+                    임시저장 · 나만 보기
+                  </span>
+                )}
                 {categoryInfo && (
                   <span className={`text-xs sm:text-sm font-medium px-2.5 py-1 rounded-[6px] ${categoryBadgeStyle}`}>
                     {categoryInfo.shortLabel}
@@ -255,7 +262,7 @@ export default function PostCard({ post }: PostCardProps) {
                     <span className="text-sm font-medium text-[var(--hb-text-strong)]">{formatPrice(post.cost_data.totalCost)}만원</span>
                   </div>
                 )}
-                {post.poll && (() => {
+                {!isDraft && post.poll && (() => {
                   const isClosed = post.poll.closes_at
                     ? new Date(post.poll.closes_at).getTime() <= Date.now()
                     : false;
@@ -313,7 +320,11 @@ export default function PostCard({ post }: PostCardProps) {
               <ContentOriginBadge origin={post.content_origin} />
             </div>
 
-            <div className="flex items-center gap-2.5 sm:gap-3 text-[var(--hb-text-body)] flex-shrink-0 ml-auto">
+            {isOwnDraft ? (
+              <Link href={weddingPath(`/community/post/write?edit=${post.id}`)} className="ml-auto text-sm font-semibold text-[var(--hb-accent-hover)] hover:underline">
+                이어서 작성
+              </Link>
+            ) : !isDraft && <div className="flex items-center gap-2.5 sm:gap-3 text-[var(--hb-text-body)] flex-shrink-0 ml-auto">
               {/* 좋아요 */}
               <button
                 type="button"
@@ -323,6 +334,7 @@ export default function PostCard({ post }: PostCardProps) {
                   isLiked ? "text-danger-700" : "hover:text-danger-700"
                 }`}
                 aria-label="좋아요"
+                aria-pressed={isLiked}
                 title="좋아요"
               >
                 <Heart
@@ -361,6 +373,7 @@ export default function PostCard({ post }: PostCardProps) {
                   bookmarked ? "text-[var(--hb-text-strong)]" : "hover:text-[var(--hb-text-strong)]"
                 }`}
                 aria-label="저장"
+                aria-pressed={bookmarked}
                 title="저장"
               >
                 <Bookmark
@@ -379,7 +392,7 @@ export default function PostCard({ post }: PostCardProps) {
               >
                 <Share2 className="w-5 h-5 opacity-60 group-hover:opacity-100" />
               </button>
-            </div>
+            </div>}
           </div>
         </div>
 

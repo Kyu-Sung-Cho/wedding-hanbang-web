@@ -55,6 +55,21 @@ describe("BlockUserButton", () => {
     expect(container.textContent).toContain("상대에게 차단 알림");
   });
 
+  it("closes an idle confirmation with Escape without blocking anyone", async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    await render();
+    await act(async () => {
+      container.querySelector<HTMLButtonElement>('button[aria-label="준비친구님 차단"]')?.click();
+    });
+    expect(container.querySelector('[role="dialog"]')).not.toBeNull();
+    await act(async () => {
+      document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+    });
+    expect(container.querySelector('[role="dialog"]')).toBeNull();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
   it("sets explicit block intent and reports success only after the server receipt", async () => {
     useCommunityStore.getState().bindViewer("viewer-a");
     useCommunityStore.setState({ posts: [{ id: "blocked-author-post" } as never] });
