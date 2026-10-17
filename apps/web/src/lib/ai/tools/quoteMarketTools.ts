@@ -146,7 +146,8 @@ export async function executeGetMarketPrice(
       .select("price_min_krw,price_max_krw,source_label,region_code,item_name")
       .eq("is_current", true)
       .eq("price_category", category);
-    if (region) q = q.eq("region_code", region);
+    if (region === "seoul") q = q.in("region_code", ["seoul_gangnam3", "seoul_etc"]);
+    else if (region) q = q.eq("region_code", region);
     return q;
   };
 
@@ -198,7 +199,8 @@ export async function executeGetMarketPrice(
   // 좁히는 것 자체는 막지 않는다 — 예식장이 강남이면 강남값이 더 맞다. 막는 것은
   // **좁힌 사실이 문장에서 빠지는 것**이다. `toolOutput.region` 은 예전에도 있었지만
   // 모델이 그걸 옮겨 적어야만 사용자에게 닿았고, 실제로는 옮겨 적지 않았다.
-  const scope = region ? priceRegionLabel(region) : "전국";
+  const scope = region === "seoul" ? "서울 전체(강남·서초·송파 및 그 외 서울)"
+    : region ? priceRegionLabel(region) : "전국";
 
   const emptyResult: ToolExecutionResult = {
     toolName: "get_market_price",
