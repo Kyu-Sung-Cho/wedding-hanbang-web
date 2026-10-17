@@ -18,6 +18,7 @@ import * as LucideIcons from "lucide-react";
 import { COMMUNITY_CATEGORIES, CATEGORY_MAP } from "@/constants/communityCategories";
 import { useCommunityStore } from "@/stores/communityStore";
 import { useAuthStore } from "@/stores/authStore";
+import { useAccessibleModal } from "@/hooks/useAccessibleModal";
 import ImageUploader from "@/components/community/ImageUploader";
 import SlideBuilder from "@/components/community/SlideBuilder";
 import TagInput from "@/components/community/TagInput";
@@ -51,6 +52,7 @@ import type {
 } from "@/types/community.types";
 
 type PostMode = "regular" | "slides";
+type LeaveConfirmation = { viewerId: string | null; privacyEpoch: number };
 
 const LEGACY_DRAFT_KEY = "community_post_draft";
 
@@ -187,6 +189,10 @@ function PostWriteContent() {
   const [activeTab, setActiveTab] = useState<"write" | "preview">("write");
   const [autoSaveFlash, setAutoSaveFlash] = useState(false);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  const [leaveConfirmation, setLeaveConfirmation] = useState<LeaveConfirmation | null>(null);
+  const [leaveError, setLeaveError] = useState<string | null>(null);
+  const leaveConfirmationRef = useRef<LeaveConfirmation | null>(null);
+  const submitInFlightRef = useRef(false);
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const inlineImageInputRef = useRef<HTMLInputElement>(null);
@@ -639,7 +645,7 @@ function PostWriteContent() {
 
   // 제출
   const handleSubmit = async (asDraft = false) => {
-    if (isSubmitting) return;
+    if (isSubmitting || submitInFlightRef.current || leaveConfirmationRef.current) return;
     if (!category || !title.trim()) {
       setError("카테고리와 제목을 입력해 주세요.");
       return;
@@ -700,6 +706,7 @@ function PostWriteContent() {
     }
 
     setError(null);
+    submitInFlightRef.current = true;
     setIsSubmitting(true);
 
     // 폴은 수정 모드에서는 전송하지 않음 (재투표 결과 보존)
@@ -800,16 +807,63 @@ function PostWriteContent() {
         err instanceof Error ? err.message : "오류가 발생했습니다."
       );
     } finally {
+      submitInFlightRef.current = false;
       setIsSubmitting(false);
     }
   };
 
-  // 취소 핸들러
+  const closeLeaveConfirmation = useCallback(() => {
+    leaveConfirmationRef.current = null;
+    setLeaveConfirmation(null);
+    setLeaveError(null);
+  }, []);
+  const leaveDialogRef = useAccessibleModal({
+    open: leaveConfirmation !== null,
+    onClose: closeLeaveConfirmation,
+    initialFocusSelector: "[data-continue-writing]",
+  });
+
+  useEffect(() => {
+    if (!leaveConfirmation) return;
+    const invalidate = () => {
+      if ((useAuthStore.getState().user?.id ?? null) !== leaveConfirmation.viewerId
+        || useCommunityStore.getState().privacyEpoch !== leaveConfirmation.privacyEpoch) closeLeaveConfirmation();
+    };
+    const unsubscribeAuth = useAuthStore.subscribe(invalidate);
+    const unsubscribeCommunity = useCommunityStore.subscribe(invalidate);
+    return () => { unsubscribeAuth(); unsubscribeCommunity(); };
+  }, [closeLeaveConfirmation, leaveConfirmation]);
+
+  // 탭을 닫는 beforeunload와 달리 앱 안 이동은 브라우저 네이티브 대화상자를 열지 않는다.
   const handleCancel = () => {
+    if (isSubmitting || submitInFlightRef.current) return;
     if (hasUnsavedChanges) {
-      const confirmed = window.confirm("작성 중인 내용이 있습니다. 정말 나가시겠습니까?");
-      if (!confirmed) return;
+      const viewerId = useAuthStore.getState().user?.id ?? null;
+      if (viewerId !== userId) return;
+      const boundary = { viewerId, privacyEpoch: useCommunityStore.getState().privacyEpoch };
+      leaveConfirmationRef.current = boundary;
+      setLeaveError(null);
+      setLeaveConfirmation(boundary);
+      return;
     }
+    setHasUnsavedChanges(false);
+    router.back();
+  };
+
+  const confirmLeave = () => {
+    const boundary = leaveConfirmationRef.current;
+    if (!boundary || isSubmitting || submitInFlightRef.current) return;
+    if ((useAuthStore.getState().user?.id ?? null) !== boundary.viewerId
+      || boundary.viewerId !== userId
+      || useCommunityStore.getState().privacyEpoch !== boundary.privacyEpoch) {
+      closeLeaveConfirmation();
+      return;
+    }
+    if (!isEditMode && !persistDraftRef.current()) {
+      setLeaveError("작성 내용을 이 기기에 임시 저장하지 못했어요. 계속 작성하거나 내용을 복사한 뒤 다시 시도해 주세요.");
+      return;
+    }
+    closeLeaveConfirmation();
     setHasUnsavedChanges(false);
     router.back();
   };
@@ -853,7 +907,8 @@ function PostWriteContent() {
           <button
             type="button"
             onClick={handleCancel}
-            className="p-2 text-[var(--hb-text-body)] hover:text-[var(--hb-text-strong)] hover:bg-[var(--hb-surface-hover)] rounded-[6px] transition-colors"
+            disabled={isSubmitting}
+            className="p-2 text-[var(--hb-text-body)] hover:text-[var(--hb-text-strong)] hover:bg-[var(--hb-surface-hover)] rounded-[6px] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
             aria-label="뒤로 가기"
           >
             <ArrowLeft className="w-5 h-5" />
@@ -1424,7 +1479,8 @@ function PostWriteContent() {
           <button
             type="button"
             onClick={handleCancel}
-            className="px-6 py-2.5 text-sm font-medium text-[var(--hb-text-body)] bg-white border border-[var(--hb-hairline)] rounded-[6px] hover:bg-[var(--hb-surface-hover)] transition-colors"
+            disabled={isSubmitting}
+            className="px-6 py-2.5 text-sm font-medium text-[var(--hb-text-body)] bg-white border border-[var(--hb-hairline)] rounded-[6px] hover:bg-[var(--hb-surface-hover)] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
           >
             취소
           </button>
@@ -1468,7 +1524,8 @@ function PostWriteContent() {
           <button
             type="button"
             onClick={handleCancel}
-            className="px-4 py-2 text-sm font-medium text-[var(--hb-text-body)] bg-[var(--hb-surface-hover)] border border-[var(--hb-hairline)] rounded-[6px] transition-colors"
+            disabled={isSubmitting}
+            className="px-4 py-2 text-sm font-medium text-[var(--hb-text-body)] bg-[var(--hb-surface-hover)] border border-[var(--hb-hairline)] rounded-[6px] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
           >
             취소
           </button>
@@ -1501,6 +1558,30 @@ function PostWriteContent() {
           </button>
         </div>
       </div>
+      {leaveConfirmation && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/50 p-4" onClick={closeLeaveConfirmation}>
+          <div
+            ref={leaveDialogRef}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="post-leave-title"
+            aria-describedby="post-leave-description"
+            tabIndex={-1}
+            className="max-h-[90dvh] w-full max-w-md overflow-y-auto rounded-[6px] bg-white p-5 shadow-xl"
+            onClick={event => event.stopPropagation()}
+          >
+            <h2 id="post-leave-title" className="text-[var(--hb-text-strong)]">작성 중인 화면에서 나갈까요?</h2>
+            <p id="post-leave-description" className="mt-2 text-sm leading-relaxed text-[var(--hb-text-body)]">
+              {isEditMode ? "저장하지 않은 수정 내용은 반영되지 않아요. 저장된 글은 그대로 유지돼요." : "게시글은 발행되지 않아요. 계속 작성하면 입력한 내용이 그대로 남아요."}
+            </p>
+            {leaveError && <p role="alert" className="mt-3 text-sm text-danger-700">{leaveError}</p>}
+            <div className="mt-5 flex gap-2">
+              <button type="button" data-continue-writing onClick={closeLeaveConfirmation} className="min-h-11 flex-1 rounded-[6px] border border-[var(--hb-hairline)] px-4 text-sm font-medium text-[var(--hb-text-body)] hover:bg-[var(--hb-surface-hover)]">계속 작성</button>
+              <button type="button" onClick={confirmLeave} className="min-h-11 flex-1 rounded-[6px] bg-[var(--hb-primary)] px-4 text-sm font-semibold text-white hover:bg-[var(--hb-primary-hover)]">나가기</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
