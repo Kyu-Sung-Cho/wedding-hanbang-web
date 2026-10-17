@@ -2,6 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { ToolExecutionResult } from "@/types/database.types";
 import { disclosureRoundLabel, displaySourceLabel } from "@/lib/price/period";
 import { priceRegionLabel } from "@/lib/price/labels";
+import { MARKET_PRICE_CATEGORY_KEYS } from "@/lib/ai/marketPriceRequestScope";
 import {
   analyzeAmoraQuoteCheck,
   getQuoteCheckItems,
@@ -15,7 +16,7 @@ import {
  * 공시 자료가 없으므로 통계를 만들지 않는다 — 없는 표본에서 평균을 내면 그게 곧
  * 지어낸 수치다.
  */
-const MARKET_PRICE_CATEGORIES = new Set(["hall", "studio", "dress", "makeup"]);
+const MARKET_PRICE_CATEGORIES = new Set<string>(MARKET_PRICE_CATEGORY_KEYS);
 
 const MARKET_PRICE_SOURCE_FALLBACK = "한국소비자원 참가격";
 const MARKET_PRICE_ROW_LIMIT = 2_000;
