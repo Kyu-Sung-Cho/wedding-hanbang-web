@@ -383,6 +383,10 @@ importers:
         version: 5.9.3
 
   packages/shared:
+    dependencies:
+      entities:
+        specifier: 8.0.0
+        version: 8.0.0
     devDependencies:
       typescript:
         specifier: 5.9.3

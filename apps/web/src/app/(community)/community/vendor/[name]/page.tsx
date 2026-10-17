@@ -1,6 +1,7 @@
 ﻿"use client";
 
 import { useEffect, useState } from "react";
+import { communityContentText } from "@hanbang/shared/community-content-text";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import {
@@ -222,8 +223,7 @@ export default function VendorDetailPage() {
         ) : (
           <div className="space-y-3">
             {posts.map((post) => {
-              const preview = post.content
-                .replace(/<[^>]*>/g, "")
+              const preview = communityContentText(post.content)
                 .replace(/\s+/g, " ")
                 .trim()
                 .slice(0, 140);

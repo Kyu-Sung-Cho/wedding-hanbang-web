@@ -4,6 +4,7 @@ import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { renderToStaticMarkup } from "react-dom/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import PostCard from "@/components/community/PostCard";
 import type { PostDetail } from "@/types/community.types";
 
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean })
@@ -317,6 +318,46 @@ describe("community post body security", () => {
       expectSafePostBody(body);
     });
   }
+
+  const textPreviews = [
+    { name: "ampersands", content: "<p>A &amp; B</p>", card: "A & B", related: "A & B" },
+    { name: "comparison signs", content: "<p>예산 &lt; 300</p>", card: "예산 < 300", related: "예산 < 300" },
+    {
+      name: "encoded image markup",
+      content: "&lt;img src=x onerror=alert(1)&gt;",
+      card: "<img src=x onerror=alert(1)>",
+      related: "<img src=x onerror=alert(1)>",
+    },
+    { name: "one layer of encoding", content: "A &amp;amp; B", card: "A &amp; B", related: "A &amp; B" },
+    { name: "existing tag spacing", content: "<p>A</p><p>B</p>", card: "AB", related: "A B" },
+  ];
+
+  it.each(textPreviews)("renders $name as post-card text without creating markup", async ({ content, card }) => {
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    const root = createRoot(container);
+    mountedRoots.push({ root, container });
+
+    await act(async () => {
+      root.render(<PostCard post={question({ content })} />);
+    });
+
+    const preview = container.querySelector("p.ugc-text");
+    expect(preview?.textContent).toBe(card);
+    expect(preview?.querySelector("img, script, svg, math")).toBeNull();
+  });
+
+  it.each(textPreviews)("renders $name as related-post text without creating markup", async ({ content, related }) => {
+    vi.stubGlobal("fetch", vi.fn(async () => ({
+      ok: true,
+      json: async () => ({ posts: [question({ id: "related-1", content })] }),
+    })));
+
+    const container = await renderPage();
+    const preview = container.querySelector("aside a p");
+    expect(preview?.textContent).toBe(related);
+    expect(preview?.querySelector("img, script, svg, math")).toBeNull();
+  });
 
   it("keeps raw HTML injection out of both PostDetailClient body branches", () => {
     const source = readFileSync(new NodeURL("./PostDetailClient.tsx", import.meta.url), "utf8");

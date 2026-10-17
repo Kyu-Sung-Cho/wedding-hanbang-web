@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
+import { communityContentText } from "@hanbang/shared/community-content-text";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
@@ -97,7 +98,7 @@ const quickSearches = [
 ];
 
 function plainText(value: string) {
-  return value.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
+  return communityContentText(value, " ").replace(/\s+/g, " ").trim();
 }
 
 function toDecisionCase(post: PostWithAuthor): DecisionCase {

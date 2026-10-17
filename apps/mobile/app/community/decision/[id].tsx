@@ -19,6 +19,7 @@ import {
   Users,
 } from "lucide-react-native";
 import { colors, radius, spacing } from "@hanbang/design-tokens";
+import { communityContentText } from "@hanbang/shared/community-content-text";
 import {
   parseCommunityDecisionPublicOutcome,
   type CommunityDecisionPublicOutcome,
@@ -1986,7 +1987,7 @@ export default function DecisionThreadDetailScreen() {
             </AppText>
           </View>
           <AppText variant="title">{detail.post?.title ?? "원문 이용 불가"}</AppText>
-          {detail.post ? <AppText variant="body">{detail.post.content}</AppText> : (
+          {detail.post ? <AppText variant="body">{communityContentText(detail.post.content)}</AppText> : (
             <AppText variant="body">공개 원문은 철회되었고 새 적용은 차단됐어요.</AppText>
           )}
           <View style={styles.contextLine}>

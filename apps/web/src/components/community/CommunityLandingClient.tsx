@@ -1,6 +1,7 @@
 "use client";
 
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { communityContentText } from "@hanbang/shared/community-content-text";
 import { withParticle } from "@/lib/korean/particles";
 import Image from "next/image";
 import Link from "next/link";
@@ -230,7 +231,7 @@ function buildSearchQuestionHref(
 }
 
 function stripHtml(value: string) {
-  return value.replace(/<[^>]*>/g, "").replace(/\s+/g, " ").trim();
+  return communityContentText(value).replace(/\s+/g, " ").trim();
 }
 
 function getPostImage(post: PostWithAuthor) {

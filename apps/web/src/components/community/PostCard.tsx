@@ -1,6 +1,7 @@
 ﻿"use client";
 
 import { useState } from "react";
+import { communityContentText } from "@hanbang/shared/community-content-text";
 import Link from "next/link";
 import Image from "next/image";
 import {
@@ -67,8 +68,7 @@ export default function PostCard({ post }: PostCardProps) {
   const displayUpvoteCount = Math.max(0, (post.upvote_count ?? 0) + optimisticUpvoteDelta);
   const isLiked = displayVote === 1;
 
-  const contentPreview = post.content
-    .replace(/<[^>]*>/g, "")
+  const contentPreview = communityContentText(post.content)
     .replace(/\s+/g, " ")
     .trim()
     .slice(0, 180);

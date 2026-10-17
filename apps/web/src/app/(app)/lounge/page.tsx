@@ -1,5 +1,6 @@
 "use client";
 import {formatCalendarDate} from "@/lib/utils/weddingDate";
+import { communityContentText } from "@hanbang/shared/community-content-text";
 
 import Link from "next/link";
 import {
@@ -131,7 +132,7 @@ export function getUpcomingEvents(progress: Record<string, ProgressItem>): Sched
 }
 
 function stripHtml(input: string) {
-  return input.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
+  return communityContentText(input, " ").replace(/\s+/g, " ").trim();
 }
 
 function buildDemoSavedPosts(): PostWithAuthor[] {

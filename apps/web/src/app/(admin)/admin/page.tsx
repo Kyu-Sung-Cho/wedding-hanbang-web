@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback, useRef } from "react";
+import { communityContentText } from "@hanbang/shared/community-content-text";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import {
@@ -1513,8 +1514,9 @@ export default function AdminPage() {
                       ]
                         .filter(Boolean)
                         .join(" · ")
-                    : (target?.content ?? "")
-                        .replace(/<[^>]*>/g, "")
+                    : (isPost
+                        ? communityContentText(target?.content ?? "")
+                        : (target?.content ?? "").replace(/<[^>]*>/g, ""))
                         .replace(/\s+/g, " ")
                         .trim()
                         .slice(0, 200);

@@ -1,6 +1,7 @@
 ﻿"use client";
 
 import { useEffect, useState, useCallback } from "react";
+import { communityContentText } from "@hanbang/shared/community-content-text";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
@@ -68,8 +69,7 @@ const REPORT_REASONS = [
 ] as const;
 
 function stripHtmlPreview(value: string, maxLength = 72) {
-  return value
-    .replace(/<[^>]*>/g, " ")
+  return communityContentText(value, " ")
     .replace(/\s+/g, " ")
     .trim()
     .slice(0, maxLength);

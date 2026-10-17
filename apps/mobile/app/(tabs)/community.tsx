@@ -18,6 +18,7 @@ import {
   Search,
 } from "lucide-react-native";
 import { colors } from "@hanbang/design-tokens";
+import { communityContentText } from "@hanbang/shared/community-content-text";
 import {
   parseCommunityDecisionFeed,
   parseCommunityDecisionInbox,
@@ -769,7 +770,7 @@ export default function CommunityScreen() {
 
   function renderPost({ item }: { item: PostItem }) {
     const catLabel = CATEGORY_LABELS[item.category] ?? item.category;
-    const preview = item.content.replace(/<[^>]*>/g, "").slice(0, 100);
+    const preview = communityContentText(item.content).slice(0, 100);
     const votes = item.upvote_count - item.downvote_count;
     const nickname = item.author?.nickname ?? "익명";
     const hasImage = item.image_urls && item.image_urls.length > 0;

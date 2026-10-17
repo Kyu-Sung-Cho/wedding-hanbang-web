@@ -8,6 +8,7 @@ import { useLocalSearchParams, router, useFocusEffect } from "expo-router";
 import * as Crypto from "expo-crypto";
 import { ChevronUp, MessageCircle, Send, Bookmark, FileText, MoreHorizontal } from "lucide-react-native";
 import { colors } from "@hanbang/design-tokens";
+import { communityContentText } from "@hanbang/shared/community-content-text";
 import {
   apiFetchForExpectedUser,
   publicApiFetch,
@@ -885,7 +886,7 @@ export default function PostDetailScreen() {
           </View>
 
           {/* 본문 */}
-          <Text style={styles.body}>{post.content.replace(/<[^>]*>/g, "")}</Text>
+          <Text style={styles.body}>{communityContentText(post.content)}</Text>
 
           {post.decisionThreadId ? (
             <View style={styles.decisionThreadLink}>
