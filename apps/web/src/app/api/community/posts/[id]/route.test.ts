@@ -1027,7 +1027,7 @@ describe("community post resolution state", () => {
     expect(posts.update).toHaveBeenCalledWith(
       expect.objectContaining({
         title: "바뀐 제목",
-        content: `<p>바뀐 본문</p><img src="${IMAGE_URL}">`,
+        content: `<p>바뀐 본문</p><img src="${IMAGE_URL}" />`,
         images: [IMAGE_URL],
         slides: null,
       }),
