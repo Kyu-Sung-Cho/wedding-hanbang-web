@@ -37,11 +37,17 @@ function offerPriceLabel(offer: PriceOffer): string {
  * 일부 행에 하한이 없으면 전체 하한도 주장하지 않고, 일부 행에 상한이 없으면
  * 전체 상한도 주장하지 않는다. 양쪽이 모두 불완전하면 범위를 억지로 만들지 않는다.
  */
-function aggregateOfferPriceLabel(offers: readonly PriceOffer[]): string | null {
+function aggregateOfferPriceLabel(
+  offers: readonly PriceOffer[],
+  category: PriceVendor["category"],
+): string | null {
   const pricedOffers = offers.filter((offer) => (
     offer.minimumKrw !== null || offer.maximumKrw !== null
   ));
   if (pricedOffers.length === 0) return null;
+  // 예식장 식대·대관료는 단위가 다르지만 목록에는 정본 단위 정보가 없다.
+  // 항목명으로 단위를 추정하거나 하나의 최저·최고 범위로 합치지 않는다.
+  if (category === "hall") return "항목별 공시 확인";
 
   const hasCompleteMinimums = pricedOffers.every((offer) => offer.minimumKrw !== null);
   const hasCompleteMaximums = pricedOffers.every((offer) => offer.maximumKrw !== null);
@@ -145,7 +151,7 @@ export function PriceVendorCard({
   const visibleAgencies = showAllAgencies
     ? displayedAgencies
     : displayedAgencies.slice(0, AGENCY_PREVIEW_COUNT);
-  const agencyPriceSummary = aggregateOfferPriceLabel(displayedAgencyOffers);
+  const agencyPriceSummary = aggregateOfferPriceLabel(displayedAgencyOffers, vendor.category);
   const showAgencySpread = displayedAgencies.length > 1 && agencyPriceSummary !== null;
   // 요약 가격은 **대행사 오퍼만** 가지고 만든다. 대행사 없는 행은 같은 축의 가격이
   // 아니라서 섞으면 없는 가격이 만들어진다 — 실측 2건: 루미디아는 예식장 문서의
@@ -160,6 +166,7 @@ export function PriceVendorCard({
   // 없다고 말하게 된다(그 행은 바로 아래에 원문 그대로 보인다).
   const aggregatePriceSummary = aggregateOfferPriceLabel(
     comparableDisplayedOffers.length > 0 ? comparableDisplayedOffers : displayedOffers,
+    vendor.category,
   );
   const summaryPrice = aggregatePriceSummary
     ? aggregatePriceSummary
