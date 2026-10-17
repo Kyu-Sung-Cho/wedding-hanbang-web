@@ -14,6 +14,7 @@ import { useStore } from "zustand";
 
 import { track } from "@/lib/analytics/track";
 import { mobileAuthenticatedFetch } from "@/lib/mobile/mobileAuthenticatedFetch";
+import { useAuthStore } from "@/stores/authStore";
 import type { BudgetCombination } from "@/lib/price/budgetFinder";
 import {
   filterPriceCatalog,
@@ -41,7 +42,7 @@ import {
 import { disclosureRoundLabel } from "@/lib/price/period";
 import {
   parseLatestSavedComboPayload,
-  restoreSavedComboAgainstCatalog,
+  parseSavedComboRestorePayload,
   type SavedComboPreview,
 } from "@/lib/price/savedComboRestore";
 
@@ -120,6 +121,9 @@ export function PriceExplorer({
     useState<SavedComboHydrationStatus>("loading");
   const [latestSavedCombo, setLatestSavedCombo] = useState<SavedComboPreview | null>(null);
   const [restoreConfirming, setRestoreConfirming] = useState(false);
+  const [restoring, setRestoring] = useState(false);
+  const ownerId = useAuthStore((state) => state.user?.id ?? null);
+  const restoreRequest = useRef<AbortController | null>(null);
   const [showAuthGate, setShowAuthGate] = useState(false);
   const [comboVendor, setComboVendor] = useState<PriceVendor | null>(null);
   const [showBudgetFinder, setShowBudgetFinder] = useState(false);
@@ -190,6 +194,9 @@ export function PriceExplorer({
   }, [category, preview]);
 
   useEffect(() => {
+    restoreRequest.current?.abort();
+    restoreRequest.current = null;
+    setRestoring(false);
     if (preview) {
       setAuthStatus("guest");
       setWishlistedIds(new Set());
@@ -269,15 +276,15 @@ export function PriceExplorer({
       setWishlistedIds(new Set(body.vendorIds));
       setWishlistHydrationStatus("ready");
     }).catch((error: unknown) => {
-      if (!(error instanceof DOMException && error.name === "AbortError")) {
+      if (!controller.signal.aborted && !(error instanceof DOMException && error.name === "AbortError")) {
         setAuthStatus("unknown");
         setWishlistOnly(false);
         setWishlistHydrationStatus("error");
         setSavedComboHydrationStatus("error");
       }
     });
-    return () => controller.abort();
-  }, [ownerStateReload, preview]);
+    return () => { controller.abort(); restoreRequest.current?.abort(); restoreRequest.current = null; };
+  }, [ownerStateReload, preview, ownerId]);
 
   const vendors = catalog.categories[category];
   const activeAgencyIds = useMemo(() => new Set(vendors.flatMap((vendor) => vendor.offers.flatMap((offer) => (
@@ -476,7 +483,7 @@ export function PriceExplorer({
       surface: "combo",
       context: { category: comboCategory },
     });
-    setFeedback(`${selection.vendorName}을(를) 조합에 담았어요.`);
+    setFeedback(`조합에 담았어요: ${selection.vendorName}`);
   };
 
   const chooseBudgetCombination = (combination: BudgetCombination) => {
@@ -497,25 +504,53 @@ export function PriceExplorer({
     setFeedback("예산 안의 사진·드레스·메이크업 조합을 담았어요.");
   };
 
-  const restoreLatestCombo = () => {
-    if (!latestSavedCombo || savedComboHydrationStatus !== "ready") return;
+  const restoreLatestCombo = async () => {
+    if (preview || restoring || restoreRequest.current || !latestSavedCombo || savedComboHydrationStatus !== "ready") return;
     if (comboCount > 0 && !restoreConfirming) {
       setRestoreConfirming(true);
       return;
     }
 
-    const restored = restoreSavedComboAgainstCatalog(latestSavedCombo, catalog);
     setRestoreConfirming(false);
-    if (restored.restoredCategories.length === 0) {
-      setFeedback("최근 저장 조합의 가격이 바뀌었거나 업체가 공개 종료되어 불러오지 않았어요.");
-      return;
-    }
-
-    comboStore.getState().replaceSelections(restored.selections);
-    if (restored.skippedCategories.length > 0) {
-      setFeedback(`최근 저장 조합 ${restored.restoredCategories.length}개를 불러왔어요. 변경되거나 공개 종료된 ${restored.skippedCategories.length}개는 제외했어요.`);
-    } else {
-      setFeedback("최근 저장 조합을 현재 공시 정보로 확인해 불러왔어요.");
+    const controller = new AbortController();
+    restoreRequest.current = controller;
+    const startedOwnerId = useAuthStore.getState().user?.id ?? null;
+    const originalSelections = comboStore.getState().selections;
+    setRestoring(true);
+    try {
+      const response = await mobileAuthenticatedFetch(`/api/price/combos?restore=${encodeURIComponent(latestSavedCombo.id)}`, {
+        cache: "no-store", signal: controller.signal,
+      });
+      if (controller.signal.aborted || (useAuthStore.getState().user?.id ?? null) !== startedOwnerId) return;
+      if (response.status === 401) {
+        setAuthStatus("guest"); setLatestSavedCombo(null); setShowAuthGate(true);
+        return;
+      }
+      if (!response.ok) {
+        setFeedback("현재 공개 가격을 확인하지 못했어요. 기존 조합은 유지했어요. 잠시 후 다시 불러와 주세요.");
+        return;
+      }
+      const restored = parseSavedComboRestorePayload(await response.json());
+      if (controller.signal.aborted || (useAuthStore.getState().user?.id ?? null) !== startedOwnerId) return;
+      if (!restored) throw new Error("INVALID_RESTORE_RESPONSE");
+      if (comboStore.getState().selections !== originalSelections) {
+        setFeedback("불러오는 동안 조합이 바뀌었어요. 현재 조합을 확인한 뒤 다시 불러와 주세요.");
+        return;
+      }
+      if (restored.restoredCategories.length === 0) {
+        setFeedback("최근 저장 조합의 가격이 바뀌었거나 업체가 공개 종료되어 불러오지 않았어요.");
+        return;
+      }
+      comboStore.getState().replaceSelections(restored.selections);
+      setFeedback(restored.skippedCategories.length > 0
+        ? `최근 저장 조합 ${restored.restoredCategories.length}개를 불러왔어요. 변경되거나 공개 종료된 ${restored.skippedCategories.length}개는 제외했어요.`
+        : "최근 저장 조합을 현재 공시 정보로 확인해 불러왔어요.");
+    } catch {
+      if (!controller.signal.aborted && (useAuthStore.getState().user?.id ?? null) === startedOwnerId) {
+        setFeedback("현재 공개 가격을 확인하지 못했어요. 기존 조합은 유지했어요. 잠시 후 다시 불러와 주세요.");
+      }
+    } finally {
+      if (restoreRequest.current === controller) { restoreRequest.current = null; setRestoring(false); }
     }
   };
 
@@ -920,6 +955,8 @@ export function PriceExplorer({
                     <button
                       type="button"
                       onClick={restoreLatestCombo}
+                      disabled={restoring}
+                      aria-busy={restoring}
                       className="inline-flex min-h-11 items-center rounded-[6px] bg-[var(--hb-action)] px-4 text-xs font-bold text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#8F6662]"
                     >
                       바꾸기
@@ -936,9 +973,11 @@ export function PriceExplorer({
                   <button
                     type="button"
                     onClick={restoreLatestCombo}
+                    disabled={restoring}
+                    aria-busy={restoring}
                     className="inline-flex min-h-11 shrink-0 items-center justify-center rounded-[6px] bg-[var(--hb-action)] px-4 text-xs font-bold text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#8F6662]"
                   >
-                    최근 저장 조합 불러오기
+                    {restoring ? "현재 가격 확인 중…" : "최근 저장 조합 불러오기"}
                   </button>
                 )}
               </div>

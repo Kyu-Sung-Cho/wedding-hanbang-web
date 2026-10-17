@@ -4,6 +4,7 @@ import type { PriceCatalog } from "./catalog";
 import {
   parseLatestSavedComboPayload,
   restoreSavedComboAgainstCatalog,
+  parseSavedComboRestorePayload,
 } from "./savedComboRestore";
 
 const catalog: PriceCatalog = {
@@ -67,6 +68,26 @@ function payload(overrides: Record<string, unknown> = {}) {
 }
 
 describe("saved combo restore", () => {
+  it("rejects inconsistent restore metadata instead of replacing a cart with unknown data", () => {
+    expect(parseSavedComboRestorePayload({ restore: { selections: { studio: null, dress: null, makeup: null },
+      restoredCategories: ["studio"], skippedCategories: [] } })).toBeNull();
+    expect(parseSavedComboRestorePayload({ restore: { selections: { studio: null, dress: null, makeup: null },
+      restoredCategories: [], skippedCategories: ["hall"] } })).toBeNull();
+    expect(parseSavedComboRestorePayload({ restore: { selections: { studio: null, dress: null, makeup: null },
+      restoredCategories: [], skippedCategories: ["studio", "studio"] } })).toBeNull();
+  });
+
+  it("finds a matching offer with the selected options when same-price offers have different contents", () => {
+    const parsed = parseLatestSavedComboPayload(payload());
+    if (!parsed.ok || !parsed.combo) throw new Error("invalid fixture");
+    const vendor = catalog.categories.studio[0];
+    const noOptions = { ...vendor.offers[0], id: "empty-first", options: [] };
+    const result = restoreSavedComboAgainstCatalog(parsed.combo, {
+      ...catalog, categories: { ...catalog.categories, studio: [{ ...vendor, offers: [noOptions, ...vendor.offers] }] },
+    });
+    expect(result.restoredCategories).toEqual(["studio"]);
+    expect(result.selections.studio?.selectedOptions).toEqual([{ name: "원본 파일", krw: 100_000 }]);
+  });
   it("parses only a bounded, valid latest owner record", () => {
     const result = parseLatestSavedComboPayload(payload());
 

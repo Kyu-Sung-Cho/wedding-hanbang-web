@@ -5,6 +5,7 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { PriceCatalog, PriceVendor } from "@/lib/price/catalog";
+import { useAuthStore } from "@/stores/authStore";
 
 import { PriceExplorer } from "./PriceExplorer";
 
@@ -89,7 +90,9 @@ describe("PriceExplorer", () => {
 
   beforeEach(() => {
     window.sessionStorage.clear();
+    window.sessionStorage.setItem("hanbang-price-combo-v1", JSON.stringify({ selections: { studio: null, dress: null, makeup: null } }));
     window.localStorage.clear();
+    useAuthStore.setState({ user: null });
     container = document.createElement("div");
     document.body.appendChild(container);
     root = createRoot(container);
@@ -227,7 +230,13 @@ describe("PriceExplorer", () => {
 
   it("offers an explicit, current-catalog-validated restore for the latest saved combo", async () => {
     const fetchMock = vi.fn((input: string | URL | Request) => Promise.resolve(
-      String(input).includes("/api/favorites")
+      String(input).includes("?restore=")
+        ? jsonResponse({ restore: {
+            selections: { studio: { vendorId: firstVendor.id, vendorSlug: firstVendor.slug, vendorName: firstVendor.name,
+              agencyId: "agency-a", agencyName: "대행사 A", baseKrw: 1_000_000, selectedOptions: [], customKrw: null }, dress: null, makeup: null },
+            restoredCategories: ["studio"], skippedCategories: [],
+          } })
+        : String(input).includes("/api/favorites")
         ? jsonResponse({ vendorIds: [] })
         : jsonResponse({
             combos: [{
@@ -271,6 +280,7 @@ describe("PriceExplorer", () => {
       .toContain(firstVendor.name);
     expect(container.querySelector('[role="status"]')?.textContent)
       .toContain("현재 공시 정보로 확인해 불러왔어요");
+    expect(fetchMock.mock.calls.some(([input]) => String(input).includes("/api/price/combos?restore=combo-latest"))).toBe(true);
 
     const restoreAgainButton = Array.from(container.querySelectorAll<HTMLButtonElement>("button"))
       .find((button) => button.textContent?.includes("최근 저장 조합 불러오기"));
@@ -297,6 +307,83 @@ describe("PriceExplorer", () => {
       clearButton?.click();
       await Promise.resolve();
     });
+  });
+
+  it("restores selected options using owner-validated current detail data when the browser catalog is slim", async () => {
+    vi.stubGlobal("fetch", vi.fn(async (input: string | URL | Request) => {
+      if (String(input).includes("/api/favorites")) return jsonResponse({ vendorIds: [] });
+      if (String(input).includes("?restore=")) return jsonResponse({ restore: {
+        selections: { studio: { vendorId: firstVendor.id, vendorSlug: firstVendor.slug, vendorName: firstVendor.name,
+          agencyId: "agency-a", agencyName: "대행사 A", baseKrw: 1_000_000,
+          selectedOptions: [{ name: "QA 앨범", krw: 33_000 }], customKrw: 900_000 }, dress: null, makeup: null },
+        restoredCategories: ["studio"], skippedCategories: [],
+      } });
+      return jsonResponse({ combos: [{ id: "combo-options", name: "QA 옵션 조합", created_at: "2026-10-17T00:00:00Z",
+        selections: { studio: { vendor_id: firstVendor.id, agency_id: "agency-a", base_krw: 1_000_000,
+          selected_options: [{ name: "QA 앨범", krw: 33_000 }], custom_krw: 900_000 }, dress: null, makeup: null } }] });
+    }));
+    await act(async () => { root.render(<PriceExplorer catalog={catalog} category="studio" />); await flushAsyncWork(); });
+    const restore = Array.from(container.querySelectorAll<HTMLButtonElement>("button")).find((button) => button.textContent?.includes("최근 저장 조합 불러오기"));
+    await act(async () => { restore?.click(); await flushAsyncWork(); });
+    const cart = container.querySelector('aside[aria-label="사진·드레스·메이크업 조합"]');
+    expect(cart?.textContent).toContain(firstVendor.name);
+    const stored = JSON.parse(sessionStorage.getItem("hanbang-price-combo-v1") ?? "{}");
+    expect(stored.selections.studio.selectedOptions).toEqual([{ name: "QA 앨범", krw: 33_000 }]);
+    expect(stored.selections.studio.customKrw).toBe(900_000);
+  });
+
+  it.each([400, 401, 503])("preserves an existing cart after restore returns %s", async (status) => {
+    const selection = { vendorId: secondVendor.id, vendorSlug: secondVendor.slug, vendorName: secondVendor.name,
+      agencyId: "agency-a", agencyName: "대행사 A", baseKrw: 1_000_000, selectedOptions: [], customKrw: null };
+    sessionStorage.setItem("hanbang-price-combo-v1", JSON.stringify({ selections: { studio: selection, dress: null, makeup: null } }));
+    vi.stubGlobal("fetch", vi.fn(async (input: string | URL | Request) => {
+      if (String(input).includes("/api/favorites")) return jsonResponse({ vendorIds: [] });
+      if (String(input).includes("?restore=")) return jsonResponse({ error: "QA synthetic denial" }, status);
+      return jsonResponse({ combos: [{ id: "combo-failed", name: "QA 저장 조합", created_at: "2026-10-17T00:00:00Z",
+        selections: { studio: { vendor_id: firstVendor.id, agency_id: "agency-a", base_krw: 1_000_000,
+          selected_options: [], custom_krw: null }, dress: null, makeup: null } }] });
+    }));
+    await act(async () => { root.render(<PriceExplorer catalog={catalog} category="studio" />); await flushAsyncWork(); });
+    const button = (text: string) => Array.from(container.querySelectorAll<HTMLButtonElement>("button")).find((item) => item.textContent === text);
+    await act(async () => { button("최근 저장 조합 불러오기")?.click(); await flushAsyncWork(); });
+    await act(async () => { button("바꾸기")?.click(); await flushAsyncWork(); });
+    expect(JSON.parse(sessionStorage.getItem("hanbang-price-combo-v1") ?? "{}").selections.studio).toEqual(selection);
+    expect(container.querySelector('aside[aria-label="사진·드레스·메이크업 조합"]')?.textContent).toContain(secondVendor.name);
+    if (status !== 401) expect(container.textContent).toContain("기존 조합은 유지했어요");
+  });
+
+  it("discards a late previous-owner restore and lets the new owner start a fresh restore", async () => {
+    useAuthStore.setState({ user: { id: "actor-a", email: "qa-a@example.invalid" } });
+    let resolveOld!: (response: Response) => void;
+    const oldResponse = new Promise<Response>((resolve) => { resolveOld = resolve; });
+    vi.stubGlobal("fetch", vi.fn(async (input: string | URL | Request) => {
+      if (String(input).includes("/api/favorites")) return jsonResponse({ vendorIds: [] });
+      if (String(input).includes("?restore=")) return oldResponse;
+      const actor = useAuthStore.getState().user?.id;
+      return jsonResponse({ combos: [{ id: `combo-${actor}`, name: `QA ${actor}`, created_at: "2026-10-17T00:00:00Z",
+        selections: { studio: { vendor_id: firstVendor.id, agency_id: "agency-a", base_krw: 1_000_000,
+          selected_options: [], custom_krw: null }, dress: null, makeup: null } }] });
+    }));
+    await act(async () => { root.render(<PriceExplorer catalog={catalog} category="studio" />); await flushAsyncWork(); });
+    const restoreButton = () => Array.from(container.querySelectorAll<HTMLButtonElement>("button"))
+      .find((button) => button.textContent?.includes("최근 저장 조합 불러오기"));
+    await act(async () => { restoreButton()?.click(); await Promise.resolve(); });
+    expect(container.textContent).toContain("현재 가격 확인 중");
+    await act(async () => {
+      useAuthStore.setState({ user: { id: "actor-b", email: "qa-b@example.invalid" } });
+      await flushAsyncWork();
+    });
+    expect(restoreButton()?.disabled).toBe(false);
+    expect(container.textContent).toContain("QA actor-b");
+    await act(async () => {
+      resolveOld(jsonResponse({ restore: {
+        selections: { studio: { vendorId: firstVendor.id, vendorSlug: firstVendor.slug, vendorName: firstVendor.name,
+          agencyId: "agency-a", agencyName: "대행사 A", baseKrw: 1_000_000, selectedOptions: [], customKrw: null }, dress: null, makeup: null },
+        restoredCategories: ["studio"], skippedCategories: [],
+      } }));
+      await flushAsyncWork();
+    });
+    expect(container.querySelector('aside[aria-label="사진·드레스·메이크업 조합"]')).toBeNull();
   });
 
   it("keeps wishlist actions disabled until the initial owner state is hydrated", async () => {

@@ -10,6 +10,9 @@ import {
 } from "@/lib/priceCombo/serverValidation";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClientFromRequest } from "@/lib/supabase/server";
+import { createPublicClient } from "@/lib/supabase/public";
+import { loadSavedComboRestoreCatalog } from "@/lib/price/savedComboCatalog";
+import { parseLatestSavedComboPayload, restoreSavedComboAgainstCatalog } from "@/lib/price/savedComboRestore";
 import { mobileBridgeJson as boundedMobileBridgeJson } from "@/lib/mobile/boundedJsonResponse";
 import { checkRateLimit, rateLimitKey } from "@/utils/rateLimit";
 import {
@@ -62,6 +65,26 @@ export async function GET(request: Request) {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) {
     return mobileBridgeJson({ error: "로그인이 필요합니다." }, { status: 401 });
+  }
+
+  const query = new URL(request.url).searchParams;
+  const restoreId = query.get("restore");
+  if (restoreId !== null) {
+    if (query.size !== 1 || !isUuid(restoreId)) return mobileBridgeJson({ error: "조합 정보가 올바르지 않습니다." }, { status: 400 });
+    const limited = checkRateLimit(rateLimitKey("price-combos:restore", request, user.id), { maxRequests: 20, windowMs: 60_000 });
+    if (limited) return mobileBridgeJson({ error: "요청이 많아요. 잠시 후 다시 불러와 주세요." }, { status: limited.status, headers: limited.headers });
+    try {
+      const { data: row, error: rowError } = await supabase.from("combos")
+        .select("id, name, selections, created_at").eq("user_id", user.id).eq("id", restoreId).maybeSingle();
+      if (rowError) return mobileBridgeJson({ error: "저장한 조합을 확인하지 못했어요. 잠시 후 다시 시도해 주세요." }, { status: 503 });
+      if (!row) return mobileBridgeJson({ error: "저장한 조합을 찾을 수 없습니다." }, { status: 404 });
+      const parsed = parseLatestSavedComboPayload({ combos: [row] });
+      if (!parsed.ok || !parsed.combo) return mobileBridgeJson({ error: "저장한 조합 정보를 확인하지 못했습니다." }, { status: 503 });
+      const catalog = await loadSavedComboRestoreCatalog(createPublicClient(), parsed.combo);
+      return mobileBridgeJson({ restore: restoreSavedComboAgainstCatalog(parsed.combo, catalog) });
+    } catch {
+      return mobileBridgeJson({ error: "현재 공개 가격을 확인하지 못했어요. 잠시 후 다시 불러와 주세요." }, { status: 503 });
+    }
   }
 
   const { data, error } = await supabase

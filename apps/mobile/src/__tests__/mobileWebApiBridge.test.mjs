@@ -23,6 +23,19 @@ const REQUEST_ID = "11111111-1111-4111-8111-111111111111";
 const NONCE = "22222222-2222-4222-8222-222222222222";
 const DOCUMENT_URL = "https://vendor-preview.example.com/price/studio?region=seoul#filters";
 
+test("saved combo restore accepts just one UUID query with GET", () => {
+  const path = `/api/price/combos?restore=${REQUEST_ID}`;
+  const parse = (requestPath, method = "GET") => parseMobileWebApiRequest(JSON.stringify({
+    protocol: MOBILE_WEB_API_PROTOCOL, nonce: NONCE, documentUrl: DOCUMENT_URL,
+    id: REQUEST_ID, path: requestPath, method,
+  }), NONCE, DOCUMENT_URL);
+  assert.equal(parse(path)?.path, path);
+  for (const invalid of [path + "&extra=1", path + `&restore=${REQUEST_ID}`, path + "#fragment", "/api/price/combos?restore=bad"]) {
+    assert.equal(parse(invalid), null);
+  }
+  assert.equal(parse(path, "POST"), null);
+});
+
 test("the native vendor bridge accepts only bounded allowlisted API requests", () => {
   assert.deepEqual(parseMobileWebApiRequest(JSON.stringify({
     protocol: MOBILE_WEB_API_PROTOCOL,

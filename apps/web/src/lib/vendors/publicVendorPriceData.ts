@@ -415,6 +415,7 @@ export function assemblePublicVendorPriceProfile(
 export async function loadPublicVendorPriceProfile(
   client: SupabaseClient,
   slug: string,
+  loadOptions: { strictIdentity?: boolean; currentOnly?: boolean } = {},
 ) {
   const { data: vendorData, error: vendorError } = await client
     .from("v_public_vendors")
@@ -429,18 +430,21 @@ export async function loadPublicVendorPriceProfile(
   const identityRows = await loadVendorIdentityRows(
     client,
     vendorData as PublicVendorProjection,
+    { strict: loadOptions.strictIdentity },
   );
 
   const prices = await collectPublicVendorRelationChunks<PublicPriceProjection>(
     chunks(identityRows.map(({ slug: identitySlug }) => identitySlug), OPTION_ID_CHUNK_SIZE),
     async (vendorSlugs, from, to) => {
-      const result = await client
+      let query = client
         .from("v_public_official_prices")
         .select(
           "id, period_label, price_category, region_code, item_name, base_spec, price_min_krw, price_max_krw, vat_note, price_note, source_label, agency_id, agency_slug, agency_display_name, is_current, published_at",
         )
         .in("vendor_slug", vendorSlugs)
-        .eq("source", "kca_tprice")
+        .eq("source", "kca_tprice");
+      if (loadOptions.currentOnly) query = query.eq("is_current", true);
+      const result = await query
         .order("period_label", { ascending: false })
         .order("price_min_krw", { ascending: true, nullsFirst: false })
         .order("id", { ascending: true })
