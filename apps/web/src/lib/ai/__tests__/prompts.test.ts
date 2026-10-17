@@ -34,6 +34,14 @@ const baseContext = {
 };
 
 describe("getWeddingPlannerSystemPrompt", () => {
+  it.each([
+    ["bride", "신부"], ["groom", "신랑"], ["not_selected", "미선택"], ["unavailable", "이번 조회에서 확인하지 못함"],
+  ] as const)("keeps a neutral actor's registered name and explicit role apart from couple slots: %s", (senderConfirmedRole, label) => {
+    const prompt = getWeddingPlannerSystemPrompt({ ...baseContext, bookings: [], neutralMemberPresentation: true, senderConfirmedRole });
+    expect(prompt.split("\n").find(line => line.startsWith("지금 대화 중인 사용자:"))).toContain(`지금 대화 중인 사용자: "민이" | 사용자가 선택한 역할: ${label}`);
+    expect(prompt).not.toContain("커플 이름: 미등록");
+  });
+
   it("never upgrades a legacy cost field into recorded spend or an over-budget claim", () => {
     const prompt = getWeddingPlannerSystemPrompt({
       ...baseContext,
@@ -720,6 +728,7 @@ describe("getWeddingPlannerSystemPrompt", () => {
       {
         ...baseContext,
         senderName: "CURRENT_USER_SENTINEL",
+        senderConfirmedRole: "groom",
         brideName: "CURRENT_BRIDE_SENTINEL",
         budget: 12_340_000,
         bookings: [],
@@ -748,6 +757,7 @@ describe("getWeddingPlannerSystemPrompt", () => {
 
     expect(prompt.length).toBeLessThanOrEqual(maxChars);
     expect(prompt).toContain("CURRENT_USER_SENTINEL");
+    expect(prompt).toContain("사용자가 선택한 역할: 신랑");
     expect(prompt).toContain("CURRENT_BRIDE_SENTINEL");
     expect(prompt).toContain("예산: 1,234만원");
     expect(prompt).toContain("## 사용자가 설정한 준비 참고값");
@@ -947,6 +957,7 @@ describe("getWeddingPlannerSystemPrompt", () => {
       brideName: "PRIVATE_BRIDE_SENTINEL",
       groomName: "PRIVATE_GROOM_SENTINEL",
       senderName: "PRIVATE_SENDER_SENTINEL",
+      senderConfirmedRole: "groom" as const,
       progress: {
         venue: { memo: "PRIVATE_PROGRESS_SENTINEL" },
       },
@@ -1010,6 +1021,7 @@ describe("getWeddingPlannerSystemPrompt", () => {
         maxChars: AMORA_SYSTEM_PROMPT_MAX_CHARS,
       });
       for (const sentinel of sentinels) expect(prompt).not.toContain(sentinel);
+      expect(prompt).not.toContain("사용자가 선택한 역할: 신랑");
       expect(prompt).not.toContain("## 커플 상황");
       expect(prompt).not.toContain("예산: 미설정");
       expect(prompt).not.toContain("진행률: 0/");
@@ -1031,6 +1043,7 @@ describe("getWeddingPlannerSystemPrompt", () => {
     for (const sentinel of sentinels) {
       expect(mediationPrompt).not.toContain(sentinel);
     }
+    expect(mediationPrompt).not.toContain("사용자가 선택한 역할: 신랑");
     expect(mediationPrompt).not.toContain("## 커플 상황");
     expect(mediationPrompt).not.toContain("예산: 미설정");
     expect(mediationPrompt).not.toContain("진행률: 0/");
