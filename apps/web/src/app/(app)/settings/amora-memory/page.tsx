@@ -334,7 +334,7 @@ function MemorySettingsContent({ ownerKey }: { ownerKey: string | null }) {
   }
 
   return (
-    <main className="mx-auto min-h-screen w-full max-w-3xl px-4 pb-24 pt-6 sm:px-6 sm:pt-10">
+    <section aria-labelledby="amora-memory-settings-title" className="mx-auto min-h-screen w-full max-w-3xl px-4 pb-24 pt-6 sm:px-6 sm:pt-10">
       <div className="mb-7 flex items-center gap-3">
         <Link
           {...weddingLinkProps("/settings")}
@@ -345,7 +345,7 @@ function MemorySettingsContent({ ownerKey }: { ownerKey: string | null }) {
         </Link>
         <div className="min-w-0">
           <p className="text-xs font-semibold tracking-[0.16em] text-[var(--color-rose-700)]">AMORA MEMORY</p>
-          <h1 className="text-[var(--hb-text-strong)]">아모라가 기억하는 것</h1>
+          <h2 id="amora-memory-settings-title" className="text-[var(--hb-text-strong)]">아모라가 기억하는 것</h2>
         </div>
       </div>
 
@@ -357,7 +357,8 @@ function MemorySettingsContent({ ownerKey }: { ownerKey: string | null }) {
           <div>
             <h2 className="text-[var(--hb-text-strong)]">기억의 주인은 두 분이에요</h2>
             <p className="mt-1 text-sm font-light leading-relaxed text-[var(--hb-text-strong)]">
-              켜 두면 대화에서 직접 확정한 선택과 취향을 정리해 다음 상담에 활용해요. 틀린 내용은 고치고, 원치 않는 기억은 언제든 지울 수 있어요.
+              기존 기억을 확인·수정·삭제하고, 기억 사용 동의를 철회할 수 있어요.
+              {data && !data.runtimeEnabled && " 새 기억 저장은 아직 준비 중이에요."}
             </p>
             <p className="mt-2 text-xs leading-relaxed text-[#725F55]">
               건강·임신·난임·성생활처럼 민감한 내용은 장기 기억에 저장하지
@@ -567,6 +568,6 @@ function MemorySettingsContent({ ownerKey }: { ownerKey: string | null }) {
           </section>
         </>
       )}
-    </main>
+    </section>
   );
 }
