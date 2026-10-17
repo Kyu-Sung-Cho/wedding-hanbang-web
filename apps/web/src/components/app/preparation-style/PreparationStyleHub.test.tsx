@@ -11,11 +11,24 @@ import type { PreparationStyleSnapshot, PreparationStyleSavedResponse } from "@/
 import { WEDDING_CODE_V12_VERSION } from "@/constants/weddingCodeV12";
 import PreparationStyleHub from "./PreparationStyleHub";
 import PreparationStylePage from "@/app/(app)/preparation-style/page";
-import { createV31Draft } from "@/lib/weddingCode/v31";
-import { writeV31LocalProgress } from "@/lib/weddingCode/v31LocalProgress";
+import { createV31Draft, encodeV31 } from "@/lib/weddingCode/v31";
+import { LOCAL_KEY as V31_LOCAL_KEY, writeV31LocalProgress } from "@/lib/weddingCode/v31LocalProgress";
 import { getV31IndexForId } from "@/lib/weddingCode/v31Flow";
+import { WEDDING_CODE_V31_QUESTIONS, WEDDING_CODE_V31_TASTES, WEDDING_CODE_V31_VERSION, type V31Draft } from "@/constants/weddingCodeV31";
+import { V31_SAVE_PREFERENCE_KEY } from "@/app/wedding-code/useV31LocalProgress";
+import { PAIR_SESSION_LOCAL_KEY } from "@/lib/weddingCode/pairSessionClient";
+import { WC64_CLEAR_ANSWERS_LABEL, WC64_UNTESTED_NOTICE } from "@/components/weddingCode64/Intro64";
+import { WC64_QUERY_VALUE } from "@/lib/weddingCode/wc64/types";
+import { MEASUREMENT_VERSION } from "@/lib/weddingCode/likert/types";
 
 vi.mock("@/lib/analytics", () => ({ captureWeddingCodeEvent: vi.fn() }));
+
+/** 36문항 저장을 읽은 횟수. 라운지(embedded)의 64문항 시작 화면은 36문항 기록을 읽지 않아야 한다. */
+const wc36 = vi.hoisted(() => ({ reads: 0 }));
+vi.mock("@/app/wedding-code/storage36", () => ({
+  readResult36: () => { wc36.reads += 1; return { id: "r36" }; },
+  readDraft36: () => { wc36.reads += 1; return null; },
+}));
 
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 const owner = "11111111-1111-4111-8111-111111111111";
@@ -66,10 +79,276 @@ describe("준비 스타일의 개인 저장과 두 사람 공유", () => {
     }
   }
 
-  it("라운지 기본 주소는 v3.1 문항을 열고 구판 계정 API를 호출하지 않는다", async () => {
-    const page = await PreparationStylePage({ searchParams: Promise.resolve({}) });
+  const V31_QUERY = { v: WEDDING_CODE_V31_VERSION };
+  const V31_LOUNGE_HREF = `/wedding/preparation-style?v=${WEDDING_CODE_V31_VERSION}`;
+  async function renderLounge(search: Record<string, string> = {}) {
+    const page = await PreparationStylePage({ searchParams: Promise.resolve(search) });
     await act(async () => root.render(<main>{page}</main>));
+  }
+  /** 늦게 불러오는 64문항 화면과 저장소를 읽는 첫 프레임을 기다린다. */
+  async function waitFor(ready: () => boolean, label: string) {
+    for (let i = 0; i < 300; i++) {
+      if (ready()) return;
+      await act(async () => { await new Promise(resolve => setTimeout(resolve, 10)); });
+    }
+    throw new Error(`화면이 나오지 않았어요: ${label}`);
+  }
+  const screen64 = () => container.querySelector("[data-wc64-screen]")?.getAttribute("data-wc64-screen") ?? null;
+  async function renderWc64Lounge(search: Record<string, string> = {}) {
+    await renderLounge(search);
+    await waitFor(() => screen64() === "intro", "64문항 시작 화면");
+  }
+  async function press(element: Element | null | undefined, label: string) {
+    expect(element, label).toBeTruthy();
+    await act(async () => (element as HTMLElement).click());
+  }
+  const startsWith = (text: string) => [...container.querySelectorAll<HTMLButtonElement>("button")].find(item => item.textContent?.startsWith(text));
+  const previousV31 = () => container.querySelector<HTMLAnchorElement>("[data-lounge-previous-v31]");
+  function finishedV31(): V31Draft {
+    const draft = createV31Draft();
+    for (const question of WEDDING_CODE_V31_QUESTIONS) draft.answers[question.id] = 5;
+    for (const taste of WEDDING_CODE_V31_TASTES) draft.tastes[taste.key] = { status: "skipped" };
+    draft.avoidances = { status: "no_preference" }; draft.priorities = { status: "skipped" }; draft.spending = { status: "no_preference" };
+    return draft;
+  }
+  function saveV31Progress(draft: V31Draft, screen: "questions" | "result") {
+    expect(writeV31LocalProgress(window.localStorage, screen === "result"
+      ? { draft, index: 0, flow: "full", screen, editing: false, needsPriorityReview: false }
+      : { draft, index: getV31IndexForId("G3"), flow: "core", screen, editing: false, needsPriorityReview: false }, null).status).toBe("saved");
+  }
+
+  it("라운지 맨 주소는 64문항을 앱 안(embedded)에 열고, 첫 화면에서 스크롤과 초점을 옮기지 않으며 아무것도 보내지 않는다", async () => {
+    const scrolledRoots: Element[] = [];
+    const scrollIntoView = vi.fn(function (this: Element) { scrolledRoots.push(this); });
+    Object.defineProperty(HTMLElement.prototype, "scrollIntoView", { configurable: true, writable: true, value: scrollIntoView });
+    try {
+      await renderWc64Lounge();
+      const lounge = container.querySelector("[data-lounge-wedding-code]");
+      const root64 = container.querySelector<HTMLElement>("[data-wc64-embedded]");
+      expect(lounge).not.toBeNull();
+      expect(root64?.tagName).toBe("DIV");
+      expect(lounge!.contains(root64)).toBe(true);
+      expect(root64!.querySelector('[data-wc64-screen="intro"]')).not.toBeNull();
+      // 바탕색과 화면 높이는 앱 껍데기가 맡는다. 라운지 안에서 공개 화면의 바탕 띠를 다시 깔지 않는다.
+      expect(root64!.className).not.toMatch(/min-h-screen|(^|\s)bg-/);
+      // 앱 껍데기가 main 을 맡는다. 64문항 화면이 main 을 하나 더 만들지 않는다.
+      expect(container.querySelectorAll("main")).toHaveLength(1);
+      const text = container.textContent ?? "";
+      expect(text).not.toContain("WEDDING CODE");
+      expect(text.split(WC64_UNTESTED_NOTICE)).toHaveLength(2);
+      // v3.1 소개와 함께 보기 동의 문장은 맨 라운지에 없다.
+      expect(text).not.toContain("기본 14페이지");
+      expect(text).not.toContain("‘함께 보기’에 동의하면");
+      // 라운지는 공개 맨 주소의 답을 이어 본다고 말하지 않는다.
+      expect(text).not.toContain("공개 웨딩코드에서 이 브라우저에 남긴 답");
+      expect(text).not.toMatch(/이어 볼 수 있/);
+      expect(container.querySelector('[aria-label="이 브라우저의 답 저장"] p')?.textContent).toBe(
+        "답은 이 브라우저에만 두고, 마지막으로 답한 때부터 30일 동안 이어 할 수 있어요. 서버로 보내지 않아요. 끄면 저장한 답을 바로 지워요. "
+        + "로그인해 있어도 계정에는 저장하지 않고 아모라에도 넘기지 않아요. "
+        + "로그아웃해도 이 브라우저에 남아서, 같은 브라우저에서 다른 계정으로 로그인한 사람도 볼 수 있어요. 자세한 내용은 개인정보 처리방침에 있어요.");
+      const privacy = container.querySelector<HTMLAnchorElement>("[data-wc64-privacy]");
+      expect(privacy?.getAttribute("href")).toBe("/privacy");
+      expect(privacy?.textContent).toBe("개인정보 처리방침");
+      expect(privacy?.getAttribute("target")).toBe("_blank");
+      const links = [...container.querySelectorAll<HTMLAnchorElement>("a")];
+      expect(links.find(link => link.textContent === "이전에 계정에 저장한 답 보기")?.getAttribute("href")).toBe("/wedding/preparation-style?view=previous");
+      expect(links.find(link => link.textContent === "웨딩라운지로")?.getAttribute("href")).toBe("/wedding/lounge");
+      expect(previousV31()).toBeNull();
+      expect(window.scrollTo).not.toHaveBeenCalled();
+      expect(scrollIntoView).not.toHaveBeenCalled();
+      expect(document.activeElement).toBe(document.body);
+      expect(fetchMock).not.toHaveBeenCalled();
+
+      await click("시작하기");
+      await waitFor(() => screen64() === "plan", "식 질문");
+      expect(container.querySelector("[data-plan]")).not.toBeNull();
+      // 화면이 바뀌면 창 맨 위가 아니라 이 틀로 스크롤하고, 초점은 틀 안의 제목으로 간다.
+      expect(scrollIntoView).toHaveBeenCalledTimes(1);
+      expect(scrolledRoots[0]).toBe(root64);
+      expect(document.activeElement?.hasAttribute("data-wc64-focus")).toBe(true);
+      expect(root64!.contains(document.activeElement)).toBe(true);
+      expect(window.scrollTo).not.toHaveBeenCalled();
+      expect(fetchMock).not.toHaveBeenCalled();
+    } finally {
+      delete (HTMLElement.prototype as { scrollIntoView?: unknown }).scrollIntoView;
+    }
+  });
+
+  it("라운지 64문항은 이 브라우저에 남긴 답을 시작 화면에서 멈춘 문장부터 이어 한다", async () => {
+    await renderWc64Lounge();
+    await click("시작하기");
+    await waitFor(() => screen64() === "plan", "식 질문");
+    await press(container.querySelector('[data-plan="yes"]'), "식 계획 yes");
+    await waitFor(() => screen64() === "section", "첫 묶음 안내");
+    await press(container.querySelector("[data-wc64-begin]"), "묶음 시작");
+    for (let answered = 0; answered < 2; answered++) {
+      await waitFor(() => screen64() === "item", "문장 화면");
+      const id = container.querySelector("[data-wc64-item]")!.getAttribute("data-wc64-item");
+      await press(container.querySelector('[data-v="4"]'), "다섯 칸 중 4");
+      await waitFor(() => container.querySelector("[data-wc64-item]")?.getAttribute("data-wc64-item") !== id, "다음 문장");
+    }
+    await waitFor(() => screen64() === "item", "세 번째 문장");
+    const here = container.querySelector("[data-wc64-item]")!.getAttribute("data-wc64-item");
+    await act(async () => root.unmount());
+    root = createRoot(container);
+
+    await renderWc64Lounge();
+    const resume = startsWith("이어 하기");
+    expect(resume?.textContent).toContain("2/64");
+    await press(resume, "이어 하기");
+    await waitFor(() => screen64() === "item", "이어 한 문장");
+    expect(container.querySelector("[data-wc64-item]")!.getAttribute("data-wc64-item")).toBe(here);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("이 브라우저에 v3.1 답이 있으면 64문항 시작 화면에 이전 판으로 돌아가는 링크를 하나 두고, 시작하면 사라진다", async () => {
+    const draft = createV31Draft();
+    draft.answers.G1 = 5;
+    saveV31Progress(draft, "questions");
+    await renderWc64Lounge();
+    await waitFor(() => previousV31() !== null, "이전 판 링크");
+    const link = previousV31()!;
+    expect(link.textContent).toBe("이전 웨딩코드 이어 하기");
+    expect(link.getAttribute("href")).toBe(V31_LOUNGE_HREF);
+    expect(link.closest('[data-wc64-screen="intro"]')).not.toBeNull();
+    expect(container.querySelectorAll("[data-lounge-previous-v31]")).toHaveLength(1);
+    await click("시작하기");
+    await waitFor(() => screen64() === "plan", "식 질문");
+    expect(previousV31()).toBeNull();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("v3.1 결과까지 본 기록이면 결과 다시 보기로 부른다", async () => {
+    saveV31Progress(finishedV31(), "result");
+    await renderWc64Lounge();
+    await waitFor(() => previousV31() !== null, "이전 판 링크");
+    expect(previousV31()!.textContent).toBe("이전 웨딩코드 결과 다시 보기");
+    expect(previousV31()!.getAttribute("href")).toBe(V31_LOUNGE_HREF);
+  });
+
+  it.each([
+    ["v3.1 자동 저장을 껐을 때", () => {
+      const draft = createV31Draft(); draft.answers.G1 = 5; saveV31Progress(draft, "questions");
+      window.localStorage.setItem(V31_SAVE_PREFERENCE_KEY, "off");
+    }],
+    ["답 없이 자리만 저장됐을 때", () => saveV31Progress(createV31Draft(), "questions")],
+    ["v3.1 기록이 없을 때", () => {}],
+  ])("%s 이전 판 링크를 두지 않는다", async (_label, seed) => {
+    seed();
+    await renderWc64Lounge();
+    await act(async () => { await new Promise(resolve => setTimeout(resolve, 30)); });
+    expect(previousV31()).toBeNull();
+    expect(container.textContent).not.toContain("이전 웨딩코드");
+  });
+
+  it("이 브라우저에 함께 보기 기록이 있으면 64문항 시작 화면에 그 결과로 가는 링크를 둔다", async () => {
+    window.localStorage.setItem(PAIR_SESSION_LOCAL_KEY, JSON.stringify({
+      roomId: "11111111-1111-4111-8111-111111111111", token: "a".repeat(64), mode: "member",
+      expiresAt: new Date(Date.now() + 86_400_000).toISOString(),
+    }));
+    await renderWc64Lounge();
+    const intro = container.querySelector('[data-wc64-screen="intro"]')!;
+    const link = [...intro.querySelectorAll<HTMLAnchorElement>("a")].find(item => item.textContent === "연결한 두 사람 결과 보기");
+    expect(link?.getAttribute("href")).toContain("/wedding-code/together#room=11111111-1111-4111-8111-111111111111");
+  });
+
+  it("36문항 기록이 있어도 라운지 64문항은 36문항 기록을 읽지 않고 링크도 두지 않는다", async () => {
+    window.localStorage.setItem("wc36:latest", "r36");
+    wc36.reads = 0;
+    await renderWc64Lounge();
+    await act(async () => { await new Promise(resolve => setTimeout(resolve, 50)); });
+    expect(container.querySelector("[data-wc64-previous36]")).toBeNull();
+    expect(container.textContent).not.toContain("36문항");
+    expect(wc36.reads).toBe(0);
+  });
+
+  // 2026-10-17 상품 심사 M3: 라운지 64문항의 지우기는 64문항 기록만 지운다. v3.1 답만 남은 브라우저에서 눌러도
+  // '지웠어요'라고 하지 않고, v3.1 답은 남아 있다고 범위를 말한다. v3.1 기록과 이전 판 링크도 그대로다.
+  it("v3.1 답만 있는 브라우저에서 라운지 64문항 지우기를 누르면 64문항 답이 없다고 하고 v3.1 답은 남았다고 말한다", async () => {
+    const draft = createV31Draft();
+    draft.answers.G1 = 5;
+    saveV31Progress(draft, "questions");
+    const v31Before = window.localStorage.getItem(V31_LOCAL_KEY);
+    expect(v31Before).not.toBeNull();
+    await renderWc64Lounge();
+    await waitFor(() => previousV31() !== null, "이전 판 링크");
+    const clear = container.querySelector<HTMLButtonElement>("[data-wc64-clear]");
+    expect(clear?.textContent?.trim()).toBe(WC64_CLEAR_ANSWERS_LABEL);
+    expect(WC64_CLEAR_ANSWERS_LABEL).toBe("이 브라우저의 64문항 답 지우기");
+    await press(clear, "64문항 답 지우기");
+    const status = container.querySelector("[data-wc64-status]")?.textContent;
+    expect(status).toBe("저장한 64문항 답은 없어요. 이전 판 웨딩코드(36문항·v3.1) 답은 이 버튼으로 지워지지 않고 그대로 남아요.");
+    expect(status).not.toContain("지웠어요");
+    expect(document.querySelector('[role="alertdialog"]')).toBeNull();
+    expect(window.localStorage.getItem(V31_LOCAL_KEY)).toBe(v31Before);
+    expect(previousV31()?.textContent).toBe("이전 웨딩코드 이어 하기");
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  // LNG-4: 쿼리로 이전 판(v3.1)을 연 라운지에는 이전 판이라는 한 줄과 64문항으로 가는 링크를 둔다.
+  it("쿼리로 연 라운지 v3.1 에는 '이전 판이에요 · 64문항 웨딩코드로' 한 줄을 두고, 64문항·v4 에는 두지 않는다", async () => {
+    const note = () => container.querySelector("[data-lounge-previous-version-note]");
+    window.history.replaceState(null, "", `/preparation-style?v=${WEDDING_CODE_V31_VERSION}`);
+    await renderLounge(V31_QUERY);
+    expect(note()?.textContent?.replace(/\s+/g, " ").trim()).toBe("이전 판이에요 · 64문항 웨딩코드로");
+    const link = note()!.querySelector("a");
+    expect(link?.textContent?.trim()).toBe("64문항 웨딩코드로");
+    expect(link?.getAttribute("href")).toBe("/wedding/preparation-style");
+    expect(container.querySelectorAll("[data-lounge-previous-version-note]")).toHaveLength(1);
+    await act(async () => root.unmount());
+    root = createRoot(container);
+
+    const others: Record<string, string>[] = [{}, { v: WC64_QUERY_VALUE }, { v: "v4.0-tendency" }];
+    for (const search of others) {
+      const query = new URLSearchParams(search).toString();
+      window.history.replaceState(null, "", `/preparation-style${query ? `?${query}` : ""}`);
+      await renderLounge(search);
+      expect(note(), JSON.stringify(search)).toBeNull();
+      expect(container.textContent, JSON.stringify(search)).not.toContain("이전 판이에요");
+      await act(async () => root.unmount());
+      root = createRoot(container);
+    }
+  });
+
+  it("라운지 ?v=64 는 기존 입구의 오류 화면이 아니라 64문항을 앱 안(embedded)에 연다", async () => {
+    window.history.replaceState(null, "", `/preparation-style?v=${WC64_QUERY_VALUE}`);
+    await renderWc64Lounge({ v: WC64_QUERY_VALUE });
+    const root64 = container.querySelector<HTMLElement>("[data-wc64-embedded]");
+    expect(root64?.tagName).toBe("DIV");
+    expect(container.querySelector("[data-lounge-wedding-code]")!.contains(root64)).toBe(true);
+    expect(container.textContent).not.toContain("이 링크는 열 수 없어요");
+    expect(container.querySelectorAll("main")).toHaveLength(1);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  // 기존 입구(WeddingCodeEntryClient)가 오늘 그리는 화면의 한 문장으로 갈래를 확인한다.
+  it.each([
+    ["v4 입구(?v=v4.0-tendency)", { v: "v4.0-tendency" }, "", "질문은 모두 68개예요"],
+    ["v3.1 받은 링크(#v=…&a=…)", {}, `#v=${WEDDING_CODE_V31_VERSION}&a=${encodeV31(finishedV31())}`, "상대의 답이 담긴 링크를 받았어요"],
+    ["36문항 초대(?ct=…)", { ct: "c".repeat(32) }, "", "기본 14페이지 · 로그인 없이 시작"],
+    ["36문항 명시(?v=36)", { v: "36" }, "", "이 링크는 열 수 없어요"],
+    // D6: 30문항(likert)은 라운지에서 열지 않는다. 쿼리로 와도, 해시로 와도 기존 입구의 안내 화면이다.
+    ["30문항 명시(?v=likert-preferences-alpha.1)", { v: MEASUREMENT_VERSION }, "", "이 링크는 열 수 없어요"],
+    ["30문항 링크(#wc-likert=…)", {}, "#wc-likert=abc", "이 링크는 열 수 없어요"],
+  ])("%s 는 라운지에서도 64문항이 아니라 기존 입구가 연다", async (_label, search, hash, marker) => {
+    const query = new URLSearchParams(search).toString();
+    window.history.replaceState(null, "", `/preparation-style${query ? `?${query}` : ""}${hash}`);
+    await renderLounge(search);
+    await waitFor(() => (container.textContent ?? "").includes(marker), marker);
+    await act(async () => { await new Promise(resolve => setTimeout(resolve, 50)); });
     expect(container.querySelector("[data-lounge-wedding-code]")).not.toBeNull();
+    expect(container.querySelector("[data-wc64-embedded]")).toBeNull();
+    expect(container.querySelector("[data-wc64-screen]")).toBeNull();
+    expect(container.textContent).not.toContain(WC64_UNTESTED_NOTICE);
+    expect(container.textContent).not.toContain("웨딩코드를 불러오고 있어요.");
+    expect(container.querySelectorAll("main")).toHaveLength(1);
+  });
+
+  it("라운지 v3.1 주소는 v3.1 문항을 열고 구판 계정 API를 호출하지 않는다", async () => {
+    window.history.replaceState(null, "", `/preparation-style?v=${WEDDING_CODE_V31_VERSION}`);
+    await renderLounge(V31_QUERY);
+    expect(container.querySelector("[data-lounge-wedding-code]")).not.toBeNull();
+    expect(container.querySelector("[data-wc64-embedded]")).toBeNull();
     // 라운지는 v3.1 키만 읽는다. 맨 /wedding-code(36·64문항)에 남긴 답을 이어 본다고 말하지 않는다.
     expect(container.textContent).not.toContain("공개 웨딩코드에서 이 브라우저에 남긴 답");
     expect(container.textContent).not.toMatch(/이어 볼 수 있/);
@@ -93,14 +372,14 @@ describe("준비 스타일의 개인 저장과 두 사람 공유", () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it("v3.1 키에 남긴 브라우저 답을 라운지에서 같은 질문부터 이어 하며 계정으로 보내지 않는다", async () => {
+  it("v3.1 키에 남긴 브라우저 답을 라운지 v3.1 주소에서 같은 질문부터 이어 하며 계정으로 보내지 않는다", async () => {
     const draft = createV31Draft();
     draft.answers.G1 = 5;
     expect(writeV31LocalProgress(window.localStorage, {
       draft, index: getV31IndexForId("G3"), flow: "core", screen: "questions", editing: false, needsPriorityReview: false,
     }, null).status).toBe("saved");
-    const page = await PreparationStylePage({ searchParams: Promise.resolve({}) });
-    await act(async () => root.render(<main>{page}</main>));
+    window.history.replaceState(null, "", `/preparation-style?v=${WEDDING_CODE_V31_VERSION}`);
+    await renderLounge(V31_QUERY);
     expect(container.textContent).toContain("기본 질문 14페이지 중 1페이지부터 이어 할 수 있어요");
     await click("이어서 답하기");
     expect(container.querySelector('[data-question="G3"]')).not.toBeNull();

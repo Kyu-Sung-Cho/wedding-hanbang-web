@@ -3,6 +3,7 @@ import { ArrowLeft } from "lucide-react";
 import LoungeWeddingCode from "@/components/app/preparation-style/LoungeWeddingCode";
 import PreparationStyleHub from "@/components/app/preparation-style/PreparationStyleHub";
 import { parseWeddingCodeEntryQuery, type WeddingCodeEntrySearchParams } from "@/app/wedding-code/entry";
+import { isLegacyWeddingCodeQuery, weddingCodeExplicitTarget } from "@/app/wedding-code/releaseEntry";
 import { weddingLinkProps } from "@/lib/weddingPaths";
 
 export const metadata = {
@@ -21,8 +22,11 @@ export default async function PreparationStylePage({ searchParams }: {
     </div>
     <PreparationStyleHub previousOnly />
   </>;
+  // 맨 주소는 64문항을 연다. 판 고르기는 공개 /wedding-code 와 같은 함수로 한다(releaseEntry.ts).
   return <LoungeWeddingCode
     shareOrigin={process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, "") || "https://hanbang.ai"}
     initialEntry={parseWeddingCodeEntryQuery(search)}
+    queryIsLegacy={isLegacyWeddingCodeQuery(search)}
+    explicitTarget={weddingCodeExplicitTarget(search)}
   />;
 }

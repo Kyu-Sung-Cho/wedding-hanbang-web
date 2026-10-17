@@ -59,6 +59,25 @@ describe("WeddingCode entry points", () => {
   });
 
   /**
+   * 라운지 맨 주소는 wc64(64문항)를 연다(파운더 2026-10-16). 카드가 v3.1 흐름의 문항 수를 다시 읽으면
+   * 화면이 여는 판과 카드가 말하는 판이 갈린다. 문항 수는 숫자를 적지 않고 WC64_ITEM_COUNT 에서 읽는다
+   * (은행 JSON 을 라운지 묶음에 싣지 않으려고 types.ts 의 상수를 쓴다).
+   */
+  it("라운지 카드는 v3.1 흐름을 읽지 않고 wc64 문항 수 상수로 말한다", () => {
+    const lounge = read("(app)/lounge/LoungeHubSections.tsx");
+    const code = withoutComments(lounge);
+    expect(code).not.toContain("v31Flow");
+    expect(code).not.toContain("V31_CORE_SCREEN_INDEXES");
+    expect(code).not.toContain("V31_EXTRA_INDEXES");
+    expect(code).toContain('import { WC64_ITEM_COUNT } from "@/lib/weddingCode/wc64/types";');
+    expect(code).not.toMatch(/wc64\/bank|wc64-bank\.json/);
+    const start = lounge.indexOf("data-lounge-preparation-style");
+    const card = lounge.slice(start, lounge.indexOf("</section>", start));
+    expect(card).toContain("{WC64_ITEM_COUNT}문항으로");
+    expect(card).not.toMatch(/\d+문항/);
+  });
+
+  /**
    * `/wedding-code/c/[code]` 는 이전 판(장면 문항) 글자표만 읽는다. 지금 판 결과가 이 경로로
    * 링크하면 지금 코드를 옛 뜻으로 풀거나 404 를 낸다. 웨딩코드 화면·로직과 사이트맵 어디에서도
    * 이 경로를 만들지 않는지 본다.
@@ -68,11 +87,12 @@ describe("WeddingCode entry points", () => {
       ...sourceFiles(path.join(appRoot, "wedding-code")),
       ...sourceFiles(path.join(srcRoot, "lib", "weddingCode")),
       ...sourceFiles(path.join(srcRoot, "components", "wedding-code")),
+      ...sourceFiles(path.join(srcRoot, "components", "weddingCode64")),
       ...sourceFiles(path.join(srcRoot, "components", "app", "preparation-style")),
       path.join(appRoot, "sitemap.ts"),
     ];
     // 측정기가 살아 있는지: 지금 판 결과·공유·함께 보기 파일을 실제로 읽는다.
-    for (const required of ["WeddingCodeV31Results.tsx", "WeddingCodeV31Sharing.tsx", "WeddingCodeTogether.tsx", "v31.ts", "sitemap.ts"]) {
+    for (const required of ["WeddingCodeV31Results.tsx", "WeddingCodeV31Sharing.tsx", "WeddingCodeTogether.tsx", "v31.ts", "sitemap.ts", "WeddingCode64Client.tsx", "Compare64.tsx"]) {
       expect(scanned.some((file) => path.basename(file) === required), required).toBe(true);
     }
     const offenders = scanned.filter((file) => {

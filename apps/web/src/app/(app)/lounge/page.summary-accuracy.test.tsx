@@ -4,6 +4,12 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import LoungePage from "./page";
 import { useAuthStore } from "@/stores/authStore";
+import { WC64_BANK, WC64_ITEMS } from "@/lib/weddingCode/wc64/bank";
+import { wc64DimPossible } from "@/lib/weddingCode/wc64/model";
+import { WC64_ITEM_COUNT } from "@/lib/weddingCode/wc64/types";
+import { V31_CORE_SCREEN_INDEXES, V31_EXTRA_INDEXES } from "@/lib/weddingCode/v31Flow";
+import { WEDDING_CODE_BARE_TARGET } from "@/app/wedding-code/releaseEntry";
+import { LOUNGE_V31_CARD_COPY, LoungeWeddingCodeCard } from "./LoungeHubSections";
 import type { Profile, ScheduleEvent, WeddingJourney } from "@/types/database.types";
 
 const communityExposure = vi.hoisted(() => ({ enabled: undefined as boolean | undefined }));
@@ -63,11 +69,78 @@ describe("라운지의 저장값 요약과 조회 실패 구분", () => {
     const weddingCode = container.querySelector('[data-lounge-preparation-style]')!;
     expect(weddingCode.querySelector("h2")?.textContent).toBe("웨딩코드");
     expect(weddingCode.querySelector('a[href="/wedding/preparation-style"]')?.textContent).toBe("웨딩코드 보기");
-    // 기본 흐름은 동의·취향 23문항 뒤에 우선순위 한 화면을 더 묻는다(v31Flow V31_CORE_SCREEN_INDEXES).
-    expect(weddingCode.textContent).toContain("기본 24문항으로 결과를 보고, 궁금하면 8문항을 더 답할 수 있어요.");
-    expect(weddingCode.textContent).toContain("이 브라우저에 저장한 답");
-    expect(weddingCode.textContent).toContain("내 답이 담긴 링크");
     expect(container.querySelector('a[href="/wedding/community/quote-check"]')).not.toBeNull();
+  });
+
+  /** 카드의 문구 문단(머리 표시 「고른 답으로 이야기하기」 다음 문단들). */
+  function cardCopy(): string[] {
+    const weddingCode = container.querySelector('[data-lounge-preparation-style]')!;
+    return [...weddingCode.querySelectorAll("p")].slice(1).map((p) => p.textContent ?? "");
+  }
+  async function renderCard(target: typeof WEDDING_CODE_BARE_TARGET) {
+    await act(async () => { root.render(<LoungeWeddingCodeCard target={target} />); });
+  }
+  const WC64_CARD_COPY = [
+    `내가 원하는 결혼식과 준비 방식을 ${WC64_ITEMS.length}문항으로 살펴봐요. 식 없이 한다고 고르면 결혼식 질문은 빼고, 결과도 네 글자 대신 두 글자로 나와요.`,
+    "답은 이 브라우저에만 두고 서버로 보내지 않아요. 상대와 답 코드를 주고받으면 두 사람 답을 나란히 볼 수 있어요.",
+  ];
+  /** 이번 변경 전 카드 문구 그대로(HEAD 의 v3.1 카드). 숫자는 v31Flow 에서 다시 센다. */
+  const V31_CARD_COPY = [
+    `내가 원하는 결혼식과 준비 방식을 살펴봐요. 기본 ${V31_CORE_SCREEN_INDEXES.length}문항으로 결과를 보고, 궁금하면 ${V31_EXTRA_INDEXES.length}문항을 더 답할 수 있어요.`,
+    "이 브라우저에 저장한 답을 이어 보고, 원하면 내 답이 담긴 링크를 보내 서로 비교해요.",
+  ];
+
+  /**
+   * 라운지 맨 주소는 64문항(wc64)을 연다(파운더 2026-10-16 「라운지도 64문항으로 옮겨줘」).
+   * 카드의 문항 수는 은행 JSON 대신 WC64_ITEM_COUNT 에서 읽으므로, 은행이 바뀌면 여기서 빨개져야 한다.
+   * wc64 에는 기본·추가 구분과 답이 든 링크가 없다(두 사람 답은 사용자가 복사한 답 코드로 본다).
+   */
+  it("라운지 웨딩코드 카드는 wc64 의 문항 수와 저장·두 사람 보기 방식을 그대로 말한다", async () => {
+    expect(WC64_ITEM_COUNT).toBe(WC64_ITEMS.length);
+    await renderCard("wc64");
+    expect(container.querySelector('[data-lounge-preparation-style]')?.getAttribute("data-lounge-preparation-style")).toBe("wc64");
+    expect(cardCopy()).toEqual(WC64_CARD_COPY);
+    const text = container.querySelector('[data-lounge-preparation-style]')?.textContent ?? "";
+    expect(text).toContain("답 코드");
+    expect(text).not.toContain("링크");
+    expect(text).not.toMatch(/기본 \d+문항/);
+    expect(text).not.toContain("문항을 더 답할");
+    expect(text).not.toMatch(/MBTI|엠비티아이|정확|검증|과학적|진단|궁합|당신은|예측|확률|속마음|무의식|상위/i);
+    expect(text).not.toMatch(/[‐-―−－]/);
+    // 카드가 말하는 글자 수는 계산과 같아야 한다: 식을 올리면 네 글자, 식 없이 하면 두 글자(DEC-1)
+    expect(text).toContain("식 없이 한다고 고르면");
+    expect(text).toContain("네 글자 대신 두 글자로");
+    expect(WC64_BANK.dims.filter((d) => wc64DimPossible(d, "yes"))).toHaveLength(4);
+    expect(WC64_BANK.dims.filter((d) => wc64DimPossible(d, "none"))).toHaveLength(2);
+    expect(text).not.toMatch(/식을 안 올|식을 올리지 않/);
+  });
+
+  /**
+   * 되돌리기 스위치(WEDDING_CODE_BARE_TARGET = "36")를 쓰면 라운지 맨 주소는 v3.1 소개를 연다.
+   * 그때 카드가 64문항·답 코드·「서버로 보내지 않아요」를 말하면 여는 화면과 어긋난다
+   * (v3.1 은 기본·추가 문항으로 나뉘고, 링크로 비교하며, 함께 보기를 고르면 답을 서버에 둔다).
+   * 상수를 바꾸지 않고 카드에 target 을 넘겨 이번 변경 전 문구 그대로인지 본다.
+   */
+  it("되돌린 판(36)에서 라운지 카드는 이번 변경 전 v3.1 문구로 돌아간다", async () => {
+    expect([V31_CORE_SCREEN_INDEXES.length, V31_EXTRA_INDEXES.length]).toEqual([24, 8]);
+    expect([...LOUNGE_V31_CARD_COPY]).toEqual(V31_CARD_COPY);
+    await renderCard("36");
+    expect(container.querySelector('[data-lounge-preparation-style]')?.getAttribute("data-lounge-preparation-style")).toBe("36");
+    expect(cardCopy()).toEqual([
+      "내가 원하는 결혼식과 준비 방식을 살펴봐요. 기본 24문항으로 결과를 보고, 궁금하면 8문항을 더 답할 수 있어요.",
+      "이 브라우저에 저장한 답을 이어 보고, 원하면 내 답이 담긴 링크를 보내 서로 비교해요.",
+    ]);
+    const text = container.querySelector('[data-lounge-preparation-style]')?.textContent ?? "";
+    expect(text).not.toContain(`${WC64_ITEM_COUNT}문항`);
+    expect(text).not.toContain("답 코드");
+    expect(text).not.toContain("서버로 보내지 않아요");
+    expect(container.querySelector('a[href="/wedding/preparation-style"]')?.textContent).toBe("웨딩코드 보기");
+  });
+
+  it("라운지 화면의 웨딩코드 카드는 지금 되돌리기 스위치가 고른 판의 문구를 쓴다", async () => {
+    await render();
+    expect(container.querySelector('[data-lounge-preparation-style]')?.getAttribute("data-lounge-preparation-style")).toBe(WEDDING_CODE_BARE_TARGET);
+    expect(cardCopy()).toEqual(WEDDING_CODE_BARE_TARGET === "wc64" ? WC64_CARD_COPY : V31_CARD_COPY);
   });
 
   it("계정·커플 전환 중 이전 계획의 이름과 체크 내용을 새 허브에 노출하지 않는다", async () => {

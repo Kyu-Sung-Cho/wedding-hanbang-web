@@ -6,6 +6,7 @@ import WeddingCodeLikertClient from "@/components/weddingCodeLikert/WeddingCodeL
 import type { WeddingCodeEntry } from "./entry";
 import LegacyEntry from "./WeddingCodeEntryClient";
 import { weddingCodeReleaseTarget, type WeddingCodeExplicitTarget } from "./releaseEntry";
+import { createReleaseHashStore } from "./releaseHashStore";
 import WeddingCodeClient from "./WeddingCodeClient";
 
 const serverHash = () => null;
@@ -21,36 +22,6 @@ const WeddingCode64Client = dynamic(() => import("@/components/weddingCode64/Wed
   loading: () => loadingScreen,
 });
 
-function createHashStore() {
-  let held = "";
-  let pathname: string | null = null;
-  return {
-    getSnapshot() {
-      pathname ??= window.location.pathname;
-      // 다른 페이지로 돌아가는 중에는 그 페이지의 목차 조각을 답으로 읽지 않는다.
-      if (window.location.pathname !== pathname) return held;
-      const current = window.location.hash;
-      if (current) held = current;
-      return current || held;
-    },
-    subscribe(onChange: () => void) {
-      const receive = () => {
-        if (window.location.pathname !== pathname) return;
-        // 구판은 받은 답을 메모리로 옮긴 뒤 주소를 비운다. 그 답의 판을 계속 유지한다.
-        if (!window.location.hash && held) return;
-        held = window.location.hash;
-        onChange();
-      };
-      window.addEventListener("hashchange", receive);
-      window.addEventListener("popstate", receive);
-      return () => {
-        window.removeEventListener("hashchange", receive);
-        window.removeEventListener("popstate", receive);
-      };
-    },
-  };
-}
-
 export default function WeddingCodeReleaseClient({ queryIsLegacy, explicitTarget = null, ...legacyProps }: {
   queryIsLegacy: boolean;
   /** 주소가 직접 고른 판(`?v=` 또는 36문항 초대 `?ct=`). 없으면 맨 주소 기본값을 쓴다. */
@@ -60,7 +31,7 @@ export default function WeddingCodeReleaseClient({ queryIsLegacy, explicitTarget
   researchContributionOpen: boolean;
   researchStorageActive: boolean;
 }) {
-  const store = useMemo(() => createHashStore(), []);
+  const store = useMemo(() => createReleaseHashStore(), []);
   const hash = useSyncExternalStore(store.subscribe, store.getSnapshot, serverHash);
   if (hash === null && !queryIsLegacy) return loadingScreen;
   const target = weddingCodeReleaseTarget(queryIsLegacy, hash ?? "", explicitTarget);

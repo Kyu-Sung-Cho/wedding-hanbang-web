@@ -34,5 +34,101 @@
     "target": "apps/web/src/app/wedding-code/WeddingCodeV31Client.tsx",
     "find": "href=\"/privacy\" target=\"_blank\"",
     "replace": "href=\"/privacy\""
+  },
+  {
+    "name": "라운지 v3.1 주소(?v=v3.1-preferences)가 v3.1 대신 64문항을 연다",
+    "target": "apps/web/src/app/(app)/preparation-style/page.tsx",
+    "find": "queryIsLegacy={isLegacyWeddingCodeQuery(search)}",
+    "replace": "queryIsLegacy={false}"
+  },
+  {
+    "name": "라운지 맨 주소가 64문항 대신 기존 입구를 연다",
+    "target": "apps/web/src/components/app/preparation-style/LoungeWeddingCodeSwitch.tsx",
+    "find": "if (target === \"wc64\") return",
+    "replace": "if (false) return"
+  },
+  {
+    "name": "라운지에서 36문항 주소(?v=36, ?ct=)가 64문항으로 바뀐다",
+    "target": "apps/web/src/components/app/preparation-style/LoungeWeddingCodeSwitch.tsx",
+    "find": "if (target === \"wc64\") return",
+    "replace": "if (target === \"wc64\" || target === \"36\") return"
+  },
+  {
+    "name": "라운지가 받은 링크의 해시(#v=)를 무시하고 64문항을 연다",
+    "target": "apps/web/src/components/app/preparation-style/LoungeWeddingCodeSwitch.tsx",
+    "find": "weddingCodeReleaseTarget(queryIsLegacy, hash ?? \"\", explicitTarget)",
+    "replace": "weddingCodeReleaseTarget(queryIsLegacy, \"\", explicitTarget)"
+  },
+  {
+    "name": "라운지 64문항이 앱 안이 아니라 공개 화면처럼 main 으로 그려진다",
+    "target": "apps/web/src/components/weddingCode64/WeddingCode64Client.tsx",
+    "find": "const Root = embedded ? \"div\" : \"main\";",
+    "replace": "const Root = \"main\";"
+  },
+  {
+    "name": "라운지 64문항에 WEDDING CODE 표기가 돌아온다",
+    "target": "apps/web/src/components/weddingCode64/Intro64.tsx",
+    "find": "{embedded ? null : <p className={wc64Eyebrow}>WEDDING CODE</p>}",
+    "replace": "<p className={wc64Eyebrow}>WEDDING CODE</p>"
+  },
+  {
+    "name": "라운지 64문항이 첫 화면에서 창을 맨 위로 스크롤한다",
+    "target": "apps/web/src/components/weddingCode64/WeddingCode64Client.tsx",
+    "find": "if (!embedded) {",
+    "replace": "if (true) {"
+  },
+  {
+    "name": "라운지 64문항이 첫 화면에서 틀로 스크롤하고 초점을 옮긴다",
+    "target": "apps/web/src/components/weddingCode64/WeddingCode64Client.tsx",
+    "find": "if (embeddedFirstScreen.current) {",
+    "replace": "if (false) {"
+  },
+  {
+    "name": "라운지 자동 저장 문단에서 계정·아모라로 넘기지 않는다는 문장이 빠진다",
+    "target": "apps/web/src/components/weddingCode64/WeddingCode64Client.tsx",
+    "find": "로그인해 있어도 이 답은 계정이나 아모라에 넘기지 않아요. ",
+    "replace": ""
+  },
+  {
+    "name": "라운지에서 이전에 계정에 저장한 답으로 가는 링크가 사라진다",
+    "target": "apps/web/src/components/app/preparation-style/LoungeWeddingCode.tsx",
+    "find": "weddingLinkProps(\"/preparation-style?view=previous\")",
+    "replace": "weddingLinkProps(\"/preparation-style\")"
+  },
+  {
+    "name": "답 없이 자리만 저장된 v3.1 기록에도 이전 판 링크가 뜬다",
+    "target": "apps/web/src/components/app/preparation-style/LoungePreviousV31.tsx",
+    "find": "if (read.status !== \"ready\" || !hasV31ResumableAnswer(read.snapshot)) return \"\";",
+    "replace": "if (read.status !== \"ready\") return \"\";"
+  },
+  {
+    "name": "v3.1 자동 저장을 꺼도 이전 판 링크가 뜬다",
+    "target": "apps/web/src/components/app/preparation-style/LoungePreviousV31.tsx",
+    "find": "if (storage.getItem(V31_SAVE_PREFERENCE_KEY) === \"off\") return \"\";",
+    "replace": ""
+  },
+  {
+    "name": "이전 판 링크가 v3.1 쿼리 없이 64문항으로 돌아온다",
+    "target": "apps/web/src/components/app/preparation-style/LoungePreviousV31.tsx",
+    "find": "export const LOUNGE_V31_PATH = \"/preparation-style?v=v3.1-preferences\";",
+    "replace": "export const LOUNGE_V31_PATH = \"/preparation-style\";"
+  },
+  {
+    "name": "64문항 시작 화면이 라운지의 이전 판 버튼을 그리지 않는다",
+    "target": "apps/web/src/components/weddingCode64/Intro64.tsx",
+    "find": "{extra}",
+    "replace": ""
+  },
+  {
+    "name": "라운지에서 함께 보기 결과로 가는 링크가 사라진다",
+    "target": "apps/web/src/components/app/preparation-style/LoungePreviousV31.tsx",
+    "find": "<WeddingCodeComparisonResume compact />",
+    "replace": ""
+  },
+  {
+    "name": "라운지 64문항이 36문항 기록을 읽고 앱 밖 링크를 둔다",
+    "target": "apps/web/src/components/weddingCode64/Intro64.tsx",
+    "find": "usePrevious36(!embedded)",
+    "replace": "usePrevious36(true)"
   }
 ]

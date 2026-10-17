@@ -8,7 +8,8 @@ import type { MissionGroup } from "@/lib/amora/missions";
 import { formatLoungeWon } from "@/lib/amora/loungeSummary";
 import { mannersPartForCategory } from "@/lib/manners/categoryMap";
 import { weddingLinkProps } from "@/lib/weddingPaths";
-import { V31_CORE_SCREEN_INDEXES, V31_EXTRA_INDEXES } from "@/lib/weddingCode/v31Flow";
+import { WC64_ITEM_COUNT } from "@/lib/weddingCode/wc64/types";
+import { WEDDING_CODE_BARE_TARGET } from "@/app/wedding-code/releaseEntry";
 import { isValidScheduleTime } from "@/utils/scheduleEvents";
 import { daysUntilLoungeEvent, type LoungePriorityItem } from "./hubModel";
 
@@ -85,6 +86,36 @@ export function PreparationRecordPanel({ checked, completed, upcoming }: { check
   </section>;
 }
 
+/**
+ * 되돌린 판("36")에서 라운지 카드가 말하는 v3.1 문구. 이번 변경 전 카드 문구 그대로다.
+ * 숫자는 v31Flow 의 기본 화면 수(V31_CORE_SCREEN_INDEXES)와 추가 문항 수(V31_EXTRA_INDEXES)이고,
+ * 라운지 묶음에 v3.1 흐름을 다시 싣지 않으려고 적어 둔다. page.summary-accuracy 시험이 v31Flow 와 대조한다.
+ */
+export const LOUNGE_V31_CARD_COPY = [
+  "내가 원하는 결혼식과 준비 방식을 살펴봐요. 기본 24문항으로 결과를 보고, 궁금하면 8문항을 더 답할 수 있어요.",
+  "이 브라우저에 저장한 답을 이어 보고, 원하면 내 답이 담긴 링크를 보내 서로 비교해요.",
+] as const;
+
+const cardCopyClass = "mt-2 text-[11.5px] leading-[1.75] text-[var(--amora-soft)]";
+
+/**
+ * 라운지 웨딩코드 카드. 문구는 맨 주소가 여는 판(되돌리기 스위치 WEDDING_CODE_BARE_TARGET)을 따른다.
+ * "wc64" 면 라운지 맨 주소가 64문항을 열고, "36" 으로 되돌리면 라운지 맨 주소는 v3.1 소개를 연다.
+ * 그 v3.1 은 공개 `/wedding-code?v=v3.1-preferences` 와 같은 화면이고 같은 브라우저 기록을 쓴다.
+ * 상태가 없는 순수 함수라 시험은 상수를 바꾸지 않고 target 을 넘겨 두 판의 문구를 고정한다.
+ */
+export function LoungeWeddingCodeCard({ target }: { target: typeof WEDDING_CODE_BARE_TARGET }) {
+  return <section className="rounded-[16px] border border-[var(--amora-line)] bg-white p-[18px]" data-lounge-preparation-style={target}>
+    <p className="inline-flex items-center gap-1.5 text-[10px] text-[var(--amora-muted)]"><Split size={13} aria-hidden="true" />고른 답으로 이야기하기</p>
+    <h2 className="mt-2 text-[14px] font-semibold">웨딩코드</h2>
+    {target === "wc64" ? <>
+      <p className={cardCopyClass}>내가 원하는 결혼식과 준비 방식을 {WC64_ITEM_COUNT}문항으로 살펴봐요. 식 없이 한다고 고르면 결혼식 질문은 빼고, 결과도 네 글자 대신 두 글자로 나와요.</p>
+      <p className={cardCopyClass}>답은 이 브라우저에만 두고 서버로 보내지 않아요. 상대와 답 코드를 주고받으면 두 사람 답을 나란히 볼 수 있어요.</p>
+    </> : LOUNGE_V31_CARD_COPY.map((text) => <p key={text} className={cardCopyClass}>{text}</p>)}
+    <Link {...weddingLinkProps("/preparation-style")} className={`mt-1 inline-flex min-h-11 items-center gap-1.5 text-[11px] font-semibold ${focus}`}>웨딩코드 보기<ArrowRight size={12} aria-hidden="true" /></Link>
+  </section>;
+}
+
 export function LoungeReferencePanels({ categoryKey, allocated }: { categoryKey: string; allocated: number }) {
   const guide = mannersPartForCategory(categoryKey);
   return <>
@@ -101,14 +132,7 @@ export function LoungeReferencePanels({ categoryKey, allocated }: { categoryKey:
       <p className="mt-2 text-[11.5px] leading-[1.75] text-[var(--amora-soft)]">처음이라 낯선 순서와 확인할 내용을 가이드에서 살펴보세요.</p>
       <Link {...weddingLinkProps(guide ? `/manners/${guide.slug}` : "/manners")} className={`mt-1 inline-flex min-h-11 items-center gap-1.5 text-[11px] font-semibold ${focus}`}>가이드 읽기<ArrowRight size={12} aria-hidden="true" /></Link>
     </section>
-    {/* 라운지 웨딩코드는 v3.1 판을 연다(맨 /wedding-code 의 판과 다르고 저장 키도 따로다). */}
-    <section className="rounded-[16px] border border-[var(--amora-line)] bg-white p-[18px]" data-lounge-preparation-style="">
-      <p className="inline-flex items-center gap-1.5 text-[10px] text-[var(--amora-muted)]"><Split size={13} aria-hidden="true" />고른 답으로 이야기하기</p>
-      <h2 className="mt-2 text-[14px] font-semibold">웨딩코드</h2>
-      <p className="mt-2 text-[11.5px] leading-[1.75] text-[var(--amora-soft)]">내가 원하는 결혼식과 준비 방식을 살펴봐요. 기본 {V31_CORE_SCREEN_INDEXES.length}문항으로 결과를 보고, 궁금하면 {V31_EXTRA_INDEXES.length}문항을 더 답할 수 있어요.</p>
-      <p className="mt-2 text-[11.5px] leading-[1.75] text-[var(--amora-soft)]">이 브라우저에 저장한 답을 이어 보고, 원하면 내 답이 담긴 링크를 보내 서로 비교해요.</p>
-      <Link {...weddingLinkProps("/preparation-style")} className={`mt-1 inline-flex min-h-11 items-center gap-1.5 text-[11px] font-semibold ${focus}`}>웨딩코드 보기<ArrowRight size={12} aria-hidden="true" /></Link>
-    </section>
+    <LoungeWeddingCodeCard target={WEDDING_CODE_BARE_TARGET} />
     <Link {...weddingLinkProps("/chat")} className={`block rounded-[16px] border border-[var(--hb-amora-line,#8F6662)] bg-[var(--hb-amora-surface,#FBF8F2)] p-[18px] text-[var(--hb-amora-ink,#7D5753)] transition-colors hover:bg-[var(--hb-amora-hover,#EADDD8)] ${focus}`}>
       <span className="flex items-center gap-2 text-[10px]"><AmoraMark size={13} aria-hidden="true" />AMORA</span><span className="amora-display mt-2 block text-[17px]">혼자 고민하지 않아도 괜찮아요</span><span className="mt-2 block text-[11px] leading-[1.75]">정리가 안 되는 준비, 아모라와 하나씩 이야기해 봐요.</span><span className={`${AMORA_ACTION_CLASS} mt-4`}><AmoraMark size={20} />아모라와 대화하기<ArrowRight size={12} aria-hidden="true" /></span>
     </Link>
