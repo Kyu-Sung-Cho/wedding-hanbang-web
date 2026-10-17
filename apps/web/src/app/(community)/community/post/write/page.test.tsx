@@ -53,9 +53,6 @@ vi.mock("@/components/community/ImageUploader", () => ({
 vi.mock("@/components/community/SlideBuilder", () => ({
   default: () => <div>slides</div>,
 }));
-vi.mock("@/components/community/TagInput", () => ({
-  default: () => <div>tags</div>,
-}));
 vi.mock("@/components/community/VendorTagPicker", () => ({
   default: () => <div>vendors</div>,
 }));
@@ -179,6 +176,39 @@ describe("community write login return", () => {
     expect(mocks.routerBack).not.toHaveBeenCalled();
     expect(container.querySelector('[role="dialog"] [role="alert"]')?.textContent).toContain("임시 저장하지 못했어요");
     expect(container.querySelector<HTMLTextAreaElement>("textarea")?.value).toBe("추가금이 걱정돼요.");
+  });
+
+  it.each([false, true])("allows explicit leave for tag-only content without a false storage error (cleared core: %s)", async clearedCore => {
+    const nativeConfirm = vi.spyOn(window, "confirm").mockReturnValue(false);
+    window.history.replaceState({}, "", "/community/post/write");
+    const container = await mountWriter();
+    const typeInto = (element: HTMLInputElement | HTMLTextAreaElement, value: string) => {
+      const prototype = element instanceof HTMLTextAreaElement ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;
+      Object.getOwnPropertyDescriptor(prototype, "value")!.set!.call(element, value);
+      element.dispatchEvent(new Event("input", { bubbles: true }));
+    };
+    const tag = container.querySelector<HTMLInputElement>('input[placeholder="태그 입력 후 Enter"]')!;
+    await act(async () => typeInto(tag, "QA태그"));
+    await act(async () => tag.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true })));
+    expect(container.textContent).toContain("#QA태그");
+    if (clearedCore) {
+      const title = container.querySelector<HTMLInputElement>('input[maxlength="200"]')!;
+      const content = container.querySelector<HTMLTextAreaElement>("textarea")!;
+      await act(async () => { typeInto(title, "지운 제목"); typeInto(content, "지운 본문"); });
+      await act(async () => { typeInto(title, ""); typeInto(content, ""); });
+    }
+    const beforeUnload = new Event("beforeunload", { cancelable: true });
+    window.dispatchEvent(beforeUnload);
+    expect(beforeUnload.defaultPrevented).toBe(true);
+    await act(async () => cancelButtons(container)[0].click());
+    const storage = vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => { throw new Error("storage blocked"); });
+    await act(async () => dialogButton(container, "나가기").click());
+    expect(mocks.routerBack).toHaveBeenCalledTimes(1);
+    expect(container.querySelector('[role="dialog"]')).toBeNull();
+    expect(container.textContent).not.toContain("임시 저장하지 못했어요");
+    expect(storage).not.toHaveBeenCalled();
+    expect(localStorage.getItem("community:post-draft:v2:guest")).toBeNull();
+    expect(nativeConfirm).not.toHaveBeenCalled();
   });
 
   it("restores the guest text after a confirmed leave and a fresh writer mount", async () => {

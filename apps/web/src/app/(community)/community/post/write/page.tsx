@@ -460,7 +460,8 @@ function PostWriteContent() {
         slides: slides.length > 0 ? slides : undefined,
         savedAt: Date.now(),
       };
-    if (!title && !content && !category && slides.length === 0) return false;
+    // 핵심 내용이 없는 저장 생략은 실제 저장 실패(false)와 구분한다.
+    if (!title && !content && !category && slides.length === 0) return null;
     try {
       localStorage.setItem(draftKey, JSON.stringify(draft));
       return true;
@@ -859,7 +860,7 @@ function PostWriteContent() {
       closeLeaveConfirmation();
       return;
     }
-    if (!isEditMode && !persistDraftRef.current()) {
+    if (!isEditMode && persistDraftRef.current() === false) {
       setLeaveError("작성 내용을 이 기기에 임시 저장하지 못했어요. 계속 작성하거나 내용을 복사한 뒤 다시 시도해 주세요.");
       return;
     }
