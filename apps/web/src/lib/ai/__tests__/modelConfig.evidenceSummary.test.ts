@@ -37,7 +37,8 @@ describe("read-only evidence summary model routing", () => {
       expectedScope: "W0_wedding_core",
       expectedReads: ["analyze_quote", "get_amora_actions", "get_budget_summary", "get_market_price", "get_schedule_events", "get_schedule_summary", "get_wedding_info", "simulate_guest_guarantee"],
     },
-    { label: "958 future draft separation", text: separationFollowup, expectedScope: "W4_out_of_scope", expectedReads: ["get_market_price"] },
+    // 초대장·꽃 장식의 전달 상태 요약에는 다른 분야 공시 조회를 열지 않는다.
+    { label: "958 future draft separation", text: separationFollowup, expectedScope: "W4_out_of_scope", expectedReads: [] },
     { label: "P07 current decision and review", text: observedReviewSummary, expectedScope: "W4_out_of_scope", expectedReads: [] },
   ])("selects primary with the actual production tool catalog: $label", ({ text, expectedReads, expectedScope }) => {
     const scope = classifyAmoraQuestionScope({ userText: text });
