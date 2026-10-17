@@ -34,8 +34,8 @@ describe("settings exact total-budget editing", () => {
   });
   async function openEditor() {
     await act(async () => root.render(<SettingsPage />));
-    await act(async () => container.querySelector<HTMLButtonElement>('button[aria-label="총 예산 수정"]')?.click());
-    const input = container.querySelector<HTMLInputElement>('input[aria-label="총 예산 (만원)"]');
+    await act(async () => container.querySelector<HTMLButtonElement>('button[aria-label="설정 예산 수정"]')?.click());
+    const input = container.querySelector<HTMLInputElement>('input[aria-label="설정 예산(만원 단위)"]');
     expect(input).not.toBeNull();
     return input!;
   }
@@ -45,16 +45,16 @@ describe("settings exact total-budget editing", () => {
       Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(input, value);
       input.dispatchEvent(new Event("input", { bubbles: true }));
     });
-    await act(async () => container.querySelector<HTMLButtonElement>('button[aria-label="총 예산 저장"]')?.click());
+    await act(async () => container.querySelector<HTMLButtonElement>('button[aria-label="설정 예산 저장"]')?.click());
   }
 
   it("keeps the last won through grouped display and reopening the edit field", async () => {
     await act(async () => root.render(<SettingsPage />));
-    expect(container.textContent).toContain("3,300.0001만원");
+    expect(container.textContent).toContain("3,300만1원");
     expect(container.textContent).not.toContain("₩3,300");
     const input = await openEditor();
     expect(input.value).toBe("3300.0001");
-    await act(async () => container.querySelector<HTMLButtonElement>('button[aria-label="총 예산 저장"]')?.click());
+    await act(async () => container.querySelector<HTMLButtonElement>('button[aria-label="설정 예산 저장"]')?.click());
     expect(updateJourney).toHaveBeenCalledWith({ total_budget: 33_000_001 });
   });
 

@@ -9,7 +9,7 @@ vi.mock("@/stores/authStore", () => ({ useAuthStore: () => ({ profile: null, jou
 
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
-describe("Amora sidebar entry", () => {
+describe("App sidebar", () => {
   let container: HTMLDivElement;
   let root: Root;
   const close = vi.fn();
@@ -21,7 +21,7 @@ describe("Amora sidebar entry", () => {
 
   it.each(["/wedding/chat", "/wedding/chat/missions", "/wedding/chat/board", "/chat"])("enters conversation and keeps Amora selected at %s without changing the current conversation", async pathname => {
     mocks.pathname = pathname;
-    await act(async () => root.render(<Sidebar isOpen onClose={close} amoraWorkspace />));
+    await act(async () => root.render(<Sidebar isOpen onClose={close} />));
     const link = container.querySelector<HTMLAnchorElement>('[data-tutorial-target="service-nav-amora"]')!;
     expect(link.getAttribute("href")).toBe("/wedding/chat");
     expect(link.getAttribute("aria-current")).toBe("page");
@@ -34,7 +34,7 @@ describe("Amora sidebar entry", () => {
 
   it("starts with the mission lounge and keeps saved answers inside Amora", async () => {
     mocks.pathname = "/wedding/lounge";
-    await act(async () => root.render(<Sidebar isOpen onClose={close} amoraWorkspace />));
+    await act(async () => root.render(<Sidebar isOpen onClose={close} />));
     const menu = container.querySelector('nav[aria-label="서비스 메뉴"]')!;
     expect(menu.querySelector("a")?.getAttribute("href")).toBe("/wedding/lounge");
     expect(menu.querySelector('[aria-current="page"]')?.textContent).toBe("웨딩 라운지");
@@ -43,7 +43,7 @@ describe("Amora sidebar entry", () => {
 
   it.each(["/preparation-style", "/wedding/preparation-style"])("opens WeddingCode from the shared web menu at %s", async pathname => {
     mocks.pathname = pathname;
-    await act(async () => root.render(<Sidebar isOpen onClose={close} amoraWorkspace />));
+    await act(async () => root.render(<Sidebar isOpen onClose={close} />));
     const menu = container.querySelector('nav[aria-label="서비스 메뉴"]')!;
     const link = menu.querySelector<HTMLAnchorElement>('a[href="/wedding/preparation-style"]');
     expect(link?.textContent).toBe("웨딩코드");
@@ -56,9 +56,9 @@ describe("Amora sidebar entry", () => {
     expect(close).toHaveBeenCalledOnce();
   });
 
-  it.each([true, false])("sends the brand link to the lounge, not the community (html design: %s)", async amoraWorkspace => {
+  it("sends the brand link to the lounge, not the community", async () => {
     mocks.pathname = "/wedding/checklist";
-    await act(async () => root.render(<Sidebar isOpen onClose={close} amoraWorkspace={amoraWorkspace} />));
+    await act(async () => root.render(<Sidebar isOpen onClose={close} />));
     const brand = container.querySelector<HTMLAnchorElement>('a[aria-label="웨딩한방 홈으로 이동"]')!;
     expect(brand.getAttribute("href")).toBe("/wedding/lounge");
     brand.addEventListener("click", event => event.preventDefault());
@@ -68,7 +68,7 @@ describe("Amora sidebar entry", () => {
 
   it("shows the same logo as the browser tab instead of a letter badge", async () => {
     mocks.pathname = "/wedding/lounge";
-    await act(async () => root.render(<Sidebar isOpen onClose={close} amoraWorkspace />));
+    await act(async () => root.render(<Sidebar isOpen onClose={close} />));
     const brand = container.querySelector('a[aria-label="웨딩한방 홈으로 이동"]')!;
     expect(brand.querySelector("img")?.getAttribute("src")).toContain("apple-touch-icon.png");
     expect(brand.textContent).toBe("웨딩한방");

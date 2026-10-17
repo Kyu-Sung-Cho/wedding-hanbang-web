@@ -1922,7 +1922,8 @@ export default function ChatSidePanel({
               )}
 
               {!isDemo && laneReady && <p className="mb-1.5 text-xs leading-relaxed text-[var(--hb-text-muted)]">미전송 글은 이 탭에서 30분 이내에 복구할 수 있어요. 전송·공유되지는 않으며, 첨부·안전 상담 등 일부 내용은 보관하지 않아요.</p>}
-              <div className="bg-white rounded-[6px] border border-black/[0.06] shadow-[var(--shadow-raised)] flex items-center gap-1.5 p-1.5">
+              {/* 입력칸은 outline-none 이라 키보드 초점이 보이지 않는다. 래퍼가 대신 안쪽 윤곽선으로 보여 준다. */}
+              <div className="bg-white rounded-[6px] border border-black/[0.06] shadow-[var(--shadow-raised)] flex items-center gap-1.5 p-1.5 has-[input:focus-visible]:outline-2 has-[input:focus-visible]:-outline-offset-2 has-[input:focus-visible]:outline-[var(--hb-focus-ring)]">
                 {/* 첨부파일 버튼 */}
                 <button
                   type="button"

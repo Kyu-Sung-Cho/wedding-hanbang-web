@@ -68,6 +68,7 @@ import {
   prepareChatAttachmentPayload,
 } from "@/lib/chat/attachments";
 import { weddingPath } from "@/lib/weddingPaths";
+import { subjectParticle } from "@/lib/korean/particles";
 import { AMORA_DEMO_SUGGESTIONS, AMORA_DEMO_WELCOME } from "@/lib/chat/amoraDemoCopy";
 import { AMORA_STARTER_PROMPTS } from "@/lib/chat/amoraStarterPrompts";
 import {
@@ -2042,6 +2043,8 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
   // 파트너 typing freshness — broadcast 후 5초 안 → "지금 입력 중"으로 간주
   const partnerTypingActive =
     !!presence.partnerTyping && nowMs > 0 && nowMs - presence.partnerTyping.updated_at < 5000;
+  // 입력 중 안내 문장에 쓰는 상대 이름(빈 이름이면 "상대방"). 조사는 받침을 보고 고른다.
+  const partnerDisplayName = partner?.name?.trim() || "상대방";
 
   // AI 응답 중 추론 — 마지막 shared 메시지가 사람이고 30초 이내면 AI 응답 중.
   // ⚠️ "상대방에게" 보낸 메시지(metadata.target === "partner")는 제외 — 그건 AI 가
@@ -3925,7 +3928,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
                 </h3>
                 <p className="text-sm text-[var(--hb-text-body)] leading-relaxed">
                   {partnerTypingActive
-                    ? `${partner?.name ?? "상대방"}이 지금 입력하고 있어요. 같이 보내면 진행 중인 흐름이 꼬일 수 있어요.`
+                    ? `${partnerDisplayName}${subjectParticle(partnerDisplayName)} 지금 입력하고 있어요. 같이 보내면 진행 중인 흐름이 꼬일 수 있어요.`
                     : "아모라가 방금 보낸 메시지에 답변하고 있어요. 지금 새 메시지를 보내면 진행 중인 답변이 중단될 수 있어요."}
                 </p>
               </div>
@@ -4124,7 +4127,8 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
         )}
 
         {!isDemo && laneReady && <p className="mb-1.5 text-xs leading-relaxed text-[var(--hb-text-muted)]">미전송 글은 이 탭에서 30분 이내에 복구할 수 있어요. 전송·공유되지는 않으며, 첨부·안전 상담 등 일부 내용은 보관하지 않아요.</p>}
-        <div className={`bg-white rounded-[6px] shadow-[var(--shadow-raised)] flex items-center gap-1 sm:gap-2 p-1.5 sm:p-2.5 transition-colors ${
+        {/* 입력칸은 outline-none 이라 키보드 초점이 보이지 않는다. 래퍼가 대신 안쪽 윤곽선으로 보여 준다(ring-1 상대 색 표시와 겹치지 않고 모바일 가장자리에서 잘리지 않음). */}
+        <div className={`bg-white rounded-[6px] shadow-[var(--shadow-raised)] flex items-center gap-1 sm:gap-2 p-1.5 sm:p-2.5 transition-colors has-[textarea:focus-visible]:outline-2 has-[textarea:focus-visible]:-outline-offset-2 has-[textarea:focus-visible]:outline-[var(--hb-focus-ring)] ${
           messageTarget === "partner"
             ? "ring-1 ring-[#D99C9C]/30"
             : isPrivate

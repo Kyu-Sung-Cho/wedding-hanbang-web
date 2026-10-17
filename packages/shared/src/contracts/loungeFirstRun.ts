@@ -251,7 +251,7 @@ export function buildLoungeFirstRunView(
     nextStep,
     invite,
     emptyNote: echo.length > 0
-      ? "예산·체크리스트·일정은 두 분이 확인한 것만 쌓여요. 그래서 지금은 비어 있어요."
+      ? "예산·체크리스트·일정은 확인한 것만 쌓여요. 그래서 지금은 비어 있어요."
       : "",
   };
 }

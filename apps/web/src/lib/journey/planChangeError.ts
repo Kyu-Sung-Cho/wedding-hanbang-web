@@ -23,15 +23,26 @@
  * `null` 을 돌려주고, 부르는 쪽이 원래 쓰던 문구로 떨어진다.
  */
 
-/** 사용자에게 그대로 보여도 되는 계획 변경 거절 사유. */
+/**
+ * 연결이 끊겨 요청이 서버까지 가지 못했을 때 보여줄 문장.
+ *
+ * 브라우저는 이때 영어 원문(`Failed to fetch`, 사파리는 `Load failed`)으로 거절한다.
+ * 그 원문이 빨간 알림에 그대로 뜨지 않게 store 가 이 문장으로 바꿔 던진다.
+ * '연결'만 쓰면 커플 연결로 읽힐 수 있어 '인터넷 연결'이라고 적는다.
+ */
+export const OFFLINE_CHANGE_MESSAGE =
+  "변경 내용을 보내지 못했어요. 인터넷 연결을 확인한 뒤 다시 시도해 주세요.";
+
+/** 사용자에게 그대로 보여도 되는 사유(코드 화이트리스트). */
 export const PLAN_CHANGE_MESSAGES: Readonly<Record<string, string>> = {
   PLAN_CHANGE_STALE:
     "그 사이 준비 정보가 바뀌었어요. 최신 화면을 다시 불러와 주세요.",
   PLAN_CHANGE_REJECTED:
     "파트너가 이 변경을 거절했어요. 최신 화면을 다시 확인해 주세요.",
+  PLAN_CHANGE_OFFLINE: OFFLINE_CHANGE_MESSAGE,
 };
 
-/** 서버 코드를 실은 오류. `authStore` 가 던진다. */
+/** 화면에 보여도 되는 코드를 실은 오류(서버 거절 또는 연결 끊김). `authStore` 가 던진다. */
 export class PlanChangeError extends Error {
   readonly code: string;
 

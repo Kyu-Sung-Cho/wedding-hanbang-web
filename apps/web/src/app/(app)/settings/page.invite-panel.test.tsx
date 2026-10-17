@@ -48,7 +48,7 @@ describe("settings invite panel visibility", () => {
   let root: Root;
   let originalState: Pick<
     ReturnType<typeof useAuthStore.getState>,
-    "couple" | "partner" | "isDemo" | "journey" | "profile"
+    "couple" | "partner" | "isDemo" | "journey" | "profile" | "user"
   >;
 
   beforeEach(() => {
@@ -59,6 +59,7 @@ describe("settings invite panel visibility", () => {
       isDemo: state.isDemo,
       journey: state.journey,
       profile: state.profile,
+      user: state.user,
     };
     container = document.createElement("div");
     document.body.appendChild(container);
@@ -67,6 +68,7 @@ describe("settings invite panel visibility", () => {
 
   afterEach(async () => {
     await act(async () => root.unmount());
+    vi.unstubAllGlobals();
     useAuthStore.setState(originalState);
     document.body.replaceChildren();
   });
@@ -143,5 +145,93 @@ describe("settings invite panel visibility", () => {
     expect(buttonLabels).not.toContain("코드 복사");
     expect(buttonLabels).not.toContain("링크 복사");
     expect(container.textContent).toContain("연동 완료");
+  });
+
+  /**
+   * 비데모 경로: 권한 API(`/api/couple/code`)에서 코드를 받아 그리는 실제 갈래.
+   *
+   * 인증 스토어는 창 포커스·탭 복귀마다 `couple` 을 **같은 내용의 새 객체**로 갈아끼운다.
+   * 효과가 그 객체를 deps 로 들고 있으면 매번 코드를 지우고 다시 불러서, 채팅앱에 코드를
+   * 붙여 넣고 돌아온 사람 앞에서 카드·QR·복사 버튼이 사라졌다 나타났다.
+   */
+  describe("비데모 조회 경로", () => {
+    function stubCoupleCodeApi() {
+      const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+        if (String(input).includes("/api/couple/code")) {
+          return new Response(
+            JSON.stringify({ inviteCode: CODE, isFullyLinked: false, isMembershipSealed: false }),
+            { status: 200 },
+          );
+        }
+        return new Response("{}", { status: 404 });
+      });
+      vi.stubGlobal("fetch", fetchMock);
+      return fetchMock;
+    }
+
+    const codeLookups = (fetchMock: ReturnType<typeof stubCoupleCodeApi>) =>
+      fetchMock.mock.calls.filter(([input]) => String(input).includes("/api/couple/code")).length;
+
+    async function renderAwaitingCouple() {
+      // user: null 이면 탈퇴 가능 여부 조회(/api/auth/me)가 나가지 않는다.
+      useAuthStore.setState({
+        user: null,
+        couple: AWAITING_COUPLE,
+        partner: null,
+        isDemo: false,
+      });
+      await act(async () => {
+        root.render(<SettingsPage />);
+      });
+    }
+
+    it("같은 커플의 인증 갱신은 보이는 코드를 지우지 않는다", async () => {
+      const fetchMock = stubCoupleCodeApi();
+      await renderAwaitingCouple();
+
+      expect(container.textContent).toContain(CODE);
+      expect(codeLookups(fetchMock)).toBe(1);
+
+      // 내용은 같고 참조만 다른 새 객체. 동기 act 라 효과가 지운 화면이 그대로 남는다.
+      act(() => {
+        useAuthStore.setState({ couple: { ...AWAITING_COUPLE }, partner: null });
+      });
+
+      expect(container.textContent).toContain(CODE);
+      expect(container.textContent).not.toContain("연결 상태를 불러오는 중이에요");
+
+      await act(async () => {});
+      expect(container.textContent).toContain(CODE);
+      expect(codeLookups(fetchMock)).toBe(1);
+    });
+
+    it("파트너가 합류하면 코드가 사라지고 연동 완료로 바뀐다", async () => {
+      stubCoupleCodeApi();
+      await renderAwaitingCouple();
+      expect(container.textContent).toContain(CODE);
+
+      await act(async () => {
+        useAuthStore.setState({ partner: PARTNER as Profile });
+      });
+
+      expect(container.textContent).not.toContain(CODE);
+      expect(container.textContent).toContain("연동 완료");
+    });
+
+    it("커플 연결이 봉인되면 코드가 사라지고 종료 안내로 바뀐다", async () => {
+      stubCoupleCodeApi();
+      await renderAwaitingCouple();
+      expect(container.textContent).toContain(CODE);
+
+      await act(async () => {
+        useAuthStore.setState({
+          couple: { ...AWAITING_COUPLE, membership_sealed_at: "2026-08-19T00:00:00.000Z" },
+          partner: null,
+        });
+      });
+
+      expect(container.textContent).not.toContain(CODE);
+      expect(container.textContent).toContain("이 커플 연결은 종료됐어요");
+    });
   });
 });

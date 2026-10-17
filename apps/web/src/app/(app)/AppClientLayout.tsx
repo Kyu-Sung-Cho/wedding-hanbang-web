@@ -20,7 +20,9 @@ import {
 } from "@/lib/amora/pendingFirstHello";
 import ChatSidePanel from "@/components/app/chat/ChatSidePanel";
 import Sidebar from "@/components/app/Sidebar";
+import { SIDEBAR_OFFSET_CLASS } from "@/components/app/sidebarStyles";
 import TopNav from "@/components/app/TopNav";
+import { preloadMannersSignedInChrome } from "@/components/manners/mannersChromeChunks";
 import AmoraBottomNav from "@/components/app/amora/AmoraBottomNav";
 import { AmoraNavigationTargetContext } from "@/components/app/amora/AmoraNavigationContext";
 import { useAuthSessionSync } from "@/hooks/useAuthSessionSync";
@@ -249,6 +251,17 @@ export default function AppClientLayout({
     if (!isInitialized) void initialize({ initialDemo });
   }, [initialize, initialDemo, isInitialized]);
 
+  // 사이드바의 예절 가이드는 이 틀 밖의 공개 화면이다. 거기서 앱 사이드바·상단 바가 곧바로
+  // 이어지도록, 한가할 때 그 두 조각을 미리 받아 둔다(없으면 받는 동안 공개 모양이 깜빡인다).
+  useEffect(() => {
+    if (typeof window.requestIdleCallback === "function") {
+      const handle = window.requestIdleCallback(preloadMannersSignedInChrome);
+      return () => window.cancelIdleCallback(handle);
+    }
+    const timer = window.setTimeout(preloadMannersSignedInChrome, 2000);
+    return () => window.clearTimeout(timer);
+  }, []);
+
   if (!isInitialized || isLoading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-[var(--hb-surface-page)]">
@@ -270,8 +283,9 @@ export default function AppClientLayout({
           : "hanbang-service-theme min-h-screen bg-[var(--hb-surface-page)]"
       }`}
     >
-      <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} amoraWorkspace={isAmoraPage || isLoungeWorkspace} planningWorkspace={isPlanningPage || isSettingsPage} />
-      <div className={isChatPage ? "flex h-[100dvh] flex-col md:ml-[220px]" : isPlanningPage || isLoungeWorkspace ? "pb-[calc(74px+env(safe-area-inset-bottom))] md:ml-[216px] md:pb-0" : hasHtmlDesign ? "pb-[calc(74px+env(safe-area-inset-bottom))] md:ml-[220px] md:pb-0" : isSettingsPage ? "md:ml-[220px]" : "md:ml-[16rem]"}>
+      <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+      {/* 사이드바 너비는 어느 화면에서나 같다(`sidebarStyles.ts`). 본문 여백도 하나다. */}
+      <div className={isChatPage ? `flex h-[100dvh] flex-col ${SIDEBAR_OFFSET_CLASS}` : hasHtmlDesign ? `pb-[calc(74px+env(safe-area-inset-bottom))] ${SIDEBAR_OFFSET_CLASS} md:pb-0` : SIDEBAR_OFFSET_CLASS}>
         <TopNav onMenuToggle={() => setSidebarOpen(true)} amoraWorkspace={isAmoraPage} planningWorkspace={isPlanningPage} loungeWorkspace={isLoungeWorkspace} compactChrome={isSettingsPage} amoraNavigationRef={setAmoraNavigationTarget} />
         {banner}
         {isChatPage ? (

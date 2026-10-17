@@ -387,7 +387,7 @@ describe("ScheduleContent event mutation integrity", () => {
     expect(container.textContent).toContain(`취소 시각 ${expectedDate}`);
 
     await act(async () => {
-      findButton(container, "복원 요청").click();
+      findButton(container, "복원하기").click();
       await Promise.resolve();
     });
     const call = authState.updateJourney.mock.calls[0]?.[0] as {

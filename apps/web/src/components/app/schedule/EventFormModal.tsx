@@ -54,7 +54,7 @@ function getSaveErrorMessage(error: unknown, action: "save" | "cancel"): string 
   if (known) return known;
   return action === "save"
     ? "일정을 저장하지 못했어요. 잠시 후 다시 시도해 주세요."
-    : "일정 취소 요청을 보내지 못했어요. 잠시 후 다시 시도해 주세요.";
+    : "일정을 취소하지 못했어요. 잠시 후 다시 시도해 주세요.";
 }
 
 interface Props {
@@ -279,7 +279,7 @@ export default function EventFormModal({
             취소된 일정은 바로 수정할 수 없어요
           </h3>
           <p className="mt-3 text-sm leading-6 text-[var(--amora-muted)]">
-            일정 화면의 취소됨 구역에서 먼저 복원 요청한 뒤 수정해 주세요.
+            일정 화면의 취소됨 구역에서 먼저 복원한 뒤 수정해 주세요.
           </p>
           <button
             type="button"
@@ -551,7 +551,7 @@ export default function EventFormModal({
             confirmingCancel ? (
               <div className="flex w-full flex-wrap items-center gap-2">
                 <span className="text-[13px] font-semibold text-[var(--amora-ink)]">
-                  일정 취소 요청
+                  일정 취소
                 </span>
                 <button
                   onClick={handleCancel}
@@ -559,7 +559,7 @@ export default function EventFormModal({
                   disabled={cancelling || saving}
                   className="min-h-11 rounded-[10px] bg-[var(--amora-action)] px-3 py-2 text-[13px] font-semibold text-white transition-colors hover:bg-[var(--amora-action-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--amora-accent)] focus-visible:ring-offset-2 disabled:opacity-50"
                 >
-                  {cancelling ? "요청 중..." : "취소 요청 보내기"}
+                  {cancelling ? "취소하는 중..." : "일정 취소하기"}
                 </button>
                 <button
                   onClick={() => setConfirmingCancel(false)}
@@ -578,7 +578,7 @@ export default function EventFormModal({
                 className="flex min-h-11 items-center gap-1.5 rounded-[10px] px-2 text-[13px] font-semibold text-[var(--amora-rose-deep)] transition-colors hover:bg-[var(--amora-warm)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--amora-accent)] disabled:opacity-50"
               >
                 <Ban className="h-4 w-4" />
-                일정 취소 요청
+                일정 취소
               </button>
             )
           ) : (

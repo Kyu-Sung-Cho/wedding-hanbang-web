@@ -2,7 +2,7 @@
 
 import { create } from "zustand";
 import { clearAmoraTextDraftRecovery } from "@/lib/chat/textDraftRecoveryStorage";
-import { PlanChangeError } from "@/lib/journey/planChangeError";
+import { OFFLINE_CHANGE_MESSAGE, PlanChangeError } from "@/lib/journey/planChangeError";
 import { createClient } from "@/lib/supabase/client";
 import { CHECKLIST_MAP } from "@/constants/checklists";
 import { useCommunityStore } from "@/stores/communityStore";
@@ -245,6 +245,18 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       // 공개 화면에서 계정 인계를 준비할 때는 장애를 비로그인으로 해석하지 않는다.
       if (options?.requireVerifiedSession && !res.ok && res.status !== 401) {
         throw new Error("로그인 상태를 확인하지 못했어요. 다시 시도해 주세요.");
+      }
+
+      // 서버가 잠깐 못 답한 것(500, 503, 403, 429 등)은 로그아웃이 아니다.
+      // 이미 로그인한 화면은 그대로 두고 다음 새로고침에서 다시 확인한다.
+      // 로그아웃은 401과 "응답은 왔는데 사용자가 없음"뿐이다.
+      if (!res.ok && res.status !== 401) {
+        if (initializeSequence !== authInitializeSequence) return;
+        const held = get();
+        if (held.user && !held.isDemo) {
+          set({ isLoading: false, isInitialized: true });
+          return;
+        }
       }
 
       if (res.ok) {
@@ -597,11 +609,18 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
     const updateSequence = ++journeyWriteSequence;
     try {
-      const res = await fetch("/api/journey", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
+      let res: Response;
+      try {
+        res = await fetch("/api/journey", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        });
+      } catch {
+        // fetch 는 연결이 끊기면 TypeError("Failed to fetch", 사파리는 "Load failed")로
+        // 거절한다. 영어 원문이 화면에 뜨지 않게 우리말 문장을 던진다.
+        throw new PlanChangeError("PLAN_CHANGE_OFFLINE", OFFLINE_CHANGE_MESSAGE);
+      }
       const data = (await res.json().catch(() => null)) as
         | {
             status?: unknown;

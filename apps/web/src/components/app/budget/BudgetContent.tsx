@@ -848,9 +848,19 @@ function ScopedBudgetContent({
 
   const handleResetCategory = useCallback(
     async (key: string) => {
-      const rest = { ...progress };
-      delete rest[key];
-      await saveJourney({ progress: rest });
+      // progress[key]에는 금액과 함께 일정 페이지의 체크리스트·진행 상태·업체·메모가 들어 있다.
+      // 키를 통째로 지우면 금액만 비우려던 사람의 체크 기록이 사라지고, 서버도 금액 밖 변경이
+      // 섞였다며 400(PLAN_CHANGE_MIXED_DELTA_UNSUPPORTED)으로 거절한다.
+      // 그래서 항목은 남기고 서버가 금액으로 세는 필드(budget·spent·payer)만 뗀다.
+      // category 는 새로 붙이지 않고, cost·__hidden 은 건드리지 않는다.
+      const item = progress[key] as ProgressItem | undefined;
+      if (item) {
+        const keep = { ...item };
+        delete keep.budget;
+        delete keep.spent;
+        delete keep.payer;
+        await saveJourney({ progress: { ...progress, [key]: keep } });
+      }
       setDeletingKey(null);
     },
     [progress, saveJourney]

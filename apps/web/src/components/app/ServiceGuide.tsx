@@ -38,7 +38,7 @@ function SlideWelcome() {
         결혼 준비,{"\n"}아모라와 처음부터 끝까지.
       </h2>
       <p className="text-sm sm:text-base text-[var(--hb-text-body)] text-center mb-5 sm:mb-6">
-        고민을 아모라에게 말하면, 두 분이 확인한 것만 예산·체크리스트·일정에 남아요.
+        고민을 아모라에게 말하면, 확인한 것만 예산·체크리스트·일정에 남아요.
       </p>
 
       {/* 3가지 핵심 가치 */}
