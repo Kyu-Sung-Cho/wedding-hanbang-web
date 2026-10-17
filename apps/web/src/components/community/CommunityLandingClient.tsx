@@ -1740,8 +1740,10 @@ function StatusFeedEmptyState({
 function CommunityPostRow({ post, priority }: { post: PostWithAuthor; priority?: boolean }) {
   const categoryInfo = CATEGORY_MAP[post.category];
   const { votePost, toggleBookmark } = useCommunityStore();
-  const { profile } = useAuthStore();
+  const { profile, user } = useAuthStore();
   const isLoggedIn = !!profile;
+  const isDraft = post.visibility === "draft";
+  const isOwnDraft = isDraft && user?.id === post.author_id && profile?.id === user.id;
   const [optimisticVote, setOptimisticVote] = useState<1 | null | undefined>(undefined);
   const [optimisticUpvoteDelta, setOptimisticUpvoteDelta] = useState(0);
   const [bookmarked, setBookmarked] = useState(post.user_bookmarked ?? false);
@@ -1754,7 +1756,7 @@ function CommunityPostRow({ post, priority }: { post: PostWithAuthor; priority?:
   const displayUpvoteCount = Math.max(0, (post.upvote_count ?? 0) + optimisticUpvoteDelta);
   const isLiked = displayVote === 1;
   const commentCount = post.comment_count ?? 0;
-  const isQuestionPost = ["is_normal", "ama"].includes(post.category);
+  const isQuestionPost = !isDraft && ["is_normal", "ama"].includes(post.category);
   const isWaitingForAnswer = isQuestionPost && !post.is_resolved && commentCount === 0;
 
   function showToast(message: string) {
@@ -1876,6 +1878,11 @@ function CommunityPostRow({ post, priority }: { post: PostWithAuthor; priority?:
       <div className="pointer-events-none relative z-10 min-w-0">
         <div className="flex min-w-0 items-start justify-between gap-2 text-[10.5px] font-medium text-[var(--hb-text-body)]">
           <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+            {isDraft && (
+              <span className="rounded-[6px] border border-[var(--hb-hairline)] bg-[var(--hb-surface-page)] px-2.5 py-1 text-xs font-semibold text-[var(--hb-text-body)]">
+                임시저장 · 나만 보기
+              </span>
+            )}
             <span className="shrink-0 rounded-[6px] bg-[var(--hb-surface-hover)] px-1.5 py-0.5 text-[10px] font-medium text-[var(--hb-accent-hover)]">
               {categoryInfo?.shortLabel ?? "커뮤니티"}
             </span>
@@ -1899,12 +1906,12 @@ function CommunityPostRow({ post, priority }: { post: PostWithAuthor; priority?:
                 size="sm"
               />
             )}
-            {post.is_weekly_best && (
+            {!isDraft && post.is_weekly_best && (
               <span className="shrink-0 rounded-[6px] bg-[var(--hb-primary)] px-1.5 py-0.5 text-[10px] font-medium text-white">
                 BEST
               </span>
             )}
-            {post.poll && (
+            {!isDraft && post.poll && (
               <span className="shrink-0 rounded-[6px] border border-[var(--hb-hairline)] px-1.5 py-0.5 text-[10px] font-medium text-[var(--hb-text-body)]">
                 투표
               </span>
@@ -1940,6 +1947,15 @@ function CommunityPostRow({ post, priority }: { post: PostWithAuthor; priority?:
         </div>
 
         <div className="pointer-events-auto mt-2 flex min-w-0 items-center gap-1.5">
+          {isDraft ? isOwnDraft && (
+            <Link
+              {...weddingLinkProps(`/community/post/write?edit=${post.id}`)}
+              className="inline-flex min-h-11 items-center gap-1.5 rounded-[6px] border border-[var(--hb-hairline)] bg-white px-3.5 text-[11.5px] font-semibold text-[var(--hb-text-strong)] hover:border-[var(--hb-primary)]/40"
+            >
+              <PenSquare className="h-3.5 w-3.5 shrink-0" />
+              이어서 작성
+            </Link>
+          ) : <>
           <Link
             {...communityPostLinkProps(post.id, "comments")}
             onClick={() =>
@@ -2011,6 +2027,7 @@ function CommunityPostRow({ post, priority }: { post: PostWithAuthor; priority?:
           >
             <Share2 className="h-3.5 w-3.5 stroke-[1.7]" />
           </button>
+          </>}
         </div>
       </div>
       {imageUrl && (
