@@ -130,7 +130,7 @@ export default function ScheduleContent({ embedded = false }: ScheduleContentPro
   // 고정하는 계약 테스트 두 개가 걸려 있어서, 출시 주에 손댈 일이 아니다. 기본값만
   // 옮기면 되돌리는 것도 이 한 줄이다.
   const [viewMode, setViewMode] = useState<"timeline" | "calendar">("calendar");
-  /** 복원 요청을 보내는 중인 일정. 버튼 자리에 표시를 남기려고 둔다. */
+  /** 복원을 처리하는 중인 일정. 버튼 자리에 표시를 남기려고 둔다. */
   const [restoringEventId, setRestoringEventId] = useState<string | null>(null);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
 
@@ -513,7 +513,7 @@ export default function ScheduleContent({ embedded = false }: ScheduleContentPro
         ) as unknown as Record<string, ProgressItem>,
       }, {
         pending: "파트너 승인 전 기존 일정 유지 상태입니다.",
-        applied: "일정을 취소됨으로 옮겼어요. 기록은 남아 있고 언제든 복원 요청할 수 있어요.",
+        applied: "일정을 취소됨으로 옮겼어요. 기록은 남아 있고 언제든 복원할 수 있어요.",
       });
 
       setEventFormMode(null);
@@ -649,7 +649,7 @@ export default function ScheduleContent({ embedded = false }: ScheduleContentPro
                 <div className="flex flex-wrap items-center justify-end gap-2">
                   {pendingCancelId === evt.id ? (
                     <>
-                      <span className="sr-only">일정 취소 요청</span>
+                      <span className="sr-only">일정 취소</span>
                       <button
                         type="button"
                         onClick={() => {
@@ -659,7 +659,7 @@ export default function ScheduleContent({ embedded = false }: ScheduleContentPro
                         }}
                         className="min-h-11 rounded-xl bg-[var(--amora-action,var(--hb-action))] px-3 py-2 text-xs font-semibold text-white transition-colors hover:bg-[var(--amora-action-hover,var(--hb-action-hover))]"
                       >
-                        취소 요청 보내기
+                        일정 취소하기
                       </button>
                       <button
                         type="button"
@@ -682,7 +682,7 @@ export default function ScheduleContent({ embedded = false }: ScheduleContentPro
                       <button
                         type="button"
                         onClick={() => setPendingCancelId(evt.id)}
-                        aria-label={`${evt.title} 일정 취소 요청`}
+                        aria-label={`${evt.title} 일정 취소`}
                         className="tap-area flex h-9 w-9 items-center justify-center rounded-lg text-[var(--amora-muted)] transition-colors hover:bg-[var(--amora-warm)]"
                       >
                         <Ban className="h-4 w-4" />
@@ -843,7 +843,7 @@ export default function ScheduleContent({ embedded = false }: ScheduleContentPro
                 취소됨
               </h3>
               <p className="mt-1 text-[13px] leading-5 text-[var(--hb-text-body)]">
-                완전 삭제하지 않고 변경 기록을 보관합니다. 필요하면 예정 상태로 복원 요청할 수 있어요.
+                완전 삭제하지 않고 변경 기록을 보관합니다. 필요하면 예정 상태로 복원할 수 있어요.
               </p>
             </div>
             <div className="space-y-2">
@@ -876,7 +876,7 @@ export default function ScheduleContent({ embedded = false }: ScheduleContentPro
                     className="inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-xl border border-[var(--amora-action,var(--hb-action))] px-4 py-2 text-[13px] font-semibold text-[var(--amora-action,var(--hb-action))] transition-colors hover:bg-[var(--amora-action-hover,var(--hb-action-hover))] hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     <RotateCcw className="h-4 w-4" />
-                    {restoringEventId === event.id ? "요청 보내는 중..." : "복원 요청"}
+                    {restoringEventId === event.id ? "복원하는 중..." : "복원하기"}
                   </button>
                 </article>
               ))}

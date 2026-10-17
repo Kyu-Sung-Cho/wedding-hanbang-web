@@ -119,7 +119,7 @@ describe("schedule execution field presentation", () => {
     });
 
     const cancelButton = container.querySelector<HTMLButtonElement>(
-      '[aria-label="사회자 최종 확인 일정 취소 요청"]',
+      '[aria-label="사회자 최종 확인 일정 취소"]',
     );
     if (!cancelButton) throw new Error("cancel button not rendered");
 
@@ -127,7 +127,7 @@ describe("schedule execution field presentation", () => {
     expect(onCancelEvent).not.toHaveBeenCalled();
 
     const confirmButton = Array.from(container.querySelectorAll("button")).find(
-      (button) => button.textContent?.trim() === "취소 요청 보내기",
+      (button) => button.textContent?.trim() === "일정 취소하기",
     );
     if (!(confirmButton instanceof HTMLButtonElement)) {
       throw new Error("cancel confirmation not rendered");

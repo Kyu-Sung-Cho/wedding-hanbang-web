@@ -170,7 +170,8 @@
   `WeddingLoungeHub.dc.html`, `WeddingLoungeHubMobile.dc.html`,
   `WeddingLoungeMobile.dc.html`, `ScheduleAlt.dc.html` and `ScheduleMobile.dc.html`
   with the same layout, color and typography scope as the checklist/budget work.
-  Lounge and schedule now share the 216px planner sidebar and compact white header.
+  Lounge and schedule share the compact white header; their desktop sidebar is the
+  common 220px sidebar (Decisions Log 2026-10-17 replaced the original 216px).
   Lounge keeps the scoped Amora fonts; schedule uses `.planning-workspace`.
   The user explicitly selected one consistent five-item mobile navigation:
   Lounge, Amora, Checklist, Schedule and Budget. Community remains reachable through
@@ -185,7 +186,8 @@
   `ChecklistOverview.dc.html`, `ChecklistOverviewMobile.dc.html`, `Budget.dc.html`
   and `BudgetMobile.dc.html`, including their layout, colors and font families.
   `/checklist` and `/budget` share the scoped `.planning-workspace` font assets and
-  HTML palette. Their desktop sidebar is 216px, mobile gutters are 18px, and the
+  HTML palette. Their desktop sidebar is the common 220px sidebar (Decisions Log
+  2026-10-17 replaced the reference's 216px), mobile gutters are 18px, and the
   compact white header includes a dark D-day pill. Both routes have mobile bottom
   navigation with the current page selected; contextual Amora links replace a
   competing floating launcher. Checklist overview groups the actual categories
@@ -527,3 +529,4 @@
 | 2026-08-28 | 랜딩의 종이 표면 언어를 제품 전체로 넓힌다. 손글씨는 넓히지 않는다 | 파운더 지시: "모든 디자인을 이렇게 바꾸라고 일관되게 레이아웃은 다 다르겠지만 스타일은 비슷하게 이쁘게해줘". 실측된 원인은 취향이 아니라 구조였다 — 화면에 직접 박힌 색이 **514종**이고(`#243832` 534회 옆에 거의 같은 `#263832` 182회가 따로 논다), 공유 프리미티브는 `Button` 하나뿐인데 그마저 77개 화면 중 **4개**만 쓴다. 그래서 화면을 하나씩 칠하는 대신 **역할 변수의 값을 옮겼다** — `webCssVars.ts` 가 `:root`·`service-theme`·`community-theme` 세 블록을 같은 토큰에서 생성하므로, 브리지 규칙 65개가 참조하는 색이 한 번에 따라온다. 손글씨를 제외한 이유는 데이터가 빽빽한 화면에서 읽히지 않기 때문이다. |
 | 2026-08-28 | `--hb-success` 를 유칼립투스에서 `sage.deep`(#637465)으로 옮기고 `sage.deep` 을 새 토큰으로 만든다 | success 가 본문과 같은 색(#36534E)이라 화면에서 "성공"과 "본문"이 구별되지 않았다. DESIGN.md 가 배정한 sage 로 되돌리되, `sage[500]`(#6D806E)은 흰 카드에서 **4.23:1** 이라 본문 크기 글자에 못 쓴다(계산으로 확인). 로즈가 `600`(4.95) 옆에 `700`(6.25)을 둔 것과 같은 구조로 어두운 단계를 만들었고, 4.98:1 로 rose-600 과 같은 대비 등급에 앉는다. |
 | 2026-08-28 | 초점 링을 파란 펜(#35638A)으로 둔다 | 잉크(#26251F)와 같은 색이면 어두운 버튼 위에서 링이 사라진다. 링은 `ring-offset-2` 로 버튼에서 떨어져 **바탕 위**에 그려지므로 판정 기준은 바탕과의 대비다(6.19:1). 처음에 버튼 색과 재서 2.42 로 "미달"을 냈는데, 그 짝은 화면에 존재하지 않는다. |
+| 2026-10-17 | 로그인 앱 사이드바는 어느 화면에서나 한 가지 모양이다(너비 220px, 항목 간격 4px, 글자 14.5px, 고른 항목만 600). 예절 가이드도 로그인한 사람에게는 같은 사이드바와 상단 바(이름·로그아웃·D-day·알림)를 보여 준다 | 파운더 지적: 메뉴를 하나씩 누를 때마다 목록의 간격·굵기·글자 크기가 바뀌고, 예절 가이드를 누르면 웨딩코드가 빠지고 숨겨 둔 커뮤니티가 나오며 이름·로그아웃·D-day·알림이 사라졌다. 실측한 원인은 사이드바가 화면 종류마다 따로 그려진 것이었다(라운지·체크리스트·일정·예산·웨딩코드 216px/간격 2px, 아모라 220px/4px, 설정 등 256px/항목 전부 굵게). 모양을 `sidebarStyles.ts` 한 곳에 두고 앱 사이드바와 공개 예절 가이드 사이드바가 같은 값을 쓴다. 로그인 여부는 브라우저가 세션 쿠키로 확인하고(공개 페이지의 서버 HTML은 그대로), 쿠키가 없는 방문자에게는 요청이 없다. 2026-09-11의 216px 기준은 이 줄로 대체한다. |

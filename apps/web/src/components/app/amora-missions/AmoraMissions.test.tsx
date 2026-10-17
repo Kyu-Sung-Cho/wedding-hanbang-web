@@ -286,6 +286,16 @@ describe("미션 화면의 기록 경계와 탐색", () => {
     expect(mocks.auth.updateJourney).toHaveBeenCalledTimes(2);
   });
 
+  it("선언만 있는 분야의 상태 문구는 받침에 맞는 조사를 쓴다", async () => {
+    mocks.auth.journey.progress = { greeting: { status: "in_progress" }, meeting: { status: "completed" } };
+    await render();
+    await act(async () => container.querySelector<HTMLButtonElement>('button[aria-current="step"]')!.click());
+    const text = container.querySelector("#selected-mission-stage")?.textContent ?? "";
+    expect(text).toContain("분야를 진행 중으로 표시");
+    expect(text).toContain("분야를 완료로 표시");
+    expect(text).not.toMatch(/(진행 중|시작 전|해당 없음)로 표시/);
+  });
+
   it("해당 없는 분야도 복구할 수 있고 계정·커플이 바뀌면 열었던 창을 즉시 가린다", async () => {
     mocks.auth.journey.progress = { greeting: { status: "not_applicable" }, meeting: { status: "not_applicable" } };
     await render();

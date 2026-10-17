@@ -72,6 +72,16 @@ describe("TodayOnePreferenceControl", () => {
     expect(container.querySelector('[role="switch"]')?.getAttribute("aria-checked")).toBe("false");
   });
 
+  it("draws the off track with the 3:1 control-boundary token, not a faint tint", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(response(OFF)));
+    await act(async () => root.render(<TodayOnePreferenceControl />));
+
+    // 꺼진 트랙이 흰 카드 위에서 1.24:1 이던 옅은 색(#B5ADA3/30)은 꺼짐을 눈으로 구분하기 어려웠다.
+    const toggle = container.querySelector<HTMLButtonElement>('[role="switch"]');
+    expect(toggle?.className).toContain("bg-paper-outline");
+    expect(toggle?.className).not.toContain("B5ADA3");
+  });
+
   it("does not flip the switch until the server confirms opt-in", async () => {
     const mutation = deferredResponse();
     const fetchMock = vi.fn()

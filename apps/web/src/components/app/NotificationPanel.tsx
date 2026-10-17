@@ -210,13 +210,15 @@ export default function NotificationPanel({
                       initial={{ opacity: 0, x: -10 }}
                       animate={{ opacity: 1, x: 0 }}
                       exit={{ opacity: 0, x: 10 }}
-                      className={`px-5 py-3 hover:bg-[#FDFCFA] transition-colors ${
-                        n.isNew ? "" : "opacity-60"
-                      }`}
+                      className="px-5 py-3 hover:bg-[#FDFCFA] transition-colors"
                     >
                       <div className="flex items-start gap-3">
+                        {/* 읽은 알림은 글자가 아니라 아이콘 칸만 흐리게 한다. 글자까지 흐리면 4.5:1 아래로 내려가
+                            배우자가 무엇을 바꿨는지 읽는 바로 그 글이 읽기 어려워진다. */}
                         <div
-                          className={`w-8 h-8 rounded-[6px] ${style.bg} flex items-center justify-center flex-shrink-0 mt-0.5`}
+                          className={`w-8 h-8 rounded-[6px] ${style.bg} flex items-center justify-center flex-shrink-0 mt-0.5 ${
+                            n.isNew ? "" : "opacity-60"
+                          }`}
                         >
                           <Icon className={`w-4 h-4 ${style.accent}`} />
                         </div>

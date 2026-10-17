@@ -17,6 +17,8 @@ Object.defineProperty(window, "location", {
   writable: true,
 });
 
+import { communityPostDraftKey } from "@/lib/community/viewerPrivacyCache";
+import { OFFLINE_CHANGE_MESSAGE, planChangeMessage } from "@/lib/journey/planChangeError";
 import { useAuthStore } from "../authStore";
 import { useCommunityStore } from "../communityStore";
 
@@ -85,6 +87,111 @@ describe("useAuthStore", () => {
       mockFetch.mockResolvedValue({ ok: false, status: 401 });
       await expect(useAuthStore.getState().initialize({ force: true, requireVerifiedSession: true })).resolves.toBeUndefined();
       expect(useAuthStore.getState().user).toBeNull();
+    });
+
+    describe("서버가 잠깐 못 답할 때", () => {
+      const draftKey = communityPostDraftKey("u1");
+
+      // 로그인해서 화면을 쓰던 상태. 커뮤니티 목록과 임시저장도 이 사람 것이다.
+      function signedIn() {
+        const held = {
+          user: { id: "u1", email: "test@example.com" },
+          profile: { id: "u1", name: "테스터", couple_id: "c1", role: "bride" } as never,
+          partner: { id: "p1", name: "상대", couple_id: "c1", role: "groom" } as never,
+          couple: { id: "c1" } as never,
+          journey: { id: "j1", couple_id: "c1" } as never,
+        };
+        useAuthStore.setState({ ...held, isDemo: false, isInitialized: true, isLoading: true });
+        useCommunityStore.getState().bindViewer("u1");
+        useCommunityStore.setState({ posts: [{ id: "u1-private" } as never] });
+        localStorage.setItem(draftKey, "draft");
+        return held;
+      }
+
+      it.each([500, 502, 503, 504, 403, 429])("HTTP %s 는 로그아웃이 아니라서 화면과 임시저장을 그대로 둔다", async (status) => {
+        const before = signedIn();
+        mockFetch.mockResolvedValue({ ok: false, status });
+
+        await useAuthStore.getState().initialize({ force: true });
+
+        const state = useAuthStore.getState();
+        expect(state.user).toBe(before.user);
+        expect(state.profile).toBe(before.profile);
+        expect(state.partner).toBe(before.partner);
+        expect(state.couple).toBe(before.couple);
+        expect(state.journey).toBe(before.journey);
+        expect(state.isDemo).toBe(false);
+        expect(state.isInitialized).toBe(true);
+        expect(state.isLoading).toBe(false);
+        expect(useCommunityStore.getState().viewerId).toBe("u1");
+        expect(useCommunityStore.getState().posts).toHaveLength(1);
+        expect(localStorage.getItem(draftKey)).toBe("draft");
+      });
+
+      it("진짜 401 은 새로고침이어도 로그아웃으로 확정하고 임시저장을 지운다", async () => {
+        signedIn();
+        mockFetch.mockResolvedValue({ ok: false, status: 401 });
+
+        await useAuthStore.getState().initialize({ force: true });
+
+        const state = useAuthStore.getState();
+        expect(state.user).toBeNull();
+        expect(state.profile).toBeNull();
+        expect(state.journey).toBeNull();
+        expect(useCommunityStore.getState().viewerId).toBeNull();
+        expect(localStorage.getItem(draftKey)).toBeNull();
+      });
+
+      it("응답은 왔는데 사용자가 없으면 로그아웃으로 확정한다", async () => {
+        signedIn();
+        mockFetch.mockResolvedValue({ ok: true, json: async () => ({ user: null }) });
+
+        await useAuthStore.getState().initialize({ force: true });
+
+        expect(useAuthStore.getState().user).toBeNull();
+        expect(useCommunityStore.getState().viewerId).toBeNull();
+      });
+
+      it("첫 로드에서 5xx 가 나면 지킬 화면이 없으니 비로그인으로 연다", async () => {
+        mockFetch.mockResolvedValue({ ok: false, status: 503 });
+
+        await useAuthStore.getState().initialize();
+
+        const state = useAuthStore.getState();
+        expect(state.user).toBeNull();
+        expect(state.isDemo).toBe(false);
+        expect(state.isInitialized).toBe(true);
+        expect(state.isLoading).toBe(false);
+      });
+
+      it("체험 계정은 이 분기를 타지 않고 체험 화면을 그대로 둔다", async () => {
+        setDemoCookie(true);
+        await useAuthStore.getState().initialize({ initialDemo: true });
+        mockFetch.mockResolvedValue({ ok: false, status: 503 });
+
+        await useAuthStore.getState().initialize({ force: true });
+
+        const state = useAuthStore.getState();
+        expect(state.isDemo).toBe(true);
+        expect(state.user?.id).toBe("demo");
+      });
+
+      it("더 새로운 확인이 끝난 뒤 늦게 온 5xx 는 새 로그인 상태를 건드리지 않는다", async () => {
+        signedIn();
+        let finishOlder!: (value: unknown) => void;
+        mockFetch
+          .mockImplementationOnce(() => new Promise((resolve) => { finishOlder = resolve; }))
+          .mockResolvedValueOnce({ ok: true, json: async () => ({
+            user: { id: "u2", email: "next@example.com" }, profile: null, couple: null, partner: null, journey: null,
+          }) });
+
+        const older = useAuthStore.getState().initialize({ force: true });
+        await useAuthStore.getState().initialize({ force: true });
+        finishOlder({ ok: false, status: 503 });
+        await older;
+
+        expect(useAuthStore.getState().user?.id).toBe("u2");
+      });
     });
 
     it("uses a server-verified demo session immediately without waiting for auth/me", async () => {
@@ -563,13 +670,25 @@ describe("useAuthStore", () => {
       );
     });
 
-    it("propagates PATCH failure so the editor cannot report false success", async () => {
-      mockFetch.mockRejectedValue(new Error("Network error"));
-      useAuthStore.setState({ isDemo: false, journey: { id: "j1", couple_id: "c1" } as never });
+    // 연결이 끊기면 브라우저가 영어 원문으로 거절한다(크롬, 사파리, 파이어폭스 순).
+    // 저장 실패를 성공으로 보고하지 않되, 화면에는 우리말 문장만 올라가야 한다.
+    it.each([
+      "Failed to fetch",
+      "Load failed",
+      "NetworkError when attempting to fetch resource.",
+    ])("propagates PATCH failure (%s) as a Korean error so the editor cannot report false success", async (browserMessage) => {
+      mockFetch.mockRejectedValue(new TypeError(browserMessage));
+      const originalJourney = { id: "j1", couple_id: "c1" } as never;
+      useAuthStore.setState({ isDemo: false, journey: originalJourney });
 
-      await expect(
-        useAuthStore.getState().updateJourney({ wedding_date: "2026-12-01" }),
-      ).rejects.toThrow("Network error");
+      const error = await useAuthStore.getState()
+        .updateJourney({ wedding_date: "2026-12-01" })
+        .then(() => null, (reason: unknown) => reason);
+
+      expect(error).toMatchObject({ code: "PLAN_CHANGE_OFFLINE", message: OFFLINE_CHANGE_MESSAGE });
+      expect((error as Error).message).not.toMatch(/[A-Za-z]/);
+      expect(planChangeMessage(error)).toBe(OFFLINE_CHANGE_MESSAGE);
+      expect(useAuthStore.getState().journey).toBe(originalJourney);
     });
 
     it("fails explicitly when journey is null in demo mode", async () => {

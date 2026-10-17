@@ -109,6 +109,8 @@ describe("일정 화면이 서버가 준 사유를 버리지 않는다", () => {
     // `EventFormModal.execution-fields.test.tsx` 가 이미 고정하고 있다.
     expect(mapper).toContain("PLAN_CHANGE_STALE");
     expect(mapper).toContain("PLAN_CHANGE_REJECTED");
+    // 연결이 끊긴 저장 실패도 코드로 올린다. 영어 원문(Failed to fetch)이 화면에 뜨지 않는다.
+    expect(mapper).toContain("PLAN_CHANGE_OFFLINE");
     expect(mapper).toContain("if (!(error instanceof PlanChangeError)) return null;");
   });
 
@@ -117,9 +119,38 @@ describe("일정 화면이 서버가 준 사유를 버리지 않는다", () => {
     expect(modal).toContain("planChangeMessage(error)");
   });
 
-  it("복원 요청이 눌린 자리에 표시를 남긴다", () => {
+  it("복원이 눌린 자리에 표시를 남긴다", () => {
     expect(schedule).toContain("setRestoringEventId");
     expect(schedule).toContain('aria-busy={restoringEventId === event.id}');
+  });
+});
+
+describe("일정 취소·복원 문구는 승인 요청을 말하지 않는다", () => {
+  // 2026-08-23 부터 한 사람이 확인하면 바로 취소·복원되고 상대에게는 알림만 간다.
+  // 요청을 보낸다고 말하면 상대가 승인해 주리라 믿고 누르게 된다.
+  // 주석까지 원문 그대로 읽는다 — 옛 말이 주석에 남으면 되살리기 쉽다.
+  const raw = (...parts: string[]) => readFileSync(web(...parts), "utf8");
+  const STALE_REQUEST_WORDING = /취소 요청 보내기|복원 요청|요청 보내는 중|일정 취소 요청/u;
+
+  it.each(["ScheduleContent.tsx", "TimelineView.tsx", "EventFormModal.tsx"])(
+    "%s 가 요청을 보낸다고 말하지 않는다",
+    (file) => {
+      const source = raw("components", "app", "schedule", file);
+      expect(source.length).toBeGreaterThan(3000);
+      expect(source).not.toMatch(STALE_REQUEST_WORDING);
+    },
+  );
+
+  it("취소·복원 버튼은 한 일을 그대로 말한다", () => {
+    expect(raw("components", "app", "schedule", "ScheduleContent.tsx")).toContain('"복원하는 중..." : "복원하기"');
+    expect(raw("components", "app", "schedule", "TimelineView.tsx")).toContain('"취소하는 중..." : "일정 취소하기"');
+    expect(raw("components", "app", "schedule", "EventFormModal.tsx")).toContain('"취소하는 중..." : "일정 취소하기"');
+  });
+
+  it("안내 문구도 두 사람 확인을 조건으로 말하지 않는다", () => {
+    // 한 사람이 확인하면 쌓인다. 혼자 쓰는 사람에게 '두 분이 확인한 것만' 은 거짓이다.
+    expect(raw("components", "app", "ServiceGuide.tsx")).not.toContain("두 분이 확인");
+    expect(raw("components", "invite", "InviteCodePanel.tsx")).not.toContain("두 분이 확인");
   });
 });
 

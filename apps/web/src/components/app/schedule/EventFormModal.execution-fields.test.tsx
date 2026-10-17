@@ -294,13 +294,16 @@ describe("EventFormModal execution fields", () => {
       );
     });
 
-    await act(async () => findButton(container, "일정 취소 요청").click());
+    await act(async () => findButton(container, "일정 취소").click());
     expect(onCancel).not.toHaveBeenCalled();
-    expect(container.textContent).toContain("일정 취소 요청");
+    // 확인 단계가 열렸는지는 확인 버튼 글자로 본다. 한 사람이 확인하면 바로 취소되므로
+    // 요청을 보낸다는 말은 어디에도 없다.
+    expect(container.textContent).toContain("일정 취소하기");
+    expect(container.textContent).not.toContain("요청 보내기");
     expect(container.textContent).not.toContain("삭제");
 
     await act(async () => {
-      findButton(container, "취소 요청 보내기").click();
+      findButton(container, "일정 취소하기").click();
       await Promise.resolve();
     });
     expect(onCancel).toHaveBeenCalledTimes(1);

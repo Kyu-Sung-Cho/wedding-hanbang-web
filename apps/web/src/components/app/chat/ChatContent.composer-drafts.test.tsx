@@ -57,6 +57,7 @@ const mocks = vi.hoisted(() => ({
   profileId: "user-1" as string | null,
   coupleId: "couple-1" as string | null,
   partnerLinked: true,
+  partner: null as null | { id: string; name: string },
   partnerTyping: null as null | {
     sender_role: "bride" | "groom";
     user_id: string;
@@ -112,6 +113,7 @@ vi.mock("@/stores/authStore", () => ({
       groom_id: mocks.partnerLinked ? "user-2" : null,
     },
     journey: null,
+    partner: mocks.partner,
     isDemo: mocks.isDemo,
     isInitialized: true,
     isLoading: false,
@@ -262,6 +264,7 @@ describe("ChatContent composer draft lanes", () => {
     mocks.profileId = "user-1";
     mocks.coupleId = "couple-1";
     mocks.partnerLinked = true;
+    mocks.partner = null;
     mocks.partnerTyping = null;
     mocks.queryPrefill = null;
     mocks.queryScope = null;
@@ -1725,6 +1728,64 @@ describe("ChatContent composer draft lanes", () => {
       content: "아모라 카드 후속 질문",
       target: "ai",
     }));
+  });
+
+  it.each([
+    ["민서", "민서가"],
+    ["준영", "준영이"],
+    [null, "상대방이"],
+  ])("상대가 입력 중이라는 확인 창은 이름 %s 의 받침에 맞는 조사를 쓴다", async (name, expected) => {
+    mocks.partner = name ? { id: "user-2", name } : null;
+    mocks.messages = [{
+      id: "ai-tool-message",
+      couple_id: "couple-1",
+      sender_id: null,
+      sender_role: "ai",
+      content: "업체 결과",
+      visibility: "shared",
+      created_at: new Date().toISOString(),
+      metadata: {
+        toolResults: [{
+          toolName: "search_venues",
+          toolInput: {},
+          toolOutput: {},
+          success: true,
+          displayMessage: "업체 결과",
+        }],
+      },
+    }];
+    mocks.partnerTyping = {
+      sender_role: "groom",
+      user_id: "user-2",
+      updated_at: Date.now(),
+    };
+    await act(async () => {
+      root.render(<ChatContent />);
+      await Promise.resolve();
+    });
+    const findButton = (label: string) => Array.from(
+      container.querySelectorAll<HTMLButtonElement>("button"),
+    ).find((button) => button.textContent?.includes(label));
+    await act(async () => findButton("상대방에게")?.click());
+    await act(async () => findButton("AI 카드 실행")?.click());
+
+    const dialogText = container.ownerDocument
+      .querySelector('[role="dialog"][aria-labelledby="pending-send-dialog-title"]')
+      ?.textContent ?? "";
+    expect(dialogText).toContain(`${expected} 지금 입력하고 있어요`);
+    expect(dialogText).not.toContain("민서이 지금");
+    expect(dialogText).not.toContain("준영가 지금");
+  });
+
+  it("메시지 입력칸이 키보드 초점을 받으면 둘레에 초점 표시가 생기는 클래스를 갖는다", () => {
+    const textarea = container.querySelector<HTMLTextAreaElement>("textarea");
+    expect(textarea).not.toBeNull();
+    const tokens = (textarea?.parentElement?.className ?? "").split(/\s+/);
+    expect(tokens).toEqual(expect.arrayContaining([
+      "has-[textarea:focus-visible]:outline-2",
+      "has-[textarea:focus-visible]:-outline-offset-2",
+      "has-[textarea:focus-visible]:outline-[var(--hb-focus-ring)]",
+    ]));
   });
 
   it("broadcasts typing only for an explicit partner draft and never for AI 상담", async () => {

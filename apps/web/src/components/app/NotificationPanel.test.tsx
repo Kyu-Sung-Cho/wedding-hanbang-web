@@ -362,3 +362,70 @@ describe("NotificationPanel partner history", () => {
     expect(onDismiss).not.toHaveBeenCalled();
   });
 });
+
+describe("NotificationPanel read state", () => {
+  let root: Root;
+  let container: HTMLDivElement;
+
+  beforeEach(() => {
+    container = document.createElement("div");
+    document.body.appendChild(container);
+    root = createRoot(container);
+  });
+
+  afterEach(async () => {
+    await act(async () => root.unmount());
+    document.body.replaceChildren();
+  });
+
+  const renderPanel = async (notification: ComputedNotification) => {
+    await act(async () => {
+      root.render(
+        <NotificationPanel
+          notifications={[notification]}
+          onDismiss={vi.fn()}
+          onDismissAll={vi.fn()}
+          onCategoryClick={vi.fn()}
+          onOpen={vi.fn()}
+          onClose={vi.fn()}
+        />,
+      );
+    });
+  };
+
+  it("dims only the icon of a read notification and keeps its text at full strength", async () => {
+    await renderPanel({ ...PARTNER_NOTIFICATION, isNew: false });
+
+    // 읽은 알림은 파트너가 무엇을 바꿨는지 남는 기록이다. 글자에 불투명도를 걸면 4.5:1 아래로 내려간다.
+    const message = Array.from(container.querySelectorAll("p")).find(
+      (paragraph) => paragraph.textContent === "공동 예산 변경이 반영됐어요.",
+    );
+    const title = Array.from(container.querySelectorAll("p")).find(
+      (paragraph) => paragraph.textContent === "예산이 변경됐어요",
+    );
+    const openButton = Array.from(container.querySelectorAll("button")).find(
+      (button) => button.textContent?.trim() === "내용 보기",
+    );
+    const time = container.querySelector("time");
+    for (const element of [message, title, openButton, time]) {
+      expect(element).toBeDefined();
+      expect(element?.closest('[class*="opacity-"]')).toBeNull();
+    }
+
+    // 읽음 구분은 아이콘 칸의 흐림으로 남는다.
+    const dimmed = container.querySelectorAll('[class*="opacity-"]');
+    expect(dimmed).toHaveLength(1);
+    expect(dimmed[0].className).toContain("opacity-60");
+    expect(dimmed[0].querySelector("svg")).not.toBeNull();
+    expect(dimmed[0].textContent).toBe("");
+  });
+
+  it("leaves an unread notification undimmed and offers to mark it read", async () => {
+    await renderPanel({ ...PARTNER_NOTIFICATION, isNew: true });
+
+    expect(container.querySelector('[class*="opacity-"]')).toBeNull();
+    expect(
+      container.querySelector('button[aria-label="예산이 변경됐어요 읽음으로 표시"]'),
+    ).not.toBeNull();
+  });
+});

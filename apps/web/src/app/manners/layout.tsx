@@ -4,10 +4,21 @@ import { BookOpen, CalendarCheck, ClipboardCheck, LayoutDashboard, Settings, Use
 import AmoraMark from "@/components/ui/AmoraMark";
 import { LogoMark } from "@/components/ui/Logo";
 import AmoraBottomNav from "@/components/app/amora/AmoraBottomNav";
+import {
+  SIDEBAR_ITEM_ACTIVE_CLASS,
+  SIDEBAR_ITEM_CLASS,
+  SIDEBAR_ITEM_IDLE_CLASS,
+  SIDEBAR_LIST_CLASS,
+  SIDEBAR_WIDTH_CLASS,
+} from "@/components/app/sidebarStyles";
 import HiddenInsideMobileApp from "@/components/common/HiddenInsideMobileApp";
 import FullPageLinkInsideMobileApp from "@/components/common/FullPageLinkInsideMobileApp";
+import MannersChrome from "@/components/manners/MannersChrome";
 
-// 공개 읽기 화면은 인증 상태를 요청하거나 사용자·일정·알림을 가정하지 않는다.
+// 이 서버 레이아웃과 아래 공개 사이드바는 인증 상태를 요청하지 않고 사용자·일정·알림을
+// 가정하지 않는다. 로그인 세션 쿠키가 있는 브라우저에서만 `MannersChrome` 이 hydration 뒤에
+// `/api/auth/me` 로 로그인 여부를 확인하고, 로그인한 사람에게 앱 사이드바·상단 바를 얹는다.
+// 쿠키가 없는 방문자에게는 요청이 없다.
 const SERVICE_LINKS = [
   { href: "/lounge", label: "웨딩 라운지", icon: LayoutDashboard },
   { href: "/chat", label: "아모라", icon: AmoraMark },
@@ -35,10 +46,13 @@ const POLICY_LINKS = [
 export default function MannersLayout({ children }: { children: React.ReactNode }) {
   return (
     <div className="planning-workspace min-h-screen bg-[var(--amora-bg)] text-[var(--amora-soft)] [&_a:focus-visible]:outline-2 [&_a:focus-visible]:outline-offset-2 [&_a:focus-visible]:outline-[var(--hb-focus-ring)]">
-      <a href="#manners-main" className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-50 focus:rounded-[10px] focus:bg-white focus:p-3">본문으로 바로가기</a>
-      <aside className="fixed inset-y-0 left-0 hidden w-[220px] flex-col border-r border-[var(--amora-line)] bg-white pt-[22px] md:flex">
+      {/* 로그인한 사람의 사이드바(z-50)가 이 링크 자리를 덮으므로 그보다 위(z-100)에서 보인다. */}
+      <a href="#manners-main" className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[100] focus:rounded-[10px] focus:bg-white focus:p-3">본문으로 바로가기</a>
+      <MannersChrome publicAside={
+      <aside className={`fixed inset-y-0 left-0 hidden ${SIDEBAR_WIDTH_CLASS} flex-col border-r border-[var(--amora-line)] bg-white pt-[22px] md:flex`}>
         {/*
           앱 사이드바(`components/app/Sidebar.tsx`)와 같은 머리 — 로고는 라운지로 간다.
+          항목의 크기·굵기·간격은 앱 사이드바와 같은 값(`sidebarStyles.ts`)을 쓴다.
           넓은 안드로이드 기기의 앱 웹뷰에서도 보이는 자리라, 로고와 메뉴는 앱 웹뷰에서 문서째
           옮긴다. 그래야 앱이 받아 라운지 탭·체크리스트 같은 네이티브 화면으로 넘긴다
           (`FullPageLinkInsideMobileApp`). 커뮤니티·예절 가이드 두 공개 항목도 같이 쓴다 —
@@ -48,10 +62,10 @@ export default function MannersLayout({ children }: { children: React.ReactNode 
           <span className="flex items-center gap-2"><LogoMark />웨딩한방</span>
         </FullPageLinkInsideMobileApp>
         <nav aria-label="서비스 메뉴" className="flex-1 overflow-y-auto px-[14px]">
-          <ul className="space-y-1">
+          <ul className={SIDEBAR_LIST_CLASS}>
             {SERVICE_LINKS.map(({ href, label, icon: Icon }) => (
               <li key={href}>
-                <FullPageLinkInsideMobileApp path={href} aria-current={href === "/manners" ? "location" : undefined} className={`flex min-h-11 items-center gap-[11px] rounded-[9px] px-3 py-2.5 text-[14.5px] ${href === "/manners" ? "bg-[var(--amora-selected-bg)] font-semibold text-[var(--amora-selected-text)]" : "hover:bg-[var(--amora-warm)]"}`}>
+                <FullPageLinkInsideMobileApp path={href} aria-current={href === "/manners" ? "location" : undefined} className={`${SIDEBAR_ITEM_CLASS} ${href === "/manners" ? SIDEBAR_ITEM_ACTIVE_CLASS : SIDEBAR_ITEM_IDLE_CLASS}`}>
                   <Icon aria-hidden className="size-4 shrink-0" />{label}
                 </FullPageLinkInsideMobileApp>
               </li>
@@ -63,7 +77,7 @@ export default function MannersLayout({ children }: { children: React.ReactNode 
           <Link href="/start-here" prefetch={false} className="mt-1 inline-flex min-h-11 items-center font-medium text-[var(--amora-accent)]">처음 오셨나요?</Link>
         </div>
       </aside>
-      <div className="flex min-h-screen min-w-0 flex-col md:ml-[220px]">
+      }>
       <main id="manners-main" className="min-w-0 flex-1">{children}</main>
 
       {/*
@@ -90,7 +104,7 @@ export default function MannersLayout({ children }: { children: React.ReactNode 
         </div>
       </footer>
       </HiddenInsideMobileApp>
-      </div>
+      </MannersChrome>
       <HiddenInsideMobileApp>
         <AmoraBottomNav active={null} />
       </HiddenInsideMobileApp>

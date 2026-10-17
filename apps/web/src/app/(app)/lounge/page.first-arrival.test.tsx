@@ -107,10 +107,10 @@ describe("웨딩 라운지 첫 도착", () => {
     expect(card?.textContent).toContain("체크리스트 열기");
 
     // 왜 비어 있는지도 빈 위젯 옆에서 말한다.
-    expect(
-      container.querySelector('[data-testid="lounge-first-arrival-empty-note"]')
-        ?.textContent,
-    ).toContain("두 분이 확인한 것만 쌓여요");
+    const emptyNote = container.querySelector('[data-testid="lounge-first-arrival-empty-note"]')
+      ?.textContent;
+    expect(emptyNote).toContain("확인한 것만 쌓여요");
+    expect(emptyNote).not.toContain("두 분이");
   });
 
   it("진척을 지어내거나 판정하지 않는다", async () => {

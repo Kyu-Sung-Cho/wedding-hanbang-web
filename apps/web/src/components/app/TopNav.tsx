@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type Ref } from "react";
+import { useEffect, useRef, useState, type Ref } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { AnimatePresence } from "framer-motion";
@@ -18,6 +18,7 @@ const pageTitles: Record<string, string> = {
   "/lounge": "웨딩 라운지",
   "/preparation-style": "웨딩코드",
   "/chat": "아모라",
+  "/chat/personal": "나만 보는 할 일",
   "/budget": "예산",
   "/market-prices": "공시 가격",
   "/checklist": "웨딩 체크리스트",
@@ -32,6 +33,10 @@ const pageTitlePrefixes: Array<{ prefix: string; title: string }> = [
   { prefix: "/vendors/favorites", title: "찜한 업체" },
   { prefix: "/vendors", title: "업체 탐색" },
   { prefix: "/bookings", title: "예약 관리" },
+  // 아모라 도움 방식·기억 화면도 사이드바에서는 "설정" 아래에 켜진다. 정확히 `/settings` 는 위 표가 먼저 잡는다.
+  { prefix: "/settings/", title: "설정" },
+  // 로그인 없이 읽는 공개 화면이지만, 로그인한 사람에게는 앱 틀 안에서 열린다(`MannersChrome`).
+  { prefix: "/manners", title: "예절 가이드" },
 ];
 
 const quickLinks = [
@@ -66,8 +71,8 @@ export default function TopNav({ onMenuToggle, amoraWorkspace = false, planningW
   const { prefs } = useNotificationPrefs();
   const [showNotifications, setShowNotifications] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+  const bellRef = useRef<HTMLButtonElement>(null);
 
-  const weddingDate = journey?.wedding_date ? new Date(journey.wedding_date) : null;
   // **한국 새벽 0~9시에 하루가 더 나왔다.**
   //
   // `new Date("YYYY-MM-DD")` 는 UTC 자정으로 파싱되고 `new Date()` 는 지금 이 순간이다.
@@ -77,7 +82,19 @@ export default function TopNav({ onMenuToggle, amoraWorkspace = false, planningW
   // `daysUntilWedding` 은 예식일과 오늘을 **둘 다 KST 자정으로** 맞춘 뒤 비교한다.
   const dday = daysUntilWedding(journey?.wedding_date);
   const progress = journey?.progress ?? {};
-  const { notifications, newCount, dismiss, dismissAll } = useNotifications(weddingDate, progress, prefs);
+  const { notifications, newCount, dismiss, dismissAll } = useNotifications(journey?.wedding_date, progress, prefs);
+
+  // 알림창이 열려 있는 동안 Esc 로 닫고 초점을 종으로 돌려준다(바깥 클릭 오버레이는 마우스 전용이다).
+  useEffect(() => {
+    if (!showNotifications) return;
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      setShowNotifications(false);
+      bellRef.current?.focus();
+    };
+    document.addEventListener("keydown", closeOnEscape);
+    return () => document.removeEventListener("keydown", closeOnEscape);
+  }, [showNotifications]);
 
   function handleCategoryClick(categoryKey: string) {
     setShowNotifications(false);
@@ -149,9 +166,11 @@ export default function TopNav({ onMenuToggle, amoraWorkspace = false, planningW
           <div className={planningWorkspace && appPathname !== "/schedule" ? "relative hidden md:block" : "relative"}>
             <button
               type="button"
+              ref={bellRef}
               onClick={() => setShowNotifications((value) => !value)}
               className="relative flex h-11 w-11 items-center justify-center rounded-full text-[var(--hb-text-body)] transition-colors hover:bg-white hover:text-[var(--hb-accent-hover)]"
-              aria-label="알림"
+              aria-expanded={showNotifications}
+              aria-label={newCount > 0 ? `새 알림 ${newCount}개` : "알림"}
             >
               <Bell className="h-5 w-5" />
               {newCount > 0 && (
