@@ -230,8 +230,8 @@ export default function ChecklistContent() {
     setCollapsedStageKeys((prev) => prev.filter((key) => key !== stageKey));
     window.requestAnimationFrame(() => {
       const section = stageRefs.current[stageKey];
-      section?.scrollIntoView({ behavior: "auto", block: "start" });
-      section?.focus({ preventScroll: true });
+      section?.scrollIntoView?.({ behavior: "auto", block: "start" });
+      section?.focus?.({ preventScroll: true });
     });
   };
 
