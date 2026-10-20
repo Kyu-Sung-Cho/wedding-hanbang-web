@@ -12,6 +12,7 @@ const mocks = vi.hoisted(() => ({
   replace: vi.fn(),
   searchParams: new URLSearchParams(),
   progress: {} as Record<string, ProgressItem>,
+  updateJourney: vi.fn(async (_updates?: { progress?: Record<string, ProgressItem> }) => ({ status: "saved" as const })),
 }));
 
 vi.mock("next/navigation", () => ({
@@ -28,7 +29,10 @@ vi.mock("next/link", () => ({
 }));
 
 vi.mock("@/stores/authStore", () => ({
-  useAuthStore: () => ({ journey: { progress: mocks.progress } }),
+  useAuthStore: () => ({
+    journey: { progress: mocks.progress },
+    updateJourney: mocks.updateJourney,
+  }),
 }));
 
 vi.mock("@/components/app/schedule/CategoryChecklistModal", () => ({
@@ -52,6 +56,7 @@ describe("ChecklistContent category deep links", () => {
     reactActEnvironment.IS_REACT_ACT_ENVIRONMENT = true;
     mocks.pathname = "/checklist";
     mocks.replace.mockReset();
+    mocks.updateJourney.mockClear();
     mocks.searchParams = new URLSearchParams();
     mocks.progress = {};
     container = document.createElement("div");
@@ -216,6 +221,64 @@ describe("ChecklistContent category deep links", () => {
     expect(document.activeElement).toBe(search);
     expect(container.querySelectorAll('button[aria-label$="체크리스트 열기"]')).toHaveLength(CATEGORY_CHECKLISTS.length);
     expect(mocks.replace).not.toHaveBeenCalled();
+  });
+
+  it("previews excluded categories for a wedding style preset and only saves after explicit confirmation while preserving active categories", async () => {
+    mocks.progress = {
+      venue: { category: "venue", status: "in_progress" },
+    };
+    await render();
+
+    const presetButtons = Array.from(
+      container.querySelectorAll<HTMLButtonElement>('[aria-label="결혼 방식 선택"] button'),
+    );
+    expect(presetButtons).toHaveLength(4);
+    const noWeddingButton = presetButtons.find((btn) => btn.textContent?.includes("노웨딩"));
+    expect(noWeddingButton).toBeDefined();
+
+    await act(async () => noWeddingButton?.click());
+    expect(mocks.updateJourney).not.toHaveBeenCalled();
+
+    const confirmBox = container.querySelector('[data-testid="wedding-style-preset-confirm"]');
+    expect(confirmBox).not.toBeNull();
+    expect(confirmBox?.textContent).toContain("제외 대상:");
+
+    const applyButton = Array.from(confirmBox!.querySelectorAll<HTMLButtonElement>("button"))
+      .find((btn) => btn.textContent?.includes("확인하고 적용하기"));
+    expect(applyButton).toBeDefined();
+
+    await act(async () => applyButton?.click());
+    expect(mocks.updateJourney).toHaveBeenCalledTimes(1);
+    const savedProgress = mocks.updateJourney.mock.calls[0]?.[0]?.progress;
+    // 이미 진행 중인 결혼식장은 건드리지 않는다.
+    expect(savedProgress?.venue?.status).toBe("in_progress");
+    // 미시작 본식·전통 항목만 해당 없음으로 정리된다.
+    expect(savedProgress?.snap?.status).toBe("not_applicable");
+    expect(savedProgress?.mc?.status).toBe("not_applicable");
+    expect(savedProgress?.pyebaek?.status).toBe("not_applicable");
+    expect(savedProgress?.ham?.status).toBe("not_applicable");
+  });
+
+  it("can focus on the current stage or toggle individual stage collapse without losing stage jump expansion", async () => {
+    await render();
+
+    const focusToggle = container.querySelector<HTMLButtonElement>('[data-testid="toggle-focus-current-stage"]');
+    expect(focusToggle).not.toBeNull();
+    expect(focusToggle?.textContent).toBe("지금 단계만 펼치기");
+
+    await act(async () => focusToggle?.click());
+    expect(focusToggle?.textContent).toBe("모든 단계 펼치기");
+    // 1단계(family: 2개 분야)만 펼쳐져 있어야 한다.
+    expect(container.querySelectorAll('button[aria-label$="체크리스트 열기"]')).toHaveLength(2);
+
+    // 4단계 이동 버튼을 누르면 접혀 있던 4단계가 자동으로 펼쳐진다.
+    const jumpStage4 = container.querySelector<HTMLButtonElement>('button[aria-label="4단계 촬영·본식 준비 보기"]')!;
+    await act(async () => jumpStage4.click());
+    expect(container.querySelectorAll('button[aria-label$="체크리스트 열기"]')).toHaveLength(10);
+
+    // 모든 단계 펼치기를 누르면 전체 21개가 다시 보인다.
+    await act(async () => focusToggle?.click());
+    expect(container.querySelectorAll('button[aria-label$="체크리스트 열기"]')).toHaveLength(CATEGORY_CHECKLISTS.length);
   });
 });
 

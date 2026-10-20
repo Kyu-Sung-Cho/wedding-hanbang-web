@@ -82,4 +82,35 @@ describe("ProgressChecklist 상태 어휘", () => {
     await act(async () => notStarted.click());
     expect(onStatusChange).toHaveBeenLastCalledWith("ham", "not_started");
   });
+
+  it("예식 형태 빠른 선택 버튼이 진행 중·완료 항목은 보존하고 미시작 생략 항목만 '안 해요'로 표시한다", async () => {
+    const onStatusChange = vi.fn<(key: string, status: ChecklistStatus) => void>();
+
+    await act(async () =>
+      root.render(
+        <ProgressChecklist
+          items={PROGRESS_CHECKLIST_ITEMS.map((item) =>
+            item.key === "venue" ? { ...item, status: "in_progress" } : item,
+          )}
+          onStatusChange={onStatusChange}
+          onCostChange={() => {}}
+        />,
+      ),
+    );
+
+    const presetBox = container.querySelector('[data-testid="onboarding-ceremony-format-presets"]');
+    expect(presetBox).not.toBeNull();
+    const noWeddingBtn = Array.from(presetBox!.querySelectorAll("button")).find((btn) =>
+      btn.textContent?.includes("노웨딩"),
+    );
+    expect(noWeddingBtn).toBeDefined();
+
+    await act(async () => noWeddingBtn!.click());
+    // 이미 준비 중인 결혼식장(venue)은 덮어쓰지 않는다.
+    expect(onStatusChange).not.toHaveBeenCalledWith("venue", "not_applicable");
+    // 미시작 생략 항목들은 '안 해요'로 전환 호출된다.
+    expect(onStatusChange).toHaveBeenCalledWith("snap", "not_applicable");
+    expect(onStatusChange).toHaveBeenCalledWith("pyebaek", "not_applicable");
+    expect(onStatusChange).toHaveBeenCalledWith("ham", "not_applicable");
+  });
 });

@@ -20,6 +20,7 @@ type BudgetFinderInput = {
   catalogs: Record<BudgetCategory, readonly PriceVendor[]>;
   budgetMaximumKrw: number;
   agencyIds?: readonly string[];
+  sameAgencyOnly?: boolean;
   limit?: number;
 };
 
@@ -111,13 +112,16 @@ class MinimumHeap {
   }
 }
 
-export function findBudgetCombinations(input: BudgetFinderInput): BudgetCombination[] {
-  if (!Number.isSafeInteger(input.budgetMaximumKrw) || input.budgetMaximumKrw < 0) return [];
-  const allowedAgencyIds = new Set(input.agencyIds ?? []);
+function findCombinationsForAllowedAgencies(
+  catalogs: Record<BudgetCategory, readonly PriceVendor[]>,
+  budgetMaximumKrw: number,
+  allowedAgencyIds: ReadonlySet<string>,
+  limit: number,
+): BudgetCombination[] {
   const categoryChoices = [
-    choices(input.catalogs.studio, allowedAgencyIds),
-    choices(input.catalogs.dress, allowedAgencyIds),
-    choices(input.catalogs.makeup, allowedAgencyIds),
+    choices(catalogs.studio, allowedAgencyIds),
+    choices(catalogs.dress, allowedAgencyIds),
+    choices(catalogs.makeup, allowedAgencyIds),
   ] as const;
   if (categoryChoices.some((items) => items.length === 0)) return [];
 
@@ -129,11 +133,10 @@ export function findBudgetCombinations(input: BudgetFinderInput): BudgetCombinat
   const seen = new Set(["0:0:0"]);
   heap.push({ indexes: [0, 0, 0], total: totalAt([0, 0, 0]) });
   const result: BudgetCombination[] = [];
-  const limit = Math.min(20, Math.max(1, input.limit ?? 20));
 
   while (heap.size > 0 && result.length < limit) {
     const node = heap.pop();
-    if (!node || node.total > input.budgetMaximumKrw) break;
+    if (!node || node.total > budgetMaximumKrw) break;
     const [studioIndex, dressIndex, makeupIndex] = node.indexes;
     result.push({
       studio: categoryChoices[0][studioIndex],
@@ -154,4 +157,47 @@ export function findBudgetCombinations(input: BudgetFinderInput): BudgetCombinat
   }
 
   return result;
+}
+
+export function findBudgetCombinations(input: BudgetFinderInput): BudgetCombination[] {
+  if (!Number.isSafeInteger(input.budgetMaximumKrw) || input.budgetMaximumKrw < 0) return [];
+  const allowedAgencyIds = new Set(input.agencyIds ?? []);
+  const limit = Math.min(20, Math.max(1, input.limit ?? 20));
+
+  if (input.sameAgencyOnly && allowedAgencyIds.size !== 1) {
+    const candidateAgencyIds = new Set<string>();
+    for (const vendor of [
+      ...input.catalogs.studio,
+      ...input.catalogs.dress,
+      ...input.catalogs.makeup,
+    ]) {
+      for (const offer of comparableOffers(vendor)) {
+        if (offer.agencyId !== null
+          && offer.minimumKrw !== null
+          && (allowedAgencyIds.size === 0 || allowedAgencyIds.has(offer.agencyId))) {
+          candidateAgencyIds.add(offer.agencyId);
+        }
+      }
+    }
+    return [...candidateAgencyIds]
+      .flatMap((agencyId) => findCombinationsForAllowedAgencies(
+        input.catalogs,
+        input.budgetMaximumKrw,
+        new Set([agencyId]),
+        limit,
+      ))
+      .sort((left, right) => left.totalKrw - right.totalKrw
+        || (left.studio.agencyName).localeCompare(right.studio.agencyName, "ko-KR")
+        || left.studio.vendorName.localeCompare(right.studio.vendorName, "ko-KR")
+        || left.dress.vendorName.localeCompare(right.dress.vendorName, "ko-KR")
+        || left.makeup.vendorName.localeCompare(right.makeup.vendorName, "ko-KR"))
+      .slice(0, limit);
+  }
+
+  return findCombinationsForAllowedAgencies(
+    input.catalogs,
+    input.budgetMaximumKrw,
+    allowedAgencyIds,
+    limit,
+  );
 }

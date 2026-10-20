@@ -70,7 +70,12 @@ export function ComboBar({
                   <p className="text-[10px] font-bold text-[var(--hb-text-muted)]">{SLOT_LABELS[category]}</p>
                   {selection ? (
                     <div className="mt-1 flex items-center gap-1">
-                      <span className="min-w-0 flex-1 truncate text-xs font-semibold text-[var(--hb-text-strong)]">{selection.vendorName}</span>
+                      <div className="min-w-0 flex-1">
+                        <span className="block truncate text-xs font-semibold text-[var(--hb-text-strong)]">{selection.vendorName}</span>
+                        <span className="mt-0.5 block truncate text-[11px] text-[var(--hb-text-muted)]">
+                          {selection.agencyName} · {krwToManwonLabel((selection.customKrw ?? selection.baseKrw) + selection.selectedOptions.reduce((sum, opt) => sum + opt.krw, 0))}
+                        </span>
+                      </div>
                       <button type="button" onClick={() => onClear(category)} aria-label={`${selection.vendorName} 빼기`} className="grid size-7 shrink-0 place-items-center rounded-full text-[#8F6662] hover:bg-[#F5ECE4]">
                         <Trash2 aria-hidden="true" className="size-3.5" />
                       </button>

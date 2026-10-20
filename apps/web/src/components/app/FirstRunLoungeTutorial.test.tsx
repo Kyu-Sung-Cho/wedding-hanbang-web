@@ -10,7 +10,9 @@ import {
   FIRST_RUN_TUTORIAL_SESSION_KEY,
   FIRST_RUN_TUTORIAL_VERSION,
 } from "@hanbang/shared";
-import FirstRunLoungeTutorial from "./FirstRunLoungeTutorial";
+import FirstRunLoungeTutorial, {
+  LOUNGE_TUTORIAL_REPLAY_EVENT,
+} from "./FirstRunLoungeTutorial";
 import { useAuthStore } from "@/stores/authStore";
 import type { Profile } from "@/types/database.types";
 import {
@@ -151,6 +153,36 @@ describe("첫 실행 라운지 안내", () => {
     await render();
 
     expect(tutorialDialog()).toBeNull();
+  });
+
+  it("이미 본 기록이 있어도 사용자가 다시 보기를 요청하면 안내를 다시 연다", async () => {
+    useAuthStore.setState({ profile: PROFILE, isDemo: false });
+    supabase.selectResult = {
+      data: {
+        first_run_tutorial_completed_at: "2026-08-18T00:00:00.000Z",
+        first_run_tutorial_version: FIRST_RUN_TUTORIAL_VERSION,
+      },
+      error: null,
+    };
+    localStorage.setItem("hanbang_first_run_tutorial_done", "true");
+    mountAnchors();
+
+    await render();
+    expect(tutorialDialog()).toBeNull();
+
+    await act(async () => {
+      window.dispatchEvent(new CustomEvent(LOUNGE_TUTORIAL_REPLAY_EVENT));
+    });
+    await act(async () => {
+      vi.advanceTimersByTime(300);
+    });
+    await act(async () => {
+      vi.advanceTimersByTime(100);
+    });
+
+    const dialog = tutorialDialog();
+    expect(dialog).not.toBeNull();
+    expect(dialog?.textContent).toContain("여기부터 보시면 돼요");
   });
 
   it("컬럼이 아직 없는 응답(42703)에서도 화면이 죽지 않고 '아직 안 봤다'로 뜬다", async () => {

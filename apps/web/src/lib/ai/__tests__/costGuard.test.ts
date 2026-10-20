@@ -104,9 +104,10 @@ describe("checkAmoraCostGuard", () => {
   });
 
   it("커플 누적 상한 도달 시 차단", async () => {
-    const r = await checkAmoraCostGuard(makeAdmin({ global: 10, couple: 100 }), BASE);
+    const r = await checkAmoraCostGuard(makeAdmin({ global: 10, couple: 50 }), BASE);
     expect(r.allowed).toBe(false);
     expect(r.reason).toBe("couple_quota");
+    expect(r.message).toContain("예산·체크리스트·일정·견적 진단");
   });
 
   it("카운트 에러 시 미계측 호출을 막기 위해 fail-closed", async () => {
@@ -211,7 +212,7 @@ describe("reserveAmoraTurn (원자 예약)", () => {
     expect(r.allowed).toBe(true);
     expect(rpcSpy).toHaveBeenCalledWith("reserve_amora_turn", {
       p_couple_id: "c1",
-      p_couple_cap: 100,
+      p_couple_cap: 50,
       p_global_cap: 300,
       p_reserve_cost_microusd: 254_400,
       p_global_cost_cap_microusd: 20_000_000,
@@ -319,7 +320,7 @@ describe("reserveAmoraTurn (원자 예약)", () => {
       const { admin } = makeReserveAdmin({
         rpc,
         // 읽기전용 수치가 여유로워도 원자성이 없으면 provider를 허용하면 안 된다.
-        counts: { global: 10, couple: 5 },
+        counts: { global: 5, couple: 5 },
       });
 
       const r = await reserveAmoraTurn(admin, BASE);
@@ -380,7 +381,7 @@ describe("reserveAmoraTurn (원자 예약)", () => {
     expect(r.allowed).toBe(true);
     expect(rpcSpy).toHaveBeenCalledWith("reserve_amora_turn", {
       p_couple_id: "c1",
-      p_couple_cap: 100,
+      p_couple_cap: 50,
       p_global_cap: 300,
       p_reserve_cost_microusd: 254_400,
       p_global_cost_cap_microusd: 20_000_000,
@@ -450,11 +451,30 @@ describe("reserveAmoraProviderCall", () => {
       p_claim_token: "40000000-0000-4000-8000-000000000001",
       p_request_key: "request_123",
       p_cost_couple_id: "c1",
-      p_couple_cap: 100,
+      p_couple_cap: 50,
       p_global_cap: 300,
       p_reserve_cost_microusd: 212_000,
       p_global_cost_cap_microusd: 20_000_000,
     });
+  });
+
+  it("returns the smaller of lifetime remaining and today's daily remaining for quota warning banners", async () => {
+    const { admin } = makeReserveAdmin({
+      rpc: { allowed: true, reason: null, remaining: 44 } as never,
+      // global in makeAdmin mocks the .gte(created_at) query used by countCoupleTurnsToday (6 turns already used today -> 10 - (6 + 1) = 3 remaining today)
+      counts: { global: 6 },
+    });
+
+    const result = await reserveAmoraProviderCall(admin, {
+      ...BASE,
+      receiptId: "30000000-0000-4000-8000-000000000001",
+      claimToken: "40000000-0000-4000-8000-000000000001",
+      requestKey: "request_123",
+      maxCostMicrousd: 212_000,
+    });
+
+    expect(result.allowed).toBe(true);
+    expect(result.remaining).toBe(3);
   });
 });
 

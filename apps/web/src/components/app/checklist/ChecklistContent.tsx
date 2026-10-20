@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { BookOpen, Check, ChevronRight, Heart, Mail, Plane, Search, ShoppingBag, Video } from "lucide-react";
+import { BookOpen, Check, ChevronDown, ChevronRight, Heart, Mail, Plane, Search, ShoppingBag, Video } from "lucide-react";
 
 import CategoryChecklistModal from "@/components/app/schedule/CategoryChecklistModal";
 import Button from "@/components/ui/Button";
@@ -15,9 +15,10 @@ import { mannersPartForCategory } from "@/lib/manners/categoryMap";
 import { weddingLinkProps } from "@/lib/weddingPaths";
 import { buildAmoraPreparationHref } from "@/lib/amora/preparationHandoff";
 import { directionParticle } from "@/lib/korean/particles";
+import { stripPlanningChecklistNotes } from "@hanbang/shared/utils";
 import { useAuthStore } from "@/stores/authStore";
 import type { ProgressItem } from "@/types/database.types";
-import { getChecklistCounts, mergeChecklist, summarizePlanningChecklist, resolveStatus, isStatusDeclared } from "@/utils/checklist";
+import { calculateStatus, getChecklistCounts, mergeChecklist, summarizePlanningChecklist, resolveStatus, isStatusDeclared } from "@/utils/checklist";
 
 type Filter = "all" | "active" | "completed" | "skipped";
 
@@ -52,6 +53,40 @@ const STATUS_LABEL: Record<ProgressItem["status"], string> = {
   not_applicable: "해당 없음",
 };
 
+type WeddingStylePresetKey = "classic" | "small" | "family_meal" | "no_wedding";
+
+const WEDDING_STYLE_PRESETS: ReadonlyArray<{
+  key: WeddingStylePresetKey;
+  label: string;
+  description: string;
+  skippedKeys: readonly string[];
+}> = [
+  {
+    key: "classic",
+    label: "일반 예식 (전체 21개)",
+    description: "모든 준비 분야를 진행률에 포함해요.",
+    skippedKeys: [],
+  },
+  {
+    key: "small",
+    label: "스몰·전통 생략 예식",
+    description: "전통 절차(함·폐백·예단·한복)를 제외하고 예식과 촬영에 집중해요.",
+    skippedKeys: ["ham", "pyebaek", "yedan", "hanbok"],
+  },
+  {
+    key: "family_meal",
+    label: "직계가족 식사 + 촬영",
+    description: "대규모 본식 절차(사회·축가, 본식 영상, 전통 예법)를 제외하고 가족 식사와 웨딩 촬영에 집중해요.",
+    skippedKeys: ["mc", "snap", "pyebaek", "ham", "yedan", "hanbok"],
+  },
+  {
+    key: "no_wedding",
+    label: "노웨딩 · 촬영 중심",
+    description: "결혼식장·본식 진행·전통 절차를 제외하고 웨딩 촬영, 양가 인사, 신혼집, 혼인신고에만 집중해요.",
+    skippedKeys: ["venue", "snap", "mc", "bouquet", "pyebaek", "ham", "yedan", "hanbok", "gift"],
+  },
+];
+
 // 화면에서는 처음 준비하는 사람도 이해할 수 있는 말을 먼저 쓰되, 검색에서는
 // 업체·가족과 실제로 주고받는 익숙한 용어도 놓치지 않는다.
 const CATEGORY_SEARCH_ALIASES: Record<string, readonly string[]> = {
@@ -84,7 +119,7 @@ function matchesFilter(status: ProgressItem["status"], filter: Filter) {
 }
 
 export default function ChecklistContent() {
-  const { journey } = useAuthStore();
+  const { journey, updateJourney } = useAuthStore();
   const pathname = usePathname();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -99,6 +134,10 @@ export default function ChecklistContent() {
   const [filter, setFilter] = useState<Filter>("all");
   const [query, setQuery] = useState("");
   const [grouped, setGrouped] = useState(true);
+  const [collapsedStageKeys, setCollapsedStageKeys] = useState<string[]>([]);
+  const [pendingPresetKey, setPendingPresetKey] = useState<WeddingStylePresetKey | null>(null);
+  const [presetSaving, setPresetSaving] = useState(false);
+  const [presetNotice, setPresetNotice] = useState("");
   const searchInputRef = useRef<HTMLInputElement>(null);
   const stageRefs = useRef<Record<string, HTMLElement | null>>({});
 
@@ -165,9 +204,30 @@ export default function ChecklistContent() {
   }), [allCategories, categories, progress]);
 
   const currentStage = stages.findIndex((stage) => !stage.complete);
+  const hasSearchQuery = query.trim().length > 0;
+
+  const toggleStageCollapsed = (stageKey: string) => {
+    setCollapsedStageKeys((prev) =>
+      prev.includes(stageKey) ? prev.filter((key) => key !== stageKey) : [...prev, stageKey],
+    );
+  };
+
+  const toggleFocusCurrentStage = () => {
+    if (collapsedStageKeys.length > 0) {
+      setCollapsedStageKeys([]);
+      return;
+    }
+    const activeStageKey = stages[currentStage]?.key ?? stages[0]?.key;
+    if (!activeStageKey) return;
+    setGrouped(true);
+    setCollapsedStageKeys(
+      stages.filter((stage) => stage.key !== activeStageKey).map((stage) => stage.key),
+    );
+  };
 
   const goToStage = (stageKey: string) => {
     setGrouped(true);
+    setCollapsedStageKeys((prev) => prev.filter((key) => key !== stageKey));
     window.requestAnimationFrame(() => {
       const section = stageRefs.current[stageKey];
       section?.scrollIntoView({ behavior: "auto", block: "start" });
@@ -176,6 +236,61 @@ export default function ChecklistContent() {
   };
 
   const remaining = Math.max(0, summary.total - summary.done);
+  const pendingPreset = useMemo(
+    () => WEDDING_STYLE_PRESETS.find((preset) => preset.key === pendingPresetKey) ?? null,
+    [pendingPresetKey],
+  );
+  const pendingSkipLabels = useMemo(() => {
+    if (!pendingPreset) return [];
+    return pendingPreset.skippedKeys
+      .map((key) => CATEGORY_CHECKLISTS.find((cat) => cat.key === key)?.label)
+      .filter((label): label is string => Boolean(label));
+  }, [pendingPreset]);
+
+  const applyWeddingStylePreset = async () => {
+    if (!pendingPreset || presetSaving || typeof updateJourney !== "function") return;
+    const skipSet = new Set(pendingPreset.skippedKeys);
+    const nextProgress: Record<string, ProgressItem> = { ...progress };
+
+    for (const template of CATEGORY_CHECKLISTS) {
+      const existing = progress[template.key];
+      const currentStatus = resolveStatus(template.items, existing);
+      if (skipSet.has(template.key)) {
+        // 이미 진행 중이거나 완료한 분야는 사용자의 기존 기록을 보존한다.
+        if (currentStatus === "in_progress" || currentStatus === "completed") continue;
+        nextProgress[template.key] = {
+          ...(existing ?? { category: template.key }),
+          category: template.key,
+          status: "not_applicable",
+          ...(existing?.checklist ? { checklist: stripPlanningChecklistNotes(existing.checklist) } : {}),
+        };
+      } else if (existing?.status === "not_applicable") {
+        const restoredStatus = existing.checklist ? calculateStatus(existing.checklist) : "not_started";
+        nextProgress[template.key] = {
+          ...existing,
+          category: template.key,
+          status: restoredStatus,
+          ...(existing.checklist ? { checklist: stripPlanningChecklistNotes(existing.checklist) } : {}),
+        };
+      }
+    }
+
+    setPresetSaving(true);
+    setPresetNotice("");
+    try {
+      const result = await updateJourney({ progress: nextProgress });
+      setPendingPresetKey(null);
+      setPresetNotice(
+        result?.status === "pending_partner"
+          ? "상대방에게 확인을 요청했어요. 두 분이 확인하면 체크리스트에 반영돼요."
+          : "선택하신 결혼 방식에 맞춰 항목을 정리했어요. 언제든 다시 켤 수 있어요.",
+      );
+    } catch {
+      setPresetNotice("항목 정리를 저장하지 못했어요. 잠시 후 다시 시도해 주세요.");
+    } finally {
+      setPresetSaving(false);
+    }
+  };
 
   const renderCategories = (items: typeof categories) => (
     <ul className="grid gap-[9px] md:grid-cols-2 md:gap-[14px] xl:grid-cols-3">
@@ -276,6 +391,81 @@ export default function ChecklistContent() {
         </div>
       </header>
 
+      <details
+        data-testid="wedding-style-preset-panel"
+        className="mb-4 rounded-[14px] border border-[var(--amora-line)] bg-white px-4 py-3 md:mb-[18px] md:px-5 md:py-3.5"
+      >
+        <summary className="flex cursor-pointer flex-wrap items-center justify-between gap-2 text-[12.5px] font-semibold text-[var(--amora-ink)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--amora-accent)] md:text-[13px]">
+          <span>우리 결혼 방식에 맞게 항목 정리하기</span>
+          <span className="text-[11px] font-normal text-[var(--amora-muted)]">일반 예식 · 스몰웨딩 · 가족식사 · 노웨딩(촬영 중심)</span>
+        </summary>
+        <div className="mt-3 border-t border-[var(--amora-line)] pt-3">
+          <p className="text-[12px] leading-[1.6] text-[var(--amora-muted)]">
+            방식을 고르면 제외될 분야를 먼저 보여드려요. 확인 버튼을 누르기 전에는 바뀌지 않아요.
+          </p>
+          <div className="mt-2.5 grid gap-2 sm:grid-cols-2 lg:grid-cols-4" role="group" aria-label="결혼 방식 선택">
+            {WEDDING_STYLE_PRESETS.map((preset) => {
+              const selected = pendingPresetKey === preset.key;
+              return (
+                <button
+                  key={preset.key}
+                  type="button"
+                  aria-pressed={selected}
+                  onClick={() => {
+                    setPresetNotice("");
+                    setPendingPresetKey(selected ? null : preset.key);
+                  }}
+                  className={`rounded-[10px] border p-3 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--amora-accent)] ${selected ? "border-[var(--amora-selected-line)] bg-[var(--amora-selected-bg)] text-[var(--amora-selected-text)]" : "border-[var(--amora-line)] bg-[var(--amora-surface)] text-[var(--amora-ink)] hover:border-[var(--amora-rose)]/60"}`}
+                >
+                  <strong className="block text-[12.5px] font-semibold">{preset.label}</strong>
+                  <span className="mt-1 block text-[11px] leading-[1.5] text-[var(--amora-muted)]">{preset.description}</span>
+                </button>
+              );
+            })}
+          </div>
+          {pendingPreset && (
+            <div
+              data-testid="wedding-style-preset-confirm"
+              className="mt-3 rounded-[10px] border border-[var(--amora-line)] bg-[var(--amora-warm)] p-3.5"
+            >
+              <p className="text-[12px] font-semibold text-[var(--amora-ink)]">
+                {pendingPreset.skippedKeys.length > 0
+                  ? `다음 ${pendingSkipLabels.length}개 분야를 '해당 없음'으로 정리할까요? (이미 진행 중이거나 완료한 분야는 그대로 유지돼요)`
+                  : "제외했던 분야를 모두 다시 진행 목록에 포함할까요?"}
+              </p>
+              {pendingSkipLabels.length > 0 && (
+                <p className="mt-1 text-[11.5px] leading-[1.6] text-[#624A3C]">
+                  제외 대상: {pendingSkipLabels.join(" · ")}
+                </p>
+              )}
+              <div className="mt-2.5 flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  disabled={presetSaving}
+                  onClick={applyWeddingStylePreset}
+                  className="inline-flex min-h-9 items-center justify-center rounded-[8px] bg-[var(--amora-action)] px-3.5 text-[12px] font-semibold text-white transition hover:bg-[var(--amora-action-hover)] disabled:opacity-60"
+                >
+                  {presetSaving ? "적용 중..." : "확인하고 적용하기"}
+                </button>
+                <button
+                  type="button"
+                  disabled={presetSaving}
+                  onClick={() => setPendingPresetKey(null)}
+                  className="inline-flex min-h-9 items-center justify-center rounded-[8px] border border-[var(--amora-line)] bg-white px-3 text-[12px] font-semibold text-[var(--amora-muted)] transition hover:text-[var(--amora-ink)]"
+                >
+                  취소
+                </button>
+              </div>
+            </div>
+          )}
+          {presetNotice && (
+            <p role="status" className="mt-2.5 text-[12px] font-medium text-[#33473a]">
+              {presetNotice}
+            </p>
+          )}
+        </div>
+      </details>
+
       <section aria-label="체크리스트 찾기" className="mb-4 flex flex-wrap items-center gap-[10px] md:mb-[22px] md:gap-4">
         <label className="relative block w-full md:min-w-[200px] md:max-w-[360px] md:flex-1">
           <span className="sr-only">체크리스트 검색</span>
@@ -311,7 +501,19 @@ export default function ChecklistContent() {
 
       <nav aria-label="결혼 준비 단계" className="mb-5 rounded-[16px] border border-[var(--amora-line)] bg-white px-4 py-[17px] md:mb-[26px] md:rounded-[18px] md:px-[26px] md:py-[22px]">
         <div className="mb-[14px] md:mb-[18px] md:flex md:items-baseline md:justify-between md:gap-4">
-          <h2 className="text-[12px] font-semibold text-[var(--amora-ink)] md:text-[14px]">결혼 준비 {stages.length}단계</h2>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <h2 className="text-[12px] font-semibold text-[var(--amora-ink)] md:text-[14px]">결혼 준비 {stages.length}단계</h2>
+            {grouped && currentStage >= 0 && !hasSearchQuery && (
+              <button
+                type="button"
+                data-testid="toggle-focus-current-stage"
+                onClick={toggleFocusCurrentStage}
+                className="inline-flex min-h-7 items-center rounded-full border border-[var(--amora-line)] bg-[var(--amora-warm)] px-2.5 py-1 text-[11px] font-semibold text-[var(--amora-rose-deep)] transition hover:border-[var(--amora-rose)]/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--amora-accent)]"
+              >
+                {collapsedStageKeys.length > 0 ? "모든 단계 펼치기" : "지금 단계만 펼치기"}
+              </button>
+            )}
+          </div>
           <p className="mt-[3px] text-[10.5px] leading-[1.6] text-[var(--amora-muted)] md:mt-0 md:text-[11.5px]">
             {CATEGORY_CHECKLISTS.length}개 분야를 준비 흐름 순서로 묶었어요{currentStage >= 0 ? ` · 지금은 ${currentStage + 1}단계` : " · 모든 분야를 확인했어요"}
           </p>
@@ -347,6 +549,7 @@ export default function ChecklistContent() {
           {stages.map((stage, index) => {
             if (stage.categories.length === 0) return null;
             const Icon = stage.icon;
+            const isCollapsed = !hasSearchQuery && collapsedStageKeys.includes(stage.key);
             return (
               <section key={stage.key} data-checklist-stage={stage.key} ref={(element) => { stageRefs.current[stage.key] = element; }} tabIndex={-1} aria-labelledby={`checklist-stage-${stage.key}`} className="scroll-mt-28 outline-none focus-visible:rounded-lg focus-visible:ring-2 focus-visible:ring-[var(--amora-accent)]">
                 <div className="mb-[11px] flex items-center gap-[11px] md:mb-4 md:gap-[14px]">
@@ -355,12 +558,33 @@ export default function ChecklistContent() {
                     <p className="text-[10px] font-bold text-[var(--amora-rose-deep)] md:mb-0.5 md:text-[11px]">{index + 1}단계</p>
                     <h2 id={`checklist-stage-${stage.key}`} className="planning-display text-[15.5px] leading-[1.4] text-[var(--amora-ink)] md:text-[19px]">{stage.label}</h2>
                   </div>
-                  <div className="ml-auto shrink-0 text-right">
-                    <p className="text-[11.5px] font-semibold text-[var(--amora-ink)] md:text-[13px]">{stage.summary.done}/{stage.summary.total}개<span className="hidden md:inline"> 완료</span></p>
-                    <progress value={stage.summary.percent} max={100} aria-label={`${stage.label} 항목 완료율`} className={`mt-[7px] hidden h-[5px] md:block md:w-[140px] ${stage.complete ? COMPLETED_PROGRESS_CLASS : PROGRESS_CLASS}`} />
+                  <div className="ml-auto flex shrink-0 items-center gap-2.5 text-right md:gap-3.5">
+                    <div>
+                      <p className="text-[11.5px] font-semibold text-[var(--amora-ink)] md:text-[13px]">{stage.summary.done}/{stage.summary.total}개<span className="hidden md:inline"> 완료</span></p>
+                      <progress value={stage.summary.percent} max={100} aria-label={`${stage.label} 항목 완료율`} className={`mt-[7px] hidden h-[5px] md:block md:w-[140px] ${stage.complete ? COMPLETED_PROGRESS_CLASS : PROGRESS_CLASS}`} />
+                    </div>
+                    {!hasSearchQuery && (
+                      <button
+                        type="button"
+                        data-testid={`toggle-stage-${stage.key}`}
+                        aria-expanded={!isCollapsed}
+                        aria-label={`${stage.label} 단계 ${isCollapsed ? "펼치기" : "접기"}`}
+                        onClick={() => toggleStageCollapsed(stage.key)}
+                        className="inline-flex min-h-8 items-center gap-1 rounded-[8px] border border-[var(--amora-line)] bg-white px-2.5 py-1 text-[11px] font-semibold text-[var(--amora-muted)] transition hover:border-[var(--amora-rose)]/60 hover:text-[var(--amora-ink)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--amora-accent)]"
+                      >
+                        <span>{isCollapsed ? "펼치기" : "접기"}</span>
+                        <ChevronDown aria-hidden="true" className={`size-3.5 transition-transform ${isCollapsed ? "" : "rotate-180"}`} />
+                      </button>
+                    )}
                   </div>
                 </div>
-                {renderCategories(stage.categories)}
+                {isCollapsed ? (
+                  <p className="rounded-[12px] border border-dashed border-[var(--amora-line)] bg-white/70 px-4 py-2.5 text-[12px] text-[var(--amora-muted)]">
+                    이 단계의 {stage.categories.length}개 분야가 접혀 있어요.
+                  </p>
+                ) : (
+                  renderCategories(stage.categories)
+                )}
               </section>
             );
           })}

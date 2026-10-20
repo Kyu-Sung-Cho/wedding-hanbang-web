@@ -5049,7 +5049,7 @@ export async function POST(request: Request) {
               onCostReserved: (reservation) => {
                 if (
                   typeof reservation.remaining === "number"
-                  && reservation.remaining <= 15
+                  && reservation.remaining <= 5
                 ) {
                   send({ type: "quota", remaining: reservation.remaining });
                 }
@@ -5582,7 +5582,7 @@ export async function POST(request: Request) {
             onCostReserved: (reservation) => {
               if (
                 typeof reservation.remaining === "number"
-                && reservation.remaining <= 15
+                && reservation.remaining <= 5
               ) {
                 send({ type: "quota", remaining: reservation.remaining });
               }

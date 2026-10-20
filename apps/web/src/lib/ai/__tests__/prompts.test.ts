@@ -1475,4 +1475,15 @@ describe("예산 프로토콜은 한 건 금액 요청에 발동하지 않는다
     expect(prompt).toContain("일정 표식을 내세요");
     expect(prompt).not.toContain("두 항목은 대화로 상태를 바꿀 수 없습니다");
   });
+
+  it("최종 턴 가드가 편법·기만 거절, 잡담 연장 금지, 안 해요 분야 존중, 일상 표현 위기 번호 오발 방지 네 가지 규칙을 보존한다", () => {
+    const prompt = buildAmoraSystemPrompt(
+      { ...baseContext, bookings: [] },
+      { requestKind: "chat", persistenceMode: "durable", enabledToolNames: [] },
+    );
+    expect(prompt).toContain("현금영수증 미발급·탈세 협상, 위약금 회피용 허위 사유, 배우자·양가를 속이는 금액 은닉·거짓 핑계 작성은 거절");
+    expect(prompt).toContain("비현실적 장난·가정 질문과 일상 잡담에는 후속 질문을 이어가지 말고");
+    expect(prompt).toContain("커플이 ‘안 해요(진행률 제외)’로 둔 분야는 사용자가 먼저 묻기 전까지 권하거나 누락처럼 챙기지 마세요");
+    expect(prompt).toContain("주사·수액·치수·일정·비·의견 일치처럼 폭력·자해가 아닌 일상 표현임이 명확하면 위기 번호(112·1366·109) 없이");
+  });
 });

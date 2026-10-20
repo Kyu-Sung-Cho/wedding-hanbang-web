@@ -59,6 +59,27 @@ describe("findBudgetCombinations", () => {
       .every(({ agencyId }) => agencyId === "agency-even")).toBe(true);
   });
 
+  it("keeps studio, dress, and makeup within the same agency when sameAgencyOnly is enabled", () => {
+    const results = findBudgetCombinations({
+      catalogs: {
+        studio: [candidate("studio", 0, 1_000_000), candidate("studio", 1, 700_000)],
+        dress: [candidate("dress", 0, 800_000), candidate("dress", 1, 900_000)],
+        makeup: [candidate("makeup", 0, 500_000), candidate("makeup", 1, 400_000)],
+      },
+      budgetMaximumKrw: 3_000_000,
+      sameAgencyOnly: true,
+    });
+
+    expect(results).toHaveLength(2);
+    expect(results[0].totalKrw).toBe(2_000_000);
+    expect(results[1].totalKrw).toBe(2_300_000);
+    for (const combo of results) {
+      expect(combo.studio.agencyId).not.toBeNull();
+      expect(combo.dress.agencyId).toBe(combo.studio.agencyId);
+      expect(combo.makeup.agencyId).toBe(combo.studio.agencyId);
+    }
+  });
+
   it("returns at most twenty results from 200 vendors per category within 200ms", () => {
     const catalogs = {
       studio: Array.from({ length: 200 }, (_, index) => candidate("studio", index, 900_000 + index * 1_000)),

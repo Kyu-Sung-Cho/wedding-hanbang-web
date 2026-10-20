@@ -26,10 +26,10 @@
 //
 // 환경변수로 조정 가능 (미설정 시 보수적 기본값):
 //   AMORA_COUPLE_QUOTA_ENABLED=false (커플별 한도만 해제, 전역 가드는 유지)
-//   AMORA_FREE_MESSAGES_PER_COUPLE (기본 100)
+//   AMORA_FREE_MESSAGES_PER_COUPLE (기본 50; 커플당 누적 무료 상한)
 //   AMORA_GLOBAL_DAILY_MESSAGE_CAP (기본 300)
 //   AMORA_GLOBAL_DAILY_COST_CAP_USD (기본 $20; provider 호출 전 최악 비용 예약)
-//   AMORA_COUPLE_DAILY_CAP (기본 80; 커플당 **하루** 상한)
+//   AMORA_COUPLE_DAILY_CAP (기본 10; 커플당 **하루** 무료 상한)
 //   AMORA_COUPLE_DAILY_CAP_ENABLED=false (하루 상한만 해제 — 무료 한도 스위치와 별개)
 //   AMORA_COST_GUARD_ENABLED=false 로 완전 비활성(긴급 시)
 
@@ -37,22 +37,20 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 const POSTGRES_INT_MAX = 2_147_483_647;
 const POSTGRES_BIGINT_SAFE_MAX = Number.MAX_SAFE_INTEGER;
-const DEFAULT_FREE_PER_COUPLE = 100;
+export const DEFAULT_FREE_PER_COUPLE = 50;
 const DEFAULT_GLOBAL_DAILY_CAP = 300;
 const DEFAULT_GLOBAL_DAILY_COST_CAP_USD = 20;
 /**
- * 커플 한 쌍이 **하루에** 쓸 수 있는 상담 턴.
+ * 커플 한 쌍이 **하루에** 무료로 쓸 수 있는 상담 턴(KST 자정 기준 리셋).
  *
- * 전역 상한만 있으면 그것은 한 사람이 당길 수 있는 **전 서비스 킬 스위치**다.
- * 커플당 누적 무료 한도는 평생 기준이라 하루치를 막지 못한다.
- *
- * 2026-08-25 운영 실측: 24시간 동안 한 커플이 158턴을 썼다. 전역 기본 상한이
- * 300이므로 그런 사용자 둘이면 그날 **모든 사용자**가 막힌다.
- *
- * 80은 사람이 하루에 쓰기엔 넉넉하고(실측 두 번째 커플 67턴), 한 쌍이 전역
- * 상한을 혼자 태우지는 못하는 값이다.
+ * 무료 이용자의 일일 사용량을 10회로 제한해 과도한 단일 커플 비용 소모를 막고,
+ * 커플당 누적 무료 한도(기본 50회)와 함께 이중으로 지갑과 공정성을 지킨다.
  */
-const DEFAULT_COUPLE_DAILY_CAP = 80;
+export const DEFAULT_COUPLE_DAILY_CAP = 10;
+/**
+ * 채팅 하단 무료 상담 소진 예고 배너를 띄우는 잔여 횟수 임계값(일일·누적 중 더 적은 잔여 횟수 기준).
+ */
+export const AMORA_QUOTA_WARNING_THRESHOLD = 5;
 /**
  * 로그인 없이 하는 **체험**이 하루에 태울 수 있는 몫.
  *
@@ -313,14 +311,14 @@ const DENY_COUPLE: CostGuardResult = {
   allowed: false,
   reason: "couple_quota",
   message:
-    "이 커플에 제공된 무료 상담 한도를 모두 사용했어요. 추가 이용 방법과 시점은 아직 정해지지 않았어요.",
+    "이 커플에 제공된 무료 아모라 상담(총 50회)을 모두 사용했어요. 예산·체크리스트·일정·견적 진단 등 웨딩 준비 워크스페이스는 계속 무료로 이용하실 수 있으며, 추가 상담 이용권은 곧 준비될 예정이에요.",
 };
 
 const DENY_COUPLE_DAILY: CostGuardResult = {
   allowed: false,
   reason: "couple_daily",
   message:
-    "오늘 이 대화에서 쓸 수 있는 상담 횟수를 다 썼어요. 내일 다시 이어서 도와드릴게요.",
+    "오늘 무료로 제공되는 아모라 상담(하루 10회)을 모두 사용했어요. 내일 자정(KST)에 다시 이어서 도와드릴게요. 예산·체크리스트·일정·견적 진단 기능은 지금도 자유롭게 이용하실 수 있어요.",
 };
 
 const DENY_UNAVAILABLE: CostGuardResult = {
@@ -369,8 +367,8 @@ export async function reserveAmoraTurn(
   // 세는 데 실패하면 **통과시킨다.** 이 한도는 공정성이지 지갑이 아니고,
   // 지갑은 아래 RPC 의 전역 비용 상한이 원자적으로 지킨다. 장부 조회 실패로
   // 정상 사용자를 막는 쪽이 더 나쁘다.
-  const dailyDenial = await denyIfCoupleUsedTodayUp(admin, params);
-  if (dailyDenial) return dailyDenial;
+  const dailyCheck = await checkCoupleDailyUsage(admin, params);
+  if (dailyCheck.denied) return dailyCheck.denied;
 
   try {
     // 체험은 실사용자보다 낮은 천장을 본다 — 같은 카운터를 쓰되 먼저 멈춘다.
@@ -392,12 +390,16 @@ export async function reserveAmoraTurn(
     const row = Array.isArray(data) ? data[0] : data;
     if (row?.allowed === true) {
       // 소진 예고용 잔여 횟수 — 예약 직후 카운터 PK 조회(비원자여도 배너 용도라 충분).
-      // 조회 실패는 remaining만 비울 뿐 통과 여부에 영향 없음.
+      // 누적 잔여 횟수와 오늘 잔여 횟수 중 더 적은 쪽을 돌려준다.
+      const lifetimeRemaining = appliesCoupleQuota
+        ? await readCoupleRemaining(admin, params.coupleId)
+        : undefined;
       return {
         allowed: true,
-        remaining: appliesCoupleQuota
-          ? await readCoupleRemaining(admin, params.coupleId)
-          : undefined,
+        remaining:
+          lifetimeRemaining !== undefined && dailyCheck.dailyRemaining !== undefined
+            ? Math.min(lifetimeRemaining, dailyCheck.dailyRemaining)
+            : lifetimeRemaining,
       };
     }
     if (row?.reason === "global_daily") return DENY_GLOBAL;
@@ -449,7 +451,7 @@ async function countCoupleTurnsToday(
 }
 
 /**
- * 오늘 몫을 다 썼으면 거부 결과를, 아니면 null 을 준다.
+ * 오늘 몫을 다 썼으면 거부 결과를, 아니면 이번 턴을 포함한 오늘 잔여 횟수를 준다.
  *
  * **두 예약 경로가 같은 규칙을 쓰게 하려고 뽑았다.** 처음에는
  * `reserveAmoraTurn` 에만 넣었는데 **채팅은 그 함수를 부르지 않는다** —
@@ -461,20 +463,26 @@ async function countCoupleTurnsToday(
  * 턴당 여러 번 돈다. 세는 대상이 `chat_turn` 이라 결과는 같으므로 무해하다.
  * 경계에서 진행 중인 턴이 잘릴 수 있으나, 그때 사용자는 이유가 적힌 문구를 본다.
  */
-async function denyIfCoupleUsedTodayUp(
+async function checkCoupleDailyUsage(
   admin: SupabaseClient,
   params: CostGuardParams,
-): Promise<CostGuardResult | null> {
+): Promise<{ denied: CostGuardResult | null; dailyRemaining?: number }> {
   const applies =
     GUARD_ENABLED
     && params.isQuotaExempt !== true
     && !params.isAdmin
     && (params.quotaScope ?? "standard") === "standard"
     && COUPLE_DAILY_CAP_ENABLED;
-  if (!applies) return null;
+  if (!applies) return { denied: null };
   const usedToday = await countCoupleTurnsToday(admin, params.coupleId);
-  if (usedToday === null) return null;
-  return usedToday >= COUPLE_DAILY_CAP ? DENY_COUPLE_DAILY : null;
+  if (usedToday === null) return { denied: null };
+  if (usedToday >= COUPLE_DAILY_CAP) {
+    return { denied: DENY_COUPLE_DAILY };
+  }
+  return {
+    denied: null,
+    dailyRemaining: Math.max(0, COUPLE_DAILY_CAP - (usedToday + 1)),
+  };
 }
 
 // 예약 성공 직후 커플 잔여 무료 턴 수 조회 (PK 단건 — 카운터에 이번 예약이 이미 반영됨)
@@ -502,8 +510,8 @@ export async function reserveAmoraProviderCall(
   }
 
   // **채팅이 실제로 타는 경로다.** 같은 하루 상한을 여기에도 건다.
-  const dailyDenial = await denyIfCoupleUsedTodayUp(admin, params);
-  if (dailyDenial) return dailyDenial;
+  const dailyCheck = await checkCoupleDailyUsage(admin, params);
+  if (dailyCheck.denied) return dailyCheck.denied;
 
   const enforceCaps = GUARD_ENABLED && params.isQuotaExempt !== true;
   const appliesCoupleQuota =
@@ -541,11 +549,16 @@ export async function reserveAmoraProviderCall(
 
     const row = Array.isArray(data) ? data[0] : data;
     if (row?.allowed === true) {
+      const lifetimeRemaining =
+        appliesCoupleQuota && typeof row.remaining === "number"
+          ? Math.max(0, row.remaining)
+          : undefined;
       return {
         allowed: true,
-        remaining: appliesCoupleQuota && typeof row.remaining === "number"
-          ? Math.max(0, row.remaining)
-          : undefined,
+        remaining:
+          lifetimeRemaining !== undefined && dailyCheck.dailyRemaining !== undefined
+            ? Math.min(lifetimeRemaining, dailyCheck.dailyRemaining)
+            : lifetimeRemaining,
       };
     }
     if (row?.reason === "global_daily") return DENY_GLOBAL;

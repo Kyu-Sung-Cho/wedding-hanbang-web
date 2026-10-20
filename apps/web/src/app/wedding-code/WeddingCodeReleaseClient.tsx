@@ -2,6 +2,7 @@
 
 import { useMemo, useSyncExternalStore } from "react";
 import WeddingCodeLikertClient from "@/components/weddingCodeLikert/WeddingCodeLikertClient";
+import WeddingCode19Client from "@/components/weddingCode19/WeddingCode19Client";
 import type { WeddingCodeEntry } from "./entry";
 import LegacyEntry from "./WeddingCodeEntryClient";
 import { weddingCodeReleaseTarget } from "./releaseEntry";
@@ -52,5 +53,10 @@ export default function WeddingCodeReleaseClient({ queryIsLegacy, explicitLikert
   if (hash === null && !queryIsLegacy) return <main className="flex min-h-[60vh] items-center justify-center bg-[var(--ivory-50)] px-5 text-sm text-[var(--hb-text-body)]" role="status">웨딩코드를 불러오고 있어요.</main>;
   const target = weddingCodeReleaseTarget(queryIsLegacy, hash ?? "", explicitLikert);
   if (target === "legacy") return <LegacyEntry {...legacyProps} />;
-  return target === "likert" ? <WeddingCodeLikertClient /> : <WeddingCodeClient />;
+  if (target === "likert") return <WeddingCodeLikertClient />;
+  const searchParams = typeof window !== "undefined" ? new URLSearchParams(window.location.search) : null;
+  if (searchParams?.has("ct") || searchParams?.get("v") === "36") {
+    return <WeddingCodeClient />;
+  }
+  return <WeddingCode19Client />;
 }
