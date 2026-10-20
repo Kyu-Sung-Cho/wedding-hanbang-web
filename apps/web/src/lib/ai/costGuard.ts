@@ -48,6 +48,17 @@ const DEFAULT_GLOBAL_DAILY_COST_CAP_USD = 20;
  */
 export const DEFAULT_COUPLE_DAILY_CAP = 10;
 /**
+ * 신규 가입자 무료 상담 제한 및 파트너 연결 보너스 정책 적용 기준 시각(UTC ISO).
+ *
+ * 이 시각 이전에 이미 생성된 기존 커플/계정(`couples.created_at < cutoff`)은
+ * 기존 이용자 보호(Grandfathering)를 위해 커플당 일일·누적 무료 상담 제한에서 면제한다.
+ * 이 시각 이후 가입한 계정부터 기본 무료 한도(일일 10회 / 누적 50회)가 적용되며,
+ * 파트너를 초대해 연결하면 보너스 상담 횟수(일일 +5회, 누적 +30회)가 즉시 추가된다.
+ */
+export const DEFAULT_NEW_ACCOUNT_QUOTA_CUTOFF_ISO = "2026-10-20T14:00:00.000Z";
+export const PARTNER_LINK_BONUS_LIFETIME_TURNS = 30;
+export const PARTNER_LINK_BONUS_DAILY_TURNS = 5;
+/**
  * 채팅 하단 무료 상담 소진 예고 배너를 띄우는 잔여 횟수 임계값(일일·누적 중 더 적은 잔여 횟수 기준).
  */
 export const AMORA_QUOTA_WARNING_THRESHOLD = 5;
@@ -144,6 +155,103 @@ const DEMO_GLOBAL_DAILY_COST_CAP_MICROUSD = readPositiveUsdMicros(
   "AMORA_DEMO_GLOBAL_DAILY_COST_CAP_USD",
   DEFAULT_DEMO_GLOBAL_DAILY_COST_CAP_USD,
 );
+
+function readCutoffTimestampMs(name: string, fallbackIso: string): number {
+  const raw = process.env[name];
+  if (raw && raw.trim() !== "") {
+    const parsed = Date.parse(raw.trim());
+    if (Number.isFinite(parsed)) return parsed;
+    console.error(`[costGuard] invalid ${name}; using safe default cutoff`);
+  }
+  return Date.parse(fallbackIso);
+}
+
+const NEW_ACCOUNT_QUOTA_CUTOFF_MS = readCutoffTimestampMs(
+  "AMORA_NEW_ACCOUNT_QUOTA_CUTOFF_ISO",
+  DEFAULT_NEW_ACCOUNT_QUOTA_CUTOFF_ISO,
+);
+
+export interface CoupleQuotaPolicy {
+  /** 기준 시각 이전에 생성된 기존 계정/커플 여부 (true면 커플 일일·누적 제한 면제) */
+  isGrandfathered: boolean;
+  /** 파트너 초대·연결 완료 여부 (신규 계정이 파트너 연결 시 보너스 턴 부여) */
+  isPartnerLinked: boolean;
+  /** 적용할 누적 무료 상담 상한 */
+  lifetimeCap: number;
+  /** 적용할 일일 무료 상담 상한 */
+  dailyCap: number;
+}
+
+/**
+ * 커플 생성 시각(`created_at`)과 파트너 연결 상태(`bride_id`, `groom_id`, `membership_sealed_at`)를 읽어
+ * 기존 가입 계정 면제(Grandfathering) 및 신규 계정 파트너 초대 보너스(+30회 / 일일 +5회)를 판정한다.
+ *
+ * 조회 실패 시(또는 단위 테스트 목에 `couples.maybeSingle`이 없을 때)에는 안전하게
+ * 신규 기본 정책(일일 10회 / 누적 50회)으로 폴백한다.
+ */
+export async function resolveCoupleQuotaPolicy(
+  admin: SupabaseClient,
+  coupleId: string,
+): Promise<CoupleQuotaPolicy> {
+  const defaultPolicy: CoupleQuotaPolicy = {
+    isGrandfathered: false,
+    isPartnerLinked: false,
+    lifetimeCap: FREE_PER_COUPLE,
+    dailyCap: COUPLE_DAILY_CAP,
+  };
+  try {
+    const { data, error } = await admin
+      .from("couples")
+      .select("created_at, bride_id, groom_id, membership_sealed_at")
+      .eq("id", coupleId)
+      .maybeSingle();
+    if (error || !data || typeof data !== "object") {
+      return defaultPolicy;
+    }
+    const row = data as {
+      created_at?: unknown;
+      bride_id?: unknown;
+      groom_id?: unknown;
+      membership_sealed_at?: unknown;
+    };
+    const isPartnerLinked =
+      (typeof row.membership_sealed_at === "string" && row.membership_sealed_at.length > 0)
+      || (
+        typeof row.bride_id === "string"
+        && row.bride_id.length > 0
+        && typeof row.groom_id === "string"
+        && row.groom_id.length > 0
+      );
+
+    if (typeof row.created_at === "string" && row.created_at.length > 0) {
+      const createdAtMs = Date.parse(row.created_at);
+      if (Number.isFinite(createdAtMs) && createdAtMs < NEW_ACCOUNT_QUOTA_CUTOFF_MS) {
+        return {
+          isGrandfathered: true,
+          isPartnerLinked,
+          lifetimeCap: POSTGRES_INT_MAX,
+          dailyCap: POSTGRES_INT_MAX,
+        };
+      }
+    }
+
+    const lifetimeCap = isPartnerLinked
+      ? Math.min(POSTGRES_INT_MAX, FREE_PER_COUPLE + PARTNER_LINK_BONUS_LIFETIME_TURNS)
+      : FREE_PER_COUPLE;
+    const dailyCap = isPartnerLinked
+      ? Math.min(POSTGRES_INT_MAX, COUPLE_DAILY_CAP + PARTNER_LINK_BONUS_DAILY_TURNS)
+      : COUPLE_DAILY_CAP;
+
+    return {
+      isGrandfathered: false,
+      isPartnerLinked,
+      lifetimeCap,
+      dailyCap,
+    };
+  } catch {
+    return defaultPolicy;
+  }
+}
 
 /**
  * 체험이 볼 천장. 실사용자보다 **낮을 때만** 뜻이 있으므로 더 낮은 쪽을 쓴다.
@@ -311,14 +419,14 @@ const DENY_COUPLE: CostGuardResult = {
   allowed: false,
   reason: "couple_quota",
   message:
-    "이 커플에 제공된 무료 아모라 상담(총 50회)을 모두 사용했어요. 예산·체크리스트·일정·견적 진단 등 웨딩 준비 워크스페이스는 계속 무료로 이용하실 수 있으며, 추가 상담 이용권은 곧 준비될 예정이에요.",
+    "이 커플에 제공된 무료 아모라 상담을 모두 사용했어요. 아직 파트너를 연결하지 않았다면 설정에서 파트너 초대 코드를 연결해 보너스 상담(+30회)을 즉시 받을 수 있어요. 예산·체크리스트·일정·견적 진단 등 웨딩 준비 워크스페이스는 계속 무료로 이용하실 수 있어요.",
 };
 
 const DENY_COUPLE_DAILY: CostGuardResult = {
   allowed: false,
   reason: "couple_daily",
   message:
-    "오늘 무료로 제공되는 아모라 상담(하루 10회)을 모두 사용했어요. 내일 자정(KST)에 다시 이어서 도와드릴게요. 예산·체크리스트·일정·견적 진단 기능은 지금도 자유롭게 이용하실 수 있어요.",
+    "오늘 무료로 제공되는 아모라 상담(기본 하루 10회, 파트너 연결 시 15회)을 모두 사용했어요. 내일 자정(KST)에 다시 이어서 도와드릴게요. 아직 파트너를 연결하지 않았다면 설정에서 파트너 연결 시 일일 한도와 누적 보너스(+30회)가 즉시 늘어나며, 예산·체크리스트·일정·견적 진단 기능은 지금도 자유롭게 이용하실 수 있어요.",
 };
 
 const DENY_UNAVAILABLE: CostGuardResult = {
@@ -348,12 +456,20 @@ export async function reserveAmoraTurn(
     return DENY_UNAVAILABLE;
   }
   const enforceCaps = GUARD_ENABLED && params.isQuotaExempt !== true;
-  const appliesCoupleQuota =
+  const isStandardCoupleCheck =
     enforceCaps
     && !params.isAdmin
-    && (params.quotaScope ?? "standard") === "standard"
-    && COUPLE_QUOTA_ENABLED;
-  const coupleCap = appliesCoupleQuota ? FREE_PER_COUPLE : DISABLED_COUPLE_CAP;
+    && (params.quotaScope ?? "standard") === "standard";
+  const couplePolicy = isStandardCoupleCheck
+    ? await resolveCoupleQuotaPolicy(admin, params.coupleId)
+    : null;
+  const appliesCoupleQuota =
+    isStandardCoupleCheck
+    && COUPLE_QUOTA_ENABLED
+    && couplePolicy?.isGrandfathered !== true;
+  const coupleCap = appliesCoupleQuota
+    ? (couplePolicy?.lifetimeCap ?? FREE_PER_COUPLE)
+    : DISABLED_COUPLE_CAP;
   const ledgerCoupleId = params.quotaScope === "background"
     ? BACKGROUND_COST_LEDGER_COUPLE_ID
     : params.coupleId;
@@ -367,7 +483,7 @@ export async function reserveAmoraTurn(
   // 세는 데 실패하면 **통과시킨다.** 이 한도는 공정성이지 지갑이 아니고,
   // 지갑은 아래 RPC 의 전역 비용 상한이 원자적으로 지킨다. 장부 조회 실패로
   // 정상 사용자를 막는 쪽이 더 나쁘다.
-  const dailyCheck = await checkCoupleDailyUsage(admin, params);
+  const dailyCheck = await checkCoupleDailyUsage(admin, params, couplePolicy);
   if (dailyCheck.denied) return dailyCheck.denied;
 
   try {
@@ -392,7 +508,7 @@ export async function reserveAmoraTurn(
       // 소진 예고용 잔여 횟수 — 예약 직후 카운터 PK 조회(비원자여도 배너 용도라 충분).
       // 누적 잔여 횟수와 오늘 잔여 횟수 중 더 적은 쪽을 돌려준다.
       const lifetimeRemaining = appliesCoupleQuota
-        ? await readCoupleRemaining(admin, params.coupleId)
+        ? await readCoupleRemaining(admin, params.coupleId, coupleCap)
         : undefined;
       return {
         allowed: true,
@@ -466,6 +582,7 @@ async function countCoupleTurnsToday(
 async function checkCoupleDailyUsage(
   admin: SupabaseClient,
   params: CostGuardParams,
+  preloadedPolicy?: CoupleQuotaPolicy | null,
 ): Promise<{ denied: CostGuardResult | null; dailyRemaining?: number }> {
   const applies =
     GUARD_ENABLED
@@ -474,14 +591,16 @@ async function checkCoupleDailyUsage(
     && (params.quotaScope ?? "standard") === "standard"
     && COUPLE_DAILY_CAP_ENABLED;
   if (!applies) return { denied: null };
+  const policy = preloadedPolicy ?? await resolveCoupleQuotaPolicy(admin, params.coupleId);
+  if (policy.isGrandfathered) return { denied: null };
   const usedToday = await countCoupleTurnsToday(admin, params.coupleId);
   if (usedToday === null) return { denied: null };
-  if (usedToday >= COUPLE_DAILY_CAP) {
+  if (usedToday >= policy.dailyCap) {
     return { denied: DENY_COUPLE_DAILY };
   }
   return {
     denied: null,
-    dailyRemaining: Math.max(0, COUPLE_DAILY_CAP - (usedToday + 1)),
+    dailyRemaining: Math.max(0, policy.dailyCap - (usedToday + 1)),
   };
 }
 
@@ -509,17 +628,26 @@ export async function reserveAmoraProviderCall(
     return DENY_UNAVAILABLE;
   }
 
-  // **채팅이 실제로 타는 경로다.** 같은 하루 상한을 여기에도 건다.
-  const dailyCheck = await checkCoupleDailyUsage(admin, params);
-  if (dailyCheck.denied) return dailyCheck.denied;
-
   const enforceCaps = GUARD_ENABLED && params.isQuotaExempt !== true;
-  const appliesCoupleQuota =
+  const isStandardCoupleCheck =
     enforceCaps
     && !params.isAdmin
-    && (params.quotaScope ?? "standard") === "standard"
-    && COUPLE_QUOTA_ENABLED;
-  const coupleCap = appliesCoupleQuota ? FREE_PER_COUPLE : DISABLED_COUPLE_CAP;
+    && (params.quotaScope ?? "standard") === "standard";
+  const couplePolicy = isStandardCoupleCheck
+    ? await resolveCoupleQuotaPolicy(admin, params.coupleId)
+    : null;
+
+  // **채팅이 실제로 타는 경로다.** 같은 하루 상한을 여기에도 건다.
+  const dailyCheck = await checkCoupleDailyUsage(admin, params, couplePolicy);
+  if (dailyCheck.denied) return dailyCheck.denied;
+
+  const appliesCoupleQuota =
+    isStandardCoupleCheck
+    && COUPLE_QUOTA_ENABLED
+    && couplePolicy?.isGrandfathered !== true;
+  const coupleCap = appliesCoupleQuota
+    ? (couplePolicy?.lifetimeCap ?? FREE_PER_COUPLE)
+    : DISABLED_COUPLE_CAP;
   const ledgerCoupleId = params.quotaScope === "background"
     ? BACKGROUND_COST_LEDGER_COUPLE_ID
     : params.coupleId;
@@ -581,7 +709,8 @@ export async function reserveAmoraProviderCall(
 
 async function readCoupleRemaining(
   admin: SupabaseClient,
-  coupleId: string
+  coupleId: string,
+  lifetimeCap: number = FREE_PER_COUPLE,
 ): Promise<number | undefined> {
   try {
     const { data } = await admin
@@ -590,7 +719,7 @@ async function readCoupleRemaining(
       .eq("key", `couple:${coupleId}`)
       .maybeSingle();
     if (typeof data?.count === "number") {
-      return Math.max(0, FREE_PER_COUPLE - data.count);
+      return Math.max(0, lifetimeCap - data.count);
     }
   } catch {
     // 배너용 조회 실패는 무시
@@ -629,6 +758,11 @@ export async function checkAmoraCostGuard(
     return ALLOW;
   }
 
+  const couplePolicy = await resolveCoupleQuotaPolicy(admin, params.coupleId);
+  if (couplePolicy.isGrandfathered) {
+    return ALLOW;
+  }
+
   // 2) 커플 누적 무료 상한 — 이 커플이 발생시킨 LLM 턴 수
   const { count: coupleTotal, error: coupleErr } = await admin
     .from("ai_interactions_log")
@@ -640,7 +774,7 @@ export async function checkAmoraCostGuard(
     console.error("[costGuard] 커플 카운트 실패 (차단):", coupleErr.message);
     return DENY_UNAVAILABLE;
   }
-  if ((coupleTotal ?? 0) >= FREE_PER_COUPLE) {
+  if ((coupleTotal ?? 0) >= couplePolicy.lifetimeCap) {
     return DENY_COUPLE;
   }
 

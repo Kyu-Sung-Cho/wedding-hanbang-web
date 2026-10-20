@@ -1853,11 +1853,11 @@ function getAmoraSharedActionFailureMessage(
 function getServerCodeFailureMessage(serverCode: string | null): string | null {
   switch (serverCode) {
     case "COST_GUARD_COUPLE_QUOTA":
-      return "무료 상담을 모두 사용했어요. 예산·일정 기록은 그대로 보관돼요. 추가 이용 방법은 정해지면 알려드릴게요.";
+      return "무료 상담을 모두 사용했어요. 설정에서 파트너 초대 코드를 연결하면 보너스 상담(+30회)을 즉시 받을 수 있으며, 예산·일정 기록은 그대로 보관돼요.";
     case "COST_GUARD_GLOBAL_DAILY":
       return "오늘 아모라 상담이 많아 잠시 쉬어가고 있어요. 내일 다시 이어서 도와드릴게요.";
     case "COST_GUARD_COUPLE_DAILY":
-      return "오늘 무료로 제공되는 아모라 상담(하루 10회)을 모두 사용했어요. 내일 자정(KST)에 다시 이어서 도와드릴게요. 예산·체크리스트·일정·견적 진단 기능은 지금도 자유롭게 이용하실 수 있어요.";
+      return "오늘 무료로 제공되는 아모라 상담(기본 하루 10회, 파트너 연결 시 15회)을 모두 사용했어요. 내일 자정(KST)에 다시 이어서 도와드릴게요. 아직 파트너를 연결하지 않았다면 설정에서 파트너 연결 시 일일 한도와 누적 보너스(+30회)가 즉시 늘어나며, 예산·체크리스트·일정·견적 진단 기능은 지금도 자유롭게 이용하실 수 있어요.";
     case "COST_GUARD_GLOBAL_BUDGET":
       // "안전 한도" 는 우리 내부 용어이고, 카운터는 한국 시간 자정에 풀리므로
       // "잠시 후" 는 사용자를 헛되이 다시 누르게 만든다. 서버가 이미 고친 문구다.

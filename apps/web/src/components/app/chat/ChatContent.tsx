@@ -3893,20 +3893,29 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
 
       {/* 쿼터 소진 예고 — 갑작스런 차단(429) 대신 미리 안내 */}
       {transientArtifactsVisible && quotaRemaining !== null && !isStreaming && (
-        <div className="mx-2 mt-2 flex items-center justify-between rounded-[6px] bg-[var(--hb-surface-hover)] p-3 shadow-[var(--shadow-raised)]">
+        <div className="mx-2 mt-2 flex flex-wrap items-center justify-between gap-2 rounded-[6px] bg-[var(--hb-surface-hover)] p-3 shadow-[var(--shadow-raised)]">
           <p className="text-[13px] font-medium text-[#6d625a]">
             {quotaRemaining > 0
               ? `무료 상담이 ${quotaRemaining}회 남았어요. 소진돼도 예산·일정 기록은 그대로 보관돼요.`
               : "무료 상담을 모두 사용했어요. 예산·일정 기록은 그대로 보관돼요."}
           </p>
-          <Button variant="ghost" onClick={() => setInfoPanelOpen(true)} className="shrink-0 px-2! text-xs!">대화 정리</Button>
-          <button
-            onClick={() => useChatStore.setState({ quotaRemaining: null })}
-            className="ml-2 flex-shrink-0 text-[var(--hb-text-muted)] hover:text-[#6d625a]"
-            aria-label="안내 닫기"
-          >
-            <X className="w-4 h-4" />
-          </button>
+          <div className="flex shrink-0 items-center gap-1.5">
+            <Link
+              href={weddingPath("/settings")}
+              data-testid="amora-quota-partner-bonus-link"
+              className="inline-flex min-h-8 items-center rounded-[6px] border border-[var(--hb-hairline)] bg-white px-2.5 py-1 text-xs font-semibold text-[var(--hb-text-strong)] transition-colors hover:bg-[#FAF8F5]"
+            >
+              파트너 연결 +30회 받기
+            </Link>
+            <Button variant="ghost" onClick={() => setInfoPanelOpen(true)} className="shrink-0 px-2! text-xs!">대화 정리</Button>
+            <button
+              onClick={() => useChatStore.setState({ quotaRemaining: null })}
+              className="ml-1 flex-shrink-0 text-[var(--hb-text-muted)] hover:text-[#6d625a]"
+              aria-label="안내 닫기"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
         </div>
       )}
 

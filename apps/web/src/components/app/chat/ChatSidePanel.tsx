@@ -7,6 +7,7 @@ import { AMORA_ACTION_CLASS } from "@/components/ui/amoraActionStyles";
 import { useState, useEffect, useRef, useCallback, useMemo, type SetStateAction } from "react";
 import { Send, X, Maximize2, EyeOff, Paperclip, FileText, FileSpreadsheet, Heart, Lock } from "lucide-react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import type { ChatMessage, ChatMessageTarget } from "@/types/database.types";
 import { useChatStore } from "@/stores/chatStore";
 import { useAuthStore } from "@/stores/authStore";
@@ -1583,20 +1584,29 @@ export default function ChatSidePanel({
               && !isStreaming
               && messageTarget === "ai"
               && artifactsMatchActiveVisibility && (
-              <div className="mx-3 mt-2 flex items-center justify-between rounded-[6px] bg-[var(--hb-surface-hover)] p-2.5">
+              <div className="mx-3 mt-2 flex flex-wrap items-center justify-between gap-2 rounded-[6px] bg-[var(--hb-surface-hover)] p-2.5">
                 <p className="text-xs font-medium leading-relaxed text-[#6d625a]">
                   {quotaRemaining > 0
                     ? `무료 상담이 ${quotaRemaining}회 남았어요. 소진돼도 예산·일정 기록은 그대로 보관돼요.`
                     : "무료 상담을 모두 사용했어요. 예산·일정 기록은 그대로 보관돼요."}
                 </p>
-                <button
-                  type="button"
-                  onClick={() => useChatStore.setState({ quotaRemaining: null })}
-                  className="ml-2 flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full text-[var(--hb-text-muted)] hover:text-[#6d625a]"
-                  aria-label="상담 횟수 안내 닫기"
-                >
-                  <X className="h-4 w-4" />
-                </button>
+                <div className="flex shrink-0 items-center gap-1">
+                  <Link
+                    href={weddingPath("/settings")}
+                    data-testid="amora-sidepanel-partner-bonus-link"
+                    className="inline-flex min-h-8 items-center rounded-[6px] border border-[var(--hb-hairline)] bg-white px-2 py-1 text-[11px] font-semibold text-[var(--hb-text-strong)] transition-colors hover:bg-[#FAF8F5]"
+                  >
+                    파트너 연결 +30회 받기
+                  </Link>
+                  <button
+                    type="button"
+                    onClick={() => useChatStore.setState({ quotaRemaining: null })}
+                    className="ml-1 flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full text-[var(--hb-text-muted)] hover:text-[#6d625a]"
+                    aria-label="상담 횟수 안내 닫기"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
               </div>
             )}
 

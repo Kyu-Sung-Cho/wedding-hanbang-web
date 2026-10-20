@@ -638,3 +638,145 @@ describe("서버에서 확인한 팀 테스트 한도 예외", () => {
     },
   );
 });
+
+describe("기존 계정 면제(Grandfathering) 및 신규 계정 파트너 연결 보너스(+30회 / 일일 +5회)", () => {
+  const RECEIPT = {
+    receiptId: "30000000-0000-4000-8000-000000000001",
+    claimToken: "40000000-0000-4000-8000-000000000001",
+    requestKey: "policy_request_123",
+  };
+
+  function makePolicyAdmin(opts: {
+    coupleRow: {
+      created_at: string;
+      bride_id?: string | null;
+      groom_id?: string | null;
+      membership_sealed_at?: string | null;
+    } | null;
+    usedToday?: number;
+    coupleTotal?: number;
+    globalToday?: number;
+    rpcResult?: { allowed: boolean; reason?: string | null; remaining?: number };
+  }) {
+    const rpcSpy = vi.fn(async () => ({
+      data: [opts.rpcResult ?? { allowed: true, reason: null }],
+      error: null,
+    }));
+
+    return {
+      rpcSpy,
+      admin: {
+        rpc: rpcSpy,
+        from(table: string) {
+          if (table === "couples") {
+            const chain: Record<string, unknown> = {};
+            chain.select = () => chain;
+            chain.eq = () => chain;
+            chain.maybeSingle = async () => ({ data: opts.coupleRow, error: null });
+            return chain;
+          }
+          let hasCoupleFilter = false;
+          let hasGteFilter = false;
+          const builder: Record<string, unknown> = {};
+          builder.select = () => builder;
+          builder.eq = (col: string) => {
+            if (col === "couple_id") hasCoupleFilter = true;
+            return builder;
+          };
+          builder.gte = () => {
+            hasGteFilter = true;
+            return builder;
+          };
+          builder.maybeSingle = async () => ({ data: null, error: null });
+          builder.then = (resolve: (v: { count: number; error: null }) => void) => {
+            if (hasCoupleFilter && hasGteFilter) {
+              return resolve({ count: opts.usedToday ?? 0, error: null });
+            }
+            if (hasCoupleFilter) {
+              return resolve({ count: opts.coupleTotal ?? 0, error: null });
+            }
+            return resolve({ count: opts.globalToday ?? 0, error: null });
+          };
+          return builder;
+        },
+      } as never,
+    };
+  }
+
+  it("기준 시각 이전에 이미 만들어진 기존 계정(2026-10-19)은 일일·누적 커플 제한에서 면제된다", async () => {
+    const { admin, rpcSpy } = makePolicyAdmin({
+      coupleRow: {
+        created_at: "2026-10-19T12:00:00.000Z",
+        bride_id: "u1",
+        groom_id: null,
+      },
+      usedToday: 45, // 신규 일일 한도(10)를 넘어도 기존 계정은 통과
+      coupleTotal: 120, // 신규 누적 한도(50)를 넘어도 기존 계정은 통과
+    });
+
+    const precheck = await checkAmoraCostGuard(admin, BASE);
+    expect(precheck.allowed).toBe(true);
+
+    const providerRes = await reserveAmoraProviderCall(admin, {
+      ...BASE,
+      ...RECEIPT,
+    });
+    expect(providerRes.allowed).toBe(true);
+    expect(rpcSpy).toHaveBeenCalledWith(
+      "reserve_amora_provider_call",
+      expect.objectContaining({
+        p_couple_cap: 2_147_483_647,
+        p_global_cap: 300,
+      }),
+    );
+  });
+
+  it("기준 시각 이후 새로 가입한 단독 계정(파트너 미연결)은 기본 한도(일일 10회 / 누적 50회)가 적용된다", async () => {
+    const { admin, rpcSpy } = makePolicyAdmin({
+      coupleRow: {
+        created_at: "2026-10-21T01:00:00.000Z",
+        bride_id: "u1",
+        groom_id: null,
+        membership_sealed_at: null,
+      },
+      usedToday: 10,
+    });
+
+    const dailyDenied = await reserveAmoraProviderCall(admin, {
+      ...BASE,
+      ...RECEIPT,
+    });
+    expect(dailyDenied.allowed).toBe(false);
+    expect(dailyDenied.reason).toBe("couple_daily");
+    expect(dailyDenied.message).toContain("+30회");
+    expect(rpcSpy).not.toHaveBeenCalled();
+  });
+
+  it("기준 시각 이후 새로 가입한 계정이 파트너를 연결하면 보너스 한도(일일 15회 / 누적 80회)가 자동 적용된다", async () => {
+    const { admin, rpcSpy } = makePolicyAdmin({
+      coupleRow: {
+        created_at: "2026-10-21T01:00:00.000Z",
+        bride_id: "u1",
+        groom_id: "u2",
+        membership_sealed_at: "2026-10-21T02:00:00.000Z",
+      },
+      usedToday: 12, // 기본 10회는 넘었지만 파트너 연결 보너스(15회) 아래이므로 통과!
+      coupleTotal: 65, // 기본 50회는 넘었지만 파트너 연결 보너스(80회) 아래이므로 통과!
+    });
+
+    const precheck = await checkAmoraCostGuard(admin, BASE);
+    expect(precheck.allowed).toBe(true);
+
+    const providerRes = await reserveAmoraProviderCall(admin, {
+      ...BASE,
+      ...RECEIPT,
+    });
+    expect(providerRes.allowed).toBe(true);
+    expect(rpcSpy).toHaveBeenCalledWith(
+      "reserve_amora_provider_call",
+      expect.objectContaining({
+        p_couple_cap: 80,
+      }),
+    );
+  });
+});
