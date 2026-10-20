@@ -64,7 +64,7 @@ beforeEach(() => {
 
 describe("커플당 하루 상한", () => {
   it("한도 아래면 통과하고 예약 RPC 까지 간다", async () => {
-    dailyCount = 79;
+    dailyCount = 9;
     const result = await reserve();
     expect(result.allowed).toBe(true);
     expect(rpc).toHaveBeenCalled();
@@ -72,7 +72,7 @@ describe("커플당 하루 상한", () => {
 
   it("한도에 닿으면 막고 provider 예약을 아예 시도하지 않는다", async () => {
     // 막을 거면 돈 쓰는 자리에 가기 전에 막아야 한다.
-    dailyCount = 80;
+    dailyCount = 10;
     const result = await reserve();
     expect(result.allowed).toBe(false);
     expect(result.reason).toBe("couple_daily");
@@ -84,6 +84,7 @@ describe("커플당 하루 상한", () => {
     const result = await reserve();
     // "한도를 다 썼다" 로 끝나면 사용자는 제품이 끝났다고 읽는다.
     expect(result.message).toContain("내일");
+    expect(result.message).toContain("예산·체크리스트·일정·견적 진단");
   });
 
   it("장부를 못 읽으면 통과시킨다", async () => {
@@ -195,7 +196,7 @@ describe("채팅이 타는 경로에도 하루 상한이 걸린다", () => {
   });
 
   it("한도 아래면 통과한다", async () => {
-    dailyCount = 10;
+    dailyCount = 9;
     rpc.mockResolvedValue({ data: [{ allowed: true }], error: null });
     const result = await reserveProviderCall();
     expect(result.allowed).toBe(true);

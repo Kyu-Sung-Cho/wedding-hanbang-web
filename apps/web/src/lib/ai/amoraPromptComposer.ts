@@ -683,9 +683,29 @@ function finalTurnGuardForTools(
 
   const withoutDirectExecutionRule = visibleAnswerGuard
     .split("\n")
-    .filter((line) => !line.includes(
-      "최신 사용자가 본인 커플의 결혼 날짜·예산·일정·예약을 정하거나 바꾸는 확정형 발화",
-    ))
+    .filter((line) => {
+      if (
+        line.includes(
+          "최신 사용자가 본인 커플의 결혼 날짜·예산·일정·예약을 정하거나 바꾸는 확정형 발화",
+        )
+      ) {
+        return false;
+      }
+      // 도구 계약·행동 카드 계약이 실리는 턴은 필수 꼬리(reservedLength)가 48,000자 상한에
+      // 근접하므로, 도구 없는 일반 응답(noToolSystemPrompt)에서만 비도구 담화 가드를 유지한다.
+      if (
+        (enabledToolNames && enabledToolNames.length > 0) ||
+        hasPendingOfferContract
+      ) {
+        if (
+          line.includes("현금영수증 미발급·탈세 협상") ||
+          line.includes("커플이 ‘안 해요(진행률 제외)’로 둔 분야는")
+        ) {
+          return false;
+        }
+      }
+      return true;
+    })
     .join("\n");
 
   // 변경 함수가 도구 목록에서 빠진 뒤(2026-07-24)에도 저장 제안 턴에서는

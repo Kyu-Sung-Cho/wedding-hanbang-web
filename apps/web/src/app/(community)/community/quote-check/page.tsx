@@ -22,9 +22,24 @@ import {
   type AmoraQuoteCheckResult,
 } from "@/lib/amora/quoteCheck";
 import { weddingPath } from "@/lib/weddingPaths";
+import Button from "@/components/ui/Button";
 import ReportCardButton from "./ReportCardButton";
 
 const CATEGORY_OPTIONS: AmoraQuoteCategory[] = ["studio", "dress", "makeup"];
+
+const CEREMONY_DAY_QUOTE_ITEM_IDS = new Set([
+  "studio_photo_table",
+  "dress_helper_ceremony",
+  "dress_second",
+  "dress_mini",
+  "makeup_corsage",
+  "common_ceremony_snap",
+  "common_ceremony_original",
+  "common_ceremony_video",
+  "common_pyebaek",
+  "common_wedding_car",
+  "common_thank_you_gift",
+]);
 
 type ItemDecision = "included" | "not_needed" | "unknown";
 
@@ -65,6 +80,7 @@ const QUOTE_CHECK_ERROR = "결과를 가져오지 못했어요. 잠시 후 다�
 
 export default function AmoraQuoteCheckPage() {
   const [category, setCategory] = useState<AmoraQuoteCategory>("studio");
+  const [shootOnlyMode, setShootOnlyMode] = useState(false);
   const [itemDecisions, setItemDecisions] = useState<Record<string, ItemDecision>>({});
   const [result, setResult] = useState<AmoraQuoteCheckResult | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -82,9 +98,36 @@ export default function AmoraQuoteCheckPage() {
     .map((item) => item.id);
   const decidedCount = includedItemIds.length + notNeededItemIds.length;
 
+  const buildCeremonyDayDecisions = (
+    targetItems: ReadonlyArray<{ id: string }>,
+    enableShootOnly: boolean,
+    previous: Record<string, ItemDecision> = {},
+  ): Record<string, ItemDecision> => {
+    const next: Record<string, ItemDecision> = { ...previous };
+    for (const item of targetItems) {
+      if (!CEREMONY_DAY_QUOTE_ITEM_IDS.has(item.id)) continue;
+      if (enableShootOnly) {
+        if (!next[item.id] || next[item.id] === "unknown") {
+          next[item.id] = "not_needed";
+        }
+      } else if (next[item.id] === "not_needed") {
+        delete next[item.id];
+      }
+    }
+    return next;
+  };
+
   const resetSelection = (nextCategory: AmoraQuoteCategory) => {
+    const nextItems = getQuoteCheckItems(nextCategory, "other");
     setCategory(nextCategory);
-    setItemDecisions({});
+    setItemDecisions(shootOnlyMode ? buildCeremonyDayDecisions(nextItems, true) : {});
+    setResult(null);
+    setError(null);
+  };
+
+  const applyShootOnlyPreset = (enableShootOnly: boolean) => {
+    setShootOnlyMode(enableShootOnly);
+    setItemDecisions((previous) => buildCeremonyDayDecisions(items, enableShootOnly, previous));
     setResult(null);
     setError(null);
   };
@@ -169,7 +212,7 @@ export default function AmoraQuoteCheckPage() {
               </Link>
             </div>
 
-            <div className="mt-5 max-w-md">
+            <div className="mt-5 grid gap-4 sm:grid-cols-2">
               <label className="block">
                 <span className="mb-2 block text-sm font-medium text-[var(--hb-text-strong)]">분야</span>
                 <select
@@ -184,6 +227,38 @@ export default function AmoraQuoteCheckPage() {
                   ))}
                 </select>
               </label>
+
+              <div data-testid="quote-check-ceremony-preset">
+                <span className="mb-2 block text-sm font-medium text-[var(--hb-text-strong)]">진행 범위</span>
+                <div className="grid grid-cols-2 gap-2" aria-label="진행 범위 빠른 선택">
+                  <Button
+                    variant="ghost"
+                    type="button"
+                    aria-pressed={!shootOnlyMode}
+                    onClick={() => applyShootOnlyPreset(false)}
+                    className={`rounded-[6px] border px-3 py-2.5 text-xs font-medium transition-colors sm:text-sm ${
+                      !shootOnlyMode
+                        ? "border-[var(--hb-text-strong)] bg-[var(--hb-text-strong)] text-white"
+                        : "border-[var(--hb-hairline)] bg-white text-[var(--hb-text-body)] hover:bg-[var(--hb-surface-hover)]"
+                    }`}
+                  >
+                    예식 + 촬영 모두
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    type="button"
+                    aria-pressed={shootOnlyMode}
+                    onClick={() => applyShootOnlyPreset(true)}
+                    className={`rounded-[6px] border px-3 py-2.5 text-xs font-medium transition-colors sm:text-sm ${
+                      shootOnlyMode
+                        ? "border-[var(--hb-text-strong)] bg-[var(--hb-text-strong)] text-white"
+                        : "border-[var(--hb-hairline)] bg-white text-[var(--hb-text-body)] hover:bg-[var(--hb-surface-hover)]"
+                    }`}
+                  >
+                    사진 촬영만 (예식 생략)
+                  </Button>
+                </div>
+              </div>
             </div>
           </section>
 

@@ -40,6 +40,7 @@ import LoungeFirstHello from "./LoungeFirstHello";
  * 완료 사실의 정본은 계정(profiles)이고, 이건 계정 쓰기가 실패한 세션을 버티는 용도다.
  */
 const DEVICE_STORAGE_KEY = "hanbang_first_run_tutorial_done";
+export const LOUNGE_TUTORIAL_REPLAY_EVENT = "hanbang:replay-lounge-tutorial";
 
 const STEPS: SpotlightStep[] = FIRST_RUN_TUTORIAL_STEPS.map((step) => ({
   selector: `[data-tutorial-target="${step.id}"]`,
@@ -90,6 +91,23 @@ function OwnedLoungeTutorial() {
   const userId = profile?.id ?? null;
   const onboardingCompleted = profile?.onboarding_completed === true;
   const [armed, setArmed] = useState(false);
+  const [replayCount, setReplayCount] = useState(0);
+
+  useEffect(() => {
+    if (!userId || !onboardingCompleted || isDemo || typeof window === "undefined") return;
+    const handleReplay = () => {
+      try {
+        localStorage.removeItem(DEVICE_STORAGE_KEY);
+      } catch {
+        /* */
+      }
+      rememberShownThisSession();
+      setReplayCount((count) => count + 1);
+      setArmed(true);
+    };
+    window.addEventListener(LOUNGE_TUTORIAL_REPLAY_EVENT, handleReplay);
+    return () => window.removeEventListener(LOUNGE_TUTORIAL_REPLAY_EVENT, handleReplay);
+  }, [isDemo, onboardingCompleted, userId]);
 
   useEffect(() => {
     // 온보딩을 마치지 않았으면 절대 띄우지 않는다 — 라운지에 아직 보여줄 게 없고,
@@ -161,12 +179,13 @@ function OwnedLoungeTutorial() {
 
   return (
     <SpotlightTutorial
+      key={replayCount}
       steps={STEPS}
       storageKey={DEVICE_STORAGE_KEY}
       mode="auto"
       // 라운지의 카드들이 자리를 잡은 뒤에 앵커를 잰다. 너무 이르면 첫 스텝이
       // "타깃 없음"으로 건너뛰어진다.
-      delayMs={900}
+      delayMs={replayCount > 0 ? 150 : 900}
       onFinish={handleFinish}
     />
   );

@@ -1,7 +1,22 @@
 "use client";
 
+import { useState } from "react";
 import { PREPARATION_PROGRESS_STATUS_OPTIONS } from "@hanbang/shared";
+import Button from "@/components/ui/Button";
 import type { ProgressChecklistItem, ChecklistStatus } from "@/types/onboarding.types";
+
+type OnboardingCeremonyPresetKey = "classic" | "small" | "family_meal" | "no_wedding";
+
+const ONBOARDING_CEREMONY_PRESETS: ReadonlyArray<{
+  key: OnboardingCeremonyPresetKey;
+  label: string;
+  skippedKeys: readonly string[];
+}> = [
+  { key: "classic", label: "일반 예식", skippedKeys: [] },
+  { key: "small", label: "스몰·전통 생략", skippedKeys: ["ham", "pyebaek", "yedan", "hanbok"] },
+  { key: "family_meal", label: "직계가족 식사 + 촬영", skippedKeys: ["mc", "snap", "pyebaek", "ham", "yedan", "hanbok"] },
+  { key: "no_wedding", label: "노웨딩 · 촬영 중심", skippedKeys: ["venue", "snap", "mc", "bouquet", "pyebaek", "ham", "yedan", "hanbok", "gift"] },
+];
 
 interface ProgressChecklistProps {
   items: ProgressChecklistItem[];
@@ -16,11 +31,28 @@ interface ProgressChecklistProps {
 }
 
 export default function ProgressChecklist({ items, onStatusChange, onCostChange, stageNotice }: ProgressChecklistProps) {
+  const [selectedPresetKey, setSelectedPresetKey] = useState<OnboardingCeremonyPresetKey | null>(null);
   const completedCount = items.filter((i) => i.status === "completed").length;
   const inProgressCount = items.filter((i) => i.status === "in_progress").length;
   const notStartedCount = items.filter((i) => i.status === "not_started").length;
   // "안 해요"도 사용자가 직접 표시한 답이다. 완료·준비 중만 세면 그 답이 없던 일이 된다.
   const answeredCount = items.length - notStartedCount;
+
+  const applyCeremonyPreset = (presetKey: OnboardingCeremonyPresetKey) => {
+    const preset = ONBOARDING_CEREMONY_PRESETS.find((item) => item.key === presetKey);
+    if (!preset) return;
+    setSelectedPresetKey(presetKey);
+    const skipSet = new Set(preset.skippedKeys);
+    for (const item of items) {
+      if (skipSet.has(item.key)) {
+        if (item.status === "not_started") {
+          onStatusChange(item.key, "not_applicable");
+        }
+      } else if (item.status === "not_applicable") {
+        onStatusChange(item.key, "not_started");
+      }
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -72,6 +104,37 @@ export default function ProgressChecklist({ items, onStatusChange, onCostChange,
           {answeredCount === 0
             ? "아직 시작한 분야가 없어도 괜찮아요"
             : `${answeredCount}개 분야의 현재 상태를 입력했어요`}
+        </div>
+      </div>
+
+      {/* 예식 형태 빠른 정리 */}
+      <div
+        data-testid="onboarding-ceremony-format-presets"
+        className="rounded-[6px] border border-black/[0.06] bg-white p-3.5"
+      >
+        <p className="text-[12px] font-medium text-[var(--hb-text-strong)]">
+          우리 예식 형태에 맞춰 생략할 분야를 한 번에 표시할 수 있어요
+        </p>
+        <div className="mt-2 flex flex-wrap gap-1.5" role="group" aria-label="예식 형태별 안 해요 빠른 선택">
+          {ONBOARDING_CEREMONY_PRESETS.map((preset) => {
+            const active = selectedPresetKey === preset.key;
+            return (
+              <Button
+                key={preset.key}
+                variant="ghost"
+                type="button"
+                aria-pressed={active}
+                onClick={() => applyCeremonyPreset(preset.key)}
+                className={`rounded-[6px] border px-2.5 py-1.5 text-[11px] font-medium transition-colors ${
+                  active
+                    ? "border-[var(--hb-primary)] bg-[var(--hb-primary)] text-white"
+                    : "border-black/[0.08] bg-[var(--hb-surface-hover)] text-[var(--hb-text-body)] hover:bg-black/[0.06]"
+                }`}
+              >
+                {preset.label}
+              </Button>
+            );
+          })}
         </div>
       </div>
 

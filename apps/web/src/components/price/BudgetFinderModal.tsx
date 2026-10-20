@@ -48,10 +48,11 @@ export function BudgetFinderModal({
       return;
     }
     const maximumKrw = Math.round(manwon * 10_000);
+    const sameAgencyOnly = agencyId === "__same_agency__";
     setResults(findBudgetCombinations({
       catalogs: catalog,
       budgetMaximumKrw: maximumKrw,
-      ...(agencyId ? { agencyIds: [agencyId] } : {}),
+      ...(sameAgencyOnly ? { sameAgencyOnly: true } : agencyId ? { agencyIds: [agencyId] } : {}),
       limit: 20,
     }));
     track("budget_search", {
@@ -116,6 +117,7 @@ export function BudgetFinderModal({
               className="mt-2 min-h-12 w-full rounded-[6px] border border-[var(--color-paper-outline)] bg-white px-3 text-sm outline-none focus:ring-2 focus:ring-[#B89785]"
             >
               <option value="">전체 대행사</option>
+              <option value="__same_agency__">같은 대행사 한 곳으로 묶기</option>
               {agencies.map((agency) => <option key={agency.id} value={agency.id}>{agency.name}</option>)}
             </select>
           </label>
@@ -146,6 +148,9 @@ export function BudgetFinderModal({
                     <div key={category} className="rounded-[6px] bg-[var(--hb-surface-page)] p-3">
                       <dt className="text-[11px] font-bold text-[var(--hb-text-muted)]">{category === "studio" ? "스튜디오" : category === "dress" ? "드레스" : "메이크업"}</dt>
                       <dd className="mt-1 truncate font-semibold text-[var(--hb-text-strong)]">{result[category].vendorName}</dd>
+                      <dd className="mt-0.5 truncate text-xs text-[var(--hb-text-muted)]">
+                        {result[category].agencyName} · {krwToManwonLabel(result[category].baseKrw)}
+                      </dd>
                     </div>
                   ))}
                 </dl>

@@ -477,7 +477,18 @@ export default function LoungePage() {
         </div>
         <div className="mt-4 flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-t border-[#DEC9BA] pt-3 text-[12px] leading-[1.7] text-[#624A3C]">
           <p>기록 지출 {formatLoungeWon(spentBudget)}{totalBudget > 0 ? ` · 총 예산의 ${budgetRatioLabel}` : " · 총 예산 입력 전"} · 결제 확인과 별도</p>
-          {!partner && <Link {...weddingLinkProps("/settings")} data-tutorial-target="lounge-invite" className="inline-flex min-h-11 items-center gap-1 font-medium text-[var(--amora-soft)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--amora-accent)]"><Users size={12} aria-hidden="true" />파트너 초대<ArrowRight size={11} aria-hidden="true" /></Link>}
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+            {!isDemo && profile?.onboarding_completed && (
+              <button
+                type="button"
+                onClick={() => window.dispatchEvent(new CustomEvent("hanbang:replay-lounge-tutorial"))}
+                className="inline-flex min-h-11 items-center gap-1 font-medium text-[var(--amora-soft)] transition-colors hover:text-[var(--amora-ink)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--amora-accent)]"
+              >
+                라운지 안내 다시 보기
+              </button>
+            )}
+            {!partner && <Link {...weddingLinkProps("/settings")} data-tutorial-target="lounge-invite" className="inline-flex min-h-11 items-center gap-1 font-medium text-[var(--amora-soft)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--amora-accent)]"><Users size={12} aria-hidden="true" />파트너 초대<ArrowRight size={11} aria-hidden="true" /></Link>}
+          </div>
         </div>
         <p className="hidden text-[11px] leading-[1.7] text-[var(--amora-muted)] lg:block">{companionCopy.description}</p>
         <p className={`${setupGuidance ? "" : "hidden lg:block"} mt-1 text-[10.5px] leading-[1.7] text-[var(--amora-muted)] lg:text-[11px]`}>{setupGuidance ? setupGuidance.text : `${plan.stageLabel} · ${plan.stageSummary}`}</p>
