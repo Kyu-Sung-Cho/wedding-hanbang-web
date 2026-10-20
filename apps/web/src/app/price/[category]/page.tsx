@@ -12,6 +12,7 @@ import {
   type PriceVendor,
 } from "@/lib/price/catalog";
 import { loadPriceCatalogWithBuildFallback } from "@/lib/price/buildCatalog";
+import { isWeddingBudgetOffer } from "@/lib/price/budgetOfferEligibility";
 import {
   buildPriceCategorySeo,
   buildPriceCategoryStructuredData,
@@ -37,10 +38,11 @@ function isPriceCategory(value: string): value is PriceCategory {
 
 // 비활성 카테고리 데이터의 유일한 소비자는 예산 조합 찾기(budgetFinder)이고,
 // 거기서는 "허용된 대행사 중 최저가 오퍼 1건"만 읽는다. 그래서 대행사별 최저가만
-// 남기고 나머지 오퍼는 전송하지 않는다 — 의미는 그대로, 바이트만 줄어든다.
-function cheapestOfferPerAgency(offers: PriceVendor["offers"]): PriceVendor["offers"] {
+// 남긴다. 혼주 전용 등 대상이 다른 상품을 먼저 빼야 신부 구성이 최저가에서 밀리지 않는다.
+function cheapestOfferPerAgency(vendor: PriceVendor): PriceVendor["offers"] {
   const cheapest = new Map<string, PriceVendor["offers"][number]>();
-  for (const offer of offers) {
+  for (const offer of vendor.offers) {
+    if (!isWeddingBudgetOffer(vendor, offer)) continue;
     if (offer.minimumKrw === null) continue;
     const key = offer.agencyId ?? "";
     const current = cheapest.get(key);
@@ -50,12 +52,13 @@ function cheapestOfferPerAgency(offers: PriceVendor["offers"]): PriceVendor["off
   }
   return [...cheapest.values()].map((offer) => ({
     id: offer.id,
+    itemName: offer.itemName,
     agencyId: offer.agencyId,
     agencyName: offer.agencyName,
     minimumKrw: offer.minimumKrw,
     maximumKrw: null,
     priceNote: null,
-    baseSpec: null,
+    baseSpec: offer.baseSpec,
     options: [],
   }));
 }
@@ -69,7 +72,7 @@ function catalogForBrowser(catalog: PriceCatalog, activeCategory: PriceCategory)
       ...vendor,
       aliases: [],
       regionCode: null,
-      offers: cheapestOfferPerAgency(vendor.offers),
+      offers: cheapestOfferPerAgency(vendor),
     }))];
   })) as PriceCatalog["categories"];
   return { ...catalog, categories };

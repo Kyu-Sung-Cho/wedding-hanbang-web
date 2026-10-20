@@ -30,6 +30,8 @@ const pageTitles: Record<string, string> = {
 };
 
 const pageTitlePrefixes: Array<{ prefix: string; title: string }> = [
+  { prefix: "/settings/amora-style", title: "아모라 도움 방식" },
+  { prefix: "/settings/amora-memory", title: "아모라가 기억하는 것" },
   { prefix: "/vendors/favorites", title: "찜한 업체" },
   { prefix: "/vendors", title: "업체 탐색" },
   { prefix: "/bookings", title: "예약 관리" },
@@ -57,11 +59,12 @@ interface TopNavProps {
   amoraWorkspace?: boolean;
   planningWorkspace?: boolean;
   loungeWorkspace?: boolean;
+  compactChrome?: boolean;
   amoraNavigationRef?: Ref<HTMLDivElement>;
 }
 
-export default function TopNav({ onMenuToggle, amoraWorkspace = false, planningWorkspace = false, loungeWorkspace = false, amoraNavigationRef }: TopNavProps) {
-  const compactWorkspace = planningWorkspace || loungeWorkspace;
+export default function TopNav({ onMenuToggle, amoraWorkspace = false, planningWorkspace = false, loungeWorkspace = false, compactChrome = false, amoraNavigationRef }: TopNavProps) {
+  const compactWorkspace = planningWorkspace || loungeWorkspace || compactChrome;
   const htmlDesign = amoraWorkspace || compactWorkspace;
   const pathname = usePathname();
   const router = useRouter();

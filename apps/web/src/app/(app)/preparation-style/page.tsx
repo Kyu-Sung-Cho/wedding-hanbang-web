@@ -4,6 +4,9 @@ import LoungeWeddingCode from "@/components/app/preparation-style/LoungeWeddingC
 import PreparationStyleHub from "@/components/app/preparation-style/PreparationStyleHub";
 import { parseWeddingCodeEntryQuery, type WeddingCodeEntrySearchParams } from "@/app/wedding-code/entry";
 import { weddingLinkProps } from "@/lib/weddingPaths";
+import { isLegacyWeddingCodeQuery } from "@/app/wedding-code/releaseEntry";
+import { MEASUREMENT_VERSION } from "@/lib/weddingCode/likert/types";
+import { isWeddingCodeResearchContributionOpen, isWeddingCodeResearchStorageActive } from "@/lib/weddingCode/contribution/server";
 
 export const metadata = {
   title: "웨딩코드 | 웨딩한방",
@@ -24,5 +27,9 @@ export default async function PreparationStylePage({ searchParams }: {
   return <LoungeWeddingCode
     shareOrigin={process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, "") || "https://hanbang.ai"}
     initialEntry={parseWeddingCodeEntryQuery(search)}
+    queryIsLegacy={isLegacyWeddingCodeQuery(search)}
+    explicitLikert={search.v === MEASUREMENT_VERSION}
+    researchContributionOpen={isWeddingCodeResearchContributionOpen()}
+    researchStorageActive={isWeddingCodeResearchStorageActive()}
   />;
 }

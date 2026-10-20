@@ -1,6 +1,6 @@
 ﻿"use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { createBrowserClient } from "@supabase/ssr";
 import {
@@ -20,6 +20,7 @@ import Link from "next/link";
 import Avatar from "@/components/community/Avatar";
 import CommunityConfigurationUnavailable from "@/components/community/CommunityConfigurationUnavailable";
 import { useAuthStore } from "@/stores/authStore";
+import { useCommunityStore } from "@/stores/communityStore";
 import type { CommunityProfile, CommunityRank, PostWithAuthor } from "@/types/community.types";
 import { CATEGORY_MAP } from "@/constants/communityCategories";
 import { communityPostPath } from "@/lib/community/routes";
@@ -37,10 +38,42 @@ const rankLabels: Record<CommunityRank, string> = {
 };
 
 export default function MyPostsPage() {
+  const ownerId = useAuthStore((state) => state.user?.id ?? null);
+  const initialized = useAuthStore((state) => state.isInitialized);
+  const privacyEpoch = useCommunityStore((state) => state.privacyEpoch);
+  const [initialBoundary] = useState(() => ({
+    privacyEpoch,
+    bootstrapAllowed: privacyEpoch === 0 && !useAuthStore.getState().isInitialized && !useAuthStore.getState().user,
+  }));
+  // 첫 진입만 SDK로 확인한다. 로그아웃 I/O 중 남아 있는 옛 세션으로 재부팅하지 않는다.
+  const bootstrapAllowed = initialBoundary.bootstrapAllowed
+    && initialBoundary.privacyEpoch === privacyEpoch && !initialized && ownerId === null;
+  return <MyPostsContent key={`${privacyEpoch}:${ownerId ?? "guest"}`} expectedUserId={ownerId} bootstrapAllowed={bootstrapAllowed} privacyEpoch={privacyEpoch} />;
+}
+
+function MyPostsContent({ expectedUserId, bootstrapAllowed, privacyEpoch }: {
+  expectedUserId: string | null;
+  bootstrapAllowed: boolean;
+  privacyEpoch: number;
+}) {
   const router = useRouter();
   const appProfile = useAuthStore((state) => state.profile);
+  const mounted = useRef(true);
+  useEffect(() => {
+    mounted.current = true;
+    return () => { mounted.current = false; };
+  }, []);
+  const sessionIsCurrent = useCallback(() => {
+    const auth = useAuthStore.getState();
+    return mounted.current && useCommunityStore.getState().privacyEpoch === privacyEpoch
+      && !auth.isDemo && (expectedUserId !== null
+        ? auth.user?.id === expectedUserId
+        : bootstrapAllowed && !auth.isInitialized && !auth.user);
+  }, [bootstrapAllowed, expectedUserId, privacyEpoch]);
   const [posts, setPosts] = useState<PostWithAuthor[]>([]);
   const [loading, setLoading] = useState(true);
+  const [postsError, setPostsError] = useState<string | null>(null);
+  const [loadVersion, setLoadVersion] = useState(0);
   const [userId, setUserId] = useState<string | null>(null);
   const [tab, setTab] = useState<"published" | "draft">("published");
   const [profile, setProfile] = useState<CommunityProfile | null>(null);
@@ -59,20 +92,24 @@ export default function MyPostsPage() {
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
     const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
     if (!supabaseUrl || !supabaseAnonKey) return;
+    if (!expectedUserId && !bootstrapAllowed) {
+      if (useAuthStore.getState().isInitialized) router.push(`/login?redirect=${encodeURIComponent(weddingPath("/community/my/posts"))}`);
+      return;
+    }
 
     let cancelled = false;
     void Promise.resolve().then(async () => {
       try {
         const supabase = createBrowserClient(supabaseUrl, supabaseAnonKey);
         const { data: { user } } = await supabase.auth.getUser();
-        if (cancelled) return;
-        if (!user) {
+        if (cancelled || !sessionIsCurrent()) return;
+        if (!user || (expectedUserId !== null && user.id !== expectedUserId)) {
           router.push(`/login?redirect=${encodeURIComponent(weddingPath("/community/my/posts"))}`);
           return;
         }
         setUserId(user.id);
       } catch {
-        if (!cancelled) {
+        if (!cancelled && sessionIsCurrent()) {
           setConnectionFailed(true);
           setLoading(false);
         }
@@ -82,46 +119,66 @@ export default function MyPostsPage() {
     return () => {
       cancelled = true;
     };
-  }, [router]);
+  }, [bootstrapAllowed, expectedUserId, router, sessionIsCurrent]);
 
   useEffect(() => {
-    if (!userId) return;
-    const timer = window.setTimeout(() => setLoading(true), 0);
+    if (!userId || !sessionIsCurrent()) return;
+    let cancelled = false;
     const controller = new AbortController();
-    fetch(`/api/community/posts?author_id=${userId}&limit=100`, { signal: controller.signal })
-      .then((r) => r.json())
-      .then((data) => { setPosts(data.posts ?? []); setLoading(false); })
+    fetch(`/api/community/posts?author_id=${userId}&sort=my_posts&limit=100`, { signal: controller.signal })
+      .then(async (response) => {
+        if (!response.ok) throw new Error(response.status === 401
+          ? "로그인이 만료됐어요. 다시 로그인한 뒤 내 글을 확인해 주세요."
+          : response.status === 403 ? "내 글에 접근할 수 없어요. 현재 계정을 확인해 주세요."
+          : "내 글을 불러오지 못했어요. 다시 시도해 주세요.");
+        const data: { posts?: unknown } = await response.json();
+        if (!Array.isArray(data.posts) || data.posts.some((post: unknown) =>
+          !post || typeof post !== "object" || !("author_id" in post) || post.author_id !== userId)) {
+          throw new Error("내 글의 작성자를 확인하지 못했어요. 다시 불러와 주세요.");
+        }
+        return data.posts as PostWithAuthor[];
+      })
+      .then((nextPosts) => {
+        if (cancelled || !sessionIsCurrent()) return;
+        setPosts(nextPosts);
+        setPostsError(null);
+        setLoading(false);
+      })
       .catch((err) => {
+        if (cancelled || !sessionIsCurrent()) return;
         if (err instanceof DOMException && err.name === "AbortError") return;
+        setPosts([]);
+        setPostsError(err instanceof Error ? err.message : "내 글을 불러오지 못했어요. 다시 시도해 주세요.");
         setLoading(false);
       });
     return () => {
-      window.clearTimeout(timer);
+      cancelled = true;
       controller.abort();
     };
-  }, [userId]);
+  }, [loadVersion, sessionIsCurrent, userId]);
 
   useEffect(() => {
-    if (!userId) return;
+    if (!userId || !sessionIsCurrent()) return;
     const controller = new AbortController();
     const loadProfile = async () => {
       let response = await fetch("/api/community/profile", {
         cache: "no-store",
         signal: controller.signal,
       });
-      if (!response.ok) return;
+      if (controller.signal.aborted || !sessionIsCurrent() || !response.ok) return;
       let data = await response.json();
+      if (controller.signal.aborted || !sessionIsCurrent()) return;
       if (!data?.profile) {
         response = await fetch("/api/community/profile", {
           method: "POST",
           signal: controller.signal,
         });
-        if (!response.ok) return;
+        if (controller.signal.aborted || !sessionIsCurrent() || !response.ok) return;
         data = await response.json();
       }
-      if (!controller.signal.aborted) {
+      if (!controller.signal.aborted && sessionIsCurrent()) {
         const nextProfile = data?.profile as CommunityProfile | undefined;
-        if (!nextProfile) return;
+        if (!nextProfile || nextProfile.user_id !== userId) return;
         setProfile(nextProfile);
         setNicknameInput(nextProfile.nickname);
         setAvatarInput(nextProfile.avatar_url);
@@ -131,7 +188,7 @@ export default function MyPostsPage() {
         if (err instanceof DOMException && err.name === "AbortError") return;
       });
     return () => controller.abort();
-  }, [userId]);
+  }, [sessionIsCurrent, userId]);
 
   if (configurationUnavailable) {
     return (
@@ -140,19 +197,23 @@ export default function MyPostsPage() {
       />
     );
   }
+  if (!expectedUserId && !bootstrapAllowed) {
+    return <p role="status" className="px-4 py-8 text-center text-sm text-[var(--hb-text-muted)]">로그인 상태를 확인하는 중...</p>;
+  }
 
   const published = posts.filter((p) => p.visibility !== "draft");
   const drafts = posts.filter((p) => p.visibility === "draft");
   const displayed = tab === "published" ? published : drafts;
 
   const handleDelete = async (id: string) => {
+    if (!sessionIsCurrent()) return;
     if (!confirm("정말 삭제하시겠습니까?")) return;
     const res = await fetch(`/api/community/posts/${id}`, { method: "DELETE" });
-    if (res.ok) setPosts((prev) => prev.filter((p) => p.id !== id));
+    if (sessionIsCurrent() && res.ok) setPosts((prev) => prev.filter((p) => p.id !== id));
   };
 
   const saveProfile = async () => {
-    if (!profile) return;
+    if (!profile || !sessionIsCurrent()) return;
     const nickname = nicknameInput.trim();
     if (!nickname) {
       setProfileMessage("닉네임을 입력해 주세요.");
@@ -167,24 +228,29 @@ export default function MyPostsPage() {
         body: JSON.stringify({ nickname, avatar_url: avatarInput }),
       });
       const data = await res.json().catch(() => ({}));
+      if (!sessionIsCurrent()) return;
       if (!res.ok) {
         setProfileMessage(data.error ?? "프로필 저장에 실패했습니다.");
+        return;
+      }
+      if (data.profile?.user_id !== userId) {
+        setProfileMessage("프로필 저장 결과를 확인하지 못했어요.");
         return;
       }
       setProfile(data.profile);
       setEditingProfile(false);
       setProfileMessage("프로필이 저장되었습니다.");
     } catch {
-      setProfileMessage("프로필 저장 중 오류가 발생했습니다.");
+      if (sessionIsCurrent()) setProfileMessage("프로필 저장 중 오류가 발생했습니다.");
     } finally {
-      setProfileSaving(false);
+      if (sessionIsCurrent()) setProfileSaving(false);
     }
   };
 
   return (
     <div className="max-w-3xl mx-auto px-4 py-8">
       <div className="flex items-center gap-3 mb-6">
-        <Link href={weddingPath()} className="w-8 h-8 rounded-full bg-white border border-black/[0.06] flex items-center justify-center hover:bg-[var(--hb-surface-hover)] transition-colors">
+        <Link href={weddingPath()} aria-label="웨딩 라운지로 돌아가기" className="w-8 h-8 rounded-full bg-white border border-black/[0.06] flex items-center justify-center hover:bg-[var(--hb-surface-hover)] transition-colors">
           <ArrowLeft className="w-4 h-4 text-[var(--hb-text-strong)]" />
         </Link>
         <h1 className="font-serif-kr text-[var(--hb-text-strong)]">내 글</h1>
@@ -204,6 +270,7 @@ export default function MyPostsPage() {
                 <div className="space-y-3">
                   <input
                     type="text"
+                    aria-label="커뮤니티 닉네임"
                     value={nicknameInput}
                     onChange={(event) => setNicknameInput(event.target.value)}
                     maxLength={20}
@@ -305,6 +372,11 @@ export default function MyPostsPage() {
         <div className="py-16 flex justify-center">
           <Loader2 className="w-6 h-6 text-[var(--hb-text-muted)] animate-spin" />
         </div>
+      ) : postsError ? (
+        <div role="alert" className="py-16 text-center text-sm text-[var(--hb-text-body)]">
+          <p>{postsError}</p>
+          <button type="button" aria-label="내 글 다시 불러오기" onClick={() => { setLoading(true); setPostsError(null); setLoadVersion((value) => value + 1); }} className="mt-3 underline underline-offset-4">다시 불러오기</button>
+        </div>
       ) : displayed.length === 0 ? (
         <div className="py-16 text-center">
           <FileText className="w-10 h-10 text-[var(--hb-text-muted)] mx-auto mb-3" />
@@ -370,12 +442,14 @@ export default function MyPostsPage() {
                   <div className="flex items-center gap-1 flex-shrink-0">
                     <Link
                       href={weddingPath(`/community/post/write?edit=${post.id}`)}
+                      aria-label={`${post.title} 수정`}
                       className="w-8 h-8 rounded-[6px] flex items-center justify-center text-[var(--hb-text-muted)] hover:bg-[var(--hb-surface-hover)] transition-colors"
                     >
                       <Pencil className="w-3.5 h-3.5" />
                     </Link>
                     <button
                       onClick={() => handleDelete(post.id)}
+                      aria-label={`${post.title} 삭제`}
                       className="w-8 h-8 rounded-[6px] flex items-center justify-center text-[var(--hb-text-muted)] hover:bg-red-50 hover:text-danger-700 transition-colors"
                     >
                       <Trash2 className="w-3.5 h-3.5" />

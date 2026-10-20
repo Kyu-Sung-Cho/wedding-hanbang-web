@@ -1608,7 +1608,7 @@ const styles = StyleSheet.create({
     marginTop: 20,
   },
   prefHint: {
-    fontSize: 11,
+    fontSize: 12,
     fontFamily: "NotoSansKR_400Regular",
     color: colors.paper.inkFaint,
   },
@@ -1643,7 +1643,7 @@ const styles = StyleSheet.create({
     color: colors.rose[700],
   },
   prefDesc: {
-    fontSize: 11,
+    fontSize: 12,
     fontFamily: "NotoSansKR_400Regular",
     color: colors.paper.inkFaint,
     marginTop: 2,
@@ -1690,7 +1690,7 @@ const styles = StyleSheet.create({
     color: colors.noir[800],
   },
   prefChipDesc: {
-    fontSize: 10,
+    fontSize: 12,
     fontFamily: "NotoSansKR_400Regular",
     color: colors.paper.inkFaint,
     marginTop: 1,

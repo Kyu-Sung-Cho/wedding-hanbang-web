@@ -35,6 +35,7 @@ import {
 } from "lucide-react";
 import { useAuthStore } from "@/stores/authStore";
 import { formatWon } from "@/lib/formatWon";
+import { formatWeddingBudgetCeiling, parseWeddingBudgetManwonInput } from "@/lib/weddingBudget";
 import { formatLoungeBudgetRatio } from "@/lib/amora/loungeSummary";
 import { PLANNING_CATEGORY_LABELS } from "@/constants/planningCategories";
 import {
@@ -307,6 +308,7 @@ function InlineMoneyEdit({
             disabled={saving}
             className="tap-area shrink-0 w-6 h-6 rounded-lg flex items-center justify-center text-[var(--hb-success)] hover:bg-[#eef4ed] disabled:opacity-50"
             title="저장"
+            aria-label={`${label} 저장`}
           >
             <Check className="w-3.5 h-3.5" />
           </button>
@@ -315,6 +317,7 @@ function InlineMoneyEdit({
             disabled={saving}
             className="tap-area shrink-0 w-6 h-6 rounded-lg flex items-center justify-center text-[var(--amora-muted)] hover:bg-[var(--hb-surface-hover)] disabled:opacity-50"
             title="취소"
+            aria-label={`${label} 수정 취소`}
           >
             <X className="w-3.5 h-3.5" />
           </button>
@@ -338,6 +341,7 @@ function InlineMoneyEdit({
             : "hover:bg-[var(--hb-surface-hover)]"
         }`}
         title={`${label} 수정`}
+        aria-label={`${label} 수정`}
       >
         <span className={`whitespace-nowrap text-[12.5px] font-semibold tabular-nums ${
           highlight === "spent" ? "text-[var(--hb-text-strong)]" : "text-[var(--hb-text-body)]"
@@ -355,6 +359,7 @@ function InlineMoneyEdit({
           }}
           className="tap-area shrink-0 w-6 h-6 rounded-lg flex items-center justify-center text-[var(--amora-muted)] hover:text-danger-700 hover:bg-red-50 transition-colors"
           title={`${label} 초기화`}
+          aria-label={`${label} 초기화`}
         >
           <X className="w-4 h-4" />
         </button>
@@ -926,16 +931,16 @@ function ScopedBudgetContent({
   );
 
   const handleTotalBudgetSave = async () => {
-    const num = parseFloat(totalText);
+    const amount = parseWeddingBudgetManwonInput(totalText);
     // 조건에 안 맞으면 **아무 일도 안 일어났다.** 닫히지도, 저장되지도, 말해주지도
     // 않아서 버튼이 죽은 것처럼 보였다. 0 을 넣거나 칸을 비운 사람이 그렇게 갇혔다.
-    if (isNaN(num) || num <= 0) {
-      setTotalBudgetError("0보다 큰 금액을 넣어주세요. 아직 안 정했다면 그냥 닫으셔도 돼요.");
+    if (amount === null) {
+      setTotalBudgetError(`0보다 크고 ${formatWeddingBudgetCeiling()} 이하인 금액을 만원 단위로 넣어주세요. 소수점 아래 네 자리까지 입력할 수 있어요. 아직 안 정했다면 그냥 닫으셔도 돼요.`);
       return;
     }
     setTotalBudgetError("");
     try {
-      await saveJourney({ total_budget: Math.round(num * 10000) });
+      await saveJourney({ total_budget: amount });
       setEditingTotal(false);
     } catch {
       // saveJourney 가 이미 오류 문구를 세웠다. 편집 상태를 열어 둬 다시 시도할 수 있게 한다.
@@ -1283,6 +1288,7 @@ function ScopedBudgetContent({
                 <h3 className="text-[18px] font-semibold text-[var(--amora-ink)]">새 항목 추가</h3>
                 <button
                   onClick={() => setShowAddModal(false)}
+                  aria-label="새 항목 추가 닫기"
                   className="tap-area shrink-0 w-8 h-8 rounded-lg flex items-center justify-center text-[var(--amora-muted)] hover:bg-[var(--hb-surface-hover)] transition-colors"
                 >
                   <X className="w-4 h-4" />
@@ -1291,13 +1297,15 @@ function ScopedBudgetContent({
 
               <div className="space-y-4">
                 <div>
-                  <label className="text-[11px] text-[var(--amora-muted)] mb-1.5 block">카테고리 이름 <span className="text-[var(--amora-rose-deep)]">*</span></label>
+                  <label htmlFor="budget-new-category-name" className="text-[11px] text-[var(--amora-muted)] mb-1.5 block">카테고리 이름 <span className="text-[var(--amora-rose-deep)]">*</span></label>
                   {/* 60자는 아모라(add_custom_category)가 거절하는 경계와 같다.
                       화면만 더 길게 받으면 아모라가 이름을 잘라 부르고, 그 잘린
                       이름으로 고치면 같은 항목이 하나 더 생긴다. */}
                   <input
+                    id="budget-new-category-name"
                     autoFocus
                     type="text"
+                    required
                     maxLength={60}
                     value={newCatLabel}
                     onChange={(e) => setNewCatLabel(e.target.value)}
@@ -1313,8 +1321,9 @@ function ScopedBudgetContent({
 
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="text-[11px] text-[var(--amora-muted)] mb-1.5 block">예산 (만원)</label>
+                    <label htmlFor="budget-new-category-allocation" className="text-[11px] text-[var(--amora-muted)] mb-1.5 block">예산 (만원)</label>
                     <input
+                      id="budget-new-category-allocation"
                       type="number"
                       value={newCatBudget}
                       onChange={(e) => setNewCatBudget(e.target.value)}
@@ -1323,8 +1332,9 @@ function ScopedBudgetContent({
                     />
                   </div>
                   <div>
-                    <label className="text-[11px] text-[var(--amora-muted)] mb-1.5 block">기록 지출 (만원 · 결제 확인과 별도)</label>
+                    <label htmlFor="budget-new-category-spent" className="text-[11px] text-[var(--amora-muted)] mb-1.5 block">기록 지출 (만원 · 결제 확인과 별도)</label>
                     <input
+                      id="budget-new-category-spent"
                       type="number"
                       value={newCatSpent}
                       onChange={(e) => setNewCatSpent(e.target.value)}

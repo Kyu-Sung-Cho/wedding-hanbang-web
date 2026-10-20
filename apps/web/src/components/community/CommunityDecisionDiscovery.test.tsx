@@ -135,7 +135,8 @@ describe("CommunityDecisionDiscovery", () => {
     const metricsIndex = text.indexOf("경험 답변 2개");
     expect(text.indexOf("회원이 직접 작성")).toBeLessThan(metricsIndex);
     expect(text.indexOf("추가금")).toBeLessThan(metricsIndex);
-    expect(text.indexOf("사람 답변 도착")).toBeLessThan(metricsIndex);
+    expect(text.indexOf("답변 도착")).toBeGreaterThanOrEqual(0);
+    expect(text.indexOf("답변 도착")).toBeLessThan(metricsIndex);
     expect(container.querySelector("a")?.getAttribute("href"))
       .toBe(`/wedding/community/post/${POST_ID}`);
   });

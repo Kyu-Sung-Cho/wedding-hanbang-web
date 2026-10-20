@@ -128,8 +128,8 @@ describe("Header title names the current screen", () => {
   // 이 셋은 표에 없어 "웨딩한방" 브랜드명이 나왔다. 다른 화면은 모두 현재 위치를 쓴다.
   it.each([
     ["/wedding/chat/personal", "나만 보는 할 일"],
-    ["/wedding/settings/amora-style", "설정"],
-    ["/wedding/settings/amora-memory", "설정"],
+    ["/wedding/settings/amora-style", "아모라 도움 방식"],
+    ["/wedding/settings/amora-memory", "아모라가 기억하는 것"],
   ])("shows the screen name at %s", async (pathname, title) => {
     navigation.pathname = pathname;
     await act(async () => root.render(<TopNav onMenuToggle={vi.fn()} />));

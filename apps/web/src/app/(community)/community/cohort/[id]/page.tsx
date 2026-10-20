@@ -24,9 +24,10 @@ import {
 import { createClient } from "@/lib/supabase/client";
 import { useToast } from "@/components/community/Toast";
 import Avatar from "@/components/community/Avatar";
-import { COHORT_THREAD_TOPICS, COHORT_CONTRACT_CATEGORIES } from "@/constants/communityCategories";
+import { COHORT_THREAD_TOPICS, COHORT_CONTRACT_CATEGORIES, CATEGORY_MAP } from "@/constants/communityCategories";
 import { PLANNING_CATEGORY_LABELS } from "@/constants/planningCategories";
 import { resolveCohortThreadTopic } from "@/lib/community/cohortTopicClassifier";
+import { createCohortMessageSendController } from "@/lib/community/cohortMessageRequest";
 import { communityPostPath } from "@/lib/community/routes";
 import { uploadCommunityMedia } from "@/lib/community/uploadMedia";
 import { isCommunityMediaPublishingUiEnabled } from "@/lib/community/mediaPublishingUiGate";
@@ -231,7 +232,7 @@ function CohortPageInner({ roomId }: { roomId: string }) {
         <RoomHeader room={room} />
 
         <div className="mt-5 grid gap-4 md:grid-cols-[minmax(0,1fr)_280px] lg:grid-cols-[minmax(0,1fr)_300px] xl:grid-cols-[minmax(0,1fr)_320px] xl:gap-5">
-          <main className="min-w-0">
+          <section aria-label="동기방 대화와 준비 기록" className="min-w-0">
             <section className="overflow-hidden rounded-[6px] border border-[var(--hb-hairline)] bg-white/88 shadow-[var(--shadow-overlay)]">
               <div className="border-b border-[var(--hb-hairline)] bg-white/70 px-3 py-3 sm:px-4">
                 <div className="grid grid-cols-3 gap-2 rounded-full bg-[var(--hb-surface-hover)] p-1">
@@ -259,6 +260,7 @@ function CohortPageInner({ roomId }: { roomId: string }) {
               <div className="p-3 sm:p-5 lg:p-6">
                 {tab === "chat" && (
                   <ChatTab
+                    key={roomId}
                     roomId={roomId}
                     enabled={isSignedIn}
                     toastFn={toast}
@@ -269,7 +271,7 @@ function CohortPageInner({ roomId }: { roomId: string }) {
                 {tab === "timeline" && <TimelineTab roomId={roomId} enabled={isSignedIn} toastFn={toast} />}
               </div>
             </section>
-          </main>
+          </section>
 
           <CohortSidePanel
             room={room}
@@ -500,6 +502,9 @@ function ChatTab({
   const supabase = useMemo(() => createClient(), []);
   const [messages, setMessages] = useState<CohortMessage[]>([]);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [sending, setSending] = useState(false);
+  const sendController = useMemo(() => createCohortMessageSendController(), []);
+  const sendScope = useRef({ roomId, actorId: null as string | null, epoch: 0 });
   const [filter, setFilter] = useState<CohortThreadTopic | "all">("all");
   const [input, setInput] = useState("");
   const [thread, setThread] = useState<CohortThreadTopic | "">("");
@@ -554,19 +559,38 @@ function ChatTab({
 
   useEffect(() => {
     let cancelled = false;
+    let authRevision = 0;
+    const updateActor = (actorId: string | null) => {
+      if (cancelled) return;
+      if (sendScope.current.actorId !== actorId || sendScope.current.roomId !== roomId) {
+        sendScope.current = { roomId, actorId, epoch: sendScope.current.epoch + 1 };
+        sendController.reset();
+        setSending(false);
+        setMessages([]);
+        setInput("");
+      }
+      setCurrentUserId(actorId);
+    };
     if (!enabled) {
-      setCurrentUserId(null);
+      updateActor(null);
       return;
     }
 
     supabase.auth.getUser().then(({ data }) => {
-      if (!cancelled) setCurrentUserId(data.user?.id ?? null);
+      if (authRevision === 0) updateActor(data.user?.id ?? null);
+    });
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      authRevision += 1;
+      updateActor(session?.user?.id ?? null);
     });
 
     return () => {
       cancelled = true;
+      sendScope.current = { roomId, actorId: null, epoch: sendScope.current.epoch + 1 };
+      sendController.reset();
+      subscription.unsubscribe();
     };
-  }, [enabled, supabase]);
+  }, [enabled, roomId, sendController, supabase]);
 
   // 동기방 멤버 로드 (멘션용)
   useEffect(() => {
@@ -626,16 +650,17 @@ function ChatTab({
 
   // 메시지 로드
   const loadMessages = useCallback(async () => {
-    if (!enabled) {
+    if (!enabled || !currentUserId) {
       setMessages([]);
       return;
     }
+    const scope = sendScope.current;
     const res = await fetch(`/api/community/cohort/${roomId}/messages`);
     const data = await res.json();
-    if (res.ok) {
+    if (res.ok && sendScope.current === scope) {
       setMessages(data.messages ?? []);
     }
-  }, [enabled, roomId]);
+  }, [enabled, roomId, currentUserId]);
 
   useEffect(() => {
     loadMessages();
@@ -643,7 +668,8 @@ function ChatTab({
 
   // Realtime 구독
   useEffect(() => {
-    if (!enabled) return;
+    if (!enabled || !currentUserId) return;
+    const scope = sendScope.current;
     const channel = supabase
       .channel("cohort:" + roomId)
       .on(
@@ -662,6 +688,7 @@ function ChatTab({
             .select("user_id, nickname, avatar_url, rank")
             .eq("user_id", newMsg.author_id)
             .maybeSingle<CohortProfileSummary>();
+          if (sendScope.current !== scope) return;
           setMessages((prev) => {
             if (prev.some((m) => m.id === newMsg.id)) return prev;
             const hydratedMessage = {
@@ -690,7 +717,7 @@ function ChatTab({
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [enabled, supabase, roomId]);
+  }, [enabled, supabase, roomId, currentUserId]);
 
   // 컨테이너 내부 스크롤 위치 추적 — 바닥 근처 여부 캐시
   useEffect(() => {
@@ -750,19 +777,26 @@ function ChatTab({
   async function handleSend() {
     const draft = input.trim();
     if (!draft) return;
-    if (!enabled) {
+    if (!enabled || !currentUserId || sendScope.current.actorId !== currentUserId || sendScope.current.roomId !== roomId) {
       toastFn.error("로그인 후 동기방에 참여할 수 있어요.");
       return;
     }
 
-    const tempId = `temp-${typeof crypto !== "undefined" && "randomUUID" in crypto
-      ? crypto.randomUUID()
-      : `${Date.now()}-${Math.random().toString(36).slice(2)}`
-    }`;
+    let attempt: ReturnType<typeof sendController.begin>;
+    try {
+      attempt = sendController.begin({ actorId: currentUserId, roomId, content: draft, threadTopic: thread });
+    } catch {
+      toastFn.error("안전한 전송 요청을 만들 수 없어요. 브라우저를 업데이트해 주세요.");
+      return;
+    }
+    if (!attempt) return;
+    const scope = sendScope.current;
+    const isCurrent = () => sendScope.current === scope && sendController.isCurrent(attempt);
+    const tempId = `temp-${attempt.key}`;
     const optimisticMessage: CohortMessage = {
       id: tempId,
       room_id: roomId,
-      author_id: currentUserId ?? "pending-user",
+      author_id: currentUserId,
       content: draft.slice(0, 2000),
       thread_topic: resolveCohortThreadTopic(thread || undefined, draft),
       images: [],
@@ -773,26 +807,22 @@ function ChatTab({
 
     isNearBottomRef.current = true;
     setInput("");
+    setSending(true);
     setMentionOpen(false);
     setMessages((prev) => [...prev, optimisticMessage]);
 
     try {
-      const res = await fetch(`/api/community/cohort/${roomId}/messages`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          content: draft,
-          thread_topic: thread || undefined,
-        }),
-      });
+      const res = await sendController.send(attempt);
       const data = (await res.json().catch(() => ({}))) as { message?: CohortMessage; error?: string };
+      if (!isCurrent()) return;
       if (!res.ok) {
         setMessages((prev) => prev.filter((message) => message.id !== tempId));
         setInput((current) => (current.trim() ? current : draft));
         toastFn.error(data.error ?? "전송 실패");
         return;
       }
-      if (data.message) {
+      if (data.message && typeof data.message.id === "string"
+        && data.message.room_id === roomId && data.message.author_id === currentUserId) {
         setMessages((prev) => {
           if (prev.some((message) => message.id === data.message?.id)) {
             return prev.filter((message) => message.id !== tempId);
@@ -807,11 +837,22 @@ function ChatTab({
 
           return replaced ? next : [...prev, data.message as CohortMessage];
         });
+        sendController.finish(attempt, true);
+      } else {
+        setMessages((prev) => prev.filter((message) => message.id !== tempId));
+        setInput((current) => current.trim() ? current : draft);
+        toastFn.error("전송 결과를 확인하지 못했어요. 다시 보내면 같은 요청으로 확인해요.");
       }
     } catch {
+      if (!isCurrent()) return;
       setMessages((prev) => prev.filter((message) => message.id !== tempId));
       setInput((current) => (current.trim() ? current : draft));
       toastFn.error("네트워크 오류");
+    } finally {
+      if (sendScope.current === scope) {
+        sendController.finish(attempt, false);
+        setSending(false);
+      }
     }
   }
 
@@ -992,7 +1033,9 @@ function ChatTab({
             <button
               type="button"
               onClick={handleSend}
-              disabled={!input.trim()}
+              disabled={!input.trim() || sending || !currentUserId}
+              aria-label={sending ? "메시지 전송 중" : "메시지 전송"}
+              aria-busy={sending}
               className="flex flex-1 items-center justify-center gap-2 rounded-[6px] bg-[var(--hb-primary)] px-4 py-3 text-white shadow-[var(--shadow-raised)] transition-all hover:shadow-[var(--shadow-raised)] disabled:opacity-50 sm:flex-none sm:py-0"
             >
               <Send className="h-4 w-4" />
@@ -1154,7 +1197,7 @@ function MessageBubble({
         <div className={`flex items-center gap-1.5 flex-wrap ${isMine ? "justify-end" : "justify-start"}`}>
           {!isMine && <span className="text-sm font-medium text-[var(--hb-text-strong)]">{nickname}</span>}
           <span className="text-xs text-[var(--hb-text-muted)]">
-            {relativeTime(message.created_at)}
+            {message.id.startsWith("temp-") ? "전송 중…" : relativeTime(message.created_at)}
           </span>
           {!isMine && onReport && (
             <button
@@ -1262,7 +1305,7 @@ function PostPickerModal({
                     {p.title}
                   </div>
                   <div className="flex items-center gap-3 mt-1 text-sm text-[var(--hb-text-body)]">
-                    {p.category && <span>{p.category}</span>}
+                    {p.category && <span>{Object.values(CATEGORY_MAP).find((category) => category.key === p.category)?.shortLabel ?? "커뮤니티"}</span>}
                     {p.category && <span>·</span>}
                     <span>💬 {p.comment_count ?? 0}</span>
                   </div>
@@ -2161,7 +2204,7 @@ function CohortPopularPosts({ roomId }: { roomId: string }) {
   return (
     <div>
       <div className="mb-4 flex items-center justify-between gap-3">
-        <h3 className="font-serif-kr text-[var(--hb-text-strong)]">동기들이 많이 본 글</h3>
+        <h3 className="font-serif-kr text-[var(--hb-text-strong)]">커뮤니티 인기 글</h3>
         <Link href={weddingPath("/community?sort=hot")} className="text-[12px] font-semibold text-[var(--hb-text-strong)]">
           더보기
         </Link>

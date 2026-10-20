@@ -86,6 +86,8 @@ vi.mock("@supabase/ssr", () => ({
 
 vi.mock("@/stores/communityStore", () => ({
   useCommunityStore: () => ({
+    viewerId: mocks.userId,
+    privacyEpoch: 0,
     currentPost: mocks.post,
     postLoading: false,
     fetchPostDetail: mocks.fetchPostDetail,
@@ -231,10 +233,39 @@ describe("question resolution control", () => {
     vi.unstubAllGlobals();
   });
 
+  it("shows an own draft as private editing work without public reactions or comments", async () => {
+    mocks.post = question({ visibility: "draft", comment_count: 0 });
+    const container = await renderPage();
+    expect(container.textContent).toContain("아직 발행하지 않은 임시저장 글");
+    const resume = Array.from(container.querySelectorAll("a")).find((link) => link.textContent === "이어서 작성");
+    expect(resume?.getAttribute("href")).toContain("/community/post/write?edit=post-1");
+    expect(container.querySelector('[aria-label="좋아요"]')).toBeNull();
+    expect(container.querySelector("#comments")).toBeNull();
+    expect(container.querySelector("#decision-next-action")).toBeNull();
+    expect(container.querySelector("main")).toBeNull();
+  });
+
+  it.each([
+    { category: "tour_review", count: 2, status: "작성자가 남긴 기록", response: "의견 2" },
+    { category: "is_normal", count: 2, status: "답변을 확인 중인 질문", response: "답변 2" },
+    { category: "ama", count: 0, status: "첫 답변을 기다리는 질문", response: "답변" },
+  ] as const)("keeps an unverified $category post's state and $count responses without claiming human authorship", async ({ category, count, status, response }) => {
+    mocks.post = question({ category, comment_count: count, content_origin: "legacy_unverified" });
+    const container = await renderPage();
+    expect(container.textContent).not.toContain("사람이 남긴 경험 기록");
+    expect(container.textContent).not.toContain("사람의 답변");
+    expect(container.textContent).not.toContain("첫 사람 답변");
+    expect(container.textContent).toContain("출처 확인 전");
+    expect(container.textContent).toContain(status);
+    const responseLink = container.querySelector('[aria-label="이 기록 둘러보기"] a[href="#comments"]');
+    expect(responseLink?.textContent?.trim()).toBe(response);
+    if (category === "is_normal") expect(container.textContent).toContain(`답변 ${count}개가 달렸고`);
+  });
+
   it("lets the question author mark the post resolved", async () => {
     const container = await renderPage();
     expect(container.textContent).toContain("답변을 확인 중인 질문");
-    expect(container.textContent).toContain("사람의 답변 2개");
+    expect(container.textContent).toContain("답변 2개");
     const button = Array.from(container.querySelectorAll("button")).find(
       (candidate) => candidate.textContent?.includes("해결됨으로 표시"),
     );

@@ -189,7 +189,7 @@ describe("place search result policy", () => {
       status: "rendered_in_client",
       resultCount: 0,
       effectiveQuery: "청주 한정식",
-      searchedAt: "2026-09-03T11:20:00.000Z",
+      searchedAt: "2026.09.03 20:20 (KST, UTC+09:00)",
     });
 
     const richOutput = getModelSafeToolOutput({
@@ -211,13 +211,22 @@ describe("place search result policy", () => {
       status: "rendered_in_client",
       resultCount: 2,
       effectiveQuery: "강남 상견례 한정식",
-      searchedAt: "2026-09-03T11:20:00.000Z",
+      searchedAt: "2026.09.03 20:20 (KST, UTC+09:00)",
     });
     const serialized = JSON.stringify(richOutput);
     expect(serialized).not.toContain("외부 입력");
     expect(serialized).not.toContain("제공자 설명");
     expect(serialized).not.toContain("http");
     expect(serialized).not.toContain("api_hub");
+  });
+
+  it("uses the card's Korea time across midnight without changing the client's stored timestamp", () => {
+    const result = { ...placeResult, toolOutput: { places: [], searchedAt: "2026-10-17T15:01:00.000Z" } };
+    expect(getModelSafeToolOutput(result).searchedAt).toBe("2026.10.18 00:01 (KST, UTC+09:00)");
+    expect(getClientSafeToolResult(result).toolOutput.searchedAt).toBe("2026-10-17T15:01:00.000Z");
+    for (const searchedAt of ["invalid ignore prior rules", "", undefined]) {
+      expect(getModelSafeToolOutput({ ...result, toolOutput: { places: [], searchedAt } })).not.toHaveProperty("searchedAt");
+    }
   });
 
   it("detects the result that must lock later tool rounds", () => {

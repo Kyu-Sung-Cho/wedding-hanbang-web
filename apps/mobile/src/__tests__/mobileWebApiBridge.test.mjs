@@ -23,6 +23,16 @@ const REQUEST_ID = "11111111-1111-4111-8111-111111111111";
 const NONCE = "22222222-2222-4222-8222-222222222222";
 const DOCUMENT_URL = "https://vendor-preview.example.com/price/studio?region=seoul#filters";
 
+test("saved combo restore uses the pre-existing exact-path POST contract", () => {
+  const body = JSON.stringify({ operation: "restore", comboId: REQUEST_ID });
+  const request = { protocol: MOBILE_WEB_API_PROTOCOL, nonce: NONCE, documentUrl: DOCUMENT_URL,
+    id: REQUEST_ID, path: "/api/price/combos", method: "POST", headers: { "content-type": "application/json" }, body };
+  const parse = (value) => parseMobileWebApiRequest(JSON.stringify(value), NONCE, DOCUMENT_URL);
+  assert.deepEqual(parse(request), { id: REQUEST_ID, path: request.path, method: "POST", headers: request.headers, body });
+  assert.equal(parse({ ...request, path: `/api/price/combos?restore=${REQUEST_ID}` }), null);
+  assert.equal(parse({ ...request, method: "GET", body: undefined, headers: { "x-restore": "true" } }), null);
+});
+
 test("the native vendor bridge accepts only bounded allowlisted API requests", () => {
   assert.deepEqual(parseMobileWebApiRequest(JSON.stringify({
     protocol: MOBILE_WEB_API_PROTOCOL,

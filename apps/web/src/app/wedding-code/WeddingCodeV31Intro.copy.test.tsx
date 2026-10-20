@@ -96,7 +96,7 @@ describe("웨딩코드 v3.1 시작 화면 문구", () => {
     const initialEntry = defaultWeddingCodeEntry();
     expect(initialEntry.kind, "기본 진입이 v3.1 이 아니면 이 소개를 쓰는 화면이 바뀐다").toBe("v31");
     await act(async () => root.render(surface === "앱 라운지"
-      ? <LoungeWeddingCode shareOrigin="https://hanbang.ai" initialEntry={initialEntry} />
+      ? <LoungeWeddingCode shareOrigin="https://hanbang.ai" initialEntry={initialEntry} queryIsLegacy explicitLikert={false} researchContributionOpen={false} researchStorageActive={false} />
       : <WeddingCodeEntryClient shareOrigin="https://hanbang.ai" initialEntry={initialEntry} />));
   }
   const intro = () => container.querySelector<HTMLElement>(INTRO);

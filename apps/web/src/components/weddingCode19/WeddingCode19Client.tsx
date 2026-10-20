@@ -35,7 +35,12 @@ const ALL_CHARACTER_CODES = Object.keys(
   CHARACTER_PROFILES_19,
 ) as WeddingCode19Code[];
 
-export default function WeddingCode19Client() {
+export default function WeddingCode19Client({
+  embedded = false,
+}: {
+  embedded?: boolean;
+} = {}) {
+  const RootTag = embedded ? "div" : "main";
   const [step, setStep] = useState<FlowStep19>("intro");
   const [questionIndex, setQuestionIndex] = useState<number>(0); // 0..18 (Q1..Q19)
   const [answers, setAnswers] = useState<WeddingCode19Answers>({});
@@ -264,7 +269,7 @@ export default function WeddingCode19Client() {
   const progressPercent = Math.round((progressNumber / 19) * 100);
 
   return (
-    <main className="min-h-screen bg-[#FAF8F5] px-4 py-6 text-[#3A2A27] sm:py-10">
+    <RootTag className="min-h-screen bg-[#FAF8F5] px-4 py-6 text-[#3A2A27] sm:py-10">
       <div className="mx-auto w-full max-w-[480px]">
         {/* 상단 브랜드 헤더 */}
         <header className="mb-4 flex items-center justify-between">
@@ -1454,6 +1459,6 @@ export default function WeddingCode19Client() {
           </section>
         )}
       </div>
-    </main>
+    </RootTag>
   );
 }

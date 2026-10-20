@@ -1,4 +1,6 @@
 import type { PriceCatalog } from "./catalog";
+import { parseComboSelections } from "./comboStore";
+import { isUuid } from "@/utils/requestValidation";
 import type {
   ComboCategory,
   ComboSelection,
@@ -8,6 +10,35 @@ import type {
 const COMBO_CATEGORIES: readonly ComboCategory[] = ["studio", "dress", "makeup"];
 const MAX_MONEY_KRW = 1_000_000_000;
 const MAX_OPTIONS_PER_SELECTION = 50;
+
+export type SavedComboRestoreResult = {
+  selections: ComboSelections;
+  restoredCategories: ComboCategory[];
+  skippedCategories: ComboCategory[];
+};
+
+/** 복원 응답도 알 수 없는 네트워크 입력으로 검증하고, 품목 수와 실제 선택을 대조한다. */
+export function parseSavedComboRestorePayload(value: unknown, expectedComboId: string): SavedComboRestoreResult | null {
+  if (!isRecord(value) || value.sourceComboId !== expectedComboId || !isRecord(value.restore)) return null;
+  const result = value.restore;
+  const selections = parseComboSelections(result.selections);
+  const isCategoryList = (list: unknown): list is ComboCategory[] => Array.isArray(list)
+    && list.length <= 3 && new Set(list).size === list.length
+    && list.every((category) => COMBO_CATEGORIES.includes(category));
+  if (!selections || !isCategoryList(result.restoredCategories) || !isCategoryList(result.skippedCategories)) return null;
+  const restoredCategories = result.restoredCategories;
+  const skippedCategories = result.skippedCategories;
+  if (COMBO_CATEGORIES.some((category) => Boolean(selections[category]) !== restoredCategories.includes(category))
+    || skippedCategories.some((category) => restoredCategories.includes(category))) return null;
+  return { selections, restoredCategories, skippedCategories };
+}
+
+/** 기존 앱의 exact-path POST 계약 안에서 읽기 연산을 저장 요청과 엄격히 구분한다. */
+export function parseSavedComboRestoreRequest(value: unknown): { comboId: string } | null {
+  if (!isRecord(value) || Object.keys(value).length !== 2
+    || value.operation !== "restore" || !isUuid(value.comboId)) return null;
+  return { comboId: value.comboId };
+}
 
 type SavedSelection = {
   vendorId: string;
@@ -135,6 +166,9 @@ export function restoreSavedComboAgainstCatalog(
     const offer = vendor?.offers.find((candidate) => (
       candidate.agencyId === savedSelection.agencyId
       && candidate.minimumKrw === savedSelection.baseKrw
+      && savedSelection.selectedOptions.every((savedOption) => candidate.options.some((option) => (
+        option.name === savedOption.name && option.minimumKrw === savedOption.krw
+      )))
     ));
     const selectedOptions = offer
       ? savedSelection.selectedOptions.flatMap((savedOption) => {

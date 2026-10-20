@@ -10,6 +10,9 @@ import {
 } from "@/lib/priceCombo/serverValidation";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClientFromRequest } from "@/lib/supabase/server";
+import { createPublicClient } from "@/lib/supabase/public";
+import { loadSavedComboRestoreCatalog } from "@/lib/price/savedComboCatalog";
+import { parseLatestSavedComboPayload, parseSavedComboRestoreRequest, restoreSavedComboAgainstCatalog } from "@/lib/price/savedComboRestore";
 import { mobileBridgeJson as boundedMobileBridgeJson } from "@/lib/mobile/boundedJsonResponse";
 import { checkRateLimit, rateLimitKey } from "@/utils/rateLimit";
 import {
@@ -79,6 +82,22 @@ export async function GET(request: Request) {
   return mobileBridgeJson({ combos: data ?? [] });
 }
 
+async function restoreOwnerCombo(supabase: Awaited<ReturnType<typeof createClientFromRequest>>, userId: string, comboId: string) {
+  try {
+    const { data: row, error: rowError } = await supabase.from("combos")
+      .select("id, name, selections, created_at").eq("user_id", userId).eq("id", comboId).maybeSingle();
+    if (rowError) return mobileBridgeJson({ error: "저장한 조합을 확인하지 못했어요. 잠시 후 다시 시도해 주세요." }, { status: 503 });
+    if (!row) return mobileBridgeJson({ error: "저장한 조합을 찾을 수 없습니다." }, { status: 404 });
+    const parsed = parseLatestSavedComboPayload({ combos: [row] });
+    if (!parsed.ok || !parsed.combo || parsed.combo.id !== comboId) return mobileBridgeJson({ error: "저장한 조합 정보를 확인하지 못했습니다." }, { status: 503 });
+    const catalog = await loadSavedComboRestoreCatalog(createPublicClient(), parsed.combo);
+    return mobileBridgeJson({ sourceComboId: parsed.combo.id, restore: restoreSavedComboAgainstCatalog(parsed.combo, catalog) });
+  } catch {
+    log.error("api/price/combos:restore");
+    return mobileBridgeJson({ error: "현재 공개 가격을 확인하지 못했어요. 잠시 후 다시 불러와 주세요." }, { status: 503 });
+  }
+}
+
 export async function POST(request: Request) {
   if (!isTrustedMutationRequest(request)) {
     return mobileBridgeJson(
@@ -96,12 +115,6 @@ export async function POST(request: Request) {
   if (!user) {
     return mobileBridgeJson({ error: "로그인이 필요합니다." }, { status: 401 });
   }
-
-  const limited = checkRateLimit(rateLimitKey("price-combos:create", request, user.id), {
-    maxRequests: 20,
-    windowMs: 60 * 1000,
-  });
-  if (limited) return limited;
 
   const bodyResult = await readBoundedUtf8Text(request, MAX_BODY_BYTES);
   if (!bodyResult.ok) {
@@ -121,6 +134,17 @@ export async function POST(request: Request) {
     unknownBody = JSON.parse(rawBody) as unknown;
   } catch {
     return mobileBridgeJson({ error: "JSON 형식이 올바르지 않습니다." }, { status: 400 });
+  }
+  const isRestore = typeof unknownBody === "object" && unknownBody !== null
+    && Object.prototype.hasOwnProperty.call(unknownBody, "operation");
+  const limited = checkRateLimit(rateLimitKey(isRestore ? "price-combos:restore" : "price-combos:create", request, user.id), {
+    maxRequests: 20, windowMs: 60 * 1000,
+  });
+  if (limited) return mobileBridgeJson({ error: "요청이 많아요. 잠시 후 다시 시도해 주세요." }, { status: limited.status, headers: limited.headers });
+  if (isRestore) {
+    const restore = parseSavedComboRestoreRequest(unknownBody);
+    if (!restore) return mobileBridgeJson({ error: "조합 복원 요청이 올바르지 않습니다." }, { status: 400 });
+    return restoreOwnerCombo(supabase, user.id, restore.comboId);
   }
   const body = parseComboSaveBody(unknownBody);
   if (!body) {

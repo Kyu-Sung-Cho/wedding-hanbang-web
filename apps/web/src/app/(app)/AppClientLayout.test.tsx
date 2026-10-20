@@ -242,7 +242,7 @@ describe("AppClientLayout global Amora panel", () => {
     mocks.pathname = "/wedding/settings";
     await renderLayout();
     expect(container.querySelector(".amora-workspace main")).toBeNull();
-    expect(container.querySelector(".hanbang-service-theme:not(.amora-workspace):not(.planning-workspace) main")).not.toBeNull();
+    expect(container.querySelector(".planning-workspace main")).not.toBeNull();
     expect(container.querySelectorAll('button[aria-label="아모라 AI 상담"]')).toHaveLength(1);
     expect(container.querySelector('nav[aria-label="모바일 주요 기능"]')).toBeNull();
   });

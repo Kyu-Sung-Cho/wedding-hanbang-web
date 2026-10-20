@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { ImageResponse } from "next/og";
 
 import { krwRangeLabel } from "@/lib/format/krw";
+import { disclosureRoundLabel } from "@/lib/price/period";
 import { createPublicClient } from "@/lib/supabase/public";
 import { loadPublicVendorPriceProfile } from "@/lib/vendors/publicVendorPriceData";
 
@@ -41,7 +42,8 @@ export default async function OpenGraphImage({
   const maximums = currentPrices.flatMap((price) => (
     price.price_max_krw === null ? [] : [price.price_max_krw]
   ));
-  const range = krwRangeLabel(
+  const hasHallItemPrices = profile?.vendor.category === "hall" && (minimums.length > 0 || maximums.length > 0);
+  const range = hasHallItemPrices ? "항목별 공시 확인" : krwRangeLabel(
     minimums.length > 0 ? Math.min(...minimums) : null,
     maximums.length > 0 ? Math.max(...maximums) : null,
   );
@@ -49,7 +51,7 @@ export default async function OpenGraphImage({
   const category = profile
     ? CATEGORY_LABELS[profile.vendor.category] ?? "웨딩 업체"
     : "공시 가격 비교";
-  const period = currentPrices[0]?.period_label ?? "최신 발행분";
+  const period = currentPrices.length > 0 ? disclosureRoundLabel() : "최신 발행분";
 
   return new ImageResponse(
     (

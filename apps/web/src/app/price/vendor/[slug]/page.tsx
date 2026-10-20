@@ -148,13 +148,16 @@ export async function generateMetadata({
   const maximums = rangeSource.flatMap((price) => (
     price.price_max_krw === null ? [] : [price.price_max_krw]
   ));
-  const range = krwRangeLabel(
+  const hasHallItemPrices = profile.vendor.category === "hall" && (minimums.length > 0 || maximums.length > 0);
+  const range = hasHallItemPrices ? "항목별 공시 확인" : krwRangeLabel(
     minimums.length > 0 ? Math.min(...minimums) : null,
     maximums.length > 0 ? Math.max(...maximums) : null,
   );
   return {
     title: `${profile.vendor.displayName} 공시 가격 | 웨딩한방`,
-    description: `${region ? `${region} ` : ""}${category} ${profile.vendor.displayName}의 공시 가격 ${range}${withParticle(range)} 공개 근거를 확인하세요.`,
+    description: hasHallItemPrices
+      ? `${region ? `${region} ` : ""}${category} ${profile.vendor.displayName} · 항목별 공시 확인 및 공개 근거 안내.`
+      : `${region ? `${region} ` : ""}${category} ${profile.vendor.displayName}의 공시 가격 ${range}${withParticle(range)} 공개 근거를 확인하세요.`,
     // 형제 슬러그마다 같은 내용이 뜨므로 대표 주소 하나로 모은다.
     alternates: { canonical: `/price/vendor/${profile.identity.canonicalSlug}` },
     openGraph: {

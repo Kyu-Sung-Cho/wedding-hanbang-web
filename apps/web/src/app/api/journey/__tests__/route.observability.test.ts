@@ -16,9 +16,9 @@ vi.mock("@/lib/supabase/admin", () => ({
 vi.mock("@/lib/supabase/server", () => ({
   createClientFromRequest: async () => ({
     auth: { getUser: async () => ({ data: { user: { id: USER_ID } } }) },
-    from: () => ({
+    from: (table: string) => ({
       select: () => ({
-        eq: () => ({ single: async () => ({ data: { couple_id: COUPLE_ID }, error: null }) }),
+        eq: () => ({ single: async () => ({ data: table === "wedding_journeys" ? { progress: {}, state_revision: 7 } : { couple_id: COUPLE_ID }, error: null }) }),
       }),
     }),
   }),

@@ -2,6 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { ToolExecutionResult } from "@/types/database.types";
 import { disclosureRoundLabel, displaySourceLabel } from "@/lib/price/period";
 import { priceRegionLabel } from "@/lib/price/labels";
+import { MARKET_PRICE_CATEGORY_KEYS } from "@/lib/ai/marketPriceRequestScope";
 import {
   analyzeAmoraQuoteCheck,
   getQuoteCheckItems,
@@ -15,7 +16,7 @@ import {
  * 공시 자료가 없으므로 통계를 만들지 않는다 — 없는 표본에서 평균을 내면 그게 곧
  * 지어낸 수치다.
  */
-const MARKET_PRICE_CATEGORIES = new Set(["hall", "studio", "dress", "makeup"]);
+const MARKET_PRICE_CATEGORIES = new Set<string>(MARKET_PRICE_CATEGORY_KEYS);
 
 const MARKET_PRICE_SOURCE_FALLBACK = "한국소비자원 참가격";
 const MARKET_PRICE_ROW_LIMIT = 2_000;
@@ -146,7 +147,8 @@ export async function executeGetMarketPrice(
       .select("price_min_krw,price_max_krw,source_label,region_code,item_name")
       .eq("is_current", true)
       .eq("price_category", category);
-    if (region) q = q.eq("region_code", region);
+    if (region === "seoul") q = q.in("region_code", ["seoul_gangnam3", "seoul_etc"]);
+    else if (region) q = q.eq("region_code", region);
     return q;
   };
 
@@ -198,7 +200,8 @@ export async function executeGetMarketPrice(
   // 좁히는 것 자체는 막지 않는다 — 예식장이 강남이면 강남값이 더 맞다. 막는 것은
   // **좁힌 사실이 문장에서 빠지는 것**이다. `toolOutput.region` 은 예전에도 있었지만
   // 모델이 그걸 옮겨 적어야만 사용자에게 닿았고, 실제로는 옮겨 적지 않았다.
-  const scope = region ? priceRegionLabel(region) : "전국";
+  const scope = region === "seoul" ? "서울 전체(강남·서초·송파 및 그 외 서울)"
+    : region ? priceRegionLabel(region) : "전국";
 
   const emptyResult: ToolExecutionResult = {
     toolName: "get_market_price",

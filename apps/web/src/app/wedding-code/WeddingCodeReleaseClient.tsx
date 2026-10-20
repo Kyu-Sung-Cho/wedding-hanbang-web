@@ -40,9 +40,10 @@ function createHashStore() {
   };
 }
 
-export default function WeddingCodeReleaseClient({ queryIsLegacy, explicitLikert = false, ...legacyProps }: {
+export default function WeddingCodeReleaseClient({ queryIsLegacy, explicitLikert = false, embedded = false, ...legacyProps }: {
   queryIsLegacy: boolean;
   explicitLikert?: boolean;
+  embedded?: boolean;
   shareOrigin: string;
   initialEntry: WeddingCodeEntry;
   researchContributionOpen: boolean;
@@ -50,13 +51,14 @@ export default function WeddingCodeReleaseClient({ queryIsLegacy, explicitLikert
 }) {
   const store = useMemo(() => createHashStore(), []);
   const hash = useSyncExternalStore(store.subscribe, store.getSnapshot, serverHash);
-  if (hash === null && !queryIsLegacy) return <main className="flex min-h-[60vh] items-center justify-center bg-[var(--ivory-50)] px-5 text-sm text-[var(--hb-text-body)]" role="status">웨딩코드를 불러오고 있어요.</main>;
+  const Root = embedded ? "div" : "main";
+  if (hash === null && !queryIsLegacy) return <Root className="flex min-h-[60vh] items-center justify-center bg-[var(--ivory-50)] px-5 text-sm text-[var(--hb-text-body)]" role="status">웨딩코드를 불러오고 있어요.</Root>;
   const target = weddingCodeReleaseTarget(queryIsLegacy, hash ?? "", explicitLikert);
-  if (target === "legacy") return <LegacyEntry {...legacyProps} />;
-  if (target === "likert") return <WeddingCodeLikertClient />;
+  if (target === "legacy") return <LegacyEntry {...legacyProps} embedded={embedded} />;
+  if (target === "likert") return <WeddingCodeLikertClient embedded={embedded} />;
   const searchParams = typeof window !== "undefined" ? new URLSearchParams(window.location.search) : null;
-  if (searchParams?.has("ct") || searchParams?.get("v") === "36") {
-    return <WeddingCodeClient />;
+  if ((embedded && !searchParams?.has("partner") && searchParams?.get("v") !== "19") || searchParams?.has("ct") || searchParams?.get("v") === "36") {
+    return <WeddingCodeClient embedded={embedded} />;
   }
-  return <WeddingCode19Client />;
+  return <WeddingCode19Client embedded={embedded} />;
 }

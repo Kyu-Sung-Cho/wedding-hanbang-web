@@ -25,6 +25,41 @@ function candidate(category: PriceCategory, index: number, minimumKrw: number): 
 }
 
 describe("findBudgetCombinations", () => {
+  it("excludes parent-only makeup before selecting the cheapest offer but keeps bridal makeup", () => {
+    const makeup = candidate("makeup", 0, 100_000);
+    makeup.offers[0].itemName = "메이크업 (혼주)";
+    makeup.offers.push({
+      ...makeup.offers[0], id: "bridal", itemName: "신랑·신부 본식 메이크업",
+      minimumKrw: 500_000, maximumKrw: 500_000,
+      priceNote: "혼주 메이크업은 별도 문의",
+    });
+    const results = findBudgetCombinations({
+      catalogs: {
+        studio: [candidate("studio", 0, 1_000_000)],
+        dress: [candidate("dress", 0, 800_000)],
+        makeup: [makeup],
+      },
+      budgetMaximumKrw: 3_000_000,
+    });
+    expect(results).toHaveLength(1);
+    expect(results[0].makeup.baseKrw).toBe(500_000);
+    expect(results[0].totalKrw).toBe(2_300_000);
+  });
+
+  it("does not manufacture a bridal combination when only parent makeup is available", () => {
+    const makeup = candidate("makeup", 0, 100_000);
+    makeup.name = "QA 샵: 메이크업 (혼주)";
+    const results = findBudgetCombinations({
+      catalogs: {
+        studio: [candidate("studio", 0, 1_000_000)],
+        dress: [candidate("dress", 0, 800_000)],
+        makeup: [makeup],
+      },
+      budgetMaximumKrw: 3_000_000,
+    });
+    expect(results).toEqual([]);
+  });
+
   it("returns the cheapest feasible combinations first without exceeding the budget", () => {
     const results = findBudgetCombinations({
       catalogs: {

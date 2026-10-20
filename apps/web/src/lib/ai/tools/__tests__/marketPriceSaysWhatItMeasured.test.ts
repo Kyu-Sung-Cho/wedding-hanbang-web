@@ -72,6 +72,51 @@ function client(rows: Row[]) {
 const say = (r: { displayMessage?: string }) => r.displayMessage ?? "";
 
 describe("잰 범위가 수치와 같은 문장에 있다", () => {
+  it("서울 전체는 서울 두 공시 코드를 함께 읽고 다른 지역은 섞지 않는다", async () => {
+    const rows = [
+      { ...row(1_000_000, "스튜디오 촬영"), region_code: "seoul_gangnam3" },
+      { ...row(3_000_000, "스튜디오 촬영"), region_code: "seoul_etc" },
+      { ...row(9_000_000, "스튜디오 촬영"), region_code: "busan" },
+    ];
+    const filters: Array<[string, unknown]> = [];
+    const from = () => {
+      let regions: string[] | null = null;
+      const api = {
+        select: () => api,
+        eq: (column: string, value: unknown) => {
+          filters.push([column, value]);
+          if (column === "region_code") regions = [String(value)];
+          return api;
+        },
+        in: (column: string, values: string[]) => {
+          filters.push([column, values]);
+          if (column === "region_code") regions = values;
+          return api;
+        },
+        range: async (start: number, end: number) => ({ data: rows.filter((entry) => !regions || regions.includes(entry.region_code)).slice(start, end + 1), error: null }),
+      };
+      return api;
+    };
+    const result = await executeGetMarketPrice({ category: "studio", region: "seoul" }, { from } as never);
+    expect(result.success).toBe(true);
+    expect(result.toolOutput).toMatchObject({ region: "seoul", sampleCount: 2, minKrw: 1_000_000, medianKrw: 2_000_000, maxKrw: 3_000_000 });
+    expect(filters).toContainEqual(["region_code", ["seoul_gangnam3", "seoul_etc"]]);
+    expect(result.displayMessage).toContain("서울 전체");
+    for (const [region, price] of [["seoul_gangnam3", 1_000_000], ["seoul_etc", 3_000_000]] as const) {
+      filters.length = 0;
+      const subset = await executeGetMarketPrice({ category: "studio", region }, { from } as never);
+      expect(subset.toolOutput).toMatchObject({ region, sampleCount: 1, minKrw: price, medianKrw: price, maxKrw: price });
+      expect(filters).toContainEqual(["region_code", region]);
+      expect(filters.some(([, value]) => Array.isArray(value))).toBe(false);
+      expect(subset.displayMessage).not.toContain("서울 전체");
+    }
+    filters.length = 0;
+    const national = await executeGetMarketPrice({ category: "studio", region: null, itemType: null }, { from } as never);
+    expect(national.toolOutput).toMatchObject({ region: null, sampleCount: 3, minKrw: 1_000_000, medianKrw: 3_000_000, maxKrw: 9_000_000 });
+    expect(filters.some(([column]) => column === "region_code")).toBe(false);
+    expect(national.displayMessage).toContain("전국");
+  });
+
   it("지역을 넣으면 그 지역 이름이 문장에 나온다 — 라이브에서 빠졌던 것", async () => {
     const { client: c } = client(Array.from({ length: 41 }, () => row(7_700_000)));
 

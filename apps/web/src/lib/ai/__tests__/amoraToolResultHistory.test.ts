@@ -78,6 +78,14 @@ function cardData(content: string): Record<string, unknown>[] {
   return JSON.parse(content.slice(start + marker.length));
 }
 
+it("preserves Seoul-wide official-price scope with its actual price statistics in follow-up history", () => {
+  const result = appendAmoraToolResultHistory("", [{
+    toolName: "get_market_price", success: true,
+    toolOutput: { category: "studio", region: "seoul", source: "한국소비자원 참가격", period: "2025년 11월", sampleCount: 2, minKrw: 1_000_000, medianKrw: 2_000_000, maxKrw: 3_000_000 },
+  }]);
+  expect(cardData(result)[0]).toMatchObject({ region: "seoul", sampleCount: 2, minKrw: 1_000_000, medianKrw: 2_000_000, maxKrw: 3_000_000 });
+});
+
 function bound(input: Row[]): AmoraBoundedContinuityResult | null {
   const current = input[0].content;
   const names = ["isDemo", "requestKind", "isDurableUserMessageBound", "weddingClarificationContinuityWithFallback", "questionScope", "bodyUserMessageId", "shouldLoadBoundedContinuity", "buildAmoraBoundedContinuity", "selectAmoraTrustedHistoryRows", "boundedContinuityRows", "visibility", "lastUserText", "actorId", "boundedContinuitySegmentId", "appendAmoraBoundedToolResultHistory", "stripAmoraInternalArtifacts", "withAmoraBudgetPlanCardLines", "AMORA_BOUNDED_CONTINUITY_WINDOW_MAX_ROWS"];

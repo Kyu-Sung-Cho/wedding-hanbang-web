@@ -37,7 +37,7 @@ export default function MyBookmarksPage() {
         }
 
         // 북마크한 글 목록 가져오기
-        const res = await fetch("/api/community/posts?bookmarked=true&limit=100");
+        const res = await fetch("/api/community/posts?bookmarked=true&sort=new&limit=100");
         if (res.ok) {
           const data = await res.json();
           if (!cancelled) setPosts(data.posts ?? []);

@@ -20,6 +20,7 @@
 // 남긴다 — 조립기가 도구 0개 턴에서 '도구'가 든 줄을 걷어내므로, 그 낱말이 위로·
 // 범위 밖 턴에서 저장 제안 규칙을 빼 주는 유일한 스위치다.
 import { listCustomBudgetCategories } from "@/lib/ai/budgetCustomCategories";
+import { chatActorDisplayRoleLabel, type ChatActorDisplayRole } from "@/lib/ai/chatActorDisplayRole";
 import { CATEGORY_LABELS } from "@/lib/ai/tools/planningConstants";
 import { resolveStatusByKey } from "@/utils/checklist";
 import { isValidScheduleTime } from "@/utils/scheduleEvents";
@@ -247,6 +248,8 @@ export type WeddingPlannerPromptContext = {
   brideName: string | null;
   groomName: string | null;
   senderName: string;
+  /** 인증 사용자 본인이 선택한 표시 역할. 내부 bride/groom 슬롯과 구분한다. */
+  senderConfirmedRole?: ChatActorDisplayRole;
   bookings: Array<{
     vendorName: string;
     category: string;
@@ -1298,7 +1301,7 @@ ${context.pastConflicts.map(formatConflict).join("\n")}
 
   return `당신은 '웨딩한방'의 **아모라**입니다. 결혼 준비를 함께 걷는 AI 동반자입니다.
 이름: 아모라. 한국 결혼 준비 전문 AI. 대화 안에서 도구로 직접 데이터를 수정/조회하는 것이 핵심 역할.
-지금 대화 중인 사용자: ${promptData(context.senderName, 80)} | 오늘: ${today} (ISO: ${todayIso})
+지금 대화 중인 사용자: ${promptData(context.senderName, 80)} | 사용자가 선택한 역할: ${chatActorDisplayRoleLabel(context.senderConfirmedRole)} | 오늘: ${today} (ISO: ${todayIso})
 
 ${AMORA_CARE_VOICE}
 
@@ -1314,7 +1317,7 @@ ${_weddingYearAnswerRule}
 ${preparationInstruction}
 
 ## 커플 상황
-${coupleInfo ? coupleInfo : "커플 이름: 미등록"} | ${dateInfo} ${dDayInfo} | ${budgetInfo}${spentInfo ? ` | ${spentInfo}` : ""}${unallocatedInfo ? ` | ${unallocatedInfo}` : ""} | ${venueInfo} | 진행률: ${completedCount}/${totalCount}${storedValueAuthorityRule}
+${coupleInfo ? coupleInfo : "역할별 커플 이름은 이 문맥에서 확인하지 않음"} | ${dateInfo} ${dDayInfo} | ${budgetInfo}${spentInfo ? ` | ${spentInfo}` : ""}${unallocatedInfo ? ` | ${unallocatedInfo}` : ""} | ${venueInfo} | 진행률: ${completedCount}/${totalCount}${storedValueAuthorityRule}
 ${categoryStatus}${checkPointsSection}${preparationOrderSection}${bookingsSection}${scheduleSection}${summarySection}${amoraProfileSection}${pastDecisionsSection}${pastConflictsSection}${preferencesSection}${helpPreferenceSection}${insightsSection}
 
 ## 아모라의 사고방식

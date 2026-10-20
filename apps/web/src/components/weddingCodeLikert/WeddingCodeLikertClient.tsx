@@ -16,7 +16,8 @@ import CoupleReport from "./CoupleReport";
 
 type Pair = { first: Snapshot; second: Snapshot };
 
-export default function WeddingCodeLikertClient() {
+export default function WeddingCodeLikertClient({ embedded = false }: { embedded?: boolean } = {}) {
+  const Root = embedded ? "div" : "main";
   const [draft, setDraft] = useState<Draft>(() => createDraft());
   const [saved, setSaved] = useState<Draft | null>(null);
   const [loaded, setLoaded] = useState(false);
@@ -218,7 +219,7 @@ export default function WeddingCodeLikertClient() {
     setStorageStatus("이 개편본의 저장과 현재 답을 지웠어요. 받은 링크에 담긴 답과 이미 전달한 링크는 그대로예요.");
   }
 
-  return <main className="min-h-screen bg-[var(--ivory-50)] text-[var(--noir-900)]"
+  return <Root className="min-h-screen bg-[var(--ivory-50)] text-[var(--noir-900)]"
     data-wedding-code-version={MEASUREMENT_VERSION} data-expression-version={EXPRESSION_VERSION}>
     <header className="border-b border-[var(--ivory-200)] bg-[var(--ivory-50)]">
       <div className="mx-auto flex min-h-20 max-w-6xl items-center justify-between gap-4 px-5 sm:px-8">
@@ -279,7 +280,7 @@ export default function WeddingCodeLikertClient() {
     <footer className="mx-auto max-w-6xl px-5 py-8 text-center text-xs leading-6 text-[var(--taupe-500)]">
       내 답에서 시작하는 결혼 준비 대화 · 웨딩한방
     </footer>
-  </main>;
+  </Root>;
 }
 
 function SharingPanel({ answers, inviter, onReady, onCompare }: {

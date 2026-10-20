@@ -47,6 +47,7 @@ import type {
 import { weddingLinkProps } from "@/lib/weddingPaths";
 import { formatLoungeWon } from "@/lib/amora/loungeSummary";
 import { CONTACT } from "@/lib/constants/contact";
+import { formatWeddingBudgetCeiling, parseWeddingBudgetManwonInput } from "@/lib/weddingBudget";
 import TodayOnePreferenceControl from "@/components/app/TodayOnePreferenceControl";
 import InviteCodePanel from "@/components/invite/InviteCodePanel";
 import { ACCOUNT_DELETION_FACTS } from "@hanbang/shared/constants";
@@ -95,6 +96,13 @@ type EditField = "name" | "date" | "venue" | "budget";
 /** 재발급이 실패했을 때. 코드가 사라진 이유를 말하고 다음 행동을 준다. */
 const REGENERATE_FAILED =
   "초대 코드를 다시 만들지 못했어요. 연결 상태를 다시 불러오는 중이에요 — 잠시 뒤 화면을 확인해 주세요.";
+
+function preferenceOwnerKey(state: Pick<ReturnType<typeof useAuthStore.getState>, "user" | "profile" | "couple" | "journey" | "isDemo">) {
+  return JSON.stringify([
+    state.isDemo, state.user?.id, state.profile?.id, state.profile?.couple_id,
+    state.couple?.id, state.journey?.id, state.journey?.couple_id,
+  ]);
+}
 
 export default function SettingsPage() {
   const {
@@ -228,6 +236,7 @@ export default function SettingsPage() {
   const [resetWeddingError, setResetWeddingError] = useState("");
   const [draftPrefs, setDraftPrefs] = useState<WeddingPreferenceState>({});
   const [preferenceSaving, setPreferenceSaving] = useState(false);
+  const preferenceRequest = useRef<object | null>(null);
   const [revokingLegacyCareConsent, setRevokingLegacyCareConsent] = useState(false);
   const [legacyCareConsentError, setLegacyCareConsentError] = useState("");
 
@@ -430,10 +439,9 @@ export default function SettingsPage() {
 
   // 예산 저장
   const saveBudget = async () => {
-    // 예산 화면(BudgetContent handleTotalBudgetSave)과 같은 규칙: 소수 만원을 받고 원 단위로 반올림한다.
-    const value = Math.round(parseFloat(budgetInput) * 10000);
-    if (!Number.isSafeInteger(value) || value <= 0) {
-      setBudgetError("0보다 큰 금액을 넣어주세요.");
+    const value = parseWeddingBudgetManwonInput(budgetInput);
+    if (value === null) {
+      setBudgetError(`0보다 크고 ${formatWeddingBudgetCeiling()} 이하인 금액을 만원 단위로 입력해 주세요. 소수점 아래 네 자리까지 입력할 수 있어요.`);
       return;
     }
     setBudgetError("");
@@ -499,16 +507,47 @@ export default function SettingsPage() {
     setDraftPrefs(prefs ?? {});
   }, [prefs]);
 
+  const preferenceOwner = preferenceOwnerKey({ user, profile, couple, journey, isDemo });
+  useEffect(() => {
+    let owner = preferenceOwnerKey(useAuthStore.getState());
+    // 같은 계정으로 다시 돌아와도 이전 요청을 재사용하지 않는다.
+    const unsubscribe = useAuthStore.subscribe((state) => {
+      const nextOwner = preferenceOwnerKey(state);
+      if (nextOwner === owner) return;
+      owner = nextOwner;
+      preferenceRequest.current = null;
+      setPreferenceSaving(false);
+      const confirmedPrefs = (state.journey?.progress as Record<string, unknown> | undefined)
+        ?.__preferences as WeddingPreferenceState | undefined;
+      setDraftPrefs(confirmedPrefs ?? {});
+      setJourneyError("");
+      setJourneyNotice("");
+    });
+    return () => {
+      unsubscribe();
+      preferenceRequest.current = null;
+    };
+  }, []);
+
+  const restoreConfirmedPreferences = () => {
+    const progress = useAuthStore.getState().journey?.progress as Record<string, unknown> | undefined;
+    setDraftPrefs((progress?.__preferences as WeddingPreferenceState | undefined) ?? {});
+  };
+
   const updatePreferences = async (
-    partial: Partial<{
-      weddingStyle: WeddingStyle | null;
-      priorities: PriorityItem[];
-      budgetTendency: BudgetTendency | null;
-      guestCount: GuestCount | null;
-    }>
+    select: (confirmed: WeddingPreferenceState) => WeddingPreferenceState,
   ) => {
-    const currentProgress = (journey?.progress ?? {}) as Record<string, unknown>;
-    const nextPrefs = { ...draftPrefs, ...partial };
+    // disabled 렌더 전 같은 이벤트 묶음에서 들어오는 클릭도 차단한다.
+    const currentState = useAuthStore.getState();
+    if (preferenceRequest.current || preferenceOwner !== preferenceOwnerKey(currentState)) return;
+    const request = {};
+    preferenceRequest.current = request;
+    const isCurrentRequest = () => preferenceRequest.current === request
+      && preferenceOwner === preferenceOwnerKey(useAuthStore.getState());
+    // 다른 화면·공유 갱신 뒤 아직 이전 handler가 남아 있어도 최신 정본에 합친다.
+    const currentProgress = (currentState.journey?.progress ?? {}) as Record<string, unknown>;
+    const confirmedPrefs = (currentProgress.__preferences as WeddingPreferenceState | undefined) ?? {};
+    const nextPrefs = { ...confirmedPrefs, ...select(confirmedPrefs) };
     setDraftPrefs(nextPrefs);
     setPreferenceSaving(true);
     setJourneyError("");
@@ -517,28 +556,34 @@ export default function SettingsPage() {
       const result = await updateJourney({
         progress: { ...currentProgress, __preferences: nextPrefs } as never,
       });
+      if (!isCurrentRequest()) return;
       if (result.status === "pending_partner") {
-        setDraftPrefs(prefs ?? {});
+        restoreConfirmedPreferences();
         setJourneyNotice(
           `${result.summary} 상대방에게 확인 요청을 보냈어요. 두 분 확인 전에는 반영되지 않습니다.`,
         );
       }
     } catch (error) {
-      setDraftPrefs(prefs ?? {});
+      if (!isCurrentRequest()) return;
+      restoreConfirmedPreferences();
       setJourneyError(
         error instanceof Error
           ? error.message
           : "웨딩 선호도를 저장하지 못했습니다.",
       );
     } finally {
-      setPreferenceSaving(false);
+      if (preferenceRequest.current === request) {
+        preferenceRequest.current = null;
+        setPreferenceSaving(false);
+      }
     }
   };
 
   const togglePriority = async (value: PriorityItem) => {
-    const cur = draftPrefs.priorities ?? [];
-    const next = cur.includes(value) ? cur.filter((p) => p !== value) : [...cur, value];
-    await updatePreferences({ priorities: next });
+    await updatePreferences((confirmed) => {
+      const current = confirmed.priorities ?? [];
+      return { priorities: current.includes(value) ? current.filter((p) => p !== value) : [...current, value] };
+    });
   };
 
   const DELETE_REASONS = [
@@ -653,7 +698,7 @@ export default function SettingsPage() {
   const partnerRole = partner?.confirmed_role === "bride" ? "신부" : partner?.confirmed_role === "groom" ? "신랑" : "";
 
   return (
-    <div className="max-w-[700px] mx-auto bg-[#FAFAF8]">
+    <div className="max-w-[700px] mx-auto bg-[var(--hb-surface-page)]">
       {/* 페이지 제목 */}
       <h1 className="font-serif-kr text-[var(--hb-text-strong)] mb-6 animate-fade-in">설정</h1>
 
@@ -678,7 +723,7 @@ export default function SettingsPage() {
       <motion.div
         {...fadeIn}
         transition={{ duration: 0.5 }}
-        className="bg-white rounded-[6px] shadow-[var(--shadow-raised)] p-5 sm:p-8 mb-6"
+        className="bg-white rounded-[6px] border border-[var(--hb-hairline)] p-5 sm:p-8 mb-6"
       >
         <div className="flex flex-wrap items-center gap-4 mb-3">
           <ProfileAvatar name={profile?.name} label={userName} avatarUrl={profile?.avatar_url} size={80} />
@@ -689,6 +734,8 @@ export default function SettingsPage() {
                   <input
                     type="text"
                     aria-label="이름"
+                    aria-invalid={Boolean(nameError)}
+                    aria-describedby={nameError ? "settings-name-error" : undefined}
                     value={nameInput}
                     onChange={(e) => {
                       setNameInput(e.target.value);
@@ -705,7 +752,7 @@ export default function SettingsPage() {
                     <X className="w-5 h-5" />
                   </button>
                 </div>
-                {nameError && <p role="alert" className="mt-2 text-sm text-[#9A3F3F]">{nameError}</p>}
+                {nameError && <p id="settings-name-error" role="alert" className="mt-2 text-sm text-[#9A3F3F]">{nameError}</p>}
               </div>
             ) : (
               <div className="flex items-center gap-2">
@@ -825,10 +872,11 @@ export default function SettingsPage() {
                   <div className="flex items-center gap-1.5 mt-1">
                     <div className="flex items-center">
                       <input
-                        type="number"
+                        type="text"
+                        inputMode="decimal"
                         aria-label="설정 예산(만원 단위)"
-                        min="0.0001"
-                        step="0.0001"
+                        aria-invalid={Boolean(budgetError)}
+                        aria-describedby={budgetError ? "settings-budget-error" : undefined}
                         value={budgetInput}
                         onChange={(e) => {
                           setBudgetInput(e.target.value);
@@ -847,7 +895,7 @@ export default function SettingsPage() {
                       <X className="w-4 h-4" />
                     </button>
                   </div>
-                  {budgetError && <p role="alert" className="mt-2 text-xs leading-relaxed text-[#9A3F3F]">{budgetError}</p>}
+                  {budgetError && <p id="settings-budget-error" role="alert" className="mt-2 text-xs leading-relaxed text-[#9A3F3F]">{budgetError}</p>}
                 </div>
               ) : (
                 <div className="flex items-center gap-1.5">
@@ -873,7 +921,7 @@ export default function SettingsPage() {
       <motion.div
         {...fadeIn}
         transition={{ duration: 0.5, delay: 0.03 }}
-        className="bg-white rounded-[6px] shadow-[var(--shadow-raised)] p-8 mb-6"
+        className="bg-white rounded-[6px] border border-[var(--hb-hairline)] p-8 mb-6"
       >
         <div className="flex items-center gap-3 mb-5">
           <div className="w-11 h-11 shrink-0 rounded-[6px] bg-gradient-to-br from-[var(--hb-primary)] to-[var(--hb-primary-hover)] flex items-center justify-center shadow-[var(--shadow-raised)]">
@@ -904,8 +952,12 @@ export default function SettingsPage() {
                 return (
                   <button
                     key={opt.value}
-                    onClick={() => updatePreferences({ weddingStyle: selected ? null : opt.value })}
-                    className={`px-4 py-2 rounded-[6px] text-sm font-medium transition-all ${
+                    aria-pressed={selected}
+                    disabled={preferenceSaving}
+                    onClick={() => updatePreferences((confirmed) => ({
+                      weddingStyle: confirmed.weddingStyle === opt.value ? null : opt.value,
+                    }))}
+                    className={`px-4 py-2 rounded-[6px] text-sm font-medium transition-all disabled:cursor-wait disabled:opacity-50 ${
                       selected
                         ? "bg-[var(--hb-primary)] text-white shadow-sm"
                         : "bg-[var(--hb-surface-hover)] text-[var(--hb-text-body)] hover:bg-[#EFEAE6]"
@@ -927,8 +979,10 @@ export default function SettingsPage() {
                 return (
                   <button
                     key={opt.value}
+                    aria-pressed={selected}
+                    disabled={preferenceSaving}
                     onClick={() => togglePriority(opt.value)}
-                    className={`px-4 py-2 rounded-[6px] text-sm font-medium transition-all ${
+                    className={`px-4 py-2 rounded-[6px] text-sm font-medium transition-all disabled:cursor-wait disabled:opacity-50 ${
                       selected
                         ? "bg-[var(--hb-primary)] text-white shadow-sm"
                         : "bg-[var(--hb-surface-hover)] text-[var(--hb-text-body)] hover:bg-[#EFEAE6]"
@@ -950,8 +1004,12 @@ export default function SettingsPage() {
                 return (
                   <button
                     key={opt.value}
-                    onClick={() => updatePreferences({ budgetTendency: selected ? null : opt.value })}
-                    className={`px-4 py-2 rounded-[6px] text-sm font-medium transition-all ${
+                    aria-pressed={selected}
+                    disabled={preferenceSaving}
+                    onClick={() => updatePreferences((confirmed) => ({
+                      budgetTendency: confirmed.budgetTendency === opt.value ? null : opt.value,
+                    }))}
+                    className={`px-4 py-2 rounded-[6px] text-sm font-medium transition-all disabled:cursor-wait disabled:opacity-50 ${
                       selected
                         ? "bg-[var(--hb-primary)] text-white shadow-sm"
                         : "bg-[var(--hb-surface-hover)] text-[var(--hb-text-body)] hover:bg-[#EFEAE6]"
@@ -973,8 +1031,12 @@ export default function SettingsPage() {
                 return (
                   <button
                     key={opt.value}
-                    onClick={() => updatePreferences({ guestCount: selected ? null : opt.value })}
-                    className={`px-4 py-2 rounded-[6px] text-sm font-medium transition-all ${
+                    aria-pressed={selected}
+                    disabled={preferenceSaving}
+                    onClick={() => updatePreferences((confirmed) => ({
+                      guestCount: confirmed.guestCount === opt.value ? null : opt.value,
+                    }))}
+                    className={`px-4 py-2 rounded-[6px] text-sm font-medium transition-all disabled:cursor-wait disabled:opacity-50 ${
                       selected
                         ? "bg-[var(--hb-primary)] text-white shadow-sm"
                         : "bg-[var(--hb-surface-hover)] text-[var(--hb-text-body)] hover:bg-[#EFEAE6]"
@@ -993,7 +1055,7 @@ export default function SettingsPage() {
       <motion.div
         {...fadeIn}
         transition={{ duration: 0.5, delay: 0.05 }}
-        className="bg-white rounded-[6px] shadow-[var(--shadow-raised)] p-8 mb-6"
+        className="bg-white rounded-[6px] border border-[var(--hb-hairline)] p-8 mb-6"
       >
         <div className="flex items-center gap-3 mb-5">
           <div className="w-11 h-11 shrink-0 rounded-[6px] bg-gradient-to-br from-[#795252] to-[#946a6a] flex items-center justify-center shadow-[var(--shadow-raised)]">
@@ -1156,7 +1218,7 @@ export default function SettingsPage() {
       <motion.div
         {...fadeIn}
         transition={{ duration: 0.5, delay: 0.1 }}
-        className="bg-white rounded-[6px] shadow-[var(--shadow-raised)] p-8 mb-6"
+        className="bg-white rounded-[6px] border border-[var(--hb-hairline)] p-8 mb-6"
       >
         <div className="flex items-center gap-3 mb-5">
           <div className="w-11 h-11 shrink-0 rounded-[6px] bg-gradient-to-br from-noir-800 to-[var(--hb-success)] flex items-center justify-center shadow-[var(--shadow-raised)]">
@@ -1227,7 +1289,7 @@ export default function SettingsPage() {
       <motion.div
         {...fadeIn}
         transition={{ duration: 0.5, delay: 0.12 }}
-        className="mb-6 overflow-hidden rounded-[6px] bg-white shadow-[var(--shadow-raised)]"
+        className="mb-6 overflow-hidden rounded-[6px] border border-[var(--hb-hairline)] bg-white"
       >
         <Link
           {...weddingLinkProps("/settings/amora-style")}
@@ -1254,7 +1316,7 @@ export default function SettingsPage() {
       <motion.div
         {...fadeIn}
         transition={{ duration: 0.5, delay: 0.13 }}
-        className="mb-6 overflow-hidden rounded-[6px] bg-white shadow-[var(--shadow-raised)]"
+        className="mb-6 overflow-hidden rounded-[6px] border border-[var(--hb-hairline)] bg-white"
       >
         <Link
           {...weddingLinkProps("/settings/amora-memory")}
@@ -1281,7 +1343,7 @@ export default function SettingsPage() {
       <motion.div
         {...fadeIn}
         transition={{ duration: 0.5, delay: 0.15 }}
-        className="bg-white rounded-[6px] shadow-[var(--shadow-raised)] overflow-hidden mb-6"
+        className="bg-white rounded-[6px] border border-[var(--hb-hairline)] overflow-hidden mb-6"
       >
         {[
           { label: "이용약관", href: "/terms" },

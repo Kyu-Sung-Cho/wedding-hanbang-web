@@ -79,6 +79,8 @@ import {
 import { requestProactiveCare } from "@/lib/care/requestProactiveCare";
 import { useAmoraPersonalization } from "@/hooks/useAmoraPersonalization";
 import { useAmoraTextDraftRecovery } from "@/hooks/useAmoraTextDraftRecovery";
+import { AMORA_COMPOSER_EXPAND_PARAM, consumeComposerExpand, forgetComposerExpand, getComposerExpandActor, peekComposerExpand, type ComposerExpandEnvelope } from "@/lib/chat/composerExpandHandoff";
+import { getAmoraTextDraftRecoveryEpoch } from "@/lib/chat/textDraftRecoveryStorage";
 import { SHOW_SIGNED_IN_COMMUNITY } from "@/lib/features/signedInCommunity";
 import type { AmoraQuickStartOption } from "@/lib/amora/personalization";
 import {
@@ -138,6 +140,7 @@ interface ChatComposerDraft {
   pendingAttachmentReads: number;
   tasteHandoffNonce?: string;
   tasteHandoffOriginalText?: string;
+  expandHandoffNonce?: string;
 }
 
 interface PendingSend {
@@ -491,6 +494,7 @@ function getCommunityAskCue(
 }
 
 export default function ChatContent({ embedded = false }: ChatContentProps = {}) {
+  const router = useRouter();
   const navigationTarget = useAmoraNavigationTarget();
   const { profile, couple, journey, partner, isDemo, isInitialized: authInitialized, isLoading: authLoading } = useAuthStore();
   const amoraPersonalization = useAmoraPersonalization(
@@ -569,6 +573,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
           preparation: resolvedInput.trim() ? currentDraft.preparation : null,
           retryClientRequestId:
             resolvedInput === currentDraft.input ? currentDraft.retryClientRequestId : null,
+          expandHandoffNonce: resolvedInput === currentDraft.input ? currentDraft.expandHandoffNonce : undefined,
         },
       };
     });
@@ -961,7 +966,13 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
     if (!handleScopeChange(nextScope)) return;
     // 체험은 늘 '함께'로 열리므로 적어 둘 이유가 없다.
     if (!isDemo) rememberAmoraLane(profile?.id, nextScope);
-  }, [handleScopeChange, isDemo, profile?.id]);
+    if (!embedded) {
+      const destination = new URL(window.location.href);
+      // 앞선 전환이 아직 주소에 반영되기 전 되돌아 눌러도 최신 선택이 이긴다.
+      destination.searchParams.set("scope", nextScope);
+      router.push(`${destination.pathname}${destination.search}${destination.hash}`, { scroll: false });
+    }
+  }, [embedded, handleScopeChange, isDemo, profile?.id, router]);
 
   useEffect(() => {
     if (!isDemo || activeTab !== "private") return;
@@ -1024,13 +1035,12 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
   // 바로 여는 체험은 현재 탭, 가입을 거치는 흐름은 같은 브라우저 저장소에서
   // 유효한 초안만 읽으며 URL에는 날짜를 남기지 않는다.
   const searchParams = useSearchParams();
-  useAmoraTextDraftRecovery({
+  const textDraftRecoveryReady = useAmoraTextDraftRecovery({
     surface: "conversation", owner: profile?.id && coupleId && senderRole ? composerIdentity : null,
     partnerId: linkedPartnerId, enabled: authInitialized && !authLoading && !isDemo,
     privateHandoffPending: searchParams.has(WEDDING_TASTE_CHAT_PARAM),
     drafts: composerDrafts, setDrafts: setComposerDrafts,
   });
-  const router = useRouter();
   const preparationRouterRef = useRef(router);
   preparationRouterRef.current = router;
   const preparationValues = searchParams.getAll(AMORA_PREPARATION_SOURCE_PARAM);
@@ -1039,9 +1049,10 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
   currentSearchRef.current = searchParams;
   const tasteKey = JSON.stringify(searchParams.getAll(WEDDING_TASTE_CHAT_PARAM));
   const hasTasteHandoff = searchParams.has(WEDDING_TASTE_CHAT_PARAM);
+  const hasExpandHandoff = searchParams.has(AMORA_COMPOSER_EXPAND_PARAM);
   // 이 방문은 전송 전 검토로 시작했다. URL을 정리한 뒤에도 자동 AI 쓰기를 시작하지 않는다.
-  const tasteReviewVisitRef = useRef(hasTasteHandoff);
-  if (hasTasteHandoff) tasteReviewVisitRef.current = true;
+  const tasteReviewVisitRef = useRef(hasTasteHandoff || hasExpandHandoff);
+  if (hasTasteHandoff || hasExpandHandoff) tasteReviewVisitRef.current = true;
   const publicHandoffKey = JSON.stringify([
     searchParams.getAll(AMORA_PREPARATION_SOURCE_PARAM),
     searchParams.getAll("prefill"),
@@ -1049,7 +1060,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
   ]);
   const hasExplicitPublicHandoff = searchParams.has(AMORA_PREPARATION_SOURCE_PARAM) || searchParams.has("prefill");
   const tasteBlockedPublicHandoffRef = useRef<string | null>(null);
-  if (hasTasteHandoff) tasteBlockedPublicHandoffRef.current = publicHandoffKey;
+  if (hasTasteHandoff || hasExpandHandoff) tasteBlockedPublicHandoffRef.current = publicHandoffKey;
   else if (!hasExplicitPublicHandoff && !searchParams.has(START_HERE_HANDOFF_QUERY_PARAM)) {
     tasteBlockedPublicHandoffRef.current = null;
   }
@@ -1098,7 +1109,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
       const prior = tasteVisitRef.current;
       if (prior?.key === tasteKey && prior.completed) return;
       const params = currentSearchRef.current;
-      const mixed = params.has("prefill") || params.has(AMORA_PREPARATION_SOURCE_PARAM) || params.has(START_HERE_HANDOFF_QUERY_PARAM)
+      const mixed = params.has("prefill") || params.has(AMORA_PREPARATION_SOURCE_PARAM) || params.has(START_HERE_HANDOFF_QUERY_PARAM) || params.has(AMORA_COMPOSER_EXPAND_PARAM)
         || params.getAll("scope").length !== 1 || params.get("scope") !== "private";
       if (values.length !== 1 || mixed || isDemo || getWeddingTasteChatIdentity() !== composerIdentity
         || (prior?.key === tasteKey && prior.identity !== composerIdentity)) {
@@ -1133,6 +1144,119 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
     });
     return () => { active = false; };
   }, [cleanTasteQuery, composerIdentity, placedTasteNonce]);
+
+  const expandKey = JSON.stringify(searchParams.getAll(AMORA_COMPOSER_EXPAND_PARAM));
+  const expandVisitRef = useRef<string | null>(null);
+  const [expandNotice, setExpandNotice] = useState<{ identity: string; epoch: number; text: string } | null>(null);
+  const [expandConflict, setExpandConflict] = useState<{ envelope: ComposerExpandEnvelope; destination: ChatComposerDraft } | null>(null);
+  const [expandPlacement, setExpandPlacement] = useState<(ComposerExpandEnvelope & { destination: ChatComposerDraft }) | null>(null);
+  const cleanExpandQuery = useCallback(() => {
+    const next = new URLSearchParams(currentSearchRef.current.toString());
+    next.delete(AMORA_COMPOSER_EXPAND_PARAM);
+    next.delete(WEDDING_TASTE_CHAT_PARAM); next.delete("prefill"); next.delete(AMORA_PREPARATION_SOURCE_PARAM); next.delete(START_HERE_HANDOFF_QUERY_PARAM);
+    preparationRouterRef.current.replace(`?${next}`, { scroll: false });
+  }, []);
+  const showExpandNotice = useCallback((text: string) => {
+    setExpandNotice({ identity: composerIdentity, epoch: getAmoraTextDraftRecoveryEpoch(), text });
+  }, [composerIdentity]);
+  const placeExpandedDraft = useCallback((envelope: ComposerExpandEnvelope, destination: ChatComposerDraft) => {
+    const live = peekComposerExpand(envelope.nonce);
+    const params = currentSearchRef.current;
+    const routeMatches = params.getAll(AMORA_COMPOSER_EXPAND_PARAM).length === 1
+      && params.get(AMORA_COMPOSER_EXPAND_PARAM) === envelope.nonce && params.getAll("scope").length === 1
+      && params.get("scope") === (envelope.lane === "private_ai" ? "private" : "shared")
+      && !params.has(WEDDING_TASTE_CHAT_PARAM) && !params.has("prefill") && !params.has(AMORA_PREPARATION_SOURCE_PARAM) && !params.has(START_HERE_HANDOFF_QUERY_PARAM);
+    if (!live || !routeMatches || live.actorId !== profile?.id || live.coupleId !== coupleId) {
+      setExpandConflict(null); cleanExpandQuery();
+      showExpandNotice("이어 온 초안이 만료됐거나 계정 정보가 바뀌었어요. 작은 상담창에서 다시 확대해 주세요.");
+      return;
+    }
+    if (useChatStore.getState().isSending || useChatStore.getState().isStreaming || sendInFlightRef.current !== null) return;
+    setExpandPlacement({ ...envelope, destination });
+    setComposerDrafts(previous => {
+      const current = previous[envelope.lane];
+      // 승인 뒤 큐에 든 타이핑과 계정 A→B→A도 실제 반영 직전에 다시 검사한다.
+      if (current !== destination || !peekComposerExpand(envelope.nonce)
+        || current.attachments.length || current.pendingAttachmentReads || current.preparation || current.tasteHandoffNonce
+        || useChatStore.getState().isSending || useChatStore.getState().isStreaming || sendInFlightRef.current !== null) return previous;
+      return { ...previous, [envelope.lane]: { ...current, input: envelope.input,
+        retryClientRequestId: envelope.retryClientRequestId, expandHandoffNonce: envelope.nonce } };
+    });
+    setExpandConflict(null);
+  }, [cleanExpandQuery, coupleId, profile?.id, showExpandNotice]);
+  useEffect(() => {
+    if (!hasExpandHandoff || embedded || !authInitialized || authLoading || !textDraftRecoveryReady) return;
+    const values: string[] = JSON.parse(expandKey);
+    if (expandVisitRef.current === expandKey) return;
+    expandVisitRef.current = expandKey;
+    const params = currentSearchRef.current;
+    const envelope = values.length === 1 ? peekComposerExpand(values[0]) : null;
+    const mixed = params.has(WEDDING_TASTE_CHAT_PARAM) || params.has("prefill") || params.has(AMORA_PREPARATION_SOURCE_PARAM)
+      || params.has(START_HERE_HANDOFF_QUERY_PARAM) || params.getAll("scope").length !== 1;
+    if (!envelope || mixed || params.get("scope") !== (envelope.lane === "private_ai" ? "private" : "shared")) {
+      values.forEach(forgetComposerExpand); cleanExpandQuery();
+      showExpandNotice("이어 온 초안을 확인하지 못했어요. 작은 상담창의 내용은 그대로 두었어요.");
+      return;
+    }
+    const destination = composerDraftsRef.current[envelope.lane];
+    // 빈 작은 창의 확대는 대상만 이어 간다. 기존 전체 화면 초안은 건드리지 않는다.
+    if (!envelope.input) {
+      if (consumeComposerExpand(envelope.nonce)) {
+        settleLane(); setActiveTab(envelope.lane === "private_ai" ? "private" : "shared");
+        setMessageTarget(envelope.lane === "shared_partner" ? "partner" : "ai");
+      }
+      cleanExpandQuery(); return;
+    }
+    if (destination.attachments.length || destination.pendingAttachmentReads || destination.preparation || destination.tasteHandoffNonce
+      || isSending || isStreaming || sendInFlightRef.current !== null) {
+      showExpandNotice("전체 화면에서 작성 중인 내용은 그대로 두었어요. 첨부 처리나 전송을 마친 뒤 작은 상담창에서 다시 확대해 주세요.");
+      cleanExpandQuery(); return;
+    }
+    if (destination.input) {
+      setExpandConflict({ envelope, destination }); return;
+    }
+    placeExpandedDraft(envelope, destination);
+  }, [authInitialized, authLoading, cleanExpandQuery, embedded, expandKey, hasExpandHandoff, isSending, isStreaming, placeExpandedDraft, settleLane, showExpandNotice, textDraftRecoveryReady]);
+  useEffect(() => {
+    if (!expandPlacement) return;
+    const { nonce, lane } = expandPlacement;
+    const placed = composerDrafts[lane];
+    if (placed.expandHandoffNonce !== nonce) {
+      showExpandNotice("작성 중인 내용이 바뀌어 덮어쓰지 않았어요. 작은 상담창에서 다시 확대해 주세요.");
+      setExpandPlacement(null); cleanExpandQuery(); return;
+    }
+    const consumed = consumeComposerExpand(nonce);
+    setExpandPlacement(null);
+    setComposerDrafts(previous => {
+      const current = previous[lane];
+      if (current.expandHandoffNonce !== nonce) return previous;
+      const actor = getComposerExpandActor();
+      const sameOwner = actor?.actorId === expandPlacement.actorId && actor?.coupleId === expandPlacement.coupleId && actor?.epoch === expandPlacement.epoch;
+      if (!consumed && sameOwner && current.input === expandPlacement.input
+        && current.retryClientRequestId === expandPlacement.retryClientRequestId
+        && !current.attachments.length && !current.pendingAttachmentReads && !current.preparation && !current.tasteHandoffNonce) {
+        return { ...previous, [lane]: expandPlacement.destination };
+      }
+      return { ...previous, [lane]: { ...current,
+        input: !consumed && current.input === expandPlacement.input ? "" : current.input,
+        retryClientRequestId: consumed ? current.retryClientRequestId : null, expandHandoffNonce: undefined } };
+    });
+    if (consumed) {
+      settleLane();
+      setActiveTab(lane === "private_ai" ? "private" : "shared");
+      setMessageTarget(lane === "shared_partner" ? "partner" : "ai");
+      requestAnimationFrame(() => { if (getComposerExpandActor()?.epoch === consumed.epoch) textareaRef.current?.focus(); });
+    } else showExpandNotice("계정 정보가 바뀌었거나 초안이 만료돼 이어오지 않았어요. 작은 상담창에서 다시 확대해 주세요.");
+    cleanExpandQuery();
+  }, [cleanExpandQuery, composerDrafts, expandPlacement, settleLane, showExpandNotice]);
+  const activeExpandConflict = expandConflict && expandConflict.envelope.actorId === profile?.id
+    && expandConflict.envelope.coupleId === coupleId && expandConflict.envelope.epoch === getAmoraTextDraftRecoveryEpoch()
+    ? expandConflict : null;
+  const keepConversationDraft = () => {
+    if (expandConflict) forgetComposerExpand(expandConflict.envelope.nonce);
+    setExpandConflict(null); cleanExpandQuery();
+    showExpandNotice("전체 화면 초안을 유지했어요. 작은 상담창의 초안도 그대로 있어요.");
+  };
   const preparationVisitRef = useRef<{ key: string; identity: string; completed: boolean } | null>(null);
   const [preparationNotice, setPreparationNotice] = useState<{
     identity: string;
@@ -1646,9 +1770,10 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
   const [communityPosting, setCommunityPosting] = useState(false);
   const [communityPostError, setCommunityPostError] = useState<string | null>(null);
   const [communityPromptMessageIds, setCommunityPromptMessageIds] = useState<Set<string>>(() => new Set());
-  const hasBlockingDialog = Boolean(communityDraft || pendingSend || clearStep !== "closed");
+  const hasBlockingDialog = Boolean(communityDraft || pendingSend || clearStep !== "closed" || activeExpandConflict);
 
   closeActiveDialogRef.current = () => {
+    if (activeExpandConflict) { keepConversationDraft(); return; }
     if (communityDraft) {
       setCommunityDraft(null);
       return;
@@ -3443,16 +3568,6 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
           </div>
         )}
 
-        {/* Private 탭 안내 (탭 들어가면 항상 보임) */}
-        {activeTab === "private" && (
-          <div className="mb-2 px-3 py-2.5 rounded-[6px] bg-[#5a6147]/8 border border-[#5a6147]/20 flex items-start gap-2 text-[12.5px] text-[#5a6147] leading-relaxed">
-            <Lock className="w-3.5 h-3.5 flex-shrink-0 mt-[2px]" />
-            <span>
-              비공개 상담 — 이 탭의 대화는 <strong>서비스에 저장되지만 상대방에게는 보이지 않아요</strong>. 아모라와 1:1로 이야기할 수 있어요.
-            </span>
-          </div>
-        )}
-
         {firstHelloMessage && (
           <div className="animate-fade-in" data-testid="amora-first-hello-message">
             <ChatBubble
@@ -3796,6 +3911,24 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
       )}
 
       {/* 에러 메시지 */}
+      {expandNotice?.identity === composerIdentity && expandNotice.epoch === getAmoraTextDraftRecoveryEpoch() && (
+        <p role="alert" className="mx-3 my-2 rounded-lg border border-[var(--hb-hairline)] p-3 text-sm leading-relaxed">{expandNotice.text}</p>
+      )}
+      {activeExpandConflict && !communityDraft && !pendingSend && clearStep === "closed" && (
+        <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/40 backdrop-blur-sm px-4 animate-fade-in" onClick={keepConversationDraft}>
+          <div ref={activeDialogRef} className="bg-white rounded-[6px] shadow-2xl max-w-md w-full p-6"
+            onClick={event => event.stopPropagation()} role="dialog" aria-modal="true" aria-labelledby="expand-draft-dialog-title" tabIndex={-1}>
+            <h3 id="expand-draft-dialog-title" className="font-serif-kr text-[var(--hb-text-strong)] mb-2">어떤 초안으로 이어갈까요?</h3>
+            <p className="text-sm text-[var(--hb-text-body)] leading-relaxed mb-4">이 대화에 작성 중인 초안이 있어요. 작은 상담창의 초안으로 바꿀 수 있어요. 전송은 직접 눌러야 해요.</p>
+            <div className="flex gap-2">
+              <button type="button" data-modal-initial-focus onClick={keepConversationDraft}
+                className="min-h-11 flex-1 px-4 rounded-[6px] text-sm font-medium text-[var(--hb-text-strong)] bg-[var(--hb-surface-hover)]">기존 초안 유지</button>
+              <button type="button" onClick={() => placeExpandedDraft(activeExpandConflict.envelope, activeExpandConflict.destination)}
+                className="min-h-11 flex-1 px-4 rounded-[6px] text-sm font-medium text-white bg-[var(--hb-action)] hover:bg-[var(--hb-action-hover)]">작은 상담창 초안 사용</button>
+            </div>
+          </div>
+        </div>
+      )}
       {tasteNotice?.identity === composerIdentity && tasteNotice.epoch === composerEpochRef.current && (
         <div role="status" className="mx-3 my-2 rounded-lg border border-[var(--hb-hairline)] p-3 text-sm leading-relaxed">
           {tasteNotice.status === "pending" ? <>

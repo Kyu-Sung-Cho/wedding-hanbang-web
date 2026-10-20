@@ -15,6 +15,7 @@ interface TextDraft {
   pendingAttachmentReads?: number;
   preparation?: unknown;
   tasteHandoffNonce?: string;
+  expandHandoffNonce?: string;
 }
 const MAX_LENGTH = 10_000;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -38,6 +39,7 @@ export function useAmoraTextDraftRecovery<T extends TextDraft>({
   const key = AMORA_TEXT_DRAFT_KEYS[surface];
   const identity = enabled && owner ? `${owner}:${partnerId ?? "no-partner"}` : null;
   const [hydratedIdentity, setHydratedIdentity] = useState<string | null>(null);
+  const [hydratedRecoveryEpoch, setHydratedRecoveryEpoch] = useState<number | null>(null);
   const previousOwner = useRef<string | null>(null);
   const lastCopy = useRef<{ identity: string; lanes: Partial<Record<Lane, RecoveryLane>> } | null>(null);
   const hydratedEpoch = useRef<number | null>(null);
@@ -46,7 +48,9 @@ export function useAmoraTextDraftRecovery<T extends TextDraft>({
     let cancelled = false;
     const effectEpoch = getAmoraTextDraftRecoveryEpoch();
     const completeHydration = (value: string | null) => queueMicrotask(() => {
-      if (!cancelled && effectEpoch === getAmoraTextDraftRecoveryEpoch()) setHydratedIdentity(value);
+      if (!cancelled && effectEpoch === getAmoraTextDraftRecoveryEpoch()) {
+        setHydratedIdentity(value); setHydratedRecoveryEpoch(effectEpoch);
+      }
     });
     if (!identity || !owner) {
       if (previousOwner.current !== null) {
@@ -94,7 +98,7 @@ export function useAmoraTextDraftRecovery<T extends TextDraft>({
             if (lane === "shared_partner" && value.partnerId !== partnerId) continue;
             if (!saved) continue;
             if (hasAmoraSafetySignal(saved.input, "chat") || current[lane].input || current[lane].attachments.length
-              || current[lane].pendingAttachmentReads || pendingAttachmentReads[lane] || current[lane].preparation || current[lane].tasteHandoffNonce) continue;
+              || current[lane].pendingAttachmentReads || pendingAttachmentReads[lane] || current[lane].preparation || current[lane].tasteHandoffNonce || current[lane].expandHandoffNonce) continue;
             next[lane] = { ...current[lane], input: saved.input, retryClientRequestId: saved.retryClientRequestId };
           }
           return next;
@@ -120,7 +124,7 @@ export function useAmoraTextDraftRecovery<T extends TextDraft>({
         const draft = drafts[lane];
         // 첨부나 별도 전달 맥락을 잃은 부분 요청을 같은 재시도 키로 전송하지 않는다.
         if (draft.input.trim() && draft.input.length <= MAX_LENGTH && !hasAmoraSafetySignal(draft.input, "chat") && !draft.attachments.length
-          && !draft.pendingAttachmentReads && !pendingAttachmentReads[lane] && !draft.preparation && !draft.tasteHandoffNonce) {
+          && !draft.pendingAttachmentReads && !pendingAttachmentReads[lane] && !draft.preparation && !draft.tasteHandoffNonce && !draft.expandHandoffNonce) {
           const prior = previous[lane];
           const savedAt = prior?.input === draft.input && prior.retryClientRequestId === draft.retryClientRequestId ? prior.savedAt : Date.now();
           lanes[lane] = { input: draft.input, retryClientRequestId: draft.retryClientRequestId, savedAt };
@@ -138,4 +142,5 @@ export function useAmoraTextDraftRecovery<T extends TextDraft>({
     window.addEventListener("pagehide", persist);
     return () => window.removeEventListener("pagehide", persist);
   }, [drafts, hydratedIdentity, identity, key, owner, partnerId, privateHandoffPending, pendingAttachmentReads]);
+  return Boolean(identity && hydratedIdentity === identity && hydratedRecoveryEpoch === getAmoraTextDraftRecoveryEpoch());
 }

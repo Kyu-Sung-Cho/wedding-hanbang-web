@@ -116,7 +116,7 @@ describe("settings total budget editing", () => {
     await act(async () => {
       pencil!.click();
     });
-    const input = budgetTile().querySelector<HTMLInputElement>('input[type="number"]');
+    const input = budgetTile().querySelector<HTMLInputElement>('input[aria-label="설정 예산(만원 단위)"]');
     expect(input, "예산 입력 칸이 열리지 않았다").toBeTruthy();
     return input!;
   }
@@ -176,20 +176,20 @@ describe("settings total budget editing", () => {
 
     await typeAndSave(input, "");
     expect(updateJourney).not.toHaveBeenCalled();
-    expect(alertTexts()).toContain("0보다 큰 금액을 넣어주세요.");
+    expect(alertTexts().join(" ")).toMatch(/0보다 크고.*만원/);
 
     // 다시 입력하면 안내가 걷힌다.
     await act(async () => {
       setInputValue(input, "0");
     });
-    expect(alertTexts()).not.toContain("0보다 큰 금액을 넣어주세요.");
+    expect(alertTexts()).toHaveLength(0);
 
     const [save] = budgetTile().querySelectorAll("button");
     await act(async () => {
       save.click();
     });
     expect(updateJourney).not.toHaveBeenCalled();
-    expect(alertTexts()).toContain("0보다 큰 금액을 넣어주세요.");
+    expect(alertTexts().join(" ")).toMatch(/0보다 크고.*만원/);
   });
 
   it("예산을 아직 안 정했으면 칸이 0 대신 비어서 열린다", async () => {

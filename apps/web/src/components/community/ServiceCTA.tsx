@@ -41,7 +41,7 @@ const CTA_MAP: Record<string, CTAConfig> = {
   tour_review: {
     icon: MessageCircle,
     label: "아모라와 후기 해석",
-    title: "이 경험에서 우리 조건에 해당하는 부분만 골라보세요.",
+    title: "이 글에서 우리 조건에 해당하는 부분만 골라보세요.",
     subtext: "예산, 지역, 원하는 분위기를 기준으로 더 확인할 내용을 정리합니다.",
     href: "/chat",
   },
@@ -143,7 +143,7 @@ export default function ServiceCTA({ category, postTitle, postId, postContent, p
       <div className="px-4 py-4 sm:px-5 sm:py-5">
         <p className="text-[10px] font-bold text-[var(--color-rose-700)]">답을 찾은 다음</p>
         <h2 id="community-next-action-heading" className="mt-1 font-serif-kr text-[var(--hb-text-strong)]">
-          사람의 답변을 내 준비로 옮기기
+          글의 내용을 내 준비로 옮기기
         </h2>
         <p className="mt-1.5 max-w-[620px] text-[12px] font-medium leading-[1.65] text-[#667268]">
           이 글의 제목과 본문을 함께 넘겨, 우리 일정·예산·확인 항목에 맞는 다음 행동만 정리합니다.
@@ -172,7 +172,7 @@ export default function ServiceCTA({ category, postTitle, postId, postContent, p
       </div>
 
       <p className="border-t border-[#d8dfd4] px-4 py-3 text-[10.5px] font-medium leading-[1.55] text-[var(--hb-text-muted)] sm:px-5">
-        아모라는 사람의 경험을 정답으로 확정하지 않습니다. 제안 내용을 확인한 뒤 반영 여부를 직접 선택하세요.
+        아모라는 글의 내용을 정답으로 확정하지 않습니다. 제안 내용을 확인한 뒤 반영 여부를 직접 선택하세요.
       </p>
     </section>
   );

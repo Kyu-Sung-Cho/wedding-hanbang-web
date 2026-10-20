@@ -614,7 +614,7 @@ const PUBLISHED_VENDOR_COUNT = 406;
 const PUBLISHED_POLICY_COUNT = 831;
 
 /**
- * 아모라가 준비를 정리하고, 사람의 경험이 판단의 빈칸을 채운다는 하나의 약속을
+ * 아모라가 준비를 정리하고, 커뮤니티 기록을 참고할 수 있다는 하나의 약속을
  * 첫 화면에서 함께 보여준다. 커뮤니티를 별도 게시판처럼 소개하지 않고 실제 질문과
  * 바로 연결해 "도움을 받는 곳이면서 주는 곳"이라는 행동을 먼저 만든다.
  */
@@ -630,7 +630,7 @@ function AmoraBlock() {
             찾은 답을 내 준비에 반영하기
           </span>
           <h2 className="mt-3 font-serif-kr text-[var(--hb-text-strong)]">
-            사람의 경험을 찾았다면,
+            참고할 이야기를 찾았다면,
             <br />
             우리 둘의 계획으로 옮기세요
           </h2>
@@ -659,7 +659,7 @@ function AmoraBlock() {
             </Link>
           </div>
           <p className="mt-3 text-[11.5px] font-medium leading-[1.6] text-[var(--hb-text-body)]">
-            AI의 제안과 사람의 경험은 구분해서 보여주고, 최종 결정은 사용자가 합니다.
+            AI의 제안과 커뮤니티 글의 작성 출처를 구분해서 보여주고, 최종 결정은 사용자가 합니다.
           </p>
         </div>
 
@@ -1129,8 +1129,8 @@ function SearchHub({
             <br className="sm:hidden" /> 먼저 겪은 사람에게 확인하세요.
           </h1>
           <p className="mt-3 max-w-[680px] text-[13px] font-medium leading-[1.7] text-[var(--hb-text-body)] md:text-[14px]">
-            내 상황과 가까운 해결 경험부터 찾아보세요. 후기만 나열하지 않고 질문,
-            사람의 답변, 질문자가 표시한 해결 여부를 한 흐름으로 보여드립니다.
+            내 상황과 가까운 질문과 기록부터 찾아보세요. 후기만 나열하지 않고 질문,
+            답변, 질문자가 표시한 해결 여부를 한 흐름으로 보여드립니다.
           </p>
         </div>
         <Link
@@ -1164,7 +1164,7 @@ function SearchHub({
 
       <div className="mt-3 grid gap-1.5 text-[11px] font-medium leading-[1.5] text-[#667268] sm:grid-cols-3 sm:gap-3">
         <span className="flex items-center gap-2"><Search className="h-3.5 w-3.5 text-[var(--hb-text-strong)]" />비슷한 상황을 먼저 검색</span>
-        <span className="flex items-center gap-2"><MessageCircle className="h-3.5 w-3.5 text-[var(--hb-text-strong)]" />사람이 직접 남긴 답변 확인</span>
+        <span className="flex items-center gap-2"><MessageCircle className="h-3.5 w-3.5 text-[var(--hb-text-strong)]" />답변과 작성 출처 확인</span>
         <span className="flex items-center gap-2"><ClipboardCheck className="h-3.5 w-3.5 text-[var(--hb-text-strong)]" />출처·광고·해결 상태 표시</span>
       </div>
 
@@ -1740,8 +1740,10 @@ function StatusFeedEmptyState({
 function CommunityPostRow({ post, priority }: { post: PostWithAuthor; priority?: boolean }) {
   const categoryInfo = CATEGORY_MAP[post.category];
   const { votePost, toggleBookmark } = useCommunityStore();
-  const { profile } = useAuthStore();
+  const { profile, user } = useAuthStore();
   const isLoggedIn = !!profile;
+  const isDraft = post.visibility === "draft";
+  const isOwnDraft = isDraft && user?.id === post.author_id && profile?.id === user.id;
   const [optimisticVote, setOptimisticVote] = useState<1 | null | undefined>(undefined);
   const [optimisticUpvoteDelta, setOptimisticUpvoteDelta] = useState(0);
   const [bookmarked, setBookmarked] = useState(post.user_bookmarked ?? false);
@@ -1754,7 +1756,7 @@ function CommunityPostRow({ post, priority }: { post: PostWithAuthor; priority?:
   const displayUpvoteCount = Math.max(0, (post.upvote_count ?? 0) + optimisticUpvoteDelta);
   const isLiked = displayVote === 1;
   const commentCount = post.comment_count ?? 0;
-  const isQuestionPost = ["is_normal", "ama"].includes(post.category);
+  const isQuestionPost = !isDraft && ["is_normal", "ama"].includes(post.category);
   const isWaitingForAnswer = isQuestionPost && !post.is_resolved && commentCount === 0;
 
   function showToast(message: string) {
@@ -1876,6 +1878,11 @@ function CommunityPostRow({ post, priority }: { post: PostWithAuthor; priority?:
       <div className="pointer-events-none relative z-10 min-w-0">
         <div className="flex min-w-0 items-start justify-between gap-2 text-[10.5px] font-medium text-[var(--hb-text-body)]">
           <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+            {isDraft && (
+              <span className="rounded-[6px] border border-[var(--hb-hairline)] bg-[var(--hb-surface-page)] px-2.5 py-1 text-xs font-semibold text-[var(--hb-text-body)]">
+                임시저장 · 나만 보기
+              </span>
+            )}
             <span className="shrink-0 rounded-[6px] bg-[var(--hb-surface-hover)] px-1.5 py-0.5 text-[10px] font-medium text-[var(--hb-accent-hover)]">
               {categoryInfo?.shortLabel ?? "커뮤니티"}
             </span>
@@ -1899,12 +1906,12 @@ function CommunityPostRow({ post, priority }: { post: PostWithAuthor; priority?:
                 size="sm"
               />
             )}
-            {post.is_weekly_best && (
+            {!isDraft && post.is_weekly_best && (
               <span className="shrink-0 rounded-[6px] bg-[var(--hb-primary)] px-1.5 py-0.5 text-[10px] font-medium text-white">
                 BEST
               </span>
             )}
-            {post.poll && (
+            {!isDraft && post.poll && (
               <span className="shrink-0 rounded-[6px] border border-[var(--hb-hairline)] px-1.5 py-0.5 text-[10px] font-medium text-[var(--hb-text-body)]">
                 투표
               </span>
@@ -1940,6 +1947,15 @@ function CommunityPostRow({ post, priority }: { post: PostWithAuthor; priority?:
         </div>
 
         <div className="pointer-events-auto mt-2 flex min-w-0 items-center gap-1.5">
+          {isDraft ? isOwnDraft && (
+            <Link
+              {...weddingLinkProps(`/community/post/write?edit=${post.id}`)}
+              className="inline-flex min-h-11 items-center gap-1.5 rounded-[6px] border border-[var(--hb-hairline)] bg-white px-3.5 text-[11.5px] font-semibold text-[var(--hb-text-strong)] hover:border-[var(--hb-primary)]/40"
+            >
+              <PenSquare className="h-3.5 w-3.5 shrink-0" />
+              이어서 작성
+            </Link>
+          ) : <>
           <Link
             {...communityPostLinkProps(post.id, "comments")}
             onClick={() =>
@@ -2011,6 +2027,7 @@ function CommunityPostRow({ post, priority }: { post: PostWithAuthor; priority?:
           >
             <Share2 className="h-3.5 w-3.5 stroke-[1.7]" />
           </button>
+          </>}
         </div>
       </div>
       {imageUrl && (
