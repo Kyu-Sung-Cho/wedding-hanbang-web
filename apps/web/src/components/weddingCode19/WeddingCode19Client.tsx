@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useMemo, useState } from "react";
 import Link from "next/link";
 import {
   ALL_QUESTIONS_19,
@@ -50,24 +50,17 @@ export default function WeddingCode19Client({
   const [activeTab, setActiveTab] = useState<ResultTab19>("personal");
 
   // 파트너 URL 데이터 (?partner=...) 및 가상 파트너 시뮬레이터 상태
-  const [urlPartnerData, setUrlPartnerData] =
-    useState<EncodedPartnerPayload19 | null>(null);
+  const [urlPartnerData] = useState<EncodedPartnerPayload19 | null>(() => {
+    if (typeof window === "undefined") return null;
+    const params = new URLSearchParams(window.location.search);
+    return decodePartnerPayload19(params.get("partner"));
+  });
   const [simulatedPartnerCode, setSimulatedPartnerCode] =
     useState<WeddingCode19Code | null>(null);
   const [showSimulatorPicker, setShowSimulatorPicker] =
     useState<boolean>(false);
   const [copiedNotice, setCopiedNotice] = useState<boolean>(false);
   const [fadeKey, setFadeKey] = useState<number>(0);
-
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    const params = new URLSearchParams(window.location.search);
-    const rawPartner = params.get("partner");
-    const decoded = decodePartnerPayload19(rawPartner);
-    if (decoded) {
-      setUrlPartnerData(decoded);
-    }
-  }, []);
 
   const triggerFade = () => setFadeKey((prev) => prev + 1);
 
