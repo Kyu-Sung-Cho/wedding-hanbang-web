@@ -2,6 +2,7 @@
 
 import React, { useMemo, useState } from "react";
 import Link from "next/link";
+import Button from "@/components/ui/Button";
 import {
   ALL_QUESTIONS_19,
   CHARACTER_PROFILES_19,
@@ -273,13 +274,14 @@ export default function WeddingCode19Client({
             WEDDING CODE
           </Link>
           {step === "result" && (
-            <button
+            <Button
+              variant="ghost"
               type="button"
               onClick={handleResetTest}
               className="rounded-full border border-[#E6DCD2] bg-white px-3 py-1 text-xs font-medium text-[#6E5A54] transition-colors hover:bg-[#F5EFEA]"
             >
               다시 테스트하기
-            </button>
+            </Button>
           )}
         </header>
 
@@ -329,14 +331,15 @@ export default function WeddingCode19Client({
               </div>
             </div>
 
-            <button
+            <Button
+              variant="ghost"
               type="button"
               data-testid="wc19-start-button"
               onClick={handleStartTest}
               className="mt-7 flex w-full items-center justify-center rounded-2xl bg-[#8F6662] px-6 py-4 text-base font-semibold text-white shadow-xs transition-all hover:bg-[#7D5753] active:scale-[0.99]"
             >
               [ {WEDDING_CODE_19_UI_COPY.intro.ctaButton} ]
-            </button>
+            </Button>
           </section>
         )}
 
@@ -349,14 +352,15 @@ export default function WeddingCode19Client({
           >
             {/* 상단 진행률 프로그레스 바 & 이전 문항 버튼 */}
             <div className="flex items-center justify-between text-xs font-medium text-[#6E5A54]">
-              <button
+              <Button
+                variant="ghost"
                 type="button"
                 data-testid="wc19-prev-button"
                 onClick={handlePrevQuestion}
                 className="rounded-lg px-2 py-1 text-xs font-semibold text-[#8F6662] transition-colors hover:bg-[#F5EFEA]"
               >
                 {WEDDING_CODE_19_UI_COPY.part1.prevButton}
-              </button>
+              </Button>
               <span data-testid="wc19-progress-text" className="font-semibold text-[#3A2A27]">
                 {progressNumber} / 19
               </span>
@@ -397,12 +401,13 @@ export default function WeddingCode19Client({
               {PART1_MAIN_OPTIONS.map((opt) => {
                 const isSelected = answers[currentQuestion.id] === opt.value;
                 return (
-                  <button
+                  <Button
                     key={opt.value}
+                    variant="ghost"
                     type="button"
                     data-testid={`wc19-option-${opt.value}`}
                     onClick={() => handleSelectAnswer(currentQuestion.id, opt.value)}
-                    className={`flex w-full flex-col items-start rounded-2xl border px-4 py-3.5 text-left transition-all ${
+                    className={`flex w-full !whitespace-normal flex-col items-start rounded-2xl border px-4 py-3.5 text-left transition-all ${
                       isSelected
                         ? "border-[#8F6662] bg-[#F9F0ED] shadow-xs"
                         : "border-[#E6DCD2] bg-white hover:border-[#C8B2A6] hover:bg-[#FAF8F5]"
@@ -414,7 +419,7 @@ export default function WeddingCode19Client({
                     <span className="mt-0.5 text-xs text-[#6E5A54]">
                       — {opt.description}
                     </span>
-                  </button>
+                  </Button>
                 );
               })}
             </div>
@@ -425,12 +430,13 @@ export default function WeddingCode19Client({
                 {PART1_SUB_OPTIONS.map((sub) => {
                   const isSelected = answers[currentQuestion.id] === sub.value;
                   return (
-                    <button
+                    <Button
                       key={sub.value}
+                      variant="ghost"
                       type="button"
                       data-testid={`wc19-option-${sub.value}`}
                       onClick={() => handleSelectAnswer(currentQuestion.id, sub.value)}
-                      className={`flex flex-col items-center justify-center rounded-full border px-3 py-2 text-center transition-all ${
+                      className={`flex !whitespace-normal flex-col items-center justify-center rounded-full border px-3 py-2 text-center transition-all ${
                         isSelected
                           ? "border-[#5F7D6B] bg-[#EEF4F0] text-[#355240]"
                           : "border-[#E6DCD2] bg-[#FAF8F5] text-[#6E5A54] hover:bg-[#F3ECE4]"
@@ -440,7 +446,7 @@ export default function WeddingCode19Client({
                       <span className="mt-0.5 text-[10px] leading-tight opacity-85">
                         ({sub.description})
                       </span>
-                    </button>
+                    </Button>
                   );
                 })}
               </div>
@@ -465,21 +471,23 @@ export default function WeddingCode19Client({
               {WEDDING_CODE_19_UI_COPY.bridge.description}
             </p>
             <div className="mt-6 flex flex-col gap-2.5">
-              <button
+              <Button
+                variant="ghost"
                 type="button"
                 data-testid="wc19-bridge-continue"
                 onClick={handleContinueToPart2}
                 className="w-full rounded-2xl bg-[#8F6662] px-6 py-4 text-base font-semibold text-white transition-all hover:bg-[#7D5753]"
               >
                 [ {WEDDING_CODE_19_UI_COPY.bridge.ctaButton} ]
-              </button>
-              <button
+              </Button>
+              <Button
+                variant="ghost"
                 type="button"
                 onClick={handlePrevQuestion}
                 className="w-full rounded-xl py-2 text-xs font-medium text-[#6E5A54] hover:underline"
               >
                 {WEDDING_CODE_19_UI_COPY.part1.prevButton} (12번으로 돌아가기)
-              </button>
+              </Button>
             </div>
           </section>
         )}
@@ -492,14 +500,15 @@ export default function WeddingCode19Client({
             className="animate-[fadeIn_0.25s_ease-out] rounded-3xl border border-[#EAE1D7] bg-white p-6 shadow-sm"
           >
             <div className="flex items-center justify-between text-xs font-medium text-[#6E5A54]">
-              <button
+              <Button
+                variant="ghost"
                 type="button"
                 data-testid="wc19-prev-button"
                 onClick={handlePrevQuestion}
                 className="rounded-lg px-2 py-1 text-xs font-semibold text-[#8F6662] transition-colors hover:bg-[#F5EFEA]"
               >
                 {WEDDING_CODE_19_UI_COPY.part1.prevButton}
-              </button>
+              </Button>
               <span data-testid="wc19-progress-text" className="font-semibold text-[#3A2A27]">
                 {progressNumber} / 19
               </span>
@@ -535,12 +544,13 @@ export default function WeddingCode19Client({
                 .map((opt) => {
                   const isSelected = answers[currentQuestion.id] === opt.key;
                   return (
-                    <button
+                    <Button
                       key={opt.key}
+                      variant="ghost"
                       type="button"
                       data-testid={`wc19-option-${opt.key}`}
                       onClick={() => handleSelectAnswer(currentQuestion.id, opt.key)}
-                      className={`flex w-full items-start gap-3 rounded-2xl border-2 p-4 text-left transition-all ${
+                      className={`flex w-full !whitespace-normal items-start gap-3 rounded-2xl border-2 p-4 text-left transition-all ${
                         isSelected
                           ? "border-[#8F6662] bg-[#F9F0ED] shadow-xs"
                           : "border-[#D9C7BA] bg-[#FDFBF9] hover:border-[#8F6662] hover:bg-[#FAF4F0]"
@@ -552,7 +562,7 @@ export default function WeddingCode19Client({
                       <span className="text-sm font-semibold leading-relaxed text-[#3A2A27]">
                         {opt.label}
                       </span>
-                    </button>
+                    </Button>
                   );
                 })}
             </div>
@@ -568,12 +578,13 @@ export default function WeddingCode19Client({
                   .map((opt) => {
                     const isSelected = answers[currentQuestion.id] === opt.key;
                     return (
-                      <button
+                      <Button
                         key={opt.key}
+                        variant="ghost"
                         type="button"
                         data-testid={`wc19-option-${opt.key}`}
                         onClick={() => handleSelectAnswer(currentQuestion.id, opt.key)}
-                        className={`flex w-full items-center gap-2.5 rounded-xl border px-3.5 py-2.5 text-left text-xs transition-all ${
+                        className={`flex w-full !whitespace-normal items-center gap-2.5 rounded-xl border px-3.5 py-2.5 text-left text-xs transition-all ${
                           isSelected
                             ? "border-[#5F7D6B] bg-[#EEF4F0] font-semibold text-[#355240]"
                             : "border-[#E6DCD2] bg-[#FAF8F5] text-[#5A4742] hover:bg-[#F3ECE4]"
@@ -583,7 +594,7 @@ export default function WeddingCode19Client({
                           {opt.key}
                         </span>
                         <span className="leading-relaxed">{opt.label}</span>
-                      </button>
+                      </Button>
                     );
                   })}
               </div>
@@ -612,12 +623,13 @@ export default function WeddingCode19Client({
                   const qSpec = QUESTION_MAP_19[qId];
                   const selected = ceilingDraftIds.includes(qId);
                   return (
-                    <button
+                    <Button
                       key={qId}
+                      variant="ghost"
                       type="button"
                       data-testid={`wc19-ceiling-pick-${qId}`}
                       onClick={() => handleToggleCeilingCandidate(qId)}
-                      className={`flex w-full items-center justify-between rounded-2xl border px-4 py-3 text-left text-xs transition-all ${
+                      className={`flex w-full !whitespace-normal items-center justify-between rounded-2xl border px-4 py-3 text-left text-xs transition-all ${
                         selected
                           ? "border-[#8F6662] bg-[#F9F0ED] font-bold text-[#3A2A27]"
                           : "border-[#E6DCD2] bg-[#FAF8F5] text-[#5A4742] hover:bg-[#F3ECE4]"
@@ -637,12 +649,13 @@ export default function WeddingCode19Client({
                           ? WEDDING_CODE_19_UI_COPY.ceilingModal.badgeLabel
                           : "선택"}
                       </span>
-                    </button>
+                    </Button>
                   );
                 })}
               </div>
 
-              <button
+              <Button
+                variant="ghost"
                 type="button"
                 data-testid="wc19-ceiling-confirm"
                 disabled={ceilingDraftIds.length !== 2}
@@ -650,7 +663,7 @@ export default function WeddingCode19Client({
                 className="mt-5 w-full rounded-2xl bg-[#8F6662] px-5 py-3.5 text-sm font-semibold text-white transition-all hover:bg-[#7D5753] disabled:cursor-not-allowed disabled:opacity-40"
               >
                 2가지 최우선 항목 확정하고 결과 보기
-              </button>
+              </Button>
             </div>
           </div>
         )}
@@ -664,7 +677,8 @@ export default function WeddingCode19Client({
           >
             {/* 상단 탭 전환 바 */}
             <div className="grid grid-cols-2 gap-1.5 rounded-2xl border border-[#E6DCD2] bg-white p-1.5 shadow-xs">
-              <button
+              <Button
+                variant="ghost"
                 type="button"
                 data-testid="wc19-tab-personal"
                 onClick={() => setActiveTab("personal")}
@@ -675,8 +689,9 @@ export default function WeddingCode19Client({
                 }`}
               >
                 나의 웨딩코드 상세 리포트
-              </button>
-              <button
+              </Button>
+              <Button
+                variant="ghost"
                 type="button"
                 data-testid="wc19-tab-couple"
                 onClick={() => setActiveTab("couple")}
@@ -687,7 +702,7 @@ export default function WeddingCode19Client({
                 }`}
               >
                 커플 웨딩코드 비교 리포트
-              </button>
+              </Button>
             </div>
 
             {/* ================= 탭 1: 나의 웨딩코드 상세 리포트 ================= */}
@@ -1057,13 +1072,14 @@ export default function WeddingCode19Client({
                   <p className="text-xs font-bold text-[#6E4742]">
                     파트너와 내 웨딩코드를 맞춰보고 싶다면?
                   </p>
-                  <button
+                  <Button
+                    variant="ghost"
                     type="button"
                     onClick={() => setActiveTab("couple")}
                     className="mt-3 w-full rounded-2xl bg-[#8F6662] px-5 py-3.5 text-sm font-semibold text-white transition-all hover:bg-[#7D5753]"
                   >
                     커플 웨딩코드 비교 리포트 열기 →
-                  </button>
+                  </Button>
                 </div>
               </div>
             )}
@@ -1081,14 +1097,15 @@ export default function WeddingCode19Client({
                   </p>
 
                   <div className="mt-4 space-y-2.5">
-                    <button
+                    <Button
+                      variant="ghost"
                       type="button"
                       data-testid="wc19-share-partner-button"
                       onClick={handleCopyPartnerLink}
                       className="flex w-full items-center justify-center rounded-2xl bg-[#8F6662] px-5 py-3.5 text-xs font-bold text-white transition-all hover:bg-[#7D5753]"
                     >
                       [ 카카오톡/링크로 파트너에게 내 결과 보내기 ]
-                    </button>
+                    </Button>
                     {copiedNotice && (
                       <p
                         role="status"
@@ -1098,14 +1115,15 @@ export default function WeddingCode19Client({
                       </p>
                     )}
 
-                    <button
+                    <Button
+                      variant="ghost"
                       type="button"
                       data-testid="wc19-simulator-toggle"
                       onClick={() => setShowSimulatorPicker((prev) => !prev)}
                       className="flex w-full items-center justify-center rounded-2xl border border-[#5F7D6B] bg-[#EEF4F0] px-5 py-3.5 text-xs font-bold text-[#355240] transition-all hover:bg-[#E1EDE5]"
                     >
                       [ 가상 파트너 선택해서 커플 리포트 미리보기 ]
-                    </button>
+                    </Button>
                   </div>
 
                   {showSimulatorPicker && (
@@ -1118,13 +1136,14 @@ export default function WeddingCode19Client({
                           가상 파트너 캐릭터 선택 (16종)
                         </span>
                         {simulatedPartnerCode && (
-                          <button
+                          <Button
+                            variant="ghost"
                             type="button"
                             onClick={() => setSimulatedPartnerCode(null)}
                             className="text-[11px] font-semibold text-[#8F6662] underline"
                           >
                             시뮬레이터 해제
-                          </button>
+                          </Button>
                         )}
                       </div>
                       <div className="grid grid-cols-2 gap-2">
@@ -1132,12 +1151,13 @@ export default function WeddingCode19Client({
                           const profile = CHARACTER_PROFILES_19[code];
                           const isSelected = simulatedPartnerCode === code;
                           return (
-                            <button
+                            <Button
                               key={code}
+                              variant="ghost"
                               type="button"
                               data-testid={`wc19-sim-partner-${code}`}
                               onClick={() => setSimulatedPartnerCode(code)}
-                              className={`flex items-center gap-2 rounded-xl border p-2.5 text-left transition-all ${
+                              className={`flex !whitespace-normal items-center gap-2 rounded-xl border p-2.5 text-left transition-all ${
                                 isSelected
                                   ? "border-[#5F7D6B] bg-[#EEF4F0] font-bold text-[#355240]"
                                   : "border-[#E6DCD2] bg-white text-[#5A4742] hover:bg-[#F5EFEA]"
@@ -1152,7 +1172,7 @@ export default function WeddingCode19Client({
                                   {profile.characterName}
                                 </p>
                               </div>
-                            </button>
+                            </Button>
                           );
                         })}
                       </div>

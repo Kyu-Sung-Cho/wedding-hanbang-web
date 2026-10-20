@@ -1586,8 +1586,8 @@ export default function ChatSidePanel({
               <div className="mx-3 mt-2 flex items-center justify-between rounded-[6px] bg-[var(--hb-surface-hover)] p-2.5">
                 <p className="text-xs font-medium leading-relaxed text-[#6d625a]">
                   {quotaRemaining > 0
-                    ? `무료 상담이 ${quotaRemaining}회 남았어요(하루 10회·총 50회 기준). 소진돼도 예산·체크리스트·일정·견적 진단 기능은 그대로 무료로 이용하실 수 있어요.`
-                    : "무료 상담 횟수를 모두 사용했어요. 예산·체크리스트·일정·견적 진단 기능은 그대로 무료로 이용하실 수 있어요."}
+                    ? `무료 상담이 ${quotaRemaining}회 남았어요. 소진돼도 예산·일정 기록은 그대로 보관돼요.`
+                    : "무료 상담을 모두 사용했어요. 예산·일정 기록은 그대로 보관돼요."}
                 </p>
                 <button
                   type="button"

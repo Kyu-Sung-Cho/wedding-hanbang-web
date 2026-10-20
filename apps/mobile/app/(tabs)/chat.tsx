@@ -1857,7 +1857,7 @@ function getServerCodeFailureMessage(serverCode: string | null): string | null {
     case "COST_GUARD_GLOBAL_DAILY":
       return "오늘 아모라 상담이 많아 잠시 쉬어가고 있어요. 내일 다시 이어서 도와드릴게요.";
     case "COST_GUARD_COUPLE_DAILY":
-      return "오늘 이 대화에서 쓸 수 있는 상담 횟수를 다 썼어요. 내일 다시 이어서 도와드릴게요.";
+      return "오늘 무료로 제공되는 아모라 상담(하루 10회)을 모두 사용했어요. 내일 자정(KST)에 다시 이어서 도와드릴게요. 예산·체크리스트·일정·견적 진단 기능은 지금도 자유롭게 이용하실 수 있어요.";
     case "COST_GUARD_GLOBAL_BUDGET":
       // "안전 한도" 는 우리 내부 용어이고, 카운터는 한국 시간 자정에 풀리므로
       // "잠시 후" 는 사용자를 헛되이 다시 누르게 만든다. 서버가 이미 고친 문구다.

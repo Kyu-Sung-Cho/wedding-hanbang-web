@@ -407,19 +407,20 @@ export default function ChecklistContent() {
             {WEDDING_STYLE_PRESETS.map((preset) => {
               const selected = pendingPresetKey === preset.key;
               return (
-                <button
+                <Button
                   key={preset.key}
+                  variant="ghost"
                   type="button"
                   aria-pressed={selected}
                   onClick={() => {
                     setPresetNotice("");
                     setPendingPresetKey(selected ? null : preset.key);
                   }}
-                  className={`rounded-[10px] border p-3 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--amora-accent)] ${selected ? "border-[var(--amora-selected-line)] bg-[var(--amora-selected-bg)] text-[var(--amora-selected-text)]" : "border-[var(--amora-line)] bg-[var(--amora-surface)] text-[var(--amora-ink)] hover:border-[var(--amora-rose)]/60"}`}
+                  className={`!block !whitespace-normal rounded-[10px] border p-3 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--amora-accent)] ${selected ? "border-[var(--amora-selected-line)] bg-[var(--amora-selected-bg)] text-[var(--amora-selected-text)]" : "border-[var(--amora-line)] bg-[var(--amora-surface)] text-[var(--amora-ink)] hover:border-[var(--amora-rose)]/60"}`}
                 >
                   <strong className="block text-[12.5px] font-semibold">{preset.label}</strong>
                   <span className="mt-1 block text-[11px] leading-[1.5] text-[var(--amora-muted)]">{preset.description}</span>
-                </button>
+                </Button>
               );
             })}
           </div>
@@ -439,22 +440,24 @@ export default function ChecklistContent() {
                 </p>
               )}
               <div className="mt-2.5 flex flex-wrap items-center gap-2">
-                <button
+                <Button
+                  variant="ghost"
                   type="button"
                   disabled={presetSaving}
                   onClick={applyWeddingStylePreset}
                   className="inline-flex min-h-9 items-center justify-center rounded-[8px] bg-[var(--amora-action)] px-3.5 text-[12px] font-semibold text-white transition hover:bg-[var(--amora-action-hover)] disabled:opacity-60"
                 >
                   {presetSaving ? "적용 중..." : "확인하고 적용하기"}
-                </button>
-                <button
+                </Button>
+                <Button
+                  variant="ghost"
                   type="button"
                   disabled={presetSaving}
                   onClick={() => setPendingPresetKey(null)}
                   className="inline-flex min-h-9 items-center justify-center rounded-[8px] border border-[var(--amora-line)] bg-white px-3 text-[12px] font-semibold text-[var(--amora-muted)] transition hover:text-[var(--amora-ink)]"
                 >
                   취소
-                </button>
+                </Button>
               </div>
             </div>
           )}
@@ -504,14 +507,15 @@ export default function ChecklistContent() {
           <div className="flex flex-wrap items-center justify-between gap-2">
             <h2 className="text-[12px] font-semibold text-[var(--amora-ink)] md:text-[14px]">결혼 준비 {stages.length}단계</h2>
             {grouped && currentStage >= 0 && !hasSearchQuery && (
-              <button
+              <Button
+                variant="ghost"
                 type="button"
                 data-testid="toggle-focus-current-stage"
                 onClick={toggleFocusCurrentStage}
                 className="inline-flex min-h-7 items-center rounded-full border border-[var(--amora-line)] bg-[var(--amora-warm)] px-2.5 py-1 text-[11px] font-semibold text-[var(--amora-rose-deep)] transition hover:border-[var(--amora-rose)]/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--amora-accent)]"
               >
                 {collapsedStageKeys.length > 0 ? "모든 단계 펼치기" : "지금 단계만 펼치기"}
-              </button>
+              </Button>
             )}
           </div>
           <p className="mt-[3px] text-[10.5px] leading-[1.6] text-[var(--amora-muted)] md:mt-0 md:text-[11.5px]">

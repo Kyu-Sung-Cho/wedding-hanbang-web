@@ -22,6 +22,7 @@ import {
   type AmoraQuoteCheckResult,
 } from "@/lib/amora/quoteCheck";
 import { weddingPath } from "@/lib/weddingPaths";
+import Button from "@/components/ui/Button";
 import ReportCardButton from "./ReportCardButton";
 
 const CATEGORY_OPTIONS: AmoraQuoteCategory[] = ["studio", "dress", "makeup"];
@@ -229,8 +230,9 @@ export default function AmoraQuoteCheckPage() {
 
               <div data-testid="quote-check-ceremony-preset">
                 <span className="mb-2 block text-sm font-medium text-[var(--hb-text-strong)]">진행 범위</span>
-                <div className="grid grid-cols-2 gap-2" role="group" aria-label="진행 범위 빠른 선택">
-                  <button
+                <div className="grid grid-cols-2 gap-2" aria-label="진행 범위 빠른 선택">
+                  <Button
+                    variant="ghost"
                     type="button"
                     aria-pressed={!shootOnlyMode}
                     onClick={() => applyShootOnlyPreset(false)}
@@ -241,8 +243,9 @@ export default function AmoraQuoteCheckPage() {
                     }`}
                   >
                     예식 + 촬영 모두
-                  </button>
-                  <button
+                  </Button>
+                  <Button
+                    variant="ghost"
                     type="button"
                     aria-pressed={shootOnlyMode}
                     onClick={() => applyShootOnlyPreset(true)}
@@ -253,7 +256,7 @@ export default function AmoraQuoteCheckPage() {
                     }`}
                   >
                     사진 촬영만 (예식 생략)
-                  </button>
+                  </Button>
                 </div>
               </div>
             </div>

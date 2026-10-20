@@ -3896,8 +3896,8 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
         <div className="mx-2 mt-2 flex items-center justify-between rounded-[6px] bg-[var(--hb-surface-hover)] p-3 shadow-[var(--shadow-raised)]">
           <p className="text-[13px] font-medium text-[#6d625a]">
             {quotaRemaining > 0
-              ? `무료 상담이 ${quotaRemaining}회 남았어요(하루 10회·총 50회 기준). 소진돼도 예산·체크리스트·일정·견적 진단 기능은 그대로 무료로 이용하실 수 있어요.`
-              : "무료 상담 횟수를 모두 사용했어요. 예산·체크리스트·일정·견적 진단 기능은 그대로 무료로 이용하실 수 있어요."}
+              ? `무료 상담이 ${quotaRemaining}회 남았어요. 소진돼도 예산·일정 기록은 그대로 보관돼요.`
+              : "무료 상담을 모두 사용했어요. 예산·일정 기록은 그대로 보관돼요."}
           </p>
           <Button variant="ghost" onClick={() => setInfoPanelOpen(true)} className="shrink-0 px-2! text-xs!">대화 정리</Button>
           <button

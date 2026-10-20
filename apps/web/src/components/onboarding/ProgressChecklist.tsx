@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { PREPARATION_PROGRESS_STATUS_OPTIONS } from "@hanbang/shared";
+import Button from "@/components/ui/Button";
 import type { ProgressChecklistItem, ChecklistStatus } from "@/types/onboarding.types";
 
 type OnboardingCeremonyPresetKey = "classic" | "small" | "family_meal" | "no_wedding";
@@ -118,8 +119,9 @@ export default function ProgressChecklist({ items, onStatusChange, onCostChange,
           {ONBOARDING_CEREMONY_PRESETS.map((preset) => {
             const active = selectedPresetKey === preset.key;
             return (
-              <button
+              <Button
                 key={preset.key}
+                variant="ghost"
                 type="button"
                 aria-pressed={active}
                 onClick={() => applyCeremonyPreset(preset.key)}
@@ -130,7 +132,7 @@ export default function ProgressChecklist({ items, onStatusChange, onCostChange,
                 }`}
               >
                 {preset.label}
-              </button>
+              </Button>
             );
           })}
         </div>
