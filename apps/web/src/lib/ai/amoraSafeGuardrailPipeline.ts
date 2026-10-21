@@ -1,4 +1,5 @@
 import { createOpenAIStructuredResponseWithAudit } from "@/lib/ai/auditedOpenAI";
+import { checkRateLimitPersistent, rateLimitSubjectKey } from "@/utils/rateLimit";
 
 /**
  * [개발 지시서] 웨딩한방 AI '아모라(Amora)' 안전 가드레일 및 전체 프롬프트 명세
@@ -560,7 +561,7 @@ export function classifyAmoraIntentDeterministically(userMessage: string): Amora
   }
 
   if (
-    /이전\s*지시.{0,12}(?:무시|잊어)|시스템\s*프롬프트|프롬프트.{0,10}(?:공개|출력|보여|알려)|개발자\s*모드|DAN\s*모드|탈옥|jailbreak|반말로?\s*해|욕설로?\s*답|빙의해|소설을?\s*쓰는데.{0,20}규칙|절대\s*보안\s*원칙|amora_safe_response/iu.test(
+    /이전\s*지시.{0,12}(?:무시|잊어)|시스템\s*프롬프트|프롬프트.{0,10}(?:공개|출력|보여|알려)|개발자\s*모드|DAN\s*모드|탈옥|jailbreak|반말(?:로?\s*(?:해|대답|답해|말해)|하고)|욕설로?\s*(?:답|대답|말해)|빙의해|소설을?\s*쓰는데.{0,20}규칙|절대\s*보안\s*원칙|amora_safe_response/iu.test(
       text,
     )
   ) {
@@ -584,7 +585,7 @@ export function classifyAmoraIntentDeterministically(userMessage: string): Amora
   }
 
   if (
-    /환불\s*보장\s*확답|무조건\s*환불해|위약금\s*면제해|할인\s*쿠폰\s*발급해|위약금\s*안\s*내게\s*승인/iu.test(
+    /환불\s*보장.{0,12}(?:확답|맞지)|웨딩한방이?\s*100%\s*환불\s*보장|무조건\s*환불해|위약금\s*면제해|할인\s*쿠폰\s*발급해|위약금\s*안\s*내게\s*승인/iu.test(
       text,
     )
   ) {
@@ -596,7 +597,7 @@ export function classifyAmoraIntentDeterministically(userMessage: string): Amora
   }
 
   if (
-    /(?:최악이라고|사기꾼이라고|쓰레기라고|망하라고).{0,16}(?:비방|욕해|소문|루머|까줘)|루머\s*사실인지\s*확인해|악평\s*써줘/iu.test(
+    /(?:최악이라고|사기꾼이라고|쓰레기라고|망하라고).{0,16}(?:비방|욕해|소문|루머|까줘|까발려)|(?:사기\s*업체|사기꾼|먹튀|쓰레기\s*업체).{0,16}(?:루머|소문).{0,12}(?:사실|맞지|확인|까발려)|루머\s*사실인지\s*확인해|악평\s*써줘/iu.test(
       text,
     )
   ) {
@@ -608,7 +609,7 @@ export function classifyAmoraIntentDeterministically(userMessage: string): Amora
   }
 
   if (
-    /(?:공격|협박|조롱|비꼬|상처\s*주|욕하)(?:하는|는|할|용)?\s*(?:문자|메시지|카톡).{0,12}(?:써줘|작성|대필)|같이\s*욕해줘|나르시시스트\s*맞지|소시오패스\s*맞지|정신병자\s*맞지/iu.test(
+    /(?:엿\s*먹이|공격|협박|조롱|비꼬|상처\s*주|욕하)(?:하는|는|할|용)?\s*(?:문자|메시지|카톡).{0,12}(?:써\s*줘|작성|대필)|같이\s*욕해\s*줘|나르시시스트\s*맞지|소시오패스\s*맞지|정신병자\s*맞지/iu.test(
       text,
     )
   ) {
@@ -665,11 +666,72 @@ export function classifyAmoraIntentDeterministically(userMessage: string): Amora
 
 /**
  * 동일 유저가 10분 내 5회 이상 BLOCK 판정 시 30분간 채팅 차단 및 [ABUSE_RATE_LIMIT] 노출
+ * - 인메모리 즉시 판정 + 멀티 인스턴스(Vercel Serverless) 공유 영속 스토어(checkRateLimitPersistent) 이중 지원
  */
 interface UserBlockRecord {
   blockTimestamps: number[];
   blockedUntil: number | null;
 }
+
+export interface AmoraPersistentAbuseBackend {
+  isBanned30m: (subjectKey: string, cooldownMs: number) => Promise<boolean>;
+  recordBlockStrikeAndLockIfThresholdReached: (params: {
+    strikeKey: string;
+    banKey: string;
+    windowMs: number;
+    threshold: number;
+    cooldownMs: number;
+  }) => Promise<boolean>;
+}
+
+const defaultSupabasePersistentAbuseBackend: AmoraPersistentAbuseBackend = {
+  async isBanned30m(subjectKey: string, cooldownMs: number): Promise<boolean> {
+    if (
+      process.env.NODE_ENV === "test" ||
+      !process.env.NEXT_PUBLIC_SUPABASE_URL ||
+      !process.env.SUPABASE_SERVICE_ROLE_KEY
+    ) {
+      return false;
+    }
+    const response = await checkRateLimitPersistent(
+      subjectKey,
+      { maxRequests: 499_999, windowMs: cooldownMs, cost: 1 },
+      { failClosed: false },
+    );
+    return response !== null;
+  },
+  async recordBlockStrikeAndLockIfThresholdReached(params): Promise<boolean> {
+    if (
+      process.env.NODE_ENV === "test" ||
+      !process.env.NEXT_PUBLIC_SUPABASE_URL ||
+      !process.env.SUPABASE_SERVICE_ROLE_KEY
+    ) {
+      return false;
+    }
+    const strikeRes = await checkRateLimitPersistent(
+      params.strikeKey,
+      {
+        maxRequests: Math.max(1, params.threshold - 1),
+        windowMs: params.windowMs,
+        cost: 1,
+      },
+      { failClosed: false },
+    );
+    if (strikeRes !== null) {
+      await checkRateLimitPersistent(
+        params.banKey,
+        {
+          maxRequests: 1_000_000,
+          windowMs: params.cooldownMs,
+          cost: 500_000,
+        },
+        { failClosed: false },
+      );
+      return true;
+    }
+    return false;
+  },
+};
 
 export class AmoraAbuseRateLimiter {
   private readonly records = new Map<string, UserBlockRecord>();
@@ -678,6 +740,7 @@ export class AmoraAbuseRateLimiter {
     private readonly windowMs: number = AMORA_ABUSE_WINDOW_MS,
     private readonly threshold: number = AMORA_ABUSE_BLOCK_THRESHOLD,
     private readonly cooldownMs: number = AMORA_ABUSE_COOLDOWN_MS,
+    private readonly persistentBackend: AmoraPersistentAbuseBackend = defaultSupabasePersistentAbuseBackend,
   ) {}
 
   isCurrentlyBlocked(userId: string, now: number = Date.now()): {
@@ -712,6 +775,49 @@ export class AmoraAbuseRateLimiter {
       blockedUntil: null,
       recentBlockCount: entry.blockTimestamps.length,
     };
+  }
+
+  async isCurrentlyBlockedPersistent(
+    userId: string,
+    now: number = Date.now(),
+  ): Promise<{
+    blocked: boolean;
+    blockedUntil: number | null;
+    recentBlockCount: number;
+    source: "memory" | "persistent" | "none";
+  }> {
+    const local = this.isCurrentlyBlocked(userId, now);
+    if (local.blocked) {
+      return { ...local, source: "memory" };
+    }
+
+    const key = userId.trim() || "anonymous";
+    const banKey = rateLimitSubjectKey("amora_abuse_ban", key);
+    try {
+      const bannedInSharedStore = await this.persistentBackend.isBanned30m(
+        banKey,
+        this.cooldownMs,
+      );
+      if (bannedInSharedStore) {
+        const blockedUntil = now + this.cooldownMs;
+        const current = this.records.get(key) ?? {
+          blockTimestamps: [],
+          blockedUntil,
+        };
+        current.blockedUntil = blockedUntil;
+        this.records.set(key, current);
+        return {
+          blocked: true,
+          blockedUntil,
+          recentBlockCount: Math.max(current.blockTimestamps.length, this.threshold),
+          source: "persistent",
+        };
+      }
+    } catch {
+      // Shared store exception falls back cleanly to in-memory record
+    }
+
+    return { ...local, source: "none" };
   }
 
   recordBlockVerdict(userId: string, now: number = Date.now()): {
@@ -755,6 +861,51 @@ export class AmoraAbuseRateLimiter {
       blockedUntil: null,
       recentBlockCount: recent.length,
     };
+  }
+
+  async recordBlockVerdictPersistent(
+    userId: string,
+    now: number = Date.now(),
+  ): Promise<{
+    rateLimited: boolean;
+    blockedUntil: number | null;
+    recentBlockCount: number;
+    source: "memory" | "persistent";
+  }> {
+    const local = this.recordBlockVerdict(userId, now);
+    const key = userId.trim() || "anonymous";
+    const strikeKey = rateLimitSubjectKey("amora_block_strike", key);
+    const banKey = rateLimitSubjectKey("amora_abuse_ban", key);
+
+    try {
+      const sharedRateLimited =
+        await this.persistentBackend.recordBlockStrikeAndLockIfThresholdReached({
+          strikeKey,
+          banKey,
+          windowMs: this.windowMs,
+          threshold: this.threshold,
+          cooldownMs: this.cooldownMs,
+        });
+      if (sharedRateLimited && !local.rateLimited) {
+        const blockedUntil = now + this.cooldownMs;
+        const current = this.records.get(key) ?? {
+          blockTimestamps: [now],
+          blockedUntil,
+        };
+        current.blockedUntil = blockedUntil;
+        this.records.set(key, current);
+        return {
+          rateLimited: true,
+          blockedUntil,
+          recentBlockCount: Math.max(local.recentBlockCount, this.threshold),
+          source: "persistent",
+        };
+      }
+    } catch {
+      // Shared store exception falls back cleanly to in-memory verdict
+    }
+
+    return { ...local, source: "memory" };
   }
 
   reset(userId?: string): void {
@@ -968,6 +1119,115 @@ export function inspectAmoraSafeOutputPostCheck(replyToUser: string): AmoraPostC
   };
 }
 
+/**
+ * 웨딩 키워드를 섞은 우회 공격(입력단) 및 출력단 금지 패턴(욕설·정신병리 단정·임의 환불/쿠폰 확답)을
+ * 메인 스트리밍 채팅(/api/chat)과 안전 파이프라인(/api/amora/safe-chat) 양쪽 모두에서 원천 차단한다.
+ */
+export interface AmoraAdversarialBypassInspection {
+  blocked: boolean;
+  category: AmoraBlockCategory | null;
+  replyToUser: string;
+  reason: string | null;
+}
+
+const INPUT_ADVERSARIAL_JAILBREAK_RE =
+  /이전\s*지시.{0,12}(?:무시|잊어)|시스템\s*프롬프트.{0,14}(?:공개|출력|보여|알려)|개발자\s*모드|DAN\s*모드|탈옥|jailbreak|(?:너\s*지금부터|앞으로)\s*반말(?:하고|로\s*(?:해|대답|답해|말해))|욕설로?\s*(?:답|대답|말해)|절대\s*보안\s*원칙|amora_safe_response/iu;
+
+const INPUT_ADVERSARIAL_PARTISAN_ATTACK_RE =
+  /(?:엿\s*먹이|공격|협박|조롱|비꼬|상처\s*주|욕하)(?:하는|는|할|용)?\s*(?:문자|메시지|카톡).{0,14}(?:대신\s*)?(?:써\s*줘|작성|대필)|같이\s*욕해\s*줘|(?:나르시시스트|소시오패스|정신병자)\s*맞지.{0,12}(?:동조|욕해)/iu;
+
+const INPUT_ADVERSARIAL_DEFAMATION_RE =
+  /(?:사기\s*업체|사기꾼|먹튀|쓰레기\s*업체)(?:라는|란)?\s*(?:루머|소문).{0,16}(?:사실이지|맞지|확인해|까발려)|(?:최악이라고|사기꾼이라고|쓰레기라고|망하라고).{0,16}(?:비방|욕해|소문|루머|까줘|까발려|악평\s*써)/iu;
+
+const INPUT_ADVERSARIAL_CONTRACT_REFUND_RE =
+  /(?:웨딩한방이?|너네가?)\s*100%\s*환불\s*보장|무조건\s*환불\s*보장.{0,10}확답|위약금\s*면제.{0,10}(?:승인|확답)|임의\s*할인\s*쿠폰\s*발급해/iu;
+
+const OUTPUT_PSYCHIATRIC_LABELING_RE =
+  /(?:신랑|신부|파트너|남편|아내|시어머니|장모님|상대방)(?:은|는|이|가)\s*(?:전형적인\s*|명백한\s*)?(?:나르시시스트|소시오패스|사이코패스|정신병자)(?:입니다|예요|네요|로\s*보입니다)/iu;
+
+const OUTPUT_UNAUTHORIZED_REFUND_GUARANTEE_RE =
+  /(?:웨딩한방이|저희가)\s*(?:직접\s*)?(?:100%\s*)?(?:환불을?\s*보장해\s*드립|위약금을?\s*면제해\s*드립|할인\s*쿠폰을?\s*발급해\s*드렸)/iu;
+
+export function inspectAmoraAdversarialBypass(options: {
+  userText?: string;
+  outputText: string;
+}): AmoraAdversarialBypassInspection {
+  const userText = typeof options.userText === "string" ? options.userText.trim() : "";
+  const outputText = typeof options.outputText === "string" ? options.outputText : "";
+
+  if (userText.length > 0) {
+    if (INPUT_ADVERSARIAL_JAILBREAK_RE.test(userText)) {
+      return {
+        blocked: true,
+        category: "JAILBREAK_OR_ROLEPLAY",
+        replyToUser: AMORA_STANDARD_MESSAGES.JAILBREAK_OR_ROLEPLAY,
+        reason: "input_adversarial_jailbreak",
+      };
+    }
+    if (INPUT_ADVERSARIAL_PARTISAN_ATTACK_RE.test(userText)) {
+      return {
+        blocked: true,
+        category: "PARTISAN_OR_ATTACK",
+        replyToUser: AMORA_STANDARD_MESSAGES.PARTISAN_OR_ATTACK,
+        reason: "input_adversarial_partisan_attack",
+      };
+    }
+    if (INPUT_ADVERSARIAL_DEFAMATION_RE.test(userText)) {
+      return {
+        blocked: true,
+        category: "DEFAMATION_RISK",
+        replyToUser: AMORA_STANDARD_MESSAGES.DEFAMATION_RISK,
+        reason: "input_adversarial_defamation",
+      };
+    }
+    if (INPUT_ADVERSARIAL_CONTRACT_REFUND_RE.test(userText)) {
+      return {
+        blocked: true,
+        category: "CONTRACT_OR_REFUND",
+        replyToUser: AMORA_STANDARD_MESSAGES.CONTRACT_OR_REFUND,
+        reason: "input_adversarial_contract_refund",
+      };
+    }
+  }
+
+  if (outputText.length > 0) {
+    if (
+      DETERMINISTIC_PROFANITY_SEXUAL_HATE_RE.test(outputText) &&
+      !DETERMINISTIC_PROFANITY_SEXUAL_HATE_RE.test(userText)
+    ) {
+      return {
+        blocked: true,
+        category: "JAILBREAK_OR_ROLEPLAY",
+        replyToUser: AMORA_STANDARD_MESSAGES.JAILBREAK_OR_ROLEPLAY,
+        reason: "output_profanity_or_hate",
+      };
+    }
+    if (OUTPUT_PSYCHIATRIC_LABELING_RE.test(outputText)) {
+      return {
+        blocked: true,
+        category: "PARTISAN_OR_ATTACK",
+        replyToUser: AMORA_STANDARD_MESSAGES.PARTISAN_OR_ATTACK,
+        reason: "output_psychiatric_labeling",
+      };
+    }
+    if (OUTPUT_UNAUTHORIZED_REFUND_GUARANTEE_RE.test(outputText)) {
+      return {
+        blocked: true,
+        category: "CONTRACT_OR_REFUND",
+        replyToUser: AMORA_STANDARD_MESSAGES.CONTRACT_OR_REFUND,
+        reason: "output_unauthorized_refund_guarantee",
+      };
+    }
+  }
+
+  return {
+    blocked: false,
+    category: null,
+    replyToUser: outputText,
+    reason: null,
+  };
+}
+
 // ============================================================================
 // 5단계 통합 서버 파이프라인 실행기 (runAmoraSafeGuardrailPipeline)
 // ============================================================================
@@ -1060,8 +1320,8 @@ export async function runAmoraSafeGuardrailPipeline(
   const userId = input.userId.trim() || "anonymous";
   const userMessage = typeof input.userMessage === "string" ? input.userMessage : "";
 
-  // 0. 기존 30분 차단 상태 확인 (10분 내 5회 이상 BLOCK 누적 유저)
-  const activeBlock = rateLimiter.isCurrentlyBlocked(userId, now);
+  // 0. 기존 30분 차단 상태 확인 (인메모리 + 멀티 인스턴스 영속 스토어 이중 확인)
+  const activeBlock = await rateLimiter.isCurrentlyBlockedPersistent(userId, now);
   if (activeBlock.blocked) {
     return buildShortCircuitOutput({
       stageReached: "STEP_0_ABUSE_RATE_LIMIT",
@@ -1104,7 +1364,7 @@ export async function runAmoraSafeGuardrailPipeline(
   }
 
   if (moderationEval.action === "JAILBREAK_OR_ROLEPLAY") {
-    const strike = rateLimiter.recordBlockVerdict(userId, now);
+    const strike = await rateLimiter.recordBlockVerdictPersistent(userId, now);
     if (strike.rateLimited) {
       return buildShortCircuitOutput({
         stageReached: "STEP_2_MODERATION",
@@ -1149,7 +1409,7 @@ export async function runAmoraSafeGuardrailPipeline(
   }
 
   if (routerResult.action === "BLOCK") {
-    const strike = rateLimiter.recordBlockVerdict(userId, now);
+    const strike = await rateLimiter.recordBlockVerdictPersistent(userId, now);
     if (strike.rateLimited) {
       return buildShortCircuitOutput({
         stageReached: "STEP_3_INTENT_ROUTER",
@@ -1274,6 +1534,21 @@ export async function runAmoraSafeGuardrailPipeline(
       routerResult,
       postCheckLeakedKeyword: postCheck.matchedKeyword,
     };
+  }
+
+  const adversarialCheck = inspectAmoraAdversarialBypass({
+    userText: userMessage,
+    outputText: structuredPayload.reply_to_user,
+  });
+  if (adversarialCheck.blocked && adversarialCheck.category) {
+    return buildShortCircuitOutput({
+      stageReached: "STEP_5_POST_CHECK_REPLACED",
+      blocked: true,
+      replyToUser: adversarialCheck.replyToUser,
+      detectedCategory: mapRouterCategoryToDetectedAuditCategory(adversarialCheck.category),
+      auditNote: `Post-check 우회 공격/금지 출력(${adversarialCheck.reason}) 감지로 표준 멘트 대체`,
+      routerResult,
+    });
   }
 
   return {
