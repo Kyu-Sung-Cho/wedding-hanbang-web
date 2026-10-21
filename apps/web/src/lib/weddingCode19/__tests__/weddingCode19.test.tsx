@@ -147,6 +147,38 @@ describe("웨딩코드 19문항 마스터 데이터 & 투트랙 채점 엔진 �
       comparison.conflictItems.some((c) => c.questionId === "Q13"),
     ).toBe(true);
     expect(comparison.crisisWarnings).toHaveLength(2);
+    expect(comparison.empathyBridge.translations.length).toBeGreaterThanOrEqual(2);
+  });
+
+  it("파트1 문항에 긍정 응답 편향(전부 4점)이 있어도 Q13=B(실속)·Q14=B(편의) 선택이 묻히지 않고, 차순위 절약 추천과 심층 심리 통역이 생성된다", () => {
+    const positiveBiasedAnswers: WeddingCode19Answers = {
+      Q1: 4,
+      Q2: 4,
+      Q3: 4,
+      Q4: 4,
+      Q5: 5,
+      Q6: 5,
+      Q7: 5,
+      Q8: 4,
+      Q9: 4,
+      Q10: 4,
+      Q11: 4,
+      Q12: 4,
+      Q13: "B",
+      Q14: "B",
+      Q15: "B",
+      Q16: "B",
+      Q17: "B",
+      Q18: "B",
+      Q19: "B",
+    };
+    const report = buildPersonalReport19(positiveBiasedAnswers, ["Q6", "Q7"]);
+    expect(report.axes.axis2.winner).toBe("P");
+    expect(report.axes.axis3.winner).toBe("E");
+    expect(report.basket.saveSimplify12).toHaveLength(0);
+    expect(report.basket.relativeSaveSuggestions.length).toBeGreaterThan(0);
+    expect(report.hiddenPsychology.unconsciousTitle.length).toBeGreaterThan(5);
+    expect(report.hiddenPsychology.partnerTranslations).toHaveLength(2);
   });
 });
 
