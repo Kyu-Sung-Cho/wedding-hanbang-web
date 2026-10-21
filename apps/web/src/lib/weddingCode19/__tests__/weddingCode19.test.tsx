@@ -426,6 +426,14 @@ describe("WeddingCode19Client 전체 인터랙션 흐름 검증", () => {
       container.querySelector('[data-testid="wc19-amora-prefill-preview"]')
         ?.textContent,
     ).toContain("우리만의 정원을 가꾸는 사슴");
+
+    // 8. 내 1순위 장바구니 맞춤 공시가격 바로가기 버튼(Q5 1순위 -> /price/hall) 확인
+    const recommendedPriceCta = container.querySelector<HTMLAnchorElement>(
+      '[data-testid="wc19-recommended-price-cta"]',
+    );
+    expect(recommendedPriceCta).not.toBeNull();
+    expect(recommendedPriceCta?.getAttribute("href")).toBe("/price/hall");
+    expect(recommendedPriceCta?.textContent).toContain("예식 공간 디자인·연출");
   });
 
   it("같은 4자리 동물 캐릭터(SDMH)가 나오더라도 19문항 응답 지문에 따라 세부 페르소나·의사결정 온도·숨은 심리가 정교하게 달라진다", () => {

@@ -78,6 +78,43 @@ const ALL_CHARACTER_CODES = Object.keys(
   CHARACTER_PROFILES_19,
 ) as WeddingCode19Code[];
 
+function resolveRecommendedPriceTarget19(
+  personalReport: ReturnType<typeof buildPersonalReport19>,
+): { href: string; label: string } {
+  const priorities = [
+    ...personalReport.basket.mustHave5,
+    ...personalReport.basket.niceToHave4,
+  ];
+  for (const item of priorities) {
+    if (item.questionId === "Q8") {
+      return {
+        href: "/price/dress",
+        label: `👗 내 1순위 ‘${item.shortTitle}’ → 드레스·메이크업 공시가격 바로 비교하기`,
+      };
+    }
+    if (item.questionId === "Q9") {
+      return {
+        href: "/price/studio",
+        label: `📸 내 1순위 ‘${item.shortTitle}’ → 스튜디오·촬영 공시가격 바로 비교하기`,
+      };
+    }
+    if (
+      item.questionId === "Q5" ||
+      item.questionId === "Q6" ||
+      item.questionId === "Q7"
+    ) {
+      return {
+        href: "/price/hall",
+        label: `🏛️ 내 1순위 ‘${item.shortTitle}’ → 웨딩홀·식대 공시가격 바로 비교하기`,
+      };
+    }
+  }
+  return {
+    href: "/price/hall",
+    label: "🏛️ 내 웨딩코드 맞춤 → 웨딩홀·스드메 공시가격 비교하기",
+  };
+}
+
 export default function WeddingCode19Client({
   embedded = false,
 }: {
@@ -277,6 +314,8 @@ export default function WeddingCode19Client({
       // 브라우저 저장소가 막힌 환경에서도 링크 이동은 그대로 진행한다.
     }
   };
+
+  const recommendedPriceTarget = resolveRecommendedPriceTarget19(personalReport);
 
   const handleStartTest = () => {
     triggerFade();
@@ -1996,6 +2035,15 @@ export default function WeddingCode19Client({
                   className="flex w-full items-center justify-center rounded-2xl bg-[#8F6662] px-6 py-4 text-center text-sm sm:text-base font-semibold text-white shadow-xs transition hover:bg-[#7A5450]"
                 >
                   [ 이 웨딩코드로 아모라 AI 맞춤 결혼 준비 시작하기 ]
+                </Link>
+
+                <Link
+                  href={recommendedPriceTarget.href}
+                  onClick={handleAmoraHandoffClick}
+                  data-testid="wc19-recommended-price-cta"
+                  className="flex w-full items-center justify-center rounded-2xl border border-[#5F7D6B] bg-[#EEF4F0] px-5 py-3.5 text-center text-xs sm:text-sm font-bold text-[#355240] transition hover:bg-[#E1EDE5]"
+                >
+                  [ {recommendedPriceTarget.label} ]
                 </Link>
 
                 <div className="grid grid-cols-2 gap-2.5">

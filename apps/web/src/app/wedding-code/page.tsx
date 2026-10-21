@@ -10,6 +10,8 @@ import {
 } from "@/lib/weddingCode/contribution/server";
 import { V40_COPY } from "@/lib/weddingCode/v40/copy";
 import { MEASUREMENT_VERSION } from "@/lib/weddingCode/likert/types";
+import { CHARACTER_PROFILES_19 } from "@/lib/weddingCode19/data";
+import { decodePartnerPayload19, scoreWeddingCode19 } from "@/lib/weddingCode19/engine";
 
 import WeddingCodeReleaseClient from "./WeddingCodeReleaseClient";
 import { isLegacyWeddingCodeQuery } from "./releaseEntry";
@@ -62,6 +64,25 @@ const LIKERT_CARD_IMAGE = {
 export async function generateMetadata({ searchParams }: WeddingCodePageProps): Promise<Metadata> {
   const search = await searchParams;
   if (!isLegacyWeddingCodeQuery(search)) {
+    const rawPartner = typeof search.partner === "string" ? search.partner : undefined;
+    const partnerDecoded = rawPartner ? decodePartnerPayload19(rawPartner) : null;
+    if (partnerDecoded) {
+      const partnerScored = scoreWeddingCode19(partnerDecoded.answers);
+      const partnerProfile = CHARACTER_PROFILES_19[partnerScored.code];
+      const title = `💌 파트너(${partnerProfile.emoji} ${partnerProfile.characterName})가 보낸 웨딩코드 도착! | 웨딩코드 · 웨딩한방`;
+      const description = `파트너의 웨딩코드는 [${partnerProfile.characterName} (${partnerScored.code} · ${partnerProfile.codeTag})]입니다. 나도 19문항(약 3분) 테스트를 완료하면 두 사람의 커플 케미 & 1:1 맞춤 조율 리포트가 바로 열립니다.`;
+      const card = { ...LIKERT_CARD_IMAGE, url: "/wedding-code/r6-card/opengraph-image", alt: "웨딩코드, 우리의 결혼 준비 방식" };
+      return {
+        title,
+        description,
+        robots: { index: false, follow: false, nocache: true },
+        referrer: "no-referrer",
+        alternates: { canonical: "/wedding-code" },
+        openGraph: { title, description, siteName: "웨딩한방", locale: "ko_KR", type: "website", images: [card] },
+        twitter: { card: "summary_large_image", title, description, images: [card] },
+      };
+    }
+
     const oldLikert = search.v === MEASUREMENT_VERSION;
     const title = oldLikert ? "나의 결혼 준비 언어 | 웨딩코드 · 웨딩한방" : "우리의 결혼 준비 방식 | 웨딩코드 · 웨딩한방";
     const description = oldLikert
