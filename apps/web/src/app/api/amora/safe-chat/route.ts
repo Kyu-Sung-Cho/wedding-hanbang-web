@@ -118,6 +118,8 @@ export async function POST(request: Request) {
       stageReached: pipelineResult.stageReached,
       blocked: pipelineResult.blocked,
       rateLimited: pipelineResult.rateLimited,
+      target_model: pipelineResult.target_model,
+      selected_model: pipelineResult.selected_model,
     },
     {
       status: pipelineResult.rateLimited ? 429 : 200,
