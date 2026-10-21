@@ -46,7 +46,10 @@ import { scrubAmoraSpam } from "@/lib/ai/amoraSpamTail";
 import { stripAmoraInternalArtifacts } from "@hanbang/shared/amora-visible-text";
 import { stripAmoraRequestMarkers } from "./amoraRequestMarkers";
 import { alignAmoraRecommendationLabels } from "./amoraRecommendationConsistency";
-import { inspectAmoraSafeOutputPostCheck } from "./amoraSafeGuardrailPipeline";
+import {
+  inspectAmoraAdversarialBypass,
+  inspectAmoraSafeOutputPostCheck,
+} from "./amoraSafeGuardrailPipeline";
 
 /**
  * 지우지 않을 문자.
@@ -154,7 +157,8 @@ export type AmoraOutputHygieneAction =
     }
   | { kind: "latin_fragment_detected"; count: number }
   | { kind: "known_stray_suffix_removed"; count: number }
-  | { kind: "system_prompt_leak_replaced"; keyword: string };
+  | { kind: "system_prompt_leak_replaced"; keyword: string }
+  | { kind: "adversarial_guardrail_replaced"; category: string; reason: string };
 
 export type AmoraOutputHygieneResult = {
   text: string;
@@ -315,6 +319,19 @@ export function applyAmoraOutputHygiene(
   if (postCheck.leaked && postCheck.matchedKeyword) {
     actions.push({ kind: "system_prompt_leak_replaced", keyword: postCheck.matchedKeyword });
     return { text: postCheck.replyToUser, actions };
+  }
+
+  const adversarialBypass = inspectAmoraAdversarialBypass({
+    userText: options.userText,
+    outputText: finalText,
+  });
+  if (adversarialBypass.blocked && adversarialBypass.category && adversarialBypass.reason) {
+    actions.push({
+      kind: "adversarial_guardrail_replaced",
+      category: adversarialBypass.category,
+      reason: adversarialBypass.reason,
+    });
+    return { text: adversarialBypass.replyToUser, actions };
   }
 
   const latinFragments = countShortLatinFragments(finalText);
