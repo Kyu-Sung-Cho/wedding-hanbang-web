@@ -873,7 +873,7 @@ export const CHARACTER_PROFILES_19: Readonly<
   },
   IPER: {
     code: "IPER",
-    emoji: "🦦",
+    emoji: "🦭",
     characterName: "홀가분하게 핵심만 챙기는 수달",
     codeTag: "I(오붓) · P(실속) · E(편의) · R(분담)",
     oneLineDef:
