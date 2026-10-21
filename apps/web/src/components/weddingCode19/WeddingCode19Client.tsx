@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import Button from "@/components/ui/Button";
 import {
@@ -24,6 +24,7 @@ import {
   decodePartnerPayload19,
   encodePartnerPayload19,
   getCeilingCandidates19,
+  scoreWeddingCode19,
   shouldTriggerCeilingModal19,
   type EncodedPartnerPayload19,
 } from "@/lib/weddingCode19/engine";
@@ -31,6 +32,47 @@ import { rememberDemoAmoraPrefill } from "@/lib/chat/demoHandoff";
 
 type FlowStep19 = "intro" | "part1" | "bridge" | "part2" | "result";
 type ResultTab19 = "personal" | "couple";
+
+const SESSION_STORAGE_KEY_19 = "hanbang:wedding-code-19:session-v1";
+
+interface PersistedSession19 {
+  step: FlowStep19;
+  questionIndex: number;
+  answers: WeddingCode19Answers;
+  topPriorityIds: QuestionId[];
+  activeTab: ResultTab19;
+  simulatedPartnerCode: WeddingCode19Code | null;
+}
+
+function readPersistedSession19(): PersistedSession19 | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = window.sessionStorage.getItem(SESSION_STORAGE_KEY_19);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as Partial<PersistedSession19>;
+    if (
+      !parsed ||
+      typeof parsed.step !== "string" ||
+      typeof parsed.questionIndex !== "number" ||
+      !parsed.answers ||
+      typeof parsed.answers !== "object"
+    ) {
+      return null;
+    }
+    return {
+      step: parsed.step as FlowStep19,
+      questionIndex: Math.max(0, Math.min(18, parsed.questionIndex)),
+      answers: parsed.answers,
+      topPriorityIds: Array.isArray(parsed.topPriorityIds)
+        ? (parsed.topPriorityIds as QuestionId[])
+        : [],
+      activeTab: parsed.activeTab === "couple" ? "couple" : "personal",
+      simulatedPartnerCode: parsed.simulatedPartnerCode ?? null,
+    };
+  } catch {
+    return null;
+  }
+}
 
 const ALL_CHARACTER_CODES = Object.keys(
   CHARACTER_PROFILES_19,
@@ -42,25 +84,42 @@ export default function WeddingCode19Client({
   embedded?: boolean;
 } = {}) {
   const RootTag = embedded ? "div" : "main";
-  const [step, setStep] = useState<FlowStep19>("intro");
-  const [questionIndex, setQuestionIndex] = useState<number>(0); // 0..18 (Q1..Q19)
-  const [answers, setAnswers] = useState<WeddingCode19Answers>({});
-  const [topPriorityIds, setTopPriorityIds] = useState<QuestionId[]>([]);
+  const [initialSession] = useState<PersistedSession19 | null>(() =>
+    readPersistedSession19(),
+  );
+  const [step, setStep] = useState<FlowStep19>(
+    () => initialSession?.step ?? "intro",
+  );
+  const [questionIndex, setQuestionIndex] = useState<number>(
+    () => initialSession?.questionIndex ?? 0,
+  ); // 0..18 (Q1..Q19)
+  const [answers, setAnswers] = useState<WeddingCode19Answers>(
+    () => initialSession?.answers ?? {},
+  );
+  const [topPriorityIds, setTopPriorityIds] = useState<QuestionId[]>(
+    () => initialSession?.topPriorityIds ?? [],
+  );
   const [showCeilingModal, setShowCeilingModal] = useState<boolean>(false);
   const [ceilingDraftIds, setCeilingDraftIds] = useState<QuestionId[]>([]);
-  const [activeTab, setActiveTab] = useState<ResultTab19>("personal");
+  const [activeTab, setActiveTab] = useState<ResultTab19>(
+    () => initialSession?.activeTab ?? "personal",
+  );
 
   // 파트너 URL 데이터 (?partner=...) 및 가상 파트너 시뮬레이터 상태
-  const [urlPartnerData] = useState<EncodedPartnerPayload19 | null>(() => {
-    if (typeof window === "undefined") return null;
-    const params = new URLSearchParams(window.location.search);
-    return decodePartnerPayload19(params.get("partner"));
-  });
+  const [urlPartnerData, setUrlPartnerData] =
+    useState<EncodedPartnerPayload19 | null>(() => {
+      if (typeof window === "undefined") return null;
+      const params = new URLSearchParams(window.location.search);
+      return decodePartnerPayload19(params.get("partner"));
+    });
   const [simulatedPartnerCode, setSimulatedPartnerCode] =
-    useState<WeddingCode19Code | null>(null);
+    useState<WeddingCode19Code | null>(
+      () => initialSession?.simulatedPartnerCode ?? null,
+    );
   const [showSimulatorPicker, setShowSimulatorPicker] =
     useState<boolean>(false);
   const [copiedNotice, setCopiedNotice] = useState<boolean>(false);
+  const [copiedRichNotice, setCopiedRichNotice] = useState<boolean>(false);
   const [fadeKey, setFadeKey] = useState<number>(0);
 
   const triggerFade = () => setFadeKey((prev) => prev + 1);
@@ -70,6 +129,15 @@ export default function WeddingCode19Client({
     () => getCeilingCandidates19(answers),
     [answers],
   );
+
+  const urlPartnerPreview = useMemo(() => {
+    if (!urlPartnerData) return null;
+    const scored = scoreWeddingCode19(urlPartnerData.answers);
+    return {
+      code: scored.code,
+      character: CHARACTER_PROFILES_19[scored.code],
+    };
+  }, [urlPartnerData]);
 
   const activePartnerPayload = useMemo<EncodedPartnerPayload19 | null>(() => {
     if (simulatedPartnerCode) {
@@ -102,6 +170,48 @@ export default function WeddingCode19Client({
     [personalReport, activeTab, coupleReport],
   );
 
+  // [태클 3 방어]: 새로고침(F5) 및 외부 이동 후 뒤로가기 시에도 진행 상태·결과 화면이 날아가지 않도록 세션 동기화
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      const payload: PersistedSession19 = {
+        step,
+        questionIndex,
+        answers,
+        topPriorityIds,
+        activeTab,
+        simulatedPartnerCode,
+      };
+      window.sessionStorage.setItem(
+        SESSION_STORAGE_KEY_19,
+        JSON.stringify(payload),
+      );
+      if (step === "result") {
+        window.localStorage.setItem(
+          "hanbang:wedding-code-19:latest",
+          JSON.stringify({
+            version: 1,
+            code: personalReport.code,
+            characterName: personalReport.character.characterName,
+            encoded: encodePartnerPayload19(answers, topPriorityIds),
+            savedAt: new Date().toISOString(),
+          }),
+        );
+      }
+    } catch {
+      // sessionStorage / localStorage 비활성 환경 무시
+    }
+  }, [
+    step,
+    questionIndex,
+    answers,
+    topPriorityIds,
+    activeTab,
+    simulatedPartnerCode,
+    personalReport.code,
+    personalReport.character.characterName,
+  ]);
+
   const handleAmoraHandoffClick = () => {
     if (typeof window === "undefined") return;
     try {
@@ -127,18 +237,7 @@ export default function WeddingCode19Client({
     setStep("part1");
   };
 
-  const handleSelectAnswer = (
-    qId: QuestionId,
-    value: WeddingCode19AnswerValue,
-  ) => {
-    const nextAnswers: WeddingCode19Answers = { ...answers, [qId]: value };
-    setAnswers(nextAnswers);
-
-    // 기존에 topPriorityIds에 있던 문항이 5가 아니게 바뀌면 제거
-    if (value !== 5 && topPriorityIds.includes(qId)) {
-      setTopPriorityIds((prev) => prev.filter((id) => id !== qId));
-    }
-
+  const advanceAfterQuestion = (nextAnswers: WeddingCode19Answers) => {
     triggerFade();
 
     // Q1 ~ Q11 -> 다음 문항
@@ -176,6 +275,24 @@ export default function WeddingCode19Client({
     } else {
       setActiveTab("personal");
     }
+  };
+
+  const handleSelectAnswer = (
+    qId: QuestionId,
+    value: WeddingCode19AnswerValue,
+  ) => {
+    // [태클 11 방어]: 화면 전환 중 빠른 연타로 인해 현재 문항 ID와 다른 문항 클릭 이벤트가 들어오면 무시
+    if (ALL_QUESTIONS_19[questionIndex]?.id !== qId) return;
+
+    const nextAnswers: WeddingCode19Answers = { ...answers, [qId]: value };
+    setAnswers(nextAnswers);
+
+    // 기존에 topPriorityIds에 있던 문항이 5가 아니게 바뀌면 제거
+    if (value !== 5 && topPriorityIds.includes(qId)) {
+      setTopPriorityIds((prev) => prev.filter((id) => id !== qId));
+    }
+
+    advanceAfterQuestion(nextAnswers);
   };
 
   const handlePrevQuestion = () => {
@@ -233,6 +350,12 @@ export default function WeddingCode19Client({
     }
   };
 
+  const handleReturnFromCeilingModal = () => {
+    setShowCeilingModal(false);
+    setQuestionIndex(18);
+    setStep("part2");
+  };
+
   const handleCopyPartnerLink = async () => {
     if (typeof window === "undefined") return;
     const encoded = encodePartnerPayload19(answers, topPriorityIds);
@@ -243,6 +366,20 @@ export default function WeddingCode19Client({
       setTimeout(() => setCopiedNotice(false), 3000);
     } catch {
       window.prompt("아래 링크를 복사해 파트너에게 전달해 주세요:", shareUrl);
+    }
+  };
+
+  const handleCopyRichPartnerMessage = async () => {
+    if (typeof window === "undefined") return;
+    const encoded = encodePartnerPayload19(answers, topPriorityIds);
+    const shareUrl = `${window.location.origin}/wedding-code?partner=${encodeURIComponent(encoded)}`;
+    const richMessage = `💌 내 웨딩코드는 [${personalReport.character.emoji} ${personalReport.character.characterName} (${personalReport.code})]래! 자기도 3분 만에 테스트해보고 우리 커플 케미 & 1:1 맞춤 조율 리포트 열어보자 👉 ${shareUrl}`;
+    try {
+      await navigator.clipboard.writeText(richMessage);
+      setCopiedRichNotice(true);
+      setTimeout(() => setCopiedRichNotice(false), 3000);
+    } catch {
+      window.prompt("아래 카톡 초대 메시지와 링크를 복사해 전달해 주세요:", richMessage);
     }
   };
 
@@ -257,6 +394,13 @@ export default function WeddingCode19Client({
     setQuestionIndex(0);
     setActiveTab("personal");
     setStep("intro");
+    if (typeof window !== "undefined") {
+      try {
+        window.sessionStorage.removeItem(SESSION_STORAGE_KEY_19);
+      } catch {
+        // ignore
+      }
+    }
   };
 
   const progressNumber = questionIndex + 1;
@@ -292,7 +436,32 @@ export default function WeddingCode19Client({
             data-testid="wc19-partner-banner"
             className="mb-5 rounded-2xl border border-[#DFC5BE] bg-[#FBF2EF] p-4 text-sm font-medium leading-relaxed text-[#6E4742] shadow-xs sm:p-5 sm:text-base"
           >
-            {WEDDING_CODE_19_UI_COPY.intro.partnerBanner}
+            <p>{WEDDING_CODE_19_UI_COPY.intro.partnerBanner}</p>
+            {urlPartnerPreview && (
+              <div
+                data-testid="wc19-partner-preview-badge"
+                className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-[#E8D5CE] bg-white/90 px-3.5 py-2.5 text-xs sm:text-sm"
+              >
+                <span className="font-bold text-[#3A2A27]">
+                  파트너의 웨딩코드:{" "}
+                  <span className="text-[#8F6662]">
+                    {urlPartnerPreview.character.emoji}{" "}
+                    {urlPartnerPreview.character.characterName} (
+                    {urlPartnerPreview.code} ·{" "}
+                    {urlPartnerPreview.character.codeTag})
+                  </span>
+                </span>
+                <Button
+                  variant="ghost"
+                  type="button"
+                  data-testid="wc19-dismiss-partner-banner"
+                  onClick={() => setUrlPartnerData(null)}
+                  className="text-xs font-semibold text-[#8A7972] underline hover:text-[#3A2A27]"
+                >
+                  혼자 테스트로 전환
+                </Button>
+              </div>
+            )}
           </div>
         )}
 
@@ -361,9 +530,22 @@ export default function WeddingCode19Client({
               >
                 {WEDDING_CODE_19_UI_COPY.part1.prevButton}
               </Button>
-              <span data-testid="wc19-progress-text" className="text-sm font-bold text-[#3A2A27] sm:text-base">
-                {progressNumber} / 19
-              </span>
+              <div className="flex items-center gap-2.5">
+                <span data-testid="wc19-progress-text" className="text-sm font-bold text-[#3A2A27] sm:text-base">
+                  {progressNumber} / 19
+                </span>
+                {answers[currentQuestion.id] !== undefined && (
+                  <Button
+                    variant="ghost"
+                    type="button"
+                    data-testid="wc19-next-button"
+                    onClick={() => advanceAfterQuestion(answers)}
+                    className="rounded-xl bg-[#F4EAE6] px-2.5 py-1 text-xs font-bold text-[#8F6662] hover:bg-[#EBDAD3] sm:text-sm"
+                  >
+                    다음 →
+                  </Button>
+                )}
+              </div>
             </div>
 
             <div className="mt-3 h-2.5 w-full overflow-hidden rounded-full bg-[#EFE8DF] sm:h-3">
@@ -509,9 +691,22 @@ export default function WeddingCode19Client({
               >
                 {WEDDING_CODE_19_UI_COPY.part1.prevButton}
               </Button>
-              <span data-testid="wc19-progress-text" className="text-sm font-bold text-[#3A2A27] sm:text-base">
-                {progressNumber} / 19
-              </span>
+              <div className="flex items-center gap-2.5">
+                <span data-testid="wc19-progress-text" className="text-sm font-bold text-[#3A2A27] sm:text-base">
+                  {progressNumber} / 19
+                </span>
+                {answers[currentQuestion.id] !== undefined && (
+                  <Button
+                    variant="ghost"
+                    type="button"
+                    data-testid="wc19-next-button"
+                    onClick={() => advanceAfterQuestion(answers)}
+                    className="rounded-xl bg-[#EEF4F0] px-2.5 py-1 text-xs font-bold text-[#355240] hover:bg-[#E1EDE5] sm:text-sm"
+                  >
+                    다음 →
+                  </Button>
+                )}
+              </div>
             </div>
 
             <div className="mt-3 h-2.5 w-full overflow-hidden rounded-full bg-[#EFE8DF] sm:h-3">
@@ -664,6 +859,15 @@ export default function WeddingCode19Client({
               >
                 2가지 최우선 항목 확정하고 결과 보기
               </Button>
+              <Button
+                variant="ghost"
+                type="button"
+                data-testid="wc19-ceiling-back"
+                onClick={handleReturnFromCeilingModal}
+                className="mt-2.5 w-full rounded-xl py-2.5 text-sm font-medium text-[#6E5A54] hover:underline"
+              >
+                ← 19번 문항 다시 고르기
+              </Button>
             </div>
           </div>
         )}
@@ -799,6 +1003,14 @@ export default function WeddingCode19Client({
                             style={{ width: `${ax.rightPercent}%` }}
                           />
                         </div>
+                        {ax.nuanceBadge && (
+                          <p
+                            data-testid={`wc19-axis-nuance-${ax.axisNumber}`}
+                            className="pt-0.5 text-xs font-medium text-[#6E5A54]"
+                          >
+                            {ax.nuanceBadge}
+                          </p>
+                        )}
                       </div>
                     ))}
                   </div>
@@ -1029,12 +1241,18 @@ export default function WeddingCode19Client({
                     </div>
 
                     {/* 🎁 파트너에게 맞춰줄 양보 찬스 카드 (③ 어느 쪽이든 괜찮다 / D) */}
-                    <div className="rounded-2xl border border-[#EFE7DE] bg-[#FAF8F5] p-5">
+                    <div
+                      className={`rounded-2xl border border-[#EFE7DE] bg-[#FAF8F5] ${
+                        personalReport.basket.concession3D.length === 0
+                          ? "flex flex-wrap items-center justify-between gap-2 px-5 py-3.5"
+                          : "p-5"
+                      }`}
+                    >
                       <h3 className="text-sm sm:text-base font-bold text-[#6E5A54]">
                         🎁 파트너에게 맞춰줄 양보 찬스 카드 (③ 어느 쪽이든 괜찮다 / D)
                       </h3>
                       {personalReport.basket.concession3D.length === 0 ? (
-                        <p className="mt-2 text-sm text-[#7D6B65]">
+                        <p className="text-xs sm:text-sm text-[#7D6B65]">
                           해당하는 항목이 없습니다.
                         </p>
                       ) : (
@@ -1057,12 +1275,18 @@ export default function WeddingCode19Client({
                     </div>
 
                     {/* ⚖️ 반반 균형·절충 선호 항목 (C) */}
-                    <div className="rounded-2xl border border-[#EFE7DE] bg-[#FAF8F5] p-5">
+                    <div
+                      className={`rounded-2xl border border-[#EFE7DE] bg-[#FAF8F5] ${
+                        personalReport.basket.balancedC.length === 0
+                          ? "flex flex-wrap items-center justify-between gap-2 px-5 py-3.5"
+                          : "p-5"
+                      }`}
+                    >
                       <h3 className="text-sm sm:text-base font-bold text-[#6E5A54]">
                         ⚖️ 반반 균형·절충 선호 항목 (C)
                       </h3>
                       {personalReport.basket.balancedC.length === 0 ? (
-                        <p className="mt-2 text-sm text-[#7D6B65]">
+                        <p className="text-xs sm:text-sm text-[#7D6B65]">
                           해당하는 항목이 없습니다.
                         </p>
                       ) : (
@@ -1085,12 +1309,18 @@ export default function WeddingCode19Client({
                     </div>
 
                     {/* 🔍 함께 알아볼 미정 빈칸 (⚪ 아직 모르겠다 / E) */}
-                    <div className="rounded-2xl border border-[#EFE7DE] bg-[#FAF8F5] p-5">
+                    <div
+                      className={`rounded-2xl border border-[#EFE7DE] bg-[#FAF8F5] ${
+                        personalReport.basket.undecidedUnknownE.length === 0
+                          ? "flex flex-wrap items-center justify-between gap-2 px-5 py-3.5"
+                          : "p-5"
+                      }`}
+                    >
                       <h3 className="text-sm sm:text-base font-bold text-[#6E5A54]">
                         🔍 함께 알아볼 미정 빈칸 (⚪ 아직 모르겠다 / E)
                       </h3>
                       {personalReport.basket.undecidedUnknownE.length === 0 ? (
-                        <p className="mt-2 text-sm text-[#7D6B65]">
+                        <p className="text-xs sm:text-sm text-[#7D6B65]">
                           해당하는 항목이 없습니다.
                         </p>
                       ) : (
@@ -1201,6 +1431,24 @@ export default function WeddingCode19Client({
                         className="text-center text-sm font-semibold text-[#5F7D6B]"
                       >
                         ✓ 파트너 초대 링크가 복사되었어요! 카카오톡이나 메시지로 붙여넣어 보내주세요.
+                      </p>
+                    )}
+
+                    <Button
+                      variant="ghost"
+                      type="button"
+                      data-testid="wc19-share-rich-button"
+                      onClick={handleCopyRichPartnerMessage}
+                      className="flex w-full items-center justify-center rounded-2xl border border-[#8F6662] bg-[#FAF4F2] px-6 py-3.5 text-xs sm:text-sm font-bold text-[#6E4742] transition-all hover:bg-[#F3E7E3]"
+                    >
+                      [ 💬 카톡용 내 캐릭터 소개 문구 + 링크 함께 복사 ]
+                    </Button>
+                    {copiedRichNotice && (
+                      <p
+                        role="status"
+                        className="text-center text-sm font-semibold text-[#8F6662]"
+                      >
+                        ✓ 내 동물 캐릭터 소개 문구와 파트너 초대 링크가 함께 복사되었어요!
                       </p>
                     )}
 
@@ -1495,9 +1743,13 @@ export default function WeddingCode19Client({
                                   Q{item.questionNumber}. {item.shortTitle}
                                 </span>
                                 <span className="rounded-full bg-[#F4EAE6] px-3 py-1 text-xs font-bold text-[#8F6662]">
-                                  {item.preferredBy === "me"
-                                    ? "파트너가 나에게 양보 🎁"
-                                    : "내가 파트너에게 양보 🎁"}
+                                  {item.matchType === "lead_undecided"
+                                    ? item.preferredBy === "me"
+                                      ? "파트너 미정 · 내가 리드 💡"
+                                      : "내가 미정 · 파트너 리드 💡"
+                                    : item.preferredBy === "me"
+                                      ? "파트너가 나에게 양보 🎁"
+                                      : "내가 파트너에게 양보 🎁"}
                                 </span>
                               </div>
                               <p className="mt-2 text-sm leading-relaxed text-[#5A4742]">
@@ -1534,11 +1786,23 @@ export default function WeddingCode19Client({
                                   Q{conf.questionNumber}.{" "}
                                   {ITEM_INTERPRETATIONS_19[conf.questionId].shortTitle}
                                 </span>
-                                {(conf.myTopPriority || conf.partnerTopPriority) && (
-                                  <span className="rounded-full bg-[#8F6662] px-3 py-1 text-xs font-bold text-white">
-                                    [{WEDDING_CODE_19_UI_COPY.ceilingModal.badgeLabel}]
-                                  </span>
-                                )}
+                                <div className="flex flex-wrap items-center gap-1.5">
+                                  {conf.conflictType === "balance_gap" && (
+                                    <span className="rounded-full bg-[#EEF4F0] px-2.5 py-1 text-xs font-bold text-[#355240]">
+                                      ⚖️ 확고 vs 반반 절충 조율
+                                    </span>
+                                  )}
+                                  {conf.conflictType === "priority_gap" && (
+                                    <span className="rounded-full bg-[#F4EAE6] px-2.5 py-1 text-xs font-bold text-[#8F6662]">
+                                      🔥 1순위 예산 온도차 조율
+                                    </span>
+                                  )}
+                                  {(conf.myTopPriority || conf.partnerTopPriority) && (
+                                    <span className="rounded-full bg-[#8F6662] px-3 py-1 text-xs font-bold text-white">
+                                      [{WEDDING_CODE_19_UI_COPY.ceilingModal.badgeLabel}]
+                                    </span>
+                                  )}
+                                </div>
                               </div>
 
                               <div className="mt-3.5 space-y-2.5 rounded-xl bg-white p-4 text-sm leading-relaxed">

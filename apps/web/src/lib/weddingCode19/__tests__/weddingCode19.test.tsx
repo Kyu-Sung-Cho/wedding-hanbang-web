@@ -175,12 +175,103 @@ describe("웨딩코드 19문항 마스터 데이터 & 투트랙 채점 엔진 �
     const report = buildPersonalReport19(sampleAnswers, ["Q6", "Q7"]);
     // Q13=B(+4 P) vs Q5=5(+2 D), Q8=4(+1 D), Q9=4(+1 D) -> 4 D : 4 P 동점 -> Q13 방향(P) 승리!
     expect(report.axes.axis2.winner).toBe("P");
-    // Q14=B(+2 E) vs Q11=4(+1 M), Q12=4(+1 M) -> 2 M : 2 E 동점 -> Q14 방향(E) 승리!
+    // Q14=B(+3 E) vs Q11=4(+1 M), Q12=4(+1 M) -> 2 M : 3 E -> Q14 방향(E) 승리!
     expect(report.axes.axis3.winner).toBe("E");
     expect(report.basket.saveSimplify12).toHaveLength(0);
     expect(report.basket.relativeSaveSuggestions.length).toBeGreaterThan(0);
     expect(report.hiddenPsychology.unconsciousTitle.length).toBeGreaterThan(5);
     expect(report.hiddenPsychology.partnerTranslations).toHaveLength(2);
+  });
+
+  it("16종 캐릭터 이모지가 중복 없이 고유하며, Q14=B 역전 방어 및 커플 비교 무손실 분류(A/B vs C, 미정 빈칸 리드, 1순위 온도차)가 작동한다", () => {
+    const emojis = Object.values(CHARACTER_PROFILES_19).map((c) => c.emoji);
+    expect(new Set(emojis).size).toBe(16);
+
+    // Q11=5, Q12=4(+3 M)이더라도 Q14=B(+3 E, 동점 시 Q14 우선)를 고르면 E로 판정되고 입체 배지가 생성된다
+    const smartEasy = scoreWeddingCode19({ Q11: 5, Q12: 4, Q14: "B" });
+    expect(smartEasy.axes.axis3.winner).toBe("E");
+    expect(smartEasy.axes.axis3.nuanceBadge).toContain("스마트 선별형");
+
+    // Q13=B(+4 P)이고 Q6=5(하객 교통 최우선)인 경우 Q5=5, Q8=5, Q9=4(+5 D)여도 실속(P)이 역전되지 않는다
+    const guestPractical = scoreWeddingCode19({
+      Q5: 5,
+      Q6: 5,
+      Q8: 5,
+      Q9: 4,
+      Q13: "B",
+    });
+    expect(guestPractical.axes.axis2.winner).toBe("P");
+
+    // 커플 비교 시 A vs C(절충 온도차), 확고 vs UNKNOWN/E(미정 빈칸 리드), 둘 다 3/D(양보 합의), 1순위 5 vs 4(예산 반대 시)가 단 하나도 증발하지 않는다
+    const myAns: WeddingCode19Answers = {
+      Q1: 5,
+      Q2: 3,
+      Q3: 4,
+      Q4: "UNKNOWN",
+      Q5: 5,
+      Q6: 4,
+      Q7: 5,
+      Q8: 5,
+      Q9: 5,
+      Q10: "NA",
+      Q11: 4,
+      Q12: 3,
+      Q13: "A",
+      Q14: "C",
+      Q15: "A",
+      Q16: "D",
+      Q17: "A",
+      Q18: "C",
+      Q19: "E",
+    };
+    const partnerAns: WeddingCode19Answers = {
+      Q1: 4,
+      Q2: 3,
+      Q3: "UNKNOWN",
+      Q4: "UNKNOWN",
+      Q5: 4,
+      Q6: 4,
+      Q7: 2,
+      Q8: 4,
+      Q9: 4,
+      Q10: 4,
+      Q11: 4,
+      Q12: 3,
+      Q13: "B",
+      Q14: "A",
+      Q15: "C",
+      Q16: "D",
+      Q17: "C",
+      Q18: "A",
+      Q19: "B",
+    };
+    const cmp = buildCoupleComparison19(myAns, partnerAns, ["Q5", "Q7"], []);
+    // Q5는 둘 다 긍정(5 vs 4)이지만 나의 타협 불가 1순위이고 Q13 예산(A vs B)이 반대이므로 priority_gap 조율에도 포함
+    expect(
+      cmp.conflictItems.some(
+        (c) => c.questionId === "Q5" && c.conflictType === "priority_gap",
+      ),
+    ).toBe(true);
+    // Q14(C vs A), Q15(A vs C), Q17(A vs C), Q18(C vs A)는 balance_gap 조율에 포함
+    expect(
+      cmp.conflictItems.some(
+        (c) => c.questionId === "Q15" && c.conflictType === "balance_gap",
+      ),
+    ).toBe(true);
+    // Q3(4 vs UNKNOWN), Q19(E vs B)는 lead_undecided 찬스 카드에 포함
+    expect(
+      cmp.concessionMatches.some(
+        (m) => m.questionId === "Q3" && m.matchType === "lead_undecided",
+      ),
+    ).toBe(true);
+    expect(
+      cmp.concessionMatches.some(
+        (m) => m.questionId === "Q19" && m.matchType === "lead_undecided",
+      ),
+    ).toBe(true);
+    // Q2(3 vs 3), Q4(UNKNOWN vs UNKNOWN), Q16(D vs D)는 alignedItems로 가이드 제공
+    expect(cmp.alignedItems.some((a) => a.questionId === "Q2")).toBe(true);
+    expect(cmp.alignedItems.some((a) => a.questionId === "Q16")).toBe(true);
   });
 });
 
@@ -190,6 +281,8 @@ describe("WeddingCode19Client 전체 인터랙션 흐름 검증", () => {
 
   beforeEach(() => {
     (globalThis as Record<string, unknown>).IS_REACT_ACT_ENVIRONMENT = true;
+    window.sessionStorage.clear();
+    window.localStorage.clear();
     container = document.createElement("div");
     document.body.appendChild(container);
     window.history.replaceState(null, "", "/wedding-code");

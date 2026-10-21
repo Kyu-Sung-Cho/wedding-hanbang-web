@@ -30,6 +30,8 @@ export interface AxisScoreDetail<Left extends string, Right extends string> {
   leftPercent: number;
   rightPercent: number;
   winner: Left | Right;
+  isBalancedTie?: boolean;
+  nuanceBadge?: string;
 }
 
 export interface BasketItemEntry {
@@ -124,6 +126,7 @@ export interface CoupleConcessionMatch {
   preferredBy: "me" | "partner";
   preferredAnswerBadge: string;
   preferredInterpretation: string;
+  matchType?: "concession" | "lead_undecided";
 }
 
 export interface CoupleConflictItem {
@@ -138,6 +141,7 @@ export interface CoupleConflictItem {
   conflictSolution: string;
   myTopPriority: boolean;
   partnerTopPriority: boolean;
+  conflictType?: "opposite" | "balance_gap" | "priority_gap";
 }
 
 export interface CoupleComparisonReport19 {
@@ -277,10 +281,18 @@ export function scoreWeddingCode19(answers: WeddingCode19Answers): {
     axis1Winner = "I";
   }
   const axis1Pct = computeAxisPercentages(sScore, iScore);
+  const axis1Tie = sScore === iScore;
+  const axis1Nuance = axis1Tie
+    ? "⚖️ 50:50 유연·균형형 (주인공 연출과 오붓한 교류를 상황에 맞춰 모두 즐기는 멀티 성향)"
+    : answers.Q1 === 5 && axis1Winner === "I"
+      ? "✨ 소규모로 오붓하게 모이되 입장 순간의 주인공 감동도 놓치지 않는 입체형"
+      : undefined;
 
   // 축 2: D (Dream · 당일 로망파) vs P (Practical · 미래 실속파)
   // Q13: A(+4 D), B(+4 P)
   // Q5, Q8, Q9: 5(+2 D), 4(+1 D), 2(+1 P), 1(+2 P)
+  // [보정]: Q13=B(미래 실속)를 명시적으로 고르고 하객 실속(Q6 교통·Q7 식사)에 5점을 준 경우,
+  // 로망 문항 호감(5,5,4 -> +5 D) 때문에 실속 선택이 억울하게 역전되지 않도록 +1 P 보정
   let dScore = 0;
   let pScore = 0;
   if (answers.Q13 === "A") dScore += 4;
@@ -289,6 +301,14 @@ export function scoreWeddingCode19(answers: WeddingCode19Answers): {
     const dir = getPart1Direction(answers[qId], "D", "P");
     if (dir.letter === "D") dScore += dir.points;
     if (dir.letter === "P") pScore += dir.points;
+  }
+  if (
+    answers.Q13 === "B" &&
+    dScore === 5 &&
+    pScore === 4 &&
+    (answers.Q6 === 5 || answers.Q7 === 5)
+  ) {
+    pScore += 1;
   }
   let axis2Winner: Axis2Letter;
   if (dScore > pScore) {
@@ -303,10 +323,19 @@ export function scoreWeddingCode19(answers: WeddingCode19Answers): {
     axis2Winner = "P";
   }
   const axis2Pct = computeAxisPercentages(dScore, pScore);
+  const axis2Tie = dScore === pScore;
+  const axis2Nuance = axis2Tie
+    ? "⚖️ 50:50 유연·균형형 (꼭 살릴 당일 로망과 결혼 후 실속의 황금 밸런스를 추구하는 성향)"
+    : axis2Winner === "D" && (answers.Q6 === 5 || answers.Q7 === 5)
+      ? "✨ 당일의 로망(D)은 물론 하객 대접(교통·식사)까지 놓치지 않는 배려 겸비형"
+      : axis2Winner === "P" &&
+          (answers.Q5 === 5 || answers.Q8 === 5 || answers.Q9 === 5)
+        ? "✨ 전체 예산은 실속(P) 있게 지키되, 핵심 로망 1순위는 확실히 살리는 선택·집중형"
+        : undefined;
 
   // 축 3: M (Manual · 직접 탐색·계획파) vs E (Easy · 압축·편의파)
   // Q11, Q12: 5(+2 M), 4(+1 M), 2(+1 E), 1(+2 E)
-  // Q14: A(+2 M), B(+2 E)
+  // Q14: A(+3 M), B(+3 E) — 실제 행동 선택(발품 vs 대행)이 호기심 점수에 역전되지 않도록 +3 반영
   let mScore = 0;
   let eScore = 0;
   const q11Dir = getPart1Direction(answers.Q11, "M", "E");
@@ -315,8 +344,8 @@ export function scoreWeddingCode19(answers: WeddingCode19Answers): {
     if (d.letter === "M") mScore += d.points;
     if (d.letter === "E") eScore += d.points;
   }
-  if (answers.Q14 === "A") mScore += 2;
-  if (answers.Q14 === "B") eScore += 2;
+  if (answers.Q14 === "A") mScore += 3;
+  if (answers.Q14 === "B") eScore += 3;
 
   let axis3Winner: Axis3Letter;
   if (mScore > eScore) {
@@ -333,6 +362,15 @@ export function scoreWeddingCode19(answers: WeddingCode19Answers): {
     axis3Winner = "E";
   }
   const axis3Pct = computeAxisPercentages(mScore, eScore);
+  const axis3Tie = mScore === eScore;
+  const axis3Nuance =
+    (q11Dir.letter === "M" || q12Dir.letter === "M") && answers.Q14 === "B"
+      ? "💡 마음은 꼼꼼히 비교하고 싶지만(Q11·12), 현실 체력을 위해 전문가 압축(Q14)을 택한 스마트 선별형"
+      : (q11Dir.letter === "E" || q12Dir.letter === "E") && answers.Q14 === "A"
+        ? "💡 복잡한 탐색은 피하고 싶지만, 바가지 방지를 위해 핵심 발품(Q14)은 직접 챙기는 실속형"
+        : axis3Tie
+          ? "⚖️ 50:50 유연·균형형 (중요한 건 직접 비교하고 나머지는 전문가에게 맡기는 하이브리드 성향)"
+          : undefined;
 
   // 축 4: H (Heart · 밀착 동행·공감파) vs R (Role · 역할 분담·해결파)
   // Q15: A(+3 H), B(+3 R)
@@ -353,6 +391,13 @@ export function scoreWeddingCode19(answers: WeddingCode19Answers): {
     axis4Winner = "H";
   }
   const axis4Pct = computeAxisPercentages(hScore, rScore);
+  const axis4Tie = hScore === rScore;
+  const axis4Nuance = axis4Tie
+    ? "⚖️ 50:50 유연·균형형 (다정한 공감 대화와 효율적인 역할 분담을 모두 잘하는 성향)"
+    : (answers.Q15 === "A" && answers.Q19 === "B") ||
+        (answers.Q15 === "B" && answers.Q19 === "A")
+      ? "✨ 평엔 효율적인 분담과 감정적 유대감을 조화롭게 병행하는 외유내강형"
+      : undefined;
 
   const code: WeddingCode19Code = `${axis1Winner}${axis2Winner}${axis3Winner}${axis4Winner}`;
 
@@ -370,6 +415,8 @@ export function scoreWeddingCode19(answers: WeddingCode19Answers): {
         leftPercent: axis1Pct.leftPercent,
         rightPercent: axis1Pct.rightPercent,
         winner: axis1Winner,
+        isBalancedTie: axis1Tie,
+        nuanceBadge: axis1Nuance,
       },
       axis2: {
         axisNumber: 2,
@@ -382,6 +429,8 @@ export function scoreWeddingCode19(answers: WeddingCode19Answers): {
         leftPercent: axis2Pct.leftPercent,
         rightPercent: axis2Pct.rightPercent,
         winner: axis2Winner,
+        isBalancedTie: axis2Tie,
+        nuanceBadge: axis2Nuance,
       },
       axis3: {
         axisNumber: 3,
@@ -394,6 +443,8 @@ export function scoreWeddingCode19(answers: WeddingCode19Answers): {
         leftPercent: axis3Pct.leftPercent,
         rightPercent: axis3Pct.rightPercent,
         winner: axis3Winner,
+        isBalancedTie: axis3Tie,
+        nuanceBadge: axis3Nuance,
       },
       axis4: {
         axisNumber: 4,
@@ -406,6 +457,8 @@ export function scoreWeddingCode19(answers: WeddingCode19Answers): {
         leftPercent: axis4Pct.leftPercent,
         rightPercent: axis4Pct.rightPercent,
         winner: axis4Winner,
+        isBalancedTie: axis4Tie,
+        nuanceBadge: axis4Nuance,
       },
     },
   };
@@ -759,6 +812,23 @@ function isConcessionChoice(ans: WeddingCode19AnswerValue | undefined): boolean 
   return ans === 3 || ans === "D";
 }
 
+function isUndecidedChoice(ans: WeddingCode19AnswerValue | undefined): boolean {
+  return ans === "UNKNOWN" || ans === "E";
+}
+
+function isPart2BalanceGap(
+  qId: QuestionId,
+  myAns: WeddingCode19AnswerValue | undefined,
+  partnerAns: WeddingCode19AnswerValue | undefined,
+): boolean {
+  const spec = QUESTION_MAP_19[qId];
+  if (spec.part !== 2) return false;
+  return (
+    ((myAns === "A" || myAns === "B") && partnerAns === "C") ||
+    (myAns === "C" && (partnerAns === "A" || partnerAns === "B"))
+  );
+}
+
 function isOppositeDirection(
   qId: QuestionId,
   myAns: WeddingCode19AnswerValue | undefined,
@@ -824,6 +894,7 @@ export function buildCoupleComparison19(
 
   const myTopSet = new Set(myReport.topPriorityIds);
   const partnerTopSet = new Set(partnerReport.topPriorityIds);
+  const q13Opposite = isOppositeDirection("Q13", myAnswers.Q13, partnerAnswers.Q13);
 
   for (const q of ALL_QUESTIONS_19) {
     const myAns = myAnswers[q.id];
@@ -843,9 +914,37 @@ export function buildCoupleComparison19(
         shortTitle,
         myAnswerBadge: formatAnswerBadge19(myAns),
         partnerAnswerBadge: formatAnswerBadge19(partnerAns),
-        sharedInterpretation: getItemInterpretationText19(q.id, myAns),
+        sharedInterpretation: getItemInterpretationText19(
+          q.id,
+          myAns === 5 || partnerAns === 5 ? 5 : myAns,
+        ),
       });
-    } else if (isConcessionChoice(myAns) && isDefinitePreference(partnerAns)) {
+
+      // [태클 2 방어]: 둘 다 긍정(4~5)이지만 한쪽은 [타협 불가 1순위(⑤)]이고 다른 쪽은 ④(여건 되면)이면서
+      // Q13 예산 배분 철학(A 당일 투자 vs B 미래 실속)이 반대인 경우, 예산 배분 시 온도차가 발생하므로
+      // 1:1 조율 처방전도 함께 확인할 수 있게 conflictItems에 보조 추가한다.
+      const hasTopPriorityTemperatureGap =
+        q13Opposite &&
+        ((myTopSet.has(q.id) && myAns === 5 && partnerAns === 4) ||
+          (partnerTopSet.has(q.id) && partnerAns === 5 && myAns === 4));
+
+      if (hasTopPriorityTemperatureGap) {
+        conflictItems.push({
+          questionId: q.id,
+          questionNumber: q.number,
+          category: q.category,
+          shortTitle,
+          myAnswerBadge: formatAnswerBadge19(myAns),
+          myStance: getItemInterpretationText19(q.id, myAns),
+          partnerAnswerBadge: formatAnswerBadge19(partnerAns),
+          partnerStance: getItemInterpretationText19(q.id, partnerAns),
+          conflictSolution: ITEM_INTERPRETATIONS_19[q.id].conflictSolution,
+          myTopPriority: myTopSet.has(q.id),
+          partnerTopPriority: partnerTopSet.has(q.id),
+          conflictType: "priority_gap",
+        });
+      }
+    } else if (isConcessionChoice(myAns) && (isDefinitePreference(partnerAns) || partnerAns === "C")) {
       concessionMatches.push({
         questionId: q.id,
         questionNumber: q.number,
@@ -855,8 +954,9 @@ export function buildCoupleComparison19(
         preferredBy: "partner",
         preferredAnswerBadge: formatAnswerBadge19(partnerAns),
         preferredInterpretation: getItemInterpretationText19(q.id, partnerAns),
+        matchType: "concession",
       });
-    } else if (isDefinitePreference(myAns) && isConcessionChoice(partnerAns)) {
+    } else if ((isDefinitePreference(myAns) || myAns === "C") && isConcessionChoice(partnerAns)) {
       concessionMatches.push({
         questionId: q.id,
         questionNumber: q.number,
@@ -866,8 +966,41 @@ export function buildCoupleComparison19(
         preferredBy: "me",
         preferredAnswerBadge: formatAnswerBadge19(myAns),
         preferredInterpretation: getItemInterpretationText19(q.id, myAns),
+        matchType: "concession",
       });
-    } else if (isOppositeDirection(q.id, myAns, partnerAns)) {
+    } else if (isUndecidedChoice(myAns) && (isDefinitePreference(partnerAns) || partnerAns === "C")) {
+      // [태클 8 방어]: 나는 아직 모르겠다(⚪/E)인데 파트너는 확고한 기준이 있는 경우 증발하지 않고 리드 카드로 안내
+      concessionMatches.push({
+        questionId: q.id,
+        questionNumber: q.number,
+        category: q.category,
+        shortTitle,
+        yielder: "me",
+        preferredBy: "partner",
+        preferredAnswerBadge: formatAnswerBadge19(partnerAns),
+        preferredInterpretation: `${getItemInterpretationText19(q.id, partnerAns)} (나는 아직 미정 상태이므로 기준이 뚜렷한 파트너가 자연스럽게 리드해 설명해주면 갈등 없이 합의됩니다.)`,
+        matchType: "lead_undecided",
+      });
+    } else if ((isDefinitePreference(myAns) || myAns === "C") && isUndecidedChoice(partnerAns)) {
+      // [태클 8 방어]: 나는 확고한 기준이 있는데 파트너는 아직 모르겠다(⚪/E)인 경우
+      concessionMatches.push({
+        questionId: q.id,
+        questionNumber: q.number,
+        category: q.category,
+        shortTitle,
+        yielder: "partner",
+        preferredBy: "me",
+        preferredAnswerBadge: formatAnswerBadge19(myAns),
+        preferredInterpretation: `${getItemInterpretationText19(q.id, myAns)} (파트너는 반대하는 것이 아니라 아직 생각해 본 적 없는 빈칸 상태이므로, 내가 원하는 이유를 다정하게 먼저 소개해 주세요.)`,
+        matchType: "lead_undecided",
+      });
+    } else if (
+      isOppositeDirection(q.id, myAns, partnerAns) ||
+      isPart2BalanceGap(q.id, myAns, partnerAns)
+    ) {
+      // [태클 7 방어]: 정반대(4~5 vs 1~2, A vs B)뿐 아니라 파트 2에서 A/B(확고) vs C(반반 절충)가 엇갈린 경우도
+      // 증발시키지 않고 조율 포인트 & 1:1 처방전에 포함시킨다.
+      const isOpp = isOppositeDirection(q.id, myAns, partnerAns);
       const conflictEntry: CoupleConflictItem = {
         questionId: q.id,
         questionNumber: q.number,
@@ -880,11 +1013,26 @@ export function buildCoupleComparison19(
         conflictSolution: ITEM_INTERPRETATIONS_19[q.id].conflictSolution,
         myTopPriority: myTopSet.has(q.id),
         partnerTopPriority: partnerTopSet.has(q.id),
+        conflictType: isOpp ? "opposite" : "balance_gap",
       };
       conflictItems.push(conflictEntry);
       if (q.id === "Q17" || q.id === "Q18") {
         crisisWarnings.push(conflictEntry);
       }
+    } else {
+      // [태클 9 방어]: 두 사람 모두 ③/D(양보 가능) 또는 ⚪/E(아직 모르겠다)를 고른 문항도 누락 없이 가이드 제공
+      const bothConcession = isConcessionChoice(myAns) && isConcessionChoice(partnerAns);
+      alignedItems.push({
+        questionId: q.id,
+        questionNumber: q.number,
+        category: q.category,
+        shortTitle,
+        myAnswerBadge: formatAnswerBadge19(myAns),
+        partnerAnswerBadge: formatAnswerBadge19(partnerAns),
+        sharedInterpretation: bothConcession
+          ? "두 사람 모두 어느 쪽이든 괜찮다고 답한 항목입니다! 서로 결정을 미루느라 시간을 쓰지 말고 가장 무난한 기본형(가성비 표준 옵션)으로 즉시 확정해 에너지를 아끼세요."
+          : "두 사람 모두 아직 구체적인 기준을 정하지 않은 백지상태 항목입니다. 처음부터 완벽히 정하려 애쓰지 말고, 기본 견적을 먼저 받아본 뒤 함께 기준을 세워보세요.",
+      });
     }
   }
 
