@@ -838,6 +838,69 @@ export default function WeddingCode19Client({
                   </div>
                 </div>
 
+                {/* 1-2. 내가 미처 몰랐던 나의 숨은 심리 & 내 속마음 번역기 */}
+                <div
+                  data-testid="wc19-hidden-psychology"
+                  className="rounded-3xl border border-[#DFC5BE] bg-gradient-to-br from-[#FFFDFB] to-[#FBF3EF] p-6 sm:p-9 lg:p-10 shadow-sm"
+                >
+                  <div className="flex items-center gap-2">
+                    <span className="rounded-full bg-[#8F6662] px-3 py-1 text-xs font-bold text-white">
+                      심층 심리 발견
+                    </span>
+                    <span className="text-xs sm:text-sm font-semibold text-[#8F6662]">
+                      내 답변 패턴이 보여주는 진짜 속마음
+                    </span>
+                  </div>
+                  <h2 className="mt-3 text-lg sm:text-xl font-bold text-[#3A2A27]">
+                    🪞 내가 미처 몰랐던 나의 숨은 심리 & 속마음 번역기
+                  </h2>
+                  <p className="mt-2 rounded-2xl border border-[#E8D5CE] bg-white/90 p-4 text-sm sm:text-base font-semibold leading-relaxed text-[#6E4742]">
+                    {personalReport.hiddenPsychology.selfDiscoveryQuestion}
+                  </p>
+
+                  <div className="mt-4 space-y-4">
+                    <div className="rounded-2xl border border-[#EFE7DE] bg-white p-5">
+                      <p className="text-xs sm:text-sm font-bold text-[#8F6662]">
+                        🔍 무의식적 결혼 핵심 동기 — {personalReport.hiddenPsychology.unconsciousTitle}
+                      </p>
+                      <p className="mt-2 text-sm sm:text-[15px] leading-relaxed text-[#4A3A36]">
+                        {personalReport.hiddenPsychology.unconsciousInsight}
+                      </p>
+                    </div>
+
+                    <div className="rounded-2xl border border-[#E2ECE5] bg-[#F5FAF7] p-5">
+                      <p className="text-xs sm:text-sm font-bold text-[#355240]">
+                        ⚡ 스트레스 상황에서 나도 모르게 나오는 반응 — {personalReport.hiddenPsychology.blindSpotTitle}
+                      </p>
+                      <p className="mt-2 text-sm sm:text-[15px] leading-relaxed text-[#4A3A36]">
+                        {personalReport.hiddenPsychology.blindSpotInsight}
+                      </p>
+                    </div>
+
+                    <div className="rounded-2xl border border-[#EAE1D7] bg-[#FAF8F5] p-5">
+                      <p className="text-xs sm:text-sm font-bold text-[#5A4742]">
+                        💌 파트너에게 그대로 보여주세요! ‘내 속마음 번역기’
+                      </p>
+                      <div className="mt-3 space-y-3">
+                        {personalReport.hiddenPsychology.partnerTranslations.map((tr, idx) => (
+                          <div
+                            key={idx}
+                            className="rounded-xl bg-white p-4 text-sm leading-relaxed shadow-2xs"
+                          >
+                            <p className="font-bold text-[#3A2A27]">
+                              겉으로 하는 말: {tr.whenISay}
+                            </p>
+                            <p className="mt-1.5 text-[#6E4742]">
+                              <strong className="font-bold text-[#8F6662]">진짜 속마음: </strong>
+                              {tr.whatIReallyMean}
+                            </p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
                 {/* 2. 한눈에 보는 나의 웨딩 장바구니 */}
                 <div className="rounded-3xl border border-[#EAE1D7] bg-white p-6 sm:p-9 lg:p-10 shadow-sm">
                   <h2 className="text-lg sm:text-xl font-bold text-[#3A2A27]">
@@ -917,9 +980,35 @@ export default function WeddingCode19Client({
                         ✂️ 과감히 힘을 뺄 절약·간소화 포인트 (① 전혀 아니다 / ② 별로 아니다)
                       </h3>
                       {personalReport.basket.saveSimplify12.length === 0 ? (
-                        <p className="mt-2 text-sm text-[#7D6B65]">
-                          해당하는 항목이 없습니다.
-                        </p>
+                        personalReport.basket.relativeSaveSuggestions.length > 0 ? (
+                          <div className="mt-3 space-y-3">
+                            <p className="text-xs sm:text-sm font-medium leading-relaxed text-[#355240]">
+                              💡 직접 ①·②번을 고르진 않으셨지만, ⑤번(1순위)으로 꼽으신 항목들에 비해 상대적으로 힘을 덜어내고 예산을 아끼기 좋은 ‘차순위 절약 추천 항목’입니다.
+                            </p>
+                            <ul className="space-y-3">
+                              {personalReport.basket.relativeSaveSuggestions.map((item) => (
+                                <li
+                                  key={item.questionId}
+                                  className="rounded-xl bg-white p-4 shadow-2xs"
+                                >
+                                  <p className="text-sm sm:text-base font-bold text-[#3A2A27]">
+                                    Q{item.questionNumber}. {item.shortTitle}{" "}
+                                    <span className="text-xs font-semibold text-[#4A6856]">
+                                      (상대적 힘 빼기 추천)
+                                    </span>
+                                  </p>
+                                  <p className="mt-1.5 text-sm leading-relaxed text-[#5A4742]">
+                                    {item.interpretation}
+                                  </p>
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        ) : (
+                          <p className="mt-2 text-sm text-[#7D6B65]">
+                            해당하는 항목이 없습니다.
+                          </p>
+                        )
                       ) : (
                         <ul className="mt-3 space-y-3">
                           {personalReport.basket.saveSimplify12.map((item) => (
@@ -1222,6 +1311,71 @@ export default function WeddingCode19Client({
                             {coupleReport.partnerReport.character.codeTag}
                           </p>
                         </div>
+                      </div>
+                    </div>
+
+                    {/* 1-2. 서로의 행동을 오해하지 않게 돕는 ‘두 사람의 속마음 번역기’ */}
+                    <div
+                      data-testid="wc19-couple-empathy-bridge"
+                      className="rounded-3xl border border-[#DFC5BE] bg-gradient-to-br from-[#FFFDFB] to-[#F7FAF8] p-6 sm:p-9 lg:p-10 shadow-sm"
+                    >
+                      <span className="inline-block rounded-full bg-[#5F7D6B]/15 px-3 py-1 text-xs font-bold text-[#355240]">
+                        서로를 깊이 이해하는 심리 통역
+                      </span>
+                      <h3 className="mt-2.5 text-lg sm:text-xl font-bold text-[#3A2A27]">
+                        🪞 {coupleReport.empathyBridge.headline}
+                      </h3>
+
+                      <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                        <div className="rounded-2xl border border-[#EFE7DE] bg-[#FCF7F5] p-4">
+                          <p className="text-xs font-bold text-[#8F6662]">
+                            나의 숨은 핵심 동기
+                          </p>
+                          <p className="mt-1 text-sm font-semibold leading-relaxed text-[#3A2A27]">
+                            {coupleReport.empathyBridge.myHiddenNeed}
+                          </p>
+                        </div>
+                        <div className="rounded-2xl border border-[#E2ECE5] bg-[#F5FAF7] p-4">
+                          <p className="text-xs font-bold text-[#4A6856]">
+                            파트너의 숨은 핵심 동기
+                          </p>
+                          <p className="mt-1 text-sm font-semibold leading-relaxed text-[#3A2A27]">
+                            {coupleReport.empathyBridge.partnerHiddenNeed}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="mt-4 space-y-3.5">
+                        {coupleReport.empathyBridge.translations.map((tr, idx) => (
+                          <div
+                            key={idx}
+                            className="rounded-2xl border border-[#EAE1D7] bg-white p-5 shadow-2xs"
+                          >
+                            <p className="text-sm sm:text-base font-bold text-[#3A2A27]">
+                              💬 {tr.triggerSituation}
+                            </p>
+                            <div className="mt-3 space-y-2 text-sm leading-relaxed">
+                              <p className="text-[#5A4742]">
+                                <strong className="font-bold text-[#8F6662]">
+                                  나의 속마음:{" "}
+                                </strong>
+                                {tr.myInnerThought}
+                              </p>
+                              <p className="text-[#5A4742]">
+                                <strong className="font-bold text-[#4A6856]">
+                                  파트너의 진짜 속뜻:{" "}
+                                </strong>
+                                {tr.partnerInnerThought}
+                              </p>
+                            </div>
+                            <p className="mt-3 rounded-xl bg-[#FAF8F5] p-3.5 text-xs sm:text-sm font-medium leading-relaxed text-[#3A2A27]">
+                              <strong className="font-bold text-[#8F6662]">
+                                🤝 오해 방지 대화 처방:{" "}
+                              </strong>
+                              {tr.bridgePrescription}
+                            </p>
+                          </div>
+                        ))}
                       </div>
                     </div>
 

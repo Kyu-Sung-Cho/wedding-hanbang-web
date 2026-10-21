@@ -60,7 +60,7 @@ export const WEDDING_CODE_19_UI_COPY = {
   },
   part1: {
     sectionGuide:
-      "각 문장을 읽고 내 생각이나 평소 모습과 가장 가까운 보기를 하나 골라주세요.",
+      "모두 좋아 보일 수 있지만, 문장 속 ‘현실 조건(비용·수고·타협)’까지 떠올렸을 때 내 진짜 속마음에 가장 가까운 보기를 골라주세요.",
     prevButton: "← 이전 문항",
   },
   bridge: {
@@ -88,13 +88,13 @@ export const PART1_MAIN_OPTIONS: readonly Part1ScaleOption[] = [
     value: 1,
     badge: "①",
     title: "① 전혀 아니다",
-    description: "내 생각이나 모습과 거리가 멀다",
+    description: "내 성향과 반대이거나, 과감히 생략·절약하고 싶다",
   },
   {
     value: 2,
     badge: "②",
     title: "② 별로 아니다",
-    description: "그다지 끌리지 않거나 기본 정도면 충분하다",
+    description: "굳이 힘이나 비용을 더 쓰기보다 기본 정도면 충분하다",
   },
   {
     value: 3,
@@ -106,7 +106,7 @@ export const PART1_MAIN_OPTIONS: readonly Part1ScaleOption[] = [
     value: 4,
     badge: "④",
     title: "④ 대체로 그렇다",
-    description: "여건이 맞으면 기왕이면 이렇게 하고 싶다",
+    description: "여건이 맞으면 기왕이면 이렇게 챙기고 싶다",
   },
   {
     value: 5,
@@ -177,7 +177,7 @@ export const PART1_QUESTIONS: readonly Part1QuestionSpec[] = [
     category: "예식 무대",
     shortTitle: "주인공 주목 연출",
     question:
-      "결혼식 날 문이 열리고 우리가 걸어 들어갈 때, 사람들의 시선과 축하가 한껏 쏟아지는 주인공의 순간이 기대되고 설렌다.",
+      "결혼식 날 문이 열리고 모든 하객의 시선과 조명이 우리에게 집중될 때, 쑥스러워 빨리 지나가길 바라기보다 그 주인공의 순간이 은근히 기대되고 설렌다.",
   },
   {
     id: "Q2",
@@ -186,7 +186,7 @@ export const PART1_QUESTIONS: readonly Part1QuestionSpec[] = [
     category: "예식 무대",
     shortTitle: "소규모 오붓한 예식",
     question:
-      "결혼식 자리는 우리 두 사람을 가까이서 깊이 아는 소수의 사람들만 모시고 작고 오붓하게 올리고 싶다.",
+      "인맥을 넓게 불러 북적이는 큰 결혼식을 올리기보다, 축의금 규모가 줄어들더라도 우리를 진짜 깊이 아는 소수의 사람들만 모시고 작고 오붓하게 올리고 싶다.",
   },
   {
     id: "Q3",
@@ -195,7 +195,7 @@ export const PART1_QUESTIONS: readonly Part1QuestionSpec[] = [
     category: "예식 무대",
     shortTitle: "색다른 이벤트 식순",
     question:
-      "결혼식 순서에 우리 두 사람만의 이야기나 색다른 이벤트를 넣어 특별하게 꾸미고 싶다.",
+      "남들 다 하는 정해진 식순대로 무난하고 빠르게 끝내기보다, 준비할 게 늘어나더라도 우리 두 사람만의 이야기나 색다른 이벤트를 넣어 특별하게 꾸미고 싶다.",
   },
   {
     id: "Q4",
@@ -204,7 +204,7 @@ export const PART1_QUESTIONS: readonly Part1QuestionSpec[] = [
     category: "예식 무대",
     shortTitle: "손님과의 여유로운 대화 시간",
     question:
-      "결혼식 날 찾아온 손님 한 분 한 분과 직접 눈을 맞추며 여유 있게 대화하고 어울리는 시간을 길게 갖고 싶다.",
+      "단상 위에서 멋진 예식을 보여주고 깔끔하게 인사드리는 것보다, 식순을 줄여서라도 손님 테이블을 돌며 한 분 한 분 눈 맞추고 길게 대화하는 시간이 더 중요하다.",
   },
   {
     id: "Q5",
@@ -213,7 +213,7 @@ export const PART1_QUESTIONS: readonly Part1QuestionSpec[] = [
     category: "당일 핵심 가치",
     shortTitle: "예식 공간 분위기·인테리어",
     question:
-      "예식 장소는 문을 열고 들어섰을 때 느껴지는 공간 분위기와 인테리어가 내 취향에 맞아야 마음이 끌린다.",
+      "교통이나 다른 조건을 조금 타협하더라도, 문을 열고 들어섰을 때 압도되는 공간 분위기와 인테리어가 내 취향에 맞아야 마음이 끌린다.",
   },
   {
     id: "Q6",
@@ -222,7 +222,7 @@ export const PART1_QUESTIONS: readonly Part1QuestionSpec[] = [
     category: "당일 핵심 가치",
     shortTitle: "손님 위치·주차·이동 동선",
     question:
-      "예식 장소를 고를 때는 먼 길 찾아오는 손님들이 오가기 편하고 주차나 이동 동선이 수월한지를 가장 먼저 따져보고 싶다.",
+      "홀이 조금 평범하고 내 로망을 덜 채우더라도, 먼 길 찾아오는 손님들이 오가기 편하고 주차나 이동 동선이 수월한 곳을 가장 먼저 고르고 싶다.",
   },
   {
     id: "Q7",
@@ -231,7 +231,7 @@ export const PART1_QUESTIONS: readonly Part1QuestionSpec[] = [
     category: "당일 핵심 가치",
     shortTitle: "손님 대접 음식의 맛과 차림새",
     question:
-      "결혼식에 찾아온 손님들에게 대접할 음식의 맛과 차림새만큼은 아쉬운 소리가 나오지 않게 특별히 신경 써서 챙기고 싶다.",
+      "예식장 꽃장식이나 무대 연출 비용을 줄여서라도, 찾아온 손님들에게 대접할 음식의 맛과 차림새만큼은 아쉬운 소리가 나오지 않게 최고로 챙기고 싶다.",
   },
   {
     id: "Q8",
@@ -240,7 +240,7 @@ export const PART1_QUESTIONS: readonly Part1QuestionSpec[] = [
     category: "당일 핵심 가치",
     shortTitle: "당일 내 옷과 머리·화장 스타일링",
     question:
-      "결혼식 날 내가 입을 옷과 머리·화장 스타일링은 시간과 정성을 들여서라도 나에게 가장 잘 어울리는 구성을 찾고 싶다.",
+      "기본 패키지에서 추가 비용과 발품이 꽤 들더라도, 결혼식 날 내가 입을 옷(드레스·예복)과 머리·화장 스타일링만큼은 타협 없이 가장 잘 어울리는 구성으로 맞추고 싶다.",
   },
   {
     id: "Q9",
@@ -249,7 +249,7 @@ export const PART1_QUESTIONS: readonly Part1QuestionSpec[] = [
     category: "당일 핵심 가치",
     shortTitle: "결혼식 전 별도 화보 촬영",
     question:
-      "결혼식 전에 따로 날을 잡아, 우리 두 사람의 모습을 화보처럼 남기는 사진 촬영을 하고 싶다.",
+      "결혼식 당일 본식 사진만으로도 충분하다고 생각하기보다, 하루 날을 잡아 비용과 체력을 들여서라도 우리 두 사람의 모습을 화보처럼 남기는 사전 촬영을 꼭 하고 싶다.",
   },
   {
     id: "Q10",
@@ -258,7 +258,7 @@ export const PART1_QUESTIONS: readonly Part1QuestionSpec[] = [
     category: "당일 핵심 가치",
     shortTitle: "전통 인사·집안 기본 격식",
     question:
-      "결혼을 준비할 때 어른들께 예를 갖추는 전통적인 인사나 집안의 기본 격식은 정성껏 챙기는 편이 마음 편하다.",
+      "우리 두 사람끼리 간소하게 생략하기보다, 신경 쓸 절차가 늘어나더라도 어른들께 예를 갖추는 전통적인 인사나 집안의 기본 격식은 정성껏 챙기는 편이 마음 편하다.",
   },
   {
     id: "Q11",
@@ -267,7 +267,7 @@ export const PART1_QUESTIONS: readonly Part1QuestionSpec[] = [
     category: "탐색과 계획",
     shortTitle: "후보 조건·실제 후기 직접 비교",
     question:
-      "업체나 장소를 고를 때는 여러 후보의 조건과 실제 후기를 내 눈으로 직접 찾아보고 비교해 봐야 마음이 놓인다.",
+      "전문가가 추려준 추천 리스트를 믿고 빠르게 고르기보다, 시간이 걸려도 여러 후보의 세부 조건과 실제 후기를 내 눈으로 직접 찾아보고 비교해 봐야 마음이 놓인다.",
   },
   {
     id: "Q12",
@@ -276,7 +276,7 @@ export const PART1_QUESTIONS: readonly Part1QuestionSpec[] = [
     category: "탐색과 계획",
     shortTitle: "전체 일정표·할 일 목록 사전 작성",
     question:
-      "결혼처럼 큰일을 준비할 때는 아직 시간 여유가 있어도 전체 일정표와 할 일 목록을 미리 짜 두어야 불안하지 않다.",
+      "그때그때 필요한 시점에 맞춰 유연하게 하나씩 처리하기보다, 아직 시간 여유가 있어도 전체 일정표와 할 일 목록을 처음부터 끝까지 미리 짜 두어야 불안하지 않다.",
   },
 ] as const;
 
@@ -333,7 +333,7 @@ export const PART2_QUESTIONS: readonly Part2QuestionSpec[] = [
     options: [
       {
         key: "A",
-        label: "시간과 품이 더 들더라도, 직접 하나씩 챙기고 계약해서 예산을 아끼는 쪽이 마음 편하다.",
+        label: "시간과 수고(발품)가 더 들더라도, 직접 하나씩 알아보고 계약해서 예산을 아끼는 쪽이 마음 편하다.",
         isMain: true,
       },
       {
