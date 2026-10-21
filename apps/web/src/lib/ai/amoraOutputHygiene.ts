@@ -46,6 +46,7 @@ import { scrubAmoraSpam } from "@/lib/ai/amoraSpamTail";
 import { stripAmoraInternalArtifacts } from "@hanbang/shared/amora-visible-text";
 import { stripAmoraRequestMarkers } from "./amoraRequestMarkers";
 import { alignAmoraRecommendationLabels } from "./amoraRecommendationConsistency";
+import { inspectAmoraSafeOutputPostCheck } from "./amoraSafeGuardrailPipeline";
 
 /**
  * 지우지 않을 문자.
@@ -152,7 +153,8 @@ export type AmoraOutputHygieneAction =
       runs: number;
     }
   | { kind: "latin_fragment_detected"; count: number }
-  | { kind: "known_stray_suffix_removed"; count: number };
+  | { kind: "known_stray_suffix_removed"; count: number }
+  | { kind: "system_prompt_leak_replaced"; keyword: string };
 
 export type AmoraOutputHygieneResult = {
   text: string;
@@ -308,6 +310,13 @@ export function applyAmoraOutputHygiene(
   const suffix = removeKnownStraySuffix(finalText, options.userText ?? "");
   finalText = suffix.text;
   if (suffix.count > 0) actions.push({ kind: "known_stray_suffix_removed", count: suffix.count });
+
+  const postCheck = inspectAmoraSafeOutputPostCheck(finalText);
+  if (postCheck.leaked && postCheck.matchedKeyword) {
+    actions.push({ kind: "system_prompt_leak_replaced", keyword: postCheck.matchedKeyword });
+    return { text: postCheck.replyToUser, actions };
+  }
+
   const latinFragments = countShortLatinFragments(finalText);
   if (latinFragments > 0) {
     actions.push({ kind: "latin_fragment_detected", count: latinFragments });
