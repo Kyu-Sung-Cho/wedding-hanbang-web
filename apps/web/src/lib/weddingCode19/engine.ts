@@ -259,6 +259,8 @@ export function scoreWeddingCode19(answers: WeddingCode19Answers): {
   // Q1: 5(+2 S), 4(+1 S), 2(+1 I), 1(+2 I)
   // Q2: 5(+2 I), 4(+1 I), 2(+1 S), 1(+2 S)
   // Q4: 5(+2 I), 4(+1 I), 2(+1 S), 1(+2 S)
+  // [보정]: S 긍정 문항(Q1 1개)과 I 긍정 문항(Q2·Q4 2개)의 수적 불균형을 보완하기 위해
+  // Q3(개성 있는 식순·이벤트)에서 5점을 고르고 Q1도 긍정(4~5)이면 +1 S, Q3에서 1점(기본 식순만 빠르게)이면 +1 I 반영
   let sScore = 0;
   let iScore = 0;
   const q1Dir = getPart1Direction(answers.Q1, "S", "I");
@@ -267,6 +269,11 @@ export function scoreWeddingCode19(answers: WeddingCode19Answers): {
   for (const d of [q1Dir, q2Dir, q4Dir]) {
     if (d.letter === "S") sScore += d.points;
     if (d.letter === "I") iScore += d.points;
+  }
+  if (answers.Q3 === 5 && (answers.Q1 === 4 || answers.Q1 === 5)) {
+    sScore += 1;
+  } else if (answers.Q3 === 1 && (answers.Q2 === 5 || answers.Q4 === 5)) {
+    iScore += 1;
   }
   let axis1Winner: Axis1Letter;
   if (sScore > iScore) {
@@ -292,7 +299,8 @@ export function scoreWeddingCode19(answers: WeddingCode19Answers): {
   // Q13: A(+4 D), B(+4 P)
   // Q5, Q8, Q9: 5(+2 D), 4(+1 D), 2(+1 P), 1(+2 P)
   // [보정]: Q13=B(미래 실속)를 명시적으로 고르고 하객 실속(Q6 교통·Q7 식사)에 5점을 준 경우,
-  // 로망 문항 호감(5,5,4 -> +5 D) 때문에 실속 선택이 억울하게 역전되지 않도록 +1 P 보정
+  // 로망 문항 호감(5,5,4 -> +5 D) 때문에 실속 선택이 억울하게 역전되지 않도록 +1 P 보정.
+  // 또한 Q6·Q7을 모두 5점으로 챙긴 순수 하객 실속파가 로망 중립일 때 P 점수가 반영되도록 보정.
   let dScore = 0;
   let pScore = 0;
   if (answers.Q13 === "A") dScore += 4;
@@ -309,6 +317,13 @@ export function scoreWeddingCode19(answers: WeddingCode19Answers): {
     (answers.Q6 === 5 || answers.Q7 === 5)
   ) {
     pScore += 1;
+  } else if (
+    answers.Q13 !== "A" &&
+    dScore === 0 &&
+    answers.Q6 === 5 &&
+    answers.Q7 === 5
+  ) {
+    pScore += 2;
   }
   let axis2Winner: Axis2Letter;
   if (dScore > pScore) {

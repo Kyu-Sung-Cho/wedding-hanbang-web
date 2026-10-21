@@ -57,7 +57,14 @@ export default function WeddingCodeReleaseClient({ queryIsLegacy, explicitLikert
   if (target === "legacy") return <LegacyEntry {...legacyProps} embedded={embedded} />;
   if (target === "likert") return <WeddingCodeLikertClient embedded={embedded} />;
   const searchParams = typeof window !== "undefined" ? new URLSearchParams(window.location.search) : null;
-  if ((embedded && !searchParams?.has("partner") && searchParams?.get("v") !== "19") || searchParams?.has("ct") || searchParams?.get("v") === "36") {
+  const hasSaved19 = typeof window !== "undefined" && (() => {
+    try {
+      return Boolean(window.localStorage.getItem("hanbang:wedding-code-19:latest"));
+    } catch {
+      return false;
+    }
+  })();
+  if ((embedded && !hasSaved19 && !searchParams?.has("partner") && searchParams?.get("v") !== "19") || searchParams?.has("ct") || searchParams?.get("v") === "36") {
     return <WeddingCodeClient embedded={embedded} />;
   }
   return <WeddingCode19Client embedded={embedded} />;

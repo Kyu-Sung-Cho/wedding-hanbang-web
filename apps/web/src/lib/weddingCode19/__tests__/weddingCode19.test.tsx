@@ -272,6 +272,11 @@ describe("웨딩코드 19문항 마스터 데이터 & 투트랙 채점 엔진 �
     // Q2(3 vs 3), Q4(UNKNOWN vs UNKNOWN), Q16(D vs D)는 alignedItems로 가이드 제공
     expect(cmp.alignedItems.some((a) => a.questionId === "Q2")).toBe(true);
     expect(cmp.alignedItems.some((a) => a.questionId === "Q16")).toBe(true);
+
+    // 축 1에서 Q1=5, Q3=5(개성 이벤트 5점)일 때 Q2=4, Q4=4여도 S(무대·주인공)가 승리한다
+    expect(
+      scoreWeddingCode19({ Q1: 5, Q2: 4, Q3: 5, Q4: 4 }).axes.axis1.winner,
+    ).toBe("S");
   });
 });
 

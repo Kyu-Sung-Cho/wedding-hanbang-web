@@ -122,6 +122,53 @@ export default function WeddingCode19Client({
   const [copiedRichNotice, setCopiedRichNotice] = useState<boolean>(false);
   const [fadeKey, setFadeKey] = useState<number>(0);
 
+  // 이전에 이 브라우저에서 완료한 웨딩코드 19문항 기록 (localStorage)
+  const [savedLatestPayload] = useState<{
+    code: WeddingCode19Code;
+    decoded: EncodedPartnerPayload19;
+  } | null>(() => {
+    if (typeof window === "undefined") return null;
+    try {
+      const raw = window.localStorage.getItem("hanbang:wedding-code-19:latest");
+      if (!raw) return null;
+      const parsed = JSON.parse(raw) as {
+        code?: string;
+        encoded?: string;
+      };
+      if (!parsed?.encoded) return null;
+      const decoded = decodePartnerPayload19(parsed.encoded);
+      if (!decoded) return null;
+      const scored = scoreWeddingCode19(decoded.answers);
+      return { code: scored.code, decoded };
+    } catch {
+      return null;
+    }
+  });
+
+  const handleRestoreLatestRecord = () => {
+    if (!savedLatestPayload) return;
+    triggerFade();
+    setAnswers(savedLatestPayload.decoded.answers);
+    setTopPriorityIds(savedLatestPayload.decoded.topPriorityIds);
+    setStep("result");
+    if (urlPartnerData) {
+      setActiveTab("couple");
+    } else {
+      setActiveTab("personal");
+    }
+  };
+
+  // 문항/화면/탭 전환 시 모바일에서 스크롤이 아래에 머물러 있지 않도록 상단으로 부드럽게 이동
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (/jsdom/i.test(window.navigator?.userAgent ?? "")) return;
+    try {
+      window.scrollTo?.({ top: 0, behavior: "smooth" });
+    } catch {
+      // 미지원 환경 무시
+    }
+  }, [step, questionIndex, activeTab]);
+
   const triggerFade = () => setFadeKey((prev) => prev + 1);
 
   const currentQuestion = ALL_QUESTIONS_19[questionIndex];
@@ -499,6 +546,30 @@ export default function WeddingCode19Client({
                 </p>
               </div>
             </div>
+
+            {savedLatestPayload && (
+              <div
+                data-testid="wc19-saved-latest-card"
+                className="mt-6 rounded-2xl border border-[#D8E5DD] bg-[#F5FAF7] p-4 sm:p-5"
+              >
+                <p className="text-xs sm:text-sm font-bold text-[#355240]">
+                  {urlPartnerData
+                    ? `💑 이미 완료한 내 웨딩코드 기록(${CHARACTER_PROFILES_19[savedLatestPayload.code].emoji} ${CHARACTER_PROFILES_19[savedLatestPayload.code].characterName})이 있어요! 19문항을 다시 풀지 않고도 파트너와 즉시 비교할 수 있습니다.`
+                    : `📌 이전에 완료한 내 웨딩코드(${CHARACTER_PROFILES_19[savedLatestPayload.code].emoji} ${CHARACTER_PROFILES_19[savedLatestPayload.code].characterName} · ${savedLatestPayload.code}) 기록이 남아 있어요.`}
+                </p>
+                <Button
+                  variant="ghost"
+                  type="button"
+                  data-testid="wc19-restore-latest-button"
+                  onClick={handleRestoreLatestRecord}
+                  className="mt-3 flex w-full items-center justify-center rounded-xl bg-[#5F7D6B] px-4 py-3 text-xs sm:text-sm font-bold text-white transition-all hover:bg-[#4E6959]"
+                >
+                  {urlPartnerData
+                    ? "[ 내 이전 결과로 파트너와 커플 케미 리포트 바로 열기 → ]"
+                    : "[ 이전 내 웨딩코드 결과 리포트 바로 이어보기 → ]"}
+                </Button>
+              </div>
+            )}
 
             <Button
               variant="ghost"
