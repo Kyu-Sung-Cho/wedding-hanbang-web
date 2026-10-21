@@ -180,7 +180,7 @@ describe("웨딩코드 19문항 마스터 데이터 & 투트랙 채점 엔진 �
     expect(report.basket.saveSimplify12).toHaveLength(0);
     expect(report.basket.relativeSaveSuggestions.length).toBeGreaterThan(0);
     expect(report.hiddenPsychology.unconsciousTitle.length).toBeGreaterThan(5);
-    expect(report.hiddenPsychology.partnerTranslations).toHaveLength(2);
+    expect(report.hiddenPsychology.partnerTranslations).toHaveLength(3);
   });
 
   it("16종 캐릭터 이모지가 중복 없이 고유하며, Q14=B 역전 방어 및 커플 비교 무손실 분류(A/B vs C, 미정 빈칸 리드, 1순위 온도차)가 작동한다", () => {
@@ -426,5 +426,85 @@ describe("WeddingCode19Client 전체 인터랙션 흐름 검증", () => {
       container.querySelector('[data-testid="wc19-amora-prefill-preview"]')
         ?.textContent,
     ).toContain("우리만의 정원을 가꾸는 사슴");
+  });
+
+  it("같은 4자리 동물 캐릭터(SDMH)가 나오더라도 19문항 응답 지문에 따라 세부 페르소나·의사결정 온도·숨은 심리가 정교하게 달라진다", () => {
+    // 사용자 A: 비주얼·화보(Q5·Q8·Q9=5) 집중 + 호불호 칼각(1~2 다수) + 지칠 때 당장 해결(Q17=A)
+    const visualSwanReport = buildPersonalReport19(
+      {
+        Q1: 5,
+        Q2: 1,
+        Q3: 2,
+        Q4: 2,
+        Q5: 5,
+        Q6: 2,
+        Q7: 3,
+        Q8: 5,
+        Q9: 5,
+        Q10: 1,
+        Q11: 5,
+        Q12: 5,
+        Q13: "A",
+        Q14: "A",
+        Q15: "A",
+        Q16: "B",
+        Q17: "A",
+        Q18: "A",
+        Q19: "A",
+      },
+      ["Q5", "Q8"],
+    );
+
+    // 사용자 B: 같은 SDMH 백조지만 미식·하객 대접(Q6·Q7=5) 집중 + 양보/절충 여유 + 지칠 때 충전 후 결정(Q17=B)
+    const hospitalitySwanReport = buildPersonalReport19(
+      {
+        Q1: 5,
+        Q2: 2,
+        Q3: 4,
+        Q4: 3,
+        Q5: 4,
+        Q6: 5,
+        Q7: 5,
+        Q8: 4,
+        Q9: 3,
+        Q10: 4,
+        Q11: 5,
+        Q12: 4,
+        Q13: "A",
+        Q14: "A",
+        Q15: "A",
+        Q16: "A",
+        Q17: "B",
+        Q18: "B",
+        Q19: "C",
+      },
+      ["Q6", "Q7"],
+    );
+
+    expect(visualSwanReport.code).toBe("SDMH");
+    expect(hospitalitySwanReport.code).toBe("SDMH");
+
+    // 1) 세부 페르소나가 서로 다르게 분류된다
+    expect(visualSwanReport.subPersona.archetypeKey).toBe("visual_artist");
+    expect(hospitalitySwanReport.subPersona.archetypeKey).toBe("hospitality_host");
+    expect(visualSwanReport.subPersona.subTitle).not.toBe(
+      hospitalitySwanReport.subPersona.subTitle,
+    );
+
+    // 2) 의사결정 온도 프로필이 서로 다르게 진단된다
+    expect(visualSwanReport.decisionStyle.styleKey).toBe("decisive_polarized");
+    expect(hospitalitySwanReport.decisionStyle.styleKey).toBe("romantic_maximalist");
+
+    // 3) 숨은 심리(무의식 핵심 동기·스트레스 사각지대·자아 발견 질문·속마음 번역기 3종)가 모두 다르게 생성된다
+    expect(visualSwanReport.hiddenPsychology.unconsciousTitle).not.toBe(
+      hospitalitySwanReport.hiddenPsychology.unconsciousTitle,
+    );
+    expect(visualSwanReport.hiddenPsychology.blindSpotTitle).not.toBe(
+      hospitalitySwanReport.hiddenPsychology.blindSpotTitle,
+    );
+    expect(visualSwanReport.hiddenPsychology.selfDiscoveryQuestion).not.toBe(
+      hospitalitySwanReport.hiddenPsychology.selfDiscoveryQuestion,
+    );
+    expect(visualSwanReport.hiddenPsychology.partnerTranslations).toHaveLength(3);
   });
 });
