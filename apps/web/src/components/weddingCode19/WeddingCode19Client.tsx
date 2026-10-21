@@ -78,6 +78,43 @@ const ALL_CHARACTER_CODES = Object.keys(
   CHARACTER_PROFILES_19,
 ) as WeddingCode19Code[];
 
+function resolveRecommendedPriceTarget19(
+  personalReport: ReturnType<typeof buildPersonalReport19>,
+): { href: string; label: string } {
+  const priorities = [
+    ...personalReport.basket.mustHave5,
+    ...personalReport.basket.niceToHave4,
+  ];
+  for (const item of priorities) {
+    if (item.questionId === "Q8") {
+      return {
+        href: "/price/dress",
+        label: `👗 내 1순위 ‘${item.shortTitle}’ → 드레스·메이크업 공시가격 바로 비교하기`,
+      };
+    }
+    if (item.questionId === "Q9") {
+      return {
+        href: "/price/studio",
+        label: `📸 내 1순위 ‘${item.shortTitle}’ → 스튜디오·촬영 공시가격 바로 비교하기`,
+      };
+    }
+    if (
+      item.questionId === "Q5" ||
+      item.questionId === "Q6" ||
+      item.questionId === "Q7"
+    ) {
+      return {
+        href: "/price/hall",
+        label: `🏛️ 내 1순위 ‘${item.shortTitle}’ → 웨딩홀·식대 공시가격 바로 비교하기`,
+      };
+    }
+  }
+  return {
+    href: "/price/hall",
+    label: "🏛️ 내 웨딩코드 맞춤 → 웨딩홀·스드메 공시가격 비교하기",
+  };
+}
+
 export default function WeddingCode19Client({
   embedded = false,
 }: {
@@ -278,6 +315,8 @@ export default function WeddingCode19Client({
     }
   };
 
+  const recommendedPriceTarget = resolveRecommendedPriceTarget19(personalReport);
+
   const handleStartTest = () => {
     triggerFade();
     setQuestionIndex(0);
@@ -420,7 +459,7 @@ export default function WeddingCode19Client({
     if (typeof window === "undefined") return;
     const encoded = encodePartnerPayload19(answers, topPriorityIds);
     const shareUrl = `${window.location.origin}/wedding-code?partner=${encodeURIComponent(encoded)}`;
-    const richMessage = `💌 내 웨딩코드는 [${personalReport.character.emoji} ${personalReport.character.characterName} (${personalReport.code})]래! 자기도 3분 만에 테스트해보고 우리 커플 케미 & 1:1 맞춤 조율 리포트 열어보자 👉 ${shareUrl}`;
+    const richMessage = `💌 내 웨딩코드는 [${personalReport.character.emoji} ${personalReport.character.characterName} (${personalReport.code} · ${personalReport.subPersona.focusBadge})]래! 자기도 3분 만에 테스트해보고 우리 커플 케미 & 1:1 맞춤 조율 리포트 열어보자 👉 ${shareUrl}`;
     try {
       await navigator.clipboard.writeText(richMessage);
       setCopiedRichNotice(true);
@@ -1033,6 +1072,39 @@ export default function WeddingCode19Client({
                     </div>
                   </div>
 
+                  {/* [태클 13·14 보완]: 같은 동물 캐릭터라도 내 19문항 지문에 따라 완전히 다르게 갈라주는 세부 페르소나 & 의사결정 온도 */}
+                  <div className="mt-5 grid grid-cols-1 gap-3.5 sm:grid-cols-2">
+                    <div
+                      data-testid="wc19-sub-persona-card"
+                      className="rounded-2xl border border-[#DFC5BE] bg-[#FCF7F5] p-4 sm:p-5"
+                    >
+                      <span className="inline-block rounded-full bg-[#8F6662] px-3 py-1 text-xs font-bold text-white">
+                        {personalReport.subPersona.focusBadge}
+                      </span>
+                      <p className="mt-2.5 text-sm sm:text-base font-bold text-[#3A2A27]">
+                        {personalReport.subPersona.subTitle}
+                      </p>
+                      <p className="mt-1.5 text-xs sm:text-sm leading-relaxed text-[#5A4742]">
+                        {personalReport.subPersona.differentiationSummary}
+                      </p>
+                    </div>
+
+                    <div
+                      data-testid="wc19-decision-style-card"
+                      className="rounded-2xl border border-[#D8E5DD] bg-[#F5FAF7] p-4 sm:p-5"
+                    >
+                      <span className="inline-block rounded-full bg-[#5F7D6B] px-3 py-1 text-xs font-bold text-white">
+                        {personalReport.decisionStyle.badgeLabel}
+                      </span>
+                      <p className="mt-2.5 text-xs font-bold text-[#355240]">
+                        {personalReport.decisionStyle.statsSummary}
+                      </p>
+                      <p className="mt-1.5 text-xs sm:text-sm leading-relaxed text-[#4A3A36]">
+                        {personalReport.decisionStyle.description}
+                      </p>
+                    </div>
+                  </div>
+
                   {/* 4개 축 점수 비율(%) 양방향 게이지 바 */}
                   <div className="mt-6 space-y-3.5 rounded-2xl bg-[#FAF8F5] p-5">
                     {(
@@ -1615,6 +1687,9 @@ export default function WeddingCode19Client({
                           <p className="mt-1 text-xs text-[#6E5A54]">
                             {coupleReport.myReport.character.codeTag}
                           </p>
+                          <span className="mt-2 inline-block rounded-full bg-[#F4EAE6] px-2.5 py-1 text-[11px] font-bold text-[#8F6662]">
+                            {coupleReport.myReport.subPersona.focusBadge}
+                          </span>
                         </div>
                         <div className="rounded-2xl bg-[#F5FAF7] p-5 text-center">
                           <span className="text-3xl sm:text-4xl">
@@ -1629,7 +1704,28 @@ export default function WeddingCode19Client({
                           <p className="mt-1 text-xs text-[#6E5A54]">
                             {coupleReport.partnerReport.character.codeTag}
                           </p>
+                          <span className="mt-2 inline-block rounded-full bg-[#E2ECE5] px-2.5 py-1 text-[11px] font-bold text-[#355240]">
+                            {coupleReport.partnerReport.subPersona.focusBadge}
+                          </span>
                         </div>
+                      </div>
+
+                      {/* [태클 16 보완]: 두 사람의 19문항 지문 매칭 기반 우리 커플 케미 아키타입 & 소통 공식 */}
+                      <div
+                        data-testid="wc19-couple-chemistry-summary"
+                        className="mt-5 rounded-2xl border border-[#DFC5BE] bg-[#FCF7F5] p-5"
+                      >
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <p className="text-sm sm:text-base font-bold text-[#3A2A27]">
+                            {coupleReport.coupleChemistrySummary.chemistryTitle}
+                          </p>
+                          <span className="rounded-full bg-white px-3 py-1 text-xs font-bold text-[#8F6662]">
+                            {coupleReport.coupleChemistrySummary.matchStatsBadge}
+                          </span>
+                        </div>
+                        <p className="mt-2 text-xs sm:text-sm leading-relaxed text-[#5A4742]">
+                          {coupleReport.coupleChemistrySummary.chemistryNarrative}
+                        </p>
                       </div>
                     </div>
 
@@ -1939,6 +2035,15 @@ export default function WeddingCode19Client({
                   className="flex w-full items-center justify-center rounded-2xl bg-[#8F6662] px-6 py-4 text-center text-sm sm:text-base font-semibold text-white shadow-xs transition hover:bg-[#7A5450]"
                 >
                   [ 이 웨딩코드로 아모라 AI 맞춤 결혼 준비 시작하기 ]
+                </Link>
+
+                <Link
+                  href={recommendedPriceTarget.href}
+                  onClick={handleAmoraHandoffClick}
+                  data-testid="wc19-recommended-price-cta"
+                  className="flex w-full items-center justify-center rounded-2xl border border-[#5F7D6B] bg-[#EEF4F0] px-5 py-3.5 text-center text-xs sm:text-sm font-bold text-[#355240] transition hover:bg-[#E1EDE5]"
+                >
+                  [ {recommendedPriceTarget.label} ]
                 </Link>
 
                 <div className="grid grid-cols-2 gap-2.5">
