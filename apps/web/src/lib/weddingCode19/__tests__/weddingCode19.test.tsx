@@ -150,8 +150,8 @@ describe("웨딩코드 19문항 마스터 데이터 & 투트랙 채점 엔진 �
     expect(comparison.empathyBridge.translations.length).toBeGreaterThanOrEqual(2);
   });
 
-  it("파트1 문항에 긍정 응답 편향(전부 4점)이 있어도 Q13=B(실속)·Q14=B(편의) 선택이 묻히지 않고, 차순위 절약 추천과 심층 심리 통역이 생성된다", () => {
-    const positiveBiasedAnswers: WeddingCode19Answers = {
+  it("파트1 문항과 파트2 응답에 따라 명세된 Track A 점수(동점 시 Q13·Q14 우선)와 차순위 절약 추천·심층 심리 통역이 정확히 생성된다", () => {
+    const sampleAnswers: WeddingCode19Answers = {
       Q1: 4,
       Q2: 4,
       Q3: 4,
@@ -172,8 +172,10 @@ describe("웨딩코드 19문항 마스터 데이터 & 투트랙 채점 엔진 �
       Q18: "B",
       Q19: "B",
     };
-    const report = buildPersonalReport19(positiveBiasedAnswers, ["Q6", "Q7"]);
+    const report = buildPersonalReport19(sampleAnswers, ["Q6", "Q7"]);
+    // Q13=B(+4 P) vs Q5=5(+2 D), Q8=4(+1 D), Q9=4(+1 D) -> 4 D : 4 P 동점 -> Q13 방향(P) 승리!
     expect(report.axes.axis2.winner).toBe("P");
+    // Q14=B(+2 E) vs Q11=4(+1 M), Q12=4(+1 M) -> 2 M : 2 E 동점 -> Q14 방향(E) 승리!
     expect(report.axes.axis3.winner).toBe("E");
     expect(report.basket.saveSimplify12).toHaveLength(0);
     expect(report.basket.relativeSaveSuggestions.length).toBeGreaterThan(0);
@@ -313,8 +315,8 @@ describe("WeddingCode19Client 전체 인터랙션 흐름 검증", () => {
       container.querySelector('[data-testid="wc19-personal-report"]')
         ?.textContent ?? "";
     expect(personalText).toContain("[타협 불가 1순위 배지]");
-    // NA로 응답한 Q10(전통 인사·기본 격식)은 개인 리포트에서 완전히 숨겨진다
-    expect(personalText).not.toContain("전통 인사·기본 격식");
+    // NA로 응답한 Q10(전통 예절·양가 인사 격식)은 개인 리포트에서 완전히 숨겨진다
+    expect(personalText).not.toContain("전통 예절·양가 인사 격식");
 
     // 7. 아모라 AI 맞춤 결혼 준비 시작 CTA 버튼 및 프리필 미리보기 확인
     const amoraCta = container.querySelector<HTMLAnchorElement>(

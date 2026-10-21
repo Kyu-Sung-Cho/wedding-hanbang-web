@@ -281,8 +281,6 @@ export function scoreWeddingCode19(answers: WeddingCode19Answers): {
   // 축 2: D (Dream · 당일 로망파) vs P (Practical · 미래 실속파)
   // Q13: A(+4 D), B(+4 P)
   // Q5, Q8, Q9: 5(+2 D), 4(+1 D), 2(+1 P), 1(+2 P)
-  // [긍정 응답 편향 보정]: Q13에서 'B(미래 실속)'를 명확히 골랐는데도 Q5~Q9 전체에 4~5점을 고르게 준 경우,
-  // 하객 실용 항목(Q6 위치·주차, Q7 식사)의 고득점이 확인되면 P 보호 가산점(+2)을 부여해 Q13='B' 선택이 묻히지 않게 방어한다.
   let dScore = 0;
   let pScore = 0;
   if (answers.Q13 === "A") dScore += 4;
@@ -291,13 +289,6 @@ export function scoreWeddingCode19(answers: WeddingCode19Answers): {
     const dir = getPart1Direction(answers[qId], "D", "P");
     if (dir.letter === "D") dScore += dir.points;
     if (dir.letter === "P") pScore += dir.points;
-  }
-  if (
-    answers.Q13 === "B" &&
-    (answers.Q6 === 4 || answers.Q6 === 5) &&
-    (answers.Q7 === 4 || answers.Q7 === 5)
-  ) {
-    pScore += 2;
   }
   let axis2Winner: Axis2Letter;
   if (dScore > pScore) {
@@ -316,8 +307,6 @@ export function scoreWeddingCode19(answers: WeddingCode19Answers): {
   // 축 3: M (Manual · 직접 탐색·계획파) vs E (Easy · 압축·편의파)
   // Q11, Q12: 5(+2 M), 4(+1 M), 2(+1 E), 1(+2 E)
   // Q14: A(+2 M), B(+2 E)
-  // [긍정 응답 편향 보정]: Q14에서 'B(전문가 대행·시간 체력 절약)'를 명확히 골랐는데 Q11·Q12에 4점을 눌러
-  // 본인의 편의 지향 성향이 덮이는 현상을 방지하기 위해 Q14='B'이고 Q11·Q12 중 5점이 1개 이하이면 +1 E 보정.
   let mScore = 0;
   let eScore = 0;
   const q11Dir = getPart1Direction(answers.Q11, "M", "E");
@@ -327,13 +316,7 @@ export function scoreWeddingCode19(answers: WeddingCode19Answers): {
     if (d.letter === "E") eScore += d.points;
   }
   if (answers.Q14 === "A") mScore += 2;
-  if (answers.Q14 === "B") {
-    eScore += 2;
-    const fiveCount = (answers.Q11 === 5 ? 1 : 0) + (answers.Q12 === 5 ? 1 : 0);
-    if (fiveCount <= 1) {
-      eScore += 1;
-    }
-  }
+  if (answers.Q14 === "B") eScore += 2;
 
   let axis3Winner: Axis3Letter;
   if (mScore > eScore) {
