@@ -57,6 +57,37 @@ export interface PartnerTranslationItem19 {
   whatIReallyMean: string;
 }
 
+export type SubPersonaArchetypeKey19 =
+  | "visual_artist"
+  | "hospitality_host"
+  | "family_dignity"
+  | "festival_director"
+  | "intimate_curator"
+  | "future_strategist"
+  | "harmonious_supporter"
+  | "all_round_balancer";
+
+export interface SubPersonaProfile19 {
+  archetypeKey: SubPersonaArchetypeKey19;
+  focusBadge: string;
+  subTitle: string;
+  differentiationSummary: string;
+}
+
+export interface DecisionStyleProfile19 {
+  styleKey:
+    | "decisive_polarized"
+    | "romantic_maximalist"
+    | "minimalist_pruner"
+    | "peaceful_open"
+    | "careful_balancer"
+    | "open_explorer"
+    | "strategic_selector";
+  badgeLabel: string;
+  statsSummary: string;
+  description: string;
+}
+
 export interface HiddenPsychologyInsight19 {
   unconsciousTitle: string;
   unconsciousInsight: string;
@@ -80,9 +111,18 @@ export interface CoupleEmpathyBridge19 {
   translations: CoupleEmpathyTranslation19[];
 }
 
+export interface CoupleChemistrySummary19 {
+  matchedAxisCount: number;
+  chemistryTitle: string;
+  matchStatsBadge: string;
+  chemistryNarrative: string;
+}
+
 export interface PersonalReport19 {
   code: WeddingCode19Code;
   character: CharacterProfile19;
+  subPersona: SubPersonaProfile19;
+  decisionStyle: DecisionStyleProfile19;
   axes: {
     axis1: AxisScoreDetail<Axis1Letter, Axis1Letter>;
     axis2: AxisScoreDetail<Axis2Letter, Axis2Letter>;
@@ -147,6 +187,7 @@ export interface CoupleConflictItem {
 export interface CoupleComparisonReport19 {
   myReport: PersonalReport19;
   partnerReport: PersonalReport19;
+  coupleChemistrySummary: CoupleChemistrySummary19;
   axisSynergies: AxisSynergyEntry[];
   empathyBridge: CoupleEmpathyBridge19;
   crisisWarnings: CoupleConflictItem[];
@@ -479,76 +520,371 @@ export function scoreWeddingCode19(answers: WeddingCode19Answers): {
   };
 }
 
+function getItemPriorityWeight(
+  qId: QuestionId,
+  answers: WeddingCode19Answers,
+  topPrioritySet: ReadonlySet<QuestionId>,
+): number {
+  const ans = answers[qId];
+  if (ans === 5) return topPrioritySet.has(qId) ? 7 : 4;
+  if (ans === 4) return 2;
+  if (ans === 3) return 0;
+  if (ans === 2) return -1;
+  if (ans === 1) return -2;
+  return 0;
+}
+
+function buildSubPersona19(
+  code: WeddingCode19Code,
+  character: CharacterProfile19,
+  answers: WeddingCode19Answers,
+  topPrioritySet: ReadonlySet<QuestionId>,
+  mustHave5: readonly BasketItemEntry[],
+  niceToHave4: readonly BasketItemEntry[],
+  saveSimplify12: readonly BasketItemEntry[],
+  relativeSaveSuggestions: readonly BasketItemEntry[],
+  concession3D: readonly BasketItemEntry[],
+  balancedC: readonly BasketItemEntry[],
+): SubPersonaProfile19 {
+  const w = (qId: QuestionId) => getItemPriorityWeight(qId, answers, topPrioritySet);
+
+  const visualScore = (w("Q5") + w("Q8") + w("Q9")) / 3;
+  const hospitalityScore = (w("Q6") + w("Q7")) / 2 + (answers.Q6 === 5 && answers.Q7 === 5 ? 1.5 : 0);
+  const familyScore =
+    w("Q10") * 0.65 +
+    (answers.Q16 === "A" ? 2.5 : answers.Q16 === "C" ? 0.8 : -1) +
+    w("Q7") * 0.35;
+  const festivalScore = (w("Q1") + w("Q3")) / 2 + (answers.Q3 === 5 ? 1 : 0);
+  const intimateScore = (w("Q2") + w("Q4")) / 2 + (answers.Q2 === 5 && answers.Q4 === 5 ? 1 : 0);
+
+  const topFocusTitles = [...mustHave5, ...niceToHave4]
+    .slice(0, 3)
+    .map((item) => `‘${item.shortTitle}’`);
+  const saveTitles = (saveSimplify12.length > 0 ? saveSimplify12 : relativeSaveSuggestions)
+    .slice(0, 2)
+    .map((item) => `‘${item.shortTitle}’`);
+
+  const topFocusLabel =
+    topFocusTitles.length > 0 ? topFocusTitles.join("·") : "핵심 본질 항목";
+  const saveFocusLabel =
+    saveTitles.length > 0
+      ? `${saveTitles.join("·")}에서는 과감히 힘을 빼고`
+      : "주변 부가 옵션에서는 거품을 덜어내고";
+
+  // 1) 신혼 미래·실속 전략가 (Q13=B 이면서 절약 항목이 많고 비주얼/격식 점수가 낮을 때)
+  if (
+    answers.Q13 === "B" &&
+    saveSimplify12.length >= 3 &&
+    visualScore <= 1.2 &&
+    hospitalityScore < 3.5
+  ) {
+    return {
+      archetypeKey: "future_strategist",
+      focusBadge: "💎 세부 결: 신혼 미래·실속 전략가",
+      subTitle: `결혼 후 현실 자산을 지키는 ${character.characterName}`,
+      differentiationSummary: `같은 [${character.characterName}(${code})] 유형 중에서도 보여주기식 당일 연출보다 결혼식 다음 날부터 시작될 신혼집·신혼여행·미래 자산의 여유를 최우선으로 지키는 실속파입니다. ${saveFocusLabel}, 꼭 필요한 ${topFocusLabel}에만 예산을 스마트하게 집중합니다.`,
+    };
+  }
+
+  // 2) 다정한 파트너 맞춤 조율가 (양보/절충 선택지가 6개 이상이고 5점이 1개 이하일 때)
+  if (concession3D.length + balancedC.length >= 6 && mustHave5.length <= 1) {
+    return {
+      archetypeKey: "harmonious_supporter",
+      focusBadge: "🤝 세부 결: 파트너 맞춤형 평화 조율가",
+      subTitle: `파트너의 로망을 살려주는 다정한 ${character.characterName}`,
+      differentiationSummary: `같은 [${character.characterName}(${code})] 유형 중에서도 내 고집을 앞세우기보다 파트너가 가장 행복해하는 선택을 기꺼이 지지해주는 평화주의 조율가입니다. 양보 찬스 카드(${concession3D.length}개)와 균형 절충안(${balancedC.length}개)이 풍부해 커플 갈등을 녹이는 일등 공신입니다.`,
+    };
+  }
+
+  // 3) 나머지 핵심 가치 클러스터 중 최고점 판별
+  const candidates: Array<{ key: SubPersonaArchetypeKey19; score: number }> = [
+    { key: "visual_artist", score: visualScore },
+    { key: "hospitality_host", score: hospitalityScore },
+    { key: "family_dignity", score: familyScore },
+    { key: "festival_director", score: festivalScore },
+    { key: "intimate_curator", score: intimateScore },
+  ];
+
+  candidates.sort((a, b) => b.score - a.score);
+  const best = candidates[0];
+  const second = candidates[1];
+
+  // 최고점과 차점 차이가 아주 작고 전반적으로 고른 경우 -> 육각형 밸런스 기획자
+  if (best.score >= 1.5 && best.score - second.score < 0.35 && mustHave5.length >= 3) {
+    return {
+      archetypeKey: "all_round_balancer",
+      focusBadge: "🧭 세부 결: 육각형 올라운드 디렉터",
+      subTitle: `감성과 하객 배려를 겸비한 ${character.characterName}`,
+      differentiationSummary: `같은 [${character.characterName}(${code})] 유형 중에서도 어느 한쪽에만 치우치지 않고 ${topFocusLabel}을(를) 고르게 챙기는 올라운드 기획자입니다. ${saveFocusLabel} 두 사람의 로망과 하객의 만족도를 동시에 완성합니다.`,
+    };
+  }
+
+  switch (best.key) {
+    case "visual_artist":
+      return {
+        archetypeKey: "visual_artist",
+        focusBadge: "🎨 세부 결: 공간·화보 비주얼 아티스트",
+        subTitle: `화보 같은 미장센에 진심인 ${character.characterName}`,
+        differentiationSummary: `같은 [${character.characterName}(${code})] 유형 안에서도 예식 공간의 분위기·스타일링·평생 남을 사진/영상의 심미적 완성도에 가장 가슴이 뛰는 비주얼 디렉터입니다. ${saveFocusLabel}, ${topFocusLabel}만큼은 타협 없이 우리만의 작품으로 남기고 싶어 합니다.`,
+      };
+    case "hospitality_host":
+      return {
+        archetypeKey: "hospitality_host",
+        focusBadge: "🍽️ 세부 결: 미식·하객 감동 호스트",
+        subTitle: `하객의 편안함과 미식을 최우선하는 ${character.characterName}`,
+        differentiationSummary: `같은 [${character.characterName}(${code})] 유형 중에서도 내 화려함보다 먼 길 찾아와 준 손님들의 발걸음과 식사 만족도를 가장 먼저 챙기는 다정한 호스트입니다. ${saveFocusLabel}, ${topFocusLabel}에 투자를 아끼지 않아 “정말 대접 잘 받고 간다”는 찬사를 이끌어냅니다.`,
+      };
+    case "family_dignity":
+      return {
+        archetypeKey: "family_dignity",
+        focusBadge: "🏛️ 세부 결: 양가 예우·클래식 품격파",
+        subTitle: `양가 어른의 미소와 격식을 지키는 ${character.characterName}`,
+        differentiationSummary: `같은 [${character.characterName}(${code})] 유형 중에서도 결혼을 두 가족의 품격 있는 결합으로 존중하며, 어른들의 입장과 예물·예단·하객 접대의 예를 세심히 살피는 타입입니다. ${topFocusLabel}을(를) 중심으로 양가 모두가 흐뭇해하는 안정감 있는 예식을 완성합니다.`,
+      };
+    case "festival_director":
+      return {
+        archetypeKey: "festival_director",
+        focusBadge: "🎉 세부 결: 서사·이벤트 축제 연출가",
+        subTitle: `결혼식을 하나의 축제로 만드는 ${character.characterName}`,
+        differentiationSummary: `같은 [${character.characterName}(${code})] 유형 중에서도 천편일률적인 기계식 예식을 거부하고, 우리 두 사람만의 드라마틱한 순간과 색다른 식순(${topFocusLabel})으로 하객 모두가 함께 웃고 즐기는 무대를 연출하는 디렉터입니다.`,
+      };
+    case "intimate_curator":
+    default:
+      return {
+        archetypeKey: "intimate_curator",
+        focusBadge: "🕯️ 세부 결: 프라이빗 감성·교류 큐레이터",
+        subTitle: `깊은 눈맞춤과 대화를 사랑하는 ${character.characterName}`,
+        differentiationSummary: `같은 [${character.characterName}(${code})] 유형 중에서도 북적이는 인파나 겉치레보다, 우리를 진심으로 축복해주는 소중한 사람들과 눈을 맞추고 대화 나누는 밀도 높은 시간(${topFocusLabel})을 가장 소중히 여기는 감성 큐레이터입니다.`,
+      };
+  }
+}
+
+function buildDecisionStyleProfile19(
+  mustHave5: readonly BasketItemEntry[],
+  niceToHave4: readonly BasketItemEntry[],
+  saveSimplify12: readonly BasketItemEntry[],
+  concession3D: readonly BasketItemEntry[],
+  balancedC: readonly BasketItemEntry[],
+  undecidedUnknownE: readonly BasketItemEntry[],
+): DecisionStyleProfile19 {
+  const c5 = mustHave5.length;
+  const c4 = niceToHave4.length;
+  const c12 = saveSimplify12.length;
+  const c3D = concession3D.length;
+  const cC = balancedC.length;
+  const cU = undecidedUnknownE.length;
+
+  const statsSummary = `1순위 확신(⑤) ${c5}개 · 관심(④) ${c4}개 · 절약(①·②) ${c12}개 · 양보(③·D) ${c3D}개 · 절충(C) ${cC}개${cU > 0 ? ` · 미정(⚪·E) ${cU}개` : ""}`;
+
+  if (cU >= 3) {
+    return {
+      styleKey: "open_explorer",
+      badgeLabel: "🔍 가능성 열린 백지 탐색형",
+      statsSummary,
+      description:
+        "아직 고정관념이나 선입견을 두지 않고 가능성을 열어둔 상태입니다. 처음부터 세세한 결정을 서두르기보다, 파트너나 AI 비서와 함께 대표 샘플 2~3가지를 구경하며 내 취향의 윤곽을 발견해 갈 때 가장 즐겁게 준비할 수 있습니다.",
+    };
+  }
+
+  if (c5 >= 2 && c12 >= 3 && c3D <= 3) {
+    return {
+      styleKey: "decisive_polarized",
+      badgeLabel: "🔥 호불호 칼각·확신 결단형",
+      statsSummary,
+      description:
+        "무엇에 힘을 주고 무엇을 과감히 덜어낼지 내면의 우선순위 기준선이 면도날처럼 선명합니다. 애매하게 시간 끌지 않고 빠르게 견적을 정리하는 강점이 있으며, 파트너의 1순위만 존중해주면 최고의 추진력을 발휘합니다.",
+    };
+  }
+
+  if (c5 + c4 >= 8 && c12 <= 1) {
+    return {
+      styleKey: "romantic_maximalist",
+      badgeLabel: "🌟 로망 다다익선·애정 몰입형",
+      statsSummary,
+      description:
+        "결혼식의 공간·미식·스타일링·하객 배려까지 어느 하나 소홀히 하고 싶지 않은 애정 충만 타입입니다. 준비 과정의 설렘이 누구보다 크지만 추가금이 눈덩이처럼 불어날 수 있으니, 딱 2가지 최우선 순위 외에는 상한선을 먼저 못 박아두는 것이 핵심입니다.",
+    };
+  }
+
+  if (c12 >= 5 && c5 <= 2) {
+    return {
+      styleKey: "minimalist_pruner",
+      badgeLabel: "✂️ 미니멀 가지치기·실속 집중형",
+      statsSummary,
+      description:
+        "보여주기식 관행이나 불필요한 옵션에 흔들리지 않고 꼭 필요한 본질만 깔끔하게 남기는 미니멀리스트입니다. 플래너나 업체의 화려한 영업 멘트에도 흔들리지 않는 단단한 예산 방어력을 가지고 있습니다.",
+    };
+  }
+
+  if (c3D >= 5) {
+    return {
+      styleKey: "peaceful_open",
+      badgeLabel: "🌿 평화주의 오픈마인드·배려형",
+      statsSummary,
+      description:
+        "내 주장을 관철하기보다 ‘두 사람이 기분 좋게 합의하는 과정’ 자체를 훨씬 중요하게 여깁니다. 파트너에게 맞춰줄 수 있는 양보 폭이 넓어 갈등이 적지만, 내가 진짜 원하는 한두 가지까지 참지 않도록 내 1순위만큼은 분명히 표현해 주세요.",
+    };
+  }
+
+  if (cC >= 3 || (c4 >= 5 && c5 <= 1)) {
+    return {
+      styleKey: "careful_balancer",
+      badgeLabel: "⚖️ 신중한 황금비율·중립 조율형",
+      statsSummary,
+      description:
+        "어느 한쪽으로 극단적인 몰빵을 하기보다, 로망과 현실·탐색과 편의 사이에서 가장 안전한 중도 타협점을 찾아내는 신중한 조율가입니다. 급하게 양자택일을 강요받기보다 반반 절충안을 설계할 때 가장 마음이 편안합니다.",
+    };
+  }
+
+  return {
+    styleKey: "strategic_selector",
+    badgeLabel: "🎯 선택과 집중·스마트 밸런스형",
+    statsSummary,
+    description:
+      "절대 양보할 수 없는 핵심 가치와 힘 뺄 곳, 그리고 파트너에게 맞춰줄 여지를 이상적인 비율로 배분하는 전략가입니다. 감정 소모와 예산 낭비를 동시에 줄이는 가장 안정적인 의사결정 패턴을 보여줍니다.",
+  };
+}
+
 function buildHiddenPsychologyInsight19(
   answers: WeddingCode19Answers,
   axes: PersonalReport19["axes"],
+  subPersona: SubPersonaProfile19,
+  mustHave5: readonly BasketItemEntry[],
+  saveSimplify12: readonly BasketItemEntry[],
 ): HiddenPsychologyInsight19 {
   const isS = axes.axis1.winner === "S";
   const isD = axes.axis2.winner === "D";
   const isM = axes.axis3.winner === "M";
   const isH = axes.axis4.winner === "H";
 
-  const guestFirstHigh =
-    (answers.Q6 === 4 || answers.Q6 === 5) && (answers.Q7 === 4 || answers.Q7 === 5);
+  const topNames = mustHave5
+    .slice(0, 2)
+    .map((i) => `‘${i.shortTitle}’`)
+    .join("·");
+  const saveNames = saveSimplify12
+    .slice(0, 2)
+    .map((i) => `‘${i.shortTitle}’`)
+    .join("·");
 
   let unconsciousTitle = "";
   let unconsciousInsight = "";
 
-  if (isD && isS) {
-    unconsciousTitle = "평생 남을 ‘결정적 한 장면’을 통해 사랑과 축복을 확인하고 싶은 마음";
-    unconsciousInsight =
-      "겉으로는 화려한 공간이나 스타일링을 중시하는 것처럼 보이지만, 내면 깊은 곳에는 ‘인생의 가장 큰 전환점을 흐릿하게 흘려보내고 싶지 않다’는 열망이 있습니다. 나에게 결혼식은 단순한 행사가 아니라 두 사람의 서사를 세상에 선언하는 작품이기 때문에, 어중간하게 타협할 때 가장 큰 아쉬움을 느낍니다.";
-  } else if (isD && !isS) {
-    unconsciousTitle = "보여주기식 격식보다 ‘우리다운 취향의 밀도’를 지키고 싶은 마음";
-    unconsciousInsight =
-      "남들에게 과시하기 위한 화려함이 아니라, 우리 두 사람과 진짜 가까운 사람들이 머무는 공간의 공기·빛·감도를 온전히 내 취향으로 채우고 싶어 합니다. 억지로 꾸며낸 어색한 예식보다 ‘정말 두 사람답다’는 한마디가 내면의 가장 큰 만족감을 줍니다.";
-  } else if (!isD && guestFirstHigh) {
-    unconsciousTitle = "초대한 사람들에게 ‘불편이나 아쉬움을 빚지고 싶지 않은’ 다정한 책임감";
-    unconsciousInsight =
-      "스스로를 ‘그냥 현실적인 사람’이라고 생각하기 쉽지만, 실제로는 귀한 주말 시간을 내어 찾아와 준 손님들이 주차나 식사 때문에 눈살을 찌푸릴까 봐 마음 쓰는 배려심이 매우 깊습니다. 내 화려함보다 ‘하객이 대접받았다고 느끼는 안정감’과 ‘결혼 후 두 사람의 탄탄한 현실 기반’이 마음을 가장 편하게 만듭니다.";
-  } else {
-    unconsciousTitle = "하루의 이벤트보다 ‘결혼식 다음 날부터 시작될 일상의 여유’를 지키는 보호 본능";
-    unconsciousInsight =
-      "결혼식 당일의 짧은 몇 시간 때문에 두 사람의 체력이나 신혼 자금이 무리하게 소진되는 것을 본능적으로 경계합니다. 설렘이 부족해서가 아니라, ‘진짜 행복은 식장 문을 나선 뒤의 삶에 있다’는 확고한 내면의 기준이 있기 때문에 거품을 걷어낼 때 오히려 심리적 해방감을 느낍니다.";
+  switch (subPersona.archetypeKey) {
+    case "visual_artist":
+      unconsciousTitle = isS
+        ? "평생 남을 ‘결정적 한 장면’을 통해 사랑과 축복을 온전히 각인하고 싶은 마음"
+        : "보여주기식 격식보다 ‘우리다운 미적 감도와 취향의 밀도’를 지키고 싶은 마음";
+      unconsciousInsight = `겉으로는 화려한 공간이나 스타일링(${topNames || "홀·드레스·스냅"})을 중시하는 것처럼 보이지만, 내면 깊은 곳에는 ‘인생의 가장 큰 전환점을 흐릿하거나 평범하게 흘려보내고 싶지 않다’는 열망이 있습니다. 나에게 결혼식은 단순한 주말 행사가 아니라 두 사람의 서사를 시각적으로 증명하는 작품이기 때문에, ${saveNames ? `${saveNames} 같은 부차적 요소는 줄이더라도 ` : ""}내가 꼽은 핵심 장면만큼은 온전히 지켜질 때 깊은 심리적 충족감을 느낍니다.`;
+      break;
+    case "hospitality_host":
+      unconsciousTitle =
+        "초대한 사람들에게 ‘불편이나 아쉬움을 빚지고 싶지 않은’ 다정한 책임감과 자부심";
+      unconsciousInsight = `스스로를 ‘그냥 현실적이거나 무난한 사람’이라고 생각하기 쉽지만, 실제로는 귀한 시간을 내어 찾아와 준 손님들이 식사나 교통(${topNames || "식사·접근성"}) 때문에 작은 불편이라도 겪을까 봐 마음 쓰는 배려심이 매우 깊습니다. 주인공인 내가 빛나는 것 이상으로 “오늘 초대받아 와서 정말 대접 잘 받았다”는 하객들의 편안한 표정이 내 마음을 가장 든든하게 만듭니다.`;
+      break;
+    case "family_dignity":
+      unconsciousTitle =
+        "두 사람의 결합을 넘어 ‘양가 어른과 가족 모두에게 축복받는 안정감’을 원하는 마음";
+      unconsciousInsight = `결혼을 단 하루의 파티가 아니라 두 가문이 만나는 첫 단추로 진중하게 바라봅니다. 어른들의 의견이나 예물·예단·접대의 격식(${topNames || "예우·격식"})을 챙기는 이유는 남의 눈치를 봐서가 아니라, 양가 부모님이 자부심을 느끼고 뒷말 없이 평온하게 출발하는 것이 결국 두 사람의 미래를 가장 든든하게 지켜준다는 사실을 본능적으로 알고 있기 때문입니다.`;
+      break;
+    case "festival_director":
+      unconsciousTitle =
+        "기계처럼 찍어내는 예식 대신 ‘모두의 기억에 살아 숨 쉬는 축제’를 만들고 싶은 열망";
+      unconsciousInsight = `하객들이 도장만 찍고 밥만 먹고 돌아가는 형식적인 절차에 내면의 아쉬움을 느낍니다. ${topNames || "주인공 연출·특별한 식순"}에 마음이 기우는 이유는 과시욕이 아니라, 우리 두 사람의 에너지와 이야기가 하객들에게도 생생한 즐거움으로 전해져 ‘진짜 축하받는 살아있는 순간’을 경험하고 싶기 때문입니다.`;
+      break;
+    case "intimate_curator":
+      unconsciousTitle =
+        "넓은 인맥의 박수보다 ‘진짜 내 사람들과 나누는 따뜻한 눈맞춤’에서 안도감을 얻는 마음";
+      unconsciousInsight = `수백 명의 낯선 시선 속에서 긴장한 채 서 있기보다, 우리를 깊이 아끼는 사람들과 여유롭게 온기를 나누는 환경(${topNames || "소규모 예식·여유로운 인사"})에서 비로소 진짜 행복을 느낍니다. 보여주기식 겉치레(${saveNames || "형식적 절차"})를 덜어낼수록 내 마음이 훨씬 가벼워지고 결혼식 본연의 진심에 집중할 수 있습니다.`;
+      break;
+    case "future_strategist":
+      unconsciousTitle =
+        "하루의 이벤트보다 ‘결혼식 다음 날부터 시작될 일상의 자유와 여유’를 지키는 보호 본능";
+      unconsciousInsight = `결혼식 당일의 짧은 몇 시간 때문에 두 사람의 체력이나 신혼 자금이 무리하게 소진되는 것을 본능적으로 경계합니다. 설렘이 부족해서가 아니라, ‘진짜 행복은 식장 문을 나선 뒤의 신혼 생활에 있다’는 확고한 내면의 기준이 있기 때문에 ${saveNames || "불필요한 거품 옵션"}을 걷어낼 때 오히려 큰 심리적 해방감과 안정감을 느낍니다.`;
+      break;
+    case "harmonious_supporter":
+      unconsciousTitle =
+        "화려한 선택지보다 ‘준비 과정 내내 두 사람이 다투지 않는 평온함’을 최우선으로 여기는 마음";
+      unconsciousInsight = `어떤 홀이나 드레스를 고르느냐보다, 그 결정을 내리는 과정에서 두 사람의 관계가 상처받지 않고 다정함을 유지하는 것이 내게는 100배 더 중요합니다. 그래서 많은 항목에서 기꺼이 파트너에게 맞출 수 있지만, 내면에서는 ‘나의 이 배려와 양보를 파트너가 당연하게 여기지 않고 따뜻하게 알아주길 바라는 마음’이 함께 자리하고 있습니다.`;
+      break;
+    case "all_round_balancer":
+    default:
+      unconsciousTitle = isD
+        ? "로망의 감도와 현실적 완성도 사이에서 ‘단 하나의 후회도 남기고 싶지 않은’ 완벽주의"
+        : "감정 소모와 예산 낭비 없이 ‘가장 검증된 정석’으로 안전하게 완주하고 싶은 마음";
+      unconsciousInsight = `감성적인 만족(${topNames || "핵심 선호 항목"})과 현실적인 조건 어느 한쪽도 허투루 놓치고 싶지 않은 균형 감각이 뛰어납니다. 내면 깊은 곳에는 ‘나중에 돌아봤을 때 그때 왜 그랬을까 하고 후회하는 일만큼은 만들고 싶지 않다’는 책임감이 자리하고 있어, 기준이 명확히 정리될 때 가장 큰 평온을 얻습니다.`;
+      break;
   }
 
   let blindSpotTitle = "";
   let blindSpotInsight = "";
 
   if (isM && answers.Q17 === "A") {
-    blindSpotTitle = "불안할수록 ‘빨리 확정 지어야 안심되는’ 과속 결정 모드";
+    blindSpotTitle = "불안할수록 ‘빨리 검색해서 당장 확정 지어야 안심되는’ 과속 결정 모드";
     blindSpotInsight =
-      "알아볼 것이 쌓이면 머릿속 불확실성을 견디기 힘들어, 후기와 조건표를 파고들며 당장 결론을 내리려 합니다. 이때 나만큼 빠르게 반응하지 않거나 ‘천천히 생각해보자’고 하는 파트너를 보면, 나도 모르게 ‘나만 이 결혼에 진심인가?’라는 서운함으로 번질 수 있으니 속도를 늦추는 연습이 필요합니다.";
-  } else if (isM && answers.Q17 !== "A") {
-    blindSpotTitle = "후회하기 싫어 완벽한 정답을 찾다가 스스로 지쳐버리는 ‘탐색 과부하’";
+      answers.Q14 === "A"
+        ? "내 눈으로 직접 후기와 현장을 확인해야 직성이 풀리고, 알아볼 것이 쌓이면 머릿속 불확실성을 견디기 힘들어 당장 결론을 내리려 합니다. 이때 나만큼 빠르게 움직이지 않거나 ‘좀 쉬었다 하자’고 하는 파트너를 보면 나도 모르게 ‘나만 이 결혼에 진심인가?’라는 서운함으로 번질 수 있으니 의식적인 속도 조절이 필요합니다."
+        : "일정과 예산을 체계적으로 통제하고 싶어 지칠수록 오히려 빨리 결정을 끝내버리려 합니다. 하지만 피로가 쌓인 상태에서의 속도전은 파트너에게 압박감을 줄 수 있으니, 결론을 내리기 전 10분만 숨을 고르는 여유가 나를 지켜줍니다.";
+  } else if (isM && answers.Q17 === "B") {
+    blindSpotTitle = "후회하기 싫어 완벽한 정답을 찾다가 스스로 방전되는 ‘탐색 과부하’";
     blindSpotInsight =
-      "내 눈으로 직접 비교해야 마음이 놓이지만, 동시에 지친 상태에서 성급히 결정하는 것도 싫어합니다. 그 결과 ‘더 나은 후보가 있지 않을까?’ 하며 선택지를 계속 열어두다가 결정 피로가 한꺼번에 몰려올 수 있습니다. 상위 3개 후보만 남기면 검색창을 닫는 기준선이 나를 지켜줍니다.";
+      "꼼꼼히 비교하고 계획해야 마음이 놓이지만(M), 동시에 지친 상태에서 성급히 결정하는 것도 싫어해(Q17=B) ‘더 나은 후보가 있지 않을까?’ 하며 선택지를 계속 열어두기 쉽습니다. 정보가 쌓일수록 결정 피로가 한꺼번에 몰려올 수 있으니 ‘상위 3개 후보만 남기면 검색창을 닫는다’는 마감 규칙이 꼭 필요합니다.";
+  } else if (isM && (answers.Q17 === "C" || answers.Q17 === "D" || answers.Q17 === "E")) {
+    blindSpotTitle = "머리는 계속 비교표를 돌리는데 몸은 지쳐가는 ‘내적 줄다리기 모드’";
+    blindSpotInsight =
+      "꼼꼼하게 알아보고 싶은 책임감은 큰데, 체력이 떨어질 때 밀어붙일지 쉴지 사이에서 갈팡질팡하다가 에너지를 이중으로 소모하기 쉽습니다. 일정이 급한 계약 1건만 매듭짓고 나머지는 과감히 다음 주로 넘기는 분리 전략이 효과적입니다.";
   } else if (!isM && answers.Q17 === "B") {
-    blindSpotTitle = "정보가 넘치면 무의식적으로 스위치를 끄는 ‘동굴 속 일시정지 모드’";
+    blindSpotTitle = "복잡한 비교 압박이 몰려오면 무의식적으로 스위치를 끄는 ‘동굴 속 일시정지 모드’";
     blindSpotInsight =
-      "세부 조건 비교나 복잡한 일정 압박이 몰려오면, 싸우거나 후회하는 선택을 피하려고 무의식적으로 결정을 미루거나 한발 물러섭니다. 내 안에서는 에너지를 충전하려는 자연스러운 방어 반응이지만, 파트너 눈에는 ‘관심이 없거나 책임을 미루는 모습’으로 오해받기 쉽습니다.";
+      "수십 개의 세부 조건 비교나 일정 압박이 쏟아지면, 후회하거나 다투는 상황을 피하려고 무의식적으로 결정을 미루고 한발 물러섭니다. 내 안에서는 에너지를 회복하려는 자연스러운 방어 반응이지만, 파트너 눈에는 ‘관심이 없거나 책임을 미루는 모습’으로 오해받기 쉬우니 “내일 맑은 정신으로 꼭 같이 고르자”는 한마디를 먼저 건네주세요.";
+  } else if (!isM && answers.Q17 === "A") {
+    blindSpotTitle = "복잡한 탐색 과정은 건너뛰고 ‘단숨에 결론부터 찍으려는’ 초고속 생략 본능";
+    blindSpotInsight =
+      "긴 발품과 피곤한 비교 과정을 아끼고, 지칠수록 빨리 결론을 내려 털어버리는 결단력이 탁월합니다. 다만 과정 자체를 함께 고민하며 설렘을 느끼는 파트너와 함께할 때는, 나의 시원시원한 속도감이 상대에게는 ‘충분히 상의하지 않고 숙제처럼 해치워버리는 느낌’을 줄 수 있다는 점을 기억하면 좋습니다.";
   } else {
-    blindSpotTitle = "복잡한 과정을 건너뛰고 ‘단순 명쾌한 결론’으로 직행하려는 생략 본능";
+    blindSpotTitle = "편안한 흐름을 선호하다가 ‘마감 직전 선택지 축소’를 겪기 쉬운 유연 모드";
     blindSpotInsight =
-      "긴 탐색과 감정 소모를 아끼고 핵심만 빠르게 결정하는 능력이 탁월합니다. 다만 과정 자체에서 설렘과 유대감을 느끼는 파트너와 함께할 때는, 나의 시원시원한 속도감이 상대에게는 ‘충분히 상의하지 않고 해치워버리는 느낌’을 줄 수 있다는 점을 기억하면 좋습니다.";
+      "과도한 스트레스 없이 전문가 추천이나 상황에 맞춰 유연하게 흘러가는 장점이 있습니다. 다만 인기 웨딩홀 골든타임이나 스드메 핵심 옵션처럼 일찍 마감되는 항목에서는 막판에 원치 않는 추가금을 내게 될 수 있으니, 내 1순위 항목 딱 2가지만큼은 초기에 먼저 선점해 두세요.";
   }
 
-  const selfDiscoveryQuestion = isH
-    ? "“나는 결혼식 결과물 그 자체보다, 준비하는 내내 ‘우리가 같은 온도에서 함께 설레고 있는가’를 확인받고 싶어 하지 않나요?”"
-    : "“나는 사랑과 배려를 ‘감정 표현’보다 ‘예산과 역할을 깔끔하게 정리해 두 사람의 시행착오를 줄여주는 것’으로 표현하고 있지 않나요?”";
+  let selfDiscoveryQuestion = "";
+  if (isH && answers.Q18 === "A") {
+    selfDiscoveryQuestion =
+      "“나는 결혼식 결과물 그 자체보다, 준비하는 매 순간 ‘우리가 같은 온도에서 숨김없이 마음을 나누며 함께 설레고 있는가’를 확인받고 싶어 하지 않나요?”";
+  } else if (isH && answers.Q18 === "B") {
+    selfDiscoveryQuestion =
+      "“나는 모든 과정을 다정하게 함께하고 싶어 하면서도, 정작 서운한 순간에는 상대가 먼저 내 표정과 침묵 속의 마음을 헤아려주길 조용히 기다리고 있지 않나요?”";
+  } else if (isH) {
+    selfDiscoveryQuestion =
+      "“나는 결정이 어려워서 묻는 게 아니라, ‘너와 취향을 나누며 우리만의 결혼을 함께 빚어가는 연결감’ 자체를 가장 소중히 여기고 있지 않나요?”";
+  } else if (!isH && answers.Q19 === "B") {
+    selfDiscoveryQuestion =
+      "“나는 사랑과 배려를 ‘감정적인 말’보다 ‘예산과 역할을 깔끔하게 정리해 두 사람의 시행착오와 피로를 줄여주는 것’으로 증명하고 있지 않나요?”";
+  } else if (!isH && answers.Q18 === "A") {
+    selfDiscoveryQuestion =
+      "“나는 실무는 효율적으로 나누되, 의견이나 감정의 이견만큼은 뒤끝 없이 그 자리에서 투명하게 정리되어야 마음이 놓이는 타입이 아닌가요?”";
+  } else {
+    selfDiscoveryQuestion =
+      "“나는 무심해서가 아니라, 각자의 영역과 에너지를 존중하며 ‘결혼 준비 때문에 두 사람의 일상이 지치지 않게 지키는 것’을 최고의 사랑이라 믿고 있지 않나요?”";
+  }
 
   const partnerTranslations: PartnerTranslationItem19[] = [];
   if (isH) {
     partnerTranslations.push({
-      whenISay: "“이것도 같이 보고 골라주면 안 돼? 넌 어떤 게 더 좋아?”",
+      whenISay:
+        answers.Q15 === "A"
+          ? "“이것도 같이 가보고 같이 골라주면 안 돼? 넌 어떤 게 더 좋아?”"
+          : "“내가 먼저 추려왔는데, 최종 결정은 꼭 우리 같이 보면서 얘기하자!”",
       whatIReallyMean:
-        "결정을 못 해서가 아니라, 너와 취향을 나누며 함께 결혼을 만들어가는 ‘우리의 추억과 연결감’을 느끼고 싶다는 뜻이에요.",
+        "혼자 결정을 못 해서가 아니라, 너와 취향을 나누며 함께 결혼을 만들어가는 ‘우리의 추억과 정서적 연결감’을 느끼고 싶다는 뜻이에요.",
     });
   } else {
     partnerTranslations.push({
-      whenISay: "“이건 각자 맡아서 추려오자. 예산이랑 조건표부터 먼저 맞춰보자.”",
+      whenISay:
+        answers.Q15 === "B"
+          ? "“이건 각자 잘하는 분야로 맡아서 후보 2~3개만 추려오자.”"
+          : "“예산이랑 핵심 조건표부터 먼저 깔끔하게 정리해 보자.”",
       whatIReallyMean:
-        "설렘이 없거나 차가워서가 아니라, 두 사람이 공연히 지치거나 싸우지 않도록 ‘현실적인 안전망’을 먼저 만들어주고 싶다는 뜻이에요.",
+        "설렘이 없거나 차가워서가 아니라, 두 사람이 주말마다 지치거나 불필요하게 다투지 않도록 ‘현실적인 안전망’을 먼저 만들어주고 싶다는 뜻이에요.",
     });
   }
 
@@ -556,13 +892,40 @@ function buildHiddenPsychologyInsight19(
     partnerTranslations.push({
       whenISay: "“나 방금 이 부분은 좀 서운했어. 지금 바로 얘기해 줄 수 있어?”",
       whatIReallyMean:
-        "당신을 공격하려는 게 아니라, 내 마음속에 앙금이 커지기 전에 빨리 털어내고 다시 다정한 우리로 돌아가고 싶다는 신호예요.",
+        answers.Q19 === "B"
+          ? "당신을 탓하려는 게 아니라, 마음이 상한 채로 두지 않고 빨리 오해를 풀어야 현실적인 다음 대안도 기분 좋게 함께 찾을 수 있다는 신호예요."
+          : "당신을 공격하려는 게 아니라, 내 마음속에 앙금이 커지기 전에 빨리 털어내고 다시 다정한 우리로 돌아가고 싶다는 신호예요.",
     });
-  } else {
+  } else if (answers.Q18 === "B") {
     partnerTranslations.push({
       whenISay: "“지금은 좀 지치니까 나중에 생각 정리하고 다시 얘기하자.”",
       whatIReallyMean:
         "대화를 회피하거나 무시하는 게 아니라, 감정이 앞선 말로 당신에게 상처 주지 않기 위해 내 마음을 정돈할 시간이 잠시 필요하다는 뜻이에요.",
+    });
+  } else {
+    partnerTranslations.push({
+      whenISay: "“가벼운 건 바로 맞추고, 큰 문제는 오늘 푹 자고 내일 얘기하자.”",
+      whatIReallyMean:
+        "피곤한 상태에서 괜히 큰 결론을 내렸다가 서로 후회하지 않도록, 대화의 온도와 타이밍을 안전하게 조절하고 싶다는 뜻이에요.",
+    });
+  }
+
+  // 3번째 번역 카드: 내 예산 철학(Q13) + 실제 1순위/절약 항목 + 양가 소통(Q16) 반영
+  if (answers.Q13 === "A" || isD) {
+    partnerTranslations.push({
+      whenISay: topNames
+        ? `“다른 건 기본으로 줄여도 좋으니까, ${topNames}만큼은 우리 후회 없이 제대로 챙기자.”`
+        : "“평생 한 번뿐인 날인데 이 포인트만큼은 아끼지 말고 제대로 하고 싶어.”",
+      whatIReallyMean:
+        "예산 감각이 없어서가 아니라, 먼 훗날 우리 결혼식을 떠올렸을 때 ‘그때 진짜 행복했지’ 하고 평생 미소 지을 핵심 장면 하나를 지키고 싶다는 뜻이에요.",
+    });
+  } else {
+    partnerTranslations.push({
+      whenISay: saveNames
+        ? `“${saveNames} 같은 건 과감히 줄이고, 그 돈으로 신혼집이나 신혼여행에 보태자.”`
+        : "“결혼식 당일 옵션은 무난한 기본으로 하고 결혼 후 우리 생활에 집중하자.”",
+      whatIReallyMean:
+        "결혼식이 안 중요해서가 아니라, 식장 문을 나선 뒤 시작될 ‘우리 두 사람의 매일매일의 일상’을 더 풍요롭고 여유롭게 만들어주고 싶다는 뜻이에요.",
     });
   }
 
@@ -576,6 +939,61 @@ function buildHiddenPsychologyInsight19(
   };
 }
 
+function buildCoupleChemistrySummary19(
+  myReport: PersonalReport19,
+  partnerReport: PersonalReport19,
+  alignedCount: number,
+  concessionCount: number,
+  conflictCount: number,
+  myAnswers: WeddingCode19Answers,
+  partnerAnswers: WeddingCode19Answers,
+): CoupleChemistrySummary19 {
+  let matchedAxisCount = 0;
+  if (myReport.axes.axis1.winner === partnerReport.axes.axis1.winner) matchedAxisCount += 1;
+  if (myReport.axes.axis2.winner === partnerReport.axes.axis2.winner) matchedAxisCount += 1;
+  if (myReport.axes.axis3.winner === partnerReport.axes.axis3.winner) matchedAxisCount += 1;
+  if (myReport.axes.axis4.winner === partnerReport.axes.axis4.winner) matchedAxisCount += 1;
+
+  const matchStatsBadge = `4대 축 중 ${matchedAxisCount}개 일치 · 완벽 통함 ${alignedCount}건 / 양보·리드 찬스 ${concessionCount}건 / 맞춤 조율 ${conflictCount}건`;
+
+  let chemistryTitle = "";
+  let baseDesc = "";
+
+  if (matchedAxisCount === 4) {
+    chemistryTitle = "🌟 4개 축이 모두 통하는 ‘데칼코마니 소울메이트’";
+    baseDesc = `두 분은 예식 무대부터 가치관·탐색 방식·소통 온도까지 4대 핵심 축이 모두 일치하는 천생연분 조합입니다(통하는 기준 ${alignedCount}건, 찬스 카드 ${concessionCount}건).`;
+  } else if (matchedAxisCount === 3) {
+    chemistryTitle = "🧩 3개 축은 통하고 1개 축이 보완하는 ‘황금 밸런스 콤비’";
+    baseDesc = `큰 방향성(3개 축)은 기분 좋게 통하면서도, 단 1개 축에서 서로의 사각지대를 메워주는 이상적인 커플입니다(통하는 기준 ${alignedCount}건, 찬스 카드 ${concessionCount}건).`;
+  } else if (matchedAxisCount === 2) {
+    chemistryTitle = "⚖️ 닮은 점과 다른 점이 2:2로 어우러진 ‘상호보완 시너지 커플’";
+    baseDesc = `두 축은 든든한 공감대를 형성하고, 나머지 두 축은 서로 다른 강점으로 균형을 잡아주는 조화로운 조합입니다(통하는 기준 ${alignedCount}건, 찬스 카드 ${concessionCount}건, 조율 포인트 ${conflictCount}건).`;
+  } else if (matchedAxisCount === 1) {
+    chemistryTitle = "🎯 서로 다른 강점으로 빈틈을 채우는 ‘입체적 파트너십’";
+    baseDesc = `공통된 1개 축을 구심점 삼아, 내가 놓치기 쉬운 영역을 파트너가 정확히 커버해주는 입체적인 팀워크 조합입니다(찬스 카드 ${concessionCount}건, 맞춤 조율 ${conflictCount}건).`;
+  } else {
+    chemistryTitle = "🧲 정반대 매력으로 완성되는 ‘극과 극 퍼즐 커플’";
+    baseDesc = `4개 축의 방향이 모두 달라 처음엔 신기할 수 있지만, 역할 분담과 예산 균형 면에서는 오히려 한쪽으로 폭주하지 않는 가장 완벽한 퍼즐 조합입니다(찬스 카드 ${concessionCount}건, 맞춤 조율 ${conflictCount}건).`;
+  }
+
+  const subPersonaComparison =
+    myReport.subPersona.archetypeKey === partnerReport.subPersona.archetypeKey
+      ? `더구나 두 분 모두 ‘${myReport.subPersona.focusBadge.replace(/^[^\s]+\s세부 결:\s/, "")}’ 결을 공유하고 있어 핵심 가치에서 깊은 공감을 나눕니다.`
+      : `나는 ‘${myReport.subPersona.focusBadge.replace(/^[^\s]+\s세부 결:\s/, "")}’, 파트너는 ‘${partnerReport.subPersona.focusBadge.replace(/^[^\s]+\s세부 결:\s/, "")}’에 초점이 맞춰져 있어 각자의 1순위 구역만 존중해주면 만족도가 배가됩니다.`;
+
+  const familyNote =
+    myAnswers.Q16 && partnerAnswers.Q16 && myAnswers.Q16 !== partnerAnswers.Q16
+      ? " 특히 양가 어른과 상의하는 순서(Q16)는 각자 집안 분위기에 맞춰 유연하게 조율해 보세요."
+      : "";
+
+  return {
+    matchedAxisCount,
+    chemistryTitle,
+    matchStatsBadge,
+    chemistryNarrative: `${baseDesc} ${subPersonaComparison}${familyNote}`,
+  };
+}
+
 function buildCoupleEmpathyBridge19(
   myReport: PersonalReport19,
   partnerReport: PersonalReport19,
@@ -586,6 +1004,21 @@ function buildCoupleEmpathyBridge19(
   const pAxes = partnerReport.axes;
 
   const translations: CoupleEmpathyTranslation19[] = [];
+
+  if (myAxes.axis1.winner !== pAxes.axis1.winner) {
+    const meIsS = myAxes.axis1.winner === "S";
+    translations.push({
+      triggerSituation: "웅장한 무대·폭넓은 하객 초대(S) vs 소규모 오붓한 교류(I)를 두고 이야기할 때",
+      myInnerThought: meIsS
+        ? "‘인생에 한 번뿐인 큰 잔치인데, 너무 조용하게만 치르면 나중에 허전하거나 어른들께 아쉽지 않을까?’"
+        : "‘잘 모르는 하객들까지 잔뜩 불러 인사만 바쁘게 하다가 정작 소중한 사람들과 눈도 못 맞추면 어떡하지?’",
+      partnerInnerThought: meIsS
+        ? "‘축하받는 게 싫은 게 아니라, 낯선 시선에 긴장하기보다 진짜 우리 편인 사람들과 깊이 교감하고 싶은 거야.’"
+        : "‘허세를 부리려는 게 아니라, 그동안 고마웠던 분들과 양가 어른들께 제대로 인사드리고 축복받고 싶은 거야.’",
+      bridgePrescription:
+        "본식 홀과 하객 규모는 양가 입장을 고려해 적정선을 갖추되(S 충족), 식순을 간소화해 테이블 인사 시간을 늘리거나 친한 지인들과의 2부 애프터 티타임을 별도로 마련해 보세요(I 충족).",
+    });
+  }
 
   if (myAxes.axis2.winner !== pAxes.axis2.winner) {
     const meIsD = myAxes.axis2.winner === "D";
@@ -629,6 +1062,24 @@ function buildCoupleEmpathyBridge19(
         : "‘효율을 모르는 게 아니라, 내 마음을 먼저 3분만 공감해주면 나도 현실적인 타협안을 기꺼이 받아들일 수 있어.’",
       bridgePrescription:
         "의견이 막히면 첫 5분은 해결책 제시를 멈추고 ‘왜 그게 중요했는지’ 마음부터 들어준 뒤(H 충족), 다음 10분 동안 예산·일정 표를 펴고 1:1 절충안을 확정하세요(R 충족).",
+    });
+  }
+
+  if (
+    (myAnswers.Q16 === "A" && partnerAnswers.Q16 === "B") ||
+    (myAnswers.Q16 === "B" && partnerAnswers.Q16 === "A")
+  ) {
+    const meIsParentFirst = myAnswers.Q16 === "A";
+    translations.push({
+      triggerSituation: "양가 부모님께 먼저 여쭙기(A) vs 우리 둘이 먼저 확정하기(B)로 의견이 다를 때",
+      myInnerThought: meIsParentFirst
+        ? "‘어른들께 미리 여쭙지 않고 우리끼리 다 정했다가 나중에 서운해하시거나 처음부터 다시 뒤집히면 어떡하지?’"
+        : "‘우리 기준도 안 세운 채 양가 의견부터 다 듣기 시작하면 배가 산으로 가고 우리 결혼식이 아니게 되지 않을까?’",
+      partnerInnerThought: meIsParentFirst
+        ? "‘부모님을 무시하려는 게 아니라, 우리 두 사람의 중심을 먼저 세워야 양가 조율도 흔들리지 않고 할 수 있다는 뜻이야.’"
+        : "‘마마보이/마마걸이어서가 아니라, 우리 부모님의 성향을 잘 알기에 미리 여쭙는 모양새를 취해야 오히려 우리 뜻대로 평화롭게 진행할 수 있어서 그래.’",
+      bridgePrescription:
+        "두 사람의 핵심 기준(총예산·지역)은 먼저 맞추되, 각자 자기 본가 부모님께는 그 집안 성향에 맞는 타이밍과 화법(‘의견 여쭙기’ vs ‘정리된 후보 공유’)으로 소통 창구를 일원화하세요.",
     });
   }
 
@@ -784,11 +1235,40 @@ export function buildPersonalReport19(
     },
   ];
 
-  const hiddenPsychology = buildHiddenPsychologyInsight19(answers, axes);
+  const trimmedRelativeSaves = relativeSaveSuggestions.slice(0, 3);
+  const subPersona = buildSubPersona19(
+    code,
+    character,
+    answers,
+    topPrioritySet,
+    mustHave5,
+    niceToHave4,
+    saveSimplify12,
+    trimmedRelativeSaves,
+    concession3D,
+    balancedC,
+  );
+  const decisionStyle = buildDecisionStyleProfile19(
+    mustHave5,
+    niceToHave4,
+    saveSimplify12,
+    concession3D,
+    balancedC,
+    undecidedUnknownE,
+  );
+  const hiddenPsychology = buildHiddenPsychologyInsight19(
+    answers,
+    axes,
+    subPersona,
+    mustHave5,
+    saveSimplify12.length > 0 ? saveSimplify12 : trimmedRelativeSaves,
+  );
 
   return {
     code,
     character,
+    subPersona,
+    decisionStyle,
     axes,
     topPriorityIds: topPriorityItems.map((i) => i.questionId),
     topPriorityItems,
@@ -796,7 +1276,7 @@ export function buildPersonalReport19(
       mustHave5,
       niceToHave4,
       saveSimplify12,
-      relativeSaveSuggestions: relativeSaveSuggestions.slice(0, 3),
+      relativeSaveSuggestions: trimmedRelativeSaves,
       concession3D,
       balancedC,
       undecidedUnknownE,
@@ -1051,6 +1531,16 @@ export function buildCoupleComparison19(
     }
   }
 
+  const coupleChemistrySummary = buildCoupleChemistrySummary19(
+    myReport,
+    partnerReport,
+    alignedItems.length,
+    concessionMatches.length,
+    conflictItems.length,
+    myAnswers,
+    partnerAnswers,
+  );
+
   const empathyBridge = buildCoupleEmpathyBridge19(
     myReport,
     partnerReport,
@@ -1061,6 +1551,7 @@ export function buildCoupleComparison19(
   return {
     myReport,
     partnerReport,
+    coupleChemistrySummary,
     axisSynergies,
     empathyBridge,
     crisisWarnings,
