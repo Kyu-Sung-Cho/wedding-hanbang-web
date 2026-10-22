@@ -81,7 +81,7 @@ export default function WeddingDetails({
       {/* 두 가족이 처음 만나는 날짜 */}
       <div className="space-y-2">
         <label className="text-[14px] font-medium text-[var(--hb-text-strong)]">
-          상견례 (양가 첫 만남) 예정일
+          양쪽 부모님이 처음 함께 만나는 날짜
         </label>
         <div className="flex gap-2">
           <input

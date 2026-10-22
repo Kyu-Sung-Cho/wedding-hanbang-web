@@ -570,7 +570,7 @@ describe("Amora memory compiler boundary", () => {
   });
 
   it.each([
-    "내 친구는 신라호텔로 확정했어",
+    "내 친구는 강남 웨딩홀로 확정했어",
     "언니는 스드메 300만원에 계약했대",
     "회사 동료는 하와이로 신혼여행 갔대",
   ])("drops third-party wedding anecdotes instead of storing them as the couple's memory: %s", (source) => {

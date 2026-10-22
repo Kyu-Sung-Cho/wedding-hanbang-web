@@ -150,7 +150,7 @@ describe("Live lounge solo, couple, and joined handoff", () => {
     expect(handoff?.textContent).toContain("2026년 12월 20일");
     expect(handoff?.textContent).toContain("라온제나 강남");
     expect(handoff?.textContent).toContain("3,000만원");
-    expect(handoff?.textContent).toContain("지금까지 정리된 준비 현황을 나란히 확인해 보세요");
+    expect(handoff?.textContent).toContain("새로 저장하거나 변경한 내용은 없어요");
 
     const amoraLink = findLink(handoff as HTMLElement, "함께 확인할 내용 찾기");
     expect(new URL(amoraLink.href).searchParams.get("prefill")).toContain(

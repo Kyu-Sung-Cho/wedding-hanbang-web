@@ -6,6 +6,7 @@ import WeddingCode19Client from "@/components/weddingCode19/WeddingCode19Client"
 import type { WeddingCodeEntry } from "./entry";
 import LegacyEntry from "./WeddingCodeEntryClient";
 import { weddingCodeReleaseTarget } from "./releaseEntry";
+import { readDraft36 } from "./storage36";
 import WeddingCodeClient from "./WeddingCodeClient";
 
 const serverHash = () => null;
@@ -57,7 +58,13 @@ export default function WeddingCodeReleaseClient({ queryIsLegacy, explicitLikert
   if (target === "legacy") return <LegacyEntry {...legacyProps} embedded={embedded} />;
   if (target === "likert") return <WeddingCodeLikertClient embedded={embedded} />;
   const searchParams = typeof window !== "undefined" ? new URLSearchParams(window.location.search) : null;
-  if (searchParams?.has("ct") || searchParams?.get("v") === "36") {
+  const existingDraft36 = typeof window !== "undefined" ? readDraft36(null) : null;
+  if (
+    searchParams?.has("ct") ||
+    searchParams?.get("v") === "36" ||
+    existingDraft36?.step === "questions" ||
+    existingDraft36?.step === "review"
+  ) {
     return <WeddingCodeClient embedded={embedded} />;
   }
   return <WeddingCode19Client embedded={embedded} />;

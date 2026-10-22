@@ -935,7 +935,7 @@ function ScopedBudgetContent({
     // 조건에 안 맞으면 **아무 일도 안 일어났다.** 닫히지도, 저장되지도, 말해주지도
     // 않아서 버튼이 죽은 것처럼 보였다. 0 을 넣거나 칸을 비운 사람이 그렇게 갇혔다.
     if (amount === null) {
-      setTotalBudgetError("총예산을 만원 단위로 입력해 주세요 (예: 3000 = 3,000만원). 아직 정하지 않았다면 닫으셔도 괜찮아요.");
+      setTotalBudgetError("0보다 크고 10억원 이하인 금액을 만원 단위로 넣어주세요. 소수점 아래 네 자리까지 입력할 수 있어요. 아직 안 정했다면 그냥 닫으셔도 돼요.");
       return;
     }
     setTotalBudgetError("");

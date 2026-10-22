@@ -534,7 +534,7 @@ function MemorySettingsContent({ ownerKey }: { ownerKey: string | null }) {
                               {memory.userCorrected && (
                                 <span className="inline-flex items-center gap-1 text-xs font-medium text-[var(--hb-success)]">
                                   <Check className="h-3 w-3" />
-                                  {activeVisibility === "shared" ? "직접 수정한 기억" : "내가 직접 고침"}
+                                  {activeVisibility === "shared" ? "한 사람이 직접 고침 · 공동 확인 아님" : "내가 직접 고침"}
                                 </span>
                               )}
                               <span className="text-xs text-[var(--hb-text-muted)]">{formatDate(memory.updatedAt)}</span>

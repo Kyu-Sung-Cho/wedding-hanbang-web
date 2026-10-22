@@ -1380,8 +1380,8 @@ export default function SettingsPage() {
 
         <div className="flex flex-col gap-1">
           {[
-            { key: "schedule" as const, label: "일정 알림", desc: "결혼식까지 남은 기간에 맞춰 확인할 일을 앱 내 알림으로 알려드려요." },
-            { key: "budget" as const, label: "예산 알림", desc: "전체 예산 범위를 정할 시점을 앱 내 알림으로 알려드려요." },
+            { key: "schedule" as const, label: "일정 알림", desc: "결혼식까지 남은 기간에 맞춰 확인할 일을 앱 안 알림 목록에서 알려드려요." },
+            { key: "budget" as const, label: "예산 알림", desc: "전체 예산 범위를 정할 시점을 앱 안 알림 목록에서 알려드려요." },
           ].map((item) => (
             <div
               key={item.key}

@@ -412,7 +412,7 @@ export default function LoungePage() {
                 이제 이 계획을 함께 봐요
               </h2>
               <p className="mt-2 text-[13px] font-medium leading-6 text-[var(--amora-soft)]">
-                이제 두 분이 함께 보는 현재 계획이에요. 지금까지 정리된 준비 현황을 나란히 확인해 보세요.
+                이제 두 분이 함께 보는 현재 계획이에요. 이 화면을 열면서 새로 저장하거나 변경한 내용은 없어요.
               </p>
             </div>
           </div>
