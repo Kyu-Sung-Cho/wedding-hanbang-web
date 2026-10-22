@@ -237,6 +237,32 @@ function withoutUnchangedScheduleSegments(title: string) {
   return kept.join(" · ");
 }
 
+/** 예약·상담 기록(vendor_booking)의 구조화된 chosen_value를 화면 표시용 설명으로 변환한다. */
+export function formatChosenValue(chosenValue: unknown, source?: string | null): string | null {
+  const value = object(chosenValue);
+  if (!value) return null;
+  if (
+    source !== "vendor_booking" &&
+    value.booking_date === undefined &&
+    value.booking_time === undefined &&
+    value.product_name === undefined &&
+    value.quoted_amount === undefined
+  ) {
+    return null;
+  }
+  const bookingDate = typeof value.booking_date === "string" && value.booking_date.trim() ? value.booking_date.trim() : null;
+  const bookingTime = typeof value.booking_time === "string" && value.booking_time.trim() ? value.booking_time.trim() : null;
+  const productName = typeof value.product_name === "string" && value.product_name.trim() ? value.product_name.trim() : null;
+  const amountText = won(value.quoted_amount) && value.quoted_amount > 0
+    ? formatWon(value.quoted_amount)
+    : won(value.actual_amount) && value.actual_amount > 0
+      ? formatWon(value.actual_amount)
+      : null;
+  const productAndAmount = [productName, amountText].filter(Boolean).join(" ") || null;
+  const parts = [bookingDate, bookingTime, productAndAmount].filter((part): part is string => Boolean(part));
+  return parts.length > 0 ? parts.join(" · ") : null;
+}
+
 /** 표시용 사실만 만든다. 저장된 행과 원문 제목은 바꾸지 않는다. */
 export function preparationDecisionFacts(row: DecisionDisplayInput): PreparationDecisionFacts {
   const amora = amoraBudgetFacts(row);
@@ -250,11 +276,34 @@ export function preparationDecisionFacts(row: DecisionDisplayInput): Preparation
       return { displayTitle: null, displayDetail: null, valueSlots: [], relatedCategories: [], routineChanges: routine.length };
     }
   }
+  if (row.source === "vendor_booking") {
+    const bookingDetail = formatChosenValue(row.chosen_value, row.source);
+    const reasoning = typeof row.reasoning === "string" && row.reasoning.trim() ? row.reasoning.trim() : null;
+    const displayDetail = bookingDetail
+      ? (reasoning ? `${bookingDetail} · ${reasoning}` : bookingDetail)
+      : null;
+    return {
+      displayTitle: null,
+      displayDetail,
+      valueSlots: [],
+      relatedCategories: [],
+      routineChanges: null,
+    };
+  }
   const manual = manualBudgetFacts(row);
   const title = manual?.title
     ?? (row.metadata?.origin === "couple_plan_change_request" ? withoutUnchangedScheduleSegments(row.title) : row.title);
   return {
     displayTitle: title !== row.title ? title : null, displayDetail: null,
     valueSlots: manual?.valueSlots ?? [], relatedCategories: manual?.relatedCategories ?? [], routineChanges: null,
+  };
+}
+
+export function getPreparationDecisionDisplay(row: DecisionDisplayInput) {
+  const facts = preparationDecisionFacts(row);
+  const detail = facts.displayDetail ?? (typeof row.reasoning === "string" && row.reasoning.trim() ? row.reasoning.trim() : formatChosenValue(row.chosen_value, row.source));
+  return {
+    title: facts.displayTitle ?? row.title,
+    detail: detail ?? null,
   };
 }

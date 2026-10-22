@@ -6,7 +6,22 @@ import { OFFLINE_CHANGE_MESSAGE, PlanChangeError } from "@/lib/journey/planChang
 import { createClient } from "@/lib/supabase/client";
 import { CHECKLIST_MAP } from "@/constants/checklists";
 import { useCommunityStore } from "@/stores/communityStore";
+import { useOnboardingStore } from "@/stores/onboardingStore";
 import type { Profile, Couple, WeddingJourney } from "@/types/database.types";
+
+function clearWeddingCode19BrowserStorage() {
+  if (typeof window === "undefined") return;
+  try {
+    window.sessionStorage.removeItem("hanbang:wedding-code-19:session-v1");
+  } catch {
+    // ignore
+  }
+  try {
+    window.localStorage.removeItem("hanbang:wedding-code-19:latest");
+  } catch {
+    // ignore
+  }
+}
 
 // 데모 모드 샘플 데이터
 function buildDemoChecklist(categoryKey: string, completedItemCount: number) {
@@ -749,6 +764,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     // Purge auth and viewer-owned state before I/O so logout cannot paint or
     // refetch the outgoing account while the network request is pending.
     get().reset();
+    clearWeddingCode19BrowserStorage();
     await supabase.auth.signOut();
     document.cookie = "onboarding_complete=; path=/; max-age=0";
     document.cookie = "demo_mode=; path=/; max-age=0";
@@ -757,9 +773,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   reset: () => {
     clearAmoraTextDraftRecovery();
+    clearWeddingCode19BrowserStorage();
     authInitializeSequence += 1;
     journeyWriteSequence += 1;
     useCommunityStore.getState().reset();
+    useOnboardingStore.getState().reset();
     set({
       user: null,
       profile: null,

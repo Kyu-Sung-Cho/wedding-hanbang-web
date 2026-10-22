@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { ArrowLeft, ArrowRight, Check, Copy, RotateCcw, Shuffle } from "lucide-react";
 
 import {
@@ -124,7 +125,12 @@ export default function TodayClient({
             </div>
           ) : null}
 
-          <button type="button" onClick={restart} className={`${secondaryButton} mt-6 w-full`}>
+          <Link href="/wedding/chat" className={`${primaryButton} mt-6 w-full`}>
+            아모라와 이어서 상담하기
+            <ArrowRight aria-hidden="true" className="h-4 w-4" />
+          </Link>
+
+          <button type="button" onClick={restart} className={`${secondaryButton} mt-3 w-full`}>
             <RotateCcw aria-hidden="true" className="h-4 w-4" />
             다시 고르기
           </button>
@@ -272,7 +278,25 @@ export default function TodayClient({
 function Shell({ children }: { children: React.ReactNode }) {
   return (
     <main className="min-h-dvh bg-[var(--hb-surface-page)] px-4 py-6 sm:px-6 sm:py-10">
-      <div className="mx-auto w-full max-w-[560px]">{children}</div>
+      <div className="mx-auto w-full max-w-[560px]">
+        <nav
+          aria-label="오늘 한 마디 상단 탐색"
+          className="mb-4 flex flex-wrap items-center justify-between gap-2 text-[13px] font-semibold text-[#8F6662]"
+        >
+          <Link href="/" className="transition-colors hover:text-[var(--hb-text-strong)]">
+            웨딩한방 홈
+          </Link>
+          <div className="flex items-center gap-4">
+            <Link href="/wedding-code" className="transition-colors hover:text-[var(--hb-text-strong)]">
+              웨딩코드
+            </Link>
+            <Link href="/price" className="transition-colors hover:text-[var(--hb-text-strong)]">
+              공시 가격
+            </Link>
+          </div>
+        </nav>
+        {children}
+      </div>
     </main>
   );
 }

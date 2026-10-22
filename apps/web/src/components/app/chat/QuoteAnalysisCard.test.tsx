@@ -60,7 +60,8 @@ describe("QuoteAnalysisCard retired static price compatibility", () => {
     });
 
     expect(html).toContain("원본 데이터 구매");
-    expect(html).toContain("별도 확인");
+    expect(html).toContain("공시 가격 보러가기");
+    expect(html).toContain("예산 관리에서 반영하기");
     expect(html).not.toContain("undefined");
     expect(html).not.toContain("이용률");
     expect(html).not.toContain("~");
@@ -80,7 +81,8 @@ describe("QuoteAnalysisCard retired static price compatibility", () => {
       includedItems: [],
     });
 
-    expect(html).toContain("별도 확인");
+    expect(html).toContain("공시 가격 보러가기");
+    expect(html).toContain("예산 관리에서 반영하기");
     expect(html).toContain("가격 적정성을 판정하지 않습니다");
     expect(html).not.toContain("210만");
     expect(html).not.toContain("+52%");

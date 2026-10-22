@@ -11,9 +11,9 @@ vi.mock("@/lib/weddingCode/contribution/server", () => ({ isWeddingCodeResearchC
 import WeddingCodePage, { generateMetadata } from "../page";
 
 describe("36문항 배포판의 기본 입구와 기존 판 메타데이터 분리", () => {
-  it.each([{}, { ct: "a-private-invite-token" }, { utm_source: "qa" }])("새 입구 %j는 36문항 설명을 쓰고 개인 링크를 메타데이터에 복사하지 않는다", async search => {
+  it.each([{}, { ct: "a-private-invite-token" }, { utm_source: "qa" }])("새 입구 %j는 19문항 설명을 쓰고 개인 링크를 메타데이터에 복사하지 않는다", async search => {
     const metadata = await generateMetadata({ searchParams: Promise.resolve(search) });
-    expect(metadata.description).toContain("36개");
+    expect(metadata.description).toContain("19문항");
     expect(metadata.description).not.toContain("30개");
     expect(metadata).toMatchObject({ robots: { index: false, follow: false }, referrer: "no-referrer", alternates: { canonical: "/wedding-code" } });
     expect(metadata.openGraph).toMatchObject({ images: [{ url: "/wedding-code/r6-card/opengraph-image" }] });

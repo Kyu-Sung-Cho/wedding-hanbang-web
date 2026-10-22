@@ -118,7 +118,7 @@ export const HIDDEN_COSTS: HiddenCostItem[] = [
   {
     id: "dress_helper_shoot",
     category: "dress",
-    name: "촬영 날 드레스 착용을 돕는 직원 비용",
+    name: "촬영 헬퍼비 (드레스 동행 직원 비용)",
     severity: "critical",
     checkQuestion:
       "촬영 날 드레스를 입고 갈아입는 일을 도와줄 직원이 오나요? 견적에 포함되지 않았다면 얼마인가요?",
@@ -126,7 +126,7 @@ export const HIDDEN_COSTS: HiddenCostItem[] = [
   {
     id: "dress_helper_ceremony",
     category: "dress",
-    name: "결혼식 날 드레스 착용을 돕는 직원 비용",
+    name: "본식 헬퍼비 (결혼식 당일 동행 비용)",
     severity: "critical",
     checkQuestion:
       "결혼식 날 드레스를 입고 이동하는 일을 도와줄 직원이 오나요? 촬영 날의 직원 비용과 따로 내는 금액인가요?",
@@ -134,7 +134,7 @@ export const HIDDEN_COSTS: HiddenCostItem[] = [
   {
     id: "dress_fitting_extra",
     category: "dress",
-    name: "드레스를 입어보는 횟수와 추가 비용",
+    name: "드레스 피팅비 (입어보는 비용)",
     severity: "high",
     checkQuestion:
       "계약한 금액으로 드레스를 몇 번 입어볼 수 있나요? 정해진 횟수를 넘으면 한 번에 얼마를 더 내나요?",
@@ -142,7 +142,7 @@ export const HIDDEN_COSTS: HiddenCostItem[] = [
   {
     id: "dress_alteration",
     category: "dress",
-    name: "드레스를 몸에 맞게 고치는 비용",
+    name: "드레스 가봉·수선비 (내 몸에 맞게 고치는 비용)",
     severity: "high",
     checkQuestion:
       "드레스를 몸에 맞게 길이나 품을 고치는 비용이 포함되어 있나요? 포함되지 않았다면 얼마인가요?",
@@ -150,7 +150,7 @@ export const HIDDEN_COSTS: HiddenCostItem[] = [
   {
     id: "dress_second",
     category: "dress",
-    name: "결혼식 뒤 식사나 모임에서 입을 옷",
+    name: "2부 드레스 (피로연·인사 의상)",
     severity: "high",
     checkQuestion:
       "결혼식 뒤 식사나 모임에서 갈아입을 옷도 빌릴 수 있나요? 견적에 포함되지 않았다면 얼마인가요?",
@@ -198,7 +198,7 @@ export const HIDDEN_COSTS: HiddenCostItem[] = [
   {
     id: "dress_mini",
     category: "dress",
-    name: "결혼식 뒤 식사나 모임에서 입을 짧은 드레스",
+    name: "2부 미니드레스 (피로연 짧은 드레스)",
     severity: "medium",
     checkQuestion:
       "결혼식 뒤 식사나 모임에서 갈아입을 짧은 드레스를 빌릴 수 있나요? 빌리는 금액은 얼마인가요?",
@@ -280,7 +280,7 @@ export const HIDDEN_COSTS: HiddenCostItem[] = [
   {
     id: "makeup_corsage",
     category: "makeup",
-    name: "가슴에 다는 꽃 장식",
+    name: "혼주·가족 코사지 (가슴 꽃 장식)",
     severity: "medium",
     checkQuestion:
       "결혼식 날 두 사람이 옷에 다는 작은 꽃 장식이 포함되어 있나요? 포함되지 않았다면 얼마인가요?",
@@ -288,7 +288,7 @@ export const HIDDEN_COSTS: HiddenCostItem[] = [
   {
     id: "makeup_accessory_rental",
     category: "makeup",
-    name: "티아라·머리 장식 대여",
+    name: "티아라·헤어 장식 대여비",
     severity: "medium",
     checkQuestion:
       "왕관 모양 장식이나 머리 장식 중 빌릴 수 있는 것은 무엇인가요? 별도 대여료가 있다면 얼마인가요?",
@@ -322,7 +322,7 @@ export const HIDDEN_COSTS: HiddenCostItem[] = [
   {
     id: "common_bouquet",
     category: "common",
-    name: "손에 드는 꽃",
+    name: "웨딩 부케 (본식 꽃장식)",
     severity: "critical",
     checkQuestion:
       "손에 드는 꽃은 촬영 날과 결혼식 날에 각각 제공되나요? 견적에 포함되지 않은 꽃은 얼마인가요?",
@@ -330,7 +330,7 @@ export const HIDDEN_COSTS: HiddenCostItem[] = [
   {
     id: "common_pyebaek",
     category: "common",
-    name: "결혼식 뒤 전통 인사에 쓰는 의상·음식·장소",
+    name: "폐백 비용 (한복 절 인사)",
     severity: "high",
     checkQuestion:
       "결혼식 뒤 한복을 입고 절하는 전통 인사를 진행한다면 의상, 음식, 장소 비용이 각각 얼마인가요?",

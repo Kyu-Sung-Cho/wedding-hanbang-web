@@ -11,6 +11,7 @@ const mocks = vi.hoisted(() => ({
     actions: [] as AmoraActionItem[], loading: false, error: null as string | null,
     count: 0, open_count: 0, truncated: false, isDemo: false, creating: false, createLocked: false,
     updateError: null as string | null, updatingIds: new Set<string>(), ownerScope: "board-owner",
+    canCreate: false, create: vi.fn(), cancelCreate: vi.fn(), updateIssues: {} as Record<string, unknown>,
     refresh: vi.fn(), update: vi.fn(), loadMore: vi.fn(), nextCursor: null as string | null, loadingMore: false,
   },
 }));
@@ -30,8 +31,8 @@ describe("AmoraDecisionBoard", () => {
   beforeEach(() => {
     Object.assign(mocks.decisions, { records: [], loading: false, loadingMore: false, error: null, nextCursor: null, available: true, isDemo: false });
     mocks.decisions.refresh.mockReset(); mocks.decisions.loadMore.mockReset();
-    Object.assign(mocks.data, { actions: [], loading: false, error: null, count: 0, open_count: 0, truncated: false, isDemo: false, creating: false, createLocked: false, updateError: null, updatingIds: new Set<string>() });
-    mocks.data.refresh.mockReset(); mocks.data.update.mockReset().mockResolvedValue(true);
+    Object.assign(mocks.data, { actions: [], loading: false, error: null, count: 0, open_count: 0, truncated: false, isDemo: false, creating: false, createLocked: false, canCreate: false, updateError: null, updatingIds: new Set<string>(), updateIssues: {} });
+    mocks.data.refresh.mockReset(); mocks.data.update.mockReset().mockResolvedValue(true); mocks.data.create.mockReset(); mocks.data.cancelCreate.mockReset();
     mocks.data.loadMore.mockReset(); mocks.data.nextCursor = null; mocks.data.loadingMore = false;
     container = document.createElement("div"); document.body.appendChild(container); root = createRoot(container);
   });
@@ -97,7 +98,7 @@ describe("AmoraDecisionBoard", () => {
     expect(mocks.decisions.records[1].title).toBe(originalTitle);
     expect(board.textContent).not.toContain("지금의 상태별로");
     expect(board.textContent).toContain("현재 일정 상태는 일정에서 확인");
-    expect(board.textContent).toContain("불러온 결정 2개");
+    expect(board.textContent).toContain("저장된 결정 기록 2개");
     expect(mocks.data.update).not.toHaveBeenCalled();
     expect(mocks.decisions.refresh).not.toHaveBeenCalled();
   });
@@ -148,7 +149,7 @@ describe("AmoraDecisionBoard", () => {
     const routineBox = board.querySelector<HTMLDetailsElement>("details[data-routine-progress]")!;
     expect(routineBox.querySelector("summary")?.textContent).toBe("진행 상황 저장 1건은 날짜별로 접어 두었어요");
     expect(routineBox.textContent).toContain("9. 12. · 저장 1건 · 분야 2개 수정");
-    expect(board.textContent).toContain("불러온 결정 3개");
+    expect(board.textContent).toContain("저장된 결정 기록 3개");
     expect(mocks.data.update).not.toHaveBeenCalled();
   });
 
@@ -182,7 +183,7 @@ describe("AmoraDecisionBoard", () => {
     const original = cards[0].querySelector("details")!;
     expect(original.querySelector("summary")?.textContent).toBe("저장 원문 보기");
     expect(original.textContent).toContain(`승인한 구성원의 예산 배정 변경. ${value}`);
-    expect(board.textContent).toContain("불러온 결정 1개");
+    expect(board.textContent).toContain("저장된 결정 기록 1개");
   });
 
   // 미리보기는 잘린다. 다시 적은 설명의 전후 금액은 원문에 없으므로 펼친 곳에서 끝까지 보여야 한다.
@@ -289,8 +290,8 @@ describe("AmoraDecisionBoard", () => {
     });
     expect(Array.from(decisions.querySelectorAll("article"), card => card.getAttribute("aria-label"))).toEqual(["장소 비교"]);
     expect(decisions.querySelector("article")?.textContent).toContain("대화에서 남긴 기록");
-    expect(decisions.textContent).toContain("불러온 결정 3개");
-    expect(decisions.textContent).toContain("숫자와 검색은 불러온 기록 기준");
+    expect(decisions.textContent).toContain("저장된 결정 기록 3개");
+    expect(decisions.textContent).toContain("가장 최근에 확정한 내용을 기준으로 보여드려요");
     await selectBoard("공유 할 일");
     expect(container.querySelector('[aria-label="공유 할 일"] article')?.textContent).toContain(action.title);
     await selectBoard("결정 기록");
@@ -699,5 +700,86 @@ describe("AmoraDecisionBoard", () => {
     expect(container.querySelector('[aria-label="공유 할 일"] [role="note"]')?.textContent).toContain("실제 준비 기록에 저장되지 않아요");
     expect(container.querySelector('[role="alert"]')?.textContent).toContain("저장하지 못했어요");
     expect(container.querySelector("article")?.textContent).toContain("완료로 표시");
+  });
+
+  it("resets activeStatus to open and category to all when a new task is created while filtered", async () => {
+    const doneTask: AmoraActionItem = { ...action, id: "done_1", title: "완료된 예식장 확인", categoryKey: "venue", status: "done" };
+    const newTask: AmoraActionItem = { ...action, id: "new_1", title: "새로 추가한 드레스 할 일", categoryKey: "dress", status: "open" };
+    Object.assign(mocks.data, { actions: [doneTask], count: 1, canCreate: true });
+    mocks.data.create.mockImplementation(async () => {
+      mocks.data.actions = [newTask, doneTask];
+      return true;
+    });
+    await act(async () => root.render(<AmoraDecisionBoard />));
+    await selectBoard("공유 할 일");
+    const venueFilter = Array.from(container.querySelectorAll<HTMLButtonElement>('[aria-label="분야 필터"] button')).find(btn => btn.textContent?.includes("결혼식장"))!;
+    await act(async () => venueFilter.click());
+    const doneStatusBtn = Array.from(container.querySelectorAll<HTMLButtonElement>('[aria-label="할 일 상태"] button')).find(btn => btn.textContent?.includes("완료"))!;
+    await act(async () => doneStatusBtn.click());
+    expect(doneStatusBtn.getAttribute("aria-pressed")).toBe("true");
+    expect(venueFilter.getAttribute("aria-pressed")).toBe("true");
+
+    const openCreateBtn = Array.from(container.querySelectorAll<HTMLButtonElement>('[aria-label="공유 할 일"] button')).find(btn => btn.textContent === "공유 할 일 추가")!;
+    await act(async () => openCreateBtn.click());
+    const createForm = container.querySelector<HTMLFormElement>('form[aria-label="공유 할 일 추가"]')!;
+    const createTitleInput = createForm.querySelector<HTMLInputElement>('input[type="text"]')!;
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(createTitleInput, "새로 추가한 드레스 할 일");
+      createTitleInput.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    await act(async () => createForm.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true })));
+    await act(async () => root.render(<AmoraDecisionBoard />));
+
+    const openStatusBtn = Array.from(container.querySelectorAll<HTMLButtonElement>('[aria-label="할 일 상태"] button')).find(btn => btn.textContent?.includes("진행 중"))!;
+    const allFilterBtn = Array.from(container.querySelectorAll<HTMLButtonElement>('[aria-label="분야 필터"] button')).find(btn => btn.textContent?.startsWith("전체"))!;
+    expect(openStatusBtn.getAttribute("aria-pressed")).toBe("true");
+    expect(allFilterBtn.getAttribute("aria-pressed")).toBe("true");
+    expect(container.querySelector('[aria-label="진행 중 할 일"]')?.textContent).toContain("새로 추가한 드레스 할 일");
+  });
+
+  it("syncs editor fields to the latest saved version when clicking 최신 내용으로 불러오기 on a 409 conflict", async () => {
+    const latest: AmoraActionItem = {
+      ...action,
+      title: "상대가 저장한 최신 제목",
+      categoryKey: "dress",
+      description: "상대가 저장한 최신 메모",
+      dueDate: "2026-12-01",
+      viewVersion: "2026-09-02T00:00:00Z",
+    };
+    mocks.data.actions = [{ ...action, categoryKey: "venue" }];
+    await act(async () => root.render(<AmoraDecisionBoard />));
+    await selectBoard("공유 할 일");
+    await act(async () => container.querySelector<HTMLButtonElement>(`button[aria-label="${action.title} 수정"]`)!.click());
+    const titleInput = container.querySelector<HTMLInputElement>("article input[data-action-edit-title]")!;
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(titleInput, "내 초안 제목");
+      titleInput.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    mocks.data.update.mockImplementationOnce(async () => {
+      mocks.data.actions = [latest];
+      mocks.data.updateIssues = {
+        [action.id]: {
+          kind: "conflict",
+          message: "다른 변경이 먼저 저장됐어요.",
+          availability: "current",
+          latest,
+          ownerScope: "board-owner",
+          sequence: 1,
+        },
+      };
+      return false;
+    });
+    const form = container.querySelector("article form")!;
+    await act(async () => form.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true })));
+    await act(async () => root.render(<AmoraDecisionBoard />));
+
+    const loadLatestBtn = Array.from(container.querySelectorAll<HTMLButtonElement>("article button")).find(btn => btn.textContent === "최신 내용으로 불러오기")!;
+    expect(loadLatestBtn).toBeDefined();
+    await act(async () => loadLatestBtn.click());
+
+    expect(titleInput.value).toBe("상대가 저장한 최신 제목");
+    expect(container.querySelector<HTMLSelectElement>("article select")!.value).toBe("dress");
+    expect(container.querySelector<HTMLTextAreaElement>("article textarea")!.value).toBe("상대가 저장한 최신 메모");
+    expect(container.querySelector<HTMLInputElement>("article input[data-plan-date]")!.value).toBe("2026-12-01");
   });
 });

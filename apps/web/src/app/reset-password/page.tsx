@@ -29,6 +29,24 @@ function isPasswordValid(checks: PasswordCheck): boolean {
   return checks.minLength && checks.hasUppercase && checks.hasLowercase && checks.hasNumber && checks.hasSpecial;
 }
 
+function toKoreanAuthError(err: unknown): string {
+  const msg = err instanceof Error ? err.message : typeof err === "object" && err !== null && "message" in err ? String((err as { message: unknown }).message) : String(err ?? "");
+  const lower = msg.toLowerCase();
+  if (lower.includes("same password") || lower.includes("different from the old password")) {
+    return "이전과 다른 새로운 비밀번호를 입력해주세요.";
+  }
+  if (lower.includes("weak_password") || lower.includes("password should be")) {
+    return "비밀번호 조건을 다시 확인해주세요.";
+  }
+  if (lower.includes("auth session missing") || lower.includes("session_not_found") || lower.includes("expired")) {
+    return "재설정 세션이 만료되었습니다. 비밀번호 찾기를 다시 진행해주세요.";
+  }
+  if (lower.includes("failed to fetch") || lower.includes("load failed") || lower.includes("networkerror")) {
+    return "네트워크 연결을 확인한 뒤 다시 시도해주세요.";
+  }
+  return "비밀번호 변경에 실패했습니다. 잠시 후 다시 시도해주세요.";
+}
+
 export default function ResetPasswordPage() {
   const [password, setPassword] = useState("");
   const [passwordConfirm, setPasswordConfirm] = useState("");
@@ -99,7 +117,7 @@ export default function ResetPasswordPage() {
         password,
       });
       if (updateError) {
-        setError("비밀번호 변경에 실패했습니다. 다시 시도해주세요.");
+        setError(toKoreanAuthError(updateError));
       } else {
         setSuccess(true);
         // redirect 쿼리 파라미터가 있으면 해당 경로로, 없으면 /login으로
@@ -111,8 +129,7 @@ export default function ResetPasswordPage() {
         }, 2000);
       }
     } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      setError(`오류: ${msg}`);
+      setError(toKoreanAuthError(err));
     } finally {
       setLoading(false);
     }

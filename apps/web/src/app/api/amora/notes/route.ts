@@ -375,12 +375,37 @@ export async function PATCH(req: Request) {
     // 같아도 충돌로 오판하므로 새 메모 정리 규칙과 비교값을 분리한다.
     const expectedMemo = typeof body.expectedMemo === "string" ? body.expectedMemo : null;
 
+    const coupleId = await resolveCoupleId(supabase, user.id);
+    if (coupleId instanceof NextResponse) return coupleId;
+    if (!coupleId) {
+      return mobileBridgeJson(
+        { error: "내가 저장한 답변의 메모만 수정할 수 있어요.", code: "AMORA_NOTE_NOT_OWNER" },
+        { status: 403, headers: RESPONSE_HEADERS },
+      );
+    }
+
+    const { data: existing, error: existingError } = await supabase
+      .from("amora_saved_notes")
+      .select("id, saved_by")
+      .eq("id", body.id)
+      .eq("couple_id", coupleId)
+      .maybeSingle();
+    if (existingError) return noteUnavailable();
+    if (existing && existing.saved_by !== user.id) {
+      return mobileBridgeJson(
+        { error: "내가 저장한 답변의 메모만 수정할 수 있어요.", code: "AMORA_NOTE_NOT_OWNER" },
+        { status: 403, headers: RESPONSE_HEADERS },
+      );
+    }
+
     let query = supabase
       .from("amora_saved_notes")
       .update({ memo })
-      .eq("id", body.id);
+      .eq("id", body.id)
+      .eq("couple_id", coupleId)
+      .eq("saved_by", user.id);
     query = expectedMemo === null ? query.is("memo", null) : query.eq("memo", expectedMemo);
-    const { data, error } = await query.select("id, memo").maybeSingle();
+    const { data, error } = await query.select("id, memo, saved_by").maybeSingle();
     if (error) {
       return mobileBridgeJson(
         { error: "메모를 저장하지 못했습니다." },
@@ -388,9 +413,28 @@ export async function PATCH(req: Request) {
       );
     }
     if (!data) {
+      const { data: latest, error: latestError } = await supabase
+        .from("amora_saved_notes")
+        .select("id, saved_by")
+        .eq("id", body.id)
+        .eq("couple_id", coupleId)
+        .maybeSingle();
+      if (latestError) return noteUnavailable();
+      if (latest && latest.saved_by !== user.id) {
+        return mobileBridgeJson(
+          { error: "내가 저장한 답변의 메모만 수정할 수 있어요.", code: "AMORA_NOTE_NOT_OWNER" },
+          { status: 403, headers: RESPONSE_HEADERS },
+        );
+      }
       return mobileBridgeJson(
         { error: "다른 변경과 겹쳤어요. 현재 메모를 다시 불러온 뒤 확인해 주세요." },
         { status: 409, headers: RESPONSE_HEADERS },
+      );
+    }
+    if ("saved_by" in data && typeof data.saved_by === "string" && data.saved_by !== user.id) {
+      return mobileBridgeJson(
+        { error: "내가 저장한 답변의 메모만 수정할 수 있어요.", code: "AMORA_NOTE_NOT_OWNER" },
+        { status: 403, headers: RESPONSE_HEADERS },
       );
     }
     if (!isUuid(data.id) || data.id !== body.id || data.memo !== memo) return noteUnavailable();

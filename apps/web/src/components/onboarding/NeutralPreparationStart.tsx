@@ -62,13 +62,16 @@ export default function NeutralPreparationStart({
           역할을 정하지 않아도 시작할 수 있어요
         </h1>
         <p className="mt-2 text-[14px] leading-relaxed text-[var(--hb-text-body)]">
-          지금 아는 것만 알려주세요. 장소·예산은 나중에 채워도 돼요.
+          편하게 시작해 보세요. 장소·예산은 나중에 천천히 채워도 괜찮아요.
         </p>
       </div>
 
       {/* 예식일 — 아모라가 대신 받아낼 수 없는 유일한 값이라 여기서 묻는다.
           비워 두고 시작해도 막지 않는다. */}
-      <div className="space-y-2">
+      <div
+        hidden={coupleAction === "join"}
+        className={coupleAction === "join" ? "hidden" : "space-y-2"}
+      >
         <label
           htmlFor="neutral-wedding-date"
           className="block text-[14px] font-medium text-[var(--hb-text-strong)]"
@@ -91,7 +94,10 @@ export default function NeutralPreparationStart({
 
       {/* 지금 신경 쓰이는 것 — 저장은 곁가지이고, 첫 대화를 여는 게 목적이다.
           첫 인사는 저장된 정보를 먼저 꺼내지 못하므로 초안으로 넘긴다. */}
-      <div className="space-y-2">
+      <div
+        hidden={coupleAction === "join"}
+        className={coupleAction === "join" ? "hidden" : "space-y-2"}
+      >
         <p className="text-[14px] font-medium text-[var(--hb-text-strong)]">
           지금 제일 신경 쓰이는 건 뭐예요?{" "}
           <span className="font-normal text-[var(--hb-text-muted)]">(선택)</span>
@@ -173,8 +179,7 @@ export default function NeutralPreparationStart({
       )}
 
       <p className="text-center text-[12px] leading-relaxed text-[var(--hb-text-muted)]">
-        이 선택만으로 상담 문장이나 준비 완료 기록을 만들지 않아요. 필요한
-        변경은 아모라가 먼저 보여주고 확인을 받은 뒤 반영해요.
+        편하게 시작해 보세요. 일정과 예산은 아모라와 대화하며 언제든 함께 정할 수 있어요.
       </p>
     </section>
   );

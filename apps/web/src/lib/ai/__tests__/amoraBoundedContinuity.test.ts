@@ -501,6 +501,25 @@ describe("카드 확인 쌍을 건너뛰어 연결 문맥의 닻을 찾는다", 
     expect(buildLikeRoute(raw, "그럼 이제 얼마 남았어?")).toBeNull();
   });
 
+  it("공유 레인 W4 신뢰 이력 폴백에서 allowSharedPartnerConfirmation=true 이면 상대가 누른 확인 버튼 쌍도 5행 창으로 고른다", () => {
+    const raw = rawRowsAfterConfirmedCard("그럼 이제 얼마 남았어?");
+    raw[2] = { ...buttonConfirmationRow(), sender_id: PARTNER_ID, sender_type: "groom" };
+    raw[4] = { ...raw[4]!, sender_id: PARTNER_ID, sender_type: "groom" };
+
+    expect(selectAmoraBoundedContinuityWindow({
+      newestFirstRows: raw,
+      requesterUserId: USER_ID,
+      visibility: "shared",
+    })).toHaveLength(3);
+
+    expect(selectAmoraBoundedContinuityWindow({
+      newestFirstRows: raw,
+      requesterUserId: USER_ID,
+      visibility: "shared",
+      allowSharedPartnerConfirmation: true,
+    }).map((row) => row.id)).toEqual([NOW_ID, RECEIPT_ID, CONFIRM_ID, CARD_ID, REQUEST_ID]);
+  });
+
   it.each<[string, (raw: AmoraBoundedContinuityRow[]) => void]>([
     ["상대가 보낸 확인 문장", (raw) => {
       raw[2] = { ...buttonConfirmationRow(), sender_id: PARTNER_ID, sender_type: "groom" };

@@ -196,15 +196,41 @@ export interface CoupleComparisonReport19 {
   conflictItems: CoupleConflictItem[];
 }
 
-function computeAxisPercentages(leftScore: number, rightScore: number): {
+export const SPEND_FEATURE_QUESTION_IDS: ReadonlySet<QuestionId> = new Set<QuestionId>([
+  "Q1",
+  "Q3",
+  "Q4",
+  "Q5",
+  "Q7",
+  "Q8",
+  "Q9",
+  "Q10",
+]);
+
+export function computeAxisPercentages(
+  leftScore: number,
+  rightScore: number,
+  neutralPadding = 1.5,
+): {
   leftPercent: number;
   rightPercent: number;
 } {
-  const total = leftScore + rightScore;
-  if (total === 0) {
+  if (leftScore === rightScore) {
     return { leftPercent: 50, rightPercent: 50 };
   }
-  const leftPercent = Math.round((leftScore / total) * 100);
+  const maxRaw = Math.max(leftScore, rightScore);
+  const effectivePadding =
+    maxRaw >= 5 ? Math.min(neutralPadding, 0.8) : neutralPadding;
+  const paddedLeft = leftScore + effectivePadding;
+  const paddedRight = rightScore + effectivePadding;
+  const total = paddedLeft + paddedRight;
+  if (total <= 0) {
+    return { leftPercent: 50, rightPercent: 50 };
+  }
+  const rawLeftPercent = Math.round((paddedLeft / total) * 100);
+  const minBound = maxRaw >= 5 ? 8 : 12;
+  const maxBound = maxRaw >= 5 ? 92 : 88;
+  const leftPercent = Math.max(minBound, Math.min(maxBound, rawLeftPercent));
   return {
     leftPercent,
     rightPercent: 100 - leftPercent,
@@ -337,15 +363,13 @@ export function scoreWeddingCode19(answers: WeddingCode19Answers): {
       : undefined;
 
   // 축 2: D (Dream · 당일 로망파) vs P (Practical · 미래 실속파)
-  // Q13: A(+4 D), B(+4 P)
+  // Q13: A(+2 D), B(+2 P)
   // Q5, Q8, Q9: 5(+2 D), 4(+1 D), 2(+1 P), 1(+2 P)
-  // [보정]: Q13=B(미래 실속)를 명시적으로 고르고 하객 실속(Q6 교통·Q7 식사)에 5점을 준 경우,
-  // 로망 문항 호감(5,5,4 -> +5 D) 때문에 실속 선택이 억울하게 역전되지 않도록 +1 P 보정.
-  // 또한 Q6·Q7을 모두 5점으로 챙긴 순수 하객 실속파가 로망 중립일 때 P 점수가 반영되도록 보정.
+  // [보정]: Q6·Q7을 모두 5점으로 챙긴 순수 하객 실속파가 로망 중립일 때 P 점수가 반영되도록 보정.
   let dScore = 0;
   let pScore = 0;
-  if (answers.Q13 === "A") dScore += 4;
-  if (answers.Q13 === "B") pScore += 4;
+  if (answers.Q13 === "A") dScore += 2;
+  if (answers.Q13 === "B") pScore += 2;
   for (const qId of ["Q5", "Q8", "Q9"] as const) {
     const dir = getPart1Direction(answers[qId], "D", "P");
     if (dir.letter === "D") dScore += dir.points;
@@ -353,11 +377,10 @@ export function scoreWeddingCode19(answers: WeddingCode19Answers): {
   }
   if (
     answers.Q13 === "B" &&
-    dScore === 5 &&
-    pScore === 4 &&
-    (answers.Q6 === 5 || answers.Q7 === 5)
+    answers.Q6 === 5 &&
+    dScore <= 4
   ) {
-    pScore += 1;
+    pScore += 2;
   } else if (
     answers.Q13 !== "A" &&
     dScore === 0 &&
@@ -452,7 +475,7 @@ export function scoreWeddingCode19(answers: WeddingCode19Answers): {
     ? "⚖️ 50:50 유연·균형형 (다정한 공감 대화와 효율적인 역할 분담을 모두 잘하는 성향)"
     : (answers.Q15 === "A" && answers.Q19 === "B") ||
         (answers.Q15 === "B" && answers.Q19 === "A")
-      ? "✨ 평엔 효율적인 분담과 감정적 유대감을 조화롭게 병행하는 외유내강형"
+      ? "✨ 평소엔 효율적인 분담과 감정적 유대감을 조화롭게 병행하는 외유내강형"
       : undefined;
 
   const code: WeddingCode19Code = `${axis1Winner}${axis2Winner}${axis3Winner}${axis4Winner}`;
@@ -557,10 +580,18 @@ function buildSubPersona19(
   const festivalScore = (w("Q1") + w("Q3")) / 2 + (answers.Q3 === 5 ? 1 : 0);
   const intimateScore = (w("Q2") + w("Q4")) / 2 + (answers.Q2 === 5 && answers.Q4 === 5 ? 1 : 0);
 
-  const topFocusTitles = [...mustHave5, ...niceToHave4]
+  const part1FocusItems = [...mustHave5, ...niceToHave4].filter(
+    (item) => item.questionNumber <= 10,
+  );
+  const topFocusTitles = (
+    part1FocusItems.length > 0 ? part1FocusItems : [...mustHave5, ...niceToHave4]
+  )
     .slice(0, 3)
     .map((item) => `‘${item.shortTitle}’`);
-  const saveTitles = (saveSimplify12.length > 0 ? saveSimplify12 : relativeSaveSuggestions)
+  const spendSaveItems = (
+    saveSimplify12.length > 0 ? saveSimplify12 : relativeSaveSuggestions
+  ).filter((item) => SPEND_FEATURE_QUESTION_IDS.has(item.questionId));
+  const saveTitles = spendSaveItems
     .slice(0, 2)
     .map((item) => `‘${item.shortTitle}’`);
 
@@ -574,29 +605,19 @@ function buildSubPersona19(
   // 1) 신혼 미래·실속 전략가 (Q13=B 이면서 절약 항목이 많고 비주얼/격식 점수가 낮을 때)
   if (
     answers.Q13 === "B" &&
-    saveSimplify12.length >= 3 &&
+    spendSaveItems.length >= 3 &&
     visualScore <= 1.2 &&
     hospitalityScore < 3.5
   ) {
     return {
       archetypeKey: "future_strategist",
-      focusBadge: "💎 세부 결: 신혼 미래·실속 전략가",
-      subTitle: `결혼 후 현실 자산을 지키는 ${character.characterName}`,
+      focusBadge: "💎 세부 결: 실속·미래설계 전략가",
+      subTitle: `결혼 이후의 현실 자산을 단단하게 설계하는 전략가 · ${character.characterName}`,
       differentiationSummary: `같은 [${character.characterName}(${code})] 유형 중에서도 보여주기식 당일 연출보다 결혼식 다음 날부터 시작될 신혼집·신혼여행·미래 자산의 여유를 최우선으로 지키는 실속파입니다. ${saveFocusLabel}, 꼭 필요한 ${topFocusLabel}에만 예산을 스마트하게 집중합니다.`,
     };
   }
 
-  // 2) 다정한 파트너 맞춤 조율가 (양보/절충 선택지가 6개 이상이고 5점이 1개 이하일 때)
-  if (concession3D.length + balancedC.length >= 6 && mustHave5.length <= 1) {
-    return {
-      archetypeKey: "harmonious_supporter",
-      focusBadge: "🤝 세부 결: 파트너 맞춤형 평화 조율가",
-      subTitle: `파트너의 로망을 살려주는 다정한 ${character.characterName}`,
-      differentiationSummary: `같은 [${character.characterName}(${code})] 유형 중에서도 내 고집을 앞세우기보다 파트너가 가장 행복해하는 선택을 기꺼이 지지해주는 평화주의 조율가입니다. 양보 찬스 카드(${concession3D.length}개)와 균형 절충안(${balancedC.length}개)이 풍부해 커플 갈등을 녹이는 일등 공신입니다.`,
-    };
-  }
-
-  // 3) 나머지 핵심 가치 클러스터 중 최고점 판별
+  // 2) 핵심 가치 클러스터 최고점 판별
   const candidates: Array<{ key: SubPersonaArchetypeKey19; score: number }> = [
     { key: "visual_artist", score: visualScore },
     { key: "hospitality_host", score: hospitalityScore },
@@ -609,12 +630,32 @@ function buildSubPersona19(
   const best = candidates[0];
   const second = candidates[1];
 
+  // Q1~Q10에 양수 선호(4·5점)가 전혀 없거나 클러스터 최고점이 0 이하인 경우 -> 실속·미래설계 전략가 반환
+  if (part1FocusItems.length === 0 || best.score <= 0) {
+    return {
+      archetypeKey: "future_strategist",
+      focusBadge: "💎 세부 결: 실속·미래설계 전략가",
+      subTitle: `결혼 이후의 현실 자산을 단단하게 설계하는 전략가 · ${character.characterName}`,
+      differentiationSummary: `같은 [${character.characterName}(${code})] 유형 중에서도 보여주기식 당일 연출보다 결혼식 다음 날부터 시작될 신혼집·신혼여행·미래 자산의 여유를 최우선으로 지키는 실속파입니다. ${saveFocusLabel}, 꼭 필요한 ${topFocusLabel}에만 예산을 스마트하게 집중합니다.`,
+    };
+  }
+
+  // 3) 다정한 파트너 맞춤 조율가 (양보/절충 선택지가 6개 이상이고 5점이 1개 이하일 때)
+  if (concession3D.length + balancedC.length >= 6 && mustHave5.length <= 1) {
+    return {
+      archetypeKey: "harmonious_supporter",
+      focusBadge: "🤝 세부 결: 파트너 맞춤형 평화 조율가",
+      subTitle: `파트너의 로망까지 다정하게 보듬는 조율가 · ${character.characterName}`,
+      differentiationSummary: `같은 [${character.characterName}(${code})] 유형 중에서도 내 고집을 앞세우기보다 파트너가 가장 행복해하는 선택을 기꺼이 지지해주는 평화주의 조율가입니다. 양보 찬스 카드(${concession3D.length}개)와 균형 절충안(${balancedC.length}개)이 풍부해 커플 갈등을 녹이는 일등 공신입니다.`,
+    };
+  }
+
   // 최고점과 차점 차이가 아주 작고 전반적으로 고른 경우 -> 육각형 밸런스 기획자
   if (best.score >= 1.5 && best.score - second.score < 0.35 && mustHave5.length >= 3) {
     return {
       archetypeKey: "all_round_balancer",
       focusBadge: "🧭 세부 결: 육각형 올라운드 디렉터",
-      subTitle: `감성과 하객 배려를 겸비한 ${character.characterName}`,
+      subTitle: `감성 로망과 현실 배려를 고르게 챙기는 올라운더 · ${character.characterName}`,
       differentiationSummary: `같은 [${character.characterName}(${code})] 유형 중에서도 어느 한쪽에만 치우치지 않고 ${topFocusLabel}을(를) 고르게 챙기는 올라운드 기획자입니다. ${saveFocusLabel} 두 사람의 로망과 하객의 만족도를 동시에 완성합니다.`,
     };
   }
@@ -624,28 +665,28 @@ function buildSubPersona19(
       return {
         archetypeKey: "visual_artist",
         focusBadge: "🎨 세부 결: 공간·화보 비주얼 아티스트",
-        subTitle: `화보 같은 미장센에 진심인 ${character.characterName}`,
+        subTitle: `공간의 미장센과 화보 완성도에 설레는 디렉터 · ${character.characterName}`,
         differentiationSummary: `같은 [${character.characterName}(${code})] 유형 안에서도 예식 공간의 분위기·스타일링·평생 남을 사진/영상의 심미적 완성도에 가장 가슴이 뛰는 비주얼 디렉터입니다. ${saveFocusLabel}, ${topFocusLabel}만큼은 타협 없이 우리만의 작품으로 남기고 싶어 합니다.`,
       };
     case "hospitality_host":
       return {
         archetypeKey: "hospitality_host",
         focusBadge: "🍽️ 세부 결: 미식·하객 감동 호스트",
-        subTitle: `하객의 편안함과 미식을 최우선하는 ${character.characterName}`,
+        subTitle: `하객의 편안한 동선과 미식 대접을 최우선하는 호스트 · ${character.characterName}`,
         differentiationSummary: `같은 [${character.characterName}(${code})] 유형 중에서도 내 화려함보다 먼 길 찾아와 준 손님들의 발걸음과 식사 만족도를 가장 먼저 챙기는 다정한 호스트입니다. ${saveFocusLabel}, ${topFocusLabel}에 투자를 아끼지 않아 “정말 대접 잘 받고 간다”는 찬사를 이끌어냅니다.`,
       };
     case "family_dignity":
       return {
         archetypeKey: "family_dignity",
         focusBadge: "🏛️ 세부 결: 양가 예우·클래식 품격파",
-        subTitle: `양가 어른의 미소와 격식을 지키는 ${character.characterName}`,
+        subTitle: `양가 어른의 미소와 단정한 격식을 지키는 품격파 · ${character.characterName}`,
         differentiationSummary: `같은 [${character.characterName}(${code})] 유형 중에서도 결혼을 두 가족의 품격 있는 결합으로 존중하며, 어른들의 입장과 예물·예단·하객 접대의 예를 세심히 살피는 타입입니다. ${topFocusLabel}을(를) 중심으로 양가 모두가 흐뭇해하는 안정감 있는 예식을 완성합니다.`,
       };
     case "festival_director":
       return {
         archetypeKey: "festival_director",
         focusBadge: "🎉 세부 결: 서사·이벤트 축제 연출가",
-        subTitle: `결혼식을 하나의 축제로 만드는 ${character.characterName}`,
+        subTitle: `결혼식을 모두가 즐기는 축제로 만드는 연출가 · ${character.characterName}`,
         differentiationSummary: `같은 [${character.characterName}(${code})] 유형 중에서도 천편일률적인 기계식 예식을 거부하고, 우리 두 사람만의 드라마틱한 순간과 색다른 식순(${topFocusLabel})으로 하객 모두가 함께 웃고 즐기는 무대를 연출하는 디렉터입니다.`,
       };
     case "intimate_curator":
@@ -653,7 +694,7 @@ function buildSubPersona19(
       return {
         archetypeKey: "intimate_curator",
         focusBadge: "🕯️ 세부 결: 프라이빗 감성·교류 큐레이터",
-        subTitle: `깊은 눈맞춤과 대화를 사랑하는 ${character.characterName}`,
+        subTitle: `소중한 사람들과의 깊은 눈맞춤을 아끼는 큐레이터 · ${character.characterName}`,
         differentiationSummary: `같은 [${character.characterName}(${code})] 유형 중에서도 북적이는 인파나 겉치레보다, 우리를 진심으로 축복해주는 소중한 사람들과 눈을 맞추고 대화 나누는 밀도 높은 시간(${topFocusLabel})을 가장 소중히 여기는 감성 큐레이터입니다.`,
       };
   }
@@ -757,11 +798,22 @@ function buildHiddenPsychologyInsight19(
   const isM = axes.axis3.winner === "M";
   const isH = axes.axis4.winner === "H";
 
-  const topNames = mustHave5
+  const spendMustHave = mustHave5.filter((i) =>
+    SPEND_FEATURE_QUESTION_IDS.has(i.questionId),
+  );
+  const topNames = spendMustHave
     .slice(0, 2)
     .map((i) => `‘${i.shortTitle}’`)
     .join("·");
-  const saveNames = saveSimplify12
+  const principleNames = mustHave5
+    .filter((i) => !SPEND_FEATURE_QUESTION_IDS.has(i.questionId))
+    .slice(0, 2)
+    .map((i) => `‘${i.shortTitle}’`)
+    .join("·");
+  const spendSaves = saveSimplify12.filter((i) =>
+    SPEND_FEATURE_QUESTION_IDS.has(i.questionId),
+  );
+  const saveNames = spendSaves
     .slice(0, 2)
     .map((i) => `‘${i.shortTitle}’`)
     .join("·");
@@ -915,7 +967,9 @@ function buildHiddenPsychologyInsight19(
     partnerTranslations.push({
       whenISay: topNames
         ? `“다른 건 기본으로 줄여도 좋으니까, ${topNames}만큼은 우리 후회 없이 제대로 챙기자.”`
-        : "“평생 한 번뿐인 날인데 이 포인트만큼은 아끼지 말고 제대로 하고 싶어.”",
+        : principleNames
+          ? `“다른 건 무난하게 맞춰도 좋으니까, ${principleNames} 기준만큼은 우리 꼭 지켜서 준비하자.”`
+          : "“평생 한 번뿐인 날인데 이 포인트만큼은 아끼지 말고 제대로 하고 싶어.”",
       whatIReallyMean:
         "예산 감각이 없어서가 아니라, 먼 훗날 우리 결혼식을 떠올렸을 때 ‘그때 진짜 행복했지’ 하고 평생 미소 지을 핵심 장면 하나를 지키고 싶다는 뜻이에요.",
     });
@@ -923,7 +977,7 @@ function buildHiddenPsychologyInsight19(
     partnerTranslations.push({
       whenISay: saveNames
         ? `“${saveNames} 같은 건 과감히 줄이고, 그 돈으로 신혼집이나 신혼여행에 보태자.”`
-        : "“결혼식 당일 옵션은 무난한 기본으로 하고 결혼 후 우리 생활에 집중하자.”",
+        : "“불필요한 겉치레나 보여주기식 옵션 같은 건 과감히 줄이고, 그 돈으로 신혼집이나 신혼여행에 보태자.”",
       whatIReallyMean:
         "결혼식이 안 중요해서가 아니라, 식장 문을 나선 뒤 시작될 ‘우리 두 사람의 매일매일의 일상’을 더 풍요롭고 여유롭게 만들어주고 싶다는 뜻이에요.",
     });
@@ -1149,7 +1203,9 @@ export function buildPersonalReport19(
     } else if (rawAns === 4) {
       niceToHave4.push(entry);
     } else if (rawAns === 1 || rawAns === 2) {
-      saveSimplify12.push(entry);
+      if (SPEND_FEATURE_QUESTION_IDS.has(q.id)) {
+        saveSimplify12.push(entry);
+      }
     } else if (rawAns === 3 || rawAns === "D") {
       concession3D.push(entry);
     } else if (rawAns === "C") {
@@ -1166,18 +1222,19 @@ export function buildPersonalReport19(
 
   // [상대적 후순위 절약 후보 산출]:
   // 사용자가 ①·②를 하나도 고르지 않아 saveSimplify12가 비어 있더라도,
-  // 당일 핵심 가치(Q5~Q10) 및 무대(Q1~Q4) 중 상대적으로 낮은 점수(③ 또는 ⑤ 대비 ④)를 준 항목을 찾아
+  // 당일 지출·연출 항목(SPEND_FEATURE_QUESTION_IDS) 중 상대적으로 낮은 점수(③ 또는 ⑤ 대비 ④)를 준 항목을 찾아
   // '내가 미처 몰랐던 상대적 힘 빼기 후보'로 안내한다.
   const relativeSaveSuggestions: BasketItemEntry[] = [];
   if (saveSimplify12.length === 0) {
     const candidateIds: readonly QuestionId[] = [
       "Q5",
-      "Q6",
       "Q7",
       "Q8",
       "Q9",
       "Q10",
       "Q3",
+      "Q4",
+      "Q1",
     ];
     for (const qId of candidateIds) {
       const entry = allVisibleEntries.get(qId);
@@ -1209,12 +1266,6 @@ export function buildPersonalReport19(
       .filter((item): item is BasketItemEntry => item !== undefined);
 
   const workstyleSections: WorkstyleManualSection[] = [
-    {
-      sectionId: "stage",
-      title: "내가 그리는 예식 무대 (Q1~Q4)",
-      subtitle: "주목도·규모·이벤트·하객 교류 방식",
-      items: pickSectionItems(["Q1", "Q2", "Q3", "Q4"]),
-    },
     {
       sectionId: "planning",
       title: "탐색·일정·예산·발품 스타일 (Q11~Q14)",
@@ -1261,7 +1312,7 @@ export function buildPersonalReport19(
     axes,
     subPersona,
     mustHave5,
-    saveSimplify12.length > 0 ? saveSimplify12 : trimmedRelativeSaves,
+    saveSimplify12,
   );
 
   return {
@@ -1689,7 +1740,9 @@ export function createVirtualPartnerAnswers19(
     Q19: isH ? "A" : "B",
   };
 
-  const topPriorityIds: QuestionId[] = isD ? ["Q5", "Q8"] : ["Q6", "Q7"];
+  const topPriorityIds: QuestionId[] = (
+    isD ? (["Q5", "Q8"] as const) : (["Q6", "Q7"] as const)
+  ).filter((qId) => answers[qId] === 5);
   return { answers, topPriorityIds };
 }
 
@@ -1727,17 +1780,35 @@ export function buildWeddingCode19AmoraPrefill(
   }
 
   const charLabel = `${personalReport.character.characterName}(${personalReport.code} · ${personalReport.character.codeTag})`;
-  const mustHaveTitles = personalReport.basket.mustHave5
+  const spendMustHave = personalReport.basket.mustHave5.filter((item) =>
+    SPEND_FEATURE_QUESTION_IDS.has(item.questionId),
+  );
+  const principleMustHave = personalReport.basket.mustHave5.filter(
+    (item) => !SPEND_FEATURE_QUESTION_IDS.has(item.questionId),
+  );
+  const mustHaveTitles = (
+    spendMustHave.length > 0 ? spendMustHave : principleMustHave
+  )
     .slice(0, 3)
     .map((item) => (item.isTopPriority ? `${item.shortTitle}(타협 불가 1순위)` : item.shortTitle));
-  const saveTitles = personalReport.basket.saveSimplify12.slice(0, 3).map((item) => item.shortTitle);
-  const concessionTitles = personalReport.basket.concession3D.slice(0, 2).map((item) => item.shortTitle);
+  const saveTitles = personalReport.basket.saveSimplify12
+    .filter((item) => SPEND_FEATURE_QUESTION_IDS.has(item.questionId))
+    .slice(0, 3)
+    .map((item) => item.shortTitle);
+  const concessionTitles = personalReport.basket.concession3D
+    .filter((item) => item.questionNumber <= 10)
+    .slice(0, 2)
+    .map((item) => item.shortTitle);
 
   const parts: string[] = [
     `방금 웨딩코드 테스트를 했는데 내 유형은 [${charLabel}]이야.`,
   ];
   if (mustHaveTitles.length > 0) {
-    parts.push(`꼭 챙기고 싶은 1순위는 '${mustHaveTitles.join("·")}'이고,`);
+    parts.push(
+      spendMustHave.length > 0
+        ? `꼭 챙기고 싶은 1순위는 '${mustHaveTitles.join("·")}'이고,`
+        : `중요하게 지키고 싶은 준비 기준은 '${mustHaveTitles.join("·")}'이고,`,
+    );
   }
   if (saveTitles.length > 0) {
     parts.push(`힘을 빼고 아끼고 싶은 항목은 '${saveTitles.join("·")}'이야.`);
@@ -1749,5 +1820,75 @@ export function buildWeddingCode19AmoraPrefill(
     "내 성향과 장바구니 기준에 맞춰서 예산 배분 포인트와 이번 주부터 시작할 결혼 준비 첫 순서를 추천해줘.",
   );
   return parts.join(" ").slice(0, 560);
+}
+
+export interface WeddingCode19AmoraPersonalizationPayload {
+  decisionStart: "recommend_first" | "compare_first" | "ask_each_time";
+  answerDetail: "brief" | "detailed" | "adaptive";
+  supportOrder: "listen_first" | "action_first" | "ask_each_time";
+  workMode: "together" | "owner_led" | "hybrid" | "ask_each_time";
+  familyOrder: "couple_first" | "family_input_first" | "case_by_case" | "ask_each_time";
+  toneStyle: "adaptive" | "warm" | "calm_clear" | "friendly_honest";
+}
+
+export function buildWeddingCode19AmoraPersonalization(
+  answers: WeddingCode19Answers,
+): WeddingCode19AmoraPersonalizationPayload {
+  const decisionStart: WeddingCode19AmoraPersonalizationPayload["decisionStart"] =
+    answers.Q14 === "A" ||
+    (answers.Q14 !== "B" && (answers.Q11 === 4 || answers.Q11 === 5))
+      ? "compare_first"
+      : answers.Q14 === "B" ||
+          (answers.Q11 === 1 || answers.Q11 === 2)
+        ? "recommend_first"
+        : "ask_each_time";
+
+  const answerDetail: WeddingCode19AmoraPersonalizationPayload["answerDetail"] =
+    answers.Q11 === 4 || answers.Q11 === 5
+      ? "detailed"
+      : answers.Q11 === 1 || answers.Q11 === 2
+        ? "brief"
+        : "adaptive";
+
+  const workMode: WeddingCode19AmoraPersonalizationPayload["workMode"] =
+    answers.Q15 === "A"
+      ? "together"
+      : answers.Q15 === "B"
+        ? "owner_led"
+        : answers.Q15 === "C"
+          ? "hybrid"
+          : "ask_each_time";
+
+  const familyOrder: WeddingCode19AmoraPersonalizationPayload["familyOrder"] =
+    answers.Q16 === "A"
+      ? "family_input_first"
+      : answers.Q16 === "B"
+        ? "couple_first"
+        : answers.Q16 === "C"
+          ? "case_by_case"
+          : "ask_each_time";
+
+  const supportOrder: WeddingCode19AmoraPersonalizationPayload["supportOrder"] =
+    answers.Q19 === "A"
+      ? "listen_first"
+      : answers.Q19 === "B"
+        ? "action_first"
+        : "ask_each_time";
+
+  const toneStyle: WeddingCode19AmoraPersonalizationPayload["toneStyle"] =
+    answers.Q19 === "A"
+      ? "warm"
+      : answers.Q19 === "B"
+        ? "calm_clear"
+        : "adaptive";
+
+  return {
+    decisionStart,
+    answerDetail,
+    supportOrder,
+    workMode,
+    familyOrder,
+    toneStyle,
+  };
 }
 

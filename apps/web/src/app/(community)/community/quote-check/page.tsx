@@ -25,7 +25,7 @@ import { weddingPath } from "@/lib/weddingPaths";
 import Button from "@/components/ui/Button";
 import ReportCardButton from "./ReportCardButton";
 
-const CATEGORY_OPTIONS: AmoraQuoteCategory[] = ["studio", "dress", "makeup"];
+const CATEGORY_OPTIONS: AmoraQuoteCategory[] = ["studio", "dress", "makeup", "sdm_package"];
 
 const CEREMONY_DAY_QUOTE_ITEM_IDS = new Set([
   "studio_photo_table",
@@ -327,9 +327,9 @@ export default function AmoraQuoteCheckPage() {
               </p>
             </div>
             <div className="mt-5 grid grid-cols-3 gap-2 text-center text-xs">
-               <Metric label="확인" value="항목" />
-               <Metric label="가격" value="공시가" />
-               <Metric label="준비" value="질문" />
+               <Metric label="점검 항목" value="28개" />
+               <Metric label="공시가 비교" value="1,105곳" />
+               <Metric label="확인 질문" value="즉시 복사" />
             </div>
           </section>
         </aside>

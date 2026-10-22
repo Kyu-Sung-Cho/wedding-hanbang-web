@@ -43,6 +43,7 @@ type SidebarMenuItem = {
 const menuItems: SidebarMenuItem[] = [
   { legacyPath: "/lounge", icon: LayoutDashboard, label: "웨딩 라운지", tutorialTarget: "service-nav-lounge" },
   { legacyPath: "/chat", icon: AmoraMark, label: "아모라", tutorialTarget: "service-nav-amora" },
+  { legacyPath: "/chat/board", icon: ClipboardCheck, label: "결정 보드" },
   { legacyPath: "/checklist", icon: ClipboardCheck, label: "웨딩 체크리스트", tutorialTarget: "service-nav-schedule" },
   { legacyPath: "/schedule", icon: CalendarCheck, label: "일정" },
   { legacyPath: "/budget", icon: Wallet, label: "예산", tutorialTarget: "service-nav-budget" },

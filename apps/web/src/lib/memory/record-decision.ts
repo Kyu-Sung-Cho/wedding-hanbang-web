@@ -43,16 +43,23 @@ export interface RecordDecisionInput {
   metadata?: Record<string, unknown> | null;
   /** 메모리 격리: 'shared' (default) | 'bride_private' | 'groom_private' */
   visibility?: "shared" | "bride_private" | "groom_private";
+  /** 작성자 역할 (신부 / 신랑 / 중립) */
+  sourceActorRole?: "bride" | "groom" | null;
   /**
-   * 중복 방지 — 같은 (couple_id, source_ref_id, source, decision_type) 조합이 이미 있으면
-   * 새로 만들지 않고 기존 nodeId 반환. 현재는 찜(favorites) hook에서 활용.
+   * 중복 방지 — 문자열 키(metadata->>dedupe_key) 또는
+   * (couple_id, source_ref_id, source, decision_type) 조합이 이미 있으면
+   * 새로 만들지 않고 기존 노드를 재사용/갱신.
    */
-  dedupeKey?: {
-    sourceRefId: string;
-    source: DecisionSource;
-    decisionType: DecisionType;
-  };
+  dedupeKey?:
+    | string
+    | {
+        sourceRefId: string;
+        source: DecisionSource;
+        decisionType: DecisionType;
+      };
 }
+
+export type RecordDecisionParams = RecordDecisionInput;
 
 export interface RecordDecisionResult {
   nodeId: string | null;
@@ -74,8 +81,45 @@ export async function recordDecision(
   try {
     const admin = getAdminClient();
 
+    const baseMetadata: Record<string, unknown> = {
+      ...(input.metadata ?? {}),
+      ...(typeof input.dedupeKey === "string" && input.dedupeKey.trim()
+        ? { dedupe_key: input.dedupeKey.trim() }
+        : {}),
+    };
+
     // 1. Dedupe 체크
-    if (input.dedupeKey) {
+    if (typeof input.dedupeKey === "string" && input.dedupeKey.trim()) {
+      const trimmedKey = input.dedupeKey.trim();
+      const { data: existing } = await admin
+        .from("decision_nodes")
+        .select("id")
+        .eq("couple_id", input.coupleId)
+        .eq("metadata->>dedupe_key", trimmedKey)
+        .is("superseded_at", null)
+        .limit(1)
+        .maybeSingle();
+
+      if (existing?.id) {
+        await admin
+          .from("decision_nodes")
+          .update({
+            category: input.category,
+            decision_type: input.decisionType ?? "considering",
+            title: input.title,
+            chosen_value: input.chosenValue ?? null,
+            reasoning: input.reasoning ?? null,
+            confidence: input.confidence ?? 0.5,
+            stage_tag: input.stageTag ?? null,
+            metadata: baseMetadata,
+            ...(input.sourceActorRole !== undefined
+              ? { source_actor_role: input.sourceActorRole ?? null }
+              : {}),
+          })
+          .eq("id", existing.id);
+        return { nodeId: String(existing.id), deduped: true };
+      }
+    } else if (input.dedupeKey && typeof input.dedupeKey === "object") {
       const { data: existing } = await admin
         .from("decision_nodes")
         .select("id")
@@ -83,6 +127,7 @@ export async function recordDecision(
         .eq("source_ref_id", input.dedupeKey.sourceRefId)
         .eq("source", input.dedupeKey.source)
         .eq("decision_type", input.dedupeKey.decisionType)
+        .is("superseded_at", null)
         .limit(1)
         .maybeSingle();
 
@@ -105,8 +150,11 @@ export async function recordDecision(
         stage_tag: input.stageTag ?? null,
         source: input.source,
         source_ref_id: input.sourceRefId ?? null,
-        metadata: input.metadata ?? {},
+        metadata: baseMetadata,
         visibility: input.visibility ?? "shared",
+        ...(input.sourceActorRole !== undefined
+          ? { source_actor_role: input.sourceActorRole ?? null }
+          : {}),
       })
       .select("id")
       .single();

@@ -87,7 +87,7 @@ export async function generateMetadata({ searchParams }: WeddingCodePageProps): 
     const title = oldLikert ? "나의 결혼 준비 언어 | 웨딩코드 · 웨딩한방" : "우리의 결혼 준비 방식 | 웨딩코드 · 웨딩한방";
     const description = oldLikert
       ? "30개의 문장으로 지출·준비·가족·도움의 기준을 살펴봐요. 각 글자의 뜻과 실제 답의 비율을 확인해요. 혼자서도 결과를 볼 수 있고, 둘 다 답하고 두 사람 결과 링크를 서로 전달하면 각자의 답을 나란히 읽을 수 있어요. 로그인 없이 시작해요."
-      : "36개의 결혼 준비 장면에 답하고 내 준비 기준을 살펴봐요. 이름과 함께 답을 풀어 보고, 파트너와 서로 공유한 내용으로 이야기할 장면을 찾아요. 지금의 답을 정리하는 참고용 테스트예요.";
+      : "19문항(약 3분)으로 알아보는 나의 결혼 준비 성향과 1:1 커플 케미 리포트";
     const card = oldLikert ? LIKERT_CARD_IMAGE : { ...LIKERT_CARD_IMAGE, url: "/wedding-code/r6-card/opengraph-image", alt: "웨딩코드, 우리의 결혼 준비 방식" };
     return { title, description, robots: { index: false, follow: false, nocache: true }, referrer: "no-referrer",
       alternates: { canonical: "/wedding-code" },

@@ -201,7 +201,7 @@ function DecisionRecords({ data, searchId, query, onQueryChange, mobileSearchOpe
             </div>
             <div className="mb-2 text-[12px] leading-relaxed text-[var(--amora-muted)] lg:mb-5">
               <p className="lg:hidden">불러온 {decisions.length}개 기준</p>
-              <p className="hidden lg:block">불러온 결정 {decisions.length}개 · 숫자와 검색은 불러온 기록 기준이에요. 같은 값을 다시 바꾼 앞 기록은 이전 값으로 접어요.{nextCursor ? " 이전 기록을 더 불러올 수 있어요." : ""}</p>
+              <p className="hidden lg:block">저장된 결정 기록 {decisions.length}개 · 가장 최근에 확정한 내용을 기준으로 보여드려요.{nextCursor ? " 이전 기록을 더 불러올 수 있어요." : ""}</p>
             </div>
             {routineCount > 0 && <details data-routine-progress className="mb-4 rounded-[12px] border border-[var(--amora-line)] bg-[var(--amora-surface)] px-4 text-[12px] text-[var(--amora-muted)] lg:mb-5">
               <summary className={`flex min-h-11 cursor-pointer items-center ${focus}`}>진행 상황 저장 {routineCount}건은 날짜별로 접어 두었어요</summary>
@@ -233,7 +233,7 @@ function DecisionRecords({ data, searchId, query, onQueryChange, mobileSearchOpe
             <Button type="button" onClick={() => void loadMore()} disabled={loading || loadingMore} className={sharedOutlineButton}>{loadingMore ? "이전 결정을 불러오는 중…" : "이전 결정 더 보기"}</Button>
           </div>}
         </>}
-    <details className="mt-3 text-[12px] text-[var(--amora-muted)] lg:hidden"><summary className={`flex min-h-11 cursor-pointer items-center ${focus}`}>결정 기록 안내</summary><p className="pb-2 leading-relaxed">불러온 결정 {decisions.length}개 · 숫자와 검색은 불러온 기록 기준이에요. 같은 값을 다시 바꾼 앞 기록은 이전 값으로 접어요.{nextCursor ? " 이전 기록을 더 불러올 수 있어요." : ""}</p><p className="pb-3 leading-relaxed">확정에는 일정 취소·복원 이력도 포함돼요. 현재 일정 상태는 일정에서 확인해 주세요. 두 사람이 모두 확인했다는 뜻은 아니에요. 개인 상담과 자동 추출 기억은 포함하지 않아요. 할 일 완료는 공유 할 일에서 따로 관리해요.</p></details>
+    <details className="mt-3 text-[12px] text-[var(--amora-muted)] lg:hidden"><summary className={`flex min-h-11 cursor-pointer items-center ${focus}`}>결정 기록 안내</summary><p className="pb-2 leading-relaxed">저장된 결정 기록 {decisions.length}개 · 가장 최근에 확정한 내용을 기준으로 보여드려요.{nextCursor ? " 이전 기록을 더 불러올 수 있어요." : ""}</p><p className="pb-3 leading-relaxed">확정에는 일정 취소·복원 이력도 포함돼요. 현재 일정 상태는 일정에서 확인해 주세요. 두 사람이 모두 확인했다는 뜻은 아니에요. 개인 상담과 자동 추출 기억은 포함하지 않아요. 할 일 완료는 공유 할 일에서 따로 관리해요.</p></details>
   </section>;
 }
 
@@ -345,21 +345,37 @@ function PreparationCard({ action, busy, editable, ownerScope, editor, issue, in
             : <p className="text-[12px] leading-relaxed">{issue?.availability === "missing" ? "현재 준비 공간에서 이 기록을 찾지 못했어요. 새 할 일로 자동 생성하지 않아요." : "현재 저장 내용을 아직 확인하지 못했어요. 새로고침 후 기록을 확인해 주세요."}</p>}
           <ActionReview label="내 수정 초안" title={titleDraft} category={categoryDraft} description={descriptionDraft} dueDate={dueDateDraft} status={editor?.intendedStatus ?? original.status} />
           <p className="text-[12px] leading-relaxed">직접 바꾼 항목은 초안에 남기고, 건드리지 않은 항목은 현재 내용으로 맞춘 뒤 다시 저장할 수 있어요.</p>
-          <Button type="button" disabled={disabled || !canReview} className={sharedOutlineButton} onClick={() => {
-            if (!editor || !current || !canReview) return;
-            changeEditor({ ...editor, original: { ...current }, viewed: { version: current.viewVersion, ownerScope: editor.viewed.ownerScope },
-              title: titleDraft !== original.title ? titleDraft : current.title,
-              category: categoryDraft !== (original.categoryKey ?? "") ? categoryDraft : (current.categoryKey ?? ""),
-              description: descriptionDraft !== (original.description ?? "") ? descriptionDraft : (current.description ?? ""),
-              dueDate: dueDateDraft !== (original.dueDate ?? "") ? dueDateDraft : (current.dueDate ?? ""), reviewedIssue: issue });
-          }}>현재 내용 기준으로 초안 다시 확인</Button>
+          <div className="flex flex-wrap gap-2">
+            <Button type="button" disabled={disabled || !canReview} className={sharedOutlineButton} onClick={() => {
+              if (!editor || !current || !canReview) return;
+              changeEditor({ ...editor, original: { ...current }, viewed: { version: current.viewVersion, ownerScope: editor.viewed.ownerScope },
+                title: titleDraft !== original.title ? titleDraft : current.title,
+                category: categoryDraft !== (original.categoryKey ?? "") ? categoryDraft : (current.categoryKey ?? ""),
+                description: descriptionDraft !== (original.description ?? "") ? descriptionDraft : (current.description ?? ""),
+                dueDate: dueDateDraft !== (original.dueDate ?? "") ? dueDateDraft : (current.dueDate ?? ""), reviewedIssue: issue });
+            }}>현재 내용 기준으로 초안 다시 확인</Button>
+            <Button type="button" disabled={disabled || !canReview} className={sharedOutlineButton} onClick={() => {
+              if (!editor || !current || !canReview) return;
+              changeEditor({
+                ...editor,
+                original: { ...current },
+                viewed: { version: current.viewVersion, ownerScope: editor.viewed.ownerScope },
+                title: current.title,
+                category: current.categoryKey ?? "",
+                description: current.description ?? "",
+                dueDate: current.dueDate ?? "",
+                intendedStatus: undefined,
+                reviewedIssue: issue,
+              });
+            }}>최신 내용으로 불러오기</Button>
+          </div>
         </div>}
         <div className="flex flex-wrap gap-2">
           <Button type="submit" variant="primary" disabled={writeDisabled || reviewRequired || !titleDraft.trim() || titleDraft.length > 120 || !validPlanDraft} className={`${button} ${sharedButtonShape} bg-[var(--amora-action)]! text-white! hover:bg-[var(--amora-action-hover)]!`}>수정 저장</Button>
           <Button type="button" disabled={disabled} onClick={event => closeEditor(event.currentTarget)} className={sharedOutlineButton}>취소</Button>
         </div>
       </form>}
-      {!editable && <p role="note" className="mb-3 text-[12px] leading-relaxed text-[var(--amora-muted)]">수정에 필요한 저장 버전을 확인하지 못했어요. 내용은 읽을 수 있지만 변경은 잠시 막아 두었어요. 새로고침 후 다시 확인해 주세요.</p>}
+      {!editable && <p role="note" className="mb-3 text-[12px] leading-relaxed text-[var(--amora-muted)]">최신 상태를 불러오는 중이에요. 새로고침 후 다시 수정해 주세요.</p>}
       {action.description && <p className="mb-[10px] rounded-[9px] bg-[var(--amora-warm)] px-[11px] py-[9px] text-[12.5px] leading-[1.55] break-words whitespace-pre-wrap text-[var(--amora-muted)]">{action.description}</p>}
       {(!category || editor?.mode === "category") && !editing && (
         <form className="mb-3" onSubmit={(event) => { event.preventDefault(); if (!writeDisabled && categoryChoice) void update(action.id, { category_key: categoryChoice }, editor?.viewed ?? { version: action.viewVersion, ownerScope }, original); }}>

@@ -1915,4 +1915,97 @@ describe("/api/onboarding POST", () => {
     expect(response.status).toBe(500);
     expect(authClient.rpc).not.toHaveBeenCalled();
   });
+
+  it("passes dedupeKey and sourceActorRole to recordDecision for onboarding decisions", async () => {
+    setupClients(
+      {
+        profiles: [
+          { maybeSingle: { data: { id: "user-1" }, error: null } },
+          { single: { data: { id: "user-1", couple_id: coupleId }, error: null } },
+        ],
+        wedding_journeys: [
+          { maybeSingle: { data: null, error: null } },
+          {
+            single: {
+              data: { id: "journey-1", progress: {}, state_revision: 0 },
+              error: null,
+            },
+          },
+        ],
+      },
+      createSuccess,
+      {
+        data: {
+          requestId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          status: "applied",
+          requiredCount: 1,
+          acceptedCount: 1,
+          isHighImpact: true,
+          appliedRevision: 1,
+          summary: "총예산과 결혼 일정을 저장했어요.",
+          journey: {
+            couple_id: coupleId,
+            state_revision: 1,
+            progress: {
+              __events: [
+                storedScheduleEvent("ours", "sanggyeonrye", "2027-01-10"),
+              ],
+            },
+          },
+        },
+        error: null,
+      },
+    );
+
+    const response = await POST(
+      onboardingRequest({
+        role: "bride",
+        coupleAction: "create",
+        weddingDate: "2027-05-15",
+        venue: "신라호텔",
+        sanggyeonryeDate: "2027-01-10",
+        totalBudget: { amount: 40_000_000, unit: "won" },
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    await vi.waitFor(() => {
+      expect(recordDecision).toHaveBeenCalledWith(
+        expect.objectContaining({
+          category: "timeline",
+          title: "결혼식 날짜 확정",
+          sourceActorRole: "bride",
+          dedupeKey: "onboarding:wedding_date",
+          metadata: expect.objectContaining({ dedupe_key: "onboarding:wedding_date" }),
+        }),
+      );
+      expect(recordDecision).toHaveBeenCalledWith(
+        expect.objectContaining({
+          category: "venue",
+          title: "신라호텔",
+          sourceActorRole: "bride",
+          dedupeKey: "onboarding:venue",
+          metadata: expect.objectContaining({ dedupe_key: "onboarding:venue" }),
+        }),
+      );
+      expect(recordDecision).toHaveBeenCalledWith(
+        expect.objectContaining({
+          category: "timeline",
+          title: "양쪽 부모님 첫 만남 일정",
+          sourceActorRole: "bride",
+          dedupeKey: "onboarding:sanggyeonrye",
+          metadata: expect.objectContaining({ dedupe_key: "onboarding:sanggyeonrye" }),
+        }),
+      );
+      expect(recordDecision).toHaveBeenCalledWith(
+        expect.objectContaining({
+          category: "budget",
+          title: "총 예산 설정",
+          sourceActorRole: "bride",
+          dedupeKey: "onboarding:total_budget",
+          metadata: expect.objectContaining({ dedupe_key: "onboarding:total_budget" }),
+        }),
+      );
+    });
+  });
 });

@@ -750,7 +750,7 @@ function CohortPulsePanel({ cohort, onRetry }: { cohort: CohortState; onRetry():
 function ResourceReadError({ message, onRetry }: { message: string; onRetry(): void }) {
   return <div role="alert" className="rounded-2xl border border-[var(--amora-line)] bg-[var(--amora-bg)] p-4">
     <p className="text-[13px] font-semibold text-[var(--amora-ink)]">{message}</p>
-    <p className="mt-1 text-[12px] leading-5 text-[var(--amora-soft)]">비어 있는 상태와는 달라요. 다시 확인해 주세요.</p>
+    <p className="mt-1 text-[12px] leading-5 text-[var(--amora-soft)]">일시적인 오류로 목록을 불러오지 못했어요. 잠시 후 다시 시도해 주세요.</p>
     <button type="button" onClick={onRetry} className="mt-1 inline-flex min-h-11 items-center rounded-lg text-[13px] font-semibold text-[var(--amora-accent)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--amora-accent)]">다시 불러오기</button>
   </div>;
 }

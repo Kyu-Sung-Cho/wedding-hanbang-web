@@ -15,6 +15,7 @@ export interface AmoraQuoteCheckInput {
   category: AmoraQuoteCategory;
   region: AmoraQuoteRegion;
   quotePriceManwon: number;
+  quoteTotalManwon?: number;
   includedItemIds: string[];
   notNeededItemIds?: string[];
   vendorName?: string;
@@ -72,17 +73,15 @@ export const AMORA_QUOTE_REGION_LABELS: Record<AmoraQuoteRegion, string> = {
 };
 
 const CATEGORY_RELEVANT_COSTS: Record<AmoraQuoteCategory, HiddenCostItem["category"][]> = {
-  sdm_package: ["studio", "dress", "makeup"],
+  sdm_package: ["studio", "dress", "makeup", "common"],
   studio: ["studio"],
   dress: ["dress"],
   makeup: ["makeup"],
 };
 
-// 묶음 견적과 직접 관계가 없거나 다른 항목과 사실상 중복인 과거 초안은 노출하지 않는다.
+// 묶음 견적과 직접 관계가 없는 과거 초안은 노출하지 않는다.
 const EXCLUDED_CHECKLIST_ITEM_IDS = new Set([
-  "dress_mini",
   "makeup_nail",
-  "makeup_corsage",
 ]);
 
 function regionToScope(region: AmoraQuoteRegion): AmoraQuoteScope {
@@ -131,14 +130,17 @@ function getSummaryCopy(
   medium: number,
   included: number,
   notNeeded: number,
+  quoteManwon = 0,
 ) {
   const nonCritical = high + medium;
   const total = critical + nonCritical;
+  const formattedQuote = quoteManwon > 0 ? `${Math.round(quoteManwon).toLocaleString()}만원` : null;
 
   if (total === 0) {
+    const pricePrefix = formattedQuote ? `입력하신 기본 견적(${formattedQuote}) 기준으로 ` : "";
     return {
       title: "모든 항목의 상태를 정리했어요",
-      text: `견적서에 포함 ${included}개, 이용 계획 없음 ${notNeeded}개로 정리했어요. 포함 내용과 취소·변경 조건이 계약서에도 같은 내용인지 마지막으로 확인하세요.`,
+      text: `${pricePrefix}견적서에 포함 ${included}개, 이용 계획 없음 ${notNeeded}개로 정리했어요. 포함 내용과 취소·변경 조건이 계약서에도 같은 내용인지 마지막으로 확인하세요.`,
       action: "계약서에 포함 항목과 환불 기준이 같은 내용으로 적혀 있는지 마지막으로 확인하세요.",
     };
   }
@@ -149,13 +151,14 @@ function getSummaryCopy(
       : critical > 0
         ? `먼저 확인할 항목 ${critical}개`
         : `함께 확인할 항목 ${nonCritical}개`;
+  const priceContext = formattedQuote ? `입력하신 기본 견적(${formattedQuote}) 외에 ` : "";
 
   return {
     title:
       critical > 0
         ? `견적서에서 먼저 확인할 항목이 ${critical}개 있어요`
         : `견적서에서 함께 확인할 항목이 ${nonCritical}개 있어요`,
-    text: `${phrase}가 아직 포함됐다고 표시되지 않았어요. 필요하거나 비용이 생긴다는 뜻은 아니므로, 원하는 항목만 포함 여부와 별도 금액을 서면으로 확인해 두세요.`,
+    text: `${priceContext}${phrase}가 아직 포함됐다고 표시되지 않았어요. 필요하거나 비용이 생긴다는 뜻은 아니므로, 원하는 항목만 포함 여부와 별도 금액을 서면으로 확인해 두세요.`,
     action:
       "아래 질문 중 원하는 항목만 업체에 보내고, 포함 여부와 별도 금액을 문자나 계약서로 받아두세요. 계약 판단은 그 답을 보고 하면 됩니다.",
   };
@@ -171,6 +174,7 @@ export function getQuoteCheckItems(
 
 export function analyzeAmoraQuoteCheck(input: AmoraQuoteCheckInput): AmoraQuoteCheckResult {
   const scope = regionToScope(input.region);
+  const effectiveQuotePriceManwon = input.quoteTotalManwon ?? input.quotePriceManwon;
   const allItems = getRelevantCosts(input.category);
   const includedIdSet = new Set(input.includedItemIds);
   const notNeededIdSet = new Set(input.notNeededItemIds ?? []);
@@ -188,7 +192,7 @@ export function analyzeAmoraQuoteCheck(input: AmoraQuoteCheckInput): AmoraQuoteC
   );
   const priceDiffPercent =
     marketMedianManwon > 0
-      ? Math.round(((input.quotePriceManwon - marketMedianManwon) / marketMedianManwon) * 100)
+      ? Math.round(((effectiveQuotePriceManwon - marketMedianManwon) / marketMedianManwon) * 100)
       : 0;
 
   const missingCritical = missing.filter((item) => item.severity === "critical");
@@ -201,6 +205,7 @@ export function analyzeAmoraQuoteCheck(input: AmoraQuoteCheckInput): AmoraQuoteC
     missingMedium.length,
     included.length,
     notNeeded.length,
+    effectiveQuotePriceManwon,
   );
 
   const contractQuestions = [...missingCritical, ...missingHigh]
@@ -210,7 +215,7 @@ export function analyzeAmoraQuoteCheck(input: AmoraQuoteCheckInput): AmoraQuoteC
   return {
     category: input.category,
     scope,
-    quotePriceManwon: input.quotePriceManwon,
+    quotePriceManwon: effectiveQuotePriceManwon,
     marketMedianManwon,
     marketComparatorLabel,
     priceDiffPercent,

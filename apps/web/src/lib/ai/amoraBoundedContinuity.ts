@@ -327,9 +327,15 @@ function isBoundedConfirmationPair(
   card: AmoraBoundedContinuityRow | undefined,
   requesterUserId: string,
   visibility: AmoraBoundedContinuityRow["visibility"],
+  allowSharedPartnerConfirmation = false,
 ): boolean {
   if (!receipt || !confirmation || !card) return false;
   const confirmedActionId = confirmation.metadata?.confirmed_amora_action_id;
+  const hasAllowedConfirmationSender = allowSharedPartnerConfirmation
+    ? typeof confirmation.sender_id === "string"
+      && confirmation.sender_id.length > 0
+      && (confirmation.sender_type === "bride" || confirmation.sender_type === "groom")
+    : confirmation.sender_id === requesterUserId;
   return visibility === "shared"
     && typeof confirmedActionId === "string"
     && confirmedActionId.length > 0
@@ -340,7 +346,7 @@ function isBoundedConfirmationPair(
     && pendingCardActionId(card) === confirmedActionId
     && confirmation.role === "user"
     && confirmation.sender_type !== "ai"
-    && confirmation.sender_id === requesterUserId
+    && hasAllowedConfirmationSender
     && confirmation.visibility === visibility
     && confirmation.metadata?.target !== "partner"
     && isAmoraCardConfirmationMessage(confirmation.content)
@@ -372,10 +378,12 @@ export function selectAmoraBoundedContinuityWindow<T extends AmoraBoundedContinu
   newestFirstRows,
   requesterUserId,
   visibility,
+  allowSharedPartnerConfirmation = false,
 }: {
   newestFirstRows: readonly T[];
   requesterUserId: string;
   visibility: AmoraBoundedContinuityRow["visibility"];
+  allowSharedPartnerConfirmation?: boolean;
 }): T[] {
   if (
     newestFirstRows.length >= AMORA_BOUNDED_CONTINUITY_WINDOW_MAX_ROWS
@@ -385,6 +393,7 @@ export function selectAmoraBoundedContinuityWindow<T extends AmoraBoundedContinu
       newestFirstRows[3],
       requesterUserId,
       visibility,
+      allowSharedPartnerConfirmation,
     )
   ) {
     return newestFirstRows.slice(0, AMORA_BOUNDED_CONTINUITY_WINDOW_MAX_ROWS);

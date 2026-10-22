@@ -46,8 +46,7 @@ function buildUndatedAmoraPrefill(preset: Preset): string {
     : "필요한 준비 항목은 넓게 살펴보고 싶어요.";
   return (
     `아직 결혼식 날짜가 정해지지 않았어요. ${style} `
-    + "날짜를 잡기 전에 둘이 먼저 맞춰볼 기준 한 가지만 알려주세요. "
-    + "바뀌는 내용은 저장하기 전에 보여주세요."
+    + "지금 우리 상황에서 예산·할 일·일정 중 무엇부터 정하면 좋을지, 한 가지씩 같이 정리해 주세요."
   );
 }
 
@@ -308,7 +307,7 @@ export default function StartHereClient() {
 
             <p className="mt-6 flex gap-2 border-t border-[var(--hb-primary)]/10 pt-5 text-[13px] leading-6 text-[var(--hb-text-body)]">
               <LockKeyhole className="mt-1 h-4 w-4 shrink-0 text-[#8F6662]" aria-hidden="true" />
-              아모라로 이어가면 날짜와 첫 질문을 이 브라우저에 임시로 넘겨요. 30분 안에 같은 브라우저의 이 가입 흐름을 마칠 때만 초안으로 불러오며, 직접 질문을 보내기 전까지 AI는 호출하지 않아요.
+              아모라로 이어가면 선택한 날짜와 첫 질문을 입력창 초안으로 바로 담아드려요. 내가 직접 질문을 보내기 전까지는 저장되거나 전송되지 않으니 편하게 살펴보세요.
             </p>
 
             {dday !== null && dday >= 0 ? (

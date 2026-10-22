@@ -86,6 +86,16 @@ describe("Amora GPT-5.6 model policy", () => {
       userText: "아니, 또 틀렸어",
       correctionCount: 2,
     })).toBe("primary");
+    expect(chooseAmoraChatModelRole({
+      specialistType: "general",
+      userText: "시댁에서 예단 문제로 서운하게 말씀하셔서 고민이야",
+      correctionCount: 0,
+    })).toBe("primary");
+    expect(chooseAmoraChatModelRole({
+      specialistType: "general",
+      userText: "강남역 근처 상견례 식당 룸 있는 곳 알려줘",
+      correctionCount: 0,
+    })).toBe("primary");
   });
 
   it.each([

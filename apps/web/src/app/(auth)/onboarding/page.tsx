@@ -6,7 +6,10 @@ import {
   findPreparationStageOption,
   parseCoupleInviteFragment,
 } from "@hanbang/shared";
-import { useOnboardingStore } from "@/stores/onboardingStore";
+import {
+  ONBOARDING_STORAGE_KEY,
+  useOnboardingStore,
+} from "@/stores/onboardingStore";
 import Logo from "@/components/ui/Logo";
 import StepIndicator from "@/components/onboarding/StepIndicator";
 import RoleSelection from "@/components/onboarding/RoleSelection";
@@ -16,7 +19,10 @@ import WeddingStylePreferences from "@/components/onboarding/WeddingStylePrefere
 import PreparationStageSelect from "@/components/onboarding/PreparationStageSelect";
 import ProgressChecklist from "@/components/onboarding/ProgressChecklist";
 import InviteCodePanel from "@/components/invite/InviteCodePanel";
-import { consumePendingCoupleInviteCode } from "@/lib/couples/pendingInvite";
+import {
+  clearPendingCoupleInviteCode,
+  peekPendingCoupleInviteCode,
+} from "@/lib/couples/pendingInvite";
 import { buildOnboardingProgress } from "@/lib/onboarding/buildOnboardingProgress";
 import NeutralPreparationStart from "@/components/onboarding/NeutralPreparationStart";
 import { buildJoinedDashboardRedirect } from "@/lib/amora/dashboardCompanion";
@@ -43,6 +49,8 @@ export default function OnboardingPage() {
   // 안내를 읽고 "확인하고 계속하기"를 눌렀을 때 갈 곳은 경로마다 다르다.
   // 중립 준비 공간은 자기 리다이렉트를 여기 담아두고, 레거시는 기존 분기를 쓴다.
   const pendingContinuationRef = useRef<(() => void) | null>(null);
+  const submittedCoupleActionRef = useRef<"create" | "join" | null>(null);
+  const submittedWeddingDateRef = useRef<string | null>(null);
 
   // 스텝 5는 화면 두 개다. 단계 한 줄을 먼저 받고, 19항목은 그다음에 보여준다.
   // **둘 다 선택이다** — 관문 판단은 `canProceed`의 case 5에 근거와 함께 적어 뒀다.
@@ -76,9 +84,9 @@ export default function OnboardingPage() {
   // 필요 없고, 뒤로 가기나 주소 공유로 열쇠가 따라다닐 이유가 없다.
   useEffect(() => {
     const codeFromHash = parseCoupleInviteFragment(window.location.hash);
-    // 보관은 꺼내는 즉시 비운다. 온보딩을 마치고 다시 들어왔을 때 예전 링크의 코드가
-    // 되살아나면, 이미 연결된 사람이 남의 코드로 합류를 시도한다.
-    const code = codeFromHash ?? consumePendingCoupleInviteCode();
+    // 온보딩 제출이 실제로 성공할 때까지 보관에서 바로 지우지 않는다.
+    // 새로고침하거나 이미 온보딩을 마친 계정이 설정 화면으로 이동할 때도 코드가 살아 있어야 한다.
+    const code = codeFromHash ?? peekPendingCoupleInviteCode();
     if (!code) return;
 
     const store = useOnboardingStore.getState();
@@ -135,6 +143,14 @@ export default function OnboardingPage() {
         }
         if (data.profile.onboarding_completed) {
           document.cookie = "onboarding_complete=true; path=/; max-age=31536000";
+          const pendingCode =
+            peekPendingCoupleInviteCode()
+            ?? parseCoupleInviteFragment(window.location.hash)
+            ?? (useOnboardingStore.getState().partnerInviteCode || null);
+          if (pendingCode && !data.partner) {
+            window.location.href = `/wedding/settings?joinCode=${encodeURIComponent(pendingCode)}`;
+            return;
+          }
           window.location.href = getAuthRedirectPath(
             window.location.search,
             window.location.origin,
@@ -205,10 +221,12 @@ export default function OnboardingPage() {
       window.location.search,
       window.location.origin,
     );
+    const effectiveCoupleAction =
+      store.coupleAction ?? submittedCoupleActionRef.current;
     // 랜딩에서 시작한 명시적 목적지가 있으면 가입 전 맥락을 우선 보존한다.
     // 별도 목적지 없이 파트너에게 참여한 경우에만 연결 결과를 웨딩 라운지에 알린다.
     if (
-      store.coupleAction !== "join"
+      effectiveCoupleAction !== "join"
       || requestedPath !== "/wedding/lounge"
     ) {
       return window.location.search;
@@ -295,8 +313,17 @@ export default function OnboardingPage() {
         return;
       }
 
-      // 온보딩 완료 쿠키 설정
+      // 온보딩 완료 쿠키 설정 및 대기 중이던 초대 코드 정리
       document.cookie = "onboarding_complete=true; path=/; max-age=31536000";
+      clearPendingCoupleInviteCode();
+      submittedCoupleActionRef.current = neutralCoupleAction ?? store.coupleAction;
+      submittedWeddingDateRef.current = store.weddingDate;
+      store.reset();
+      try {
+        window.sessionStorage.removeItem(ONBOARDING_STORAGE_KEY);
+      } catch {
+        // ignore
+      }
 
       // 승인 대기·보류 판정을 **경로를 고르기 전에** 한다.
       //
@@ -426,7 +453,10 @@ export default function OnboardingPage() {
       continuation();
       return;
     }
-    if (inviteCodeResult && store.coupleAction === "create") {
+    if (
+      inviteCodeResult &&
+      (store.coupleAction ?? submittedCoupleActionRef.current) === "create"
+    ) {
       setShowInviteModal(true);
       return;
     }
@@ -456,7 +486,9 @@ export default function OnboardingPage() {
           남긴 쪽은 coupleAction 을 받는 판이다 — 합류 흐름의 실제 단계 수를
           아는 것은 이쪽뿐이다(JOIN_VISIBLE_STEPS).
         */}
-        <StepIndicator currentStep={store.currentStep} coupleAction={store.coupleAction} />
+        {capabilitiesResolved && !neutralPreparationSpaceEnabled && (
+          <StepIndicator currentStep={store.currentStep} coupleAction={store.coupleAction} />
+        )}
 
         {/* 카드 */}
         <div className="bg-white/80 backdrop-blur-[20px] rounded-[6px] border border-black/[0.04] p-8 shadow-[var(--shadow-raised)]">
@@ -778,7 +810,10 @@ export default function OnboardingPage() {
                         search: window.location.search,
                         origin: window.location.origin,
                         prefill: buildNeutralPreparationPrefill({
-                          weddingDate: store.weddingDate || null,
+                          weddingDate:
+                            store.weddingDate ||
+                            submittedWeddingDateRef.current ||
+                            null,
                           focusPriority: neutralFocus,
                         }),
                       })

@@ -175,10 +175,10 @@ function latestIso(...values: Array<string | null | undefined>): string | null {
   );
 }
 
-function clearStorageKey(coupleId: string, scope: ClearScope) {
+function clearStorageKey(coupleId: string, scope: ClearScope, userId?: string | null) {
   const authState = useAuthStore.getState();
-  const userId = authState.profile?.id ?? authState.user?.id ?? "anonymous";
-  return `hanbang.chatClearedAt.${userId}.${coupleId}.${scope}`;
+  const effectiveUserId = userId ?? authState.profile?.id ?? authState.user?.id ?? "anonymous";
+  return `hanbang.chatClearedAt.${effectiveUserId}.${coupleId}.${scope}`;
 }
 
 function readLocalClearedAt(coupleId: string, scope: ClearScope): string | null {
@@ -2725,7 +2725,8 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
             (message) => message.visibility === "shared" || message.visibility === finalVisibility
           )
     ).filter((message) => (
-      message.metadata?.target !== "partner"
+      (!message.couple_id || !coupleId || message.couple_id === coupleId)
+      && message.metadata?.target !== "partner"
       && message.metadata?.pinned_safety_card !== true
     ));
     const recentMessages = scopedMessages.slice(-20).map((message) => {
@@ -3167,8 +3168,9 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
     const nowIso = latestIso(currentCursor, receivedCursor)!;
     // 다른 탭의 localStorage 커서는 아직 이 탭에 적용되지 않았을 수 있다.
     const advancesView = !appliedCursor || compareChatTimestamps(nowIso, appliedCursor) === 1;
+    const preservesActiveSharedStream = clearsPrivate && get().artifactVisibility === "shared";
     // 연속 초기화의 HTTP 응답이 뒤집혀도 새 화면과 그 뒤 시작한 요청을 건드리지 않는다.
-    if (advancesView) invalidateChatView(coupleId);
+    if (advancesView && !preservesActiveSharedStream) invalidateChatView(coupleId);
     writeLocalClearedAt(coupleId, scope, nowIso);
 
     // 로컬 state 업데이트 — 영향받는 메시지 제거 + cleared_at 갱신
@@ -3184,6 +3186,7 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
           || (clearsPrivate && s.failedRequest.visibility !== "shared")
         )
         && (failedSource ? !filtered.includes(failedSource) : advancesView);
+      const preserveSharedArtifacts = clearsPrivate && s.artifactVisibility === "shared";
       if (!advancesView) {
         return {
           messages: filtered,
@@ -3193,15 +3196,19 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
       }
       const next: Partial<ChatStoreState> = {
         messages: filtered,
-        isStreaming: false,
-        isSending: false,
-        isRetrying: false,
-        streamingContent: "",
-        streamingToolResults: [],
-        suggestions: [],
-        artifactVisibility: s.failedRequest?.coupleId === coupleId && !clearsFailedRequest
-          ? s.failedRequest.visibility
-          : null,
+        ...(preserveSharedArtifacts
+          ? {}
+          : {
+              isStreaming: false,
+              isSending: false,
+              isRetrying: false,
+              streamingContent: "",
+              streamingToolResults: [],
+              suggestions: [],
+              artifactVisibility: s.failedRequest?.coupleId === coupleId && !clearsFailedRequest
+                ? s.failedRequest.visibility
+                : null,
+            }),
         ...(clearsFailedRequest
           ? { failedRequest: null, error: null, isRetrying: false }
           : {}),
@@ -3535,12 +3542,38 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
 useAuthStore.subscribe((state, previousState) => {
   const profile = state.profile;
   const previousProfile = previousState.profile;
-  if (
-    state.user?.id !== previousState.user?.id
-    || profile?.id !== previousProfile?.id
-    || profile?.couple_id !== previousProfile?.couple_id
-    || profile?.role !== previousProfile?.role
-  ) {
+  const userChanged = state.user?.id !== previousState.user?.id;
+  const profileIdChanged = profile?.id !== previousProfile?.id;
+  const coupleChanged = profile?.couple_id !== previousProfile?.couple_id;
+  const roleChanged = profile?.role !== previousProfile?.role;
+  if (userChanged || profileIdChanged || coupleChanged || roleChanged) {
     invalidateChatLifecycle();
+    if (
+      (userChanged && Boolean(previousState.user?.id))
+      || (profileIdChanged && Boolean(previousProfile?.id))
+      || (coupleChanged && Boolean(previousProfile?.couple_id))
+    ) {
+      for (const entry of typingStates.values()) {
+        if (entry.timer) clearTimeout(entry.timer);
+      }
+      typingStates.clear();
+      useChatStore.setState({
+        messages: [],
+        isLoading: false,
+        isStreaming: false,
+        streamingContent: "",
+        streamingToolResults: [],
+        suggestions: [],
+        artifactVisibility: null,
+        error: null,
+        initialLoadDone: false,
+        failedRequest: null,
+        isSending: false,
+        isRetrying: false,
+        sharedClearedAt: null,
+        privateClearedAt: null,
+        presence: { partnerTyping: null, aiResponding: null },
+      });
+    }
   }
 });

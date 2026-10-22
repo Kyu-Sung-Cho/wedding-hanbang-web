@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import {
   AlertTriangle,
   Check,
@@ -13,6 +14,7 @@ import {
   Shield,
 } from "lucide-react";
 import type { ToolExecutionResult } from "@/types/database.types";
+import { weddingLinkProps } from "@/lib/weddingPaths";
 
 interface QuoteAnalysisCardProps {
   result: ToolExecutionResult;
@@ -327,7 +329,12 @@ function AnalysisMode({ data }: { data: Record<string, unknown> }) {
         </div>
         <div className="px-3 py-3.5 text-center">
           <p className="text-sm text-[var(--hb-text-muted)]">업체 공시가</p>
-          <p className="text-sm font-semibold text-[var(--hb-text-strong)] mt-1">별도 확인</p>
+          <Link
+            {...weddingLinkProps("/price")}
+            className="mt-1 inline-flex items-center justify-center text-sm font-semibold text-[var(--hb-primary)] underline underline-offset-2 hover:opacity-80"
+          >
+            공시 가격 보러가기
+          </Link>
         </div>
         <div className="px-3 py-3.5 text-center">
           <p className="text-sm text-[var(--hb-text-muted)]">먼저 확인</p>
@@ -447,6 +454,14 @@ function AnalysisMode({ data }: { data: Record<string, unknown> }) {
         <div className="flex items-center gap-1.5 mt-2">
           <Shield className="w-4 h-4 text-rose-700" />
           <p className="text-xs text-rose-700 font-medium">원하는 항목만 포함 여부와 별도 금액을 서면으로 확인하세요</p>
+        </div>
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          <Link
+            {...weddingLinkProps("/budget")}
+            className="inline-flex min-h-9 items-center rounded-[6px] border border-[#D8C7BB] bg-white px-3 py-1.5 text-xs font-semibold text-[var(--hb-text-strong)] hover:bg-[#FAF8F5] transition-colors"
+          >
+            예산 관리에서 반영하기
+          </Link>
         </div>
       </div>
     </div>

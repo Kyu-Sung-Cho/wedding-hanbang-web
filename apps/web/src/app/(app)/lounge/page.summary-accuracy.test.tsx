@@ -64,9 +64,7 @@ describe("라운지의 저장값 요약과 조회 실패 구분", () => {
     expect(weddingCode.querySelector("h2")?.textContent).toBe("웨딩코드");
     expect(weddingCode.querySelector('a[href="/wedding/preparation-style"]')?.textContent).toBe("웨딩코드 보기");
     expect(weddingCode.textContent).toContain("36문항");
-    expect(weddingCode.textContent).toContain("이 브라우저");
-    expect(weddingCode.textContent).toContain("7일");
-    expect(weddingCode.textContent).toContain("두 사람이 허용한 답");
+    expect(weddingCode.textContent).toContain("19문항(약 3분)으로 나의 결혼 준비 기준을 찾고 파트너와 나란히 비교해 보세요.");
     expect(container.querySelector('a[href="/wedding/community/quote-check"]')).not.toBeNull();
   });
 

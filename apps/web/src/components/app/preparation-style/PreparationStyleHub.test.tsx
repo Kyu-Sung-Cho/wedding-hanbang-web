@@ -15,6 +15,7 @@ import { createV31Draft } from "@/lib/weddingCode/v31";
 import { writeV31LocalProgress } from "@/lib/weddingCode/v31LocalProgress";
 import { getV31IndexForId } from "@/lib/weddingCode/v31Flow";
 import { ITEMS } from "@/constants/weddingCode36";
+import { ALL_QUESTIONS_19 } from "@/lib/weddingCode19/data";
 import { clearDraft36, storeDraft36 } from "@/app/wedding-code/storage36";
 
 vi.mock("@/lib/analytics", () => ({ captureWeddingCodeEvent: vi.fn() }));
@@ -75,18 +76,14 @@ describe("준비 스타일의 개인 저장과 두 사람 공유", () => {
     const page = await PreparationStylePage({ searchParams: Promise.resolve({}) });
     await act(async () => root.render(<main>{page}</main>));
     expect(container.querySelector("[data-lounge-wedding-code]")).not.toBeNull();
-    expect(container.textContent).toContain("36개의 장면");
-    expect(container.textContent).toContain("사람을 진단하거나 두 사람의 앞날을 예측하지 않아요");
+    expect(container.textContent).toContain("19문항");
     expect(container.querySelectorAll("main")).toHaveLength(1);
     expect(fetchMock).not.toHaveBeenCalled();
-    await click("36문항 시작하기");
-    expect(container.querySelector('section[aria-label="테스트 문항"]')?.textContent).toContain(ITEMS[0].statement);
-    const firstAnswer = container.querySelector<HTMLInputElement>(`input[name="${ITEMS[0].id}"][value="5"]`)!;
+    await click("내 웨딩코드 알아보기");
+    expect(container.querySelector('[data-testid="wc19-question-title"]')?.textContent).toContain(ALL_QUESTIONS_19[0].question);
+    const firstAnswer = container.querySelector<HTMLButtonElement>('[data-testid="wc19-option-5"]')!;
     await act(async () => firstAnswer.click());
-    expect(firstAnswer.checked).toBe(true);
-    await click("다음");
-    expect(container.querySelector('section[aria-label="테스트 문항"]')?.textContent).toContain(ITEMS[1].statement);
-    expect(container.querySelector(`input[name="${ITEMS[1].id}"]:checked`)).toBeNull();
+    expect(container.querySelector('[data-testid="wc19-question-title"]')?.textContent).toContain(ALL_QUESTIONS_19[1].question);
     expect(fetchMock).not.toHaveBeenCalled();
   });
 

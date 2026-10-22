@@ -131,7 +131,7 @@ export default function PaymentLedger() {
     });
     setShowCreate(false);
     setEditing(null);
-    setNotice("공유 기록에 저장했어요. 실제 결제나 예약은 실행하지 않았습니다.");
+    setNotice("커플 공동 기록에 저장했어요.");
   };
 
   return (
@@ -152,8 +152,7 @@ export default function PaymentLedger() {
               </h2>
             </div>
             <p className="mt-2 max-w-2xl text-sm leading-6 text-[#6F6760]">
-              두 사람이 함께 보는 준비 기록입니다. 웨딩한방은 이 화면에서
-              실제 결제, 예약, 전자계약을 실행하지 않습니다.
+              계약금·중도금·잔금 일정과 납부 내역을 두 사람이 함께 기록하는 공간이에요.
             </p>
           </div>
           <button

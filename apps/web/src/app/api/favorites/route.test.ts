@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   checkRateLimit: vi.fn(),
+  createAdminClient: vi.fn(),
   createClientFromRequest: vi.fn(),
   hasSignedDemoSessionFromCookieHeader: vi.fn(),
   recordDecision: vi.fn(),
@@ -10,6 +11,9 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock("@/lib/supabase/server", () => ({
   createClientFromRequest: mocks.createClientFromRequest,
+}));
+vi.mock("@/lib/supabase/admin", () => ({
+  createAdminClient: mocks.createAdminClient,
 }));
 vi.mock("@/lib/memory/record-decision", () => ({
   recordDecision: mocks.recordDecision,
@@ -187,6 +191,15 @@ describe("DELETE /api/favorites", () => {
     vi.clearAllMocks();
     mocks.checkRateLimit.mockReturnValue(null);
     mocks.hasSignedDemoSessionFromCookieHeader.mockReturnValue(false);
+    mocks.createAdminClient.mockReturnValue({
+      from: vi.fn(() => ({
+        select: vi.fn().mockReturnValue({
+          eq: vi.fn().mockReturnValue({
+            maybeSingle: vi.fn().mockResolvedValue({ data: { couple_id: null }, error: null }),
+          }),
+        }),
+      })),
+    });
   });
 
   it("sets the favorite state to absent and remains absent when the request is repeated", async () => {
@@ -290,6 +303,49 @@ describe("DELETE /api/favorites", () => {
     expect(response.status).toBe(500);
     await expect(response.json()).resolves.toMatchObject({ error: expect.any(String) });
   });
+
+  it("supersedes matching favorite decision_nodes when a favorite is removed", async () => {
+    const database = authenticatedClient();
+    mocks.createClientFromRequest.mockResolvedValue(database.client);
+
+    const decisionIs = vi.fn().mockResolvedValue({ error: null });
+    const decisionChain: Record<string, unknown> = {};
+    const decisionEq = vi.fn().mockImplementation(() => decisionChain);
+    decisionChain.eq = decisionEq;
+    decisionChain.is = decisionIs;
+    const decisionUpdate = vi.fn().mockReturnValue(decisionChain);
+
+    const adminFrom = vi.fn((table: string) => {
+      if (table === "profiles") {
+        return {
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              maybeSingle: vi.fn().mockResolvedValue({
+                data: { couple_id: "couple-1" },
+                error: null,
+              }),
+            }),
+          }),
+        };
+      }
+      if (table === "decision_nodes") {
+        return { update: decisionUpdate };
+      }
+      throw new Error(`unexpected admin table ${table}`);
+    });
+    mocks.createAdminClient.mockReturnValue({ from: adminFrom });
+
+    const response = await DELETE(deleteRequest({ vendorId: VENDOR_ID }));
+    expect(response.status).toBe(200);
+    await new Promise(resolve => setTimeout(resolve, 10));
+
+    expect(decisionUpdate).toHaveBeenCalledWith({
+      superseded_at: expect.any(String),
+    });
+    expect(decisionEq).toHaveBeenCalledWith("couple_id", "couple-1");
+    expect(decisionEq).toHaveBeenCalledWith("metadata->>dedupe_key", `favorite:${VENDOR_ID}`);
+    expect(decisionIs).toHaveBeenCalledWith("superseded_at", null);
+  });
 });
 
 describe("POST /api/favorites", () => {
@@ -297,6 +353,15 @@ describe("POST /api/favorites", () => {
     vi.clearAllMocks();
     mocks.checkRateLimit.mockReturnValue(null);
     mocks.hasSignedDemoSessionFromCookieHeader.mockReturnValue(false);
+    mocks.createAdminClient.mockReturnValue({
+      from: vi.fn(() => ({
+        select: vi.fn().mockReturnValue({
+          eq: vi.fn().mockReturnValue({
+            maybeSingle: vi.fn().mockResolvedValue({ data: { couple_id: null }, error: null }),
+          }),
+        }),
+      })),
+    });
   });
 
   it("sets the favorite state to present and remains present when repeated", async () => {

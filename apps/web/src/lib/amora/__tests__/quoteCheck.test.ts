@@ -74,12 +74,13 @@ describe("판정 없음 — 사실만 노출", () => {
 });
 
 describe("체크리스트 일관성", () => {
-  it("사용자에게 보여주는 항목은 업계 용어를 쉬운 말로 바꾼다", () => {
-    const banned =
-      /스드메|본식|폐백|상견례|헬퍼|컨펌|얼리스타트|혼주|신랑|원판|피팅|원본 데이터|전체.*사진 파일|사진 파일.*전체/;
+  it("사용자에게 보여주는 항목은 친숙한 웨딩 용어와 쉬운 설명을 함께 제공한다", () => {
+    const opaqueJargon =
+      /스드메|상견례|컨펌|얼리스타트|신랑|원판|원본 데이터|전체.*사진 파일|사진 파일.*전체/;
     for (const item of getQuoteCheckItems("sdm_package", "seoul")) {
-      for (const text of [item.name, item.checkQuestion, item.reason, item.disguise]) {
-        expect(text, `${item.id}: ${text}`).not.toMatch(banned);
+      expect(item.name, `${item.id}: ${item.name}`).not.toMatch(opaqueJargon);
+      for (const text of [item.checkQuestion, item.reason, item.disguise]) {
+        expect(text, `${item.id}: ${text}`).not.toMatch(opaqueJargon);
       }
     }
   });
@@ -138,14 +139,29 @@ describe("체크리스트 일관성", () => {
     ).toBe(items.length);
   });
 
-  it("묶음 견적에 관계없는 공통 준비물과 중복 항목을 노출하지 않는다", () => {
+  it("묶음 견적에 예식 당일 공통 항목과 드레스·메이크업 세부 항목을 포함하고 불필요한 초안만 제외한다", () => {
     const ids = getQuoteCheckItems("sdm_package", "seoul").map((item) => item.id);
-    expect(ids).not.toContain("common_pyebaek");
-    expect(ids).not.toContain("common_wedding_car");
-    expect(ids).not.toContain("common_thank_you_gift");
-    expect(ids).not.toContain("dress_mini");
+    expect(ids).toContain("common_ceremony_snap");
+    expect(ids).toContain("common_ceremony_original");
+    expect(ids).toContain("common_ceremony_video");
+    expect(ids).toContain("common_pyebaek");
+    expect(ids).toContain("common_wedding_car");
+    expect(ids).toContain("common_thank_you_gift");
+    expect(ids).toContain("dress_mini");
+    expect(ids).toContain("makeup_corsage");
     expect(ids).not.toContain("makeup_nail");
-    expect(ids).not.toContain("makeup_corsage");
+  });
+
+  it("기본 견적 금액(quotePriceManwon 또는 quoteTotalManwon)이 입력되면 요약 문구에 반영한다", () => {
+    const result = analyzeAmoraQuoteCheck({
+      category: "studio",
+      region: "seoul",
+      quotePriceManwon: 0,
+      quoteTotalManwon: 240,
+      includedItemIds: [],
+    });
+    expect(result.quotePriceManwon).toBe(240);
+    expect(result.summaryText).toContain("240만원");
   });
 
   it("업체에 보낼 질문도 과거 업계 용어 초안을 노출하지 않는다", () => {

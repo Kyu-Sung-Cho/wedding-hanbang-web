@@ -213,7 +213,7 @@ function AmoraStyleSettingsContent({ ownerId, accountLabel }: { ownerId: string 
                 <h2 className="text-[var(--hb-text-strong)]">
                   {section.title}
                 </h2>
-                <p className="mt-1 text-sm leading-relaxed text-[var(--hb-success)]">
+                <p className="mt-1 text-sm leading-relaxed text-[var(--hb-text-muted)]">
                   {section.description}
                 </p>
                 <div className="mt-4 grid gap-2 sm:grid-cols-2">
@@ -251,7 +251,7 @@ function AmoraStyleSettingsContent({ ownerId, accountLabel }: { ownerId: string 
                           )}
                           {choice.label}
                         </span>
-                        <span className="mt-0.5 block text-xs leading-relaxed text-[var(--hb-success)]">
+                        <span className="mt-0.5 block text-xs leading-relaxed text-[var(--hb-text-muted)]">
                           {choice.description}
                         </span>
                       </button>
@@ -271,7 +271,7 @@ function AmoraStyleSettingsContent({ ownerId, accountLabel }: { ownerId: string 
                     ? `내 설정 · ${updatedAt ?? "직접 확인됨"}`
                     : "아직 저장한 도움 방식이 없어요"}
                 </p>
-                <p className="mt-0.5 text-xs leading-relaxed text-[var(--hb-success)]">
+                <p className="mt-0.5 text-xs leading-relaxed text-[var(--hb-text-muted)]">
                   현재 질문이 저장값과 다르면 방금 한 말이 우선해요.
                 </p>
               </div>

@@ -391,7 +391,7 @@ export default function EventFormModal({
               className="min-h-11 min-w-0 w-full rounded-[10px] border border-[var(--amora-line)] bg-[var(--amora-warm)] px-3.5 py-2.5 text-base text-[var(--amora-ink)] transition-colors focus:border-[var(--amora-accent)] focus:bg-white focus:outline-none focus:ring-2 focus:ring-[var(--amora-accent)]/20"
             />
             <p className="mt-1.5 text-xs leading-5 text-[var(--amora-muted)]">
-              선택 사항이며 입력한 현지 시각 그대로 표시해요.
+              시간이 정해졌다면 함께 입력해 주세요 (선택).
             </p>
           </div>
 
@@ -471,7 +471,7 @@ export default function EventFormModal({
             <p className="mt-1.5 text-xs leading-5 text-[var(--amora-muted)]">
               {assigneeSelection === "couple"
                 || assigneeSelection === `member:${assigneeContext.partner?.id}`
-                ? "담당 표시는 함께 보는 일정에 저장되며, 파트너의 수락을 대신하지 않아요."
+                ? "누가 주로 챙길 일정인지 함께 표시해 둘 수 있어요."
                 : "파트너를 연결하지 않아도 혼자 일정을 관리할 수 있어요."}
             </p>
           </div>

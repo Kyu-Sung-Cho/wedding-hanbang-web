@@ -89,9 +89,7 @@ export default function MannersIndexPage() {
           각 편 상단과 표마다 출처 유무가 다시 표시되므로 여기서는 갈린다는 사실만 말한다.
         */}
         <p className="mt-[18px] rounded-[12px] border border-[var(--amora-line)] bg-white p-3.5 text-[12.5px] leading-[1.65] text-[var(--amora-soft)] sm:rounded-[14px] sm:px-[18px] sm:py-4 sm:text-[13px]">
-          여기 적힌 건 정답이 아니라 흔한 관행이에요. 지역·집안·모임마다 다릅니다. 공개된
-          자료가 있는 편에는 출처별 확인일과 뒷받침하는 범위를 적었어요. 자료가 없는 편은
-          각 글 위에 표시했어요. 모든 관행을 검증했다는 뜻은 아니에요.
+          상견례 첫인사부터 양가 호칭, 본식 당일 동선과 감사 인사까지—지역과 집안 분위기에 맞춰 참고할 수 있는 실전 가이드를 모았어요.
         </p>
       </header>
 

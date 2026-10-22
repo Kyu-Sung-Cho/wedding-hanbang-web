@@ -211,6 +211,63 @@ function evidenceSupportsMemory(value: string, evidence: string): boolean {
   return supportedUnits / valueUnits.size >= 0.5;
 }
 
+const QUESTION_ONLY_EVIDENCE_RE =
+  /[?？]\s*$|(?:\b인가요|할까요|일까요|어떨까요|어때요|어때|비싼가요|비싼가|괜찮을까요|괜찮을까|맞나요|좋을까요|좋을까|될까요|될까|있나요|없나요|신가요|나요|까요|얼마야|얼마예요|얼마인가요|어디야|어디예요|어디인가요|뭔가요|무엇인가요)\s*[.?!？]*$/u;
+
+const THIRD_PARTY_SUBJECT_EVIDENCE_RE =
+  /(?:^|[\s,.])(?:내\s*|제\s*|우리\s*)?(?:친구|친한\s*친구|언니|친언니|사촌|동생|여동생|남동생|오빠네|언니네|형네|누나네|지인|선배|후배|회사\s*동료|직장\s*동료|동료|남들|주변\s*사람들?)(?:은|는|이|가|도|네는|네가)\s+/u;
+
+const FIRST_PERSON_SUBJECT_RE =
+  /(?:^|[\s,.])(?:우리|우린|우리가|우리는|저희|저희는|저희가|나는|난|내가|저는|전|제가)(?:[\s,.]|은|는|이|가|도|$)/u;
+
+const GROOM_SUBJECT_OR_HEARSAY_RE =
+  /(?:^|[\s,.])(?:신랑|예랑이?|예비\s*신랑|남편|남자친구|남친|오빠)(?:은|는|이|가|쪽은|쪽에서는)\s+/u;
+
+const BRIDE_SUBJECT_OR_HEARSAY_RE =
+  /(?:^|[\s,.])(?:신부|예신이?|예비\s*신부|아내|와이프|여자친구|여친)(?:은|는|이|가|쪽은|쪽에서는)\s+/u;
+
+const PARTNER_HEARSAY_PREDICATE_RE =
+  /(?:싫대|싫다고|싫어해|싫어한대|원한대|원해|원한다고|하자고|하재|고집|선호한대|선호해|좋대|좋다고|좋아해|좋아한대|우겨|반대해|반대한대)/u;
+
+const UNDECIDED_OR_DISPUTED_DECISION_RE =
+  /(?:고민\s*중|상의\s*전|아직\s*못\s*정|미정|정하지\s*못|반대해|반대하|의견이\s*달라|의견이\s*안\s*맞|할지\s*말지)/u;
+
+function isQuestionEvidence(evidence: string): boolean {
+  return QUESTION_ONLY_EVIDENCE_RE.test(evidence.trim());
+}
+
+function isThirdPartyAnecdoteEvidence(evidence: string): boolean {
+  return (
+    THIRD_PARTY_SUBJECT_EVIDENCE_RE.test(evidence)
+    && !FIRST_PERSON_SUBJECT_RE.test(evidence)
+  );
+}
+
+function isPartnerMisattributedEvidence(
+  evidence: string,
+  actorRole: AmoraMemoryActorRole,
+): boolean {
+  if (FIRST_PERSON_SUBJECT_RE.test(evidence)) {
+    return false;
+  }
+  if (actorRole === "bride" && GROOM_SUBJECT_OR_HEARSAY_RE.test(evidence)) {
+    return true;
+  }
+  if (actorRole === "groom" && BRIDE_SUBJECT_OR_HEARSAY_RE.test(evidence)) {
+    return true;
+  }
+  if (
+    PARTNER_HEARSAY_PREDICATE_RE.test(evidence)
+    && (
+      (actorRole === "bride" && /(?:신랑|예랑|예비\s*신랑|남편|남자친구|남친|오빠)/u.test(evidence))
+      || (actorRole === "groom" && /(?:신부|예신|예비\s*신부|아내|와이프|여자친구|여친)/u.test(evidence))
+    )
+  ) {
+    return true;
+  }
+  return false;
+}
+
 const COMPILER_PROMPT = `당신은 아모라의 장기기억 정리기입니다. 제공된 사용자 발화에 명시된 사실만 정리합니다.
 
 목표:
@@ -223,6 +280,8 @@ const COMPILER_PROMPT = `당신은 아모라의 장기기억 정리기입니다.
 - 성격, 심리, 성별, 관계의 숨은 동기를 진단하지 않습니다.
 - 주민번호, 계좌, 주소, 건강, 임신·난임 등 생식 정보, 성생활, 비밀번호 등 민감정보는 저장하지 않습니다.
 - 일시적인 감정, 단순 질문, 농담은 기억으로 만들지 않습니다.
+- 단순 질문(~인가요?, ~어떨까요?), 제3자(친구·언니·동료·지인 등)의 결혼 사례, 아직 결정하지 못한 고민은 기억으로 만들지 않습니다.
+- 발화자가 상대방(신랑·신부·파트너)의 선호나 전해 들은 말을 인용한 문장(예: 신부가 말한 "신랑은 야외 예식 싫대")을 발화자 본인의 선호·결정으로 저장하지 않습니다.
 - 응, 네, 그래, 맞아, 좋아, 오케이 같은 단순 동의만으로 앞선 제안을 사용자 사실로 만들지 않습니다.
 - confidence가 0.80 미만이면 버립니다.
 - source_message_id는 반드시 근거가 된 사용자 메시지의 제공된 UUID 중 하나입니다.
@@ -479,6 +538,7 @@ export function buildDeterministicAmoraMemorySummary(
 export function validateAmoraMemoryCompilation(
   value: unknown,
   allowedUserMessages: ReadonlyMap<string, AmoraMemorySource>,
+  options: { neutralMemberPresentation?: boolean } = {},
 ): AmoraMemoryCompilation {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
     throw new Error("invalid memory compilation");
@@ -532,11 +592,20 @@ export function validateAmoraMemoryCompilation(
     const canonicalSource = canonicalizeAmoraMemoryText(source.content);
     if (!canonicalSource.includes(canonicalEvidence)) continue;
     if (isAcknowledgementOnly(source.content)) continue;
+    if (isQuestionEvidence(canonicalEvidence)) continue;
+    if (isThirdPartyAnecdoteEvidence(canonicalEvidence)) continue;
+    if (isPartnerMisattributedEvidence(canonicalEvidence, source.actorRole)) continue;
     if (!memoryKey || !MEMORY_KEY_PATTERN.test(memoryKey)) {
       throw new Error("invalid memory key");
     }
     if (typeof memory.kind !== "string" || !MEMORY_KINDS.has(memory.kind)) {
       throw new Error("invalid memory kind");
+    }
+    if (
+      memory.kind === "decision"
+      && UNDECIDED_OR_DISPUTED_DECISION_RE.test(canonicalEvidence)
+    ) {
+      continue;
     }
     if (!category || !CATEGORY_PATTERN.test(category)) {
       throw new Error("invalid memory category");
@@ -584,7 +653,7 @@ export function validateAmoraMemoryCompilation(
   }
 
   return {
-    summary: buildDeterministicAmoraMemorySummary(memories),
+    summary: buildDeterministicAmoraMemorySummary(memories, options),
     memories,
   };
 }
@@ -601,6 +670,7 @@ export async function compileAmoraMemory(input: {
    * 이 둘 다 활성). 자세한 근거는 `buildAmoraMemoryCompilerInstructions`.
    */
   existingMemoryKeys?: readonly string[];
+  neutralMemberPresentation?: boolean;
   /**
    * Required gate ahead of every content-bearing provider request, token
    * counting included. `beforeGeneration` runs after counting and therefore
@@ -610,7 +680,10 @@ export async function compileAmoraMemory(input: {
   /** Atomic provider-budget gate, executed after exact token counting. */
   beforeGeneration: () => void | Promise<void>;
 }): Promise<AmoraMemoryCompilation> {
-  const batch = prepareAmoraMemoryBatch(input.messages);
+  const neutralMemberPresentation = input.neutralMemberPresentation === true;
+  const batch = prepareAmoraMemoryBatch(input.messages, {
+    neutralMemberPresentation,
+  });
   if (batch.input.length === 0) {
     return { summary: null, memories: [] };
   }
@@ -643,7 +716,10 @@ export async function compileAmoraMemory(input: {
       description: "명시적 사용자 근거만 포함하는 아모라 장기기억 묶음",
       schema: RESPONSE_SCHEMA,
     },
-    validate: (value) => validateAmoraMemoryCompilation(value, allowedUserMessages),
+    validate: (value) =>
+      validateAmoraMemoryCompilation(value, allowedUserMessages, {
+        neutralMemberPresentation,
+      }),
     audit: {
       userId: input.userId ?? null,
       coupleId: input.coupleId,

@@ -149,7 +149,7 @@ describe("shared action board viewed approval and draft recovery", () => {
     fetchMock.mockResolvedValueOnce(snapshot([{ ...action, viewVersion: undefined }])); await render();
     expect(button(`${action.title} 수정`).disabled).toBe(true);
     expect(button("완료로 표시").disabled).toBe(true);
-    expect(container.textContent).toContain("수정에 필요한 저장 버전을 확인하지 못했어요");
+    expect(container.textContent).toContain("최신 상태를 불러오는 중이에요. 새로고침 후 다시 수정해 주세요.");
     expect(fetchMock.mock.calls.some(call => call[1]?.method === "PATCH")).toBe(false);
   });
 
