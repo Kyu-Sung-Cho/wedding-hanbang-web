@@ -51,7 +51,11 @@ function decision(overrides: Partial<Decision>): Decision {
 
 function compose(
   pastDecisions: Decision[],
-  options?: { neutral?: boolean },
+  options?: {
+    neutral?: boolean;
+    viewerUserId?: string | null;
+    memberIds?: { bride: string | null; groom: string | null };
+  },
 ): string {
   const context = {
     startingPointAsked: false,
@@ -63,6 +67,8 @@ function compose(
     brideName: options?.neutral ? null : "지은",
     groomName: options?.neutral ? null : "민수",
     neutralMemberPresentation: options?.neutral === true,
+    viewerUserId: options?.viewerUserId,
+    memberIds: options?.memberIds,
     senderName: "지은",
     bookings: [],
     scheduleEvents: [],
@@ -142,6 +148,20 @@ describe("결정 히스토리는 누가 말한 값인지 함께 싣는다", () =
     );
     expect(prompt).toContain(`[${neutralBride}] ["guestcount"]`);
     expect(prompt).not.toContain('[신부] ["guestcount"]');
+
+    const relativePrompt = compose(
+      [
+        decision({ sourceActorRole: "bride", title: "본인 결정" }),
+        decision({ sourceActorRole: "groom", title: "상대 결정" }),
+      ],
+      {
+        neutral: true,
+        viewerUserId: "user-bride",
+        memberIds: { bride: "user-bride", groom: "user-groom" },
+      },
+    );
+    expect(relativePrompt).toContain('[본인] ["guestcount"] 제목 "본인 결정"');
+    expect(relativePrompt).toContain('[상대] ["guestcount"] 제목 "상대 결정"');
   });
 });
 

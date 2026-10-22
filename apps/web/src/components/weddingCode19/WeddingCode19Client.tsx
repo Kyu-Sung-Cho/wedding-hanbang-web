@@ -19,6 +19,7 @@ import {
 import {
   buildCoupleComparison19,
   buildPersonalReport19,
+  buildWeddingCode19AmoraPersonalization,
   buildWeddingCode19AmoraPrefill,
   createVirtualPartnerAnswers19,
   decodePartnerPayload19,
@@ -29,6 +30,7 @@ import {
   type EncodedPartnerPayload19,
 } from "@/lib/weddingCode19/engine";
 import { rememberDemoAmoraPrefill } from "@/lib/chat/demoHandoff";
+import { useAuthStore } from "@/stores/authStore";
 
 type FlowStep19 = "intro" | "part1" | "bridge" | "part2" | "result";
 type ResultTab19 = "personal" | "couple";
@@ -42,6 +44,7 @@ interface PersistedSession19 {
   topPriorityIds: QuestionId[];
   activeTab: ResultTab19;
   simulatedPartnerCode: WeddingCode19Code | null;
+  ownerUserId?: string | null;
 }
 
 function readPersistedSession19(): PersistedSession19 | null {
@@ -59,6 +62,16 @@ function readPersistedSession19(): PersistedSession19 | null {
     ) {
       return null;
     }
+    const currentUserId = useAuthStore.getState().user?.id ?? null;
+    if (
+      typeof parsed.ownerUserId === "string" &&
+      parsed.ownerUserId.length > 0 &&
+      typeof currentUserId === "string" &&
+      currentUserId.length > 0 &&
+      parsed.ownerUserId !== currentUserId
+    ) {
+      return null;
+    }
     return {
       step: parsed.step as FlowStep19,
       questionIndex: Math.max(0, Math.min(18, parsed.questionIndex)),
@@ -68,6 +81,8 @@ function readPersistedSession19(): PersistedSession19 | null {
         : [],
       activeTab: parsed.activeTab === "couple" ? "couple" : "personal",
       simulatedPartnerCode: parsed.simulatedPartnerCode ?? null,
+      ownerUserId:
+        typeof parsed.ownerUserId === "string" ? parsed.ownerUserId : null,
     };
   } catch {
     return null;
@@ -121,26 +136,9 @@ export default function WeddingCode19Client({
   embedded?: boolean;
 } = {}) {
   const RootTag = embedded ? "div" : "main";
-  const [initialSession] = useState<PersistedSession19 | null>(() =>
-    readPersistedSession19(),
-  );
-  const [step, setStep] = useState<FlowStep19>(
-    () => initialSession?.step ?? "intro",
-  );
-  const [questionIndex, setQuestionIndex] = useState<number>(
-    () => initialSession?.questionIndex ?? 0,
-  ); // 0..18 (Q1..Q19)
-  const [answers, setAnswers] = useState<WeddingCode19Answers>(
-    () => initialSession?.answers ?? {},
-  );
-  const [topPriorityIds, setTopPriorityIds] = useState<QuestionId[]>(
-    () => initialSession?.topPriorityIds ?? [],
-  );
-  const [showCeilingModal, setShowCeilingModal] = useState<boolean>(false);
-  const [ceilingDraftIds, setCeilingDraftIds] = useState<QuestionId[]>([]);
-  const [activeTab, setActiveTab] = useState<ResultTab19>(
-    () => initialSession?.activeTab ?? "personal",
-  );
+  const authUserId = useAuthStore((s) => s.user?.id ?? null);
+  const [initialSession, setInitialSession] =
+    useState<PersistedSession19 | null>(() => readPersistedSession19());
 
   // 파트너 URL 데이터 (?partner=...) 및 가상 파트너 시뮬레이터 상태
   const [urlPartnerData, setUrlPartnerData] =
@@ -149,6 +147,80 @@ export default function WeddingCode19Client({
       const params = new URLSearchParams(window.location.search);
       return decodePartnerPayload19(params.get("partner"));
     });
+
+  // 이전에 이 브라우저에서 완료한 웨딩코드 19문항 기록 (localStorage)
+  const [savedLatestPayload, setSavedLatestPayload] = useState<{
+    code: WeddingCode19Code;
+    decoded: EncodedPartnerPayload19;
+    ownerUserId?: string | null;
+  } | null>(() => {
+    if (typeof window === "undefined") return null;
+    try {
+      const raw = window.localStorage.getItem("hanbang:wedding-code-19:latest");
+      if (!raw) return null;
+      const parsed = JSON.parse(raw) as {
+        code?: string;
+        encoded?: string;
+        ownerUserId?: string | null;
+      };
+      if (!parsed?.encoded) return null;
+      const currentUserId = useAuthStore.getState().user?.id ?? null;
+      if (
+        typeof parsed.ownerUserId === "string" &&
+        parsed.ownerUserId.length > 0 &&
+        typeof currentUserId === "string" &&
+        currentUserId.length > 0 &&
+        parsed.ownerUserId !== currentUserId
+      ) {
+        return null;
+      }
+      const decoded = decodePartnerPayload19(parsed.encoded);
+      if (!decoded) return null;
+      const scored = scoreWeddingCode19(decoded.answers);
+      return {
+        code: scored.code,
+        decoded,
+        ownerUserId:
+          typeof parsed.ownerUserId === "string" ? parsed.ownerUserId : null,
+      };
+    } catch {
+      return null;
+    }
+  });
+
+  const autoRestoreEmbedded =
+    embedded &&
+    Boolean(savedLatestPayload) &&
+    (!initialSession || initialSession.step === "intro");
+
+  const [step, setStep] = useState<FlowStep19>(() => {
+    if (autoRestoreEmbedded) return "result";
+    return initialSession?.step ?? "intro";
+  });
+  const [questionIndex, setQuestionIndex] = useState<number>(
+    () => initialSession?.questionIndex ?? 0,
+  ); // 0..18 (Q1..Q19)
+  const [answers, setAnswers] = useState<WeddingCode19Answers>(() => {
+    if (autoRestoreEmbedded && savedLatestPayload) {
+      return savedLatestPayload.decoded.answers;
+    }
+    return initialSession?.answers ?? {};
+  });
+  const [topPriorityIds, setTopPriorityIds] = useState<QuestionId[]>(() => {
+    if (autoRestoreEmbedded && savedLatestPayload) {
+      return savedLatestPayload.decoded.topPriorityIds;
+    }
+    return initialSession?.topPriorityIds ?? [];
+  });
+  const [showCeilingModal, setShowCeilingModal] = useState<boolean>(false);
+  const [ceilingDraftIds, setCeilingDraftIds] = useState<QuestionId[]>([]);
+  const [activeTab, setActiveTab] = useState<ResultTab19>(() => {
+    if (autoRestoreEmbedded) {
+      return urlPartnerData ? "couple" : "personal";
+    }
+    return initialSession?.activeTab ?? "personal";
+  });
+
   const [simulatedPartnerCode, setSimulatedPartnerCode] =
     useState<WeddingCode19Code | null>(
       () => initialSession?.simulatedPartnerCode ?? null,
@@ -158,29 +230,6 @@ export default function WeddingCode19Client({
   const [copiedNotice, setCopiedNotice] = useState<boolean>(false);
   const [copiedRichNotice, setCopiedRichNotice] = useState<boolean>(false);
   const [fadeKey, setFadeKey] = useState<number>(0);
-
-  // 이전에 이 브라우저에서 완료한 웨딩코드 19문항 기록 (localStorage)
-  const [savedLatestPayload] = useState<{
-    code: WeddingCode19Code;
-    decoded: EncodedPartnerPayload19;
-  } | null>(() => {
-    if (typeof window === "undefined") return null;
-    try {
-      const raw = window.localStorage.getItem("hanbang:wedding-code-19:latest");
-      if (!raw) return null;
-      const parsed = JSON.parse(raw) as {
-        code?: string;
-        encoded?: string;
-      };
-      if (!parsed?.encoded) return null;
-      const decoded = decodePartnerPayload19(parsed.encoded);
-      if (!decoded) return null;
-      const scored = scoreWeddingCode19(decoded.answers);
-      return { code: scored.code, decoded };
-    } catch {
-      return null;
-    }
-  });
 
   const handleRestoreLatestRecord = () => {
     if (!savedLatestPayload) return;
@@ -254,9 +303,100 @@ export default function WeddingCode19Client({
     [personalReport, activeTab, coupleReport],
   );
 
+  const syncAmoraPersonalization19 = (targetAnswers: WeddingCode19Answers) => {
+    if (typeof window === "undefined" || typeof window.fetch !== "function") {
+      return;
+    }
+    const preferences = buildWeddingCode19AmoraPersonalization(targetAnswers);
+    const body = JSON.stringify({ expectedRevision: null, preferences });
+    void window
+      .fetch("/api/amora/personalization", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body,
+      })
+      .then((res) => {
+        if (res && res.status === 405) {
+          return window.fetch("/api/amora/personalization", {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body,
+          });
+        }
+        return undefined;
+      })
+      .catch(() => {
+        // 비로그인(401) 또는 오프라인 환경 무시
+      });
+  };
+
+  useEffect(() => {
+    const purgeIfForeignOwner = (nextUserId: string | null) => {
+      if (!nextUserId) return;
+      const savedOwner = savedLatestPayload?.ownerUserId;
+      const sessionOwner = initialSession?.ownerUserId;
+      const hasForeignLatest =
+        typeof savedOwner === "string" &&
+        savedOwner.length > 0 &&
+        savedOwner !== nextUserId;
+      const hasForeignSession =
+        typeof sessionOwner === "string" &&
+        sessionOwner.length > 0 &&
+        sessionOwner !== nextUserId;
+      if (!hasForeignLatest && !hasForeignSession) return;
+
+      if (hasForeignLatest) {
+        setSavedLatestPayload(null);
+        if (typeof window !== "undefined") {
+          try {
+            window.localStorage.removeItem("hanbang:wedding-code-19:latest");
+          } catch {
+            // ignore
+          }
+        }
+      }
+      if (hasForeignSession) {
+        setInitialSession(null);
+        if (typeof window !== "undefined") {
+          try {
+            window.sessionStorage.removeItem(SESSION_STORAGE_KEY_19);
+          } catch {
+            // ignore
+          }
+        }
+      }
+      setAnswers({});
+      setTopPriorityIds([]);
+      setCeilingDraftIds([]);
+      setShowCeilingModal(false);
+      setSimulatedPartnerCode(null);
+      setShowSimulatorPicker(false);
+      setQuestionIndex(0);
+      setActiveTab("personal");
+      setStep("intro");
+    };
+
+    const unsubscribe = useAuthStore.subscribe((state) => {
+      purgeIfForeignOwner(state.user?.id ?? null);
+    });
+    return unsubscribe;
+  }, [initialSession?.ownerUserId, savedLatestPayload?.ownerUserId]);
+
   // [태클 3 방어]: 새로고침(F5) 및 외부 이동 후 뒤로가기 시에도 진행 상태·결과 화면이 날아가지 않도록 세션 동기화
   useEffect(() => {
     if (typeof window === "undefined") return;
+    const savedOwner = savedLatestPayload?.ownerUserId;
+    const sessionOwner = initialSession?.ownerUserId;
+    const hasForeignOwner =
+      Boolean(authUserId) &&
+      ((typeof savedOwner === "string" &&
+        savedOwner.length > 0 &&
+        savedOwner !== authUserId) ||
+        (typeof sessionOwner === "string" &&
+          sessionOwner.length > 0 &&
+          sessionOwner !== authUserId));
+    if (hasForeignOwner) return;
+
     try {
       const payload: PersistedSession19 = {
         step,
@@ -265,6 +405,7 @@ export default function WeddingCode19Client({
         topPriorityIds,
         activeTab,
         simulatedPartnerCode,
+        ownerUserId: authUserId ?? initialSession?.ownerUserId ?? null,
       };
       window.sessionStorage.setItem(
         SESSION_STORAGE_KEY_19,
@@ -278,6 +419,7 @@ export default function WeddingCode19Client({
             code: personalReport.code,
             characterName: personalReport.character.characterName,
             encoded: encodePartnerPayload19(answers, topPriorityIds),
+            ownerUserId: authUserId ?? savedLatestPayload?.ownerUserId ?? null,
             savedAt: new Date().toISOString(),
           }),
         );
@@ -294,10 +436,14 @@ export default function WeddingCode19Client({
     simulatedPartnerCode,
     personalReport.code,
     personalReport.character.characterName,
+    authUserId,
+    initialSession?.ownerUserId,
+    savedLatestPayload?.ownerUserId,
   ]);
 
   const handleAmoraHandoffClick = () => {
     if (typeof window === "undefined") return;
+    syncAmoraPersonalization19(answers);
     try {
       rememberDemoAmoraPrefill(window.sessionStorage, amoraPrefillText);
       window.localStorage.setItem(
@@ -307,6 +453,7 @@ export default function WeddingCode19Client({
           code: personalReport.code,
           characterName: personalReport.character.characterName,
           encoded: encodePartnerPayload19(answers, topPriorityIds),
+          ownerUserId: authUserId ?? savedLatestPayload?.ownerUserId ?? null,
           savedAt: new Date().toISOString(),
         }),
       );
@@ -356,6 +503,7 @@ export default function WeddingCode19Client({
 
     setTopPriorityIds([]);
     setStep("result");
+    syncAmoraPersonalization19(nextAnswers);
     if (urlPartnerData) {
       setActiveTab("couple");
     } else {
@@ -429,6 +577,7 @@ export default function WeddingCode19Client({
     setShowCeilingModal(false);
     triggerFade();
     setStep("result");
+    syncAmoraPersonalization19(answers);
     if (urlPartnerData) {
       setActiveTab("couple");
     } else {
@@ -573,13 +722,13 @@ export default function WeddingCode19Client({
 
             <div className="mt-6 grid grid-cols-1 gap-3 text-sm text-[#6E5A54] sm:grid-cols-2">
               <div className="rounded-2xl border border-[#EFE7DEC0] bg-[#FDFBF9] p-4 sm:p-5">
-                <p className="text-sm font-bold text-[#8F6662] sm:text-base">Track A · 16종 캐릭터</p>
+                <p className="text-sm font-bold text-[#8F6662] sm:text-base">STEP 1 · 나의 웨딩 성향 리포트</p>
                 <p className="mt-1.5 leading-relaxed">
                   4대 축(S/I · D/P · M/E · H/R) 맞춤 성향 분석
                 </p>
               </div>
               <div className="rounded-2xl border border-[#EFE7DEC0] bg-[#FDFBF9] p-4 sm:p-5">
-                <p className="text-sm font-bold text-[#5F7D6B] sm:text-base">Track B · 커플 처방전</p>
+                <p className="text-sm font-bold text-[#5F7D6B] sm:text-base">STEP 2 · 1:1 커플 케미 & 조율 가이드</p>
                 <p className="mt-1.5 leading-relaxed">
                   장바구니 분류 & 19문항 1:1 맞춤 조율 솔루션
                 </p>
@@ -604,8 +753,8 @@ export default function WeddingCode19Client({
                   className="mt-3 flex w-full items-center justify-center rounded-xl bg-[#5F7D6B] px-4 py-3 text-xs sm:text-sm font-bold text-white transition-all hover:bg-[#4E6959]"
                 >
                   {urlPartnerData
-                    ? "[ 내 이전 결과로 파트너와 커플 케미 리포트 바로 열기 → ]"
-                    : "[ 이전 내 웨딩코드 결과 리포트 바로 이어보기 → ]"}
+                    ? "내 이전 결과로 파트너와 커플 케미 리포트 바로 열기 →"
+                    : "이전 내 웨딩코드 결과 리포트 바로 이어보기 →"}
                 </Button>
               </div>
             )}
@@ -617,7 +766,7 @@ export default function WeddingCode19Client({
               onClick={handleStartTest}
               className="mt-8 flex w-full items-center justify-center rounded-2xl bg-[#8F6662] px-6 py-4.5 text-lg font-bold text-white shadow-xs transition-all hover:bg-[#7D5753] active:scale-[0.99] sm:py-5 sm:text-xl"
             >
-              [ {WEDDING_CODE_19_UI_COPY.intro.ctaButton} ]
+              {WEDDING_CODE_19_UI_COPY.intro.ctaButton}
             </Button>
           </section>
         )}
@@ -770,7 +919,7 @@ export default function WeddingCode19Client({
                 onClick={handleContinueToPart2}
                 className="w-full rounded-2xl bg-[#8F6662] px-6 py-4.5 text-lg font-bold text-white transition-all hover:bg-[#7D5753] sm:py-5 sm:text-xl"
               >
-                [ {WEDDING_CODE_19_UI_COPY.bridge.ctaButton} ]
+                {WEDDING_CODE_19_UI_COPY.bridge.ctaButton}
               </Button>
               <Button
                 variant="ghost"
@@ -1262,95 +1411,81 @@ export default function WeddingCode19Client({
                     한눈에 보는 나의 웨딩 장바구니
                   </h2>
                   <p className="mt-1.5 text-sm text-[#6E5A54]">
-                    내가 고른 응답을 바탕으로 우선순위·절약·양보·미정 항목을 분류했어요.
+                    예식 무대와 핵심 지출 항목(Q1~Q10)에 대한 나의 우선순위·절약·양보 기준을 분류했어요.
                   </p>
 
-                  <div className="mt-5 space-y-4">
-                    {/* 🌟 다른 걸 줄여서라도 꼭 살릴 1순위 (⑤ 정말 그렇다) */}
-                    <div className="rounded-2xl border border-[#DFC5BE] bg-[#FCF7F5] p-5">
-                      <h3 className="text-sm sm:text-base font-bold text-[#8F6662]">
-                        🌟 다른 걸 줄여서라도 꼭 살릴 1순위 (⑤ 정말 그렇다)
-                      </h3>
-                      {personalReport.basket.mustHave5.length === 0 ? (
-                        <p className="mt-2 text-sm text-[#7D6B65]">
-                          해당하는 항목이 없습니다.
-                        </p>
-                      ) : (
-                        <ul className="mt-3 space-y-3">
-                          {personalReport.basket.mustHave5.map((item) => (
-                            <li
-                              key={item.questionId}
-                              className="rounded-xl bg-white p-4 shadow-2xs"
-                            >
-                              <div className="flex flex-wrap items-center gap-2">
-                                <span className="text-sm sm:text-base font-bold text-[#3A2A27]">
-                                  Q{item.questionNumber}. {item.shortTitle}
-                                </span>
-                                {item.isTopPriority && (
-                                  <span className="rounded-full bg-[#8F6662] px-2.5 py-0.5 text-xs font-bold text-white">
-                                    [{WEDDING_CODE_19_UI_COPY.ceilingModal.badgeLabel}]
-                                  </span>
-                                )}
-                              </div>
-                              <p className="mt-1.5 text-sm leading-relaxed text-[#5A4742]">
-                                {item.interpretation}
-                              </p>
-                            </li>
-                          ))}
-                        </ul>
-                      )}
-                    </div>
+                  {(() => {
+                    const mustHave5 = personalReport.basket.mustHave5.filter(
+                      (item) => item.questionNumber <= 10,
+                    );
+                    const niceToHave4 = personalReport.basket.niceToHave4.filter(
+                      (item) => item.questionNumber <= 10,
+                    );
+                    const saveSimplify12 = personalReport.basket.saveSimplify12.filter(
+                      (item) => item.questionNumber <= 10,
+                    );
+                    const relativeSaveSuggestions =
+                      personalReport.basket.relativeSaveSuggestions.filter(
+                        (item) => item.questionNumber <= 10,
+                      );
+                    const concession3D = personalReport.basket.concession3D.filter(
+                      (item) => item.questionNumber <= 10,
+                    );
+                    const balancedC = personalReport.basket.balancedC.filter(
+                      (item) => item.questionNumber <= 10,
+                    );
+                    const undecidedUnknownE =
+                      personalReport.basket.undecidedUnknownE.filter(
+                        (item) => item.questionNumber <= 10,
+                      );
 
-                    {/* ✨ 여건 되면 챙길 관심 항목 (④ 대체로 그렇다) */}
-                    <div className="rounded-2xl border border-[#EFE7DE] bg-[#FAF8F5] p-5">
-                      <h3 className="text-sm sm:text-base font-bold text-[#5A4742]">
-                        ✨ 여건 되면 챙길 관심 항목 (④ 대체로 그렇다)
-                      </h3>
-                      {personalReport.basket.niceToHave4.length === 0 ? (
-                        <p className="mt-2 text-sm text-[#7D6B65]">
-                          해당하는 항목이 없습니다.
-                        </p>
-                      ) : (
-                        <ul className="mt-3 space-y-3">
-                          {personalReport.basket.niceToHave4.map((item) => (
-                            <li
-                              key={item.questionId}
-                              className="rounded-xl bg-white p-4 shadow-2xs"
-                            >
-                              <p className="text-sm sm:text-base font-bold text-[#3A2A27]">
-                                Q{item.questionNumber}. {item.shortTitle}
-                              </p>
-                              <p className="mt-1.5 text-sm leading-relaxed text-[#5A4742]">
-                                {item.interpretation}
-                              </p>
-                            </li>
-                          ))}
-                        </ul>
-                      )}
-                    </div>
+                    return (
+                      <div className="mt-5 space-y-4">
+                        {/* 🌟 다른 걸 줄여서라도 꼭 살릴 1순위 (⑤ 정말 그렇다) */}
+                        {mustHave5.length > 0 && (
+                          <div className="rounded-2xl border border-[#DFC5BE] bg-[#FCF7F5] p-5">
+                            <h3 className="text-sm sm:text-base font-bold text-[#8F6662]">
+                              🌟 다른 걸 줄여서라도 꼭 살릴 1순위 (⑤ 정말 그렇다)
+                            </h3>
+                            <ul className="mt-3 space-y-3">
+                              {mustHave5.map((item) => (
+                                <li
+                                  key={item.questionId}
+                                  className="rounded-xl bg-white p-4 shadow-2xs"
+                                >
+                                  <div className="flex flex-wrap items-center gap-2">
+                                    <span className="text-sm sm:text-base font-bold text-[#3A2A27]">
+                                      Q{item.questionNumber}. {item.shortTitle}
+                                    </span>
+                                    {item.isTopPriority && (
+                                      <span className="rounded-full bg-[#8F6662] px-2.5 py-0.5 text-xs font-bold text-white">
+                                        [{WEDDING_CODE_19_UI_COPY.ceilingModal.badgeLabel}]
+                                      </span>
+                                    )}
+                                  </div>
+                                  <p className="mt-1.5 text-sm leading-relaxed text-[#5A4742]">
+                                    {item.interpretation}
+                                  </p>
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
 
-                    {/* ✂️ 과감히 힘을 뺄 절약·간소화 포인트 (① 전혀 아니다 / ② 별로 아니다) */}
-                    <div className="rounded-2xl border border-[#E2ECE5] bg-[#F5FAF7] p-5">
-                      <h3 className="text-sm sm:text-base font-bold text-[#4A6856]">
-                        ✂️ 과감히 힘을 뺄 절약·간소화 포인트 (① 전혀 아니다 / ② 별로 아니다)
-                      </h3>
-                      {personalReport.basket.saveSimplify12.length === 0 ? (
-                        personalReport.basket.relativeSaveSuggestions.length > 0 ? (
-                          <div className="mt-3 space-y-3">
-                            <p className="text-xs sm:text-sm font-medium leading-relaxed text-[#355240]">
-                              💡 직접 ①·②번을 고르진 않으셨지만, ⑤번(1순위)으로 꼽으신 항목들에 비해 상대적으로 힘을 덜어내고 예산을 아끼기 좋은 ‘차순위 절약 추천 항목’입니다.
-                            </p>
-                            <ul className="space-y-3">
-                              {personalReport.basket.relativeSaveSuggestions.map((item) => (
+                        {/* ✨ 여건 되면 챙길 관심 항목 (④ 대체로 그렇다) */}
+                        {niceToHave4.length > 0 && (
+                          <div className="rounded-2xl border border-[#EFE7DE] bg-[#FAF8F5] p-5">
+                            <h3 className="text-sm sm:text-base font-bold text-[#5A4742]">
+                              ✨ 여건 되면 챙길 관심 항목 (④ 대체로 그렇다)
+                            </h3>
+                            <ul className="mt-3 space-y-3">
+                              {niceToHave4.map((item) => (
                                 <li
                                   key={item.questionId}
                                   className="rounded-xl bg-white p-4 shadow-2xs"
                                 >
                                   <p className="text-sm sm:text-base font-bold text-[#3A2A27]">
-                                    Q{item.questionNumber}. {item.shortTitle}{" "}
-                                    <span className="text-xs font-semibold text-[#4A6856]">
-                                      (상대적 힘 빼기 추천)
-                                    </span>
+                                    Q{item.questionNumber}. {item.shortTitle}
                                   </p>
                                   <p className="mt-1.5 text-sm leading-relaxed text-[#5A4742]">
                                     {item.interpretation}
@@ -1359,136 +1494,135 @@ export default function WeddingCode19Client({
                               ))}
                             </ul>
                           </div>
-                        ) : (
-                          <p className="mt-2 text-sm text-[#7D6B65]">
-                            해당하는 항목이 없습니다.
-                          </p>
-                        )
-                      ) : (
-                        <ul className="mt-3 space-y-3">
-                          {personalReport.basket.saveSimplify12.map((item) => (
-                            <li
-                              key={item.questionId}
-                              className="rounded-xl bg-white p-4 shadow-2xs"
-                            >
-                              <p className="text-sm sm:text-base font-bold text-[#3A2A27]">
-                                Q{item.questionNumber}. {item.shortTitle}
-                              </p>
-                              <p className="mt-1.5 text-sm leading-relaxed text-[#5A4742]">
-                                {item.interpretation}
-                              </p>
-                            </li>
-                          ))}
-                        </ul>
-                      )}
-                    </div>
+                        )}
 
-                    {/* 🎁 파트너에게 맞춰줄 양보 찬스 카드 (③ 어느 쪽이든 괜찮다 / D) */}
-                    <div
-                      className={`rounded-2xl border border-[#EFE7DE] bg-[#FAF8F5] ${
-                        personalReport.basket.concession3D.length === 0
-                          ? "flex flex-wrap items-center justify-between gap-2 px-5 py-3.5"
-                          : "p-5"
-                      }`}
-                    >
-                      <h3 className="text-sm sm:text-base font-bold text-[#6E5A54]">
-                        🎁 파트너에게 맞춰줄 양보 찬스 카드 (③ 어느 쪽이든 괜찮다 / D)
-                      </h3>
-                      {personalReport.basket.concession3D.length === 0 ? (
-                        <p className="text-xs sm:text-sm text-[#7D6B65]">
-                          해당하는 항목이 없습니다.
-                        </p>
-                      ) : (
-                        <>
-                          <div className="mt-2.5 flex flex-wrap gap-2">
-                            {personalReport.basket.concession3D.map((item) => (
-                              <span
-                                key={item.questionId}
-                                className="rounded-full border border-[#D9C7BA] bg-white px-3.5 py-1.5 text-xs sm:text-sm font-semibold text-[#6E5A54]"
-                              >
-                                #Q{item.questionNumber}_{item.shortTitle}
-                              </span>
-                            ))}
+                        {/* ✂️ 과감히 힘을 뺄 절약·간소화 포인트 (① 전혀 아니다 / ② 별로 아니다) */}
+                        {(saveSimplify12.length > 0 ||
+                          relativeSaveSuggestions.length > 0) && (
+                          <div className="rounded-2xl border border-[#E2ECE5] bg-[#F5FAF7] p-5">
+                            <h3 className="text-sm sm:text-base font-bold text-[#4A6856]">
+                              ✂️ 과감히 힘을 뺄 절약·간소화 포인트 (① 전혀 아니다 / ② 별로 아니다)
+                            </h3>
+                            {saveSimplify12.length === 0 ? (
+                              <div className="mt-3 space-y-3">
+                                <p className="text-xs sm:text-sm font-medium leading-relaxed text-[#355240]">
+                                  💡 직접 ①·②번을 고르진 않으셨지만, ⑤번(1순위)으로 꼽으신 항목들에 비해 상대적으로 힘을 덜어내고 예산을 아끼기 좋은 ‘차순위 절약 추천 항목’입니다.
+                                </p>
+                                <ul className="space-y-3">
+                                  {relativeSaveSuggestions.map((item) => (
+                                    <li
+                                      key={item.questionId}
+                                      className="rounded-xl bg-white p-4 shadow-2xs"
+                                    >
+                                      <p className="text-sm sm:text-base font-bold text-[#3A2A27]">
+                                        Q{item.questionNumber}. {item.shortTitle}{" "}
+                                        <span className="text-xs font-semibold text-[#4A6856]">
+                                          (상대적 힘 빼기 추천)
+                                        </span>
+                                      </p>
+                                      <p className="mt-1.5 text-sm leading-relaxed text-[#5A4742]">
+                                        {item.interpretation}
+                                      </p>
+                                    </li>
+                                  ))}
+                                </ul>
+                              </div>
+                            ) : (
+                              <ul className="mt-3 space-y-3">
+                                {saveSimplify12.map((item) => (
+                                  <li
+                                    key={item.questionId}
+                                    className="rounded-xl bg-white p-4 shadow-2xs"
+                                  >
+                                    <p className="text-sm sm:text-base font-bold text-[#3A2A27]">
+                                      Q{item.questionNumber}. {item.shortTitle}
+                                    </p>
+                                    <p className="mt-1.5 text-sm leading-relaxed text-[#5A4742]">
+                                      {item.interpretation}
+                                    </p>
+                                  </li>
+                                ))}
+                              </ul>
+                            )}
                           </div>
-                          <p className="mt-2.5 text-sm leading-relaxed text-[#6E5A54]">
-                            이 항목들은 내가 크게 고집하지 않아 파트너의 희망에 기분 좋게 맞춰줄 수 있는 소중한 양보 카드입니다.
-                          </p>
-                        </>
-                      )}
-                    </div>
+                        )}
 
-                    {/* ⚖️ 반반 균형·절충 선호 항목 (C) */}
-                    <div
-                      className={`rounded-2xl border border-[#EFE7DE] bg-[#FAF8F5] ${
-                        personalReport.basket.balancedC.length === 0
-                          ? "flex flex-wrap items-center justify-between gap-2 px-5 py-3.5"
-                          : "p-5"
-                      }`}
-                    >
-                      <h3 className="text-sm sm:text-base font-bold text-[#6E5A54]">
-                        ⚖️ 반반 균형·절충 선호 항목 (C)
-                      </h3>
-                      {personalReport.basket.balancedC.length === 0 ? (
-                        <p className="text-xs sm:text-sm text-[#7D6B65]">
-                          해당하는 항목이 없습니다.
-                        </p>
-                      ) : (
-                        <ul className="mt-2.5 space-y-2.5">
-                          {personalReport.basket.balancedC.map((item) => (
-                            <li
-                              key={item.questionId}
-                              className="rounded-xl bg-white p-4 text-sm"
-                            >
-                              <p className="font-bold text-[#3A2A27]">
-                                Q{item.questionNumber}. {item.shortTitle}
-                              </p>
-                              <p className="mt-1.5 leading-relaxed text-[#5A4742]">
-                                {item.interpretation}
-                              </p>
-                            </li>
-                          ))}
-                        </ul>
-                      )}
-                    </div>
+                        {/* 🎁 파트너에게 맞춰줄 양보 찬스 카드 (③ 어느 쪽이든 괜찮다) */}
+                        {concession3D.length > 0 && (
+                          <div className="rounded-2xl border border-[#EFE7DE] bg-[#FAF8F5] p-5">
+                            <h3 className="text-sm sm:text-base font-bold text-[#6E5A54]">
+                              🎁 파트너에게 맞춰줄 양보 찬스 카드 (③ 어느 쪽이든 괜찮다)
+                            </h3>
+                            <div className="mt-2.5 flex flex-wrap gap-2">
+                              {concession3D.map((item) => (
+                                <span
+                                  key={item.questionId}
+                                  className="rounded-full border border-[#D9C7BA] bg-white px-3.5 py-1.5 text-xs sm:text-sm font-semibold text-[#6E5A54]"
+                                >
+                                  #Q{item.questionNumber}_{item.shortTitle}
+                                </span>
+                              ))}
+                            </div>
+                            <p className="mt-2.5 text-sm leading-relaxed text-[#6E5A54]">
+                              이 항목들은 내가 크게 고집하지 않아 파트너의 희망에 기분 좋게 맞춰줄 수 있는 소중한 양보 카드입니다.
+                            </p>
+                          </div>
+                        )}
 
-                    {/* 🔍 함께 알아볼 미정 빈칸 (⚪ 아직 모르겠다 / E) */}
-                    <div
-                      className={`rounded-2xl border border-[#EFE7DE] bg-[#FAF8F5] ${
-                        personalReport.basket.undecidedUnknownE.length === 0
-                          ? "flex flex-wrap items-center justify-between gap-2 px-5 py-3.5"
-                          : "p-5"
-                      }`}
-                    >
-                      <h3 className="text-sm sm:text-base font-bold text-[#6E5A54]">
-                        🔍 함께 알아볼 미정 빈칸 (⚪ 아직 모르겠다 / E)
-                      </h3>
-                      {personalReport.basket.undecidedUnknownE.length === 0 ? (
-                        <p className="text-xs sm:text-sm text-[#7D6B65]">
-                          해당하는 항목이 없습니다.
-                        </p>
-                      ) : (
-                        <div className="mt-2.5 flex flex-wrap gap-2">
-                          {personalReport.basket.undecidedUnknownE.map((item) => (
-                            <span
-                              key={item.questionId}
-                              className="rounded-full bg-white px-3.5 py-1.5 text-xs sm:text-sm font-medium text-[#6E5A54]"
-                            >
-                              Q{item.questionNumber}. {item.shortTitle}
-                            </span>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  </div>
+                        {/* ⚖️ 반반 균형·절충 선호 항목 (C) */}
+                        {balancedC.length > 0 && (
+                          <div className="rounded-2xl border border-[#EFE7DE] bg-[#FAF8F5] p-5">
+                            <h3 className="text-sm sm:text-base font-bold text-[#6E5A54]">
+                              ⚖️ 반반 균형·절충 선호 항목 (C)
+                            </h3>
+                            <ul className="mt-2.5 space-y-2.5">
+                              {balancedC.map((item) => (
+                                <li
+                                  key={item.questionId}
+                                  className="rounded-xl bg-white p-4 text-sm"
+                                >
+                                  <p className="font-bold text-[#3A2A27]">
+                                    Q{item.questionNumber}. {item.shortTitle}
+                                  </p>
+                                  <p className="mt-1.5 leading-relaxed text-[#5A4742]">
+                                    {item.interpretation}
+                                  </p>
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+
+                        {/* 🔍 함께 알아볼 미정 빈칸 (⚪ 아직 모르겠다) */}
+                        {undecidedUnknownE.length > 0 && (
+                          <div className="rounded-2xl border border-[#EFE7DE] bg-[#FAF8F5] p-5">
+                            <h3 className="text-sm sm:text-base font-bold text-[#6E5A54]">
+                              🔍 함께 알아볼 미정 빈칸 (⚪ 아직 모르겠다)
+                            </h3>
+                            <div className="mt-2.5 flex flex-wrap gap-2">
+                              {undecidedUnknownE.map((item) => (
+                                <span
+                                  key={item.questionId}
+                                  className="rounded-full bg-white px-3.5 py-1.5 text-xs sm:text-sm font-medium text-[#6E5A54]"
+                                >
+                                  Q{item.questionNumber}. {item.shortTitle}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
                 </div>
 
-                {/* 3. 나만의 준비 워크스타일 & 위기관리 매뉴얼 */}
+                {/* 3. 나만의 준비 워크스타일 & 대화 매뉴얼 */}
                 <div className="rounded-3xl border border-[#EAE1D7] bg-white p-6 sm:p-9 lg:p-10 shadow-sm">
                   <h2 className="text-lg sm:text-xl font-bold text-[#3A2A27]">
-                    나만의 준비 워크스타일 & 위기관리 매뉴얼
+                    나만의 준비 워크스타일 & 대화 매뉴얼
                   </h2>
                   <p className="mt-1.5 text-sm text-[#6E5A54]">
-                    예식 무대부터 탐색·예산·협업·갈등 대화법까지 내 답변의 상세 해석입니다.
+                    탐색·예산·역할 분담·양가 소통·갈등 대화법까지 내 준비 방식(Q11~Q19)의 상세 해석입니다.
                   </p>
 
                   <div className="mt-5 space-y-5">
@@ -1566,7 +1700,7 @@ export default function WeddingCode19Client({
                       onClick={handleCopyPartnerLink}
                       className="flex w-full items-center justify-center rounded-2xl bg-[#8F6662] px-6 py-4 text-sm sm:text-base font-bold text-white transition-all hover:bg-[#7D5753]"
                     >
-                      [ 카카오톡/링크로 파트너에게 내 결과 보내기 ]
+                      카카오톡/링크로 파트너에게 내 결과 보내기
                     </Button>
                     {copiedNotice && (
                       <p
@@ -1584,7 +1718,7 @@ export default function WeddingCode19Client({
                       onClick={handleCopyRichPartnerMessage}
                       className="flex w-full items-center justify-center rounded-2xl border border-[#8F6662] bg-[#FAF4F2] px-6 py-3.5 text-xs sm:text-sm font-bold text-[#6E4742] transition-all hover:bg-[#F3E7E3]"
                     >
-                      [ 💬 카톡용 내 캐릭터 소개 문구 + 링크 함께 복사 ]
+                      💬 카톡용 내 캐릭터 소개 문구 + 링크 함께 복사
                     </Button>
                     {copiedRichNotice && (
                       <p
@@ -1602,7 +1736,7 @@ export default function WeddingCode19Client({
                       onClick={() => setShowSimulatorPicker((prev) => !prev)}
                       className="flex w-full items-center justify-center rounded-2xl border border-[#5F7D6B] bg-[#EEF4F0] px-6 py-4 text-sm sm:text-base font-bold text-[#355240] transition-all hover:bg-[#E1EDE5]"
                     >
-                      [ 가상 파트너 선택해서 커플 리포트 미리보기 ]
+                      가상 파트너 선택해서 커플 리포트 미리보기
                     </Button>
                   </div>
 
@@ -1833,19 +1967,19 @@ export default function WeddingCode19Client({
                           <p className="text-sm sm:text-base font-bold text-[#8F6662]">
                             🚨 번아웃·대화 시점 차이 주의보 (Q17·Q18)
                           </p>
-                          <div className="mt-3 space-y-3">
+                          <div className="mt-2.5 flex flex-wrap gap-2">
                             {coupleReport.crisisWarnings.map((warn) => (
-                              <div
+                              <span
                                 key={warn.questionId}
-                                className="rounded-xl bg-white p-4 text-sm leading-relaxed text-[#5A4742]"
+                                className="rounded-full border border-[#DFC5BE] bg-white px-3.5 py-1.5 text-xs sm:text-sm font-bold text-[#3A2A27]"
                               >
-                                <p className="font-bold text-[#3A2A27]">
-                                  Q{warn.questionNumber}. {warn.shortTitle}
-                                </p>
-                                <p className="mt-1.5">{warn.conflictSolution}</p>
-                              </div>
+                                Q{warn.questionNumber}. {warn.shortTitle}
+                              </span>
                             ))}
                           </div>
+                          <p className="mt-2.5 text-xs sm:text-sm leading-relaxed text-[#5A4742]">
+                            두 분의 피로 회복 방식이나 대화 타이밍이 달라 오해가 생기기 쉽습니다. 아래 ‘1:1 처방전’에서 맞춤 대화 공식을 꼭 확인해 보세요.
+                          </p>
                         </div>
                       )}
                     </div>
@@ -2034,7 +2168,7 @@ export default function WeddingCode19Client({
                   data-testid="wc19-start-amora-cta"
                   className="flex w-full items-center justify-center rounded-2xl bg-[#8F6662] px-6 py-4 text-center text-sm sm:text-base font-semibold text-white shadow-xs transition hover:bg-[#7A5450]"
                 >
-                  [ 이 웨딩코드로 아모라 AI 맞춤 결혼 준비 시작하기 ]
+                  이 웨딩코드로 아모라 AI 맞춤 결혼 준비 시작하기
                 </Link>
 
                 <Link
@@ -2043,7 +2177,7 @@ export default function WeddingCode19Client({
                   data-testid="wc19-recommended-price-cta"
                   className="flex w-full items-center justify-center rounded-2xl border border-[#5F7D6B] bg-[#EEF4F0] px-5 py-3.5 text-center text-xs sm:text-sm font-bold text-[#355240] transition hover:bg-[#E1EDE5]"
                 >
-                  [ {recommendedPriceTarget.label} ]
+                  {recommendedPriceTarget.label}
                 </Link>
 
                 <div className="grid grid-cols-2 gap-2.5">

@@ -307,11 +307,12 @@ export default function ChatSidePanel({
   );
   const scopedMessages = useMemo(
     () => messages.filter((message) => (
-      activeScope === "shared"
+      (!message.couple_id || !coupleId || message.couple_id === coupleId)
+      && (activeScope === "shared"
         ? message.visibility === "shared"
-        : !!myPrivateVisibility && message.visibility === myPrivateVisibility
+        : !!myPrivateVisibility && message.visibility === myPrivateVisibility)
     )),
-    [activeScope, messages, myPrivateVisibility],
+    [activeScope, coupleId, messages, myPrivateVisibility],
   );
   /**
    * 아모라의 첫마디. 서버에 저장된 메시지가 아니라 이 화면 위에만 있는 말이다 —

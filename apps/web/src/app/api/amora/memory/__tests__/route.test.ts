@@ -96,8 +96,16 @@ function mockGetClients(options: {
   profileError?: { code: string } | null;
   profileRowCount?: number;
   sharedEnabled?: boolean;
+  memberModelVersion?: 1 | 2;
 } = {}) {
   const groomId = "00000000-0000-4000-8000-000000000002";
+  const coupleRow = {
+    bride_id: USER_ID,
+    groom_id: groomId,
+    ...(options.memberModelVersion !== undefined
+      ? { member_model_version: options.memberModelVersion }
+      : {}),
+  };
   const sourceMessageId = "30000000-0000-4000-8000-000000000001";
   const projectedNode = {
     id: MEMORY_ID,
@@ -132,7 +140,7 @@ function mockGetClients(options: {
       return query({ data: { couple_id: COUPLE_ID, role: "bride" }, error: null });
     }
     if (table === "couples") {
-      return query({ data: { bride_id: USER_ID, groom_id: groomId }, error: null });
+      return query({ data: coupleRow, error: null });
     }
     if (table === "amora_memory_settings") {
       return query({
@@ -194,7 +202,7 @@ function mockGetClients(options: {
         });
       }
       if (table === "couples") {
-        return query({ data: { bride_id: USER_ID, groom_id: groomId }, error: null });
+        return query({ data: coupleRow, error: null });
       }
       return query({ data: [], error: null });
     }),
@@ -381,5 +389,20 @@ describe("/api/amora/memory GET profile projection", () => {
     expect(response.status).toBe(200);
     expect(body.profiles).toEqual([]);
     expect(JSON.stringify(body)).not.toContain("LEGACY_PROFILE_MUST_NOT_LEAK");
+  });
+
+  it("uses viewer-relative neutral speaker labels (본인/상대) when member_model_version is 2", async () => {
+    mockGetClients({ memberModelVersion: 2 });
+
+    const response = await GET(new Request("http://localhost/api/amora/memory"));
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body.profiles).toEqual([
+      expect.objectContaining({
+        visibility: "shared",
+        taste_profile: "본인 명시 · venue:preferred_area = 강남",
+      }),
+    ]);
   });
 });

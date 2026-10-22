@@ -166,10 +166,10 @@ export const useOnboardingStore = create<OnboardingStoreState>()(
       setPartnerInviteCode: (code) => set({ partnerInviteCode: code }),
       setWeddingDate: (date) => set({ weddingDate: date }),
       setWeddingDateUndecided: (value) =>
-        set({ weddingDateUndecided: value, weddingDate: value ? null : undefined }),
+        set(value ? { weddingDateUndecided: true, weddingDate: null } : { weddingDateUndecided: false }),
       setVenue: (venue) => set({ venue }),
       setVenueUndecided: (value) =>
-        set({ venueUndecided: value, venue: value ? null : undefined }),
+        set(value ? { venueUndecided: true, venue: null } : { venueUndecided: false }),
       setSanggyeonryeDate: (date) => set({ sanggyeonryeDate: date }),
       setSanggyeonryeUndecided: (value) =>
         set(value ? { sanggyeonryeUndecided: true, sanggyeonryeDate: null } : { sanggyeonryeUndecided: false }),
@@ -222,7 +222,20 @@ export const useOnboardingStore = create<OnboardingStoreState>()(
           ),
         })),
       setChecklist: (items) => set({ progressChecklist: items }),
-      reset: () => set({ ...initialState, preferences: { ...initialPreferences }, progressChecklist: freshChecklist() }),
+      reset: () => {
+        set({
+          ...initialState,
+          preferences: { ...initialPreferences },
+          progressChecklist: freshChecklist(),
+        });
+        if (typeof window !== "undefined") {
+          try {
+            window.sessionStorage.removeItem(ONBOARDING_STORAGE_KEY);
+          } catch {
+            // ignore
+          }
+        }
+      },
     }),
     {
       name: ONBOARDING_STORAGE_KEY,

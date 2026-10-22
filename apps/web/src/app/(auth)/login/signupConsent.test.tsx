@@ -128,18 +128,15 @@ describe("가입 동의", () => {
     ).toBe(false);
   });
 
-  it("동의 없이 소셜 가입을 누르면 계정 생성이 시작되지 않는다", async () => {
+  it("소셜 가입은 상단 원탭 버튼에서 바로 시작할 수 있다", async () => {
     await act(async () => root.render(<LoginPage />));
 
     await click(findButton(container, "Google"));
 
-    expect(mocks.signInWithOAuth).not.toHaveBeenCalled();
-    expect(container.textContent).toContain(
-      "이용약관과 개인정보 처리방침에 동의해주세요.",
-    );
+    expect(mocks.signInWithOAuth).toHaveBeenCalledTimes(1);
   });
 
-  it("동의한 뒤에는 소셜 가입이 진행된다", async () => {
+  it("동의한 뒤에도 소셜 가입이 진행된다", async () => {
     await act(async () => root.render(<LoginPage />));
 
     await toggleConsent(container, "terms");

@@ -84,7 +84,7 @@ describe("owner-only personal actions", () => {
     const body = JSON.parse(fetchMock.mock.calls[0][1].body); expect(body).toMatchObject({ expectedOwnerId: owner, expectedCoupleId: couple, messageId: source, ...draft }); expect(body).not.toHaveProperty("content");
     fetchMock.mockResolvedValueOnce(response({ saved: true, action: action() })); await click("개인 할 일 저장");
     expect(JSON.parse(fetchMock.mock.calls[1][1].body).requestId).toBe(body.requestId);
-    expect(document.querySelector("[role=dialog]")).toBeNull(); expect(host.textContent).toContain("개인 할 일을 저장했어요"); expect(host.querySelector("a")?.getAttribute("href")).toBe("/chat/personal");
+    expect(document.querySelector("[role=dialog]")).toBeNull(); expect(host.textContent).toContain("개인 할 일을 저장했어요"); expect(host.querySelector("a")?.getAttribute("href")).toBe("/wedding/chat/personal");
   });
 
   it("a pending save blocks double clicks and account change hides its result", async () => {

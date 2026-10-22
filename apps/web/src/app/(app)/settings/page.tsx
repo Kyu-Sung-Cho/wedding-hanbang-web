@@ -50,9 +50,19 @@ import { CONTACT } from "@/lib/constants/contact";
 import { formatWeddingBudgetCeiling, parseWeddingBudgetManwonInput } from "@/lib/weddingBudget";
 import TodayOnePreferenceControl from "@/components/app/TodayOnePreferenceControl";
 import InviteCodePanel from "@/components/invite/InviteCodePanel";
+import Button from "@/components/ui/Button";
+import {
+  clearPendingCoupleInviteCode,
+  peekPendingCoupleInviteCode,
+} from "@/lib/couples/pendingInvite";
+import { buildNeutralPreparationSpaceSubmission } from "@/lib/onboarding/neutralPreparationSpace";
 import { ACCOUNT_DELETION_FACTS } from "@hanbang/shared/constants";
 import {
+  COUPLE_INVITE_CODE_MAX_LENGTH,
+  COUPLE_INVITE_CODE_PLACEHOLDER,
   describeCoupleInviteWindow,
+  isCoupleInviteCode,
+  normalizeCoupleInviteCode,
   resolveCoupleConnectionState,
   type CoupleConnectionState,
   WEDDING_BUDGET_TENDENCY_OPTIONS,
@@ -234,6 +244,21 @@ export default function SettingsPage() {
   const [resetWeddingConfirmText, setResetWeddingConfirmText] = useState("");
   const [resettingWedding, setResettingWedding] = useState(false);
   const [resetWeddingError, setResetWeddingError] = useState("");
+  const [partnerJoinCodeInput, setPartnerJoinCodeInput] = useState("");
+  const [joiningPartnerSpace, setJoiningPartnerSpace] = useState(false);
+  const [partnerJoinError, setPartnerJoinError] = useState("");
+
+  useEffect(() => {
+    const queryCode = normalizeCoupleInviteCode(
+      new URLSearchParams(window.location.search).get("joinCode"),
+    );
+    const pendingCode = isCoupleInviteCode(queryCode)
+      ? queryCode
+      : peekPendingCoupleInviteCode();
+    if (pendingCode) {
+      setPartnerJoinCodeInput(pendingCode);
+    }
+  }, []);
   const [draftPrefs, setDraftPrefs] = useState<WeddingPreferenceState>({});
   const [preferenceSaving, setPreferenceSaving] = useState(false);
   const preferenceRequest = useRef<object | null>(null);
@@ -681,6 +706,90 @@ export default function SettingsPage() {
     }
   };
 
+  const handleJoinPartnerSpace = async () => {
+    const normalizedCode = normalizeCoupleInviteCode(partnerJoinCodeInput);
+    if (!isCoupleInviteCode(normalizedCode)) {
+      setPartnerJoinError("초대 코드 형식을 다시 확인해 주세요.");
+      return;
+    }
+    setJoiningPartnerSpace(true);
+    setPartnerJoinError("");
+
+    try {
+      const resetRes = await fetch("/api/couple/reset", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          confirmation: "초기화합니다",
+          confirmText: "초기화합니다",
+        }),
+      });
+      const resetData = (await resetRes.json().catch(() => ({}))) as {
+        error?: string;
+      };
+      if (!resetRes.ok) {
+        setPartnerJoinError(
+          resetData.error ?? "현재 준비 공간을 정리하지 못했어요. 잠시 후 다시 시도해 주세요.",
+        );
+        return;
+      }
+
+      let joinRes = await fetch("/api/onboarding", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(
+          buildNeutralPreparationSpaceSubmission({
+            coupleAction: "join",
+            partnerInviteCode: normalizedCode,
+          }),
+        ),
+      });
+      let joinData = (await joinRes.json().catch(() => ({}))) as {
+        error?: string;
+        code?: string;
+      };
+
+      if (
+        !joinRes.ok
+        && joinData.code === "NEUTRAL_PREPARATION_SPACE_UNAVAILABLE"
+        && (profile?.role === "bride" || profile?.role === "groom")
+      ) {
+        joinRes = await fetch("/api/onboarding", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            role: profile.role,
+            coupleAction: "join",
+            partnerInviteCode: normalizedCode,
+            weddingDate: null,
+            venue: null,
+            totalBudget: null,
+            progress: {},
+          }),
+        });
+        joinData = (await joinRes.json().catch(() => ({}))) as {
+          error?: string;
+          code?: string;
+        };
+      }
+
+      if (!joinRes.ok) {
+        setPartnerJoinError(
+          joinData.error ?? "파트너 준비 공간에 합류하지 못했어요. 초대 코드를 확인하고 다시 시도해 주세요.",
+        );
+        return;
+      }
+
+      clearPendingCoupleInviteCode();
+      document.cookie = "onboarding_complete=true; path=/; max-age=31536000";
+      window.location.href = "/wedding/lounge";
+    } catch {
+      setPartnerJoinError("연결 중 오류가 발생했습니다. 초대 코드를 확인하고 다시 시도해 주세요.");
+    } finally {
+      setJoiningPartnerSpace(false);
+    }
+  };
+
   const userName = profile?.name ?? "사용자";
   const userEmail = user?.email ?? profile?.email ?? "";
   const userRole = profile?.confirmed_role === "bride" ? "신부" : profile?.confirmed_role === "groom" ? "신랑" : "";
@@ -1123,15 +1232,57 @@ export default function SettingsPage() {
               </div>
             </div>
           ) : phase === "awaiting_partner" ? (
-            <div className="flex items-center gap-3 p-4 rounded-[6px] bg-white shadow-sm">
-              <div className="w-12 h-12 rounded-full bg-[var(--hb-surface-hover)] flex items-center justify-center">
-                <User className="w-6 h-6 text-[var(--hb-text-muted)]" />
+            <div className="space-y-3">
+              <div className="flex items-center gap-3 p-4 rounded-[6px] bg-white shadow-sm">
+                <div className="w-12 h-12 rounded-full bg-[var(--hb-surface-hover)] flex items-center justify-center">
+                  <User className="w-6 h-6 text-[var(--hb-text-muted)]" />
+                </div>
+                <div className="flex-1">
+                  <p className="text-base text-[var(--hb-text-body)] font-medium">파트너 초대 대기</p>
+                  <p className="text-sm text-[var(--hb-text-muted)]">위의 코드·링크·QR 중 편한 것으로 보내주세요</p>
+                </div>
+                <ChevronRight className="w-5 h-5 text-[var(--hb-text-muted)]" />
               </div>
-              <div className="flex-1">
-                <p className="text-base text-[var(--hb-text-body)] font-medium">파트너 초대 대기</p>
-                <p className="text-sm text-[var(--hb-text-muted)]">위의 코드·링크·QR 중 편한 것으로 보내주세요</p>
+
+              <div className="rounded-[6px] border border-[#E8DDD3] bg-white p-4 shadow-sm space-y-3">
+                <div>
+                  <p className="text-base font-medium text-[var(--hb-text-strong)]">
+                    파트너의 초대 코드가 있으신가요?
+                  </p>
+                  <p className="mt-1 text-sm leading-relaxed text-[var(--hb-text-muted)]">
+                    파트너의 초대 코드로 연결하면 현재 혼자 쓰던 빈 공간을 정리하고 파트너의 준비 공간으로 합류합니다.
+                  </p>
+                </div>
+                <div className="flex flex-col sm:flex-row gap-2">
+                  <input
+                    type="text"
+                    aria-label="파트너 초대 코드"
+                    value={partnerJoinCodeInput}
+                    disabled={joiningPartnerSpace}
+                    maxLength={COUPLE_INVITE_CODE_MAX_LENGTH}
+                    placeholder={COUPLE_INVITE_CODE_PLACEHOLDER}
+                    onChange={(event) => {
+                      setPartnerJoinCodeInput(normalizeCoupleInviteCode(event.target.value));
+                      setPartnerJoinError("");
+                    }}
+                    className="flex-1 rounded-[6px] border border-[#E8DDD3] bg-[var(--hb-surface-page)] px-3.5 py-2.5 font-mono text-sm tracking-[0.14em] text-[var(--hb-text-strong)] outline-none transition-colors placeholder:text-[var(--hb-text-muted)] focus:border-[var(--hb-primary)] disabled:opacity-50"
+                  />
+                  <Button
+                    variant="primary"
+                    size="md"
+                    loading={joiningPartnerSpace}
+                    disabled={joiningPartnerSpace || partnerJoinCodeInput.trim().length === 0}
+                    onClick={() => void handleJoinPartnerSpace()}
+                  >
+                    {joiningPartnerSpace ? "합류 중..." : "파트너 준비 공간으로 합치기"}
+                  </Button>
+                </div>
+                {partnerJoinError && (
+                  <p role="alert" className="text-sm leading-relaxed text-danger-700">
+                    {partnerJoinError}
+                  </p>
+                )}
               </div>
-              <ChevronRight className="w-5 h-5 text-[var(--hb-text-muted)]" />
             </div>
           ) : regenerateError ? (
             <div className="rounded-[6px] border border-[#E8DDD3] bg-white p-4 shadow-sm">
@@ -1164,7 +1315,7 @@ export default function SettingsPage() {
             <div className="rounded-[6px] border border-[#E8DDD3] bg-white p-4 shadow-sm">
               <p className="text-base font-medium text-[var(--hb-text-strong)]">연결 상태를 불러오지 못했어요</p>
               <p className="mt-1 text-sm leading-relaxed text-[#746A63]">
-                커플 연결이 잘못된 것은 아니에요. 연결 상태만 못 읽었으니 다시 시도해 주세요.
+                커플 연결이 잘못된 것은 아니에요. 일시적으로 연결 상태를 확인하지 못했으니 다시 시도해 주세요.
               </p>
               <button
                 type="button"
@@ -1229,8 +1380,8 @@ export default function SettingsPage() {
 
         <div className="flex flex-col gap-1">
           {[
-            { key: "schedule" as const, label: "일정 알림", desc: "앱 안 알림 목록에서 결혼식까지 남은 기간에 맞춰 확인할 일을 알려드려요." },
-            { key: "budget" as const, label: "예산 알림", desc: "앱 안 알림 목록에서 전체 예산 범위를 정할 시점을 알려드려요." },
+            { key: "schedule" as const, label: "일정 알림", desc: "결혼식까지 남은 기간에 맞춰 확인할 일을 앱 내 알림으로 알려드려요." },
+            { key: "budget" as const, label: "예산 알림", desc: "전체 예산 범위를 정할 시점을 앱 내 알림으로 알려드려요." },
           ].map((item) => (
             <div
               key={item.key}
@@ -1300,7 +1451,7 @@ export default function SettingsPage() {
             <span className="block text-[17px] font-medium text-[var(--hb-text-strong)]">
               아모라 도움 방식
             </span>
-            <span className="mt-0.5 block text-sm font-light leading-relaxed text-[var(--hb-success)]">
+            <span className="mt-0.5 block text-sm font-light leading-relaxed text-[var(--hb-text-muted)]">
               추천·비교·공감·실행 중 내가 편한 순서를 직접 정해요
             </span>
           </span>
@@ -1327,7 +1478,7 @@ export default function SettingsPage() {
           </span>
           <span className="min-w-0 flex-1">
             <span className="block text-[17px] font-medium text-[var(--hb-text-strong)]">아모라가 기억하는 것</span>
-            <span className="mt-0.5 block text-sm font-light leading-relaxed text-[var(--hb-success)]">
+            <span className="mt-0.5 block text-sm font-light leading-relaxed text-[var(--hb-text-muted)]">
               아모라가 무엇을 기억하는지 보고, 잘못 이해한 내용은 고치거나 지울 수 있어요
             </span>
           </span>
@@ -1450,7 +1601,7 @@ export default function SettingsPage() {
                 <button
                   type="button"
                   onClick={() => setShowResetWeddingModal(false)}
-                  className="flex-1 py-3 rounded-[6px] bg-[var(--hb-surface-hover)] text-[var(--hb-text-body)] font-medium bg-[#f3e9df] transition-colors"
+                  className="flex-1 py-3 rounded-[6px] bg-[var(--hb-surface-hover)] text-[var(--hb-text-body)] font-medium hover:bg-[#f3e9df] transition-colors"
                 >
                   취소
                 </button>
@@ -1458,7 +1609,7 @@ export default function SettingsPage() {
                   type="button"
                   onClick={handleResetWedding}
                   disabled={resetWeddingConfirmText !== "초기화합니다" || resettingWedding}
-                  className="flex-1 py-3 rounded-[6px] bg-[var(--hb-primary)] text-white font-medium bg-[var(--hb-text-body)] transition-colors disabled:opacity-40"
+                  className="flex-1 py-3 rounded-[6px] bg-[var(--hb-primary)] hover:bg-[var(--hb-primary-hover)] text-white font-medium transition-colors disabled:opacity-40"
                 >
                   {resettingWedding ? "초기화 중..." : "다시 시작"}
                 </button>
@@ -1547,7 +1698,7 @@ export default function SettingsPage() {
                 <div className="space-y-2">
                   {DELETE_REASONS.map((r) => (
                     <label key={r.value} className={`flex items-center gap-2.5 px-3 py-3 rounded-[6px] cursor-pointer transition-colors ${
-                      deleteReason === r.value ? "bg-[rgba(54,83,78,0.10)] ring-1 ring-[rgba(54,83,78,0.24)]" : "bg-[var(--hb-surface-hover)] bg-[#f3e9df]"
+                      deleteReason === r.value ? "bg-[rgba(54,83,78,0.10)] ring-1 ring-[rgba(54,83,78,0.24)]" : "bg-[var(--hb-surface-hover)] hover:bg-[#f3e9df]"
                     }`}>
                       <input
                         type="radio"

@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useState, useLayoutEffect, useMemo } from "react";
 import { motion } from "framer-motion";
@@ -86,6 +86,7 @@ export default function LoginPage() {
   const [success, setSuccess] = useState("");
   const [touched, setTouched] = useState({ name: false, email: false, password: false, passwordConfirm: false });
   const [turnstileToken, setTurnstileToken] = useState("");
+  const [turnstileResetKey, setTurnstileResetKey] = useState(0);
   const [cameFromStartHere, setCameFromStartHere] = useState(false);
   // 가입 동의. 로그인·비밀번호 찾기 모드에서는 쓰지 않는다.
   const [consent, setConsent] = useState<SignupConsentState>(EMPTY_SIGNUP_CONSENT);
@@ -143,12 +144,6 @@ export default function LoginPage() {
   }, []);
 
   const handleOAuth = async (provider: "kakao" | "google" | "apple") => {
-    // 소셜 경로도 계정을 만든다. 가입 모드에서 필수 동의 없이 시작하면
-    // 동의 기록 없는 계정이 생긴다.
-    if (mode === "signup" && !consentComplete) {
-      setError("이용약관과 개인정보 처리방침에 동의해주세요.");
-      return;
-    }
     setLoading(provider);
     setError("");
     // 실제 로그인 시작 시 데모 모드 쿠키 제거
@@ -250,6 +245,8 @@ export default function LoginPage() {
         const result = await res.json();
         if (!res.ok) {
           setError(result.error || "회원가입에 실패했습니다.");
+          setTurnstileToken("");
+          setTurnstileResetKey((k) => k + 1);
         } else {
           setSuccess(cameFromStartHere
             ? "인증 이메일을 보냈습니다. 같은 브라우저에서 인증하면 아모라 화면으로 이어져요."
@@ -266,6 +263,8 @@ export default function LoginPage() {
           setSuccess("비밀번호 재설정 링크를 이메일로 보냈습니다.");
         } else {
           setError("이메일 발송에 실패했습니다. 잠시 후 다시 시도해주세요.");
+          setTurnstileToken("");
+          setTurnstileResetKey((k) => k + 1);
         }
       } else {
         const { error: signInError } = await supabase.auth.signInWithPassword({
@@ -321,6 +320,10 @@ export default function LoginPage() {
       // 던진다. 그대로 붙이면 지하철·엘리베이터에서 로그인한 사람이 영어 문장을
       // 보고 자기 계정 문제로 오해한다. 원문은 위 콘솔에만 남긴다.
       setError(AUTH_ERROR_FALLBACK);
+      if (mode === "signup" || mode === "forgot") {
+        setTurnstileToken("");
+        setTurnstileResetKey((k) => k + 1);
+      }
     } finally {
       setLoading(null);
     }
@@ -392,7 +395,7 @@ export default function LoginPage() {
                     같은 브라우저에서 30분 안에 이 가입 흐름을 마치면, 임시로 남긴 첫 질문을 입력창에서 확인한 뒤 직접 보낼 수 있어요. 다른 기기나 다른 로그인 경로에서는 날짜를 다시 확인해 주세요.
                   </p>
                   <p className="mt-2 text-[12px] leading-5 text-[var(--hb-text-body)]">
-                    지금은 가입에 승인 절차가 없고 결제도 요청하지 않아요. 다만 아모라 상담은 서비스 전체에 하루 상한이 있어서, 그날 상한에 닿으면 다음 날 이어서 쓰도록 안내해요. 추가 이용 방법과 비용은 아직 정해지지 않았어요.
+                    가입 후 바로 아모라와 첫 질문을 이어갈 수 있어요. 현재 베타 기간 동안 무료로 제공됩니다.
                   </p>
                 </div>
               ) : null}
@@ -600,6 +603,7 @@ export default function LoginPage() {
                 {/* 봇 확인 — 이메일 발송 표면(회원가입·비밀번호 찾기)에 노출 */}
                 {(mode === "signup" || mode === "forgot") && TURNSTILE_ENABLED && (
                   <TurnstileWidget
+                    key={turnstileResetKey}
                     action={mode === "signup" ? "signup" : "forgot"}
                     onVerify={setTurnstileToken}
                   />

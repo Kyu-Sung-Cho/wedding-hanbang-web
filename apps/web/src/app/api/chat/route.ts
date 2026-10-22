@@ -2539,6 +2539,8 @@ export async function POST(request: Request) {
           coupleId: dataCoupleId,
           memberIds,
           allowedVisibilities: enabledMemoryVisibilities,
+          neutralMemberPresentation: usesNeutralMemberPresentation,
+          viewerUserId: actorId,
         },
       );
   if (profileNodesResult.error) {
@@ -3904,8 +3906,23 @@ export async function POST(request: Request) {
     && isDurableUserMessageBound
     && typeof bodyUserMessageId === "string"
       ? (() => {
+          const fallbackRows =
+            w4TrustedHistoryContextRows === null
+            && visibility === "shared"
+            && boundedContinuityQueryRows !== null
+              ? selectAmoraBoundedContinuityWindow({
+                  newestFirstRows: boundedContinuityQueryRows.filter((row) =>
+                    isAfterChatViewClear(row.created_at, row.visibility, chatViewClearedAt),
+                  ),
+                  requesterUserId: actorId,
+                  visibility,
+                  allowSharedPartnerConfirmation: true,
+                })
+                  .filter((row) => row.metadata?.target !== "partner")
+                  .reverse()
+              : canonicalRows;
           const historyMessages = selectAmoraTrustedHistoryRows({
-            oldestFirstRows: w4TrustedHistoryContextRows ?? canonicalRows,
+            oldestFirstRows: w4TrustedHistoryContextRows ?? fallbackRows,
             currentUserMessageId: bodyUserMessageId,
             visibility,
           })
@@ -3956,6 +3973,8 @@ export async function POST(request: Request) {
     groomName,
     // 프롬프트의 접두어 규칙이 런타임과 같은 문자열을 쓰게 한다.
     neutralMemberPresentation: usesNeutralMemberPresentation,
+    viewerUserId: actorId,
+    memberIds,
     senderName: safeSenderName,
     senderConfirmedRole,
     // Legacy booking rows are outside the current web MVP and are not sent

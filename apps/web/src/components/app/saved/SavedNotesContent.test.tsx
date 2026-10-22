@@ -128,14 +128,31 @@ describe("저장함의 실제 영수증과 편집 범위", () => {
     expect(container.textContent).not.toContain(note.content);
     expect(container.textContent).toContain("아직 저장한 답변이 없어요");
   });
-  it("파트너 저장은 삭제 버튼 없이 보여주고 공유 메모 편집은 유지한다", async () => {
+  it("파트너 저장은 삭제 버튼과 메모 수정 버튼 없이 읽기 전용으로 보여준다", async () => {
     vi.mocked(fetch).mockResolvedValueOnce(response({ notes: [{ ...note, savedByMe: false }] }));
     await render();
     expect(container.querySelector('[aria-label="저장 지우기"]')).toBeNull();
     expect(container.textContent).toContain("파트너가 저장");
-    await act(async () => button("기존 메모").click());
-    expect(container.querySelector("textarea")).not.toBeNull();
+    expect(container.textContent).toContain("기존 메모");
+    expect(Array.from(container.querySelectorAll("button")).find(value => value.textContent === "기존 메모")).toBeUndefined();
+    expect(Array.from(container.querySelectorAll("button")).find(value => value.textContent === "메모 남기기")).toBeUndefined();
+    expect(container.querySelector("textarea")).toBeNull();
     expect(fetch).toHaveBeenCalledTimes(1);
+  });
+
+  it("메모 편집 중이거나 409 충돌 상태에서도 새로고침 버튼으로 편집을 닫고 최신 목록을 다시 불러올 수 있다", async () => {
+    vi.mocked(fetch)
+      .mockResolvedValueOnce(response({ notes: [note] }))
+      .mockResolvedValueOnce(response({ error: "다른 변경과 겹쳤어요." }, 409))
+      .mockResolvedValueOnce(response({ notes: [{ ...note, memo: "최신 반영 메모" }] }));
+    await render();
+    await edit();
+    expect(button("새로고침").disabled).toBe(false);
+    await act(async () => button("메모 저장").click());
+    expect(button("새로고침").disabled).toBe(false);
+    await act(async () => button("새로고침").click());
+    expect(container.querySelector("textarea")).toBeNull();
+    expect(button("최신 반영 메모")).toBeDefined();
   });
 
   it("이전 페이지 실패에도 기존 이야기를 남기고 이어읽기 재시도로 중복 없이 합친다", async () => {

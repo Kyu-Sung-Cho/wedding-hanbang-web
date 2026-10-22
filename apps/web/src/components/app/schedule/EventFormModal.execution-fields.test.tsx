@@ -103,7 +103,7 @@ describe("EventFormModal execution fields", () => {
       setValue(status, "completed");
     });
     expect(container.textContent).toContain(
-      "파트너의 수락을 대신하지 않아요",
+      "누가 주로 챙길 일정인지 함께 표시해 둘 수 있어요",
     );
     await act(async () => {
       findButton(container, "추가").click();

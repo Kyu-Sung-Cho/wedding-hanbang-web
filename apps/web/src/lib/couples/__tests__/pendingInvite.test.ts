@@ -4,8 +4,10 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
 import {
+  clearPendingCoupleInviteCode,
   consumePendingCoupleInviteCode,
   parsePendingInvite,
+  peekPendingCoupleInviteCode,
   PENDING_INVITE_STORAGE_KEY,
   PENDING_INVITE_TTL_MS,
   rememberPendingCoupleInviteCode,
@@ -131,14 +133,32 @@ describe("초대 링크는 서버 307을 건너 코드를 나른다", () => {
     expect(landing).toContain("router.push(ONBOARDING_PATH)");
   });
 
-  it("온보딩은 마운트되면 보관을 소비한다", () => {
+  it("온보딩은 마운트되면 보관을 읽고 완료 시점에 지운다", () => {
     const onboarding = readFileSync(
       path.join(srcRoot, "app/(auth)/onboarding/page.tsx"),
       "utf8",
     );
-    expect(onboarding).toContain("consumePendingCoupleInviteCode()");
+    expect(onboarding).toContain("peekPendingCoupleInviteCode()");
+    expect(onboarding).toContain("clearPendingCoupleInviteCode()");
     // 이미 로그인한 사람은 307을 안 맞고 도착하므로 해시 경로도 살아 있어야 한다.
     expect(onboarding).toContain("parseCoupleInviteFragment(window.location.hash)");
+  });
+
+  it("peek는 유효한 코드를 지우지 않고 만료된 코드만 지운다", () => {
+    const storage = makeStorage();
+    rememberPendingCoupleInviteCode(CODE, { storage, now: NOW });
+
+    expect(peekPendingCoupleInviteCode({ storage, now: NOW + 1000 })).toBe(CODE);
+    expect(storage.data[PENDING_INVITE_STORAGE_KEY]).toBeDefined();
+
+    expect(
+      peekPendingCoupleInviteCode({ storage, now: NOW + PENDING_INVITE_TTL_MS + 1 }),
+    ).toBeNull();
+    expect(storage.data[PENDING_INVITE_STORAGE_KEY]).toBeUndefined();
+
+    rememberPendingCoupleInviteCode(CODE, { storage, now: NOW });
+    clearPendingCoupleInviteCode({ storage });
+    expect(storage.data[PENDING_INVITE_STORAGE_KEY]).toBeUndefined();
   });
 
   it("초대 코드는 온보딩 저장소(persist)에 들어가지 않는다", () => {

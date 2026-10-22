@@ -106,10 +106,16 @@ async function processJob(
 
   const { data: couple, error: coupleError } = await admin
     .from("couples")
-    .select("bride_id, groom_id")
+    .select(
+      (process.env.AMORA_NEUTRAL_PREPARATION_SPACE_ENABLED === "true"
+        ? "bride_id, groom_id, member_model_version"
+        : "bride_id, groom_id") as "bride_id, groom_id",
+    )
     .eq("id", job.couple_id)
     .maybeSingle();
   if (coupleError || !couple) throw new Error("MEMORY_COUPLE_LOOKUP_FAILED");
+  const usesNeutralMemberPresentation =
+    (couple as { member_model_version?: unknown }).member_model_version === 2;
 
   const { data: previousSummary, error: summaryLookupError } = await admin
     .from("chat_summaries")
@@ -240,6 +246,7 @@ async function processJob(
       visibility: job.visibility,
       messages: batch.messages,
       existingMemoryKeys,
+      neutralMemberPresentation: usesNeutralMemberPresentation,
       // 예산 초과로 미룰 작업이면 대화 원문이 토큰 계산 요청으로도 나가면 안 된다.
       // 그래서 같은 검사를 모든 provider 요청 앞에서 한 번 더 건다.
       beforeProviderEgress: async () => { await assertConversationPolicyCurrent(); await assertAmoraMemoryProviderBudget(admin, job.couple_id); },

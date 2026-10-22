@@ -65,6 +65,7 @@ describe("보드 안의 저장한 답변 탐색", () => {
   });
 
   it("직접 saved URL과 뒤로·앞으로를 따르고 query/hash 및 메모 초안을 보존한다", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(new Response(JSON.stringify({ notes: [{ ...note, savedByMe: true }] }), { status: 200 }));
     window.history.replaceState(null, "", "/wedding/chat/board?view=saved&utm_source=mission#anchor");
     await render(); await click(note.memo);
     const textarea = savedPanel().querySelector("textarea")!; await type(textarea, "아직 저장하지 않은 메모");
@@ -92,6 +93,7 @@ describe("보드 안의 저장한 답변 탐색", () => {
   });
 
   it("보관 탭이 숨겨진 동안 커플이 바뀌어도 이전 메모를 새 커플에 남기지 않는다", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(new Response(JSON.stringify({ notes: [{ ...note, savedByMe: true }] }), { status: 200 }));
     await render(); await click("저장한 답변"); await click(note.memo);
     await type(savedPanel().querySelector("textarea")!, "이전 커플의 미저장 메모"); await click("공유 할 일");
     mocks.auth.profile = { id: "user-a", couple_id: "couple-b" };

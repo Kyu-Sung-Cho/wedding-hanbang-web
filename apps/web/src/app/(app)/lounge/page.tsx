@@ -412,7 +412,7 @@ export default function LoungePage() {
                 이제 이 계획을 함께 봐요
               </h2>
               <p className="mt-2 text-[13px] font-medium leading-6 text-[var(--amora-soft)]">
-                이제 두 분이 함께 보는 현재 계획이에요. 이 화면을 열면서 새로 저장하거나 변경한 내용은 없어요.
+                이제 두 분이 함께 보는 현재 계획이에요. 지금까지 정리된 준비 현황을 나란히 확인해 보세요.
               </p>
             </div>
           </div>
@@ -750,7 +750,7 @@ function CohortPulsePanel({ cohort, onRetry }: { cohort: CohortState; onRetry():
 function ResourceReadError({ message, onRetry }: { message: string; onRetry(): void }) {
   return <div role="alert" className="rounded-2xl border border-[var(--amora-line)] bg-[var(--amora-bg)] p-4">
     <p className="text-[13px] font-semibold text-[var(--amora-ink)]">{message}</p>
-    <p className="mt-1 text-[12px] leading-5 text-[var(--amora-soft)]">비어 있는 상태와는 달라요. 다시 확인해 주세요.</p>
+    <p className="mt-1 text-[12px] leading-5 text-[var(--amora-soft)]">일시적인 오류로 목록을 불러오지 못했어요. 잠시 후 다시 시도해 주세요.</p>
     <button type="button" onClick={onRetry} className="mt-1 inline-flex min-h-11 items-center rounded-lg text-[13px] font-semibold text-[var(--amora-accent)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--amora-accent)]">다시 불러오기</button>
   </div>;
 }

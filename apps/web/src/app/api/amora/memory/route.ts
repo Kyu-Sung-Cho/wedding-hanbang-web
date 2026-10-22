@@ -143,7 +143,11 @@ export async function GET(request: Request) {
         .in("visibility", context.allowedVisibilities),
       admin
         .from("couples")
-        .select("bride_id, groom_id")
+        .select(
+          (process.env.AMORA_NEUTRAL_PREPARATION_SPACE_ENABLED === "true"
+            ? "bride_id, groom_id, member_model_version"
+            : "bride_id, groom_id") as "bride_id, groom_id",
+        )
         .eq("id", context.coupleId)
         .single(),
     ]);
@@ -156,6 +160,8 @@ export async function GET(request: Request) {
       });
       return NextResponse.json({ error: "기억을 불러오지 못했어요." }, { status: 503 });
     }
+    const usesNeutralMemberPresentation =
+      (coupleResult.data as { member_model_version?: unknown } | null)?.member_model_version === 2;
     const members = [...new Set(
       [coupleResult.data?.bride_id, coupleResult.data?.groom_id]
         .filter((value): value is string => typeof value === "string"),
@@ -212,6 +218,8 @@ export async function GET(request: Request) {
             coupleId: context.coupleId,
             memberIds: context.memberIds,
             allowedVisibilities: enabledProfileVisibilities,
+            neutralMemberPresentation: usesNeutralMemberPresentation,
+            viewerUserId: context.userId,
           },
         );
     if (profileNodesResult.error) {

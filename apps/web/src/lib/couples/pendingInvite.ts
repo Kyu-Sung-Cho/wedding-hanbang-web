@@ -158,6 +158,46 @@ export function rememberPendingCoupleInviteCode(
 }
 
 /**
+ * 코드를 지우지 않고 읽기만 한다. 만료되었거나 형식이 깨진 값만 저장소에서 정리한다.
+ * 온보딩 완료 전에 새로고침하거나 설정 화면으로 이동해도 코드가 사라지지 않도록 한다.
+ */
+export function peekPendingCoupleInviteCode(
+  options: PendingInviteOptions = {},
+): string | null {
+  const { storage = defaultStorage(), now = Date.now() } = options;
+  if (!storage) return null;
+
+  try {
+    const raw = storage.getItem(PENDING_INVITE_STORAGE_KEY);
+    if (raw === null) return null;
+    const code = parsePendingInvite(raw, now);
+    if (!code) {
+      storage.removeItem(PENDING_INVITE_STORAGE_KEY);
+      return null;
+    }
+    return code;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * 보관된 초대 코드를 명시적으로 비운다. 온보딩이나 파트너 연결이 완료된 뒤에 부른다.
+ */
+export function clearPendingCoupleInviteCode(
+  options: PendingInviteOptions = {},
+): void {
+  const { storage = defaultStorage() } = options;
+  if (!storage) return;
+
+  try {
+    storage.removeItem(PENDING_INVITE_STORAGE_KEY);
+  } catch {
+    // 저장소가 막힌 환경에서도 흐름을 막지 않는다.
+  }
+}
+
+/**
  * 코드를 꺼내면서 지운다. 한 번만 쓰이도록 — 온보딩을 마치고 다시 들어왔을 때 예전
  * 링크의 코드가 되살아나면, 이미 연결된 사람이 남의 코드로 합류를 시도한다.
  */

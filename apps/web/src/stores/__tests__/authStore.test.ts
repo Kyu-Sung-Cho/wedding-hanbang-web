@@ -1130,6 +1130,23 @@ describe("useAuthStore", () => {
       expect(sessionStorage.getItem("community:viewer:user-a:landing")).toBeNull();
       expect(localStorage.getItem("community:post-draft:v2:user-a")).toBeNull();
     });
+
+    it("purges onboardingStore and weddingCode19 browser storage on reset", async () => {
+      const { useOnboardingStore, ONBOARDING_STORAGE_KEY } = await import("../onboardingStore");
+      useOnboardingStore.getState().setRole("bride");
+      useOnboardingStore.getState().setCoupleAction("create");
+      sessionStorage.setItem(ONBOARDING_STORAGE_KEY, JSON.stringify({ state: { role: "bride" } }));
+      sessionStorage.setItem("hanbang:wedding-code-19:session-v1", JSON.stringify({ step: "result" }));
+      localStorage.setItem("hanbang:wedding-code-19:latest", JSON.stringify({ code: "SDMH" }));
+
+      useAuthStore.getState().reset();
+
+      expect(useOnboardingStore.getState().role).toBeNull();
+      expect(useOnboardingStore.getState().coupleAction).toBeNull();
+      expect(sessionStorage.getItem(ONBOARDING_STORAGE_KEY)).toBeNull();
+      expect(sessionStorage.getItem("hanbang:wedding-code-19:session-v1")).toBeNull();
+      expect(localStorage.getItem("hanbang:wedding-code-19:latest")).toBeNull();
+    });
   });
 
   it("purges auth and community state before sign-out I/O finishes", async () => {

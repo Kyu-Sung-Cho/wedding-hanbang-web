@@ -103,7 +103,7 @@ export const WEDDING_TOOLS: AiToolDefinition[] = [
   {
     name: "update_task_status",
     description:
-      "결혼 준비 항목의 진행 상태를 변경합니다. 사용자가 '결혼식장 계약 완료했어', '드레스 진행 중으로 바꿔줘' 같은 요청을 할 때 사용합니다.",
+      "결혼 준비 항목의 진행 상태를 변경합니다. 사용자가 '결혼식장 계약 완료했어', '드레스 진행 중으로 바꿔줘', 또는 '안 해요로 둔 분야를 다시 준비할래' 같은 요청을 할 때 사용합니다. 분야를 '안 해요'(진행률 제외)로 끄는 설정은 체크리스트 화면에서 직접 선택하도록 안내하세요.",
     input_schema: {
       type: "object" as const,
       properties: {
@@ -116,7 +116,7 @@ export const WEDDING_TOOLS: AiToolDefinition[] = [
           type: "string",
           enum: ["not_started", "in_progress", "completed"],
           description:
-            "새로운 상태. not_started=시작전, in_progress=진행중, completed=완료",
+            "새로운 상태. not_started=시작전('안 해요' 분야를 다시 준비 목록으로 되돌릴 때도 사용), in_progress=진행중, completed=완료",
         },
       },
       required: ["category", "status"],

@@ -5,10 +5,27 @@ import { createClient } from "@/lib/supabase/client";
 import { useAuthStore } from "@/stores/authStore";
 import { useChatStore } from "@/stores/chatStore";
 import { useCommunityStore } from "@/stores/communityStore";
+import { useOnboardingStore } from "@/stores/onboardingStore";
+
+function clearWeddingCode19Storage() {
+  if (typeof window === "undefined") return;
+  try {
+    window.sessionStorage.removeItem("hanbang:wedding-code-19:session-v1");
+  } catch {
+    // ignore
+  }
+  try {
+    window.localStorage.removeItem("hanbang:wedding-code-19:latest");
+  } catch {
+    // ignore
+  }
+}
 
 function resetUserScopedStores() {
   useChatStore.getState().reset();
   useCommunityStore.getState().reset();
+  useOnboardingStore.getState().reset();
+  clearWeddingCode19Storage();
 }
 
 export function useAuthSessionSync(enabled = true) {
@@ -23,6 +40,10 @@ export function useAuthSessionSync(enabled = true) {
       const afterUserId = useAuthStore.getState().user?.id ?? null;
       if (beforeUserId !== afterUserId) {
         useChatStore.getState().reset();
+        useOnboardingStore.getState().reset();
+        if (beforeUserId !== null) {
+          clearWeddingCode19Storage();
+        }
         // initialize() already purged the outgoing viewer before committing
         // the new auth identity. Keep the store bound to that new viewer.
         useCommunityStore.getState().bindViewer(afterUserId);
@@ -38,6 +59,7 @@ export function useAuthSessionSync(enabled = true) {
 
       if (currentUserId === null && nextUserId !== null) {
         useChatStore.getState().reset();
+        useOnboardingStore.getState().reset();
         // bindViewer purges all guest caches while preserving only a draft
         // explicitly marked for the login-return handoff.
         useCommunityStore.getState().bindViewer(nextUserId);

@@ -5,6 +5,7 @@ import AmoraAvatar from "@/components/ui/AmoraAvatar";
 import { useState, useCallback, useMemo } from "react";
 import Link from "next/link";
 import type { ToolExecutionResult } from "@/types/database.types";
+import { weddingLinkProps } from "@/lib/weddingPaths";
 import { formatPlaceSearchDate, getPlaceSearchPresentation } from "@hanbang/shared/place-search-presentation";
 import {
   Star,
@@ -1198,10 +1199,10 @@ function PlaceCards({ result }: { result: ToolExecutionResult }) {
               </p>
               {/* 2026-09-04: 갈 곳을 말해 놓고 길은 안 내줬다. 차단은 그대로다. */}
               <Link
-                href="/vendors"
+                {...weddingLinkProps("/price")}
                 className="mt-2 inline-flex min-h-9 items-center rounded-[6px] bg-[#C4967E]/15 px-3 text-sm font-semibold text-[#8B5E48] hover:bg-[#C4967E]/25"
               >
-                업체 탐색 열기
+                공시 가격 탐색 열기
               </Link>
             </div>
           </div>

@@ -21,6 +21,7 @@ import {
   shouldTriggerCeilingModal19,
 } from "../engine";
 import WeddingCode19Client from "@/components/weddingCode19/WeddingCode19Client";
+import { useAuthStore } from "@/stores/authStore";
 
 vi.mock("next/link", () => ({
   default: (props: React.AnchorHTMLAttributes<HTMLAnchorElement>) => (
@@ -76,9 +77,9 @@ describe("웨딩코드 19문항 마스터 데이터 & 투트랙 채점 엔진 �
     // 축 1 동점 & Q2 중립: Q1=4(+1 S), Q2=3(0), Q4=4(+1 I) -> 1 S vs 1 I 동점 -> Q2 중립이므로 Q1 방향(S) 우선!
     expect(scoreWeddingCode19({ Q1: 4, Q2: 3, Q4: 4 }).axes.axis1.winner).toBe("S");
 
-    // 축 2 동점: Q13=A(+4 D), Q5=1(+2 P), Q8=1(+2 P), Q9=3(0) -> 4 D vs 4 P 동점 -> Q13 방향(D) 우선!
+    // 축 2 동점: Q13=A(+2 D), Q5=1(+2 P), Q8=3(0), Q9=3(0) -> 2 D vs 2 P 동점 -> Q13 방향(D) 우선!
     expect(
-      scoreWeddingCode19({ Q13: "A", Q5: 1, Q8: 1, Q9: 3 }).axes.axis2.winner,
+      scoreWeddingCode19({ Q13: "A", Q5: 1, Q8: 3, Q9: 3 }).axes.axis2.winner,
     ).toBe("D");
 
     // 축 3 동점: Q14=A(+2 M), Q11=1(+2 E), Q12=3(0) -> 2 M vs 2 E 동점 -> Q14 방향(M) 우선!
@@ -159,8 +160,8 @@ describe("웨딩코드 19문항 마스터 데이터 & 투트랙 채점 엔진 �
       Q5: 5,
       Q6: 5,
       Q7: 5,
-      Q8: 4,
-      Q9: 4,
+      Q8: 3,
+      Q9: 3,
       Q10: 4,
       Q11: 4,
       Q12: 4,
@@ -173,7 +174,7 @@ describe("웨딩코드 19문항 마스터 데이터 & 투트랙 채점 엔진 �
       Q19: "B",
     };
     const report = buildPersonalReport19(sampleAnswers, ["Q6", "Q7"]);
-    // Q13=B(+4 P) vs Q5=5(+2 D), Q8=4(+1 D), Q9=4(+1 D) -> 4 D : 4 P 동점 -> Q13 방향(P) 승리!
+    // Q13=B(+2 P) vs Q5=5(+2 D), Q8=3(0), Q9=3(0) -> 동점 및 Q6=5 보정으로 Q13 방향(P) 승리!
     expect(report.axes.axis2.winner).toBe("P");
     // Q14=B(+3 E) vs Q11=4(+1 M), Q12=4(+1 M) -> 2 M : 3 E -> Q14 방향(E) 승리!
     expect(report.axes.axis3.winner).toBe("E");
@@ -192,11 +193,11 @@ describe("웨딩코드 19문항 마스터 데이터 & 투트랙 채점 엔진 �
     expect(smartEasy.axes.axis3.winner).toBe("E");
     expect(smartEasy.axes.axis3.nuanceBadge).toContain("스마트 선별형");
 
-    // Q13=B(+4 P)이고 Q6=5(하객 교통 최우선)인 경우 Q5=5, Q8=5, Q9=4(+5 D)여도 실속(P)이 역전되지 않는다
+    // Q13=B(+2 P)이고 Q6=5(하객 교통 최우선)인 경우 Q5=5, Q8=4, Q9=4(+4 D)여도 실속(P)이 역전되지 않는다
     const guestPractical = scoreWeddingCode19({
       Q5: 5,
       Q6: 5,
-      Q8: 5,
+      Q8: 4,
       Q9: 4,
       Q13: "B",
     });
@@ -324,9 +325,15 @@ describe("WeddingCode19Client 전체 인터랙션 흐름 검증", () => {
     expect(
       container.querySelector('[data-testid="wc19-partner-banner"]')?.textContent,
     ).toContain("파트너가 보낸 웨딩코드가 도착했어요!");
+    const introText =
+      container.querySelector('[data-testid="wc19-screen-intro"]')?.textContent ?? "";
+    expect(introText).toContain("총 19문항이며 약 3분이면 충분합니다.");
+    expect(introText).toContain("STEP 1 · 나의 웨딩 성향 리포트");
+    expect(introText).toContain("STEP 2 · 1:1 커플 케미 & 조율 가이드");
+    expect(introText).not.toContain("Track A · 16종 캐릭터");
     expect(
-      container.querySelector('[data-testid="wc19-screen-intro"]')?.textContent,
-    ).toContain("총 19문항이며 약 3분이면 충분합니다.");
+      container.querySelector('[data-testid="wc19-start-button"]')?.textContent,
+    ).toBe("내 웨딩코드 알아보기");
 
     // 시작 버튼 클릭
     await act(async () => {
@@ -415,6 +422,9 @@ describe("WeddingCode19Client 전체 인터랙션 흐름 검증", () => {
     expect(personalText).toContain("[타협 불가 1순위 배지]");
     // NA로 응답한 Q10(전통 예절·양가 인사 격식)은 개인 리포트에서 완전히 숨겨진다
     expect(personalText).not.toContain("전통 예절·양가 인사 격식");
+    // 빈 카테고리 박스("해당하는 항목이 없습니다.")는 렌더링되지 않는다
+    expect(personalText).not.toContain("해당하는 항목이 없습니다.");
+    expect(personalText).toContain("나만의 준비 워크스타일 & 대화 매뉴얼");
 
     // 7. 아모라 AI 맞춤 결혼 준비 시작 CTA 버튼 및 프리필 미리보기 확인
     const amoraCta = container.querySelector<HTMLAnchorElement>(
@@ -422,6 +432,9 @@ describe("WeddingCode19Client 전체 인터랙션 흐름 검증", () => {
     );
     expect(amoraCta).not.toBeNull();
     expect(amoraCta?.getAttribute("href")).toContain("/wedding/chat?prefill=");
+    expect(amoraCta?.textContent).toBe(
+      "이 웨딩코드로 아모라 AI 맞춤 결혼 준비 시작하기",
+    );
     expect(
       container.querySelector('[data-testid="wc19-amora-prefill-preview"]')
         ?.textContent,
@@ -434,6 +447,33 @@ describe("WeddingCode19Client 전체 인터랙션 흐름 검증", () => {
     expect(recommendedPriceCta).not.toBeNull();
     expect(recommendedPriceCta?.getAttribute("href")).toBe("/price/hall");
     expect(recommendedPriceCta?.textContent).toContain("예식 공간 디자인·연출");
+    expect(recommendedPriceCta?.textContent).not.toContain("[");
+  });
+
+  it("embedded=true 이고 localStorage에 완료된 기록이 있으면 즉시 결과 화면으로 열린다", async () => {
+    const preset = createVirtualPartnerAnswers19("SDMH");
+    window.localStorage.setItem(
+      "hanbang:wedding-code-19:latest",
+      JSON.stringify({
+        version: 1,
+        code: "SDMH",
+        characterName: CHARACTER_PROFILES_19.SDMH.characterName,
+        encoded: encodePartnerPayload19(preset.answers, preset.topPriorityIds),
+        savedAt: new Date().toISOString(),
+      }),
+    );
+
+    await act(async () => {
+      root = createRoot(container);
+      root.render(<WeddingCode19Client embedded />);
+    });
+
+    expect(
+      container.querySelector('[data-testid="wc19-screen-result"]'),
+    ).not.toBeNull();
+    expect(
+      container.querySelector('[data-testid="wc19-character-name"]')?.textContent,
+    ).toContain(CHARACTER_PROFILES_19.SDMH.characterName);
   });
 
   it("같은 4자리 동물 캐릭터(SDMH)가 나오더라도 19문항 응답 지문에 따라 세부 페르소나·의사결정 온도·숨은 심리가 정교하게 달라진다", () => {
@@ -514,5 +554,59 @@ describe("WeddingCode19Client 전체 인터랙션 흐름 검증", () => {
       hospitalitySwanReport.hiddenPsychology.selfDiscoveryQuestion,
     );
     expect(visualSwanReport.hiddenPsychology.partnerTranslations).toHaveLength(3);
+  });
+
+  it("마운트 시 저장된 결과만으로는 /api/amora/personalization을 자동 호출하지 않으며, 다른 계정(ownerUserId)의 기록은 격리·초기화한다", async () => {
+    const fetchSpy = vi
+      .spyOn(window, "fetch")
+      .mockImplementation(async () => new Response("{}", { status: 200 }));
+
+    useAuthStore.setState({
+      user: { id: "user-a", email: "a@example.com" },
+    });
+
+    const userAAnswers = createVirtualPartnerAnswers19("SDMH").answers;
+    window.localStorage.setItem(
+      "hanbang:wedding-code-19:latest",
+      JSON.stringify({
+        version: 1,
+        code: "SDMH",
+        characterName: CHARACTER_PROFILES_19.SDMH.characterName,
+        encoded: encodePartnerPayload19(userAAnswers, []),
+        ownerUserId: "user-a",
+        savedAt: new Date().toISOString(),
+      }),
+    );
+
+    await act(async () => {
+      root = createRoot(container);
+      root.render(<WeddingCode19Client embedded />);
+    });
+
+    // embedded 마운트로 본인(user-a) 결과를 복원하더라도 수동 클릭/완료 전에는 DB 개인화를 덮어쓰지 않는다
+    expect(
+      container.querySelector('[data-testid="wc19-screen-result"]'),
+    ).not.toBeNull();
+    expect(fetchSpy).not.toHaveBeenCalled();
+
+    // 계정이 user-b로 전환되면 user-a의 웨딩코드 결과와 브라우저 저장소를 즉시 비우고 intro로 돌아간다
+    await act(async () => {
+      useAuthStore.setState({
+        user: { id: "user-b", email: "b@example.com" },
+      });
+    });
+
+    expect(
+      container.querySelector('[data-testid="wc19-screen-intro"]'),
+    ).not.toBeNull();
+    expect(
+      container.querySelector('[data-testid="wc19-saved-latest-card"]'),
+    ).toBeNull();
+    expect(window.localStorage.getItem("hanbang:wedding-code-19:latest")).toBeNull();
+
+    await act(async () => {
+      useAuthStore.setState({ user: null });
+    });
+    fetchSpy.mockRestore();
   });
 });

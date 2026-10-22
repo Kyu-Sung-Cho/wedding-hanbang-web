@@ -216,8 +216,8 @@ describe("login return journey", () => {
     expect(container.textContent).toContain("방금 본 준비를 이어갈게요.");
     expect(container.textContent).toContain("입력창에서 확인한 뒤 직접 보낼 수 있어요");
     // /beta 승인 대기열을 가리키던 문구였다. 가입이 열린 뒤로는 승인 절차가 없다.
-    expect(container.textContent).toContain("지금은 가입에 승인 절차가 없고 결제도 요청하지 않아요");
-    expect(container.textContent).toContain("서비스 전체에 하루 상한이 있어서");
+    expect(container.textContent).toContain("가입 후 바로 아모라와 첫 질문을 이어갈 수 있어요");
+    expect(container.textContent).toContain("현재 베타 기간 동안 무료로 제공됩니다.");
 
     // ⚠️ 이 단언은 카카오 버튼을 앵커로 삼고 있었다. 카카오가 게이트 뒤로
     // 들어가 화면에서 사라진 뒤에도 **조용히 통과했다** — `.find()` 가

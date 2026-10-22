@@ -1115,13 +1115,18 @@ export async function POST(request: Request) {
       void (async () => {
         try {
           const stageTag = determineStage(weddingDate);
+          const effectiveRole = legacyFallbackRole ?? role;
+          const sourceActorRole: "bride" | "groom" | null =
+            effectiveRole === "bride" || effectiveRole === "groom"
+              ? effectiveRole
+              : null;
           const baseMeta = neutralPreparationSpace
             ? {
                 hook: "onboarding",
                 membershipMode: "neutral_preparation_space",
                 coupleAction,
               }
-            : { hook: "onboarding", role, coupleAction };
+            : { hook: "onboarding", role: effectiveRole, coupleAction };
 
           if (weddingDate && shouldRecordFullPlan) {
             await recordDecision({
@@ -1134,7 +1139,9 @@ export async function POST(request: Request) {
               stageTag,
               source: "onboarding",
               confidence: 0.95,
-              metadata: baseMeta,
+              sourceActorRole,
+              dedupeKey: "onboarding:wedding_date",
+              metadata: { ...baseMeta, dedupe_key: "onboarding:wedding_date" },
             });
           }
 
@@ -1149,7 +1156,9 @@ export async function POST(request: Request) {
               stageTag,
               source: "onboarding",
               confidence: 0.7,
-              metadata: baseMeta,
+              sourceActorRole,
+              dedupeKey: "onboarding:venue",
+              metadata: { ...baseMeta, dedupe_key: "onboarding:venue" },
             });
           }
 
@@ -1164,7 +1173,9 @@ export async function POST(request: Request) {
               stageTag,
               source: "onboarding",
               confidence: 0.9,
-              metadata: baseMeta,
+              sourceActorRole,
+              dedupeKey: "onboarding:sanggyeonrye",
+              metadata: { ...baseMeta, dedupe_key: "onboarding:sanggyeonrye" },
             });
           }
 
@@ -1179,7 +1190,9 @@ export async function POST(request: Request) {
               stageTag,
               source: "onboarding",
               confidence: 0.9,
-              metadata: baseMeta,
+              sourceActorRole,
+              dedupeKey: "onboarding:total_budget",
+              metadata: { ...baseMeta, dedupe_key: "onboarding:total_budget" },
             });
           }
         } catch (error) {

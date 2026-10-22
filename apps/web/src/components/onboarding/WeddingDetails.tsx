@@ -81,7 +81,7 @@ export default function WeddingDetails({
       {/* 두 가족이 처음 만나는 날짜 */}
       <div className="space-y-2">
         <label className="text-[14px] font-medium text-[var(--hb-text-strong)]">
-          양쪽 부모님이 처음 함께 만나는 날짜
+          상견례 (양가 첫 만남) 예정일
         </label>
         <div className="flex gap-2">
           <input
@@ -119,7 +119,7 @@ export default function WeddingDetails({
             value={venue ?? ""}
             onChange={(e) => onVenueChange(e.target.value || null)}
             disabled={venueUndecided}
-            placeholder="예: 샘플 결혼식장, 샘플 호텔"
+            placeholder="예: 희망 지역(서울 강남, 경기 분당 등) 또는 식장 이름"
             className="flex-1 px-4 py-3 rounded-[6px] border border-black/[0.06] bg-white text-[14px] text-[var(--hb-text-strong)] outline-none focus:border-rose-500 transition-colors placeholder:text-[var(--hb-text-muted)] disabled:opacity-40"
           />
           <button

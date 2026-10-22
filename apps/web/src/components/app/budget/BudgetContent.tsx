@@ -35,7 +35,7 @@ import {
 } from "lucide-react";
 import { useAuthStore } from "@/stores/authStore";
 import { formatWon } from "@/lib/formatWon";
-import { formatWeddingBudgetCeiling, parseWeddingBudgetManwonInput } from "@/lib/weddingBudget";
+import { parseWeddingBudgetManwonInput } from "@/lib/weddingBudget";
 import { formatLoungeBudgetRatio } from "@/lib/amora/loungeSummary";
 import { PLANNING_CATEGORY_LABELS } from "@/constants/planningCategories";
 import {
@@ -935,7 +935,7 @@ function ScopedBudgetContent({
     // 조건에 안 맞으면 **아무 일도 안 일어났다.** 닫히지도, 저장되지도, 말해주지도
     // 않아서 버튼이 죽은 것처럼 보였다. 0 을 넣거나 칸을 비운 사람이 그렇게 갇혔다.
     if (amount === null) {
-      setTotalBudgetError(`0보다 크고 ${formatWeddingBudgetCeiling()} 이하인 금액을 만원 단위로 넣어주세요. 소수점 아래 네 자리까지 입력할 수 있어요. 아직 안 정했다면 그냥 닫으셔도 돼요.`);
+      setTotalBudgetError("총예산을 만원 단위로 입력해 주세요 (예: 3000 = 3,000만원). 아직 정하지 않았다면 닫으셔도 괜찮아요.");
       return;
     }
     setTotalBudgetError("");
@@ -1027,7 +1027,7 @@ function ScopedBudgetContent({
               </dd>
             </div>
           </dl>
-          <p className="mt-2 text-xs leading-relaxed text-[var(--hb-summary-label,#624A3C)]">기록 지출은 결제 완료 여부와 별도로 관리해요. 남은 금액과 미배정액은 서로 다른 값이에요.</p>
+          <p className="mt-2 text-xs leading-relaxed text-[var(--hb-summary-label,#624A3C)]">항목별 배정 예산과 직접 기록한 지출 내역을 한눈에 비교해 보세요.</p>
         </section>
 
         {legacyReviewItems.length > 0 && (
@@ -1110,7 +1110,7 @@ function ScopedBudgetContent({
           </details>
         )}
 
-        <Link href="/price" className="group flex flex-wrap items-center gap-x-3.5 gap-y-2 rounded-[14px] bg-[var(--amora-warm)] px-4 py-3.5 sm:px-5 sm:py-4">
+        <Link {...weddingLinkProps("/price")} className="group flex flex-wrap items-center gap-x-3.5 gap-y-2 rounded-[14px] bg-[var(--amora-warm)] px-4 py-3.5 sm:px-5 sm:py-4">
           <span className="hidden h-[38px] w-[38px] shrink-0 items-center justify-center rounded-[10px] border border-[var(--amora-line)] bg-white text-[var(--amora-accent)] sm:flex"><TrendingUp className="h-[18px] w-[18px]" /></span>
           <div className="min-w-0 flex-1 basis-[220px]">
             <p className="text-[12.5px] font-semibold text-[var(--amora-ink)] sm:text-[13.5px]">공시가와 내 예산 확인</p>

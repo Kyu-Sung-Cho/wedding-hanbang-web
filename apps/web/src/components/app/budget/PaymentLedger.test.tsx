@@ -76,7 +76,7 @@ describe("PaymentLedger", () => {
 
     expect(container.textContent).toContain("아직 계약·지급 기록이 없어요");
     expect(container.textContent).toContain(
-      "실제 결제, 예약, 전자계약을 실행하지 않습니다",
+      "계약금·중도금·잔금 일정과 납부 내역을 두 사람이 함께 기록하는 공간이에요",
     );
     expect(container.textContent).toContain(
       "삭제 기능 대신 상태를 ‘취소됨’으로 바꿔 기록 자체를 남깁니다",

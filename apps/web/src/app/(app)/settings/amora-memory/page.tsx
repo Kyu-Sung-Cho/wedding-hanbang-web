@@ -457,7 +457,7 @@ function MemorySettingsContent({ ownerKey }: { ownerKey: string | null }) {
               title={activeVisibility === "shared"
                 ? "두 분이 모두 켜는 순간, 지금 쌓여 있는 기록이 지워져요"
                 : "켜는 순간, 지금 쌓여 있는 기록이 지워져요"}
-              body={`${describePendingPurge(setting)}. 되돌릴 수 없어요. 동의하기 전에 아모라가 혼자 정리해 둔 것이라, 켤 때는 지금부터 새로 쌓아요. 직접 고친 기억과 채팅 원문, 저장한 일정·예산은 그대로예요.`}
+              body={`${describePendingPurge(setting)}. 되돌릴 수 없어요. 이전 대화에서 임시로 요약된 기록이에요. 기억 기능을 켜면 지금부터 확인한 내용만 새로 저장해요. 직접 고친 기억과 채팅 원문, 저장한 일정·예산은 그대로예요.`}
               confirmLabel="지우고 켜기"
               cancelLabel="그대로 두기"
               busy={busy}
@@ -484,7 +484,7 @@ function MemorySettingsContent({ ownerKey }: { ownerKey: string | null }) {
             <div className="flex items-center justify-between gap-3 border-b border-[#F0ECE9] px-5 py-4 sm:px-6">
               <div>
                 <h2 className="text-[var(--hb-text-strong)]">정리된 기억 {memories.length}개</h2>
-                <p className="mt-0.5 text-xs text-[var(--hb-success)]">직접 고친 기억은 아모라가 자동으로 덮어쓰지 않아요</p>
+                <p className="mt-0.5 text-xs text-[var(--hb-text-muted)]">직접 고친 기억은 아모라가 자동으로 덮어쓰지 않아요</p>
               </div>
               {setting && !confirmClear && (
                 <button type="button" onClick={() => setConfirmClear(true)} className="min-h-11 rounded-[6px] px-3 text-sm font-medium text-red-600 hover:bg-red-50">기억 초기화</button>
@@ -534,7 +534,7 @@ function MemorySettingsContent({ ownerKey }: { ownerKey: string | null }) {
                               {memory.userCorrected && (
                                 <span className="inline-flex items-center gap-1 text-xs font-medium text-[var(--hb-success)]">
                                   <Check className="h-3 w-3" />
-                                  {activeVisibility === "shared" ? "한 사람이 직접 고침 · 공동 확인 아님" : "내가 직접 고침"}
+                                  {activeVisibility === "shared" ? "직접 수정한 기억" : "내가 직접 고침"}
                                 </span>
                               )}
                               <span className="text-xs text-[var(--hb-text-muted)]">{formatDate(memory.updatedAt)}</span>

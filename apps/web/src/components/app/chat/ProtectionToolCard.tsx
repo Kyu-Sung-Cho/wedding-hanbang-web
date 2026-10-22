@@ -2,7 +2,9 @@
 
 import { useState } from "react";
 import type { ReactNode } from "react";
+import Link from "next/link";
 import type { ToolExecutionResult } from "@/types/database.types";
+import { weddingLinkProps } from "@/lib/weddingPaths";
 import {
   CalendarClock,
   Clipboard,
@@ -223,6 +225,21 @@ function GuestGuaranteeCard({ result }: { result: ToolExecutionResult }) {
               <p className="whitespace-pre-line text-xs leading-relaxed text-[var(--hb-text-body)]">{data.venueMessage}</p>
             </section>
           )}
+
+          <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-[#EFE5DA] pt-3">
+            <Link
+              {...weddingLinkProps("/budget")}
+              className="inline-flex min-h-8 items-center rounded-[6px] border border-[#D8C7BB] bg-[#FAF8F5] px-2.5 py-1 text-xs font-medium text-[#2F5F51] hover:bg-[#F0F7F4] transition-colors"
+            >
+              예산 관리 열기
+            </Link>
+            <Link
+              {...weddingLinkProps("/schedule")}
+              className="inline-flex min-h-8 items-center rounded-[6px] border border-[#D8C7BB] bg-[#FAF8F5] px-2.5 py-1 text-xs font-medium text-[#2F5F51] hover:bg-[#F0F7F4] transition-colors"
+            >
+              일정 관리 열기
+            </Link>
+          </div>
 
           <p className="mt-3 text-[0.6875rem] leading-relaxed text-[var(--hb-text-muted)]">{data.sourceNote}</p>
         </div>

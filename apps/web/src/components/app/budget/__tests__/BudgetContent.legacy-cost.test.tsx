@@ -56,7 +56,7 @@ describe("BudgetContent legacy cost boundary", () => {
     expect(container.textContent).toContain("결혼식장 500만원");
     expect(container.textContent).toContain("예산·기록 지출 합계에서 제외");
     expect(container.textContent).toContain("기록 지출");
-    expect(container.textContent).toContain("결제 완료 여부와 별도");
+    expect(container.textContent).toContain("항목별 배정 예산과 직접 기록한 지출 내역을 한눈에 비교해 보세요.");
     expect(container.textContent).not.toContain("예산 초과");
   });
 

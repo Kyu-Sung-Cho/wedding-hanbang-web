@@ -257,7 +257,21 @@ function ScopedSavedNotesContent({ scope, embedded }: { scope: string; embedded:
           <Link {...weddingLinkProps("/chat")} className="inline-flex min-h-11 items-center underline underline-offset-4">아모라 대화</Link>
           <Link {...weddingLinkProps("/chat/board")} className="inline-flex min-h-11 items-center underline underline-offset-4">준비 보드</Link>
           </>}
-          <button type="button" disabled={status === "loading" || loadingMore || busyId !== null || editingId !== null} onClick={() => void load()} className="min-h-11 disabled:opacity-40">새로고침</button>
+          <button
+            type="button"
+            disabled={status === "loading" || loadingMore || busyId !== null}
+            onClick={() => {
+              if (pending.current || readPending.current) return;
+              setEditingId(null);
+              setMemoDraft("");
+              setMemoConflict(null);
+              setActionError(null);
+              void load();
+            }}
+            className="min-h-11 disabled:opacity-40"
+          >
+            새로고침
+          </button>
         </div>
       </header>
 
@@ -382,7 +396,7 @@ function ScopedSavedNotesContent({ scope, embedded }: { scope: string; embedded:
                     </button>
                   </div>
                 </div>
-              ) : (
+              ) : note.savedByMe ? (
                 <button
                   type="button"
                   onClick={() => {
@@ -398,7 +412,11 @@ function ScopedSavedNotesContent({ scope, embedded }: { scope: string; embedded:
                   <Pencil aria-hidden="true" className="h-3.5 w-3.5" />
                   {note.memo ? note.memo : "메모 남기기"}
                 </button>
-              )}
+              ) : note.memo ? (
+                <p className="mt-4 break-words whitespace-pre-wrap text-sm text-[var(--hb-text-muted)]">
+                  {note.memo}
+                </p>
+              ) : null}
             </li>
           ))}
         </ul>

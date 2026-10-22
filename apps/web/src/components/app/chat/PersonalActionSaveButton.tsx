@@ -7,6 +7,7 @@ import Button from "@/components/ui/Button";
 import { isPersonalActionId, normalizePersonalActionDraft, parsePersonalActionDraftMetadata, parsePersonalActionsViewMetadata } from "@hanbang/shared/amora-personal-actions";
 import { personalActionOwner, useAmoraPersonalActions } from "@/hooks/useAmoraPersonalActions";
 import { useAuthStore } from "@/stores/authStore";
+import { weddingLinkProps } from "@/lib/weddingPaths";
 import AmoraSheetFrame from "./AmoraSheetFrame";
 
 type Props = { messageId: string; coupleId: string; content: string; personalActionDraft?: unknown; personalActionsView?: unknown };
@@ -48,11 +49,11 @@ function OwnerSave({ messageId, coupleId, content, personalActionDraft, personal
   };
   return <div className="mt-2 text-sm">
     {parsePersonalActionsViewMetadata(personalActionsView) && <p className="text-xs leading-5 text-[var(--hb-text-muted)]">개인 목록에서 진행·완료 상태와 이어서 상담할 할 일을 확인해 주세요.</p>}
-    {saved ? <p role="status" className="text-[var(--hb-text-muted)]">개인 할 일을 저장했어요. <Link href="/chat/personal" className="inline-flex min-h-11 items-center underline">개인 목록 확인</Link></p>
+    {saved ? <p role="status" className="text-[var(--hb-text-muted)]">개인 할 일을 저장했어요. <Link {...weddingLinkProps("/chat/personal")} className="inline-flex min-h-11 items-center underline">개인 목록 확인</Link></p>
       : <Button variant="ghost" type="button" onClick={openPreview} className="min-h-11 gap-1.5! rounded-lg! px-2! font-normal! text-[var(--hb-text-muted)]">
         <LockKeyhole className="size-3.5" aria-hidden="true" />개인 할 일로 저장
       </Button>}
-    {!saved && <Link href="/chat/personal" className="inline-flex min-h-11 items-center px-2 underline">개인 목록 보기</Link>}
+    {!saved && <Link {...weddingLinkProps("/chat/personal")} className="inline-flex min-h-11 items-center px-2 underline">개인 목록 보기</Link>}
     {open && <AmoraSheetFrame title="개인 할 일로 저장할까요?" description="나만 보는 할 일이에요. 상대에게 공유하거나 알림을 보내지 않아요."
       disabled={!draft || busy || !owner || isDemo} busy={busy} applyLabel={busy ? "저장하는 중…" : "개인 할 일 저장"}
       error={writeError} notice={isDemo ? "체험에서는 개인 할 일을 저장하지 않아요." : null}

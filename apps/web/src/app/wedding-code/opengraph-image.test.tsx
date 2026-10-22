@@ -361,7 +361,7 @@ describe("30문항 기본 입구의 일반 공유 카드", () => {
     expect(serialized).not.toContain(url.hash.slice(1));
     expect(serialized).not.toMatch(/likert\.money|createdAt|"answers"/);
     expect(Object.prototype.hasOwnProperty.call(metadata.openGraph, "url")).toBe(false);
-    expect(metadata.description).toContain("서로 공유한 내용");
+    expect(metadata.description).toContain("19문항");
   });
 
   it("이전 후보 주소도 새 일반 카드를 쓰고 원답 fragment가 빠질 og:url을 물려받지 않는다", () => {

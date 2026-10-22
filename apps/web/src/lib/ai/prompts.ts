@@ -225,6 +225,11 @@ export type WeddingPlannerPromptContext = {
    * 없으면 false로 본다 — 기존 커플의 프롬프트는 그대로 유지된다.
    */
   neutralMemberPresentation?: boolean;
+  viewerUserId?: string | null;
+  memberIds?: {
+    bride: string | null;
+    groom: string | null;
+  };
   /**
    * 이번 사용자 메시지가 **시작점을 묻는가**(`asksWhereToStart`).
    *
@@ -1152,6 +1157,8 @@ ${profileBlocks.join("\n\n")}
     // 두면 중립 준비 공간에서 갈라진다. 기록이 없으면 아무 라벨도 붙이지 않는다.
     const actorLabelContext = {
       neutralMemberPresentation: context.neutralMemberPresentation === true,
+      viewerUserId: context.viewerUserId ?? null,
+      memberIds: context.memberIds,
     };
     const actorPrefix = (d: typeof context.pastDecisions[number]): string => {
       const role = d.sourceActorRole;

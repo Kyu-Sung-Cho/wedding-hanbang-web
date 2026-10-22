@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { arrangePreparationDecisions, parsePreparationDecisions } from "../preparationBoard";
+import { formatChosenValue, getPreparationDecisionDisplay } from "../preparationDecisionDisplay";
 
 const coupleId = "11111111-1111-4111-8111-111111111111";
 const eventId = "22222222-2222-4222-8222-222222222222";
@@ -251,6 +252,48 @@ describe("preparation decision historical display", () => {
       { ...allocation, reasoning: "직접 적은 메모" },
       { ...allocation, chosen_value: { ...allocation.chosen_value, value: "총예산 36,000,000원 기준 예산 배분 반영: 한복 1,500,000원, 예단 2,000,000원" } },
     ]) expect(parse(broken)).not.toHaveProperty("displayDetail");
+  });
+
+  it("formats vendor_booking chosen_value into displayDetail when reasoning is null or present", () => {
+    const bookingIntent = {
+      ...base,
+      category: "dress",
+      source: "vendor_booking",
+      decision_type: "considering",
+      title: "메종 드 라라 상담·예약 예정",
+      reasoning: null,
+      metadata: { origin: "booking_intent", booking_id: "b1" },
+      chosen_value: {
+        booking_id: "b1",
+        vendor_id: "v1",
+        vendor_name: "메종 드 라라",
+        product_id: "p1",
+        product_name: "본식 드레스",
+        booking_date: "2026-11-15",
+        booking_time: "14:00",
+        quoted_amount: 1500000,
+      },
+    };
+    expect(formatChosenValue(bookingIntent.chosen_value, "vendor_booking")).toBe("2026-11-15 · 14:00 · 본식 드레스 150만원");
+    expect(getPreparationDecisionDisplay(bookingIntent)).toEqual({
+      title: "메종 드 라라 상담·예약 예정",
+      detail: "2026-11-15 · 14:00 · 본식 드레스 150만원",
+    });
+    expect(parse(bookingIntent)).toMatchObject({
+      title: "메종 드 라라 상담·예약 예정",
+      displayDetail: "2026-11-15 · 14:00 · 본식 드레스 150만원",
+    });
+
+    const completedWithReview = {
+      ...bookingIntent,
+      decision_type: "completed",
+      title: "메종 드 라라 상담·방문 완료",
+      reasoning: "원장님이 친절하셨어요",
+    };
+    expect(parse(completedWithReview)).toMatchObject({
+      detail: "원장님이 친절하셨어요",
+      displayDetail: "2026-11-15 · 14:00 · 본식 드레스 150만원 · 원장님이 친절하셨어요",
+    });
   });
 });
 

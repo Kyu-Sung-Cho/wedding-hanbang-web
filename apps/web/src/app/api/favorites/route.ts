@@ -1,4 +1,5 @@
 import { createClientFromRequest } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { log } from "@/utils/log";
 import { NextRequest, NextResponse } from "next/server";
 import { mobileBridgeJson } from "@/lib/mobile/boundedJsonResponse";
@@ -171,7 +172,10 @@ export async function POST(req: Request) {
           decisionType: "considering",
           source: "manual",
           sourceRefId: vendorForFavorite.vendor_id,
-          metadata: { hook: "favorites" },
+          metadata: {
+            hook: "favorites",
+            dedupe_key: `favorite:${vendorForFavorite.vendor_id}`,
+          },
           dedupeKey: {
             sourceRefId: vendorForFavorite.vendor_id,
             source: "manual",
@@ -250,6 +254,37 @@ export async function DELETE(req: Request) {
         { status: 500, headers: MUTATION_RESPONSE_HEADERS },
       );
     }
+
+    // D2 Hook 1 cleanup: 찜 해제 시 대응하는 decision_nodes '고려 중' 기록을 superseded_at 처리 (fire-and-forget)
+    void (async () => {
+      try {
+        const admin = createAdminClient();
+        const { data: profile } = await admin
+          .from("profiles")
+          .select("couple_id")
+          .eq("id", user.id)
+          .maybeSingle();
+        const coupleId = (profile as { couple_id?: string | null } | null)?.couple_id;
+        if (!coupleId) return;
+        const supersededAt = new Date().toISOString();
+        await admin
+          .from("decision_nodes")
+          .update({ superseded_at: supersededAt })
+          .eq("couple_id", coupleId)
+          .eq("metadata->>dedupe_key", `favorite:${parsedVendorId}`)
+          .is("superseded_at", null);
+        await admin
+          .from("decision_nodes")
+          .update({ superseded_at: supersededAt })
+          .eq("couple_id", coupleId)
+          .eq("source_ref_id", parsedVendorId)
+          .eq("source", "manual")
+          .eq("decision_type", "considering")
+          .is("superseded_at", null);
+      } catch (err) {
+        console.error("[favorites delete supersede] 실패 (무시):", err);
+      }
+    })();
 
     return mobileBridgeJson(
       { isFavorite: false },

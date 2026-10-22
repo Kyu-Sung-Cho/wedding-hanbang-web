@@ -106,7 +106,7 @@ export function LoungeReferencePanels({ categoryKey, allocated }: { categoryKey:
       <p className="inline-flex items-center gap-1.5 text-[10px] text-[var(--amora-muted)]"><Split size={13} aria-hidden="true" />고른 답으로 이야기하기</p>
       <h2 className="mt-2 text-[14px] font-semibold">웨딩코드</h2>
       <p className="mt-2 text-xs leading-[1.75] text-[var(--amora-soft)]">{WEDDING_CODE_ITEMS.length}문항으로 내가 원하는 결혼식과 준비 방식을 살펴봐요. 답하기 어려운 질문은 건너뛸 수 있어요.</p>
-      <p className="mt-2 text-xs leading-[1.75] text-[var(--amora-soft)]">이어하기는 이 브라우저에 저장돼요. 별도 동의 후 답을 7일간 서버에 보관하며, 두 사람이 허용한 답만 함께 비교해요.</p>
+      <p className="mt-2 text-xs leading-[1.75] text-[var(--amora-soft)]">19문항(약 3분)으로 나의 결혼 준비 기준을 찾고 파트너와 나란히 비교해 보세요.</p>
       <Link {...weddingLinkProps("/preparation-style")} className={`mt-1 inline-flex min-h-11 items-center gap-1.5 text-[11px] font-semibold ${focus}`}>웨딩코드 보기<ArrowRight size={12} aria-hidden="true" /></Link>
     </section>
     <Link {...weddingLinkProps("/chat")} className={`block rounded-[16px] border border-[var(--hb-amora-line,#8F6662)] bg-[var(--hb-amora-surface,#FBF8F2)] p-[18px] text-[var(--hb-amora-ink,#7D5753)] transition-colors hover:bg-[var(--hb-amora-hover,#EADDD8)] ${focus}`}>

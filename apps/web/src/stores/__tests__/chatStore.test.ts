@@ -5985,4 +5985,105 @@ describe("useChatStore failed provider retry", () => {
     expect(mockSupabase.from).not.toHaveBeenCalled();
     expect(mockFetch).not.toHaveBeenCalled();
   });
+
+  it("clears couple-scoped chat state when profile.couple_id changes and filters mismatched couple_id in history and UI", async () => {
+    useAuthStore.setState({
+      user: { id: TEST_USER_UUID, email: "bride@example.com" },
+      profile: {
+        id: TEST_USER_UUID,
+        role: "bride",
+        couple_id: TEST_COUPLE_UUID,
+      } as never,
+    });
+    useChatStore.setState({
+      messages: [
+        {
+          id: "msg-old-couple",
+          couple_id: TEST_COUPLE_UUID,
+          sender_id: TEST_USER_UUID,
+          sender_role: "bride",
+          content: "OLD_COUPLE_SECRET",
+          visibility: "shared",
+          metadata: null,
+          created_at: "2026-08-03T03:00:00.000Z",
+        },
+      ],
+      suggestions: ["이전 추천"],
+      isStreaming: true,
+      streamingContent: "이전 스트리밍",
+    });
+
+    useAuthStore.setState({
+      profile: {
+        id: TEST_USER_UUID,
+        role: "bride",
+        couple_id: "20000000-0000-4000-8000-000000000099",
+      } as never,
+    });
+
+    expect(useChatStore.getState().messages).toEqual([]);
+    expect(useChatStore.getState().suggestions).toEqual([]);
+    expect(useChatStore.getState().isStreaming).toBe(false);
+    expect(useChatStore.getState().streamingContent).toBe("");
+
+    expect(chatStoreSource).toContain("(!message.couple_id || !coupleId || message.couple_id === coupleId)");
+    expect(chatContentSource).toContain("if (m.couple_id && coupleId && m.couple_id !== coupleId) return false;");
+    expect(chatContentSource).toContain('activeTab === "shared" && showMediationBanner && !isStreaming');
+    expect(chatSidePanelSource).toContain("(!message.couple_id || !coupleId || message.couple_id === coupleId)");
+  });
+
+  it("preserves an active shared stream when clearing only private messages", async () => {
+    useAuthStore.setState({
+      user: { id: TEST_USER_UUID, email: "bride@example.com" },
+      profile: {
+        id: TEST_USER_UUID,
+        role: "bride",
+        couple_id: TEST_COUPLE_UUID,
+      } as never,
+    });
+    useChatStore.setState({
+      messages: [
+        {
+          id: "shared-1",
+          couple_id: TEST_COUPLE_UUID,
+          sender_id: TEST_USER_UUID,
+          sender_role: "bride",
+          content: "함께 대화 질문",
+          visibility: "shared",
+          metadata: null,
+          created_at: "2026-08-03T03:00:00.000Z",
+        },
+        {
+          id: "private-1",
+          couple_id: TEST_COUPLE_UUID,
+          sender_id: TEST_USER_UUID,
+          sender_role: "bride",
+          content: "나만 보는 상담 질문",
+          visibility: "bride_private",
+          metadata: null,
+          created_at: "2026-08-03T03:00:00.000Z",
+        },
+      ],
+      isStreaming: true,
+      streamingContent: "함께 대화 답변 스트리밍 중",
+      suggestions: ["공유 추천"],
+      artifactVisibility: "shared",
+    });
+
+    mockIngestFetch.mockResolvedValueOnce(
+      new Response(JSON.stringify({ clearedAt: "2026-08-03T03:05:00.000Z" }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+
+    await useChatStore.getState().clearMessages(TEST_COUPLE_UUID, "view_reset_private");
+
+    const state = useChatStore.getState();
+    expect(state.messages.map((m) => m.id)).toEqual(["shared-1"]);
+    expect(state.isStreaming).toBe(true);
+    expect(state.streamingContent).toBe("함께 대화 답변 스트리밍 중");
+    expect(state.suggestions).toEqual(["공유 추천"]);
+    expect(state.artifactVisibility).toBe("shared");
+  });
 });

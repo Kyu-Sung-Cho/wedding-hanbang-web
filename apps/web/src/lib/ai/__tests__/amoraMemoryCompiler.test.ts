@@ -552,4 +552,82 @@ describe("Amora memory compiler boundary", () => {
     expect(redactPotentialSensitiveData("현재 난·임 치·료 중이에요."))
       .toBe("[민감정보 제외]");
   });
+
+  it.each([
+    "강남 웨딩홀은 보통 얼마인가요?",
+    "스드메 300만 원이면 비싼가요?",
+    "그랜드볼룸이 어떨까요?",
+  ])("drops question-only evidence instead of storing it as a memory: %s", (source) => {
+    const result = validateAmoraMemoryCompilation({
+      memories: [validMemory({
+        kind: "preference",
+        value: source,
+        evidence: source,
+      })],
+    }, sourceMap([[USER_MESSAGE_ID, source, "bride"]]));
+
+    expect(result).toEqual({ summary: null, memories: [] });
+  });
+
+  it.each([
+    "내 친구는 신라호텔로 확정했어",
+    "언니는 스드메 300만원에 계약했대",
+    "회사 동료는 하와이로 신혼여행 갔대",
+  ])("drops third-party wedding anecdotes instead of storing them as the couple's memory: %s", (source) => {
+    const result = validateAmoraMemoryCompilation({
+      memories: [validMemory({
+        kind: "decision",
+        value: source,
+        evidence: source,
+      })],
+    }, sourceMap([[USER_MESSAGE_ID, source, "bride"]]));
+
+    expect(result).toEqual({ summary: null, memories: [] });
+  });
+
+  it.each([
+    ["bride", "신랑은 야외 예식 싫대", "야외 예식 싫대"],
+    ["bride", "예랑이는 호텔 예식을 원해", "예랑이는 호텔 예식을 원해"],
+    ["groom", "신부는 채플홀을 원한대", "신부는 채플홀을 원한대"],
+    ["groom", "예신이는 드레스 투어 꼭 하고 싶대", "예신이는 드레스 투어 꼭 하고 싶대"],
+  ] as const)("drops partner reported-speech evidence misattributed to %s: %s", (actor, source, value) => {
+    const result = validateAmoraMemoryCompilation({
+      memories: [validMemory({
+        kind: "preference",
+        value,
+        evidence: source,
+      })],
+    }, sourceMap([[USER_MESSAGE_ID, source, actor]]));
+
+    expect(result).toEqual({ summary: null, memories: [] });
+  });
+
+  it("drops undecided or disputed evidence when marked as a decision", () => {
+    const source = "강남 호텔로 할지 아직 고민 중이야";
+    const result = validateAmoraMemoryCompilation({
+      memories: [validMemory({
+        kind: "decision",
+        value: "강남 호텔",
+        evidence: source,
+      })],
+    }, sourceMap([[USER_MESSAGE_ID, source, "bride"]]));
+
+    expect(result).toEqual({ summary: null, memories: [] });
+  });
+
+  it("builds neutral summary labels when neutralMemberPresentation is enabled", () => {
+    const result = validateAmoraMemoryCompilation(
+      {
+        memories: [validMemory({
+          title: "선호 지역",
+          value: "강남 호텔",
+          evidence: "강남 호텔로 결정했고",
+        })],
+      },
+      sourceMap([[USER_MESSAGE_ID, "우리는 웨딩홀을 강남 호텔로 결정했고", "bride"]]),
+      { neutralMemberPresentation: true },
+    );
+
+    expect(result.summary).toBe("- 구성원 1 · 선호 지역: 강남 호텔");
+  });
 });

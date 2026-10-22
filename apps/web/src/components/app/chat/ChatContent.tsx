@@ -67,7 +67,7 @@ import {
   CHAT_ATTACHMENT_TYPE_INFO,
   prepareChatAttachmentPayload,
 } from "@/lib/chat/attachments";
-import { weddingPath } from "@/lib/weddingPaths";
+import { weddingLinkProps, weddingPath } from "@/lib/weddingPaths";
 import { subjectParticle } from "@/lib/korean/particles";
 import { AMORA_DEMO_SUGGESTIONS, AMORA_DEMO_WELCOME } from "@/lib/chat/amoraDemoCopy";
 import { AMORA_STARTER_PROMPTS } from "@/lib/chat/amoraStarterPrompts";
@@ -3581,6 +3581,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
           // 탭별 메시지 필터링: shared 탭은 visibility=shared, private 탭은 본인 private만
           // (RLS가 이미 본인 private만 SELECT 허용하므로 클라이언트는 visibility로만 분기)
           const tabMessages = messages.filter((m) => {
+            if (m.couple_id && coupleId && m.couple_id !== coupleId) return false;
             if (activeTab === "shared") return m.visibility === "shared";
             return !!myPrivateVisibility && m.visibility === myPrivateVisibility;
           });
@@ -3975,7 +3976,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
         </div>
       )}
       {activeTab === "private" && personalContinuationNotice?.identity === composerIdentity && <div role="alert" className="mx-3 my-2 rounded-lg border border-[var(--hb-hairline)] p-3 text-sm leading-relaxed">
-        <p>{personalContinuationNotice.text}</p><Link href="/chat/personal" className="inline-flex min-h-11 items-center underline">개인 목록에서 다시 확인</Link>
+        <p>{personalContinuationNotice.text}</p><Link {...weddingLinkProps("/chat/personal")} className="inline-flex min-h-11 items-center underline">개인 목록에서 다시 확인</Link>
       </div>}
       {transientArtifactsVisible && error && !isStreaming && (
         <div
@@ -4106,7 +4107,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
       )}
 
       {/* 갈등 중재 제안 배너 */}
-      {showMediationBanner && !isStreaming && (
+      {activeTab === "shared" && showMediationBanner && !isStreaming && (
         <div className="px-2 pt-2">
           <div className="relative bg-white rounded-[6px] px-5 py-4 shadow-[var(--shadow-raised)]">
             <button
