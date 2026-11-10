@@ -18,7 +18,7 @@ import { repairMissingAmoraMemoryJobs } from "@/lib/ai/amoraMemoryRepair";
 import { AmoraMemoryConversationPolicyError, resolveAmoraMemoryConversationExclusions } from "@/lib/ai/amoraMemoryConversationPolicy";
 import {
   AmoraMemoryBudgetDeferredError,
-  assertAmoraMemoryProviderBudget,
+  createAmoraMemoryProviderBudgetGate,
   deferAmoraMemoryJobForBudget,
 } from "@/lib/ai/amoraMemoryCostGate";
 
@@ -240,6 +240,7 @@ async function processJob(
       console.warn("[amora-memory-cron] existing memory keys unavailable");
     }
 
+    const reserveProviderBudgetOnce = createAmoraMemoryProviderBudgetGate(admin, job.couple_id);
     compilation = await compileAmoraMemory({
       coupleId: job.couple_id,
       userId: job.user_id,
@@ -248,9 +249,10 @@ async function processJob(
       existingMemoryKeys,
       neutralMemberPresentation: usesNeutralMemberPresentation,
       // 예산 초과로 미룰 작업이면 대화 원문이 토큰 계산 요청으로도 나가면 안 된다.
-      // 그래서 같은 검사를 모든 provider 요청 앞에서 한 번 더 건다.
-      beforeProviderEgress: async () => { await assertConversationPolicyCurrent(); await assertAmoraMemoryProviderBudget(admin, job.couple_id); },
-      beforeGeneration: async () => { await assertConversationPolicyCurrent(); await assertAmoraMemoryProviderBudget(admin, job.couple_id); },
+      // 그래서 예산 검사를 모든 provider 요청 앞에 건다. 예약은 컴파일당 한 번이다.
+      // 두 관문이 각자 예약하면 컴파일 한 번이 전역 하루 턴 2개와 비용 2배를 가져간다.
+      beforeProviderEgress: async () => { await assertConversationPolicyCurrent(); await reserveProviderBudgetOnce(); },
+      beforeGeneration: async () => { await assertConversationPolicyCurrent(); await reserveProviderBudgetOnce(); },
     });
   } catch (error) {
     if (!(error instanceof AmoraMemoryBudgetDeferredError)) throw error;

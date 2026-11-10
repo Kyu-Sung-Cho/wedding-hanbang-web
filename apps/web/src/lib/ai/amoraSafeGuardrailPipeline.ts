@@ -1204,7 +1204,7 @@ export function inspectAmoraSafeOutputPostCheck(replyToUser: string): AmoraPostC
 
 /**
  * 웨딩 키워드를 섞은 우회 공격(입력단) 및 출력단 금지 패턴(욕설·정신병리 단정·임의 환불/쿠폰 확답)을
- * 메인 스트리밍 채팅(/api/chat)과 안전 파이프라인(/api/amora/safe-chat) 양쪽 모두에서 원천 차단한다.
+ * 메인 스트리밍 채팅(/api/chat)의 출력 정리(applyAmoraOutputHygiene)와 아래 안전 파이프라인 실행기 양쪽 모두에서 원천 차단한다.
  */
 export interface AmoraAdversarialBypassInspection {
   blocked: boolean;
@@ -1407,6 +1407,12 @@ function buildShortCircuitOutput(params: {
   };
 }
 
+/**
+ * 운영 호출부가 없다. 이 실행기를 부르던 `/api/amora/safe-chat`은 2026-11-11에 지웠다.
+ * transport.generateMainResponse 없이 부르면 아래 갈래가 비용 원장·상한·요청 제한 밖에서 유료 생성을 한다.
+ * 운영 경로에 연결하려면 원장과 요청 제한을 먼저 붙인다.
+ * `__tests__/providerEgressCallerContract.test.ts`가 그 전의 연결을 막는다.
+ */
 export async function runAmoraSafeGuardrailPipeline(
   input: RunAmoraSafeGuardrailPipelineInput,
 ): Promise<RunAmoraSafeGuardrailPipelineOutput> {

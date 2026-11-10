@@ -63,10 +63,10 @@ test("mobile schedule edit, cancellation, and restore target stable ids rather t
   assert.match(scheduleSource, /evt\.cancellation\?\.reason/);
   assert.doesNotMatch(scheduleSource, /removeScheduleEventById\(/);
   assert.doesNotMatch(scheduleSource, /Trash2/);
-  assert.match(scheduleSource, /일정 취소 요청/);
+  assert.match(scheduleSource, /일정 취소하기/);
   assert.match(scheduleSource, /승인 전 기존 일정 유지/);
   assert.match(scheduleSource, /취소됨/);
-  assert.match(scheduleSource, /복원 요청/);
+  assert.match(scheduleSource, /복원하기/);
   assert.match(scheduleSource, /restoreBtn:\s*\{[\s\S]*?minHeight:\s*44/);
   assert.match(scheduleSource, /cancelBtn:\s*\{[\s\S]*?minHeight:\s*44/);
   assert.doesNotMatch(scheduleSource, /editingIdx/);
@@ -127,6 +127,39 @@ test("mobile schedule exposes a truthful, refreshable joint-approval inbox witho
   assert.match(scheduleSource, /PLAN_CHANGE_ACTIVE_REQUEST/);
   assert.match(scheduleSource, /먼저 대기 중인 일정 변경 요청/);
   assert.doesNotMatch(scheduleSource, /요청 ID/);
+});
+
+test("mobile schedule draws the joint-approval inbox only when a request exists", () => {
+  // 2026-08-23 부터 한 사람이 저장하면 바로 반영된다. 대기 목록은 두 사람 확인이 걸린 요청만
+  // 싣는데(required_count 2), 그런 요청이 더는 만들어지지 않는다.
+  // 예전 조건은 목록을 불러오는 동안과 불러오지 못했을 때에도 이 구역을 그려서, 화면을 열 때마다
+  // "다른 사람이 확인하기 전까지 현재 일정에 반영되지 않아요" 라는 틀린 문장이 보였다.
+  // 대기 중인 요청이 실제로 있을 때만 그린다. 그때는 구역 안의 문장이 참이다.
+  assert.match(
+    scheduleSource,
+    /\{approvalRequests\.length > 0 && \(\s*<Surface style=\{styles\.approvalSection\}>/,
+  );
+  assert.doesNotMatch(
+    scheduleSource,
+    /approvalLoading \|\| approvalError \|\| approvalRequests\.length > 0/,
+  );
+});
+
+test("mobile schedule cancel and restore say what the button does, not that a request is sent", () => {
+  // 취소와 복원은 누르면 바로 반영되고 상대에게는 알림만 간다. "요청" 이라고 쓰면 상대가
+  // 승인해 주리라 믿고 누르게 된다. 웹은 2026-10-17 에 같은 말을 걷어냈다
+  // (apps/web/src/lib/__tests__/noSilentFailures.test.ts).
+  assert.match(scheduleSource, /text: "일정 취소하기"/);
+  assert.match(scheduleSource, /text: "복원하기"/);
+  assert.match(scheduleSource, /<Text style=\{styles\.restoreBtnText\}>복원하기<\/Text>/);
+  assert.match(scheduleSource, /<Text style=\{styles\.cancelBtnText\}>일정 취소<\/Text>/);
+  // 웹 가드처럼 주석까지 원문 그대로 읽는다. 옛 말이 주석에 남으면 되살리기 쉽다.
+  // 「취소 요청을 보냈어요」와 「복원 요청을 보냈어요」 둘만 남긴다. 두 사람 확인이 실제로 걸린
+  // 응답(pending_partner)에서만 뜨는 문장이라 그 상태에서는 참이다.
+  assert.doesNotMatch(
+    scheduleSource,
+    /취소 요청(?!을 보냈어요)|취소를 요청할까요|복원 요청(?!을 보냈어요)/u,
+  );
 });
 
 test("a later schedule identity load fences every earlier async result", () => {

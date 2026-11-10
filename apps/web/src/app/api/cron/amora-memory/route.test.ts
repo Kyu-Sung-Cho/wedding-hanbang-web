@@ -78,6 +78,8 @@ function createProcessJobHarness(input: {
   const jobs: MemoryTestJob[] = [];
   const commits: Array<Record<string, unknown>> = [];
   const finishes: Array<Record<string, unknown>> = [];
+  // 전역 하루 예산에서 실제로 빠져나간 예약. 호출 한 번이 턴 1개와 예약 비용 1건이다.
+  const budgetReservations: Array<Record<string, unknown>> = [];
   const policyState = { failRead: false };
 
   const resolveQuery = (state: QueryState) => {
@@ -177,6 +179,10 @@ function createProcessJobHarness(input: {
       commits.push(params);
       return { data: true, error: null };
     }
+    if (name === "reserve_amora_turn") {
+      budgetReservations.push(params);
+      return { data: [{ allowed: true, reason: null }], error: null };
+    }
     throw new Error(`unexpected rpc ${name}`);
   });
   const admin = { from, rpc };
@@ -185,6 +191,7 @@ function createProcessJobHarness(input: {
     jobs,
     commits,
     finishes,
+    budgetReservations,
     admin,
     policyState,
   };
@@ -877,5 +884,86 @@ describe("/api/cron/amora-memory source-pair recovery", () => {
       p_to_message_id: targetId,
       p_memories: [],
     }));
+  });
+
+  it("reserves the background budget once per compile even though both provider gates check it", async () => {
+    const sourceUserId = "d0000000-0000-4000-8000-000000000001";
+    const replyId = "d0000000-0000-4000-8000-000000000002";
+    const rows: MemoryTestRow[] = [
+      {
+        id: sourceUserId,
+        sender_id: brideId,
+        sender_type: "bride",
+        role: "user",
+        content: "결혼식 총예산은 3천만원으로 정할게",
+        metadata: { target: "ai" },
+        visibility: "shared",
+        created_at: "2026-08-04T00:05:01.000Z",
+      },
+      {
+        id: replyId,
+        sender_id: null,
+        sender_type: "ai",
+        role: "assistant",
+        content: "총예산 기준을 정리했어요.",
+        metadata: {
+          in_reply_to_user_message_id: sourceUserId,
+          question_scope: "W0_wedding_core",
+          memory_eligible: true,
+        },
+        visibility: "shared",
+        created_at: "2026-08-04T00:05:02.000Z",
+      },
+    ];
+    const harness = createProcessJobHarness({
+      coupleId,
+      brideId,
+      groomId,
+      rows,
+    });
+    mocks.createAdmin.mockReturnValue(harness.admin);
+    harness.jobs.push({
+      id: "e0000000-0000-4000-8000-000000000001",
+      couple_id: coupleId,
+      user_id: brideId,
+      visibility: "shared",
+      to_message_id: replyId,
+      attempt_count: 1,
+      continuation_count: 1,
+    });
+    let reservedBeforeTokenCount = -1;
+    // The real wrapper runs the egress gate before token counting and the
+    // generation gate before the paid call (auditedOpenAI.ts). Run both in
+    // that order, so the route's own gates and the real cost guard execute.
+    mocks.structuredResponse.mockImplementation(async (options: {
+      beforeProviderEgress: () => void | Promise<void>;
+      beforeGeneration: () => void | Promise<void>;
+    }) => {
+      await options.beforeProviderEgress();
+      reservedBeforeTokenCount = harness.budgetReservations.length;
+      await options.beforeGeneration();
+      return { data: { summary: null, memories: [] } };
+    });
+
+    const response = await GET(request());
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({
+      claimed: 1,
+      compiled: 1,
+      budgetDeferred: 0,
+      failed: 0,
+    });
+    expect(mocks.structuredResponse).toHaveBeenCalledTimes(1);
+    // The budget is settled before the first provider request, so a job that
+    // will be deferred never sends the conversation to token counting.
+    expect(reservedBeforeTokenCount).toBe(1);
+    // One compile is one paid call: one turn and one reservation from the
+    // global day, booked on the background ledger key.
+    expect(harness.budgetReservations).toHaveLength(1);
+    expect(harness.budgetReservations[0]).toMatchObject({
+      p_couple_id: "00000000-0000-4000-8000-000000000002",
+      p_reserve_cost_microusd: 17_680,
+    });
   });
 });

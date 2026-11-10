@@ -324,7 +324,7 @@ gate를 인자로 받아 운영 라우트가 주입한다.
 | `app/api/chat/check-couple-conflict/route.ts` | `assertPrivacyEpochStillCurrent` |
 | `app/api/community/ai-comment/route.ts` | `AMORA_COMMUNITY_AI_COMMENT_ENABLED` 재확인 |
 | `lib/ai/conflict-detector.ts` | 주입 — 운영 경로는 `check-couple-conflict/route.ts`의 `assertPrivacyEpochStillCurrent` |
-| `lib/ai/amoraMemoryCompiler.ts` | 주입 — 운영 경로는 `app/api/cron/amora-memory/route.ts`의 `assertAmoraMemoryProviderBudget` |
+| `lib/ai/amoraMemoryCompiler.ts` | 주입 — 운영 경로는 `app/api/cron/amora-memory/route.ts`의 `createAmoraMemoryProviderBudgetGate`(내부에서 `assertAmoraMemoryProviderBudget` 호출) |
 | `lib/ai/summarize.ts` | `blockLegacyAuxiliaryProviderGeneration` |
 | `lib/ai/extract-decision.ts` | `blockLegacyAuxiliaryProviderGeneration` |
 | `lib/ai/classify-excavation.ts` | `blockLegacyAuxiliaryProviderGeneration` |

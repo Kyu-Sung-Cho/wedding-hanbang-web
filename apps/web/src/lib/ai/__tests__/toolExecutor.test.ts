@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { MUTATING_TOOL_NAMES } from "../mutationTools";
 import { executeTool } from "../toolExecutor";
 import type { ToolExecutionContext } from "../tools/toolTypes";
 
@@ -31,6 +32,14 @@ function makeCtx(progress: Record<string, unknown> = {}): ToolExecutionContext {
   };
 }
 
+// 운영에서 변경 도구는 사용자가 누른 확인 카드의 action ID 와 함께만 실행기에 온다
+// (route.ts 의 executeApprovedPendingAction). 변경 도구를 실제로 실행해 보는 테스트는 이 문맥을 쓴다.
+const CONFIRMED_ACTION_ID = "00000000-0000-4000-8000-000000000004";
+
+function makeConfirmedCtx(progress: Record<string, unknown> = {}): ToolExecutionContext {
+  return { ...makeCtx(progress), pendingActionId: CONFIRMED_ACTION_ID };
+}
+
 beforeEach(() => {
   mocks.from.mockReset();
   mocks.update.mockReset();
@@ -47,18 +56,8 @@ beforeEach(() => {
       return Promise.resolve({ data: true, error: null });
     }
     if (name === "apply_amora_atomic_tool_execution") {
-      return Promise.resolve({
-        data: {
-          toolName: "update_budget",
-          toolOutput: {
-            total_budget: 30_000_000,
-            previous_budget: 50_000_000,
-          },
-          success: true,
-          displayMessage: "총예산을 5,000만원에서 3,000만원으로 변경했어요.",
-        },
-        error: null,
-      });
+      // 운영 DB 함수처럼 넘겨받은 결과를 그대로 확정해 돌려준다.
+      return Promise.resolve({ data: args.p_result, error: null });
     }
     if (name === "mark_amora_tool_execution_uncertain") {
       return Promise.resolve({ data: true, error: null });
@@ -186,24 +185,29 @@ describe("read tool error boundary", () => {
   });
 });
 
-describe("일정·예약 날짜 입력 검증 (AI 인자 방어)", () => {
-  it("add_schedule_event: 비정형 날짜는 DB에 닿기 전에 거부", async () => {
+describe("일정 날짜 입력 검증 (AI 인자 방어)", () => {
+  it("add_schedule_event: 비정형 날짜는 일정을 바꾸지 않고 거절한다", async () => {
     const result = await executeTool(
       "add_schedule_event",
       { date: "내일", title: "드레스 투어" },
-      makeCtx()
+      makeConfirmedCtx()
     );
     expect(result.success).toBe(false);
-    expect((result.toolOutput as { error?: string }).error).toBe("invalid_date");
+    expect((result.toolOutput as { error?: string }).error).toBe("invalid_schedule_event");
+    expect(mocks.rpc).toHaveBeenCalledWith(
+      "apply_amora_atomic_tool_execution",
+      expect.objectContaining({ p_domain_mutation: { kind: "none" } }),
+    );
   });
 
   it("add_schedule_event: 달력에 없는 날짜(2026-13-40) 거부", async () => {
     const result = await executeTool(
       "add_schedule_event",
       { date: "2026-13-40", title: "드레스 투어" },
-      makeCtx()
+      makeConfirmedCtx()
     );
     expect(result.success).toBe(false);
+    expect((result.toolOutput as { error?: string }).error).toBe("invalid_schedule_event");
   });
 
   it.each(["2027-02-29", "2027-02-31", "2027-04-31"])(
@@ -212,15 +216,16 @@ describe("일정·예약 날짜 입력 검증 (AI 인자 방어)", () => {
       const result = await executeTool(
         "update_wedding_date",
         { wedding_date: weddingDate },
-        makeCtx(),
+        makeConfirmedCtx(),
       );
 
       expect(result).toMatchObject({
         success: false,
-        toolOutput: { error: "invalid_date" },
+        toolOutput: { error: "invalid_wedding_date" },
       });
-      expect(mocks.rpc.mock.calls.map(([name]) => name)).not.toContain(
-        "mark_amora_tool_execution_uncertain",
+      expect(mocks.rpc).toHaveBeenCalledWith(
+        "apply_amora_atomic_tool_execution",
+        expect.objectContaining({ p_domain_mutation: { kind: "none" } }),
       );
     },
   );
@@ -232,14 +237,24 @@ describe("일정·예약 날짜 입력 검증 (AI 인자 방어)", () => {
       const result = await executeTool(
         "update_wedding_date",
         { wedding_date: "2026-07-17" },
-        makeCtx(),
+        makeConfirmedCtx(),
       );
 
       expect(result).toMatchObject({
         success: true,
         toolOutput: { wedding_date: "2026-07-17", d_day: 0 },
       });
-      expect(mocks.update).toHaveBeenCalledWith({ wedding_date: "2026-07-17" });
+      expect(mocks.rpc).toHaveBeenCalledWith(
+        "apply_amora_atomic_tool_execution",
+        expect.objectContaining({
+          p_domain_mutation: {
+            kind: "journey_wedding_date_cas",
+            expected: null,
+            value: "2026-07-17",
+          },
+        }),
+      );
+      expect(mocks.update).not.toHaveBeenCalled();
     } finally {
       vi.useRealTimers();
     }
@@ -252,45 +267,124 @@ describe("일정·예약 날짜 입력 검증 (AI 인자 방어)", () => {
       const result = await executeTool(
         "update_wedding_date",
         { wedding_date: "2026-07-16" },
-        makeCtx(),
+        makeConfirmedCtx(),
       );
 
       expect(result).toMatchObject({
         success: false,
-        toolOutput: {
-          error: "past_date_rejected",
-          attempted: "2026-07-16",
-          today: "2026-07-17",
-        },
+        toolOutput: { error: "past_date_rejected" },
       });
+      expect(mocks.rpc).toHaveBeenCalledWith(
+        "apply_amora_atomic_tool_execution",
+        expect.objectContaining({ p_domain_mutation: { kind: "none" } }),
+      );
       expect(mocks.update).not.toHaveBeenCalled();
     } finally {
       vi.useRealTimers();
     }
   });
+});
 
-  it("create_booking: 형식 불량 입력은 사전 차단", async () => {
+describe("확인 카드 없는 변경 도구는 실행기가 거절한다", () => {
+  // delete_schedule_event 는 카드가 있어도 실행하지 않는 은퇴 도구라 더 앞에서 닫힌다.
+  const CARD_GATED_TOOLS = MUTATING_TOOL_NAMES.filter((name) => name !== "delete_schedule_event");
+
+  it("변경 도구 목록을 실제로 읽었다", () => {
+    expect(CARD_GATED_TOOLS.length).toBeGreaterThanOrEqual(19);
+    expect(CARD_GATED_TOOLS).toContain("update_budget");
+  });
+
+  it.each(CARD_GATED_TOOLS)("%s: 확인 카드 없이 오면 DB 를 부르지 않고 거절한다", async (toolName) => {
+    const result = await executeTool(toolName, {}, makeCtx());
+
+    expect(result).toMatchObject({
+      success: false,
+      toolOutput: { error: "CONFIRMED_ACTION_REQUIRED", retryable: false, requires_state_review: false },
+    });
+    expect(mocks.rpc).not.toHaveBeenCalled();
+    expect(mocks.from).not.toHaveBeenCalled();
+  });
+
+  it("모델 호출 번호만 있어도 확인 카드를 대신하지 못한다", async () => {
     const result = await executeTool(
-      "create_booking",
-      { vendor_id: "v", date: "13일", time: "3시" },
-      makeCtx()
+      "update_budget",
+      { total_budget: 30_000_000 },
+      { ...makeCtx(), providerCallIndex: 1 },
     );
-    expect(result.success).toBe(false);
-    expect((result.toolOutput as { error?: string }).error).toBe("invalid_booking_input");
+
+    expect(result).toMatchObject({ success: false, toolOutput: { error: "CONFIRMED_ACTION_REQUIRED" } });
+    expect(mocks.rpc).not.toHaveBeenCalled();
+  });
+
+  it("금액을 직접 정한 예산안도 확인 카드 없이는 적용하지 않는다", async () => {
+    const result = await executeTool(
+      "apply_budget_plan",
+      {
+        total_budget: 50_000_000,
+        allocation_mode: "explicit",
+        allocations: [{ category: "studio", budget: 3_000_000 }],
+      },
+      makeCtx(),
+    );
+
+    expect(result).toMatchObject({ success: false, toolOutput: { error: "CONFIRMED_ACTION_REQUIRED" } });
+    expect(mocks.rpc).not.toHaveBeenCalled();
+  });
+
+  it("거절 문구는 반영하지 않았다는 사실을 말하고 반영된 것처럼 읽히지 않는다", async () => {
+    const result = await executeTool("update_budget", { total_budget: 30_000_000 }, makeCtx());
+
+    expect(result.displayMessage).toContain("반영하지 않았어요");
+    expect(result.displayMessage).not.toMatch(/죄송|파트너|반영했|적용했/u);
   });
 });
 
 describe("파괴적 도구 확인 게이트", () => {
-  it("delete_category: confirmed 없이 실행되지 않는다", async () => {
-    const result = await executeTool("delete_category", { category: "venue" }, makeCtx());
-    expect(result.success).toBe(false);
-    expect((result.toolOutput as { requires_confirmation?: boolean }).requires_confirmation).toBe(true);
+  const destructiveCalls: Array<[string, Record<string, unknown>]> = [
+    ["delete_category", { category: "venue", confirmed: true }],
+    ["reset_category", { category: "venue", confirmed: true }],
+    ["cancel_booking", { booking_id: "x", confirmed: true }],
+  ];
+
+  it.each(destructiveCalls)("%s: 모델이 confirmed 를 넣어도 확인 카드 없이는 실행되지 않는다", async (toolName, input) => {
+    const result = await executeTool(toolName, input, makeCtx());
+
+    expect(result).toMatchObject({
+      success: false,
+      toolOutput: { error: "CONFIRMED_ACTION_REQUIRED" },
+    });
+    expect(mocks.rpc).not.toHaveBeenCalled();
+    expect(mocks.from).not.toHaveBeenCalled();
   });
 
-  it("cancel_booking: confirmed 없이 실행되지 않는다", async () => {
-    const result = await executeTool("cancel_booking", { booking_id: "x" }, makeCtx());
-    expect(result.success).toBe(false);
-    expect((result.toolOutput as { requires_confirmation?: boolean }).requires_confirmation).toBe(true);
+  // 확인 카드가 있으면 위의 거절을 지나간다. 그때 실행기 안에서 이 도구들을 막는 것은 원자 연산이
+  // 지원하지 않는 도구에 돌려주는 '적용하지 않음' 결과 하나뿐이다. 모델이 넣은 confirmed 를
+  // 보던 옛 검사에는 실행기를 거쳐서는 더 이상 닿지 않는다.
+  const destructiveWithCard: Array<[string, Record<string, unknown>]> = [
+    ...destructiveCalls,
+    ["create_booking", { vendor_id: "v", date: "2027-03-12", time: "15:00" }],
+  ];
+
+  it.each(destructiveWithCard)("%s: 확인 카드가 있어도 아무것도 바꾸지 않는다", async (toolName, input) => {
+    const result = await executeTool(
+      toolName,
+      input,
+      makeConfirmedCtx({ venue: { category: "venue", status: "in_progress", budget: 1 } }),
+    );
+
+    expect(result).toMatchObject({
+      success: false,
+      toolOutput: { error: "TOOL_ATOMICITY_UNAVAILABLE" },
+    });
+    expect(mocks.rpc.mock.calls.map(([name]) => name)).toEqual([
+      "claim_amora_tool_execution",
+      "apply_amora_atomic_tool_execution",
+    ]);
+    expect(mocks.rpc).toHaveBeenCalledWith(
+      "apply_amora_atomic_tool_execution",
+      expect.objectContaining({ p_domain_mutation: { kind: "none" } }),
+    );
+    expect(mocks.from).not.toHaveBeenCalled();
   });
 });
 
@@ -300,17 +394,21 @@ describe("예산 변경 write fence", () => {
     1.5,
     1_000_000_001,
     "3000만원",
-  ])("총예산의 비정상 금액 %s를 DB 전에 거부한다", async (totalBudget) => {
+  ])("총예산의 비정상 금액 %s는 값을 바꾸지 않고 거부한다", async (totalBudget) => {
     const result = await executeTool(
       "update_budget",
       { total_budget: totalBudget },
-      makeCtx(),
+      makeConfirmedCtx(),
     );
 
     expect(result).toMatchObject({
       success: false,
       toolOutput: { error: "invalid_budget_amount" },
     });
+    expect(mocks.rpc).toHaveBeenCalledWith(
+      "apply_amora_atomic_tool_execution",
+      expect.objectContaining({ p_domain_mutation: { kind: "none" } }),
+    );
     expect(mocks.update).not.toHaveBeenCalled();
   });
 
@@ -320,9 +418,13 @@ describe("예산 변경 write fence", () => {
       const result = await executeTool(
         "update_budget",
         { total_budget: totalBudget },
-        makeCtx(),
+        makeConfirmedCtx(),
       );
-      expect(result.success).toBe(false);
+      expect(result).toMatchObject({
+        success: false,
+        toolOutput: { error: "INVALID_TOOL_INPUT" },
+      });
+      expect(mocks.rpc).not.toHaveBeenCalled();
       expect(mocks.update).not.toHaveBeenCalled();
     },
   );
@@ -334,14 +436,15 @@ describe("예산 변경 write fence", () => {
     { category: "dress", budget: 1_000_000_001 },
     { category: "dress" },
   ])("카테고리 예산의 비정상 입력을 거부한다: %j", async (input) => {
-    const result = await executeTool("update_category_budget", input, makeCtx());
+    const result = await executeTool("update_category_budget", input, makeConfirmedCtx());
 
     expect(result).toMatchObject({
       success: false,
       toolOutput: { error: "invalid_category_budget" },
     });
-    expect(mocks.rpc.mock.calls.map(([name]) => name)).not.toContain(
-      "apply_journey_progress_patch",
+    expect(mocks.rpc).toHaveBeenCalledWith(
+      "apply_amora_atomic_tool_execution",
+      expect.objectContaining({ p_domain_mutation: { kind: "none" } }),
     );
   });
 
@@ -349,42 +452,32 @@ describe("예산 변경 write fence", () => {
     const result = await executeTool(
       "add_custom_category",
       { label: "포토부스", budget: 1_000_000_001 },
-      makeCtx(),
+      makeConfirmedCtx(),
     );
 
     expect(result).toMatchObject({
       success: false,
-      toolOutput: { error: "invalid_category_amount", field: "budget" },
+      toolOutput: { error: "invalid_category_amount" },
     });
+    expect(mocks.rpc).toHaveBeenCalledWith(
+      "apply_amora_atomic_tool_execution",
+      expect.objectContaining({ p_domain_mutation: { kind: "none" } }),
+    );
   });
 });
 
 describe("진행 상태 원자적 갱신", () => {
-  it("상태만 바꿀 때 같은 카테고리의 예산·지출·체크리스트·메모를 보존한다", async () => {
+  // 체크리스트 배열이 있는 분야는 화면 상태가 항목에서 나오므로, 항목과 맞지 않는 상태 변경은
+  // status_follows_checklist 로 거절된다. 그래서 여기서는 체크리스트 배열 없이 나머지 값이 그대로 남는지를 본다.
+  it("상태만 바꿀 때 같은 카테고리의 예산·지출·메모를 보존한다", async () => {
     const previousCategory = {
       category: "venue",
       status: "not_started",
       budget: 20_000_000,
       spent: 3_000_000,
-      checklist: [{ id: "contract", completed: false }],
       memo: "채광 좋은 홀 우선",
     };
-    const ctx = makeCtx({ venue: previousCategory });
-    mocks.rpc.mockImplementation((name: string, args: Record<string, unknown>) => {
-      if (name === "claim_amora_tool_execution") {
-        return Promise.resolve({ data: { action: "acquired" }, error: null });
-      }
-      if (name === "apply_journey_progress_item_patch") {
-        return Promise.resolve({
-          data: { ...previousCategory, ...(args.p_item_patch as object) },
-          error: null,
-        });
-      }
-      if (name === "complete_amora_tool_execution") {
-        return Promise.resolve({ data: true, error: null });
-      }
-      return Promise.resolve({ data: null, error: { message: "unexpected rpc" } });
-    });
+    const ctx = makeConfirmedCtx({ venue: previousCategory });
 
     const result = await executeTool(
       "update_task_status",
@@ -397,32 +490,37 @@ describe("진행 상태 원자적 갱신", () => {
       ...previousCategory,
       status: "in_progress",
     });
-    expect(mocks.rpc).toHaveBeenCalledWith("apply_journey_progress_item_patch", {
-      p_couple_id: ctx.coupleId,
-      p_item_key: "venue",
-      p_item_patch: { category: "venue", status: "in_progress" },
-    });
+    expect(mocks.rpc).toHaveBeenCalledWith("apply_amora_atomic_tool_execution", expect.objectContaining({
+      p_domain_mutation: {
+        kind: "journey_progress_entry_cas",
+        key: "venue",
+        expectedPresent: true,
+        expected: previousCategory,
+        value: { ...previousCategory, status: "in_progress" },
+      },
+    }));
   });
 
   it.each([
     { category: "__events", status: "completed" },
     { category: "venue", status: "deleted" },
   ])("허용되지 않은 카테고리나 상태는 progress에 쓰지 않는다: %j", async (input) => {
-    const result = await executeTool("update_task_status", input, makeCtx());
+    const result = await executeTool("update_task_status", input, makeConfirmedCtx());
 
     expect(result).toMatchObject({
       success: false,
       toolOutput: { error: "invalid_task_status" },
     });
-    expect(mocks.rpc.mock.calls.map(([name]) => name)).not.toContain(
-      "apply_journey_progress_item_patch",
+    expect(mocks.rpc).toHaveBeenCalledWith(
+      "apply_amora_atomic_tool_execution",
+      expect.objectContaining({ p_domain_mutation: { kind: "none" } }),
     );
   });
 });
 
 describe("변경 도구 내구성 원장", () => {
   it("같은 요청의 동일 변경을 여러 라운드에서 한 번만 실행한다", async () => {
-    const ctx = makeCtx();
+    const ctx = makeConfirmedCtx();
     const input = { date: "내일", title: "드레스 투어" };
 
     const first = await executeTool("add_schedule_event", input, ctx);
@@ -430,7 +528,7 @@ describe("변경 도구 내구성 원장", () => {
 
     expect(retry).toEqual(first);
     expect(mocks.rpc.mock.calls.filter(([name]) => name === "claim_amora_tool_execution")).toHaveLength(1);
-    expect(mocks.rpc.mock.calls.filter(([name]) => name === "complete_amora_tool_execution")).toHaveLength(1);
+    expect(mocks.rpc.mock.calls.filter(([name]) => name === "apply_amora_atomic_tool_execution")).toHaveLength(1);
   });
 
   it("요청 식별자가 없으면 변경 전에 닫힌다", async () => {
@@ -463,7 +561,7 @@ describe("변경 도구 내구성 원장", () => {
     await executeTool(
       "update_budget",
       { total_budget: 30_000_000 },
-      makeCtx(),
+      makeConfirmedCtx(),
     );
 
     expect(mocks.rpc).toHaveBeenCalledWith(
@@ -502,6 +600,23 @@ describe("변경 도구 내구성 원장", () => {
     expect(mocks.update).not.toHaveBeenCalled();
   });
 
+  // 확인 카드 검사는 pendingActionId 가 아예 없을 때만 걸린다(=== undefined). 있지만 비어 있는
+  // 값은 그다음 형식 검사가 막는다. 둘 중 하나만 고쳐도 열릴 수 있는 자리라 묶어 둔다.
+  it.each([null, "", 0])("pendingActionId %j never starts a write", async (value) => {
+    const result = await executeTool(
+      "update_budget",
+      { total_budget: 30_000_000 },
+      { ...makeCtx(), pendingActionId: value as unknown as string },
+    );
+
+    expect(result).toMatchObject({
+      success: false,
+      toolOutput: { error: "INVALID_PENDING_ACTION_ID" },
+    });
+    expect(mocks.rpc).not.toHaveBeenCalled();
+    expect(mocks.from).not.toHaveBeenCalled();
+  });
+
   it("재시도에서 새 작업이 만들어지면 실제 변경 없이 차단한다", async () => {
     mocks.rpc.mockResolvedValueOnce({
       data: { action: "retry_new_operation_blocked" },
@@ -511,13 +626,15 @@ describe("변경 도구 내구성 원장", () => {
     const result = await executeTool(
       "update_budget",
       { total_budget: 30_000_000 },
-      { ...makeCtx(), requestAttemptCount: 2 },
+      { ...makeConfirmedCtx(), requestAttemptCount: 2 },
     );
 
     expect(result).toMatchObject({
       success: false,
       toolOutput: { error: "TOOL_RETRY_NEW_OPERATION_BLOCKED" },
     });
+    // claim 한 번으로 끝났다. 카드가 있는 변경은 그다음 RPC(apply_amora_atomic_tool_execution)에서만 쓴다.
+    expect(mocks.rpc).toHaveBeenCalledTimes(1);
     expect(mocks.update).not.toHaveBeenCalled();
   });
 
@@ -530,13 +647,15 @@ describe("변경 도구 내구성 원장", () => {
     const result = await executeTool(
       "update_budget",
       { total_budget: 30_000_000 },
-      makeCtx(),
+      makeConfirmedCtx(),
     );
 
     expect(result).toMatchObject({
       success: false,
       toolOutput: { error: "TOOL_CONTEXT_STALE" },
     });
+    // claim 한 번으로 끝났다. 카드가 있는 변경은 그다음 RPC(apply_amora_atomic_tool_execution)에서만 쓴다.
+    expect(mocks.rpc).toHaveBeenCalledTimes(1);
     expect(mocks.update).not.toHaveBeenCalled();
   });
 
@@ -546,7 +665,7 @@ describe("변경 도구 내구성 원장", () => {
     const result = await executeTool(
       "update_budget",
       { total_budget: 30_000_000 },
-      makeCtx()
+      makeConfirmedCtx()
     );
 
     expect(result).toMatchObject({
@@ -560,7 +679,7 @@ describe("변경 도구 내구성 원장", () => {
   });
 
   it("같은 이름의 커스텀 카테고리는 새 요청에서도 동일 키로 업데이트한다", async () => {
-    const firstContext = makeCtx();
+    const firstContext = makeConfirmedCtx();
     const first = await executeTool(
       "add_custom_category",
       { label: "신혼 여행", budget: 5_000_000 },
@@ -569,7 +688,7 @@ describe("변경 도구 내구성 원장", () => {
     expect(first.success).toBe(true);
     const key = String(first.toolOutput.key);
 
-    const secondContext = makeCtx(firstContext.weddingContext.progress as Record<string, unknown>);
+    const secondContext = makeConfirmedCtx(firstContext.weddingContext.progress as Record<string, unknown>);
     secondContext.requestKey = "chat:00000000-0000-4000-8000-000000000001:00000000-0000-4000-8000-000000000003";
     const retry = await executeTool(
       "add_custom_category",
@@ -579,35 +698,8 @@ describe("변경 도구 내구성 원장", () => {
 
     expect(retry).toMatchObject({
       success: true,
-      toolOutput: { key, created: false, budget: 6_000_000 },
+      toolOutput: { key, created: false, progress_value: { budget: 6_000_000 } },
     });
     expect(Object.keys(secondContext.weddingContext.progress).filter((item) => item.startsWith("custom_"))).toEqual([key]);
-  });
-
-  it("예산 플랜은 총액과 카테고리 배분을 한 RPC로 적용한다", async () => {
-    const ctx = makeCtx({
-      venue: { category: "venue", status: "in_progress", spent: 1_000_000 },
-    });
-    const result = await executeTool(
-      "apply_budget_plan",
-      {
-        total_budget: 30_000_000,
-        allocations: [{ category: "venue", budget: 20_000_000 }],
-        intake_summary: "채광을 우선",
-      },
-      ctx
-    );
-
-    expect(result.success).toBe(true);
-    const calls = mocks.rpc.mock.calls.filter(([name]) => name === "apply_budget_plan_atomic");
-    expect(calls).toHaveLength(1);
-    expect(calls[0]?.[1]).toMatchObject({
-      p_total_budget: 30_000_000,
-      p_progress_patch: {
-        venue: { budget: 20_000_000, spent: 1_000_000 },
-        reserve: { budget: 10_000_000 },
-      },
-    });
-    expect(ctx.weddingContext.budget).toBe(30_000_000);
   });
 });

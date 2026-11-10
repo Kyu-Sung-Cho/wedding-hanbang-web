@@ -9,6 +9,7 @@ vi.mock("@/lib/ai/costGuard", () => ({
 import {
   AmoraMemoryBudgetDeferredError,
   assertAmoraMemoryProviderBudget,
+  createAmoraMemoryProviderBudgetGate,
   deferAmoraMemoryJobForBudget,
 } from "@/lib/ai/amoraMemoryCostGate";
 
@@ -45,6 +46,45 @@ describe("Amora memory provider cost gate", () => {
       allowed: false,
       reason: "global_budget",
     });
+  });
+
+  // The cron puts the budget check in front of both provider gates (token
+  // counting and generation). One compile is one paid call, so the two gates
+  // must share one reservation instead of taking two turns from the global day.
+  it("reserves once per compile even when both provider gates ask", async () => {
+    const admin = { rpc: vi.fn() };
+    mocks.reserve.mockResolvedValue({ allowed: true });
+    const reserveOnce = createAmoraMemoryProviderBudgetGate(admin as never, COUPLE_ID);
+
+    await expect(reserveOnce()).resolves.toBeUndefined();
+    await expect(reserveOnce()).resolves.toBeUndefined();
+
+    expect(mocks.reserve).toHaveBeenCalledTimes(1);
+  });
+
+  it("gives every compile its own reservation", async () => {
+    const admin = { rpc: vi.fn() };
+    mocks.reserve.mockResolvedValue({ allowed: true });
+
+    await createAmoraMemoryProviderBudgetGate(admin as never, COUPLE_ID)();
+    await createAmoraMemoryProviderBudgetGate(admin as never, COUPLE_ID)();
+
+    expect(mocks.reserve).toHaveBeenCalledTimes(2);
+  });
+
+  it("does not reserve again after the first gate was denied", async () => {
+    const admin = { rpc: vi.fn() };
+    mocks.reserve.mockResolvedValue({ allowed: false, reason: "global_budget" });
+    const reserveOnce = createAmoraMemoryProviderBudgetGate(admin as never, COUPLE_ID);
+    const deferred = expect.objectContaining({
+      name: "AmoraMemoryBudgetDeferredError",
+      reason: "global_budget",
+    });
+
+    await expect(reserveOnce()).rejects.toEqual(deferred);
+    await expect(reserveOnce()).rejects.toEqual(deferred);
+
+    expect(mocks.reserve).toHaveBeenCalledTimes(1);
   });
 
   it("releases the exact claimed attempt without consuming it", async () => {

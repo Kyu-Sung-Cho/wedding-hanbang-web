@@ -273,6 +273,24 @@ describe("bookingTools", () => {
     expect(output.resolvedTargetMonth).toBe("2026-08");
   });
 
+  // The chat executor no longer reaches the two gates pinned by direct call in
+  // this file (malformed create input here, the confirmed flag on cancel below):
+  // it refuses a booking tool without a confirmed card, and with a card the
+  // atomic path does not support booking tools. The booking writers are kept
+  // for a later relaunch, so their own gates still need a test.
+  it("rejects a malformed create_booking date and time before any database access", async () => {
+    const result = await executeCreateBooking(
+      { vendor_id: "v", date: "13일", time: "3시" },
+      createContext(),
+    );
+
+    expect(result).toMatchObject({
+      success: false,
+      toolOutput: { error: "invalid_booking_input" },
+    });
+    expect(createAdminClientMock).not.toHaveBeenCalled();
+  });
+
   it("blocks create_booking when the user-requested date differs from tool input", async () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-06-29T15:00:00.000Z"));
@@ -574,6 +592,16 @@ describe("bookingTools", () => {
     });
     expect(result.displayMessage).toContain("같은 기록을 다시 만들 필요는 없어요");
     expect(result.displayMessage).toContain("자동으로 다시 반영");
+  });
+
+  it("does not cancel until the input carries the confirmed flag", async () => {
+    const result = await executeCancelBooking({ booking_id: "x" }, createContext());
+
+    expect(result).toMatchObject({
+      success: false,
+      toolOutput: { requires_confirmation: true, confirmation_field: "confirmed" },
+    });
+    expect(createAdminClientMock).not.toHaveBeenCalled();
   });
 
   it("does not cancel when the verified actor profile is missing", async () => {

@@ -253,6 +253,20 @@ test("budget UI distinguishes partner approval from an applied save", () => {
   assert.match(budgetSource, /verification: "unverified"/);
 });
 
+test("budget save controls say save, not request", () => {
+  // 예산은 저장하면 바로 반영되고, 연결된 상대에게는 알림만 간다(2026-08-23).
+  // 저장 버튼과 읽어 주는 이름이 "변경 요청" 이면 상대의 승인을 기다리는 것으로 읽힌다.
+  // 웹의 같은 버튼은 「저장」이다(apps/web/src/components/app/budget/BudgetContent.tsx).
+  assert.match(budgetSource, /accessibilityLabel="총 예산 저장"/);
+  assert.match(budgetSource, /accessibilityLabel="카테고리 예산 저장"/);
+  assert.match(budgetSource, /<Text style=\{s\.saveTxt\}>저장<\/Text>/);
+  // 실패 안내도 같이 본다. 버튼만 고치고 "변경 요청에 실패했어요" 가 남으면 같은 오해가 돌아온다.
+  assert.doesNotMatch(
+    budgetSource,
+    /변경 요청/u,
+  );
+});
+
 test("a cold budget screen recovers only an owner-bound requester after exact status verification", () => {
   assert.match(budgetSource, /fetchActiveBudgetApprovalStatus/);
   assert.match(

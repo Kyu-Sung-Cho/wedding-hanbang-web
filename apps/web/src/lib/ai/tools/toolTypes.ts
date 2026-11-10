@@ -22,14 +22,17 @@ export interface ToolExecutionContext {
    */
   requestAttemptCount?: number;
   /**
-   * Paid provider call whose durable journal authorized this automatic tool
-   * call. User-confirmed pending actions use pendingActionId instead.
+   * 1-based index of the paid provider call that produced this automatic
+   * tool call. It is not an authorization: executeTool never runs a mutating
+   * tool on this alone. Mutating tools need pendingActionId.
    */
   providerCallIndex?: number;
   /**
    * Server-issued approval capability for a user-confirmed pending action.
-   * When present, mutating-tool claims are additionally deduplicated for the
-   * whole couple so either partner cannot apply the approval twice.
+   * executeTool refuses every mutating tool when this is absent, so a
+   * mutating tool cannot run without a confirmed card. When present,
+   * mutating-tool claims are additionally deduplicated for the whole couple
+   * so either partner cannot apply the approval twice.
    */
   pendingActionId?: string;
   currentUserText?: string;

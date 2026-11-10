@@ -1292,6 +1292,16 @@ function buildAddActionOperation(
     }
     href = toolInput.href;
   }
+  // DB 저장 함수(apply_amora_atomic_tool_execution_pre_shared_revision)는 입력에 링크가 없으면
+  // 기본 링크를 스스로 다시 계산해 대조한다. 그 표의 진행·하객 선물 줄은 2026-07-17 값
+  // (/wedding/etiquette 그대로)에 머물러 있고, 서버 기본값은 2026-07-26 에 아모라 대화로 바뀌었다.
+  // 그래서 이 두 분야의 할 일 카드는 누르면 AMORA_ATOMIC_ACTION_HREF_INVALID 로 거절됐다
+  // (2026-11-10 운영 함수 본문으로 확인). 입력에 링크가 있으면 DB 는 저장할 값과 같은지만 본다.
+  // 그래서 이 두 분야는 서버가 고른 링크를 입력에 적어 보낸다. 위의 delete 와 같은 이유로
+  // 받은 객체를 그 자리에서 고친다. 실행기가 바로 이 객체를 p_tool_input 으로 보낸다.
+  if (toolInput.href === undefined && (categoryKey === "mc" || categoryKey === "gift")) {
+    toolInput.href = href;
+  }
   const action = {
     id: actionId,
     title,

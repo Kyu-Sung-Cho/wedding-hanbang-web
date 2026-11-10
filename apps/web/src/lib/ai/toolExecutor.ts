@@ -319,6 +319,19 @@ export async function executeTool(
     );
   }
 
+  // 변경 도구는 사용자가 확인 카드에서 확인한 변경일 때만 실행한다. 그 증표가 서버가 발급한
+  // pendingActionId 다. 채팅 라우트는 모델이 낸 변경 호출을 이미 거절하고 DB 도 카드 없는
+  // 실행 기록을 받지 않는다. 실행기도 여기서 닫아 두어, 새 호출 경로가 생겨도 카드 없는
+  // 변경이 DB 까지 가지 않게 한다. providerCallIndex 나 allocation_mode 는 카드를 대신하지 못한다.
+  if (context.pendingActionId === undefined) {
+    return failureResult(
+      toolName,
+      toolInput,
+      "CONFIRMED_ACTION_REQUIRED",
+      "확인을 받지 않은 변경이라 반영하지 않았어요. 변경할 내용을 다시 알려주세요.",
+    );
+  }
+
   if (
     context.pendingActionId !== undefined
     && (

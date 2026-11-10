@@ -451,6 +451,58 @@ describe("Amora atomic mutation coverage", () => {
     });
   });
 
+  // DB 저장 함수는 입력에 링크가 없으면 기본 링크를 스스로 다시 계산해 대조한다. 그 표의
+  // 진행·하객 선물 줄이 서버 기본값과 달라서 이 두 분야의 할 일 카드는 누르면 거절됐다.
+  // 입력에 링크가 있으면 DB 는 저장할 값과 같은지만 보므로, 서버가 고른 링크를 입력에 적는다.
+  it.each(["mc", "gift"])(
+    "writes the server-chosen link into the %s action input so the database compares it instead of recomputing",
+    (category) => {
+      const input: Record<string, unknown> = { title: "축가 부탁하기", category_key: category };
+      const operation = buildAmoraAtomicToolOperation(
+        "add_amora_action",
+        input,
+        context(),
+        "a".repeat(64),
+      );
+
+      expectAtomicSuccess(operation);
+      expect(operation.domainMutation).toMatchObject({
+        kind: "amora_action_insert",
+        action: { categoryKey: category, href: "/wedding/chat" },
+      });
+      expect(input.href).toBe("/wedding/chat");
+    },
+  );
+
+  // 분야가 있는 할 일에 모델이 다른 링크를 붙여 오면 연산이 그 링크를 지운다. 진행·하객 선물은
+  // 그 뒤에 서버 링크를 다시 적어야 한다. 같은 객체를 두 번 고치므로 순서가 바뀌면 링크가 빠진다.
+  it("replaces a model-chosen link on an mc action with the server link in the same input", () => {
+    const input: Record<string, unknown> = { title: "축가 부탁하기", category_key: "mc", href: "/wedding/budget" };
+    const operation = buildAmoraAtomicToolOperation("add_amora_action", input, context(), "a".repeat(64));
+
+    expectAtomicSuccess(operation);
+    expect(operation.domainMutation).toMatchObject({ kind: "amora_action_insert", action: { href: "/wedding/chat" } });
+    expect(input.href).toBe("/wedding/chat");
+  });
+
+  // 범위를 두 분야로 묶어 둔다. 다른 분야는 지금도 저장되므로 보내는 입력을 바꾸지 않는다.
+  it("leaves the input of other categories without a link", () => {
+    const input: Record<string, unknown> = { title: "축가 부탁하기", category_key: "venue" };
+    const operation = buildAmoraAtomicToolOperation(
+      "add_amora_action",
+      input,
+      context(),
+      "a".repeat(64),
+    );
+
+    expectAtomicSuccess(operation);
+    expect(operation.domainMutation).toMatchObject({
+      kind: "amora_action_insert",
+      action: { categoryKey: "venue", href: "/wedding/lounge" },
+    });
+    expect(input).not.toHaveProperty("href");
+  });
+
   it("does not report success for known no-op assignments", () => {
     const ctx = context();
     const cases = [

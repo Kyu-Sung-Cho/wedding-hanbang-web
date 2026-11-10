@@ -698,6 +698,87 @@ describe("/api/onboarding POST", () => {
     expect(recordDecision).not.toHaveBeenCalled();
   });
 
+  it("tells a joiner to re-enter deferred progress without waiting for a partner decision", async () => {
+    // 2026-08-23 마이그레이션(20260823120000_couple_approval_becomes_notification.sql)부터 계획 변경은
+    // 같은 호출에서 반영된다(requiredCount 1, applied). 위·아래 테스트의 pending_partner 응답은 그 뒤로
+    // 저장 호출이 주지 않는 답이라, 지금의 답과 같은 모양으로 한 번 더 본다.
+    // 총예산은 이미 반영됐고 기다릴 결정이 없다. 미뤄 둔 준비 현황 안내가 "계획 변경이 결정된 뒤" 라고
+    // 하면 합류한 사람은 오지 않을 결정을 기다리게 된다.
+    setupClients(
+      {
+        profiles: [
+          { maybeSingle: { data: { id: "user-1" }, error: null } },
+          { single: { data: { id: "user-1", couple_id: coupleId }, error: null } },
+        ],
+        wedding_journeys: [
+          {
+            maybeSingle: {
+              data: {
+                id: "journey-1",
+                wedding_date: "2027-05-08",
+                venue: "기존 웨딩홀",
+                total_budget: 20_000_000,
+                progress: {
+                  venue: { status: "in_progress", spent: 1_000_000 },
+                },
+                state_revision: 7,
+              },
+              error: null,
+            },
+          },
+        ],
+      },
+      {
+        success: true,
+        joined: true,
+        idempotent: false,
+        couple_id: coupleId,
+        invite_code: "WH-ABC123",
+        role: "bride",
+      },
+      {
+        data: {
+          requestId: "14141414-1414-4414-8414-141414141414",
+          status: "applied",
+          requiredCount: 1,
+          acceptedCount: 1,
+          isHighImpact: true,
+          appliedRevision: 8,
+          summary: "총예산: 20000000원 → 30000000원",
+          journey: {
+            couple_id: coupleId,
+            state_revision: 8,
+            progress: {
+              venue: { status: "in_progress", spent: 1_000_000 },
+            },
+          },
+        },
+        error: null,
+      },
+    );
+
+    const response = await POST(
+      onboardingRequest({
+        role: "bride",
+        coupleAction: "join",
+        partnerInviteCode: "WH-ABC123",
+        weddingDate: "2027-05-08",
+        venue: "기존 웨딩홀",
+        totalBudget: 30_000_000,
+        progress: {
+          venue: { status: "completed", spent: 2_000_000 },
+        },
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    const body = await response.json();
+    expect(body.planChange.status).toBe("applied");
+    expect(body.routineProgress.status).toBe("deferred");
+    expect(body.routineProgress.message).not.toMatch(/결정|승인|동의|기다|파트너/u);
+    expect(body.routineProgress.message).toContain("다시 입력해주세요");
+  });
+
   it("keeps a joined high-impact proposal atomic by deferring routine progress", async () => {
     let profileCompletion: unknown;
     const { admin } = setupClients(

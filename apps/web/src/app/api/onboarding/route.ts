@@ -1215,7 +1215,7 @@ export async function POST(request: Request) {
           ? {
               status: "deferred",
               message:
-                "입력한 준비 현황과 결혼식 선호는 이번 요청에 반영되지 않았어요. 계획 변경이 결정된 뒤 다시 입력해주세요.",
+                "입력한 준비 현황과 결혼식 선호는 이번 요청에 반영되지 않았어요. 저장된 준비 정보를 확인한 뒤 다시 입력해주세요.",
             }
           : undefined,
       });
