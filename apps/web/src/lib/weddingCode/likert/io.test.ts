@@ -162,7 +162,9 @@ describe("isolated Likert IO", () => {
     };
     const original = JSON.stringify(previous);
     storage.values.set(STORAGE_KEY, original);
-    const restored = loadDraft(storage);
+    // 저장 기록의 보관 기한은 마지막 저장부터 30일이다. 실제 시계로 읽으면 이 날짜가 적힌 기록은
+    // 2026-11-08 부터 기한이 지난 것으로 읽혀 시험이 누구에게나 실패한다. 저장 직후의 시각을 넘긴다.
+    const restored = loadDraft(storage, Date.parse(previous.updatedAt) + 1);
     expect(restored.draft).toEqual({ ...previous, expressionVersion: EXPRESSION_VERSION });
     expect(restored.expressionNotice).toContain("L");
     expect(restored.expressionNotice).toContain("장면");
