@@ -3,6 +3,7 @@ import {
   checkAmoraCostGuard,
   reserveAmoraProviderCall,
   reserveAmoraTurn,
+  resolveGrandfatheredCoupleDailyCap,
 } from "../costGuard";
 
 // chat_messages 카운트를 흉내내는 가짜 Supabase 클라이언트.
@@ -646,6 +647,11 @@ describe("기존 계정 면제(Grandfathering) 및 신규 계정 파트너 연�
     requestKey: "policy_request_123",
   };
 
+  // 환경변수를 바꾸는 검사가 중간에 실패해도 다음 검사로 값이 새지 않게 한다.
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
   function makePolicyAdmin(opts: {
     coupleRow: {
       created_at: string;
@@ -703,7 +709,7 @@ describe("기존 계정 면제(Grandfathering) 및 신규 계정 파트너 연�
     };
   }
 
-  it("기준 시각 이전에 이미 만들어진 기존 계정(2026-10-19)은 일일·누적 커플 제한에서 면제된다", async () => {
+  it("기준 시각 이전에 이미 만들어진 기존 계정(2026-10-19)에는 신규 계정용 한도(일일 10회 / 누적 50회)를 적용하지 않는다", async () => {
     const { admin, rpcSpy } = makePolicyAdmin({
       coupleRow: {
         created_at: "2026-10-19T12:00:00.000Z",
@@ -778,5 +784,212 @@ describe("기존 계정 면제(Grandfathering) 및 신규 계정 파트너 연�
         p_couple_cap: 80,
       }),
     );
+  });
+
+  // 2026-10-20 면제는 기존 커플에게서 누적 한도와 함께 **하루 상한까지** 걷어 냈다.
+  // 전역 하루 상한만 남으면 한 커플이 그날 전 서비스를 멈출 수 있다. 그래서 면제 전에
+  // 모든 커플에게 걸려 있던 하루 80회를 천장으로 둔다. 누적 한도는 계속 면제다.
+  const GRANDFATHERED_ROW = {
+    created_at: "2026-10-19T12:00:00.000Z",
+    bride_id: "u1",
+    groom_id: "u2",
+  };
+  // 횟수는 그 커플의 모든 대화를 두 사람 합쳐서 센다. 그래서 "이 대화에서"라고 하지 않는다.
+  const GRANDFATHERED_DAILY_MESSAGE =
+    "오늘 쓸 수 있는 상담 횟수를 다 썼어요. 내일 다시 이어서 도와드릴게요.";
+
+  it("기준 시각 이전 계정도 하루 천장(80회)에 닿으면 막고 provider 예약을 시도하지 않는다", async () => {
+    const { admin, rpcSpy } = makePolicyAdmin({
+      coupleRow: GRANDFATHERED_ROW,
+      usedToday: 80,
+      coupleTotal: 710, // 누적은 신규 한도(50)를 한참 넘는다
+    });
+
+    const result = await reserveAmoraProviderCall(admin, { ...BASE, ...RECEIPT });
+
+    expect(result).toMatchObject({ allowed: false, reason: "couple_daily" });
+    expect(rpcSpy).not.toHaveBeenCalled();
+  });
+
+  it("기준 시각 이전 계정은 천장 바로 아래(79회)에서 통과하고 누적 한도는 계속 면제된다", async () => {
+    const { admin, rpcSpy } = makePolicyAdmin({
+      coupleRow: GRANDFATHERED_ROW,
+      usedToday: 79,
+      coupleTotal: 710,
+    });
+
+    const result = await reserveAmoraProviderCall(admin, { ...BASE, ...RECEIPT });
+
+    expect(result.allowed).toBe(true);
+    // 누적 한도가 없으니 "무료 상담이 N회 남았어요" 배너에 쓸 잔여 횟수도 없다.
+    expect(result.remaining).toBeUndefined();
+    expect(rpcSpy).toHaveBeenCalledWith(
+      "reserve_amora_provider_call",
+      expect.objectContaining({
+        p_couple_cap: 2_147_483_647,
+        p_global_cap: 300,
+      }),
+    );
+  });
+
+  it("기존 계정이 천장에 닿았을 때 신규 계정 문구(하루 10회·파트너 보너스)를 보내지 않는다", async () => {
+    const { admin } = makePolicyAdmin({
+      coupleRow: GRANDFATHERED_ROW,
+      usedToday: 120,
+    });
+
+    const result = await reserveAmoraProviderCall(admin, { ...BASE, ...RECEIPT });
+
+    // 사유 코드는 같아도 "하루 10회"와 파트너 연결 보너스는 이 커플에게 사실이 아니다.
+    expect(result.message).toBe(GRANDFATHERED_DAILY_MESSAGE);
+    for (const wrong of ["10회", "15회", "+30회", "파트너", "무료", "이 대화"]) {
+      expect(result.message).not.toContain(wrong);
+    }
+  });
+
+  it("운영 설정(AMORA_COUPLE_QUOTA_ENABLED=false)에서도 기존 계정 하루 천장이 걸린다", async () => {
+    // 운영 환경 검사(scripts/check-amora-production-env.mjs)가 요구하는 두 값이다.
+    vi.stubEnv("AMORA_COUPLE_QUOTA_ENABLED", "false");
+    vi.stubEnv("AMORA_COST_GUARD_ENABLED", "true");
+    vi.resetModules();
+    const guard = await import("../costGuard");
+    const { admin, rpcSpy } = makePolicyAdmin({
+      coupleRow: GRANDFATHERED_ROW,
+      usedToday: 80,
+    });
+
+    const result = await guard.reserveAmoraProviderCall(admin, { ...BASE, ...RECEIPT });
+
+    expect(result).toMatchObject({ allowed: false, reason: "couple_daily" });
+    expect(rpcSpy).not.toHaveBeenCalled();
+  });
+
+  it("PostgREST 가 주는 시각 형식의 기존 계정도 기존 계정으로 판정한다", async () => {
+    // PostgREST 는 timestamptz 를 마이크로초와 `+00:00` 꼴로 돌려준다.
+    const coupleRow = {
+      created_at: "2026-08-25T04:12:13.442123+00:00",
+      bride_id: "u1",
+      groom_id: "u2",
+      membership_sealed_at: "2026-08-26T01:00:00+00:00",
+    };
+    const below = makePolicyAdmin({ coupleRow, usedToday: 45 });
+    const atCeiling = makePolicyAdmin({ coupleRow, usedToday: 80 });
+
+    // 신규 계정으로 읽혔다면 45회에서 이미 막혔다(파트너 연결 커플도 하루 15회).
+    const allowed = await reserveAmoraProviderCall(below.admin, { ...BASE, ...RECEIPT });
+    const denied = await reserveAmoraProviderCall(atCeiling.admin, { ...BASE, ...RECEIPT });
+
+    expect(allowed.allowed).toBe(true);
+    expect(denied).toMatchObject({
+      allowed: false,
+      reason: "couple_daily",
+      message: GRANDFATHERED_DAILY_MESSAGE,
+    });
+  });
+
+  it("기존 계정 하루 천장은 reserveAmoraTurn 경로에도 걸린다", async () => {
+    const { admin, rpcSpy } = makePolicyAdmin({
+      coupleRow: GRANDFATHERED_ROW,
+      usedToday: 80,
+    });
+
+    const result = await reserveAmoraTurn(admin, BASE);
+
+    expect(result).toMatchObject({ allowed: false, reason: "couple_daily" });
+    expect(rpcSpy).not.toHaveBeenCalled();
+  });
+
+  it("관리자·팀 테스트 계정·백그라운드 호출은 기존 계정 하루 천장을 적용받지 않는다", async () => {
+    const overCeiling = () => makePolicyAdmin({
+      coupleRow: GRANDFATHERED_ROW,
+      usedToday: 500,
+    }).admin;
+
+    const asAdmin = await reserveAmoraProviderCall(overCeiling(), {
+      ...BASE,
+      ...RECEIPT,
+      isAdmin: true,
+    });
+    const asTeam = await reserveAmoraProviderCall(overCeiling(), {
+      ...BASE,
+      ...RECEIPT,
+      isQuotaExempt: true,
+    });
+    const asBackground = await reserveAmoraProviderCall(overCeiling(), {
+      ...BASE,
+      ...RECEIPT,
+      quotaScope: "background",
+    });
+
+    expect(asAdmin.allowed).toBe(true);
+    expect(asTeam.allowed).toBe(true);
+    expect(asBackground.allowed).toBe(true);
+  });
+
+  it("AMORA_GRANDFATHERED_COUPLE_DAILY_CAP 으로 천장을 바꿀 수 있다", async () => {
+    vi.stubEnv("AMORA_GRANDFATHERED_COUPLE_DAILY_CAP", "120");
+    vi.resetModules();
+    const guard = await import("../costGuard");
+    const below = makePolicyAdmin({ coupleRow: GRANDFATHERED_ROW, usedToday: 119 });
+    const atCeiling = makePolicyAdmin({ coupleRow: GRANDFATHERED_ROW, usedToday: 120 });
+
+    const allowed = await guard.reserveAmoraProviderCall(below.admin, { ...BASE, ...RECEIPT });
+    const denied = await guard.reserveAmoraProviderCall(atCeiling.admin, { ...BASE, ...RECEIPT });
+
+    // 기본 천장(80)이었다면 119회는 막혔다.
+    expect(allowed.allowed).toBe(true);
+    expect(denied).toMatchObject({ allowed: false, reason: "couple_daily" });
+    expect(atCeiling.rpcSpy).not.toHaveBeenCalled();
+  });
+
+  it("AMORA_COUPLE_DAILY_CAP 이 천장보다 크면 기존 계정 천장이 그 값을 따라간다", async () => {
+    // 순수 함수가 맞아도 모듈이 운영 값을 넘기지 않으면 아무 일도 안 일어난다.
+    vi.stubEnv("AMORA_COUPLE_DAILY_CAP", "150");
+    vi.resetModules();
+    const guard = await import("../costGuard");
+    const below = makePolicyAdmin({ coupleRow: GRANDFATHERED_ROW, usedToday: 154 });
+    const atCeiling = makePolicyAdmin({ coupleRow: GRANDFATHERED_ROW, usedToday: 155 });
+
+    const allowed = await guard.reserveAmoraProviderCall(below.admin, { ...BASE, ...RECEIPT });
+    const denied = await guard.reserveAmoraProviderCall(atCeiling.admin, { ...BASE, ...RECEIPT });
+
+    // 천장이 기본값(80)에 묶여 있었다면 154회는 막혔다.
+    expect(allowed.allowed).toBe(true);
+    expect(denied).toMatchObject({ allowed: false, reason: "couple_daily" });
+  });
+
+  it("하루 상한 스위치를 끄면 기존 계정 천장도 꺼진다", async () => {
+    vi.stubEnv("AMORA_COUPLE_DAILY_CAP_ENABLED", "false");
+    vi.resetModules();
+    const guard = await import("../costGuard");
+    const { admin } = makePolicyAdmin({
+      coupleRow: GRANDFATHERED_ROW,
+      usedToday: 500,
+    });
+
+    const result = await guard.reserveAmoraProviderCall(admin, { ...BASE, ...RECEIPT });
+
+    expect(result.allowed).toBe(true);
+  });
+
+  it("기존 계정 천장은 신규 계정이 받을 수 있는 하루 한도보다 낮아지지 않는다", () => {
+    // 운영의 AMORA_COUPLE_DAILY_CAP 은 되읽을 수 없다. 그 값이 천장보다 크면
+    // 기존 커플이 신규 커플보다 먼저 막히므로, 천장이 그 값(+파트너 연결 5회)을 따라간다.
+    expect(resolveGrandfatheredCoupleDailyCap({
+      configuredCap: 80,
+      newCoupleDailyCap: 10,
+      partnerLinkBonusDaily: 5,
+    })).toBe(80);
+    expect(resolveGrandfatheredCoupleDailyCap({
+      configuredCap: 80,
+      newCoupleDailyCap: 150,
+      partnerLinkBonusDaily: 5,
+    })).toBe(155);
+    // 더한 값도 int4 상한에서 멈춘다(신규 커플의 하루 한도 계산과 같은 방식).
+    expect(resolveGrandfatheredCoupleDailyCap({
+      configuredCap: 2_147_483_647,
+      newCoupleDailyCap: 2_147_483_647,
+      partnerLinkBonusDaily: 5,
+    })).toBe(2_147_483_647);
   });
 });

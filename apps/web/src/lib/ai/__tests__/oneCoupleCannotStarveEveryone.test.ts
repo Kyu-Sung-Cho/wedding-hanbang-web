@@ -95,6 +95,22 @@ describe("커플당 하루 상한", () => {
     expect(result.allowed).toBe(true);
   });
 
+  it("장부를 못 읽어 통과시킬 때는 그 사실을 남긴다", async () => {
+    // 조용히 통과시키면 조회가 계속 실패할 때 하루 상한이 꺼진 채로 아무도 모른다.
+    const err = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    // 같은 대상의 spy 는 재사용된다. 이 검사에서 난 호출만 본다.
+    err.mockClear();
+    try {
+      dailyCount = null;
+      dailyError = { message: "boom", code: "57014" };
+      const result = await reserve();
+      expect(result.allowed).toBe(true);
+      expect(JSON.stringify(err.mock.calls)).toContain("couple daily count unavailable");
+    } finally {
+      err.mockRestore();
+    }
+  });
+
   it("관리자는 면제된다", async () => {
     dailyCount = 500;
     const result = await reserve(true);
@@ -295,6 +311,16 @@ describe("걸려 있는 값을 한 번은 말한다", () => {
     const info = vi.spyOn(console, "info").mockImplementation(() => undefined);
     await import("@/lib/ai/costGuard");
     expect(JSON.stringify(info.mock.calls)).toContain("costCapReachedAtTurns");
+  });
+
+  it("기존 커플 하루 천장도 함께 찍는다", async () => {
+    // 기준 시각 이전 커플에게 실제로 걸린 값은 이 로그에서만 읽을 수 있다.
+    vi.resetModules();
+    vi.restoreAllMocks();
+    const info = vi.spyOn(console, "info").mockImplementation(() => undefined);
+    await import("@/lib/ai/costGuard");
+    expect(JSON.stringify(info.mock.calls)).toContain("grandfatheredCoupleDailyCap");
+    expect(JSON.stringify(info.mock.calls)).toContain('"grandfatheredCoupleDailyCap":80');
   });
 
   it("끈 것은 숫자가 아니라 off 로 말한다", async () => {

@@ -22,7 +22,11 @@ export class AmoraMemoryBudgetDeferredError extends Error {
   }
 }
 
-/** Runs after exact token counting and immediately before the paid call. */
+/**
+ * Reserves one background provider call from the global day. The memory cron
+ * calls it once per compile through createAmoraMemoryProviderBudgetGate, in
+ * front of the first provider request (before token counting).
+ */
 export async function assertAmoraMemoryProviderBudget(
   admin: SupabaseClient,
   coupleId: string,
@@ -41,6 +45,25 @@ export async function assertAmoraMemoryProviderBudget(
   if (!reservation.allowed) {
     throw new AmoraMemoryBudgetDeferredError(reservation.reason);
   }
+}
+
+/**
+ * One compile makes one paid call, so it reserves once.
+ *
+ * The cron runs the budget check in front of both provider gates (before token
+ * counting and before generation). Each gate used to reserve on its own, so one
+ * compile took two turns and twice the cost from the global day. The second
+ * gate now waits on the first reservation.
+ */
+export function createAmoraMemoryProviderBudgetGate(
+  admin: SupabaseClient,
+  coupleId: string,
+): () => Promise<void> {
+  let reservation: Promise<void> | null = null;
+  return () => {
+    reservation ??= assertAmoraMemoryProviderBudget(admin, coupleId);
+    return reservation;
+  };
 }
 
 export async function deferAmoraMemoryJobForBudget(

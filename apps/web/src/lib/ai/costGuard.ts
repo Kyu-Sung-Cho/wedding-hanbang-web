@@ -30,6 +30,7 @@
 //   AMORA_GLOBAL_DAILY_MESSAGE_CAP (기본 300)
 //   AMORA_GLOBAL_DAILY_COST_CAP_USD (기본 $20; provider 호출 전 최악 비용 예약)
 //   AMORA_COUPLE_DAILY_CAP (기본 10; 커플당 **하루** 무료 상한)
+//   AMORA_GRANDFATHERED_COUPLE_DAILY_CAP (기본 80; 기준 시각 이전 커플의 **하루** 천장)
 //   AMORA_COUPLE_DAILY_CAP_ENABLED=false (하루 상한만 해제 — 무료 한도 스위치와 별개)
 //   AMORA_COST_GUARD_ENABLED=false 로 완전 비활성(긴급 시)
 
@@ -51,13 +52,25 @@ export const DEFAULT_COUPLE_DAILY_CAP = 10;
  * 신규 가입자 무료 상담 제한 및 파트너 연결 보너스 정책 적용 기준 시각(UTC ISO).
  *
  * 이 시각 이전에 이미 생성된 기존 커플/계정(`couples.created_at < cutoff`)은
- * 기존 이용자 보호(Grandfathering)를 위해 커플당 일일·누적 무료 상담 제한에서 면제한다.
+ * 기존 이용자 보호(Grandfathering)를 위해 신규 계정용 일일·누적 무료 상담 제한을 적용하지 않는다.
+ * 다만 하루 천장(`DEFAULT_GRANDFATHERED_COUPLE_DAILY_CAP`)은 건다.
  * 이 시각 이후 가입한 계정부터 기본 무료 한도(일일 10회 / 누적 50회)가 적용되며,
  * 파트너를 초대해 연결하면 보너스 상담 횟수(일일 +5회, 누적 +30회)가 즉시 추가된다.
  */
 export const DEFAULT_NEW_ACCOUNT_QUOTA_CUTOFF_ISO = "2026-10-20T14:00:00.000Z";
 export const PARTNER_LINK_BONUS_LIFETIME_TURNS = 30;
 export const PARTNER_LINK_BONUS_DAILY_TURNS = 5;
+/**
+ * 기준 시각 이전에 만들어진 커플이 **하루에** 쓸 수 있는 상담 턴의 천장(KST 자정 기준 리셋).
+ *
+ * 2026-10-20 면제를 넣으면서 이 커플들에게서 하루 상한이 통째로 빠졌다. 전역 하루 상한만
+ * 남으면 한 커플이 그날 전 서비스를 멈출 수 있다(2026-08-25 에 하루 상한을 만든 이유).
+ *
+ * 80은 면제 전(2026-08-25~10-20) 하루 상한의 코드 기본값이다(운영에 실제로 걸려 있던 값은 되읽을 수 없다). 2026-09-12 이후 운영에서
+ * 서비스 전체가 하루에 가장 많이 쓴 것이 33턴이라 평소 사용은 닿지 않는다.
+ * 누적 한도는 계속 면제한다.
+ */
+export const DEFAULT_GRANDFATHERED_COUPLE_DAILY_CAP = 80;
 /**
  * 채팅 하단 무료 상담 소진 예고 배너를 띄우는 잔여 횟수 임계값(일일·누적 중 더 적은 잔여 횟수 기준).
  */
@@ -147,6 +160,33 @@ const COUPLE_DAILY_CAP = readPositivePostgresInteger(
   "AMORA_COUPLE_DAILY_CAP",
   DEFAULT_COUPLE_DAILY_CAP,
 );
+/**
+ * 기존 커플의 하루 천장. 신규 커플이 받을 수 있는 가장 큰 하루 한도(파트너 연결 포함)보다
+ * 낮아지지 않게 한다. 운영의 `AMORA_COUPLE_DAILY_CAP` 이 이 천장보다 크면 기존 커플이
+ * 신규 커플보다 먼저 막히기 때문이다.
+ */
+export function resolveGrandfatheredCoupleDailyCap(input: {
+  configuredCap: number;
+  newCoupleDailyCap: number;
+  partnerLinkBonusDaily: number;
+}): number {
+  return Math.min(
+    POSTGRES_INT_MAX,
+    Math.max(
+      input.configuredCap,
+      input.newCoupleDailyCap + input.partnerLinkBonusDaily,
+    ),
+  );
+}
+
+const GRANDFATHERED_COUPLE_DAILY_CAP = resolveGrandfatheredCoupleDailyCap({
+  configuredCap: readPositivePostgresInteger(
+    "AMORA_GRANDFATHERED_COUPLE_DAILY_CAP",
+    DEFAULT_GRANDFATHERED_COUPLE_DAILY_CAP,
+  ),
+  newCoupleDailyCap: COUPLE_DAILY_CAP,
+  partnerLinkBonusDaily: PARTNER_LINK_BONUS_DAILY_TURNS,
+});
 const DEMO_GLOBAL_DAILY_CAP = readPositivePostgresInteger(
   "AMORA_DEMO_GLOBAL_DAILY_CAP",
   DEFAULT_DEMO_GLOBAL_DAILY_CAP,
@@ -172,7 +212,7 @@ const NEW_ACCOUNT_QUOTA_CUTOFF_MS = readCutoffTimestampMs(
 );
 
 export interface CoupleQuotaPolicy {
-  /** 기준 시각 이전에 생성된 기존 계정/커플 여부 (true면 커플 일일·누적 제한 면제) */
+  /** 기준 시각 이전에 생성된 기존 계정/커플 여부 (true면 누적 제한 면제, 하루는 기존 커플 천장 적용) */
   isGrandfathered: boolean;
   /** 파트너 초대·연결 완료 여부 (신규 계정이 파트너 연결 시 보너스 턴 부여) */
   isPartnerLinked: boolean;
@@ -230,7 +270,7 @@ export async function resolveCoupleQuotaPolicy(
           isGrandfathered: true,
           isPartnerLinked,
           lifetimeCap: POSTGRES_INT_MAX,
-          dailyCap: POSTGRES_INT_MAX,
+          dailyCap: GRANDFATHERED_COUPLE_DAILY_CAP,
         };
       }
     }
@@ -326,6 +366,9 @@ console.info("[costGuard] config", {
   guardEnabled: GUARD_ENABLED,
   coupleLifetimeQuota: COUPLE_QUOTA_ENABLED ? FREE_PER_COUPLE : "off",
   coupleDailyCap: COUPLE_DAILY_CAP_ENABLED ? COUPLE_DAILY_CAP : "off",
+  grandfatheredCoupleDailyCap: COUPLE_DAILY_CAP_ENABLED
+    ? GRANDFATHERED_COUPLE_DAILY_CAP
+    : "off",
   globalDailyTurns: GLOBAL_DAILY_CAP,
   globalDailyCostUsd: GLOBAL_DAILY_COST_CAP_MICROUSD / 1_000_000,
   // 턴당 실측 $0.027(2026-08-25 운영 5일치) 로 나눈 값. 비용 상한이 먼저
@@ -427,6 +470,18 @@ const DENY_COUPLE_DAILY: CostGuardResult = {
   reason: "couple_daily",
   message:
     "오늘 무료로 제공되는 아모라 상담(기본 하루 10회, 파트너 연결 시 15회)을 모두 사용했어요. 내일 자정(KST)에 다시 이어서 도와드릴게요. 아직 파트너를 연결하지 않았다면 설정에서 파트너 연결 시 일일 한도와 누적 보너스(+30회)가 즉시 늘어나며, 예산·체크리스트·일정·견적 진단 기능은 지금도 자유롭게 이용하실 수 있어요.",
+};
+
+// 기준 시각 이전 커플이 하루 천장에 닿았을 때. 사유 코드는 같고(couple_daily) 문구만 다르다.
+// 신규 계정 문구의 "하루 10회"와 파트너 연결 보너스는 이 커플들에게 사실이 아니다.
+// 문구는 면제 전(2026-08-25~10-20)에 같은 상한에서 쓰던 것에서 "이 대화에서"만 뺐다.
+// 횟수는 그 커플의 모든 대화를 두 사람 합쳐서 세므로, 다른 대화에는 남아 있다고 읽히면 안 된다.
+// 모바일 앱은 사유 코드로 자기 문구를 고르므로 이 문장은 웹에서만 보인다(앱은 신규 계정 문구를 보여 준다).
+const DENY_GRANDFATHERED_DAILY: CostGuardResult = {
+  allowed: false,
+  reason: "couple_daily",
+  message:
+    "오늘 쓸 수 있는 상담 횟수를 다 썼어요. 내일 다시 이어서 도와드릴게요.",
 };
 
 const DENY_UNAVAILABLE: CostGuardResult = {
@@ -531,6 +586,12 @@ export async function reserveAmoraTurn(
   }
 }
 
+// 세지 못하면 통과시킨다(공정성 한도이지 지갑이 아니다). 대신 그 사실은 남긴다.
+// 조용히 실패하면 하루 상한이 꺼진 채로 아무도 모른다.
+function reportCoupleDailyCountUnavailable(code: string): void {
+  console.error("[costGuard] couple daily count unavailable (allowed):", code);
+}
+
 /**
  * 오늘(KST) 이 커플이 쓴 상담 턴 수.
  *
@@ -559,9 +620,15 @@ async function countCoupleTurnsToday(
       .eq("couple_id", coupleId)
       .eq("interaction_type", "chat_turn")
       .gte("created_at", startKstMidnightUtc.toISOString());
-    if (error) return null;
-    return typeof count === "number" ? count : null;
+    if (error || typeof count !== "number") {
+      reportCoupleDailyCountUnavailable(
+        error ? (error.code || "query_error") : "no_count",
+      );
+      return null;
+    }
+    return count;
   } catch {
+    reportCoupleDailyCountUnavailable("exception");
     return null;
   }
 }
@@ -592,11 +659,12 @@ async function checkCoupleDailyUsage(
     && COUPLE_DAILY_CAP_ENABLED;
   if (!applies) return { denied: null };
   const policy = preloadedPolicy ?? await resolveCoupleQuotaPolicy(admin, params.coupleId);
-  if (policy.isGrandfathered) return { denied: null };
   const usedToday = await countCoupleTurnsToday(admin, params.coupleId);
   if (usedToday === null) return { denied: null };
   if (usedToday >= policy.dailyCap) {
-    return { denied: DENY_COUPLE_DAILY };
+    return {
+      denied: policy.isGrandfathered ? DENY_GRANDFATHERED_DAILY : DENY_COUPLE_DAILY,
+    };
   }
   return {
     denied: null,
