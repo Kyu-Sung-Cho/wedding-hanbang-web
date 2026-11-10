@@ -121,6 +121,47 @@ describe("provider egress gate — production caller contract (P0-5)", () => {
   });
 });
 
+// ── 원장 밖 유료 실행기: 운영 호출부 0곳 ─────────────────────────────────────
+//
+// `runAmoraSafeGuardrailPipeline`은 transport.generateMainResponse 없이 부르면 audited wrapper로 유료 생성을
+// 직접 한다. 비용 원장도 상한도 요청 제한도 거치지 않는다. 이 실행기를 그대로 부르던
+// `/api/amora/safe-chat`은 2026-11-11에 지웠다(화면·앱 호출부 0곳, 운영 모델 호출 기록 0건).
+// 운영 경로에 다시 연결하려면 원장과 요청 제한을 먼저 붙이고, 그 뒤에 이 검사를 고친다.
+const UNMETERED_RUNNER = "runAmoraSafeGuardrailPipeline";
+const UNMETERED_RUNNER_FILE = resolve(SRC_ROOT, "lib/ai/amoraSafeGuardrailPipeline.ts");
+
+describe("unmetered safe guardrail runner — no production caller", () => {
+  it("still defines the runner this guard watches", () => {
+    // 이름이 바뀌거나 파일이 옮겨지면 아래 스캔이 조용히 0건이 된다.
+    expect(readFileSync(UNMETERED_RUNNER_FILE, "utf8")).toContain(
+      `export async function ${UNMETERED_RUNNER}(`,
+    );
+  });
+
+  it("keeps runAmoraSafeGuardrailPipeline out of every production source file", () => {
+    const referencingFiles = sourceFiles(SRC_ROOT)
+      .filter((file) => file !== UNMETERED_RUNNER_FILE)
+      .filter((file) => readFileSync(file, "utf8").includes(UNMETERED_RUNNER))
+      .map((file) => relative(SRC_ROOT, file).replaceAll("\\", "/"));
+
+    expect(
+      referencingFiles,
+      `${UNMETERED_RUNNER} reaches a paid model call outside the cost ledger, the caps and the request limiter. Route it through runAmoraProviderCallWithLedger before giving it a production caller.`,
+    ).toEqual([]);
+  });
+
+  it("gives the runner no other name or caller inside its own file", () => {
+    // 위 스캔은 이 파일을 보지 않는다. 여기서 다른 이름으로 내보내면 그 이름은 잡히지 않는다.
+    const otherUses = readFileSync(UNMETERED_RUNNER_FILE, "utf8")
+      .split("\n")
+      .filter((line) => line.includes(UNMETERED_RUNNER))
+      .filter((line) => !["//", "/*", "*"].some((mark) => line.trimStart().startsWith(mark)))
+      .filter((line) => !line.startsWith(`export async function ${UNMETERED_RUNNER}(`));
+
+    expect(otherUses).toEqual([]);
+  });
+});
+
 // ── SDK 경계의 fail-closed: gate 자체가 없으면 provider 요청 0회 ──────────────
 
 function recordingClient() {
