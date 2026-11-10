@@ -14,6 +14,7 @@ vi.mock("@/lib/supabase/admin", () => ({
   })),
 }));
 
+import { getAmoraToolOperationIdentity } from "@/lib/ai/amoraToolIdentity";
 import { executeTool } from "@/lib/ai/toolExecutor";
 
 function context(): ToolExecutionContext {
@@ -23,7 +24,8 @@ function context(): ToolExecutionContext {
     requestKey:
       "chat:20000000-0000-4000-8000-000000000001:30000000-0000-4000-8000-000000000001",
     requestAttemptCount: 1,
-    providerCallIndex: 1,
+    // 운영에서 변경 도구는 확인 카드의 action ID 와 함께만 온다.
+    pendingActionId: "11111111-1111-4111-8111-111111111111",
     currentUserText: "총예산을 3천만원으로 바꿔줘",
     weddingContext: {
       weddingDate: null,
@@ -37,7 +39,6 @@ function context(): ToolExecutionContext {
 describe("Amora atomic mutating-tool execution", () => {
   it("never sends explicit allocations through the legacy auto-reserve RPC", async () => {
     const ctx = context();
-    delete ctx.providerCallIndex;
     const reserve = { category: "reserve", budget: 2_000_000, status: "completed", spent: 123_000 };
     ctx.weddingContext.progress = {reserve} as ToolExecutionContext["weddingContext"]["progress"];
     const input = {total_budget:50_000_000,allocation_mode:"explicit",allocations:[{category:"studio",budget:3_000_000}]};
@@ -86,8 +87,8 @@ describe("Amora atomic mutating-tool execution", () => {
     expect(mocks.rpc).toHaveBeenCalledWith(
       "claim_amora_tool_execution",
       expect.objectContaining({
-        p_pending_action_id: null,
-        p_provider_call_index: 1,
+        p_pending_action_id: "11111111-1111-4111-8111-111111111111",
+        p_provider_call_index: null,
       }),
     );
     expect(mocks.rpc).toHaveBeenCalledWith(
@@ -104,26 +105,6 @@ describe("Amora atomic mutating-tool execution", () => {
     expect(mocks.update).not.toHaveBeenCalled();
     expect(mocks.rpc.mock.calls.map(([name]) => name)).not.toContain(
       "complete_amora_tool_execution",
-    );
-  });
-
-  it("selects the atomic claim overload for a server-confirmed action", async () => {
-    const ctx = context();
-    delete ctx.providerCallIndex;
-    ctx.pendingActionId = "11111111-1111-4111-8111-111111111111";
-
-    await expect(executeTool(
-      "update_budget",
-      { total_budget: 30_000_000 },
-      ctx,
-    )).resolves.toMatchObject({ success: true });
-
-    expect(mocks.rpc).toHaveBeenCalledWith(
-      "claim_amora_tool_execution",
-      expect.objectContaining({
-        p_pending_action_id: ctx.pendingActionId,
-        p_provider_call_index: null,
-      }),
     );
   });
 
@@ -206,8 +187,6 @@ describe("Amora atomic mutating-tool execution", () => {
     };
     function notApplicableContext() {
       const ctx = context();
-      delete ctx.providerCallIndex;
-      ctx.pendingActionId = "11111111-1111-4111-8111-111111111111";
       ctx.weddingContext.budget = 35_000_000;
       ctx.weddingContext.progress = {
         hanbok: { category: "hanbok", status: "not_applicable" },
@@ -514,5 +493,23 @@ describe("Amora atomic mutating-tool execution", () => {
       "complete_amora_tool_execution",
     );
     expect(mocks.update).not.toHaveBeenCalled();
+  });
+
+  // 진행·하객 선물 할 일은 연산이 입력에 적어 넣은 링크가 DB 까지 가야 저장된다.
+  // 실행기가 연산에 건넨 객체가 아닌 것을 p_tool_input 으로 보내면 카드가 다시 거절된다.
+  it.each(["mc", "gift"])("sends the %s to-do input the builder completed under the digest of the original input", async (category) => {
+    const input: Record<string, unknown> = { title: "축가 부탁하기", category_key: category };
+    const before = getAmoraToolOperationIdentity("add_amora_action", input);
+
+    const result = await executeTool("add_amora_action", input, context());
+
+    expect(result.success).toBe(true);
+    const applied = mocks.rpc.mock.calls
+      .find(([name]) => name === "apply_amora_atomic_tool_execution")?.[1] as Record<string, unknown>;
+    expect(applied.p_tool_input).toBe(input);
+    expect(applied.p_tool_input).toEqual({ title: "축가 부탁하기", category_key: category, href: "/wedding/chat" });
+    expect(applied.p_input_digest).toBe(before.inputDigest);
+    expect(applied.p_operation_key).toBe(before.operationKey);
+    expect(applied.p_domain_mutation).toMatchObject({ kind: "amora_action_insert", action: { categoryKey: category, href: "/wedding/chat" } });
   });
 });

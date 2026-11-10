@@ -108,6 +108,9 @@ describe("변경이 실패했을 때 아모라가 시스템 로그처럼 말하�
   it("변경 실패 문구를 하나도 놓치지 않고 검사한다", () => {
     // 검사 대상이 조용히 0건이 되면 이 테스트는 아무것도 지키지 않는다.
     expect(failureCopy.length).toBeGreaterThanOrEqual(11);
+    // 확인 카드 없는 변경을 거절하는 문구도 검사 대상에 들어 있어야 한다. 문구를 이름 붙인
+    // 상수로 옮기면 위 정규식이 그 문구를 못 보는데, 그때 여기서 먼저 드러난다.
+    expect(failureCopy.map(({ code }) => code)).toContain("CONFIRMED_ACTION_REQUIRED");
   });
 
   it("반영되지 않았다는 사실을 문구 안에서 말한다", () => {

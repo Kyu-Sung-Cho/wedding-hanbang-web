@@ -138,6 +138,23 @@ describe("independent actual approved AI compatibility after action writer retir
     expect(getAmoraActionApprovalPolicy("update_amora_action",{})).toBe("blocked");
   },30_000);
 
+  // 진행·하객 선물 분야는 서버 기본 링크(아모라 대화)와 DB 가 다시 계산하는 기본 링크가 달라서
+  // 카드를 누르면 AMORA_ATOMIC_ACTION_HREF_INVALID 로 거절됐다. 저장된 제안에서 실제 저장 함수와
+  // 트리거까지 전부 지나서 저장되고, 상대에게 알림이 가는지 본다.
+  it.each(["mc","gift"])("adds a %s task through the real pending approval with the Amora chat link", async (category) => {
+    const db = await setup();
+    const proposal = await propose(db,"add_amora_action",{ title:`SYNTHETIC ${category} 준비 확인`,category_key:category });
+    expect(proposal.result.success).toBe(true);
+    await confirm(db,proposal);
+    const result = await apply(db,proposal);
+    expect(result).toMatchObject({ success:true,toolName:"add_amora_action",
+      toolOutput:{action:{categoryKey:category,href:"/wedding/chat",status:"open"}} });
+    expect((await db.query("SELECT category_key,href FROM amora_actions")).rows)
+      .toEqual([{ category_key:category,href:"/wedding/chat" }]);
+    expect((await db.query("SELECT recipient_user_id,actor_user_id,event_kind,tool_name FROM couple_change_notifications")).rows)
+      .toEqual([{ recipient_user_id:PARTNER_ID,actor_user_id:USER_ID,event_kind:"change_applied",tool_name:"add_amora_action" }]);
+  },30_000);
+
   it("replays the actual completed add receipt once without duplicate cards, claims or notifications", async () => {
     const db = await setup();
     const proposal = await propose(db,"add_amora_action",{ title:"SYNTHETIC 같은 승인 재시도" });

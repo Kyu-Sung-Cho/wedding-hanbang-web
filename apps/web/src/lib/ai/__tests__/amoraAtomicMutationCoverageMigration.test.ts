@@ -9,6 +9,7 @@ import {
   buildAmoraAtomicToolOperation,
 } from "@/lib/ai/amoraAtomicToolOperation";
 import { getAmoraToolOperationIdentity } from "@/lib/ai/amoraToolIdentity";
+import { WEDDING_TOOLS } from "@/lib/ai/tools";
 import type { ToolExecutionContext } from "@/lib/ai/tools/toolTypes";
 
 function migration(name: string): string {
@@ -924,6 +925,73 @@ describe("Amora atomic mutation coverage migration", () => {
       await db.close();
     }
   }, 30_000);
+
+  // 위 검사는 action 을 손으로 적고, 실제 연산을 SQL 에 물리는 검사는 이 도구를 빼놓았다.
+  // 그래서 서버가 고른 기본 링크와 DB 가 다시 계산한 기본 링크가 어긋난 분야(진행·하객 선물)를
+  // 아무 검사도 보지 못했다. 여기서는 운영 실행기(toolExecutor.ts)와 같은 순서로 돈다.
+  // 입력으로 식별자를 먼저 계산하고, 실제 연산을 만들고, 연산에 건넨 바로 그 객체를 DB 로 보낸다.
+  it("accepts every add_amora_action the server builds for each schema category and source", async () => {
+    const db = await createDatabase(true);
+    try {
+      const properties = WEDDING_TOOLS.find((tool) => tool.name === "add_amora_action")
+        ?.input_schema.properties as Record<string, { enum?: string[] }> | undefined;
+      const categoryKeys = properties?.category_key?.enum ?? [];
+      const sourceKeys = properties?.source?.enum ?? [];
+      // 목록을 못 읽으면 아래 표가 조용히 줄어든다. 먼저 대상 분야와 출처 여섯 개가 있는지 본다.
+      expect(categoryKeys).toEqual(expect.arrayContaining(["mc", "gift"]));
+      expect([...sourceKeys].sort()).toEqual(["budget", "chat", "guardrail", "manual", "quote", "schedule"]);
+      const categories: Array<string | undefined> = [undefined, ...categoryKeys];
+      const sources: Array<string | undefined> = [undefined, ...sourceKeys];
+      const context: ToolExecutionContext = {
+        coupleId: COUPLE_ID, requestKey: REQUEST_KEY, requestAttemptCount: 1, providerCallIndex: 1,
+        weddingContext: { weddingDate: EXPECTED_WEDDING_DATE, budget: 50_000_000, venue: null, progress: {} },
+      };
+
+      const refused: string[] = [];
+      for (const category of categories) {
+        for (const source of sources) {
+          const label = `${category ?? "분야 없음"}/${source ?? "출처 없음"}`;
+          const toolInput: Record<string, unknown> = {
+            title: `할 일 ${category ?? "분야 없음"} ${source ?? "출처 없음"}`,
+            ...(category === undefined ? {} : { category_key: category }),
+            ...(source === undefined ? {} : { source }),
+          };
+          const identity = getAmoraToolOperationIdentity("add_amora_action", toolInput);
+          const operation = buildAmoraAtomicToolOperation("add_amora_action", toolInput, context, identity.operationKey);
+          if (!operation.result.success) {
+            refused.push(`${label}: 서버 연산 거절 ${String(operation.result.toolOutput.error)}`);
+            continue;
+          }
+          await insertExecution(db, "add_amora_action", identity.operationKey, identity.inputDigest);
+          try {
+            const committed = await apply(
+              db, identity.operationKey, identity.inputDigest, toolInput,
+              operation.domainMutation, durableBudgetResult(operation.result),
+            );
+            if (committed.rows[0]?.result.success !== true) refused.push(`${label}: 적용되지 않음`);
+          } catch (error) {
+            refused.push(`${label}: ${error instanceof Error ? error.message : String(error)}`);
+          }
+        }
+      }
+      expect(refused).toEqual([]);
+
+      const linkFor = (source: string) => source === "quote" ? "/wedding/community/quote-check"
+        : source === "budget" ? "/wedding/budget"
+        : source === "schedule" ? "/wedding/schedule"
+        : "/wedding/chat";
+      // 두 분야 × (출처 없음 + 출처 여섯 개). 출처가 없으면 chat 으로 저장된다.
+      const expected = ["mc", "gift"].flatMap((category) => sources.map((source) => {
+        const stored = source ?? "chat";
+        return `${category}/${stored}: ${linkFor(stored)}`;
+      })).sort();
+      expect(expected).toHaveLength(14);
+      const saved = (await db.query<{ category_key: string; source: string; href: string }>(
+        "SELECT category_key, source, href FROM public.amora_actions WHERE category_key IN ('mc','gift')",
+      )).rows;
+      expect(saved.map((row) => `${row.category_key}/${row.source}: ${row.href}`).sort()).toEqual(expected);
+    } finally { await db.close(); }
+  }, 60_000);
 
   it("durably records no-op and stale-CAS failures without overwriting current state", async () => {
     const db = await createDatabase();
