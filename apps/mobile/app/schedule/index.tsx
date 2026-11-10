@@ -1100,7 +1100,7 @@ export default function ScheduleScreen() {
     if (isCancelledScheduleEvent(evt)) {
       Alert.alert(
         "취소된 일정",
-        "취소됨 구역에서 먼저 복원 요청한 뒤 수정해 주세요.",
+        "취소됨 구역에서 먼저 복원한 뒤 수정해 주세요.",
       );
       return;
     }
@@ -1259,10 +1259,10 @@ export default function ScheduleScreen() {
       || sessionToken.ownerId !== profileId
     ) return;
     const targetEventId = editingEventId;
-    Alert.alert("일정 취소 요청", "이 일정의 취소를 요청할까요? 기록은 완전히 삭제되지 않아요.", [
+    Alert.alert("일정 취소", "이 일정을 취소할까요? 기록은 완전히 삭제되지 않아요.", [
       { text: "닫기", style: "cancel" },
       {
-        text: "취소 요청 보내기",
+        text: "일정 취소하기",
         onPress: async () => {
           if (!scheduleSessionFenceRef.isCurrent(sessionToken)) return;
           setSaving(true);
@@ -1300,7 +1300,7 @@ export default function ScheduleScreen() {
             } else {
               Alert.alert(
                 "일정 취소됨",
-                "기록은 취소됨 구역에 남아 있고 다시 복원 요청할 수 있어요.",
+                "기록은 취소됨 구역에 남아 있고 언제든 복원할 수 있어요.",
               );
             }
             await loadData();
@@ -1330,11 +1330,11 @@ export default function ScheduleScreen() {
             ) {
               Alert.alert(
                 "일정 정보를 확인해 주세요",
-                "저장된 일정 중 안전하게 확인할 수 없는 항목이 있어 취소 요청을 보내지 않았어요.",
+                "저장된 일정 중 안전하게 확인할 수 없는 항목이 있어 일정을 취소하지 않았어요.",
               );
               await loadData();
             } else {
-              Alert.alert("오류", "일정 취소 요청에 실패했어요. 다시 시도해 주세요.");
+              Alert.alert("오류", "일정을 취소하지 못했어요. 다시 시도해 주세요.");
             }
           } finally {
             if (scheduleSessionFenceRef.isCurrent(sessionToken)) {
@@ -1356,10 +1356,10 @@ export default function ScheduleScreen() {
       || sessionToken.coupleId !== coupleId
       || sessionToken.ownerId !== profileId
     ) return;
-    Alert.alert("일정 복원 요청", "이 일정을 예정 상태로 복원할까요?", [
+    Alert.alert("일정 복원", "이 일정을 예정 상태로 복원할까요?", [
       { text: "닫기", style: "cancel" },
       {
-        text: "복원 요청",
+        text: "복원하기",
         onPress: async () => {
           if (!scheduleSessionFenceRef.isCurrent(sessionToken)) return;
           setSaving(true);
@@ -1407,10 +1407,10 @@ export default function ScheduleScreen() {
             ) {
               Alert.alert(
                 "일정이 바뀌었어요",
-                "최신 목록을 확인한 뒤 다시 복원 요청해 주세요.",
+                "최신 목록을 확인한 뒤 다시 복원해 주세요.",
               );
             } else {
-              Alert.alert("오류", "일정 복원 요청에 실패했어요. 다시 시도해 주세요.");
+              Alert.alert("오류", "일정을 복원하지 못했어요. 다시 시도해 주세요.");
             }
             await loadData();
           } finally {
@@ -1715,7 +1715,7 @@ export default function ScheduleScreen() {
           ) : null}
         </FeatureSummarySurface>
 
-        {(approvalLoading || approvalError || approvalRequests.length > 0) && (
+        {approvalRequests.length > 0 && (
           <Surface style={styles.approvalSection}>
             <View style={styles.approvalHeader}>
               <View style={styles.approvalHeaderCopy}>
@@ -1992,7 +1992,7 @@ export default function ScheduleScreen() {
                 </View>
                 <Pressable
                   accessibilityRole="button"
-                  accessibilityLabel={`${evt.title} 일정 복원 요청`}
+                  accessibilityLabel={`${evt.title} 일정 복원하기`}
                   disabled={saving}
                   onPress={() => requestEventRestore(evt.id)}
                   style={({ pressed }) => [
@@ -2002,7 +2002,7 @@ export default function ScheduleScreen() {
                   ]}
                 >
                   <RotateCcw size={16} color={colors.noir[800]} />
-                  <Text style={styles.restoreBtnText}>복원 요청</Text>
+                  <Text style={styles.restoreBtnText}>복원하기</Text>
                 </Pressable>
               </View>
             ))}
@@ -2146,12 +2146,12 @@ export default function ScheduleScreen() {
               {editingEventId !== null && (
                 <Pressable
                   accessibilityRole="button"
-                  accessibilityLabel="일정 취소 요청"
+                  accessibilityLabel="일정 취소"
                   style={({ pressed }) => [styles.cancelBtn, pressed && { transform: [{ scale: 0.96 }] }]}
                   onPress={requestEventCancellation}
                 >
                   <Ban size={18} color={colors.noir[800]} />
-                  <Text style={styles.cancelBtnText}>일정 취소 요청</Text>
+                  <Text style={styles.cancelBtnText}>일정 취소</Text>
                 </Pressable>
               )}
               <Pressable

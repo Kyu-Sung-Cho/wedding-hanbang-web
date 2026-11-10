@@ -749,7 +749,7 @@ export default function BudgetScreen() {
       }
       throw new Error(
         readSafeErrorMessage(payload)
-        ?? "예산 변경 요청을 안전하게 처리하지 못했어요.",
+        ?? "예산 변경을 안전하게 처리하지 못했어요.",
       );
     }
 
@@ -818,7 +818,7 @@ export default function BudgetScreen() {
       if (!revisionCoordinator.isCurrent(token)) return;
       const message = error instanceof Error && error.message === "INVALID_MANWON_AMOUNT"
         ? "만원 단위 숫자를 정확히 입력해 주세요."
-        : mutationErrorMessage(error, "총 예산 변경 요청에 실패했어요.");
+        : mutationErrorMessage(error, "총 예산을 저장하지 못했어요.");
       Alert.alert("총 예산을 반영하지 못했어요", message);
     } finally {
       if (revisionCoordinator.finishMutation(token)) setSavingTotal(false);
@@ -854,7 +854,7 @@ export default function BudgetScreen() {
       if (!revisionCoordinator.isCurrent(token)) return;
       const message = error instanceof Error && error.message === "INVALID_MANWON_AMOUNT"
         ? "예산과 기록 지출은 만원 단위 숫자로 정확히 입력해 주세요."
-        : mutationErrorMessage(error, "카테고리 예산 변경 요청에 실패했어요.");
+        : mutationErrorMessage(error, "카테고리 예산을 저장하지 못했어요.");
       Alert.alert("예산을 반영하지 못했어요", message);
     } finally {
       if (revisionCoordinator.finishMutation(token)) setSaving(false);
@@ -1000,7 +1000,7 @@ export default function BudgetScreen() {
             <View style={s.editRow}>
               <TextInput style={s.totalEditInput} value={totalInput} onChangeText={setTotalInput} keyboardType="decimal-pad" autoFocus editable={!savingTotal} maxLength={11} accessibilityLabel="총 예산 만원 단위 입력" placeholder="0" placeholderTextColor={summaryColors.label} />
               <Text style={s.totalUnit}>만원</Text>
-              <Pressable onPress={saveTotalBudget} disabled={savingTotal} accessibilityRole="button" accessibilityLabel="총 예산 변경 요청" accessibilityState={{ disabled: savingTotal, busy: savingTotal }}>
+              <Pressable onPress={saveTotalBudget} disabled={savingTotal} accessibilityRole="button" accessibilityLabel="총 예산 저장" accessibilityState={{ disabled: savingTotal, busy: savingTotal }}>
                 {savingTotal
                   ? <ActivityIndicator size="small" color={summaryColors.ink} />
                   : <Check size={22} color={summaryColors.ink} />}
@@ -1225,7 +1225,7 @@ export default function BudgetScreen() {
                 </View>
               </View>
             )}
-            <Pressable style={s.saveBtn} onPress={saveCategoryEdit} disabled={saving} accessibilityRole="button" accessibilityLabel="카테고리 예산 변경 요청" accessibilityState={{ disabled: saving, busy: saving }}>{saving ? <ActivityIndicator color="#FFF" /> : <Text style={s.saveTxt}>변경 요청</Text>}</Pressable>
+            <Pressable style={s.saveBtn} onPress={saveCategoryEdit} disabled={saving} accessibilityRole="button" accessibilityLabel="카테고리 예산 저장" accessibilityState={{ disabled: saving, busy: saving }}>{saving ? <ActivityIndicator color="#FFF" /> : <Text style={s.saveTxt}>저장</Text>}</Pressable>
           </View>
         </KeyboardAvoidingView>
       </Modal>

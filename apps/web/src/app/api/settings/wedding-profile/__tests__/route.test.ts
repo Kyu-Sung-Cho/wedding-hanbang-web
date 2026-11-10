@@ -240,7 +240,7 @@ describe("/api/settings/wedding-profile", () => {
     expect(rpc).toHaveBeenCalledTimes(1);
   });
 
-  it("fails closed with a clear partner-approval response on legacy linked edits", async () => {
+  it("fails closed with a pointer to the plan-change screen on legacy plan-field edits", async () => {
     const rpc = mockAdmin({
       data: null,
       error: { message: "COUPLE_PLAN_CHANGE_APPROVAL_REQUIRED" },
@@ -258,6 +258,44 @@ describe("/api/settings/wedding-profile", () => {
     expect(body.error).not.toContain("웹의");
     expect(body.error).not.toMatch(/파트너 확인이 필요/u);
     expect(rpc).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not promise two-person approval when a legacy plan-field edit is refused", async () => {
+    // 2026-08-23 부터 한 사람이 저장하면 바로 반영되고, 연결된 파트너에게는 변경 알림만 간다.
+    // 이 거절 문장이 "변경을 요청해 주세요 … 두 분이 확인한 뒤에 반영돼요" 라고 하면
+    // 받은 사람은 있지도 않은 승인을 기다리게 된다.
+    mockAdmin({
+      data: null,
+      error: { message: "COUPLE_PLAN_CHANGE_APPROVAL_REQUIRED" },
+    });
+
+    const response = await PATCH(patchRequest(validPatch()));
+
+    expect(response.status).toBe(409);
+    const body = await response.json();
+    expect(body.code).toBe("PLAN_CHANGE_REQUEST_REQUIRED");
+    expect(body.error).not.toMatch(/두 분이 확인|확인한 뒤에 반영|변경을 요청/u);
+    expect(body.error).toContain("바로 반영");
+    expect(body.error).toContain("알림");
+  });
+
+  it("points each plan field at a screen that can change it", async () => {
+    // 앱의 예산 화면에는 총 예산만 있고 예식일·식장을 고치는 칸이 없다. 예식일과 식장은
+    // 2026-08-23 부터 앱의 설정 화면이 계획 변경 경로로 따로 보낸다(fe3893e94).
+    // 이 거절을 만나는 것은 세 값을 옛 방식으로 보내는 그 전 앱뿐이다. 세 값을 모두 예산 화면으로
+    // 보내면 두 값은 고칠 수 없는 곳을 가리키게 된다.
+    mockAdmin({
+      data: null,
+      error: { message: "COUPLE_PLAN_CHANGE_APPROVAL_REQUIRED" },
+    });
+
+    const response = await PATCH(patchRequest(validPatch()));
+
+    expect(response.status).toBe(409);
+    const body = await response.json();
+    expect(body.error).toMatch(/총 예산은 예산 화면에서/u);
+    expect(body.error).toMatch(/결혼 예정일과 식장은[^.]*설정에서/u);
+    expect(body.error).not.toMatch(/식장·총 예산은 예산 화면/u);
   });
 
   it("maps nickname uniqueness races without attempting a second write", async () => {
