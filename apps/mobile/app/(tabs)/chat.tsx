@@ -1857,7 +1857,8 @@ function getServerCodeFailureMessage(serverCode: string | null): string | null {
     case "COST_GUARD_GLOBAL_DAILY":
       return "오늘 아모라 상담이 많아 잠시 쉬어가고 있어요. 내일 다시 이어서 도와드릴게요.";
     case "COST_GUARD_COUPLE_DAILY":
-      return "오늘 무료로 제공되는 아모라 상담(기본 하루 10회, 파트너 연결 시 15회)을 모두 사용했어요. 내일 자정(KST)에 다시 이어서 도와드릴게요. 아직 파트너를 연결하지 않았다면 설정에서 파트너 연결 시 일일 한도와 누적 보너스(+30회)가 즉시 늘어나며, 예산·체크리스트·일정·견적 진단 기능은 지금도 자유롭게 이용하실 수 있어요.";
+      // 횟수를 적지 않는다. 하루 한도는 서버 설정이라 앱이 모르고, 새 커플과 기존 커플이 같은 코드를 받는다.
+      return "오늘 쓸 수 있는 아모라 상담을 모두 사용했어요. 내일 다시 이어서 도와드릴게요. 예산·체크리스트·일정·견적 체크 기능은 지금도 자유롭게 이용하실 수 있어요.";
     case "COST_GUARD_GLOBAL_BUDGET":
       // "안전 한도" 는 우리 내부 용어이고, 카운터는 한국 시간 자정에 풀리므로
       // "잠시 후" 는 사용자를 헛되이 다시 누르게 만든다. 서버가 이미 고친 문구다.
@@ -1910,18 +1911,37 @@ function canRetrySameChatRequest(error: unknown, timedOut = false): boolean {
   if (!(error instanceof ChatTransportError)) return false;
   // 2026-09-04: 상한(COST_GUARD_*)은 서버가 같은 키 재시도를 허용해도 자정까지는
   // 눌러도 같다. "내일 다시" 문구 아래 "다시 받기" 버튼을 두지 않는다.
-  if (
-    typeof error.serverCode === "string"
-    && error.serverCode.startsWith("COST_GUARD_")
-    && error.serverCode !== "COST_GUARD_UNAVAILABLE"
-  ) {
-    return false;
-  }
+  if (isUsageCapRefusal(error)) return false;
   if (error.retryable !== null) return error.retryable;
   // No terminal server decision exists for transport loss, so replaying the
   // same idempotency key remains the only safe retry. Legacy terminal/HTTP
   // failures without an explicit contract fail closed.
   return error.code === "NETWORK" || error.code === "TIMEOUT";
+}
+
+/**
+ * 상한에 걸려 막힌 요청인가.
+ *
+ * 사용량을 확인하지 못한 경우(`COST_GUARD_UNAVAILABLE`)는 상한이 아니다. 잠시 뒤에는 될 수 있다.
+ */
+function isUsageCapRefusal(error: unknown): boolean {
+  return error instanceof ChatTransportError
+    && typeof error.serverCode === "string"
+    && error.serverCode.startsWith("COST_GUARD_")
+    && error.serverCode !== "COST_GUARD_UNAVAILABLE";
+}
+
+/**
+ * 「다시 받기」를 줄 수 없을 때 실패 안내 아래에 덧붙이는 말.
+ *
+ * 상한에 걸린 경우에는 덧붙이지 않는다. 새 메시지를 보내도 똑같이 막히기 때문이다. 하루 상한과
+ * 서비스 전체 상한은 한국 시간 자정에 풀리고, 누적 한도는 저절로 풀리지 않는다.
+ * "내일 다시 이어서 도와드릴게요" 아래에 "새 메시지로 보내주세요"가 붙으면 따라 해도 소용이 없다.
+ * 웹은 2026-09-04 에 같은 뜻의 줄을 뺐다(chatStore.ts 의 isCapExhausted).
+ */
+function getRetryUnavailableReason(error: unknown, canRetry: boolean): string | null {
+  if (canRetry || isUsageCapRefusal(error)) return null;
+  return NEW_CHAT_MESSAGE_REQUIRED_NOTICE;
 }
 
 function ThinkingDots() {
@@ -3656,9 +3676,7 @@ export default function ChatScreen() {
             message: getAiFailureMessage(error, timedOut),
             request,
             canRetry,
-            unavailableReason: canRetry
-              ? null
-              : NEW_CHAT_MESSAGE_REQUIRED_NOTICE,
+            unavailableReason: getRetryUnavailableReason(error, canRetry),
           });
         }
       }

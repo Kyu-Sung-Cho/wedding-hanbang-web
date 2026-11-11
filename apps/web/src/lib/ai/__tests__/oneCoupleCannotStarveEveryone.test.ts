@@ -84,7 +84,8 @@ describe("커플당 하루 상한", () => {
     const result = await reserve();
     // "한도를 다 썼다" 로 끝나면 사용자는 제품이 끝났다고 읽는다.
     expect(result.message).toContain("내일");
-    expect(result.message).toContain("예산·체크리스트·일정·견적 진단");
+    // 기능 이름은 앱 웨딩 라운지의 칸 이름을 따른다. 견적 기능의 칸 이름은 "견적 체크"다.
+    expect(result.message).toContain("예산·체크리스트·일정·견적 체크");
   });
 
   it("장부를 못 읽으면 통과시킨다", async () => {
