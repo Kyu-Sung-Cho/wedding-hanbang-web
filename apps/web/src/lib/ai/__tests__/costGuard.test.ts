@@ -646,6 +646,9 @@ describe("기존 계정 면제(Grandfathering) 및 신규 계정 파트너 연�
     claimToken: "40000000-0000-4000-8000-000000000001",
     requestKey: "policy_request_123",
   };
+  // 하루 상한에 닿은 커플이 받는 문장. 새 계정과 기존 계정이 같은 문장을 받는다.
+  const COUPLE_DAILY_MESSAGE =
+    "오늘 쓸 수 있는 아모라 상담을 모두 사용했어요. 내일 다시 이어서 도와드릴게요. 예산·체크리스트·일정·견적 체크 기능은 지금도 자유롭게 이용하실 수 있어요.";
 
   // 환경변수를 바꾸는 검사가 중간에 실패해도 다음 검사로 값이 새지 않게 한다.
   afterEach(() => {
@@ -754,7 +757,7 @@ describe("기존 계정 면제(Grandfathering) 및 신규 계정 파트너 연�
     });
     expect(dailyDenied.allowed).toBe(false);
     expect(dailyDenied.reason).toBe("couple_daily");
-    expect(dailyDenied.message).toContain("+30회");
+    expect(dailyDenied.message).toBe(COUPLE_DAILY_MESSAGE);
     expect(rpcSpy).not.toHaveBeenCalled();
   });
 
@@ -794,9 +797,6 @@ describe("기존 계정 면제(Grandfathering) 및 신규 계정 파트너 연�
     bride_id: "u1",
     groom_id: "u2",
   };
-  // 횟수는 그 커플의 모든 대화를 두 사람 합쳐서 센다. 그래서 "이 대화에서"라고 하지 않는다.
-  const GRANDFATHERED_DAILY_MESSAGE =
-    "오늘 쓸 수 있는 상담 횟수를 다 썼어요. 내일 다시 이어서 도와드릴게요.";
 
   it("기준 시각 이전 계정도 하루 천장(80회)에 닿으면 막고 provider 예약을 시도하지 않는다", async () => {
     const { admin, rpcSpy } = makePolicyAdmin({
@@ -832,18 +832,65 @@ describe("기존 계정 면제(Grandfathering) 및 신규 계정 파트너 연�
     );
   });
 
-  it("기존 계정이 천장에 닿았을 때 신규 계정 문구(하루 10회·파트너 보너스)를 보내지 않는다", async () => {
-    const { admin } = makePolicyAdmin({
-      coupleRow: GRANDFATHERED_ROW,
-      usedToday: 120,
-    });
+  // 하루 상한에 닿아 거절된 세 커플의 결과: 새 계정(혼자), 새 계정(파트너 연결), 기존 계정.
+  async function refuseThreeCouplesAtDailyCap() {
+    const NEW_COUPLE_CREATED_AT = "2026-10-21T01:00:00.000Z";
+    const couples = [
+      makePolicyAdmin({
+        coupleRow: {
+          created_at: NEW_COUPLE_CREATED_AT,
+          bride_id: "u1",
+          groom_id: null,
+          membership_sealed_at: null,
+        },
+        usedToday: 10,
+      }),
+      makePolicyAdmin({
+        coupleRow: {
+          created_at: NEW_COUPLE_CREATED_AT,
+          bride_id: "u1",
+          groom_id: "u2",
+          membership_sealed_at: "2026-10-21T02:00:00.000Z",
+        },
+        usedToday: 15,
+      }),
+      makePolicyAdmin({ coupleRow: GRANDFATHERED_ROW, usedToday: 120 }),
+    ];
+    const results = [];
+    for (const { admin } of couples) {
+      results.push(await reserveAmoraProviderCall(admin, { ...BASE, ...RECEIPT }));
+    }
+    return results;
+  }
 
-    const result = await reserveAmoraProviderCall(admin, { ...BASE, ...RECEIPT });
+  it("하루 상한 안내는 새 계정과 기존 계정에게 같은 문장이다", async () => {
+    const results = await refuseThreeCouplesAtDailyCap();
 
-    // 사유 코드는 같아도 "하루 10회"와 파트너 연결 보너스는 이 커플에게 사실이 아니다.
-    expect(result.message).toBe(GRANDFATHERED_DAILY_MESSAGE);
-    for (const wrong of ["10회", "15회", "+30회", "파트너", "무료", "이 대화"]) {
-      expect(result.message).not.toContain(wrong);
+    expect(results).toHaveLength(3);
+    for (const result of results) {
+      expect(result).toMatchObject({
+        allowed: false,
+        reason: "couple_daily",
+        message: COUPLE_DAILY_MESSAGE,
+      });
+    }
+  });
+
+  it("하루 상한 안내는 횟수와 파트너 보너스를 말하지 않는다", async () => {
+    // 하루 한도는 환경변수로 정한다. 문장에 횟수를 적으면 설정이 바뀔 때 화면이 틀린 숫자를 말한다.
+    // 실제로 그랬다. 2026-11-11 에 읽은 운영 한도는 50회였는데 서버 문장은 10-20 부터 "기본 하루 10회, 파트너 연결 시 15회"였다.
+    // 횟수는 그 커플의 모든 대화를 두 사람 합쳐서 세므로 "이 대화에서"라고도 하지 않는다.
+    // 위 검사와 따로 둔다. 문장과 이 파일의 상수를 함께 고쳐도 여기서 걸리게 하려는 것이다.
+    const results = await refuseThreeCouplesAtDailyCap();
+
+    expect(results).toHaveLength(3);
+    for (const result of results) {
+      expect(result.reason).toBe("couple_daily");
+      expect(result.message).not.toMatch(/\d/u);
+      // "무료"도 적지 않는다. 돈을 내면 더 쓸 수 있다고 읽히는데 그런 길은 없다.
+      for (const wrong of ["파트너", "보너스", "무료", "이 대화"]) {
+        expect(result.message).not.toContain(wrong);
+      }
     }
   });
 
@@ -883,7 +930,7 @@ describe("기존 계정 면제(Grandfathering) 및 신규 계정 파트너 연�
     expect(denied).toMatchObject({
       allowed: false,
       reason: "couple_daily",
-      message: GRANDFATHERED_DAILY_MESSAGE,
+      message: COUPLE_DAILY_MESSAGE,
     });
   });
 

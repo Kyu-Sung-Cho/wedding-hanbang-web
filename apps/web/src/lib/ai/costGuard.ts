@@ -340,6 +340,9 @@ const GUARD_ENABLED = process.env.AMORA_COST_GUARD_ENABLED !== "false";
 if (!GUARD_ENABLED) {
   console.error("[costGuard] DISABLED — 커플 한도·전역 일일 상한·전역 비용 상한이 모두 무효입니다 (AMORA_COST_GUARD_ENABLED=false)");
 }
+// 누적 한도를 다시 켜기 전에 그 한도의 화면 문장부터 볼 것(2026-11-11 기준. 운영에서 꺼져 있어 손대지 않았다).
+// 서버의 누적 한도 문장은 없는 기능 이름("견적 진단")을 쓰고, 앱의 누적 한도 문장과 웹의
+// "파트너 연결 +30회 받기" 링크는 이미 파트너를 연결한 커플에게도 연결하라고 말한다.
 const COUPLE_QUOTA_ENABLED = process.env.AMORA_COUPLE_QUOTA_ENABLED !== "false";
 // 하루 상한은 **무료 한도와 다른 것을 지킨다.**
 //
@@ -465,23 +468,21 @@ const DENY_COUPLE: CostGuardResult = {
     "이 커플에 제공된 무료 아모라 상담을 모두 사용했어요. 아직 파트너를 연결하지 않았다면 설정에서 파트너 초대 코드를 연결해 보너스 상담(+30회)을 즉시 받을 수 있어요. 예산·체크리스트·일정·견적 진단 등 웨딩 준비 워크스페이스는 계속 무료로 이용하실 수 있어요.",
 };
 
+// 하루 상한에 닿은 커플에게 보내는 문장. 새 커플과 기준 시각 이전 커플이 같은 문장을 받는다.
+// 횟수를 적지 않는다. 한도는 환경변수로 정하므로(COUPLE_DAILY_CAP, GRANDFATHERED_COUPLE_DAILY_CAP)
+// 문장에 숫자를 적으면 설정을 바꿀 때 화면이 틀린 숫자를 말한다. 2026-10-20 에 넣은 문장은
+// "기본 하루 10회, 파트너 연결 시 15회"와 누적 보너스를 말했는데, 2026-11-11 에 운영 설정을 읽어 보니
+// 새 커플 한도는 50회였고 누적 한도는 꺼져 있었다.
+// "이 대화에서"라고도 하지 않는다. 횟수는 그 커플의 모든 대화를 두 사람 합쳐서 센다.
+// 기능 이름은 앱 웨딩 라운지의 칸 이름을 따른다(예산, 체크리스트, 일정, 견적 체크). 2026-10-20 부터
+// "견적 진단"이라고 적혀 있었는데 그런 이름의 화면은 없다.
+// 모바일 앱은 이 문장을 그리지 않고 사유 코드로 같은 문장을 고른다. 두 문장이 같은지와 기능 이름이
+// 칸 이름과 같은지는 apps/mobile/src/__tests__/costGuardCopyComesFromServer.test.mjs 가 잰다.
 const DENY_COUPLE_DAILY: CostGuardResult = {
   allowed: false,
   reason: "couple_daily",
   message:
-    "오늘 무료로 제공되는 아모라 상담(기본 하루 10회, 파트너 연결 시 15회)을 모두 사용했어요. 내일 자정(KST)에 다시 이어서 도와드릴게요. 아직 파트너를 연결하지 않았다면 설정에서 파트너 연결 시 일일 한도와 누적 보너스(+30회)가 즉시 늘어나며, 예산·체크리스트·일정·견적 진단 기능은 지금도 자유롭게 이용하실 수 있어요.",
-};
-
-// 기준 시각 이전 커플이 하루 천장에 닿았을 때. 사유 코드는 같고(couple_daily) 문구만 다르다.
-// 신규 계정 문구의 "하루 10회"와 파트너 연결 보너스는 이 커플들에게 사실이 아니다.
-// 문구는 면제 전(2026-08-25~10-20)에 같은 상한에서 쓰던 것에서 "이 대화에서"만 뺐다.
-// 횟수는 그 커플의 모든 대화를 두 사람 합쳐서 세므로, 다른 대화에는 남아 있다고 읽히면 안 된다.
-// 모바일 앱은 사유 코드로 자기 문구를 고르므로 이 문장은 웹에서만 보인다(앱은 신규 계정 문구를 보여 준다).
-const DENY_GRANDFATHERED_DAILY: CostGuardResult = {
-  allowed: false,
-  reason: "couple_daily",
-  message:
-    "오늘 쓸 수 있는 상담 횟수를 다 썼어요. 내일 다시 이어서 도와드릴게요.",
+    "오늘 쓸 수 있는 아모라 상담을 모두 사용했어요. 내일 다시 이어서 도와드릴게요. 예산·체크리스트·일정·견적 체크 기능은 지금도 자유롭게 이용하실 수 있어요.",
 };
 
 const DENY_UNAVAILABLE: CostGuardResult = {
@@ -662,9 +663,7 @@ async function checkCoupleDailyUsage(
   const usedToday = await countCoupleTurnsToday(admin, params.coupleId);
   if (usedToday === null) return { denied: null };
   if (usedToday >= policy.dailyCap) {
-    return {
-      denied: policy.isGrandfathered ? DENY_GRANDFATHERED_DAILY : DENY_COUPLE_DAILY,
-    };
+    return { denied: DENY_COUPLE_DAILY };
   }
   return {
     denied: null,
