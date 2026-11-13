@@ -1,11 +1,10 @@
 import Link from "next/link";
 
-import { BookOpen, CalendarCheck, ClipboardCheck, LayoutDashboard, Settings, Split, Users, Wallet } from "lucide-react";
+import { LayoutDashboard } from "lucide-react";
 import AmoraMark from "@/components/ui/AmoraMark";
 import { LogoMark } from "@/components/ui/Logo";
 import AmoraBottomNav from "@/components/app/amora/AmoraBottomNav";
 import {
-  SIDEBAR_ITEM_ACTIVE_CLASS,
   SIDEBAR_ITEM_CLASS,
   SIDEBAR_ITEM_IDLE_CLASS,
   SIDEBAR_LIST_CLASS,
@@ -14,22 +13,18 @@ import {
 import HiddenInsideMobileApp from "@/components/common/HiddenInsideMobileApp";
 import FullPageLinkInsideMobileApp from "@/components/common/FullPageLinkInsideMobileApp";
 import MannersChrome from "@/components/manners/MannersChrome";
-import { SHOW_SIGNED_IN_COMMUNITY } from "@/lib/features/signedInCommunity";
 
 // 이 서버 레이아웃과 아래 공개 사이드바는 인증 상태를 요청하지 않고 사용자·일정·알림을
 // 가정하지 않는다. 로그인 세션 쿠키가 있는 브라우저에서만 `MannersChrome` 이 hydration 뒤에
 // `/api/auth/me` 로 로그인 여부를 확인하고, 로그인한 사람에게 앱 사이드바·상단 바를 얹는다.
 // 쿠키가 없는 방문자에게는 요청이 없다.
+//
+// 앱 사이드바와 같은 메뉴다(2026-11-13 파운더 결정: 메인은 웨딩 라운지와 아모라 둘). 예절 가이드도
+// 메뉴에서 빠지고 라운지와 아모라가 연다. 로그인 전 방문자에게 로그인 뒤 화면과 다른 메뉴를 보이면
+// 로그인하는 순간 메뉴가 바뀌어 보인다. 설정은 로그인한 사람의 사용자 자리에만 있다.
 const SERVICE_LINKS = [
   { href: "/lounge", label: "웨딩 라운지", icon: LayoutDashboard },
   { href: "/chat", label: "아모라", icon: AmoraMark },
-  { href: "/checklist", label: "웨딩 체크리스트", icon: ClipboardCheck },
-  { href: "/schedule", label: "일정", icon: CalendarCheck },
-  { href: "/budget", label: "예산", icon: Wallet },
-  { href: "/preparation-style", label: "웨딩코드", icon: Split },
-  { href: "/community", label: "커뮤니티", icon: Users },
-  { href: "/manners", label: "예절 가이드", icon: BookOpen },
-  { href: "/settings", label: "설정", icon: Settings },
 ] as const;
 
 const HEADER_LINKS = [
@@ -65,9 +60,9 @@ export default function MannersLayout({ children }: { children: React.ReactNode 
         </FullPageLinkInsideMobileApp>
         <nav aria-label="서비스 메뉴" className="flex-1 overflow-y-auto px-[14px]">
           <ul className={SIDEBAR_LIST_CLASS}>
-            {SERVICE_LINKS.filter(link => SHOW_SIGNED_IN_COMMUNITY || link.href !== "/community").map(({ href, label, icon: Icon }) => (
+            {SERVICE_LINKS.map(({ href, label, icon: Icon }) => (
               <li key={href}>
-                <FullPageLinkInsideMobileApp path={href} aria-current={href === "/manners" ? "location" : undefined} className={`${SIDEBAR_ITEM_CLASS} ${href === "/manners" ? SIDEBAR_ITEM_ACTIVE_CLASS : SIDEBAR_ITEM_IDLE_CLASS}`}>
+                <FullPageLinkInsideMobileApp path={href} className={`${SIDEBAR_ITEM_CLASS} ${SIDEBAR_ITEM_IDLE_CLASS}`}>
                   <Icon aria-hidden className="size-4 shrink-0" />{label}
                 </FullPageLinkInsideMobileApp>
               </li>
@@ -83,7 +78,7 @@ export default function MannersLayout({ children }: { children: React.ReactNode 
       <main id="manners-main" className="min-w-0 flex-1">{children}</main>
 
       {/*
-        앱 웹뷰에서는 바닥글과 아래 메뉴를 내린다. 아래 메뉴 다섯은 전부 로그인 필요 경로라
+        앱 웹뷰에서는 바닥글과 아래 메뉴를 내린다. 아래 메뉴 둘은 전부 로그인 필요 경로라
         앱 웹뷰(세션 없음)에서는 웹 로그인 화면이 되고, 앱의 아래 탭과 두 겹으로 쌓였다.
         브라우저에서는 그대로다.
       */}

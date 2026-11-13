@@ -253,7 +253,11 @@ describe("web MVP product direction", () => {
     expect(landingFooter, "푸터가 카피의 href를 쓰지 않는다").toContain("href={item.href}");
     const publicNav = blockBetween(communityNav, "const baseNavItems = [", "];");
     const signedInNav = blockBetween(sidebar, "const menuItems:", "];");
-    const signedInQuickLinks = blockBetween(topNav, "const quickLinks = [", "];");
+    // 2026-11-13 파운더 결정: 메인은 웨딩 라운지와 아모라 둘이다. 머리줄의 기능 바로가기
+    // (`quickLinks`)는 없앴고, 체크리스트·일정·예산·웨딩코드는 라운지가 연다.
+    expect(topNav, "머리줄 기능 바로가기가 돌아왔다").not.toContain("const quickLinks");
+    const lounge = stripComments(source("src/app/(app)/lounge/page.tsx"))
+      + stripComments(source("src/app/(app)/lounge/LoungeHubSections.tsx"));
 
     // 랜딩 내비 항목은 개편으로 전부 바뀌었다(#how-it-works·#privacy·#trust·
     // #start-conditions → #scenes·#noside·#confirm·#now). 이름이 바뀐 것이지
@@ -323,24 +327,27 @@ describe("web MVP product direction", () => {
 
     for (const label of ["아모라", "예산"]) {
       expect(publicNav).toContain(`label: "${label}"`);
-      expect(signedInNav).toContain(`label: "${label}"`);
-      expect(signedInQuickLinks).toContain(`label: "${label}"`);
     }
     // 2026-09-20: 공개 커뮤니티는 유지하고 로그인 준비 화면의 탐색은 초기에 숨긴다.
     // 실제 미노출은 Sidebar/TopNav 렌더 검사와 라운지의 무요청 검사로 확인한다.
     expect(publicNav).toContain('label: "커뮤니티"');
-    expect(signedInNav).toContain('legacyPath: "/preparation-style"');
-    expect(signedInQuickLinks).toContain('legacyPath: "/preparation-style"');
-    expect(signedInNav).toContain('label: "웨딩코드"');
-    expect(signedInQuickLinks).toContain('label: "웨딩코드"');
 
-    // 공개 내비게이션은 처음 보는 사람에게 준비 흐름을 한 덩어리로 설명하지만,
-    // 로그인 후 실행 화면에서는 체크리스트와 일정을 서로 다른 목적지로 제공한다.
+    // 2026-11-13 파운더 결정: 로그인 메뉴는 웨딩 라운지와 아모라 둘뿐이다. 파운더 원문:
+    // "지금 잇는 기능들 다 아모라 뒤로 보내 에절가이드나 일정 관리 에산 관리 등등 삭다 그리고
+    // 메인 두개만 남길거야 아모라랑 웨딩 대쉬보드".
+    expect(signedInNav).toContain('label: "웨딩 라운지"');
+    expect(signedInNav).toContain('label: "아모라"');
+    for (const label of ["예산", "웨딩코드", "웨딩 체크리스트", "일정", "결정 보드", "예절 가이드", "설정"]) {
+      expect(signedInNav, `${label}이(가) 메뉴로 돌아왔다`).not.toContain(`label: "${label}"`);
+    }
+    // 메뉴에서 빠진 화면은 없어진 것이 아니라 라운지가 연다. 들어가는 길이 끊기면 그 화면은
+    // 주소를 쳐야만 열리는 화면이 된다(예절 가이드가 2026-08-11까지 그랬다).
+    for (const path of ["/checklist", "/schedule", "/budget", "/preparation-style"]) {
+      expect(lounge, `라운지에서 ${path}로 가는 길이 없다`).toContain(`"${path}`);
+    }
+
+    // 공개 내비게이션은 처음 보는 사람에게 준비 흐름을 한 덩어리로 설명한다.
     expect(publicNav).toContain('label: "할 일·일정"');
-    expect(signedInNav).toContain('label: "웨딩 체크리스트"');
-    expect(signedInNav).toContain('label: "일정"');
-    expect(signedInQuickLinks).toContain('label: "체크리스트"');
-    expect(signedInQuickLinks).toContain('label: "일정"');
 
     // `/wedding-code`가 이 목록에 있었다. 2026-08-27 파운더 결정으로 랜딩의 후크가
     // 스무 장면(웨딩코드)이 되면서 **랜딩에서는 더 이상 물러난 경로가 아니다** —
@@ -357,7 +364,6 @@ describe("web MVP product direction", () => {
     for (const retiredPrimaryPath of [...retiredEverywhere, "/wedding-code"]) {
       expect(publicNav).not.toContain(retiredPrimaryPath);
       expect(signedInNav).not.toContain(retiredPrimaryPath);
-      expect(signedInQuickLinks).not.toContain(retiredPrimaryPath);
       expect(userMenu).not.toContain(`weddingLinkProps("${retiredPrimaryPath}")`);
     }
 

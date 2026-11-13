@@ -5,15 +5,9 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   ArrowLeft,
-  BookOpen,
-  CalendarCheck,
-  ClipboardCheck,
   LayoutDashboard,
   LogOut,
   Settings,
-  Split,
-  Users,
-  Wallet,
   X,
 } from "lucide-react";
 import AmoraMark from "@/components/ui/AmoraMark";
@@ -21,7 +15,6 @@ import { useAccessibleModal } from "@/hooks/useAccessibleModal";
 import ProfileAvatar from "@/components/ui/ProfileAvatar";
 import { LogoMark } from "@/components/ui/Logo";
 import { stripWeddingBasePath, weddingLinkProps } from "@/lib/weddingPaths";
-import { SHOW_SIGNED_IN_COMMUNITY } from "@/lib/features/signedInCommunity";
 import {formatCalendarDate} from "@/lib/utils/weddingDate";
 import { useAuthStore } from "@/stores/authStore";
 import {
@@ -40,19 +33,17 @@ type SidebarMenuItem = {
   tutorialTarget?: string;
 };
 
+/**
+ * 메뉴는 둘이다(2026-11-13 파운더 결정).
+ *
+ * 파운더 원문: "지금 잇는 기능들 다 아모라 뒤로 보내 에절가이드나 일정 관리 에산 관리 등등 삭다
+ * 그리고 메인 두개만 남길거야 아모라랑 웨딩 대쉬보드". 결정 보드·체크리스트·일정·예산·웨딩코드·
+ * 예절 가이드는 메뉴에서 뺐다. 화면과 기록은 그대로 있고, 라운지와 아모라가 연다. 설정은 기능이
+ * 아니라 계정이라 아래 사용자 자리로 옮겼다.
+ */
 const menuItems: SidebarMenuItem[] = [
   { legacyPath: "/lounge", icon: LayoutDashboard, label: "웨딩 라운지", tutorialTarget: "service-nav-lounge" },
   { legacyPath: "/chat", icon: AmoraMark, label: "아모라", tutorialTarget: "service-nav-amora" },
-  { legacyPath: "/chat/board", icon: ClipboardCheck, label: "결정 보드" },
-  { legacyPath: "/checklist", icon: ClipboardCheck, label: "웨딩 체크리스트", tutorialTarget: "service-nav-schedule" },
-  { legacyPath: "/schedule", icon: CalendarCheck, label: "일정" },
-  { legacyPath: "/budget", icon: Wallet, label: "예산", tutorialTarget: "service-nav-budget" },
-  { legacyPath: "/preparation-style", icon: Split, label: "웨딩코드" },
-  { legacyPath: "/community", icon: Users, label: "커뮤니티", tutorialTarget: "service-nav-community" },
-  // 로그인 없이도 열리는 읽기 화면이지만 사이드바에 둔다 — 준비 중에 가장 자주
-  // 막히는 것이 "이럴 땐 어떻게 하지"라서, 찾으러 나가지 않고 여기서 열리는 게 맞다.
-  { legacyPath: "/manners", icon: BookOpen, label: "예절 가이드" },
-  { legacyPath: "/settings", icon: Settings, label: "설정" },
 ];
 
 interface SidebarProps {
@@ -87,6 +78,7 @@ function readDesktop() {
 export default function Sidebar({ isOpen, onClose }: SidebarProps) {
   const pathname = usePathname();
   const currentPath = stripWeddingBasePath(pathname);
+  const settingsActive = currentPath === "/settings" || currentPath.startsWith("/settings/");
   const { profile, journey, signOut } = useAuthStore();
   const userName = profile?.name ?? "예비부부";
   const weddingDateStr = formatCalendarDate(journey?.wedding_date,{
@@ -142,7 +134,7 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
 
         <nav aria-label="서비스 메뉴" className="flex-1 overflow-y-auto px-[14px]">
           <div className={SIDEBAR_LIST_CLASS}>
-            {menuItems.filter((item) => SHOW_SIGNED_IN_COMMUNITY || item.legacyPath !== "/community").map((item) => {
+            {menuItems.map((item) => {
               const activePath = item.activePath ?? item.legacyPath;
               const isActive = currentPath === activePath
                 || (activePath !== "/lounge" && currentPath.startsWith(`${activePath}/`));
@@ -171,6 +163,19 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
           >
             <ArrowLeft className="h-4 w-4 shrink-0" aria-hidden="true" />
             웨딩한방 소개
+          </Link>
+          <Link
+            {...weddingLinkProps("/settings")}
+            onClick={onClose}
+            aria-current={settingsActive ? "page" : undefined}
+            className={`mb-2 flex min-h-11 items-center gap-2 rounded-[9px] px-[10px] text-[13px] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--hb-focus-ring)] focus-visible:ring-offset-2 ${
+              settingsActive
+                ? "bg-[var(--amora-selected-bg)] font-semibold text-[var(--amora-selected-text)]"
+                : "text-[var(--amora-soft)] hover:bg-[var(--amora-warm)] hover:text-[var(--amora-ink)]"
+            }`}
+          >
+            <Settings className="h-4 w-4 shrink-0" aria-hidden="true" />
+            설정
           </Link>
           <div className="px-[10px] pb-[10px] pt-[6px]">
             <div className="flex items-center gap-3">

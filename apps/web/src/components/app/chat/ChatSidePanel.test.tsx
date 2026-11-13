@@ -912,6 +912,125 @@ describe("ChatSidePanel attachment sending", () => {
     expect(document.activeElement).toBe(openingControl);
   });
 
+  // 2026-11-13 파운더 결정: 큰 화면에서는 아모라가 라운지를 덮지 않고 옆자리를 차지한다.
+  // 그때 이 패널은 대화 창이 아니라 화면의 한 칸이다.
+  it("옆자리로 열면 화면의 한 칸이라 뒤를 잠그거나 초점을 가두지 않고, 초점이 안에 있을 때만 Escape 로 닫는다", async () => {
+    const onClose = vi.fn();
+    const pageControl = document.createElement("button");
+    pageControl.textContent = "아모라에게 물어보기";
+    document.body.insertBefore(pageControl, container);
+
+    await act(async () => {
+      root.render(<ChatSidePanel isOpen={false} onClose={onClose} presentation="docked" />);
+      await Promise.resolve();
+    });
+    pageControl.focus();
+    await act(async () => {
+      root.render(<ChatSidePanel isOpen onClose={onClose} presentation="docked" />);
+      await new Promise((resolve) => window.setTimeout(resolve, 0));
+    });
+
+    const region = container.querySelector<HTMLElement>('[role="complementary"]');
+    expect(region?.getAttribute("aria-label")).toBe("아모라");
+    expect(region?.hasAttribute("aria-modal")).toBe(false);
+    expect(region?.hasAttribute("inert")).toBe(false);
+    expect(container.querySelector('[role="dialog"]')).toBeNull();
+    // 라운지는 계속 스크롤된다.
+    expect(document.body.style.overflow).toBe("");
+    // 연 사람이 바로 쓰도록 입력칸이 초점을 받는다.
+    const composer = container.querySelector<HTMLInputElement>("[data-amora-composer-input]");
+    expect(document.activeElement).toBe(composer);
+
+    // 라운지를 보던 사람의 Escape 는 가로채지 않는다.
+    pageControl.focus();
+    document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+    expect(onClose).not.toHaveBeenCalled();
+    // Tab 도 가두지 않는다.
+    document.dispatchEvent(new KeyboardEvent("keydown", { key: "Tab", bubbles: true }));
+    expect(document.activeElement).toBe(pageControl);
+
+    composer?.focus();
+    document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+    expect(onClose).toHaveBeenCalledTimes(1);
+
+    // 초점이 안에 있을 때 닫히면 연 자리로 돌아간다.
+    await act(async () => {
+      root.render(<ChatSidePanel isOpen={false} onClose={onClose} presentation="docked" />);
+      await Promise.resolve();
+    });
+    expect(document.activeElement).toBe(pageControl);
+    pageControl.remove();
+  });
+
+  it("들고 온 질문은 입력칸에 한 번만 넣고, 보내지 않고, 쓰던 글을 덮지 않으며, 모델 첫 인사를 따로 부르지 않는다", async () => {
+    const composer = () => container.querySelector<HTMLInputElement>("[data-amora-composer-input]");
+    const typeIntoComposer = async (value: string) => act(async () => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set?.call(composer(), value);
+      composer()?.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    await act(async () => {
+      root.render(<ChatSidePanel isOpen={false} onClose={vi.fn()} presentation="docked" />);
+      await Promise.resolve();
+    });
+    // 대화 기록을 이미 불러온 상태에서 질문을 들고 연다. 이때 첫 인사가 먼저 나가면 안 된다.
+    mocks.initialLoadDone = true;
+    await act(async () => {
+      root.render(<ChatSidePanel isOpen onClose={vi.fn()} presentation="docked" draft={{ id: 1, text: "드레스 준비, 지금 뭐부터 하면 될까?" }} />);
+      await new Promise((resolve) => window.setTimeout(resolve, 0));
+    });
+    expect(composer()?.value).toBe("드레스 준비, 지금 뭐부터 하면 될까?");
+    expect(mocks.sendMessage).not.toHaveBeenCalled();
+    expect(mocks.requestInitialGreeting).not.toHaveBeenCalled();
+
+    // 사람이 지운 질문은 같은 번호로 다시 그려도 되살아나지 않는다.
+    await typeIntoComposer("");
+    await act(async () => {
+      root.render(<ChatSidePanel isOpen onClose={vi.fn()} presentation="docked" draft={{ id: 1, text: "드레스 준비, 지금 뭐부터 하면 될까?" }} />);
+      await Promise.resolve();
+    });
+    expect(composer()?.value).toBe("");
+
+    // 새 질문을 들고 와도 쓰던 글은 덮지 않는다.
+    await typeIntoComposer("내가 쓰던 글");
+    await act(async () => {
+      root.render(<ChatSidePanel isOpen onClose={vi.fn()} presentation="docked" draft={{ id: 2, text: "예산 다시 나눠 줘" }} />);
+      await new Promise((resolve) => window.setTimeout(resolve, 0));
+    });
+    expect(composer()?.value).toBe("내가 쓰던 글");
+    expect(mocks.sendMessage).not.toHaveBeenCalled();
+  });
+
+  it("옆자리에서는 머리줄에 너비 조작을 더하고, 자동 스크롤이 라운지가 아니라 대화 목록만 움직인다", async () => {
+    const scrollIntoView = vi.fn();
+    HTMLElement.prototype.scrollIntoView = scrollIntoView;
+    mocks.messages = [{
+      id: "m1", couple_id: "couple-1", sender_id: null, sender_role: "ai", visibility: "shared",
+      content: "안녕하세요", metadata: {}, created_at: "2026-11-13T00:00:00.000Z",
+    }];
+    await act(async () => {
+      root.render(
+        <ChatSidePanel
+          isOpen
+          onClose={vi.fn()}
+          presentation="docked"
+          headerActions={<button type="button" aria-label="아모라 창 좁게 보기" />}
+        />,
+      );
+      await new Promise((resolve) => window.setTimeout(resolve, 0));
+    });
+    expect(container.querySelector('[role="complementary"] button[aria-label="아모라 창 좁게 보기"]')).not.toBeNull();
+    scrollIntoView.mockClear();
+    mocks.messages = [...mocks.messages, {
+      id: "m2", couple_id: "couple-1", sender_id: null, sender_role: "ai", visibility: "shared",
+      content: "다음 답", metadata: {}, created_at: "2026-11-13T00:00:01.000Z",
+    }];
+    await act(async () => {
+      root.render(<ChatSidePanel isOpen onClose={vi.fn()} presentation="docked" />);
+      await Promise.resolve();
+    });
+    expect(scrollIntoView).not.toHaveBeenCalled();
+  });
+
   it("yields keyboard handling to a checklist sheet and resumes after that sheet closes", async () => {
     const onClose = vi.fn();
     await act(async () => root.render(<ChatSidePanel isOpen onClose={onClose} />));

@@ -4,6 +4,7 @@ import Button from "@/components/ui/Button";
 import { ArrowRight, BookOpen, CalendarDays, Check, ChevronRight, ClipboardCheck, FileCheck2, Split } from "lucide-react";
 import AmoraMark from "@/components/ui/AmoraMark";
 import { AMORA_ACTION_CLASS } from "@/components/ui/amoraActionStyles";
+import { openAmoraInsteadOfLink, useAmoraDock } from "@/components/app/amora/amoraDock";
 import type { MissionGroup } from "@/lib/amora/missions";
 import { formatLoungeWon } from "@/lib/amora/loungeSummary";
 import { mannersPartForCategory } from "@/lib/manners/categoryMap";
@@ -15,26 +16,39 @@ import { daysUntilLoungeEvent, type LoungePriorityItem } from "./hubModel";
 const focus = "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--amora-accent)]";
 const progressClass = "block h-1 w-full overflow-hidden rounded-full border-0 bg-[var(--amora-low)] [&::-moz-progress-bar]:bg-[var(--amora-rose)] [&::-webkit-progress-bar]:bg-[var(--amora-low)] [&::-webkit-progress-value]:bg-[var(--amora-rose)]";
 
-export function PreparationStageRail({ groups }: { groups: readonly MissionGroup[] }) {
-  return <section aria-label="결혼 준비 단계" className="min-w-0 lg:rounded-[18px] lg:border lg:border-[var(--amora-line)] lg:bg-white lg:p-5">
-    <h2 className="mb-3 hidden text-[14px] font-semibold lg:block">준비 여정 한눈에</h2>
-    <div className="flex gap-1 overflow-x-auto pb-2 lg:block lg:space-y-1 lg:overflow-visible lg:pb-0">
-      {groups.map((group, index) => <Link key={group.id} {...weddingLinkProps(group.href)} aria-current={group.state === "current" ? "step" : undefined} className={`group flex min-w-[70px] flex-1 flex-col items-center gap-2 rounded-xl px-1 py-2 text-center lg:flex-row lg:gap-3 lg:px-2 lg:text-left ${group.state === "current" ? "lg:bg-[var(--amora-warm)]" : "hover:bg-[var(--amora-warm)]"} ${focus}`}>
+/**
+ * `layout="row"` 는 큰 화면에서도 가로 한 줄로 둔다. 아모라가 옆자리를 차지해 라운지가 한 줄로
+ * 쌓이는 동안에는 오른쪽 칸이 없으므로 세로 목록(lg:)을 쓰지 않는다.
+ */
+export function PreparationStageRail({ groups, layout = "auto" }: { groups: readonly MissionGroup[]; layout?: "auto" | "row" }) {
+  const wide = (classes: string) => (layout === "auto" ? classes : "");
+  return <section aria-label="결혼 준비 단계" className={`min-w-0 ${wide("lg:rounded-[18px] lg:border lg:border-[var(--amora-line)] lg:bg-white lg:p-5")}`}>
+    <h2 className={`mb-3 hidden text-[14px] font-semibold ${wide("lg:block")}`}>준비 여정 한눈에</h2>
+    <div className={`flex gap-1 overflow-x-auto pb-2 ${wide("lg:block lg:space-y-1 lg:overflow-visible lg:pb-0")}`}>
+      {groups.map((group, index) => <Link key={group.id} {...weddingLinkProps(group.href)} aria-current={group.state === "current" ? "step" : undefined} className={`group flex min-w-[70px] flex-1 flex-col items-center gap-2 rounded-xl px-1 py-2 text-center ${wide("lg:flex-row lg:gap-3 lg:px-2 lg:text-left")} ${group.state === "current" ? wide("lg:bg-[var(--amora-warm)]") : "hover:bg-[var(--amora-warm)]"} ${focus}`}>
         <span className={`flex size-9 shrink-0 items-center justify-center rounded-full text-[12px] font-semibold ${group.state === "done" ? "bg-[var(--amora-sage-pale)] text-noir-800" : group.state === "current" ? "bg-[var(--amora-ink)] text-white" : "border border-[var(--amora-line)] bg-white text-[var(--amora-muted)]"}`}>
           {group.state === "done" ? <Check size={15} aria-hidden="true" /> : index + 1}
         </span>
         <span className="min-w-0">
-          <span className={`block whitespace-nowrap text-[10.5px] lg:text-[12px] ${group.state === "current" ? "font-semibold text-[var(--amora-ink)]" : "text-[var(--amora-soft)]"}`}>{group.shortLabel}</span>
-          <span className="mt-0.5 hidden text-[10px] text-[var(--amora-muted)] lg:block">{group.state === "unknown" ? "기록 확인 전" : group.state === "skipped" ? "이번 준비에서 제외" : `${group.completedCategories}/${group.applicableCategories}개 분야 완료`}{group.state === "current" && " · 진행 단계"}</span>
+          <span className={`block whitespace-nowrap text-[10.5px] ${wide("lg:text-[12px]")} ${group.state === "current" ? "font-semibold text-[var(--amora-ink)]" : "text-[var(--amora-soft)]"}`}>{group.shortLabel}</span>
+          <span className={`mt-0.5 hidden text-[10px] text-[var(--amora-muted)] ${wide("lg:block")}`}>{group.state === "unknown" ? "기록 확인 전" : group.state === "skipped" ? "이번 준비에서 제외" : `${group.completedCategories}/${group.applicableCategories}개 분야 완료`}{group.state === "current" && " · 진행 단계"}</span>
         </span>
-        {group.state === "current" && <ChevronRight size={13} className="ml-auto hidden text-[var(--amora-muted)] lg:block" aria-hidden="true" />}
+        {group.state === "current" && <ChevronRight size={13} className={`ml-auto hidden text-[var(--amora-muted)] ${wide("lg:block")}`} aria-hidden="true" />}
       </Link>)}
     </div>
   </section>;
 }
 
+/** 라운지 항목을 아모라에게 넘길 때 입력칸에 넣는 말. 사람이 보내는 말이라 사람 말투로 쓴다. */
+export function loungeAmoraPrompt(item: LoungePriorityItem): string {
+  if (item.kind === "checklist") return `${item.category.label} 준비, 지금 뭐부터 하면 될까?`;
+  return `${item.event.title} 앞두고 뭘 챙기면 될까?`;
+}
+
 export function LoungePriorityFeed({ items }: { items: readonly LoungePriorityItem[] }) {
   const [showAll, setShowAll] = useState(false);
+  // 라운지가 보여 주는 할 일은 아모라에게 바로 넘길 수 있다(2026-11-13 파운더 결정: 기능은 아모라 뒤로).
+  const amoraDock = useAmoraDock();
   return <>
     <div className="mb-3 flex flex-wrap items-end justify-between gap-2 lg:mb-4">
       <div><p className="text-[10.5px] font-medium text-[var(--amora-rose-deep)] lg:text-[12px]">체크리스트 · 일정 한곳에서</p><h2 id="lounge-priority-title" className="amora-display mt-1 text-[19px] lg:text-[22px]">오늘 먼저 확인할 준비</h2></div>
@@ -50,6 +64,7 @@ export function LoungePriorityFeed({ items }: { items: readonly LoungePriorityIt
         const href = category ? `/checklist?category=${encodeURIComponent(category.key)}` : "/schedule";
         const tag = event ? "다음 일정" : imminent ? "확인 추천" : category?.status === "in_progress" ? "진행 중" : "시작 전";
         const days = event ? daysUntilLoungeEvent(event.date) : null;
+        const amoraPrompt = loungeAmoraPrompt(item);
         return <article key={category?.key ?? event?.id} className={`${index >= 3 && !showAll ? "hidden lg:grid" : "lg:grid"} rounded-[14px] border border-[var(--amora-line)] bg-white p-[15px] lg:grid-cols-[76px_minmax(0,1fr)] lg:gap-5 lg:rounded-none lg:border-x-0 lg:border-t-0 lg:p-0 lg:py-5 lg:last:border-b-0`}>
           <div className="mb-2 flex items-center gap-2 lg:mb-0 lg:block">
             <span className={`inline-flex rounded-md px-2 py-1 text-[10px] font-medium ${event ? "bg-[var(--amora-sage-pale)] text-noir-800" : imminent ? "bg-[var(--amora-rose-pale)] text-[var(--amora-rose-deep)]" : "bg-[var(--amora-warm)] text-[var(--amora-muted)]"}`}>{tag}</span>
@@ -64,7 +79,10 @@ export function LoungePriorityFeed({ items }: { items: readonly LoungePriorityIt
             </p>}
             <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
               {category ? <div className="min-w-[80px] max-w-[240px] flex-1"><div className="mb-1.5 flex items-center justify-between gap-2 text-[10px] text-[var(--amora-muted)]"><span>직접 체크</span><span>{category.done}/{category.total}</span></div><progress aria-label={`${category.label} 체크 진행`} max={Math.max(1, category.total)} value={category.done} className={progressClass} /></div> : <span className="inline-flex items-center gap-1.5 text-[10.5px] text-[var(--amora-muted)]"><CalendarDays size={13} aria-hidden="true" />등록한 일정</span>}
-              <Link {...weddingLinkProps(href)} className={`inline-flex min-h-11 shrink-0 items-center gap-1.5 rounded-lg px-3 text-[11px] font-medium ${index === 0 ? "bg-[var(--amora-action)] text-white hover:bg-[var(--amora-action-hover)]" : "bg-[var(--amora-warm)] text-[var(--amora-soft)] hover:bg-[var(--amora-low)]"} ${focus}`}>{event ? "일정 확인" : "체크리스트 열기"}<ArrowRight size={12} aria-hidden="true" /></Link>
+              <div className="flex flex-wrap items-center gap-2">
+                {amoraDock && <Link {...weddingLinkProps(`/chat?${new URLSearchParams({ prefill: amoraPrompt })}`)} onClick={(clickEvent) => openAmoraInsteadOfLink(clickEvent, amoraDock, { prefill: amoraPrompt })} className={`inline-flex min-h-11 shrink-0 items-center gap-1.5 rounded-lg border border-[var(--amora-line)] bg-white px-3 text-[11px] font-medium text-[var(--amora-ink)] hover:bg-[var(--amora-warm)] ${focus}`}><AmoraMark size={14} aria-hidden="true" />아모라에게 묻기</Link>}
+                <Link {...weddingLinkProps(href)} className={`inline-flex min-h-11 shrink-0 items-center gap-1.5 rounded-lg px-3 text-[11px] font-medium ${index === 0 ? "bg-[var(--amora-action)] text-white hover:bg-[var(--amora-action-hover)]" : "bg-[var(--amora-warm)] text-[var(--amora-soft)] hover:bg-[var(--amora-low)]"} ${focus}`}>{event ? "일정 확인" : "체크리스트 열기"}<ArrowRight size={12} aria-hidden="true" /></Link>
+              </div>
             </div>
           </div>
         </article>;
@@ -87,6 +105,7 @@ export function PreparationRecordPanel({ checked, completed, upcoming }: { check
 
 export function LoungeReferencePanels({ categoryKey, allocated }: { categoryKey: string; allocated: number }) {
   const guide = mannersPartForCategory(categoryKey);
+  const amoraDock = useAmoraDock();
   return <>
     <section className="rounded-[16px] border border-[var(--amora-line)] bg-[var(--amora-warm)] p-[18px]">
       <p className="inline-flex items-center gap-1.5 text-[10px] font-medium text-[var(--amora-rose-deep)]"><FileCheck2 size={13} aria-hidden="true" />계약 전 체크</p>
@@ -109,7 +128,7 @@ export function LoungeReferencePanels({ categoryKey, allocated }: { categoryKey:
       <p className="mt-2 text-xs leading-[1.75] text-[var(--amora-soft)]">19문항(약 3분)으로 나의 결혼 준비 기준을 찾고 파트너와 나란히 비교해 보세요.</p>
       <Link {...weddingLinkProps("/preparation-style")} className={`mt-1 inline-flex min-h-11 items-center gap-1.5 text-[11px] font-semibold ${focus}`}>웨딩코드 보기<ArrowRight size={12} aria-hidden="true" /></Link>
     </section>
-    <Link {...weddingLinkProps("/chat")} className={`block rounded-[16px] border border-[var(--hb-amora-line,#8F6662)] bg-[var(--hb-amora-surface,#FBF8F2)] p-[18px] text-[var(--hb-amora-ink,#7D5753)] transition-colors hover:bg-[var(--hb-amora-hover,#EADDD8)] ${focus}`}>
+    <Link {...weddingLinkProps("/chat")} onClick={(event) => openAmoraInsteadOfLink(event, amoraDock)} className={`block rounded-[16px] border border-[var(--hb-amora-line,#8F6662)] bg-[var(--hb-amora-surface,#FBF8F2)] p-[18px] text-[var(--hb-amora-ink,#7D5753)] transition-colors hover:bg-[var(--hb-amora-hover,#EADDD8)] ${focus}`}>
       <span className="flex items-center gap-2 text-[10px]"><AmoraMark size={13} aria-hidden="true" />AMORA</span><span className="amora-display mt-2 block text-[17px]">혼자 고민하지 않아도 괜찮아요</span><span className="mt-2 block text-[11px] leading-[1.75]">정리가 안 되는 준비, 아모라와 하나씩 이야기해 봐요.</span><span className={`${AMORA_ACTION_CLASS} mt-4`}><AmoraMark size={20} />아모라와 대화하기<ArrowRight size={12} aria-hidden="true" /></span>
     </Link>
   </>;

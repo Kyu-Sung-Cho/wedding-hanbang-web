@@ -28,6 +28,7 @@ import LoungeFirstArrival, {
   LoungeFirstArrivalEmptyNote,
 } from "@/components/app/LoungeFirstArrival";
 import AmoraMissions from "@/components/app/amora-missions/AmoraMissions";
+import { openAmoraInsteadOfLink, useAmoraDock } from "@/components/app/amora/amoraDock";
 import {
   getDashboardCompanionCopy,
   getJoinedDashboardMarkerSnapshot,
@@ -275,6 +276,10 @@ export default function LoungePage() {
     `/chat?${new URLSearchParams({ prefill: JOINED_PLAN_REVIEW_PROMPT })}`,
   );
   const showJoinedHandoff = joinedHandoffVisible && Boolean(partner);
+  // 큰 화면에서 아모라가 옆자리를 차지하면 라운지 칸이 절반~3분의 2로 좁아진다. 화면 폭(lg)만 보고
+  // 두 줄로 나누면 왼쪽 줄이 200px 대로 눌리므로, 그동안은 한 줄로 쌓는다.
+  const amoraDock = useAmoraDock();
+  const amoraSplit = Boolean(amoraDock?.docked && amoraDock.isOpen);
 
   // 모멘트 루프 시동 — 로그인 후 첫 화면이 라운지이므로 여기서 한 번 깨운다.
   // (예전엔 dashboard에만 있었는데 그 라우트가 라운지로 리다이렉트되면서
@@ -459,9 +464,10 @@ export default function LoungePage() {
             <h2 className="amora-display mt-3 text-[21px] leading-[1.35] lg:text-[27px]">{partner ? "함께 준비하는 우리의 결혼" : "차근차근 준비하는 나의 결혼"}</h2>
             <p className="mt-2 text-[11px] leading-[1.7] text-[var(--amora-soft)] lg:text-[12px]">{companionCopy.statusHeading} · {partnerLabel}</p>
           </div>
-          <Link {...weddingLinkProps(`/chat?${new URLSearchParams({ prefill: companionCopy.amoraPrompt })}`)} data-tutorial-target="amora-fab" className={`${AMORA_ACTION_CLASS} sm:shrink-0`}><AmoraMark size={20} aria-hidden="true" />아모라에게 물어보기<ArrowRight size={13} aria-hidden="true" /></Link>
+          {/* 라운지에서 아모라를 열면 라운지는 그대로 두고 옆(큰 화면)이나 위(작은 화면)에 연다. */}
+          <Link {...weddingLinkProps(`/chat?${new URLSearchParams({ prefill: companionCopy.amoraPrompt })}`)} onClick={(event) => openAmoraInsteadOfLink(event, amoraDock, { prefill: companionCopy.amoraPrompt })} data-tutorial-target="amora-fab" className={`${AMORA_ACTION_CLASS} sm:shrink-0`}><AmoraMark size={20} aria-hidden="true" />아모라에게 물어보기<ArrowRight size={13} aria-hidden="true" /></Link>
         </div>
-        <div className="mt-[18px] grid grid-cols-2 gap-y-5 border-t border-[#DEC9BA] pt-4 lg:mt-5 lg:grid-cols-4 lg:pt-5">
+        <div className={`mt-[18px] grid grid-cols-2 gap-y-5 border-t border-[#DEC9BA] pt-4 lg:mt-5 lg:pt-5 ${amoraSplit ? "" : "lg:grid-cols-4"}`}>
           <Link {...weddingLinkProps("/settings" )} className="min-w-0 border-r border-[#DEC9BA] py-1 pr-3 transition-colors hover:bg-white/30 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--amora-accent)] lg:pr-5">
             <p className={SUMMARY_LABEL_CLASS}>우리의 결혼식</p><p className={`${SUMMARY_VALUE_CLASS} mt-2 break-words`}>{getDdayLabel(weddingDday)}</p><p className="mt-2 text-[12px] leading-5 text-[#624A3C]">{formatFullDate(journey?.wedding_date)}</p><p className="mt-1 break-words text-[12px] leading-5 text-[#624A3C]">{journey?.venue || "날짜·장소 설정"}</p>
           </Link>
@@ -495,9 +501,9 @@ export default function LoungePage() {
         {setupGuidance?.needsBudget && <Link {...weddingLinkProps("/budget")} className="inline-flex min-h-11 items-center gap-1 rounded-lg text-[11px] font-semibold text-[var(--amora-accent)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--amora-accent)]">총 예산 입력<ArrowRight size={12} aria-hidden="true" /></Link>}
       </section>
 
-      <div className="grid min-w-0 gap-5 lg:grid-cols-[minmax(0,1fr)_320px] lg:items-start lg:gap-x-6 lg:gap-y-5 xl:grid-cols-[minmax(0,1fr)_340px]">
-        <div className="min-w-0 lg:col-start-2 lg:row-start-1"><PreparationStageRail groups={missionModel.groups} /></div>
-        <div className="min-w-0 space-y-5 lg:col-start-1 lg:row-span-2 lg:row-start-1 lg:space-y-6">
+      <div className={amoraSplit ? "grid min-w-0 gap-5" : "grid min-w-0 gap-5 lg:grid-cols-[minmax(0,1fr)_320px] lg:items-start lg:gap-x-6 lg:gap-y-5 xl:grid-cols-[minmax(0,1fr)_340px]"}>
+        <div className={amoraSplit ? "min-w-0" : "min-w-0 lg:col-start-2 lg:row-start-1"}><PreparationStageRail groups={missionModel.groups} layout={amoraSplit ? "row" : "auto"} /></div>
+        <div className={amoraSplit ? "min-w-0 space-y-5" : "min-w-0 space-y-5 lg:col-start-1 lg:row-span-2 lg:row-start-1 lg:space-y-6"}>
           <section id="today-missions" data-tutorial-target="lounge-focus" aria-labelledby="lounge-priority-title" className="scroll-mt-24">
             <div className="mb-5"><AmoraMissions hub /></div>
             {journey ? <LoungePriorityFeed items={priorityItems} /> : <div role="status" className="rounded-[14px] border border-[var(--amora-line)] bg-white p-5"><h2 id="lounge-priority-title" className="text-[14px] font-semibold">준비 정보를 확인하고 있어요</h2><p className="mt-2 text-[12px] leading-5 text-[var(--amora-muted)]">현재 계정의 계획을 확인하면 이어갈 준비를 보여드려요.</p></div>}
@@ -509,7 +515,7 @@ export default function LoungePage() {
           </details>}
           {firstArrival && <LoungeFirstArrivalEmptyNote view={firstArrival} />}
         </div>
-        <aside className="min-w-0 space-y-4 lg:col-start-2 lg:row-start-2">
+        <aside className={amoraSplit ? "min-w-0 space-y-4" : "min-w-0 space-y-4 lg:col-start-2 lg:row-start-2"}>
           <section data-tutorial-target="lounge-tools" aria-label="예산과 일정" className="space-y-4">
             <UpcomingEventsPanel events={upcomingEvents} />
             <BudgetPanel totalBudget={totalBudget} spentBudget={spentBudget} budgetWidth={budgetWidth} />
@@ -519,7 +525,7 @@ export default function LoungePage() {
       </div>
       {SHOW_SIGNED_IN_COMMUNITY && <details className="rounded-[16px] border border-[var(--amora-line)] bg-white px-[18px] lg:px-6">
         <summary className="flex min-h-14 cursor-pointer items-center justify-between gap-2 rounded-lg text-[12px] font-medium text-[var(--amora-soft)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--amora-accent)]"><span>참고한 자료와 같은 시기 준비 이야기</span><Users size={16} className="shrink-0 text-[var(--amora-rose)]" aria-hidden="true" /></summary>
-        <div className="grid gap-4 pb-5 pt-1 lg:grid-cols-2">
+        <div className={`grid gap-4 pb-5 pt-1 ${amoraSplit ? "" : "lg:grid-cols-2"}`}>
           <SavedPostsPanel posts={savedPosts} loading={savedLoading} error={savedError} onRetry={() => setSavedRetry(value => value + 1)} />
           <CohortPulsePanel cohort={cohortState} onRetry={() => setCohortRetry(value => value + 1)} />
         </div>

@@ -3,6 +3,7 @@ import { act, type ComponentProps } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import TopNav from "./TopNav";
+import { AmoraDockContext } from "./amora/amoraDock";
 
 const navigation = vi.hoisted(() => ({ pathname: "/wedding/chat/board", push: vi.fn() }));
 const auth = vi.hoisted(() => ({ journey: null as { wedding_date: string } | null }));
@@ -97,13 +98,54 @@ describe("Amora header search meaning", () => {
     expect(control("알림")).not.toBeNull();
   });
 
-  it("keeps the WeddingCode shortcut and hides community on generic signed-in pages", async () => {
+  // 2026-11-13 파운더 결정: 메인은 웨딩 라운지와 아모라 둘이라 머리줄의 기능 바로가기를 뺐다.
+  it("has no feature shortcut row and hides community on generic signed-in pages", async () => {
     navigation.pathname = "/wedding/settings";
     await act(async () => root.render(<TopNav onMenuToggle={vi.fn()} />));
-    const nav = container.querySelector('nav[aria-label="주요 기능 바로가기"]')!;
-    expect(nav.querySelector('a[href="/preparation-style"]')?.textContent).toBe("웨딩코드");
-    expect(nav.textContent).not.toContain("커뮤니티");
+    expect(container.querySelector('nav[aria-label="주요 기능 바로가기"]')).toBeNull();
+    for (const href of ["/preparation-style", "/checklist", "/schedule", "/budget"]) {
+      expect(container.querySelector(`a[href="${href}"]`), href).toBeNull();
+    }
     expect(control("커뮤니티 검색")).toBeNull();
+  });
+
+  it("toggles Amora beside the page only where the app frame offers it", async () => {
+    navigation.pathname = "/wedding/lounge";
+    await act(async () => root.render(<TopNav loungeWorkspace onMenuToggle={vi.fn()} />));
+    // 아모라 자리가 없는 화면(예절 가이드 등)에서는 버튼을 그리지 않는다.
+    expect(container.querySelector("[data-amora-dock-toggle]")).toBeNull();
+
+    const toggle = vi.fn();
+    const api = { isOpen: false, docked: true, open: vi.fn(), close: vi.fn(), toggle };
+    await act(async () => root.render(
+      <AmoraDockContext.Provider value={api}>
+        <TopNav loungeWorkspace onMenuToggle={vi.fn()} />
+      </AmoraDockContext.Provider>,
+    ));
+    const button = container.querySelector<HTMLButtonElement>("[data-amora-dock-toggle]")!;
+    expect(button.textContent).toBe("아모라");
+    expect(button.getAttribute("aria-pressed")).toBe("false");
+    expect(button.getAttribute("aria-controls")).toBe("amora-dock-pane");
+    // 폰 폭에서는 하단 탐색과 본문 질문이 같은 일을 하므로 숨긴다. 숨기는 일은 감싼 칸이 맡는다.
+    // 공통 Button 이 `inline-flex` 를 깔고 있어 단추에 `hidden` 을 얹으면 CSS 순서에 따라 폰에서도 보일 수 있다.
+    expect(button.parentElement?.classList.contains("hidden")).toBe(true);
+    expect(button.parentElement?.classList.contains("md:contents")).toBe(true);
+    expect(button.classList.contains("hidden")).toBe(false);
+    // 닫혀 있을 때는 테두리 단추, 열려 있을 때는 채운 단추다(아래에서 본다).
+    expect(button.className).not.toContain("bg-[var(--hb-action)]");
+    await act(async () => button.click());
+    expect(toggle).toHaveBeenCalledOnce();
+
+    await act(async () => root.render(
+      <AmoraDockContext.Provider value={{ ...api, isOpen: true, docked: false }}>
+        <TopNav loungeWorkspace onMenuToggle={vi.fn()} />
+      </AmoraDockContext.Provider>,
+    ));
+    const pressed = container.querySelector<HTMLButtonElement>("[data-amora-dock-toggle]")!;
+    expect(pressed.getAttribute("aria-pressed")).toBe("true");
+    expect(pressed.className).toContain("bg-[var(--hb-action)]");
+    // 덮개로 열릴 때는 옆 칸이 없으므로 가리키지 않는다.
+    expect(pressed.getAttribute("aria-controls")).toBeNull();
   });
 
   it("keeps one shared header slot on chat and board, leaving chat controls to the conversation", async () => {

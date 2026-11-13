@@ -1,29 +1,14 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { usePathname, useSearchParams } from "next/navigation";
-import AmoraMark from "@/components/ui/AmoraMark";
-import { AMORA_FAB_CLASS } from "@/components/ui/amoraActionStyles";
-import {
-  buildAmoraFirstHello,
-  FIRST_RUN_TUTORIAL_COMPLETED_EVENT,
-  readPreparationStage,
-  type AmoraFirstHello,
-  type AmoraFirstHelloInput,
-} from "@hanbang/shared";
 import AiNoticeFooter from "@/components/common/AiNoticeFooter";
-import {
-  consumePendingAmoraFirstHello,
-  dismissAmoraFirstHelloBubble,
-  peekPendingAmoraFirstHello,
-  rememberPendingAmoraFirstHello,
-} from "@/lib/amora/pendingFirstHello";
-import ChatSidePanel from "@/components/app/chat/ChatSidePanel";
 import Sidebar from "@/components/app/Sidebar";
 import { SIDEBAR_OFFSET_CLASS } from "@/components/app/sidebarStyles";
 import TopNav from "@/components/app/TopNav";
 import { preloadMannersSignedInChrome } from "@/components/manners/mannersChromeChunks";
 import AmoraBottomNav from "@/components/app/amora/AmoraBottomNav";
+import AmoraDockHost from "@/components/app/amora/AmoraDockHost";
 import { AmoraNavigationTargetContext } from "@/components/app/amora/AmoraNavigationContext";
 import { useAuthSessionSync } from "@/hooks/useAuthSessionSync";
 import { stripWeddingBasePath } from "@/lib/weddingPaths";
@@ -31,182 +16,15 @@ import { isAnalyticsSuppressedLocation } from "@/lib/analyticsPrivacy";
 import { useAuthStore } from "@/stores/authStore";
 
 /**
- * 아모라 버튼과 그 옆 말풍선.
+ * 로그인한 사람의 앱 틀.
  *
- * ## 왜 첫마디를 여기서 만드는가
+ * ## 화면은 둘이다 (2026-11-13 파운더 결정)
  *
- * 첫 실행 안내가 끝나면 아모라가 **먼저** 말을 건다. 그 말은 모델이 쓰지 않고
- * `buildAmoraFirstHello`가 온보딩 입력만으로 결정적으로 만든다 — 확인 안 된 사실을
- * 말하지 않고, 네트워크·토큰에 묶이지 않고, 두 사람이 같은 말을 받기 위해서다.
- * 이후의 진짜 대화는 평소대로 모델이 한다.
- *
- * 말풍선은 버튼을 누르거나 닫으면 사라지고 다시 뜨지 않는다.
- *
- * ## 왜 화면 상태만으로는 부족한가
- *
- * 첫마디를 `useState`에만 담아두면 새로고침 한 번에 사라진다. 그런데 안내를 끝냈다는
- * 사실은 이미 계정에 적혀 안내가 다시 뜨지 않으므로, 그 사람은 그 계정으로 첫마디를
- * **영영** 못 만난다. 그래서 만든 즉시 짧은 보관(`lib/amora/pendingFirstHello`)에 넣고,
- * 대화 화면이 가져가면 지운다. 앱도 같은 이유로 같은 모양의 보관을 쓴다.
+ * 웨딩 라운지(모든 준비를 한 화면에서 본다)와 아모라(대화로 맡긴다). 체크리스트·일정·예산·예절
+ * 가이드 같은 나머지 화면은 메뉴에서 빠지고 라운지와 아모라 뒤에서 열린다. 아모라 전체 화면이
+ * 아닌 곳에서는 어디서든 아모라를 열 수 있고, 큰 화면에서는 아모라가 본문을 옆으로 밀고 그 옆에
+ * 붙는다(`AmoraDockHost`).
  */
-function GlobalChatAssistant({ aboveBottomNav = false }: { aboveBottomNav?: boolean }) {
-  const [chatPanelOpen, setChatPanelOpen] = useState(false);
-  const [firstHello, setFirstHello] = useState<AmoraFirstHello | null>(null);
-  const [bubbleVisible, setBubbleVisible] = useState(false);
-  const { profile, journey, partner } = useAuthStore();
-  const launcherRef = useRef<HTMLButtonElement>(null);
-  const panelWasOpen = useRef(false);
-
-  useEffect(() => {
-    // 패널을 여는 동안 사라졌던 버튼은 닫을 때 새로 생기므로 새 요소에 초점을 돌린다.
-    if (panelWasOpen.current && !chatPanelOpen) launcherRef.current?.focus();
-    panelWasOpen.current = chatPanelOpen;
-  }, [chatPanelOpen]);
-
-  // 이벤트 핸들러는 한 번만 등록하고 값은 여기서 최신으로 읽는다. 온보딩 값이
-  // 늦게 도착해도 첫마디가 옛 값으로 굳지 않게 하려고.
-  const helloInputRef = useRef<Omit<AmoraFirstHelloInput, "now">>({});
-  // 보관의 주인. 한 번만 등록하는 이벤트 핸들러가 최신 값을 읽어야 한다.
-  const ownerIdRef = useRef<string | null>(null);
-  const ownerId = profile?.id ?? null;
-  useEffect(() => {
-    ownerIdRef.current = ownerId;
-  }, [ownerId]);
-
-  // 새로고침으로 돌아온 사람에게도 첫마디는 그대로 있어야 한다.
-  //
-  // 초기 상태로 넣을 수 없다: 저장소는 서버에 없어 첫 렌더에 쓰면 서버 HTML과 어긋나고,
-  // 주인(로그인한 사람)도 그 시점엔 아직 없을 수 있다. 렌더 중에 읽을 수도 없다 —
-  // 이 읽기는 다른 사람의 인사를 지우는 부수효과를 겸한다.
-  useEffect(() => {
-    if (!ownerId) return;
-    const pending = peekPendingAmoraFirstHello({ ownerId });
-    if (!pending) return;
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- 주인이 정해진 뒤 1회 복원(위 근거)
-    setFirstHello((previous) => previous ?? { preview: pending.preview, body: pending.body });
-    // 말풍선을 이미 닫은 사람에게 다시 띄우지 않는다. 인사 자체는 대화 화면에 남는다.
-    if (!pending.bubbleDismissed) setBubbleVisible(true);
-  }, [ownerId]);
-
-  useEffect(() => {
-    helloInputRef.current = {
-      weddingDate: journey?.wedding_date ?? null,
-      preparationStage: readPreparationStage(journey?.progress),
-      partnerLinked: Boolean(partner),
-    };
-  }, [journey?.progress, journey?.wedding_date, partner]);
-
-  useEffect(() => {
-    const handleTutorialCompleted = () => {
-      const hello = buildAmoraFirstHello({
-        ...helloInputRef.current,
-        now: Date.now(),
-      });
-      // 화면 상태보다 먼저 보관에 넣는다. 안내 직후 새로고침하거나 사이드바로
-      // 전체 페이지 대화에 들어가도 같은 인사를 만나야 한다.
-      rememberPendingAmoraFirstHello(hello, { ownerId: ownerIdRef.current });
-      setFirstHello((previous) => previous ?? hello);
-      setBubbleVisible(true);
-    };
-
-    window.addEventListener(
-      FIRST_RUN_TUTORIAL_COMPLETED_EVENT,
-      handleTutorialCompleted,
-    );
-    return () =>
-      window.removeEventListener(
-        FIRST_RUN_TUTORIAL_COMPLETED_EVENT,
-        handleTutorialCompleted,
-      );
-  }, []);
-
-  // 이 화면에서 첫마디를 이미 건넸는가. 패널을 닫는 것은 "봤다"는 뜻이라, 다시 열었을
-  // 때 같은 인사가 또 놓여 있으면 먼저 말을 건 것이 아니라 두 번 말한 것이 된다.
-  const helloDeliveredRef = useRef(false);
-
-  const openPanel = () => {
-    setBubbleVisible(false);
-    if (!helloDeliveredRef.current) {
-      helloDeliveredRef.current = true;
-      // 대화 화면이 첫마디를 가져간다. 보관에서 지워 두 번 건네지지 않게 한다.
-      const delivered = consumePendingAmoraFirstHello({ ownerId: ownerIdRef.current });
-      if (delivered) setFirstHello((previous) => previous ?? delivered);
-    }
-    setChatPanelOpen(true);
-  };
-
-  const showBubble = bubbleVisible && firstHello !== null && !chatPanelOpen;
-
-  return (
-    <>
-      <ChatSidePanel
-        isOpen={chatPanelOpen}
-        onClose={() => {
-          setChatPanelOpen(false);
-          // 첫마디는 한 번만 건넨다. 이 값은 대화 기록(chat_messages)에 저장되지 않는
-          // 화면 전용 메시지라, 남겨두면 패널을 열 때마다 아모라가 같은 인사를 다시
-          // 하는 것처럼 보인다. 앱은 이미 한 번만 보여주고 지운다 — 두 플랫폼이 같아야 한다.
-          setFirstHello(null);
-        }}
-        firstHello={firstHello?.body ?? null}
-      />
-
-      {!chatPanelOpen && (
-        <>
-          {showBubble && (
-            <div
-              data-testid="amora-first-hello-bubble"
-              className={`fixed ${aboveBottomNav ? "bottom-[calc(146px+env(safe-area-inset-bottom))]" : "bottom-[calc(4.5rem+env(safe-area-inset-bottom))]"} right-[calc(1rem+env(safe-area-inset-right))] z-30 flex max-w-[17rem] items-start gap-2 rounded-[6px] border border-[var(--hb-hairline)] bg-white p-3 shadow-[var(--shadow-raised)] md:bottom-[6.5rem] md:right-6`}
-            >
-              <button
-                type="button"
-                onClick={openPanel}
-                className="min-w-0 flex-1 text-left text-[13px] font-medium leading-[1.6] text-[var(--hb-text-strong)]"
-              >
-                {firstHello?.preview}
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setBubbleVisible(false);
-                  // 말풍선은 알림이고 첫마디는 인사다. 닫기는 알림만 끈다 —
-                  // 대화를 열면 첫마디는 그대로 놓여 있다.
-                  dismissAmoraFirstHelloBubble({ ownerId: ownerIdRef.current });
-                }}
-                className="shrink-0 rounded-full px-1.5 text-[13px] font-semibold text-[var(--hb-text-body)] hover:text-[var(--hb-text-strong)]"
-                aria-label="아모라 인사 닫기"
-              >
-                ×
-              </button>
-            </div>
-          )}
-
-          <button
-            type="button"
-            ref={launcherRef}
-            onClick={openPanel}
-            data-tutorial-target="amora-fab"
-            className={`${AMORA_FAB_CLASS} fixed ${aboveBottomNav ? "bottom-[calc(90px+env(safe-area-inset-bottom))]" : "bottom-[calc(1rem+env(safe-area-inset-bottom))]"} right-[calc(1rem+env(safe-area-inset-right))] z-30 h-12 w-12 md:bottom-6 md:right-6 md:h-14 md:w-14`}
-            title="아모라 AI 상담"
-            aria-label="아모라 AI 상담"
-          >
-            <AmoraMark className="h-5 w-5 md:h-6 md:w-6" />
-            {/* 읽지 않음 표시는 점만으로는 화면 낭독기에 들리지 않는다. */}
-            {showBubble && <span className="sr-only">읽지 않은 인사 1개</span>}
-            {showBubble && (
-              <span
-                data-testid="amora-first-hello-dot"
-                className="absolute right-0 top-0 h-3 w-3 rounded-full border-2 border-white bg-[#c0392b]"
-                aria-hidden="true"
-              />
-            )}
-          </button>
-        </>
-      )}
-    </>
-  );
-}
-
 export default function AppClientLayout({
   children,
   banner = null,
@@ -241,6 +59,8 @@ export default function AppClientLayout({
   const vendorAdminPreview = (
     pathname === "/wedding/vendors" || pathname.startsWith("/wedding/vendors/")
   ) && searchParams.get("preview") === "1";
+  // 아모라 화면 안에서는 아모라를 또 옆에 열지 않는다. 관리자 업체 미리보기에도 열지 않는다.
+  const amoraDockAvailable = !isAmoraPage && !vendorAdminPreview;
 
   // 첫 hydration에서는 Zustand가 아직 isDemo=false다. 서버가 검증한 데모라면
   // 이 순간에도 Supabase 세션 구독을 만들지 않아야 INITIAL_SESSION 이벤트가
@@ -251,7 +71,7 @@ export default function AppClientLayout({
     if (!isInitialized) void initialize({ initialDemo });
   }, [initialize, initialDemo, isInitialized]);
 
-  // 사이드바의 예절 가이드는 이 틀 밖의 공개 화면이다. 거기서 앱 사이드바·상단 바가 곧바로
+  // 예절 가이드는 이 틀 밖의 공개 화면이다. 라운지에서 거기로 가도 앱 사이드바·상단 바가 곧바로
   // 이어지도록, 한가할 때 그 두 조각을 미리 받아 둔다(없으면 받는 동안 공개 모양이 깜빡인다).
   useEffect(() => {
     if (typeof window.requestIdleCallback === "function") {
@@ -273,6 +93,32 @@ export default function AppClientLayout({
     );
   }
 
+  const pageColumn = (
+    <>
+      <TopNav onMenuToggle={() => setSidebarOpen(true)} amoraWorkspace={isAmoraPage} planningWorkspace={isPlanningPage} loungeWorkspace={isLoungeWorkspace} compactChrome={isSettingsPage} amoraNavigationRef={setAmoraNavigationTarget} />
+      {banner}
+      {isChatPage ? (
+        <main className="flex min-h-0 flex-1 flex-col overflow-hidden">{children}</main>
+      ) : hasHtmlDesign ? (
+        <>
+          <main>{children}</main>
+          {(isPlanningPage || isLoungeWorkspace) && <div className="px-[18px] pb-10 lg:px-9"><AiNoticeFooter variant="light" /></div>}
+        </>
+      ) : (
+        <>
+          <main className="p-6 max-md:p-4">
+            <div className="mx-auto max-w-[1120px]">{children}</div>
+          </main>
+          <div className="px-6 pb-10 max-md:px-4">
+            <div className="mx-auto max-w-[1120px]">
+              <AiNoticeFooter variant="light" />
+            </div>
+          </div>
+        </>
+      )}
+    </>
+  );
+
   return (
     <AmoraNavigationTargetContext.Provider value={amoraNavigationTarget}>
     <div
@@ -286,37 +132,15 @@ export default function AppClientLayout({
       <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
       {/* 사이드바 너비는 어느 화면에서나 같다(`sidebarStyles.ts`). 본문 여백도 하나다. */}
       <div className={isChatPage ? `flex h-[100dvh] flex-col ${SIDEBAR_OFFSET_CLASS}` : hasHtmlDesign ? `pb-[calc(74px+env(safe-area-inset-bottom))] ${SIDEBAR_OFFSET_CLASS} md:pb-0` : SIDEBAR_OFFSET_CLASS}>
-        <TopNav onMenuToggle={() => setSidebarOpen(true)} amoraWorkspace={isAmoraPage} planningWorkspace={isPlanningPage} loungeWorkspace={isLoungeWorkspace} compactChrome={isSettingsPage} amoraNavigationRef={setAmoraNavigationTarget} />
-        {banner}
-        {isChatPage ? (
-          <main className="flex min-h-0 flex-1 flex-col overflow-hidden">{children}</main>
-        ) : hasHtmlDesign ? (
-          <>
-            <main>{children}</main>
-            {(isPlanningPage || isLoungeWorkspace) && <div className="px-[18px] pb-10 lg:px-9"><AiNoticeFooter variant="light" /></div>}
-          </>
-        ) : (
-          <>
-            <main className="p-6 max-md:p-4">
-              <div className="mx-auto max-w-[1120px]">{children}</div>
-            </main>
-            <div className="px-6 pb-10 max-md:px-4">
-              <div className="mx-auto max-w-[1120px]">
-                <AiNoticeFooter variant="light" />
-              </div>
-            </div>
-          </>
-        )}
+        {amoraDockAvailable ? (
+          // 라운지·준비 화면은 본문 질문과 하단 탐색이 있어 오른쪽 아래 고정 버튼을 두지 않는다
+          // (목록을 덮는다). 그래도 상단 바와 본문에서 아모라를 열 수 있다.
+          <AmoraDockHost launcher={!hasHtmlDesign}>{pageColumn}</AmoraDockHost>
+        ) : pageColumn}
       </div>
 
-      {isAmoraPage && !isChatPage && <AmoraBottomNav />}
-      {isPlanningPage && <AmoraBottomNav active={isSchedulePage ? "schedule" : isBudgetPage ? "budget" : "checklist"} />}
-      {isLoungePage && <AmoraBottomNav active="lounge" />}
-      {isPreparationStylePage && <AmoraBottomNav active={null} />}
-
-      {/* 준비 화면은 본문 질문과 하단 탐색을 사용해 고정 버튼이 목록을 덮지 않게 한다. */}
-      {!hasHtmlDesign && !vendorAdminPreview && (
-        <GlobalChatAssistant />
+      {hasHtmlDesign && !isChatPage && (
+        <AmoraBottomNav active={isLoungePage ? "lounge" : isAmoraPage ? "amora" : null} />
       )}
     </div>
     </AmoraNavigationTargetContext.Provider>

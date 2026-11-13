@@ -77,7 +77,8 @@ describe("예절 안내 · 브라우저 방문자", () => {
     const container = mount(<MannersLayout><MannersIndexPage /></MannersLayout>);
     const chrome = mannersChrome(container);
     expect(chrome.bottomNav).not.toBeNull();
-    expect(chrome.bottomNav!.querySelectorAll("a")).toHaveLength(5);
+    // 2026-11-13 파운더 결정: 메인은 웨딩 라운지와 아모라 둘이라 아래 메뉴도 둘이다.
+    expect(chrome.bottomNav!.querySelectorAll("a")).toHaveLength(2);
     expect(chrome.footer).not.toBeNull();
     expect(chrome.mobileHeader).not.toBeNull();
     expect(chrome.homeLink?.getAttribute("href")).toBe("/wedding/lounge");
