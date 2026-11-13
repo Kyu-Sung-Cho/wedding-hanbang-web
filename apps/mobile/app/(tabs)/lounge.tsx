@@ -1,6 +1,6 @@
 // 웨딩 라운지 — 우리의 결혼식, 오늘의 한 가지, 준비 서비스 (Supabase 실데이터)
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { StyleSheet } from "react-native";
+import { Alert, StyleSheet, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router, useLocalSearchParams } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -59,8 +59,14 @@ import TodayOneCareCard from "@/components/dashboard/TodayOneCareCard";
 import AmoraActionsCard from "@/components/lounge/AmoraActionsCard";
 import PartnerChangeNotice from "@/components/lounge/PartnerChangeNotice";
 import WeddingHomeExperience, {
+  LoungeProfileButton,
   type WeddingHomeData,
 } from "@/components/dashboard/WeddingHomeExperience";
+import {
+  buildLoungeAmoraAskHref,
+  stageLoungeAmoraAsk,
+  type LoungeAmoraTask,
+} from "@/lib/loungeAmoraAsk";
 import AmoraFab from "@/components/lounge/AmoraFab";
 import JoinedPlanHandoff from "@/components/lounge/JoinedPlanHandoff";
 import { FirstRunAnchorProvider } from "@/components/lounge/FirstRunAnchors";
@@ -964,6 +970,19 @@ export default function DashboardScreen() {
     router.push("/(tabs)/chat?entry=lounge_fab");
   }, []);
 
+  // 할 일을 아모라에게 넘긴다(2026-11-13 파운더 결정: 기능은 아모라 뒤로). 질문 문장은 앱 안에서
+  // 한 번 건네고 주소에는 번호만 싣는다(`@/lib/loungeAmoraAsk`). 대화 화면은 입력칸에 넣기만 하고,
+  // 보내는 것은 사람이다.
+  const handleAskAmora = useCallback((task: LoungeAmoraTask) => {
+    const ownerId = firstRunProfileRef.current?.userId ?? null;
+    const id = ownerId ? stageLoungeAmoraAsk({ ownerId, task }) : null;
+    if (id === null) {
+      Alert.alert("질문을 준비하지 못했어요", "라운지를 아래로 당겨 새로 고친 뒤 다시 눌러 주세요.");
+      return;
+    }
+    router.push(buildLoungeAmoraAskHref(id) as Parameters<typeof router.push>[0]);
+  }, []);
+
   const handleDismissAmoraBubble = useCallback(() => {
     // 접는 것은 "알림 봤다"이지 "첫마디 필요 없다"가 아니다. 점은 그대로 둔다.
     setAmoraBubble(null);
@@ -973,6 +992,10 @@ export default function DashboardScreen() {
   if (error && !data) {
     return (
       <SafeAreaView style={styles.container} edges={["top"]}>
+        {/* 하단 탭에 내 정보가 없다(2026-11-13). 라운지를 못 불러와도 설정·로그아웃으로 갈 수 있어야 한다. */}
+        <View style={styles.errorHeader}>
+          <LoungeProfileButton />
+        </View>
         <ErrorRetry
           message="결혼 준비 현황을 불러올 수 없어요"
           onRetry={() => {
@@ -1017,6 +1040,7 @@ export default function DashboardScreen() {
               <LoungeEmptyNote note={firstArrivalView.emptyNote} />
             ) : null
           }
+          onAskAmora={handleAskAmora}
         />
         <AmoraFab
           onPress={handleAmoraFabPress}
@@ -1036,5 +1060,11 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.bg,
+  },
+  // 머리줄의 내 정보 버튼과 같은 자리(오른쪽 위)에 둔다.
+  errorHeader: {
+    alignItems: "flex-end",
+    paddingHorizontal: 20,
+    paddingTop: 16,
   },
 });

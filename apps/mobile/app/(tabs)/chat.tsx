@@ -77,9 +77,11 @@ import {
 } from "@/lib/amoraFirstHello";
 import {
   AMORA_CHAT_ENTRY_PARAM,
+  AMORA_CHAT_TASK_ENTRY,
   getAmoraChatEntryPrefill,
   resolveAmoraChatEntry,
 } from "@/lib/amoraChatEntry";
+import { LOUNGE_AMORA_ASK_PARAM, readLoungeAmoraAskId, takeLoungeAmoraAsk } from "@/lib/loungeAmoraAsk";
 import { createChatSessionGenerationGuard } from "@/lib/chatSessionGeneration";
 import {
   AMORA_MEMORY_OFF_COPY,
@@ -2387,6 +2389,46 @@ export default function ChatScreen() {
       current[lane].trim() ? current : updateAmoraChatLaneRecord(current, lane, prefill),
     );
   }, [activeScope, chatLoadError, coupleId, entryParam, initialLoaded, laneOpening, userId]);
+
+  // 라운지 할 일에서 「아모라에게 묻기」로 온 질문(2026-11-13). 위 진입구 초안과 달리 누를 때마다 다른
+  // 질문이라 번호(`ask`)가 바뀔 때마다 받는다. 칸이 정해진 뒤 그 칸의 아모라 입력칸에 넣기만 하고 보내지
+  // 않는다. 질문 문장은 주소가 아니라 앱 안에서 건너온다(`@/lib/loungeAmoraAsk`).
+  const askParam = routeParams[LOUNGE_AMORA_ASK_PARAM];
+  // 마지막으로 **실제로 넣은** 라운지 질문과 그 칸. 그 칸에 손대지 않은 채 남아 있으면 새 질문으로 바꿔도 된다.
+  const appliedLoungeAskRef = useRef<{ id: number; text: string; lane: "shared_ai" | "private_ai" } | null>(null);
+  // 보내는 중이라 미뤘을 때 다시 보게 하는 수. 상대에게 보낼 때는 streaming 이 켜지지 않아 이것으로 다시 돈다.
+  const [loungeAskRetry, setLoungeAskRetry] = useState(0);
+  useEffect(() => {
+    if (!initialLoaded || !userId || !coupleId || chatLoadError || laneOpening !== "decided") return;
+    const entry = Array.isArray(entryParam) ? entryParam[0] : entryParam;
+    if (entry !== AMORA_CHAT_TASK_ENTRY) return;
+    const id = readLoungeAmoraAskId(askParam);
+    if (id === null || appliedLoungeAskRef.current?.id === id) return;
+    // 보내는 중에는 받지 않고 미룬다. 보낸 글은 답이 끝날 때까지 입력칸에 남아 있어 "쓰던 글"로 잘못 읽히고,
+    // 칸을 아모라로 바꾸면 상대에게 보내던 글의 실패 안내가 가려진다. 질문은 그대로 두었다가 끝나면 넣는다.
+    if (streaming || sendingRef.current) {
+      const retry = setTimeout(() => setLoungeAskRetry((count) => count + 1), 400);
+      return () => clearTimeout(retry);
+    }
+    const text = takeLoungeAmoraAsk({ ownerId: userId, id });
+    // 번호는 한 번만 쓴다. 건넬 질문이 없으면(앱이 꺼졌다 켜졌거나 다른 사람이 열었다) 입력칸은 그대로다.
+    router.setParams({ [AMORA_CHAT_ENTRY_PARAM]: undefined, [LOUNGE_AMORA_ASK_PARAM]: undefined });
+    if (!text) return;
+    const lane = activeScope === "private" ? "private_ai" : "shared_ai";
+    const last = appliedLoungeAskRef.current;
+    const previous = last && last.lane === lane ? last.text : null;
+    const existing = inputByLaneRef.current[lane];
+    // 쓰던 글은 덮지 않는다. 라운지가 이 칸에 앞서 넣어 두고 손대지 않은 질문만 새 질문으로 바꾼다.
+    if (existing.trim() && existing !== previous) {
+      setPreparationNotice("쓰던 글이 있어서 라운지에서 고른 질문을 넣지 않았어요. 보내거나 지운 뒤 라운지에서 다시 눌러 주세요.");
+      return;
+    }
+    appliedLoungeAskRef.current = { id, text, lane };
+    // 상대에게 쓰던 중이었어도 아모라 입력칸을 보여 준다. 상대 칸에는 넣지 않는다.
+    setTarget("ai");
+    inputByLaneRef.current = updateAmoraChatLaneRecord(inputByLaneRef.current, lane, text);
+    setInputByLane((current) => updateAmoraChatLaneRecord(current, lane, text));
+  }, [activeScope, askParam, chatLoadError, coupleId, entryParam, initialLoaded, laneOpening, loungeAskRetry, streaming, userId]);
 
   // 라운지에서 만들어 둔 첫마디를 가져온다. 모델을 부르지 않으므로 네트워크가 느려도
   // 대화를 열자마자 놓여 있다.

@@ -21,6 +21,14 @@ export const HOME_SERVICES = Object.freeze([
     description: "지출과 분담",
     route: "/budget",
   },
+  // 2026-11-13: 하단 탭이 라운지·아모라 둘이 되면서 내 정보 메뉴에만 있던 예절 가이드를 라운지가 연다
+  // (파운더 원문 "에절가이드나 일정 관리 에산 관리 등등" 을 메인 뒤로 보내되 지우지 않는다).
+  {
+    key: "etiquette",
+    title: "예절 가이드",
+    description: "결혼 예절 안내",
+    route: "/etiquette",
+  },
   {
     key: "prices",
     title: "공시가·위약금",
@@ -42,11 +50,12 @@ export const HOME_SERVICES = Object.freeze([
     description: "지난 기록 보기",
     route: "/bookings",
   },
+  // 2026-11-13: 커뮤니티는 하단 탭에서 내려와 이 칸이 연다(파운더 확인). 뒤로 가기가 있는 화면이다.
   {
     key: "community",
     title: "커뮤니티",
     description: "같은 시기 커플",
-    route: "/(tabs)/community",
+    route: "/community",
   },
 ]);
 
@@ -164,6 +173,8 @@ export function buildDashboardFocus({
       description,
       ctaLabel: "체크리스트 열기",
       route: "/checklist",
+      // 카드 아래 「아모라에게 묻기」가 묻는 할 일. 카드가 고른 것과 같아야 해서 여기서 같이 정한다.
+      amoraTask: { kind: "checklist", categoryLabel: urgent.categoryLabel },
     };
   }
 
@@ -180,6 +191,7 @@ export function buildDashboardFocus({
           : "오늘 일정에 저장한 항목이에요. 하나를 끝내고 가볍게 다음으로 넘어가요.",
       ctaLabel: "오늘 일정 보기",
       route: "/schedule",
+      amoraTask: { kind: "event", title: todayTask.title },
     };
   }
 
@@ -207,6 +219,7 @@ export function buildDashboardFocus({
         "아직 여유가 있어요. 체크리스트를 보고 두 사람에게 맞는 순서로 준비해요.",
       ctaLabel: "준비 순서 보기",
       route: "/checklist",
+      amoraTask: { kind: "checklist", categoryLabel: nextTask.categoryLabel },
     };
   }
 

@@ -8,6 +8,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { router, useFocusEffect } from "expo-router";
 import * as Application from "expo-application";
 import {
+  ArrowLeft,
   ChevronRight,
   LogOut,
   HelpCircle,
@@ -84,18 +85,26 @@ function formatDdayLabel(dday: number): string {
   return `D+${Math.abs(dday)}`;
 }
 
+/**
+ * 2026-11-13 부터 내 정보는 하단 탭이 아니라 라운지 머리줄에서 여는 화면이다(하단 탭은 라운지·아모라 둘).
+ * 탭이 아니므로 스스로 돌아갈 길을 가진다. 뒤가 없으면(링크로 바로 들어왔으면) 라운지로 간다.
+ */
+const leaveProfile = () => (router.canGoBack() ? router.back() : router.replace("/(tabs)/lounge"));
+
+const EMPTY_STATS: ActivityStats = {
+  postCount: 0,
+  commentCount: 0,
+  bookmarkCount: 0,
+  totalUpvotes: 0,
+};
+
 export default function ProfileScreen() {
   const [profile, setProfile] = useState<ProfileData | null>(null);
   // 아바타는 프로필과 따로 둔다. 표시용 조회를 기다리느라 화면을 막지 않고, 못 읽으면 보이던 값을 그대로 둔다.
   const [avatar, setAvatar] = useState<ProfileAvatarState | null>(null);
   // 아바타 조회 순번. 새 조회나 편집기 저장이 생기면 올려 늦게 온 옛 응답이 새 값을 덮지 않게 한다.
   const avatarReadSeqRef = useRef(0);
-  const [stats, setStats] = useState<ActivityStats>({
-    postCount: 0,
-    commentCount: 0,
-    bookmarkCount: 0,
-    totalUpvotes: 0,
-  });
+  const [stats, setStats] = useState<ActivityStats>(EMPTY_STATS);
   const [refreshing, setRefreshing] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
   const [logoutError, setLogoutError] = useState<string | null>(null);
@@ -103,6 +112,19 @@ export default function ProfileScreen() {
   const [avatarNotice, setAvatarNotice] = useState<string | null>(null);
 
   const loadProfile = useCallback(async () => {
+    // 탭이었을 때는 탭 틀이 로그아웃한 사람을 로그인으로 보냈다. 이제 탭 밖이라 화면이 직접 본다.
+    // 빈 「게스트」 프로필과 로그아웃 버튼을 보여 주지 않는다.
+    const {
+      data: { session },
+      error: sessionError,
+    } = await supabase.auth.getSession();
+    // 세션을 읽지 못한 것(오프라인에서 토큰을 새로 받지 못한 경우 등)은 로그아웃이 아니다. 화면을 그대로 두고
+    // 당겨서 다시 읽게 한다. 탭 틀도 이 경우를 로그아웃과 따로 다뤘다.
+    if (sessionError) return;
+    if (!session) {
+      router.replace("/(auth)/login");
+      return;
+    }
     const {
       data: { user },
     } = await supabase.auth.getUser();
@@ -207,6 +229,26 @@ export default function ProfileScreen() {
     });
   }, []);
 
+  // 이 화면은 탭이 아니라 쌓인 화면이라, 설정에서 로그아웃하고 다른 계정으로 들어온 뒤 뒤로 가기로 다시 나타날 수
+  // 있다. 그때 앞 계정의 이름·이메일·활동 수가 새 값이 올 때까지 보이지 않게 먼저 비운다.
+  const shownOwnerRef = useRef<string | null>(null);
+  shownOwnerRef.current = profile?.userId ?? null;
+  useFocusEffect(
+    useCallback(() => {
+      let active = true;
+      void supabase.auth.getSession().then(({ data }) => {
+        const owner = data.session?.user.id ?? null;
+        if (!active || shownOwnerRef.current === null || shownOwnerRef.current === owner) return;
+        setProfile(null);
+        setAvatar(null);
+        setStats(EMPTY_STATS);
+      });
+      return () => {
+        active = false;
+      };
+    }, []),
+  );
+
   useFocusEffect(
     useCallback(() => {
       void loadProfile();
@@ -278,7 +320,18 @@ export default function ProfileScreen() {
       >
         {/* 상단 프로필 영역 (다크 배경) */}
         <View style={styles.heroSection}>
-          <Text style={styles.heroTitle}>내 정보</Text>
+          <View style={styles.heroHeader}>
+            <Pressable
+              style={({ pressed }) => [styles.backButton, pressed && { opacity: 0.7 }]}
+              onPress={leaveProfile}
+              hitSlop={8}
+              accessibilityRole="button"
+              accessibilityLabel="뒤로 가기"
+            >
+              <ArrowLeft size={22} color="#FFFFFF" />
+            </Pressable>
+            <Text style={styles.heroTitle}>내 정보</Text>
+          </View>
 
           {/* 아바타 + 이름 + 역할 */}
           <View style={styles.avatarRow}>
@@ -595,11 +648,25 @@ const styles = StyleSheet.create({
     borderBottomLeftRadius: 28,
     borderBottomRightRadius: 28,
   },
+  heroHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    marginLeft: -10,
+    marginBottom: 24,
+  },
+  // 어두운 머리 면 위의 뒤로 가기. 누르는 칸은 44px 이다.
+  backButton: {
+    width: 44,
+    height: 44,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 22,
+  },
   heroTitle: {
     fontSize: 28,
     fontFamily: "NotoSerifKR_500Medium",
     color: "#FFFFFF",
-    marginBottom: 24,
   },
 
   /* 아바타 영역 */

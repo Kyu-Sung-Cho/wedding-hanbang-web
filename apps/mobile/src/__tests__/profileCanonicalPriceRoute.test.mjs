@@ -3,7 +3,7 @@ import { readFile } from "node:fs/promises";
 import test from "node:test";
 import { URL } from "node:url";
 
-const profileUrl = new URL("../../app/(tabs)/profile.tsx", import.meta.url);
+const profileUrl = new URL("../../app/profile.tsx", import.meta.url);
 
 test("profile exposes one canonical official vendor discovery entry", async () => {
   const source = await readFile(profileUrl, "utf8");

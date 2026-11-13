@@ -1,4 +1,7 @@
 // 커뮤니티 홈 — 프리미엄 웨딩 SNS
+//
+// 2026-11-13 부터 하단 탭이 아니다. 하단 탭은 웨딩 라운지와 아모라 둘이고(파운더 결정), 이 화면은
+// 라운지의 준비 도구 칸과 내 정보의 커뮤니티 묶음에서 연다(파운더 확인). 뒤로 가기가 있는 화면이다.
 import { useEffect, useState, useCallback, useRef } from "react";
 import { View, FlatList, ScrollView, StyleSheet, Pressable, RefreshControl, Animated, Image } from "react-native";
 import { Text } from "@/components/ui/AppText";
@@ -26,6 +29,7 @@ import {
   type CommunityDecisionInbox,
 } from "@hanbang/shared/community-decision-feed";
 import { apiJson, optionalAuthGetJson } from "@/lib/api";
+import { supabase } from "@/lib/supabase";
 import {
   captureCommunityCacheScope,
   getCachedCommunityCohort,
@@ -35,6 +39,7 @@ import {
   putCachedCommunityPost,
   putCachedCommunityFeed,
   putCachedCommunityPosts,
+  setCommunityCacheViewer,
 } from "@/lib/communityPostCache";
 import ErrorRetry from "@/components/ErrorRetry";
 import {
@@ -50,8 +55,12 @@ import {
 import {
   AppHeader,
   EmptyState,
+  LoadingState,
   SectionHeader,
 } from "@/components/ui/AppUI";
+
+/** 탭이 아니므로 스스로 돌아갈 길을 가진다. 알림·링크로 바로 들어와 뒤가 없으면 라운지로 간다. */
+const leaveCommunity = () => (router.canGoBack() ? router.back() : router.replace("/(tabs)/lounge"));
 
 /* ───── 타입 ───── */
 
@@ -554,7 +563,56 @@ function DecisionInboxLink({
 
 /* ───── 메인 화면 ───── */
 
-export default function CommunityScreen() {
+/**
+ * 보는 사람을 정한 뒤에 피드를 그린다.
+ *
+ * 탭이었을 때는 탭 틀이 로그인 계정을 커뮤니티 저장 칸의 주인으로 정하고, 계정이 바뀌면 이 화면을
+ * 통째로 다시 그렸다(`key={communityViewerKey}`). 이제 탭 밖이라 화면이 직접 한다(글 상세 화면과 같은
+ * 방식). 정하지 않으면 링크로 바로 들어온 사람의 동기방 같은 자료가 주인 없는 칸에 남는다.
+ * 라운지에서 왔으면 탭 틀이 이미 정해 두었으므로 기다리지 않고 바로 그린다.
+ */
+export default function CommunityRoute() {
+  const [viewerKey, setViewerKey] = useState<string | null>(() => {
+    const current = captureCommunityCacheScope().viewerKey;
+    return current === "unresolved" ? null : current;
+  });
+
+  useEffect(() => {
+    let active = true;
+    function applyViewer(viewerId: string | null) {
+      setCommunityCacheViewer(viewerId);
+      setViewerKey(captureCommunityCacheScope().viewerKey);
+    }
+
+    void supabase.auth.getSession().then(({ data, error }) => {
+      if (!active) return;
+      // 세션을 읽지 못했으면 손님으로 본다(탭 틀이 하던 것과 같다).
+      applyViewer(error ? null : data.session?.user.id ?? null);
+    });
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((event, session) => {
+      if (!active || event === "INITIAL_SESSION") return;
+      applyViewer(session?.user.id ?? null);
+    });
+    return () => {
+      active = false;
+      subscription.unsubscribe();
+    };
+  }, []);
+
+  if (viewerKey === null) {
+    return (
+      <SafeAreaView style={styles.container} edges={["top"]}>
+        <AppHeader title="커뮤니티" subtitle="경험을 찾고 궁금한 걸 물어봐요" onBack={leaveCommunity} />
+        <LoadingState label="커뮤니티를 여는 중이에요" />
+      </SafeAreaView>
+    );
+  }
+  return <CommunityScreen key={viewerKey} />;
+}
+
+function CommunityScreen() {
   const [initialCohortCache] = useState(() =>
     getCachedCommunityCohort<MyCohort, CohortRoom>(),
   );
@@ -1051,7 +1109,7 @@ export default function CommunityScreen() {
 
   return (
     <SafeAreaView style={styles.container} edges={["top"]}>
-      <AppHeader title="커뮤니티" subtitle="경험을 찾고 궁금한 걸 물어봐요" />
+      <AppHeader title="커뮤니티" subtitle="경험을 찾고 궁금한 걸 물어봐요" onBack={leaveCommunity} />
 
       {/* 피드 */}
       {loading ? (

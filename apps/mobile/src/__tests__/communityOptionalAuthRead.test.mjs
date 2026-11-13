@@ -6,7 +6,7 @@ import test from "node:test";
 const mobileRoot = resolve(import.meta.dirname, "../..");
 const apiSource = readFileSync(resolve(mobileRoot, "src/lib/api.ts"), "utf8");
 const communitySource = readFileSync(
-  resolve(mobileRoot, "app/(tabs)/community.tsx"),
+  resolve(mobileRoot, "app/community/index.tsx"),
   "utf8",
 );
 

@@ -52,7 +52,7 @@ test("mobile verifies the exact web and Supabase destination before session use"
 });
 
 test("profile returns with fresh web-edited identity and wedding context", () => {
-  const profile = source("../../app/(tabs)/profile.tsx");
+  const profile = source("../../app/profile.tsx");
 
   assert.match(profile, /useFocusEffect\(/);
   assert.match(profile, /void loadProfile\(\)/);

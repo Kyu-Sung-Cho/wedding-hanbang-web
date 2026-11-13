@@ -10,7 +10,7 @@ const legacyListUrl = new URL("../../app/vendors/index.tsx", import.meta.url);
 const legacyDetailUrl = new URL("../../app/vendors/[id].tsx", import.meta.url);
 const entryUrls = [
   new URL("../lib/dashboardExperience.mjs", import.meta.url),
-  new URL("../../app/(tabs)/profile.tsx", import.meta.url),
+  new URL("../../app/profile.tsx", import.meta.url),
   new URL("../../app/bookings/index.tsx", import.meta.url),
 ];
 
@@ -54,7 +54,7 @@ test("mobile price entry opens the current vendor disclosure explorer", async ()
 test("mobile price entries say what the destination actually holds", async () => {
   const entries = [
     ["dashboard", new URL("../lib/dashboardExperience.mjs", import.meta.url)],
-    ["profile", new URL("../../app/(tabs)/profile.tsx", import.meta.url)],
+    ["profile", new URL("../../app/profile.tsx", import.meta.url)],
   ];
 
   for (const [name, url] of entries) {

@@ -286,7 +286,9 @@ export default function CohortDiscoveryScreen() {
             <PrimaryButton
               tone="rose"
               style={styles.bottomCtaButton}
-              onPress={() => router.push("/(tabs)/profile")}
+              // 예정일을 고치는 칸은 설정에 있다(라운지의 「결혼식 날짜 설정」과 같은 곳). 예전에는 내 정보
+              // 탭으로 갔는데 거기서는 날짜를 볼 수만 있었다.
+              onPress={() => router.push("/settings")}
             >
               결혼 예정일 설정하기
             </PrimaryButton>

@@ -28,6 +28,11 @@ export type DashboardFocusKind =
   | "next"
   | "calm";
 
+/** 카드 아래 「아모라에게 묻기」가 묻는 할 일. `@/lib/loungeAmoraAsk` 의 `LoungeAmoraTask` 와 같은 모양. */
+export type DashboardFocusAmoraTask =
+  | { kind: "checklist"; categoryLabel: string }
+  | { kind: "event"; title: string };
+
 export interface DashboardFocus {
   kind: DashboardFocusKind;
   eyebrow: string;
@@ -41,12 +46,15 @@ export interface DashboardFocus {
     | "/bookings"
     | "/(tabs)/chat";
   bookingId?: string;
+  /** 체크리스트 분야나 오늘 일정이 카드일 때만 있다. 날짜 설정·기록·여유 카드에는 없다. */
+  amoraTask?: DashboardFocusAmoraTask;
 }
 
 export type DashboardHomeServiceKey =
   | "checklist"
   | "schedule"
   | "budget"
+  | "etiquette"
   | "prices"
   | "quote"
   | "bookings"
@@ -60,10 +68,11 @@ export interface DashboardHomeService {
     | "/checklist"
     | "/schedule"
     | "/budget"
+    | "/etiquette"
     | "/market-prices"
     | "/quote-check"
     | "/bookings"
-    | "/(tabs)/community";
+    | "/community";
 }
 
 export const HOME_SERVICES: readonly DashboardHomeService[];

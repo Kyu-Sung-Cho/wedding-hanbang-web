@@ -4,7 +4,7 @@ import test from "node:test";
 import { URL } from "node:url";
 
 const feedSource = readFileSync(
-  new URL("../../app/(tabs)/community.tsx", import.meta.url),
+  new URL("../../app/community/index.tsx", import.meta.url),
   "utf8",
 );
 const detailSource = readFileSync(
@@ -12,7 +12,7 @@ const detailSource = readFileSync(
   "utf8",
 );
 const profileSource = readFileSync(
-  new URL("../../app/(tabs)/profile.tsx", import.meta.url),
+  new URL("../../app/profile.tsx", import.meta.url),
   "utf8",
 );
 const cohortSource = readFileSync(

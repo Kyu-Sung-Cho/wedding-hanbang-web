@@ -249,7 +249,7 @@ test("이전 서버가 다음 커서를 주지 않으면 전체 기록을 다 �
   await h.flush(); assert.match(h.text(), /90개 중 1개/u); assert.match(h.text(), /추가 기록을 이어서 읽을 수 없어요/u);
 });
 
-test("준비 기록 보조 화면은 기존 4개 탭을 바꾸지 않고 실행 화면으로 연결한다", () => {
+test("준비 기록 보조 화면은 하단 탭을 바꾸지 않고 실행 화면으로 연결한다", () => {
   assert.match(screenSource, /<SharedTaskBoard \/>/u);
   assert.doesNotMatch(screenSource, /AmoraActionsCard/u);
   for (const path of ["/budget", "/schedule", "/checklist"]) assert.ok(screenSource.includes(`router.push("${path}")`), path);

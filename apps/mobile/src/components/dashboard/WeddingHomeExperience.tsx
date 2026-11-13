@@ -4,6 +4,7 @@ import { Text } from "@/components/ui/AppText";
 import { router } from "expo-router";
 import {
   ArrowRight,
+  BookOpen,
   CalendarCheck,
   CalendarDays,
   FileCheck2,
@@ -11,10 +12,13 @@ import {
   ReceiptText,
   ShieldCheck,
   Split,
+  UserRound,
   UsersRound,
   WalletCards,
 } from "lucide-react-native";
-import { colors, radius, spacing } from "@hanbang/design-tokens";
+import { amoraIdentity, colors, radius, spacing } from "@hanbang/design-tokens";
+import AmoraMark from "@/components/ui/AmoraMark";
+import type { LoungeAmoraTask } from "@/lib/loungeAmoraAsk";
 import {
   buildDashboardFocus,
   buildHomeServices,
@@ -84,12 +88,50 @@ interface WeddingHomeExperienceProps {
   firstArrival?: ReactNode;
   /** 왜 아직 비어 있는지 한 줄. 빈 준비 도구 격자 바로 위에 붙는다. */
   emptyNote?: ReactNode;
+  /**
+   * 할 일을 아모라에게 넘긴다(2026-11-13). 라운지가 질문을 건넬 준비를 하고 아모라를 연다.
+   * 이 화면은 질문을 보내지 않는다. 없으면 「아모라에게 묻기」 버튼을 그리지 않는다.
+   */
+  onAskAmora?: (task: LoungeAmoraTask) => void;
+}
+
+/** 「아모라에게 묻기」를 누르면 일어나는 일. 화면 낭독기가 버튼 이름 뒤에 읽는다. */
+const LOUNGE_AMORA_ASK_HINT = "아모라 입력칸에 질문만 넣어 둬요. 보내기 전에는 아무것도 바뀌지 않아요.";
+
+function askAccessibilityLabel(task: LoungeAmoraTask): string {
+  return task.kind === "checklist"
+    ? `${task.categoryLabel} 준비, 아모라에게 묻기`
+    : `${task.title}, 아모라에게 묻기`;
+}
+
+/**
+ * 라운지 머리줄의 내 정보 버튼(2026-11-13). 하단 탭이 라운지·아모라 둘이 되면서 내 정보 탭이
+ * 여기로 왔다. 탭이었을 때처럼 아이콘 아래에 이름을 둔다. 설정·로그아웃이 그 안에 있어서
+ * 라운지를 불러오지 못한 화면에도 같은 버튼을 둔다(`app/(tabs)/lounge.tsx`).
+ */
+export function LoungeProfileButton() {
+  return (
+    <Pressable
+      style={({ pressed }) => [styles.profileButton, pressed && styles.profileButtonPressed]}
+      onPress={() => router.push("/profile")}
+      accessibilityRole="button"
+      accessibilityLabel="내 정보"
+      accessibilityHint="설정과 로그아웃도 여기서 열어요"
+      hitSlop={6}
+    >
+      <View style={styles.profileButtonIcon}>
+        <UserRound size={19} color={colors.noir[800]} />
+      </View>
+      <Text style={styles.profileButtonText}>내 정보</Text>
+    </Pressable>
+  );
 }
 
 const SERVICE_ICONS = {
   checklist: FileCheck2,
   schedule: CalendarDays,
   budget: WalletCards,
+  etiquette: BookOpen,
   prices: FileCheck2,
   quote: ReceiptText,
   bookings: CalendarCheck,
@@ -103,6 +145,7 @@ const SERVICE_COLORS: Record<
   checklist: { icon: colors.noir[800], background: colors.sage.pale },
   schedule: { icon: colors.rose[600], background: colors.rose.glow },
   budget: { icon: colors.noir[800], background: colors.ivory[200] },
+  etiquette: { icon: colors.sage.deep, background: colors.ivory[100] },
   prices: { icon: colors.sage.deep, background: colors.sage.pale },
   quote: { icon: colors.rose[600], background: colors.rose.pale },
   bookings: { icon: colors.paper.tapeInk, background: colors.gold.light },
@@ -182,6 +225,9 @@ function openService(service: DashboardHomeService) {
     case "/budget":
       router.push("/budget");
       return;
+    case "/etiquette":
+      router.push("/etiquette");
+      return;
     case "/market-prices":
       router.push("/market-prices");
       return;
@@ -191,8 +237,8 @@ function openService(service: DashboardHomeService) {
     case "/bookings":
       router.push("/bookings");
       return;
-    case "/(tabs)/community":
-      router.push("/(tabs)/community");
+    case "/community":
+      router.push("/community");
   }
 }
 
@@ -245,6 +291,7 @@ export default function WeddingHomeExperience({
   amoraActions,
   firstArrival,
   emptyNote,
+  onAskAmora,
 }: WeddingHomeExperienceProps) {
   const progressAnim = useRef(new Animated.Value(0)).current;
   const scrollRef = useRef<ScrollView>(null);
@@ -332,6 +379,7 @@ export default function WeddingHomeExperience({
                 {getGreeting(data.name)}
               </AppText>
             </View>
+            <LoungeProfileButton />
           </View>
 
           {/* 알림이 없으면 이 자식은 null 을 렌더한다. 감싸는 View 에 여백을 두면
@@ -404,6 +452,27 @@ export default function WeddingHomeExperience({
           </Pressable>
           </FirstRunAnchor>
 
+          {/*
+            카드가 고른 할 일을 아모라에게 넘긴다(2026-11-13, 웹 라운지와 같은 버튼). 카드 **밖 형제**로
+            둔다. 카드는 통째로 버튼이라 그 안에 넣으면 iOS 화면 낭독기가 이 버튼에 갈 수 없다.
+          */}
+          {onAskAmora && focus.amoraTask ? (
+            <Pressable
+              style={({ pressed }) => [
+                styles.askButton,
+                styles.focusAskButton,
+                pressed && styles.askButtonPressed,
+              ]}
+              onPress={() => focus.amoraTask && onAskAmora(focus.amoraTask)}
+              accessibilityRole="button"
+              accessibilityLabel={askAccessibilityLabel(focus.amoraTask)}
+              accessibilityHint={LOUNGE_AMORA_ASK_HINT}
+            >
+              <AmoraMark size={17} />
+              <Text style={styles.askButtonText}>아모라에게 묻기</Text>
+            </Pressable>
+          ) : null}
+
           {todayOneCare ? (
             <View style={styles.todayOneSection}>{todayOneCare}</View>
           ) : null}
@@ -467,37 +536,59 @@ export default function WeddingHomeExperience({
               />
               <View style={styles.simpleList}>
                 {secondaryUrgentTasks.map((task, index) => (
-                  <Pressable
+                  // 줄 하나에 버튼 둘이 형제로 선다. 줄을 누르면 지금처럼 체크리스트가 열리고
+                  // (파운더 선택: 버튼 따로 두기), 아래 버튼은 이 분야 질문을 아모라 입력칸에 넣는다.
+                  <View
                     key={task.categoryKey}
                     style={[
-                      styles.simpleRow,
+                      onAskAmora && styles.taskRowWithAsk,
                       index > 0 && styles.simpleRowBorder,
                     ]}
-                    onPress={() => router.push("/checklist")}
-                    accessibilityRole="button"
                   >
-                    <View
-                      style={[
-                        styles.taskDot,
-                        task.urgency === "overdue"
-                          ? styles.taskDotDanger
-                          : task.urgency === "soon"
-                            ? styles.taskDotWarning
-                            : styles.taskDotSuccess,
-                      ]}
-                    />
-                    <View style={styles.simpleCopy}>
-                      <Text style={styles.simpleTitle}>{task.categoryLabel}</Text>
-                      <Text style={styles.simpleDescription}>
-                        {task.remainingDays < 0
-                          ? `기본 확인 시점에서 ${Math.abs(task.remainingDays)}일 지남`
-                          : task.remainingDays === 0
-                            ? "오늘이 기본 확인 시점"
-                            : `기본 확인 시점까지 ${task.remainingDays}일`}
-                      </Text>
-                    </View>
-                    <ArrowRight size={16} color={colors.textTertiary} />
-                  </Pressable>
+                    <Pressable
+                      style={styles.simpleRow}
+                      onPress={() => router.push("/checklist")}
+                      accessibilityRole="button"
+                    >
+                      <View
+                        style={[
+                          styles.taskDot,
+                          task.urgency === "overdue"
+                            ? styles.taskDotDanger
+                            : task.urgency === "soon"
+                              ? styles.taskDotWarning
+                              : styles.taskDotSuccess,
+                        ]}
+                      />
+                      <View style={styles.simpleCopy}>
+                        <Text style={styles.simpleTitle}>{task.categoryLabel}</Text>
+                        <Text style={styles.simpleDescription}>
+                          {task.remainingDays < 0
+                            ? `기본 확인 시점에서 ${Math.abs(task.remainingDays)}일 지남`
+                            : task.remainingDays === 0
+                              ? "오늘이 기본 확인 시점"
+                              : `기본 확인 시점까지 ${task.remainingDays}일`}
+                        </Text>
+                      </View>
+                      <ArrowRight size={16} color={colors.textTertiary} />
+                    </Pressable>
+                    {onAskAmora ? (
+                      <Pressable
+                        style={({ pressed }) => [
+                          styles.askButton,
+                          styles.taskAskButton,
+                          pressed && styles.askButtonPressed,
+                        ]}
+                        onPress={() => onAskAmora({ kind: "checklist", categoryLabel: task.categoryLabel })}
+                        accessibilityRole="button"
+                        accessibilityLabel={askAccessibilityLabel({ kind: "checklist", categoryLabel: task.categoryLabel })}
+                        accessibilityHint={LOUNGE_AMORA_ASK_HINT}
+                      >
+                        <AmoraMark size={16} />
+                        <Text style={styles.askButtonText}>아모라에게 묻기</Text>
+                      </Pressable>
+                    ) : null}
+                  </View>
                 ))}
               </View>
             </View>
@@ -656,6 +747,65 @@ const styles = StyleSheet.create({
   greeting: {
     fontSize: 23,
     lineHeight: 30,
+  },
+  // 머리줄 내 정보 버튼. 예전 탭 칸처럼 아이콘 아래 이름을 둔다. 누르는 칸은 52px 이상이다.
+  profileButton: {
+    minWidth: 52,
+    minHeight: 52,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 3,
+    borderRadius: radius.lg,
+  },
+  profileButtonPressed: {
+    backgroundColor: colors.rose.pale,
+  },
+  profileButtonIcon: {
+    width: 34,
+    height: 34,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: radius.full,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+  },
+  profileButtonText: {
+    fontSize: 11,
+    lineHeight: 14,
+    fontFamily: "NotoSansKR_500Medium",
+    color: colors.noir[800],
+  },
+  // 「아모라에게 묻기」. 체크리스트 시트의 아모라 질문 버튼과 같은 정체성 색(`amoraIdentity`)이다.
+  askButton: {
+    alignSelf: "flex-start",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    minHeight: 44,
+    paddingHorizontal: 14,
+    borderRadius: amoraIdentity.radius,
+    borderWidth: 1,
+    borderColor: amoraIdentity.line,
+    backgroundColor: amoraIdentity.surface,
+  },
+  askButtonPressed: {
+    backgroundColor: amoraIdentity.hover,
+  },
+  askButtonText: {
+    fontSize: 13,
+    fontFamily: "NotoSansKR_600SemiBold",
+    color: amoraIdentity.ink,
+  },
+  focusAskButton: {
+    marginTop: spacing[3],
+  },
+  // 다가오는 준비 줄의 버튼은 글자 줄(점 8 + 간격 12)에 맞춰 선다.
+  taskAskButton: {
+    marginLeft: 20,
+  },
+  taskRowWithAsk: {
+    paddingBottom: spacing[3],
   },
   // 라운지 첫 요약. 웹 라운지 「현재 준비 현황」과 같은 샴페인 요약 면이다
   // (`@/lib/featureSummaryPalette`). 예전 어두운 카드는 아래 도구 카드와 무게는 달랐지만
