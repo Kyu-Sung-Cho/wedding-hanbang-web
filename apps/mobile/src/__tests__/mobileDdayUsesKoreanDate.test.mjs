@@ -22,7 +22,7 @@ import { fileURLToPath } from "node:url";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const FILES = [
-  "../../app/(tabs)/profile.tsx",
+  "../../app/profile.tsx",
   "../../app/(tabs)/lounge.tsx",
   "../../app/schedule/index.tsx",
 ];

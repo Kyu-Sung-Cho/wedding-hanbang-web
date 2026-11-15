@@ -4,7 +4,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
 const appRoot = resolve(import.meta.dirname, "../..");
-const feed = readFileSync(resolve(appRoot, "app/(tabs)/community.tsx"), "utf8");
+const feed = readFileSync(resolve(appRoot, "app/community/index.tsx"), "utf8");
 const detail = readFileSync(resolve(appRoot, "app/community/post/[id].tsx"), "utf8");
 const badges = readFileSync(
   resolve(appRoot, "src/components/community/CommunityTrustBadges.tsx"),

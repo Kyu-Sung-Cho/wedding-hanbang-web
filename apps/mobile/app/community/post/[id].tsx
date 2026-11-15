@@ -734,7 +734,7 @@ export default function PostDetailScreen() {
           "로그인한 커뮤니티에서 서로의 활동과 새 연락을 숨겼어요.",
           [{
             text: "확인",
-            onPress: () => router.replace("/(tabs)/community"),
+            onPress: () => router.replace("/community"),
           }],
         );
         return;

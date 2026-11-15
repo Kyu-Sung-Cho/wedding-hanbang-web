@@ -286,7 +286,7 @@ test("설정의 회원 탈퇴는 짙은 위험색이고, 눌림을 투명도로 
 });
 
 test("어두운 면 위의 글자는 밝은 단계를 쓴다 — 흐린 토큰을 일괄로 옮기며 어두워지지 않았다", () => {
-  const profile = source("app/(tabs)/profile.tsx");
+  const profile = source("app/profile.tsx");
   const dark = tokenValue(/backgroundColor: (colors(?:\.\w+|\[\d+\])+)/.exec(styleBlock(profile, "heroSection"))[1]);
   assert.equal(dark, colors.noir[800], "내 정보 머리 면이 바뀌면 아래 대비를 다시 재야 한다");
   const card = over("rgba(255, 255, 255, 0.08)", dark);

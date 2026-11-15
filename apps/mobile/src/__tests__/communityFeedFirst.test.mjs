@@ -4,7 +4,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
 const appRoot = resolve(import.meta.dirname, "../..");
-const feed = readFileSync(resolve(appRoot, "app/(tabs)/community.tsx"), "utf8");
+const feed = readFileSync(resolve(appRoot, "app/community/index.tsx"), "utf8");
 
 test("community puts real decision records and latest posts before discovery modules", () => {
   const decisionStart = feed.indexOf("function renderDecisionSection()");

@@ -14,7 +14,7 @@ const source = (relative) =>
   readFileSync(fileURLToPath(new URL(`../../${relative}`, import.meta.url)), "utf8");
 
 const screen = source("app/etiquette/index.tsx");
-const profile = source("app/(tabs)/profile.tsx");
+const profile = source("app/profile.tsx");
 
 test("프로필에 예절 안내로 가는 메뉴가 있다", () => {
   assert.match(profile, /label="결혼 예절 안내"/);

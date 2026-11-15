@@ -8,8 +8,11 @@ import { Bell, Menu, Search } from "lucide-react";
 import CategoryChecklistModal from "@/components/app/schedule/CategoryChecklistModal";
 import NotificationPanel from "@/components/app/NotificationPanel";
 import AmoraWorkspaceNav from "@/components/app/amora/AmoraWorkspaceNav";
+import { useAmoraDock } from "@/components/app/amora/amoraDock";
+import AmoraMark from "@/components/ui/AmoraMark";
+import Button from "@/components/ui/Button";
 import { useNotifications, useNotificationPrefs } from "@/hooks/useNotifications";
-import { isWeddingPathActive, stripWeddingBasePath, weddingLinkProps, weddingPath } from "@/lib/weddingPaths";
+import { stripWeddingBasePath, weddingLinkProps, weddingPath } from "@/lib/weddingPaths";
 import { SHOW_SIGNED_IN_COMMUNITY } from "@/lib/features/signedInCommunity";
 import { useAuthStore } from "@/stores/authStore";
 import { daysUntilWedding } from "@/lib/utils/weddingDate";
@@ -41,14 +44,8 @@ const pageTitlePrefixes: Array<{ prefix: string; title: string }> = [
   { prefix: "/manners", title: "예절 가이드" },
 ];
 
-const quickLinks = [
-  { linkProps: weddingLinkProps("/chat"), legacyPath: "/chat", label: "아모라" },
-  { linkProps: weddingLinkProps("/checklist"), legacyPath: "/checklist", label: "체크리스트" },
-  { linkProps: weddingLinkProps("/schedule"), legacyPath: "/schedule", label: "일정" },
-  { linkProps: weddingLinkProps("/budget"), legacyPath: "/budget", label: "예산" },
-  { linkProps: weddingLinkProps("/preparation-style"), legacyPath: "/preparation-style", label: "웨딩코드" },
-  { linkProps: weddingLinkProps(), legacyPath: "/community", label: "커뮤니티" },
-];
+// 예전에는 큰 화면 머리줄에 체크리스트·일정·예산·웨딩코드 바로가기가 있었다. 2026-11-13 파운더
+// 결정으로 메인이 웨딩 라운지와 아모라 둘이 되면서 뺐다. 그 화면들은 라운지와 아모라가 연다.
 
 function getPageTitle(pathname: string) {
   return pageTitles[pathname] ?? pageTitlePrefixes.find((item) => pathname.startsWith(item.prefix))?.title ?? "웨딩한방";
@@ -71,6 +68,8 @@ export default function TopNav({ onMenuToggle, amoraWorkspace = false, planningW
   const appPathname = stripWeddingBasePath(pathname);
   const title = appPathname === "/chat/board" ? "결정 보드" : appPathname === "/chat/missions" ? "아모라 · 오늘의 미션" : getPageTitle(appPathname);
   const { journey } = useAuthStore();
+  // 아모라 전체 화면·예절 가이드처럼 아모라 자리가 없는 화면에서는 null 이라 버튼을 그리지 않는다.
+  const amoraDock = useAmoraDock();
   const { prefs } = useNotificationPrefs();
   const [showNotifications, setShowNotifications] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
@@ -127,27 +126,27 @@ export default function TopNav({ onMenuToggle, amoraWorkspace = false, planningW
         </div>
 
         <div className="flex items-center gap-2">
-          <nav
-            aria-label="주요 기능 바로가기"
-            className={htmlDesign ? "hidden" : "mr-4 hidden shrink-0 items-center gap-4 whitespace-nowrap text-[15px] font-semibold text-[var(--hb-text-strong)] xl:flex"}
-          >
-            {quickLinks.filter((item) => SHOW_SIGNED_IN_COMMUNITY || item.legacyPath !== "/community").map((item, index) => {
-              const isActive = isWeddingPathActive(pathname, item.legacyPath);
-              return (
-                <div key={item.legacyPath} className="flex items-center gap-4">
-                  {index > 0 && <span className="h-4 w-px bg-[#eadfc9]" aria-hidden />}
-                  <Link
-                    {...item.linkProps}
-                    className={`transition-colors hover:text-[var(--hb-accent-hover)] ${
-                      isActive ? "text-[var(--hb-accent-hover)]" : "text-[var(--hb-text-strong)]"
-                    }`}
-                  >
-                    {item.label}
-                  </Link>
-                </div>
-              );
-            })}
-          </nav>
+          {/* 아모라를 옆에(큰 화면) 또는 위에(태블릿) 연다. 폰에서는 하단 탐색과 본문 질문이 같은 일을 한다.
+              Button 은 `inline-flex` 를 깔고 있어 단추에 `hidden` 을 얹으면 어느 쪽이 이길지 CSS 순서에 달린다.
+              그래서 폰에서 숨기는 일은 감싼 칸이 맡는다. */}
+          {amoraDock && (
+            <span className="hidden md:contents">
+              <Button
+                variant={amoraDock.isOpen ? "primary" : "secondary"}
+                // 옆의 알림 단추(44px)와 같은 높이. sm 은 40px 라 줄이 들쭉날쭉하다.
+                size="md"
+                onClick={() => amoraDock.toggle()}
+                aria-pressed={amoraDock.isOpen}
+                aria-controls={amoraDock.docked ? "amora-dock-pane" : undefined}
+                data-amora-dock-toggle=""
+                // 닫힘(secondary)에만 테두리가 있다. 열림에도 같은 굵기의 투명 테두리를 둬서 누를 때 폭이 바뀌지 않게 한다.
+                className={amoraDock.isOpen ? "shrink-0 border border-transparent" : "shrink-0"}
+              >
+                <AmoraMark size={16} aria-hidden="true" />
+                아모라
+              </Button>
+            </span>
+          )}
 
           <div className={compactWorkspace ? "flex shrink-0 items-center whitespace-nowrap rounded-full bg-[var(--amora-rose-deep)] px-[11px] py-[7px] text-white md:px-[14px]" : htmlDesign ? "hidden items-center gap-2 rounded-full bg-[var(--amora-low)] px-[13px] py-[7px] xl:flex" : "hidden items-center gap-2 rounded-full border border-[var(--hb-hairline)] bg-white px-4 py-2 sm:flex"}>
             {!compactWorkspace && <span className="h-2 w-2 rounded-full bg-[var(--hb-accent)]" />}

@@ -117,12 +117,12 @@ apps/mobile/
 │   ├── (auth)/                인증 그룹
 │   │   ├── _layout.tsx
 │   │   └── login.tsx          카카오/Apple 로그인
-│   └── (tabs)/                탭 네비 그룹
-│       ├── _layout.tsx        하단 4개 탭
-│       ├── dashboard.tsx      홈
-│       ├── chat.tsx           AI 아모라
-│       ├── community.tsx      커뮤니티
-│       └── profile.tsx        내 정보
+│   ├── (tabs)/                탭 네비 그룹 (2026-11-13 부터 둘)
+│   │   ├── _layout.tsx        하단 2개 탭: 라운지 | 아모라
+│   │   ├── lounge.tsx         웨딩 라운지
+│   │   └── chat.tsx           AI 아모라
+│   ├── community/index.tsx    커뮤니티 (라운지 칸·내 정보에서 연다, 뒤로 가기 있음)
+│   └── profile.tsx            내 정보 (라운지 머리줄에서 연다, 뒤로 가기 있음)
 │
 ├── src/
 │   ├── lib/

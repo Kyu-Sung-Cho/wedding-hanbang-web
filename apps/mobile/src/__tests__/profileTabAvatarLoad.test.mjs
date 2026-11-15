@@ -17,7 +17,7 @@ import * as avatar from "../lib/profileAvatarPresentation.mjs";
 const OWNER = "11111111-1111-4111-8111-111111111111";
 const REVISION = "33333333-3333-4333-8333-333333333333";
 const PHOTO = `/api/profile/avatar/image?userId=${OWNER}&version=${REVISION}`;
-const profileSource = readFileSync(fileURLToPath(new URL("../../app/(tabs)/profile.tsx", import.meta.url)), "utf8");
+const profileSource = readFileSync(fileURLToPath(new URL("../../app/profile.tsx", import.meta.url)), "utf8");
 const tree = ts.createSourceFile("profile.tsx", profileSource, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
 
 let loadProfileText;

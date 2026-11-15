@@ -148,12 +148,16 @@ describe("아모라 첫마디는 새로고침을 건너서 남는다", () => {
 });
 
 describe("첫마디는 두 대화 화면 모두에서 보인다", () => {
-  it("라운지 레이아웃이 보관을 쓰고, 열면 소비한다", () => {
+  it("앱 틀의 아모라 자리가 보관을 쓰고, 열면 소비한다", () => {
+    // 2026-11-13: 둥근 버튼·첫마디 말풍선·옆 패널이 앱 틀(`AppClientLayout`)에서 아모라 자리(`AmoraDockHost`)로
+    // 옮겨 갔다. 옮겨 간 파일만 보면 앱 틀이 그 자리를 빼도 이 시험이 초록이므로, 앱 틀이 감싸는지도 함께 본다.
     const layout = readFileSync(path.join(srcRoot, "app/(app)/AppClientLayout.tsx"), "utf8");
-    expect(layout).toContain("peekPendingAmoraFirstHello({ ownerId })");
-    expect(layout).toContain("rememberPendingAmoraFirstHello(hello,");
-    expect(layout).toContain("consumePendingAmoraFirstHello({ ownerId: ownerIdRef.current })");
-    expect(layout).toContain("dismissAmoraFirstHelloBubble({ ownerId: ownerIdRef.current })");
+    expect(layout).toContain("<AmoraDockHost launcher=");
+    const host = readFileSync(path.join(srcRoot, "components/app/amora/AmoraDockHost.tsx"), "utf8");
+    expect(host).toContain("peekPendingAmoraFirstHello({ ownerId })");
+    expect(host).toContain("rememberPendingAmoraFirstHello(hello,");
+    expect(host).toContain("consumePendingAmoraFirstHello({ ownerId: ownerIdRef.current })");
+    expect(host).toContain("dismissAmoraFirstHelloBubble({ ownerId: ownerIdRef.current })");
   });
 
   it("전체 페이지 대화도 첫마디를 꺼내 그리고, 인사를 두 번 하지 않는다", () => {

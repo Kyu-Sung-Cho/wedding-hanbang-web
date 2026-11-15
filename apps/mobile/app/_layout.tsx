@@ -95,7 +95,10 @@ function RootLayout() {
             <Stack.Screen name="quote-check" options={{ headerShown: false }} />
             <Stack.Screen name="wedding-code" options={{ headerShown: false }} />
             <Stack.Screen name="webview" options={{ headerShown: false }} />
+            {/* 2026-11-13: 커뮤니티와 내 정보는 하단 탭이 아니다(탭은 라운지·아모라 둘). 라운지에서 여는
+                화면이고 스스로 뒤로 가기를 가진다. */}
             <Stack.Screen name="community" options={{ headerShown: false }} />
+            <Stack.Screen name="profile" options={{ headerShown: false }} />
           </Stack>
           </ConsentGate>
         </SafeAreaProvider>

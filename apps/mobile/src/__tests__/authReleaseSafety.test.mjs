@@ -11,7 +11,7 @@ function readSource(relativePath) {
 
 test("web logout runs without depending on the native Alert callback", () => {
   const logoutScreens = [
-    readSource("../../app/(tabs)/profile.tsx"),
+    readSource("../../app/profile.tsx"),
     readSource("../../app/settings/index.tsx"),
   ];
 
@@ -49,19 +49,21 @@ test("the root gate keeps auth and profile failures in a retryable error state",
   assert.match(indexSource, /다시 시도/);
 });
 
-test("the tab guard protects planning tabs while preserving the public community feed", () => {
+// 2026-11-13: 하단 탭이 라운지·아모라 둘이 되면서 공개 탭(커뮤니티)이 탭 밖 화면으로 나갔다.
+// 탭 안은 전부 로그인한 사람의 자리이고, 로그인 없이 글을 읽는 길은 탭 밖 커뮤니티 화면이 지킨다.
+test("the tab guard protects every tab while the public community feed stays readable outside the tabs", () => {
   const layoutSource = readSource("../../app/(tabs)/_layout.tsx");
 
-  assert.match(layoutSource, /isPublicCommunity\s*=\s*pathname\s*===\s*["']\/community["']/);
   assert.match(layoutSource, /supabase\.auth\.getSession\(\)/);
   assert.match(layoutSource, /onAuthStateChange/);
-  assert.match(
-    layoutSource,
-    /authStatus\s*===\s*["']guest["']\s*&&\s*!isPublicCommunity/,
-  );
-  assert.match(layoutSource, /<Redirect\s+href=["']\/\(auth\)\/login["']/);
-  assert.match(layoutSource, /href:\s*protectedTabHref/);
-  assert.match(layoutSource, /name=["']community["']/);
+  assert.match(layoutSource, /authStatus\s*===\s*["']guest["']\)\s*\{\s*return <Redirect\s+href=["']\/\(auth\)\/login["']/);
+  // 예외도, 손님에게 탭을 숨기던 값도 없다. 남아 있으면 로그아웃한 사람이 탭 안에 들어설 길이 다시 생긴다.
+  assert.doesNotMatch(layoutSource, /isPublicCommunity|protectedTabHref/);
+  assert.doesNotMatch(layoutSource, /name=["'](community|profile)["']/);
+
+  const communitySource = readSource("../../app/community/index.tsx");
+  assert.match(communitySource, /optionalAuthGetJson/);
+  assert.doesNotMatch(communitySource, /<Redirect\s+href=["']\/\(auth\)\/login["']/);
 });
 
 function apiHarness() {

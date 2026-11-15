@@ -8,7 +8,12 @@ import {
 } from "@hanbang/shared";
 
 import AppClientLayout from "./AppClientLayout";
-import { resetAmoraFirstHelloMemory } from "@/lib/amora/pendingFirstHello";
+import { useAmoraDock } from "@/components/app/amora/amoraDock";
+import LoungeFirstHello from "@/components/app/LoungeFirstHello";
+import {
+  rememberPendingAmoraFirstHello,
+  resetAmoraFirstHelloMemory,
+} from "@/lib/amora/pendingFirstHello";
 
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean })
   .IS_REACT_ACT_ENVIRONMENT = true;
@@ -50,16 +55,25 @@ vi.mock("@/components/app/chat/ChatSidePanel", () => ({
     isOpen,
     onClose,
     firstHello,
+    presentation,
+    draft,
+    headerActions,
   }: {
     isOpen: boolean;
     onClose?: () => void;
     firstHello?: string | null;
+    presentation?: "overlay" | "docked";
+    draft?: { id: number; text: string } | null;
+    headerActions?: React.ReactNode;
   }) => (
     <div
       data-testid="global-amora-panel"
       data-open={String(isOpen)}
       data-first-hello={firstHello ?? ""}
+      data-presentation={presentation ?? "overlay"}
+      data-draft={draft?.text ?? ""}
     >
+      {headerActions}
       <button
         type="button"
         data-testid="global-amora-panel-close"
@@ -158,7 +172,8 @@ describe("AppClientLayout global Amora panel", () => {
     expect(document.activeElement).toBe(restored);
   });
 
-  it.each(["/wedding/chat", "/wedding/checklist", "/checklist", "/wedding/budget", "/budget", "/wedding/schedule", "/schedule", "/wedding/lounge", "/lounge", "/wedding/preparation-style", "/preparation-style"])("unmounts and resets the global panel when navigation enters %s", async (pathname) => {
+  // 아모라 화면 안에서는 아모라를 또 옆에 열지 않는다. 들어가면 옆자리를 내리고, 나오면 닫힌 채로 시작한다.
+  it.each(["/wedding/chat", "/wedding/chat/board", "/wedding/chat/missions"])("unmounts and resets the panel when navigation enters Amora's own screen %s", async (pathname) => {
     await renderLayout();
 
     const launcher = container.querySelector<HTMLButtonElement>(
@@ -180,15 +195,30 @@ describe("AppClientLayout global Amora panel", () => {
       .toBe("false");
   });
 
+  // 2026-11-13 파운더 결정: 라운지에서 아모라를 열면 라운지 옆에 붙는다. 그 상태로 체크리스트·
+  // 예산 같은 화면을 열어도 아모라는 그대로 옆에 남는다(기능은 아모라 뒤로).
+  it.each(["/wedding/lounge", "/lounge", "/wedding/checklist", "/wedding/budget", "/wedding/schedule", "/wedding/preparation-style"])("keeps Amora open beside the page when moving to %s", async (pathname) => {
+    await renderLayout();
+    await act(async () => container.querySelector<HTMLButtonElement>('button[aria-label="아모라 AI 상담"]')?.click());
+
+    mocks.pathname = pathname;
+    await renderLayout();
+    expect(container.querySelector('[data-testid="global-amora-panel"]')?.getAttribute("data-open"))
+      .toBe("true");
+    // 이 화면들은 본문과 하단 탐색으로 아모라를 열므로 오른쪽 아래 고정 버튼은 없다.
+    expect(container.querySelector('button[aria-label="아모라 AI 상담"]')).toBeNull();
+  });
+
   it.each(["/wedding/chat/missions", "/wedding/chat/board"])("keeps %s in the Amora shell with reachable mobile navigation", async (pathname) => {
     mocks.pathname = pathname;
     await renderLayout();
     expect(container.querySelector(".amora-workspace main")).not.toBeNull();
     expect(container.querySelector('button[aria-label="아모라 AI 상담"]')).toBeNull();
     const nav = container.querySelector('nav[aria-label="모바일 주요 기능"]');
-    expect(nav?.querySelectorAll("a")).toHaveLength(5);
-    expect(nav?.querySelector('a[href="/wedding/chat"]')).not.toBeNull();
-    expect(nav?.querySelector('a[href="/wedding/checklist"]')).not.toBeNull();
+    // 2026-11-13 파운더 결정: 메인은 웨딩 라운지와 아모라 둘이라 아래 메뉴도 둘이다.
+    expect([...nav!.querySelectorAll("a")].map(link => link.getAttribute("href"))).toEqual(["/wedding/lounge", "/wedding/chat"]);
+    expect(nav?.querySelector('[aria-current="location"]')?.getAttribute("href")).toBe("/wedding/chat");
+    expect(nav?.querySelector('a[href="/wedding/checklist"]')).toBeNull();
   });
 
   it.each([
@@ -212,19 +242,20 @@ describe("AppClientLayout global Amora panel", () => {
     ["/budget", "/wedding/budget"],
     ["/wedding/schedule", "/wedding/schedule"],
     ["/schedule", "/wedding/schedule"],
-  ])("keeps planner navigation without a competing global launcher on %s", async (pathname, activeHref) => {
+  ])("keeps planner screens behind the two main tabs without a competing global launcher on %s", async (pathname, plannerHref) => {
     mocks.pathname = pathname;
     await renderLayout();
     expect(container.querySelector(".planning-workspace main")).not.toBeNull();
     const nav = container.querySelector('nav[aria-label="모바일 주요 기능"]');
-    expect(nav?.querySelectorAll("a")).toHaveLength(5);
-    expect(nav?.querySelectorAll('[aria-current="location"]')).toHaveLength(1);
-    expect([...nav!.querySelectorAll("a")].map(link => link.textContent)).toEqual(["라운지", "아모라", "체크리스트", "일정", "예산"]);
+    // 2026-11-13 파운더 결정: 체크리스트·일정·예산은 아래 메뉴에서 빠지고 라운지와 아모라가 연다.
+    expect([...nav!.querySelectorAll("a")].map(link => link.textContent)).toEqual(["라운지", "아모라"]);
+    expect(nav?.querySelector(`a[href="${plannerHref}"]`)).toBeNull();
+    // 그 화면은 두 탭 어디에도 속하지 않으므로 어느 탭도 지금 위치로 표시하지 않는다.
+    expect(nav?.querySelectorAll('[aria-current="location"]')).toHaveLength(0);
     expect(nav?.querySelector('a[href="/wedding/chat"] [data-amora-mark="compass"]')).not.toBeNull();
-    expect(nav?.querySelector('[aria-current="location"]')?.getAttribute("href")).toBe(activeHref);
-    expect(nav?.querySelector('a[href="/wedding/chat"]')).not.toBeNull();
     expect(container.querySelector('button[aria-label="아모라 AI 상담"]')).toBeNull();
-    expect(container.querySelector('[data-testid="global-amora-panel"]')).toBeNull();
+    // 고정 버튼은 없지만 아모라를 옆에 열 자리는 있다(상단 바·본문이 연다). 처음에는 닫혀 있다.
+    expect(container.querySelector('[data-testid="global-amora-panel"]')?.getAttribute("data-open")).toBe("false");
     expect(container.textContent).toContain("AI notice");
   });
 
@@ -252,11 +283,11 @@ describe("AppClientLayout global Amora panel", () => {
     await renderLayout();
     expect(container.querySelector(".amora-workspace main")).not.toBeNull();
     const nav = container.querySelector('nav[aria-label="모바일 주요 기능"]');
-    expect(nav?.querySelectorAll("a")).toHaveLength(5);
+    expect(nav?.querySelectorAll("a")).toHaveLength(2);
     expect(nav?.querySelectorAll('[aria-current="location"]')).toHaveLength(0);
     expect(nav?.querySelector('a[href="/wedding/lounge"]')).not.toBeNull();
     expect(container.querySelector('button[aria-label="아모라 AI 상담"]')).toBeNull();
-    expect(container.querySelector('[data-testid="global-amora-panel"]')).toBeNull();
+    expect(container.querySelector('[data-testid="global-amora-panel"]')?.getAttribute("data-open")).toBe("false");
   });
 
   it("suppresses analytics capture and the Amora launcher only in admin vendor preview mode", async () => {
@@ -467,4 +498,176 @@ describe("AppClientLayout global Amora panel", () => {
     ).toBe("");
   });
 
+});
+
+/** 라운지 본문처럼 `useAmoraDock()` 으로 아모라를 여는 화면 조각. */
+function PageOpensAmora({ prefill }: { prefill?: string }) {
+  const dock = useAmoraDock();
+  return (
+    <button
+      type="button"
+      data-testid="page-opens-amora"
+      onClick={() => dock?.open(prefill ? { prefill } : undefined)}
+    >
+      아모라에게 물어보기
+    </button>
+  );
+}
+
+/** 큰 화면(Tailwind xl 이상) 판정을 흉내 낸다. jsdom 에는 matchMedia 가 없다. */
+function mockWideScreen(initial: boolean) {
+  const listeners = new Set<() => void>();
+  const state = { matches: initial };
+  Object.defineProperty(window, "matchMedia", {
+    configurable: true,
+    writable: true,
+    value: (query: string) => ({
+      matches: query === "(min-width: 80rem)" ? state.matches : false,
+      media: query,
+      addEventListener: (_type: string, listener: () => void) => listeners.add(listener),
+      removeEventListener: (_type: string, listener: () => void) => listeners.delete(listener),
+    }),
+  });
+  return {
+    set(next: boolean) {
+      state.matches = next;
+      listeners.forEach((listener) => listener());
+    },
+  };
+}
+
+describe("AppClientLayout 아모라 옆자리 (2026-11-13 파운더 결정)", () => {
+  let root: Root;
+  let container: HTMLDivElement;
+
+  beforeEach(() => {
+    mocks.pathname = "/wedding/lounge";
+    mocks.searchParams = new URLSearchParams();
+    mocks.isDemo = true;
+    mocks.isInitialized = true;
+    mocks.profile = null;
+    mocks.journey = null;
+    mocks.partner = null;
+    window.localStorage.clear();
+    resetAmoraFirstHelloMemory();
+    container = document.createElement("div");
+    document.body.appendChild(container);
+    root = createRoot(container);
+  });
+
+  afterEach(async () => {
+    await act(async () => root.unmount());
+    document.body.replaceChildren();
+    Reflect.deleteProperty(window, "matchMedia");
+  });
+
+  async function renderWith(children: React.ReactNode) {
+    await act(async () => {
+      root.render(<AppClientLayout>{children}</AppClientLayout>);
+      await Promise.resolve();
+    });
+  }
+
+  const panel = () => container.querySelector('[data-testid="global-amora-panel"]');
+  const pane = () => container.querySelector<HTMLElement>("#amora-dock-pane");
+
+  it("라운지 본문에서 질문을 넣어 둔 채로 아모라를 연다(보내지는 않는다)", async () => {
+    await renderWith(<PageOpensAmora prefill="  드레스 준비, 지금 뭐부터 하면 될까?  " />);
+    expect(panel()?.getAttribute("data-open")).toBe("false");
+
+    await act(async () => container.querySelector<HTMLButtonElement>('[data-testid="page-opens-amora"]')?.click());
+
+    expect(panel()?.getAttribute("data-open")).toBe("true");
+    expect(panel()?.getAttribute("data-draft")).toBe("드레스 준비, 지금 뭐부터 하면 될까?");
+    // 화면 폭을 모르는 환경은 예전처럼 덮개로 연다.
+    expect(panel()?.getAttribute("data-presentation")).toBe("overlay");
+    expect(container.querySelector('[data-amora-dock="overlay"]')).not.toBeNull();
+  });
+
+  it("큰 화면에서는 라운지를 옆으로 밀고 반을 차지하고, 버튼 하나로 1/3 이 되며, 고른 너비를 기억한다", async () => {
+    mockWideScreen(true);
+    await renderWith(<PageOpensAmora />);
+    expect(container.querySelector('[data-amora-dock="closed"]')).not.toBeNull();
+    // 닫혀 있는 동안 옆자리는 자리를 차지하지 않는다.
+    expect(pane()?.className).toContain("hidden");
+    expect(container.querySelector('[role="separator"]')).toBeNull();
+
+    await act(async () => container.querySelector<HTMLButtonElement>('[data-testid="page-opens-amora"]')?.click());
+
+    expect(container.querySelector('[data-amora-dock="open"]')).not.toBeNull();
+    expect(panel()?.getAttribute("data-presentation")).toBe("docked");
+    expect(pane()?.style.width).toBe("50%");
+    const separator = container.querySelector('[role="separator"]');
+    expect(separator?.getAttribute("aria-controls")).toBe("amora-dock-pane");
+    expect(separator?.getAttribute("aria-valuenow")).toBe("50");
+
+    await act(async () => container.querySelector<HTMLButtonElement>('button[aria-label="아모라 창 좁게 보기"]')?.click());
+    expect(pane()?.style.width).toMatch(/^33\.33/);
+    expect(container.querySelector('button[aria-label="아모라 창 넓게 보기"]')).not.toBeNull();
+    expect(Number(window.localStorage.getItem("hanbang:amora-dock-ratio:v1"))).toBeCloseTo(1 / 3, 5);
+
+    // 새로고침해도 이 브라우저에서 고른 너비로 연다.
+    await act(async () => root.unmount());
+    container.replaceChildren();
+    root = createRoot(container);
+    await renderWith(<PageOpensAmora />);
+    await act(async () => container.querySelector<HTMLButtonElement>('[data-testid="page-opens-amora"]')?.click());
+    expect(pane()?.style.width).toMatch(/^33\.33/);
+  });
+
+  it("창을 좁히면 옆자리가 덮개로 바뀌고, 쓰던 대화 자리는 그대로 열려 있다", async () => {
+    const screen = mockWideScreen(true);
+    await renderWith(<PageOpensAmora prefill="예산 다시 나눠 줘" />);
+    await act(async () => container.querySelector<HTMLButtonElement>('[data-testid="page-opens-amora"]')?.click());
+    const before = panel();
+    expect(before?.getAttribute("data-presentation")).toBe("docked");
+
+    await act(async () => screen.set(false));
+
+    expect(panel()).toBe(before);
+    expect(panel()?.getAttribute("data-open")).toBe("true");
+    expect(panel()?.getAttribute("data-presentation")).toBe("overlay");
+    expect(panel()?.getAttribute("data-draft")).toBe("예산 다시 나눠 줘");
+    expect(container.querySelector('[role="separator"]')).toBeNull();
+  });
+
+  it("라운지에서는 첫마디를 라운지 카드에 맡기고, 아모라를 열면 그 첫마디를 건넨다", async () => {
+    mocks.isDemo = false;
+    mocks.profile = { id: "user-1", role: "bride" };
+    // 라운지의 첫마디 카드(`LoungeFirstHello`)가 안내가 끝난 직후 보관해 둔 인사.
+    const hello = rememberPendingAmoraFirstHello(
+      { preview: "안녕하세요, 아모라예요.", body: "안녕하세요, 아모라예요. 오늘은 식장부터 같이 볼까요?" },
+      { ownerId: "user-1" },
+    );
+    expect(hello).not.toBeNull();
+    await renderWith(<PageOpensAmora />);
+
+    await act(async () => {
+      window.dispatchEvent(new CustomEvent(FIRST_RUN_TUTORIAL_COMPLETED_EVENT));
+    });
+    // 라운지에는 고정 버튼과 말풍선이 없다. 인사가 두 군데에 뜨지 않는다.
+    expect(container.querySelector('[data-testid="amora-first-hello-bubble"]')).toBeNull();
+    expect(container.querySelector('button[aria-label="아모라 AI 상담"]')).toBeNull();
+
+    await act(async () => container.querySelector<HTMLButtonElement>('[data-testid="page-opens-amora"]')?.click());
+    expect(panel()?.getAttribute("data-first-hello")).toBe("안녕하세요, 아모라예요. 오늘은 식장부터 같이 볼까요?");
+  });
+
+  it("첫인사 카드의 링크가 아니라 다른 입구로 열어도, 인사는 아모라 쪽에만 남고 카드는 내려간다", async () => {
+    mocks.isDemo = false;
+    mocks.profile = { id: "user-1", role: "bride" };
+    rememberPendingAmoraFirstHello(
+      { preview: "안녕하세요, 아모라예요.", body: "안녕하세요, 아모라예요. 오늘은 식장부터 같이 볼까요?" },
+      { ownerId: "user-1" },
+    );
+    await renderWith(<><LoungeFirstHello ownerId="user-1" /><PageOpensAmora /></>);
+    const card = () => container.querySelector('section[aria-label="아모라의 첫인사"]');
+    expect(card()).not.toBeNull();
+
+    // 상단 바나 「아모라에게 물어보기」처럼 카드 밖의 입구로 연다.
+    await act(async () => container.querySelector<HTMLButtonElement>('[data-testid="page-opens-amora"]')?.click());
+
+    expect(panel()?.getAttribute("data-first-hello")).toBe("안녕하세요, 아모라예요. 오늘은 식장부터 같이 볼까요?");
+    expect(card()).toBeNull();
+  });
 });

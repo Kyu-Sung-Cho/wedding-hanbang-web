@@ -4,7 +4,7 @@ import AmoraMark from "@/components/ui/AmoraMark";
 import AmoraAvatar from "@/components/ui/AmoraAvatar";
 import { AMORA_ACTION_CLASS } from "@/components/ui/amoraActionStyles";
 
-import { useState, useEffect, useRef, useCallback, useMemo, type SetStateAction } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo, type ReactNode, type SetStateAction } from "react";
 import { Send, X, Maximize2, EyeOff, Paperclip, FileText, FileSpreadsheet, Heart, Lock } from "lucide-react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
@@ -68,6 +68,7 @@ import {
   type AmoraLaneChoice,
 } from "@hanbang/shared/amora-lane-choice";
 import { readRememberedAmoraLane, rememberAmoraLane } from "@/lib/chat/amoraLaneMemory";
+import type { AmoraPanelDraft } from "@/components/app/amora/amoraDock";
 import AmoraLaneChoiceCard from "./AmoraLaneChoiceCard";
 
 const MAX_ATTACHMENTS = CHAT_ATTACHMENT_MAX_COUNT;
@@ -99,6 +100,19 @@ interface ChatSidePanelProps {
    * 걸어둔 자리에 인사가 두 번 뜨면 먼저 말을 건 것이 아니라 두 번 말한 것이 된다.
    */
   firstHello?: string | null;
+  /**
+   * 어디에 놓이는가(2026-11-13 파운더 결정, `components/app/amora/amoraDock.ts`).
+   *
+   * - `overlay`: 화면 위에 뜨는 대화 창. 작은 화면은 아래에서 올라오는 시트, 태블릿은 오른쪽 덮개다.
+   *   열려 있는 동안 뒤 화면을 잠그고 초점을 안에 가둔다.
+   * - `docked`: 큰 화면에서 라운지를 옆으로 밀고 그 옆 칸을 채운다. 화면의 한 칸이라 뒤 화면을
+   *   잠그지도 초점을 가두지도 않는다. 너비는 부모 칸이 정한다.
+   */
+  presentation?: "overlay" | "docked";
+  /** 열면서 입력칸에 넣어 둘 질문. 번호가 바뀔 때 한 번만 넣고, 보내지는 않는다. */
+  draft?: AmoraPanelDraft | null;
+  /** 머리줄 오른쪽에 더하는 조작(옆자리일 때 창 너비 바꾸기). */
+  headerActions?: ReactNode;
 }
 
 type ChatScope = "shared" | "private";
@@ -114,7 +128,11 @@ export default function ChatSidePanel({
   isOpen,
   onClose,
   firstHello = null,
+  presentation = "overlay",
+  draft = null,
+  headerActions = null,
 }: ChatSidePanelProps) {
+  const docked = presentation === "docked";
   const router = useRouter();
   const { profile, couple, journey, partner, isDemo, isInitialized: authInitialized, isLoading: authLoading } = useAuthStore();
   const amoraPersonalization = useAmoraPersonalization(
@@ -243,6 +261,7 @@ export default function ChatSidePanel({
   const [mediationDismissed, setMediationDismissed] = useState(false);
   const [mediationConsentOpen, setMediationConsentOpen] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const messagesScrollRef = useRef<HTMLDivElement>(null);
   const greetingRequested = useRef(false);
   const subscribed = useRef(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -427,7 +446,8 @@ export default function ChatSidePanel({
   }, [amoraPersonalization.profile, coupleId, profile?.id]);
 
   useEffect(() => {
-    if (!isOpen) return;
+    // 옆자리는 아래 효과가 맡는다. 화면의 한 칸이라 초점을 가두지 않는다.
+    if (!isOpen || docked) return;
 
     const panel = panelRef.current;
     const previouslyFocused = document.activeElement instanceof HTMLElement
@@ -482,7 +502,56 @@ export default function ChatSidePanel({
       document.removeEventListener("keydown", handleDialogKeyDown);
       if (previouslyFocused?.isConnected) previouslyFocused.focus();
     };
-  }, [isOpen, mediationConsentOpen]);
+  }, [docked, isOpen, mediationConsentOpen]);
+
+  // 옆자리에서는 연 사람이 바로 쓰도록 입력칸으로 초점을 옮기기만 한다. Escape 는 초점이 이 칸
+  // 안에 있을 때만 닫는다. 라운지를 보던 사람의 Escape 를 가로채지 않는다.
+  const mediationConsentOpenRef = useRef(mediationConsentOpen);
+  useEffect(() => {
+    mediationConsentOpenRef.current = mediationConsentOpen;
+  }, [mediationConsentOpen]);
+  // 레인이 정해지기 전에는 입력칸이 잠겨 있다. 열 때는 이 칸으로 초점을 옮기고, 입력칸은 열리는
+  // 대로 한 번 받는다(아래 효과).
+  const dockComposerFocusPendingRef = useRef(false);
+  useEffect(() => {
+    if (!isOpen || !docked) return;
+    const panel = panelRef.current;
+    const previouslyFocused = document.activeElement instanceof HTMLElement
+      ? document.activeElement
+      : null;
+    panel?.focus({ preventScroll: true });
+    dockComposerFocusPendingRef.current = true;
+
+    const handleDockKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Escape" || mediationConsentOpenRef.current) return;
+      if (document.querySelector('[data-amora-sheet][aria-modal="true"], [data-planning-sheet][aria-modal="true"]')) return;
+      if (!panel || !panel.contains(document.activeElement)) return;
+      event.preventDefault();
+      onCloseRef.current();
+    };
+
+    document.addEventListener("keydown", handleDockKeyDown);
+    return () => {
+      document.removeEventListener("keydown", handleDockKeyDown);
+      // 닫을 때 초점이 이 칸 안에 있었으면 연 자리로 돌려준다. 다른 곳을 보고 있었으면 두고 간다.
+      const focusWasInside = Boolean(panel && panel.contains(document.activeElement));
+      dockComposerFocusPendingRef.current = false;
+      if (focusWasInside && previouslyFocused?.isConnected) previouslyFocused.focus();
+    };
+  }, [docked, isOpen]);
+  useEffect(() => {
+    if (!docked || !isOpen || !laneReady || !dockComposerFocusPendingRef.current) return;
+    const panel = panelRef.current;
+    // 그사이 사람이 다른 곳을 눌렀으면 초점을 빼앗지 않는다.
+    if (!panel || (document.activeElement !== panel && !panel.contains(document.activeElement))) {
+      dockComposerFocusPendingRef.current = false;
+      return;
+    }
+    const composer = panel.querySelector<HTMLElement>("[data-amora-composer-input]:not([disabled])");
+    if (!composer) return;
+    dockComposerFocusPendingRef.current = false;
+    composer.focus({ preventScroll: true });
+  }, [docked, isComposerBusy, isOpen, laneReady]);
 
   const handleScopeChange = useCallback((nextScope: ChatScope) => {
     if (
@@ -550,7 +619,8 @@ export default function ChatSidePanel({
   }, [activeComposerLane, activeScope, hasCouplePartner, isSending, isStreaming]);
 
   useEffect(() => {
-    if (!isOpen) return;
+    // 옆자리로 열려도 라운지는 계속 읽고 스크롤할 수 있어야 한다.
+    if (!isOpen || docked) return;
 
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
@@ -558,7 +628,7 @@ export default function ChatSidePanel({
     return () => {
       document.body.style.overflow = previousOverflow;
     };
-  }, [isOpen]);
+  }, [docked, isOpen]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -609,6 +679,26 @@ export default function ChatSidePanel({
       };
     }
   }, [isOpen, coupleId, isDemo, loadMessages, subscribeToMessages]);
+
+  // 라운지에서 질문을 들고 열었다. 레인이 정해진 뒤에 입력칸에 넣고, 이미 쓰던 글이 있으면 덮지 않는다.
+  // 질문을 들고 온 사람에게 모델 첫 인사를 따로 부르지 않는다(전체 화면의 `?prefill=` 과 같다).
+  // 아래 첫 인사 효과보다 **먼저** 선언한다. 같은 그림에서 질문과 '대화 불러오기 끝'이 함께 오면
+  // 효과는 선언 순서로 도는데, 첫 인사가 먼저 돌면 질문이 막을 틈 없이 인사가 나간다.
+  const [pendingDraft, setPendingDraft] = useState<AmoraPanelDraft | null>(null);
+  const receivedDraftIdRef = useRef<number | null>(null);
+  useEffect(() => {
+    if (!isOpen || !draft || receivedDraftIdRef.current === draft.id) return;
+    receivedDraftIdRef.current = draft.id;
+    greetingRequested.current = true;
+    // 바깥에서 들어온 질문을 레인이 정해질 때까지 들고 있는다.
+    setPendingDraft(draft);
+  }, [draft, isOpen]);
+  useEffect(() => {
+    if (!pendingDraft || !laneReady) return;
+    setInput((current) => (current.trim() ? current : pendingDraft.text));
+    // 한 번 넣었으면 내려놓는다.
+    setPendingDraft(null);
+  }, [laneReady, pendingDraft, setInput]);
 
   // 메시지 0개일 때 AI 첫 인사
   useEffect(() => {
@@ -673,10 +763,16 @@ export default function ChatSidePanel({
 
   // 자동 스크롤
   useEffect(() => {
-    if (isOpen) {
-      messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    if (!isOpen) return;
+    if (docked) {
+      // 옆자리는 화면 흐름 안에 있어서 scrollIntoView 가 라운지까지 끌고 내려간다(전체 화면
+      // `ChatContent` 가 같은 사고를 겪었다). 대화 목록 칸만 내린다.
+      const list = messagesScrollRef.current;
+      if (list) list.scrollTop = list.scrollHeight;
+      return;
     }
-  }, [isOpen, messages, isStreaming, streamingContent]);
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [docked, isOpen, messages, isStreaming, streamingContent]);
 
   // 첨부파일 처리
   const adjustPendingFileReads = useCallback((lane: ChatComposerLane, delta: 1 | -1) => {
@@ -1404,28 +1500,34 @@ export default function ChatSidePanel({
 
   return (
     <>
-      {/* 모바일 오버레이 */}
-      <div
-        className={`fixed inset-0 z-40 bg-[#071629]/45 backdrop-blur-[2px] transition-opacity duration-300 md:hidden ${
-          isOpen ? "opacity-100" : "opacity-0 pointer-events-none"
-        }`}
-        onClick={onClose}
-      />
+      {/* 모바일 오버레이. 옆자리는 화면을 가리지 않는다. */}
+      {!docked && (
+        <div
+          className={`fixed inset-0 z-40 bg-[#071629]/45 backdrop-blur-[2px] transition-opacity duration-300 md:hidden ${
+            isOpen ? "opacity-100" : "opacity-0 pointer-events-none"
+          }`}
+          onClick={onClose}
+        />
+      )}
 
       {/* 패널 */}
       <div
         ref={panelRef}
-        className={`fixed z-50 flex flex-col overflow-hidden bg-[var(--hb-surface-page)] shadow-[-4px_0_24px_rgba(58,42,39,0.10)] transition-transform duration-300 ease-out
+        className={docked
+          // 옆자리: 부모 칸(`AmoraDockHost`)이 자리와 너비를 정하고, 이 칸은 그 안을 채운다.
+          ? "relative flex h-full w-full flex-col overflow-hidden bg-[var(--hb-surface-page)] outline-none"
+          : `fixed z-50 flex flex-col overflow-hidden bg-[var(--hb-surface-page)] shadow-[-4px_0_24px_rgba(58,42,39,0.10)] transition-transform duration-300 ease-out
           md:top-0 md:right-0 md:w-[400px] md:h-full md:border-l md:border-black/[0.06]
           max-md:bottom-0 max-md:left-0 max-md:right-0 max-md:h-[78dvh] max-md:min-h-[420px] max-md:max-h-[calc(100dvh-4.5rem)] max-md:rounded-t-[22px] max-md:border-t max-md:border-black/[0.06] max-md:shadow-[var(--shadow-raised)]
           ${isOpen
             ? "md:translate-x-0 max-md:translate-y-0"
             : "md:translate-x-full max-md:translate-y-full"
         }`}
-        role="dialog"
-        aria-modal={isOpen}
+        role={docked ? "complementary" : "dialog"}
+        aria-modal={docked ? undefined : isOpen}
         aria-hidden={!isOpen}
-        aria-label="아모라 AI 상담 패널"
+        aria-label={docked ? "아모라" : "아모라 AI 상담 패널"}
+        data-amora-panel-presentation={presentation}
         tabIndex={-1}
         inert={!isOpen}
         onDragOver={handleDragOver}
@@ -1443,9 +1545,11 @@ export default function ChatSidePanel({
         )}
 
         {/* 모바일 핸들 */}
-        <div className="md:hidden flex justify-center pt-2 pb-1">
-          <div className="w-10 h-1 rounded-full bg-taupe-400/30" />
-        </div>
+        {!docked && (
+          <div className="md:hidden flex justify-center pt-2 pb-1">
+            <div className="w-10 h-1 rounded-full bg-taupe-400/30" />
+          </div>
+        )}
 
         {/* 헤더 */}
         <div className="flex items-center justify-between px-5 py-3 border-b border-black/[0.06]">
@@ -1457,6 +1561,7 @@ export default function ChatSidePanel({
             </div>
           </div>
           <div className="flex items-center gap-1">
+            {headerActions}
             {scopedMessages.length > 0 && (
               <button
                 type="button"
@@ -1677,7 +1782,7 @@ export default function ChatSidePanel({
             )}
 
             {/* 메시지 영역 */}
-            <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
+            <div ref={messagesScrollRef} className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
               {firstHelloMessage && (
                 <div className="animate-fade-in" data-testid="amora-first-hello-message">
                   <ChatBubble
@@ -2000,6 +2105,7 @@ export default function ChatSidePanel({
                   aria-disabled={laneChoiceNeeded || undefined}
                   disabled={isComposerBusy || (!laneReady && !laneChoiceNeeded)}
                   aria-label="메시지 입력"
+                  data-amora-composer-input=""
                   className="flex-1 px-2 py-2 text-[0.8125rem] text-[var(--hb-text-strong)] placeholder:text-[var(--hb-text-muted)] bg-transparent outline-none disabled:opacity-50 min-w-0"
                 />
                 <button

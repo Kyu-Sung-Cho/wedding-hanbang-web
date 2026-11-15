@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
 import { ActivityIndicator, InteractionManager, StyleSheet, View } from "react-native";
 import { Text, useAppFontsLoaded } from "@/components/ui/AppText";
-import { Redirect, Tabs, usePathname } from "expo-router";
-import { Home, Users, User } from "lucide-react-native";
+import { Redirect, Tabs } from "expo-router";
+import { Home } from "lucide-react-native";
 import AmoraMark from "@/components/ui/AmoraMark";
 import { colors } from "@hanbang/design-tokens";
 import { apiJson } from "@/lib/api";
@@ -41,10 +41,17 @@ function normalizeWarmPost(value: unknown): CachedCommunityPost | null {
   };
 }
 
+/**
+ * 하단 탭은 웨딩 라운지와 아모라 둘이다(2026-11-13 파운더 결정 "메인 두개만 남길거야 아모라랑 웨딩
+ * 대쉬보드", 앱 구성은 같은 날 파운더 확인). 커뮤니티는 라운지의 준비 도구 칸과 내 정보에서 열고
+ * (`app/community/index.tsx`), 내 정보는 라운지 머리줄에서 연다(`app/profile.tsx`). 둘 다 뒤로 가기가
+ * 있는 화면이다. 이 폴더에 파일을 더 두면 Expo Router 가 선언하지 않아도 탭으로 올린다.
+ *
+ * 공개 탭(커뮤니티)이 빠져서 탭 안은 전부 로그인한 사람의 자리다. 로그아웃 상태면 어느 탭이든
+ * 로그인으로 보낸다. 로그인 없이 커뮤니티 글을 읽는 길은 탭 밖 커뮤니티 화면에 그대로 있다.
+ */
 export default function TabsLayout() {
   const fontsLoaded = useAppFontsLoaded();
-  const pathname = usePathname();
-  const isPublicCommunity = pathname === "/community";
   const [authStatus, setAuthStatus] = useState<AuthStatus>("checking");
   const [communityViewerKey, setCommunityViewerKey] = useState("checking");
   const [authAttempt, setAuthAttempt] = useState(0);
@@ -122,7 +129,8 @@ export default function TabsLayout() {
       }
     }
 
-    // 홈의 첫 화면 전환과 핵심 데이터 로드를 먼저 끝낸 뒤 보조 피드를 데운다.
+    // 홈의 첫 화면 전환과 핵심 데이터 로드를 먼저 끝낸 뒤 보조 피드를 데운다. 커뮤니티는 이제 탭이
+    // 아니라 라운지 칸에서 여는 화면이지만, 누르자마자 글이 보이도록 데워 두는 것은 같다.
     const warmTask = InteractionManager.runAfterInteractions(
       warmCommunityFeed,
     );
@@ -141,7 +149,7 @@ export default function TabsLayout() {
     );
   }
 
-  if (!isPublicCommunity && authStatus === "error") {
+  if (authStatus === "error") {
     return (
       <View style={styles.authState}>
         <Text style={styles.authStateTitle}>로그인 상태를 확인하지 못했어요</Text>
@@ -159,12 +167,9 @@ export default function TabsLayout() {
     );
   }
 
-  if (authStatus === "guest" && !isPublicCommunity) {
+  if (authStatus === "guest") {
     return <Redirect href="/(auth)/login" />;
   }
-
-  const protectedTabHref =
-    authStatus === "authenticated" ? undefined : null;
 
   return (
     <Tabs
@@ -205,7 +210,6 @@ export default function TabsLayout() {
           // 탭에는 짧게 "라운지", 읽어주는 이름과 화면 제목은 "웨딩 라운지".
           // 같은 이름의 줄임말일 뿐, 이전처럼 화면마다 다른 이름을 쓰지 않는다.
           title: "라운지",
-          href: protectedTabHref,
           tabBarIcon: ({ color, size }) => <Home size={size} color={color} />,
           tabBarAccessibilityLabel: "웨딩 라운지",
         }}
@@ -214,26 +218,8 @@ export default function TabsLayout() {
         name="chat"
         options={{
           title: "아모라",
-          href: protectedTabHref,
           tabBarIcon: ({ color, size }) => <AmoraMark size={size} color={color} />,
           tabBarAccessibilityLabel: "아모라",
-        }}
-      />
-      <Tabs.Screen
-        name="community"
-        options={{
-          title: "커뮤니티",
-          tabBarIcon: ({ color, size }) => <Users size={size} color={color} />,
-          tabBarAccessibilityLabel: "커뮤니티",
-        }}
-      />
-      <Tabs.Screen
-        name="profile"
-        options={{
-          title: "내 정보",
-          href: protectedTabHref,
-          tabBarIcon: ({ color, size }) => <User size={size} color={color} />,
-          tabBarAccessibilityLabel: "내 정보",
         }}
       />
     </Tabs>

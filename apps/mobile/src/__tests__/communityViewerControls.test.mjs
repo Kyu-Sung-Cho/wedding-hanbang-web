@@ -22,7 +22,7 @@ const blockedUsers = readFileSync(
   "utf8",
 );
 const profile = readFileSync(
-  resolve(appRoot, "app/(tabs)/profile.tsx"),
+  resolve(appRoot, "app/profile.tsx"),
   "utf8",
 );
 

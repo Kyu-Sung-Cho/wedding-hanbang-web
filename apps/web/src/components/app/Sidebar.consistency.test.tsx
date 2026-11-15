@@ -96,22 +96,22 @@ describe("signed-in sidebar looks the same on every page", () => {
     }
   });
 
-  it("shows the same menu, the user and logout on the guide and on the lounge", async () => {
+  // 2026-11-13 파운더 결정: 메인은 웨딩 라운지와 아모라 둘. 예절 가이드·웨딩코드는 메뉴에서 빠지고
+  // 라운지와 아모라가 연다. 가이드에서도 라운지에서도 같은 두 항목과 같은 사용자 자리가 보여야 한다.
+  it("shows the same two items, the user, settings and logout on the guide and on the lounge", async () => {
     for (const pathname of ["/wedding/lounge", "/wedding/manners", "/wedding/manners/first-greeting"]) {
       const shape = await shapeAt(pathname);
-      expect(shape.labels, pathname).toContain("웨딩코드");
-      expect(shape.labels, pathname).toContain("예절 가이드");
-      expect(shape.labels, pathname).not.toContain("커뮤니티");
+      expect(shape.labels, pathname).toEqual(["웨딩 라운지", "아모라"]);
       expect(shape.aside.textContent, pathname).toContain("김지은");
+      expect(shape.aside.textContent, pathname).toContain("설정");
       expect(shape.aside.textContent, pathname).toContain("로그아웃");
     }
   });
 
-  it("marks the guide as the current page on the index and on a guide article", async () => {
+  it("marks neither main item on the guide, which now opens from the lounge and Amora", async () => {
     for (const pathname of ["/wedding/manners", "/wedding/manners/first-greeting"]) {
       const shape = await shapeAt(pathname);
-      const current = shape.aside.querySelector('[aria-current="page"]');
-      expect(current?.textContent, pathname).toBe("예절 가이드");
+      expect(shape.aside.querySelector('nav [aria-current="page"]'), pathname).toBeNull();
     }
   });
 });

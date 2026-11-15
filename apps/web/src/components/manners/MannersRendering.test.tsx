@@ -49,14 +49,19 @@ describe("예절에서 필요한 글과 절을 찾는다", () => {
     expect([...container.querySelectorAll("[data-guide-slug]")].map(node => node.getAttribute("data-guide-slug"))).toEqual(MANNERS_CATEGORIES.flatMap(group => group.slugs));
   });
 
-  it("공개 가이드도 동일한 다섯 기능을 같은 순서로 연결하고 다른 기능을 선택했다고 표시하지 않는다", () => {
+  it("공개 가이드도 앱과 같은 두 화면을 같은 순서로 연결하고 다른 화면을 선택했다고 표시하지 않는다", () => {
     const doc = parse(renderToStaticMarkup(<MannersLayout><MannersIndexPage /></MannersLayout>));
     const nav = doc.querySelector('nav[aria-label="모바일 주요 기능"]');
     expect(nav).not.toBeNull();
+    // 2026-11-13 파운더 결정: 메인은 웨딩 라운지와 아모라 둘. 나머지는 그 둘이 연다.
     expect([...nav!.querySelectorAll("a")].map(link => link.getAttribute("href"))).toEqual([
-      "/wedding/lounge", "/wedding/chat", "/wedding/checklist", "/wedding/schedule", "/wedding/budget",
+      "/wedding/lounge", "/wedding/chat",
     ]);
     expect(nav!.querySelector("[aria-current]")).toBeNull();
+    // 넓은 화면의 공개 사이드바도 같은 둘이고, 가이드를 메뉴 항목처럼 선택해 두지 않는다.
+    const sideMenu = doc.querySelector('aside nav[aria-label="서비스 메뉴"]');
+    expect([...sideMenu!.querySelectorAll("a")].map(link => link.textContent)).toEqual(["웨딩 라운지", "아모라"]);
+    expect(sideMenu!.querySelector("[aria-current]")).toBeNull();
     // 사이드바 머리는 앱과 같다 — 탭 아이콘과 같은 로고, 라운지로 가는 링크.
     const brand = doc.querySelector('aside a[aria-label="웨딩한방 홈으로 이동"]');
     expect(brand?.getAttribute("href")).toBe("/wedding/lounge");
@@ -330,7 +335,9 @@ describe("예절 HTML 패턴이 검증 원문 전체를 보존한다", () => {
     expect(doc.querySelectorAll("h1")).toHaveLength(1);
     expect(doc.querySelector('[aria-label="정책"]')?.textContent).toContain("개인정보처리방침");
     expect([...doc.querySelectorAll('[aria-label="정책"] a')].map(link => link.getAttribute("href"))).toEqual(["/terms", "/privacy", "/ai-policy"]);
-    expect(doc.querySelector('[aria-label="서비스 메뉴"] [aria-current="location"]')?.getAttribute("href")).toBe("/wedding/manners");
+    // 2026-11-13 파운더 결정: 메뉴는 웨딩 라운지와 아모라 둘이다. 가이드는 메뉴 항목이 아니라 라운지와
+    // 아모라가 여는 화면이라, 메뉴에서 지금 위치로 표시할 항목이 없다.
+    expect(doc.querySelector('[aria-label="서비스 메뉴"] [aria-current]')).toBeNull();
     expect(doc.body.textContent).not.toMatch(/로그아웃|D-\d|알림 \d/);
   });
 });

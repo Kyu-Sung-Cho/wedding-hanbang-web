@@ -25,7 +25,7 @@ const pendingIndexSource = readFileSync(
   "utf8",
 );
 const communitySource = readFileSync(
-  resolve(mobileRoot, "app/(tabs)/community.tsx"),
+  resolve(mobileRoot, "app/community/index.tsx"),
   "utf8",
 );
 const authSource = readFileSync(

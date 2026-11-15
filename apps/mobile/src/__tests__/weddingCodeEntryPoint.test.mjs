@@ -142,8 +142,8 @@ test("하단 탭에는 올리지 않는다", () => {
 
   assert.deepEqual(
     tabFiles.sort(),
-    ["chat.tsx", "community.tsx", "lounge.tsx", "profile.tsx"],
-    "하단 탭은 라운지|아모라|커뮤니티|내 정보 넷으로 고정이다(CLAUDE.md 제품 계약)",
+    ["chat.tsx", "lounge.tsx"],
+    "하단 탭은 라운지|아모라 둘이다(2026-11-13 파운더 결정, CLAUDE.md 제품 계약)",
   );
   assert.doesNotMatch(
     tabsLayout,

@@ -57,10 +57,18 @@ These moments need explicit source, rationale, and separation between AI suggest
 
 ### Bottom tabs
 
-1. **Home**: D-day, urgent tasks, progress, partner activity, shortcuts.
-2. **Amora**: AI planner plus partner messaging.
-3. **Community**: peer proof, cohort rooms, reviews, quote checks.
-4. **My**: profile, wedding prep links, community stats, settings.
+> Updated 2026-11-13 (founder decision, see `docs/PRODUCT_CONTRACT_PARTNER_2026-08-08.md` §2-C):
+> the app has two bottom tabs, Wedding Lounge and Amora. Community and My (내 정보) are no longer
+> tabs. Community opens from the lounge's tools grid and from My; My opens from the lounge header.
+> Both are stack screens with a back button. The list below the update note is the current state.
+
+1. **Wedding Lounge** (탭 라벨 `라운지`): D-day, urgent tasks, progress, partner activity, tools grid
+   (checklist, schedule, budget, etiquette guide, prices, quote check, community), a 내 정보 button in
+   the header, and "아모라에게 묻기" under each task (fills the Amora input, never sends).
+2. **Amora**: AI companion plus partner messaging.
+
+Not tabs since 2026-11-13: `/community` (peer proof, cohort rooms, reviews, quote checks) and
+`/profile` (profile, wedding prep links, community stats, settings).
 
 ### Secondary routes
 

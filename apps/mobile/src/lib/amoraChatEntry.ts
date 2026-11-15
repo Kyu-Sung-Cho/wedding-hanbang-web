@@ -28,6 +28,13 @@
 /** 진입구를 싣는 쿼리 파라미터 이름. */
 export const AMORA_CHAT_ENTRY_PARAM = "entry" as const;
 
+/**
+ * 라운지 할 일에서 「아모라에게 묻기」를 누르고 온 문(2026-11-13). 아래 고정 초안 표에 넣지 않는다.
+ * 초안은 할 일마다 다르고(`loungeAmoraAsk.ts`), 주소에는 번호만 싣고 문장은 앱 안에서 건넨다.
+ * 표에 넣으면 고정 문구가 먼저 입력칸에 들어가 할 일 질문을 막는다.
+ */
+export const AMORA_CHAT_TASK_ENTRY = "lounge_task" as const;
+
 export const AMORA_CHAT_ENTRY_VALUES = [
   "lounge_fab",
   "lounge_first_arrival",

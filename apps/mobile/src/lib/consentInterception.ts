@@ -44,8 +44,8 @@ import { type SignupConsentAccess } from "@hanbang/shared";
  * 지나보낼 경로.
  *
  * `usePathname()` 은 **그룹 세그먼트를 지운 값**을 준다 — `app/(auth)/login.tsx`
- * 는 `/login` 이지 `/(auth)/login` 이 아니다(`(tabs)/_layout.tsx` 가 `/community`
- * 로 비교하는 것과 같다). 이동할 때 쓰는 `href` 는 `/(auth)/login` 형태라 서로
+ * 는 `/login` 이지 `/(auth)/login` 이 아니다(`app/(tabs)/lounge.tsx` 가 `/lounge`
+ * 인 것과 같다). 이동할 때 쓰는 `href` 는 `/(auth)/login` 형태라 서로
  * 다르니 섞지 않는다.
  */
 export const CONSENT_INTERCEPTION_EXEMPT_PATHS: readonly string[] = Object.freeze([

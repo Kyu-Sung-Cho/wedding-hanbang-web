@@ -118,7 +118,7 @@ test("display-only reads in chat and the profile tab use the quiet helper", () =
   assert.match(chat, /apiFetchForExpectedUserQuiet\(userId, "\/api\/auth\/me"\)/u);
   assert.doesNotMatch(chat, /apiFetchForExpectedUser\(userId, "\/api\/auth\/me"/u);
 
-  const profile = readSource("../../app/(tabs)/profile.tsx");
+  const profile = readSource("../../app/profile.tsx");
   assert.match(profile, /apiFetchForExpectedUserQuiet\(user\.id, "\/api\/profile\/avatar", \{ method: "GET", signal \}\)/u);
   assert.doesNotMatch(profile, /apiFetchForExpectedUser\(user\.id, "\/api\/profile\/avatar"/u);
 });

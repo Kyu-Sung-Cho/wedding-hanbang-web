@@ -112,6 +112,42 @@ test("a task saved for today becomes the focus when nothing is urgent", () => {
   assert.equal(focus.title, "양가에 예식 시간 알리기");
 });
 
+// 라운지 맨 위 카드 아래 「아모라에게 묻기」가 무엇을 묻는지(2026-11-13). 카드가 고른 할 일 그대로다.
+// 카드와 버튼이 할 일을 따로 고르면 카드는 결혼식장을 말하는데 질문은 다른 분야를 묻는다.
+test("the focus card names the task Amora would be asked about, and only for real tasks", () => {
+  const urgent = buildDashboardFocus({
+    ...emptyInput,
+    todayTasks: [{ title: "청첩장 문구 정하기", categoryKey: "invitation" }],
+    urgentTasks: [
+      { categoryKey: "photo", categoryLabel: "스튜디오", remainingDays: 40, urgency: "ontrack" },
+      { categoryKey: "venue", categoryLabel: "결혼식장", remainingDays: -4, urgency: "overdue" },
+    ],
+  });
+  assert.equal(urgent.kind, "urgent");
+  assert.deepEqual(urgent.amoraTask, { kind: "checklist", categoryLabel: "결혼식장" });
+
+  const today = buildDashboardFocus({
+    ...emptyInput,
+    todayTasks: [{ title: "양가에 예식 시간 알리기", categoryKey: "family" }],
+  });
+  assert.deepEqual(today.amoraTask, { kind: "event", title: "양가에 예식 시간 알리기" });
+
+  const next = buildDashboardFocus({
+    ...emptyInput,
+    urgentTasks: [{ categoryKey: "photo", categoryLabel: "스튜디오", remainingDays: 40, urgency: "ontrack" }],
+  });
+  assert.equal(next.kind, "next");
+  assert.deepEqual(next.amoraTask, { kind: "checklist", categoryLabel: "스튜디오" });
+
+  // 날짜 설정·다녀온 뒤 기록·오늘 할 일 없음은 물을 할 일이 없다. 마지막 것은 이미 아모라로 간다.
+  assert.equal(buildDashboardFocus({ ...emptyInput, weddingDate: null }).amoraTask, undefined);
+  assert.equal(buildDashboardFocus({
+    ...emptyInput,
+    bookingOutcomeTasks: [{ id: "b", vendorName: "라온", categoryLabel: "스튜디오", bookingDate: "2026-07-29", isPast: true }],
+  }).amoraTask, undefined);
+  assert.equal(buildDashboardFocus(emptyInput).amoraTask, undefined);
+});
+
 test("a completed visit asks for the factual booking outcome before generic planning", () => {
   const focus = buildDashboardFocus({
     ...emptyInput,
@@ -188,13 +224,19 @@ test("the home service map keeps every live consumer workflow within reach", () 
       "/checklist",
       "/schedule",
       "/budget",
+      "/etiquette",
       "/market-prices",
       "/quote-check",
       "/bookings",
-      "/(tabs)/community",
+      // 2026-11-13: 커뮤니티는 하단 탭이 아니라 라운지 칸이 연다(뒤로 가기가 있는 화면).
+      "/community",
     ],
   );
-  assert.equal(new Set(HOME_SERVICES.map((service) => service.key)).size, 7);
+  assert.equal(new Set(HOME_SERVICES.map((service) => service.key)).size, 8);
+  // 칸마다 실제 화면이 있어야 한다. 없는 화면을 여는 칸은 칸이 없는 것보다 나쁘다.
+  for (const service of HOME_SERVICES) {
+    assert.ok(resolveRoute(service.route), `${service.route}에 해당하는 화면이 없습니다`);
+  }
 });
 
 test("the quote check service opens the current non-storing consumer workflow", () => {

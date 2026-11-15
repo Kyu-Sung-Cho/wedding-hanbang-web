@@ -35,11 +35,16 @@ describe("manners entry points", () => {
     expect(WEDDING_APP_ROUTES).toContain("manners");
   });
 
-  it("keeps a sidebar entry into the guide", () => {
-    const sidebar = source("src/components/app/Sidebar.tsx");
+  // 2026-11-13 파운더 결정으로 메뉴는 웨딩 라운지와 아모라 둘이 되었고, 예절 가이드는 메뉴에서
+  // 빠졌다. 그래서 들어가는 길을 라운지의 "지금 준비에 맞는 가이드" 칸으로 잠근다. 이 칸마저
+  // 빠지면 로그인한 사람에게 가이드는 다시 주소를 쳐야만 열리는 화면이 된다.
+  it("keeps a lounge entry into the guide now that the menu has only the lounge and Amora", () => {
+    const lounge = source("src/app/(app)/lounge/LoungeHubSections.tsx");
+    const loungePage = source("src/app/(app)/lounge/page.tsx");
 
-    expect(sidebar).toContain('legacyPath: "/manners"');
-    expect(sidebar).toContain('label: "예절 가이드"');
+    expect(lounge).toContain("guide ? `/manners/${guide.slug}` : \"/manners\"");
+    expect(lounge).toContain("가이드 읽기");
+    expect(loungePage).toContain("<LoungeReferencePanels");
   });
 
   // 사이트맵은 리다이렉트 원본이 아니라 정본 주소를 실어야 한다.
