@@ -1,7 +1,6 @@
 import { daysUntilWedding } from "@hanbang/shared";
 import { createHash } from "node:crypto";
 import { isMutatingTool } from "@/lib/ai/mutationTools";
-import { assessMarketPriceRequestScope, isSupportedMarketPriceCategory } from "@/lib/ai/marketPriceRequestScope";
 import { resolveStatusByKey } from "@/utils/checklist";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { executePersonalActionConversationTool } from "./tools/personalActionTools";
@@ -9,10 +8,7 @@ import type { ToolExecutionResult } from "@/types/database.types";
 import {
   executeSimulateGuestGuarantee,
 } from "@/lib/ai/tools/riskSupportTools";
-import {
-  executeAnalyzeQuoteWithTrustEngine,
-  executeGetMarketPrice,
-} from "@/lib/ai/tools/quoteMarketTools";
+import { executeAnalyzeQuoteWithTrustEngine } from "@/lib/ai/tools/quoteMarketTools";
 import { executeSearchNearbyPlaces } from "@/lib/ai/tools/placeSearchTools";
 import {
   executeCheckVendorAvailability,
@@ -708,16 +704,15 @@ async function executeToolOnce(
       case "cancel_booking":
         return await executeCancelBooking(toolInput, context);
       case "get_market_price":
-        {
-          const category = typeof toolInput.category === "string" ? toolInput.category.trim() : toolInput.category;
-          const scope = assessMarketPriceRequestScope(context.currentUserText);
-          if (isSupportedMarketPriceCategory(category) && scope.hadExplicitTarget && !scope.requestedSupportedCategories.has(category)) {
-            return failureResult(toolName, toolInput, "unsupported_price_request", scope.requestedSupportedCategories.size === 0
-              ? "공시가 통계는 결혼식장·스튜디오·드레스·메이크업만 제공해요. 요청하신 항목에 다른 분야의 금액을 대신 쓰지 않을게요."
-              : "요청하신 공시 분야와 조회 항목이 달라서 다른 분야의 금액을 가져오지 않았어요.");
-          }
-        }
-        return await executeGetMarketPrice(toolInput, getAdminClient());
+        // 2026-11-16 파운더 결정(D-79, "모두 그만 쓰기"): 한국소비자원 참가격 자료를 쓰지 않는다.
+        // 이 도구는 모델에 가지 않는다(`BETA_DISABLED_TOOL_NAMES`). 그래도 옛 기록이나 다른 길로
+        // 이 이름이 여기까지 오면 DB 를 읽지 않고 실패로 끝낸다. 운영 DB 자료는 지우지 않았다.
+        return failureResult(
+          toolName,
+          toolInput,
+          "market_price_retired",
+          "시세 자료는 더 이상 제공하지 않아요. 받으신 견적 금액을 알려 주시면 그 금액으로 같이 볼게요.",
+        );
       case "simulate_guest_guarantee":
         return executeSimulateGuestGuarantee(toolInput);
       case "search_nearby_places":

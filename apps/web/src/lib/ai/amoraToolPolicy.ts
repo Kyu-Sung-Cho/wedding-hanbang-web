@@ -3,7 +3,6 @@ import type { AiToolDefinition } from "@/lib/ai/toolDefinition";
 import type { SpecialistType } from "@/types/moat.types";
 import { hasAmoraSharedTaskProposalRequest } from "./amoraSharedTaskIntent";
 import { isMutatingTool } from "./mutationTools";
-import { assessMarketPriceRequestScope } from "./marketPriceRequestScope";
 
 const BASE_READ_TOOLS = [
   "get_wedding_info",
@@ -12,9 +11,11 @@ const BASE_READ_TOOLS = [
   "get_amora_actions",
 ] as const;
 
+// 2026-11-16: 시세 조회(`get_market_price`)를 이 파일의 모든 묶음에서 뺐다. 한국소비자원
+// 참가격 자료를 쓰지 않기로 했다(파운더 결정 D-79). 그 도구 하나만 들던 업체 의도 묶음
+// (`VENDOR_READ_TOOLS`·`VENDOR_INTENT`)도 함께 없앴다.
 const BUDGET_READ_TOOLS = [
   "get_budget_summary",
-  "get_market_price",
   "simulate_guest_guarantee",
 ] as const;
 const BUDGET_WRITE_TOOLS = [
@@ -33,14 +34,10 @@ const SCHEDULE_WRITE_TOOLS = [
   "restore_schedule_event",
   "toggle_checklist_item",
 ] as const;
-const VENDOR_READ_TOOLS = [
-  "get_market_price",
-] as const;
 // 계약 개입 금지(2026-08-18) 이후 남은 것은 "받은 견적서를 같이 본다"뿐이다.
 // 계약서 해석·위험 판정은 제거했고, 견적 확인은 판정 없이 확인 질문만 만든다.
 const DOCUMENT_ATTACHMENT_READ_TOOLS = [
   "analyze_quote",
-  "get_market_price",
 ] as const;
 const ACTION_READ_TOOLS = ["get_amora_actions"] as const;
 const ACTION_WRITE_TOOLS = [
@@ -55,7 +52,6 @@ export const AMORA_TOOL_POLICY_NAMES: ReadonlySet<string> = new Set([
   ...BUDGET_WRITE_TOOLS,
   ...SCHEDULE_READ_TOOLS,
   ...SCHEDULE_WRITE_TOOLS,
-  ...VENDOR_READ_TOOLS,
   ...DOCUMENT_ATTACHMENT_READ_TOOLS,
   ...ACTION_READ_TOOLS,
   ...ACTION_WRITE_TOOLS,
@@ -76,7 +72,6 @@ const SCHEDULE_INTENT = /일정|스케줄|날짜|예정일|결혼식|예식|본�
 /** "3월 15일", "27년 9월 12일", "담주 금요일" 처럼 날짜만으로 말한 일정. */
 const DATE_LIKE =
   /\d{1,2}\s*월\s*\d{1,2}\s*일|\d{2,4}\s*년\s*\d{1,2}\s*월|(?:이번|다음|담)\s*주\s*(?:월|화|수|목|금|토|일)?요?일?/;
-const VENDOR_INTENT = /업체|웨딩홀|예식장|결혼식장|식장|스튜디오|드레스|(?:혼주\s*)?메이크업|스드메|플래너|웨딩\s*(?:촬영|사진)|본식|결혼\s*준비|예약|대관|vendor|venue|booking/i;
 /**
  * 견적을 봐 달라는 말.
  *
@@ -855,7 +850,6 @@ export function selectAmoraTools({
     || specialistType === "budget_optimizer";
   const hasScheduleIntent = SCHEDULE_INTENT.test(userText)
     || specialistType === "ceremony_coordinator";
-  const hasVendorIntent = VENDOR_INTENT.test(userText);
   // 문서를 올렸다는 사실만으로 계약 검토로 넘어가지 않는다. 견적서를 같이
   // 보는 경로만 남긴다 — 첨부가 없으면 견적 의도로만 열린다.
   const hasDocumentAttachment = attachmentKind === "document";
@@ -868,7 +862,6 @@ export function selectAmoraTools({
     || attachmentKind === "document";
   if (hasBudgetIntent) addAll(selected, BUDGET_READ_TOOLS);
   if (hasScheduleIntent) addAll(selected, SCHEDULE_READ_TOOLS);
-  if (hasVendorIntent) addAll(selected, VENDOR_READ_TOOLS);
   if (hasDocumentAttachment) addAll(selected, DOCUMENT_ATTACHMENT_READ_TOOLS);
   if (hasActionIntent) addAll(selected, ACTION_READ_TOOLS);
   if (hasQuoteIntent) selected.add("analyze_quote");
@@ -928,8 +921,6 @@ export function selectAmoraTools({
   if (VENUE_WRITE.test(userText)) selected.add("update_venue");
 
   const sharedTaskProposalOnly = hasAmoraSharedTaskProposalRequest(userText);
-  const priceScope = assessMarketPriceRequestScope(userText);
-  if (priceScope.hadExplicitTarget && priceScope.requestedSupportedCategories.size === 0) selected.delete("get_market_price");
   return availableTools.filter((tool) => selected.has(tool.name)
     && (!sharedTaskProposalOnly || !isMutatingTool(tool.name)));
 }

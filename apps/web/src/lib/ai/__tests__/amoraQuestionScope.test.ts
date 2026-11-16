@@ -251,7 +251,7 @@ describe("Amora question-scope ceiling", () => {
 
     expect(classification.scope).toBe("W1_wedding_adjacent");
     expect(classification.allowsLongTermMemory).toBe(true);
-    // 커플 문맥 읽기 넷 + (2026-09-14 부터) 커플 문맥 없는 조회 둘. 변경 도구는 없다.
+    // 커플 문맥 읽기 넷 + (2026-09-14 부터) 커플 문맥 없는 조회(11-16 부터 장소 검색 하나). 변경 도구는 없다.
     expect(toolNames.filter((name) => !AMORA_CONTEXT_FREE_READ_TOOL_NAMES.has(name))).toEqual([
       "get_budget_summary",
       "get_schedule_summary",
@@ -294,7 +294,7 @@ describe("Amora question-scope ceiling", () => {
 
       expect(classification.scope).toBe("W4_out_of_scope");
       expect(classification.allowsLongTermMemory).toBe(false);
-      // 2026-09-04: 낮은 확신의 W4 는 커플 문맥 없는 조회 도구(장소 검색·시세)만
+      // 2026-09-04: 낮은 확신의 W4 는 커플 문맥 없는 조회 도구(장소 검색. 11-16 까지는 시세도)만
       // 남긴다. 높은 확신(회사·이사·식당 예약처럼 결혼 밖이 분명한 것)은 여전히 0개.
       const remaining = filterAmoraToolsByQuestionScope(BETA_SAFE_TOOLS, classification)
         .map((tool) => tool.name);
@@ -565,7 +565,7 @@ describe("Amora question-scope ceiling", () => {
       allowsLongTermMemory: false,
     });
     // 커플 데이터를 읽거나 바꾸는 도구는 한 개도 남지 않는다. 2026-09-04 부터
-    // 검색어·항목만 보내는 조회 도구 둘(장소 검색·시세)은 이 턴에도 열린다.
+    // 검색어만 보내는 조회 도구(장소 검색. 11-16 까지는 시세도)는 이 턴에도 열린다.
     const remaining = filterAmoraToolsByQuestionScope(BETA_SAFE_TOOLS, classification)
       .map((tool) => tool.name);
     expect(remaining.filter((name) => !AMORA_CONTEXT_FREE_READ_TOOL_NAMES.has(name)))
@@ -958,8 +958,8 @@ describe("장소 구제가 부분일치·남의 결혼·프로그래밍 대행�
  * 잡히고도 도구가 없어 아모라가 "식당은 직접 검색할 수 없어요" 라고 답했다 —
  * 있는 기능을 없다고 말한 것이다(W4 낮은 확신에서 2026-09-04 에 고친 것과 같은 병).
  *
- * W1 이 도구를 좁히는 이유는 **읽기 전용**이다. 장소 검색·시세 조회는 커플 데이터를
- * 읽지도 바꾸지도 않는다(`AMORA_CONTEXT_FREE_READ_TOOL_NAMES`).
+ * W1 이 도구를 좁히는 이유는 **읽기 전용**이다. 장소 검색은 커플 데이터를 읽지도 바꾸지도
+ * 않는다(`AMORA_CONTEXT_FREE_READ_TOOL_NAMES`). 시세 조회도 그랬지만 2026-11-16 에 뺐다(D-79).
  */
 describe("관계 진술(W1)에도 커플 문맥 없는 조회 도구는 남는다", () => {
   const toolNamesFor = (classification: ReturnType<typeof classifyAmoraQuestionScope>) =>
@@ -983,11 +983,12 @@ describe("관계 진술(W1)에도 커플 문맥 없는 조회 도구는 남는�
     });
     const toolNames = toolNamesFor(classification);
     expect(toolNames).toContain("search_nearby_places");
-    expect(toolNames).toContain("get_market_price");
+    // 2026-11-16: 시세 조회는 남지 않는다 — 참가격 자료를 쓰지 않기로 했다(파운더 결정 D-79).
+    expect(toolNames).not.toContain("get_market_price");
     expect(toolNames).toContain("get_wedding_info");
   });
 
-  it("W1 이 남기는 것은 커플 문맥 읽기 넷과 커플 문맥 없는 조회 둘뿐이다", () => {
+  it("W1 이 남기는 것은 커플 문맥 읽기 넷과 커플 문맥 없는 조회(장소 검색)뿐이다", () => {
     const classification = classifyAmoraQuestionScope({ userText: "시어머니가 나를 싫어해" });
     expect(classification.scope).toBe("W1_wedding_adjacent");
     const toolNames = toolNamesFor(classification);

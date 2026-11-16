@@ -95,7 +95,9 @@ function getTitle(result: ToolExecutionResult) {
     case "get_my_bookings":
       return "아모라 예약 요청 기록";
     case "get_market_price":
-      return "결혼 비용 시세";
+      // 2026-11-16 참가격 자료를 쓰지 않기로 했다(파운더 결정 D-79). 이 카드는 그 전 대화
+      // 기록에만 남는다 — 지금 자료처럼 읽히지 않게 지난 조회라고 적는다.
+      return "지난 공시 가격 조회";
     case "get_wedding_info":
       return "웨딩 정보";
     case "toggle_checklist_item":

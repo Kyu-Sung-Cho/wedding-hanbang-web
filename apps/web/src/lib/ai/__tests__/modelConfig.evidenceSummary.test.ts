@@ -35,7 +35,8 @@ describe("read-only evidence summary model routing", () => {
       label: "250dcb7d direct item scope",
       text: "결혼 준비 이야기를 정리하고 싶어. 어제 파트너에게 “사진은 꼭 남기고 싶어”라고 직접 말했어. 예산에 대해서는 아직 파트너에게 말 안 했어. 사진 촬영 방식과 예산 금액은 미정이고, 둘이 합의한 내용도 아직 없어. 지금은 내 개인 상담이야. 항목별로 내가 말한 선호, 전달 여부, 합의 여부를 구분해서 표로 정리해줘. 저장하거나 공유하지 마.",
       expectedScope: "W0_wedding_core",
-      expectedReads: ["analyze_quote", "get_amora_actions", "get_budget_summary", "get_market_price", "get_schedule_events", "get_schedule_summary", "get_wedding_info", "simulate_guest_guarantee"],
+      // 2026-11-16: 시세 조회(`get_market_price`)는 운영 도구에서 빠졌다(참가격 자료를 쓰지 않는다, D-79).
+      expectedReads: ["analyze_quote", "get_amora_actions", "get_budget_summary", "get_schedule_events", "get_schedule_summary", "get_wedding_info", "simulate_guest_guarantee"],
     },
     // 초대장·꽃 장식의 전달 상태 요약에는 다른 분야 공시 조회를 열지 않는다.
     { label: "958 future draft separation", text: separationFollowup, expectedScope: "W4_out_of_scope", expectedReads: [] },
@@ -142,7 +143,7 @@ describe("read-only evidence summary model routing", () => {
 
   it("keeps ordinary or mixed-write requests fast even with all production summary reads", () => {
     const context = { ...readContext, toolNames: ["get_wedding_info", "get_budget_summary", "get_schedule_summary",
-      "get_amora_actions", "get_schedule_events", "get_market_price", "simulate_guest_guarantee", "analyze_quote"] };
+      "get_amora_actions", "get_schedule_events", "simulate_guest_guarantee", "analyze_quote"] };
     expect(roleFor("결혼 준비 순서를 정리해줘.", context)).toBe("fast");
     expect(roleFor("확정과 미정을 정리해줘. 예산을 저장해줘.", context)).toBe("fast");
   });
