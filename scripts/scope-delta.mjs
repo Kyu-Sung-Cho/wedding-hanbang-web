@@ -76,6 +76,8 @@ export const SAFETY_FILES = Object.freeze([
   // base 로 함께 바꿔 재야 한다(base 에 없는 파일은 "base 에 없음" 으로 남고 바꿔 끼우지 않는다).
   "packages/shared/src/safety/amoraCrisisDelivery.ts",
   "packages/shared/src/safety/partnerViolenceClosedVocabulary.ts",
+  // 2026-11-17: `classifyAmoraCrisis` 의 마지막 자리에서 부르는 자해 계획·결심 문장 틀.
+  "packages/shared/src/safety/selfHarmPlanFrames.ts",
 ]);
 
 const hashBytes = (v) => createHash("md5").update(v).digest("hex");
