@@ -20,13 +20,13 @@ const STATE_DIMENSIONS = [
 ];
 
 // 실제 catalog의 기존 내부 조회·계산만 인정한다. 도구 선택이나 실행 권한은 늘리지 않는다.
+// 2026-11-16: 시세 조회(`get_market_price`)는 뺐다 — 참가격 자료를 쓰지 않는다(파운더 결정 D-79).
 const EVIDENCE_SUMMARY_READ_TOOLS: ReadonlySet<string> = new Set([
   "get_wedding_info",
   "get_budget_summary",
   "get_schedule_summary",
   "get_amora_actions",
   "get_schedule_events",
-  "get_market_price",
   "simulate_guest_guarantee",
   "analyze_quote",
 ]);

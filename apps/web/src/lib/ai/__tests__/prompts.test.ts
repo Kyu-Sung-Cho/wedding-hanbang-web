@@ -69,9 +69,12 @@ describe("getWeddingPlannerSystemPrompt", () => {
 
     expect(prompt).toContain(`성수기 (${PEAK_WEDDING_MONTHS_LABEL})`);
     expect(prompt).toContain(`비수기 (${OFF_PEAK_WEDDING_MONTHS_LABEL})`);
+    // 2026-11-16: "시세 데이터 분류상" → "일정 분류상". 참가격 자료를 쓰지 않기로 해서(D-79)
+    // 아모라에게 시세 데이터가 있다는 말을 뺐다. 성수기·비수기 구분 자체는 그대로다.
     expect(prompt).toContain(
-      `웨딩한방 시세 데이터 분류상 성수기 (${PEAK_WEDDING_MONTHS_LABEL})`,
+      `웨딩한방 일정 분류상 성수기 (${PEAK_WEDDING_MONTHS_LABEL})`,
     );
+    expect(prompt).not.toContain("시세 데이터");
     expect(prompt).toContain("업체·지역·요일별 실제 가격과 예약 수요는 다를 수 있어요");
     expect(prompt).toContain(`비수기(${OFF_PEAK_WEDDING_MONTHS_LABEL})`);
     expect(prompt).not.toContain("3~6월, 9~11월");
@@ -646,7 +649,10 @@ describe("getWeddingPlannerSystemPrompt", () => {
     // 도구 없는 대화 전용 대안 지시 — 정작 이 경우에 사라지면 안 된다.
     expect(prompt).toContain("업체 도구가 없는 대화에서 추천을 요청받으면");
     expect(prompt).toContain("외부 검색(네이버·인스타그램 등)으로 떠넘기는 것을 첫 답으로 삼지 마세요");
-    expect(prompt).toContain("가격/통계는 도구 조회 또는 시세 데이터에서만");
+    // 2026-11-16: 시세 데이터가 없어져(D-79) 근거는 사용자가 알려준 견적·금액뿐이다.
+    expect(prompt).toContain("가격·통계는 사용자가 알려준 견적·금액과 그 단순 계산에서만");
+    expect(prompt).toContain("시세·평균을 지어내지 마세요");
+    expect(prompt).toContain("## 가격 안내 규칙");
 
     // 보호는 도구 이름 누출로 이어지면 안 된다 — 비활성 도구명은 계속 빠진다.
     for (const tool of WEDDING_TOOLS) {
@@ -1412,13 +1418,14 @@ describe("시스템 프롬프트 컴플라이언스 잠금", () => {
     expect(prompt).not.toContain("2025년 4월 기준");
   });
 
-  it("가격 컨텍스트가 고정 시세 대신 검수·발행된 공시 조회를 강제한다", () => {
-    expect(prompt).toContain("검수·발행된 업체별 공시 데이터");
-    // 2026-08-24: 도구 이름을 그대로 쓴다. 예전 문구("업체 공시가 검색·추천 도구")는
-    // 도구를 약속하면서 **이름이 없어** applyEnabledToolContract 가 걸러내지 못했고,
-    // 조회 도구가 없는 턴에도 남아 못 하는 조회를 약속했다. 이 검사의 의도(고정 시세
-    // 대신 검수·발행된 공시 조회를 쓴다)는 그대로다.
-    expect(prompt).toContain("get_market_price 로 조회하고");
+  // 2026-11-16 파운더 결정(D-79): 참가격 자료를 쓰지 않는다. 이 자리는 예전에 "고정 시세 대신
+  // 검수·발행된 공시 조회(`get_market_price`)를 쓴다" 를 지켰다. 고정 시세 숫자가 없어야 한다는
+  // 뜻은 그대로이고, 조회할 공시 자료가 없어졌으므로 이제는 "자료가 없다, 지어내지 말라" 를 지킨다.
+  it("가격 컨텍스트가 시세 자료가 없다고 말하고 숫자를 지어내지 못하게 한다", () => {
+    expect(prompt).toContain("아모라에게는 시세·평균 가격 자료가 없습니다");
+    expect(prompt).toContain("평균가·중간값·시세·가격대를 지어내지 마세요");
+    expect(prompt).not.toContain("get_market_price");
+    expect(prompt).not.toContain("검수·발행된 업체별 공시 데이터");
     expect(prompt).not.toMatch(/조사 기준: 20\d{2}년 \d{1,2}월/);
     expect(prompt).not.toContain("한국소비자원 참가격 결혼서비스 통계");
   });
@@ -1448,13 +1455,13 @@ describe("시스템 프롬프트 컴플라이언스 잠금", () => {
   });
 });
 
-// 운영이 켜는 조회 도구 다섯. route.ts 는 `!isMutatingTool` 로 걸러 변경 도구를 절대 켜지 않는다.
+// 운영이 켜는 조회 도구 넷(2026-11-16 시세 조회를 뺐다, D-79). route.ts 는 `!isMutatingTool` 로
+// 걸러 변경 도구를 절대 켜지 않는다.
 const PRODUCTION_READ_TOOL_NAMES = [
   "get_budget_summary",
   "get_schedule_summary",
   "get_wedding_info",
   "get_amora_actions",
-  "get_market_price",
 ];
 
 describe("예산 프로토콜은 한 건 금액 요청에 발동하지 않는다 (2026-09-06 페르소나 실측)", () => {

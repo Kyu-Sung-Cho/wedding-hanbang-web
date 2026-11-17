@@ -120,9 +120,12 @@ export type AmoraBoundedContinuityRow = {
  * 모델이 "방금 답변에는 실제 검색 결과가 제시되지 않았어요… 찾은 것처럼 말한 점이
  * 잘못됐어요" 라고 **자기가 한 검색을 부인**했다. 사용자 눈앞에 카드 5장이 있는데.
  *
- * 그래서 저장된 도구 결과 가운데 검색·시세처럼 카드로만 보인 것을 한 줄 요약으로
+ * 그래서 저장된 도구 결과 가운데 장소 검색처럼 카드로만 보인 것을 한 줄 요약으로
  * 산문 뒤에 붙인다. 장소 이름은 저장되지 않으니(placeholder) 검색어·건수·출처만
  * 말한다 — 지어낼 것이 없다. 도구 권한(capabilities)은 여전히 none 이다.
+ *
+ * 2026-11-16: 옛 시세 카드(`get_market_price`)는 더 이상 되살리지 않는다. 한국소비자원
+ * 참가격 자료를 쓰지 않기로 했다(파운더 결정 D-79). 옛 답변의 산문은 그대로 남는다.
  */
 const CARD_ONLY_TOOL_SUMMARY_MAX_CHARS = 240;
 
@@ -145,8 +148,6 @@ export function summarizeCardOnlyToolResults(toolResults: unknown): string | nul
         + "(일반 검색 결과, 광고·제휴 아님; 수용 인원·가격은 카드에 없어 업체 확인 필요;"
         + " 카드는 저장되지 않아 이름은 다시 검색해야 해요).",
       );
-    } else if (row.toolName === "get_market_price") {
-      lines.push("직전 답변에서 공시 시세(한국소비자원 참가격)를 카드로 보여줬어요.");
     }
   }
   if (lines.length === 0) return null;
