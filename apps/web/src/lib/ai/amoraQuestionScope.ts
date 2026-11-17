@@ -793,8 +793,11 @@ const WEDDING_CONTEXT_READ_TOOL_NAMES: ReadonlySet<string> = new Set([
 ]);
 
 /**
- * 커플의 저장 정보를 **읽지 않는** 조회 도구. provider 로 나가는 것은 검색어와
- * 항목뿐이다(장소 검색은 네이버 질의, 시세 조회는 공시 자료의 카테고리·지역).
+ * 커플의 저장 정보를 **읽지 않는** 조회 도구. provider 로 나가는 것은 검색어뿐이다
+ * (장소 검색의 네이버 질의).
+ *
+ * 2026-11-16: 시세 조회(`get_market_price`)를 뺐다. 한국소비자원 참가격 자료를 쓰지 않기로
+ * 했다(파운더 결정 D-79). 아래 기록의 "이 둘"은 그때 장소 검색과 시세 조회였다.
  *
  * 2026-09-04: 범위 밖(W4, 낮은 확신) 턴에도 이 둘은 연다. 새 스테이징 커플로 잰
  * 소비자 발화 40문장 중 16문장이 W4 였고, 그중 "양가 부모님 처음 뵙는데 강남 쪽
@@ -809,7 +812,6 @@ const WEDDING_CONTEXT_READ_TOOL_NAMES: ReadonlySet<string> = new Set([
  */
 export const AMORA_CONTEXT_FREE_READ_TOOL_NAMES: ReadonlySet<string> = new Set([
   "search_nearby_places",
-  "get_market_price",
 ]);
 
 export function classifyAmoraQuestionScope({
@@ -1199,7 +1201,7 @@ export function buildAmoraQuestionScopeInstruction(
   // 도구가 실제로 열렸을 때만 "써도 된다"고 말한다. 안 열린 턴에 이 줄이 가면
   // 모델이 없는 도구를 부르거나, 있다고 말해 놓고 못 쓴다.
   const contextFreeToolLine = contextFreeToolNames.length > 0
-    ? `- 이 턴에 열린 조회 도구(${contextFreeToolNames.join(", ")})는 커플의 저장 정보 없이 검색어·항목만 보내는 도구라 써도 됩니다. 장소 검색·시세 조회를 "할 수 없다"거나 "기능이 없다"고 말하지 마세요. 그 밖의 도구 실행·상태 변경·변경 제안·장기 기억 저장은 하지 마세요.`
+    ? `- 이 턴에 열린 조회 도구(${contextFreeToolNames.join(", ")})는 커플의 저장 정보 없이 검색어만 보내는 도구라 써도 됩니다. 장소 검색을 "할 수 없다"거나 "기능이 없다"고 말하지 마세요. 그 밖의 도구 실행·상태 변경·변경 제안·장기 기억 저장은 하지 마세요.`
     : null;
   const commonLines = [
     "[서버 확정 질문 범위 계약]",
@@ -1225,7 +1227,7 @@ export function buildAmoraQuestionScopeInstruction(
     ],
     W1_wedding_adjacent: [
       "- 신혼 생활·커플 재정·가족 조율 중 결혼 준비에 미치는 영향만 다루세요.",
-      // 2026-09-14: 이 레인에도 커플 문맥 없는 조회 도구(장소 검색·시세)가 열린다
+      // 2026-09-14: 이 레인에도 커플 문맥 없는 조회 도구(장소 검색. 11-16 까지는 시세도)가 열린다
       // (`filterAmoraToolsByQuestionScope`). 도구가 실제로 열린 턴에만 "써도 된다" 줄을
       // 붙이고, 그 턴에서는 `외부 실행` 금지를 뺀다 — 네이버 질의가 곧 외부 실행이라 두
       // 줄을 나란히 두면 한 지시문이 서로 반대를 말한다. 안 열린 턴은 예전 문장 그대로다.

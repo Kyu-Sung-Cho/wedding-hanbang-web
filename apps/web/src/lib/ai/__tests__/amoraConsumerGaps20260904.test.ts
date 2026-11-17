@@ -8,7 +8,7 @@
  * 1. 결혼 준비를 가리키는 명사 몇 개가 맨 마지막 관문(장기 기억 OFF)에 더해졌다.
  *    일반 표현("일주일 남았", "밥값")은 넣지 않았다 — 그 실측은 `amoraQuestionScope.ts`
  *    의 주석에 있다.
- * 2. 낮은 확신의 W4 턴에도 **커플 문맥을 읽지 않는** 조회 도구(장소 검색·시세)는 열린다.
+ * 2. 낮은 확신의 W4 턴에도 **커플 문맥을 읽지 않는** 조회 도구(장소 검색. 11-16 까지는 시세도)는 열린다.
  *    커플 데이터를 읽거나 바꾸는 도구는 그대로 0개다.
  * 3. 장소 검색어에서 동행·분위기 수식어를 걷어 0건을 줄인다.
  */
@@ -102,7 +102,7 @@ describe("결혼 준비 명사가 맨 마지막 관문에서 W0 이 된다 (2026
 });
 
 describe("낮은 확신의 W4 턴에는 커플 문맥 없는 조회 도구만 남는다", () => {
-  it("장소 검색·시세 조회는 남고 커플 데이터 도구는 0개", () => {
+  it("장소 검색은 남고 커플 데이터 도구는 0개", () => {
     const classification = classifyAmoraQuestionScope({
       userText: "부모님 모시고 밥 먹을 데 어디가 좋아? 강남이야.",
     });
@@ -161,19 +161,29 @@ describe("낮은 확신의 W4 턴에는 커플 문맥 없는 조회 도구만 �
     expect(filtered).not.toContain("get_wedding_info");
   });
 
-  it("연결 문맥 모드는 조회 도구 둘만 허용하고 나머지는 여전히 예외", () => {
+  // 2026-11-16: 시세 조회(`get_market_price`)는 커플 문맥 없는 조회에서 빠졌다(참가격 자료를
+  // 쓰지 않는다, 파운더 결정 D-79). 이 모드가 허용하는 조회 도구는 이제 장소 검색 하나다.
+  it("연결 문맥 모드는 장소 검색만 허용하고 나머지는 여전히 예외", () => {
     const questionScope = classifyAmoraQuestionScope({ userText: "이거 어떻게 하면 돼?" });
     const prompt = buildAmoraSystemPrompt(baseContext, {
+      requestKind: "chat",
+      persistenceMode: "durable",
+      enabledToolNames: ["search_nearby_places"],
+      questionScope,
+      linkedContextMode: "linked_context_only",
+    });
+    expect(prompt).toContain("context_mode: linked_context_only");
+    expect(prompt).toContain("capabilities: search_nearby_places");
+    expect(prompt).not.toContain("capabilities: none");
+    expect(prompt).toContain("위 조회 도구 밖의 도구·저장·실행·변경 제안을 만들지 마세요");
+
+    expect(() => buildAmoraSystemPrompt(baseContext, {
       requestKind: "chat",
       persistenceMode: "durable",
       enabledToolNames: ["search_nearby_places", "get_market_price"],
       questionScope,
       linkedContextMode: "linked_context_only",
-    });
-    expect(prompt).toContain("context_mode: linked_context_only");
-    expect(prompt).toContain("capabilities: search_nearby_places, get_market_price");
-    expect(prompt).not.toContain("capabilities: none");
-    expect(prompt).toContain("위 조회 도구 밖의 도구·저장·실행·변경 제안을 만들지 마세요");
+    })).toThrow("cannot include tools or an action contract");
 
     expect(() => buildAmoraSystemPrompt(baseContext, {
       requestKind: "chat",
@@ -211,10 +221,14 @@ describe("도구 선택·검색어 (안전 판정과 무관한 자리)", () => {
     expect(generalizePlaceQuery("삼성동 카페")).toBeNull();
   });
 
-  it("시세 자료가 있는 항목이 넷뿐이라는 것을 아모라가 안다", () => {
+  // 2026-11-16: 예전에는 "시세 자료가 있는 항목은 넷뿐" 이었다. 참가격 자료를 쓰지 않기로 해서
+  // (파운더 결정 D-79) 이제 자료가 아예 없다. 그때 함께 넣은 "한 번만 말하고 되풀이하지 말 것"
+  // 은 남긴다 — 자료가 없는 항목이 넷에서 전부로 늘었으니 그 줄이 더 필요하다.
+  it("시세 자료가 없다는 말을 되풀이하지 않고 다음 방법으로 이어간다", () => {
     const context = getMarketPriceContext();
-    expect(context).toContain("넷뿐");
-    expect(context).toContain("한복");
+    expect(context).toContain("시세 자료가 없다는 말은 한 대화에서 한 번만 하세요");
+    expect(context).toContain("커뮤니티의 최근 기록");
+    expect(context).toContain("받은 견적이 있는지 묻거나");
   });
 });
 
