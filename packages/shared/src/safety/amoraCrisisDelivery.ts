@@ -4,7 +4,7 @@ import {
   type AmoraCrisisClassification,
 } from "./amoraCrisisSafety";
 import { assessAmoraSafetyText, assessAmoraContextualSafetyText } from "./amoraCrisisClassifier";
-import { isClosedPartnerViolenceStatement } from "./partnerViolenceClosedVocabulary";
+import { isLastResortClosedViolenceStatement } from "./partnerViolenceClosedVocabulary";
 
 export type AmoraCrisisDeliveryVisibility =
   | "shared"
@@ -94,10 +94,12 @@ export function planAmoraCrisisDelivery(input: {
   // 구조 판정 inconclusive) 호출자 신호도 없을 때만 본다 — 운영 판정은 그대로 두고 더하기만 한다.
   // 결과는 아래 비즉시 경로와 같다(새 disposition 없음). 모바일 사전 판정은 호출자 신호를
   // 넘기지 않으므로 여기 있어야 앱도 같은 레인을 고른다.
+  // 2026-11-16: 마지막 판정 전용 어휘(`isLastResortClosedViolenceStatement`)를 쓴다 — 이 자리가
+  // 위 두 판정이 끝난 뒤라서다. 같은 어휘를 문맥 판정에 주면 즉시 위기가 비즉시로 내려간다.
   const closedPartnerViolence =
     assessment.resolution === "inconclusive"
     && !input.externalSafetySignal
-    && isClosedPartnerViolenceStatement(input.userText);
+    && isLastResortClosedViolenceStatement(input.userText);
   if (
     assessment.resolution === "non_immediate_safety"
     || input.externalSafetySignal

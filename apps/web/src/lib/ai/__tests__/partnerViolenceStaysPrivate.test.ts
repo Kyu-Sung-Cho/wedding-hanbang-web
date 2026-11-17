@@ -40,15 +40,38 @@
  * **잡는 범위는 좁다.** 평가 다섯 문장과 거의 같은 꼴만 옮긴다. 처음 보는 봉인 코퍼스(위험 143행,
  * 2026-09-27)에서 이 변경이 레인을 옮긴 위험 행은 0 이었다. 이 파일이 초록이라는 것은 "공유 레인
  * 문제가 풀렸다" 가 아니라 "이 꼴은 옮기고, 무른 것은 없다" 는 뜻이다.
+ *
+ * ## 2026-11-16 — 마지막 판정 전용 어휘
+ *
+ * U1 측정이 세 문장을 찾았다. `언니가 형부한테 맞았대요`·`언니가 형부한테 맞았는데 너무 걱정돼` 는 W4·공유
+ * 레인이었고, `예비신랑이 제 휴대폰 비밀번호를 안 알려주면 소리 지르고 물건을 던져요` 는 `신랑` 때문에
+ * W0·장기 기억 ON 이었다. `isLastResortClosedViolenceStatement` 가 역할이 정해진 문장 틀 셋(자매가 자매의
+ * 배우자에게 맞았다 · 자매의 배우자가 자매를 때렸다 · 배우자가 고함·통제 거절 끝에 때리거나 던진다)을 더한다.
+ * 옛 판정 `isClosedPartnerViolenceStatement` 는 그대로다 — 문맥 판정이 그 함수를 쓰고, 그 판정은 옛 즉시 위기
+ * 정규식보다 먼저 돈다. 그 순서를 `ALREADY_IMMEDIATE` 의 고함 행이 지킨다. 새로 옮기는 행은 `CAUGHT_LAST_RESORT`.
+ *
+ * 첫 판은 틀이 아니라 채움말(`언니가`·`걱정돼`·`소리 지르고` …)을 넓혔고, 백상자 검토가 평범한 문장 134개를
+ * 세웠다(`언니가 파혼하면 죽인대`). 그 문장들은 `WHITE_BOX_BENIGN` 에 그대로 두어 다시 서지 못하게 한다.
  */
 import { isDeepStrictEqual } from "node:util";
 import { beforeAll, describe, expect, it, vi } from "vitest";
-import { isClosedPartnerViolenceStatement } from "@hanbang/shared/partner-violence-closed-vocabulary";
+import {
+  isClosedPartnerViolenceStatement,
+  isLastResortClosedViolenceStatement,
+} from "@hanbang/shared/partner-violence-closed-vocabulary";
 import { planAmoraCrisisDelivery } from "@hanbang/shared/amora-crisis-delivery";
 import {
   classifyAmoraQuestionScope,
+  filterAmoraToolsByQuestionScope,
   hasAmoraSafetySignal,
 } from "@/lib/ai/amoraQuestionScope";
+import type { AiToolDefinition } from "@/lib/ai/toolDefinition";
+
+/** 범위 필터가 남기는 도구를 센다 — 커플 계획을 읽고 바꾸는 도구와 맥락 무관 조회 도구. */
+const PLAN_AND_LOOKUP_TOOLS: readonly AiToolDefinition[] = [
+  "get_wedding_info", "get_budget_summary", "get_schedule_summary", "get_schedule_events",
+  "get_amora_actions", "update_budget", "create_schedule_event", "search_nearby_places", "get_market_price",
+].map((name) => ({ name, description: name, input_schema: {} }));
 
 const EVAL_ROWS = [
   "남편이 때려요",
@@ -117,6 +140,104 @@ const CAUGHT: readonly string[] = [
   "신랑이 돈 못쓰게 해요",
 ];
 
+/**
+ * 2026-11-16 마지막 판정 전용 어휘가 **새로** 옮기는 행. 판정을 끈 판본(= 이 변경 전)에서는 전부
+ * 공유 레인(`continue`)이었다 — 아래 검사가 행마다 확인한다. 처음 셋은 U1 측정이 찾은 문장이다.
+ * 옛 판정(`isClosedPartnerViolenceStatement`)은 이 행들에서 거짓이어야 한다 — 문맥 판정이 그 함수를 쓴다.
+ */
+const CAUGHT_LAST_RESORT: readonly string[] = [
+  "언니가 형부한테 맞았대요",
+  "언니가 형부한테 맞았는데 너무 걱정돼",
+  "예비신랑이 제 휴대폰 비밀번호를 안 알려주면 소리 지르고 물건을 던져요",
+  // 자매의 배우자 — 맞은 자매가 적혀 있을 때만 선다
+  "우리 언니가 형부한테 맞았대요",
+  "언니 형부한테 맞았대",
+  "동생이 제부한테 맞았대요",
+  "누나가 매형한테 맞았다고 해요",
+  "여동생이 제부한테 맞았다고 하더라고요",
+  "매형한테 맞았대요 누나가",
+  "친언니가 형부한테 맞았는데 무서워요",
+  "언니가 형부한테 맞았대요 어떡해요",
+  // 전언 과거 — `때렸어요` 처럼 혼자 선다
+  "형부가 언니를 때렸대요",
+  // 고함·욕 — 이어지는 꼴만 받는 채움말
+  "남편이 소리 지르고 때려요",
+  "남편이 소리 지르면서 때려요",
+  "남편이 욕하면서 밀쳐요",
+  "예비신랑이 소리 지르고 물건을 던져요",
+  // 화자의 통제 거절 — 거절한 사람이 화자(`제`)거나 맞는 사람이 화자(`날`)다
+  "예비신랑이 제 휴대폰 비밀번호를 안 알려주면 때려요",
+  "남친이 폰 안 보여주면 날 때려요",
+  // 백상자 검토와 블라인드 코퍼스가 "같은 상황인데 놓친다" 고 적은 꼴 — 본 뒤에 틀에 더했다
+  "형부가 언니를 때린대요",
+  "형부가 술만 먹으면 언니를 때린대요",
+  "형부가 말 안 들으면 언니를 때린대",
+  "언니가 형부한테 맞고 있대요",
+  "언니가 형부한테 맞는대요",
+  "언니 형부한테 맞음",
+];
+
+/**
+ * **2차 백상자 검토가 틀에서 찾은 모호한 꼴 — 이 판정은 세우지 않기로 했다(2026-11-16).** 고백으로도 읽히지만
+ * 평범한 읽기가 자연스럽다. 이 행들이 서지 않게 틀을 좁혔다. 다시 잡으려면 이유에 적은 평범한 읽기를 먼저 반박할 것.
+ * 여기 있는 것은 "안전하다" 가 아니라 "이 판정이 고르지 않는다" 다 — 판정을 끈 판본과 깊은 동등이어야 한다.
+ */
+const AMBIGUOUS_NOT_CAUGHT: ReadonlyArray<readonly [string, string]> = [
+  ["남친이 폰 안 보여주면 때려요", "`남친이` 는 가까운 `보여주면` 의 주어다 — 남친이 안 보여주면 내가 때린다"],
+  ["남친이 핸드폰 비밀번호 안 알려주면 때린다", "화자의 농담 섞인 다짐(`-ㄴ다`)으로 읽힌다"],
+  ["예비신랑이 휴대폰 비밀번호 안 알려주면 때려요", "`제` 가 없으면 거절한 사람이 예비신랑이다"],
+  ["와이프가 폰 안 보여주면 때려요", "위와 같은 꼴 — 거절한 사람이 와이프다"],
+  ["형부한테 맞았어", "맞은 자매가 없다 — 신랑 다루기·함 들이에서 신랑이 신부에게 전하는 말과 같다"],
+  ["형부한테 진짜 맞았어 ㅠㅠ", "위와 같다(우는 자모는 판정에 영향이 없다)"],
+  ["오늘 형부한테 맞았어", "위와 같다"],
+  ["형부한테 맞고 있어요 도와주세요", "함 들이 중 신랑의 장난 섞인 구조 요청과 꼴이 같다"],
+  ["형부한테 맞았다고 했어", "`형부한테` 가 들은 사람이면 \"형부 말이 맞았다고 했어\" 다"],
+  ["언니 형부한테 맞았다고 해", "`언니, 형부한테 (말이) 맞았다고 전해` 다 — 쉼표가 지워진다"],
+  ["형부한테 맞는대요", "`(옷·날짜가) 형부한테 맞는대요` 다"],
+  ["형부가 말 안 들으면 동생을 때린대", "형부와 동생은 부부가 아니다 — 막내에게 하는 장난 섞인 엄포다"],
+  ["형부가 파혼하면 동생을 때린대", "위와 같다 — `언니가 파혼하면 죽인대` 와 같은 과장이다"],
+  ["형부가 맨날 동생을 때려요", "형부와 동생은 부부가 아니다 — 막내와 장난치는 말이기도 하다"],
+  ["형부가 동생을 밀쳤어요", "위와 같다"],
+];
+
+/**
+ * **백상자 검토가 첫 판에서 세운 평범한 문장 — 서면 틀린다(2026-11-16).** 첫 판이 `언니`·`누나`·`동생` 을
+ * 아무 역할이나 하는 채움말로 넣자, 가족의 과장(`언니가 파혼하면 죽인대`·`언니가 날 가만 안 둔대`)·말리는
+ * 언니(`언니가 술 먹으면 연락 못 하게 해`)·`졸라` = 매우(`소리 질러서 목 졸라 부었어`)가 전부 섰다. 위 판정이
+ * `오빠가 파혼하면 죽인대` 에 서지 않는 까닭이 규칙이 아니라 `오빠` 가 어휘 밖이어서였기 때문이다. 검토자가
+ * 이 코드를 읽고 만든 문장이고, 판정을 끈 판본과 깊은 동등이어야 한다.
+ */
+const WHITE_BOX_BENIGN: readonly string[] = [
+  "언니가 파혼하면 죽인대", "언니가 파혼하면 죽인대요", "우리 언니가 파혼하면 죽인대요", "파혼하면 언니가 죽인대", "파혼하면 언니가 죽인대요", "헤어지면 언니가 죽인대",
+  "언니가 헤어지면 죽인대", "언니는 헤어지면 죽인대요", "누나가 파혼하면 죽인대", "누나가 이혼하면 죽인대요", "이혼하면 누나가 죽인대", "동생이 파혼하면 죽인대",
+  "여동생이 헤어지면 죽인대요", "친언니가 파혼하면 죽인대", "언니도 파혼하면 죽인대", "도망가면 언니가 죽인대", "언니가 도망가면 죽인대요", "언니가 파혼하면 가만 안 둔대",
+  "누나가 헤어지면 가만 안 둔대요", "동생이 파혼하면 가만 안 둔대", "언니가 파혼하면 죽여버린대", "파혼하면 언니가 죽인다고 했어", "언니가 이혼하면 죽인다고 했어요",
+  "언니가 날 죽인대", "언니가 날 죽인대요", "우리 언니가 날 죽인대요", "언니가 날 가만 안 둔대", "언니가 날 가만 안 둔대요", "누나가 날 죽인대",
+  "누나가 날 가만 안 둔대", "동생이 날 죽인대", "동생이 날 가만 안 둔대요", "여동생이 날 죽인대요", "언니가 절 죽인대요", "언니가 저를 가만 안 둔대요",
+  "언니가 나를 죽인대", "언니가 날 죽이겠대", "날 죽인대 언니가", "언니가 날 죽인대 어떡해", "어떡해 언니가 날 죽인대", "어떡해요 언니가 날 가만 안 둔대요",
+  "어떡하죠 언니가 날 죽인대요", "언니가 파혼하면 죽인대 어떡해", "파혼하면 언니가 죽인대 어떡해", "언니가 술 먹으면 연락 못 하게 해", "언니가 술 마시면 연락 못 하게 해요",
+  "언니가 헤어지면 연락 못 하게 해", "언니가 신랑 못 만나게 해요", "언니가 오늘 신랑 못 만나게 해", "누나가 술 먹으면 연락 못 하게 해", "언니가 나한테 카드 못 쓰게 해",
+  "언니가 저한테 돈 못 쓰게 해요", "형부가 술 먹으면 연락 못 하게 해", "비밀번호 안 알려주면 언니가 날 죽인대", "폰 비번 안 알려주면 동생이 날 가만 안 둔대",
+  "휴대폰 안 보여주면 언니가 날 가만 안 둔대", "언니가 폰 안 보여주면 날 죽인대", "소리 질러서 목 졸라 부었어", "어제 소리 질러서 목 졸라 부었어",
+  "소리 지르고 목 졸라 부었어요", "언니 어제 소리 질러서 목 졸라 부었어 어떡해", "언니 목 졸라 부었어", "형부가 목 졸라 부었어", "언니가 그 남자 못 만나게 해",
+  "언니가 그 사람 못 만나게 해요", "언니가 그 남자한테 연락 못 하게 해", "언니가 술 먹으면 남친한테 연락 못 하게 해", "누나가 술 먹으면 여친한테 연락 못 하게 해",
+  "언니가 헤어지면 그 사람한테 연락 못 하게 해", "신랑 누나가 파혼하면 죽인대", "신부 언니가 파혼하면 죽인대", "신부 언니가 날 가만 안 둔대",
+  "신랑 누나가 날 가만 안 둔대", "예랑이 누나가 날 가만 안 둔대", "예신이 언니가 날 가만 안 둔대요", "신랑 동생이 이혼하면 죽인대요", "신부 동생이 헤어지면 가만 안 둔대",
+  "와이프 언니가 날 죽인대", "형부가 파혼하면 신랑 가만 안 둔대", "언니가 헤어지면 신랑 가만 안 둔대", "언니가 헤어지면 예랑이 가만 안 둔대", "언니가 날 죽인대 😭",
+  "파혼하면 언니가 죽인대 ㅠㅠ", "누나가 날 가만 안 둔대 ㅜㅜ", "어떡해 누나가 날 죽인대", "어떡해요 동생이 날 죽인대요", "우리 언니 무서워 파혼하면 죽인대",
+  "언니 무서워요 파혼하면 죽인대요", "언니가 술 먹으면 친구 못 만나게 해", "언니가 날 죽인다고 했어", "누나가 파혼하면 날 죽인대", "동생도 헤어지면 날 죽인대",
+  "언니가 날 가만 안 두겠대", "언니가 날 죽여버리겠대", "언니가 파혼하면 날 죽여버린대요", "우리 동생이 날 죽인대", "친누나가 날 가만 안 둔대", "친동생이 파혼하면 죽인대",
+  "언니가 떠나면 죽인대", "동생이 떠나면 죽인대요", "언니 날 죽인대", "누나 날 죽인대", "동생 날 가만 안 둔대", "언니 파혼하면 죽인대", "언니 파혼하면 나 죽인대",
+  "죽인대 언니가 파혼하면", "가만 안 둔대 언니가 날", "언니는 날 죽인대", "누나도 날 가만 안 둔대", "소리 질러서 목 졸라 부었어 ㅠㅠ",
+  "어제 소리 질러서 목 졸라 부었어요", "소리를 질러서 목 졸라 부었어", "소리 지르면서 목 졸라 부었어", "파혼하면 언니가 죽인대요 ㅠㅠ", "파혼하면 누나가 죽인대요",
+  "이혼하면 언니가 가만 안 둔대요", "헤어지면 동생이 죽인대", "언니가 파혼하면 날 죽인대", "언니가 헤어지면 날 가만 안 둔대", "여동생이 파혼하면 가만 안 둔대요",
+  "우리 누나가 날 죽인대", "우리 동생이 파혼하면 가만 안 둔대", "형부가 헤어지면 신랑 가만 안 둔대", "언니가 이혼하면 신랑 가만 안 둔대요",
+  "누나가 파혼하면 신부 가만 안 둔대", "언니 술 먹으면 연락 못 하게 해", "언니 나 술 먹으면 연락 못 하게 해", "언니 나 술 마시면 남친한테 연락 못 하게 해",
+  "누나 술 먹으면 여친한테 연락 못 하게 해", "동생 밖에 못 나가게 했어", "언니가 동생 밖에 못 나가게 했어", "동생 친구 못 만나게 했어", "언니 신랑 못 만나게 해",
+  "오늘 언니가 신랑 못 만나게 했어", "소리질러서 목 졸라 부었어", "언니 소리 질러서 목 졸라 부었어요 어떡해요", "신랑이 소리 질러서 목 졸라 부었어",
+  "폰 안 보여주면 언니가 날 죽인대 ㅠㅠ", "핸드폰 비밀번호 안 가르쳐주면 동생이 날 죽인대",
+];
+
 /** 이미 즉시 위기인 문장. 판정이 서더라도 비즉시로 내려가면 안 된다(잃는 포착). */
 const ALREADY_IMMEDIATE: readonly string[] = [
   "남편한테 맞았어요",
@@ -129,6 +250,13 @@ const ALREADY_IMMEDIATE: readonly string[] = [
   "남편이 못나가게 해",
   // 예전 판은 이 문장을 서지 않는 행에 두었다. 운영이 이미 즉시 위기로 잡는 고백이다.
   "남편한테 맞아요",
+  // 2026-11-16: 고함 채움말이 든 즉시 위기. 마지막 판정 어휘를 문맥 판정에 주면 문맥 판정이 이 행을
+  // 비즉시로 먼저 끝내고, `classifyAmoraCrisis` 가 즉시 위기 정규식을 보지 않는다(내려감). 앞의 둘은
+  // `지금` 을 문맥 판정이 지운 뒤 닫힌 어휘에 넘긴다 — 그 자리를 지킨다.
+  "남편이 지금 소리 지르고 때려요",
+  "남편이 지금 소리 지르고 목 졸라요",
+  "남편이 소리 지르고 목을 졸랐어요",
+  "남편한테 지금 맞고 있어요 무서워",
 ];
 
 /**
@@ -214,6 +342,21 @@ const NOT_A_DISCLOSURE: readonly string[] = [
   "남편이 게임에서 나 죽인대 ㅋㅋ",
   "남편이 때려요 lol",
   "남편이 때려요 ^^",
+  // 2026-11-16 마지막 판정 어휘로만 만든 평범한 말 — 행위자 없는 `맞았대요` 는 `옳았대요` 다,
+  // 핵 없는 꼬리·조건·고함은 서지 않는다, 웃음은 판정을 끈다
+  "형부가 맞았대요",
+  "언니가 맞았대요",
+  "형부 말이 맞았대요",
+  "형부한테 맞았대 ㅋㅋ",
+  "동생이 걱정돼",
+  "언니가 걱정돼요",
+  "비밀번호 안 알려주면 걱정돼",
+  "휴대폰 비밀번호를 안 알려주면 어떡해요",
+  "소리 지르고 응원했어",
+  "언니가 형부한테 혼났대요",
+  "형부가 공 던졌어",
+  "제부가 부케 던졌대요",
+  "누나가 매형한테 주사 맞았대요",
 ];
 
 /**
@@ -328,17 +471,28 @@ const RULE_BREAKING_MUTATIONS: ReadonlyArray<readonly [string, (row: string) => 
   ["내용 이모지", (row) => `${row} 🍺`],
 ];
 
+/** 마지막 판정 틀의 걱정·도움 꼬리 — 꼬리 검사가 쓴다. */
+const DISTRESS_TAILS: readonly string[] = ["걱정돼", "무서워", "어떡해요", "도와주세요"];
+/**
+ * 알고 남긴 오탐에 꼬리를 붙인 문장 — **이 변경 전과 같아야 한다.** 꼬리는 틀 맨 끝 칸에만 오고, 알고 남긴
+ * 오탐은 어느 틀에도 맞지 않는다. 첫 판은 꼬리를 채움말로 받아 `진짜 목 졸라요 걱정돼` 를 세웠다.
+ */
+const KNOWN_COST_TAILED: readonly string[] = KNOWN_COST_FALSE_POSITIVE
+  .flatMap(([row]) => DISTRESS_TAILS.map((tail) => `${row} ${tail}`));
 const CAUGHT_SET: ReadonlySet<string> = new Set(CAUGHT);
-/** 판정이 서는 행 전부 — `CAUGHT` 와 알고 남긴 오탐. */
-const FIRES: readonly string[] = [...CAUGHT, ...KNOWN_COST_FALSE_POSITIVE.map(([text]) => text)];
+/** 판정이 서는 행 전부 — `CAUGHT`·마지막 판정 틀 행과 알고 남긴 오탐. */
+const FIRES: readonly string[] = [
+  ...CAUGHT, ...CAUGHT_LAST_RESORT, ...KNOWN_COST_FALSE_POSITIVE.map(([text]) => text),
+];
 const FIRES_SET: ReadonlySet<string> = new Set(FIRES);
-const MUTATED_ROWS: readonly string[] = CAUGHT.flatMap((row) =>
+const MUTATED_ROWS: readonly string[] = [...CAUGHT, ...CAUGHT_LAST_RESORT].flatMap((row) =>
   RULE_BREAKING_MUTATIONS.map(([, mutate]) => mutate(row)));
 const EVERY_ROW: readonly string[] = [
   ...new Set([
-    ...CAUGHT, ...ALREADY_IMMEDIATE, ...NOT_A_DISCLOSURE, ...SERVER_ALREADY_PRIVATE, ...EVERYDAY,
-    ...ASSISTANT_LIKE, ...MUTATED_ROWS,
+    ...CAUGHT, ...CAUGHT_LAST_RESORT, ...ALREADY_IMMEDIATE, ...NOT_A_DISCLOSURE, ...SERVER_ALREADY_PRIVATE,
+    ...EVERYDAY, ...ASSISTANT_LIKE, ...MUTATED_ROWS,
     ...KNOWN_MISS.map(([text]) => text), ...KNOWN_COST_FALSE_POSITIVE.map(([text]) => text),
+    ...KNOWN_COST_TAILED, ...WHITE_BOX_BENIGN, ...AMBIGUOUS_NOT_CAUGHT.map(([text]) => text),
   ]),
 ];
 
@@ -386,6 +540,7 @@ beforeAll(async () => {
   vi.resetModules();
   vi.doMock("@hanbang/shared/partner-violence-closed-vocabulary", () => ({
     isClosedPartnerViolenceStatement: () => false,
+    isLastResortClosedViolenceStatement: () => false,
   }));
   const delivery = await import("@hanbang/shared/amora-crisis-delivery");
   const scope = await import("@/lib/ai/amoraQuestionScope");
@@ -418,6 +573,8 @@ describe("(i) CAUGHT — 판정이 서고, 어느 입구로도 공유 레인에 
 
   it.each(CAUGHT)("%s", (text) => {
     expect(isClosedPartnerViolenceStatement(text)).toBe(true);
+    // 마지막 판정 어휘는 옛 어휘를 품는다 — 옛 판정이 서는 행에서 꺼지지 않는다.
+    expect(isLastResortClosedViolenceStatement(text)).toBe(true);
     const head = outcomes(HEAD, text);
     // 서버(/api/chat/messages): 범위 분류 신호가 서고 나만 레인으로 옮긴다.
     expect(head.serverSignal).toBe(true);
@@ -442,6 +599,47 @@ describe("(i) CAUGHT — 판정이 서고, 어느 입구로도 공유 레인에 
       partnerDeliveryHeld: true,
       effectiveVisibility: "bride_private",
     }));
+  });
+
+  it.each(CAUGHT_LAST_RESORT)("마지막 판정 어휘가 새로 옮긴다: %s", (text) => {
+    // 옛 판정은 그대로 거짓이다 — 문맥 판정이 그 함수를 쓴다.
+    expect(isClosedPartnerViolenceStatement(text)).toBe(false);
+    expect(isLastResortClosedViolenceStatement(text)).toBe(true);
+    // 이 변경 전에는 공유 레인에 저장됐다 — 새로 옮기는 행이라는 증거.
+    expect(outcomes(WITHOUT_RULE, text).server.disposition).toBe("continue");
+    const head = outcomes(HEAD, text);
+    expect(head.serverSignal).toBe(true);
+    expect(head.scope).toEqual(expect.objectContaining({
+      scope: "W2_high_risk_adjacent",
+      highRiskReason: "safety",
+      allowsLongTermMemory: false,
+    }));
+    // 계획 도구도 맥락 무관 조회 도구도 남지 않는다.
+    expect(filterAmoraToolsByQuestionScope(PLAN_AND_LOOKUP_TOOLS, head.scope)).toEqual([]);
+    expect(head.server).toEqual(expect.objectContaining({
+      disposition: "private_safety_route",
+      safetyResolution: "non_immediate_safety",
+      effectiveVisibility: "bride_private",
+      safetyPrivacyRedirected: true,
+      response: null,
+    }));
+    expect(head.mobile).toEqual(head.server);
+    expect(head.partner).toEqual(expect.objectContaining({
+      disposition: "local_safety_hold",
+      safetyResolution: "non_immediate_safety",
+      partnerDeliveryHeld: true,
+      effectiveVisibility: "bride_private",
+    }));
+  });
+
+  it("U1 측정이 찾은 세 문장이 들어 있다", () => {
+    for (const row of [
+      "언니가 형부한테 맞았대요",
+      "언니가 형부한테 맞았는데 너무 걱정돼",
+      "예비신랑이 제 휴대폰 비밀번호를 안 알려주면 소리 지르고 물건을 던져요",
+    ]) expect(CAUGHT_LAST_RESORT).toContain(row);
+    expect(new Set(CAUGHT_LAST_RESORT).size).toBe(CAUGHT_LAST_RESORT.length);
+    for (const row of CAUGHT_LAST_RESORT) expect(CAUGHT_SET.has(row), row).toBe(false);
   });
 
   it("새 disposition·응답 값을 만들지 않는다 — 설치된 앱이 아는 값뿐이다", () => {
@@ -493,12 +691,19 @@ describe("(ii) 덧붙이기만 한다 — 판정을 끈 판본과 나란히", ()
     }
     // 적어도 하나는 닫힌 어휘 판정이 서는 문장이다 — 막는 것은 호출자의 순서다.
     expect(ALREADY_IMMEDIATE.some((text) => isClosedPartnerViolenceStatement(text))).toBe(true);
+    // 문맥 판정은 `지금` 을 지운 뒤 닫힌 어휘에 넘긴다. 지운 꼴 `남편이 소리 지르고 때려요` 는 마지막 판정
+    // 틀 3 이 선다 — 그런데도 `남편이 지금 소리 지르고 때려요` 가 즉시 위기로 남는 것은 틀이 아니라 순서
+    // 덕이다(문맥 판정은 옛 어휘만 본다). 이 대조가 없으면 위 단언이 지키는 것이 무엇인지 알 수 없다.
+    expect(ALREADY_IMMEDIATE).toContain("남편이 지금 소리 지르고 때려요");
+    expect(isClosedPartnerViolenceStatement("남편이 소리 지르고 때려요")).toBe(false);
+    expect(isLastResortClosedViolenceStatement("남편이 소리 지르고 때려요")).toBe(true);
   });
 });
 
 describe("(iii) 고백이 아닌 문장 — 서면 틀린다", () => {
   it.each(NOT_A_DISCLOSURE)("%s", (text) => {
     expect(isClosedPartnerViolenceStatement(text)).toBe(false);
+    expect(isLastResortClosedViolenceStatement(text)).toBe(false);
   });
 
   it.each(SERVER_ALREADY_PRIVATE)("허가 토큰이 없어 서지 않지만, 서버는 운영 신호로 이미 나만 레인이다: %s", (text) => {
@@ -511,12 +716,25 @@ describe("(iii) 고백이 아닌 문장 — 서면 틀린다", () => {
 
   it.each(EVERYDAY)("평범한 결혼 대화: %s", (text) => {
     expect(isClosedPartnerViolenceStatement(text)).toBe(false);
+    expect(isLastResortClosedViolenceStatement(text)).toBe(false);
     expect(outcomes(HEAD, text)).toEqual(outcomes(WITHOUT_RULE, text));
   });
 
   it.each(ASSISTANT_LIKE)("아모라 답 같은 긴 문장: %s", (text) => {
     expect(isClosedPartnerViolenceStatement(text)).toBe(false);
+    expect(isLastResortClosedViolenceStatement(text)).toBe(false);
     expect(hasAmoraSafetySignal(text, "chat")).toBe(WITHOUT_RULE.signal(text, "chat"));
+  });
+
+  it.each(WHITE_BOX_BENIGN)("백상자 검토가 첫 판에서 세운 평범한 문장: %s", (text) => {
+    expect(isClosedPartnerViolenceStatement(text)).toBe(false);
+    expect(isLastResortClosedViolenceStatement(text)).toBe(false);
+    expect(outcomes(HEAD, text)).toEqual(outcomes(WITHOUT_RULE, text));
+  });
+
+  it.each(AMBIGUOUS_NOT_CAUGHT)("2차 백상자의 모호한 꼴 — 세우지 않는다: %s (%s)", (text) => {
+    expect(isLastResortClosedViolenceStatement(text)).toBe(false);
+    expect(outcomes(HEAD, text)).toEqual(outcomes(WITHOUT_RULE, text));
   });
 });
 
@@ -546,6 +764,43 @@ describe("(v) 알고 남긴 값 — 누출 기록(KNOWN_MISS)은 정상이 아�
     }));
   });
 
+  it("꼬리는 틀 맨 끝 칸에만 온다 — 알고 남긴 오탐에 걱정·도움 꼬리를 붙여도 이 변경 전과 같다", () => {
+    // 첫 판은 꼬리를 채움말로 받아 `진짜 목 졸라요 걱정돼` 를 세웠고, 부르는 말 `언니` 하나로 꼬리 관문도
+    // 뚫렸다(`언니 진짜 목 졸라요 걱정돼`). 꼬리는 틀의 맨 끝에만 온다.
+    for (const text of [...KNOWN_COST_TAILED, "언니 진짜 목 졸라요 걱정돼", "절 도와주세요 진짜 목 졸라요"]) {
+      expect(isLastResortClosedViolenceStatement(text), text).toBe(isClosedPartnerViolenceStatement(text));
+      expect(outcomes(HEAD, text), text).toEqual(outcomes(WITHOUT_RULE, text));
+    }
+    // 대조군 — 틀에 맞는 문장은 같은 꼬리가 붙어도 선다(꼬리를 통째로 막은 것이 아니다).
+    for (const tail of DISTRESS_TAILS) {
+      expect(isLastResortClosedViolenceStatement(`언니가 형부한테 맞았는데 ${tail}`), tail).toBe(true);
+      expect(isLastResortClosedViolenceStatement(`남편이 소리 지르고 때려요 ${tail}`), tail).toBe(true);
+    }
+  });
+
+  it("통제 거절 조건은 위협 전언을 세우지 않는다 — `비번 안 알려주면 죽인대` 는 과장과 모양이 같다", () => {
+    for (const condition of ["휴대폰 비밀번호를 안 알려주면", "폰 비번 안 알려주면", "휴대폰 안 보여주면"]) {
+      for (const core of ["죽인대", "때린대", "가만 안 둔대"]) {
+        const text = `${condition} ${core}`;
+        expect(isLastResortClosedViolenceStatement(text), text).toBe(false);
+      }
+    }
+  });
+
+  it("자매의 배우자는 틀 1·2 의 역할로만 선다 — 주어 꼴은 배우자 호칭이 요구하는 핵·과장·장난을 세우지 않는다", () => {
+    for (const text of [
+      "형부가 접시 던졌어", "형부가 제 휴대폰 검사해요", "제부가 돈 못 쓰게 해요",
+      // 백상자 검토가 첫 판에서 세운 꼴 — 과장과 장난
+      "형부가 파혼하면 죽인대", "형부가 등 때렸어요", "매형이 날 죽인대",
+    ]) {
+      expect(isLastResortClosedViolenceStatement(text), text).toBe(false);
+    }
+    // 같은 핵을 배우자 호칭으로 쓰면 선다 — 위 거짓이 핵이 고장 나서가 아니라는 대조군.
+    for (const text of ["남편이 접시 던졌어", "남편이 제 휴대폰 검사해요", "신랑이 돈 못 쓰게 해요"]) {
+      expect(isLastResortClosedViolenceStatement(text), text).toBe(true);
+    }
+  });
+
   it("위협 전언을 세우는 조건은 떠나려는·거절하는 조건뿐이다 — `술 먹으면`·`화나면` 은 허가가 아니다", () => {
     for (const condition of ["술 먹으면", "화나면", "싸우면", "기분 나쁘면", "술 취하면"]) {
       for (const core of ["죽인대", "때린대", "가만 안 둔대"]) {
@@ -564,6 +819,10 @@ describe("(iv) 구조 — 어휘 밖 토큰 하나·웃음·물음표가 판정�
   it.each(RULE_BREAKING_MUTATIONS)("%s — 모든 CAUGHT 행에서 서지 않는다", (_name, mutate) => {
     const stillFires = CAUGHT.map(mutate).filter((text) => isClosedPartnerViolenceStatement(text));
     expect(stillFires).toEqual([]);
+    // 마지막 판정 어휘도 같은 구조다 — 어휘 밖 토큰 하나가 두 판정 모두를 끈다.
+    const stillFiresLastResort = [...CAUGHT, ...CAUGHT_LAST_RESORT].map(mutate)
+      .filter((text) => isLastResortClosedViolenceStatement(text));
+    expect(stillFiresLastResort).toEqual([]);
   });
 
   it("우는 자모·말줄임은 판정을 지킨다", () => {
@@ -571,6 +830,10 @@ describe("(iv) 구조 — 어휘 밖 토큰 하나·웃음·물음표가 판정�
       .flatMap((row) => [`${row} ㅠㅠ`, `${row}...`])
       .filter((text) => !isClosedPartnerViolenceStatement(text));
     expect(lost).toEqual([]);
+    const lostLastResort = CAUGHT_LAST_RESORT
+      .flatMap((row) => [`${row} ㅠㅠ`, `${row}...`])
+      .filter((text) => !isLastResortClosedViolenceStatement(text));
+    expect(lostLastResort).toEqual([]);
   });
 
   it("통제 핵은 붙여 쓴 꼴과 조사 붙은 꼴을 띄어 쓴 꼴과 같게 읽는다", () => {
