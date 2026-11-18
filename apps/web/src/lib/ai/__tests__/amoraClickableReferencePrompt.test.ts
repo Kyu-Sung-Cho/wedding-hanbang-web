@@ -54,7 +54,10 @@ describe("아모라가 안내하는 읽을 곳의 링크 계약", () => {
     { persistenceMode: "durable", conversationLane: "shared", maxChars: 25_000 },
     { persistenceMode: "demo", conversationLane: "shared", maxChars: 25_000 },
   ] as const)(
-    "$persistenceMode/$conversationLane/$maxChars 자료 위치 질문에 실제 제품 링크와 범위가 남는다",
+    // 2026-11-16 파운더 결정(D-79): 참가격 자료와 그 화면(/price, 위약금·환불 원문)을 쓰지 않는다.
+    // 예전에는 이 질문에 `[공시 가격·위약금](https://hanbang.ai/price)` 을 안내했다. 그 경로는
+    // 제품경로에서 빠졌고, 남은 경로와 "주소가 없으면 링크를 만들지 않는다" 는 경계는 그대로다.
+    "$persistenceMode/$conversationLane/$maxChars 자료 위치 질문에도 내린 공시 가격 화면을 안내하지 않는다",
     options => {
       const prompt = buildAmoraSystemPrompt(context, {
         ...options,
@@ -68,16 +71,13 @@ describe("아모라가 안내하는 읽을 곳의 링크 계약", () => {
 
       const citation = prompt.split("## 출처 표기 (Source Citation) — 사용자 신뢰의 핵심")[1]
         ?.split("\n## ")[0] ?? "";
-      expect(citation.includes("[공시 가격·위약금](https://hanbang.ai/price)")).toBe(true);
+      expect(citation.includes("hanbang.ai/price")).toBe(false);
+      expect(prompt.includes("hanbang.ai/price")).toBe(false);
       expect(citation.includes("[결혼 예절 가이드](https://hanbang.ai/wedding/manners)")).toBe(true);
-      expect(citation.includes("공시 원문을 찾는 시작점")).toBe(true);
-      expect(citation.includes("카테고리→업체→‘계약 전 확인 · 위약금과 환불’")).toBe(true);
-      expect(citation.includes("공시된 원문이 있는 경우")).toBe(true);
       expect(citation.includes("자료 위치 질문에는 위 링크를 사용하세요")).toBe(true);
+      expect(citation.includes("주소가 없으면 정확한 링크는 확인되지 않았다고")).toBe(true);
       expect(citation.includes("링크 제공은 본문 사실 검증과 다르며")).toBe(true);
-      expect(citation.includes("계약 효력·환불 가능성 판정 금지")).toBe(true);
       expect(citation.includes("무관한 링크·업체·장소 추천 금지")).toBe(true);
-      expect(prompt.includes("공시 가격 목록(hanbang.ai/price)")).toBe(false);
       expect(prompt.length).toBeLessThanOrEqual(options.maxChars);
     },
   );
@@ -111,7 +111,8 @@ describe("아모라가 안내하는 읽을 곳의 링크 계약", () => {
   });
 
   it.each([
-    { requestKind: "chat", persistenceMode: "durable", conversationLane: "shared", enabledToolNames: ["get_market_price"] },
+    // 읽기 도구가 하나 켜진 턴. 11-16 전에는 그 자리에 시세 도구를 썼다(지금은 모델에 가지 않는다).
+    { requestKind: "chat", persistenceMode: "durable", conversationLane: "shared", enabledToolNames: ["get_budget_summary"] },
     { requestKind: "chat", persistenceMode: "demo", conversationLane: "shared", enabledToolNames: [] },
     { requestKind: "chat", persistenceMode: "durable", conversationLane: "private", enabledToolNames: [] },
     { requestKind: "initial_greeting", persistenceMode: "durable", conversationLane: "shared", enabledToolNames: [] },

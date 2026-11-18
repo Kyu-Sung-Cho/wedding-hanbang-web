@@ -947,6 +947,10 @@ export const WEDDING_TOOLS: AiToolDefinition[] = [
   },
   {
     name: "get_market_price",
+    // 2026-11-16 파운더 결정(D-79, "모두 그만 쓰기"): 한국소비자원 참가격 자료를 쓰지 않는다.
+    // 이 도구는 모델에 가지 않고(`BETA_DISABLED_TOOL_NAMES`) 실행 분기도 DB 를 읽지 않고 실패한다
+    // (`toolExecutor.ts`). 스키마는 옛 대화 기록과 도구 이름 필터가 이 이름을 알아보도록 남긴다.
+    //
     // 카테고리·지역은 `v_public_official_prices` 실측값이다(2026-08-22). 스키마가
     // 데이터와 갈라지면 모델이 없는 값을 골라 조회가 늘 0건이 된다 — 같은 실수를
     // pending_action 표식에서 이미 한 번 했다.
@@ -1131,6 +1135,10 @@ export const BETA_DISABLED_TOOL_NAMES: ReadonlySet<string> = new Set([
   // 이 이름은 같은 도구가 다시 추가되더라도 모델에 닿지 못하게 막는 묘비다.
   // 되살리려면 법무 검토가 선행되어야 하며, 상수만 고쳐 켜지 말 것.
   "analyze_contract_readiness",
+  // 한국소비자원 참가격 시세 통계. 2026-11-16 파운더 결정(D-79, "모두 그만 쓰기")으로 끈다.
+  // 운영 DB 자료는 지우지 않고 코드에서 읽지 않는다. 실행 분기도 실패를 돌려준다(`toolExecutor.ts`).
+  // 다시 켜려면 파운더 결정이 먼저다. 이 상수만 고쳐 켜지 말 것.
+  "get_market_price",
   "delete_category",
   "reset_category",
   "delete_schedule_event",

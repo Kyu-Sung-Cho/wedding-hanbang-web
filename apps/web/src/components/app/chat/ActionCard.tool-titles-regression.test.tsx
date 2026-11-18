@@ -28,7 +28,8 @@ const EXPECTED_TITLES: Record<string, string> = {
   get_schedule_events: "등록 일정",
   log_wedding_event: "웨딩 일정 기록",
   get_my_bookings: "아모라 예약 요청 기록",
-  get_market_price: "결혼 비용 시세",
+  // 2026-11-16 참가격 자료를 쓰지 않기로 해서(파운더 결정 D-79) 이 카드는 옛 대화에만 남는다.
+  get_market_price: "지난 공시 가격 조회",
 };
 
 function result(toolName: string): ToolExecutionResult {

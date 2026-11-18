@@ -287,6 +287,10 @@ export async function executeGetMarketPrice(
   };
 }
 
+/** 모델에 가는 견적 확인 결과의 출처 안내. 공시가 화면(/price)을 가리키지 않는다(2026-11-16, D-79). */
+const AMORA_QUOTE_CHECK_SOURCE_NOTE =
+  "이 결과는 사용자가 ‘포함’, ‘이용 계획 없음’, ‘확인 필요’로 고른 상태만 정리하며 가격의 적정성을 판정하지 않습니다. 시세 자료는 없으니 실제 금액과 추가 비용은 업체의 서면 견적으로 확인하세요.";
+
 const AMORA_QUOTE_CATEGORY_SET = new Set<AmoraQuoteCategory>(["sdm_package", "studio", "dress", "makeup"]);
 const AMORA_QUOTE_REGION_SET = new Set<AmoraQuoteRegion>(["seoul", "gyeonggi", "busan", "daegu", "other"]);
 
@@ -390,18 +394,17 @@ export function executeAnalyzeQuoteWithTrustEngine(input: Record<string, unknown
     vendorName,
   });
 
+  // 2026-11-16 파운더 결정(D-79): 참가격 자료를 쓰지 않는다. 이 출력은 모델에 그대로 간다
+  // (`getModelSafeToolOutput` 이 거르지 않는다). 그래서 늘 0 이던 시세 비교 칸(marketMedian·
+  // priceDiff·priceDiffPercent)과 "업체별 최신 공시가 확인 필요" 꼬리표를 빼고, 출처 안내도
+  // 내리는 공시가 화면 대신 업체 서면 견적을 가리키게 바꿨다. 화면 카드는 이 칸들을 읽지 않는다.
+  // 공유 분석기(`lib/amora/quoteCheck.ts`)의 문구는 커뮤니티 견적 확인 화면과 함께 2단계에서 고친다.
   const output = {
     quotePrice: analysis.quotePriceManwon,
     category: analysis.category,
     region: analysis.scope,
     vendorName,
-    marketMedian: analysis.marketMedianManwon,
-    marketComparatorLabel: analysis.marketComparatorLabel,
-    priceDiff: analysis.marketMedianManwon > 0
-      ? analysis.quotePriceManwon - analysis.marketMedianManwon
-      : null,
-    priceDiffPercent: analysis.priceDiffPercent,
-    dataSource: analysis.sourceNote,
+    dataSource: AMORA_QUOTE_CHECK_SOURCE_NOTE,
     missingItems: analysis.missingItems.map((item) => ({
       name: item.name,
       category: item.category,
@@ -428,7 +431,7 @@ export function executeAnalyzeQuoteWithTrustEngine(input: Record<string, unknown
     recommendedAction: analysis.recommendedAction,
     contractQuestions: analysis.contractQuestions,
     negotiationScript: analysis.negotiationScript,
-    statsNote: analysis.sourceNote,
+    statsNote: AMORA_QUOTE_CHECK_SOURCE_NOTE,
   };
 
   return {
