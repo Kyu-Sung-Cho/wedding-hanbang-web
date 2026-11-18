@@ -83,7 +83,7 @@ describe("InvitationLetterSheet", () => {
   it("보내기와 나중에: 기본은 상담 확정·비교로 가는 링크다", async () => {
     const { container } = await renderLetter();
 
-    expect(linkNamed(container, LETTER_COPY.send(2)).getAttribute("href")).toBe("/test/status");
+    expect(linkNamed(container, LETTER_COPY.send).getAttribute("href")).toBe("/test/status");
     expect(linkNamed(container, LETTER_COPY.later).getAttribute("href")).toBe("/test/compare");
   });
 
@@ -93,7 +93,7 @@ describe("InvitationLetterSheet", () => {
     const onEditText = vi.fn();
     const { container } = await renderLetter(EXAMPLE_LETTER, { onSend, onLater, onEditText });
 
-    await click(buttonNamed(container, LETTER_COPY.send(2)));
+    await click(buttonNamed(container, LETTER_COPY.send));
     await click(buttonNamed(container, LETTER_COPY.later));
     await click(buttonNamed(container, LETTER_COPY.editText));
     expect(onSend).toHaveBeenCalledOnce();

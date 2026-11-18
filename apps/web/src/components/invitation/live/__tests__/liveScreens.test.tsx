@@ -361,7 +361,7 @@ describe("웨딩홀 비교 /halls", () => {
     const empty = container.querySelector("[data-compare-empty]");
     expect(empty?.textContent).toContain(COMPARE_STATE_COPY.needConditions);
     expect(linkTo(empty as Element, "/wedding/lounge?conditions=1")?.textContent).toBe(COMPARE_STATE_COPY.needConditionsAction);
-    expect(container.textContent).not.toContain("상담 문의하기");
+    expect(container.textContent).not.toContain("문의 편지 쓰기");
   });
 
   it("확인한 홀이 없으면 그렇다고 말한다(운영에서 지금 보이는 화면)", async () => {
@@ -440,7 +440,7 @@ describe("보내기 전 편지 확인 /halls/letter", () => {
       }),
     });
     const { container } = await render(<LiveLetter />);
-    await click(buttonNamed(container, LETTER_COPY.send(2)));
+    await click(buttonNamed(container, LETTER_COPY.send));
     expect(container.textContent).toContain(LETTER_STATE_COPY.approvedNotSent);
   });
 
@@ -450,7 +450,7 @@ describe("보내기 전 편지 확인 /halls/letter", () => {
       "POST /api/invitation/letter/approve": apiError(409, "LETTER_VERSION_CHANGED", "편지 내용이 바뀌었어요."),
     });
     const { container } = await render(<LiveLetter />);
-    await click(buttonNamed(container, LETTER_COPY.send(2)));
+    await click(buttonNamed(container, LETTER_COPY.send));
     expect(container.querySelector('[role="alert"]')?.textContent).toBe(LETTER_STATE_COPY.versionChanged);
   });
 
@@ -459,7 +459,7 @@ describe("보내기 전 편지 확인 /halls/letter", () => {
       "GET /api/invitation/letter": json(letterResponse({ letterId: LETTER_ID, versionId: VERSION, version: 1, fingerprint: FINGERPRINT, status: "queued", viewerCanApprove: false })),
     });
     const { container } = await render(<LiveLetter />);
-    expect(buttonNamed(container, LETTER_COPY.send(2)).disabled).toBe(true);
+    expect(buttonNamed(container, LETTER_COPY.send).disabled).toBe(true);
     expect(container.textContent).toContain(LETTER_STATE_COPY.alreadySent);
   });
 
@@ -486,7 +486,7 @@ describe("보내기 전 편지 확인 /halls/letter", () => {
       }),
     });
     const { container } = await render(<LiveLetter />);
-    const send = buttonNamed(container, LETTER_COPY.send(2));
+    const send = buttonNamed(container, LETTER_COPY.send);
     // 같은 그림에서 두 번 — 단추가 잠기기 전이다.
     await act(async () => {
       send.click();
@@ -632,7 +632,7 @@ describe("보내기 전 편지 확인 /halls/letter", () => {
       }),
     });
     const { container } = await render(<LiveLetter />);
-    await click(buttonNamed(container, LETTER_COPY.send(2)));
+    await click(buttonNamed(container, LETTER_COPY.send));
     expect(container.textContent).toContain(LETTER_STATE_COPY.dailyCap);
   });
 });

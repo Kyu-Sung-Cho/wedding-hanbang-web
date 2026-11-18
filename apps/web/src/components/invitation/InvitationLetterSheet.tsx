@@ -179,11 +179,11 @@ export default function InvitationLetterSheet({
               disabled={sendDisabled}
               loading={sendBusy}
             >
-              {LETTER_COPY.send(count)}
+              {LETTER_COPY.send}
             </Button>
           ) : (
             <Button href={resolveRoute("status")} variant="ink" size="pill-56" weight="bold" fullWidth>
-              {LETTER_COPY.send(count)}
+              {LETTER_COPY.send}
             </Button>
           )}
           {onLater ? (

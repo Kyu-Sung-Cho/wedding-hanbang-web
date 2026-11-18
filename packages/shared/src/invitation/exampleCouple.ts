@@ -187,11 +187,11 @@ export const EXAMPLE_WEB_SPACE: WebSpaceModel = {
   people: PEOPLE,
   orbCaption: "답장이 두 곳에서 왔어요",
   chat: [
-    { kind: "amora", text: "아침에 비교한 홀 중 두 분이 담은 2곳에 상담 문의를 보냈어요." },
+    { kind: "amora", text: "아침에 써 둔 문의 편지를 민지 님이 2곳에 보냈어요." },
     { kind: "person", text: "답장 왔어?" },
     {
       kind: "amora",
-      text: "소담 하우스는 11월 22일 일요일 오전 11시로 확정됐어요. 가온 웨딩홀은 21일 토요일 오후 4시를 제안했는데, 정해 주시면 바로 답할게요.",
+      text: "소담 하우스는 11월 22일 일요일 오전 11시로 확정됐어요. 가온 웨딩홀은 21일 토요일 오후 4시를 제안했는데, 정해 주시면 답장을 써 둘게요.",
     },
     {
       kind: "actions",
@@ -211,7 +211,7 @@ export const EXAMPLE_WEB_SPACE: WebSpaceModel = {
   activity: [
     { timeLabel: "13:40", text: "가온 웨딩홀 답장을 정리했어요" },
     { timeLabel: "11:05", text: "소담 하우스 상담을 일정에 넣었어요" },
-    { timeLabel: "09:12", text: "승인한 편지를 2곳에 보냈어요" },
+    { timeLabel: "09:12", text: "2곳에 보낼 편지를 썼어요" },
     { timeLabel: "07:40", text: "웨딩홀 3곳을 비교했어요" },
   ],
   halls: HALLS,
