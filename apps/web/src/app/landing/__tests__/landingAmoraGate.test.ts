@@ -1,6 +1,14 @@
 import { describe, expect, it } from "vitest";
+import { START_COPY } from "@hanbang/shared/invitation";
 
 import { everyLandingComponent, rendered, CONTENT_PATH } from "./landingSource";
+
+/**
+ * 2026-11-17 파운더 디자인 아티팩트(원문: 이 디자인 완전 같아야해)로 첫 화면 글자는 앱과 같은
+ * 정본 `START_COPY` 에서 온다. 랜딩 소스 파일에는 그 글자가 없으므로 표면에 따로 더한다 —
+ * 안 더하면 첫 화면의 약속이 이 검사를 한 글자도 안 거친다.
+ */
+const START_SURFACE: [string, string] = ["START_COPY", Object.values(START_COPY).flat().join("\n")];
 
 /**
  * 랜딩이 로그인 없는 아모라를 약속하지 않는다.
@@ -50,13 +58,14 @@ const GATE = /로그인|가입|계정|회원/u;
  * 여기 올려도 된다. 관문이 **없다고** 말하는 문장은 올리면 안 된다.
  */
 const APPROVED: readonly string[] = [
-  // /wedding/chat은 로그인과 시작 설정을 거쳐 돌아오는 보호 경로다.
-  // CTA와 고지·내비가 이어 붙은 런까지 검토하며 비로그인 체험은 허용하지 않는다.
-  "아모라와 아모라와 준비 시작하기 웨딩코드로 내 생각 살펴보기 아모라는 로그인 후 이용해요.",
-  "준비 공간 열기 아모라에게 지금 고민 말하기 필요한 제안만 확인해 저장하기 무료 도구는 가입 없이 이용할 수 있어요.",
+  // 2026-11-17 시작 화면 개편 뒤 다시 검토했다. 비로그인 체험을 약속하는 문장은 없다.
+  // 2026-11-18: 오른쪽 위 '로그인' 라벨과 바닥글 제목이 추출기에서 이어 붙던 런("로그인 아모라는 준비를
+  // 돕고, …")은 둘 사이에 첫 화면 아래 섹션 카피가 들어와 없어졌다. 지금 '로그인' 은 '곧 열려요' 꼬리표와
+  // 이어 붙고 그 문장에는 아모라가 없다. 새 섹션 카피에는 관문 낱말이 없다(다시 검토함).
+  // 관문이 **있다**고 말한다(옛 `closing.note`, 지금 `notices.signup`).
   "아모라와 예산·할 일·일정 관리에는 가입이 필요해요.",
+  // 바닥글 링크 묶음 이름과 라벨이 이어 붙은 런. 아모라는 "가입 후 이용" 묶음에 있다.
   "가입 없이 이용 공시 가격·위약금 견적 질문 만들기 웨딩코드 결혼 예절 가이드 가입 후 이용 아모라 결정 보드 예산 체크리스트 일정 정책·문의 이용약관 개인정보처리방침 서비스 정책 가격 출처 한국소비자원 참가격, 2025년 11월 공시 기준.",
-  "아모라 둘의 우선순위 준비 관리 먼저 써보기 자주 묻는 질문 아모라 시작하기 로그인",
 ];
 /** 문장 단위로 자른다. 한국어 종결부호 기준. */
 function sentences(text: string): string[] {
@@ -88,6 +97,7 @@ describe("랜딩은 로그인 없는 아모라를 약속하지 않는다", () =>
   it("아모라와 계정 관문이 한 문장에 같이 나오지 않는다", () => {
     const surfaces: Array<[string, string]> = [
       [CONTENT_PATH, rendered(CONTENT_PATH)],
+      START_SURFACE,
       ...everyLandingComponent().map(
         ([file, source]) => [file, source] as [string, string],
       ),
@@ -126,6 +136,7 @@ describe("랜딩은 로그인 없는 아모라를 약속하지 않는다", () =>
     const offenders: string[] = [];
     const surfaces: Array<[string, string]> = [
       [CONTENT_PATH, rendered(CONTENT_PATH)],
+      START_SURFACE,
       ...everyLandingComponent().map(
         ([file, source]) => [file, source] as [string, string],
       ),
@@ -148,6 +159,7 @@ describe("랜딩은 로그인 없는 아모라를 약속하지 않는다", () =>
     // 없어진 문장이 목록에 남으면, 그 자리가 비어 있는데도 "검토됐다"로 읽힌다.
     const all = [
       screenStrings(rendered(CONTENT_PATH)),
+      screenStrings(START_SURFACE[1]),
       ...everyLandingComponent().map(([, source]) => screenStrings(source)),
     ].join(" ");
     const stale = APPROVED.filter((s) => !all.includes(s));
@@ -157,8 +169,13 @@ describe("랜딩은 로그인 없는 아모라를 약속하지 않는다", () =>
   it("아모라를 소개하는 자리에는 AI 고지가 붙는다", () => {
     // AI 기본법 — 사람인 것처럼 소개하지 않는다. 위 검사가 관문 문장을 막는 동안
     // 아모라 자체를 소개하는 문장이 사라지면 안 되므로 함께 고정한다.
+    //
+    // 2026-11-17: 옛 판은 예시 대화의 화자 표시("아모라 · AI 생성")를 요구했다. 시작 화면
+    // 개편으로 예시 대화가 없어졌고, 같은 고지는 바닥글의 하지 않는 것 넷 중 하나가 진다.
     const content = rendered(CONTENT_PATH);
-    expect(content).toContain("아모라 · AI 생성");
+    expect(content).toContain("아모라의 답변은 AI가 작성해요");
     expect(content).toContain("AI 답변에는 오류가 있을 수 있어요");
+    expect(rendered("src/components/landing/redesign/LandingFooter.tsx"), "바닥글이 그 고지를 그리지 않는다")
+      .toContain("boundaries.items.map(");
   });
 });

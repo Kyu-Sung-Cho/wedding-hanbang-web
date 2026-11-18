@@ -1,5 +1,13 @@
 export { colors } from "./colors";
 export { amoraIdentity } from "./amora";
+export {
+  invitationPalette,
+  invitationShadow,
+  invitationRadius,
+  invitationFontFamily,
+  amoraOrb,
+} from "./invitation";
+export type { AmoraOrbMood, AmoraOrbGradientId } from "./invitation";
 export { chatPalette } from "./chat";
 export { summaryPalette } from "./summary";
 export type { BrandColor } from "./colors";
@@ -13,6 +21,8 @@ export {
   WEB_THEME_ROLE_VARS,
   WEB_HTML_WORKSPACE_COLOR_VARS,
   WEB_HTML_WORKSPACE_ROLE_VARS,
+  WEB_INVITATION_COLOR_VARS,
+  WEB_INVITATION_THEME_VARS,
   webCssManagedStart,
   webCssManagedEnd,
   renderWebCssColorVars,

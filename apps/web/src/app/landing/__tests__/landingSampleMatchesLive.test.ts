@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { START_COPY } from "@hanbang/shared/invitation";
 import { WEDDING_CODE_V31_QUESTIONS, WEDDING_CODE_V31_OPTIONS, WEDDING_CODE_V31_TASTES, WEDDING_CODE_V31_VERSION } from "@/constants/weddingCodeV31";
 import { WEDDING_CODE_DEFAULT_VERSION } from "@/app/wedding-code/entry";
 
@@ -44,6 +45,12 @@ import { CONTENT_PATH, everyLandingComponent, rendered } from "./landingSource";
  * 3. **인용** — 랜딩이 라이브 문장을 인용하면 **글자까지 같아야 한다.** 오늘은
  *    인용이 0건이라 이 단언은 조건부다(견본이 없으니 걸릴 것도 없다). 다시 견본을
  *    넣는 순간 살아난다 — 실제 사고가 정확히 "다시 넣으면서 끝을 바꾼" 것이었다.
+ *
+ * ## 2026-11-17 — 시작 화면
+ *
+ * 2026-11-17 파운더 디자인 아티팩트(원문: 이 디자인 완전 같아야해)로 랜딩은 시작 화면 한 장이
+ * 됐다. 웨딩코드는 이제 바닥글의 링크 이름("웨딩코드")으로만 나온다. 세 갈래는 그대로 둔다 —
+ * 웨딩코드를 다시 소개하는 순간 살아난다.
  */
 
 /**
@@ -57,6 +64,9 @@ function landingSurface(): Array<[string, string]> {
   return [
     [CONTENT_PATH, rendered(CONTENT_PATH)],
     ["src/app/landing/page.tsx", rendered("src/app/landing/page.tsx")],
+    // 2026-11-17 파운더 디자인 아티팩트(원문: 이 디자인 완전 같아야해): 첫 화면 글자는 앱과 같은
+    // 정본 `START_COPY` 에서 온다. 랜딩 소스에는 없으므로 따로 더한다.
+    ["START_COPY", Object.values(START_COPY).flat().join("\n")],
     ...everyLandingComponent(),
   ];
 }
@@ -147,17 +157,8 @@ describe("랜딩이 웨딩코드에 대해 말하는 것은 라이브다", () =>
     const fabricated: string[] = [];
     for (const [file, source] of surface) {
       for (const m of source.matchAll(/\b(scene|question)\s*:\s*"([^"]{8,})"/gu)) {
-        // FAQ의 질문은 웨딩코드 문항 견본이 아니다. 실제 FAQ 배열과 summary 배선이
-        // 확인된 범위만 구분하며, 같은 파일 밖의 question/scene은 계속 검사한다.
-        if (file === "LandingFaqSection.tsx" && m[1] === "question") {
-          const start = source.indexOf("const faqItems: readonly FaqItem[] = [");
-          const end = source.indexOf("\n];", start);
-          expect(start, "FAQ 배열의 시작 경계를 못 찾았다").toBeGreaterThanOrEqual(0);
-          expect(end, "FAQ 배열의 끝 경계를 못 찾았다").toBeGreaterThan(start);
-          expect(source).toContain("faqItems.map(");
-          expect(source).toContain("{item.question}");
-          if (m.index >= start && m.index < end) continue;
-        }
+        // 2026-11-17: FAQ 의 `question:` 을 건너뛰던 예외를 지웠다. 시작 화면 개편으로 FAQ 가
+        // 랜딩에서 없어졌다 — 예외만 남으면 그 이름의 파일이 다시 생길 때 검사 없이 통과한다.
         if (!liveTexts.has(m[2])) {
           fabricated.push(`${file}: "${m[2]}"`);
         }

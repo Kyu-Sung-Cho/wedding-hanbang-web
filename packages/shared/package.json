@@ -28,7 +28,8 @@
     "./amora-visible-text": "./src/contracts/amoraVisibleText.mjs",
     "./amora-reference-links": "./src/contracts/amoraReferenceLinks.mjs",
     "./profile-avatar": "./src/contracts/profileAvatar.mjs",
-    "./amora-personalization": "./src/contracts/amoraPersonalization.mjs"
+    "./amora-personalization": "./src/contracts/amoraPersonalization.mjs",
+    "./invitation": "./src/invitation/index.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",

@@ -78,6 +78,19 @@ test("the lounge grid is built from the record check, not the static catalog", (
   assert.match(loungeSource, /hasBookingRecords,/);
 });
 
+// 2026-11-17 파운더 디자인 아티팩트(원문: 이 디자인 완전 같아야해): 홈은 `InvitationHome` 이라 위 격자를 그리지 않는다.
+// 그래도 기록이 있는 사람이 지난 기록으로 가는 길(2026-09-18 결정)은 남는다 — 홈의 알림 자리에 한 줄로 둔다.
+test("the 11-17 home keeps the way back to past records, only for couples who have them", () => {
+  assert.match(loungeSource, /records=\{data\.hasBookingRecords \? <LoungeRecordsEntry \/> : null\}/);
+  assert.match(loungeSource, /loadHasBookingRecords\(profile\.couple_id\)/);
+  const entry = readSource("../components/invitationLive/LoungeRecordsEntry.tsx");
+  // 글자는 예전 칸과 같은 목록에서 읽고, 지난 기록 화면을 연다.
+  assert.match(entry, /buildHomeServices\(\{ hasBookingRecords: true \}\)\.find\(\(service\) => service\.key === "bookings"\)/);
+  assert.match(entry, /router\.push\("\/bookings"\)/);
+  assert.match(entry, /accessibilityRole="button"/);
+  assert.doesNotMatch(entry, INVITES_NEW_REQUEST);
+});
+
 /* ─────────────────────────────────────────────
    (3) 라운지의 기록 확인
    ───────────────────────────────────────────── */

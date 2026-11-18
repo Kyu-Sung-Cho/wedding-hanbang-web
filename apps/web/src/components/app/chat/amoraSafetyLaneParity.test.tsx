@@ -138,11 +138,14 @@ vi.mock("@/lib/care/requestProactiveCare", () => ({
   requestProactiveCare: vi.fn(),
 }));
 
-type Surface = "chat" | "panel";
+// 2026-11-17 파운더 디자인 아티팩트(원문: 이 디자인 완전 같아야해): 대화 칸에 청첩장 모양(`presentation="invitation"`)이
+// 생겼다. 모양만 바뀌어야 하므로 세 번째 표면으로 같은 문장을 넣어 같은 레인이 나오는지 함께 잰다(검사를 줄이지 않고 늘린다).
+type Surface = "chat" | "panel" | "invitation";
 
 const SEND_LABEL: Record<Surface, string> = {
   chat: "함께 보는 아모라 메시지 보내기",
   panel: "메시지 보내기",
+  invitation: "메시지 보내기",
 };
 
 describe("web chat surfaces pick the same Amora safety lane", () => {
@@ -175,9 +178,20 @@ describe("web chat surfaces pick the same Amora safety lane", () => {
     await act(async () => {
       root.render(surface === "chat"
         ? <ChatContent />
-        : <ChatSidePanel isOpen onClose={vi.fn()} />);
+        : surface === "invitation"
+          ? <ChatSidePanel isOpen onClose={vi.fn()} presentation="invitation" />
+          : <ChatSidePanel isOpen onClose={vi.fn()} />);
       await Promise.resolve();
     });
+  };
+
+  const remount = async () => {
+    await act(async () => root.unmount());
+    container.remove();
+    container = document.createElement("div");
+    document.body.appendChild(container);
+    root = createRoot(container);
+    mocks.sendMessage.mockClear();
   };
 
   // 전체화면 채팅은 textarea, 사이드 패널은 input[type=text] 를 쓴다.
@@ -255,6 +269,46 @@ describe("web chat surfaces pick the same Amora safety lane", () => {
       expect(fromPanel).toBe(fromChat);
     },
   );
+
+  it.each(PRIVATE_LANE_SENTENCES)(
+    "moves %s to the private lane in the invitation look exactly like the panel",
+    async (sentence) => {
+      const fromPanel = await sendAndReadVisibility("panel", sentence);
+      await remount();
+      const fromInvitation = await sendAndReadVisibility("invitation", sentence);
+
+      expect(fromPanel).toBe("bride_private");
+      expect(fromInvitation).toBe(fromPanel);
+    },
+  );
+
+  it.each(SHARED_LANE_SENTENCES)(
+    "keeps %s in the shared lane in the invitation look exactly like the panel",
+    async (sentence) => {
+      const fromPanel = await sendAndReadVisibility("panel", sentence);
+      await remount();
+      const fromInvitation = await sendAndReadVisibility("invitation", sentence);
+
+      expect(fromPanel).toBe("shared");
+      expect(fromInvitation).toBe(fromPanel);
+    },
+  );
+
+  it("restores the held draft in the invitation composer too", async () => {
+    mocks.sendMessage.mockResolvedValue({
+      userMessage: "ephemeral_safety",
+      safetyCardId: "amora-crisis-preflight:couple-1:3",
+      effectiveVisibility: "bride_private",
+    });
+    await mount("invitation");
+    await typeIntoComposer("invitation", "지금 죽고 싶어");
+    await clickSend("invitation");
+    await vi.waitFor(() => expect(mocks.sendMessage).toHaveBeenCalled());
+
+    await vi.waitFor(() => {
+      expect(composer("invitation")?.value).toBe("지금 죽고 싶어");
+    });
+  });
 
   it("moves the full-screen chat to the private tab so the answer is not invisible", async () => {
     await mount("chat");

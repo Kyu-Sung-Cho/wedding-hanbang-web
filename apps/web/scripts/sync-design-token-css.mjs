@@ -20,6 +20,8 @@ import {
   WEB_THEME_ROLE_VARS,
   WEB_HTML_WORKSPACE_COLOR_VARS,
   WEB_HTML_WORKSPACE_ROLE_VARS,
+  WEB_INVITATION_COLOR_VARS,
+  WEB_INVITATION_THEME_VARS,
   renderWebCssColorVars,
   webCssManagedEnd,
   webCssManagedStart,
@@ -40,6 +42,9 @@ const REGIONS = [
   { region: "community-theme", vars: WEB_THEME_ROLE_VARS, prefix: "hb-" },
   { region: "html-workspace", vars: WEB_HTML_WORKSPACE_COLOR_VARS, prefix: "amora-" },
   { region: "html-workspace-roles", vars: WEB_HTML_WORKSPACE_ROLE_VARS, prefix: "hb-" },
+  // 청첩장 디자인(2026-11-17). 정본은 `packages/design-tokens/src/invitation.ts`.
+  { region: "invitation", vars: WEB_INVITATION_COLOR_VARS, prefix: "inv-" },
+  { region: "invitation-theme", vars: WEB_INVITATION_THEME_VARS, prefix: "color-" },
 ];
 
 /**

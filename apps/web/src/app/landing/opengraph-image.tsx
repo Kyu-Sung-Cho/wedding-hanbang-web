@@ -2,23 +2,26 @@ import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 
 import { ImageResponse } from "next/og";
-
-import { landingContent } from "@/components/landing/redesign/landingContent";
+import { invitationPalette } from "@hanbang/design-tokens";
+import { START_COPY } from "@hanbang/shared/invitation";
 
 /**
- * 공유 카드를 정적 파일에서 생성으로 바꾼다.
+ * 공유 카드.
  *
- * 기존 `/images/landing-social-card.webp`에는 "축하의 온도와 기준의 정밀함"이
- * 구워져 있었다. PRINCIPLES.md P5가 금지하는 정확성 보장 표현이고, 같이 박힌
- * 헤드라인("우리, 정말 결혼하는구나.")도 지금 랜딩이 하는 약속이 아니라 이전
- * 방향이었다. 이미지는 코드 리뷰를 통과하지 않으므로 페이지가 바뀌어도 조용히
- * 남는다 — 실제로 그렇게 남아 있었다.
+ * 옛 `/images/landing-social-card.webp` 에는 "축하의 온도와 기준의 정밀함"이 구워져 있었다.
+ * PRINCIPLES.md P5가 금지하는 정확성 보장 표현이었고, 이미지는 코드 리뷰를 통과하지 않으므로
+ * 페이지가 바뀌어도 조용히 남았다. 그래서 카드는 생성물이고, 문구는 페이지와 같은 정본에서
+ * 읽는다 — 카드가 H1과 다른 말을 하려면 H1을 먼저 바꿔야 한다.
  *
- * 그래서 문구를 페이지와 같은 출처(`landingContent`)에서 읽어 그린다. 카드가
- * H1과 다른 말을 하려면 이제 H1을 먼저 바꿔야 한다.
+ * 2026-11-17 파운더 디자인 아티팩트(원문: 이 디자인 완전 같아야해)로 랜딩이 시작 화면이 됐다.
+ * 그 화면의 정본은 `START_COPY`(앱과 같이 쓴다)이고, 색은 같은 아티팩트의 팔레트다.
+ * satori 는 CSS 변수를 못 읽으므로 디자인 토큰 값을 그대로 넘긴다.
+ *
+ * 글꼴은 Pretendard 다. satori 는 ttf 만 읽는데 고운바탕·Cormorant 는 next/font 가 빌드 때
+ * 받아 오는 woff2 뿐이고 저장소에는 Pretendard ttf 만 있다.
  */
 
-export const alt = `웨딩한방 — ${landingContent.hero.title}`;
+export const alt = `웨딩한방 | ${START_COPY.headingLines.join(" ")}`;
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 export const runtime = "nodejs";
@@ -29,34 +32,9 @@ const pretendardBold = readFile(join(
   "public/fonts/pretendard/Pretendard-Bold.ttf",
 ));
 
-/**
- * 랜딩과 같은 종이 색.
- *
- * satori 는 CSS 변수를 못 읽으므로 리터럴로 적는다. 값의 출처는
- * `packages/design-tokens/src/colors.ts` 의 `paper` 그룹이고,
- * `globals.css` 의 `--color-paper-*` 와 같아야 한다. 여기만 바꾸면 카드와 화면이 갈린다.
- *
- * 2026-08-27 이전에는 짙은 유칼립투스 그라디언트였다. 링크를 받은 사람에게는 이 카드가
- * 제품의 첫 화면인데, 카드가 짙은 초록이고 누르면 크림색 노트가 나와 같은 제품으로
- * 안 읽혔다.
- */
-const PAPER = {
-  sheet: "#FDFCF7",
-  ink: "#3A2A27",
-  inkSoft: "#5A4742",
-  inkFaint: "#6E5A54",
-  pen: "#35638A",
-} as const;
-
-/** H1 정본의 줄바꿈. 소스에 리터럴로 적으면 편집 도구가 진짜 줄바꿈으로 바꿔 놓는다. */
-const BREAK = String.fromCharCode(10);
-
 export default async function OpenGraphImage() {
-  // H1은 화면에서 두 덩어리로 끊긴다. 카드에서도 같은 자리에서 끊어 같은 문장으로 읽히게 한다.
-  // 정본이 줄바꿈을 갖고 있으므로 그걸 그대로 쓴다 — 여기서 다시 나누면 두 곳이 갈린다.
-  const [lead, tail] = landingContent.hero.title.split(BREAK);
-  // 공유 카드에도 서비스의 도움을 한 문장으로 설명한다. 화면 본문의 질문만 떼어 쓰지 않는다.
-  const lede = landingContent.hero.shareDescription;
+  // 화면의 H1 두 줄을 같은 자리에서 끊는다. 정본이 줄을 나눠 갖고 있으므로 그대로 쓴다.
+  const [lead, tail] = START_COPY.headingLines;
 
   return new ImageResponse(
     (
@@ -68,46 +46,27 @@ export default async function OpenGraphImage() {
           flexDirection: "column",
           justifyContent: "space-between",
           padding: "62px 72px",
-          color: PAPER.ink,
-          background: PAPER.sheet,
+          color: invitationPalette.ink,
+          background: invitationPalette.blush,
           fontFamily: "Pretendard Variable",
         }}
       >
-        <div style={{ display: "flex", alignItems: "center", gap: 18, fontSize: 30 }}>
-          <div
-            style={{
-              width: 52,
-              height: 52,
-              borderRadius: 18,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              background: PAPER.pen,
-              color: PAPER.sheet,
-              fontSize: 24,
-            }}
-          >
-            한
-          </div>
-          웨딩한방
-        </div>
-
-        <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-          <div style={{ display: "flex", color: PAPER.pen, fontSize: 28 }}>
-            결혼 준비 동반자, 아모라
-          </div>
-          <div style={{ display: "flex", flexDirection: "column", fontSize: 58, lineHeight: 1.2, letterSpacing: -2 }}>
-            <div style={{ display: "flex", color: PAPER.ink }}>{lead}</div>
-            <div style={{ display: "flex", color: PAPER.pen }}>{tail}</div>
-          </div>
-          <div style={{ display: "flex", fontSize: 30, color: PAPER.inkSoft }}>
-            {lede}
-          </div>
-        </div>
-
-        <div style={{ display: "flex", justifyContent: "space-between", color: PAPER.inkFaint, fontSize: 23 }}>
-          <div style={{ display: "flex" }}>둘이 함께하는 결혼 준비</div>
+        <div style={{ display: "flex", justifyContent: "space-between", fontSize: 28, color: invitationPalette.body }}>
+          <div style={{ display: "flex" }}>웨딩한방</div>
           <div style={{ display: "flex" }}>hanbang.ai</div>
+        </div>
+
+        <div style={{ display: "flex", flexDirection: "column", gap: 22 }}>
+          <div style={{ display: "flex", fontSize: 28, color: invitationPalette.muted }}>
+            {`${START_COPY.wordmark} · ${START_COPY.tagline}`}
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", fontSize: 60, lineHeight: 1.3, letterSpacing: -1 }}>
+            <div style={{ display: "flex" }}>{lead}</div>
+            <div style={{ display: "flex" }}>{tail}</div>
+          </div>
+          <div style={{ display: "flex", maxWidth: 1000, fontSize: 28, lineHeight: 1.5, color: invitationPalette.body }}>
+            {START_COPY.body}
+          </div>
         </div>
       </div>
     ),

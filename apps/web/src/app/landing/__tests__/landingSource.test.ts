@@ -125,16 +125,15 @@ describe("실제 랜딩 소스", () => {
   ];
 
   it("주석에 적힌 고지 이름이 아니라 화면에 나가는 고지가 남는다", () => {
-    // 정본 카피 `availableNow.cards[1].note` 바로 위에 이런 주석이 붙어 있다:
-    //   // CLAUDE.md 가 요구하는 고지가 이 줄에 있다 — 점수·궁합 금지.
+    // 정본 카피 `notices.privacy` 바로 위에 고지의 이름을 적은 주석이 붙어 있다.
+    // 이게 바로 우리가 겁내는 모양이다. 누가 카피에서 그 고지를 지우고 주석만 남기면,
+    // 주석을 안 벗기는 가드는 전부 초록불이 된다. 제거기가 진짜로 이 상황을 가르는지
+    // 원문으로 확인한다.
     //
-    // 이게 바로 우리가 겁내는 모양이다. **고지의 이름이 고지 바로 위 주석에 적혀 있다.**
-    // 궁합·점수 금지 고지는 원래 `scenes.note` 에 있었고 2026-08-29 재구성에서
-    // `availableNow.cards[1].note` 로 옮겨왔다(CLAUDE.md: 궁합 점수·관계 예측 금지).
-    // 누가 카피에서 그 고지를 지우고 주석만 남기면, 주석을 안 벗기는 가드는 전부
-    // 초록불이 된다. 제거기가 진짜로 이 상황을 가르는지 원문으로 확인한다.
-    const MARKER = "예시·AI 한계·공유 범위·비용 고지는 각 문장이 가리키는 표면에 둔다";
-    const NOTICE = "심리 진단이나 궁합 검사가 아니에요";
+    // 2026-11-17 파운더 디자인 아티팩트(원문: 이 디자인 완전 같아야해)로 랜딩이 시작 화면
+    // 한 장이 되면서 대조군을 옮겼다. 옛 대조군(궁합·점수 금지 카드)은 카드와 함께 없어졌다.
+    const MARKER = "나만 보는 상담도 서비스가 처리·저장한다는 개인정보 고지";
+    const NOTICE = "개인 상담도 서비스에서 처리·저장돼요";
 
     const raw = source(CONTENT_PATH);
     expect(
@@ -148,23 +147,22 @@ describe("실제 랜딩 소스", () => {
     expect(clean, "주석이 안 벗겨졌다 — 주석이 고지 대신 대답하게 된다").not.toContain(MARKER);
     expect(
       clean,
-      `궁합·점수 금지 고지("${NOTICE}")가 카피에서 사라졌거나 제거기가 카피까지 먹었다`,
+      `개인정보 고지("${NOTICE}")가 카피에서 사라졌거나 제거기가 카피까지 먹었다`,
     ).toContain(NOTICE);
   });
 
   it("카피를 먹지 않는다 — 대조군 문장 넷이 그대로 남는다", () => {
     // 제거기가 과하게 지우면 위 검사는 "주석이 사라졌다" 로 초록불을 준다.
     // 반대쪽도 재야 한다: 필수 고지 문장들이 주석 제거 뒤에도 원문 그대로 있는가.
-    // 넷 다 없어진 섹션이 지던 고지가 옮겨간 자리다.
     const clean = rendered(CONTENT_PATH);
     const MUST_SURVIVE = [
-      // AI 고지 (`noSide.note` · `notForVendors.aiNotice` → `boundaries.items[2]`)
+      // AI 고지 (`boundaries.items[2]`)
       "아모라의 답변은 AI가 작성해요",
-      // 개인정보·저장 고지 (`privateLane.note` → `availableNow.cards[0].note`)
-      "가입 없이 선택한 내용은 저장하지 않아요",
-      // 업체 편 아님 (`notForVendors` → `boundaries.items[0]`)
+      // 요금 고지 (`notices.pricing`, 옛 `confirm.note`)
+      "현재 무료로 이용할 수 있어요. 향후 요금은 아직 정해지지 않았어요.",
+      // 업체 편 아님 (`boundaries.items[0]`)
       "업체에 점수·등급·순위를 매기지 않아요",
-      // 가격 출처·기준일 (→ `footer.notice`)
+      // 가격 출처·기준일 (`footer.notice`)
       "한국소비자원 참가격",
     ];
     for (const line of MUST_SURVIVE) {
@@ -202,27 +200,28 @@ describe("contentBlock", () => {
     // 고치는 스크립트가 이 줄을 "낡은 경계" 로 보고 `"footer"` 로 바꿔 버렸고,
     // 그러자 던지지 않아 자기검증이 죽었다. 값을 고치지 마라 — 여기서 재는 것은
     // 경계를 못 찾았을 때 **조용히 넘어가지 않는가** 이다.
-    expect(() => contentBlock("closing", "존재하지않는경계")).toThrow(/경계/u);
+    // 2026-11-17: 블록 이름이 바뀌어 살아 있는 블록(`notices`)으로 옮겼다. 없는 블록을
+    // 주면 첫 번째 갈래(블록을 못 찾음)에서 던져 이 줄이 재려는 경계 갈래에 닿지 않는다.
+    expect(() => contentBlock("notices", "존재하지않는경계")).toThrow(/경계/u);
   });
 
   it("요구한 블록만 돌려준다", () => {
-    const closing = contentBlock("closing", "footer");
-    expect(closing).toContain("closing: {");
-    expect(closing).not.toContain("footer: {");
-    expect(closing.length).toBeGreaterThan(80);
+    const notices = contentBlock("notices", "footer");
+    expect(notices).toContain("notices: {");
+    expect(notices).not.toContain("footer: {");
+    expect(notices.length).toBeGreaterThan(80);
   });
 
   it("최상위 export 도 잘라낸다", () => {
     // `contentBlock` 은 시작 패턴을 둘 안다: `  key: {`(landingContent 안의 키)와
     // `export const key = `(최상위 export). 뒤쪽 갈래에 사용자가 없으면 조용히 썩는다.
     //
-    // 예전엔 `availableNow` 를 이 갈래의 사례로 썼다. 2026-08-29 정본 시안 재구성에서
-    // availableNow 는 **최상위 export 에서 landingContent 안의 키로 내려왔고**,
-    // 경계로 쓰던 `footerLinks` 는 없어졌다(푸터 링크가 `footer.columns` 안으로 들어감).
-    // 그래서 지금 살아 있는 최상위 export 둘로 옮긴다 — 재는 것은 같다.
-    const block = contentBlock("headerNav", "headerAuth");
-    expect(block).toContain("export const headerNav");
-    expect(block).not.toContain("export const headerAuth");
+    // 2026-11-17 파운더 디자인 아티팩트(원문: 이 디자인 완전 같아야해)로 내비가 없어지면서
+    // 최상위 export 가 `landingContent` 하나만 남았다. 그 머리부터 첫 키까지 잘라 같은
+    // 갈래를 잰다.
+    const block = contentBlock("landingContent", "start");
+    expect(block).toContain("export const landingContent");
+    expect(block).not.toContain("start: {");
   });
 });
 
@@ -234,17 +233,20 @@ describe("renderedSections", () => {
     // **랜딩이 멀쩡한데 검사가 빨간불**이 됐다. 숫자는 시안을 따라다닐 뿐 아무것도
     // 지키지 않는다. 지켜야 하는 것은 "page.tsx 를 순서대로, 중복 없이, <main> 안만
     // 읽는다" 는 도우미의 뜻이다.
+    //
+    // 2026-11-17 파운더 디자인 아티팩트(원문: 이 디자인 완전 같아야해)로 <main> 은 시작
+    // 화면 한 장이 됐고, 2026-11-18 파운더 요청("랜딩도 만들어야지 비슷하게")으로 그 아래 섹션이
+    // 이어진다. 개수는 시안을 따라다니므로 첫 섹션이 시작 화면인지와 중복이 없는지만 본다.
     expect(sections.length).toBeGreaterThan(0);
-    expect(sections[0], "히어로가 첫 섹션이 아니다").toBe("TransformationHero");
-    expect(sections.at(-1), "마무리 행동이 마지막 섹션이 아니다").toBe("ClosingAction");
+    expect(sections[0], "시작 화면이 첫 섹션이 아니다").toBe("StartScreen");
     expect(new Set(sections).size, "같은 섹션을 두 번 그린다").toBe(sections.length);
   });
 
   it("<main> 밖 컴포넌트는 섹션으로 세지 않는다", () => {
-    // 경계가 깨지면 헤더·푸터·꽃 레이어까지 '섹션'으로 잡혀 순서 검사가 무의미해진다.
+    // 경계가 깨지면 바로가기·머리줄·바닥글까지 '섹션'으로 잡혀 순서 검사가 무의미해진다.
     // 셋 다 page.tsx 가 실제로 그리지만 <main> 밖에 있다 — 그래서 좋은 대조군이다.
     const sections = renderedSections();
-    for (const outside of ["LandingHeader", "LandingFooter", "LandingBloomLayer"]) {
+    for (const outside of ["LandingSkipLink", "LandingHeader", "LandingFooter"]) {
       expect(sections, `${outside} 는 <main> 밖인데 섹션으로 잡혔다`).not.toContain(outside);
       expect(
         source("src/app/landing/page.tsx"),
@@ -265,7 +267,7 @@ describe("everyLandingComponent", () => {
     }
 
     // 증거 ② — page.tsx 에서 파생한 목록도 아니다. 폴더에는 <main> 이 그리지 않는
-    // 파일(헤더·푸터·모바일 메뉴 같은 것)도 있어야 한다. 예전엔 `>= 10` 이라는
+    // 파일(머리줄·바닥글·바로가기 같은 것)도 있어야 한다. 예전엔 `>= 10` 이라는
     // 숫자로 이걸 대신했는데, 숫자는 "폴더를 읽었나" 를 묻지 않는다.
     const drawn = new Set(renderedSections().map((s) => `${s}.tsx`));
     expect(

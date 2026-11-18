@@ -2,7 +2,7 @@
 
 import AmoraAvatar from "@/components/ui/AmoraAvatar";
 import ProfileAvatar from "@/components/ui/ProfileAvatar";
-import { CHAT_BUBBLE_TONES, confirmedRoleBubbleTone } from "./chatBubbleStyles";
+import { CHAT_BUBBLE_TONES, INVITATION_CHAT_STYLES, confirmedRoleBubbleTone, type ChatPresentation } from "./chatBubbleStyles";
 
 import { useState, useCallback, useEffect, useRef } from "react";
 import Link from "next/link";
@@ -40,6 +40,12 @@ interface ChatBubbleProps {
   /** 최근 3개 AI 메시지에만 true — 피드백 버튼 표시용 */
   isRecentAi?: boolean;
   onNegativeFeedback?: (message: ChatMessage) => void;
+  /**
+   * 모양만 바꾼다(`chatBubbleStyles.ts`). `invitation` 은 청첩장 디자인의 대화(2026-11-17)로, 아모라 말은
+   * 말풍선·얼굴·시각 없이 글줄로, 사람 말은 돌빛 말풍선으로 그린다. 나만 보기·상대에게 보낸 표시,
+   * 누가 한 말인지, 저장·의견 단추는 기본 모양과 같이 남는다.
+   */
+  presentation?: ChatPresentation;
 }
 
 // 이미 피드백한 메시지 ID를 로컬에 저장 (페이지 리로드 시에도 유지)
@@ -487,8 +493,10 @@ export default function ChatBubble({
   senderAvatarUrl = null,
   isRecentAi = false,
   onNegativeFeedback,
+  presentation = "default",
 }: ChatBubbleProps) {
   const { sender_role, content, created_at } = message;
+  const invitation = presentation === "invitation";
 
   // 함께 대화 새로 시작 — 동의 요청 메시지는 별도 카드로 렌더 (양쪽에 보임)
   if (message.metadata?.clearRequest) {
@@ -508,32 +516,11 @@ export default function ChatBubble({
     const aiIsPrivate =
       message.visibility === "bride_private" || message.visibility === "groom_private";
 
-    return (
-      <div className="group/ai flex max-w-[90%] items-start gap-2 sm:max-w-[80%]">
-        {/* AI 아바타 — 모바일에선 작게 */}
-        <AmoraAvatar sizeClassName="size-7 sm:size-8" />
-
-        <div className="flex flex-col gap-1.5 min-w-0 flex-1">
-          <span className="flex items-center gap-1.5 text-[12px] font-medium text-[var(--amora-muted,#6E5A54)]">
-            아모라
-            {aiIsPrivate && (
-              <span className="inline-flex items-center gap-1 text-xs text-[#5a6147] font-normal">
-                <Lock className="w-3 h-3" />
-                나만 보기
-              </span>
-            )}
-          </span>
-          <div className={`rounded-[14px] rounded-bl-[4px] border px-[14px] py-[11px] ${CHAT_BUBBLE_TONES.amora} ${
-            aiIsPrivate ? "ring-1 ring-[#5a6147]/15" : ""
-          }`}>
-            <div className="break-words text-[13px] leading-[1.6] sm:text-[14px]">
-              {renderAiMarkdown(cleanText)}
-            </div>
-            {/* 2026-08-19 — 태그가 가리키는 챕터로 직접 보낸다. 같은 날 레거시 25편을
-                `/manners` 스키마로 이관해서, 이제 태그는 `?part=N` 한 URL이 아니라
-                주제마다 고유한 `/manners/<slug>`로 떨어진다(`legacyNumber`로 대응).
-                존재하지 않는 번호는 카드를 그리지 않는다 — 죽은 링크보다 낫다. */}
-            {partNumbers.length > 0 && (
+    // 2026-08-19 — 태그가 가리키는 챕터로 직접 보낸다. 같은 날 레거시 25편을
+    // `/manners` 스키마로 이관해서, 이제 태그는 `?part=N` 한 URL이 아니라
+    // 주제마다 고유한 `/manners/<slug>`로 떨어진다(`legacyNumber`로 대응).
+    // 존재하지 않는 번호는 카드를 그리지 않는다 — 죽은 링크보다 낫다.
+    const etiquetteLinks = partNumbers.length > 0 && (
               <div className="mt-3 flex flex-col gap-2">
                 {partNumbers.map((num) => {
                   const part = MANNERS_PARTS.find((candidate) => candidate.legacyNumber === num);
@@ -556,24 +543,22 @@ export default function ChatBubble({
                   );
                 })}
               </div>
-            )}
-          </div>
-          {mediationBlock && (
+            );
+    const mediationCard = mediationBlock && (
             <MediationCard
               key={`${message.id}:${mediationBlock.proposalVersion ?? "draft"}:${mediationBlock.rosterFingerprint ?? "unknown-roster"}`}
               block={mediationBlock}
               messageId={message.id}
             />
-          )}
-          <span className="text-[11px] text-[var(--hb-text-muted)] ml-1">
-            {formatTime(created_at)}
-          </span>
-          {/* AI 고지 footer 는 채팅 상단 헤더 배지로 통합됨 — 메시지별 반복 제거.
-              AI 기본법(2026.1.22) 표시 의무는 ChatContent 헤더 "AI 생성" 배지 +
-              /ai-policy 링크로 충족. 가독성 회복 (이전 사고: 매 메시지 footer 가
-              과잉). */}
-          {/* 저장·피드백 — 저장은 모든 아모라 메시지에, 피드백은 최근 3개에만.
-              나중에 다시 볼 말은 최근 것만이 아니다. */}
+          );
+    // AI 고지 footer 는 채팅 상단 헤더 배지로 통합됨 — 메시지별 반복 제거.
+    // AI 기본법(2026.1.22) 표시 의무는 ChatContent 헤더 "AI 생성" 배지 + /ai-policy 링크로 충족
+    // (청첩장 대화 칸은 ChatSidePanel 의 공개 범위 줄이 같은 문장을 보인다). 가독성 회복
+    // (이전 사고: 매 메시지 footer 가 과잉).
+    // 저장·피드백 — 저장은 모든 아모라 메시지에, 피드백은 최근 3개에만.
+    // 나중에 다시 볼 말은 최근 것만이 아니다.
+    const saveAndFeedback = (
+      <>
           {aiIsPrivate && <PersonalActionSaveButton messageId={message.id} coupleId={message.couple_id} content={visibleContent} personalActionDraft={message.metadata?.personal_action_draft} personalActionsView={message.metadata?.personal_actions_view} />}
           {!aiIsPrivate && (
             <div className="mt-2 flex flex-wrap items-center gap-3">
@@ -586,6 +571,56 @@ export default function ChatBubble({
               )}
             </div>
           )}
+      </>
+    );
+
+    if (invitation) {
+      // 청첩장 디자인: 말풍선·얼굴·시각 없이 글줄로 둔다. 화면낭독기에는 누구 말인지 이름을 읽어 준다.
+      return (
+        <div className="group/ai flex min-w-0 flex-col gap-1.5" data-chat-presentation="invitation">
+          <span className="sr-only">아모라</span>
+          {aiIsPrivate && (
+            <span className={INVITATION_CHAT_STYLES.marker}>
+              <Lock className="w-3 h-3" aria-hidden="true" />
+              나만 보기
+            </span>
+          )}
+          <div className={INVITATION_CHAT_STYLES.amoraText}>{renderAiMarkdown(cleanText)}</div>
+          {etiquetteLinks}
+          {mediationCard}
+          {saveAndFeedback}
+        </div>
+      );
+    }
+
+    return (
+      <div className="group/ai flex max-w-[90%] items-start gap-2 sm:max-w-[80%]">
+        {/* AI 아바타 — 모바일에선 작게 */}
+        <AmoraAvatar sizeClassName="size-7 sm:size-8" />
+
+        <div className="flex flex-col gap-1.5 min-w-0 flex-1">
+          <span className="flex items-center gap-1.5 text-[12px] font-medium text-[var(--amora-muted,#6E5A54)]">
+            아모라
+            {aiIsPrivate && (
+              <span className="inline-flex items-center gap-1 text-xs text-[#5a6147] font-normal">
+                <Lock className="w-3 h-3" />
+                나만 보기
+              </span>
+            )}
+          </span>
+          <div className={`rounded-[14px] rounded-bl-[4px] border px-[14px] py-[11px] ${CHAT_BUBBLE_TONES.amora} ${
+            aiIsPrivate ? "ring-1 ring-[#5a6147]/15" : ""
+          }`}>
+            <div className="break-words text-[13px] leading-[1.6] sm:text-[14px]">
+              {renderAiMarkdown(cleanText)}
+            </div>
+            {etiquetteLinks}
+          </div>
+          {mediationCard}
+          <span className="text-[11px] text-[var(--hb-text-muted)] ml-1">
+            {formatTime(created_at)}
+          </span>
+          {saveAndFeedback}
         </div>
       </div>
     );
@@ -633,45 +668,51 @@ export default function ChatBubble({
           {/* 첨부 파일 (이미지 + PDF) */}
           <ChatImageAttachments messageId={message.id} metadata={message.metadata} />
           <div
-            className={`${humanTone} rounded-[14px] rounded-br-[4px] border px-[14px] py-[11px]`}
+            className={invitation ? INVITATION_CHAT_STYLES.personBubble : `${humanTone} rounded-[14px] rounded-br-[4px] border px-[14px] py-[11px]`}
           >
-            <p className="whitespace-pre-wrap text-[13px] leading-[1.6] sm:text-[14px]">
+            <p className={invitation ? INVITATION_CHAT_STYLES.personText : "whitespace-pre-wrap text-[13px] leading-[1.6] sm:text-[14px]"}>
               {displayContent}
             </p>
           </div>
-          <span className="text-[11px] text-[var(--hb-text-muted)] mr-1">
-            {formatTime(created_at)}
-          </span>
+          {!invitation && (
+            <span className="text-[11px] text-[var(--hb-text-muted)] mr-1">
+              {formatTime(created_at)}
+            </span>
+          )}
         </div>
       </div>
     );
   }
 
-  // 상대방 메시지: 왼쪽 정렬
+  // 상대방 메시지: 왼쪽 정렬. 청첩장 디자인은 얼굴 없이 이름만 남긴다(누가 한 말인지는 지우지 않는다).
   return (
-    <div className="flex max-w-[90%] items-start gap-2 sm:max-w-[80%]">
+    <div className={invitation ? "flex max-w-[80%] flex-col items-start gap-1.5" : "flex max-w-[90%] items-start gap-2 sm:max-w-[80%]"}>
       {/* 아바타 — 모바일 작게 */}
-      <ProfileAvatar name={message.sender_id ? senderName : null} label={senderLabel} avatarUrl={message.sender_id ? senderAvatarUrl : null} size={28} className="sm:size-8" />
+      {!invitation && (
+        <ProfileAvatar name={message.sender_id ? senderName : null} label={senderLabel} avatarUrl={message.sender_id ? senderAvatarUrl : null} size={28} className="sm:size-8" />
+      )}
 
       <div className="flex flex-col gap-1.5">
         <div className="flex items-center gap-2">
           <span
-            className={`text-sm px-2 py-0.5 rounded-full font-medium ${isPartnerMsg ? "bg-pink-100 text-rose-700" : badgeBg}`}
+            className={invitation ? INVITATION_CHAT_STYLES.speaker : `text-sm px-2 py-0.5 rounded-full font-medium ${isPartnerMsg ? "bg-pink-100 text-rose-700" : badgeBg}`}
           >
             {isPartnerMsg ? `${senderLabel} → 나에게` : senderLabel}
           </span>
         </div>
         <ChatImageAttachments messageId={message.id} metadata={message.metadata} />
         <div
-          className={`${humanTone} rounded-[14px] rounded-bl-[4px] border px-[14px] py-[11px]`}
+          className={invitation ? INVITATION_CHAT_STYLES.personBubble : `${humanTone} rounded-[14px] rounded-bl-[4px] border px-[14px] py-[11px]`}
         >
-          <p className="whitespace-pre-wrap text-[13px] leading-[1.6] sm:text-[14px]">
+          <p className={invitation ? INVITATION_CHAT_STYLES.personText : "whitespace-pre-wrap text-[13px] leading-[1.6] sm:text-[14px]"}>
             {displayContent}
           </p>
         </div>
-        <span className="text-[11px] text-[var(--hb-text-muted)] ml-1">
-          {formatTime(created_at)}
-        </span>
+        {!invitation && (
+          <span className="text-[11px] text-[var(--hb-text-muted)] ml-1">
+            {formatTime(created_at)}
+          </span>
+        )}
       </div>
     </div>
   );

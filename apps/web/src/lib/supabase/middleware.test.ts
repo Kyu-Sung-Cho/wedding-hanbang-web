@@ -391,3 +391,40 @@ describe("동의 기록이 없는 계정", () => {
     expect(response.headers.get("location")).toContain("/consent");
   });
 });
+
+// 2026-11-17 파운더 디자인 아티팩트(원문: 이 디자인 완전 같아야해)의 새 커플 화면도 라운지와 같은 관문을 지난다.
+// 서버 틀(`AuthenticatedAppShell`)도 로그인을 다시 보지만, 온보딩 관문은 여기에만 있다.
+describe("새 커플 화면(준비 순서·웨딩홀 비교·편지·상담 확정)도 보호 경로다", () => {
+  beforeEach(() => {
+    vi.stubEnv("NEXT_PUBLIC_SUPABASE_URL", "https://abcdefghijklmnopqrst.supabase.co");
+    vi.stubEnv("NEXT_PUBLIC_SUPABASE_ANON_KEY", "anon-key");
+    mocks.getUser.mockReset();
+    mocks.createServerClient.mockReset().mockReturnValue({ auth: { getUser: mocks.getUser } });
+  });
+
+  afterEach(() => vi.unstubAllEnvs());
+
+  it.each([
+    "/wedding/journey",
+    "/wedding/halls",
+    "/wedding/halls/letter",
+    "/wedding/halls/consultation",
+    "/journey",
+    "/halls",
+  ])("로그인하지 않았으면 %s 에서 로그인으로 보낸다", async (path) => {
+    mocks.getUser.mockResolvedValue({ data: { user: null } });
+    const response = await updateSession(new NextRequest(`https://hanbang.ai${path}`));
+    expect(response.status).toBe(307);
+    const location = new URL(response.headers.get("location")!);
+    expect(location.pathname).toBe("/login");
+    expect(location.searchParams.get("redirect")).toBe(path);
+  });
+
+  it("온보딩을 마치지 않았으면 웨딩홀 비교에서 온보딩으로 보낸다", async () => {
+    mocks.getUser.mockResolvedValue({
+      data: { user: { id: "synthetic-user", app_metadata: verifiedConsentMetadata, user_metadata: {} } },
+    });
+    const response = await updateSession(new NextRequest("https://hanbang.ai/wedding/halls"));
+    expect(new URL(response.headers.get("location")!).pathname).toBe("/wedding/onboarding");
+  });
+});

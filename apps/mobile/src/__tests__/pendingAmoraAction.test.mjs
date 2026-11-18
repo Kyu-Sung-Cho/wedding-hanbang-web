@@ -126,6 +126,7 @@ function renderProposal(receipts, {
   dismissedPendingMessageIds = new Set(),
   reviewingPendingActionKey = null,
   calls = [],
+  styles = {},
 } = {}) {
   const applicationModule = compileCommonJs(readFileSync(new URL(
     "../../../web/src/components/app/chat/amoraPendingActionApplication.ts", import.meta.url,
@@ -167,7 +168,7 @@ function renderProposal(receipts, {
     setDismissedPendingMessageIds: (update) => calls.push(["dismiss", [...update(new Set())]]),
     parseAmoraCitations, describeAmoraCitations, getAmoraVisibleText,
     normalizeMediationBlock: () => null, ...toolResultCardModule,
-    colors: { noir: { 800: "black", soft: "gray" }, gold: { DEFAULT: "gold" }, ivory: { warm: "ivory" } }, st: {},
+    colors: { noir: { 800: "black", soft: "gray" }, gold: { DEFAULT: "gold" }, ivory: { warm: "ivory" } }, st: styles,
   };
   const compiledRender = ts.transpileModule(declaration.getText(tree), {
     compilerOptions: { module: ts.ModuleKind.None, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.React },
@@ -512,46 +513,51 @@ test("human questions and partner messages retain their exact marker and JSON te
 
 // 2026-09-12 요청: 웹처럼 각 사람이 **직접 확인한 표시 역할**로 말풍선을 칠한다.
 // 모바일은 내 말풍선을 noir 배경·흰 글자, 상대를 아이보리로 칠하고 있었다.
-test("mobile colors human bubbles by each sender's confirmed role, not the signup slot", () => {
-  const { chatPalette } = compileCommonJs(readFileSync(new URL("../../../../packages/design-tokens/src/chat.ts", import.meta.url), "utf8"));
+// 2026-11-17 파운더 디자인 아티팩트(원문: 이 디자인 완전 같아야해): 앱 대화는 아티팩트 모양이다. 아모라 말은 말풍선 없는
+// 문단, 사람 말은 누가 보냈든 돌빛 말풍선이다. 2026-09-12 의 역할별 말풍선 색(신랑 하늘색·신부 분홍)은 앱 말풍선에서
+// 쓰지 않는다(웹 ChatBubble 은 그대로다). 누가 말했는지는 이름 줄과 상대의 얼굴 그림이 말한다 — 그것은 아래와 다음 시험이 본다.
+test("mobile draws every person's message in the stone bubble and Amora's without a bubble, whatever the confirmed role", () => {
   const selfId = "user-1";
   const partnerId = "partner-1";
-  const bubbleOf = (rendered) => rendered.nodes.find(node => node.type === "View"
-    && Array.isArray(node.props?.style)
-    && node.props.style.some(style => style && typeof style === "object" && "backgroundColor" in style && style.borderWidth === 1));
-  const bodyOf = (rendered, content) => rendered.nodes.find(node => node.type === "Text" && node.children.includes(content));
+  // 스타일 이름을 그대로 돌려주는 가짜 `st`. 어느 모양을 골랐는지 이름으로 본다.
+  const styles = new Proxy({}, { get: (_target, name) => ({ styleName: String(name) }) });
+  const styleNames = (node) => [node?.props?.style].flat(Infinity).filter((style) => style && typeof style === "object" && "styleName" in style).map((style) => style.styleName);
   const render = (itemOverrides, presentation) => renderProposal([], {
     itemOverrides: { metadata: {}, ...itemOverrides },
     participantPresentation: presentation,
     linkedPartnerId: partnerId,
+    styles,
   });
-  const confirmed = (selfRole, partnerRole, extra = {}) => ({
+  const confirmed = (selfRole, partnerRole) => ({
     selfId, partnerId, selfConfirmedRole: selfRole, partnerConfirmedRole: partnerRole,
-    selfAvatarUrl: null, partnerAvatarUrl: null, ...extra,
+    selfAvatarUrl: null, partnerAvatarUrl: null,
   });
-  const cases = [
-    // 가입 슬롯은 bride 지만 본인이 신랑으로 확인했다 → 하늘색
-    { name: "self confirmed groom in a bride slot", item: { sender_type: "bride", sender_id: selfId, content: "내가 보냄" }, presentation: confirmed("groom", null), tone: "sky" },
-    { name: "self confirmed bride", item: { sender_type: "bride", sender_id: selfId, content: "내가 보냄" }, presentation: confirmed("bride", "groom"), tone: "rose" },
-    { name: "partner confirmed groom", item: { sender_type: "groom", sender_id: partnerId, content: "상대가 보냄" }, presentation: confirmed("bride", "groom"), tone: "sky" },
-    { name: "partner not confirmed", item: { sender_type: "groom", sender_id: partnerId, content: "상대가 보냄" }, presentation: confirmed("bride", null), tone: "neutral" },
-    { name: "roles not loaded", item: { sender_type: "bride", sender_id: selfId, content: "내가 보냄" }, presentation: chatParticipantPresentationModule.EMPTY_CHAT_PARTICIPANT_PRESENTATION, tone: "neutral" },
-    { name: "legacy message without sender_id", item: { sender_type: "groom", sender_id: null, content: "예전 메시지" }, presentation: confirmed("bride", "groom"), tone: "neutral" },
-    { name: "amora", item: { sender_type: "ai", sender_id: null, content: "아모라 답변" }, presentation: confirmed("bride", "groom"), tone: "amora" },
+  const people = [
+    { name: "self confirmed groom in a bride slot", item: { sender_type: "bride", sender_id: selfId, content: "내가 보냄" }, presentation: confirmed("groom", null) },
+    { name: "self confirmed bride", item: { sender_type: "bride", sender_id: selfId, content: "내가 보냄" }, presentation: confirmed("bride", "groom") },
+    { name: "partner confirmed groom", item: { sender_type: "groom", sender_id: partnerId, content: "상대가 보냄" }, presentation: confirmed("bride", "groom") },
+    { name: "partner not confirmed", item: { sender_type: "groom", sender_id: partnerId, content: "상대가 보냄" }, presentation: confirmed("bride", null) },
+    { name: "roles not loaded", item: { sender_type: "bride", sender_id: selfId, content: "내가 보냄" }, presentation: chatParticipantPresentationModule.EMPTY_CHAT_PARTICIPANT_PRESENTATION },
+    { name: "legacy message without sender_id", item: { sender_type: "groom", sender_id: null, content: "예전 메시지" }, presentation: confirmed("bride", "groom") },
   ];
-  for (const scenario of cases) {
+  for (const scenario of people) {
     const rendered = render(scenario.item, scenario.presentation);
-    const bubble = bubbleOf(rendered);
-    assert.ok(bubble, `${scenario.name}: 말풍선이 있어야 한다`);
-    const toneStyle = bubble.props.style.find(style => style && typeof style === "object" && "backgroundColor" in style);
-    assert.equal(toneStyle.backgroundColor, chatPalette[scenario.tone].surface, scenario.name);
-    assert.equal(toneStyle.borderColor, chatPalette[scenario.tone].line, scenario.name);
-    if (scenario.tone !== "amora") {
-      const body = bodyOf(rendered, scenario.item.content);
-      assert.equal(body.props.style.find(style => style && typeof style === "object" && "color" in style).color, chatPalette[scenario.tone].ink, scenario.name);
-    }
-    assert.doesNotMatch(JSON.stringify(bubble.props.style), /"#FFF"|"black"/u, `${scenario.name}: 예전 noir/흰 글자 말풍선이 남으면 안 된다`);
+    const bubbles = rendered.nodes.filter((node) => node.type === "View" && styleNames(node).includes("personBubble"));
+    assert.equal(bubbles.length, 1, `${scenario.name}: 돌빛 말풍선 하나에 담긴다`);
+    assert.equal(rendered.nodes.some((node) => styleNames(node).includes("amoraLine")), false, `${scenario.name}: 사람 말이 아모라 문단으로 그려진다`);
+    const body = rendered.nodes.find((node) => node.type === "Text" && node.children.includes(scenario.item.content));
+    assert.deepEqual(styleNames(body), ["personText"], `${scenario.name}: 사람 말 글자`);
+    // 역할 색이 말풍선에 남지 않는다(예전 noir/흰 글자도).
+    assert.doesNotMatch(JSON.stringify(bubbles[0].props.style), /backgroundColor|"#FFF"|"black"/u, `${scenario.name}: 말풍선에 색을 직접 칠한다`);
   }
+  const amora = render({ sender_type: "ai", sender_id: null, content: "아모라 답변" }, confirmed("bride", "groom"));
+  assert.equal(amora.nodes.filter((node) => node.type === "View" && styleNames(node).includes("amoraLine")).length, 1, "아모라 말은 말풍선 없는 문단 자리에 담긴다");
+  assert.equal(amora.nodes.some((node) => styleNames(node).includes("personBubble")), false);
+  const amoraBody = amora.nodes.find((node) => node.type === "AmoraMessageBody");
+  assert.deepEqual(styleNames({ props: { style: amoraBody.props.textStyle } }), ["amoraText"]);
+  // 아모라 말 옆에는 작은 얼굴을 두지 않는다(머리의 오브가 아모라다). 이름 줄은 남아 여럿이 말하는 대화에서 누가 말했는지 알린다.
+  assert.equal(amora.nodes.some((node) => node.type === "AmoraAvatar"), false);
+  assert.ok(amora.nodes.some((node) => node.type === "Text" && styleNames(node).includes("senderLabel") && node.children.includes("아모라")));
 });
 
 test("mobile shows the partner's initial or chosen emoji instead of a generic person icon", () => {

@@ -1,47 +1,35 @@
 "use client";
 
-import Link from "next/link";
-
-import { headerAuth } from "./landingContent";
+import { landingContent } from "./landingContent";
 import { useLandingSession } from "./LandingSession";
 import TrackedLandingLink from "./TrackedLandingLink";
 
-type LandingAccountActionsProps = {
-  variant: "desktop" | "mobile";
-  onNavigate?: () => void;
-};
-
-const focusRing =
-  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-paper-pen)] focus-visible:ring-offset-2";
-const mobileLinkClassName = `flex min-h-11 items-center border-t border-[var(--color-paper-divider)] px-4 py-3 text-[14px] font-semibold text-[var(--color-paper-ink-soft)] transition-colors duration-200 hover:bg-[var(--color-paper-sheet)] hover:text-[var(--color-paper-ink)] motion-reduce:transition-none ${focusRing}`;
-
-export default function LandingAccountActions({ variant, onNavigate }: LandingAccountActionsProps) {
+/**
+ * 첫 화면 오른쪽 위의 '로그인'.
+ *
+ * 아티팩트의 시작 화면에는 머리줄이 없다. 이미 계정이 있는 사람이 랜딩에서 바로 들어갈
+ * 길 하나만 둔다. 사진 위 흰 글자는 분홍 보케 위에서 대비가 2:1 에도 못 미쳐서, 아티팩트가
+ * 사진 위 버튼에 쓰는 반투명 흰 알약(공유 `Button` 의 glass)에 먹색 글자로 얹는다.
+ *
+ * 로그인했다고 **확인되면** 감춘다. 확인 전(서버가 그린 화면 포함)과 확인이 실패했을 때는
+ * 보인다 — 랜딩에 오는 사람은 대부분 로그아웃 상태이고, 확인이 늦거나 막혀도 들어갈 길이
+ * 남아야 한다. 이미 로그인한 사람이 눌러도 로그인 화면이 목적지로 돌려보낸다.
+ */
+export default function LandingAccountActions() {
   const status = useLandingSession();
-  const primaryLabel = status === "signed_in" ? "아모라 이어가기"
-    : status === "signed_out" ? headerAuth.signUp.label : "아모라 열기";
-  const login = status === "signed_out" ? (
-    <Link
-      href={headerAuth.logIn.href}
-      onClick={onNavigate}
-      className={variant === "mobile" ? mobileLinkClassName
-        : `hidden min-h-11 items-center px-3 text-[14px] font-medium text-[var(--color-paper-ink-soft)] transition-colors duration-200 hover:text-[var(--color-paper-ink)] motion-reduce:transition-none lg:inline-flex ${focusRing}`}
-    >
-      {headerAuth.logIn.label}
-    </Link>
-  ) : null;
+  if (status === "signed_in") return null;
 
-  const primary = (
+  const { logIn } = landingContent.account;
+  return (
     <TrackedLandingLink
-      href={headerAuth.signUp.href}
-      prefetch={false}
+      href={logIn.href}
       source="landing_header"
-      onClickCapture={onNavigate}
-      className={variant === "mobile" ? mobileLinkClassName
-        : `hidden min-h-11 items-center rounded-[8px] bg-[var(--hb-action)] px-[26px] text-[15px] font-semibold text-[var(--color-paper-card)] transition-colors duration-200 hover:bg-[var(--hb-action-hover)] motion-reduce:transition-none sm:inline-flex ${focusRing}`}
+      variant="glass"
+      size="pill-34"
+      weight="medium"
+      className="px-[14px]"
     >
-      {primaryLabel}
+      {logIn.label}
     </TrackedLandingLink>
   );
-
-  return variant === "mobile" ? <>{primary}{login}</> : <>{login}{primary}</>;
 }

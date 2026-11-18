@@ -2,6 +2,7 @@ import { existsSync, readdirSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
+import { START_COPY } from "@hanbang/shared/invitation";
 import { landingContent } from "@/components/landing/redesign/landingContent";
 
 import {
@@ -73,9 +74,15 @@ function publishedRaw(): string {
   return ACTIVE_PUBLIC_PATHS.map(source).join("\n");
 }
 
-/** 주석을 벗긴 랜딩 카피 전부. "있어야 한다"·"있으면 안 된다"를 화면 기준으로 본다. */
+/**
+ * 주석을 벗긴 랜딩 카피 전부. "있어야 한다"·"있으면 안 된다"를 화면 기준으로 본다.
+ *
+ * 2026-11-17 파운더 디자인 아티팩트(원문: 이 디자인 완전 같아야해)로 첫 화면 글자는 앱과 같은
+ * 정본 `START_COPY` 에서 온다. 랜딩 폴더에는 그 글자가 없으므로 함께 더한다.
+ */
 const LANDING_RENDERED = LANDING_REDESIGN_PATHS.map(rendered)
   .concat(rendered("src/app/landing/page.tsx"))
+  .concat(Object.values(START_COPY).flat().join("\n"))
   .join("\n");
 
 /**
@@ -93,13 +100,6 @@ const LANDING_RENDERED = LANDING_REDESIGN_PATHS.map(rendered)
  */
 type LandingLink = { readonly label: string; readonly href: string };
 
-const availableNowCards: ReadonlyArray<{
-  readonly title: string;
-  readonly body: string;
-  readonly note: string;
-  readonly href: string;
-}> = landingContent.availableNow.cards;
-
 const boundaryItems: ReadonlyArray<{
   readonly title: string;
   readonly note: string;
@@ -110,29 +110,7 @@ const footerColumns: ReadonlyArray<{
   readonly links: readonly LandingLink[];
 }> = landingContent.footer.columns;
 
-/**
- * 카드를 **무엇에 대한 카드인지**로 찾는다.
- *
- * `cards[1]` 처럼 자리로 찾으면 카드 순서를 바꾸는 순간 엉뚱한 카드에 대고 고지를
- * 확인하면서 초록불이 난다. 목적지(`href`)로 찾는 것도 처음엔 썼다가 물렀다 —
- * 2026-08-29 작업 중에 예절 카드의 링크가 `/wedding/manners` 에서 `/start-here` 로
- * 바뀌었다. 고지가 매인 것은 **주제**(예절은 정답이 아니라 관행이다)이지 URL이 아니다.
- */
-function cardTitled(titleFragment: string): (typeof availableNowCards)[number] {
-  const card = availableNowCards.find((c: (typeof availableNowCards)[number]) =>
-    c.title.includes(titleFragment),
-  );
-  if (!card) {
-    throw new Error(
-      `availableNow 카드 중 제목에 "${titleFragment}" 가 들어간 것이 없습니다. ` +
-        `그 도구가 랜딩에서 빠졌다면 그 카드가 지던 고지가 어디로 갔는지 먼저 찾고, ` +
-        `그 자리를 검사하도록 옮기세요.`,
-    );
-  }
-  return card;
-}
-
-/** 경계 항목도 자리가 아니라 **무엇을 안 한다는 말인지**로 찾는다. */
+/** 경계 항목은 자리가 아니라 **무엇을 안 한다는 말인지**로 찾는다. */
 function boundaryItem(titleFragment: string): (typeof boundaryItems)[number] {
   const item = boundaryItems.find((i: (typeof boundaryItems)[number]) =>
     i.title.includes(titleFragment),
@@ -223,19 +201,17 @@ describe("public marketing claim boundary", () => {
     // 어느 자리든 문장을 지우려면 `landingDisclosuresAreOnScreen.test.ts` 의
     // DISCLOSURES 표를 먼저 보라.
     //   priceCompare (가격 출처·기준일)                  → 공시가 카드 · footer.notice
-    const sections = renderedSections();
-
-    for (const section of [
-      "AmoraNoteSection",
-      "ConfirmSection",
-      "AvailableNowSection",
-      "BoundariesSection",
-    ]) {
-      expect(
-        sections,
-        `${section} 이 랜딩에 걸려 있지 않다 — 그 안의 고지가 화면에 없다`,
-      ).toContain(section);
-    }
+    //
+    // ## 2026-11-17 — 시작 화면
+    //
+    // 2026-11-17 파운더 디자인 아티팩트(원문: 이 디자인 완전 같아야해)로 랜딩은 시작 화면 한 장이
+    // 됐다. 위 섹션들은 없어졌고, 법·신뢰 고지는 글자 그대로 첫 화면 아래 바닥글
+    // (`LandingFooter`)로 모였다. 그래서 걸려 있어야 할 것은 시작 화면과 그 바닥글이다.
+    expect(renderedSections(), "시작 화면이 랜딩에 걸려 있지 않다").toContain("StartScreen");
+    expect(
+      rendered("src/app/landing/page.tsx"),
+      "고지를 지는 바닥글이 랜딩에 걸려 있지 않다 — 그 안의 고지가 화면에 없다",
+    ).toMatch(/<LandingFooter\s*\/>/u);
   });
 
   it("states that AI changes require confirmation and never claims to act on its own", () => {
@@ -250,37 +226,15 @@ describe("public marketing claim boundary", () => {
     //
     // 문장은 2026-08-28 개편에서 다듬어졌다("확인한 변경만" → "확인한 것만").
     // 지는 계약은 그대로다: 확인한 것만 반영되고, 확인 전에는 아무것도 안 바뀐다.
-    expect(landingContent.confirm.lede, "확인 계약 문장이 confirm.lede 에 없다").toContain(
-      "저장 전에 바뀔 내용과 저장 위치를 직접 확인하면 예산·할 일·일정에 남길 수 있어요",
-    );
-    expect(landingContent.confirm.sample.contract).toContain("저장을 확인하기 전에는 기록이 바뀌지 않아요");
-
-    // 두 사람 승인은 2026-08-23에 폐지됐다. 남은 계약은 "한 사람이 확인하면 반영되고
-    // 상대에게 알림이 간다"다 — 알림 쪽을 빼면 상대 몰래 바뀌는 제품이 된다.
-    expect(landingContent.confirm.body2, "파트너 알림 문장이 confirm.body2 에 없다").toContain(
-      "앱에서 변경 알림을 볼 수 있어요",
-    );
-
-    // 카피에만 있고 화면에서 빠진 상태를 통과시키지 않는다 — 정본 파일 하나가
-    // 대신 답한다. 그 문장을 지는 섹션이 실제로 그 값을 그리는지 따로 본다.
-    const confirmSection = rendered("src/components/landing/redesign/ConfirmSection.tsx");
-    expect(confirmSection).toContain("{confirm.lede}");
-    expect(confirmSection).toContain("{confirm.body2}");
-    expect(confirmSection).toContain("{confirm.note}");
-
-    // "확인 전까지는 반영되지 않는다"는 옛 `confirm` 카피 문장이 지던 고지다.
-    // 개편에서 그 말은 ConfirmSection의 샘플 카드 안으로 옮겨졌고, 카피가 아니라
-    // **컴포넌트가 직접** 들고 있다. 카피에서 못 찾는다고 지우면 계약이 약해진다.
-    expect(confirmSection, "확인 전 미반영 고지가 확인 샘플 카드에 없다").toContain(
-      "{confirm.sample.contract}",
-    );
-    // 샘플 제안이 "아직 반영 전"이라고 카드 안에서 말한다. 이 라벨이 없으면 샘플
-    // 카드가 이미 일어난 일처럼 읽힌다.
-    // 2026-09-03 시안으로 카드가 "제안 한 건" 에서 "이해한 것 세 줄" 로 바뀌면서
-    // 라벨 이름이 `proposeLabel` → `state` 가 됐다. **지키는 것은 그대로다.**
-    expect(landingContent.confirm.sample.state, "미반영 라벨이 샘플에서 사라졌다").toContain(
-      "저장 전",
-    );
+    //
+    // ## 2026-11-17 — 확인 흐름 설명이 랜딩에서 빠졌다
+    //
+    // 2026-11-17 파운더 디자인 아티팩트(원문: 이 디자인 완전 같아야해)의 시작 화면은 확인·저장
+    // 흐름을 설명하지 않는다(그 설명을 들던 `ConfirmSection` 과 `confirm` 카피가 없어졌다).
+    // 그래서 "확인 계약 문장이 있어야 한다" 쪽 단언은 대상이 없어 지웠다. 확인 흐름의 사실은
+    // 제품 화면이 지고, 랜딩 쪽에 남는 계약은 **그 계약을 뒤집는 말을 하지 않는다** 이다 —
+    // 아래 금지는 첫 화면 정본(`START_COPY`)까지 포함해 그대로 본다. 첫 화면의 "준비는 제가
+    // 챙길게요"·"상담 문의까지 해 둘게요" 가 확인 없이 바꾼다는 뜻으로 번지지 않는지도 같은 자로 잰다.
 
     // 있어야 할 것만 보면 **뒤에 뒤집는 문장을 붙이는 변형**을 못 막는다. 확인 계약을
     // 그대로 둔 채 "급할 때는 확인을 건너뛰고 바로 반영할 수도 있어요"를 덧붙인 변형이
@@ -307,64 +261,47 @@ describe("public marketing claim boundary", () => {
     }
   });
 
-  it("keeps the AI, sample, and storage disclosures on the screen that shows Amora talking", () => {
-    // 옛 구조에서 이 고지는 `noSide.note`(AI 고지)와 `privateLane.note`(저장 고지)로
-    // 나뉘어 있었다. 개편 뒤 아모라가 랜딩에서 **처음 말하는 자리**가 AmoraNoteSection
-    // 하나뿐이라, 셋(AI 생성 · 샘플 · 저장 안 됨)이 그 카드 안 한 문단으로 합쳐졌다.
-    // 카드만 캡처돼도 고지가 같이 잡히도록 카드 **안**에 있는 것이 중요하다.
-    const note = landingContent.amoraNote.note;
-
-    expect(landingContent.amoraNote.chat.amoraLabel, "AI 생성물 고지가 아모라 화자에 없다")
-      .toContain("AI 생성");
-    expect(landingContent.boundaries.items[2].note, "AI 오류 가능성 고지가 없다")
+  it("keeps the AI and storage disclosures on the page that introduces Amora", () => {
+    // 옛 구조에서 이 고지는 아모라가 랜딩에서 **처음 말하는 자리**(예시 대화 카드) 안에
+    // 있었다(AI 생성 화자 표시 · 예시 표식 · 저장 안 됨).
+    //
+    // 2026-11-17 파운더 디자인 아티팩트(원문: 이 디자인 완전 같아야해)로 예시 대화가 없어졌다.
+    // 예시 표식("예시 대화")은 대상이 없어졌고, 예시 화면(`/example`)이 자기 맨 위에 단다.
+    // 남는 고지 둘 — AI 가 쓴다는 것과 나만 보는 상담도 서비스가 처리·저장한다는 것 — 은
+    // 같은 페이지의 바닥글이 글자 그대로 진다(시작 카드 안이 아니다: 리드 지시).
+    expect(boundaryItem("아모라의 답변은 AI가 작성해요").note, "AI 오류 가능성 고지가 없다")
       .toContain("AI 답변에는 오류가 있을 수 있어요");
-    expect(note, "예시 표시가 아모라 카드에 없다").toContain("예시 대화");
-    // privateLane.note 가 지던 저장 고지의 랜딩 몫. 이 화면의 대화는 시연이라 저장되지
-    // 않는다 — 비로그인 아모라 체험이 2026-08-27에 닫혔기 때문이다.
-    expect(note, "저장 고지가 아모라 카드에 없다").toContain("저장할 수 없어요");
+    expect(landingContent.notices.privacy, "나만 보는 상담의 처리·저장 고지가 없다")
+      .toContain("개인 상담도 서비스에서 처리·저장돼요");
 
-    const amoraSection = rendered("src/components/landing/redesign/AmoraNoteSection.tsx");
-    expect(amoraSection, "아모라 카드가 자기 고지를 그리지 않는다").toContain("{amoraNote.note}");
-    expect(amoraSection, "아모라 카드가 AI 생성 화자 표시를 그리지 않는다")
-      .toContain("{amoraNote.chat.amoraLabel}");
+    const landingFooter = rendered("src/components/landing/redesign/LandingFooter.tsx");
+    expect(landingFooter, "바닥글이 하지 않는 것 넷(AI 고지 포함)을 그리지 않는다")
+      .toContain("boundaries.items.map(");
+    expect(landingFooter, "바닥글이 개인정보 고지를 그리지 않는다").toContain("{notices.privacy}");
   });
 
-  it("keeps the score/compatibility, storage, and price-source notes on the tool cards", () => {
-    // 옛 `scenes.note`(점수·궁합 금지)·`privateLane.note`(견적 저장 안 함)·
-    // `priceCompare` 전용 섹션(출처·기준일)이 전부 `availableNow` 카드 셋으로 내려왔다.
-    // 파운더가 공시 가격을 "부가 기능"이라 카드 한 장으로 내린 것이라(2026-08-29),
-    // 전용 섹션을 다시 찾으면 안 된다 — 고지는 카드의 작은 글씨가 진다.
-
-    // WeddingCode는 검증된 궁합 검사가 아니다(CLAUDE.md). 이 한 줄이 그 계약이다.
-    // 랜딩에서 기능을 찾을 때 쓰는 제품명으로 찾고, 기존 고지 계약은 유지한다.
-    const weddingCode = cardTitled("웨딩코드");
-    expect(weddingCode.note, "점수·궁합 금지 고지가 웨딩코드 카드에 없다").toContain(
-      "심리 진단이나 궁합 검사가 아니에요",
-    );
-
-    // 로그인 없이 넣은 견적을 저장하지 않는다는 개인정보 고지.
-    const quoteCheck = cardTitled("업체에 무엇을 물어봐야 할까요?");
-    expect(quoteCheck.note, "견적 미저장 고지가 견적 카드에 없다").toContain("저장하지 않아요");
-    expect(quoteCheck.note, "적정성 판정 안 한다는 고지가 견적 카드에 없다").toContain(
-      "가격의 적정 여부는 평가하지 않아요",
-    );
-
-    // 가격은 한국소비자원 참가격이다. 출처와 기준일을 안 적으면 우리가 잰 값처럼 읽힌다.
-    const price = cardTitled("업체 가격과 취소·환불 조건");
-    expect(price.body, "가격 출처가 공시가 카드에 없다").toContain("한국소비자원");
-    expect(price.note, "공시 기준일이 공시가 카드에 없다").toContain("공시 기준");
-    expect(price.note, "적정성 판정 안 한다는 고지가 공시가 카드에 없다").toContain(
-      "가격의 적정 여부는 평가하지 않아요",
-    );
-
-    // 예절 가이드는 "정답"이 아니다 — 관행이라는 단서를 빼면 규범을 파는 화면이 된다.
-    const manners = cardTitled("상견례·예단");
-    expect(manners.note, "관행 단서가 예절 카드에 없다").toContain("관행은 지역과 가족마다 달라요");
-
-    // 카피에만 있고 화면에서 빠지는 것을 막는다.
-    const nowSection = rendered("src/components/landing/redesign/AvailableNowSection.tsx");
-    expect(nowSection, "카드 본문이 화면에 안 나간다").toContain("{card.body}");
-    expect(nowSection, "카드 고지가 화면에 안 나간다").toContain("{card.note}");
+  it("keeps tool claims off the landing unless their notes come with them", () => {
+    // 옛 `availableNow` 카드 넷이 도구를 **설명**했고, 그래서 카드마다 고지가 붙었다
+    // (웨딩코드: 심리 진단·궁합 검사가 아니다 · 견적: 선택한 내용 저장 안 함 · 공시 가격:
+    // 출처·기준일·적정성 판정 안 함 · 예절: 관행은 지역과 가족마다 다르다).
+    //
+    // 2026-11-17 파운더 디자인 아티팩트(원문: 이 디자인 완전 같아야해)로 카드가 없어지고 바닥글은
+    // 도구 **이름만** 링크한다. 설명이 없으니 그 고지도 랜딩에 둘 대상이 없다 — 각 도구 화면이
+    // 자기 고지를 든다. 지키는 것: **설명이 돌아오면 고지도 같이 돌아와야 한다.** 웨딩코드를 성향·
+    // 궁합·심리 같은 말로 설명하는 문장이 생기면 궁합 금지 고지가 같은 랜딩에 있어야 한다.
+    // (메타 설명의 "웨딩코드는 가입 없이 시작할 수 있어요" 는 열리는 조건이지 설명이 아니다.)
+    const WEDDING_CODE_CLAIM =
+      /웨딩코드[^.\n]{0,40}(?:궁합|심리|진단|성격|유형|성향)|(?:궁합|심리|진단|성격|유형|성향)[^.\n]{0,40}웨딩코드/u;
+    expect("웨딩코드로 두 사람의 궁합을 봐요", "탐지기가 심어 둔 설명을 못 잡는다").toMatch(WEDDING_CODE_CLAIM);
+    expect("견적 질문 만들기와 웨딩코드는 가입 없이 시작할 수 있어요.").not.toMatch(WEDDING_CODE_CLAIM);
+    const claim = LANDING_RENDERED.match(WEDDING_CODE_CLAIM)?.[0];
+    expect(
+      claim === undefined || LANDING_RENDERED.includes("심리 진단이나 궁합 검사가 아니에요"),
+      `웨딩코드를 설명하면서 궁합·심리 검사가 아니라는 고지가 없다: ${claim ?? ""}`,
+    ).toBe(true);
+    // 가격은 한국소비자원 참가격이다. 출처와 기준일은 바닥글 고지가 진다.
+    expect(landingContent.footer.notice, "가격 출처가 바닥글에 없다").toContain("한국소비자원");
+    expect(landingContent.footer.notice, "공시 기준일이 바닥글에 없다").toContain("공시 기준");
   });
 
   it("keeps the not-on-the-vendor-side evidence in the boundaries section", () => {
@@ -393,9 +330,11 @@ describe("public marketing claim boundary", () => {
       "관련 기관",
     );
 
-    const boundariesSection = rendered("src/components/landing/redesign/BoundariesSection.tsx");
-    expect(boundariesSection, "경계 항목 제목이 화면에 안 나간다").toContain("{item.title}");
-    expect(boundariesSection, "경계 항목 고지가 화면에 안 나간다").toContain("{item.note}");
+    // 2026-11-17 시작 화면 개편으로 경계 넷은 `BoundariesSection` 에서 바닥글로 옮겼다(글자 그대로).
+    const landingFooter = rendered("src/components/landing/redesign/LandingFooter.tsx");
+    expect(landingFooter, "경계 항목을 통째로 그리지 않는다").toContain("boundaries.items.map(");
+    expect(landingFooter, "경계 항목 제목이 화면에 안 나간다").toContain("{item.title}");
+    expect(landingFooter, "경계 항목 고지가 화면에 안 나간다").toContain("{item.note}");
   });
 
   it("keeps policy links real and the price source notice in the footer", () => {
@@ -445,12 +384,17 @@ describe("public marketing claim boundary", () => {
     // 없어진 것은 틀이지 고지가 아니다 — "향후 이용 비용은 아직 정해지지 않았고,
     // 계정을 만들어도 지금은 결제를 요청하지 않아요"는 베타라서가 아니라 오늘 그래서
     // 참이다. 그래서 방향을 뒤집는다: 고지는 **있어야** 하고, 베타 틀은 **없어야** 한다.
-    expect(landingContent.confirm.note, "현재 무료라는 시점과 요금 미정 고지가 사라졌다").toContain(
+    // 2026-11-17 시작 화면 개편으로 두 고지는 `confirm.note`·`closing.note` 에서 바닥글의
+    // `notices.pricing`·`notices.signup` 으로 글자 그대로 옮겼다.
+    expect(landingContent.notices.pricing, "현재 무료라는 시점과 요금 미정 고지가 사라졌다").toContain(
       "현재 무료로 이용할 수 있어요. 향후 요금은 아직 정해지지 않았어요.",
     );
-    expect(landingContent.closing.note, "가입 조건 고지가 마무리에서 사라졌다").toContain(
+    expect(landingContent.notices.signup, "가입 조건 고지가 사라졌다").toContain(
       "아모라와 예산·할 일·일정 관리에는 가입이 필요해요",
     );
+    const landingFooter = rendered("src/components/landing/redesign/LandingFooter.tsx");
+    expect(landingFooter).toContain("{notices.pricing}");
+    expect(landingFooter).toContain("{notices.signup}");
 
     const RETIRED_BETA_FRAMES: Array<[RegExp, string]> = [
       [/계정 베타/u, "폐지된 계정 베타 틀"],

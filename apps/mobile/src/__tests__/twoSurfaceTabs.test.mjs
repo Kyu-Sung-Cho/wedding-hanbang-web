@@ -1,10 +1,12 @@
-// 앱 메인은 웨딩 라운지와 아모라 둘이다(2026-11-13 파운더 결정, 앱 구성은 같은 날 파운더 확인).
+// 앱 하단 메뉴(2026-11-13 파운더 결정은 `라운지 | 아모라` 둘이었다).
 //
-// - 하단 탭은 `라운지 | 아모라` 둘뿐이다.
-// - 커뮤니티는 라운지의 준비 도구 칸과 내 정보에서 연다. 뒤로 가기가 있는 화면이다.
-// - 내 정보는 라운지 머리줄에서 연다. 라운지를 못 불러온 화면에서도 열 수 있어야 한다
-//   (설정·로그아웃이 그 안에 있다).
-// - 체크리스트·일정·예산·예절 가이드·웨딩코드는 지우지 않고 라운지가 연다.
+// 2026-11-17 파운더 디자인 아티팩트(원문: 이 디자인 완전 같아야해)가 그것을 뒤집는다:
+// - 하단 메뉴는 아티팩트의 떠 있는 알약 넷이다: 홈 · 아모라와 대화 · 준비 순서 · 일정(`HOME_COPY.nav`).
+// - 커뮤니티와 내 정보는 여전히 탭이 아니다. 뒤로 가기가 있는 화면이다.
+// - 내 정보는 홈 오른쪽 위 머리글자에서 연다. 홈을 못 불러온 화면에서도 열 수 있어야 한다
+//   (설정·로그아웃·탈퇴가 그 안에 있다).
+// - 체크리스트·일정·예산·예절 가이드는 지우지 않는다. 홈의 준비 도구 격자는 없어졌고, 내 정보와
+//   공유 할 일(아모라 대화 머리)이 그 화면들을 연다.
 import assert from "node:assert/strict";
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
@@ -44,21 +46,31 @@ function tabScreens() {
   return screens;
 }
 
-test("the tab bar holds exactly the two main surfaces", () => {
+// 2026-11-17 파운더 디자인 아티팩트(원문: 이 디자인 완전 같아야해): 메뉴 넷, 아티팩트의 순서와 이름 그대로.
+test("the tab bar holds exactly the artifact's four destinations", () => {
   const screens = tabScreens();
-  assert.deepEqual(screens.map((screen) => screen.name), ["lounge", "chat"]);
-  const [lounge, chat] = screens;
-  // 탭에는 줄임말, 읽어 주는 이름은 "웨딩 라운지"(2026-08-19 결정 그대로).
-  assert.match(lounge.options, /title: "라운지"/u);
-  assert.match(lounge.options, /tabBarAccessibilityLabel: "웨딩 라운지"/u);
-  assert.match(chat.options, /title: "아모라"/u);
-  assert.match(chat.options, /tabBarAccessibilityLabel: "아모라"/u);
+  assert.deepEqual(screens.map((screen) => screen.name), ["lounge", "chat", "journey", "schedule"]);
+  const [lounge, chat, journey, schedule] = screens;
+  // 화면 제목은 아티팩트의 메뉴 이름(`HOME_COPY.nav`)을 그대로 읽는다. 화면 파일에 다시 적지 않는다.
+  assert.match(lounge.options, /title: HOME_COPY\.nav\.home/u);
+  assert.match(chat.options, /title: HOME_COPY\.nav\.chat/u);
+  assert.match(journey.options, /title: HOME_COPY\.nav\.journey/u);
+  assert.match(schedule.options, /title: HOME_COPY\.nav\.schedule/u);
 
-  // Expo Router 는 (tabs) 폴더의 파일을 선언하지 않아도 탭으로 올린다. 폴더에 둘만 있어야 한다.
+  // 메뉴는 기본 탭바가 아니라 아티팩트의 떠 있는 알약이다(칸·아이콘·읽어 주는 이름은 InvitationTabBar 가 든다).
+  const layout = read("app/(tabs)/_layout.tsx");
+  assert.match(layout, /tabBar=\{\(props\) => \{/u);
+  assert.match(layout, /<InvitationTabsBar\b/u);
+  assert.match(layout, /onSelect=\{\(screen\) => props\.navigation\.navigate\(screen\)\}/u);
+  // 탭 화면 이름 ↔ 메뉴 칸 표는 하나다.
+  const routes = read("src/lib/invitationRoutes.mjs");
+  assert.match(routes, /home: "lounge",\s*chat: "chat",\s*journey: "journey",\s*status: "schedule",/u);
+
+  // Expo Router 는 (tabs) 폴더의 파일을 선언하지 않아도 탭으로 올린다. 폴더에 넷만 있어야 한다.
   const tabFiles = readdirSync(join(mobileRoot, "app/(tabs)"))
     .filter((file) => !file.startsWith("_"))
     .sort();
-  assert.deepEqual(tabFiles, ["chat.tsx", "lounge.tsx"]);
+  assert.deepEqual(tabFiles, ["chat.tsx", "journey.tsx", "lounge.tsx", "schedule.tsx"]);
 });
 
 test("community and 내 정보 are their own screens with a way back, not tabs", () => {
@@ -149,24 +161,38 @@ function loungeErrorBranch() {
   return lounge.slice(start, end);
 }
 
-test("the lounge opens 내 정보 from its header, and also when the lounge could not load", () => {
-  const home = read("src/components/dashboard/WeddingHomeExperience.tsx");
-  assert.match(home, /accessibilityLabel="내 정보"/u);
-  assert.match(home, /router\.push\("\/profile"\)/u);
+test("the home opens 내 정보 from its header, and also when the home could not load", () => {
+  // 2026-11-17 파운더 디자인 아티팩트(원문: 이 디자인 완전 같아야해): 홈 머리는 아티팩트의 워드마크와 두 사람
+  // 머리글자다. 내 정보(설정·로그아웃·탈퇴)는 그 머리글자 묶음이 연다 — 모양은 바꾸지 않고 누를 수 있게만 한다.
+  const lounge = read("app/(tabs)/lounge.tsx");
+  assert.match(lounge, /label: "내 정보",/u);
+  assert.match(lounge, /peopleAction=\{\{ \.\.\.PROFILE_ACTION, onPress: \(\) => router\.push\("\/profile"\) \}\}/u);
+  const home = read("src/components/invitation/InvitationHome.tsx");
+  assert.match(home, /accessibilityRole="button"\s*accessibilityLabel=\{peopleAction\.label\}/u);
 
-  // 라운지를 못 불러오면 머리줄도 그려지지 않는다. 설정·로그아웃으로 가는 길이 그 화면에도 있어야 한다.
+  // 홈을 못 불러오면 머리글자도 그려지지 않는다. 설정·로그아웃으로 가는 길이 그 화면에도 있어야 한다.
   const errorBranch = loungeErrorBranch();
   assert.match(errorBranch, /<LoungeProfileButton \/>/u);
-  assert.match(home, /export function LoungeProfileButton/u);
+  const homeModelFailure = lounge.slice(lounge.indexOf('if (invitation.status === "failed"'), lounge.indexOf("if (loading || !data"));
+  assert.match(homeModelFailure, /<LoungeProfileButton \/>/u, "홈 모델을 못 받은 화면에도 내 정보로 가는 길이 있다");
+  const legacy = read("src/components/dashboard/WeddingHomeExperience.tsx");
+  assert.match(legacy, /export function LoungeProfileButton/u);
+  assert.match(legacy, /accessibilityLabel="내 정보"/u);
+  assert.match(legacy, /router\.push\("\/profile"\)/u);
 });
 
-test("the lounge opens every screen that left the tab bar or moved behind 내 정보", () => {
-  const routes = HOME_SERVICES.map((service) => service.route);
-  for (const route of ["/checklist", "/schedule", "/budget", "/etiquette", "/community"]) {
-    assert.ok(routes.includes(route), `라운지 준비 도구 칸에 ${route} 가 없다`);
+test("the screens that left the tab bar stay reachable behind 내 정보 and 공유 할 일", () => {
+  // 2026-11-17: 홈의 준비 도구 격자(`HOME_SERVICES`)는 없어졌다. 화면은 지우지 않고 내 정보가 연다.
+  const profile = read("app/profile.tsx");
+  for (const pathname of ["/schedule", "/budget", "/etiquette", "/market-prices", "/settings"]) {
+    assert.ok(profile.includes(`pathname: "${pathname}"`), `내 정보가 ${pathname} 를 열지 않는다`);
   }
-  const home = read("src/components/dashboard/WeddingHomeExperience.tsx");
-  assert.match(home, /case "\/etiquette":\s*router\.push\("\/etiquette"\);/u);
-  assert.match(home, /case "\/community":\s*router\.push\("\/community"\);/u);
-  assert.match(home, /router\.push\("\/wedding-code"\)/u);
+  assert.match(profile, /pathname: "\/community\/my-posts"/u);
+  // 체크리스트는 아모라 대화 머리의 「공유 할 일」(`/amora-preparation`)이 연다.
+  assert.match(read("app/amora-preparation.tsx"), /router\.push\("\/checklist"\)/u);
+  assert.match(read("src/lib/amoraChatHeader.ts"), /pathname: "\/amora-preparation"/u);
+  // 일정 탭은 전체 일정 화면으로 가는 길을 늘 둔다.
+  assert.match(read("src/components/invitationLive/LiveConsultation.tsx"), /const FULL_SCHEDULE = "\/schedule";/u);
+  // 격자 목록 자체는 지우지 않았다(다시 걸 때를 위해).
+  assert.ok(HOME_SERVICES.some((service) => service.route === "/community"));
 });

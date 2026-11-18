@@ -2,6 +2,7 @@ import { colors } from "./colors";
 import { amoraIdentity } from "./amora";
 import { chatPalette } from "./chat";
 import { summaryPalette } from "./summary";
+import { invitationPalette } from "./invitation";
 
 /**
  * 웹 `globals.css`의 색 커스텀 프로퍼티를 **토큰에서 만들어낸다.**
@@ -342,6 +343,30 @@ export const WEB_HTML_WORKSPACE_ROLE_VARS: readonly WebCssColorVar[] = [
   { name: "text-muted", value: "var(--amora-muted)" },
 ];
 
+/**
+ * 청첩장 디자인(2026-11-17) 색. `:root` 의 `--inv-*` 로 생성한다.
+ * 이름은 `invitationPalette` 의 키를 그대로 케밥으로 바꾼 것이다(`paperSoft` → `paper-soft`).
+ */
+export const WEB_INVITATION_COLOR_VARS: readonly WebCssColorVar[] = Object.entries(invitationPalette).map(
+  ([key, value], index) => ({
+    name: key.replace(/[A-Z]/g, (letter) => `-${letter.toLowerCase()}`),
+    value,
+    ...(index === 0 ? { section: "청첩장 디자인(2026-11-17) — invitation.ts 에서 생성" } : {}),
+  }),
+);
+
+/**
+ * 같은 색을 Tailwind 유틸리티(`bg-inv-ink`, `text-inv-muted` …)로도 쓰게 `@theme inline` 에
+ * 연결한다. 값은 위 `:root` 변수를 가리켜 정본이 한 곳에 남는다.
+ */
+export const WEB_INVITATION_THEME_VARS: readonly WebCssColorVar[] = WEB_INVITATION_COLOR_VARS.map(
+  ({ name }, index) => ({
+    name: `inv-${name}`,
+    value: `var(--inv-${name})`,
+    ...(index === 0 ? { section: "청첩장 디자인(2026-11-17)" } : {}),
+  }),
+);
+
 /** 색과 역할 연결을 생성하는 구간. 스크립트와 검사가 같은 이름을 쓴다. */
 export type WebCssRegion =
   | "root"
@@ -350,7 +375,9 @@ export type WebCssRegion =
   | "service-theme"
   | "community-theme"
   | "html-workspace"
-  | "html-workspace-roles";
+  | "html-workspace-roles"
+  | "invitation"
+  | "invitation-theme";
 
 export function webCssManagedStart(region: WebCssRegion): string {
   return "/* @generated:design-tokens " + region

@@ -1,8 +1,8 @@
 import { readMobileSignupConsentAccess } from "@/lib/signupConsentAccess";
-// 루트: 세션 → 온보딩 여부 → 웨딩 라운지 or 로그인
+// 루트: 세션 → 온보딩 여부 → 웨딩 라운지 or 시작 화면(로그아웃)
 import { useEffect, useState } from "react";
 import type { Session } from "@supabase/supabase-js";
-import { Redirect } from "expo-router";
+import { Redirect, router } from "expo-router";
 import { View, ActivityIndicator, StyleSheet } from "react-native";
 import { Text } from "@/components/ui/AppText";
 import { colors } from "@hanbang/design-tokens";
@@ -15,6 +15,7 @@ import {
 import { PrimaryButton } from "@/components/ui/AppUI";
 import { resolveMobileSiteOrigin } from "@/lib/siteUrl.mjs";
 import { verifyMobileWebRuntime } from "@/lib/mobileWebRuntime";
+import InvitationStart from "@/components/invitation/InvitationStart";
 
 type GateStatus = "loading" | "ready" | "error" | "mismatch";
 
@@ -143,7 +144,15 @@ export default function Index() {
 
   switch (dest) {
     case "login":
-      return <Redirect href="/(auth)/login" />;
+      // 2026-11-17 파운더 디자인 아티팩트(원문: 이 디자인 완전 같아야해): 로그아웃 상태의 첫 화면은
+      // 로그인 화면이 아니라 '시작' 화면이다. 시작하기는 예전처럼 로그인 화면으로 바꿔 들어가고
+      // (로그인 뒤 루트 판정은 그대로), 예시 커플은 로그인 없이 예시 스택을 연다.
+      return (
+        <InvitationStart
+          onStart={() => router.replace("/(auth)/login")}
+          onExample={() => router.push("/example")}
+        />
+      );
     case "consent":
       return <Redirect href="/(auth)/consent" />;
     case "onboarding":

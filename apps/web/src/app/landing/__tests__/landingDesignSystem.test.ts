@@ -1,45 +1,16 @@
 // @vitest-environment jsdom
 
-import { describe, expect, it, vi } from "vitest";
 import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
+import { describe, expect, it, vi } from "vitest";
+
+import { invitationPalette, invitationRadius } from "@hanbang/design-tokens";
+
 import LandingPage from "../page";
-import { landingContent } from "@/components/landing/redesign/landingContent";
-
-vi.mock("@/lib/analytics", () => ({ captureEvent: vi.fn() }));
-
-function landingDocument(): Document {
-  return new DOMParser().parseFromString(renderToStaticMarkup(createElement(LandingPage)), "text/html");
-}
-
-/** 렌더된 클래스의 길이만 비교한다. 실제 줄바꿈·화면 높이는 브라우저 QA에서 검증한다. */
-function spaceAt(element: Element, property: string, viewport: number): number {
-  const breakpoints: Record<string, number> = { sm: 640, md: 768, lg: 1024, xl: 1280 };
-  let value = 0;
-  let priority = -1;
-  for (const token of element.classList) {
-    const match = /^(?:(sm|md|lg|xl):)?(!?)(min-h|p[xytrbl]?)-(\d+(?:\.\d+)?|\[\d+(?:\.\d+)?(?:px|rem)\])(!?)$/u.exec(token);
-    if (!match) continue;
-    const minimum = match[1] ? breakpoints[match[1]] : 0;
-    const axis = match[3];
-    const rank = minimum + (match[2] || match[5] ? 10000 : 0);
-    const applies = axis === property || (["pt", "pb"].includes(property) && axis === "py");
-    if (!applies || minimum > viewport || rank < priority) continue;
-    const raw = match[4].replace(/^\[|\]$/gu, "");
-    value = raw.endsWith("px") ? parseFloat(raw)
-      : raw.endsWith("rem") ? parseFloat(raw) * 16 : Number(raw) * 4;
-    priority = rank;
-  }
-  return value;
-}
-
-
-
 import {
   APP_ROOT,
-  contentBlock,
   everyLandingComponent,
   landingComponentFiles,
   rendered,
@@ -48,96 +19,60 @@ import {
   stripComments,
 } from "./landingSource";
 
-/**
- * 2026-09-06 승인 HTML에 따른 랜딩 디자인 계약.
- * 렌더된 요소의 접근성·위계·고지와 등록된 색상·서체를 검사한다.
- * 특정 export 개수나 예전 CSS 문자열은 계약으로 삼지 않는다.
- * 실제 줄바꿈·가로 넘침·초점 이동은 브라우저 QA에서 함께 확인한다.
- */
-
-/** 화면을 그리는 랜딩 컴포넌트 — 폴더에서 읽고, 주석은 벗긴 뒤. */
-const components = everyLandingComponent();
+vi.mock("@/lib/analytics", () => ({ captureEvent: vi.fn() }));
 
 /**
- * 색·타입·모서리는 컴포넌트 폴더 밖에서도 정해진다.
+ * 랜딩 디자인 계약.
  *
- * 2026-08-28: `page.tsx` 본체에 정체불명 hex 를 심었더니 아무 단언도 울지 않았다.
- * 랜딩이 사용자에게 나가는 지면은 셋이다 — 컴포넌트 · 페이지 본체 · OG 카드.
+ * 2026-11-17 파운더 디자인 아티팩트(원문: 이 디자인 완전 같아야해)로 랜딩은 앱의 '시작' 화면
+ * (`Main.dc.html`, 390×844)이 됐다. 옛 계약(Pretendard 하나 · 종이 팔레트 · 첫 화면에 그림 없음 ·
+ * 꽃 SVG 넷 · radial-gradient 금지)은 **새 디자인을 구조적으로 금지**했으므로, 같은 자리에서
+ * 새 디자인을 지키도록 다시 썼다:
+ *
+ *   글꼴   아티팩트의 세 글꼴(고운바탕·Cormorant Garamond·Noto Sans KR)을 next/font 로만 쓴다.
+ *   색     `--inv-*` 토큰(디자인 토큰 `invitationPalette` 에서 생성)으로만 칠한다.
+ *   사진   첫 화면의 그림은 보케 사진 한 장뿐이다.
+ *   값     원본 인라인 스타일 값 그대로(위치·크기·반경·흐림·간격·굵기·줄 높이·자간).
+ *
+ * 제품 전체에 걸린 단언(Pretendard 글꼴 역할, 그림자 토큰 둘, 승격된 색)은 랜딩 밖도 지키므로
+ * 그대로 남겼다. 실제 줄바꿈·겹침·초점 이동은 브라우저 QA 의 몫이다.
+ *
+ * 2026-11-18 파운더 요청(원문: "랜딩도 만들어야지 비슷하게", 범위 "전체다")으로 시작 화면 아래에 같은
+ * 디자인의 섹션이 이어진다. 그 섹션 파일도 같은 폴더에 있어 위 규칙(토큰 색·세 글꼴·아티팩트 반경·가는 선·
+ * 그림자 토큰 둘)을 그대로 받는다. "첫 화면의 그림은 보케 사진 한 장"은 시작 화면 상자 안에서 센다.
  */
+
+const components = everyLandingComponent();
 const LANDING_PAGE = "src/app/landing/page.tsx";
 const LANDING_OG = "src/app/landing/opengraph-image.tsx";
+
+/** 랜딩이 사용자에게 내보내는 지면 — 컴포넌트 · 페이지 본체 · 공유 카드. */
 const surfaces: Array<[string, string]> = [
   ...components,
   ["app/landing/page.tsx", rendered(LANDING_PAGE)],
   ["app/landing/opengraph-image.tsx", rendered(LANDING_OG)],
 ];
 
-const globalsRaw = source("src/app/globals.css");
-/** globals.css 도 주석을 벗겨 본다 — 주석에 적은 선언이 계약을 만족시키면 안 된다. */
-const globals = stripComments(globalsRaw);
-/** DESIGN.md 는 산문이라 벗기지 않는다. 여기서는 값이 적혀 있는지만 본다. */
+const globals = stripComments(source("src/app/globals.css"));
+const layout = stripComments(source("src/app/layout.tsx"));
 const designMd = source("../../DESIGN.md");
+const startScreen = rendered("src/components/landing/redesign/StartScreen.tsx");
 
-const sourceOf = (file: string) => components.find(([name]) => name === file)?.[1] ?? "";
-
-/**
- * globals.css 의 랜딩 블록. 다음 예절 가이드·아모라 블록은 별도 디자인이다.
- *
- * 주석 머리말(`랜딩 — 결혼 준비 노트`)로 자르면 주석을 벗긴 뒤엔 그 표시가 없다.
- * 그래서 코드로 남는 첫 선택자를 경계로 쓰고, **못 찾으면 던진다** — 경계가
- * 사라졌는데 조용히 빈 문자열을 검사하는 것이 이 파일의 옛 실패 방식이었다.
- */
-const landingCss = (() => {
-  const start = globals.indexOf(".landing-hand {");
-  if (start < 0) {
-    throw new Error(
-      "globals.css 에서 랜딩 블록(.landing-hand)을 찾지 못했습니다. "
-        + "블록이 옮겨졌다면 이 검사도 같이 옮겨야 합니다.",
-    );
-  }
-  const end = globals.indexOf('.manners-roles input[type="radio"] {', start);
-  if (end < 0) {
-    throw new Error("globals.css 에서 랜딩 다음 예절 가이드 블록을 찾지 못했습니다. 검사 경계를 확인해 주세요.");
-  }
-  return globals.slice(start, end);
-})();
-
-/**
- * 본문 섹션 — **페이지가 실제로 그리는 것**에서 뽑는다.
- *
- * 옛 판은 일곱 개를 손으로 적어 뒀다. 그래서 page.tsx 에 새 섹션을 끼워 넣으면
- * 리듬·eyebrow·본문 문체 검사를 하나도 받지 않았다(2026-08-28 변형으로 확인).
- * 첫째(히어로)와 마지막(마무리)은 자기 리듬을 갖는 두 예외라 따로 뺀다.
- */
-const HERO = "TransformationHero";
-const CLOSING = "ClosingAction";
-const bodySections = renderedSections()
-  .filter((name) => name !== HERO && name !== CLOSING)
-  .map((name) => `${name}.tsx`);
-
-/**
- * 히어로의 **이어지는 장면**.
- *
- * 정본 시안에서 이 카드는 히어로와 같은 섹션 안에 있다(`AmoraNoteSection.tsx` 머리말).
- * 그래서 자기 eyebrow 도, 보이는 제목도, 위쪽 리듬도 갖지 않는다 — 히어로에 붙는다.
- * 예외를 **이름 하나로 못 박아** 두 번째가 생기면 아래 단언들이 울게 한다.
- */
-const HERO_TAIL = "AmoraNoteSection.tsx";
+function landingDocument(): Document {
+  return new DOMParser().parseFromString(renderToStaticMarkup(createElement(LandingPage)), "text/html");
+}
 
 /** 파일 안의 모든 문자열·템플릿 리터럴. className 이 어디에 적혔든 한 곳으로 모은다. */
 const styleLiterals = (src: string) =>
   [...src.matchAll(/"([^"\n]*)"|`([^`]*)`/gu)].map((m) => m[1] ?? m[2] ?? "");
 
-/** 유틸리티 하나를 낱말 단위로 찾는다. `underline` 이 `underline-offset-4` 에 걸리지 않게. */
-const hasUtility = (text: string, utility: string) =>
-  new RegExp(
-    String.raw`(?<![\w-])(?:[a-z0-9[\]().,%_-]+:)*` + utility + String.raw`(?![\w-])`,
-    "u",
-  ).test(text);
+/** 클래스 문자열을 낱말로 나누고 변형 접두사(`md:` · `hover:` …)를 뗀다. */
+const utilities = (className: string) =>
+  className.split(/\s+/u).filter(Boolean).map((token) => token.replace(/^(?:[\w-]+:)+/u, "").replace(/^!|!$/gu, ""));
 
-/** globals.css @theme 에 적힌 토큰 값. */
-const hexOf = (token: string) =>
-  new RegExp(token + String.raw`:\s*(#[0-9A-Fa-f]{6})`, "u").exec(globals)?.[1] ?? "";
+/** 렌더된 요소가 이 클래스들을 전부 갖는가. 빠진 것만 돌려준다. */
+const missingClasses = (element: Element | null | undefined, expected: readonly string[]) =>
+  expected.filter((token) => !element?.classList.contains(token));
 
 /** WCAG 2.x 상대 휘도 대비. */
 const luminance = (hex: string) => {
@@ -157,156 +92,319 @@ const contrast = (a: string, b: string) => {
 };
 
 describe("landing design system", () => {
-  it("keeps looking at the sections the page really renders", () => {
+  it("keeps looking at the start screen the page really renders", () => {
     // 아래 단언들이 도는 대상 자체가 비어 버리면 전부 빈 통과가 된다.
-    // 렌더 순서에서 뽑은 목록이 실제 파일과 이어지는지 먼저 못 박는다.
-    //
-    // 2026-08-29: 본문 섹션이 일곱에서 **다섯**으로 줄었다(정본 시안 복원 —
-    // 아모라 노트 · 확인 · 커뮤니티 · 지금 되는 것 · 경계). 하한을 그 자리로 옮긴다.
-    // 이 숫자는 "몇 개여야 한다"가 아니라 **대상이 비지 않았다**를 잰다.
-    expect(bodySections.length, "본문 섹션을 못 찾았다 — page.tsx 구조가 바뀌었다")
-      .toBeGreaterThanOrEqual(5);
+    // 2026-11-17 파운더 디자인 아티팩트(원문: 이 디자인 완전 같아야해): <main> 의 첫 자리는 시작 화면이다.
+    // 2026-11-18 파운더 요청("랜딩도 만들어야지 비슷하게", "전체다")으로 그 아래 섹션이 이어진다. 그 섹션들도
+    // 이 파일의 색·글꼴·반경·테두리·그림자 검사를 받아야 하므로, 그리는 섹션이 전부 검사 목록(폴더)에 있는지 본다.
+    const sections = renderedSections();
+    expect(sections[0], "<main> 의 첫 자리가 시작 화면이 아니다").toBe("StartScreen");
     const files = new Set(landingComponentFiles());
-    for (const file of bodySections) {
-      expect(files.has(file), `${file}: page.tsx 가 그리는데 컴포넌트 파일이 없다`).toBe(true);
+    for (const section of sections) {
+      expect(files.has(`${section}.tsx`), `${section} 이 랜딩 폴더 밖에 있어 디자인 검사를 피한다`).toBe(true);
     }
-    expect(renderedSections(), "히어로와 마무리는 페이지의 처음과 끝이다")
-      .toEqual([HERO, ...bodySections.map((f: string) => f.replace(/\.tsx$/u, "")), CLOSING]);
-
-    // 히어로 꼬리는 하나뿐이어야 한다 — 아래 여러 단언이 이 이름으로 예외를 통과시킨다.
-    // 이 섹션이 페이지에서 사라지면 예외도 같이 지워야 하고, 그때 여기가 먼저 운다.
-    expect(bodySections, `${HERO_TAIL} 이 사라졌다면 아래 예외들도 같이 지워야 한다`)
-      .toContain(HERO_TAIL);
+    expect(startScreen.length, "시작 화면 소스를 못 읽었다").toBeGreaterThan(500);
   });
 
-  it("uses no colour that is absent from both the tokens and DESIGN.md", () => {
-    const known = (globals + designMd).toUpperCase();
-    const strays = new Map<string, string[]>();
+  it("paints only with the invitation tokens — no literal colour on any landing surface", () => {
+    // 2026-11-17 파운더 디자인 아티팩트(원문: 이 디자인 완전 같아야해): 색은 `--inv-*` 로만 칠한다.
+    // 옛 판은 종이 팔레트(`--color-paper-*`)만 허락해서 아티팩트의 색을 쓸 수 없었다.
+    // 지키는 것은 같다 — 토큰을 지나지 않는 새 색을 지면에 직접 적지 않는다.
+    const hexes = surfaces.flatMap(([file, src]) =>
+      [...src.matchAll(/#[0-9A-Fa-f]{3,8}(?![0-9A-Fa-f])/gu)].map((m) => `${m[0]} (${file})`));
+    expect(hexes, "hex 색을 지면에 적지 말고 디자인 토큰을 거친다").toEqual([]);
+    const functions = surfaces.flatMap(([file, src]) =>
+      [...src.matchAll(/(?<![\w-])(?:rgba?|hsla?|oklch|lab|color-mix)\(/gu)].map((m) => `${m[0]} (${file})`));
+    expect(functions, "색 함수 리터럴을 지면에 적지 말고 토큰을 거친다").toEqual([]);
 
-    // 3·4·6·8자리를 전부 본다. 옛 판은 6자리만 봐서 `text-[#f0a]` 가 통과했다.
+    // 색을 정하는 유틸리티는 `inv-*` 토큰이거나 초점 고리 토큰이다. 크기·굵기 유틸리티는 색이 아니다.
+    // 굵기·변·크기만 정하는 유틸리티는 색이 아니다(`border-t` · `ring-2` · `ring-offset-2` · `text-[13px]`).
+    const NOT_A_COLOUR = /^(?:border(?:-[trblxy])?(?:-\d+)?|ring(?:-\d+)?|ring-offset-\d+|outline(?:-none|-\d+)?|shadow-(?:raised|overlay|none)|text-(?:left|center|right|justify|balance|pretty|wrap|nowrap|ellipsis|clip)|text-\[(?:\d+(?:\.\d+)?(?:px|rem|em)|clamp\([^\]]+\))\]|bg-(?:transparent|none|cover|contain|center|no-repeat|fixed))$/u;
+    const COLOUR_UTILITY = /^(?:bg|text|border(?:-[trblxy])?|ring-offset|ring|outline|decoration|fill|stroke|from|via|to|divide|shadow|placeholder|caret|accent)-(.+)$/u;
+    const offenders: string[] = [];
+    const tokensUsed = new Set<string>();
     for (const [file, src] of surfaces) {
-      for (const match of src.matchAll(/#([0-9A-Fa-f]{3,8})(?![0-9A-Fa-f])/gu)) {
-        const digits = match[1];
-        if (![3, 4, 6, 8].includes(digits.length)) continue;
-        // 짧은 표기를 6자리로 펴서 비교한다(#f0a === #FF00AA), 알파는 뗀다.
-        const six =
-          digits.length <= 4
-            ? digits.slice(0, 3).split("").map((d: string) => d + d).join("")
-            : digits.slice(0, 6);
-        const hex = `#${six}`.toUpperCase();
-        if (known.includes(hex)) continue;
-        strays.set(match[0], [...(strays.get(match[0]) ?? []), file]);
+      for (const literal of styleLiterals(src)) {
+        for (const utility of utilities(literal)) {
+          if (NOT_A_COLOUR.test(utility)) continue;
+          const m = COLOUR_UTILITY.exec(utility);
+          if (!m) continue;
+          const value = m[1].replace(/\/\d+$/u, "");
+          if (value.startsWith("inv-")) {
+            tokensUsed.add(value);
+            continue;
+          }
+          if (value === "[var(--hb-focus-ring)]") continue;
+          offenders.push(`${file}: ${utility}`);
+        }
       }
     }
+    expect(offenders, "inv 토큰이 아닌 색 유틸리티").toEqual([]);
 
-    expect(
-      [...strays.entries()].map(([hex, files]) => `${hex} (${[...new Set(files)].join(", ")})`),
-      "새 색을 만들지 말고 globals.css @theme와 DESIGN.md에 먼저 토큰으로 올린다",
-    ).toEqual([]);
-
-    // hex 가 아닌 색 함수 리터럴도 같은 사고다 — 토큰을 지나지 않는 새 색이다.
-    // `rgba(184,69,47,.2)` 는 어느 출처에도 없지만 hex 검사에는 걸리지 않았다.
-    const literals = new Map<string, string[]>();
-    for (const [file, src] of surfaces) {
-      for (const m of src.matchAll(/(?<![\w-])(?:rgba?|hsla?|oklch|lab|color-mix)\(/gu)) {
-        literals.set(m[0], [...(literals.get(m[0]) ?? []), file]);
-      }
+    // 쓴 토큰이 정말 있다 — 없는 토큰을 부르면 색 없이 조용히 넘어간다.
+    expect(tokensUsed.size, "inv 토큰을 하나도 못 찾았다 — 표기가 바뀌었다").toBeGreaterThanOrEqual(6);
+    const kebab = (key: string) => key.replace(/[A-Z]/gu, (c) => `-${c.toLowerCase()}`);
+    const paletteNames = new Set(Object.keys(invitationPalette).map((key) => `inv-${kebab(key)}`));
+    for (const token of tokensUsed) {
+      expect(paletteNames.has(token), `${token} 은 invitationPalette 에 없다`).toBe(true);
+      expect(globals, `${token} 유틸리티가 globals.css @theme 에 없다`).toContain(`--color-${token}: var(--${token});`);
     }
-    expect(
-      [...literals.entries()].map(([fn, f]) => `${fn} (${[...new Set(f)].join(", ")})`),
-      "색 함수 리터럴을 컴포넌트에 적지 말고 globals.css 토큰으로 올린다",
-    ).toEqual([]);
 
-    // 2026-08-27: 새 랜딩은 색을 hex로 적지 않고 `var(--color-paper-*)`로 부른다.
-    // 그래서 hex 검사만으로는 "없는 색을 만드는 것"을 더 이상 못 잡는다 — 정의되지
-    // 않은 변수를 부르면 실패가 아니라 **아무 색도 안 입은 채** 조용히 넘어간다.
-    // 같은 사고를 새 표기에서 막는다.
-    //
-    // 2026-08-28: 옛 정규식은 `var\((--color-[a-z0-9-]+)\)` 라 닫는 괄호가 바로
-    // 오는 형태만 봤다. `var(--color-없는것, red)` 처럼 **폴백을 달면** 검사 대상이
-    // 아니게 되고, 폴백 값이 그대로 화면에 칠해졌다. 폴백 자체를 금지한다 —
-    // 폴백이 필요하다는 것은 토큰이 없다는 뜻이고, 그러면 토큰을 먼저 올려야 한다.
-    let varRefs = 0;
-    const undefinedVars = new Map<string, string[]>();
-    const fallbacks = new Map<string, string[]>();
+    // 정의되지 않은 변수나 폴백 달린 변수도 같은 사고다.
     for (const [file, src] of surfaces) {
       for (const m of src.matchAll(/var\(\s*(--[a-z0-9-]+)\s*(,[^)]*)?\)/gu)) {
-        varRefs += 1;
-        if (m[2]) fallbacks.set(m[0], [...(fallbacks.get(m[0]) ?? []), file]);
-        if (globals.includes(`${m[1]}:`)) continue;
-        undefinedVars.set(m[1], [...(undefinedVars.get(m[1]) ?? []), file]);
+        expect(m[2], `${file}: ${m[0]} — var() 폴백은 토큰을 지나지 않는 값이다`).toBeUndefined();
+        if (m[1] === "--start-squeeze") continue; // 시작 화면이 자기 상자에서 정하는 길이 변수
+        expect(globals, `${file}: ${m[1]} 이 globals.css 에 없다`).toContain(`${m[1]}:`);
       }
     }
-    // 정규식이 낡으면 0건을 세고도 통과한다(2026-08-28 실측 115건 · 2026-08-29 실측
-    // 102건 — 섹션 여섯이 없어졌으니 줄어든 것이 맞다).
-    expect(varRefs, "var() 참조를 하나도 못 찾았다 — 표기가 바뀌었다").toBeGreaterThanOrEqual(60);
-    expect(
-      [...undefinedVars.entries()].map(([v, f]) => `${v} (${[...new Set(f)].join(", ")})`),
-      "globals.css에 없는 색 변수를 부르면 그 자리는 색이 없는 채로 렌더된다",
-    ).toEqual([]);
-    expect(
-      [...fallbacks.entries()].map(([v, f]) => `${v} (${[...new Set(f)].join(", ")})`),
-      "var() 폴백은 토큰을 지나지 않는 색이다 — 토큰을 먼저 올린다",
-    ).toEqual([]);
   });
 
-  it("promotes every colour the landing invented into real tokens", () => {
-    // 2026-08-05: 이 둘은 랜딩이 각각 9곳·7곳에서 쓰고 있었는데 어느 출처에도 없었다.
-    // 2026-08-27 개편으로 랜딩은 더 이상 이 둘을 쓰지 않지만, 승격 결정은 DESIGN.md
-    // 결정 로그에 남아 있고 제품 화면이 이어받았다. 지우지 않고 그대로 고정한다.
-    for (const [token, hex] of [
-      ["--color-rose-700", "#7D5753"],
-      ["--color-ivory-blush", "#F3E9DD"],
-    ]) {
-      expect(globals, `${token}이 @theme에 없다`).toContain(`${token}: ${hex}`);
-      expect(designMd, `${hex}가 DESIGN.md 팔레트에 기록되지 않았다`).toContain(hex);
+  it("no longer carries the retired paper notebook on the landing", () => {
+    // 2026-11-17 파운더 디자인 아티팩트(원문: 이 디자인 완전 같아야해): 종이 노트(테이프·펜 밑줄·
+    // 꽃 가지·손글씨)는 시작 화면에 없다. 섞여 돌아오면 두 디자인이 한 화면에 선다.
+    for (const [file, src] of surfaces) {
+      expect(src, `${file}: 종이 팔레트가 돌아왔다`).not.toMatch(/--color-paper-/u);
+      expect(src, `${file}: 옛 랜딩 클래스가 돌아왔다`).not.toMatch(/(?<![\w-])landing-(?:root|display|hand|tape|pen|note|circle|bloom|leaf|gyp|stem)(?![\w-])/u);
+      expect(src, `${file}: 꽃 장식이 돌아왔다`).not.toMatch(/LandingBloom/u);
+      expect(src, `${file}: CSS 그라데이션으로 새 장식을 그린다`).not.toMatch(/(?:radial|linear|conic)-gradient/u);
     }
-
-    // 이번 판이 발명한 것은 종이와 필기구다(`--color-paper-*`). 같은 실수 —
-    // 화면에는 쓰는데 어느 출처에도 없는 색 — 를 반복하지 않았는지 본다.
-    // 세 지면이 실제로 부르는 토큰만 센다(폴백 형태도 같이 잡는다).
-    const paperTokens = [
-      ...new Set(
-        surfaces.flatMap(([, s]) =>
-          [...s.matchAll(/var\(\s*(--color-paper-[a-z-]+)\s*(?:,[^)]*)?\)/gu)].map((m) => m[1]),
-        ),
-      ),
-    ].sort();
-    // 정규식이 낡으면 0개를 세고도 통과한다. 하한을 둔다(2026-08-27 실측 12종 →
-    // 2026-08-29 실측 11종, 섹션이 줄어 한 종이 안 쓰인다).
-    expect(paperTokens.length, "paper 토큰을 하나도 못 찾았다 — 표기가 바뀌었다").toBeGreaterThanOrEqual(10);
-
-    const missing: string[] = [];
-    for (const token of paperTokens) {
-      const hex = hexOf(token);
-      expect(hex, `${token}이 globals.css @theme에 없다`).not.toBe("");
-      if (!designMd.toUpperCase().includes(hex.toUpperCase())) missing.push(`${token} ${hex}`);
-    }
-    expect(missing, "DESIGN.md Color 절 'Paper — landing only'에 값을 먼저 올린다").toEqual([]);
   });
 
-  it("keeps entry controls keyboard accessible and confirmation samples inert", () => {
+  it("sets type in the artifact's three next/font families only", () => {
+    // 2026-11-17 파운더 디자인 아티팩트(원문: 이 디자인 완전 같아야해): 고운바탕(한글 제목) +
+    // Cormorant Garamond(로고·숫자) + Noto Sans KR(본문). 옛 판은 Pretendard 하나만 허락했다.
+    for (const [loader, variable] of [
+      ["Gowun_Batang", "--font-invitation-serif"],
+      ["Cormorant_Garamond", "--font-invitation-numeral"],
+      ["Noto_Sans_KR", "--font-invitation-sans"],
+    ] as const) {
+      expect(layout, `${loader} 를 next/font 로 싣지 않는다`).toContain(loader);
+      expect(layout, `${variable} 변수가 없다`).toContain(`variable: "${variable}"`);
+    }
+    for (const [role, variable] of [
+      ["serif", "--font-invitation-serif"],
+      ["numeral", "--font-invitation-numeral"],
+      ["sans", "--font-invitation-sans"],
+    ] as const) {
+      expect(globals, `font-inv-${role} 가 next/font 변수를 읽지 않는다`).toMatch(
+        new RegExp(String.raw`--font-inv-${role}:\s*var\(${variable}\)`, "u"),
+      );
+    }
+
+    // 랜딩 지면의 글꼴 유틸리티는 그 셋뿐이다. 임의 글꼴·다른 역할 글꼴을 섞지 않는다.
+    const families: string[] = [];
+    for (const [file, src] of components.concat([["app/landing/page.tsx", rendered(LANDING_PAGE)]])) {
+      for (const literal of styleLiterals(src)) {
+        for (const utility of utilities(literal)) {
+          if (!/^font-/u.test(utility)) continue;
+          if (/^font-(?:normal|medium|semibold|bold|light|thin|black|extrabold|extralight)$/u.test(utility)) continue;
+          if (/^font-inv-(?:serif|numeral|sans)$/u.test(utility)) continue;
+          families.push(`${file}: ${utility}`);
+        }
+      }
+      expect(src, `${file}: Pretendard 를 다시 부른다`).not.toMatch(/pretendard/iu);
+    }
+    expect(families, "세 글꼴 밖의 글꼴 유틸리티").toEqual([]);
+
+    // 렌더 결과: 첫 화면은 Noto Sans KR, 제목은 고운바탕, 로고는 Cormorant.
     const doc = landingDocument();
-    for (const id of ["hero-title", "closing-title"]) {
-      const section = doc.getElementById(id)?.closest("section");
-      expect(section, id).toBeTruthy();
-      const primary = section?.querySelector<HTMLAnchorElement>('a[href="/wedding/chat"]');
-      expect(primary?.textContent?.trim()).toBe(landingContent.hero.primary.label);
-      expect(primary?.getAttribute("tabindex")).not.toBe("-1");
-      expect(primary?.getAttribute("aria-disabled")).not.toBe("true");
-      expect(primary?.className).toMatch(/focus-visible:(?:ring|outline)/u);
-      expect(spaceAt(primary!, "min-h", 320)).toBeGreaterThanOrEqual(44);
+    const h1 = doc.querySelector("h1");
+    expect(h1?.closest(".font-inv-sans"), "첫 화면이 Noto Sans KR 위에 있지 않다").toBeTruthy();
+    expect(h1?.classList.contains("font-inv-serif"), "제목이 고운바탕이 아니다").toBe(true);
+    const wordmark = [...doc.querySelectorAll("main span")].find((span) => span.textContent === "amora");
+    expect(wordmark?.classList.contains("font-inv-numeral"), "로고가 Cormorant 가 아니다").toBe(true);
+    expect(doc.querySelector("footer")?.classList.contains("font-inv-sans"), "바닥글이 Noto Sans KR 이 아니다").toBe(true);
+  });
+
+  it("keeps the product-wide Pretendard roles intact outside the landing", () => {
+    // 랜딩 밖(제품 화면)의 계약이라 그대로 남긴다. 랜딩이 세 글꼴로 바뀌었다고 제품 글꼴
+    // 역할까지 건드리면 안 된다.
+    expect(designMd).toContain("Pretendard");
+    const faces = [...globals.matchAll(/@font-face\s*\{([^}]+)\}/gu)].map((match) => match[1]);
+    expect(faces).toHaveLength(1);
+    expect(faces[0]).toContain('font-family: "Pretendard Variable"');
+    expect(faces[0]).toContain("font-weight: 100 900");
+    expect(faces[0]).toContain("font-display: swap");
+    const path = /url\("([^"]+)"\)/u.exec(faces[0])?.[1];
+    expect(path).toBe("/fonts/pretendard/PretendardVariable.woff2");
+    const fontPath = resolve(APP_ROOT, "public" + path);
+    expect(existsSync(fontPath)).toBe(true);
+    expect(readFileSync(fontPath).subarray(0, 4).toString()).toBe("wOF2");
+    const rawLayout = source("src/app/layout.tsx");
+    expect(rawLayout).toContain(`href="${path}"`);
+    expect(rawLayout).toContain('rel="preload"');
+    expect(rawLayout).toContain('crossOrigin="anonymous"');
+    for (const role of ["sans", "serif", "sans-kr", "serif-kr", "display", "jakarta"]) {
+      expect(globals).toContain(`--font-${role}: var(--font-pretendard);`);
     }
-    const confirm = doc.getElementById("confirm");
-    expect(confirm).toBeTruthy();
-    expect(confirm?.textContent).toContain(landingContent.confirm.sample.state);
-    expect(confirm?.querySelectorAll("button,input,select,textarea")).toHaveLength(0);
-    for (const label of [landingContent.confirm.sample.confirm,
-      landingContent.confirm.sample.later]) {
-      const control = [...confirm!.querySelectorAll("span")].find((span) => span.textContent === label);
-      expect(control?.closest('[aria-hidden="true"]'), label).toBeTruthy();
-      expect(control?.closest("a,button,[role=button]")).toBeNull();
-      expect(control?.getAttribute("tabindex")).toBeNull();
+    expect(globals).toMatch(/\.amora-workspace,\s*\.planning-workspace\s*\{[^}]*font-family:\s*var\(--font-pretendard\)/u);
+  });
+
+  it("shows the one bokeh photo full-bleed behind the start screen", () => {
+    // 2026-11-17 파운더 디자인 아티팩트(원문: 이 디자인 완전 같아야해): 첫 화면 바탕은 보케 사진이다.
+    // 옛 판은 "히어로에 그림 없음"을 요구했다. 지키는 것을 바꾼다 — 그림은 **그 사진 한 장**이고,
+    // 장식이라 읽어 주지 않으며, 화면을 꽉 채운다.
+    const photo = "/images/amora/bokeh-blush.webp";
+    expect(existsSync(resolve(APP_ROOT, "public" + photo)), "보케 사진 파일이 없다").toBe(true);
+    expect(startScreen).toContain(`"${photo}"`);
+
+    // 2026-11-18: 시작 화면 아래 섹션에 예시 화면이 들어와 <main> 전체가 아니라 시작 화면 상자 안을 센다.
+    const doc = landingDocument();
+    const startFrame = doc.querySelector('section[aria-labelledby="start-title"]')?.parentElement;
+    expect(startFrame, "시작 화면 상자를 못 찾았다").toBeTruthy();
+    const images = [...(startFrame?.querySelectorAll("img, picture, video, image") ?? [])];
+    expect(images, "첫 화면의 그림이 보케 사진 한 장이 아니다").toHaveLength(1);
+    const img = images[0] as HTMLImageElement;
+    expect(decodeURIComponent(img.getAttribute("src") ?? ""), "보케 사진이 아니다").toContain(photo);
+    expect(img.getAttribute("alt"), "장식 사진이 읽힌다").toBe("");
+    expect(img.classList.contains("object-cover"), "사진이 화면을 덮지 않는다(cover)").toBe(true);
+    expect(img.getAttribute("sizes")).toBe("100vw");
+    // next/image 의 fill 은 인라인 높이 100% 라 전역 이미지 높이 규칙(높이 자동)을 이긴다.
+    expect(img.getAttribute("style") ?? "", "사진이 상자를 꽉 채우지 않는다").toMatch(/height:\s*100%/u);
+    expect(img.getAttribute("loading"), "첫 화면 사진을 늦게 받는다").toBe("eager");
+
+    // 사진은 시작 화면 상자 안에서만 깔린다 — 바탕색은 사진이 오기 전의 #F3E4E1 이다.
+    const frame = img.parentElement;
+    expect(missingClasses(frame, ["relative", "overflow-hidden", "bg-inv-blush"])).toEqual([]);
+    expect(invitationPalette.blush).toBe("#F3E4E1");
+  });
+
+  it("matches the artifact values at 390 × 844", () => {
+    // 2026-11-17 파운더 디자인 아티팩트(원문: 이 디자인 완전 같아야해). `Main.dc.html` 의 인라인
+    // 스타일을 그대로 옮겼는지 렌더 결과의 클래스로 본다.
+    const doc = landingDocument();
+    const card = doc.querySelector('section[aria-labelledby="start-title"]');
+    const frame = card?.parentElement;
+    // 줄높이는 아티팩트처럼 기본값(normal)이다. 본문 1.6 을 물려받으면 "시작하기" 글자가 1px 위로 뜬다.
+    expect(missingClasses(frame, ["relative", "h-[100svh]", "font-inv-sans", "leading-[normal]", "text-inv-ink"])).toEqual([]);
+
+    // 위: 64px 아래, 사이 4px. 로고 40px Cormorant 이탤릭 500 흰색 자간 0.01em,
+    // 한 줄 12px 자간 0.08em 흰색 90%.
+    const top = frame?.children[1];
+    expect(missingClasses(top, ["absolute", "top-0", "flex-col", "items-center", "gap-1", "pt-[calc(64px_-_var(--start-squeeze)*0.4)]"])).toEqual([]);
+    const [wordmark, tagline] = [...(top?.children ?? [])];
+    expect(wordmark?.textContent).toBe("amora");
+    expect(missingClasses(wordmark, ["font-inv-numeral", "text-[40px]", "font-medium", "italic", "tracking-[0.01em]", "text-inv-white"])).toEqual([]);
+    expect(tagline?.textContent).toBe("두 사람의 웨딩 비서");
+    expect(missingClasses(tagline, ["text-[12px]", "tracking-[0.08em]", "text-inv-white/90"])).toEqual([]);
+
+    // 오브: 위에서 210px, 150px, 차분한 모습.
+    const orbRow = frame?.children[2];
+    expect(missingClasses(orbRow, ["absolute", "inset-x-0", "top-[calc(210px_-_var(--start-squeeze))]", "flex", "justify-center"])).toEqual([]);
+    const orb = orbRow?.querySelector("svg");
+    expect(orb?.getAttribute("width")).toBe("150");
+    expect(orb?.getAttribute("data-amora-orb")).toBe("calm");
+
+    // 카드: 좌우·아래 12px, 흰색 86%, 24px 흐림, 반경 36px, 안쪽 32·26·22px, 사이 14px.
+    expect(missingClasses(card, [
+      "absolute", "inset-x-3", "bottom-3", "flex", "flex-col", "gap-3.5", "rounded-[36px]",
+      "bg-inv-white/86", "backdrop-blur-[24px]", "px-[26px]", "pt-8", "pb-[22px]",
+    ])).toEqual([]);
+    expect(invitationRadius.sheet).toBe(36);
+
+    // 제목: 고운바탕 400, 27px(390px 에서), 줄 1.45, 자간 -0.01em. 두 줄.
+    const h1 = card?.querySelector("h1");
+    expect(missingClasses(h1, ["font-inv-serif", "font-normal", "leading-[1.45]", "tracking-[-0.01em]"])).toEqual([]);
+    const size = [...(h1?.classList ?? [])].find((token) => token.startsWith("text-[clamp("));
+    expect(size, "제목 크기를 못 찾았다").toBeTruthy();
+    const [min, preferred, max] = /clamp\(([\d.]+)px,([\d.]+)vw,([\d.]+)px\)/u.exec(size ?? "")?.slice(1).map(Number) ?? [];
+    expect(max, "제목이 27px 을 넘거나 못 미친다").toBe(27);
+    // 390px 에서 정확히 27px 이어야 한다 — 6.923vw 는 26.9997px 로 계산돼 한 끗 모자랐다(실측).
+    expect(Math.min(max, Math.max(min, (preferred * 390) / 100)), "390px 에서 27px 이 아니다").toBe(27);
+
+    // 본문: 15px 줄 1.7 #4E4852.
+    const body = card?.querySelector("p");
+    expect(missingClasses(body, ["text-[15px]", "leading-[1.7]", "text-inv-body"])).toEqual([]);
+    expect(invitationPalette.body).toBe("#4E4852");
+
+    // 시작하기: 먹색 알약 56px 반경 28px 16px 굵게, 위로 10px 더. 예시: 글자 링크 44px 14px 500.
+    const start = card?.querySelector('a[href="/wedding/chat"]');
+    expect(missingClasses(start, ["h-14", "rounded-[28px]", "text-[16px]", "font-bold", "bg-inv-ink", "text-inv-white", "mt-2.5"])).toEqual([]);
+    const example = card?.querySelector('a[href="/example"]');
+    expect(missingClasses(example, ["h-11", "text-[14px]", "font-medium", "text-inv-ink", "hover:text-inv-muted"])).toEqual([]);
+    expect(start?.compareDocumentPosition(example!) ?? 0, "예시가 시작하기보다 앞에 있다").toBe(4);
+  });
+
+  it("keeps the artifact positions until the viewport is too short, then pulls the top up", () => {
+    // 아티팩트 틀은 844px 전화기 화면이고 브라우저의 첫 화면은 그보다 짧다. 시작 화면은 카드를
+    // 아래에 붙인 채 위쪽(로고 여백·오브 위치)만 당긴다. 그 식을 그대로 옮겨 숫자로 잰다.
+    const squeeze = (height: number, threshold: number) => Math.min(100, Math.max(0, threshold - height));
+    expect(startScreen).toContain("[--start-squeeze:clamp(0px,749px_-_100svh,100px)]");
+    expect(startScreen).toContain("md:[--start-squeeze:clamp(0px,777px_-_100svh,100px)]");
+    expect(startScreen).toContain("min-h-[649px]");
+    expect(startScreen).toContain("md:min-h-[677px]");
+
+    // 844px(아티팩트 틀)와 749px 이상에서는 아티팩트 값 그대로다.
+    for (const height of [844, 932, 749]) {
+      expect(64 - squeeze(height, 749) * 0.4, `${height}px 에서 로고 여백이 64px 이 아니다`).toBe(64);
+      expect(210 - squeeze(height, 749), `${height}px 에서 오브가 210px 이 아니다`).toBe(210);
+    }
+    // 카드(390px 폭에서 약 361px)는 아래 12px 에 붙는다. 그보다 짧은 화면에서도 오브와
+    // 카드 사이가 16px 아래로 줄지 않는다. 649px 아래로는 화면이 길어져 같은 배치를 유지한다.
+    const CARD = 361;
+    for (const height of [748, 720, 700, 667, 649, 600, 560]) {
+      const frame = Math.max(height, 649);
+      const orbBottom = 210 - squeeze(frame, 749) + 150;
+      const cardTop = frame - 12 - CARD;
+      expect(cardTop - orbBottom, `${height}px 에서 카드가 오브를 덮는다`).toBeGreaterThanOrEqual(15.9);
+      const wordBlockBottom = 64 - squeeze(frame, 749) * 0.4 + 70;
+      expect(210 - squeeze(frame, 749) - wordBlockBottom, `${height}px 에서 오브가 로고와 겹친다`).toBeGreaterThanOrEqual(15.9);
+    }
+  });
+
+  it("adapts to wide screens without a second layout", () => {
+    // 2026-11-17 파운더 디자인 아티팩트(원문: 이 디자인 완전 같아야해): 넓은 화면도 같은 구성이다.
+    // 사진이 화면 전체를 덮고, 로고·오브는 가운데, 카드는 너비 440px 로 가운데 아래.
+    const doc = landingDocument();
+    const card = doc.querySelector('section[aria-labelledby="start-title"]');
+    expect(missingClasses(card, ["mx-auto", "max-w-[440px]", "md:bottom-10"])).toEqual([]);
+    // 넓은 화면에서 다른 구성(여러 단·다른 순서)을 만들지 않는다.
+    for (const literal of styleLiterals(startScreen)) {
+      expect(literal, "시작 화면이 넓은 화면에서 단을 나눈다").not.toMatch(/(?:^|\s)(?:\w+:)?(?:grid-cols-|columns-|flex-row)/u);
+    }
+  });
+
+  it("draws every landing action with the shared Button — no hand-made button", () => {
+    // 2026-11-17 파운더 디자인 아티팩트(원문: 이 디자인 완전 같아야해): 알약 버튼은 공유 `Button`
+    // 하나에서 나온다. 랜딩이 알약을 손으로 다시 칠하면 같은 버튼이 두 벌이 된다.
+    for (const [file, src] of components) {
+      expect(src, `${file}: 맨 <button> 을 만든다`).not.toMatch(/<button\b/u);
+      expect(src, `${file}: role="button" 을 손으로 단다`).not.toMatch(/role="button"/u);
+    }
+    const tracked = rendered("src/components/landing/redesign/TrackedLandingLink.tsx");
+    expect(tracked, "계측 링크가 공유 Button 을 쓰지 않는다").toMatch(/import Button from "@\/components\/ui\/Button"/u);
+    for (const file of ["StartScreen.tsx", "LandingAccountActions.tsx"]) {
+      const src = components.find(([name]) => name === file)?.[1] ?? "";
+      expect(src, `${file}: 알약을 손으로 칠한다`).not.toMatch(/rounded-\[(?:28|22|17)px\]|bg-inv-ink/u);
+    }
+  });
+
+  it("keeps entry controls keyboard accessible", () => {
+    const doc = landingDocument();
+    for (const href of ["/wedding/chat", "/example", "/login?redirect=%2Fwedding%2Fchat"]) {
+      const link = doc.querySelector<HTMLAnchorElement>(`a[href="${href}"]`);
+      expect(link, href).toBeTruthy();
+      expect(link?.getAttribute("tabindex")).not.toBe("-1");
+      expect(link?.getAttribute("aria-disabled")).not.toBe("true");
+      expect(link?.className).toMatch(/focus-visible:(?:ring|outline)/u);
+      expect(link?.closest('[hidden],[aria-hidden="true"],.hidden,.sr-only'), href).toBeNull();
+      // 44px: 알약 56·44 는 상자로, 34 는 보이지 않는 누름 영역으로 채운다.
+      const tall = ["h-14", "h-11"].some((token) => link?.classList.contains(token));
+      expect(tall || link?.classList.contains("tap-area"), `${href} 의 누름 영역이 44px 보다 작다`).toBe(true);
+    }
+  });
+
+  it("keeps small copy readable on its surface", () => {
+    // 바닥글의 작은 글자(#6B6570)는 바닥(#FBFAF8)에서, 본문(#4E4852)과 먹색은 흰 카드에서
+    // 4.5:1 을 넘는다. 사진 위의 흰 로고·한 줄은 아티팩트가 정한 장식 글자라 여기서 재지 않는다.
+    for (const [foreground, background] of [
+      [invitationPalette.muted, invitationPalette.paper],
+      [invitationPalette.body, invitationPalette.white],
+      [invitationPalette.ink, invitationPalette.white],
+      [invitationPalette.ink, invitationPalette.blush],
+    ]) {
+      expect(contrast(foreground, background), `${foreground} on ${background}`).toBeGreaterThanOrEqual(4.5);
     }
   });
 
@@ -317,554 +415,61 @@ describe("landing design system", () => {
       const oneOff = [...src.matchAll(/(?:drop-)?shadow-\[[^\]]*\]/gu)].map((m) => m[0]);
       expect(oneOff, `${file}에 일회성 그림자가 있다`).toEqual([]);
     }
-
-    // 알아 두고 통과시키는 것: 노트 카드의 들림은 globals.css `.landing-note`의
-    // `box-shadow: 0 10px 24px rgba(58,42,39,.07)`이다. 두 토큰 어느 쪽도 아니지만
-    // 이 규칙이 막는 것은 "컴포넌트마다 다시 정하는 것"이고, 저건 공유 프리미티브
-    // 한 곳에 한 번 적힌 값이라 여기서 잡지 않는다. 두 번째가 생기면 그때가 드리프트다.
-    //
-    // 2026-08-28: **"두 번째가 생기면"을 아무도 안 보고 있었다.** globals.css 랜딩
-    // 블록에 일회성 box-shadow 를 하나 더 넣어도 컴포넌트만 읽는 위 검사는 조용했다.
-    // 랜딩 블록의 box-shadow 를 통째로 세어 하나로 못 박는다.
-    const shadows = [...landingCss.matchAll(/box-shadow:\s*([^;]+);/gu)].map((m) =>
-      m[1].replace(/\s+/gu, " ").trim(),
-    );
-    expect(shadows, "랜딩 CSS 블록의 elevation 은 노트 카드 한 줄뿐이다").toEqual([
-      "0 10px 24px rgba(58, 42, 39, 0.07)",
-    ]);
   });
 
-  it("renders the approved section spacing and fluid content width", () => {
-    const doc = landingDocument();
-    const sections = [...doc.querySelectorAll("main > section")].filter(
-      (section) => !section.querySelector("#hero-title, #closing-title"),
-    );
-    expect(sections.length).toBeGreaterThan(4);
-    for (const section of sections) {
-      for (const edge of ["pt", "pb"]) {
-        const joinedPadding = section.id === "trust" && edge === "pb" ? [32, 52]
-          : section.id === "faq" ? [44, 64] : [44, 92];
-        expect(spaceAt(section, edge, 320), section.getAttribute("aria-labelledby") ?? "")
-          .toBe(joinedPadding[0]);
-        expect(spaceAt(section, edge, 1440)).toBe(joinedPadding[1]);
-      }
-    }
-    const heroShell = doc.getElementById("hero-title")?.closest("section")?.firstElementChild;
-    expect(heroShell).toBeTruthy();
-    expect(spaceAt(heroShell!, "px", 320)).toBe(18);
-    const maxWidth = /max-w-\[(\d+)px\]/u.exec(heroShell!.className)?.[1];
-    expect(Number(maxWidth) - 2 * spaceAt(heroShell!, "px", 1440)).toBe(1200);
-    expect(heroShell?.classList.contains("w-full")).toBe(true);
-  });
-
-  it("loads one local variable font across landing and product font roles", () => {
-    expect(designMd).toContain("Pretendard");
-    const faces = [...globals.matchAll(/@font-face\s*\{([^}]+)\}/gu)]
-      .map((match) => match[1]);
-    expect(faces).toHaveLength(1);
-    expect(faces[0]).toContain('font-family: "Pretendard Variable"');
-    expect(faces[0]).toContain("font-weight: 100 900");
-    expect(faces[0]).toContain("font-display: swap");
-    const path = /url\("([^"]+)"\)/u.exec(faces[0])?.[1];
-    expect(path).toBe("/fonts/pretendard/PretendardVariable.woff2");
-    const fontPath = resolve(APP_ROOT, "public" + path);
-    expect(existsSync(fontPath)).toBe(true);
-    expect(readFileSync(fontPath).subarray(0, 4).toString()).toBe("wOF2");
-    const layout = source("src/app/layout.tsx");
-    expect(layout).toContain(`href="${path}"`);
-    expect(layout).toContain('rel="preload"');
-    expect(layout).toContain('crossOrigin="anonymous"');
-    for (const role of ["sans", "serif", "sans-kr", "serif-kr", "display", "jakarta"]) {
-      expect(globals).toContain(`--font-${role}: var(--font-pretendard);`);
-    }
-    expect(globals).toMatch(/\.landing-root\s*\{[^}]*font-family:\s*var\(--font-pretendard\)/u);
-    expect(globals).toMatch(/\.landing-display\s*\{[^}]*font-family:\s*var\(--font-pretendard\)/u);
-    expect(globals).toMatch(/\.landing-root \.landing-hand\s*\{[^}]*font-family:\s*var\(--font-pretendard\)/u);
-    expect(globals).toMatch(/\.amora-workspace,\s*\.planning-workspace\s*\{[^}]*font-family:\s*var\(--font-pretendard\)/u);
-    expect(landingDocument().querySelector(".landing-root")).toBeTruthy();
-  });
-
-  it("keeps the existing heading and short tape copy weights", () => {
-    const doc = landingDocument();
-    expect(globals).toMatch(/\.landing-display\s*\{[^}]*font-weight:\s*400/u);
-    expect(globals).toMatch(/\.landing-hand\s*\{[^}]*font-weight:\s*700/u);
-    for (const heading of doc.querySelectorAll("h1,h2")) {
-      expect(heading.classList.contains("landing-display"), heading.textContent ?? "").toBe(true);
-      expect(heading.className).not.toMatch(/\bfont-(?:medium|semibold|bold|black)\b/u);
-    }
-    const accentCopy = [...doc.querySelectorAll(".landing-hand")];
-    expect(accentCopy).toHaveLength(1);
-    expect(accentCopy[0].classList.contains("landing-tape")).toBe(true);
-    expect(accentCopy[0].textContent?.trim()).toBe(landingContent.hero.tape);
-    expect(accentCopy[0].textContent?.length).toBeLessThan(60);
-  });
-
-  it("renders section labels and keeps small-copy colours readable", () => {
-    const doc = landingDocument();
-    const labels = Object.entries(landingContent)
-      .filter(([key]) => key !== "blockedReasons" && key !== "community")
-      .flatMap(([, block]) => "eyebrow" in block && typeof block.eyebrow === "string"
-        ? [block.eyebrow] : []);
-    expect(labels.length).toBeGreaterThan(3);
-    for (const label of labels) {
-      const matches = [...doc.querySelectorAll("span,p")].filter(
-        (element) => element.textContent?.trim() === label,
-      );
-      expect(matches.length, label).toBeGreaterThan(0);
-      expect(matches.some((element) => !element.closest('[hidden],[aria-hidden="true"],.hidden,.sr-only')),
-        label).toBe(true);
-    }
-    for (const [foreground, background] of [
-      ["--color-paper-tape-ink", "--color-paper-tape"],
-      ["--color-paper-ink-faint", "--color-paper-sheet"],
-      ["--color-rose-700", "--color-ivory-warm"],
-      ["--color-paper-on-ink-faint", "--color-paper-ink"],
-    ]) {
-      expect(contrast(hexOf(foreground), hexOf(background)), foreground).toBeGreaterThanOrEqual(4.5);
-    }
-  });
-
-  it("draws every standalone secondary link from one recipe", () => {
-    // 옛 구조: secondaryLink / secondaryLinkOnDark / inlineLink 세 상수.
-    // 새 랜딩에는 어두운 지면이 없어졌고(전부 종이 위다) on-dark 갈래는 지킬 대상이
-    // 사라졌다. 문단 안 44px 금지는 아래 별도 단언이 계속 지킨다.
-    //
-    // 남은 것은 문장 밖에 홀로 서는 링크다. 공유 심볼이 없으니 기본 행동 버튼과
-    // 같은 방법으로 잰다: 같은 역할은 같은 실루엣이어야 한다.
-    //
-    // 2026-08-28: 옛 판은 `underline && inline-flex` 둘 다 가진 클래스만 골랐다.
-    // 그래서 **`inline-flex` 없이 새로 조립한 밑줄 링크**는 다섯 토큰을 하나도 안
-    // 지켜도 검사 대상이 아니었다.
-    //
-    // ## 2026-08-29: 밑줄의 표기가 바뀌었다 — `underline` 은 이제 0곳이다
-    //
-    // 정본 시안의 링크 밑줄은 유틸리티가 아니라 globals.css 의 `.landing-pen`
-    // (파란 펜 `border-bottom: 2px`)이다. `underline` 만 찾던 옛 판은 **0개를 세고
-    // 하한에서 멈췄다** — 표기가 바뀌면 검사가 조용히 사라진다는, 이 파일의 옛
-    // 실패 방식 그대로다. 그래서 "밑줄"을 뜻으로 다시 정의한다: `.landing-pen`.
-    // 전제를 가정하지 않고 먼저 확인한다 — 저 클래스가 밑줄을 안 그리면 이 재조준이
-    // 성립하지 않는다.
-    expect(globals, ".landing-pen 이 밑줄을 그리지 않는다 — 이 검사의 전제가 깨졌다").toMatch(
-      /\.landing-pen\s*\{[^}]*border-bottom:\s*2px/u,
-    );
-
-    // "홀로 선다"도 뜻으로 잰다 — `<p>` 를 열자마자 링크가 오면 그 문단은 링크
-    // 하나짜리다(문장 안에 흐르는 링크는 앞에 글자가 먼저 온다).
-    // ⚠️ 2026-08-29: 이 탐지가 `<p>` 로 시작하고 className 이 **인라인 문자열**인
-    // 경우만 잡았다. 그래서 링크 하나가 토큰 하나로 빠져나간다 —
-    // `<div><Link className={cx(...)}>` 로 쓰면 검사 대상이 아예 아니게 된다.
-    //
-    // 처음에는 래퍼를 `<p|div|li>` 로 넓혔는데 **그건 버튼과 내비까지 삼켰다**
-    // (히어로 CTA 둘·푸터 링크 목록·헤더 내비 — 전부 자기 레시피가 따로 있는
-    // 다른 종류다). 래퍼는 이 링크가 무엇인지 말해 주지 않는다.
-    //
-    // 그래서 표식으로 판정한다: **파란 펜 밑줄(`landing-pen`)을 단 상호작용 요소**가
-    // 이 레시피의 대상이다. 바로 아래 검사가 "밑줄은 누를 수 있는 것에만"을 지키므로
-    // 두 정의가 서로를 받쳐 준다. 래퍼를 바꿔도 빠져나갈 수 없다.
-    const PEN_LINK = /<(?:Link|TrackedLandingLink|a)\b([^>]*?)>/gu;
-    const inlineClass = (attrs: string) =>
-      /className="([^"]*)"/u.exec(attrs) ?? /className=\{`([^`]*)`\}/u.exec(attrs);
-
-    const links: Array<readonly [string, string]> = [];
-    const unreadable: string[] = [];
-    for (const [file, src] of surfaces) {
-      // 문장 안에 흐르는 펜 링크는 다른 종류다(높이를 가지면 안 된다). 그런 링크가
-      // 사는 문단은 링크 말고도 글자를 갖는다 — 그 문단의 링크는 여기서 뺀다.
-      const inSentence = new Set<string>();
-      for (const [paragraph] of src.matchAll(/<p\b[\s\S]*?<\/p>/gu)) {
-        const besides = paragraph
-          .replace(/<(?:Link|TrackedLandingLink|a)[\s>][\s\S]*?<\/(?:Link|TrackedLandingLink|a)>/gu, "")
-          .replace(/<[^>]*>/gu, "")
-          .trim();
-        if (besides === "") continue;
-        for (const [, attrs] of paragraph.matchAll(PEN_LINK)) inSentence.add(attrs);
-      }
-
-      for (const [, attrs] of src.matchAll(PEN_LINK)) {
-        // 2026-09-03: 표식이 둘이 됐다. 종이 위에서는 파란 펜 밑줄(`landing-pen`),
-        // 잉크 위에서는 보통 밑줄(`underline`)이다 — 펜 파랑(#35638A)은 잉크 바탕에서
-        // 1.9:1 이라 아예 안 보인다. **표식은 여전히 "밑줄"** 이고, 지면이 늘어난 것이다.
-        if (!/landing-pen|(?<![\w-])underline(?![\w-])/u.test(attrs)) continue;
-        if (inSentence.has(attrs)) continue;
-        const found = inlineClass(attrs);
-        if (found) links.push([file, found[1]] as const);
-        else if (/className=\{/u.test(attrs)) {
-          unreadable.push(`${file}: className={…} 로 조립한 홀로 서는 링크`);
-        }
-      }
-    }
-    expect(
-      unreadable,
-      "홀로 서는 링크의 클래스를 표현식으로 조립하면 레시피를 대조할 수 없다 — "
-        + "문자열로 적어라.",
-    ).toEqual([]);
-    expect(links.length, "홀로 서는 링크를 못 찾았다 — 표기가 바뀌었다").toBeGreaterThanOrEqual(2);
-
-    // 위반을 모아서 한 번에 단언한다. 링크마다 즉시 던지면 **먼저 나온 위반 하나가
-    // 나머지를 가린다** — 실제로 그것 때문에 새로 심은 위반이 안 보였다(2026-08-28).
-    const offenders: string[] = [];
-    for (const [file, c] of links) {
-      // 지면마다 레시피가 하나씩이다. 어느 지면인지는 **색**이 말한다.
-      //
-      // 2026-08-29: 레시피가 `text-[15px]` 였다. 15px 은 DESIGN.md 스케일 밖이라
-      // 바로 위 타입 검사가 같은 값을 "빚"으로 부르고 있었다 — 가드 둘이 서로 다른
-      // 값을 요구하면 어느 쪽을 맞춰도 다른 쪽이 깨진다. 스케일에 있는 값으로 통일.
-      const onInk = c.includes("--color-paper-on-ink");
-      // 히어로의 두 번째 길은 가입 CTA보다 낮은 위계의 단독 링크다.
-      // 읽을 수 있는 크기·색과 44px 대상은 유지한다.
-      const missing = (file === "TransformationHero.tsx" || file === "ConfirmSection.tsx"
-        ? ["min-h-11", "text-[14px]", "text-[var(--color-paper-pen)]", "focus-visible:ring-2"]
-        : onInk
-          ? ["underline", "text-[14px]", "text-[var(--color-paper-on-ink-faint)]"]
-          : ["landing-pen", "text-[16px]", "text-[var(--color-paper-ink)]"]
-      ).filter((token: string) => !c.includes(token));
-      if (missing.length > 0) offenders.push(`${file}: ${missing.join(", ")} 없음`);
-    }
-    expect(offenders, "홀로 서는 링크를 레시피 없이 새로 조립했다").toEqual([]);
-
-    // 토큰이 다 있어도 조합이 갈릴 수 있다. 실루엣을 마지막으로 본다.
-    //
-    // **여기에 빚이 둘 있다.** 늘어나는 것만 막고, 고치는 것은 이 파일 밖이다.
-    //  1. 웨이트가 semibold/medium 둘로 갈렸다 — 같은 역할인데 두 격식이다.
-    //  2. **44px 대상이 사라졌다.** 옛 레시피는 `min-h-11` 을 요구했다(WCAG 2.5.8 —
-    //     문장 밖 링크는 크기 요건을 받는다). 새 링크 둘 다 높이를 갖지 않는다.
-    //     `(높이 없음)` 이 그 빈자리를 눈에 보이게 적어 둔 것이다. 지워서 통과시키지
-    //     마라 — 지우면 44px 가 사라진 사실 자체가 이 파일에서 없어진다.
-    const shapes = new Map<string, string[]>();
-    for (const [file, c] of links) {
-      const key = [
-        /(?<![\w-])font-(?:normal|medium|semibold|bold)(?![\w-])/u.exec(c)?.[0] ?? "(웨이트 없음)",
-        /(?<![\w-])min-h-\S+/u.exec(c)?.[0] ?? "(높이 없음)",
-      ].join(" ");
-      shapes.set(key, [...(shapes.get(key) ?? []), file].sort());
-    }
-    expect(
-      Object.fromEntries(shapes),
-      "홀로 서는 링크의 실루엣이 늘었다 — 늘리기 전에 왜 같은 역할이 다른 물체인지 적어라",
-    // 2026-08-29: 위에 적혀 있던 빚 둘을 갚았다.
-    //  1. 웨이트가 semibold/medium 으로 갈려 있던 것을 `font-medium` 하나로. 둘은 같은
-    //     역할(문장 밖 보조 링크)이고, 보조 링크가 본문보다 굵을 이유가 없다.
-    //  2. `min-h-11` 을 되돌렸다. 실측 22px 이라 WCAG 2.5.8 의 AA 최소(24px)에도 못
-    //     미쳤다. 아래 "문단 안 44px 금지"는 **문장 안** 링크만 막도록 근거대로 좁혔다 —
-    //     링크만 든 문단에는 벌어질 문장이 없다.
-    // 실루엣이 **하나**인 것이 맞는 상태다. 갈래를 늘리려면 왜 같은 역할이 다른 물체인지
-    // 여기에 적어라.
-    ).toEqual({
-      // 2026-09-03: 커뮤니티 카드의 "커뮤니티 둘러보기" 가 이 레시피로 들어왔다.
-      // 실루엣이 **하나**인 것은 그대로다 — 지면(종이/잉크)만 다르고 물체는 같다.
-      "font-medium min-h-11": [
-        "BoundariesSection.tsx",
-        "CommunitySection.tsx",
-        "TransformationHero.tsx",
-      ],
-      // 관리 카드 안의 목적지 링크는 해당 도구를 여는 행동으로 44px과 포커스를 유지한다.
-      "font-semibold min-h-11": ["ConfirmSection.tsx"],
-    });
-  });
-
-  it("never re-declares the eyebrow type size inline", () => {
-    // 옛 구조는 sectionEyebrowTypography(12px·bold·자간)를 두었는데 히어로가 그 세
-    // 유틸리티를 그대로 인라인 복제하고 있었다. 새 구조에서 그 자리는 globals.css의
-    // `.landing-tape`다 — 크기·웨이트가 CSS 한 곳에 있다.
-    //
-    // 글꼴을 통일한 뒤에도 기존 16px 크기를 유지한다. 이 단언이 지키는 것은
-    // 특정 숫자가 아니라 **크기를 한 곳에서만 정한다**는 것이므로 값을 옮겨 적되,
-    // `\d+px` 같은 느슨한 패턴으로 바꾸지 않는다 — 그러면 소리 없이 흔들린다.
-    expect(globals, ".landing-tape가 크기를 고정하지 않는다").toMatch(
-      /\.landing-tape\s*\{[^}]*font-size:\s*16px/u,
-    );
-    expect(globals, ".landing-tape가 웨이트를 고정하지 않는다").toMatch(
-      /\.landing-tape\s*\{[^}]*font-weight:\s*700/u,
-    );
-
-    // 랜딩 블록은 @layer 밖에 있고(globals.css 1114~), cascade layer 규칙상 layer
-    // 밖 선언은 Tailwind가 @layer utilities에 넣는 유틸리티를 **항상** 이긴다.
-    // 그래서 테이프를 단 요소에 `text-[Npx]`를 같이 걸면 그 값은 렌더에 아무 영향이
-    // 없고, 소스만 다른 크기를 약속한다. 옛 검사가 잡던 것과 같은 사고다 —
-    // eyebrow 크기를 컴포넌트가 다시 선언하는 것. 웨이트도 같은 이유로 죽는다.
-    for (const [file, src] of surfaces) {
-      const lying = styleLiterals(src).filter(
-        (c: string) =>
-          hasUtility(c, "landing-tape")
-          && (/text-\[\d+(?:\.\d+)?(?:px|rem)\]/u.test(c)
-            || /(?<![\w-])font-(?:normal|medium|semibold|bold)(?![\w-])/u.test(c)),
-      );
-      expect(lying, `${file}: 테이프 eyebrow에 건 크기·웨이트는 .landing-tape가 이겨서 죽는다`).toEqual([]);
-    }
-  });
-
-  it("keeps the closing CTA ahead of its conditions, and keeps the conditions", () => {
-    // 조건 네 개를 한 덩어리로 버튼 앞에 쌓으면 실측에서 페이지의 마지막 행동이
-    // 접힘선 아래 53px(1280) · 266px(390)로 밀렸다. 지우지 않고 나눈 상태를 고정한다.
-    //
-    // 2026-08-27 재조준: `startConditions` 배열이 없어졌다. 조건은 이제
-    // `landingContent.closing.note` 한 문단이고 통째로 버튼 **뒤**에 있다. 위치
-    // 문제는 그래서 더 세게 풀렸다. 이 단언이 계속 지키는 것은 두 가지다.
-    //  - 마지막 행동이 조건 더미에 밀리지 않는다(순서).
-    //  - 조건이 사라지지 않는다 — 접근성·고지 의무는 위치가 아니라 존재다.
-    //
-    // 2026-08-29: 버튼 앞 설명 문단(`closing.body`)이 없어졌다. 정본 시안의 마무리는
-    // **손글씨 한 줄 + 행동 둘**이다("여기까지 읽은 사람에게 설명을 더 얹지 않는다").
-    // 그래서 앞자리 검사 대상을 body 문단에서 **제목 한 줄**로 옮긴다 — 지키는 것은
-    // 같다: 조건이 행동보다 앞에 쌓이지 않는다.
-    const closing = sourceOf("ClosingAction.tsx");
-    const titleIndex = closing.indexOf("{closing.title}");
-    const ctaIndex = closing.indexOf("closing.primary.href");
-    const noteIndex = closing.indexOf("{closing.note}");
-
-    expect(titleIndex, "마무리 한 줄이 없다").toBeGreaterThan(-1);
-    expect(ctaIndex, "마무리 CTA가 없다").toBeGreaterThan(-1);
-    expect(noteIndex, "조건 문단이 없다").toBeGreaterThan(-1);
-    expect(titleIndex).toBeLessThan(ctaIndex);
-    expect(ctaIndex).toBeLessThan(noteIndex);
-
-    // 조건이 전부 남아 있어야 한다.
-    //
-    // `closing` 블록을 먼저 잘라 낸 뒤 그 안의 note를 본다. 파일 전체에서 `note:`를
-    // 찾으면 첫 note부터 파일 끝까지가 잡혀 **다른 섹션의 문장이 대신 답한다** —
-    // 실제로 확인 섹션의 문장이 마무리 조건인 척 통과했다.
-    //
-    // 2026-08-28: 옛 판은 정규식으로 블록을 잘라 놓고 `not.toBe("")` 로 지켰다.
-    // 경계가 사라지면 빈 문자열이 아니라 **엉뚱한 범위**가 나오므로 그 가드는
-    // 울지 않는다. 못 찾으면 던지는 `contentBlock()` 으로 갈아탔다.
-    //
-    // 2026-08-29: **"계정 베타" 요구를 지웠다.** 2026-08-29 파운더 결정으로 베타라는
-    // 틀 자체를 화면에서 쓰지 않는다(CLAUDE.md — "베타 우리 안할거야 알아둬"). 개념이
-    // 없어진 자리라 옮길 곳이 없다. 다만 **없어진 것은 틀이지 고지가 아니다** — 그
-    // 문장이 지고 있던 두 가지(무엇이 로그인 없이 열리나 · 지금은 결제를 요청하지
-    // 않는다)는 그대로 요구한다. "베타가 화면에 아예 없다" 쪽 방향은
-    // `landingSignupIsOpen.test.ts` 가 정본으로 들고 있으므로 여기서 겹쳐 세지 않는다.
-    const closingBlock = contentBlock("closing", "footer");
-    const note = /\bnote:\s*([\s\S]*)$/u.exec(closingBlock)?.[1] ?? "";
-    expect(note, "마무리 조건 문단을 못 찾았다 — landingContent 구조가 바뀌었다").not.toBe("");
-    for (const phrase of ["무료 도구는 가입 없이 이용할 수 있어요", "아모라와 예산·할 일·일정 관리에는 가입이 필요해요"]) {
-      expect(note.includes(phrase), `마무리 조건에서 "${phrase}"가 사라졌다`).toBe(true);
-    }
-
-    // 카피에 남아 있는 것과 화면이 그리는 것은 다른 질문이다. 조건 문단을 그리는
-    // `<p>` 를 지우고 카피만 남겨도 위 검사는 전부 통과한다 — 그래서 렌더 쪽도 본다.
-    expect(closing, "조건 문단을 그리는 <p> 가 없다").toMatch(/<p[^>]*>\{closing\.note\}<\/p>/u);
-  });
-
-  it("keeps the four free-tool links keyboard accessible", () => {
-    const doc = landingDocument();
-    const links = [...doc.querySelectorAll("#now a")];
-    expect(links).toHaveLength(4);
-    for (const link of links) {
-      expect(spaceAt(link, "min-h", 320), link.textContent ?? "").toBeGreaterThanOrEqual(44);
-      expect(link.className).toMatch(/focus-visible:(?:ring|outline)/u);
-    }
-  });
-
-  it("keeps structural borders to the named paper tokens", () => {
-    // 도입 전에는 3개 역할에 18종의 테두리 토큰이 있었고, #243832의 /10·/12·/14·/16은
-    // 합성하면 RGB 4단위 차이라 육안으로 구분되지 않았다.
-    //
-    // 2026-08-27 재조준: 새 랜딩은 알파를 섞지 않고 역할마다 이름 붙은 토큰을 쓴다.
-    // 그래서 허용 목록이 "밝은 지면 /10·/14, 어두운 지면 /12·/18"에서 아래 다섯으로
-    // 바뀌었다. 알파 접미사(`…)]/40`)가 다시 붙으면 그때부터 육안으로 구분 안 되는
-    // 단계가 늘기 시작하므로 함께 막는다.
-    //
-    //   edge     지면 경계(헤더·섹션·카드 테두리)
-    //   divider  목록·문단 구분선
-    //   outline  보조 버튼 테두리
-    //   ink      hover 강조
-    //   pen      인용 곁블록의 왼쪽 규칙선
-    //
-    // 2026-08-28: 옛 정규식은 `border-` 바로 뒤에 색이 오는 형태만 봤다. 그래서
-    // **변을 지정한 색**(`border-t-[var(--color-paper-mark)]`)이 통째로 빠져나갔다.
-    // 변 지정을 받아들이되 색 자리만 떼어 내 같은 목록으로 잰다.
-    const allowed = new Set([
-      "[var(--color-paper-edge)]",
-      "[var(--color-paper-divider)]",
-      "[var(--color-paper-outline)]",
-      "[var(--color-paper-ink)]",
-      "[var(--color-paper-pen)]",
-      // 2026-09-03: 어두운 띠 안의 구분선. 위 다섯은 전부 종이 위에서 보이라고 고른
-      // 값이라 잉크 바탕에서는 하나도 안 보인다. 목록이 늘어난 것이 아니라 **지면이
-      // 하나 늘었고** 그 지면의 구분선이 하나 생긴 것이다.
-      //
-      //   onInkRule  잉크 위의 목록·섹션 구분선
-      "[var(--color-paper-on-ink-rule)]",
-    ]);
-    // 색 자리만 본다. `border-l-2`·`border-t`처럼 변·굵기를 정하는 유틸리티는
-    // 색이 아니므로 팔레트 이름을 세 글자 이상으로 요구해 걸러 낸다(`l-2`가
-    // `[a-z]+-\d+`에 걸려 색으로 세어진 적이 있다). arbitrary 값 중 길이만 적은
-    // 것(`border-[1px]`)도 색이 아니므로 뺀다.
-    const structural = new Map<string, string[]>();
-    for (const [file, src] of surfaces) {
-      for (const m of src.matchAll(
-        /(?<![\w-])(?:border|divide)(?:-(?:[trblxyse]|top|bottom|left|right))?-(\[[^\]]+\]|white|black|current|transparent|[a-z]{3,}-\d+)(\/\d+)?(?![\w-])/gu,
-      )) {
-        const colour = m[1];
-        if (colour.startsWith("[") && !/var\(|#|rgb|hsl/u.test(colour)) continue; // 길이 값
-        if (allowed.has(colour) && !m[2]) continue;
-        structural.set(m[0], [...(structural.get(m[0]) ?? []), file]);
-      }
-    }
-    expect(
-      [...structural.entries()].map(([t, f]) => `${t} (${[...new Set(f)].join(", ")})`),
-      "구조 테두리는 이름 붙은 paper 토큰 다섯으로만 그린다(알파 변형 금지)",
-    ).toEqual([]);
-  });
-
-  it("keeps radii within the product scale or the documented landing exception", () => {
-    const exception = /radii \(([^)]+)\)/u.exec(designMd)?.[1];
-    expect(exception).toBeTruthy();
-    const [radii, tails] = (exception ?? "").split(";");
-    const approved = [...radii.matchAll(/\d+(?:\.\d+)?/gu)]
-      .map((match) => Number(match[0]));
-    const bubbleTails = new Set([...(tails ?? "").matchAll(/\d+(?:\.\d+)?/gu)]
-      .map((match) => Number(match[0])));
-    const allowed = new Set([6, 8, 12, 16, 20, 28, ...approved]);
+  it("keeps radii on the artifact scale", () => {
+    // 2026-11-17 파운더 디자인 아티팩트(원문: 이 디자인 완전 같아야해): 반경은 아티팩트 값
+    // (`invitationRadius`)뿐이다. 옛 판은 제품 눈금(6·8·12…)과 랜딩 예외만 허락했다.
+    const allowed = new Set<number>(Object.values(invitationRadius));
     for (const [file, src] of surfaces) {
       const off = [...src.matchAll(/rounded(?:-[a-z]{1,2})?-\[(\d+(?:\.\d+)?)(px|rem)\]/gu)]
-        .filter((m) => {
-          const size = m[2] === "px" ? Number(m[1]) : Number(m[1]) * 16;
-          return !allowed.has(size) && !(bubbleTails.has(size) && /^rounded-b[rl]-/u.test(m[0]));
-        })
+        .filter((m) => !allowed.has(m[2] === "px" ? Number(m[1]) : Number(m[1]) * 16))
         .map((m) => m[0]);
       expect(off, file).toEqual([]);
     }
   });
 
-  it("keeps the price-source disclosure the quoted aside used to carry", () => {
-    // DESIGN.md 2026-08-05: 같은 `border-l-2`가 히어로에서는 출처(커플이 한 말),
-    // PreparationResult에서는 목적지(반영된 기록)를 뜻해 의미가 정반대였다.
-    // 규칙선은 "인용된 출처"에만 쓰고, 반영 결과는 sage로 표시하기로 했다.
-    //
-    // 2026-08-27: 히어로의 blockquote와 PreparationResult가 둘 다 없어졌다. 랜딩에
-    // 남은 `border-l-2`는 공시 가격 곁블록 하나뿐이었고, 그것이 곧 "인용된 출처"였다 —
-    // 한국소비자원 참가격을 옮겨 왔다고 말하는 자리.
-    //
-    // 2026-08-29: `NotForVendorsSection` 이 삭제되면서 그 곁블록도 없어졌다.
-    // **표시가 없어진 것이지 고지가 없어진 것이 아니다** — 공시 가격은 부가 기능이라
-    // `availableNow.cards[2]` 카드 한 장으로 내려갔고(파운더: "메인 기능을 소개해야지"),
-    // 출처·기준일·한계는 그 카드의 작은 글씨와 푸터 고지가 나눠 진다. 그래서 이
-    // 단언은 **표시를 세는 것에서 고지를 지키는 것으로** 자리를 옮긴다.
-    //
-    // 규칙선 쪽 절반은 계속 산다: 같은 표시가 다시 두 뜻을 지지 않도록, `border-l-2`
-    // 를 쓰는 자리는 인용 곁블록(`<aside>`)이어야 한다. 지금은 쓰는 곳이 0이라 이
-    // 고리는 비어 있고, 되살아나면 그때 운다.
+  it("keeps structural borders to the invitation hairlines", () => {
+    // 테두리 색은 아티팩트의 가는 선 토큰뿐이다(구역 나눔선·카드 고리·칩 선).
+    const allowed = new Set(["inv-divider", "inv-row-line", "inv-ring", "inv-chip-line"]);
+    const off: string[] = [];
     for (const [file, src] of surfaces) {
-      if (!src.includes("border-l-2")) continue;
-      expect(src, `${file}: 2px 규칙선은 인용 곁블록(<aside>)에만 쓴다`).toMatch(
-        /<aside[^>]*border-l-2/u,
-      );
+      for (const literal of styleLiterals(src)) {
+        for (const utility of utilities(literal)) {
+          const m = /^(?:border|divide)(?:-[trblxy])?-(inv-[a-z-]+)(\/\d+)?$/u.exec(utility);
+          if (m && (!allowed.has(m[1]) || m[2])) off.push(`${file}: ${utility}`);
+        }
+      }
     }
+    expect(off, "가는 선 토큰 밖의 테두리").toEqual([]);
+  });
 
-    // 공시 가격 카드가 진 고지 — 출처와 기준일, 그리고 "판정하지 않는다".
-    const priceCard = contentBlock("availableNow", "community");
-    for (const phrase of [
-      "한국소비자원", // 출처
-      "2025년 11월 공시 기준", // 기준일
-      "가격의 적정 여부는 평가하지 않아요", // 품질·적정성을 판정하지 않는다
-    ]) {
-      expect(priceCard.includes(phrase), `공시 가격 카드에서 "${phrase}"가 사라졌다`).toBe(true);
-    }
-
-    // 푸터가 진 나머지 — 출처 한 줄과 **지역 편차**. 곁블록이 없어졌다고 이 문장이
-    // 같이 사라지면, 사용자가 "우리 지역엔 없네"를 우리 잘못으로 읽는다
-    // (`LandingFooter.tsx` 머리말에 같은 이유가 적혀 있다).
-    const footerBlock = contentBlock("footer");
-    for (const phrase of [
-      "가격 출처: 한국소비자원 참가격, 2025년 11월 공시 기준",
-      "지역별 등록 업체 수가 달라요",
-      "취소·환불 규정은 원문으로 제공해요",
-    ]) {
-      expect(footerBlock.includes(phrase), `푸터 고지에서 "${phrase}"가 사라졌다`).toBe(true);
+  it("keeps landing transitions inside the DESIGN.md motion band", () => {
+    // DESIGN.md: micro 80ms / short 160-220ms / medium 300-450ms. Tailwind 기본 150ms 는 어느
+    // 밴드에도 들지 않는다. 요소별로 본다 — 파일 어딘가에 duration 이 하나 있다고 통과시키지 않는다.
+    for (const [file, src] of surfaces) {
+      for (const literal of styleLiterals(src)) {
+        const transitions = utilities(literal).filter((token) => /^transition(?:-|$)/u.test(token) && token !== "transition-none");
+        if (transitions.length === 0) continue;
+        expect(utilities(literal).some((token) => /^duration-/u.test(token)), `${file}: duration 없는 전이 "${literal}"`).toBe(true);
+      }
     }
   });
 
-  it("ornaments an eyebrow only where the ornament carries meaning", () => {
-    // eyebrow 여덟 개에 장식이 네 종류(6px 점, 32px 규칙선 ×2, 16px 체크,
-    // 48px 원형 메달리언) 섞이고 셋은 맨몸이었다. 뜻이 없는 장식은 섹션마다
-    // 다른 격식을 만들 뿐이라 없앤다.
-    //
-    // 2026-08-27: 뜻을 지던 글리프 둘의 자리가 사라졌다 — 히어로는 eyebrow 자체가
-    // 없어졌고(Sparkles = 아모라), 커뮤니티 안내 섹션은 컴포넌트가 삭제됐다
-    // (BadgeCheck = 릴리스 경계). 그래서 "이 글리프는 남아야 한다" 절반은 지킬
-    // 대상이 없다. 남은 절반 — 뜻 없는 장식 금지 — 은 그대로 지킨다.
-    // 랜딩 전체의 lucide 글리프는 모바일 메뉴의 Menu·X 두 개뿐이고, 둘 다 eyebrow가
-    // 아니라 버튼 아이콘이다.
-    //
-    // 2026-08-28: 옛 판은 `h-px w-8` 처럼 **폭까지 정확히** 적힌 것만, 그것도
-    // `className="…"`(큰따옴표) 안에서만 찾았다. 폭을 `w-10` 으로 바꾸거나 템플릿
-    // 리터럴 className 으로 옮기면 같은 장식이 그대로 통과했다. 이제 모양으로 잰다 —
-    // 실선 한 줄(h-px + 폭)과 정원(rounded-full + 높이·폭)이 장식이다.
-    for (const [file, src] of surfaces) {
-      const decorations = styleLiterals(src).filter((c: string) => {
-        // 머리카락 굵기(2px 이하)만 규칙선이다. `h-[150px]` 은 부케 그림 자리라
-        // 장식 규칙선이 아니다 — 여기를 안 좁혔더니 꽃 SVG 가 걸렸다(2026-08-28).
-        const rule = /(?<![\w-])h-(?:px|\[(?:0?\.5|1|1\.5|2)px\])(?![\w-])/u.test(c)
-          && /(?<![\w-])w-\S+/u.test(c);
-        const disc = hasUtility(c, "rounded-full")
-          && /(?<![\w-])h-\S+/u.test(c)
-          && /(?<![\w-])w-\S+/u.test(c);
-        return rule || disc;
-      });
-      expect(decorations, `${file}: 뜻 없는 eyebrow 장식`).toEqual([]);
-    }
+  it("stops the orb under reduced motion", () => {
+    // 오브는 세 무리가 돌고 빛이 숨 쉰다. 움직임 줄이기 설정이면 멈춰야 한다(globals.css).
+    const block = /@media \(prefers-reduced-motion: reduce\)\s*\{[^{}]*\.amora-orb[^{}]*\{\s*animation:\s*none;?\s*\}/u.exec(globals);
+    expect(block, "움직임 줄이기에서 오브가 멈추지 않는다").toBeTruthy();
+    const doc = landingDocument();
+    expect(doc.querySelector("main svg.amora-orb"), "시작 화면 오브가 공유 오브가 아니다").toBeTruthy();
+    expect(doc.querySelector("main svg.amora-orb")?.getAttribute("aria-hidden"), "이름이 옆에 있는 오브가 또 읽힌다").toBe("true");
   });
 
   it("never tries to centre an inline-flex recipe with mx-auto", () => {
-    // 마무리 섹션의 CTA와 로그인 링크가 둘 다 `inline-flex`인데 각자 `mx-auto`로
-    // 가운데 정렬한다고 믿고 있었다. inline 요소에 auto margin은 아무 일도 하지
-    // 않으므로 둘은 같은 line box에 나란히 앉았고, 1280 실측에서 로그인 링크가
-    // 버튼 위로 겹쳤다. 가운데 정렬과 세로 쌓기는 부모 컨테이너의 몫이다.
-    //
-    // 2026-08-27 재조준: 이름으로 부르던 레시피(primaryAction*·secondaryLink*)가
-    // 없어져 심볼로는 못 찾는다. 대신 `inline-flex`와 `mx-auto`가 같은 클래스에
-    // 함께 있는 경우를 전부 본다 — 레시피를 손으로 펼쳐 쓴 경우까지 잡히므로
-    // 옛 검사보다 넓다.
+    // inline 요소에 auto margin 은 아무 일도 하지 않는다. 가운데 정렬은 부모의 몫이다.
     for (const [file, src] of surfaces) {
-      const bad = styleLiterals(src).filter(
-        (c: string) => c.includes("mx-auto") && c.includes("inline-flex"),
-      );
+      const bad = styleLiterals(src).filter((c: string) => c.includes("mx-auto") && c.includes("inline-flex"));
       expect(bad, `${file}: inline-flex 요소에 mx-auto를 걸었다`).toEqual([]);
     }
-  });
-  it("파란 펜 밑줄은 누를 수 있는 것에만 붙는다", () => {
-    // `.landing-pen` 은 globals.css 에서 `border-bottom: 2px solid …` 다. 이 랜딩에서
-    // 밑줄은 **"누를 수 있다"** 는 뜻이고, 바로 위 레시피 검사도 그 조합을 "홀로 서는
-    // 링크"로 못 박는다.
-    //
-    // ⚠️ 여기 "정본 시안도 `.pen` 을 실제 링크 두 곳에만 썼다" 고 적혀 있었다. **거꾸로다.**
-    // 시안은 `.pen` 을 두 번 쓰는데 둘 다 문장 안 `<span class="pen">` 이고 링크가 아니다
-    // (NotebookBest.html:1452). 구현이 그 두 자리를 진짜 링크로 만든 것이다
-    // (`AvailableNowSection.tsx`). 시안이 근거가 아니라 **이 저장소의 좁힌 약속**이 근거다.
-    //
-    // 2026-08-29 실측: `CommunitySection` 의 카테고리 이름 다섯이 그 밑줄을 달고
-    // 있었는데 링크가 아니었다. 화면에서는 링크와 구분되지 않아 눌러도 아무 일이
-    // 없다 — 이 저장소가 "이 서비스는 고장났다고 읽는 실패" 라고 부르는 종류다.
-    //
-    // ⚠️ 여기 손글씨 예외(`landing-hand` 와 함께면 통과)가 있었고, 근거로 "히어로의 질문
-    // 한 줄이 그렇다" 를 들었다. **그 자리는 존재하지 않았다** — `TransformationHero` 의
-    // `landing-pen` 은 0곳이고, `landing-hand`+`landing-pen` 동시 사용은 저장소 전체에서
-    // `AmoraNoteSection.tsx:36` **하나뿐**이었다. 예외가 그 한 줄을 합법화하려고 만들어졌고,
-    // 그 한 줄은 정본 시안(1348행)에 밑줄이 없다. 그래서 줄과 예외를 함께 없앴다.
-    // 이제 규칙에 예외가 없다 — 밑줄은 누를 수 있는 것에만.
-    const offenders: string[] = [];
-    for (const [file, src] of surfaces) {
-      // 여는 태그를 하나씩 훑는다. 태그 이름과 클래스를 같이 봐야 판정이 된다.
-      for (const [tag] of src.matchAll(/<[A-Za-z][^>]*>/gu)) {
-        if (!/landing-pen/u.test(tag)) continue;
-        const isInteractive = /^<(?:a|button|Link|TrackedLandingLink)\b/u.test(tag);
-        if (isInteractive) continue;
-        offenders.push(`${file}: ${tag.slice(0, 72)}`);
-      }
-    }
-    expect(
-      offenders,
-      "누를 수 없는 것에 파란 펜 밑줄을 붙였다 — 링크와 구분이 안 된다. "
-        + "강조는 굵기·색으로 하고, 밑줄은 링크에만 남겨라.",
-    ).toEqual([]);
-
-    // 밑줄이 실제로 어딘가에는 쓰이고 있어야 이 검사가 살아 있다.
-    const penCount = surfaces.reduce(
-      (n, [, src]) => n + [...src.matchAll(/landing-pen/gu)].length,
-      0,
-    );
-    expect(penCount, "랜딩에서 landing-pen 이 사라졌다 — 이 검사가 헛돈다").toBeGreaterThan(0);
   });
 });

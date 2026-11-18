@@ -7,6 +7,7 @@ import {
   FIRST_RUN_TUTORIAL_SESSION_KEY,
   FIRST_RUN_TUTORIAL_STEPS,
   shouldShowFirstRunTutorial,
+  type FirstRunTutorialStepId,
 } from "@hanbang/shared";
 import SpotlightTutorial, {
   type SpotlightStep,
@@ -42,11 +43,18 @@ import LoungeFirstHello from "./LoungeFirstHello";
 const DEVICE_STORAGE_KEY = "hanbang_first_run_tutorial_done";
 export const LOUNGE_TUTORIAL_REPLAY_EVENT = "hanbang:replay-lounge-tutorial";
 
-const STEPS: SpotlightStep[] = FIRST_RUN_TUTORIAL_STEPS.map((step) => ({
-  selector: `[data-tutorial-target="${step.id}"]`,
-  title: step.title,
-  description: step.body,
+const STEPS: readonly { id: FirstRunTutorialStepId; step: SpotlightStep }[] = FIRST_RUN_TUTORIAL_STEPS.map((step) => ({
+  id: step.id,
+  step: {
+    selector: `[data-tutorial-target="${step.id}"]`,
+    title: step.title,
+    description: step.body,
+  },
 }));
+
+function stepsFor(stepIds: readonly FirstRunTutorialStepId[] | undefined): SpotlightStep[] {
+  return STEPS.filter(({ id }) => !stepIds || stepIds.includes(id)).map(({ step }) => step);
+}
 
 function readShownThisSession(): boolean {
   try {
@@ -74,22 +82,34 @@ function readDoneOnThisDevice(): boolean {
   }
 }
 
-export default function FirstRunLoungeTutorial() {
+/**
+ * `stepIds` 를 주면 그 단계만 순서대로 띄운다. 청첩장 홈(2026-11-17 파운더 디자인 아티팩트, 원문: 이 디자인 완전
+ * 같아야해)에는 옛 라운지의 "오늘 챙길 한 가지"(lounge-focus)와 "준비 도구 칸"(lounge-tools) 자리가 없다. 없는
+ * 앵커를 남겨 두면 엔진이 그 단계마다 화면 전체를 어둡게 덮었다가 건너뛰므로, 있는 자리만 넘긴다(앱 홈과 같은 둘).
+ * 없으면 네 단계 모두다.
+ */
+export default function FirstRunLoungeTutorial({
+  stepIds,
+}: {
+  stepIds?: readonly FirstRunTutorialStepId[];
+} = {}) {
   const { profile, isDemo } = useAuthStore();
   if (isDemo || !profile?.id || !profile.onboarding_completed) return null;
 
   return (
     <>
       <LoungeFirstHello key={`hello-${profile.id}`} ownerId={profile.id} />
-      <OwnedLoungeTutorial key={`tutorial-${profile.id}`} />
+      <OwnedLoungeTutorial key={`tutorial-${profile.id}`} stepIds={stepIds} />
     </>
   );
 }
 
-function OwnedLoungeTutorial() {
+function OwnedLoungeTutorial({ stepIds }: { stepIds?: readonly FirstRunTutorialStepId[] }) {
   const { profile, isDemo } = useAuthStore();
   const userId = profile?.id ?? null;
   const onboardingCompleted = profile?.onboarding_completed === true;
+  // 안내 도중 단계 목록이 바뀌면 엔진의 순번이 어긋난다. 이 화면이 떠 있는 동안 한 번 정한 목록을 쓴다.
+  const [steps] = useState(() => stepsFor(stepIds));
   const [armed, setArmed] = useState(false);
   const [replayCount, setReplayCount] = useState(0);
 
@@ -180,7 +200,7 @@ function OwnedLoungeTutorial() {
   return (
     <SpotlightTutorial
       key={replayCount}
-      steps={STEPS}
+      steps={steps}
       storageKey={DEVICE_STORAGE_KEY}
       mode="auto"
       // 라운지의 카드들이 자리를 잡은 뒤에 앵커를 잰다. 너무 이르면 첫 스텝이

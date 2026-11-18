@@ -109,11 +109,25 @@ test("완료 요청은 상태만 바꾼다", () => {
 });
 
 // 화면이 이 로직을 실제로 부르지 않으면 위 검사는 아무것도 지키지 않는다.
-test("카드가 라운지에 실제로 걸려 있다", () => {
-  assert.match(lounge, /import AmoraActionsCard from "@\/components\/lounge\/AmoraActionsCard";/u);
-  assert.match(lounge, /amoraActions=\{<AmoraActionsCard refreshVersion=\{careRefreshVersion\} \/>\}/u);
+//
+// 2026-11-17 파운더 디자인 아티팩트(원문: 이 디자인 완전 같아야해): 홈은 `InvitationHome` 이고 이 카드를 걸지 않는다.
+// 열린 함께 쓰는 할 일은 서버(`/api/invitation/home`)가 "두 분이 정할 것" 목록으로 넣는다 — 같은 할 일이 두 목록에
+// 나오지 않게 한 곳만 둔다. 위 로직 검사는 이 카드가 다시 걸릴 때를 위해 남긴다. 걸리면 이 검사가 빨개진다.
+test("홈은 이 카드 대신 서버가 만든 '두 분이 정할 것'으로 열린 할 일을 보인다", () => {
+  assert.doesNotMatch(lounge, /AmoraActionsCard/u);
+  assert.match(lounge, /<InvitationHome\b/u);
+  assert.match(lounge, /model=\{home\.home\}/u);
+  const homeRoute = readFileSync(
+    fileURLToPath(new URL("../../../web/src/app/api/invitation/home/route.ts", import.meta.url)),
+    "utf8",
+  );
+  assert.match(homeRoute, /readAmoraActionSnapshot\(supabase, context\.coupleId, getAmoraActions\(progress\), "open"\)/u);
+  // 할 일을 못 읽으면 빈 목록으로 숨기지 않고 알린다. 홈은 그때 다시 불러오라는 줄을 둔다.
+  // 조건을 묻는 맨 앞 줄(첫 대화를 건너뛴 커플)이 있어도 그 줄은 남고, "정할 것이 없어요"만 그 줄과 어긋나 뺀다.
+  assert.match(homeRoute, /degraded\.push\("decisions"\)/u);
+  assert.match(lounge, /decisionsNote=\{home\.degraded\.includes\("decisions"\)\s*\? HOME_STATE_COPY\.decisionsUnavailable\s*: conditionsMissing \? null : HOME_STATE_COPY\.noDecisions\}/u);
+  // 카드 자체는 지우지 않았다.
   assert.match(experience, /amoraActions\?: ReactNode;/u);
-  assert.match(experience, /\{amoraActions \? \(/u);
 });
 
 test("요청을 시작 시점 사용자에게 묶는다", () => {

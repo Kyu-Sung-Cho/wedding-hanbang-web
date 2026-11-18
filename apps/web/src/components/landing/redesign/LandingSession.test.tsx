@@ -62,7 +62,16 @@ import LandingHeader from "./LandingHeader";
 
 const signedOut: AuthResult = { data: { user: null }, error: null };
 const signedIn: AuthResult = { data: { user: { id: "verified-member" } }, error: null };
+const LOGIN = 'a[href="/login?redirect=%2Fwedding%2Fchat"]';
 
+/**
+ * 첫 화면 오른쪽 위 로그인 알약의 세션 계약.
+ *
+ * 2026-11-17 파운더 디자인 아티팩트(원문: 이 디자인 완전 같아야해)로 머리줄은 로그인 알약
+ * 하나가 됐다(옛 머리줄의 아모라 시작 버튼·모바일 메뉴는 없다). 랜딩은 정적 응답이라 로그인
+ * 상태는 브라우저에서만 확인하고, 알약은 **로그인했다고 확인될 때만** 감춘다 — 확인 전과
+ * 확인이 실패했을 때는 계정 있는 사람이 들어갈 길로 남는다.
+ */
 describe("landing account navigation", () => {
   let container: HTMLDivElement;
   let root: Root | null;
@@ -94,48 +103,49 @@ describe("landing account navigation", () => {
     await finishRefresh();
   }
 
-  function expectActions(label: string, showLogin: boolean) {
-    const primaryLinks = [...container.querySelectorAll('a[href="/wedding/chat"]')];
-    expect(primaryLinks).toHaveLength(2);
-    expect(primaryLinks.map((link) => link.textContent)).toEqual([label, label]);
-    expect(container.querySelectorAll('a[href^="/login"]').length).toBe(showLogin ? 2 : 0);
+  function expectLogin(shown: boolean) {
+    const links = [...container.querySelectorAll(LOGIN)];
+    expect(links).toHaveLength(shown ? 1 : 0);
+    if (shown) expect(links[0].textContent).toBe("로그인");
+    // 머리줄에는 그 밖의 링크가 없다.
+    expect(container.querySelectorAll("a")).toHaveLength(shown ? 1 : 0);
   }
 
-  it("serves neutral working primary links before client verification, with no server auth lookup", () => {
+  it("serves the login pill before client verification, with no server auth lookup", () => {
     container.innerHTML = renderToStaticMarkup(<LandingHeader />);
-    expectActions("아모라 열기", false);
+    expectLogin(true);
     expect(mocks.createClient).not.toHaveBeenCalled();
     expect(mocks.getUser).not.toHaveBeenCalled();
   });
 
-  it("offers start and login to a verified signed-out visitor", async () => {
+  it("keeps login for a verified signed-out visitor", async () => {
     await mountHeader();
-    expectActions("아모라 시작하기", true);
+    expectLogin(true);
     expect(mocks.getUser).toHaveBeenCalledOnce();
   });
 
-  it("offers continue and hides login for a verified member on both navigation surfaces", async () => {
+  it("hides login for a verified member", async () => {
     mocks.getUser.mockResolvedValue(signedIn);
     await mountHeader();
-    expectActions("아모라 이어가기", false);
+    expectLogin(false);
   });
 
   it("recognizes the SDK's missing-session result as signed out", async () => {
     mocks.getUser.mockResolvedValue({ data: { user: null }, error: { name: "AuthSessionMissingError" } });
     await mountHeader();
-    expectActions("아모라 시작하기", true);
+    expectLogin(true);
   });
 
-  it("retains neutral links when session verification fails, including a stale returned user", async () => {
+  it("keeps the way in when verification fails, even with a stale returned user", async () => {
     mocks.getUser.mockResolvedValue({ data: signedIn.data, error: { name: "AuthRetryableFetchError" } });
     await mountHeader();
-    expectActions("아모라 열기", false);
+    expectLogin(true);
   });
 
-  it("retains neutral links when the lookup throws", async () => {
+  it("keeps the way in when the lookup throws", async () => {
     mocks.getUser.mockRejectedValue(new Error("network unavailable"));
     await mountHeader();
-    expectActions("아모라 열기", false);
+    expectLogin(true);
   });
 
   it("checks auth changes after the SDK callback returns", async () => {
@@ -148,7 +158,7 @@ describe("landing account navigation", () => {
       mocks.authCallbackActive = false;
     });
     await finishRefresh();
-    expectActions("아모라 이어가기", false);
+    expectLogin(false);
   });
 
   it("does not restore a previous member from a lookup that finishes after sign-out", async () => {
@@ -158,22 +168,23 @@ describe("landing account navigation", () => {
     expect(mocks.getUser).toHaveBeenCalledOnce();
     await act(async () => mocks.authListener?.("SIGNED_OUT"));
     await finishRefresh();
-    expectActions("아모라 시작하기", true);
+    expectLogin(true);
     await act(async () => resolvePrevious(signedIn));
-    expectActions("아모라 시작하기", true);
+    expectLogin(true);
   });
 
   it("refreshes verification on focus and pageshow", async () => {
     mocks.getUser.mockResolvedValue(signedIn);
     await mountHeader();
+    expectLogin(false);
     mocks.getUser.mockResolvedValue(signedOut);
     await act(async () => window.dispatchEvent(new Event("focus")));
     await finishRefresh();
-    expectActions("아모라 시작하기", true);
+    expectLogin(true);
     mocks.getUser.mockResolvedValue(signedIn);
     await act(async () => window.dispatchEvent(new Event("pageshow")));
     await finishRefresh();
-    expectActions("아모라 이어가기", false);
+    expectLogin(false);
   });
 
   it("unsubscribes and ignores resume events or outstanding responses after unmount", async () => {
@@ -192,34 +203,10 @@ describe("landing account navigation", () => {
     expect(container.childElementCount).toBe(0);
   });
 
-  it("preserves mobile account selection, outside-click and Escape closing", async () => {
-    mocks.getUser.mockResolvedValue(signedIn);
+  it("measures the login click under the header slot", async () => {
     await mountHeader();
-    const details = container.querySelector("details");
-    const summary = container.querySelector<HTMLElement>("summary");
-    const open = async () => {
-      await act(async () => {
-        if (!details) return;
-        details.open = true;
-        details.dispatchEvent(new Event("toggle"));
-      });
-    };
-
-    await open();
-    await act(async () => container.querySelector('nav[aria-label="모바일 주요 메뉴"] a[href="/wedding/chat"]')
+    await act(async () => container.querySelector(LOGIN)
       ?.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true })));
-    expect(details?.open).toBe(false);
     expect(mocks.captureEvent).toHaveBeenCalledWith("landing_cta_click", { source: "landing_header" });
-
-    await open();
-    await act(async () => document.body.dispatchEvent(new Event("pointerdown", { bubbles: true })));
-    expect(details?.open).toBe(false);
-
-    await open();
-    await act(async () => details?.dispatchEvent(new KeyboardEvent("keydown", {
-      key: "Escape", bubbles: true, cancelable: true,
-    })));
-    expect(details?.open).toBe(false);
-    expect(document.activeElement).toBe(summary);
   });
 });

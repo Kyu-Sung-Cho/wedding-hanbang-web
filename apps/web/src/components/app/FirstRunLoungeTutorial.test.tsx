@@ -185,6 +185,26 @@ describe("첫 실행 라운지 안내", () => {
     expect(dialog?.textContent).toContain("여기부터 보시면 돼요");
   });
 
+  it("단계를 고르면 그 단계만 띄운다(청첩장 홈: 옛 라운지의 할 일·도구 칸이 없어 초대와 아모라만)", async () => {
+    useAuthStore.setState({ profile: PROFILE, isDemo: false });
+    mountAnchors();
+
+    await act(async () => {
+      root.render(<FirstRunLoungeTutorial stepIds={["lounge-invite", "amora-fab"]} />);
+    });
+    await act(async () => {
+      await Promise.resolve();
+      vi.advanceTimersByTime(1_000);
+    });
+    await act(async () => {
+      vi.advanceTimersByTime(100);
+    });
+
+    const dialog = tutorialDialog();
+    expect(dialog?.textContent).toContain("파트너를 부르면 같이 봐요");
+    expect(dialog?.textContent).not.toContain("여기부터 보시면 돼요");
+  });
+
   it("컬럼이 아직 없는 응답(42703)에서도 화면이 죽지 않고 '아직 안 봤다'로 뜬다", async () => {
     useAuthStore.setState({ profile: PROFILE, isDemo: false });
     // 마이그레이션 전 배포에서 실제로 오는 오류 모양.

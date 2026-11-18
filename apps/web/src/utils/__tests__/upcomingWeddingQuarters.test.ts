@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 
-import { landingContent } from "@/components/landing/redesign/landingContent";
 import { upcomingWeddingQuarterLabels } from "@/utils/quarter";
 
 /**
@@ -33,24 +32,9 @@ describe("앞으로 오는 분기 목록", () => {
     ]);
   });
 
-  it("랜딩이 그 계산 결과를 그대로 쓴다 — 고정 배열로 되돌아가면 여기가 잡는다", () => {
-    expect(landingContent.community.cohorts).toEqual(upcomingWeddingQuarterLabels());
-  });
-
-  it("랜딩 목록에 지나간 분기가 없다", () => {
-    // 이 검사가 이 파일의 존재 이유다. 값이 아니라 **오늘 기준 사실**을 본다.
-    const now = new Date();
-    const nowYear = now.getFullYear();
-    const nowQuarter = Math.ceil((now.getMonth() + 1) / 3);
-    for (const label of landingContent.community.cohorts) {
-      const m = /^(\d{4})년 (\d)분기/.exec(label);
-      expect(m, `분기 라벨 형식이 아니다: ${label}`).not.toBeNull();
-      const year = Number(m![1]);
-      const quarter = Number(m![2]);
-      expect(
-        year > nowYear || (year === nowYear && quarter >= nowQuarter),
-        `이미 지난 분기를 내걸고 있다: ${label}`,
-      ).toBe(true);
-    }
-  });
+  // 2026-11-17 파운더 디자인 아티팩트(원문: 이 디자인 완전 같아야해)로 랜딩이 시작 화면 한 장이
+  // 되면서 동기방 목록(`landingContent.community.cohorts`)이 랜딩 카피에서 없어졌다. 그래서 "랜딩이
+  // 이 계산을 그대로 쓴다" · "랜딩 목록에 지나간 분기가 없다" 두 검사는 대상이 없어 지웠다.
+  // 위 두 검사(계산 자체)는 남는다. 동기방 목록을 어디에든 다시 내걸면 이 계산을 쓰고, 그 자리에
+  // "지나간 분기가 없다" 검사를 함께 되살려라 — 고정 배열은 시간이 갈수록 조용히 틀려진다.
 });
