@@ -3,11 +3,14 @@ import { readdirSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { PGlite } from "@electric-sql/pglite";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
-import {
-  createProfileRoleNativeDatabase,
-  nativeProfileRoleAvailable,
-} from "../../../../../../scripts/tests/fixtures/profile-role-native-database.mjs";
 import { MAX_SHORTLIST } from "../hallRepository";
+
+// 합성 PostgreSQL 17 하네스는 Windows 에서 LOCALAPPDATA 가 없으면 불러오는 순간 죽는다. turbo 는 환경변수를 걸러 넘겨서
+// 푸시 훅에서는 그 값이 없다(2026-11-18 실측). 그래서 진짜 서버로도 돌리라고 했을 때만 불러온다.
+type NativeFixture = typeof import("../../../../../../scripts/tests/fixtures/profile-role-native-database.mjs");
+const native: NativeFixture | null = process.env.HANBANG_HALL_INQUIRY_NATIVE_PG === "1"
+  ? await import("../../../../../../scripts/tests/fixtures/profile-role-native-database.mjs")
+  : null;
 
 /**
  * 20261117090000 웨딩홀·상담 문의 마이그레이션을 실제 PostgreSQL 에 올려 본다.
@@ -78,7 +81,8 @@ async function pgliteEngine(): Promise<Engine> {
 }
 
 async function nativeEngine(): Promise<Engine> {
-  const owned = await createProfileRoleNativeDatabase();
+  if (!native) throw new Error("native PostgreSQL fixture was not requested");
+  const owned = await native.createProfileRoleNativeDatabase();
   const client = owned.client;
   return {
     exec: async (sql) => { await client.query(sql); },
@@ -142,9 +146,7 @@ async function prepare(engine: Engine) {
   await engine.exec(SQL);
 }
 
-const engines: ("pglite" | "native")[] = process.env.HANBANG_HALL_INQUIRY_NATIVE_PG === "1" && nativeProfileRoleAvailable
-  ? ["pglite", "native"]
-  : ["pglite"];
+const engines: ("pglite" | "native")[] = native?.nativeProfileRoleAvailable ? ["pglite", "native"] : ["pglite"];
 
 describe.each(engines)("hall inquiry migration on %s PostgreSQL", (engineName) => {
   let engine: Engine;
