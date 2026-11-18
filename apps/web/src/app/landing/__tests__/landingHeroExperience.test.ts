@@ -34,6 +34,9 @@ vi.mock("@/lib/analytics", () => ({ captureEvent: vi.fn() }));
  *   - 랜딩은 저장도 네트워크 호출도 하지 않고, 계측은 자리 이름만 싣는다.
  *   - 움직임 줄이기·전이 시간 규칙.
  *
+ * 2026-11-18 파운더 요청(원문: "랜딩도 만들어야지 비슷하게", 범위 "전체다")으로 시작 화면 아래에 섹션이
+ * 이어진다. 위 계약은 그대로이고, "첫 화면에 얹지 않는다"는 시작 화면 상자 안에서 잰다.
+ *
  * ⚠️ 아티팩트의 첫 화면에는 "AI" 라는 말이 없다(한 줄은 "두 사람의 웨딩 비서"). 옛 판은
  * 첫 화면이 아모라를 AI 라고 소개하도록 요구했다. 지금 그 고지는 같은 페이지의 바닥글
  * ("아모라의 답변은 AI가 작성해요")이 진다 — 아래에서 그것이 렌더되는지 본다. 첫 화면에도
@@ -125,15 +128,23 @@ describe("처음 방문한 사람이 보는 시작 화면", () => {
   it("첫 화면에 아티팩트에 없는 것을 얹지 않는다", () => {
     // 2026-11-17 파운더 디자인 아티팩트(원문: 이 디자인 완전 같아야해): 시작 화면은 사진·로고·
     // 오브·카드뿐이다. 고지는 바닥글이 지고, 머리줄은 로그인 알약 하나다.
-    expect(renderedSections()).toEqual(["StartScreen"]);
+    // 2026-11-18 파운더 요청("랜딩도 만들어야지 비슷하게", "전체다")으로 시작 화면 **아래에** 섹션이
+    // 이어진다. 그래서 <main> 전체가 아니라 시작 화면 상자 안을 센다 — 첫 화면에 얹는 것은 여전히 막는다.
+    expect(renderedSections()[0], "<main> 의 첫 자리가 시작 화면이 아니다").toBe("StartScreen");
     const doc = landingDocument();
     const main = doc.querySelector("main")!;
-    expect(main.querySelectorAll("h1")).toHaveLength(1);
-    expect(main.querySelectorAll("h2, h3, h4, h5, h6")).toHaveLength(0);
-    expect(main.querySelectorAll("a")).toHaveLength(2);
-    expect(main.querySelectorAll("button, input, select, textarea, form, details")).toHaveLength(0);
-    expect(main.querySelectorAll("p")).toHaveLength(1);
-    expect(main.querySelectorAll("section")).toHaveLength(1);
+    expect(main.querySelectorAll("h1"), "h1 이 시작 화면 밖에도 있다").toHaveLength(1);
+    const startFrame = main.querySelector('section[aria-labelledby="start-title"]')?.parentElement;
+    expect(startFrame, "시작 화면 상자를 못 찾았다").toBeTruthy();
+    expect(startFrame?.parentElement, "시작 화면이 <main> 바로 아래에 있지 않다").toBe(main);
+    expect(main.firstElementChild, "시작 화면이 <main> 의 첫 자리가 아니다").toBe(startFrame);
+    const frame = startFrame!;
+    expect(frame.querySelectorAll("h1")).toHaveLength(1);
+    expect(frame.querySelectorAll("h2, h3, h4, h5, h6")).toHaveLength(0);
+    expect(frame.querySelectorAll("a")).toHaveLength(2);
+    expect(frame.querySelectorAll("button, input, select, textarea, form, details")).toHaveLength(0);
+    expect(frame.querySelectorAll("p")).toHaveLength(1);
+    expect(frame.querySelectorAll("section")).toHaveLength(1);
     const header = doc.querySelector("header");
     expect([...(header?.querySelectorAll("a") ?? [])].map((a) => a.getAttribute("href")))
       .toEqual(["/login?redirect=%2Fwedding%2Fchat"]);

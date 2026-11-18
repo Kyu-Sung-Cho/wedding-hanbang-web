@@ -1,10 +1,13 @@
 import type { CaptureResult } from "posthog-js";
 
 // 2026-11-17 랜딩이 앱 "시작" 화면 하나가 되면서(파운더 디자인 아티팩트) 자리는 셋만 남았다.
+// 2026-11-18 첫 화면 아래 섹션이 생기며(파운더 요청 "랜딩도 만들어야지 비슷하게") 마무리의 두 행동이 더해졌다.
 export const LANDING_CTA_SOURCES = [
   "landing_header",
   "landing_hero_primary",
   "landing_hero_secondary",
+  "landing_closing_primary",
+  "landing_closing_secondary",
 ] as const;
 export type LandingCtaSource = (typeof LANDING_CTA_SOURCES)[number];
 

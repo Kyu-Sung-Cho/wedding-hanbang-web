@@ -1,9 +1,14 @@
 import type { Metadata } from "next";
 
+import ClosingSection from "@/components/landing/redesign/ClosingSection";
 import LandingFooter from "@/components/landing/redesign/LandingFooter";
 import LandingHeader from "@/components/landing/redesign/LandingHeader";
 import LandingSkipLink from "@/components/landing/redesign/LandingSkipLink";
+import PromiseSection from "@/components/landing/redesign/PromiseSection";
 import StartScreen from "@/components/landing/redesign/StartScreen";
+import StepsSection from "@/components/landing/redesign/StepsSection";
+import TodaySection from "@/components/landing/redesign/TodaySection";
+import WideScreenSection from "@/components/landing/redesign/WideScreenSection";
 
 export const revalidate = 86_400;
 
@@ -44,9 +49,13 @@ export function generateMetadata(): Metadata {
 /**
  * 랜딩 — 2026-11-17 파운더 디자인 아티팩트(원문: 이 디자인 완전 같아야해)의 '시작' 화면.
  *
- * 첫 화면은 시작 화면 한 장이다(`StartScreen`). 그 아래에는 법·신뢰 때문에 화면에 있어야
- * 하는 고지와 링크만 조용한 바닥글로 둔다(`LandingFooter`). 머리줄은 사진 위 오른쪽 위의
- * 로그인 알약 하나다(`LandingHeader`) — 아티팩트에 없는 것을 첫 화면에 더 얹지 않는다.
+ * 첫 화면은 시작 화면 한 장이다(`StartScreen`). 머리줄은 사진 위 오른쪽 위의 로그인 알약 하나다
+ * (`LandingHeader`) — 아티팩트에 없는 것을 첫 화면에 더 얹지 않는다.
+ *
+ * 2026-11-18 파운더 요청(원문: "랜딩도 만들어야지 비슷하게", 범위 "전체다")으로 첫 화면 아래에 같은
+ * 디자인의 섹션이 이어진다: 오늘 하는 일(화면 예시) → 시작하는 법 → 아모라가 일하는 방식 → 넓은 화면 →
+ * 마무리. 웨딩홀 비교와 상담 문의는 운영에 아직 열리지 않아 "곧 열려요" 꼬리표와 함께만 나온다.
+ * 맨 아래는 법·신뢰 고지와 링크를 담은 조용한 바닥글이다(`LandingFooter`).
  *
  * 래퍼에 overflow 를 걸지 않는다. 자르는 일은 시작 화면이 자기 상자에서 한다.
  */
@@ -57,6 +66,11 @@ export default function LandingPage() {
       <LandingHeader />
       <main id="main-content" tabIndex={-1}>
         <StartScreen />
+        <TodaySection />
+        <StepsSection />
+        <PromiseSection />
+        <WideScreenSection />
+        <ClosingSection />
       </main>
       <LandingFooter />
     </div>

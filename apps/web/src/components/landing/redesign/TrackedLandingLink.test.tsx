@@ -32,6 +32,7 @@ vi.mock("./LandingSession", () => ({
 }));
 
 import TrackedLandingLink from "./TrackedLandingLink";
+import ClosingSection from "./ClosingSection";
 import LandingHeader from "./LandingHeader";
 import StartScreen from "./StartScreen";
 
@@ -101,6 +102,26 @@ describe("TrackedLandingLink", () => {
     expect(mocks.captureEvent.mock.calls).toEqual([
       ["landing_cta_click", { source: "landing_hero_primary" }],
       ["landing_cta_click", { source: "landing_hero_secondary" }],
+    ]);
+  });
+
+  it("counts the closing section's two actions under their own slot names", async () => {
+    // 2026-11-18 파운더 요청("랜딩도 만들어야지 비슷하게")으로 생긴 마무리. 첫 화면과 같은 목적지·글자,
+    // 다른 자리 이름이다. 로그인이 필요한 아모라는 첫 화면처럼 미리 받지 않는다.
+    await act(async () => root.render(<ClosingSection />));
+    const start = [...container.querySelectorAll("a")].find((a) => a.textContent === START_COPY.start);
+    const example = [...container.querySelectorAll("a")].find((a) => a.textContent === START_COPY.example);
+    expect(start?.getAttribute("href")).toBe("/wedding/chat");
+    expect(example?.getAttribute("href")).toBe("/example");
+    for (const token of ["h-14", "rounded-[28px]", "bg-inv-ink", "text-inv-white", "font-bold"]) {
+      expect(start?.classList.contains(token), `마무리 시작하기에 ${token} 이 없다`).toBe(true);
+    }
+    expect(mocks.linkProps.find((props) => props.href === "/wedding/chat")?.prefetch).toBe(false);
+    await click(start);
+    await click(example);
+    expect(mocks.captureEvent.mock.calls).toEqual([
+      ["landing_cta_click", { source: "landing_closing_primary" }],
+      ["landing_cta_click", { source: "landing_closing_secondary" }],
     ]);
   });
 

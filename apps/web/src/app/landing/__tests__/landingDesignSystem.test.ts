@@ -36,6 +36,10 @@ vi.mock("@/lib/analytics", () => ({ captureEvent: vi.fn() }));
  *
  * 제품 전체에 걸린 단언(Pretendard 글꼴 역할, 그림자 토큰 둘, 승격된 색)은 랜딩 밖도 지키므로
  * 그대로 남겼다. 실제 줄바꿈·겹침·초점 이동은 브라우저 QA 의 몫이다.
+ *
+ * 2026-11-18 파운더 요청(원문: "랜딩도 만들어야지 비슷하게", 범위 "전체다")으로 시작 화면 아래에 같은
+ * 디자인의 섹션이 이어진다. 그 섹션 파일도 같은 폴더에 있어 위 규칙(토큰 색·세 글꼴·아티팩트 반경·가는 선·
+ * 그림자 토큰 둘)을 그대로 받는다. "첫 화면의 그림은 보케 사진 한 장"은 시작 화면 상자 안에서 센다.
  */
 
 const components = everyLandingComponent();
@@ -90,9 +94,15 @@ const contrast = (a: string, b: string) => {
 describe("landing design system", () => {
   it("keeps looking at the start screen the page really renders", () => {
     // 아래 단언들이 도는 대상 자체가 비어 버리면 전부 빈 통과가 된다.
-    // 2026-11-17 파운더 디자인 아티팩트(원문: 이 디자인 완전 같아야해): <main> 은 시작 화면 한 장이다.
-    expect(renderedSections(), "<main> 이 시작 화면 한 장이 아니다").toEqual(["StartScreen"]);
-    expect(new Set(landingComponentFiles()).has("StartScreen.tsx")).toBe(true);
+    // 2026-11-17 파운더 디자인 아티팩트(원문: 이 디자인 완전 같아야해): <main> 의 첫 자리는 시작 화면이다.
+    // 2026-11-18 파운더 요청("랜딩도 만들어야지 비슷하게", "전체다")으로 그 아래 섹션이 이어진다. 그 섹션들도
+    // 이 파일의 색·글꼴·반경·테두리·그림자 검사를 받아야 하므로, 그리는 섹션이 전부 검사 목록(폴더)에 있는지 본다.
+    const sections = renderedSections();
+    expect(sections[0], "<main> 의 첫 자리가 시작 화면이 아니다").toBe("StartScreen");
+    const files = new Set(landingComponentFiles());
+    for (const section of sections) {
+      expect(files.has(`${section}.tsx`), `${section} 이 랜딩 폴더 밖에 있어 디자인 검사를 피한다`).toBe(true);
+    }
     expect(startScreen.length, "시작 화면 소스를 못 읽었다").toBeGreaterThan(500);
   });
 
@@ -239,8 +249,11 @@ describe("landing design system", () => {
     expect(existsSync(resolve(APP_ROOT, "public" + photo)), "보케 사진 파일이 없다").toBe(true);
     expect(startScreen).toContain(`"${photo}"`);
 
+    // 2026-11-18: 시작 화면 아래 섹션에 예시 화면이 들어와 <main> 전체가 아니라 시작 화면 상자 안을 센다.
     const doc = landingDocument();
-    const images = [...doc.querySelectorAll("main img, main picture, main video, main image")];
+    const startFrame = doc.querySelector('section[aria-labelledby="start-title"]')?.parentElement;
+    expect(startFrame, "시작 화면 상자를 못 찾았다").toBeTruthy();
+    const images = [...(startFrame?.querySelectorAll("img, picture, video, image") ?? [])];
     expect(images, "첫 화면의 그림이 보케 사진 한 장이 아니다").toHaveLength(1);
     const img = images[0] as HTMLImageElement;
     expect(decodeURIComponent(img.getAttribute("src") ?? ""), "보케 사진이 아니다").toContain(photo);

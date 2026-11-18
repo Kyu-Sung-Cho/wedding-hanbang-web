@@ -36,6 +36,10 @@ vi.mock("@/lib/analytics", () => ({ captureEvent: vi.fn() }));
  * 렌더된 페이지 전체**도 같은 자로 잰다 — 랜딩 소스 파일만 재면 첫 화면이 검사를 안 거친다.
  * 섹션·내비·마무리를 지키던 단언(이야기 순서·내비 앵커·첫 화면과 마무리의 같은 행동)은
  * 대상이 없어져 지웠다. 근거(출처·기준 시점·한계·광고 없음)는 바닥글이 진다.
+ *
+ * 2026-11-18 파운더 요청(원문: "랜딩도 만들어야지 비슷하게", 범위 "전체다")으로 시작 화면 아래 섹션과
+ * 마무리가 생겼다. 새 섹션의 글은 렌더된 페이지와 랜딩 폴더를 읽는 위 표면에 이미 들어 있어 같은 금지를
+ * 받는다. "첫 화면과 마무리의 같은 행동" 단언은 대상이 돌아와 되살렸다.
  */
 
 const components = everyLandingComponent();
@@ -192,6 +196,15 @@ describe("landing two-sided trust contract", () => {
     expect(startScreen).toContain("href={start.example.href}");
     expect(startScreen).toContain("{START_COPY.example}");
     expect(startScreen, "시작 화면이 목적지를 손으로 적었다").not.toMatch(/href="/u);
+
+    // 2026-11-18 마무리(파운더 요청 "랜딩도 만들어야지 비슷하게")는 첫 화면과 **같은 행동**이다. 같은 정본
+    // 목적지와 같은 정본 글자를 쓴다 — 마무리만 다른 곳으로 보내거나 다른 말을 하면 두 버튼이 갈린다.
+    const closing = rendered("src/components/landing/redesign/ClosingSection.tsx");
+    expect(closing).toContain("href={start.primary.href}");
+    expect(closing).toContain("{START_COPY.start}");
+    expect(closing).toContain("href={start.example.href}");
+    expect(closing).toContain("{START_COPY.example}");
+    expect(closing, "마무리가 목적지를 손으로 적었다").not.toMatch(/href="/u);
   });
 
   it("keeps the disclosure source, paid-ranking promise, and limits visible", () => {

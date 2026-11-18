@@ -73,7 +73,8 @@ describe("가입은 열려 있고, 랜딩이 그렇게 말한다", () => {
     // 시작하기는 보호 경로로 바로 가고, 로그아웃이면 미들웨어가 로그인으로 보냈다가 돌려보낸다.
     // 로그인 알약은 로그인 화면으로 가되 끝나면 같은 자리(`/wedding/chat`)로 돌아온다.
     expect(contentBlock("start", "account"), "시작하기가 아모라로 보내지 않는다").toMatch(AMORA_HREF);
-    const account = contentBlock("account", "boundaries");
+    // 2026-11-18: account 바로 뒤는 첫 화면 아래 섹션 카피(`soon` 부터)다.
+    const account = contentBlock("account", "soon");
     const logIn = /logIn:\s*\{([^}]*)\}/u.exec(account)?.[1] ?? "";
     expect(logIn, "로그인 자리가 사라졌다").toMatch(/label:\s*"로그인"/u);
     expect(logIn, "로그인 뒤 아모라로 돌아오지 않는다").toContain('href: "/login?redirect=%2Fwedding%2Fchat"');

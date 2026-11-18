@@ -24,6 +24,10 @@ vi.mock("@/lib/analytics", () => ({ captureEvent: vi.fn() }));
  * 단언(앵커가 섹션을 가리킨다 · 붙는 머리줄 위에 overflow 금지 · 그림 버튼 숨김)은 대상이 없어
  * 지웠다. 남은 구조: 이름 있는 섹션, 하나뿐인 h1, 본문 바로가기, 장식의 숨김.
  *
+ * 2026-11-18 파운더 요청(원문: "랜딩도 만들어야지 비슷하게", 범위 "전체다")으로 시작 화면 아래에
+ * 섹션이 다시 이어진다. 섹션마다 이름(h2)이 있고, h1 은 여전히 시작 화면 하나뿐이다. 그림이 장식
+ * (보케 사진·오브)과 예시 화면으로 갈려서, 예시 화면은 무엇을 보여 주는지 말하는지도 본다.
+ *
  * 색 대비와 실제 포커스 표시는 픽셀을 봐야 알 수 있어 여기서 다루지 않는다.
  */
 
@@ -111,6 +115,25 @@ describe("랜딩 랜드마크", () => {
     expect(doc.querySelector("main img")?.getAttribute("alt"), "장식 사진이 읽힌다").toBe("");
   });
 
+  it("보케 사진은 읽지 않고, 예시 화면은 무엇을 보여 주는지 말한다", () => {
+    // 2026-11-18: 시작 화면 아래 섹션에 예시 커플 화면이 들어왔다. 같은 페이지에 장식 사진(보케, 시작
+    // 화면과 마무리)과 내용이 있는 그림(예시 화면)이 섞인다. 장식은 비운 대체 글, 예시 화면은 "예시"라는
+    // 말과 화면 내용을 담은 대체 글이어야 한다 — 거꾸로 되면 장식이 읽히거나 화면이 이름 없이 지나간다.
+    const doc = landingDocument();
+    const images = [...doc.querySelectorAll("main img")];
+    const isBokeh = (img: Element) => decodeURIComponent(img.getAttribute("src") ?? "").includes("/images/amora/bokeh-blush.webp");
+    const bokeh = images.filter(isBokeh);
+    const shots = images.filter((img) => !isBokeh(img));
+    expect(bokeh.length, "보케 사진을 하나도 못 찾았다").toBeGreaterThanOrEqual(1);
+    expect(shots.length, "예시 화면을 하나도 못 찾았다 — 이 검사가 아무것도 안 보고 있다").toBeGreaterThanOrEqual(4);
+    for (const img of bokeh) expect(img.getAttribute("alt"), "보케 사진이 읽힌다").toBe("");
+    for (const img of shots) {
+      const alt = img.getAttribute("alt") ?? "";
+      expect(alt.length, `대체 글이 짧다: ${img.getAttribute("src")}`).toBeGreaterThan(20);
+      expect(alt, `예시 화면이라는 말이 없다: ${alt}`).toContain("예시");
+    }
+  });
+
   it("페이지에 h1 이 하나뿐이고, 시작 화면이 갖는다", () => {
     const h1Owners = components.filter(([, source]) => /<h1\b/u.test(source)).map(([file]) => file);
     expect(h1Owners, "h1 을 가진 컴포넌트").toEqual(["StartScreen.tsx"]);
@@ -131,7 +154,8 @@ describe("랜딩 랜드마크", () => {
     expect(page).toContain("<LandingSkipLink />");
     // 링크가 먼저 와야 Tab 순서에서 첫 번째가 된다 — 로그인 알약보다도 앞이다.
     expect(page.indexOf("<LandingSkipLink />")).toBeLessThan(page.indexOf("<LandingHeader"));
-    expect(renderedSections()).toEqual(["StartScreen"]);
+    // 바로가기가 닿는 첫 자리는 시작 화면이다(2026-11-18 부터 그 아래로 섹션이 이어진다).
+    expect(renderedSections()[0], "<main> 의 첫 자리가 시작 화면이 아니다").toBe("StartScreen");
   });
 
   it("래퍼가 시작 화면을 자르지 않는다", () => {

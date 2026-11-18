@@ -127,7 +127,14 @@ const POLICY_LINKS: ReadonlyArray<readonly [string, string]> = [
 /** `landingContent` 안의 블록 순서. `contentBlock` 이 블록을 잘라낼 경계로 쓴다. */
 const NEXT_BLOCK: Readonly<Record<string, string | undefined>> = {
   start: "account",
-  account: "boundaries",
+  // 2026-11-18 첫 화면 아래 섹션 카피가 account 와 boundaries 사이에 들어왔다(블록 순서 = 화면 순서).
+  account: "soon",
+  soon: "today",
+  today: "steps",
+  steps: "promises",
+  promises: "wide",
+  wide: "closing",
+  closing: "boundaries",
   boundaries: "notices",
   notices: "footer",
   // 마지막 블록. 경계를 주지 않으면 파일 끝까지 본다.

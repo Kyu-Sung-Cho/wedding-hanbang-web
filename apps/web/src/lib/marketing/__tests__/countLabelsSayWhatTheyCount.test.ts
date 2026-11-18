@@ -246,9 +246,16 @@ describe("랜딩의 문장 수는 도착 화면이 묻는 문항 수다", () => 
     expect(parseWeddingCodeEntryQuery({}).kind).toBe("v31");
     // 2026-11-17 파운더 디자인 아티팩트(원문: 이 디자인 완전 같아야해): 첫 화면은 앱과 같은 정본
     // `START_COPY` 이고 카피 블록은 다섯으로 줄었다(마무리 섹션이 없어졌다). 첫 화면 정본도 함께 센다.
+    // 2026-11-18: 첫 화면 아래 섹션 카피(soon → closing)가 account 와 boundaries 사이에 들어왔다.
     const blocks = [
       ["start", "account"],
-      ["account", "boundaries"],
+      ["account", "soon"],
+      ["soon", "today"],
+      ["today", "steps"],
+      ["steps", "promises"],
+      ["promises", "wide"],
+      ["wide", "closing"],
+      ["closing", "boundaries"],
       ["boundaries", "notices"],
       ["notices", "footer"],
       ["footer", undefined],

@@ -235,7 +235,8 @@ describe("renderedSections", () => {
     // 읽는다" 는 도우미의 뜻이다.
     //
     // 2026-11-17 파운더 디자인 아티팩트(원문: 이 디자인 완전 같아야해)로 <main> 은 시작
-    // 화면 한 장이다. 그래서 첫 섹션이 시작 화면인지만 본다.
+    // 화면 한 장이 됐고, 2026-11-18 파운더 요청("랜딩도 만들어야지 비슷하게")으로 그 아래 섹션이
+    // 이어진다. 개수는 시안을 따라다니므로 첫 섹션이 시작 화면인지와 중복이 없는지만 본다.
     expect(sections.length).toBeGreaterThan(0);
     expect(sections[0], "시작 화면이 첫 섹션이 아니다").toBe("StartScreen");
     expect(new Set(sections).size, "같은 섹션을 두 번 그린다").toBe(sections.length);

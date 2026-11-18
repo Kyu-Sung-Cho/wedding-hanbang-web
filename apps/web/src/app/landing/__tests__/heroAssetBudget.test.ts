@@ -7,12 +7,41 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 
 import { START_COPY } from "@hanbang/shared/invitation";
+import { landingContent } from "@/components/landing/redesign/landingContent";
 
 import LandingPage from "../page";
 
 vi.mock("@/lib/analytics", () => ({ captureEvent: vi.fn() }));
 
 const appRoot = resolve(process.cwd());
+
+/**
+ * 2026-11-18 파운더 요청(원문: "랜딩도 만들어야지 비슷하게", 범위 "전체다")으로 시작 화면 아래 섹션에
+ * 예시 화면 네 장이 들어왔다(전화기 셋, 넓은 화면 하나). 카피(`landingContent`)가 그 목록의 정본이다.
+ * 보내기 전 편지 승인 화면은 파운더 결정 D-83(문의 글은 함께 쓰고 두 분이 직접 보낸다)으로 싣지 않는다.
+ */
+const LANDING_SHOTS = [
+  ...landingContent.today.features.map((feature) => feature.shot),
+  ...landingContent.today.soonFeatures.map((feature) => feature.shot),
+  landingContent.wide.shot,
+];
+/** 전화기 화면은 600px 폭, 넓은 화면은 2160px 폭이다. 글자가 많은 화면이라 이만큼은 둔다. */
+const PHONE_SHOT_BUDGET = 64 * 1024;
+const WIDE_SHOT_BUDGET = 128 * 1024;
+
+/** WebP 머리에서 가로·세로를 읽는다(VP8 손실 · VP8L 무손실 · VP8X 확장). */
+function webpSize(buffer: Buffer): { width: number; height: number } {
+  expect(buffer.subarray(0, 4).toString(), "RIFF 가 아니다").toBe("RIFF");
+  expect(buffer.subarray(8, 12).toString(), "WebP 가 아니다").toBe("WEBP");
+  const chunk = buffer.subarray(12, 16).toString();
+  if (chunk === "VP8X") return { width: 1 + buffer.readUIntLE(24, 3), height: 1 + buffer.readUIntLE(27, 3) };
+  if (chunk === "VP8 ") return { width: buffer.readUInt16LE(26) & 0x3fff, height: buffer.readUInt16LE(28) & 0x3fff };
+  if (chunk === "VP8L") {
+    const bits = buffer.readUInt32LE(21);
+    return { width: (bits & 0x3fff) + 1, height: ((bits >>> 14) & 0x3fff) + 1 };
+  }
+  throw new Error(`모르는 WebP 조각: ${chunk}`);
+}
 
 /**
  * 첫 화면 자산 예산.
@@ -54,17 +83,59 @@ describe("hero image performance budget", () => {
 
   it("bounds the markup the start screen actually renders", () => {
     // 첫 화면의 그림은 사진 한 장과 오브 하나뿐이다. 장식 SVG 가 다시 쌓이면 여기서 운다.
+    // 2026-11-18: 시작 화면 아래 섹션이 생겨 <main> 이 아니라 시작 화면 상자 안을 센다.
     const doc = landingDocument();
-    const main = doc.querySelector("main")!;
-    expect(main.querySelectorAll("img"), "첫 화면 사진이 한 장이 아니다").toHaveLength(1);
-    const svgs = [...main.querySelectorAll("svg")];
-    expect(svgs, "첫 화면 SVG 가 오브 하나가 아니다").toHaveLength(1);
-    const orb = svgs[0];
-    expect(orb.classList.contains("amora-orb")).toBe(true);
-    expect(orb.querySelectorAll("image,script,foreignObject,a")).toHaveLength(0);
-    expect(Buffer.byteLength(orb.outerHTML), "오브 마크업이 커졌다").toBeLessThanOrEqual(8 * 1024);
-    // 페이지 전체 SVG 도 센다 — 바닥글이나 머리줄에 장식이 새로 붙으면 첫 화면 밖이라도 무게다.
-    expect(doc.querySelectorAll("svg"), "페이지에 오브 밖의 SVG 가 생겼다").toHaveLength(1);
+    const startFrame = doc.querySelector('section[aria-labelledby="start-title"]')?.parentElement;
+    expect(startFrame, "시작 화면 상자를 못 찾았다").toBeTruthy();
+    expect(startFrame!.querySelectorAll("img"), "첫 화면 사진이 한 장이 아니다").toHaveLength(1);
+    const startSvgs = [...startFrame!.querySelectorAll("svg")];
+    expect(startSvgs, "첫 화면 SVG 가 오브 하나가 아니다").toHaveLength(1);
+    expect(startSvgs[0].classList.contains("amora-orb")).toBe(true);
+
+    // 페이지 전체 SVG 도 센다 — 섹션이나 바닥글에 장식이 새로 붙으면 첫 화면 밖이라도 무게다.
+    // 섹션의 장식은 오브뿐이다(시작 화면 · 아모라가 일하는 방식 · 마무리, 셋).
+    const svgs = [...doc.querySelectorAll("svg")];
+    expect(svgs.length, "오브 밖의 SVG 가 생겼거나 오브가 늘었다").toBeLessThanOrEqual(3);
+    for (const svg of svgs) {
+      expect(svg.classList.contains("amora-orb"), "오브가 아닌 장식 SVG 가 생겼다").toBe(true);
+      expect(svg.querySelectorAll("image,script,foreignObject,a")).toHaveLength(0);
+      expect(Buffer.byteLength(svg.outerHTML), "오브 마크업이 커졌다").toBeLessThanOrEqual(8 * 1024);
+    }
+  });
+
+  it("draws only the bokeh photo and the listed example screens below the start screen", () => {
+    // 그림은 보케 사진(시작 화면 · 마무리)과 카피에 적은 예시 화면뿐이다. 목록 밖의 그림이 끼면 운다.
+    const doc = landingDocument();
+    const allowed = new Set(["/images/amora/bokeh-blush.webp", ...LANDING_SHOTS.map((shot) => shot.src)]);
+    const images = [...doc.querySelectorAll("img")];
+    for (const img of images) {
+      const src = decodeURIComponent(img.getAttribute("src") ?? "");
+      expect([...allowed].some((path) => src.includes(path)), `목록 밖의 그림: ${src}`).toBe(true);
+    }
+    // 예시 화면은 카피에 적은 장 수만큼 그려진다(빠지면 섹션이 빈 틀이 된다).
+    for (const shot of LANDING_SHOTS) {
+      const drawn = images.filter((img) => decodeURIComponent(img.getAttribute("src") ?? "").includes(shot.src));
+      expect(drawn, `${shot.src} 를 그리지 않는다`).toHaveLength(1);
+      // 크기를 적어 내려야 그림이 오기 전에도 자리가 잡힌다(레이아웃이 밀리지 않는다).
+      expect(drawn[0].getAttribute("width"), `${shot.src} 의 폭이 카피와 다르다`).toBe(String(shot.width));
+      expect(drawn[0].getAttribute("height"), `${shot.src} 의 높이가 카피와 다르다`).toBe(String(shot.height));
+    }
+    expect(images.length, "그림이 늘었다").toBeLessThanOrEqual(2 + LANDING_SHOTS.length);
+  });
+
+  it("serves the example screens as small WebP files whose size matches the copy", () => {
+    // 전화기 화면은 390×844 를 600px 폭으로, 넓은 화면은 1440×900 을 2160px 폭으로 줄인 WebP 다.
+    // 카피의 폭·높이가 실제 파일과 다르면 그림이 늘어나거나 찌그러진다.
+    expect(LANDING_SHOTS.length, "예시 화면 목록이 비었거나 달라졌다").toBe(4);
+    for (const shot of LANDING_SHOTS) {
+      const file = resolve(appRoot, "public" + shot.src);
+      expect(existsSync(file), `${shot.src} 파일이 없다`).toBe(true);
+      const buffer = readFileSync(file);
+      const size = webpSize(buffer);
+      expect(size, `${shot.src} 의 실제 크기가 카피와 다르다`).toEqual({ width: shot.width, height: shot.height });
+      const budget = shot.width > 1000 ? WIDE_SHOT_BUDGET : PHONE_SHOT_BUDGET;
+      expect(statSync(file).size, `${shot.src} 가 무겁다`).toBeLessThanOrEqual(budget);
+    }
   });
 
   it("generates the landing social card from the page's own copy", () => {

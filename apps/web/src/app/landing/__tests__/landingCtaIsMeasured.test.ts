@@ -22,6 +22,12 @@ import { everyLandingComponent, rendered } from "./landingSource";
  * 장이다. 행동은 셋뿐이다: 시작하기(`landing_hero_primary`), 예시 커플로 둘러보기
  * (`landing_hero_secondary`), 오른쪽 위 로그인(`landing_header`). 마무리 섹션이 없어져
  * "첫 화면과 마무리 양쪽" 단언은 첫 화면 하나로 줄었다.
+ *
+ * ## 2026-11-18 — 마무리가 돌아왔다
+ *
+ * 파운더 요청(원문: "랜딩도 만들어야지 비슷하게", 범위 "전체다")으로 시작 화면 아래 섹션과 마무리가
+ * 생겼다. 마무리의 두 행동은 첫 화면과 같은 목적지로 가되 자기 자리 이름으로 센다
+ * (`landing_closing_primary` · `landing_closing_secondary`) — 같은 이름을 쓰면 어디서 눌렀는지 모른다.
  */
 
 /** 퍼널 목적지. 이 주소로 보내는 링크는 반드시 계측 컴포넌트로 그린다. */
@@ -48,6 +54,8 @@ describe("랜딩 행동 버튼은 계측된다", () => {
       ["StartScreen.tsx", "start.primary.href", "landing_hero_primary"],
       ["StartScreen.tsx", "start.example.href", "landing_hero_secondary"],
       ["LandingAccountActions.tsx", "logIn.href", "landing_header"],
+      ["ClosingSection.tsx", "start.primary.href", "landing_closing_primary"],
+      ["ClosingSection.tsx", "start.example.href", "landing_closing_secondary"],
     ] as const) {
       const source = everyLandingComponent().find(([f]) => f === file)?.[1] ?? "";
       const at = source.indexOf(key);
@@ -82,6 +90,17 @@ describe("랜딩 행동 버튼은 계측된다", () => {
     expect(start, "예시 커플로 둘러보기가 무계측이다").toContain('source="landing_hero_secondary"');
     expect(rendered("src/components/landing/redesign/LandingAccountActions.tsx"), "로그인이 무계측이다")
       .toContain('source="landing_header"');
+  });
+
+  it("마무리의 두 행동은 첫 화면과 다른 자기 자리 이름으로 계측된다", () => {
+    // 같은 목적지라도 첫 화면에서 눌렀는지 페이지 끝에서 눌렀는지가 다음 판의 근거다.
+    const closing = rendered("src/components/landing/redesign/ClosingSection.tsx");
+    expect(closing, "마무리 시작하기가 무계측이다").toContain('source="landing_closing_primary"');
+    expect(closing, "마무리 예시 둘러보기가 무계측이다").toContain('source="landing_closing_secondary"');
+    expect(closing, "마무리가 첫 화면의 자리 이름을 빌려 쓴다").not.toMatch(/source="landing_hero_/u);
+    // 퍼널 목적지(로그인이 필요한 아모라)는 첫 화면처럼 미리 받지 않는다.
+    const primaryTag = closing.slice(closing.lastIndexOf("<", closing.indexOf("start.primary.href")), closing.indexOf(">", closing.indexOf("start.primary.href")));
+    expect(primaryTag, "마무리 시작하기가 보호 경로를 미리 받는다").toContain("prefetch={false}");
   });
 
   it("계측에 사용자 입력이나 화면 문구를 싣지 않는다", () => {
