@@ -58,7 +58,9 @@ const HALLS: readonly HallCard[] = [
     minimumWarn: false,
     transit: "역에서 8분",
     photo: "hall-sample-garden",
-    badge: "가장 합리적이에요",
+    // 파운더 결정(11-18): 아티팩트 원문 "가장 합리적이에요"는 가격이 적정하다고 판정하는 말이라 자료에서 나오는 사실로
+    // 바꿨다. 셋 중 총액이 가장 낮다(6.8만 원 × 200명, 대관료는 식대에 포함 = 1,360만 원).
+    badge: "총액이 가장 낮아요",
     picked: true,
     status: "11월 22일 상담 확정",
   },

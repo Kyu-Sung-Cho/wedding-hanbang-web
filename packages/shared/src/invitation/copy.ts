@@ -162,7 +162,9 @@ export const WEB_COPY = {
     { id: "plan", label: "준비 순서" },
   ] as const,
   decisionsHeading: "두 분이 정할 것",
-  activityHeading: "오늘 아모라가 한 일",
+  // 파운더 결정(11-18): 아티팩트 원문은 "오늘 아모라가 한 일"이다. 실제 줄은 담당자나 두 분이 한 일이라
+  // 누가 했든 참인 제목으로 바꿨다(줄마다 누가 했는지는 이름표가 말한다).
+  activityHeading: "오늘 한 일",
   inputLabel: "아모라에게 메시지",
   inputPlaceholder: "아모라에게 말하기",
   send: "보내기",

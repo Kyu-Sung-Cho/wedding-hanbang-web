@@ -127,7 +127,7 @@ describe("InvitationWebSpace", () => {
     expect(all.map((tab) => tab.getAttribute("tabindex"))).toEqual(["0", "-1", "-1"]);
   });
 
-  it("오늘 칸: 두 분이 정할 것과 오늘 아모라가 한 일", async () => {
+  it("오늘 칸: 두 분이 정할 것과 오늘 한 일", async () => {
     const { container } = await renderSpace();
 
     const today = container.querySelector('[data-panel="today"]');

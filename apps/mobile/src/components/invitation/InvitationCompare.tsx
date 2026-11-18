@@ -50,7 +50,7 @@ export function sortHallCards(halls: readonly HallCard[], sort: CompareSortId): 
 
 /**
  * 웨딩홀 비교(`Compare.dc`, 390×960). 290px 카드를 옆으로 넘기며 보고, 하트로 상담 후보에 담는다.
- * 꼬리표("가장 합리적이에요" 등)는 모델 값만 쓴다 — 업체 품질을 점수로 매기지 않는다.
+ * 꼬리표("총액이 가장 낮아요" 등)는 모델 값만 쓴다 — 업체 품질을 점수로 매기지 않는다.
  */
 export default function InvitationCompare({ model, sort, onSortChange, onTogglePick, onBack, onNavigate, topInset, notice }: Props) {
   const insets = useSafeAreaInsets();
