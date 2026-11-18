@@ -29,18 +29,7 @@ import {
   type FirstRunTutorialState,
 } from "@hanbang/shared";
 
-/**
- * `app/(tabs)/_layout.tsx`의 `tabBarStyle.height`와 같아야 한다.
- *
- * 탭바 높이가 리터럴이라 여기서도 리터럴이다. 두 값이 어긋나면 FAB이 탭 위에 걸치는데,
- * 그건 화면을 열어보기 전까지 아무도 모른다. 그래서 이 값은 테스트가 두 파일에서 같이 읽는다.
- */
-export const LOUNGE_TAB_BAR_HEIGHT = 86;
-
-/** 같은 파일의 `tabBarStyle.paddingBottom`. 탭바가 자기 안에서 이미 확보해 둔 아래 여백. */
-export const LOUNGE_TAB_BAR_BOTTOM_PADDING = 24;
-
-/** 탭바와 FAB 사이 숨 쉬는 간격. */
+/** 하단 메뉴와 FAB 사이 숨 쉬는 간격. */
 export const AMORA_FAB_GAP = 20;
 
 /** 아모라 FAB의 지름. `AmoraFab.tsx`의 button 스타일과 같아야 한다. */
@@ -58,24 +47,23 @@ export const AMORA_FAB_BUBBLE_HEIGHT = 98;
 /**
  * FAB이 화면 바닥에서 얼마나 떠 있어야 하는가.
  *
- * 탭바는 `tabBarStyle`에 position을 주지 않아 레이아웃 공간을 차지한다(static). 그래서 탭
- * 화면 컨테이너의 bottom은 **이미 탭바 위**이고, 홈 인디케이터도 탭바가 자기 높이(86) 안에서
- * 덮는다. 여기서 탭바 높이나 인셋을 한 번 더 더하면 같은 값을 두 번 빼는 셈이라 FAB이 허공에
- * 뜬다 — 실제로 바닥에서 ~190px 떠 있었다.
+ * 2026-11-17(파운더 디자인 아티팩트, 원문: 이 디자인 완전 같아야해)부터 하단 메뉴는 화면 위에 겹쳐 떠 있다
+ * (`InvitationTabBar`: 높이 64, 화면 아래에서 22px 또는 홈 표시줄 안전 영역). 예전에는 탭바가 레이아웃
+ * 공간을 차지해(static) 화면 컨테이너의 bottom 이 이미 탭바 위였고 간격 하나만 더하면 됐다. 이제 탭 화면은
+ * 메뉴 아래까지 뻗으므로 버튼은 메뉴가 차지한 높이 위에 간격 하나를 두고 뜬다.
  *
- * 그래서 남는 것은 탭바와 버튼 사이의 간격 하나뿐이다. 이 셈은 "탭바가 static"이라는 전제
- * 위에 있고, `tabBarStyle.position: "absolute"`가 들어오면 전제가 깨지므로 테스트가 그
- * 리터럴을 막는다.
+ * 메뉴 높이를 이 파일에 다시 적지 않는다. 부르는 쪽이 메뉴에서 잰 값(`invitationTabBarClearance`)을 넘긴다 —
+ * 두 곳에 리터럴을 두면 한쪽만 고쳐져 버튼이 메뉴 위에 걸친다.
  */
-export function getAmoraFabBottomOffset(): number {
-  return AMORA_FAB_GAP;
+export function getAmoraFabBottomOffset(tabBarClearance: number): number {
+  return tabBarClearance + AMORA_FAB_GAP;
 }
 
 /**
- * 라운지 스크롤 콘텐츠의 아래 여백.
+ * 라운지 스크롤 콘텐츠의 아래 여백 중 FAB 몫(메뉴 위로 더 비워야 하는 높이).
  *
  * 마지막 카드가 FAB이나 말풍선 뒤에 숨으면, 처음 온 사람은 자기가 눌러야 할 카드를 못 본다.
- * 리터럴로 적어두면 FAB이 커질 때 조용히 어긋나므로 실제 상수로 셈한다.
+ * 리터럴로 적어두면 FAB이 커질 때 조용히 어긋나므로 실제 상수로 셈한다. 메뉴 높이는 화면이 따로 더한다.
  */
 export const LOUNGE_CONTENT_BOTTOM_PADDING =
   AMORA_FAB_GAP + AMORA_FAB_SIZE + AMORA_FAB_BUBBLE_HEIGHT;

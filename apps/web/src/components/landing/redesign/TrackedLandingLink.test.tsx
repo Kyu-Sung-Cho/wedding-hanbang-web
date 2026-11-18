@@ -1,17 +1,31 @@
-import { act, type ReactNode } from "react";
+import { act, type AnchorHTMLAttributes, type ReactNode } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { START_COPY } from "@hanbang/shared/invitation";
 import { START_HERE_DATE_HANDOFF_KEY } from "@/lib/marketing/startHereDateHandoff";
 
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean })
   .IS_REACT_ACT_ENVIRONMENT = true;
 
-const mocks = vi.hoisted(() => ({ captureEvent: vi.fn() }));
+const mocks = vi.hoisted(() => ({
+  captureEvent: vi.fn(),
+  linkProps: [] as Array<{ href: string; prefetch?: boolean }>,
+}));
 
 vi.mock("@/lib/analytics", () => ({ captureEvent: mocks.captureEvent }));
-// 세션 확인 전 SSR의 중립 라벨과 로그인 변화는 LandingSession.test.tsx가 검사한다.
-// 이 파일은 확인된 비로그인 CTA를 눌렀을 때의 계측을 검사한다.
+// `next/link` 에 실제로 무엇이 넘어가는지 본다(공유 Button 의 타입에는 prefetch 가 없다).
+vi.mock("next/link", () => ({
+  default: ({ children, href, prefetch, onClick, ...props }:
+    AnchorHTMLAttributes<HTMLAnchorElement> & { href: string; prefetch?: boolean; children: ReactNode }) => {
+    mocks.linkProps.push({ href, prefetch });
+    return <a href={href} {...props} onClick={(event) => {
+      event.preventDefault();
+      onClick?.(event);
+    }}>{children}</a>;
+  },
+}));
+// 세션 확인 전·후 라벨 변화는 LandingSession.test.tsx 가 본다. 여기서는 확인된 비로그인의 계측을 본다.
 vi.mock("./LandingSession", () => ({
   default: ({ children }: { children: ReactNode }) => children,
   useLandingSession: () => "signed_out",
@@ -19,8 +33,7 @@ vi.mock("./LandingSession", () => ({
 
 import TrackedLandingLink from "./TrackedLandingLink";
 import LandingHeader from "./LandingHeader";
-import AvailableNowSection from "./AvailableNowSection";
-import TransformationHero from "./TransformationHero";
+import StartScreen from "./StartScreen";
 
 describe("TrackedLandingLink", () => {
   let container: HTMLDivElement;
@@ -28,6 +41,7 @@ describe("TrackedLandingLink", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    mocks.linkProps.length = 0;
     window.sessionStorage.clear();
     container = document.createElement("div");
     document.body.appendChild(container);
@@ -39,83 +53,62 @@ describe("TrackedLandingLink", () => {
     container.remove();
   });
 
-  it("drops a stale landing date before header or closing date-less entry", async () => {
-    window.sessionStorage.setItem(START_HERE_DATE_HANDOFF_KEY, "2027-05-01");
-
-    await act(async () => {
-      root.render(
-        <TrackedLandingLink href="/start-here" source="landing_header">
-          아모라와 시작하기
-        </TrackedLandingLink>,
-      );
-    });
-
-    const link = container.querySelector("a");
-    link?.addEventListener("click", (event) => event.preventDefault());
+  async function click(link: Element | null | undefined) {
+    expect(link, "누를 링크가 없다").toBeTruthy();
     await act(async () => {
       link?.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
     });
+  }
 
-    expect(window.sessionStorage.getItem(START_HERE_DATE_HANDOFF_KEY)).toBeNull();
-    expect(mocks.captureEvent).toHaveBeenCalledWith(
-      "landing_cta_click",
-      { source: "landing_header" },
-    );
-  });
-
-  it("distinguishes hero and tool-card WeddingCode clicks from verified signed-out desktop and mobile Amora entry", async () => {
+  it("drops a stale landing date before entry and records only the slot name", async () => {
+    window.sessionStorage.setItem(START_HERE_DATE_HANDOFF_KEY, "2027-05-01");
     await act(async () => {
-      root.render(<><LandingHeader /><TransformationHero /><AvailableNowSection /></>);
+      root.render(
+        <TrackedLandingLink href="/wedding/chat" source="landing_hero_primary" variant="ink" size="pill-56">
+          시작하기
+        </TrackedLandingLink>,
+      );
     });
-    const links = [...container.querySelectorAll('a[href="/wedding-code"]')];
-    expect(links).toHaveLength(2);
-    for (const link of links) {
-      link.addEventListener("click", (event) => event.preventDefault());
-      await act(async () => {
-        link.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
-      });
+    await click(container.querySelector("a"));
+    expect(window.sessionStorage.getItem(START_HERE_DATE_HANDOFF_KEY)).toBeNull();
+    expect(mocks.captureEvent.mock.calls).toEqual([["landing_cta_click", { source: "landing_hero_primary" }]]);
+  });
+
+  it("draws the shared Button pill and passes prefetch only when asked", async () => {
+    // 2026-11-17 파운더 디자인 아티팩트(원문: 이 디자인 완전 같아야해): 랜딩 버튼은 공유 Button 의 알약이다.
+    await act(async () => root.render(<StartScreen />));
+    const start = container.querySelector('a[href="/wedding/chat"]');
+    const example = container.querySelector('a[href="/example"]');
+    for (const token of ["h-14", "rounded-[28px]", "bg-inv-ink", "text-inv-white", "font-bold"]) {
+      expect(start?.classList.contains(token), `시작하기에 ${token} 이 없다`).toBe(true);
     }
+    for (const token of ["h-11", "text-inv-ink", "font-medium"]) {
+      expect(example?.classList.contains(token), `예시에 ${token} 이 없다`).toBe(true);
+    }
+    // 로그인이 필요한 목적지만 미리 받지 않는다.
+    expect(mocks.linkProps.find((props) => props.href === "/wedding/chat")?.prefetch).toBe(false);
+    expect(mocks.linkProps.find((props) => props.href === "/example")?.prefetch).toBeUndefined();
+  });
+
+  it("counts the start screen's two actions under their own slot names", async () => {
+    await act(async () => root.render(<StartScreen />));
+    const start = [...container.querySelectorAll("a")].find((a) => a.textContent === START_COPY.start);
+    const example = [...container.querySelectorAll("a")].find((a) => a.textContent === START_COPY.example);
+    expect(start?.getAttribute("href")).toBe("/wedding/chat");
+    expect(example?.getAttribute("href")).toBe("/example");
+    await click(start);
+    await click(example);
     expect(mocks.captureEvent.mock.calls).toEqual([
-      ["landing_cta_click", { source: "landing_hero_secondary" }],
-      ["landing_cta_click", { source: "landing_now_wedding_code" }],
-    ]);
-    const amoraEntries = [...container.querySelectorAll('a[href="/wedding/chat"]')];
-    expect(amoraEntries).toHaveLength(3);
-    const amoraSources = ["landing_header", "landing_header", "landing_hero_primary"];
-    for (const [index, entry] of amoraEntries.entries()) {
-      expect(entry.textContent).toMatch(/아모라.*시작하기/u);
-      entry.addEventListener("click", (event) => event.preventDefault());
-      await act(async () => {
-        entry.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
-      });
-      expect(mocks.captureEvent).toHaveBeenLastCalledWith("landing_cta_click", { source: amoraSources[index] });
-    }
-    expect(mocks.captureEvent.mock.calls.slice(2)).toEqual([
-      ["landing_cta_click", { source: "landing_header" }],
-      ["landing_cta_click", { source: "landing_header" }],
       ["landing_cta_click", { source: "landing_hero_primary" }],
+      ["landing_cta_click", { source: "landing_hero_secondary" }],
     ]);
   });
 
-  it("counts every available-now card under its own destination without an Amora or hero start", async () => {
-    await act(async () => root.render(<AvailableNowSection />));
-
-    const cards = [...container.querySelectorAll<HTMLAnchorElement>("#now .grid > a")];
-    expect(cards.map((card) => card.getAttribute("href"))).toEqual([
-      "/wedding/community/quote-check", "/wedding-code", "/price", "/wedding/manners",
-    ]);
-    for (const card of cards) {
-      card.addEventListener("click", (event) => event.preventDefault());
-      await act(async () => {
-        card.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
-      });
-    }
-
-    expect(mocks.captureEvent.mock.calls).toEqual([
-      ["landing_cta_click", { source: "landing_now_card" }],
-      ["landing_cta_click", { source: "landing_now_wedding_code" }],
-      ["landing_cta_click", { source: "landing_now_card" }],
-      ["landing_cta_click", { source: "landing_now_card" }],
-    ]);
+  it("counts the login pill under the header slot", async () => {
+    await act(async () => root.render(<LandingHeader />));
+    const login = container.querySelector('header a[href="/login?redirect=%2Fwedding%2Fchat"]');
+    expect(login?.textContent).toBe("로그인");
+    await click(login);
+    expect(mocks.captureEvent.mock.calls).toEqual([["landing_cta_click", { source: "landing_header" }]]);
   });
 });

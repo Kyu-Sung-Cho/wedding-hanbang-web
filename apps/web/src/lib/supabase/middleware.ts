@@ -7,10 +7,13 @@ import { SIGNUP_CONSENT_PATH } from "@hanbang/shared";
 const CUSTOMER_PATHS = [
   "/lounge", "/dashboard", "/chat", "/budget", "/checklist", "/schedule", "/settings", "/bookings",
   "/money", "/onboarding",
+  // 2026-11-17 청첩장 디자인의 준비 순서·웨딩홀 비교(편지·상담 확정 포함). 라운지와 같은 커플 화면이다.
+  "/journey", "/halls",
   "/wedding/lounge", "/wedding/dashboard", "/wedding/chat", "/wedding/budget", "/wedding/checklist", "/wedding/schedule",
   "/wedding/settings", "/wedding/bookings",
   "/wedding/money", "/wedding/vendors", "/wedding/favorites",
   "/wedding/onboarding",
+  "/wedding/journey", "/wedding/halls",
 ];
 // /market-prices는 의도적 공개 — 한국소비자원 공공 데이터(하드코딩 상수)라 보호할 개인정보가 없고,
 // "스드메 시세" 류 검색 유입의 입구다(현재는 /price 허브로 리다이렉트된다).

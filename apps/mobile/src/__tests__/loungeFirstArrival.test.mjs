@@ -73,9 +73,6 @@ const { buildLoungeFirstRunView, isOnlyStageSuggestion } = compileCommonJs(
 
 const arrivalSource = readSource("../components/lounge/LoungeFirstArrival.tsx");
 const loungeSource = readSource("../../app/(tabs)/lounge.tsx");
-const homeExperienceSource = readSource(
-  "../components/dashboard/WeddingHomeExperience.tsx",
-);
 const fabSource = readSource("../components/lounge/AmoraFab.tsx");
 const firstRunTutorialContract = compileCommonJs(
   readSource("../../../../packages/shared/src/contracts/firstRunTutorial.ts"),
@@ -396,34 +393,38 @@ test("the lounge only labels a style it can name, and never invents one", () => 
    ───────────────────────────────────────────── */
 
 test("every anchor the coach marks can point at is still in the tree", () => {
+  // 2026-11-17 파운더 디자인 아티팩트(원문: 이 디자인 완전 같아야해): 홈은 `InvitationHome` 이고 예전 라운지 본문
+  // (`WeddingHomeExperience`)을 그리지 않는다. 그 파일의 앵커는 화면에 없으므로 세지 않는다.
+  assert.doesNotMatch(loungeSource, /<WeddingHomeExperience\b/);
   const anchored = new Set(
-    [...`${homeExperienceSource}\n${fabSource}\n${loungeSource}\n${arrivalSource}`.matchAll(
+    [...`${fabSource}\n${loungeSource}\n${arrivalSource}`.matchAll(
       /(?:FirstRunAnchor\s+id="([a-z-]+)"|anchorId = "([a-z-]+)")/g,
     )].map((match) => match[1] ?? match[2]),
   );
 
-  // 첫 도착 화면이 들어오기 전부터 있던 앵커들. 하나라도 없어지면 그 안내 단계가
-  // 조용히 건너뛰어진다 — 이 저장소가 이미 한 번 겪은 사고다.
-  assert.ok(anchored.has("lounge-focus"));
-  assert.ok(anchored.has("lounge-tools"));
   assert.ok(anchored.has("amora-fab"));
-  // 첫 도착 화면이 새로 채워준 앵커. 초대 카드가 있는 사람에게만 생긴다.
+  // 첫 도착 화면이 채워준 앵커. 초대 카드가 있는 사람에게만 생긴다.
   assert.ok(anchored.has("lounge-invite"));
 
-  for (const step of firstRunTutorialContract.FIRST_RUN_TUTORIAL_STEPS) {
-    assert.ok(
-      anchored.has(step.id),
-      `안내 단계 "${step.id}"를 가리킬 앵커가 라운지에 없습니다`,
-    );
-  }
+  // "오늘 챙길 한 가지"(lounge-focus)와 "준비 도구"(lounge-tools)는 새 홈에 그 자리가 없어 안내가 건너뛴다.
+  // 공유 안내 문구를 새 홈에 맞게 다시 쓰는 일은 리드 몫이다(`firstRunTutorial.test.mjs` 가 같은 목록을 지킨다).
+  const missing = firstRunTutorialContract.FIRST_RUN_TUTORIAL_STEPS
+    .filter((step) => !anchored.has(step.id))
+    .map((step) => step.id);
+  assert.deepEqual(missing, ["lounge-focus", "lounge-tools"]);
 });
 
-test("the first arrival cards stay direct children of the scroll content", () => {
-  // 앵커의 스크롤 위치는 onLayout y로 잡는데 그 y는 부모 기준이다. 카드들을 한 겹
-  // 감싸면 초대 카드의 y가 어긋나고, 안내는 엉뚱한 데로 스크롤한 뒤 건너뛴다.
+test("the first arrival cards stay direct children of the home's content column", () => {
+  // 앵커의 위치는 onLayout y로 잡는데 그 y는 부모 기준이다. 카드들을 한 겹 감싸면 초대 카드의 y가 어긋난다.
   assert.match(arrivalSource, /return \(\s*<Fragment>/);
-  assert.match(homeExperienceSource, /\{firstArrival\}/);
-  assert.match(homeExperienceSource, /\{emptyNote\}/);
+  // 2026-11-17 홈: 첫 도착 카드는 홈의 알림 자리(`notices`)로 들어간다. 그 자리는 감싸는 View 없이 내용 칸의
+  // 직접 자식으로 그려진다(알림 묶음도 Fragment 다).
+  const home = readSource("../components/invitation/InvitationHome.tsx");
+  assert.match(home, /<View style=\{styles\.content\}>\s*\{notices\}/);
+  assert.match(loungeSource, /return \(\s*<>\s*\{partnerChanges\}\s*\{joinedPlanHandoff\}\s*\{todayOneCare\}\s*\{firstArrival\}/);
+  // 새 홈은 안내를 위해 스크롤을 옮기지 않는다(InvitationHome 은 안내 스크롤러를 등록하지 않는다). 화면 밖에 있는
+  // 앵커는 안내가 조용히 건너뛴다 — `FirstRunCoachMarks` 의 규칙 그대로다.
+  assert.doesNotMatch(home, /useFirstRunAnchorScroller/);
 });
 
 /* ─────────────────────────────────────────────

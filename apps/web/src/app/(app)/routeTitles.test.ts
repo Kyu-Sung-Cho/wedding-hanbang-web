@@ -48,6 +48,11 @@ const SCREENS: Array<[string, string, () => Promise<TitleModule>]> = [
   ["settings/amora-memory/layout", "아모라가 기억하는 것 | 웨딩한방", () => import("./settings/amora-memory/layout")],
   ["chat/board/page", "결정 보드 | 웨딩한방", () => import("./chat/board/page")],
   ["chat/personal/page", "나만 보는 할 일 | 웨딩한방", () => import("./chat/personal/page")],
+  // 2026-11-17 파운더 디자인 아티팩트(원문: 이 디자인 완전 같아야해)의 새 화면. 이름은 아티팩트 화면 제목 그대로다.
+  ["journey/layout", "준비 순서 | 웨딩한방", () => import("./journey/layout")],
+  ["halls/layout", "웨딩홀 비교 | 웨딩한방", () => import("./halls/layout")],
+  ["halls/letter/layout", "보내기 전 확인 | 웨딩한방", () => import("./halls/letter/layout")],
+  ["halls/consultation/layout", "답장과 상담 확정 | 웨딩한방", () => import("./halls/consultation/layout")],
 ];
 
 function rootTitle(): string {

@@ -1,10 +1,29 @@
-// 웨딩 라운지 — 우리의 결혼식, 오늘의 한 가지, 준비 서비스 (Supabase 실데이터)
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Alert, StyleSheet, View } from "react-native";
+// 홈 탭 — 로그인한 커플의 첫 화면(2026-11-17 파운더 디자인 아티팩트, 원문: 이 디자인 완전 같아야해).
+//
+// 화면은 예시 커플과 같은 `InvitationHome`(`Home.dc`)이고 모델은 `GET /api/invitation/home` 이 준다.
+// 온보딩을 마쳤는데 조건(희망 달·지역·하객 수)이 비어 있으면 홈 대신 첫 대화(`InvitationFirstChat`,
+// `Chat.dc`)를 보이고, 고른 값은 사람이 "좋아요"를 누를 때만 `PATCH /api/invitation/conditions` 로 저장한다.
+// 온보딩 단계 자체(계정·커플 연결·동의)는 그대로다. 이미 쓰던 커플 대부분은 지역·하객 수가 비어 있으므로 첫 대화에
+// 갇히지 않게 "나중에 할게요"로 홈에 가고, 그 선택은 사람마다 이 기기에 기억한다(`firstChatSkip.mjs`, 저장소가
+// 실패하면 홈을 연다). 조건이 비어 있는 동안 홈의 "두 분이 정할 것" 맨 앞 한 줄이 첫 대화를 다시 연다. 하단 메뉴는
+// 첫 대화 동안에도 그대로 쓸 수 있다(첫 대화가 유일한 길이 아니다).
+//
+// 예전 라운지가 맡던 일 가운데 제품·안전 몫은 남긴다(2026-11-17 리드 지시). 홈의 알림 자리(첫 장 아래,
+// 아모라 소식 위)에 둔다. 할 말이 없으면 각 알림이 아무것도 그리지 않아 자리도 생기지 않는다.
+//   - 상대가 바꾼 것(PartnerChangeNotice) · 합류 직후 안내(JoinedPlanHandoff)
+//   - 첫 도착 안내와 초대 코드로 가는 카드(LoungeFirstArrival, 초대 카드는 아직 혼자일 때만)
+//   - 오늘의 한 가지(TodayOneCareCard): 설정에서 켠 사람에게만 보인다. 켤 수 있는 설정이 남아 있는 한
+//     보이는 자리도 있어야 한다(설정이 없는 기능을 약속하지 않는다).
+//   - 첫 실행 안내(FirstRunCoachMarks)와 아모라의 첫마디(AmoraFab 말풍선). 버튼은 아모라가 먼저 건넨
+//     말이 있거나 안내가 그 버튼을 가리킬 때만 메뉴 위에 뜬다.
+//   - 지난 상담 요청 기록으로 가는 줄(LoungeRecordsEntry): 기록이 있는 커플에게만(2026-09-18 파운더 결정).
+// 내 정보(설정·로그아웃·탈퇴)는 오른쪽 위 머리글자 묶음에서 연다.
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { RefreshControl, StyleSheet, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { router, useLocalSearchParams } from "expo-router";
+import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { colors } from "@hanbang/design-tokens";
+import { invitationPalette } from "@hanbang/design-tokens";
 import {
   buildAmoraFirstHello,
   buildLoungeFirstRunView,
@@ -12,24 +31,28 @@ import {
   isOnlyStageSuggestion,
   PREPARATION_STAGE_PROGRESS_KEY,
   PREPARATION_STAGE_VALUES,
-  resolvePlanningChecklistStatus,
   shouldShowFirstRunTutorial,
   WEDDING_STYLE_OPTIONS,
   type PreparationStageValue,
-  daysUntilWedding,
 } from "@hanbang/shared";
 import {
-  getChecklistCategoryDueDday,
-  mergePlanningChecklist,
-} from "@hanbang/shared/utils";
+  ACTIVITY_COPY,
+  ASK_CONDITIONS_COPY,
+  FIRST_CHAT_COPY,
+  HOME_STATE_COPY,
+  INVITATION_REGIONS,
+  type FirstChatModel,
+  type InvitationConditionsResponse,
+  type InvitationHomeResponse,
+  type InvitationRouteKey,
+  type PreparationStartStage,
+} from "@hanbang/shared/invitation";
 import { supabase } from "@/lib/supabase";
 import { CATEGORY_CHECKLISTS } from "@/constants/checklists";
 import {
   calculateChecklistCounts,
-  calculateChecklistProgress,
   formatLocalDateKey,
 } from "@/lib/dashboardExperience.mjs";
-import { isActiveScheduleEvent } from "@/lib/scheduleMutation.mjs";
 import {
   hasCoupleMadeData,
   readRecordedCategoryStatuses,
@@ -37,6 +60,7 @@ import {
 } from "@/lib/loungeFirstArrival.mjs";
 import {
   hasShownFirstRunTutorialOnDevice,
+  LOUNGE_CONTENT_BOTTOM_PADDING,
   loadFirstRunTutorialState,
   markFirstRunTutorialCompleted,
   noteFirstRunTutorialOpened,
@@ -54,41 +78,29 @@ import {
   peekPendingAmoraFirstHello,
   rememberPendingAmoraFirstHello,
 } from "@/lib/amoraFirstHello";
+import {
+  firstChatConditionsPatch,
+  firstChatYearForMonth,
+  kstYearMonth,
+} from "@/lib/invitationApi.mjs";
+import { hasSkippedFirstChat, rememberFirstChatSkip } from "@/lib/firstChatSkip.mjs";
+import { navigateInvitationRoute } from "@/lib/invitationRoutes.mjs";
+import { useLiveOwner } from "@/lib/invitationLive";
 import ErrorRetry from "@/components/ErrorRetry";
 import TodayOneCareCard from "@/components/dashboard/TodayOneCareCard";
-import AmoraActionsCard from "@/components/lounge/AmoraActionsCard";
 import PartnerChangeNotice from "@/components/lounge/PartnerChangeNotice";
-import WeddingHomeExperience, {
-  LoungeProfileButton,
-  type WeddingHomeData,
-} from "@/components/dashboard/WeddingHomeExperience";
-import {
-  buildLoungeAmoraAskHref,
-  stageLoungeAmoraAsk,
-  type LoungeAmoraTask,
-} from "@/lib/loungeAmoraAsk";
+import { LoungeProfileButton } from "@/components/dashboard/WeddingHomeExperience";
 import AmoraFab from "@/components/lounge/AmoraFab";
 import JoinedPlanHandoff from "@/components/lounge/JoinedPlanHandoff";
 import { FirstRunAnchorProvider } from "@/components/lounge/FirstRunAnchors";
 import FirstRunCoachMarks, {
   type FirstRunCoachMarksOutcome,
 } from "@/components/lounge/FirstRunCoachMarks";
-import LoungeFirstArrival, {
-  LoungeEmptyNote,
-} from "@/components/lounge/LoungeFirstArrival";
-
-interface UrgentTask {
-  categoryKey: string;
-  categoryLabel: string;
-  ddayDeadline: number;
-  remainingDays: number;
-  urgency: "overdue" | "soon" | "ontrack";
-}
-
-interface PartnerActivity {
-  partnerName: string;
-  recentCategories: string[];
-}
+import LoungeFirstArrival from "@/components/lounge/LoungeFirstArrival";
+import InvitationHome from "@/components/invitation/InvitationHome";
+import InvitationFirstChat from "@/components/invitation/InvitationFirstChat";
+import InvitationStateScreen from "@/components/invitation/InvitationStateScreen";
+import LoungeRecordsEntry from "@/components/invitationLive/LoungeRecordsEntry";
 
 interface BookingOutcomeTask {
   id: string;
@@ -98,17 +110,21 @@ interface BookingOutcomeTask {
   isPast: boolean;
 }
 
-interface DashboardData extends WeddingHomeData {
+/**
+ * 홈 바깥의 알림·안내가 읽는 이 커플의 사실. 홈 모델 자체는 서버(`/api/invitation/home`)가 만든다.
+ * 첫 도착 안내·합류 안내·아모라 첫마디는 이 값으로만 만든다(모델이 쓰지 않는다).
+ */
+interface LoungeData {
+  name: string | null;
+  weddingDate: string | null;
   totalBudget: number;
   /** 저장된 식장. 합류 직후 안내의 "장소" 칸이 되읽는다. 없으면 null. */
   venue: string | null;
-  /** 체크리스트 항목 수. 히어로의 %와 같은 셈이고, 합류 안내가 "n/m개 체크"로 보여준다. */
+  /** 체크리스트 항목 수. 합류 안내가 "n/m개 체크"로 보여준다. */
   checklistDone: number;
   checklistTotal: number;
   progress: Record<string, unknown>;
-  urgentTasks: UrgentTask[];
   bookingOutcomeTasks: BookingOutcomeTask[];
-  partnerActivity: PartnerActivity | null;
   coupleId: string | null;
   /** 온보딩에서 받은 한 줄 단계. 첫 도착 화면이 되읽고, 다음 걸음을 여기서 고른다. */
   preparationStage: PreparationStageValue | null;
@@ -125,7 +141,42 @@ interface DashboardData extends WeddingHomeData {
    * 전까지 환영 자리를 비워 두고 첫 실행 안내도 판정하지 않는다 — `resolveJoinedPlanSlot` 참고.
    */
   partnerLinkedChecked: boolean;
+  /** 온보딩을 마쳤는가. 마치지 않은 사람에게는 첫 대화(조건 묻기)도 첫 실행 안내도 띄우지 않는다. */
+  onboardingCompleted: boolean;
+  /**
+   * 이 커플이 남긴 상담 요청 기록이 하나라도 있는가. 새 요청은 받지 않으므로, 기록이 있는
+   * 사람에게만 지난 기록으로 가는 줄을 둔다. 모르면 없는 것으로 본다.
+   */
+  hasBookingRecords: boolean;
 }
+
+type InvitationState =
+  | { status: "loading" }
+  | { status: "failed" }
+  | { status: "ready"; home: InvitationHomeResponse; conditions: InvitationConditionsResponse | null };
+
+type FirstChatAnswers = {
+  stage: PreparationStartStage | null;
+  month: number | null;
+  /** 사람이 이 화면에서 달을 직접 눌렀는가. 저장된 값을 되읽은 달은 다시 저장하지 않는다. */
+  monthChosen: boolean;
+  region: string | null;
+  guests: number | null;
+};
+
+const EMPTY_ANSWERS: FirstChatAnswers = { stage: null, month: null, monthChosen: false, region: null, guests: null };
+
+/**
+ * 첫 대화의 지역 칩. 공유 지역 목록(`INVITATION_REGIONS`, 시·도 짧은 이름)에서만 고른다. 웨딩홀 자료의 지역과
+ * 글자 그대로 맞춰 찾으므로 손으로 적은 지역을 받지 않는다. 목록이 비면 지역 칩을 그리지 않고 지역 없이도 저장한다.
+ */
+const FIRST_CHAT_REGIONS: readonly string[] = INVITATION_REGIONS;
+
+/** 내 정보로 가는 머리글자 단추의 읽어 주는 이름. 예전 라운지 머리줄 단추(`LoungeProfileButton`)와 같은 말이다. */
+const PROFILE_ACTION = {
+  label: "내 정보",
+  hint: "설정과 로그아웃도 여기서 열어요",
+} as const;
 
 const CATEGORY_LABEL_BY_KEY = Object.fromEntries(
   CATEGORY_CHECKLISTS.map((category) => [category.key, category.label]),
@@ -181,122 +232,7 @@ function isOutcomeNeededBooking(
   return status === "completed" || isPast;
 }
 
-// 예식일은 사용자가 고른 **한국 날짜**다. 기기 시간대로 오늘을 읽으면
-// 해외에 있을 때 채팅(서버·KST)과 이 화면이 서로 다른 D-day 를 말한다.
-//
-// 웹은 2026-08-25 에 서버 계산을 `daysUntilWedding`(KST 고정)으로 통일했다.
-// 모바일 화면 세 곳은 각자 `calcDday` 를 갖고 있었고 파싱 방식마저 서로
-// 달랐다(하나는 날짜만 있는 문자열을 UTC 자정으로 읽었다).
-function calcDday(dateStr: string | null): number | null {
-  return daysUntilWedding(dateStr, Date.now());
-}
-
-// 결혼일 기준 마감이 지났거나 임박한 미완료 카테고리 TOP 3
-function calcUrgentTasks(
-  dday: number | null,
-  progress: Record<string, unknown>,
-): UrgentTask[] {
-  if (dday === null || dday <= 0) return [];
-
-  const tasks: UrgentTask[] = [];
-
-  for (const category of CATEGORY_CHECKLISTS) {
-    const categoryProgress = progress[category.key] as
-      | {
-          status?: string;
-          checklist?: Array<{ id: string; done: boolean }>;
-          [key: string]: unknown;
-        }
-      | undefined;
-
-    // 게이트가 둘이었고 **둘 다 저장값만 봤다.** 위는 저장된 status를, 아래 `allDone`은
-    // 저장된 배열만 보고 템플릿과 병합하지 않았다. 그래서 항목이 늘면 열한 개를 끝낸
-    // 분야가 양쪽에서 걸러져 열두 번째 항목이 긴급 목록에 영영 안 뜬다. 모바일은 그
-    // 분야를 한 번 열어야 저장값이 갱신되는데, 여기서 숨기면 열 계기조차 없다.
-    //
-    // 두 게이트를 리졸버 하나로 합친다. 항목 기록이 있으면 병합본에서 파생하고, 없으면
-    // 저장된 선언을 그대로 둔다. `checklist`의 원소는 `label`이 없지만 판정에 쓰이는
-    // 것은 `id`와 `done`뿐이다.
-    const resolvedStatus = resolvePlanningChecklistStatus(
-      category.items,
-      categoryProgress as unknown as Parameters<typeof resolvePlanningChecklistStatus>[1],
-    );
-    if (resolvedStatus === "completed" || resolvedStatus === "not_applicable") continue;
-
-    // 아래는 체크리스트 배열이 없는 **옛 플랫 불리언 모양**만 남긴다. 운영 데이터에 이
-    // 모양이 남아 있는지 확인하지 못해 지우지 않았다.
-    let allDone = false;
-    if (
-      !Array.isArray(categoryProgress?.checklist)
-      && categoryProgress && typeof categoryProgress === "object"
-    ) {
-      const booleanValues = Object.values(categoryProgress).filter(
-        (value): value is boolean => typeof value === "boolean",
-      );
-      allDone =
-        booleanValues.length > 0
-        && booleanValues.every((value) => value === true);
-    }
-    if (allDone) continue;
-
-    // 기본 확인 시점은 분야 값(`ddayDeadline`) 하나가 아니라 **아직 안 끝낸 항목 중 가장 이른
-    // 시점**으로 센다. 분야 값으로만 세면 늦게 하는 항목(결혼식 직전 최종으로 입어 보기 등)만
-    // 남은 커플도 라운지에서 "기본 확인 시점에서 N일 지남"을 봤고, 같은 커플이 체크리스트
-    // 화면(`buildWeeklyChecklistActions`)에서는 그 경고를 보지 않았다. 병합은 체크리스트 화면과
-    // 같다 — 저장된 배열이 있으면 그것을, 없으면 옛 플랫 불리언을 항목으로 읽어 템플릿과 합친다.
-    const savedChecklist = Array.isArray(categoryProgress?.checklist)
-      ? categoryProgress.checklist.map((item) => ({
-          id: item.id,
-          label: category.items.find((templateItem) => templateItem.id === item.id)?.label ?? "이전 준비 항목",
-          done: item.done === true,
-        }))
-      : Object.entries(categoryProgress ?? {})
-          .filter((entry): entry is [string, boolean] => typeof entry[1] === "boolean")
-          .map(([id, done]) => ({
-            id,
-            label: category.items.find((templateItem) => templateItem.id === id)?.label ?? "이전 준비 항목",
-            done,
-          }));
-    const mergedChecklist = mergePlanningChecklist(category.items, savedChecklist);
-    const due = getChecklistCategoryDueDday(category, mergedChecklist);
-    // 남은 일이 전부 계약·약속으로 정한 날에 하는 일이면 앱이 그 날을 모른다. 체크리스트 화면·웹 임박 알림도 뺀다.
-    if (due === null) continue;
-
-    const remainingDays = dday - due;
-    const urgency: UrgentTask["urgency"] =
-      remainingDays < 0
-        ? "overdue"
-        : remainingDays <= 14
-          ? "soon"
-          : "ontrack";
-
-    if (dday > category.ddayStart) continue;
-
-    tasks.push({
-      categoryKey: category.key,
-      categoryLabel: category.label,
-      ddayDeadline: due,
-      remainingDays,
-      urgency,
-    });
-  }
-
-  const urgencyOrder: Record<UrgentTask["urgency"], number> = {
-    overdue: 0,
-    soon: 1,
-    ontrack: 2,
-  };
-  tasks.sort((left, right) => {
-    const orderDiff =
-      urgencyOrder[left.urgency] - urgencyOrder[right.urgency];
-    return orderDiff !== 0
-      ? orderDiff
-      : left.remainingDays - right.remainingDays;
-  });
-
-  return tasks.slice(0, 3);
-}
-
+/** 첫 도착 판정(`hasCoupleMadeData`)이 "두 사람이 만든 것"으로 세는 지난 요청 기록. */
 async function loadBookingOutcomeTasks(
   coupleId: string,
 ): Promise<BookingOutcomeTask[]> {
@@ -348,7 +284,7 @@ async function loadBookingOutcomeTasks(
 /**
  * 이 커플이 남긴 상담 요청 기록이 하나라도 있는가.
  *
- * 업체 상담·예약 요청은 2026-07-15부터 받지 않는다. 그래서 라운지의 「상담 요청 기록」 칸은
+ * 업체 상담·예약 요청은 2026-07-15부터 받지 않는다. 그래서 「상담 요청 기록」 줄은
  * 이미 기록이 있는 사람에게만 **지난 기록을 보는 입구**로 남긴다(2026-09-18 파운더 결정).
  * 상태로 거르지 않는다 — 취소 표시만 남은 사람도 그 기록을 볼 수 있어야 한다.
  * 못 물어봤으면 false다. 틀린 입구가 뜨는 것보다 잠깐 없는 편이 낫고, 새로고침이 다시 묻는다.
@@ -365,59 +301,6 @@ async function loadHasBookingRecords(coupleId: string): Promise<boolean> {
   } catch {
     return false;
   }
-}
-
-async function loadPartnerActivity({
-  coupleId,
-  userId,
-  progress,
-}: {
-  coupleId: string;
-  userId: string;
-  progress: Record<string, unknown>;
-}): Promise<PartnerActivity | null> {
-  const { data: partners, error } = await supabase
-    .from("couple_profile_directory")
-    .select("name")
-    .eq("couple_id", coupleId)
-    .neq("id", userId);
-
-  if (error || !partners || partners.length === 0) return null;
-
-  const recentCategories: string[] = [];
-  const sevenDaysAgo = new Date();
-  sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-
-  for (const category of CATEGORY_CHECKLISTS) {
-    const categoryProgress = progress[category.key] as
-      | {
-          updated_by?: string;
-          updated_at?: string;
-        }
-      | undefined;
-    if (
-      !categoryProgress?.updated_by
-      || categoryProgress.updated_by === userId
-    ) {
-      continue;
-    }
-
-    if (!categoryProgress.updated_at) {
-      recentCategories.push(category.label);
-      continue;
-    }
-
-    const updatedAt = new Date(categoryProgress.updated_at);
-    if (!Number.isNaN(updatedAt.getTime()) && updatedAt >= sevenDaysAgo) {
-      recentCategories.push(category.label);
-    }
-  }
-
-  if (recentCategories.length === 0) return null;
-  return {
-    partnerName: partners[0]?.name ?? "파트너",
-    recentCategories,
-  };
 }
 
 /** 첫 실행 안내와 아모라 첫마디를 만들 때 필요한, 이 사람에 대해 이미 아는 것. */
@@ -459,7 +342,7 @@ function readWeddingStyleLabel(
  * 이 값은 "내가 안내를 봤다"는 자기 신고라 남의 행을 건드리지 않는다.
  *
  * 읽기를 이름·couple_id를 가져오는 select에 합치지 않는 이유: 그 컬럼들은 아직 운영 DB에
- * 없을 수 있고(마이그레이션 미적용), 합쳐 두면 안내 플래그 하나 때문에 라운지 전체가
+ * 없을 수 있고(마이그레이션 미적용), 합쳐 두면 안내 플래그 하나 때문에 첫 화면 전체가
  * 오류 화면이 된다.
  */
 function createFirstRunTutorialGateway(
@@ -504,25 +387,96 @@ async function loadPartnerLinked(
   }
 }
 
+/**
+ * 달을 아직 고르지 않았을 때 첫 대화 카드 위에 보일 연도. 고를 수 있는 달 가운데 가장 먼저 오는 달의
+ * 연도다(그 달도 석 달 넘게 남는 해, `firstChatYearForMonth`). 달을 고르면 그 달의 연도로 바뀐다.
+ */
+function soonestFirstChatYear(today: { year: number; month: number }): number {
+  const candidates = FIRST_CHAT_COPY.months.map((month) => ({ month, year: firstChatYearForMonth(month, today) }));
+  candidates.sort((a, b) => a.year - b.year || a.month - b.month);
+  return candidates[0]?.year ?? today.year;
+}
+
+function weddingYearMonth(weddingDate: string | null): { year: number; month: number } | null {
+  const match = weddingDate ? /^(\d{4})-(\d{2})-(\d{2})$/.exec(weddingDate) : null;
+  return match ? { year: Number(match[1]), month: Number(match[2]) } : null;
+}
+
+/** 첫 대화가 처음 열릴 때 이미 저장된 답을 되읽는다. 정한 예식일이 있으면 그 달이다. */
+function answersFromConditions(response: InvitationConditionsResponse): FirstChatAnswers {
+  const wedding = weddingYearMonth(response.weddingDate);
+  return {
+    stage: response.conditions.startStage,
+    month: wedding?.month ?? response.conditions.hopedMonth,
+    monthChosen: false,
+    region: response.conditions.region,
+    guests: response.conditions.guestCount,
+  };
+}
+
+/**
+ * 홈의 알림 자리. 순서는 예전 라운지와 같다: 상대가 바꾼 것, 합류 안내, 오늘의 한 가지, 첫 도착,
+ * 그리고 지난 기록으로 가는 줄.
+ */
+function LoungeNotices({
+  partnerChanges,
+  joinedPlanHandoff,
+  todayOneCare,
+  firstArrival,
+  records,
+}: {
+  partnerChanges: ReactNode;
+  joinedPlanHandoff: ReactNode;
+  todayOneCare: ReactNode;
+  firstArrival: ReactNode;
+  records: ReactNode;
+}) {
+  return (
+    <>
+      {partnerChanges}
+      {joinedPlanHandoff}
+      {todayOneCare}
+      {firstArrival}
+      {records}
+    </>
+  );
+}
+
 export default function DashboardScreen() {
   // 파트너 합류 직후에만 온보딩이 `?joined=1`을 붙여 보낸다. 표시는 이 파라미터뿐이고
   // 어디에도 저장하지 않는다 — 앱을 다시 켜면 "방금 합류했다"도 사라진다.
   const routeParams = useLocalSearchParams();
   const joinedPlanMarker = hasJoinedPlanMarker(routeParams[JOINED_PLAN_PARAM]);
+  // 웨딩홀 비교의 "조건 알려 주기"가 `?conditions=1` 로 첫 대화를 다시 연다(이번 실행에서 닫았어도).
+  const askConditions = routeParams.conditions === "1";
   // loadData는 화면이 살아 있는 동안 한 번 만들어지므로(리얼타임 구독이 붙잡는다) 표시는
   // 렌더마다 ref로 넘긴다. 첫 실행 안내를 상대 확인 뒤로 미룰지 여기서 읽는다.
   const joinedPlanMarkerRef = useRef(joinedPlanMarker);
   joinedPlanMarkerRef.current = joinedPlanMarker;
-  const [data, setData] = useState<DashboardData | null>(null);
+  const liveOwner = useLiveOwner();
+  const [data, setData] = useState<LoungeData | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [careRefreshVersion, setCareRefreshVersion] = useState(0);
   const [error, setError] = useState(false);
+  const [invitation, setInvitation] = useState<InvitationState>({ status: "loading" });
+  const [invitationVersion, setInvitationVersion] = useState(0);
+  const [answers, setAnswers] = useState<FirstChatAnswers>(EMPTY_ANSWERS);
+  const answersSeededRef = useRef(false);
+  const [firstChatDismissed, setFirstChatDismissed] = useState(false);
+  // 이 사람이 첫 대화를 "나중에 할게요"로 넘겼는가(이 기기에 사람마다 기억). 읽는 동안은 "checking".
+  const [firstChatSkip, setFirstChatSkip] = useState<"checking" | "skipped" | "not_skipped">("checking");
+  // 홈의 한 줄이나 웨딩홀 비교의 "조건 알려 주기"로 첫 대화를 직접 열었는가. 건너뛴 기록보다 앞선다.
+  const [firstChatRequested, setFirstChatRequested] = useState(false);
+  const [firstChatSaving, setFirstChatSaving] = useState(false);
+  const [firstChatFailed, setFirstChatFailed] = useState(false);
   const [firstRunTutorialOpen, setFirstRunTutorialOpen] = useState(false);
   const [amoraBubble, setAmoraBubble] = useState<string | null>(null);
   // 말풍선을 닫는 것과 첫마디를 읽는 것은 다른 일이다. 말풍선을 X로 접었다고 점까지 지우면,
   // 아모라가 남긴 말이 대화에 기다린다는 표시가 화면에서 통째로 사라진다.
   const [amoraUnread, setAmoraUnread] = useState(false);
+  // 대화 탭에서 첫마디를 읽고 돌아오면 버튼을 거둔다. 화면에 다시 올 때마다 남은 첫마디를 다시 본다.
+  const [helloCheck, setHelloCheck] = useState(0);
   const coupleIdRef = useRef<string | null>(null);
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
   const firstRunProfileRef = useRef<FirstRunProfileContext | null>(null);
@@ -607,19 +561,15 @@ export default function DashboardScreen() {
           checklistDone: 0,
           checklistTotal: 0,
           progress: {},
-          progressPercent: 0,
-          todayTasks: [],
-          dday: null,
-          urgentTasks: [],
           bookingOutcomeTasks: [],
-          partnerActivity: null,
-          hasBookingRecords: false,
           coupleId: null,
           preparationStage: null,
           weddingStyleLabel: null,
           partnerLinked: undefined,
           // 커플이 없으면 물어볼 상대도 없다. 기다릴 것이 없다.
           partnerLinkedChecked: true,
+          onboardingCompleted,
+          hasBookingRecords: false,
         });
         void evaluateFirstRunTutorial(user.id, onboardingCompleted);
         return;
@@ -634,28 +584,13 @@ export default function DashboardScreen() {
 
       const progress =
         (journey.progress as Record<string, unknown> | null) ?? {};
-      const progressPercent = calculateChecklistProgress(
-        progress,
-        CATEGORY_CHECKLISTS,
-      );
       const checklistCounts = calculateChecklistCounts(
         progress,
         CATEGORY_CHECKLISTS,
       );
-      const todayKey = formatLocalDateKey();
-      const events = Array.isArray(progress.__events)
-        ? progress.__events
-        : [];
-      const todayTasks = events
-        .filter((event) => isActiveScheduleEvent(event) && event.date === todayKey)
-        .map((event) => ({
-          title: event.title,
-          categoryKey: event.categoryKey ?? "",
-        }));
       const weddingDate = journey.wedding_date ?? null;
-      const dday = calcDday(weddingDate);
 
-      const coreData: DashboardData = {
+      const coreData: LoungeData = {
         name: profile.name,
         weddingDate,
         totalBudget: journey.total_budget ?? 0,
@@ -663,13 +598,7 @@ export default function DashboardScreen() {
         checklistDone: checklistCounts.done,
         checklistTotal: checklistCounts.total,
         progress,
-        progressPercent,
-        todayTasks,
-        dday,
-        urgentTasks: calcUrgentTasks(dday, progress),
         bookingOutcomeTasks: [],
-        partnerActivity: null,
-        hasBookingRecords: false,
         coupleId: profile.couple_id,
         preparationStage: readPreparationStage(progress),
         weddingStyleLabel: readWeddingStyleLabel(progress),
@@ -677,6 +606,8 @@ export default function DashboardScreen() {
         // 초대 카드가 뜨지 않는다 — 없는 카드가 늦게 뜨는 편이, 틀린 카드가 먼저 뜨는 것보다 낫다.
         partnerLinked: undefined,
         partnerLinkedChecked: false,
+        onboardingCompleted,
+        hasBookingRecords: false,
       };
 
       firstRunProfileRef.current = {
@@ -686,11 +617,9 @@ export default function DashboardScreen() {
         preparationStage: readPreparationStage(progress),
       };
 
-      // 라운지의 핵심 맥락과 오늘의 행동을 먼저 그린 뒤, 보조 데이터를 이어 붙인다.
-      //
-      // 같은 커플을 다시 읽는 중(리얼타임 갱신·당겨서 새로고침)이면 상대 유무와 기록 유무는
-      // 방금 확인한 값을 새 값이 올 때까지 들고 있는다. 매번 비웠다 채우면 합류 안내와
-      // 「상담 요청 기록」 칸이 상대가 무언가 고칠 때마다 깜빡이고 격자가 다시 흐른다.
+      // 같은 커플을 다시 읽는 중(리얼타임 갱신·당겨서 새로고침)이면 상대 유무와 기록 유무는 방금 확인한
+      // 값을 새 값이 올 때까지 들고 있는다. 매번 비웠다 채우면 합류 안내와 「상담 요청 기록」 줄이 상대가
+      // 무언가 고칠 때마다 깜빡인다.
       setData((current) =>
         current && current.coupleId === coreData.coupleId
           ? {
@@ -716,24 +645,17 @@ export default function DashboardScreen() {
       }
 
       try {
-        const [bookingOutcomeTasks, partnerActivity, partnerLinked, hasBookingRecords] =
-          await Promise.all([
-            loadBookingOutcomeTasks(profile.couple_id),
-            loadPartnerActivity({
-              coupleId: profile.couple_id,
-              userId: user.id,
-              progress,
-            }),
-            loadPartnerLinked(profile.couple_id, user.id),
-            loadHasBookingRecords(profile.couple_id),
-          ]);
+        const [bookingOutcomeTasks, partnerLinked, hasBookingRecords] = await Promise.all([
+          loadBookingOutcomeTasks(profile.couple_id),
+          loadPartnerLinked(profile.couple_id, user.id),
+          loadHasBookingRecords(profile.couple_id),
+        ]);
 
         setData((current) =>
           current
             ? {
                 ...current,
                 bookingOutcomeTasks,
-                partnerActivity,
                 partnerLinked,
                 partnerLinkedChecked: true,
                 hasBookingRecords,
@@ -760,6 +682,12 @@ export default function DashboardScreen() {
     }
   }, [evaluateFirstRunTutorial]);
 
+  // 상대가 함께 쓰는 계획을 고치면(리얼타임) 바깥 사실과 홈 모델을 함께 다시 읽는다.
+  const handleRemoteChange = useCallback(() => {
+    void loadData();
+    setInvitationVersion((version) => version + 1);
+  }, [loadData]);
+
   useEffect(() => {
     let active = true;
 
@@ -778,7 +706,7 @@ export default function DashboardScreen() {
             table: "wedding_journeys",
             filter: `couple_id=eq.${coupleId}`,
           },
-          loadData,
+          handleRemoteChange,
         )
         .on(
           "postgres_changes",
@@ -788,7 +716,7 @@ export default function DashboardScreen() {
             table: "vendor_bookings",
             filter: `couple_id=eq.${coupleId}`,
           },
-          loadData,
+          handleRemoteChange,
         )
         .subscribe();
 
@@ -802,13 +730,65 @@ export default function DashboardScreen() {
         channelRef.current = null;
       }
     };
-  }, [loadData]);
+  }, [loadData, handleRemoteChange]);
+
+  // 홈 모델과 조건은 서버가 이 커플의 공유 계획에서 만든다(`/api/invitation/home`·`/conditions`).
+  // 요청은 시작 시점 사용자에게 묶여 있다(`useLiveOwner`). 다시 읽다 실패하면 보던 홈을 그대로 둔다.
+  useEffect(() => {
+    if (liveOwner.status !== "ready") return;
+    let active = true;
+    void Promise.all([liveOwner.api.home(), liveOwner.api.conditions()]).then(([home, conditions]) => {
+      if (!active) return;
+      if (!home.ok) {
+        setInvitation((current) => (current.status === "ready" ? current : { status: "failed" }));
+        return;
+      }
+      setInvitation({ status: "ready", home: home.data, conditions: conditions.ok ? conditions.data : null });
+    });
+    return () => {
+      active = false;
+    };
+  }, [liveOwner, invitationVersion]);
+
+  const conditions = invitation.status === "ready" ? invitation.conditions : null;
+
+  // 첫 대화가 처음 열릴 때 이미 저장된 답을 한 번만 되읽는다. 그 뒤로는 사람이 고른 값을 덮지 않는다.
+  useEffect(() => {
+    if (!conditions || answersSeededRef.current) return;
+    answersSeededRef.current = true;
+    setAnswers(answersFromConditions(conditions));
+  }, [conditions]);
+
+  // 건너뛴 기록은 사람마다다. 다른 사람으로 바뀌면 다시 읽는다. 저장소가 실패하면 건너뛴 것으로 본다(홈을 연다).
+  useEffect(() => {
+    if (liveOwner.status !== "ready") return;
+    let active = true;
+    setFirstChatSkip("checking");
+    void hasSkippedFirstChat(AsyncStorage, liveOwner.ownerId).then((skipped) => {
+      if (active) setFirstChatSkip(skipped ? "skipped" : "not_skipped");
+    });
+    return () => {
+      active = false;
+    };
+  }, [liveOwner]);
+
+  useEffect(() => {
+    if (!askConditions) return;
+    setFirstChatDismissed(false);
+    setFirstChatRequested(true);
+    router.setParams({ conditions: undefined });
+  }, [askConditions]);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
+    setInvitationVersion((version) => version + 1);
     await loadData();
     setCareRefreshVersion((version) => version + 1);
   }, [loadData]);
+
+  useFocusEffect(useCallback(() => {
+    setHelloCheck((value) => value + 1);
+  }, []));
 
   // 안내를 마친 뒤 앱이 꺼졌다 켜져도 아모라의 첫마디는 기다리고 있어야 한다.
   // 완료 사실은 이미 프로필에 적혀서 안내는 다시 뜨지 않으므로, 여기서 되살리지 않으면
@@ -831,7 +811,7 @@ export default function DashboardScreen() {
     return () => {
       active = false;
     };
-  }, [data]);
+  }, [data, helloCheck]);
 
   const handleFirstRunTutorialClose = useCallback(
     async (outcome: FirstRunCoachMarksOutcome) => {
@@ -890,8 +870,7 @@ export default function DashboardScreen() {
    * true가 되고, 이 값은 그 다음 렌더에서 저절로 null이 된다 — "데이터가 있는데 첫 도착
    * 화면"이 남는 경로 자체가 없다.
    *
-   * 커플이 없는 사람에게는 보여주지 않는다. 온보딩을 끝내지 못한 상태라 되읽어 줄 것도
-   * 없고, 라운지 히어로가 이미 "결혼식 날짜를 알려주세요"로 그 사람을 데려간다.
+   * 커플이 없는 사람에게는 보여주지 않는다. 온보딩을 끝내지 못한 상태라 되읽어 줄 것도 없다.
    */
   const firstArrivalView = useMemo(() => {
     if (!data || !data.coupleId) return null;
@@ -926,7 +905,7 @@ export default function DashboardScreen() {
   }, [data]);
 
   /**
-   * 라운지 맨 앞 환영 자리. 합류 직후 안내는 웹과 같은 조건이다 — 합류 표시가 있고, 상대가
+   * 맨 앞 환영 자리. 합류 직후 안내는 웹과 같은 조건이다 — 합류 표시가 있고, 상대가
    * 실제로 들어와 있을 때. 합류 표시가 있는데 상대 확인이 아직 끝나지 않았으면("waiting")
    * 합류 안내도 첫 도착 카드도 두지 않는다 — 한 장을 먼저 그렸다가 바꿔 끼우지 않는다.
    */
@@ -965,22 +944,8 @@ export default function DashboardScreen() {
     setAmoraBubble(null);
     // 대화로 들어가는 순간이 곧 읽는 순간이다.
     setAmoraUnread(false);
-    // 진입구마다 다른 맥락을 들고 간다. 라운지의 버튼에서 왔다는 것만으로도 대화 첫 줄이
-    // 달라져야, 네 개의 문이 같은 빈 화면으로 떨어지지 않는다.
+    // 진입구마다 다른 맥락을 들고 간다. 홈의 버튼에서 왔다는 것만으로도 대화 첫 줄이 달라진다.
     router.push("/(tabs)/chat?entry=lounge_fab");
-  }, []);
-
-  // 할 일을 아모라에게 넘긴다(2026-11-13 파운더 결정: 기능은 아모라 뒤로). 질문 문장은 앱 안에서
-  // 한 번 건네고 주소에는 번호만 싣는다(`@/lib/loungeAmoraAsk`). 대화 화면은 입력칸에 넣기만 하고,
-  // 보내는 것은 사람이다.
-  const handleAskAmora = useCallback((task: LoungeAmoraTask) => {
-    const ownerId = firstRunProfileRef.current?.userId ?? null;
-    const id = ownerId ? stageLoungeAmoraAsk({ ownerId, task }) : null;
-    if (id === null) {
-      Alert.alert("질문을 준비하지 못했어요", "라운지를 아래로 당겨 새로 고친 뒤 다시 눌러 주세요.");
-      return;
-    }
-    router.push(buildLoungeAmoraAskHref(id) as Parameters<typeof router.push>[0]);
   }, []);
 
   const handleDismissAmoraBubble = useCallback(() => {
@@ -989,17 +954,71 @@ export default function DashboardScreen() {
     void dismissAmoraFirstHelloBubble({ storage: AsyncStorage, owner: firstRunProfileRef.current });
   }, []);
 
+  const navigate = useCallback((route: InvitationRouteKey) => {
+    navigateInvitationRoute(router, route, "tabs");
+  }, []);
+
+  // "나중에 할게요"(그리고 첫 대화의 뒤로): 홈을 열고 이 사람이 넘겼다는 것을 기억한다. 못 적어도 이번 실행 동안은 홈이다.
+  const skipFirstChat = useCallback(() => {
+    setFirstChatRequested(false);
+    setFirstChatDismissed(true);
+    setFirstChatSkip("skipped");
+    if (liveOwner.status === "ready") void rememberFirstChatSkip(AsyncStorage, liveOwner.ownerId);
+  }, [liveOwner]);
+
+  // 홈의 "두 분이 정할 것" 맨 앞 줄: 첫 대화를 다시 연다.
+  const openFirstChat = useCallback(() => {
+    setFirstChatDismissed(false);
+    setFirstChatRequested(true);
+  }, []);
+
+  const today = kstYearMonth(Date.now());
+  const wedding = weddingYearMonth(conditions?.weddingDate ?? null);
+  const firstChatYear = wedding?.year
+    ?? (answers.month !== null && !answers.monthChosen && conditions?.conditions.hopedYear
+      ? conditions.conditions.hopedYear
+      : answers.month !== null
+        ? firstChatYearForMonth(answers.month, today)
+        : soonestFirstChatYear(today));
+
+  const confirmFirstChat = useCallback(async () => {
+    if (liveOwner.status !== "ready" || !conditions || firstChatSaving) return;
+    const patch = firstChatConditionsPatch({
+      ...answers,
+      year: firstChatYear,
+      weddingDateKnown: wedding !== null,
+    });
+    // 새로 고른 것이 없으면 저장할 것도 없다. 홈으로 간다.
+    if (Object.keys(patch).length === 0) {
+      setFirstChatDismissed(true);
+      return;
+    }
+    setFirstChatSaving(true);
+    setFirstChatFailed(false);
+    const result = await liveOwner.api.saveConditions(patch);
+    setFirstChatSaving(false);
+    if (!result.ok) {
+      setFirstChatFailed(true);
+      return;
+    }
+    setInvitation((current) => (current.status === "ready" ? { ...current, conditions: result.data } : current));
+    // 방금 답한 사람에게 같은 질문을 다시 띄우지 않는다(이번 실행 동안). 홈은 저장한 조건으로 다시 읽는다.
+    setFirstChatDismissed(true);
+    setInvitationVersion((version) => version + 1);
+  }, [liveOwner, conditions, firstChatSaving, answers, firstChatYear, wedding]);
+
   if (error && !data) {
     return (
       <SafeAreaView style={styles.container} edges={["top"]}>
-        {/* 하단 탭에 내 정보가 없다(2026-11-13). 라운지를 못 불러와도 설정·로그아웃으로 갈 수 있어야 한다. */}
+        {/* 하단 메뉴에 내 정보가 없다. 홈을 못 불러와도 설정·로그아웃으로 갈 수 있어야 한다. */}
         <View style={styles.errorHeader}>
           <LoungeProfileButton />
         </View>
         <ErrorRetry
-          message="결혼 준비 현황을 불러올 수 없어요"
+          message={HOME_STATE_COPY.loadFailed}
           onRetry={() => {
             setLoading(true);
+            setInvitationVersion((version) => version + 1);
             loadData();
           }}
         />
@@ -1007,61 +1026,147 @@ export default function DashboardScreen() {
     );
   }
 
+  if (invitation.status === "failed" && !loading) {
+    return (
+      <SafeAreaView style={styles.container} edges={["top"]}>
+        {/* 홈 모델을 못 받아도 설정·로그아웃으로 갈 수 있어야 한다. */}
+        <View style={styles.errorHeader}>
+          <LoungeProfileButton />
+        </View>
+        <ErrorRetry
+          message={HOME_STATE_COPY.loadFailed}
+          onRetry={() => {
+            setInvitation({ status: "loading" });
+            setInvitationVersion((version) => version + 1);
+          }}
+        />
+      </SafeAreaView>
+    );
+  }
+
+  if (loading || !data || invitation.status !== "ready" || firstChatSkip === "checking") {
+    return <InvitationStateScreen busy />;
+  }
+
+  const home = invitation.home;
+  // "무엇을 했나요?" 각 줄을 누가 했는지. 담당자가 한 일을 아모라가 한 것처럼 보이지 않게 한다(PHASE2).
+  // 서버가 같은 줄을 같은 순서로 준다. 글이 어긋난 줄에는 꼬리표를 붙이지 않는다(짐작하지 않는다).
+  const updateSteps = home.updateSteps ?? [];
+  const stepActors = home.home.update?.steps.map((step, index) => (
+    updateSteps[index]?.text === step ? ACTIVITY_COPY.actorLabel[updateSteps[index].actor] : null
+  ));
+  const conditionsMissing = (conditions?.missing.length ?? 0) > 0;
+  const showFirstChat = data.onboardingCompleted
+    && conditionsMissing
+    && !firstChatDismissed
+    && (firstChatRequested || firstChatSkip === "not_skipped");
+  const showAmoraFab = firstRunTutorialOpen || amoraUnread || amoraBubble !== null;
+  const firstChatModel: FirstChatModel = {
+    year: firstChatYear,
+    region: answers.region ?? "",
+    guests: answers.guests ?? 0,
+    names: { first: home.home.invitation.firstName, second: home.home.invitation.secondName },
+  };
+
   return (
-    <SafeAreaView style={styles.container} edges={["top"]}>
-      <FirstRunAnchorProvider>
-        <WeddingHomeExperience
-          data={data}
-          loading={loading}
-          refreshing={refreshing}
-          onRefresh={onRefresh}
-          partnerChanges={<PartnerChangeNotice refreshVersion={careRefreshVersion} />}
-          joinedPlanHandoff={
-            joinedPlanHandoffView ? (
-              <JoinedPlanHandoff
-                view={joinedPlanHandoffView}
-                onReview={handleReviewJoinedPlan}
-                onDismiss={handleDismissJoinedPlan}
+    <View style={styles.container}>
+      {showFirstChat ? (
+        <InvitationFirstChat
+          model={firstChatModel}
+          onBack={skipFirstChat}
+          withTabBar
+          onNavigate={navigate}
+          live={{
+            stage: answers.stage,
+            month: answers.month,
+            regions: FIRST_CHAT_REGIONS,
+            region: answers.region,
+            guests: answers.guests,
+            onStage: (stage) => setAnswers((current) => ({ ...current, stage })),
+            onMonth: (month) => setAnswers((current) => ({ ...current, month, monthChosen: true })),
+            onRegion: (region) => setAnswers((current) => ({ ...current, region })),
+            onGuests: (guests) => setAnswers((current) => ({ ...current, guests })),
+            onConfirm: () => {
+              void confirmFirstChat();
+            },
+            canConfirm: (answers.month !== null || wedding !== null)
+              && answers.guests !== null
+              && (FIRST_CHAT_REGIONS.length === 0 || answers.region !== null),
+            saving: firstChatSaving,
+            failed: firstChatFailed,
+            onLater: skipFirstChat,
+          }}
+        />
+      ) : (
+        <FirstRunAnchorProvider>
+          <InvitationHome
+            model={home.home}
+            onNavigate={navigate}
+            withTabBar
+            peopleAction={{ ...PROFILE_ACTION, onPress: () => router.push("/profile") }}
+            // 못 읽었으면 그렇다고 말한다. 조건을 묻는 줄이 맨 앞에 있으면 "정할 것이 없어요"는 그 줄과 어긋나 빼 둔다.
+            decisionsNote={home.degraded.includes("decisions")
+              ? HOME_STATE_COPY.decisionsUnavailable
+              : conditionsMissing ? null : HOME_STATE_COPY.noDecisions}
+            refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+            bottomExtra={showAmoraFab ? LOUNGE_CONTENT_BOTTOM_PADDING : 0}
+            stepActors={stepActors}
+            // 조건이 비어 있는 동안 맨 앞에 "희망 시기와 지역 알려 주기"(함께) 한 줄. 누르면 첫 대화가 열린다.
+            leadDecision={conditionsMissing ? {
+              id: "ask-conditions",
+              title: ASK_CONDITIONS_COPY.title,
+              sub: ASK_CONDITIONS_COPY.sub,
+              owner: { kind: "together" },
+              onPress: openFirstChat,
+            } : undefined}
+            notices={
+              <LoungeNotices
+                partnerChanges={<PartnerChangeNotice refreshVersion={careRefreshVersion} />}
+                joinedPlanHandoff={
+                  joinedPlanHandoffView ? (
+                    <JoinedPlanHandoff
+                      view={joinedPlanHandoffView}
+                      onReview={handleReviewJoinedPlan}
+                      onDismiss={handleDismissJoinedPlan}
+                    />
+                  ) : null
+                }
+                todayOneCare={<TodayOneCareCard refreshVersion={careRefreshVersion} />}
+                // 합류 안내가 떠 있을 때는 첫 도착 카드를 접는다 — 환영 카드 두 장이 겹치면 어느
+                // 쪽이 지금 할 일인지 흐려진다(웹과 같다). 안내를 닫으면 다시 나온다. 상대 확인을
+                // 기다리는 동안에도 접어 둔다 — 먼저 보였다가 합류 안내로 뒤바뀌지 않게.
+                firstArrival={
+                  joinedPlanSlot === "none" && firstArrivalView ? (
+                    <LoungeFirstArrival view={firstArrivalView} />
+                  ) : null
+                }
+                records={data.hasBookingRecords ? <LoungeRecordsEntry /> : null}
               />
-            ) : null
-          }
-          todayOneCare={<TodayOneCareCard refreshVersion={careRefreshVersion} />}
-          amoraActions={<AmoraActionsCard refreshVersion={careRefreshVersion} />}
-          // 합류 안내가 떠 있을 때는 첫 도착 카드를 접는다 — 환영 카드 두 장이 겹치면 어느
-          // 쪽이 지금 할 일인지 흐려진다(웹과 같다). 안내를 닫으면 다시 나온다. 상대 확인을
-          // 기다리는 동안에도 접어 둔다 — 먼저 보였다가 합류 안내로 뒤바뀌지 않게.
-          firstArrival={
-            joinedPlanSlot === "none" && firstArrivalView ? (
-              <LoungeFirstArrival view={firstArrivalView} />
-            ) : null
-          }
-          emptyNote={
-            firstArrivalView ? (
-              <LoungeEmptyNote note={firstArrivalView.emptyNote} />
-            ) : null
-          }
-          onAskAmora={handleAskAmora}
-        />
-        <AmoraFab
-          onPress={handleAmoraFabPress}
-          bubbleText={amoraBubble}
-          unread={amoraUnread}
-          onDismissBubble={handleDismissAmoraBubble}
-        />
-        {firstRunTutorialOpen ? (
-          <FirstRunCoachMarks onClose={handleFirstRunTutorialClose} />
-        ) : null}
-      </FirstRunAnchorProvider>
-    </SafeAreaView>
+            }
+          />
+          {showAmoraFab ? (
+            <AmoraFab
+              onPress={handleAmoraFabPress}
+              bubbleText={amoraBubble}
+              unread={amoraUnread}
+              onDismissBubble={handleDismissAmoraBubble}
+            />
+          ) : null}
+          {firstRunTutorialOpen ? (
+            <FirstRunCoachMarks onClose={handleFirstRunTutorialClose} />
+          ) : null}
+        </FirstRunAnchorProvider>
+      )}
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.bg,
+    backgroundColor: invitationPalette.white,
   },
-  // 머리줄의 내 정보 버튼과 같은 자리(오른쪽 위)에 둔다.
+  // 홈 머리글자 자리(오른쪽 위)와 같은 곳에 내 정보 버튼을 둔다.
   errorHeader: {
     alignItems: "flex-end",
     paddingHorizontal: 20,

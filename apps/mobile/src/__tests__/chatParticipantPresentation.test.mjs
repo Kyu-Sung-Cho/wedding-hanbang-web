@@ -137,12 +137,24 @@ test("every bubble tone keeps body text at WCAG AA contrast (>= 4.5:1)", () => {
   assert.ok(contrast("#7D5753", "#EADDD8") >= 4.5);
 });
 
-test("mobile chat wires the tone resolver and the profile avatar, not the old noir/ivory bubbles", () => {
+test("mobile chat wires the resolver for the profile avatar and draws the artifact's conversation, not the old noir/ivory bubbles", () => {
   const chat = readFileSync(new URL("../../app/(tabs)/chat.tsx", import.meta.url), "utf8");
   assert.match(chat, /resolveChatSenderPresentation\(\{\s*isAi,\s*senderId: item\.sender_id,\s*presentation: participantPresentation,?\s*\}\)/u);
-  assert.match(chat, /const bubbleTone = chatPalette\[senderPresentation\.tone\];/u);
   assert.match(chat, /apiFetchForExpectedUserQuiet\(userId, "\/api\/auth\/me"\)/u);
   assert.match(chat, /<ProfileAvatar[\s\S]{0,400}avatarUrl=\{senderPresentation\.avatarUrl\}/u);
+  // 2026-11-17 파운더 디자인 아티팩트(원문: 이 디자인 완전 같아야해): 앱 대화의 말풍선은 아티팩트 모양이다 —
+  // 아모라 말은 말풍선 없는 17px 문단(줄 높이 1.65, 잉크), 사람 말은 돌빛 말풍선(반경 20, 15px). 위 역할 색
+  // (`chatPalette`, 웹 ChatBubble)은 웹에 그대로 있고, 앱 말풍선은 더 이상 그 색을 칠하지 않는다.
+  // 누가 말했는지는 이름 줄과 상대의 얼굴 그림(위 ProfileAvatar)이 말한다.
+  assert.doesNotMatch(chat, /chatPalette/u);
+  assert.match(chat, /<View style=\{isAi \? st\.amoraLine : st\.personBubble\}>/u);
+  assert.match(chat, /<AmoraMessageBody content=\{citationText\} textStyle=\{st\.amoraText\} \/>/u);
+  assert.match(chat, /<Text style=\{st\.personText\}>\{citationText\}<\/Text>/u);
+  assert.match(chat, /\n {2}amoraText: paragraph17,\n/u);
+  assert.match(chat, /\n {2}personBubble: \{ backgroundColor: invitationPalette\.stone, borderRadius: 20, paddingVertical: 10, paddingHorizontal: 16 \},\n/u);
+  assert.match(chat, /\n {2}personText: \{ \.\.\.invitationType\.sans, fontSize: 15, lineHeight: invitationLineHeight\(15, 1\.5\) \},\n/u);
+  const style = readFileSync(new URL("../components/invitation/invitationStyle.ts", import.meta.url), "utf8");
+  assert.match(style, /export const paragraph17: TextStyle = \{ \.\.\.typo\.sans, fontSize: 17, lineHeight: lineHeight\(17, 1\.65\) \};/u);
   assert.doesNotMatch(chat, /isMe \? colors\.noir\[800\]/u);
   assert.doesNotMatch(chat, /isMe \? "#FFF"/u);
   assert.doesNotMatch(chat, /<User size=\{12\}/u);

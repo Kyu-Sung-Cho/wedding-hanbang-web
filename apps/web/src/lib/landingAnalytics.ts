@@ -1,14 +1,10 @@
 import type { CaptureResult } from "posthog-js";
 
+// 2026-11-17 랜딩이 앱 "시작" 화면 하나가 되면서(파운더 디자인 아티팩트) 자리는 셋만 남았다.
 export const LANDING_CTA_SOURCES = [
   "landing_header",
   "landing_hero_primary",
   "landing_hero_secondary",
-  "landing_noside_scenes",
-  "landing_community_cta",
-  "landing_now_card",
-  "landing_closing_primary",
-  "landing_now_wedding_code",
 ] as const;
 export type LandingCtaSource = (typeof LANDING_CTA_SOURCES)[number];
 

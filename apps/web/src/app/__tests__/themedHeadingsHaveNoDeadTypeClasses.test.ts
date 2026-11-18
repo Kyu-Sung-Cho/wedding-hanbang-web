@@ -70,9 +70,13 @@ const UNTHEMED_ROUTE_DIRS = [
 // 2026-09-10 미션의 라운지 통합도 AppClientLayout에서 같은 셸을 사용한다.
 // 2026-09-11 승인된 예산·일정 HTML도 .planning-workspace를 사용한다.
 // 정확한 라우트에서만 import 폐포를 제외하며 다른 테마 화면은 계속 검사한다.
+// 2026-11-17 파운더 디자인 아티팩트(원문: 이 디자인 완전 같아야해): 라운지·아모라·준비 순서·웨딩홀 비교(편지·상담 포함)는
+// 청첩장 디자인 틀(`AppClientLayout` 의 `data-app-shell="invitation"`)로 그린다. 그 틀은 서비스 테마를 걸지 않아
+// 제목 블록이 아예 걸리지 않으므로, 그 화면의 크기·굵기 클래스(아티팩트 값)는 살아 있다. 새 두 라우트를 더한다.
 const CUSTOM_HEADING_ROUTE_DIRS = [
   "app/(app)/chat", "app/(app)/checklist", "app/(app)/lounge",
   "app/(app)/budget", "app/(app)/schedule",
+  "app/(app)/journey", "app/(app)/halls",
 ];
 
 /**
@@ -259,6 +263,15 @@ describe("테마 안 제목 타이포", () => {
     // 승인한 두 라우트를 추가해도 일반 테마 화면까지 검사에서 빠지면 안 된다.
     expect(files.has("src/app/(app)/settings/page.tsx")).toBe(true);
     expect(files.has("src/app/(app)/bookings/page.tsx")).toBe(true);
+    // 2026-11-17 청첩장 디자인 틀의 화면(서비스 테마 없음)은 아티팩트의 제목 크기를 그대로 쓴다.
+    for (const rel of [
+      "src/components/invitation/InvitationJourney.tsx",
+      "src/components/invitation/InvitationConsultation.tsx",
+      "src/components/invitation/InvitationLetterSheet.tsx",
+      "src/components/invitation/live/LiveLetter.tsx",
+    ]) {
+      expect(files.has(rel), `${rel} 는 청첩장 디자인 틀 안이다`).toBe(false);
+    }
   });
   it("측정기가 살아 있다", () => {
     const { headings, files } = scan();

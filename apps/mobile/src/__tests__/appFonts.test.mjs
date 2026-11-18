@@ -40,8 +40,12 @@ function renderer(platform) {
 }
 
 test("every native product font alias resolves to a registered face, with one asset per weight", () => {
-  assert.equal(Object.keys(fonts.appFonts).length, 9);
-  assert.equal(new Set(Object.values(fonts.appFonts)).size, 9);
+  // 2026-11-17 파운더 디자인 아티팩트(원문: 이 디자인 완전 같아야해): 청첩장 화면 글꼴 아홉 면을 더했다
+  // (고운바탕 400·700, Cormorant Garamond 400·500·기울임 400·500, Noto Sans KR 400·500·700).
+  // 기존 화면의 `NotoSansKR_*`·`CormorantGaramond_*` 이름은 그대로 Pretendard 로 바뀌고, 새 면은
+  // 겹치지 않게 `Inv` 이름으로 새 청첩장 화면에서만 쓴다. 9 + 9 = 18.
+  assert.equal(Object.keys(fonts.appFonts).length, 18);
+  assert.equal(new Set(Object.values(fonts.appFonts)).size, 18);
   const appRoot = fileURLToPath(new URL("../../", import.meta.url));
   function visit(directory) {
     for (const entry of readdirSync(directory, { withFileTypes: true })) {
@@ -53,7 +57,7 @@ test("every native product font alias resolves to a registered face, with one as
       function walk(node) {
         if (ts.isPropertyAssignment(node) && node.name.getText(ast) === "fontFamily" && ts.isStringLiteral(node.initializer)) {
           const family = node.initializer.text;
-          if (/^(Noto|Cormorant|Pretendard)/.test(family)) {
+          if (/^(Noto|Cormorant|Pretendard|Inv)/.test(family)) {
             const result = fonts.resolveAppFont({ fontFamily: family }, true, "System");
             assert.ok(result.style.fontFamily in fonts.appFonts, `${file}: unregistered ${family}`);
           }
@@ -113,4 +117,63 @@ test("failed font loading uses platform fonts and preserves emphasis without exp
   }
   assert.deepEqual(fonts.resolveAppFont({ fontFamily: "monospace", fontWeight: "700" }, false, "System").style, { fontFamily: "monospace" });
   assert.deepEqual(fonts.resolveAppFont({ fontFamily: "FontAwesome" }, true, "System").style, { fontFamily: "FontAwesome" });
+});
+
+// ── 청첩장 디자인 글꼴(2026-11-17 파운더 디자인 아티팩트, 원문: 이 디자인 완전 같아야해) ──────────
+// 면마다 따로 등록한 정적 글꼴이다. 안드로이드는 굵기·기울임을 다시 주면 등록한 면(NORMAL) 대신 시스템
+// 글꼴을 고른다(ReactFontManager.createAssetTypeface). 그래서 불러왔을 때는 굵기·기울임을 normal 로 두고
+// 면 이름이 굵기와 기울임을 대신 고른다.
+
+test("invitation faces resolve to their own static face, never to Pretendard", () => {
+  const names = Object.values(fonts.invitationFonts);
+  assert.equal(names.length, 9);
+  for (const name of names) {
+    assert.ok(Object.hasOwn(fonts.appFonts, name), `${name} is not registered`);
+    assert.deepEqual(fonts.resolveAppFont({ fontFamily: name }, true, "System").style, {
+      fontFamily: name, fontWeight: "normal", fontStyle: "normal",
+    });
+  }
+  // 기존 화면의 옛 이름은 바뀌지 않는다.
+  assert.equal(fonts.resolveAppFont({ fontFamily: "NotoSansKR_700Bold" }, true, "System").style.fontFamily, "Pretendard_700Bold");
+  assert.equal(fonts.resolveAppFont({ fontFamily: "CormorantGaramond_400Regular" }, true, "System").style.fontFamily, "Pretendard_400Regular");
+});
+
+test("an invitation family plus a weight or slant picks the nearest face of that family", () => {
+  const face = (style) => fonts.resolveAppFont(style, true, "System").style.fontFamily;
+  const inv = fonts.invitationFonts;
+  assert.equal(face({ fontFamily: inv.sans, fontWeight: "700" }), "InvNotoSansKR_700Bold");
+  assert.equal(face({ fontFamily: inv.sans, fontWeight: "500" }), "InvNotoSansKR_500Medium");
+  assert.equal(face({ fontFamily: inv.sans, fontWeight: "bold" }), "InvNotoSansKR_700Bold");
+  assert.equal(face({ fontFamily: inv.serif, fontWeight: "700" }), "InvGowunBatang_700Bold");
+  assert.equal(face({ fontFamily: inv.serif, fontWeight: "500" }), "InvGowunBatang_400Regular");
+  assert.equal(face({ fontFamily: inv.numeral, fontWeight: "500" }), "InvCormorantGaramond_500Medium");
+  assert.equal(face({ fontFamily: inv.numeral, fontWeight: "500", fontStyle: "italic" }), "InvCormorantGaramond_500Medium_Italic");
+  assert.equal(face({ fontFamily: inv.numeralItalic, fontStyle: "normal" }), "InvCormorantGaramond_400Regular");
+  // 기울임 면이 없는 본문 글꼴은 바로 선 면을 쓰고, 기울임을 합성하지 않는다.
+  assert.deepEqual(fonts.resolveAppFont({ fontFamily: inv.sans, fontStyle: "italic" }, true, "System").style, {
+    fontFamily: "InvNotoSansKR_400Regular", fontWeight: "normal", fontStyle: "normal",
+  });
+});
+
+test("nested invitation text inherits the parent face and explicit emphasis selects the bold face", () => {
+  const ui = renderer("android");
+  ui.render(true, jsxRuntime.jsx(ui.Text, { style: { fontFamily: fonts.invitationFonts.sans }, children: [
+    jsxRuntime.jsx(ui.Text, { children: "기본" }, "inherit"),
+    jsxRuntime.jsx(ui.Text, { style: { fontWeight: "700" }, children: "강조" }, "bold"),
+  ] }));
+  assert.deepEqual(ui.calls.map(call => call.effectiveStyle.fontFamily), ["InvNotoSansKR_400Regular", "InvNotoSansKR_400Regular", "InvNotoSansKR_700Bold"]);
+  assert.ok(ui.calls.every(call => call.effectiveStyle.fontWeight === "normal" && call.effectiveStyle.fontStyle === "normal"));
+});
+
+test("failed loading draws invitation text in the platform font with the face's weight and slant", () => {
+  for (const [platform, fallback] of [["ios", "System"], ["android", "sans-serif"], ["web", "system-ui"]]) {
+    const ui = renderer(platform);
+    ui.render(false, jsxRuntime.jsx(ui.Text, { style: { fontFamily: fonts.invitationFonts.numeralMediumItalic }, children: "2027" }));
+    assert.equal(ui.calls[0].effectiveStyle.fontFamily, fallback);
+    assert.equal(ui.calls[0].effectiveStyle.fontWeight, 500);
+    assert.equal(ui.calls[0].effectiveStyle.fontStyle, "italic");
+  }
+  assert.deepEqual(fonts.resolveAppFont({ fontFamily: fonts.invitationFonts.serifBold }, false, "System").style, {
+    fontFamily: "System", fontWeight: 700, fontStyle: "normal",
+  });
 });

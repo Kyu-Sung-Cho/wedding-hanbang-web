@@ -1,18 +1,9 @@
 import type { Metadata } from "next";
-import LandingSkipLink from "@/components/landing/redesign/LandingSkipLink";
 
-import AvailableNowSection from "@/components/landing/redesign/AvailableNowSection";
-import LandingFaqSection from "@/components/landing/redesign/LandingFaqSection";
-import ClosingAction from "@/components/landing/redesign/ClosingAction";
-import ConfirmSection from "@/components/landing/redesign/ConfirmSection";
 import LandingFooter from "@/components/landing/redesign/LandingFooter";
 import LandingHeader from "@/components/landing/redesign/LandingHeader";
-import AmoraNoteSection from "@/components/landing/redesign/AmoraNoteSection";
-import LandingBloomLayer from "@/components/landing/redesign/LandingBloomLayer";
-import BoundariesSection from "@/components/landing/redesign/BoundariesSection";
-import NoSideSection from "@/components/landing/redesign/NoSideSection";
-import PhotoBandSection from "@/components/landing/redesign/PhotoBandSection";
-import TransformationHero from "@/components/landing/redesign/TransformationHero";
+import LandingSkipLink from "@/components/landing/redesign/LandingSkipLink";
+import StartScreen from "@/components/landing/redesign/StartScreen";
 
 export const revalidate = 86_400;
 
@@ -50,34 +41,22 @@ export function generateMetadata(): Metadata {
 }
 
 
+/**
+ * 랜딩 — 2026-11-17 파운더 디자인 아티팩트(원문: 이 디자인 완전 같아야해)의 '시작' 화면.
+ *
+ * 첫 화면은 시작 화면 한 장이다(`StartScreen`). 그 아래에는 법·신뢰 때문에 화면에 있어야
+ * 하는 고지와 링크만 조용한 바닥글로 둔다(`LandingFooter`). 머리줄은 사진 위 오른쪽 위의
+ * 로그인 알약 하나다(`LandingHeader`) — 아티팩트에 없는 것을 첫 화면에 더 얹지 않는다.
+ *
+ * 래퍼에 overflow 를 걸지 않는다. 자르는 일은 시작 화면이 자기 상자에서 한다.
+ */
 export default function LandingPage() {
   return (
-    // `relative` 는 꽃 레이어(`LandingBloomLayer`)의 기준점이다. 빼면 꽃이 화면
-    // 기준으로 붙어 스크롤해도 따라다닌다.
-    //
-    // ⚠️ 여기 `overflow-hidden` 이 있었다. 여백 밖으로 나간 가지가 가로 스크롤을
-    // 만들지 않게 하려던 것인데, **조상의 overflow 는 `position: sticky` 를 깬다.**
-    // 그래서 헤더가 `sticky top-0 z-50` 인데도 안 붙었다 — 2026-08-29 실측에서
-    // 2,500px 스크롤 뒤 헤더 top 이 -2500 이었다(7,400px 짜리 화면에서 내비가
-    // 통째로 사라진다). 자르는 일은 `LandingBloomLayer` 가 자기 상자에서 이미
-    // 한다(정본 시안도 `.bq-layer { overflow: hidden }` 으로 레이어에만 걸었고
-    // 래퍼에는 없다). 여기에 다시 넣지 마라 — 헤더가 조용히 죽는다.
-    <div className="landing-root relative min-h-screen bg-[var(--color-paper-sheet)] text-[var(--color-paper-ink)]">
+    <div className="relative bg-inv-paper">
       <LandingSkipLink />
-      {/* 여백의 꽃. 페이지 전체에 걸친다 — 시안 배치 그대로. */}
-      <LandingBloomLayer />
       <LandingHeader />
       <main id="main-content" tabIndex={-1}>
-        {/* 함께 챙길 결과물 → 확인과 저장 → 질문과 공유 범위 → 두 사람의 기준. */}
-        <TransformationHero />
-        <AmoraNoteSection />
-        <NoSideSection />
-        <ConfirmSection />
-        <AvailableNowSection />
-        <PhotoBandSection />
-        <LandingFaqSection />
-        <BoundariesSection />
-        <ClosingAction />
+        <StartScreen />
       </main>
       <LandingFooter />
     </div>

@@ -116,6 +116,39 @@
   --hb-accent-hover: #24465F;
   --hb-success: #637465;
   /* @generated:design-tokens roles end */
+
+  /* @generated:design-tokens invitation start — colors.ts에서 생성됩니다. 직접 고치지 마세요. */
+  /* 청첩장 디자인(2026-11-17) — invitation.ts 에서 생성 */
+  --inv-ink: #1E1C22;
+  --inv-muted: #6B6570;
+  --inv-body: #4E4852;
+  --inv-faint: #8A8188;
+  --inv-letter: #3A353D;
+  --inv-blush: #F3E4E1;
+  --inv-stone: #F4F2F0;
+  --inv-paper: #FBFAF8;
+  --inv-paper-soft: #FAF8F6;
+  --inv-paper-panel: #FCFBFA;
+  --inv-white: #FFFFFF;
+  --inv-ring: #EEEAE6;
+  --inv-chip-line: #E6E1DC;
+  --inv-divider: #F1EEEB;
+  --inv-row-line: #F3F0EE;
+  --inv-letter-rule: #ECE6DF;
+  --inv-gold-line: #E3D3B8;
+  --inv-gold-rule: #B8975F;
+  --inv-gold-ink: #8C6F45;
+  --inv-blank: #CFC5BC;
+  --inv-blank-soft: #C2B7AE;
+  --inv-step-now: #F7EDEA;
+  --inv-heart: #E8909F;
+  --inv-warn: #9A3F1C;
+  --inv-switch-off: #E1DCD7;
+  --inv-dashed: #D8CFC6;
+  --inv-done-number: #B8AFA7;
+  --inv-off-text: #A79FA4;
+  --inv-sheet-backdrop: #2A2422;
+  /* @generated:design-tokens invitation end */
 }
 
 @theme inline {
@@ -156,6 +189,45 @@
   --color-platinum: #E6DDD2;
   --color-black: #251A18;
   /* @generated:design-tokens theme end */
+
+  /* @generated:design-tokens invitation-theme start — colors.ts에서 생성됩니다. 직접 고치지 마세요. */
+  /* 청첩장 디자인(2026-11-17) */
+  --color-inv-ink: var(--inv-ink);
+  --color-inv-muted: var(--inv-muted);
+  --color-inv-body: var(--inv-body);
+  --color-inv-faint: var(--inv-faint);
+  --color-inv-letter: var(--inv-letter);
+  --color-inv-blush: var(--inv-blush);
+  --color-inv-stone: var(--inv-stone);
+  --color-inv-paper: var(--inv-paper);
+  --color-inv-paper-soft: var(--inv-paper-soft);
+  --color-inv-paper-panel: var(--inv-paper-panel);
+  --color-inv-white: var(--inv-white);
+  --color-inv-ring: var(--inv-ring);
+  --color-inv-chip-line: var(--inv-chip-line);
+  --color-inv-divider: var(--inv-divider);
+  --color-inv-row-line: var(--inv-row-line);
+  --color-inv-letter-rule: var(--inv-letter-rule);
+  --color-inv-gold-line: var(--inv-gold-line);
+  --color-inv-gold-rule: var(--inv-gold-rule);
+  --color-inv-gold-ink: var(--inv-gold-ink);
+  --color-inv-blank: var(--inv-blank);
+  --color-inv-blank-soft: var(--inv-blank-soft);
+  --color-inv-step-now: var(--inv-step-now);
+  --color-inv-heart: var(--inv-heart);
+  --color-inv-warn: var(--inv-warn);
+  --color-inv-switch-off: var(--inv-switch-off);
+  --color-inv-dashed: var(--inv-dashed);
+  --color-inv-done-number: var(--inv-done-number);
+  --color-inv-off-text: var(--inv-off-text);
+  --color-inv-sheet-backdrop: var(--inv-sheet-backdrop);
+  /* @generated:design-tokens invitation-theme end */
+
+  /* 청첩장 디자인(2026-11-17) 글꼴. next/font 가 `layout.tsx` 에서 변수를 싣는다.
+   * 유틸리티 이름: font-inv-serif(고운바탕) · font-inv-numeral(Cormorant) · font-inv-sans(Noto Sans KR). */
+  --font-inv-serif: var(--font-invitation-serif), "Gowun Batang", serif;
+  --font-inv-numeral: var(--font-invitation-numeral), "Cormorant Garamond", serif;
+  --font-inv-sans: var(--font-invitation-sans), "Noto Sans KR", system-ui, sans-serif;
 
   /* Paper — 랜딩의 "결혼 준비 노트" 표면.
    *
@@ -993,6 +1065,45 @@ p, span, div, li, h1, h2, h3, h4, h5, h6 {
   .invite-expand,
   .animate-guide-pulse,
   .animate-guide-shimmer {
+    animation: none;
+  }
+}
+
+/* ─────────────────────────────────────────────────────────────
+ * 아모라 오브 — 청첩장 디자인(2026-11-17). 모양은 `components/ui/AmoraOrb.tsx`,
+ * 값은 `@hanbang/design-tokens` 의 `amoraOrb`. 세 무리가 서로 다른 빠르기로 돌고
+ * 바깥 빛이 숨 쉰다. 빠르기는 컴포넌트가 변수로 넘긴다(일할 때 더 빠르다).
+ * 움직임 줄이기 설정이면 멈춘다. 레이어 밖에 두어 Tailwind 유틸리티와 섞이지 않는다.
+ * ───────────────────────────────────────────────────────────── */
+@keyframes amora-orb-spin {
+  to { transform: rotate(360deg); }
+}
+
+@keyframes amora-orb-spin-reverse {
+  to { transform: rotate(-360deg); }
+}
+
+@keyframes amora-orb-breathe {
+  0%, 100% { transform: scale(0.94); opacity: 0.75; }
+  50% { transform: scale(1.04); opacity: 1; }
+}
+
+.amora-orb .amora-orb-layer,
+.amora-orb .amora-orb-halo {
+  transform-box: view-box;
+  transform-origin: 100px 100px;
+}
+
+.amora-orb .amora-orb-a { animation: amora-orb-spin var(--amora-orb-a, 14s) linear infinite; }
+.amora-orb .amora-orb-b { animation: amora-orb-spin-reverse var(--amora-orb-b, 19s) linear infinite; }
+.amora-orb .amora-orb-c { animation: amora-orb-spin var(--amora-orb-c, 26s) linear infinite; }
+.amora-orb .amora-orb-halo { animation: amora-orb-breathe var(--amora-orb-halo, 5s) ease-in-out infinite; }
+
+@media (prefers-reduced-motion: reduce) {
+  .amora-orb .amora-orb-a,
+  .amora-orb .amora-orb-b,
+  .amora-orb .amora-orb-c,
+  .amora-orb .amora-orb-halo {
     animation: none;
   }
 }

@@ -2,6 +2,7 @@
 
 import { describe, expect, it } from "vitest";
 
+import { START_COPY } from "@hanbang/shared/invitation";
 import { landingContent } from "@/components/landing/redesign/landingContent";
 import { CATEGORY_CHECKLISTS } from "@/constants/checklists";
 import { computePreparationPriorities } from "../preparationPriorities";
@@ -272,11 +273,15 @@ describe("computePreparationPriorities", () => {
     // 그래서 연출된 대화의 발화(`turns[].say` · `chat.me` · `chat.amora`)만 뺀다.
     // 나머지 카피 — 제목·본문·카드·고지 — 는 전부 그대로 본다. 뺀 자리를 넓히지 마라.
     const STAGED_SPEECH = new Set(["say", "me", "amora"]);
-    const landingCopy = JSON.stringify(landingContent, (key, value) =>
+    // 2026-11-17 파운더 디자인 아티팩트(원문: 이 디자인 완전 같아야해): 첫 화면 글자는 앱과 같은
+    // 정본 `START_COPY` 에서 온다. 랜딩이 부르는 이름이므로 함께 본다(예: "웨딩홀").
+    const landingCopy = JSON.stringify({ landingContent, START_COPY }, (key, value) =>
       (STAGED_SPEECH.has(key) ? undefined : value));
-    // 자기검증: 정말로 발화만 빠졌는지. 같은 대화 카드의 캡션은 남아 있어야 한다.
+    // 자기검증: 정말로 발화만 빠졌는지. 연출 대화가 없어진 지금은 고지 문장과 첫 화면 본문이
+    // 남아 있어야 한다(대조군).
     expect(landingCopy, "연출 대화 제거가 카피를 통째로 먹었다")
-      .toContain(landingContent.amoraNote.chat.amoraLabel);
+      .toContain(landingContent.notices.privacy);
+    expect(landingCopy, "첫 화면 정본이 빠졌다").toContain(START_COPY.body);
     expect(landingCopy, "연출된 발화가 그대로 남아 있다")
       .not.toContain("신혼집 자금은 안 건드렸으면");
 
@@ -418,34 +423,28 @@ describe("computePreparationPriorities", () => {
     for (const [name, text] of startHerePromiseScopes()) assertPromisedCount(name, text);
   });
 
-  it("renders the notices that moved onto the '지금 되는 것' cards", () => {
-    // 이 단언은 원래 "준비 3가지 카드를 그리는가"였다. 그 카드는 2026-08-29 개편으로
-    // 없어졌지만 **단언은 남긴다** — 같은 컴포넌트가 지금은 옮겨 온 고지 세 줄을 진다:
+  it("renders the notices that moved into the landing footer", () => {
+    // 이 단언은 원래 "준비 3가지 카드를 그리는가"였고, 2026-08-29 부터는 '지금 되는 것' 카드가
+    // 옮겨 온 고지 세 줄을 그리는지 물었다. **단언은 남긴다** — 카피가 아무리 맞아도 그 줄을
+    // 그리지 않으면 방문자는 고지를 못 본다.
     //
-    //   cards[0].note "로그인 없이 선택한 내용은 저장하지 않아요"  ← 옛 privateLane.note
-    //   cards[1].note "점수도 궁합도 매기지 않아요"              ← 옛 scenes.note
-    //   cards[2].note "2025년 11월 공시 기준 …"                  ← 가격 출처·기준일
-    //
-    // 카피가 아무리 맞아도 **그 줄을 그리지 않으면** 방문자는 고지를 못 본다.
-    // 카피 파일만 보면 `{card.note}` 를 지운 상태가 그대로 통과한다.
-    const availableNowSection = rendered(
-      "src/components/landing/redesign/AvailableNowSection.tsx",
-    );
-    // ⚠️ 배선 이름은 개편마다 바뀐다(`availableNow.map(`→`availableNow.cards.map(`,
-    // `item`→`card`). 이름을 손으로 적어 두면 개편 때 통째로 지워지기 쉬우니,
+    // 2026-11-17 파운더 디자인 아티팩트(원문: 이 디자인 완전 같아야해)로 카드가 없어지고 고지는
+    // 첫 화면 아래 바닥글(`LandingFooter`)로 글자 그대로 모였다. 그래서 그 목록을 묻는다.
+    const landingFooter = rendered("src/components/landing/redesign/LandingFooter.tsx");
+    // ⚠️ 배선 이름은 개편마다 바뀐다. 이름을 손으로 적어 두면 개편 때 통째로 지워지기 쉬우니,
     // **카피 정본에서 실제로 쓰는 필드 이름을 끌어와** 그 필드가 그려지는지 묻는다.
-    const cardFields = Object.keys(landingContent.availableNow.cards[0])
-      .filter((field) => field !== "no" && field !== "href");
-    expect(cardFields.length, "카드에 그릴 본문 필드가 없다").toBeGreaterThan(0);
-
-    expect(availableNowSection, "카드 목록을 돌지 않는다").toContain("availableNow.cards.map(");
-    for (const field of cardFields) {
-      expect(availableNowSection, `"지금 되는 것" 카드가 ${field} 를 그리지 않는다`)
+    const itemFields = Object.keys(landingContent.boundaries.items[0]);
+    expect(itemFields.length, "항목에 그릴 본문 필드가 없다").toBeGreaterThan(0);
+    expect(landingFooter, "고지 목록을 돌지 않는다").toContain("boundaries.items.map(");
+    for (const field of itemFields) {
+      expect(landingFooter, `바닥글이 항목의 ${field} 를 그리지 않는다`)
         .toMatch(new RegExp(`\\{\\s*[A-Za-z_$][\\w$]*\\.${field}\\s*\\}`, "u"));
     }
-    // 카드가 잘려 나가면 남은 고지가 화면에서 사라진다.
-    expect(availableNowSection, "카드 목록을 잘라서 그린다")
-      .not.toMatch(/cards\s*\.\s*slice\s*\(/u);
+    for (const key of Object.keys(landingContent.notices)) {
+      expect(landingFooter, `바닥글이 notices.${key} 를 그리지 않는다`).toContain(`{notices.${key}}`);
+    }
+    // 목록이 잘려 나가면 남은 고지가 화면에서 사라진다.
+    expect(landingFooter, "고지 목록을 잘라서 그린다").not.toMatch(/items\s*\.\s*slice\s*\(/u);
   });
 
   it("/start-here actually renders every priority it promises", () => {

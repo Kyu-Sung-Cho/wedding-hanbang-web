@@ -42,9 +42,6 @@ const entry = compileCommonJs(readSource("../lib/amoraChatEntry.ts"));
 
 const loungeSource = readSource("../../app/(tabs)/lounge.tsx");
 const chatSource = readSource("../../app/(tabs)/chat.tsx");
-const homeExperienceSource = readSource(
-  "../components/dashboard/WeddingHomeExperience.tsx",
-);
 const arrivalSource = readSource("../components/lounge/LoungeFirstArrival.tsx");
 
 /* ─────────────────────────────────────────────
@@ -102,11 +99,12 @@ test("an entry the app does not know leaves the composer empty", () => {
    ───────────────────────────────────────────── */
 
 test("the doors into Amora no longer open the same empty screen", () => {
+  // 2026-11-17 파운더 디자인 아티팩트(원문: 이 디자인 완전 같아야해): 홈은 `InvitationHome` 이고 예전 라운지 본문의
+  // 히어로 CTA(`WeddingHomeExperience`)를 그리지 않는다. 그리지 않는 문은 문이 아니라 세지 않는다.
+  // 홈에 남은 문: 아모라 버튼(FAB)과 합류 직후 안내, 첫 도착 카드.
+  assert.doesNotMatch(loungeSource, /<WeddingHomeExperience\b/);
   const doors = new Map([
-    ["FAB", loungeSource],
-    // 상시 전폭 카드는 지웠다. 여기 남은 것은 "오늘 확인할 게 없다"고 말한 뒤의 CTA다 —
-    // 조건이 붙은 문이라 FAB과 같은 자리에 늘 함께 있지 않는다.
-    ["히어로 CTA", homeExperienceSource],
+    ["FAB·합류 안내", loungeSource],
     ["첫 도착 CTA", arrivalSource],
   ]);
 

@@ -13,6 +13,7 @@ import { AmoraNavigationTargetContext } from "@/components/app/amora/AmoraNaviga
 import { useAuthSessionSync } from "@/hooks/useAuthSessionSync";
 import { stripWeddingBasePath } from "@/lib/weddingPaths";
 import { isAnalyticsSuppressedLocation } from "@/lib/analyticsPrivacy";
+import { isInvitationSurfacePath } from "@/components/invitation/live/liveRoutes";
 import { useAuthStore } from "@/stores/authStore";
 
 /**
@@ -24,6 +25,17 @@ import { useAuthStore } from "@/stores/authStore";
  * 가이드 같은 나머지 화면은 메뉴에서 빠지고 라운지와 아모라 뒤에서 열린다. 아모라 전체 화면이
  * 아닌 곳에서는 어디서든 아모라를 열 수 있고, 큰 화면에서는 아모라가 본문을 옆으로 밀고 그 옆에
  * 붙는다(`AmoraDockHost`).
+ *
+ * ## 청첩장 디자인 화면 (2026-11-17 파운더 디자인 아티팩트, 원문 "이 디자인 완전 같아야해")
+ *
+ * 웨딩 라운지(`/lounge`)·아모라(`/chat`)·준비 순서·웨딩홀 비교·편지·상담은 새 디자인이 화면 전체를 그린다.
+ * 그 화면에는 옛 사이드바·상단 바·아모라 옆자리를 두지 않는다(웹 넓은 화면은 대화가 왼쪽 칸에 이미 있다).
+ * 인증·동의(서버 틀)·체험 표시·이용 통계 끄기·실시간 동기화는 두 틀이 같다. 나머지 화면(예산·체크리스트·일정·
+ * 설정·예절 가이드)은 옛 틀 그대로이고 새 화면의 링크로 연다.
+ *
+ * 새 틀은 서비스 테마(`hanbang-service-theme`)를 걸지 않는다. 그 테마는 제목과 단추 글꼴을 Pretendard 로
+ * 덮어(레이어 밖 규칙) 고운바탕·Noto Sans KR 을 지운다. 대신 기존 예외 틀 이름(`amora-workspace`)만 건다 —
+ * 대화 카드(승인 카드·저장 시트)가 쓰는 아모라 색 변수가 거기 있다. `globals.css` 는 고치지 않았다.
  */
 export default function AppClientLayout({
   children,
@@ -53,6 +65,7 @@ export default function AppClientLayout({
   const isPreparationStylePage = appPathname === "/preparation-style";
   const isLoungeWorkspace = isLoungePage || isPreparationStylePage;
   const hasHtmlDesign = isAmoraPage || isPlanningPage || isLoungeWorkspace;
+  const isInvitationSurface = isInvitationSurfacePath(appPathname);
   const { initialize, isInitialized, isLoading, isDemo } = useAuthStore();
 
   const analyticsSuppressed = isAnalyticsSuppressedLocation(pathname, searchParams);
@@ -90,6 +103,21 @@ export default function AppClientLayout({
           <p className="text-[13px] font-medium text-[var(--hb-text-muted)]">웨딩 라운지를 불러오는 중...</p>
         </div>
       </div>
+    );
+  }
+
+  if (isInvitationSurface) {
+    // 청첩장 디자인 틀: 화면이 창 높이를 채우는 세로 단이고(가운데만 스크롤), 체험 고지는 그 위의 한 줄이다.
+    return (
+      <AmoraNavigationTargetContext.Provider value={null}>
+        <div
+          data-app-shell="invitation"
+          className={`${analyticsSuppressed ? "ph-no-capture " : ""}amora-workspace flex h-[100dvh] flex-col overflow-hidden bg-inv-white text-inv-ink`}
+        >
+          {banner}
+          <main className="flex min-h-0 flex-1 flex-col">{children}</main>
+        </div>
+      </AmoraNavigationTargetContext.Provider>
     );
   }
 

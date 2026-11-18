@@ -15,9 +15,10 @@ import ts from "typescript";
  * - 범위 줄의 세 번째 role=tab 이 아니다 — 범위 줄 밖, 머리 안에 있다. 함께 대화·나만 상담·상대에게 쓰는
  *   중 모두 보인다(범위·대상 조건 없이 그린다).
  * - 누르면 `/amora-preparation` 으로 한 번만 옮겨 간다. 답을 받는 중에는 누를 수 없다. 목록을 부르지 않는다.
- * - 320pt 화면에서 얼굴·제목·메시지 수·공유 할 일·대화 화면 정리가 한 줄에 겹치지 않는다. 넘칠 폭이면 글자를
- *   빼고 아이콘만 둔다. 노드 테스트는 폭을 어림할 뿐 실제 글꼴 렌더를 재지 않는다 — 어림이 쓰는 숫자가 실제
- *   머리 스타일과 같은 숫자인지, 줄어드는 쪽이 왼쪽 제목인지(flex 규칙)를 함께 잰다.
+ * - 2026-11-17 파운더 디자인 아티팩트(원문: 이 디자인 완전 같아야해): 머리는 가운데 오브 64px 와 "듣고 있어요"다.
+ *   버튼 묶음은 오브 오른쪽에 떠 있고, 어느 폭에서도 오브에 닿지 않는다. 닿을 폭이면 글자를 빼고 아이콘만 둔다.
+ *   노드 테스트는 폭을 어림할 뿐 실제 글꼴 렌더를 재지 않는다 — 어림이 쓰는 숫자가 실제 머리 스타일과 같은
+ *   숫자인지를 함께 잰다.
  */
 function compile(relative) {
   const path = fileURLToPath(new URL(relative, import.meta.url));
@@ -105,18 +106,23 @@ test("누르면 공유 할 일로 한 번만 옮겨 가고, 답을 받는 중에
   assert.equal(pushes.length, 2, "답을 받는 중에는 옮겨 가지 않는다");
 });
 
-test("320pt 에서는 공유 할 일 글자를 빼고, 375pt 에서는 글자까지 넣어도 머리가 넘치지 않는다", () => {
+test("오브 옆 버튼 묶음은 좁은 화면에서 글자를 빼고, 어느 폭에서도 가운데 오브와 겹치지 않는다", () => {
+  // 2026-11-17 파운더 디자인 아티팩트(원문: 이 디자인 완전 같아야해): 머리는 가운데 오브 64px 와 "듣고 있어요"다
+  // (`Chat.dc`). 공유 할 일·대화 화면 정리 버튼은 오브 오른쪽에 떠 있다. 메시지 수 알약은 아티팩트에 없어 뺐다.
+  for (const width of [320, 360, 375, 390, 430]) {
+    const show = header.shouldShowAmoraBoardLabel(width);
+    const used = header.estimateAmoraChatHeaderActionsWidth({ showBoardLabel: show, showClear: true });
+    assert.ok(used <= header.amoraChatHeaderActionsRoom(width), `${width}pt 에서 버튼 묶음이 ${used.toFixed(1)}pt 로 오브에 닿는다`);
+  }
   assert.equal(header.shouldShowAmoraBoardLabel(320), false);
-  assert.equal(header.shouldShowAmoraBoardLabel(375), true);
-  // 가장 넓은 경우: 세 자리 메시지 수 + 정리 버튼.
-  const compact320 = header.estimateAmoraChatHeaderWidth({ showBoardLabel: false, showClear: true, messageCount: 204 });
-  assert.ok(compact320 <= 320, `320pt 에서 ${compact320.toFixed(1)}pt 를 쓴다`);
-  const full375 = header.estimateAmoraChatHeaderWidth({ showBoardLabel: true, showClear: true, messageCount: 204 });
-  assert.ok(full375 <= 375, `375pt 에서 ${full375.toFixed(1)}pt 를 쓴다`);
-  assert.ok(header.estimateAmoraChatHeaderWidth({ showBoardLabel: true, showClear: true, messageCount: 204 }) > 320, "글자를 넣은 채로는 320pt 를 넘는다 — 그래서 뺀다");
-  // 큰 글자(시스템 글자 크기 130%)에서는 375pt 에서도 아이콘만 두고, 그래도 넘치지 않는다.
-  assert.equal(header.shouldShowAmoraBoardLabel(375, 1.3), false);
-  assert.ok(header.estimateAmoraChatHeaderWidth({ showBoardLabel: false, showClear: true, messageCount: 204, fontScale: 1.3 }) <= 375);
+  assert.equal(header.shouldShowAmoraBoardLabel(375), false);
+  assert.equal(header.shouldShowAmoraBoardLabel(430), true);
+  // 아이콘만 둔 묶음은 가장 좁은 320pt 에서도 들어간다.
+  assert.ok(header.estimateAmoraChatHeaderActionsWidth({ showBoardLabel: false, showClear: true }) <= header.amoraChatHeaderActionsRoom(320));
+  assert.ok(header.estimateAmoraChatHeaderActionsWidth({ showBoardLabel: true, showClear: true }) > header.amoraChatHeaderActionsRoom(390), "글자를 넣은 채로는 390pt 에서 오브에 닿는다 — 그래서 뺀다");
+  // 큰 글자(시스템 글자 크기 130%)에서는 430pt 에서도 아이콘만 두고, 그래도 넘치지 않는다.
+  assert.equal(header.shouldShowAmoraBoardLabel(430, 1.3), false);
+  assert.ok(header.estimateAmoraChatHeaderActionsWidth({ showBoardLabel: false, showClear: true, fontScale: 1.3 }) <= header.amoraChatHeaderActionsRoom(320));
   // 어림은 넉넉하다: 한글은 글자 크기만큼, 숫자는 0.62배.
   assert.equal(header.estimateTextWidth("결정", 10), 20);
   assert.equal(header.estimateTextWidth("12", 10), 12.4);
@@ -124,24 +130,27 @@ test("320pt 에서는 공유 할 일 글자를 빼고, 375pt 에서는 글자까
   assert.ok(LAYOUT.button >= 44, "누르는 자리는 44pt 이상이다");
 });
 
-test("어림이 쓰는 숫자가 실제 머리 스타일의 숫자이고, 좁아지면 왼쪽 제목이 먼저 줄어든다", () => {
+test("어림이 쓰는 숫자가 실제 머리 스타일의 숫자이고, 머리 가운데는 아티팩트의 오브와 듣고 있어요다", () => {
   const style = (name) => chat.match(new RegExp(`\\n  ${name}: \\{[^\\n]*\\},`))?.[0] ?? "";
-  assert.match(style("header"), /paddingHorizontal: AMORA_CHAT_HEADER_LAYOUT\.paddingX/);
-  assert.match(style("headerLeft"), /gap: AMORA_CHAT_HEADER_LAYOUT\.avatarGap, flexShrink: 1, minWidth: 0/);
-  assert.match(style("headerTitles"), /flexShrink: 1, minWidth: 0/);
-  assert.match(style("headerTitle"), /fontSize: AMORA_CHAT_HEADER_LAYOUT\.titleFontSize/);
-  assert.match(style("headerSub"), /fontSize: AMORA_CHAT_HEADER_LAYOUT\.subFontSize/);
-  assert.match(style("headerActions"), /gap: AMORA_CHAT_HEADER_LAYOUT\.actionGap, flexShrink: 0, marginLeft: AMORA_CHAT_HEADER_LAYOUT\.sideGap/);
+  assert.match(style("header"), /alignItems: "center", paddingTop: AMORA_CHAT_HEADER_LAYOUT\.paddingTop, paddingBottom: AMORA_CHAT_HEADER_LAYOUT\.paddingBottom, paddingHorizontal: AMORA_CHAT_HEADER_LAYOUT\.paddingX/);
+  assert.match(style("headerActions"), /position: "absolute", right: AMORA_CHAT_HEADER_LAYOUT\.paddingX, top: AMORA_CHAT_HEADER_LAYOUT\.actionsTop,[^\n]*gap: AMORA_CHAT_HEADER_LAYOUT\.actionGap/);
   assert.match(style("headerBoardBtn"), /minWidth: 44, height: 44,[^\n]*gap: AMORA_CHAT_HEADER_LAYOUT\.boardIconGap, paddingHorizontal: AMORA_CHAT_HEADER_LAYOUT\.boardPaddingX/);
   assert.match(style("headerBoardBtnCompact"), /width: 44, paddingHorizontal: 0/);
   assert.match(style("headerBoardText"), /fontSize: AMORA_CHAT_HEADER_LAYOUT\.boardFontSize/);
   assert.match(style("headerIconBtn"), /width: 44, height: 44/);
-  assert.match(chat, /<AmoraAvatar size=\{AMORA_CHAT_HEADER_LAYOUT\.avatar\} \/><View style=\{st\.headerTitles\}><Text style=\{st\.headerTitle\} numberOfLines=\{1\}>아모라<\/Text><Text style=\{st\.headerSub\} numberOfLines=\{1\}>결혼 준비 동반자<\/Text><\/View>/);
+  // 아티팩트(`Chat.dc` header): 위 16·아래 8, 오브 64px. 버튼(44pt)은 오브 가운데 높이에 맞춘다.
+  assert.equal(LAYOUT.paddingTop, 16);
+  assert.equal(LAYOUT.paddingBottom, 8);
+  assert.equal(LAYOUT.orb, 64);
+  assert.equal(LAYOUT.actionsTop, LAYOUT.paddingTop + (LAYOUT.orb - LAYOUT.button) / 2);
+  // 가운데는 오브와 "듣고 있어요"다. 예전 얼굴·두 줄 제목·메시지 수 알약은 없다.
+  assert.match(chat, /<View style=\{st\.header\}>\s*\{\/\*[^*]*\*\/\}\s*<InvitationListening \/>/);
+  const listening = read("../components/invitation/InvitationListening.tsx");
+  assert.match(listening, /<AmoraOrb size=\{64\} mood="calm" \/>/);
+  assert.match(listening, /\{FIRST_CHAT_COPY\.listening\}/);
+  assert.doesNotMatch(chat, /<StatusPill\b/);
+  assert.doesNotMatch(chat, /결혼 준비 동반자/);
   // 화면 폭과 시스템 글자 크기로 정한다.
   assert.match(chat, /const \{ width: windowWidth, fontScale \} = useWindowDimensions\(\);\n\s*const showBoardLabel = shouldShowAmoraBoardLabel\(windowWidth, fontScale\);/);
   assert.match(attribute(boardButton, "style"), /!showBoardLabel && st\.headerBoardBtnCompact/);
-  // 메시지 수 표시(caption 12pt, 좌우 8pt)도 어림과 같은 숫자다.
-  const pill = read("../components/ui/AppUI.tsx");
-  assert.match(pill, /paddingHorizontal: spacing\[2\]/);
-  assert.equal(LAYOUT.pillPaddingX, 8);
 });

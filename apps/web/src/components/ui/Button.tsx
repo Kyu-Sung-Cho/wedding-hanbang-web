@@ -32,12 +32,26 @@ import type { AnchorHTMLAttributes, ButtonHTMLAttributes, ReactNode, Ref } from 
  *     `aria-busy`와 `disabled`를 함께 건다.
  */
 
-type Variant = "primary" | "secondary" | "ghost" | "icon";
-type Size = "sm" | "md" | "lg";
+/**
+ * 청첩장 디자인(2026-11-17) 변형. 파운더 아티팩트의 알약 버튼을 그대로 옮긴다.
+ *
+ *   - `ink`     먹색 채움, 흰 글자(시작하기·좋아요, 홀 찾아 주세요·2곳에 보내기)
+ *   - `soft`    돌빛 채움(고칠게요)
+ *   - `outline` 흰 바탕에 가는 테두리(다른 시간 묻기·정렬 칩·빼기)
+ *   - `dashed`  점선 테두리(반지와 예물 넣기)
+ *   - `glass`   사진 위 반투명 흰 면(캘린더에 있어요)
+ *   - `plain`   면 없이 흐린 본문 글자(무엇을 했나요?)
+ *   - `text`    면 없이 먹색 글자, 올리면 흐려진다(예시 커플로 둘러보기·나중에 할게요)
+ */
+type InvitationVariant = "ink" | "soft" | "outline" | "dashed" | "glass" | "plain" | "text";
+type Variant = "primary" | "secondary" | "ghost" | "icon" | InvitationVariant;
+type PillSize = "pill-56" | "pill-54" | "pill-46" | "pill-44" | "pill-42" | "pill-40" | "pill-38" | "pill-34";
+type Size = "sm" | "md" | "lg" | PillSize;
+type Weight = "regular" | "medium" | "bold";
 
 const BASE = [
   "inline-flex items-center justify-center gap-2",
-  "font-semibold whitespace-nowrap",
+  "whitespace-nowrap",
   "transition-[background-color,border-color,color,opacity] duration-200",
   // 포커스 링은 예외 없이 붙는다 — 지금 웹 버튼의 92.6%에 이게 없다.
   "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--hb-focus-ring)] focus-visible:ring-offset-2",
@@ -55,7 +69,44 @@ const VARIANT: Record<Variant, string> = {
   ].join(" "),
   ghost: "text-[var(--hb-text-body)] hover:bg-[var(--hb-surface-hover)]",
   icon: "text-[var(--hb-text-muted)] hover:bg-[var(--hb-surface-hover)] hover:text-[var(--hb-text-strong)]",
+  // 아래는 청첩장 디자인. 아티팩트는 채운 알약에 올렸을 때의 변화를 두지 않았다(인라인 흰 글자가
+  // a:hover 를 이긴다). 글자만 있는 링크만 올리면 흐린 글자색(muted)으로 바뀐다.
+  ink: "bg-inv-ink text-inv-white",
+  soft: "bg-inv-stone text-inv-ink",
+  outline: "border border-inv-chip-line bg-inv-white text-inv-ink",
+  dashed: "border border-dashed border-inv-dashed bg-inv-white text-inv-ink",
+  glass: "bg-white/90 text-inv-ink",
+  plain: "bg-transparent text-inv-body",
+  text: "bg-transparent text-inv-ink hover:text-inv-muted",
 };
+
+/**
+ * 알약 크기. 아티팩트의 높이와 반경(높이의 절반)을 그대로 쓴다. 좌우 여백과 글자 굵기는
+ * 자리마다 달라서 크기에 넣지 않는다 — 여백은 `className`, 굵기는 `weight` 로 준다.
+ *
+ * 44px 보다 낮은 알약은 `tap-area` 로 보이는 상자를 그대로 두고 누르는 영역만 44px 로 넓힌다.
+ * `globals.css` 의 모바일 44px 규칙이 레이어 밖에서 `h-*` 를 이겨 상자를 부풀리기 때문이다.
+ */
+const PILL_SIZE: Record<PillSize, string> = {
+  "pill-56": "h-14 rounded-[28px] text-[16px]",
+  "pill-54": "h-[54px] rounded-[27px] text-[15px]",
+  "pill-46": "h-[46px] rounded-[23px] text-[14px]",
+  "pill-44": "h-11 rounded-[22px] text-[14px]",
+  "pill-42": "tap-area h-[42px] rounded-[21px] text-[14px]",
+  "pill-40": "tap-area h-10 rounded-[20px] text-[13px]",
+  "pill-38": "tap-area h-[38px] rounded-[19px] text-[13px]",
+  "pill-34": "tap-area h-[34px] rounded-[17px] text-[13px]",
+};
+
+const WEIGHT: Record<Weight, string> = {
+  regular: "font-normal",
+  medium: "font-medium",
+  bold: "font-bold",
+};
+
+function isPillSize(size: Size): size is PillSize {
+  return size.startsWith("pill-");
+}
 
 /** 높이는 실측된 지배값을 따른다 — md=44px가 161개로 가장 많고 전역 규칙과도 같다. */
 // 반경은 정본 시안을 따른다 — `docs/landing/NotebookBest.html:47,54` 의 `.btn`·`.btn-line`
@@ -67,21 +118,27 @@ const VARIANT: Record<Variant, string> = {
 //
 // 높이는 시안의 54px 이 아니라 44px 를 지킨다. `globals.css` 의 44px 탭 규칙이
 // 레이어 밖이라 `min-h-*` 를 이기고, 그 규칙이 접근성 계약(2.5.8)을 지고 있다.
-const SIZE: Record<Size, string> = {
-  sm: "min-h-10 rounded-[6px] px-4 text-[13px]",
-  md: "min-h-11 rounded-[6px] px-5 text-[14px]",
-  lg: "min-h-12 rounded-[6px] px-6 text-[15px]",
+type ClassicSize = Exclude<Size, PillSize>;
+
+// `font-semibold` 은 원래 BASE 에 있었다. 알약 크기가 굵기를 따로 정하게 되면서
+// 옛 크기 쪽으로 옮겼다 — 옛 버튼이 받는 클래스 묶음은 그대로다.
+const SIZE: Record<ClassicSize, string> = {
+  sm: "min-h-10 rounded-[6px] px-4 text-[13px] font-semibold",
+  md: "min-h-11 rounded-[6px] px-5 text-[14px] font-semibold",
+  lg: "min-h-12 rounded-[6px] px-6 text-[15px] font-semibold",
 };
 
-const ICON_SIZE: Record<Size, string> = {
-  sm: "size-9 rounded-full p-0",
-  md: "size-11 rounded-full p-0",
-  lg: "size-12 rounded-full p-0",
+const ICON_SIZE: Record<ClassicSize, string> = {
+  sm: "size-9 rounded-full p-0 font-semibold",
+  md: "size-11 rounded-full p-0 font-semibold",
+  lg: "size-12 rounded-full p-0 font-semibold",
 };
 
 type Common = {
   variant?: Variant;
   size?: Size;
+  /** 알약 크기의 글자 굵기. 옛 크기(sm·md·lg)는 늘 semibold 라 이 값을 읽지 않는다. */
+  weight?: Weight;
   loading?: boolean;
   fullWidth?: boolean;
   className?: string;
@@ -103,6 +160,8 @@ type AsLink = Common
   & {
     href: string;
     ref?: Ref<HTMLAnchorElement>;
+    /** 앱 안 링크의 미리 받기(`next/link`). 바깥 주소에는 뜻이 없어 넘기지 않는다. */
+    prefetch?: boolean;
     // 링크는 `disabled` 될 수 없다. `loading`도 마찬가지다 — 링크 분기는 그것을 읽을
     // 방법이 없어서, 받아만 놓고 아무 일도 안 하면 호출자가 중복 클릭을 막았다고
     // 믿게 된다. 타입에서 막는 편이 정직하다.
@@ -120,11 +179,16 @@ function isInternalHref(href: string): boolean {
   return href.startsWith("/") && !href.startsWith("//");
 }
 
-function classesFor({ variant = "secondary", size = "md", fullWidth, className }: Common & { variant?: Variant }) {
+function sizeClasses(variant: Variant, size: Size, weight: Weight | undefined): string {
+  if (isPillSize(size)) return `${PILL_SIZE[size]} ${WEIGHT[weight ?? "regular"]}`;
+  return variant === "icon" ? ICON_SIZE[size] : SIZE[size];
+}
+
+function classesFor({ variant = "secondary", size = "md", weight, fullWidth, className }: Common & { variant?: Variant }) {
   return [
     BASE,
     VARIANT[variant],
-    variant === "icon" ? ICON_SIZE[size] : SIZE[size],
+    sizeClasses(variant, size, weight),
     fullWidth ? "w-full" : "",
     className ?? "",
   ]
@@ -139,6 +203,7 @@ export default function Button(props: ButtonProps) {
   const {
     variant = "secondary",
     size = "md",
+    weight,
     loading,
     fullWidth,
     className,
@@ -148,10 +213,11 @@ export default function Button(props: ButtonProps) {
     ...rest
   } = merged;
 
-  const classes = classesFor({ variant, size, fullWidth, className });
+  const classes = classesFor({ variant, size, weight, fullWidth, className });
 
   if (href !== undefined) {
-    const anchorProps = rest as AnchorHTMLAttributes<HTMLAnchorElement>;
+    const { prefetch, ...linkRest } = rest as AnchorHTMLAttributes<HTMLAnchorElement> & { prefetch?: boolean };
+    const anchorProps = linkRest as AnchorHTMLAttributes<HTMLAnchorElement>;
     // 호출자가 준 접근명이 이긴다. `label`은 아이콘 변형의 기본값일 뿐이다.
     // 이 순서를 뒤집으면(스프레드 뒤에 aria-label을 두면) 호출자가 준 값이
     // undefined로 덮여 **접근명이 통째로 사라진다.** 실제로 그렇게 만들었다가
@@ -168,7 +234,7 @@ export default function Button(props: ButtonProps) {
     }
 
     return (
-      <Link {...anchorProps} href={href} className={classes} aria-label={accessibleName}>
+      <Link {...anchorProps} href={href} prefetch={prefetch} className={classes} aria-label={accessibleName}>
         {children}
       </Link>
     );

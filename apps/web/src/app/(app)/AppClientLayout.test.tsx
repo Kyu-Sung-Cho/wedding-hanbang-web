@@ -38,6 +38,17 @@ vi.mock("next/navigation", () => ({
   useSearchParams: () => mocks.searchParams,
 }));
 
+// 새 디자인 틀도 이용 통계 끄기를 지키는지 재려고 판정을 켤 수 있게 한다. 평소에는 실제 판정 그대로다.
+const analyticsMocks = vi.hoisted(() => ({ suppressed: false }));
+vi.mock("@/lib/analyticsPrivacy", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/analyticsPrivacy")>();
+  return {
+    ...actual,
+    isAnalyticsSuppressedLocation: (...args: Parameters<typeof actual.isAnalyticsSuppressedLocation>) =>
+      analyticsMocks.suppressed || actual.isAnalyticsSuppressedLocation(...args),
+  };
+});
+
 vi.mock("@/components/common/AiNoticeFooter", () => ({
   default: () => <footer>AI notice</footer>,
 }));
@@ -110,6 +121,7 @@ describe("AppClientLayout global Amora panel", () => {
   beforeEach(() => {
     mocks.pathname = "/wedding/settings";
     mocks.searchParams = new URLSearchParams();
+    analyticsMocks.suppressed = false;
     mocks.isDemo = true;
     mocks.isInitialized = true;
     mocks.initializeCalls.length = 0;
@@ -197,7 +209,9 @@ describe("AppClientLayout global Amora panel", () => {
 
   // 2026-11-13 파운더 결정: 라운지에서 아모라를 열면 라운지 옆에 붙는다. 그 상태로 체크리스트·
   // 예산 같은 화면을 열어도 아모라는 그대로 옆에 남는다(기능은 아모라 뒤로).
-  it.each(["/wedding/lounge", "/lounge", "/wedding/checklist", "/wedding/budget", "/wedding/schedule", "/wedding/preparation-style"])("keeps Amora open beside the page when moving to %s", async (pathname) => {
+  // 2026-11-17 파운더 디자인 아티팩트(원문: 이 디자인 완전 같아야해): 라운지는 이제 새 디자인 틀이라 옆자리가 없다
+  // (넓은 화면은 대화가 왼쪽 칸에 이미 있다). 옛 틀에 남은 화면끼리 옆자리가 이어지는지만 잰다.
+  it.each(["/wedding/checklist", "/wedding/budget", "/wedding/schedule", "/wedding/preparation-style"])("keeps Amora open beside the page when moving to %s", async (pathname) => {
     await renderLayout();
     await act(async () => container.querySelector<HTMLButtonElement>('button[aria-label="아모라 AI 상담"]')?.click());
 
@@ -259,23 +273,89 @@ describe("AppClientLayout global Amora panel", () => {
     expect(container.textContent).toContain("AI notice");
   });
 
-  it.each(["/wedding/lounge", "/lounge"])("keeps %s outside the generic heading bridge with contextual Amora navigation", async pathname => {
+  // 2026-11-17 파운더 디자인 아티팩트(원문: 이 디자인 완전 같아야해): 라운지·아모라·준비 순서·웨딩홀 비교·편지·상담은
+  // 새 디자인이 화면 전체를 그린다. 옛 사이드바·상단 바·아모라 옆자리·아래 두 칸 메뉴가 없고(새 화면의 하단 메뉴가 있다),
+  // 서비스 테마(Pretendard 제목·단추 덮어쓰기)가 걸리지 않는다. 옛 라운지 바닥의 AI 고지는 라운지 화면이 직접 그린다.
+  it.each([
+    "/wedding/lounge",
+    "/lounge",
+    "/wedding/chat",
+    "/wedding/journey",
+    "/wedding/halls",
+    "/wedding/halls/letter",
+    "/wedding/halls/consultation",
+  ])("renders %s in the invitation shell without the old chrome or the service heading bridge", async pathname => {
     mocks.pathname = pathname;
     await renderLayout();
-    expect(container.querySelector(".amora-workspace main")).not.toBeNull();
-    expect(container.querySelector(".hanbang-service-theme:not(.amora-workspace):not(.planning-workspace) main")).toBeNull();
-    const nav = container.querySelector('nav[aria-label="모바일 주요 기능"]');
-    expect(nav?.querySelector('[aria-current="location"]')?.getAttribute("href")).toBe("/wedding/lounge");
-    expect(nav?.querySelector('a[href="/wedding/chat"]')).not.toBeNull();
-    const launcher = container.querySelector('button[aria-label="아모라 AI 상담"]');
-    expect(launcher).toBeNull();
-    expect(container.textContent).toContain("AI notice");
+    const shell = container.querySelector('[data-app-shell="invitation"]');
+    expect(shell).not.toBeNull();
+    expect(shell?.querySelector("main")?.textContent).toBe("page content");
+    // 제목·단추를 Pretendard 로 덮는 규칙은 서비스 테마 아래에서만 걸린다. 새 틀에는 그 테마가 없다.
+    expect(container.querySelector(".hanbang-service-theme")).toBeNull();
+    // 승인 카드·저장 시트가 쓰는 아모라 색 변수는 예외 틀 이름(`amora-workspace`)이 준다.
+    expect(shell?.classList.contains("amora-workspace")).toBe(true);
+    expect(container.textContent).not.toContain("sidebar");
+    expect(container.textContent).not.toContain("top nav");
+    expect(container.querySelector("[data-amora-dock]")).toBeNull();
+    expect(container.querySelector('[data-testid="global-amora-panel"]')).toBeNull();
+    expect(container.querySelector('nav[aria-label="모바일 주요 기능"]')).toBeNull();
+    expect(container.querySelector('button[aria-label="아모라 AI 상담"]')).toBeNull();
+
     mocks.pathname = "/wedding/settings";
     await renderLayout();
-    expect(container.querySelector(".amora-workspace main")).toBeNull();
+    expect(container.querySelector('[data-app-shell="invitation"]')).toBeNull();
     expect(container.querySelector(".planning-workspace main")).not.toBeNull();
     expect(container.querySelectorAll('button[aria-label="아모라 AI 상담"]')).toHaveLength(1);
-    expect(container.querySelector('nav[aria-label="모바일 주요 기능"]')).toBeNull();
+    expect(container.textContent).toContain("sidebar");
+  });
+
+  it("keeps the demo notice, the server-verified demo hydration and the auth wait in the invitation shell", async () => {
+    mocks.pathname = "/wedding/lounge";
+    mocks.isInitialized = false;
+    await act(async () => {
+      root.render(
+        <AppClientLayout initialDemo banner={<div data-testid="demo-banner">체험</div>}>
+          <div>page content</div>
+        </AppClientLayout>,
+      );
+      await Promise.resolve();
+    });
+    // 인증을 확인하기 전에는 옛 틀과 같은 기다림 화면이다(새 화면을 그리지 않는다).
+    expect(container.querySelector('[data-app-shell="invitation"]')).toBeNull();
+    expect(container.textContent).not.toContain("page content");
+    expect(mocks.initializeCalls).toEqual([{ initialDemo: true }]);
+    expect(mocks.authSyncCalls).toEqual([false]);
+
+    mocks.isInitialized = true;
+    await act(async () => {
+      root.render(
+        <AppClientLayout initialDemo banner={<div data-testid="demo-banner">체험</div>}>
+          <div>page content</div>
+        </AppClientLayout>,
+      );
+      await Promise.resolve();
+    });
+    const shell = container.querySelector('[data-app-shell="invitation"]');
+    expect(shell?.querySelector('[data-testid="demo-banner"]')).not.toBeNull();
+  });
+
+  it("keeps analytics suppression in the invitation shell", async () => {
+    analyticsMocks.suppressed = true;
+    mocks.pathname = "/wedding/lounge";
+    await renderLayout();
+    expect(container.querySelector('[data-app-shell="invitation"]')?.classList.contains("ph-no-capture")).toBe(true);
+    analyticsMocks.suppressed = false;
+    await renderLayout();
+    expect(container.querySelector('[data-app-shell="invitation"]')?.classList.contains("ph-no-capture")).toBe(false);
+  });
+
+  it("keeps Amora's other screens (board·missions·personal) in the old shell", async () => {
+    for (const pathname of ["/wedding/chat/board", "/wedding/chat/personal", "/wedding/chat/missions"]) {
+      mocks.pathname = pathname;
+      await renderLayout();
+      expect(container.querySelector('[data-app-shell="invitation"]')).toBeNull();
+      expect(container.querySelector(".amora-workspace main")).not.toBeNull();
+    }
   });
 
   it.each(["/preparation-style", "/wedding/preparation-style"])("keeps %s in the lounge shell without marking a different bottom tab active", async pathname => {
@@ -541,7 +621,10 @@ describe("AppClientLayout 아모라 옆자리 (2026-11-13 파운더 결정)", ()
   let container: HTMLDivElement;
 
   beforeEach(() => {
-    mocks.pathname = "/wedding/lounge";
+    // 2026-11-17 파운더 디자인 아티팩트(원문: 이 디자인 완전 같아야해): 라운지는 새 디자인 틀이라 옆자리가 없다.
+    // 옆자리의 동작(질문을 들고 열기·너비·덮개 전환·첫마디)은 고정 버튼 없이 옆자리를 쓰는 옛 틀 화면(체크리스트)에서
+    // 그대로 잰다. 라운지가 하던 역할(고정 버튼 없음, 본문이 여는 아모라)을 이 화면이 똑같이 한다.
+    mocks.pathname = "/wedding/checklist";
     mocks.searchParams = new URLSearchParams();
     mocks.isDemo = true;
     mocks.isInitialized = true;

@@ -4,19 +4,22 @@
 // 이 버튼은 아모라가 **먼저 말을 걸 자리**다. 말풍선이 붙을 곳이 없으면 아모라는 사람이
 // 먼저 찾아올 때까지 아무 말도 못 한다.
 //
-// 위치: 탭바는 레이아웃 공간을 차지하므로 이 버튼이 사는 화면 컨테이너의 bottom은 이미
-// 탭바 위다. 그래서 셈에 탭바 높이나 인셋을 더하지 않는다 — 그 셈은
-// `src/lib/firstRunTutorial.ts`의 getAmoraFabBottomOffset이 소유하고, 전제(탭바가 static)가
-// 깨지지 않는지는 테스트가 `app/(tabs)/_layout.tsx`에서 확인한다.
+// 위치: 2026-11-17(파운더 디자인 아티팩트)부터 하단 메뉴는 화면 위에 겹쳐 떠 있다. 이 버튼이 사는 화면
+// 컨테이너는 메뉴 아래까지 뻗으므로, 메뉴가 차지한 높이(`invitationTabBarClearance`, 안전 영역 포함) 위에
+// 뜬다. 셈은 `src/lib/firstRunTutorial.ts`의 getAmoraFabBottomOffset이 소유한다.
+//
+// 청첩장 홈에서는 아모라가 먼저 건넨 말이 있거나 첫 실행 안내가 이 버튼을 가리킬 때만 그린다(라운지가 정한다).
 //
 // 말풍선도 버튼이다: 웹은 같은 말풍선을 눌러 대화가 열린다. 앱에서만 읽기 전용이면
 // 아모라가 먼저 건넨 말을 눌러본 사람은 아무 일도 일어나지 않는 화면을 만난다.
 import { useRef } from "react";
 import { Animated, Pressable, StyleSheet, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Text } from "@/components/ui/AppText";
 import { X } from "lucide-react-native";
 import { amoraIdentity, colors, radius, spacing } from "@hanbang/design-tokens";
 import AmoraMark from "@/components/ui/AmoraMark";
+import { invitationTabBarClearance } from "@/components/invitation/InvitationTabBar";
 import { AMORA_FAB_SIZE, getAmoraFabBottomOffset } from "@/lib/firstRunTutorial";
 import { FirstRunAnchor } from "@/components/lounge/FirstRunAnchors";
 
@@ -41,6 +44,7 @@ export default function AmoraFab({
   anchorId = "amora-fab",
 }: AmoraFabProps) {
   const scale = useRef(new Animated.Value(1)).current;
+  const insets = useSafeAreaInsets();
   const bubble = typeof bubbleText === "string" && bubbleText.trim().length > 0
     ? bubbleText.trim()
     : null;
@@ -49,7 +53,7 @@ export default function AmoraFab({
     <FirstRunAnchor
       id={anchorId}
       pointerEvents="box-none"
-      style={[styles.root, { bottom: getAmoraFabBottomOffset() }]}
+      style={[styles.root, { bottom: getAmoraFabBottomOffset(invitationTabBarClearance(insets)) }]}
     >
       {bubble ? (
         // 닫기 버튼을 말풍선 **밖**에 둔다.

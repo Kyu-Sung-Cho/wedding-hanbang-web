@@ -70,6 +70,10 @@ import {
 import { readRememberedAmoraLane, rememberAmoraLane } from "@/lib/chat/amoraLaneMemory";
 import type { AmoraPanelDraft } from "@/components/app/amora/amoraDock";
 import AmoraLaneChoiceCard from "./AmoraLaneChoiceCard";
+import Button from "@/components/ui/Button";
+import { SendArrowIcon } from "@/components/invitation/InvitationIcons";
+import { WEB_COPY } from "@hanbang/shared/invitation";
+import { INVITATION_CHAT_STYLES, type ChatPresentation } from "./chatBubbleStyles";
 
 const MAX_ATTACHMENTS = CHAT_ATTACHMENT_MAX_COUNT;
 
@@ -107,8 +111,12 @@ interface ChatSidePanelProps {
    *   열려 있는 동안 뒤 화면을 잠그고 초점을 안에 가둔다.
    * - `docked`: 큰 화면에서 라운지를 옆으로 밀고 그 옆 칸을 채운다. 화면의 한 칸이라 뒤 화면을
    *   잠그지도 초점을 가두지도 않는다. 너비는 부모 칸이 정한다.
+   * - `invitation`: 청첩장 디자인(2026-11-17, 파운더 디자인 아티팩트 `Web.dc`·`Chat.dc`)의 대화 칸.
+   *   모양만 다르다. 머리줄(로고·두 사람·오브)은 바깥 화면이 그리고, 아모라 말은 말풍선 없는 글줄,
+   *   사람 말은 돌빛 말풍선, 입력칸은 알약이다. 옆자리처럼 화면 흐름 안에 있어 뒤 화면을 잠그거나
+   *   초점을 가두지 않고, 페이지를 열 때 초점을 옮기지도 않는다. 보내기·레인·안전·승인 경로는 그대로다.
    */
-  presentation?: "overlay" | "docked";
+  presentation?: "overlay" | "docked" | "invitation";
   /** 열면서 입력칸에 넣어 둘 질문. 번호가 바뀔 때 한 번만 넣고, 보내지는 않는다. */
   draft?: AmoraPanelDraft | null;
   /** 머리줄 오른쪽에 더하는 조작(옆자리일 때 창 너비 바꾸기). */
@@ -133,6 +141,10 @@ export default function ChatSidePanel({
   headerActions = null,
 }: ChatSidePanelProps) {
   const docked = presentation === "docked";
+  const invitation = presentation === "invitation";
+  // 덮개가 아니라 화면 흐름 안의 칸이다(옆자리·청첩장 대화 칸). 뒤 화면을 잠그거나 초점을 가두지 않는다.
+  const inPageFlow = docked || invitation;
+  const bubblePresentation: ChatPresentation = invitation ? "invitation" : "default";
   const router = useRouter();
   const { profile, couple, journey, partner, isDemo, isInitialized: authInitialized, isLoading: authLoading } = useAuthStore();
   const amoraPersonalization = useAmoraPersonalization(
@@ -446,8 +458,8 @@ export default function ChatSidePanel({
   }, [amoraPersonalization.profile, coupleId, profile?.id]);
 
   useEffect(() => {
-    // 옆자리는 아래 효과가 맡는다. 화면의 한 칸이라 초점을 가두지 않는다.
-    if (!isOpen || docked) return;
+    // 옆자리는 아래 효과가 맡는다. 화면의 한 칸이라 초점을 가두지 않는다(청첩장 대화 칸도 같다).
+    if (!isOpen || inPageFlow) return;
 
     const panel = panelRef.current;
     const previouslyFocused = document.activeElement instanceof HTMLElement
@@ -502,7 +514,7 @@ export default function ChatSidePanel({
       document.removeEventListener("keydown", handleDialogKeyDown);
       if (previouslyFocused?.isConnected) previouslyFocused.focus();
     };
-  }, [docked, isOpen, mediationConsentOpen]);
+  }, [inPageFlow, isOpen, mediationConsentOpen]);
 
   // 옆자리에서는 연 사람이 바로 쓰도록 입력칸으로 초점을 옮기기만 한다. Escape 는 초점이 이 칸
   // 안에 있을 때만 닫는다. 라운지를 보던 사람의 Escape 를 가로채지 않는다.
@@ -619,8 +631,8 @@ export default function ChatSidePanel({
   }, [activeComposerLane, activeScope, hasCouplePartner, isSending, isStreaming]);
 
   useEffect(() => {
-    // 옆자리로 열려도 라운지는 계속 읽고 스크롤할 수 있어야 한다.
-    if (!isOpen || docked) return;
+    // 옆자리로 열려도 라운지는 계속 읽고 스크롤할 수 있어야 한다. 청첩장 대화 칸도 화면의 한 칸이다.
+    if (!isOpen || inPageFlow) return;
 
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
@@ -628,7 +640,7 @@ export default function ChatSidePanel({
     return () => {
       document.body.style.overflow = previousOverflow;
     };
-  }, [docked, isOpen]);
+  }, [inPageFlow, isOpen]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -764,15 +776,15 @@ export default function ChatSidePanel({
   // 자동 스크롤
   useEffect(() => {
     if (!isOpen) return;
-    if (docked) {
+    if (inPageFlow) {
       // 옆자리는 화면 흐름 안에 있어서 scrollIntoView 가 라운지까지 끌고 내려간다(전체 화면
-      // `ChatContent` 가 같은 사고를 겪었다). 대화 목록 칸만 내린다.
+      // `ChatContent` 가 같은 사고를 겪었다). 대화 목록 칸만 내린다. 청첩장 대화 칸도 같다.
       const list = messagesScrollRef.current;
       if (list) list.scrollTop = list.scrollHeight;
       return;
     }
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [docked, isOpen, messages, isStreaming, streamingContent]);
+  }, [inPageFlow, isOpen, messages, isStreaming, streamingContent]);
 
   // 첨부파일 처리
   const adjustPendingFileReads = useCallback((lane: ChatComposerLane, delta: 1 | -1) => {
@@ -1500,8 +1512,8 @@ export default function ChatSidePanel({
 
   return (
     <>
-      {/* 모바일 오버레이. 옆자리는 화면을 가리지 않는다. */}
-      {!docked && (
+      {/* 모바일 오버레이. 옆자리와 청첩장 대화 칸은 화면을 가리지 않는다. */}
+      {!inPageFlow && (
         <div
           className={`fixed inset-0 z-40 bg-[#071629]/45 backdrop-blur-[2px] transition-opacity duration-300 md:hidden ${
             isOpen ? "opacity-100" : "opacity-0 pointer-events-none"
@@ -1516,6 +1528,9 @@ export default function ChatSidePanel({
         className={docked
           // 옆자리: 부모 칸(`AmoraDockHost`)이 자리와 너비를 정하고, 이 칸은 그 안을 채운다.
           ? "relative flex h-full w-full flex-col overflow-hidden bg-[var(--hb-surface-page)] outline-none"
+          : invitation
+          // 청첩장 대화 칸: 바깥 화면의 대화 자리를 채운다. 바탕은 바깥 화면의 흰색을 그대로 쓴다.
+          ? "relative flex min-h-0 w-full flex-1 flex-col font-inv-sans text-inv-ink outline-none"
           : `fixed z-50 flex flex-col overflow-hidden bg-[var(--hb-surface-page)] shadow-[-4px_0_24px_rgba(58,42,39,0.10)] transition-transform duration-300 ease-out
           md:top-0 md:right-0 md:w-[400px] md:h-full md:border-l md:border-black/[0.06]
           max-md:bottom-0 max-md:left-0 max-md:right-0 max-md:h-[78dvh] max-md:min-h-[420px] max-md:max-h-[calc(100dvh-4.5rem)] max-md:rounded-t-[22px] max-md:border-t max-md:border-black/[0.06] max-md:shadow-[var(--shadow-raised)]
@@ -1523,10 +1538,13 @@ export default function ChatSidePanel({
             ? "md:translate-x-0 max-md:translate-y-0"
             : "md:translate-x-full max-md:translate-y-full"
         }`}
-        role={docked ? "complementary" : "dialog"}
-        aria-modal={docked ? undefined : isOpen}
+        role={
+          // 청첩장 대화 칸은 화면 본문 안의 이름 붙인 구역이다(좁은 화면의 대화는 이 칸이 화면 전부라 이름이 이것뿐이다).
+          docked ? "complementary" : invitation ? "region" : "dialog"
+        }
+        aria-modal={inPageFlow ? undefined : isOpen}
         aria-hidden={!isOpen}
-        aria-label={docked ? "아모라" : "아모라 AI 상담 패널"}
+        aria-label={docked || invitation ? "아모라" : "아모라 AI 상담 패널"}
         data-amora-panel-presentation={presentation}
         tabIndex={-1}
         inert={!isOpen}
@@ -1545,13 +1563,15 @@ export default function ChatSidePanel({
         )}
 
         {/* 모바일 핸들 */}
-        {!docked && (
+        {!inPageFlow && (
           <div className="md:hidden flex justify-center pt-2 pb-1">
             <div className="w-10 h-1 rounded-full bg-taupe-400/30" />
           </div>
         )}
 
-        {/* 헤더 */}
+        {/* 헤더. 청첩장 대화 칸은 바깥 화면이 로고·두 사람·오브를 그리고, 닫기·전체 화면이 없다(이미 화면 자체다).
+            대화 화면 정리와 AI 답변 안내는 아래 공개 범위 줄이 맡는다. */}
+        {!invitation && (
         <div className="flex items-center justify-between px-5 py-3 border-b border-black/[0.06]">
           <div className="flex items-center gap-2.5">
             <AmoraAvatar />
@@ -1594,12 +1614,13 @@ export default function ChatSidePanel({
             </button>
           </div>
         </div>
+        )}
 
         {expandNotice && <p role="alert" className="mx-3 my-2 rounded-lg border border-[var(--hb-hairline)] p-3 text-sm leading-relaxed">{expandNotice}</p>}
         {showEmpty ? (
           <div className="flex-1 flex items-center justify-center p-6">
             <div className="text-center">
-              <AmoraAvatar sizeClassName="size-10" className="mx-auto mb-3" />
+              {!invitation && <AmoraAvatar sizeClassName="size-10" className="mx-auto mb-3" />}
               <p className="text-[0.8125rem] text-[var(--hb-text-body)] mb-1">
                 {isDemo ? "로그인 후 이용할 수 있어요" : "온보딩을 완료해주세요"}
               </p>
@@ -1612,18 +1633,20 @@ export default function ChatSidePanel({
           </div>
         ) : (
           <>
-            <div className="border-b border-black/[0.05] bg-white px-3 py-2">
+            <div className={invitation ? `${INVITATION_CHAT_STYLES.column} pb-1` : "border-b border-black/[0.05] bg-white px-3 py-2"}>
               <div
                 role="group"
                 aria-label="상담 공개 범위"
-                className="grid grid-cols-2 gap-1 rounded-[6px] bg-[var(--hb-surface-hover)] p-1"
+                className={invitation ? INVITATION_CHAT_STYLES.laneGroup : "grid grid-cols-2 gap-1 rounded-[6px] bg-[var(--hb-surface-hover)] p-1"}
               >
                 <button
                   type="button"
                   onClick={() => chooseLane("shared")}
                   disabled={isComposerBusy}
                   aria-pressed={laneReady && activeScope === "shared"}
-                  className={`min-h-11 rounded-[6px] px-2 text-xs font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
+                  className={invitation
+                    ? `${INVITATION_CHAT_STYLES.laneChip} ${laneReady && activeScope === "shared" ? INVITATION_CHAT_STYLES.laneChipOn : INVITATION_CHAT_STYLES.laneChipOff}`
+                    : `min-h-11 rounded-[6px] px-2 text-xs font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
                     laneReady && activeScope === "shared"
                       ? "bg-white text-[var(--hb-accent-hover)] shadow-sm"
                       : "text-[var(--hb-text-muted)] hover:text-[var(--hb-text-body)]"
@@ -1637,7 +1660,9 @@ export default function ChatSidePanel({
                   disabled={isComposerBusy || !myPrivateVisibility}
                   aria-pressed={laneReady && activeScope === "private"}
                   title="아모라와 1:1 — 서비스에 저장되지만 상대방에게는 보이지 않습니다"
-                  className={`flex min-h-11 items-center justify-center gap-1 rounded-[6px] px-2 text-xs font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
+                  className={invitation
+                    ? `${INVITATION_CHAT_STYLES.laneChip} ${laneReady && activeScope === "private" ? INVITATION_CHAT_STYLES.laneChipOn : INVITATION_CHAT_STYLES.laneChipOff}`
+                    : `flex min-h-11 items-center justify-center gap-1 rounded-[6px] px-2 text-xs font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
                     laneReady && activeScope === "private"
                       ? "bg-white text-[#5a6147] shadow-sm"
                       : "text-[var(--hb-text-muted)] hover:text-[var(--hb-text-body)]"
@@ -1650,7 +1675,7 @@ export default function ChatSidePanel({
               <p
                 role="status"
                 aria-live="polite"
-                className={`mt-1.5 flex items-center gap-1 text-[0.6875rem] leading-relaxed ${
+                className={invitation ? INVITATION_CHAT_STYLES.status : `mt-1.5 flex items-center gap-1 text-[0.6875rem] leading-relaxed ${
                   activeScope === "private" ? "text-[#5a6147]" : "text-[var(--hb-accent-hover)]"
                 }`}
               >
@@ -1666,6 +1691,47 @@ export default function ChatSidePanel({
           // 아니다. 지금은 아무도 못 본다. 나중에 연결하면 보인다는 것을 말한다.
           : "현재 범위 · 함께 대화 — 파트너를 연결하면 이 대화를 함께 볼 수 있어요"}
               </p>
+              {invitation && (
+                // 청첩장 대화 칸에는 "아모라 AI" 머리줄이 없다. AI 답변이라는 표시는 전체 화면 대화와 같은 문장으로
+                // 늘 보이게 둔다(아티팩트에 자리가 없는 법적 고지). 머리줄에 있던 대화 화면 정리도 이 줄로 옮긴다.
+                <div className="mt-1 flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
+                  <p className={`flex flex-wrap items-center gap-x-1.5 ${INVITATION_CHAT_STYLES.note}`} data-amora-ai-disclosure="">
+                    <span className="font-medium text-inv-body">AI 생성 답변</span>
+                    <span aria-hidden="true">·</span>
+                    <span>계약·가격·중요 일정은 원문을 다시 확인해 주세요</span>
+                    <span aria-hidden="true">·</span>
+                    <a
+                      href="/ai-policy"
+                      className="underline decoration-dotted underline-offset-2 transition-colors hover:text-inv-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--hb-focus-ring)]"
+                    >
+                      AI 정책
+                    </a>
+                  </p>
+                  <div className="flex flex-wrap items-center gap-x-1">
+                    {scopedMessages.length > 0 && (
+                      <Button
+                        variant="plain"
+                        size="pill-34"
+                        className="px-2 text-[12px]! text-inv-muted! hover:text-inv-ink!"
+                        title="대화 화면 정리"
+                        onClick={() => setShowClearConfirm(true)}
+                      >
+                        대화 화면 정리
+                      </Button>
+                    )}
+                    {/* 머리줄에 있던 "전체 화면으로 보기"도 이 줄로 옮긴다. 쓰던 글은 옆자리와 같은 인계로 옮겨 간다. */}
+                    <Button
+                      variant="plain"
+                      size="pill-34"
+                      className="px-2 text-[12px]! text-inv-muted! hover:text-inv-ink!"
+                      aria-label="아모라 상담 전체 화면으로 보기"
+                      onClick={handleExpand}
+                    >
+                      전체 화면으로 보기
+                    </Button>
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* 대화 화면 정리 확인 */}
@@ -1782,12 +1848,13 @@ export default function ChatSidePanel({
             )}
 
             {/* 메시지 영역 */}
-            <div ref={messagesScrollRef} className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
+            <div ref={messagesScrollRef} className={invitation ? INVITATION_CHAT_STYLES.messageList : "flex-1 overflow-y-auto px-4 py-4 space-y-4"}>
               {firstHelloMessage && (
                 <div className="animate-fade-in" data-testid="amora-first-hello-message">
                   <ChatBubble
                     message={firstHelloMessage}
                     isCurrentUser={false}
+                    presentation={bubblePresentation}
                   />
                 </div>
               )}
@@ -1862,6 +1929,7 @@ export default function ChatSidePanel({
                             : null
                         }
                         isRecentAi={recentAiIds.has(msg.id)}
+                        presentation={bubblePresentation}
                       />
                       {pendingAction && (
                         <PendingAmoraActionCard
@@ -1916,7 +1984,7 @@ export default function ChatSidePanel({
                 && messageTarget === "ai"
                 && artifactsMatchActiveVisibility && (
                 <div className="animate-fade-in">
-                  <StreamingBubble content={streamingContent} toolResults={streamingToolResults} onSend={handleAmoraSend} />
+                  <StreamingBubble content={streamingContent} toolResults={streamingToolResults} onSend={handleAmoraSend} presentation={bubblePresentation} />
                 </div>
               )}
 
@@ -1925,7 +1993,7 @@ export default function ChatSidePanel({
 
             {/* 갈등 중재 제안 배너 */}
             {activeScope === "shared" && showMediationBanner && !isStreaming && (
-              <div className="px-3 pb-2">
+              <div className={invitation ? `${INVITATION_CHAT_STYLES.column} pb-2` : "px-3 pb-2"}>
                 <div className="relative bg-gradient-to-r from-pink-50 via-rose-50 to-orange-50 border border-pink-200/60 rounded-[6px] px-3 py-3 shadow-sm">
                   <button
                     type="button"
@@ -1957,7 +2025,7 @@ export default function ChatSidePanel({
 
             {/* 처음 여는 사람에게 '함께/나만'을 먼저 고르게 한다(2026-09-26). 입력창 바로 위. */}
             {laneChoiceNeeded && (
-              <div className="px-3 pb-2">
+              <div className={invitation ? `${INVITATION_CHAT_STYLES.column} pb-2` : "px-3 pb-2"}>
                 <AmoraLaneChoiceCard
                   onChoose={chooseLane}
                   partnerLinked={hasCouplePartner}
@@ -1975,11 +2043,12 @@ export default function ChatSidePanel({
               !isStreaming &&
               !showAmoraQuickStart &&
               !showPersonalizationConfirmation && (
-              <div className="px-3 pt-2 pb-4 border-t border-[#F0EFED]/60 mt-2">
+              <div className={invitation ? `${INVITATION_CHAT_STYLES.column} pt-2.5` : "px-3 pt-2 pb-4 border-t border-[#F0EFED]/60 mt-2"}>
                 <SuggestionButtons
                   suggestions={suggestions}
                   onSelect={handleAmoraSend}
                   disabled={isComposerBusy}
+                  presentation={bubblePresentation}
                 />
               </div>
             )}
@@ -2021,11 +2090,11 @@ export default function ChatSidePanel({
             )}
 
             {/* 입력 영역 */}
-            <div className="px-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] pt-1">
+            <div className={invitation ? `${INVITATION_CHAT_STYLES.column} pt-2.5 pb-[env(safe-area-inset-bottom)]` : "px-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] pt-1"}>
               {/* 대상 토글 (커플 연동 시) */}
               {laneReady && activeScope === "shared" && hasCouplePartner && (
                 <div
-                  className="flex items-center gap-1.5 mb-1.5"
+                  className={invitation ? `${INVITATION_CHAT_STYLES.laneGroup} mb-2` : "flex items-center gap-1.5 mb-1.5"}
                   role="group"
                   aria-label="메시지 받을 대상"
                 >
@@ -2034,13 +2103,15 @@ export default function ChatSidePanel({
                     onClick={() => handleMessageTargetChange("ai")}
                     disabled={isComposerBusy}
                     aria-pressed={messageTarget === "ai"}
-                    className={`flex min-h-11 items-center gap-1 rounded-[6px] px-3 text-[0.625rem] font-medium transition-colors ${
+                    className={invitation
+                      ? `${INVITATION_CHAT_STYLES.laneChip} ${messageTarget === "ai" ? INVITATION_CHAT_STYLES.laneChipOn : INVITATION_CHAT_STYLES.laneChipOff}`
+                      : `flex min-h-11 items-center gap-1 rounded-[6px] px-3 text-[0.625rem] font-medium transition-colors ${
                       messageTarget === "ai"
                         ? "bg-gradient-to-r from-rose-500/10 to-gold/10 text-[var(--hb-accent-hover)] border border-rose-200"
                         : "text-[var(--hb-text-muted)] hover:text-[var(--hb-text-body)] border border-transparent"
                     }`}
                   >
-                    <AmoraMark className="w-3 h-3" />
+                    {!invitation && <AmoraMark className="w-3 h-3" />}
                     아모라에게
                   </button>
                   <button
@@ -2048,7 +2119,9 @@ export default function ChatSidePanel({
                     onClick={() => handleMessageTargetChange("partner")}
                     disabled={isComposerBusy}
                     aria-pressed={messageTarget === "partner"}
-                    className={`flex min-h-11 items-center gap-1 rounded-[6px] px-3 text-[0.625rem] font-medium transition-colors ${
+                    className={invitation
+                      ? `${INVITATION_CHAT_STYLES.laneChip} ${messageTarget === "partner" ? INVITATION_CHAT_STYLES.laneChipOn : INVITATION_CHAT_STYLES.laneChipOff}`
+                      : `flex min-h-11 items-center gap-1 rounded-[6px] px-3 text-[0.625rem] font-medium transition-colors ${
                       messageTarget === "partner"
                         ? "bg-gradient-to-r from-pink-500/10 to-purple-500/10 text-rose-700 border border-pink-200"
                         : "text-[var(--hb-text-muted)] hover:text-[var(--hb-text-body)] border border-transparent"
@@ -2060,19 +2133,19 @@ export default function ChatSidePanel({
                 </div>
               )}
 
-              {!isDemo && laneReady && <p className="mb-1.5 text-xs leading-relaxed text-[var(--hb-text-muted)]">미전송 글은 이 탭에서 30분 이내에 복구할 수 있어요. 전송·공유되지는 않으며, 첨부·안전 상담 등 일부 내용은 보관하지 않아요.</p>}
+              {!isDemo && laneReady && <p className={invitation ? `mb-2 ${INVITATION_CHAT_STYLES.note}` : "mb-1.5 text-xs leading-relaxed text-[var(--hb-text-muted)]"}>미전송 글은 이 탭에서 30분 이내에 복구할 수 있어요. 전송·공유되지는 않으며, 첨부·안전 상담 등 일부 내용은 보관하지 않아요.</p>}
               {/* 입력칸은 outline-none 이라 키보드 초점이 보이지 않는다. 래퍼가 대신 안쪽 윤곽선으로 보여 준다. */}
-              <div className="bg-white rounded-[6px] border border-black/[0.06] shadow-[var(--shadow-raised)] flex items-center gap-1.5 p-1.5 has-[input:focus-visible]:outline-2 has-[input:focus-visible]:-outline-offset-2 has-[input:focus-visible]:outline-[var(--hb-focus-ring)]">
+              <div className={invitation ? INVITATION_CHAT_STYLES.composer : "bg-white rounded-[6px] border border-black/[0.06] shadow-[var(--shadow-raised)] flex items-center gap-1.5 p-1.5 has-[input:focus-visible]:outline-2 has-[input:focus-visible]:-outline-offset-2 has-[input:focus-visible]:outline-[var(--hb-focus-ring)]"}>
                 {/* 첨부파일 버튼 */}
                 <button
                   type="button"
                   onClick={() => fileInputRef.current?.click()}
                   disabled={isComposerBusy || !laneReady || attachments.length >= MAX_ATTACHMENTS}
-                  className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-[6px] transition-colors hover:bg-black/[0.04] disabled:opacity-30"
+                  className={invitation ? INVITATION_CHAT_STYLES.composerAttach : "flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-[6px] transition-colors hover:bg-black/[0.04] disabled:opacity-30"}
                   title="파일 첨부"
                   aria-label="파일 첨부"
                 >
-                  <Paperclip className="w-4 h-4 text-[var(--hb-text-muted)]" />
+                  <Paperclip className={invitation ? "w-4 h-4" : "w-4 h-4 text-[var(--hb-text-muted)]"} />
                 </button>
                 <input
                   ref={fileInputRef}
@@ -2099,14 +2172,14 @@ export default function ChatSidePanel({
                   }}
                   placeholder={laneChoiceNeeded
                     ? AMORA_LANE_CHOICE_COPY.composerBlockedPlaceholder
-                    : messageTarget === "partner" ? "상대방에게 메시지..." : "결혼 준비에서 궁금한 점을 물어보세요…"}
+                    : messageTarget === "partner" ? "상대방에게 메시지..." : invitation ? WEB_COPY.inputPlaceholder : "결혼 준비에서 궁금한 점을 물어보세요…"}
                   // 고르기 전에는 읽기 전용으로 둔다. 비활성(disabled)으로 두면 안내 문구가 흐려져 읽기 어렵다.
                   readOnly={laneChoiceNeeded}
                   aria-disabled={laneChoiceNeeded || undefined}
                   disabled={isComposerBusy || (!laneReady && !laneChoiceNeeded)}
                   aria-label="메시지 입력"
                   data-amora-composer-input=""
-                  className="flex-1 px-2 py-2 text-[0.8125rem] text-[var(--hb-text-strong)] placeholder:text-[var(--hb-text-muted)] bg-transparent outline-none disabled:opacity-50 min-w-0"
+                  className={invitation ? INVITATION_CHAT_STYLES.composerInput : "flex-1 px-2 py-2 text-[0.8125rem] text-[var(--hb-text-strong)] placeholder:text-[var(--hb-text-muted)] bg-transparent outline-none disabled:opacity-50 min-w-0"}
                 />
                 <button
                   type="button"
@@ -2117,13 +2190,13 @@ export default function ChatSidePanel({
                     || !laneReady
                   }
                   aria-label="메시지 보내기"
-                  className={`flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-[6px] text-white transition-colors disabled:cursor-not-allowed disabled:opacity-30 ${
+                  className={invitation ? INVITATION_CHAT_STYLES.composerSend : `flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-[6px] text-white transition-colors disabled:cursor-not-allowed disabled:opacity-30 ${
                     messageTarget === "partner"
                       ? "bg-pink-500 hover:bg-pink-600"
                       : "bg-[var(--amora-action,var(--hb-action))] hover:bg-[var(--amora-action-hover,var(--hb-action-hover))]"
                   }`}
                 >
-                  <Send className="w-4 h-4" />
+                  {invitation ? <SendArrowIcon /> : <Send className="w-4 h-4" />}
                 </button>
               </div>
             </div>

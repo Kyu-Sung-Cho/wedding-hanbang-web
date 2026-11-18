@@ -1,53 +1,50 @@
 // @vitest-environment jsdom
 
 import { existsSync, readFileSync, statSync } from "node:fs";
-import { gzipSync } from "node:zlib";
 import { resolve } from "node:path";
-import { describe, expect, it, vi } from "vitest";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
+import { describe, expect, it, vi } from "vitest";
+
+import { START_COPY } from "@hanbang/shared/invitation";
+
 import LandingPage from "../page";
-import LandingBloomLayer from "@/components/landing/redesign/LandingBloomLayer";
 
 vi.mock("@/lib/analytics", () => ({ captureEvent: vi.fn() }));
 
-
 const appRoot = resolve(process.cwd());
-const optimizedHero = resolve(
-  appRoot,
-  "public/images/amora-hero-bouquet-custom.webp",
-);
+
+/**
+ * 첫 화면 자산 예산.
+ *
+ * 2026-11-17 파운더 디자인 아티팩트(원문: 이 디자인 완전 같아야해)로 첫 화면은 보케 사진 한 장과
+ * 아모라 오브 하나다. 옛 판은 꽃 SVG 넷의 크기를 쟀고 "히어로에 그림 없음"을 요구했다 —
+ * 새 디자인을 구조적으로 금지하던 단언이라, 같은 자리에서 **새 첫 화면의 무게**를 잰다.
+ * 커뮤니티의 공유 WebP 자산과 랜딩 공유 카드 계약은 그대로 둔다.
+ */
+const bokehPhoto = resolve(appRoot, "public/images/amora/bokeh-blush.webp");
+const optimizedHero = resolve(appRoot, "public/images/amora-hero-bouquet-custom.webp");
 const bouquetSourceFiles = [
   "src/app/(community)/community/cohort/page.tsx",
   "src/app/(community)/community/cohort/[id]/page.tsx",
 ];
-/**
- * 첫 화면 자산 예산은 실제 렌더되는 SVG 마크업을 센다.
- * 모바일 가지·데스크톱 좌우 가지와 마지막 다크 밴드의 가지를 모두 포함한다.
- * 장식 데이터 파일과 렌더링 HTML/gzip 각각에 상한을 둔다.
- * 커뮤니티의 공유 WebP 자산과 랜딩의 OG 카드 계약도 유지한다.
- */
-const landingBloom = resolve(
-  appRoot,
-  "src/components/landing/redesign/LandingBloom.tsx",
-);
-const landingBloomLayer = resolve(
-  appRoot,
-  "src/components/landing/redesign/LandingBloomLayer.tsx",
-);
-const transformationHero = resolve(
-  appRoot,
-  "src/components/landing/redesign/TransformationHero.tsx",
-);
-const landingSocialCard = resolve(
-  appRoot,
-  "public/images/landing-social-card.webp",
-);
+const landingSocialCard = resolve(appRoot, "public/images/landing-social-card.webp");
+
+function landingDocument(): Document {
+  return new DOMParser().parseFromString(renderToStaticMarkup(createElement(LandingPage)), "text/html");
+}
 
 describe("hero image performance budget", () => {
-  it("serves the shared bouquet hero as a bounded WebP asset", () => {
-    expect(statSync(optimizedHero).size).toBeLessThanOrEqual(350 * 1024);
+  it("serves the start-screen photo as a small WebP", () => {
+    // 보케 사진은 첫 화면 전체를 덮는다. 흐린 사진이라 작아도 되고, 커지면 첫 화면이 늦게 뜬다.
+    expect(existsSync(bokehPhoto), "보케 사진이 없다").toBe(true);
+    expect(readFileSync(bokehPhoto).subarray(8, 12).toString(), "WebP 가 아니다").toBe("WEBP");
+    expect(statSync(bokehPhoto).size).toBeLessThanOrEqual(64 * 1024);
+  });
 
+  it("serves the shared bouquet hero as a bounded WebP asset", () => {
+    // 랜딩 밖(커뮤니티 동기방)의 자산 계약이라 그대로 남긴다.
+    expect(statSync(optimizedHero).size).toBeLessThanOrEqual(350 * 1024);
     for (const sourceFile of bouquetSourceFiles) {
       const source = readFileSync(resolve(appRoot, sourceFile), "utf8");
       expect(source).toContain("/images/amora-hero-bouquet-custom.webp");
@@ -55,44 +52,19 @@ describe("hero image performance budget", () => {
     }
   });
 
-  it("bounds the SVG markup actually rendered by the landing", () => {
-    const doc = new DOMParser().parseFromString(renderToStaticMarkup(createElement(LandingPage)), "text/html");
-    const decorations = [...doc.querySelectorAll("svg.pointer-events-none")];
-    expect(decorations).toHaveLength(4);
-    const layer = new DOMParser().parseFromString(
-      renderToStaticMarkup(createElement(LandingBloomLayer)),
-      "text/html",
-    );
-    expect(layer.querySelectorAll("svg")).toHaveLength(3);
-    const mobileBranches = [...layer.querySelectorAll("svg")]
-      .filter((svg) => !svg.classList.contains("hidden"));
-    expect(mobileBranches).toHaveLength(1);
-    expect(mobileBranches[0].getAttribute("viewBox")).toBe("0 0 250 200");
-    expect(doc.getElementById("trust")?.querySelectorAll("svg.pointer-events-none")).toHaveLength(1);
-
-    for (const svg of decorations) {
-      expect(svg.getAttribute("aria-hidden")).toBe("true");
-      expect(svg.getAttribute("focusable")).toBe("false");
-      expect(svg.getAttribute("class")).toMatch(/(?:^|\s)w-\[\d+px\](?:\s|$)/u);
-      expect(svg.querySelectorAll("circle")).toHaveLength(3);
-      expect(svg.querySelectorAll("ellipse")).toHaveLength(15);
-      expect(svg.querySelectorAll("image,script,foreignObject,a")).toHaveLength(0);
-      expect(Buffer.byteLength(svg.outerHTML)).toBeLessThanOrEqual(48 * 1024);
-    }
-
-    // 데이터 배열·공유 함수도 파일 예산에 포함하고, 반복 배치는 실제 HTML 횟수로 센다.
-    expect(statSync(landingBloom).size).toBeLessThanOrEqual(96 * 1024);
-    const shipped = decorations.map((svg) => svg.outerHTML).join("");
-    expect(Buffer.byteLength(shipped)).toBeLessThanOrEqual(160 * 1024);
-    expect(gzipSync(shipped).byteLength).toBeLessThanOrEqual(40 * 1024);
-    const hero = doc.getElementById("hero-title")?.closest("section");
-    expect(hero).toBeTruthy();
-    expect(hero?.querySelectorAll("img,picture,video,image")).toHaveLength(0);
-    for (const file of [transformationHero, landingBloomLayer]) {
-      const source = readFileSync(file, "utf8");
-      expect(source).not.toContain("amora-hero-bouquet-custom");
-      expect(source).not.toContain("radial-gradient");
-    }
+  it("bounds the markup the start screen actually renders", () => {
+    // 첫 화면의 그림은 사진 한 장과 오브 하나뿐이다. 장식 SVG 가 다시 쌓이면 여기서 운다.
+    const doc = landingDocument();
+    const main = doc.querySelector("main")!;
+    expect(main.querySelectorAll("img"), "첫 화면 사진이 한 장이 아니다").toHaveLength(1);
+    const svgs = [...main.querySelectorAll("svg")];
+    expect(svgs, "첫 화면 SVG 가 오브 하나가 아니다").toHaveLength(1);
+    const orb = svgs[0];
+    expect(orb.classList.contains("amora-orb")).toBe(true);
+    expect(orb.querySelectorAll("image,script,foreignObject,a")).toHaveLength(0);
+    expect(Buffer.byteLength(orb.outerHTML), "오브 마크업이 커졌다").toBeLessThanOrEqual(8 * 1024);
+    // 페이지 전체 SVG 도 센다 — 바닥글이나 머리줄에 장식이 새로 붙으면 첫 화면 밖이라도 무게다.
+    expect(doc.querySelectorAll("svg"), "페이지에 오브 밖의 SVG 가 생겼다").toHaveLength(1);
   });
 
   it("generates the landing social card from the page's own copy", () => {
@@ -106,10 +78,14 @@ describe("hero image performance budget", () => {
     // satori는 woff2를 읽지 못한다. ttf가 아니면 렌더가 통째로 실패한다.
     expect(card).toContain("Pretendard-Bold.ttf");
 
-    // 카드 문구는 반드시 페이지와 같은 출처에서 온다 — 하드코딩하면 다시 갈라진다.
-    expect(card).toContain("landingContent");
-    expect(card).toContain("landingContent.hero.title");
-    expect(card).toContain("landingContent.hero.shareDescription");
+    // 2026-11-17: 카드 문구는 시작 화면과 같은 정본(`START_COPY`)에서 온다.
+    expect(card).toContain('from "@hanbang/shared/invitation"');
+    expect(card).toContain("START_COPY.headingLines");
+    expect(card).toContain("START_COPY.body");
+    // 정본을 읽는 척 하고 글자를 박아 두면 다시 갈라진다.
+    for (const line of [...START_COPY.headingLines, START_COPY.body]) {
+      expect(card, `공유 카드가 문구를 하드코딩했다: ${line}`).not.toContain(line);
+    }
 
     // page.tsx가 images를 명시하면 파일 규약이 덮여 옛 카드가 되살아난다.
     const page = readFileSync(resolve(appRoot, "src/app/landing/page.tsx"), "utf8");
@@ -120,11 +96,9 @@ describe("hero image performance budget", () => {
   it("no longer ships the retired card or the claim baked into it", () => {
     expect(existsSync(landingSocialCard), "P5 위반 문구가 구워진 카드가 남아 있다").toBe(false);
 
-    // 주석은 벗기고 본다 — 왜 지웠는지 설명하려면 그 문구를 인용해야 하는데,
-    // 자기 설명에 걸려 넘어지는 가드는 가드가 아니다. 실제 렌더에 닿는 코드만 본다.
+    // 주석은 벗기고 본다 — 왜 지웠는지 설명하려면 그 문구를 인용해야 한다.
     const stripComments = (source: string) =>
       source.replace(/\/\*[\s\S]*?\*\//gu, "").replace(/^[\t ]*\/\/.*$/gmu, "");
-
     for (const file of [
       "src/app/landing/page.tsx",
       "src/app/landing/opengraph-image.tsx",

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { landingContent } from "@/components/landing/redesign/landingContent";
+import { START_COPY } from "@hanbang/shared/invitation";
 import { BETA_DISABLED_TOOL_NAMES, BETA_SAFE_TOOLS } from "@/lib/ai/tools";
 
 import {
@@ -78,7 +78,7 @@ describe("web MVP product direction", () => {
     const productContract = source("../../docs/PRODUCT_CONTRACT_PARTNER_2026-08-08.md")
       .replace(/\r?\n/g, " ");
     const principles = source("../../PRINCIPLES.md").replace(/\r?\n/g, " ");
-    const hero = rendered(`${LANDING_REDESIGN_DIR}/TransformationHero.tsx`);
+    const startScreen = rendered(`${LANDING_REDESIGN_DIR}/StartScreen.tsx`);
     const communityPage = rendered("src/app/(community)/community/page.tsx");
     const communityLayout = rendered("src/app/(community)/layout.tsx");
     const communityNav = rendered("src/components/community/CommunityNav.tsx");
@@ -109,50 +109,42 @@ describe("web MVP product direction", () => {
     //
     // 2026-09-03 시안으로 후크가 다시 바뀌었다("결혼 준비 노트, 같이 정리해요" →
     // "우리 둘이 뭘 원하는지부터"). 제품을 무엇이라 소개하는지는 여전히 히어로가 정한다.
-    const heroBlock = contentBlock("hero", "amoraNote");
-    // 2026-10-10 승인 카피의 '지금 고민'을 정확히 대조하며 직접 확인·기록 조건을 유지한다.
-    expect(heroBlock, "제품 소개 문장이 히어로 밖으로 나갔다")
-      .toMatch(/예산·일정·할 일[^"\n]*AI 동반자 아모라와[^"\n]*지금 고민을 정리하고[^"\n]*직접 확인해 기록/u);
-    // 아모라를 무엇이라고 부르는지도 히어로가 정한다(옛 `aiRole`이 지던 몫의 앞쪽).
     //
-    // 같은 시안이 테이프 이름표를 "둘이 하는 결혼 준비, 아모라와"로 바꿔 이름표에서
-    // "AI"가 빠졌다. 고지는 히어로 안에 남아 있어야 하므로 `hero.note` 가 이어받았고
-    // (`landingContent.ts` 의 note 주석), 여기서도 **자리(이름표)가 아니라 히어로
-    // 블록**에 그 말이 있는지로 잰다. 낱말을 `아모라 · …` 라는 표기에 묶어 두면
-    // 표기만 바뀌어도 거짓 실패하고, 반대로 고지가 사라져도 못 잡는다.
-    expect(heroBlock, "아모라를 부르는 이름이 히어로에 없다")
-      .toContain("아모라");
-    expect(heroBlock, "첫 화면이 아모라를 AI라고 말하지 않는다")
-      .toMatch(/AI[^"\n]*아모라/u);
-    // 그리고 아모라가 **처음 말하는 자리**에서 AI라는 것을 밝힌다(뒤쪽 몫).
-    expect(contentBlock("amoraNote", "noSide"), "AI 고지가 아모라 소개 자리에 없다")
-      .toMatch(/아모라 · AI 생성/u);
-    // 도구 세 이름은 "확인한 것만 남는다"를 말하는 자리에서 불린다.
-    for (const destination of ['title: "예산"', 'title: "할 일"', 'title: "일정"']) {
-      expect(contentBlock("confirm", "availableNow")).toContain(destination);
+    // ## 2026-11-17 — 첫 화면이 앱의 '시작' 화면이 됐다
+    //
+    // 2026-11-17 파운더 디자인 아티팩트(원문: 이 디자인 완전 같아야해)로 랜딩의 첫 화면은 앱과
+    // 같은 시작 화면이고, 그 글자의 정본은 `@hanbang/shared/invitation` 의 `START_COPY` 다
+    // (웹·앱이 함께 쓴다). 그래서 "히어로 블록이 제품을 소개한다" 를 "**시작 화면이 앱과 같은
+    // 정본을 읽어 소개한다**" 로 옮긴다. 옛 히어로 문장(AI 동반자·예산·일정·할 일·직접 확인해
+    // 기록)과 확인 섹션의 도구 이름은 그 섹션들과 함께 없어졌다 — 호칭도 2026-11-16 파운더
+    // 결정으로 "AI 웨딩 비서" 가 됐다.
+    //
+    // 아티팩트의 첫 화면은 "AI" 라는 말을 쓰지 않는다. 아모라가 AI 라는 고지는 같은 페이지의
+    // 바닥글(하지 않는 것 넷의 셋째)이 진다 — 아래에서 그것이 카피와 화면 양쪽에 있는지 본다.
+    for (const value of [...START_COPY.headingLines, START_COPY.body]) {
+      expect(startScreen, `시작 화면이 정본 문구를 하드코딩했다: "${value}"`).not.toContain(value);
     }
-
-    // 히어로가 카피를 자기 안에 하드코딩하지 않고 정본에서 읽는다.
-    expect(hero).toContain("const { hero } = landingContent;");
-    expect(hero).toContain("{hero.body}");
+    expect(startScreen).toContain("{START_COPY.body}");
+    expect(startScreen).toContain("START_COPY.headingLines.map(");
+    expect(START_COPY.wordmark, "시작 화면이 아모라를 이름으로 부르지 않는다").toBe("amora");
+    expect(contentBlock("boundaries", "notices"), "아모라가 AI 라는 고지가 랜딩에 없다")
+      .toContain("아모라의 답변은 AI가 작성해요");
+    expect(rendered(`${LANDING_REDESIGN_DIR}/LandingFooter.tsx`), "바닥글이 AI 고지를 그리지 않는다")
+      .toContain("boundaries.items.map(");
 
     // 공유 카드도 같은 정본을 읽는다. 카드는 링크를 받은 사람에게 **제품의 첫 화면**이라
     // 여기가 갈리면 H1과 다른 말을 하는 제품이 된다.
     //
-    // ⚠️ `toContain("landingContent.hero.title")` 하나로는 못 막는다. 카드가 제목을
-    // 하드코딩하고 그 참조를 `alt` 문자열에만 남기면 잔존 참조가 대신 답한다
-    // (2026-08-27 적대적 검증에서 실제로 통과한 변형). 그래서 ① 그리는 경로에서
-    // 정본을 읽고 ② 정본 문장이 카드 소스에 글자로 박혀 있지 않은지 둘 다 본다.
+    // ⚠️ 정본 참조 하나로는 못 막는다. 카드가 제목을 하드코딩하고 그 참조를 `alt` 문자열에만
+    // 남기면 잔존 참조가 대신 답한다(2026-08-27 적대적 검증에서 실제로 통과한 변형). 그래서
+    // ① 그리는 경로에서 정본을 읽고 ② 정본 문장이 카드 소스에 글자로 박혀 있지 않은지 둘 다 본다.
     const ogCard = rendered("src/app/landing/opengraph-image.tsx");
     expect(ogCard, "공유 카드가 H1 정본을 읽지 않는다")
-      .toContain("landingContent.hero.title.split(");
-    expect(ogCard, "공유 카드가 본문 정본을 읽지 않는다")
-      .toContain("landingContent.hero.shareDescription");
-    for (const line of landingContent.hero.title.split("\n")) {
-      expect(ogCard, `공유 카드가 H1을 하드코딩했다: "${line}"`).not.toContain(line);
+      .toContain("const [lead, tail] = START_COPY.headingLines;");
+    expect(ogCard, "공유 카드가 본문 정본을 읽지 않는다").toContain("{START_COPY.body}");
+    for (const line of [...START_COPY.headingLines, START_COPY.body]) {
+      expect(ogCard, `공유 카드가 정본을 하드코딩했다: "${line}"`).not.toContain(line);
     }
-    expect(ogCard, "공유 카드가 히어로 본문을 하드코딩했다")
-      .not.toContain(landingContent.hero.shareDescription);
 
     expect(communityPage).toContain("웨딩한방 — 결혼 준비를 아모라와 정리하세요");
     expect(community).toContain(PRODUCT_DEFINITION.replace("서비스입니다.", "서비스예요."));
@@ -181,15 +173,19 @@ describe("web MVP product direction", () => {
     // 것으로 셌다**. `renderedSections()`는 주석을 벗긴 뒤 `<main>` 안에서 실제로
     // 그려지는 컴포넌트만 순서대로 준다.
     const sections = renderedSections();
-    const at = (name: string) => sections.indexOf(name);
 
     // 2026-08-29: `ScenesSection` · `NotForVendorsSection` 도 개편에서 없어졌다.
     // 같은 자리를 지금은 `AvailableNowSection`(로그인 없이 바로 누를 수 있는 것 넷)과
     // `BoundariesSection`(하지 않는 것, id="trust")이 잇는다. 지키는 것은 같다 —
     // **사람이 먼저 만질 것이 신뢰·면책 설명보다 앞에 온다.**
-    expect(at("AvailableNowSection"), "만질 것이 렌더되지 않는다").toBeGreaterThanOrEqual(0);
-    expect(at("BoundariesSection"), "신뢰 설명이 만질 것보다 앞에 온다")
-      .toBeGreaterThan(at("AvailableNowSection"));
+    //
+    // 2026-11-17 파운더 디자인 아티팩트(원문: 이 디자인 완전 같아야해): 만질 것은 시작 화면(시작하기·
+    // 예시 커플로 둘러보기)이고, 신뢰·면책 설명은 그 아래 바닥글이다. 순서를 페이지에서 잰다.
+    expect(sections, "만질 것(시작 화면)이 렌더되지 않는다").toContain("StartScreen");
+    const landingPage = rendered("src/app/landing/page.tsx");
+    expect(landingPage.indexOf("<LandingFooter"), "신뢰 설명(바닥글)이 렌더되지 않는다").toBeGreaterThan(-1);
+    expect(landingPage.indexOf("<LandingFooter"), "신뢰 설명이 만질 것보다 앞에 온다")
+      .toBeGreaterThan(landingPage.indexOf("<StartScreen"));
 
     // `landing/page.tsx` 주석이 "④를 ③ 앞으로 옮기지 마라"고 못 박은 순서다.
     // ③이 "두 사람 대화가 한 덩어리"라고 말한 직후에 사람들은 "그럼 내가 쓴 게 다
@@ -211,13 +207,16 @@ describe("web MVP product direction", () => {
     // 것이 아니다** — 둘의 내용이 ③ 아모라 섹션 한 곳으로 합쳐졌다("함께 보는 대화" /
     // "나만 보는 상담" 두 카드 + 저장 고지). 걱정과 대답이 **같은 화면 안**에 있어
     // 사이에 아무것도 끼울 수 없는 상태가 된 것이다.
-    const amoraSection = rendered("src/components/landing/redesign/AmoraNoteSection.tsx");
-    expect(amoraSection, "함께 보는 자리와 나만 보는 자리가 같은 화면에 없다")
-      .toContain("amoraNote.lanes.map");
-    expect(contentBlock("amoraNote", "noSide"), "나만 보는 자리의 저장 고지가 사라졌다")
-      .toContain("상담 내용은 파트너에게 표시되지 않아요");
-    expect(contentBlock("amoraNote", "noSide"), "개인 상담의 서비스 저장 고지가 사라졌다")
+    //
+    // 2026-11-17: 시작 화면 개편으로 아모라 섹션(두 자리 카드)이 없어졌다. 랜딩이 "두 사람 대화가
+    // 한 덩어리" 라고 말하지 않으니 걱정이 생길 자리도 없고, 그 걱정에 대한 대답 — 나만 보는
+    // 상담은 파트너에게 공유되지 않지만 서비스가 처리·저장한다 — 은 바닥글 고지로 글자 그대로 남았다.
+    expect(contentBlock("notices", "footer"), "나만 보는 상담이 파트너에게 안 보인다는 고지가 사라졌다")
+      .toContain("나만 보는 상담은 파트너에게 공유되지 않으며");
+    expect(contentBlock("notices", "footer"), "개인 상담의 서비스 저장 고지가 사라졌다")
       .toContain("개인 상담도 서비스에서 처리·저장돼요");
+    expect(rendered("src/components/landing/redesign/LandingFooter.tsx"), "바닥글이 개인정보 고지를 그리지 않는다")
+      .toContain("{notices.privacy}");
 
     expect(community).toContain('data-community-home-order="search-first"');
     expect(searchHubRender).toBeGreaterThanOrEqual(0);
@@ -243,44 +242,49 @@ describe("web MVP product direction", () => {
     // 2026-08-29: 푸터 링크 정본이 `footerLinks` 라는 별도 export 에서
     // `landingContent.footer.columns` 안으로 들어갔다. 묶음 이름을 데이터가 직접
     // 들고 있어서(`heading`) 컴포넌트가 이름을 손으로 적을 자리가 없어졌다.
-    const landingNav = contentBlock("headerNav");
-    const landingProductLinks = contentBlock("footer", "headerNav");
-    expect(landingHeader).toContain("headerNav");
+    //
+    // 2026-11-17 파운더 디자인 아티팩트(원문: 이 디자인 완전 같아야해): 시작 화면에는 이야기
+    // 앵커 내비가 없다. 머리줄은 오른쪽 위 로그인 알약 하나이고, 그 목적지도 카피에서 읽는다.
+    // `footer` 는 `landingContent` 의 마지막 블록이라 경계 없이 끝까지 자른다.
+    const landingProductLinks = contentBlock("footer");
+    expect(landingHeader, "머리줄이 로그인 알약 밖의 것을 그린다").not.toMatch(/<nav\b|href=/u);
+    expect(rendered(`${LANDING_REDESIGN_DIR}/LandingAccountActions.tsx`), "로그인 알약이 카피의 href를 쓰지 않는다")
+      .toContain("href={logIn.href}");
     expect(landingFooter, "푸터가 링크 정본을 읽지 않는다").toContain("footer.columns");
-    // 목록을 읽기만 하고 목적지를 손으로 적으면(`href="#"`) 아래 라벨·앵커 검사가
+    // 목록을 읽기만 하고 목적지를 손으로 적으면(`href="#"`) 아래 라벨 검사가
     // 전부 통과하면서 눌러도 아무 데도 가지 않는다.
-    expect(landingHeader, "헤더가 카피의 href를 쓰지 않는다").toContain("href={item.href}");
     expect(landingFooter, "푸터가 카피의 href를 쓰지 않는다").toContain("href={item.href}");
     const publicNav = blockBetween(communityNav, "const baseNavItems = [", "];");
     const signedInNav = blockBetween(sidebar, "const menuItems:", "];");
     // 2026-11-13 파운더 결정: 메인은 웨딩 라운지와 아모라 둘이다. 머리줄의 기능 바로가기
     // (`quickLinks`)는 없앴고, 체크리스트·일정·예산·웨딩코드는 라운지가 연다.
     expect(topNav, "머리줄 기능 바로가기가 돌아왔다").not.toContain("const quickLinks");
-    const lounge = stripComments(source("src/app/(app)/lounge/page.tsx"))
-      + stripComments(source("src/app/(app)/lounge/LoungeHubSections.tsx"));
+    // 2026-11-17 파운더 디자인 아티팩트(원문: 이 디자인 완전 같아야해): 라운지는 청첩장 홈(`LiveLounge`)이다. 다른
+    // 화면으로 가는 길은 화면 바닥의 서비스 메뉴(`LiveFooter` 가 `LIVE_MORE_LINKS` 를 돈다)와 하단 메뉴의 일정 칸이다.
+    // 옛 허브 조각(`LoungeHubSections.tsx`)은 더는 그려지지 않으므로 읽지 않는다 — 읽으면 화면에 없는 링크로 초록불이
+    // 난다. 대신 라운지가 그 메뉴를 실제로 그리는지 사슬로 묶는다(페이지 → 라운지 → 바닥 → 목록).
+    const loungePage = stripComments(source("src/app/(app)/lounge/page.tsx"));
+    const liveLounge = stripComments(source("src/components/invitation/live/LiveLounge.tsx"));
+    const liveParts = stripComments(source("src/components/invitation/live/LiveParts.tsx"));
+    expect(loungePage, "라운지 페이지가 청첩장 홈을 그리지 않는다").toContain("<LiveLounge />");
+    expect(liveLounge, "라운지가 서비스 메뉴(바닥)를 그리지 않는다").toContain("<LiveFooter />");
+    expect(liveParts, "서비스 메뉴가 링크 목록을 돌지 않는다").toContain("LIVE_MORE_LINKS.map(");
+    const lounge = loungePage + liveLounge + stripComments(source("src/components/invitation/live/liveRoutes.ts"));
 
-    // 랜딩 내비 항목은 개편으로 전부 바뀌었다(#how-it-works·#privacy·#trust·
-    // #start-conditions → #scenes·#noside·#confirm·#now). 이름이 바뀐 것이지
-    // 성격이 바뀐 게 아니다 — 여전히 본문 이야기 앵커이고, 제품 라우트가 아니다.
+    // 랜딩 내비 항목은 개편마다 바뀌었다(#how-it-works·#privacy·#trust·#start-conditions →
+    // #scenes·#noside·#confirm·#now → #amora·#noside·#confirm·#now·#faq). 성격은 늘 본문 이야기
+    // 앵커였고 제품 라우트가 아니었다.
+    //
+    // 2026-11-17 파운더 디자인 아티팩트(원문: 이 디자인 완전 같아야해)로 이야기 앵커가 아예 없어졌다
+    // (시작 화면 한 장). 지키던 사고 — 본문에 없는 앵커를 가리키는 링크(눌러도 아무 일이 없다) —
+    // 는 앵커가 하나라도 생기면 다시 열리므로, **랜딩의 모든 `#` 목적지가 실재하는 id 를 가리키는지**를
+    // 남겨 둔다. 오늘은 그런 링크가 0개다(본문 바로가기 `#main-content` 는 page.tsx 의 main 을 가리킨다).
     const sectionIds = landingSectionIds();
-    // 2026-08-29 개편으로 항목이 셋으로 줄고 이름도 바뀌었다(#scenes·#noside·
-    // #confirm·#now -> #community·#now·#trust). 성격은 그대로 — 본문 이야기 앵커다.
-    // 2026-09-03 시안으로 넷이 됐다(아모라·둘의 준비·무료 도구·커뮤니티).
-    // "하지 않는 것"(#trust)은 내비에서 빠졌다 — 다크 밴드가 페이지 끝에서 스스로
-    // 보이므로 내비까지 자리를 쓰지 않는다.
-    for (const [label, href] of [
-      ["아모라", "#amora"],
-      ["둘의 우선순위", "#noside"],
-      ["준비 관리", "#confirm"],
-      ["먼저 써보기", "#now"],
-      ["자주 묻는 질문", "#faq"],
-    ]) {
-      expect(landingNav).toContain(`label: "${label}", href: "${href}"`);
-      // 개편 전에는 본문에 없는 앵커를 가리키는 항목이 실제로 있었다(눌러도 아무
-      // 일이 없다). 라벨만 대조하면 그 상태가 그대로 통과하므로 목적지도 본다.
-      if (href.startsWith("#")) {
-        expect(sectionIds, `${href}를 받는 섹션이 본문에 없다`).toContain(href.slice(1));
-      }
+    const pageIds = [...rendered("src/app/landing/page.tsx").matchAll(/\bid="([a-z][a-z-]*)"/gu)].map((m) => m[1]);
+    const anchors = [...rendered(`${LANDING_REDESIGN_DIR}/landingContent.ts`).matchAll(/href:\s*"#([a-z-]+)"/gu)]
+      .map((m) => m[1]);
+    for (const anchor of anchors) {
+      expect([...sectionIds, ...pageIds], `#${anchor}를 받는 자리가 랜딩에 없다`).toContain(anchor);
     }
 
     // 푸터는 링크를 **로그인 없이 / 계정 베타 / 정책** 셋으로 나눈다. 옛 구조는
@@ -296,8 +300,8 @@ describe("web MVP product direction", () => {
     const landingAccountLinks = group("가입 후 이용");
     expect(landingProductLinks, "베타 틀이 푸터로 돌아왔다").not.toContain("베타");
     // 컴포넌트가 묶음을 정본에서 만들어 낸다(이름을 따로 적지 않는다).
-    expect(landingFooter, "푸터가 묶음 이름을 정본에서 읽지 않는다")
-      .toContain("label: column.heading");
+    expect(landingFooter, "푸터가 묶음을 정본에서 돌지 않는다").toContain("footer.columns.map(");
+    expect(landingFooter, "푸터가 묶음 이름을 정본에서 읽지 않는다").toContain("{column.heading}");
     // 계정이 필요한 목적지에서 예산·할 일·일정을 계속 이름으로 부른다.
     // (옛 푸터는 "할 일·일정"과 "예산"을 따로 걸었고 지금은 한 줄로 합쳤다.)
     //
@@ -369,9 +373,10 @@ describe("web MVP product direction", () => {
 
     // 랜딩 표면은 웨딩코드만 예외로 두고 나머지는 그대로 막는다. 업체·예약·축의금은
     // 제품 계약이 "현재 핵심 흐름보다 먼저 확장하지 않는다"고 못 박은 축이라,
-    // 랜딩이 먼저 그 문을 열어 주면 안 된다.
+    // 랜딩이 먼저 그 문을 열어 주면 안 된다. 2026-11-17: 내비가 없어져 카피 전체를 본다.
+    const landingCopy = rendered(`${LANDING_REDESIGN_DIR}/landingContent.ts`);
     for (const retiredPrimaryPath of retiredEverywhere) {
-      expect(landingNav).not.toContain(retiredPrimaryPath);
+      expect(landingCopy).not.toContain(`"${retiredPrimaryPath}"`);
       expect(landingProductLinks).not.toContain(retiredPrimaryPath);
     }
   });

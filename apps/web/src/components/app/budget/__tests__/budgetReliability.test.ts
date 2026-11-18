@@ -17,8 +17,13 @@ const dashboardSource = readFileSync(
   resolve(process.cwd(), "src/app/(app)/dashboard/page.tsx"),
   "utf8",
 );
+// 2026-11-17 파운더 디자인 아티팩트(원문: 이 디자인 완전 같아야해): 라운지 페이지는 청첩장 홈(`LiveLounge`)만 그리고,
+// 라운지가 지출을 세는 곳은 알림 자리의 첫 도착 판정(`LiveLoungeNotices`)뿐이다. 그 둘을 읽어 같은 약속을 잰다.
 const loungeSource = readFileSync(
   resolve(process.cwd(), "src/app/(app)/lounge/page.tsx"),
+  "utf8",
+) + readFileSync(
+  resolve(process.cwd(), "src/components/invitation/live/LiveLoungeNotices.tsx"),
   "utf8",
 );
 const toolExecutorSource = readFileSync(

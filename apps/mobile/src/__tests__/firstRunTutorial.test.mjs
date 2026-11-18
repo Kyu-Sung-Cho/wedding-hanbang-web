@@ -67,9 +67,6 @@ const tabsLayoutSource = readSource("../../app/(tabs)/_layout.tsx");
 const chatSource = readSource("../../app/(tabs)/chat.tsx");
 const coachMarksSource = readSource("../components/lounge/FirstRunCoachMarks.tsx");
 const fabSource = readSource("../components/lounge/AmoraFab.tsx");
-const homeExperienceSource = readSource(
-  "../components/dashboard/WeddingHomeExperience.tsx",
-);
 const appGuideSource = readSource("../components/AppGuide.tsx");
 const settingsSource = readSource("../../app/settings/index.tsx");
 
@@ -417,25 +414,31 @@ test("a step whose anchor cannot be resolved is skipped, required ones included"
   );
 });
 
-test("every step the mobile lounge can point at is actually anchored in the tree", () => {
+test("every step the mobile home can point at is anchored in what the home actually renders", () => {
+  // 2026-11-17 파운더 디자인 아티팩트(원문: 이 디자인 완전 같아야해): 홈은 `InvitationHome` 이고 예전 라운지 본문
+  // (`WeddingHomeExperience`)을 그리지 않는다. 그 파일의 앵커는 화면에 없으므로 세지 않는다 — 세면 초록불이 거짓이 된다.
+  assert.doesNotMatch(loungeSource, /<WeddingHomeExperience\b/u);
+  const arrivalSource = readSource("../components/lounge/LoungeFirstArrival.tsx");
+  assert.match(loungeSource, /<LoungeFirstArrival\b/u);
+  assert.match(loungeSource, /<AmoraFab\b/u);
   const anchored = new Set(
-    [...`${homeExperienceSource}\n${fabSource}\n${loungeSource}`.matchAll(
+    [...`${fabSource}\n${loungeSource}\n${arrivalSource}`.matchAll(
       /(?:FirstRunAnchor\s+id="([a-z-]+)"|anchorId = "([a-z-]+)")/g,
     )].map((match) => match[1] ?? match[2]),
   );
 
-  assert.ok(anchored.has("lounge-focus"));
-  assert.ok(anchored.has("lounge-tools"));
   // 마지막 단계는 FAB을 가리켜야 아모라 첫마디로 이어진다.
   assert.ok(anchored.has("amora-fab"));
+  // 초대 카드가 있는 사람에게만 생긴다.
+  assert.ok(anchored.has("lounge-invite"));
 
-  for (const step of sharedModule.FIRST_RUN_TUTORIAL_STEPS) {
-    if (step.optional) continue;
-    assert.ok(
-      anchored.has(step.id),
-      `필수 단계 "${step.id}"를 가리킬 앵커가 라운지에 없습니다`,
-    );
-  }
+  // "오늘 챙길 한 가지"(lounge-focus)와 "체크리스트·예산·일정이 한자리에"(lounge-tools)는 새 홈에 그 자리가 없다.
+  // 안내는 앵커가 없는 단계를 조용히 건너뛴다(아래 검사). 공유 안내 문구(`FIRST_RUN_TUTORIAL_STEPS`)를 새 홈에
+  // 맞게 다시 쓰고 판을 올리는 일은 리드 몫이다 — 이 목록이 바뀌면 여기가 빨개져 그 결정을 다시 보게 한다.
+  const unanchoredRequired = sharedModule.FIRST_RUN_TUTORIAL_STEPS
+    .filter((step) => !step.optional && !anchored.has(step.id))
+    .map((step) => step.id);
+  assert.deepEqual(unanchoredRequired, ["lounge-focus", "lounge-tools"]);
 });
 
 test("an anchor outside the visible viewport yields no coach mark", () => {
@@ -489,42 +492,35 @@ test("the tooltip flips above the anchor when there is no room below", () => {
    (e) FAB은 탭바 위로 뜬다
    ───────────────────────────────────────────── */
 
-test("the Amora button sits just above the tab bar, not a second tab bar higher", () => {
-  // 탭바는 position을 주지 않아 레이아웃 공간을 차지한다(static). 그래서 탭 화면
-  // 컨테이너의 bottom은 **이미 탭바 위**이고, 홈 인디케이터도 탭바 높이 안에 들어 있다.
-  // 여기에 탭바 높이나 인셋을 한 번 더 더하면 같은 값을 두 번 빼는 셈이라 FAB이 허공에
-  // 뜬다 — 실제로 바닥에서 ~190px 떠 있었다.
-  const tabBarStyle = tabsLayoutSource.slice(
-    tabsLayoutSource.indexOf("tabBarStyle: {"),
-  );
-  assert.match(tabBarStyle.slice(0, 400), /height: 86,/);
-  assert.match(tabBarStyle.slice(0, 400), /paddingBottom: 24,/);
-  assert.equal(tutorial.LOUNGE_TAB_BAR_HEIGHT, 86);
-  assert.equal(tutorial.LOUNGE_TAB_BAR_BOTTOM_PADDING, 24);
+test("the Amora button floats just above the floating tab bar, with the safe area counted once", () => {
+  // 2026-11-17 파운더 디자인 아티팩트(원문: 이 디자인 완전 같아야해): 하단 메뉴는 아티팩트의 떠 있는 알약이다.
+  // 화면 위에 겹쳐 그려지므로(position: absolute) 탭 화면은 메뉴 아래까지 뻗는다. 예전 셈("탭바가 static 이라
+  // 간격 하나만 더한다")은 이 전제가 바뀌면 이 테스트를 먼저 만나게 돼 있었다 — 그래서 여기서 바꾼다.
+  assert.match(tabsLayoutSource, /<InvitationTabsBar\b/);
+  const bar = readSource("../components/invitation/InvitationTabBar.tsx");
+  assert.match(bar, /bar: \{\s*position: "absolute",/);
+  assert.match(bar, /export const INVITATION_TAB_BAR_HEIGHT = 64;/);
+  assert.match(bar, /return Math\.max\(22, insets\.bottom\);/);
+  assert.match(bar, /return invitationTabBarBottom\(insets\) \+ INVITATION_TAB_BAR_HEIGHT;/);
 
-  // 이 셈 전체가 "탭바가 static"이라는 전제 위에 있다. absolute가 되면 화면이 탭바
-  // 아래까지 뻗고 FAB은 탭바 뒤로 숨는다 — 전제를 바꾸려면 이 테스트를 먼저 만난다.
-  assert.doesNotMatch(tabBarStyle.slice(0, 400), /position:/);
-
-  assert.equal(tutorial.getAmoraFabBottomOffset(), tutorial.AMORA_FAB_GAP);
-  assert.equal(tutorial.getAmoraFabBottomOffset(), 20);
-  assert.ok(tutorial.getAmoraFabBottomOffset() < tutorial.LOUNGE_TAB_BAR_HEIGHT);
-  // 인셋을 받지 않는다. 받으면 언젠가 다시 더해진다.
-  assert.equal(tutorial.getAmoraFabBottomOffset.length, 0);
-
-  assert.match(fabSource, /bottom: getAmoraFabBottomOffset\(\)/);
-  assert.doesNotMatch(fabSource, /useSafeAreaInsets/);
+  // 버튼은 메뉴가 차지한 높이(안전 영역 포함) 위에 간격 하나를 두고 뜬다. 메뉴 높이는 메뉴에서 잰 값 하나만 쓴다.
+  assert.equal(tutorial.getAmoraFabBottomOffset(86), 86 + tutorial.AMORA_FAB_GAP);
+  assert.equal(tutorial.AMORA_FAB_GAP, 20);
+  assert.equal(tutorial.getAmoraFabBottomOffset.length, 1);
+  assert.match(fabSource, /bottom: getAmoraFabBottomOffset\(invitationTabBarClearance\(insets\)\)/);
+  // 안전 영역은 메뉴 셈 안에서 한 번만 더한다. 버튼이 따로 또 더하면 허공에 뜬다(예전에 실제로 ~190px 떴다).
+  assert.equal((fabSource.match(/insets\.bottom/g) ?? []).length, 0);
   assert.match(fabSource, /accessibilityLabel="아모라와 대화하기"/);
   assert.match(fabSource, /accessibilityLabel="아모라 알림 닫기"/);
 });
 
-test("the lounge content ends above the button and its bubble, not behind them", () => {
+test("the home content ends above the button and its bubble, not behind them", () => {
   // 마지막 카드가 FAB이나 말풍선 뒤에 숨으면, 처음 온 사람은 자기가 눌러야 할 카드를
   // 못 본다. 여백은 리터럴이 아니라 실제 상수에서 셈해야 버튼이 커질 때 같이 움직인다.
   assert.equal(tutorial.AMORA_FAB_SIZE, 58);
   assert.match(fabSource, /width: AMORA_FAB_SIZE,\s*height: AMORA_FAB_SIZE,/);
 
-  const occupied = tutorial.getAmoraFabBottomOffset() + tutorial.AMORA_FAB_SIZE;
+  const occupied = tutorial.AMORA_FAB_GAP + tutorial.AMORA_FAB_SIZE;
   assert.ok(
     tutorial.LOUNGE_CONTENT_BOTTOM_PADDING >= occupied,
     "콘텐츠 여백이 FAB이 차지하는 높이보다 작습니다",
@@ -534,8 +530,12 @@ test("the lounge content ends above the button and its bubble, not behind them",
     tutorial.LOUNGE_CONTENT_BOTTOM_PADDING
       >= occupied + tutorial.AMORA_FAB_BUBBLE_HEIGHT,
   );
-  assert.match(homeExperienceSource, /paddingBottom: LOUNGE_CONTENT_BOTTOM_PADDING,/);
-  assert.doesNotMatch(homeExperienceSource, /paddingBottom: 128,/);
+  // 2026-11-17 홈: 메뉴 위 여백은 홈이 늘 두고, 버튼이 떠 있는 동안 그 위에 버튼 몫을 더한다.
+  assert.match(loungeSource, /bottomExtra=\{showAmoraFab \? LOUNGE_CONTENT_BOTTOM_PADDING : 0\}/);
+  const home = readSource("../components/invitation/InvitationHome.tsx");
+  assert.match(home, /invitationTabBarBottom\(insets\) \+ INVITATION_TAB_BAR_HEIGHT \+ 24[^\n]*\+ bottomExtra;/);
+  // 버튼은 아모라가 먼저 건넨 말이 있거나 안내가 가리킬 때만 뜬다(그 밖에는 아티팩트 화면 그대로).
+  assert.match(loungeSource, /const showAmoraFab = firstRunTutorialOpen \|\| amoraUnread \|\| amoraBubble !== null;/);
 });
 
 test("the bubble Amora speaks through is a button, exactly like on the web", () => {
@@ -642,6 +642,14 @@ test("the hello path never touches the network or the proactive route", () => {
     assert.ok(!source.includes("fetch("), `${name}가 네트워크를 부릅니다`);
   }
   assert.match(loungeSource, /buildAmoraFirstHello\(\{/);
+  // 2026-11-17: 홈은 홈 모델을 서버(`/api/invitation/home`)에서 받는다(`useLiveOwner` 의 API 묶음).
+  // 그래도 첫마디를 만드는 길(안내 닫기 처리)은 그 묶음에도 네트워크에도 닿지 않는다.
+  const close = loungeSource.slice(
+    loungeSource.indexOf("const handleFirstRunTutorialClose"),
+    loungeSource.indexOf("const firstArrivalView"),
+  );
+  assert.ok(close.includes("buildAmoraFirstHello({"), "안내 닫기 처리를 찾지 못했다 — 검사가 헛돈다");
+  assert.doesNotMatch(close, /liveOwner|\.api\.|invitationApi/u);
 });
 
 const helloOwner = { userId: "synthetic-owner", coupleId: "synthetic-couple" };
