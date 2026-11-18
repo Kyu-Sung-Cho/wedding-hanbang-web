@@ -155,6 +155,7 @@ const SCOPE_PREFIXES = ['apps/web/src/', 'apps/web/public/images/amora/', 'apps/
 const SCOPE_FILES = new Set(['DESIGN.md', 'turbo.json', 'apps/web/.env.example', 'apps/web/weddingAppRoutes.ts',
   'apps/web/scripts/sync-design-token-css.mjs', 'apps/mobile/scripts/subset-invitation-fonts.py', 'packages/shared/package.json',
   'apps/web/vendorDisclosureProductionBuildFence.ts', '.github/workflows/ci.yml', 'scripts/verify-local.mjs',
+  'scripts/mobile-release-readiness.mjs',
   'scripts/repository-test-manifest.json', 'scripts/tests/amora-runtime-env-contract.test.mjs',
   'scripts/tests/amora-action-view-v2-current-source-rejection.test.mjs', 'scripts/tests/ci-signal-integrity.test.mjs',
   'scripts/tests/qa-merged-preflight.test.mjs', 'scripts/tests/repo-tests-are-all-wired.test.mjs',

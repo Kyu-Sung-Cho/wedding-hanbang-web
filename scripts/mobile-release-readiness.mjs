@@ -550,12 +550,17 @@ for (const legacyColor of legacyPalette) {
   );
 }
 
+// 청첩장 디자인 컴포넌트는 파운더 디자인 아티팩트의 자간을 그대로 옮긴다. DESIGN.md 2026-11-17 결정
+// ("아티팩트의 한글 자간은 그대로 둔다")에 따른 예외라 이 폴더만 뺀다. 그 밖의 앱 소스는 지금처럼 0 이어야 한다.
+const founderDesignLetterSpacingDirectory = "apps/mobile/src/components/invitation/";
 const mobileSourceFiles = [
   ...listFiles("apps/mobile/app", [".ts", ".tsx"]),
   ...listFiles("apps/mobile/src", [".ts", ".tsx"]),
 ];
 const nonZeroLetterSpacing = [];
 for (const sourceFile of mobileSourceFiles) {
+  // listFiles 는 운영체제 구분자로 경로를 만든다(Windows 는 \). 비교 전에 / 로 맞춘다.
+  if (sourceFile.split(path.sep).join("/").startsWith(founderDesignLetterSpacingDirectory)) continue;
   const source = readText(sourceFile);
   const matches = source.matchAll(/letterSpacing:\s*([^,\n}]+)/g);
   for (const match of matches) {
@@ -568,7 +573,7 @@ for (const sourceFile of mobileSourceFiles) {
 expect(
   nonZeroLetterSpacing.length === 0,
   nonZeroLetterSpacing.length === 0
-    ? "Mobile source keeps standard UI font letter spacing at 0"
+    ? "Mobile source keeps standard UI font letter spacing at 0 outside the founder-design invitation components"
     : `Mobile source has non-zero letterSpacing: ${nonZeroLetterSpacing.join("; ")}`
 );
 
