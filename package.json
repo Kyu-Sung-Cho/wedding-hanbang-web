@@ -67,7 +67,7 @@
     "supabase:release:rehearse-current": "node ./scripts/current-baseline-hosted-synthetic.mjs"
   },
   "devDependencies": {
-    "@sentry/nextjs": "^10.66.0",
+    "@sentry/nextjs": "^10.75.2",
     "@supabase/supabase-js": "^2.95.3",
     "@types/node": "^20.19.39",
     "@types/pdf-parse": "^1.1.5",
