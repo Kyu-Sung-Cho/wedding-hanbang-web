@@ -239,7 +239,7 @@ export default function TodayOnePreferenceControl() {
         <View style={styles.copy}>
           <Text style={styles.title}>아모라 오늘의 한 가지(인앱)</Text>
           <Text style={styles.description}>
-            앱 홈에서 하루 최대 1건만 보여요. 푸시·문자·이메일 알림은 보내지 않아요.
+            앱 홈에서 하루 최대 1건만 보여요. 문자나 메일로는 보내지 않아요. 앱 알림은 따로 켠 분에게만 가요.
           </Text>
         </View>
         {pendingMode === "enable" || pendingMode === "disable" ? (

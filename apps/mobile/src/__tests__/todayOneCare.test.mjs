@@ -184,7 +184,7 @@ test("mobile surfaces use authenticated API, owner validation, in-app-only copy,
   assert.match(preferenceSource, /apiFetchForExpectedUser\(\s*ownerUserId/);
   assert.match(preferenceSource, /saveMode\(nextEnabled \? "enable" : "disable"\)/);
   assert.match(preferenceSource, /하루 최대 1건/);
-  assert.match(preferenceSource, /푸시·문자·이메일 알림은 보내지 않아요/);
+  assert.match(preferenceSource, /문자나 메일로는 보내지 않아요\. 앱 알림은 따로 켠 분에게만 가요\./);
   assert.match(preferenceSource, /saveInFlight\.current/);
   assert.match(preferenceSource, /ownerUserId/);
   assert.match(cardSource, /supabase\.auth\.onAuthStateChange/);

@@ -62,6 +62,7 @@ import InviteCodeCard from "@/components/invite/InviteCodeCard";
 import TodayOnePreferenceControl from "@/components/settings/TodayOnePreferenceControl";
 import AmoraCarePreferenceControl from "@/components/settings/AmoraCarePreferenceControl";
 import CommunityReplyPushPreferenceControl from "@/components/settings/CommunityReplyPushPreferenceControl";
+import AmoraPushPreferenceControl from "@/components/settings/AmoraPushPreferenceControl";
 
 type SettingsData = WeddingSettingsData;
 
@@ -956,6 +957,7 @@ export default function SettingsScreen() {
             right={<ExternalLink size={16} color={colors.textTertiary} />}
           />
           <CommunityReplyPushPreferenceControl />
+          <AmoraPushPreferenceControl />
           <TodayOnePreferenceControl />
           <AmoraCarePreferenceControl onAvailabilityChange={setCareControlAvailable} />
           {legacyCareConsentActive && !careControlAvailable ? (

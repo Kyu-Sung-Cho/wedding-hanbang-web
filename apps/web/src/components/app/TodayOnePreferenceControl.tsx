@@ -230,7 +230,7 @@ export default function TodayOnePreferenceControl() {
               </span>
             </div>
             <p className="mt-1 text-sm font-light leading-6 text-[var(--hb-success)]">
-              일정·예산에서 지금 확인할 한 가지를 웨딩 라운지에서만 보여줘요. 푸시·문자·이메일을 보내지 않아요.
+              준비 기록에서 지금 확인할 한 가지를 웨딩 라운지에서만 보여 줘요. 문자나 메일로는 보내지 않아요. 앱 알림은 따로 켠 분에게만 가요.
             </p>
           </div>
         </div>
