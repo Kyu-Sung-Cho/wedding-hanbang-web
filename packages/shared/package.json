@@ -29,6 +29,7 @@
     "./amora-reference-links": "./src/contracts/amoraReferenceLinks.mjs",
     "./profile-avatar": "./src/contracts/profileAvatar.mjs",
     "./amora-personalization": "./src/contracts/amoraPersonalization.mjs",
+    "./amora-tasks": "./src/contracts/amoraTasks.mjs",
     "./invitation": "./src/invitation/index.ts"
   },
   "scripts": {

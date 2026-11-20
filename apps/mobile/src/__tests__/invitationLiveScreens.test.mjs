@@ -1113,7 +1113,8 @@ test("the new live screens take every word from the shared invitation copy", () 
 });
 
 test("the new live screens add no native module, so they ship over the air", () => {
-  const allowed = /^(react|react-native|react-native-safe-area-context|expo-router|@hanbang\/shared\/invitation|@hanbang\/design-tokens|@\/components\/((invitation|invitationLive|ui|lounge|dashboard)\/)?[A-Za-z]+|@\/lib\/[A-Za-z.]+)$/u;
+  // `amoraTasks` 는 홈의 「아모라가 맡은 일」 카드(2026-11-20). JS 만 쓴다(amoraTasksScreens.test.mjs 가 그 안의 가져오기를 본다).
+  const allowed = /^(react|react-native|react-native-safe-area-context|expo-router|@hanbang\/shared\/invitation|@hanbang\/design-tokens|@\/components\/((invitation|invitationLive|ui|lounge|dashboard|amoraTasks)\/)?[A-Za-z]+|@\/lib\/[A-Za-z.]+)$/u;
   for (const file of [...LIVE_FILES, "app/(tabs)/_layout.tsx", "app/(tabs)/lounge.tsx", "src/lib/invitationLive.ts", "src/lib/useKeyboardShown.ts"]) {
     const tree = ts.createSourceFile(file, read(file), ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
     for (const statement of tree.statements.filter(ts.isImportDeclaration)) {

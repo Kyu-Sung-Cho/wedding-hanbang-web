@@ -28,12 +28,22 @@ export function never(call: Call): Promise<Response> {
 }
 
 /**
+ * 시험이 정하지 않아도 되는 기본 응답. 홈 알림 자리의 "아모라가 맡은 일"(`AmoraTasksNotice`)은 스위치가 꺼진 응답을
+ * 받아 아무것도 그리지 않는다. 시험이 같은 열쇠를 정하면 그 값이 이긴다.
+ */
+const DEFAULT_ROUTES: Record<string, Reply> = {
+  "GET /api/amora/tasks": () => json({ enabled: false, available: false, tasks: [] }),
+};
+
+/**
  * `"GET /api/invitation/home"` 같은 열쇠로 응답을 정한다. 같은 열쇠에 배열을 주면 차례로 하나씩 쓴다.
- * 정하지 않은 요청이 나가면 시험이 실패한다.
+ * 정하지 않은 요청이 나가면 시험이 실패한다(`DEFAULT_ROUTES` 는 빼고).
  */
 export function mockApi(routes: Record<string, Reply | Reply[]>) {
   const calls: Call[] = [];
-  const queues = new Map(Object.entries(routes).map(([key, reply]) => [key, Array.isArray(reply) ? [...reply] : reply]));
+  const queues = new Map(
+    Object.entries({ ...DEFAULT_ROUTES, ...routes }).map(([key, reply]) => [key, Array.isArray(reply) ? [...reply] : reply]),
+  );
   const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = String(input);
     const method = init?.method ?? "GET";

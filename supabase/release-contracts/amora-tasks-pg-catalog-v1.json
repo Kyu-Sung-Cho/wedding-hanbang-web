@@ -1,0 +1,1521 @@
+{
+  "format": "amora-tasks-catalog-fixture-v1",
+  "migrationSha256": "2a9f2a00d3e196090f57f7803eed8678ec0adfbb4ec7a5848aceb03bfefda6c7",
+  "engine": "PGlite (PostgreSQL 18.3), owner postgres, search_path pg_catalog,public",
+  "catalog": {
+    "functions": [
+      {
+        "acl": [
+          [
+            "postgres",
+            "postgres",
+            "EXECUTE",
+            false
+          ],
+          [
+            "service_role",
+            "postgres",
+            "EXECUTE",
+            false
+          ]
+        ],
+        "args": "integer",
+        "body": "\n#variable_conflict use_column\nBEGIN\n  IF p_limit IS NULL OR p_limit < 1 OR p_limit > 50 THEN\n    RAISE EXCEPTION 'AMORA_TASK_NOTIFY_INVALID' USING ERRCODE = '22023';\n  END IF;\n\n  -- 하루가 지났거나 너무 여러 번 미룬 알림은 보내지 않는다.\n  UPDATE public.amora_tasks AS stale\n  SET notify_state = 'skipped', notify_claimed_at = NULL, updated_at = now()\n  WHERE stale.notify_state = 'pending'\n    AND (stale.finished_at < now() - interval '24 hours' OR stale.notify_attempts >= 48);\n\n  RETURN QUERY\n  WITH candidate AS (\n    SELECT task.id\n    FROM public.amora_tasks AS task\n    WHERE task.notify_state = 'pending'\n      AND (task.notify_claimed_at IS NULL OR task.notify_claimed_at < now() - interval '30 minutes')\n    ORDER BY task.finished_at\n    FOR UPDATE SKIP LOCKED\n    LIMIT p_limit\n  )\n  UPDATE public.amora_tasks AS task\n  SET notify_attempts = task.notify_attempts + 1,\n      notify_claimed_at = now()\n  FROM candidate\n  WHERE task.id = candidate.id\n  RETURNING task.id, task.couple_id, task.requested_by, task.kind, task.notify_attempts;\nEND\n",
+        "kind": "f",
+        "name": "claim_amora_task_notifications",
+        "owner": "postgres",
+        "config": [
+          "search_path=pg_catalog, public",
+          "lock_timeout=5s",
+          "statement_timeout=15s"
+        ],
+        "result": "TABLE(task_id uuid, couple_id uuid, requested_by uuid, kind text, notify_attempts integer)",
+        "strict": false,
+        "language": "plpgsql",
+        "parallel": "u",
+        "definition": "CREATE OR REPLACE FUNCTION public.claim_amora_task_notifications(p_limit integer)\n RETURNS TABLE(task_id uuid, couple_id uuid, requested_by uuid, kind text, notify_attempts integer)\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'pg_catalog', 'public'\n SET lock_timeout TO '5s'\n SET statement_timeout TO '15s'\nAS $function$\n#variable_conflict use_column\nBEGIN\n  IF p_limit IS NULL OR p_limit < 1 OR p_limit > 50 THEN\n    RAISE EXCEPTION 'AMORA_TASK_NOTIFY_INVALID' USING ERRCODE = '22023';\n  END IF;\n\n  -- 하루가 지났거나 너무 여러 번 미룬 알림은 보내지 않는다.\n  UPDATE public.amora_tasks AS stale\n  SET notify_state = 'skipped', notify_claimed_at = NULL, updated_at = now()\n  WHERE stale.notify_state = 'pending'\n    AND (stale.finished_at < now() - interval '24 hours' OR stale.notify_attempts >= 48);\n\n  RETURN QUERY\n  WITH candidate AS (\n    SELECT task.id\n    FROM public.amora_tasks AS task\n    WHERE task.notify_state = 'pending'\n      AND (task.notify_claimed_at IS NULL OR task.notify_claimed_at < now() - interval '30 minutes')\n    ORDER BY task.finished_at\n    FOR UPDATE SKIP LOCKED\n    LIMIT p_limit\n  )\n  UPDATE public.amora_tasks AS task\n  SET notify_attempts = task.notify_attempts + 1,\n      notify_claimed_at = now()\n  FROM candidate\n  WHERE task.id = candidate.id\n  RETURNING task.id, task.couple_id, task.requested_by, task.kind, task.notify_attempts;\nEND\n$function$\n",
+        "volatility": "v",
+        "securityDefiner": true
+      },
+      {
+        "acl": [
+          [
+            "postgres",
+            "postgres",
+            "EXECUTE",
+            false
+          ],
+          [
+            "service_role",
+            "postgres",
+            "EXECUTE",
+            false
+          ]
+        ],
+        "args": "integer",
+        "body": "\nBEGIN\n  IF p_lease_seconds IS NULL OR p_lease_seconds < 60 OR p_lease_seconds > 900 THEN\n    RAISE EXCEPTION 'AMORA_TASK_CLAIM_INVALID' USING ERRCODE = '22023';\n  END IF;\n\n  -- 선점은 한 번에 하나씩 한다. 같은 일을 두 일꾼이 잡지 않는다.\n  PERFORM pg_catalog.pg_advisory_xact_lock(\n    pg_catalog.hashtextextended('hanbang:amora-task-claim', 0)\n  );\n\n  -- 닫을 것부터 닫는다(한 번에 정해진 수만).\n  UPDATE public.amora_tasks\n  SET status = 'expired', updated_at = now()\n  WHERE id IN (\n    SELECT id FROM public.amora_tasks\n    WHERE status = 'offered' AND offer_expires_at <= now()\n    ORDER BY offer_expires_at\n    LIMIT 100\n  );\n\n  UPDATE public.amora_tasks\n  SET status = 'needs_review',\n      review_reason = 'stale',\n      lease_token = NULL,\n      leased_until = NULL,\n      updated_at = now()\n  WHERE id IN (\n    SELECT id FROM public.amora_tasks\n    WHERE status IN ('queued', 'searching', 'organizing')\n      AND started_at < now() - interval '48 hours'\n      AND (lease_token IS NULL OR leased_until < now())\n    LIMIT 50\n  );\n\n  -- 앞 일꾼이 토큰을 돌려주지 않고 사라진 일은 실패로 센다. 세 번째면 사람에게 넘긴다.\n  UPDATE public.amora_tasks\n  SET status = 'needs_review',\n      review_reason = 'failed',\n      error_code = 'LEASE_EXHAUSTED',\n      failure_count = failure_count + 1,\n      lease_token = NULL,\n      leased_until = NULL,\n      updated_at = now()\n  WHERE status IN ('searching', 'organizing')\n    AND lease_token IS NOT NULL\n    AND leased_until < now()\n    AND failure_count >= 2;\n\n  RETURN QUERY\n  WITH candidate AS (\n    SELECT task.id\n    FROM public.amora_tasks AS task\n    WHERE task.status IN ('queued', 'searching', 'organizing')\n      AND task.available_at <= now()\n      AND (task.lease_token IS NULL OR task.leased_until < now())\n      AND NOT public.amora_task_couple_deletion_pending(task.couple_id)\n      AND NOT EXISTS (\n        SELECT 1 FROM public.amora_tasks AS running\n        WHERE running.couple_id = task.couple_id\n          AND running.id <> task.id\n          AND running.lease_token IS NOT NULL\n          AND running.leased_until >= now()\n      )\n    ORDER BY task.available_at, task.created_at\n    FOR UPDATE SKIP LOCKED\n    LIMIT 1\n  )\n  UPDATE public.amora_tasks AS task\n  SET status = CASE WHEN task.status = 'queued' THEN 'searching' ELSE task.status END,\n      failure_count = task.failure_count + CASE WHEN task.lease_token IS NOT NULL THEN 1 ELSE 0 END,\n      run_count = task.run_count + 1,\n      lease_token = gen_random_uuid(),\n      leased_until = now() + make_interval(secs => p_lease_seconds),\n      updated_at = now()\n  FROM candidate\n  WHERE task.id = candidate.id\n  RETURNING task.*;\nEND\n",
+        "kind": "f",
+        "name": "claim_amora_task",
+        "owner": "postgres",
+        "config": [
+          "search_path=pg_catalog, public",
+          "lock_timeout=5s",
+          "statement_timeout=30s"
+        ],
+        "result": "SETOF amora_tasks",
+        "strict": false,
+        "language": "plpgsql",
+        "parallel": "u",
+        "definition": "CREATE OR REPLACE FUNCTION public.claim_amora_task(p_lease_seconds integer)\n RETURNS SETOF amora_tasks\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'pg_catalog', 'public'\n SET lock_timeout TO '5s'\n SET statement_timeout TO '30s'\nAS $function$\nBEGIN\n  IF p_lease_seconds IS NULL OR p_lease_seconds < 60 OR p_lease_seconds > 900 THEN\n    RAISE EXCEPTION 'AMORA_TASK_CLAIM_INVALID' USING ERRCODE = '22023';\n  END IF;\n\n  -- 선점은 한 번에 하나씩 한다. 같은 일을 두 일꾼이 잡지 않는다.\n  PERFORM pg_catalog.pg_advisory_xact_lock(\n    pg_catalog.hashtextextended('hanbang:amora-task-claim', 0)\n  );\n\n  -- 닫을 것부터 닫는다(한 번에 정해진 수만).\n  UPDATE public.amora_tasks\n  SET status = 'expired', updated_at = now()\n  WHERE id IN (\n    SELECT id FROM public.amora_tasks\n    WHERE status = 'offered' AND offer_expires_at <= now()\n    ORDER BY offer_expires_at\n    LIMIT 100\n  );\n\n  UPDATE public.amora_tasks\n  SET status = 'needs_review',\n      review_reason = 'stale',\n      lease_token = NULL,\n      leased_until = NULL,\n      updated_at = now()\n  WHERE id IN (\n    SELECT id FROM public.amora_tasks\n    WHERE status IN ('queued', 'searching', 'organizing')\n      AND started_at < now() - interval '48 hours'\n      AND (lease_token IS NULL OR leased_until < now())\n    LIMIT 50\n  );\n\n  -- 앞 일꾼이 토큰을 돌려주지 않고 사라진 일은 실패로 센다. 세 번째면 사람에게 넘긴다.\n  UPDATE public.amora_tasks\n  SET status = 'needs_review',\n      review_reason = 'failed',\n      error_code = 'LEASE_EXHAUSTED',\n      failure_count = failure_count + 1,\n      lease_token = NULL,\n      leased_until = NULL,\n      updated_at = now()\n  WHERE status IN ('searching', 'organizing')\n    AND lease_token IS NOT NULL\n    AND leased_until < now()\n    AND failure_count >= 2;\n\n  RETURN QUERY\n  WITH candidate AS (\n    SELECT task.id\n    FROM public.amora_tasks AS task\n    WHERE task.status IN ('queued', 'searching', 'organizing')\n      AND task.available_at <= now()\n      AND (task.lease_token IS NULL OR task.leased_until < now())\n      AND NOT public.amora_task_couple_deletion_pending(task.couple_id)\n      AND NOT EXISTS (\n        SELECT 1 FROM public.amora_tasks AS running\n        WHERE running.couple_id = task.couple_id\n          AND running.id <> task.id\n          AND running.lease_token IS NOT NULL\n          AND running.leased_until >= now()\n      )\n    ORDER BY task.available_at, task.created_at\n    FOR UPDATE SKIP LOCKED\n    LIMIT 1\n  )\n  UPDATE public.amora_tasks AS task\n  SET status = CASE WHEN task.status = 'queued' THEN 'searching' ELSE task.status END,\n      failure_count = task.failure_count + CASE WHEN task.lease_token IS NOT NULL THEN 1 ELSE 0 END,\n      run_count = task.run_count + 1,\n      lease_token = gen_random_uuid(),\n      leased_until = now() + make_interval(secs => p_lease_seconds),\n      updated_at = now()\n  FROM candidate\n  WHERE task.id = candidate.id\n  RETURNING task.*;\nEND\n$function$\n",
+        "volatility": "v",
+        "securityDefiner": true
+      },
+      {
+        "acl": [
+          [
+            "postgres",
+            "postgres",
+            "EXECUTE",
+            false
+          ],
+          [
+            "service_role",
+            "postgres",
+            "EXECUTE",
+            false
+          ]
+        ],
+        "args": "timestamp with time zone",
+        "body": "\n  SELECT (p_at AT TIME ZONE 'Asia/Seoul')::date;\n",
+        "kind": "f",
+        "name": "amora_task_kst_day",
+        "owner": "postgres",
+        "config": [
+          "search_path=pg_catalog, public"
+        ],
+        "result": "date",
+        "strict": true,
+        "language": "sql",
+        "parallel": "u",
+        "definition": "CREATE OR REPLACE FUNCTION public.amora_task_kst_day(p_at timestamp with time zone)\n RETURNS date\n LANGUAGE sql\n STABLE STRICT\n SET search_path TO 'pg_catalog', 'public'\nAS $function$\n  SELECT (p_at AT TIME ZONE 'Asia/Seoul')::date;\n$function$\n",
+        "volatility": "s",
+        "securityDefiner": false
+      },
+      {
+        "acl": [
+          [
+            "postgres",
+            "postgres",
+            "EXECUTE",
+            false
+          ],
+          [
+            "service_role",
+            "postgres",
+            "EXECUTE",
+            false
+          ]
+        ],
+        "args": "uuid",
+        "body": "\n  SELECT EXISTS (\n    SELECT 1\n    FROM public.couples AS couple\n    JOIN public.account_deletion_jobs AS deletion\n      ON deletion.user_id IN (couple.bride_id, couple.groom_id)\n    WHERE couple.id = p_couple_id\n      AND deletion.status <> 'completed'\n  );\n",
+        "kind": "f",
+        "name": "amora_task_couple_deletion_pending",
+        "owner": "postgres",
+        "config": [
+          "search_path=pg_catalog, public"
+        ],
+        "result": "boolean",
+        "strict": false,
+        "language": "sql",
+        "parallel": "u",
+        "definition": "CREATE OR REPLACE FUNCTION public.amora_task_couple_deletion_pending(p_couple_id uuid)\n RETURNS boolean\n LANGUAGE sql\n STABLE SECURITY DEFINER\n SET search_path TO 'pg_catalog', 'public'\nAS $function$\n  SELECT EXISTS (\n    SELECT 1\n    FROM public.couples AS couple\n    JOIN public.account_deletion_jobs AS deletion\n      ON deletion.user_id IN (couple.bride_id, couple.groom_id)\n    WHERE couple.id = p_couple_id\n      AND deletion.status <> 'completed'\n  );\n$function$\n",
+        "volatility": "s",
+        "securityDefiner": true
+      },
+      {
+        "acl": [
+          [
+            "postgres",
+            "postgres",
+            "EXECUTE",
+            false
+          ],
+          [
+            "service_role",
+            "postgres",
+            "EXECUTE",
+            false
+          ]
+        ],
+        "args": "uuid, text, text",
+        "body": "\nDECLARE\n  v_id uuid;\nBEGIN\n  IF p_task_id IS NULL OR p_state NOT IN ('sent', 'skipped')\n     OR p_reason IS NULL OR p_reason !~ '^[a-z_]{1,40}$' THEN\n    RAISE EXCEPTION 'AMORA_TASK_NOTIFY_INVALID' USING ERRCODE = '22023';\n  END IF;\n  UPDATE public.amora_tasks\n  SET notify_state = p_state,\n      notify_reason = p_reason,\n      notify_claimed_at = NULL,\n      updated_at = now()\n  WHERE id = p_task_id\n    AND notify_state = 'pending'\n    AND notify_claimed_at IS NOT NULL\n  RETURNING id INTO v_id;\n  RETURN v_id IS NOT NULL;\nEND\n",
+        "kind": "f",
+        "name": "finish_amora_task_notification",
+        "owner": "postgres",
+        "config": [
+          "search_path=pg_catalog, public",
+          "lock_timeout=5s",
+          "statement_timeout=15s"
+        ],
+        "result": "boolean",
+        "strict": false,
+        "language": "plpgsql",
+        "parallel": "u",
+        "definition": "CREATE OR REPLACE FUNCTION public.finish_amora_task_notification(p_task_id uuid, p_state text, p_reason text)\n RETURNS boolean\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'pg_catalog', 'public'\n SET lock_timeout TO '5s'\n SET statement_timeout TO '15s'\nAS $function$\nDECLARE\n  v_id uuid;\nBEGIN\n  IF p_task_id IS NULL OR p_state NOT IN ('sent', 'skipped')\n     OR p_reason IS NULL OR p_reason !~ '^[a-z_]{1,40}$' THEN\n    RAISE EXCEPTION 'AMORA_TASK_NOTIFY_INVALID' USING ERRCODE = '22023';\n  END IF;\n  UPDATE public.amora_tasks\n  SET notify_state = p_state,\n      notify_reason = p_reason,\n      notify_claimed_at = NULL,\n      updated_at = now()\n  WHERE id = p_task_id\n    AND notify_state = 'pending'\n    AND notify_claimed_at IS NOT NULL\n  RETURNING id INTO v_id;\n  RETURN v_id IS NOT NULL;\nEND\n$function$\n",
+        "volatility": "v",
+        "securityDefiner": true
+      },
+      {
+        "acl": [
+          [
+            "postgres",
+            "postgres",
+            "EXECUTE",
+            false
+          ],
+          [
+            "service_role",
+            "postgres",
+            "EXECUTE",
+            false
+          ]
+        ],
+        "args": "uuid, uuid",
+        "body": "\nDECLARE\n  v_task public.amora_tasks%ROWTYPE;\nBEGIN\n  IF p_task_id IS NULL OR p_actor IS NULL THEN\n    RAISE EXCEPTION 'AMORA_TASK_CANCEL_INVALID' USING ERRCODE = '22023';\n  END IF;\n  SELECT * INTO v_task FROM public.amora_tasks WHERE id = p_task_id FOR UPDATE;\n  IF NOT FOUND OR NOT public.is_current_couple_member(p_actor, v_task.couple_id) THEN\n    RETURN jsonb_build_object('ok', false, 'code', 'not_found');\n  END IF;\n  IF v_task.status IN ('done', 'cancelled', 'expired') THEN\n    RETURN jsonb_build_object('ok', v_task.status = 'cancelled', 'code', 'closed', 'status', v_task.status);\n  END IF;\n  UPDATE public.amora_tasks\n  SET status = 'cancelled',\n      review_reason = NULL,\n      lease_token = NULL,\n      leased_until = NULL,\n      finished_at = now(),\n      updated_at = now()\n  WHERE id = p_task_id;\n  RETURN jsonb_build_object('ok', true, 'code', 'cancelled', 'status', 'cancelled');\nEND\n",
+        "kind": "f",
+        "name": "cancel_amora_task",
+        "owner": "postgres",
+        "config": [
+          "search_path=pg_catalog, public",
+          "lock_timeout=5s",
+          "statement_timeout=15s"
+        ],
+        "result": "jsonb",
+        "strict": false,
+        "language": "plpgsql",
+        "parallel": "u",
+        "definition": "CREATE OR REPLACE FUNCTION public.cancel_amora_task(p_task_id uuid, p_actor uuid)\n RETURNS jsonb\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'pg_catalog', 'public'\n SET lock_timeout TO '5s'\n SET statement_timeout TO '15s'\nAS $function$\nDECLARE\n  v_task public.amora_tasks%ROWTYPE;\nBEGIN\n  IF p_task_id IS NULL OR p_actor IS NULL THEN\n    RAISE EXCEPTION 'AMORA_TASK_CANCEL_INVALID' USING ERRCODE = '22023';\n  END IF;\n  SELECT * INTO v_task FROM public.amora_tasks WHERE id = p_task_id FOR UPDATE;\n  IF NOT FOUND OR NOT public.is_current_couple_member(p_actor, v_task.couple_id) THEN\n    RETURN jsonb_build_object('ok', false, 'code', 'not_found');\n  END IF;\n  IF v_task.status IN ('done', 'cancelled', 'expired') THEN\n    RETURN jsonb_build_object('ok', v_task.status = 'cancelled', 'code', 'closed', 'status', v_task.status);\n  END IF;\n  UPDATE public.amora_tasks\n  SET status = 'cancelled',\n      review_reason = NULL,\n      lease_token = NULL,\n      leased_until = NULL,\n      finished_at = now(),\n      updated_at = now()\n  WHERE id = p_task_id;\n  RETURN jsonb_build_object('ok', true, 'code', 'cancelled', 'status', 'cancelled');\nEND\n$function$\n",
+        "volatility": "v",
+        "securityDefiner": true
+      },
+      {
+        "acl": [
+          [
+            "postgres",
+            "postgres",
+            "EXECUTE",
+            false
+          ],
+          [
+            "service_role",
+            "postgres",
+            "EXECUTE",
+            false
+          ]
+        ],
+        "args": "uuid, uuid",
+        "body": "\nDECLARE\n  v_task public.amora_tasks%ROWTYPE;\nBEGIN\n  IF p_task_id IS NULL OR p_actor IS NULL THEN\n    RAISE EXCEPTION 'AMORA_TASK_RESUME_INVALID' USING ERRCODE = '22023';\n  END IF;\n  SELECT * INTO v_task FROM public.amora_tasks WHERE id = p_task_id FOR UPDATE;\n  IF NOT FOUND OR NOT public.is_current_couple_member(p_actor, v_task.couple_id) THEN\n    RETURN jsonb_build_object('ok', false, 'code', 'not_found');\n  END IF;\n  IF v_task.status <> 'needs_review'\n     OR v_task.review_reason NOT IN (\n       'daily_step_limit', 'daily_search_limit', 'background_budget', 'source_unavailable', 'failed'\n     ) THEN\n    RETURN jsonb_build_object('ok', false, 'code', 'not_resumable', 'status', v_task.status);\n  END IF;\n  IF public.amora_task_couple_deletion_pending(v_task.couple_id) THEN\n    RETURN jsonb_build_object('ok', false, 'code', 'deletion_pending');\n  END IF;\n  UPDATE public.amora_tasks\n  SET status = 'queued',\n      review_reason = NULL,\n      error_code = NULL,\n      failure_count = 0,\n      available_at = now(),\n      updated_at = now()\n  WHERE id = p_task_id;\n  RETURN jsonb_build_object('ok', true, 'code', 'resumed', 'status', 'queued');\nEND\n",
+        "kind": "f",
+        "name": "resume_amora_task",
+        "owner": "postgres",
+        "config": [
+          "search_path=pg_catalog, public",
+          "lock_timeout=5s",
+          "statement_timeout=15s"
+        ],
+        "result": "jsonb",
+        "strict": false,
+        "language": "plpgsql",
+        "parallel": "u",
+        "definition": "CREATE OR REPLACE FUNCTION public.resume_amora_task(p_task_id uuid, p_actor uuid)\n RETURNS jsonb\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'pg_catalog', 'public'\n SET lock_timeout TO '5s'\n SET statement_timeout TO '15s'\nAS $function$\nDECLARE\n  v_task public.amora_tasks%ROWTYPE;\nBEGIN\n  IF p_task_id IS NULL OR p_actor IS NULL THEN\n    RAISE EXCEPTION 'AMORA_TASK_RESUME_INVALID' USING ERRCODE = '22023';\n  END IF;\n  SELECT * INTO v_task FROM public.amora_tasks WHERE id = p_task_id FOR UPDATE;\n  IF NOT FOUND OR NOT public.is_current_couple_member(p_actor, v_task.couple_id) THEN\n    RETURN jsonb_build_object('ok', false, 'code', 'not_found');\n  END IF;\n  IF v_task.status <> 'needs_review'\n     OR v_task.review_reason NOT IN (\n       'daily_step_limit', 'daily_search_limit', 'background_budget', 'source_unavailable', 'failed'\n     ) THEN\n    RETURN jsonb_build_object('ok', false, 'code', 'not_resumable', 'status', v_task.status);\n  END IF;\n  IF public.amora_task_couple_deletion_pending(v_task.couple_id) THEN\n    RETURN jsonb_build_object('ok', false, 'code', 'deletion_pending');\n  END IF;\n  UPDATE public.amora_tasks\n  SET status = 'queued',\n      review_reason = NULL,\n      error_code = NULL,\n      failure_count = 0,\n      available_at = now(),\n      updated_at = now()\n  WHERE id = p_task_id;\n  RETURN jsonb_build_object('ok', true, 'code', 'resumed', 'status', 'queued');\nEND\n$function$\n",
+        "volatility": "v",
+        "securityDefiner": true
+      },
+      {
+        "acl": [
+          [
+            "postgres",
+            "postgres",
+            "EXECUTE",
+            false
+          ],
+          [
+            "service_role",
+            "postgres",
+            "EXECUTE",
+            false
+          ]
+        ],
+        "args": "uuid, uuid, integer",
+        "body": "\nDECLARE\n  v_id uuid;\nBEGIN\n  IF p_task_id IS NULL OR p_lease_token IS NULL\n     OR p_delay_seconds IS NULL OR p_delay_seconds < 0 OR p_delay_seconds > 3600 THEN\n    RAISE EXCEPTION 'AMORA_TASK_RELEASE_INVALID' USING ERRCODE = '22023';\n  END IF;\n  UPDATE public.amora_tasks\n  SET lease_token = NULL,\n      leased_until = NULL,\n      available_at = now() + make_interval(secs => p_delay_seconds),\n      updated_at = now()\n  WHERE id = p_task_id\n    AND lease_token = p_lease_token\n    AND status IN ('searching', 'organizing')\n  RETURNING id INTO v_id;\n  RETURN v_id IS NOT NULL;\nEND\n",
+        "kind": "f",
+        "name": "release_amora_task",
+        "owner": "postgres",
+        "config": [
+          "search_path=pg_catalog, public",
+          "lock_timeout=5s",
+          "statement_timeout=15s"
+        ],
+        "result": "boolean",
+        "strict": false,
+        "language": "plpgsql",
+        "parallel": "u",
+        "definition": "CREATE OR REPLACE FUNCTION public.release_amora_task(p_task_id uuid, p_lease_token uuid, p_delay_seconds integer)\n RETURNS boolean\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'pg_catalog', 'public'\n SET lock_timeout TO '5s'\n SET statement_timeout TO '15s'\nAS $function$\nDECLARE\n  v_id uuid;\nBEGIN\n  IF p_task_id IS NULL OR p_lease_token IS NULL\n     OR p_delay_seconds IS NULL OR p_delay_seconds < 0 OR p_delay_seconds > 3600 THEN\n    RAISE EXCEPTION 'AMORA_TASK_RELEASE_INVALID' USING ERRCODE = '22023';\n  END IF;\n  UPDATE public.amora_tasks\n  SET lease_token = NULL,\n      leased_until = NULL,\n      available_at = now() + make_interval(secs => p_delay_seconds),\n      updated_at = now()\n  WHERE id = p_task_id\n    AND lease_token = p_lease_token\n    AND status IN ('searching', 'organizing')\n  RETURNING id INTO v_id;\n  RETURN v_id IS NOT NULL;\nEND\n$function$\n",
+        "volatility": "v",
+        "securityDefiner": true
+      },
+      {
+        "acl": [
+          [
+            "postgres",
+            "postgres",
+            "EXECUTE",
+            false
+          ],
+          [
+            "service_role",
+            "postgres",
+            "EXECUTE",
+            false
+          ]
+        ],
+        "args": "uuid, uuid, integer",
+        "body": "\nDECLARE\n  v_task public.amora_tasks%ROWTYPE;\n  v_day date := public.amora_task_kst_day(now());\n  v_started integer;\nBEGIN\n  IF p_task_id IS NULL OR p_actor IS NULL\n     OR p_daily_task_cap IS NULL OR p_daily_task_cap < 0 OR p_daily_task_cap > 50 THEN\n    RAISE EXCEPTION 'AMORA_TASK_START_INVALID' USING ERRCODE = '22023';\n  END IF;\n\n  SELECT * INTO v_task FROM public.amora_tasks WHERE id = p_task_id FOR UPDATE;\n  IF NOT FOUND OR NOT public.is_current_couple_member(p_actor, v_task.couple_id) THEN\n    RETURN jsonb_build_object('ok', false, 'code', 'not_found');\n  END IF;\n  IF v_task.status IN ('queued', 'searching', 'organizing', 'needs_review', 'done') THEN\n    RETURN jsonb_build_object('ok', true, 'code', 'already_started', 'status', v_task.status);\n  END IF;\n  IF v_task.status <> 'offered' THEN\n    RETURN jsonb_build_object('ok', false, 'code', 'offer_closed', 'status', v_task.status);\n  END IF;\n  IF v_task.offer_expires_at <= now() THEN\n    UPDATE public.amora_tasks SET status = 'expired', updated_at = now() WHERE id = p_task_id;\n    RETURN jsonb_build_object('ok', false, 'code', 'offer_expired', 'status', 'expired');\n  END IF;\n  IF public.amora_task_couple_deletion_pending(v_task.couple_id) THEN\n    RETURN jsonb_build_object('ok', false, 'code', 'deletion_pending');\n  END IF;\n\n  INSERT INTO public.amora_task_daily_usage (usage_day, couple_id)\n  VALUES (v_day, v_task.couple_id)\n  ON CONFLICT (usage_day, couple_id) DO NOTHING;\n  SELECT tasks_started INTO v_started\n  FROM public.amora_task_daily_usage\n  WHERE usage_day = v_day AND couple_id = v_task.couple_id\n  FOR UPDATE;\n  IF v_started >= p_daily_task_cap THEN\n    RETURN jsonb_build_object('ok', false, 'code', 'daily_task_limit');\n  END IF;\n\n  UPDATE public.amora_task_daily_usage\n  SET tasks_started = tasks_started + 1, updated_at = now()\n  WHERE usage_day = v_day AND couple_id = v_task.couple_id;\n\n  UPDATE public.amora_tasks\n  SET status = 'queued',\n      started_at = now(),\n      available_at = now(),\n      steps = jsonb_build_array(jsonb_build_object('at', now(), 'label', '맡았어요')),\n      updated_at = now()\n  WHERE id = p_task_id;\n\n  RETURN jsonb_build_object('ok', true, 'code', 'started', 'status', 'queued');\nEND\n",
+        "kind": "f",
+        "name": "start_amora_task",
+        "owner": "postgres",
+        "config": [
+          "search_path=pg_catalog, public",
+          "lock_timeout=5s",
+          "statement_timeout=15s"
+        ],
+        "result": "jsonb",
+        "strict": false,
+        "language": "plpgsql",
+        "parallel": "u",
+        "definition": "CREATE OR REPLACE FUNCTION public.start_amora_task(p_task_id uuid, p_actor uuid, p_daily_task_cap integer)\n RETURNS jsonb\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'pg_catalog', 'public'\n SET lock_timeout TO '5s'\n SET statement_timeout TO '15s'\nAS $function$\nDECLARE\n  v_task public.amora_tasks%ROWTYPE;\n  v_day date := public.amora_task_kst_day(now());\n  v_started integer;\nBEGIN\n  IF p_task_id IS NULL OR p_actor IS NULL\n     OR p_daily_task_cap IS NULL OR p_daily_task_cap < 0 OR p_daily_task_cap > 50 THEN\n    RAISE EXCEPTION 'AMORA_TASK_START_INVALID' USING ERRCODE = '22023';\n  END IF;\n\n  SELECT * INTO v_task FROM public.amora_tasks WHERE id = p_task_id FOR UPDATE;\n  IF NOT FOUND OR NOT public.is_current_couple_member(p_actor, v_task.couple_id) THEN\n    RETURN jsonb_build_object('ok', false, 'code', 'not_found');\n  END IF;\n  IF v_task.status IN ('queued', 'searching', 'organizing', 'needs_review', 'done') THEN\n    RETURN jsonb_build_object('ok', true, 'code', 'already_started', 'status', v_task.status);\n  END IF;\n  IF v_task.status <> 'offered' THEN\n    RETURN jsonb_build_object('ok', false, 'code', 'offer_closed', 'status', v_task.status);\n  END IF;\n  IF v_task.offer_expires_at <= now() THEN\n    UPDATE public.amora_tasks SET status = 'expired', updated_at = now() WHERE id = p_task_id;\n    RETURN jsonb_build_object('ok', false, 'code', 'offer_expired', 'status', 'expired');\n  END IF;\n  IF public.amora_task_couple_deletion_pending(v_task.couple_id) THEN\n    RETURN jsonb_build_object('ok', false, 'code', 'deletion_pending');\n  END IF;\n\n  INSERT INTO public.amora_task_daily_usage (usage_day, couple_id)\n  VALUES (v_day, v_task.couple_id)\n  ON CONFLICT (usage_day, couple_id) DO NOTHING;\n  SELECT tasks_started INTO v_started\n  FROM public.amora_task_daily_usage\n  WHERE usage_day = v_day AND couple_id = v_task.couple_id\n  FOR UPDATE;\n  IF v_started >= p_daily_task_cap THEN\n    RETURN jsonb_build_object('ok', false, 'code', 'daily_task_limit');\n  END IF;\n\n  UPDATE public.amora_task_daily_usage\n  SET tasks_started = tasks_started + 1, updated_at = now()\n  WHERE usage_day = v_day AND couple_id = v_task.couple_id;\n\n  UPDATE public.amora_tasks\n  SET status = 'queued',\n      started_at = now(),\n      available_at = now(),\n      steps = jsonb_build_array(jsonb_build_object('at', now(), 'label', '맡았어요')),\n      updated_at = now()\n  WHERE id = p_task_id;\n\n  RETURN jsonb_build_object('ok', true, 'code', 'started', 'status', 'queued');\nEND\n$function$\n",
+        "volatility": "v",
+        "securityDefiner": true
+      },
+      {
+        "acl": [
+          [
+            "postgres",
+            "postgres",
+            "EXECUTE",
+            false
+          ],
+          [
+            "service_role",
+            "postgres",
+            "EXECUTE",
+            false
+          ]
+        ],
+        "args": "uuid, uuid, text, bigint, integer, integer, bigint",
+        "body": "\nDECLARE\n  v_task public.amora_tasks%ROWTYPE;\n  v_day date := public.amora_task_kst_day(now());\n  v_couple public.amora_task_daily_usage%ROWTYPE;\n  v_global_cost bigint;\nBEGIN\n  IF p_task_id IS NULL OR p_lease_token IS NULL\n     OR p_usage NOT IN ('model_step', 'web_search')\n     OR p_cost_microusd IS NULL OR p_cost_microusd < 0\n     OR (p_usage = 'model_step' AND p_cost_microusd < 1)\n     OR p_task_cap IS NULL OR p_task_cap < 0 OR p_task_cap > 200\n     OR p_couple_daily_cap IS NULL OR p_couple_daily_cap < 0 OR p_couple_daily_cap > 1000\n     OR p_global_cost_cap_microusd IS NULL OR p_global_cost_cap_microusd < 0 THEN\n    RAISE EXCEPTION 'AMORA_TASK_USAGE_INVALID' USING ERRCODE = '22023';\n  END IF;\n\n  -- 잠그는 순서: 맡은 일 → 서비스 전체 → 커플. 모든 함수가 같은 순서를 지킨다.\n  SELECT * INTO v_task FROM public.amora_tasks WHERE id = p_task_id FOR UPDATE;\n  IF NOT FOUND OR v_task.lease_token IS DISTINCT FROM p_lease_token\n     OR v_task.status NOT IN ('searching', 'organizing') THEN\n    RETURN jsonb_build_object('allowed', false, 'reason', 'lease_lost');\n  END IF;\n\n  IF p_usage = 'model_step' THEN\n    IF v_task.model_steps >= p_task_cap THEN\n      RETURN jsonb_build_object('allowed', false, 'reason', 'task_step_limit');\n    END IF;\n    INSERT INTO public.amora_task_global_daily_usage (usage_day) VALUES (v_day)\n    ON CONFLICT (usage_day) DO NOTHING;\n    SELECT reserved_cost_microusd INTO v_global_cost\n    FROM public.amora_task_global_daily_usage WHERE usage_day = v_day FOR UPDATE;\n  ELSE\n    IF v_task.web_searches >= p_task_cap THEN\n      RETURN jsonb_build_object('allowed', false, 'reason', 'task_step_limit');\n    END IF;\n  END IF;\n\n  INSERT INTO public.amora_task_daily_usage (usage_day, couple_id) VALUES (v_day, v_task.couple_id)\n  ON CONFLICT (usage_day, couple_id) DO NOTHING;\n  SELECT * INTO v_couple FROM public.amora_task_daily_usage\n  WHERE usage_day = v_day AND couple_id = v_task.couple_id FOR UPDATE;\n\n  IF p_usage = 'model_step' THEN\n    IF v_couple.model_steps >= p_couple_daily_cap THEN\n      RETURN jsonb_build_object('allowed', false, 'reason', 'daily_step_limit');\n    END IF;\n    IF v_global_cost + p_cost_microusd > p_global_cost_cap_microusd THEN\n      RETURN jsonb_build_object('allowed', false, 'reason', 'background_budget');\n    END IF;\n    UPDATE public.amora_task_global_daily_usage\n    SET model_steps = model_steps + 1,\n        reserved_cost_microusd = reserved_cost_microusd + p_cost_microusd,\n        updated_at = now()\n    WHERE usage_day = v_day;\n    UPDATE public.amora_task_daily_usage\n    SET model_steps = model_steps + 1,\n        reserved_cost_microusd = reserved_cost_microusd + p_cost_microusd,\n        updated_at = now()\n    WHERE usage_day = v_day AND couple_id = v_task.couple_id;\n    UPDATE public.amora_tasks\n    SET model_steps = model_steps + 1,\n        reserved_cost_microusd = reserved_cost_microusd + p_cost_microusd,\n        updated_at = now()\n    WHERE id = p_task_id;\n  ELSE\n    IF v_couple.web_searches >= p_couple_daily_cap THEN\n      RETURN jsonb_build_object('allowed', false, 'reason', 'daily_search_limit');\n    END IF;\n    UPDATE public.amora_task_daily_usage\n    SET web_searches = web_searches + 1, updated_at = now()\n    WHERE usage_day = v_day AND couple_id = v_task.couple_id;\n    UPDATE public.amora_tasks\n    SET web_searches = web_searches + 1, updated_at = now()\n    WHERE id = p_task_id;\n  END IF;\n\n  RETURN jsonb_build_object('allowed', true, 'reason', NULL);\nEND\n",
+        "kind": "f",
+        "name": "reserve_amora_task_usage",
+        "owner": "postgres",
+        "config": [
+          "search_path=pg_catalog, public",
+          "lock_timeout=5s",
+          "statement_timeout=15s"
+        ],
+        "result": "jsonb",
+        "strict": false,
+        "language": "plpgsql",
+        "parallel": "u",
+        "definition": "CREATE OR REPLACE FUNCTION public.reserve_amora_task_usage(p_task_id uuid, p_lease_token uuid, p_usage text, p_cost_microusd bigint, p_task_cap integer, p_couple_daily_cap integer, p_global_cost_cap_microusd bigint)\n RETURNS jsonb\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'pg_catalog', 'public'\n SET lock_timeout TO '5s'\n SET statement_timeout TO '15s'\nAS $function$\nDECLARE\n  v_task public.amora_tasks%ROWTYPE;\n  v_day date := public.amora_task_kst_day(now());\n  v_couple public.amora_task_daily_usage%ROWTYPE;\n  v_global_cost bigint;\nBEGIN\n  IF p_task_id IS NULL OR p_lease_token IS NULL\n     OR p_usage NOT IN ('model_step', 'web_search')\n     OR p_cost_microusd IS NULL OR p_cost_microusd < 0\n     OR (p_usage = 'model_step' AND p_cost_microusd < 1)\n     OR p_task_cap IS NULL OR p_task_cap < 0 OR p_task_cap > 200\n     OR p_couple_daily_cap IS NULL OR p_couple_daily_cap < 0 OR p_couple_daily_cap > 1000\n     OR p_global_cost_cap_microusd IS NULL OR p_global_cost_cap_microusd < 0 THEN\n    RAISE EXCEPTION 'AMORA_TASK_USAGE_INVALID' USING ERRCODE = '22023';\n  END IF;\n\n  -- 잠그는 순서: 맡은 일 → 서비스 전체 → 커플. 모든 함수가 같은 순서를 지킨다.\n  SELECT * INTO v_task FROM public.amora_tasks WHERE id = p_task_id FOR UPDATE;\n  IF NOT FOUND OR v_task.lease_token IS DISTINCT FROM p_lease_token\n     OR v_task.status NOT IN ('searching', 'organizing') THEN\n    RETURN jsonb_build_object('allowed', false, 'reason', 'lease_lost');\n  END IF;\n\n  IF p_usage = 'model_step' THEN\n    IF v_task.model_steps >= p_task_cap THEN\n      RETURN jsonb_build_object('allowed', false, 'reason', 'task_step_limit');\n    END IF;\n    INSERT INTO public.amora_task_global_daily_usage (usage_day) VALUES (v_day)\n    ON CONFLICT (usage_day) DO NOTHING;\n    SELECT reserved_cost_microusd INTO v_global_cost\n    FROM public.amora_task_global_daily_usage WHERE usage_day = v_day FOR UPDATE;\n  ELSE\n    IF v_task.web_searches >= p_task_cap THEN\n      RETURN jsonb_build_object('allowed', false, 'reason', 'task_step_limit');\n    END IF;\n  END IF;\n\n  INSERT INTO public.amora_task_daily_usage (usage_day, couple_id) VALUES (v_day, v_task.couple_id)\n  ON CONFLICT (usage_day, couple_id) DO NOTHING;\n  SELECT * INTO v_couple FROM public.amora_task_daily_usage\n  WHERE usage_day = v_day AND couple_id = v_task.couple_id FOR UPDATE;\n\n  IF p_usage = 'model_step' THEN\n    IF v_couple.model_steps >= p_couple_daily_cap THEN\n      RETURN jsonb_build_object('allowed', false, 'reason', 'daily_step_limit');\n    END IF;\n    IF v_global_cost + p_cost_microusd > p_global_cost_cap_microusd THEN\n      RETURN jsonb_build_object('allowed', false, 'reason', 'background_budget');\n    END IF;\n    UPDATE public.amora_task_global_daily_usage\n    SET model_steps = model_steps + 1,\n        reserved_cost_microusd = reserved_cost_microusd + p_cost_microusd,\n        updated_at = now()\n    WHERE usage_day = v_day;\n    UPDATE public.amora_task_daily_usage\n    SET model_steps = model_steps + 1,\n        reserved_cost_microusd = reserved_cost_microusd + p_cost_microusd,\n        updated_at = now()\n    WHERE usage_day = v_day AND couple_id = v_task.couple_id;\n    UPDATE public.amora_tasks\n    SET model_steps = model_steps + 1,\n        reserved_cost_microusd = reserved_cost_microusd + p_cost_microusd,\n        updated_at = now()\n    WHERE id = p_task_id;\n  ELSE\n    IF v_couple.web_searches >= p_couple_daily_cap THEN\n      RETURN jsonb_build_object('allowed', false, 'reason', 'daily_search_limit');\n    END IF;\n    UPDATE public.amora_task_daily_usage\n    SET web_searches = web_searches + 1, updated_at = now()\n    WHERE usage_day = v_day AND couple_id = v_task.couple_id;\n    UPDATE public.amora_tasks\n    SET web_searches = web_searches + 1, updated_at = now()\n    WHERE id = p_task_id;\n  END IF;\n\n  RETURN jsonb_build_object('allowed', true, 'reason', NULL);\nEND\n$function$\n",
+        "volatility": "v",
+        "securityDefiner": true
+      },
+      {
+        "acl": [
+          [
+            "postgres",
+            "postgres",
+            "EXECUTE",
+            false
+          ],
+          [
+            "service_role",
+            "postgres",
+            "EXECUTE",
+            false
+          ]
+        ],
+        "args": "uuid, uuid, text, jsonb, text, integer, integer, bigint, integer",
+        "body": "\nDECLARE\n  v_id uuid;\nBEGIN\n  IF p_task_id IS NULL OR p_lease_token IS NULL\n     OR p_status NOT IN ('searching', 'organizing')\n     OR p_progress IS NULL OR jsonb_typeof(p_progress) <> 'object'\n     OR COALESCE(p_input_tokens, -1) < 0 OR COALESCE(p_output_tokens, -1) < 0\n     OR COALESCE(p_cost_microusd, -1) < 0\n     OR p_lease_seconds IS NULL OR p_lease_seconds < 60 OR p_lease_seconds > 900\n     OR (p_step_label IS NOT NULL AND (\n       char_length(p_step_label) NOT BETWEEN 1 AND 60\n       OR public.couple_plan_change_has_unsafe_display_text(p_step_label)\n     )) THEN\n    RAISE EXCEPTION 'AMORA_TASK_PROGRESS_INVALID' USING ERRCODE = '22023';\n  END IF;\n\n  UPDATE public.amora_tasks AS task\n  SET status = p_status,\n      progress = p_progress,\n      steps = CASE\n        WHEN p_step_label IS NULL THEN task.steps\n        ELSE (\n          SELECT COALESCE(jsonb_agg(entry.value ORDER BY entry.ordinality), '[]'::jsonb)\n          FROM jsonb_array_elements(\n            task.steps || jsonb_build_array(jsonb_build_object('at', now(), 'label', p_step_label))\n          ) WITH ORDINALITY AS entry(value, ordinality)\n          WHERE entry.ordinality > jsonb_array_length(task.steps) + 1 - 30\n        )\n      END,\n      input_tokens = task.input_tokens + p_input_tokens,\n      output_tokens = task.output_tokens + p_output_tokens,\n      cost_microusd = task.cost_microusd + p_cost_microusd,\n      leased_until = now() + make_interval(secs => p_lease_seconds),\n      updated_at = now()\n  WHERE task.id = p_task_id\n    AND task.lease_token = p_lease_token\n    AND task.status IN ('searching', 'organizing')\n  RETURNING task.id INTO v_id;\n  RETURN v_id IS NOT NULL;\nEND\n",
+        "kind": "f",
+        "name": "save_amora_task_progress",
+        "owner": "postgres",
+        "config": [
+          "search_path=pg_catalog, public",
+          "lock_timeout=5s",
+          "statement_timeout=15s"
+        ],
+        "result": "boolean",
+        "strict": false,
+        "language": "plpgsql",
+        "parallel": "u",
+        "definition": "CREATE OR REPLACE FUNCTION public.save_amora_task_progress(p_task_id uuid, p_lease_token uuid, p_status text, p_progress jsonb, p_step_label text, p_input_tokens integer, p_output_tokens integer, p_cost_microusd bigint, p_lease_seconds integer)\n RETURNS boolean\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'pg_catalog', 'public'\n SET lock_timeout TO '5s'\n SET statement_timeout TO '15s'\nAS $function$\nDECLARE\n  v_id uuid;\nBEGIN\n  IF p_task_id IS NULL OR p_lease_token IS NULL\n     OR p_status NOT IN ('searching', 'organizing')\n     OR p_progress IS NULL OR jsonb_typeof(p_progress) <> 'object'\n     OR COALESCE(p_input_tokens, -1) < 0 OR COALESCE(p_output_tokens, -1) < 0\n     OR COALESCE(p_cost_microusd, -1) < 0\n     OR p_lease_seconds IS NULL OR p_lease_seconds < 60 OR p_lease_seconds > 900\n     OR (p_step_label IS NOT NULL AND (\n       char_length(p_step_label) NOT BETWEEN 1 AND 60\n       OR public.couple_plan_change_has_unsafe_display_text(p_step_label)\n     )) THEN\n    RAISE EXCEPTION 'AMORA_TASK_PROGRESS_INVALID' USING ERRCODE = '22023';\n  END IF;\n\n  UPDATE public.amora_tasks AS task\n  SET status = p_status,\n      progress = p_progress,\n      steps = CASE\n        WHEN p_step_label IS NULL THEN task.steps\n        ELSE (\n          SELECT COALESCE(jsonb_agg(entry.value ORDER BY entry.ordinality), '[]'::jsonb)\n          FROM jsonb_array_elements(\n            task.steps || jsonb_build_array(jsonb_build_object('at', now(), 'label', p_step_label))\n          ) WITH ORDINALITY AS entry(value, ordinality)\n          WHERE entry.ordinality > jsonb_array_length(task.steps) + 1 - 30\n        )\n      END,\n      input_tokens = task.input_tokens + p_input_tokens,\n      output_tokens = task.output_tokens + p_output_tokens,\n      cost_microusd = task.cost_microusd + p_cost_microusd,\n      leased_until = now() + make_interval(secs => p_lease_seconds),\n      updated_at = now()\n  WHERE task.id = p_task_id\n    AND task.lease_token = p_lease_token\n    AND task.status IN ('searching', 'organizing')\n  RETURNING task.id INTO v_id;\n  RETURN v_id IS NOT NULL;\nEND\n$function$\n",
+        "volatility": "v",
+        "securityDefiner": true
+      },
+      {
+        "acl": [
+          [
+            "postgres",
+            "postgres",
+            "EXECUTE",
+            false
+          ],
+          [
+            "service_role",
+            "postgres",
+            "EXECUTE",
+            false
+          ]
+        ],
+        "args": "uuid, uuid, text, text, jsonb, text, text",
+        "body": "\nDECLARE\n  v_id uuid;\nBEGIN\n  IF p_task_id IS NULL OR p_lease_token IS NULL\n     OR p_status NOT IN ('done', 'needs_review')\n     OR (p_status = 'done' AND (p_review_reason IS NOT NULL OR p_result IS NULL))\n     OR (p_status = 'needs_review' AND p_review_reason IS NULL)\n     OR (p_step_label IS NOT NULL AND (\n       char_length(p_step_label) NOT BETWEEN 1 AND 60\n       OR public.couple_plan_change_has_unsafe_display_text(p_step_label)\n     )) THEN\n    RAISE EXCEPTION 'AMORA_TASK_FINISH_INVALID' USING ERRCODE = '22023';\n  END IF;\n\n  UPDATE public.amora_tasks AS task\n  SET status = p_status,\n      review_reason = p_review_reason,\n      result = COALESCE(p_result, task.result),\n      error_code = p_error_code,\n      steps = CASE\n        WHEN p_step_label IS NULL THEN task.steps\n        ELSE (\n          SELECT COALESCE(jsonb_agg(entry.value ORDER BY entry.ordinality), '[]'::jsonb)\n          FROM jsonb_array_elements(\n            task.steps || jsonb_build_array(jsonb_build_object('at', now(), 'label', p_step_label))\n          ) WITH ORDINALITY AS entry(value, ordinality)\n          WHERE entry.ordinality > jsonb_array_length(task.steps) + 1 - 30\n        )\n      END,\n      lease_token = NULL,\n      leased_until = NULL,\n      finished_at = CASE WHEN p_status = 'done' THEN now() ELSE task.finished_at END,\n      notify_state = CASE WHEN p_status = 'done' THEN 'pending' ELSE task.notify_state END,\n      updated_at = now()\n  WHERE task.id = p_task_id\n    AND task.lease_token = p_lease_token\n    AND task.status IN ('searching', 'organizing')\n  RETURNING task.id INTO v_id;\n  RETURN v_id IS NOT NULL;\nEND\n",
+        "kind": "f",
+        "name": "finish_amora_task",
+        "owner": "postgres",
+        "config": [
+          "search_path=pg_catalog, public",
+          "lock_timeout=5s",
+          "statement_timeout=15s"
+        ],
+        "result": "boolean",
+        "strict": false,
+        "language": "plpgsql",
+        "parallel": "u",
+        "definition": "CREATE OR REPLACE FUNCTION public.finish_amora_task(p_task_id uuid, p_lease_token uuid, p_status text, p_review_reason text, p_result jsonb, p_error_code text, p_step_label text)\n RETURNS boolean\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'pg_catalog', 'public'\n SET lock_timeout TO '5s'\n SET statement_timeout TO '15s'\nAS $function$\nDECLARE\n  v_id uuid;\nBEGIN\n  IF p_task_id IS NULL OR p_lease_token IS NULL\n     OR p_status NOT IN ('done', 'needs_review')\n     OR (p_status = 'done' AND (p_review_reason IS NOT NULL OR p_result IS NULL))\n     OR (p_status = 'needs_review' AND p_review_reason IS NULL)\n     OR (p_step_label IS NOT NULL AND (\n       char_length(p_step_label) NOT BETWEEN 1 AND 60\n       OR public.couple_plan_change_has_unsafe_display_text(p_step_label)\n     )) THEN\n    RAISE EXCEPTION 'AMORA_TASK_FINISH_INVALID' USING ERRCODE = '22023';\n  END IF;\n\n  UPDATE public.amora_tasks AS task\n  SET status = p_status,\n      review_reason = p_review_reason,\n      result = COALESCE(p_result, task.result),\n      error_code = p_error_code,\n      steps = CASE\n        WHEN p_step_label IS NULL THEN task.steps\n        ELSE (\n          SELECT COALESCE(jsonb_agg(entry.value ORDER BY entry.ordinality), '[]'::jsonb)\n          FROM jsonb_array_elements(\n            task.steps || jsonb_build_array(jsonb_build_object('at', now(), 'label', p_step_label))\n          ) WITH ORDINALITY AS entry(value, ordinality)\n          WHERE entry.ordinality > jsonb_array_length(task.steps) + 1 - 30\n        )\n      END,\n      lease_token = NULL,\n      leased_until = NULL,\n      finished_at = CASE WHEN p_status = 'done' THEN now() ELSE task.finished_at END,\n      notify_state = CASE WHEN p_status = 'done' THEN 'pending' ELSE task.notify_state END,\n      updated_at = now()\n  WHERE task.id = p_task_id\n    AND task.lease_token = p_lease_token\n    AND task.status IN ('searching', 'organizing')\n  RETURNING task.id INTO v_id;\n  RETURN v_id IS NOT NULL;\nEND\n$function$\n",
+        "volatility": "v",
+        "securityDefiner": true
+      },
+      {
+        "acl": [
+          [
+            "postgres",
+            "postgres",
+            "EXECUTE",
+            false
+          ],
+          [
+            "service_role",
+            "postgres",
+            "EXECUTE",
+            false
+          ]
+        ],
+        "args": "uuid, uuid, text, text, text, text, jsonb, integer",
+        "body": "\nDECLARE\n  v_existing public.amora_tasks%ROWTYPE;\n  v_open integer;\n  v_id uuid;\n  v_expires timestamptz;\n  v_visibility text;\nBEGIN\n  IF p_couple_id IS NULL OR p_requested_by IS NULL\n     OR p_offer_ttl_seconds IS NULL OR p_offer_ttl_seconds < 600 OR p_offer_ttl_seconds > 172800 THEN\n    RAISE EXCEPTION 'AMORA_TASK_OFFER_INVALID' USING ERRCODE = '22023';\n  END IF;\n  IF p_source_lane IS DISTINCT FROM 'shared' THEN\n    RETURN jsonb_build_object('ok', false, 'code', 'shared_lane_only');\n  END IF;\n  IF p_source_request_key IS NULL\n     OR p_source_request_key NOT LIKE ('chat:' || p_requested_by::text || ':%') THEN\n    RAISE EXCEPTION 'AMORA_TASK_OFFER_INVALID' USING ERRCODE = '22023';\n  END IF;\n  IF NOT public.is_current_couple_member(p_requested_by, p_couple_id) THEN\n    RETURN jsonb_build_object('ok', false, 'code', 'not_member');\n  END IF;\n  IF public.amora_task_couple_deletion_pending(p_couple_id) THEN\n    RETURN jsonb_build_object('ok', false, 'code', 'deletion_pending');\n  END IF;\n\n  -- 앱이 넘긴 칸만 믿지 않는다. 그 대화 턴의 선점 기록이 공유 대화인지 DB 에서 다시 본다(01장 I8).\n  SELECT claim.visibility INTO v_visibility\n  FROM public.amora_chat_request_claims AS claim\n  WHERE claim.couple_id = p_couple_id\n    AND claim.request_key = p_source_request_key;\n  IF NOT FOUND THEN\n    RETURN jsonb_build_object('ok', false, 'code', 'request_not_found');\n  END IF;\n  IF v_visibility IS DISTINCT FROM 'shared' THEN\n    RETURN jsonb_build_object('ok', false, 'code', 'shared_lane_only');\n  END IF;\n\n  -- 같은 대화 턴을 다시 보내도(같은 요청 키) 카드가 둘이 되지 않는다.\n  SELECT * INTO v_existing\n  FROM public.amora_tasks\n  WHERE couple_id = p_couple_id\n    AND source_request_key = p_source_request_key\n    AND kind = p_kind;\n  IF FOUND THEN\n    RETURN jsonb_build_object(\n      'ok', true, 'code', 'existing', 'task_id', v_existing.id,\n      'status', v_existing.status, 'offer_expires_at', v_existing.offer_expires_at\n    );\n  END IF;\n\n  SELECT count(*) INTO v_open\n  FROM public.amora_tasks\n  WHERE couple_id = p_couple_id\n    AND status = 'offered'\n    AND offer_expires_at > now();\n  IF v_open >= 5 THEN\n    RETURN jsonb_build_object('ok', false, 'code', 'too_many_offers');\n  END IF;\n\n  v_expires := now() + make_interval(secs => p_offer_ttl_seconds);\n  INSERT INTO public.amora_tasks (\n    couple_id, requested_by, kind, status, title, input, source_lane, source_request_key, offer_expires_at\n  ) VALUES (\n    p_couple_id, p_requested_by, p_kind, 'offered', p_title, COALESCE(p_input, '{}'::jsonb),\n    p_source_lane, p_source_request_key, v_expires\n  )\n  ON CONFLICT ON CONSTRAINT amora_tasks_offer_unique DO NOTHING\n  RETURNING id INTO v_id;\n\n  IF v_id IS NULL THEN\n    SELECT * INTO v_existing\n    FROM public.amora_tasks\n    WHERE couple_id = p_couple_id\n      AND source_request_key = p_source_request_key\n      AND kind = p_kind;\n    RETURN jsonb_build_object(\n      'ok', true, 'code', 'existing', 'task_id', v_existing.id,\n      'status', v_existing.status, 'offer_expires_at', v_existing.offer_expires_at\n    );\n  END IF;\n\n  RETURN jsonb_build_object(\n    'ok', true, 'code', 'offered', 'task_id', v_id, 'status', 'offered', 'offer_expires_at', v_expires\n  );\nEND\n",
+        "kind": "f",
+        "name": "offer_amora_task",
+        "owner": "postgres",
+        "config": [
+          "search_path=pg_catalog, public",
+          "lock_timeout=5s",
+          "statement_timeout=15s"
+        ],
+        "result": "jsonb",
+        "strict": false,
+        "language": "plpgsql",
+        "parallel": "u",
+        "definition": "CREATE OR REPLACE FUNCTION public.offer_amora_task(p_couple_id uuid, p_requested_by uuid, p_source_lane text, p_source_request_key text, p_kind text, p_title text, p_input jsonb, p_offer_ttl_seconds integer)\n RETURNS jsonb\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'pg_catalog', 'public'\n SET lock_timeout TO '5s'\n SET statement_timeout TO '15s'\nAS $function$\nDECLARE\n  v_existing public.amora_tasks%ROWTYPE;\n  v_open integer;\n  v_id uuid;\n  v_expires timestamptz;\n  v_visibility text;\nBEGIN\n  IF p_couple_id IS NULL OR p_requested_by IS NULL\n     OR p_offer_ttl_seconds IS NULL OR p_offer_ttl_seconds < 600 OR p_offer_ttl_seconds > 172800 THEN\n    RAISE EXCEPTION 'AMORA_TASK_OFFER_INVALID' USING ERRCODE = '22023';\n  END IF;\n  IF p_source_lane IS DISTINCT FROM 'shared' THEN\n    RETURN jsonb_build_object('ok', false, 'code', 'shared_lane_only');\n  END IF;\n  IF p_source_request_key IS NULL\n     OR p_source_request_key NOT LIKE ('chat:' || p_requested_by::text || ':%') THEN\n    RAISE EXCEPTION 'AMORA_TASK_OFFER_INVALID' USING ERRCODE = '22023';\n  END IF;\n  IF NOT public.is_current_couple_member(p_requested_by, p_couple_id) THEN\n    RETURN jsonb_build_object('ok', false, 'code', 'not_member');\n  END IF;\n  IF public.amora_task_couple_deletion_pending(p_couple_id) THEN\n    RETURN jsonb_build_object('ok', false, 'code', 'deletion_pending');\n  END IF;\n\n  -- 앱이 넘긴 칸만 믿지 않는다. 그 대화 턴의 선점 기록이 공유 대화인지 DB 에서 다시 본다(01장 I8).\n  SELECT claim.visibility INTO v_visibility\n  FROM public.amora_chat_request_claims AS claim\n  WHERE claim.couple_id = p_couple_id\n    AND claim.request_key = p_source_request_key;\n  IF NOT FOUND THEN\n    RETURN jsonb_build_object('ok', false, 'code', 'request_not_found');\n  END IF;\n  IF v_visibility IS DISTINCT FROM 'shared' THEN\n    RETURN jsonb_build_object('ok', false, 'code', 'shared_lane_only');\n  END IF;\n\n  -- 같은 대화 턴을 다시 보내도(같은 요청 키) 카드가 둘이 되지 않는다.\n  SELECT * INTO v_existing\n  FROM public.amora_tasks\n  WHERE couple_id = p_couple_id\n    AND source_request_key = p_source_request_key\n    AND kind = p_kind;\n  IF FOUND THEN\n    RETURN jsonb_build_object(\n      'ok', true, 'code', 'existing', 'task_id', v_existing.id,\n      'status', v_existing.status, 'offer_expires_at', v_existing.offer_expires_at\n    );\n  END IF;\n\n  SELECT count(*) INTO v_open\n  FROM public.amora_tasks\n  WHERE couple_id = p_couple_id\n    AND status = 'offered'\n    AND offer_expires_at > now();\n  IF v_open >= 5 THEN\n    RETURN jsonb_build_object('ok', false, 'code', 'too_many_offers');\n  END IF;\n\n  v_expires := now() + make_interval(secs => p_offer_ttl_seconds);\n  INSERT INTO public.amora_tasks (\n    couple_id, requested_by, kind, status, title, input, source_lane, source_request_key, offer_expires_at\n  ) VALUES (\n    p_couple_id, p_requested_by, p_kind, 'offered', p_title, COALESCE(p_input, '{}'::jsonb),\n    p_source_lane, p_source_request_key, v_expires\n  )\n  ON CONFLICT ON CONSTRAINT amora_tasks_offer_unique DO NOTHING\n  RETURNING id INTO v_id;\n\n  IF v_id IS NULL THEN\n    SELECT * INTO v_existing\n    FROM public.amora_tasks\n    WHERE couple_id = p_couple_id\n      AND source_request_key = p_source_request_key\n      AND kind = p_kind;\n    RETURN jsonb_build_object(\n      'ok', true, 'code', 'existing', 'task_id', v_existing.id,\n      'status', v_existing.status, 'offer_expires_at', v_existing.offer_expires_at\n    );\n  END IF;\n\n  RETURN jsonb_build_object(\n    'ok', true, 'code', 'offered', 'task_id', v_id, 'status', 'offered', 'offer_expires_at', v_expires\n  );\nEND\n$function$\n",
+        "volatility": "v",
+        "securityDefiner": true
+      }
+    ],
+    "relations": [
+      {
+        "acl": [
+          [
+            "postgres",
+            "postgres",
+            "DELETE",
+            false
+          ],
+          [
+            "postgres",
+            "postgres",
+            "INSERT",
+            false
+          ],
+          [
+            "postgres",
+            "postgres",
+            "MAINTAIN",
+            false
+          ],
+          [
+            "postgres",
+            "postgres",
+            "REFERENCES",
+            false
+          ],
+          [
+            "postgres",
+            "postgres",
+            "SELECT",
+            false
+          ],
+          [
+            "postgres",
+            "postgres",
+            "TRIGGER",
+            false
+          ],
+          [
+            "postgres",
+            "postgres",
+            "TRUNCATE",
+            false
+          ],
+          [
+            "postgres",
+            "postgres",
+            "UPDATE",
+            false
+          ],
+          [
+            "service_role",
+            "postgres",
+            "DELETE",
+            false
+          ],
+          [
+            "service_role",
+            "postgres",
+            "INSERT",
+            false
+          ],
+          [
+            "service_role",
+            "postgres",
+            "MAINTAIN",
+            false
+          ],
+          [
+            "service_role",
+            "postgres",
+            "REFERENCES",
+            false
+          ],
+          [
+            "service_role",
+            "postgres",
+            "SELECT",
+            false
+          ],
+          [
+            "service_role",
+            "postgres",
+            "TRIGGER",
+            false
+          ],
+          [
+            "service_role",
+            "postgres",
+            "TRUNCATE",
+            false
+          ],
+          [
+            "service_role",
+            "postgres",
+            "UPDATE",
+            false
+          ]
+        ],
+        "rls": true,
+        "kind": "r",
+        "name": "public.amora_task_daily_usage",
+        "owner": "postgres",
+        "columns": [
+          [
+            "couple_id",
+            "uuid",
+            true,
+            "",
+            "",
+            null,
+            []
+          ],
+          [
+            "model_steps",
+            "integer",
+            true,
+            "",
+            "",
+            "0",
+            []
+          ],
+          [
+            "reserved_cost_microusd",
+            "bigint",
+            true,
+            "",
+            "",
+            "0",
+            []
+          ],
+          [
+            "tasks_started",
+            "integer",
+            true,
+            "",
+            "",
+            "0",
+            []
+          ],
+          [
+            "updated_at",
+            "timestamp with time zone",
+            true,
+            "",
+            "",
+            "now()",
+            []
+          ],
+          [
+            "usage_day",
+            "date",
+            true,
+            "",
+            "",
+            null,
+            []
+          ],
+          [
+            "web_searches",
+            "integer",
+            true,
+            "",
+            "",
+            "0",
+            []
+          ]
+        ],
+        "indexes": [
+          [
+            "CREATE UNIQUE INDEX amora_task_daily_usage_pkey ON public.amora_task_daily_usage USING btree (usage_day, couple_id)",
+            true,
+            true
+          ]
+        ],
+        "forceRls": false,
+        "policies": [
+          {
+            "name": "amora_task_daily_usage_service_all",
+            "check": "true",
+            "roles": [
+              "service_role"
+            ],
+            "using": "true",
+            "command": "*",
+            "permissive": true
+          }
+        ],
+        "triggers": [],
+        "constraints": [
+          [
+            "amora_task_daily_usage_counters_check",
+            "c",
+            true,
+            "CHECK (tasks_started >= 0 AND model_steps >= 0 AND web_searches >= 0 AND reserved_cost_microusd >= 0)"
+          ],
+          [
+            "amora_task_daily_usage_couple_id_fkey",
+            "f",
+            true,
+            "FOREIGN KEY (couple_id) REFERENCES couples(id) ON DELETE CASCADE"
+          ],
+          [
+            "amora_task_daily_usage_pkey",
+            "p",
+            true,
+            "PRIMARY KEY (usage_day, couple_id)"
+          ]
+        ]
+      },
+      {
+        "acl": [
+          [
+            "postgres",
+            "postgres",
+            "DELETE",
+            false
+          ],
+          [
+            "postgres",
+            "postgres",
+            "INSERT",
+            false
+          ],
+          [
+            "postgres",
+            "postgres",
+            "MAINTAIN",
+            false
+          ],
+          [
+            "postgres",
+            "postgres",
+            "REFERENCES",
+            false
+          ],
+          [
+            "postgres",
+            "postgres",
+            "SELECT",
+            false
+          ],
+          [
+            "postgres",
+            "postgres",
+            "TRIGGER",
+            false
+          ],
+          [
+            "postgres",
+            "postgres",
+            "TRUNCATE",
+            false
+          ],
+          [
+            "postgres",
+            "postgres",
+            "UPDATE",
+            false
+          ],
+          [
+            "service_role",
+            "postgres",
+            "DELETE",
+            false
+          ],
+          [
+            "service_role",
+            "postgres",
+            "INSERT",
+            false
+          ],
+          [
+            "service_role",
+            "postgres",
+            "MAINTAIN",
+            false
+          ],
+          [
+            "service_role",
+            "postgres",
+            "REFERENCES",
+            false
+          ],
+          [
+            "service_role",
+            "postgres",
+            "SELECT",
+            false
+          ],
+          [
+            "service_role",
+            "postgres",
+            "TRIGGER",
+            false
+          ],
+          [
+            "service_role",
+            "postgres",
+            "TRUNCATE",
+            false
+          ],
+          [
+            "service_role",
+            "postgres",
+            "UPDATE",
+            false
+          ]
+        ],
+        "rls": true,
+        "kind": "r",
+        "name": "public.amora_task_global_daily_usage",
+        "owner": "postgres",
+        "columns": [
+          [
+            "model_steps",
+            "integer",
+            true,
+            "",
+            "",
+            "0",
+            []
+          ],
+          [
+            "reserved_cost_microusd",
+            "bigint",
+            true,
+            "",
+            "",
+            "0",
+            []
+          ],
+          [
+            "updated_at",
+            "timestamp with time zone",
+            true,
+            "",
+            "",
+            "now()",
+            []
+          ],
+          [
+            "usage_day",
+            "date",
+            true,
+            "",
+            "",
+            null,
+            []
+          ]
+        ],
+        "indexes": [
+          [
+            "CREATE UNIQUE INDEX amora_task_global_daily_usage_pkey ON public.amora_task_global_daily_usage USING btree (usage_day)",
+            true,
+            true
+          ]
+        ],
+        "forceRls": false,
+        "policies": [
+          {
+            "name": "amora_task_global_daily_usage_service_all",
+            "check": "true",
+            "roles": [
+              "service_role"
+            ],
+            "using": "true",
+            "command": "*",
+            "permissive": true
+          }
+        ],
+        "triggers": [],
+        "constraints": [
+          [
+            "amora_task_global_daily_usage_counters_check",
+            "c",
+            true,
+            "CHECK (model_steps >= 0 AND reserved_cost_microusd >= 0)"
+          ],
+          [
+            "amora_task_global_daily_usage_pkey",
+            "p",
+            true,
+            "PRIMARY KEY (usage_day)"
+          ]
+        ]
+      },
+      {
+        "acl": [
+          [
+            "postgres",
+            "postgres",
+            "DELETE",
+            false
+          ],
+          [
+            "postgres",
+            "postgres",
+            "INSERT",
+            false
+          ],
+          [
+            "postgres",
+            "postgres",
+            "MAINTAIN",
+            false
+          ],
+          [
+            "postgres",
+            "postgres",
+            "REFERENCES",
+            false
+          ],
+          [
+            "postgres",
+            "postgres",
+            "SELECT",
+            false
+          ],
+          [
+            "postgres",
+            "postgres",
+            "TRIGGER",
+            false
+          ],
+          [
+            "postgres",
+            "postgres",
+            "TRUNCATE",
+            false
+          ],
+          [
+            "postgres",
+            "postgres",
+            "UPDATE",
+            false
+          ],
+          [
+            "service_role",
+            "postgres",
+            "DELETE",
+            false
+          ],
+          [
+            "service_role",
+            "postgres",
+            "INSERT",
+            false
+          ],
+          [
+            "service_role",
+            "postgres",
+            "MAINTAIN",
+            false
+          ],
+          [
+            "service_role",
+            "postgres",
+            "REFERENCES",
+            false
+          ],
+          [
+            "service_role",
+            "postgres",
+            "SELECT",
+            false
+          ],
+          [
+            "service_role",
+            "postgres",
+            "TRIGGER",
+            false
+          ],
+          [
+            "service_role",
+            "postgres",
+            "TRUNCATE",
+            false
+          ],
+          [
+            "service_role",
+            "postgres",
+            "UPDATE",
+            false
+          ]
+        ],
+        "rls": true,
+        "kind": "r",
+        "name": "public.amora_tasks",
+        "owner": "postgres",
+        "columns": [
+          [
+            "available_at",
+            "timestamp with time zone",
+            true,
+            "",
+            "",
+            "now()",
+            []
+          ],
+          [
+            "cost_microusd",
+            "bigint",
+            true,
+            "",
+            "",
+            "0",
+            []
+          ],
+          [
+            "couple_id",
+            "uuid",
+            true,
+            "",
+            "",
+            null,
+            [
+              [
+                "authenticated",
+                "postgres",
+                "SELECT",
+                false
+              ]
+            ]
+          ],
+          [
+            "created_at",
+            "timestamp with time zone",
+            true,
+            "",
+            "",
+            "now()",
+            [
+              [
+                "authenticated",
+                "postgres",
+                "SELECT",
+                false
+              ]
+            ]
+          ],
+          [
+            "error_code",
+            "text",
+            false,
+            "",
+            "",
+            null,
+            []
+          ],
+          [
+            "failure_count",
+            "integer",
+            true,
+            "",
+            "",
+            "0",
+            []
+          ],
+          [
+            "finished_at",
+            "timestamp with time zone",
+            false,
+            "",
+            "",
+            null,
+            [
+              [
+                "authenticated",
+                "postgres",
+                "SELECT",
+                false
+              ]
+            ]
+          ],
+          [
+            "id",
+            "uuid",
+            true,
+            "",
+            "",
+            "gen_random_uuid()",
+            [
+              [
+                "authenticated",
+                "postgres",
+                "SELECT",
+                false
+              ]
+            ]
+          ],
+          [
+            "input",
+            "jsonb",
+            true,
+            "",
+            "",
+            "'{}'::jsonb",
+            []
+          ],
+          [
+            "input_tokens",
+            "bigint",
+            true,
+            "",
+            "",
+            "0",
+            []
+          ],
+          [
+            "kind",
+            "text",
+            true,
+            "",
+            "",
+            null,
+            [
+              [
+                "authenticated",
+                "postgres",
+                "SELECT",
+                false
+              ]
+            ]
+          ],
+          [
+            "lease_token",
+            "uuid",
+            false,
+            "",
+            "",
+            null,
+            []
+          ],
+          [
+            "leased_until",
+            "timestamp with time zone",
+            false,
+            "",
+            "",
+            null,
+            []
+          ],
+          [
+            "model_steps",
+            "integer",
+            true,
+            "",
+            "",
+            "0",
+            []
+          ],
+          [
+            "notify_attempts",
+            "integer",
+            true,
+            "",
+            "",
+            "0",
+            []
+          ],
+          [
+            "notify_claimed_at",
+            "timestamp with time zone",
+            false,
+            "",
+            "",
+            null,
+            []
+          ],
+          [
+            "notify_reason",
+            "text",
+            false,
+            "",
+            "",
+            null,
+            []
+          ],
+          [
+            "notify_state",
+            "text",
+            true,
+            "",
+            "",
+            "'none'::text",
+            []
+          ],
+          [
+            "offer_expires_at",
+            "timestamp with time zone",
+            true,
+            "",
+            "",
+            null,
+            [
+              [
+                "authenticated",
+                "postgres",
+                "SELECT",
+                false
+              ]
+            ]
+          ],
+          [
+            "output_tokens",
+            "bigint",
+            true,
+            "",
+            "",
+            "0",
+            []
+          ],
+          [
+            "progress",
+            "jsonb",
+            true,
+            "",
+            "",
+            "'{}'::jsonb",
+            []
+          ],
+          [
+            "requested_by",
+            "uuid",
+            false,
+            "",
+            "",
+            null,
+            []
+          ],
+          [
+            "reserved_cost_microusd",
+            "bigint",
+            true,
+            "",
+            "",
+            "0",
+            []
+          ],
+          [
+            "result",
+            "jsonb",
+            false,
+            "",
+            "",
+            null,
+            [
+              [
+                "authenticated",
+                "postgres",
+                "SELECT",
+                false
+              ]
+            ]
+          ],
+          [
+            "review_reason",
+            "text",
+            false,
+            "",
+            "",
+            null,
+            [
+              [
+                "authenticated",
+                "postgres",
+                "SELECT",
+                false
+              ]
+            ]
+          ],
+          [
+            "run_count",
+            "integer",
+            true,
+            "",
+            "",
+            "0",
+            []
+          ],
+          [
+            "source_lane",
+            "text",
+            true,
+            "",
+            "",
+            null,
+            []
+          ],
+          [
+            "source_request_key",
+            "text",
+            true,
+            "",
+            "",
+            null,
+            []
+          ],
+          [
+            "started_at",
+            "timestamp with time zone",
+            false,
+            "",
+            "",
+            null,
+            [
+              [
+                "authenticated",
+                "postgres",
+                "SELECT",
+                false
+              ]
+            ]
+          ],
+          [
+            "status",
+            "text",
+            true,
+            "",
+            "",
+            "'offered'::text",
+            [
+              [
+                "authenticated",
+                "postgres",
+                "SELECT",
+                false
+              ]
+            ]
+          ],
+          [
+            "steps",
+            "jsonb",
+            true,
+            "",
+            "",
+            "'[]'::jsonb",
+            [
+              [
+                "authenticated",
+                "postgres",
+                "SELECT",
+                false
+              ]
+            ]
+          ],
+          [
+            "title",
+            "text",
+            true,
+            "",
+            "",
+            null,
+            [
+              [
+                "authenticated",
+                "postgres",
+                "SELECT",
+                false
+              ]
+            ]
+          ],
+          [
+            "updated_at",
+            "timestamp with time zone",
+            true,
+            "",
+            "",
+            "now()",
+            [
+              [
+                "authenticated",
+                "postgres",
+                "SELECT",
+                false
+              ]
+            ]
+          ],
+          [
+            "web_searches",
+            "integer",
+            true,
+            "",
+            "",
+            "0",
+            []
+          ]
+        ],
+        "indexes": [
+          [
+            "CREATE INDEX amora_tasks_couple_recent_idx ON public.amora_tasks USING btree (couple_id, updated_at DESC)",
+            true,
+            true
+          ],
+          [
+            "CREATE INDEX amora_tasks_notify_idx ON public.amora_tasks USING btree (finished_at) WHERE (notify_state = 'pending'::text)",
+            true,
+            true
+          ],
+          [
+            "CREATE INDEX amora_tasks_offer_expiry_idx ON public.amora_tasks USING btree (offer_expires_at) WHERE (status = 'offered'::text)",
+            true,
+            true
+          ],
+          [
+            "CREATE INDEX amora_tasks_requested_by_idx ON public.amora_tasks USING btree (requested_by) WHERE (requested_by IS NOT NULL)",
+            true,
+            true
+          ],
+          [
+            "CREATE INDEX amora_tasks_runnable_idx ON public.amora_tasks USING btree (available_at, created_at) WHERE (status = ANY (ARRAY['queued'::text, 'searching'::text, 'organizing'::text]))",
+            true,
+            true
+          ],
+          [
+            "CREATE UNIQUE INDEX amora_tasks_offer_unique ON public.amora_tasks USING btree (couple_id, source_request_key, kind)",
+            true,
+            true
+          ],
+          [
+            "CREATE UNIQUE INDEX amora_tasks_pkey ON public.amora_tasks USING btree (id)",
+            true,
+            true
+          ]
+        ],
+        "forceRls": false,
+        "policies": [
+          {
+            "name": "amora_tasks_member_select",
+            "check": null,
+            "roles": [
+              "authenticated"
+            ],
+            "using": "is_couple_member(couple_id)",
+            "command": "r",
+            "permissive": true
+          },
+          {
+            "name": "amora_tasks_service_all",
+            "check": "true",
+            "roles": [
+              "service_role"
+            ],
+            "using": "true",
+            "command": "*",
+            "permissive": true
+          }
+        ],
+        "triggers": [],
+        "constraints": [
+          [
+            "amora_tasks_counters_check",
+            "c",
+            true,
+            "CHECK (model_steps >= 0 AND web_searches >= 0 AND input_tokens >= 0 AND output_tokens >= 0 AND reserved_cost_microusd >= 0 AND cost_microusd >= 0 AND run_count >= 0 AND failure_count >= 0 AND notify_attempts >= 0)"
+          ],
+          [
+            "amora_tasks_couple_id_fkey",
+            "f",
+            true,
+            "FOREIGN KEY (couple_id) REFERENCES couples(id) ON DELETE CASCADE"
+          ],
+          [
+            "amora_tasks_error_code_check",
+            "c",
+            true,
+            "CHECK (error_code IS NULL OR error_code ~ '^[A-Z0-9_]{1,64}$'::text)"
+          ],
+          [
+            "amora_tasks_input_check",
+            "c",
+            true,
+            "CHECK (jsonb_typeof(input) = 'object'::text AND octet_length(input::text) <= 8192)"
+          ],
+          [
+            "amora_tasks_kind_check",
+            "c",
+            true,
+            "CHECK (kind = ANY (ARRAY['hall_candidates'::text, 'sdm_candidates'::text, 'quote_compare'::text, 'todo_deadlines'::text, 'inquiry_letters'::text, 'reply_digest'::text, 'date_candidates'::text]))"
+          ],
+          [
+            "amora_tasks_lease_pair_check",
+            "c",
+            true,
+            "CHECK ((lease_token IS NULL) = (leased_until IS NULL))"
+          ],
+          [
+            "amora_tasks_lease_running_check",
+            "c",
+            true,
+            "CHECK (lease_token IS NULL OR (status = ANY (ARRAY['searching'::text, 'organizing'::text])))"
+          ],
+          [
+            "amora_tasks_notify_reason_check",
+            "c",
+            true,
+            "CHECK (notify_reason IS NULL OR notify_reason ~ '^[a-z_]{1,40}$'::text)"
+          ],
+          [
+            "amora_tasks_notify_state_check",
+            "c",
+            true,
+            "CHECK (notify_state = ANY (ARRAY['none'::text, 'pending'::text, 'sent'::text, 'skipped'::text]))"
+          ],
+          [
+            "amora_tasks_offer_unique",
+            "u",
+            true,
+            "UNIQUE (couple_id, source_request_key, kind)"
+          ],
+          [
+            "amora_tasks_pkey",
+            "p",
+            true,
+            "PRIMARY KEY (id)"
+          ],
+          [
+            "amora_tasks_progress_check",
+            "c",
+            true,
+            "CHECK (jsonb_typeof(progress) = 'object'::text AND octet_length(progress::text) <= 262144)"
+          ],
+          [
+            "amora_tasks_requested_by_fkey",
+            "f",
+            true,
+            "FOREIGN KEY (requested_by) REFERENCES auth.users(id) ON DELETE SET NULL"
+          ],
+          [
+            "amora_tasks_result_check",
+            "c",
+            true,
+            "CHECK (result IS NULL OR jsonb_typeof(result) = 'object'::text AND octet_length(result::text) <= 65536)"
+          ],
+          [
+            "amora_tasks_review_reason_check",
+            "c",
+            true,
+            "CHECK (review_reason IS NULL OR (review_reason = ANY (ARRAY['daily_step_limit'::text, 'daily_search_limit'::text, 'background_budget'::text, 'task_step_limit'::text, 'gate_blocked'::text, 'needs_input'::text, 'source_unavailable'::text, 'failed'::text, 'stale'::text])))"
+          ],
+          [
+            "amora_tasks_review_reason_status_check",
+            "c",
+            true,
+            "CHECK ((status = 'needs_review'::text) = (review_reason IS NOT NULL))"
+          ],
+          [
+            "amora_tasks_source_lane_check",
+            "c",
+            true,
+            "CHECK (source_lane = 'shared'::text)"
+          ],
+          [
+            "amora_tasks_source_request_key_check",
+            "c",
+            true,
+            "CHECK (source_request_key ~ '^chat:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'::text)"
+          ],
+          [
+            "amora_tasks_started_check",
+            "c",
+            true,
+            "CHECK ((status = ANY (ARRAY['offered'::text, 'expired'::text, 'cancelled'::text])) OR started_at IS NOT NULL)"
+          ],
+          [
+            "amora_tasks_status_check",
+            "c",
+            true,
+            "CHECK (status = ANY (ARRAY['offered'::text, 'queued'::text, 'searching'::text, 'organizing'::text, 'needs_review'::text, 'done'::text, 'cancelled'::text, 'expired'::text]))"
+          ],
+          [
+            "amora_tasks_steps_check",
+            "c",
+            true,
+            "CHECK (jsonb_typeof(steps) = 'array'::text AND jsonb_array_length(steps) <= 30 AND octet_length(steps::text) <= 8192)"
+          ],
+          [
+            "amora_tasks_title_check",
+            "c",
+            true,
+            "CHECK (char_length(title) >= 1 AND char_length(title) <= 80 AND NOT couple_plan_change_has_unsafe_display_text(title))"
+          ]
+        ]
+      }
+    ]
+  }
+}
