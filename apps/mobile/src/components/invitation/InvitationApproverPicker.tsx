@@ -124,31 +124,58 @@ export default function InvitationApproverPicker({
         <Text accessibilityLiveRegion="polite" style={[typo.sans, styles.explain]}>{LETTER_STATE_COPY.approverPending}</Text>
       ) : null}
       {proposal.role === "responder" && proposal.sentence ? (
-        <View style={styles.proposal}>
-          <Text accessibilityLiveRegion="polite" style={[typo.sans, styles.proposalText]}>{proposal.sentence}</Text>
-          <View style={styles.chips}>
-            <InvitationButton
-              label={LETTER_STATE_COPY.approverConfirm}
-              onPress={busy ? undefined : () => onRespond?.(true)}
-              disabled={busy}
-              variant="ink"
-              height={38}
-              paddingHorizontal={15}
-              fontSize={13}
-              weight="700"
-            />
-            <InvitationButton
-              label={LETTER_STATE_COPY.approverDecline}
-              onPress={busy ? undefined : () => onRespond?.(false)}
-              disabled={busy}
-              variant="outline"
-              height={38}
-              paddingHorizontal={15}
-              fontSize={13}
-            />
-          </View>
-        </View>
+        <ProposalAnswer sentence={proposal.sentence} busy={busy} onRespond={onRespond} />
       ) : null}
+    </View>
+  );
+}
+
+/**
+ * 직접 보내기(D-83 1단계)의 편지 시트에는 승인 칸이 없다. 그래도 상대가 이미 낸 승인 방식 제안에는 답할 수 있게
+ * 그 확인·거절만 그린다(서버는 이미 온 제안의 확인·거절을 받는다). 답할 제안이 없거나 누가 무엇을 제안했는지
+ * 말할 수 없으면 아무것도 그리지 않는다.
+ */
+export function InvitationProposalAnswer({
+  pending,
+  members,
+  busy = false,
+  onRespond,
+}: {
+  pending: InquiryApproverProposal | null;
+  members: readonly Member[];
+  busy?: boolean;
+  onRespond: (accept: boolean) => void;
+}) {
+  const proposal = approverProposalView(pending, members);
+  if (proposal.role !== "responder" || !proposal.sentence) return null;
+  return <ProposalAnswer sentence={proposal.sentence} busy={busy} onRespond={onRespond} />;
+}
+
+function ProposalAnswer({ sentence, busy, onRespond }: { sentence: string; busy: boolean; onRespond?: (accept: boolean) => void }) {
+  return (
+    <View style={styles.proposal}>
+      <Text accessibilityLiveRegion="polite" style={[typo.sans, styles.proposalText]}>{sentence}</Text>
+      <View style={styles.chips}>
+        <InvitationButton
+          label={LETTER_STATE_COPY.approverConfirm}
+          onPress={busy ? undefined : () => onRespond?.(true)}
+          disabled={busy}
+          variant="ink"
+          height={38}
+          paddingHorizontal={15}
+          fontSize={13}
+          weight="700"
+        />
+        <InvitationButton
+          label={LETTER_STATE_COPY.approverDecline}
+          onPress={busy ? undefined : () => onRespond?.(false)}
+          disabled={busy}
+          variant="outline"
+          height={38}
+          paddingHorizontal={15}
+          fontSize={13}
+        />
+      </View>
     </View>
   );
 }

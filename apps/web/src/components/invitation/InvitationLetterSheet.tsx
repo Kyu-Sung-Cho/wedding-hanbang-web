@@ -28,13 +28,21 @@ type InvitationLetterSheetProps = {
   /** 실제 커플: "문구 고치기"를 누른 뒤 편지 글 자리에 대신 그리는 글 고치기 칸. */
   editor?: ReactNode;
   /**
-   * 실제 커플: 알려줄 정보 아래에 더 그릴 것(새 휴대폰 번호 칸, 누가 승인할지 고르는 칸, 승인·보내기 상태 한 줄).
-   * 예시 커플은 넘기지 않아 아티팩트 모양 그대로다.
+   * 실제 커플: 알려줄 정보 아래에 더 그릴 것(새 휴대폰 번호 칸, 누가 승인할지 고르는 칸, 승인·보내기 상태 한 줄,
+   * 직접 보내기에서는 받는 곳마다 보낼 글). 예시 커플은 넘기지 않아 아티팩트 모양 그대로다.
    */
   extra?: ReactNode;
   /** 실제 커플: 이미 보냈거나 이 판을 이미 승인했으면 보내기를 잠근다. 보내는 중이면 기다림 표시를 한다. */
   sendDisabled?: boolean;
   sendBusy?: boolean;
+  /**
+   * 실제 커플(직접 보내기, D-83 1단계): 제목과 아래 단추의 글자를 바꾼다. 두 분이 폰에서 직접 보내므로
+   * "보낼까요?"·"보내기"라고 묻지 않는다. 없으면 아티팩트 문구 그대로다.
+   */
+  title?: string;
+  sendLabel?: string;
+  /** 실제 커플(직접 보내기): 상대가 읽었다는 줄을 숨긴다. 그 줄의 "두 번 보내지 않아요" 약속을 직접 보낼 때는 지킬 수 없다. */
+  hidePartnerRead?: boolean;
   className?: string;
 };
 
@@ -87,12 +95,16 @@ export default function InvitationLetterSheet({
   extra,
   sendDisabled = false,
   sendBusy = false,
+  title,
+  sendLabel,
+  hidePartnerRead = false,
   className,
 }: InvitationLetterSheetProps) {
   const dialogRef = useRef<HTMLElement>(null);
   const laterRef = useRef<HTMLAnchorElement>(null);
   const count = model.recipients.length;
   const backdrop = model.backdropPhoto ? photoSrc(model.backdropPhoto) : null;
+  const sendText = sendLabel ?? LETTER_COPY.send(count);
 
   useEffect(() => {
     dialogRef.current?.focus({ preventScroll: true });
@@ -131,7 +143,7 @@ export default function InvitationLetterSheet({
         <span aria-hidden="true" className="h-[5px] w-[38px] self-center rounded-[3px] bg-inv-chip-line" />
         <div className="flex items-center gap-3">
           <AmoraOrb size={44} mood="calm" />
-          <h1 className="text-[18px] leading-[1.45] font-bold">{LETTER_COPY.title(count)}</h1>
+          <h1 className="text-[18px] leading-[1.45] font-bold">{title ?? LETTER_COPY.title(count)}</h1>
         </div>
 
         <article className="flex flex-col gap-3 rounded-[6px] bg-inv-paper px-[22px] pt-[22px] pb-[18px] shadow-[0_1px_2px_rgba(30,28,34,0.06),0_10px_28px_rgba(30,28,34,0.08)]">
@@ -164,7 +176,7 @@ export default function InvitationLetterSheet({
 
         {extra}
 
-        {model.partnerApprovedName ? (
+        {model.partnerApprovedName && !hidePartnerRead ? (
           <p className="text-[13px] leading-[1.6] text-inv-body">{LETTER_COPY.partnerRead(model.partnerApprovedName)}</p>
         ) : null}
 
@@ -179,11 +191,11 @@ export default function InvitationLetterSheet({
               disabled={sendDisabled}
               loading={sendBusy}
             >
-              {LETTER_COPY.send(count)}
+              {sendText}
             </Button>
           ) : (
             <Button href={resolveRoute("status")} variant="ink" size="pill-56" weight="bold" fullWidth>
-              {LETTER_COPY.send(count)}
+              {sendText}
             </Button>
           )}
           {onLater ? (

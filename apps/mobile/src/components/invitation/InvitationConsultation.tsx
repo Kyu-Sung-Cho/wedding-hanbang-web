@@ -31,6 +31,11 @@ type Props = {
   withTabBar?: boolean;
   /** 물어볼 것 아래에 두는 것(실제 커플: 전체 일정으로 가는 길). 없으면 그리지 않는다(예시). */
   footer?: ReactNode;
+  /**
+   * `footer` 에 입력칸이 들어올 때(실제 커플: 받은 답 붙여 넣기, D-83 1단계). 키보드를 피하고(iOS), 키보드가 떠 있어도
+   * 단추가 한 번에 눌리게 한다. 없으면 오늘과 같다.
+   */
+  keyboardAware?: boolean;
 };
 
 /**
@@ -47,6 +52,7 @@ export default function InvitationConsultation({
   topInset,
   withTabBar = false,
   footer,
+  keyboardAware = false,
 }: Props) {
   const insets = useSafeAreaInsets();
   const top = topInset ?? insets.top;
@@ -56,6 +62,8 @@ export default function InvitationConsultation({
     <ScrollView
       style={styles.root}
       contentContainerStyle={{ paddingBottom: withTabBar ? invitationTabBarClearance(insets) + 24 : Math.max(24, insets.bottom) }}
+      automaticallyAdjustKeyboardInsets={keyboardAware ? true : undefined}
+      keyboardShouldPersistTaps={keyboardAware ? "handled" : undefined}
     >
       <View style={[styles.hero, { height: 430 + top }]}>
         {photo ? (

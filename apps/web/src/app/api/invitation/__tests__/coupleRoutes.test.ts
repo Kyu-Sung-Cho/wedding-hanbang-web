@@ -1,6 +1,8 @@
 // @vitest-environment node
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { SELF_SEND_COPY } from "@hanbang/shared/invitation";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
+  FINGERPRINT,
   IDS,
   coupleTables,
   createFakeClient,
@@ -268,6 +270,53 @@ describe("home", () => {
   });
 });
 
+describe("home in couple self-send mode (D-83 stage 1)", () => {
+  const OFF = { on: false, value: null };
+  beforeEach(() => {
+    delete process.env.HALL_INQUIRY_SELF_SEND_ENABLED;
+  });
+  afterEach(() => {
+    delete process.env.HALL_INQUIRY_SELF_SEND_ENABLED;
+  });
+
+  /** 열린 편지 한 판. approved 면 한 사람이 승인해 승인이 끝났고(방식 미정), 문의 보내기는 꺼져 있다. */
+  const letterTables = (approved: boolean) => ({
+    ...coupleTables(),
+    ...emptyInquiryTables,
+    hall_inquiry_letters: ok({ id: IDS.letter, created_at: "2026-11-15T01:00:00Z" }),
+    hall_inquiry_letter_versions: ok({
+      id: IDS.version, letter_id: IDS.letter, version: 1, recipient_hall_ids: [IDS.hallA], recipient_names: ["소담 하우스"],
+      body: "본문", signature: "결혼을 준비하는 두 사람 드림", shares: { name: OFF, phone: OFF, budget: OFF }, fingerprint: FINGERPRINT,
+      created_at: "2026-11-15T01:00:00Z", approval_completed_at: approved ? "2026-11-16T03:00:00Z" : null, queued_at: null,
+    }),
+    hall_inquiry_approvals: ok(approved ? [{ approver_user_id: IDS.groom, settings_revision: 0, fingerprint: FINGERPRINT, sending_enabled: false }] : []),
+    hall_shortlists: ok([{ hall_id: IDS.hallA, created_at: "2026-11-16T00:00:00Z" }]),
+    hall_listings: ok([listingRow(IDS.hallA, "소담 하우스")]),
+  });
+  const home = async () => (await getHome(jsonRequest(`${URL_BASE}/home`, "GET"))).json();
+
+  it("drops the approval news and the approval decision only while the switch is on", async () => {
+    useClient(letterTables(true));
+    const pausedOff = await home();
+    expect(pausedOff.home.update).toMatchObject({ text: "편지가 승인됐어요. 지금은 문의 보내기를 멈춰 두어서 아직 보내지 않았어요." });
+    useClient(letterTables(false));
+    const pendingOff = await home();
+    expect(pendingOff.home.decisions.map((item: { id: string }) => item.id)).toEqual([`letter-${IDS.version}`]);
+
+    process.env.HALL_INQUIRY_SELF_SEND_ENABLED = "true";
+    useClient(letterTables(true));
+    const pausedOn = await home();
+    expect(pausedOn.home.update).toBeNull();
+    expect(pausedOn.updateSteps).toEqual([]);
+    useClient(letterTables(false));
+    const pendingOn = await home();
+    expect(pendingOn.home.decisions).toEqual([]);
+    // 응답 모양은 그대로다. 직접 보내기 글은 편지 화면에서만 준다.
+    expect(Object.keys(pendingOn)).toEqual(["home", "degraded", "updateSteps"]);
+    expect(pendingOn.home).toEqual({ ...pendingOff.home, decisions: [] });
+  });
+});
+
 describe("halls (W2)", () => {
   it("asks for guests and region before comparing", async () => {
     useClient({ ...coupleTables({ progress: { __invitationConditions: { ...CONDITIONS, guestCount: null, region: null } } }), hall_shortlists: ok([]) });
@@ -442,6 +491,25 @@ describe("approver setting (D-76)", () => {
       setting: { mode: "both", revision: 1 }, outcome: "proposed",
       pending: { proposalId: PROPOSAL, mode: "unset", proposedBy: IDS.bride, viewerCanRespond: false },
     });
+  });
+
+  it("does not change the approval mode while couples send the letter themselves (D-83 stage 1)", async () => {
+    const client = useClient();
+    const admin = useAdmin(() => ok({ mode: "both", designatedUserId: null, revision: 2, changed: true, outcome: "applied", pending: null }));
+    process.env.HALL_INQUIRY_SELF_SEND_ENABLED = "true";
+    try {
+      const response = await putApprover(jsonRequest(`${URL_BASE}/approver`, "PUT", { mode: "both" }));
+      expect(response.status).toBe(409);
+      await expect(response.json()).resolves.toEqual({ code: "SELF_SEND_MODE", error: SELF_SEND_COPY.approveRefused });
+      expect(client.calls).toEqual([]);
+      expect(admin.rpc).not.toHaveBeenCalled();
+      // 운영자 대기열이 켜져 있으면 직접 보내기는 꺼진 것이라 예전처럼 바꾼다.
+      process.env.HALL_INQUIRY_SENDING_ENABLED = "true";
+      expect((await putApprover(jsonRequest(`${URL_BASE}/approver`, "PUT", { mode: "both" }))).status).toBe(200);
+    } finally {
+      delete process.env.HALL_INQUIRY_SELF_SEND_ENABLED;
+      delete process.env.HALL_INQUIRY_SENDING_ENABLED;
+    }
   });
 
   it("rejects a malformed database result instead of guessing", async () => {

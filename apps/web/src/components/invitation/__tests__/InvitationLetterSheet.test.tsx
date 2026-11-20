@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { EXAMPLE_LETTER, LETTER_COPY, type LetterModel } from "@hanbang/shared/invitation";
+import { EXAMPLE_LETTER, LETTER_COPY, SELF_SEND_COPY, type LetterModel } from "@hanbang/shared/invitation";
 
 vi.mock("next/link", () => ({
   default: ({ href, children, ...rest }: { href: string; children?: React.ReactNode }) => (
@@ -99,6 +99,30 @@ describe("InvitationLetterSheet", () => {
     expect(onSend).toHaveBeenCalledOnce();
     expect(onLater).toHaveBeenCalledOnce();
     expect(onEditText).toHaveBeenCalledOnce();
+  });
+
+  it("직접 보내기(D-83 1단계) 글자: 제목과 아래 단추 글자를 바꾸고 상대가 읽었다는 줄을 숨긴다. 넘기지 않으면 아티팩트 그대로다", async () => {
+    const onSend = vi.fn();
+    const { container } = await renderLetter(EXAMPLE_LETTER, {
+      onSend,
+      title: SELF_SEND_COPY.title(2),
+      sendLabel: SELF_SEND_COPY.save,
+      hidePartnerRead: true,
+    });
+    expect(text(container.querySelector("h1"))).toBe(SELF_SEND_COPY.title(2));
+    expect(container.textContent).not.toContain(LETTER_COPY.partnerRead("준호"));
+    expect(container.textContent).not.toContain(LETTER_COPY.send(2));
+    await click(buttonNamed(container, SELF_SEND_COPY.save));
+    expect(onSend).toHaveBeenCalledOnce();
+    // 나중에 할게요는 그대로다.
+    expect(linkNamed(container, LETTER_COPY.later).getAttribute("href")).toBe("/test/compare");
+
+    await cleanup();
+    const second = await renderLetter(EXAMPLE_LETTER, { sendLabel: SELF_SEND_COPY.save });
+    // 보낼 일을 넘기지 않으면 같은 글자의 링크이고, 상대가 읽었다는 줄은 숨기라고 하지 않았으니 보인다.
+    expect(linkNamed(second.container, SELF_SEND_COPY.save).getAttribute("href")).toBe("/test/status");
+    expect(text(second.container.querySelector("h1"))).toBe(LETTER_COPY.title(2));
+    expect(second.container.textContent).toContain(LETTER_COPY.partnerRead("준호"));
   });
 
   it("Esc 는 나중에 할게요와 같다", async () => {

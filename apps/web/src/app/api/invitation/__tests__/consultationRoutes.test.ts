@@ -1,13 +1,17 @@
 // @vitest-environment node
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
+  FINGERPRINT,
   IDS,
   coupleTables,
   createFakeClient,
+  fail,
+  filterValue,
   jsonRequest,
   listingRow,
   ok,
   type FakeClient,
+  type QueryCall,
   type QueryResult,
 } from "@/lib/invitation/__tests__/fakeSupabase";
 
@@ -57,6 +61,12 @@ function useAdmin(rpc: (name: string, args: Record<string, unknown>) => QueryRes
 
 beforeEach(() => {
   vi.clearAllMocks();
+  delete process.env.HALL_INQUIRY_SELF_SEND_ENABLED;
+  delete process.env.HALL_INQUIRY_SENDING_ENABLED;
+});
+afterEach(() => {
+  delete process.env.HALL_INQUIRY_SELF_SEND_ENABLED;
+  delete process.env.HALL_INQUIRY_SENDING_ENABLED;
 });
 
 describe("consultation (W5)", () => {
@@ -133,6 +143,134 @@ describe("consultation (W5)", () => {
     expect((await addToSchedule(jsonRequest(`${URL_BASE}/consultation/schedule`, "POST", { replyId: "x" }))).status).toBe(400);
     expect((await addToSchedule(jsonRequest(`${URL_BASE}/consultation/schedule`, "POST", { replyId: IDS.replyA }, { "sec-fetch-site": "cross-site" }))).status).toBe(403);
     expect(admin.rpc).not.toHaveBeenCalled();
+  });
+});
+
+describe("halls for a pasted reply (D-83 stage 1)", () => {
+  const HALL_UNKNOWN = "dededede-dede-4ded-8ded-dededededede";
+  const OFF = { on: false, value: null };
+  const LISTINGS = [
+    listingRow(IDS.hallA, "소담 하우스", { photo_url: "https://example.com/sodam.jpg" }),
+    listingRow(IDS.hallB, "가온 웨딩홀"),
+    listingRow(IDS.hallC, "루체 컨벤션"),
+  ];
+
+  function pasteTables(options: { replies?: unknown[]; recipients?: string[] | null; shortlist?: string[] } = {}) {
+    const recipients = options.recipients === undefined ? [IDS.hallB, IDS.hallA] : options.recipients;
+    const shortlist = options.shortlist ?? [IDS.hallA, IDS.hallC, HALL_UNKNOWN];
+    const openVersion = recipients && {
+      id: IDS.version, letter_id: IDS.letter, version: 1,
+      recipient_hall_ids: recipients, recipient_names: recipients.map((_, index) => `판에 남은 이름 ${index}`),
+      body: "본문", signature: "결혼을 준비하는 두 사람 드림", shares: { name: OFF, phone: OFF, budget: OFF },
+      fingerprint: FINGERPRINT, created_at: "2026-11-15T01:00:00Z", approval_completed_at: null, queued_at: null,
+    };
+    return {
+      ...tables({}, options.replies ?? [confirmedReply, proposedReply]),
+      hall_inquiry_letters: ok(recipients ? { id: IDS.letter, created_at: "2026-11-15T01:00:00Z" } : null),
+      // 같은 표를 문의 기록(id 목록)과 열린 편지(편지 ID) 두 길로 읽는다.
+      hall_inquiry_letter_versions: (calls: QueryCall[]) => (calls.some((call) => call.method === "in") ? ok([]) : ok(openVersion || null)),
+      hall_inquiry_approvals: ok([]),
+      hall_shortlists: ok(shortlist.map((hall_id, index) => ({ hall_id, created_at: `2026-11-16T00:0${index}:00Z` }))),
+      hall_listings: (calls: QueryCall[]) => {
+        const ids = (filterValue(calls, "in", "id") as string[] | undefined) ?? [];
+        return ok(LISTINGS.filter((row) => ids.includes(row.id)));
+      },
+    };
+  }
+
+  // 한 시험에서 여러 번 부르므로 hook 처럼 보이는 이름(use…)을 피한다.
+  function installClient(t: Record<string, unknown>): FakeClient {
+    const client = createFakeClient({ user: { id: IDS.bride }, tables: t as never });
+    mocks.client = client;
+    return client;
+  }
+
+  async function consultationBody(t: Record<string, unknown>) {
+    const client = installClient(t);
+    const response = await getConsultation(jsonRequest(`${URL_BASE}/consultation`, "GET"));
+    return { status: response.status, body: await response.json(), client };
+  }
+
+  it("adds nothing and reads nothing extra while the switch is off", async () => {
+    for (const value of [undefined, "false", "TRUE"]) {
+      if (value === undefined) delete process.env.HALL_INQUIRY_SELF_SEND_ENABLED;
+      else process.env.HALL_INQUIRY_SELF_SEND_ENABLED = value;
+      const confirmed = await consultationBody(pasteTables());
+      expect(Object.keys(confirmed.body), String(value)).toEqual(["consultation", "replyId", "inCalendar", "startsAt"]);
+      expect(confirmed.client.calls.some((call) => ["hall_shortlists", "hall_inquiry_letters"].includes(call.table)), String(value)).toBe(false);
+      const empty = await consultationBody(pasteTables({ replies: [proposedReply] }));
+      expect(empty.body, String(value)).toEqual({ consultation: null, replyId: null, inCalendar: false, startsAt: null });
+    }
+  });
+
+  it("lists the open letter's recipients, then the picked halls, named from the hall records", async () => {
+    const off = await consultationBody(pasteTables());
+    process.env.HALL_INQUIRY_SELF_SEND_ENABLED = "true";
+    const on = await consultationBody(pasteTables());
+    expect(on.status).toBe(200);
+    const { replyPaste, ...rest } = on.body;
+    expect(rest).toEqual(off.body);
+    // 같은 홀은 한 번만, 읽히지 않는 홀은 뺀다. 이름은 판에 남은 이름이 아니라 홀 자료의 이름이다.
+    expect(replyPaste).toEqual({
+      halls: [
+        { hallId: IDS.hallB, name: "가온 웨딩홀" },
+        { hallId: IDS.hallA, name: "소담 하우스" },
+        { hallId: IDS.hallC, name: "루체 컨벤션" },
+      ],
+      addedCount: 0,
+    });
+  });
+
+  it("counts the consultations added from pasted replies, leaving out cancelled ones and other events", async () => {
+    process.env.HALL_INQUIRY_SELF_SEND_ENABLED = "true";
+    const at = "2026-11-18T03:00:00.000Z";
+    const stamped = { createdAt: at, updatedAt: at, assignee: { kind: "couple" } };
+    const pasted = (id: string, date: string, extra: Record<string, unknown> = {}) => ({
+      id, date, title: "소담 하우스 상담", categoryKey: "venue", status: "planned", ...stamped,
+      sourceKey: `hall-consultation-pasted:${IDS.hallA}:${date}`, ...extra,
+    });
+    const events = [
+      pasted("evt_1", "2026-12-03"),
+      pasted("evt_2", "2026-12-05", { time: "14:00", sourceKey: `hall-consultation-pasted:${IDS.hallA}:2026-12-05T14:00` }),
+      pasted("evt_3", "2026-12-07", { status: "cancelled", cancellation: { cancelledAt: at, cancelledByProfileId: IDS.bride } }),
+      // 운영자가 적은 답장으로 넣은 상담과 다른 일정은 세지 않는다.
+      { id: "evt_4", date: "2026-12-09", title: "드레스 피팅", categoryKey: "dress", status: "planned", ...stamped },
+      { id: "evt_5", date: "2026-11-22", title: "소담 하우스 상담", sourceKey: `hall-consultation:${IDS.replyA}`, status: "planned", ...stamped },
+    ];
+    const withEvents = {
+      ...pasteTables({ replies: [] }),
+      wedding_journeys: ok({ couple_id: IDS.couple, state_revision: 8, progress: { __events: events }, wedding_date: null, venue: null, total_budget: 0 }),
+    };
+    const { body } = await consultationBody(withEvents);
+    expect(body.consultation).toBeNull();
+    expect(body.replyPaste.addedCount).toBe(2);
+  });
+
+  it("adds the halls to the answer without a confirmed consultation too", async () => {
+    process.env.HALL_INQUIRY_SELF_SEND_ENABLED = "true";
+    const { body } = await consultationBody(pasteTables({ replies: [proposedReply], recipients: null, shortlist: [IDS.hallC] }));
+    expect(body).toEqual({
+      consultation: null, replyId: null, inCalendar: false, startsAt: null,
+      replyPaste: { halls: [{ hallId: IDS.hallC, name: "루체 컨벤션" }], addedCount: 0 },
+    });
+    const none = await consultationBody(pasteTables({ replies: [], recipients: null, shortlist: [] }));
+    expect(none.body.replyPaste).toEqual({ halls: [], addedCount: 0 });
+  });
+
+  it("fails closed when the halls cannot be read", async () => {
+    process.env.HALL_INQUIRY_SELF_SEND_ENABLED = "true";
+    const shortlistDown = await consultationBody({ ...pasteTables(), hall_shortlists: fail() });
+    expect(shortlistDown.status).toBe(503);
+    expect(shortlistDown.body).toMatchObject({ code: "CONSULTATION_UNAVAILABLE" });
+    const letterDown = await consultationBody({ ...pasteTables(), hall_inquiry_letters: fail() });
+    expect(letterDown.status).toBe(503);
+  });
+
+  it("stays off while the operator queue is on", async () => {
+    process.env.HALL_INQUIRY_SELF_SEND_ENABLED = "true";
+    process.env.HALL_INQUIRY_SENDING_ENABLED = "true";
+    const { body } = await consultationBody(pasteTables());
+    expect(Object.keys(body)).toEqual(["consultation", "replyId", "inCalendar", "startsAt"]);
   });
 });
 

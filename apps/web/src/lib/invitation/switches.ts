@@ -8,13 +8,18 @@
  *                                숫자가 아니거나 범위(1~50) 밖이면 0 으로 보고 아무것도 넣지 않는다.
  *   INQUIRY_GLOBAL_DAILY_CAP_ENV 서비스 전체가 한국 날짜로 하루에 대기열에 넣을 수 있는 곳의 수(0~1000).
  *                                닫힌 채 실패한다: 비어 있거나 틀리면 0 으로 보고 아무것도 넣지 않는다.
+ *   INQUIRY_SELF_SEND_ENV        "true" 일 때만 커플이 편지를 자기 폰에서 직접 보낸다(D-83 1단계). 서버는 아무것도
+ *                                보내지 않는다. 편지 응답에 받는 곳마다 보낼 글을 싣고, 승인 경로는 승인을 받지 않으며,
+ *                                상담 화면에 받은 답 붙여 넣기를 연다. INQUIRY_SENDING_ENV 가 "true" 이면 운영자
+ *                                대기열이 이기고 이 스위치는 꺼진 것으로 본다. 꺼져 있으면 모든 응답이 이 스위치 전과 같다.
  *
- * 운영에서 켜는 것은 파운더 결정(D-19)이다. 켜도 보내는 일은 사람(운영자)이 한다.
+ * 운영에서 켜는 것은 파운더 결정(D-19)이다. 켜도 보내는 일은 사람(운영자 또는 커플 자신)이 한다.
  */
 
 export const INQUIRY_SENDING_ENV = "HALL_INQUIRY_SENDING_ENABLED";
 export const INQUIRY_DAILY_CAP_ENV = "HALL_INQUIRY_DAILY_CAP";
 export const INQUIRY_GLOBAL_DAILY_CAP_ENV = "HALL_INQUIRY_GLOBAL_DAILY_CAP";
+export const INQUIRY_SELF_SEND_ENV = "HALL_INQUIRY_SELF_SEND_ENABLED";
 
 export const DEFAULT_INQUIRY_DAILY_CAP = 5;
 export const MAX_INQUIRY_DAILY_CAP = 50;
@@ -24,6 +29,11 @@ type Env = Record<string, string | undefined>;
 
 export function isInquirySendingEnabled(env: Env = process.env): boolean {
   return env[INQUIRY_SENDING_ENV] === "true";
+}
+
+/** 커플이 직접 보내기(D-83 1단계). 운영자 대기열이 켜져 있으면 늘 꺼짐이다: 두 길이 한꺼번에 열리지 않는다. */
+export function isInquirySelfSendEnabled(env: Env = process.env): boolean {
+  return env[INQUIRY_SELF_SEND_ENV] === "true" && !isInquirySendingEnabled(env);
 }
 
 export type InquiryDailyCap = { value: number; misconfigured: boolean };

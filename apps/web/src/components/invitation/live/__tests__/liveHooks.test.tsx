@@ -2,14 +2,18 @@ import { useLayoutEffect } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   COMPARE_STATE_COPY,
+  EXAMPLE_LETTER,
   JOURNEY_STATE_COPY,
   LETTER_STATE_COPY,
+  VENDOR_REPLY_COPY,
+  type ConsultationPasteSchedulePost,
   type InvitationHomeResponse,
+  type LetterSelfSend,
 } from "@hanbang/shared/invitation";
 
-import { isHomeResponse } from "../invitationGuards";
+import { isConsultationResponse, isHomeResponse, isLetterResponse } from "../invitationGuards";
 import { useInvitationHalls } from "../useInvitationHalls";
-import { useInvitationConditions, useInvitationConsultation } from "../useInvitationHome";
+import { useInvitationConditions, useInvitationConsultation, usePastedConsultationSchedule } from "../useInvitationHome";
 import { useInvitationJourney } from "../useInvitationJourney";
 import { useInvitationLetter } from "../useInvitationLetter";
 import { useInvitationQuery } from "../useInvitationQuery";
@@ -17,11 +21,13 @@ import type { LiveIdentity } from "../useLiveIdentity";
 import {
   FINGERPRINT,
   HALL_A,
+  HALL_B,
   LETTER_ID,
   NEXT_FINGERPRINT,
   NEXT_VERSION,
   PARTNER,
   REPLY,
+  REPLY_PASTE,
   VERSION,
   approverResponse,
   compareModel,
@@ -31,6 +37,8 @@ import {
   homeResponse,
   journeyResponse,
   letterResponse,
+  selfSendFor,
+  selfSendLetterResponse,
 } from "./liveFixtures";
 import { apiError, cleanup, flush, json, mockApi, never, render } from "./liveTestKit";
 
@@ -390,6 +398,31 @@ describe("useInvitationLetter", () => {
     expect(result.current.notice).toEqual({ tone: "error", text: LETTER_STATE_COPY.saveFailed });
   });
 
+  it("꺼진 서버의 보내기(send)는 저장 실패를 예전 그대로 말한다: 잠긴 편지는 이미 보냈다고 하고 다시 읽으며, 받는 홀이 바뀐 409 는 다시 누르라고만 하고 다시 읽지 않는다", async () => {
+    const api = letterApi({
+      "GET /api/invitation/letter": json(letterResponse({ letterId: LETTER_ID, versionId: VERSION, version: 1, fingerprint: FINGERPRINT })),
+      "PUT /api/invitation/letter": [
+        apiError(409, "LETTER_LOCKED", "이미 보낼 준비를 마친 편지예요. 새 편지로 써 주세요."),
+        apiError(409, "RECIPIENTS_UNAVAILABLE", "받는 홀이 바뀌었어요. 담은 홀을 다시 확인해 주세요."),
+      ],
+    });
+    const { result, Probe } = probe(() => useInvitationLetter(identity()));
+    await render(<Probe />);
+    result.current.toggleShare("budget");
+    await flush();
+    await result.current.send();
+    await flush();
+    expect(result.current.notice).toEqual({ tone: "error", text: LETTER_STATE_COPY.alreadySent });
+    expect(api.count("GET", "/api/invitation/letter")).toBe(2);
+
+    await result.current.send();
+    await flush();
+    expect(result.current.notice).toEqual({ tone: "error", text: LETTER_STATE_COPY.saveFailed });
+    expect(api.count("GET", "/api/invitation/letter")).toBe(2);
+    expect(api.count("POST", "/api/invitation/letter/approve")).toBe(0);
+    expect(result.current.preparedCount).toBe(0);
+  });
+
   it("저장된 번호 없이 휴대폰을 켜면 번호 칸이 필요하다고 알리고, 적은 번호를 보낸다", async () => {
     const response = letterResponse({ letterId: LETTER_ID, versionId: VERSION, version: 1, fingerprint: FINGERPRINT });
     const letter = response.letter!;
@@ -435,6 +468,440 @@ describe("useInvitationLetter", () => {
     const { result, Probe } = probe(() => useInvitationLetter(identity()));
     await render(<Probe />);
     expect(result.current.needShortlist).toBe(true);
+  });
+});
+
+describe("useInvitationLetter: 직접 보내기(D-83 1단계)", () => {
+  const SAVED = { letterId: LETTER_ID, versionId: VERSION, version: 1, fingerprint: FINGERPRINT, status: "awaiting_approval" as const };
+
+  function letterApi(routes: Parameters<typeof mockApi>[0]) {
+    return mockApi({ "GET /api/invitation/approver": json(approverResponse()), ...routes });
+  }
+
+  it("칸이 없으면 직접 보내기가 아니다. 칸이 있으면(null 이어도) 직접 보내기이고, 저장한 판이 없으면 보낼 글 없이 저장만 누를 수 있다", async () => {
+    letterApi({ "GET /api/invitation/letter": json(letterResponse()) });
+    const off = probe(() => useInvitationLetter(identity()));
+    await render(<off.Probe />);
+    expect(off.result.current.selfSendMode).toBe(false);
+    expect(off.result.current.selfSend).toBeNull();
+    await cleanup();
+
+    letterApi({ "GET /api/invitation/letter": json(selfSendLetterResponse({}, { selfSend: null })) });
+    const draft = probe(() => useInvitationLetter(identity()));
+    await render(<draft.Probe />);
+    expect(draft.result.current.selfSendMode).toBe(true);
+    expect(draft.result.current.selfSend).toBeNull();
+    expect(draft.result.current.canPrepare).toBe(true);
+  });
+
+  it("보낼 글은 그 글을 만든 판이 화면의 판과 같고 고친 것이 없을 때만 준다", async () => {
+    letterApi({ "GET /api/invitation/letter": json(selfSendLetterResponse(SAVED, { selfSend: selfSendFor() })) });
+    const { result, Probe } = probe(() => useInvitationLetter(identity()));
+    await render(<Probe />);
+    expect(result.current.selfSend?.versionId).toBe(VERSION);
+    expect(result.current.canPrepare).toBe(false);
+
+    result.current.toggleShare("budget");
+    await flush();
+    expect(result.current.dirty).toBe(true);
+    expect(result.current.selfSend).toBeNull();
+    expect(result.current.canPrepare).toBe(true);
+    await cleanup();
+
+    letterApi({ "GET /api/invitation/letter": json(selfSendLetterResponse(SAVED, { selfSend: selfSendFor(VERSION, NEXT_FINGERPRINT) })) });
+    const mismatch = probe(() => useInvitationLetter(identity()));
+    await render(<mismatch.Probe />);
+    expect(mismatch.result.current.selfSendMode).toBe(true);
+    expect(mismatch.result.current.selfSend).toBeNull();
+  });
+
+  it("prepare 는 화면의 편지를 PUT 으로 저장만 하고 승인은 부르지 않는다. 저장한 판의 보낼 글을 곧바로 준다", async () => {
+    const api = letterApi({
+      "GET /api/invitation/letter": json(selfSendLetterResponse({}, { selfSend: null })),
+      "PUT /api/invitation/letter": json({
+        ...selfSendLetterResponse(SAVED, { selfSend: selfSendFor() }),
+        saved: { letterId: LETTER_ID, versionId: VERSION, version: 1, fingerprint: FINGERPRINT, created: true },
+      }),
+    });
+    const { result, Probe } = probe(() => useInvitationLetter(identity()));
+    await render(<Probe />);
+
+    await result.current.prepare();
+    await flush();
+    expect(api.count("PUT", "/api/invitation/letter")).toBe(1);
+    expect(api.count("POST", "/api/invitation/letter/approve")).toBe(0);
+    // 직접 보내기 서버는 휴대폰 번호 줄을 주지 않으므로 저장 본문의 번호는 꺼져 있다.
+    expect(api.last("PUT", "/api/invitation/letter")?.body).toEqual({
+      letterId: null,
+      recipientHallIds: [HALL_A, HALL_B],
+      body: EXAMPLE_LETTER.body,
+      shares: { name: { on: true, value: "김민지" }, phone: { on: false, value: null }, budget: { on: false } },
+    });
+    expect(result.current.model?.shares.map((share) => share.key)).toEqual(["name", "budget"]);
+    expect(result.current.needsPhone).toBe(false);
+    expect(result.current.state?.versionId).toBe(VERSION);
+    expect(result.current.selfSend?.messages.map((message) => message.hallId)).toEqual([HALL_A, HALL_B]);
+    expect(result.current.notice).toBeNull();
+    expect(result.current.canPrepare).toBe(false);
+  });
+
+  it("prepare 의 저장 본문은 send 의 저장 본문과 같다(새로 적은 휴대폰 번호와 바꾼 정보 포함)", async () => {
+    // 두 저장 본문을 만드는 곳이 갈라지지 않았는지 보는 시험이라 두 번 다 휴대폰 번호 줄이 있는 응답을 쓴다
+    // (직접 보내기 서버는 그 줄을 빼고 준다. 그 응답은 `selfSendLetterResponse` 를 쓰는 시험들이 본다).
+    async function putBodyAfter(action: "send" | "prepare", selfSend: LetterSelfSend | undefined) {
+      const response = letterResponse(SAVED, selfSend ? { selfSend } : {});
+      const letter = response.letter!;
+      const api = letterApi({
+        "GET /api/invitation/letter": json({
+          ...response,
+          letter: { ...letter, shares: letter.shares.map((share) => (share.key === "phone" ? { ...share, on: false, value: "" } : share)) },
+        }),
+        "PUT /api/invitation/letter": apiError(503, "INQUIRY_UNAVAILABLE", "잠시 후 다시 시도해 주세요."),
+      });
+      const { result, Probe } = probe(() => useInvitationLetter(identity()));
+      await render(<Probe />);
+      result.current.toggleShare("phone");
+      await flush();
+      result.current.setPhone(" 010-1234-5678 ");
+      await flush();
+      result.current.toggleShare("budget");
+      await flush();
+      await result.current[action]();
+      await flush();
+      const body = api.last("PUT", "/api/invitation/letter")?.body;
+      await cleanup();
+      return body;
+    }
+
+    const viaSend = await putBodyAfter("send", undefined);
+    const viaPrepare = await putBodyAfter("prepare", selfSendFor());
+    expect(viaPrepare).toEqual(viaSend);
+    expect(viaPrepare).toMatchObject({ shares: { phone: { on: true, value: "010-1234-5678" }, budget: { on: true } } });
+  });
+
+  it("저장이 실패했는데 서버가 이유를 말하지 않으면(연결 끊김) 다시 누르라고 말하고, 같은 순간 두 번 눌러도 PUT 은 한 번만 나간다", async () => {
+    const api = letterApi({
+      "GET /api/invitation/letter": json(selfSendLetterResponse({}, { selfSend: null })),
+      "PUT /api/invitation/letter": () => Promise.reject(new TypeError("Failed to fetch")),
+    });
+    const { result, Probe } = probe(() => useInvitationLetter(identity()));
+    await render(<Probe />);
+    await Promise.all([result.current.prepare(), result.current.prepare()]);
+    await flush();
+    expect(api.count("PUT", "/api/invitation/letter")).toBe(1);
+    expect(result.current.notice).toEqual({ tone: "error", text: LETTER_STATE_COPY.saveFailed });
+    expect(api.count("GET", "/api/invitation/letter")).toBe(1);
+  });
+
+  it("받는 홀이 바뀌어 저장이 409 로 막히면 서버가 말한 이유를 보이고 편지를 다시 읽는다. 다시 누르면 다시 읽은 받는 곳으로 저장한다(같은 409 를 되풀이하지 않는다)", async () => {
+    const onlyA = [{ hallId: HALL_A, name: "하나 웨딩홀" }];
+    const reread = selfSendLetterResponse({ letterId: LETTER_ID, recipients: onlyA }, { selfSend: null });
+    const api = letterApi({
+      "GET /api/invitation/letter": [
+        json(selfSendLetterResponse(SAVED, { selfSend: selfSendFor() })),
+        json({ ...reread, letter: { ...reread.letter!, recipients: ["하나 웨딩홀"] } }),
+      ],
+      "PUT /api/invitation/letter": [
+        apiError(409, "RECIPIENTS_UNAVAILABLE", "받는 홀이 바뀌었어요. 담은 홀을 다시 확인해 주세요."),
+        json({
+          ...selfSendLetterResponse(
+            { ...SAVED, versionId: NEXT_VERSION, version: 2, fingerprint: NEXT_FINGERPRINT, recipients: onlyA },
+            { selfSend: selfSendFor(NEXT_VERSION, NEXT_FINGERPRINT, { messages: [selfSendFor().messages[0]] }) },
+          ),
+          saved: { letterId: LETTER_ID, versionId: NEXT_VERSION, version: 2, fingerprint: NEXT_FINGERPRINT, created: true },
+        }),
+      ],
+    });
+    const { result, Probe } = probe(() => useInvitationLetter(identity()));
+    await render(<Probe />);
+    result.current.toggleShare("budget");
+    await flush();
+
+    await result.current.prepare();
+    await flush();
+    expect((api.last("PUT", "/api/invitation/letter")?.body as { recipientHallIds: string[] }).recipientHallIds).toEqual([HALL_A, HALL_B]);
+    expect(result.current.notice).toEqual({ tone: "error", text: "받는 홀이 바뀌었어요. 담은 홀을 다시 확인해 주세요." });
+    expect(api.count("GET", "/api/invitation/letter")).toBe(2);
+    expect(result.current.state?.recipients.map((recipient) => recipient.hallId)).toEqual([HALL_A]);
+    expect(result.current.canPrepare).toBe(true);
+    expect(result.current.preparedCount).toBe(0);
+
+    await result.current.prepare();
+    await flush();
+    expect((api.last("PUT", "/api/invitation/letter")?.body as { recipientHallIds: string[] }).recipientHallIds).toEqual([HALL_A]);
+    expect(result.current.notice).toBeNull();
+    expect(result.current.selfSend?.messages.map((message) => message.hallId)).toEqual([HALL_A]);
+    expect(result.current.preparedCount).toBe(1);
+    expect(api.count("POST", "/api/invitation/letter/approve")).toBe(0);
+  });
+
+  it("직접 보내기의 저장 실패는 이미 보냈다고 말하지 않는다: 잠긴 편지(409)는 서버가 말한 이유를, 이유가 없으면 다시 누르라고 말하고 어느 409 든 편지를 다시 읽는다", async () => {
+    const locked = letterApi({
+      "GET /api/invitation/letter": json(selfSendLetterResponse(SAVED, { selfSend: selfSendFor() })),
+      "PUT /api/invitation/letter": [
+        apiError(409, "LETTER_LOCKED", "이미 보낼 준비를 마친 편지예요. 새 편지로 써 주세요."),
+        apiError(409, "LETTER_LOCKED", " "),
+      ],
+    });
+    const { result, Probe } = probe(() => useInvitationLetter(identity()));
+    await render(<Probe />);
+    result.current.toggleShare("budget");
+    await flush();
+    await result.current.prepare();
+    await flush();
+    expect(result.current.notice).toEqual({ tone: "error", text: "이미 보낼 준비를 마친 편지예요. 새 편지로 써 주세요." });
+    expect(locked.count("GET", "/api/invitation/letter")).toBe(2);
+
+    await result.current.prepare();
+    await flush();
+    expect(result.current.notice).toEqual({ tone: "error", text: LETTER_STATE_COPY.saveFailed });
+    expect(result.current.notice?.text).not.toBe(LETTER_STATE_COPY.alreadySent);
+    expect(locked.count("GET", "/api/invitation/letter")).toBe(3);
+  });
+
+  it("409 가 아닌 저장 실패는 서버가 말한 이유를 보이되 편지를 다시 읽지 않고 고친 것을 그대로 둔다", async () => {
+    const api = letterApi({
+      "GET /api/invitation/letter": json(selfSendLetterResponse(SAVED, { selfSend: selfSendFor() })),
+      "PUT /api/invitation/letter": apiError(400, "LETTER_SHARES_INVALID", "알려줄 정보를 다시 확인해 주세요."),
+    });
+    const { result, Probe } = probe(() => useInvitationLetter(identity()));
+    await render(<Probe />);
+    result.current.toggleShare("budget");
+    await flush();
+    await result.current.prepare();
+    await flush();
+    expect(result.current.notice).toEqual({ tone: "error", text: "알려줄 정보를 다시 확인해 주세요." });
+    expect(api.count("GET", "/api/invitation/letter")).toBe(1);
+    expect(result.current.dirty).toBe(true);
+    expect(result.current.preparing).toBe(false);
+  });
+
+  it("preparing 은 저장하는 동안만 참이다. 승인 방식 제안에 답하는 동안(busy)에는 거짓이다", async () => {
+    let finishPut: (response: Response) => void = () => undefined;
+    let finishConfirm: (response: Response) => void = () => undefined;
+    const pending = { proposalId: "99999999-9999-4999-8999-999999999999", mode: "both" as const, designatedUserId: null, proposedBy: PARTNER, proposedAt: "2026-11-17T03:00:00.000Z", viewerCanRespond: true };
+    letterApi({
+      "GET /api/invitation/approver": json(approverResponse({ pending })),
+      "GET /api/invitation/letter": json(selfSendLetterResponse({}, { selfSend: null })),
+      "PUT /api/invitation/letter": () => new Promise<Response>((resolve) => {
+        finishPut = resolve;
+      }),
+      "POST /api/invitation/approver/confirm": () => new Promise<Response>((resolve) => {
+        finishConfirm = resolve;
+      }),
+    });
+    const { result, Probe } = probe(() => useInvitationLetter(identity()));
+    await render(<Probe />);
+
+    const confirming = result.current.respondToProposal(true);
+    await flush();
+    expect(result.current.busy).toBe(true);
+    expect(result.current.preparing).toBe(false);
+    finishConfirm(json(approverResponse({ setting: { mode: "both", designatedUserId: null, revision: 2 }, pending: null, outcome: "confirmed" })));
+    await confirming;
+    await flush();
+    expect(result.current.busy).toBe(false);
+
+    const saving = result.current.prepare();
+    await flush();
+    expect(result.current.preparing).toBe(true);
+    finishPut(json({
+      ...selfSendLetterResponse(SAVED, { selfSend: selfSendFor() }),
+      saved: { letterId: LETTER_ID, versionId: VERSION, version: 1, fingerprint: FINGERPRINT, created: true },
+    }));
+    await saving;
+    await flush();
+    expect(result.current.preparing).toBe(false);
+    expect(result.current.preparedCount).toBe(1);
+  });
+
+  it("needsSave 는 쓰기가 도는 동안에도 그대로다(잠기는 것은 canPrepare 뿐이다). 대기열에 넣은 옛 편지와 글이 나온 판은 저장할 것이 없다", async () => {
+    let finishConfirm: (response: Response) => void = () => undefined;
+    const pending = { proposalId: "99999999-9999-4999-8999-999999999999", mode: "both" as const, designatedUserId: null, proposedBy: PARTNER, proposedAt: "2026-11-17T03:00:00.000Z", viewerCanRespond: true };
+    letterApi({
+      "GET /api/invitation/approver": json(approverResponse({ pending })),
+      "GET /api/invitation/letter": json(selfSendLetterResponse({}, { selfSend: null })),
+      "POST /api/invitation/approver/confirm": () => new Promise<Response>((resolve) => {
+        finishConfirm = resolve;
+      }),
+    });
+    const draft = probe(() => useInvitationLetter(identity()));
+    await render(<draft.Probe />);
+    expect(draft.result.current.needsSave).toBe(true);
+    expect(draft.result.current.canPrepare).toBe(true);
+
+    const confirming = draft.result.current.respondToProposal(true);
+    await flush();
+    expect(draft.result.current.busy).toBe(true);
+    expect(draft.result.current.needsSave).toBe(true);
+    expect(draft.result.current.canPrepare).toBe(false);
+    finishConfirm(json(approverResponse({ setting: { mode: "both", designatedUserId: null, revision: 2 }, pending: null, outcome: "confirmed" })));
+    await confirming;
+    await flush();
+    expect(draft.result.current.needsSave).toBe(true);
+    expect(draft.result.current.canPrepare).toBe(true);
+    await cleanup();
+
+    // 대기열에 넣은 옛 편지는 고쳐도 저장할 것이 없다(서버가 받지 않는다).
+    letterApi({ "GET /api/invitation/letter": json(selfSendLetterResponse({ ...SAVED, status: "queued", viewerCanApprove: false }, { selfSend: null })) });
+    const queued = probe(() => useInvitationLetter(identity()));
+    await render(<queued.Probe />);
+    expect(queued.result.current.needsSave).toBe(false);
+    queued.result.current.toggleShare("budget");
+    await flush();
+    expect(queued.result.current.dirty).toBe(true);
+    expect(queued.result.current.needsSave).toBe(false);
+    expect(queued.result.current.canPrepare).toBe(false);
+    await cleanup();
+
+    letterApi({ "GET /api/invitation/letter": json(selfSendLetterResponse(SAVED, { selfSend: selfSendFor() })) });
+    const saved = probe(() => useInvitationLetter(identity()));
+    await render(<saved.Probe />);
+    expect(saved.result.current.needsSave).toBe(false);
+    saved.result.current.toggleShare("budget");
+    await flush();
+    expect(saved.result.current.needsSave).toBe(true);
+  });
+
+  it("직접 보내기에서는 승인을 저장했다·누구를 기다린다는 줄을 말하지 않는다. 대기열에 넣은 옛 편지만 그렇다고 말한다", async () => {
+    letterApi({
+      "GET /api/invitation/letter": json(selfSendLetterResponse(
+        { ...SAVED, status: "approved_not_queued", notQueuedReason: "sending_disabled" },
+        { selfSend: selfSendFor() },
+      )),
+    });
+    const paused = probe(() => useInvitationLetter(identity()));
+    await render(<paused.Probe />);
+    expect(paused.result.current.notice).toBeNull();
+    await cleanup();
+
+    letterApi({ "GET /api/invitation/letter": json(selfSendLetterResponse({ ...SAVED, waitingFor: [PARTNER] }, { selfSend: selfSendFor() })) });
+    const waiting = probe(() => useInvitationLetter(identity()));
+    await render(<waiting.Probe />);
+    expect(waiting.result.current.notice).toBeNull();
+    await cleanup();
+
+    letterApi({
+      "GET /api/invitation/letter": json(selfSendLetterResponse({ ...SAVED, status: "queued", viewerCanApprove: false }, { selfSend: null })),
+    });
+    const queued = probe(() => useInvitationLetter(identity()));
+    await render(<queued.Probe />);
+    expect(queued.result.current.notice).toEqual({ tone: "status", text: LETTER_STATE_COPY.alreadySent });
+    expect(queued.result.current.canPrepare).toBe(false);
+  });
+
+  it("먼저 물을 조건은 희망 시기·하객 수뿐이다(지역은 편지 글에 들어가지 않는다)", async () => {
+    letterApi({ "GET /api/invitation/letter": json(selfSendLetterResponse({}, { missing: ["month", "region", "guests"], selfSend: null })) });
+    const all = probe(() => useInvitationLetter(identity()));
+    await render(<all.Probe />);
+    expect(all.result.current.missingConditions).toEqual(["month", "guests"]);
+    await cleanup();
+
+    letterApi({ "GET /api/invitation/letter": json(selfSendLetterResponse({}, { missing: ["region"], selfSend: null })) });
+    const regionOnly = probe(() => useInvitationLetter(identity()));
+    await render(<regionOnly.Probe />);
+    expect(regionOnly.result.current.missingConditions).toEqual([]);
+  });
+});
+
+describe("직접 보내기·붙여 넣기 응답의 경계 검사", () => {
+  it("편지 응답: selfSend 칸이 없거나 null 이면 받고, 있으면 모양이 맞아야 받는다", () => {
+    const base = letterResponse();
+    expect(isLetterResponse(base)).toBe(true);
+    expect(isLetterResponse({ ...base, selfSend: null })).toBe(true);
+    expect(isLetterResponse({ ...base, selfSend: selfSendFor() })).toBe(true);
+    expect(isLetterResponse({ ...base, selfSend: { ...selfSendFor(), phoneOmitted: "no" } })).toBe(false);
+    expect(isLetterResponse({ ...base, selfSend: { ...selfSendFor(), messages: [{ hallId: HALL_A, name: "하나 웨딩홀" }] } })).toBe(false);
+    expect(isLetterResponse({ ...base, selfSend: { ...selfSendFor(), versionId: null } })).toBe(false);
+  });
+
+  it("상담 응답: replyPaste 칸이 없으면 받고, 있으면 홀마다 ID 와 이름이 있어야 받는다", () => {
+    const base = consultationResponse();
+    expect(isConsultationResponse(base)).toBe(true);
+    expect(isConsultationResponse({ ...base, replyPaste: REPLY_PASTE })).toBe(true);
+    expect(isConsultationResponse({ ...base, replyPaste: { halls: [], addedCount: 0 } })).toBe(true);
+    expect(isConsultationResponse({ ...base, replyPaste: null })).toBe(false);
+    expect(isConsultationResponse({ ...base, replyPaste: { halls: [{ hallId: HALL_A }], addedCount: 0 } })).toBe(false);
+  });
+
+  it("상담 응답: 붙여 넣은 답으로 넣은 상담 수(addedCount)는 0 이상의 정수여야 받는다", () => {
+    const base = consultationResponse();
+    const withCount = (addedCount: unknown) => ({ ...base, replyPaste: { halls: REPLY_PASTE.halls, addedCount } });
+    expect(isConsultationResponse(withCount(0))).toBe(true);
+    expect(isConsultationResponse(withCount(3))).toBe(true);
+    for (const bad of [-1, 1.5, Number.NaN, Number.POSITIVE_INFINITY, "2", null, undefined]) {
+      expect(isConsultationResponse(withCount(bad))).toBe(false);
+    }
+    expect(isConsultationResponse({ ...base, replyPaste: { halls: REPLY_PASTE.halls } })).toBe(false);
+  });
+});
+
+describe("usePastedConsultationSchedule", () => {
+  it("누르기 전에는 부르지 않는다. 넣기는 홀·날짜·시간 세 칸만 보내고, 넣었는지·이미 있었는지를 한 줄로 준다", async () => {
+    const api = mockApi({
+      "POST /api/invitation/consultation/paste-schedule": [
+        json({ added: true, alreadyInCalendar: false, eventId: "event-1" }),
+        json({ added: false, alreadyInCalendar: true, eventId: "event-1" }),
+      ],
+    });
+    const { result, Probe } = probe(() => usePastedConsultationSchedule());
+    await render(<Probe />);
+    expect(api.calls).toHaveLength(0);
+
+    // 다른 칸이 섞여 들어와도(붙여 넣은 글 같은) 세 칸만 보낸다.
+    const withExtra = { hallId: HALL_A, date: "2026-11-30", time: "14:00", raw: "붙여 넣은 글" } as ConsultationPasteSchedulePost;
+    await result.current.add(withExtra);
+    await flush();
+    expect(api.last("POST", "/api/invitation/consultation/paste-schedule")?.body).toEqual({ hallId: HALL_A, date: "2026-11-30", time: "14:00" });
+    expect(result.current.outcome).toEqual({ tone: "status", text: VENDOR_REPLY_COPY.added });
+
+    await result.current.add({ hallId: HALL_A, date: "2026-11-30" });
+    await flush();
+    expect(api.last("POST", "/api/invitation/consultation/paste-schedule")?.body).toEqual({ hallId: HALL_A, date: "2026-11-30" });
+    expect(result.current.outcome).toEqual({ tone: "status", text: VENDOR_REPLY_COPY.alreadyAdded });
+
+    result.current.clear();
+    await flush();
+    expect(result.current.outcome).toBeNull();
+  });
+
+  it("onAdded 는 새 상담을 넣었을 때(added: true)만 부른다. 이미 있던 일정이나 실패에는 부르지 않는다", async () => {
+    mockApi({
+      "POST /api/invitation/consultation/paste-schedule": [
+        json({ added: false, alreadyInCalendar: true, eventId: "event-1" }),
+        apiError(409, "SCHEDULE_FULL", "일정이 너무 많아 더 넣을 수 없어요."),
+        json({ added: true, alreadyInCalendar: false, eventId: "event-2" }),
+      ],
+    });
+    const onAdded = vi.fn();
+    const { result, Probe } = probe(() => usePastedConsultationSchedule({ onAdded }));
+    await render(<Probe />);
+    const body = { hallId: HALL_A, date: "2026-11-30" };
+
+    await result.current.add(body);
+    await flush();
+    await result.current.add(body);
+    await flush();
+    expect(onAdded).not.toHaveBeenCalled();
+
+    await result.current.add(body);
+    await flush();
+    expect(onAdded).toHaveBeenCalledTimes(1);
+    expect(result.current.outcome).toEqual({ tone: "status", text: VENDOR_REPLY_COPY.added });
+  });
+
+  it("같은 순간 두 번 눌러도 한 번만 보내고, 넣지 못하면 서버가 말한 까닭을 준다", async () => {
+    const api = mockApi({
+      "POST /api/invitation/consultation/paste-schedule": apiError(409, "SCHEDULE_FULL", "일정이 너무 많아 더 넣을 수 없어요."),
+    });
+    const { result, Probe } = probe(() => usePastedConsultationSchedule());
+    await render(<Probe />);
+    const body = { hallId: HALL_A, date: "2026-11-30" };
+    await Promise.all([result.current.add(body), result.current.add(body)]);
+    await flush();
+    expect(api.count("POST", "/api/invitation/consultation/paste-schedule")).toBe(1);
+    expect(result.current.outcome).toEqual({ tone: "error", text: "일정이 너무 많아 더 넣을 수 없어요." });
+    expect(result.current.adding).toBe(false);
   });
 });
 

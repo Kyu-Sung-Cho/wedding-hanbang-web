@@ -6,6 +6,7 @@ import {
   FIRST_CHAT_COPY,
   LETTER_COPY,
   LETTER_STATE_COPY,
+  SELF_SEND_COPY,
   type InquiryApproverMode,
   type InquiryApproverProposal,
   type InquiryApproverResponse,
@@ -18,6 +19,7 @@ import InvitationLetterSheet from "../InvitationLetterSheet";
 import { DemoExampleNote, LiveLoadingScreen, LiveMessageScreen, LiveNotice, LiveColumn } from "./LiveParts";
 import { livePhotoSrc, liveRoute } from "./liveRoutes";
 import { LIVE_RETRY_LABEL, loadFailedMessage } from "./liveStateCopy";
+import SelfSendPanel from "./SelfSendPanel";
 import { useInvitationLetter, type InvitationLetterState } from "./useInvitationLetter";
 import { useLiveIdentity } from "./useLiveIdentity";
 
@@ -190,11 +192,29 @@ function PhoneField({ letter }: { letter: InvitationLetterState }) {
 }
 
 /**
+ * 직접 보내기(D-83 1단계)의 시트 글자. 두 분이 폰에서 보내므로 "보낼까요?" 대신 직접 보내 달라고 하고, 아래 단추는
+ * 판을 저장만 한다. 상대가 읽었다는 줄(같은 편지를 두 번 보내지 않는다는 약속)은 숨긴다. "저장하고 있어요"는
+ * 저장하는 동안만이다(승인 방식 제안에 답하는 동안에는 저장한다고 말하지 않는다).
+ */
+function selfSendSheetText(letter: InvitationLetterState) {
+  return {
+    title: SELF_SEND_COPY.title(letter.model?.recipients.length ?? 0),
+    sendLabel: letter.preparing ? SELF_SEND_COPY.saving : SELF_SEND_COPY.save,
+    hidePartnerRead: true,
+  };
+}
+
+/**
  * 보내기 전 편지 확인(`/halls/letter`) 실제 커플 화면(`Approve.dc`).
  *
  * 편지와 함께 알려줄 정보를 고치면 보내기 전에 새 판을 저장하고, 보내기는 그 판을 승인한다. 그 사이 다른 사람이
  * 편지를 바꿨으면(409) 바뀐 편지를 다시 읽어 다시 확인하게 한다. 문의 보내기가 꺼져 있으면 승인만 저장됐고 업체에
  * 가지 않았다고 사실대로 말한다.
+ *
+ * 커플이 직접 보내기(D-83 1단계)가 켜진 서버(편지 응답에 `selfSend` 칸이 있다)에서는 승인 칸을 그리지 않고, 아래 단추가
+ * 판을 저장만 한다. 저장한 판의 보낼 글과 복사·공유·문자 단추는 `SelfSendPanel` 이 그린다. 다만 이 단계 전에 상대가 낸
+ * 승인 방식 제안이 남아 있고 내가 답할 수 있으면 그 제안의 바꾸기·두기만 그린다(서버는 확인·거절 길을 열어 둔다. 상대의
+ * 알림이 답할 곳 없는 화면으로 오지 않게). 칸이 없으면 예전 그대로다.
  */
 export default function LiveLetter() {
   const identity = useLiveIdentity();
@@ -222,12 +242,13 @@ export default function LiveLetter() {
     );
   }
 
+  const selfSendMode = letter.selfSendMode;
   return (
     <InvitationLetterSheet
       model={letter.model}
       resolveRoute={liveRoute}
       onToggleShare={letter.toggleShare}
-      onSend={() => void letter.send()}
+      onSend={selfSendMode ? () => void letter.prepare() : () => void letter.send()}
       onEditText={letter.startEditing}
       photoSrc={livePhotoSrc}
       editor={
@@ -247,12 +268,27 @@ export default function LiveLetter() {
       extra={
         <div className="flex flex-col gap-[18px]">
           {letter.needsPhone ? <PhoneField letter={letter} /> : null}
-          <ApproverPicker letter={letter} />
+          {selfSendMode ? (
+            <SelfSendPanel
+              selfSend={letter.selfSend}
+              dirty={letter.dirty}
+              hasSavedLetter={Boolean(letter.state?.letterId)}
+              missingConditions={letter.missingConditions}
+              // 저장하거나 아래 제안에 답하는 동안에도 같은 줄을 둔다(앱과 같다). 저장할 수 없는 편지에는 그 사이에도 없다.
+              canSave={letter.needsSave}
+              preparedCount={letter.preparedCount}
+            />
+          ) : (
+            <ApproverPicker letter={letter} />
+          )}
+          {selfSendMode && letter.approver?.pending?.viewerCanRespond ? <ApproverProposal letter={letter} /> : null}
           {letter.notice ? <LiveNotice tone={letter.notice.tone}>{letter.notice.text}</LiveNotice> : null}
         </div>
       }
-      sendDisabled={!letter.canSend}
-      sendBusy={letter.busy}
+      sendDisabled={selfSendMode ? !letter.canPrepare : !letter.canSend}
+      // 직접 보내기의 기다림 표시는 저장하는 동안만이다(위 `selfSendSheetText` 와 같은 까닭). 꺼진 서버는 예전 그대로다.
+      sendBusy={selfSendMode ? letter.preparing : letter.busy}
+      {...(selfSendMode ? selfSendSheetText(letter) : {})}
     />
   );
 }
