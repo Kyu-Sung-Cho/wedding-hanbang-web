@@ -148,11 +148,11 @@
     },
     {
       "file": "supabase/migrations/20261120130000_amora_app_push.sql",
-      "sha256": "c98fd7a1e366cc14d8a97579ff325b8fadd0bdc411fd05335be49789fcf3c8f0"
+      "sha256": "1806e75adf2bf316ccc9fa1a6cd058773160eed84fcd283f451c8e6ac02dd6ce"
     },
     {
       "file": "supabase/release-contracts/amora-proactive-pg-catalog-v1.json",
-      "sha256": "5100b8955d241abb3e0494f13621a5e6d474590b56c546c5c34c5a98d45e8e9b"
+      "sha256": "3604f9abd77ffd34193e7582050e20cfbf62cd0d083d954e9d07392fb6c3fd6f"
     },
     {
       "file": "scripts/amora-proactive-release.mjs",
@@ -172,7 +172,7 @@
     },
     {
       "file": "scripts/amora-proactive-release-build-contract.mjs",
-      "sha256": "bc2e664eaf29e647e31ab4e1dbe49cfd24563148e0d04743bf5736728b303d7d"
+      "sha256": "e1421001ce9eb3d1897a78cc7f27998cb50e18fa970ae7bad0fbae3abe739960"
     },
     {
       "file": "supabase/release-contracts/amora-proactive-predecessor-build-inputs-v1.json",

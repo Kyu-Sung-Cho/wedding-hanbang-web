@@ -1,4 +1,5 @@
 import {
+  amoraPushTtlSeconds,
   buildAmoraPushMessage,
   isAmoraPushKind,
   isAmoraPushRoute,
@@ -76,7 +77,7 @@ function readAccessToken(env: Record<string, string | undefined>): string | null
 type Target = { installationId: string; pushToken: string; bindingEpoch: number };
 
 function parseClaim(value: unknown):
-  | { claimed: true; deliveryId: string; targets: Target[] }
+  | { claimed: true; deliveryId: string; targets: Target[]; windowEndsAt: string | null }
   | { claimed: false; reason: SendAmoraPushReason }
   | null {
   if (!value || typeof value !== "object" || Array.isArray(value)) return null;
@@ -101,7 +102,8 @@ function parseClaim(value: unknown):
     }
     targets.push({ installationId: target.installationId, pushToken: target.pushToken, bindingEpoch: target.bindingEpoch });
   }
-  return { claimed: true, deliveryId: record.deliveryId, targets };
+  const windowEndsAt = typeof record.windowEndsAt === "string" ? record.windowEndsAt : null;
+  return { claimed: true, deliveryId: record.deliveryId, targets, windowEndsAt };
 }
 
 export async function sendAmoraPush(
@@ -139,10 +141,16 @@ export async function sendAmoraPush(
     }
     if (!claim.claimed) return { sent: false, reason: claim.reason };
 
+    // 꺼진 기기가 받는 시간이 끝난 뒤에 받지 않게 알림의 유효 시간을 그 끝까지로 줄인다. 그사이 창이 닫혔으면
+    // 보내지 않는다(기록 줄은 claimed 로 남아 그날 상한에 세이고 같은 열쇠를 막는다 — 닫힌 쪽으로 실패한다).
+    const ttlSeconds = amoraPushTtlSeconds({ now, windowEndsAt: claim.windowEndsAt });
+    if (ttlSeconds < 1) return { sent: false, reason: "quiet_hours" };
+
     const messages = claim.targets.map((target) => buildAmoraPushMessage({
       to: target.pushToken,
       deliveryId: claim.deliveryId,
       route: input.deepLink,
+      ttlSeconds,
     }));
     const tickets = await sendExpoPushMessages(messages, accessToken, deps.fetcher);
     const ticketed = tickets.filter((ticket) => ticket.ok).length;

@@ -128,6 +128,23 @@ describe("sendAmoraPush", () => {
     });
   });
 
+  it("꺼져 있던 기기가 받는 시간이 끝난 뒤에 받지 않게 유효 시간을 줄이고, 이미 끝났으면 보내지 않는다", async () => {
+    const ttlOf = (fetcher: ReturnType<typeof deps>["fetcher"]) =>
+      JSON.parse(String(fetcher.mock.calls[0][1]?.body))[0].ttl as number;
+    // 오후 7시 30분에 오후 8시까지인 사람에게 보내면 30분.
+    const evening = deps({ now: new Date("2026-11-20T10:30:00.000Z"), claim: { ...claimed(), windowEndsAt: "2026-11-20T20:00:00+09:00" } });
+    expect(await sendAmoraPush(INPUT, evening.value)).toEqual({ sent: true, reason: "sent" });
+    expect(ttlOf(evening.fetcher)).toBe(1800);
+    // 받는 시간을 오후 6시까지로 좁힌 사람인데 보내려는 때 이미 6시면 보내지 않는다.
+    const closed = deps({ now: new Date("2026-11-20T09:00:00.000Z"), claim: { ...claimed(), windowEndsAt: "2026-11-20T18:00:00+09:00" } });
+    expect(await sendAmoraPush(INPUT, closed.value)).toEqual({ sent: false, reason: "quiet_hours" });
+    expect(closed.fetcher).not.toHaveBeenCalled();
+    // DB 가 끝 시각을 주지 않으면 오후 8시까지로 보고, 오전 10시면 상한 4시간이다.
+    const morning = deps();
+    await sendAmoraPush(INPUT, morning.value);
+    expect(ttlOf(morning.fetcher)).toBe(4 * 60 * 60);
+  });
+
   it("등록되지 않은 기기만 해제하도록 넘기고, 전부 실패하면 보내지 못했다고 한다", async () => {
     const { value, rpc } = deps({
       claim: claimed([DEVICE_A, DEVICE_B]),

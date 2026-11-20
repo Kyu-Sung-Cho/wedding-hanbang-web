@@ -100,6 +100,10 @@ BEGIN
   INTO v_start, v_end
   FROM public.profiles AS profile
   WHERE profile.id = p_user_id;
+  -- 프로필 줄이 없으면 SELECT INTO 가 위 기본값을 NULL 로 덮는다. 받는 시간을 모르면 열지 않는다.
+  IF NOT FOUND THEN
+    RETURN false;
+  END IF;
   RETURN v_start < v_end AND v_hour >= v_start AND v_hour < v_end;
 END
 $function$;
@@ -201,6 +205,7 @@ DECLARE
   v_targets jsonb;
   v_target_count integer;
   v_delivery_id uuid;
+  v_window_end_hour integer;
 BEGIN
   IF p_recipient_id IS NULL
      OR p_kind IS NULL OR p_kind NOT IN ('today_one', 'task_done')
@@ -218,9 +223,15 @@ BEGIN
     RETURN jsonb_build_object('claimed', false, 'reason', 'not_consented');
   END IF;
 
-  IF NOT public.amora_push_window_open(p_recipient_id) THEN
+  IF NOT coalesce(public.amora_push_window_open(p_recipient_id), false) THEN
     RETURN jsonb_build_object('claimed', false, 'reason', 'quiet_hours');
   END IF;
+  -- 꺼져 있던 기기가 나중에 켜져도 받는 시간이 끝난 뒤에는 오지 않게, 그 사람의 받는 시간이 끝나는 시각을
+  -- 돌려준다(보내는 쪽이 알림의 ttl 을 그때까지로 줄인다). 위 창 검사가 프로필 줄이 있는 것을 확인했다.
+  SELECT least(20, coalesce(profile.care_window_end_hour, 20))
+  INTO v_window_end_hour
+  FROM public.profiles AS profile
+  WHERE profile.id = p_recipient_id;
 
   IF EXISTS (
     SELECT 1 FROM public.amora_push_deliveries AS delivery
@@ -263,7 +274,8 @@ BEGIN
   RETURN jsonb_build_object(
     'claimed', true,
     'deliveryId', v_delivery_id,
-    'targets', v_targets
+    'targets', v_targets,
+    'windowEndsAt', (v_today + make_interval(hours => v_window_end_hour)) AT TIME ZONE 'Asia/Seoul'
   );
 END
 $function$;

@@ -39,6 +39,30 @@ export function isWithinAmoraPushWindow(date = new Date()) {
   return hour >= AMORA_PUSH_WINDOW.startHour && hour < AMORA_PUSH_WINDOW.endHour;
 }
 
+/** 꺼져 있던 기기가 늦게 받을 수 있는 가장 긴 시간(초). */
+export const AMORA_PUSH_MAX_TTL_SECONDS = 4 * 60 * 60;
+
+const KST_DATE_FORMATTER = new Intl.DateTimeFormat("en-CA", {
+  timeZone: "Asia/Seoul",
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+});
+
+/**
+ * 알림을 늦게 받을 수 있는 시간(초). 기기가 꺼져 있다가 켜져도 받는 시간이 끝난 뒤에는 오지 않게, 받는 시간이 끝나는
+ * 시각까지로 줄인다. `windowEndsAt` 은 DB(`claim_amora_push_delivery`)가 그 사람의 받는 시간으로 정한 끝 시각이고,
+ * 없거나 잘못된 값이면 오늘 오후 8시(한국 시각)로 본다. 0 이면 보내지 않는다.
+ */
+export function amoraPushTtlSeconds({ now = new Date(), windowEndsAt } = {}) {
+  const endHour = String(AMORA_PUSH_WINDOW.endHour).padStart(2, "0");
+  const windowEnd = Date.parse(`${KST_DATE_FORMATTER.format(now)}T${endHour}:00:00+09:00`);
+  const personalEnd = typeof windowEndsAt === "string" ? Date.parse(windowEndsAt) : Number.NaN;
+  const end = Number.isFinite(personalEnd) ? Math.min(personalEnd, windowEnd) : windowEnd;
+  const seconds = Math.floor((end - now.getTime()) / 1000);
+  return Math.max(0, Math.min(AMORA_PUSH_MAX_TTL_SECONDS, seconds));
+}
+
 export function isAmoraPushKind(value) {
   return typeof value === "string" && AMORA_PUSH_KINDS.includes(value);
 }
@@ -47,8 +71,11 @@ export function isAmoraPushRoute(value) {
   return typeof value === "string" && AMORA_PUSH_ROUTES.includes(value);
 }
 
-export function buildAmoraPushMessage({ to, deliveryId, route }) {
-  if (typeof to !== "string" || !UUID_PATTERN.test(deliveryId ?? "") || !isAmoraPushRoute(route)) {
+export function buildAmoraPushMessage({ to, deliveryId, route, ttlSeconds }) {
+  if (
+    typeof to !== "string" || !UUID_PATTERN.test(deliveryId ?? "") || !isAmoraPushRoute(route)
+    || !Number.isSafeInteger(ttlSeconds) || ttlSeconds < 1 || ttlSeconds > AMORA_PUSH_MAX_TTL_SECONDS
+  ) {
     throw new Error("AMORA_PUSH_MESSAGE_INVALID");
   }
   return Object.freeze({
@@ -60,7 +87,8 @@ export function buildAmoraPushMessage({ to, deliveryId, route }) {
     // 같은 날 두 번째 알림이 첫 알림을 덮는다(잠금화면에 같은 문장이 쌓이지 않게).
     collapseId: "amora",
     tag: "amora",
-    ttl: 4 * 60 * 60,
+    // 받는 시간이 끝나면 기기가 꺼져 있었어도 더는 건네지 않는다(오후 8시 뒤에 오지 않게).
+    ttl: ttlSeconds,
     priority: "normal",
   });
 }
