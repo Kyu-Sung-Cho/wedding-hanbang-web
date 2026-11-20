@@ -36,7 +36,6 @@ import {
 } from "@/lib/ai/amoraQuestionScope";
 import { createOpenAIStructuredResponseWithAudit } from "@/lib/ai/auditedOpenAI";
 import { reserveAmoraTurn } from "@/lib/ai/costGuard";
-import { assertOpenAIProviderEnabled, getOpenAIClient } from "@/lib/ai/openai";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { log } from "@/utils/log";
 
@@ -281,28 +280,17 @@ class AmoraGateUnavailableError extends Error {
   }
 }
 
-async function moderateWithOpenAI(
-  text: string,
-  signal: AbortSignal,
-): Promise<AmoraGateModerationResult> {
-  // 운영 차단 스위치(AMORA_OPENAI_ENABLED)는 무료 엔드포인트도 우회하지 못한다.
-  assertOpenAIProviderEnabled();
-  const response = await getOpenAIClient().moderations.create(
-    { model: AMORA_GATE_MODERATION_MODEL, input: text },
-    { signal },
-  );
-  const result = response.results?.[0];
-  if (!result) throw new AmoraGateUnavailableError("AMORA_GATE_MODERATION_EMPTY");
-  const scores = result.category_scores as unknown as Record<string, number>;
-  let maxRiskScore = 0;
-  const riskCategories: string[] = [];
-  for (const category of AMORA_GATE_MODERATION_RISK_CATEGORIES) {
-    const score = scores[category];
-    if (typeof score !== "number" || !Number.isFinite(score)) continue;
-    if (score > maxRiskScore) maxRiskScore = score;
-    if (score >= AMORA_GATE_MODERATION_FALLBACK_THRESHOLD) riskCategories.push(category);
-  }
-  return { status: "ok", maxRiskScore, riskCategories };
+/**
+ * 운영에서는 안전 판정(moderation)을 부르지 않는다.
+ *
+ * 이 저장소의 공급자 접근 가드(`providerSdkAccessFence.test.ts`, P0-5)가 moderation 표면을
+ * "아직 감사 관문 뒤로 넣지 않은 SDK 표면"으로 막고 있다. 감사 관문을 넓히는 일은 이 PR 밖이다.
+ * 2026-11-20 평가에서 판정 모델이 답한 모든 행(1,000여 행)에서 안전 판정이 결과를 바꾼 경우는
+ * 0건이었고, 남는 몫은 판정 모델이 실패했을 때의 대비뿐이었다. 판정 규칙(`decideAmoraGate`)은
+ * 점수가 오면 쓰도록 그대로 두었다 — 감사 관문에 moderation 을 넣으면 여기만 바꾸면 된다.
+ */
+async function moderationNotWired(): Promise<AmoraGateModerationResult> {
+  return { status: "skipped" };
 }
 
 async function judgeWithOpenAI(
@@ -357,7 +345,7 @@ async function judgeWithOpenAI(
 export const DEFAULT_AMORA_GATE_DEPS: AmoraGateDeps = {
   env: process.env,
   now: () => Date.now(),
-  moderate: moderateWithOpenAI,
+  moderate: moderationNotWired,
   judge: judgeWithOpenAI,
   onError: (code, error) => {
     log.error(`[amora-gatekeeper] ${code}`, error instanceof Error ? error : new Error(code));
