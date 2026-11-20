@@ -3,6 +3,7 @@ import { join, resolve } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
+import { START_COPY } from "@hanbang/shared/invitation";
 import { WEDDING_CODE_V31_QUESTIONS } from "@/constants/weddingCodeV31";
 import { parseWeddingCodeEntryQuery } from "@/app/wedding-code/entry";
 
@@ -116,6 +117,9 @@ const LANDING_RENDERED = everyLandingComponent()
   .map(([, componentSource]) => componentSource)
   .concat(rendered("src/components/landing/redesign/landingContent.ts"))
   .concat(rendered("src/app/landing/page.tsx"))
+  // 2026-11-17 파운더 디자인 아티팩트(원문: 이 디자인 완전 같아야해): 첫 화면 글자는 앱과 같은
+  // 정본 `START_COPY` 에서 온다. 랜딩 폴더에는 없으므로 함께 센다.
+  .concat(Object.values(START_COPY).flat().join("\n"))
   .join("\n");
 
 describe("측정기가 살아 있다", () => {
@@ -219,8 +223,9 @@ describe("랜딩은 수 대신 출처를 남긴다", () => {
     // `footer` 블록에서 찾는다 — 경계를 못 찾으면 `contentBlock` 이 던진다.
     // 2026-08-29: `footer` 다음 경계가 `notDoing` 이었는데 그 블록이 없어졌다
       // (`boundaries` 로 이름이 바뀌었고 순서도 footer 앞으로 갔다). 지금 `footer` 는
-      // `landingContent` 의 마지막 블록이라 다음 최상위 export 를 경계로 쓴다.
-      const footerCopy = contentBlock("footer", "headerNav");
+      // `landingContent` 의 마지막 블록이다. 2026-11-17 시작 화면 개편으로 그 뒤의 최상위
+      // export(`headerNav`)도 없어져 경계 없이 파일 끝까지 자른다.
+      const footerCopy = contentBlock("footer");
     expect(footerCopy).toContain("한국소비자원 참가격");
     expect(footerCopy, "공시 기준 시점이 없다").toMatch(/\d{4}년 \d{1,2}월 공시 기준/u);
     expect(footerCopy, "공시 가격이 기본 조건 기준이라는 한계가 없다")
@@ -239,20 +244,26 @@ describe("랜딩의 문장 수는 도착 화면이 묻는 문항 수다", () => 
 
   it("첫 화면과 마무리가 실제 기본 검사와 같은 수를 말한다", () => {
     expect(parseWeddingCodeEntryQuery({}).kind).toBe("v31");
+    // 2026-11-17 파운더 디자인 아티팩트(원문: 이 디자인 완전 같아야해): 첫 화면은 앱과 같은 정본
+    // `START_COPY` 이고 카피 블록은 다섯으로 줄었다(마무리 섹션이 없어졌다). 첫 화면 정본도 함께 센다.
+    // 2026-11-18: 첫 화면 아래 섹션 카피(soon → closing)가 account 와 boundaries 사이에 들어왔다.
     const blocks = [
-      ["hero", "blockedReasons"],
-      ["blockedReasons", "amoraNote"],
-      ["amoraNote", "noSide"],
-      ["noSide", "confirm"],
-      ["confirm", "availableNow"],
-      ["availableNow", "community"],
-      ["community", "photoBand"],
-      ["photoBand", "boundaries"],
-      ["boundaries", "closing"],
-      ["closing", "footer"],
-      ["footer", "headerNav"],
+      ["start", "account"],
+      ["account", "soon"],
+      ["soon", "today"],
+      ["today", "steps"],
+      ["steps", "promises"],
+      ["promises", "wide"],
+      ["wide", "closing"],
+      ["closing", "boundaries"],
+      ["boundaries", "notices"],
+      ["notices", "footer"],
+      ["footer", undefined],
     ] as const;
-    const copy = blocks.map(([from, to]) => [from, contentBlock(from, to)] as const);
+    const copy = [
+      ...blocks.map(([from, to]) => [from, contentBlock(from, to)] as const),
+      ["START_COPY", Object.values(START_COPY).flat().join("\n")] as const,
+    ];
     const speaking = copy.flatMap(([name, text]) =>
       Array.from(text.matchAll(countPattern), (match) => ({ name, count: Number(match[1]) })),
     );

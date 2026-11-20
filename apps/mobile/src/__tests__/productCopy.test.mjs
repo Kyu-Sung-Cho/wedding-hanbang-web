@@ -64,6 +64,38 @@ test("mobile onboarding keeps the Amora-led MVP promise in plain language", () =
   assert.match(published, /50~99명/);
 });
 
+// 2026-11-17 파운더 디자인 아티팩트(원문: 이 디자인 완전 같아야해): 위 금지 목록의 "청첩장"·"상견례"·"본식" 같은 낱말이
+// 앱 화면에 다시 나온다(청첩장 홈, 준비 순서의 "첫인사와 상견례"·"본식 준비"). 그 글자는 파운더가 만든 아티팩트
+// 문구 그대로이고 `@hanbang/shared/invitation` 한 곳에만 있다. 위 금지는 화면 파일에 손으로 적는 글자를 막는
+// 것으로 남기고, 아래는 새 화면들도 그 낱말을 손으로 적지 않고 공유 문구에서만 읽는지 본다.
+test("the 11-17 invitation words reach the screens only through the shared invitation copy", () => {
+  const read = (relativePath) => readFileSync(fileURLToPath(new URL(`../../${relativePath}`, import.meta.url)), "utf8");
+  const banned = /청첩장|예식장|본식|상견례|예물/u;
+  for (const file of [
+    "app/(tabs)/lounge.tsx",
+    "app/(tabs)/chat.tsx",
+    "app/(tabs)/journey.tsx",
+    "app/(tabs)/schedule.tsx",
+    "app/(tabs)/_layout.tsx",
+    "app/halls/_layout.tsx",
+    "app/halls/index.tsx",
+    "app/halls/letter.tsx",
+    "app/halls/consultation.tsx",
+    "src/components/invitationLive/LiveConsultation.tsx",
+    "src/components/invitationLive/InvitationTabsBar.tsx",
+    "src/components/invitationLive/LoungeRecordsEntry.tsx",
+  ]) {
+    assert.doesNotMatch(read(file), banned, `${file}: 아티팩트 낱말을 화면 파일에 손으로 적었다`);
+  }
+  // 그 낱말은 파운더가 승인한 공유 문구에 있다.
+  const copy = read("../../packages/shared/src/invitation/copy.ts");
+  assert.match(copy, /home: "청첩장 홈"/u);
+  assert.match(copy, /eyebrow: "우리 결혼합니다"/u);
+  const journey = read("../../packages/shared/src/invitation/journey.ts");
+  assert.match(journey, /title: "첫인사와 상견례"/u);
+  assert.match(journey, /title: "본식 준비"/u);
+});
+
 test("mobile uses the shared wedding checklist instead of maintaining a second copy", () => {
   const checklistModule = readFileSync(
     fileURLToPath(new URL("../constants/checklists.ts", import.meta.url)),

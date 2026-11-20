@@ -105,13 +105,25 @@ test("다른 채운 버튼도 rose[500] 위에 흰 글자를 두지 않는다", 
   assert.match(invite, /pressed && styles\.shareButtonPressed/);
 });
 
-test("하단 탭: 선택은 연한 면 위 rose[700], 선택 안 된 탭은 잉크 단계", () => {
-  const tabs = source("app/(tabs)/_layout.tsx");
-  assert.match(tabs, /tabBarActiveTintColor: colors\.rose\[700\]/);
-  assert.match(tabs, /tabBarActiveBackgroundColor: colors\.rose\.pale/, "색만으로 선택을 구분하지 않는다");
-  assert.match(tabs, /tabBarInactiveTintColor: colors\.paper\.inkFaint/);
-  assert.ok(contrast(colors.rose[700], colors.rose.pale) >= 4.5);
-  assert.ok(contrast(colors.paper.inkFaint, colors.surface) >= 4.5);
+// 2026-11-17 파운더 디자인 아티팩트(원문: 이 디자인 완전 같아야해): 하단 메뉴는 아티팩트의 떠 있는 알약이다.
+// 선택된 칸은 잉크로 채운 알약에 흰 아이콘, 나머지는 반투명 흰 바탕 위 본문색 아이콘이다(`Home.dc` nav).
+// 색만으로 가르지 않는다는 기준은 그대로다 — 선택된 칸은 채운 면(모양)이 생기고 읽어 주는 상태(selected)가 붙는다.
+test("하단 메뉴: 선택은 잉크 면 위 흰 아이콘, 선택 안 된 칸은 흰 바탕 위 본문색", () => {
+  assert.match(source("app/(tabs)/_layout.tsx"), /<InvitationTabsBar\b/);
+  const bar = source("src/components/invitation/InvitationTabBar.tsx");
+  assert.match(bar, /<Icon color=\{selected \? palette\.white : palette\.body\} ?\/>/);
+  assert.match(bar, /style=\{\[styles\.item, selected && styles\.itemActive\]\}/, "선택된 칸에 채운 면이 있다");
+  assert.match(bar, /itemActive: \{ backgroundColor: palette\.ink \}/);
+  assert.match(bar, /accessibilityState=\{\{ selected \}\}/);
+  const tokens = readFileSync(fileURLToPath(new URL("../../../../packages/design-tokens/src/invitation.ts", import.meta.url)), "utf8");
+  const hex = (name) => new RegExp(`\\n  ${name}: "(#[0-9A-F]{6})"`, "u").exec(tokens)?.[1];
+  const ink = hex("ink");
+  const body = hex("body");
+  assert.ok(ink && body, "팔레트 값을 못 읽었다 — 검사가 헛돈다");
+  // 아이콘은 글자가 아니라 그래픽이라 3:1(WCAG 1.4.11)이면 되지만, 글자 기준 4.5:1 로 잰다. 메뉴 바탕은 흰색
+  // 88% 라 흰 화면 위에서는 흰색으로 잰다(사진 위에 뜨는 화면은 없다: 홈의 사진은 메뉴보다 위에 있다).
+  assert.ok(contrast("#FFFFFF", ink) >= 4.5);
+  assert.ok(contrast(body, "#FFFFFF") >= 4.5);
 });
 
 test("선택된 글자는 rose[500] 이 아니라 rose[700] 이다", () => {

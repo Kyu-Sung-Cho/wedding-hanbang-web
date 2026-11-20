@@ -271,8 +271,10 @@ export default function LoungeFirstArrival({ view }: { view: LoungeFirstRunView 
               <p className="mt-1.5 text-[12px] font-medium leading-[1.6] text-[var(--hb-text-muted)]">
                 설정 &gt; 커플 연결에서 코드를 확인할 수 있어요.
               </p>
+              {/* 첫 실행 안내의 초대 단계가 이 링크를 가리킨다(청첩장 홈에는 옛 라운지의 초대 링크가 없다, 앱과 같다). */}
               <Link
                 {...inviteLink}
+                data-tutorial-target="lounge-invite"
                 className="mt-4 inline-flex min-h-11 items-center justify-center rounded-[6px] border border-[var(--hb-hairline)] bg-white px-5 text-[13px] font-semibold text-[var(--hb-text-strong)] transition-colors hover:bg-[var(--hb-surface-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8F6662] focus-visible:ring-offset-2"
               >
                 {view.invite.cta}

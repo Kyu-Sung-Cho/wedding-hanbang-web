@@ -1,0 +1,3462 @@
+{
+  "format": "hall-inquiry-catalog-fixture-v1",
+  "migrationSha256": "b04f62efa2a7bf73471511cdc21a110c39b3440e4d74b13c7f03b66ef2e1f0cd",
+  "engine": "PGlite (PostgreSQL 18.3), owner postgres, search_path pg_catalog,public",
+  "catalog": {
+    "functions": [
+      {
+        "acl": [
+          [
+            "authenticated",
+            "postgres",
+            "EXECUTE",
+            false
+          ],
+          [
+            "postgres",
+            "postgres",
+            "EXECUTE",
+            false
+          ]
+        ],
+        "args": "",
+        "body": "\n  SELECT auth.uid() IS NOT NULL AND NOT EXISTS (\n    SELECT 1 FROM public.account_deletion_jobs AS job\n    WHERE job.user_id = auth.uid() AND job.status <> 'completed'\n  );\n",
+        "kind": "f",
+        "name": "hall_inquiry_viewer_account_active",
+        "owner": "postgres",
+        "config": [
+          "search_path=pg_catalog, public"
+        ],
+        "result": "boolean",
+        "strict": false,
+        "language": "sql",
+        "parallel": "u",
+        "definition": "CREATE OR REPLACE FUNCTION public.hall_inquiry_viewer_account_active()\n RETURNS boolean\n LANGUAGE sql\n STABLE SECURITY DEFINER\n SET search_path TO 'pg_catalog', 'public'\nAS $function$\n  SELECT auth.uid() IS NOT NULL AND NOT EXISTS (\n    SELECT 1 FROM public.account_deletion_jobs AS job\n    WHERE job.user_id = auth.uid() AND job.status <> 'completed'\n  );\n$function$\n",
+        "volatility": "s",
+        "securityDefiner": true
+      },
+      {
+        "acl": [
+          [
+            "postgres",
+            "postgres",
+            "EXECUTE",
+            false
+          ],
+          [
+            "service_role",
+            "postgres",
+            "EXECUTE",
+            false
+          ]
+        ],
+        "args": "jsonb",
+        "body": "\nDECLARE\n  v_key text;\n  v_entry jsonb;\n  v_value text;\nBEGIN\n  IF p_shares IS NULL\n     OR jsonb_typeof(p_shares) IS DISTINCT FROM 'object'\n     OR p_shares - ARRAY['name', 'phone', 'budget']::text[] <> '{}'::jsonb\n     OR NOT (p_shares ? 'name' AND p_shares ? 'phone' AND p_shares ? 'budget') THEN\n    RETURN false;\n  END IF;\n  FOREACH v_key IN ARRAY ARRAY['name', 'phone', 'budget']::text[] LOOP\n    v_entry := p_shares -> v_key;\n    IF jsonb_typeof(v_entry) IS DISTINCT FROM 'object'\n       OR v_entry - ARRAY['on', 'value']::text[] <> '{}'::jsonb\n       OR jsonb_typeof(v_entry -> 'on') IS DISTINCT FROM 'boolean'\n       OR NOT (v_entry ? 'value') THEN\n      RETURN false;\n    END IF;\n    IF (v_entry ->> 'on')::boolean THEN\n      IF jsonb_typeof(v_entry -> 'value') IS DISTINCT FROM 'string' THEN\n        RETURN false;\n      END IF;\n      v_value := v_entry ->> 'value';\n      IF char_length(v_value) NOT BETWEEN 1 AND 40\n         OR v_value IS DISTINCT FROM btrim(v_value)\n         OR public.hall_inquiry_text_is_unsafe(v_value, false) THEN\n        RETURN false;\n      END IF;\n      IF v_key = 'phone' AND v_value !~ '^01[016789]-[0-9]{3,4}-[0-9]{4}$' THEN\n        RETURN false;\n      END IF;\n    ELSIF jsonb_typeof(v_entry -> 'value') IS DISTINCT FROM 'null' THEN\n      RETURN false;\n    END IF;\n  END LOOP;\n  RETURN true;\nEND;\n",
+        "kind": "f",
+        "name": "hall_inquiry_shares_are_valid",
+        "owner": "postgres",
+        "config": [
+          "search_path=pg_catalog, public"
+        ],
+        "result": "boolean",
+        "strict": false,
+        "language": "plpgsql",
+        "parallel": "u",
+        "definition": "CREATE OR REPLACE FUNCTION public.hall_inquiry_shares_are_valid(p_shares jsonb)\n RETURNS boolean\n LANGUAGE plpgsql\n IMMUTABLE\n SET search_path TO 'pg_catalog', 'public'\nAS $function$\nDECLARE\n  v_key text;\n  v_entry jsonb;\n  v_value text;\nBEGIN\n  IF p_shares IS NULL\n     OR jsonb_typeof(p_shares) IS DISTINCT FROM 'object'\n     OR p_shares - ARRAY['name', 'phone', 'budget']::text[] <> '{}'::jsonb\n     OR NOT (p_shares ? 'name' AND p_shares ? 'phone' AND p_shares ? 'budget') THEN\n    RETURN false;\n  END IF;\n  FOREACH v_key IN ARRAY ARRAY['name', 'phone', 'budget']::text[] LOOP\n    v_entry := p_shares -> v_key;\n    IF jsonb_typeof(v_entry) IS DISTINCT FROM 'object'\n       OR v_entry - ARRAY['on', 'value']::text[] <> '{}'::jsonb\n       OR jsonb_typeof(v_entry -> 'on') IS DISTINCT FROM 'boolean'\n       OR NOT (v_entry ? 'value') THEN\n      RETURN false;\n    END IF;\n    IF (v_entry ->> 'on')::boolean THEN\n      IF jsonb_typeof(v_entry -> 'value') IS DISTINCT FROM 'string' THEN\n        RETURN false;\n      END IF;\n      v_value := v_entry ->> 'value';\n      IF char_length(v_value) NOT BETWEEN 1 AND 40\n         OR v_value IS DISTINCT FROM btrim(v_value)\n         OR public.hall_inquiry_text_is_unsafe(v_value, false) THEN\n        RETURN false;\n      END IF;\n      IF v_key = 'phone' AND v_value !~ '^01[016789]-[0-9]{3,4}-[0-9]{4}$' THEN\n        RETURN false;\n      END IF;\n    ELSIF jsonb_typeof(v_entry -> 'value') IS DISTINCT FROM 'null' THEN\n      RETURN false;\n    END IF;\n  END LOOP;\n  RETURN true;\nEND;\n$function$\n",
+        "volatility": "i",
+        "securityDefiner": false
+      },
+      {
+        "acl": [
+          [
+            "postgres",
+            "postgres",
+            "EXECUTE",
+            false
+          ],
+          [
+            "service_role",
+            "postgres",
+            "EXECUTE",
+            false
+          ]
+        ],
+        "args": "text, boolean",
+        "body": "\n  SELECT (CASE WHEN p_allow_newline THEN replace(p_value, chr(10), '') ELSE p_value END) ~ '[[:cntrl:]]'\n    OR EXISTS (\n      SELECT 1\n      FROM unnest(ARRAY[\n        173, 1564, 6158,\n        8203, 8204, 8205, 8206, 8207,\n        8232, 8233, 8234, 8235, 8236, 8237, 8238,\n        8288, 8289, 8290, 8291, 8292,\n        8294, 8295, 8296, 8297, 8298, 8299, 8300, 8301, 8302, 8303,\n        65279\n      ]::integer[]) AS forbidden(codepoint)\n      WHERE strpos(p_value, chr(forbidden.codepoint)) > 0\n    );\n",
+        "kind": "f",
+        "name": "hall_inquiry_text_is_unsafe",
+        "owner": "postgres",
+        "config": [
+          "search_path=pg_catalog, public"
+        ],
+        "result": "boolean",
+        "strict": true,
+        "language": "sql",
+        "parallel": "u",
+        "definition": "CREATE OR REPLACE FUNCTION public.hall_inquiry_text_is_unsafe(p_value text, p_allow_newline boolean)\n RETURNS boolean\n LANGUAGE sql\n IMMUTABLE STRICT\n SET search_path TO 'pg_catalog', 'public'\nAS $function$\n  SELECT (CASE WHEN p_allow_newline THEN replace(p_value, chr(10), '') ELSE p_value END) ~ '[[:cntrl:]]'\n    OR EXISTS (\n      SELECT 1\n      FROM unnest(ARRAY[\n        173, 1564, 6158,\n        8203, 8204, 8205, 8206, 8207,\n        8232, 8233, 8234, 8235, 8236, 8237, 8238,\n        8288, 8289, 8290, 8291, 8292,\n        8294, 8295, 8296, 8297, 8298, 8299, 8300, 8301, 8302, 8303,\n        65279\n      ]::integer[]) AS forbidden(codepoint)\n      WHERE strpos(p_value, chr(forbidden.codepoint)) > 0\n    );\n$function$\n",
+        "volatility": "i",
+        "securityDefiner": false
+      },
+      {
+        "acl": [
+          [
+            "postgres",
+            "postgres",
+            "EXECUTE",
+            false
+          ],
+          [
+            "service_role",
+            "postgres",
+            "EXECUTE",
+            false
+          ]
+        ],
+        "args": "uuid, uuid, text",
+        "body": "\nDECLARE\n  v_dispatch public.hall_inquiry_dispatches%ROWTYPE;\nBEGIN\n  PERFORM public.hall_inquiry_assert_operator(p_operator_user_id);\n  SELECT dispatch.* INTO v_dispatch\n  FROM public.hall_inquiry_dispatches AS dispatch\n  WHERE dispatch.id = p_dispatch_id\n  FOR UPDATE;\n  IF NOT FOUND THEN\n    RAISE EXCEPTION 'HALL_INQUIRY_DISPATCH_NOT_FOUND' USING ERRCODE = '22023';\n  END IF;\n  -- 탈퇴로 거둬들인 문의는 보내지 않는다.\n  IF v_dispatch.status = 'withdrawn' OR v_dispatch.redacted_at IS NOT NULL THEN\n    RAISE EXCEPTION 'HALL_INQUIRY_DISPATCH_WITHDRAWN' USING ERRCODE = '55000';\n  END IF;\n  IF v_dispatch.status = 'sent' THEN\n    RETURN jsonb_build_object('status', 'sent', 'alreadySent', true, 'sentAt', v_dispatch.sent_at);\n  END IF;\n  UPDATE public.hall_inquiry_dispatches\n     SET status = 'sent',\n         sent_at = now(),\n         sent_by = p_operator_user_id,\n         channel_note = NULLIF(btrim(p_channel_note), '')\n   WHERE id = p_dispatch_id\n  RETURNING * INTO v_dispatch;\n  RETURN jsonb_build_object('status', 'sent', 'alreadySent', false, 'sentAt', v_dispatch.sent_at);\nEND;\n",
+        "kind": "f",
+        "name": "hall_inquiry_mark_sent",
+        "owner": "postgres",
+        "config": [
+          "search_path=pg_catalog, public",
+          "lock_timeout=5s",
+          "statement_timeout=15s"
+        ],
+        "result": "jsonb",
+        "strict": false,
+        "language": "plpgsql",
+        "parallel": "u",
+        "definition": "CREATE OR REPLACE FUNCTION public.hall_inquiry_mark_sent(p_dispatch_id uuid, p_operator_user_id uuid, p_channel_note text)\n RETURNS jsonb\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'pg_catalog', 'public'\n SET lock_timeout TO '5s'\n SET statement_timeout TO '15s'\nAS $function$\nDECLARE\n  v_dispatch public.hall_inquiry_dispatches%ROWTYPE;\nBEGIN\n  PERFORM public.hall_inquiry_assert_operator(p_operator_user_id);\n  SELECT dispatch.* INTO v_dispatch\n  FROM public.hall_inquiry_dispatches AS dispatch\n  WHERE dispatch.id = p_dispatch_id\n  FOR UPDATE;\n  IF NOT FOUND THEN\n    RAISE EXCEPTION 'HALL_INQUIRY_DISPATCH_NOT_FOUND' USING ERRCODE = '22023';\n  END IF;\n  -- 탈퇴로 거둬들인 문의는 보내지 않는다.\n  IF v_dispatch.status = 'withdrawn' OR v_dispatch.redacted_at IS NOT NULL THEN\n    RAISE EXCEPTION 'HALL_INQUIRY_DISPATCH_WITHDRAWN' USING ERRCODE = '55000';\n  END IF;\n  IF v_dispatch.status = 'sent' THEN\n    RETURN jsonb_build_object('status', 'sent', 'alreadySent', true, 'sentAt', v_dispatch.sent_at);\n  END IF;\n  UPDATE public.hall_inquiry_dispatches\n     SET status = 'sent',\n         sent_at = now(),\n         sent_by = p_operator_user_id,\n         channel_note = NULLIF(btrim(p_channel_note), '')\n   WHERE id = p_dispatch_id\n  RETURNING * INTO v_dispatch;\n  RETURN jsonb_build_object('status', 'sent', 'alreadySent', false, 'sentAt', v_dispatch.sent_at);\nEND;\n$function$\n",
+        "volatility": "v",
+        "securityDefiner": true
+      },
+      {
+        "acl": [
+          [
+            "postgres",
+            "postgres",
+            "EXECUTE",
+            false
+          ],
+          [
+            "service_role",
+            "postgres",
+            "EXECUTE",
+            false
+          ]
+        ],
+        "args": "uuid, uuid, text, text, timestamp with time zone, text, text",
+        "body": "\nDECLARE\n  v_dispatch public.hall_inquiry_dispatches%ROWTYPE;\n  v_reply_id uuid;\n  v_member uuid;\nBEGIN\n  PERFORM public.hall_inquiry_assert_operator(p_operator_user_id);\n  SELECT dispatch.* INTO v_dispatch\n  FROM public.hall_inquiry_dispatches AS dispatch\n  WHERE dispatch.id = p_dispatch_id\n  FOR UPDATE;\n  IF NOT FOUND THEN\n    RAISE EXCEPTION 'HALL_INQUIRY_DISPATCH_NOT_FOUND' USING ERRCODE = '22023';\n  END IF;\n  -- 탈퇴로 지운 편지의 답장은 새로 적지 않는다. 답장 원문에 떠난 사람의 이름이 다시 들어올 수 있다.\n  IF v_dispatch.status = 'withdrawn' OR v_dispatch.redacted_at IS NOT NULL THEN\n    RAISE EXCEPTION 'HALL_INQUIRY_DISPATCH_WITHDRAWN' USING ERRCODE = '55000';\n  END IF;\n  -- 보내지 않은 문의에는 답장이 있을 수 없다.\n  IF v_dispatch.status <> 'sent' THEN\n    RAISE EXCEPTION 'HALL_INQUIRY_REPLY_BEFORE_SENT' USING ERRCODE = '55000';\n  END IF;\n\n  INSERT INTO public.hall_inquiry_replies (\n    dispatch_id, couple_id, hall_id, raw_text, outcome, event_at,\n    place_note, price_note, recorded_by\n  ) VALUES (\n    v_dispatch.id, v_dispatch.couple_id, v_dispatch.hall_id, p_raw_text, p_outcome, p_event_at,\n    NULLIF(btrim(p_place_note), ''), NULLIF(btrim(p_price_note), ''), p_operator_user_id\n  )\n  ON CONFLICT DO NOTHING\n  RETURNING id INTO v_reply_id;\n\n  IF v_reply_id IS NULL THEN\n    SELECT reply.id INTO v_reply_id\n    FROM public.hall_inquiry_replies AS reply\n    WHERE reply.dispatch_id = v_dispatch.id\n      AND reply.outcome = p_outcome\n      AND md5(reply.raw_text) = md5(p_raw_text)\n      AND COALESCE(reply.event_at, '-infinity'::timestamptz)\n          = COALESCE(p_event_at, '-infinity'::timestamptz);\n    RETURN jsonb_build_object('replyId', v_reply_id, 'created', false);\n  END IF;\n\n  FOREACH v_member IN ARRAY public.hall_inquiry_current_members(v_dispatch.couple_id) LOOP\n    CONTINUE WHEN v_member = p_operator_user_id;\n    PERFORM public.hall_inquiry_notify(\n      v_dispatch.couple_id, v_member, p_operator_user_id, v_reply_id,\n      'change_applied', 'hall_inquiry_reply',\n      '상담 문의에 답장이 왔어요',\n      '담당자가 ' || v_dispatch.recipient_name || ' 답장을 정리했어요. 홈에서 확인해 주세요.'\n    );\n  END LOOP;\n\n  RETURN jsonb_build_object('replyId', v_reply_id, 'created', true);\nEND;\n",
+        "kind": "f",
+        "name": "hall_inquiry_record_reply",
+        "owner": "postgres",
+        "config": [
+          "search_path=pg_catalog, public",
+          "lock_timeout=5s",
+          "statement_timeout=15s"
+        ],
+        "result": "jsonb",
+        "strict": false,
+        "language": "plpgsql",
+        "parallel": "u",
+        "definition": "CREATE OR REPLACE FUNCTION public.hall_inquiry_record_reply(p_dispatch_id uuid, p_operator_user_id uuid, p_raw_text text, p_outcome text, p_event_at timestamp with time zone, p_place_note text, p_price_note text)\n RETURNS jsonb\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'pg_catalog', 'public'\n SET lock_timeout TO '5s'\n SET statement_timeout TO '15s'\nAS $function$\nDECLARE\n  v_dispatch public.hall_inquiry_dispatches%ROWTYPE;\n  v_reply_id uuid;\n  v_member uuid;\nBEGIN\n  PERFORM public.hall_inquiry_assert_operator(p_operator_user_id);\n  SELECT dispatch.* INTO v_dispatch\n  FROM public.hall_inquiry_dispatches AS dispatch\n  WHERE dispatch.id = p_dispatch_id\n  FOR UPDATE;\n  IF NOT FOUND THEN\n    RAISE EXCEPTION 'HALL_INQUIRY_DISPATCH_NOT_FOUND' USING ERRCODE = '22023';\n  END IF;\n  -- 탈퇴로 지운 편지의 답장은 새로 적지 않는다. 답장 원문에 떠난 사람의 이름이 다시 들어올 수 있다.\n  IF v_dispatch.status = 'withdrawn' OR v_dispatch.redacted_at IS NOT NULL THEN\n    RAISE EXCEPTION 'HALL_INQUIRY_DISPATCH_WITHDRAWN' USING ERRCODE = '55000';\n  END IF;\n  -- 보내지 않은 문의에는 답장이 있을 수 없다.\n  IF v_dispatch.status <> 'sent' THEN\n    RAISE EXCEPTION 'HALL_INQUIRY_REPLY_BEFORE_SENT' USING ERRCODE = '55000';\n  END IF;\n\n  INSERT INTO public.hall_inquiry_replies (\n    dispatch_id, couple_id, hall_id, raw_text, outcome, event_at,\n    place_note, price_note, recorded_by\n  ) VALUES (\n    v_dispatch.id, v_dispatch.couple_id, v_dispatch.hall_id, p_raw_text, p_outcome, p_event_at,\n    NULLIF(btrim(p_place_note), ''), NULLIF(btrim(p_price_note), ''), p_operator_user_id\n  )\n  ON CONFLICT DO NOTHING\n  RETURNING id INTO v_reply_id;\n\n  IF v_reply_id IS NULL THEN\n    SELECT reply.id INTO v_reply_id\n    FROM public.hall_inquiry_replies AS reply\n    WHERE reply.dispatch_id = v_dispatch.id\n      AND reply.outcome = p_outcome\n      AND md5(reply.raw_text) = md5(p_raw_text)\n      AND COALESCE(reply.event_at, '-infinity'::timestamptz)\n          = COALESCE(p_event_at, '-infinity'::timestamptz);\n    RETURN jsonb_build_object('replyId', v_reply_id, 'created', false);\n  END IF;\n\n  FOREACH v_member IN ARRAY public.hall_inquiry_current_members(v_dispatch.couple_id) LOOP\n    CONTINUE WHEN v_member = p_operator_user_id;\n    PERFORM public.hall_inquiry_notify(\n      v_dispatch.couple_id, v_member, p_operator_user_id, v_reply_id,\n      'change_applied', 'hall_inquiry_reply',\n      '상담 문의에 답장이 왔어요',\n      '담당자가 ' || v_dispatch.recipient_name || ' 답장을 정리했어요. 홈에서 확인해 주세요.'\n    );\n  END LOOP;\n\n  RETURN jsonb_build_object('replyId', v_reply_id, 'created', true);\nEND;\n$function$\n",
+        "volatility": "v",
+        "securityDefiner": true
+      },
+      {
+        "acl": [
+          [
+            "postgres",
+            "postgres",
+            "EXECUTE",
+            false
+          ],
+          [
+            "service_role",
+            "postgres",
+            "EXECUTE",
+            false
+          ]
+        ],
+        "args": "uuid, uuid, text, uuid",
+        "body": "\nDECLARE\n  v_members uuid[];\n  v_current public.hall_inquiry_settings%ROWTYPE;\n  v_found boolean;\n  v_mode text := 'unset';\n  v_designated uuid;\n  v_revision bigint := 0;\n  v_member uuid;\n  v_message text;\n  v_proposal uuid;\nBEGIN\n  PERFORM public.hall_inquiry_lock_member(p_couple_id, p_actor_user_id);\n  IF p_mode IS NULL OR p_mode NOT IN ('unset', 'designated', 'both') THEN\n    RAISE EXCEPTION 'HALL_INQUIRY_APPROVER_INVALID' USING ERRCODE = '22023';\n  END IF;\n  v_members := public.hall_inquiry_current_members(p_couple_id);\n  IF p_mode = 'designated' THEN\n    IF p_designated_user_id IS NULL OR NOT (p_designated_user_id = ANY(v_members)) THEN\n      RAISE EXCEPTION 'HALL_INQUIRY_APPROVER_NOT_MEMBER' USING ERRCODE = '22023';\n    END IF;\n  ELSIF p_designated_user_id IS NOT NULL THEN\n    RAISE EXCEPTION 'HALL_INQUIRY_APPROVER_INVALID' USING ERRCODE = '22023';\n  END IF;\n  IF p_mode = 'both' AND cardinality(v_members) < 2 THEN\n    RAISE EXCEPTION 'HALL_INQUIRY_APPROVER_PARTNER_REQUIRED' USING ERRCODE = '22023';\n  END IF;\n\n  SELECT setting.* INTO v_current\n  FROM public.hall_inquiry_settings AS setting\n  WHERE setting.couple_id = p_couple_id\n  FOR UPDATE;\n  v_found := FOUND;\n  IF v_found THEN\n    v_mode := v_current.approver_mode;\n    v_designated := v_current.designated_user_id;\n    v_revision := v_current.revision;\n  END IF;\n\n  -- 지금 방식을 다시 고르면 바뀌는 것이 없다. 내가 낸 제안이 기다리고 있었다면 그것을 거둔다.\n  IF v_mode = p_mode AND v_designated IS NOT DISTINCT FROM p_designated_user_id THEN\n    IF v_found AND v_current.proposal_id IS NOT NULL AND v_current.proposed_by = p_actor_user_id THEN\n      PERFORM public.hall_inquiry_drop_approver_proposal(p_couple_id);\n      RETURN public.hall_inquiry_approver_state(p_couple_id, 'withdrawn');\n    END IF;\n    RETURN public.hall_inquiry_approver_state(p_couple_id, 'unchanged');\n  END IF;\n\n  -- 상대가 낸 제안과 같은 방식을 고르면 그 제안을 확인한 것이다.\n  IF v_found AND v_current.proposal_id IS NOT NULL\n     AND v_current.proposed_by IS DISTINCT FROM p_actor_user_id\n     AND COALESCE(v_current.proposed_by = ANY(v_members), false)\n     AND v_current.proposed_mode = p_mode\n     AND v_current.proposed_designated_user_id IS NOT DISTINCT FROM p_designated_user_id THEN\n    RETURN public.hall_inquiry_respond_approver(p_couple_id, p_actor_user_id, v_current.proposal_id, true);\n  END IF;\n\n  IF public.hall_inquiry_approver_change_needs_consent(\n       v_mode, v_designated, p_mode, p_designated_user_id, p_actor_user_id, v_members\n     ) THEN\n    -- 앞 제안은 누가 냈든 새 제안으로 바뀐다. 지금 방식과 판 번호는 그대로다.\n    PERFORM public.hall_inquiry_drop_approver_proposal(p_couple_id);\n    v_proposal := gen_random_uuid();\n    INSERT INTO public.hall_inquiry_settings (\n      couple_id, approver_mode, designated_user_id, revision, updated_by, updated_at,\n      proposal_id, proposed_mode, proposed_designated_user_id, proposed_by, proposed_at\n    ) VALUES (\n      p_couple_id, 'unset', NULL, 0, NULL, now(),\n      v_proposal, p_mode, p_designated_user_id, p_actor_user_id, now()\n    )\n    ON CONFLICT (couple_id) DO UPDATE\n      SET proposal_id = EXCLUDED.proposal_id,\n          proposed_mode = EXCLUDED.proposed_mode,\n          proposed_designated_user_id = EXCLUDED.proposed_designated_user_id,\n          proposed_by = EXCLUDED.proposed_by,\n          proposed_at = EXCLUDED.proposed_at;\n    FOREACH v_member IN ARRAY v_members LOOP\n      CONTINUE WHEN v_member = p_actor_user_id;\n      PERFORM public.hall_inquiry_notify(\n        p_couple_id, v_member, p_actor_user_id, v_proposal,\n        'approval_requested', 'hall_inquiry_approver',\n        '상담 문의 승인 방식을 함께 정해 주세요',\n        '파트너가 승인 방식을 바꾸자고 했어요. 확인하면 바뀌고, 그전까지는 지금 방식이 그대로 쓰여요.'\n      );\n    END LOOP;\n    RETURN public.hall_inquiry_approver_state(p_couple_id, 'proposed');\n  END IF;\n\n  -- 상대의 권한을 줄이지 않는 변경은 바로 쓴다. 기다리던 제안은 앞 방식을 두고 낸 것이라 내린다.\n  PERFORM public.hall_inquiry_drop_approver_proposal(p_couple_id);\n  v_revision := v_revision + 1;\n  INSERT INTO public.hall_inquiry_settings (\n    couple_id, approver_mode, designated_user_id, revision, updated_by, updated_at\n  ) VALUES (\n    p_couple_id, p_mode, p_designated_user_id, v_revision, p_actor_user_id, now()\n  )\n  ON CONFLICT (couple_id) DO UPDATE\n    SET approver_mode = EXCLUDED.approver_mode,\n        designated_user_id = EXCLUDED.designated_user_id,\n        revision = EXCLUDED.revision,\n        updated_by = EXCLUDED.updated_by,\n        updated_at = EXCLUDED.updated_at;\n\n  FOREACH v_member IN ARRAY v_members LOOP\n    CONTINUE WHEN v_member = p_actor_user_id;\n    -- 알림에는 이름을 적지 않는다. 받는 사람 쪽에서 본 말로 쓴다.\n    v_message := CASE\n      WHEN p_mode = 'unset' THEN '두 사람 중 한 사람이 승인하면 돼요. 승인하면 두 사람 모두 알림을 받아요.'\n      WHEN p_mode = 'both' THEN '두 사람이 모두 같은 편지를 승인해야 해요.'\n      WHEN v_member = p_designated_user_id THEN '이제 내가 승인하면 편지를 보낼 수 있어요.'\n      ELSE '이제 파트너가 승인하면 편지를 보낼 수 있어요.'\n    END;\n    PERFORM public.hall_inquiry_notify(\n      p_couple_id, v_member, p_actor_user_id,\n      md5('hall-inquiry-approver:' || p_couple_id::text || ':' || v_revision::text)::uuid,\n      'change_applied', 'hall_inquiry_approver',\n      '상담 문의 승인 방식이 바뀌었어요', v_message\n    );\n  END LOOP;\n\n  RETURN public.hall_inquiry_approver_state(p_couple_id, 'applied');\nEND;\n",
+        "kind": "f",
+        "name": "hall_inquiry_set_approver",
+        "owner": "postgres",
+        "config": [
+          "search_path=pg_catalog, public",
+          "lock_timeout=5s",
+          "statement_timeout=15s"
+        ],
+        "result": "jsonb",
+        "strict": false,
+        "language": "plpgsql",
+        "parallel": "u",
+        "definition": "CREATE OR REPLACE FUNCTION public.hall_inquiry_set_approver(p_couple_id uuid, p_actor_user_id uuid, p_mode text, p_designated_user_id uuid)\n RETURNS jsonb\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'pg_catalog', 'public'\n SET lock_timeout TO '5s'\n SET statement_timeout TO '15s'\nAS $function$\nDECLARE\n  v_members uuid[];\n  v_current public.hall_inquiry_settings%ROWTYPE;\n  v_found boolean;\n  v_mode text := 'unset';\n  v_designated uuid;\n  v_revision bigint := 0;\n  v_member uuid;\n  v_message text;\n  v_proposal uuid;\nBEGIN\n  PERFORM public.hall_inquiry_lock_member(p_couple_id, p_actor_user_id);\n  IF p_mode IS NULL OR p_mode NOT IN ('unset', 'designated', 'both') THEN\n    RAISE EXCEPTION 'HALL_INQUIRY_APPROVER_INVALID' USING ERRCODE = '22023';\n  END IF;\n  v_members := public.hall_inquiry_current_members(p_couple_id);\n  IF p_mode = 'designated' THEN\n    IF p_designated_user_id IS NULL OR NOT (p_designated_user_id = ANY(v_members)) THEN\n      RAISE EXCEPTION 'HALL_INQUIRY_APPROVER_NOT_MEMBER' USING ERRCODE = '22023';\n    END IF;\n  ELSIF p_designated_user_id IS NOT NULL THEN\n    RAISE EXCEPTION 'HALL_INQUIRY_APPROVER_INVALID' USING ERRCODE = '22023';\n  END IF;\n  IF p_mode = 'both' AND cardinality(v_members) < 2 THEN\n    RAISE EXCEPTION 'HALL_INQUIRY_APPROVER_PARTNER_REQUIRED' USING ERRCODE = '22023';\n  END IF;\n\n  SELECT setting.* INTO v_current\n  FROM public.hall_inquiry_settings AS setting\n  WHERE setting.couple_id = p_couple_id\n  FOR UPDATE;\n  v_found := FOUND;\n  IF v_found THEN\n    v_mode := v_current.approver_mode;\n    v_designated := v_current.designated_user_id;\n    v_revision := v_current.revision;\n  END IF;\n\n  -- 지금 방식을 다시 고르면 바뀌는 것이 없다. 내가 낸 제안이 기다리고 있었다면 그것을 거둔다.\n  IF v_mode = p_mode AND v_designated IS NOT DISTINCT FROM p_designated_user_id THEN\n    IF v_found AND v_current.proposal_id IS NOT NULL AND v_current.proposed_by = p_actor_user_id THEN\n      PERFORM public.hall_inquiry_drop_approver_proposal(p_couple_id);\n      RETURN public.hall_inquiry_approver_state(p_couple_id, 'withdrawn');\n    END IF;\n    RETURN public.hall_inquiry_approver_state(p_couple_id, 'unchanged');\n  END IF;\n\n  -- 상대가 낸 제안과 같은 방식을 고르면 그 제안을 확인한 것이다.\n  IF v_found AND v_current.proposal_id IS NOT NULL\n     AND v_current.proposed_by IS DISTINCT FROM p_actor_user_id\n     AND COALESCE(v_current.proposed_by = ANY(v_members), false)\n     AND v_current.proposed_mode = p_mode\n     AND v_current.proposed_designated_user_id IS NOT DISTINCT FROM p_designated_user_id THEN\n    RETURN public.hall_inquiry_respond_approver(p_couple_id, p_actor_user_id, v_current.proposal_id, true);\n  END IF;\n\n  IF public.hall_inquiry_approver_change_needs_consent(\n       v_mode, v_designated, p_mode, p_designated_user_id, p_actor_user_id, v_members\n     ) THEN\n    -- 앞 제안은 누가 냈든 새 제안으로 바뀐다. 지금 방식과 판 번호는 그대로다.\n    PERFORM public.hall_inquiry_drop_approver_proposal(p_couple_id);\n    v_proposal := gen_random_uuid();\n    INSERT INTO public.hall_inquiry_settings (\n      couple_id, approver_mode, designated_user_id, revision, updated_by, updated_at,\n      proposal_id, proposed_mode, proposed_designated_user_id, proposed_by, proposed_at\n    ) VALUES (\n      p_couple_id, 'unset', NULL, 0, NULL, now(),\n      v_proposal, p_mode, p_designated_user_id, p_actor_user_id, now()\n    )\n    ON CONFLICT (couple_id) DO UPDATE\n      SET proposal_id = EXCLUDED.proposal_id,\n          proposed_mode = EXCLUDED.proposed_mode,\n          proposed_designated_user_id = EXCLUDED.proposed_designated_user_id,\n          proposed_by = EXCLUDED.proposed_by,\n          proposed_at = EXCLUDED.proposed_at;\n    FOREACH v_member IN ARRAY v_members LOOP\n      CONTINUE WHEN v_member = p_actor_user_id;\n      PERFORM public.hall_inquiry_notify(\n        p_couple_id, v_member, p_actor_user_id, v_proposal,\n        'approval_requested', 'hall_inquiry_approver',\n        '상담 문의 승인 방식을 함께 정해 주세요',\n        '파트너가 승인 방식을 바꾸자고 했어요. 확인하면 바뀌고, 그전까지는 지금 방식이 그대로 쓰여요.'\n      );\n    END LOOP;\n    RETURN public.hall_inquiry_approver_state(p_couple_id, 'proposed');\n  END IF;\n\n  -- 상대의 권한을 줄이지 않는 변경은 바로 쓴다. 기다리던 제안은 앞 방식을 두고 낸 것이라 내린다.\n  PERFORM public.hall_inquiry_drop_approver_proposal(p_couple_id);\n  v_revision := v_revision + 1;\n  INSERT INTO public.hall_inquiry_settings (\n    couple_id, approver_mode, designated_user_id, revision, updated_by, updated_at\n  ) VALUES (\n    p_couple_id, p_mode, p_designated_user_id, v_revision, p_actor_user_id, now()\n  )\n  ON CONFLICT (couple_id) DO UPDATE\n    SET approver_mode = EXCLUDED.approver_mode,\n        designated_user_id = EXCLUDED.designated_user_id,\n        revision = EXCLUDED.revision,\n        updated_by = EXCLUDED.updated_by,\n        updated_at = EXCLUDED.updated_at;\n\n  FOREACH v_member IN ARRAY v_members LOOP\n    CONTINUE WHEN v_member = p_actor_user_id;\n    -- 알림에는 이름을 적지 않는다. 받는 사람 쪽에서 본 말로 쓴다.\n    v_message := CASE\n      WHEN p_mode = 'unset' THEN '두 사람 중 한 사람이 승인하면 돼요. 승인하면 두 사람 모두 알림을 받아요.'\n      WHEN p_mode = 'both' THEN '두 사람이 모두 같은 편지를 승인해야 해요.'\n      WHEN v_member = p_designated_user_id THEN '이제 내가 승인하면 편지를 보낼 수 있어요.'\n      ELSE '이제 파트너가 승인하면 편지를 보낼 수 있어요.'\n    END;\n    PERFORM public.hall_inquiry_notify(\n      p_couple_id, v_member, p_actor_user_id,\n      md5('hall-inquiry-approver:' || p_couple_id::text || ':' || v_revision::text)::uuid,\n      'change_applied', 'hall_inquiry_approver',\n      '상담 문의 승인 방식이 바뀌었어요', v_message\n    );\n  END LOOP;\n\n  RETURN public.hall_inquiry_approver_state(p_couple_id, 'applied');\nEND;\n$function$\n",
+        "volatility": "v",
+        "securityDefiner": true
+      },
+      {
+        "acl": [
+          [
+            "postgres",
+            "postgres",
+            "EXECUTE",
+            false
+          ],
+          [
+            "service_role",
+            "postgres",
+            "EXECUTE",
+            false
+          ]
+        ],
+        "args": "uuid, uuid, uuid, boolean",
+        "body": "\nDECLARE\n  v_members uuid[];\n  v_current public.hall_inquiry_settings%ROWTYPE;\nBEGIN\n  IF p_proposal_id IS NULL OR p_accept IS NULL THEN\n    RAISE EXCEPTION 'HALL_INQUIRY_INPUT_INVALID' USING ERRCODE = '22023';\n  END IF;\n  PERFORM public.hall_inquiry_lock_member(p_couple_id, p_actor_user_id);\n  v_members := public.hall_inquiry_current_members(p_couple_id);\n\n  SELECT setting.* INTO v_current\n  FROM public.hall_inquiry_settings AS setting\n  WHERE setting.couple_id = p_couple_id\n  FOR UPDATE;\n  -- 화면이 본 제안과 지금 제안이 다르거나, 제안한 사람이 더는 회원이 아니면 답하지 않는다.\n  IF NOT FOUND\n     OR v_current.proposal_id IS DISTINCT FROM p_proposal_id\n     OR NOT COALESCE(v_current.proposed_by = ANY(v_members), false) THEN\n    RAISE EXCEPTION 'HALL_INQUIRY_APPROVER_PROPOSAL_CHANGED' USING ERRCODE = '55000';\n  END IF;\n  -- 내가 낸 제안은 상대가 답한다. 거두려면 지금 방식을 다시 고른다.\n  IF v_current.proposed_by = p_actor_user_id THEN\n    RAISE EXCEPTION 'HALL_INQUIRY_APPROVER_PROPOSAL_OWN' USING ERRCODE = '42501';\n  END IF;\n\n  IF p_accept THEN\n    -- 확인하는 때의 회원으로 다시 본다.\n    IF v_current.proposed_mode = 'designated'\n       AND NOT COALESCE(v_current.proposed_designated_user_id = ANY(v_members), false) THEN\n      RAISE EXCEPTION 'HALL_INQUIRY_APPROVER_NOT_MEMBER' USING ERRCODE = '22023';\n    END IF;\n    IF v_current.proposed_mode = 'both' AND cardinality(v_members) < 2 THEN\n      RAISE EXCEPTION 'HALL_INQUIRY_APPROVER_PARTNER_REQUIRED' USING ERRCODE = '22023';\n    END IF;\n    PERFORM public.hall_inquiry_drop_approver_proposal(p_couple_id);\n    UPDATE public.hall_inquiry_settings\n       SET approver_mode = v_current.proposed_mode,\n           designated_user_id = v_current.proposed_designated_user_id,\n           revision = v_current.revision + 1,\n           updated_by = p_actor_user_id,\n           updated_at = now()\n     WHERE couple_id = p_couple_id;\n    PERFORM public.hall_inquiry_notify(\n      p_couple_id, v_current.proposed_by, p_actor_user_id,\n      md5('hall-inquiry-approver-confirmed:' || p_proposal_id::text)::uuid,\n      'change_applied', 'hall_inquiry_approver',\n      '상담 문의 승인 방식이 바뀌었어요',\n      '파트너가 확인해서 바꾸자던 승인 방식이 지금부터 쓰여요.'\n    );\n    RETURN public.hall_inquiry_approver_state(p_couple_id, 'confirmed');\n  END IF;\n\n  PERFORM public.hall_inquiry_drop_approver_proposal(p_couple_id);\n  PERFORM public.hall_inquiry_notify(\n    p_couple_id, v_current.proposed_by, p_actor_user_id,\n    md5('hall-inquiry-approver-declined:' || p_proposal_id::text)::uuid,\n    'change_rejected', 'hall_inquiry_approver',\n    '승인 방식은 그대로예요',\n    '파트너가 바꾸자던 승인 방식을 받아들이지 않았어요. 지금 방식이 그대로 쓰여요.'\n  );\n  RETURN public.hall_inquiry_approver_state(p_couple_id, 'declined');\nEND;\n",
+        "kind": "f",
+        "name": "hall_inquiry_respond_approver",
+        "owner": "postgres",
+        "config": [
+          "search_path=pg_catalog, public",
+          "lock_timeout=5s",
+          "statement_timeout=15s"
+        ],
+        "result": "jsonb",
+        "strict": false,
+        "language": "plpgsql",
+        "parallel": "u",
+        "definition": "CREATE OR REPLACE FUNCTION public.hall_inquiry_respond_approver(p_couple_id uuid, p_actor_user_id uuid, p_proposal_id uuid, p_accept boolean)\n RETURNS jsonb\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'pg_catalog', 'public'\n SET lock_timeout TO '5s'\n SET statement_timeout TO '15s'\nAS $function$\nDECLARE\n  v_members uuid[];\n  v_current public.hall_inquiry_settings%ROWTYPE;\nBEGIN\n  IF p_proposal_id IS NULL OR p_accept IS NULL THEN\n    RAISE EXCEPTION 'HALL_INQUIRY_INPUT_INVALID' USING ERRCODE = '22023';\n  END IF;\n  PERFORM public.hall_inquiry_lock_member(p_couple_id, p_actor_user_id);\n  v_members := public.hall_inquiry_current_members(p_couple_id);\n\n  SELECT setting.* INTO v_current\n  FROM public.hall_inquiry_settings AS setting\n  WHERE setting.couple_id = p_couple_id\n  FOR UPDATE;\n  -- 화면이 본 제안과 지금 제안이 다르거나, 제안한 사람이 더는 회원이 아니면 답하지 않는다.\n  IF NOT FOUND\n     OR v_current.proposal_id IS DISTINCT FROM p_proposal_id\n     OR NOT COALESCE(v_current.proposed_by = ANY(v_members), false) THEN\n    RAISE EXCEPTION 'HALL_INQUIRY_APPROVER_PROPOSAL_CHANGED' USING ERRCODE = '55000';\n  END IF;\n  -- 내가 낸 제안은 상대가 답한다. 거두려면 지금 방식을 다시 고른다.\n  IF v_current.proposed_by = p_actor_user_id THEN\n    RAISE EXCEPTION 'HALL_INQUIRY_APPROVER_PROPOSAL_OWN' USING ERRCODE = '42501';\n  END IF;\n\n  IF p_accept THEN\n    -- 확인하는 때의 회원으로 다시 본다.\n    IF v_current.proposed_mode = 'designated'\n       AND NOT COALESCE(v_current.proposed_designated_user_id = ANY(v_members), false) THEN\n      RAISE EXCEPTION 'HALL_INQUIRY_APPROVER_NOT_MEMBER' USING ERRCODE = '22023';\n    END IF;\n    IF v_current.proposed_mode = 'both' AND cardinality(v_members) < 2 THEN\n      RAISE EXCEPTION 'HALL_INQUIRY_APPROVER_PARTNER_REQUIRED' USING ERRCODE = '22023';\n    END IF;\n    PERFORM public.hall_inquiry_drop_approver_proposal(p_couple_id);\n    UPDATE public.hall_inquiry_settings\n       SET approver_mode = v_current.proposed_mode,\n           designated_user_id = v_current.proposed_designated_user_id,\n           revision = v_current.revision + 1,\n           updated_by = p_actor_user_id,\n           updated_at = now()\n     WHERE couple_id = p_couple_id;\n    PERFORM public.hall_inquiry_notify(\n      p_couple_id, v_current.proposed_by, p_actor_user_id,\n      md5('hall-inquiry-approver-confirmed:' || p_proposal_id::text)::uuid,\n      'change_applied', 'hall_inquiry_approver',\n      '상담 문의 승인 방식이 바뀌었어요',\n      '파트너가 확인해서 바꾸자던 승인 방식이 지금부터 쓰여요.'\n    );\n    RETURN public.hall_inquiry_approver_state(p_couple_id, 'confirmed');\n  END IF;\n\n  PERFORM public.hall_inquiry_drop_approver_proposal(p_couple_id);\n  PERFORM public.hall_inquiry_notify(\n    p_couple_id, v_current.proposed_by, p_actor_user_id,\n    md5('hall-inquiry-approver-declined:' || p_proposal_id::text)::uuid,\n    'change_rejected', 'hall_inquiry_approver',\n    '승인 방식은 그대로예요',\n    '파트너가 바꾸자던 승인 방식을 받아들이지 않았어요. 지금 방식이 그대로 쓰여요.'\n  );\n  RETURN public.hall_inquiry_approver_state(p_couple_id, 'declined');\nEND;\n$function$\n",
+        "volatility": "v",
+        "securityDefiner": true
+      },
+      {
+        "acl": [
+          [
+            "postgres",
+            "postgres",
+            "EXECUTE",
+            false
+          ],
+          [
+            "service_role",
+            "postgres",
+            "EXECUTE",
+            false
+          ]
+        ],
+        "args": "uuid, uuid, uuid, text, boolean, integer, integer",
+        "body": "\nDECLARE\n  v_version public.hall_inquiry_letter_versions%ROWTYPE;\n  v_letter public.hall_inquiry_letters%ROWTYPE;\n  v_latest integer;\n  v_mode text := 'unset';\n  v_designated uuid;\n  v_revision bigint := 0;\n  v_members uuid[];\n  v_approved uuid[];\n  v_waiting uuid[];\n  v_complete boolean;\n  v_unavailable boolean := false;\n  v_member uuid;\n  v_candidates uuid[];\n  v_duplicates uuid[];\n  v_today_count integer;\n  v_global_count integer;\n  v_day_start timestamptz;\n  v_eligible boolean;\n  v_queued integer := 0;\n  v_index integer;\n  v_names text;\nBEGIN\n  IF p_version_id IS NULL\n     OR p_fingerprint IS NULL OR p_fingerprint !~ '^[0-9a-f]{64}$'\n     OR p_sending_enabled IS NULL\n     OR p_daily_cap IS NULL OR p_daily_cap NOT BETWEEN 0 AND 50\n     OR p_global_daily_cap IS NULL OR p_global_daily_cap NOT BETWEEN 0 AND 10000 THEN\n    RAISE EXCEPTION 'HALL_INQUIRY_INPUT_INVALID' USING ERRCODE = '22023';\n  END IF;\n  PERFORM public.hall_inquiry_lock_member(p_couple_id, p_actor_user_id);\n\n  SELECT version.* INTO v_version\n  FROM public.hall_inquiry_letter_versions AS version\n  WHERE version.id = p_version_id AND version.couple_id = p_couple_id;\n  IF NOT FOUND THEN\n    RAISE EXCEPTION 'HALL_INQUIRY_LETTER_NOT_FOUND' USING ERRCODE = '22023';\n  END IF;\n  SELECT letter.* INTO v_letter\n  FROM public.hall_inquiry_letters AS letter\n  WHERE letter.id = v_version.letter_id\n  FOR UPDATE;\n  -- 잠금을 기다리는 사이 바뀌었을 수 있어 잠근 뒤에 다시 읽는다.\n  SELECT version.* INTO v_version\n  FROM public.hall_inquiry_letter_versions AS version\n  WHERE version.id = p_version_id;\n  SELECT max(version.version) INTO v_latest\n  FROM public.hall_inquiry_letter_versions AS version\n  WHERE version.letter_id = v_letter.id;\n\n  -- 탈퇴로 지운 판은 승인할 내용이 없다.\n  IF v_version.redacted_at IS NOT NULL THEN\n    RAISE EXCEPTION 'HALL_INQUIRY_LETTER_LOCKED' USING ERRCODE = '55000';\n  END IF;\n  -- 화면이 본 내용과 지금 판이 다르면 승인하지 않는다(WS1).\n  IF v_version.version <> v_latest OR v_version.fingerprint IS DISTINCT FROM p_fingerprint THEN\n    RAISE EXCEPTION 'HALL_INQUIRY_VERSION_CHANGED' USING ERRCODE = '55000';\n  END IF;\n\n  -- 이미 대기열에 들어간 판이면 같은 결과를 돌려준다. 두 번 눌러도 두 번 넣지 않는다(WS2).\n  IF v_version.queued_at IS NOT NULL THEN\n    RETURN jsonb_build_object(\n      'status', 'queued',\n      'notQueuedReason', NULL,\n      'queuedCount', (\n        SELECT count(*) FROM public.hall_inquiry_dispatches AS dispatch\n        WHERE dispatch.version_id = v_version.id\n      ),\n      'duplicateHallIds', to_jsonb(ARRAY(\n        SELECT item.hall_id\n        FROM unnest(v_version.recipient_hall_ids) WITH ORDINALITY AS item(hall_id, ord)\n        WHERE NOT EXISTS (\n          SELECT 1 FROM public.hall_inquiry_dispatches AS dispatch\n          WHERE dispatch.version_id = v_version.id AND dispatch.hall_id = item.hall_id\n        )\n        ORDER BY item.ord\n      )),\n      'waitingFor', '[]'::jsonb\n    );\n  END IF;\n  IF v_letter.locked_at IS NOT NULL THEN\n    RAISE EXCEPTION 'HALL_INQUIRY_LETTER_LOCKED' USING ERRCODE = '55000';\n  END IF;\n\n  IF EXISTS (\n    SELECT 1\n    FROM unnest(v_version.recipient_hall_ids) AS item(hall_id)\n    LEFT JOIN public.hall_listings AS listing\n      ON listing.id = item.hall_id AND listing.active\n    WHERE listing.id IS NULL\n  ) THEN\n    RAISE EXCEPTION 'HALL_INQUIRY_RECIPIENTS_UNAVAILABLE' USING ERRCODE = '55000';\n  END IF;\n\n  SELECT setting.approver_mode, setting.designated_user_id, setting.revision\n    INTO v_mode, v_designated, v_revision\n  FROM public.hall_inquiry_settings AS setting\n  WHERE setting.couple_id = p_couple_id;\n  IF NOT FOUND THEN\n    v_mode := 'unset';\n    v_designated := NULL;\n    v_revision := 0;\n  END IF;\n\n  v_members := public.hall_inquiry_current_members(p_couple_id);\n\n  -- 지금 방식에서 승인할 수 있는 사람의 승인만 남긴다. 정한 한 사람이 있으면 그 사람뿐이다.\n  -- 기다리는 승인 방식 제안은 여기서 보지 않는다. 확인되기 전까지는 지금 방식이 그대로다.\n  v_eligible := CASE\n    WHEN v_mode = 'designated' THEN p_actor_user_id = v_designated AND p_actor_user_id = ANY(v_members)\n    ELSE p_actor_user_id = ANY(v_members)\n  END;\n  IF COALESCE(v_eligible, false) THEN\n    INSERT INTO public.hall_inquiry_approvals (\n      version_id, couple_id, approver_user_id, fingerprint, settings_revision, sending_enabled\n    ) VALUES (\n      v_version.id, p_couple_id, p_actor_user_id, v_version.fingerprint, v_revision, p_sending_enabled\n    )\n    ON CONFLICT (version_id, approver_user_id, settings_revision, sending_enabled) DO NOTHING;\n  END IF;\n\n  -- 문의 보내기가 켜져 있으면 켜진 동안 받은 승인만 센다. 꺼진 동안의 승인은 저장된 선택으로 남지만,\n  -- 스위치가 켜진 뒤 누가 다시 눌러도 그것만으로 대기열에 들어가지 않는다. 켜진 뒤 새로 승인해야 한다.\n  SELECT COALESCE(array_agg(DISTINCT approval.approver_user_id), ARRAY[]::uuid[])\n    INTO v_approved\n  FROM public.hall_inquiry_approvals AS approval\n  WHERE approval.version_id = v_version.id\n    AND approval.settings_revision = v_revision\n    AND approval.fingerprint = v_version.fingerprint\n    AND approval.approver_user_id = ANY(v_members)\n    AND (NOT p_sending_enabled OR approval.sending_enabled);\n\n  IF v_mode = 'designated' THEN\n    v_unavailable := NOT COALESCE(v_designated = ANY(v_members), false);\n    v_complete := NOT v_unavailable AND COALESCE(v_designated = ANY(v_approved), false);\n    v_waiting := CASE WHEN v_complete OR v_unavailable THEN ARRAY[]::uuid[] ELSE ARRAY[v_designated] END;\n  ELSIF v_mode = 'both' THEN\n    v_unavailable := cardinality(v_members) < 2;\n    v_complete := NOT v_unavailable AND COALESCE(v_members <@ v_approved, false);\n    v_waiting := ARRAY(\n      SELECT member FROM unnest(v_members) AS member WHERE NOT (member = ANY(v_approved))\n    );\n  ELSE\n    v_complete := cardinality(v_approved) >= 1;\n    v_waiting := CASE WHEN v_complete THEN ARRAY[]::uuid[] ELSE v_members END;\n  END IF;\n\n  v_names := array_to_string(v_version.recipient_names, ', ');\n\n  IF NOT COALESCE(v_complete, false) THEN\n    FOREACH v_member IN ARRAY v_waiting LOOP\n      CONTINUE WHEN v_member = p_actor_user_id;\n      PERFORM public.hall_inquiry_notify(\n        p_couple_id, v_member, p_actor_user_id, v_version.id,\n        'approval_requested', 'hall_inquiry_letter',\n        '함께 확인할 상담 문의 편지가 있어요',\n        v_names || '에 보낼 편지예요. 읽어 보고 승인해 주세요.'\n      );\n    END LOOP;\n    RETURN jsonb_build_object(\n      'status', 'awaiting_approval',\n      'notQueuedReason', CASE WHEN v_unavailable THEN 'approver_unavailable' END,\n      'queuedCount', 0,\n      'duplicateHallIds', '[]'::jsonb,\n      'waitingFor', to_jsonb(v_waiting)\n    );\n  END IF;\n\n  UPDATE public.hall_inquiry_letter_versions\n     SET approval_completed_at = now()\n   WHERE id = v_version.id AND approval_completed_at IS NULL;\n\n  -- 문의만 멈추는 스위치(WS5). 승인은 남기고 아무것도 넣지 않는다.\n  IF NOT p_sending_enabled THEN\n    FOREACH v_member IN ARRAY v_members LOOP\n      PERFORM public.hall_inquiry_notify(\n        p_couple_id, v_member, p_actor_user_id, v_version.id,\n        'change_applied', 'hall_inquiry_letter',\n        '상담 문의 편지가 승인됐어요',\n        v_names || '에 보낼 편지예요. 지금은 문의 보내기를 멈춰 두어서 아직 보내지 않았어요. 다시 켜지면 한 번 더 승인해 주세요.'\n      );\n    END LOOP;\n    RETURN jsonb_build_object(\n      'status', 'approved_not_queued',\n      'notQueuedReason', 'sending_disabled',\n      'queuedCount', 0,\n      'duplicateHallIds', '[]'::jsonb,\n      'waitingFor', '[]'::jsonb\n    );\n  END IF;\n\n  -- 같은 내용이 이미 그 홀로 들어간 곳은 다시 넣지 않는다(WS2).\n  SELECT\n    COALESCE(array_agg(item.hall_id ORDER BY item.ord) FILTER (WHERE existing.id IS NULL), ARRAY[]::uuid[]),\n    COALESCE(array_agg(item.hall_id ORDER BY item.ord) FILTER (WHERE existing.id IS NOT NULL), ARRAY[]::uuid[])\n    INTO v_candidates, v_duplicates\n  FROM unnest(v_version.recipient_hall_ids) WITH ORDINALITY AS item(hall_id, ord)\n  LEFT JOIN public.hall_inquiry_dispatches AS existing\n    ON existing.dispatch_fingerprint = public.hall_inquiry_dispatch_fingerprint(\n      p_couple_id, item.hall_id, v_version.body, v_version.signature, v_version.shares\n    );\n\n  -- 하루 상한(WS5). 한국 날짜로 오늘 대기열에 넣은 줄을 센다. 편지 한 통은 나누지 않는다.\n  v_day_start := date_trunc('day', now() AT TIME ZONE 'Asia/Seoul') AT TIME ZONE 'Asia/Seoul';\n  SELECT count(*)::integer INTO v_today_count\n  FROM public.hall_inquiry_dispatches AS dispatch\n  WHERE dispatch.couple_id = p_couple_id\n    AND dispatch.queued_at >= v_day_start\n    AND dispatch.queued_at < v_day_start + interval '1 day';\n  IF v_today_count + cardinality(v_candidates) > p_daily_cap THEN\n    FOREACH v_member IN ARRAY v_members LOOP\n      PERFORM public.hall_inquiry_notify(\n        p_couple_id, v_member, p_actor_user_id, v_version.id,\n        'change_applied', 'hall_inquiry_letter',\n        '상담 문의 편지가 승인됐어요',\n        v_names || '에 보낼 편지예요. 오늘 보낼 수 있는 문의 수를 넘어서 아직 보내지 않았어요.'\n      );\n    END LOOP;\n    RETURN jsonb_build_object(\n      'status', 'approved_not_queued',\n      'notQueuedReason', 'daily_cap',\n      'queuedCount', 0,\n      'duplicateHallIds', to_jsonb(v_duplicates),\n      'waitingFor', '[]'::jsonb\n    );\n  END IF;\n\n  -- 서비스 전체의 하루 상한(WS5). 모든 커플이 오늘 넣은 줄을 함께 센다. 값이 없거나 틀리면 서버가 0 을\n  -- 넘긴다(닫힌 채 실패). 두 커플이 동시에 마지막 자리를 차지하지 않게 세기 전에 잠근다. 커플 행을\n  -- 먼저 잡은 뒤 이 잠금을 잡으므로 잠금 순서는 언제나 같다.\n  PERFORM pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended('hanbang:hall-inquiry-global-cap', 0));\n  SELECT count(*)::integer INTO v_global_count\n  FROM public.hall_inquiry_dispatches AS dispatch\n  WHERE dispatch.queued_at >= v_day_start\n    AND dispatch.queued_at < v_day_start + interval '1 day';\n  IF v_global_count + cardinality(v_candidates) > p_global_daily_cap THEN\n    FOREACH v_member IN ARRAY v_members LOOP\n      PERFORM public.hall_inquiry_notify(\n        p_couple_id, v_member, p_actor_user_id, v_version.id,\n        'change_applied', 'hall_inquiry_letter',\n        '상담 문의 편지가 승인됐어요',\n        v_names || '에 보낼 편지예요. 오늘 보낼 수 있는 문의 수를 넘어서 아직 보내지 않았어요.'\n      );\n    END LOOP;\n    RETURN jsonb_build_object(\n      'status', 'approved_not_queued',\n      'notQueuedReason', 'global_daily_cap',\n      'queuedCount', 0,\n      'duplicateHallIds', to_jsonb(v_duplicates),\n      'waitingFor', '[]'::jsonb\n    );\n  END IF;\n\n  FOR v_index IN 1..cardinality(v_version.recipient_hall_ids) LOOP\n    CONTINUE WHEN NOT (v_version.recipient_hall_ids[v_index] = ANY(v_candidates));\n    INSERT INTO public.hall_inquiry_dispatches (\n      couple_id, letter_id, version_id, hall_id, recipient_name, dispatch_fingerprint\n    ) VALUES (\n      p_couple_id, v_letter.id, v_version.id,\n      v_version.recipient_hall_ids[v_index],\n      v_version.recipient_names[v_index],\n      public.hall_inquiry_dispatch_fingerprint(\n        p_couple_id, v_version.recipient_hall_ids[v_index], v_version.body, v_version.signature, v_version.shares\n      )\n    )\n    ON CONFLICT (dispatch_fingerprint) DO NOTHING;\n    IF FOUND THEN\n      v_queued := v_queued + 1;\n    ELSE\n      v_duplicates := v_duplicates || v_version.recipient_hall_ids[v_index];\n    END IF;\n  END LOOP;\n\n  UPDATE public.hall_inquiry_letter_versions SET queued_at = now() WHERE id = v_version.id;\n  UPDATE public.hall_inquiry_letters SET locked_at = now() WHERE id = v_letter.id;\n\n  FOREACH v_member IN ARRAY v_members LOOP\n    PERFORM public.hall_inquiry_notify(\n      p_couple_id, v_member, p_actor_user_id,\n      md5('hall-inquiry-queued:' || v_version.id::text)::uuid,\n      'change_applied', 'hall_inquiry_letter',\n      '상담 문의 편지를 보낼 준비가 됐어요',\n      v_names || '에 보낼 편지예요. 담당자가 한 번 더 확인한 뒤 업체의 공식 문의 창구로 보내요.'\n    );\n  END LOOP;\n\n  RETURN jsonb_build_object(\n    'status', 'queued',\n    'notQueuedReason', NULL,\n    'queuedCount', v_queued,\n    'duplicateHallIds', to_jsonb(v_duplicates),\n    'waitingFor', '[]'::jsonb\n  );\nEND;\n",
+        "kind": "f",
+        "name": "hall_inquiry_approve_letter",
+        "owner": "postgres",
+        "config": [
+          "search_path=pg_catalog, public",
+          "lock_timeout=5s",
+          "statement_timeout=15s"
+        ],
+        "result": "jsonb",
+        "strict": false,
+        "language": "plpgsql",
+        "parallel": "u",
+        "definition": "CREATE OR REPLACE FUNCTION public.hall_inquiry_approve_letter(p_couple_id uuid, p_actor_user_id uuid, p_version_id uuid, p_fingerprint text, p_sending_enabled boolean, p_daily_cap integer, p_global_daily_cap integer)\n RETURNS jsonb\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'pg_catalog', 'public'\n SET lock_timeout TO '5s'\n SET statement_timeout TO '15s'\nAS $function$\nDECLARE\n  v_version public.hall_inquiry_letter_versions%ROWTYPE;\n  v_letter public.hall_inquiry_letters%ROWTYPE;\n  v_latest integer;\n  v_mode text := 'unset';\n  v_designated uuid;\n  v_revision bigint := 0;\n  v_members uuid[];\n  v_approved uuid[];\n  v_waiting uuid[];\n  v_complete boolean;\n  v_unavailable boolean := false;\n  v_member uuid;\n  v_candidates uuid[];\n  v_duplicates uuid[];\n  v_today_count integer;\n  v_global_count integer;\n  v_day_start timestamptz;\n  v_eligible boolean;\n  v_queued integer := 0;\n  v_index integer;\n  v_names text;\nBEGIN\n  IF p_version_id IS NULL\n     OR p_fingerprint IS NULL OR p_fingerprint !~ '^[0-9a-f]{64}$'\n     OR p_sending_enabled IS NULL\n     OR p_daily_cap IS NULL OR p_daily_cap NOT BETWEEN 0 AND 50\n     OR p_global_daily_cap IS NULL OR p_global_daily_cap NOT BETWEEN 0 AND 10000 THEN\n    RAISE EXCEPTION 'HALL_INQUIRY_INPUT_INVALID' USING ERRCODE = '22023';\n  END IF;\n  PERFORM public.hall_inquiry_lock_member(p_couple_id, p_actor_user_id);\n\n  SELECT version.* INTO v_version\n  FROM public.hall_inquiry_letter_versions AS version\n  WHERE version.id = p_version_id AND version.couple_id = p_couple_id;\n  IF NOT FOUND THEN\n    RAISE EXCEPTION 'HALL_INQUIRY_LETTER_NOT_FOUND' USING ERRCODE = '22023';\n  END IF;\n  SELECT letter.* INTO v_letter\n  FROM public.hall_inquiry_letters AS letter\n  WHERE letter.id = v_version.letter_id\n  FOR UPDATE;\n  -- 잠금을 기다리는 사이 바뀌었을 수 있어 잠근 뒤에 다시 읽는다.\n  SELECT version.* INTO v_version\n  FROM public.hall_inquiry_letter_versions AS version\n  WHERE version.id = p_version_id;\n  SELECT max(version.version) INTO v_latest\n  FROM public.hall_inquiry_letter_versions AS version\n  WHERE version.letter_id = v_letter.id;\n\n  -- 탈퇴로 지운 판은 승인할 내용이 없다.\n  IF v_version.redacted_at IS NOT NULL THEN\n    RAISE EXCEPTION 'HALL_INQUIRY_LETTER_LOCKED' USING ERRCODE = '55000';\n  END IF;\n  -- 화면이 본 내용과 지금 판이 다르면 승인하지 않는다(WS1).\n  IF v_version.version <> v_latest OR v_version.fingerprint IS DISTINCT FROM p_fingerprint THEN\n    RAISE EXCEPTION 'HALL_INQUIRY_VERSION_CHANGED' USING ERRCODE = '55000';\n  END IF;\n\n  -- 이미 대기열에 들어간 판이면 같은 결과를 돌려준다. 두 번 눌러도 두 번 넣지 않는다(WS2).\n  IF v_version.queued_at IS NOT NULL THEN\n    RETURN jsonb_build_object(\n      'status', 'queued',\n      'notQueuedReason', NULL,\n      'queuedCount', (\n        SELECT count(*) FROM public.hall_inquiry_dispatches AS dispatch\n        WHERE dispatch.version_id = v_version.id\n      ),\n      'duplicateHallIds', to_jsonb(ARRAY(\n        SELECT item.hall_id\n        FROM unnest(v_version.recipient_hall_ids) WITH ORDINALITY AS item(hall_id, ord)\n        WHERE NOT EXISTS (\n          SELECT 1 FROM public.hall_inquiry_dispatches AS dispatch\n          WHERE dispatch.version_id = v_version.id AND dispatch.hall_id = item.hall_id\n        )\n        ORDER BY item.ord\n      )),\n      'waitingFor', '[]'::jsonb\n    );\n  END IF;\n  IF v_letter.locked_at IS NOT NULL THEN\n    RAISE EXCEPTION 'HALL_INQUIRY_LETTER_LOCKED' USING ERRCODE = '55000';\n  END IF;\n\n  IF EXISTS (\n    SELECT 1\n    FROM unnest(v_version.recipient_hall_ids) AS item(hall_id)\n    LEFT JOIN public.hall_listings AS listing\n      ON listing.id = item.hall_id AND listing.active\n    WHERE listing.id IS NULL\n  ) THEN\n    RAISE EXCEPTION 'HALL_INQUIRY_RECIPIENTS_UNAVAILABLE' USING ERRCODE = '55000';\n  END IF;\n\n  SELECT setting.approver_mode, setting.designated_user_id, setting.revision\n    INTO v_mode, v_designated, v_revision\n  FROM public.hall_inquiry_settings AS setting\n  WHERE setting.couple_id = p_couple_id;\n  IF NOT FOUND THEN\n    v_mode := 'unset';\n    v_designated := NULL;\n    v_revision := 0;\n  END IF;\n\n  v_members := public.hall_inquiry_current_members(p_couple_id);\n\n  -- 지금 방식에서 승인할 수 있는 사람의 승인만 남긴다. 정한 한 사람이 있으면 그 사람뿐이다.\n  -- 기다리는 승인 방식 제안은 여기서 보지 않는다. 확인되기 전까지는 지금 방식이 그대로다.\n  v_eligible := CASE\n    WHEN v_mode = 'designated' THEN p_actor_user_id = v_designated AND p_actor_user_id = ANY(v_members)\n    ELSE p_actor_user_id = ANY(v_members)\n  END;\n  IF COALESCE(v_eligible, false) THEN\n    INSERT INTO public.hall_inquiry_approvals (\n      version_id, couple_id, approver_user_id, fingerprint, settings_revision, sending_enabled\n    ) VALUES (\n      v_version.id, p_couple_id, p_actor_user_id, v_version.fingerprint, v_revision, p_sending_enabled\n    )\n    ON CONFLICT (version_id, approver_user_id, settings_revision, sending_enabled) DO NOTHING;\n  END IF;\n\n  -- 문의 보내기가 켜져 있으면 켜진 동안 받은 승인만 센다. 꺼진 동안의 승인은 저장된 선택으로 남지만,\n  -- 스위치가 켜진 뒤 누가 다시 눌러도 그것만으로 대기열에 들어가지 않는다. 켜진 뒤 새로 승인해야 한다.\n  SELECT COALESCE(array_agg(DISTINCT approval.approver_user_id), ARRAY[]::uuid[])\n    INTO v_approved\n  FROM public.hall_inquiry_approvals AS approval\n  WHERE approval.version_id = v_version.id\n    AND approval.settings_revision = v_revision\n    AND approval.fingerprint = v_version.fingerprint\n    AND approval.approver_user_id = ANY(v_members)\n    AND (NOT p_sending_enabled OR approval.sending_enabled);\n\n  IF v_mode = 'designated' THEN\n    v_unavailable := NOT COALESCE(v_designated = ANY(v_members), false);\n    v_complete := NOT v_unavailable AND COALESCE(v_designated = ANY(v_approved), false);\n    v_waiting := CASE WHEN v_complete OR v_unavailable THEN ARRAY[]::uuid[] ELSE ARRAY[v_designated] END;\n  ELSIF v_mode = 'both' THEN\n    v_unavailable := cardinality(v_members) < 2;\n    v_complete := NOT v_unavailable AND COALESCE(v_members <@ v_approved, false);\n    v_waiting := ARRAY(\n      SELECT member FROM unnest(v_members) AS member WHERE NOT (member = ANY(v_approved))\n    );\n  ELSE\n    v_complete := cardinality(v_approved) >= 1;\n    v_waiting := CASE WHEN v_complete THEN ARRAY[]::uuid[] ELSE v_members END;\n  END IF;\n\n  v_names := array_to_string(v_version.recipient_names, ', ');\n\n  IF NOT COALESCE(v_complete, false) THEN\n    FOREACH v_member IN ARRAY v_waiting LOOP\n      CONTINUE WHEN v_member = p_actor_user_id;\n      PERFORM public.hall_inquiry_notify(\n        p_couple_id, v_member, p_actor_user_id, v_version.id,\n        'approval_requested', 'hall_inquiry_letter',\n        '함께 확인할 상담 문의 편지가 있어요',\n        v_names || '에 보낼 편지예요. 읽어 보고 승인해 주세요.'\n      );\n    END LOOP;\n    RETURN jsonb_build_object(\n      'status', 'awaiting_approval',\n      'notQueuedReason', CASE WHEN v_unavailable THEN 'approver_unavailable' END,\n      'queuedCount', 0,\n      'duplicateHallIds', '[]'::jsonb,\n      'waitingFor', to_jsonb(v_waiting)\n    );\n  END IF;\n\n  UPDATE public.hall_inquiry_letter_versions\n     SET approval_completed_at = now()\n   WHERE id = v_version.id AND approval_completed_at IS NULL;\n\n  -- 문의만 멈추는 스위치(WS5). 승인은 남기고 아무것도 넣지 않는다.\n  IF NOT p_sending_enabled THEN\n    FOREACH v_member IN ARRAY v_members LOOP\n      PERFORM public.hall_inquiry_notify(\n        p_couple_id, v_member, p_actor_user_id, v_version.id,\n        'change_applied', 'hall_inquiry_letter',\n        '상담 문의 편지가 승인됐어요',\n        v_names || '에 보낼 편지예요. 지금은 문의 보내기를 멈춰 두어서 아직 보내지 않았어요. 다시 켜지면 한 번 더 승인해 주세요.'\n      );\n    END LOOP;\n    RETURN jsonb_build_object(\n      'status', 'approved_not_queued',\n      'notQueuedReason', 'sending_disabled',\n      'queuedCount', 0,\n      'duplicateHallIds', '[]'::jsonb,\n      'waitingFor', '[]'::jsonb\n    );\n  END IF;\n\n  -- 같은 내용이 이미 그 홀로 들어간 곳은 다시 넣지 않는다(WS2).\n  SELECT\n    COALESCE(array_agg(item.hall_id ORDER BY item.ord) FILTER (WHERE existing.id IS NULL), ARRAY[]::uuid[]),\n    COALESCE(array_agg(item.hall_id ORDER BY item.ord) FILTER (WHERE existing.id IS NOT NULL), ARRAY[]::uuid[])\n    INTO v_candidates, v_duplicates\n  FROM unnest(v_version.recipient_hall_ids) WITH ORDINALITY AS item(hall_id, ord)\n  LEFT JOIN public.hall_inquiry_dispatches AS existing\n    ON existing.dispatch_fingerprint = public.hall_inquiry_dispatch_fingerprint(\n      p_couple_id, item.hall_id, v_version.body, v_version.signature, v_version.shares\n    );\n\n  -- 하루 상한(WS5). 한국 날짜로 오늘 대기열에 넣은 줄을 센다. 편지 한 통은 나누지 않는다.\n  v_day_start := date_trunc('day', now() AT TIME ZONE 'Asia/Seoul') AT TIME ZONE 'Asia/Seoul';\n  SELECT count(*)::integer INTO v_today_count\n  FROM public.hall_inquiry_dispatches AS dispatch\n  WHERE dispatch.couple_id = p_couple_id\n    AND dispatch.queued_at >= v_day_start\n    AND dispatch.queued_at < v_day_start + interval '1 day';\n  IF v_today_count + cardinality(v_candidates) > p_daily_cap THEN\n    FOREACH v_member IN ARRAY v_members LOOP\n      PERFORM public.hall_inquiry_notify(\n        p_couple_id, v_member, p_actor_user_id, v_version.id,\n        'change_applied', 'hall_inquiry_letter',\n        '상담 문의 편지가 승인됐어요',\n        v_names || '에 보낼 편지예요. 오늘 보낼 수 있는 문의 수를 넘어서 아직 보내지 않았어요.'\n      );\n    END LOOP;\n    RETURN jsonb_build_object(\n      'status', 'approved_not_queued',\n      'notQueuedReason', 'daily_cap',\n      'queuedCount', 0,\n      'duplicateHallIds', to_jsonb(v_duplicates),\n      'waitingFor', '[]'::jsonb\n    );\n  END IF;\n\n  -- 서비스 전체의 하루 상한(WS5). 모든 커플이 오늘 넣은 줄을 함께 센다. 값이 없거나 틀리면 서버가 0 을\n  -- 넘긴다(닫힌 채 실패). 두 커플이 동시에 마지막 자리를 차지하지 않게 세기 전에 잠근다. 커플 행을\n  -- 먼저 잡은 뒤 이 잠금을 잡으므로 잠금 순서는 언제나 같다.\n  PERFORM pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended('hanbang:hall-inquiry-global-cap', 0));\n  SELECT count(*)::integer INTO v_global_count\n  FROM public.hall_inquiry_dispatches AS dispatch\n  WHERE dispatch.queued_at >= v_day_start\n    AND dispatch.queued_at < v_day_start + interval '1 day';\n  IF v_global_count + cardinality(v_candidates) > p_global_daily_cap THEN\n    FOREACH v_member IN ARRAY v_members LOOP\n      PERFORM public.hall_inquiry_notify(\n        p_couple_id, v_member, p_actor_user_id, v_version.id,\n        'change_applied', 'hall_inquiry_letter',\n        '상담 문의 편지가 승인됐어요',\n        v_names || '에 보낼 편지예요. 오늘 보낼 수 있는 문의 수를 넘어서 아직 보내지 않았어요.'\n      );\n    END LOOP;\n    RETURN jsonb_build_object(\n      'status', 'approved_not_queued',\n      'notQueuedReason', 'global_daily_cap',\n      'queuedCount', 0,\n      'duplicateHallIds', to_jsonb(v_duplicates),\n      'waitingFor', '[]'::jsonb\n    );\n  END IF;\n\n  FOR v_index IN 1..cardinality(v_version.recipient_hall_ids) LOOP\n    CONTINUE WHEN NOT (v_version.recipient_hall_ids[v_index] = ANY(v_candidates));\n    INSERT INTO public.hall_inquiry_dispatches (\n      couple_id, letter_id, version_id, hall_id, recipient_name, dispatch_fingerprint\n    ) VALUES (\n      p_couple_id, v_letter.id, v_version.id,\n      v_version.recipient_hall_ids[v_index],\n      v_version.recipient_names[v_index],\n      public.hall_inquiry_dispatch_fingerprint(\n        p_couple_id, v_version.recipient_hall_ids[v_index], v_version.body, v_version.signature, v_version.shares\n      )\n    )\n    ON CONFLICT (dispatch_fingerprint) DO NOTHING;\n    IF FOUND THEN\n      v_queued := v_queued + 1;\n    ELSE\n      v_duplicates := v_duplicates || v_version.recipient_hall_ids[v_index];\n    END IF;\n  END LOOP;\n\n  UPDATE public.hall_inquiry_letter_versions SET queued_at = now() WHERE id = v_version.id;\n  UPDATE public.hall_inquiry_letters SET locked_at = now() WHERE id = v_letter.id;\n\n  FOREACH v_member IN ARRAY v_members LOOP\n    PERFORM public.hall_inquiry_notify(\n      p_couple_id, v_member, p_actor_user_id,\n      md5('hall-inquiry-queued:' || v_version.id::text)::uuid,\n      'change_applied', 'hall_inquiry_letter',\n      '상담 문의 편지를 보낼 준비가 됐어요',\n      v_names || '에 보낼 편지예요. 담당자가 한 번 더 확인한 뒤 업체의 공식 문의 창구로 보내요.'\n    );\n  END LOOP;\n\n  RETURN jsonb_build_object(\n    'status', 'queued',\n    'notQueuedReason', NULL,\n    'queuedCount', v_queued,\n    'duplicateHallIds', to_jsonb(v_duplicates),\n    'waitingFor', '[]'::jsonb\n  );\nEND;\n$function$\n",
+        "volatility": "v",
+        "securityDefiner": true
+      },
+      {
+        "acl": [
+          [
+            "postgres",
+            "postgres",
+            "EXECUTE",
+            false
+          ],
+          [
+            "service_role",
+            "postgres",
+            "EXECUTE",
+            false
+          ]
+        ],
+        "args": "uuid, uuid, uuid, uuid[], text, text, jsonb",
+        "body": "\nDECLARE\n  v_ids uuid[];\n  v_names text[];\n  v_letter public.hall_inquiry_letters%ROWTYPE;\n  v_latest public.hall_inquiry_letter_versions%ROWTYPE;\n  v_has_latest boolean;\n  v_fingerprint text;\n  v_version_id uuid;\n  v_version integer;\nBEGIN\n  PERFORM public.hall_inquiry_lock_member(p_couple_id, p_actor_user_id);\n\n  IF p_recipient_hall_ids IS NULL\n     OR cardinality(p_recipient_hall_ids) NOT BETWEEN 1 AND 10\n     OR array_position(p_recipient_hall_ids, NULL) IS NOT NULL\n     OR (SELECT count(DISTINCT item) FROM unnest(p_recipient_hall_ids) AS item)\n        <> cardinality(p_recipient_hall_ids) THEN\n    RAISE EXCEPTION 'HALL_INQUIRY_RECIPIENTS_INVALID' USING ERRCODE = '22023';\n  END IF;\n\n  -- 받는 곳은 지금 공개 중이고 이 커플이 담은 홀이어야 한다.\n  SELECT array_agg(listing.id ORDER BY requested.ord), array_agg(listing.name ORDER BY requested.ord)\n    INTO v_ids, v_names\n  FROM unnest(p_recipient_hall_ids) WITH ORDINALITY AS requested(hall_id, ord)\n  JOIN public.hall_listings AS listing\n    ON listing.id = requested.hall_id AND listing.active\n  JOIN public.hall_shortlists AS pick\n    ON pick.hall_id = listing.id AND pick.couple_id = p_couple_id;\n  IF v_ids IS NULL OR cardinality(v_ids) <> cardinality(p_recipient_hall_ids) THEN\n    RAISE EXCEPTION 'HALL_INQUIRY_RECIPIENTS_UNAVAILABLE' USING ERRCODE = '22023';\n  END IF;\n\n  IF p_body IS NULL\n     OR char_length(p_body) NOT BETWEEN 1 AND 1000\n     OR p_body IS DISTINCT FROM btrim(p_body, E' \\n')\n     OR public.hall_inquiry_text_is_unsafe(p_body, true) THEN\n    RAISE EXCEPTION 'HALL_INQUIRY_BODY_INVALID' USING ERRCODE = '22023';\n  END IF;\n  IF p_signature IS NULL\n     OR char_length(p_signature) NOT BETWEEN 1 AND 60\n     OR p_signature IS DISTINCT FROM btrim(p_signature)\n     OR public.hall_inquiry_text_is_unsafe(p_signature, false) THEN\n    RAISE EXCEPTION 'HALL_INQUIRY_BODY_INVALID' USING ERRCODE = '22023';\n  END IF;\n  IF NOT public.hall_inquiry_shares_are_valid(p_shares) THEN\n    RAISE EXCEPTION 'HALL_INQUIRY_SHARES_INVALID' USING ERRCODE = '22023';\n  END IF;\n\n  IF p_letter_id IS NULL THEN\n    SELECT letter.* INTO v_letter\n    FROM public.hall_inquiry_letters AS letter\n    WHERE letter.couple_id = p_couple_id AND letter.locked_at IS NULL\n    FOR UPDATE;\n    IF NOT FOUND THEN\n      INSERT INTO public.hall_inquiry_letters (couple_id, created_by)\n      VALUES (p_couple_id, p_actor_user_id)\n      RETURNING * INTO v_letter;\n    END IF;\n  ELSE\n    SELECT letter.* INTO v_letter\n    FROM public.hall_inquiry_letters AS letter\n    WHERE letter.id = p_letter_id AND letter.couple_id = p_couple_id\n    FOR UPDATE;\n    IF NOT FOUND THEN\n      RAISE EXCEPTION 'HALL_INQUIRY_LETTER_NOT_FOUND' USING ERRCODE = '22023';\n    END IF;\n  END IF;\n  IF v_letter.locked_at IS NOT NULL THEN\n    RAISE EXCEPTION 'HALL_INQUIRY_LETTER_LOCKED' USING ERRCODE = '55000';\n  END IF;\n\n  v_fingerprint := public.hall_inquiry_letter_fingerprint(p_couple_id, v_ids, p_body, p_signature, p_shares);\n\n  SELECT version.* INTO v_latest\n  FROM public.hall_inquiry_letter_versions AS version\n  WHERE version.letter_id = v_letter.id\n  ORDER BY version.version DESC\n  LIMIT 1;\n  v_has_latest := FOUND;\n\n  -- 내용이 같으면 새 판을 만들지 않는다. 같은 판에 받은 승인이 그대로 유효하다.\n  IF v_has_latest AND v_latest.fingerprint = v_fingerprint THEN\n    RETURN jsonb_build_object(\n      'letterId', v_letter.id,\n      'versionId', v_latest.id,\n      'version', v_latest.version,\n      'fingerprint', v_latest.fingerprint,\n      'created', false\n    );\n  END IF;\n\n  v_version := CASE WHEN v_has_latest THEN v_latest.version + 1 ELSE 1 END;\n  IF v_version > 500 THEN\n    RAISE EXCEPTION 'HALL_INQUIRY_TOO_MANY_VERSIONS' USING ERRCODE = '22023';\n  END IF;\n\n  INSERT INTO public.hall_inquiry_letter_versions (\n    letter_id, couple_id, version, recipient_hall_ids, recipient_names,\n    body, signature, shares, fingerprint, created_by\n  ) VALUES (\n    v_letter.id, p_couple_id, v_version, v_ids, v_names,\n    p_body, p_signature, p_shares, v_fingerprint, p_actor_user_id\n  )\n  RETURNING id INTO v_version_id;\n\n  -- 앞 판의 확인 요청은 낡았다. 새 판은 새 승인이 필요하다.\n  UPDATE public.couple_change_notifications AS notification\n     SET event_kind = 'change_stale',\n         title = '편지 내용이 바뀌었어요',\n         message = '바뀐 편지를 다시 확인해 주세요.'\n   WHERE notification.couple_id = p_couple_id\n     AND notification.tool_name = 'hall_inquiry_letter'\n     AND notification.event_kind = 'approval_requested'\n     AND notification.action_id IN (\n       SELECT version.id\n       FROM public.hall_inquiry_letter_versions AS version\n       WHERE version.letter_id = v_letter.id AND version.id <> v_version_id\n     );\n\n  RETURN jsonb_build_object(\n    'letterId', v_letter.id,\n    'versionId', v_version_id,\n    'version', v_version,\n    'fingerprint', v_fingerprint,\n    'created', true\n  );\nEND;\n",
+        "kind": "f",
+        "name": "hall_inquiry_save_letter_version",
+        "owner": "postgres",
+        "config": [
+          "search_path=pg_catalog, public",
+          "lock_timeout=5s",
+          "statement_timeout=15s"
+        ],
+        "result": "jsonb",
+        "strict": false,
+        "language": "plpgsql",
+        "parallel": "u",
+        "definition": "CREATE OR REPLACE FUNCTION public.hall_inquiry_save_letter_version(p_couple_id uuid, p_actor_user_id uuid, p_letter_id uuid, p_recipient_hall_ids uuid[], p_body text, p_signature text, p_shares jsonb)\n RETURNS jsonb\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'pg_catalog', 'public'\n SET lock_timeout TO '5s'\n SET statement_timeout TO '15s'\nAS $function$\nDECLARE\n  v_ids uuid[];\n  v_names text[];\n  v_letter public.hall_inquiry_letters%ROWTYPE;\n  v_latest public.hall_inquiry_letter_versions%ROWTYPE;\n  v_has_latest boolean;\n  v_fingerprint text;\n  v_version_id uuid;\n  v_version integer;\nBEGIN\n  PERFORM public.hall_inquiry_lock_member(p_couple_id, p_actor_user_id);\n\n  IF p_recipient_hall_ids IS NULL\n     OR cardinality(p_recipient_hall_ids) NOT BETWEEN 1 AND 10\n     OR array_position(p_recipient_hall_ids, NULL) IS NOT NULL\n     OR (SELECT count(DISTINCT item) FROM unnest(p_recipient_hall_ids) AS item)\n        <> cardinality(p_recipient_hall_ids) THEN\n    RAISE EXCEPTION 'HALL_INQUIRY_RECIPIENTS_INVALID' USING ERRCODE = '22023';\n  END IF;\n\n  -- 받는 곳은 지금 공개 중이고 이 커플이 담은 홀이어야 한다.\n  SELECT array_agg(listing.id ORDER BY requested.ord), array_agg(listing.name ORDER BY requested.ord)\n    INTO v_ids, v_names\n  FROM unnest(p_recipient_hall_ids) WITH ORDINALITY AS requested(hall_id, ord)\n  JOIN public.hall_listings AS listing\n    ON listing.id = requested.hall_id AND listing.active\n  JOIN public.hall_shortlists AS pick\n    ON pick.hall_id = listing.id AND pick.couple_id = p_couple_id;\n  IF v_ids IS NULL OR cardinality(v_ids) <> cardinality(p_recipient_hall_ids) THEN\n    RAISE EXCEPTION 'HALL_INQUIRY_RECIPIENTS_UNAVAILABLE' USING ERRCODE = '22023';\n  END IF;\n\n  IF p_body IS NULL\n     OR char_length(p_body) NOT BETWEEN 1 AND 1000\n     OR p_body IS DISTINCT FROM btrim(p_body, E' \\n')\n     OR public.hall_inquiry_text_is_unsafe(p_body, true) THEN\n    RAISE EXCEPTION 'HALL_INQUIRY_BODY_INVALID' USING ERRCODE = '22023';\n  END IF;\n  IF p_signature IS NULL\n     OR char_length(p_signature) NOT BETWEEN 1 AND 60\n     OR p_signature IS DISTINCT FROM btrim(p_signature)\n     OR public.hall_inquiry_text_is_unsafe(p_signature, false) THEN\n    RAISE EXCEPTION 'HALL_INQUIRY_BODY_INVALID' USING ERRCODE = '22023';\n  END IF;\n  IF NOT public.hall_inquiry_shares_are_valid(p_shares) THEN\n    RAISE EXCEPTION 'HALL_INQUIRY_SHARES_INVALID' USING ERRCODE = '22023';\n  END IF;\n\n  IF p_letter_id IS NULL THEN\n    SELECT letter.* INTO v_letter\n    FROM public.hall_inquiry_letters AS letter\n    WHERE letter.couple_id = p_couple_id AND letter.locked_at IS NULL\n    FOR UPDATE;\n    IF NOT FOUND THEN\n      INSERT INTO public.hall_inquiry_letters (couple_id, created_by)\n      VALUES (p_couple_id, p_actor_user_id)\n      RETURNING * INTO v_letter;\n    END IF;\n  ELSE\n    SELECT letter.* INTO v_letter\n    FROM public.hall_inquiry_letters AS letter\n    WHERE letter.id = p_letter_id AND letter.couple_id = p_couple_id\n    FOR UPDATE;\n    IF NOT FOUND THEN\n      RAISE EXCEPTION 'HALL_INQUIRY_LETTER_NOT_FOUND' USING ERRCODE = '22023';\n    END IF;\n  END IF;\n  IF v_letter.locked_at IS NOT NULL THEN\n    RAISE EXCEPTION 'HALL_INQUIRY_LETTER_LOCKED' USING ERRCODE = '55000';\n  END IF;\n\n  v_fingerprint := public.hall_inquiry_letter_fingerprint(p_couple_id, v_ids, p_body, p_signature, p_shares);\n\n  SELECT version.* INTO v_latest\n  FROM public.hall_inquiry_letter_versions AS version\n  WHERE version.letter_id = v_letter.id\n  ORDER BY version.version DESC\n  LIMIT 1;\n  v_has_latest := FOUND;\n\n  -- 내용이 같으면 새 판을 만들지 않는다. 같은 판에 받은 승인이 그대로 유효하다.\n  IF v_has_latest AND v_latest.fingerprint = v_fingerprint THEN\n    RETURN jsonb_build_object(\n      'letterId', v_letter.id,\n      'versionId', v_latest.id,\n      'version', v_latest.version,\n      'fingerprint', v_latest.fingerprint,\n      'created', false\n    );\n  END IF;\n\n  v_version := CASE WHEN v_has_latest THEN v_latest.version + 1 ELSE 1 END;\n  IF v_version > 500 THEN\n    RAISE EXCEPTION 'HALL_INQUIRY_TOO_MANY_VERSIONS' USING ERRCODE = '22023';\n  END IF;\n\n  INSERT INTO public.hall_inquiry_letter_versions (\n    letter_id, couple_id, version, recipient_hall_ids, recipient_names,\n    body, signature, shares, fingerprint, created_by\n  ) VALUES (\n    v_letter.id, p_couple_id, v_version, v_ids, v_names,\n    p_body, p_signature, p_shares, v_fingerprint, p_actor_user_id\n  )\n  RETURNING id INTO v_version_id;\n\n  -- 앞 판의 확인 요청은 낡았다. 새 판은 새 승인이 필요하다.\n  UPDATE public.couple_change_notifications AS notification\n     SET event_kind = 'change_stale',\n         title = '편지 내용이 바뀌었어요',\n         message = '바뀐 편지를 다시 확인해 주세요.'\n   WHERE notification.couple_id = p_couple_id\n     AND notification.tool_name = 'hall_inquiry_letter'\n     AND notification.event_kind = 'approval_requested'\n     AND notification.action_id IN (\n       SELECT version.id\n       FROM public.hall_inquiry_letter_versions AS version\n       WHERE version.letter_id = v_letter.id AND version.id <> v_version_id\n     );\n\n  RETURN jsonb_build_object(\n    'letterId', v_letter.id,\n    'versionId', v_version_id,\n    'version', v_version,\n    'fingerprint', v_fingerprint,\n    'created', true\n  );\nEND;\n$function$\n",
+        "volatility": "v",
+        "securityDefiner": true
+      },
+      {
+        "acl": [
+          [
+            "postgres",
+            "postgres",
+            "EXECUTE",
+            false
+          ]
+        ],
+        "args": "",
+        "body": "\nBEGIN\n  PERFORM pg_catalog.pg_advisory_xact_lock(\n    pg_catalog.hashtextextended('hanbang:hall-shortlist:' || NEW.couple_id::text, 0)\n  );\n  IF EXISTS (\n    SELECT 1 FROM public.hall_shortlists AS pick\n    WHERE pick.couple_id = NEW.couple_id AND pick.hall_id = NEW.hall_id\n  ) THEN\n    RETURN NEW;\n  END IF;\n  IF (SELECT count(*) FROM public.hall_shortlists AS pick WHERE pick.couple_id = NEW.couple_id) >= 10 THEN\n    RAISE EXCEPTION 'HALL_SHORTLIST_FULL' USING ERRCODE = '23514';\n  END IF;\n  RETURN NEW;\nEND;\n",
+        "kind": "f",
+        "name": "hall_shortlists_enforce_limit",
+        "owner": "postgres",
+        "config": [
+          "search_path=pg_catalog, public"
+        ],
+        "result": "trigger",
+        "strict": false,
+        "language": "plpgsql",
+        "parallel": "u",
+        "definition": "CREATE OR REPLACE FUNCTION public.hall_shortlists_enforce_limit()\n RETURNS trigger\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'pg_catalog', 'public'\nAS $function$\nBEGIN\n  PERFORM pg_catalog.pg_advisory_xact_lock(\n    pg_catalog.hashtextextended('hanbang:hall-shortlist:' || NEW.couple_id::text, 0)\n  );\n  IF EXISTS (\n    SELECT 1 FROM public.hall_shortlists AS pick\n    WHERE pick.couple_id = NEW.couple_id AND pick.hall_id = NEW.hall_id\n  ) THEN\n    RETURN NEW;\n  END IF;\n  IF (SELECT count(*) FROM public.hall_shortlists AS pick WHERE pick.couple_id = NEW.couple_id) >= 10 THEN\n    RAISE EXCEPTION 'HALL_SHORTLIST_FULL' USING ERRCODE = '23514';\n  END IF;\n  RETURN NEW;\nEND;\n$function$\n",
+        "volatility": "v",
+        "securityDefiner": true
+      },
+      {
+        "acl": [
+          [
+            "postgres",
+            "postgres",
+            "EXECUTE",
+            false
+          ]
+        ],
+        "args": "",
+        "body": "\nDECLARE\n  v_old jsonb := to_jsonb(OLD);\n  v_new jsonb := to_jsonb(NEW);\n  v_nullable text[];\n  v_once text[] := ARRAY[]::text[];\n  v_key text;\nBEGIN\n  IF TG_TABLE_NAME = 'hall_inquiry_letter_versions' THEN\n    v_nullable := ARRAY['created_by', 'body', 'signature', 'shares', 'fingerprint'];\n    v_once := ARRAY['approval_completed_at', 'queued_at', 'redacted_at'];\n  ELSIF TG_TABLE_NAME = 'hall_inquiry_approvals' THEN\n    v_nullable := ARRAY['approver_user_id', 'fingerprint'];\n  ELSIF TG_TABLE_NAME = 'hall_inquiry_replies' THEN\n    v_nullable := ARRAY['recorded_by', 'raw_text', 'place_note', 'price_note'];\n    v_once := ARRAY['redacted_at'];\n  ELSIF TG_TABLE_NAME = 'hall_inquiry_dispatches' THEN\n    v_nullable := ARRAY['sent_by', 'channel_note', 'dispatch_fingerprint'];\n    v_once := ARRAY['redacted_at'];\n    IF OLD.status = 'queued' AND NEW.status = 'sent' THEN\n      -- 보냈다고 표시하는 한 번만 상태, 시각, 보낸 사람, 메모를 함께 바꿀 수 있다.\n      v_once := v_once || ARRAY['status', 'sent_at', 'sent_by', 'channel_note'];\n    ELSIF OLD.status = 'queued' AND NEW.status = 'withdrawn' THEN\n      -- 거둬들이는 것도 대기 중인 줄에서 한 번뿐이다.\n      v_once := v_once || ARRAY['status', 'withdrawn_at'];\n    END IF;\n  ELSE\n    RAISE EXCEPTION 'HALL_INQUIRY_RECORD_GUARD_MISCONFIGURED' USING ERRCODE = '55000';\n  END IF;\n\n  FOR v_key IN SELECT jsonb_object_keys(v_old) LOOP\n    CONTINUE WHEN (v_old -> v_key) IS NOT DISTINCT FROM (v_new -> v_key);\n    -- 탈퇴로 사람 칸이 비는 것.\n    CONTINUE WHEN v_key = ANY(v_nullable) AND jsonb_typeof(v_new -> v_key) = 'null';\n    -- 한 번만 채우는 칸(비어 있던 칸에 처음 값을 넣는 것). 상태는 queued 에서 sent 로 한 번.\n    CONTINUE WHEN v_key = ANY(v_once)\n      AND (jsonb_typeof(v_old -> v_key) = 'null' OR v_key = 'status');\n    RAISE EXCEPTION 'HALL_INQUIRY_RECORD_IMMUTABLE' USING ERRCODE = '55000';\n  END LOOP;\n  RETURN NEW;\nEND;\n",
+        "kind": "f",
+        "name": "hall_inquiry_guard_record_update",
+        "owner": "postgres",
+        "config": [
+          "search_path=pg_catalog, public"
+        ],
+        "result": "trigger",
+        "strict": false,
+        "language": "plpgsql",
+        "parallel": "u",
+        "definition": "CREATE OR REPLACE FUNCTION public.hall_inquiry_guard_record_update()\n RETURNS trigger\n LANGUAGE plpgsql\n SET search_path TO 'pg_catalog', 'public'\nAS $function$\nDECLARE\n  v_old jsonb := to_jsonb(OLD);\n  v_new jsonb := to_jsonb(NEW);\n  v_nullable text[];\n  v_once text[] := ARRAY[]::text[];\n  v_key text;\nBEGIN\n  IF TG_TABLE_NAME = 'hall_inquiry_letter_versions' THEN\n    v_nullable := ARRAY['created_by', 'body', 'signature', 'shares', 'fingerprint'];\n    v_once := ARRAY['approval_completed_at', 'queued_at', 'redacted_at'];\n  ELSIF TG_TABLE_NAME = 'hall_inquiry_approvals' THEN\n    v_nullable := ARRAY['approver_user_id', 'fingerprint'];\n  ELSIF TG_TABLE_NAME = 'hall_inquiry_replies' THEN\n    v_nullable := ARRAY['recorded_by', 'raw_text', 'place_note', 'price_note'];\n    v_once := ARRAY['redacted_at'];\n  ELSIF TG_TABLE_NAME = 'hall_inquiry_dispatches' THEN\n    v_nullable := ARRAY['sent_by', 'channel_note', 'dispatch_fingerprint'];\n    v_once := ARRAY['redacted_at'];\n    IF OLD.status = 'queued' AND NEW.status = 'sent' THEN\n      -- 보냈다고 표시하는 한 번만 상태, 시각, 보낸 사람, 메모를 함께 바꿀 수 있다.\n      v_once := v_once || ARRAY['status', 'sent_at', 'sent_by', 'channel_note'];\n    ELSIF OLD.status = 'queued' AND NEW.status = 'withdrawn' THEN\n      -- 거둬들이는 것도 대기 중인 줄에서 한 번뿐이다.\n      v_once := v_once || ARRAY['status', 'withdrawn_at'];\n    END IF;\n  ELSE\n    RAISE EXCEPTION 'HALL_INQUIRY_RECORD_GUARD_MISCONFIGURED' USING ERRCODE = '55000';\n  END IF;\n\n  FOR v_key IN SELECT jsonb_object_keys(v_old) LOOP\n    CONTINUE WHEN (v_old -> v_key) IS NOT DISTINCT FROM (v_new -> v_key);\n    -- 탈퇴로 사람 칸이 비는 것.\n    CONTINUE WHEN v_key = ANY(v_nullable) AND jsonb_typeof(v_new -> v_key) = 'null';\n    -- 한 번만 채우는 칸(비어 있던 칸에 처음 값을 넣는 것). 상태는 queued 에서 sent 로 한 번.\n    CONTINUE WHEN v_key = ANY(v_once)\n      AND (jsonb_typeof(v_old -> v_key) = 'null' OR v_key = 'status');\n    RAISE EXCEPTION 'HALL_INQUIRY_RECORD_IMMUTABLE' USING ERRCODE = '55000';\n  END LOOP;\n  RETURN NEW;\nEND;\n$function$\n",
+        "volatility": "v",
+        "securityDefiner": false
+      },
+      {
+        "acl": [
+          [
+            "postgres",
+            "postgres",
+            "EXECUTE",
+            false
+          ]
+        ],
+        "args": "",
+        "body": "\nDECLARE\n  v_user uuid := NEW.user_id;\n  v_now timestamptz := clock_timestamp();\n  v_couples uuid[];\n  v_letters uuid[];\nBEGIN\n  IF v_user IS NULL OR NEW.status = 'completed' THEN\n    RETURN NEW;\n  END IF;\n  -- 기존 삭제 작업과 같은 잠금. 이 사람이 쓰던 문의가 끝난 뒤에 지운다.\n  PERFORM pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended('hanbang:account-data:' || v_user::text, 0));\n\n  -- 지금 속한 커플은 편지 쓰기와 같은 순서(커플 행 먼저)로 잠근다. 상대가 쓰던 편지도 끝난 뒤에 지운다.\n  SELECT COALESCE(array_agg(couple.id ORDER BY couple.id), ARRAY[]::uuid[])\n    INTO v_couples\n  FROM public.couples AS couple\n  WHERE couple.id IN (SELECT profile.couple_id FROM public.profiles AS profile WHERE profile.id = v_user)\n     OR v_user IN (couple.bride_id, couple.groom_id);\n  PERFORM 1\n  FROM public.couples AS couple\n  WHERE couple.id = ANY(v_couples)\n  ORDER BY couple.id\n  FOR UPDATE;\n\n  -- 지울 편지: 지금 속한 커플의 편지 전부, 그리고 이 사람이 쓰거나 승인한 편지(예전 커플 것도).\n  SELECT COALESCE(array_agg(letter.id ORDER BY letter.id), ARRAY[]::uuid[])\n    INTO v_letters\n  FROM public.hall_inquiry_letters AS letter\n  WHERE letter.couple_id = ANY(v_couples)\n     OR letter.created_by = v_user\n     OR EXISTS (\n       SELECT 1 FROM public.hall_inquiry_letter_versions AS version\n       WHERE version.letter_id = letter.id AND version.created_by = v_user\n     )\n     OR EXISTS (\n       SELECT 1\n       FROM public.hall_inquiry_approvals AS approval\n       JOIN public.hall_inquiry_letter_versions AS version ON version.id = approval.version_id\n       WHERE version.letter_id = letter.id AND approval.approver_user_id = v_user\n     );\n\n  -- 지운 편지를 승인해 달라는 알림은 낡은 알림으로 바꾼다.\n  UPDATE public.couple_change_notifications AS notification\n     SET event_kind = 'change_stale',\n         title = '상담 문의 편지를 지웠어요',\n         message = '함께 쓰던 사람이 탈퇴해서 편지를 지웠어요. 필요하면 새로 써 주세요.'\n   WHERE notification.tool_name = 'hall_inquiry_letter'\n     AND notification.event_kind = 'approval_requested'\n     AND notification.action_id IN (\n       SELECT version.id FROM public.hall_inquiry_letter_versions AS version\n       WHERE version.letter_id = ANY(v_letters)\n     )\n     AND NOT EXISTS (\n       SELECT 1 FROM public.couple_change_notifications AS stale\n       WHERE stale.couple_id = notification.couple_id\n         AND stale.recipient_user_id = notification.recipient_user_id\n         AND stale.action_id = notification.action_id\n         AND stale.event_kind = 'change_stale'\n     );\n\n  -- 아직 보내지 않은 문의는 거둬들인다. 보낸 줄은 보낸 사실과 시각만 남기고 지문과 메모를 비운다.\n  UPDATE public.hall_inquiry_dispatches AS dispatch\n     SET status = CASE WHEN dispatch.status = 'queued' THEN 'withdrawn' ELSE dispatch.status END,\n         withdrawn_at = CASE WHEN dispatch.status = 'queued' THEN v_now ELSE dispatch.withdrawn_at END,\n         dispatch_fingerprint = NULL,\n         channel_note = NULL,\n         redacted_at = v_now\n   WHERE dispatch.letter_id = ANY(v_letters)\n     AND dispatch.redacted_at IS NULL;\n\n  UPDATE public.hall_inquiry_replies AS reply\n     SET raw_text = NULL,\n         place_note = NULL,\n         price_note = NULL,\n         redacted_at = v_now\n   WHERE reply.redacted_at IS NULL\n     AND reply.dispatch_id IN (\n       SELECT dispatch.id FROM public.hall_inquiry_dispatches AS dispatch\n       WHERE dispatch.letter_id = ANY(v_letters)\n     );\n\n  UPDATE public.hall_inquiry_approvals AS approval\n     SET fingerprint = NULL\n   WHERE approval.fingerprint IS NOT NULL\n     AND approval.version_id IN (\n       SELECT version.id FROM public.hall_inquiry_letter_versions AS version\n       WHERE version.letter_id = ANY(v_letters)\n     );\n\n  UPDATE public.hall_inquiry_letter_versions AS version\n     SET body = NULL,\n         signature = NULL,\n         shares = NULL,\n         fingerprint = NULL,\n         redacted_at = v_now\n   WHERE version.letter_id = ANY(v_letters)\n     AND version.redacted_at IS NULL;\n\n  -- 열려 있던 편지는 닫는다. 남은 사람은 새 편지로 다시 시작한다.\n  UPDATE public.hall_inquiry_letters AS letter\n     SET locked_at = v_now\n   WHERE letter.id = ANY(v_letters)\n     AND letter.locked_at IS NULL;\n\n  -- 이 사람을 승인할 사람으로 정해 두었으면 고르기 전으로 돌린다. 앞 방식에서 받은 승인은 세지 않는다.\n  UPDATE public.hall_inquiry_settings AS setting\n     SET approver_mode = 'unset',\n         designated_user_id = NULL,\n         revision = setting.revision + 1,\n         updated_by = NULL,\n         updated_at = v_now\n   WHERE setting.designated_user_id = v_user;\n\n  -- 승인 방식 제안을 내린다(확인을 부탁한 알림도 낡은 알림으로). 지금 속한 커플의 제안은 이 사람이 냈거나\n  -- 이 사람이 답해야 하는 것이라 모두 내리고, 예전 커플에서 이 사람이 내거나 이 사람을 가리킨 제안도 내린다.\n  PERFORM public.hall_inquiry_drop_approver_proposal(setting.couple_id)\n  FROM public.hall_inquiry_settings AS setting\n  WHERE setting.proposal_id IS NOT NULL\n    AND (setting.couple_id = ANY(v_couples)\n      OR setting.proposed_by = v_user\n      OR setting.proposed_designated_user_id = v_user);\n\n  -- 남은 사람 칸. 이 사람이 운영자였다면 운영자 칸도 여기서 빈다.\n  UPDATE public.hall_inquiry_settings SET updated_by = NULL WHERE updated_by = v_user;\n  UPDATE public.hall_inquiry_approvals SET approver_user_id = NULL WHERE approver_user_id = v_user;\n  UPDATE public.hall_inquiry_letter_versions SET created_by = NULL WHERE created_by = v_user;\n  UPDATE public.hall_inquiry_letters SET created_by = NULL WHERE created_by = v_user;\n  UPDATE public.hall_shortlists SET added_by = NULL WHERE added_by = v_user;\n  UPDATE public.hall_inquiry_dispatches SET sent_by = NULL WHERE sent_by = v_user;\n  UPDATE public.hall_inquiry_replies SET recorded_by = NULL WHERE recorded_by = v_user;\n  UPDATE public.hall_listings SET created_by = NULL WHERE created_by = v_user;\n  UPDATE public.hall_listings SET updated_by = NULL WHERE updated_by = v_user;\n\n  IF EXISTS (\n       SELECT 1 FROM public.hall_inquiry_letter_versions AS version\n       WHERE version.letter_id = ANY(v_letters) AND version.redacted_at IS NULL\n     )\n     OR EXISTS (\n       SELECT 1 FROM public.hall_inquiry_dispatches AS dispatch\n       WHERE dispatch.letter_id = ANY(v_letters)\n         AND (dispatch.status = 'queued' OR dispatch.redacted_at IS NULL)\n     )\n     OR EXISTS (SELECT 1 FROM public.hall_inquiry_approvals WHERE approver_user_id = v_user)\n     OR EXISTS (\n       SELECT 1 FROM public.hall_inquiry_settings\n       WHERE designated_user_id = v_user\n          OR proposed_by = v_user\n          OR proposed_designated_user_id = v_user\n          OR (proposal_id IS NOT NULL AND couple_id = ANY(v_couples))\n     ) THEN\n    RAISE EXCEPTION 'HALL_INQUIRY_ACCOUNT_DELETION_POSTCONDITION_FAILED' USING ERRCODE = 'P0001';\n  END IF;\n  RETURN NEW;\nEND;\n",
+        "kind": "f",
+        "name": "hall_inquiry_purge_for_account_deletion",
+        "owner": "postgres",
+        "config": [
+          "search_path=pg_catalog, public"
+        ],
+        "result": "trigger",
+        "strict": false,
+        "language": "plpgsql",
+        "parallel": "u",
+        "definition": "CREATE OR REPLACE FUNCTION public.hall_inquiry_purge_for_account_deletion()\n RETURNS trigger\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'pg_catalog', 'public'\nAS $function$\nDECLARE\n  v_user uuid := NEW.user_id;\n  v_now timestamptz := clock_timestamp();\n  v_couples uuid[];\n  v_letters uuid[];\nBEGIN\n  IF v_user IS NULL OR NEW.status = 'completed' THEN\n    RETURN NEW;\n  END IF;\n  -- 기존 삭제 작업과 같은 잠금. 이 사람이 쓰던 문의가 끝난 뒤에 지운다.\n  PERFORM pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended('hanbang:account-data:' || v_user::text, 0));\n\n  -- 지금 속한 커플은 편지 쓰기와 같은 순서(커플 행 먼저)로 잠근다. 상대가 쓰던 편지도 끝난 뒤에 지운다.\n  SELECT COALESCE(array_agg(couple.id ORDER BY couple.id), ARRAY[]::uuid[])\n    INTO v_couples\n  FROM public.couples AS couple\n  WHERE couple.id IN (SELECT profile.couple_id FROM public.profiles AS profile WHERE profile.id = v_user)\n     OR v_user IN (couple.bride_id, couple.groom_id);\n  PERFORM 1\n  FROM public.couples AS couple\n  WHERE couple.id = ANY(v_couples)\n  ORDER BY couple.id\n  FOR UPDATE;\n\n  -- 지울 편지: 지금 속한 커플의 편지 전부, 그리고 이 사람이 쓰거나 승인한 편지(예전 커플 것도).\n  SELECT COALESCE(array_agg(letter.id ORDER BY letter.id), ARRAY[]::uuid[])\n    INTO v_letters\n  FROM public.hall_inquiry_letters AS letter\n  WHERE letter.couple_id = ANY(v_couples)\n     OR letter.created_by = v_user\n     OR EXISTS (\n       SELECT 1 FROM public.hall_inquiry_letter_versions AS version\n       WHERE version.letter_id = letter.id AND version.created_by = v_user\n     )\n     OR EXISTS (\n       SELECT 1\n       FROM public.hall_inquiry_approvals AS approval\n       JOIN public.hall_inquiry_letter_versions AS version ON version.id = approval.version_id\n       WHERE version.letter_id = letter.id AND approval.approver_user_id = v_user\n     );\n\n  -- 지운 편지를 승인해 달라는 알림은 낡은 알림으로 바꾼다.\n  UPDATE public.couple_change_notifications AS notification\n     SET event_kind = 'change_stale',\n         title = '상담 문의 편지를 지웠어요',\n         message = '함께 쓰던 사람이 탈퇴해서 편지를 지웠어요. 필요하면 새로 써 주세요.'\n   WHERE notification.tool_name = 'hall_inquiry_letter'\n     AND notification.event_kind = 'approval_requested'\n     AND notification.action_id IN (\n       SELECT version.id FROM public.hall_inquiry_letter_versions AS version\n       WHERE version.letter_id = ANY(v_letters)\n     )\n     AND NOT EXISTS (\n       SELECT 1 FROM public.couple_change_notifications AS stale\n       WHERE stale.couple_id = notification.couple_id\n         AND stale.recipient_user_id = notification.recipient_user_id\n         AND stale.action_id = notification.action_id\n         AND stale.event_kind = 'change_stale'\n     );\n\n  -- 아직 보내지 않은 문의는 거둬들인다. 보낸 줄은 보낸 사실과 시각만 남기고 지문과 메모를 비운다.\n  UPDATE public.hall_inquiry_dispatches AS dispatch\n     SET status = CASE WHEN dispatch.status = 'queued' THEN 'withdrawn' ELSE dispatch.status END,\n         withdrawn_at = CASE WHEN dispatch.status = 'queued' THEN v_now ELSE dispatch.withdrawn_at END,\n         dispatch_fingerprint = NULL,\n         channel_note = NULL,\n         redacted_at = v_now\n   WHERE dispatch.letter_id = ANY(v_letters)\n     AND dispatch.redacted_at IS NULL;\n\n  UPDATE public.hall_inquiry_replies AS reply\n     SET raw_text = NULL,\n         place_note = NULL,\n         price_note = NULL,\n         redacted_at = v_now\n   WHERE reply.redacted_at IS NULL\n     AND reply.dispatch_id IN (\n       SELECT dispatch.id FROM public.hall_inquiry_dispatches AS dispatch\n       WHERE dispatch.letter_id = ANY(v_letters)\n     );\n\n  UPDATE public.hall_inquiry_approvals AS approval\n     SET fingerprint = NULL\n   WHERE approval.fingerprint IS NOT NULL\n     AND approval.version_id IN (\n       SELECT version.id FROM public.hall_inquiry_letter_versions AS version\n       WHERE version.letter_id = ANY(v_letters)\n     );\n\n  UPDATE public.hall_inquiry_letter_versions AS version\n     SET body = NULL,\n         signature = NULL,\n         shares = NULL,\n         fingerprint = NULL,\n         redacted_at = v_now\n   WHERE version.letter_id = ANY(v_letters)\n     AND version.redacted_at IS NULL;\n\n  -- 열려 있던 편지는 닫는다. 남은 사람은 새 편지로 다시 시작한다.\n  UPDATE public.hall_inquiry_letters AS letter\n     SET locked_at = v_now\n   WHERE letter.id = ANY(v_letters)\n     AND letter.locked_at IS NULL;\n\n  -- 이 사람을 승인할 사람으로 정해 두었으면 고르기 전으로 돌린다. 앞 방식에서 받은 승인은 세지 않는다.\n  UPDATE public.hall_inquiry_settings AS setting\n     SET approver_mode = 'unset',\n         designated_user_id = NULL,\n         revision = setting.revision + 1,\n         updated_by = NULL,\n         updated_at = v_now\n   WHERE setting.designated_user_id = v_user;\n\n  -- 승인 방식 제안을 내린다(확인을 부탁한 알림도 낡은 알림으로). 지금 속한 커플의 제안은 이 사람이 냈거나\n  -- 이 사람이 답해야 하는 것이라 모두 내리고, 예전 커플에서 이 사람이 내거나 이 사람을 가리킨 제안도 내린다.\n  PERFORM public.hall_inquiry_drop_approver_proposal(setting.couple_id)\n  FROM public.hall_inquiry_settings AS setting\n  WHERE setting.proposal_id IS NOT NULL\n    AND (setting.couple_id = ANY(v_couples)\n      OR setting.proposed_by = v_user\n      OR setting.proposed_designated_user_id = v_user);\n\n  -- 남은 사람 칸. 이 사람이 운영자였다면 운영자 칸도 여기서 빈다.\n  UPDATE public.hall_inquiry_settings SET updated_by = NULL WHERE updated_by = v_user;\n  UPDATE public.hall_inquiry_approvals SET approver_user_id = NULL WHERE approver_user_id = v_user;\n  UPDATE public.hall_inquiry_letter_versions SET created_by = NULL WHERE created_by = v_user;\n  UPDATE public.hall_inquiry_letters SET created_by = NULL WHERE created_by = v_user;\n  UPDATE public.hall_shortlists SET added_by = NULL WHERE added_by = v_user;\n  UPDATE public.hall_inquiry_dispatches SET sent_by = NULL WHERE sent_by = v_user;\n  UPDATE public.hall_inquiry_replies SET recorded_by = NULL WHERE recorded_by = v_user;\n  UPDATE public.hall_listings SET created_by = NULL WHERE created_by = v_user;\n  UPDATE public.hall_listings SET updated_by = NULL WHERE updated_by = v_user;\n\n  IF EXISTS (\n       SELECT 1 FROM public.hall_inquiry_letter_versions AS version\n       WHERE version.letter_id = ANY(v_letters) AND version.redacted_at IS NULL\n     )\n     OR EXISTS (\n       SELECT 1 FROM public.hall_inquiry_dispatches AS dispatch\n       WHERE dispatch.letter_id = ANY(v_letters)\n         AND (dispatch.status = 'queued' OR dispatch.redacted_at IS NULL)\n     )\n     OR EXISTS (SELECT 1 FROM public.hall_inquiry_approvals WHERE approver_user_id = v_user)\n     OR EXISTS (\n       SELECT 1 FROM public.hall_inquiry_settings\n       WHERE designated_user_id = v_user\n          OR proposed_by = v_user\n          OR proposed_designated_user_id = v_user\n          OR (proposal_id IS NOT NULL AND couple_id = ANY(v_couples))\n     ) THEN\n    RAISE EXCEPTION 'HALL_INQUIRY_ACCOUNT_DELETION_POSTCONDITION_FAILED' USING ERRCODE = 'P0001';\n  END IF;\n  RETURN NEW;\nEND;\n$function$\n",
+        "volatility": "v",
+        "securityDefiner": true
+      },
+      {
+        "acl": [
+          [
+            "postgres",
+            "postgres",
+            "EXECUTE",
+            false
+          ]
+        ],
+        "args": "jsonb",
+        "body": "\n  SELECT string_agg(\n    item.key || ':'\n      || CASE WHEN (p_shares -> item.key ->> 'on')::boolean THEN '1' ELSE '0' END || ':'\n      || COALESCE(\n        char_length(p_shares -> item.key ->> 'value')::text || ':' || (p_shares -> item.key ->> 'value'),\n        '-'\n      ),\n    '|' ORDER BY item.key\n  )\n  FROM unnest(ARRAY['budget', 'name', 'phone']::text[]) AS item(key);\n",
+        "kind": "f",
+        "name": "hall_inquiry_shares_canonical",
+        "owner": "postgres",
+        "config": [
+          "search_path=pg_catalog, public"
+        ],
+        "result": "text",
+        "strict": true,
+        "language": "sql",
+        "parallel": "u",
+        "definition": "CREATE OR REPLACE FUNCTION public.hall_inquiry_shares_canonical(p_shares jsonb)\n RETURNS text\n LANGUAGE sql\n IMMUTABLE STRICT\n SET search_path TO 'pg_catalog', 'public'\nAS $function$\n  SELECT string_agg(\n    item.key || ':'\n      || CASE WHEN (p_shares -> item.key ->> 'on')::boolean THEN '1' ELSE '0' END || ':'\n      || COALESCE(\n        char_length(p_shares -> item.key ->> 'value')::text || ':' || (p_shares -> item.key ->> 'value'),\n        '-'\n      ),\n    '|' ORDER BY item.key\n  )\n  FROM unnest(ARRAY['budget', 'name', 'phone']::text[]) AS item(key);\n$function$\n",
+        "volatility": "i",
+        "securityDefiner": false
+      },
+      {
+        "acl": [
+          [
+            "postgres",
+            "postgres",
+            "EXECUTE",
+            false
+          ]
+        ],
+        "args": "text, uuid, text, uuid, uuid, uuid[]",
+        "body": "\n  SELECT COALESCE(\n    cardinality(p_members) >= 2\n    AND p_actor_user_id = ANY(p_members)\n    AND (p_current_mode, p_current_designated) IS DISTINCT FROM (p_next_mode, p_next_designated)\n    AND (\n      p_current_mode = 'both'\n      OR (p_current_mode = 'designated'\n          AND p_current_designated IS DISTINCT FROM p_actor_user_id\n          AND p_current_designated = ANY(p_members))\n      OR (p_current_mode = 'unset' AND p_next_mode = 'designated' AND p_next_designated = p_actor_user_id)\n    ),\n    false\n  );\n",
+        "kind": "f",
+        "name": "hall_inquiry_approver_change_needs_consent",
+        "owner": "postgres",
+        "config": [
+          "search_path=pg_catalog, public"
+        ],
+        "result": "boolean",
+        "strict": false,
+        "language": "sql",
+        "parallel": "u",
+        "definition": "CREATE OR REPLACE FUNCTION public.hall_inquiry_approver_change_needs_consent(p_current_mode text, p_current_designated uuid, p_next_mode text, p_next_designated uuid, p_actor_user_id uuid, p_members uuid[])\n RETURNS boolean\n LANGUAGE sql\n IMMUTABLE\n SET search_path TO 'pg_catalog', 'public'\nAS $function$\n  SELECT COALESCE(\n    cardinality(p_members) >= 2\n    AND p_actor_user_id = ANY(p_members)\n    AND (p_current_mode, p_current_designated) IS DISTINCT FROM (p_next_mode, p_next_designated)\n    AND (\n      p_current_mode = 'both'\n      OR (p_current_mode = 'designated'\n          AND p_current_designated IS DISTINCT FROM p_actor_user_id\n          AND p_current_designated = ANY(p_members))\n      OR (p_current_mode = 'unset' AND p_next_mode = 'designated' AND p_next_designated = p_actor_user_id)\n    ),\n    false\n  );\n$function$\n",
+        "volatility": "i",
+        "securityDefiner": false
+      },
+      {
+        "acl": [
+          [
+            "postgres",
+            "postgres",
+            "EXECUTE",
+            false
+          ]
+        ],
+        "args": "uuid",
+        "body": "\n  SELECT COALESCE((\n    SELECT array_remove(ARRAY[\n      CASE WHEN public.is_current_couple_member(couple.bride_id, couple.id) THEN couple.bride_id END,\n      CASE WHEN public.is_current_couple_member(couple.groom_id, couple.id) THEN couple.groom_id END\n    ], NULL)\n    FROM public.couples AS couple\n    WHERE couple.id = p_couple_id\n  ), ARRAY[]::uuid[]);\n",
+        "kind": "f",
+        "name": "hall_inquiry_current_members",
+        "owner": "postgres",
+        "config": [
+          "search_path=pg_catalog, public"
+        ],
+        "result": "uuid[]",
+        "strict": false,
+        "language": "sql",
+        "parallel": "u",
+        "definition": "CREATE OR REPLACE FUNCTION public.hall_inquiry_current_members(p_couple_id uuid)\n RETURNS uuid[]\n LANGUAGE sql\n STABLE SECURITY DEFINER\n SET search_path TO 'pg_catalog', 'public'\nAS $function$\n  SELECT COALESCE((\n    SELECT array_remove(ARRAY[\n      CASE WHEN public.is_current_couple_member(couple.bride_id, couple.id) THEN couple.bride_id END,\n      CASE WHEN public.is_current_couple_member(couple.groom_id, couple.id) THEN couple.groom_id END\n    ], NULL)\n    FROM public.couples AS couple\n    WHERE couple.id = p_couple_id\n  ), ARRAY[]::uuid[]);\n$function$\n",
+        "volatility": "s",
+        "securityDefiner": true
+      },
+      {
+        "acl": [
+          [
+            "postgres",
+            "postgres",
+            "EXECUTE",
+            false
+          ]
+        ],
+        "args": "uuid",
+        "body": "\nBEGIN\n  IF p_operator_user_id IS NULL OR NOT EXISTS (\n    SELECT 1 FROM public.profiles AS profile\n    WHERE profile.id = p_operator_user_id AND profile.is_admin IS TRUE\n  ) THEN\n    RAISE EXCEPTION 'HALL_INQUIRY_OPERATOR_REQUIRED' USING ERRCODE = '42501';\n  END IF;\nEND;\n",
+        "kind": "f",
+        "name": "hall_inquiry_assert_operator",
+        "owner": "postgres",
+        "config": [
+          "search_path=pg_catalog, public"
+        ],
+        "result": "void",
+        "strict": false,
+        "language": "plpgsql",
+        "parallel": "u",
+        "definition": "CREATE OR REPLACE FUNCTION public.hall_inquiry_assert_operator(p_operator_user_id uuid)\n RETURNS void\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'pg_catalog', 'public'\nAS $function$\nBEGIN\n  IF p_operator_user_id IS NULL OR NOT EXISTS (\n    SELECT 1 FROM public.profiles AS profile\n    WHERE profile.id = p_operator_user_id AND profile.is_admin IS TRUE\n  ) THEN\n    RAISE EXCEPTION 'HALL_INQUIRY_OPERATOR_REQUIRED' USING ERRCODE = '42501';\n  END IF;\nEND;\n$function$\n",
+        "volatility": "v",
+        "securityDefiner": true
+      },
+      {
+        "acl": [
+          [
+            "postgres",
+            "postgres",
+            "EXECUTE",
+            false
+          ]
+        ],
+        "args": "uuid",
+        "body": "\nBEGIN\n  UPDATE public.couple_change_notifications AS notification\n     SET event_kind = 'change_stale',\n         title = '승인 방식 제안이 끝났어요',\n         message = '확인을 기다리던 승인 방식 제안이 정리됐어요.'\n   WHERE notification.couple_id = p_couple_id\n     AND notification.tool_name = 'hall_inquiry_approver'\n     AND notification.event_kind = 'approval_requested'\n     AND notification.action_id = (\n       SELECT setting.proposal_id FROM public.hall_inquiry_settings AS setting\n       WHERE setting.couple_id = p_couple_id\n     )\n     AND NOT EXISTS (\n       SELECT 1 FROM public.couple_change_notifications AS stale\n       WHERE stale.couple_id = notification.couple_id\n         AND stale.recipient_user_id = notification.recipient_user_id\n         AND stale.action_id = notification.action_id\n         AND stale.event_kind = 'change_stale'\n     );\n  UPDATE public.hall_inquiry_settings\n     SET proposal_id = NULL,\n         proposed_mode = NULL,\n         proposed_designated_user_id = NULL,\n         proposed_by = NULL,\n         proposed_at = NULL\n   WHERE couple_id = p_couple_id\n     AND proposal_id IS NOT NULL;\nEND;\n",
+        "kind": "f",
+        "name": "hall_inquiry_drop_approver_proposal",
+        "owner": "postgres",
+        "config": [
+          "search_path=pg_catalog, public"
+        ],
+        "result": "void",
+        "strict": false,
+        "language": "plpgsql",
+        "parallel": "u",
+        "definition": "CREATE OR REPLACE FUNCTION public.hall_inquiry_drop_approver_proposal(p_couple_id uuid)\n RETURNS void\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'pg_catalog', 'public'\nAS $function$\nBEGIN\n  UPDATE public.couple_change_notifications AS notification\n     SET event_kind = 'change_stale',\n         title = '승인 방식 제안이 끝났어요',\n         message = '확인을 기다리던 승인 방식 제안이 정리됐어요.'\n   WHERE notification.couple_id = p_couple_id\n     AND notification.tool_name = 'hall_inquiry_approver'\n     AND notification.event_kind = 'approval_requested'\n     AND notification.action_id = (\n       SELECT setting.proposal_id FROM public.hall_inquiry_settings AS setting\n       WHERE setting.couple_id = p_couple_id\n     )\n     AND NOT EXISTS (\n       SELECT 1 FROM public.couple_change_notifications AS stale\n       WHERE stale.couple_id = notification.couple_id\n         AND stale.recipient_user_id = notification.recipient_user_id\n         AND stale.action_id = notification.action_id\n         AND stale.event_kind = 'change_stale'\n     );\n  UPDATE public.hall_inquiry_settings\n     SET proposal_id = NULL,\n         proposed_mode = NULL,\n         proposed_designated_user_id = NULL,\n         proposed_by = NULL,\n         proposed_at = NULL\n   WHERE couple_id = p_couple_id\n     AND proposal_id IS NOT NULL;\nEND;\n$function$\n",
+        "volatility": "v",
+        "securityDefiner": true
+      },
+      {
+        "acl": [
+          [
+            "postgres",
+            "postgres",
+            "EXECUTE",
+            false
+          ]
+        ],
+        "args": "uuid, text",
+        "body": "\n  SELECT jsonb_build_object(\n    'mode', COALESCE(setting.approver_mode, 'unset'),\n    'designatedUserId', setting.designated_user_id,\n    'revision', COALESCE(setting.revision, 0),\n    'changed', p_outcome IN ('applied', 'confirmed'),\n    'outcome', p_outcome,\n    'pending', CASE WHEN setting.proposal_id IS NULL THEN NULL ELSE jsonb_build_object(\n      'proposalId', setting.proposal_id,\n      'mode', setting.proposed_mode,\n      'designatedUserId', setting.proposed_designated_user_id,\n      'proposedBy', setting.proposed_by,\n      'proposedAt', setting.proposed_at\n    ) END\n  )\n  FROM (SELECT 1) AS anchor\n  LEFT JOIN public.hall_inquiry_settings AS setting ON setting.couple_id = p_couple_id;\n",
+        "kind": "f",
+        "name": "hall_inquiry_approver_state",
+        "owner": "postgres",
+        "config": [
+          "search_path=pg_catalog, public"
+        ],
+        "result": "jsonb",
+        "strict": false,
+        "language": "sql",
+        "parallel": "u",
+        "definition": "CREATE OR REPLACE FUNCTION public.hall_inquiry_approver_state(p_couple_id uuid, p_outcome text)\n RETURNS jsonb\n LANGUAGE sql\n SECURITY DEFINER\n SET search_path TO 'pg_catalog', 'public'\nAS $function$\n  SELECT jsonb_build_object(\n    'mode', COALESCE(setting.approver_mode, 'unset'),\n    'designatedUserId', setting.designated_user_id,\n    'revision', COALESCE(setting.revision, 0),\n    'changed', p_outcome IN ('applied', 'confirmed'),\n    'outcome', p_outcome,\n    'pending', CASE WHEN setting.proposal_id IS NULL THEN NULL ELSE jsonb_build_object(\n      'proposalId', setting.proposal_id,\n      'mode', setting.proposed_mode,\n      'designatedUserId', setting.proposed_designated_user_id,\n      'proposedBy', setting.proposed_by,\n      'proposedAt', setting.proposed_at\n    ) END\n  )\n  FROM (SELECT 1) AS anchor\n  LEFT JOIN public.hall_inquiry_settings AS setting ON setting.couple_id = p_couple_id;\n$function$\n",
+        "volatility": "v",
+        "securityDefiner": true
+      },
+      {
+        "acl": [
+          [
+            "postgres",
+            "postgres",
+            "EXECUTE",
+            false
+          ]
+        ],
+        "args": "uuid, uuid",
+        "body": "\nBEGIN\n  IF p_couple_id IS NULL OR p_actor_user_id IS NULL THEN\n    RAISE EXCEPTION 'HALL_INQUIRY_INPUT_INVALID' USING ERRCODE = '22023';\n  END IF;\n  PERFORM 1 FROM public.couples AS couple WHERE couple.id = p_couple_id FOR UPDATE;\n  IF NOT FOUND OR NOT public.is_current_couple_member(p_actor_user_id, p_couple_id) THEN\n    RAISE EXCEPTION 'HALL_INQUIRY_NOT_COUPLE_MEMBER' USING ERRCODE = '42501';\n  END IF;\n  -- 계정 삭제와 같은 잠금을 나눠 잡는다. 그 사람을 지우는 중이면 기다리지 않고 멈춘다.\n  IF NOT pg_catalog.pg_try_advisory_xact_lock_shared(\n    pg_catalog.hashtextextended('hanbang:account-data:' || p_actor_user_id::text, 0)\n  ) THEN\n    RAISE EXCEPTION 'HALL_INQUIRY_ACCOUNT_UNAVAILABLE' USING ERRCODE = '55000';\n  END IF;\n  -- 탈퇴를 신청한 사람은 그 작업이 끝날 때까지(사람 검토 대기 포함) 쓰지 못한다. 기존 삭제 경계와 같다.\n  IF EXISTS (\n    SELECT 1 FROM public.account_deletion_jobs AS job\n    WHERE job.user_id = p_actor_user_id AND job.status <> 'completed'\n  ) THEN\n    RAISE EXCEPTION 'HALL_INQUIRY_ACCOUNT_UNAVAILABLE' USING ERRCODE = '55000';\n  END IF;\n  -- 상대의 탈퇴가 실제로 진행 중일 때만 커플 전체를 멈춘다. 지운 뒤에 그 사람의 이름이나 연락처가\n  -- 새 편지로 다시 들어오지 않게 하기 위해서다. 사람 검토를 기다리며 멈춘 작업(manual_review)은\n  -- 언제 풀릴지 모르므로 남은 사람을 붙잡지 않는다. 작업이 다시 돌면 정리 함수가 그때 다시 지운다.\n  -- 진행 중 상태 목록은 account_deletion_jobs 의 상태 검사 제약과 시험이 맞춰 본다.\n  IF EXISTS (\n    SELECT 1\n    FROM public.couples AS couple\n    JOIN public.account_deletion_jobs AS job\n      ON job.user_id IN (couple.bride_id, couple.groom_id)\n     AND job.user_id <> p_actor_user_id\n     AND job.status IN ('inventorying', 'inventory_ready', 'deleting', 'auth_deleting')\n    WHERE couple.id = p_couple_id\n  ) THEN\n    RAISE EXCEPTION 'HALL_INQUIRY_ACCOUNT_UNAVAILABLE' USING ERRCODE = '55000';\n  END IF;\nEND;\n",
+        "kind": "f",
+        "name": "hall_inquiry_lock_member",
+        "owner": "postgres",
+        "config": [
+          "search_path=pg_catalog, public"
+        ],
+        "result": "void",
+        "strict": false,
+        "language": "plpgsql",
+        "parallel": "u",
+        "definition": "CREATE OR REPLACE FUNCTION public.hall_inquiry_lock_member(p_couple_id uuid, p_actor_user_id uuid)\n RETURNS void\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'pg_catalog', 'public'\nAS $function$\nBEGIN\n  IF p_couple_id IS NULL OR p_actor_user_id IS NULL THEN\n    RAISE EXCEPTION 'HALL_INQUIRY_INPUT_INVALID' USING ERRCODE = '22023';\n  END IF;\n  PERFORM 1 FROM public.couples AS couple WHERE couple.id = p_couple_id FOR UPDATE;\n  IF NOT FOUND OR NOT public.is_current_couple_member(p_actor_user_id, p_couple_id) THEN\n    RAISE EXCEPTION 'HALL_INQUIRY_NOT_COUPLE_MEMBER' USING ERRCODE = '42501';\n  END IF;\n  -- 계정 삭제와 같은 잠금을 나눠 잡는다. 그 사람을 지우는 중이면 기다리지 않고 멈춘다.\n  IF NOT pg_catalog.pg_try_advisory_xact_lock_shared(\n    pg_catalog.hashtextextended('hanbang:account-data:' || p_actor_user_id::text, 0)\n  ) THEN\n    RAISE EXCEPTION 'HALL_INQUIRY_ACCOUNT_UNAVAILABLE' USING ERRCODE = '55000';\n  END IF;\n  -- 탈퇴를 신청한 사람은 그 작업이 끝날 때까지(사람 검토 대기 포함) 쓰지 못한다. 기존 삭제 경계와 같다.\n  IF EXISTS (\n    SELECT 1 FROM public.account_deletion_jobs AS job\n    WHERE job.user_id = p_actor_user_id AND job.status <> 'completed'\n  ) THEN\n    RAISE EXCEPTION 'HALL_INQUIRY_ACCOUNT_UNAVAILABLE' USING ERRCODE = '55000';\n  END IF;\n  -- 상대의 탈퇴가 실제로 진행 중일 때만 커플 전체를 멈춘다. 지운 뒤에 그 사람의 이름이나 연락처가\n  -- 새 편지로 다시 들어오지 않게 하기 위해서다. 사람 검토를 기다리며 멈춘 작업(manual_review)은\n  -- 언제 풀릴지 모르므로 남은 사람을 붙잡지 않는다. 작업이 다시 돌면 정리 함수가 그때 다시 지운다.\n  -- 진행 중 상태 목록은 account_deletion_jobs 의 상태 검사 제약과 시험이 맞춰 본다.\n  IF EXISTS (\n    SELECT 1\n    FROM public.couples AS couple\n    JOIN public.account_deletion_jobs AS job\n      ON job.user_id IN (couple.bride_id, couple.groom_id)\n     AND job.user_id <> p_actor_user_id\n     AND job.status IN ('inventorying', 'inventory_ready', 'deleting', 'auth_deleting')\n    WHERE couple.id = p_couple_id\n  ) THEN\n    RAISE EXCEPTION 'HALL_INQUIRY_ACCOUNT_UNAVAILABLE' USING ERRCODE = '55000';\n  END IF;\nEND;\n$function$\n",
+        "volatility": "v",
+        "securityDefiner": true
+      },
+      {
+        "acl": [
+          [
+            "postgres",
+            "postgres",
+            "EXECUTE",
+            false
+          ]
+        ],
+        "args": "uuid, uuid, text, text, jsonb",
+        "body": "\n  SELECT encode(sha256(convert_to(\n    'hall-inquiry-dispatch-v1' || chr(10)\n      || p_couple_id::text || chr(10)\n      || p_hall_id::text || chr(10)\n      || char_length(p_body)::text || ':' || p_body || chr(10)\n      || char_length(p_signature)::text || ':' || p_signature || chr(10)\n      || public.hall_inquiry_shares_canonical(p_shares),\n    'UTF8'\n  )), 'hex');\n",
+        "kind": "f",
+        "name": "hall_inquiry_dispatch_fingerprint",
+        "owner": "postgres",
+        "config": [
+          "search_path=pg_catalog, public"
+        ],
+        "result": "text",
+        "strict": true,
+        "language": "sql",
+        "parallel": "u",
+        "definition": "CREATE OR REPLACE FUNCTION public.hall_inquiry_dispatch_fingerprint(p_couple_id uuid, p_hall_id uuid, p_body text, p_signature text, p_shares jsonb)\n RETURNS text\n LANGUAGE sql\n IMMUTABLE STRICT\n SET search_path TO 'pg_catalog', 'public'\nAS $function$\n  SELECT encode(sha256(convert_to(\n    'hall-inquiry-dispatch-v1' || chr(10)\n      || p_couple_id::text || chr(10)\n      || p_hall_id::text || chr(10)\n      || char_length(p_body)::text || ':' || p_body || chr(10)\n      || char_length(p_signature)::text || ':' || p_signature || chr(10)\n      || public.hall_inquiry_shares_canonical(p_shares),\n    'UTF8'\n  )), 'hex');\n$function$\n",
+        "volatility": "i",
+        "securityDefiner": false
+      },
+      {
+        "acl": [
+          [
+            "postgres",
+            "postgres",
+            "EXECUTE",
+            false
+          ]
+        ],
+        "args": "uuid, uuid, uuid, uuid, text, text, text, text",
+        "body": "\n  INSERT INTO public.couple_change_notifications(\n    couple_id, recipient_user_id, actor_user_id, source_message_id, action_id,\n    event_kind, tool_name, title, message, href\n  ) VALUES (\n    p_couple_id, p_recipient_user_id, p_actor_user_id, p_action_id, p_action_id,\n    p_event_kind, p_tool_name, left(p_title, 120), left(p_message, 240), '/lounge'\n  )\n  ON CONFLICT (couple_id, recipient_user_id, action_id, event_kind) DO NOTHING;\n",
+        "kind": "f",
+        "name": "hall_inquiry_notify",
+        "owner": "postgres",
+        "config": [
+          "search_path=pg_catalog, public"
+        ],
+        "result": "void",
+        "strict": false,
+        "language": "sql",
+        "parallel": "u",
+        "definition": "CREATE OR REPLACE FUNCTION public.hall_inquiry_notify(p_couple_id uuid, p_recipient_user_id uuid, p_actor_user_id uuid, p_action_id uuid, p_event_kind text, p_tool_name text, p_title text, p_message text)\n RETURNS void\n LANGUAGE sql\n SECURITY DEFINER\n SET search_path TO 'pg_catalog', 'public'\nAS $function$\n  INSERT INTO public.couple_change_notifications(\n    couple_id, recipient_user_id, actor_user_id, source_message_id, action_id,\n    event_kind, tool_name, title, message, href\n  ) VALUES (\n    p_couple_id, p_recipient_user_id, p_actor_user_id, p_action_id, p_action_id,\n    p_event_kind, p_tool_name, left(p_title, 120), left(p_message, 240), '/lounge'\n  )\n  ON CONFLICT (couple_id, recipient_user_id, action_id, event_kind) DO NOTHING;\n$function$\n",
+        "volatility": "v",
+        "securityDefiner": true
+      },
+      {
+        "acl": [
+          [
+            "postgres",
+            "postgres",
+            "EXECUTE",
+            false
+          ]
+        ],
+        "args": "uuid, uuid[], text, text, jsonb",
+        "body": "\n  SELECT encode(sha256(convert_to(\n    'hall-inquiry-letter-v1' || chr(10)\n      || p_couple_id::text || chr(10)\n      || array_to_string(ARRAY(SELECT item FROM unnest(p_recipient_hall_ids) AS item ORDER BY item), ',') || chr(10)\n      || char_length(p_body)::text || ':' || p_body || chr(10)\n      || char_length(p_signature)::text || ':' || p_signature || chr(10)\n      || public.hall_inquiry_shares_canonical(p_shares),\n    'UTF8'\n  )), 'hex');\n",
+        "kind": "f",
+        "name": "hall_inquiry_letter_fingerprint",
+        "owner": "postgres",
+        "config": [
+          "search_path=pg_catalog, public"
+        ],
+        "result": "text",
+        "strict": true,
+        "language": "sql",
+        "parallel": "u",
+        "definition": "CREATE OR REPLACE FUNCTION public.hall_inquiry_letter_fingerprint(p_couple_id uuid, p_recipient_hall_ids uuid[], p_body text, p_signature text, p_shares jsonb)\n RETURNS text\n LANGUAGE sql\n IMMUTABLE STRICT\n SET search_path TO 'pg_catalog', 'public'\nAS $function$\n  SELECT encode(sha256(convert_to(\n    'hall-inquiry-letter-v1' || chr(10)\n      || p_couple_id::text || chr(10)\n      || array_to_string(ARRAY(SELECT item FROM unnest(p_recipient_hall_ids) AS item ORDER BY item), ',') || chr(10)\n      || char_length(p_body)::text || ':' || p_body || chr(10)\n      || char_length(p_signature)::text || ':' || p_signature || chr(10)\n      || public.hall_inquiry_shares_canonical(p_shares),\n    'UTF8'\n  )), 'hex');\n$function$\n",
+        "volatility": "i",
+        "securityDefiner": false
+      }
+    ],
+    "relations": [
+      {
+        "acl": [
+          [
+            "authenticated",
+            "postgres",
+            "DELETE",
+            false
+          ],
+          [
+            "authenticated",
+            "postgres",
+            "INSERT",
+            false
+          ],
+          [
+            "authenticated",
+            "postgres",
+            "SELECT",
+            false
+          ],
+          [
+            "postgres",
+            "postgres",
+            "DELETE",
+            false
+          ],
+          [
+            "postgres",
+            "postgres",
+            "INSERT",
+            false
+          ],
+          [
+            "postgres",
+            "postgres",
+            "MAINTAIN",
+            false
+          ],
+          [
+            "postgres",
+            "postgres",
+            "REFERENCES",
+            false
+          ],
+          [
+            "postgres",
+            "postgres",
+            "SELECT",
+            false
+          ],
+          [
+            "postgres",
+            "postgres",
+            "TRIGGER",
+            false
+          ],
+          [
+            "postgres",
+            "postgres",
+            "TRUNCATE",
+            false
+          ],
+          [
+            "postgres",
+            "postgres",
+            "UPDATE",
+            false
+          ],
+          [
+            "service_role",
+            "postgres",
+            "DELETE",
+            false
+          ],
+          [
+            "service_role",
+            "postgres",
+            "INSERT",
+            false
+          ],
+          [
+            "service_role",
+            "postgres",
+            "MAINTAIN",
+            false
+          ],
+          [
+            "service_role",
+            "postgres",
+            "REFERENCES",
+            false
+          ],
+          [
+            "service_role",
+            "postgres",
+            "SELECT",
+            false
+          ],
+          [
+            "service_role",
+            "postgres",
+            "TRIGGER",
+            false
+          ],
+          [
+            "service_role",
+            "postgres",
+            "TRUNCATE",
+            false
+          ],
+          [
+            "service_role",
+            "postgres",
+            "UPDATE",
+            false
+          ]
+        ],
+        "rls": true,
+        "kind": "r",
+        "name": "public.hall_shortlists",
+        "owner": "postgres",
+        "columns": [
+          [
+            "added_by",
+            "uuid",
+            false,
+            "",
+            "",
+            null,
+            []
+          ],
+          [
+            "couple_id",
+            "uuid",
+            true,
+            "",
+            "",
+            null,
+            []
+          ],
+          [
+            "created_at",
+            "timestamp with time zone",
+            true,
+            "",
+            "",
+            "now()",
+            []
+          ],
+          [
+            "hall_id",
+            "uuid",
+            true,
+            "",
+            "",
+            null,
+            []
+          ]
+        ],
+        "indexes": [
+          [
+            "CREATE INDEX hall_shortlists_hall_idx ON public.hall_shortlists USING btree (hall_id)",
+            true,
+            true
+          ],
+          [
+            "CREATE UNIQUE INDEX hall_shortlists_pkey ON public.hall_shortlists USING btree (couple_id, hall_id)",
+            true,
+            true
+          ]
+        ],
+        "forceRls": false,
+        "policies": [
+          {
+            "name": "hall_shortlists_member_delete",
+            "check": null,
+            "roles": [
+              "authenticated"
+            ],
+            "using": "is_couple_member(couple_id)",
+            "command": "d",
+            "permissive": true
+          },
+          {
+            "name": "hall_shortlists_member_insert",
+            "check": "(is_couple_member(couple_id) AND (added_by = auth.uid()) AND hall_inquiry_viewer_account_active() AND (EXISTS ( SELECT 1\n   FROM hall_listings listing\n  WHERE ((listing.id = hall_shortlists.hall_id) AND listing.active))))",
+            "roles": [
+              "authenticated"
+            ],
+            "using": null,
+            "command": "a",
+            "permissive": true
+          },
+          {
+            "name": "hall_shortlists_member_select",
+            "check": null,
+            "roles": [
+              "authenticated"
+            ],
+            "using": "is_couple_member(couple_id)",
+            "command": "r",
+            "permissive": true
+          },
+          {
+            "name": "hall_shortlists_service_all",
+            "check": "true",
+            "roles": [
+              "service_role"
+            ],
+            "using": "true",
+            "command": "*",
+            "permissive": true
+          }
+        ],
+        "triggers": [
+          [
+            "trg_hall_shortlists_limit",
+            "O",
+            "CREATE TRIGGER trg_hall_shortlists_limit BEFORE INSERT ON hall_shortlists FOR EACH ROW EXECUTE FUNCTION hall_shortlists_enforce_limit()"
+          ]
+        ],
+        "constraints": [
+          [
+            "hall_shortlists_added_by_fkey",
+            "f",
+            true,
+            "FOREIGN KEY (added_by) REFERENCES auth.users(id) ON DELETE SET NULL"
+          ],
+          [
+            "hall_shortlists_couple_id_fkey",
+            "f",
+            true,
+            "FOREIGN KEY (couple_id) REFERENCES couples(id) ON DELETE CASCADE"
+          ],
+          [
+            "hall_shortlists_hall_id_fkey",
+            "f",
+            true,
+            "FOREIGN KEY (hall_id) REFERENCES hall_listings(id) ON DELETE CASCADE"
+          ],
+          [
+            "hall_shortlists_pkey",
+            "p",
+            true,
+            "PRIMARY KEY (couple_id, hall_id)"
+          ]
+        ]
+      },
+      {
+        "acl": [
+          [
+            "authenticated",
+            "postgres",
+            "SELECT",
+            false
+          ],
+          [
+            "postgres",
+            "postgres",
+            "DELETE",
+            false
+          ],
+          [
+            "postgres",
+            "postgres",
+            "INSERT",
+            false
+          ],
+          [
+            "postgres",
+            "postgres",
+            "MAINTAIN",
+            false
+          ],
+          [
+            "postgres",
+            "postgres",
+            "REFERENCES",
+            false
+          ],
+          [
+            "postgres",
+            "postgres",
+            "SELECT",
+            false
+          ],
+          [
+            "postgres",
+            "postgres",
+            "TRIGGER",
+            false
+          ],
+          [
+            "postgres",
+            "postgres",
+            "TRUNCATE",
+            false
+          ],
+          [
+            "postgres",
+            "postgres",
+            "UPDATE",
+            false
+          ],
+          [
+            "service_role",
+            "postgres",
+            "DELETE",
+            false
+          ],
+          [
+            "service_role",
+            "postgres",
+            "INSERT",
+            false
+          ],
+          [
+            "service_role",
+            "postgres",
+            "MAINTAIN",
+            false
+          ],
+          [
+            "service_role",
+            "postgres",
+            "REFERENCES",
+            false
+          ],
+          [
+            "service_role",
+            "postgres",
+            "SELECT",
+            false
+          ],
+          [
+            "service_role",
+            "postgres",
+            "TRIGGER",
+            false
+          ],
+          [
+            "service_role",
+            "postgres",
+            "TRUNCATE",
+            false
+          ],
+          [
+            "service_role",
+            "postgres",
+            "UPDATE",
+            false
+          ]
+        ],
+        "rls": true,
+        "kind": "r",
+        "name": "public.hall_inquiry_approvals",
+        "owner": "postgres",
+        "columns": [
+          [
+            "approver_user_id",
+            "uuid",
+            false,
+            "",
+            "",
+            null,
+            []
+          ],
+          [
+            "couple_id",
+            "uuid",
+            true,
+            "",
+            "",
+            null,
+            []
+          ],
+          [
+            "fingerprint",
+            "text",
+            false,
+            "",
+            "",
+            null,
+            []
+          ],
+          [
+            "id",
+            "uuid",
+            true,
+            "",
+            "",
+            "gen_random_uuid()",
+            []
+          ],
+          [
+            "recorded_at",
+            "timestamp with time zone",
+            true,
+            "",
+            "",
+            "now()",
+            []
+          ],
+          [
+            "sending_enabled",
+            "boolean",
+            true,
+            "",
+            "",
+            null,
+            []
+          ],
+          [
+            "settings_revision",
+            "bigint",
+            true,
+            "",
+            "",
+            null,
+            []
+          ],
+          [
+            "version_id",
+            "uuid",
+            true,
+            "",
+            "",
+            null,
+            []
+          ]
+        ],
+        "indexes": [
+          [
+            "CREATE INDEX hall_inquiry_approvals_couple_idx ON public.hall_inquiry_approvals USING btree (couple_id, recorded_at DESC)",
+            true,
+            true
+          ],
+          [
+            "CREATE UNIQUE INDEX hall_inquiry_approvals_pkey ON public.hall_inquiry_approvals USING btree (id)",
+            true,
+            true
+          ],
+          [
+            "CREATE UNIQUE INDEX hall_inquiry_approvals_version_id_approver_user_id_settings_key ON public.hall_inquiry_approvals USING btree (version_id, approver_user_id, settings_revision, sending_enabled)",
+            true,
+            true
+          ]
+        ],
+        "forceRls": false,
+        "policies": [
+          {
+            "name": "hall_inquiry_approvals_member_select",
+            "check": null,
+            "roles": [
+              "authenticated"
+            ],
+            "using": "is_couple_member(couple_id)",
+            "command": "r",
+            "permissive": true
+          },
+          {
+            "name": "hall_inquiry_approvals_service_all",
+            "check": "true",
+            "roles": [
+              "service_role"
+            ],
+            "using": "true",
+            "command": "*",
+            "permissive": true
+          }
+        ],
+        "triggers": [
+          [
+            "trg_hall_inquiry_approvals_guard",
+            "O",
+            "CREATE TRIGGER trg_hall_inquiry_approvals_guard BEFORE UPDATE ON hall_inquiry_approvals FOR EACH ROW EXECUTE FUNCTION hall_inquiry_guard_record_update()"
+          ]
+        ],
+        "constraints": [
+          [
+            "hall_inquiry_approvals_approver_user_id_fkey",
+            "f",
+            true,
+            "FOREIGN KEY (approver_user_id) REFERENCES auth.users(id) ON DELETE SET NULL"
+          ],
+          [
+            "hall_inquiry_approvals_couple_id_fkey",
+            "f",
+            true,
+            "FOREIGN KEY (couple_id) REFERENCES couples(id) ON DELETE CASCADE"
+          ],
+          [
+            "hall_inquiry_approvals_fingerprint_check",
+            "c",
+            true,
+            "CHECK (fingerprint IS NULL OR fingerprint ~ '^[0-9a-f]{64}$'::text)"
+          ],
+          [
+            "hall_inquiry_approvals_pkey",
+            "p",
+            true,
+            "PRIMARY KEY (id)"
+          ],
+          [
+            "hall_inquiry_approvals_settings_revision_check",
+            "c",
+            true,
+            "CHECK (settings_revision >= 0)"
+          ],
+          [
+            "hall_inquiry_approvals_version_id_approver_user_id_settings_key",
+            "u",
+            true,
+            "UNIQUE (version_id, approver_user_id, settings_revision, sending_enabled)"
+          ],
+          [
+            "hall_inquiry_approvals_version_id_couple_id_fkey",
+            "f",
+            true,
+            "FOREIGN KEY (version_id, couple_id) REFERENCES hall_inquiry_letter_versions(id, couple_id) ON DELETE CASCADE"
+          ]
+        ]
+      },
+      {
+        "acl": [
+          [
+            "authenticated",
+            "postgres",
+            "SELECT",
+            false
+          ],
+          [
+            "postgres",
+            "postgres",
+            "DELETE",
+            false
+          ],
+          [
+            "postgres",
+            "postgres",
+            "INSERT",
+            false
+          ],
+          [
+            "postgres",
+            "postgres",
+            "MAINTAIN",
+            false
+          ],
+          [
+            "postgres",
+            "postgres",
+            "REFERENCES",
+            false
+          ],
+          [
+            "postgres",
+            "postgres",
+            "SELECT",
+            false
+          ],
+          [
+            "postgres",
+            "postgres",
+            "TRIGGER",
+            false
+          ],
+          [
+            "postgres",
+            "postgres",
+            "TRUNCATE",
+            false
+          ],
+          [
+            "postgres",
+            "postgres",
+            "UPDATE",
+            false
+          ],
+          [
+            "service_role",
+            "postgres",
+            "DELETE",
+            false
+          ],
+          [
+            "service_role",
+            "postgres",
+            "INSERT",
+            false
+          ],
+          [
+            "service_role",
+            "postgres",
+            "MAINTAIN",
+            false
+          ],
+          [
+            "service_role",
+            "postgres",
+            "REFERENCES",
+            false
+          ],
+          [
+            "service_role",
+            "postgres",
+            "SELECT",
+            false
+          ],
+          [
+            "service_role",
+            "postgres",
+            "TRIGGER",
+            false
+          ],
+          [
+            "service_role",
+            "postgres",
+            "TRUNCATE",
+            false
+          ],
+          [
+            "service_role",
+            "postgres",
+            "UPDATE",
+            false
+          ]
+        ],
+        "rls": true,
+        "kind": "r",
+        "name": "public.hall_inquiry_letter_versions",
+        "owner": "postgres",
+        "columns": [
+          [
+            "approval_completed_at",
+            "timestamp with time zone",
+            false,
+            "",
+            "",
+            null,
+            []
+          ],
+          [
+            "body",
+            "text",
+            false,
+            "",
+            "",
+            null,
+            []
+          ],
+          [
+            "couple_id",
+            "uuid",
+            true,
+            "",
+            "",
+            null,
+            []
+          ],
+          [
+            "created_at",
+            "timestamp with time zone",
+            true,
+            "",
+            "",
+            "now()",
+            []
+          ],
+          [
+            "created_by",
+            "uuid",
+            false,
+            "",
+            "",
+            null,
+            []
+          ],
+          [
+            "fingerprint",
+            "text",
+            false,
+            "",
+            "",
+            null,
+            []
+          ],
+          [
+            "id",
+            "uuid",
+            true,
+            "",
+            "",
+            "gen_random_uuid()",
+            []
+          ],
+          [
+            "letter_id",
+            "uuid",
+            true,
+            "",
+            "",
+            null,
+            []
+          ],
+          [
+            "queued_at",
+            "timestamp with time zone",
+            false,
+            "",
+            "",
+            null,
+            []
+          ],
+          [
+            "recipient_hall_ids",
+            "uuid[]",
+            true,
+            "",
+            "",
+            null,
+            []
+          ],
+          [
+            "recipient_names",
+            "text[]",
+            true,
+            "",
+            "",
+            null,
+            []
+          ],
+          [
+            "redacted_at",
+            "timestamp with time zone",
+            false,
+            "",
+            "",
+            null,
+            []
+          ],
+          [
+            "shares",
+            "jsonb",
+            false,
+            "",
+            "",
+            null,
+            []
+          ],
+          [
+            "signature",
+            "text",
+            false,
+            "",
+            "",
+            null,
+            []
+          ],
+          [
+            "version",
+            "integer",
+            true,
+            "",
+            "",
+            null,
+            []
+          ]
+        ],
+        "indexes": [
+          [
+            "CREATE INDEX hall_inquiry_letter_versions_couple_idx ON public.hall_inquiry_letter_versions USING btree (couple_id, created_at DESC)",
+            true,
+            true
+          ],
+          [
+            "CREATE UNIQUE INDEX hall_inquiry_letter_versions_id_couple_id_key ON public.hall_inquiry_letter_versions USING btree (id, couple_id)",
+            true,
+            true
+          ],
+          [
+            "CREATE UNIQUE INDEX hall_inquiry_letter_versions_letter_id_version_key ON public.hall_inquiry_letter_versions USING btree (letter_id, version)",
+            true,
+            true
+          ],
+          [
+            "CREATE UNIQUE INDEX hall_inquiry_letter_versions_pkey ON public.hall_inquiry_letter_versions USING btree (id)",
+            true,
+            true
+          ]
+        ],
+        "forceRls": false,
+        "policies": [
+          {
+            "name": "hall_inquiry_letter_versions_member_select",
+            "check": null,
+            "roles": [
+              "authenticated"
+            ],
+            "using": "is_couple_member(couple_id)",
+            "command": "r",
+            "permissive": true
+          },
+          {
+            "name": "hall_inquiry_letter_versions_service_all",
+            "check": "true",
+            "roles": [
+              "service_role"
+            ],
+            "using": "true",
+            "command": "*",
+            "permissive": true
+          }
+        ],
+        "triggers": [
+          [
+            "trg_hall_inquiry_letter_versions_guard",
+            "O",
+            "CREATE TRIGGER trg_hall_inquiry_letter_versions_guard BEFORE UPDATE ON hall_inquiry_letter_versions FOR EACH ROW EXECUTE FUNCTION hall_inquiry_guard_record_update()"
+          ]
+        ],
+        "constraints": [
+          [
+            "hall_inquiry_letter_versions_body_check",
+            "c",
+            true,
+            "CHECK (\nCASE\n    WHEN redacted_at IS NULL THEN body IS NOT NULL AND char_length(body) >= 1 AND char_length(body) <= 1000 AND body = btrim(body, ' \n'::text) AND NOT hall_inquiry_text_is_unsafe(body, true)\n    ELSE body IS NULL\nEND)"
+          ],
+          [
+            "hall_inquiry_letter_versions_couple_id_fkey",
+            "f",
+            true,
+            "FOREIGN KEY (couple_id) REFERENCES couples(id) ON DELETE CASCADE"
+          ],
+          [
+            "hall_inquiry_letter_versions_created_by_fkey",
+            "f",
+            true,
+            "FOREIGN KEY (created_by) REFERENCES auth.users(id) ON DELETE SET NULL"
+          ],
+          [
+            "hall_inquiry_letter_versions_fingerprint_check",
+            "c",
+            true,
+            "CHECK (\nCASE\n    WHEN redacted_at IS NULL THEN fingerprint IS NOT NULL AND fingerprint ~ '^[0-9a-f]{64}$'::text\n    ELSE fingerprint IS NULL\nEND)"
+          ],
+          [
+            "hall_inquiry_letter_versions_id_couple_id_key",
+            "u",
+            true,
+            "UNIQUE (id, couple_id)"
+          ],
+          [
+            "hall_inquiry_letter_versions_letter_id_couple_id_fkey",
+            "f",
+            true,
+            "FOREIGN KEY (letter_id, couple_id) REFERENCES hall_inquiry_letters(id, couple_id) ON DELETE CASCADE"
+          ],
+          [
+            "hall_inquiry_letter_versions_letter_id_version_key",
+            "u",
+            true,
+            "UNIQUE (letter_id, version)"
+          ],
+          [
+            "hall_inquiry_letter_versions_pkey",
+            "p",
+            true,
+            "PRIMARY KEY (id)"
+          ],
+          [
+            "hall_inquiry_letter_versions_recipients_check",
+            "c",
+            true,
+            "CHECK (cardinality(recipient_hall_ids) >= 1 AND cardinality(recipient_hall_ids) <= 10 AND cardinality(recipient_names) = cardinality(recipient_hall_ids) AND array_position(recipient_hall_ids, NULL::uuid) IS NULL)"
+          ],
+          [
+            "hall_inquiry_letter_versions_shares_check",
+            "c",
+            true,
+            "CHECK (\nCASE\n    WHEN redacted_at IS NULL THEN hall_inquiry_shares_are_valid(shares)\n    ELSE shares IS NULL\nEND)"
+          ],
+          [
+            "hall_inquiry_letter_versions_signature_check",
+            "c",
+            true,
+            "CHECK (\nCASE\n    WHEN redacted_at IS NULL THEN signature IS NOT NULL AND char_length(signature) >= 1 AND char_length(signature) <= 60 AND signature = btrim(signature) AND NOT hall_inquiry_text_is_unsafe(signature, false)\n    ELSE signature IS NULL\nEND)"
+          ],
+          [
+            "hall_inquiry_letter_versions_version_check",
+            "c",
+            true,
+            "CHECK (version >= 1 AND version <= 500)"
+          ]
+        ]
+      },
+      {
+        "acl": [
+          [
+            "authenticated",
+            "postgres",
+            "SELECT",
+            false
+          ],
+          [
+            "postgres",
+            "postgres",
+            "DELETE",
+            false
+          ],
+          [
+            "postgres",
+            "postgres",
+            "INSERT",
+            false
+          ],
+          [
+            "postgres",
+            "postgres",
+            "MAINTAIN",
+            false
+          ],
+          [
+            "postgres",
+            "postgres",
+            "REFERENCES",
+            false
+          ],
+          [
+            "postgres",
+            "postgres",
+            "SELECT",
+            false
+          ],
+          [
+            "postgres",
+            "postgres",
+            "TRIGGER",
+            false
+          ],
+          [
+            "postgres",
+            "postgres",
+            "TRUNCATE",
+            false
+          ],
+          [
+            "postgres",
+            "postgres",
+            "UPDATE",
+            false
+          ],
+          [
+            "service_role",
+            "postgres",
+            "DELETE",
+            false
+          ],
+          [
+            "service_role",
+            "postgres",
+            "INSERT",
+            false
+          ],
+          [
+            "service_role",
+            "postgres",
+            "MAINTAIN",
+            false
+          ],
+          [
+            "service_role",
+            "postgres",
+            "REFERENCES",
+            false
+          ],
+          [
+            "service_role",
+            "postgres",
+            "SELECT",
+            false
+          ],
+          [
+            "service_role",
+            "postgres",
+            "TRIGGER",
+            false
+          ],
+          [
+            "service_role",
+            "postgres",
+            "TRUNCATE",
+            false
+          ],
+          [
+            "service_role",
+            "postgres",
+            "UPDATE",
+            false
+          ]
+        ],
+        "rls": true,
+        "kind": "r",
+        "name": "public.hall_inquiry_letters",
+        "owner": "postgres",
+        "columns": [
+          [
+            "couple_id",
+            "uuid",
+            true,
+            "",
+            "",
+            null,
+            []
+          ],
+          [
+            "created_at",
+            "timestamp with time zone",
+            true,
+            "",
+            "",
+            "now()",
+            []
+          ],
+          [
+            "created_by",
+            "uuid",
+            false,
+            "",
+            "",
+            null,
+            []
+          ],
+          [
+            "id",
+            "uuid",
+            true,
+            "",
+            "",
+            "gen_random_uuid()",
+            []
+          ],
+          [
+            "locked_at",
+            "timestamp with time zone",
+            false,
+            "",
+            "",
+            null,
+            []
+          ]
+        ],
+        "indexes": [
+          [
+            "CREATE INDEX hall_inquiry_letters_couple_idx ON public.hall_inquiry_letters USING btree (couple_id, created_at DESC)",
+            true,
+            true
+          ],
+          [
+            "CREATE UNIQUE INDEX hall_inquiry_letters_id_couple_id_key ON public.hall_inquiry_letters USING btree (id, couple_id)",
+            true,
+            true
+          ],
+          [
+            "CREATE UNIQUE INDEX hall_inquiry_letters_one_open_per_couple ON public.hall_inquiry_letters USING btree (couple_id) WHERE (locked_at IS NULL)",
+            true,
+            true
+          ],
+          [
+            "CREATE UNIQUE INDEX hall_inquiry_letters_pkey ON public.hall_inquiry_letters USING btree (id)",
+            true,
+            true
+          ]
+        ],
+        "forceRls": false,
+        "policies": [
+          {
+            "name": "hall_inquiry_letters_member_select",
+            "check": null,
+            "roles": [
+              "authenticated"
+            ],
+            "using": "is_couple_member(couple_id)",
+            "command": "r",
+            "permissive": true
+          },
+          {
+            "name": "hall_inquiry_letters_service_all",
+            "check": "true",
+            "roles": [
+              "service_role"
+            ],
+            "using": "true",
+            "command": "*",
+            "permissive": true
+          }
+        ],
+        "triggers": [],
+        "constraints": [
+          [
+            "hall_inquiry_letters_couple_id_fkey",
+            "f",
+            true,
+            "FOREIGN KEY (couple_id) REFERENCES couples(id) ON DELETE CASCADE"
+          ],
+          [
+            "hall_inquiry_letters_created_by_fkey",
+            "f",
+            true,
+            "FOREIGN KEY (created_by) REFERENCES auth.users(id) ON DELETE SET NULL"
+          ],
+          [
+            "hall_inquiry_letters_id_couple_id_key",
+            "u",
+            true,
+            "UNIQUE (id, couple_id)"
+          ],
+          [
+            "hall_inquiry_letters_pkey",
+            "p",
+            true,
+            "PRIMARY KEY (id)"
+          ]
+        ]
+      },
+      {
+        "acl": [
+          [
+            "authenticated",
+            "postgres",
+            "SELECT",
+            false
+          ],
+          [
+            "postgres",
+            "postgres",
+            "DELETE",
+            false
+          ],
+          [
+            "postgres",
+            "postgres",
+            "INSERT",
+            false
+          ],
+          [
+            "postgres",
+            "postgres",
+            "MAINTAIN",
+            false
+          ],
+          [
+            "postgres",
+            "postgres",
+            "REFERENCES",
+            false
+          ],
+          [
+            "postgres",
+            "postgres",
+            "SELECT",
+            false
+          ],
+          [
+            "postgres",
+            "postgres",
+            "TRIGGER",
+            false
+          ],
+          [
+            "postgres",
+            "postgres",
+            "TRUNCATE",
+            false
+          ],
+          [
+            "postgres",
+            "postgres",
+            "UPDATE",
+            false
+          ],
+          [
+            "service_role",
+            "postgres",
+            "DELETE",
+            false
+          ],
+          [
+            "service_role",
+            "postgres",
+            "INSERT",
+            false
+          ],
+          [
+            "service_role",
+            "postgres",
+            "MAINTAIN",
+            false
+          ],
+          [
+            "service_role",
+            "postgres",
+            "REFERENCES",
+            false
+          ],
+          [
+            "service_role",
+            "postgres",
+            "SELECT",
+            false
+          ],
+          [
+            "service_role",
+            "postgres",
+            "TRIGGER",
+            false
+          ],
+          [
+            "service_role",
+            "postgres",
+            "TRUNCATE",
+            false
+          ],
+          [
+            "service_role",
+            "postgres",
+            "UPDATE",
+            false
+          ]
+        ],
+        "rls": true,
+        "kind": "r",
+        "name": "public.hall_inquiry_settings",
+        "owner": "postgres",
+        "columns": [
+          [
+            "approver_mode",
+            "text",
+            true,
+            "",
+            "",
+            null,
+            []
+          ],
+          [
+            "couple_id",
+            "uuid",
+            true,
+            "",
+            "",
+            null,
+            []
+          ],
+          [
+            "designated_user_id",
+            "uuid",
+            false,
+            "",
+            "",
+            null,
+            []
+          ],
+          [
+            "proposal_id",
+            "uuid",
+            false,
+            "",
+            "",
+            null,
+            []
+          ],
+          [
+            "proposed_at",
+            "timestamp with time zone",
+            false,
+            "",
+            "",
+            null,
+            []
+          ],
+          [
+            "proposed_by",
+            "uuid",
+            false,
+            "",
+            "",
+            null,
+            []
+          ],
+          [
+            "proposed_designated_user_id",
+            "uuid",
+            false,
+            "",
+            "",
+            null,
+            []
+          ],
+          [
+            "proposed_mode",
+            "text",
+            false,
+            "",
+            "",
+            null,
+            []
+          ],
+          [
+            "revision",
+            "bigint",
+            true,
+            "",
+            "",
+            null,
+            []
+          ],
+          [
+            "updated_at",
+            "timestamp with time zone",
+            true,
+            "",
+            "",
+            "now()",
+            []
+          ],
+          [
+            "updated_by",
+            "uuid",
+            false,
+            "",
+            "",
+            null,
+            []
+          ]
+        ],
+        "indexes": [
+          [
+            "CREATE UNIQUE INDEX hall_inquiry_settings_pkey ON public.hall_inquiry_settings USING btree (couple_id)",
+            true,
+            true
+          ]
+        ],
+        "forceRls": false,
+        "policies": [
+          {
+            "name": "hall_inquiry_settings_member_select",
+            "check": null,
+            "roles": [
+              "authenticated"
+            ],
+            "using": "is_couple_member(couple_id)",
+            "command": "r",
+            "permissive": true
+          },
+          {
+            "name": "hall_inquiry_settings_service_all",
+            "check": "true",
+            "roles": [
+              "service_role"
+            ],
+            "using": "true",
+            "command": "*",
+            "permissive": true
+          }
+        ],
+        "triggers": [],
+        "constraints": [
+          [
+            "hall_inquiry_settings_approver_mode_check",
+            "c",
+            true,
+            "CHECK (approver_mode = ANY (ARRAY['unset'::text, 'designated'::text, 'both'::text]))"
+          ],
+          [
+            "hall_inquiry_settings_couple_id_fkey",
+            "f",
+            true,
+            "FOREIGN KEY (couple_id) REFERENCES couples(id) ON DELETE CASCADE"
+          ],
+          [
+            "hall_inquiry_settings_designated_check",
+            "c",
+            true,
+            "CHECK ((approver_mode = 'designated'::text) = (designated_user_id IS NOT NULL))"
+          ],
+          [
+            "hall_inquiry_settings_pkey",
+            "p",
+            true,
+            "PRIMARY KEY (couple_id)"
+          ],
+          [
+            "hall_inquiry_settings_proposal_check",
+            "c",
+            true,
+            "CHECK (proposal_id IS NULL AND proposed_mode IS NULL AND proposed_designated_user_id IS NULL AND proposed_by IS NULL AND proposed_at IS NULL OR proposal_id IS NOT NULL AND proposed_mode IS NOT NULL AND proposed_by IS NOT NULL AND proposed_at IS NOT NULL AND (proposed_mode = 'designated'::text) = (proposed_designated_user_id IS NOT NULL))"
+          ],
+          [
+            "hall_inquiry_settings_proposed_mode_check",
+            "c",
+            true,
+            "CHECK (proposed_mode = ANY (ARRAY['unset'::text, 'designated'::text, 'both'::text]))"
+          ],
+          [
+            "hall_inquiry_settings_revision_check",
+            "c",
+            true,
+            "CHECK (revision >= 0)"
+          ],
+          [
+            "hall_inquiry_settings_unset_row_check",
+            "c",
+            true,
+            "CHECK (revision > 0 OR approver_mode = 'unset'::text)"
+          ],
+          [
+            "hall_inquiry_settings_updated_by_fkey",
+            "f",
+            true,
+            "FOREIGN KEY (updated_by) REFERENCES auth.users(id) ON DELETE SET NULL"
+          ]
+        ]
+      },
+      {
+        "acl": [
+          [
+            "postgres",
+            "postgres",
+            "DELETE",
+            false
+          ],
+          [
+            "postgres",
+            "postgres",
+            "INSERT",
+            false
+          ],
+          [
+            "postgres",
+            "postgres",
+            "MAINTAIN",
+            false
+          ],
+          [
+            "postgres",
+            "postgres",
+            "REFERENCES",
+            false
+          ],
+          [
+            "postgres",
+            "postgres",
+            "SELECT",
+            false
+          ],
+          [
+            "postgres",
+            "postgres",
+            "TRIGGER",
+            false
+          ],
+          [
+            "postgres",
+            "postgres",
+            "TRUNCATE",
+            false
+          ],
+          [
+            "postgres",
+            "postgres",
+            "UPDATE",
+            false
+          ],
+          [
+            "service_role",
+            "postgres",
+            "DELETE",
+            false
+          ],
+          [
+            "service_role",
+            "postgres",
+            "INSERT",
+            false
+          ],
+          [
+            "service_role",
+            "postgres",
+            "MAINTAIN",
+            false
+          ],
+          [
+            "service_role",
+            "postgres",
+            "REFERENCES",
+            false
+          ],
+          [
+            "service_role",
+            "postgres",
+            "SELECT",
+            false
+          ],
+          [
+            "service_role",
+            "postgres",
+            "TRIGGER",
+            false
+          ],
+          [
+            "service_role",
+            "postgres",
+            "TRUNCATE",
+            false
+          ],
+          [
+            "service_role",
+            "postgres",
+            "UPDATE",
+            false
+          ]
+        ],
+        "rls": true,
+        "kind": "r",
+        "name": "public.hall_inquiry_dispatches",
+        "owner": "postgres",
+        "columns": [
+          [
+            "channel_note",
+            "text",
+            false,
+            "",
+            "",
+            null,
+            []
+          ],
+          [
+            "couple_id",
+            "uuid",
+            true,
+            "",
+            "",
+            null,
+            [
+              [
+                "authenticated",
+                "postgres",
+                "SELECT",
+                false
+              ]
+            ]
+          ],
+          [
+            "dispatch_fingerprint",
+            "text",
+            false,
+            "",
+            "",
+            null,
+            []
+          ],
+          [
+            "hall_id",
+            "uuid",
+            true,
+            "",
+            "",
+            null,
+            [
+              [
+                "authenticated",
+                "postgres",
+                "SELECT",
+                false
+              ]
+            ]
+          ],
+          [
+            "id",
+            "uuid",
+            true,
+            "",
+            "",
+            "gen_random_uuid()",
+            [
+              [
+                "authenticated",
+                "postgres",
+                "SELECT",
+                false
+              ]
+            ]
+          ],
+          [
+            "letter_id",
+            "uuid",
+            true,
+            "",
+            "",
+            null,
+            [
+              [
+                "authenticated",
+                "postgres",
+                "SELECT",
+                false
+              ]
+            ]
+          ],
+          [
+            "queued_at",
+            "timestamp with time zone",
+            true,
+            "",
+            "",
+            "now()",
+            [
+              [
+                "authenticated",
+                "postgres",
+                "SELECT",
+                false
+              ]
+            ]
+          ],
+          [
+            "recipient_name",
+            "text",
+            true,
+            "",
+            "",
+            null,
+            [
+              [
+                "authenticated",
+                "postgres",
+                "SELECT",
+                false
+              ]
+            ]
+          ],
+          [
+            "redacted_at",
+            "timestamp with time zone",
+            false,
+            "",
+            "",
+            null,
+            [
+              [
+                "authenticated",
+                "postgres",
+                "SELECT",
+                false
+              ]
+            ]
+          ],
+          [
+            "sent_at",
+            "timestamp with time zone",
+            false,
+            "",
+            "",
+            null,
+            [
+              [
+                "authenticated",
+                "postgres",
+                "SELECT",
+                false
+              ]
+            ]
+          ],
+          [
+            "sent_by",
+            "uuid",
+            false,
+            "",
+            "",
+            null,
+            []
+          ],
+          [
+            "status",
+            "text",
+            true,
+            "",
+            "",
+            "'queued'::text",
+            [
+              [
+                "authenticated",
+                "postgres",
+                "SELECT",
+                false
+              ]
+            ]
+          ],
+          [
+            "version_id",
+            "uuid",
+            true,
+            "",
+            "",
+            null,
+            [
+              [
+                "authenticated",
+                "postgres",
+                "SELECT",
+                false
+              ]
+            ]
+          ],
+          [
+            "withdrawn_at",
+            "timestamp with time zone",
+            false,
+            "",
+            "",
+            null,
+            [
+              [
+                "authenticated",
+                "postgres",
+                "SELECT",
+                false
+              ]
+            ]
+          ]
+        ],
+        "indexes": [
+          [
+            "CREATE INDEX hall_inquiry_dispatches_couple_idx ON public.hall_inquiry_dispatches USING btree (couple_id, queued_at DESC)",
+            true,
+            true
+          ],
+          [
+            "CREATE INDEX hall_inquiry_dispatches_queue_idx ON public.hall_inquiry_dispatches USING btree (status, queued_at)",
+            true,
+            true
+          ],
+          [
+            "CREATE INDEX hall_inquiry_dispatches_queued_at_idx ON public.hall_inquiry_dispatches USING btree (queued_at)",
+            true,
+            true
+          ],
+          [
+            "CREATE UNIQUE INDEX hall_inquiry_dispatches_dispatch_fingerprint_key ON public.hall_inquiry_dispatches USING btree (dispatch_fingerprint)",
+            true,
+            true
+          ],
+          [
+            "CREATE UNIQUE INDEX hall_inquiry_dispatches_id_couple_id_key ON public.hall_inquiry_dispatches USING btree (id, couple_id)",
+            true,
+            true
+          ],
+          [
+            "CREATE UNIQUE INDEX hall_inquiry_dispatches_pkey ON public.hall_inquiry_dispatches USING btree (id)",
+            true,
+            true
+          ],
+          [
+            "CREATE UNIQUE INDEX hall_inquiry_dispatches_version_id_hall_id_key ON public.hall_inquiry_dispatches USING btree (version_id, hall_id)",
+            true,
+            true
+          ]
+        ],
+        "forceRls": false,
+        "policies": [
+          {
+            "name": "hall_inquiry_dispatches_member_select",
+            "check": null,
+            "roles": [
+              "authenticated"
+            ],
+            "using": "is_couple_member(couple_id)",
+            "command": "r",
+            "permissive": true
+          },
+          {
+            "name": "hall_inquiry_dispatches_service_all",
+            "check": "true",
+            "roles": [
+              "service_role"
+            ],
+            "using": "true",
+            "command": "*",
+            "permissive": true
+          }
+        ],
+        "triggers": [
+          [
+            "trg_hall_inquiry_dispatches_guard",
+            "O",
+            "CREATE TRIGGER trg_hall_inquiry_dispatches_guard BEFORE UPDATE ON hall_inquiry_dispatches FOR EACH ROW EXECUTE FUNCTION hall_inquiry_guard_record_update()"
+          ]
+        ],
+        "constraints": [
+          [
+            "hall_inquiry_dispatches_couple_id_fkey",
+            "f",
+            true,
+            "FOREIGN KEY (couple_id) REFERENCES couples(id) ON DELETE CASCADE"
+          ],
+          [
+            "hall_inquiry_dispatches_dispatch_fingerprint_check",
+            "c",
+            true,
+            "CHECK (dispatch_fingerprint IS NULL OR dispatch_fingerprint ~ '^[0-9a-f]{64}$'::text)"
+          ],
+          [
+            "hall_inquiry_dispatches_dispatch_fingerprint_key",
+            "u",
+            true,
+            "UNIQUE (dispatch_fingerprint)"
+          ],
+          [
+            "hall_inquiry_dispatches_hall_id_fkey",
+            "f",
+            true,
+            "FOREIGN KEY (hall_id) REFERENCES hall_listings(id) ON DELETE RESTRICT"
+          ],
+          [
+            "hall_inquiry_dispatches_id_couple_id_key",
+            "u",
+            true,
+            "UNIQUE (id, couple_id)"
+          ],
+          [
+            "hall_inquiry_dispatches_letter_id_couple_id_fkey",
+            "f",
+            true,
+            "FOREIGN KEY (letter_id, couple_id) REFERENCES hall_inquiry_letters(id, couple_id) ON DELETE CASCADE"
+          ],
+          [
+            "hall_inquiry_dispatches_note_check",
+            "c",
+            true,
+            "CHECK (channel_note IS NULL OR char_length(channel_note) >= 1 AND char_length(channel_note) <= 200 AND channel_note = btrim(channel_note) AND NOT hall_inquiry_text_is_unsafe(channel_note, false))"
+          ],
+          [
+            "hall_inquiry_dispatches_pkey",
+            "p",
+            true,
+            "PRIMARY KEY (id)"
+          ],
+          [
+            "hall_inquiry_dispatches_recipient_name_check",
+            "c",
+            true,
+            "CHECK (char_length(recipient_name) >= 1 AND char_length(recipient_name) <= 60)"
+          ],
+          [
+            "hall_inquiry_dispatches_redacted_check",
+            "c",
+            true,
+            "CHECK (\nCASE\n    WHEN redacted_at IS NULL THEN dispatch_fingerprint IS NOT NULL\n    ELSE dispatch_fingerprint IS NULL AND channel_note IS NULL\nEND)"
+          ],
+          [
+            "hall_inquiry_dispatches_sent_by_fkey",
+            "f",
+            true,
+            "FOREIGN KEY (sent_by) REFERENCES auth.users(id) ON DELETE SET NULL"
+          ],
+          [
+            "hall_inquiry_dispatches_sent_check",
+            "c",
+            true,
+            "CHECK ((status = 'sent'::text) = (sent_at IS NOT NULL))"
+          ],
+          [
+            "hall_inquiry_dispatches_status_check",
+            "c",
+            true,
+            "CHECK (status = ANY (ARRAY['queued'::text, 'sent'::text, 'withdrawn'::text]))"
+          ],
+          [
+            "hall_inquiry_dispatches_version_id_couple_id_fkey",
+            "f",
+            true,
+            "FOREIGN KEY (version_id, couple_id) REFERENCES hall_inquiry_letter_versions(id, couple_id) ON DELETE CASCADE"
+          ],
+          [
+            "hall_inquiry_dispatches_version_id_hall_id_key",
+            "u",
+            true,
+            "UNIQUE (version_id, hall_id)"
+          ],
+          [
+            "hall_inquiry_dispatches_withdrawn_check",
+            "c",
+            true,
+            "CHECK ((status = 'withdrawn'::text) = (withdrawn_at IS NOT NULL) AND (status <> 'withdrawn'::text OR redacted_at IS NOT NULL))"
+          ]
+        ]
+      },
+      {
+        "acl": [
+          [
+            "postgres",
+            "postgres",
+            "DELETE",
+            false
+          ],
+          [
+            "postgres",
+            "postgres",
+            "INSERT",
+            false
+          ],
+          [
+            "postgres",
+            "postgres",
+            "MAINTAIN",
+            false
+          ],
+          [
+            "postgres",
+            "postgres",
+            "REFERENCES",
+            false
+          ],
+          [
+            "postgres",
+            "postgres",
+            "SELECT",
+            false
+          ],
+          [
+            "postgres",
+            "postgres",
+            "TRIGGER",
+            false
+          ],
+          [
+            "postgres",
+            "postgres",
+            "TRUNCATE",
+            false
+          ],
+          [
+            "postgres",
+            "postgres",
+            "UPDATE",
+            false
+          ],
+          [
+            "service_role",
+            "postgres",
+            "DELETE",
+            false
+          ],
+          [
+            "service_role",
+            "postgres",
+            "INSERT",
+            false
+          ],
+          [
+            "service_role",
+            "postgres",
+            "MAINTAIN",
+            false
+          ],
+          [
+            "service_role",
+            "postgres",
+            "REFERENCES",
+            false
+          ],
+          [
+            "service_role",
+            "postgres",
+            "SELECT",
+            false
+          ],
+          [
+            "service_role",
+            "postgres",
+            "TRIGGER",
+            false
+          ],
+          [
+            "service_role",
+            "postgres",
+            "TRUNCATE",
+            false
+          ],
+          [
+            "service_role",
+            "postgres",
+            "UPDATE",
+            false
+          ]
+        ],
+        "rls": true,
+        "kind": "r",
+        "name": "public.hall_inquiry_replies",
+        "owner": "postgres",
+        "columns": [
+          [
+            "couple_id",
+            "uuid",
+            true,
+            "",
+            "",
+            null,
+            [
+              [
+                "authenticated",
+                "postgres",
+                "SELECT",
+                false
+              ]
+            ]
+          ],
+          [
+            "dispatch_id",
+            "uuid",
+            true,
+            "",
+            "",
+            null,
+            [
+              [
+                "authenticated",
+                "postgres",
+                "SELECT",
+                false
+              ]
+            ]
+          ],
+          [
+            "event_at",
+            "timestamp with time zone",
+            false,
+            "",
+            "",
+            null,
+            [
+              [
+                "authenticated",
+                "postgres",
+                "SELECT",
+                false
+              ]
+            ]
+          ],
+          [
+            "hall_id",
+            "uuid",
+            true,
+            "",
+            "",
+            null,
+            [
+              [
+                "authenticated",
+                "postgres",
+                "SELECT",
+                false
+              ]
+            ]
+          ],
+          [
+            "id",
+            "uuid",
+            true,
+            "",
+            "",
+            "gen_random_uuid()",
+            [
+              [
+                "authenticated",
+                "postgres",
+                "SELECT",
+                false
+              ]
+            ]
+          ],
+          [
+            "outcome",
+            "text",
+            true,
+            "",
+            "",
+            null,
+            [
+              [
+                "authenticated",
+                "postgres",
+                "SELECT",
+                false
+              ]
+            ]
+          ],
+          [
+            "place_note",
+            "text",
+            false,
+            "",
+            "",
+            null,
+            [
+              [
+                "authenticated",
+                "postgres",
+                "SELECT",
+                false
+              ]
+            ]
+          ],
+          [
+            "price_note",
+            "text",
+            false,
+            "",
+            "",
+            null,
+            [
+              [
+                "authenticated",
+                "postgres",
+                "SELECT",
+                false
+              ]
+            ]
+          ],
+          [
+            "raw_text",
+            "text",
+            false,
+            "",
+            "",
+            null,
+            [
+              [
+                "authenticated",
+                "postgres",
+                "SELECT",
+                false
+              ]
+            ]
+          ],
+          [
+            "recorded_at",
+            "timestamp with time zone",
+            true,
+            "",
+            "",
+            "now()",
+            [
+              [
+                "authenticated",
+                "postgres",
+                "SELECT",
+                false
+              ]
+            ]
+          ],
+          [
+            "recorded_by",
+            "uuid",
+            false,
+            "",
+            "",
+            null,
+            []
+          ],
+          [
+            "redacted_at",
+            "timestamp with time zone",
+            false,
+            "",
+            "",
+            null,
+            [
+              [
+                "authenticated",
+                "postgres",
+                "SELECT",
+                false
+              ]
+            ]
+          ]
+        ],
+        "indexes": [
+          [
+            "CREATE INDEX hall_inquiry_replies_couple_idx ON public.hall_inquiry_replies USING btree (couple_id, recorded_at DESC)",
+            true,
+            true
+          ],
+          [
+            "CREATE UNIQUE INDEX hall_inquiry_replies_dedupe ON public.hall_inquiry_replies USING btree (dispatch_id, outcome, md5(raw_text), COALESCE(event_at, '-infinity'::timestamp with time zone)) WHERE (redacted_at IS NULL)",
+            true,
+            true
+          ],
+          [
+            "CREATE UNIQUE INDEX hall_inquiry_replies_pkey ON public.hall_inquiry_replies USING btree (id)",
+            true,
+            true
+          ]
+        ],
+        "forceRls": false,
+        "policies": [
+          {
+            "name": "hall_inquiry_replies_member_select",
+            "check": null,
+            "roles": [
+              "authenticated"
+            ],
+            "using": "is_couple_member(couple_id)",
+            "command": "r",
+            "permissive": true
+          },
+          {
+            "name": "hall_inquiry_replies_service_all",
+            "check": "true",
+            "roles": [
+              "service_role"
+            ],
+            "using": "true",
+            "command": "*",
+            "permissive": true
+          }
+        ],
+        "triggers": [
+          [
+            "trg_hall_inquiry_replies_guard",
+            "O",
+            "CREATE TRIGGER trg_hall_inquiry_replies_guard BEFORE UPDATE ON hall_inquiry_replies FOR EACH ROW EXECUTE FUNCTION hall_inquiry_guard_record_update()"
+          ]
+        ],
+        "constraints": [
+          [
+            "hall_inquiry_replies_couple_id_fkey",
+            "f",
+            true,
+            "FOREIGN KEY (couple_id) REFERENCES couples(id) ON DELETE CASCADE"
+          ],
+          [
+            "hall_inquiry_replies_dispatch_id_couple_id_fkey",
+            "f",
+            true,
+            "FOREIGN KEY (dispatch_id, couple_id) REFERENCES hall_inquiry_dispatches(id, couple_id) ON DELETE CASCADE"
+          ],
+          [
+            "hall_inquiry_replies_event_check",
+            "c",
+            true,
+            "CHECK ((outcome = ANY (ARRAY['confirmed_time'::text, 'proposed_time'::text])) = (event_at IS NOT NULL))"
+          ],
+          [
+            "hall_inquiry_replies_hall_id_fkey",
+            "f",
+            true,
+            "FOREIGN KEY (hall_id) REFERENCES hall_listings(id) ON DELETE RESTRICT"
+          ],
+          [
+            "hall_inquiry_replies_outcome_check",
+            "c",
+            true,
+            "CHECK (outcome = ANY (ARRAY['confirmed_time'::text, 'proposed_time'::text, 'declined'::text, 'question'::text, 'conditions_note'::text]))"
+          ],
+          [
+            "hall_inquiry_replies_pkey",
+            "p",
+            true,
+            "PRIMARY KEY (id)"
+          ],
+          [
+            "hall_inquiry_replies_place_check",
+            "c",
+            true,
+            "CHECK (place_note IS NULL OR char_length(place_note) >= 1 AND char_length(place_note) <= 80 AND place_note = btrim(place_note) AND NOT hall_inquiry_text_is_unsafe(place_note, false))"
+          ],
+          [
+            "hall_inquiry_replies_price_check",
+            "c",
+            true,
+            "CHECK (price_note IS NULL OR char_length(price_note) >= 1 AND char_length(price_note) <= 300 AND price_note = btrim(price_note) AND NOT hall_inquiry_text_is_unsafe(price_note, false))"
+          ],
+          [
+            "hall_inquiry_replies_raw_check",
+            "c",
+            true,
+            "CHECK (\nCASE\n    WHEN redacted_at IS NULL THEN raw_text IS NOT NULL AND char_length(raw_text) >= 1 AND char_length(raw_text) <= 4000 AND raw_text = btrim(raw_text, ' \n'::text) AND NOT hall_inquiry_text_is_unsafe(raw_text, true)\n    ELSE raw_text IS NULL\nEND)"
+          ],
+          [
+            "hall_inquiry_replies_recorded_by_fkey",
+            "f",
+            true,
+            "FOREIGN KEY (recorded_by) REFERENCES auth.users(id) ON DELETE SET NULL"
+          ],
+          [
+            "hall_inquiry_replies_redacted_notes_check",
+            "c",
+            true,
+            "CHECK (redacted_at IS NULL OR place_note IS NULL AND price_note IS NULL)"
+          ]
+        ]
+      },
+      {
+        "acl": [
+          [
+            "postgres",
+            "postgres",
+            "DELETE",
+            false
+          ],
+          [
+            "postgres",
+            "postgres",
+            "INSERT",
+            false
+          ],
+          [
+            "postgres",
+            "postgres",
+            "MAINTAIN",
+            false
+          ],
+          [
+            "postgres",
+            "postgres",
+            "REFERENCES",
+            false
+          ],
+          [
+            "postgres",
+            "postgres",
+            "SELECT",
+            false
+          ],
+          [
+            "postgres",
+            "postgres",
+            "TRIGGER",
+            false
+          ],
+          [
+            "postgres",
+            "postgres",
+            "TRUNCATE",
+            false
+          ],
+          [
+            "postgres",
+            "postgres",
+            "UPDATE",
+            false
+          ],
+          [
+            "service_role",
+            "postgres",
+            "DELETE",
+            false
+          ],
+          [
+            "service_role",
+            "postgres",
+            "INSERT",
+            false
+          ],
+          [
+            "service_role",
+            "postgres",
+            "MAINTAIN",
+            false
+          ],
+          [
+            "service_role",
+            "postgres",
+            "REFERENCES",
+            false
+          ],
+          [
+            "service_role",
+            "postgres",
+            "SELECT",
+            false
+          ],
+          [
+            "service_role",
+            "postgres",
+            "TRIGGER",
+            false
+          ],
+          [
+            "service_role",
+            "postgres",
+            "TRUNCATE",
+            false
+          ],
+          [
+            "service_role",
+            "postgres",
+            "UPDATE",
+            false
+          ]
+        ],
+        "rls": true,
+        "kind": "r",
+        "name": "public.hall_listings",
+        "owner": "postgres",
+        "columns": [
+          [
+            "active",
+            "boolean",
+            true,
+            "",
+            "",
+            "false",
+            [
+              [
+                "authenticated",
+                "postgres",
+                "SELECT",
+                false
+              ]
+            ]
+          ],
+          [
+            "area_label",
+            "text",
+            true,
+            "",
+            "",
+            null,
+            [
+              [
+                "authenticated",
+                "postgres",
+                "SELECT",
+                false
+              ]
+            ]
+          ],
+          [
+            "checked_on",
+            "date",
+            true,
+            "",
+            "",
+            null,
+            [
+              [
+                "authenticated",
+                "postgres",
+                "SELECT",
+                false
+              ]
+            ]
+          ],
+          [
+            "created_at",
+            "timestamp with time zone",
+            true,
+            "",
+            "",
+            "now()",
+            [
+              [
+                "authenticated",
+                "postgres",
+                "SELECT",
+                false
+              ]
+            ]
+          ],
+          [
+            "created_by",
+            "uuid",
+            false,
+            "",
+            "",
+            null,
+            []
+          ],
+          [
+            "id",
+            "uuid",
+            true,
+            "",
+            "",
+            "gen_random_uuid()",
+            [
+              [
+                "authenticated",
+                "postgres",
+                "SELECT",
+                false
+              ]
+            ]
+          ],
+          [
+            "kind_label",
+            "text",
+            true,
+            "",
+            "",
+            null,
+            [
+              [
+                "authenticated",
+                "postgres",
+                "SELECT",
+                false
+              ]
+            ]
+          ],
+          [
+            "meal_price_won",
+            "integer",
+            true,
+            "",
+            "",
+            null,
+            [
+              [
+                "authenticated",
+                "postgres",
+                "SELECT",
+                false
+              ]
+            ]
+          ],
+          [
+            "minimum_guarantee",
+            "integer",
+            false,
+            "",
+            "",
+            null,
+            [
+              [
+                "authenticated",
+                "postgres",
+                "SELECT",
+                false
+              ]
+            ]
+          ],
+          [
+            "name",
+            "text",
+            true,
+            "",
+            "",
+            null,
+            [
+              [
+                "authenticated",
+                "postgres",
+                "SELECT",
+                false
+              ]
+            ]
+          ],
+          [
+            "photo_url",
+            "text",
+            false,
+            "",
+            "",
+            null,
+            [
+              [
+                "authenticated",
+                "postgres",
+                "SELECT",
+                false
+              ]
+            ]
+          ],
+          [
+            "region",
+            "text",
+            true,
+            "",
+            "",
+            null,
+            [
+              [
+                "authenticated",
+                "postgres",
+                "SELECT",
+                false
+              ]
+            ]
+          ],
+          [
+            "rental_fee_won",
+            "integer",
+            false,
+            "",
+            "",
+            null,
+            [
+              [
+                "authenticated",
+                "postgres",
+                "SELECT",
+                false
+              ]
+            ]
+          ],
+          [
+            "rental_included",
+            "boolean",
+            true,
+            "",
+            "",
+            "false",
+            [
+              [
+                "authenticated",
+                "postgres",
+                "SELECT",
+                false
+              ]
+            ]
+          ],
+          [
+            "source_url",
+            "text",
+            true,
+            "",
+            "",
+            null,
+            [
+              [
+                "authenticated",
+                "postgres",
+                "SELECT",
+                false
+              ]
+            ]
+          ],
+          [
+            "station_walk_minutes",
+            "smallint",
+            false,
+            "",
+            "",
+            null,
+            [
+              [
+                "authenticated",
+                "postgres",
+                "SELECT",
+                false
+              ]
+            ]
+          ],
+          [
+            "transit_note",
+            "text",
+            false,
+            "",
+            "",
+            null,
+            [
+              [
+                "authenticated",
+                "postgres",
+                "SELECT",
+                false
+              ]
+            ]
+          ],
+          [
+            "updated_at",
+            "timestamp with time zone",
+            true,
+            "",
+            "",
+            "now()",
+            [
+              [
+                "authenticated",
+                "postgres",
+                "SELECT",
+                false
+              ]
+            ]
+          ],
+          [
+            "updated_by",
+            "uuid",
+            false,
+            "",
+            "",
+            null,
+            []
+          ]
+        ],
+        "indexes": [
+          [
+            "CREATE INDEX hall_listings_region_idx ON public.hall_listings USING btree (region, active, name)",
+            true,
+            true
+          ],
+          [
+            "CREATE UNIQUE INDEX hall_listings_pkey ON public.hall_listings USING btree (id)",
+            true,
+            true
+          ]
+        ],
+        "forceRls": false,
+        "policies": [
+          {
+            "name": "hall_listings_member_read",
+            "check": null,
+            "roles": [
+              "authenticated"
+            ],
+            "using": "(active OR (EXISTS ( SELECT 1\n   FROM hall_shortlists pick\n  WHERE ((pick.hall_id = hall_listings.id) AND is_couple_member(pick.couple_id)))))",
+            "command": "r",
+            "permissive": true
+          },
+          {
+            "name": "hall_listings_service_all",
+            "check": "true",
+            "roles": [
+              "service_role"
+            ],
+            "using": "true",
+            "command": "*",
+            "permissive": true
+          }
+        ],
+        "triggers": [],
+        "constraints": [
+          [
+            "hall_listings_area_check",
+            "c",
+            true,
+            "CHECK (char_length(area_label) >= 1 AND char_length(area_label) <= 40 AND area_label = btrim(area_label) AND NOT hall_inquiry_text_is_unsafe(area_label, false))"
+          ],
+          [
+            "hall_listings_checked_on_check",
+            "c",
+            true,
+            "CHECK (checked_on >= '2024-01-01'::date)"
+          ],
+          [
+            "hall_listings_created_by_fkey",
+            "f",
+            true,
+            "FOREIGN KEY (created_by) REFERENCES auth.users(id) ON DELETE SET NULL"
+          ],
+          [
+            "hall_listings_kind_check",
+            "c",
+            true,
+            "CHECK (char_length(kind_label) >= 1 AND char_length(kind_label) <= 30 AND kind_label = btrim(kind_label) AND NOT hall_inquiry_text_is_unsafe(kind_label, false))"
+          ],
+          [
+            "hall_listings_meal_check",
+            "c",
+            true,
+            "CHECK (meal_price_won >= 1000 AND meal_price_won <= 1000000)"
+          ],
+          [
+            "hall_listings_minimum_check",
+            "c",
+            true,
+            "CHECK (minimum_guarantee IS NULL OR minimum_guarantee >= 1 AND minimum_guarantee <= 3000)"
+          ],
+          [
+            "hall_listings_name_check",
+            "c",
+            true,
+            "CHECK (char_length(name) >= 1 AND char_length(name) <= 60 AND name = btrim(name) AND NOT hall_inquiry_text_is_unsafe(name, false))"
+          ],
+          [
+            "hall_listings_photo_check",
+            "c",
+            true,
+            "CHECK (photo_url IS NULL OR char_length(photo_url) <= 500 AND photo_url ~ '^https://[^[:space:]]+$'::text AND NOT hall_inquiry_text_is_unsafe(photo_url, false))"
+          ],
+          [
+            "hall_listings_pkey",
+            "p",
+            true,
+            "PRIMARY KEY (id)"
+          ],
+          [
+            "hall_listings_region_check",
+            "c",
+            true,
+            "CHECK (region = ANY (ARRAY['서울'::text, '부산'::text, '대구'::text, '인천'::text, '광주'::text, '대전'::text, '울산'::text, '세종'::text, '경기'::text, '강원'::text, '충북'::text, '충남'::text, '전북'::text, '전남'::text, '경북'::text, '경남'::text, '제주'::text]))"
+          ],
+          [
+            "hall_listings_rental_check",
+            "c",
+            true,
+            "CHECK (rental_included AND rental_fee_won IS NULL OR NOT rental_included AND rental_fee_won IS NOT NULL AND rental_fee_won >= 0 AND rental_fee_won <= 200000000)"
+          ],
+          [
+            "hall_listings_source_check",
+            "c",
+            true,
+            "CHECK (char_length(source_url) <= 500 AND source_url ~ '^https://[^[:space:]]+$'::text AND NOT hall_inquiry_text_is_unsafe(source_url, false))"
+          ],
+          [
+            "hall_listings_transit_check",
+            "c",
+            true,
+            "CHECK (transit_note IS NULL OR char_length(transit_note) >= 1 AND char_length(transit_note) <= 40 AND transit_note = btrim(transit_note) AND NOT hall_inquiry_text_is_unsafe(transit_note, false))"
+          ],
+          [
+            "hall_listings_updated_by_fkey",
+            "f",
+            true,
+            "FOREIGN KEY (updated_by) REFERENCES auth.users(id) ON DELETE SET NULL"
+          ],
+          [
+            "hall_listings_walk_check",
+            "c",
+            true,
+            "CHECK (station_walk_minutes IS NULL OR station_walk_minutes >= 0 AND station_walk_minutes <= 120)"
+          ]
+        ]
+      }
+    ],
+    "existingTableTriggers": [
+      [
+        "public.account_deletion_jobs",
+        "trg_hall_inquiry_account_deletion",
+        "O",
+        "CREATE TRIGGER trg_hall_inquiry_account_deletion AFTER INSERT OR UPDATE OF user_id, status ON account_deletion_jobs FOR EACH ROW EXECUTE FUNCTION hall_inquiry_purge_for_account_deletion()"
+      ]
+    ]
+  }
+}

@@ -41,7 +41,16 @@ function loadIndex() {
   new Function("exports", policy)(policyExports);
   const deps: Record<string, unknown> = {
     react: React, "react/jsx-runtime": jsxRuntime,
-    "expo-router": { Redirect: ({ href }: { href: string }) => <span data-destination={href}>{href}</span> },
+    "expo-router": {
+      Redirect: ({ href }: { href: string }) => <span data-destination={href}>{href}</span>,
+      router: { replace: vi.fn(), push: vi.fn() },
+    },
+    // 2026-11-17 파운더 디자인 아티팩트(원문: 이 디자인 완전 같아야해): 로그아웃 상태의 첫 화면은
+    // 로그인으로 보내지 않고 '시작' 화면을 그린다(시작하기가 로그인으로 들어간다).
+    "@/components/invitation/InvitationStart": {
+      __esModule: true,
+      default: () => <span data-destination="start">start</span>,
+    },
     "react-native": { View, Text: View, ActivityIndicator: () => <span>checking</span>, StyleSheet: { create: (value: unknown) => value } },
     "@/components/ui/AppText": { Text: View },
     "@hanbang/design-tokens": { colors: { rose: { 500: "pink" }, noir: { 800: "black" } } },
@@ -130,12 +139,12 @@ it("auth event 뒤에 도착한 이전 getSession은 현재 계정을 되돌리�
   expect(profileReads).toHaveLength(0);
 });
 
-it("대기 중 로그아웃은 지난 응답을 기다리지 않고 로그인으로 간다", async () => {
+it("대기 중 로그아웃은 지난 응답을 기다리지 않고 로그아웃 첫 화면(시작 화면)으로 간다", async () => {
   await mount();
   await auth(null);
-  expect(destination()).toBe("/(auth)/login");
+  expect(destination()).toBe("start");
   await React.act(async () => consentReads[0].reject(new Error("late old failure")));
-  expect(destination()).toBe("/(auth)/login");
+  expect(destination()).toBe("start");
 });
 
 it("현재 동의 읽기가 실패하면 기존 재시도 화면에서 같은 주체를 다시 판정한다", async () => {

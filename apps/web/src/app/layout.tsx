@@ -1,8 +1,33 @@
 import type { Metadata, Viewport } from "next";
+import { Cormorant_Garamond, Gowun_Batang, Noto_Sans_KR } from "next/font/google";
 import AnalyticsProvider from "@/components/analytics/AnalyticsProvider";
 import UtmCapture from "@/components/analytics/UtmCapture";
 import { BROWSER_STORAGE_FALLBACK_SNIPPET } from "@/lib/browserStorageFallback";
 import "./globals.css";
+
+// 청첩장 디자인(2026-11-17)의 글꼴 셋. 파운더가 만든 디자인 아티팩트가 정한 조합이다:
+// 고운바탕(한글 제목·이름·편지) + Cormorant Garamond(숫자·날짜·로고) + Noto Sans KR(본문).
+// next/font 가 빌드 때 받아 같은 주소에서 내주므로 CSP(font-src 'self')를 바꾸지 않는다.
+// 한글 글자는 unicode-range 조각으로 필요한 만큼만 받는다. 미리 받기는 라틴 조각만 한다.
+const invitationSerif = Gowun_Batang({
+  weight: ["400", "700"],
+  subsets: ["latin"],
+  display: "swap",
+  variable: "--font-invitation-serif",
+});
+const invitationNumeral = Cormorant_Garamond({
+  weight: ["400", "500"],
+  style: ["normal", "italic"],
+  subsets: ["latin"],
+  display: "swap",
+  variable: "--font-invitation-numeral",
+});
+const invitationSans = Noto_Sans_KR({
+  weight: ["400", "500", "700"],
+  subsets: ["latin"],
+  display: "swap",
+  variable: "--font-invitation-sans",
+});
 
 // 모든 기기에서 일관된 viewport — iPhone notch (viewport-fit=cover) 대응 +
 // 사용자 줌 허용 (maximumScale 미지정 — 접근성).
@@ -47,7 +72,11 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="ko" data-scroll-behavior="smooth">
+    <html
+      lang="ko"
+      data-scroll-behavior="smooth"
+      className={`${invitationSerif.variable} ${invitationNumeral.variable} ${invitationSans.variable}`}
+    >
       <head>
         <link
           rel="preload"

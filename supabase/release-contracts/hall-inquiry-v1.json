@@ -1,0 +1,96 @@
+{
+  "version": 1,
+  "kind": "hall-inquiry-isolated-additive-release",
+  "release": "hall-inquiry-20261118",
+  "status": "requires-scoped-runtime-evidence",
+  "productionApplyImplemented": true,
+  "runtimeEvidenceVerified": false,
+  "projectRef": "slrtobkksjmxgzatjyqb",
+  "systemIdentifier": "7581440907192989109",
+  "baseCommit": "ccaecc823df3293d8de7f29416fdd2d56e0b7d76",
+  "migrationVersion": "20261117090000",
+  "migrationName": "hall_listings_and_inquiries",
+  "existingData": "unchanged",
+  "newRows": "none",
+  "scope": {
+    "newTables": [
+      "public.hall_listings",
+      "public.hall_shortlists",
+      "public.hall_inquiry_settings",
+      "public.hall_inquiry_letters",
+      "public.hall_inquiry_letter_versions",
+      "public.hall_inquiry_approvals",
+      "public.hall_inquiry_dispatches",
+      "public.hall_inquiry_replies"
+    ],
+    "newFunctions": [
+      "public.hall_inquiry_text_is_unsafe",
+      "public.hall_inquiry_shares_are_valid",
+      "public.hall_inquiry_shares_canonical",
+      "public.hall_inquiry_letter_fingerprint",
+      "public.hall_inquiry_dispatch_fingerprint",
+      "public.hall_shortlists_enforce_limit",
+      "public.hall_inquiry_guard_record_update",
+      "public.hall_inquiry_current_members",
+      "public.hall_inquiry_notify",
+      "public.hall_inquiry_lock_member",
+      "public.hall_inquiry_save_letter_version",
+      "public.hall_inquiry_approver_change_needs_consent",
+      "public.hall_inquiry_approver_state",
+      "public.hall_inquiry_drop_approver_proposal",
+      "public.hall_inquiry_respond_approver",
+      "public.hall_inquiry_set_approver",
+      "public.hall_inquiry_approve_letter",
+      "public.hall_inquiry_assert_operator",
+      "public.hall_inquiry_mark_sent",
+      "public.hall_inquiry_record_reply",
+      "public.hall_inquiry_purge_for_account_deletion",
+      "public.hall_inquiry_viewer_account_active"
+    ],
+    "existingTableTriggers": [
+      "public.account_deletion_jobs.trg_hall_inquiry_account_deletion"
+    ],
+    "existingFunctions": "unchanged",
+    "existingTables": "unchanged-except-listed-triggers",
+    "auth": "unchanged",
+    "storage": "unchanged",
+    "cron": "unchanged"
+  },
+  "backup": "fresh-remote-target-absence-and-preserved-catalog-ledger-digests-no-customer-data-export",
+  "rollback": "previous-web-deployment-preserve-new-objects-and-existing-customer-data",
+  "sending": "HALL_INQUIRY_SENDING_ENABLED stays false; HALL_INQUIRY_GLOBAL_DAILY_CAP stays 0 until the owner decides",
+  "artifacts": [
+    {
+      "file": "supabase/migrations/20261117090000_hall_listings_and_inquiries.sql",
+      "sha256": "b04f62efa2a7bf73471511cdc21a110c39b3440e4d74b13c7f03b66ef2e1f0cd"
+    },
+    {
+      "file": "supabase/release-contracts/hall-inquiry-pg-catalog-v1.json",
+      "sha256": "ab6e6c359a0a1053684e4304e8948c5ba434afacae9af3702e879a992f211191"
+    },
+    {
+      "file": "scripts/hall-inquiry-release.mjs",
+      "sha256": "ef6889190f3056cf1379120b8e7343fdb1e9a4e455de0b6d5d8c8261c3b4c2bf"
+    },
+    {
+      "file": "scripts/hall-inquiry-release-catalog.mjs",
+      "sha256": "ea0224f377db7e2dba155254646a9bf6b17b7ee769e7b24f8e97dae9ea28dede"
+    },
+    {
+      "file": "scripts/hall-inquiry-release-prepare.mjs",
+      "sha256": "d4e06d99558dd638460bf9e2338ffe616b09f0a0ffc8aacc867bf8f3673f5095"
+    },
+    {
+      "file": "scripts/hall-inquiry-release-fixture.mjs",
+      "sha256": "eb5330f8186143ce38615d31fc637abae934da30e3b8a5ad4f7b6d74d1bb9b03"
+    },
+    {
+      "file": "scripts/hall-inquiry-release-build-contract.mjs",
+      "sha256": "6d93c92072a48b3011c8c03951ac7de7338dd9b449b8af077fea5feb30fb8bd8"
+    },
+    {
+      "file": "supabase/release-contracts/hall-inquiry-predecessor-build-inputs-v1.json",
+      "sha256": "d8ec8cc9414e627f76374dc96f26cba30ca27d81915f5cb2d4ce6105bfc19030"
+    }
+  ]
+}

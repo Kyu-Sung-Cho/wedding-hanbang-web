@@ -18,6 +18,9 @@ export const WEDDING_APP_ROUTES = [
   "lounge",
   "preparation-style",
   "chat",
+  // 2026-11-17 파운더 디자인 아티팩트의 준비 순서·웨딩홀 비교(편지·상담 확정은 그 아래 주소).
+  "journey",
+  "halls",
   "saved",
   "budget",
   "checklist",

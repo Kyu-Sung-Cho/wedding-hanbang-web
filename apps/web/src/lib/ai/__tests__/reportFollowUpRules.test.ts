@@ -379,18 +379,20 @@ describe("무엇부터 할지 모른다고 하면 되묻기로 끝내지 않는�
   });
 });
 
-describe("금액 감이 없다고 하면 시세 도구를 쓴다", () => {
-  // 이 도구는 켜져 있는데 프롬프트 어디에도 쓸 이유가 적혀 있지 않았다.
-  it("도구 이름과 출처 요구가 함께 실린다", () => {
-    expect(delivered).toContain("`get_market_price`");
-    expect(delivered).toContain("기준 시점·출처와 함께 말하고");
+// 2026-08-29 리포트: "예산 감이 아예 없다" 에 되묻기만 했다. 그때는 `get_market_price` 로 범위를
+// 보라는 줄을 실었다. 2026-11-16 참가격 자료를 쓰지 않기로 해서(파운더 결정 D-79) 그 도구는 모델에
+// 가지 않는다. 그 자리에서 할 일은 도구와 상관없이 늘 실리는 `## 가격 안내 규칙` 이 말한다.
+describe("금액 감이 없다고 하면 평균을 지어내지 않고 받은 견적·상한부터 묻는다", () => {
+  it("운영 도구 집합의 프롬프트에 시세 도구 이름이 없다", () => {
+    expect(delivered).not.toContain("get_market_price");
   });
 
-  it("지어내지 말라는 단서가 붙어 있다", () => {
-    expect(delivered).toContain("도구 없이 평균가를 지어내지 마세요");
+  it("지어내지 말라는 규칙과 다음에 할 일이 함께 실린다", () => {
+    expect(delivered).toContain("평균가·중간값·시세·가격대를 지어내지 마세요");
+    expect(delivered).toContain("금액 감이 없다고 하면 평균을 대신 말하지 말고, 받은 견적이 있는지 묻거나");
   });
 
-  it("그 도구가 없으면 싣지 않는다", () => {
-    expect(without("get_market_price")).not.toContain("도구 없이 평균가를 지어내지 마세요");
+  it("조회 도구가 하나도 없는 턴에도 실린다", () => {
+    expect(compose([])).toContain("평균가·중간값·시세·가격대를 지어내지 마세요");
   });
 });

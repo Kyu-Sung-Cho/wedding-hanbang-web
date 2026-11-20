@@ -48,7 +48,9 @@ const webCompanion = compile("../../../web/src/lib/amora/dashboardCompanion.ts")
 const webSummary = compile("../../../web/src/lib/amora/loungeSummary.ts", {
   "@/utils/scheduleEvents": { isValidScheduleYmd: () => true },
 });
-const webLounge = readSource("../../../web/src/app/(app)/lounge/page.tsx");
+// 2026-11-17 파운더 디자인 아티팩트(원문: 이 디자인 완전 같아야해): 웹 라운지가 청첩장 홈으로
+// 바뀌면서 합류 카드는 사진 머리 아래 알림 자리의 이 컴포넌트로 옮겨 갔다.
+const webLounge = readSource("../../../web/src/components/invitation/live/JoinedPlanHandoffNotice.tsx");
 const loungeSource = readSource("../../app/(tabs)/lounge.tsx");
 const onboardingSource = readSource("../../app/onboarding/index.tsx");
 const componentSource = readSource("../components/lounge/JoinedPlanHandoff.tsx");

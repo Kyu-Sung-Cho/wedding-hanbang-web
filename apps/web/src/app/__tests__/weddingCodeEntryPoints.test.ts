@@ -46,16 +46,16 @@ describe("WeddingCode entry points", () => {
     expect(demoBlock).not.toContain('href="/wedding-code"');
   });
 
-  it("라운지 본문 카드는 웨딩코드를 안내하고 공개 테스트 경로를 잘못 합치지 않는다", () => {
-    const lounge = read("(app)/lounge/LoungeHubSections.tsx");
-    const start = lounge.indexOf("data-lounge-preparation-style");
-    expect(start).toBeGreaterThan(-1);
-    const card = lounge.slice(start, lounge.indexOf("</section>", start));
-    expect(card).toContain('weddingLinkProps("/preparation-style")');
-    expect(card).toContain("웨딩코드 보기");
-    expect(card).not.toContain("우리의 준비 스타일");
-    expect(card).not.toContain('href="/wedding-code"');
-    expect(lounge).not.toContain('weddingLinkProps("/wedding-code")');
+  it("라운지는 웨딩코드를 안내하고 공개 테스트 경로를 잘못 합치지 않는다", () => {
+    // 2026-11-17 파운더 디자인 아티팩트(원문: 이 디자인 완전 같아야해): 라운지가 청첩장 홈이 되면서
+    // 옛 본문 카드(`LoungeHubSections.tsx`)는 그려지지 않는다. 그 파일을 계속 읽으면 근거 없이 통과한다.
+    // 웨딩코드 입구는 이제 홈 아래 서비스 메뉴 링크다(`components/invitation/live/liveRoutes.ts`).
+    const links = readFileSync(path.join(srcRoot, "components/invitation/live/liveRoutes.ts"), "utf8");
+    expect(links).toContain('{ path: "/preparation-style", label: "웨딩코드" }');
+    expect(links).not.toContain('"/wedding-code"');
+    const lounge = readFileSync(path.join(srcRoot, "components/invitation/live/LiveLounge.tsx"), "utf8");
+    expect(lounge).not.toContain('"/wedding-code"');
+    expect(lounge).not.toContain("우리의 준비 스타일");
   });
 
   /**

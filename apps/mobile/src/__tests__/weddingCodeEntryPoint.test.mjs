@@ -83,12 +83,22 @@ const loungeCard = () =>
     "라운지 웨딩코드 카드",
   );
 
-test("라운지 본문에 웨딩코드로 가는 카드가 있다", () => {
+test("라운지 카드(WeddingHomeExperience)는 웨딩코드로 가고 선을 긋는다", () => {
   const card = collapse(loungeCard());
   assert.match(card, /router\.push\("\/wedding-code"\)/);
   assert.match(card, /웨딩코드로 둘이 어디서 갈리는지 알아봐요/);
   // 웹 라운지 카드와 같은 선 긋기. 제품 계약이 점수·궁합 판정을 금지한다(CLAUDE.md).
   assert.match(card, /점수나 궁합은 매기지 않아요/);
+});
+
+test("2026-11-17 홈은 라운지 카드 묶음을 걸지 않는다 — 로그인한 앱 안의 웨딩코드 입구는 지금 없다", () => {
+  // 2026-11-17 파운더 디자인 아티팩트(원문: 이 디자인 완전 같아야해): 홈은 `InvitationHome` 이고 예전 라운지 본문
+  // (`WeddingHomeExperience`, 위 카드가 사는 곳)을 그리지 않는다. 위 카드 검사는 카드가 다시 걸릴 때를 위해 남긴다.
+  // 로그인 화면의 입구(아래)는 그대로다. 이 검사가 빨개지면 카드가 다시 걸린 것이니 위 문구 검사가 다시 본론이 된다.
+  const home = source("app/(tabs)/lounge.tsx");
+  assert.doesNotMatch(home, /import WeddingHomeExperience\b/u);
+  assert.doesNotMatch(home, /<WeddingHomeExperience\b/u);
+  assert.match(home, /<InvitationHome\b/u);
 });
 
 test("선 긋기 문장이 잘려서 뜻이 뒤집히지 않는다", () => {
@@ -140,10 +150,12 @@ test("하단 탭에는 올리지 않는다", () => {
     .map((entry) => entry.name)
     .filter((name) => /\.(tsx|jsx|ts|js)$/.test(name) && !name.startsWith("_"));
 
+  // 2026-11-17 파운더 디자인 아티팩트(원문: 이 디자인 완전 같아야해): 메뉴는 홈·대화·준비 순서·일정 넷이다.
+  // 웨딩코드는 여전히 그 안에 없다.
   assert.deepEqual(
     tabFiles.sort(),
-    ["chat.tsx", "lounge.tsx"],
-    "하단 탭은 라운지|아모라 둘이다(2026-11-13 파운더 결정, CLAUDE.md 제품 계약)",
+    ["chat.tsx", "journey.tsx", "lounge.tsx", "schedule.tsx"],
+    "하단 메뉴는 아티팩트의 넷이다(2026-11-17 파운더 디자인 아티팩트)",
   );
   assert.doesNotMatch(
     tabsLayout,

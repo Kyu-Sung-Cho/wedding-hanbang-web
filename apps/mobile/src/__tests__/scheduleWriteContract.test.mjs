@@ -99,16 +99,19 @@ test("mobile never hides only the malformed subset of a stored schedule", () => 
   );
 });
 
-test("mobile dashboard derives today's tasks only from active schedule events", () => {
-  assert.match(dashboardSource, /import \{ isActiveScheduleEvent \}/);
-  assert.match(
-    dashboardSource,
-    /Array\.isArray\(progress\.__events\)/,
+// 2026-11-17 파운더 디자인 아티팩트(원문: 이 디자인 완전 같아야해): 홈은 오늘 일정을 직접 세지 않는다(홈 모델은
+// 서버의 `/api/invitation/home`). 취소한 일정이 "오늘 할 일"로 되살아나던 길(이 시험이 막던 것)이 홈에는 없다.
+// 홈이 다시 일정 목록을 직접 읽기 시작하면 여기서 빨개져, 위 규칙(살아 있는 일정만)을 다시 걸게 한다.
+test("the 11-17 home does not read schedule events itself", () => {
+  assert.doesNotMatch(dashboardSource, /progress\.__events|isActiveScheduleEvent/);
+  assert.match(dashboardSource, /<InvitationHome\b/);
+  // 일정 탭(상담)은 일정에 넣는 것을 서버에 맡긴다. 앱이 일정 목록을 직접 고치지 않는다.
+  const consultation = readFileSync(
+    new URL("../components/invitationLive/LiveConsultation.tsx", import.meta.url),
+    "utf8",
   );
-  assert.match(
-    dashboardSource,
-    /\.filter\(\(event\) => isActiveScheduleEvent\(event\) && event\.date === todayKey\)/,
-  );
+  assert.match(consultation, /liveOwner\.api\.addConsultationToSchedule\(replyId\)/);
+  assert.doesNotMatch(consultation, /__events|\/api\/journey/);
 });
 
 test("mobile schedule exposes a truthful, refreshable joint-approval inbox without showing internal request ids", () => {

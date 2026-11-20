@@ -16,7 +16,6 @@ import { Text } from "@/components/ui/AppText";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
 import { CheckCircle2, Circle } from "lucide-react-native";
-import { colors } from "@hanbang/design-tokens";
 import {
   EMPTY_SIGNUP_CONSENT,
   isPreConsentAccount,
@@ -29,6 +28,16 @@ import {
   type SignupConsentState,
 } from "@hanbang/shared";
 
+import {
+  InvitationAuthBackground,
+  InvitationAuthCard,
+  InvitationAuthHeader,
+  authAgreement,
+  authColors,
+  authField,
+  authText,
+} from "@/components/invitation/InvitationAuthFrame";
+import { palette, typo } from "@/components/invitation/invitationStyle";
 import { apiFetch } from "@/lib/api";
 import { signOut } from "@/lib/auth";
 import { supabase } from "@/lib/supabase";
@@ -92,21 +101,28 @@ export default function ConsentScreen() {
     }
   }
 
+  // 2026-11-20 파운더 "로그인 페이지도 다 바꿔야": 로그인과 같은 바탕·amora·유리 카드에 넣는다(InvitationAuthFrame).
+  // 동의 항목·문장·저장 순서는 그대로이고, 바뀐 것은 겉모양뿐이다. 웹 동의 관문(ConsentGateClient)과 같은 틀이다.
   return (
+    <InvitationAuthBackground>
     <SafeAreaView style={styles.container}>
       <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
-        <Text style={styles.title}>
+        <InvitationAuthHeader />
+        <View style={styles.spacer} />
+
+        <InvitationAuthCard>
+        <Text accessibilityRole="header" style={authText.heading}>
           {existingAccount ? "약관 동의를 한 번만 받을게요" : "시작하기 전에 확인해주세요"}
         </Text>
-        <Text style={styles.subtitle}>
+        <Text style={authText.body}>
           {existingAccount
             ? "가입하실 때는 동의를 따로 받지 않았어요. 이용약관과 개인정보 처리방침을 확인해 주시면 쓰시던 그대로 이어집니다. 계정과 기록은 그대로 있어요."
             : "계정은 만들어졌어요. 서비스를 이용하려면 이용약관과 개인정보 처리방침에 동의가 필요해요."}
         </Text>
 
-        <View style={styles.agreementSection}>
+        <View style={authAgreement.section}>
           <Pressable
-            style={styles.agreeRow}
+            style={authAgreement.row}
             disabled={submitting}
             accessibilityRole="checkbox"
             accessibilityState={{ checked: all }}
@@ -114,17 +130,17 @@ export default function ConsentScreen() {
             onPress={() => setConsent(setAllSignupConsent(!all))}
           >
             {all ? (
-              <CheckCircle2 size={24} color={colors.rose[500]} />
+              <CheckCircle2 size={24} color={authColors.checked} />
             ) : (
-              <Circle size={24} color={colors.textTertiary} />
+              <Circle size={24} color={authColors.unchecked} />
             )}
-            <Text style={styles.agreeAllText}>전체 동의</Text>
+            <Text style={authAgreement.allText}>전체 동의</Text>
           </Pressable>
 
-          <View style={styles.divider} />
+          <View style={authAgreement.divider} />
 
           {SIGNUP_CONSENT_ITEMS.map((item) => (
-            <View key={item.key} style={styles.agreeRow}>
+            <View key={item.key} style={authAgreement.row}>
               <Pressable
                 disabled={submitting}
                 accessibilityRole="checkbox"
@@ -133,13 +149,13 @@ export default function ConsentScreen() {
                 onPress={() => toggle(item.key)}
               >
                 {consent[item.key] ? (
-                  <CheckCircle2 size={20} color={colors.rose[500]} />
+                  <CheckCircle2 size={20} color={authColors.checked} />
                 ) : (
-                  <Circle size={20} color={colors.textTertiary} />
+                  <Circle size={20} color={authColors.unchecked} />
                 )}
               </Pressable>
-              <Text style={styles.agreeText}>
-                <Text style={item.required ? styles.agreeRequired : styles.agreeOptional}>
+              <Text style={authAgreement.text}>
+                <Text style={item.required ? authAgreement.required : authAgreement.optional}>
                   {item.required ? "[필수]" : "[선택]"}
                 </Text>{" "}
                 {item.label}
@@ -150,7 +166,7 @@ export default function ConsentScreen() {
                   accessibilityRole="link"
                   onPress={() => void Linking.openURL(`${SITE}${item.href}`)}
                 >
-                  <Text style={styles.agreeLink}>보기</Text>
+                  <Text style={authAgreement.link}>보기</Text>
                 </Pressable>
               ) : null}
             </View>
@@ -158,15 +174,15 @@ export default function ConsentScreen() {
         </View>
 
         <Pressable
-          style={[styles.submitBtn, (!complete || submitting) && styles.submitBtnDisabled]}
+          style={[authField.primary, (!complete || submitting) && styles.submitBtnDisabled]}
           disabled={!complete || submitting}
           accessibilityRole="button"
           onPress={handleSubmit}
         >
           {submitting ? (
-            <ActivityIndicator color="#fff" />
+            <ActivityIndicator color={authColors.white} />
           ) : (
-            <Text style={styles.submitText}>동의하고 계속하기</Text>
+            <Text style={authField.primaryText}>동의하고 계속하기</Text>
           )}
         </Pressable>
 
@@ -183,83 +199,31 @@ export default function ConsentScreen() {
         <Text style={styles.footnote}>
           계정 삭제를 원하시면 로그아웃 후 고객센터({CONTACT.email})로 알려주세요.
         </Text>
+        </InvitationAuthCard>
       </ScrollView>
     </SafeAreaView>
+    </InvitationAuthBackground>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.bg },
-  scroll: { padding: 24, paddingTop: 40, paddingBottom: 48 },
-  title: {
-    fontSize: 22,
-    fontFamily: "NotoSansKR_600SemiBold",
-    color: colors.noir[800],
-  },
-  subtitle: {
-    marginTop: 10,
-    fontSize: 14,
-    lineHeight: 22,
-    fontFamily: "NotoSansKR_400Regular",
-    color: colors.textSecondary,
-  },
-  agreementSection: {
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 20,
-    padding: 16,
-    marginTop: 24,
-    gap: 14,
-  },
-  agreeRow: { flexDirection: "row", alignItems: "center", gap: 10 },
-  agreeAllText: {
-    fontSize: 16,
-    fontFamily: "NotoSansKR_600SemiBold",
-    color: colors.noir[800],
-    flex: 1,
-  },
-  agreeText: {
-    fontSize: 14,
-    fontFamily: "NotoSansKR_400Regular",
-    color: colors.noir[800],
-    flex: 1,
-  },
-  agreeRequired: { color: colors.rose[700], fontFamily: "NotoSansKR_600SemiBold" },
-  agreeOptional: { color: colors.paper.inkFaint, fontFamily: "NotoSansKR_600SemiBold" },
-  agreeLink: {
-    fontSize: 13,
-    fontFamily: "NotoSansKR_400Regular",
-    color: colors.paper.inkFaint,
-    textDecorationLine: "underline",
-  },
-  divider: { height: 1, backgroundColor: colors.border },
-  submitBtn: {
-    height: 56,
-    borderRadius: 16,
-    backgroundColor: colors.noir[800],
-    alignItems: "center",
-    justifyContent: "center",
-    marginTop: 24,
-  },
+  container: { flex: 1 },
+  scroll: { flexGrow: 1, paddingHorizontal: 12, paddingBottom: 12 },
+  spacer: { flexGrow: 1, minHeight: 16 },
   submitBtnDisabled: { opacity: 0.4 },
-  submitText: {
-    fontSize: 16,
-    fontFamily: "NotoSansKR_600SemiBold",
-    color: "#fff",
-  },
-  declineBtn: { marginTop: 12, alignItems: "center", paddingVertical: 12 },
+  declineBtn: { alignItems: "center", paddingVertical: 12 },
   declineText: {
+    ...typo.sans,
     fontSize: 13,
-    fontFamily: "NotoSansKR_400Regular",
-    color: colors.paper.inkFaint,
+    lineHeight: 18,
+    color: palette.body,
     textDecorationLine: "underline",
   },
   footnote: {
-    marginTop: 24,
+    ...typo.sans,
     fontSize: 12,
     lineHeight: 20,
-    fontFamily: "NotoSansKR_400Regular",
-    color: colors.paper.inkFaint,
+    color: palette.muted,
+    textAlign: "center",
   },
 });

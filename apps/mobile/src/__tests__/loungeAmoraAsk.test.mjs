@@ -268,10 +268,14 @@ test("the lounge has an ask button for the hero task and for each upcoming task,
   assert.match(homeSource, /onPress=\{\(\) => router\.push\("\/checklist"\)\}/u);
 });
 
-test("the lounge stages the question for this person and opens Amora by number", () => {
-  assert.match(loungeSource, /stageLoungeAmoraAsk\(\{\s*ownerId,\s*task,?\s*\}\)/u);
-  assert.match(loungeSource, /router\.push\(buildLoungeAmoraAskHref\(id\)/u);
-  assert.match(loungeSource, /onAskAmora=\{handleAskAmora\}/u);
-  // 라운지는 묻는 말을 보내지 않는다.
+// 2026-11-17 파운더 디자인 아티팩트(원문: 이 디자인 완전 같아야해): 홈은 `InvitationHome` 이다. 위 버튼이 사는 예전
+// 라운지 본문(`WeddingHomeExperience`)을 걸지 않으므로 홈에서 질문을 건네는 문은 지금 없다. "두 분이 정할 것" 줄은
+// 서버가 정한 화면(`target`)으로 옮겨 갈 뿐이다. 위 버튼 검사와 아래 대화 쪽 검사는 문이 다시 생길 때를 위해 남긴다.
+test("the 11-17 home does not stage questions, and still never sends anything to Amora itself", () => {
+  assert.doesNotMatch(loungeSource, /stageLoungeAmoraAsk|onAskAmora/u);
+  assert.doesNotMatch(loungeSource, /<WeddingHomeExperience\b/u);
+  // 홈은 묻는 말을 보내지 않는다.
   assert.doesNotMatch(loungeSource, /\/api\/chat/u);
+  // 질문을 받는 대화 화면의 문(`entry=lounge_task&ask=`)은 그대로 열려 있다(아래 검사).
+  assert.match(chatSource, /takeLoungeAmoraAsk\(/u);
 });

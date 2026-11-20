@@ -5,11 +5,11 @@ import { useState, useRef, useEffect, useCallback, useMemo, type SetStateAction 
 import { View, Pressable, FlatList, ScrollView, StyleSheet, KeyboardAvoidingView, Platform, Animated, ActivityIndicator, Linking, AppState, useWindowDimensions } from "react-native";
 import { Text, TextInput } from "@/components/ui/AppText";
 import { buildMobileSiteUrl, resolveMobileSiteOrigin } from "@/lib/siteUrl.mjs";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Crypto from "expo-crypto";
 import { Check, Send, ShieldCheck, Heart, X, Lock, RotateCcw, SkipForward, Users, RefreshCw, ListChecks } from "lucide-react-native";
-import { amoraIdentity, chatPalette, colors } from "@hanbang/design-tokens";
+import { amoraIdentity, colors } from "@hanbang/design-tokens";
 import AmoraMark from "@/components/ui/AmoraMark";
 import AmoraAvatar from "@/components/ui/AmoraAvatar";
 import ProfileAvatar from "@/components/ui/ProfileAvatar";
@@ -173,7 +173,11 @@ import {
   dedupeToolResultCards,
   getToolResultCardModel,
 } from "@/components/chat/toolResultCardModel";
-import { EmptyState, StatusPill } from "@/components/ui/AppUI";
+import { EmptyState } from "@/components/ui/AppUI";
+import InvitationListening from "@/components/invitation/InvitationListening";
+import { invitationTabBarClearance } from "@/components/invitation/InvitationTabBar";
+import { lineHeight as invitationLineHeight, palette as invitationPalette, paragraph17, typo as invitationType } from "@/components/invitation/invitationStyle";
+import { useKeyboardShown } from "@/lib/useKeyboardShown";
 import AmoraMediationCard from "@/components/chat/AmoraMediationCard";
 
 // 사이트 주소는 헬퍼로 짓는다. 운영에서 EXPO_PUBLIC_SITE_URL 이 없거나 안전하지
@@ -2199,6 +2203,11 @@ export default function ChatScreen() {
   // 머리의 「결정 보드」 입구. 좁은 화면(320pt)이나 큰 글자에서는 글자를 빼고 아이콘만 둔다(amoraChatHeader.ts).
   const { width: windowWidth, fontScale } = useWindowDimensions();
   const showBoardLabel = shouldShowAmoraBoardLabel(windowWidth, fontScale);
+  // 2026-11-17: 하단 메뉴가 화면 위에 겹쳐 떠 있다. 입력칸이 그 아래로 들어가지 않게 메뉴 높이(안전 영역 포함)만큼
+  // 화면 아래를 비운다. 키보드가 떠 있으면 메뉴를 숨기므로(InvitationTabsBar) 그 여백도 거둔다.
+  const safeAreaInsets = useSafeAreaInsets();
+  const keyboardShown = useKeyboardShown();
+  const composerTabBarInset = keyboardShown ? 0 : invitationTabBarClearance(safeAreaInsets) + 8;
   // 두 번 눌러 같은 화면이 두 겹 쌓이지 않게, 이 탭으로 돌아올 때까지 한 번만 옮겨 간다.
   const boardNavigationRef = useRef(false);
   useFocusEffect(useCallback(() => {
@@ -4878,22 +4887,20 @@ export default function ChatScreen() {
     const pendingActionCardNotice = pendingAction && pendingActionNotice?.actionId === pendingAction.actionId
       ? pendingActionNotice.message
       : null;
-    // 웹 ChatBubble 과 같은 규칙: 신랑으로 확인 → 하늘색, 신부로 확인 → 분홍, 아모라 → 아모라 색,
-    // 확인 전·누구인지 모름 → 중립 베이지. 색과 글자색은 design-tokens chatPalette 한 벌이다.
+    // 보낸 사람의 이름 첫 글자 그림(상대)은 웹과 같은 규칙으로 고른다. 말풍선 색은 2026-11-17 파운더 디자인
+    // 아티팩트(원문: 이 디자인 완전 같아야해)를 따른다: 아모라 말은 말풍선 없는 문단, 사람 말은 돌빛 말풍선.
+    // 2026-09-12 의 역할별 말풍선 색(하늘색·분홍)은 쓰지 않는다. 누가 말했는지는 이름 줄과 얼굴 그림이 말한다.
     const senderPresentation = resolveChatSenderPresentation({
       isAi,
       senderId: item.sender_id,
       presentation: participantPresentation,
     });
-    const bubbleTone = chatPalette[senderPresentation.tone];
-    const bubbleBg = bubbleTone.surface;
-    const textColor = bubbleTone.ink;
     const linkedPartnerId = hasLinkedPartner ? linkedPartnerIdRef.current : null;
 
     return (
       <View style={[st.msgRow, isMe && st.msgRowRight]}>
         {!isMe && (
-          isAi ? <AmoraAvatar size={28} /> : (
+          isAi ? null : (
             <ProfileAvatar
               size={28}
               decorative
@@ -4905,6 +4912,7 @@ export default function ChatScreen() {
         )}
         <View style={[
           st.messageBody,
+          isAi && st.amoraMessageBody,
           isPinnedSafetyCard && st.safetyMessageBody,
           (mediationBlock || pendingAction) && st.mediationMessageBody,
           hasPlaceResults && st.placeMessageBody,
@@ -4926,13 +4934,13 @@ export default function ChatScreen() {
                 <Text style={st.safetyCardText}>{visibleContent}</Text>
               </View>
             ) : (
-              <View style={[st.bubble, { backgroundColor: bubbleBg, borderWidth: 1, borderColor: bubbleTone.line }, isMe && st.bubbleRight, !isMe && st.bubbleLeft]}>
+              <View style={isAi ? st.amoraLine : st.personBubble}>
                 {isThinking ? <ThinkingDots /> : (
                   <>
                     {isAi ? (
-                      <AmoraMessageBody content={citationText} textStyle={[st.bubbleText, { color: textColor, lineHeight: 24 }]} />
+                      <AmoraMessageBody content={citationText} textStyle={st.amoraText} />
                     ) : (
-                      <Text style={[st.bubbleText, { color: textColor }]}>{citationText}</Text>
+                      <Text style={st.personText}>{citationText}</Text>
                     )}
                     {/* 아모라가 예절 안내를 근거로 답하면 본문 끝에 `[etiquette:N]`을 붙인다.
                         웹은 그 표식을 안내 카드로 바꾸는데 모바일은 그대로 그려서
@@ -5219,11 +5227,11 @@ export default function ChatScreen() {
   const shownScope: ChatScope | null = laneDecided ? activeScope : null;
 
   return (
-    <SafeAreaView style={st.container} edges={["top"]}>
+    <SafeAreaView style={[st.container, { paddingBottom: composerTabBarInset }]} edges={["top"]}>
       <View style={st.header}>
-        <View style={st.headerLeft}><AmoraAvatar size={AMORA_CHAT_HEADER_LAYOUT.avatar} /><View style={st.headerTitles}><Text style={st.headerTitle} numberOfLines={1}>아모라</Text><Text style={st.headerSub} numberOfLines={1}>AI 웨딩 비서</Text></View></View>
+        {/* 2026-11-17 파운더 디자인 아티팩트(원문: 이 디자인 완전 같아야해): 가운데 오브 64px 와 "듣고 있어요"(`Chat.dc`). */}
+        <InvitationListening />
         <View style={st.headerActions}>
-          {scopedMessages.length > 0 && <StatusPill label={`${scopedMessages.length}`} tone="neutral" />}
           {/* 범위 줄의 세 번째 탭이 아니다 — 화면을 옮기는 버튼이다. 두 범위와 상대에게 쓰는 중에도 보인다. */}
           <Pressable
             style={({ pressed }) => [st.headerBoardBtn, !showBoardLabel && st.headerBoardBtnCompact, pressed && !streaming && st.headerBtnPressed, streaming && st.headerBtnDisabled]}
@@ -5568,13 +5576,10 @@ export default function ChatScreen() {
 const st = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg },
   // 머리 숫자의 정본은 amoraChatHeader.ts 다 — 같은 숫자로 320pt 폭을 어림한다.
-  header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: AMORA_CHAT_HEADER_LAYOUT.paddingX, paddingVertical: AMORA_CHAT_HEADER_LAYOUT.paddingY, borderBottomWidth: 1, borderBottomColor: colors.border, backgroundColor: colors.surface },
-  headerLeft: { flexDirection: "row", alignItems: "center", gap: AMORA_CHAT_HEADER_LAYOUT.avatarGap, flexShrink: 1, minWidth: 0 },
-  headerTitles: { flexShrink: 1, minWidth: 0 },
-  headerTitle: { fontSize: AMORA_CHAT_HEADER_LAYOUT.titleFontSize, fontFamily: "NotoSansKR_600SemiBold", color: colors.noir[800] },
-  headerSub: { fontSize: AMORA_CHAT_HEADER_LAYOUT.subFontSize, color: colors.paper.inkFaint },
-  // 오른쪽 버튼 묶음은 줄지 않는다 — 좁은 화면에서는 왼쪽 제목이 먼저 줄어든다. 버튼은 모두 44pt 이상이다.
-  headerActions: { flexDirection: "row", alignItems: "center", gap: AMORA_CHAT_HEADER_LAYOUT.actionGap, flexShrink: 0, marginLeft: AMORA_CHAT_HEADER_LAYOUT.sideGap },
+  // 2026-11-17 파운더 디자인 아티팩트(원문: 이 디자인 완전 같아야해): 가운데 오브와 "듣고 있어요"(`Chat.dc` header, 위 16·아래 8).
+  header: { alignItems: "center", paddingTop: AMORA_CHAT_HEADER_LAYOUT.paddingTop, paddingBottom: AMORA_CHAT_HEADER_LAYOUT.paddingBottom, paddingHorizontal: AMORA_CHAT_HEADER_LAYOUT.paddingX, backgroundColor: invitationPalette.white },
+  // 오른쪽 버튼 묶음은 오브 오른쪽에 떠 있다. 오브와 겹치지 않을 폭이 아니면 글자를 빼고 아이콘만 둔다. 버튼은 모두 44pt 이상이다.
+  headerActions: { position: "absolute", right: AMORA_CHAT_HEADER_LAYOUT.paddingX, top: AMORA_CHAT_HEADER_LAYOUT.actionsTop, flexDirection: "row", alignItems: "center", gap: AMORA_CHAT_HEADER_LAYOUT.actionGap },
   headerIconBtn: { width: 44, height: 44, alignItems: "center", justifyContent: "center", borderRadius: 22 },
   headerBoardBtn: { minWidth: 44, height: 44, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: AMORA_CHAT_HEADER_LAYOUT.boardIconGap, paddingHorizontal: AMORA_CHAT_HEADER_LAYOUT.boardPaddingX, borderRadius: 22 },
   headerBoardBtnCompact: { width: 44, paddingHorizontal: 0 },
@@ -5633,14 +5638,18 @@ const st = StyleSheet.create({
   msgRow: { flexDirection: "row", alignItems: "flex-end", gap: 8 },
   msgRowRight: { alignSelf: "flex-end", flexDirection: "row-reverse" },
   messageBody: { maxWidth: "78%" },
+  // 아모라 말은 말풍선 없는 문단이라 줄 폭을 다 쓴다(`Chat.dc`).
+  amoraMessageBody: { flex: 1, maxWidth: "100%" },
   safetyMessageBody: { flex: 1, maxWidth: "92%" },
   mediationMessageBody: { maxWidth: "92%", flex: 1 },
   placeMessageBody: { flex: 1, maxWidth: 460 },
   senderLabel: { fontSize: 11, color: colors.paper.inkFaint, marginBottom: 4, marginLeft: 4 },
-  bubble: { paddingHorizontal: 14, paddingVertical: 10, borderRadius: 18 },
-  bubbleRight: { borderBottomRightRadius: 4 },
-  bubbleLeft: { borderBottomLeftRadius: 4 },
-  bubbleText: { fontSize: 15, lineHeight: 22 },
+  // 2026-11-17 파운더 디자인 아티팩트(원문: 이 디자인 완전 같아야해) 대화 모양(`Chat.dc`, 첫 대화와 같은 값):
+  // 아모라 말은 말풍선 없이 17px 문단(줄 높이 1.65, 잉크), 사람 말은 돌빛 말풍선(반경 20, 15px, 줄 높이 1.5).
+  amoraLine: { paddingVertical: 2 },
+  amoraText: paragraph17,
+  personBubble: { backgroundColor: invitationPalette.stone, borderRadius: 20, paddingVertical: 10, paddingHorizontal: 16 },
+  personText: { ...invitationType.sans, fontSize: 15, lineHeight: invitationLineHeight(15, 1.5) },
   // 근거 문구는 답변보다 작고 조용하게. 본문을 밀어내지 않되, 무엇에 기대어 답했는지는
   // 보이게 한다.
   citationNotice: {

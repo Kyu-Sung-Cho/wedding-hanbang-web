@@ -8,6 +8,10 @@ const runtimeVariables = [
   "AMORA_OPENAI_ENABLED",
   "AMORA_AUXILIARY_MEMORY_ENABLED",
   "AMORA_CARE_OUTBOUND_ENABLED",
+  // 웨딩홀 문의 편지(2026-11-17). 켜면 승인된 편지가 운영자 대기열로 간다 — 바깥 행동이다.
+  "HALL_INQUIRY_SENDING_ENABLED",
+  "HALL_INQUIRY_DAILY_CAP",
+  "HALL_INQUIRY_GLOBAL_DAILY_CAP",
   "AMORA_COMMUNITY_AI_COMMENT_ENABLED",
   "AMORA_CONVERSATION_SEGMENT_READ_ENABLED",
   "AMORA_TODAY_ONE_ENABLED",
@@ -58,6 +62,7 @@ test("the example environment keeps external Amora side effects fail-closed", as
     "AMORA_OPENAI_ENABLED=false",
     "AMORA_AUXILIARY_MEMORY_ENABLED=false",
     "AMORA_CARE_OUTBOUND_ENABLED=false",
+    "HALL_INQUIRY_SENDING_ENABLED=false",
     "AMORA_COMMUNITY_AI_COMMENT_ENABLED=false",
     "AMORA_CONVERSATION_SEGMENT_READ_ENABLED=false",
     "AMORA_TODAY_ONE_ENABLED=false",
@@ -71,6 +76,8 @@ test("the example environment keeps external Amora side effects fail-closed", as
   }
 
   assert.match(example, /^AMORA_COST_GUARD_ENABLED=true$/m);
+  // 서비스 전체 문의 상한은 닫힌 채 시작한다(0 이면 아무것도 대기열에 넣지 않는다).
+  assert.match(example, /^HALL_INQUIRY_GLOBAL_DAILY_CAP=0$/m);
   assert.match(example, /^AMORA_COUPLE_QUOTA_ENABLED=false$/m);
   assert.match(example, /^AMORA_GLOBAL_DAILY_COST_CAP_USD=20$/m);
   assert.match(example, /^RATE_LIMIT_KEY_SECRET=$/m);

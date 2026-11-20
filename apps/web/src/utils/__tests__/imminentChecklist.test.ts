@@ -95,7 +95,8 @@ describe("마감 표현이 화면마다 갈리지 않는다", () => {
   const SURFACES = [
     "src/components/app/WeeklyCard.tsx",
     "src/components/app/chat/panel/UpcomingTab.tsx",
-    "src/app/(app)/lounge/LoungeHubSections.tsx",
+    // 2026-11-17 파운더 디자인 아티팩트: 옛 라운지 본문(`LoungeHubSections.tsx`)은 더는 그려지지 않아
+    // 목록에서 뺐다. 새 청첩장 홈은 d-day 마감을 그리지 않는다(할 일의 "이번 주 안에"는 사람이 적은 글).
   ];
 
   it("d-day 문구에 '기본 확인 시점'을 함께 적는다", () => {

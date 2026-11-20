@@ -37,9 +37,10 @@ describe("selectAmoraTools", () => {
     const selected = names("스드메 견적 시세가 적당한지 알려줘", "budget_optimizer");
     expect(selected).toEqual(expect.arrayContaining([
       "get_budget_summary",
-      "get_market_price",
       "simulate_guest_guarantee",
     ]));
+    // 2026-11-16: 시세를 물어도 시세 도구는 붙지 않는다 — 참가격 자료를 쓰지 않는다(D-79).
+    expect(selected).not.toContain("get_market_price");
     expect(selected).not.toContain("update_budget");
     expect(selected).not.toContain("apply_budget_plan");
   });
@@ -184,10 +185,9 @@ describe("selectAmoraTools", () => {
       attachmentKind: "document",
     }).map((tool) => tool.name);
     // 견적서를 같이 보는 경로는 유지한다.
-    expect(selected).toEqual(expect.arrayContaining([
-      "analyze_quote",
-      "get_market_price",
-    ]));
+    expect(selected).toContain("analyze_quote");
+    // 2026-11-16: 견적서를 올려도 시세 도구는 함께 붙지 않는다(참가격 자료를 쓰지 않는다, D-79).
+    expect(selected).not.toContain("get_market_price");
     // 계약 개입 금지(2026-08-18): 문서를 올려도 계약 검토로 넘어가지 않는다.
     expect(selected).not.toContain("analyze_contract_readiness");
     expect(selected).not.toContain("create_booking");

@@ -1,10 +1,10 @@
 import { useEffect, useState } from "react";
 import { ActivityIndicator, InteractionManager, StyleSheet, View } from "react-native";
-import { Text, useAppFontsLoaded } from "@/components/ui/AppText";
+import { Text } from "@/components/ui/AppText";
 import { Redirect, Tabs } from "expo-router";
-import { Home } from "lucide-react-native";
-import AmoraMark from "@/components/ui/AmoraMark";
-import { colors } from "@hanbang/design-tokens";
+import { colors, invitationPalette } from "@hanbang/design-tokens";
+import { HOME_COPY } from "@hanbang/shared/invitation";
+import InvitationTabsBar from "@/components/invitationLive/InvitationTabsBar";
 import { apiJson } from "@/lib/api";
 import { supabase } from "@/lib/supabase";
 import { PrimaryButton } from "@/components/ui/AppUI";
@@ -42,16 +42,16 @@ function normalizeWarmPost(value: unknown): CachedCommunityPost | null {
 }
 
 /**
- * 하단 탭은 웨딩 라운지와 아모라 둘이다(2026-11-13 파운더 결정 "메인 두개만 남길거야 아모라랑 웨딩
- * 대쉬보드", 앱 구성은 같은 날 파운더 확인). 커뮤니티는 라운지의 준비 도구 칸과 내 정보에서 열고
- * (`app/community/index.tsx`), 내 정보는 라운지 머리줄에서 연다(`app/profile.tsx`). 둘 다 뒤로 가기가
- * 있는 화면이다. 이 폴더에 파일을 더 두면 Expo Router 가 선언하지 않아도 탭으로 올린다.
+ * 하단 메뉴는 넷이다: 홈·아모라와 대화·준비 순서·일정(2026-11-17 파운더 디자인 아티팩트, 원문: 이 디자인
+ * 완전 같아야해). 2026-11-13 의 "라운지·아모라 둘"을 뒤집는다. 메뉴는 아티팩트의 떠 있는 알약
+ * (`InvitationTabBar`)이고 화면 위에 겹쳐 그려진다 — 탭 화면은 메뉴 높이만큼 아래를 비운다.
+ * 커뮤니티와 내 정보는 여전히 탭이 아니다. 내 정보는 홈 오른쪽 위 머리글자에서 연다(`app/profile.tsx`),
+ * 커뮤니티는 내 정보에서 연다. 이 폴더에 파일을 더 두면 Expo Router 가 선언하지 않아도 탭으로 올린다.
  *
  * 공개 탭(커뮤니티)이 빠져서 탭 안은 전부 로그인한 사람의 자리다. 로그아웃 상태면 어느 탭이든
  * 로그인으로 보낸다. 로그인 없이 커뮤니티 글을 읽는 길은 탭 밖 커뮤니티 화면에 그대로 있다.
  */
 export default function TabsLayout() {
-  const fontsLoaded = useAppFontsLoaded();
   const [authStatus, setAuthStatus] = useState<AuthStatus>("checking");
   const [communityViewerKey, setCommunityViewerKey] = useState("checking");
   const [authAttempt, setAuthAttempt] = useState(0);
@@ -174,54 +174,19 @@ export default function TabsLayout() {
   return (
     <Tabs
       key={communityViewerKey}
-      screenOptions={{
-        headerShown: false,
-        // DESIGN.md Warm interactions: 선택된 탭은 rose.pale 면 위 rose[700](4.71:1), 선택 안 된
-        // 탭은 잉크 단계 inkFaint(6.46:1). 예전 taupe[400] 은 2.28:1 로 읽히지 않았다. 흐린 글자를
-        // 진하게 하면 선택 탭과 색 차이가 줄어서, 색만으로 구분하지 않도록 선택 면을 깐다.
-        tabBarActiveTintColor: colors.rose[700],
-        tabBarActiveBackgroundColor: colors.rose.pale,
-        tabBarInactiveTintColor: colors.paper.inkFaint,
-        tabBarStyle: {
-          backgroundColor: colors.surface,
-          borderTopWidth: 0,
-          height: 86,
-          paddingTop: 10,
-          paddingBottom: 24,
-          shadowColor: colors.paper.ink,
-          shadowOffset: { width: 0, height: -8 },
-          shadowOpacity: 0.06,
-          shadowRadius: 24,
-          elevation: 12,
-        },
-        tabBarLabelStyle: {
-          fontSize: 11,
-          fontFamily: fontsLoaded ? "Pretendard_500Medium" : undefined,
-        },
-        tabBarItemStyle: {
-          borderRadius: 18,
-          marginHorizontal: 3,
-        },
+      // 메뉴의 칸·아이콘·읽어 주는 이름은 아티팩트 그대로다(`InvitationTabBar`, `HOME_COPY.nav`).
+      tabBar={(props) => {
+        const focused = props.state.routes[props.state.index];
+        return (
+          <InvitationTabsBar focused={focused?.name} onSelect={(screen) => props.navigation.navigate(screen)} />
+        );
       }}
+      screenOptions={{ headerShown: false, sceneStyle: { backgroundColor: invitationPalette.white } }}
     >
-      <Tabs.Screen
-        name="lounge"
-        options={{
-          // 탭에는 짧게 "라운지", 읽어주는 이름과 화면 제목은 "웨딩 라운지".
-          // 같은 이름의 줄임말일 뿐, 이전처럼 화면마다 다른 이름을 쓰지 않는다.
-          title: "라운지",
-          tabBarIcon: ({ color, size }) => <Home size={size} color={color} />,
-          tabBarAccessibilityLabel: "웨딩 라운지",
-        }}
-      />
-      <Tabs.Screen
-        name="chat"
-        options={{
-          title: "아모라",
-          tabBarIcon: ({ color, size }) => <AmoraMark size={size} color={color} />,
-          tabBarAccessibilityLabel: "아모라",
-        }}
-      />
+      <Tabs.Screen name="lounge" options={{ title: HOME_COPY.nav.home }} />
+      <Tabs.Screen name="chat" options={{ title: HOME_COPY.nav.chat }} />
+      <Tabs.Screen name="journey" options={{ title: HOME_COPY.nav.journey }} />
+      <Tabs.Screen name="schedule" options={{ title: HOME_COPY.nav.schedule }} />
     </Tabs>
   );
 }

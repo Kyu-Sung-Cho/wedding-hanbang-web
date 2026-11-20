@@ -80,10 +80,9 @@ describe("계약 개입 금지 (2026-08-18)", () => {
     }).map((tool) => tool.name);
 
     expect(selected).not.toContain("analyze_contract_readiness");
-    expect(selected).toEqual(expect.arrayContaining([
-      "analyze_quote",
-      "get_market_price",
-    ]));
+    expect(selected).toContain("analyze_quote");
+    // 2026-11-16: 시세 도구는 함께 붙지 않는다 — 참가격 자료를 쓰지 않는다(파운더 결정 D-79).
+    expect(selected).not.toContain("get_market_price");
   });
 
   it("계약 점검 결과 카드를 렌더할 경로가 없다", () => {

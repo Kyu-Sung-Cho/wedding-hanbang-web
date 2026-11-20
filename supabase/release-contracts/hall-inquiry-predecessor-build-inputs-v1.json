@@ -1,0 +1,2359 @@
+{
+  "format": "hall-inquiry-predecessor-snapshot-v1",
+  "baseCommit": "ccaecc823df3293d8de7f29416fdd2d56e0b7d76",
+  "migrationCount": 243,
+  "files": [
+    {
+      "file": "scripts/lib/account-deletion-audit-nullability-release-contract.mjs",
+      "gitBlob": "09a5024608cdb5e594a5dab441aa4c6708f6c9a7",
+      "bytes": 8233,
+      "sha256": "0434dc864d0b3c2a9e254648239fdb4f115e0890bc91a30816cec6f5f86c607e"
+    },
+    {
+      "file": "scripts/lib/account-deletion-audit-nullability-release.mjs",
+      "gitBlob": "7d5c2526e30144558c3b99deaf049ecda3f40c97",
+      "bytes": 15626,
+      "sha256": "154e58ac98024a12509def947f59296fb8f3325e144d41b3c88e7f7a02b53f45"
+    },
+    {
+      "file": "scripts/lib/account-deletion-customer-data-catalog.mjs",
+      "gitBlob": "21f2f902455ee8d78ab90d106143922e7058fbd2",
+      "bytes": 17064,
+      "sha256": "44cd5dddb4afc50c889b5da88ac55eda8bb2067bbedd9d6acb50bfbc15b75214"
+    },
+    {
+      "file": "scripts/lib/account-deletion-customer-data-release-contract.mjs",
+      "gitBlob": "885e53cae77f392450cc8687ef7270ea9ca99b55",
+      "bytes": 5010,
+      "sha256": "49deba412ae6f1201568fd7d8d549d3e4adcc6c515ca6dd8e261f2ed7cf28834"
+    },
+    {
+      "file": "scripts/lib/account-deletion-customer-data-release.mjs",
+      "gitBlob": "cd612a648786d15f9bd9ffc35a361aa013a4d88a",
+      "bytes": 9723,
+      "sha256": "79a6ec1ddce74b935c886148859aff50af83ca951a9e88dbfe16b9b07d164038"
+    },
+    {
+      "file": "scripts/lib/account-deletion-support-store.mjs",
+      "gitBlob": "4e043ff9b11fe0508252ddb9741048db0d62d9ca",
+      "bytes": 5534,
+      "sha256": "63f5539a904ed822c7d881078fda47f6c1bbad38c0ce3908315713392b433a0e"
+    },
+    {
+      "file": "scripts/lib/amora-action-view-v2-admission.mjs",
+      "gitBlob": "00b3faee479372c43cff3ebcdc2fc17f9d64620d",
+      "bytes": 12164,
+      "sha256": "764a658bcb635f5a13b89a07ab347a7f9cc348e2d024c81729b0f537490dff92"
+    },
+    {
+      "file": "scripts/lib/amora-action-view-v2-catalog.mjs",
+      "gitBlob": "7ac47e17f7d966c175511231f5fabc20d6178bbd",
+      "bytes": 11999,
+      "sha256": "df97b93f878b9a57857c2526519c88647c295e3bd39cc121cef81b723e9fadb2"
+    },
+    {
+      "file": "scripts/lib/amora-action-view-v2-commit.mjs",
+      "gitBlob": "3b9aab9a1398fafc6f1dd33e105dd1dd279af241",
+      "bytes": 5435,
+      "sha256": "b38471c3e56e39f0cdca6155a44756a8d68b0139fab4920b05e6855e7f3a356d"
+    },
+    {
+      "file": "scripts/lib/amora-action-view-v2-ledger.mjs",
+      "gitBlob": "5e82c9b2028cb3badd25f6fe048503a063b91e11",
+      "bytes": 4339,
+      "sha256": "f8b5e31d35d47745903022086c697380c4e5ccc0342f802d8aab05616648aee1"
+    },
+    {
+      "file": "scripts/lib/amora-action-view-v2-native-recovery.mjs",
+      "gitBlob": "cbc0b141939597796bd0da6fb2972eb701bc7b0e",
+      "bytes": 15239,
+      "sha256": "bbe9fbbdabf58d2d6de67425cb0946b5f148edc83acd3fc0d5b14e72358d2116"
+    },
+    {
+      "file": "scripts/lib/amora-action-view-v2-operational-rehearsal.mjs",
+      "gitBlob": "b067bdc013ea02703fbb8eafb7673888a9912071",
+      "bytes": 15179,
+      "sha256": "dac25e046334e64bfd5314b6816000b448e5ef8c6634b48643630308ec465abe"
+    },
+    {
+      "file": "scripts/lib/amora-action-view-v2-original-capture.mjs",
+      "gitBlob": "2c60bf47ec68c06b96e5da994cb3331fdebee077",
+      "bytes": 7246,
+      "sha256": "7522da68ba6a1bf0ed793b81253897afd36cc4886f80d8ef210683067f0df6b2"
+    },
+    {
+      "file": "scripts/lib/amora-action-view-v2-private-journal.mjs",
+      "gitBlob": "45f4ee7606e13d24ad4b41df0eca10a4874e2d4d",
+      "bytes": 5345,
+      "sha256": "bfa6b2acbc9393ecd299eb8853b6d5a7576758a5724c2422bf4d758995e6523b"
+    },
+    {
+      "file": "scripts/lib/amora-action-view-v2-private-store.mjs",
+      "gitBlob": "21193801145c9769827b7a8741d03a16833169c0",
+      "bytes": 3829,
+      "sha256": "7cb38db0e792ff3b63ef2d7bf5d251e156e10034f8da65695a1457e6f3fc5f47"
+    },
+    {
+      "file": "scripts/lib/amora-action-view-v2-recovery.mjs",
+      "gitBlob": "b0c2a195a6df2ecf1358fb6969943319ed966112",
+      "bytes": 20368,
+      "sha256": "723fb2ce45db427512bfe0f4b55138e376c9ffd2a4f7902253b5646f558ac273"
+    },
+    {
+      "file": "scripts/lib/amora-action-view-v2-rehearsal.mjs",
+      "gitBlob": "966e6efce90ae626ad5a63677db094e59eee84cd",
+      "bytes": 6416,
+      "sha256": "c674042625b81fd0c4a0e3c424a4dbbf5b7654b71e1d07e2a23adcc71ff42162"
+    },
+    {
+      "file": "scripts/lib/amora-action-view-v2-release-contract.mjs",
+      "gitBlob": "9263ae575ae6cbdfea8894f58f8c8a54cc3af930",
+      "bytes": 6114,
+      "sha256": "cf73c8fb894cb157b3cb27619ee0072061c61c9881749cb8390c5dd7f9363cec"
+    },
+    {
+      "file": "scripts/lib/amora-action-view-v2-release.mjs",
+      "gitBlob": "ac58b13450896920b81001de1d69b75a733d49a6",
+      "bytes": 9342,
+      "sha256": "83bea3ff6576085a3d99341ddc7abcd87b9b3e322faeecf56613c90610458d73"
+    },
+    {
+      "file": "scripts/lib/amora-action-writer-retirement-admission.mjs",
+      "gitBlob": "0c17103832c280ac38008304336fc6958ba45503",
+      "bytes": 13007,
+      "sha256": "2c1af9e94e25fdb38896dc5471f6fcb4b23d520522d011d8a8dd59d4e80e3702"
+    },
+    {
+      "file": "scripts/lib/amora-action-writer-retirement-archived-native.mjs",
+      "gitBlob": "bbd051405984e9573bcbb4bd6ab1f0c8d4d3216f",
+      "bytes": 12183,
+      "sha256": "a5ff76c17b564af31bdede8ed8e1d807987702498aeaaff61d9be10a76370484"
+    },
+    {
+      "file": "scripts/lib/amora-action-writer-retirement-archived-original.mjs",
+      "gitBlob": "f0aca09a52743bb3e53a0aba3a692ca91ffc6892",
+      "bytes": 18969,
+      "sha256": "69054010a055ffe07df8fc101e19d62f968624d41217095b4f637326dab03fe2"
+    },
+    {
+      "file": "scripts/lib/amora-action-writer-retirement-build-contract.mjs",
+      "gitBlob": "5af322c79d5d5c09e0a036c638f9d20eaad9a0a3",
+      "bytes": 5559,
+      "sha256": "19f15adbb76df3ad285f6a495c2e186a49fce64a4d77b31e524d9296f50911c2"
+    },
+    {
+      "file": "scripts/lib/amora-action-writer-retirement-bundle.mjs",
+      "gitBlob": "5aa04a9c62896b5b611b6bb464d278ee32b4a179",
+      "bytes": 4150,
+      "sha256": "3b47832b635c588eb32260c6343945e3701cc1f296695305161f30b5e855cb41"
+    },
+    {
+      "file": "scripts/lib/amora-action-writer-retirement-catalog.mjs",
+      "gitBlob": "c62918fadec705dc9b692b723ca5cf4b623fc039",
+      "bytes": 4690,
+      "sha256": "4a39fd140558c85c077712a8ed5eb97c95ec72853d24c932a886f0296ebbd4b3"
+    },
+    {
+      "file": "scripts/lib/amora-action-writer-retirement-http.mjs",
+      "gitBlob": "627713d2bf7642552bed711fb4fd4b0427e730d0",
+      "bytes": 1976,
+      "sha256": "a12bb8ddaa0147250b2de5fb2b5fc3be08f18e1ebfadaa751c497377eac6006e"
+    },
+    {
+      "file": "scripts/lib/amora-action-writer-retirement-maintenance.mjs",
+      "gitBlob": "e37e498b7ba02daad8120c5ea2c9bf226e73a79e",
+      "bytes": 27374,
+      "sha256": "f28e1a01aa42631291ec3a88dc470908f762b3212dad20dc337c8e196e1c7cde"
+    },
+    {
+      "file": "scripts/lib/amora-action-writer-retirement-managed-maintenance.mjs",
+      "gitBlob": "648ba83b3a04be189b8bd4f7d16354d9c40ceb0f",
+      "bytes": 20336,
+      "sha256": "dfbddb093e6505bc6a0ae03fb8a1c877e59d6c0c85f026919e07466ef200063d"
+    },
+    {
+      "file": "scripts/lib/amora-action-writer-retirement-managed-workers.mjs",
+      "gitBlob": "0d586648b8cbb14a9287f15b85c226aaaf1514c9",
+      "bytes": 15606,
+      "sha256": "57f3b9510a9c45f6182cd8015943f5dce9bc5125b32fa7f8f1e1855358af76d8"
+    },
+    {
+      "file": "scripts/lib/amora-action-writer-retirement-native-recovery.mjs",
+      "gitBlob": "286cf74ec504671ae1e16324540ac7bf51748917",
+      "bytes": 13038,
+      "sha256": "c0f1eb8fe1f6ba118dc9a1d8dc21e2e0b43366acef904f0de3e54b2883168b62"
+    },
+    {
+      "file": "scripts/lib/amora-action-writer-retirement-operational-rehearsal.mjs",
+      "gitBlob": "7ed9be2072ea4f52e6a7057382b606c76006655c",
+      "bytes": 11433,
+      "sha256": "3a22579762c4a1d6da1c0466efb62b6b0541ecf76a831a383629f8dc0336065d"
+    },
+    {
+      "file": "scripts/lib/amora-action-writer-retirement-original-capture.mjs",
+      "gitBlob": "32254dc2270731bdf72057274d2a838b6413fbee",
+      "bytes": 8283,
+      "sha256": "38434b59cdca159c6fa4054428838721575f4909f80f0a29da3bf67262a97faf"
+    },
+    {
+      "file": "scripts/lib/amora-action-writer-retirement-original-source.mjs",
+      "gitBlob": "622d8598999fb87497db4fd8af8a3417b9fcc67c",
+      "bytes": 8549,
+      "sha256": "6155ac81019de9a021ce59a5610963456bd4b9f85e5746979ecbc84a952971a2"
+    },
+    {
+      "file": "scripts/lib/amora-action-writer-retirement-post-commit-verifier.mjs",
+      "gitBlob": "35f66c5ba359d9d34d9df9510d39a771cd63ef55",
+      "bytes": 27133,
+      "sha256": "8c63489a2eeef4d49d243c478b4c38173e0996eafcd0e11103d7dfe1852e4b72"
+    },
+    {
+      "file": "scripts/lib/amora-action-writer-retirement-private-journal.mjs",
+      "gitBlob": "dbfa6e3a16459dd368aeb4cd87a0c125c32dfe2a",
+      "bytes": 6780,
+      "sha256": "113b9cb2ba12e197d6c421a743f1efc97fb6ef1c7e9d14fd8d54eada7118b940"
+    },
+    {
+      "file": "scripts/lib/amora-action-writer-retirement-private-store.mjs",
+      "gitBlob": "95d3686c1ea8865645488e0c652562a45936dbf2",
+      "bytes": 4613,
+      "sha256": "bf0dfafd07b7087cff777d5c0fff5438dc7713664360c1d3cfd54a0dbf89ba6e"
+    },
+    {
+      "file": "scripts/lib/amora-action-writer-retirement-privileges.mjs",
+      "gitBlob": "0c033d03597bed244ad22132bea3b635e8d51def",
+      "bytes": 36332,
+      "sha256": "1cb28a162762a301b736d551f5b1197cd5d2f4023a438ad425c9ba55e0858ea9"
+    },
+    {
+      "file": "scripts/lib/amora-action-writer-retirement-recovery.mjs",
+      "gitBlob": "66f2678bda5b824fc9633367d2cda93047e46630",
+      "bytes": 18314,
+      "sha256": "16770b16e2fef8c93b757a756bfffad352fb407a3443dd0e135d9820399d5f34"
+    },
+    {
+      "file": "scripts/lib/amora-action-writer-retirement-release-contract.mjs",
+      "gitBlob": "064c3658378ac22409cf0d4eab7c213891d0276f",
+      "bytes": 10436,
+      "sha256": "07e6528eb416742653e63c9b6eb0bd197952ede5c1b971c4da608f5794567daf"
+    },
+    {
+      "file": "scripts/lib/amora-action-writer-retirement-release.mjs",
+      "gitBlob": "8e57fea3dbbad43e18cb0f6bd288074f3deb5461",
+      "bytes": 7587,
+      "sha256": "7da745f333c2db2998a90935694a2f299a4027bc4fef104f047319e0b397dc83"
+    },
+    {
+      "file": "scripts/lib/amora-action-writer-retirement-runtime.mjs",
+      "gitBlob": "a1c4a36f78d6538e03ad3720edaa1ad7961b09eb",
+      "bytes": 16421,
+      "sha256": "b3b1460c576b366eb5e467cd53879faf0f26032a4ce2964cd900ccf1dfff1f93"
+    },
+    {
+      "file": "scripts/lib/amora-action-writer-retirement-stage.mjs",
+      "gitBlob": "278aa6eb36679c8f0c0c7f68954fdd55edc2cd35",
+      "bytes": 10088,
+      "sha256": "358abee9f8680e7b831901beb1f06bee5ee602285e37eb57a3cc0dc6db5d4e06"
+    },
+    {
+      "file": "scripts/lib/amora-action-writer-retirement-state.mjs",
+      "gitBlob": "297bfd5e1bab042e8d8efa5d97561a6305356774",
+      "bytes": 9086,
+      "sha256": "bef2bfff03bb345c0a5b04a3aa77cabf67f018dfbc5dfc1e33d1304bbb73e17a"
+    },
+    {
+      "file": "scripts/lib/amora-action-writer-retirement-transaction.mjs",
+      "gitBlob": "292cd8f44beddf6da1cd66fd3a2a3eef5d44cadd",
+      "bytes": 14033,
+      "sha256": "b9fab7fbad1b694f69979020bc9e418f3ae685ac5acf294871c2819ed4d810ba"
+    },
+    {
+      "file": "scripts/lib/amora-budget-decision-archive-collector.mjs",
+      "gitBlob": "979ee2981c10ba7db46969333a47517d6a4101e8",
+      "bytes": 6838,
+      "sha256": "3aff840ed9869c29b901cab207d1e465a766240b9143a9f127a9f8bc16faebd5"
+    },
+    {
+      "file": "scripts/lib/amora-budget-decision-backup-collector.mjs",
+      "gitBlob": "e7895c1f8de2ae6a920aa04922a7fc5f3b351fda",
+      "bytes": 11392,
+      "sha256": "567430f1bdf4233239836ca95f8100f05af8b0776c5b91a68141d2b385de6cf1"
+    },
+    {
+      "file": "scripts/lib/amora-budget-decision-effective-release-contract.mjs",
+      "gitBlob": "34eadacf74e10e3fbb2425eafbc1d63509ce851b",
+      "bytes": 14793,
+      "sha256": "6cecbcd77ed35315b0087ab88f23a5a4c6fc530a08aed73a32f15bb5ee72bdf7"
+    },
+    {
+      "file": "scripts/lib/amora-budget-decision-release-contract.mjs",
+      "gitBlob": "984380076a4940d71b50200eead4402af162a182",
+      "bytes": 17109,
+      "sha256": "a50410b3385abe720b4906b55ace02470dbe62725a1ad390b31725750220fe56"
+    },
+    {
+      "file": "scripts/lib/amora-explicit-budget-release-contract.mjs",
+      "gitBlob": "2b74dc3e90fcbb86f1426446d438bc1b0208f36d",
+      "bytes": 8767,
+      "sha256": "69b32a338bef67ba3546106a7b018d1f4c7b59befaff9342eddf1b8fbe55bde3"
+    },
+    {
+      "file": "scripts/lib/amora-named-budget-migration-pin.mjs",
+      "gitBlob": "c3a49ae9daa834d538a14984578264801523b304",
+      "bytes": 314,
+      "sha256": "2ce03ef75cdf485d8bf3f7a1f556c44564285f3630332c0838f9730bd5dc0ca3"
+    },
+    {
+      "file": "scripts/lib/amora-not-applicable-status-release-contract.mjs",
+      "gitBlob": "8dde8e2d2a733f920aacd5a682556a3fd25984a0",
+      "bytes": 6997,
+      "sha256": "604e72eac28aff9e5cb6562ed6f4f76e5036509e34f7bdfb7a9f303b0e4294ca"
+    },
+    {
+      "file": "scripts/lib/amora-not-applicable-status-release.mjs",
+      "gitBlob": "dacb9a2932261622d75b09cf37a0d3bdb65638fc",
+      "bytes": 21164,
+      "sha256": "e1f8d8e3e4615548c28a6e85330f0952c32150206941a45ca72936d6aed6a7f6"
+    },
+    {
+      "file": "scripts/lib/amora-release-extended-contracts.mjs",
+      "gitBlob": "c90562c809c57490a50ae7172159b57a1d4620ea",
+      "bytes": 20870,
+      "sha256": "70bf92b0fe75e1e02df20c4bc41828eeb4af18795d3fc9707f8a3e00fa6f85f0"
+    },
+    {
+      "file": "scripts/lib/amora-runtime-hotfix-controller.mjs",
+      "gitBlob": "e5cb33d23939aa5de70efe131858b4e49e1ae52e",
+      "bytes": 68585,
+      "sha256": "2c040182a9f8f2a14e6b1d0a6165e696c9d7b11a92a6b4591b2948f6a76387c4"
+    },
+    {
+      "file": "scripts/lib/chat-feedback-nullability-release-contract.mjs",
+      "gitBlob": "079a4b55dc991b3f10cd4207c577ea7f0cfdfbe1",
+      "bytes": 5111,
+      "sha256": "07575360a91ba4a783f2906b26011c6189b9c06b3029f273e57290f2371217d1"
+    },
+    {
+      "file": "scripts/lib/chat-feedback-nullability-release.mjs",
+      "gitBlob": "fc686d0de535555d23ca493fb60da552a6511a2a",
+      "bytes": 14664,
+      "sha256": "e32493eeb08c54b28895c533beb464b7845b1ce36ef9d7f4ff0c8209a67144d3"
+    },
+    {
+      "file": "scripts/lib/current-baseline-backup-collector.mjs",
+      "gitBlob": "d8fb71491eb073e3bd2d7ba293d07162188c04c1",
+      "bytes": 12130,
+      "sha256": "cc8ccff6c99adf99cd6b84e9ad7e2a8b94c7f06fef0b846686182a284d144b33"
+    },
+    {
+      "file": "scripts/lib/current-baseline-backup-runtime.mjs",
+      "gitBlob": "8966e90e91521e0ed26fe141df82b88655f511ba",
+      "bytes": 14828,
+      "sha256": "274b4060cc49617a95ca79ceebe0394f72643dd7451cac6e081863a0ad9591c6"
+    },
+    {
+      "file": "scripts/lib/current-baseline-finalizer.mjs",
+      "gitBlob": "e46ce4a1aad6bb2218e794ce8709ebdbf5a8e71f",
+      "bytes": 28176,
+      "sha256": "35f2647af3604943e2fcd599feca1eed67b305a3d715077e5b738f078b7b90db"
+    },
+    {
+      "file": "scripts/lib/current-baseline-hosted-synthetic-scenarios.mjs",
+      "gitBlob": "74af57149570c2719b3f4baafec8e6f911f0aedf",
+      "bytes": 16263,
+      "sha256": "fda1cc3f2fd5889cf694afdef645e6911b619fdc99fc65b8d3fe6b45a11691bf"
+    },
+    {
+      "file": "scripts/lib/current-baseline-hosted-synthetic.mjs",
+      "gitBlob": "bc2d4376779fedd4d8a7d749562da5924cd53388",
+      "bytes": 13574,
+      "sha256": "de3bf181c4df6a424ee3ce33e903d37641f1ccb84dc25563cf875e63b0e83946"
+    },
+    {
+      "file": "scripts/lib/current-baseline-release-contract.mjs",
+      "gitBlob": "c06c9ce912d03681d499c0476d1ff595b46bf16c",
+      "bytes": 23052,
+      "sha256": "03f36e6965866ca03b8ea6c9b1adad6a29cd1463914ea1aa8306d1cbbe100554"
+    },
+    {
+      "file": "scripts/lib/current-baseline-release-controller.mjs",
+      "gitBlob": "282a85010a31ecc116f8d04265b5d9794929578c",
+      "bytes": 16012,
+      "sha256": "25561d104abb806cbdba70be496a04256ec5575bcd4b75ca05c54951ae927a66"
+    },
+    {
+      "file": "scripts/lib/full-restore-target-admission.mjs",
+      "gitBlob": "d6f960f1aadcdcd9b0b79aee02b771dc28cd314f",
+      "bytes": 15079,
+      "sha256": "e4ece4490b6e3f818b4cc40c5a98b8565bdafcb96eee19713b23de6cf0d23b8b"
+    },
+    {
+      "file": "scripts/lib/legacy-couple-join-acl-release.mjs",
+      "gitBlob": "91bae5d62a565c2371c2b0840f85e62a251b48dc",
+      "bytes": 9228,
+      "sha256": "80d190f00a87b759e10942bbb2711c03539e112891b9b8500e91b27353dee82a"
+    },
+    {
+      "file": "scripts/lib/legacy-fitting-acl-release.mjs",
+      "gitBlob": "f89a352131767267203416d2c6fda04df2b7c134",
+      "bytes": 18649,
+      "sha256": "33504442c10ee78d50b4e9ded2bdb56b51445b817249b8e2a2337b08514d74df"
+    },
+    {
+      "file": "scripts/lib/local-qa-environment.mjs",
+      "gitBlob": "412174bf0452a1df3059e44ffebeb8199596065d",
+      "bytes": 986,
+      "sha256": "22738b72b82d3f541a9255d259a5e91a39d172373f3ef246168dfeb701391650"
+    },
+    {
+      "file": "scripts/lib/post-push-platform-evidence.mjs",
+      "gitBlob": "ac8e890f10d8f801876e8e7d57285229780939eb",
+      "bytes": 10288,
+      "sha256": "7a6ef5e5fd5f2aaa9dfd7e075ccc7214a8d71a31d8edf771d848c8cf6665e887"
+    },
+    {
+      "file": "scripts/lib/postgres-snapshot-archive.mjs",
+      "gitBlob": "6a4d75c8dd826e62f22c63fe11b1210574c83f5a",
+      "bytes": 9517,
+      "sha256": "5f8db47b905a05e528c9616a9903b2670c364183fb3e09a773f7c6ee68427428"
+    },
+    {
+      "file": "scripts/lib/preparation-style-catalog.mjs",
+      "gitBlob": "005ec97ab6d18a969c86e614e6f327d79be7f19e",
+      "bytes": 15159,
+      "sha256": "633e29a1cd6e0211ed10e1fdc4e15bc015ad1500583ca3f5c802596e2acca012"
+    },
+    {
+      "file": "scripts/lib/preparation-style-release-contract.mjs",
+      "gitBlob": "91ff55c6e3b88fdb7b4cb0d1938150581fda2762",
+      "bytes": 5458,
+      "sha256": "83daa03d4c5763fba94b69cd2d73f89023565d888ff8868c900bdef40e44e1d1"
+    },
+    {
+      "file": "scripts/lib/preparation-style-release.mjs",
+      "gitBlob": "357410b928c207bb7284f8ec4525c01a0c91eb9a",
+      "bytes": 9264,
+      "sha256": "e81ccccbb8f3b5a6181973a0d8586ca190e4cb74975b0fd02a81d2e4b7c1655c"
+    },
+    {
+      "file": "scripts/lib/production-database-identity.mjs",
+      "gitBlob": "fe898f2e6f5543cbc04d97be9bde90072d843eb1",
+      "bytes": 473,
+      "sha256": "fffa41e82cbb46320634b392416972aef689d390be12f3ed5d76ffe6cea521ba"
+    },
+    {
+      "file": "scripts/lib/production-external-gate-provenance.mjs",
+      "gitBlob": "2c46a043b2d1bf5d7d00e2445d5168eaa1fd2cbc",
+      "bytes": 97480,
+      "sha256": "76fa88066f7b31e9c65c078f05c6941faf48feacb735c233faec8ebf9e3e38ec"
+    },
+    {
+      "file": "scripts/lib/production-windows-toolchain.mjs",
+      "gitBlob": "743edb467ef3edffe548bfcef019f42c85c5ec52",
+      "bytes": 3624,
+      "sha256": "58da630f5a69c3dd3e181bc9bd51a01622ba1e0d7c311e53a675803e336fe520"
+    },
+    {
+      "file": "scripts/lib/production-write-fence-evidence.mjs",
+      "gitBlob": "380c26a379105601ae356600977b9063b9fc5985",
+      "bytes": 14875,
+      "sha256": "670d6d8d46d71b15ceb70e9702052eaebd8571bdebcf64503979b59282c0c1b5"
+    },
+    {
+      "file": "scripts/lib/production-write-fence-finalizer.mjs",
+      "gitBlob": "10d364972da4c03faf15b958763dca9e8078452a",
+      "bytes": 72304,
+      "sha256": "01be697ca8bdae16d90eadc954d1757d59d280df8ecef9d33496d8c5a9d1710e"
+    },
+    {
+      "file": "scripts/lib/profile-avatar-catalog.mjs",
+      "gitBlob": "8251342b3320e2d458ae2cf28adcd87315764540",
+      "bytes": 15381,
+      "sha256": "2dc7e79253868597da0c03cbc1e663f53cb951bd98d4d5b8da4d17d8e87bb2de"
+    },
+    {
+      "file": "scripts/lib/profile-avatar-release-contract.mjs",
+      "gitBlob": "cfb9caa780724f4ee77eed46cbc67f4c017ae16c",
+      "bytes": 4619,
+      "sha256": "0cd48438982e010e67e826f3c29ba10aee8f21cb86f1ca27b09da448209d026f"
+    },
+    {
+      "file": "scripts/lib/profile-avatar-release.mjs",
+      "gitBlob": "16753f81e409b297147942ba9910558be49bbb7e",
+      "bytes": 9503,
+      "sha256": "086c406a450d5dfac99396e193599f32ea609dda304558fa2ea6b15441366536"
+    },
+    {
+      "file": "scripts/lib/profile-wedding-roles-catalog.mjs",
+      "gitBlob": "a7a9de5c67424d48f7b6b24d7a7c4d1f651c72bb",
+      "bytes": 13725,
+      "sha256": "2a9dc0796c6e1589e76b4ed789314bbd4d4151597beeff6e7de937f7ab4c7144"
+    },
+    {
+      "file": "scripts/lib/profile-wedding-roles-release-contract.mjs",
+      "gitBlob": "77d715039947b991c1dc156eb0951445accb0c28",
+      "bytes": 3882,
+      "sha256": "cd3d0ea01e88c0182296ccaf4b1a9409efdffc778bd3842914b1a140b00349f3"
+    },
+    {
+      "file": "scripts/lib/profile-wedding-roles-release.mjs",
+      "gitBlob": "24af28d6f3dea0c1875b2948029cb68f82cef9b1",
+      "bytes": 9071,
+      "sha256": "f9df82405336c35dade48f1b4d535cc9bc292700da9e6290df83a402866bf075"
+    },
+    {
+      "file": "scripts/lib/qa-merged-summary.mjs",
+      "gitBlob": "67ea3ae4f2970a0aaec2a04877a37cb1eaec2430",
+      "bytes": 2814,
+      "sha256": "fbeddbe74242ffb4b1a5c38671f909f0c53a344dc827aa6973e4ff44917fc44d"
+    },
+    {
+      "file": "scripts/lib/recovery-artifact-set.mjs",
+      "gitBlob": "a2ed568b7c3f366a0963fe14f5e8a567f46b9c62",
+      "bytes": 9434,
+      "sha256": "1238b2a3231da299d7e2b9c12089d315ebd8d3a8b9bf77a65fcbcfdea134ce0a"
+    },
+    {
+      "file": "scripts/lib/recovery-database-stage.mjs",
+      "gitBlob": "dfcf8079efd3665d39e271dcfb9f5c0829171bc7",
+      "bytes": 7429,
+      "sha256": "cc5e23876cd6bf6ca97e52a24f65c3b65fa7d55680e0b592aefb45f2cbd828f8"
+    },
+    {
+      "file": "scripts/lib/sql-read-only-envelope.mjs",
+      "gitBlob": "e60aeb84337d35843c38b5a7a822117ea717ea96",
+      "bytes": 4424,
+      "sha256": "ee7a558cb35bb3d29adeb18900dcd5a23437c47ca0d88d258ff8d851e16296bb"
+    },
+    {
+      "file": "scripts/lib/storage-signed-upload-drain-evidence.mjs",
+      "gitBlob": "6868fd5e238d2f4237b470a762854bc4493faef2",
+      "bytes": 29889,
+      "sha256": "fbfe81c7b41179592f8c417697cf42a3804fde77329cfb4b3a40fdb3a6756b77"
+    },
+    {
+      "file": "scripts/lib/supabase-production-release-controller.mjs",
+      "gitBlob": "9209ff9933d00523f5000752005a2bece1438e65",
+      "bytes": 134721,
+      "sha256": "42a2ed77e4a91d404bf955b56cb508d73ef5ba9d189a5ce5d493250ce6bc1ad9"
+    },
+    {
+      "file": "scripts/lib/supabase-service-destination.mjs",
+      "gitBlob": "21bacda55f476fae3a62c702e8cfa0a241ba51ce",
+      "bytes": 6165,
+      "sha256": "ac095ac344e6be913b89b04f8dd0e0027fba67e0639dd249ffceb67711ff13c4"
+    },
+    {
+      "file": "scripts/lib/supabase-successor-release-contract.mjs",
+      "gitBlob": "bba66770a5ccf5a2dfcf54e78e1e909ec8c45719",
+      "bytes": 64058,
+      "sha256": "88892803df5374bc429ae0ebcfa4e5c9b32e750dec7b07981ff0dac9bdf42060"
+    },
+    {
+      "file": "scripts/lib/synthetic-supabase-environment.mjs",
+      "gitBlob": "ab2b2798793b7de9eeb6a5ccb77e7c9dad410622",
+      "bytes": 640,
+      "sha256": "823359eccbf5ea8a6c7d95624925d1977817705bafcd94ba5ce7352a140f91c2"
+    },
+    {
+      "file": "scripts/lib/wedding-code-pair-session-catalog.mjs",
+      "gitBlob": "6185d36c47e1735b0a1f39363292fbed5ad95b2c",
+      "bytes": 14563,
+      "sha256": "30e7e73450654a4b650a4f1d6f5b0c2e119d17b6ef8962a401004660111058e8"
+    },
+    {
+      "file": "scripts/lib/wedding-code-pair-session-conflict-catalog.mjs",
+      "gitBlob": "fe8fd39594d84e732eafb949e9cc7799351456a1",
+      "bytes": 15878,
+      "sha256": "6d67a4a4a126c6551ed344fc62d1718356d04f60392223eee2bbaf2cb4b8c2b6"
+    },
+    {
+      "file": "scripts/lib/wedding-code-pair-session-conflict-release-contract.mjs",
+      "gitBlob": "04e882806db3059e90e47750132f1c7f71ef22c1",
+      "bytes": 4985,
+      "sha256": "e74801f9c729e23d3cd76093ab0f5c8e45cd97964105f57eed642ad60cd523c5"
+    },
+    {
+      "file": "scripts/lib/wedding-code-pair-session-conflict-release.mjs",
+      "gitBlob": "71d157f46440f5a6050f4bb7b36a2ab4b3ad7d46",
+      "bytes": 10335,
+      "sha256": "b272c0b6be94023a12b8a08512d41b95f8853ad9ef9be9fc5d1f4cb53149d497"
+    },
+    {
+      "file": "scripts/lib/wedding-code-pair-session-release-contract.mjs",
+      "gitBlob": "756952996d8a79fb55b4574cf14f8d222cc3ae33",
+      "bytes": 5528,
+      "sha256": "8793049f426b05aeefa7eb8f6d8f9540ab49c066da25f471dc4b38b70cf17294"
+    },
+    {
+      "file": "scripts/lib/wedding-code-pair-session-release.mjs",
+      "gitBlob": "d31ede69938599206931c7dd547b4fd2f024e0bc",
+      "bytes": 9848,
+      "sha256": "59de9ab2ad936c280627d3ad20101296bd0340c7261ec9668fead0190e6ab410"
+    },
+    {
+      "file": "scripts/lib/wedding-code-research-contributions-release-contract.mjs",
+      "gitBlob": "53c7b649a0cfed0343bb76a833f84e33260f92d0",
+      "bytes": 11147,
+      "sha256": "fe0b874b0ae6c8220fd3601158ed745bfd02909f0acfa0edaa4106d5ff924c76"
+    },
+    {
+      "file": "scripts/lib/wedding-code-research-contributions-release.mjs",
+      "gitBlob": "dbf19c02c46c247fffa40d63788f1c49a53f0414",
+      "bytes": 29279,
+      "sha256": "f8f765d2d79b6b6fa4ec1cbc049a5d4f08f9aa5f8ab3b6c4ecb5b09691306f92"
+    },
+    {
+      "file": "scripts/lib/wedding-code-research-scene-v09-release-contract.mjs",
+      "gitBlob": "db2c36d0fa5299de1ce7d81cfc9165305c6e5959",
+      "bytes": 10932,
+      "sha256": "ff4047c95b4718b30f10bf535af6a53492195bc837737c640507223b32b5662f"
+    },
+    {
+      "file": "scripts/lib/wedding-code-research-scene-v09-release.mjs",
+      "gitBlob": "f345b412274066160bd6d45c4a1578626572d686",
+      "bytes": 21853,
+      "sha256": "563eb992867ccc61049dc6c2d214491b69a453e3ee22adbe0c4458cc4f2e433a"
+    },
+    {
+      "file": "scripts/lib/wedding-code-research-scene-v10-release-contract.mjs",
+      "gitBlob": "ef2e33b409b667e1f30a114d8dcb37e6a7de9a2b",
+      "bytes": 11190,
+      "sha256": "7c299177b356637b2a066fbd57dc051eae237dca8230e26c064f2cd43daf466b"
+    },
+    {
+      "file": "scripts/lib/wedding-code-research-scene-v10-release.mjs",
+      "gitBlob": "e5749c804e7ea0f52e1da90be1377ca403a90276",
+      "bytes": 21920,
+      "sha256": "af839f20bb202c5e6aa07d8241042c4235170ed99435c500151f340638ef488e"
+    },
+    {
+      "file": "scripts/lib/wedding-code-v40-bank-lint.mjs",
+      "gitBlob": "03550800c5a60afcbf7512b68bafadeb7b4ece1b",
+      "bytes": 55035,
+      "sha256": "6bf1402a2c81e231fbda90ec46b87af5b88bbb8ac57d9fa7b82f38615a4894b2"
+    },
+    {
+      "file": "scripts/lib/wedding-code-v40-layout.json",
+      "gitBlob": "a132e9fb0a2dbbfddd21ac9306e6ef8624fd015c",
+      "bytes": 8697,
+      "sha256": "d52ee453c36d4c1ef3952a03ead684a5684c54ba8229ec7afdd26b7a14dd6db1"
+    },
+    {
+      "file": "scripts/lib/wedding-code-v40-ref.mjs",
+      "gitBlob": "06c88349130a7164ea7cde8751de5969e9c4dfe8",
+      "bytes": 51930,
+      "sha256": "003a17b5d3260b8b850ab26bf88db23c2f0098de420a655a8d20d5abb6f14a62"
+    },
+    {
+      "file": "scripts/lib/wedding-code-v41-guess-lint.mjs",
+      "gitBlob": "e86c409c8c069975f119d9a27ea9a1467667bf9c",
+      "bytes": 101735,
+      "sha256": "8e3c1e0a45846d8390a254312bad3335403699a0ebca4108aae11e6175c146bc"
+    },
+    {
+      "file": "scripts/lib/wedding-code-v41-guess-ref.mjs",
+      "gitBlob": "087defeca2aea00906112171aa1d18217ec1695f",
+      "bytes": 9647,
+      "sha256": "4313473b544e4a675f250969d9a6859dea55e28eb99325faf817beb67695b1b0"
+    },
+    {
+      "file": "supabase/migrations/20260201000000_preregistrations.sql",
+      "gitBlob": "d1e729d0f6b86c1bfb0535a3fe67bf04cc4c6b4b",
+      "bytes": 489,
+      "sha256": "2ed6b4e1e03fc7e3cd97cecdd7e08eb4143692637411e8640f6c4b318bfa2faf"
+    },
+    {
+      "file": "supabase/migrations/20260205000000_vendor_portal_system.sql",
+      "gitBlob": "77dc94eb92866b065a69741787e94cfc13d9fa37",
+      "bytes": 19489,
+      "sha256": "4db79c5d996e567af8845ed0769cdbe44357dfa658b200c211efd3f60e7dc6ad"
+    },
+    {
+      "file": "supabase/migrations/20260210000000_onboarding_couple_chat.sql",
+      "gitBlob": "f5ed033ccd0c55c561fa1f42bb08f90369cc31cf",
+      "bytes": 6078,
+      "sha256": "bc999e24591870b1a5c465c844e85286dbcd230d0cdb9b648db47a8b44c206c1"
+    },
+    {
+      "file": "supabase/migrations/20260215000000_fix_rls_recursion.sql",
+      "gitBlob": "7c8bf8dc880317a054decdd9f34fd27c82350836",
+      "bytes": 4964,
+      "sha256": "e931bd70bfef2965701f5e694c70141885d712ab0d532143456694e89205bc9f"
+    },
+    {
+      "file": "supabase/migrations/20260218000000_fix_signup_trigger.sql",
+      "gitBlob": "d7badd4c6ea7ca05fca24baa13396a6f1bab0c39",
+      "bytes": 3502,
+      "sha256": "5a40278ffd2e5a36cdc35cde00873cce06387a9fadc0cd3a6bb9553184d0560d"
+    },
+    {
+      "file": "supabase/migrations/20260220000000_vendor_system.sql",
+      "gitBlob": "0819ebd0bbc74077d25ba34c359b1913a6e7d239",
+      "bytes": 9939,
+      "sha256": "d10a463cbc271953a490d0603a2e00d914081fde8abd96702d324c96a4e0d245"
+    },
+    {
+      "file": "supabase/migrations/20260224000000_customer_tracking.sql",
+      "gitBlob": "88774c5ed08ad0318d7490db80331ee72606f827",
+      "bytes": 5747,
+      "sha256": "1c3dbe03d5c04dc6dd0a0b05a8aaf97e86471ffdaee823087921bea0bfff3d0a"
+    },
+    {
+      "file": "supabase/migrations/20260225000000_admin_role.sql",
+      "gitBlob": "926e7e30985f40557fec64ca6225885cf9e3fc5d",
+      "bytes": 395,
+      "sha256": "b9e6ef87b5159e5091a0c179afdcd7952ef905fd14345ba25665fff1d7df57ee"
+    },
+    {
+      "file": "supabase/migrations/20260301000000_contract_payment_system.sql",
+      "gitBlob": "586008f7a41b6fca7cd7b5c785828f5f01354864",
+      "bytes": 6216,
+      "sha256": "82440e56b02c9ed806ed3720203da52341c51c42b3179a5e3ab21e971d905943"
+    },
+    {
+      "file": "supabase/migrations/20260301000001_fix_rls_and_seed.sql",
+      "gitBlob": "7b43089bab5223d37a6b520c0cc918a476994993",
+      "bytes": 5108,
+      "sha256": "03406782a78a9a4f59a8929ccd5fc62a759e6e9e7e0708571fb01631a7f45d8d"
+    },
+    {
+      "file": "supabase/migrations/20260301000002_schema_improvements.sql",
+      "gitBlob": "4cbdca7818b696a5bceac9499f8eeacd15377c21",
+      "bytes": 3793,
+      "sha256": "df2aca52fd73e405bdde617b12e19fa0a5091b51ba4bf7fdd5ee3d460b6f6c77"
+    },
+    {
+      "file": "supabase/migrations/20260301100000_portone_to_toss.sql",
+      "gitBlob": "ce57c265d5e38832f933904305ab9fce63006897",
+      "bytes": 478,
+      "sha256": "c2ba73404b74f97a8c648cf077d05b73f8dd99588fe947a7ff14361e2982155a"
+    },
+    {
+      "file": "supabase/migrations/20260302000000_phase3_invitation_ai_script.sql",
+      "gitBlob": "293d4c0b8ff559ca426809ec012e2b707b85bf43",
+      "bytes": 19385,
+      "sha256": "de4d6161b35278a9aaeddf1a551f12c036f2b4b8b405966dd73aaae97afe7da8"
+    },
+    {
+      "file": "supabase/migrations/20260325000000_community.sql",
+      "gitBlob": "76880286af6421fc19edc87fcbd35f6660e77cdd",
+      "bytes": 12570,
+      "sha256": "a36981439d2caaf29294607897e3e3ec7d81c05d10dc14795979153735d3ace4"
+    },
+    {
+      "file": "supabase/migrations/20260325000001_gamification.sql",
+      "gitBlob": "7064ec9348b4d398a30b4b72a6ef12dbd178f051",
+      "bytes": 6193,
+      "sha256": "548e8d6168a8481891be85cbf9cf2436c4f585c852a14274d7d7a79fc0f201a6"
+    },
+    {
+      "file": "supabase/migrations/20260408000000_community_v2.sql",
+      "gitBlob": "609990f7f87bc08f56330784643714cb3c652015",
+      "bytes": 21793,
+      "sha256": "ba1c2afdbfd977028d297e5562c6fb406b8c746c06440575fc2cf36e7a6ed353"
+    },
+    {
+      "file": "supabase/migrations/20260423000000_missing_tables.sql",
+      "gitBlob": "1b7537a31ba5a09a5225a007edcfc9665ffe320f",
+      "bytes": 10708,
+      "sha256": "bc66ead6b6f8168a8acc66ed43c1e0d20911b63bbf2b5d4313525c68db460c38"
+    },
+    {
+      "file": "supabase/migrations/20260424000000_moat_wiring.sql",
+      "gitBlob": "2a36fc777a1450e1e5891a106f1237af2fe3fcbd",
+      "bytes": 17977,
+      "sha256": "d1fa7dde82bde3837af7ab7995712abdd1035fc236732df1f0354cd87deab556"
+    },
+    {
+      "file": "supabase/migrations/20260424000001_contract_clauses_seed.sql",
+      "gitBlob": "8242cc3f5865e62e4db7a433adc6feff49b3c8c6",
+      "bytes": 17539,
+      "sha256": "07ec4796cbf29b26fcda50b3f134b01338e03c275d74b883362d09f8df5f8296"
+    },
+    {
+      "file": "supabase/migrations/20260424000002_preregistrations_beta_fields.sql",
+      "gitBlob": "59e6843eee21ba1c45778cea5e3458e17b032167",
+      "bytes": 2980,
+      "sha256": "f79a8f85d6555527069ea81427e82fd10645bc817ed4936f93d7bd0172e00481"
+    },
+    {
+      "file": "supabase/migrations/20260427000000_chat_request_id_idempotency.sql",
+      "gitBlob": "a915f3508218649843120c4311824cc7694cb34e",
+      "bytes": 708,
+      "sha256": "f96613a7d3442fbb226e90eb4732bab7b379a6e84c32e9fd1bb03c0dd50fbc01"
+    },
+    {
+      "file": "supabase/migrations/20260427000001_chat_private_visibility.sql",
+      "gitBlob": "4b5bbc955fa334531761eb886300e2eaaae4b98e",
+      "bytes": 4003,
+      "sha256": "44035613a0e7e199c60d26adf109a0ef5294905848fc7f752171e39d005b0ae1"
+    },
+    {
+      "file": "supabase/migrations/20260427000002_chat_view_reset.sql",
+      "gitBlob": "1334903ddaf9428ff3ece1078260e2d2fe8b668f",
+      "bytes": 1289,
+      "sha256": "a6f160bfe1c366f449e919239457b287c644235b10029f1d91fc01351728f482"
+    },
+    {
+      "file": "supabase/migrations/20260429000000_search_vector_backfill.sql",
+      "gitBlob": "47b888ce754e9d6e84d6ac89afc0834e159649cb",
+      "bytes": 1324,
+      "sha256": "b861600e57fe38ab63475bacecff327339b02bd69c5bedc78f2dce8bc458bcc6"
+    },
+    {
+      "file": "supabase/migrations/20260429000001_storage_buckets.sql",
+      "gitBlob": "338264d54cb2f2959b283e3a7cbb10e5b79dd1ee",
+      "bytes": 5541,
+      "sha256": "cf286b9675c388d82ac07cf0031abe0b5a3c3c56fd1b75bd51617d4a335fb51a"
+    },
+    {
+      "file": "supabase/migrations/20260504000000_chat_summaries_visibility.sql",
+      "gitBlob": "e956eae7f567514084024bb8573c16df71ae3e78",
+      "bytes": 995,
+      "sha256": "0ce7474cec796034a265e61178387bbb4350f26dd08c0b825645f0b7f8eccae5"
+    },
+    {
+      "file": "supabase/migrations/20260507000000_community_polls.sql",
+      "gitBlob": "2bf7d94024c40aec752f6c92c86e2628df163983",
+      "bytes": 10128,
+      "sha256": "e194074427ee50f4e0f785c5f7a3c6ee1552553688c9dabf57385b024290d562"
+    },
+    {
+      "file": "supabase/migrations/20260507100000_guestbook_uploads_bucket.sql",
+      "gitBlob": "f2d2eb27bfcbb54ca74bb468997b0641f4bdcf54",
+      "bytes": 1751,
+      "sha256": "39f21e75eed5d147512f08859e723d5846d0eb57bb14d870fd80777d681732cc"
+    },
+    {
+      "file": "supabase/migrations/20260507200000_guestbook_reactions.sql",
+      "gitBlob": "8f35f23a8a016d7a9ffe9633cc53d6666c9f2c31",
+      "bytes": 1762,
+      "sha256": "940b2b12845d7b0e85920c834d94ef66fab2cc32f4e63e0331d105158e420fcc"
+    },
+    {
+      "file": "supabase/migrations/20260507300000_guestbook_photos.sql",
+      "gitBlob": "d96708f62a80ffeeee0b28e603dd074fe86ddeb5",
+      "bytes": 2294,
+      "sha256": "7fbb9a2f8ba325cfb8b9c44e8c92743fe5e9526a2cf9dbd80034dd87f807e3d6"
+    },
+    {
+      "file": "supabase/migrations/20260507400000_realtime_community_posts.sql",
+      "gitBlob": "12bbadbe03d81b50d4098b2b44944887f48c8ac7",
+      "bytes": 1042,
+      "sha256": "e01ebba38f7289c6a9d748e784c98bc95f1177af3e4c1ca5b81017afd28e2470"
+    },
+    {
+      "file": "supabase/migrations/20260511000000_payment_integrity.sql",
+      "gitBlob": "7ff4a5163dd6343862746d2d7b1c0bdb0dd2382f",
+      "bytes": 575,
+      "sha256": "859051d18b4e94fbb131183a9829bbf01fe68504671491b108520f6c40f6d7ce"
+    },
+    {
+      "file": "supabase/migrations/20260511010000_lock_customer_payment_contract_writes.sql",
+      "gitBlob": "cf01b7c89801593e174c0e5ec4898f81a12af581",
+      "bytes": 672,
+      "sha256": "ef6659048a55efa88006bd1fc3b790ed67caef99cd6963dbe9168cf21400b809"
+    },
+    {
+      "file": "supabase/migrations/20260511020000_vendor_lead_pipeline.sql",
+      "gitBlob": "686c53f145c8ad8e7c4913fe8e4611c05362688b",
+      "bytes": 2458,
+      "sha256": "8d9fdc7564844a62ea953e3a64c0d570683f56c176bbf46ce682d3e0a256105c"
+    },
+    {
+      "file": "supabase/migrations/20260511030000_amora_quote_checks.sql",
+      "gitBlob": "3e678df33beeadcfdf8c45579bb0c71ad56ba882",
+      "bytes": 2908,
+      "sha256": "a39e4ccd7f9fec3d8c1424b1efc8ed24f7c667fe31d4aebce19965d84f2269df"
+    },
+    {
+      "file": "supabase/migrations/20260513999000_extend_vendors_category_enum.sql",
+      "gitBlob": "b0a24d383573e65694fe4863a2dc0e1514ec0b9d",
+      "bytes": 1026,
+      "sha256": "00ab93e94cba7a0a20381cde14236e856866af36e83034eba0c2ae0d1cf95afb"
+    },
+    {
+      "file": "supabase/migrations/20260514000000_demo_vendor_seed.sql",
+      "gitBlob": "89c61ea87aa9f30830fbff1c363b449efe711f90",
+      "bytes": 2867,
+      "sha256": "fe2a54de32d1d62aef64c8f42df9eebe2d4f5b65afafa25a0d19ed6c3605ae3f"
+    },
+    {
+      "file": "supabase/migrations/20260514010000_demo_vendor_full_set.sql",
+      "gitBlob": "0a804b60f960ef798a5ede927ba18aa737e66d68",
+      "bytes": 14017,
+      "sha256": "1e2514c113e4cd2676fae95d76afda79be5b127b792213ed73a5d4be3f82508d"
+    },
+    {
+      "file": "supabase/migrations/20260514020000_demo_vendor_categories.sql",
+      "gitBlob": "f3cd6ed59c36719459eb38c44d846b7b677191e0",
+      "bytes": 23194,
+      "sha256": "94ed81655744b2faa04cb499eeb9a02f96086398703c7443e324fd5148ca1e54"
+    },
+    {
+      "file": "supabase/migrations/20260514100000_community_post_slides.sql",
+      "gitBlob": "4ddf0940cf8831c24d0e8b59e9c517a814a61f98",
+      "bytes": 752,
+      "sha256": "bedea735930bebab28e272635f83cc9a1d85b51b3a3299940ee1518854ffe11e"
+    },
+    {
+      "file": "supabase/migrations/20260517000000_atomic_booking_rpc.sql",
+      "gitBlob": "2b1f8ffe9e1667a1ebea5ab583dceb5226240af4",
+      "bytes": 5588,
+      "sha256": "6c7993040f8ca7298d4fe42f234a835d263a7a91b37d56de7db8f610856cc301"
+    },
+    {
+      "file": "supabase/migrations/20260531000000_community_post_like_integrity.sql",
+      "gitBlob": "5ff44efbe14f284da4c5fd4f4f6d4aea6c8378dd",
+      "bytes": 2261,
+      "sha256": "28bd4643789037fe27486ff31368a017585c5a2013692b5942a8223f3bf6da4a"
+    },
+    {
+      "file": "supabase/migrations/20260605000000_harden_booking_rpc.sql",
+      "gitBlob": "03d9c5086176a3bb1a1d4b961fee106820e4e382",
+      "bytes": 5075,
+      "sha256": "32b7c5caa2d6a730120e91fa6e5ce8da7f687eaa6eb139fba9d5a8f90be4a3da"
+    },
+    {
+      "file": "supabase/migrations/20260605000001_harden_chat_insert_visibility.sql",
+      "gitBlob": "c36398f46dc0541b467ed0046ded234d3bffb5fc",
+      "bytes": 1130,
+      "sha256": "cf08cf72deaaa736dc3ff1a2b72f75a149e331a504a59314e29a7385c025ef5c"
+    },
+    {
+      "file": "supabase/migrations/20260607000000_community_agents.sql",
+      "gitBlob": "f11a82a4b13ba0e58731d88a3c3d55462de158a5",
+      "bytes": 7750,
+      "sha256": "89fa6f4bc154762fd450423bee224a340ca25e637e177b4bed756259d2379793"
+    },
+    {
+      "file": "supabase/migrations/20260607010000_community_agent_automation.sql",
+      "gitBlob": "c0d170fc5c9df80596c3b005cb80fd468facaa2b",
+      "bytes": 5834,
+      "sha256": "1ba652b7dadd693241b4f2e2986e84c9ea08b6f8f1cf21fc737d780f6a0840ea"
+    },
+    {
+      "file": "supabase/migrations/20260607020000_harden_service_only_rls.sql",
+      "gitBlob": "1e2bb06707989c9afbc44ee62ae76c25a4ed18c3",
+      "bytes": 2416,
+      "sha256": "c750b588b06f72e2e3b6fd51767409d5d5f978c41a5c8153224353caa687b667"
+    },
+    {
+      "file": "supabase/migrations/20260607030000_fix_agent_daily_seed_range.sql",
+      "gitBlob": "6d940e428407cefaf0a0ba1adf1926084f64c87c",
+      "bytes": 305,
+      "sha256": "96c91621b116eb127e3a6108ac43351b5860e6056746d97a9422012743f6d1b1"
+    },
+    {
+      "file": "supabase/migrations/20260609000000_amora_couple_profiles.sql",
+      "gitBlob": "1ae9ba3f8d0281cff2b672901d4ebd2bcedb34e4",
+      "bytes": 3726,
+      "sha256": "921eda36d4e81fa03e932023ea0dd13c2da983fc50f0be224eac4ad01ae02b69"
+    },
+    {
+      "file": "supabase/migrations/20260610090000_quote_check_channel_fields.sql",
+      "gitBlob": "31190bbc566fd57ca8337f8d40d9357d0f7b4ce7",
+      "bytes": 2226,
+      "sha256": "effb6d2142a32c6592c877bdae88156403778150225d155833f080854e271fff"
+    },
+    {
+      "file": "supabase/migrations/20260610110000_cohort_anonymity_rls.sql",
+      "gitBlob": "37ea896d937580c630f188d373b8215d3e5c4cf9",
+      "bytes": 1791,
+      "sha256": "7d6e539cbaed0e128a84f1ad6b5daab3da78ad99222992dc91f52cec0479dee1"
+    },
+    {
+      "file": "supabase/migrations/20260611100000_chat_image_rls_couple_scope.sql",
+      "gitBlob": "40fb95f040cd830cf5427bfda58dd7f61bf2af29",
+      "bytes": 2790,
+      "sha256": "d0815be3d7b948d7e1f5e247c93e90d11fa60129a93c439ce655a679aada4b4e"
+    },
+    {
+      "file": "supabase/migrations/20260611150000_week1_db_hotfix.sql",
+      "gitBlob": "b3908711c2c4c06da5415e567b91f2693feab9f5",
+      "bytes": 2745,
+      "sha256": "f5ae015571bc782fecbd9d898bc7c052104c0e9f23de189331083d22d5eceb95"
+    },
+    {
+      "file": "supabase/migrations/20260611160000_journey_progress_atomic_merge.sql",
+      "gitBlob": "282d2234aee8caa3a0c842af94ca44f2d9c6198e",
+      "bytes": 2411,
+      "sha256": "c9ecd25ce1be3b16f2b1361926e9b7f7984442a6e2ffe0e74b4de5a009ff4138"
+    },
+    {
+      "file": "supabase/migrations/20260612120000_lock_is_admin_self_escalation.sql",
+      "gitBlob": "f7c17eb5b9097e482e1877dce8bcb8c85a589aaa",
+      "bytes": 2322,
+      "sha256": "b640e538f2d2cb3003ba303cb8b9f8737375f21943302e4992101291d82d7f5e"
+    },
+    {
+      "file": "supabase/migrations/20260612130000_launch_security_hardening_round2.sql",
+      "gitBlob": "3cbb2a5d1246d5a0bc88599d2c924ff110cea790",
+      "bytes": 7704,
+      "sha256": "b5fbcc437ad4c10ca0f900393441932638795adfb72952794b9d6cbd573e7eba"
+    },
+    {
+      "file": "supabase/migrations/20260613120000_ai_log_retention_policy.sql",
+      "gitBlob": "6d6c960aa7b0b1a8503e27509fe8a3c922b91b04",
+      "bytes": 1352,
+      "sha256": "e12ea59d89d8e0c5ee08e55e520132009e56659af648c0d37c637bbf6561ffeb"
+    },
+    {
+      "file": "supabase/migrations/20260613130000_harden_community_rpc_permissions.sql",
+      "gitBlob": "ff232f8d9b9319f12e83116e49b44af25d03bdcb",
+      "bytes": 15732,
+      "sha256": "da88b266c876227c11b153511a15506c170e4c803a95a65b17e009a41e82c7ea"
+    },
+    {
+      "file": "supabase/migrations/20260614100000_create_cohort_member_reports.sql",
+      "gitBlob": "02628b8a6bdb2c830b663a6b732dfc22e9c7a7ca",
+      "bytes": 1854,
+      "sha256": "d821ebcb589f4ac0d9b69edcac376f112615983a658d9964f8e31c72b9699d3c"
+    },
+    {
+      "file": "supabase/migrations/20260614110000_lock_sensitive_anon_access.sql",
+      "gitBlob": "d5a92a4405d2cac5b793bc4d10f7b6dd8dd19223",
+      "bytes": 14733,
+      "sha256": "2dd909df02381708993a595de9cb5b6782afc4d3068481caf3ec6cdf03ed1be7"
+    },
+    {
+      "file": "supabase/migrations/20260614120000_harden_cohort_member_reports_target.sql",
+      "gitBlob": "849cc01b710ca85a0e3ca9510fb54f581ccfa895",
+      "bytes": 730,
+      "sha256": "3a68eaa167b17d8055705cd29e5d208787a8211d37843af053325f93f0e7538e"
+    },
+    {
+      "file": "supabase/migrations/20260615090000_harden_cohort_membership_writes.sql",
+      "gitBlob": "0a0405c8e32cc623b4bd5980d93dfd0874fed4e5",
+      "bytes": 2392,
+      "sha256": "9ab771c350a05ce39977d539fc306e377ea2c48287e86389f1f200dbea664776"
+    },
+    {
+      "file": "supabase/migrations/20260615091000_make_chat_images_private.sql",
+      "gitBlob": "8eacf79e5afb68324f8b93768cb0b04745cb8ea2",
+      "bytes": 1973,
+      "sha256": "9208b5b34bca8b5911b04dbd329508e08ea556834efea1ff94654918191a2ba2"
+    },
+    {
+      "file": "supabase/migrations/20260615092000_harden_join_couple_atomic.sql",
+      "gitBlob": "71f0257c4b6d830205daf6fd531594054fdd1a97",
+      "bytes": 2494,
+      "sha256": "69755fc93cddb2d3641159277796db2cea73c7d6641a8353888189b39b70e9ac"
+    },
+    {
+      "file": "supabase/migrations/20260615093000_harden_community_media_storage.sql",
+      "gitBlob": "e15e6f6139799a0c0305b402078acbd0ea57f383",
+      "bytes": 3367,
+      "sha256": "e462cd3c1aba3fe83dbedc24eada1341180ee330164abb91b55b6a6c9bdd3e83"
+    },
+    {
+      "file": "supabase/migrations/20260615100000_create_amora_actions.sql",
+      "gitBlob": "79102a07521867a2710e712f5a85394fc8f16f52",
+      "bytes": 6020,
+      "sha256": "8235d39ca729e517eff1014e5af0cff53c882e2fb87f82dcb5457f5f7cf15796"
+    },
+    {
+      "file": "supabase/migrations/20260615101000_fix_amora_action_status_timestamps.sql",
+      "gitBlob": "8deaacaceb547c61f86acf2d1952016b453991c9",
+      "bytes": 941,
+      "sha256": "c63aa563c6469a8571ee5bf290b9f8329692684c180c235bde0261cc85604d01"
+    },
+    {
+      "file": "supabase/migrations/20260615102000_decouple_vendor_curation_from_ranking.sql",
+      "gitBlob": "5beb4f177df835625c7dbd589761c9b887626876",
+      "bytes": 349,
+      "sha256": "6ad1c21d2a3e1c1419b0ab3bcb2232b6d489d9a5e91c905d1241a572c193f1a2"
+    },
+    {
+      "file": "supabase/migrations/20260615103000_create_rate_limit_rpc.sql",
+      "gitBlob": "837bd7b436e06aa08841283c193d05ba0bcc789b",
+      "bytes": 2543,
+      "sha256": "444de37bb25f8c411e77a0ca0fe1e598c771057bd0349c140283c6b08a571fd8"
+    },
+    {
+      "file": "supabase/migrations/20260615104000_unique_community_nicknames.sql",
+      "gitBlob": "9b692f23cbda2593b6ba7c9925435e866ca87d7c",
+      "bytes": 322,
+      "sha256": "4a469f57977dd6268474467ba1ff0857213b07aee239ad81bf9d2f1a7fae1425"
+    },
+    {
+      "file": "supabase/migrations/20260630233211_enable_booking_progress_realtime.sql",
+      "gitBlob": "776d4baca4e3ade8854ca60d54bcd0830438ce72",
+      "bytes": 1222,
+      "sha256": "367fefd278f8b5192d151062df437b6614835968ca49a36435ca8990fd3cdf44"
+    },
+    {
+      "file": "supabase/migrations/20260704120000_create_amora_turn_reserve_rpc.sql",
+      "gitBlob": "7204a7829d921b8b5c534560ba667701cd81296a",
+      "bytes": 4138,
+      "sha256": "038b01509be4c37cdac1f66636d506d44c7f80f6534ffb6acc728f5d159c87d5"
+    },
+    {
+      "file": "supabase/migrations/20260704130000_add_rate_limit_gc.sql",
+      "gitBlob": "51eaaadabe4a824a95f4270d6d6ebb566bce2823",
+      "bytes": 2216,
+      "sha256": "c5b62f2beb97356752957cb52f5aa7646e4b1b421028e7f355cb9215fc6f45d1"
+    },
+    {
+      "file": "supabase/migrations/20260704131000_drop_dead_invitation_tables.sql",
+      "gitBlob": "01383c5fab8c1bf06645210110c6a838eb0822e6",
+      "bytes": 1354,
+      "sha256": "8568274d8adb0b69f46f7f7c3195caef7b8718bea9dd5b27c8645c20022abb3a"
+    },
+    {
+      "file": "supabase/migrations/20260705090000_hide_seed_vendors.sql",
+      "gitBlob": "9e563943dd7b25fa9d73448b547a353692c6ff06",
+      "bytes": 1124,
+      "sha256": "4da494004e7828c0f530d017f77e3d5bda5ba67674d1ea22e7f7528d0590e5f9"
+    },
+    {
+      "file": "supabase/migrations/20260705120000_add_care_notifications_flag.sql",
+      "gitBlob": "03d11e59239ebfafbb41356b525085ae476e8724",
+      "bytes": 838,
+      "sha256": "46b2beb045cf393b525cd292576f9f934e6214fb027a78947e2f2f88f78ac739"
+    },
+    {
+      "file": "supabase/migrations/20260705140000_add_phone_care_channel.sql",
+      "gitBlob": "42abacbc58fc94d9e828413758e9a83d32caa4e8",
+      "bytes": 1128,
+      "sha256": "0d9e530e7464baa857dc4873128b0f4bd20667941540982af97669f548bc1ac5"
+    },
+    {
+      "file": "supabase/migrations/20260705160000_wedding_code_responses.sql",
+      "gitBlob": "0c0e086914e473204114129e0f61758f2426910a",
+      "bytes": 2710,
+      "sha256": "e71837365e187fbf363daff7a2fa7aa96cf034ad3c02290fbe00d6927cf64fa1"
+    },
+    {
+      "file": "supabase/migrations/20260706100000_wc_couple_token.sql",
+      "gitBlob": "71490428c081e4e3cb3d3b94d923710f6435b02a",
+      "bytes": 749,
+      "sha256": "9b1f73e238af4549211b327da6a4f7051cf820b29c03a0a46be1514d7664a726"
+    },
+    {
+      "file": "supabase/migrations/20260714104000_disable_wedding_code_collection.sql",
+      "gitBlob": "75c5270214521c58cba52f3b5b84c3c8a350074f",
+      "bytes": 13451,
+      "sha256": "538ecac33df31f1ef16b15dae51fc218abcd83c79147e58d3a6de9a6ff7a83fb"
+    },
+    {
+      "file": "supabase/migrations/20260714160000_harden_amora_privacy_boundaries.sql",
+      "gitBlob": "684698c512abbca80e9c72774c9384e6c16abd0d",
+      "bytes": 28282,
+      "sha256": "249d19e16d4e2e8d2b3957b12e0aa3da7942a3eac706233a73ffb09be04c58e6"
+    },
+    {
+      "file": "supabase/migrations/20260714163000_atomic_chat_clear_request.sql",
+      "gitBlob": "ddc5732f144ded9210b711204bdc620aa8c8d99c",
+      "bytes": 10607,
+      "sha256": "39776ff7240297c6e18f4fba28d09c22772df210a473b3444751fd52698b4529"
+    },
+    {
+      "file": "supabase/migrations/20260714164000_harden_amora_tool_idempotency.sql",
+      "gitBlob": "7a10abe0a6df2686219c1d70a96d6b255b370397",
+      "bytes": 22285,
+      "sha256": "a0a707024c40427a9e93e9d116de260ef7e1e6c9ffe4e5458a795e2c7b4b369e"
+    },
+    {
+      "file": "supabase/migrations/20260714164500_expand_atomic_couple_reset.sql",
+      "gitBlob": "a7a3b9d77a496b38a65b66b611d76966f1b6b5bd",
+      "bytes": 3274,
+      "sha256": "9805ea68c06cfe95d8cbb1e2e50e9cf4c52bc65233f652cc6c69838e18be179f"
+    },
+    {
+      "file": "supabase/migrations/20260714164600_expand_push_token_persistence.sql",
+      "gitBlob": "2a1f10cc84f7918ebd8e5d0fbce0a9a441842ead",
+      "bytes": 1108,
+      "sha256": "7b8c9dd304e19bfa7e51173ab29fb6fa485f41f39601683af39cfa920d50cebb"
+    },
+    {
+      "file": "supabase/migrations/20260714164700_expand_account_deletion_integrity.sql",
+      "gitBlob": "e27eee3f4c67565d7d5906e0b3fba6cb13335198",
+      "bytes": 6917,
+      "sha256": "2a38961bc2a79563ac4c618c0c73108fb9a07e31d4324d07d8564eb5ccb15691"
+    },
+    {
+      "file": "supabase/migrations/20260714164800_expand_signup_profile_integrity.sql",
+      "gitBlob": "f9d1218b5901eda091fd46d66af28252f25e0df0",
+      "bytes": 2724,
+      "sha256": "41cdc88ab8550022e14ae1cc5bca12826d1f1360b69324b28767518b3479feef"
+    },
+    {
+      "file": "supabase/migrations/20260715210000_harden_vendor_public_read_policies.sql",
+      "gitBlob": "dbc67aa4a6448c0ebefdffa5816e559b468243a1",
+      "bytes": 4206,
+      "sha256": "097748bb0e09eb520a1ddc1305a574dfcd83e45056053a7012c8323bcceee8a7"
+    },
+    {
+      "file": "supabase/migrations/20260716090000_amora_memory_engine_v2.sql",
+      "gitBlob": "cf3f96560c4fc8fe32ca0d62be09e2f6ede79d8b",
+      "bytes": 56703,
+      "sha256": "62b9472032148741e925bece83b2248d6fbb2fe5e114a1a28bd9bd3d1255fb4e"
+    },
+    {
+      "file": "supabase/migrations/20260716091000_care_explicit_consent.sql",
+      "gitBlob": "536dd15a21dda0528b1d9b4a528cbff7e5e56621",
+      "bytes": 2986,
+      "sha256": "d35eee2e138614bbf67bd7adb3d9520a2ca0128e89f4de39f3a83d779590877c"
+    },
+    {
+      "file": "supabase/migrations/20260716092000_amora_mediation_confirmation.sql",
+      "gitBlob": "33c69f2f37019f8eee312d568a4d769e80d60fed",
+      "bytes": 25508,
+      "sha256": "f27b09af78e0ad5836c4a58c0581306ca4f2fa02e3bfd61ab42bd41f3a06f309"
+    },
+    {
+      "file": "supabase/migrations/20260716093000_amora_care_queue.sql",
+      "gitBlob": "e4e3cc8818339c699e3df60161ff1d65c2e30061",
+      "bytes": 59144,
+      "sha256": "0bfd206554c4f8db818f021b1da52e91f8f586ce4c7b9bee96650269882219c5"
+    },
+    {
+      "file": "supabase/migrations/20260716094000_couple_roster_epoch.sql",
+      "gitBlob": "702cbc97bd9eb108858c39281e9516fdc8844936",
+      "bytes": 13841,
+      "sha256": "830aa401137250dbf6607602941999453d3330b9b28d4fe4367755d352d8490f"
+    },
+    {
+      "file": "supabase/migrations/20260716095000_amora_care_delivery_policy.sql",
+      "gitBlob": "6025a2220c9c4374eb26e40a592e21f9f5e1ae4f",
+      "bytes": 24859,
+      "sha256": "3cbfca6d54ec01ad47cbe38bcbf447aad1bf992dffca7231024aafafb53c1ae6"
+    },
+    {
+      "file": "supabase/migrations/20260716096000_amora_tool_retry_fence.sql",
+      "gitBlob": "29680c2b74f134f63684cde22ec3d142bba0e872",
+      "bytes": 25072,
+      "sha256": "e58e98bfc8599b5e1f5bcfea854a32485a51fa3cd1f29127a8a303e5c80552ee"
+    },
+    {
+      "file": "supabase/migrations/20260716097000_amora_atomic_cost_budget.sql",
+      "gitBlob": "fe986b3d105aa824059e7723e6cba1e99e29d5a3",
+      "bytes": 29976,
+      "sha256": "2576a305b6d5cbb8247d03cabbf1e5a92d862a20a0a6973c6e0ef4b38ccddd33"
+    },
+    {
+      "file": "supabase/migrations/20260716098000_amora_memory_budget_deferral.sql",
+      "gitBlob": "dab868733c0d831038503cf53b3c33eeb9a413c6",
+      "bytes": 2635,
+      "sha256": "1b6e2d1fd7a222b3fda7f78a190e5dc2730e75c47eeea82497e56db5372a6d72"
+    },
+    {
+      "file": "supabase/migrations/20260716099000_wedding_journey_singleton.sql",
+      "gitBlob": "8af0f446e6773b63744969078170a485f1411de2",
+      "bytes": 3882,
+      "sha256": "8daa79b42130f5f34ebff148cc4b1b8327602a56fcbc3ccf0c3d75ba5c6a9c8e"
+    },
+    {
+      "file": "supabase/migrations/20260716100000_journey_progress_atomic_item_patch.sql",
+      "gitBlob": "d039c4edc19f6a2b6a83d1f95668a92fb0b7d7cd",
+      "bytes": 2048,
+      "sha256": "9442d3a993e97e6f1d92e6c051429b69ccfa1f9e798ca6d93b1077cf598c6637"
+    },
+    {
+      "file": "supabase/migrations/20260716102000_booking_projection_outbox.sql",
+      "gitBlob": "72baf50411d50b31a657fcd32a6ba08160bd44fe",
+      "bytes": 28670,
+      "sha256": "b92f9574e5ffd2d95951a2c89922b739981ba62109c6e09fec075d84506033a2"
+    },
+    {
+      "file": "supabase/migrations/20260716103000_amora_conflict_check_claim.sql",
+      "gitBlob": "0715c6a2dc26f6248fc63c9825be70b31ab2d31e",
+      "bytes": 11245,
+      "sha256": "4579da7ee8b428142a8eabfe184e8b6a9865ba244b71aa103235f88627f6ffbf"
+    },
+    {
+      "file": "supabase/migrations/20260716104000_profile_patch_atomic.sql",
+      "gitBlob": "d0cc4a1bba6b3f1cec3ed6dfade9b449e4c786e0",
+      "bytes": 9051,
+      "sha256": "1c598723ba6b315868993283a358cf5fc6122ffd5471e3d28770deeb1495f3f1"
+    },
+    {
+      "file": "supabase/migrations/20260716105000_amora_conflict_receipt_checkpoint.sql",
+      "gitBlob": "94dc27299c602e63ea9a420d6c0de3fd5684d09a",
+      "bytes": 6606,
+      "sha256": "7cb40bb61b6ccc03b0e2eb21b38160635653b52bb05af7ae13eef62247d80f45"
+    },
+    {
+      "file": "supabase/migrations/20260716106000_amora_atomic_chat_response.sql",
+      "gitBlob": "5f9416456b0b3fb8ad1018a96a0dbca244907f6e",
+      "bytes": 16643,
+      "sha256": "14bc3427edc0e314de86601ac304add4fe1d3d14c2c4ee3ead389a392b097e70"
+    },
+    {
+      "file": "supabase/migrations/20260716107000_wedding_settings_atomic.sql",
+      "gitBlob": "e7d53cf393a538dbedcd4a20bcbb6b2414ff6d92",
+      "bytes": 10533,
+      "sha256": "f2ce6b1d443d036ffdfebafb25d0af7262973902d97a79567fb4057b16026975"
+    },
+    {
+      "file": "supabase/migrations/20260716108000_community_upload_service_fence.sql",
+      "gitBlob": "87c9aefb72d8d7b7f7d45c599110a5bfda980ff1",
+      "bytes": 6024,
+      "sha256": "a10e9f374107090ab8dc63b7a23bde7f4e5eb7b790d4e9c329c8022aa15fcd80"
+    },
+    {
+      "file": "supabase/migrations/20260716109000_booking_outcome_atomic.sql",
+      "gitBlob": "1979da2200f46c9da9f006afb05ed5262756626c",
+      "bytes": 9994,
+      "sha256": "cdfdad975ee0e2d11fd43c4efa6cbc5c30537469a40a7acb45865868012c4b05"
+    },
+    {
+      "file": "supabase/migrations/20260716110000_amora_crash_recovery_atomicity.sql",
+      "gitBlob": "5c4ef90c88beeb4c106a3e6fee5a7e2c7b4521ce",
+      "bytes": 39145,
+      "sha256": "f07d1aa37d500d249024469ce0d9d24589677c48f92b05926dec8cc3e426fa56"
+    },
+    {
+      "file": "supabase/migrations/20260716111000_community_upload_attachment_lifecycle.sql",
+      "gitBlob": "8341b81057f8e9ba27ac26ca46659e9bef961bf7",
+      "bytes": 18321,
+      "sha256": "f05bc68d535581397bca0438729fb5eb53b6e1f03e9de57a92e9b0b0269ad7da"
+    },
+    {
+      "file": "supabase/migrations/20260716112000_amora_atomic_mutation_coverage.sql",
+      "gitBlob": "aa11c0fdaf81056cb41ef8aebf2dc196d6b743fb",
+      "bytes": 64512,
+      "sha256": "6f43b0b53a981bff0203e333ee2f242835bd99487579d4cd1ff74323e5a02186"
+    },
+    {
+      "file": "supabase/migrations/20260716113000_account_deletion_storage_saga.sql",
+      "gitBlob": "0e8a391bc76562797a0328ecf35df02643f3e790",
+      "bytes": 30728,
+      "sha256": "f85887a262961c331acd0fc222aec01785c14bfdfdb8e1c36e4d3aceb9305151"
+    },
+    {
+      "file": "supabase/migrations/20260716114000_current_couple_membership_privacy_fence.sql",
+      "gitBlob": "871e9af1e5490042434f1b04ea9ee8f36d1726a7",
+      "bytes": 55372,
+      "sha256": "cabf4988ac7969f3084280c1cc69fce62bc22f05c371f64d98c68207b870dc2b"
+    },
+    {
+      "file": "supabase/migrations/20260716115000_rate_limit_pseudonym_retention.sql",
+      "gitBlob": "3c47aa5d6191e0ded39ed106125fd2ee2195432c",
+      "bytes": 3804,
+      "sha256": "afc5214290cb40717a4cdeaad29b38b2598f130541ef668c5edecbc520f645e7"
+    },
+    {
+      "file": "supabase/migrations/20260716116000_ai_log_retention_contract.sql",
+      "gitBlob": "ace023b68acc4e5f56d215786bcb8f69beb924ab",
+      "bytes": 12162,
+      "sha256": "0865b9fafc48d2a26e0735b6d29df73d03f12787db54cde399c9a4eb49e168d5"
+    },
+    {
+      "file": "supabase/migrations/20260716117000_account_deletion_auth_fk_contract.sql",
+      "gitBlob": "c81a4d73470a759dc3b494d9dc1958e6e0db1f80",
+      "bytes": 10868,
+      "sha256": "627a9397dc69d790318f9d5d6e4c6fe69085bfcbf4a890439dced6617b3d7396"
+    },
+    {
+      "file": "supabase/migrations/20260718120000_vendor_public_column_privilege_hotfix.sql",
+      "gitBlob": "8b393b3352c566e2e9b1fa88454640e8234d1c93",
+      "bytes": 14132,
+      "sha256": "0fefb5c6cf3a44c14923a71d78431cf92d082b0bb7b4c8e86eb9d22bf3c069e1"
+    },
+    {
+      "file": "supabase/migrations/20260718130000_vendor_disclosure_foundation.sql",
+      "gitBlob": "5b551208227be7471a44f00c3c1fd7146b617c67",
+      "bytes": 118730,
+      "sha256": "ffb97c12322c2e1429b7cc301460ad4258cc69170ec907145a8f0513792d5a61"
+    },
+    {
+      "file": "supabase/migrations/20260718140000_disclosure_source_previews.sql",
+      "gitBlob": "6d1312e54baa92f18bcc470590306cd87028b54d",
+      "bytes": 4631,
+      "sha256": "d6cf3de605e2be12846b5462fd6e36c3743aa5093373bc1e75e025cef03623f9"
+    },
+    {
+      "file": "supabase/migrations/20260718150000_price_snapshot_promotion.sql",
+      "gitBlob": "53f098ebda48a989817d282b1e7afc46f1a7b640",
+      "bytes": 14714,
+      "sha256": "681490288b02ae48af4f529e0987dda2c0b3da3d679fb302344bef5ec221306c"
+    },
+    {
+      "file": "supabase/migrations/20260718160000_vendor_alias_proposals.sql",
+      "gitBlob": "1b5115b0f993433f62bc684885213028778b124c",
+      "bytes": 11808,
+      "sha256": "050246e31040a2b32a5c4732b6e6ad8cd8674a6bb7f0e89a8c732e32c27fadc6"
+    },
+    {
+      "file": "supabase/migrations/20260718170000_admin_review_optimistic_concurrency.sql",
+      "gitBlob": "5f8525bd1335b9afee05fbc6b7afa83c5a01bec6",
+      "bytes": 26056,
+      "sha256": "95fa130bd6692c998fccd35977fbc5996a5941cc1d9972abc905e94d114ace83"
+    },
+    {
+      "file": "supabase/migrations/20260718180000_disclosure_storage_privacy_fence.sql",
+      "gitBlob": "0799d1cbbb637ae122a7429855a43663d79e5e98",
+      "bytes": 3003,
+      "sha256": "94dc7a16e3ca122c09d92d81c912ad17c991bbb7ab5cefac3093618fabfa24f5"
+    },
+    {
+      "file": "supabase/migrations/20260718190000_price_consumer_contract.sql",
+      "gitBlob": "e18dbadb3264bc3356c8652ce3df703414b8a3b9",
+      "bytes": 38390,
+      "sha256": "279f89e05ab439cc0dc17f818d0db3f857f33d4c3d286681347fda026611fa2f"
+    },
+    {
+      "file": "supabase/migrations/20260718200000_price_publication_immutability.sql",
+      "gitBlob": "c71a2677c0a7cae97b4b017c22f2d88935ec5f38",
+      "bytes": 38382,
+      "sha256": "5a27574f7ba0da525c53cf0762e7272696fe2624bf7dc3a781eecf0fd17100fd"
+    },
+    {
+      "file": "supabase/migrations/20260718201000_admin_json_evidence.sql",
+      "gitBlob": "6e11e1bb8e2abb52178aa935955368a8a4a2ea97",
+      "bytes": 2208,
+      "sha256": "1cc0f89985171887dd36cb6f36255ebc4f63b156342cbbc4440347ad2874d79d"
+    },
+    {
+      "file": "supabase/migrations/20260718202000_price_upload_confirmation_queue.sql",
+      "gitBlob": "d091cc989815d27f2037aefcf435c405e3207f67",
+      "bytes": 63101,
+      "sha256": "955234bd14faa1cb359abbaab022ad54e1d22f3dc02c3fc9e6cf7e04e05b44b7"
+    },
+    {
+      "file": "supabase/migrations/20260718203000_price_consumer_cross_contract_hardening.sql",
+      "gitBlob": "ee9b6e4860d506a847e6115f1bbfc18305c85663",
+      "bytes": 76947,
+      "sha256": "2f70cc7df464319aa8c8ac33b12ae8a4fc919e684c8d9e791d4cd8863b646b1c"
+    },
+    {
+      "file": "supabase/migrations/20260718204000_price_combo_idempotency.sql",
+      "gitBlob": "3b0d0c9ea9f7aaa9f460aab3c503a9ea434e088a",
+      "bytes": 3257,
+      "sha256": "c604e59f47541b53d99a89e1f019db7d94cce3646ce93c7d6031f06e51667011"
+    },
+    {
+      "file": "supabase/migrations/20260718205000_legacy_demo_vendor_retirement.sql",
+      "gitBlob": "53ac982c49299c23588f1d5e21d04671f4350866",
+      "bytes": 2299,
+      "sha256": "dfe4e515ea7fb46faad98c63e2b1aa7d4de1db54311b633e7d96173cdcf68159"
+    },
+    {
+      "file": "supabase/migrations/20260718206000_unverified_contract_clause_safety_fence.sql",
+      "gitBlob": "92adfb03e0ba0a9046e532e1beeb6ba75e3bd034",
+      "bytes": 940,
+      "sha256": "11262c3e89b14e5786f1dbbd1293e4cd6e8b2761149d13f5bfa2434a674190ce"
+    },
+    {
+      "file": "supabase/migrations/20260718207000_public_disclosure_evidence_privacy.sql",
+      "gitBlob": "4ee1b3ab1cc29f311a63005b103baf99ab6154d9",
+      "bytes": 30952,
+      "sha256": "b6a1b3dcab9bbc47f0b9dcbef31f4a03097d837b149d8008656b822d105b4512"
+    },
+    {
+      "file": "supabase/migrations/20260718208000_atomic_weighted_rate_limit.sql",
+      "gitBlob": "1b8a3844e3ff5f5b36b3760ea5418017ca74a236",
+      "bytes": 3124,
+      "sha256": "b5d95edfc33c1ec476fdcd1660643193e77278662f483a104548ae4dbab4113f"
+    },
+    {
+      "file": "supabase/migrations/20260718209000_price_combo_direct_write_fence.sql",
+      "gitBlob": "7e4bb68fe1412e0d1db60b115347567cb0140d6a",
+      "bytes": 13060,
+      "sha256": "41f990258d2167bf6403657abc3fa863c18898b85439ce7e71f85bf08cd25335"
+    },
+    {
+      "file": "supabase/migrations/20260718210000_wedding_budget_product_contract.sql",
+      "gitBlob": "ecced73fc629791a980e59eff9f2e50f42703028",
+      "bytes": 1215,
+      "sha256": "8b031fd6faf0654456bd7ce54758cc2f9949a88c58902352943603626bfb6fac"
+    },
+    {
+      "file": "supabase/migrations/20260720120000_disclosure_semantic_staging.sql",
+      "gitBlob": "6e91dafdfcd72653e5ae88571530ec63c7e65c75",
+      "bytes": 24420,
+      "sha256": "fd4259d6f4137441abfb0e15eab9b8f43f57ff43f135b59ce33d5f03cc292fdf"
+    },
+    {
+      "file": "supabase/migrations/20260721120000_vendor_disclosure_atomic_batch_staging.sql",
+      "gitBlob": "b1ff7d7034276504717f57e588513f1eaf4a0811",
+      "bytes": 312733,
+      "sha256": "b8585b4ec2cde1bef5913bfa518fcaa48a745a4016218d0cc9cfbda427b86bc6"
+    },
+    {
+      "file": "supabase/migrations/20260722193000_vendor_disclosure_storage_outcome_idempotency.sql",
+      "gitBlob": "d51f6a37817747c075601fdc58352fe94c9078c5",
+      "bytes": 9361,
+      "sha256": "a72b926a1f760bb3cda04545a6da29ff3079e0038a447ebc0d532371fad4c987"
+    },
+    {
+      "file": "supabase/migrations/20260722194000_vendor_disclosure_stage_ledger_hash_disambiguation.sql",
+      "gitBlob": "77e176a9818a40451bd1980ea63763bde9af39a8",
+      "bytes": 51991,
+      "sha256": "b10933ca814774a6536b91806e8c630d2cbe04b406cd1d81816a90889e00518c"
+    },
+    {
+      "file": "supabase/migrations/20260722195000_vendor_disclosure_ledger_cost_scale.sql",
+      "gitBlob": "af56edf952bf616791eba1f3c87c9541927b2e1e",
+      "bytes": 52416,
+      "sha256": "63a4e2e6019e0aa35fc23d4de5a078021448fd375c93e7e70a63012c4cd7fba3"
+    },
+    {
+      "file": "supabase/migrations/20260722196000_official_price_option_source_occurrence.sql",
+      "gitBlob": "94e4f455c14916e4d2b0a35e98e1741b2d0af9db",
+      "bytes": 19408,
+      "sha256": "1f1fcc6e85195cc17c1a929c6dbaa02c7bb61840464c282bc877ce7b4c1fc7fd"
+    },
+    {
+      "file": "supabase/migrations/20260722197000_vendor_disclosure_exact_semantic_duplicate_canonicalization.sql",
+      "gitBlob": "be3e81aaf8bc7c6a5f503278c465503740192618",
+      "bytes": 7493,
+      "sha256": "2df865eedd9684438fcf77f1e388fd8804ccf72c609573e468e23b6bff8e08f2"
+    },
+    {
+      "file": "supabase/migrations/20260722198000_vendor_disclosure_preview_transport_identity.sql",
+      "gitBlob": "7945bf03182cf7c0d25170584e9ea69a98e414ea",
+      "bytes": 16784,
+      "sha256": "f0c83ccdbde175d71b6fa05deefde80ec48d119e7f12876926b9147f6cde28ee"
+    },
+    {
+      "file": "supabase/migrations/20260722199000_vendor_disclosure_local_price_overflow_quarantine.sql",
+      "gitBlob": "7d642aff801b9ad4a327840e2ca71dcc48033c9e",
+      "bytes": 12649,
+      "sha256": "1dfd8685590bede3a014dcfaa1493cc7c93884dd93472e387901437e909fd816"
+    },
+    {
+      "file": "supabase/migrations/20260722200000_vendor_disclosure_dedupe_link_replay.sql",
+      "gitBlob": "d73bb689ef2cb8b8137f5f79cf4804a483b06578",
+      "bytes": 10765,
+      "sha256": "7259b4cfde45aa5355763cc716e860d031558f235d5bca88ca39e2d76e4e6100"
+    },
+    {
+      "file": "supabase/migrations/20260726090000_public_vendor_policies.sql",
+      "gitBlob": "23be5f9fa5d2ce201907323e72a72d52807e2fe6",
+      "bytes": 4882,
+      "sha256": "b2c789fc6a56fafdcbd1531dbcddc3ed22e6545bd7d4f6d7e7b01ab3b4b20e52"
+    },
+    {
+      "file": "supabase/migrations/20260726120000_amora_saved_notes.sql",
+      "gitBlob": "660cd31ba7387db8afff1b8dea262cad5b966f91",
+      "bytes": 5641,
+      "sha256": "25d14623dd9bc4c24b1941bf037084d97eb54ba05d30901cc522e5f90a425de7"
+    },
+    {
+      "file": "supabase/migrations/20260727090000_fix_saved_note_message_ref_and_lock_messages.sql",
+      "gitBlob": "e1cbe8fb03e020d860b8d2dce5f22e6790b58172",
+      "bytes": 4429,
+      "sha256": "d8c442cc5cb99c69209952ff2bf7d62ecc394a714b21d248d9c691deabbdef60"
+    },
+    {
+      "file": "supabase/migrations/20260730100000_retire_undisclosed_community_agents.sql",
+      "gitBlob": "4752df55bcaacd6b1c81ff9e86547b317b77561b",
+      "bytes": 5510,
+      "sha256": "51e3cd08f2b2e69d45c02861b97dc99a155e69bbe858426ab09c044d43c95868"
+    },
+    {
+      "file": "supabase/migrations/20260730101000_quote_check_explicit_consent.sql",
+      "gitBlob": "2e19eb1e368402fe8e46efdff1c6062a543945a2",
+      "bytes": 2672,
+      "sha256": "f9ab7b5f04a16a4a13c11c709ef29b41851afe16897bedd1aaf9e97bf0a3b5f5"
+    },
+    {
+      "file": "supabase/migrations/20260730102000_amora_shared_action_approval_and_notifications.sql",
+      "gitBlob": "f25d351da24fb966939dc26893f918ba3105b643",
+      "bytes": 84617,
+      "sha256": "f4e242bb3c3bfaeda284830a548c8d798f4c0f26aaa029014688d800d677d857"
+    },
+    {
+      "file": "supabase/migrations/20260731123000_couple_plan_change_write_boundary.sql",
+      "gitBlob": "f7d6afac2921fb1056e6799be2494b4aa7c63c97",
+      "bytes": 79572,
+      "sha256": "78558fed4cc693ca9ac204be7a401ff4ee4451b42534bc70b8b55d4129a6e7db"
+    },
+    {
+      "file": "supabase/migrations/20260731170000_amora_personalization_preferences.sql",
+      "gitBlob": "743443954159c7fb6f0fb76c71066faeb85243f6",
+      "bytes": 11238,
+      "sha256": "3abe9a147276e30f6a3811d6dd98dd80bee54c10a49781ea900b1b7096ee3bb7"
+    },
+    {
+      "file": "supabase/migrations/20260731173000_private_chat_hard_delete_boundary.sql",
+      "gitBlob": "5bfadd4ae44f7c25160a0760acb9518811d12c57",
+      "bytes": 16968,
+      "sha256": "bf2333a9d5b29d7d1d04a6dff52747a20b8920e1e9b4df1bae655e34872d09c7"
+    },
+    {
+      "file": "supabase/migrations/20260731174000_amora_privacy_context_snapshot.sql",
+      "gitBlob": "8ddc97eb44fecbce4514e2ccc36fd78f21a38135",
+      "bytes": 4885,
+      "sha256": "7969c9885c428091601fbda6aa085ece3ba6c3a41a1371ab370013369564f86c"
+    },
+    {
+      "file": "supabase/migrations/20260731180000_community_release_trust_boundary.sql",
+      "gitBlob": "0d64c973bad3f918f43c2ce86727e3529843cbb4",
+      "bytes": 44995,
+      "sha256": "31f5e100c7a0bbdda39e1e2aaee7e8ddc3f62be504ebb9eb3e2f70f7482276c5"
+    },
+    {
+      "file": "supabase/migrations/20260731181000_community_reply_notifications.sql",
+      "gitBlob": "be110c2cba64d300c1a85fb2cccf3a8c023cc9e5",
+      "bytes": 11498,
+      "sha256": "186d53d6647f5230bee2a7df806172503a1ff32c32e4806cf512df7960c3eb3c"
+    },
+    {
+      "file": "supabase/migrations/20260731182000_cohort_moderation_audit_boundary.sql",
+      "gitBlob": "cbeccf07f069974528b00c807ee79fc4c614910d",
+      "bytes": 13310,
+      "sha256": "b1b6520332d53a791dbb132a67de2ea86e8ac2e636256ac8c752462264639e18"
+    },
+    {
+      "file": "supabase/migrations/20260731183000_community_operational_health.sql",
+      "gitBlob": "00bd0ce94b89ffba88c1ed5479bc86bc5165f0fd",
+      "bytes": 7104,
+      "sha256": "aac22518fbe9d9b974d3f0f276f872621f2ed9e7222497da61a3155f785385e9"
+    },
+    {
+      "file": "supabase/migrations/20260731184000_amora_tone_style.sql",
+      "gitBlob": "db94148c4ec6b2c6a71411d210de522297674ed7",
+      "bytes": 7428,
+      "sha256": "97970d2259b7b8167998a061dba0b40ff93e0d979e407c9d2a7df8228dda7634"
+    },
+    {
+      "file": "supabase/migrations/20260731185000_community_api_only_write_boundary.sql",
+      "gitBlob": "b03de539805da7599eba2d963d0257ed692d6e6b",
+      "bytes": 1047,
+      "sha256": "17a3e0f43fc0ec3a5143f86e8844a83a5ad1e366c51083e7a8a10ec6c8e54956"
+    },
+    {
+      "file": "supabase/migrations/20260731190000_wedding_court_safe_mvp.sql",
+      "gitBlob": "463300dabf687b656f3830b4cc12caad6315085a",
+      "bytes": 17468,
+      "sha256": "f1a56e18861310d6b824d3e1882a6d0972351508622dd545b04ef01f2b870a12"
+    },
+    {
+      "file": "supabase/migrations/20260731191000_wedding_payment_ledger.sql",
+      "gitBlob": "a67123962c03cbe327f5a188f869169c3d2ec594",
+      "bytes": 20911,
+      "sha256": "99f2c63dbaaf604ddc58d96462453e96c7c866a431e2371db50455ab1a6db52c"
+    },
+    {
+      "file": "supabase/migrations/20260731192000_chat_feedback_account_delete_cascade.sql",
+      "gitBlob": "c958fdd10e1d01af60b127fb9a8056714d62d2fa",
+      "bytes": 4190,
+      "sha256": "006650056787fbaa49fc4fa35fe53e6d4c94cd841e3e4edaa3c732fc9c02e75f"
+    },
+    {
+      "file": "supabase/migrations/20260801090000_amora_chat_delivery_safety.sql",
+      "gitBlob": "b2d49bdf984e246f4587f8aeceab48cf70b9ad03",
+      "bytes": 12660,
+      "sha256": "d65db3bb8f89c8806683244aea5aabe9239d289de8a0dbb71df2d71cb3905a36"
+    },
+    {
+      "file": "supabase/migrations/20260801100000_amora_conversation_segments.sql",
+      "gitBlob": "f68cdfd858a2380e07f74dfd5e1f4982a094e096",
+      "bytes": 14890,
+      "sha256": "03f2b4ac8100af621912831f286f92a4ca5984b5a219500a09b85bfe3d722075"
+    },
+    {
+      "file": "supabase/migrations/20260802090000_amora_moment_care_source_revision.sql",
+      "gitBlob": "37f3414213ec8b34606e839c016b0af4b0c4627e",
+      "bytes": 2494,
+      "sha256": "92aab48ceee3cdef5eb577b8afde40adb34f439834c5db66ed5c7ff118ee719d"
+    },
+    {
+      "file": "supabase/migrations/20260802100000_amora_shared_schedule_decision_receipts.sql",
+      "gitBlob": "f8d2d4481d9982e354c7b60231bdfa1b7c454f6c",
+      "bytes": 29752,
+      "sha256": "df1d499c14474ac54a6021f983498d29ef554fafe5f56a2c0bbc81e4804a7d1e"
+    },
+    {
+      "file": "supabase/migrations/20260802110000_amora_shared_schedule_approval_policy.sql",
+      "gitBlob": "7a6181bcbf00e0fe9d2199d9ce99d4ec462c7d50",
+      "bytes": 1985,
+      "sha256": "a6a79c7c4bed55be85c02595ac4764492ce8d57665b3a1e5744d18bd0561dca6"
+    },
+    {
+      "file": "supabase/migrations/20260802120000_amora_conversation_segment_dual_write.sql",
+      "gitBlob": "9039cdb265a7193518d2a20af900544f63b644ad",
+      "bytes": 21676,
+      "sha256": "12cd3386ca80087fc8ff9dfa73e92f1cc9da2e80d05b49eb5cbb47ad1255b6bc"
+    },
+    {
+      "file": "supabase/migrations/20260802130000_amora_in_app_today_one.sql",
+      "gitBlob": "510a33af635e8a4d470d5fdc568902d9fd2634f5",
+      "bytes": 31831,
+      "sha256": "56cf25d5b8441c1d282e0ca8721e60c8ca3c05ca0a41d641720e33038b50be2a"
+    },
+    {
+      "file": "supabase/migrations/20260802140000_amora_manual_schedule_fairness.sql",
+      "gitBlob": "6730cb1496ef894db7e039bafc93733c7cff16bb",
+      "bytes": 113085,
+      "sha256": "2e003f2772551d3d22b7d8b24344f815062152cd105a42c8f0606f2d9b226198"
+    },
+    {
+      "file": "supabase/migrations/20260802150000_amora_today_one_budget_guardrails.sql",
+      "gitBlob": "9c80968b58259a509c471761b75129b58855ea9d",
+      "bytes": 6177,
+      "sha256": "30b50a0ab2994758fbc5e025f213ee7b7757b620f43f43b3636f0d2da2b5ab91"
+    },
+    {
+      "file": "supabase/migrations/20260802160000_booking_quote_spend_soft_cancel.sql",
+      "gitBlob": "bd38a3d3ccf7c7be84d30bb1aa25bd3cdf633195",
+      "bytes": 101935,
+      "sha256": "e2c3b5b95d5993ba217feb5ec743357dbdd0ddd8580bddfeae8fc98b200a5afb"
+    },
+    {
+      "file": "supabase/migrations/20260802170000_amora_shared_action_roster_binding.sql",
+      "gitBlob": "a11eea0bcb8888052e6eab549f43d48420d4e541",
+      "bytes": 23486,
+      "sha256": "b1e212984f4ecb99095042b38ca877b0b593d0c490986e03edb24280d0804a80"
+    },
+    {
+      "file": "supabase/migrations/20260802180000_community_cohort_assignment_atomic.sql",
+      "gitBlob": "9907ffe8ec4c0d5a70c18a51c470f5f73528e796",
+      "bytes": 4835,
+      "sha256": "ba6bd8223d857ea0baa4b8647c95953b892071bfacbbb501c0e131784ef01689"
+    },
+    {
+      "file": "supabase/migrations/20260802190000_community_idempotent_writes.sql",
+      "gitBlob": "dcd50f26992f0f19d3365a832a25aeaa036802dd",
+      "bytes": 6982,
+      "sha256": "741d967d43a369d770f83b121eb501ffe623e0a9b861c7228e8be684ca5dc9b3"
+    },
+    {
+      "file": "supabase/migrations/20260802200000_journey_budget_progress_integrity.sql",
+      "gitBlob": "d030aac533c2f8690838a2ac4aca69ba12fc3952",
+      "bytes": 16331,
+      "sha256": "62e5655627fbc9dc4f7e41347404311a3c9091f7741f2007fb38862fd7fef665"
+    },
+    {
+      "file": "supabase/migrations/20260802210000_amora_conversation_segment_roster_repair.sql",
+      "gitBlob": "c447ed90ee8553e6dd3289f7ff3230ad62279f16",
+      "bytes": 12074,
+      "sha256": "433248852f800553c94dec00ed9616b3854acd5cbc5e8cebd3bec465a82e4cf2"
+    },
+    {
+      "file": "supabase/migrations/20260802220000_amora_memory_enqueue_repair.sql",
+      "gitBlob": "b349c85e46b107d24067bcd5307c964f817c53eb",
+      "bytes": 18683,
+      "sha256": "4dff9c7545446dc6b459089c2a52b28c2c57f2834fb658af1ec541012b0e7db7"
+    },
+    {
+      "file": "supabase/migrations/20260802230000_amora_atomic_privacy_epoch.sql",
+      "gitBlob": "1d2543f20964b07f7dfb303b9fae52ba812381f9",
+      "bytes": 34363,
+      "sha256": "79e824442deb0f20582d1659e05a05c23ec564c249a3bdab0b3f1e8a9a1fb490"
+    },
+    {
+      "file": "supabase/migrations/20260802240000_amora_memory_job_recovery.sql",
+      "gitBlob": "a8e756a4431666d9779cb5eb210324b2120eb801",
+      "bytes": 28632,
+      "sha256": "f673b63550bbce8561ccd23fc7e5ec161627b5dc0ddbed8fed49a049adc7f0d4"
+    },
+    {
+      "file": "supabase/migrations/20260804103000_community_report_resolution_atomic.sql",
+      "gitBlob": "b1d9c86c1c127bbd9a46b5a1f2cc72fc61292449",
+      "bytes": 75923,
+      "sha256": "23b938edae10e03784cc13b80c61b10461f61b931bbd6d3921ed1889b0e31c1c"
+    },
+    {
+      "file": "supabase/migrations/20260804120000_community_profile_guestbook_p0_hardening.sql",
+      "gitBlob": "17de16b0142819ed28870e74a0749de913cbbf4c",
+      "bytes": 8795,
+      "sha256": "b837cc2ef7d3ce2c10892de61b0882666e919a2d452d7c1e4039400477703658"
+    },
+    {
+      "file": "supabase/migrations/20260804130000_community_runtime_control.sql",
+      "gitBlob": "6bb1f64337b529af864548953e335dc88273ae88",
+      "bytes": 12937,
+      "sha256": "0a7ccd82712051d5b1c1cab13090b071be107ecb8eee25d9f1d090b491337eb8"
+    },
+    {
+      "file": "supabase/migrations/20260804140000_community_responder_supply_foundation.sql",
+      "gitBlob": "d866b7b29c600480162a4ae6947f60f9652f99d8",
+      "bytes": 95958,
+      "sha256": "82ae239c80cd19ab246280d5fd2005eb5815631e833c4816b855f1a5abc136d1"
+    },
+    {
+      "file": "supabase/migrations/20260804150000_community_comment_service_write_boundary.sql",
+      "gitBlob": "bfa9008b3f04c30f8dc06d8460d933da50af6536",
+      "bytes": 23088,
+      "sha256": "e06b8ee5c9e74c2f5c9ad2881cd0939fcab66f4fd02cbaaefdfa6effd50aa5a1"
+    },
+    {
+      "file": "supabase/migrations/20260804160000_community_poll_set_intent.sql",
+      "gitBlob": "9495715367c437150236707034aa55e979d07b19",
+      "bytes": 35600,
+      "sha256": "9cc8af04fa086ef34d8650bd50f1c6612338de094594b5b0f3628bef32771a07"
+    },
+    {
+      "file": "supabase/migrations/20260804170000_notification_session_ownership.sql",
+      "gitBlob": "059ed5df4165132ebc0a8845d74291b4026f3a70",
+      "bytes": 22206,
+      "sha256": "9dd0955b7144cee0d8174e29731027088accff9ea70e0406de335cb26310b302"
+    },
+    {
+      "file": "supabase/migrations/20260804180000_community_viewer_controls.sql",
+      "gitBlob": "bf940494cef31a9684f112b9ebed5753a3eb069a",
+      "bytes": 52620,
+      "sha256": "bbf8c4208ce48280d35b55087696072d1435678eee728f48a0e70c16ebb89b97"
+    },
+    {
+      "file": "supabase/migrations/20260804185000_notification_delivery_outbox.sql",
+      "gitBlob": "8069107c1682285a0435518ef0cae8e879c0d6e3",
+      "bytes": 50915,
+      "sha256": "d58f91f3ccc4fc9965e60d8de876187a95ad797aaf5773374b8a175d37abe1a2"
+    },
+    {
+      "file": "supabase/migrations/20260804190000_community_decision_thread_vertical.sql",
+      "gitBlob": "80319fe176814b0282d9147e760ed689f42ac13a",
+      "bytes": 113854,
+      "sha256": "7f7e9288a6333b7358af6b02f189c9f1d6df885e34962764f3b6a2b387351a55"
+    },
+    {
+      "file": "supabase/migrations/20260804193000_community_decision_feed_read.sql",
+      "gitBlob": "479d67960065049082d70765c61049ce51d4f6fe",
+      "bytes": 27695,
+      "sha256": "5965c8118b0e5030339d9ad10dbb36d34e5b87f98f4bb833d5a23c6dd37e5400"
+    },
+    {
+      "file": "supabase/migrations/20260804194000_community_decision_outcome_review.sql",
+      "gitBlob": "e6b09f42be43c4d0eaa4c56a938e8d8a73d2aed4",
+      "bytes": 30099,
+      "sha256": "60867720f77ed6d763fa5015bd414b2778a3e5be416f0927a3d115fab07def83"
+    },
+    {
+      "file": "supabase/migrations/20260804195000_community_decision_public_outcome_read.sql",
+      "gitBlob": "f265e879c0e70d88ff73aae9508c7dd790efb57b",
+      "bytes": 6983,
+      "sha256": "8367f384e95da3ba758759cd3f5ee5443c633dcdfcf33c1180e931a0e2f2c007"
+    },
+    {
+      "file": "supabase/migrations/20260804200000_community_post_service_write_boundary.sql",
+      "gitBlob": "082ddcadc15af19d466dfab05877620e4e341824",
+      "bytes": 23969,
+      "sha256": "3671f4d1878889b05eaad419354b35f311d2ac27757ed557a5b0580e31d57afc"
+    },
+    {
+      "file": "supabase/migrations/20260805120000_amora_log_wedding_event_couple_approval.sql",
+      "gitBlob": "a5a19665f1b5ad72dfd9fa4fde600ee9860dd54d",
+      "bytes": 6061,
+      "sha256": "74f7e8109eafb3a1983f652436407b4d801b06ab21a3903d8e2ebdf5f3553f51"
+    },
+    {
+      "file": "supabase/migrations/20260806090000_amora_preparation_status.sql",
+      "gitBlob": "c3fb00ff170e2371b5a4a19bb54da442e8d784c2",
+      "bytes": 3949,
+      "sha256": "1947a237019126e7e262e75b03b9129b70e559e6733e948616923f3c6496339f"
+    },
+    {
+      "file": "supabase/migrations/20260807090000_amora_mediation_send_gate.sql",
+      "gitBlob": "9c035ffed52fe1af0ac21b03594f3662cb40ac66",
+      "bytes": 9158,
+      "sha256": "27b4292cff613b727727bacc16e2600e8bb7df588cc367d87ecac77725506a82"
+    },
+    {
+      "file": "supabase/migrations/20260812030000_couple_invite_replay_hardening.sql",
+      "gitBlob": "f85cb9ae71536941ca2206ac8f307accb9b9dca3",
+      "bytes": 28663,
+      "sha256": "f80357e7d9ab2edfd0492c3505071d6361680a17d4bfcc6f3d20c3a1d9c0a11a"
+    },
+    {
+      "file": "supabase/migrations/20260816180000_amora_neutral_preparation_space.sql",
+      "gitBlob": "12a085a235d8d634fdba62709a701acbfa2d7d35",
+      "bytes": 13747,
+      "sha256": "ce00fb20715ce45d1b7edccb8ea28c1af35e2dee9c3692552696f892639c2867"
+    },
+    {
+      "file": "supabase/migrations/20260818110000_restore_couple_invite_nullable_contract.sql",
+      "gitBlob": "81921f2d732394a8fdcd48f925407f348451ca1c",
+      "bytes": 2586,
+      "sha256": "b4291e779566b74ee986e634bace40b986d5b03598b53691fb99538d50a94324"
+    },
+    {
+      "file": "supabase/migrations/20260819090000_first_run_tutorial_state.sql",
+      "gitBlob": "9f62d43fb2461e76ae1a94dd2968f4a6872cabad",
+      "bytes": 4666,
+      "sha256": "f4675c7f9d2bd6b898f76893487d1ec852a9056e51b83eb7d35573b3a5c267b2"
+    },
+    {
+      "file": "supabase/migrations/20260820120000_neutral_join_reports_legacy_space.sql",
+      "gitBlob": "59fa0352d7d01a11747a6f0f8469baa2cc8bf23d",
+      "bytes": 6340,
+      "sha256": "8f9b23e179194eb63d3934996e10a0f383a4c031aec9ff950033e59f1d4f6f80"
+    },
+    {
+      "file": "supabase/migrations/20260820130000_legacy_join_blocks_neutral_space.sql",
+      "gitBlob": "3b83ede01ced5656bddb7ee1a18ca4bc6182687e",
+      "bytes": 3576,
+      "sha256": "6e0668148b9773f27b00b30b59b36d221ed876056b23f636bb9608ab8db6e3c0"
+    },
+    {
+      "file": "supabase/migrations/20260820140000_neutral_schedule_assignee_label.sql",
+      "gitBlob": "be7e134aa48242a1850161cf969c26c04e06061c",
+      "bytes": 3168,
+      "sha256": "457d14d4f641a1f6896143410dd2812848b07b3737a8b78eb5c36b5f8ca97d23"
+    },
+    {
+      "file": "supabase/migrations/20260820150000_invite_expiry_is_not_a_typo.sql",
+      "gitBlob": "31836f507b0cce6e75f038df974bfe0a32ea69cf",
+      "bytes": 22640,
+      "sha256": "e803d23f36a2d0918ed30fc8f75b6f1e54873291000f66ac9731cca190eaa4b5"
+    },
+    {
+      "file": "supabase/migrations/20260821120000_events_append_only_allows_fk_detach.sql",
+      "gitBlob": "2a61316e6e39b92b79c9e1982bbe4dcc679da2a7",
+      "bytes": 3121,
+      "sha256": "8ec5581ebfa914cafc8ff7f8abc79d8c8e83f955727343e2a3fa40a2fbfa1b44"
+    },
+    {
+      "file": "supabase/migrations/20260823120000_couple_approval_becomes_notification.sql",
+      "gitBlob": "4a14711c7bb1b3ee0ede7466bdbf0af019fd0c58",
+      "bytes": 61258,
+      "sha256": "b8e461c9d5a5e3a383bb0c244c0da9a648fe9b13ccdb678f0cc48f5574f32a51"
+    },
+    {
+      "file": "supabase/migrations/20260824120000_amora_schedule_cancel_can_actually_apply.sql",
+      "gitBlob": "4285219b48e7a964b95cb8ee79cae5c38a2756a4",
+      "bytes": 15852,
+      "sha256": "97a22b7008a62c536fa42df13489a9e832103cd0bbeb9fca726112b7522b0cf1"
+    },
+    {
+      "file": "supabase/migrations/20260824130000_mediation_tells_the_partner.sql",
+      "gitBlob": "3d97e52961410d1ed1af4b0fb35bff49c359fb33",
+      "bytes": 10208,
+      "sha256": "cb48ee05096e630716994091bff745de0342f2f82fc7cb2f57a3176f58f21c2b"
+    },
+    {
+      "file": "supabase/migrations/20260824140000_amora_can_change_custom_budget_categories.sql",
+      "gitBlob": "8c3c224bd6d30ef7b28326201c87caa243cb6c2c",
+      "bytes": 64272,
+      "sha256": "3fa576cd358acf453d9b60223a928bccf591ae4579e62ef54b00eef42ba5dfac"
+    },
+    {
+      "file": "supabase/migrations/20260824150000_amora_custom_category_label_match.sql",
+      "gitBlob": "054759e0ba68378d89330cf857d2aaf888ab7542",
+      "bytes": 65359,
+      "sha256": "99130586a5683f25b9016c0dcfc9b025d21994507ac2e30da30f6d5fd20aba7f"
+    },
+    {
+      "file": "supabase/migrations/20260824160000_first_budget_entry_is_not_a_mixed_change.sql",
+      "gitBlob": "50588abbdfdd4032b674caf0ebd41e2a83920fdc",
+      "bytes": 26717,
+      "sha256": "c59837668362a3ebb23fdf7e06d7c4764336c25c1e62c911e106f5600ad4cde3"
+    },
+    {
+      "file": "supabase/migrations/20260826000000_harden_cohort_timeline_and_contract_writes.sql",
+      "gitBlob": "00352a57567f614f6e34fe812d9f4a17889765d2",
+      "bytes": 3252,
+      "sha256": "20b1f7a83fe8dc9221f83784189c17c67736c643c9f65fe614ed1108d99f1e4f"
+    },
+    {
+      "file": "supabase/migrations/20260826120000_anon_sees_only_public_authors.sql",
+      "gitBlob": "f48b5ba5278a2e17405228169018cfb1a03a4e8d",
+      "bytes": 5765,
+      "sha256": "3020d6af41ea453af33a75b5716a221122b3b8130d442738458c19ada427bcb9"
+    },
+    {
+      "file": "supabase/migrations/20260827090000_move_card_can_name_what_it_moves.sql",
+      "gitBlob": "6703f2dcf0022b412ef5433a75e7fe61e620ee2a",
+      "bytes": 17890,
+      "sha256": "574a238ecd0b26ba0c736ca78b9dc2961e6fa3cc1fc871dbadafc1809e507acd"
+    },
+    {
+      "file": "supabase/migrations/20260902120000_leaving_does_not_erase_the_partner_memory.sql",
+      "gitBlob": "eb597b3568c9086c0cb997e4f169e8d82f425cf3",
+      "bytes": 6864,
+      "sha256": "a769396d614c4fc1bb31e97c289fac7afea0dfa259f18bd64293a75cc9f0223e"
+    },
+    {
+      "file": "supabase/migrations/20260905153207_community_hot_rank_before_pagination.sql",
+      "gitBlob": "b1fb0daf0f815e7afe717e56aaecb7823ad6068d",
+      "bytes": 917,
+      "sha256": "893651a7da04038b9807004518960b248e1f5b5a27886bbd091700dea5b53cde"
+    },
+    {
+      "file": "supabase/migrations/20260905223222_amora_atomic_chat_view_reset.sql",
+      "gitBlob": "3522ef044b8755d35c8b719da8fb086b713e5cb3",
+      "bytes": 7255,
+      "sha256": "8c29609fd1fac0cad71d9eaaab41a254be2ad00f718b0221d2703b6799130bed"
+    },
+    {
+      "file": "supabase/migrations/20260906074227_amora_manual_actions_actor_boundary.sql",
+      "gitBlob": "43e4ceb08b982cc93dad3f005e05b71567a5fb68",
+      "bytes": 9899,
+      "sha256": "57da05968e382fd5116f2e7ae53df05503ad49bf836112a975bfbca331154865"
+    },
+    {
+      "file": "supabase/migrations/20260906090807_amora_saved_notes_canonical_source_boundary.sql",
+      "gitBlob": "fc16599c11c2ac170a4ffb1d95891e4f4c78e183",
+      "bytes": 6048,
+      "sha256": "c8de2b0882796194287d0dc66ac2852bab5193c85da466eb1138bc5ad7a948d9"
+    },
+    {
+      "file": "supabase/migrations/20260906130734_amora_budget_plan_preserves_existing_allocations.sql",
+      "gitBlob": "4a79d65addac4185fea528358451b4801f04ddc9",
+      "bytes": 68915,
+      "sha256": "13f5cdb4c5b5cc30d69cb3b0d55c9f4adb387c61f17cff7e95cdd502b6661d3c"
+    },
+    {
+      "file": "supabase/migrations/20260906145336_amora_saved_notes_owner_delete.sql",
+      "gitBlob": "a1e120537bbe8b01db02410393986ec27fc6a4de",
+      "bytes": 450,
+      "sha256": "e1ae769d3752616f0018a57b3d853e95a53a63ea6199b73d60f73dba51816914"
+    },
+    {
+      "file": "supabase/migrations/20260906151956_amora_personal_actions_owner_boundary.sql",
+      "gitBlob": "d9511b20baf188ea8e08f9ac0d540c792bcdc4d2",
+      "bytes": 8871,
+      "sha256": "e75ff09a75760b52cce4b673af01e67a4b74eb47128c853449c934a95d6791b5"
+    },
+    {
+      "file": "supabase/migrations/20260906223557_amora_mediation_response_choices.sql",
+      "gitBlob": "432dfb1db3e879e5a2ac8ede7163557f3aabf339",
+      "bytes": 16265,
+      "sha256": "396ee13035e91c71c21c5bdf3613405c4bcb476a349928f3169d48ae2f85914a"
+    },
+    {
+      "file": "supabase/migrations/20260907085111_amora_budget_plan_named_allocations.sql",
+      "gitBlob": "24e1618e91ed550ffb0b7b4add849ed6d8ab601b",
+      "bytes": 73167,
+      "sha256": "5be83d180d905c6c0883c81ef0e0379b7b70a70c56ddea86d30b04548a950ae9"
+    },
+    {
+      "file": "supabase/migrations/20260910160514_amora_shared_budget_decision_receipts.sql",
+      "gitBlob": "463ef57fe08a41b44596fd740efedc01f3ddace1",
+      "bytes": 23608,
+      "sha256": "2b32149527dcd5e1edda3fa47cf38dad48606222d60493ca4962df1ce229596a"
+    },
+    {
+      "file": "supabase/migrations/20260911080244_amora_budget_plan_explicit_allocations.sql",
+      "gitBlob": "f397f69e84f7730f44f3ad9352f28c797674b80f",
+      "bytes": 70350,
+      "sha256": "2d26acb1d7b4ef26e4ec7e1c04de3e4e0e4180e57521e49128059ab3c1ec9372"
+    },
+    {
+      "file": "supabase/migrations/20260913043211_chat_feedback_automatic_signal_nullable.sql",
+      "gitBlob": "8e3b8530a8b0b146752cd81cc4bf99fa258e92d2",
+      "bytes": 3569,
+      "sha256": "084e2b1477517e9608833a4eb3a62a39c550a20a2f7e42a294b0728df26dae8e"
+    },
+    {
+      "file": "supabase/migrations/20260913075045_profile_wedding_roles.sql",
+      "gitBlob": "9d8f184384f225c9285516231f433606e0ebc65b",
+      "bytes": 3702,
+      "sha256": "32dc05c1241d9f7bd0e80286b75469400c62c10cdae92f94e7c0c2c478b52412"
+    },
+    {
+      "file": "supabase/migrations/20260913082314_private_profile_avatars_delivery.sql",
+      "gitBlob": "ff6b3c1c6195dc4edcb706ba466c5edc1e818b99",
+      "bytes": 13260,
+      "sha256": "e04f2e5a1127693490d33731ef5efbbb038db19ec373c43cd4788a2b3fdf4075"
+    },
+    {
+      "file": "supabase/migrations/20260913103407_account_deletion_customer_data_boundary.sql",
+      "gitBlob": "d3d20ea0b2f6227213dcf44c88d63e053db58f54",
+      "bytes": 28024,
+      "sha256": "f18bac2cb2361390364b85fb8e74e4f503b656dc0b65bc8970b5ae5a3e42f1c8"
+    },
+    {
+      "file": "supabase/migrations/20260915101500_amora_atomic_not_applicable_status.sql",
+      "gitBlob": "e22a8bd043a6fa107150390d002b7972a182f563",
+      "bytes": 71196,
+      "sha256": "1e7fe89a73e1093caee6f5908dbde0ba6ed2d0be03c140a4a9173a58908a7f37"
+    },
+    {
+      "file": "supabase/migrations/20260915130000_wedding_code_research_contributions.sql",
+      "gitBlob": "df0b5271fd6add78dbb942ada054d67b16ae9440",
+      "bytes": 9883,
+      "sha256": "76f58f948a1a7c99352b32c556dba2de3886e7ef6b357af574ae0522a174253e"
+    },
+    {
+      "file": "supabase/migrations/20260917090000_wedding_code_research_scene_v09.sql",
+      "gitBlob": "f5bfd4ac29bbcda13279c05db90fec70e7d13ca2",
+      "bytes": 5009,
+      "sha256": "a6dcf68a47c549deb8b3473f61da2e86eee58986dea4381bcd6f6bd96e91016d"
+    },
+    {
+      "file": "supabase/migrations/20260918090000_wedding_code_research_scene_v10.sql",
+      "gitBlob": "d6cdac8c40cb9ec7aa26cde4d26d638d45a0ce3e",
+      "bytes": 5096,
+      "sha256": "f6a794afcd3b40735c28518065e26704795725799fbb7a78ee346510c729f633"
+    },
+    {
+      "file": "supabase/migrations/20260920120000_wedding_preparation_style.sql",
+      "gitBlob": "4273419829e098ff10d3825bf5624ed4a8ef633b",
+      "bytes": 18666,
+      "sha256": "a7beb94156758753676aac366e04477365713eaf7f28dfc0e44f41646c7b5520"
+    },
+    {
+      "file": "supabase/migrations/20260923104336_wedding_code_pair_sessions.sql",
+      "gitBlob": "295f1f661b8f5b01ce40c88f7bda83218014ada7",
+      "bytes": 11965,
+      "sha256": "48f49c545b984de2a838e6927ed0ef4cc5b44c5ee9d809b3191fed6b62824058"
+    },
+    {
+      "file": "supabase/migrations/20260923132503_wedding_code_pair_session_conflict_response.sql",
+      "gitBlob": "6767f22107010b5605a78a6957b594f014131d94",
+      "bytes": 4622,
+      "sha256": "6d1c706e29491b5a9e8b5e05bf9da2a6fbde982c9f4c8d07f03691ccbb4d973f"
+    },
+    {
+      "file": "supabase/migrations/20260928073546_account_deletion_anonymous_audit.sql",
+      "gitBlob": "ac9fb2df8b166d09b2b81b2a43245add5680f732",
+      "bytes": 3808,
+      "sha256": "217901f9ccefc85c701d29b46603138cde7137116c7fcdd73e49b5cae513d11b"
+    },
+    {
+      "file": "supabase/migrations/20261012002000_amora_action_view_v2.sql",
+      "gitBlob": "a0c1e816704e8debc3eb2f0e08d11043aea9915c",
+      "bytes": 16151,
+      "sha256": "d8dc07b1e3543bc4530ea9dd3ecd616d4108b7f8739663a4e0237168e9ddc7f3"
+    },
+    {
+      "file": "supabase/migrations/20261013003000_amora_action_writer_retirement_v1.sql",
+      "gitBlob": "3744200ad90ae5b17eadf4f65525719a6fd706ef",
+      "bytes": 46366,
+      "sha256": "38960c66ebd228844346951d001801e3b9af26f750e8a279e07c0d5910ac438c"
+    },
+    {
+      "file": "supabase/migrations/20261015070000_wedding_code36_private_pairing.sql",
+      "gitBlob": "088f1e6b311553f9f77ca41e45b1207cb69c72af",
+      "bytes": 14248,
+      "sha256": "80fdb56216ef7f5350f0eff26fe75056e5fa9b5bf227951b923b61dcbbbbf56e"
+    },
+    {
+      "file": "supabase/release-contracts/account-deletion-audit-nullability-v1.json",
+      "gitBlob": "17d63aecc7b97b0481784fbc759bf685909afed7",
+      "bytes": 1843,
+      "sha256": "ad50817b53ee069e99b8dcd5b8b5856b5c9691a32d5dd1ff15daccb5a1c4d73a"
+    },
+    {
+      "file": "supabase/release-contracts/account-deletion-customer-data-pg17-catalog-v1.json",
+      "gitBlob": "e96e32a941e30969b81b0874ed2018a512010648",
+      "bytes": 34666,
+      "sha256": "c502d4fa8d010e97689bc7f7a2d369cf68412e9ddff9c606559fee6c8588f5d0"
+    },
+    {
+      "file": "supabase/release-contracts/account-deletion-customer-data-v1.json",
+      "gitBlob": "c5a4ea73ccf0e424e34bbf6f99e37b77b23c29e6",
+      "bytes": 2954,
+      "sha256": "129032ad576124bf54b68cb09747dd37999be089daa5c3ea5fa48303d1945187"
+    },
+    {
+      "file": "supabase/release-contracts/amora-action-view-v2-pg17-catalog-v1.json",
+      "gitBlob": "3667dd447c3e0b141d1bc27105b952df363a27fe",
+      "bytes": 7169,
+      "sha256": "6eea8aa27b30487adfe4d51314e0155881233a5a991109a52f5bdb1a40a34227"
+    },
+    {
+      "file": "supabase/release-contracts/amora-action-view-v2-source241-static-v1.json",
+      "gitBlob": "1fa68d235b1a0c481e6cf1748ae296e2ced080da",
+      "bytes": 138915,
+      "sha256": "b53ee9b572d222364d6fde4876781124f710848617b6e16da18a07eeb12d81e3"
+    },
+    {
+      "file": "supabase/release-contracts/amora-action-view-v2-v1.json",
+      "gitBlob": "b125cb06c2eb9e731dd88648fb2771394dcfed2c",
+      "bytes": 2293,
+      "sha256": "1c5f50e114c969cd52a6e5a605d8a3e7b0476966182c6775a5650f196dda5ccb"
+    },
+    {
+      "file": "supabase/release-contracts/amora-budget-decision-effective-baseline-20260911.json",
+      "gitBlob": "aa7e008a89588a943039471d6c46c968d255212f",
+      "bytes": 299666,
+      "sha256": "527b8429377a9f13f16f8dfcf64f66d8fd73a3ea4c9588cc2cd498364932db4a"
+    },
+    {
+      "file": "supabase/release-contracts/amora-budget-decision-hotfix-v1.json",
+      "gitBlob": "bbd145d150d706feaf6548facf07f179eb91dba7",
+      "bytes": 43215,
+      "sha256": "a5cb2dfb93e34fb7650dd2fdb434c4c60a2c74146c68c4dfd0261942ec1e07e1"
+    },
+    {
+      "file": "supabase/release-contracts/amora-budget-decision-production-baseline-20260911.json",
+      "gitBlob": "dbbcd84187a93f5fb82bb5d744bc101893a38886",
+      "bytes": 658903,
+      "sha256": "2a60b91a06db7d01c4d5efb06c9033b5fbb2eb0e917ed0f8fa84c777a72d12c5"
+    },
+    {
+      "file": "supabase/release-contracts/amora-budget-decision-realtime-proof-20260911.json",
+      "gitBlob": "f7184abf36741165f415d08573ebed0c41fc4193",
+      "bytes": 298730,
+      "sha256": "31391f83a5adeaf4dc5b95964972dce05aab634951d4f23443919ec45526e913"
+    },
+    {
+      "file": "supabase/release-contracts/amora-budget-decision-realtime-supplement-20260911.json",
+      "gitBlob": "caaaa197e81410c0a4bca3da52b804f3a7365c5a",
+      "bytes": 2101,
+      "sha256": "a61b1080a9296f7b34aa706b6fb6f3142d6bb3e53cee8aa5fc716c8292ea0c2d"
+    },
+    {
+      "file": "supabase/release-contracts/amora-explicit-budget-hotfix-v1.json",
+      "gitBlob": "330b15ea0555c4bf904e74f7fc9849a7e2862ca4",
+      "bytes": 41255,
+      "sha256": "748f75b36797ae0d317d016f2c89ca7fe9e557f51db2e845a3c02535d6aa6474"
+    },
+    {
+      "file": "supabase/release-contracts/amora-explicit-budget-production-baseline-20260911.json",
+      "gitBlob": "996505b849571ead30479065ea6ca0d96d6178e8",
+      "bytes": 300236,
+      "sha256": "bbe5db4790ac8386d285eefcc5417ba7c912f0d53d358e246c6768f521947f65"
+    },
+    {
+      "file": "supabase/release-contracts/amora-explicit-budget-production-proof-20260911.json",
+      "gitBlob": "8427db0a9b148d8ea33767331551f9d0a7a7e1fa",
+      "bytes": 275728,
+      "sha256": "97b079e289bcd3774d71fabdec7d853291e0cd98ef79d9dbb4460e72bc6c4723"
+    },
+    {
+      "file": "supabase/release-contracts/amora-hotfix-production-baseline-20260907.json",
+      "gitBlob": "8a802c7f7911d383f322a51441c59e12ba4280c3",
+      "bytes": 293292,
+      "sha256": "5d122015d2b85679f82e3fc747dce9ef7ab5219298224bb6ae4f7d643c550595"
+    },
+    {
+      "file": "supabase/release-contracts/amora-named-budget-hotfix-v1.json",
+      "gitBlob": "3d24a98057d644698ae6d2763ad70dbad33da46c",
+      "bytes": 9123,
+      "sha256": "0bb3e6d872a0e2248f2dc9fa08c1c22c9734faa90562cbbd62f16d0af6906da9"
+    },
+    {
+      "file": "supabase/release-contracts/amora-named-budget-production-baseline-20260907.json",
+      "gitBlob": "ba46baa2158b958b069ccceff53a2e2bd3e9101f",
+      "bytes": 299226,
+      "sha256": "a277b1a7bf4c825f0ed06a3e48e785844609cee6de3773b0044720ebe60db0c0"
+    },
+    {
+      "file": "supabase/release-contracts/amora-not-applicable-status-v1.json",
+      "gitBlob": "2da59d0bc60e4d06bd3919622453a7d35c57f193",
+      "bytes": 1908,
+      "sha256": "8d77b3bbe24586d0f3b171f828093cd55b0e5ecbd6173bba00ca0baa17fc13ed"
+    },
+    {
+      "file": "supabase/release-contracts/amora-runtime-hotfix-v1.json",
+      "gitBlob": "eac2ea12a0df926413f3f9aa8bb91819ae0b651a",
+      "bytes": 4006,
+      "sha256": "01ab4685c5830caa67c7e3b2a4f50767ff9bd09576608e2e3db9140169fdfe14"
+    },
+    {
+      "file": "supabase/release-contracts/chat-feedback-nullability-v1.json",
+      "gitBlob": "f5fe6e0cc6e46ed5c7ea3279280e6c9a48b53153",
+      "bytes": 1202,
+      "sha256": "21b1c661a3accddadceb27e8076e11940962a14180ac69d4f6174111e6b0e7ab"
+    },
+    {
+      "file": "supabase/release-contracts/current-baseline-rollout-v1.json",
+      "gitBlob": "cba36248ac3c902dc1f5da2204eaa52306f03fb0",
+      "bytes": 6741,
+      "sha256": "8897d509fbee0e2ddfc06fe4dc3b3320ecb3307c1d5468aedbca59aff467b740"
+    },
+    {
+      "file": "supabase/release-contracts/current-production-baseline-20260907.json",
+      "gitBlob": "f4ac00e2d8b9145300b49368b41a3b2d55a95379",
+      "bytes": 292664,
+      "sha256": "b965f9d5e13de0f3d0ba84a96373dac95e3a2a5b8cdb581497ec3c653d1b9d28"
+    },
+    {
+      "file": "supabase/release-contracts/current-production-baseline-cli-expiry-20260907.json",
+      "gitBlob": "8fb74515a8911324b8fb786f9e4eb20495ac045e",
+      "bytes": 295007,
+      "sha256": "163d29851928a84abcffaeb77df742eeb8f98f20a6d6bddec4f76e9cc317b4d8"
+    },
+    {
+      "file": "supabase/release-contracts/legacy-fitting-acl-v1.json",
+      "gitBlob": "201f877247bb928789748312ab9e4416a65926bf",
+      "bytes": 1709,
+      "sha256": "f99120618fd1d7751cc53d81e56ea187c6d88a6727f2079605ef448add22e2ae"
+    },
+    {
+      "file": "supabase/release-contracts/preparation-style-pg17-catalog-v1.json",
+      "gitBlob": "a00690aa6dea63869e90b701c082e41a6eb0e04c",
+      "bytes": 42104,
+      "sha256": "2b37c0b9701e515d6bf274c61a1a0988b1f10dd0eacd16b86c5efbbfe64cdccc"
+    },
+    {
+      "file": "supabase/release-contracts/preparation-style-v1.json",
+      "gitBlob": "00b8810c6c142f52af27f9d3e971a4ea2a606cd9",
+      "bytes": 3087,
+      "sha256": "dd80bc6417c8344b1ef5d0b1bb3b60b0edd91bab5f5d7d44bbb231e57b88b48c"
+    },
+    {
+      "file": "supabase/release-contracts/profile-avatar-pg17-catalog-v1.json",
+      "gitBlob": "233f451ac7ac7d923cc2070f01eeaf41c7382a8a",
+      "bytes": 10926,
+      "sha256": "097e02759aa03896635f74f950bbca8e5d42e939bbb0896f5a6376184cf5e442"
+    },
+    {
+      "file": "supabase/release-contracts/profile-avatar-v1.json",
+      "gitBlob": "394ac5782137f44e6b854a5817bba94fe72930ce",
+      "bytes": 2852,
+      "sha256": "a8602464739c85dabce2f2a01ec667f6525709db11caa1a2d5f4cf2c790e7a1e"
+    },
+    {
+      "file": "supabase/release-contracts/profile-wedding-roles-v1.json",
+      "gitBlob": "b1240db96793da14157d0f7124dcd89eb2a62c3a",
+      "bytes": 1402,
+      "sha256": "5a10fb62c847c64776d3e64214b4038c042427b325649735bc9963077a4b3b71"
+    },
+    {
+      "file": "supabase/release-contracts/vendor-disclosure-hosted-staging-v2-20260718.json",
+      "gitBlob": "d674af23398660dfe9dc24b847fe822e922aef49",
+      "bytes": 782,
+      "sha256": "73eaee88adaee1690cb067a8395b387aede79de6a56080aa660b6a16d8fdca6c"
+    },
+    {
+      "file": "supabase/release-contracts/wedding-code-pair-session-conflict-pg17-catalog-v1.json",
+      "gitBlob": "b4635fe07ac4cad3afbc2a2c672b3f321c07ee55",
+      "bytes": 25648,
+      "sha256": "5ba616de6cf4a52734187484ba41d69b9db0857a576ca2ec02394605bb0a9198"
+    },
+    {
+      "file": "supabase/release-contracts/wedding-code-pair-session-conflict-v1.json",
+      "gitBlob": "4a1994f2d34201ae253347eb938c945396f9b47b",
+      "bytes": 2478,
+      "sha256": "ba4a96b3dfc300fd9b4a7c5d12489af0ecb1d4d37f936b83286e7741633f5031"
+    },
+    {
+      "file": "supabase/release-contracts/wedding-code-pair-session-pg17-catalog-v1.json",
+      "gitBlob": "1c3856f20028eea7b9684a683e1a4ed057ea2fe1",
+      "bytes": 25648,
+      "sha256": "abecb56d7f511418366d082ece67c62b75bc6434e2d70fd0332dbb2c999b543a"
+    },
+    {
+      "file": "supabase/release-contracts/wedding-code-pair-session-v1.json",
+      "gitBlob": "cd857ee6743f95e90915b07e6a0cdb03a6616baf",
+      "bytes": 2880,
+      "sha256": "f479973b0dbc583981159a687c9d207d25bd21273cd01c41e03672299f73c5e7"
+    },
+    {
+      "file": "supabase/release-contracts/wedding-code-research-contributions-v1.json",
+      "gitBlob": "306c30050b4f3ead82ee43483cd582324e681aab",
+      "bytes": 2049,
+      "sha256": "7230b2d9b698c1b9cff230dcf4fe88213273f3802fdf88698937cde16b8110ac"
+    },
+    {
+      "file": "supabase/release-contracts/wedding-code-research-scene-v09-v1.json",
+      "gitBlob": "ac220d91c2e964c5d09815f7fb4567d846e5b2c5",
+      "bytes": 1777,
+      "sha256": "46017ac2e9a4e404a6c171c79793dd57547a5649124ed5163dd99b8abe3a04c6"
+    },
+    {
+      "file": "supabase/release-contracts/wedding-code-research-scene-v10-v1.json",
+      "gitBlob": "7fe9c776e31045e720af972aeaf27eafd818c827",
+      "bytes": 2011,
+      "sha256": "5641d5030d760210d075af9e1c4e80ed462318e9debd2b1bcc47d1195f025cdf"
+    },
+    {
+      "file": "supabase/release-contracts/wedding-code36-pg-catalog-v1.json",
+      "gitBlob": "9441f9168deae066fa7dd94dd49a0482d9bc32d9",
+      "bytes": 35658,
+      "sha256": "73e4115bb304f046f05333c2f6b26bd88a0c71f0d7f5b02e6cdafb3b454fa2be"
+    },
+    {
+      "file": "supabase/release-contracts/wedding-code36-predecessor-build-inputs-v1.json",
+      "gitBlob": "4c1ec948703fde01b3cd7d80ad2355c0367b52ff",
+      "bytes": 100834,
+      "sha256": "3e4440945037b64bdfde1b83bc809b0dc08fb17bdf0f472422165e286873de0e"
+    },
+    {
+      "file": "supabase/release-contracts/wedding-code36-v1.json",
+      "gitBlob": "826e3ed325f7cafd56be2990d832f42b857f154d",
+      "bytes": 2374,
+      "sha256": "9503e13316deb905af80cc43adc8abe1600ebf93f8228cc87353e0507bfde1bd"
+    }
+  ]
+}
