@@ -1,10 +1,10 @@
 "use client";
 
 import { useState, useLayoutEffect, useMemo } from "react";
-import { motion } from "framer-motion";
 import { Eye, EyeOff } from "lucide-react";
 import Link from "next/link";
-import Logo from "@/components/ui/Logo";
+import InvitationAuthShell from "@/components/auth/InvitationAuthShell";
+import Button from "@/components/ui/Button";
 import { createClient } from "@/lib/supabase/client";
 import { isPublicDemoTrialEnabled } from "@/lib/demoTrial";
 import { captureEvent } from "@/lib/analytics";
@@ -346,39 +346,17 @@ export default function LoginPage() {
     }
   };
 
+  // 2026-11-20 파운더 "로그인 페이지도 다 바꿔야": 시작 화면과 같은 틀(사진·amora·유리 카드)에 넣는다.
+  // 로그인·가입·OAuth·봇 확인·이동은 그대로이고, 바뀐 것은 겉모양(글꼴·색·입력칸·버튼)뿐이다.
   return (
-    <main className="min-h-screen bg-[var(--hb-surface-page)] flex items-center justify-center px-5 py-10">
+    <InvitationAuthShell labelledBy="auth-title">
       <ExistingSessionReturn mode={mode} />
-      {/* 배경 장식 */}
-      <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute -top-[10%] -right-[5%] w-[500px] h-[500px] rounded-full bg-[radial-gradient(circle,#eef4f1,transparent)] blur-[100px] opacity-45" />
-        <div className="absolute -bottom-[10%] -left-[5%] w-[400px] h-[400px] rounded-full bg-[radial-gradient(circle,#f6efe5,transparent)] blur-[100px] opacity-35" />
-      </div>
-
-      <motion.div
-        initial={{ opacity: 0, y: 30 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.8 }}
-        className="relative z-10 w-full max-w-[420px]"
-      >
-        {/* 로고 */}
-        <div className="text-center mb-10">
-          <Link href="/landing">
-            <Logo size="md" />
-          </Link>
-          <p className="text-[14px] text-[var(--hb-text-body)] font-light mt-3">
-            아모라와 함께하는 결혼 준비
-          </p>
-        </div>
-
-        {/* 로그인 카드 */}
-        <div className="bg-white/80 backdrop-blur-[20px] rounded-[6px] border border-black/[0.04] p-8 shadow-[var(--shadow-raised)]">
           <>
               {/* 정상 로그인 모드 */}
-              <h1 className="font-serif-kr text-[24px] font-light text-[var(--hb-text-strong)] text-center mb-2">
+              <h1 id="auth-title" className="m-0 font-inv-serif text-[24px] font-normal leading-[1.45] text-inv-ink">
                 {mode === "login" ? "로그인" : mode === "signup" ? "회원가입" : "비밀번호 찾기"}
               </h1>
-              <p className="text-[13px] text-[var(--hb-text-body)] text-center mb-8">
+              <p className="-mt-2 text-[15px] leading-[1.7] text-inv-body">
                 {mode === "login"
                   ? "계정에 로그인하세요"
                   : mode === "signup"
@@ -389,12 +367,12 @@ export default function LoginPage() {
               </p>
 
               {cameFromStartHere && mode === "signup" ? (
-                <div role="status" className="mb-6 border-y border-[var(--hb-primary)]/14 bg-[#EEF4F1] px-4 py-4 text-left">
-                  <p className="text-[13px] font-semibold text-[var(--hb-text-strong)]">방금 본 준비를 이어갈게요.</p>
-                  <p className="mt-1 text-[12px] leading-5 text-[var(--hb-text-body)]">
+                <div role="status" className="rounded-[20px] bg-inv-stone px-4 py-4 text-left">
+                  <p className="text-[14px] font-semibold text-inv-ink">방금 본 준비를 이어갈게요.</p>
+                  <p className="mt-1 text-[13px] leading-[1.65] text-inv-body">
                     같은 브라우저에서 30분 안에 이 가입 흐름을 마치면, 임시로 남긴 첫 질문을 입력창에서 확인한 뒤 직접 보낼 수 있어요. 다른 기기나 다른 로그인 경로에서는 날짜를 다시 확인해 주세요.
                   </p>
-                  <p className="mt-2 text-[12px] leading-5 text-[var(--hb-text-body)]">
+                  <p className="mt-2 text-[13px] leading-[1.65] text-inv-body">
                     가입 후 바로 아모라와 첫 질문을 이어갈 수 있어요. 현재 무료로 제공됩니다.
                   </p>
                 </div>
@@ -404,15 +382,15 @@ export default function LoginPage() {
                   구분선만 덩그러니 남는다. 자리째 감춘다. */}
               {mode !== "forgot" && hasAnyWebOAuthProvider() ? (
                 <>
-                  <div className="mb-5 flex items-center gap-4">
-                    <div className="h-px flex-1 bg-platinum" />
-                    <span className="text-[11px] text-[var(--hb-text-body)]">
+                  <div className="flex items-center gap-3">
+                    <div className="h-px flex-1 bg-inv-divider" />
+                    <span className="text-[12px] text-inv-muted">
                       {mode === "signup" ? "빠르게 가입하기" : "빠르게 로그인하기"}
                     </span>
-                    <div className="h-px flex-1 bg-platinum" />
+                    <div className="h-px flex-1 bg-inv-divider" />
                   </div>
 
-                  <div className="mb-5 flex gap-3">
+                  <div className="flex gap-2">
                     {/* 카카오는 운영 Supabase 에서 꺼져 있다(authorize -> 400
                         "provider is not enabled"). 눌러도 동작하지 않는 버튼은
                         없는 것보다 나쁘다 — 모바일이 이미 같은 규칙을 쓴다. */}
@@ -420,7 +398,7 @@ export default function LoginPage() {
                     <button
                       onClick={() => handleOAuth("kakao")}
                       disabled={loading !== null}
-                      className="flex min-h-11 flex-1 items-center justify-center gap-2 rounded-[6px] bg-[#FEE500] py-3 text-[13px] font-medium text-[#191919] transition-all hover:-translate-y-0.5 hover:shadow-[var(--shadow-raised)]"
+                      className="flex h-12 min-h-11 flex-1 items-center justify-center gap-2 rounded-full bg-[#FEE500] text-[14px] font-medium text-[#191919] transition-opacity hover:opacity-90 disabled:opacity-50"
                     >
                       <svg width="16" height="16" viewBox="0 0 18 18" fill="none" aria-hidden="true">
                         <path d="M9 1C4.58 1 1 3.79 1 7.21c0 2.17 1.45 4.08 3.63 5.18l-.93 3.44c-.08.3.26.54.52.37l4.1-2.72c.22.02.44.03.68.03 4.42 0 8-2.79 8-6.3C17 3.79 13.42 1 9 1z" fill="#191919"/>
@@ -432,7 +410,7 @@ export default function LoginPage() {
                     <button
                       onClick={() => handleOAuth("google")}
                       disabled={loading !== null}
-                      className="flex min-h-11 flex-1 items-center justify-center gap-2 rounded-[6px] border border-black/[0.08] bg-white py-3 text-[13px] font-medium text-[var(--hb-text-strong)] transition-all hover:-translate-y-0.5 hover:shadow-[var(--shadow-raised)]"
+                      className="flex h-12 min-h-11 flex-1 items-center justify-center gap-2 rounded-full border border-inv-chip-line bg-inv-white text-[14px] font-medium text-inv-ink transition-opacity hover:opacity-90 disabled:opacity-50"
                     >
                       <svg width="16" height="16" viewBox="0 0 18 18" fill="none" aria-hidden="true">
                         <path d="M17.64 9.2c0-.64-.06-1.25-.16-1.84H9v3.48h4.84a4.14 4.14 0 01-1.8 2.72v2.26h2.92a8.78 8.78 0 002.68-6.62z" fill="#4285F4"/>
@@ -450,7 +428,7 @@ export default function LoginPage() {
                       /* Apple 로그인 버튼은 검정·흰색·흰색+테두리 세 가지만 허용된다(Sign in with
                          Apple 브랜드 규정). 2026-09-16에 팔레트의 `black` 을 따뜻한 잉크로 돌리면서
                          이 버튼까지 갈색이 될 뻔했다 — 여기만 진짜 검정으로 못 박는다. */
-                      className="flex min-h-11 flex-1 items-center justify-center gap-2 rounded-[6px] bg-[#000000] py-3 text-[13px] font-medium text-white transition-all hover:-translate-y-0.5 hover:shadow-[var(--shadow-raised)]"
+                      className="flex h-12 min-h-11 flex-1 items-center justify-center gap-2 rounded-full bg-[#000000] text-[14px] font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-50"
                     >
                       <svg width="16" height="16" viewBox="0 0 18 18" fill="none" aria-hidden="true">
                         <path d="M13.1 3.6c.7-.9 1.2-2.1 1.1-3.3-1 .1-2.3.7-3 1.6-.7.8-1.2 2-1.1 3.2 1.2.1 2.3-.6 3-1.5zM14.1 9.5c0-2.5 2-3.7 2.1-3.8-1.1-1.7-2.9-1.9-3.5-2-1.5-.2-2.9.9-3.6.9-.8 0-1.9-.8-3.2-.8C3.9 3.8 2 5.4 2 8.7c0 2 .8 4 1.7 5.4.8 1.1 1.7 2.4 2.9 2.3 1.1-.1 1.6-.7 2.9-.7s1.8.7 3 .7c1.2 0 2.1-1.1 2.8-2.3.9-1.3 1.2-2.5 1.3-2.6-.1 0-2.5-1-2.5-3.9z" fill="white"/>
@@ -460,16 +438,16 @@ export default function LoginPage() {
                     ) : null}
                   </div>
 
-                  <div className="mb-5 flex items-center gap-4">
-                    <div className="h-px flex-1 bg-platinum" />
-                    <span className="text-[11px] text-[var(--hb-text-body)]">또는 이메일로</span>
-                    <div className="h-px flex-1 bg-platinum" />
+                  <div className="flex items-center gap-3">
+                    <div className="h-px flex-1 bg-inv-divider" />
+                    <span className="text-[12px] text-inv-muted">또는 이메일로</span>
+                    <div className="h-px flex-1 bg-inv-divider" />
                   </div>
                 </>
               ) : null}
 
               {/* 이메일 폼 */}
-              <form onSubmit={handleEmailAuth} className="space-y-3 mb-4">
+              <form onSubmit={handleEmailAuth} className="flex flex-col gap-3">
                 {mode === "signup" && (
                   <div>
                     <input
@@ -479,12 +457,12 @@ export default function LoginPage() {
                       onChange={(e) => { setName(e.target.value); setError(""); }}
                       onBlur={() => setTouched((t) => ({ ...t, name: true }))}
                       placeholder="이름 *"
-                      className={`w-full px-5 py-3.5 rounded-[6px] border bg-white text-[14px] text-[var(--hb-text-strong)] outline-none transition-colors placeholder:text-[var(--hb-text-muted)] ${
-                        touched.name && !name.trim() ? "border-[#9A6B62]" : "border-black/[0.06] focus:border-[var(--hb-primary)]"
+                      className={`h-[52px] w-full rounded-[18px] border bg-inv-white px-5 text-[15px] text-inv-ink outline-none transition-colors placeholder:text-inv-muted ${
+                        touched.name && !name.trim() ? "border-inv-warn" : "border-inv-chip-line focus:border-inv-ink"
                       }`}
                     />
                     {touched.name && !name.trim() && (
-                      <p className="text-[11px] text-rose-700 mt-1 px-2">이름을 입력해주세요</p>
+                      <p className="mt-1 px-2 text-[12px] text-inv-warn">이름을 입력해주세요</p>
                     )}
                   </div>
                 )}
@@ -495,7 +473,7 @@ export default function LoginPage() {
                   onChange={(e) => { setEmail(e.target.value); setError(""); }}
                   onBlur={() => setTouched((t) => ({ ...t, email: true }))}
                   placeholder={mode === "signup" ? "이메일 *" : "이메일"}
-                  className="w-full px-5 py-3.5 rounded-[6px] border border-black/[0.06] bg-white text-[14px] text-[var(--hb-text-strong)] outline-none focus:border-[var(--hb-primary)] transition-colors placeholder:text-[var(--hb-text-muted)]"
+                  className="h-[52px] w-full rounded-[18px] border border-inv-chip-line bg-inv-white px-5 text-[15px] text-inv-ink outline-none transition-colors placeholder:text-inv-muted focus:border-inv-ink"
                 />
 
                 {/* 비밀번호 (forgot 모드에서는 숨김) */}
@@ -507,14 +485,14 @@ export default function LoginPage() {
                     onChange={(e) => { setPassword(e.target.value); setError(""); }}
                     onBlur={() => setTouched((t) => ({ ...t, password: true }))}
                     placeholder={mode === "signup" ? "비밀번호 *" : "비밀번호"}
-                    className="w-full px-5 py-3.5 pr-12 rounded-[6px] border border-black/[0.06] bg-white text-[14px] text-[var(--hb-text-strong)] outline-none focus:border-[var(--hb-primary)] transition-colors placeholder:text-[var(--hb-text-muted)]"
+                    className="h-[52px] w-full rounded-[18px] border border-inv-chip-line bg-inv-white px-5 pr-12 text-[15px] text-inv-ink outline-none transition-colors placeholder:text-inv-muted focus:border-inv-ink"
                   />
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
                     aria-label={showPassword ? "비밀번호 숨기기" : "비밀번호 표시"}
                     aria-pressed={showPassword}
-                    className="absolute right-4 top-1/2 -translate-y-1/2 text-[var(--hb-text-muted)] hover:text-[var(--hb-text-strong)] transition-colors"
+                    className="absolute right-4 top-1/2 -translate-y-1/2 text-inv-muted transition-colors hover:text-inv-ink"
                   >
                     {showPassword ? <EyeOff aria-hidden="true" className="size-[18px]" /> : <Eye aria-hidden="true" className="size-[18px]" />}
                   </button>
@@ -525,7 +503,7 @@ export default function LoginPage() {
                   <div className="px-2 space-y-1.5">
                     <div className="flex gap-1.5">
                       {[passwordChecks.minLength, passwordChecks.hasLowercase, passwordChecks.hasUppercase, passwordChecks.hasNumber, passwordChecks.hasSpecial].map((ok, i) => (
-                        <div key={i} className={`flex-1 h-1 rounded-full transition-colors ${ok ? "bg-[var(--hb-primary)]" : "bg-[#e5d8ca]"}`} />
+                        <div key={i} className={`h-1 flex-1 rounded-full transition-colors ${ok ? "bg-inv-ink" : "bg-inv-chip-line"}`} />
                       ))}
                     </div>
                     <div className="grid grid-cols-2 gap-x-4 gap-y-0.5">
@@ -536,7 +514,7 @@ export default function LoginPage() {
                         { label: "숫자 포함", ok: passwordChecks.hasNumber },
                         { label: "특수문자 포함", ok: passwordChecks.hasSpecial },
                       ].map((item) => (
-                        <p key={item.label} className={`text-[11px] flex items-center gap-1 ${item.ok ? "text-[var(--hb-text-strong)]" : "text-[var(--hb-text-muted)]"}`}>
+                        <p key={item.label} className={`flex items-center gap-1 text-[12px] ${item.ok ? "text-inv-ink" : "text-inv-muted"}`}>
                           {item.ok ? (
                             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
                           ) : (
@@ -560,10 +538,10 @@ export default function LoginPage() {
                         onChange={(e) => { setPasswordConfirm(e.target.value); setError(""); }}
                         onBlur={() => setTouched((t) => ({ ...t, passwordConfirm: true }))}
                         placeholder="비밀번호 확인 *"
-                        className={`w-full px-5 py-3.5 pr-12 rounded-[6px] border bg-white text-[14px] text-[var(--hb-text-strong)] outline-none transition-colors placeholder:text-[var(--hb-text-muted)] ${
+                        className={`h-[52px] w-full rounded-[18px] border bg-inv-white px-5 pr-12 text-[15px] text-inv-ink outline-none transition-colors placeholder:text-inv-muted ${
                           touched.passwordConfirm && passwordConfirm && password !== passwordConfirm
-                            ? "border-[#9A6B62]"
-                            : "border-black/[0.06] focus:border-[var(--hb-primary)]"
+                            ? "border-inv-warn"
+                            : "border-inv-chip-line focus:border-inv-ink"
                         }`}
                       />
                       <button
@@ -571,17 +549,17 @@ export default function LoginPage() {
                         onClick={() => setShowPasswordConfirm(!showPasswordConfirm)}
                         aria-label={showPasswordConfirm ? "비밀번호 확인 숨기기" : "비밀번호 확인 표시"}
                         aria-pressed={showPasswordConfirm}
-                        className="absolute right-4 top-1/2 -translate-y-1/2 text-[var(--hb-text-muted)] hover:text-[var(--hb-text-strong)] transition-colors"
+                        className="absolute right-4 top-1/2 -translate-y-1/2 text-inv-muted transition-colors hover:text-inv-ink"
                       >
                         {showPasswordConfirm ? <EyeOff aria-hidden="true" className="size-[18px]" /> : <Eye aria-hidden="true" className="size-[18px]" />}
                       </button>
                     </div>
                     <div className="min-h-6 flow-root">
                       {touched.passwordConfirm && passwordConfirm && password !== passwordConfirm && (
-                        <p className="text-[11px] text-rose-700 mt-1 px-2">비밀번호가 일치하지 않습니다</p>
+                        <p className="mt-1 px-2 text-[12px] text-inv-warn">비밀번호가 일치하지 않습니다</p>
                       )}
                       {touched.passwordConfirm && passwordConfirm && password === passwordConfirm && passwordConfirm.length > 0 && (
-                        <p className="text-[11px] text-[var(--hb-text-strong)] mt-1 px-2 flex items-center gap-1">
+                        <p className="mt-1 flex items-center gap-1 px-2 text-[12px] text-inv-ink">
                           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
                           비밀번호 일치
                         </p>
@@ -610,22 +588,26 @@ export default function LoginPage() {
                 )}
 
                 {error && (
-                  <p className="text-[12px] text-rose-700 px-1">{error}</p>
+                  <p className="px-1 text-[13px] leading-[1.6] text-inv-warn">{error}</p>
                 )}
                 {success && (
-                  <div className="bg-[var(--hb-primary)]/5 border border-[var(--hb-primary)]/20 rounded-[6px] px-4 py-3">
-                    <p className="text-[13px] text-[var(--hb-text-strong)] font-medium flex items-center gap-2">
+                  <div className="rounded-[20px] bg-inv-stone px-4 py-3">
+                    <p className="flex items-center gap-2 text-[13px] font-medium text-inv-ink">
                       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
                       {success}
                     </p>
-                    <p className="text-[11px] text-[var(--hb-text-strong)]/70 mt-1">스팸 메일함도 확인해주세요</p>
+                    <p className="mt-1 text-[12px] text-inv-body">스팸 메일함도 확인해주세요</p>
                   </div>
                 )}
 
-                <button
+                <Button
                   type="submit"
+                  variant="ink"
+                  size="pill-56"
+                  weight="bold"
+                  fullWidth
+                  className="mt-2.5 disabled:cursor-not-allowed disabled:opacity-40"
                   disabled={loading !== null || (mode === "signup" && (!isPasswordValid(passwordChecks) || password !== passwordConfirm || !name.trim() || !consentComplete || (TURNSTILE_ENABLED && !turnstileToken))) || (mode === "forgot" && (!email || (TURNSTILE_ENABLED && !turnstileToken)))}
-                  className="w-full py-3.5 rounded-[6px] text-[14px] font-medium transition-all hover:-translate-y-0.5 bg-gradient-to-br from-[var(--hb-action)] to-[var(--hb-action-hover)] text-white shadow-[var(--shadow-raised)] hover:shadow-[var(--shadow-raised)] disabled:opacity-40 disabled:hover:translate-y-0 disabled:cursor-not-allowed"
                 >
                   {loading === "email"
                     ? "처리 중..."
@@ -634,18 +616,18 @@ export default function LoginPage() {
                       : mode === "signup"
                         ? "회원가입"
                         : "비밀번호 재설정 링크 보내기"}
-                </button>
+                </Button>
               </form>
 
               {/* 모드 전환 */}
-              <div className="text-[13px] text-[var(--hb-text-body)] text-center mb-6 space-y-1.5">
+              <div className="flex flex-col items-center gap-1.5 text-center text-[14px] text-inv-body">
                 {mode === "login" && (
                   <>
                     <p>
                       아직 계정이 없으신가요?{" "}
                       <button
                         onClick={() => { setMode("signup"); setError(""); setSuccess(""); setPassword(""); setPasswordConfirm(""); setTurnstileToken(""); setTouched({ name: false, email: false, password: false, passwordConfirm: false }); }}
-                        className="text-[var(--hb-text-strong)] font-medium hover:underline"
+                        className="font-medium text-inv-ink underline-offset-4 hover:underline"
                       >
                         회원가입
                       </button>
@@ -653,7 +635,7 @@ export default function LoginPage() {
                     <p>
                       <button
                         onClick={() => { setMode("forgot"); setError(""); setSuccess(""); setPassword(""); setPasswordConfirm(""); setTurnstileToken(""); }}
-                        className="text-[var(--hb-text-body)] hover:text-[var(--hb-text-strong)] hover:underline transition-colors"
+                        className="text-inv-body transition-colors hover:text-inv-ink hover:underline"
                       >
                         비밀번호를 잊으셨나요?
                       </button>
@@ -665,7 +647,7 @@ export default function LoginPage() {
                     이미 계정이 있으신가요?{" "}
                     <button
                       onClick={() => { setMode("login"); setError(""); setSuccess(""); setPassword(""); setPasswordConfirm(""); setTurnstileToken(""); setTouched({ name: false, email: false, password: false, passwordConfirm: false }); }}
-                      className="text-[var(--hb-text-strong)] font-medium hover:underline"
+                      className="font-medium text-inv-ink underline-offset-4 hover:underline"
                     >
                       로그인
                     </button>
@@ -675,7 +657,7 @@ export default function LoginPage() {
                   <p>
                     <button
                       onClick={() => { setMode("login"); setError(""); setSuccess(""); setPassword(""); setPasswordConfirm(""); setTurnstileToken(""); }}
-                      className="text-[var(--hb-text-strong)] font-medium hover:underline"
+                      className="font-medium text-inv-ink underline-offset-4 hover:underline"
                     >
                       ← 로그인으로 돌아가기
                     </button>
@@ -687,15 +669,15 @@ export default function LoginPage() {
                   버튼만 지우면 "또는" 이 아무것도 잇지 않는 채로 남는다. */}
               {isPublicDemoTrialEnabled() && (
               <>
-              <div className="flex items-center gap-4 mb-5">
-                <div className="flex-1 h-px bg-platinum" />
-                <span className="text-[11px] text-[var(--hb-text-muted)]">또는</span>
-                <div className="flex-1 h-px bg-platinum" />
+              <div className="flex items-center gap-3">
+                <div className="h-px flex-1 bg-inv-divider" />
+                <span className="text-[12px] text-inv-muted">또는</span>
+                <div className="h-px flex-1 bg-inv-divider" />
               </div>
 
               <button
                 onClick={handleDemo}
-                className="w-full flex items-center justify-center gap-2 py-3.5 px-6 rounded-[6px] text-[14px] font-medium transition-all hover:-translate-y-0.5 border-[1.5px] border-[var(--hb-primary)]/35 text-[var(--hb-text-strong)] hover:border-[var(--hb-primary)] hover:bg-[#EEF4F1]"
+                className="flex h-12 w-full items-center justify-center gap-2 rounded-full border border-inv-chip-line bg-inv-white px-6 text-[14px] font-medium text-inv-ink transition-colors hover:bg-inv-stone"
               >
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <circle cx="12" cy="12" r="10"/><polygon points="10 8 16 12 10 16 10 8"/>
@@ -703,25 +685,23 @@ export default function LoginPage() {
                 로그인 없이 체험하기
               </button>
 
-              <p className="text-[11px] text-[var(--hb-text-body)] text-center mt-4 font-light leading-5">
+              <p className="text-center text-[12px] leading-5 text-inv-muted">
                 체험 대화와 변경은 계정의 준비 기록에 남지 않아요. 체험 연결을 위한 임시 정보와 쿠키는 사용할 수 있어요.
               </p>
               </>
               )}
           </>
-        </div>
 
         {/* 하단 링크 */}
-        <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1 mt-6">
-          <Link href="/landing" className="inline-flex min-h-11 items-center text-[13px] text-[var(--hb-text-body)] hover:text-[var(--hb-text-strong)] transition-colors">
+        <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1 border-t border-inv-divider pt-2">
+          <Link href="/landing" className="inline-flex min-h-11 items-center text-[13px] text-inv-body transition-colors hover:text-inv-ink">
             ← 서비스 소개로
           </Link>
           {/* 계정을 만들기 전에 해볼 수 있는 것. 데모 체험과 달리 설정 플래그에 묶이지 않는다. */}
-          <Link href="/wedding-code" className="inline-flex min-h-11 items-center text-[13px] font-medium text-[var(--hb-text-strong)] underline underline-offset-4 hover:text-[var(--hb-text-body)] transition-colors">
+          <Link href="/wedding-code" className="inline-flex min-h-11 items-center text-[13px] font-medium text-inv-ink underline underline-offset-4 transition-colors hover:text-inv-muted">
             로그인 없이 웨딩코드 먼저 해보기
           </Link>
         </div>
-      </motion.div>
-    </main>
+    </InvitationAuthShell>
   );
 }

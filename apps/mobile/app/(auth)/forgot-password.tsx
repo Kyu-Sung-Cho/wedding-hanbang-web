@@ -1,13 +1,21 @@
 // 비밀번호 찾기 — 이메일로 재설정 링크 발송
 import { useState, useEffect, useRef } from "react";
-import { View, Pressable, StyleSheet, Image, Alert, ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView, Animated } from "react-native";
+import { View, Pressable, StyleSheet, Alert, ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView, Animated } from "react-native";
 import { Text, TextInput } from "@/components/ui/AppText";
 import DismissKeyboard from "@/components/DismissKeyboard";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
 import { Check } from "lucide-react-native";
-import { colors } from "@hanbang/design-tokens";
 import TurnstileModal from "@/components/auth/TurnstileModal";
+import {
+  InvitationAuthBackground,
+  InvitationAuthCard,
+  InvitationAuthHeader,
+  authColors,
+  authField,
+  authText,
+} from "@/components/invitation/InvitationAuthFrame";
+import { palette, typo } from "@/components/invitation/invitationStyle";
 import { requestMobilePasswordReset } from "@/lib/mobileAuthRequests";
 import {
   isValidTurnstileToken,
@@ -23,7 +31,7 @@ function isValidEmail(email: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 }
 
-// 체크마크 애니메이션 컴포넌트
+// 체크마크 애니메이션 컴포넌트. 웹 비밀번호 재설정의 완료 표시와 같은 돌색 원·먹색 체크다.
 function CheckmarkAnimation() {
   const scaleAnim = useRef(new Animated.Value(0)).current;
   const opacityAnim = useRef(new Animated.Value(0)).current;
@@ -54,7 +62,7 @@ function CheckmarkAnimation() {
         },
       ]}
     >
-      <Check size={36} color="#FFFFFF" strokeWidth={3} />
+      <Check size={28} color={palette.ink} strokeWidth={2.5} />
     </Animated.View>
   );
 }
@@ -166,39 +174,48 @@ export default function ForgotPasswordScreen() {
     }
   }
 
+  // 2026-11-20 파운더 "로그인 페이지도 다 바꿔야": 로그인과 같은 바탕·amora·유리 카드에 넣는다(InvitationAuthFrame).
+  // 재설정 요청·안전 확인·문장은 그대로이고, 바뀐 것은 겉모양뿐이다. "웨딩한방" 글자와 앱 아이콘은 amora 머리가 대신한다.
+
   // 발송 완료 화면
   if (sent) {
     return (
+      <InvitationAuthBackground>
       <SafeAreaView style={styles.container}>
-        <Animated.View
-          style={[
-            styles.sentContent,
-            {
+        <View style={styles.sentLayout}>
+          <InvitationAuthHeader />
+          <View style={styles.spacer} />
+          <Animated.View
+            style={{
               opacity: sentFadeAnim,
               transform: [{ translateY: sentSlideAnim }],
-            },
-          ]}
-        >
-          <CheckmarkAnimation />
-          <Text style={styles.sentTitle}>이메일을 확인해주세요</Text>
-          <Text style={styles.sentDesc}>
-            {email}으로{"\n"}비밀번호 재설정 링크를 보냈어요.{"\n"}이메일을 확인해주세요.
-          </Text>
-          <Pressable
-            style={styles.backBtn}
-            onPress={() => router.back()}
-            accessibilityLabel="로그인으로 돌아가기"
-            accessibilityRole="button"
+            }}
           >
-            <Text style={styles.backBtnText}>로그인으로 돌아가기</Text>
-          </Pressable>
-        </Animated.View>
+            <InvitationAuthCard style={styles.sentCard}>
+              <CheckmarkAnimation />
+              <Text accessibilityRole="header" style={[authText.heading, styles.centerText]}>이메일을 확인해주세요</Text>
+              <Text style={[authText.body, styles.centerText]}>
+                {email}으로{"\n"}비밀번호 재설정 링크를 보냈어요.{"\n"}이메일을 확인해주세요.
+              </Text>
+              <Pressable
+                style={[authField.primary, styles.sentButton]}
+                onPress={() => router.back()}
+                accessibilityLabel="로그인으로 돌아가기"
+                accessibilityRole="button"
+              >
+                <Text style={authField.primaryText}>로그인으로 돌아가기</Text>
+              </Pressable>
+            </InvitationAuthCard>
+          </Animated.View>
+        </View>
       </SafeAreaView>
+      </InvitationAuthBackground>
     );
   }
 
   // 이메일 입력 폼
   return (
+    <InvitationAuthBackground>
     <SafeAreaView style={styles.container}>
       <KeyboardAvoidingView
         style={{ flex: 1 }}
@@ -209,58 +226,51 @@ export default function ForgotPasswordScreen() {
           contentContainerStyle={styles.scrollContent}
           keyboardShouldPersistTaps="handled"
         >
-          {/* 로고 — 페이드인 */}
-          <Animated.View
-            style={[
-              styles.brand,
-              { opacity: fadeAnim, transform: [{ translateY: slideAnim }] },
-            ]}
-          >
-            <Image
-              source={require("../../assets/icon.png")}
-              style={styles.logo}
-              resizeMode="contain"
-            />
-            <Text style={styles.brandTitle}>웨딩한방</Text>
+          {/* 이름·한 줄·오브 — 페이드인 */}
+          <Animated.View style={{ opacity: fadeAnim, transform: [{ translateY: slideAnim }] }}>
+            <InvitationAuthHeader />
           </Animated.View>
+          <View style={styles.spacer} />
 
           {/* 폼 영역 */}
-          <View style={styles.content}>
-            <Text style={styles.title}>비밀번호 찾기</Text>
-            <Text style={styles.desc}>
+          <InvitationAuthCard>
+            <Text accessibilityRole="header" style={authText.heading}>비밀번호 찾기</Text>
+            <Text style={authText.body}>
               가입할 때 사용한 이메일을 입력하면{"\n"}비밀번호 재설정 링크를 보내드려요.
             </Text>
 
-            <Text style={styles.label}>이메일</Text>
-            <TextInput
-              style={[styles.input, emailInvalid && styles.inputError]}
-              value={email}
-              onChangeText={setEmail}
-              onBlur={() => setEmailTouched(true)}
-              placeholder="가입한 이메일 주소"
-              placeholderTextColor={colors.paper.inkFaint}
-              keyboardType="email-address"
-              autoCapitalize="none"
-              autoCorrect={false}
-              onSubmitEditing={handleReset}
-              returnKeyType="go"
-              editable={!loading}
-              accessibilityLabel="이메일 입력"
-            />
-            {emailInvalid && (
-              <Text style={styles.errorText}>올바른 이메일 형식을 입력해주세요</Text>
-            )}
+            <View>
+              <Text style={styles.label}>이메일</Text>
+              <TextInput
+                style={[authField.input, emailInvalid && authField.inputError]}
+                value={email}
+                onChangeText={setEmail}
+                onBlur={() => setEmailTouched(true)}
+                placeholder="가입한 이메일 주소"
+                placeholderTextColor={authColors.placeholder}
+                keyboardType="email-address"
+                autoCapitalize="none"
+                autoCorrect={false}
+                onSubmitEditing={handleReset}
+                returnKeyType="go"
+                editable={!loading}
+                accessibilityLabel="이메일 입력"
+              />
+              {emailInvalid && (
+                <Text style={authText.error}>올바른 이메일 형식을 입력해주세요</Text>
+              )}
+            </View>
 
             <Pressable
-              style={[styles.submitBtn, (!email.trim() || emailInvalid) && styles.submitBtnDisabled]}
+              style={[authField.primary, (!email.trim() || emailInvalid) && styles.submitBtnDisabled]}
               onPress={handleReset}
               disabled={!email.trim() || loading || emailInvalid || turnstileVisible}
               accessibilityLabel="비밀번호 재설정 링크 보내기"
               accessibilityRole="button"
             >
               {loading
-                ? <ActivityIndicator color="#FFF" />
-                : <Text style={styles.submitText}>비밀번호 재설정 링크 보내기</Text>
+                ? <ActivityIndicator color={authColors.white} />
+                : <Text style={authField.primaryText}>비밀번호 재설정 링크 보내기</Text>
               }
             </Pressable>
 
@@ -271,9 +281,9 @@ export default function ForgotPasswordScreen() {
               accessibilityLabel="로그인으로 돌아가기"
               accessibilityRole="button"
             >
-              <Text style={styles.loginLinkText}>로그인으로 돌아가기</Text>
+              <Text style={authText.link}>로그인으로 돌아가기</Text>
             </Pressable>
-          </View>
+          </InvitationAuthCard>
         </ScrollView>
         </DismissKeyboard>
       </KeyboardAvoidingView>
@@ -288,151 +298,42 @@ export default function ForgotPasswordScreen() {
         }}
       />
     </SafeAreaView>
+    </InvitationAuthBackground>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.bg },
-  scrollContent: { paddingHorizontal: 24, paddingBottom: 40 },
+  container: { flex: 1 },
+  scrollContent: { flexGrow: 1, paddingHorizontal: 12, paddingBottom: 12 },
+  spacer: { flexGrow: 1, minHeight: 16 },
 
-  // 로고
-  brand: { alignItems: "center", paddingTop: 48, marginBottom: 36 },
-  logo: {
-    width: 88,
-    height: 88,
-    marginBottom: 16,
-    borderRadius: 24,
-    shadowColor: colors.paper.ink,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.04,
-    shadowRadius: 12,
-  },
-  brandTitle: {
-    fontSize: 32,
-    fontFamily: "NotoSerifKR_500Medium",
-    color: colors.noir[800],
-  },
-
-  // 폼 영역
-  content: {},
-  title: {
-    fontSize: 26,
-    fontFamily: "NotoSerifKR_500Medium",
-    color: colors.noir[800],
-    marginBottom: 12,
-  },
-  desc: {
-    fontSize: 15,
-    fontFamily: "NotoSansKR_400Regular",
-    color: colors.textSecondary,
-    lineHeight: 24,
-    marginBottom: 28,
-  },
   label: {
-    fontSize: 14,
-    fontFamily: "NotoSansKR_600SemiBold",
-    color: colors.noir[800],
+    ...typo.sansMedium,
+    fontSize: 13,
+    lineHeight: 18,
+    color: palette.body,
     marginBottom: 8,
-  },
-  input: {
-    padding: 14,
-    borderRadius: 14,
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
-    fontSize: 15,
-    fontFamily: "NotoSansKR_400Regular",
-    color: colors.noir[800],
-  },
-  inputError: { borderColor: colors.danger },
-  errorText: {
-    fontSize: 12,
-    fontFamily: "NotoSansKR_400Regular",
-    color: colors.dangerDeep,
-    marginTop: 6,
-    marginLeft: 4,
-  },
-  submitBtn: {
-    height: 52,
-    borderRadius: 16,
-    backgroundColor: colors.noir[800],
-    alignItems: "center",
-    justifyContent: "center",
-    marginTop: 24,
-    shadowColor: colors.paper.ink,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06,
-    shadowRadius: 8,
-    elevation: 2,
+    marginLeft: 6,
   },
   submitBtnDisabled: { opacity: 0.4 },
-  submitText: {
-    fontSize: 16,
-    fontFamily: "NotoSansKR_600SemiBold",
-    color: "#FFF",
-  },
 
   // 로그인 돌아가기 링크
   loginLink: {
     alignItems: "center",
-    marginTop: 16,
     paddingVertical: 8,
-  },
-  loginLinkText: {
-    fontSize: 13,
-    fontFamily: "NotoSansKR_400Regular",
-    color: colors.textSecondary,
   },
 
   // 발송 완료
-  sentContent: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: 32,
-  },
+  sentLayout: { flex: 1, paddingHorizontal: 12, paddingBottom: 12 },
+  sentCard: { alignItems: "center" },
+  centerText: { textAlign: "center" },
+  sentButton: { alignSelf: "stretch" },
   checkCircle: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: colors.rose[500],
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: palette.stone,
     alignItems: "center",
     justifyContent: "center",
-    marginBottom: 28,
-    shadowColor: colors.rose[500],
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.25,
-    shadowRadius: 16,
-    elevation: 4,
-  },
-  sentTitle: {
-    fontSize: 22,
-    fontFamily: "NotoSerifKR_500Medium",
-    color: colors.noir[800],
-    marginBottom: 12,
-  },
-  sentDesc: {
-    fontSize: 14,
-    fontFamily: "NotoSansKR_400Regular",
-    color: colors.textSecondary,
-    textAlign: "center",
-    lineHeight: 22,
-    marginBottom: 32,
-  },
-  backBtn: {
-    paddingHorizontal: 28,
-    paddingVertical: 14,
-    borderRadius: 16,
-    backgroundColor: colors.noir[800],
-    shadowColor: colors.paper.ink,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06,
-    shadowRadius: 8,
-    elevation: 2,
-  },
-  backBtnText: {
-    fontSize: 15,
-    fontFamily: "NotoSansKR_600SemiBold",
-    color: "#FFF",
   },
 });
