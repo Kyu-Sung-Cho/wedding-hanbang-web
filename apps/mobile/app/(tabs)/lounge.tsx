@@ -85,6 +85,7 @@ import {
 } from "@/lib/invitationApi.mjs";
 import { hasSkippedFirstChat, rememberFirstChatSkip } from "@/lib/firstChatSkip.mjs";
 import { navigateInvitationRoute } from "@/lib/invitationRoutes.mjs";
+import { HOME_SERVICE_MENU, HOME_SERVICE_MENU_LABEL } from "@/lib/homeServiceMenu.mjs";
 import { useLiveOwner } from "@/lib/invitationLive";
 import ErrorRetry from "@/components/ErrorRetry";
 import TodayOneCareCard from "@/components/dashboard/TodayOneCareCard";
@@ -98,6 +99,7 @@ import FirstRunCoachMarks, {
 } from "@/components/lounge/FirstRunCoachMarks";
 import LoungeFirstArrival from "@/components/lounge/LoungeFirstArrival";
 import InvitationHome from "@/components/invitation/InvitationHome";
+import InvitationServiceMenu from "@/components/invitation/InvitationServiceMenu";
 import InvitationFirstChat from "@/components/invitation/InvitationFirstChat";
 import InvitationStateScreen from "@/components/invitation/InvitationStateScreen";
 import LoungeRecordsEntry from "@/components/invitationLive/LoungeRecordsEntry";
@@ -1141,6 +1143,15 @@ export default function DashboardScreen() {
                   ) : null
                 }
                 records={data.hasBookingRecords ? <LoungeRecordsEntry /> : null}
+              />
+            }
+            // 홈 맨 아래 "서비스 메뉴" 줄(2026-11-20 파운더 결정 4). 웹 홈의 맨 아래 줄과 같은 다섯 칸이고,
+            // 다섯 화면은 루트 스택이라 홈 위에 쌓아 연다(뒤로 가면 홈).
+            footer={
+              <InvitationServiceMenu
+                label={HOME_SERVICE_MENU_LABEL}
+                items={HOME_SERVICE_MENU}
+                onOpen={(href) => router.push(href)}
               />
             }
           />

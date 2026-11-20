@@ -1,13 +1,21 @@
 // 로그인 — 이메일/비밀번호 + 카카오/Apple 소셜 로그인
 import { useState, useEffect, useRef } from "react";
-import { View, Pressable, StyleSheet, Image, Alert, ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView, Animated, Linking } from "react-native";
+import { View, Pressable, StyleSheet, Alert, ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView, Animated, Linking } from "react-native";
 import { Text, TextInput } from "@/components/ui/AppText";
 import DismissKeyboard from "@/components/DismissKeyboard";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
 import { Eye, EyeOff } from "lucide-react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { colors } from "@hanbang/design-tokens";
+import {
+  InvitationAuthBackground,
+  InvitationAuthCard,
+  InvitationAuthHeader,
+  authColors,
+  authField,
+  authText,
+} from "@/components/invitation/InvitationAuthFrame";
+import { palette, typo } from "@/components/invitation/invitationStyle";
 import { supabase } from "@/lib/supabase";
 import {
   OAUTH_PROVIDER_UNAVAILABLE,
@@ -116,7 +124,9 @@ export default function LoginScreen() {
         return;
       }
       // 루트가 onboarding_completed를 다시 확인한 뒤 올바른 화면으로 보낸다.
-      router.replace("/");
+      // 시작 화면에서 쌓아 열었으면 그 자리까지 내려가 새 루트를 쌓지 않는다. 아래에 없으면 이 자리를 루트로 바꾼다
+      // (예전 replace 와 같다). 그래서 홈에서 뒤로 가기를 눌러도 로그인·시작 화면으로 가지 않는다(2026-11-20 결정 7).
+      router.dismissTo("/");
     } catch {
       showLoginError("오류", "로그인에 실패했어요. 다시 시도해주세요.");
     } finally {
@@ -135,8 +145,8 @@ export default function LoginScreen() {
         setLoading(null);
         return;
       }
-      // OAuth 신규 가입자도 온보딩을 건너뛰지 않게 공통 gate로 돌아간다.
-      router.replace("/");
+      // OAuth 신규 가입자도 온보딩을 건너뛰지 않게 공통 gate로 돌아간다(이메일 로그인과 같은 dismissTo).
+      router.dismissTo("/");
     } catch (err) {
       // 앱이 쓴 안내만 그대로 보여준다. Supabase가 던진 원문은 사람이 읽을 수 없고
       // 내부 상태를 드러내므로, 무엇이 안 됐는지만 우리 말로 알린다.
@@ -150,7 +160,10 @@ export default function LoginScreen() {
     }
   }
 
+  // 2026-11-20 파운더 "로그인 페이지도 다 바꿔야": 시작 화면과 같은 바탕·amora·유리 카드에 넣는다(InvitationAuthFrame).
+  // 로그인 방법·이동·문구는 그대로이고, 바뀐 것은 겉모양뿐이다.
   return (
+    <InvitationAuthBackground>
     <SafeAreaView style={styles.container}>
       <KeyboardAvoidingView
         style={{ flex: 1 }}
@@ -161,29 +174,23 @@ export default function LoginScreen() {
           contentContainerStyle={styles.scrollContent}
           keyboardShouldPersistTaps="handled"
         >
-          {/* 로고 — 페이드인 */}
-          <Animated.View
-            style={[
-              styles.brand,
-              { opacity: fadeAnim, transform: [{ translateY: slideAnim }] },
-            ]}
-          >
-            <Image
-              source={require("../../assets/icon.png")}
-              style={styles.logo}
-              resizeMode="contain"
-            />
-            <Text style={styles.title}>웨딩한방</Text>
-            <Text style={styles.subtitle}>
-              {"결혼 준비, 뭐부터 하면 될까요?\n아모라와 같이 정리해 봐요"}
-            </Text>
+          {/* 이름·한 줄·오브 — 페이드인 */}
+          <Animated.View style={{ opacity: fadeAnim, transform: [{ translateY: slideAnim }] }}>
+            <InvitationAuthHeader />
           </Animated.View>
+          <View style={styles.spacer} />
+
+          <InvitationAuthCard>
+          <Text accessibilityRole="header" style={authText.heading}>로그인</Text>
+          <Text style={authText.body}>
+            {"결혼 준비, 뭐부터 하면 될까요?\n아모라와 같이 정리해 봐요"}
+          </Text>
 
           {/* 이메일 로그인 폼 */}
           <View style={[styles.form, isFormDisabled && { opacity: 0.5 }]}>
             <View>
               <TextInput
-                style={[styles.input, emailInvalid && styles.inputError]}
+                style={[authField.input, emailInvalid && authField.inputError]}
                 value={email}
                 onChangeText={(value) => {
                   setEmail(value);
@@ -191,7 +198,7 @@ export default function LoginScreen() {
                 }}
                 onBlur={() => setEmailTouched(true)}
                 placeholder="이메일 주소를 입력해주세요"
-                placeholderTextColor={colors.paper.inkFaint}
+                placeholderTextColor={authColors.placeholder}
                 keyboardType="email-address"
                 autoCapitalize="none"
                 autoCorrect={false}
@@ -199,21 +206,21 @@ export default function LoginScreen() {
                 accessibilityLabel="이메일 입력"
               />
               {emailInvalid && (
-                <Text style={styles.errorHint}>올바른 이메일 형식을 입력해주세요</Text>
+                <Text style={authText.error}>올바른 이메일 형식을 입력해주세요</Text>
               )}
             </View>
 
             <View>
               <View style={styles.passwordRow}>
                 <TextInput
-                  style={[styles.input, { flex: 1, marginBottom: 0 }]}
+                  style={[authField.input, { flex: 1, marginBottom: 0 }]}
                   value={password}
                   onChangeText={(value) => {
                     setPassword(value);
                     setLoginError(null);
                   }}
                   placeholder="비밀번호"
-                  placeholderTextColor={colors.paper.inkFaint}
+                  placeholderTextColor={authColors.placeholder}
                   secureTextEntry={!showPassword}
                   autoCapitalize="none"
                   onSubmitEditing={handleEmailLogin}
@@ -223,41 +230,41 @@ export default function LoginScreen() {
                 />
                 <Pressable style={styles.eyeBtn} onPress={() => setShowPassword(!showPassword)}>
                   {showPassword
-                    ? <EyeOff size={20} color={colors.textTertiary} />
-                    : <Eye size={20} color={colors.textTertiary} />
+                    ? <EyeOff size={20} color={authColors.icon} />
+                    : <Eye size={20} color={authColors.icon} />
                   }
                 </Pressable>
               </View>
-              <Text style={styles.fieldHint}>6자 이상</Text>
+              <Text style={authText.hint}>6자 이상</Text>
             </View>
 
             {loginError ? (
-              <Text style={styles.loginError} accessibilityRole="alert">
+              <Text style={[authField.alertBox, authText.alert]} accessibilityRole="alert">
                 {loginError}
               </Text>
             ) : null}
 
             <Pressable
-              style={[styles.emailBtn, (!email.trim() || !password || emailInvalid) && { opacity: 0.4 }]}
+              style={[authField.primary, (!email.trim() || !password || emailInvalid) && { opacity: 0.4 }]}
               onPress={handleEmailLogin}
               disabled={!email.trim() || !password || loading !== null || emailInvalid}
               accessibilityLabel="로그인"
               accessibilityRole="button"
             >
               {loading === "email"
-                ? <ActivityIndicator color="#FFF" />
-                : <Text style={styles.emailBtnText}>로그인</Text>
+                ? <ActivityIndicator color={authColors.white} />
+                : <Text style={authField.primaryText}>로그인</Text>
               }
             </Pressable>
 
             {/* 비밀번호 찾기 + 회원가입 */}
             <View style={styles.linkRow}>
               <Pressable onPress={() => router.push({ pathname: "/(auth)/forgot-password" })}>
-                <Text style={styles.link}>비밀번호 찾기</Text>
+                <Text style={authText.link}>비밀번호 찾기</Text>
               </Pressable>
               <Text style={styles.linkDot}>|</Text>
               <Pressable onPress={() => router.push({ pathname: "/(auth)/signup" })}>
-                <Text style={[styles.link, { color: colors.rose[700] }]}>회원가입</Text>
+                <Text style={authText.linkStrong}>회원가입</Text>
               </Pressable>
             </View>
           </View>
@@ -265,17 +272,17 @@ export default function LoginScreen() {
           {hasSocialLogin ? (
             <>
               {/* 구분선 */}
-              <View style={styles.dividerRow}>
-                <View style={styles.dividerLine} />
-                <Text style={styles.dividerText}>또는</Text>
-                <View style={styles.dividerLine} />
+              <View style={authField.dividerRow}>
+                <View style={authField.dividerLine} />
+                <Text style={authText.dividerText}>또는</Text>
+                <View style={authField.dividerLine} />
               </View>
 
               {/* 소셜 로그인 */}
               <View style={[styles.socialButtons, isFormDisabled && { opacity: 0.5 }]}>
             {kakaoOAuthEnabled ? (
             <Pressable
-              style={({ pressed }) => [styles.kakaoButton, pressed && { opacity: 0.8 }]}
+              style={({ pressed }) => [authField.pill, styles.kakaoButton, pressed && { opacity: 0.8 }]}
               onPress={() => handleSocialLogin("kakao")}
               disabled={loading !== null}
               accessibilityLabel="카카오로 로그인"
@@ -296,22 +303,22 @@ export default function LoginScreen() {
 
             {googleOAuthEnabled ? (
             <Pressable
-              style={({ pressed }) => [styles.googleButton, pressed && { opacity: 0.8 }]}
+              style={({ pressed }) => [authField.pill, authField.pillOutline, pressed && { opacity: 0.8 }]}
               onPress={() => handleSocialLogin("google")}
               disabled={loading !== null}
               accessibilityLabel="구글로 로그인"
               accessibilityRole="button"
             >
               {loading === "google" ? (
-                <ActivityIndicator color={colors.textPrimary} />
+                <ActivityIndicator color={authColors.ink} />
               ) : (
                 <View style={styles.socialInner}>
                   <Ionicons
                     name="logo-google"
                     size={20}
-                    color={colors.textPrimary}
+                    color={authColors.ink}
                   />
-                  <Text style={styles.googleText}>구글로 계속하기</Text>
+                  <Text style={styles.socialText}>구글로 계속하기</Text>
                 </View>
               )}
             </Pressable>
@@ -319,20 +326,20 @@ export default function LoginScreen() {
 
             {appleOAuthEnabled ? (
             <Pressable
-              style={({ pressed }) => [styles.appleButton, pressed && { opacity: 0.8 }]}
+              style={({ pressed }) => [authField.pill, styles.appleButton, pressed && { opacity: 0.8 }]}
               onPress={() => handleSocialLogin("apple")}
               disabled={loading !== null}
               accessibilityLabel="Apple로 로그인"
               accessibilityRole="button"
             >
               {loading === "apple" ? (
-                <ActivityIndicator color={colors.textPrimary} />
+                <ActivityIndicator color={APPLE_BUTTON_TEXT} />
               ) : (
                 <View style={styles.socialInner}>
                   <Ionicons
                     name="logo-apple"
                     size={20}
-                    color={colors.textPrimary}
+                    color={APPLE_BUTTON_TEXT}
                   />
                   <Text style={styles.appleText}>Apple로 계속하기</Text>
                 </View>
@@ -403,99 +410,29 @@ export default function LoginScreen() {
               <Text style={styles.policyLink}>개인정보 처리방침</Text>
             </Pressable>
           </View>
+          </InvitationAuthCard>
         </ScrollView>
         </DismissKeyboard>
       </KeyboardAvoidingView>
     </SafeAreaView>
+    </InvitationAuthBackground>
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.bg },
-  scrollContent: { paddingHorizontal: 24, paddingBottom: 40 },
+// Apple 로그인 단추는 검정·흰색·흰색+테두리 세 가지만 허용된다(Sign in with Apple 브랜드 규정). 웹 로그인 화면과 같은
+// 검정 단추로 맞추고, 팔레트의 먹색 대신 진짜 검정과 흰 글자를 못 박는다.
+const APPLE_BUTTON_BACKGROUND = "#000000";
+const APPLE_BUTTON_TEXT = "#FFFFFF";
 
-  brand: { alignItems: "center", paddingTop: 48, marginBottom: 36 },
-  logo: {
-    width: 88,
-    height: 88,
-    marginBottom: 16,
-    borderRadius: 24,
-    shadowColor: colors.paper.ink,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.04,
-    shadowRadius: 12,
-  },
-  title: {
-    fontSize: 32,
-    fontFamily: "NotoSerifKR_500Medium",
-    color: colors.noir[800],
-    marginBottom: 10,
-  },
-  subtitle: {
-    fontSize: 15,
-    fontFamily: "NotoSansKR_400Regular",
-    color: colors.textSecondary,
-    textAlign: "center",
-    lineHeight: 24,
-  },
+const styles = StyleSheet.create({
+  container: { flex: 1 },
+  scrollContent: { flexGrow: 1, paddingHorizontal: 12, paddingBottom: 12 },
+  spacer: { flexGrow: 1, minHeight: 16 },
 
   // 이메일 폼
   form: { gap: 12 },
-  input: {
-    padding: 14,
-    borderRadius: 14,
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
-    fontSize: 15,
-    fontFamily: "NotoSansKR_400Regular",
-    color: colors.noir[800],
-  },
-  inputError: { borderColor: colors.danger },
-  errorHint: {
-    fontSize: 12,
-    fontFamily: "NotoSansKR_400Regular",
-    color: colors.dangerDeep,
-    marginTop: 6,
-    marginLeft: 4,
-  },
-  loginError: {
-    borderRadius: 12,
-    backgroundColor: colors.rose.pale,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    fontSize: 13,
-    fontFamily: "NotoSansKR_500Medium",
-    color: colors.dangerDeep,
-    lineHeight: 20,
-  },
-  fieldHint: {
-    fontSize: 12,
-    fontFamily: "NotoSansKR_400Regular",
-    color: colors.paper.inkFaint,
-    marginTop: 6,
-    marginLeft: 4,
-  },
   passwordRow: { flexDirection: "row", alignItems: "center", gap: 8 },
   eyeBtn: { padding: 10 },
-  emailBtn: {
-    height: 52,
-    borderRadius: 16,
-    backgroundColor: colors.noir[800],
-    alignItems: "center",
-    justifyContent: "center",
-    marginTop: 4,
-    shadowColor: colors.paper.ink,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06,
-    shadowRadius: 8,
-    elevation: 2,
-  },
-  emailBtnText: {
-    fontSize: 16,
-    fontFamily: "NotoSansKR_600SemiBold",
-    color: "#FFF",
-  },
 
   linkRow: {
     flexDirection: "row",
@@ -504,43 +441,18 @@ const styles = StyleSheet.create({
     gap: 12,
     marginTop: 8,
   },
-  link: {
-    fontSize: 13,
-    fontFamily: "NotoSansKR_400Regular",
-    color: colors.textSecondary,
-  },
-  linkDot: { fontSize: 13, color: colors.border },
-
-  // 구분선
-  dividerRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-    marginVertical: 28,
-  },
-  dividerLine: { flex: 1, height: 1, backgroundColor: colors.border },
-  dividerText: {
-    fontSize: 13,
-    fontFamily: "NotoSansKR_400Regular",
-    color: colors.paper.inkFaint,
-  },
+  linkDot: { ...typo.sans, fontSize: 13, color: palette.chipLine },
 
   // 소셜
-  socialButtons: { gap: 12 },
+  socialButtons: { gap: 10 },
   socialInner: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
     gap: 8,
   },
-  kakaoButton: {
-    width: "100%",
-    height: 52,
-    borderRadius: 14,
-    backgroundColor: "#FEE500",
-    alignItems: "center",
-    justifyContent: "center",
-  },
+  // 카카오 단추의 노랑 바탕·검정 글자는 카카오 로그인 디자인 규정이라 팔레트 대신 그대로 쓴다.
+  kakaoButton: { backgroundColor: "#FEE500" },
   kakaoIcon: {
     width: 22,
     height: 22,
@@ -554,60 +466,21 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     color: "#FEE500",
   },
-  kakaoText: {
-    fontSize: 15,
-    fontFamily: "NotoSansKR_600SemiBold",
-    color: "#191919",
-  },
-  googleButton: {
-    width: "100%",
-    height: 52,
-    borderRadius: 14,
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  googleText: {
-    fontSize: 15,
-    fontFamily: "NotoSansKR_600SemiBold",
-    color: colors.textPrimary,
-  },
-  appleButton: {
-    width: "100%",
-    height: 52,
-    borderRadius: 14,
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  appleText: {
-    fontSize: 15,
-    fontFamily: "NotoSansKR_600SemiBold",
-    color: colors.textPrimary,
-  },
-  socialUnavailable: {
-    marginTop: 24,
-    fontSize: 13,
-    lineHeight: 20,
-    fontFamily: "NotoSansKR_400Regular",
-    color: colors.textSecondary,
-    textAlign: "center",
-  },
+  kakaoText: { ...typo.sansBold, fontSize: 15, color: "#191919" },
+  socialText: { ...typo.sansBold, fontSize: 15, color: palette.ink },
+  appleButton: { backgroundColor: APPLE_BUTTON_BACKGROUND },
+  appleText: { ...typo.sansBold, fontSize: 15, color: APPLE_BUTTON_TEXT },
+  socialUnavailable: { ...typo.sans, fontSize: 13, lineHeight: 20, color: palette.body, textAlign: "center" },
 
   tryWeddingCode: {
-    marginTop: 24,
     minHeight: 44,
     alignItems: "center",
     justifyContent: "center",
   },
   tryWeddingCodeText: {
+    ...typo.sansMedium,
     fontSize: 13,
-    fontFamily: "NotoSansKR_500Medium",
-    color: colors.rose[700],
+    color: palette.ink,
     textDecorationLine: "underline",
     textAlign: "center",
     lineHeight: 20,
@@ -618,18 +491,12 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     gap: 8,
-    marginTop: 24,
   },
-  policySeparator: {
-    fontSize: 12,
-    fontFamily: "NotoSansKR_400Regular",
-    color: colors.paper.inkFaint,
-    lineHeight: 18,
-  },
+  policySeparator: { ...typo.sans, fontSize: 12, color: palette.faint, lineHeight: 18 },
   policyLink: {
+    ...typo.sans,
     fontSize: 12,
-    fontFamily: "NotoSansKR_400Regular",
-    color: colors.paper.inkFaint,
+    color: palette.muted,
     textDecorationLine: "underline",
     textAlign: "center",
     lineHeight: 18,

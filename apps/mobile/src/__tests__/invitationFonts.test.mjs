@@ -182,7 +182,7 @@ test("Noto Sans KR keeps every modern Hangul syllable and Gowun Batang keeps exa
 
 test("every fixed character the invitation screens draw is in the Korean faces", () => {
   const text = screenText();
-  assert.ok(text.includes("청첩장을 보내는 날까지,"), "공유 문구를 못 읽었다");
+  assert.ok(text.includes("날짜도 장소도 아직이면,"), "공유 문구를 못 읽었다");
   const needed = new Set([...text].filter((ch) => !/\s/u.test(ch)).map((ch) => ch.codePointAt(0)));
   assert.ok(needed.size > 300, `문구 글자가 ${needed.size}자뿐이다`);
   for (const [folder, files] of [["noto-sans-kr", FACES["noto-sans-kr"]], ["gowun-batang", FACES["gowun-batang"]]]) {

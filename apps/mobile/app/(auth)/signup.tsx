@@ -5,9 +5,19 @@ import { Text, TextInput } from "@/components/ui/AppText";
 import DismissKeyboard from "@/components/DismissKeyboard";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
-import { ArrowLeft, CheckCircle2, Circle, Eye, EyeOff, ChevronDown, ChevronUp } from "lucide-react-native";
-import { colors } from "@hanbang/design-tokens";
+import { CheckCircle2, Circle, Eye, EyeOff, ChevronDown, ChevronUp } from "lucide-react-native";
 import TurnstileModal from "@/components/auth/TurnstileModal";
+import InvitationBackButton from "@/components/invitation/InvitationBackButton";
+import {
+  InvitationAuthBackground,
+  InvitationAuthCard,
+  InvitationAuthHeader,
+  authAgreement,
+  authColors,
+  authField,
+  authText,
+} from "@/components/invitation/InvitationAuthFrame";
+import { palette, typo } from "@/components/invitation/invitationStyle";
 import { requestMobileSignup } from "@/lib/mobileAuthRequests";
 import {
   isValidTurnstileToken,
@@ -44,10 +54,12 @@ function getPasswordStrength(pw: string): PasswordStrength {
   return "weak";
 }
 
+// 색은 청첩장 팔레트에서 고른다. 약함은 경고색, 보통은 흐린 글자색, 강함은 먹색이다.
+// 글자(약함·보통·강함)가 함께 나오니 색만 보고 읽을 일은 없다.
 const strengthConfig: Record<Exclude<PasswordStrength, "none">, { label: string; color: string; width: DimensionValue }> = {
-  weak: { label: "약함", color: colors.dangerDeep, width: "33%" },
-  medium: { label: "보통", color: colors.paper.tapeInk, width: "66%" },
-  strong: { label: "강함", color: colors.sage.deep, width: "100%" },
+  weak: { label: "약함", color: palette.warn, width: "33%" },
+  medium: { label: "보통", color: palette.muted, width: "66%" },
+  strong: { label: "강함", color: palette.ink, width: "100%" },
 };
 
 // 서버(/api/auth/signup)와 동일한 강한 비밀번호 정책 —
@@ -197,132 +209,145 @@ export default function SignupScreen() {
     }
   }
 
+  // 2026-11-20 파운더 "로그인 페이지도 다 바꿔야": 로그인과 같은 바탕·amora·유리 카드에 넣는다(InvitationAuthFrame).
+  // 가입 요청·안전 확인·동의 항목과 문장은 그대로이고, 바뀐 것은 겉모양뿐이다.
+  // 머리줄 가운데 있던 "회원가입"은 카드 제목으로 옮겼고, 뒤로 단추는 사진 위 반투명 원(InvitationBackButton)이다.
   return (
+    <InvitationAuthBackground>
     <SafeAreaView style={styles.container}>
       <KeyboardAvoidingView
         style={{ flex: 1 }}
         behavior={Platform.OS === "ios" ? "padding" : undefined}
       >
-        {/* 헤더 */}
+        {/* 머리줄 — 뒤로 */}
         <View style={styles.header}>
-          <Pressable onPress={() => router.back()} hitSlop={12}>
-            <ArrowLeft size={24} color={colors.noir[800]} />
-          </Pressable>
-          <Text style={styles.headerTitle}>회원가입</Text>
-          <View style={{ width: 24 }} />
+          <InvitationBackButton tone="glass" label="뒤로" onPress={() => router.back()} />
         </View>
 
         <DismissKeyboard>
         <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-          <Text style={styles.title}>웨딩한방에{"\n"}오신 것을 환영해요</Text>
+          <InvitationAuthHeader />
+          <View style={styles.spacer} />
+
+          <InvitationAuthCard>
+          <Text accessibilityRole="header" style={authText.heading}>회원가입</Text>
+          <Text style={authText.body}>웨딩한방에{"\n"}오신 것을 환영해요</Text>
 
           {/* 이름 */}
-          <Text style={styles.label}>이름</Text>
-          <TextInput
-            style={styles.input}
-            value={name}
-            onChangeText={setName}
-            placeholder="홍길동"
-            placeholderTextColor={colors.paper.inkFaint}
-            autoCapitalize="words"
-          />
+          <View>
+            <Text style={styles.label}>이름</Text>
+            <TextInput
+              style={authField.input}
+              value={name}
+              onChangeText={setName}
+              placeholder="홍길동"
+              placeholderTextColor={authColors.placeholder}
+              autoCapitalize="words"
+            />
+          </View>
 
           {/* 이메일 */}
-          <Text style={styles.label}>이메일</Text>
-          <TextInput
-            style={[styles.input, emailInvalid && styles.inputError]}
-            value={email}
-            onChangeText={setEmail}
-            onBlur={() => setEmailTouched(true)}
-            placeholder="이메일 주소"
-            placeholderTextColor={colors.paper.inkFaint}
-            keyboardType="email-address"
-            autoCapitalize="none"
-            autoCorrect={false}
-          />
-          {emailInvalid && (
-            <Text style={styles.errorText}>올바른 이메일 형식을 입력해주세요</Text>
-          )}
+          <View>
+            <Text style={styles.label}>이메일</Text>
+            <TextInput
+              style={[authField.input, emailInvalid && authField.inputError]}
+              value={email}
+              onChangeText={setEmail}
+              onBlur={() => setEmailTouched(true)}
+              placeholder="이메일 주소"
+              placeholderTextColor={authColors.placeholder}
+              keyboardType="email-address"
+              autoCapitalize="none"
+              autoCorrect={false}
+            />
+            {emailInvalid && (
+              <Text style={authText.error}>올바른 이메일 형식을 입력해주세요</Text>
+            )}
+          </View>
 
           {/* 비밀번호 */}
-          <Text style={styles.label}>비밀번호</Text>
-          <View style={styles.passwordRow}>
+          <View>
+            <Text style={styles.label}>비밀번호</Text>
+            <View style={styles.passwordRow}>
+              <TextInput
+                style={[authField.input, { flex: 1 }]}
+                value={password}
+                onChangeText={setPassword}
+                placeholder="8자 이상, 대/소문자·숫자·특수문자"
+                placeholderTextColor={authColors.placeholder}
+                secureTextEntry={!showPassword}
+                autoCapitalize="none"
+              />
+              <Pressable
+                style={styles.eyeBtn}
+                onPress={() => setShowPassword(!showPassword)}
+              >
+                {showPassword
+                  ? <EyeOff size={20} color={authColors.icon} />
+                  : <Eye size={20} color={authColors.icon} />
+                }
+              </Pressable>
+            </View>
+
+            {/* 비밀번호 강도 표시기 */}
+            {password.length > 0 && passwordStrength !== "none" && (
+              <View style={styles.strengthContainer}>
+                <View style={styles.strengthBarBg}>
+                  <View
+                    style={[
+                      styles.strengthBarFill,
+                      {
+                        width: strengthConfig[passwordStrength].width,
+                        backgroundColor: strengthConfig[passwordStrength].color,
+                      },
+                    ]}
+                  />
+                </View>
+                <Text
+                  style={[
+                    styles.strengthLabel,
+                    { color: strengthConfig[passwordStrength].color },
+                  ]}
+                >
+                  {strengthConfig[passwordStrength].label}
+                </Text>
+              </View>
+            )}
+            {password.length > 0 && !isStrongPassword(password) && (
+              <Text style={authText.error}>
+                8자 이상, 대문자·소문자·숫자·특수문자를 모두 포함해야 해요
+              </Text>
+            )}
+          </View>
+
+          {/* 비밀번호 확인 */}
+          <View>
+            <Text style={styles.label}>비밀번호 확인</Text>
             <TextInput
-              style={[styles.input, { flex: 1, marginBottom: 0 }]}
-              value={password}
-              onChangeText={setPassword}
-              placeholder="8자 이상, 대/소문자·숫자·특수문자"
-              placeholderTextColor={colors.paper.inkFaint}
+              style={[
+                authField.input,
+                confirmPassword.length > 0 && password !== confirmPassword && authField.inputError,
+              ]}
+              value={confirmPassword}
+              onChangeText={setConfirmPassword}
+              placeholder="비밀번호를 다시 입력"
+              placeholderTextColor={authColors.placeholder}
               secureTextEntry={!showPassword}
               autoCapitalize="none"
             />
-            <Pressable
-              style={styles.eyeBtn}
-              onPress={() => setShowPassword(!showPassword)}
-            >
-              {showPassword
-                ? <EyeOff size={20} color={colors.textTertiary} />
-                : <Eye size={20} color={colors.textTertiary} />
-              }
-            </Pressable>
+            {confirmPassword.length > 0 && password !== confirmPassword && (
+              <Text style={authText.error}>비밀번호가 일치하지 않습니다</Text>
+            )}
           </View>
 
-          {/* 비밀번호 강도 표시기 */}
-          {password.length > 0 && passwordStrength !== "none" && (
-            <View style={styles.strengthContainer}>
-              <View style={styles.strengthBarBg}>
-                <View
-                  style={[
-                    styles.strengthBarFill,
-                    {
-                      width: strengthConfig[passwordStrength].width,
-                      backgroundColor: strengthConfig[passwordStrength].color,
-                    },
-                  ]}
-                />
-              </View>
-              <Text
-                style={[
-                  styles.strengthLabel,
-                  { color: strengthConfig[passwordStrength].color },
-                ]}
-              >
-                {strengthConfig[passwordStrength].label}
-              </Text>
-            </View>
-          )}
-          {password.length > 0 && !isStrongPassword(password) && (
-            <Text style={styles.errorText}>
-              8자 이상, 대문자·소문자·숫자·특수문자를 모두 포함해야 해요
-            </Text>
-          )}
-
-          {/* 비밀번호 확인 */}
-          <Text style={styles.label}>비밀번호 확인</Text>
-          <TextInput
-            style={[
-              styles.input,
-              confirmPassword.length > 0 && password !== confirmPassword && styles.inputError,
-            ]}
-            value={confirmPassword}
-            onChangeText={setConfirmPassword}
-            placeholder="비밀번호를 다시 입력"
-            placeholderTextColor={colors.paper.inkFaint}
-            secureTextEntry={!showPassword}
-            autoCapitalize="none"
-          />
-          {confirmPassword.length > 0 && password !== confirmPassword && (
-            <Text style={styles.errorText}>비밀번호가 일치하지 않습니다</Text>
-          )}
-
           {/* 약관 동의 */}
-          <View style={styles.agreementSection}>
-            <Pressable style={styles.agreeRow} onPress={toggleAll}>
+          <View style={authAgreement.section}>
+            <Pressable style={authAgreement.row} onPress={toggleAll}>
               {agreeAll
-                ? <CheckCircle2 size={24} color={colors.rose[500]} />
-                : <Circle size={24} color={colors.textTertiary} />
+                ? <CheckCircle2 size={24} color={authColors.checked} />
+                : <Circle size={24} color={authColors.unchecked} />
               }
-              <Text style={styles.agreeAllText}>전체 동의</Text>
+              <Text style={authAgreement.allText}>전체 동의</Text>
               <Pressable
                 onPress={toggleAgreementSection}
                 hitSlop={8}
@@ -332,50 +357,50 @@ export default function SignupScreen() {
                 accessibilityState={{ expanded: showAgreements }}
               >
                 {showAgreements
-                  ? <ChevronUp size={20} color={colors.textTertiary} />
-                  : <ChevronDown size={20} color={colors.textTertiary} />
+                  ? <ChevronUp size={20} color={authColors.icon} />
+                  : <ChevronDown size={20} color={authColors.icon} />
                 }
               </Pressable>
             </Pressable>
 
             {showAgreements && (
               <>
-                <View style={styles.divider} />
+                <View style={authAgreement.divider} />
 
                 {/* 이용약관 (필수) */}
-                <View style={styles.agreeRow}>
+                <View style={authAgreement.row}>
                   <Pressable onPress={() => updateAgreements(!agreeTerms, agreePrivacy, agreeAge14, agreeMarketing)}>
                     {agreeTerms
-                      ? <CheckCircle2 size={20} color={colors.rose[500]} />
-                      : <Circle size={20} color={colors.textTertiary} />
+                      ? <CheckCircle2 size={20} color={authColors.checked} />
+                      : <Circle size={20} color={authColors.unchecked} />
                     }
                   </Pressable>
-                  <Text style={styles.agreeText}>
-                    <Text style={styles.agreeRequired}>[필수]</Text> 이용약관 동의
+                  <Text style={authAgreement.text}>
+                    <Text style={authAgreement.required}>[필수]</Text> 이용약관 동의
                   </Text>
                   <Pressable onPress={() => Linking.openURL(`${SITE}/terms`)}>
-                    <Text style={styles.agreeLink}>보기</Text>
+                    <Text style={authAgreement.link}>보기</Text>
                   </Pressable>
                 </View>
 
                 {/* 개인정보 처리방침 (필수) */}
-                <View style={styles.agreeRow}>
+                <View style={authAgreement.row}>
                   <Pressable onPress={() => updateAgreements(agreeTerms, !agreePrivacy, agreeAge14, agreeMarketing)}>
                     {agreePrivacy
-                      ? <CheckCircle2 size={20} color={colors.rose[500]} />
-                      : <Circle size={20} color={colors.textTertiary} />
+                      ? <CheckCircle2 size={20} color={authColors.checked} />
+                      : <Circle size={20} color={authColors.unchecked} />
                     }
                   </Pressable>
-                  <Text style={styles.agreeText}>
-                    <Text style={styles.agreeRequired}>[필수]</Text> 개인정보 처리방침 동의
+                  <Text style={authAgreement.text}>
+                    <Text style={authAgreement.required}>[필수]</Text> 개인정보 처리방침 동의
                   </Text>
                   <Pressable onPress={() => Linking.openURL(`${SITE}/privacy`)}>
-                    <Text style={styles.agreeLink}>보기</Text>
+                    <Text style={authAgreement.link}>보기</Text>
                   </Pressable>
                 </View>
 
                 {/* 만 14세 이상 (필수) */}
-                <View style={styles.agreeRow}>
+                <View style={authAgreement.row}>
                   <Pressable
                     onPress={() =>
                       updateAgreements(agreeTerms, agreePrivacy, !agreeAge14, agreeMarketing)
@@ -385,25 +410,25 @@ export default function SignupScreen() {
                     accessibilityLabel="필수 만 14세 이상입니다"
                   >
                     {agreeAge14
-                      ? <CheckCircle2 size={20} color={colors.rose[500]} />
-                      : <Circle size={20} color={colors.textTertiary} />
+                      ? <CheckCircle2 size={20} color={authColors.checked} />
+                      : <Circle size={20} color={authColors.unchecked} />
                     }
                   </Pressable>
-                  <Text style={styles.agreeText}>
-                    <Text style={styles.agreeRequired}>[필수]</Text> 만 14세 이상입니다
+                  <Text style={authAgreement.text}>
+                    <Text style={authAgreement.required}>[필수]</Text> 만 14세 이상입니다
                   </Text>
                 </View>
 
                 {/* 마케팅 수신 (선택) */}
-                <View style={styles.agreeRow}>
+                <View style={authAgreement.row}>
                   <Pressable onPress={() => updateAgreements(agreeTerms, agreePrivacy, agreeAge14, !agreeMarketing)}>
                     {agreeMarketing
-                      ? <CheckCircle2 size={20} color={colors.rose[500]} />
-                      : <Circle size={20} color={colors.textTertiary} />
+                      ? <CheckCircle2 size={20} color={authColors.checked} />
+                      : <Circle size={20} color={authColors.unchecked} />
                     }
                   </Pressable>
-                  <Text style={styles.agreeText}>
-                    <Text style={styles.agreeOptional}>[선택]</Text> 마케팅 정보 수신 동의
+                  <Text style={authAgreement.text}>
+                    <Text style={authAgreement.optional}>[선택]</Text> 마케팅 정보 수신 동의
                   </Text>
                 </View>
               </>
@@ -412,24 +437,25 @@ export default function SignupScreen() {
 
           {/* 가입 버튼 */}
           <Pressable
-            style={[styles.submitBtn, !canSubmit && styles.submitBtnDisabled]}
+            style={[authField.primary, !canSubmit && styles.submitBtnDisabled]}
             onPress={handleSignup}
             disabled={!canSubmit || loading || turnstileVisible}
             accessibilityRole="button"
             accessibilityLabel="가입하기"
           >
             {loading
-              ? <ActivityIndicator color="#FFF" />
-              : <Text style={styles.submitText}>가입하기</Text>
+              ? <ActivityIndicator color={authColors.white} />
+              : <Text style={authField.primaryText}>가입하기</Text>
             }
           </Pressable>
 
           {/* 로그인으로 */}
           <Pressable onPress={() => router.back()} style={styles.loginLink}>
-            <Text style={styles.loginLinkText}>
-              이미 계정이 있으신가요? <Text style={{ color: colors.rose[700] }}>로그인</Text>
+            <Text style={authText.link}>
+              이미 계정이 있으신가요? <Text style={authText.linkStrong}>로그인</Text>
             </Text>
           </Pressable>
+          </InvitationAuthCard>
         </ScrollView>
         </DismissKeyboard>
       </KeyboardAvoidingView>
@@ -444,60 +470,26 @@ export default function SignupScreen() {
         }}
       />
     </SafeAreaView>
+    </InvitationAuthBackground>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.bg },
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 20,
-    paddingVertical: 14,
-  },
-  headerTitle: {
-    fontSize: 18,
-    fontFamily: "NotoSansKR_600SemiBold",
-    color: colors.noir[800],
-  },
-  content: { paddingHorizontal: 24, paddingBottom: 40 },
-  title: {
-    fontSize: 26,
-    fontFamily: "NotoSerifKR_500Medium",
-    color: colors.noir[800],
-    lineHeight: 36,
-    marginBottom: 28,
-  },
+  container: { flex: 1 },
+  header: { paddingHorizontal: 12, paddingTop: 4 },
+  content: { flexGrow: 1, paddingHorizontal: 12, paddingBottom: 12 },
+  spacer: { flexGrow: 1, minHeight: 16 },
 
   label: {
-    fontSize: 14,
-    fontFamily: "NotoSansKR_600SemiBold",
-    color: colors.noir[800],
+    ...typo.sansMedium,
+    fontSize: 13,
+    lineHeight: 18,
+    color: palette.body,
     marginBottom: 8,
-    marginTop: 16,
-  },
-  input: {
-    padding: 14,
-    borderRadius: 14,
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
-    fontSize: 15,
-    fontFamily: "NotoSansKR_400Regular",
-    color: colors.noir[800],
-    marginBottom: 4,
-  },
-  inputError: { borderColor: colors.danger },
-  errorText: {
-    fontSize: 12,
-    fontFamily: "NotoSansKR_400Regular",
-    color: colors.dangerDeep,
-    marginTop: 4,
-    marginLeft: 4,
+    marginLeft: 6,
   },
 
-  passwordRow: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 4 },
+  passwordRow: { flexDirection: "row", alignItems: "center", gap: 8 },
   eyeBtn: { padding: 10 },
 
   // 비밀번호 강도 표시기
@@ -505,15 +497,14 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 10,
-    marginTop: 8,
-    marginBottom: 4,
-    paddingHorizontal: 4,
+    marginTop: 10,
+    paddingHorizontal: 6,
   },
   strengthBarBg: {
     flex: 1,
     height: 4,
     borderRadius: 2,
-    backgroundColor: colors.ivory[200],
+    backgroundColor: palette.chipLine,
     overflow: "hidden",
   },
   strengthBarFill: {
@@ -521,75 +512,14 @@ const styles = StyleSheet.create({
     borderRadius: 2,
   },
   strengthLabel: {
+    ...typo.sansMedium,
     fontSize: 12,
-    fontFamily: "NotoSansKR_500Medium",
     minWidth: 28,
   },
 
-  // 약관
-  agreementSection: {
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 20,
-    padding: 16,
-    marginTop: 24,
-    gap: 14,
-    shadowColor: colors.paper.ink,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.04,
-    shadowRadius: 12,
-    elevation: 1,
-  },
-  agreeRow: { flexDirection: "row", alignItems: "center", gap: 10 },
-  agreeAllText: {
-    fontSize: 16,
-    fontFamily: "NotoSansKR_600SemiBold",
-    color: colors.noir[800],
-    flex: 1,
-  },
   chevronBtn: { padding: 4 },
-  agreeText: {
-    fontSize: 14,
-    fontFamily: "NotoSansKR_400Regular",
-    color: colors.noir[800],
-    flex: 1,
-  },
-  agreeRequired: { color: colors.rose[700], fontFamily: "NotoSansKR_600SemiBold" },
-  agreeOptional: { color: colors.paper.inkFaint, fontFamily: "NotoSansKR_600SemiBold" },
-  agreeLink: {
-    fontSize: 13,
-    fontFamily: "NotoSansKR_400Regular",
-    color: colors.paper.inkFaint,
-    textDecorationLine: "underline",
-  },
-  divider: { height: 1, backgroundColor: colors.border },
 
-  // 버튼
-  submitBtn: {
-    height: 56,
-    borderRadius: 16,
-    backgroundColor: colors.noir[800],
-    alignItems: "center",
-    justifyContent: "center",
-    marginTop: 24,
-    shadowColor: colors.paper.ink,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.08,
-    shadowRadius: 12,
-    elevation: 3,
-  },
   submitBtnDisabled: { opacity: 0.4 },
-  submitText: {
-    fontSize: 16,
-    fontFamily: "NotoSansKR_600SemiBold",
-    color: "#FFF",
-  },
 
-  loginLink: { alignItems: "center", marginTop: 16, paddingVertical: 8 },
-  loginLinkText: {
-    fontSize: 14,
-    fontFamily: "NotoSansKR_400Regular",
-    color: colors.textSecondary,
-  },
+  loginLink: { alignItems: "center", paddingVertical: 8 },
 });

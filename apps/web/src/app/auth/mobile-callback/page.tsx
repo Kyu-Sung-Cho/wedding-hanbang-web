@@ -11,13 +11,7 @@
 import { useEffect, useState } from "react";
 import { buildMobileOAuthAppCallbackUrl } from "@hanbang/shared/utils";
 
-const palette = {
-  bg: "#FBF8F2",
-  ink: "#36534E",
-  text: "#263832",
-  muted: "#5F5B52",
-  champagne: "#E2D3C8",
-};
+import InvitationAuthShell from "@/components/auth/InvitationAuthShell";
 
 export default function MobileCallbackPage() {
   const [status, setStatus] = useState("앱으로 돌아가는 중...");
@@ -63,37 +57,13 @@ export default function MobileCallbackPage() {
     };
   }, []);
 
+  // 2026-11-20 파운더 "로그인 페이지도 다 바꿔야": 로그인과 같은 틀(시작 화면 모양)에 상태 문장만 둔다.
+  // 위의 코드 넘기기는 그대로다. "웨딩한방" 글자는 틀의 amora 가 대신한다.
   return (
-    <div style={{
-      display: "flex",
-      flexDirection: "column",
-      alignItems: "center",
-      justifyContent: "center",
-      minHeight: "100vh",
-      background: palette.bg,
-      fontFamily: "'Pretendard Variable', 'Pretendard', -apple-system, BlinkMacSystemFont, system-ui, 'Segoe UI', Roboto, 'Apple SD Gothic Neo', 'Noto Sans KR', 'Malgun Gothic', 'Apple Color Emoji', 'Segoe UI Emoji', sans-serif",
-      padding: "20px",
-    }}>
-      <div style={{
-        width: 64,
-        height: 64,
-        borderRadius: 20,
-        background: palette.ink,
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        marginBottom: 24,
-        color: palette.champagne,
-        fontSize: 28,
-      }}>
-        ✦
-      </div>
-      <p style={{ color: palette.text, fontSize: 16, fontWeight: 500, marginBottom: 8 }}>
-        웨딩한방
-      </p>
-      <p style={{ color: palette.muted, fontSize: 14 }}>
+    <InvitationAuthShell labelledBy="callback-status">
+      <p id="callback-status" role="status" className="m-0 text-center text-[15px] leading-[1.7] text-inv-body">
         {status}
       </p>
-    </div>
+    </InvitationAuthShell>
   );
 }
