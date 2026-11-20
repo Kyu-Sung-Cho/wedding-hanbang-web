@@ -79,9 +79,16 @@ export const AMORA_GATE_MODERATION_RISK_CATEGORIES = [
 export const AMORA_GATE_MODERATION_OVERRIDE_THRESHOLD = 0.7;
 export const AMORA_GATE_MODERATION_FALLBACK_THRESHOLD = 0.5;
 
-/** 한 턴에 더하는 지연의 상한. 넘으면 그 판정은 없던 것으로 하고 오늘의 길로 간다. */
-export const AMORA_GATE_MODERATION_TIMEOUT_MS = 1_200;
-export const AMORA_GATE_JUDGE_TIMEOUT_MS = 1_800;
+/**
+ * 한 턴에 더하는 지연의 상한. 넘으면 그 판정은 없던 것으로 하고 오늘의 길로 간다.
+ *
+ * 2026-11-20 실측: 판정 모델(토큰 세기 + 생성)은 p50 1.95초·p95 3.5초(841회). 실제 라우트에서
+ * 상한을 1.8초로 두었더니 20턴 중 10턴이 시간 초과로 판정 없이 지나갔다. 켜도 절반은 막지 못하는
+ * 문이라 상한을 p95 근처로 올렸다. 안전 판정은 판정 모델과 동시에 돌므로 상한을 넉넉히 둬도
+ * 기다림이 늘지 않는다. 숫자는 파운더가 정할 것(PR 설명).
+ */
+export const AMORA_GATE_MODERATION_TIMEOUT_MS = 2_500;
+export const AMORA_GATE_JUDGE_TIMEOUT_MS = 3_500;
 
 /** 판정 모델로 보내는 글의 길이 상한(앞 1,500자 + 뒤 500자). 긴 글 끝의 위험도 본다. */
 export const AMORA_GATE_JUDGE_TEXT_HEAD_CHARS = 1_500;
