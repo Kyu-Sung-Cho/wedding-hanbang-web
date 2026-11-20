@@ -26,6 +26,7 @@ import {
 } from "lucide-react";
 import QuoteAnalysisCard from "./QuoteAnalysisCard";
 import ProtectionToolCard, { PROTECTION_TOOL_NAMES } from "./ProtectionToolCard";
+import { WebLookupPageCardView, WebLookupSearchCardView } from "./WebLookupCard";
 
 // 업체 관련 tool 이름 집합
 export const VENDOR_TOOL_NAMES = new Set([
@@ -38,6 +39,9 @@ export const VENDOR_TOOL_NAMES = new Set([
   "cancel_booking",
   "search_nearby_places",
   "analyze_quote",
+  // 찾아보기(2026-11-20 D-85). 카드는 `WebLookupCard.tsx`.
+  "search_web",
+  "read_page",
   ...PROTECTION_TOOL_NAMES,
 ]);
 
@@ -69,6 +73,10 @@ export default function VendorToolCard({ result, onSend, disabled }: VendorToolC
       return <BookingCancelCard result={result} />;
     case "search_nearby_places":
       return <PlaceCards result={result} />;
+    case "search_web":
+      return <WebLookupSearchCardView result={result} />;
+    case "read_page":
+      return <WebLookupPageCardView result={result} />;
     case "analyze_quote":
       return <QuoteAnalysisCard result={result} onSend={onSend} disabled={disabled} />;
     case "simulate_guest_guarantee":

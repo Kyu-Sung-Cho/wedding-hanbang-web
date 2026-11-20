@@ -13,6 +13,12 @@ import {
 import { getSpecialistPromptAddon } from "@/lib/ai/stage-router";
 import { WEDDING_TOOLS } from "@/lib/ai/tools";
 import { MUTATING_TOOL_NAMES } from "@/lib/ai/mutationTools";
+import { AMORA_WEB_LOOKUP_TOOL_NAMES, SEARCH_WEB_TOOL_NAME } from "@/lib/ai/webLookup/webLookupNames";
+import {
+  applyWebLookupVendorSection,
+  WEB_LOOKUP_TOOL_INSTRUCTION_LINES,
+  WEB_LOOKUP_WITH_PLACE_SEARCH_LINE,
+} from "@/lib/ai/webLookup/webLookupPrompt";
 import {
   buildAmoraQuestionScopeInstruction,
   type AmoraQuestionScopeClassification,
@@ -80,7 +86,9 @@ const AMORA_PLANNING_FOLLOWUP_RULE = `[이번 턴: 방향 변경 이유에 대�
 - 이유 답변을 공동 합의나 예산·일정의 저장 완료로 표현하지 마세요. 이 지침은 읽고 답할 과업이며 실행 권한이 아닙니다.`;
 const AMORA_ATTRIBUTION_EVIDENCE_RULE = "- 현재 부탁·직전 맥락에서 경청·안전·이유 거부가 우선입니다. 큰 전환 이유 답변·요청된 비교는 이어가고 명시 실행은 승인 규칙을 따르세요. 의견 전달만이면 발화자의 말·이유·조건으로 짧게 받고 비교·중재·다음 행동은 붙이지 마세요. 인용은 현재 부탁이 아닙니다. 한쪽 조건만으로 상대의 미확인을 반대·차이·쟁점·충돌로 만들지 마세요. 양쪽의 명시적 양립 불가 조건만 의견 차이입니다. 개인 예산 제안≠공동 상한, 확인된 공동 합의는 유지하세요. 감정·의도 단정은 금지, 불확실한 귀속은 확인할 점입니다.";
 
-const KNOWN_TOOL_NAMES = WEDDING_TOOLS.map((tool) => tool.name);
+// 찾아보기 도구는 `WEDDING_TOOLS` 밖에 있다(스위치가 켜진 턴에만 붙는다). 이름은 여기서 알아야
+// 켜진 턴에 계약 줄이 붙고, 꺼진 턴에 그 이름이 든 줄이 빠진다.
+const KNOWN_TOOL_NAMES = [...WEDDING_TOOLS.map((tool) => tool.name), ...AMORA_WEB_LOOKUP_TOOL_NAMES];
 const KNOWN_TOOL_NAME_SET = new Set(KNOWN_TOOL_NAMES);
 const MUTATING_TOOL_NAME_SET = new Set<string>(MUTATING_TOOL_NAMES);
 
@@ -462,6 +470,11 @@ function buildEnabledToolInstructions(
     );
   }
 
+  if (has("search_web", "read_page")) {
+    lines.push(...WEB_LOOKUP_TOOL_INSTRUCTION_LINES);
+    if (enabled.has("search_nearby_places")) lines.push(WEB_LOOKUP_WITH_PLACE_SEARCH_LINE);
+  }
+
   if (enabled.has("analyze_quote")) {
     lines.push(
       "- `analyze_quote`는 먼저 included_items=[]로 체크리스트를 만들고, 사용자가 확인한 항목만 두 번째 분석에 넣으세요. 포함 항목을 추측하지 마세요.",
@@ -634,6 +647,10 @@ function applyEnabledToolContract(
     enabledToolNames.filter((toolName) => KNOWN_TOOL_NAME_SET.has(toolName)),
   );
   let capabilityScopedPrompt = removeLegacyOperationalInstructions(prompt);
+  // 찾아보기가 열린 턴에는 "웨딩 업체를 찾는 도구가 없다" 는 절이 도구와 어긋난다. 본문만 바꾼다.
+  if (enabled.has(SEARCH_WEB_TOOL_NAME)) {
+    capabilityScopedPrompt = applyWebLookupVendorSection(capabilityScopedPrompt);
+  }
   if (enabled.size === 0) {
     capabilityScopedPrompt = capabilityScopedPrompt.replace(
       "이름: 아모라. 한국 결혼 준비 전문 AI. 대화 안에서 도구로 직접 데이터를 수정/조회하는 것이 핵심 역할.",
